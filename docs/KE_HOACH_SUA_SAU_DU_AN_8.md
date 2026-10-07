@@ -22,7 +22,7 @@
 | S9 Dashboard gọn, dễ nhìn | 6 | 6 | 0 | 0 | 0 | 100 % |
 | S2 Timeline theo âm thanh + animatic | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S3 Director kể chuyện + Quay phim | 8 | 7 | 0 | 0 | 1 | 100 % |
-| S4 Video chất lượng | 12 | 11 | 0 | 0 | 0 | 90 % |
+| S4 Video chất lượng | 12 | 11 | 1 | 0 | 0 | 95 % |
 | S5 Bối cảnh theo file 3D Tháp Đồng Hồ | 8 | 8 | 0 | 0 | 0 | 100 % |
 | S6 Ước tính, ngân sách, dashboard | 6 | 5 | 0 | 0 | 1 | 100 % |
 | S7 Agent QC | 3 | 1 | 0 | 0 | 2 | 100 % |
@@ -33,7 +33,7 @@
 | S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 50 | 44 | 2 | 2 | 1 | 91,8 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 0 | 3 | — |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **185** | **151** | **2** | **13** | **14** | **89,3 %** |
+| **Tổng** | **185** | **151** | **3** | **13** | **14** | **89,6 %** |
 
 Đợt hiện tại: **S14** · việc kế: **S14.15** I1 — tài liệu khớp trạng thái cuối + chấm lại toàn bộ bằng AI Dev System
 <!-- /tien-do -->
@@ -115,7 +115,7 @@
 - [x] S4.8 · Prompt Seedance 2.0/Fast theo 'Shot 1 / Shot 2' thay vì mốc giây · nặng:1 · ✅ · 2026-09-29: seedance_refs.prompt(model=) — 2.0/Fast chỉ số shot, 2.5 giây nguyên liên tục; test
 - [x] S4.9 · Prompt theo tài liệu chính thức (vai trò ảnh theo thứ tự xuất hiện, hành động khái quát, biểu cảm dịu + chặn mắt phát sáng, ảnh tham chiếu ≤ 1280 px) · nặng:1 · ✅ · 2026-09-29: seedance_refs (soften, busy_shots ⚠, REF_MAX_SIDE), knowledge/seedance_prompting.md; 1345 test qua; chưa chạy thật (cần lần sinh video kế)
 - [x] S4.10 · A/B Seedance 2.5 (720P) vs Fast: cận, chạy, thoại có tham chiếu âm thanh tiếng Việt · nặng:2 · ✅ · 01/10 nhánh A2 (3 clip 4 s, 2,32 USD gồm S4.7): Fast KHÔNG dùng cho shot thoại thấy mặt (miệng mấp máy cả lúc im); 2.5 + âm thanh tham chiếu một mình trễ 1,33 s; 2.5 + mốc giây (khối S4.2) 0,39, trễ 0,62 s, ngậm khi hết câu — chưa đạt 0,65; hướng tiếp: mốc 0,1 s / dời giọng theo miệng đo được ở khâu dựng (miễn phí) · trước đó: người dùng 30/09 duyệt làm (tốn tiền: ước tính + trần riêng trước khi gửi) · chờ người dùng duyệt (~3–4 USD)
-- [ ] S4.11 · Khôi phục bản mẫu Seedance 2.5 → bản cuối 1080p, so A+/B shot 6 Kelly dự án #22 · nặng:2 · ⚙ · Code ✅ d264b23: đỏ→xanh 3 adapter + 7 phép so, nhóm 44 qua; cả bộ Windows 2808 qua, 4 bỏ qua, 66 subtest qua (14 phút 29 giây); đã pull máy chính, restart 8501/8502, health cả hai 200 ok; rà hai lượt docs/RA_KLD_QUALITY_CODEX_2026-10-07.md. Còn nghiệm thu API: chưa gen A+/B vì quyền browser đã lưu chặn Dashboard; không tự bật cờ.  người dùng 07/10 DUYỆT khôi phục B sau khi phát hiện S14.9 đã gỡ luồng; giữ mẫu riêng, không tự thay bản v2; thử A+: 720p + Real-ESRGAN 2K, B: draft 480p + final 1080p; người dùng chọn trước khi gen cả phim. Lịch sử 01/10: mẫu 0,42 USD, final chưa chạy thật (≈ 2,08 USD/4 s), docs/KET_QUA_S4_11_S4_12_2026-10-01.md.
+- [ ] S4.11 · Khôi phục bản mẫu Seedance 2.5 → bản cuối 1080p, so A+/B shot 6 Kelly dự án #22 · nặng:2 · 🔄 · Code ✅ d264b23: đỏ→xanh 3 adapter + 7 phép so, nhóm 44 qua; cả bộ Windows 2808 qua, 4 bỏ qua, 66 subtest qua (14 phút 29 giây); đã pull máy chính, restart 8501/8502, health cả hai 200 ok; rà hai lượt docs/RA_KLD_QUALITY_CODEX_2026-10-07.md. Còn nghiệm thu API: chưa gen A+/B vì quyền browser đã lưu chặn Dashboard; không tự bật cờ.  người dùng 07/10 DUYỆT khôi phục B sau khi phát hiện S14.9 đã gỡ luồng; giữ mẫu riêng, không tự thay bản v2; thử A+: 720p + Real-ESRGAN 2K, B: draft 480p + final 1080p; người dùng chọn trước khi gen cả phim. Lịch sử 01/10: mẫu 0,42 USD, final chưa chạy thật (≈ 2,08 USD/4 s), docs/KET_QUA_S4_11_S4_12_2026-10-01.md.
 - [x] S4.12 · Advanced Edit: sửa clip lỗi (cận Kelly #8) thay vì sinh lại — kiểm API, thử 1 clip · nặng:1 · ✅ · 01/10 nhánh B: API CÓ (Seedance 2.5 `omni_reference_task_type: edit`), thử 1 lần 0,47 USD — clip ra mất điểm cắt, mặt gần như không đổi → KHÔNG đưa vào luồng; cờ `seedance_video_edit` TẮT; chỉ thử lại với clip nguồn 1 shot ≥ 4 s không điểm cắt · trước đó: người dùng 30/09 duyệt làm (tốn tiền: ước tính + trần riêng trước khi gửi) · chờ người dùng duyệt (docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md, ~0,5 USD)
 
 ### S5 — Bối cảnh theo file 3D Tháp Đồng Hồ
