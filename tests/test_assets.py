@@ -844,5 +844,13 @@ class OutfitKindTests(unittest.TestCase):
         self.assertTrue(rep["outfit_set"])
 
 
+    def test_an_outfit_named_by_a_shot_without_people_is_sent_as_the_garments(self):
+        """07/10 Khủng Long Đỏ shot 2 (the costume on the bed, nobody in frame): the dinosaur print was invented — the outfit picture
+        was only sent with a person wearing it."""
+        assets.add_outfit_images(self.conn, self.pid, "FF", "Khủng Long Đỏ nam", [("a.png", PNG)], shared=False)
+        refs = assets.scene_references(self.conn, self.pid, {"text": "Cận bộ đồ Khủng Long Đỏ nam xếp gọn trên giường", "characters": []})
+        self.assertEqual([(r["label"], r["role"]) for r in refs], [("Khủng Long Đỏ nam", "outfit_object")])
+        self.assertIn("without anyone wearing it", assets.reference_note(refs))
+
 if __name__ == "__main__":
     unittest.main()

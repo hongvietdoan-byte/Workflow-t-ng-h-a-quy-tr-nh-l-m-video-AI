@@ -1393,18 +1393,24 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     # every other chosen resource (weapon, prop, pet, place) that the scene names is a reference too
     blob = " " + fold(" ".join(str(scene.get(k) or "") for k in ("text", "image_prompt", "location"))) + " "
     cast = {fold(n) for n in names}
+    people_names = {fold(r["name"]) for r in conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,))} | {
+        fold(n) for x in chosen if x["kind"] == "character" for n in names_of(x)}
     for a in chosen:
         if len(refs) >= limit:
             break
-        if a["kind"] not in ("weapon", "prop", "pet", "location") or not a["images"] or any(r["label"] == a["name"] for r in refs):
+        if a["kind"] not in ("weapon", "prop", "pet", "location", "outfit") or not a["images"] or any(r["label"] == a["name"] for r in refs):
             continue
+        if a["kind"] == "outfit" and (any(r["path"] == im["path"] for r in refs for im in a["images"])
+                                      or fold(a["name"]) in people_names):
+            continue          # already sent as the outfit a person in the shot wears / named like a person (S14.28: "Kelly" bơi)
         if place is not None and a["id"] == place["id"]:
             continue                                          # the scene's own place: already decided above (plate or words)
         keys = [fold(n) for n in names_of(a) if len(fold(n)) >= 3 and fold(n) not in cast]
         if any(" " + k + " " in blob for k in keys):
             pic = location_plate(conn, a, scene) if a["kind"] == "location" else best_reference(a)
             if pic is not None:
-                refs.append({"path": pic["path"], "label": a["name"], "role": "location" if a["kind"] == "location" else "object"})
+                refs.append({"path": pic["path"], "label": a["name"],     # 07/10: an outfit named by a shot with nobody wearing it
+                             "role": {"location": "location", "outfit": "outfit_object"}.get(a["kind"], "object")})   # (on the bed)
     return refs
 
 
@@ -1451,6 +1457,9 @@ def reference_note(refs: List[Dict]) -> str:
             bits.append(f"{tag} {'shows' if len(nums) == 1 else 'show'} the OUTFIT {g['label']} wears in this video: dress {g['label']} "
                         "exactly in these clothes (garments, colours, accessories); take only the face, hair and body build from "
                         f"{g['label']}'s own reference image, never the clothes shown there")
+        elif g["role"] == "outfit_object":
+            bits.append(f"{tag} is the outfit {g['label']} shown in this shot without anyone wearing it: draw exactly these garments — "
+                        "every print and its drawing, colours, cap, mask and shoes — only laid out as the scene text says")
         elif g["role"] == "object":
             bits.append(f"{tag} is the object {g['label']}: draw it exactly like this whenever it appears")
         elif g["role"] == "sheet":
