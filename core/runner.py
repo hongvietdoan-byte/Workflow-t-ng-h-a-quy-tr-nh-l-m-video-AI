@@ -913,11 +913,11 @@ class VideoRunner(_Runner):
         row = self.p.conn.execute("SELECT idx, data FROM scenes WHERE id=?", (scene_id,)).fetchone()
         if row is None or not json.loads(row["data"] or "{}").get("start_from_prev_clip"):
             return None
-        prev = self.p.conn.execute("SELECT j.id, j.result_path FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE s.project_id=? "
-                                   "AND s.idx<? AND j.type='video_gen' AND j.state='approved' AND s.idx=(SELECT MAX(idx) FROM scenes "
-                                   "WHERE project_id=? AND idx<?) ORDER BY j.id DESC LIMIT 1",
-                                   (project_id, row["idx"], project_id, row["idx"])).fetchone()
-        if prev is None or not prev["result_path"] or not os.path.exists(prev["result_path"]):
+        prev = self.p.conn.execute("SELECT j.id, j.state, j.result_path FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE s.project_id=? "
+                                   "AND j.type='video_gen' AND s.idx=(SELECT MAX(idx) FROM scenes WHERE project_id=? AND idx<?) "
+                                   "ORDER BY j.id DESC LIMIT 1", (project_id, project_id, row["idx"])).fetchone()
+        if (prev is None or prev["state"] != "approved"      # the LATEST take of the previous shot: an older approved clip being
+                or not prev["result_path"] or not os.path.exists(prev["result_path"])):   # remade must not be chained (07/10)
             return None
         out = os.path.join(self._dir(project_id, "chain"), f"scene_{scene_id}_from_job_{prev['id']}.png")
         if not os.path.exists(out):

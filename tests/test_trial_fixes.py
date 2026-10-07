@@ -705,6 +705,8 @@ class ChainFromPreviousClipTests(Base):
         self.assertTrue(frame.endswith(f"scene_{second}_from_job_{j1}.png") and os.path.exists(frame))
         from PIL import Image
         self.assertGreater(Image.open(frame).convert("RGB").getpixel((32, 32))[0], 200)   # the red last frame
+        self.p.create_job(self.sid, "video_gen")                                   # the previous shot is being remade
+        self.assertTrue(vr._wait(job2))                                          # → wait for the new take, never chain the old one
 
 
 if __name__ == "__main__":
