@@ -907,6 +907,8 @@ def global_bar(p: Pipeline):
             put_away = len(archive.archived_projects(p.conn, C.access_user()))
             st.info("Chưa có dự án. Bấm “➕ Dự án mới” để bắt đầu."
                     + (f" ({put_away} dự án đã cất — mở ⚙ → “📦 Dự án đã cất” để khôi phục.)" if put_away else ""))
+            from dashboard.chat_start import start_box
+            start_box(p)                                        # cờ chat_first: bắt đầu bằng một tin chat
             return None
         ids = [r["id"] for r in projects]
         default_pid = current_pid(p)
@@ -964,6 +966,8 @@ def _global_bar_v2(p: Pipeline, projects):
             put_away = len(archive.archived_projects(p.conn, C.access_user()))
             st.info("Chưa có dự án. Bấm “➕ Dự án mới” để bắt đầu."
                     + (f" ({put_away} dự án đã cất — mở ⚙ → “📦 Dự án đã cất” để khôi phục.)" if put_away else ""))
+            from dashboard.chat_start import start_box
+            start_box(p)                                        # cờ chat_first: bắt đầu bằng một tin chat
             return None
         ids = [r["id"] for r in projects]
         default_pid = current_pid(p)

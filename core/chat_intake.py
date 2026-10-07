@@ -248,3 +248,17 @@ def apply(p, data_dir: str, pid: int, iid: str, role: str, name: Optional[str] =
         msg = f"Đã tách tiếng từ “{it['file']}” làm **{'nhạc nền' if to_main else 'nhạc đoạn 2'}**"
     drop(data_dir, pid, iid)
     return msg
+
+
+def retry_waiting(p, data_dir: str, pid: int) -> List[str]:
+    """Đợt 2: a motion video that waited because its scene had no motion prompt yet is attached as soon as the scene has one (the scene was
+    named when it was dropped). Others keep waiting. → the lines to say in the chat."""
+    said = []
+    for it in pending(data_dir, pid):
+        if it.get("role") != "motion_ref" or not it.get("scene"):
+            continue
+        ready = p.conn.execute("SELECT 1 FROM scenes s JOIN motion_prompts m ON m.scene_id=s.id WHERE s.project_id=? AND s.idx=?",
+                               (pid, int(it["scene"]))).fetchone()
+        if ready:
+            said.append(apply(p, data_dir, pid, it["id"], "motion_ref", scene=it["scene"]))
+    return said

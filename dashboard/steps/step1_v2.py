@@ -108,7 +108,7 @@ def next_kind(p: Pipeline, pid: int, scenes, chars, locked: bool, budget_locked:
     return "next" if locked else "lock"
 
 
-def _hero(p: Pipeline, pid: int, proj, scenes, chars, locked: bool, stale: int) -> None:
+def _hero(p: Pipeline, pid: int, proj, scenes, chars, locked: bool, stale: int, cta: bool = True) -> None:
     from dashboard.steps.step1 import _count_label, _lock_and_go
     b_on, b_locked, b_total, b_spent = _budget_state(p, pid)
     kind = next_kind(p, pid, scenes, chars, locked, b_locked, b_on)
@@ -124,6 +124,11 @@ def _hero(p: Pipeline, pid: int, proj, scenes, chars, locked: bool, stale: int) 
         with a:
             st.html(D.hero_html(proj["name"] or "Dự án", "Kịch bản & đạo diễn · tách cảnh → chuẩn bị → Director → nhân vật → thoại → khóa", pills))
             # the "Việc tiếp theo" band is drawn once by the shell header in v2 (integrator, lane B) — not repeated here
+        if not cta:                                                 # cờ chat_first: nút chính nằm trong luồng chat (step1_intake.guide_bubble)
+            with b:
+                if b_total:
+                    st.html(D.meter(b_spent / b_total, f"Ngân sách: đã chi {b_spent:.2f} / {b_total:.2f} USD", invert=True))
+            return
         with b, D.cta_box("script"):
             _primary_action(p, pid, kind, scenes, chars, b_total, b_spent, _lock_and_go)
 
@@ -208,13 +213,13 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
     nxt = next_panel(p, pid, scenes, chars, locked)                     # the one panel of card ② drawn open (everything else: one line)
     st.session_state["_script_next"] = nxt
     sync_folds(pid, nxt)
-    _hero(p, pid, proj, scenes, chars, locked, stale)
+    from core import chat_intake
+    _hero(p, pid, proj, scenes, chars, locked, stale, cta=not chat_intake.enabled())
     inherited = st.session_state.pop("inherited_note", None)            # S3.8: said once, right after the project was made
     if inherited:
         say("info", "↪ " + inherited + " — đổi ở màn Kịch bản · Định dạng nếu dự án này khác.", f"script-inherited-{pid}",
              "Dự án này kế thừa thiết lập từ dự án trước")
 
-    from core import chat_intake
     if chat_intake.enabled():                                           # 07/10 cờ chat_first: khung chat lớn thay phần lớn các thẻ
         return _chat_first(p, pid, proj, scenes, chars, risky, char_names, locked, nxt)
 

@@ -295,6 +295,9 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
         got = st.chat_input("Dán kịch bản, gõ ý tưởng, hỏi Claude, hoặc thả ảnh · video · nhạc · file kịch bản…" if wide else
                             "Dán kịch bản, gõ ý tưởng, trao đổi với Claude hoặc thả file…", key=k["chat"],
                             accept_file="multiple" if wide else True, file_type=list(Intake.ACCEPT if wide else script_reader.SUPPORTED))
+        seed = ss.pop(f"chat_seed_{pid}", None)                       # Đợt 2: tin đầu gõ ở màn ⌂ (chat_start) → như vừa gõ ở đây
+        if not got and seed and wide:
+            got = seed
         media = []
         if got and wide and not isinstance(got, str):
             media = [f for f in (getattr(got, "files", None) or []) if Intake.file_type(f.name) != "script"]
@@ -340,6 +343,8 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
             from dashboard.steps.step1_intake import pending_cards, style_offer
             pending_cards(p, pid)
             style_offer(p, pid)
+            from dashboard.steps.step1_intake import guide_bubble
+            guide_bubble(p, pid)                                       # Đợt 2: Đạo diễn nói việc kế + MỘT nút chính, trong luồng chat
     state = I.get_state(p.conn, pid)
     with body:
         if state.get("inputs"):                                        # the ceiling of this idea (mẫu step1_v2 meter)

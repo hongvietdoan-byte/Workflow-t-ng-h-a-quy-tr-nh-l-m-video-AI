@@ -43,6 +43,11 @@ def _preview(it) -> None:
 
 def pending_cards(p: Pipeline, pid: int) -> None:
     """One ask-back card per waiting file, inside the chat (the ✔ Gắn button puts it where the chosen role says)."""
+    try:
+        for line in I.retry_waiting(p, C.DATA, pid):              # Đợt 2: video động tác chờ motion prompt → tự gắn khi cảnh đã có
+            Chat.append(p, pid, "assistant", "✅ " + line + " (cảnh vừa có motion prompt).")
+    except (*ERRORS, assets.AssetError) as e:
+        st.error(f"Chưa tự gắn được video chờ: {e}")
     items = I.pending(C.DATA, pid)
     if not items:
         return
@@ -113,3 +118,28 @@ def style_offer(p: Pipeline, pid: int) -> None:
                 st.session_state[f"wb_draft_{pid}"] = draft
                 Chat.append(p, pid, "assistant", "Đã soạn nháp World Bible từ ảnh phong cách — mở ⚙ Chi tiết › 🎨 Phong cách để xem và Lưu.")
                 st.rerun()
+
+
+def guide_bubble(p: Pipeline, pid: int) -> None:
+    """Đợt 2: after the analysis, the Đạo diễn says the next thing to do in the chat with the ONE primary button of the moment (the hero
+    of the screen no longer draws it when chat_first is on — same keys, same functions: step1_v2._primary_action)."""
+    from core import chat_flow as F
+    from dashboard.steps import step1_v2 as V
+    from dashboard.steps.step1 import _lock_and_go
+    scenes = p.conn.execute("SELECT idx, title, state, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall()
+    if not scenes:
+        return
+    chars = p.conn.execute("SELECT * FROM characters WHERE project_id=?", (pid,)).fetchall()
+    s = F.state(p, pid)
+    b_on, b_locked, b_total, b_spent = V._budget_state(p, pid)
+    kind = V.next_kind(p, pid, scenes, chars, s["locked"], b_locked, b_on)
+    try:
+        from core import asset_checklist
+        missing = (asset_checklist.get(p, pid) or {}).get("missing") or []
+    except Exception:  # noqa: BLE001 - a hint only; the checklist panel says its own errors
+        missing = []
+    with st.chat_message("assistant"):
+        line = F.guide(kind, s, missing, len(I.pending(C.DATA, pid)))
+        if line:
+            st.markdown(line)
+        V._primary_action(p, pid, kind, scenes, chars, b_total, b_spent, _lock_and_go)
