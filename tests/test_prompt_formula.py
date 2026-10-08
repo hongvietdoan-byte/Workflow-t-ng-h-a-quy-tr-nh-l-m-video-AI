@@ -93,6 +93,11 @@ class ImageChecks(unittest.TestCase):
         self.assertIn("khung_hinh", parts(found, "warn"))
         self.assertIn("khoanh_khac", parts(found, "warn"))
 
+    def test_parts_the_code_adds_are_not_asked_of_the_director(self):           # runner.build_image_prompt adds framing + look
+        found = F.check_image("Kelly leaning over the rim of the well, cold moonlight", {"size": "MS", "characters": ["KELLY"]},
+                              style_by_code=True)
+        self.assertEqual(found, [])
+
     def test_clean_prompt_has_no_false_alarm(self):
         self.assertEqual(F.check_image(P22_CLEAN_IMAGE, {"size": "WS", "characters": ["MAXIM"]}), [])
         self.assertEqual(F.check_motion(P22_CLEAN_MOTION, {"size": "WS", "characters": ["KELLY KL"], "end_state": "holds the pose"}), [])

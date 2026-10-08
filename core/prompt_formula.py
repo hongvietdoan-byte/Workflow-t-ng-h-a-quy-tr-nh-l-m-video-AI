@@ -283,19 +283,21 @@ def _common(prompt: str, data: Dict, chars: Optional[List[Dict]], kind_word: str
     return out
 
 
-def check_image(prompt: str, data: Dict, chars: Optional[List[Dict]] = None) -> List[Dict]:
+def check_image(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, style_by_code: bool = False) -> List[Dict]:
     """Prompt ảnh khung đầu: phần bắt buộc (a), khung ↔ tư thế (b), luật FF (c), vật lao sát người (d), luật người/quái (e),
-    tự mâu thuẫn (f), câu dính (g)."""
+    tự mâu thuẫn (f), câu dính (g). Phần code tự thêm khi dựng prompt (runner.build_image_prompt) không bị đòi trong câu của Đạo diễn:
+    khung hình khi có `size` (framing_sentence), khoảnh khắc khi có `action_peak`/`performance`, phong cách khi `style_by_code` (dự án
+    có look — looks.image_sentence)."""
     prompt, data = prompt or "", data or {}
     kind = shot_kind(data, chars)
     out = []
-    if not _STYLE.search(prompt):
+    if not style_by_code and not _STYLE.search(prompt):
         out.append(_issue("warn", "phong_cach", "Thiếu phong cách: thêm 'Free Fire in-game 3D render, stylized proportions, moderate "
                                                 "texture detail, clear gameplay lighting'."))
-    if not _FRAMING.search(prompt) and not _CLOSE_CS.search(prompt):
+    if not data.get("size") and not _FRAMING.search(prompt) and not _CLOSE_CS.search(prompt):
         out.append(_issue("warn", "khung_hinh", "Thiếu khung hình: ghi cỡ cảnh KÈM giới hạn cơ thể (vd 'medium close-up from mid-chest "
                                                 "up, no legs' / 'wide shot, full bodies with feet visible') + góc máy."))
-    if _names(data) and kind not in ("object", "establishing") and not any(
+    if _names(data) and kind not in ("object", "establishing") and not data.get("action_peak") and not data.get("performance") and not any(
             m.group(0).lower() not in _ING_STOP for m in _MOMENT.finditer(prompt)):
         out.append(_issue("warn", "khoanh_khac", "Thiếu khoảnh khắc khung đầu: tả MỘT trạng thái đúng lúc mở clip (vd 'mid-step, "
                                                  "looking toward the bed off-screen right', 'leaning over the rim')."))
@@ -432,11 +434,11 @@ def growth_check(old: Optional[str], new: Optional[str]) -> List[Dict]:
 
 
 def review_shot(data: Dict, image_prompt: Optional[str], motion_prompt: Optional[str], chars: Optional[List[Dict]] = None,
-                previous: Optional[Dict] = None) -> Dict:
+                previous: Optional[Dict] = None, style_by_code: bool = False) -> Dict:
     """Một shot: {"image", "motion", "growth", "red", "kind"}. previous = {"image": prompt cũ, "motion": prompt cũ} (bản trước của lượt
     Đạo diễn / người sửa) — chỉ kiểm 'trồng thêm' khi có."""
     previous = previous or {}
-    image = check_image(image_prompt, data, chars) if (image_prompt or "").strip() else []
+    image = check_image(image_prompt, data, chars, style_by_code) if (image_prompt or "").strip() else []
     motion = check_motion(motion_prompt, data, chars) if (motion_prompt or "").strip() else []
     growth = [dict(g, kind="image") for g in growth_check(previous.get("image"), image_prompt)]
     growth += [dict(g, kind="motion") for g in growth_check(previous.get("motion"), motion_prompt)]
@@ -459,6 +461,8 @@ def warnings(shots) -> List[str]:
         except Exception as e:  # noqa: BLE001 - a check, never a reason to lose the report
             found = [_issue("warn", "khung_hinh", f"không kiểm được: {type(e).__name__}: {e}")]
         for i in found:
+            if i["part"] == "phong_cach":        # the look sentence is added by code from the project (not known here)
+                continue
             out.append(f"Công thức prompt cảnh {scene} · shot {k}: {'[ĐỎ] ' if i['level'] == 'red' else ''}"
                        f"{PART_LABELS.get(i['part'], i['part'])} — {i['msg']}")
         rows.append({"idx": f"{scene}·{k}", "image_prompt": s.get("image_prompt"), "characters": s.get("characters") or []})
@@ -485,6 +489,14 @@ def _motion_of(conn, scene_id: int) -> Optional[str]:
     except Exception:  # noqa: BLE001 - a database without the table: no motion yet
         return None
     return row["motion_prompt"] if row else None
+
+
+def _style_by_code(conn, project_id: int) -> bool:
+    try:
+        from . import looks
+        return bool(looks.of(conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()))
+    except Exception:  # noqa: BLE001 - unknown: ask for the style in the prompt (a warning, never a block)
+        return False
 
 
 def _chars(conn, project_id: int) -> List[Dict]:
@@ -539,14 +551,15 @@ def after_director(conn, project_id: int, before: Optional[Dict] = None) -> None
     before = before or {}
     try:
         rows = conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
-        chars = _chars(conn, project_id)
+        chars, styled = _chars(conn, project_id), _style_by_code(conn, project_id)
         results, cross_rows = [], []
         for r in rows:
             data = json.loads(r["data"] or "{}")
             image, motion = data.get("image_prompt"), _motion_of(conn, r["id"])
             prev = before.get(_key(data, r["idx"])) or {}
             try:
-                fc = review_shot(data, image, motion, chars, previous={"image": prev.get("image"), "motion": prev.get("motion")})
+                fc = review_shot(data, image, motion, chars, previous={"image": prev.get("image"), "motion": prev.get("motion")},
+                                 style_by_code=styled)
             except Exception as e:  # noqa: BLE001 - one shot's check failing is said, the others still run
                 diag.record(conn, "director", "warn", f"không kiểm được công thức prompt {_label(data, r['idx'])}: {type(e).__name__}: {e}",
                             "prompt_formula", project_id, scene_id=r["id"])
@@ -585,7 +598,8 @@ def on_prompt_saved(conn, scene_id: int, kind: str, old: Optional[str], new: Opt
         data = json.loads(row["data"] or "{}")
         image, motion = data.get("image_prompt"), _motion_of(conn, scene_id)
         old_fc = data.get("formula_check") or {}
-        fc = review_shot(data, image, motion, _chars(conn, project_id), previous={kind: old} if old != new else None)
+        fc = review_shot(data, image, motion, _chars(conn, project_id), previous={kind: old} if old != new else None,
+                         style_by_code=_style_by_code(conn, project_id))
         fc["growth"] = [g for g in old_fc.get("growth") or [] if g.get("kind") != kind] + fc["growth"]
         fc["cross"] = old_fc.get("cross") or []
         fc["red"] = fc["red"] or any(i["level"] == "red" for i in fc["growth"])
@@ -627,7 +641,8 @@ def red_issues(conn, scene_id: int, kind: Optional[str] = None) -> List[str]:
         else:
             if chars is None:
                 chars = _chars(conn, row["project_id"])
-            issues = (check_image if k == "image" else check_motion)(text, data, chars)
+            issues = (check_image(text, data, chars, _style_by_code(conn, row["project_id"])) if k == "image"
+                      else check_motion(text, data, chars))
         word = "Prompt ảnh" if k == "image" else "Prompt motion"
         out += [f"{word} · {PART_LABELS.get(i['part'], i['part'])}: {i['msg']}" for i in issues if i["level"] == "red"]
     return out
