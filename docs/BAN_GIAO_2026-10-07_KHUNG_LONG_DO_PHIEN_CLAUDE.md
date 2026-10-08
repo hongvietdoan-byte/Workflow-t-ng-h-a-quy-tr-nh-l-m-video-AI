@@ -60,3 +60,12 @@ Người dùng sẽ xử lý các luồng thông tin ở tài khoản khác. Tà
 
 ## 7. Tệp xem nhanh (ngoài git, `D:\AI-Video-Output\2026-10-07_du-an-22\kiem_thu_phong_AI\`)
 `A_4khung.png`, `anh_khung_dau_lan3_254_256.png`, `clip_254_seedance25.mp4`, `clip_255_seedance25.mp4`, `clip_255_job569.mp4`, `clip_256_seedance25.mp4` (+ `*_khung.png`, `noi_*.png`), `goc_thap*/` (các góc render thử), `final_luoi_3s.png`.
+
+## 8. Cập nhật 08/10
+- **Người dùng xác nhận video đạt.**
+- Màn hình báo chưa xong dù đã xong (Video 6/9 với 3 mục cũ, Bản giao cũ, "Gen video cho 3 cảnh chưa có clip", Tiến độ tổng 73 %). Hai nguyên nhân và cách sửa:
+  1. Code: `core/model_router.py` `scene_choice` — chế độ Thử rẻ ép model người dùng chọn riêng cho cảnh (254–256, Seedance 2.5) về Fast. Sửa: không đổi khi nguồn chọn là `override`. Test `tests/test_cheap_mode_override.py` (đỏ trước, xanh sau; 135 test liên quan qua, 154 test devsys/areas qua). Commit `fa21c76`, `devsys/areas.json` version 28.
+  2. Dữ liệu: clip 250, 252 làm bằng Seedance 2.5 (job 539, 541) nhưng cảnh không có model chọn riêng, bộ định tuyến chọn Fast → bị coi là cũ. Đặt `motion_prompts.video_model='seedance-2.5'` cho scene 250, 252 (backup `manifest.before_kld_override250_*`).
+  - Kết quả đo: 0 clip cũ ở cả hai chế độ Thử rẻ (bật/tắt); `delivery.status` = fresh; Dashboard hiện Tiến độ tổng 100 %, Kịch bản / Storyboard / Video / Bản giao đều ✓.
+- Đã kéo **21 commit mới** của phiên cloud (tài khoản khác): nút "Gen video" chỉ gửi cảnh được chọn, ghi model thật trên thẻ, báo chờ duyệt cảnh trước, ước tính Seedance 2.0@1080p theo giá thật ClipAI (2,93 USD/12 s), tab Kịch bản kiểu chat (cờ `chat_first`), nút sáng (`next_glow`), nhạc từ Kho/nhạc AI. Khối "việc để sau" trong TODO đã được phiên đó rút bớt mục 2, 3, 6, 7. Dashboard 8501 đã khởi động lại; 8502 chỉ đổi `devsys/areas.json` nên không cần.
+- Còn mở: `trim_start` cho Editor, phân luồng dự án, mục 4, 5, 8, 9 của khối TODO, B final 1080p chưa gửi.
