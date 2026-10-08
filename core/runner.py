@@ -1399,9 +1399,8 @@ class VideoRunner(_Runner):
             from . import seedance_refs
             res = seedance_refs.split(path, group, dests)
             self._take_done(leader, group, [0.0] + list(res["cuts"]))
-            if res["by"] != "detected":       # said, not hidden: the parts may straddle a cut
-                self._diag(leader, "warn", "group_cut_by_plan", f"clip nhóm {len(group)} shot không dò đủ {len(group) - 1} điểm cắt — "
-                           f"cắt theo số giây dự kiến ({res['cuts']}); xem lại chỗ cắt ở Bước 4")
+            for code, sev, text in seedance_refs.split_notes(res, len(group)):   # said, not hidden: how the group was cut
+                self._diag(leader, sev, code, text)
         else:
             shots.split_group_clip(path, group, dests)
         aspect = formats.project_aspect(self.p.project(leader["project_id"]))

@@ -393,26 +393,50 @@ def cut_points(path: str, n: int, ffmpeg: Optional[str] = None) -> Optional[List
     return merged if len(merged) == n - 1 else None
 
 
-def split(path: str, group: List[Dict], dest_paths: List[str], ffmpeg: Optional[str] = None) -> Dict:
-    """Cut a group clip into one file per shot at its detected cuts (else at the planned seconds scaled to the clip). The whole clip is
-    kept as <name>_group.mp4. {"paths", "cuts", "by": "detected"|"plan"}."""
-    from .ffmpeg_studio import find_ffmpeg, has_audio, probe_duration
+REFINE_WINDOW = 1.5          # 08/10 #24 S08–S09: scdet saw no cut, the plan said 3.024 s, the real hard cut was at 3.875 s (0.85 s later)
+INNER_CUT_EDGE = 1.2         # a cut this close to a part's start / end (clip_measure) = the group was cut at the wrong place: cut again
+
+
+def _snap(t: float, fps: float) -> float:
+    """A time on the frame grid (a cut between two frames), so a part never keeps one frame of its neighbour."""
+    return round(round(t * fps) / fps, 3)
+
+
+def refine_cuts(path: str, planned: List[float], length: Optional[float] = None) -> Dict:
+    """08/10 (#24 S08–S09): scdet (threshold 12) missed the cut between two shots of one palette, the group was cut at the planned
+    seconds and 0.83 s of shot 8 opened shot 9's file. Around each planned cut (±REFINE_WINDOW s) the frame pair that changes most is
+    looked for with the measure the clip QC uses (clip_measure: colour-histogram correlation + optical flow); it is taken as the cut
+    only when it is clear (a hard cut: correlation < CUT_CORR, or a motion jump with a colour change < SPIKE_CUT_CORR).
+    {"cuts", "found": [s | None]}; no OpenCV / unreadable clip → the planned cuts, nothing found."""
+    found: List[Optional[float]] = [None] * len(planned)
+    try:
+        from . import clip_measure as cm
+        series, fps, same = cm.motion_series(path)
+    except Exception:  # noqa: BLE001 - no OpenCV / unreadable clip: the plan stays
+        return {"cuts": list(planned), "found": found}
+    fps = fps or 24.0
+    total = length or (len(series) + 1) / fps
+    cuts: List[float] = []
+    prev = 0.0
+    for k, p in enumerate(planned):
+        lo, hi = max(p - REFINE_WINDOW, prev + 0.5, 0.3), min(p + REFINE_WINDOW, total - 0.3)
+        idx = [i for i in range(len(same)) if lo <= (i + 1) / fps <= hi]
+        if idx:
+            best = min(idx, key=lambda i: same[i])
+            rest = sorted(series[i] for i in idx if abs(i - best) > 2) or [0.0]
+            local = rest[len(rest) // 2]
+            jump = series[best] > cm.SPIKE * max(local, 0.25) and series[best] > 1.5
+            if same[best] < cm.CUT_CORR or (same[best] < cm.SPIKE_CUT_CORR and jump):
+                found[k] = round((best + 1) / fps, 3)
+        cut = found[k] if found[k] is not None else p
+        cuts.append(cut)
+        prev = cut
+    return {"cuts": cuts, "found": found}
+
+
+def _cut_parts(whole: str, bounds: List[float], dest_paths: List[str], ffmpeg: str) -> List[str]:
+    from .ffmpeg_studio import has_audio
     from .shots import _encode
-    ffmpeg = ffmpeg or find_ffmpeg()
-    whole = os.path.splitext(path)[0] + "_group.mp4"
-    shutil.copyfile(path, whole)
-    length = probe_duration(whole)
-    cuts = cut_points(whole, len(group), ffmpeg)
-    by = "detected"
-    if cuts is None:
-        by = "plan"
-        planned = [floored(r["data"], r.get("duration_s") or r["data"].get("duration_s") or 1) for r in group]
-        scale = (length or sum(planned)) / sum(planned)
-        cuts, t = [], 0.0
-        for sec in planned[:-1]:
-            t += sec * scale
-            cuts.append(round(t, 3))
-    bounds = [0.0] + cuts + [length or (cuts[-1] + 2 if cuts else 4)]
     audio = ["-c:a", "aac", "-b:a", "256k"] if has_audio(whole) else ["-an"]
     out = []
     for (start, end), dest in zip(zip(bounds, bounds[1:]), dest_paths):
@@ -421,7 +445,182 @@ def split(path: str, group: List[Dict], dest_paths: List[str], ffmpeg: Optional[
         if proc.returncode != 0 or not os.path.exists(dest):
             shutil.copyfile(whole, dest)
         out.append(dest)
-    return {"paths": out, "cuts": cuts, "by": by}
+    return out
+
+
+def inner_cut_moves(bounds: List[float], parts: List[str], edge: float = INNER_CUT_EDGE) -> Dict[int, float]:
+    """08/10: each part measured as the clip QC will measure it (clip_measure.jerks); a cut inside a part within `edge` s of its start /
+    end means the neighbour's frames are in it → {bound index: new time in the group clip}. An unmeasurable part moves nothing."""
+    from . import clip_measure as cm
+    moves: Dict[int, float] = {}
+    n = len(parts)
+    for i, part in enumerate(parts):
+        try:
+            series, fps, same = cm.motion_series(part)
+            cuts = cm.jerks(part, series, fps, same).get("cuts") or []
+        except Exception:  # noqa: BLE001 - no OpenCV / unreadable part: nothing to move
+            continue
+        fps = fps or 24.0
+        have = bounds[i + 1] - bounds[i]
+        for t in cuts:
+            at = _snap(bounds[i] + _snap(t, fps), fps)
+            if i > 0 and t <= edge and bounds[i - 1] + 0.3 < at < bounds[i + 1] - 0.3:
+                moves[i] = at                    # the part opens with the previous shot's end
+            elif i < n - 1 and have - t <= edge and bounds[i] + 0.3 < at < bounds[i + 2] - 0.3:
+                moves[i + 1] = at                # the part ends with the next shot's start
+    return moves
+
+
+def _sidecar(whole: str) -> str:
+    return os.path.splitext(whole)[0] + ".cuts.json"
+
+
+def saved_cuts(whole: str) -> Optional[Dict]:
+    """What split / recut wrote next to a group clip (<name>_group.cuts.json), or None."""
+    try:
+        with open(_sidecar(whole), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _save_cuts(whole: str, res: Dict, length: Optional[float]) -> None:
+    try:
+        with open(_sidecar(whole), "w", encoding="utf-8") as f:
+            json.dump({**{k: res.get(k) for k in ("cuts", "by", "planned", "found", "moved")}, "length": length}, f, ensure_ascii=False)
+    except OSError:
+        pass
+
+
+def split(path: str, group: List[Dict], dest_paths: List[str], ffmpeg: Optional[str] = None) -> Dict:
+    """Cut a group clip into one file per shot at its detected cuts. When scdet does not show them all, the cuts are looked for again
+    around the planned seconds (refine_cuts); a cut still not found stays at the planned seconds scaled to the clip. Then every part is
+    measured (inner_cut_moves): a cut close to a part's edge moves that bound and the group is cut again — 0 USD, before the clip QC
+    (08/10 #24: QC rejected S09 and paid a new take for frames that only had to be cut elsewhere). The whole clip is kept as
+    <name>_group.mp4 and the cuts as <name>_group.cuts.json.
+    {"paths", "cuts", "by": "detected"|"refined"|"plan", "planned", "found", "moved": [[old, new], ...]}."""
+    from .ffmpeg_studio import find_ffmpeg, probe_duration
+    ffmpeg = ffmpeg or find_ffmpeg()
+    whole = os.path.splitext(path)[0] + "_group.mp4"
+    shutil.copyfile(path, whole)
+    length = probe_duration(whole)
+    cuts = cut_points(whole, len(group), ffmpeg)
+    by, plan_cuts, found = "detected", None, None
+    if cuts is None:
+        planned = [floored(r["data"], r.get("duration_s") or r["data"].get("duration_s") or 1) for r in group]
+        scale = (length or sum(planned)) / sum(planned)
+        plan_cuts, t = [], 0.0
+        for sec in planned[:-1]:
+            t += sec * scale
+            plan_cuts.append(round(t, 3))
+        ref = refine_cuts(whole, plan_cuts, length)
+        cuts, found = ref["cuts"], ref["found"]
+        by = "refined" if any(x is not None for x in found) else "plan"
+    bounds = [0.0] + list(cuts) + [length or (cuts[-1] + 2 if cuts else 4)]
+    out = _cut_parts(whole, bounds, dest_paths, ffmpeg)
+    moved: List[List[float]] = []
+    for _ in range(2):                                   # a moved bound is measured once more
+        moves = inner_cut_moves(bounds, out) if len(out) > 1 else {}
+        if not moves:
+            break
+        for k, at in sorted(moves.items()):
+            moved.append([bounds[k], at])
+            bounds[k] = at
+        out = _cut_parts(whole, bounds, dest_paths, ffmpeg)
+    res = {"paths": out, "cuts": bounds[1:-1], "by": by, "planned": plan_cuts, "found": found, "moved": moved}
+    _save_cuts(whole, res, length)
+    return res
+
+
+def split_notes(res: Dict, n: int) -> List[tuple]:
+    """The diag lines (code, severity, message) of one split: refined cuts, cuts left at the plan, bounds moved after measuring."""
+    notes = []
+    planned, found = res.get("planned") or [], res.get("found") or []
+    if res.get("by") == "refined":
+        got = [f"{f:.3f} s (dự kiến {p:.3f} s)" for p, f in zip(planned, found) if f is not None]
+        notes.append(("group_cut_refined", "info", f"clip nhóm {n} shot: scdet không dò đủ {n - 1} điểm cắt — dò lại quanh mốc dự kiến "
+                      f"(±{REFINE_WINDOW:g} s, so màu từng khung) và cắt theo điểm dò được ở {', '.join(got)}"))
+    missing = [p for p, f in zip(planned, found) if f is None] if res.get("by") in ("refined", "plan") else []
+    if missing:
+        notes.append(("group_cut_by_plan", "warn", f"clip nhóm {n} shot: {len(missing)} điểm cắt không dò được kể cả khi dò lại — cắt theo "
+                      f"số giây dự kiến ({missing}); xem lại và chỉnh chỗ cắt ở Bước 4 (✂ Điểm cắt clip nhóm, 0 USD)"))
+    for old, new in res.get("moved") or []:
+        notes.append(("group_cut_moved", "info", f"đo từng phần sau khi tách thấy điểm cắt cảnh sát mép phần một shot → tách lại cả nhóm: "
+                      f"điểm cắt {old:.3f} s → {new:.3f} s (0 USD, trước khi chấm QC)"))
+    return notes
+
+
+def group_members(conn, leader_id: int) -> List:
+    """The jobs of one group clip in shot order: the leader, then the latest follower job of each other shot (jobs.group_leader)."""
+    lead = conn.execute("SELECT j.*, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.id=?", (leader_id,)).fetchone()
+    if lead is None:
+        return []
+    rows = conn.execute("SELECT j.*, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.group_leader=? AND j.type='video_gen'"
+                        " AND j.id!=? ORDER BY s.idx, j.id", (leader_id, leader_id)).fetchall()
+    latest: Dict[int, object] = {}
+    for r in rows:
+        latest[r["scene_id"]] = r
+    return [lead] + sorted(latest.values(), key=lambda r: r["idx"])
+
+
+def group_whole(job) -> Optional[str]:
+    """The whole group clip kept next to the leader's file (<name>_group.mp4), when it exists."""
+    rp = job["result_path"] if job is not None else None
+    if not rp:
+        return None
+    whole = os.path.splitext(rp)[0] + "_group.mp4"
+    return whole if os.path.exists(whole) else None
+
+
+def recut(p, leader_id: int, cuts: List[float]) -> Dict:
+    """Bước 4 (08/10): the person sets the cut seconds of a group clip; its shot files are cut again from <name>_group.mp4 — 0 USD,
+    nothing is sent. A shot whose scene already has a later take with a file (or one running) is never overwritten (its part goes to
+    <idx>_recut_unused.mp4, said in "skipped"). Job states are kept (an approved part stays approved — the person cut it on purpose);
+    said in diag. {"paths", "cuts", "skipped"}."""
+    from . import access, diag
+    from .ffmpeg_studio import find_ffmpeg, probe_duration
+    leader = p.job(leader_id)
+    access.need_edit(p, leader["project_id"], "cắt lại clip nhóm")
+    members = group_members(p.conn, leader_id)
+    whole = group_whole(leader)
+    if whole is None or len(members) < 2:
+        raise ValueError("không có clip nhóm gốc (_group.mp4) hoặc nhóm chỉ có 1 shot")
+    length = probe_duration(whole) or 0.0
+    cuts = [round(float(c), 3) for c in cuts]
+    if len(cuts) != len(members) - 1:
+        raise ValueError(f"cần {len(members) - 1} điểm cắt cho {len(members)} shot, nhận {len(cuts)}")
+    bounds = [0.0] + cuts + [length]
+    if any(b - a < 0.3 for a, b in zip(bounds, bounds[1:])):
+        raise ValueError(f"điểm cắt phải tăng dần, mỗi phần ≥ 0,3 s, trong 0–{length:.2f} s")
+    dests, skipped = [], []
+    for m in members:
+        dest = m["result_path"] or os.path.join(os.path.dirname(leader["result_path"]), f"{m['idx']:02d}.mp4")
+        later = p.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND id>? AND (result_path IS NOT NULL OR "
+                               "state='running')", (m["scene_id"], m["id"])).fetchone()
+        if later is not None:
+            skipped.append(m["idx"])
+            dest = os.path.splitext(dest)[0] + "_recut_unused.mp4"   # the newer take's file is never overwritten
+        dests.append(dest)
+    out = _cut_parts(whole, bounds, dests, find_ffmpeg())
+    old = (saved_cuts(whole) or {}).get("cuts")
+    _save_cuts(whole, {"cuts": cuts, "by": "user", "moved": [[a, b] for a, b in zip(old or [], cuts) if a != b]}, length)
+    for m, dest in zip(members, out):
+        if m["idx"] not in skipped and not m["result_path"] and os.path.exists(dest):
+            p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, m["id"]))
+    p.conn.commit()
+    data_dir = type(p)._data_dir_of(leader) if hasattr(type(p), "_data_dir_of") else None
+    if data_dir:                                          # S4.2: a take shot's voice follows where its part now starts
+        from . import lipsync
+        idx = lipsync.index(data_dir, leader["project_id"])
+        for m, start in zip(members, bounds):
+            rec = idx.get(str(m["scene_id"])) or {}
+            if m["idx"] not in skipped and rec.get("method") == "take" and rec.get("state") == "done" and rec.get("job_id") == leader_id:
+                lipsync.mark(data_dir, leader["project_id"], m["scene_id"],
+                             shift=round(float(start) - float(rec.get("planned_start") or 0), 3))
+    diag.record(p.conn, "video", "info", f"người dùng cắt lại clip nhóm {len(members)} shot ở {cuts} s (trước: {old}) — 0 USD, không gửi lại"
+                + (f"; shot {skipped} đã có bản mới nên không ghi đè" if skipped else ""), "group_recut_by_user",
+                leader["project_id"], leader["scene_id"], leader_id)
+    return {"paths": out, "cuts": cuts, "skipped": skipped}
 
 
 VI = re.compile(r"[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]", re.I)

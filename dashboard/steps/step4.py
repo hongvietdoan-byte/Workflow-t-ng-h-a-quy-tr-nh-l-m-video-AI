@@ -487,7 +487,50 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
                     if act(lambda: p.keep_rejected(keep["id"]), "Đã giữ clip"):
                         st.rerun()
         _other_takes(p, j)
+        group_cut_panel(p, j)
         scene_expander(p, j["scene_id"], with_motion=True)
+
+
+GROUP_CUT_BY = {"detected": "dò được bằng scdet", "refined": "dò lại quanh mốc dự kiến", "plan": "theo số giây dự kiến (không dò được)",
+                "user": "người dùng chỉnh tay"}
+
+
+def group_cut_panel(p: Pipeline, j) -> None:
+    """08/10 (#24 S08–S09): the cut seconds of a group clip, set by hand — the shot files are cut again from <name>_group.mp4, 0 USD
+    (core.seedance_refs.recut). Shown on every shot card of the group; its keys carry the card's job id."""
+    from core import seedance_refs
+    leader_id = j["group_leader"] if "group_leader" in j.keys() and j["group_leader"] else j["id"]
+    leader = p.job(leader_id)
+    whole = seedance_refs.group_whole(leader)
+    members = seedance_refs.group_members(p.conn, leader_id) if whole else []
+    if len(members) < 2:
+        return
+    saved = seedance_refs.saved_cuts(whole) or {}
+    length = ffmpeg_studio.probe_duration(whole) or 0.0
+    cuts = list(saved.get("cuts") or [])
+    if len(cuts) != len(members) - 1:                  # an older split: start from the parts' lengths
+        cuts, t = [], 0.0
+        for m in members[:-1]:
+            t += ffmpeg_studio.probe_duration(m["result_path"]) if m["result_path"] and os.path.exists(m["result_path"]) else 0.0
+            cuts.append(round(t, 3))
+    shots = ", ".join(f"S{m['idx']:02d}" for m in members)
+    with st.expander(f"✂ Điểm cắt clip nhóm {shots} — chỉnh tay (0 USD)", expanded=saved.get("by") == "plan"):
+        how = GROUP_CUT_BY.get(saved.get("by"), "chưa ghi")
+        st.caption(f"Clip nhóm gốc {length:.2f} s · đang cắt ở {cuts} s ({how})"
+                   + (f" · dự kiến {saved['planned']} s" if saved.get("planned") else "")
+                   + ". Xem clip gốc, nhập giây chuyển sang shot sau rồi bấm cắt lại — không gửi lại, không tốn tiền; "
+                     "bản đã duyệt vẫn giữ trạng thái, shot đã có bản gen mới thì không bị ghi đè.")
+        show_video(whole)
+        cols = st.columns(len(cuts))
+        new = [cols[k].number_input(f"S{members[k]['idx']:02d} → S{members[k + 1]['idx']:02d} (giây)", min_value=0.0,
+                                    max_value=float(length), value=float(cuts[k]), step=1 / 24, format="%.3f",
+                                    key=f"gcut_{j['id']}_{k}") for k in range(len(cuts))]
+        if st.button("✂ Cắt lại theo số giây này (0 USD)", key=f"gcut_go_{j['id']}", width="stretch"):
+            out = []
+            if act(lambda: out.append(seedance_refs.recut(p, leader_id, new)), "Đã cắt lại clip nhóm"):
+                if out and out[0]["skipped"]:
+                    st.toast(f"Shot {out[0]['skipped']} đã có bản gen mới — không ghi đè")
+                st.rerun()
 
 
 def _other_takes(p: Pipeline, j) -> None:
