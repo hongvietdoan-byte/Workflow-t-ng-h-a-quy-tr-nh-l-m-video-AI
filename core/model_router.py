@@ -132,7 +132,7 @@ def scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
             choice["reason"] += " (chế độ thử rẻ: vẫn Seedance 2.5 vì cách video kỹ năng mới kiểm trên 2.5)"
         elif choice.get("take"):            # S4.2 (01/10): the dialogue take needs the 2.5 time marks — 2.0 / Fast do not read seconds
             choice["reason"] += " (chế độ thử rẻ: vẫn Seedance 2.5 — khớp môi (c) cần mốc giây, bản Fast không đọc mốc giây)"
-        elif choice["model"] in ("seedance", "seedance-2.5"):
+        elif choice["model"] in ("seedance", "seedance-2.5") and choice.get("source") != "override":   # 08/10: the person's own pick for this scene stays
             choice.update(model="seedance-fast", reason=choice["reason"] + " (chế độ thử rẻ: dùng bản Fast 720p)")
     return choice
 

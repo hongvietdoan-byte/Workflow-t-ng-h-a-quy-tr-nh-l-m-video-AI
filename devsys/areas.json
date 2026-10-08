@@ -1,5 +1,5 @@
 {
-  "version": 27,
+  "version": 28,
   "updated": "2026-10-07",
   "_note": "Bản đồ hệ thống của AI Development System. Mỗi file .py dưới core/ và dashboard/ phải thuộc ít nhất một khu vực (thiếu = cảnh báo). 'code' / 'assets' / 'docs' là mẫu đường dẫn (fnmatch, '*' khớp cả '/'). 'tests' thêm tay ngoài các test tự dò theo import. 'flags' = tên trong core/features.py. 'diag_stages' = stage của bảng diag_events. 'ops_stages' (S14.10 Đợt 6b) = khâu của góp ý người dùng / số đo hiệu quả vận hành (core/feedback.STAGES: director, image, motion, audio, render, ui). 'keywords' dùng để gán dòng TODO.md vào khu vực (không phân biệt hoa thường). Sửa file này khi thêm module mới rồi tăng 'version'.",
   "scan_roots": ["core", "dashboard"],
@@ -58,7 +58,7 @@
       "code": ["core/model_router.py", "core/video_rules.py", "core/adapters/clipai.py", "core/adapters/clipai_subjects.py", "core/subjects.py", "core/regen.py", "core/compare.py", "core/experiments.py", "core/quality_samples.py", "core/runner.py", "core/seedance_refs.py", "core/motion_physics.py", "core/clip_measure.py", "core/scene_establish.py", "core/known_issues.py", "core/claude_tasks.py", "core/speaker_lint.py", "core/hero_takes.py", "dashboard/steps/step4.py"],
       "assets": ["prompts/12_*", "data/video_models.json", "data/provider_rules.json", "knowledge/seedance_prompting.md", "knowledge/seedance_director_workflow.md", "tools/recover_clips.py", "tools/reference_video.py", "mcp_servers/clipai.py"],
       "docs": ["docs/CLIPAI_FEATURES.md", "docs/api_notes.md"],
-      "tests": ["tests/test_skill_route.py", "tests/test_quality_samples.py", "tests/test_sample_mode_video_edit.py"],
+      "tests": ["tests/test_cheap_mode_override.py", "tests/test_skill_route.py", "tests/test_quality_samples.py", "tests/test_sample_mode_video_edit.py"],
       "flags": ["camera_setups", "seedance_ref_groups", "continuous_takes", "closeup_start_frame", "speaker_tags", "hero_takes", "seedance_video_edit", "seedance_subjects", "seedance_sample_mode"],
       "diag_stages": ["video"],
       "ops_stages": ["motion"],
