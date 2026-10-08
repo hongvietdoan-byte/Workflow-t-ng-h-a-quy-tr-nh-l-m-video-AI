@@ -182,10 +182,17 @@ def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[
     images += [(f"Ảnh tham chiếu — {r['label']}:", assets.thumbnail(r["path"], 700)) for r in refs]
     measured = _measure_clip(p, job, path, data, first, data_dir)
     criteria = video_criteria()
+    # 08/10 #24 (job 592/594): QC must know every character of the shot (also the form after a transformation) and what the script
+    # intends (transformation, glitch noise) — otherwise it scores the intended effect as an identity / artifacts fault
+    from . import video_qc_context as vqc
+    motion = mp["motion_prompt"] if mp else ""
+    names = vqc.shot_characters(p.conn, job["project_id"], data, motion)
     prompt = video_qc_head() + prompts.CACHE_BREAK \
         + "\n\n---\n\n".join(x for x in [
-        prompts.lock_text(p.conn, job["project_id"], data.get("characters")),
-        "# Motion prompt của clip\n" + (mp["motion_prompt"] if mp else ""),
+        prompts.lock_text(p.conn, job["project_id"], names),
+        vqc.profiles_block(p.conn, job["project_id"], names),
+        vqc.intent_block(data, motion),
+        "# Motion prompt của clip\n" + motion,
         _block("Thông số cảnh", dict({k: data.get(k) for k in ("characters", "blocking", "shot", "camera_complexity")},
                                      **({"performance": performance.for_prompt(data)} if data.get("performance") else {}))),
         _block("Đo bằng máy (lớp 0)", measured) if measured else ""] if x)
@@ -193,7 +200,9 @@ def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[
     proj = p.project(job["project_id"])
     fix = bool(proj["qc_autofix"]) if autofix is None else autofix
     issues = str(obj.get("issues") or "").strip() or None
-    decision = p.apply_qc(job_id, obj["criteria"], issues=issues, autofix=fix, measured=measured)   # KLD-5 reads look_drift
+    decision = p.apply_qc(job_id, obj["criteria"], issues=issues, autofix=fix, measured=measured,   # KLD-5 reads look_drift
+                          soft=vqc.soft_criteria(data, motion))
+    vqc.note_case(p.conn, job, data, motion, obj["criteria"], p.project(job["project_id"])["qc_auto_pass_threshold"], issues)
     return {"decision": decision, "issues": issues}
 
 

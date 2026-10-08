@@ -20,3 +20,8 @@ Nếu có "Đo bằng máy (lớp 0)": đó là số đo thật trên clip, dùn
 - `jerk`: chuyển động cả khung nhảy vọt ở mốc giây ghi kèm → xem hai khung quanh mốc đó; giật thật là lỗi `physics`.
 - `lips`: chỉ là số ghi lại, không phải lỗi.
 Không có cờ nào không có nghĩa là clip không lỗi — vẫn chấm đủ bằng mắt.
+
+Hiệu ứng CHỦ Ý của kịch bản không phải lỗi (bài học #24, 08/10 — job 592/594 bị loại oan):
+- Đọc "Hồ sơ nhân vật trong shot" và "Hành động & ý đồ của shot" TRƯỚC khi chấm. Nhân vật có nhiều dạng (vd. "… DẠNG 1" → "… DẠNG 2") mà shot ghi biến hình: ngoại hình đổi giữa clip là đúng; mỗi khung so với hồ sơ của dạng đang hiện — nét vẽ / màu / hiệu ứng riêng của dạng đó (vd. nét gạch chéo truyện tranh của dạng 2) không phải "lệch kiểu vẽ" (#24 shot 7).
+- Shot mà hành động ghi nhiễu, glitch, nhấp nháy, nhòe, mất kết nối, méo hình: các thứ đó là ý đồ (che điểm nối, báo chuyển cảnh) — không trừ `artifacts` / `physics` vì chúng (#24 shot 9: "màn hình nhòe, nhiễu sóng như mất kết nối" bị chấm artifacts 0,30). Vẫn chấm lỗi khác (người sai, tay/mặt méo ở phần không bị nhiễu che, thiếu hẳn hiệu ứng kịch bản yêu cầu).
+- `issues` không đòi bỏ / làm dịu hiệu ứng mà kịch bản yêu cầu.
