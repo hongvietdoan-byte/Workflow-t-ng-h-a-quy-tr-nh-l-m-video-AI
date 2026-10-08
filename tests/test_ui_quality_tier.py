@@ -44,6 +44,8 @@ class TwoTierSeed(VideoSeed):
         jid = c.execute("SELECT id FROM jobs WHERE scene_id=? AND type='video_gen' ORDER BY id LIMIT 1", (sid,)).fetchone()["id"]
         c.execute("UPDATE jobs SET quality_tier=?, state=?, source_job_id=?, input_hash=NULL WHERE id=?",
                   (tier, jstate, self.other_img if outdated else None, jid))
+        if tier == "draft":           # F3: a Seedance 2.5 sample with its task id = the high tier comes FROM the draft (no new gen)
+            c.execute("UPDATE jobs SET model='seedance-2.5', external_id=? WHERE id=?", (f"seedance:t{jid}", jid))
         c.execute("DELETE FROM review_log WHERE job_id=? AND reviewer_type='user'", (jid,))
         if person:
             c.execute("INSERT INTO review_log (job_id, reviewer_type, decision, note, decided_at) "

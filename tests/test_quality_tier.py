@@ -213,7 +213,9 @@ class RunnerTierTests(Base):
                 mock.patch.object(vr, "_over_budget", return_value=None), mock.patch.object(vr, "_wait", return_value=False):
             return vr._submit_pending(self.pid)
 
-    def test_expired_draft_resends_the_same_input_at_the_high_tier_and_says_it_may_differ(self):
+    def test_expired_draft_is_not_resent_unasked(self):
+        """F3 (#24): an expired 2.5 sample cannot be upgraded — the final is NOT resent on its own (it was, at 720p, other content);
+        it fails with the reason, and the next request needs the person's explicit yes (request_final confirm_new)."""
         with ON:
             self.approved_draft()
             f = quality_tier.request_final(self.p, self.s1)
@@ -224,23 +226,40 @@ class RunnerTierTests(Base):
             vr = VideoRunner(self.p, prov, self.data)
             kw = vr._submit_kwargs(self.p.job(f))
             self.assertNotIn("_from_sample", kw)
-            self.assertNotIn("draft", kw)
-            self.assertEqual(self.send(vr), 1)
-            self.assertEqual(self.p.job(f)["external_id"], "seedance:resend")
+            self.assertIn(quality_tier.NEED_CONFIRM, kw["_hold"])
+            self.assertEqual(self.send(vr), 0)
+            prov.submit.assert_not_called()
             prov.submit_final_from_sample.assert_not_called()
-            self.assertNotIn("_from_sample", prov.submit.call_args.kwargs)
-            notes = [r["message"] for r in self.p.conn.execute("SELECT message FROM diag_events WHERE code='final_resend'")]
-            self.assertTrue(notes and quality_tier.MAY_DIFFER in notes[0])
+            self.assertEqual(self.p.job(f)["state"], "failed")
+            with self.assertRaises(ValueError) as e:                          # the draft is now known not upgradable
+                quality_tier.request_final(self.p, self.s1)
+            self.assertIn(quality_tier.NEW_GEN, str(e.exception))
+            self.assertIn("USD", str(e.exception))
+            f2 = quality_tier.request_final(self.p, self.s1, confirm_new=True)
+            self.assertTrue(json.loads(self.p.job(f2)["confirm_new"])["usd"] > 0)
+            vr = VideoRunner(self.p, prov, self.data)
+            self.assertEqual(self.send(vr), 1)
+            self.assertEqual(self.p.job(f2)["external_id"], "seedance:resend")
+            # the highest tier the model's rules allow for a direct send (provider_rules.json) — not the draft's 480p
+            self.assertEqual(prov.submit.call_args.kwargs.get("resolution"), quality_tier.final_resolution("seedance-2.5"))
+            self.assertNotEqual(prov.submit.call_args.kwargs.get("resolution"), "480p")
+            self.assertNotIn("draft", prov.submit.call_args.kwargs)
+            row = self.p.conn.execute("SELECT severity, message FROM diag_events WHERE code='final_resend' ORDER BY id DESC").fetchone()
+            self.assertEqual(row["severity"], "warn")
+            self.assertIn(quality_tier.NEW_GEN, row["message"])
 
-    def test_final_of_another_model_is_resent(self):
+    def test_final_of_another_model_needs_the_persons_yes(self):
         with ON:
             d = self.approved_draft()
             self.p.conn.execute("UPDATE jobs SET model='kling' WHERE id=?", (d,))
             self.p.conn.commit()
-            f = quality_tier.request_final(self.p, self.s1)
+            with self.assertRaises(ValueError):
+                quality_tier.request_final(self.p, self.s1)
+            f = quality_tier.request_final(self.p, self.s1, confirm_new=True)
             route = quality_tier.final_route(self.p.conn, self.p.job(f), _provider())
             self.assertIsNone(route["from_sample"])
             self.assertIn("kling", route["why"])
+            self.assertIsNone(quality_tier.needs_confirm(self.p.job(f), route))
 
 
 class RetryCapTests(Base):

@@ -728,7 +728,8 @@ V2_COLUMNS = {
              ("sent_refs", "TEXT"),    # K7: which pictures (whose, what role) went with the request
              ("sent_group", "TEXT"),   # M10 (see below)
              ("quality_tier", "TEXT"),       # N1 (cờ two_tier_quality): draft | final | direct; NULL = before two tiers
-             ("draft_job_id", "INTEGER")),   # N1: a final take's approved draft (core/quality_tier.py)  # M10: the Kling multi-shot group exactly as sent (split the clip by it, not by today's plan)   # W12: provider list checks     # v3 Kling multi-shot: the job that makes this shot's clip together with its group
+             ("draft_job_id", "INTEGER"),    # (F3: confirm_new below)
+             ("confirm_new", "TEXT")),       # F3: {by, usd, why, at} — người xác nhận gen MỚI bản cao không nâng được từ nháp; N1: a final take's approved draft (core/quality_tier.py)  # M10: the Kling multi-shot group exactly as sent (split the clip by it, not by today's plan)   # W12: provider list checks     # v3 Kling multi-shot: the job that makes this shot's clip together with its group
     # G1/G2 (docs/KE_HOACH_TONG_2026-09-24.md): what a library picture shows, for which look, and whether a person approved it
     "assets": (("profile", "TEXT"),),        # T1: the character's standard profile, approved once, inherited by every project
     "asset_images": (("role", "TEXT"), ("look", "TEXT"), ("variant", "TEXT"), ("status", "TEXT NOT NULL DEFAULT 'approved'"),

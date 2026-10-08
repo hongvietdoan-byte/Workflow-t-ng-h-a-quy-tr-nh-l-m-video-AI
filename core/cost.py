@@ -266,6 +266,13 @@ def clip_estimate(conn, scene_id: int, pricing: Optional[Dict] = None, seconds: 
     mp = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
     seconds = seconds or (mp["duration_sec"] if mp and mp["duration_sec"] else None) or shots.planned_seconds(conn, scene_id) or 5
     sec = effective_duration(canonical, family, seconds)
+    if choice.get("e1"):                        # F3 / E1: Seedance 2.0 720p (shot dễ) / nháp 2.5 480p — the ClipAI token formula
+        from . import formats
+        proj = conn.execute("SELECT p.* FROM projects p JOIN scenes s ON s.project_id=p.id WHERE s.id=?", (scene_id,)).fetchone()
+        usd = seedance_estimate(canonical, choice.get("resolution") or "720p",
+                                formats.spec(formats.project_aspect(proj))["clip"] if proj is not None else "16:9", sec)
+        if usd is not None:
+            return usd
     exact = clip_price(pricing, canonical, tier, sec)
     if exact is not None:
         return exact
@@ -415,10 +422,39 @@ def video_button_tag(conn, scene_ids, pricing: Optional[Dict] = None, seconds: O
     if not ids:
         return ""
     pricing = pricing or load_pricing()
-    vals = [clip_estimate(conn, sid, pricing, (seconds or {}).get(sid)) for sid in ids]
+    vals = [clip_estimate(conn, sid, pricing, secs) for sid, secs in _group_clips(conn, ids, seconds or {})]
     if any(v is None for v in vals):
-        return f" · {len(ids)} clip, chưa có giá"
-    return f" · {len(ids)} clip ≈ {sum(vals):.2f} USD (ước tính)"
+        return f" · {len(vals)} clip, chưa có giá"
+    return f" · {len(vals)} clip ≈ {sum(vals):.2f} USD (ước tính)"
+
+
+def _group_clips(conn, ids, seconds: Dict) -> List:
+    """F3 (TODO "Còn tồn" 08/10: giá nút Gen video tính mỗi shot một clip ≥ 4 s, cao hơn thật): [(scene_id, giây hoặc None)] — các shot
+    của một nhóm Seedance gen chung (chọn 1 shot kéo cả nhóm) thành MỘT clip ở shot đầu với giây cả nhóm (seedance_refs.seconds);
+    shot lẻ giữ như cũ. Không đọc được nhóm → mỗi shot một clip (tính dư)."""
+    out, seen = [], set()
+    try:
+        from . import seedance_refs
+        pid = conn.execute("SELECT project_id FROM scenes WHERE id=?", (ids[0],)).fetchone()["project_id"]
+        groups = seedance_refs.groups(conn, pid) if seedance_refs.enabled(conn, pid) else []
+    except Exception:  # noqa: BLE001
+        groups = []
+    by = {r["id"]: g for g in groups for r in g}
+    for sid in ids:
+        g = by.get(sid)
+        if g is None:
+            out.append((sid, seconds.get(sid)))
+            continue
+        if g[0]["id"] in seen:
+            continue
+        seen.add(g[0]["id"])
+        secs = []
+        for r in g:
+            m = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (r["id"],)).fetchone()
+            secs.append(seedance_refs.floored(r["data"], float(seconds.get(r["id"]) or (m["duration_sec"] if m is not None else None)
+                                                                 or r["data"].get("duration_s") or 0)))
+        out.append((g[0]["id"], float(seedance_refs.seconds(secs))))
+    return out
 
 
 def video_batch_tag(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = None) -> str:

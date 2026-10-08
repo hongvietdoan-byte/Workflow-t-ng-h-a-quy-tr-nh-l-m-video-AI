@@ -25,6 +25,19 @@ SAMPLE_MODEL = "dreamina-seedance-2-5-260628"
 FINAL_RESOLUTION = "1080p"
 """Bản cao nâng từ nháp Seedance 2.5 (`draft_task`): mặc định 1080p (clipai.submit_final_from_sample tham số hóa)."""
 MAY_DIFFER = "nội dung có thể khác bản nháp"
+# ---- E1 (người dùng chốt 09/10, docs/CONG_THUC_PROMPT_F0_NHAP_2026-10-09.md mục 5–5b; F3) --------------------------------------------
+# Shot dễ (path direct) → gen thẳng Seedance 2.0 720p, lúc dựng phóng 1080p bằng ffmpeg (không AI — quyết định 07/10). Shot khó /
+# quan trọng / chưa rõ (draft_first) → nháp Seedance 2.5 `draft=True` 480p → người duyệt → nâng 1080p TỪ NHÁP (giữ nội dung).
+E1_DIRECT_MODEL, E1_DIRECT_RESOLUTION = "seedance", "720p"
+E1_DRAFT_MODEL, DRAFT_RESOLUTION = "seedance-2.5", "480p"
+SEEDANCE_20 = "dreamina-seedance-2-0-260128"
+NEW_GEN = "bản cao sẽ là gen mới, nội dung khác nháp"
+"""Cảnh báo khi bản cao KHÔNG nâng được từ nháp (nháp không phải Seedance 2.5 / hết hạn / không còn mã task)."""
+NEED_CONFIRM = "cần xác nhận gen MỚI bản cao"
+"""Mở đầu lý do chặn job `final` không nâng được từ nháp mà người chưa xác nhận (runner không tự gửi — #24 tự gửi lại ở 720p)."""
+UPGRADE_UNMEASURED = "giá nâng 2.5 → 1080p từ nháp là ƯỚC TÍNH (chưa đo thật)"
+FILM_TARGETS = ((60.0, 30.0), (120.0, 60.0))
+"""(phim dưới N giây, trần USD): < 1 phút < 30 USD, < 2 phút < 60 USD (người dùng 09/10)."""
 _ACTIVE = ("queued", "running", "retryable")
 _REVIEW = ("succeeded", "pending_review")
 
@@ -77,6 +90,49 @@ def tier_for_new_job(conn, scene_id: int, parent_job_id: Optional[int] = None) -
         if parent is not None and parent["quality_tier"]:
             return {"quality_tier": parent["quality_tier"], "draft_job_id": parent["draft_job_id"]}
     return {"quality_tier": "direct" if path(conn, scene_id) == "direct" else "draft", "draft_job_id": None}
+
+
+def _canonical(model: Optional[str]):
+    """(canonical, family) of a ClipAI model name; (model, None) when unknown (mock / web-only)."""
+    try:
+        from .adapters.clipai import resolve_model
+        return resolve_model(model)
+    except Exception:  # noqa: BLE001
+        return model, None
+
+
+def group_path(conn, scene_id: int) -> str:
+    """path() của shot, nhưng shot nằm trong nhóm gen chung (một clip cho cả nhóm) → nhóm có shot nháp-trước thì cả nhóm nháp-trước
+    (một lần gửi chỉ có một model / một bậc)."""
+    try:
+        from . import shots
+        group = shots.group_of(conn, scene_id) or []
+    except Exception:  # noqa: BLE001 - no shot table (old project): the shot alone
+        group = []
+    ids = [r["id"] for r in group] or [scene_id]
+    return "draft_first" if any(path(conn, sid) == "draft_first" for sid in ids) else "direct"
+
+
+def e1_choice(conn, scene_id: int, choice: Dict) -> Dict:
+    """E1 (cờ two_tier_quality BẬT — model_router.scene_choice gọi): model + độ phân giải theo đường của shot, chỉ cho họ Seedance
+    (Kling / model khác giữ đường cũ). Người chọn tay (`source == "override"`) thắng; shot nháp-trước mà model chọn tay không phải
+    Seedance 2.5 → `warning` = NEW_GEN (bản cao không nâng từ nháp được). Shot kỹ năng / khớp môi (c) giữ Seedance 2.5 (cần 2.5)."""
+    canonical, family = _canonical(choice.get("model"))
+    if family != "seedance":
+        return choice
+    way = group_path(conn, scene_id)
+    if choice.get("source") == "override":
+        if way == "draft_first" and canonical != SAMPLE_MODEL:
+            return {**choice, "warning": f"{choice.get('model')} ở shot nháp-trước: {NEW_GEN} (chỉ Seedance 2.5 nâng được từ nháp)"}
+        return choice
+    if way == "direct":
+        if choice.get("skill") or choice.get("take"):
+            return {**choice, "resolution": E1_DIRECT_RESOLUTION, "e1": "direct",
+                    "reason": choice["reason"] + " — E1: shot dễ — gen thẳng 720p (giữ Seedance 2.5 vì cách này cần 2.5), dựng phóng 1080p"}
+        return {**choice, "model": E1_DIRECT_MODEL, "resolution": E1_DIRECT_RESOLUTION, "e1": "direct",
+                "reason": choice["reason"] + " — E1: shot dễ — 2.0 720p, dựng phóng 1080p"}
+    return {**choice, "model": E1_DRAFT_MODEL, "resolution": DRAFT_RESOLUTION, "e1": "draft_first",
+            "reason": choice["reason"] + " — E1: shot khó / quan trọng / chưa rõ — nháp Seedance 2.5 480p, duyệt rồi nâng 1080p từ nháp"}
 
 
 def retry_limit(job) -> Optional[int]:
@@ -172,9 +228,34 @@ def final_block(conn, scene_id: int) -> Optional[str]:
     return None
 
 
-def request_final(p, scene_id: int, actor: str = "user") -> int:
+def upgrade_block(conn, draft) -> Optional[str]:
+    """Vì sao bản cao KHÔNG nâng được từ nháp này (None = nâng được, theo dữ liệu trong máy — hạn nháp ở nhà cung cấp kiểm lúc gửi,
+    final_route): nháp không phải Seedance 2.5, không còn mã task, hoặc lần gửi bản cao trước đã bị chặn vì không nâng được."""
+    if draft is None:
+        return "chưa có bản nháp người đã duyệt"
+    if _canonical(draft["model"])[0] != SAMPLE_MODEL:
+        return f"bản nháp làm bằng {draft['model'] or '?'} (chỉ Seedance 2.5 nâng được từ nháp)"
+    if not draft["external_id"]:
+        return "không có mã task bản nháp ở nhà cung cấp"
+    row = conn.execute("SELECT e.note FROM jobs j JOIN job_events e ON e.job_id=j.id WHERE j.draft_job_id=? AND j.quality_tier='final' "
+                       "AND e.to_state='failed' AND e.note LIKE ? ORDER BY e.id DESC LIMIT 1",
+                       (draft["id"], f"%{NEED_CONFIRM}%")).fetchone()
+    if row is not None:
+        return "lần gửi bản cao trước không nâng được từ nháp (nháp hết hạn / nhà cung cấp không xác nhận)"
+    return None
+
+
+def final_offer(conn, scene_id: int) -> Dict:
+    """Nút bản cao của một shot (UI + nút gom): {"upgrade": nâng từ nháp được?, "why": lý do không nâng được, "usd": giá ước tính}."""
+    why = upgrade_block(conn, approved_draft(conn, scene_id))
+    return {"upgrade": why is None, "why": why, "usd": scene_final_price(conn, scene_id)}
+
+
+def request_final(p, scene_id: int, actor: str = "user", confirm_new: bool = False) -> int:
     """Người bấm "Gen bản cao": job `final` gắn nháp đã duyệt (retry_count 0 — việc người dùng, không tính trần). ValueError khi
-    cờ tắt / nháp chưa duyệt / nháp cũ / bản cao đang làm."""
+    cờ tắt / nháp chưa duyệt / nháp cũ / bản cao đang làm.
+    F3 (#24): bản cao KHÔNG nâng được từ nháp (upgrade_block) = một lần gen MỚI, nội dung khác nháp → chỉ tạo job khi người xác nhận rõ
+    (`confirm_new=True`) và có giá (scene_final_price); xác nhận được ghi vào `jobs.confirm_new` (runner chỉ gửi khi có)."""
     if not enabled():
         raise ValueError("Tính năng 2 bậc chất lượng đang tắt (two_tier_quality)")
     conn = p.conn
@@ -184,8 +265,37 @@ def request_final(p, scene_id: int, actor: str = "user") -> int:
     if state(conn, scene_id) in ("final_running", "final_ok"):
         raise ValueError("Shot đã có bản cao (đang làm hoặc đã duyệt)")
     draft = approved_draft(conn, scene_id)
+    why = upgrade_block(conn, draft)
+    usd = scene_final_price(conn, scene_id) if why else None
+    if why and not confirm_new:
+        from . import model_router
+        res = final_resolution(model_router.scene_choice(conn, scene_id)["model"])
+        raise ValueError(f"Bản cao không nâng được từ nháp ({why}) — {NEW_GEN} (gen mới ở {res})"
+                         + (f", ≈ {usd:.2f} USD (ước tính)" if usd is not None else ", chưa có giá")
+                         + ": bấm “⬆ Gen MỚI bản cao” và xác nhận")
+    if why and usd is None:
+        raise ValueError(f"Bản cao không nâng được từ nháp ({why}) và chưa tính được giá gen mới — không gửi (luật chi phí)")
     project_id = conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()["project_id"]
-    return p._insert_job(project_id, scene_id, "video_gen", quality_tier="final", draft_job_id=draft["id"])
+    jid = p._insert_job(project_id, scene_id, "video_gen", quality_tier="final", draft_job_id=draft["id"])
+    if why:
+        conn.execute("UPDATE jobs SET confirm_new=? WHERE id=?",
+                     (json.dumps({"by": actor, "usd": round(usd, 4), "why": why, "at": time.time()}, ensure_ascii=False), jid))
+        conn.commit()
+    return jid
+
+
+def confirmed_new(job) -> bool:
+    """Người đã xác nhận gen MỚI bản cao cho job này (request_final confirm_new)."""
+    return "confirm_new" in job.keys() and bool(job["confirm_new"])
+
+
+def needs_confirm(job, route: Dict) -> Optional[str]:
+    """Job `final` không nâng được từ nháp (route["from_sample"] None) mà người CHƯA xác nhận gen mới → lý do chặn (bắt đầu bằng
+    NEED_CONFIRM); None = được gửi. Lần tự gen lại bản cao kèm câu sửa (trần 1, RETRY_LIMIT) không cần xác nhận lại."""
+    from .runner import model_fix
+    if route.get("from_sample") or confirmed_new(job) or model_fix(job["retry_reason"]):
+        return None
+    return f"{NEED_CONFIRM} — {NEW_GEN} ({route.get('why') or 'không nâng được từ nháp'})"
 
 
 # ---- gửi bản cao -----------------------------------------------------------------------------------------------------------------
@@ -231,7 +341,7 @@ def low_tier(kwargs: Dict, model: Optional[str]) -> Dict:
         canonical, family = model, None
     out = dict(kwargs)
     if canonical == SAMPLE_MODEL:
-        out.update(draft=True, resolution="480p")
+        out.update(draft=True, resolution=DRAFT_RESOLUTION)
     elif family == "omni":
         out.pop("resolution", None)
         out["kling_mode"] = "std"
@@ -271,10 +381,11 @@ def regen_refusal(conn, job, new_reason: Optional[str]) -> Optional[str]:
 def final_estimate(conn, pid: int) -> Dict:
     """Tổng giá (tham khảo) các bản cao CÒN PHẢI GEN của dự án: mọi shot đường nháp-trước chưa có bản cao (đang làm / đã duyệt).
     Nháp Seedance 2.5 → giá 2.5 @ FINAL_RESOLUTION (cost.seedance_estimate); model khác → model_router.price_per_sec × giây.
-    {"usd", "scenes": [{scene_id, idx, state, model, seconds, usd}], "unknown": [scene_id] (không tính được giá)}."""
-    from . import cost, formats, model_router
-    proj = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
-    ratio = formats.spec(formats.project_aspect(proj))["clip"] if proj is not None else "16:9"
+    {"usd", "scenes": [{scene_id, idx, state, model, seconds, usd}], "unknown": [scene_id] (không tính được giá)}.
+    F3: nâng được từ nháp (upgrade_block None) → Seedance 2.5 @ FINAL_RESOLUTION; không nâng được → gen MỚI bằng model của shot (E1:
+    Seedance 2.5) ở final_resolution; nhóm gen chung một clip → giá cả nhóm ở shot đầu, shot sau 0 (`_clip_seconds`)."""
+    proj, ratio = _proj_ratio(conn, pid)
+    billed = _clip_seconds(conn, pid)
     out = {"usd": 0.0, "scenes": [], "unknown": []}
     for s in conn.execute("SELECT s.id, s.idx, m.duration_sec FROM scenes s JOIN motion_prompts m ON m.scene_id=s.id "
                           "WHERE s.project_id=? ORDER BY s.idx", (pid,)).fetchall():
@@ -282,24 +393,116 @@ def final_estimate(conn, pid: int) -> Dict:
         if st in ("final_running", "final_ok", "direct_ok") or path(conn, s["id"]) == "direct":
             continue
         seconds = float(s["duration_sec"] or 0)
-        draft = approved_draft(conn, s["id"])
-        model = (draft["model"] if draft is not None else None) or model_router.scene_choice(conn, s["id"], proj)["model"]
-        try:
-            from .adapters.clipai import resolve_model
-            canonical = resolve_model(model)[0]
-        except Exception:  # noqa: BLE001
-            canonical = model
-        if canonical == SAMPLE_MODEL:
-            usd = cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, max(seconds, 4.0))
-        else:
-            per = model_router.price_per_sec(model)
-            usd = per * seconds if per is not None and seconds else None
+        model, usd = _final_usd(conn, s["id"], proj, ratio, billed.get(s["id"], seconds))
         if usd is None:
             out["unknown"].append(s["id"])
         else:
             out["usd"] += usd
         out["scenes"].append({"scene_id": s["id"], "idx": s["idx"], "state": st, "model": model, "seconds": seconds, "usd": usd})
     out["usd"] = round(out["usd"], 4)
+    return out
+
+
+def _proj_ratio(conn, pid: int):
+    from . import formats
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
+    return proj, (formats.spec(formats.project_aspect(proj))["clip"] if proj is not None else "16:9")
+
+
+def _mp_seconds(conn, scene_id: int) -> Optional[float]:
+    row = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+    return float(row["duration_sec"]) if row is not None and row["duration_sec"] else None
+
+
+def _clip_seconds(conn, pid: int) -> Dict[int, float]:
+    """{scene_id: giây clip tính tiền} cho các nhóm Seedance gen chung (seedance_refs.groups): shot đầu = giây cả nhóm, shot sau = 0
+    (nằm trong clip nhóm). Shot không trong nhóm: không có khóa (người gọi dùng giây của shot)."""
+    out: Dict[int, float] = {}
+    try:
+        from . import seedance_refs
+        if not seedance_refs.enabled(conn, pid):
+            return out
+        for g in seedance_refs.groups(conn, pid):
+            secs = [seedance_refs.floored(r["data"], _mp_seconds(conn, r["id"]) or float(r["data"].get("duration_s") or 0)) for r in g]
+            out[g[0]["id"]] = float(seedance_refs.seconds(secs))
+            for r in g[1:]:
+                out[r["id"]] = 0.0
+    except Exception:  # noqa: BLE001 - no group data: every shot priced alone (higher — tính dư)
+        return {}
+    return out
+
+
+def final_resolution(model: Optional[str]) -> str:
+    """Độ phân giải bản cao của một model: FINAL_RESOLUTION nếu luật model có (hoặc không rõ luật), không thì mức cao nhất của nó
+    (Seedance 2.0 Fast API chỉ 480/720)."""
+    from . import video_rules
+    res = video_rules.rule(_canonical(model)[0] or "").get("resolutions") or []
+    return FINAL_RESOLUTION if not res or FINAL_RESOLUTION in res else res[-1]
+
+
+def _final_usd(conn, scene_id: int, proj, ratio: str, seconds: float):
+    """(model, USD ước tính) của bản cao một shot: nâng từ nháp (2.5 @ 1080p — UPGRADE_UNMEASURED) hoặc gen mới bằng model của shot."""
+    from . import cost, model_router
+    if seconds <= 0:
+        return SAMPLE_MODEL, 0.0                      # made inside its group's clip (priced on the group's first shot)
+    if upgrade_block(conn, approved_draft(conn, scene_id)) is None:
+        return SAMPLE_MODEL, cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, max(seconds, 4.0))
+    model = model_router.scene_choice(conn, scene_id, proj)["model"]
+    canonical, family = _canonical(model)
+    if family == "seedance":
+        return model, cost.seedance_estimate(canonical, final_resolution(model), ratio, max(seconds, 4.0))
+    per = model_router.price_per_sec(model)
+    return model, (per * seconds if per is not None else None)
+
+
+def scene_final_price(conn, scene_id: int) -> Optional[float]:
+    """USD ước tính của bản cao MỘT shot (nút ⬆ Gen bản cao / Gen MỚI bản cao): theo clip nhóm như final_estimate."""
+    row = conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    if row is None:
+        return None
+    proj, ratio = _proj_ratio(conn, row["project_id"])
+    seconds = _clip_seconds(conn, row["project_id"]).get(scene_id, _mp_seconds(conn, scene_id) or 0.0)
+    usd = _final_usd(conn, scene_id, proj, ratio, seconds)[1]
+    return None if usd is None else round(usd, 4)
+
+
+def e1_estimate(conn, pid: int, pricing: Optional[Dict] = None) -> Dict:
+    """USD dự kiến CẢ PHIM theo E1 (một lượt, chưa tính gen lại): shot dễ (direct) Seedance 2.0 720p; shot nháp-trước nháp 2.5 480p +
+    nâng 2.5 1080p (UPGRADE_UNMEASURED); Kling / model khác theo giá hàng model_router.plan. Clip nhóm tính một lần (giây nhóm).
+    Để Bước 1 / AI Dev System báo "phim X s ≈ Y USD, mục tiêu < 30 / 60". {"usd", "film_seconds", "target_usd", "within", "direct",
+    "draft_first", "other", "unknown", "note", "line"}."""
+    from . import cost, model_router
+    _, ratio = _proj_ratio(conn, pid)
+    out = {"usd": 0.0, "film_seconds": 0.0, "direct": 0, "draft_first": 0, "other": 0, "unknown": [], "note": UPGRADE_UNMEASURED}
+    for r in model_router.plan(conn, pid, pricing):
+        out["film_seconds"] += float(r.get("seconds") or 0)
+        billed = float(r.get("billed_seconds") or 0)
+        if billed <= 0:
+            continue
+        canonical, family = _canonical(r["model"])
+        if family != "seedance":
+            out["other"] += 1
+            if r.get("cost") is None:
+                out["unknown"].append(r["scene_id"])
+            else:
+                out["usd"] += r["cost"]
+            continue
+        sec = max(billed, 4.0)
+        if group_path(conn, r["scene_id"]) == "direct":
+            model = canonical if r.get("skill") or r.get("take") or r.get("source") == "override" else SEEDANCE_20
+            out["usd"] += cost.seedance_estimate(model, E1_DIRECT_RESOLUTION, ratio, sec) or 0.0
+            out["direct"] += 1
+        else:
+            out["usd"] += (cost.seedance_estimate(SAMPLE_MODEL, DRAFT_RESOLUTION, ratio, sec) or 0.0) + \
+                          (cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, sec) or 0.0)
+            out["draft_first"] += 1
+    out["usd"] = round(out["usd"], 2)
+    out["film_seconds"] = round(out["film_seconds"], 1)
+    out["target_usd"] = next((cap for limit, cap in FILM_TARGETS if out["film_seconds"] < limit), None)
+    out["within"] = None if out["target_usd"] is None else out["usd"] < out["target_usd"]
+    target = (f", mục tiêu < {out['target_usd']:.0f} USD — " + ("ĐẠT" if out["within"] else "VƯỢT")) if out["target_usd"] else ""
+    out["line"] = (f"Phim {out['film_seconds']:.0f} s ≈ {out['usd']:.2f} USD (E1: {out['direct']} clip 2.0 720p, {out['draft_first']} "
+                   f"nháp 2.5 480p + nâng 1080p, {out['other']} model khác{target}; {UPGRADE_UNMEASURED})")
     return out
 
 

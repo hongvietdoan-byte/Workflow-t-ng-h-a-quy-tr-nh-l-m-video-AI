@@ -1,0 +1,279 @@
+"""F3 — đường chi phí video E1 (người dùng chốt 09/10, docs/CONG_THUC_PROMPT_F0_NHAP_2026-10-09.md mục 5–5b).
+
+Cờ two_tier_quality BẬT: shot dễ → Seedance 2.0 720p (dựng phóng 1080p bằng ffmpeg); khó / chưa rõ → nháp Seedance 2.5 480p → nâng 1080p
+từ nháp. #24: bản cao không nâng được từ nháp bị tự gửi lại (720p, nội dung khác) và clip nhóm ghi đè clip nháp của shot đi theo —
+cả hai bị chặn ở đây. Không gọi dịch vụ tốn tiền (nhà cung cấp là Mock / bị thay)."""
+import json
+import os
+import shutil
+import subprocess
+import tempfile
+import unittest
+from unittest import mock
+
+from core import cost, ffmpeg_studio, llm_io, model_router, quality_tier
+from core.adapters.clipai import ClipAIVideoProvider
+from core.db import connect
+from core.pipeline import Pipeline
+from core.runner import VideoRunner
+
+ON = mock.patch("core.quality_tier.enabled", return_value=True)
+OFF = mock.patch("core.quality_tier.enabled", return_value=False)
+
+
+def _provider():
+    return ClipAIVideoProvider("tok", "https://example.invalid", lambda *a, **k: None)
+
+
+class Base(unittest.TestCase):
+    N = 1
+
+    def setUp(self):
+        self.data = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.data, True)
+        self.p = Pipeline(connect(":memory:"))
+        self.pid = self.p.create_project("E1", aspect="9:16")
+        self.p.conn.execute("UPDATE projects SET model_priority='balanced' WHERE id=?", (self.pid,))
+        self.sids = []
+        for i in range(1, self.N + 1):
+            sid = self.p.create_scene(self.pid, i, f"Shot {i}")
+            img = self.p.create_job(sid)
+            self.p.start(img)
+            self.p.succeed(img)
+            self.p.approve(img)
+            self.sids.append(sid)
+        llm_io.store_motion_prompts(self.p, self.pid, {"scenes": [{"idx": i, "motion_prompt": "she walks", "duration_sec": 4}
+                                                                  for i in range(1, self.N + 1)]})
+        for sid in self.sids:
+            llm_io.approve_motion_prompt(self.p, sid)
+        self.p.conn.commit()
+        self.s1 = self.sids[0]
+
+    def label(self, level, sid=None):
+        sid = sid or self.s1
+        data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()[0] or "{}")
+        data.update(difficulty=level, difficulty_why="test")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), sid))
+        self.p.conn.commit()
+
+    def approved_draft(self, sid=None, model="seedance-2.5", path=None):
+        sid = sid or self.s1
+        jid = self.p.create_job(sid, "video_gen")
+        self.p.conn.execute("UPDATE jobs SET model=?, external_id=?, result_path=? WHERE id=?", (model, f"seedance:t{jid}", path, jid))
+        self.p.conn.commit()
+        self.p.start(jid)
+        self.p.succeed(jid)
+        self.p.approve(jid, "user")
+        return jid
+
+
+class RouteTests(Base):
+    def test_easy_shot_goes_seedance_2_0_at_720p(self):
+        self.label("easy")
+        with ON:
+            ch = model_router.scene_choice(self.p.conn, self.s1)
+            self.assertEqual((ch["model"], ch["resolution"], ch["e1"]), ("seedance", "720p", "direct"))
+            self.assertIn("E1: shot dễ — 2.0 720p, dựng phóng 1080p", ch["reason"])
+            jid = self.p.create_job(self.s1, "video_gen")
+            self.assertEqual(self.p.job(jid)["quality_tier"], "direct")
+            kw = VideoRunner(self.p, _provider(), self.data)._submit_kwargs(self.p.job(jid))
+            self.assertEqual(kw.get("resolution"), "720p")
+            self.assertNotIn("draft", kw)
+
+    def test_complex_or_unknown_shot_drafts_on_seedance_2_5_at_480p(self):
+        for level in ("complex", "unknown", None):
+            if level:
+                self.label(level)
+            with ON:
+                ch = model_router.scene_choice(self.p.conn, self.s1)
+                self.assertEqual((ch["model"], ch["resolution"]), ("seedance-2.5", "480p"), level)
+        with ON:
+            jid = self.p.create_job(self.s1, "video_gen")
+            kw = VideoRunner(self.p, _provider(), self.data)._submit_kwargs(self.p.job(jid))
+            self.assertEqual((kw.get("draft"), kw.get("resolution")), (True, "480p"))
+
+    def test_person_override_wins_and_a_non_2_5_pick_on_a_draft_shot_warns(self):
+        self.label("complex")
+        model_router.set_override(self.p.conn, self.s1, "seedance")
+        with ON:
+            ch = model_router.scene_choice(self.p.conn, self.s1)
+            self.assertEqual(ch["model"], "seedance")
+            self.assertIn(quality_tier.NEW_GEN, ch["warning"])
+            self.assertIn(quality_tier.NEW_GEN, model_router.e1_warning(self.p.conn, self.s1))
+        model_router.set_override(self.p.conn, self.s1, "seedance-2.5")
+        with ON:
+            self.assertIsNone(model_router.e1_warning(self.p.conn, self.s1))
+        model_router.set_override(self.p.conn, self.s1, "kling")              # Kling keeps its old way
+        with ON:
+            ch = model_router.scene_choice(self.p.conn, self.s1)
+            self.assertEqual(ch["model"], "kling")
+            self.assertNotIn("e1", ch)
+            self.assertIsNone(ch.get("warning"))
+
+    def test_flag_off_changes_nothing(self):
+        self.label("easy")
+        with OFF:
+            ch = model_router.scene_choice(self.p.conn, self.s1)
+            self.assertNotIn("e1", ch)
+            self.assertEqual(ch["model"], "seedance-fast")                    # the balanced ladder as before
+            self.assertIsNone(model_router.e1_warning(self.p.conn, self.s1))
+
+
+class FinalConfirmTests(Base):
+    def test_a_final_that_cannot_come_from_its_draft_is_not_sent_unasked(self):
+        self.label("complex")
+        with ON:
+            d = self.approved_draft(model="seedance")                          # #24: the draft was made with the alias = 2.0
+            self.assertFalse(quality_tier.final_offer(self.p.conn, self.s1)["upgrade"])
+            with self.assertRaises(ValueError) as e:
+                quality_tier.request_final(self.p, self.s1)
+            self.assertIn(quality_tier.NEW_GEN, str(e.exception))
+            self.assertIn("USD", str(e.exception))
+            self.assertIsNone(self.p.conn.execute("SELECT id FROM jobs WHERE quality_tier='final'").fetchone())
+            # a final job made some other way (autopilot / old data) without the person's yes is held by the runner
+            f = self.p._insert_job(self.pid, self.s1, "video_gen", quality_tier="final", draft_job_id=d)
+            why = VideoRunner(self.p, _provider(), self.data)._blocked(self.p.job(f))
+            self.assertIn(quality_tier.NEED_CONFIRM, why)
+            self.p.cancel(f)
+            f2 = quality_tier.request_final(self.p, self.s1, confirm_new=True)
+            seen = json.loads(self.p.job(f2)["confirm_new"])
+            self.assertEqual(seen["by"], "user")
+            self.assertAlmostEqual(seen["usd"], quality_tier.scene_final_price(self.p.conn, self.s1), places=4)
+            route = quality_tier.final_route(self.p.conn, self.p.job(f2), _provider())
+            self.assertIsNone(quality_tier.needs_confirm(self.p.job(f2), route))
+
+    def test_an_upgradable_draft_needs_no_extra_yes(self):
+        with ON:
+            self.approved_draft()
+            self.assertTrue(quality_tier.final_offer(self.p.conn, self.s1)["upgrade"])
+            f = quality_tier.request_final(self.p, self.s1)
+            self.assertIsNone(self.p.job(f)["confirm_new"])
+
+
+class GroupKeepsDraftsTests(Base):
+    N = 3
+
+    def test_group_final_keeps_the_followers_draft_clips(self):
+        vids = os.path.join(self.data, str(self.pid), "videos")
+        os.makedirs(vids, exist_ok=True)
+        drafts = []
+        for i, sid in enumerate(self.sids, 1):
+            path = os.path.join(vids, f"{i:02d}.mp4")
+            with open(path, "wb") as fh:
+                fh.write(f"draft-{i}".encode())
+            drafts.append(self.approved_draft(sid, path=path))
+        leader = self.p.create_job(self.s1, "video_gen")
+        self.p.conn.execute("UPDATE jobs SET external_id='seedance:final', model='seedance-2.5' WHERE id=?", (leader,))
+        self.p.conn.commit()
+        vr = VideoRunner(self.p, _provider(), self.data)
+        group = [{"id": sid, "idx": i, "refs": False, "data": {"duration_s": 4}} for i, sid in enumerate(self.sids, 1)]
+
+        def split(path, grp, dests):
+            for i, dest in enumerate(dests[1:], 2):
+                with open(dest, "wb") as fh:
+                    fh.write(f"final-{i}".encode())
+
+        from core import takes
+        takes.make_room(self.p.conn, self.data, self.p.job(leader), os.path.join(vids, "01.mp4"))   # what poll does for the leader
+        with open(os.path.join(vids, "01.mp4"), "wb") as fh:
+            fh.write(b"final-1")
+        with mock.patch("core.shots.split_group_clip", side_effect=split), mock.patch("core.shots.trim_clip"), \
+                mock.patch.object(vr, "_clean_edges"), mock.patch.object(vr, "_motion", return_value=None):
+            vr._finish_group(self.p.job(leader), os.path.join(vids, "01.mp4"), group)
+        for i, d in enumerate(drafts, 1):
+            rp = self.p.job(d)["result_path"]
+            self.assertNotEqual(os.path.normcase(rp), os.path.normcase(os.path.join(vids, f"{i:02d}.mp4")), i)
+            with open(rp, "rb") as fh:
+                self.assertEqual(fh.read(), f"draft-{i}".encode(), i)          # the draft clip is still there, under its job
+        with open(os.path.join(vids, "02.mp4"), "rb") as fh:
+            self.assertEqual(fh.read(), b"final-2")
+        back = self.p.use_older_take(drafts[1], data_dir=self.data)          # ↩ Dùng bản này on shot 2's approved draft
+        with open(back, "rb") as fh:
+            self.assertEqual(fh.read(), b"draft-2")
+
+
+class GroupPriceTests(Base):
+    N = 3
+
+    def groups(self):
+        for sid in self.sids:                                                 # 3 shots × 2 s = one 6 s group clip
+            self.p.conn.execute("UPDATE motion_prompts SET duration_sec=2 WHERE scene_id=?", (sid,))
+        self.p.conn.commit()
+        rows = [{"id": sid, "idx": i, "data": {"duration_s": 2}} for i, sid in enumerate(self.sids, 1)]
+        return mock.patch("core.seedance_refs.enabled", return_value=True), mock.patch("core.seedance_refs.groups", return_value=[rows])
+
+    def test_gen_video_button_prices_one_group_clip(self):
+        for sid in self.sids:
+            self.p.conn.execute("UPDATE motion_prompts SET duration_sec=2 WHERE scene_id=?", (sid,))
+        self.p.conn.commit()
+        a, b = self.groups()
+        with a, b:
+            tag = cost.video_button_tag(self.p.conn, self.sids)
+            self.assertIn(" 1 clip ≈", tag)                                   # was 3 clips × ≥ 4 s
+            one = cost.clip_estimate(self.p.conn, self.s1, seconds=6.0)
+            self.assertIn(f"{one:.2f}", tag)
+
+    def test_final_price_follows_the_group_clip(self):
+        with ON:
+            for sid in self.sids:
+                self.approved_draft(sid)
+            a, b = self.groups()
+            with a, b:
+                lead = quality_tier.scene_final_price(self.p.conn, self.s1)
+                self.assertEqual(quality_tier.scene_final_price(self.p.conn, self.sids[1]), 0.0)
+                want = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "1080p", "9:16", 6.0)
+                self.assertAlmostEqual(lead, round(want, 4))
+
+
+class FilmEstimateTests(Base):
+    N = 3
+
+    def test_e1_estimate_of_the_whole_film(self):
+        self.label("easy", self.sids[0])
+        self.label("easy", self.sids[1])
+        self.label("complex", self.sids[2])
+        est = quality_tier.e1_estimate(self.p.conn, self.pid)
+        direct = cost.seedance_estimate(quality_tier.SEEDANCE_20, "720p", "9:16", 4.0)
+        draft = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "480p", "9:16", 4.0)
+        final = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "1080p", "9:16", 4.0)
+        self.assertAlmostEqual(est["usd"], round(2 * direct + draft + final, 2))
+        self.assertEqual((est["direct"], est["draft_first"], est["film_seconds"], est["target_usd"]), (2, 1, 12.0, 30.0))
+        self.assertTrue(est["within"])
+        self.assertIn("mục tiêu < 30 USD", est["line"])
+        self.assertIn("ƯỚC TÍNH", est["line"])
+
+
+class UpscaleRenderTests(unittest.TestCase):
+    def test_fit_filter_upscales_with_lanczos_and_light_unsharp(self):
+        self.assertNotIn("lanczos", ffmpeg_studio._fit((1080, 1920)))        # unchanged for a clip at the frame size
+        f = ffmpeg_studio._fit((1080, 1920), upscale=True)
+        self.assertIn(f"flags={ffmpeg_studio.UPSCALE_FLAGS}", f)
+        self.assertIn("unsharp=", f)
+
+    def test_a_720p_clip_is_rendered_at_1080x1920_and_listed(self):
+        from core import delivery, final_cut
+        try:
+            ff = ffmpeg_studio.find_ffmpeg()
+        except Exception:  # noqa: BLE001
+            self.skipTest("ffmpeg missing")
+        data = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, data, True)
+        p = Pipeline(connect())
+        pid = p.create_project("render", aspect="9:16")
+        for idx, size in ((1, "720x1280"), (2, "1080x1920")):
+            sid = p.create_scene(pid, idx, f"s{idx}")
+            p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"story_scene": 1, "shot_no": idx}), sid))
+            path = final_cut.clip_path(data, pid, idx)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            subprocess.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"color=c=0x808080:s={size}:d=1", "-f", "lavfi",
+                            "-i", "sine=frequency=440:duration=1", "-shortest", "-pix_fmt", "yuv420p", "-c:a", "aac", path], check=True)
+        p.conn.commit()
+        res = delivery.render(p, pid, data, music_path=None, settings=dict(delivery.get_settings(p, pid), keep_audio=True))
+        self.assertEqual(ffmpeg_studio.probe_size(res["path"]), (1080, 1920))
+        man = json.loads(p.conn.execute("SELECT manifest FROM outputs WHERE id=?", (res["output_id"],)).fetchone()["manifest"])
+        self.assertEqual(man["upscaled"], [1])                                # only the 720p clip; the 1080p one stays as it is
+        self.assertIn("lanczos", man["upscale"]["how"])
+
+
+if __name__ == "__main__":
+    unittest.main()

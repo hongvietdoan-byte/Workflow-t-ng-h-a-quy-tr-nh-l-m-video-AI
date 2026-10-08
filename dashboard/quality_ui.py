@@ -121,7 +121,31 @@ def final_estimate(conn, pid: int) -> Dict:
     return est
 
 
+def final_offer(conn, scene_id: int) -> Dict:
+    """F3: {"upgrade": nâng từ nháp được?, "why", "usd"} của nút bản cao (core.quality_tier.final_offer; module cũ → nâng được)."""
+    qt = module()
+    try:
+        if qt is not None and hasattr(qt, "final_offer"):
+            return qt.final_offer(conn, scene_id)
+    except Exception:  # noqa: BLE001 - unreadable: say 'not upgradable' (the safe side: the person is asked first)
+        return {"upgrade": False, "why": "không đọc được bản nháp", "usd": None}
+    return {"upgrade": True, "why": None, "usd": None}
+
+
+NEW_FINAL_LABEL = "⬆ Gen MỚI bản cao (nội dung sẽ khác nháp)"
+
+
+def _usd_text(usd: Optional[float]) -> str:
+    return f"≈ {usd:.2f} USD (ước tính)" if usd is not None else "chưa có giá"
+
+
 def scene_final_price(conn, pid: int, scene_id: int) -> Optional[float]:
+    qt = module()
+    if qt is not None and hasattr(qt, "scene_final_price"):      # F3: theo clip nhóm + nâng từ nháp / gen mới
+        try:
+            return qt.scene_final_price(conn, scene_id)
+        except Exception:  # noqa: BLE001
+            pass
     est = final_estimate(conn, pid)
     by = est.get("by_scene") or {}
     if scene_id in by:
@@ -215,14 +239,27 @@ def card_block(p, pid: int, scene_id: int, runner) -> None:
     if s == "draft_stale":
         st.warning("⚠ Nháp đã cũ: " + stale_reason(p.conn, scene_id) + " — không gen bản cao từ nháp này; gen lại nháp từ đầu vào mới.")
     if s == "draft_ok":
+        offer = final_offer(p.conn, scene_id)
         price = scene_final_price(p.conn, pid, scene_id)
-        if st.button("⬆ Gen bản cao" + cost.price_tag(price), key=f"qfinal_{scene_id}", width="stretch",
-                     help="Nâng cảnh từ bản nháp đã duyệt lên bản chất lượng cao (người bấm — không tính vào trần tự gen lại)."):
-            qt = module()
-            if act(lambda: qt.request_final(p, scene_id, "user")):
+        qt = module()
+        if offer["upgrade"]:
+            if st.button("⬆ Gen bản cao" + cost.price_tag(price), key=f"qfinal_{scene_id}", width="stretch",
+                         help="Nâng cảnh từ bản nháp đã duyệt lên bản chất lượng cao (người bấm — không tính vào trần tự gen lại)."):
+                if act(lambda: qt.request_final(p, scene_id, "user")):
+                    if runner is not None:
+                        act(lambda: runner.submit_pending(pid))
+                    st.rerun()
+            return
+        # F3 (#24): không nâng được từ nháp → gen MỚI (nội dung khác nháp), chỉ khi người xác nhận rõ, có giá
+        from dashboard.common import confirm_all
+        st.caption(f"⚠ Không nâng được từ nháp: {offer.get('why') or '?'}")
+        if confirm_all(f"qfinal_new_{scene_id}", [scene_id], f"{NEW_FINAL_LABEL} — {_usd_text(price)}",
+                       f"Bản cao sẽ là một lần gen MỚI, nội dung KHÁC bản nháp đã duyệt — {_usd_text(price)}. Gen mới?",
+                       yes_label="Có, gen mới bản cao"):
+            if act(lambda: qt.request_final(p, scene_id, "user", confirm_new=True)):
                 if runner is not None:
                     act(lambda: runner.submit_pending(pid))
-                st.rerun()
+            st.rerun()
 
 
 def batch_block(p, pid: int, runner) -> None:
@@ -234,19 +271,37 @@ def batch_block(p, pid: int, runner) -> None:
     if summary:
         st.caption("Chất lượng 2 bậc: " + summary)
     est = final_estimate(p.conn, pid)
-    scenes = est["scenes"]
-    if not scenes:
+    ready = est["scenes"]
+    if not ready:
         return
-    usd = est["usd"]
-    price = f"≈ {usd:.2f} USD (tham khảo)" if usd is not None else "chưa có giá"
-    if confirm_all(f"qfinal_all_{pid}", scenes, f"⬆ Gen bản cao {len(scenes)} cảnh — {price}",
-                   f"Gen bản cao cho {len(scenes)} cảnh có nháp đã duyệt — {price}?", yes_label="Có, gen bản cao"):
-        qt = module()
-        for sid in scenes:
-            act(lambda sid=sid: qt.request_final(p, sid, "user"))
-        if runner is not None:
-            act(lambda: runner.submit_pending(pid))
-        st.rerun()
+    offers = {sid: final_offer(p.conn, sid) for sid in ready}
+    scenes = [sid for sid in ready if offers[sid]["upgrade"]]
+    fresh = [sid for sid in ready if not offers[sid]["upgrade"]]     # F3: không nâng được từ nháp → nút gom riêng, hỏi rõ
+    by = est.get("by_scene") or {}
+    if scenes:
+        vals = [by.get(sid) for sid in scenes]
+        usd = round(sum(vals), 2) if all(v is not None for v in vals) else None
+        price = f"≈ {usd:.2f} USD (tham khảo)" if usd is not None else "chưa có giá"
+        if confirm_all(f"qfinal_all_{pid}", scenes, f"⬆ Gen bản cao {len(scenes)} cảnh — {price}",
+                       f"Gen bản cao cho {len(scenes)} cảnh có nháp đã duyệt — {price}?", yes_label="Có, gen bản cao"):
+            qt = module()
+            for sid in scenes:
+                act(lambda sid=sid: qt.request_final(p, sid, "user"))
+            if runner is not None:
+                act(lambda: runner.submit_pending(pid))
+            st.rerun()
+    if fresh:
+        vals = [by.get(sid) for sid in fresh]
+        usd = round(sum(vals), 2) if all(v is not None for v in vals) else None
+        if confirm_all(f"qfinal_allnew_{pid}", fresh, f"{NEW_FINAL_LABEL} {len(fresh)} cảnh — {_usd_text(usd)}",
+                       f"{len(fresh)} cảnh không nâng được từ nháp: bản cao sẽ là gen MỚI, nội dung KHÁC nháp — {_usd_text(usd)}. Gen mới?",
+                       yes_label="Có, gen mới bản cao"):
+            qt = module()
+            for sid in fresh:
+                act(lambda sid=sid: qt.request_final(p, sid, "user", confirm_new=True))
+            if runner is not None:
+                act(lambda: runner.submit_pending(pid))
+            st.rerun()
 
 
 def draft_render_note(conn, pid: int) -> str:

@@ -687,10 +687,14 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         track = bed
         arc_info = {**(arc_info or {}), "enter": music_start, "tracks": [{"file": os.path.basename(t["path"]), "start": t["start"],
                                                                           "join": t["join"]} for t in later]}
+    frame = formats.spec(aspect)["render"] if aspect else None
+    # F3 / E1 (09/10): a clip smaller than the project frame (Seedance 2.0 720p → 1080×1920) is scaled up in the same ffmpeg pass
+    # (lanczos + light unsharp, ffmpeg_studio.UPSCALE_FLAGS) — no AI step; a clip already at the frame size stays as it is
+    upscale = {i for i, c in enumerate(paths) if frame and ffmpeg_studio.needs_upscale(c, frame)}
     ffmpeg_studio.render_final(paths, out, durations, settings["transition"], settings["fade"], track, settings["music_volume"],
-                               extras, keep_audio, formats.spec(aspect)["render"] if aspect else None, breaths=breaths,
+                               extras, keep_audio, frame, breaths=breaths,
                                music_off=music_off, music_start=music_start,
-                               music_end=start2 if track2 and start2 else None)
+                               music_end=start2 if track2 and start2 else None, upscale=upscale)
     pulse, pulse_error = [], None
     if settings.get("beat_pulse") and (track2 or track):   # 07/10: the camera punches in and shakes slightly on the song's beats
         staged = out + ".pulse.mp4"
@@ -732,6 +736,10 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     if popup:
         manifest["end_popup"] = popup
     manifest["loudness"] = _loudness(out)
+    manifest["upscaled"] = [r.get("idx") for i, r in enumerate([r for r in rows if r.get("path")]) if i in upscale]
+    if upscale:
+        manifest["upscale"] = {"to": list(frame), "how": f"ffmpeg {ffmpeg_studio.UPSCALE_FLAGS} + unsharp "
+                                                         f"{ffmpeg_studio.UNSHARP_SIZE}x{ffmpeg_studio.UNSHARP_SIZE}:{ffmpeg_studio.UNSHARP_AMOUNT}"}
     manifest["color_match"] = colour
     if flashbacks:
         manifest["flashback_fx"] = flashbacks
