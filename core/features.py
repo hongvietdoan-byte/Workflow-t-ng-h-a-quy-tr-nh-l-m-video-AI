@@ -56,6 +56,14 @@ FEATURES: Dict[str, Dict] = {
         "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ
         "why": "Đã duyệt 01/10 (đợt 4, D:/AI-Video-Output/2026-10-01_ab-hieu-ung-8): người dùng xem bản dựng #8 có hiệu ứng và chọn giữ. Lý do ban đầu — GĐ4 (editing.md E4, D6): chưa nghe thử; khoảng lặng dài/ngắn là gu dựng — bật khi người dùng nghe và đồng ý",
     },
+    "music_story_arc": {
+        "label": "Nhạc nền theo đường cảm xúc cả truyện (N3): chặng mở đầu → căng → ngoặt → cao trào → kết, MỘT bản nhạc AI liền mạch "
+                 "đổi chặng đúng giây bước ngoặt trên bản dựng; tách bài chỉ khi đổi chất liệu (bài gốc), nối mượt; điểm vào bài tự động; "
+                 "ducking đều 8–12 dB",
+        "verified": False,
+        "why": "Người dùng chốt 08/10 (docs/THIET_KE_2_BAC_CHAT_LUONG_VA_NHAC_2026-10-08.md mục 3). Mới thử bằng tín hiệu tổng hợp "
+               "(ducking 8,3–11,7 dB với giọng −26…−14 dBFS); chưa gen nhạc thật theo brief chặng, chưa nghe bản dựng nhiều bài",
+    },
     "sound_intent": {
         "label": "Nhạc theo ý đồ âm thanh của Đạo diễn từng shot: tắt hẳn từ shot 'cut' tới shot 'in', lặng 0,6 s trước shot 'breath'",
         "verified": True,        # 01/10 người dùng xem 2 bản dựng #8 có / không hiệu ứng (đợt 4) và chọn bản CÓ

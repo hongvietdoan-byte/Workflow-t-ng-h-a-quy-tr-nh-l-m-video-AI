@@ -88,6 +88,36 @@ def _second_music_extra(track2: str, start: float, film_s: float, volume: float,
     return {"path": out, "start": round(start, 3), "volume": volume, "key": False}
 
 
+def _arc_cues(data_dir: str, project_id: int) -> List[Dict]:
+    """N3: the extra music tracks of the story's arc (music_cues.json) — read only while the flag `music_story_arc` is on."""
+    from . import features, music_cues
+    return music_cues.load(data_dir, project_id) if features.on("music_story_arc") else []
+
+
+def music_tracks(p: Pipeline, data_dir: str, project_id: int, settings: Dict, rows: List[Dict], durations: List[float],
+                 beats: Optional[List[float]] = None) -> List[Dict]:
+    """The music tracks after the main one, [{"path", "start" (film s), "join"}]. Flag `music_story_arc` with cues saved (N3): each
+    cue takes the start / join of the arc's next track (music_cues.plan on THIS cut's lengths and crossfades, on a downbeat of the main
+    music when `beats` are known) unless the cue sets its own. Otherwise the 07/10 second music from `music2_start` (join "legacy":
+    rendered exactly as before)."""
+    cues = _arc_cues(data_dir, project_id)
+    if not cues:
+        track2 = second_music(data_dir, project_id)
+        return [{"path": track2, "start": float(settings.get("music2_start") or 0), "join": "legacy"}] if track2 else []
+    from . import music_cues
+    overlap = settings["fade"] if settings["transition"] in ffmpeg_studio.OVERLAP_STYLES else 0.0
+    seconds = {r["scene_id"]: float(d) for r, d in zip([r for r in rows if r.get("path")], durations) if r.get("scene_id")} or None
+    later = music_cues.plan(p, project_id, seconds, overlap=overlap, beats=beats)["tracks"][1:]
+    out = []
+    for i, c in enumerate(cues):
+        t = later[i] if i < len(later) else None
+        start = c["start"] if c.get("start") is not None else (t["start"] if t else None)
+        if start is None:
+            continue                          # more cues than changes of material in the story: the extra one has no place
+        out.append({"path": c["path"], "start": round(float(start), 3), "join": c.get("join") or (t["join"] if t else "crossfade")})
+    return out
+
+
 def selected_music(data_dir: str, project_id: int) -> Optional[str]:
     _, selected = music.project_dirs(data_dir, project_id)
     files = sorted(os.listdir(selected))
@@ -102,7 +132,9 @@ def audio_hash(data_dir: str, project_id: int) -> str:
     track2 = second_music(data_dir, project_id)
     return lineage.settings_hash({"music": [os.path.basename(track) if track else None, stamp(track)],
                                   "extras": [[os.path.basename(e["path"]), e["start"], e["volume"], stamp(e["path"])] for e in extras],
-                                  **({"music2": [os.path.basename(track2), stamp(track2)]} if track2 else {})})
+                                  **({"music2": [os.path.basename(track2), stamp(track2)]} if track2 else {}),
+                                  **({"cues": [[c["file"], c.get("start"), c.get("join"), stamp(c["path"])] for c in cues]}
+                                     if (cues := _arc_cues(data_dir, project_id)) else {})})   # N3: old hashes stay
 
 
 # ---- outputs table ------------------------------------------------------------------------------------------------------
@@ -622,21 +654,44 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         else:                                  # CHUAN luật 1: planned and not applied is said, not dropped in silence
             intent = {"applied": False, "planned": plan["planned"],
                       "why": "cờ sound_intent đang TẮT" if track else "bản dựng không có nhạc nền"}
-    track2 = second_music(data_dir, project_id)
-    start2 = float(settings.get("music2_start") or 0)
+    music_start = float(settings.get("music_start") or 0)
+    film_s = sum(durations) - (settings["fade"] * (len(paths) - 1) if settings["transition"] in ffmpeg_studio.OVERLAP_STYLES else 0)
+    arc_info = None
+    if features.on("music_story_arc") and track and not music_start:   # N3: the music comes in where the Director lets it (no seconds by hand)
+        from . import music_cues
+        overlap = settings["fade"] if settings["transition"] in ffmpeg_studio.OVERLAP_STYLES else 0.0
+        seconds = {r["scene_id"]: float(d) for r, d in zip([r for r in rows if r.get("path")], durations) if r.get("scene_id")} or None
+        music_start = float(music_cues.plan(p, project_id, seconds, overlap=overlap)["enter"])
+        arc_info = {"enter": music_start}
+    beats = None
+    if track and _arc_cues(data_dir, project_id):
+        try:                                   # the change of track lands on a downbeat of the main music
+            beats = ffmpeg_studio.music_beats(track, music_start, film_s)
+        except Exception:  # noqa: BLE001 - no beat tracker / unreadable file: the change stays on the story's second
+            beats = None
+    later = music_tracks(p, data_dir, project_id, settings, rows, durations, beats) if track or second_music(data_dir, project_id) else []
+    track2 = start2 = None
+    if later and later[0]["join"] == "legacy":
+        track2, start2 = later[0]["path"], later[0]["start"]
     if track2:                                 # 07/10: the second music from its second; the first one fades out there
-        film_s = sum(durations) - (settings["fade"] * (len(paths) - 1) if settings["transition"] in ffmpeg_studio.OVERLAP_STYLES else 0)
         extras = list(extras) + [_second_music_extra(track2, start2, film_s, float(settings["music_volume"]),
                                                      output_dir(data_dir, project_id))]
+    elif later and track:                      # N3: N tracks laid into ONE bed — ducked, breathed and faded like a single music
+        from . import music_cues
+        bed = os.path.join(output_dir(data_dir, project_id), "_music_bed.wav")
+        music_cues.assemble([{"path": track, "start": music_start, "join": "enter"}] + later, film_s, bed)
+        track = bed
+        arc_info = {**(arc_info or {}), "enter": music_start, "tracks": [{"file": os.path.basename(t["path"]), "start": t["start"],
+                                                                          "join": t["join"]} for t in later]}
     ffmpeg_studio.render_final(paths, out, durations, settings["transition"], settings["fade"], track, settings["music_volume"],
                                extras, keep_audio, formats.spec(aspect)["render"] if aspect else None, breaths=breaths,
-                               music_off=music_off, music_start=float(settings.get("music_start") or 0),
+                               music_off=music_off, music_start=music_start,
                                music_end=start2 if track2 and start2 else None)
     pulse, pulse_error = [], None
     if settings.get("beat_pulse") and (track2 or track):   # 07/10: the camera punches in and shakes slightly on the song's beats
         staged = out + ".pulse.mp4"
         try:
-            pulse = ffmpeg_studio.music_beats(track2 or track, start2 if track2 else float(settings.get("music_start") or 0),
+            pulse = ffmpeg_studio.music_beats(track2 or track, start2 if track2 else music_start,
                                               ffmpeg_studio.probe_duration(out))
             if pulse:
                 ffmpeg_studio.add_pulse(out, staged, pulse)
@@ -672,6 +727,10 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         manifest["sfx_placed"] = sfx_moved
     if breaths:
         manifest["music_breaths"] = breaths
+    if arc_info is not None:
+        manifest["music_story_arc"] = arc_info
+    elif later and not track and not track2:   # CHUAN luật 1: chosen tracks that could not be laid are said, not dropped in silence
+        manifest["music_story_arc"] = {"applied": False, "why": "chưa chọn nhạc chính — các bài theo chặng không có gì để nối vào"}
     if intent is not None:
         manifest["sound_intent"] = intent
     if hits:
