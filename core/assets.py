@@ -1414,6 +1414,12 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     return refs
 
 
+def _outfit_strip() -> bool:
+    """KLD-7 (08/10, feature outfit_strip_model, off until a cheap one-shot test): the OUTFIT note also drops the model wearing it."""
+    from . import features
+    return features.on("outfit_strip_model")
+
+
 def reference_note(refs: List[Dict]) -> str:
     """Words that tell the image model what each attached picture is for. Several pictures of the same person (different angles /
     a close-up) are grouped: "Images 1-2 show KELLY..." instead of repeating a separate, disconnected line per picture."""
@@ -1456,7 +1462,9 @@ def reference_note(refs: List[Dict]) -> str:
         elif g["role"] == "outfit":
             bits.append(f"{tag} {'shows' if len(nums) == 1 else 'show'} the OUTFIT {g['label']} wears in this video: dress {g['label']} "
                         "exactly in these clothes (garments, colours, accessories); take only the face, hair and body build from "
-                        f"{g['label']}'s own reference image, never the clothes shown there")
+                        f"{g['label']}'s own reference image, never the clothes shown there"
+                        + ("; ignore the hair, face and body of any person modelling these clothes; wear each accessory exactly as the "
+                           "picture shows it" if _outfit_strip() else ""))
         elif g["role"] == "outfit_object":
             bits.append(f"{tag} is the outfit {g['label']} shown in this shot without anyone wearing it: draw exactly these garments — "
                         "every print and its drawing, colours, cap, mask and shoes — only laid out as the scene text says")
