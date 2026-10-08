@@ -63,11 +63,11 @@ STAGES: Dict[str, Dict] = {
         "label": "Kiểm mô tả nhân vật với ảnh tài nguyên (prompt 18)",
         "status": "đang dùng",
         "used_when": lambda conn, pid: True,
-        "open": [("Báo sai chi tiết nhỏ: mũ MAXIM đội ngược đọc thành đội xuôi (ảnh thu 1024 px, tờ thiết kế nhiều ô nhỏ)",
-                  "cờ chi tiết nhỏ phải kèm ảnh cắt sát vùng đó cho người xem; không đề xuất sửa Bible chỉ bằng lời Claude"),
-                 ("Cờ báo sai vẫn lưu sau khi người xác nhận (bấm tiếp tục) → Bước 2 vẫn khóa nút gen ảnh, phải tick 'vẫn gen ảnh'",
-                  "nút 'cờ này sai — bỏ' lưu quyết định của người; cờ đã bỏ không chặn lại")],
-        "fixed": [],
+        "open": [],
+        "fixed": ["08/10: báo sai chi tiết nhỏ (mũ MAXIM đội ngược đọc thành xuôi) → prompt 18 trả `regions` (box 0–1, small); Bước 1 hiện ảnh "
+                  "cắt sát vùng (claude_tasks.bible_details); chi tiết nhỏ không có vùng → ẩn nút 'Dùng đề xuất' (không sửa Bible chỉ bằng lời)",
+                  "08/10: cờ báo sai vẫn khóa Bước 2 → nút '✖ Cờ này sai — bỏ' lưu quyết định của người (claude_tasks.dismiss_bible_flag, "
+                  "giữ tới khi mô tả/ảnh đổi); cờ đã bỏ không còn trong bible_flags → batch.image_gates / chạy tự động không chặn"],
     },
     "kling_multishot": {
         "label": "Kling multi-shot / Kling đầu–cuối để gộp shot",

@@ -343,19 +343,34 @@ def voice_rule_box(p: Pipeline, pid: int, rows, speakers, data_dir: Optional[str
 def bible_check_box(p: Pipeline, pid: int, rows, client, locked: bool) -> None:
     """F1: the Bible text against the library pictures — mismatches shown with Claude's suggested wording, one click to use it."""
     flags = claude_tasks.bible_flags(p, pid)
+    details = claude_tasks.bible_details(p, pid)       # 08/10: a close crop per small detail; "cờ này sai — bỏ" per mismatch
     for r in rows:
         if r["name"] not in flags:
             continue
-        res = json.loads(r["bible_check"] or "{}")
+        d = details.get(r["name"]) or {"items": [], "fixed_description": "", "can_apply": True}
         box = st.container(border=True)
         with box:
             say("warning", f"⚑ **{r['name']}**: mô tả mâu thuẫn với ảnh tài nguyên — " + "; ".join(flags[r["name"]]), f"script-bflag-{pid}-{r['name']}",
                 f"⚑ {r['name']}: mô tả mâu thuẫn với ảnh tài nguyên")
-        fixed = (res.get("fixed_description") or "").strip()
+            for it in d["items"]:
+                cols = st.columns([3, 2, 1]) if it["crop"] else st.columns([5, 1])
+                cols[0].markdown(f"• {it['text']}" + (" · *chi tiết nhỏ*" if it["small"] else ""))
+                if it["crop"]:
+                    cols[1].image(it["crop"], caption="ảnh tài nguyên — cắt sát vùng này")
+                elif it["small"]:
+                    cols[0].caption("Chưa có ảnh cắt vùng này — tự xem ảnh tài nguyên trước khi sửa Bible")
+                if cols[-1].button("✖ Cờ này sai — bỏ", key=f"bdis_{pid}_{r['name']}_{it['index']}",
+                                   help="Lưu quyết định của bạn: cờ này không chặn nút gen ảnh ở Bước 2 nữa (tới khi mô tả/ảnh đổi)"):
+                    act(lambda it=it: claude_tasks.dismiss_bible_flag(p, pid, r["name"], it["index"], by=C.me().get("email") or ""),
+                        "Đã bỏ cờ")
+                    st.rerun()
+        fixed = d["fixed_description"]
         if fixed:
             with box:
                 cap(f"Đề xuất: {fixed}", f"script-bfix-{pid}-{r['name']}")
-            if not locked and box.button("✔ Dùng đề xuất này", key=f"bfix_{pid}_{r['name']}"):
+                if not d["can_apply"]:
+                    st.caption("Không dùng đề xuất chỉ bằng lời: có chi tiết nhỏ chưa kèm ảnh cắt — xem ảnh rồi sửa tay hoặc bỏ cờ.")
+            if not locked and d["can_apply"] and box.button("✔ Dùng đề xuất này", key=f"bfix_{pid}_{r['name']}"):
                 act(lambda: llm_io.update_character(p, pid, r["name"], fixed, r["wardrobe"]), "Đã sửa mô tả theo ảnh")
                 st.rerun()
     if client is not None and st.button("🔍 Kiểm mô tả nhân vật với ảnh tài nguyên (1 lượt Claude, chỉ nhân vật đổi từ lần kiểm trước)"

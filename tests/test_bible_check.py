@@ -53,6 +53,57 @@ class BibleCheckTests(unittest.TestCase):
         self.conn.commit()
         self.assertEqual(claude_tasks.bible_flags(self.p, self.pid), {})  # the text changed: the old result no longer applies
 
+    def test_a_region_must_be_a_box_inside_the_picture(self):
+        check = claude_tasks._check_bible(["KELLY"])
+        good = {"characters": [{"name": "KELLY", "ok": False, "mismatches": ["mũ"], "regions": [{"mismatch": 0, "box": [0.1, 0.0, 0.4, 0.2]}]}]}
+        check(good)
+        for bad in ([{"mismatch": 3, "box": [0.1, 0.0, 0.4, 0.2]}], [{"mismatch": 0, "box": [0.5, 0.0, 0.4, 0.2]}],
+                    [{"mismatch": 0, "box": [0.1, 0.0, 1.4, 0.2]}], "x"):
+            with self.assertRaises(Exception):
+                check({"characters": [dict(good["characters"][0], regions=bad)]})
+
+    def test_kld_bible_a_small_detail_comes_with_a_close_crop_and_never_a_words_only_fix(self):
+        class Boxed(llm_runner.MockLlm):
+            def complete(self, prompt, images=()):
+                if "Kiểm Character Bible" in prompt:
+                    out = {"characters": [{"name": "KELLY", "ok": False,
+                                           "mismatches": ["mũ đội xuôi — ảnh: đội ngược", "kính bên trái — ảnh: không rõ"],
+                                           "regions": [{"mismatch": 0, "box": [0.25, 0.0, 0.75, 0.2], "small": True}],
+                                           "fixed_description": "cap worn backwards"}]}
+                    return llm_runner.LlmReply(json.dumps(out, ensure_ascii=False), 10, 5)
+                return super().complete(prompt, images)
+        self.assertIn("regions", open(os.path.join(os.path.dirname(__file__), "..", "prompts", "18_bible_check.md"), encoding="utf-8").read())
+        claude_tasks.bible_check(self.p, self.pid, Boxed())
+        d = claude_tasks.bible_details(self.p, self.pid)["KELLY"]
+        crop = Image.open(__import__("io").BytesIO(d["items"][0]["crop"]))
+        self.assertGreaterEqual(min(crop.size), 256)                      # small crops are enlarged for the person's eyes
+        self.assertTrue(d["items"][0]["small"])
+        self.assertIsNone(d["items"][1]["crop"])
+        self.assertTrue(d["items"][1]["small"])                           # a left/right detail counts as small even unmarked
+        self.assertFalse(d["can_apply"])                                  # a small detail without its crop: no words-only Bible fix
+        claude_tasks.dismiss_bible_flag(self.p, self.pid, "KELLY", 1)
+        self.assertTrue(claude_tasks.bible_details(self.p, self.pid)["KELLY"]["can_apply"])
+
+    def test_kld_bible_a_flag_the_person_dismissed_no_longer_locks_step_2(self):
+        from core import batch
+        claude_tasks.bible_check(self.p, self.pid, Wrong())
+        self.assertTrue(any("mâu thuẫn" in b for b in batch.image_gates(self.p, self.pid)["block"]))
+        claude_tasks.dismiss_bible_flag(self.p, self.pid, "KELLY", 0, by="a@b")
+        self.assertEqual(claude_tasks.bible_flags(self.p, self.pid), {})
+        self.assertFalse(any("mâu thuẫn" in b for b in batch.image_gates(self.p, self.pid)["block"]))
+        claude_tasks.bible_check(self.p, self.pid, Wrong())               # cached check: the person's decision stays
+        self.assertEqual(Wrong.calls, 1)
+        self.assertEqual(claude_tasks.bible_flags(self.p, self.pid), {})
+        saved = json.loads(self.conn.execute("SELECT bible_check FROM characters WHERE project_id=?", (self.pid,)).fetchone()[0])
+        self.assertEqual(saved["dismissed"][0]["text"], "mô tả 'tóc đuôi ngựa' — ảnh: tóc ngắn")
+        self.assertEqual(saved["dismissed"][0]["by"], "a@b")
+
+    def test_the_two_bible_check_faults_are_fixed(self):
+        from core import known_issues
+        st = known_issues.STAGES["bible_check"]
+        self.assertEqual(st["open"], [])
+        self.assertEqual(len(st["fixed"]), 2)
+
     def test_a_library_picture_whose_file_is_gone_is_skipped_and_said(self):
         """S14.4 C1b (04/10): a lost file went to Claude as a path that does not open (the whole check failed)."""
         for r in self.conn.execute("SELECT path FROM asset_images").fetchall():
