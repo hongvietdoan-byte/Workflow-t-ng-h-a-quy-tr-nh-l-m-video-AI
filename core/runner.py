@@ -977,8 +977,10 @@ class VideoRunner(_Runner):
         return self.p.conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
 
     def _has_clip(self, scene_id: int) -> bool:
-        return bool(self.p.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN ('succeeded','approved')",
-                                        (scene_id,)).fetchone())
+        # 08/10 (#24): 'pending_review' was left out — with "Tôi duyệt hết" every clip waits there, so the redo of shot 3 (a part of
+        # the S01–S03 group clip) waited forever, silently, for shot 1 to "have a clip". A clip waiting for the person IS a clip.
+        return bool(self.p.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN "
+                                        "('succeeded','pending_review','approved')", (scene_id,)).fetchone())
 
     def _sends_group(self, job):
         """The multi-shot group this job generates in one go (Kling multi-shot, first shot of a group whose other shots have no
@@ -1097,7 +1099,11 @@ class VideoRunner(_Runner):
         if run and run[0]["id"] != job["scene_id"]:
             return True                   # the run's first shot sends the group clip for it
         if group[0]["id"] != job["scene_id"] and not run:
-            return not self._has_clip(group[0]["id"])
+            if not self._has_clip(group[0]["id"]):
+                idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (group[0]["id"],)).fetchone()
+                lead = f" (S{idx['idx']:02d})" if idx else ""
+                return self._hold(job, f"chờ clip nhóm gửi từ shot đầu nhóm{lead} — gửi shot đó trước, phần này đi cùng clip nhóm")
+            return False
         if self._sends_group(job) is None:
             return False
         if self._refs(job) and any(shots.approved_image_path(self.p.conn, self.data_dir, job["project_id"], r["id"]) is None
