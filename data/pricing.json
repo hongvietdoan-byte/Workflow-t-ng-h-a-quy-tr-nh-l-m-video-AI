@@ -10,11 +10,11 @@
     "gpt-image-2": 0.052
   },
   "per_video_second": {
-    "kling-v3-omni:std": 0.08,
-    "kling-v3-omni:pro": 0.08,
-    "kling-v3-omni:4k": 0.08,
-    "kling-video-o1:std": null,
-    "kling-video-o1:pro": null,
+    "kling-v3-omni:std": 0.087,
+    "kling-v3-omni:pro": 0.122,
+    "kling-v3-omni:4k": 0.423,
+    "kling-video-o1:std": 0.091,
+    "kling-video-o1:pro": 0.119,
     "dreamina-seedance-2-0-260128:480p": 0.15,
     "dreamina-seedance-2-0-260128:720p": 0.15,
     "dreamina-seedance-2-0-260128:1080p": 0.15,
@@ -34,13 +34,13 @@
   "_note_seedance_2_5_web": "2026-10-01 (S4.11/S4.12): giá Seedance 2.5 480p / 1080p / sửa clip lấy theo công thức giá của chính web ClipAI (core/cost.py seedance_estimate: token = rộng×cao×24×giây/1024; 2.5 = 0,0107 USD / 1000 token, có video đầu vào 0,0064), khung 9:16. 1080p chỉ dùng cho bản cuối từ bản mẫu. `_edit` = sửa clip: giá mỗi giây TÍNH TIỀN = giây clip nguồn + giây ra (ghi sổ quantity = tổng đó). 720p không video đầu vào theo công thức = 0,231/s, khớp 0,23 niêm yết.",
   "per_video_clip": {},
   "per_audio": {
-    "music_v2": null,
-    "music_v2_5": null,
-    "seed-audio-1.0": null,
-    "eleven_text_to_sound_v2": null,
-    "eleven_v3": null,
-    "eleven_multilingual_v2": null,
-    "eleven_turbo_v2_5": null
+    "music_v2": 0.15,
+    "music_v2_5": 0.15,
+    "seed-audio-1.0": 0.15,
+    "eleven_text_to_sound_v2": 0.01,
+    "eleven_v3": 0.03,
+    "eleven_multilingual_v2": 0.03,
+    "eleven_turbo_v2_5": 0.015
   },
   "listed_usd_per_video_second": {
     "_note": "Giá niêm yết công khai (USD/giây), KHÔNG dùng trực tiếp cho cost ledger (đơn vị hệ thống là credit) — chỉ để so sánh/chọn model. Xem _note ở trên.",
@@ -52,9 +52,14 @@
     "dreamina-seedance-2-5-260628:1080p": 0.52,
     "dreamina-seedance-2-5-260628:480p_edit": 0.0615,
     "dreamina-seedance-2-5-260628:720p_edit": 0.138,
-    "kling-v3-omni:std": 0.08,
+    "kling-v3-omni:std": 0.087,
     "minimax-h3": null,
-    "lipsync-2-pro:post": 0.084
+    "lipsync-2-pro:post": 0.084,
+    "kling-v3-omni:pro": 0.122,
+    "kling-v3-omni:4k": 0.423,
+    "kling-video-o1:std": 0.091,
+    "kling-video-o1:pro": 0.119,
+    "_note_kling_0810": "Kling: giá đọc trên web ClipAI 08/10 (xem _note_web_0810)"
   },
   "model_choice_guide": {
     "_note": "Bảng xếp hạng chính thức ClipAI, dùng để gợi ý model trong dashboard (Bước 4). Không phải giá — chỉ thứ tự ưu tiên.",
@@ -101,5 +106,37 @@
   "_unverified_models": [
     "dreamina-seedance-*"
   ],
-  "_note_unverified_models": "2026-09-28: giá Seedance trên ClipAI KHÔNG có nguồn chính xác (API video-list trả cost = 0 cho task Seedance, phát hiện 17 — giá trong bảng là ước tính). Sổ chi vẫn ghi theo giá ước tính; ngân sách dự án (core/project_budget.py) nhân UNVERIFIED_MARGIN 1,25 cho các model này. Có nguồn giá thật (hóa đơn / số dư ClipAI trước–sau) thì sửa giá + bỏ khỏi danh sách."
+  "_note_unverified_models": "2026-09-28: giá Seedance trên ClipAI KHÔNG có nguồn chính xác (API video-list trả cost = 0 cho task Seedance, phát hiện 17 — giá trong bảng là ước tính). Sổ chi vẫn ghi theo giá ước tính; ngân sách dự án (core/project_budget.py) nhân UNVERIFIED_MARGIN 1,25 cho các model này. Có nguồn giá thật (hóa đơn / số dư ClipAI trước–sau) thì sửa giá + bỏ khỏi danh sách.",
+  "per_audio_unit": {
+    "_note": "08/10 đọc trên web ClipAI (chưa bấm tạo): Eleven v3 / Multilingual v2 10,3 ¢ / 1 029 ký tự; Turbo v2.5 5,1 ¢; Eleven Music v2 / v2.5 7,5 ¢ / 30 s; SFX 1 ¢ / 5 s; Seed Audio 1.0 15 ¢/phút. Dòng sổ chi theo 'char' / 'second' dùng bảng này; dòng 'item' cũ dùng per_audio (giá dư một lượt: ~300 ký tự, nhạc 60 s, SFX 5 s).",
+    "eleven_v3": {
+      "unit": "char",
+      "usd": 0.0001
+    },
+    "eleven_multilingual_v2": {
+      "unit": "char",
+      "usd": 0.0001
+    },
+    "eleven_turbo_v2_5": {
+      "unit": "char",
+      "usd": 5e-05
+    },
+    "music_v2": {
+      "unit": "second",
+      "usd": 0.0025
+    },
+    "music_v2_5": {
+      "unit": "second",
+      "usd": 0.0025
+    },
+    "eleven_text_to_sound_v2": {
+      "unit": "second",
+      "usd": 0.002
+    },
+    "seed-audio-1.0": {
+      "unit": "second",
+      "usd": 0.0025
+    }
+  },
+  "_note_web_0810": "08/10 giá web ClipAI (12 s · 9:16 · không âm thanh, chưa bấm tạo): Seedance 2.0 720p 1,81 · 1080p 4,08 · 2.0 Fast 720p 1,45 · 2.0 Mini 720p 0,91 · 2.5 720p 2,77 (mẫu 480p 1,29) · 2.5 1080p 6,24 USD = đúng công thức token (cost.seedance_estimate). Kling (giá ¥, làm tròn 1 tệ, +0,5 tệ, 7,2 ¥/USD): 3.0 Omni 12 s 720p ¥7 → std, 1080p ¥10 → pro, 4K ¥36 → 4k (có tiếng 720p ¥10, chưa tách giá); O1 10 s 720p ¥6, 1080p ¥8. MiniMax H3: web không hiện giá."
 }

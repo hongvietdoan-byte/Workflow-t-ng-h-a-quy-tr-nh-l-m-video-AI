@@ -543,7 +543,7 @@ class BudgetApprovalShowsTheTotal(unittest.TestCase):
             why = project_budget.gate_reason(p, pid)
         for k in ("images", "videos", "audio", "claude", "remaining", "spent", "total"):
             self.assertIn(k, s)
-        self.assertAlmostEqual(s["remaining"], round(s["images"] + s["videos"] + (s["audio"] or 0) + s["claude"], 2), places=2)
+        self.assertAlmostEqual(s["remaining"], s["images"] + s["videos"] + (s["audio"] or 0) + s["claude"], delta=0.015)  # parts rounded
         self.assertAlmostEqual(s["total"], round(s["spent"] + s["remaining"], 2), places=2)
         self.assertIn("Đã chi + ước tính phần còn lại", s["text"])
         self.assertIn(f"đã chi ${s['spent']:.2f}", s["text"])

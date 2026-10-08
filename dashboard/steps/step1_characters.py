@@ -201,7 +201,7 @@ def voice_preview_row(p: Pipeline, pid: int, name: str, voice_id, voice_name) ->
     directory = voice.previews_dir(C.DATA, pid)
     mine = [e for e in audio_lib.load(directory) if e.get("preview_for") == name and e.get("voice_id") == voice_id]
     b1, b2 = st.columns([1.4, 3], vertical_alignment="center")
-    if b1.button("🔈 Nghe thử câu mẫu tiếng Việt" + budget.audio_tag(p.conn, 1), key=f"vprev_{pid}_{name}", help="Tạo 1 câu mẫu bằng giọng này (tốn một chút credit âm thanh)."):
+    if b1.button("🔈 Nghe thử câu mẫu tiếng Việt" + budget.audio_tag(p.conn, 1, "eleven_v3"), key=f"vprev_{pid}_{name}", help="Tạo 1 câu mẫu bằng giọng này (tốn một chút credit âm thanh)."):
         try:
             provider = music.audio_provider()
         except ProviderError as e:

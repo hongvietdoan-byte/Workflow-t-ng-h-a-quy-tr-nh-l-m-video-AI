@@ -155,7 +155,7 @@ def step5a(p: Pipeline, pid: int):
                 instrumental = c2.checkbox("Không lời (instrumental)", brief["instrumental"], key=f"minst_{pid}")
                 count = c3.number_input("Số bản nháp", 1, 5, 3, key=f"mcount_{pid}")
                 b1, b2 = st.columns(2)
-                if b1.button(f"✨ Tạo {int(count)} bản nháp" + budget.audio_tag(p.conn, int(count)), type="primary", disabled=not prompt.strip(), key=f"mdraft_{pid}"):
+                if b1.button(f"✨ Tạo {int(count)} bản nháp" + budget.audio_tag(p.conn, int(count), "music_v2"), type="primary", disabled=not prompt.strip(), key=f"mdraft_{pid}"):
                     n = music.submit_drafts(provider, drafts_dir, prompt, int(seconds) * 1000, instrumental, int(count), ledger=(p.conn, pid),
                                              p=p, project_id=pid)
                     st.toast(f"Đã gửi {n} bản")
@@ -208,7 +208,7 @@ def extras_section(p: Pipeline, pid: int, provider):
                 c1, c2, c3 = st.columns([2, 1, 2])
                 s_sec = c1.number_input("Độ dài (giây, 0.5–30)", 0.5, 30.0, 3.0, 0.5, key=f"sfx_d_{pid}")
                 s_loop = c2.checkbox("Loop", False, key=f"sfx_l_{pid}")
-                if c3.button("✨ Tạo SFX" + budget.audio_tag(p.conn), disabled=not s_prompt.strip(), key=f"sfx_go_{pid}"):
+                if c3.button("✨ Tạo SFX" + budget.audio_tag(p.conn, 1, "eleven_text_to_sound_v2"), disabled=not s_prompt.strip(), key=f"sfx_go_{pid}"):
                     entry = audio_lib.submit_sfx(provider, directory, s_prompt, s_sec, s_loop, ledger=(p.conn, pid), p=p, project_id=pid)
                     st.toast("Đã gửi SFX" if entry["asset_id"] else f"Lỗi: {entry['message']}")
                     st.rerun()

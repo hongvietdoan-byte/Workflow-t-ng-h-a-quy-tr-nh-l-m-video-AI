@@ -681,6 +681,23 @@ def rows_to_pricing(rows: List[Dict], base: Dict) -> Dict:
 
 
 # ---- ledger ---------------------------------------------------------------
+def audio_row_usd(pricing: Dict, r) -> Optional[float]:
+    """USD of one audio row (08/10, web ClipAI): TTS by characters, music / SFX by seconds (`per_audio_unit`); an old 'item' row (one
+    send, size unknown) at the over-estimate of `per_audio`. None = no price."""
+    unit = r["unit"] if "unit" in r.keys() else "item"
+    per = (pricing.get("per_audio_unit") or {}).get(r["model"])
+    if isinstance(per, dict) and unit == per.get("unit") and _number(per.get("usd")) is not None:
+        return _number(per["usd"]) * float(r["quantity"] or 0)
+    price = _number(pricing.get("per_audio", {}).get(r["model"]))
+    return None if price is None else price * (r["quantity"] or 1)
+
+
+def audio_sends(r) -> int:
+    """How many sends an audio row is: a row in characters / seconds is ONE send; an old row counts its 'item's."""
+    unit = r["unit"] if "unit" in r.keys() else "item"
+    return 1 if unit in ("char", "second") else int(r["quantity"] or 1)
+
+
 def record_usage(conn: sqlite3.Connection, job_id: Optional[int], kind: str, provider: str, model: str, tier: str,
                  quantity: float, unit: str, project_id: Optional[int] = None, stage: Optional[str] = None) -> None:
     """One billed-looking submission. Job-based usage (image/video) derives the project from the job;
@@ -719,8 +736,7 @@ def spend_summary(conn: sqlite3.Connection, project_id: int, pricing: Dict) -> D
             price = _number(pricing["per_image"].get(r["model"]))
             cost = None if price is None else price * r["quantity"]
         elif r["kind"] == "audio":
-            price = _number(pricing.get("per_audio", {}).get(r["model"]))
-            cost = None if price is None else price * r["quantity"]
+            cost = audio_row_usd(pricing, r)
         elif r["kind"] == "llm":            # Claude tokens (trial 2026-09-27: priced as a clip → "chưa có giá: claude-sonnet-5")
             from .budget import token_price
             cost = token_price(pricing, r["model"], r["tier"], r["quantity"])

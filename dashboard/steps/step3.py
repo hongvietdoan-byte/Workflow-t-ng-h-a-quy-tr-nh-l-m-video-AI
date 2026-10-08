@@ -236,7 +236,7 @@ def voice_panel(p: Pipeline, pid: int) -> None:
             st.warning("Chưa có giọng cho: " + ", ".join(stat["no_voice"]) + " → chọn ở màn Kịch bản (Character Bible → 🎙 Giọng).")
         c1, c2, c3 = st.columns(3)
         todo = stat["missing"] + stat.get("failed", 0)
-        if c1.button(f"🎙 Tạo giọng cho {todo} câu" + budget.audio_tag(p.conn, todo), key=f"tts_gen_{pid}", type="primary", disabled=provider is None or not todo,
+        if c1.button(f"🎙 Tạo giọng cho {todo} câu" + budget.audio_tag(p.conn, todo, "eleven_v3"), key=f"tts_gen_{pid}", type="primary", disabled=provider is None or not todo,
                      help="Mỗi câu một lần gọi TTS (tốn credit âm thanh; âm thanh chưa có giá nên trần đợt thử tính theo số lượt). "
                           "Câu đã có giọng và không đổi thì bỏ qua. Câu LỖI được gửi lại y nguyên — chỉ có ích khi lỗi do nhà cung cấp; "
                           "lỗi do câu/giọng thì sửa trước."):
@@ -282,7 +282,7 @@ def voice_panel(p: Pipeline, pid: int) -> None:
             question = (f"Tạo lại {len(bad)} câu nghi lỗi? Mỗi câu một lần gọi TTS (tốn credit âm thanh, tính vào trần lượt âm thanh); "
                         f"mỗi câu tối đa {voice_check.MAX_REDOS} lần với cùng câu + giọng (đã dùng {used}/{allowed}). "
                         "Giọng cũ được giữ cho tới khi có bản mới.")
-            if confirm_all(key=f"tts_redo_{pid}", ids=ids, label=f"🔁 Tạo lại {len(bad)} câu nghi lỗi (đã dùng {used}/{allowed} lượt)" + budget.audio_tag(p.conn, len(bad)),
+            if confirm_all(key=f"tts_redo_{pid}", ids=ids, label=f"🔁 Tạo lại {len(bad)} câu nghi lỗi (đã dùng {used}/{allowed} lượt)" + budget.audio_tag(p.conn, len(bad), "eleven_v3"),
                            question=question, container=k2, yes_label="Có, tạo lại"):
                 r = voice_check.redo(p.conn, pid, provider, C.DATA, p=p)
                 st.toast(f"Đã gửi lại {r['sent']} câu" + (f" · không tạo lại {len(r['refused'])} câu: {r['refused'][0]}"

@@ -94,8 +94,7 @@ def row_usd(pricing: Dict, r) -> Optional[float]:
         p = cost._number(pricing.get("per_image", {}).get(r["model"]))
         return None if p is None else p * (r["quantity"] or 1)
     if r["kind"] == "audio":
-        p = cost._number(pricing.get("per_audio", {}).get(r["model"]))
-        return None if p is None else p * (r["quantity"] or 1)
+        return cost.audio_row_usd(pricing, r)
     return cost.clip_price(pricing, r["model"], r["tier"], r["quantity"])
 
 
@@ -202,9 +201,9 @@ def _spent(conn, pricing: Dict, since: Optional[str]) -> Dict:
             if price is None:
                 unknown.add(r["model"])
         elif r["kind"] == "audio":
-            audios += int(r["quantity"] or 1)
-            price = cost._number(pricing.get("per_audio", {}).get(r["model"]))
-            usd += (price or 0) * (r["quantity"] or 1)
+            audios += cost.audio_sends(r)
+            price = cost.audio_row_usd(pricing, r)
+            usd += price or 0
             if price is None:
                 unknown.add(r["model"])
         else:
@@ -363,16 +362,20 @@ def warn_audio(conn, provider_name: str) -> Optional[str]:
     return None
 
 
-def audio_tag(conn, count: int = 1) -> str:
+def audio_tag(conn, count: int = 1, model: Optional[str] = None) -> str:
     """Text for an audio button (music / SFX / voice): audio has no USD price, so the button says how many sends it costs and where
     the trial's count cap stands (luật chi phí: shown before the click)."""
     if count <= 0:
         return ""
+    table = cost.load_pricing().get("per_audio") or {}
+    prices = [cost._number(v) for k, v in table.items() if not str(k).startswith("_") and (model is None or k == model)]
+    prices = [v for v in prices if v is not None]
+    usd = f" ≈ {count * max(prices):.2f} USD (ước tính dư)" if prices else " (chưa có giá USD)"   # 08/10: web ClipAI prices audio
     b = get(conn)
     if not b["enabled"]:
-        return f" · {count} lượt âm thanh (chưa có giá USD)"
+        return f" · {count} lượt âm thanh{usd}"
     used = spent(conn, since=b["since"])["audios"]
-    return f" · {count} lượt âm thanh (chưa có giá USD; đợt thử {used}/{b['audio_cap']} lượt)"
+    return f" · {count} lượt âm thanh{usd}; đợt thử {used}/{b['audio_cap']} lượt"
 
 
 def check_image(conn, provider_name: str, model: Optional[str] = None, count: int = 1) -> Optional[str]:

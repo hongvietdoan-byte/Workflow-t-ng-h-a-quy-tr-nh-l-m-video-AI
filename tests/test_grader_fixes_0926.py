@@ -40,10 +40,10 @@ class ExperimentCapTests(unittest.TestCase):
     @mock.patch.dict(os.environ, {"CLIPAI_KLING_MODE": "std"})
     def test_over_the_cap_it_is_sent_recorded_and_warned(self):
         # S14.16 (chính sách tiền 04/10, mục 6c): was "over the cap nothing is sent or recorded" — the trial cap only warns now
-        budget.restart(self.p.conn, usd=1.0)                                     # 15 s x 0.08 = 1.20 > 1.00
+        budget.restart(self.p.conn, usd=1.0)                                     # 15 s x 0.087 = 1.305 > 1.00
         experiments.kling_multishot(self.p, self.pid, 1, self.provider, self.dir)
         self.assertEqual(len(self.sent), 1)
-        self.assertAlmostEqual(budget.spent(self.p.conn)["usd"], 1.2, places=2)
+        self.assertAlmostEqual(budget.spent(self.p.conn)["usd"], 15 * 0.087, places=2)
         self.assertTrue(self.p.conn.execute("SELECT 1 FROM diag_events WHERE code='money_warning'").fetchone())
 
     @mock.patch.dict(os.environ, {"CLIPAI_KLING_MODE": "std"})
@@ -58,10 +58,10 @@ class ExperimentCapTests(unittest.TestCase):
     @mock.patch.dict(os.environ, {"CLIPAI_KLING_MODE": "std"})
     def test_inside_the_cap_it_is_sent_counted_and_priced_before_the_click(self):
         budget.restart(self.p.conn, usd=10.0)
-        self.assertAlmostEqual(experiments.estimate(self.p, self.pid, 1)["usd"], 1.2)
+        self.assertAlmostEqual(experiments.estimate(self.p, self.pid, 1)["usd"], 15 * 0.087, delta=0.01)    # web 08/10: Kling 3.0 Omni 720p
         experiments.kling_multishot(self.p, self.pid, 1, self.provider, self.dir)
         self.assertEqual(len(self.sent), 1)
-        self.assertAlmostEqual(budget.spent(self.p.conn)["usd"], 1.2)
+        self.assertAlmostEqual(budget.spent(self.p.conn)["usd"], 15 * 0.087, delta=0.01)
 
 
 # ---- 2: Claude buttons without a price; web search fees outside the ledger -----------------------------------------------------
@@ -97,7 +97,7 @@ class PriceBeforeClickTests(unittest.TestCase):
         self.assertEqual(lessons.ready_count(self.conn), 0)
 
     def test_audio_buttons_say_the_count_and_the_trial_cap(self):
-        self.assertIn("chưa có giá USD", budget.audio_tag(self.conn, 3))
+        self.assertIn("USD (ước tính dư)", budget.audio_tag(self.conn, 3))                # 08/10: audio has a web price
         budget.restart(self.conn, usd=10.0)
         self.assertIn("0/", budget.audio_tag(self.conn))
         self.assertEqual(budget.audio_tag(self.conn, 0), "")

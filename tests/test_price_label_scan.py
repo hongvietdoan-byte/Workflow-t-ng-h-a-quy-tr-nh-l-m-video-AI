@@ -32,6 +32,8 @@ FREE = {   # matched by a PAID pattern but costs nothing (each with why)
 
 # (file, key source text) → why the label carries no price
 ALLOWED = {
+    ("dashboard/steps/step1_characters.py", "f\"bdis_{pid}_{r['name']}_{it['index']}\""):
+        "bỏ cờ kiểm Bible sai — chỉ ghi quyết định của người, 0 USD (claude_tasks.dismiss_bible_flag không gọi Claude)",
 }
 
 

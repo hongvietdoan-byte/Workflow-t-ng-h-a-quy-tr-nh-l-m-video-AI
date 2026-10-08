@@ -79,7 +79,7 @@ def submit_sfx(provider, directory: str, prompt: str, duration_seconds: Optional
         asset_id = provider.generate_sfx(prompt, duration_seconds, loop, name="pipeline-sfx")
     except ProviderError as e:
         return _add(directory, "sound_effect", prompt, None, str(e))
-    record_audio_usage(ledger, provider, "eleven_text_to_sound_v2")
+    record_audio_usage(ledger, provider, "eleven_text_to_sound_v2", quantity=duration_seconds, unit="second")
     return _add(directory, "sound_effect", prompt, asset_id)
 
 
@@ -99,7 +99,7 @@ def submit_tts(provider, directory: str, text: str, voice_actor_id: int, voice_n
                     else provider.generate_tts(text, voice_actor_id, model, language_code, name="pipeline-tts"))
     except ProviderError as e:
         return _add(directory, "tts", label, None, str(e), {**(extra or {}), "error_code": e.code, "transient": bool(e.transient)})
-    record_audio_usage(ledger, provider, model)
+    record_audio_usage(ledger, provider, model, quantity=len(text or ""), unit="char")
     return _add(directory, "tts", label, asset_id, extra=extra)
 
 

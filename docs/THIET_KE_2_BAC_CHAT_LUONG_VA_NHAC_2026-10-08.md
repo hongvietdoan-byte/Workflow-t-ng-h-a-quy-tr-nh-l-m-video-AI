@@ -88,15 +88,17 @@ Nguồn: TODO.md mục "VIỆC ĐỂ SAU DỰ ÁN KHỦNG LONG ĐỎ" điểm 9,
 
 ## 3. Mục 13 — nhạc nền mặc định theo đoạn
 
-**`core/music_cues.py`: `plan()` chia "cue nhạc"**
-- Lấy đoạn từ `music_timing.sections`.
-- Gộp các đoạn liền nhau cùng giọng điệu; mỗi cue ≥ 8 s, tối đa 1 cue/20 s.
-- Đổi cue tại điểm cắt cảnh, canh downbeat, crossfade 1,5–2 s.
+**Người dùng chốt 08/10 (thay phần chia cue theo đoạn cảnh ở bản nháp trước):** nhạc nền đi theo **diễn biến cảm xúc của cả câu chuyện**, ghép theo các **bước ngoặt tình huống** (mở đầu → căng → ngoặt → cao trào → kết), KHÔNG phải mỗi clip video / mỗi đoạn gen một đoạn nhạc. Nhạc rẻ hơn video rất nhiều → **không tiết kiệm ở nhạc**: được gen nhiều bản để chọn bản hợp cảm xúc nhất.
+
+**`core/music_cues.py`: `plan()` = "đường cảm xúc" của truyện**
+- Nguồn: ý đồ Đạo diễn (Bible / beat truyện, `music_intent.read_tone`, phần kịch bản TWIST / CAO TRÀO), không phải danh sách shot.
+- Mỗi "đoạn nhạc" = một chặng cảm xúc của truyện (có thể dài qua nhiều cảnh/clip); chỗ đổi chặng đặt đúng giây xảy ra bước ngoặt trên bản dựng (từ `music_timing`), canh downbeat, nối mượt (crossfade / break / nhạc lặng trước cú ngoặt khi ý đồ cần).
+- Ưu tiên **một bản nhạc AI liền mạch mang cả đường cảm xúc** (brief nêu từng chặng + giây đổi); chỉ tách nhiều bài khi truyện đổi hẳn chất liệu (vd đoạn nhảy theo bài gốc).
 - Điểm vào bài lấy tự động, không cần đặt giây tay.
 
 **Nguồn nhạc**
-- Ưu tiên Kho âm thanh (0 USD); thiếu thì dùng nhạc AI.
-- Phim một giọng điệu: dùng 1 bản AI có điểm đổi đoạn.
+- Mặc định nhạc AI theo brief cảm xúc (giá thấp, người dùng không quan trọng tiền ở khâu này); Kho âm thanh / bài gốc dùng khi hợp hoặc người chọn.
+- Gen nhiều bản nháp (mặc định 3) cho người nghe chọn; vẫn ghi sổ chi + hiện giá trước khi bấm.
 
 **Dựng**
 - `second_music` tổng quát thành N cue.
@@ -113,7 +115,21 @@ Nguồn: TODO.md mục "VIỆC ĐỂ SAU DỰ ÁN KHỦNG LONG ĐỎ" điểm 9,
 - **#13:** chia cue; crossfade; đo ducking bằng tín hiệu tổng hợp; dự án cũ dựng y hệt.
 - **Thử thật (tốn tiền, cần duyệt):** bản cuối `draft_task` 1080p ≈ 2,1 USD; seed cố định ≈ 1,3 USD; 1 phim 3 cue nhạc AI.
 
-## 5. Quyết định cần người dùng chọn (★ = khuyến nghị)
+## 5a. NGƯỜI DÙNG ĐÃ CHỐT 08/10 (thắng mọi phương án bên dưới)
+1. **Bản cao Seedance 2.5 = (a)** nâng từ bản nháp đã duyệt (`draft_task`) — chạy thật 1 lần trước khi làm mặc định (hỏi giá trước).
+2. **Chỉ video có 2 bậc**, ảnh không.
+3. **Trần gen lại:** chuỗi nháp tối đa **2 lần gen lại**; bản cao dựa trên nháp đã duyệt nên phải đạt ngay lần đầu → bản cao chỉ được **gen lại 1 lần**.
+4. **Bỏ "Thử rẻ" → Đạo diễn nhận diện độ khó ngay khâu phân tích cảnh:**
+   1. Director ghi cho mỗi shot: `dễ` / `phức tạp` / `chưa rõ` (kèm lý do) ngay khi phân tích cảnh.
+   2. **Dễ → gen thẳng chất lượng cao** (không nháp, tránh lãng phí một lượt thử).
+   3. **Phức tạp và chưa rõ → nháp chất lượng thấp trước**, đạt rồi mới gen bản cao. Nháp gen lại 2 lần vẫn chưa đạt → **dừng, báo người dùng**.
+   4. **Kiểm lại khâu gen lại**: mỗi lần gen lại phải sửa đúng lỗi của lần trước (đổi prompt/đầu vào theo lỗi QC/người dùng ghi), không gửi lại y nguyên (CHUAN_XAY_DUNG luật 3) — có kiểm bằng code.
+5. **Nháp đạt thì vẫn dựng:** bản dựng từ các clip nháp là **bản DRAFT** để người dùng xem trọn bộ và đánh giá; khi giao phải **thông báo rõ** bản nào còn là nháp.
+6. **Độ phức tạp:** dùng dữ liệu có sẵn (0 USD) — đồng ý; nhãn Đạo diễn (mục 4.1) là đầu vào chính, dữ liệu shot dùng để kiểm chéo.
+7. **Ngưỡng:** theo nhận diện của Đạo diễn như mục 4 (không phải công thức tiền); số lần gen lại đo thật dùng để Đạo diễn/hệ thống rút kinh nghiệm phân loại.
+8. **Thanh tiến độ** phải theo đúng tiến độ làm của dự án (nháp / đã duyệt nháp / bản cao / dựng draft / dựng cuối), không báo xong khi mới có nháp.
+
+## 5. Quyết định cần người dùng chọn (★ = khuyến nghị) — bản đề xuất ban đầu, xem 5a
 1. **Bản cao Seedance 2.5:** ★ `draft_task` 1080p, giữ đúng nháp (sau 1 lần chạy thật ≈ 2,1 USD) · hay gen lại 720p (rẻ hơn, clip có thể khác nháp).
 2. **Ảnh có 2 bậc không?** ★ Không, chỉ video.
 3. **Trần tự gen lại:** ★ chuỗi nháp ≤ 2 và chuỗi bản cao ≤ 2, tính riêng · hay gộp chung ≤ 2 cho cả cảnh.
@@ -121,8 +137,8 @@ Nguồn: TODO.md mục "VIỆC ĐỂ SAU DỰ ÁN KHỦNG LONG ĐỎ" điểm 9,
 5. **Dựng/giao khi còn cảnh nháp:** ★ dựng xem trước có chữ NHÁP; giao thì cảnh báo, không chặn.
 6. **Độ phức tạp:** ★ chỉ dùng trường dữ liệu có sẵn (0 USD); vision để sau.
 7. **Ngưỡng:** ★ công thức r̂, đo lại sau mỗi dự án · hay đặt tay theo số điểm.
-8. **Nhạc AI theo cue:** ★ 1 bản nháp/cue, ưu tiên Kho · hay 2 bản nháp/cue (gấp đôi tiền).
-9. **Phim một giọng điệu:** ★ 1 bản AI có điểm đổi đoạn; chỉ tách nhiều bài khi đổi giọng điệu thật hoặc có bài riêng (vd. nhảy).
+8. ✅ **Người dùng chốt 08/10:** nhạc theo đường cảm xúc của cả truyện, ghép theo bước ngoặt tình huống (không theo từng clip); không tiết kiệm ở nhạc — mặc định 3 bản nháp để chọn.
+9. ✅ (gộp vào 8) ưu tiên một bản AI liền mạch mang cả đường cảm xúc; tách bài chỉ khi đổi hẳn chất liệu.
 
 ## 6. Chia nhánh
 

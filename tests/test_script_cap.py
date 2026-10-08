@@ -92,9 +92,9 @@ class Hooks(unittest.TestCase):
             self.assertIsNone(budget.check_image(self.conn, "mock", "gpt-image-2", 1) and None)
         self.assertIsNone(budget.check_image(self.conn, "deepix", "gpt-image-2", 1))   # the lock ends with its block
 
-    def test_mock_provider_and_unpriced_audio_cost_nothing(self):
+    def test_mock_provider_costs_nothing_and_audio_is_priced(self):
         with script_cap.ScriptCap(0.01, "âm", log=lambda *_: None) as cap:
-            self.assertIsNone(budget.check_audio(self.conn, "clipai_audio"))
+            self.assertIn("audio", budget.check_audio(self.conn, "clipai_audio") or "")    # 08/10: audio has a web price now
             cost.record_usage(self.conn, None, "image", "mock", "gpt-image-2", "image", 50, "image")
             self.assertEqual(cap.spent, 0.0)
 
@@ -117,6 +117,7 @@ PAID = re.compile(r"client_from_env|\.submit\w*\(|submit_pending|submit_drafts|s
                   r"ask_json|meshy\.submit|Provider\.from_env|scorer\.run\(")
 # script → vì sao không cần trần USD
 SCRIPT_OK = {
+    "tools/clipai_price_check.py": "chỉ đọc danh sách task ClipAI (GET), không gửi gì",
     "tools/voice_trial.py": "chỉ gửi âm thanh — chưa có giá USD; giới hạn theo lượt (audio_refusal / trần lượt âm thanh)",
     "tools/experiments/audio_s26_s115.py": "chỉ gửi âm thanh — chưa có giá USD; giới hạn theo lượt (budget.check_audio)",
     "tools/audit_run.py": "chỉ đọc trạng thái (.submitted), không gửi gì",

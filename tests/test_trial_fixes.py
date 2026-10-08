@@ -276,8 +276,8 @@ class BudgetPriceTests(unittest.TestCase):
     def test_a_clip_without_a_price_is_warned_while_the_limit_is_on(self):
         # S14.16 (chính sách tiền 04/10): was "refused" — estimated high and warned (warn_video); check_video refuses nothing here
         budget.restart(self.conn, usd=10.0)
-        self.assertIsNone(budget.check_video(self.conn, "clipai", "kling-video-o1", "std", 5))
-        self.assertIn("thiếu giá: kling-video-o1:std", budget.warn_video(self.conn, "clipai", "kling-video-o1", "std", 5))
+        self.assertIsNone(budget.check_video(self.conn, "clipai", "kling-video-o1", "4k", 5))       # o1 std/pro priced 08/10
+        self.assertIn("thiếu giá: kling-video-o1:4k", budget.warn_video(self.conn, "clipai", "kling-video-o1", "4k", 5))
         self.assertIsNone(budget.warn_video(self.conn, "clipai", "kling-v3-omni", "std", 5))
         budget.stop(self.conn)
         self.assertIsNone(budget.warn_video(self.conn, "clipai", "kling-video-o1", "std", 5))     # no trial round: nothing to say

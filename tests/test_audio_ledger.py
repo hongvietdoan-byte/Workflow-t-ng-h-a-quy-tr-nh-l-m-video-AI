@@ -50,10 +50,8 @@ class AudioLedgerTests(unittest.TestCase):
         music.submit_drafts(Real(), drafts, "calm", 5000, True, 3, ledger=(p.conn, pid))
         summary = cost.spend_summary(p.conn, pid, cost.load_pricing())
         self.assertEqual(summary["audios"], 3)
-        self.assertIn("music_v2", summary["unknown_prices"])
-        priced = cost.load_pricing()
-        priced["per_audio"]["music_v2"] = 2.5
-        self.assertEqual(cost.spend_summary(p.conn, pid, priced)["credits"], 7.5)
+        self.assertNotIn("music_v2", summary["unknown_prices"])                  # 08/10: web price 7,5 ¢ / 30 s, recorded in seconds
+        self.assertAlmostEqual(summary["credits"], 3 * 5 * 0.0025, places=4)
 
     def test_mock_audio_is_not_billed_and_no_ledger_is_fine(self):
         p = Pipeline(connect())
