@@ -798,8 +798,22 @@ def _motion_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             llm_io.approve_motion_prompt(p, s["id"])
     done = sum(1 for s in rows if _count(p, "SELECT COUNT(*) FROM motion_prompts WHERE scene_id=? AND state='approved'", s["id"]))
     if done == len(rows):
+        _trainee_plans(p, pid)
         _dialogue_gate(p, pid)
     return None if done == len(rows) else f"Motion prompt: {done}/{len(rows)}"
+
+
+def _trainee_plans(p: Pipeline, pid: int) -> None:
+    """B4 🎓: the plans of camera_setups / continuous_takes / end_frames in học việc → trainee_log (0 USD, no effect)."""
+    from . import trainee_plans
+    try:
+        res = trainee_plans.record_plans(p.conn, pid)
+    except Exception as e:  # noqa: BLE001 - a học-việc role must never stop the run
+        _d(p, pid, "motion", "warn", f"🎓 học việc: không ghi được kế hoạch ({e})", "trainee_plans")
+        return
+    new = {f: c["new"] + c["updated"] for f, c in res.items() if c["new"] + c["updated"]}
+    if new:
+        _log(p, pid, "🎓 Học việc ghi kế hoạch (không tác động): " + ", ".join(f"{f} {n}" for f, n in new.items()))
 
 
 def _dialogue_gate(p: Pipeline, pid: int) -> None:

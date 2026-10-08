@@ -26,13 +26,19 @@ def _now_sql() -> str:
     return "datetime('now')"
 
 
-def needed(data: Dict, shot_mode: Optional[str]) -> bool:
+def route(data: Dict) -> str:
+    """How the clip of this shot would go out: 'seedance_ref' (reference-only Seedance group: no last frame) or 'first_last'."""
+    from . import features, seedance_refs
+    return "seedance_ref" if features.on("seedance_ref_groups") and seedance_refs.eligible(data) else "first_last"
+
+
+def needed(data: Dict, shot_mode: Optional[str], ignore_route: bool = False) -> bool:
     """A shot that changes state and is made as its own clip (per shot; not a Kling multi-shot group, not a shot that continues
-    into the next one — that one already ends on the next start picture)."""
+    into the next one — that one already ends on the next start picture). `ignore_route=True` (B4 🎓 học việc): judge the shot
+    itself even when its clip goes out as a Seedance reference group — the plan is recorded, nothing is drawn."""
     if shot_mode != "per_shot" or data.get("continuous_with_next"):
         return False
-    from . import features, seedance_refs
-    if features.on("seedance_ref_groups") and seedance_refs.eligible(data):
+    if not ignore_route and route(data) == "seedance_ref":
         return False                  # a reference-only Seedance clip takes no last frame — drawing one would be paid for nothing
     return bool((data.get("end_state") or "").strip())
 
