@@ -43,6 +43,15 @@ QC so với **ảnh tài nguyên/hồ sơ chuẩn**, không so với sản phẩ
 Mục "đã sửa" trong TODO/tài liệu ghi rõ: test hồi quy dựng từ dữ liệu thật (fixture GĐ6) **và** lần chạy thật xác nhận (hoặc ghi rõ "chưa
 thử thật"). Không viết "đã sửa" chỉ vì N test pass.
 
+## 9. Chế độ học việc (🎓, 08/10)
+Một vai chưa đủ tin (cờ có `"trainee": True` trong `core/features.py`) có thể chạy **bóng**: vẫn quyết, nhưng chỉ ghi vào `trainee_log`
+(`core/trainee.record`), **không** chặn, vẽ lại, đổi prompt hay đổi gì gửi đi. Luật khi thêm / sửa vai học việc:
+- Mọi chỗ tác động gọi `features.on()` (học việc = False); chỗ chỉ chọn nhánh dùng `features.active()`; phần chạy bóng dùng `features.shadow()`.
+- Lời gọi tốn tiền của vai học việc vẫn qua sổ chi + ước tính trước, nhãn `usage_events.stage` bắt đầu bằng `trainee_` (báo riêng).
+- So với người chỉ khi người quyết **sau** vai (`score_project`); duyệt hàng loạt ghi `note='gate_bulk'` và tính riêng.
+- "🎓 đủ chuẩn — chờ duyệt" (`trainee.agreement()["ready"]`, ngưỡng ở `docs/KE_HOACH_HOC_VIEC_2026-10-08.md` mục 3) **không** tự đổi
+  `verified` — người dùng duyệt bằng tay ở màn 🧪.
+
 ## Luật chi phí
 - **Chính sách tiền 04/10** (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md` mục 6c, `core/money_policy.py`; thay "trần cứng" 28/09):
   mọi lời gọi tốn tiền qua **sổ chi + ước tính trước** (cổng `core/spend_gate.py` / runner / `llm_runner`), ghi sổ ngay sau khi gửi.

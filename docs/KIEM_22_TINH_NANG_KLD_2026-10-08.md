@@ -186,3 +186,7 @@ Tổng hợp: **V = 4** (film_crew, place_render_refs, seedance_subjects, storyb
 - Duyệt `verified` sau khi người dùng xem lại: **place_render_refs, seedance_subjects, film_crew, storyboard_api** (phạm vi ghi ở từng mục). Mỗi cờ cần: ngày duyệt, đường dẫn báo cáo (file này) và ghi chú phạm vi trong cột `why`.
 - Tắt khỏi cấu hình đang chạy (không xóa code): **qc_team, scene_qc (tự vẽ lại), scene_establishing, storyboard_auto_trust, camera_setups, continuous_takes, end_frames** — trước khi tắt `camera_setups` kiểm `plate_camera.py` / `director_report.py` đọc nhãn.
 - Sau khi tắt, `on_unverified()` sẽ giảm từ 22 xuống còn khoảng 11 cờ đang chạy thật nhưng chưa chốt.
+
+## 5. Kết quả: 7 cờ chuyển học việc (08/10)
+
+Người dùng chốt (B0, `docs/KE_HOACH_HOC_VIEC_2026-10-08.md` mục 6): 7 cờ kết luận **T** — qc_team, scene_qc, scene_establishing, storyboard_auto_trust, camera_setups, continuous_takes, end_frames — không tắt hẳn mà chuyển sang chế độ **🎓 học việc**: vẫn chạy và ghi quyết định vào `trainee_log`, không chặn / vẽ lại / đổi gì trong phim, so với quyết định của người (review_log, thẻ 👍/👎 sau bản giao, dấu vân storyboard). Chọn "Tắt / 🎓 Học việc / Bật" ở màn 🧪; `FEATURE_<TÊN>=1` với các cờ này chỉ là học việc. Màn 🧪 hiện độ khớp, tiền đã chi và "🎓 đủ chuẩn — chờ bạn duyệt" — `verified` vẫn do người dùng tự duyệt. Chưa ghi "đã xong" tới khi có một dự án thật chạy học việc (luật 8).

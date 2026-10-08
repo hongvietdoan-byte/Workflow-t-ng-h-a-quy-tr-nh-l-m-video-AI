@@ -400,7 +400,7 @@ def action_bar(p, pid: int) -> None:
                 if _confirm_all_primary("approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", f"Duyệt tất cả {len(pending)} ảnh đang chờ duyệt?",
                                         right, primary=bool(pending) or not waiting):
                     for jid in pending:
-                        p.approve(jid, "user")
+                        p.approve(jid, "user", note="gate_bulk")
                     st.rerun()
 
 

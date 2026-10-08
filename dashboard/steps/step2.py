@@ -188,7 +188,7 @@ def step2(p: Pipeline, pid: int):
             pass                                          # duyệt hàng loạt: thanh hành động dính ở cuối lưới ảnh
         elif confirm_all("approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", f"Duyệt tất cả {len(pending)} ảnh đang chờ duyệt?", c2):
             for jid in pending:
-                p.approve(jid, "user")
+                p.approve(jid, "user", note="gate_bulk")
             st.rerun()
         # KLD-1 (08/10): a picture failed on an outdated / missing input is not resent unchanged (Pipeline.retry refuses stale_input)
         failed = [{"id": jid} for jid in batch.provider_failures(p, pid, "image_gen")]

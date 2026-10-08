@@ -663,24 +663,37 @@ def _dialog_features(p: Pipeline) -> None:
         if q and q not in name and q not in meta.get("label", "").lower() and q not in meta.get("why", "").lower():
             continue
         rows.append((name, meta))
+    from dashboard.design.screens import trainee_ui
     st.caption(f"{len(rows)} / {len(features.FEATURES)} tính năng · đang bật {sum(1 for n in features.FEATURES if features.on(n))}"
-               f" · bật mà chưa thử thật {len(features.on_unverified())}")
+               f" · bật mà chưa thử thật {len(features.on_unverified())}"
+               f" · 🎓 đang học việc {sum(1 for n in features.trainee_list() if features.shadow(n))}")
     for name, meta in rows[:60]:
         c1, c2 = st.columns([5, 1.3], vertical_alignment="center")
         on = features.on(name)
         badge = "✅ đã thử thật" if meta["verified"] else "⚠ chưa thử thật"
         harmful = " · ⛔ từng gây hại" if name in features.HARMFUL else ""
         c1.markdown(f"**{escape(name)}** — {badge}{harmful}  \n{escape(meta.get('label', ''))}")
+        if meta.get("trainee"):                       # B7 học việc (08/10): 3 buttons Tắt / 🎓 Học việc / Bật
+            c1.caption(trainee_ui.TRAINEE_BADGE)
         c1.caption(f"{features.why_state(name)} · {escape(meta.get('why', ''))}")
+        warn = trainee_ui.no_effect_note(name) if meta.get("trainee") else ""
+        if warn:
+            c1.warning(warn)
+        if meta.get("trainee"):
+            with c2:
+                trainee_ui.mode_control(name)
+            continue
         new = c2.toggle("Bật", on, key=f"feat_{name}")
         if new != on:
             features.save_settings(flags={name: new})
             st.rerun()
     if len(rows) > 60:
         st.caption(f"… còn {len(rows) - 60} tính năng: lọc bằng ô Tìm.")
-    if cur["flags"] and st.button("↺ Bỏ mọi lựa chọn riêng (theo preset)", key="feat_reset"):
-        features.save_settings(flags={k: None for k in list(cur["flags"])})
+    if (cur["flags"] or cur.get("modes")) and st.button("↺ Bỏ mọi lựa chọn riêng (theo preset)", key="feat_reset"):
+        features.save_settings(flags={k: None for k in list(cur["flags"])}, modes={k: None for k in list(cur.get("modes") or {})})
         st.rerun()
+    st.divider()
+    trainee_ui.render_panel(p.conn)
 
 
 @st.dialog("📏 Giới hạn hệ thống", width="large", on_dismiss=lambda: close_dialog("dlg_limits"))

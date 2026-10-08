@@ -438,6 +438,7 @@ def page_health():
                           "Hàm > 150 dòng": len(m["metrics"]["long_funcs"]), "Hàm phức tạp > 30": len(m["metrics"]["complex_funcs"]),
                           "Điều khiển giao diện": sum(m["metrics"]["controls"].values()),
                           "Cờ BẬT chưa thử thật": len(m["metrics"]["flags_on_unverified"]),
+                          "Cờ học việc": len(m["metrics"].get("flags_trainee") or []),
                           "Lời gọi tiền không thấy guard": len(m["metrics"]["paid_unguarded"])})
         if mrows:
             st.dataframe(pd.DataFrame(mrows), hide_index=True)
@@ -466,7 +467,9 @@ def page_health():
             if fl:
                 st.markdown("**Cờ tính năng**")
                 for f in fl:
-                    state = "✅ đã kiểm thật" if f["verified"] else ("🟠 chưa kiểm thật · đang BẬT bằng biến môi trường" if f["on"] else "⚪ chưa kiểm thật · tắt")
+                    state = ("🎓 học việc (chạy bóng, so với người)" if f.get("mode") == "trainee" else
+                             "✅ đã kiểm thật" if f["verified"] else
+                             ("🟠 chưa kiểm thật · đang BẬT bằng biến môi trường" if f["on"] else "⚪ chưa kiểm thật · tắt"))
                     st.markdown(f"- `{f['name']}` — {state}: {escape(f['label'])}  \n  <span class='muted'>Vì sao: {escape(f['why'])} · dùng ở: "
                                 f"{escape(', '.join(f['sites'][:5]) or 'không thấy features.on(...)')}</span>", unsafe_allow_html=True)
             if items:

@@ -212,7 +212,7 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
     if waiting and confirm_all(f"vid_ok_all_{pid}", waiting, f"✔ Duyệt tất cả ({len(waiting)} clip)",
                                f"Duyệt tất cả {len(waiting)} clip đang chờ duyệt?"):
         for jid in waiting:
-            p.approve(jid, "user")
+            p.approve(jid, "user", note="gate_bulk")
         st.rerun()
     if video_busy(p.conn, pid):
         auto_poll_videos(pid)

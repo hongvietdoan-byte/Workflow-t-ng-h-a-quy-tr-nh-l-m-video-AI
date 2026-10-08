@@ -100,7 +100,10 @@ def import_review_log(conn, data_dir: str) -> int:
     for r in rows:
         ctx = job_context(conn, r["job_id"])
         stage = "video" if r["type"] == "video_gen" else "image"
-        note = (r["note"] or "").strip() or f"Người dùng duyệt {'clip' if stage == 'video' else 'ảnh'} này (không ghi chú)"
+        note = (r["note"] or "").strip()
+        if note == "gate_bulk":            # B7 học việc: the "Duyệt tất cả" marker is not a remark of the person
+            note = f"Người dùng duyệt {'clip' if stage == 'video' else 'ảnh'} này bằng 'Duyệt tất cả' (không ghi chú)"
+        note = note or f"Người dùng duyệt {'clip' if stage == 'video' else 'ảnh'} này (không ghi chú)"
         added += record(conn, key=f"review:{r['id']}", stage=stage, outcome="success" if r["decision"] == "approve" else "failure",
                         note=note, source="review_log", project_id=ctx["project_id"], job_id=r["job_id"], shot=ctx["shot"],
                         subjects=ctx["subjects"], view=ctx["view"], evidence=job_picture(data_dir, ctx["project_id"] or 0, r["job_id"])

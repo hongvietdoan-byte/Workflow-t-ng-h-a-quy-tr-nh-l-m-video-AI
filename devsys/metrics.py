@@ -268,7 +268,10 @@ def area_metrics(root: str, cfg: Dict, area: Dict, snap: Dict) -> Dict:
     m["todo_rules"] = [i["line"] for i in open_items if kinds[i["line"]] == "quy_uoc"]
     m["todo_share"] = round(sum(1.0 / max(1, shared.get(n, 1)) for n in m["todo_open"]), 3)
     m["todo_shared_lines"] = [n for n in m["todo_open"] if shared.get(n, 1) > 1]
-    m["flags_on_unverified"] = [f["name"] for f in snap["flags"] if area["id"] in f["areas"] and f["on"] and not f["verified"]]
+    # B7 học việc (08/10): a 🎓 flag runs in the shadow (changes nothing) — listed apart, never in co_bat_chua_thu
+    m["flags_trainee"] = [f["name"] for f in snap["flags"] if area["id"] in f["areas"] and f.get("mode") == "trainee"]
+    m["flags_on_unverified"] = [f["name"] for f in snap["flags"] if area["id"] in f["areas"] and f["on"] and not f["verified"]
+                                and f.get("mode") != "trainee"]
     m["has_ui"] = any(f.startswith("dashboard/") for f in mods)
     m["ui_measured"] = bool(area.get("ui_metrics"))
     m.update(ops_measures(snap.get("ops") or {}, area))

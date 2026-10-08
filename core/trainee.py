@@ -83,11 +83,11 @@ def label(conn, log_id: int, agree, source: str = "card") -> Dict:
 
 def _bulk_ids(conn, project_id: int) -> set:
     """review_log ids of the person's approvals that came in a burst (≥ BULK_N within BULK_S seconds) = a bulk approve click."""
-    rows = conn.execute("SELECT r.id, r.decided_at FROM review_log r JOIN jobs j ON j.id=r.job_id WHERE j.project_id=? "
+    rows = conn.execute("SELECT r.id, r.decided_at, r.note FROM review_log r JOIN jobs j ON j.id=r.job_id WHERE j.project_id=? "
                         "AND r.reviewer_type='user' AND r.decision='approve' ORDER BY r.decided_at, r.id", (project_id,)).fetchall()
+    out = {r["id"] for r in rows if r["note"] == "gate_bulk"}      # B7: the "Duyệt tất cả" buttons write note='gate_bulk'
     times = [(r["id"], _t(r["decided_at"])) for r in rows]
     times = [(i, t) for i, t in times if t is not None]
-    out = set()
     for k, (i, t) in enumerate(times):
         near = [j for j, u in times if abs((u - t).total_seconds()) <= BULK_S]
         if len(near) >= BULK_N:
