@@ -146,9 +146,15 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
     # too (all by default, so one click still sends everything) and the price follows what is picked.
     new_by_id = {r["scene_id"]: r for r in new_rows}
     all_new = len(new_rows)
+    pick_key = f"gen_vid_new_{pid}"
+    if st.session_state.get(pick_key + "_opts") != tuple(new_by_id):
+        # 08/10 (#24): after a send the list changes; the old pick (scenes no longer new) was dropped by the widget and the box came
+        # back EMPTY — the button then sent nothing. A changed list starts again from "every new scene".
+        st.session_state[pick_key] = list(new_by_id)
+        st.session_state[pick_key + "_opts"] = tuple(new_by_id)
     picked_new = st.multiselect(f"Cảnh mới sẽ gửi ({all_new}) — bỏ bớt để gen thử vài cảnh trước", list(new_by_id),
-                                default=list(new_by_id), format_func=lambda sid: new_by_id[sid]["label"],
-                                key=f"gen_vid_new_{pid}") if all_new > 1 else list(new_by_id)
+                                format_func=lambda sid: new_by_id[sid]["label"],
+                                key=pick_key) if all_new > 1 else list(new_by_id)
     grown = [s for s in batch.with_groups(p.conn, new_rows, picked_new) if s in new_by_id]   # a shot brings its whole clip group
     if len(grown) > len(picked_new):
         st.caption("➕ Thêm cùng clip nhóm (một lần gen làm cả nhóm): "
