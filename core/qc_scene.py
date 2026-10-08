@@ -78,10 +78,11 @@ def tier_lines(path: str) -> int:
     return lines
 
 
-def check_frame(path: str, data: Dict, flat_place: bool = False) -> List[Dict]:
+def check_frame(path: str, data: Dict, flat_place: bool = False, measure: Optional[Dict] = None) -> List[Dict]:
     """Code checks of one frame. [{code, severity: "redraw" | "flag", problem (vi), fix (en)}]; [] when fine or when the face detector is
     not available (said by the caller). flat_place: the scene's place is described as flat (library layout sentence) — the frame's
-    background is counted for stacked terraces (S5.4, playbook G1)."""
+    background is counted for stacked terraces (S5.4, playbook G1). measure (KLD-16): a dict filled with {measured, planned, face_h} whenever
+    a face is found — also when the size is right — so the học việc log keeps the pairs that calibrate SIZE_FROM."""
     from . import text_placement
     blank = _blank(path)
     if blank:                                     # an empty / black / one-colour picture never reaches Claude (regression 2026-09-27:
@@ -108,6 +109,8 @@ def check_frame(path: str, data: Dict, flat_place: bool = False) -> List[Dict]:
     big = max(boxes, key=lambda b: b[3] - b[1])
     h = big[3] - big[1]
     got = measured_size(h)
+    if measure is not None:
+        measure.update({"measured": got, "planned": size or None, "face_h": round(float(h), 3)})
     if size in SIZES:
         steps = SIZES.index(got) - SIZES.index(size)
         severe = abs(steps) >= 2 or (size in ("CU", "ECU") and steps < 0)
@@ -116,7 +119,8 @@ def check_frame(path: str, data: Dict, flat_place: bool = False) -> List[Dict]:
                     "fills about a third of the frame height", "MCU": "a medium close-up: head and chest", "MS": "a medium shot: from the "
                     "waist up", "MLS": "a medium long shot: from the knees up", "WS": "a wide shot: whole bodies with the place around them"}[size]
             out.append({"code": "shot_size", "severity": "redraw" if severe else "flag",
-                        "problem": f"cỡ cảnh đo được {got} (mặt cao {h:.2f} khung) — shot xin {size}", "fix": f"Frame as {want}."})
+                        "problem": f"cỡ cảnh đo được {got} (mặt cao {h:.2f} khung) — shot xin {size}", "fix": f"Frame as {want}.",
+                        "measured": got, "planned": size})
     eye = big[1] + 0.4 * h
     if eye < TOP_BAR and size in ("ECU", "CU", "MCU", "MS") and size != "ECU":
         out.append({"code": "top_bar", "severity": "redraw" if size in ("CU", "MCU") else "flag",
@@ -131,6 +135,48 @@ def check_frame(path: str, data: Dict, flat_place: bool = False) -> List[Dict]:
     if len(boxes) > len(cast) + (0 if size in ("ECU", "CU", "MCU") else 1):
         out.append({"code": "extra_faces", "severity": "flag", "problem": f"{len(boxes)} khuôn mặt, bảng shot có {len(cast)} người",
                     "fix": "Only " + (", ".join(cast) or "the listed characters") + " in the frame — no other people."})
+    return out
+
+
+def for_trainee(flags: List[Dict]) -> List[Dict]:
+    """KLD-16 (08/10): in 🎓 học việc a size measured from the face is never a redraw — SIZE_FROM is not calibrated yet (on #22 the
+    person kept frames it called wrong). A copy; the other checks keep their severity."""
+    out = []
+    for f in flags:
+        f = dict(f)
+        if f.get("code") == "shot_size" and f.get("severity") == "redraw":
+            f["severity"] = "flag"
+        out.append(f)
+    return out
+
+
+def size_calibration(conn, project_ids: Optional[List[int]] = None) -> List[Dict]:
+    """KLD-16: the pairs that calibrate SIZE_FROM (0 USD) — one row per scene_qc học việc frame that had a face: measured size, planned
+    size, face height, what the trainee would do, and the person's decision on that frame (trainee_log.truth when scored, else the
+    person's first review_log decision after the trainee; None = not decided yet). Thresholds are NOT changed here."""
+    q = "SELECT id, at, project_id, job_id, decision, detail, truth FROM trainee_log WHERE feature=? AND detail IS NOT NULL"
+    args: list = [FEATURE]
+    if project_ids:
+        q += " AND project_id IN (" + ",".join("?" * len(project_ids)) + ")"
+        args += list(project_ids)
+    out = []
+    for r in conn.execute(q + " ORDER BY id", args).fetchall():
+        try:
+            size = (json.loads(r["detail"]) or {}).get("size")
+        except ValueError:
+            size = None
+        if not size or not size.get("measured"):
+            continue
+        person = r["truth"]
+        if person is None and r["job_id"] is not None:
+            from .trainee import _t                 # the same "decided AFTER the role" rule as trainee.score_project
+            at = _t(r["at"])
+            revs = conn.execute("SELECT decision, decided_at FROM review_log WHERE job_id=? AND reviewer_type='user' "
+                                "ORDER BY decided_at, id", (r["job_id"],)).fetchall()
+            after = [v for v in revs if at is not None and _t(v["decided_at"]) is not None and _t(v["decided_at"]) > at]
+            person = after[0]["decision"] if after else None
+        out.append({"project_id": r["project_id"], "job_id": r["job_id"], "measured": size.get("measured"),
+                    "planned": size.get("planned"), "face_h": size.get("face_h"), "trainee": r["decision"], "person": person})
     return out
 
 

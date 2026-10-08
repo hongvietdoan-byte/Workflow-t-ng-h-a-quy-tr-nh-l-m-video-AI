@@ -1855,12 +1855,15 @@ class ImageRunner(_Runner):
         from . import qc_scene, trainee
         try:
             data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
-            flags = qc_scene.check_frame(path, data, assets.flat_place(self.p.conn, job["project_id"], data))
+            size: Dict = {}
+            flags = qc_scene.check_frame(path, data, assets.flat_place(self.p.conn, job["project_id"], data), measure=size)
+            flags = qc_scene.for_trainee(flags)     # KLD-16: a measured size is only a flag in học việc (SIZE_FROM not calibrated)
             sev = {f.get("severity") for f in flags}
             decision = "redraw" if "redraw" in sev else ("flag" if flags else "pass")
             trainee.record(self.p.conn, "scene_qc", job["project_id"], f"job:{job['id']}", decision,
                            would_do={"fix": " ".join(f.get("fix", "") for f in flags if f.get("severity") == "redraw"),
                                      "problems": [f.get("problem", "") for f in flags]},
+                           detail={"size": size} if size else None,     # the (measured, planned) pair → qc_scene.size_calibration
                            scene_id=job["scene_id"], job_id=job["id"])
         except Exception as e:                       # noqa: BLE001 — học việc never breaks the real run
             import sys

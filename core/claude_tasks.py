@@ -12,6 +12,7 @@ goes). Same `ask_json` path as the Director/QC/motion steps, so they run with th
 from . import access
 import json
 import os
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 from . import assets, dialogue, diag, layout, llm_io, model_router, prompts, voice
@@ -476,6 +477,15 @@ def _check_bible(names):
         for c in obj["characters"]:
             if not isinstance(c.get("ok"), bool) or not isinstance(c.get("mismatches", []), list):
                 raise llm_io.SchemaError("mỗi mục cần ok (true/false) và mismatches (danh sách)")
+            regions = c.get("regions", [])                  # optional (bible_check fault a, 08/10): where on the picture a mismatch is
+            if not isinstance(regions, list):
+                raise llm_io.SchemaError("regions phải là danh sách [{mismatch, box: [x0,y0,x1,y1]}]")
+            for g in regions:
+                box = g.get("box") if isinstance(g, dict) else None
+                if (not isinstance(g, dict) or not isinstance(g.get("mismatch"), int) or not 0 <= g["mismatch"] < len(c.get("mismatches") or [])
+                        or not isinstance(box, list) or len(box) != 4 or not all(isinstance(v, (int, float)) and 0 <= v <= 1 for v in box)
+                        or box[0] >= box[2] or box[1] >= box[3]):
+                    raise llm_io.SchemaError("mỗi regions[i] cần mismatch (chỉ số trong mismatches) và box [x0,y0,x1,y1] trong 0–1, x0<x1, y0<y1")
     return check
 
 
@@ -537,8 +547,91 @@ def bible_flags(p: Pipeline, project_id: int) -> Dict[str, List[str]]:
         res = json.loads(row["bible_check"] or "{}") if row["bible_check"] else {}
         refs = [r for r in (linked.get(name) or {}).get("refs") or [] if r.get("path") and os.path.exists(r["path"])][:1]  # = bible_check
         if res and refs and res.get("key") == _bible_key(row, refs) and not res.get("ok"):
-            out[name] = [str(m) for m in res.get("mismatches") or []] or ["mô tả chưa khớp ảnh"]
+            gone = {str(d.get("text")) for d in res.get("dismissed") or []}
+            left = [str(m) for m in res.get("mismatches") or [] if str(m) not in gone]
+            if left or not res.get("mismatches"):
+                out[name] = left or ["mô tả chưa khớp ảnh"]
     return out
+
+
+SMALL_WORDS = ("trái", "phải", "xuôi", "ngược", "left", "right", "backward", "forward", "logo", "khóa", "nhẫn", "khuyên", "kính")
+
+
+def _bible_current(p: Pipeline, project_id: int, name: str):
+    """(row, result, picture path) of a character whose last check still applies, else None."""
+    row = p.conn.execute("SELECT * FROM characters WHERE project_id=? AND name=?", (project_id, name)).fetchone()
+    if row is None or not row["bible_check"]:
+        return None
+    linked = assets.link_characters(p.conn, project_id, [name])
+    refs = [r for r in (linked.get(name) or {}).get("refs") or [] if r.get("path") and os.path.exists(r["path"])][:1]
+    res = json.loads(row["bible_check"] or "{}")
+    if not refs or res.get("key") != _bible_key(row, refs):
+        return None
+    return row, res, refs[0]["path"]
+
+
+def _crop(path: str, box) -> Optional[bytes]:
+    """A close crop of the library picture around box (fractions), padded 10 %, enlarged to ≥ 256 px on its short side (PNG)."""
+    import io
+    from PIL import Image
+    try:
+        im = Image.open(path).convert("RGB")
+    except OSError:
+        return None
+    w, h = im.size
+    x0, y0, x1, y1 = (float(v) for v in box)
+    px, py = (x1 - x0) * 0.1, (y1 - y0) * 0.1
+    rect = (max(0, int((x0 - px) * w)), max(0, int((y0 - py) * h)), min(w, int((x1 + px) * w) + 1), min(h, int((y1 + py) * h) + 1))
+    if rect[2] - rect[0] < 2 or rect[3] - rect[1] < 2:
+        return None
+    c = im.crop(rect)
+    k = 256 / min(c.size)
+    if k > 1:
+        c = c.resize((round(c.width * k), round(c.height * k)), Image.LANCZOS)
+    buf = io.BytesIO()
+    c.save(buf, "PNG")
+    return buf.getvalue()
+
+
+def bible_details(p: Pipeline, project_id: int) -> Dict[str, Dict]:
+    """bible_check fault a (08/10): each open mismatch with a close crop of the picture when Claude gave its region. A small detail
+    (marked small, or a left/right/forward/backward word) with no crop → can_apply False: the Bible is never fixed from Claude's words
+    alone (#22: MAXIM's cap read 'worn forward' on a 1024 px sheet)."""
+    out = {}
+    for name in bible_flags(p, project_id):
+        cur = _bible_current(p, project_id, name)
+        if cur is None:
+            continue
+        _, res, path = cur
+        gone = {str(d.get("text")) for d in res.get("dismissed") or []}
+        regions = {g["mismatch"]: g for g in res.get("regions") or [] if isinstance(g, dict) and isinstance(g.get("mismatch"), int)}
+        items = []
+        for i, m in enumerate(res.get("mismatches") or []):
+            if str(m) in gone:
+                continue
+            g = regions.get(i) or {}
+            small = bool(g.get("small")) or any(w in str(m).lower() for w in SMALL_WORDS)
+            items.append({"index": i, "text": str(m), "small": small, "box": g.get("box"),
+                          "crop": _crop(path, g["box"]) if g.get("box") else None})
+        out[name] = {"items": items, "fixed_description": (res.get("fixed_description") or "").strip(),
+                     "can_apply": not any(it["small"] and it["crop"] is None for it in items)}
+    return out
+
+
+def dismiss_bible_flag(p: Pipeline, project_id: int, name: str, index: int, by: str = "") -> None:
+    """bible_check fault b (08/10): the person says "cờ này sai — bỏ". Saved in the check result (kept while the text + pictures stay the
+    same); a dismissed mismatch no longer blocks the picture generation (batch.image_gates / the automatic run)."""
+    cur = _bible_current(p, project_id, name)
+    if cur is None:
+        raise ValueError(f"{name}: không có kết quả kiểm Bible còn hiệu lực")
+    _, res, _ = cur
+    text = str((res.get("mismatches") or [])[index])
+    res.setdefault("dismissed", [])
+    if text not in {d.get("text") for d in res["dismissed"]}:
+        res["dismissed"].append({"text": text, "by": by, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+    p.conn.execute("UPDATE characters SET bible_check=? WHERE project_id=? AND name=?", (json.dumps(res, ensure_ascii=False), project_id, name))
+    p.conn.commit()
+    diag.record(p.conn, "director", "info", f"người xem bỏ cờ Bible {name}: {text}", "bible_flag_dismissed", project_id=project_id)
 
 
 # ---- 6. voice casting ------------------------------------------------------------------------------------------------------

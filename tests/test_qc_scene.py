@@ -42,6 +42,23 @@ class LayerZeroTests(unittest.TestCase):
         self.assertEqual(size["severity"], "redraw")
         self.assertIn("close-up", size["fix"])
 
+    def test_the_size_pair_is_given_for_calibration(self):
+        """KLD-16: (measured, planned, face height) out of every frame with a face — also when the size is right."""
+        m = {}
+        with mock.patch("core.text_placement.face_boxes", return_value=[(0.4, 0.25, 0.55, 0.40)]):
+            self.assertEqual(qc_scene.check_frame(self.path, {"size": "MS", "characters": ["KELLY"]}, measure=m), [])
+        self.assertEqual((m["measured"], m["planned"], m["face_h"]), ("MS", "MS", 0.15))
+        with mock.patch("core.text_placement.face_boxes", return_value=[(0.3, 0.2, 0.6, 0.426)]):
+            size = next(f for f in qc_scene.check_frame(self.path, {"size": "CU"}) if f["code"] == "shot_size")
+        self.assertEqual((size["measured"], size["planned"]), ("MCU", "CU"))
+
+    def test_in_trainee_mode_a_shot_size_is_never_a_redraw(self):
+        flags = [{"code": "shot_size", "severity": "redraw", "problem": "p", "fix": "Frame as a close-up."},
+                 {"code": "blank", "severity": "redraw", "problem": "đen", "fix": "Draw."}]
+        out = qc_scene.for_trainee(flags)
+        self.assertEqual([(f["code"], f["severity"]) for f in out], [("shot_size", "flag"), ("blank", "redraw")])
+        self.assertEqual(flags[0]["severity"], "redraw")                     # the caller's list is not changed
+
     def test_a_medium_shot_of_the_right_size_passes(self):
         with mock.patch("core.text_placement.face_boxes", return_value=[(0.4, 0.25, 0.55, 0.40)]):
             self.assertEqual(qc_scene.check_frame(self.path, {"size": "MS", "characters": ["KELLY"]}), [])
@@ -258,7 +275,7 @@ class TraineeLayerZeroTests(unittest.TestCase):
         row = shots.shots_of(self.p, self.pid)[0]
         jid = self.p.create_job(row["id"], "image_gen")
         r = ImageRunner(self.p, MockImageProvider(polls_to_finish=1), self.data)
-        sure = [{"code": "shot_size", "severity": "redraw", "problem": "cỡ cảnh MCU — xin CU", "fix": "Frame as a close-up."}]
+        sure = [{"code": "top_bar", "severity": "redraw", "problem": "mắt dưới thanh", "fix": "Leave headroom."}]
         with mock.patch("core.qc_scene.check_frame", return_value=sure):
             for _ in range(4):
                 r.submit_pending(self.pid)
@@ -270,7 +287,48 @@ class TraineeLayerZeroTests(unittest.TestCase):
         self.assertEqual(qc_scene.flags_of(self.data, self.pid, jid), [])  # nothing in layer0.json (the person must not see it)
         log = self.p.conn.execute("SELECT feature, decision, subject, would_do FROM trainee_log").fetchall()
         self.assertEqual([(x["feature"], x["decision"], x["subject"]) for x in log], [("scene_qc", "redraw", f"job:{jid}")])
-        self.assertIn("close-up", json.loads(log[0]["would_do"])["fix"])
+        self.assertIn("headroom", json.loads(log[0]["would_do"])["fix"])
+
+    def _run_with(self, flags, pair):
+        from core.providers import MockImageProvider
+        from core.runner import ImageRunner
+        row = shots.shots_of(self.p, self.pid)[0]
+        jid = self.p.create_job(row["id"], "image_gen")
+        r = ImageRunner(self.p, MockImageProvider(polls_to_finish=1), self.data)
+
+        def fake(path, data, flat=False, measure=None):
+            if measure is not None:
+                measure.update(pair)
+            return [dict(f) for f in flags]
+        with mock.patch("core.qc_scene.check_frame", side_effect=fake):
+            for _ in range(4):
+                r.submit_pending(self.pid)
+                r.poll_once(self.pid)
+                if self.p.job(jid)["state"] not in ("running", "queued"):
+                    break
+        return jid
+
+    def test_kld16_a_shot_size_is_only_a_flag_and_its_pair_is_kept(self):
+        size = [{"code": "shot_size", "severity": "redraw", "problem": "cỡ cảnh MCU — xin CU", "fix": "Frame as a close-up.",
+                 "measured": "MCU", "planned": "CU"}]
+        jid = self._run_with(size, {"measured": "MCU", "planned": "CU", "face_h": 0.226})
+        self.assertEqual(self.p.job(jid)["state"], "succeeded")
+        log = self.p.conn.execute("SELECT decision, detail FROM trainee_log").fetchone()
+        self.assertEqual(log["decision"], "flag")                              # never "redraw" for a size in học việc
+        self.assertEqual(json.loads(log["detail"])["size"], {"measured": "MCU", "planned": "CU", "face_h": 0.226})
+        # the person approves the frame afterwards → one calibration row: measured MCU, planned CU, person approve
+        self.p.conn.execute("INSERT INTO review_log (job_id, reviewer_type, decision, decided_at) VALUES (?, 'user', 'approve', ?)",
+                            (jid, "2999-01-01T00:00:00+00:00"))
+        self.p.conn.commit()
+        rows = qc_scene.size_calibration(self.p.conn, [self.pid])
+        self.assertEqual([(x["job_id"], x["measured"], x["planned"], x["face_h"], x["trainee"], x["person"]) for x in rows],
+                         [(jid, "MCU", "CU", 0.226, "flag", "approve")])
+
+    def test_kld16_a_right_size_is_a_calibration_pair_too(self):
+        jid = self._run_with([], {"measured": "MS", "planned": "MS", "face_h": 0.15})
+        rows = qc_scene.size_calibration(self.p.conn)
+        self.assertEqual([(x["job_id"], x["measured"], x["planned"], x["trainee"], x["person"]) for x in rows],
+                         [(jid, "MS", "MS", "pass", None)])               # the person has not decided yet
 
     def test_the_old_claude_qc_does_not_come_back(self):
         from core import autopilot, cost, known_issues
