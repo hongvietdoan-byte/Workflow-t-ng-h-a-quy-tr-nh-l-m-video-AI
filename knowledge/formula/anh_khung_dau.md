@@ -41,8 +41,9 @@ Ví dụ là câu thật của #22 để hiểu ý, không phải câu phải ch
 ## 5. Nhân vật
 - **Khi nào**: mỗi người trong `characters`.
 - **Từ đâu**: tên trong `characters`; trang phục từ hồ sơ Kho / ảnh OUTFIT (MỘT nguồn); `blocking` cho vị trí, hướng mặt.
-- **#22**: TÊN + vị trí (`frame-left`) + hướng mặt/nhìn; trang phục **kể từng món có màu** (`red hoodie with the GREEN fire-breathing
-  dinosaur print, black sleeves`); **trạng thái phụ kiện** (`mask worn UP over mouth and nose (never pulled down)`); khóa tóc riêng
+- **#22**: TÊN + vị trí (`frame-left`) + hướng mặt/nhìn; trang phục kể từng món có màu (`red hoodie with the GREEN fire-breathing
+  dinosaur print, black sleeves`) — **chốt 09/10: phần kể món + màu do CODE ghép từ hồ sơ Kho (khóa nhận dạng), Đạo diễn chỉ gọi tên
+  trang phục trong hồ sơ và thêm điều hồ sơ không có**; **trạng thái phụ kiện** (`mask worn UP over mouth and nose (never pulled down)`); khóa tóc riêng
   khi ảnh OUTFIT có người mẫu (`keeps Kelly's OWN hair … one solid colour`).
 - **Vì sao**: #22 gõ tay trang phục mỗi shot → mũ Maxim "two small WHITE horns" (shot 2, 4) ↔ "small RED horns" (shot 7–9); in hình
   áo Kelly GREEN ↔ blue. Tóc người mẫu trong ảnh OUTFIT lẫn sang Kelly (544/545 bị loại).
