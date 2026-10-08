@@ -256,16 +256,45 @@ def beats(secs: List[Dict], intent: Optional[Dict] = None) -> List[Tuple[float, 
     return sorted(sorted(uniq, key=lambda b: (b[1], b[0]))[:MAX_BEATS])
 
 
-def brief(p: Pipeline, pid: int, seconds: Optional[Dict[int, float]] = None) -> Dict:
+def _shift(sec: Dict, dt: float) -> Dict:
+    return {**sec, "start": round(sec["start"] - dt, 2), "end": round(sec["end"] - dt, 2),
+            "shots": [{**sh, "start": round(sh["start"] - dt, 2)} for sh in sec["shots"]]}
+
+
+def _arc_sections(secs: List[Dict], arc: Dict) -> Tuple[List[Dict], List[Dict], List[Dict], float]:
+    """N3: the sections of the first AI-score track merged into the arc's chapters (one per chapter: its longest section's mood), the
+    original sections of that track (for the story moments), the chapters, and the track's start on the film (its timeline's 0)."""
+    tr = next((t for t in arc.get("tracks") or [] if t["material"] == "score"), None)
+    if not tr:
+        return [], [], [], 0.0
+    chs = [arc["chapters"][i] for i in tr["chapters"]]
+    t0 = float(tr["start"])
+    merged, inside = [], []
+    for c in chs:
+        own = [_shift(secs[i], t0) for i in c["sections"]]
+        inside += own
+        main = max(own, key=lambda s: s["end"] - s["start"])
+        merged.append({**main, "scene": own[0]["scene"], "heading": " / ".join(s["heading"] for s in own if s["heading"]),
+                       "start": own[0]["start"], "end": own[-1]["end"], "spoken": round(sum(s["spoken"] for s in own), 2),
+                       "shots": [sh for s in own for sh in s["shots"]], "stage": c["stage"]})
+    return merged, inside, chs, t0
+
+
+def brief(p: Pipeline, pid: int, seconds: Optional[Dict[int, float]] = None, arc: Optional[Dict] = None) -> Dict:
     """The score's brief, timed on the cut. Given `seconds` (the render's own lengths, render_timeline) it follows the render. Since #8
     (người dùng 2026-09-28: music is cheap next to video — the score may be creative as long as it follows the story) the story beats
     inside the sections (beats) are written in. S0.15 (M1–M5): what kind of film it is, its motif, its ending, its tempo ceiling and how
     each turn arrives are read from THIS project (core/music_intent.py) — #8's love-drama answers apply only where they fit."""
     from . import music_intent
     secs = sections(p, pid, seconds)
+    mi = music_intent.plan(p, pid, secs)
+    story, chs, offset = secs, [], 0.0
+    if arc:      # N3 (người dùng 08/10): one piece over the story's arc — a turn per chapter of the story, not per script scene
+        merged, inside, chs, offset = _arc_sections(secs, arc)
+        if merged:
+            secs, story = merged, inside
     total = secs[-1]["end"] if secs else 0.0
     turns = [s["start"] for s in secs[1:]]
-    mi = music_intent.plan(p, pid, secs)
     tone, prof = mi["tone"]["tone"], mi["profile"]
     theme = (mi["motif"]["text"] and f"the {mi['motif']['text']}") or "the main theme"
     bpm, err = choose_bpm(turns, hi=prof["bpm_max"])
@@ -275,20 +304,23 @@ def brief(p: Pipeline, pid: int, seconds: Optional[Dict[int, float]] = None) -> 
         if str(music_intent._first_sound(s).get("bed") or "") == "sparse":       # M6: the Director keeps this stretch mostly silent
             style = "very sparse, mostly resting (only the spotted cues are heard): " + style
         styles.append(style)
-    parts = [f"{_clock(s['start'])}-{_clock(s['end'])}: {st}." for s, st in zip(secs, styles)]
+    from . import music_cues
+    parts = [f"{_clock(s['start'])}-{_clock(s['end'])}" + (f" {music_cues.STAGE_EN[s['stage']]}" if s.get("stage") else "") + f": {st}."
+             for s, st in zip(secs, styles)]
     talky = sum(s["spoken"] for s in secs) > 0.4 * total if total else False
-    moments = beats(secs, mi)
-    arc = []
+    moments = beats(story, mi)
+    arc_m = []
     if theme != "the main theme":           # M1: a motif is named only when this film has one, and its arc follows this story
-        arc.append("introduced softly")
+        arc_m.append("introduced softly")
         if any(energy_style in st for st in styles for energy_style in ("heartbreak", "urgent", "tense, driving", "hushed")):
-            arc.append("strained in the conflict")
+            arc_m.append("strained in the conflict")
         if any("flashback" in b[2] for b in moments):
-            arc.append("bare in the memory")
-        arc.append("full at the end" if mi["ending"]["kind"] == "resolve" else "left unresolved at the end")
+            arc_m.append("bare in the memory")
+        arc_m.append("full at the end" if mi["ending"]["kind"] == "resolve" else "left unresolved at the end")
     head = (f"Instrumental score for a {total:.0f}-second {mi['format']}, around {bpm} BPM"
             + (" (free to breathe slower in the tender parts)" if prof["breathe"] else "") + "."
-            + (f" One simple, memorable {mi['motif']['text']} carries the whole film: " + ", ".join(arc) + "." if arc else "")
+            + (music_cues.brief_line([{**c, "start": c["start"] - offset} for c in chs], _clock) if chs else "")
+            + (f" One simple, memorable {mi['motif']['text']} carries the whole film: " + ", ".join(arc_m) + "." if arc_m else "")
             + (" " + prof["colour"] if prof["colour"] else "")
             + (" Dialogue sits over most of it: keep the mid frequencies clear, no busy melody under speech." if talky else "") + " ")
     # #8 (người dùng 2026-09-28): "nhạc vào không hợp lý, không có độ mềm mại" — a turn flows in over about a bar, the new mood arriving
@@ -308,15 +340,26 @@ def brief(p: Pipeline, pid: int, seconds: Optional[Dict[int, float]] = None) -> 
         if len(prompt) <= PROMPT_MAX or not keep:
             break
         keep = keep[:-1]
-    return {"prompt": prompt[:PROMPT_MAX], "bpm": bpm, "beats": [b[2] for b in sorted(keep)], "error_s": err, "length_ms": int(round(total * 1000)) + TAIL_PAD_MS, "film_s": total,
-            "sections": secs, "turns": turns, "styles": styles, "turn_dirs": music_intent.turn_dirs(secs, styles),
-            "beat_times": [(b[0], b[2]) for b in sorted(keep)], "intent": mi, "notes": mi["notes"]}
+    out = {"prompt": prompt[:PROMPT_MAX], "bpm": bpm, "beats": [b[2] for b in sorted(keep)], "error_s": err, "length_ms": int(round(total * 1000)) + TAIL_PAD_MS, "film_s": total,
+           "sections": secs, "turns": turns, "styles": styles, "turn_dirs": music_intent.turn_dirs(secs, styles),
+           "beat_times": [(b[0], b[2]) for b in sorted(keep)], "intent": mi, "notes": mi["notes"]}
+    if chs:      # N3: the arc the piece follows, where it starts on the film, and how many drafts to offer
+        out.update(arc=arc, chapters=[{k: c[k] for k in ("stage", "stage_vi", "start", "end", "scenes", "join")} for c in chs],
+                   offset=offset, drafts=music_cues.DRAFTS, notes=list(mi["notes"]) + list(arc.get("notes") or []))
+    return out
 
 
 def timed_brief(p: Pipeline, pid: int) -> Optional[Dict]:
     """The brief of `brief` in the shape music.submit_drafts / the Step 5 form use ({"prompt", "length_ms", "instrumental"} + bpm,
-    turns, film_s), or None when the project has no timeline yet (no shot has a length)."""
-    b = brief(p, pid, render_timeline(p, pid))
+    turns, film_s), or None when the project has no timeline yet (no shot has a length). Flag `music_story_arc` (N3): the brief follows
+    the story's emotional arc (music_cues.plan) — one piece, a turn per chapter of the story."""
+    from . import features
+    seconds = render_timeline(p, pid)
+    arc = None
+    if features.on("music_story_arc"):
+        from . import music_cues
+        arc = music_cues.plan(p, pid, seconds)
+    b = brief(p, pid, seconds, arc=arc) if arc else brief(p, pid, seconds)
     if not b["film_s"]:
         return None
     return {**b, "instrumental": True, "timed": True}
