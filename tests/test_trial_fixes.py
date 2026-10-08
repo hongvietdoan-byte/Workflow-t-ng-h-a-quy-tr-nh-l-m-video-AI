@@ -554,7 +554,9 @@ class EndFrameTests(Base):
     def test_the_end_frame_prompt_has_the_start_pictures_safeguards(self):
         from core import end_frames, looks
         prompt = end_frames.prompt_for(self.p, self.pid, self.sid)
-        self.assertIn(looks.image_sentence(self.p.project(self.pid)).strip(), prompt)   # the in-game look (was missing)
+        # the in-game look (was missing); F1-C: its style opens the prompt and its quality words close it (formula parts 1 and 9)
+        self.assertIn(looks.style_sentence(self.p.project(self.pid)).strip(), prompt)
+        self.assertIn(looks.quality_sentence(self.p.project(self.pid)).strip().rstrip("."), prompt)
         self.assertNotIn("17-year-old", prompt)
         self.assertIn("falls to her knees", prompt)
 

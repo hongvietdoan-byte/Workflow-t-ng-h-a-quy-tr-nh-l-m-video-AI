@@ -74,3 +74,10 @@ phần: **bắt buộc khi nào · lấy từ trường nào (`scenes.data`) · 
   theo từng lỗi" (đúng chỗ hỏng của #24), viết lại gọn theo khung.
 - Câu mới mâu thuẫn câu cũ còn giữ (bảng cặp như trên) → ĐỎ. Ví dụ: cũ "camera push in" + thêm "Static camera."
 - Bản viết lại thật (câu cũ đã thay) → không báo.
+
+## Code ghép nhóm Seedance theo khuôn (F1-C, `seedance_refs.prompt`)
+Điểm bắt đầu (luật cắt + khung storyboard từng shot) → hành động từng shot (`shot_motion`: hành động → kết → diễn → thoại → máy quay →
+vật lý) → câu lặp NGUYÊN VĂN ở ≥ 2 shot viết một lần ("All shots: …" / "Shots 1, 3: …" — trang phục, nền) → thứ đứng yên → khóa nhận dạng
+(vai từng ảnh; có ảnh OUTFIT thì "any other colour word for these garments is wrong") → render nơi chốn → luật (dấu chú thích).
+Trần độ dài: `seedance_refs.prompt_limit(model)` (provider_rules `prompt_limit` → clipai.PROMPT_LIMITS); `_estimated_len` gọi chính
+`prompt()` và tính cả ảnh OUTFIT.

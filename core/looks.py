@@ -12,8 +12,10 @@ LOOKS: Dict[str, Dict] = {
         "image": ("Render style: Garena Free Fire in-game 3D character art — match the reference images exactly (same proportions, "
                   "materials, shading, colours and level of detail); not anime, not a realistic photo, not a different 3D style. "
                   # knowledge/ff_gameplay_visual.md: words alone drift to a realistic shooter (PUBG / Call of Duty look)
-                  "Stylized mobile-game proportions, moderate texture detail, clear gameplay lighting, background in focus; "
-                  "not a cinematic movie still, no depth-of-field blur, no film colour grading, not a realistic military shooter."),
+                  "Stylized mobile-game proportions, moderate texture detail, clear gameplay lighting."),
+        # F1-C: the closing quality part of the formula (chốt chất lượng) — the runner puts it at the END of the picture prompt
+        "image_quality": ("Background in focus; not a cinematic movie still, no depth-of-field blur, no film colour grading, not a "
+                          "realistic military shooter."),
         "director": ("Look của dự án: GIỐNG Y HỆT ảnh in-game Free Fire. Ảnh tài nguyên là chuẩn tuyệt đối về ngoại hình và chất liệu; "
                      "prompt ảnh không thêm phong cách vẽ khác (không anime, không ảnh thật). Không viết chữ phong cách kéo về tả thực "
                      "trong `image_prompt` (cinematic, photorealistic, bokeh, depth of field, film grain…) — xem mục \"Free Fire gameplay "
@@ -43,8 +45,21 @@ def of(project_row) -> Optional[str]:
 
 
 def image_sentence(project_row) -> str:
+    """Style + quality in one (callers that do not build by parts: the establishing picture, experiments)."""
     look = of(project_row)
-    return (" " + LOOKS[look]["image"]) if look else ""
+    return (" " + " ".join(x for x in (LOOKS[look]["image"], LOOKS[look].get("image_quality", "")) if x)) if look else ""
+
+
+def style_sentence(project_row) -> str:
+    """F1-C: the formula's first part (phong cách) — the look's style words, no leading space."""
+    look = of(project_row)
+    return LOOKS[look]["image"] if look else ""
+
+
+def quality_sentence(project_row) -> str:
+    """F1-C: the formula's last part (chốt chất lượng) of the look, or ""."""
+    look = of(project_row)
+    return LOOKS[look].get("image_quality", "") if look else ""
 
 
 # S4.3 (after #8: a close-up of Kelly came out as anime): the video model is told the look in EVERY video prompt, not only the picture
@@ -159,16 +174,30 @@ def gore_restraint(project_row, text: str, video: bool = False, scan: Optional[s
     becomes "everything in focus except those hinted details". Short (≤ ~170 characters) — video prompts have a hard limit."""
     if not text or not is_ff(project_row) or _GORE_TAG in text:
         return text
-    words = gore_words(text if scan is None else scan)
-    if not words:
+    sentence = gore_sentence(project_row, text if scan is None else scan, video)
+    if not sentence:
         return text
+    return f"{(text if video else in_focus_except(text)).rstrip()} {sentence}"
+
+
+def gore_sentence(project_row, scan: str, video: bool = False) -> str:
+    """F1-C: the restraint sentence alone (the runner places it in the rules part of the formula), or "" (not FF / no gore word)."""
+    if not is_ff(project_row):
+        return ""
+    words = gore_words(scan)
+    if not words:
+        return ""
     # English only: a Vietnamese word in a Seedance prompt blocks the send (seedance_refs lint "prompt còn chữ tiếng Việt")
     what = (", ".join([w for w in words if w.isascii()][:4]) or "the blood and wounds")[:90]
     if video:
-        return f"{text.rstrip()} {_GORE_TAG} {what} only hinted — deep shadow, out of focus or partly hidden, never shown clearly."
-    out = _IN_FOCUS.sub("everything in focus except those hinted details", text)
-    return (f"{out.rstrip()} {_GORE_TAG} {what} are only hinted — in deep shadow, out of focus or partly hidden, never shown clearly; "
+        return f"{_GORE_TAG} {what} only hinted — deep shadow, out of focus or partly hidden, never shown clearly."
+    return (f"{_GORE_TAG} {what} are only hinted — in deep shadow, out of focus or partly hidden, never shown clearly; "
             "they stay out of focus even where the rest of the picture is sharp.")
+
+
+def in_focus_except(text: str) -> str:
+    """'everything in focus' never reaches the hinted gore details (F1-B)."""
+    return _IN_FOCUS.sub("everything in focus except those hinted details", text)
 
 
 def video_negative(project_row, negative: str = "") -> str:

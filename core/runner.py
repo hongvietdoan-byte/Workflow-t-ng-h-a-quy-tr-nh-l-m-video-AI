@@ -13,7 +13,7 @@ import subprocess
 import sqlite3
 import threading
 import time
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from . import assets, diag, layout
 from . import subjects as subject_links
@@ -1677,7 +1677,10 @@ def lock_note(conn, project_id: int, cast) -> str:
                 f"about {rules['height_m']:g} m tall" if rules.get("height_m") else ""]
         if any(bits):
             parts.append(f"{r['name']}: " + "; ".join(b for b in bits if b))
-    return (" Identity lock — " + " | ".join(parts) + ".") if parts else ""
+    # F1-C (#22: KELLY's print "GREEN dinosaur" in the picture words, "blue dinosaur print" in the blocking) — one source for the costume
+    return (" Identity lock — " + " | ".join(parts) + ". The costume follows the profile above"
+            + (" (or the OUTFIT image)" if any("OUTFIT image" in x for x in parts) else "")
+            + "; any other colour word for these garments is wrong.") if parts else ""
 
 
 _GAZE = re.compile(r"\b(look|looks|looking|gaze|glanc|eyes|facing|stares?|nhìn)\w*", re.I)
@@ -1723,47 +1726,84 @@ def view_notes(conn, project_id: int, data: Dict) -> str:
 
 
 def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = None, fix: Optional[str] = None,
-                       blocking_label: str = "Blocking", place_render: bool = False) -> Tuple[str, list]:
-    """THE picture prompt of a shot (start picture and K1 end frame share it, so a safeguard added here reaches both): the in-game look
-    cleaned of realism words, framing, the text (`core`, default the shot's image_prompt), blocking, the Director's acting, the Character
-    Lock, the look sentence, the fix of a retry, the place in words, and no age under 18. Returns (prompt, realism words removed).
+                       blocking_label: str = "Blocking", place_render: bool = False, light: str = "",
+                       place_extra: Optional[List[str]] = None) -> Tuple[str, list]:
+    """THE picture prompt of a shot (start picture and K1 end frame share it, so a safeguard added here reaches both). Returns
+    (prompt, realism words removed). F1-C (09/10): assembled as named PARTS in the formula's order (docs/CONG_THUC_PROMPT_F0 mục 4,
+    core/prompt_template.py): style → framing → people + action (Director text, blocking, gaze, acting, action_peak, skill phase) →
+    the retry's fix → place → light → locks / rules (Character Lock, view notes, FF gore restraint) → quality close. Each part closes its
+    own sentence; no age under 18 anywhere.
     place_render: the shot's own 3D render goes with the picture — the place sentence locks the background to it (F1-B) instead of the
-    place's general description; the render's number is filled in by _finish_args (assets.RENDER_TAG)."""
-    from . import looks, performance
+    place's general description; the render's number is filled in by _finish_args (assets.RENDER_TAG).
+    light / place_extra: the scene light sentence and the 3D spot's direction / geometry sentences (_submit_args) — placed in their
+    parts instead of being glued to the end."""
+    from . import looks
+    from . import prompt_template as pt
     proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
-    text = data.get("image_prompt") if core is None else core
-    text, removed = looks.clean_prompt(proj, text or "")   # ff_gameplay_visual.md: these words pull the picture towards a realistic shooter
-    prompt = framing_sentence(data) + text
-    if (data.get("blocking") or "").strip():       # where each person stands/faces, so shots of one sequence agree
-        prompt = f"{prompt.rstrip('.')}. {blocking_label}: {data['blocking'].strip()}"
-        if _GAZE.search(data["blocking"]):          # agent QC #8: eyes turned the wrong way (S2·4, S3·8) — the gaze is part of the shot
-            prompt += " The gaze follows the blocking exactly: who looks at whom, toward frame-left or frame-right."
-    prompt += performance.image_sentence(data)     # GĐ4: the Director's acting (director.md Đ4) at the start of the shot
+    raw = data.get("image_prompt") if core is None else core
+    text, removed = looks.clean_prompt(proj, raw or "")   # ff_gameplay_visual.md: these words pull the picture towards a realistic shooter
+    look_quality = looks.quality_sentence(proj)
+    # the look sentence says the style (and the quality): the Director's own clauses of the same words are said once, not twice
+    words, quality = pt.split_director(text, drop_style=looks.of(proj) == "FF_INGAME", move_quality=bool(look_quality))
+    place = assets.scene_location(conn, project_id, data)
+    parts = [looks.style_sentence(proj),
+             framing_sentence(data),
+             _action_part(data, words, blocking_label),
+             f"Fix: {fix}" if fix else "",          # the retry's correction right after what it corrects, not at the tail
+             _place_part(conn, project_id, data, place, place_render, place_extra),
+             light,
+             _lock_part(conn, project_id, data, proj, text, fix),
+             pt.quality_part(look_quality, quality) if (look_quality or quality) else ""]
+    prompt = pt.join(parts)
+    if "Gore restraint:" in prompt:                # F1-B: "everything in focus" never reaches the hinted details
+        prompt = looks.in_focus_except(prompt)
+    return no_minor_age(prompt), removed
+
+
+def _action_part(data: Dict, words: str, blocking_label: str) -> str:
+    """People + action: the Director's words, blocking (+ gaze), acting, the first frame mid-action, the skill phase."""
+    from . import performance, skill_dossier
+    from . import prompt_template as pt
+    bits = [words]
+    blocking = (data.get("blocking") or "").strip()
+    if blocking:                                    # where each person stands/faces, so shots of one sequence agree
+        bits.append(f"{blocking_label}: {blocking}")
+        if _GAZE.search(blocking):                  # agent QC #8: eyes turned the wrong way (S2·4, S3·8) — the gaze is part of the shot
+            bits.append("The gaze follows the blocking exactly: who looks at whom, toward frame-left or frame-right.")
+    bits.append(performance.image_sentence(data))   # GĐ4: the Director's acting (director.md Đ4) at the start of the shot
     peak = str(data.get("action_peak") or "").strip().rstrip(".")
     if peak:                                        # S3.3: an action shot starts mid-movement, not from a standing pose (#8: fake running)
-        prompt += f" The first frame catches the action already under way: {peak}; mid-motion, not a standing pose."
-    prompt += lock_note(conn, project_id, data.get("characters"))
-    prompt += view_notes(conn, project_id, data)
-    prompt += looks.image_sentence(proj)
-    from . import skill_dossier
-    if skill_dossier.enabled():                   # 30/09: the skill phase as the official video shows it + what is never drawn
-        prompt += skill_dossier.image_sentence(skill_dossier.shot_skill(data))
-    if fix:
-        prompt = f"{prompt}. Fix: {fix}"
-    place = assets.scene_location(conn, project_id, data)
+        bits.append(f"The first frame catches the action already under way: {peak}; mid-motion, not a standing pose.")
+    if skill_dossier.enabled():                     # 30/09: the skill phase as the official video shows it + what is never drawn
+        bits.append(skill_dossier.image_sentence(skill_dossier.shot_skill(data)))
+    return pt.join(bits)
+
+
+def _place_part(conn, project_id: int, data: Dict, place, place_render: bool, extra) -> str:
+    from . import prompt_template as pt
     room = indoor_spot(conn, project_id, data)
     if room:                                       # 07/10 Khủng Long Đỏ: the place's outdoor words ("plaza, palms, sea") pulled a
-        prompt += (f" Setting: INSIDE a room — {room} ({place['name']} map). An interior with walls and ceiling as in the 3D render; "
-                   "no plaza, tower, sky or sea except what its windows show.")   # bedroom shot outside onto a balcony
+        name = f" ({place['name']} map)" if place is not None else ""   # bedroom shot outside onto a balcony — what is RIGHT (L2)
+        head = (f"Setting: INSIDE a room — {room}{name}. An interior with walls, ceiling and floor exactly as in the 3D render; only "
+                "the room itself is visible, and the outside appears only through its windows.")
     elif place is not None and place_render:       # F1-B (#24): "grass, palms, sea" of the general words beat the render → locked to it
-        prompt += " " + assets.render_place_text(conn, place)
+        head = assets.render_place_text(conn, place)
     elif place is not None:                        # B1: the place in words (+ real landmark heights), whatever pictures go
-        prompt += " " + assets.location_text(conn, place)
-    # F1-B luật tầng 1 (FF): blood / gore only hinted — judged on the Director's own words of the shot, not on a Lock or place text
+        head = assets.location_text(conn, place)
+    else:
+        head = ""
+    return pt.join([head] + [x for x in (extra or []) if x])
+
+
+def _lock_part(conn, project_id: int, data: Dict, proj, text: str, fix: Optional[str]) -> str:
+    """Locks / rules: Character Lock, how each person looks from this side, and (FF) the gore restraint — judged on the Director's own
+    words of the shot, not on a Lock or place text."""
+    from . import looks
+    from . import prompt_template as pt
     scan = " ".join(str(x or "") for x in (text, data.get("blocking"), data.get("action_peak"), fix,
                                            json.dumps(data.get("performance"), ensure_ascii=False) if data.get("performance") else ""))
-    prompt = looks.gore_restraint(proj, prompt, scan=scan)
-    return no_minor_age(prompt), removed
+    return pt.join([lock_note(conn, project_id, data.get("characters")), view_notes(conn, project_id, data),
+                    looks.gore_sentence(proj, scan)])
 
 
 def indoor_spot(conn, project_id: int, data: Dict) -> Optional[str]:
@@ -1977,18 +2017,22 @@ class ImageRunner(_Runner):
             self._diag(job, assets.gap_severity(gap), "missing_reference", gap)
         from . import place_refs
         render = place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]) if place_refs.enabled() else None
-        prompt, _ = build_image_prompt(conn, job["project_id"], data, fix=model_fix(job["retry_reason"]), place_render=render is not None)
+        from . import scene_establish
+        from . import location_pack
+        light = scene_establish.light_sentence(data)
+        chosen = location_pack.script_sentence(conn, job["project_id"], data)   # S5.7: direction + extra lights of this shot
+        geo = scale = ""
+        if render is not None:                         # the render's real numbers (place_refs.geometry_sentence) — the place part
+            place = assets.scene_location(conn, job["project_id"], data)
+            entry = location_pack_entry(conn, place)
+            geo = place_refs.geometry_sentence(render["_rec"], data, (entry or {}).get("sun_azimuth", 250.0))
+            scale = place_refs.scale_sentence(render["_rec"], entry, data)   # F2 việc 4: measured prop sizes (empty if none)
+        # F1-C: light / spot / geometry go into their parts of the formula (place → light), never glued after the quality close
+        prompt, _ = build_image_prompt(conn, job["project_id"], data, fix=model_fix(job["retry_reason"]), place_render=render is not None,
+                                       light=light or "", place_extra=[chosen or "", geo or "", scale or ""])
         if "Gore restraint:" in prompt:                # luật 1: a sentence added by code is said
             self._diag(job, "info", "gore_restraint", "dự án FF: shot có máu/vết thương/xác — đã thêm câu chỉ GỢI (bóng tối, ngoài nét, "
                        "bị che), không thấy rõ")
-        from . import scene_establish
-        light = scene_establish.light_sentence(data)
-        if light:
-            prompt = f"{prompt} {light}"
-        from . import location_pack
-        chosen = location_pack.script_sentence(conn, job["project_id"], data)   # S5.7: direction + extra lights of this shot
-        if chosen:
-            prompt = f"{prompt} {chosen}"
         proj = self.p.project(job["project_id"])
         chain = chain_previous(proj, data)
         from . import image_models
@@ -2013,14 +2057,6 @@ class ImageRunner(_Runner):
                 refs = place_refs.swap_in(refs, ref, limit)
                 # F2 (09/10): this shot's own same-axis wide render replaces the scene's one-for-all wide picture
                 refs = place_refs.add_wide(refs, place_refs.wide_ref(self.data_dir, job["project_id"], job["scene_id"]), limit)
-                place = assets.scene_location(conn, job["project_id"], data)
-                entry = location_pack_entry(conn, place)
-                geo = place_refs.geometry_sentence(ref["_rec"], data, (entry or {}).get("sun_azimuth", 250.0))
-                if geo:
-                    prompt = f"{prompt} {geo}"
-                scale = place_refs.scale_sentence(ref["_rec"], entry, data)   # F2 việc 4: measured prop sizes (empty if none)
-                if scale:
-                    prompt = f"{prompt} {scale}"
                 prompt = f"{place_refs.PRECEDENCE} {prompt}"   # S5.5' 30/09: words about the place lost to the render otherwise
         from . import skill_dossier
         if skill_dossier.enabled():                    # 30/09: the phase's real frame from the skill video (the dossier)
