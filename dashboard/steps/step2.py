@@ -378,6 +378,9 @@ def image_card_group(p: Pipeline, pid: int, history: list, proj, stale_reason=No
                 st.session_state[key] = pointer + 1
                 st.rerun()
         image_card(p, pid, j, proj, read_only=not is_latest, stale_reason=stale_reason if is_latest else None)
+        if not is_latest:                                   # 08/10 (#24): go back to this older take
+            from dashboard.design.screens import older_take_ui
+            older_take_ui.use_button(p, j, history[-1], pointer + 1)
 
 
 def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_reason=None):

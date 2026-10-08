@@ -488,6 +488,7 @@ def _other_takes(p: Pipeline, j) -> None:
     """KLD-2 (08/10): the shot's other takes that still have their own file — the person picks the one the chain / the cut use
     (#22: rows 560 ↔ 569 were swapped by hand, the QC scores then belonged to the other file)."""
     from core import takes
+    from dashboard.design.screens import older_take_ui
     others = takes.candidates(p.conn, j["scene_id"])
     if not others:
         return
@@ -498,7 +499,9 @@ def _other_takes(p: Pipeline, j) -> None:
             st.caption(f"Job {o['id']} · {ui.state_label(o['state'], 'video_gen')}" + (f" · QC {mean:.2f}" if mean is not None else "")
                        + (f" · {model_router.job_label(p.conn, o['id'], o['model'])}" if o["model"] else ""))
             show_video(o["result_path"])
-            if st.button("✔ Dùng bản này cho shot", key=f"vuse_{o['id']}",
+            if o["state"] in older_take_ui.USABLE:      # 08/10: the newer takes are closed without a redo; asks first if the used one is approved
+                older_take_ui.use_button(p, o, takes.used(p.conn, j["scene_id"]), label="✔ Dùng bản này cho shot", key=f"vuse_{o['id']}")
+            elif st.button("✔ Dùng bản này cho shot", key=f"vuse_{o['id']}",
                          help="Tệp của bản này thành clip của shot; bản đang dùng vào thùng rác (vẫn chọn lại được). Không tốn credit."):
                 if act(lambda: takes.choose(p, C.DATA, o["id"]), "Đã đổi bản dùng cho shot"):
                     st.rerun()

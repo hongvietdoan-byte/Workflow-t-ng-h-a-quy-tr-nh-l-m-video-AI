@@ -175,6 +175,26 @@ class StoryboardV2Tests(unittest.TestCase):
         self.assertNotIn(f"c_{second}", keys)
         self.assertIn("bản cũ", self.text(at))
 
+    def test_old_take_with_its_file_can_be_used_again(self):
+        """08/10 (#24 shot 7): v2 came out worse than v1 — the old take has '↩ Dùng bản này' (file back from the trash, v2 rejected)."""
+        p, pid, sc = self.seed(1)
+        first = self.job_in(p, sc[0], "pending_review")
+        img = os.path.join(self.tmp, "projects", str(pid), "images", f"job_{first}.png")
+        os.makedirs(os.path.dirname(img), exist_ok=True)
+        with open(img, "wb") as f:
+            f.write(b"v1")
+        p.reject(first, "user", "sai", respawn=False)
+        from core import trash
+        trash.sweep_rejected(p, os.path.join(self.tmp, "projects"), pid)
+        second = self.job_in(p, sc[0], "pending_review")
+        at = self.board()
+        self.assertNotIn(f"uot_{second}", {b.key for b in at.button})                       # the latest card has no such button
+        next(x for x in at.button if x.key == f"sbv_{pid}_{sc[0]}_0").click().run()
+        next(x for x in at.button if x.key == f"uot_{first}").click().run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertEqual(dict(self.states(self.db)), {first: "approved", second: "rejected"})
+        self.assertTrue(os.path.exists(img))
+
     def test_clicking_edit_opens_the_detail_without_error(self):
         p, pid, sc = self.seed(1)
         j = self.job_in(p, sc[0], "pending_review")

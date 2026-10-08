@@ -690,6 +690,106 @@ class Pipeline:
             from . import takes
             takes.mark(self.conn, job["scene_id"], job_id)
 
+    def take_version(self, job_id: int) -> int:
+        """vN of a take as the version strip shows it: its place among the shot's jobs of the same type (oldest = v1)."""
+        job = self.job(job_id)
+        return self.conn.execute("SELECT COUNT(*) FROM jobs WHERE scene_id=? AND type=? AND id<=?",
+                                 (job["scene_id"], job["type"], job_id)).fetchone()[0]
+
+    @staticmethod
+    def _data_dir_of(job) -> Optional[str]:
+        """<data_dir> from a result path <data_dir>/<project>/…; None when it cannot be told."""
+        path = job["result_path"]
+        if not path:
+            return None
+        parts = os.path.normpath(os.path.abspath(path)).split(os.sep)
+        for i in range(len(parts) - 1, 0, -1):
+            if parts[i] == str(job["project_id"]):
+                return os.sep.join(parts[:i]) or os.sep
+        return None
+
+    def use_older_take(self, job_id: int, note: Optional[str] = None, data_dir: Optional[str] = None) -> str:
+        """08/10 (#24 shot 7, #22 job 560/569): the person goes back to an OLDER take of a shot (image or video) after the redo came out
+        worse. The old take (rejected / succeeded / pending_review) gets its file back (from the trash when it was swept there; gone for
+        good → ValueError), every NEWER take of the shot is closed — pending_review/succeeded rejected without a new take, queued/retryable/
+        failed cancelled, approved reopened without a new take — and the old take is APPROVED (review_log; a video also becomes the shot's
+        chosen take, takes.mark). A newer take still RUNNING → refused (wait for it or ■ cancel it first). Costs nothing: no job is made.
+        `data_dir` = the projects folder (dashboard C.DATA); None = read from the job's result path. Returns the path of the take's file."""
+        access.need_edit_job(self, job_id, "dùng lại bản cũ")
+        job = self.job(job_id)
+        if job is None or job["type"] not in ("image_gen", "video_gen"):
+            raise ValueError("chỉ dùng lại được bản ảnh hoặc video của một shot")
+        version = self.take_version(job_id)
+        if job["state"] not in ("rejected", "succeeded", "pending_review"):
+            raise InvalidTransition(f"bản v{version} (job {job_id}) đang ở trạng thái {job['state']} — không dùng lại được")
+        sid, kind, pid = job["scene_id"], job["type"], job["project_id"]
+        newer = self.conn.execute("SELECT id, state FROM jobs WHERE scene_id=? AND type=? AND id>? ORDER BY id",
+                                  (sid, kind, job_id)).fetchall()
+        running = [r for r in newer if r["state"] == JobState.RUNNING.value]
+        if running:
+            raise InvalidTransition(f"shot đang gen bản mới hơn (job {running[0]['id']}) — đợi bản đó xong hoặc bấm ■ Hủy trước, "
+                                    f"rồi mới dùng lại bản v{version}")
+        data_dir = data_dir or self._data_dir_of(job)
+        sub = "images" if kind == "image_gen" else "videos"
+        # 1. the file first: nothing changes state when the old take cannot be shown again
+        path = job["result_path"] or (os.path.join(data_dir, str(pid), "images", f"job_{job_id}.png")
+                                      if data_dir and kind == "image_gen" else None)
+        from . import trash
+        if kind == "image_gen":
+            if not (path and os.path.isfile(path)):
+                found = trash.find_for_job(data_dir, pid, "images", job_id) if data_dir else None
+                if not found:
+                    raise ValueError(f"tệp ảnh của bản v{version} (job {job_id}) không còn — thùng rác đã dọn hoặc chưa từng có; "
+                                     "không dùng lại được")
+                path = trash.restore(data_dir, pid, "images", os.path.basename(found))
+                self.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (path, job_id))
+                self.conn.commit()
+        else:
+            from . import takes
+            if not data_dir:
+                raise ValueError(f"không rõ thư mục dữ liệu của bản v{version} (job {job_id}) — không dùng lại được")
+            if not takes.has_own_file(self.conn, job):
+                found = trash.find_for_job(data_dir, pid, sub, job_id)
+                if not found:
+                    raise ValueError(f"tệp clip của bản v{version} (job {job_id}) không còn (bản sau ghi đè hoặc thùng rác đã dọn) — "
+                                     "không dùng lại được")
+                self.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (found, job_id))
+                self.conn.commit()
+        # 2. the newer takes are closed, none is redone (no money)
+        why = note or f"dùng lại bản v{version}"
+        for r in newer:
+            state = JobState(r["state"])
+            if state in (JobState.SUCCEEDED, JobState.PENDING_REVIEW):
+                self.reject(r["id"], "user", why, respawn=False)
+            elif state == JobState.APPROVED:
+                if kind == "image_gen":
+                    self.reopen_approved(r["id"], why, respawn=False)
+                else:
+                    self._log_review(r["id"], "user", "reject", why)
+                    self.transition(r["id"], JobState.REJECTED, actor="user", note=why)
+            elif state == JobState.FAILED:
+                self.transition(r["id"], JobState.RETRYABLE, note=why)
+                self.transition(r["id"], JobState.CANCELLED, actor="user", note=why)
+            elif state in (JobState.QUEUED, JobState.RETRYABLE):
+                self.transition(r["id"], JobState.CANCELLED, actor="user", note=why)
+            self.conn.execute("UPDATE jobs SET escalated=0 WHERE id=?", (r["id"],))
+        self.conn.commit()
+        # 3. the old take is the shot's take
+        if kind == "video_gen":
+            from . import takes
+            takes.choose(self, data_dir, job_id, note=why)        # NN.mp4 ← its file, approved, takes.mark (KLD-2)
+            path = self.job(job_id)["result_path"]
+        else:
+            if self.state(job_id) == JobState.REJECTED:
+                self._log_review(job_id, "user", "approve", why)
+                self.transition(job_id, JobState.APPROVED, actor="user", note=why)
+            else:
+                self.approve(job_id, "user", why)
+            self.conn.execute("UPDATE jobs SET escalated=0 WHERE id=?", (job_id,))
+            self.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (sid,))
+            self.conn.commit()
+        return path
+
     def _require_reviewable(self, job_id: int) -> None:
         if self.state(job_id) not in REVIEWABLE:
             raise InvalidTransition(f"job {job_id} is {self.state(job_id).value}, not reviewable")

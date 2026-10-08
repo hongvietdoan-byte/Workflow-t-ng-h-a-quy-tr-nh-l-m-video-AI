@@ -255,9 +255,11 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
             b = st.columns(2, gap="small")
             return a[0], a[1], b[0], b[1]
 
-        if not is_latest:                                   # an old take: look only, like before
+        if not is_latest:                                   # an old take: look, or go back to it (08/10 #24)
             if st.button("🔍 Chi tiết", key=f"sel_btn_{jid}", width="stretch"):
                 _open_detail(pid, jid)
+            from dashboard.design.screens import older_take_ui
+            older_take_ui.use_button(p, j, history[-1], pointer + 1)
         elif state in REVIEWABLE:
             note = st.text_input("Câu sửa (tiếng Anh)", key=f"note_{jid}", placeholder="vd: Kelly wears the yellow jacket")
             b1, b2, b3, b4 = pair()
