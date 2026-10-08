@@ -1,3 +1,33 @@
+# HANDOFF — F3 đường chi phí video E1 (09/10/2026, nhánh worktree `agent-ab063a250f23dd922`, chưa push)
+
+**Đã xong** (0 USD, không gọi dịch vụ tốn tiền; chỉ khi cờ `two_tier_quality` BẬT — tắt thì y như cũ):
+- Chọn model E1: `quality_tier.e1_choice` (gọi từ `model_router.scene_choice`): shot dễ (`group_path == direct`) → Seedance 2.0 720p
+  ("E1: shot dễ — 2.0 720p, dựng phóng 1080p"); khó / chưa rõ → `seedance-2.5` 480p (nháp `draft=True` qua `low_tier`). Nhóm gen chung
+  có shot nháp-trước → cả nhóm nháp-trước. Chọn tay thắng; chọn tay không phải 2.5 ở shot nháp-trước → `warning` (NEW_GEN),
+  `model_router.e1_warning(conn, sid)` cho F4 hiện. Kling / model khác giữ đường cũ.
+- Không tự gen mới bản cao: `quality_tier.upgrade_block` / `final_offer` / `needs_confirm`; `request_final(..., confirm_new=True)` bắt
+  buộc khi không nâng được từ nháp (kèm giá `scene_final_price`), lưu `jobs.confirm_new` (cột mới). `VideoRunner._blocked` +
+  `_submit_kwargs` (`_hold`) → job `final` chưa xác nhận bị đánh hỏng `stale_input: … cần xác nhận gen MỚI bản cao`, không gửi.
+  Gen mới đã xác nhận: độ phân giải `final_resolution(model)` (cao nhất luật model cho phép), diag `final_resend` mức warn.
+- Không ghi đè clip nháp: `VideoRunner._finish_group` gọi `takes.make_room` cho từng shot đi theo trước khi tách clip nhóm (file cũ
+  vào thùng rác dưới số job của nó, `result_path` trỏ theo). `Pipeline.use_older_take` nhận cả take video ĐÃ DUYỆT (nháp).
+- Phóng 1080p lúc dựng: `ffmpeg_studio.needs_upscale` + `_fit(upscale=True)` (lanczos + unsharp 5×5:0,5, hằng `UPSCALE_FLAGS`,
+  `UNSHARP_*`) trong cùng lượt `render_final(upscale=…)`; `delivery.render` ghi manifest `upscaled: [idx…]` + `upscale`.
+- Giá: `cost.clip_estimate` dùng công thức token ClipAI cho lựa chọn E1; `cost.video_button_tag` gom shot cùng nhóm Seedance thành
+  1 clip (sửa "Còn tồn" 08/10 trong TODO — phiên chính gạch); `final_estimate` / `scene_final_price` theo clip nhóm + nâng/gen mới;
+  `quality_tier.e1_estimate(conn, pid)` → {"usd", "film_seconds", "target_usd", "within", "line"} (mục tiêu < 30 / < 60 USD).
+- UI `dashboard/quality_ui.py`: nâng được → "⬆ Gen bản cao"; không → "⬆ Gen MỚI bản cao (nội dung sẽ khác nháp) — ≈ X USD" + hộp
+  xác nhận (`confirm_all`, khóa `qfinal_new_<sid>` / gom `qfinal_allnew_<pid>`).
+- Test `tests/test_cost_route_e1.py` (13, khai trong `devsys/areas.json`). Sửa test cũ theo hợp đồng mới: `test_quality_tier` (nháp
+  hết hạn → không tự gửi, xác nhận rồi mới gửi; nháp model khác → cần confirm), `test_ui_quality_tier` (nháp mẫu có model 2.5 + mã task).
+
+**Cần đo thật / rủi ro**:
+- Giá nâng 2.5 → 1080p từ nháp (`submit_final_from_sample`) là ƯỚC TÍNH theo công thức token, chưa đo (đo 1 lần; lệch thì thêm
+  `cost.SEEDANCE_MEASURED`).
+- `data/provider_rules.json` hiện không cho gửi thẳng 2.5 ở 1080p → bản cao gen MỚI (đã xác nhận) ra 720p; chỉ đường nâng từ nháp có 1080p.
+- `e1_choice` đổi model khi bật cờ trên dự án đang làm → nháp cũ làm bằng alias `seedance` (2.0) không nâng được (đúng ý: phải xác nhận).
+- Chưa nối `e1_estimate` vào Bước 1 / AI Dev System, chưa hiện `e1_warning` ở màn Video (việc F4).
+
 # HANDOFF — F1-A công thức prompt (09/10/2026, nhánh `worktree-agent-a22dfa0dcc0951c59`, chưa push)
 
 **Đã xong** (0 USD, không gọi model):
