@@ -8,7 +8,7 @@ nhiều câu nối dần theo từng lỗi, có câu tự mâu thuẫn (trung c�
 bóng lao sát mặt không có đường đi. Code chỉ báo ĐÚNG những điều đó; phần sáng tạo của Đạo diễn để nguyên.
 
     shot_kind(data, chars=None) -> dialogue | action | dance_ref | object | establishing | creature | skill_fx | other
-    check_image(prompt, data, chars=None) / check_motion(prompt, data, chars=None) -> [{"level": "red"|"warn", "part", "msg"}]
+    lint_image(prompt, data, chars=None) / lint_motion(prompt, data, chars=None) -> [{"level": "red"|"warn", "part", "msg"}]
     cross_shot(shots) -> [issue + "shots"]          cùng món đồ của cùng nhân vật khác màu giữa các shot (warn)
     growth_check(old, new) -> [issue]                lớp dò "viết chồng thêm" (mục 4b)
     review_shot(data, image_prompt, motion_prompt, chars=None, previous=None) -> {"image", "motion", "growth", "red"}
@@ -312,7 +312,7 @@ def _common(prompt: str, data: Dict, chars: Optional[List[Dict]], kind_word: str
     return out
 
 
-def check_image(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, style_by_code: bool = False,
+def lint_image(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, style_by_code: bool = False,
                 ff: Optional[bool] = None) -> List[Dict]:
     """Prompt ảnh khung đầu: phần bắt buộc (a), khung ↔ tư thế (b), luật FF (c), vật lao sát người (d), luật người/quái (e),
     tự mâu thuẫn (f), câu dính (g). Phần code tự thêm khi dựng prompt (runner.build_image_prompt) không bị đòi trong câu của Đạo diễn:
@@ -351,7 +351,7 @@ def check_image(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, sty
     return out + _common(prompt, data, chars, "ảnh", ff)
 
 
-def check_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, ff: Optional[bool] = None) -> List[Dict]:
+def lint_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, ff: Optional[bool] = None) -> List[Dict]:
     """Prompt motion: điểm bắt đầu / hành động / máy quay (a), thoại / nguồn động tác / trạng thái cuối khi có, + (c)–(g)."""
     prompt, data = prompt or "", data or {}
     kind = shot_kind(data, chars)
@@ -474,8 +474,8 @@ def review_shot(data: Dict, image_prompt: Optional[str], motion_prompt: Optional
     """Một shot: {"image", "motion", "growth", "red", "kind"}. previous = {"image": prompt cũ, "motion": prompt cũ} (bản trước của lượt
     Đạo diễn / người sửa) — chỉ kiểm 'trồng thêm' khi có."""
     previous = previous or {}
-    image = check_image(image_prompt, data, chars, style_by_code, ff) if (image_prompt or "").strip() else []
-    motion = check_motion(motion_prompt, data, chars, ff) if (motion_prompt or "").strip() else []
+    image = lint_image(image_prompt, data, chars, style_by_code, ff) if (image_prompt or "").strip() else []
+    motion = lint_motion(motion_prompt, data, chars, ff) if (motion_prompt or "").strip() else []
     growth = [dict(g, kind="image") for g in growth_check(previous.get("image"), image_prompt)]
     growth += [dict(g, kind="motion") for g in growth_check(previous.get("motion"), motion_prompt)]
     return {"kind": shot_kind(data, chars), "image": image, "motion": motion, "growth": growth,
@@ -493,7 +493,7 @@ def warnings(shots) -> List[str]:
             continue
         data = dict(s, blocking=s.get("blocking") or s.get("start_frame"))
         try:
-            found = check_image(s.get("image_prompt"), data) if str(s.get("image_prompt") or "").strip() else []
+            found = lint_image(s.get("image_prompt"), data) if str(s.get("image_prompt") or "").strip() else []
         except Exception as e:  # noqa: BLE001 - a check, never a reason to lose the report
             found = [_issue("warn", "khung_hinh", f"không kiểm được: {type(e).__name__}: {e}")]
         for i in found:
@@ -626,8 +626,19 @@ def after_director(conn, project_id: int, before: Optional[Dict] = None) -> None
             fc["cross"] = [i for i in cross if r["idx"] in i.get("shots", [])]
             _write(conn, r["id"], data, fc)
         conn.commit()
+        warn_only = []
         for r, data, fc in results:
-            _say(conn, project_id, r["id"], _label(data, r["idx"]), dict(fc, cross=[]))
+            if any(i["level"] == "red" for i in fc["image"] + fc["motion"] + fc["growth"]):
+                _say(conn, project_id, r["id"], _label(data, r["idx"]), dict(fc, cross=[]))     # a stop: said per shot
+            elif fc["image"] + fc["motion"] + fc["growth"]:
+                warn_only.append((data, r["idx"], fc))
+        if warn_only:       # F1 sửa: warnings only ("thiếu phần") — ONE line per saved plan, not one per shot (⚙ Chẩn đoán stays readable)
+            parts_seen = list(dict.fromkeys(PART_LABELS.get(i["part"], i["part"])
+                                            for _d, _x, fc in warn_only for i in fc["image"] + fc["motion"] + fc["growth"]))
+            diag.record(conn, "director", "warn", f"Công thức prompt: {len(warn_only)} shot có cảnh báo (không chặn) — "
+                        + ", ".join(_label(d, x) for d, x, _fc in warn_only[:8]) + ("…" if len(warn_only) > 8 else "")
+                        + " · phần: " + ", ".join(parts_seen[:8]) + " — xem chi tiết ở từng shot (formula_check)",
+                        "prompt_formula", project_id)
         for i in cross:
             diag.record(conn, "director", "warn", "Công thức prompt (giữa các shot): " + i["msg"], "prompt_formula", project_id)
     except Exception as e:  # noqa: BLE001 - a check, never a reason to lose the paid plan
@@ -735,8 +746,8 @@ def red_issues(conn, scene_id: int, kind: Optional[str] = None, gore_hinted=None
             chars = _chars(conn, row["project_id"])
             proj = conn.execute("SELECT * FROM projects WHERE id=?", (row["project_id"],)).fetchone()
             ff = looks.is_ff(proj)
-        issues = (check_image(text, data, chars, _style_by_code(conn, row["project_id"]), ff) if k == "image"
-                  else check_motion(text, data, chars, ff))
+        issues = (lint_image(text, data, chars, _style_by_code(conn, row["project_id"]), ff) if k == "image"
+                  else lint_motion(text, data, chars, ff))
         if fc and fc.get(f"{k}_sha") == _sha(text):
             issues += [g for g in fc.get("growth") or [] if g.get("kind") == k]
         gore = [i for i in issues if i["part"] == "luat_ff" and i["level"] == "red"]

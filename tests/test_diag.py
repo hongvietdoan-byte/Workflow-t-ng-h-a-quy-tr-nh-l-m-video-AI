@@ -126,7 +126,7 @@ class HookTests(Setup):
                 return LlmReply("không phải JSON", 1, 1) if self.calls == 1 else self.inner.complete(prompt, images)
 
         llm_runner.run_director(self.p, self.pid, TwiceBad())
-        found = [e for e in events(self.p, "director") if e["severity"] != "info"]    # info: which pictures the Director saw
+        found = [e for e in events(self.p, "director") if e["severity"] != "info" and e["code"] != "prompt_formula"]   # F1: formula check notes are their own    # info: which pictures the Director saw
         self.assertEqual([e["code"] for e in found], ["bad_json_retry"])
 
     def test_llm_failure_is_recorded_and_still_raised(self):
@@ -138,7 +138,7 @@ class HookTests(Setup):
 
         with self.assertRaises(llm_runner.LlmError):
             llm_runner.run_director(self.p, self.pid, Broken())
-        found = [e for e in events(self.p, "director") if e["severity"] != "info"]
+        found = [e for e in events(self.p, "director") if e["severity"] != "info" and e["code"] != "prompt_formula"]   # F1: formula check notes are their own
         self.assertEqual((found[0]["severity"], found[0]["code"]), ("error", "auth"))
 
     def test_music_failure_that_silently_drops_the_soundtrack_is_flagged(self):

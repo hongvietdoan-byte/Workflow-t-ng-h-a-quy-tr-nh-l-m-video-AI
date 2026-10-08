@@ -52,83 +52,83 @@ def parts(issues, level=None):
 
 class ImageChecks(unittest.TestCase):
     def test_gore_without_restraint_is_red(self):                                   # (c) #24 shot 2
-        found = F.check_image(P24_SHOT2_IMAGE, {"size": "MS", "characters": ["KELLY"]})
+        found = F.lint_image(P24_SHOT2_IMAGE, {"size": "MS", "characters": ["KELLY"]})
         self.assertIn("luat_ff", parts(found, "red"), found)
         self.assertTrue(any("blood" in i["msg"] for i in found if i["part"] == "luat_ff"))
 
     def test_gore_with_restraint_is_not_red(self):
         text = P24_SHOT2_IMAGE.replace("everything in focus", "the blood stains only hinted, in deep shadow")
-        self.assertNotIn("luat_ff", parts(F.check_image(text, {"size": "MS", "characters": ["KELLY"]}), "red"))
+        self.assertNotIn("luat_ff", parts(F.lint_image(text, {"size": "MS", "characters": ["KELLY"]}), "red"))
 
     def test_colour_word_is_not_blood(self):                                        # "màu" ≠ "máu" (không bỏ dấu khi so)
-        found = F.check_image("Free Fire in-game 3D render, medium shot, Kelly đứng, áo màu đỏ, mau chóng quay lại", {"characters": ["K"]})
+        found = F.lint_image("Free Fire in-game 3D render, medium shot, Kelly đứng, áo màu đỏ, mau chóng quay lại", {"characters": ["K"]})
         self.assertNotIn("luat_ff", parts(found))
-        self.assertIn("luat_ff", parts(F.check_image("Free Fire in-game 3D render, medium shot, Kelly đứng, vệt máu trên tường", {}), "red"))
+        self.assertIn("luat_ff", parts(F.lint_image("Free Fire in-game 3D render, medium shot, Kelly đứng, vệt máu trên tường", {}), "red"))
 
     def test_shadow_streaking_past_her_face_without_path_is_red(self):               # (d) #24 shot 3
-        found = F.check_image(P24_SHOT3_IMAGE, {"size": "MS", "angle": "ots", "characters": ["KELLY"]})
+        found = F.lint_image(P24_SHOT3_IMAGE, {"size": "MS", "angle": "ots", "characters": ["KELLY"]})
         self.assertIn("duong_di_vat_gan_nguoi", parts(found, "red"), found)
         fixed = P24_SHOT3_IMAGE.replace("right in front of her face", "from the left edge of the well to the right edge, about one metre "
                                         "in front of her face, it never touches or passes through her")
-        self.assertNotIn("duong_di_vat_gan_nguoi", parts(F.check_image(fixed, {"size": "MS", "characters": ["KELLY"]})))
+        self.assertNotIn("duong_di_vat_gan_nguoi", parts(F.lint_image(fixed, {"size": "MS", "characters": ["KELLY"]})))
 
     def test_close_framing_with_a_sprawled_body_is_red(self):                       # (b) #24 shot 4
-        found = F.check_image(P24_SHOT4_FRAMING + " " + P24_SHOT4_ACTING, {"characters": ["KELLY"]})
+        found = F.lint_image(P24_SHOT4_FRAMING + " " + P24_SHOT4_ACTING, {"characters": ["KELLY"]})
         self.assertIn("khung_hinh", parts(found, "red"), found)
         # the same conflict when the pose sits in the Director's acting / size fields, not in the prompt
-        found = F.check_image("Free Fire in-game 3D render, " + P24_SHOT4_FRAMING,
+        found = F.lint_image("Free Fire in-game 3D render, " + P24_SHOT4_FRAMING,
                               {"size": "MCU", "characters": ["KELLY"], "performance": {"body": "sprawled on the ground, hands braced behind"}})
         self.assertIn("khung_hinh", parts(found, "red"), found)
-        self.assertNotIn("khung_hinh", parts(F.check_image(P22_CLEAN_IMAGE, {"size": "WS", "characters": ["MAXIM"]}), "red"))
+        self.assertNotIn("khung_hinh", parts(F.lint_image(P22_CLEAN_IMAGE, {"size": "WS", "characters": ["MAXIM"]}), "red"))
 
     def test_run_on_sentence_is_only_a_warning(self):                               # (g) #22 shot 6
-        found = F.check_image(P22_SHOT6_IMAGE, {"size": "MCU", "characters": ["KELLY KL"]})
+        found = F.lint_image(P22_SHOT6_IMAGE, {"size": "MCU", "characters": ["KELLY KL"]})
         self.assertEqual(parts(found, "red"), [], found)
         self.assertIn("cau_chu", parts(found, "warn"), found)
         self.assertTrue(any("KELLY KL keeps" in i["msg"] for i in found))
 
     def test_missing_required_parts_warn(self):                                     # (a)
-        found = F.check_image("Kelly by the well at night", {"characters": ["KELLY"]})
+        found = F.lint_image("Kelly by the well at night", {"characters": ["KELLY"]})
         self.assertIn("phong_cach", parts(found, "warn"))
         self.assertIn("khung_hinh", parts(found, "warn"))
         self.assertIn("khoanh_khac", parts(found, "warn"))
 
     def test_parts_the_code_adds_are_not_asked_of_the_director(self):           # runner.build_image_prompt adds framing + look
-        found = F.check_image("Kelly leaning over the rim of the well, cold moonlight", {"size": "MS", "characters": ["KELLY"]},
+        found = F.lint_image("Kelly leaning over the rim of the well, cold moonlight", {"size": "MS", "characters": ["KELLY"]},
                               style_by_code=True)
         self.assertEqual(found, [])
 
     def test_clean_prompt_has_no_false_alarm(self):
-        self.assertEqual(F.check_image(P22_CLEAN_IMAGE, {"size": "WS", "characters": ["MAXIM"]}), [])
-        self.assertEqual(F.check_motion(P22_CLEAN_MOTION, {"size": "WS", "characters": ["KELLY KL"], "end_state": "holds the pose"}), [])
+        self.assertEqual(F.lint_image(P22_CLEAN_IMAGE, {"size": "WS", "characters": ["MAXIM"]}), [])
+        self.assertEqual(F.lint_motion(P22_CLEAN_MOTION, {"size": "WS", "characters": ["KELLY KL"], "end_state": "holds the pose"}), [])
 
 
 class MotionChecks(unittest.TestCase):
     def test_human_eye_rule_on_the_demoness_is_red(self):                           # (e) + (f) #24 shot 5
-        found = F.check_motion(P24_SHOT5_MOTION, {"characters": ["YÊU NỮ"]})
+        found = F.lint_motion(P24_SHOT5_MOTION, {"characters": ["YÊU NỮ"]})
         self.assertIn("loai_nhan_vat", parts(found, "red"), found)
         self.assertIn("mau_thuan", parts(found, "red"), found)
 
     def test_human_eye_rule_on_a_creature_from_the_bible(self):                    # (e) from the character, not the prompt
-        found = F.check_motion("The clip starts exactly on the first image. She turns her head slowly. Static camera. Natural human eyes, "
+        found = F.lint_motion("The clip starts exactly on the first image. She turns her head slowly. Static camera. Natural human eyes, "
                                "no glowing eyes.", {"characters": ["YÊU NỮ"]},
                                [{"name": "YÊU NỮ", "description": "yêu nữ tóc dài che mặt, mắt đỏ phát sáng"}])
         self.assertIn("loai_nhan_vat", parts(found, "red"), found)
-        self.assertNotIn("loai_nhan_vat", parts(F.check_motion("Kelly turns. Static camera. Natural human eyes, no glowing eyes.",
+        self.assertNotIn("loai_nhan_vat", parts(F.lint_motion("Kelly turns. Static camera. Natural human eyes, no glowing eyes.",
                                                                {"characters": ["KELLY"]}, [{"name": "KELLY", "description": "nữ, tóc đen"}])))
 
     def test_static_camera_and_push_in_in_one_prompt(self):                         # (f)
-        found = F.check_motion("The clip starts on the first image. Kelly leans over the well. Static camera. The camera slowly pushes in.",
+        found = F.lint_motion("The clip starts on the first image. Kelly leans over the well. Static camera. The camera slowly pushes in.",
                                {"characters": ["KELLY"]})
         self.assertIn("mau_thuan", parts(found, "red"))
 
     def test_hidden_landmark_also_visible(self):                                    # (f)
-        found = F.check_image("Free Fire in-game 3D render, medium shot, Kelly standing, no clock tower in frame, the clock tower visible "
+        found = F.lint_image("Free Fire in-game 3D render, medium shot, Kelly standing, no clock tower in frame, the clock tower visible "
                               "at the right edge", {"characters": ["KELLY"]})
         self.assertIn("mau_thuan", parts(found, "red"), found)
 
     def test_missing_motion_parts_warn(self):                                       # (a)
-        found = F.check_motion("foggy plaza at night", {"characters": ["KELLY"], "dialogue": [{"speaker": "KELLY", "text": "Ai đó?"}]})
+        found = F.lint_motion("foggy plaza at night", {"characters": ["KELLY"], "dialogue": [{"speaker": "KELLY", "text": "Ai đó?"}]})
         for part in ("diem_bat_dau", "hanh_dong", "may_quay", "thoai"):
             self.assertIn(part, parts(found, "warn"), found)
 
@@ -287,11 +287,11 @@ class F1Fixes(unittest.TestCase):
              "performance": {"intensity": 4, "face": "mouth opens wide", "eyes": "wide, fixed on the well"}}
         text = sr.shot_motion(d, humans={"KELLY": True})
         self.assertIn("KELLY: natural human eyes", text)
-        self.assertNotIn("loai_nhan_vat", parts(F.check_motion(text, d), "red"))
+        self.assertNotIn("loai_nhan_vat", parts(F.lint_motion(text, d), "red"))
         general = "The clip starts on the first image. Kelly turns. Static camera. Natural human eyes, no glowing eyes."
-        self.assertNotIn("loai_nhan_vat", parts(F.check_motion(general, d), "red"))
+        self.assertNotIn("loai_nhan_vat", parts(F.lint_motion(general, d), "red"))
         named = "The clip starts on the first image. Kelly turns. Static camera. YÊU NỮ: natural human eyes, no glowing eyes."
-        self.assertIn("loai_nhan_vat", parts(F.check_motion(named, {"characters": ["KELLY", "YÊU NỮ"]}), "red"))
+        self.assertIn("loai_nhan_vat", parts(F.lint_motion(named, {"characters": ["KELLY", "YÊU NỮ"]}), "red"))
 
     def test_2_replaced_sentence_is_not_an_old_sentence(self):
         beats = [f"Kelly does beat number {i} slowly beside the old stone well." for i in range(9)]
@@ -304,18 +304,18 @@ class F1Fixes(unittest.TestCase):
         self.assertEqual(looks.gore_words("a blood-red jacket, the bloodline"), [])
         self.assertEqual(looks.gore_words("a wound on his arm"), ["wound"])
         img = "Free Fire in-game 3D render, medium shot, Kelly stands in a blood-red jacket, cold moonlight"
-        self.assertNotIn("luat_ff", parts(F.check_image(img, {"characters": ["KELLY"]})))
-        found = F.check_image("Free Fire in-game 3D render, medium shot, Kelly stands, a wound on his arm, moonlight", {}, ff=False)
+        self.assertNotIn("luat_ff", parts(F.lint_image(img, {"characters": ["KELLY"]})))
+        found = F.lint_image("Free Fire in-game 3D render, medium shot, Kelly stands, a wound on his arm, moonlight", {}, ff=False)
         self.assertIn("luat_ff", parts(found, "warn"))
         self.assertNotIn("luat_ff", parts(found, "red"))
 
     def test_9_legs_only_in_blocking_is_a_warning(self):
         img = "Free Fire in-game 3D render, medium close-up from mid-chest up, no legs, Kelly looks up, cold moonlight"
-        found = F.check_image(img, {"size": "MCU", "characters": ["KELLY"], "blocking": "KELLY sprawled on the ground by the well"})
+        found = F.lint_image(img, {"size": "MCU", "characters": ["KELLY"], "blocking": "KELLY sprawled on the ground by the well"})
         self.assertNotIn("khung_hinh", parts(found, "red"), found)
         self.assertIn("khung_hinh", parts(found, "warn"), found)
         ref = "Free Fire in-game 3D render, medium close-up, no legs, Kelly looks up as in her full-body reference sheet, moonlight"
-        self.assertNotIn("khung_hinh", parts(F.check_image(ref, {"characters": ["KELLY"]}), "red"))
+        self.assertNotIn("khung_hinh", parts(F.lint_image(ref, {"characters": ["KELLY"]}), "red"))
 
 
 class F1FixesDb(unittest.TestCase):
