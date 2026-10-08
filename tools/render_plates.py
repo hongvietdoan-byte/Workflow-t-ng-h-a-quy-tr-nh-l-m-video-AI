@@ -901,15 +901,34 @@ def main():
             far = max((Vector(p) - cam.location).length for p in ([lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z],
                                                                   [lo.x, hi.y, hi.z], [hi.x, lo.y, lo.z]))
             layer = bpy.context.view_layer
-            keep = (layer.material_override, scene.view_settings.view_transform, scene.render.film_transparent)
+            vs = scene.view_settings
+            keep = (layer.material_override, vs.view_transform, scene.render.film_transparent, vs.exposure, vs.gamma, vs.look,
+                    getattr(vs, "use_white_balance", None))
             layer.material_override = depth_material(far)
-            scene.view_settings.view_transform = "Standard"
+            vs.view_transform = "Standard"
+            # 08/10 (#24, lỗi 14): the night exposure (-1.4) and the contrast look were applied to the depth picture too — every pixel came
+            # out ~0.64 grey (read as ~127 m), the fog covered 97 % and the plate was flat. The depth is written with exposure 0, no look.
+            vs.exposure, vs.gamma = 0.0, 1.0
+            try:
+                vs.look = "None"
+            except (TypeError, ValueError):
+                pass
+            if keep[6] is not None:
+                vs.use_white_balance = False
             scene.render.film_transparent = True
             depth = os.path.join(out_dir, f"depth_{c['name']}.png")
             item["depth_file"] = os.path.basename(depth)
             item["depth_sec"] = round(render_to(depth, True), 2)
-            item["depth_range_m"] = [0.1, round(far, 2)]                  # white = 0.1 m, black = far: linear in between
-            layer.material_override, scene.view_settings.view_transform, scene.render.film_transparent = keep
+            item["depth_range_m"] = [0.1, round(far, 2)]                  # white = 0.1 m, black = far: linear in between (sRGB-encoded PNG)
+            item["depth_exposure"] = 0.0
+            layer.material_override, vs.view_transform, scene.render.film_transparent = keep[:3]
+            vs.exposure, vs.gamma = keep[3], keep[4]
+            try:
+                vs.look = keep[5]
+            except (TypeError, ValueError):
+                pass
+            if keep[6] is not None:
+                vs.use_white_balance = keep[6]
         if c.get("subject"):                                             # the character's shadow on this plate
             parts = stand_in(c["subject"]["location"], float(c["subject"].get("height_m") or 1.7))
             shadow = os.path.join(out_dir, f"shadow_{c['name']}.png")

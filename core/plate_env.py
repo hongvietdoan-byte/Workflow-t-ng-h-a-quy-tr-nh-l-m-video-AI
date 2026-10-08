@@ -131,15 +131,24 @@ def grade(rgb, env: Dict):
     return np.clip(out, 0, 1)
 
 
-def distance_map(depth_path: str, depth_range, size):
-    """Metres from the camera for every pixel of a depth picture (white = near end of the range, black / transparent = far)."""
+def _linear(v):
+    """sRGB-encoded 0..1 -> linear 0..1 (Blender's "Standard" view writes the PNG in sRGB)."""
+    np = _np()
+    return np.where(v <= 0.04045, v / 12.92, ((v + 0.055) / 1.055) ** 2.4)
+
+
+def distance_map(depth_path: str, depth_range, size, exposure: float = 0.0):
+    """Metres from the camera for every pixel of a depth picture (white = near end of the range, black / transparent = far).
+    08/10 (#24, lỗi 14): the PNG is sRGB-encoded and was rendered with the scene's exposure (`exposure`, stops: night -1.4 before the
+    render fix, 0 after) — both are undone first; read as linear, a night depth gave ~127 m for the ground at 2 m and the tower at 16 m."""
     np = _np()
     from PIL import Image
     with Image.open(depth_path) as im:
         d = im.convert("RGBA").resize(size)
         arr = np.asarray(d, dtype=np.float32) / 255.0
     near, far = float(depth_range[0]), float(depth_range[1])
-    dist = near + (1.0 - arr[..., 0]) * (far - near)
+    value = np.clip(_linear(arr[..., 0]) / (2.0 ** float(exposure or 0.0)), 0.0, 1.0)
+    dist = near + (1.0 - value) * (far - near)
     dist[arr[..., 3] < 0.5] = far * 10                           # empty sky: very far
     return dist
 
@@ -149,7 +158,7 @@ def fog_amount(env: Dict) -> float:
 
 
 def finish_plate(render_path: str, out_path: str, env: Dict, seed: int = 1, depth_path: Optional[str] = None,
-                 depth_range=None) -> str:
+                 depth_range=None, depth_exposure: float = 0.0) -> str:
     """A rendered plate -> the background of the shot: painted sky behind a transparent sky, fog laid by distance (depth picture),
     then the colour grade of the time and weather (the green-screen composite that graded the character the same way was removed in S14.9)."""
     np = _np()
@@ -163,11 +172,43 @@ def finish_plate(render_path: str, out_path: str, env: Dict, seed: int = 1, dept
         rgb = rgb * alpha + paint_sky(w, h, env, seed) * (1 - alpha)
     fog = fog_amount(env)
     if fog > 0 and depth_path and depth_range and os.path.exists(depth_path):
-        rgb = apply_fog(rgb, distance_map(depth_path, depth_range, (w, h)), env)
+        rgb = apply_fog(rgb, distance_map(depth_path, depth_range, (w, h), depth_exposure), env)
     rgb = grade(rgb, env)
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     Image.fromarray((rgb * 255 + 0.5).astype("uint8")).save(out_path)
     return out_path
+
+
+FLAT_STD = 3.0             # grey levels (0..255): a plate this even shows no place at all
+KEEP_SHARE = 0.12          # a plate that kept less than this share of the render's contrast lost the place (night grade alone keeps ~0.45)
+
+
+def plate_problem(plate_path: str, raw_path: Optional[str] = None) -> Optional[str]:
+    """Lỗi 14 (08/10, #24): the finished plate is (nearly) one colour, or lost almost all of the render's detail — the picture model
+    would get an empty background as "the place". A Vietnamese reason, None when the plate looks fine (or cannot be read)."""
+    np = _np()
+    from PIL import Image
+    try:
+        with Image.open(plate_path) as im:
+            plate = np.asarray(im.convert("L").resize((288, 512)), dtype=np.float32)
+    except OSError:
+        return None
+    std = float(plate.std())
+    if std < FLAT_STD:
+        return f"nền 3D sau khi phủ sương/màu gần như MỘT MÀU (độ lệch {std:.1f}) — không còn thấy bối cảnh"
+    if raw_path and os.path.exists(raw_path):
+        try:
+            with Image.open(raw_path) as im:
+                rgba = np.asarray(im.convert("RGBA").resize((288, 512)), dtype=np.float32)
+        except OSError:
+            return None
+        solid = rgba[..., 3] > 127
+        if solid.mean() > 0.2:
+            grey = rgba[..., :3].mean(axis=2)
+            raw_std, kept = float(grey[solid].std()), float(plate[solid].std())
+            if raw_std > 8 and kept < raw_std * KEEP_SHARE:
+                return f"nền 3D mất gần hết chi tiết so với render gốc (độ lệch {kept:.1f} so với {raw_std:.1f}) — sương/màu che bối cảnh"
+    return None
 
 
 def apply_fog(rgb, dist, env: Dict, amount: Optional[float] = None):

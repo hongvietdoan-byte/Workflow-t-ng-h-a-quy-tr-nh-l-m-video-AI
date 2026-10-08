@@ -267,6 +267,10 @@ def index(data_dir: str, pid: int) -> Dict[str, Dict]:
 
 def plate_of(data_dir: str, pid: int, scene_id: int) -> Optional[Dict]:
     rec = index(data_dir, pid).get(str(scene_id))
+    if rec and rec.get("depth") and rec.get("depth_exposure") is None:
+        return None             # lỗi 14 (08/10): finished before the depth fix (may be flat) — "missing" so ensure_plates finishes it again
+    if rec and rec.get("problem"):
+        return None             # a flat / emptied plate is never sent as the place
     return rec if rec and os.path.exists(rec.get("plate", "")) else None
 
 
@@ -359,6 +363,28 @@ def _cached(root: str, key: str) -> Optional[Dict]:
     return rec if all(os.path.exists(rec.get(k, "")) for k in ("plate", "raw")) else None
 
 
+def _legacy_depth_exposure(benv: Dict, it: Dict) -> float:
+    """The exposure (stops) a depth picture rendered BEFORE the 08/10 fix carries: the sky's exposure (+ a room's extra)."""
+    exp = float((benv.get("sky_extra") or {}).get("exposure", -0.5))
+    indoor = (it.get("camera") or {}).get("indoor")
+    if indoor:
+        exp += float(indoor.get("exposure", 1.5))
+    return exp
+
+
+def _finish(rec: Dict, dest: str, it: Dict) -> None:
+    """Sky, fog by distance, grade -> plate.png (+ shadow.png); then the flat-plate check (`problem`, lỗi 14)."""
+    seed = int(it["key"][:6], 16)
+    rec["plate"] = plate_env.finish_plate(rec["raw"], os.path.join(dest, "plate.png"), it["env"], seed=seed,
+                                          depth_path=rec.get("depth"), depth_range=rec.get("depth_range_m"),
+                                          depth_exposure=rec.get("depth_exposure") or 0.0)
+    if rec.get("shadow_raw"):
+        rec["shadow"] = plate_env.finish_plate(rec["shadow_raw"], os.path.join(dest, "shadow.png"), it["env"], seed=seed,
+                                               depth_path=rec.get("depth"), depth_range=rec.get("depth_range_m"),
+                                               depth_exposure=rec.get("depth_exposure") or 0.0)
+    rec["problem"] = plate_env.plate_problem(rec["plate"], rec.get("raw"))
+
+
 def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(1152, 2048), blender: Optional[str] = None,
                   render: Callable = plates3d.render, log: Callable[[str], None] = lambda m: None) -> Dict[str, Dict]:
     """Every shot at a 3D place gets its plate (from the cache, else rendered — one Blender run per model + time/weather, cameras
@@ -411,12 +437,9 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
                     target = os.path.join(dest, {"file": "raw.png", "depth_file": "depth.png", "shadow_file": "shadow_raw.png"}[kind])
                     shutil.copyfile(os.path.join(manifest["out_dir"], p[kind]), target)
                     rec[{"file": "raw", "depth_file": "depth", "shadow_file": "shadow_raw"}[kind]] = target
-            rec["plate"] = plate_env.finish_plate(rec["raw"], os.path.join(dest, "plate.png"), it["env"], seed=int(it["key"][:6], 16),
-                                                  depth_path=rec.get("depth"), depth_range=rec.get("depth_range_m"))
-            if rec.get("shadow_raw"):
-                rec["shadow"] = plate_env.finish_plate(rec["shadow_raw"], os.path.join(dest, "shadow.png"), it["env"],
-                                                       seed=int(it["key"][:6], 16), depth_path=rec.get("depth"),
-                                                       depth_range=rec.get("depth_range_m"))
+            rec["depth_exposure"] = (float(p["depth_exposure"]) if p.get("depth_exposure") is not None
+                                     else _legacy_depth_exposure(benv, it))
+            _finish(rec, dest, it)
             with open(os.path.join(dest, "meta.json"), "w", encoding="utf-8") as f:
                 json.dump(rec, f, ensure_ascii=False, indent=1)
     before = index(data_dir, pid)
@@ -437,6 +460,21 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             why = _failed(root, it["key"])
             if why:
                 idx[str(it["scene_id"])] = {"key": it["key"], "failed": why, "place": it["place"], "spot": it["spot"], **extra}
+            continue
+        if rec.get("depth") and rec.get("depth_exposure") is None:
+            # lỗi 14 (08/10): a plate finished before the depth fix read its depth wrongly — finished again from the same render (0 USD)
+            benv = day_light(plate_env.blender_env(it["env"], it["entry"].get("sun_azimuth", 250.0)), it["entry"])
+            rec["depth_exposure"] = _legacy_depth_exposure(benv, it)
+            _finish(rec, os.path.join(root, it["key"]), it)
+            with open(os.path.join(root, it["key"], "meta.json"), "w", encoding="utf-8") as f:
+                json.dump(rec, f, ensure_ascii=False, indent=1)
+            log(f"Shot {it['idx']}: nền 3D làm lại phần sương/màu (đọc độ sâu đúng) — 0 USD")
+        bad = rec["problem"] if "problem" in rec else plate_env.plate_problem(rec["plate"], rec.get("raw"))
+        if bad:                                           # never sent as "the place": the shot draws without this background
+            why = f"Shot {it['idx']} ({it['place']}, {plate_env.key(it['env'])}): {bad} — không gửi nền này; xem {rec['plate']}"
+            diag.record(conn, "image", "error", why, "plate_flat", project_id=pid, scene_id=it["scene_id"])
+            log(why)
+            idx[str(it["scene_id"])] = {"key": it["key"], "failed": why, "place": it["place"], "spot": it["spot"], **extra}
             continue
         idx[str(it["scene_id"])] = dict(rec, key=it["key"], env=it["env"], subject_box=it["subject_box"], distance_m=it["distance_m"],
                                         spot=it["spot"], place=it["place"], camera_plan=it["camera"], view=it["view"],
