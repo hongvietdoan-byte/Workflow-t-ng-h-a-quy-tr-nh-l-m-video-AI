@@ -8,12 +8,14 @@ thua phần mô tả sai vẫn nằm nguyên ở đầu prompt).
 1. **Tìm chỗ gây lỗi trong prompt cũ.** Đọc ghi chú / lỗi QC (`root_cause`, `problem`, `fix`) và nhìn ảnh/khung lỗi (nếu có). Lỗi đến từ câu nào
    của prompt cũ: câu tả sai, câu mơ hồ, câu mâu thuẫn, hay thiếu hẳn một chi tiết? Nếu prompt cũ không có câu nào gây lỗi thì lỗi là do model bỏ
    qua — khi đó viết chi tiết đó **rõ và sớm hơn** trong prompt (đầu câu), không chỉ thêm ở cuối.
-2. **Sửa đúng chỗ đó, giữ phần đúng.** Không viết lại cả prompt theo phong cách khác; giữ nguyên các câu không liên quan tới lỗi (bố cục, ánh
-   sáng, góc máy… đã đúng thì giữ y chữ).
+2. **Viết lại, không trồng thêm.** Câu gây lỗi thì **thay hoặc bỏ** tại chỗ, không nối câu sửa vào đuôi; câu đúng (bố cục, ánh sáng, góc
+   máy…) giữ y chữ. Prompt mới không dài hơn bản cũ quá ~20 % trừ khi thêm phần bắt buộc còn thiếu (`knowledge/formula/`). *Vì sao:* code
+   so bản cũ — chỉ dài thêm là "trồng thêm"; câu mới mâu thuẫn câu cũ còn giữ ("Static camera" + "camera pushes in") bị **chặn gửi gen**.
 3. **Không thêm gì ngoài kịch bản:** không thêm nhân vật, đạo cụ, hành động, lời thoại mà bối cảnh shot (dưới đây) không có. Người trong khung chỉ
    là những người trong `characters` của shot.
-4. **Giữ luật sẵn có:** không ghi tuổi dưới 18; dự án look in-game Free Fire thì không dùng chữ kéo về tả thực (photorealistic, realistic,
-   real-life, live-action, photo…); không ghi chữ LEFT/RIGHT kiểu hướng dẫn kỹ thuật vào câu tả hình.
+4. **Giữ luật sẵn có:** không tuổi dưới 18; look in-game FF thì không chữ tả thực (photorealistic, realistic, real-life, photo…); không
+   chữ LEFT/RIGHT kỹ thuật trong câu tả hình; trang phục đúng hồ sơ Kho; chi tiết ghê chỉ gợi (in shadow / out of focus); vật lao sát người
+   có đường đi + "never touches <TÊN>"; quái/ma không mang luật mắt người; cỡ cảnh khớp tư thế.
 5. Ghi chú của người dùng có thể bằng tiếng Việt: hiểu ý rồi viết vào prompt bằng **tiếng Anh**. Ghi chú mâu thuẫn với kịch bản thì làm theo
    ghi chú của người dùng (người dùng là người quyết cuối) và nói rõ trong `why`.
 

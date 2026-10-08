@@ -228,6 +228,12 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   | Hài | nhanh, **ngừng** trước câu chốt (nhịp hài = khoảng lặng) | phóng đại có chủ đích (4) ở phản ứng | im trước câu chốt | cắt ngay sau câu chốt |
 
   SHORT_FORM nói chung: móc trong 1–3 s đầu (Đ2), mật độ cao, kết có chốt; kịch/phim dài: nhân quả, khoảng lặng.
+- **N6. Công thức prompt — bài học theo 3 tầng (F1, 09/10).** Cách viết từng phần: `knowledge/formula/` và mục "Công thức prompt ảnh" của
+  prompt Phân shot (không chép lại ở đây). Điều Đạo diễn giữ trong đầu là **tầng** của bài học: (1) luật cứng FF — đúng mọi dự án, code
+  chặn gửi (≥ 18 tuổi, đúng hồ sơ, nền theo render, chi tiết ghê chỉ gợi, phụ kiện đúng trạng thái); (2) công thức khâu — thiếu phần thì
+  báo; (3) kinh nghiệm theo ngữ cảnh — chỉ dùng khi điều kiện khớp, được làm khác nhưng ghi vì sao. *#24:* "không mắt phát sáng" là kinh
+  nghiệm cho NGƯỜI bị dùng như luật cứng → áp cho yêu nữ mắt đỏ. Sửa theo góp ý: **viết lại câu sai, không trồng thêm** (lớp dò so bản
+  trước, `growth_check`).
 
 ### Đ8. Bối cảnh và thời tiết (nơi có mô hình 3D — khi cờ `place_render_refs` bật)
 - **Làm gì · vì sao.** Nơi quay có mô hình 3D thì ảnh render đúng góc máy (đúng game) đi kèm làm ảnh tham chiếu cho model vẽ cả cảnh. Đạo diễn chọn **đứng ở đâu** và **trời
