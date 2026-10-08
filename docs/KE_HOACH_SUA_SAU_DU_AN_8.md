@@ -31,10 +31,10 @@
 | S12 Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`) | 7 | 6 | 0 | 0 | 1 | 100 % |
 | S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 12 | 10 | 0 | 0 | 2 | 100 % |
 | S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 49 | 44 | 2 | 2 | 0 | 91,8 % |
-| S15 Sau Khủng Long Đỏ #22: tổng hợp 3 lượt, KLD-n, chế độ học việc (`docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md`, `docs/KE_HOACH_HOC_VIEC_2026-10-08.md`; người dùng duyệt 08/10) | 13 | 8 | 3 | 1 | 0 | 67,4 % |
+| S15 Sau Khủng Long Đỏ #22: tổng hợp 3 lượt, KLD-n, chế độ học việc (`docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md`, `docs/KE_HOACH_HOC_VIEC_2026-10-08.md`; người dùng duyệt 08/10) | 13 | 8 | 4 | 1 | 0 | 71,7 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 0 | 3 | — |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **197** | **159** | **6** | **14** | **13** | **88,1 %** |
+| **Tổng** | **197** | **159** | **7** | **14** | **13** | **88,4 %** |
 
 Đợt hiện tại: **S14** · việc kế: **S14.15** I1 — tài liệu khớp trạng thái cuối + chấm lại toàn bộ bằng AI Dev System
 <!-- /tien-do -->
@@ -260,7 +260,7 @@
 - [ ] S15.9 · Học việc B3–B8: 7 vai chạy bóng, giao diện 🧪 + thẻ chấm, devsys, tài liệu · nặng:3 · 🔄 · 924b10f + e028a1e + 3442aa6, cả bộ 3037 qua; luật 8: chỉ ✅ sau một dự án thật có trainee_log thật
 - [x] S15.10 · P2 prompt/knowledge (KLD-8, 9, 12, 14, 15, 25) sau cờ TẮT · nặng:2 · ✅ · cc7b534 · cờ `kld_lessons_prompts` TẮT, bật khi dự án mới đo
 - [x] S15.11 · P2 code/UI (KLD-11, 17, 19, 23) + KLD-19c (shot nối khung cắt đầu kèm cắt đuôi shot trước hoặc che chỗ nối) · nặng:2 · ✅ · f18b6e6 · cả bộ 2983 qua; chờ kiểm Dashboard thật
-- [ ] S15.12 · P2 còn lại: KLD-16 (gộp học việc), KLD-18 ảnh toàn cảnh = render 3D, KLD-27 hồ sơ KL (mũ Maxim đen sừng đỏ) · nặng:2 · ⬜
+- [ ] S15.12 · P2 còn lại: KLD-16 (gộp học việc), KLD-18 ảnh toàn cảnh = render 3D, KLD-27 hồ sơ KL (mũ Maxim đen sừng đỏ) · nặng:2 · 🔄 · 08/10 KLD-27 XONG: mô tả chuẩn ghi vào Kho #416/#417 (người dùng duyệt từng dòng; backup `manifest.before_kld27_outfit_desc_*`; #22 giữ nguyên, 0 mục cũ); KLD-18 đang làm; bài học L19 (toàn cảnh cùng hướng) đã nạp
 - [ ] S15.13 · P3 (9 mục KLD) · nặng:2 · ⏸ · người dùng 08/10: để sau, làm khi có thêm bằng chứng
 
 ### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)
