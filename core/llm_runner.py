@@ -777,7 +777,7 @@ def run_director(p: Pipeline, project_id: int, client, resume: bool = False) -> 
     if auto["attached"] or auto["ambiguous"]:
         diag.record(p.conn, "director", "warn" if auto["ambiguous"] else "info",
                     ("Tự gắn tài nguyên kịch bản nhắc tới: " + ", ".join(auto["attached"]) if auto["attached"] else "")
-                    + (" · Tên khớp nhiều tài nguyên, cần chọn tay ở Bước 1 🧰: " + ", ".join(auto["ambiguous"]) if auto["ambiguous"] else ""),
+                    + (" · Tên khớp nhiều tài nguyên hoặc là danh từ chung một chữ (vd \"mũ\"), cần chọn tay ở Bước 1 🧰: " + ", ".join(auto["ambiguous"]) if auto["ambiguous"] else ""),
                     "auto_attach", project_id)
     if director_two_pass.enabled(p.project(project_id)):
         return director_two_pass.run(p, project_id, client, resume=resume)
