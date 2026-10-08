@@ -152,6 +152,8 @@ Ngày 08/10/2026. Chỉ đọc, 0 USD: bản sao CSDL máy chính (`data/manifes
 4. Chuỗi nối và `collect_clips` lấy lần gen có số job lớn nhất, không lấy bản người dùng chọn.
 
 > **Lưu ý dữ liệu:** sau khi hoán đổi, `qc_results` vẫn gắn theo số job, nên điểm QC của 560 / 569 trong CSDL **không còn khớp nội dung tệp**.
+> Không sửa CSDL: đọc điểm QC của hai dòng này theo chiều ngược (điểm ghi ở số 560 là của tệp hiện gắn với dòng 569, và ngược lại).
+> **08/10 (KLD-1/2/3 code xong, chưa thử Dashboard thật):** lỗi 3 và 4 ở trên đã có code sửa — `core/takes.py` (`chosen_video_job`), `batch.provider_failures` / `requeue_input_failures`, `Pipeline.retry` chặn `stale_input`. Từ nay **không hoán đổi dòng job** để chọn bản: dùng nút "✔ Dùng bản này cho shot".
 
 ### 2.8 Thoại, TTS, khớp môi
 | | Lượt 1 | Lượt 2 | Lượt 3 |

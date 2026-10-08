@@ -145,6 +145,11 @@ def _scan(conn, project_id: int) -> Dict[int, Dict]:
         "SELECT j.scene_id, j.id, j.input_hash, j.source_job_id, j.state FROM jobs j WHERE j.project_id=? AND j.type='video_gen'"
         f" AND j.state IN {USABLE_VIDEO + ('pending_review',)} AND j.id=(SELECT MAX(k.id) FROM jobs k WHERE k.scene_id=j.scene_id"
         f" AND k.type='video_gen' AND k.state IN {USABLE_VIDEO + ('pending_review',)})", (project_id,))}
+    from . import takes
+    for s in scenes:                                   # KLD-2 (08/10): the take the person chose wins over the newest one
+        pick = takes.chosen(conn, s["id"])
+        if pick is not None:
+            videos[s["id"]] = pick
     image_stale_of = {}
     proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
     for s in scenes:
@@ -241,8 +246,10 @@ def clip_manifest(conn, data_dir: str, project_id: int, clip_paths: List[str]) -
         scene = by_path.get(os.path.normcase(os.path.abspath(path)))
         job = None
         if scene is not None:
-            job = conn.execute(f"SELECT id FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN {USABLE_VIDEO}"
-                               " ORDER BY id DESC LIMIT 1", (scene["id"],)).fetchone()
+            from . import takes
+            job = takes.chosen(conn, scene["id"]) or conn.execute(    # KLD-2: the chosen take first
+                f"SELECT id FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN {USABLE_VIDEO}"
+                " ORDER BY id DESC LIMIT 1", (scene["id"],)).fetchone()
         out.append({"path": path, "scene_id": scene["id"] if scene else None, "idx": scene["idx"] if scene else None,
                     "video_job_id": job["id"] if job else None, "mtime": _mtime(path)})
     return out

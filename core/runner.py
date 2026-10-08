@@ -359,9 +359,11 @@ class _Runner:
             elif status.state == "succeeded":
                 try:
                     target = self._dest_path(job)
-                    trash.move_to_trash(target, self.data_dir, job["project_id"],
-                                        "videos" if self.job_type == "video_gen" else "images",
-                                        "bị thay bằng bản gen lại", job["id"])
+                    if self.job_type == "video_gen":     # KLD-2 (08/10): the older take keeps its file (trash) + its result_path
+                        from . import takes
+                        takes.make_room(self.p.conn, self.data_dir, job, target)
+                    else:
+                        trash.move_to_trash(target, self.data_dir, job["project_id"], "images", "bị thay bằng bản gen lại", job["id"])
                     dest = self.provider.download(job["external_id"], target)
                 except ProviderError as e:
                     self._diag(job, "warn" if e.transient else "error", e.code, f"tải kết quả lỗi: {e}")
@@ -943,9 +945,11 @@ class VideoRunner(_Runner):
         row = self.p.conn.execute("SELECT idx, data FROM scenes WHERE id=?", (scene_id,)).fetchone()
         if row is None or not json.loads(row["data"] or "{}").get("start_from_prev_clip"):
             return None
-        prev = self.p.conn.execute("SELECT j.id, j.state, j.result_path FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE s.project_id=? "
-                                   "AND j.type='video_gen' AND s.idx=(SELECT MAX(idx) FROM scenes WHERE project_id=? AND idx<?) "
-                                   "ORDER BY j.id DESC LIMIT 1", (project_id, project_id, row["idx"])).fetchone()
+        from . import takes
+        before = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx<? ORDER BY idx DESC LIMIT 1",
+                                     (project_id, row["idx"])).fetchone()
+        # KLD-2 (08/10): the take the person chose for the previous shot (#22: 560 chosen, 569 newer — rows were swapped by hand)
+        prev = takes.used(self.p.conn, before["id"], skip_cancelled=False) if before else None
         if (prev is None or prev["state"] != "approved"      # the LATEST take of the previous shot: an older approved clip being
                 or not prev["result_path"] or not os.path.exists(prev["result_path"])):   # remade must not be chained (07/10)
             return None

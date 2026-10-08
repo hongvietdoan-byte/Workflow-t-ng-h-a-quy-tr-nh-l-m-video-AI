@@ -190,7 +190,8 @@ def step2(p: Pipeline, pid: int):
             for jid in pending:
                 p.approve(jid, "user")
             st.rerun()
-        failed = p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='failed' AND escalated=0", (pid,)).fetchall()
+        # KLD-1 (08/10): a picture failed on an outdated / missing input is not resent unchanged (Pipeline.retry refuses stale_input)
+        failed = [{"id": jid} for jid in batch.provider_failures(p, pid, "image_gen")]
         if c3.button(f"↻ Gửi lại ảnh lỗi ({len(failed)}){cost.price_tag(None if unit is None else unit * len(failed), len(failed))}",
                      key="reject_all", disabled=not failed,
                      help="Gửi lại Y NGUYÊN đầu vào — chỉ dùng khi lỗi do nhà cung cấp (mạng, quá tải, không tạo task). Ảnh ra sai thì "

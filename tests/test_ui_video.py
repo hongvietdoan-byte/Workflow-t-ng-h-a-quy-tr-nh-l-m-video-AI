@@ -170,6 +170,46 @@ class QueuedClipsAreSentTests(VideoSeed):
         self.assertEqual(sent, [self.pid])
 
 
+class KldVideoScreenTests(VideoSeed):
+    """KLD-1 / KLD-2 (08/10): the resend button holds only provider failures; an outdated-input failure has its own line; an older take
+    with its own file can be chosen for the shot."""
+
+    def seed_stale_failure(self):
+        scene = self.p.create_scene(self.pid, 6, "CẢNH 6")
+        jid = self.p.create_job(scene, "video_gen")
+        self.p.start(jid)
+        self.p.fail(jid, "stale_input: ảnh đã duyệt đã đổi")
+        return jid
+
+    def test_resend_button_skips_the_outdated_input_failure_and_offers_a_requeue(self):
+        stale = self.seed_stale_failure()
+        at = self.open_video()
+        labels = {b.key: b.label for b in at.button}
+        self.assertIn("(1)", labels["btn_bad_retry"])                     # only the seeded provider failure, not the stale one
+        self.assertIn(f"stale_requeue_{self.pid}", labels)
+        self.assertIn("đầu vào đã cũ", "\n".join(w.value for w in at.warning))
+        self.assertNotIn(f"vr_{stale}", labels)                           # the card offers no plain resend either
+
+    def test_an_older_take_with_its_own_file_can_be_chosen(self):
+        from core import takes
+        scene = self.p.conn.execute("SELECT scene_id FROM jobs WHERE id=?", (self.jobs["approved"],)).fetchone()["scene_id"]
+        old = self.jobs["approved"]
+        new = self.p.create_job(scene, "video_gen")
+        self.p.start(new)
+        dest = os.path.join(self.data, str(self.pid), "videos", "05.mp4")
+        takes.make_room(self.p.conn, self.data, self.p.job(new), dest)    # the old take's file goes to the trash, still linked to it
+        with open(dest, "wb") as f:
+            f.write(b"new take")
+        self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, new))
+        self.p.conn.commit()
+        self.p.succeed(new)
+        at = self.open_video()
+        btn = next(b for b in at.button if b.key == f"vuse_{old}")
+        btn.click().run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertEqual(takes.chosen(Pipeline(connect(self.db)).conn, scene)["id"], old)
+
+
 class VideoFlagOffTests(VideoSeed):
     def test_flag_off_still_draws_the_v2_cards(self):
         """S14.14 G-a (người dùng duyệt 05/10): the classic clip card (step4.video_card) was removed — the Video screen is v2 only,
