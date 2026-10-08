@@ -234,6 +234,14 @@ def input_tokens(payload: Dict) -> int:
     return int(len(text) / CHARS_PER_TOKEN) + sum(_image_tokens(b) for b in images) + (TOOL_USE_TOKENS if payload.get("tools") else 0)
 
 
+def _project_warn(conn, project_id: int, part: str, usd: float) -> Optional[str]:
+    """The project's money warnings for one Claude call: its approved budget (core.project_budget) + its reserved share of the trial
+    (core.project_reserve, 08/10 phương án 1). Read-only (runs inside hold_llm's transaction)."""
+    from . import project_budget, project_reserve
+    parts = [w for w in (project_budget.warning(conn, project_id, part, usd), project_reserve.warning(conn, project_id, usd)) if w]
+    return " | ".join(parts) or None
+
+
 def worst_usd(model: str, payload: Dict) -> float:
     """Upper bound of one call: every input token paid as a cache write (dearer than plain input) + the whole max_tokens answer."""
     n = input_tokens(payload)
@@ -572,7 +580,7 @@ class AnthropicClient:
             conn = self._ledger_conn()
             try:
                 reason, hid = budget.hold_llm(conn, mine, project_id, part, warnings=warns,
-                                              extra_warn=(lambda c: project_budget.warning(c, project_id, part, mine)) if project_id else None)
+                                              extra_warn=(lambda c: _project_warn(c, project_id, part, mine)) if project_id else None)
             finally:
                 conn.close()
         except Exception as e:  # noqa: BLE001 - the amounts could not be read: said, the call goes (they only warn now)

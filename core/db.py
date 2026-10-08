@@ -327,6 +327,29 @@ CREATE TABLE IF NOT EXISTS deliveries (
     delivered_by TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_deliveries_project ON deliveries(project_id, id);
+CREATE TABLE IF NOT EXISTS project_reserves (   -- 08/10 phương án 1 (core/project_reserve.py): phần trần đợt thử trích riêng cho dự án
+    project_id INTEGER PRIMARY KEY,
+    usd REAL NOT NULL,                 -- số đang trích (USD)
+    estimate_usd REAL,                 -- ước tính dư cả dự án lúc trích / bổ sung
+    source TEXT NOT NULL DEFAULT 'auto',   -- 'auto' (tự trích, tự bổ sung khi bảng shot đổi) | 'manual' (người sửa tay)
+    state TEXT NOT NULL DEFAULT 'active',  -- 'active' | 'released' (giao bản cuối / cất: phần chưa dùng trả về hàng chung)
+    scenes INTEGER,
+    created_at TEXT NOT NULL,
+    updated_at TEXT,
+    released_at TEXT,
+    returned_usd REAL,
+    note TEXT
+);
+CREATE TABLE IF NOT EXISTS project_reserve_log (
+    id INTEGER PRIMARY KEY,
+    project_id INTEGER NOT NULL,
+    at TEXT NOT NULL,
+    who TEXT,
+    action TEXT NOT NULL,              -- 'reserve' | 'top_up' | 'manual' | 'release'
+    usd REAL,
+    before_usd REAL,
+    note TEXT
+);
 CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,              -- small settings of the whole app (v3: 'budget' = the test spending limit, core.budget)
     value TEXT

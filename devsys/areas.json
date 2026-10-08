@@ -1,6 +1,6 @@
 {
-  "version": 28,
-  "updated": "2026-10-07",
+  "version": 29,
+  "updated": "2026-10-08",
   "_note": "Bản đồ hệ thống của AI Development System. Mỗi file .py dưới core/ và dashboard/ phải thuộc ít nhất một khu vực (thiếu = cảnh báo). 'code' / 'assets' / 'docs' là mẫu đường dẫn (fnmatch, '*' khớp cả '/'). 'tests' thêm tay ngoài các test tự dò theo import. 'flags' = tên trong core/features.py. 'diag_stages' = stage của bảng diag_events. 'ops_stages' (S14.10 Đợt 6b) = khâu của góp ý người dùng / số đo hiệu quả vận hành (core/feedback.STAGES: director, image, motion, audio, render, ui). 'keywords' dùng để gán dòng TODO.md vào khu vực (không phân biệt hoa thường). Sửa file này khi thêm module mới rồi tăng 'version'.",
   "scan_roots": ["core", "dashboard"],
   "infra_modules": ["core/__init__.py", "core/db.py", "core/pipeline.py", "core/providers.py", "core/states.py", "core/adapters/http.py", "core/adapters/__init__.py", "dashboard/__init__.py"],
@@ -96,10 +96,10 @@
       "name": "Ngân sách & sổ chi",
       "weight": 1.0,
       "description": "Sổ chi (usage_events), bảng giá, ước tính trước khi bấm, trần ngân sách thử + trần Claude API.",
-      "code": ["core/budget.py", "core/project_budget.py", "core/money_reset.py", "core/cost.py", "core/spend_gate.py", "core/money_policy.py", "core/budget_rounds.py", "core/script_cap.py", "dashboard/admin.py", "dashboard/header.py"],
+      "code": ["core/budget.py", "core/project_budget.py", "core/money_reset.py", "core/cost.py", "core/spend_gate.py", "core/money_policy.py", "core/budget_rounds.py", "core/project_reserve.py", "core/script_cap.py", "dashboard/admin.py", "dashboard/header.py"],
       "assets": ["data/pricing.json"],
       "docs": [],
-      "tests": ["tests/test_out_of_credit.py", "tests/test_project_budget.py", "tests/test_spend_gate.py", "tests/test_spend_gate_scan.py", "tests/test_money_policy.py", "tests/test_budget_rounds.py", "tests/test_price_label_scan.py", "tests/test_script_cap.py"],
+      "tests": ["tests/test_out_of_credit.py", "tests/test_project_budget.py", "tests/test_spend_gate.py", "tests/test_spend_gate_scan.py", "tests/test_money_policy.py", "tests/test_budget_rounds.py", "tests/test_project_reserve.py", "tests/test_price_label_scan.py", "tests/test_script_cap.py"],
       "flags": ["project_budget"],
       "diag_stages": [],
       "keywords": ["ngân sách", "sổ chi", "trần", "giá", "pricing", "budget", "credit", "ước tính", "báo giá"]

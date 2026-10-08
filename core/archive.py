@@ -58,6 +58,9 @@ def _move(p: Pipeline, put_away=None, bring_back=None, approval=None) -> None:
         p.conn.rollback()
         raise
     person_limits.audit_use(p.conn, approval, put_away)
+    if put_away is not None:                      # 08/10 phương án 1: phần trích riêng chưa dùng trả về hàng chung khi cất
+        from . import project_reserve
+        project_reserve.release_quietly(p.conn, put_away, p.actor, "cất dự án (📦)")
     if stop:
         autopilot.stop(p, put_away, "Dự án đã cất (📦) — chạy tự động dừng")
 

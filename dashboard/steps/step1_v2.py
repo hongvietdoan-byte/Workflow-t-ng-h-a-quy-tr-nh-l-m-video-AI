@@ -219,6 +219,8 @@ def _estimate_box(p: Pipeline, pid: int) -> None:
         return
     st.html(D.stat("💵 Dự tính dự án", f"≈ {view['total']:.2f} USD", f"đã chi {view['spent']:.2f} USD · chỉ để xem, không cần duyệt"))
     D.line('<span class="script-sum">Cách tính dự tính</span>', view["md"], f"script-estimate-{pid}")
+    from dashboard.steps.step1_run import reserve_box                  # 08/10 phương án 1: phần trích riêng + sửa tay
+    reserve_box(p, pid, "est")
 
 
 def _card_head(num: str, title: str, pills=()) -> None:

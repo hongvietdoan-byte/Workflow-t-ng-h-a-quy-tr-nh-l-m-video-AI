@@ -61,6 +61,8 @@ def mark(conn, project_id: int, path: str, by: Optional[str] = None, source: str
     cur = conn.execute("INSERT INTO deliveries (project_id, path, source, manifest, delivered_at, delivered_by) VALUES (?,?,?,?,?,?)",
                        (project_id, path, source, json.dumps(manifest or {}, ensure_ascii=False), _now(), by))
     conn.commit()
+    from . import project_reserve                 # 08/10 phương án 1: phần trích riêng chưa dùng trả về hàng chung khi giao bản cuối
+    project_reserve.release_quietly(conn, project_id, by, f"giao bản cuối ({source})")
     return cur.lastrowid
 
 
