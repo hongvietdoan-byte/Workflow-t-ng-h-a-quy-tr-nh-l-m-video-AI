@@ -144,7 +144,8 @@ def scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
         scene = conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()
         project_row = conn.execute("SELECT * FROM projects WHERE id=?", (scene["project_id"],)).fetchone()
     choice = _scene_choice(conn, scene_id, project_row, mp_row)
-    if "test_quality" in project_row.keys() and project_row["test_quality"]:
+    from . import quality_tier
+    if quality_tier.cheap_mode(project_row):          # N1: flag two_tier_quality on → "Thử rẻ" ignored
         choice = {**choice, "resolution": None}
         if choice.get("skill"):             # the skill-video way was proven on 2.5 only (T1) — Fast is not the same test
             choice["reason"] += " (chế độ thử rẻ: vẫn Seedance 2.5 vì cách video kỹ năng mới kiểm trên 2.5)"

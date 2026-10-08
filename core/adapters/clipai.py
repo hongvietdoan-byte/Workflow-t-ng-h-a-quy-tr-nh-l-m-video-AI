@@ -587,20 +587,21 @@ class ClipAIVideoProvider:
     SAMPLE_MODEL = "dreamina-seedance-2-5-260628"
 
     def _check_sample_mode(self, canonical: str) -> None:
-        from .. import features
-        if not features.on("seedance_sample_mode"):
-            raise ProviderError("Chế độ bản mẫu đang tắt (FEATURE_SEEDANCE_SAMPLE_MODE)", code="feature_off")
+        from .. import features, quality_tier
+        if not (features.on("seedance_sample_mode") or quality_tier.enabled()):   # N1: two_tier_quality drafts use it too
+            raise ProviderError("Chế độ bản mẫu đang tắt (FEATURE_SEEDANCE_SAMPLE_MODE / FEATURE_TWO_TIER_QUALITY)", code="feature_off")
         if canonical != self.SAMPLE_MODEL:
             raise ProviderError("Chế độ bản mẫu chỉ có ở Seedance 2.5", code="unsupported_option")
 
-    def submit_final_from_sample(self, sample_external_id: str) -> str:
-        """Separately billed final. The caller checks successful draft, expiry and budget before this send."""
+    def submit_final_from_sample(self, sample_external_id: str, resolution: str = "1080p") -> str:
+        """Separately billed final. The caller checks successful draft, expiry and budget before this send. `resolution` (N1): the
+        final's tier, default 1080p (the only one tried on the web; 720p untested)."""
         self._check_sample_mode(self.SAMPLE_MODEL)
         family, _, task_id = sample_external_id.partition(":")
         if family != "seedance" or not task_id or ":" in task_id:
             raise ProviderError("không phải mã bản mẫu Seedance", code="bad_id")
         ctx = {"model_name": self.SAMPLE_MODEL, "content": [{"type": "draft_task", "draft_task": {"id": task_id}}],
-               "resolution": "1080p", "video_num": 1}
+               "resolution": resolution or "1080p", "video_num": 1}
         data = self.client.post_multipart(PATH_SEEDANCE, {"ctx": json.dumps(ctx, ensure_ascii=False)}, [])
         return self._task_of(data, "seedance")
 

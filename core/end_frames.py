@@ -175,7 +175,8 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
             prompt = prompt_for(p, project_id, row["scene_id"], fix=row["fix"] if "fix" in row.keys() else None)
             kwargs = {}
             aspect = formats.project_aspect(proj)
-            if getattr(provider, "supports_aspect", False) and (aspect or proj["test_quality"]):
+            from . import quality_tier                # N1: flag two_tier_quality on → "Thử rẻ" ignored
+            if getattr(provider, "supports_aspect", False) and (aspect or quality_tier.cheap_mode(proj)):
                 kwargs["size"] = image_models.size_for(proj, model or image_models.of_project(proj))
             if model:
                 kwargs["model"] = model

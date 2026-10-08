@@ -412,6 +412,13 @@ FEATURES: Dict[str, Dict] = {
                "loại, ≈ 2,8 USD) dù prompt đã có 'chỉ lấy quần áo'. Câu mới đổi đầu ra model trả tiền và chưa thử — cần thử 1 shot rẻ "
                "(ảnh + clip 720p) trước khi bật",
     },
+    "two_tier_quality": {
+        "label": "Video 2 bậc chất lượng: shot phức tạp / chưa rõ gen NHÁP 480p trước (gen lại ≤ 2), người duyệt rồi 'Gen bản cao' "
+                 "(Seedance 2.5 nâng từ nháp, model khác gửi lại ở bậc cao; gen lại ≤ 1); shot dễ gen thẳng bản cao. Bỏ qua 'Thử rẻ'",
+        "verified": False,
+        "why": "N1 (người dùng chốt 08/10, docs/THIET_KE_2_BAC_CHAT_LUONG_VA_NHAC_2026-10-08.md mục 5a): bản cuối draft_task 1080p "
+               "chưa chạy thật lần nào (≈ 2,1 USD / 4 s ước tính) — phải chạy thật 1 lần (hỏi giá trước) rồi mới bật",
+    },
 }
 
 
