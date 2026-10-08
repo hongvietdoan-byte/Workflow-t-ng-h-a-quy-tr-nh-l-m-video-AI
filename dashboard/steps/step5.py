@@ -976,6 +976,14 @@ def snapshot_after_delivery(p: Pipeline, pid: int) -> None:
     except Exception as e:  # noqa: BLE001 - the video is delivered; only the measurement is missing
         st.warning(f"Đã xuất bản, nhưng không ghi được mốc hiệu quả: {e}")
         st.toast(f"⚠ Không ghi được mốc hiệu quả: {e}")          # the warning goes with the rerun; the toast stays visible
+    # KLD-21 (08/10): the round's mistakes + human decisions go into the lesson path now (0 USD), not "some day by hand"
+    from core import lessons
+    try:
+        lessons.after_delivery(p.conn, C.DATA)
+    except Exception as e:  # noqa: BLE001 - the video is delivered; only the lesson bookkeeping is missing
+        st.warning(f"Đã xuất bản, nhưng không gom được lỗi / ca kinh nghiệm cho đường bài học: {e}. "
+                   "Lần xuất bản sau sẽ gom lại (không mất dữ liệu, không trùng).")
+        st.toast(f"⚠ Không gom được bài học sau bản giao: {e}")
 
 
 def _deliver_files(p: Pipeline, pid: int, stat) -> None:

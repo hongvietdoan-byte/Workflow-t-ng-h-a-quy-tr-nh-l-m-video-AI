@@ -285,6 +285,59 @@ def add_research(conn, group: str, title: str, body: str, url: str) -> bool:
     return True
 
 
+PROJECT_REVIEW = "project_review"
+
+
+def add_project_review(conn, group: str, ref: str, title: str, body: str, project_id: int, context: str = "", origin: str = "",
+                       doc: str = "") -> bool:
+    """KLD-21 (08/10): a lesson from a project's own review (tổng kết dự án) — one project, so propose()'s threshold (≥ 3 events in
+    ≥ 2 projects) does not apply: it enters as 'proposed' with its confidence ("1 dự án") said, and only a person's click in the
+    Bài học tab makes it reach the prompts (decide() → sync_knowledge, same as every lesson). Kept once per (project, ref) whatever
+    the group. Returns False when it is already there."""
+    if group not in knowledge.GROUPS:
+        raise ValueError(f"nhóm '{group}' không hợp lệ — chọn một trong {', '.join(knowledge.GROUPS)}")
+    ref = str(ref).strip()
+    if not ref or not str(title).strip() or not str(body).strip():
+        raise ValueError("bài học tổng kết cần mã, tiêu đề và nội dung")
+    key = f"{PROJECT_REVIEW}:{int(project_id)}:{ref}"
+    if conn.execute("SELECT 1 FROM lessons WHERE key=?", (key,)).fetchone():
+        return False
+    evidence = {"project_id": int(project_id), "projects": 1, "confidence": "1 dự án", "ref": ref, "context": context[:400],
+                "origin": origin[:300], "doc": doc}
+    conn.execute("INSERT INTO lessons (created_at, group_name, key, title, body, source, evidence, state)"
+                 " VALUES (?,?,?,?,?,?,?, 'proposed')",
+                 (_now(), group, key, str(title).strip()[:120], str(body).strip()[:800], PROJECT_REVIEW,
+                  json.dumps(evidence, ensure_ascii=False)))
+    conn.commit()
+    return True
+
+
+def origin_text(row: Dict) -> str:
+    """Where a lesson comes from, for the Bài học tab — with the confidence a person needs before approving it."""
+    try:
+        ev = json.loads(row.get("evidence") or "{}")
+    except ValueError:
+        ev = {}
+    if row.get("source") == "research":
+        return "nghiên cứu web: " + ", ".join(ev.get("urls", []))
+    if row.get("source") == PROJECT_REVIEW:
+        bits = [f"tổng kết dự án #{ev.get('project_id')} ({ev.get('ref')})", f"độ tin: {ev.get('confidence') or '1 dự án'}"]
+        bits += [f"bối cảnh: {ev['context']}"] if ev.get("context") else []
+        bits += [f"bằng chứng: {ev['origin']}"] if ev.get("origin") else []
+        return " · ".join(bits)
+    return f"{ev.get('events')} lần ở {ev.get('projects')} dự án"
+
+
+def after_delivery(conn, data_dir: str) -> Dict[str, int]:
+    """KLD-21 (08/10): a delivery is the end of a round — read its mistakes (harvest) and its human decisions (experience cases)
+    now, 0 USD, so the next project starts from them (#22: `mistakes` had stopped at project 13). No lesson is proposed here (that
+    may call Claude — the tab's button). Errors are raised; the caller says them."""
+    from . import experience
+    mistakes = harvest(conn)
+    cases = experience.refresh(conn, data_dir)
+    return {"mistakes": mistakes, "cases": cases}
+
+
 # ---- 3. decide ----------------------------------------------------------------------------------
 def list_lessons(conn, state: Optional[str] = None, include_retired: bool = False) -> List[Dict]:
     """Lessons, newest first. A lesson retired by tools/lessons_retire.py (S14.46) is left out unless `include_retired`."""
