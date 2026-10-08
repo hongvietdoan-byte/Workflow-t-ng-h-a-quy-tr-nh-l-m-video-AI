@@ -132,10 +132,89 @@ def scene_render(data_dir: str, pid: int, rows: List[Dict]) -> Optional[str]:
 
 
 def missing(conn, data_dir: str, pid: int, scene_id: int, data: Dict) -> bool:
-    """The shot needs a render that is neither there nor failed (then it waits for `ensure_async`)."""
+    """The shot needs a render that is neither there nor failed (then it waits for `ensure_async`). F2: a render whose same-axis wide
+    view was never made (index records before 09/10) is missing too — the wide is rendered (Blender, 0 USD) before the picture goes."""
     from . import location_pack
-    return (wants_render(conn, pid, data) and location_pack.plate_of(data_dir, pid, scene_id) is None
-            and not location_pack.plate_failed(data_dir, pid, scene_id) and not location_pack.plate_needs(data_dir, pid, scene_id))
+    if not wants_render(conn, pid, data):
+        return False
+    rec = location_pack.plate_of(data_dir, pid, scene_id)
+    if rec is not None:
+        wide = rec.get("wide") or {}
+        return not rec.get("wide_failed") and not (wide.get("plate") and os.path.exists(wide["plate"]))
+    return not location_pack.plate_failed(data_dir, pid, scene_id) and not location_pack.plate_needs(data_dir, pid, scene_id)
+
+
+def broken(conn, data_dir: str, pid: int, scene_id: int, data: Dict) -> Optional[str]:
+    """F2 (người dùng duyệt 09/10, #24 shot 4): the shot needs its 3D render but the render failed / is flat / the camera could not be
+    placed — the reason (Vietnamese), else None. The picture is then HELD (never sent bare: job 579 went out without its render and
+    the model guessed the well's height)."""
+    from . import location_pack
+    if not wants_render(conn, pid, data) or location_pack.plate_of(data_dir, pid, scene_id) is not None:
+        return None
+    if location_pack.plate_needs(data_dir, pid, scene_id):
+        return None                                  # S5.7: said by its own wait (thiếu hướng máy)
+    return location_pack.plate_failed(data_dir, pid, scene_id)
+
+
+WIDE_ROLE = "place_wide"
+WIDE_LABEL = "WIDE same-axis view of this place"
+
+
+def wide_ref(data_dir: str, pid: int, scene_id: int) -> Optional[Dict]:
+    """F2: the shot's same-axis wide 3D render (same camera direction, pulled back, wider lens) as a reference, else None."""
+    from . import location_pack
+    rec = location_pack.plate_of(data_dir, pid, scene_id)
+    wide = (rec or {}).get("wide") or {}
+    if not wide.get("plate") or not os.path.exists(wide["plate"]):
+        return None
+    return {"path": wide["plate"], "label": f"{WIDE_LABEL} ({rec.get('place') or 'the place'})", "role": WIDE_ROLE,
+            **({"plate_key": wide["key"]} if wide.get("key") else {})}
+
+
+def add_wide(refs: List[Dict], wide: Optional[Dict], limit: int) -> List[Dict]:
+    """F2: the wide same-axis render goes right after the shot's own render and REPLACES the scene's one-for-all wide picture
+    (scene_establish LABEL / role location) — two different wide views of one place would fight. Order kept: people > shot render >
+    same-axis wide > the rest; over `limit` the last pictures go first (never the people, the render or the wide)."""
+    if wide is None:
+        return refs
+    from . import scene_establish
+    keep = [r for r in refs if not (r.get("role") == "location" and r.get("label") == scene_establish.LABEL) and r.get("role") != WIDE_ROLE]
+    at = next((i + 1 for i, r in enumerate(keep) if r.get("role") == ROLE), None)
+    if at is None:
+        at = next((i for i, r in enumerate(keep) if r.get("role") in ("location", "previous_scene", "layout")), len(keep))
+    out = keep[:at] + [dict(wide)] + keep[at:]
+    limit = max(limit, 1)
+    while len(out) > limit:
+        drop = next((i for i in range(len(out) - 1, -1, -1) if out[i].get("role") not in ("character", "sheet", "outfit", ROLE, WIDE_ROLE)),
+                    None)
+        out.pop(len(out) - 1 if drop is None else drop)
+    return out
+
+
+def scale_sentence(rec: Optional[Dict], entry: Optional[Dict], data: Dict, height_m: Optional[float] = None,
+                   near_m: float = 8.0) -> str:
+    """F2 việc 4: the measured size of the place's props near the character's spot (the well's wall …) against the character — so the
+    model does not guess the proportions (#24 shot 4: the well came out lower than in the other shots). Reads the place's registered
+    `props` [{"name": "the well", "at": [x, y, z] (base, model coords), "height_m": 0.9}] (measured on the 3D model, e.g. with
+    plates3d.ground_heights at the prop's top) within `near_m` of the character's feet. Empty when nothing is measured — never a
+    guessed number. The caller (the prompt) adds it after geometry_sentence."""
+    rec, entry = rec or {}, entry or {}
+    feet = ((rec.get("camera_plan") or {}).get("subject") or {}).get("location")
+    height = height_m or ((rec.get("camera_plan") or {}).get("subject") or {}).get("height_m")
+    if not feet or not height:
+        return ""
+    bits = []
+    for prop in entry.get("props") or []:
+        at, h = prop.get("at"), prop.get("height_m")
+        if not at or not isinstance(h, (int, float)) or h <= 0:
+            continue
+        if ((at[0] - feet[0]) ** 2 + (at[1] - feet[1]) ** 2) ** 0.5 > near_m:
+            continue
+        bits.append(f"{prop.get('name') or 'the landmark'} is {float(h):.2f} m tall — {float(h) / float(height) * 100:.0f}% of the "
+                    f"character's height ({float(height):.2f} m)")
+    if not bits:
+        return ""
+    return "Scale measured on the 3D map of this place: " + "; ".join(bits) + " — keep these proportions in every shot."
 
 
 def needs(data_dir: str, pid: int, scene_id: int) -> Optional[str]:

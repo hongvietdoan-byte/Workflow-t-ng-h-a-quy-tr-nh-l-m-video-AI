@@ -1599,6 +1599,10 @@ def reference_note(refs: List[Dict]) -> str:
                         "exactly — the same buildings in the same places, the same number of floors, roofs, windows, stairs, walls, trees, "
                         "the same horizon line and perspective — and draw the people INTO it at the size and place the scene text gives; "
                         "improve only light, texture detail and atmosphere in the game's style; never move, add or remove a building")
+        elif g["role"] == "place_wide":       # F2 (09/10): the shot's own same-axis wide 3D render
+            bits.append(f"{tag} is the {g['label']}: a wider 3D render from the SAME camera direction as this shot (the camera pulled "
+                        "back along its axis, wider lens), with nobody in it — use it only to understand the place around the frame and the "
+                        "true size of walls, wells, steps and buildings next to the people; do not copy its framing")
         elif g["role"] == "skill_phase":
             from . import skill_dossier
             bits.append(skill_dossier.reference_note(tag, g["label"]))

@@ -1896,6 +1896,13 @@ class ImageRunner(_Runner):
             if held:                                         # S5.7: no direction for a script-direction spot — wait, and say what to add
                 self._diag(job, "error", "plate_view", held)
                 return self._hold(job, f"thiếu hướng máy cho nền 3D — CẦN BẠN SỬA: {held} (sửa xong sẽ tự gửi)")
+            bad = place_refs.broken(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], data)
+            if bad:                                          # F2 (09/10, #24 job 579): never sent without its 3D background
+                idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+                why = (f"nền 3D của shot {idx['idx'] if idx else job['scene_id']} hỏng: {bad} — chọn lại góc / sửa chỗ đứng "
+                       "(ảnh giữ chờ, không gửi thiếu nền)")
+                self._diag(job, "error", "plate_broken", why)    # diag.record: one row per 10 minutes, a counter after
+                return self._hold(job, f"CẦN BẠN SỬA: {why}")
         if scene_establish.shadow():                         # 🎓 học việc (B6 08/10): drawn apart, the shot never waits for it
             try:
                 data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
@@ -2004,11 +2011,16 @@ class ImageRunner(_Runner):
             ref = render
             if ref is not None:
                 refs = place_refs.swap_in(refs, ref, limit)
+                # F2 (09/10): this shot's own same-axis wide render replaces the scene's one-for-all wide picture
+                refs = place_refs.add_wide(refs, place_refs.wide_ref(self.data_dir, job["project_id"], job["scene_id"]), limit)
                 place = assets.scene_location(conn, job["project_id"], data)
                 entry = location_pack_entry(conn, place)
                 geo = place_refs.geometry_sentence(ref["_rec"], data, (entry or {}).get("sun_azimuth", 250.0))
                 if geo:
                     prompt = f"{prompt} {geo}"
+                scale = place_refs.scale_sentence(ref["_rec"], entry, data)   # F2 việc 4: measured prop sizes (empty if none)
+                if scale:
+                    prompt = f"{prompt} {scale}"
                 prompt = f"{place_refs.PRECEDENCE} {prompt}"   # S5.5' 30/09: words about the place lost to the render otherwise
         from . import skill_dossier
         if skill_dossier.enabled():                    # 30/09: the phase's real frame from the skill video (the dossier)
@@ -2063,6 +2075,8 @@ class ImageRunner(_Runner):
                 from . import place_refs
                 if place_refs.enabled():                # this frame's own 3D render replaces the library's place picture
                     shared = place_refs.swap_in(shared, place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]), 8)
+                    if place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]) is not None:   # F2: + same-axis wide
+                        shared = place_refs.add_wide(shared, place_refs.wide_ref(self.data_dir, job["project_id"], job["scene_id"]), 8)
                 from . import skill_dossier
                 if skill_dossier.enabled():            # the skill frame of THIS shot rides with the shared references
                     row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
