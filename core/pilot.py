@@ -104,6 +104,22 @@ def done(p: Pipeline, project_id: int) -> bool:
     return True
 
 
+def unapproved(p: Pipeline, project_id: int) -> List[str]:
+    """Lỗi 17 (08/10): the pilot shots still without an approved picture, said ("shot 2 (chờ duyệt)", "shot 5 (chưa gen)") — the
+    "✔ Mẫu thử ổn" button stayed grey with no reason."""
+    out = []
+    for sid in get(p, project_id)["scenes"]:
+        row = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (sid,)).fetchone()
+        if row is None or p.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved'",
+                                         (sid,)).fetchone():
+            continue
+        last = p.conn.execute("SELECT state FROM jobs WHERE scene_id=? AND type='image_gen' ORDER BY id DESC LIMIT 1", (sid,)).fetchone()
+        state = {"pending_review": "chờ duyệt", "succeeded": "chờ duyệt", "queued": "đang chờ gửi", "running": "đang gen",
+                 "failed": "lỗi", "rejected": "bị từ chối"}.get(last["state"], last["state"]) if last else "chưa gen"
+        out.append(f"shot {row['idx']} ({state})")
+    return out
+
+
 def anchors_needed(p: Pipeline, project_id: int, scene_ids: List[int]) -> List[int]:
     """08/10 (#24, lỗi 11): storyboard mode (core.scene_storyboard, flag storyboard_api) — a shot that is not its scene's anchor waits
     for the anchor's picture. The anchors of these shots that are not among them (in order), [] when the mode is off."""

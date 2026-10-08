@@ -74,5 +74,18 @@ class ThreadDiagTests(unittest.TestCase):
         self.assertTrue(any("Render 3D xong" in r[0] for r in rows), rows)
 
 
+class PilotWaitsSaidTests(unittest.TestCase):
+    def test_the_grey_release_button_names_what_is_left(self):
+        p, pid, ids = p24()
+        pilot.save(p, pid, {"enabled": True, "scenes": [ids[0], ids[1]], "released": False})
+        j = p.create_job(ids[0], "image_gen")
+        p.conn.execute("UPDATE jobs SET state='pending_review' WHERE id=?", (j,))
+        p.conn.commit()
+        self.assertEqual(pilot.unapproved(p, pid), ["shot 1 (chờ duyệt)", "shot 2 (chưa gen)"])
+        p.conn.execute("UPDATE jobs SET state='approved' WHERE id=?", (j,))
+        p.conn.commit()
+        self.assertEqual(pilot.unapproved(p, pid), ["shot 2 (chưa gen)"])
+
+
 if __name__ == "__main__":
     unittest.main()

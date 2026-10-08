@@ -582,7 +582,11 @@ def pilot_panel(p: Pipeline, pid: int) -> None:
         else:
             st.markdown(_msg)
         c1, c2 = st.columns(2)
-        if c1.button("✔ Mẫu thử ổn — gen phần còn lại", key=f"pilot_release_{pid}", type="primary", disabled=not ready):
+        left = [] if ready else pilot.unapproved(p, pid)      # lỗi 17: a grey button says why
+        if left:
+            st.caption(f"Còn {len(left)} ảnh thử chưa duyệt: " + ", ".join(left) + " — duyệt xong mới mở gen cả lô.")
+        if c1.button("✔ Mẫu thử ổn — gen phần còn lại", key=f"pilot_release_{pid}", type="primary", disabled=not ready,
+                     help=("Còn ảnh thử chưa duyệt: " + ", ".join(left)) if left else None):
             pilot.release(p, pid)
             st.rerun()
         if c2.button("Bỏ gen thử", key=f"pilot_off_{pid}"):
