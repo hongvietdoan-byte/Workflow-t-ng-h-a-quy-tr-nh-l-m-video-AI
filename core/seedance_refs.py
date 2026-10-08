@@ -119,7 +119,11 @@ def _estimated_len(rows: List[Dict]) -> int:
         for n in r["data"].get("characters") or []:
             if str(n) not in names:
                 names.append(str(n))
-    return len(prompt([(shot_motion(r["data"]), float(r["data"].get("duration_s") or 2)) for r in rows], [(n, "") for n in names]))
+    # 08/10 (#24): the estimate left out the PLACE render sentences (~330 characters per rendered shot) — a 3-shot group was estimated
+    # at 2 923 characters and sent at 4 135 (> 4 000, blocked). Worst case (tính dư): every shot of the group has its own render.
+    places = [{"shots": [i]} for i in range(1, len(rows) + 1)]
+    return len(prompt([(shot_motion(r["data"]), float(r["data"].get("duration_s") or 2)) for r in rows], [(n, "") for n in names],
+                      places=places))
 
 
 def group_of(conn, scene_id: int) -> Optional[List[Dict]]:
@@ -311,7 +315,34 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
     marks = whole_marks([float(sec) for _, sec in parts]) if reads_seconds(model) else [None] * n
     shots = [f"Shot {i}" + (f" ({mk[0]}–{mk[1]} s)" if mk else "") + f": {str(motion).strip().rstrip('.')}."
              for i, ((motion, _), mk) in enumerate(zip(parts, marks), 1)]
-    return head + "\n" + mapping.strip() + "\n" + "\n".join(shots)
+    text = head + "\n" + mapping.strip() + "\n" + "\n".join(shots)
+    # 08/10 (#24): a character named in Vietnamese ("YÊU NỮ TÀ LINH DẠNG 1") put accented letters into "Image N is …" and the shot
+    # lines — the whole send was blocked as "prompt còn chữ tiếng Việt" though every Director field was translated. The names go
+    # without accents (the same spelling in the mapping and the shots, so picture and name still match); spoken lines are untouched.
+    for name in sorted({nm[:-len(OUTFIT_TAG)] if nm.endswith(OUTFIT_TAG) else nm for nm, _ in identities}, key=len, reverse=True):
+        if ascii_name(name) == name:
+            continue
+        for form in dict.fromkeys((name, name.upper(), name.title(), name.capitalize(), name.lower())):   # "Yêu nữ tà linh…" in a motion line
+            text = _outside_dialogue(text, lambda s, a=form, b=ascii_name(form): s.replace(a, b))
+    return text
+
+
+def ascii_name(name: str) -> str:
+    """A character name without Vietnamese accents ("YÊU NỮ TÀ LINH DẠNG 1" → "YEU NU TA LINH DANG 1"; đ → d)."""
+    import unicodedata
+    text = str(name).replace("đ", "d").replace("Đ", "D")
+    return "".join(ch for ch in unicodedata.normalize("NFD", text) if unicodedata.category(ch) != "Mn")
+
+
+def _outside_dialogue(text: str, change) -> str:
+    """Apply `change` to the text except the quoted spoken lines (Dialogue (…): "…" stays Vietnamese on purpose, S4.2)."""
+    out, last = [], 0
+    for m in re.finditer(r'Dialogue \([^)]*\): "[^"]*"', text):
+        out.append(change(text[last:m.start()]))
+        out.append(m.group(0))
+        last = m.end()
+    out.append(change(text[last:]))
+    return "".join(out)
 
 
 def seconds(parts_seconds: List[float]) -> int:
