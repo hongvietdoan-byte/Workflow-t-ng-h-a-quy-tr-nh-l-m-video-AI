@@ -43,6 +43,10 @@ AUTO_LIMIT_CODE = "auto_regen_limit"
 PLAIN_RESEND = "gửi lại nguyên đầu vào"
 """retry_reason prefix of a plain resend after a provider failure (same input, nothing to fix): a note for people, NEVER sent to a model
 (core.runner.model_fix). Only provider/transient failures are resent this way — a picture/clip that came out wrong needs a fix."""
+STALE_INPUT = "stale_input"
+"""KLD-1 (08/10): failure-note prefix of a job the runner refused to send because its input changed after it was queued (core.runner)."""
+MISSING_INPUT = "missing inputs"
+"""failure-note prefix of a job the runner could not send (no approved picture / motion prompt) — not a provider failure either."""
 REWRITE_NOTE = "Đạo diễn đã sửa prompt"
 """S14.17 (core/prompt_rewrite.py): retry_reason prefix of a take whose shot prompt the Director rewrote before it — the fix is IN the prompt
 now, so nothing more reaches the model (core.runner.model_fix) and it is not carried into the next QC fix (_combine_fix)."""
@@ -399,6 +403,12 @@ class Pipeline:
     def cancel(self, job_id: int, actor: str = "user") -> None:
         self.transition(job_id, JobState.CANCELLED, actor=actor)
 
+    def failure_note(self, job_id: int) -> Optional[str]:
+        """The note of the job's last move to FAILED (e.g. 'stale_input: …', 'timeout: …'), None when it never failed."""
+        row = self.conn.execute("SELECT note FROM job_events WHERE job_id=? AND to_state='failed' ORDER BY id DESC LIMIT 1",
+                                (job_id,)).fetchone()
+        return row["note"] if row else None
+
     def retry(self, job_id: int, reason: Optional[str] = None, fix: Optional[str] = None, by_user: bool = False) -> Optional[int]:
         """failed -> retryable -> new queued job (parent link). Returns None if escalated.
         `reason` is for people (job history). Without `fix` this is a plain resend of the same input — honest only after a provider /
@@ -408,6 +418,10 @@ class Pipeline:
         access.need_edit_job(self, job_id, "gen lại")
         if self.state(job_id) != JobState.FAILED:
             raise InvalidTransition(f"job {job_id} is {self.state(job_id).value}, only failed jobs can be retried")
+        if not (fix or "").strip() and (self.failure_note(job_id) or "").startswith(STALE_INPUT):
+            # KLD-1 (08/10): job 559 của #22 hỏng vì đầu vào đã cũ bị gửi lại Y NGUYÊN thành 566 — gửi lại không có câu sửa chỉ dành cho
+            # lỗi nhà cung cấp; đầu vào cũ phải xếp hàng lại từ đầu vào mới (core.batch.requeue_input_failures)
+            raise InvalidTransition(f"job {job_id} hỏng vì đầu vào đã cũ — không gửi lại y nguyên; xếp hàng lại từ đầu vào mới")
         if not by_user and self._retries_exhausted(self.job(job_id)):
             self._escalate(self.job(job_id), limit=True)
             return None
@@ -606,6 +620,9 @@ class Pipeline:
         self.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (job["scene_id"],))
         self._log_review(job_id, "user", "approve", note or "giữ bản QC đã loại")
         self.transition(job_id, JobState.APPROVED, actor="user", note=note or "giữ bản QC đã loại")
+        if job["type"] == "video_gen":                 # KLD-2 (08/10): the person's pick is the shot's take (chain, cut, stage map)
+            from . import takes
+            takes.mark(self.conn, job["scene_id"], job_id)
 
     def _require_reviewable(self, job_id: int) -> None:
         if self.state(job_id) not in REVIEWABLE:

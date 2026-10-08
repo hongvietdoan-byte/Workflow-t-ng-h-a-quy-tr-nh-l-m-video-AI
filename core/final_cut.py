@@ -15,30 +15,46 @@ def clip_path(data_dir: str, project_id: int, idx: int) -> str:
 def collect_clips(pipeline: Pipeline, data_dir: str, project_id: int) -> List[Dict]:
     """One row per scene (clip present or not), then any extra .mp4 files in the folder, ordered by name.
 
-    Keys: idx, title, path (None when missing), state (latest video_gen job state or None), requested_sec.
+    Keys: idx, title, path (None when missing), state (state of the shot's take — core.takes.used: the chosen one, else the latest
+    video_gen job — or None), requested_sec, usable, extra (a file that is no shot's clip).
     """
+    from . import takes
     rows = pipeline.conn.execute(
         "SELECT s.id, s.idx, s.title, m.duration_sec FROM scenes s LEFT JOIN motion_prompts m ON m.scene_id=s.id"
         " WHERE s.project_id=? ORDER BY s.idx", (project_id,)).fetchall()
     clips, known = [], set()
     for r in rows:
         path = clip_path(data_dir, project_id, r["idx"])
-        job = pipeline.conn.execute("SELECT state FROM jobs WHERE scene_id=? AND type='video_gen'"
-                                    " AND state!='cancelled' ORDER BY id DESC LIMIT 1", (r["id"],)).fetchone()
+        job = takes.used(pipeline.conn, r["id"])        # KLD-2 (08/10): the take the person chose, not just the newest job
+        if job is not None and _is_chosen(pipeline.conn, r["id"], job) and job["result_path"]:
+            path = job["result_path"]                    # e.g. a stashed ⭐ take (NN_t4a.mp4) the person picked
         known.add(os.path.basename(path))
         state = job["state"] if job else None
         clips.append({"idx": r["idx"], "scene_id": r["id"], "title": r["title"], "path": path if os.path.exists(path) else None,
                       "state": state, "requested_sec": r["duration_sec"],
                       # a clip still waiting for its video check / a person, or thrown away, does not go into the cut by default
-                      "usable": state in (None, "succeeded", "approved")})
+                      "usable": state in (None, "succeeded", "approved"), "extra": False})
     folder = os.path.dirname(clip_path(data_dir, project_id, 0))
     extras = sorted(n for n in (os.listdir(folder) if os.path.isdir(folder) else [])
                     if n.lower().endswith(".mp4") and n not in known
                     and not n.lower().endswith(("_raw.mp4", "_group.mp4")))   # v3: uncut / whole multi-shot originals of a shot
     for name in extras:
+        # KLD-3 (08/10): bản dựng #33 của #22 gom 4 tệp phụ (bản sao, bản giữ tay) và thiếu shot 1, 2 — a file that is no shot's clip
+        # is listed (⚠ at Step 5) but goes in only when the person ticks it
         clips.append({"idx": None, "scene_id": None, "title": name, "path": os.path.join(folder, name), "state": None,
-                      "requested_sec": None, "usable": True})
+                      "requested_sec": None, "usable": False, "extra": True})
     return clips
+
+
+def _is_chosen(conn, scene_id: int, job) -> bool:
+    from . import takes
+    pick = takes.chosen(conn, scene_id)
+    return pick is not None and pick["id"] == job["id"]
+
+
+def extra_files(clips: List[Dict]) -> List[Dict]:
+    """KLD-3: the .mp4 files in videos/ that are no shot's clip (not used unless ticked)."""
+    return [c for c in clips if c.get("extra")]
 
 
 def save_manual_clip(data_dir: str, project_id: int, filename: str, data: bytes) -> str:

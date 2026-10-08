@@ -5,8 +5,8 @@ import json
 from . import access
 from typing import Dict, List
 
-from . import lineage, llm_io, pilot, regen
-from .pipeline import Pipeline
+from . import lineage, llm_io, pilot, regen, takes
+from .pipeline import MISSING_INPUT, STALE_INPUT, Pipeline
 
 LIVE = "('queued','running','succeeded','pending_review','approved','retryable')"
 
@@ -110,12 +110,13 @@ def chain_waits(p: Pipeline, project_id: int) -> Dict[int, str]:
     for r in rows:
         if not json.loads(r["data"] or "{}").get("start_from_prev_clip"):
             continue
-        prev = p.conn.execute("SELECT s.idx, (SELECT j.state FROM jobs j WHERE j.scene_id=s.id AND j.type='video_gen' ORDER BY j.id DESC"
-                              " LIMIT 1) AS st FROM scenes s WHERE s.project_id=? AND s.idx<? ORDER BY s.idx DESC LIMIT 1",
+        prev = p.conn.execute("SELECT id, idx FROM scenes WHERE project_id=? AND idx<? ORDER BY idx DESC LIMIT 1",
                               (project_id, r["idx"])).fetchone()
-        if prev is not None and prev["st"] != "approved":
+        take = takes.used(p.conn, prev["id"], skip_cancelled=False) if prev is not None else None   # KLD-2: the chosen take
+        st = take["state"] if take else None
+        if prev is not None and st != "approved":
             out[r["id"]] = f"S{r['idx']:02d} chờ duyệt clip cảnh S{prev['idx']:02d} (cảnh này bắt đầu từ khung cuối clip đó)" + (
-                "" if prev["st"] else " — cảnh trước chưa có clip")
+                "" if st else " — cảnh trước chưa có clip")
     return out
 
 
@@ -138,3 +139,46 @@ def queue_videos(p: Pipeline, project_id: int, data_dir: str, only=None) -> Dict
         regen.regenerate_video(p, data_dir, r["job_id"], f"làm lại vì {r['why']}")   # input changed: no fix
         redo += 1
     return {"created": created, "redo": redo}
+
+
+# ---- KLD-1 (08/10): "↻ Gửi lại clip lỗi" chỉ cho lỗi nhà cung cấp --------------------------------------------------------------------
+def _input_failed(p: Pipeline, job_id: int) -> bool:
+    return (p.failure_note(job_id) or "").startswith((STALE_INPUT, MISSING_INPUT))
+
+
+def provider_failures(p: Pipeline, project_id: int, kind: str = "video_gen") -> List[int]:
+    """Failed jobs a plain resend (same input) may fix: not escalated, not blocked by the content filter, and NOT failed on the input
+    itself (`stale_input` / `missing inputs` — #22 job 559 was resent unchanged as 566 on old inputs)."""
+    rows = p.conn.execute("SELECT j.id FROM jobs j WHERE j.project_id=? AND j.type=? AND j.state='failed' AND j.escalated=0"
+                          " AND NOT EXISTS (SELECT 1 FROM content_moderation_failures f WHERE f.job_id=j.id) ORDER BY j.id",
+                          (project_id, kind)).fetchall()
+    return [r["id"] for r in rows if not _input_failed(p, r["id"])]
+
+
+def input_failures(p: Pipeline, project_id: int, kind: str = "video_gen") -> List[Dict]:
+    """Failed jobs the runner did not send because the input was outdated / missing, still the newest job of their shot:
+    {id, scene_id, idx, note} — to be queued again from the CURRENT inputs (requeue_input_failures), never resent unchanged."""
+    rows = p.conn.execute("SELECT j.id, j.scene_id, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type=?"
+                          " AND j.state='failed' AND j.escalated=0 AND NOT EXISTS (SELECT 1 FROM jobs k WHERE k.scene_id=j.scene_id"
+                          " AND k.type=j.type AND k.id>j.id) ORDER BY s.idx", (project_id, kind)).fetchall()
+    return [dict(r, note=p.failure_note(r["id"])) for r in rows if _input_failed(p, r["id"])]
+
+
+def requeue_input_failures(p: Pipeline, project_id: int) -> Dict:
+    """KLD-1: for each clip that failed on its input — the old job is closed (cancelled; it never reached the provider) and a NEW job
+    is queued from the current approved picture + motion prompt; a shot whose inputs are not approved / current is listed, not queued.
+    {"created": n, "not_ready": [idx…]}. Sending (and paying) is the caller's runner.submit_pending, with the price on the button."""
+    from .states import JobState
+    access.need_edit(p, project_id, "xếp hàng lại clip hỏng vì đầu vào cũ")
+    ready = {r["scene_id"] for r in llm_io.ready_for_video(p, project_id)}
+    created, not_ready = 0, []
+    for r in input_failures(p, project_id):
+        if r["scene_id"] not in ready:
+            not_ready.append(r["idx"])
+            continue
+        p.transition(r["id"], JobState.RETRYABLE, note="đầu vào đã cũ — xếp hàng lại từ đầu vào mới")
+        p.transition(r["id"], JobState.CANCELLED, actor="user", note="đầu vào đã cũ — thay bằng job mới từ đầu vào mới")
+        if not p.conn.execute(f"SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN {LIVE}", (r["scene_id"],)).fetchone():
+            p.create_job(r["scene_id"], "video_gen")
+            created += 1
+    return {"created": created, "not_ready": not_ready}

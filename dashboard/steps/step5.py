@@ -620,7 +620,8 @@ def clips_panel(p: Pipeline, pid: int):
     total_s = sum(_probe(c["path"], os.path.getmtime(c["path"]), c["requested_sec"]) for c in present if c["usable"])
     with ui.fold("5.1 · 🎬 Clip theo thứ tự cảnh", f"🎬 {sum(1 for c in present if c['usable'])}/{len(clips)} clip dùng được · "
                  f"{total_s:.1f} s · mở để bỏ / chỉnh độ dài từng clip", f"clips_{pid}", default_open=bool(missing) or not present,
-                 sub=f"{len(present)} có sẵn / {len(clips)} · lấy tự động từ màn Video") as clips_open:  # S9 E5.1
+                 sub=f"{len(present)} có sẵn / {len(clips)} · lấy tự động từ màn Video"
+                 + (f" · ⚠ {len(final_cut.extra_files(present))} tệp lạ không dùng" if final_cut.extra_files(present) else "")) as clips_open:  # S9 E5.1
         if not clips_open:                 # folded: every usable clip at its real length (as the automatic run does)
             for c in present:
                 if c["usable"]:
@@ -633,6 +634,10 @@ def clips_panel(p: Pipeline, pid: int):
             names = ", ".join(f"cảnh {c['idx']}" + (f" ({ui.state_label(c['state'], 'video_gen')})" if c["state"] else "") for c in missing if c["idx"])
             if names:
                 st.warning(f"Thiếu clip: {names} — bản ghép sẽ bỏ qua các cảnh này.")
+            extras = final_cut.extra_files(present)
+            if extras:                        # KLD-3 (08/10): #33 của #22 gom 4 tệp phụ — tệp lạ chỉ vào bản dựng khi bạn tích
+                st.warning(f"⚠ {len(extras)} tệp lạ trong videos/ không đưa vào bản dựng (không phải clip của shot nào): "
+                           + ", ".join(c["title"] for c in extras) + " — tích ô của tệp nếu muốn dùng.")
             for c in present:
                 label = f"{C.unit_label(p, pid, c['idx'])} — {c['title']}" if c["idx"] else c["title"]
                 base = os.path.basename(c["path"])

@@ -3,6 +3,7 @@ from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 from dashboard.widgets import auto_poll_videos, video_busy
 from dashboard.design.screens.prompt_versions_ui import spin as _spin  # S14.17: spinner khi Đạo diễn viết lại prompt
+from core.pipeline import MISSING_INPUT, STALE_INPUT  # KLD-1 (08/10): failures on the input are never resent unchanged
 
 
 def _latest_jobs(p: Pipeline, pid: int) -> dict:
@@ -12,6 +13,11 @@ def _latest_jobs(p: Pipeline, pid: int) -> dict:
     latest = {}
     for j in jobs:
         latest[j["scene_id"]] = j
+    from core import takes
+    for sid, j in list(latest.items()):                   # KLD-2 (08/10): the card shows the take the person chose for the shot
+        pick = takes.chosen(p.conn, sid)
+        if pick is not None and pick["id"] != j["id"]:
+            latest[sid] = next(x for x in jobs if x["id"] == pick["id"])
     return latest
 
 
@@ -160,18 +166,34 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
             st.toast(f"Xếp hàng {r['created']} clip mới, {r['redo']} clip làm lại · đã gửi {sent}")
         if act(go):
             st.rerun()
-    failed = p.conn.execute("SELECT j.id FROM jobs j WHERE j.project_id=? AND j.type='video_gen' AND j.state='failed' AND j.escalated=0"
-                            " AND NOT EXISTS (SELECT 1 FROM content_moderation_failures f WHERE f.job_id=j.id)", (pid,)).fetchall()
-    prices = [cost.clip_estimate(p.conn, p.job(j["id"])["scene_id"]) for j in failed]
+    # KLD-1 (08/10): job 559 của #22 hỏng vì đầu vào đã cũ nằm trong nút này → gửi lại y nguyên thành 566. Nút chỉ còn lỗi nhà cung cấp.
+    failed = batch.provider_failures(p, pid)
+    prices = [cost.clip_estimate(p.conn, p.job(j)["scene_id"]) for j in failed]
     total = None if any(x is None for x in prices) else sum(prices)
     if c2.button(f"↻ Gửi lại clip lỗi ({len(failed)}){cost.price_tag(total, len(failed))}", key="btn_bad_retry", disabled=not failed,
                  help="Gửi lại Y NGUYÊN đầu vào — chỉ dùng khi lỗi do nhà cung cấp (mạng, quá tải). Clip bị bộ lọc nội dung chặn "
-                      "không nằm trong nút này: sửa prompt trước."):
-        for j in failed:
-            act(lambda: p.retry(j["id"], "gửi lại clip lỗi (lỗi nhà cung cấp)", by_user=True))
+                      "hoặc hỏng vì đầu vào đã cũ / thiếu không nằm trong nút này."):
+        for jid in failed:
+            act(lambda: p.retry(jid, "gửi lại clip lỗi (lỗi nhà cung cấp)", by_user=True))
         if runner is not None:
             act(lambda: runner.submit_pending(pid))   # 07/10: the retries only waited in the queue — nothing else sends them
         st.rerun()
+    stale_failed = batch.input_failures(p, pid)
+    if stale_failed:
+        st.warning(f"⚠ {len(stale_failed)} clip hỏng vì đầu vào đã cũ / thiếu — không gửi lại y nguyên; xếp hàng lại từ đầu vào mới: "
+                   + "; ".join(f"{C.unit_code(p, pid, r['idx'])} ({escape((r['note'] or '')[:80])})" for r in stale_failed))
+        s_prices = [cost.clip_estimate(p.conn, r["scene_id"]) for r in stale_failed]
+        s_total = None if any(x is None for x in s_prices) else sum(s_prices)
+        if st.button(f"↻ Xếp hàng lại từ đầu vào mới ({len(stale_failed)}){cost.price_tag(s_total, len(stale_failed))}",
+                     key=f"stale_requeue_{pid}", disabled=runner is None,
+                     help="Job cũ đóng lại (chưa từng gửi, không tốn tiền); job mới dùng ảnh + motion prompt đang duyệt. Shot chưa duyệt "
+                          "đủ đầu vào thì chỉ báo, không gửi."):
+            out = {}
+            if act(lambda: out.update(batch.requeue_input_failures(p, pid))):
+                sent = runner.submit_pending(pid) if out.get("created") else 0
+                st.toast(f"Xếp hàng {out.get('created', 0)} clip từ đầu vào mới · đã gửi {sent}"
+                         + (f" · chưa đủ đầu vào: {', '.join(C.unit_code(p, pid, i) for i in out['not_ready'])}" if out.get("not_ready") else ""))
+            st.rerun()
     from core import lipsync as _lipsync
     if _lipsync.enabled() and not _lipsync.post_available():
         notes = [(r["idx"], _lipsync.no_post_note(json.loads(r["data"] or "{}")))
@@ -365,7 +387,11 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
         if state == "pending_review":
             st.text_input("Câu sửa cho lần gen lại (nên viết tiếng Anh)", key=f"vnote_{jid}")
         vfix = ""
-        can_resend = state == "failed" and not blocked and not j["escalated"]
+        input_note = p.failure_note(jid) if state == "failed" else None
+        stale_input = bool(input_note) and input_note.startswith((STALE_INPUT, MISSING_INPUT))
+        can_resend = state == "failed" and not blocked and not j["escalated"] and not stale_input
+        if stale_input:                                   # KLD-1 (08/10): never resent unchanged — the batch bar requeues it from new inputs
+            st.caption("⚠ Hỏng vì đầu vào đã cũ / thiếu — không gửi lại y nguyên. Dùng “↻ Xếp hàng lại từ đầu vào mới” ở thanh trên.")
         if can_resend:
             vfix = st.text_input("Câu sửa (tiếng Anh) — trống = gửi lại y nguyên, chỉ khi lỗi do nhà cung cấp", key=f"vfixtxt_{jid}")
         # ---- the four actions, always visible -----------------------------------------------------------------------------------
@@ -384,7 +410,7 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
                 if act(lambda: regen.regenerate_video(p, C.DATA, jid, f"làm lại vì {stale_reason}" if stale_reason else None),
                        "Đã xếp hàng gen lại video"):
                     st.rerun()
-        else:
+        elif not stale_input:
             r2.button("↻ Gen lại", key=f"vr_{jid}", disabled=True, width="stretch",
                       help="Chưa có clip để gen lại" if not blocked else "Bị chặn nội dung: sửa motion prompt rồi mới gen lại")
         r3, r4 = st.columns(2)
@@ -432,7 +458,28 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
                              help="Bạn là người quyết định cuối: giữ clip QC đã loại, hủy lần gen lại đang chờ (không tốn thêm credit)."):
                     if act(lambda: p.keep_rejected(keep["id"]), "Đã giữ clip"):
                         st.rerun()
+        _other_takes(p, j)
         scene_expander(p, j["scene_id"], with_motion=True)
+
+
+def _other_takes(p: Pipeline, j) -> None:
+    """KLD-2 (08/10): the shot's other takes that still have their own file — the person picks the one the chain / the cut use
+    (#22: rows 560 ↔ 569 were swapped by hand, the QC scores then belonged to the other file)."""
+    from core import takes
+    others = takes.candidates(p.conn, j["scene_id"])
+    if not others:
+        return
+    with st.expander(f"🎞 Bản khác của shot ({len(others)}) — chọn bản dùng cho chuỗi nối và bản dựng"):
+        for o in others:
+            kept = qc_scores(p, o["id"])
+            mean = sum(s["score"] for s in kept) / len(kept) if kept else None
+            st.caption(f"Job {o['id']} · {ui.state_label(o['state'], 'video_gen')}" + (f" · QC {mean:.2f}" if mean is not None else "")
+                       + (f" · {o['model']}" if o["model"] else ""))
+            show_video(o["result_path"])
+            if st.button("✔ Dùng bản này cho shot", key=f"vuse_{o['id']}",
+                         help="Tệp của bản này thành clip của shot; bản đang dùng vào thùng rác (vẫn chọn lại được). Không tốn credit."):
+                if act(lambda: takes.choose(p, C.DATA, o["id"]), "Đã đổi bản dùng cho shot"):
+                    st.rerun()
 
 
 def experiments_panel(p: Pipeline, pid: int, runner) -> None:
