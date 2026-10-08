@@ -1,54 +1,90 @@
-# Rà soát trước khi gen lại #24 và trước khi chia sẻ Dashboard — 08/10/2026
+# Rà soát quy trình nhà máy trước khi gen lại #24 và trước khi chia sẻ Dashboard — 08–09/10/2026
 
-Người dùng 08/10 khuya: bản cao #24 tệ hơn nháp; cần sửa **mọi lỗi trước khi gen lại**, rồi rà soát để nhiều người cùng dùng được.
-Trạng thái: **ĐỀ XUẤT — chờ người dùng duyệt**. Chưa sửa code ngoài phần nhạc kinh dị (commit 70fd1a9). Đã chi cho việc này: 0 USD.
+Người dùng 08–09/10: bản cao #24 tệ hơn nháp; **quy trình phải chuẩn và đúng trước, không sửa theo từng dự án**. Khâu nào làm tốt
+(ví dụ #22) phải thành **công thức chính** áp cho mọi dự án Free Fire. Trạng thái: **ĐỀ XUẤT — chờ duyệt**. Chi cho rà soát: 0 USD.
 
-## 1. Năm góp ý và nguyên nhân đo trên dữ liệu thật
+Người dùng đã chốt (09/10):
+- Ảnh toàn cùng trục mỗi shot: **ưu tiên render 3D** (0 USD); ảnh AI vẽ lại chỉ xét khi đo được giống ≥ 80–90 %.
+- Tiết chế chi tiết ghê: **cho mọi dự án Free Fire** (không để Đạo diễn tự chọn).
 
-| # | Góp ý | Nguyên nhân (bằng chứng) |
+## 1. Phát hiện chính: #22 đẹp nhờ sửa tay, công thức không quay về hệ thống
+
+| Đo trên CSDL | #22 Khủng Long Đỏ | #24 Teasing |
 |---|---|---|
-| 1a | Bóng đen bay xuyên vào người Kelly (shot 3 bản cao) | Motion/image prompt chỉ ghi "streaking fast across the well mouth right in front of her face" — không nói đường bay, không cấm chạm/xuyên người. Không có luật nào kiểm đường đi của vật chuyển động so với nhân vật. |
-| 1b | Miệng giếng thấy rõ tóc + máu, ghê | Đạo diễn tự viết vào image_prompt shot 2: "black hair strands and blood stains on the rim … everything in focus". Không có luật tiết chế chi tiết ghê (máu, tóc rối, xác) — phải gợi, mờ, trong tối. |
-| 2 | Shot 4 (Kelly ngã) thành giếng thấp hơn các shot khác | Job ảnh 579 **không gửi render 3D** (sent_refs không có place_render). Máy quay 3D đặt ở chỗ vô lý: cách Kelly 0,97 m về phía giếng, cao 0,45 m trên đất, ngửa 45° → render chỉ thấy trời (horizon_y 1,9); bị đánh "nền một màu" (diag plate_flat 11:59) → bỏ, ảnh vẫn được gửi **không có nền 3D**, model tự đoán tỉ lệ giếng. |
-| 3 | Mỗi shot cần ảnh toàn cùng trục/góc với shot để nền giống 3D ~90 % | Kỹ năng **có một phần**: (a) mỗi shot có render 3D riêng theo camera của shot (#24 có 9/9, trừ shot 4 hỏng); (b) ảnh toàn cảnh chỉ **một ảnh cho cả cảnh kịch bản** = render của shot rộng nhất (KLD-18, `place_refs.scene_render_rec`), cờ `scene_establishing` đang TẮT → #24 **không gửi ảnh toàn nào**. Luật "mỗi shot một ảnh toàn cùng trục" ghi ở memory 07/10 nhưng **chưa thành code**. |
-| 4 | Chọn model: người dùng phải thấy model gì, chất lượng bao nhiêu, tự đổi được, không thêm rối | Bản nháp #24 làm bằng alias `seedance` = **Seedance 2.0** → bản cao không nâng được từ nháp, hệ thống **tự gen mới** (diag `final_resend` mức info, không hỏi) → nội dung khác nháp, 720p. Màn Model (Bước 4) không nói "nháp này nâng lên bản cao được hay không". |
-| 5 | Sửa nhiều mà vẫn lỗi, sản phẩm chưa đạt | Xem mục 2. |
+| Image prompt người/Claude **viết tay khóa lại** (`_user_locked`) | **8/9 shot** | 1/9 |
+| Độ dài image prompt TB (phần Đạo diễn viết) | 779 ký tự | 493 |
+| Độ dài motion prompt TB | 885 (lượt 2–3 sửa tay) | 558 (Đạo diễn + code) |
+| Có `spatial_state` | 9/9 | 0/9 |
 
-## 2. Vì sao sửa nhiều mà vẫn phát sinh lỗi và sản phẩm chưa đạt (trả lời thẳng)
+Các câu viết tay ở #22 làm nên chất lượng — **không câu nào có trong code tạo prompt** (đã grep `core/`, `prompts/`):
+- Khóa nền: *"exactly as the 3D render, same camera and same spot as the previous shot"*.
+- Khóa trang phục kể **từng món** theo ảnh OUTFIT + trạng thái phụ kiện (*"mask worn UP … never pulled down"*).
+- Khóa tóc riêng của nhân vật khi ảnh OUTFIT có người mẫu (*"keeps Kelly's OWN hair … one solid colour"*).
+- Ràng buộc vật lý động tác (*"feet never slide"*), máy quay nói rõ (*"Static camera"*), điểm kết.
 
-1. **Sửa theo triệu chứng của shot đang thấy.** 08/10 có 111 commit, 21 commit cho #24; mỗi lỗi có test, nhưng test dựng từ dữ liệu của chính shot đó. Một lỗi cùng gốc ở chỗ khác (shot 4 không có nền 3D, đường nâng bản cao) không bị bắt.
-2. **Chưa có cổng kiểm "đầu vào đủ chưa" trước khi chi tiền.** Ảnh shot 4 được gửi khi thiếu nền 3D; bản cao được gửi khi không nâng được từ nháp — cả hai chỉ ghi một dòng diag rồi vẫn chạy. Lỗi chất lượng (tỉ lệ, ghê, xuyên người) không phải lỗi code nên test không bắt; phải kiểm **từng shot trước khi gen**.
-3. **Luật mềm trong prompt Đạo diễn không có code kiểm** (đã ghi 25/09: "luật mềm không có code kiểm thì không có tác dụng"). Luật tiết chế ghê, đường đi vật chuyển động, ảnh toàn cùng trục chưa có code.
-4. **Nhiều tính năng chạy thật lần đầu trên #24**: 2 bậc chất lượng, hướng nền `plate_view`, popup cuối, ghép tiếng ref. Lần đầu chạy thật luôn lộ lỗi; đáng lẽ phải chạy thử toàn tuyến **0 USD** (provider giả) trên Dashboard trước khi gen thật.
-5. **Bài học nằm ở memory nhưng không vào hệ thống**: "ảnh toàn cùng trục" (07/10), "nháp rẻ rồi gen cao đúng cách đã đạt" (07/10) — ghi lại nhưng code không áp.
+Còn trong #24 (prompt thực gửi đi, dựng lại bằng `runner.build_image_prompt`):
+- Câu địa điểm chung chung *"grass, palms, sea around"* trái với render 3D đang gửi kèm; prompt **không gọi tên ảnh render** là chuẩn nền.
+- Mâu thuẫn trong cùng một prompt: shot 4 "trung cận, không thấy chân" + "ngồi bệt chống tay" + "khung đầu đang ngã, khuỵu gối".
+- Motion shot 5: Đạo diễn ghi "mắt đỏ phát sáng" (yêu nữ), code tự gắn thêm *"Natural human eyes, no glowing eyes."* (`seedance_refs.py:673`, luật chống mắt phát sáng cho **người** áp mù cho **quái**) — một luật cũ đúng ở dự án cũ, sai ở dự án mới.
+- Đạo diễn tự thêm "tóc + vết máu trên miệng giếng, everything in focus" (không luật tiết chế).
+- 30 thay đổi rút từ #22 (KLD-1…34): khoảng 20 đã vào code ở mức nào đó, ~10 chưa (KLD-9/10/13/25/26/27-hồ sơ/30–34); bảng `lessons` chỉ 12 dòng; 84 ca kinh nghiệm #22 nằm trong `experience_cases` nhưng không thành công thức.
 
-## 3. Kế hoạch (đề xuất)
+**Kết luận:** prompt hiện là **nhiều câu nối dần theo từng lỗi** (mỗi lỗi một câu thêm vào), không có **khuôn chuẩn** quy định "một prompt ảnh / motion phải có những phần nào, lấy từ đâu, kiểm bằng gì". Vì thế sửa lỗi ở dự án này không làm dự án sau tốt lên, và câu thêm cho dự án cũ có thể phá dự án mới.
 
-### Đợt R0 — sửa đúng 5 góp ý, có test, 0 USD
-- **R0.1 Tiết chế chi tiết ghê** (máu, tóc rối, vết thương, xác): Đạo diễn + `knowledge/roles/director.md` có luật (lý do: quảng bá game cho mọi lứa tuổi; ghê thì gợi bằng bóng tối, mờ, ngoài nét, khung che); code kiểm image/motion prompt có từ ghê mà thiếu cách tiết chế → tự thêm câu "chỉ thấy lờ mờ trong bóng tối, ngoài nét" + bỏ "everything in focus" ở shot đó; cảnh báo ở báo cáo Đạo diễn.
-- **R0.2 Đường đi vật chuyển động gần nhân vật**: shot có vật/bóng lao qua sát nhân vật → motion prompt phải ghi điểm đầu → điểm cuối, khoảng cách, "không chạm / không xuyên qua người"; `motion_lint` kiểm, thiếu thì báo đỏ trước khi gửi.
-- **R0.3 Máy quay 3D vô lý**: camera nằm trong / sát vật thể, cao < 0,8 m mà ngửa > 30°, horizon ngoài khung → tự đặt lại (lùi theo trục, hạ góc ngửa) hoặc báo người dùng chọn lại; **không gửi ảnh shot 3D khi thiếu render** (đợi / báo đỏ, không im lặng gửi trơn).
-- **R0.4 Ảnh toàn cùng trục cho MỖI shot** (luật người dùng): mỗi shot 3D render thêm một ảnh toàn từ cùng trục, cùng hướng, camera lùi lại + ống kính rộng (0 USD, Blender) và gửi kèm như tham chiếu địa điểm; thay cách một ảnh cho cả cảnh. Ghi vào kỹ năng (`knowledge/craft/goc_may.md` + prompt) và thẻ ảnh Bước 2 hiện ảnh toàn của shot.
-- **R0.5 Kiểm tỉ lệ vật mốc**: câu "Camera and scale, measured on the 3D map" (độ cao thành giếng so với người) gửi cho mọi shot có vật mốc; QC ảnh so tỉ lệ với render.
+## 2. Vì sao sửa nhiều mà vẫn lỗi (trả lời thẳng)
+1. Sửa theo triệu chứng của shot đang thấy; test dựng từ dữ liệu shot đó → lỗi cùng gốc ở chỗ khác không bị bắt.
+2. Không có **khuôn chuẩn** cho prompt → chất lượng phụ thuộc người sửa tay (#22) chứ không phụ thuộc hệ thống.
+3. Không có **cổng kiểm đầu vào trước khi chi tiền**: thiếu nền 3D, mâu thuẫn trong prompt, đường nâng bản cao — chỉ ghi diag rồi vẫn gửi.
+4. Luật mềm trong prompt Đạo diễn không có code kiểm; luật cứng của dự án cũ áp mù cho dự án mới.
+5. Tính năng mới chạy thật lần đầu trên dự án thật, chưa chạy thử toàn tuyến 0 USD.
+6. Bài học chỉ ghi lại (memory, báo cáo) chứ không thành công thức trong code.
 
-### Đợt R1 — 2 bậc chất lượng làm đúng
-- Shot đi "nháp trước" mà model là Seedance → nháp bằng **Seedance 2.5 chế độ nháp** (nâng lên 1080p giữ nội dung).
-- "⬆ Gen bản cao" khi không nâng được từ nháp: **hỏi rõ** "gen mới — nội dung sẽ khác nháp — X USD", không tự gửi.
-- Clip nháp của shot thứ 2, 3 trong nhóm bị file bản cao ghi đè (cùng đường dẫn) → giữ lại nháp để "↩ Dùng bản này" dùng được.
+## 3. Kế hoạch: "Công thức chuẩn" cho từng khâu (mọi dự án Free Fire)
 
-### Đợt R2 — chọn model gọn (không thêm nút)
-- Mỗi shot một dòng: **"Seedance 2.5 · nháp 480p → cao 1080p (giữ nội dung) · ≈ $X"**; một nút "Đổi" mở ô chọn model + độ phân giải (có ghi chú từng lựa chọn). Bỏ trùng lặp giữa ô Model và ô "Đường chất lượng" (gộp vào cùng ô Đổi).
+### F0 — Sổ công thức (nguồn duy nhất), 0 USD
+`knowledge/formula/` — mỗi khâu một file: **phần bắt buộc · lấy từ trường nào · câu mẫu · lý do · bằng chứng (dự án/shot) · cách code kiểm**. Rút từ: 8 image prompt viết tay #22, motion lượt 2–3 #22, 84 ca kinh nghiệm #22, bài học L1–L19, góp ý #24. Người dùng duyệt sổ trước khi code.
 
-### Đợt R3 — rà soát toàn tuyến trước khi chia sẻ
-- **Cổng "sẵn sàng gen" cho từng shot** (code kiểm, hiện lý do đỏ cạnh nút gen): nền 3D có + đúng hướng, ảnh toàn cùng trục, tỉ lệ, luật ghê, đường đi, model nâng cấp được, ước giá.
-- **Chạy thử toàn tuyến #24 bằng provider giả (0 USD) bằng trình duyệt như người dùng thật**: Kịch bản → Đạo diễn → ảnh → motion → video → âm thanh → nhạc → bản giao; ghi mọi lỗi, sửa, chạy lại tới sạch.
-- Danh sách "Còn tồn" trong TODO (giá nút Gen video theo clip nhóm, test chập chờn Blender, ...) xử lý hết hoặc ghi rõ lý do để lại.
-- Chuẩn bị nhiều người dùng: quyền, chạy đồng thời 2 người, trần tiền theo người, hướng dẫn ngắn 1 trang.
+**Công thức ảnh khung đầu (dự kiến 9 phần):**
+1. Phong cách FF in-game (cố định).
+2. Khung hình: cỡ cảnh + góc + ống kính — **khớp** với tư thế (không "MCU" + "ngồi bệt thấy chân").
+3. **Khóa nền**: "nền đúng ảnh render 3D số N (cùng máy quay); ảnh toàn cùng trục số M"; tỉ lệ vật mốc đo trên map (thành giếng cao bao nhiêu so với người); bỏ câu địa điểm chung khi có render.
+4. Nối tiếp: shot cùng setup → "cùng máy, cùng chỗ đứng như shot trước".
+5. Mỗi nhân vật: mặt/tóc từ hồ sơ chuẩn; trang phục **kể từng món** từ ảnh OUTFIT + trạng thái phụ kiện; vị trí trái/phải, hướng mặt, hướng nhìn.
+6. Khoảnh khắc khung đầu: **một** trạng thái, khớp khung hình.
+7. Luật FF cố định: tiết chế ghê (máu/tóc/xác chỉ gợi, trong tối, ngoài nét), không dưới 18 tuổi.
+8. Ánh sáng theo cảnh, mặt đọc được.
+9. Câu phủ định chuẩn (không phải still điện ảnh…).
 
-### Sau R0–R3 — gen lại #24
-Nháp Seedance 2.5 480p cho các shot đổi đầu vào (ít nhất 2, 3, 4) → người dùng duyệt → nâng 1080p giữ nội dung. Báo giá trước khi gửi.
+**Công thức motion (dự kiến 8 phần):** máy quay (kiểu + khung giây đầu/cuối) · hành động từng nhân vật **điểm đầu → điểm cuối**, nhịp · đường đi vật chuyển động gần người (không chạm / không xuyên) · ràng buộc vật lý (chân không trượt…) · thứ đứng yên · khóa nhận dạng (đường ref-only) · trạng thái cuối · luật theo **loại nhân vật** (người / quái / thú — không áp luật của người cho quái).
+
+Tương tự cho: Đạo diễn (trường bắt buộc mỗi shot), Quay phim (plate_view, trục, camera 3D hợp lý), QC ảnh/clip, nhạc, SFX, dựng, popup.
+
+### F1 — Code theo công thức
+- Prompt **được ghép từ khuôn** (từng phần một hàm, mỗi phần từ trường dữ liệu), thay cho nối câu dần; câu cũ rà một lượt: giữ / chuyển thành phần khuôn / bỏ (có lý do).
+- **Kiểm công thức** trước khi gửi: thiếu phần bắt buộc, mâu thuẫn (khung ↔ tư thế, luật người ↔ quái, câu địa điểm ↔ render), từ ghê không tiết chế → báo đỏ ở thẻ shot, không gửi.
+- Người sửa tay prompt → hệ thống so với khuôn, ghi phần nào người thêm/đổi vào **sổ đề xuất công thức** (học từ sửa tay, như #22) → người dùng duyệt → vào khuôn cho dự án sau.
+
+### F2 — Nền 3D đúng trước khi gen (0 USD)
+- Camera 3D vô lý (trong/sát vật, sát đất mà ngửa cao, chân trời ngoài khung) → tự đặt lại theo trục hoặc báo chọn lại.
+- **Mỗi shot 3D: render ảnh toàn cùng trục** (lùi máy dọc trục, ống rộng) gửi kèm; thiếu render → không gửi ảnh.
+- Kiểm tỉ lệ vật mốc giữa các shot.
+
+### F3 — 2 bậc chất lượng đúng
+- Nháp Seedance = **Seedance 2.5 chế độ nháp** để nâng 1080p giữ nội dung; không nâng được → hỏi rõ trước khi gen mới.
+- Không để bản cao ghi đè clip nháp của shot trong nhóm.
+
+### F4 — Màn chọn model gọn
+Mỗi shot một dòng "model · nháp → cao · giữ nội dung? · ≈ $"; một nút "Đổi" (model + độ phân giải + đường chất lượng gộp chung).
+
+### F5 — Cổng "sẵn sàng gen" + chạy thử toàn tuyến
+- Mỗi shot một ô kiểm (công thức đủ, nền 3D, ảnh toàn, tỉ lệ, model, giá) cạnh nút gen.
+- **Chạy lại #22 và #24 bằng provider giả (0 USD)**: so prompt hệ thống tạo ra với prompt viết tay #22 — mục tiêu hệ thống tự tạo được prompt đạt mức #22 không cần sửa tay. Chạy Dashboard bằng trình duyệt như người dùng thật, sửa tới sạch.
+- Danh sách "Còn tồn" + ~10 thay đổi KLD chưa làm: làm hoặc ghi rõ lý do để lại.
+- Chuẩn bị nhiều người dùng: quyền, chạy đồng thời, trần tiền theo người, hướng dẫn 1 trang.
+
+### Sau F0–F5 — gen lại #24
+Đạo diễn chạy lại theo công thức (≈ 0,5–0,7 USD) hoặc giữ kịch bản và chỉ dựng lại prompt; nháp Seedance 2.5 480p → duyệt → nâng 1080p. Báo giá trước.
 
 ## 4. Cần người dùng chốt
-1. Duyệt thứ tự R0 → R1 → R2 → R3 rồi mới gen lại #24?
-2. R0.4: ảnh toàn cùng trục = **render 3D lùi camera** (0 USD, giống map 100 % hình khối nhưng không có ánh sáng/vật liệu đẹp) hay **ảnh AI vẽ từ render đó** (đẹp hơn, tốn tiền ảnh, ~70–90 % giống)?
-3. R0.1: mức tiết chế — "gợi, không thấy rõ máu" cho mọi dự án, hay để Đạo diễn chọn theo độ tuổi/kênh?
+1. Duyệt hướng F0 → F5 (sổ công thức duyệt trước, rồi mới code)?
+2. F5: lấy **#22 viết tay làm chuẩn so** cho công thức ảnh/motion — đồng ý?
