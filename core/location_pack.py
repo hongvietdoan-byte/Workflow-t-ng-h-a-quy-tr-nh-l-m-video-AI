@@ -387,6 +387,23 @@ def _finish(rec: Dict, dest: str, it: Dict) -> None:
     rec["problem"] = plate_env.plate_problem(rec["plate"], rec.get("raw"))
 
 
+def _recheck_problem(rec: Dict, dest: str) -> Optional[str]:
+    """The flat-plate verdict of a cached plate. A stored "fine" is kept; a stored problem (or none stored) is measured again from the
+    files (0 USD) — 08/10: the old whole-frame check rejected good night plates that are mostly sky (#24 shot 4, 53e8431b…), and that
+    verdict sat in meta.json. A changed verdict is written back."""
+    if "problem" in rec and not rec["problem"]:
+        return None
+    bad = plate_env.plate_problem(rec["plate"], rec.get("raw"))
+    if rec.get("problem") != bad:
+        rec["problem"] = bad
+        try:
+            with open(os.path.join(dest, "meta.json"), "w", encoding="utf-8") as f:
+                json.dump(rec, f, ensure_ascii=False, indent=1)
+        except OSError:
+            pass
+    return bad
+
+
 def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(1152, 2048), blender: Optional[str] = None,
                   render: Callable = plates3d.render, log: Callable[[str], None] = lambda m: None) -> Dict[str, Dict]:
     """Every shot at a 3D place gets its plate (from the cache, else rendered — one Blender run per model + time/weather, cameras
@@ -471,8 +488,8 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             with open(os.path.join(root, it["key"], "meta.json"), "w", encoding="utf-8") as f:
                 json.dump(rec, f, ensure_ascii=False, indent=1)
             log(f"Shot {it['idx']}: nền 3D làm lại phần sương/màu (đọc độ sâu đúng) — 0 USD")
-        bad = rec["problem"] if "problem" in rec else plate_env.plate_problem(rec["plate"], rec.get("raw"))
-        if bad:                                           # never sent as "the place": the shot draws without this background
+        bad = _recheck_problem(rec, os.path.join(root, it["key"]))
+        if bad:                                          # never sent as "the place": the shot draws without this background
             why = f"Shot {it['idx']} ({it['place']}, {plate_env.key(it['env'])}): {bad} — không gửi nền này; xem {rec['plate']}"
             diag.record(conn, "image", "error", why, "plate_flat", project_id=pid, scene_id=it["scene_id"])
             log(why)

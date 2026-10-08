@@ -29,6 +29,39 @@ class PlateDepthTests(unittest.TestCase):
         self.assertIsNotNone(E.plate_problem(flat, RAW))      # the reading before the fix → flagged, never sent as the place
 
 
+ROOF = os.path.join(os.path.dirname(__file__), "fixtures", "plate24_roof")
+ROOF_RAW, ROOF_PLATE, ROOF_DEPTH = (os.path.join(ROOF, n) for n in ("raw.png", "plate.png", "depth.png"))
+ROOF_RANGE = [0.1, 282.77]
+
+
+class MostlySkyPlateTests(unittest.TestCase):
+    """08/10 #24 shot 4 (cache 53e8431b7644132e2352, thu nhỏ 288×512): góc thấp đêm + sương nhìn mái nhà, ~3/4 khung là trời vẽ.
+    Cả khung lệch 2.3 (< FLAT_STD) nhưng phần mái/cửa sổ còn rõ → nền TỐT, không được báo phẳng."""
+
+    def test_good_mostly_sky_plate_is_not_flat(self):
+        self.assertIsNone(E.plate_problem(ROOF_PLATE, ROOF_RAW))
+        out = tempfile.mkdtemp()
+        again = E.finish_plate(ROOF_RAW, os.path.join(out, "p.png"), ENV, depth_path=ROOF_DEPTH, depth_range=ROOF_RANGE)
+        self.assertIsNone(E.plate_problem(again, ROOF_RAW))
+
+    def test_same_shot_with_the_old_depth_reading_is_still_caught(self):
+        out = tempfile.mkdtemp()
+        flat = E.finish_plate(ROOF_RAW, os.path.join(out, "f.png"), ENV, depth_path=ROOF_DEPTH, depth_range=ROOF_RANGE,
+                              depth_exposure=6.0)         # depth read far too far → fog covers the roof
+        self.assertIsNotNone(E.plate_problem(flat, ROOF_RAW))
+
+    def test_stale_flat_verdict_in_cache_is_measured_again(self):
+        import json
+        import shutil
+        from core import location_pack as L
+        dest = tempfile.mkdtemp()
+        rec = {"plate": shutil.copy(ROOF_PLATE, dest), "raw": shutil.copy(ROOF_RAW, dest),
+               "problem": "nền 3D sau khi phủ sương/màu gần như MỘT MÀU (độ lệch 2.3) — không còn thấy bối cảnh"}
+        self.assertIsNone(L._recheck_problem(rec, dest))
+        self.assertIsNone(json.load(open(os.path.join(dest, "meta.json"), encoding="utf-8"))["problem"])
+        self.assertEqual(L._recheck_problem({"plate": rec["plate"], "raw": rec["raw"], "problem": None}, dest), None)
+
+
 class LocationPackFinishTests(unittest.TestCase):
     def test_legacy_exposure_and_finish_record_the_problem(self):
         import shutil

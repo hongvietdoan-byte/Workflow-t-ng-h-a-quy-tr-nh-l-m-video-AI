@@ -181,6 +181,7 @@ def finish_plate(render_path: str, out_path: str, env: Dict, seed: int = 1, dept
 
 FLAT_STD = 3.0             # grey levels (0..255): a plate this even shows no place at all
 KEEP_SHARE = 0.12          # a plate that kept less than this share of the render's contrast lost the place (night grade alone keeps ~0.45)
+GEOMETRY_MIN_SHARE = 0.02  # below this share of rendered (non-sky) pixels the plate is judged on the whole frame
 
 
 def plate_problem(plate_path: str, raw_path: Optional[str] = None) -> Optional[str]:
@@ -193,9 +194,10 @@ def plate_problem(plate_path: str, raw_path: Optional[str] = None) -> Optional[s
             plate = np.asarray(im.convert("L").resize((288, 512)), dtype=np.float32)
     except OSError:
         return None
-    std = float(plate.std())
-    if std < FLAT_STD:
-        return f"nền 3D sau khi phủ sương/màu gần như MỘT MÀU (độ lệch {std:.1f}) — không còn thấy bối cảnh"
+    # 08/10 (#24 shot 4, cache 53e8431b…): a low night shot looking up at a roof is ~3/4 painted sky — even by design — so the
+    # whole-frame spread (2.3) called a good plate flat. Measure only where the render has geometry (alpha of the raw), and compare
+    # with the raw at the same pixels; the whole frame is used only when there is no raw / almost no geometry.
+    region, raw_grey = None, None
     if raw_path and os.path.exists(raw_path):
         try:
             with Image.open(raw_path) as im:
@@ -203,11 +205,16 @@ def plate_problem(plate_path: str, raw_path: Optional[str] = None) -> Optional[s
         except OSError:
             return None
         solid = rgba[..., 3] > 127
-        if solid.mean() > 0.2:
-            grey = rgba[..., :3].mean(axis=2)
-            raw_std, kept = float(grey[solid].std()), float(plate[solid].std())
-            if raw_std > 8 and kept < raw_std * KEEP_SHARE:
-                return f"nền 3D mất gần hết chi tiết so với render gốc (độ lệch {kept:.1f} so với {raw_std:.1f}) — sương/màu che bối cảnh"
+        if solid.mean() >= GEOMETRY_MIN_SHARE:
+            region, raw_grey = solid, rgba[..., :3].mean(axis=2)
+    std = float(plate[region].std()) if region is not None else float(plate.std())
+    if std < FLAT_STD:
+        where = "ở phần có vật thể " if region is not None else ""
+        return f"nền 3D sau khi phủ sương/màu gần như MỘT MÀU {where}(độ lệch {std:.1f}) — không còn thấy bối cảnh"
+    if region is not None:
+        raw_std = float(raw_grey[region].std())
+        if raw_std > 8 and std < raw_std * KEEP_SHARE:
+            return f"nền 3D mất gần hết chi tiết so với render gốc (độ lệch {std:.1f} so với {raw_std:.1f}) — sương/màu che bối cảnh"
     return None
 
 
