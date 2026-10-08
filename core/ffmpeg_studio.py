@@ -427,13 +427,12 @@ DUCK = "sidechaincompress=threshold=0.05:ratio=3:attack=20:release=400"
 # N3 (08/10) — measured on synthetic signals (music_cues.duck_depth: band-passed pink-noise voice, 4 Hz syllables, under a two-tone pad):
 # DUCK dips 3,6 / 5,6 / 7,6 / 8,9 / 10,3 / 11,6 dB for a voice at −26 / −23 / −20 / −18 / −16 / −14 dBFS RMS — under 8 dB for any line
 # quieter than about −19 dBFS (ratio 3 = 0,67 dB more per dB of voice). A gentler ratio from a lower threshold keeps the dip in 8–12 dB
-# over a 12 dB range of voice levels: 8,3 / 9,1 / 10,0 / 10,6 / 11,1 / 11,7 dB. Used while the flag `music_story_arc` is on.
+# over a 12 dB range of voice levels: 8,3 / 9,1 / 10,0 / 10,6 / 11,1 / 11,7 dB. The person made it the default for every project (08/10).
 DUCK_EVEN = "sidechaincompress=threshold=0.0034:ratio=1.4:attack=20:release=400"
 
 
 def duck_filter() -> str:
-    from . import features
-    return DUCK_EVEN if features.on("music_story_arc") else DUCK
+    return DUCK_EVEN
 
 
 def build_extras_mix_cmd(video: str, extras: Sequence[dict], output: str, has_audio: bool,

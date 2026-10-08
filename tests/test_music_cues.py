@@ -185,8 +185,8 @@ class MixTests(unittest.TestCase):
         self.assertLess(music_cues.duck_depth(-22, ffmpeg_studio.DUCK), 8.0)   # why the old setting is replaced under the flag
         with mock.patch.dict(os.environ, ON):
             self.assertEqual(ffmpeg_studio.duck_filter(), ffmpeg_studio.DUCK_EVEN)
-        with mock.patch.dict(os.environ, {"FEATURE_MUSIC_STORY_ARC": "0"}):
-            self.assertEqual(ffmpeg_studio.duck_filter(), ffmpeg_studio.DUCK)
+        with mock.patch.dict(os.environ, {"FEATURE_MUSIC_STORY_ARC": "0"}):      # người dùng 08/10: bộ hạ nhạc mới là mặc định
+            self.assertEqual(ffmpeg_studio.duck_filter(), ffmpeg_studio.DUCK_EVEN)
 
 
 if __name__ == "__main__":
