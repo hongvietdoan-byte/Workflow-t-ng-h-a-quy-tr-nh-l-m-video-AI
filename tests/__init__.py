@@ -4,6 +4,7 @@ import os
 os.environ.setdefault("DASHBOARD_AUTH", "off")
 os.environ.setdefault("FEATURE_SETTINGS_FILE", os.path.join(__import__("tempfile").mkdtemp(prefix="feat_settings_"), "none.json"))
 os.environ.setdefault("FF_SITE_AUTO", "0")                       # tests never reach out to the real website on their own
+os.environ.setdefault("BG_POLL", "0")                        # 08/10: no background poll thread under tests (core/bg_poll.py has its own tests)
 os.environ.setdefault("DASHBOARD_SYNC_BACKGROUND", "0")      # folder auto-sync runs inline so tests are deterministic
 # S6.5 (2026-09-29): these two became verified (on by default); the older end-to-end tests describe the run without the budget gate and
 # with the one-pass Director — each feature's own tests switch it on explicitly (tests/test_project_budget.py, test_director_two_pass.py)

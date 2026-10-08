@@ -1041,6 +1041,14 @@ def _global_bar_v2(p: Pipeline, projects):
     return pid
 
 
+def _blender_bit() -> str:
+    """08/10: which project holds this computer's Blender turn, for how long, who waits and since when ('' = Blender free)."""
+    from core import plates3d
+    if not os.path.exists(plates3d.lock_path()):
+        return ""
+    return plates3d.status_text()
+
+
 def status_line(p: Pipeline, pid: int) -> None:
     """Kế hoạch V4 5.3: spending, the automatic run and the problems of this project in ONE line under the bar."""
     if ui.v2_on():
@@ -1063,6 +1071,9 @@ def status_line(p: Pipeline, pid: int) -> None:
         plates = overview._plates(pid)
         if plates:
             bits.append(plates)
+        busy = _blender_bit()
+        if busy:
+            bits.append(escape(busy))
     except Exception:  # noqa: BLE001 - a status bit only
         pass
     ap = autopilot.status(p, pid)
@@ -1115,6 +1126,10 @@ def _status_line_v2(p: Pipeline, pid: int) -> None:
         plates = overview._plates(pid)
         if plates:
             full.append(plates)
+        busy = _blender_bit()
+        if busy:
+            short.append("🏗 Blender bận")
+            full.append(busy)
     except Exception:  # noqa: BLE001 - a status bit only
         pass
     ap = autopilot.status(p, pid)

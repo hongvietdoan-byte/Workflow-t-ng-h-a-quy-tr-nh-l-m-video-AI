@@ -391,6 +391,8 @@ def plates3d_panel(p: Pipeline, game: str) -> None:
             st.caption("Bật để tìm Blender và liệt kê file 3D.")
             return
         blender = plates3d.find_blender()
+        if plates3d.status_text():                       # 08/10: which project holds this computer's Blender, waiting how long
+            st.caption(plates3d.status_text())
         st.caption(("Blender: `" + blender + "`") if blender else "⚠ Chưa thấy Blender — cài Blender 5.0 hoặc đặt BLENDER_PATH trong dashboard.env.")
         folder = st.text_input("Thư mục file 3D (MODEL3D_DIR)", plates3d.model_dir(), key="p3d_dir")
         found = plates3d.models(folder)

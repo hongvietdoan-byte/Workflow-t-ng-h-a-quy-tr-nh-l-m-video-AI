@@ -389,6 +389,7 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
         cfg = plates3d.plan(first["entry"]["path"], out, sky=benv["sky"], sun_elevation=benv["sun_elevation"],
                             sun_azimuth=benv["sun_azimuth"], resolution=resolution, samples=32, cameras=cams, only_cameras=True,
                             weather=benv["weather"], sky_extra=benv["sky_extra"], real_height_m=first["entry"].get("real_height_m"))
+        cfg["owner"] = f"dự án #{pid}"                    # the Blender lock / Dashboard say which project holds this computer's Blender
         log(f"Render nền 3D: {first['place']} · {plate_env.key(first['env'])} · {len(cams)} góc máy")
         manifest = render(cfg, blender or plates3d.find_blender(), timeout=1800)
         by_name = {p["name"]: p for p in manifest.get("plates", [])}

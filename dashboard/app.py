@@ -102,6 +102,23 @@ def run_startup_sync(fn, what: str, code: str) -> None:
         threading.Thread(target=work, daemon=True).start()
 
 
+def start_background_watch() -> None:
+    """Once per dashboard process: (c) the background poll round of every project with jobs at the provider (core/bg_poll.py), and
+    (b) a stale Blender lock taken over is written to the diag table (core/plates3d.py has no database of its own)."""
+    import re
+    from core import bg_poll, plates3d
+
+    def report(msg: str, code: str, owner: str) -> None:
+        m = re.search(r"#(\d+)", owner or "")
+        conn = connect(DB)
+        try:
+            diag.record(conn, "system", "warn", msg, code, project_id=int(m.group(1)) if m else None)
+        finally:
+            conn.close()
+    plates3d.set_reporter(report)
+    bg_poll.start(DB, DATA)
+
+
 def main():
     logo = os.path.join(os.path.dirname(__file__), "..", "assets", "logo_g_192.png")
     st.set_page_config(layout="wide", page_title="AI Video Pipeline", page_icon=logo if os.path.exists(logo) else None)
@@ -115,7 +132,8 @@ def main():
     pid = global_bar(p)
     if pid is None:
         return
-    C.periodic("purge_trash", lambda: purge_trash(DATA))                # V4 5.3: housekeeping every 60 s, not on every click
+    start_background_watch()                             # 08/10: jobs at the provider are polled + downloaded even with every tab closed
+    C.periodic("purge_trash", lambda: purge_trash(DATA))              # V4 5.3: housekeeping every 60 s, not on every click
     C.periodic("purge_asset_trash", lambda: assets.purge_removed(p.conn), every=3600)   # S14.4: Kho pictures deleted > 30 days ago
     C.periodic(f"sweep_{pid}", lambda: trash.sweep_rejected(p, DATA, pid))
     if "assets_synced" not in st.session_state:         # folders marked "auto": pick up new pictures, once per browser session
