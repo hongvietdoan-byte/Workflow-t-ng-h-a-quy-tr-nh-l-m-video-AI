@@ -60,8 +60,24 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
  "practical_lights": [{"kind": "lamp|fire|screen|neon|torch|headlight|window", "where": "behind_left…", "color": "warm", "why": "…"}],
  "hook_mid": false, "money_shot": false, "speed": 0.5, "freeze_end_s": 0.5,
  "continuous_with_next": false, "hero": false,
- "transition_in": "cut|match|occlusion|flash|dip|whip|zoom_through|j_cut|l_cut"}
+ "transition_in": "cut|match|occlusion|flash|dip|whip|zoom_through|j_cut|l_cut",
+ "difficulty": "easy|complex|unknown", "difficulty_why": "tiếng Việt, 1 câu: căn cứ của nhãn độ khó"}
 ```
+- **`difficulty` + `difficulty_why` (mọi shot — độ khó khi gen video, người dùng chốt 08/10):** nhãn này quyết định đường làm clip:
+  `easy` → gen thẳng bản chất lượng cao (không nháp, đỡ một lượt thử); `complex` hoặc `unknown` → gen nháp chất lượng thấp trước, đạt
+  rồi mới gen bản cao. Nghĩ theo câu hỏi: *model video có làm đúng ngay lần đầu không, và căn cứ ở đâu?*
+  - `easy` khi mọi thứ trong khung đều là việc model làm tốt: **một người**, động tác đơn giản (đứng, nhìn, quay đầu, bước chậm), máy tĩnh
+    hoặc chuyển động nhẹ (đẩy chậm, lia ngắn), không có câu thoại phải khớp môi, không kỹ năng / hiệu ứng, không nhảy. *Vì sao:* những shot
+    này hầu như không phải gen lại — nháp chỉ tốn thêm một lượt.
+  - `complex` khi có thứ model hay làm hỏng: **nhiều người tương tác** (chạm nhau, đối mặt, truyền vật), **nhảy / múa**, **kỹ năng / hiệu
+    ứng** (cần ảnh / video tham chiếu), **khớp môi** cận mặt, **tay** làm việc tỉ mỉ (cầm, bấm, trao vật), **máy di chuyển lớn** (track,
+    orbit, crane, whip), **nền 3D khó** (góc nhìn lạ, nhiều vật mốc phải đúng). *Vì sao — số đo thật:* #8 shot thoại khớp môi trung bình
+    gen lại 1 lần/shot, #22 shot nhảy / kỹ năng 3 lần/shot; nháp rẻ cho phép sửa trước khi trả giá bản cao.
+  - `unknown` khi thiếu căn cứ để chắc (chưa có ảnh tham chiếu kỹ năng, chưa biết model xử lý động tác này ra sao, kịch bản tả mơ hồ).
+    Không đoán `easy` cho yên tâm — `unknown` vẫn đi đường nháp, an toàn hơn.
+  - `difficulty_why`: một câu nêu **căn cứ cụ thể** của shot này ("1 người đứng nhìn, máy tĩnh, không thoại" / "2 người nhảy đối mặt,
+    máy orbit"). Code kiểm chéo bằng các trường của shot (số người, từ khóa động tác, `camera_move`, `lip_sync`, thoại, kỹ năng, nền 3D):
+    shot ghi `easy` mà các trường cho thấy khó sẽ bị hạ thành `unknown`; không bao giờ hạ `complex`.
 - **`performance` (diễn xuất — mọi shot có người, nhất là thoại/phản ứng/móc/kết):** tả **hành vi nhìn thấy được**, không chỉ tên cảm xúc
   ("sad" → "lips pressed into a trembling smile, eyes wet, blinking fast"). `intensity` 1 gần như không thấy · 2 kìm nén · 3 rõ nhưng tự nhiên ·
   4 mạnh · 5 đỉnh của phim (chỉ 1–2 shot). Ghi **độ mạnh của khoảnh khắc** — kể cả ở cận: code tự vẽ cận CU/ECU nhỏ hơn một bậc, đừng tự hạ. Người nghe cũng diễn (`listener`). Không có model video nào tự biết nhân vật

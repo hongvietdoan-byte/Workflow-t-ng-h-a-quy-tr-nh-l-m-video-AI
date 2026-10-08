@@ -27,12 +27,17 @@ khung giây (`target_s`), nhân vật trọng tâm (`focus`), độ mạnh kho�
 5. Cộng `duration_s` các shot: phải nằm trong khung giây của cảnh (ghi ở "Việc lần này"). Thừa → gộp/rút shot im lặng, phản ứng, chèn;
    thiếu → giãn shot giữ cảm xúc — **không bao giờ** bằng cách bỏ câu.
 6. Hy sinh điều gì (góc máy kịch bản ghi, khung giây) thì ghi `tradeoffs` cho cảnh này (`kind`, `chose`, `gave_up`, `why`, `scene`; `kind`: `dropped_line` (bỏ câu) · `length` (lệch khung giây) · `speech_time` (shot thiếu thời gian nói) · `script_angle` (bỏ góc máy kịch bản ghi) · `other`).
+7. Ghi **`difficulty`** (`easy` / `complex` / `unknown`) + **`difficulty_why`** (một câu căn cứ) cho từng shot, ngay khi chia shot: bạn
+   biết rõ nhất shot nào model video làm đúng ngay (1 người, động tác đơn giản, máy tĩnh/nhẹ, không khớp môi, không kỹ năng, không nhảy →
+   `easy`, gen thẳng bản cao) và shot nào cần nháp trước (nhiều người tương tác, nhảy/kỹ năng, khớp môi, tay, máy di chuyển lớn, nền 3D
+   khó → `complex`; thiếu căn cứ → `unknown`). Cách nghĩ chi tiết: mục `difficulty` trong phần "Phân shot".
 
 ## Định dạng đầu ra (một cảnh)
 ```json
 {"idx": 3, "shots": [{"size": "MS", "angle": "eye", "camera_move": "static", "role": "dialogue", "duration_s": 2.5,
                       "action": "", "start_frame": "", "image_prompt": "", "characters": [""],
-                      "dialogue": [{"speaker": "", "text": "", "delivery": {}}], "performance": {}, "why": ""}],
+                      "dialogue": [{"speaker": "", "text": "", "delivery": {}}], "performance": {}, "why": "",
+                      "difficulty": "easy|complex|unknown", "difficulty_why": ""}],
  "tradeoffs": []}
 ```
 Các trường của shot và luật chia shot: xem phần "Phân shot" bên dưới.

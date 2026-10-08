@@ -20,6 +20,11 @@ Dùng knowledge pack đính kèm (biên kịch/quay phim, phương pháp đạo 
   cái gì / ai gây ra cú xoay và người xem **thấy** nó ở đâu (vd "kẻ bắn nấp sau thùng — shot 3·2"); người xem lần đầu không đoán được
   nguyên nhân thì cú xoay thành khó hiểu (#8: Maxim trúng đạn mà không thấy ai bắn). Cố ý giấu nguyên nhân để hé lộ sau thì ghi "giấu tới …".
 - `camera_complexity`: `"complex"` khi cảnh có đánh nhau/đuổi bắt/va chạm/nhiều người chuyển động cùng lúc/máy di chuyển phức tạp (cần luật cảnh phức tạp và nên dựng layout trước); còn lại `"simple"`.
+- `difficulty` (`"easy"` / `"complex"` / `"unknown"`) + `difficulty_why` (một câu căn cứ) — độ khó khi gen video của cảnh: `easy` (một
+  người, động tác đơn giản, máy tĩnh/nhẹ, không khớp môi, không kỹ năng/hiệu ứng, không nhảy) → gen thẳng bản cao; `complex` (nhiều người
+  tương tác, nhảy/kỹ năng, khớp môi, tay làm việc tỉ mỉ, máy di chuyển lớn, nền 3D khó) → nháp rẻ trước rồi mới gen bản cao; `unknown`
+  khi thiếu căn cứ (vẫn đi đường nháp). *Vì sao:* shot dễ hầu như không phải gen lại, còn shot khớp môi / nhảy đo thật gen lại 1–3 lần.
+  Code kiểm chéo bằng các trường của cảnh: ghi `easy` mà cảnh có dấu hiệu khó sẽ bị hạ thành `unknown`.
 - `shot_role`: `"hero"` (khoảnh khắc then chốt/cao trào/cú chốt — dùng model video tốt nhất), `"transition"` (cảnh chuyển tiếp đơn giản), còn lại `"normal"`.
 - `dialogue`: danh sách lời thoại của cảnh theo thứ tự nói, `[{"speaker": "TÊN NHÂN VẬT", "text": "lời thoại"}]`, lấy từ kịch bản, giữ nguyên lời (không tự viết thêm thoại). Cảnh không có thoại thì `[]`. `speaker` là tên trong Character Bible (thuyết minh thì ghi "NARRATOR").
 - `duration_s`: số giây đề xuất cho clip (3–15), đủ để nói hết thoại (~3,5 âm tiết/giây + 0,5s) và đúng nhịp thể loại.
@@ -44,7 +49,7 @@ Dùng knowledge pack đính kèm (biên kịch/quay phim, phương pháp đạo 
   "scenes": [{"idx": 1, "location": "", "location_asset": 12, "sequence": 1, "time": "", "characters": [""], "mood": "",
               "lighting": "", "shot": "", "blocking": "", "image_prompt": "",
               "emotional_intent": "", "knowledge_gap": "", "beat": {"want": "", "obstacle": "", "turn": "", "value": "", "plant": "", "payoff": "", "cause": ""},
-              "camera_complexity": "simple", "shot_role": "normal",
+              "camera_complexity": "simple", "shot_role": "normal", "difficulty": "easy", "difficulty_why": "",
               "dialogue": [{"speaker": "", "text": ""}], "duration_s": 5}],
   "ip_risk_notes": [""]
 }
