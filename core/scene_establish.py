@@ -66,22 +66,49 @@ def light_sentence(data: Dict) -> str:
     return LIGHT.get(str(data.get("time") or "day").lower(), LIGHT["day"])
 
 
-def _dir(data_dir: str, pid: int) -> str:
-    return os.path.join(data_dir, str(pid), "establish")
+def _dir(data_dir: str, pid: int, trainee: bool = False) -> str:
+    """🎓 học việc pictures live apart (establish/trainee/): picture(), reference() and the light sentence never see them."""
+    base = os.path.join(data_dir, str(pid), "establish")
+    return os.path.join(base, "trainee") if trainee else base
 
 
-def _load(data_dir: str, pid: int) -> Dict:
+def _load(data_dir: str, pid: int, trainee: bool = False) -> Dict:
     try:
-        with open(os.path.join(_dir(data_dir, pid), "index.json"), encoding="utf-8") as f:
+        with open(os.path.join(_dir(data_dir, pid, trainee), "index.json"), encoding="utf-8") as f:
             return json.load(f)
     except (OSError, ValueError):
         return {}
 
 
-def _save(data_dir: str, pid: int, idx: Dict) -> None:
-    os.makedirs(_dir(data_dir, pid), exist_ok=True)
-    with open(os.path.join(_dir(data_dir, pid), "index.json"), "w", encoding="utf-8") as f:
+def _save(data_dir: str, pid: int, idx: Dict, trainee: bool = False) -> None:
+    os.makedirs(_dir(data_dir, pid, trainee), exist_ok=True)
+    with open(os.path.join(_dir(data_dir, pid, trainee), "index.json"), "w", encoding="utf-8") as f:
         json.dump(idx, f, ensure_ascii=False, indent=1)
+
+
+TRAINEE_USD = 0.05                                   # ≈ one establishing picture (kế hoạch học việc mục 2)
+_INDOOR = re.compile(r"\b(indoors?|interior|inside)\b|trong nhà|^\s*INT\.", re.I)
+
+
+def indoor(conn, pid: int, rows: List[Dict]) -> Optional[str]:
+    """Why the scene is indoor (a wide establishing view of the place does not apply), else None: the 3D spot says so, or the
+    scene's place / `indoor` field does."""
+    d = rows[0]["data"] if rows else {}
+    if d.get("indoor") is True:
+        return "indoor"
+    if _INDOOR.search(str(d.get("location") or "")):
+        return str(d.get("location"))
+    try:
+        from .runner import indoor_spot
+        return indoor_spot(conn, pid, d)
+    except Exception:                                  # noqa: BLE001 — no 3D model → not known as indoor
+        return None
+
+
+def _trainee_record(conn, pid: int, story_scene, rows: List[Dict], decision: str, would_do: Dict, cost: float = 0.0) -> None:
+    from . import trainee
+    trainee.record(conn, FEATURE, pid, f"scene:{story_scene}", decision, would_do=would_do, cost_usd=cost,
+                   scene_id=rows[0]["id"] if rows else None, story_scene=story_scene if isinstance(story_scene, int) else None)
 
 
 def scene_rows(conn, pid: int, story_scene) -> List[Dict]:
@@ -150,21 +177,33 @@ def reference(data_dir: str, pid: int, story_scene) -> Optional[Dict]:
 
 
 def step(conn, pid: int, story_scene, provider, data_dir: str, model: Optional[str] = None,
-         say: Callable[[str, str, str], None] = lambda sev, code, msg: None) -> str:
+         say: Callable[[str, str, str], None] = lambda sev, code, msg: None, trainee: bool = False) -> str:
     """Move the scene's establishing picture one step: "ready" / "waiting" (sent, not back yet — the shots wait) / "skipped" (off, no
-    place, provider without submit, refused, over the limit: the shots draw without it, said once)."""
-    if not enabled() or story_scene is None:
+    place, provider without submit, refused, over the limit: the shots draw without it, said once).
+    `trainee` (🎓 học việc, B6 08/10): the picture goes to establish/trainee/ (ledger stage `trainee_establishing`), nothing is said,
+    the caller never waits on it; trainee_log gets "establish" once it is back, "skip" (establish_skip_indoor) for an indoor scene."""
+    if not (shadow() if trainee else enabled()) or story_scene is None:
         return "skipped"
     rows = scene_rows(conn, pid, story_scene)
     if not rows:
         return "skipped"
+    if trainee:
+        say = lambda sev, code, msg: None                  # noqa: E731 — nothing shown before the person decides
+        why = indoor(conn, pid, rows)
+        if why:
+            idx = _load(data_dir, pid, True)
+            if (idx.get(str(story_scene)) or {}).get("state") != "skipped_indoor":
+                idx[str(story_scene)] = {"state": "skipped_indoor", "why": why}
+                _save(data_dir, pid, idx, True)
+                _trainee_record(conn, pid, story_scene, rows, "skip", {"reason": "establish_skip_indoor", "where": why})
+            return "skipped"
     from . import place_refs
     if place_refs.enabled() and any(place_refs.missing(conn, data_dir, pid, r["id"], r["data"]) for r in rows):
         return "waiting"                                   # the 3D renders of the scene come first (ImageRunner._wait starts them)
     pictures = scene_pictures(conn, pid, rows, data_dir)
     with_render = bool(pictures) and place_refs.enabled() and pictures[0] == place_refs.scene_render(data_dir, pid, rows)
     key = key_of(rows, pictures)
-    idx = _load(data_dir, pid)
+    idx = _load(data_dir, pid, trainee)
     rec = idx.get(str(story_scene)) or {}
     if rec.get("key") == key and rec.get("state") == "ready" and rec.get("path") and os.path.exists(rec["path"]):
         return "ready"
@@ -175,9 +214,12 @@ def step(conn, pid: int, story_scene, provider, data_dir: str, model: Optional[s
         try:
             st = provider.status(rec["message_id"])
             if st.state == "succeeded":
-                dest = os.path.join(_dir(data_dir, pid), f"scene_{story_scene}.png")
-                os.makedirs(_dir(data_dir, pid), exist_ok=True)
+                dest = os.path.join(_dir(data_dir, pid, trainee), f"scene_{story_scene}.png")
+                os.makedirs(_dir(data_dir, pid, trainee), exist_ok=True)
                 rec.update(path=provider.download(rec["message_id"], dest), state="ready")
+                if trainee:
+                    _trainee_record(conn, pid, story_scene, rows, "establish",
+                                    {"path": rec["path"], "refs": rec.get("refs") or [], "prompt": rec.get("prompt")}, TRAINEE_USD)
             elif st.state == "failed":
                 rec.update(state="failed", error=st.error_message)
                 say("warn", "establishing", f"ảnh toàn cảnh cảnh {story_scene} hỏng ({st.error_message}) — các shot vẽ không có nó")
@@ -186,12 +228,12 @@ def step(conn, pid: int, story_scene, provider, data_dir: str, model: Optional[s
                 rec.update(state="failed", error=str(e))
                 say("warn", "establishing", f"ảnh toàn cảnh cảnh {story_scene}: {e} — các shot vẽ không có nó")
         idx[str(story_scene)] = rec
-        _save(data_dir, pid, idx)
+        _save(data_dir, pid, idx, trainee)
         return {"ready": "ready", "failed": "skipped"}.get(rec.get("state"), "waiting")
     from . import spend_gate
     # S14.1: the gate adds the project's locked budget (it was skipped), a paused project and 'out_of_credit' → halt
     with spend_gate.spend(conn, "image", getattr(provider, "name", "?"), project_id=pid, model=model,
-                          ledger_stage="establishing") as slot:
+                          ledger_stage="trainee_establishing" if trainee else "establishing") as slot:
         if slot.over:
             say("warn", "budget", f"ảnh toàn cảnh cảnh {story_scene} không gửi: {slot.over}")
             return "skipped"
@@ -203,14 +245,14 @@ def step(conn, pid: int, story_scene, provider, data_dir: str, model: Optional[s
                 mid = slot.send(provider.submit, prompt, pictures or None, size=SIZE)
         except ProviderError as e:
             idx[str(story_scene)] = {"key": key, "state": "failed", "error": str(e)}
-            _save(data_dir, pid, idx)
+            _save(data_dir, pid, idx, trainee)
             say("warn", "establishing", f"ảnh toàn cảnh cảnh {story_scene} bị từ chối: {e} — các shot vẽ không có nó")
             return "skipped"
         info = getattr(provider, "usage_info", None)             # the same model / tier the picture runner records
         used, tier = (info(model) if model else info()) if info is not None else (model or "unknown", "image")
         slot.record(model=used, tier=tier)
     idx[str(story_scene)] = {"key": key, "state": "running", "message_id": mid, "prompt": prompt, "refs": pictures}
-    _save(data_dir, pid, idx)
+    _save(data_dir, pid, idx, trainee)
     say("info", "establishing", f"gửi ảnh toàn cảnh cảnh {story_scene} ({len(pictures)} ảnh bối cảnh tham chiếu)")
     return "waiting"
 

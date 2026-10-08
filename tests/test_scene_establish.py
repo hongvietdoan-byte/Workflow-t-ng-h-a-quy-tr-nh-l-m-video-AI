@@ -69,6 +69,67 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class EstablishTraineeTests(EstablishTests):
+    """B6 học việc 08/10: scene_establishing 🎓 — drawn apart (establish/trainee/), the shot never waits, no light sentence, no ref."""
+
+    def setUp(self):
+        super().setUp()
+        from tests._flags import flags_trainee
+        flags_trainee(self, "scene_establishing")
+
+    def _drive(self, r, job, n=4):
+        for _ in range(n):
+            r._wait(job)
+
+    def test_the_shots_wait_for_the_wide_picture_then_send_it_as_the_place(self):
+        r = self.runner()
+        job = self.p.job(self.p.create_job(self.first["id"], "image_gen"))
+        scene = self.first["data"]["story_scene"]
+        self.assertFalse(r._wait(job))                                      # never holds the shot
+        self._drive(r, job)
+        self.assertIsNone(scene_establish.picture(self.data, self.pid, scene))   # the real index never sees it
+        self.assertIsNone(scene_establish.reference(self.data, self.pid, scene))
+        self.assertEqual(scene_establish.light_sentence({"time": "night"}), "")
+        args = r._submit_args(job)
+        self.assertFalse(any("establish" in str(x) for x in (args[1] if len(args) > 1 else []) or []))
+        self.assertNotIn("readable", args[0])
+        own = scene_establish._load(self.data, self.pid, True).get(str(scene)) or {}
+        self.assertEqual(own.get("state"), "ready")
+        self.assertIn(os.path.join("establish", "trainee"), own["path"])
+        n = self.p.conn.execute("SELECT COUNT(*) FROM usage_events WHERE stage='trainee_establishing'").fetchone()[0]
+        self.assertEqual(n, 1)
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM usage_events WHERE stage='establishing'").fetchone()[0], 0)
+        log = self.p.conn.execute("SELECT feature, decision, subject FROM trainee_log").fetchall()
+        self.assertEqual([(x["feature"], x["decision"], x["subject"]) for x in log], [("scene_establishing", "establish", f"scene:{scene}")])
+
+    def test_one_picture_per_script_scene(self):
+        r = self.runner()
+        scenes = {row["data"]["story_scene"] for row in self.rows}
+        for row in self.rows:
+            job = self.p.job(self.p.create_job(row["id"], "image_gen"))
+            self._drive(r, job)
+        n = self.p.conn.execute("SELECT COUNT(*) FROM usage_events WHERE stage='trainee_establishing'").fetchone()[0]
+        self.assertEqual(n, len(scenes))
+
+    def test_an_indoor_scene_is_recorded_as_skip(self):
+        d = dict(self.first["data"], location="INT. bedroom")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), self.first["id"]))
+        self.p.conn.commit()
+        scene = d["story_scene"]
+        for row in self.rows:                                               # every shot of that scene is indoor
+            if row["data"].get("story_scene") == scene and row["id"] != self.first["id"]:
+                self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?",
+                                    (json.dumps(dict(row["data"], location="INT. bedroom"), ensure_ascii=False), row["id"]))
+        self.p.conn.commit()
+        r = self.runner()
+        job = self.p.job(self.p.create_job(self.first["id"], "image_gen"))
+        self._drive(r, job, 3)
+        log = self.p.conn.execute("SELECT decision, would_do FROM trainee_log").fetchall()
+        self.assertEqual([x["decision"] for x in log], ["skip"])
+        self.assertEqual(json.loads(log[0]["would_do"])["reason"], "establish_skip_indoor")
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM usage_events WHERE stage='trainee_establishing'").fetchone()[0], 0)
+
+
 class PlacePicturesPathTests(unittest.TestCase):
     """06/10: place_pictures checked the stored RELATIVE path ("data/assets/…") against the working folder, so a Dashboard / tool
     started elsewhere (a worktree, another folder) found no place picture — the wide establishing shot then went out with no place

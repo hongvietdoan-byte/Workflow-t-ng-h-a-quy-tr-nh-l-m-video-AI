@@ -495,9 +495,9 @@ def _picture_qc_calls(conn, project_id: int, pictures: int) -> float:
     from . import qc_agent, qc_scene, qc_team
     if not pictures:
         return 0
-    if not qc_scene.enabled():
+    if not qc_scene.active():                           # 🎓 học việc: the old per-picture QC does not run either
         return pictures
-    if qc_agent.enabled() or qc_team.enabled() or not qc_scene.claude_on():
+    if qc_agent.enabled() or qc_team.active() or not qc_scene.claude_on():
         return 0
     return _scenes_to_draw(conn, project_id) * (1 + REDRAW_SHARE)
 
@@ -576,8 +576,10 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     if img["items"] and qc_agent.enabled():            # the agent: several turns per scene (not measured yet — a fixed figure)
         llm_usd += AGENT_SCENE_USD * _scenes_to_draw(conn, project_id)
     from . import qc_scene, qc_team
-    if img["items"] and qc_team.enabled() and qc_scene.enabled():      # Tổ QC: one structured call per frame (+ redraws)
+    if img["items"] and qc_team.active() and qc_scene.active():        # Tổ QC (or 🎓 học việc, same looks): one call per frame (+ redraws)
         llm_usd += qc_team.FRAME_USD * img["items"] * (1 + REDRAW_SHARE)
+    trainee_usd = (qc_team.FRAME_USD * img["items"] * (1 + REDRAW_SHARE) * LLM_MARGIN    # 🎓 the part of it that is học việc
+                   if img["items"] and qc_team.shadow() and qc_scene.active() else 0.0)
     llm_usd *= LLM_MARGIN
     retry = int(proj["max_retry_count"] or 0)
     from .pipeline import AUTO_REGEN_LIMIT             # automatic regenerations: picture 3, clip 2 (S14.16), lowered by max_retry
@@ -590,7 +592,7 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     b = budget.status(conn) if budget.get(conn).get("enabled") else None
     llm_left = b["llm_left"] if b and b["llm_usd"] > 0 else None
     return {"images": img_usd, "videos": round(vid_usd, 2), "llm": round(llm_usd, 2), "total": round(base, 2), "max": round(worst, 2),
-            "rewrite": round(rewrite, 3),
+            "rewrite": round(rewrite, 3), "trainee": round(trainee_usd, 2),
             "llm_left": llm_left, "unknown": sorted(set(unknown)), "counts": {"images": img["items"], "end_frames": img.get("end_frames", 0),
                                                         "clips": len(todo), "seconds": sum(r["billed_seconds"] for r in todo)}}
 
@@ -601,6 +603,8 @@ def format_run_estimate(est: Dict) -> str:
             + (f" (gồm {c['end_frames']} khung cuối)" if c.get("end_frames") else "")
             + f" ≈ {(est['images'] or 0):.2f} · {c['clips']} clip / {c['seconds']:.0f} giây ≈ {est['videos']:.2f} · Claude ≈ {est['llm']:.2f}"
             + " (đã cộng 30 % dự phòng)")
+    if est.get("trainee"):
+        text += f" · trong đó Tổ QC ≈ {est['trainee']:.2f} USD (học việc)"
     if est.get("llm_left") is not None:
         text += f" · trần Claude còn ≈ {est['llm_left']:.2f}" + (" ⚠ KHÔNG ĐỦ — sẽ vượt mức dự tính (chỉ cảnh báo, vẫn chạy)"
                                                                  if est["llm"] > est["llm_left"] else "")

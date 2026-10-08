@@ -455,7 +455,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     ctx.image_runner.poll_once(pid)
     _retry_or_hold(p, pid, "image_gen")
     from . import qc_scene
-    if qc_scene.enabled():                                  # QC per script scene: one Claude call once all its frames exist
+    if qc_scene.active():                                   # QC per script scene: one Claude call once all its frames exist
         r = qc_scene.run_ready_scenes(p, pid, ctx.llm, ctx.data_dir)
         for s, applied in r["reviewed"]:
             _log(p, pid, f"QC cảnh {s}: " + ", ".join(f"{k} {v}" for k, v in applied.items()))
@@ -714,6 +714,9 @@ def _qc_trusted(p: Pipeline, pid: int, ctx: Optional[Context]) -> bool:
     """W8: the storyboard checkpoint is skipped when the QC agent has earned it on this look (effectiveness.look_trust) and the
     storyboard raises no flag — only with the feature `storyboard_auto_trust` on. The skip is written in the log with its numbers."""
     from . import effectiveness, features, image_models, storyboard_gate
+    if features.shadow("storyboard_auto_trust"):
+        _trainee_gate(p, pid, ctx)
+        return False
     if not features.on("storyboard_auto_trust"):
         return False
     proj = p.project(pid)
@@ -724,6 +727,31 @@ def _qc_trusted(p: Pipeline, pid: int, ctx: Optional[Context]) -> bool:
     _log(p, pid, f"Bỏ qua cổng storyboard: QC khớp người {trust['agreement']:.0%} trên {trust['pairs']} ảnh cùng look, "
                  "storyboard không có cờ (W8)")
     return True
+
+
+def _trainee_gate(p: Pipeline, pid: int, ctx: Optional[Context]) -> None:
+    """🎓 storyboard_auto_trust học việc (B3 08/10): what the role WOULD do at this storyboard (skip_gate / hold_gate), once per
+    storyboard fingerprint, in trainee_log only — the gate stays for the person (no set_gates, nothing in the log they read)."""
+    import hashlib
+    from . import effectiveness, image_models, storyboard_gate, trainee
+    try:
+        fp = storyboard_gate.fingerprint(p, pid)
+        subject = "gate:storyboard:" + hashlib.sha1(json.dumps(fp, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
+        if p.conn.execute("SELECT 1 FROM trainee_log WHERE feature='storyboard_auto_trust' AND project_id=? AND subject=?",
+                          (pid, subject)).fetchone():
+            return
+        proj = p.project(pid)
+        trust = effectiveness.look_trust(p.conn, proj["look"] if "look" in proj.keys() else None, image_models.of_project(proj))
+        flags = storyboard_gate.flags(p, pid, ctx.data_dir if ctx else None)
+        raised = sorted(k for k, v in flags.items() if v)
+        decision = "skip_gate" if trust["trusted"] and not raised else "hold_gate"
+        trainee.record(p.conn, "storyboard_auto_trust", pid, subject, decision,
+                       would_do={"set_gates": decision == "skip_gate"},
+                       detail={"fingerprint": fp, "trusted": bool(trust["trusted"]), "agreement": trust.get("agreement"),
+                               "pairs": trust.get("pairs"), "flags": raised})
+    except Exception as e:                                 # noqa: BLE001 — học việc never breaks the real run
+        import sys
+        print(f"storyboard_auto_trust học việc lỗi dự án {pid}: {e}", file=sys.stderr)
 
 
 def _motion_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
@@ -1350,7 +1378,7 @@ def _setcheck_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     (06/10): the automatic redraw (flag setcheck_autofix, GĐ6 R3/I4: the set's majority made the wrong person right, then paid to
     redraw) was removed; a person redraws from the storyboard (claude_tasks.redo_from_set_check)."""
     from . import qc_scene
-    if qc_scene.enabled():
+    if qc_scene.active():                                   # on or 🎓 học việc: the old set look must not come back
         return None                                         # the per-scene QC already looked at every scene's frames together
     from . import claude_tasks
     marker = _marker(ctx, pid, "qc_set", ".autopilot_done")

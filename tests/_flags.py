@@ -23,6 +23,15 @@ def flags_on(tc, *names, value=True):
     tc.addCleanup(_restore, *_set(names, value))
 
 
+def flags_trainee(tc, *names):
+    """Put `names` in 🎓 học việc (the 🧪 "modes" choice) for the rest of the test `tc`; restored by addCleanup."""
+    s = features.settings()
+    prev = {n: ("trainee" if n in (s.get("modes") or {}) else
+                (None if s["flags"].get(n) is None else ("on" if s["flags"][n] else "off"))) for n in names}
+    features.save_settings(modes={n: "trainee" for n in names})
+    tc.addCleanup(features.save_settings, modes=prev)
+
+
 def flags_off(tc, *names):
     flags_on(tc, *names, value=False)
 

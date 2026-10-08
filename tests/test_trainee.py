@@ -152,5 +152,36 @@ class TraineeTests(unittest.TestCase):
         self.assertTrue(trainee.agreement(self.conn, "storyboard_auto_trust", look_trusted=True)["ready"])
 
 
+class StoryboardTrustTraineeTests(unittest.TestCase):
+    """B3 học việc 08/10: storyboard_auto_trust 🎓 — records skip_gate / hold_gate once per storyboard, the gate stays for the person."""
+
+    def setUp(self):
+        from tests._flags import flags_trainee
+        flags_trainee(self, "storyboard_auto_trust")
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("t", operating_mode="human_qc", threshold=0.5)
+
+    def _run(self, trusted, flags):
+        from core import autopilot
+        with mock.patch("core.effectiveness.look_trust", return_value={"trusted": trusted, "agreement": 0.9, "pairs": 30}), \
+                mock.patch("core.storyboard_gate.flags", return_value=flags), \
+                mock.patch("core.storyboard_gate.fingerprint", return_value=[11, 12]), \
+                mock.patch("core.autopilot.set_gates") as gates:
+            out = autopilot._qc_trusted(self.p, self.pid, None)
+        self.assertFalse(out)                                       # never skips the gate
+        gates.assert_not_called()
+
+    def test_skip_then_once_per_fingerprint(self):
+        self._run(True, {"outliers": []})
+        self._run(True, {"outliers": []})
+        rows = self.p.conn.execute("SELECT decision, subject FROM trainee_log WHERE feature='storyboard_auto_trust'").fetchall()
+        self.assertEqual([r["decision"] for r in rows], ["skip_gate"])
+        self.assertTrue(rows[0]["subject"].startswith("gate:storyboard:"))
+
+    def test_hold_when_a_flag_is_raised(self):
+        self._run(True, {"outliers": [3]})
+        self.assertEqual(self.p.conn.execute("SELECT decision FROM trainee_log").fetchone()[0], "hold_gate")
+
+
 if __name__ == "__main__":
     unittest.main()

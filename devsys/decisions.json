@@ -602,6 +602,14 @@
    "who": "code",
    "what": "Luật trừ điểm tự động (số đo code)",
    "where": "devsys/metrics.py:RULES"
+  },
+  {
+   "id": "d79",
+   "step": "step2",
+   "who": "claude",
+   "what": "Tổ QC học việc: cùng lượt chấm từng khung, chỉ ghi trainee_log (không giữ, không ghi chú)",
+   "where": "core/qc_team.py:review_scene",
+   "stage": "trainee_qc_team"
   }
  ]
 }
