@@ -586,6 +586,10 @@ class VideoRunner(_Runner):
         row = lineage.scan(self.p.conn, job["project_id"]).get(job["scene_id"]) or {}
         if row.get("motion_stale"):
             return f"motion prompt đang cũ ({row['motion_stale']}) — viết lại / duyệt lại ở Bước 3"
+        from . import prompt_formula             # F1 (09/10): a motion prompt that breaks the formula is not paid for
+        red = prompt_formula.red_issues(self.p.conn, job["scene_id"], "motion")
+        if red:
+            return "prompt sai công thức — sửa ở Bước 3: " + " · ".join(red)
         if self._refs(job):
             return self._ref_lint(job)
         return None
@@ -1764,7 +1768,12 @@ class ImageRunner(_Runner):
         row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
         if row is None:
             return None
-        return assets.missing_layout(self.p.conn, job["project_id"], json.loads(row["data"] or "{}"))
+        layout = assets.missing_layout(self.p.conn, job["project_id"], json.loads(row["data"] or "{}"))
+        if layout:
+            return layout
+        from . import prompt_formula             # F1 (09/10): a picture prompt that breaks the formula is not paid for
+        red = prompt_formula.red_issues(self.p.conn, job["scene_id"], "image")
+        return ("prompt ảnh sai công thức — sửa ở Bước 1/2: " + " · ".join(red)) if red else None
 
     def _over_budget(self, job, args, kwargs) -> Optional[str]:
         model = (kwargs or {}).get("model")

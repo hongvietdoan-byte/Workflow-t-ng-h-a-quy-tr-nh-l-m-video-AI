@@ -631,6 +631,7 @@ def red_issues(conn, scene_id: int, kind: Optional[str] = None) -> List[str]:
     fc = data.get("formula_check") or {}
     texts = {"image": data.get("image_prompt"), "motion": _motion_of(conn, scene_id)}
     chars = None
+    ff = None
     out = []
     for k in ("image", "motion") if kind is None else (kind,):
         text = texts[k]
@@ -643,6 +644,11 @@ def red_issues(conn, scene_id: int, kind: Optional[str] = None) -> List[str]:
                 chars = _chars(conn, row["project_id"])
             issues = (check_image(text, data, chars, _style_by_code(conn, row["project_id"])) if k == "image"
                       else check_motion(text, data, chars))
+        if ff is None:
+            from . import looks
+            ff = looks.is_ff(conn.execute("SELECT * FROM projects WHERE id=?", (row["project_id"],)).fetchone())
+        if ff:      # F1-B: a Free Fire shot gets the restraint sentence from the code when it is sent (looks.gore_restraint) — not a stop
+            issues = [i for i in issues if not str(i.get("msg", "")).startswith("Chi tiết ghê")]
         word = "Prompt ảnh" if k == "image" else "Prompt motion"
         out += [f"{word} · {PART_LABELS.get(i['part'], i['part'])}: {i['msg']}" for i in issues if i["level"] == "red"]
     return out

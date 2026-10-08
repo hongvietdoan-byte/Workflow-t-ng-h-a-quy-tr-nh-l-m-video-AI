@@ -222,7 +222,11 @@ class Integration(unittest.TestCase):
             self.assertTrue(fc["red"])
             self.assertIn("at", fc)
             self.assertTrue(any(d["severity"] == "error" for d in self.diag()), self.diag())
+            # a Free Fire project: the code adds the restraint sentence when sending (looks.gore_restraint) → not a stop
+            self.assertEqual(F.red_issues(self.p.conn, sid), [])
+            self.p.conn.execute("UPDATE projects SET game=? WHERE id=?", ("OTHER", self.pid))
             self.assertTrue(F.red_issues(self.p.conn, sid))
+            self.p.conn.execute("UPDATE projects SET game=? WHERE id=?", ("FF", self.pid))
             # the Director writes again, only adding sentences that contradict → growth noted
             llm_io.store_scene_analysis(self.p, self.pid, plan(P24_SHOT2_IMAGE + ". Static camera. Natural human eyes."))
             _, data = self.row()
@@ -276,3 +280,30 @@ class Integration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RunnerGate(unittest.TestCase):
+    """F1 (09/10): the picture runner does not pay for a prompt that breaks the formula (job → failed with the reason)."""
+    def setUp(self):
+        import tempfile
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("t")
+        self.p.set_project_field(self.pid, "shot_mode", "per_shot")
+        self.p.create_scene(self.pid, 1, "CẢNH 1")
+        self.dir = tempfile.mkdtemp()
+
+    def blocked(self, image_prompt):
+        from core.runner import ImageRunner
+        with mock.patch.object(F, "enabled", return_value=True):
+            llm_io.store_scene_analysis(self.p, self.pid, plan(image_prompt))
+            sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? LIMIT 1", (self.pid,)).fetchone()["id"]
+            jid = self.p._insert_job(self.pid, sid, "image_gen")
+            job = self.p.conn.execute("SELECT * FROM jobs WHERE id=?", (jid,)).fetchone()
+            return ImageRunner(self.p, mock.Mock(), self.dir)._blocked(job)
+
+    def test_shadow_past_her_face_is_held(self):
+        reason = self.blocked(P24_SHOT3_IMAGE)
+        self.assertIn("sai công thức", reason or "")
+
+    def test_clean_prompt_goes(self):
+        self.assertIsNone(self.blocked(P22_CLEAN_IMAGE))
