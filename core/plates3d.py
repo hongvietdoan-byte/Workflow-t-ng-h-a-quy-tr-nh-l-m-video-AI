@@ -189,12 +189,136 @@ def queue_length() -> int:
     return len(glob.glob(lock_path() + ".wait.*"))
 
 
+def pid_alive(pid: int) -> bool:
+    """Is process `pid` still running on this computer? (Windows: OpenProcess + exit code; elsewhere: signal 0.)"""
+    if not pid or pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.OpenProcess.restype = ctypes.c_void_p
+        k32.GetExitCodeProcess.argtypes = (ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong))
+        k32.CloseHandle.argtypes = (ctypes.c_void_p,)
+        handle = k32.OpenProcess(0x1000, False, int(pid))        # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return ctypes.get_last_error() == 5                  # 5 = access denied: it exists (another user's process)
+        try:
+            code = ctypes.c_ulong()
+            if not k32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return True
+            return code.value == 259                            # STILL_ACTIVE
+        finally:
+            k32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _read_lock(path: str) -> Optional[Dict]:
+    """The lock's content: {pid, owner, since_ts}. Reads the older 'PID date' text too (owner unknown, time = file time)."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            raw = fh.read().strip()
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return None
+    try:
+        d = json.loads(raw)
+        if not isinstance(d, dict):
+            raise ValueError
+    except ValueError:
+        first = raw.split()[0] if raw.split() else ""
+        d = {"pid": int(first) if first.isdigit() else 0, "owner": ""}
+    try:
+        pid = int(d.get("pid") or 0)
+    except (TypeError, ValueError):
+        pid = 0
+    return {"pid": pid, "owner": str(d.get("owner") or ""), "since_ts": float(d.get("since_ts") or mtime)}
+
+
+def holder() -> Optional[Dict]:
+    """Who holds this computer's Blender turn right now: {pid, owner, since_ts, held_sec, alive}; None = free."""
+    h = _read_lock(lock_path())
+    if h is None:
+        return None
+    h["held_sec"] = max(0.0, time.time() - h["since_ts"])
+    h["alive"] = pid_alive(h["pid"])
+    return h
+
+
+def waiters() -> List[Dict]:
+    """Renders waiting for their turn: [{owner, waited_sec}] (the ticket file says who; its time says since when)."""
+    out = []
+    for t in glob.glob(lock_path() + ".wait.*"):
+        try:
+            with open(t, encoding="utf-8", errors="replace") as fh:
+                owner = fh.read().strip()
+            out.append({"owner": owner, "waited_sec": max(0.0, time.time() - os.path.getmtime(t))})
+        except OSError:
+            continue
+    return sorted(out, key=lambda w: -w["waited_sec"])
+
+
+def _minutes(sec: float) -> str:
+    return f"{int(sec // 60)} phút" if sec >= 60 else f"{int(sec)} giây"
+
+
+def status_text() -> str:
+    """One line for the dashboard: who holds Blender, for how long, who waits and since when; '' when Blender is free."""
+    h = holder()
+    if h is None:
+        return ""
+    who = h["owner"] or f"tiến trình {h['pid'] or '?'}"
+    text = f"🏗 Blender đang bận: {who} giữ khóa {_minutes(h['held_sec'])}"
+    if not h["alive"]:
+        text += " (tiến trình đã tắt — lượt render kế tiếp sẽ tự gỡ khóa)"
+    w = waiters()
+    if w:
+        text += " · chờ: " + ", ".join(f"{x['owner'] or '?'} {_minutes(x['waited_sec'])}" for x in w)
+    return text
+
+
+def _log_lock_event(code: str, msg: str) -> None:
+    """Keep the last lock takeovers next to the lock (any data folder / tool sees them), newest last, at most 50 lines."""
+    log = lock_path() + ".log"
+    try:
+        lines = []
+        if os.path.exists(log):
+            with open(log, encoding="utf-8") as fh:
+                lines = fh.read().splitlines()[-49:]
+        lines.append(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {code} {msg}")
+        with open(log, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+    except OSError:
+        pass
+
+
+_REPORTER: Optional[Callable[[str, str, str], None]] = None
+
+
+def set_reporter(fn: Optional[Callable[[str, str, str], None]]) -> None:
+    """The dashboard hands a function(msg, code, owner) that writes the diag table (plates3d itself has no database)."""
+    global _REPORTER
+    _REPORTER = fn
+
+
 @contextlib.contextmanager
-def blender_turn(wait: float = LOCK_WAIT_SEC, sleep: Callable[[float], None] = time.sleep):
-    """Wait for this computer's Blender turn (file lock, so it also holds across dashboard windows and tools), then hold it."""
+def blender_turn(wait: float = LOCK_WAIT_SEC, sleep: Callable[[float], None] = time.sleep, owner: str = "",
+                 report: Optional[Callable[[str, str, str], None]] = None):
+    """Wait for this computer's Blender turn (file lock, so it also holds across dashboard windows and tools), then hold it.
+    The lock names its process and project (`owner`); a lock whose process is gone (a render stopped by closing the dashboard /
+    a crash) or older than LOCK_STALE_SEC is removed at once and reported (`report`, else the dashboard's reporter, + lock .log)."""
     path = lock_path()
+    report = report or _REPORTER
     ticket = f"{path}.wait.{os.getpid()}_{uuid.uuid4().hex[:6]}"
-    open(ticket, "w").close()
+    with open(ticket, "w", encoding="utf-8") as f:
+        f.write(owner)
     end = time.time() + wait
     try:
         while True:
@@ -202,15 +326,25 @@ def blender_turn(wait: float = LOCK_WAIT_SEC, sleep: Callable[[float], None] = t
                 fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
                 break
             except FileExistsError:
-                try:
-                    age = time.time() - os.path.getmtime(path)
-                except OSError:
+                h = _read_lock(path)
+                if h is None:
                     continue                                  # freed meanwhile: try again at once
-                if age > LOCK_STALE_SEC:
+                age = time.time() - h["since_ts"]
+                dead = h["pid"] != 0 and not pid_alive(h["pid"])
+                if age > LOCK_STALE_SEC or dead:
                     try:
                         os.remove(path)
                     except OSError:
                         pass
+                    why = f"tiến trình {h['pid']} không còn chạy" if dead else f"quá {LOCK_STALE_SEC // 60} phút"
+                    msg = (f"Gỡ khóa Blender cũ của {h['owner'] or 'không rõ dự án'} (PID {h['pid']}, giữ {_minutes(age)}): {why} — "
+                           f"lượt render trước bị ngắt; {owner or 'lượt mới'} nhận lượt.")
+                    _log_lock_event("blender_lock_stale", msg)
+                    if report:
+                        try:
+                            report(msg, "blender_lock_stale", h["owner"])
+                        except Exception:  # noqa: BLE001 - a diag write must never stop the render
+                            pass
                     continue
                 if time.time() > end:
                     raise Plates3DError(f"Blender đang bận với lượt render khác quá {int(wait // 60)} phút — thử lại sau. Nếu chắc chắn "
@@ -221,7 +355,8 @@ def blender_turn(wait: float = LOCK_WAIT_SEC, sleep: Callable[[float], None] = t
             os.remove(ticket)
         except OSError:
             pass
-    os.write(fd, f"{os.getpid()} {time.strftime('%Y-%m-%d %H:%M:%S')}".encode("ascii"))
+    os.write(fd, json.dumps({"pid": os.getpid(), "owner": owner, "since_ts": time.time(),
+                             "since": time.strftime("%Y-%m-%d %H:%M:%S")}, ensure_ascii=False).encode("utf-8"))
     os.close(fd)
     try:
         yield
@@ -235,7 +370,7 @@ def blender_turn(wait: float = LOCK_WAIT_SEC, sleep: Callable[[float], None] = t
 def render(cfg: Dict, blender: Optional[str] = None, run: Callable = subprocess.run, timeout: int = 3600) -> Dict:
     """Run tools/render_plates.py in Blender (background) and return its manifest. The whole Blender output is kept in render.log
     next to the plates (the local test reads the times there). Renders from several projects wait in line (`blender_turn`)."""
-    with blender_turn():
+    with blender_turn(owner=str(cfg.get("owner") or "")):
         return _render(cfg, blender, run, timeout)
 
 
