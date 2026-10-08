@@ -72,6 +72,12 @@ def plan(p, pid, sid, data_dir):
         raise ValueError("Phép so 4 giây này dùng shot không thoại và không video tham chiếu; chọn shot 6 Kelly.")
     ref_only = seedance_refs.uses_refs(p.conn, sid)
     text, pictures = no_minor_age(row["motion_prompt"]), []
+    if ref_only and place_refs.enabled():               # KLD-6: never a paid sample on a render of another camera
+        res = place_refs.resolution_of(p.project(pid))
+        old = place_refs.stale(p.conn, data_dir, pid, res).get(sid)
+        if old:
+            place_refs.ensure_async(p.conn, pid, data_dir, res)
+            raise ValueError(f"{old['why']} — đang dựng lại nền (0 USD); thử lại sau ít phút.")
     if ref_only:
         ids = seedance_refs.identity_pictures(p.conn, pid, rows, seedance_refs.MAX_PICTURES - 1)
         places = seedance_refs.place_pictures(data_dir, pid, rows)

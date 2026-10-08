@@ -58,7 +58,9 @@ def shot_ref(data_dir: str, pid: int, scene_id: int) -> Optional[Dict]:
     rec = location_pack.plate_of(data_dir, pid, scene_id)
     if rec is None:
         return None
-    return {"path": rec["plate"], "label": rec.get("place") or "the place", "role": ROLE, "_rec": rec}
+    # KLD-6: `plate_key` rides into the job's sent_refs — the picture remembers which background it was drawn on
+    return {"path": rec["plate"], "label": rec.get("place") or "the place", "role": ROLE, "_rec": rec,
+            **({"plate_key": rec["key"]} if rec.get("key") else {})}
 
 
 def swap_in(refs: List[Dict], ref: Optional[Dict], limit: int) -> List[Dict]:
@@ -128,6 +130,85 @@ def needs(data_dir: str, pid: int, scene_id: int) -> Optional[str]:
     `"direction": "script"`) — the picture waits and the reason is said, never a render from a guessed direction."""
     from . import location_pack
     return location_pack.plate_needs(data_dir, pid, scene_id)
+
+
+def stale(conn, data_dir: str, pid: int, resolution) -> Dict[int, Dict]:
+    """KLD-6: the shots whose render in plates/index.json is not the plan's any more (location_pack.stale_plates) — never sent; the
+    caller starts `ensure_async` (Blender, 0 USD) and waits. A plan that cannot be computed comes back as key -1 with the reason: the
+    caller says it (diag) and goes on as before KLD-6 — a broken plan never holds a shot for ever."""
+    from . import location_pack
+    try:
+        return location_pack.stale_plates(conn, pid, data_dir, resolution)
+    except Exception as e:  # noqa: BLE001 - said by the caller's diag; the shot waits rather than going out on an unchecked render
+        return {-1: {"idx": None, "old_spot": None, "new_spot": None, "why": f"không so được nền 3D với kế hoạch ({e})"}}
+
+
+def stale_note(conn, data_dir: str, pid: int, resolution, scene_id: int, item: Dict) -> str:
+    """The diag line of a stale render: why, and (after a spot move) the fields still naming the old place."""
+    from . import location_pack
+    note = f"shot {item.get('idx') or scene_id}: {item['why']}"
+    if item.get("old_spot") and item.get("new_spot") and item["old_spot"] != item["new_spot"]:
+        try:
+            moved = [m for m in location_pack.move_report(conn, pid, data_dir, resolution) if m["scene_id"] == scene_id]
+        except Exception:  # noqa: BLE001 - the move words are extra; the stale line is said anyway
+            moved = []
+        if moved:
+            note += " · " + location_pack.move_words(moved[0])
+    return note
+
+
+def old_plate_images(conn, data_dir: str, pid: int, resolution) -> Dict[int, str]:
+    """KLD-6: {scene_id: reason} — the shot's approved picture was drawn on a 3D background (its sent_refs `plate_key`) that is not
+    the plan's now (spot / direction / light moved after the picture). Its clip would carry the old place: the autopilot does not send
+    it, the Dashboard says it; a person may still send it. Pictures without a recorded key (made before KLD-6) are never held."""
+    import json
+    from . import location_pack
+    rows = conn.execute(
+        "SELECT j.scene_id, j.id, j.sent_refs FROM jobs j WHERE j.project_id=? AND j.type='image_gen' AND j.state='approved'"
+        " AND j.id=(SELECT MAX(k.id) FROM jobs k WHERE k.scene_id=j.scene_id AND k.type='image_gen' AND k.state='approved')",
+        (pid,)).fetchall()
+    drawn = {}
+    for r in rows:
+        try:
+            sent = json.loads(r["sent_refs"] or "[]")
+        except ValueError:
+            continue
+        key = next((s.get("plate_key") for s in sent if isinstance(s, dict) and s.get("role") == ROLE and s.get("plate_key")), None)
+        if key:
+            drawn[r["scene_id"]] = (r["id"], key)
+    if not drawn:
+        return {}
+    plans: Dict[tuple, Dict] = {}
+    idx = location_pack.index(data_dir, pid)
+    out = {}
+    for sid, (jid, key) in drawn.items():
+        rec = idx.get(str(sid)) or {}
+        res = tuple(int(v) for v in (rec["res"] if rec.get("key") == key and rec.get("res") else resolution))   # its own size
+        if res not in plans:
+            plans[res] = {it["scene_id"]: it for it in location_pack.plan(conn, pid, res)}
+        it = plans[res].get(sid)
+        if it is not None and it["key"] == key:
+            continue
+        where = (f"chỗ đứng / hướng máy hiện tại: {it['spot']}" if it is not None else "shot không còn ở bối cảnh có mô hình 3D")
+        out[sid] = (f"ảnh khung đầu (job {jid}) vẽ trên nền 3D cũ — {where}. Vẽ lại ảnh (nền mới tự dựng 0 USD) trước khi gen "
+                    "video; chế độ tự chạy không tự gửi clip này, bạn bấm gửi tay vẫn được")
+    return out
+
+
+def video_warnings(conn, data_dir: str, pid: int) -> List[str]:
+    """KLD-6, the Video screen: pictures drawn on an old 3D background + renders that are not the plan's (a reference-only send
+    waits for the new one)."""
+    if not enabled():
+        return []
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
+    try:
+        res = resolution_of(proj) if proj is not None else (1152, 2048)
+        idx_of = {r["id"]: r["idx"] for r in conn.execute("SELECT id, idx FROM scenes WHERE project_id=?", (pid,))}
+        lines = [f"Shot {idx_of.get(sid, sid)}: {why}" for sid, why in sorted(old_plate_images(conn, data_dir, pid, res).items())]
+        lines += [f"Shot {item.get('idx') or idx_of.get(sid, sid)}: {item['why']}" for sid, item in sorted(stale(conn, data_dir, pid, res).items())]
+    except Exception as e:  # noqa: BLE001 - the screen never breaks; the problem is said
+        return [f"không kiểm được nền 3D của các shot ({e})"]
+    return lines
 
 
 def _db_path(conn) -> Optional[str]:

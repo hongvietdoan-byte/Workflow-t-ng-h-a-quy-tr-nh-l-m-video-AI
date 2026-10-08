@@ -138,6 +138,25 @@ class _Runner:
         """True = leave the job queued for now (not an error)."""
         return False
 
+    def _stale_plates(self, job, rows) -> bool:
+        """KLD-6 (08/10, #22: the hand redraw went out on the OLD render after a spot move — 1,80 USD): a shot of `rows` whose 3D
+        render in plates/index.json is not the plan's any more is rendered again in the background (Blender, 0 USD) and the job
+        waits — on every path (hand buttons, autopilot, picture and reference-only video). Said once per 10 minutes (diag)."""
+        from . import place_refs
+        pid = job["project_id"]
+        res = place_refs.resolution_of(self.p.project(pid))
+        stale = place_refs.stale(self.p.conn, self.data_dir, pid, res)
+        if -1 in stale:
+            self._diag(job, "warn", "plate_stale", stale[-1]["why"])
+            return False
+        hit = [(r["id"], stale[r["id"]]) for r in rows if r["id"] in stale]
+        if not hit:
+            return False
+        for sid, item in hit:
+            self._diag(job, "warn", "plate_stale", place_refs.stale_note(self.p.conn, self.data_dir, pid, res, sid, item))
+        place_refs.ensure_async(self.p.conn, pid, self.data_dir, res, log=lambda m: self._diag(job, "info", "place_render", m))
+        return True
+
     def _stamp(self, job, args) -> Dict:
         """Columns written on the job when it is sent: fingerprint of its inputs (core.lineage), source image, model."""
         return {}
@@ -951,6 +970,10 @@ class VideoRunner(_Runner):
         prompt; the other shots wait for their part of that clip (unless the first shot already has its clip: then a remade
         shot is sent on its own). K1: a shot whose end frame is still being drawn waits for it."""
         from . import end_frames, shots
+        from . import place_refs
+        if place_refs.enabled() and self._refs(job) and \
+                self._stale_plates(job, self._ref_rows(job, self._sends_group(job) or [])):
+            return True                   # KLD-6: a reference-only send carries each shot's render — the new one is rendered first
         if self._waits_for_prev_clip(job):
             return True                   # 07/10: starts on the previous clip's last frame — that clip is approved first
         if end_frames.enabled():
@@ -1620,6 +1643,8 @@ class ImageRunner(_Runner):
                 place_refs.ensure_async(self.p.conn, job["project_id"], self.data_dir, place_refs.resolution_of(self.p.project(job["project_id"])),
                                         log=lambda m: self._diag(job, "info", "place_render", m))
                 return True
+            if self._stale_plates(job, rows):                # KLD-6: a render of another camera (moved spot…) — rebuilt first, 0 USD
+                return True
             held = place_refs.needs(self.data_dir, job["project_id"], job["scene_id"])
             if held:                                         # S5.7: no direction for a script-direction spot — wait, and say what to add
                 self._diag(job, "error", "plate_view", held)
@@ -1726,7 +1751,8 @@ class ImageRunner(_Runner):
             self._diag(job, "warn", "missing_reference", "ảnh tham chiếu không gửi được (bỏ khỏi yêu cầu và khỏi câu đánh số ảnh): "
                        + ", ".join(dropped))
         self._sent = getattr(self, "_sent", {})
-        self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs]
+        self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"]),
+                                  **({"plate_key": r["plate_key"]} if r.get("plate_key") else {})} for r in refs]   # KLD-6
         from . import scene_storyboard
         if scene_storyboard.enabled() and getattr(self.provider, "supports_storyboard", False):
             g = scene_storyboard.group_of(self.p.conn, job["project_id"], job["scene_id"])
@@ -1768,7 +1794,8 @@ class ImageRunner(_Runner):
                     self._storyboard = getattr(self, "_storyboard", {})
                     self._storyboard[job["id"]] = fields["storyboard"]
                     self._sent = getattr(self, "_sent", {})
-                    self._sent[job["id"]] = [{"label": r["label"], "role": r.get("role", ""), "file": os.path.basename(r["path"])}
+                    self._sent[job["id"]] = [{"label": r["label"], "role": r.get("role", ""), "file": os.path.basename(r["path"]),
+                                              **({"plate_key": r["plate_key"]} if r.get("plate_key") else {})}
                                              for r in refs] + [{"label": "storyboard", "role": "storyboard",
                                                                 "file": fields["storyboard"]["storyboard_id"]}]
         if refs:                                       # the chosen resources' pictures go with the prompt (image-to-image)
