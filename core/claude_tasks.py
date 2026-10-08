@@ -144,6 +144,14 @@ def video_criteria() -> List[str]:
     return [c["key"] for c in data.get("video_criteria") or []]
 
 
+def video_qc_head() -> str:
+    """The cached head of the clip QC prompt: prompt 12 (+ the #22 addendum KLD-15 when the flag `kld_lessons_prompts` is on — off →
+    byte-identical to before) and the Character Lock."""
+    from . import knowledge
+    return "\n\n".join([_read("prompts", "12_video_qc.md"), *knowledge.kld_blocks("video_qc")]) + "\n\n---\n\n" \
+        + _read("knowledge", "character_lock.md")
+
+
 def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[bool] = None) -> Dict:
     """Score one finished clip from evenly spaced frames next to its approved first frame and the character references; the score
     goes through the same decision path as pictures (threshold, hard criteria, automatic redo, escalation)."""
@@ -173,7 +181,7 @@ def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[
     images += [(f"Ảnh tham chiếu — {r['label']}:", assets.thumbnail(r["path"], 700)) for r in refs]
     measured = _measure_clip(p, job, path, data, first, data_dir)
     criteria = video_criteria()
-    prompt = _read("prompts", "12_video_qc.md") + "\n\n---\n\n" + _read("knowledge", "character_lock.md") + prompts.CACHE_BREAK \
+    prompt = video_qc_head() + prompts.CACHE_BREAK \
         + "\n\n---\n\n".join(x for x in [
         prompts.lock_text(p.conn, job["project_id"], data.get("characters")),
         "# Motion prompt của clip\n" + (mp["motion_prompt"] if mp else ""),
