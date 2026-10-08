@@ -33,6 +33,7 @@ PART_LABELS = {
     "diem_bat_dau": "Điểm bắt đầu", "hanh_dong": "Hành động", "vat_ly": "Vật lý", "may_quay": "Máy quay", "trang_thai_cuoi": "Trạng thái cuối",
     "nguon_dong_tac": "Nguồn động tác", "thoai": "Thoại", "duong_di_vat_gan_nguoi": "Đường đi vật gần người",
     "loai_nhan_vat": "Loại nhân vật", "mau_thuan": "Câu mâu thuẫn", "cau_chu": "Ngắt câu", "viet_chong": "Viết chồng thêm",
+    "ta_cai_dung": "Tả cái đúng",
 }
 CLOSE_SIZES = ("ECU", "CU", "MCU")
 WIDE_SIZES = ("WS", "EWS", "MLS")
@@ -110,6 +111,33 @@ _RUNON = re.compile(r"\b([a-z]{3,}) ((?:[A-Z][A-Z0-9'’]+ ){1,3})(keeps|wears|h
                     r"gets|sits|walks|turns|says)\b")
 _RUNON_STOP = {"the", "and", "with", "from", "for", "her", "his", "their", "its", "into", "onto", "over", "under", "that", "this", "than",
                "worn", "wearing", "named", "called", "like", "who", "while", "when", "where", "but", "nor", "both", "only", "not", "then"}
+
+# ---- (h) liệt kê vật cấm (F1-C, bài học L2 #22: nhắc chữ của lỗi kéo lỗi lại) --------------------------------------------
+# "Do NOT add palm trees, grass fields, cars" / "never draw X, Y" / "no trees, no cars" / "no plaza, tower, sky or sea". Một phủ định đơn
+# ("no legs or full body") và phủ định PHONG CÁCH/ảnh chú thích (anime, blur, chữ, người trong ảnh nền trống) không bị báo: có bằng chứng
+# riêng (looks.py, #8 anime) và không phải vật trong cảnh.
+_NEG_VERB = re.compile(r"\b(?:do not|don't|never|must not)\s+(?:add|draw|include|show|put|place|render|paint)\b[:\s]+"
+                       r"([^.;]{3,200})", I)
+_NEG_NO = re.compile(r"\bno\s+([a-z][a-z -]{1,40}?)\s*,\s*(?:no\s+)?([a-z][a-z -]{1,40}?)(?=\s*(?:,|\bor\b|\band\b|[.;]|$))", I)
+_NEG_SAFE = re.compile(r"\b(?:anime|cartoon|2d|3d style|blur\w*|grading|grain|bokeh|photo\w*|still|style|shooter|cinematic|watermarks?|"
+                       r"text|logos?|captions?|subtitles?|labels?|hud|ui|interface|sound|cuts?|people|persons?|characters?|humans?|"
+                       r"legs|full body|glowing eyes|human eyes|sliding|foot sliding|morphing|distortion)\b", I)
+
+
+def _neg_lists(prompt: str) -> List[str]:
+    """The negated lists of things (≥ 2 items) the prompt names — style / annotation negations left out."""
+    out = []
+    for m in _NEG_VERB.finditer(prompt):
+        items = [x.strip() for x in re.split(r",|\bor\b|\band\b", m.group(1)) if x.strip()]
+        items = [x for x in items if not _NEG_SAFE.search(x)]
+        if len(items) >= 2:
+            out.append(m.group(0).strip())
+    for m in _NEG_NO.finditer(prompt):
+        items = [m.group(1), m.group(2)]
+        if not any(_NEG_SAFE.search(x) for x in items):
+            out.append(m.group(0).strip())
+    return list(dict.fromkeys(out))
+
 
 # ---- loại shot -----------------------------------------------------------------------------------------------------------
 _DANCE = re.compile(r"\b(?:danc\w+|choreo\w*)\b|\bnhảy theo\b|vũ đạo|điệu nhảy", I)
@@ -304,6 +332,9 @@ def _common(prompt: str, data: Dict, chars: Optional[List[Dict]], kind_word: str
                               "người; nhân vật quái/yêu/ma giữ đặc điểm của nó. Bỏ câu luật người trong prompt " + kind_word + "."))
     for name, x, y, fix in contradictions(prompt, prompt):
         out.append(_issue("red", "mau_thuan", f"Prompt tự mâu thuẫn ({name}): “{x}” ↔ “{y}” — {fix}."))
+    for neg in _neg_lists(prompt)[:2]:
+        out.append(_issue("warn", "ta_cai_dung", f"Liệt kê vật cấm “{neg[:90]}” — nhắc tên thứ cấm hay kéo đúng thứ đó vào ảnh (bài học L2 "
+                                                 "#22). Tả cái ĐÚNG thay vào (vd 'chỉ có cầu thang, tường, tháp, nhà 3 tầng như render 3D')."))
     for m in _RUNON.finditer(prompt):
         if m.group(1).lower() in _RUNON_STOP:
             continue
@@ -348,6 +379,7 @@ def lint_image(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, styl
                               f"Khung “{close_word}” (không thấy chân) mâu thuẫn tư thế “{_snip(legs or side)}” (cần thấy chân/cả người)"
                               + ("" if legs else " — tư thế chỉ ghi ở blocking") + " — đổi cỡ cảnh sang MS/WS, hoặc tả tư thế bằng "
                               "phần trên người (vai ngả ra sau, tay chống phía sau)."))
+    out += outfit_issues(prompt + " " + _data_text(data, ("blocking", "start_frame", "action_peak")), data, chars)
     return out + _common(prompt, data, chars, "ảnh", ff)
 
 
@@ -375,6 +407,7 @@ def lint_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, ff:
     if str(data.get("end_state") or "").strip() and not _END.search(prompt):
         out.append(_issue("warn", "trang_thai_cuoi", f"Thiếu trạng thái cuối (Đạo diễn ghi: “{str(data['end_state'])[:80]}”) — thêm "
                                                      "'It ends with …' để clip có điểm dừng."))
+    out += outfit_issues(prompt, data, chars)
     return out + _common(prompt, data, chars, "motion", ff)
 
 
@@ -436,6 +469,75 @@ def cross_shot(shots: Iterable[Dict]) -> List[Dict]:
                                               "rồi sửa các shot lệch.",
                           shots=sorted({i for idxs in colors.values() for i in idxs}, key=lambda x: (x is None, x)), owner=owner, item=key))
     return out
+
+
+# ---- trang phục một nguồn: hồ sơ Kho (F1-C) ------------------------------------------------------------------------------
+# #22: hồ sơ / ảnh OUTFIT "GREEN dinosaur print" ↔ blocking "blue dinosaur print"; sừng mũ Maxim "white" ↔ "red". Tóc không xét ở đây
+# (ảnh OUTFIT có người mẫu mang tóc khác — tóc lấy từ ảnh nhân vật).
+_NOT_GARMENT = {"hair", "bob"}
+_FREE_CLOTHES = re.compile(r"\b(?:outfits?|clothes|clothing|costumes?|garments?)\b|trang phục|quần áo", I)
+
+
+def outfit_vs_profile(text: str, names: List[str], profiles: Dict[str, str]) -> List[Dict]:
+    """Same garment of a character told in a colour its profile does not have → red. profiles = {name: profile words of the costume}
+    (garment_profile). Uses cross_shot's "colour + ≤ 3 words + garment" reading and its owner rule (the nearest name before)."""
+    out, said = [], set()
+    known = {}
+    for name in names:
+        prof = profiles.get(name)
+        if not prof:
+            continue
+        table: Dict[str, set] = {}
+        for _o, key, color in _items(prof, [name]):
+            table.setdefault(key, set()).add(color)
+        known[name] = table
+    if not known:
+        return out
+    for owner, key, color in _items(text or "", names):
+        table = known.get(owner) or {}
+        if key.split()[-1] in _NOT_GARMENT or key not in table or color in table[key] or (owner, key, color) in said:
+            continue
+        said.add((owner, key, color))
+        out.append(_issue("red", "nhan_vat", f"{owner}: “{color} {key}” khác hồ sơ Kho ({' / '.join(sorted(table[key]))} {key}) — "
+                                             "trang phục lấy MỘT nguồn (hồ sơ / ảnh OUTFIT); sửa chữ màu trong prompt/blocking.",
+                          owner=owner, item=key))
+    return out
+
+
+def outfit_issues(text: str, data: Dict, chars: Optional[List[Dict]]) -> List[Dict]:
+    shot = _shot_chars(data, chars) if _names(data) else []
+    profiles = {str(c.get("name")): c.get("_garments") for c in shot if c.get("_garments")}
+    return outfit_vs_profile(text, [str(c.get("name")) for c in shot], profiles) if profiles else []
+
+
+def garment_profile(conn, project_id: int, name: str) -> str:
+    """The costume words a character is held to — the places runner.lock_note / prompts.lock_text read: with an OUTFIT picture, the
+    OUTFIT resource's description + approved profile `must_keep`; otherwise the approved library profile (assets.standard_for) or the
+    project's lock_rules `must_keep` — unless its `may_change` frees the clothes. "" when nothing is known."""
+    from . import assets
+    row = conn.execute("SELECT lock_rules, outfit_image_ids FROM characters WHERE project_id=? AND name=?", (project_id, name)).fetchone()
+    if row is None:
+        return ""
+    ids = [int(x) for x in str(row["outfit_image_ids"] or "").split(",") if x.strip().isdigit()]
+    if ids:
+        marks = ",".join("?" * len(ids))
+        words = []
+        for r in conn.execute(f"SELECT DISTINCT a.id, a.description FROM asset_images i JOIN assets a ON a.id=i.asset_id "
+                              f"WHERE i.id IN ({marks})", ids):
+            words.append(str(r["description"] or "").split("[AI đọc ảnh]")[0])
+            prof = assets.get_profile(conn, r["id"])
+            if prof.get("approved") and prof.get("must_keep"):
+                words.append(str(prof["must_keep"]))
+        return " ".join(w for w in words if w.strip())
+    rules = assets.standard_for(conn, project_id, name)
+    if rules is None:
+        try:
+            rules = json.loads(row["lock_rules"]) if row["lock_rules"] else None
+        except ValueError:
+            rules = None
+    if not isinstance(rules, dict) or _FREE_CLOTHES.search(str(rules.get("may_change") or "")):
+        return ""
+    return str(rules.get("must_keep") or "")
 
 
 # ---- 4b: so với bản trước ------------------------------------------------------------------------------------------------
@@ -547,6 +649,10 @@ def _chars(conn, project_id: int) -> List[Dict]:
             c["_human"] = assets.is_human(conn, project_id, str(c.get("name") or ""))
         except Exception:  # noqa: BLE001 - unknown: judged by the profile words
             pass
+        try:                                     # F1-C: the costume words of the profile (outfit_vs_profile)
+            c["_garments"] = garment_profile(conn, project_id, str(c.get("name") or ""))
+        except Exception:  # noqa: BLE001 - no profile readable: the costume is not checked against it
+            c["_garments"] = ""
     return rows
 
 

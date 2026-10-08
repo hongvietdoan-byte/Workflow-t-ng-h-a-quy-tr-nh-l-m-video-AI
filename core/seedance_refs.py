@@ -100,6 +100,8 @@ def groups(conn, project_id: int) -> List[List[Dict]]:
     _say_plate_mode_ignored(conn, project_id, rows)
     from . import looks                  # F1 sửa #8: only an FF project gets the gore-restraint sentence (room counted only there)
     ff = looks.is_ff(conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone())
+    dressed = {r["name"] for r in conn.execute("SELECT name, outfit_image_ids FROM characters WHERE project_id=?", (project_id,))
+               if (r["outfit_image_ids"] or "").strip()}
     for r in rows:
         d = r["data"]
         if not d.get("shot_no") or not _groupable(d):
@@ -108,16 +110,17 @@ def groups(conn, project_id: int) -> List[List[Dict]]:
         sec = floored(d, d.get("duration_s") or 0)
         if cur and (_group_key(cur[-1]["data"]) != _group_key(d) or len(cur) >= GROUP_MAX_SHOTS
                     or sum(floored(x["data"], x["data"].get("duration_s") or 0) for x in cur) + sec > GROUP_MAX_SECONDS
-                    or _estimated_len(cur + [r], ff) > GROUP_PROMPT_BUDGET):
+                    or _estimated_len(cur + [r], ff, dressed) > GROUP_PROMPT_BUDGET):
             close()
         cur.append(r)
     close()
     return out
 
 
-def _estimated_len(rows: List[Dict], ff: bool = True) -> int:
+def _estimated_len(rows: List[Dict], ff: bool = True, dressed: Optional[set] = None) -> int:
     """ff: the project is a Free Fire one (looks.is_ff) — only then may the runner add the gore-restraint sentence; default True
-    (worst case, tính dư) for a caller that does not know."""
+    (worst case, tính dư) for a caller that does not know. dressed: characters with an OUTFIT picture (F1-C: their costume picture
+    and its sentence go with the prompt too — identity_pictures; left out of the estimate before)."""
     names: List[str] = []
     for r in rows:
         for n in r["data"].get("characters") or []:
@@ -130,8 +133,12 @@ def _estimated_len(rows: List[Dict], ff: bool = True) -> int:
     from . import looks                  # F1-B: the FF gore-restraint sentence the runner may add (≤ GORE_VIDEO_MAX characters)
     gore = looks.GORE_VIDEO_MAX if ff and looks.gore_words(" ".join(motions) + " " + " ".join(
         str(r["data"].get(k) or "") for r in rows for k in ("image_prompt", "action", "end_state"))) else 0
-    return len(prompt([(m, float(r["data"].get("duration_s") or 2)) for m, r in zip(motions, rows)], [(n, "") for n in names],
-                      places=places)) + gore
+    ids = []
+    for n in names:
+        ids.append((n, ""))
+        if n in (dressed or ()):
+            ids.append((n + OUTFIT_TAG, ""))
+    return len(prompt([(m, float(r["data"].get("duration_s") or 2)) for m, r in zip(motions, rows)], ids, places=places)) + gore
 
 
 def group_of(conn, scene_id: int) -> Optional[List[Dict]]:
@@ -283,23 +290,35 @@ def place_pictures(data_dir: str, project_id: int, rows: List[Dict]) -> List[Dic
 
 def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_seconds: Optional[float] = None,
            model: Optional[str] = None, places: Optional[List[Dict]] = None) -> str:
-    """parts: [(motion prompt, seconds)] in film order. The wording of the tested P2m prompt: the cut rule, which picture is which
-    shot / whose identity, then the shots. clip_seconds: the length really asked for (Seedance makes ≥ 4 s) — the shots' marks are
-    stretched to it, so the last shot does not end before the clip does (review 2026-09-27). model: time marks only for a model that
-    reads them (`reads_seconds`); the others get "Shot N:" alone (S4.8, 2026-09-29)."""
+    """parts: [(motion prompt, seconds)] in film order. The wording of the tested P2m prompt (cut rule, which picture is which shot /
+    whose identity, the shots), assembled in the motion formula's order (F1-C, docs/CONG_THUC_PROMPT_F0 mục 3.2 + 4): start point
+    (the cut rule and each shot's storyboard frame) → each shot's action (what changes, first) → sentences shared by several shots, once
+    → what stays still → identity lock (each picture's role, the costume once for the whole group) → the place renders → the rules
+    (reference marks). clip_seconds: the length really asked for (Seedance makes ≥ 4 s) — the shots' marks are stretched to it, so the
+    last shot does not end before the clip does (review 2026-09-27). model: time marks only for a model that reads them
+    (`reads_seconds`); the others get "Shot N:" alone (S4.8, 2026-09-29)."""
+    from . import features               # S4.7: with the Subject Library the pictures may go unmarked — a sentence true either way
+    from . import prompt_template as pt
     n = len(parts)
     total = sum(float(s) for _, s in parts) or 1.0
     if clip_seconds and clip_seconds > total:
         parts = [(m, float(s) * clip_seconds / total) for m, s in parts]
-    head = (f"One clip with {n} shots cut in this order, hard cuts between shots, same place, same light, same characters and outfits "
-            f"throughout. " if n > 1 else "One single shot, no cuts. ") + (look.strip() + " " if look.strip() else "")
-    from . import features               # S4.7: with the Subject Library the pictures may go unmarked — a sentence true either way
-    head += ("Any white banner or red mark on a reference picture is an annotation, never part of the video. "
-             if features.on("seedance_subjects") else
-             "The white banner and red marks on the reference pictures are annotations, never part of the video. ")
-    head += "The buildings and the landmark behind the people keep exactly the shape they have in the storyboard frames."   # 28/09: a spire became a dome
-    mapping = " ".join(f"Image {i} is the storyboard frame of Shot {i}: Shot {i} starts with exactly this composition, framing and "
-                       f"these character positions." for i in range(1, n + 1))
+    # 1. start point
+    start = ((f"One clip with {n} shots cut in this order, hard cuts between shots. " if n > 1 else "One single shot, no cuts. ")
+             + (look.strip() + " " if look.strip() else "")
+             + " ".join(f"Image {i} is the storyboard frame of Shot {i}: Shot {i} starts with exactly this composition, framing and "
+                        f"these character positions." for i in range(1, n + 1)))
+    # 2. the shots — a sentence repeated word for word in several shots (costume, background) is said once, after them (#22 lỗi 5)
+    raw = [str(m).strip() for m, _ in parts]
+    texts, shared = pt.shared_sentences(raw) if n > 1 else (raw, [])
+    marks = whole_marks([float(sec) for _, sec in parts]) if reads_seconds(model) else [None] * n
+    shots = [f"Shot {i}" + (f" ({mk[0]}–{mk[1]} s)" if mk else "") + f": {t.strip().rstrip('.')}."
+             for i, (t, mk) in enumerate(zip(texts, marks), 1)]
+    shared_lines = [f"{pt.shots_label(nums, n)}: {sent}" for sent, nums in shared]
+    # 3. what stays still
+    still = (("Same place, same light, same characters and outfits throughout. " if n > 1 else "")
+             + "The buildings and the landmark behind the people keep exactly the shape they have in the storyboard frames.")  # 28/09
+    # 4. identity lock
     dressed = {name[:-len(OUTFIT_TAG)] for name, _ in identities if name.endswith(OUTFIT_TAG)}
     strip = features.on("outfit_strip_model")   # KLD-7 (08/10): Kelly KL took the silver hair of the model wearing the OUTFIT
 
@@ -313,17 +332,23 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
         if name in dressed:
             return f"{name}: identity only (face, hair, body build) — NOT the clothes, which come only from the OUTFIT picture"
         return f"{name}: identity only (face, hair, outfit) — not the framing"
-    mapping += " " + " ".join(f"Image {n + k} is {says(name)}." for k, (name, _) in enumerate(identities, 1))
+    identity = " ".join(f"Image {n + k} is {says(name)}." for k, (name, _) in enumerate(identities, 1))
+    if dressed:                          # F1-C: one source for the costume (#22: GREEN ↔ blue dinosaur print between shots)
+        identity += " Each costume follows its OUTFIT picture; any other colour word for these garments is wrong."
+    # 5. the place renders
+    place_text = ""
     for k, place in enumerate(places or [], 1):
         targets = ", ".join(f"Shot {i}" for i in place["shots"])
-        mapping += (f" Image {n + len(identities) + k} is the PLACE render for {targets}: keep the buildings, tower, walls and ground "
-                    "exactly as in this image throughout those shots, including during camera movement. "
-                    "It decides architecture over conflicting text or storyboard details; people, outfits and starting framing "
-                    "still follow their own references. Never move, add or remove a building.")
-    marks = whole_marks([float(sec) for _, sec in parts]) if reads_seconds(model) else [None] * n
-    shots = [f"Shot {i}" + (f" ({mk[0]}–{mk[1]} s)" if mk else "") + f": {str(motion).strip().rstrip('.')}."
-             for i, ((motion, _), mk) in enumerate(zip(parts, marks), 1)]
-    text = head + "\n" + mapping.strip() + "\n" + "\n".join(shots)
+        place_text += (f" Image {n + len(identities) + k} is the PLACE render for {targets}: keep the buildings, tower, walls and ground "
+                       "exactly as in this image throughout those shots, including during camera movement. "
+                       "It decides architecture over conflicting text or storyboard details; people, outfits and starting framing "
+                       "still follow their own references. Never move, add or remove a building.")
+    # 6. rules
+    rules = ("Any white banner or red mark on a reference picture is an annotation, never part of the video."
+             if features.on("seedance_subjects") else
+             "The white banner and red marks on the reference pictures are annotations, never part of the video.")
+    blocks = [start.strip(), "\n".join(shots), "\n".join(shared_lines), still, identity.strip(), place_text.strip(), rules]
+    text = "\n".join(b for b in blocks if b)
     # 08/10 (#24): a character named in Vietnamese ("YÊU NỮ TÀ LINH DẠNG 1") put accented letters into "Image N is …" and the shot
     # lines — the whole send was blocked as "prompt còn chữ tiếng Việt" though every Director field was translated. The names go
     # without accents (the same spelling in the mapping and the shots, so picture and name still match); spoken lines are untouched.
@@ -333,6 +358,22 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
         for form in dict.fromkeys((name, name.upper(), name.title(), name.capitalize(), name.lower())):   # "Yêu nữ tà linh…" in a motion line
             text = _outside_dialogue(text, lambda s, a=form, b=ascii_name(form): s.replace(a, b))
     return text
+
+
+def prompt_limit(model: Optional[str]) -> int:
+    """F1-C: the model's prompt limit in characters — data/provider_rules.json `prompt_limit` (core.video_rules.rule), else the
+    adapter's table (clipai.PROMPT_LIMITS), else 5 000 for a model that reads seconds (2.5) / PROMPT_MAX."""
+    canonical, table = str(model or "").strip(), {}
+    try:
+        from .adapters.clipai import MODEL_ALIASES, PROMPT_LIMITS
+        canonical, table = MODEL_ALIASES.get(canonical.lower(), canonical), PROMPT_LIMITS
+    except Exception:  # noqa: BLE001 - no adapter table: the fallbacks below
+        pass
+    from . import video_rules
+    limit = video_rules.rule(canonical).get("prompt_limit") if canonical else None
+    if isinstance(limit, (int, float)) and limit > 0:
+        return int(limit)
+    return int(table.get(canonical) or (5000 if reads_seconds(canonical or model) else PROMPT_MAX))
 
 
 def ascii_name(name: str) -> str:
@@ -723,10 +764,13 @@ def shot_motion(data: Dict, voice: bool = False, humans: Optional[Dict[str, bool
     end = str(_en(data, "end_state") or "").strip().rstrip(".")
     from . import motion_physics
     body = motion_physics.sentence(action)          # S4.4: one body-physics sentence for the kind of action (weight, contact)
-    return (f"{SIZE_WORDS.get(data.get('size'), data.get('size') or 'shot')}, {data.get('angle') or 'eye'} angle, camera {move}: "
-            + (f"framing {framing}. " if framing else "") + (f"{action}. " if action else "") + (f"{body} " if body else "")
-            + (f"It ends with {end}. " if end else "")
-            + (f"Acting — {acting}.{guard} " if acting else "") + talk).strip()
+    # F1-C (công thức motion): what changes first — the action, its end, the acting, who speaks — then the camera, then the physics
+    camera = (f"{SIZE_WORDS.get(data.get('size'), data.get('size') or 'shot')}, {data.get('angle') or 'eye'} angle, camera {move}"
+              + (f"; framing {framing}" if framing else "") + ".")
+    camera = camera[0].upper() + camera[1:]
+    return ((f"{action}. " if action else "") + (f"It ends with {end}. " if end else "")
+            + (f"Acting — {acting}.{guard} " if acting else "") + (f"{talk} " if talk else "")
+            + f"{camera} " + (body or "")).strip()
 
 
 _STRONG = ((r"\b(extremely|insanely|wildly|utterly|incredibly|hysterically)\s+", ""), (r"\becstatic\b", "delighted"),
@@ -775,7 +819,7 @@ def lint_group(text: str, n_frames: int, n_pictures: int, n_expected_pictures: i
     """Faults of a reference-only request that can be seen before paying (review 2026-09-27). Hard faults block the send.
     model: Seedance 2.5 takes 5 000 characters (clipai.PROMPT_LIMITS) — a group with its dialogue block (S4.2) needs the room."""
     out = []
-    limit = 5000 if reads_seconds(model) else PROMPT_MAX
+    limit = prompt_limit(model)             # F1-C: the model's own limit (provider_rules) — 2.5 takes 5 000, 2.0 4 000
     if len(text) > limit:
         out.append(f"prompt dài {len(text)} ký tự > {limit} (Seedance sẽ từ chối)")
     if has_vietnamese(re.sub(r'Dialogue \([^)]*\): "[^"]*"', "", text)):   # S4.2: the spoken lines stay Vietnamese on purpose

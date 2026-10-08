@@ -87,3 +87,15 @@ Ví dụ là câu thật của #22 để hiểu ý, không phải câu phải ch
   tower in frame" ↔ "clock tower visible".
 - **Câu dính liền mất dấu chấm** (chữ thường liền ngay TÊN IN HOA + động từ: "not blurred background KELLY KL keeps…", #22 shot 6) →
   cảnh báo `cau_chu`: câu khóa ghép vào cuối, model đọc thành một câu.
+- **Liệt kê vật cấm** ("Do NOT add palm trees, grass fields, cars", "no trees, no cars", "no plaza, tower, sky or sea") → cảnh báo
+  `ta_cai_dung` (F1-C): bài học L2 #22 — nhắc chữ của lỗi kéo lỗi lại. Tả cái ĐÚNG ("chỉ có cầu thang, tường, tháp, nhà 3 tầng như
+  render 3D"). Không báo: một phủ định đơn ("no legs or full body") và phủ định phong cách / chú thích (anime, blur, chữ, người).
+- **Trang phục khác hồ sơ** (F1-C `outfit_vs_profile`): cùng món của cùng nhân vật mang màu hồ sơ Kho / ảnh OUTFIT không có (hồ sơ
+  "GREEN dinosaur print" ↔ blocking "blue dinosaur print") → ĐỎ `nhan_vat`. Nguồn: mô tả + hồ sơ tài nguyên OUTFIT, không có OUTFIT thì
+  `must_keep` của hồ sơ chuẩn / lock_rules (bỏ qua khi `may_change` cho đổi quần áo). Tóc không xét ở đây.
+
+## Code ghép theo khuôn (F1-C, `core/prompt_template.py` + `runner.build_image_prompt`)
+Thứ tự phần: phong cách (câu look) → khung → người + hành động (chữ Đạo diễn, blocking, ánh mắt, diễn, action_peak, pha kỹ năng) →
+`Fix:` của lần gen lại → nền (trong nhà / khóa render / chữ địa điểm + hướng máy + số đo render) → ánh sáng cảnh → khóa (Identity lock,
+nhìn từ phía, tiết chế ghê) → chốt chất lượng. Mỗi phần tự đóng câu. Dự án look FF: mệnh đề phong cách của Đạo diễn trùng câu look bị bỏ;
+mệnh đề chất lượng ("everything in focus", "not blurred background") gom về cuối một lần.
