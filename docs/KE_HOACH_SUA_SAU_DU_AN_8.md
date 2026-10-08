@@ -2,6 +2,7 @@
 
 > Người dùng duyệt 2026-09-28. Phân tích gốc: `docs/TONG_KET_DU_AN_8_2026-09-28.md`.
 > Trần đợt: 50 USD · Claude 3 USD · từ 2026-09-28T08:00:00+00:00 · **30/09 người dùng duyệt thêm: 15 USD cho các bài thử (hỏi từng bài) + 25 USD cho K.2**
+> **Lưu ý về "Tiền đợt này" (người dùng 08/10):** khoản trần ở dòng trên đã bị GỘP chi phí của nhiều kế hoạch / đợt chạy vào chung một bộ đếm (sổ chi tính từ 28/09: các bài thử, Khủng Long Đỏ #22, devsys…), nên ô "Tiền đợt này" vượt trần KHÔNG có nghĩa riêng đợt này vượt — chỉ để tham khảo, không dùng làm ngưỡng dừng. Giữ nguyên dòng Trần đợt để công cụ vẫn đọc được.
 > Xem tiến độ: web **AI Development System** (`Start-DevSystem.bat`, cổng 8502) → trang **📋 Kế hoạch đang chạy**, hoặc `py tools/plan_progress.py`.
 > **% do code tính** từ danh sách việc dưới đây (✅ tính đủ, 🔄 tính nửa, ✖ không tính; trọng số nặng:1/2/3). Xong một việc → đổi trạng thái
 > trong cùng commit với code, ghi mã commit + bằng chứng, rồi `py tools/plan_progress.py --write`.
