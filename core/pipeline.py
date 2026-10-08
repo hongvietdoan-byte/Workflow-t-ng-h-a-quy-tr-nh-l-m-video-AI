@@ -293,11 +293,14 @@ class Pipeline:
         if not job["escalated"]:
             raise InvalidTransition(f"job {job_id} is not escalated")
         state = self.state(job_id)
+        if state not in (JobState.FAILED, JobState.REJECTED, JobState.CANCELLED):
+            raise InvalidTransition(f"job {job_id} is {state.value}, cannot restart")
+        why = self._same_input_regen(job, None)
+        if why:                     # N1 5a.4.3–4: the stopped draft chain waits for a changed input, not a blind restart
+            raise InvalidTransition(f"job {job_id}: không làm lại — {why}")
         if state == JobState.FAILED:
             self.transition(job_id, JobState.RETRYABLE, note="restart")
             self.transition(job_id, JobState.CANCELLED, note="restart")
-        elif state not in (JobState.REJECTED, JobState.CANCELLED):
-            raise InvalidTransition(f"job {job_id} is {state.value}, cannot restart")
         self.conn.execute("UPDATE jobs SET escalated=0 WHERE id=?", (job_id,))
         if not self.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND escalated=1", (job["scene_id"],)).fetchone():
             self.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (job["scene_id"],))
@@ -357,7 +360,10 @@ class Pipeline:
 
     def _insert_job(self, project_id: int, scene_id: int, job_type: str,
                     parent_job_id: Optional[int] = None, retry_count: int = 0,
-                    retry_reason: Optional[str] = None, origin: Optional[str] = None) -> int:
+                    retry_reason: Optional[str] = None, origin: Optional[str] = None,
+                    quality_tier: Optional[str] = None, draft_job_id: Optional[int] = None) -> int:
+        """quality_tier / draft_job_id (N1, cờ two_tier_quality — core/quality_tier.py): a video job's tier; None = from the parent
+        (a retry keeps its tier and draft) or from the shot's path (draft first / direct). Flag off: nothing written."""
         access.need_edit(self, project_id, "gửi việc (ảnh / video)")
         now = _now()
         who = self.actor
@@ -369,6 +375,13 @@ class Pipeline:
             " retry_reason, created_at, updated_at, created_by, origin) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (project_id, scene_id, job_type, JobState.QUEUED.value, parent_job_id, retry_count,
              retry_reason, now, now, who, origin or self.origin))
+        if job_type == "video_gen":
+            from . import quality_tier as _qt
+            if _qt.enabled():
+                tier = ({"quality_tier": quality_tier, "draft_job_id": draft_job_id} if quality_tier
+                        else _qt.tier_for_new_job(self.conn, scene_id, parent_job_id))
+                self.conn.execute("UPDATE jobs SET quality_tier=?, draft_job_id=? WHERE id=?",
+                                  (tier["quality_tier"], tier["draft_job_id"], cur.lastrowid))
         self._event(cur.lastrowid, None, JobState.QUEUED, "system", retry_reason)
         self.conn.commit()
         return cur.lastrowid
@@ -425,6 +438,9 @@ class Pipeline:
         if not by_user and self._retries_exhausted(self.job(job_id)):
             self._escalate(self.job(job_id), limit=True)
             return None
+        why = self._same_input_regen(self.job(job_id), (fix or "").strip() or None)
+        if why:                                   # N1 5a.4.4 (flag two_tier_quality): the same fix on the same input is refused
+            raise InvalidTransition(f"job {job_id}: không gen lại — {why}")
         self.transition(job_id, JobState.RETRYABLE, note=reason)
         fix = (fix or "").strip()
         before = (self.job(job_id)["retry_reason"] or "").strip()
@@ -601,6 +617,15 @@ class Pipeline:
         # score line or the Vietnamese note meant for people
         reason = note if fix is None else _combine_fix(self.job(job_id)["retry_reason"], fix)
         auto = reviewer_type == "ai_agent"
+        why = self._same_input_regen(self.job(job_id), reason) if respawn else None
+        if why:                                   # N1 5a.4.4: a redo must change its input — never the same paid input again
+            if not auto:
+                raise InvalidTransition(f"không gen lại: {why}")
+            if self.state(job_id) != JobState.PENDING_REVIEW:
+                self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent", note=why)
+            self.conn.execute("UPDATE jobs SET escalated=1 WHERE id=?", (job_id,))
+            self.conn.commit()
+            return "needs_review"
         plan = _KeepReason(reason)
         if respawn and not (auto and self._retries_exhausted(self.job(job_id))):    # at the limit no take is made: no paid rewrite
             # S14.17 review #1: Claude is asked while the take is STILL ALIVE — the run never sees the shot without a live job
@@ -688,9 +713,21 @@ class Pipeline:
         return self._insert_job(job["project_id"], job["scene_id"], job["type"],
                                 parent_job_id=job_id, retry_count=next_count, retry_reason=reason, origin="auto" if auto else None)
 
+    def _same_input_regen(self, job: sqlite3.Row, new_reason: Optional[str]) -> Optional[str]:
+        """N1 5a.4.4 (flag two_tier_quality, video only): why this redo would send the same prompt + input again (refused), or None.
+        Flag off → None (the old rules: F5 _no_auto_retry for the QC, KLD-1 for stale inputs)."""
+        from . import quality_tier as _qt
+        if job["type"] != "video_gen" or not _qt.enabled():
+            return None
+        return _qt.regen_refusal(self.conn, job, new_reason)
+
     def auto_limit(self, job: sqlite3.Row) -> int:
         """How many automatic tries this job's shot may have: AUTO_REGEN_LIMIT of its kind, lowered by the project's max_retry_count."""
         cap = AUTO_REGEN_LIMIT.get(job["type"], min(AUTO_REGEN_LIMIT.values()))
+        from . import quality_tier as _qt                 # N1 (5a.3): draft chain 2, final 1 (flag two_tier_quality)
+        tier_cap = _qt.retry_limit(job)
+        if tier_cap is not None:
+            cap = min(cap, tier_cap)
         max_retry = self.project(job["project_id"])["max_retry_count"]
         return min(cap, max_retry) if max_retry is not None else cap
 
@@ -703,6 +740,9 @@ class Pipeline:
         try:
             from . import diag
             kind = "ảnh" if job["type"] == "image_gen" else "clip"
+            from . import quality_tier as _qt
+            if _qt.retry_limit(job) is not None:          # N1: the draft chain stops here and waits for the person (5a.4.3)
+                kind = {"draft": "bản NHÁP", "final": "bản CAO"}[job["quality_tier"]]
             idx = self.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
             diag.record(self.conn, "image" if job["type"] == "image_gen" else "video", "warn",
                         f"Cần bạn quyết — {kind} shot {idx['idx'] if idx else '?'} đã tự gen lại {job['retry_count']} lần (tối đa "

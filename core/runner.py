@@ -264,7 +264,10 @@ class _Runner:
                     self._diag(job, "warn", "budget", over)
                     break                        # a real stop (S14.16: the service is out of credit): leave everything queued, say why
                 try:
-                    task_id = self.provider.submit(*args, **kwargs)
+                    if kwargs.get("_from_sample"):       # N1: a final made from its approved Seedance 2.5 draft (draft_task)
+                        task_id = self.provider.submit_final_from_sample(kwargs["_from_sample"], resolution=kwargs.get("resolution"))
+                    else:                                # keys starting with '_' are the runner's own notes, never sent
+                        task_id = self.provider.submit(*args, **{k: v for k, v in kwargs.items() if not k.startswith("_")})
                 except ProviderError as e:
                     if e.code == "rate_limited" and THROTTLE.on_rate_limited(self.job_type):   # halve the learned limit
                         self._throttle_changed()
@@ -524,7 +527,11 @@ class VideoRunner(_Runner):
         return model_router.scene_choice(self.p.conn, job["scene_id"])
 
     def _blocked(self, job) -> Optional[str]:
-        from . import lineage
+        from . import lineage, quality_tier
+        if quality_tier.enabled() and "quality_tier" in job.keys() and job["quality_tier"] == "final":
+            gate = quality_tier.final_block(self.p.conn, job["scene_id"])   # N1: no final from an unapproved / outdated draft
+            if gate:
+                return f"bản cao bị chặn: {gate}"
         row = lineage.scan(self.p.conn, job["project_id"]).get(job["scene_id"]) or {}
         if row.get("motion_stale"):
             return f"motion prompt đang cũ ({row['motion_stale']}) — viết lại / duyệt lại ở Bước 3"
@@ -636,7 +643,25 @@ class VideoRunner(_Runner):
         return out
 
     def _submit_kwargs(self, job) -> Dict:
-        from . import formats, shots
+        """The request's keyword arguments; N1 (flag two_tier_quality) then sets the job's tier: a draft goes at the model's lowest
+        tier (Seedance 2.5 `draft=True` 480p), a final from a live 2.5 draft is sent from that draft at quality_tier.FINAL_RESOLUTION
+        (`_from_sample`, read by _submit_pending — the ledger and the spend check see the 1080p tier), else at the normal (high) tier."""
+        out = self._base_submit_kwargs(job)
+        from . import quality_tier
+        if not quality_tier.enabled() or "quality_tier" not in job.keys():
+            return out
+        if job["quality_tier"] == "draft":
+            return quality_tier.low_tier(out, self._choice(job).get("model"))
+        if job["quality_tier"] == "final":
+            route = quality_tier.final_route(self.p.conn, job, self.provider)
+            if route["from_sample"]:
+                return {**out, "resolution": quality_tier.FINAL_RESOLUTION, "_from_sample": route["from_sample"]}
+            self._diag(job, "info", "final_resend", f"bản cao gửi lại đúng đầu vào ở bậc cao — {quality_tier.MAY_DIFFER} "
+                                                    f"({route['why']})")
+        return out
+
+    def _base_submit_kwargs(self, job) -> Dict:
+        from . import formats, quality_tier, shots
         proj = self.p.project(job["project_id"])
         out = {}
         aspect = formats.project_aspect(proj)
@@ -645,7 +670,7 @@ class VideoRunner(_Runner):
         choice = self._choice(job)
         if choice.get("resolution"):
             out["resolution"] = choice["resolution"]
-        if "test_quality" in proj.keys() and proj["test_quality"]:    # v3 cheap test mode: 720p, Kling std
+        if quality_tier.cheap_mode(proj):    # v3 cheap test mode: 720p, Kling std (N1: ignored with flag two_tier_quality)
             out.pop("resolution", None)
             out["kling_mode"] = "std"
         mode = shots.mode(proj)

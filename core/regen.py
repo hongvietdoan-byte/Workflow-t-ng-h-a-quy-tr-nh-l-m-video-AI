@@ -21,6 +21,12 @@ def regenerate_video(pipeline: Pipeline, data_dir: str, job_id: int, note: Optio
     if auto and pipeline._retries_exhausted(job):
         pipeline._escalate(job, limit=True)
         return None
+    why = pipeline._same_input_regen(job, (fix or "").strip() or None)
+    if why:                                            # N1 5a.4.4 (flag two_tier_quality): a redo must change its input
+        if auto:
+            pipeline._escalate(job)
+            return None
+        raise ValueError(f"không gen lại: {why}")
     actor = "ai_agent" if auto else "user"
     row = pipeline.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
     path = job["result_path"] or os.path.join(data_dir, str(job["project_id"]), "videos", f"{row['idx']:02d}.mp4")

@@ -80,7 +80,8 @@ def size_for(proj, model: str) -> str:
     from . import formats
     aspect = formats.project_aspect(proj) if proj is not None else None
     normal = formats.spec(aspect)["deepix"]
-    cheap = proj is not None and "test_quality" in proj.keys() and bool(proj["test_quality"]) and _priced_by_size(model)
+    from . import quality_tier                        # N1: flag two_tier_quality on → "Thử rẻ" ignored
+    cheap = quality_tier.cheap_mode(proj) and _priced_by_size(model)
     return (cheapest_size(model, aspect or "16:9") or normal) if cheap else normal
 
 
