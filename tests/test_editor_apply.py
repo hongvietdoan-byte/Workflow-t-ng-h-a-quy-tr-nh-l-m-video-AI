@@ -96,6 +96,15 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(pl["durations"], [3.0, 3.0, 2.5])
         self.assertEqual((pl["head"], pl["join"]), ({30: 0.5}, {30: "flash"}))
 
+    def test_cut_segment_shortens_the_shot_and_says_which_middle_seconds_go(self):
+        # TODO điểm 12: the render gets {scene_id: {start, end, join}} in edits["cut"]
+        pl = self.plan([dict(prop("F1", "cut_segment", 2, 0.0), start=1.0, end=1.5, join="match_cut")], ["F1"])
+        self.assertEqual(pl["durations"], [3.0, 2.5, 3.0])
+        self.assertEqual(pl["fit"], [20])
+        self.assertEqual(pl["cut"], {20: {"start": 1.0, "end": 1.5, "join": "match_cut"}})
+        self.assertEqual(pl["head"], {})
+        self.assertEqual((pl["applied"][0]["start"], pl["applied"][0]["end"]), (1.0, 1.5))
+
     def test_a_shot_without_a_scene_row_is_refused(self):
         self.rc["shots"][1]["scene_id"] = None
         pl = self.plan([prop("F1", "shorten_shot", 1, 0.5), prop("F2", "music_cue", 2, value="cut")], ["F1", "F2"])
@@ -356,6 +365,30 @@ class RealRenderTests(unittest.TestCase):
                                                     "meta": {"round": 1}})
         self.assertIn(6.0, man.get("shakes") or [])                                    # the frame shakes where shot 3 starts
         self.assertAlmostEqual(ffmpeg_studio.probe_duration(shaken["path"]), 8.5, delta=0.3)
+
+    def test_cut_segment_drops_the_middle_of_the_clip(self):
+        # TODO điểm 12: shot 2 loses 1,0–2,0 s of its clip → 9 − 1 s; the two halves meet on a plain cut or under a cover
+        from core import ffmpeg_studio
+        for join in ("match_cut", "flash", "shake"):
+            cut, man = self.render([3.0, 2.0, 3.0], {"fit": [self.sids[1]], "cut": {self.sids[1]: {"start": 1.0, "end": 2.0, "join": join}},
+                                                     "meta": {"round": 1}})
+            fit = man["editor_fit"]
+            self.assertEqual([(f["to_s"], f["how"], f["cut"]) for f in fit], [(2.0, "cut", [1.0, 2.0])], join)
+            self.assertAlmostEqual(ffmpeg_studio.probe_duration(fit[0]["path"]), 2.0, delta=0.1)
+            self.assertAlmostEqual(ffmpeg_studio.probe_duration(cut["path"]), 8.0, delta=0.3)
+
+    def test_cut_segment_in_ffmpeg_keeps_both_halves_and_the_sound(self):
+        import subprocess
+        from core import ffmpeg_studio
+        ff = ffmpeg_studio.find_ffmpeg()
+        src = os.path.join(self.data, "av.mp4")
+        subprocess.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=s=270x480:d=4:r=24", "-f", "lavfi", "-i",
+                        "sine=frequency=300:duration=4", "-shortest", "-pix_fmt", "yuv420p", "-c:a", "aac", src], check=True)
+        dst = ffmpeg_studio.cut_segment(src, os.path.join(self.data, "av_cut.mp4"), 1.0, 2.5)
+        self.assertAlmostEqual(ffmpeg_studio.probe_duration(dst), 2.5, delta=0.1)
+        self.assertTrue(ffmpeg_studio.has_audio(dst))
+        with self.assertRaises(ValueError):
+            ffmpeg_studio.cut_segment(src, os.path.join(self.data, "bad.mp4"), 2.0, 9.0)
 
     def test_a_longer_shot_holds_its_last_frame(self):
         from core import ffmpeg_studio

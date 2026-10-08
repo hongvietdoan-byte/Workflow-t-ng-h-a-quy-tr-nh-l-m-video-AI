@@ -437,9 +437,12 @@ def _fit_edits(rows: List[Dict], paths: List[str], durations: List[float], edits
     files and ignores `durations`, so a different length must live in the file. The original clip is untouched. `paths` changes in place.
     KLD-19: `edits["head"]` {scene_id: seconds} = those first seconds of the clip are dropped first (`ffmpeg_studio.skip_head`), then the
     rest is fitted to its length as above ("how": "head").
+    TODO điểm 12: `edits["cut"]` {scene_id: {"start", "end", "join"}} = that stretch in the middle of the clip is dropped
+    (`ffmpeg_studio.cut_segment`, a cover drawn where the halves meet), then fitted ("how": "cut").
     Returns [{"idx", "from_s", "to_s", "how", "path"} | {"idx", "error"}] for the manifest."""
     head = {k: float(v) for k, v in ((edits or {}).get("head") or {}).items() if float(v or 0) > 0}
-    want = set((edits or {}).get("fit") or []) | set(head)
+    cuts = {k: v for k, v in ((edits or {}).get("cut") or {}).items() if isinstance(v, dict)}
+    want = set((edits or {}).get("fit") or []) | set(head) | set(cuts)
     out = []
     if not want:
         return out
@@ -450,6 +453,27 @@ def _fit_edits(rows: List[Dict], paths: List[str], durations: List[float], edits
         have = ffmpeg_studio.probe_duration(paths[i])
         if not have:
             out.append({"idx": r.get("idx"), "error": "không đo được độ dài clip"})
+            continue
+        seg = cuts.get(r.get("scene_id"))
+        if seg:          # TODO điểm 12: the middle stretch dropped first (the clip's own seconds), then fitted to its length as usual
+            os.makedirs(work_dir, exist_ok=True)
+            dst = os.path.join(work_dir, f"cut_{r.get('idx')}.mp4")
+            a, b, join = float(seg.get("start") or 0), float(seg.get("end") or 0), seg.get("join")
+            try:
+                ffmpeg_studio.cut_segment(paths[i], dst, a, b, cover=join)
+                kept = ffmpeg_studio.probe_duration(dst) or (have - (b - a))
+                if abs(kept - float(d)) > FIT_TOLERANCE_S:
+                    fitted = os.path.join(work_dir, f"cut_{r.get('idx')}_fit.mp4")
+                    if float(d) < kept:
+                        ffmpeg_studio.trim_head(dst, fitted, float(d))
+                    else:
+                        ffmpeg_studio.hold_last_frame(dst, fitted, float(d) - kept)
+                    dst = fitted
+            except Exception as e:  # noqa: BLE001 - the whole render fails loudly rather than silently ignoring the person's edit
+                raise ValueError(f"không bỏ được đoạn {a:g}–{b:g} s của shot {r.get('idx')}: {str(e)[:160]}")
+            out.append({"idx": r.get("idx"), "from_s": round(have, 2), "to_s": round(float(d), 2), "how": "cut",
+                        "cut": [round(a, 2), round(b, 2)], "join": join, "path": dst})
+            paths[i] = dst
             continue
         drop = head.get(r.get("scene_id"), 0.0)
         if not drop and abs(have - float(d)) <= FIT_TOLERANCE_S:

@@ -101,6 +101,58 @@ class VetTests(unittest.TestCase):
         self.assertEqual(ok, [])
         self.assertIn("chỗ nối", no[0]["reason"])
 
+    def cut(self, **kw):
+        base = dict(action="cut_segment", target_shot=3, scene=2, start=1.0, end=1.6, join="match_cut", amount=0)
+        base.update(kw)
+        return f(**base)
+
+    def test_cut_segment_drops_a_bad_stretch_in_the_middle_of_a_clip(self):
+        # TODO điểm 12 (người dùng 07/10): bỏ một đoạn lỗi GIỮA clip (tay biến dạng, giật), hai nửa nối bằng cắt khớp hoặc che bằng join
+        ok, no = self.vet(self.cut())
+        self.assertEqual((len(ok), no), (1, []))
+        self.assertEqual((ok[0]["start"], ok[0]["end"], ok[0]["amount"], ok[0]["join"], ok[0]["applicable"]), (1.0, 1.6, 0.6, "match_cut", True))
+        self.assertIn("giữa", editor_review.describe(ok[0]))
+        for kind in editor_review.JOIN_COVERS:
+            self.assertTrue(self.vet(self.cut(join=kind))[0], kind)
+        self.assertIn("cut_segment", open(os.path.join(os.path.dirname(__file__), "..", "prompts", "24_editor_review.md"), encoding="utf-8").read())
+
+    def test_cut_segment_is_checked_by_code(self):
+        reason = lambda **kw: self.vet(self.cut(**kw))[1][0]["reason"]
+        self.assertIn("thoại", reason(target_shot=1, scene=1))                           # speech / lip sync: never
+        self.assertIn("nối", reason(join=""))                                             # how the halves meet must be said
+        self.assertIn("nối", reason(join="sparkles"))
+        self.assertIn("trim_head", reason(start=0.0, end=0.6))                             # at the head: that is trim_head
+        self.assertIn("shorten_shot", reason(start=3.5, end=4.0))                         # at the end: that is shorten_shot
+        self.assertIn("đoạn", reason(start=1.6, end=1.0))
+        self.assertIn("ngoài", reason(start=0.5, end=3.7))                               # longer than AMOUNT_MAX
+        self.assertIn("ngắn hơn", reason(target_shot=4, start=0.2, end=0.55))              # 0,8 s − 0,35 s < MIN_SHOT
+        self.assertIn("target_s", reason(start=0.5, end=3.0))                             # scene 2 pushed from 5 s to 2,3 s
+        ok, no = self.vet(f(action="trim_head", target_shot=3, amount=0.5, scene=2), self.cut())
+        self.assertEqual(len(ok), 1)
+        self.assertIn("trim_head", no[0]["reason"])                                       # the clip's seconds would move under the cut
+
+    def test_glitch_hints_from_clip_measure_reach_the_editors_clock(self):
+        # TODO điểm 12: the jumps clip_measure finds inside the used part of a clip are hints for cut_segment (code only, 0 USD)
+        import tempfile
+        from core import rough_cut
+        d = tempfile.mkdtemp()
+        paths = []
+        for n in (1, 2, 3):
+            paths.append(os.path.join(d, f"{n}.mp4"))
+            open(paths[-1], "wb").close()
+        shots = [dict(shot(1, 1, 0, 3), idx=1), dict(shot(2, 1, 3, 2), idx=2), dict(shot(3, 2, 5, 4, dialogue=True), idx=3)]
+        man = {"clips": [{"path": p} for p in paths], "editor_fit": []}
+        got = {paths[0]: {"jerks": [1.2, 3.5], "cuts": []}, paths[1]: {"jerks": [], "cuts": [0.9]}, paths[2]: {"jerks": [1.0]}}
+        self.assertEqual(rough_cut.glitch_hints(man, shots, measure=lambda p: got[p]), 2)
+        self.assertEqual(shots[0]["glitches"], {"jerks": [1.2]})                        # 3,5 s is past the 3 s the cut uses
+        self.assertEqual(shots[1]["glitches"], {"cuts": [0.9]})
+        self.assertNotIn("glitches", shots[2])                                           # speech: never cut, no hint
+        man["editor_fit"] = [{"idx": 1, "how": "head"}]                                  # its seconds moved in an earlier edit
+        shots[0].pop("glitches")
+        rough_cut.glitch_hints(man, shots, measure=lambda p: got[p])
+        self.assertNotIn("glitches", shots[0])
+        self.assertIn("glitches", editor_review._CLOCK_KEYS)
+
     def test_numbers_are_bounded_by_the_clock(self):
         self.assertTrue(self.vet(f(amount=9))[1])                                   # above the largest cut
         self.assertTrue(self.vet(f(amount=0.05))[1])                                # below the smallest
