@@ -514,6 +514,24 @@ def short_shots(secs: List[float]) -> List[int]:
     return [i for i, s in enumerate(secs, 1) if len(secs) > 1 and s < SHORT_SHOT]
 
 
+def write_by_code(p, pid: int, llm=None) -> Dict:
+    """The motion step shared by the automatic run and the Step 3 button (08/10: the button paid Claude for shots the automatic run
+    writes by code): ONE Claude call turns the Director's Vietnamese fields into English (only when some are Vietnamese), then every
+    reference shot — missing or outdated — gets its prompt from code. Returns {translated, by_code, warn}."""
+    from . import claude_tasks, lineage, llm_runner
+    out = {"translated": 0, "by_code": 0, "warn": None}
+    if not enabled(p.conn, pid):
+        return out
+    if llm is not None:
+        try:
+            out["translated"] = claude_tasks.translate_motion_fields(p, pid, llm)
+        except (llm_runner.LlmError, ValueError) as e:
+            out["warn"] = f"không dịch được trường tiếng Việt ({e}) — prompt nhóm sẽ bị chặn khi gửi nếu còn tiếng Việt"
+    stale = [sid for sid, r in lineage.scan(p.conn, pid).items() if r["motion_stale"] and uses_refs(p.conn, sid)]
+    out["by_code"] = code_motion(p, pid, redo_ids=stale)
+    return out
+
+
 def code_motion(p, pid: int, redo_ids=()) -> int:
     """Motion prompts written by code for the shots made by reference pictures that have an approved picture and no prompt yet — the
     group prompt is built from them (docs/THIET_KE_LAI_QC_VA_KET_NOI_2026-09-27.md mục 1: no Claude motion call for Seedance groups).

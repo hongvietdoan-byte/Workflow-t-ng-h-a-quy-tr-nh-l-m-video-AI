@@ -49,8 +49,7 @@ STAGES: Dict[str, Dict] = {
             ("Không thấy lỗi kỹ thuật nhìn là thấy: cho qua 6 khung chữ nhật dán + tháp Big Ben trên tấm ghép (ô 384×683)",
              "kiểm kỹ thuật TỪNG khung ở độ phân giải đầy đủ với câu hỏi đích danh (mảng dán, đường nối, ánh sáng người ≠ nền); lỗi lặp → bộ đo bằng code"),
             ("Báo nhầm 12/21 khung tốt vì chi tiết vụn (vệt nước mắt, chiều sâu ba lớp)", "tách mức lỗi chặn / lỗi nhỏ; chỉ lỗi chặn mới 'fix'"),
-            ("Lần chạy đầu cho qua một ô đen hoàn toàn", "đã chặn bằng code: khung trống/đen/một màu (lớp 0)"),
-        ],
+        ],                       # 08/10: "cho qua một ô đen" đã chặn bằng code (lớp 0) — chỉ còn ở `fixed`, không đếm là lỗi mở
         "fixed": ["khung trống/đen/một màu bắt bằng code (lớp 0)", "chưa tin → không tự duyệt / tự vẽ lại"],
     },
     "set_consistency": {

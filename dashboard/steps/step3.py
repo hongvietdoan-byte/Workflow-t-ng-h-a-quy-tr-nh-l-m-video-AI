@@ -38,14 +38,32 @@ def step3(p: Pipeline, pid: int):
     with (_card("sb-mot-tools") if v2 else st.container(border=True)):
         c1, c2, c3 = st.columns([2.6, 2, 2], vertical_alignment="center")
         todo = len(missing) + len(stale_idx)
-        calls = (1 if missing else 0) + (1 if stale_idx else 0)            # one Claude call per batch (all missing / all outdated)
-        mot_usd = cost.llm_estimate(p.conn, "motion", calls, images=min(todo, 12))
-        if c1.button(f"🤖 Viết motion prompt ({len(missing)} chưa có · {len(stale_idx)} đã cũ){cost.llm_tag(mot_usd, calls)}", type="primary",
-                     key=f"llm_mot_{pid}", disabled=client is None or not todo, help=None if client else claude_hint()):
+        # 08/10: Seedance reference shots get their prompt from the Director's fields by code (as in the automatic run) — Claude only
+        # for the frame-start shots
+        from core import seedance_refs
+        refs = {sid for sid in status if seedance_refs.uses_refs(p.conn, sid)}
+        by_code_n = sum(1 for sid, r in status.items() if sid in refs and r["image_job_id"]
+                        and (r["motion_state"] is None or r["motion_stale"]))
+        claude_missing = [sid for sid, r in status.items() if sid not in refs and r["image_job_id"] and r["motion_state"] is None]
+        claude_stale = [r["idx"] for sid, r in status.items() if sid not in refs and r["image_job_id"] and r["motion_stale"]]
+        calls = (1 if claude_missing else 0) + (1 if claude_stale else 0)  # one Claude call per batch (all missing / all outdated)
+        calls += 1 if by_code_n else 0                                     # + at most one call translating Vietnamese fields (overestimate)
+        mot_usd = cost.llm_estimate(p.conn, "motion", calls, images=min(len(claude_missing) + len(claude_stale), 12))
+        code_note = f" · {by_code_n} viết bằng code" if by_code_n else ""
+        if c1.button(f"🤖 Viết motion prompt ({len(missing)} chưa có · {len(stale_idx)} đã cũ{code_note}){cost.llm_tag(mot_usd, calls)}",
+                     type="primary", key=f"llm_mot_{pid}", disabled=(client is None and not by_code_n) or not todo,
+                     help=None if client else claude_hint()):
             def go():
-                r1 = llm_runner.run_motion(p, pid, client, C.DATA) if missing else {"scenes": 0}
-                r2 = llm_runner.run_motion(p, pid, client, C.DATA, only_idx=stale_idx) if stale_idx else {"scenes": 0}
-                st.toast(f"Đã viết {r1['scenes'] + r2['scenes']} motion prompt")
+                code = seedance_refs.write_by_code(p, pid, client)
+                if code["warn"]:
+                    st.warning(code["warn"])
+                again = lineage.scan(p.conn, pid)                           # what is left for Claude after the code step
+                left_stale = sorted(r["idx"] for r in again.values() if r["motion_stale"] and r["image_job_id"])
+                left_missing = any(r["image_job_id"] and r["motion_state"] is None for r in again.values())
+                r1 = llm_runner.run_motion(p, pid, client, C.DATA) if left_missing and client else {"scenes": 0}
+                r2 = llm_runner.run_motion(p, pid, client, C.DATA, only_idx=left_stale) if left_stale and client else {"scenes": 0}
+                st.toast(f"Đã viết {code['by_code'] + r1['scenes'] + r2['scenes']} motion prompt"
+                         + (f" ({code['by_code']} bằng code, không gọi Claude)" if code["by_code"] else ""))
             with st.spinner("Claude đang viết motion prompt…"):
                 if act(go):
                     st.rerun()

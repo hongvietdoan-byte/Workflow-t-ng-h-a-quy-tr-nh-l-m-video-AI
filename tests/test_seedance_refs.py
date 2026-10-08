@@ -263,6 +263,29 @@ class SeedanceRefTests(unittest.TestCase):
             self.assertIn("angle, camera", mp["motion_prompt"])
         self.assertEqual(seedance_refs.code_motion(self.p, self.pid), 0)            # once
 
+    def test_the_manual_button_writes_reference_shots_by_code_like_the_automatic_run(self):
+        """08/10 (người dùng): the Step 3 button paid Claude for shots the automatic run builds by code — one shared step now. Claude is
+        asked only to translate the Vietnamese fields; when that fails the prompts are still written by code and the failure is said."""
+        from core import llm_runner
+        calls = []
+
+        class Down:
+            def __getattr__(self, name):
+                calls.append(name)
+                raise llm_runner.LlmError("Claude không trả lời")
+        self._ready()
+        self.p.conn.execute("DELETE FROM motion_prompts WHERE scene_id IN (%s)" % ",".join(map(str, self.ids)))
+        self.p.conn.commit()
+        res = seedance_refs.write_by_code(self.p, self.pid, Down())
+        self.assertGreaterEqual(res["by_code"], len(self.ids))
+        self.assertIn("không dịch được", res["warn"])                                # rule 1: said, not swallowed
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM motion_prompts WHERE scene_id IN (%s) AND state='approved'"
+                                             % ",".join(map(str, self.ids))).fetchone()[0], len(self.ids))
+        os.environ["FEATURE_SEEDANCE_REF_GROUPS"] = "0"                             # frame-start shots: nothing for code to write
+        calls.clear()
+        self.assertEqual(seedance_refs.write_by_code(self.p, self.pid, Down()), {"translated": 0, "by_code": 0, "warn": None})
+        self.assertEqual(calls, [])
+
     def test_off_by_default(self):
         os.environ.pop("FEATURE_SEEDANCE_REF_GROUPS", None)
         self.assertIsNone(shots.group_of(self.p.conn, self.ids[1]))
