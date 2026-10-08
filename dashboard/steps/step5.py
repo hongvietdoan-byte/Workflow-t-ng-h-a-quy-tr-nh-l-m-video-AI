@@ -556,12 +556,15 @@ def step5_v2(p: Pipeline, pid: int, stat, state: str) -> None:
             end_card_panel(p, pid, enabled_ext=card_on)
             exports_panel(p, pid, preset_ext=preset)
     n_exports = len(delivery.get_settings(p, pid)["exports"])
+    from dashboard import quality_ui                      # N4 (5a.5): bản dựng có clip nháp = bản DRAFT
+    draft_note = quality_ui.draft_render_note(p.conn, pid)
+    draft_pill = [(draft_note, "warn")] if draft_note else []
     with head_c:
         st.markdown(D.hero_html("📦 Xuất bản đầy đủ", "clip → âm thanh → dựng → phụ đề / card / kích thước → một bản giao",
                                 [(("Bản giao mới nhất", "ok") if state == "fresh" else ("Bản giao cũ", "warn") if state == "stale" else ("Chưa dựng", "mute")),
                                  ("Phụ đề bật" if sub_on else "Phụ đề tắt", "ok" if sub_on else "mute"),
                                  ("Card cuối bật" if card_on else "Card cuối tắt", "ok" if card_on else "mute"),
-                                 (f"{n_exports} khung phụ", "info" if n_exports else "mute")]), unsafe_allow_html=True)
+                                 (f"{n_exports} khung phụ", "info" if n_exports else "mute")] + draft_pill), unsafe_allow_html=True)
     with stats_c:
         c = st.columns(4)
         total_s = final_cut.total_seconds(durations, dset["transition"], float(dset["fade"])) if durations else 0.0
@@ -578,6 +581,8 @@ def step5_v2(p: Pipeline, pid: int, stat, state: str) -> None:
             D.line(D.pill(f"{len(reasons)} lý do bản giao cũ", "warn") + f" {escape(str(reasons[0]))[:90]}",
                    "\n".join(f"- {r}" for r in reasons), "del-reasons")
         _deliver_button(p, pid, chosen, durations, "📦 Xuất bản đầy đủ")
+        if draft_note and (st.session_state.get(f"deliver_draft_{pid}") or fin.get("path")):
+            st.warning(quality_ui.delivery_warning(p.conn, pid))       # sau khi giao: cảnh nào còn nháp (không chặn)
         if not chosen:
             st.markdown(D.empty_state("Chưa có clip nào để xuất", "Chạy màn Video hoặc tick clip trong Tinh chỉnh → Clip & dựng."), unsafe_allow_html=True)
     with out_c, D.card("del-out"):
@@ -707,6 +712,10 @@ def render_panel(p: Pipeline, pid: int, chosen, durations) -> None:
             st.warning(msg)
         if durations and not problems:
             st.info(f"Tổng thời lượng dự kiến: {final_cut.total_seconds(durations, transition, fade):.1f} giây · {len(chosen)} clip")
+        from dashboard import quality_ui                  # N4 (5a.5): clips còn nháp → bản dựng là bản DRAFT (vẫn dựng để xem trọn bộ)
+        draft_note = quality_ui.draft_render_note(p.conn, pid)
+        if draft_note:
+            st.info(f"🟡 {draft_note} — bản dựng là bản DRAFT để xem trọn bộ; gen bản cao ở màn Video rồi dựng lại.")
         if st.button("▶ Dựng video cuối", disabled=bool(problems), type="primary", key=f"render_{pid}", width="stretch"):
             with st.spinner("Đang dựng…"):
                 ok = act(lambda: delivery.render(p, pid, C.DATA, "auto", chosen, durations), "Dựng xong")
@@ -960,6 +969,10 @@ def _deliver_button(p: Pipeline, pid: int, chosen, durations, label: str = "📦
             res = st.session_state.pop(f"deliver_res_{pid}")
             for w in res["warnings"]:
                 st.warning(w)
+            from dashboard import quality_ui              # N4 (5a.5): giao khi còn nháp → nói rõ cảnh nào (cảnh báo, không chặn)
+            warn = quality_ui.delivery_warning(p.conn, pid)
+            if warn:
+                st.session_state[f"deliver_draft_{pid}"] = warn
             if res.get("qc") is not None:
                 st.session_state[f"final_qc_{pid}"] = res["qc"]
             st.toast(f"Đã xuất bản: {len(res['layers']) + 1} file")
@@ -994,18 +1007,21 @@ def snapshot_after_delivery(p: Pipeline, pid: int) -> None:
 
 def _deliver_files(p: Pipeline, pid: int, stat) -> None:
     """The finished video (player + download) and every file of the chain with its own download button."""
+    from dashboard import quality_ui
     fin = stat["final"]
     best = stat["best"]
     if best and os.path.exists(best):
         show_video(best)
         with open(best, "rb") as f:
-            st.download_button(f"⬇ Tải {os.path.basename(best)}", f, file_name=os.path.basename(best), mime="video/mp4", key=f"best_dl_{pid}")
+            name = quality_ui.draft_file_name(os.path.basename(best), p.conn, pid)    # N4: '_DRAFT' while clips are drafts
+            st.download_button(f"⬇ Tải {name}", f, file_name=name, mime="video/mp4", key=f"best_dl_{pid}")
     files = ([("Video cuối", fin["path"], None)] if fin.get("path") and os.path.exists(fin["path"]) else []) +         [({"subtitle": "Phụ đề", "endcard": "Card cuối", "ailabel": "Nhãn AI", "export": "Bản xuất"}.get(x["kind"], x["kind"]), x["path"], x["stale"]) for x in stat["layers"]]
     for n, (label, path, stale) in enumerate(files):
         a, b = st.columns([4, 1.3], vertical_alignment="center")
         a.markdown(f"{label}: `{os.path.basename(path)}` · {os.path.getsize(path) / 1e6:.1f} MB" + (f" · {colored('warn', '⚠ ' + escape(str(stale)))}" if stale else ""), unsafe_allow_html=True)
         with open(path, "rb") as f:
-            b.download_button("⬇ Tải", f, file_name=os.path.basename(path), mime="video/mp4", key=f"layer_dl_{pid}_{n}")
+            b.download_button("⬇ Tải", f, file_name=quality_ui.draft_file_name(os.path.basename(path), p.conn, pid), mime="video/mp4",
+                              key=f"layer_dl_{pid}_{n}")
 
 
 def delivery_panel(p: Pipeline, pid: int, chosen, durations) -> None:

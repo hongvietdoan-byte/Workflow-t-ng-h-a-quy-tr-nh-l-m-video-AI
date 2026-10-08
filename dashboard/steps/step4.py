@@ -207,6 +207,9 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
             with st.expander(f"👄 Khớp môi: {len(notes)} shot không có khớp môi sau (không dùng sync.so)"):
                 for i, n in notes:
                     st.caption(f"{C.unit_code(p, pid, i)}: {n}")
+    from dashboard import quality_ui                      # N4: nút gom "⬆ Gen bản cao N cảnh — ≈ X USD (tham khảo)"
+    if quality_ui.enabled():
+        quality_ui.batch_block(p, pid, runner)
     waiting = [j["id"] for j in p.conn.execute(
         "SELECT id FROM jobs WHERE project_id=? AND type='video_gen' AND state='pending_review' ORDER BY id", (pid,)).fetchall()]
     if waiting and confirm_all(f"vid_ok_all_{pid}", waiting, f"✔ Duyệt tất cả ({len(waiting)} clip)",
@@ -355,6 +358,9 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
             mean = sum(s["score"] for s in scores) / len(scores)
             pills += " " + D.pill(f"QC {mean:.2f}", V.score_kind(mean, p.project(pid)["qc_auto_pass_threshold"]))
         st.markdown(pills, unsafe_allow_html=True)
+        from dashboard import quality_ui                  # N4: 2 bậc chất lượng — chỉ khi cờ two_tier_quality bật và có core.quality_tier
+        if quality_ui.enabled():
+            quality_ui.card_block(p, pid, j["scene_id"], runner)
         if clip:
             left, right = st.columns(2)
             src = job_image(pid, j["source_job_id"]) if j["source_job_id"] else None

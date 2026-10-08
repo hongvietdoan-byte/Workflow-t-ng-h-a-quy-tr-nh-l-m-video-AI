@@ -20,7 +20,14 @@ def overall_progress(p, pid: int, done: list) -> float:
     parts = [1.0 if done and done[0][0] == "done" else 0.0]
     for key in ("images", "motion", "videos"):
         parts.append(min(summ[key][0] / n, 1.0) if n else 0.0)
-    parts.append(1.0 if len(done) > 4 and done[4][0] == "done" else 0.0)
+    rendered = len(done) > 4 and done[4][0] == "done"
+    parts.append(1.0 if rendered else 0.0)
+    from dashboard import quality_ui
+    if quality_ui.enabled() and n:      # N4 (5a.8): clip = nháp → duyệt nháp → bản cao / gen thẳng; bản dựng còn nháp = DRAFT (nửa chặng)
+        clip, _ = quality_ui.clip_progress(p.conn, pid)
+        parts[3] = min(parts[3], clip)
+        if rendered and quality_ui.draft_scenes(p.conn, pid):
+            parts[4] = 0.5
     return sum(parts) / len(parts)
 
 
@@ -90,13 +97,22 @@ def fold(label: str, body_md: str = "") -> None:
 _STAGES = ("Kịch bản", "Ảnh", "Motion", "Clip", "Bản giao")
 
 
-def progress_details(pid: int, done: list) -> str:
+def progress_details(pid: int, done: list, p=None) -> str:
     """The ⓘ of the overall-progress meter: what the percentage is made of + the per-stage state (the old meter label said the same in one line)."""
     mark = {"done": "xong", "stale": "đã cũ", "todo": "chưa xong"}
     rows = []
     for i, name in enumerate(_STAGES):
         state, text = done[i] if i < len(done) else ("todo", "")
         rows.append(f"- **{name}**: {mark.get(state, state)}" + (f" ({text})" if text else ""))
+    from dashboard import quality_ui
+    if p is not None and quality_ui.enabled():          # N4: chặng thật của clip + bản dựng DRAFT
+        _, counts = quality_ui.clip_progress(p.conn, pid)
+        line = quality_ui.progress_lines(counts)
+        if line:
+            rows.append(f"- **Clip 2 bậc**: {line}")
+        note = quality_ui.draft_render_note(p.conn, pid)
+        if note:
+            rows.append(f"- **Bản dựng**: {note} — chưa phải bản cuối")
     return ("Tiến độ tổng = trung bình 5 phần: kịch bản (Bible đã khóa) · ảnh · motion · clip · bản giao.\n\n" + "\n".join(rows)
             + f"\n\nDự án #{pid}")
 
@@ -122,8 +138,8 @@ def project_hero(p, pid: int, done: list, screen_index: int, data_dir: str, leve
             else:
                 st.html(f'<div class="v2-note shell-next">{escape(icon + short)}</div>')
         with right:
-            with D.info("shell-progress", anchor=D.meter(frac, "Tiến độ tổng"), help_text=D.md_plain(progress_details(pid, done))):
-                st.markdown(progress_details(pid, done))
+            with D.info("shell-progress", anchor=D.meter(frac, "Tiến độ tổng"), help_text=D.md_plain(progress_details(pid, done, p))):
+                st.markdown(progress_details(pid, done, p))
             with st.container(key="shell-level"):
                 level_fn()
 

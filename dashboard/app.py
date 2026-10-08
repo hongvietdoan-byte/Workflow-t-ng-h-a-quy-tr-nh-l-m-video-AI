@@ -47,10 +47,17 @@ def step_done(p: Pipeline, pid: int) -> list:
         return state, (f"{done}/{n}" + (f" ⚠{stale}" if stale else "")) if n else ""   # no scenes yet: no "0/0"
 
     fin = delivery.status(p, pid, DATA)["final"]
+    videos = stage(summ["videos"])
+    render = ({"fresh": "done", "stale": "stale", "missing": "todo"}[fin["state"]], {"fresh": "✓", "stale": "cũ", "missing": ""}[fin["state"]])
+    from dashboard import quality_ui
+    if n and quality_ui.enabled():          # N4 (5a.8): a scene with only its draft is not "xong"; a cut of drafts is the DRAFT render
+        drafts = len(quality_ui.draft_scenes(p.conn, pid))
+        if drafts:
+            videos = ("stale" if videos[0] == "stale" else "todo", f"{videos[1]} · {drafts} nháp")
+            if render[0] == "done":
+                render = ("todo", "DRAFT")
     return [("done" if locked else "todo", f"{n} cảnh" if n else ""), stage(summ["images"]), stage(summ["motion"]),
-            stage(summ["videos"]),
-            ({"fresh": "done", "stale": "stale", "missing": "todo"}[fin["state"]], {"fresh": "✓", "stale": "cũ", "missing": ""}[fin["state"]]),
-            ("todo", "")]
+            videos, render, ("todo", "")]
 
 
 def step_label(done: list):

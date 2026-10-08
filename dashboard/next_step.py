@@ -16,6 +16,12 @@ def _count(conn, sql: str, args) -> int:
     return int(conn.execute(sql, args).fetchone()[0])
 
 
+def _drafts(conn, pid: int) -> int:
+    """N4: scenes whose clip is still the draft (0 when the two-tier flag / core.quality_tier is not there)."""
+    from dashboard import quality_ui
+    return len(quality_ui.draft_scenes(conn, pid)) if quality_ui.enabled() else 0
+
+
 def next_action(p: Pipeline, pid: int, step: int, data_dir: str = "") -> Optional[Tuple[str, str]]:
     """(text, level) — level "wait" (the automatic run waits for you), "todo" (something left here) or "done"; None when nothing to say."""
     info = autopilot.status(p, pid)
@@ -74,6 +80,9 @@ def next_action(p: Pipeline, pid: int, step: int, data_dir: str = "") -> Optiona
         left = total - summ["videos"][0]
         if left:
             return f"Gen video cho {left} cảnh chưa có clip" + (f" ({failed} lần lỗi — xem danh sách)" if failed else ""), "todo"
+        drafts = _drafts(conn, pid)
+        if drafts:                          # N4 (5a.8): only drafts is not "xong"
+            return (f"{drafts} cảnh còn nháp — duyệt nháp rồi ⬆ Gen bản cao (bản dựng lúc này là bản DRAFT, xem được trọn bộ)"), "todo"
         return "Video xong — sang màn Bản giao", "done"
     if step == 5:
         fin = lineage.latest_output(conn, pid, "final")
@@ -85,6 +94,9 @@ def next_action(p: Pipeline, pid: int, step: int, data_dir: str = "") -> Optiona
             qc = None
         if qc and qc.get("blocks"):
             return f"Bản dựng còn {qc['blocks']} lỗi chặn — xem 🔎 Kiểm bản dựng (5.5)", "todo"
+        drafts = _drafts(conn, pid)
+        if drafts:                          # N4 (5a.5): the render of drafts is a DRAFT, not the finished video
+            return f"Bản dựng là bản DRAFT ({drafts} cảnh còn nháp) — gen bản cao ở màn Video rồi dựng lại", "todo"
         return "Xem bản giao ở 5.5 · 🔎 Kiểm bản dựng trước khi đăng", "done"
     return None
 

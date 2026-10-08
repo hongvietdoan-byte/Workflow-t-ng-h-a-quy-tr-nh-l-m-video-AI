@@ -21,6 +21,11 @@ def render(conn, pid: int) -> None:
     names = dict(M.STAGES)
     counts = " · ".join(f"{names[k]} {d}/{t}" for k, (d, t) in s["counts"].items())
     head = f"🗺 Tiến độ {len(rows)} shot: {counts}" + (f" — đang ở khâu **{names[s['current']]}**" if s["current"] else " — xong cả 3 khâu")
+    from dashboard import quality_ui                      # N4 (5a.8): 'xong' chỉ khi đã có bản cao / gen thẳng
+    if quality_ui.enabled():
+        drafts = len(quality_ui.draft_scenes(conn, pid))
+        if drafts:
+            head = head.replace(" — xong cả 3 khâu", "") + f" · ⚠ {drafts} shot còn nháp (chưa có bản cao)"
     with st.expander(head, expanded=False):
         cols = "".join(f"<th>{'▶ ' if k == s['current'] else ''}{escape(n)}</th>" for k, n in M.STAGES)
         body = "".join(
