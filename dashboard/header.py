@@ -332,12 +332,31 @@ def archived_list(p: Pipeline) -> None:
 
 def _archived_rows(p, rows) -> None:
     for r in rows:
-        c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
+        c1, c2, c3 = st.columns([3, 1.4, 1.2], vertical_alignment="center")
         c1.caption(f"#{r['id']} {escape(r['name'])}")
         if access.can_manage(p.conn, r["id"], C.access_user()):         # restore = Owner / the project's creator
             c2.button("↩ Khôi phục", key=f"proj_restore_{r['id']}", on_click=_restore_project, args=(r["id"],))
         else:
             c2.caption("Chỉ Owner / chủ dự án khôi phục")
+        proj = p.project(r["id"])
+        if proj is not None and can_delete_project(proj):              # 08/10 (người dùng): a put-away project had no delete button
+            _delete_box(p, r["id"], proj, c3)
+
+
+def _delete_box(p, pid: int, proj, where, label: str = "🗑 Xóa") -> None:
+    """🗑 Xóa dự án: ask first, stop the run, cancel at the provider, files to the trash (⚙ → Dự án and ⚙ → 📦 Dự án đã cất)."""
+    from core import autopilot
+    if confirm_all(f"proj_del_{pid}", [pid], label, f"Xóa hẳn dự án “{proj['name']}” cùng ảnh, clip, nhạc, video? Không thể khôi phục.",
+                   where, "Có, xóa dự án"):
+        autopilot.stop(p, pid, "Dự án bị xóa")
+        report = {}
+        note = cancel_everything(p, pid, report)          # T3: the running tasks are stopped at the provider too, not only here
+        if report.get("busy"):                            # nothing was cancelled: deleting now would orphan tasks still billing
+            st.warning(f"Chưa xóa dự án. {note}")
+            return
+        p.delete_project(pid, C.DATA)
+        st.toast(f"Đã xóa dự án “{proj['name']}”. {note}")
+        st.rerun()
 
 
 def settings_menu(p: Pipeline, pid, label: str = "⚙") -> None:
@@ -473,17 +492,8 @@ def _settings_project_body(p: Pipeline, pid: int) -> None:
     if not can_delete_project(proj):
         who = proj["created_by"]
         st.caption("Dự án này do " + (escape(who) if who else "người dùng cũ") + " tạo nên bạn không xóa được.")
-    elif confirm_all(f"proj_del_{pid}", [pid], "🗑 Xóa dự án", f"Xóa hẳn dự án “{proj['name']}” cùng ảnh, clip, nhạc, video? Không thể khôi phục.",
-                     st, "Có, xóa dự án"):
-        autopilot.stop(p, pid, "Dự án bị xóa")
-        report = {}
-        note = cancel_everything(p, pid, report)          # T3: the running tasks are stopped at the provider too, not only here
-        if report.get("busy"):                            # nothing was cancelled: deleting now would orphan tasks still billing
-            st.warning(f"Chưa xóa dự án. {note}")
-            return
-        p.delete_project(pid, C.DATA)
-        st.toast(f"Đã xóa dự án “{proj['name']}”. {note}")
-        st.rerun()
+    else:
+        _delete_box(p, pid, proj, st, "🗑 Xóa dự án")
 
 
 def cancel_everything(p: Pipeline, pid, report_out=None) -> str:

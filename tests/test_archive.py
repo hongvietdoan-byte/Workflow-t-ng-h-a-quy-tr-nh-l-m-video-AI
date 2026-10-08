@@ -87,6 +87,17 @@ class ArchiveDashboardTests(unittest.TestCase):
         self.assertEqual(at.selectbox(key="global_pid").value, self.old)
         self.assertFalse([b for b in at.button if b.key and b.key.startswith("proj_restore_")])
 
+    def test_a_put_away_project_can_be_deleted_from_the_list(self):
+        """Người dùng 08/10: 'cất trong kho không có nút xóa' — the 📦 list has 🗑 Xóa (asks first, same flow as ⚙ → 🗑 Xóa dự án)."""
+        archive.archive(self.p, self.old)
+        at = AppTest.from_file(APP, default_timeout=60).run()
+        self.assertFalse(at.exception)
+        at.button(key=f"proj_del_{self.old}").click().run()
+        self.assertIsNotNone(Pipeline(connect(self.db)).project(self.old))                 # asked first, nothing deleted yet
+        at.button(key=f"proj_del_{self.old}_yes").click().run()
+        self.assertFalse(at.exception)
+        self.assertIsNone(Pipeline(connect(self.db)).project(self.old))
+
     def test_everything_archived_says_where_to_restore(self):
         archive.archive(self.p, self.old)
         archive.archive(self.p, self.new)
