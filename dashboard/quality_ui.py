@@ -2,9 +2,9 @@
 
 Lõi là `core/quality_tier.py` (nhánh N1). Hợp đồng dùng ở đây:
 - `quality_tier.state(conn, scene_id)` ∈ STATES;
-- `quality_tier.final_estimate(conn, pid)` → {"usd": float, "scenes": [scene_id…]} (tùy chọn "by_scene": {scene_id: usd});
-- `quality_tier.request_final(p, scene_id, actor)` tạo job bản cao;
-- `motion_prompts.quality_path` ∈ auto / draft_first / direct (người ghi đè).
+- `quality_tier.final_estimate(conn, pid)` → {"usd", "scenes": [{scene_id, usd…}]} (ids cũng nhận) — UI chỉ tính cảnh draft_ok;
+- `quality_tier.request_final(p, scene_id, actor)` CHỈ tạo job bản cao (không gửi) → UI gọi `runner.submit_pending` một lần;
+- `quality_tier.set_path` ghi `motion_prompts.quality_path` (NULL = auto / draft_first / direct — người ghi đè).
 Không có module hoặc cờ `two_tier_quality` tắt / chưa có → `enabled()` False và mọi màn y như cũ."""
 from typing import Dict, List, Optional, Tuple
 
@@ -89,8 +89,18 @@ def final_estimate(conn, pid: int) -> Dict:
     except Exception:  # noqa: BLE001 - no estimate = 'chưa có giá', never a crash
         est = None
     est = dict(est or {})
-    est.setdefault("usd", None)
-    est["scenes"] = [s for s in (est.get("scenes") or []) if state(conn, s) == "draft_ok"]   # never a stale / unapproved draft
+    rows = [r if isinstance(r, dict) else {"scene_id": r} for r in (est.get("scenes") or [])]   # N1 gives rows, the contract ids
+    by = dict(est.get("by_scene") or {})
+    for r in rows:
+        if r.get("usd") is not None:
+            by.setdefault(r["scene_id"], r["usd"])
+    ready = [r["scene_id"] for r in rows if state(conn, r["scene_id"]) == "draft_ok"]   # never a stale / unapproved draft
+    est["by_scene"] = by
+    est["scenes"] = ready
+    if ready and all(sid in by for sid in ready):
+        est["usd"] = round(sum(by[sid] for sid in ready), 2)                     # the price of what the button sends, not of all
+    else:
+        est["usd"] = None if ready else est.get("usd")
     return est
 
 
@@ -111,12 +121,18 @@ def quality_path(conn, scene_id: int) -> str:
         row = conn.execute("SELECT quality_path FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
     except Exception:  # noqa: BLE001 - column not there before N1
         return "auto"
-    return (row["quality_path"] if row and row["quality_path"] in PATHS else "auto")
+    return (row["quality_path"] if row and row["quality_path"] in PATHS else "auto")   # NULL (N1) = auto
 
 
 def set_quality_path(conn, scene_id: int, value: str) -> bool:
     if value not in PATHS:
         raise ValueError(f"quality_path lạ: {value}")
+    qt = module()
+    if qt is not None and hasattr(qt, "set_path"):   # N1 owns the column (auto = NULL)
+        if conn.execute("SELECT 1 FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone() is None:
+            return False
+        qt.set_path(conn, scene_id, value)
+        return True
     try:
         cur = conn.execute("UPDATE motion_prompts SET quality_path=? WHERE scene_id=?", (value, scene_id))
         conn.commit()

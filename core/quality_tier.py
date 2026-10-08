@@ -172,7 +172,7 @@ def final_block(conn, scene_id: int) -> Optional[str]:
     return None
 
 
-def request_final(p, scene_id: int) -> int:
+def request_final(p, scene_id: int, actor: str = "user") -> int:
     """Người bấm "Gen bản cao": job `final` gắn nháp đã duyệt (retry_count 0 — việc người dùng, không tính trần). ValueError khi
     cờ tắt / nháp chưa duyệt / nháp cũ / bản cao đang làm."""
     if not enabled():
