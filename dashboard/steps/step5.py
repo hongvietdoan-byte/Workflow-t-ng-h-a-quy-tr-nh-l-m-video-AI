@@ -499,6 +499,7 @@ def step5(p: Pipeline, pid: int):
     ui.html(ui.card_title("5.4 · ✨ Hậu kỳ", "phụ đề · card cuối · kích thước khác"))
     subtitle_panel(p, pid)
     end_card_panel(p, pid)
+    end_popup_panel(p, pid)
     exports_panel(p, pid)
     delivery_panel(p, pid, chosen, durations)
 
@@ -554,6 +555,7 @@ def step5_v2(p: Pipeline, pid: int, stat, state: str) -> None:
         with t_post:
             subtitle_panel(p, pid, auto_ext=sub_on)
             end_card_panel(p, pid, enabled_ext=card_on)
+            end_popup_panel(p, pid)
             exports_panel(p, pid, preset_ext=preset)
     n_exports = len(delivery.get_settings(p, pid)["exports"])
     from dashboard import quality_ui                      # N4 (5a.5): bản dựng có clip nháp = bản DRAFT
@@ -915,6 +917,40 @@ def end_card_panel(p: Pipeline, pid: int, enabled_ext: bool = None) -> None:
         if st.button("🪧 Thêm card vào bản mới nhất", key=f"card_go_{pid}", disabled=not (title or subtitle)):
             with st.spinner("Đang ghép card…"):
                 act(lambda: delivery.end_card_layer(p, pid, C.DATA, card=dict(new, enabled=True)), "Đã thêm card cuối")
+            st.rerun()
+
+
+def end_popup_panel(p: Pipeline, pid: int) -> None:
+    """08/10 (#24): the ad popup (icons popping one by one + words) over the last ~3–4 s of the LAST shot, 0 USD (core/end_popup.py).
+    Applied by ▶ Dựng video cuối; changing it makes the render "cũ"."""
+    from core import end_popup
+    s = delivery.get_settings(p, pid)
+    cfg = s.get("end_popup") or None
+    with st.expander("🎯 Popup icon cuối phim (ghép lên shot cuối)" + (" ✓" if cfg else ""), expanded=False):
+        _note("Các icon PNG trong suốt (tài nguyên đạo cụ tên “ICON …” của dự án) bật lên lần lượt + tên dưới mỗi icon + một dòng lớn, "
+              "chồng lên vài giây cuối của shot cuối — không tạo shot nền trống riêng. 0 USD; áp khi ▶ Dựng video cuối.")
+        if st.button("✨ Lấy từ icon của dự án", key=f"popup_suggest_{pid}"):
+            got = end_popup.suggest(p.conn, pid, p.project(pid)["script_text"] or "")
+            if got:
+                delivery.save_settings(p, pid, dict(s, end_popup=got))
+                st.rerun()
+            else:
+                st.warning("Dự án chưa có tài nguyên đạo cụ tên “ICON …” có ảnh — thêm ở Bước 1 🧰.")
+        if not cfg:
+            return
+        items = []
+        for i, it in enumerate(cfg["items"]):
+            label = st.text_input(f"Chữ dưới icon {i + 1}" + (f" (#{it['asset_id']})" if it.get("asset_id") else ""), it.get("label", ""),
+                                  key=f"popup_label_{pid}_{i}")
+            items.append(dict(it, label=label))
+        c1, c2 = st.columns([3, 1])
+        headline = c1.text_input("Dòng lớn", cfg.get("headline", ""), key=f"popup_head_{pid}")
+        seconds = c2.number_input("Giây cuối", 1.5, 8.0, float(cfg.get("seconds") or 3.5), 0.5, key=f"popup_sec_{pid}")
+        new = {"items": items, "headline": headline, "seconds": seconds}
+        if new != cfg:
+            delivery.save_settings(p, pid, dict(s, end_popup=new))
+        if st.button("✖ Bỏ popup", key=f"popup_off_{pid}"):
+            delivery.save_settings(p, pid, dict(s, end_popup=None))
             st.rerun()
 
 

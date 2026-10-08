@@ -270,7 +270,32 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
     if cast is not None:
         obj["voice_cast"] = cast
     _plate_view_diag(conn, project_id, obj)
+    _end_popup_from_plan(pipeline, project_id, obj)
     return obj
+
+
+def _end_popup_from_plan(pipeline: Pipeline, project_id: int, obj: Dict) -> None:
+    """08/10 (#24): the Director's popup-only shots were folded into the last shot (shot_normalize.fold_post_only) — the popup itself
+    is set up for Bước 5 from the project's ICON props (0 USD), unless the person already set one. Always said in diag."""
+    if not obj.get("end_card"):
+        return
+    from . import delivery, diag, end_popup
+    try:
+        settings = delivery.get_settings(pipeline, project_id)
+        if settings.get("end_popup"):
+            return
+        row = pipeline.project(project_id)
+        cfg = end_popup.suggest(pipeline.conn, project_id, row["script_text"] or "")
+        if cfg:
+            delivery.save_settings(pipeline, project_id, dict(settings, end_popup=cfg))
+        diag.record(pipeline.conn, "director", "info" if cfg else "warn",
+                    f"Shot chỉ chờ popup/hậu kỳ ({', '.join(obj['end_card'].get('folded_shots') or [])}) đã gộp vào shot cuối; "
+                    + (f"popup cuối phim: {len(cfg['items'])} icon" + (f" + “{cfg['headline']}”" if cfg["headline"] else "")
+                       + " — chỉnh ở Bản giao › Tinh chỉnh" if cfg else
+                       "CHƯA có icon (tài nguyên đạo cụ tên 'ICON …') để làm popup — thêm ở Bước 1 🧰 rồi đặt ở Bản giao"),
+                    "end_popup", project_id)
+    except Exception as e:  # noqa: BLE001 - never a reason to lose the paid plan; said
+        diag.record(pipeline.conn, "director", "warn", f"không đặt được popup cuối phim: {type(e).__name__}: {e}", "end_popup", project_id)
 
 
 def _plate_view_diag(conn, project_id: int, obj: Dict) -> None:

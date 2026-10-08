@@ -22,7 +22,8 @@ from . import audio_lib, diag, ffmpeg_studio, final_cut, formats, lineage, music
 from .pipeline import Pipeline
 
 DEFAULT_CARD = {"enabled": False, "title": "", "subtitle": "", "seconds": 3.0, "bg": "#000000", "color": "#FFFFFF", "font": ""}
-DEFAULTS = {"transition": "cut", "fade": 1.0, "music_volume": 0.6, "music_start": 0.0, "music2_start": 0.0, "beat_pulse": False, "keep_audio": None, "end_card": DEFAULT_CARD, "exports": []}
+DEFAULTS = {"transition": "cut", "fade": 1.0, "music_volume": 0.6, "music_start": 0.0, "music2_start": 0.0, "beat_pulse": False, "keep_audio": None, "end_card": DEFAULT_CARD, "exports": [],
+            "end_popup": None}       # 08/10 (#24): icons + words popping over the last shot (core/end_popup.py)
 
 
 def _now() -> str:
@@ -54,6 +55,8 @@ def save_settings(p: Pipeline, project_id: int, settings: Dict) -> None:
     clean["music_start"] = max(float(clean["music_start"] or 0), 0.0)
     clean["beat_pulse"] = bool(clean["beat_pulse"])
     clean["music2_start"] = max(float(clean["music2_start"] or 0), 0.0)
+    from . import end_popup
+    clean["end_popup"] = end_popup.config({"end_popup": clean.get("end_popup")})
     p.set_project_field(project_id, "render_settings", json.dumps(clean, ensure_ascii=False))
 
 
@@ -62,7 +65,8 @@ def render_hash(settings: Dict) -> str:
     return lineage.settings_hash({k: settings.get(k) for k in ("transition", "fade", "music_volume", "keep_audio")}
                                | ({"music_start": settings["music_start"]} if settings.get("music_start") else {})
                                | ({"beat_pulse": True} if settings.get("beat_pulse") else {})
-                               | ({"music2_start": settings["music2_start"]} if settings.get("music2_start") else {}))   # old hashes stay
+                               | ({"music2_start": settings["music2_start"]} if settings.get("music2_start") else {})   # old hashes stay
+                               | ({"end_popup": settings["end_popup"]} if settings.get("end_popup") else {}))
 
 
 def second_music_dir(data_dir: str, project_id: int) -> str:
@@ -712,7 +716,21 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
             shake_error, hits = str(e)[:200], []
             if os.path.exists(staged):
                 os.remove(staged)
+    from . import end_popup
+    popup_cfg, popup = end_popup.config(settings), None
+    if popup_cfg:                         # 08/10 (#24): the ad popup over the end of the LAST shot — never an empty shot of its own
+        staged = out + ".popup.mp4"
+        try:
+            popup = end_popup.apply(p.conn, out, staged, popup_cfg)
+            os.replace(staged, out)
+        except Exception as e:  # noqa: BLE001 - the render without the popup is kept; said in diag + manifest (luật 1)
+            popup = {"error": str(e)[:200]}
+            diag.record(p.conn, "render", "error", f"popup cuối phim không ghép được: {e}", "end_popup", project_id)
+            if os.path.exists(staged):
+                os.remove(staged)
     manifest = final_manifest(p, project_id, data_dir, originals, settings)
+    if popup:
+        manifest["end_popup"] = popup
     manifest["loudness"] = _loudness(out)
     manifest["color_match"] = colour
     if flashbacks:

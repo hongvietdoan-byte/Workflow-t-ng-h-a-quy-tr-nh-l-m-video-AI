@@ -16,9 +16,16 @@ then sends it back to Claude, as before):
 Never adds, removes or rewords a line of dialogue.
 """
 import copy
+import re
 from typing import Dict, List, Optional, Tuple
 
 from . import dialogue
+
+# 08/10 (#24, người dùng chốt): a shot with nobody in it whose only content is waiting for a popup / icon / words added after
+# ("nền tối mờ sương, chờ icon hiện ở hậu kỳ") costs a paid picture + clip and adds nothing — the popup goes over the LAST shot
+_POST_ONLY = re.compile(r"chờ (?:icon|popup|pop-up|chữ|logo|biểu tượng)|ở hậu kỳ|hậu kỳ (?:đặt|ghép|chèn)|để hậu kỳ|post[- ]?production|"
+                        r"overlay|placeholder|(?:icon|popup|logo|text|title)s? (?:will )?(?:to )?(?:appear|be added|pop)", re.I)
+MAX_SHOT_S = 15.0
 
 SILENT_MIN = 1.0
 WIDE_MIN = 1.5
@@ -171,6 +178,45 @@ def _fit_total(obj: Dict, target: Optional[Tuple[int, int]], planned: Dict[int, 
         changes.append(note)
 
 
+def post_only(shot: Dict) -> bool:
+    """Nobody in the frame, no line, and the shot only waits for something added after (popup / icon / words / overlay)."""
+    if not isinstance(shot, dict) or shot.get("characters") or _spoken(shot):
+        return False
+    words = " ".join(str(shot.get(k) or "") for k in ("action", "start_frame", "why", "image_prompt", "text"))
+    return bool(_POST_ONLY.search(words))
+
+
+def fold_post_only(obj: Dict, scenes: List[Dict], changes: List[str]) -> None:
+    """Post-only shots → removed; their words become the end-card note of the film's LAST shot (`end_card_note`), their seconds go to
+    that shot (≤ 15 s), and `obj["end_card"]` lists what was folded (Bước 5 builds the popup from the project's icons)."""
+    last = None
+    for sc in scenes:
+        for s in sc["shots"]:
+            if not post_only(s):
+                last = s
+    if last is None:
+        return
+    notes, seconds, labels = [], 0.0, []
+    for sc in scenes:
+        keep = [s for s in sc["shots"] if not post_only(s)]
+        if not keep:
+            continue                                    # a scene made only of such shots stays (nothing to put the popup on)
+        for k, s in enumerate(sc["shots"], 1):
+            if post_only(s):
+                notes.append(str(s.get("action") or s.get("why") or "").strip())
+                seconds += _dur(s)
+                labels.append(_label(sc, k))
+        sc["shots"] = keep
+    if not labels:
+        return
+    note = " · ".join(n for n in notes if n)
+    last["end_card_note"] = ((str(last.get("end_card_note") or "") + " · ") if last.get("end_card_note") else "") + note
+    if seconds:
+        last["duration_s"] = round(min(_dur(last) + seconds, MAX_SHOT_S), 2)
+    obj["end_card"] = {"notes": notes, "folded_shots": labels, "seconds": round(seconds, 2)}
+    changes.append(f"{', '.join(labels)}: shot chỉ chờ popup/hậu kỳ (không nhân vật) → bỏ, popup ghép lên shot cuối (+{seconds:g}s)")
+
+
 def section_seconds(script_text: str) -> Dict[int, float]:
     """{script scene number: seconds} from timed headings such as "CẢNH 1 – 8–20 GIÂY" (numbered as the Director sees them)."""
     from . import script_parser
@@ -193,6 +239,7 @@ def normalize(obj: Dict, script_text: str = "", target: Optional[Tuple[int, int]
     out = obj if in_place else copy.deepcopy(obj)
     changes: List[str] = []
     scenes = [sc for sc in out.get("scenes") or [] if isinstance(sc, dict) and isinstance(sc.get("shots"), list)]
+    fold_post_only(out, scenes, changes)
     for sc in scenes:
         _fix_enums(sc, changes)
         _fit_speech(sc, changes)

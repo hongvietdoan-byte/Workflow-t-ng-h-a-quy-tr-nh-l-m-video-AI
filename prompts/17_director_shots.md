@@ -119,6 +119,10 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
   lùi) ghi hướng so với nguồn gây sợ: ngã vì sợ thứ trước mặt thì ngồi **mặt hướng vật đó, chân về phía nó** ("facing the well, legs toward
   it"). Code kiểm sau Director: shot 3D thiếu `plate_view`, ≥ 80 % shot cùng một hướng nền, cảnh có cả `left` lẫn `right` không ghi lý do,
   góc ngược mà `landmark`, động tác phản xạ mà blocking không ghi hướng — đều thành cảnh báo cho người duyệt.
+- **Popup / icon / chữ quảng cáo cuối video (người dùng 08/10):** KHÔNG tạo shot nền tối / nền trống / "chờ icon hiện ở hậu kỳ". Vì sao:
+  shot đó tốn tiền gen ảnh + clip mà không thêm nội dung — popup được ghép (0 USD) lên **~3–4 s cuối của shot cuối có hành động**. Kịch bản
+  có popup thì: shot cuối giữ hành động / cảm xúc kết, khung đủ thoáng (vùng giữa–trên) để icon + chữ chồng lên, ghi `end_card_note` (icon
+  nào, chữ gì). Code gộp shot "chỉ chờ hậu kỳ" không nhân vật vào shot cuối và báo lại.
 - **`hook_mid: true`** (video > 20 s): shot kết một đoạn ~10–15 s bằng một chi tiết **dở dang** (câu bị ngắt, tay chạm vào vật, ánh
   mắt nhìn ra ngoài khung) để người xem ở lại sang đoạn sau; code báo đoạn > 15 s không có móc nào.
 - **`money_shot: true`** (một shot, video quảng bá): khoảnh khắc thứ đang quảng bá hiện rõ nhất (kỹ năng bật, trang phục toàn thân) —
