@@ -1,4 +1,5 @@
 """Ngân sách trích riêng từng dự án (core.project_reserve — người dùng 08/10 chọn phương án 1, TODO "VIỆC ĐỂ SAU DỰ ÁN KHỦNG LONG ĐỎ" 1a)."""
+import os
 import unittest
 from unittest import mock
 
@@ -15,6 +16,10 @@ def est(usd):
 
 class ReserveTests(unittest.TestCase):
     def setUp(self):
+        env = {k: v for k, v in os.environ.items() if k != "PIPELINE_PRICING"}      # the shipped price table (another test may leave its own)
+        patcher = mock.patch.dict(os.environ, env, clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.p = Pipeline(connect())
         self.c = self.p.conn
         self.a = self.p.create_project("A")
