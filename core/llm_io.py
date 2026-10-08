@@ -260,6 +260,8 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
     access.need_edit(pipeline, project_id, "lưu phân tích của Director")
     obj = validate_scene_analysis(_normalized(pipeline, project_id, _load(data)))
     conn = pipeline.conn
+    from . import prompt_formula                 # F1-A: the prompts before this Director run, to see 'trồng thêm' (F0 mục 4b)
+    before = prompt_formula.snapshot(conn, project_id)
     try:
         _store(pipeline, project_id, obj)
     except Exception:
@@ -270,6 +272,7 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
     if cast is not None:
         obj["voice_cast"] = cast
     _plate_view_diag(conn, project_id, obj)
+    prompt_formula.after_director(conn, project_id, before)   # F1-A: formula_check per shot + diag 'prompt_formula'; never raises
     _end_popup_from_plan(pipeline, project_id, obj)
     return obj
 
@@ -552,6 +555,9 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
     data["_user_locked"] = sorted(set(data.get("_user_locked") or []) | set(changed))
     conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), row["id"]))
     conn.commit()
+    if "image_prompt" in changed:                          # F1-A: a hand-edited image prompt is checked against the formula too
+        from . import prompt_formula
+        prompt_formula.on_prompt_saved(conn, row["id"], "image", before.get("image_prompt"), data.get("image_prompt"))
     return sorted(changed)
 
 
@@ -619,6 +625,7 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any) -> int:
     """Step 3: save motion prompts for scenes that have an approved image. Editing resets approval."""
     obj = validate_motion_prompts(data)
     conn = pipeline.conn
+    saved = []                                           # F1-A: (scene, old prompt, new prompt) checked after the commit
     for s in obj["scenes"]:
         row = conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?",
                            (project_id, s["idx"])).fetchone()
@@ -630,6 +637,8 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any) -> int:
         if approved is None:
             raise SchemaError(f"scene idx {s['idx']} has no approved image yet")
         scene_data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (row["id"],)).fetchone()["data"] or "{}")
+        old = conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (row["id"],)).fetchone()
+        saved.append((row["id"], old["motion_prompt"] if old else None, s["motion_prompt"]))
         duration = s.get("duration_sec") or scene_data.get("duration_s") or 5
         if "duration_s" in set(scene_data.get("_user_locked") or []) and scene_data.get("duration_s"):
             duration = scene_data["duration_s"]          # length the person set (e.g. sized to the dialogue) wins
@@ -649,6 +658,9 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any) -> int:
         from .lineage import stamp_motion
         stamp_motion(conn, row["id"])
     conn.commit()
+    from . import prompt_formula
+    for sid, old, new in saved:
+        prompt_formula.on_prompt_saved(conn, sid, "motion", old, new)
     return len(obj["scenes"])
 
 

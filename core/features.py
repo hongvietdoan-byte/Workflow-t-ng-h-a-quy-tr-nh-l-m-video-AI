@@ -412,6 +412,14 @@ FEATURES: Dict[str, Dict] = {
                "loại, ≈ 2,8 USD) dù prompt đã có 'chỉ lấy quần áo'. Câu mới đổi đầu ra model trả tiền và chưa thử — cần thử 1 shot rẻ "
                "(ảnh + clip 720p) trước khi bật",
     },
+    "prompt_formula": {
+        "label": "Công thức prompt (F1-A): sau mỗi lượt Đạo diễn / mỗi lần lưu prompt, code kiểm phần bắt buộc của prompt ảnh + motion, "
+                 "mâu thuẫn (khung ↔ tư thế, luật người ↔ quái, máy tĩnh ↔ đẩy), chi tiết ghê không tiết chế, vật lao sát người không "
+                 "đường đi, viết chồng thêm, cùng món đồ khác màu giữa shot → scenes.data formula_check + ⚙ Chẩn đoán (0 USD)",
+        "verified": True,       # 09/10 người dùng duyệt công thức F0 (docs/CONG_THUC_PROMPT_F0_NHAP_2026-10-09.md) — chỉ đọc + ghi, chưa chặn gửi
+        "why": "Người dùng duyệt F0 09/10; kiểm bằng câu thật #22/#24 (tests/test_prompt_formula.py). Chỉ ghi kết quả, không đổi thứ gửi "
+               "model; phiên chính nối red_issues vào _blocked sau",
+    },
     "two_tier_quality": {
         "label": "Video 2 bậc chất lượng: shot phức tạp / chưa rõ gen NHÁP 480p trước (gen lại ≤ 2), người duyệt rồi 'Gen bản cao' "
                  "(Seedance 2.5 nâng từ nháp, model khác gửi lại ở bậc cao; gen lại ≤ 1); shot dễ gen thẳng bản cao. Bỏ qua 'Thử rẻ'",

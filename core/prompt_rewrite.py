@@ -136,6 +136,8 @@ def revert(p, scene_id: int, kind: str) -> str:
     _set_prompt(p.conn, scene_id, kind, old)
     _add_version(p.conn, pid, scene_id, kind, old, "revert", note=f"dùng lại prompt v{vers[-2]['version']}", who=p.actor)
     p.conn.commit()
+    from . import prompt_formula                          # F1-A: the prompt back in use gets its own check (no growth: it is older)
+    prompt_formula.on_prompt_saved(p.conn, scene_id, kind, None, old)
     return old
 
 
@@ -286,6 +288,8 @@ def save_rewrite(p, job, res: RewriteResult, note: Optional[str] = None) -> int:
                                note=(note or "")[:600], changed=res.changed, why=res.why[:600], job_id=job["id"], who=p.actor)
     _set_prompt(p.conn, job["scene_id"], kind, res.new_prompt)
     p.conn.commit()
+    from . import prompt_formula                          # F1-A (F0 mục 4b): the Director's rewrite is checked + compared to the old one
+    prompt_formula.on_prompt_saved(p.conn, job["scene_id"], kind, res.old_prompt, res.new_prompt)
     return res.version
 
 
