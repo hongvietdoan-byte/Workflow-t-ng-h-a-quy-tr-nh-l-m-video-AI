@@ -52,3 +52,19 @@ def summary(rows: List[Dict]) -> Dict:
     counts = {k: (sum(1 for r in rows if r[k] == "done"), total) for k, _ in STAGES}
     current: Optional[str] = next((k for k, _ in STAGES if counts[k][0] < total), None) if total else None
     return {"counts": counts, "current": current}
+
+
+def video_idle_reason(rows: List[Dict]) -> str:
+    """Bố cục điểm 6 (người dùng 07/10): why ▶ Gen video has nothing to send — said ON the button instead of a silent '(0 cảnh mới)'."""
+    if not rows:
+        return "chưa có cảnh — tách kịch bản trước"
+    no_motion = sum(1 for r in rows if r["motion"] != "done" and r["video"] in ("none", "stale", "failed"))
+    if no_motion:
+        return f"{no_motion} cảnh chưa duyệt motion prompt (Storyboard › Motion)"
+    running = sum(1 for r in rows if r["video"] == "running")
+    if running:
+        return f"{running} clip đang gen — chờ xong"
+    review = sum(1 for r in rows if r["video"] == "review")
+    if review:
+        return f"{review} clip chờ duyệt — duyệt ở dưới"
+    return "mọi cảnh đã có clip"

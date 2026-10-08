@@ -122,3 +122,6 @@ class VideoMergeTests(unittest.TestCase):
         self.assertNotIn("3 cần duyệt", page)
         self.assertIn("1 đang tự kiểm", page)
         self.assertTrue(any(b.key == f"vid_ok_all_{pid}" and "(2 clip)" in b.label for b in at.button))
+        gen = next(b for b in at.button if b.key == f"gen_vid_{pid}")              # điểm 6: nothing to send → the button says why
+        self.assertTrue(gen.disabled)
+        self.assertIn("chờ duyệt", gen.label)

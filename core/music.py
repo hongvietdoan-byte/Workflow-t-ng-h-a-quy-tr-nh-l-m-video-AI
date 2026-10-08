@@ -250,3 +250,44 @@ def set_off(pipeline: Pipeline, project_id: int, off: bool) -> None:
 def clear_selected(selected_dir: str) -> None:
     for name in os.listdir(selected_dir):
         os.remove(os.path.join(selected_dir, name))
+
+
+# ---- Bố cục điểm 8 (người dùng 07/10): chọn nhạc không cần tải tệp lên -------------------------------------------------------------
+AUDIO_EXT = (".mp3", ".wav", ".m4a")
+
+
+def own_dir(data_dir: str, project_id: int) -> str:
+    """`<data>/<pid>/nhac_rieng`: chép tệp nhạc vào đây (Explorer) rồi chọn trong Dashboard — không qua ô tải lên của trình duyệt."""
+    d = os.path.join(data_dir, str(project_id), "nhac_rieng")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def pick_sources(conn, data_dir: str, project_id: int, query: str = "", limit: int = 30) -> List[Dict]:
+    """[{label, path}] — nhạc trong Kho âm thanh (kind music; `query` lọc), bản nhạc AI đã tạo của dự án, tệp trong `nhac_rieng`."""
+    from . import sound_lib
+    out = [{"label": f"📁 Kho · {r['name']}" + (f" ({r['category']})" if r.get("category") else ""), "path": r["path"]}
+           for r in sound_lib.search(conn, query, kind="music", limit=limit)["rows"]]
+    drafts, _ = project_dirs(data_dir, project_id)
+    words = sound_lib.fold(query).split()
+    for folder, tag in ((own_dir(data_dir, project_id), "📂 Thư mục dự án"), (drafts, "🤖 Nhạc AI đã tạo")):
+        for name in sorted(os.listdir(folder)):
+            if os.path.splitext(name)[1].lower() in AUDIO_EXT and all(w in sound_lib.fold(name) for w in words):
+                out.append({"label": f"{tag} · {name}", "path": os.path.join(folder, name)})
+    return out
+
+
+def use_pick(pipeline: Pipeline, data_dir: str, project_id: int, path: str, second: bool = False) -> str:
+    """The chosen file becomes the background music (or the second music) — copied, the original never moves. Missing file → ValueError."""
+    if not os.path.exists(path):
+        raise ValueError("Tệp nhạc không còn ở vị trí cũ (ổ mạng chưa kết nối hoặc đã xóa) — chọn bản khác")
+    if second:
+        from . import delivery
+        d2 = delivery.second_music_dir(data_dir, project_id)
+        clear_selected(d2)
+        dest = os.path.join(d2, "second" + os.path.splitext(path)[1].lower())
+        shutil.copyfile(path, dest)
+        return dest
+    dest = use_library_track(project_dirs(data_dir, project_id)[1], path)
+    set_off(pipeline, project_id, False)
+    return dest

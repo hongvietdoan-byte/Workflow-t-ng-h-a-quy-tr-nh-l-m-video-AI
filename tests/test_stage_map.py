@@ -63,3 +63,19 @@ class OneClickTests(unittest.TestCase):
             self.assertFalse(D.one_click(k), k)
         os.environ["FEATURE_CHAT_FIRST"] = "0"
         self.assertFalse(D.one_click("approve_all"))
+
+
+class VideoIdleReasonTests(unittest.TestCase):
+    """Bố cục điểm 6 (người dùng 07/10): ▶ Gen video khóa với '(0 cảnh mới)' mà không nói vì sao — người mới không biết làm gì.
+    Nút nói LÝ DO khi không có gì để gửi (0 USD, đọc bản đồ tiến độ)."""
+
+    def r(self, motion, video):
+        return {"idx": 1, "image": "done", "motion": motion, "video": video}
+
+    def test_each_reason(self):
+        self.assertIn("chưa duyệt motion", M.video_idle_reason([self.r("review", "none"), self.r("done", "done")]))
+        self.assertIn("1 cảnh", M.video_idle_reason([self.r("review", "none"), self.r("done", "done")]))
+        self.assertIn("đang gen", M.video_idle_reason([self.r("done", "running")]))
+        self.assertIn("chờ duyệt", M.video_idle_reason([self.r("done", "review")]))
+        self.assertIn("mọi cảnh đã có clip", M.video_idle_reason([self.r("done", "done")]))
+        self.assertIn("chưa có cảnh", M.video_idle_reason([]))
