@@ -263,3 +263,13 @@ def pending(p: Pipeline, project_id: int) -> int:
 
 def enabled() -> bool:
     return features.on(FEATURE)
+
+
+def shadow() -> bool:
+    """🎓 học việc (B1 08/10): runs and records its decision, never acts."""
+    return features.shadow(FEATURE)
+
+
+def active() -> bool:
+    """On or học việc — for choosing a branch only."""
+    return features.active(FEATURE)

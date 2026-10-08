@@ -87,6 +87,107 @@ class FeatureSettingsTests(unittest.TestCase):
             self.assertTrue(all(n in features.FEATURES for n in needs))
 
 
+class TraineeModeTests(unittest.TestCase):
+    """B1 học việc (08/10, docs/KE_HOACH_HOC_VIEC_2026-10-08.md mục 1): on / trainee / off, thứ tự ưu tiên, `1` → học việc."""
+    SEVEN = ("qc_team", "scene_qc", "scene_establishing", "camera_setups", "continuous_takes", "end_frames", "storyboard_auto_trust")
+
+    def setUp(self):
+        self.path = os.path.join(tempfile.mkdtemp(), "fs.json")
+        clean = {"FEATURE_" + k.upper(): "" for k in features.FEATURES}
+        self.p = mock.patch.dict(os.environ, {**clean, "FEATURE_SETTINGS_FILE": self.path})
+        self.p.start()
+        self.addCleanup(self.p.stop)
+
+    def test_the_seven_are_literal_trainee_flags(self):
+        self.assertEqual(sorted(features.trainee_list()), sorted(self.SEVEN))
+        from devsys.collect import read_features                              # devsys reads FEATURES with ast: must be a literal
+        self.assertTrue(all(read_features()[k].get("trainee") is True for k in self.SEVEN))
+
+    def test_env_one_is_trainee_never_on(self):
+        for env in ("1", "trainee", "on"):
+            with mock.patch.dict(os.environ, {"FEATURE_QC_TEAM": env}):
+                self.assertEqual(features.state("qc_team"), "trainee", env)
+                self.assertFalse(features.on("qc_team"))
+                self.assertTrue(features.shadow("qc_team") and features.active("qc_team"))
+                self.assertIn("học việc", features.why_state("qc_team"))
+        with mock.patch.dict(os.environ, {"FEATURE_QC_TEAM": "0"}):
+            self.assertEqual(features.state("qc_team"), "off")
+        self.assertEqual(features.state("qc_team"), "off")                     # default: not verified → off
+        with mock.patch.dict(os.environ, {"FEATURE_J_CUT": "1"}):               # a flag without the mode keeps the old rule
+            self.assertEqual(features.state("j_cut"), "on")
+        with mock.patch.dict(os.environ, {"FEATURE_J_CUT": "trainee"}):
+            self.assertEqual(features.state("j_cut"), "off")
+
+    def test_order_screen_then_preset_then_env(self):
+        with mock.patch.dict(os.environ, {"FEATURE_SCENE_QC": "1"}):
+            features.save_settings(preset="stable")
+            self.assertEqual(features.state("scene_qc"), "off")                # stable = only verified → học việc flags off
+            features.save_settings(preset="experimental")
+            self.assertEqual(features.state("scene_qc"), "trainee")            # experimental never pushes them to on
+            features.save_settings(flags={"scene_qc": True})
+            self.assertEqual(features.state("scene_qc"), "on")                 # the 🧪 screen wins over everything
+            features.save_settings(modes={"scene_qc": "trainee"})
+            self.assertEqual(features.state("scene_qc"), "trainee")
+            features.save_settings(modes={"scene_qc": "off"})
+            self.assertEqual(features.state("scene_qc"), "off")
+            features.save_settings(modes={"scene_qc": None})
+            self.assertEqual(features.state("scene_qc"), "trainee")            # back to the preset
+        with mock.patch.dict(os.environ, {"FEATURE_SCENE_QC": "0"}):
+            self.assertEqual(features.state("scene_qc"), "off")                # explicit 0 under experimental still holds
+        with mock.patch.dict(os.environ, {"FEATURE_LOCATION_PLATES": "1"}):
+            self.assertEqual(features.state("location_plates"), "off")         # removed wins
+
+    def test_modes_never_leak_into_flags(self):
+        features.save_settings(modes={"qc_team": "trainee", "end_frames": "on"})
+        raw = json.load(open(self.path, encoding="utf-8"))
+        self.assertNotIn("qc_team", raw["flags"])                             # old code reads flags with bool(v) → would be ON
+        self.assertEqual(raw["modes"], {"qc_team": "trainee"})
+        self.assertIs(raw["flags"]["end_frames"], True)
+        self.assertTrue(all(isinstance(v, bool) for v in raw["flags"].values()))
+        features.save_settings(flags={"qc_team": False})                       # a flags choice replaces the mode
+        raw = json.load(open(self.path, encoding="utf-8"))
+        self.assertNotIn("modes", raw)
+        self.assertEqual(features.state("qc_team"), "off")
+        with self.assertRaises(ValueError):
+            features.save_settings(modes={"j_cut": "trainee"})                 # no học việc mode for that flag
+        with self.assertRaises(ValueError):
+            features.save_settings(modes={"qc_team": "maybe"})
+        with open(self.path, "w", encoding="utf-8") as f:                       # a hand-edited "trainee" inside flags is NOT trainee
+            json.dump({"preset": "custom", "modes": {"j_cut": "trainee", "scene_qc": "trainee"}}, f)
+        self.assertEqual(features.state("j_cut"), "off")
+        self.assertEqual(features.state("scene_qc"), "trainee")
+
+    def test_on_unverified_and_pending_leave_trainee_out(self):
+        with mock.patch.dict(os.environ, {"FEATURE_END_FRAMES": "1", "FEATURE_J_CUT": "1"}):
+            self.assertNotIn("end_frames", features.on_unverified())
+            self.assertIn("j_cut", features.on_unverified())
+            self.assertNotIn("end_frames", features.pending())
+
+    def test_qc_team_needs_scene_qc_by_active(self):
+        features.save_settings(modes={"qc_team": "trainee"})
+        self.assertEqual(features.unmet("qc_team"), ["scene_qc"])
+        features.save_settings(modes={"scene_qc": "trainee"})
+        self.assertEqual(features.unmet("qc_team"), [])
+
+    def test_devsys_flags_state_has_the_mode(self):
+        from devsys import collect
+        rows = {r["name"]: r for r in collect.flags_state(collect.ROOT, {"areas": []}, files=[])}
+        self.assertTrue(rows["qc_team"]["trainee"])
+        self.assertIn(rows["qc_team"]["mode"], features.MODES)
+        self.assertFalse(rows["j_cut"]["trainee"])
+        self.assertIn(rows["j_cut"]["mode"], ("on", "off"))
+
+    def test_module_helpers_follow_state(self):
+        from core import end_frames, qc_scene, qc_team, scene_establish
+        features.save_settings(modes={"scene_qc": "trainee", "qc_team": "trainee", "scene_establishing": "trainee",
+                                      "end_frames": "trainee"})
+        for m in (end_frames, qc_scene, qc_team, scene_establish):
+            self.assertFalse(m.enabled(), m.__name__)
+            self.assertTrue(m.shadow() and m.active(), m.__name__)
+        features.save_settings(modes={"scene_qc": "on"})
+        self.assertTrue(qc_scene.enabled() and qc_scene.active() and not qc_scene.shadow())
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -8,6 +8,7 @@ from unittest import mock
 
 from core import llm_runner, qc_scene, shots
 from tests.test_v3 import _approve_all_images, kenta_project
+from tests._flags import flags_clear, flags_on, flags_on_ctx, flags_on_deco  # noqa: F401
 
 
 def picture(path, light=0.6):
@@ -103,8 +104,7 @@ class ReviewTests(unittest.TestCase):
         self.data = tempfile.mkdtemp()
         llm_runner.run_director(self.p, self.pid, llm_runner.MockLlm())
         _approve_all_images(self.p, self.pid, self.data)   # the mock pictures are flat: made before layer 0 is on
-        os.environ["FEATURE_SCENE_QC"] = "1"
-        self.addCleanup(os.environ.pop, "FEATURE_SCENE_QC", None)
+        flags_on(self, "scene_qc")
         rows = shots.shots_of(self.p, self.pid)
         self.scene = rows[0]["data"]["story_scene"]
         self.rows = [r for r in rows if r["data"]["story_scene"] == self.scene]
@@ -213,8 +213,7 @@ class ReviewTests(unittest.TestCase):
 
 class RunnerLayerZeroTests(unittest.TestCase):
     def test_a_sure_layer_zero_fault_is_drawn_again_with_its_fix(self):
-        os.environ["FEATURE_SCENE_QC"] = "1"
-        self.addCleanup(os.environ.pop, "FEATURE_SCENE_QC", None)
+        flags_on(self, "scene_qc")
         from core.providers import MockImageProvider
         from core.runner import ImageRunner
         p, pid = kenta_project(shot_mode="per_shot")
@@ -241,6 +240,45 @@ class RunnerLayerZeroTests(unittest.TestCase):
                     break
         self.assertEqual(p.job(new["id"])["state"], "succeeded")
         self.assertIsNone(p.conn.execute("SELECT 1 FROM jobs WHERE parent_job_id=?", (new["id"],)).fetchone())
+
+
+class TraineeLayerZeroTests(unittest.TestCase):
+    """B3 học việc 08/10: scene_qc 🎓 — layer 0 checks and records what it WOULD do; no redraw, no layer0.json, old QC stays off."""
+
+    def setUp(self):
+        from tests._flags import flags_trainee
+        flags_trainee(self, "scene_qc")
+        self.p, self.pid = kenta_project(shot_mode="per_shot")
+        self.data = tempfile.mkdtemp()
+        llm_runner.run_director(self.p, self.pid, llm_runner.MockLlm())
+
+    def test_a_sure_fault_is_only_recorded(self):
+        from core.providers import MockImageProvider
+        from core.runner import ImageRunner
+        row = shots.shots_of(self.p, self.pid)[0]
+        jid = self.p.create_job(row["id"], "image_gen")
+        r = ImageRunner(self.p, MockImageProvider(polls_to_finish=1), self.data)
+        sure = [{"code": "shot_size", "severity": "redraw", "problem": "cỡ cảnh MCU — xin CU", "fix": "Frame as a close-up."}]
+        with mock.patch("core.qc_scene.check_frame", return_value=sure):
+            for _ in range(4):
+                r.submit_pending(self.pid)
+                r.poll_once(self.pid)
+                if self.p.job(jid)["state"] not in ("running", "queued"):
+                    break
+        self.assertEqual(self.p.job(jid)["state"], "succeeded")             # no RedrawWithFix
+        self.assertIsNone(self.p.conn.execute("SELECT 1 FROM jobs WHERE parent_job_id=?", (jid,)).fetchone())
+        self.assertEqual(qc_scene.flags_of(self.data, self.pid, jid), [])  # nothing in layer0.json (the person must not see it)
+        log = self.p.conn.execute("SELECT feature, decision, subject, would_do FROM trainee_log").fetchall()
+        self.assertEqual([(x["feature"], x["decision"], x["subject"]) for x in log], [("scene_qc", "redraw", f"job:{jid}")])
+        self.assertIn("close-up", json.loads(log[0]["would_do"])["fix"])
+
+    def test_the_old_claude_qc_does_not_come_back(self):
+        from core import autopilot, cost, known_issues
+        self.assertFalse(qc_scene.enabled())
+        self.assertTrue(qc_scene.active())
+        self.assertFalse(known_issues._per_image_qc(self.p.conn, self.pid))
+        self.assertNotEqual(cost._picture_qc_calls(self.p.conn, self.pid, 4), 4)
+        self.assertIsNone(autopilot._setcheck_phase(self.p, self.pid, None))   # the old whole-set look stays off
 
 
 if __name__ == "__main__":

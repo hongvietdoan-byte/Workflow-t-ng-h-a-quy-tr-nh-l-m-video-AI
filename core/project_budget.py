@@ -110,7 +110,8 @@ def claude_stage(tag: Optional[str]) -> str:
         return "claude_chat"
     if t.startswith("director") or t in ("screenwriter", "asset_checklist"):   # S11.1 Biên kịch / S14.23 bảng kê: before the Director, same line
         return "claude_director"
-    if t in ("qc", "qc_agent", "video", "video_qc", "video_analysis", "storyboard_review", "check", "scene_qc", "editor") or t.startswith("qc"):
+    if t in ("qc", "qc_agent", "video", "video_qc", "video_analysis", "storyboard_review", "check", "scene_qc", "editor") or t.startswith("qc") \
+            or t.startswith("trainee_qc"):     # 🎓 Tổ QC học việc (B5 08/10): same QC line, its own tag in the ledger
         # "editor" (rough-cut review, P2): a check of the finished cut, same line as the other checks, not "khác" (cap 0.20)
         # 28/09: video_analysis (the clip QC) fell into claude_other (cap 0.20) and the lock refused every clip QC
         return "claude_qc"
@@ -191,9 +192,9 @@ def remaining(p, pid: int, shares: Optional[Dict] = None) -> Dict[str, float]:
     qc_calls = round(cost._picture_qc_calls(conn, pid, n_img) * (1 + ri) + n_clips * (1 + rv))      # every retake is judged again
     qc = cost.llm_estimate(conn, "qc", qc_calls, pricing, images=2) or 0.0
     if n_img and qc_agent.enabled():
-        qc += sum(qc_agent.scene_cap(n) for n in _frames_per_scene(conn, pid)) if qc_scene.enabled() else 0.0
+        qc += sum(qc_agent.scene_cap(n) for n in _frames_per_scene(conn, pid)) if qc_scene.active() else 0.0
     from . import qc_team
-    if n_img and qc_team.enabled() and qc_scene.enabled():
+    if n_img and qc_team.active() and qc_scene.active():             # 🎓 học việc spends the same
         qc += qc_team.FRAME_USD * n_img * (1 + ri)
     return {"images": round((est["images"] or 0.0) * (1 + ri), 2),
             "videos": round(vid * (1 + rv), 2),

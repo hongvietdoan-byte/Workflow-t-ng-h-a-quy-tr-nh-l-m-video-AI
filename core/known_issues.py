@@ -21,7 +21,7 @@ def _shot_mode(mode: str) -> Callable:
 
 
 def _per_image_qc(conn, pid) -> bool:
-    return not features.on("scene_qc")
+    return not features.active("scene_qc")          # 🎓 học việc also keeps the old per-image QC off
 
 
 STAGES: Dict[str, Dict] = {
@@ -44,7 +44,7 @@ STAGES: Dict[str, Dict] = {
     "scene_qc_layer1": {
         "label": "QC theo cảnh lớp 1 (Claude, tấm ghép cả cảnh)",
         "status": "chưa qua nghiệm thu — chỉ ghi chú, mọi khung chờ người (cờ scene_qc_trusted tắt)",
-        "used_when": lambda conn, pid: features.on("scene_qc"),
+        "used_when": lambda conn, pid: features.active("scene_qc"),
         "open": [
             ("Không thấy lỗi kỹ thuật nhìn là thấy: cho qua 6 khung chữ nhật dán + tháp Big Ben trên tấm ghép (ô 384×683)",
              "kiểm kỹ thuật TỪNG khung ở độ phân giải đầy đủ với câu hỏi đích danh (mảng dán, đường nối, ánh sáng người ≠ nền); lỗi lặp → bộ đo bằng code"),

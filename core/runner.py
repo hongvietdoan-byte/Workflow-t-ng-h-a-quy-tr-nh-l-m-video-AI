@@ -1654,7 +1654,19 @@ class ImageRunner(_Runner):
             if held:                                         # S5.7: no direction for a script-direction spot — wait, and say what to add
                 self._diag(job, "error", "plate_view", held)
                 return True
-        if scene_establish.enabled():
+        if scene_establish.shadow():                         # 🎓 học việc (B6 08/10): drawn apart, the shot never waits for it
+            try:
+                data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+                model = None
+                if getattr(self.provider, "supports_model", False):
+                    from . import image_models
+                    model = image_models.of_project(self.p.project(job["project_id"]))
+                scene_establish.step(self.p.conn, job["project_id"], data.get("story_scene"), self.provider, self.data_dir, model,
+                                     trainee=True)
+            except Exception as e:                       # noqa: BLE001 — học việc never breaks the real run
+                import sys
+                print(f"scene_establishing học việc lỗi job {job['id']}: {e}", file=sys.stderr)
+        elif scene_establish.enabled():
             data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
             model = None
             if getattr(self.provider, "supports_model", False):
@@ -1818,7 +1830,9 @@ class ImageRunner(_Runner):
                                                 place_refs.resolution_of(self.p.project(job["project_id"])))
                 self._diag(job, sev, "place_match", words)
         from . import qc_scene
-        if qc_scene.enabled():                     # QC layer 0: code checks as the picture arrives (free)
+        if qc_scene.shadow():                      # 🎓 học việc (B3 08/10): check, record the decision only — no layer0.json, no redraw
+            self._trainee_layer0(job, path)
+        elif qc_scene.enabled():                   # QC layer 0: code checks as the picture arrives (free)
             data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
             flags = qc_scene.check_frame(path, data, assets.flat_place(self.p.conn, job["project_id"], data))
             qc_scene.record_flags(self.data_dir, job["project_id"], job["id"], flags)
@@ -1834,6 +1848,23 @@ class ImageRunner(_Runner):
             if sure:
                 raise RedrawWithFix("QC lớp 0: " + "; ".join(f["problem"] for f in sure), " ".join(f["fix"] for f in sure))
         return path
+
+    def _trainee_layer0(self, job, path: str) -> None:
+        """🎓 scene_qc học việc: what layer 0 WOULD do (redraw / flag / pass) goes to trainee_log only — never shown before the person
+        decides, never acts. A failure here must not touch the picture."""
+        from . import qc_scene, trainee
+        try:
+            data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
+            flags = qc_scene.check_frame(path, data, assets.flat_place(self.p.conn, job["project_id"], data))
+            sev = {f.get("severity") for f in flags}
+            decision = "redraw" if "redraw" in sev else ("flag" if flags else "pass")
+            trainee.record(self.p.conn, "scene_qc", job["project_id"], f"job:{job['id']}", decision,
+                           would_do={"fix": " ".join(f.get("fix", "") for f in flags if f.get("severity") == "redraw"),
+                                     "problems": [f.get("problem", "") for f in flags]},
+                           scene_id=job["scene_id"], job_id=job["id"])
+        except Exception as e:                       # noqa: BLE001 — học việc never breaks the real run
+            import sys
+            print(f"scene_qc học việc lỗi job {job['id']}: {e}", file=sys.stderr)
 
     def _record_usage(self, job, args, kwargs=None) -> None:
         info = getattr(self.provider, "usage_info", None)

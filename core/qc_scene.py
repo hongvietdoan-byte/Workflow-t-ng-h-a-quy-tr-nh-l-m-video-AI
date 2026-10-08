@@ -38,6 +38,16 @@ def enabled() -> bool:
     return features.on(FEATURE)
 
 
+def shadow() -> bool:
+    """🎓 học việc (B1 08/10): runs and records its decision, never acts."""
+    return features.shadow(FEATURE)
+
+
+def active() -> bool:
+    """On or học việc — for choosing a branch only (the old QC must not come back while this is học việc)."""
+    return features.active(FEATURE)
+
+
 def measured_size(face_h: float) -> str:
     return next(name for name, start in SIZE_FROM if face_h >= start)
 
@@ -386,6 +396,22 @@ def to_review(frames: List[Dict], judged: List[int]) -> List[Dict]:
     return [frames[i] for i in keep] or frames
 
 
+def _trainee_team(p, pid: int, s, client, data_dir: str, frames: List[Dict], key: List[int], done: Dict) -> None:
+    """🎓 qc_team học việc: the changed frames only (as the real team would), never stops the project; reviews.json marks the look
+    `"trainee": true` with no verdict in it (the person must not see one before deciding)."""
+    from . import qc_team
+    seen = [j for prev in done.get(str(s), []) if prev.get("trainee") for j in prev.get("jobs") or []]
+    subset = to_review(frames, seen)
+    try:
+        res = qc_team.review_scene(p, pid, s, client, data_dir, frames, focus=[r["job_id"] for r in subset], shadow=True)
+    except Exception as e:                             # noqa: BLE001 — học việc never breaks the real run
+        res = {"stopped": str(e)}
+    rec = _load(data_dir, pid, "reviews.json")
+    rec.setdefault(str(s), []).append({"jobs": key, "looked_at": [r["job_id"] for r in subset], "trainee": True,
+                                       **({"trainee_stopped": str(res["stopped"])[:200]} if res.get("stopped") else {})})
+    _save(data_dir, pid, "reviews.json", rec)
+
+
 def run_ready_scenes(p, pid: int, client, data_dir: str) -> Dict:
     """Review every script scene whose frames are all made and some still wait for a decision; each set of pictures once.
     Layer 1 off (claude_on): the new frames go to the person without a Claude call."""
@@ -412,8 +438,12 @@ def run_ready_scenes(p, pid: int, client, data_dir: str) -> Dict:
             rec.setdefault(str(s), []).append({"jobs": key, "skipped": "QC Claude tắt (lớp 0 bằng code vẫn chạy)"})
             _save(data_dir, pid, "reviews.json", rec)
             summary["waiting"].append(s)
+            from . import qc_team
+            if qc_team.shadow():                       # 🎓 Tổ QC học việc (B5 08/10): looks, records block/pass only — no hold / note
+                _trainee_team(p, pid, s, client, data_dir, frames, key, done)
             continue
-        judged = [j for prev in done.get(str(s), []) if not prev.get("skipped") for j in prev.get("jobs") or []]
+        judged = [j for prev in done.get(str(s), []) if not prev.get("skipped") and not prev.get("trainee")
+                  for j in prev.get("jobs") or []]
         subset = to_review(frames, judged)
         try:
             from . import qc_agent, qc_team
