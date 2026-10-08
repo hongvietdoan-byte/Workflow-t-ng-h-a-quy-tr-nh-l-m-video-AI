@@ -90,7 +90,7 @@ class VideoV2Tests(VideoSeed):
         self.assertIn("**0.91**", html)
         self.assertIn("Ghi chú QC", html)
         self.assertIn("Tay phải hơi lệch", html)
-        self.assertIn("kling-v3-omni", html)
+        self.assertIn("Kling 3.0 Omni", html)                              # KLD-23: the real model name, not the alias
 
     def test_details_sit_behind_an_info_popover(self):
         at = self.open_video()
