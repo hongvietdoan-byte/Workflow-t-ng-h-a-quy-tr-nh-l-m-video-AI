@@ -1264,10 +1264,8 @@ def lessons_tab(p: Pipeline, pid: int) -> None:
     st.markdown(f"**Đề xuất chờ duyệt ({len(proposed)})**")
     for row in proposed:
         with st.container(border=True):
-            ev = json.loads(row["evidence"] or "{}")
             where = knowledge.GROUPS[row["group_name"]][0]
-            origin = ("nghiên cứu web: " + ", ".join(ev.get("urls", []))) if row["source"] == "research" else (
-                f"{ev.get('events')} lần ở {ev.get('projects')} dự án")
+            origin = lessons.origin_text(row)                     # KLD-21: a project-review lesson says its confidence
             st.markdown(f"**{escape(row['title'])}** · {escape(where)}")
             st.caption(f"Nguồn: {origin}")
             title = st.text_input("Tiêu đề", row["title"], key=f"ls_t_{row['id']}", label_visibility="collapsed")

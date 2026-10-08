@@ -88,17 +88,21 @@ SCRIPT_MARK = "[thử tự động]"   # review_log allows only 'user' / 'ai_age
 def import_review_log(conn, data_dir: str) -> int:
     """Every decision a PERSON made with a note: approve = success, reject = failure (the note is the reason). Decisions experiment
     scripts made in the person's name (note starting with SCRIPT_MARK) are not a person's judgement and are left out (rà soát 01/10:
-    7 approvals + 5 S5.5' rejections had entered the notebook as human cases)."""
+    7 approvals + 5 S5.5' rejections had entered the notebook as human cases).
+    KLD-22 (08/10): the "Duyệt" button writes no note, so requiring a note dropped EVERY approval (#22: 44 approvals, 0 success
+    cases). An approval needs no reason — it is a success with a plain note; a rejection without a reason still teaches nothing
+    and stays out."""
     ensure(conn)
     added = 0
     rows = conn.execute("SELECT r.id, r.job_id, r.decision, r.note, j.type FROM review_log r JOIN jobs j ON j.id=r.job_id "
-                        "WHERE r.reviewer_type='user' AND r.note IS NOT NULL AND trim(r.note)!='' AND r.note NOT LIKE ?",
-                        (SCRIPT_MARK + "%",)).fetchall()
+                        "WHERE r.reviewer_type='user' AND (r.decision='approve' OR (r.note IS NOT NULL AND trim(r.note)!=''))"
+                        " AND coalesce(r.note, '') NOT LIKE ?", (SCRIPT_MARK + "%",)).fetchall()
     for r in rows:
         ctx = job_context(conn, r["job_id"])
         stage = "video" if r["type"] == "video_gen" else "image"
+        note = (r["note"] or "").strip() or f"Người dùng duyệt {'clip' if stage == 'video' else 'ảnh'} này (không ghi chú)"
         added += record(conn, key=f"review:{r['id']}", stage=stage, outcome="success" if r["decision"] == "approve" else "failure",
-                        note=r["note"], source="review_log", project_id=ctx["project_id"], job_id=r["job_id"], shot=ctx["shot"],
+                        note=note, source="review_log", project_id=ctx["project_id"], job_id=r["job_id"], shot=ctx["shot"],
                         subjects=ctx["subjects"], view=ctx["view"], evidence=job_picture(data_dir, ctx["project_id"] or 0, r["job_id"])
                         if stage == "image" else None, confirmed_by="người dùng")
     return added
