@@ -248,7 +248,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
     keep = lambda rel: "" if f"knowledge/{rel}" in folded else _read("knowledge", rel)  # noqa: E731
     from . import features, voice_casting
     if features.on("film_crew"):                   # H3/H7: one reasoned rule book per role instead of the scattered documents
-        crew = [role_text("director.md")] + ([role_text("dp.md")] if shots.mode(proj) else [])
+        crew = [role_text("director.md")] + ([role_text("dp.md"), *knowledge.kld_blocks("dp")] if shots.mode(proj) else [])
         keep = lambda rel: "" if rel in ("cinematography_basics.md", "film_director_method.md", "dialogue_craft.md") else (  # noqa: E731
             "" if f"knowledge/{rel}" in folded else _read("knowledge", rel))
     else:
@@ -269,6 +269,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
         *crew,
         *knowledge.murch_blocks("director"),      # S14.20: Murch scale + sound method (flag murch_knowledge, off → nothing)
         *knowledge.kelly_blocks("director"),      # S14.34: Kelly suggestions (flag kelly_knowledge, off → nothing)
+        *knowledge.kld_blocks("director"),        # KLD-8/9/25 (flag kld_lessons_prompts, off → nothing)
         _location_block(pipeline, project_id) if shots.mode(proj) else "",
         keep("research_notes.md"),
         keep("film_director_method.md"),
@@ -359,6 +360,7 @@ def build_intent_bundle(pipeline: Pipeline, project_id: int) -> str:
         *method,
         *knowledge.murch_blocks("director"),      # S14.20 (flag murch_knowledge): the Director writes intent + sound here
         *knowledge.kelly_blocks("director"),      # S14.34 (flag kelly_knowledge)
+        *knowledge.kld_blocks("director"),        # KLD-8/9/25 (flag kld_lessons_prompts)
         _location_block(pipeline, project_id),     # weather / time names of a location pack (the spots are the DP's)
         keep("character_lock.md"),
         voice_casting.prompt_block(),              # S14.26 (flag auto_voice_cast): gender / age / personality of speaking roles
@@ -400,6 +402,7 @@ def dp_common(pipeline: Pipeline, project_id: int, intent: dict) -> str:
         _budget_note(pipeline, project_id),
         _read("knowledge", "ff_gameplay_visual.md"),
         *knowledge.kelly_blocks("dp"),             # S14.34 (flag kelly_knowledge, off → nothing)
+        *knowledge.kld_blocks("dp"),               # KLD-14 (flag kld_lessons_prompts, off → nothing)
         duration_block(pipeline, project_id, for_dp=True),
         _location_block(pipeline, project_id),
         _read("knowledge", "reference_assets_prompting.md"),   # 30/09: model per reference job, limits, 3 people in one shot
@@ -673,6 +676,7 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     for rel in ("video_motion_vocab.md", "research_notes.md", "t2v_prompt_structure.md", "reference_assets_prompting.md"):
         if f"knowledge/{rel}" not in folded:
             parts.append(_read("knowledge", rel))
+    parts += knowledge.kld_blocks("motion")      # KLD-12 (flag kld_lessons_prompts): ref-only exception + visible action; off → []
     parts += knowledge.murch_blocks("motion")    # S14.20 (flag murch_knowledge): addendum + Murch scale + I2V discipline; off → []
     if (any_complex or not complexity_known) and "knowledge/motion_complex_shots.md" not in folded:
         parts.append(_read("knowledge", "motion_complex_shots.md"))

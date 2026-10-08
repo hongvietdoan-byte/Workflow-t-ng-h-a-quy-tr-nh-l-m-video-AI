@@ -352,6 +352,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.34 (05/10): mẫu MỘT kênh, 40 clip (độ tin tối đa 'có thể'); chỉ thêm ≈ 3,5 nghìn ký tự mỗi vai; chưa so kịch bản/shot "
                "thật khi bật (cần bản ghi Claude thật S14.34 bước 3)",
     },
+    "kld_lessons_prompts": {
+        "label": "Bài học #22 Khủng Long Đỏ vào prompt: Đạo diễn (phụ kiện trang phục giữ trạng thái, chữ nhiều nghĩa tra ảnh Kho, động tác "
+                 "theo video mẫu, soát thoại kịch bản dán tay, dữ liệu khớp môi), Quay phim (dữ liệu chuyển động #22), Motion (ngoại lệ "
+                 "ref-only, shot có người cần hành động thấy được), QC clip (issues tả trạng thái đúng, look_drift ref-only = đặc tính model)",
+        "verified": False,
+        "why": "KLD-8/9/12/14/15/25 08/10, chờ dự án mới đo (độ tin 1 dự án #22; docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md mục 4)",
+    },
     "lesson_judge": {
         "label": "Agent chấm bài học (CHẾ ĐỘ BÓNG): Claude chấm mỗi bài học theo 6 tiêu chí (AI ghi khoản trừ + bằng chứng, code tính "
                  "điểm), ghi vào lịch sử duyệt để so với người — KHÔNG tự duyệt, không đổi bài học hay kiến thức nào",

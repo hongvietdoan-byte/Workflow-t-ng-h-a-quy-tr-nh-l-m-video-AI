@@ -197,6 +197,49 @@ def kelly_blocks(role: str) -> List[str]:
     return out
 
 
+# KLD-8/9/12/14/15/25 (08/10, cờ `kld_lessons_prompts`, TẮT mặc định): lessons of project #22 (Khủng Long Đỏ) as short addenda to the
+# role books / prompts. Video QC is not a knowledge group (its prompt is built in core/claude_tasks.video_qc_head) — listed here to read.
+KLD_DOCS = {
+    "director": [("knowledge/roles/director_kld22.md", "Bổ sung Đạo diễn — bài học #22",
+                  "cờ kld_lessons_prompts: N4 phụ kiện/chữ nhiều nghĩa/động tác theo video mẫu, Đ6 thoại dán tay, N3 dữ liệu khớp môi")],
+    "dp": [("knowledge/roles/dp_kld22.md", "Bổ sung Quay phim — bài học #22",
+            "cờ kld_lessons_prompts: Q5 dữ liệu chuyển động #22 (độ tin 1 dự án)")],
+    "motion": [("prompts/03_video_motion_kld22.md", "Bổ sung motion — bài học #22",
+                "cờ kld_lessons_prompts: ngoại lệ ref-only (1 câu chốt tóc/phụ kiện), shot có người cần hành động thấy được")],
+    "video_qc": [("prompts/12_video_qc_kld22.md", "Bổ sung QC clip — bài học #22",
+                  "cờ kld_lessons_prompts: issues tả trạng thái đúng; look_drift ref-only = đặc tính model")],
+}
+KLD_LISTED_IN = {"director": ("director",), "dp": ("director",), "motion": ("motion",)}   # knowledge-page group that shows each addendum
+
+
+def _kld_on() -> bool:
+    from . import features
+    try:
+        return features.on("kld_lessons_prompts")
+    except KeyError:
+        return False
+
+
+def kld_text(role: str) -> str:
+    """The addendum of `role` as written (flag ignored). A listed file that cannot be read is said aloud (CHUAN luật 1)."""
+    if role not in KLD_DOCS:
+        raise ValueError(f"unknown KLD role '{role}'")
+    out = []
+    for rel, title, _ in KLD_DOCS[role]:
+        text = _read(os.path.join(ROOT, *rel.split("/"))).strip()
+        if not text:
+            raise FileNotFoundError(f"Cờ kld_lessons_prompts bật nhưng không đọc được '{rel}' ({title}) — tắt cờ hoặc khôi phục file.")
+        out.append(text)
+    return "\n\n".join(out)
+
+
+def kld_blocks(role: str) -> List[str]:
+    """[addendum of `role`] (director / dp / motion / video_qc) when the flag `kld_lessons_prompts` is on, else []."""
+    if role not in KLD_DOCS:
+        raise ValueError(f"unknown KLD role '{role}'")
+    return [kld_text(role)] if _kld_on() else []
+
+
 def builtin_docs(group: str) -> List[Dict]:
     out = []
     crew = _film_crew()
@@ -221,6 +264,13 @@ def builtin_docs(group: str) -> List[Dict]:
     if _kelly_on():                                                       # S14.34: the books the Director / DP / Editor read
         for role, groups in KELLY_LISTED_IN.items():
             for rel, title, note in (KELLY_DOCS[role] if group in groups else []):
+                path = os.path.join(ROOT, *rel.split("/"))
+                text = _read(path)
+                out.append({"source": "builtin", "title": title, "note": note, "file": rel, "path": os.path.abspath(path),
+                            "chars": len(text), "enabled": True, "exists": bool(text), "crew_replaced": False})
+    if _kld_on():                                                         # KLD-8/9/12/14/25: the addenda this group's prompt carries
+        for role, groups in KLD_LISTED_IN.items():
+            for rel, title, note in (KLD_DOCS[role] if group in groups else []):
                 path = os.path.join(ROOT, *rel.split("/"))
                 text = _read(path)
                 out.append({"source": "builtin", "title": title, "note": note, "file": rel, "path": os.path.abspath(path),
