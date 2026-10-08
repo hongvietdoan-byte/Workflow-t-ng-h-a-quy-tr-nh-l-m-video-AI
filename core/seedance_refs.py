@@ -98,6 +98,8 @@ def groups(conn, project_id: int) -> List[List[Dict]]:
 
     rows = _rows(conn, project_id)
     _say_plate_mode_ignored(conn, project_id, rows)
+    from . import looks                  # F1 sửa #8: only an FF project gets the gore-restraint sentence (room counted only there)
+    ff = looks.is_ff(conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone())
     for r in rows:
         d = r["data"]
         if not d.get("shot_no") or not _groupable(d):
@@ -106,14 +108,16 @@ def groups(conn, project_id: int) -> List[List[Dict]]:
         sec = floored(d, d.get("duration_s") or 0)
         if cur and (_group_key(cur[-1]["data"]) != _group_key(d) or len(cur) >= GROUP_MAX_SHOTS
                     or sum(floored(x["data"], x["data"].get("duration_s") or 0) for x in cur) + sec > GROUP_MAX_SECONDS
-                    or _estimated_len(cur + [r]) > GROUP_PROMPT_BUDGET):
+                    or _estimated_len(cur + [r], ff) > GROUP_PROMPT_BUDGET):
             close()
         cur.append(r)
     close()
     return out
 
 
-def _estimated_len(rows: List[Dict]) -> int:
+def _estimated_len(rows: List[Dict], ff: bool = True) -> int:
+    """ff: the project is a Free Fire one (looks.is_ff) — only then may the runner add the gore-restraint sentence; default True
+    (worst case, tính dư) for a caller that does not know."""
     names: List[str] = []
     for r in rows:
         for n in r["data"].get("characters") or []:
@@ -124,7 +128,7 @@ def _estimated_len(rows: List[Dict]) -> int:
     places = [{"shots": [i]} for i in range(1, len(rows) + 1)]
     motions = [shot_motion(r["data"]) for r in rows]
     from . import looks                  # F1-B: the FF gore-restraint sentence the runner may add (≤ GORE_VIDEO_MAX characters)
-    gore = looks.GORE_VIDEO_MAX if looks.gore_words(" ".join(motions) + " " + " ".join(
+    gore = looks.GORE_VIDEO_MAX if ff and looks.gore_words(" ".join(motions) + " " + " ".join(
         str(r["data"].get(k) or "") for r in rows for k in ("image_prompt", "action", "end_state"))) else 0
     return len(prompt([(m, float(r["data"].get("duration_s") or 2)) for m, r in zip(motions, rows)], [(n, "") for n in names],
                       places=places)) + gore
@@ -662,15 +666,22 @@ _GLOWING_EYES = re.compile(r"\bglow\w*[^.;]{0,20}\beyes?\b|\beyes?\b[^.;]{0,30}\
                            r"|\bmắt\b[^.;]{0,20}(?:đỏ|phát sáng|rực)", re.IGNORECASE)
 
 
+# F1 sửa #12: red eyes from crying are a person's eyes ("red eyes from crying", "teary red eyes", "mắt đỏ hoe") — such a clause is left out
+_CRYING = re.compile(r"\b(?:cry\w*|cries|tears?|teary|tearful|weep\w*|sob\w*)\b|đỏ hoe|khóc|ngấn (?:lệ|nước)|rơm rớm", re.IGNORECASE)
+
+
 def glowing_eyes_written(data: Dict) -> bool:
-    """The Director wrote glowing / red eyes for someone in the shot (performance, action, image_prompt — English or Vietnamese)."""
+    """The Director wrote glowing / red eyes for someone in the shot (performance, action, image_prompt — English or Vietnamese).
+    A clause about crying (red, teary eyes) does not count."""
     bits = []
     for src in (data, data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}):
         perf = src.get("performance") if isinstance(src.get("performance"), dict) else {}
         bits += [f"{k}: {v}" for k, v in perf.items() if isinstance(v, str)]
         bits += [str(src.get(k) or "") for k in ("action", "end_state", "image_prompt")]
     import unicodedata
-    return bool(_GLOWING_EYES.search(unicodedata.normalize("NFC", " | ".join(bits))))
+    text = unicodedata.normalize("NFC", " | ".join(bits))
+    kept = ", ".join(c for c in re.split(r"[,;.|\n]", text) if not _CRYING.search(c))   # "her eyes, now glowing" still read across
+    return bool(_GLOWING_EYES.search(kept))
 
 
 def eyes_guard(data: Dict, humans: Optional[Dict[str, bool]] = None) -> str:

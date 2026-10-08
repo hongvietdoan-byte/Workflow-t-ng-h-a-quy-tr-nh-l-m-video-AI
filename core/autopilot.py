@@ -856,10 +856,39 @@ def _shot_sends(p: Pipeline, scene_id: int, kind: str) -> int:
                   scene_id, kind, RESEND_NOTE + "%")
 
 
+_FORMULA_SAID: set = set()
+
+
+def _formula_stop(p: Pipeline, pid: int, j, kind: str) -> bool:
+    """F1 sửa #7: a job the runner did not send because its prompt breaks the formula (stale_input … sai công thức) is not a dead end:
+    never escalated ("hết số lần thử"); while the prompt is still wrong it waits with a note (sửa prompt), once it is fixed the old job
+    is closed (it never reached the provider) and the run queues a fresh one from the fixed prompt. True = handled here."""
+    from .pipeline import STALE_INPUT
+    from . import prompt_formula
+    note = p.failure_note(j["id"]) or ""
+    if not (note.startswith(STALE_INPUT) and prompt_formula.FORMULA_MARK in note):
+        return False
+    stage, step = ("video", "3") if kind == "video_gen" else ("image", "1/2")
+    red = prompt_formula.group_red_issues(p.conn, j["scene_id"], "motion" if kind == "video_gen" else "image")
+    if red:
+        if j["id"] not in _FORMULA_SAID:
+            _FORMULA_SAID.add(j["id"])
+            _d(p, pid, stage, "warn", f"S{j['idx']:02d}: prompt sai công thức — sửa prompt ở Bước {step} (không tốn tiền), sửa xong "
+               f"autopilot tự gửi lại: {red[0][:200]}", "prompt_formula")
+        return True
+    from .states import JobState
+    p.transition(j["id"], JobState.RETRYABLE, note="prompt đã đúng công thức — xếp hàng lại từ prompt mới")
+    p.transition(j["id"], JobState.CANCELLED, note="prompt đã đúng công thức — thay bằng job mới từ prompt mới")
+    _d(p, pid, stage, "info", f"S{j['idx']:02d}: prompt đã sửa đúng công thức — job cũ (chưa gửi) đóng, xếp job mới", "prompt_formula")
+    return True
+
+
 def _retry_or_hold(p: Pipeline, pid: int, kind: str) -> None:
     for j in p.conn.execute("SELECT j.id, j.scene_id, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type=?"
                             " AND j.state='failed' AND j.escalated=0", (pid, kind)).fetchall():
         if kind == "video_gen" and _count(p, "SELECT COUNT(*) FROM content_moderation_failures WHERE job_id=?", j["id"]):
+            continue
+        if _formula_stop(p, pid, j, kind):
             continue
         if _transient(p, j["id"]):
             p.retry(j["id"], "autopilot: thử lại sau lỗi tạm thời")    # automatic: at AUTO_REGEN_LIMIT pipeline escalates + says (📥)

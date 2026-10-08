@@ -213,7 +213,8 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
             if act(lambda: out.update(batch.requeue_input_failures(p, pid))):
                 sent = runner.submit_pending(pid) if out.get("created") else 0
                 st.toast(f"Xếp hàng {out.get('created', 0)} clip từ đầu vào mới · đã gửi {sent}"
-                         + (f" · chưa đủ đầu vào: {', '.join(C.unit_code(p, pid, i) for i in out['not_ready'])}" if out.get("not_ready") else ""))
+                         + (" · chưa gửi: " + ", ".join(f"{C.unit_code(p, pid, i)} ({str((out.get('reasons') or {}).get(i, 'chưa đủ đầu vào'))[:80]})"
+                                                       for i in out["not_ready"]) if out.get("not_ready") else ""))
             st.rerun()
     from core import lipsync as _lipsync
     if _lipsync.enabled() and not _lipsync.post_available():

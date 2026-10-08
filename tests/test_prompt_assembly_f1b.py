@@ -167,5 +167,121 @@ class RenderLockTest(unittest.TestCase):
         self.assertNotIn("grass, palms, sea", prompt)
 
 
+
+class F1FixesRunner(unittest.TestCase):
+    """Phiên sửa F1 (09/10): nhóm, máu, phục hồi, render, câu mắt — test đỏ trước khi sửa."""
+
+    def _vr(self, game="FF"):
+        from core.providers import MockVideoProvider
+        from core.runner import VideoRunner
+        p, pid = _project(game)
+        return p, pid, VideoRunner(p, MockVideoProvider(), tempfile.mkdtemp())
+
+    def test_4_group_leader_is_held_for_a_red_follower(self):
+        from core import prompt_formula as F
+        p, pid, vr = self._vr("PUBG")
+        group = [{"id": 11, "idx": 1, "data": {}}, {"id": 12, "idx": 2, "data": {}}]
+
+        def red(conn, sid, kind=None, **kw):
+            return ["Prompt motion · Máy quay: x"] if sid == 12 else []
+        with mock.patch.object(vr, "_sends_group", return_value=group), mock.patch.object(vr, "_refs", return_value=False),                 mock.patch("core.lineage.scan", return_value={}), mock.patch.object(F, "red_issues", side_effect=red):
+            reason = vr._blocked({"id": 1, "project_id": pid, "scene_id": 11})
+        self.assertIn("sai công thức", reason or "")
+        self.assertIn("S02", reason)
+
+    def test_5_kling_multi_prompt_entries_get_the_restraint_within_512(self):
+        p, pid, vr = self._vr("FF")
+        group = [{"id": 11, "idx": 1, "data": {"duration_s": 3}}, {"id": 12, "idx": 2, "data": {"duration_s": 3}}]
+        texts = {11: "Kelly kneels and looks at a wound on his arm.", 12: "Kelly stands up. " + "x" * 470}
+        with mock.patch.object(vr, "_motion", side_effect=lambda sid: {"motion_prompt": texts[sid]}):
+            entries, hinted = vr._multi_prompt({"id": 1, "project_id": pid, "scene_id": 11}, p.project(pid), group)
+        self.assertIn("only hinted", entries[0]["prompt"])
+        self.assertLessEqual(len(entries[0]["prompt"]), 512)
+        self.assertTrue(hinted[11])
+        texts[12] = "A wound on his arm. " + "x" * 470
+        with mock.patch.object(vr, "_motion", side_effect=lambda sid: {"motion_prompt": texts[sid]}):
+            entries, hinted = vr._multi_prompt({"id": 1, "project_id": pid, "scene_id": 11}, p.project(pid), group)
+        self.assertNotIn("only hinted", entries[1]["prompt"])
+        self.assertFalse(hinted[12])
+
+    def test_11_gore_note_said_once_per_job(self):
+        p, pid, vr = self._vr("FF")
+        job = {"id": 7, "project_id": pid, "scene_id": 1}
+        group = [{"data": {"action": "a corpse by the well"}}]
+        for _ in range(2):
+            vr._gore_restraint(job, p.project(pid), "Shot 1: x.", group, "dreamina-seedance-2-0-260128")
+        self.assertEqual(p.conn.execute("SELECT SUM(count) FROM diag_events WHERE code='gore_restraint'").fetchone()[0], 1)
+
+    def test_11_paid_task_note_names_the_formula(self):
+        p, pid, vr = self._vr("PUBG")
+        sid = p.create_scene(pid, 1, "S1")
+        jid = p.create_job(sid, "video_gen")
+        p.conn.execute("UPDATE jobs SET external_id='T1' WHERE id=?", (jid,))
+        p.conn.commit()
+        with mock.patch.object(vr, "_wait", return_value=False),                 mock.patch.object(vr, "_blocked", return_value="prompt sai công thức — sửa ở Bước 3: x"):
+            vr.submit_pending(pid)
+        msg = p.conn.execute("SELECT message FROM diag_events WHERE code='stale_paid'").fetchone()["message"]
+        self.assertIn("prompt sai công thức", msg)
+        self.assertNotIn("đầu vào đã cũ", msg)
+
+    def test_8_gore_room_only_for_ff(self):
+        rows = [{"data": {"size": "MS", "characters": ["KELLY"], "duration_s": 3, "action": "blood drips on the floor"}}]
+        self.assertEqual(sr._estimated_len(rows, ff=True) - sr._estimated_len(rows, ff=False), looks.GORE_VIDEO_MAX)
+
+    def test_10_lost_render_falls_back_to_the_place_words(self):
+        from core.runner import name_render
+        lock = assets.render_place_text(None, {"name": "Tháp", "images": []}) if False else (
+            "Setting: Tháp. Background: exactly the 3D render picture of this place" + assets.RENDER_TAG
+            + " (same camera and spot) — it decides the architecture; keep the scale of the objects as in that picture.")
+        out, lost = name_render("Kelly walks. " + lock + " Moonlight.", [], fallback="Real map: open stone plaza, palms.")
+        self.assertTrue(lost)
+        self.assertIn("Real map: open stone plaza", out)
+        self.assertNotIn("3D render picture", out)
+        self.assertIn("Moonlight.", out)
+
+    def test_12_crying_red_eyes_are_not_glowing(self):
+        self.assertFalse(sr.glowing_eyes_written({"performance": {"eyes": "red eyes from crying"}}))
+        self.assertFalse(sr.glowing_eyes_written({"performance": {"eyes": "mắt đỏ hoe, ngấn nước"}}))
+        self.assertFalse(sr.glowing_eyes_written({"performance": {"eyes": "teary red eyes"}}))
+        self.assertTrue(sr.glowing_eyes_written({"performance": {"eyes": "glowing red"}}))
+        self.assertTrue(sr.glowing_eyes_written({"action": "mắt đỏ rực trong bóng tối"}))
+
+
+class F1FixesRecovery(unittest.TestCase):
+    def setUp(self):
+        self.p = Pipeline(connect(":memory:"))
+        self.pid = self.p.create_project("rec")
+        self.s1 = self.p.create_scene(self.pid, 1, "Shot 1")
+        self.s2 = self.p.create_scene(self.pid, 2, "Shot 2")
+
+    def fail_with(self, sid, kind, note):
+        jid = self.p.create_job(sid, kind)
+        self.p.start(jid)
+        self.p.fail(jid, note)
+        return jid
+
+    def test_7_autopilot_does_not_escalate_a_formula_stop_and_reopens_when_fixed(self):
+        from core import autopilot, prompt_formula as F
+        jid = self.fail_with(self.s1, "image_gen", "stale_input: prompt ảnh sai công thức — sửa ở Bước 1/2: x")
+        with mock.patch.object(F, "red_issues", return_value=["x"]):
+            autopilot._retry_or_hold(self.p, self.pid, "image_gen")
+        self.assertEqual(self.p.job(jid)["escalated"], 0)
+        self.assertEqual(self.p.state(jid).value, "failed")
+        with mock.patch.object(F, "red_issues", return_value=[]):
+            autopilot._retry_or_hold(self.p, self.pid, "image_gen")
+        self.assertEqual(self.p.job(jid)["escalated"], 0)
+        self.assertEqual(self.p.state(jid).value, "cancelled")      # the creation path queues a fresh job from the fixed prompt
+
+    def test_7_requeue_keeps_a_red_shot_out_with_its_reason(self):
+        from core import batch, prompt_formula as F
+        self.fail_with(self.s1, "video_gen", "stale_input: prompt sai công thức — sửa ở Bước 3: x")
+        self.fail_with(self.s2, "video_gen", "stale_input: prompt sai công thức — sửa ở Bước 3: x")
+        with mock.patch("core.llm_io.ready_for_video", return_value=[{"scene_id": self.s1}, {"scene_id": self.s2}]),                 mock.patch.object(F, "red_issues", side_effect=lambda conn, sid, kind=None, **kw: ["Máy quay: y"] if sid == self.s2 else []):
+            out = batch.requeue_input_failures(self.p, self.pid)
+        self.assertEqual(out["created"], 1)
+        self.assertEqual(out["not_ready"], [2])
+        self.assertIn("Máy quay", out["reasons"][2])
+
+
 if __name__ == "__main__":
     unittest.main()

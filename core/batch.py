@@ -224,18 +224,27 @@ def input_failures(p: Pipeline, project_id: int, kind: str = "video_gen") -> Lis
 def requeue_input_failures(p: Pipeline, project_id: int) -> Dict:
     """KLD-1: for each clip that failed on its input — the old job is closed (cancelled; it never reached the provider) and a NEW job
     is queued from the current approved picture + motion prompt; a shot whose inputs are not approved / current is listed, not queued.
-    {"created": n, "not_ready": [idx…]}. Sending (and paying) is the caller's runner.submit_pending, with the price on the button."""
+    {"created": n, "not_ready": [idx…], "reasons": {idx: why}}. Sending (and paying) is the caller's runner.submit_pending, with the
+    price on the button. F1 sửa #7: a shot whose motion prompt (or a shot of its group) still breaks the formula is not ready either —
+    a new job would fail at once on the same check."""
     from .states import JobState
+    from . import prompt_formula
     access.need_edit(p, project_id, "xếp hàng lại clip hỏng vì đầu vào cũ")
     ready = {r["scene_id"] for r in llm_io.ready_for_video(p, project_id)}
-    created, not_ready = 0, []
+    created, not_ready, reasons = 0, [], {}
     for r in input_failures(p, project_id):
         if r["scene_id"] not in ready:
             not_ready.append(r["idx"])
+            reasons[r["idx"]] = "chưa đủ đầu vào (ảnh / motion chưa duyệt hoặc đã cũ)"
+            continue
+        red = prompt_formula.group_red_issues(p.conn, r["scene_id"], "motion")
+        if red:
+            not_ready.append(r["idx"])
+            reasons[r["idx"]] = "prompt sai công thức — sửa ở Bước 3: " + " · ".join(red)
             continue
         p.transition(r["id"], JobState.RETRYABLE, note="đầu vào đã cũ — xếp hàng lại từ đầu vào mới")
         p.transition(r["id"], JobState.CANCELLED, actor="user", note="đầu vào đã cũ — thay bằng job mới từ đầu vào mới")
         if not p.conn.execute(f"SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN {LIVE}", (r["scene_id"],)).fetchone():
             p.create_job(r["scene_id"], "video_gen")
             created += 1
-    return {"created": created, "not_ready": not_ready}
+    return {"created": created, "not_ready": not_ready, "reasons": reasons}

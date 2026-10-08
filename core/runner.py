@@ -283,7 +283,9 @@ class _Runner:
                 stale = self._blocked(job)
                 self._running(job["id"], "đã có task ở nhà cung cấp — không gửi lại")
                 if stale:
-                    self._diag(job, "warn", "stale_paid", f"đầu vào đã cũ ({stale}) nhưng task {job['external_id']} đã trả tiền — lấy kết "
+                    from .prompt_formula import FORMULA_MARK    # F1 sửa #11: a formula stop is not an "outdated input"
+                    what = stale if FORMULA_MARK in stale else f"đầu vào đã cũ ({stale})"
+                    self._diag(job, "warn", "stale_paid", f"{what} — nhưng task {job['external_id']} đã trả tiền — lấy kết "
                                                           "quả về, không gửi lại")
                 else:
                     self._diag(job, "info", "already_sent", f"job đã có task {job['external_id']} ở nhà cung cấp — chuyển sang đang chạy, "
@@ -587,12 +589,72 @@ class VideoRunner(_Runner):
         if row.get("motion_stale"):
             return f"motion prompt đang cũ ({row['motion_stale']}) — viết lại / duyệt lại ở Bước 3"
         from . import prompt_formula             # F1 (09/10): a motion prompt that breaks the formula is not paid for
-        red = prompt_formula.red_issues(self.p.conn, job["scene_id"], "motion")
-        if red:
-            return "prompt sai công thức — sửa ở Bước 3: " + " · ".join(red)
+        # F1 sửa #4: a job that sends its group (Kling multi-shot / Seedance group / camera set-up) pays for every shot's prompt
+        group = self._sends_group(job) or []
+        ids = [r["id"] for r in group] if group else []
+        ids = ids if job["scene_id"] in ids else [job["scene_id"]] + ids
+        idx = {r["id"]: r.get("idx") if isinstance(r, dict) else r["idx"] for r in group}
+        reds = []
+        for sid in ids:
+            red = prompt_formula.red_issues(self.p.conn, sid, "motion",
+                                            gore_hinted=lambda sid=sid: self._gore_hinted(job, group, sid))
+            if red and len(ids) > 1:
+                n = idx.get(sid)
+                red = [f"S{n:02d} {x}" if isinstance(n, int) else f"shot #{sid} {x}" for x in red]
+            reds += red
+        if reds:
+            return "prompt sai công thức — sửa ở Bước 3: " + " · ".join(reds)
         if self._refs(job):
             return self._ref_lint(job)
         return None
+
+    def _gore_hinted(self, job, group, scene_id: int) -> bool:
+        """F1 sửa #5: does the FF gore-restraint sentence really go with this shot on this job's send path? A Kling multi-shot group:
+        the shot's own multi_prompt entry (ClipAI ignores the whole-clip motion there); any other path: the clip's prompt as built.
+        Nothing to send yet (inputs missing): True — no money goes out, the base check says what is missing."""
+        from . import looks, shots
+        proj = self.p.project(job["project_id"])
+        if group and not self._refs(job) and shots.mode(proj) == "multishot":
+            return bool(self._multi_prompt(job, proj, group, say=False)[1].get(scene_id))
+        args = self._submit_args(job)
+        return True if not args else looks._GORE_TAG in str(args[1])
+
+    def _diag_once(self, job, severity: str, code: str, message: str) -> None:
+        """A note written once per job (the prompt is built for the check before sending AND for the send — F1 sửa #11)."""
+        said = self.__dict__.setdefault("_said_once", set())
+        key = (job["id"], code, message)
+        if key in said:
+            return
+        said.add(key)
+        self._diag(job, severity, code, message)
+
+    def _multi_prompt(self, job, proj, group, say: bool = True):
+        """Kling multi-shot: each shot's own prompt (≤ KLING_SHOT_PROMPT_LIMIT) — who speaks (S0.14) and, FF project, the gore-restraint
+        sentence (F1 sửa #5a: ClipAI drops the whole-clip motion in multi-shot, so the sentence goes into each shot's entry; added only
+        when it fits). Returns (entries, {scene_id: restraint sentence in the entry})."""
+        from . import looks, shots, speaker_lint
+        from .adapters.clipai import KLING_SHOT_PROMPT_LIMIT
+        entries, hinted = [], {}
+        for r in group:
+            m = {"prompt": self._motion(r["id"])["motion_prompt"], "duration": shots.billed_shot_seconds(r["data"])}
+            res = speaker_lint.apply(m["prompt"], [r["data"]], KLING_SHOT_PROMPT_LIMIT)
+            if res["missing"]:
+                m["prompt"] = res["prompt"]
+                if say:
+                    self._diag(job, "warn", "speaker_unnamed", speaker_lint.message(f"S{r['idx']:02d}", res))
+            scan = m["prompt"] + " " + " ".join(str(r["data"].get(k) or "") for k in ("image_prompt", "action", "end_state"))
+            out = looks.gore_restraint(proj, m["prompt"], video=True, scan=scan)
+            if out != m["prompt"] and len(out) <= KLING_SHOT_PROMPT_LIMIT:
+                m["prompt"] = out
+            elif out != m["prompt"] and say:
+                self._diag_once(job, "warn", "gore_restraint", f"S{r['idx']:02d}: không thêm được câu chỉ GỢI máu/xác — prompt shot sẽ "
+                                                                f"quá {KLING_SHOT_PROMPT_LIMIT} ký tự")
+            hinted[r["id"]] = looks._GORE_TAG in m["prompt"]
+            entries.append(m)
+        if say and any(hinted.values()):
+            self._diag_once(job, "info", "gore_restraint", "dự án FF: shot có máu/vết thương/xác — đã thêm câu chỉ GỢI vào prompt "
+                                                           "từng shot (Kling nhiều shot)")
+        return entries, hinted
 
     def _ref_lint(self, job) -> Optional[str]:
         """Review 2026-09-27: what can be seen wrong in a reference-only request before paying — too long, Vietnamese left, pictures
@@ -756,15 +818,8 @@ class VideoRunner(_Runner):
         if group and mode != "multishot":
             pass                         # H5 camera set-up: one continuous prompt (in the motion argument), no multi_prompt
         elif group:
-            out["multi_prompt"] = [{"prompt": self._motion(r["id"])["motion_prompt"], "duration": shots.billed_shot_seconds(r["data"])}
-                                   for r in group]
+            out["multi_prompt"] = self._multi_prompt(job, self.p.project(job["project_id"]), group)[0]   # S0.14 + F1 sửa #5a
             from .adapters.clipai import KLING_SHOT_PROMPT_LIMIT
-            from . import speaker_lint                 # S0.14 T2: each shot of the group names who speaks in it
-            for r, m in zip(group, out["multi_prompt"]):
-                res = speaker_lint.apply(m["prompt"], [r["data"]], KLING_SHOT_PROMPT_LIMIT)
-                if res["missing"]:
-                    m["prompt"] = res["prompt"]
-                    self._diag(job, "warn", "speaker_unnamed", speaker_lint.message(f"S{r['idx']:02d}", res))
             long = [f"S{r['idx']:02d} ({len(m['prompt'])} ký tự)" for r, m in zip(group, out["multi_prompt"])
                     if len(m["prompt"]) > KLING_SHOT_PROMPT_LIMIT]
             if long:                     # W13: the cut is visible (the end of the prompt — often the ending action — is lost)
@@ -986,6 +1041,14 @@ class VideoRunner(_Runner):
         return bool(self.p.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN "
                                         "('succeeded','pending_review','approved')", (scene_id,)).fetchone())
 
+    def _lead_failure(self, scene_id: int) -> Optional[str]:
+        """The failure note of the group leader's newest clip job when it failed, else None."""
+        row = self.p.conn.execute("SELECT id, state FROM jobs WHERE scene_id=? AND type='video_gen' ORDER BY id DESC LIMIT 1",
+                                  (scene_id,)).fetchone()
+        if row is None or row["state"] != "failed":
+            return None
+        return (self.p.failure_note(row["id"]) or "lỗi không rõ")[:200]
+
     def _sends_group(self, job):
         """The multi-shot group this job generates in one go (Kling multi-shot, first shot of a group whose other shots have no
         clip yet), else None — a shot remade later is sent on its own. Seedance reference groups: several CONSECUTIVE shots of the
@@ -1106,7 +1169,10 @@ class VideoRunner(_Runner):
             if not self._has_clip(group[0]["id"]):
                 idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (group[0]["id"],)).fetchone()
                 lead = f" (S{idx['idx']:02d})" if idx else ""
-                return self._hold(job, f"chờ clip nhóm gửi từ shot đầu nhóm{lead} — gửi shot đó trước, phần này đi cùng clip nhóm")
+                why = self._lead_failure(group[0]["id"])         # F1 sửa #4: a leader stopped (e.g. prompt sai công thức) is said here
+                return self._hold(job, f"chờ clip nhóm gửi từ shot đầu nhóm{lead} — "
+                                  + (f"shot đầu nhóm đang hỏng ({why}) — sửa rồi gửi lại shot đó, phần này đi cùng clip nhóm" if why
+                                     else "gửi shot đó trước, phần này đi cùng clip nhóm"))
             return False
         if self._sends_group(job) is None:
             return False
@@ -1272,9 +1338,9 @@ class VideoRunner(_Runner):
             return motion
         limit = PROMPT_LIMITS.get(model or "") or (PROMPT_LIMITS["kling"] if "kling" in str(model or "").lower() else 4000)
         if len(out) + len(looks.video_sentence(proj)) + 1 > limit:
-            self._diag(job, "warn", "gore_restraint", f"không thêm được câu chỉ GỢI máu/xác: prompt sẽ quá {limit} ký tự")
+            self._diag_once(job, "warn", "gore_restraint", f"không thêm được câu chỉ GỢI máu/xác: prompt sẽ quá {limit} ký tự")
             return motion
-        self._diag(job, "info", "gore_restraint", "dự án FF: clip có máu/vết thương/xác — đã thêm câu chỉ GỢI, không thấy rõ")
+        self._diag_once(job, "info", "gore_restraint", "dự án FF: clip có máu/vết thương/xác — đã thêm câu chỉ GỢI, không thấy rõ")
         return out
 
     def _speakers_named(self, job, model, motion: str, group, setup: bool) -> str:
@@ -1732,13 +1798,34 @@ def sendable_references(refs, model: Optional[str], limit: Optional[int] = None)
     return kept, dropped
 
 
-def name_render(prompt: str, refs) -> Tuple[str, bool]:
+_RENDER_LOCK = re.compile(r"Background: exactly the 3D render picture of this place" + re.escape(assets.RENDER_TAG) + r"[^.]*\.?")
+
+
+def name_render(prompt: str, refs, fallback=None) -> Tuple[str, bool]:
     """F1-B: the background-lock sentence names the render by its number among the pictures REALLY sent ("Image 3"). A render dropped
-    on the way (unreadable / over the limit) leaves the sentence without a number. Returns (prompt, render left unnamed)."""
+    on the way (unreadable / over the limit) — F1 sửa #10: the lock sentence points at a picture that is not there and the place words
+    were left out, so it is replaced by `fallback` (the place in words, assets.location_text; a callable is asked only then).
+    Returns (prompt, render left unnamed)."""
     if assets.RENDER_TAG not in prompt:
         return prompt, False
     n = next((i for i, r in enumerate(refs or [], 1) if r.get("role") == "place_render"), None)
-    return prompt.replace(assets.RENDER_TAG, f" (Image {n})" if n else ""), n is None
+    if n:
+        return prompt.replace(assets.RENDER_TAG, f" (Image {n})"), False
+    words = (fallback() if callable(fallback) else fallback) or ""
+    if words.strip():
+        prompt = _RENDER_LOCK.sub(lambda _m: words.strip().rstrip(".") + ".", prompt, count=1)
+    return prompt.replace(assets.RENDER_TAG, ""), True
+
+
+def _place_words(runner, job) -> str:
+    """The shot's place in words (assets.location_text) — name_render's fallback when the render picture is not sent."""
+    try:
+        conn = runner.p.conn
+        row = conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+        place = assets.scene_location(conn, job["project_id"], json.loads((row["data"] if row else None) or "{}"))
+        return assets.location_text(conn, place) if place else ""
+    except Exception:  # noqa: BLE001 - no place words: the lock sentence is only left without its number (said by the caller)
+        return ""
 
 
 def location_pack_entry(conn, place) -> Optional[Dict]:
@@ -2017,9 +2104,10 @@ class ImageRunner(_Runner):
                                               **({"plate_key": r["plate_key"]} if r.get("plate_key") else {})}
                                              for r in refs] + [{"label": "storyboard", "role": "storyboard",
                                                                 "file": fields["storyboard"]["storyboard_id"]}]
-        prompt, lost = name_render(prompt, refs)
+        prompt, lost = name_render(prompt, refs, fallback=lambda: _place_words(self, job))
         if lost and hasattr(self, "_diag"):
-            self._diag(job, "warn", "missing_reference", "câu khóa nền nhắc ảnh render 3D nhưng ảnh render không gửi được")
+            self._diag(job, "warn", "missing_reference", "ảnh render 3D của shot không gửi được — bỏ câu khóa nền theo render, quay về "
+                                                         "câu địa điểm bằng chữ")
         if refs:                                       # the chosen resources' pictures go with the prompt (image-to-image)
             return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
         return (prompt,)
