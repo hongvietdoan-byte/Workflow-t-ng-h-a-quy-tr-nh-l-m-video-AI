@@ -145,9 +145,14 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
         st.info("⏳ " + line)
     c1, c2 = st.columns([2.6, 2])
     queued = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen' AND state='queued'", (pid,)).fetchone()[0]
-    if c1.button(f"▶ Gen video ({len(new_rows)} cảnh mới" + (f", làm lại {len(picked)}/{len(stale_rows)} cảnh đã cũ" if stale_rows else "")
+    if send or queued or stale_rows:
+        label = (f"▶ Gen video ({len(new_rows)} cảnh mới" + (f", làm lại {len(picked)}/{len(stale_rows)} cảnh đã cũ" if stale_rows else "")
                  + (f", {queued} clip đang chờ gửi" if queued else "") + ")"     # 07/10: resent / redone clips only wait in the queue
-                 + cost.video_batch_tag(p, pid),
+                 + cost.video_batch_tag(p, pid))
+    else:                                               # điểm 6 (07/10): nothing to send → say WHY on the button, not '(0 cảnh mới)'
+        from core import stage_map
+        label = "▶ Gen video — " + stage_map.video_idle_reason(stage_map.build(p.conn, pid))
+    if c1.button(label,
                  type="primary", key=f"gen_vid_{pid}", disabled=runner is None or not allowed_run or not (send or queued)):
         def go():
             r = batch.queue_videos(p, pid, C.DATA, only={x["scene_id"] for x in send})

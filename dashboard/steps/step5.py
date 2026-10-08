@@ -24,6 +24,21 @@ def preview_with_track(p: Pipeline, pid: int, music_path: str, tag: str) -> None
         st.rerun()
 
 
+def music_pick_box(p: Pipeline, pid: int, second: bool = False) -> None:
+    """Bố cục điểm 8 (người dùng 07/10): chọn nhạc KHÔNG cần tải tệp lên — Kho âm thanh, nhạc AI đã tạo, thư mục `nhac_rieng` của dự án."""
+    n = 2 if second else 1
+    q = st.text_input("Tìm trong Kho âm thanh / thư mục dự án", key=f"mpick_q_{pid}_{n}", placeholder="vd: dance, buồn, epic…")
+    items = music.pick_sources(p.conn, C.DATA, pid, q)
+    st.caption(f"Chép tệp nhạc vào `{music.own_dir(C.DATA, pid)}` là chọn được ở đây (không qua ô tải lên).")
+    if not items:
+        st.caption("Không có bản nào khớp — thêm thư mục nhạc vào Kho (⚙ → Kho tài nguyên → âm thanh) hoặc chép vào thư mục trên.")
+        return
+    pick = st.selectbox("Chọn bản nhạc", range(len(items)), format_func=lambda i: items[i]["label"], key=f"mpick_{pid}_{n}")
+    if st.button("Dùng làm nhạc đoạn 2" if second else "Dùng làm nhạc nền", key=f"mpick_go_{pid}_{n}"):
+        if act(lambda: music.use_pick(p, C.DATA, pid, items[pick]["path"], second=second)):
+            st.rerun()
+
+
 def second_music_box(p: Pipeline, pid: int, selected_dir: str, files) -> None:
     """07/10 (Khủng Long Đỏ): a second music from a chosen second (the dance's own song under the dance); the first one fades out there."""
     track2 = delivery.second_music(C.DATA, pid)
@@ -53,6 +68,8 @@ def second_music_box(p: Pipeline, pid: int, selected_dir: str, files) -> None:
             with open(os.path.join(d2, "second" + os.path.splitext(up.name)[1]), "wb") as f:
                 f.write(up.getvalue())
             st.rerun()
+        with st.expander("📁 Chọn nhạc đoạn 2 từ Kho / thư mục dự án (không cần tải lên)"):
+            music_pick_box(p, pid, second=True)
 
 
 def step5a(p: Pipeline, pid: int):
@@ -79,7 +96,8 @@ def step5a(p: Pipeline, pid: int):
             st.audio(spath)
             if has_clips and b.button("🎬 Xem thử với video", key=f"prev_sel_{pid}"):
                 preview_with_track(p, pid, spath, "selected")
-        with st.expander("Tải nhạc có sẵn / bỏ nhạc"):
+        with st.expander("Tải / chọn nhạc có sẵn · bỏ nhạc"):
+            music_pick_box(p, pid)
             up = st.file_uploader("Tải nhạc nền", type=["mp3", "wav", "m4a"], key=f"music_{pid}")
             if up and st.button("Dùng bản này", key=f"music_up_go_{pid}"):
                 music.clear_selected(selected_dir)
