@@ -149,7 +149,11 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
     picked_new = st.multiselect(f"Cảnh mới sẽ gửi ({all_new}) — bỏ bớt để gen thử vài cảnh trước", list(new_by_id),
                                 default=list(new_by_id), format_func=lambda sid: new_by_id[sid]["label"],
                                 key=f"gen_vid_new_{pid}") if all_new > 1 else list(new_by_id)
-    new_rows = [new_by_id[s] for s in picked_new]
+    grown = [s for s in batch.with_groups(p.conn, new_rows, picked_new) if s in new_by_id]   # a shot brings its whole clip group
+    if len(grown) > len(picked_new):
+        st.caption("➕ Thêm cùng clip nhóm (một lần gen làm cả nhóm): "
+                   + ", ".join(f"S{new_by_id[s]['idx']:02d}" for s in grown if s not in picked_new))
+    new_rows = [new_by_id[s] for s in grown]
     picked = st.multiselect(f"Làm lại cảnh đã cũ ({len(stale_rows)}) — chỉ cảnh bạn chọn mới được gửi", list(stale_rows),
                             format_func=lambda sid: stale_rows[sid]["label"], key=f"gen_vid_stale_{pid}") if stale_rows else []
     send = new_rows + [stale_rows[s] for s in picked]

@@ -125,8 +125,37 @@ def video_plan(p: Pipeline, project_id: int) -> List[Dict]:
             r["model_name"] = clipai.display_name(ch.get("model"), res) + (" (nháp)" if draft is not None else "")
         except Exception as e:  # noqa: BLE001 - a scene whose model cannot be read is said, not hidden
             r["model_name"] = f"không đọc được model ({type(e).__name__})"
-        r["label"] = f"S{r['idx']:02d} · {r['model_name']}" + (f" · {r['why']}" if r["why"] else "")
+        r["group"] = clip_group(p.conn, r["scene_id"])
+        together = ""
+        if len(r["group"]) > 1:
+            idxs = [p.conn.execute("SELECT idx FROM scenes WHERE id=?", (g,)).fetchone()["idx"] for g in r["group"]]
+            together = f" · clip nhóm S{min(idxs):02d}–S{max(idxs):02d}"
+        r["label"] = f"S{r['idx']:02d} · {r['model_name']}{together}" + (f" · {r['why']}" if r["why"] else "")
     return sorted(rows, key=lambda r: (r["kind"] != "new", r["idx"]))
+
+
+def clip_group(conn, scene_id: int) -> List[int]:
+    """08/10 (#24): the scene ids made by ONE generation with this shot (Seedance reference group / Kling multi-shot / H5 set-up —
+    shots.group_of, the runner's own rule), else [scene_id]. Picking shot 7 alone queued a job that waited forever: its group clip
+    is sent from the group's first shot, which was not picked."""
+    from . import shots
+    try:
+        group = shots.group_of(conn, scene_id) or []
+    except Exception:  # noqa: BLE001 - no group information: the shot on its own
+        group = []
+    return [g["id"] for g in group] if len(group) > 1 else [scene_id]
+
+
+def with_groups(conn, plan: List[Dict], picked) -> List[int]:
+    """The picked scene ids grown to their whole clip groups (in film order), so no picked shot waits for an unpicked group leader."""
+    by_id = {r["scene_id"]: r for r in plan}
+    out: List[int] = []
+    for sid in picked:
+        for g in (by_id[sid].get("group") if sid in by_id else None) or [sid]:
+            if g not in out:
+                out.append(g)
+    order = {r["scene_id"]: r["idx"] for r in plan}
+    return sorted(out, key=lambda s: order.get(s, 0))
 
 
 def chain_waits(p: Pipeline, project_id: int) -> Dict[int, str]:
