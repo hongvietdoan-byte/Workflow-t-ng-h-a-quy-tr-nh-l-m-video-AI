@@ -382,6 +382,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.25 (06/10, Đợt 6a): chưa có góp ý thật nào qua luồng này; chưa đo góp ý của người có khớp từ khóa loại lỗi "
                "(lỗi không khớp → 'Chưa phân loại' + diag)",
     },
+    "outfit_strip_model": {
+        "label": "Ảnh OUTFIT có người mẫu: prompt ảnh + video thêm câu 'bỏ tóc/mặt/dáng của người mẫu trong ảnh trang phục; phụ kiện "
+                 "(mũ, khẩu trang…) đeo đúng như ảnh suốt clip'",
+        "verified": False,
+        "why": "KLD-7 (người dùng duyệt 08/10, #22 Khủng Long Đỏ): tóc Kelly KL lẫn màu bạc của người mẫu trong ảnh trang phục (544/545 bị "
+               "loại, ≈ 2,8 USD) dù prompt đã có 'chỉ lấy quần áo'. Câu mới đổi đầu ra model trả tiền và chưa thử — cần thử 1 shot rẻ "
+               "(ảnh + clip 720p) trước khi bật",
+    },
 }
 
 

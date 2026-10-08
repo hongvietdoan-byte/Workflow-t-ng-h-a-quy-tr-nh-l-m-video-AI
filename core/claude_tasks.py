@@ -184,7 +184,7 @@ def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[
     proj = p.project(job["project_id"])
     fix = bool(proj["qc_autofix"]) if autofix is None else autofix
     issues = str(obj.get("issues") or "").strip() or None
-    decision = p.apply_qc(job_id, obj["criteria"], issues=issues, autofix=fix)
+    decision = p.apply_qc(job_id, obj["criteria"], issues=issues, autofix=fix, measured=measured)   # KLD-5 reads look_drift
     return {"decision": decision, "issues": issues}
 
 

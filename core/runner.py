@@ -1452,7 +1452,8 @@ def lock_note(conn, project_id: int, cast) -> str:
             continue
         if (r["outfit_image_ids"] or "").strip():
             # 07/10 Khủng Long Đỏ: MAXIM KL's lock came from the library profile of MAXIM with his everyday clothes ("black baseball cap
-            # worn backwards, bomber jacket") and the costume's red horned cap was drawn as the black cap — face/hair/build only here
+            # worn backwards, bomber jacket") and the costume's cap (black with red horns — user 08/10) was drawn as the plain black cap —
+            # face/hair/build only here
             parts.append(f"{r['name']}: keep the face, hair and body build of the reference pictures; the clothes, cap and accessories "
                          "come ONLY from the OUTFIT image, never from the everyday look")
             continue

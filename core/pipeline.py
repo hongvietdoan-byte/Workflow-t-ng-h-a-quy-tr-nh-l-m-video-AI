@@ -440,9 +440,10 @@ class Pipeline:
         self.conn.commit()
 
     def apply_qc(self, job_id: int, scores: Mapping[str, float], issues: Optional[str] = None, autofix: bool = False,
-                 qc: Optional[dict] = None) -> str:
+                 qc: Optional[dict] = None, measured: Optional[dict] = None) -> str:
         """... Returns 'already_processed' instead of raising when the picture was already judged by another check in the
-        meantime (the automatic background check and a manual click can land on the same picture)."""
+        meantime (the automatic background check and a manual click can land on the same picture). `measured`: a clip's layer-0
+        numbers (core/clip_measure.measure, its "flags") — KLD-5 reads `look_drift` there."""
         access.need_edit_job(self, job_id, "ghi kết quả QC")
         if self.state(job_id) != JobState.SUCCEEDED:
             return "already_processed"
@@ -475,7 +476,7 @@ class Pipeline:
                  ("fail" if too_low else "pass" if passed else "review" if review_zone else "fail") if auto
                  else ("fail" if too_low else None)))
         self.conn.commit()
-        hold = None if passed else self._no_auto_retry(job, scores, threshold, fix)
+        hold = None if passed else self._no_auto_retry(job, scores, threshold, fix, measured)
         if qc is None:                            # S14.17 rà (c): what the Director reads before rewriting (picture QC and clip QC)
             low = [f"{k} {v:.2f}" for k, v in scores.items() if v < threshold]
             qc = {"root_cause": ("điểm thấp: " + ", ".join(low)) if low else None, "problem": issues, "fix": fix or None}
@@ -505,16 +506,20 @@ class Pipeline:
             return self._hold(job_id, f"QC {overall:.2f} < {threshold} — {hold}{suffix}")
         return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}{suffix}", fix=fix, qc=qc)
 
-    def _no_auto_retry(self, job, scores: Mapping[str, float], threshold: float, fix: str) -> Optional[str]:
+    def _no_auto_retry(self, job, scores: Mapping[str, float], threshold: float, fix: str,
+                       measured: Optional[dict] = None) -> Optional[str]:
         """F5 (user decision 2026-09-24): an automatic retry only when its input changes, at most AUTO_REGEN_LIMIT times per shot
         (S14.16: picture 3, clip 2), and never a third time for the same fault. Returns why not (Vietnamese, for the person), or None."""
         if not fix:
             return "QC không nêu lỗi cụ thể để sửa — gen lại sẽ gửi y hệt đầu vào (không tự gen lại)"
+        floors = hard_floors("video" if job["type"] == "video_gen" else "image")
+        failing = {k for k, v in scores.items() if v < threshold or (k in floors and v < floors[k])}
+        model_property = self._look_drift_only(job, failing, measured)
+        if model_property:
+            return model_property
         if self._retries_exhausted(job):
             self._limit_said(job)
             return f"Cần bạn quyết — đã tự gen lại {job['retry_count']} lần (tối đa {self.auto_limit(job)})"
-        floors = hard_floors("video" if job["type"] == "video_gen" else "image")
-        failing = {k for k, v in scores.items() if v < threshold or (k in floors and v < floors[k])}
         if job["parent_job_id"] and failing:
             before = {r["criterion"] for r in self.conn.execute(
                 "SELECT criterion FROM qc_results WHERE job_id=? AND score < threshold_at_time", (job["parent_job_id"],))}
@@ -522,6 +527,42 @@ class Pipeline:
                 return ("cùng lỗi lặp lại sau khi sửa (" + ", ".join(sorted(failing)) + ") — cần sửa lớp gốc (Bible/ảnh tham chiếu/"
                         "prompt/khung cắt) thay vì gen lại")
         return None
+
+    def _look_drift_only(self, job, failing: set, measured: Optional[dict]) -> Optional[str]:
+        """KLD-5 (người dùng duyệt 08/10, #22): a clip on the Seedance reference-only route whose ONLY failing criterion is `identity`
+        while clip_measure says `look_drift` (smoother face / other render style than the storyboard) is a property of that route —
+        ×0,12–0,39 face detail on every #22 clip; clip 255 regenerated for it scored 0,72 instead of 0,81 and cost 2,76 USD. "Fix: smooth
+        face" changes no real input (docs/CHUAN_XAY_DUNG.md: a retry must change its input), so the clip is kept for the person and the
+        case is written to the experience book (kind model_property). Returns why (Vietnamese), or None."""
+        if job["type"] != "video_gen" or failing != {"identity"} or "look_drift" not in ((measured or {}).get("flags") or []):
+            return None
+        from . import seedance_refs
+        try:
+            ref_only = seedance_refs.uses_refs(self.conn, job["scene_id"])
+        except Exception:  # noqa: BLE001 - route unknown: the old rule decides
+            ref_only = False
+        if not ref_only:
+            return None
+        usd = None
+        try:
+            from . import model_router
+            usd = next((r["cost"] for r in model_router.plan(self.conn, job["project_id"]) if r["scene_id"] == job["scene_id"]), None)
+        except Exception:  # noqa: BLE001 - the price is only said, never needed to decide
+            usd = None
+        price = f"≈ {usd:.2f} USD" if usd else "giá chưa rõ"
+        why = ((measured.get("look") or {}).get("why") if isinstance(measured.get("look"), dict) else None) or "look_drift"
+        note = (f"đặc tính model (Seedance chỉ-ảnh-tham-chiếu: {why}) — gen lại cùng đường không sửa được ({price} mỗi lần); "
+                "cần bạn quyết: giữ, đổi đường (khung đầu / Kling) hoặc đổi ảnh tham chiếu")
+        try:
+            from . import experience
+            ctx = experience.job_context(self.conn, job["id"])
+            experience.record(self.conn, key=f"model_property:look_drift:{job['id']}", stage="video", outcome="failure",
+                              note=f"Clip #{job['id']}: chỉ lỗi identity do look_drift ({why}) trên đường Seedance ref-only — đặc tính "
+                                   "model, không tự gen lại (KLD-5)", source="qc_video", project_id=job["project_id"],
+                              job_id=job["id"], shot=ctx["shot"], subjects=ctx["subjects"], view=ctx["view"], kind="model_property")
+        except Exception:  # noqa: BLE001 - the notebook is evidence, it never stops the decision
+            pass
+        return note
 
     def _hold(self, job_id: int, note: str) -> str:
         self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent", note=note)

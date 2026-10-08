@@ -507,7 +507,7 @@ def standard_block(pipeline: Pipeline, project_id: int, names=None) -> str:
 def lock_text(conn, project_id: int, names=None) -> str:
     """Character Lock of the characters (all, or the given names) as a readable block."""
     rows = []
-    for r in conn.execute("SELECT name, lock_rules FROM characters WHERE project_id=?", (project_id,)):
+    for r in conn.execute("SELECT name, lock_rules, outfit_image_ids FROM characters WHERE project_id=?", (project_id,)):
         if names is not None and r["name"] not in names:
             continue
         lock, source = assets.standard_for(conn, project_id, r["name"]), " (hồ sơ chuẩn Kho)"   # T1: the library profile wins
@@ -521,6 +521,13 @@ def lock_text(conn, project_id: int, names=None) -> str:
             continue
         size = f"; cao ~{lock['height_m']:g} m" if lock.get("height_m") else ""
         size += f", {lock['build']}" if lock.get("build") else ""
+        if (r["outfit_image_ids"] or "").strip():
+            # KLD-4 (08/10, #22): MAXIM KL / KELLY KL were judged against the everyday clothes of the MAXIM / KELLY profile and qc_team
+            # blocked 6/9 frames the person had approved — a costumed character is locked on face, hair and build only (as the
+            # image path does since 370dacc, runner.lock_note); the profile's words mix clothes into must_keep, so they stay out
+            rows.append(f"- **{r['name']}**{source} — giữ: mặt, tóc, dáng như ảnh tham chiếu nhân vật{size}; trang phục: theo ảnh "
+                        "OUTFIT, không theo đồ thường của hồ sơ (mũ, áo, quần, giày, phụ kiện của hồ sơ gốc KHÔNG áp dụng cho video này)")
+            continue
         rows.append(f"- **{r['name']}**{source} — giữ: {lock.get('must_keep', '')}; được đổi: {lock.get('may_change', '')}; "
                     f"cấm lệch: {lock.get('forbidden', '')}{size}")
     return ("# Character Lock\n" + "\n".join(rows)) if rows else ""

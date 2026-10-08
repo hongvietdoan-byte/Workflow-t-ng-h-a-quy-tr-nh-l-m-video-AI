@@ -289,12 +289,15 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
     mapping = " ".join(f"Image {i} is the storyboard frame of Shot {i}: Shot {i} starts with exactly this composition, framing and "
                        f"these character positions." for i in range(1, n + 1))
     dressed = {name[:-len(OUTFIT_TAG)] for name, _ in identities if name.endswith(OUTFIT_TAG)}
+    strip = features.on("outfit_strip_model")   # KLD-7 (08/10): Kelly KL took the silver hair of the model wearing the OUTFIT
 
     def says(name: str) -> str:
         if name.endswith(OUTFIT_TAG):
             who = name[:-len(OUTFIT_TAG)]
             return (f"the OUTFIT {who} wears in this video: dress {who} exactly in these clothes, cap, shoes and accessories "
-                    "— not the framing")
+                    + (f"— ignore the hair, face and body of any person modelling these clothes (those come only from {who}'s "
+                       "identity picture); wear each accessory exactly as the picture shows it, for the whole clip " if strip else "")
+                    + "— not the framing")
         if name in dressed:
             return f"{name}: identity only (face, hair, body build) — NOT the clothes, which come only from the OUTFIT picture"
         return f"{name}: identity only (face, hair, outfit) — not the framing"
