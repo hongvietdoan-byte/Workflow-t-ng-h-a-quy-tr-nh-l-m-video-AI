@@ -132,6 +132,11 @@ def shared_sentences(texts: Sequence[str], min_len: int = 25) -> Tuple[List[str]
             if i not in where.setdefault(k, []):
                 where[k].append(i)
     common = {k for k, shots in where.items() if len(shots) >= 2}
+    # phiên sửa F1-C: every shot keeps ≥ 1 sentence of its own — two identical motions gave "Shot 1 (0–2 s): ." (its first sentence
+    # stays in the shot lines instead of being gathered)
+    for ss in per:
+        if ss and all(_norm(s) in common for s in ss):
+            common.discard(_norm(ss[0]))
     stripped = [" ".join(s for s in ss if _norm(s) not in common) for ss in per]
     return stripped, [(close(first[k]), where[k]) for k in where if k in common]
 

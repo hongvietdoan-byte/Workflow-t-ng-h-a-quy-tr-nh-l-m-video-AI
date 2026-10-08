@@ -166,5 +166,65 @@ class NegativeListTest(unittest.TestCase):
         self.assertFalse(any(i["part"] == "ta_cai_dung" for i in pf.lint_image(text, {})))
 
 
+class FixRoundF1cTests(unittest.TestCase):
+    """Phiên sửa F1-C (09/10): đỏ giả của outfit_vs_profile, hồ sơ tiếng Việt, dòng shot rỗng, câu khóa màu, ta_cai_dung."""
+    MAXIM = "MAXIM"
+
+    def test_compound_colour_is_one_colour_set(self):
+        prof = {self.MAXIM: "silver-grey metallic leather bomber jacket, black cap"}
+        out = pf.outfit_vs_profile("MAXIM in his silver bomber jacket waves", [self.MAXIM], prof)
+        self.assertTrue(all(i["level"] != "red" for i in out), out)
+
+    def test_owner_only_in_the_same_sentence(self):
+        prof = {self.MAXIM: "black jacket", KELLY: "red hoodie"}
+        out = pf.outfit_vs_profile("KELLY hands MAXIM a cup; behind them a man in a blue jacket", [KELLY, self.MAXIM], prof)
+        self.assertTrue(all(i["level"] != "red" for i in out), out)
+        out = pf.outfit_vs_profile("MAXIM waves, a man in a blue jacket behind him", [self.MAXIM], prof)
+        self.assertTrue(all(i["level"] != "red" for i in out), out)              # người khác trong câu → hạ warn
+
+    def test_costume_name_colour_is_only_a_warning(self):
+        prof = {self.MAXIM: "black dinosaur jacket"}
+        out = pf.outfit_vs_profile("MAXIM wears the Red Dinosaur jacket", [self.MAXIM], prof)
+        self.assertTrue(all(i["level"] != "red" for i in out), out)
+
+    def test_vietnamese_profile_is_compared(self):
+        prof = {KELLY: "Áo croptop đỏ in hình khủng long xanh lá"}
+        out = pf.outfit_vs_profile("KELLY KL in a red croptop with a blue dinosaur print", [KELLY], prof)
+        self.assertEqual([i["level"] for i in out], ["red"], out)
+        self.assertIn("dinosaur print", out[0]["msg"])
+        self.assertEqual(pf.outfit_vs_profile("KELLY KL in a red croptop with a GREEN dinosaur print", [KELLY], prof), [])
+
+    def test_unreadable_profile_is_said(self):
+        out = pf.outfit_vs_profile("KELLY KL waves", [KELLY], {KELLY: "trang phục lễ hội độc đáo"})
+        self.assertTrue(any(i["level"] == "warn" and "không so được" in i["msg"] for i in out), out)
+
+    def test_tracksuit_items(self):
+        prof = {KELLY: "black tracksuit, white track pants"}
+        out = pf.outfit_vs_profile("KELLY KL in red track pants", [KELLY], prof)
+        self.assertEqual([i["level"] for i in out], ["red"], out)
+
+    def test_identical_motions_keep_their_shot_lines(self):
+        same = "Kelly turns slowly to the camera and smiles at the viewer."
+        text = sr.prompt([(same, 2.0), (same, 2.0)], [(KELLY, "k.png")], model="seedance-2-5")
+        self.assertNotIn(": .", text)
+
+    def test_colour_lock_sentence_only_with_garments(self):
+        from core import runner
+        p = Pipeline(connect())
+        pid = p.create_project("lock")
+        p.conn.execute("INSERT INTO characters (project_id, name, description, lock_rules) VALUES (?,?,?,?)",
+                       (pid, "KENTA", "young man", json.dumps({"must_keep": "short black hair", "may_change": "outfit, pose"})))
+        p.conn.commit()
+        note = runner.lock_note(p.conn, pid, ["KENTA"])
+        self.assertIn("short black hair", note)
+        self.assertNotIn("any other colour word", note)
+
+    def test_negation_then_a_description_is_not_a_list(self):
+        ok = "Free Fire in-game 3D render, Kelly walks, no clock tower in frame, cold moonlit fog at night."
+        self.assertFalse(any(i["part"] == "ta_cai_dung" for i in pf.lint_image(ok, {})), ok)
+        bad = "Free Fire in-game 3D render, Kelly walks, no clock tower, no palm trees at all."
+        self.assertTrue(any(i["part"] == "ta_cai_dung" for i in pf.lint_image(bad, {})))
+
+
 if __name__ == "__main__":
     unittest.main()

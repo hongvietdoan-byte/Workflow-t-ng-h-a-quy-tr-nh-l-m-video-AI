@@ -118,7 +118,7 @@ _RUNON_STOP = {"the", "and", "with", "from", "for", "her", "his", "their", "its"
 # riêng (looks.py, #8 anime) và không phải vật trong cảnh.
 _NEG_VERB = re.compile(r"\b(?:do not|don't|never|must not)\s+(?:add|draw|include|show|put|place|render|paint)\b[:\s]+"
                        r"([^.;]{3,200})", I)
-_NEG_NO = re.compile(r"\bno\s+([a-z][a-z -]{1,40}?)\s*,\s*(?:no\s+)?([a-z][a-z -]{1,40}?)(?=\s*(?:,|\bor\b|\band\b|[.;]|$))", I)
+_NEG_NO = re.compile(r"\bno\s+([a-z][a-z -]{1,40}?)\s*,\s*(no\s+)?([a-z][a-z -]{1,40}?)(?=\s*(?:,|\bor\b|\band\b|[.;]|$))", I)
 _NEG_SAFE = re.compile(r"\b(?:anime|cartoon|2d|3d style|blur\w*|grading|grain|bokeh|photo\w*|still|style|shooter|cinematic|watermarks?|"
                        r"text|logos?|captions?|subtitles?|labels?|hud|ui|interface|sound|cuts?|people|persons?|characters?|humans?|"
                        r"legs|full body|glowing eyes|human eyes|sliding|foot sliding|morphing|distortion)\b", I)
@@ -133,7 +133,9 @@ def _neg_lists(prompt: str) -> List[str]:
         if len(items) >= 2:
             out.append(m.group(0).strip())
     for m in _NEG_NO.finditer(prompt):
-        items = [m.group(1), m.group(2)]
+        items = [m.group(1), m.group(3)]
+        if not m.group(2) and len(m.group(3).split()) > 3:
+            continue                     # phiên sửa: "no clock tower in frame, cold moonlit fog at night" — the 2nd part describes
         if not any(_NEG_SAFE.search(x) for x in items):
             out.append(m.group(0).strip())
     return list(dict.fromkeys(out))
@@ -416,9 +418,15 @@ COLORS = ("red", "blue", "green", "black", "white", "yellow", "pink", "purple", 
           "golden", "navy", "beige", "cyan", "teal")
 ITEMS = ("horns?", "print", "cap", "hat", "hoodie", "jacket", "hair", "mask", "croptop", "crop top", "shirt", "t-shirt", "top", "pants",
          "trousers", "jeans", "shorts", "skirt", "shoes", "boots", "sneakers", "gloves", "sleeves", "dress", "scarf", "helmet", "hood",
-         "vest", "coat", "belt", "backpack", "bob")
+         "vest", "coat", "belt", "backpack", "bob", "tracksuit", "track jacket", "track pants", "sandals", "slippers")
 _COL = "|".join(COLORS)
-_ITEM_RX = re.compile(rf"\b({_COL})\b((?:[ -]+(?!(?:{_COL})\b)[a-z]+(?:-[a-z]+)?){{0,3}}?)[ -]+({'|'.join(ITEMS)})\b", I)
+# phiên sửa F1-C: a joined colour ("silver-grey", "red and black", "black/white") is ONE colour set — #22 MAXIM "silver-grey metallic
+# leather bomber jacket" read as "grey" only, so "silver bomber jacket" (shots 1, 3) came out red
+_COLSEQ = rf"(?:{_COL})(?:\s*(?:-|/|\band\b)\s*(?:{_COL}))*"
+_ITEM_RX = re.compile(rf"\b({_COLSEQ})\b((?:[ -]+(?!(?:{_COL})\b)[a-z]+(?:-[a-z]+)?){{0,3}}?)[ -]+({'|'.join(ITEMS)})\b", I)
+_SENT_END = re.compile(r"[.!?;\n]")
+_OTHER_PEOPLE = re.compile(r"\b(?:man|men|woman|women|boy|boys|girl|girls|guy|guys|lady|ladies|kid|kids|npcs?|crowd|someone|somebody|"
+                           r"stranger|strangers|passers?-?by|people|bystanders?)\b|\bngười\b", I)
 _SIZE_WORDS = {"small", "big", "large", "tiny", "long", "short", "two", "three", "one", "little", "thin", "thick", "bright", "dark", "light",
                "pale", "deep", "solid", "and", "with", "a", "the"}
 _SAME_COLOR = {"grey": "gray", "golden": "gold"}
@@ -434,10 +442,18 @@ def _owners(text: str, names: List[str]):
     return sorted(marks)
 
 
-def _items(text: str, names: List[str]):
+def _hits(text: str, names: List[str]) -> List[Dict]:
+    """Every "colour(s) + ≤ 3 words + garment" of the text with its owner: the nearest cast name before it IN THE SAME SENTENCE
+    (phiên sửa F1-C: "KELLY hands MAXIM a cup; behind them a man in a blue jacket" gave MAXIM the stranger's jacket); with one cast
+    name and no name in the sentence, that name. `soft`: the sentence names someone else too, or the colour starts a costume NAME
+    ("Red Dinosaur jacket") — only a warning then."""
     marks = _owners(text, names)
+    out = []
     for m in _ITEM_RX.finditer(text):
-        before = [n for pos, n in marks if pos < m.start()]
+        start = max((e.end() for e in _SENT_END.finditer(text, 0, m.start())), default=0)
+        stop = _SENT_END.search(text, m.end())
+        sentence = text[start:stop.start() if stop else len(text)]
+        before = [n for pos, n in marks if start <= pos < m.start()]
         owner = before[-1] if before else (names[0] if len(names) == 1 else None)
         if owner is None:
             continue
@@ -445,8 +461,71 @@ def _items(text: str, names: List[str]):
         item = m.group(3).lower()
         item = "horns" if item == "horn" else item
         key = f"{mods[-1]} {item}" if mods else item
-        color = m.group(1).lower()
-        yield owner, key, _SAME_COLOR.get(color, color)
+        colors = sorted({_SAME_COLOR.get(c, c) for c in re.findall(rf"\b(?:{_COL})\b", m.group(1).lower())})
+        nxt = (m.group(2).strip().split() or m.group(3).split())[0]
+        named = nxt[:1].isupper() and not nxt.isupper()
+        out.append({"owner": owner, "key": key, "colors": colors, "soft": bool(named or _OTHER_PEOPLE.search(sentence))})
+    return out
+
+
+def _items(text: str, names: List[str]):
+    for h in _hits(text, names):
+        yield h["owner"], h["key"], "/".join(h["colors"])
+
+
+# Hồ sơ OUTFIT tiếng Việt (phiên sửa F1-C): "Áo croptop đỏ in hình khủng long xanh lá" → "red croptop, green dinosaur print" so it is
+# compared with the English prompt. Vietnamese puts the colour AFTER the garment; the words keep their marks ("đỏ" ≠ "đo").
+_VI_MARKS = re.compile(r"[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]", I)
+_VI_ITEMS = (("áo croptop", "croptop"), ("áo crop top", "croptop"), ("áo khoác bomber", "bomber jacket"), ("áo khoác", "jacket"),
+             ("áo hoodie", "hoodie"), ("áo thun", "t-shirt"), ("áo phông", "t-shirt"), ("áo sơ mi", "shirt"), ("áo vest", "vest"),
+             ("áo gile", "vest"), ("áo choàng", "coat"), ("áo măng tô", "coat"), ("bộ đồ thể thao", "tracksuit"), ("tay áo", "sleeves"),
+             ("croptop", "croptop"), ("hoodie", "hoodie"), ("áo", "top"),
+             ("mũ trùm", "hood"), ("mũ bảo hiểm", "helmet"), ("mũ lưỡi trai", "cap"), ("mũ", "cap"), ("nón", "cap"),
+             ("quần short", "shorts"), ("quần đùi", "shorts"), ("quần jean", "jeans"), ("quần bò", "jeans"), ("quần", "pants"),
+             ("chân váy", "skirt"), ("váy", "dress"), ("đầm", "dress"), ("giày thể thao", "sneakers"), ("giày", "shoes"), ("ủng", "boots"),
+             ("dép", "sandals"), ("khẩu trang", "mask"), ("mặt nạ", "mask"), ("găng tay", "gloves"), ("khăn quàng", "scarf"),
+             ("khăn", "scarf"), ("thắt lưng", "belt"), ("ba lô", "backpack"), ("balo", "backpack"), ("sừng", "horns"), ("tóc", "hair"))
+_VI_COLORS = (("xanh lá cây", "green"), ("xanh lá", "green"), ("xanh lục", "green"), ("xanh dương", "blue"), ("xanh nước biển", "blue"),
+              ("xanh da trời", "blue"), ("xanh lam", "blue"), ("xanh navy", "navy"), ("xanh ngọc", "teal"), ("đỏ", "red"),
+              ("vàng kim", "gold"), ("vàng", "yellow"), ("đen", "black"), ("trắng", "white"), ("bạc", "silver"), ("xám", "gray"),
+              ("hồng", "pink"), ("tím", "purple"), ("cam", "orange"), ("nâu", "brown"))
+_VI_PRINT_OBJ = (("khủng long", "dinosaur"), ("đầu lâu", "skull"), ("ngôi sao", "star"), ("trái tim", "heart"), ("rồng", "dragon"),
+                 ("hoa", "flower"), ("mèo", "cat"), ("chó", "dog"), ("gấu", "bear"), ("lửa", "flame"), ("tim", "heart"), ("sao", "star"))
+
+
+def _vi_alt(pairs) -> "re.Pattern":
+    return re.compile(r"(?<!\w)(" + "|".join(re.escape(a) for a, _ in sorted(pairs, key=lambda x: -len(x[0]))) + r")(?!\w)", I)
+
+
+_VI_ITEM_RX, _VI_COLOR_RX, _VI_OBJ_RX = _vi_alt(_VI_ITEMS), _vi_alt(_VI_COLORS), _vi_alt(_VI_PRINT_OBJ)
+_VI_PRINT_RX = re.compile(r"(?<!\w)(?:in hình|hình in|họa tiết|hoạ tiết|in)(?!\w)", I)
+
+
+def vi_garments(text: str) -> str:
+    """English "colour garment" phrases read from a Vietnamese costume profile ("" when it is not Vietnamese)."""
+    if not text or not _VI_MARKS.search(text):
+        return ""
+    items, colors, objs = dict(_VI_ITEMS), dict(_VI_COLORS), dict(_VI_PRINT_OBJ)
+    out = []
+    for seg in re.split(r"[,.;:\n+()]|\bvà\b|\bvới\b|\bkèm\b|\bphối\b", text.lower()):
+        events = [(m.start(), "item", items[m.group(1)]) for m in _VI_ITEM_RX.finditer(seg)]
+        for m in _VI_PRINT_RX.finditer(seg):
+            obj = _VI_OBJ_RX.search(seg, m.end())
+            nxt = _VI_ITEM_RX.search(seg, m.end())
+            name = objs[obj.group(1)] + " print" if obj and (nxt is None or obj.start() < nxt.start()) else "print"
+            events.append((m.start(), "item", name))
+        events += [(m.start(), "color", colors[m.group(1)]) for m in _VI_COLOR_RX.finditer(seg)]
+        current, cols = None, []
+        for _pos, kind, word in sorted(events):
+            if kind == "item":
+                if current and cols:
+                    out.append(f"{'-'.join(dict.fromkeys(cols))} {current}")
+                current, cols = word, []
+            elif current:
+                cols.append(word)
+        if current and cols:
+            out.append(f"{'-'.join(dict.fromkeys(cols))} {current}")
+    return ", ".join(out)
 
 
 def cross_shot(shots: Iterable[Dict]) -> List[Dict]:
@@ -488,17 +567,28 @@ def outfit_vs_profile(text: str, names: List[str], profiles: Dict[str, str]) -> 
         if not prof:
             continue
         table: Dict[str, set] = {}
-        for _o, key, color in _items(prof, [name]):
-            table.setdefault(key, set()).add(color)
+        vi = vi_garments(prof)                            # phiên sửa F1-C: a Vietnamese OUTFIT profile, read in English words
+        for h in _hits(prof + (". " + vi if vi else ""), [name]):
+            table.setdefault(h["key"], set()).update(h["colors"])
+        if not any(k.split()[-1] not in _NOT_GARMENT for k in table):
+            out.append(_issue("warn", "nhan_vat", f"{name}: hồ sơ trang phục không so được (không đọc ra món đồ + màu nào: "
+                                                  f"“{str(prof)[:80]}”) — chữ màu trang phục trong prompt không được kiểm.", owner=name))
+            continue
         known[name] = table
     if not known:
         return out
-    for owner, key, color in _items(text or "", names):
+    for h in _hits(text or "", names):
+        owner, key, colors = h["owner"], h["key"], set(h["colors"])
         table = known.get(owner) or {}
-        if key.split()[-1] in _NOT_GARMENT or key not in table or color in table[key] or (owner, key, color) in said:
+        if key.split()[-1] in _NOT_GARMENT or key not in table or colors & table[key]:
+            continue
+        color = "/".join(sorted(colors))
+        if (owner, key, color) in said:
             continue
         said.add((owner, key, color))
-        out.append(_issue("red", "nhan_vat", f"{owner}: “{color} {key}” khác hồ sơ Kho ({' / '.join(sorted(table[key]))} {key}) — "
+        # a profile with ≥ 2 colours for the garment, someone else in the sentence, or a costume name → only a warning
+        level = "warn" if h["soft"] or len(table[key]) >= 2 else "red"
+        out.append(_issue(level, "nhan_vat", f"{owner}: “{color} {key}” khác hồ sơ Kho ({' / '.join(sorted(table[key]))} {key}) — "
                                              "trang phục lấy MỘT nguồn (hồ sơ / ảnh OUTFIT); sửa chữ màu trong prompt/blocking.",
                           owner=owner, item=key))
     return out

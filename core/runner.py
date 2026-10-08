@@ -1677,10 +1677,15 @@ def lock_note(conn, project_id: int, cast) -> str:
                 f"about {rules['height_m']:g} m tall" if rules.get("height_m") else ""]
         if any(bits):
             parts.append(f"{r['name']}: " + "; ".join(b for b in bits if b))
-    # F1-C (#22: KELLY's print "GREEN dinosaur" in the picture words, "blue dinosaur print" in the blocking) — one source for the costume
-    return (" Identity lock — " + " | ".join(parts) + ". The costume follows the profile above"
-            + (" (or the OUTFIT image)" if any("OUTFIT image" in x for x in parts) else "")
-            + "; any other colour word for these garments is wrong.") if parts else ""
+    # F1-C (#22: KELLY's print "GREEN dinosaur" in the picture words, "blue dinosaur print" in the blocking) — one source for the costume;
+    # phiên sửa: only when someone in the shot IS held to a costume (garment_profile; not when `may_change` frees the clothes)
+    if not parts:
+        return ""
+    from .prompt_formula import garment_profile
+    held = any(garment_profile(conn, project_id, n) for n in (cast or []))
+    return (" Identity lock — " + " | ".join(parts) + "."
+            + (" The costume follows the profile above" + (" (or the OUTFIT image)" if any("OUTFIT image" in x for x in parts) else "")
+               + "; any other colour word for these garments is wrong." if held else ""))
 
 
 _GAZE = re.compile(r"\b(look|looks|looking|gaze|glanc|eyes|facing|stares?|nhìn)\w*", re.I)
@@ -2056,7 +2061,8 @@ class ImageRunner(_Runner):
             if ref is not None:
                 refs = place_refs.swap_in(refs, ref, limit)
                 # F2 (09/10): this shot's own same-axis wide render replaces the scene's one-for-all wide picture
-                refs = place_refs.add_wide(refs, place_refs.wide_ref(self.data_dir, job["project_id"], job["scene_id"]), limit)
+                refs = place_refs.add_wide(refs, place_refs.wide_for(conn, self.data_dir, job["project_id"], job["scene_id"], data), limit,
+                                           reserve=1 if chain else 0)      # the previous frame keeps its slot
                 prompt = f"{place_refs.PRECEDENCE} {prompt}"   # S5.5' 30/09: words about the place lost to the render otherwise
         from . import skill_dossier
         if skill_dossier.enabled():                    # 30/09: the phase's real frame from the skill video (the dossier)
@@ -2112,7 +2118,8 @@ class ImageRunner(_Runner):
                 if place_refs.enabled():                # this frame's own 3D render replaces the library's place picture
                     shared = place_refs.swap_in(shared, place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]), 8)
                     if place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]) is not None:   # F2: + same-axis wide
-                        shared = place_refs.add_wide(shared, place_refs.wide_ref(self.data_dir, job["project_id"], job["scene_id"]), 8)
+                        shared = place_refs.add_wide(shared, place_refs.wide_for(self.p.conn, self.data_dir, job["project_id"],
+                                                                                 job["scene_id"], own), 8)
                 from . import skill_dossier
                 if skill_dossier.enabled():            # the skill frame of THIS shot rides with the shared references
                     row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
