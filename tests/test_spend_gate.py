@@ -11,6 +11,7 @@ from core import assets, budget, costume, end_frames, experiments, llm_runner, p
 from core.db import connect
 from core.pipeline import Pipeline
 from core.providers import MockImageProvider, ProviderError
+from tests._flags import flags_on_deco
 from tests.test_costume import picture
 
 ON = {"FEATURE_PROJECT_BUDGET": "1"}
@@ -134,7 +135,8 @@ class EndFrameGateTests(unittest.TestCase):
 
 
 class EstablishGateTests(unittest.TestCase):
-    @mock.patch.dict(os.environ, {**ON, "FEATURE_SCENE_ESTABLISHING": "1"})
+    @mock.patch.dict(os.environ, ON)
+    @flags_on_deco("scene_establishing")                 # B1 học việc 08/10: FEATURE_X=1 = học việc; really ON only from 🧪
     def test_a_locked_project_budget_warns_and_the_wide_picture_is_sent(self):
         # S14.16: was "skips the wide picture" — the locked amount only warns now
         from tests.test_v3 import kenta_project

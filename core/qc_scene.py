@@ -38,6 +38,16 @@ def enabled() -> bool:
     return features.on(FEATURE)
 
 
+def shadow() -> bool:
+    """🎓 học việc (B1 08/10): runs and records its decision, never acts."""
+    return features.shadow(FEATURE)
+
+
+def active() -> bool:
+    """On or học việc — for choosing a branch only (the old QC must not come back while this is học việc)."""
+    return features.active(FEATURE)
+
+
 def measured_size(face_h: float) -> str:
     return next(name for name, start in SIZE_FROM if face_h >= start)
 

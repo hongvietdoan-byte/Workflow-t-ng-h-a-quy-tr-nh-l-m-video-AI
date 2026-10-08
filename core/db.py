@@ -467,6 +467,26 @@ CREATE TABLE IF NOT EXISTS limit_requests (
     used_project_id INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_limit_requests ON limit_requests(status, email);
+CREATE TABLE IF NOT EXISTS trainee_log (
+    id INTEGER PRIMARY KEY,            -- B2 học việc (08/10, docs/KE_HOACH_HOC_VIEC_2026-10-08.md mục 2): a 🎓 role's decision, never acted on
+    at TEXT NOT NULL,
+    feature TEXT NOT NULL,             -- qc_team / scene_qc / scene_establishing / camera_setups / continuous_takes / end_frames / storyboard_auto_trust
+    project_id INTEGER NOT NULL,
+    scene_id INTEGER,
+    job_id INTEGER,
+    story_scene INTEGER,
+    subject TEXT NOT NULL,             -- job:525 / scene:2 / group:2:C / stretch:1:3-6 / end:248 / gate:storyboard:<sha>
+    decision TEXT NOT NULL,            -- block / pass / redraw / flag / group / stretch / need_end / skip_gate / hold_gate / establish / skip
+    would_do TEXT,                     -- JSON: what it would have done if it were on
+    detail TEXT,                       -- JSON
+    cost_usd REAL NOT NULL DEFAULT 0,
+    truth TEXT,                        -- the person's answer, in the role's two classes (core/trainee.py RULES)
+    truth_source TEXT,                 -- review / gate_bulk / card / gate_fingerprint / human_first (the person decided first: not counted)
+    match INTEGER,
+    scored_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_trainee_log ON trainee_log(feature, project_id);
+CREATE INDEX IF NOT EXISTS idx_trainee_log_job ON trainee_log(job_id);
 """
 
 

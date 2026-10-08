@@ -31,6 +31,16 @@ def enabled() -> bool:
     return features.on(FEATURE)
 
 
+def shadow() -> bool:
+    """🎓 học việc (B1 08/10): runs and records its decision, never acts."""
+    return features.shadow(FEATURE)
+
+
+def active() -> bool:
+    """On or học việc — for choosing a branch only."""
+    return features.active(FEATURE)
+
+
 FLASHBACK = ("This is a FLASHBACK: warm amber, soft, slightly hazy light with a gentle glow — it must look clearly different from the "
              "present-day shots of the same place (not the same hard midday light).")
 _FLASHBACK = re.compile(r"flash\s*back|hồi tưởng|ký ức|memory|in the past", re.I)
