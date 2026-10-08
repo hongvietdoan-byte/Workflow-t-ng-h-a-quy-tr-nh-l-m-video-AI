@@ -54,3 +54,19 @@
 - **Có thể phục vụ (theo nguồn):** bất ổn, chóng mặt, góc nhìn chủ quan người say / bị thương.
 - **Ví dụ:** chưa thấy dutch rõ trong 21 mẫu (01 ghi "không có dutch"); roll trong shot có ở 05, 17, 18, 19 (xem chuyển động máy).
 - **Nguồn:** dp.md Q1 [Q1]. **Độ tin:** giả thuyết (không có mẫu).
+
+### Mỗi shot 3D một ảnh toàn CÙNG TRỤC (F2, người dùng duyệt 09/10)
+- **Luật:** shot đặt ở bối cảnh có mô hình 3D gửi kèm hai render (Blender, 0 USD): render đúng máy của shot + **ảnh toàn cùng trục** —
+  cùng hướng nhìn (yaw + pitch), máy lùi dọc trục nhìn, ống rộng hơn (×0,6, tối thiểu 18 mm) để thấy chỗ đứng và vật mốc quanh nó.
+  Ảnh toàn này THAY ảnh toàn cảnh một-cho-cả-cảnh (hai ảnh toàn khác hướng sẽ giành nhau). Ảnh AI vẽ lại thay render chỉ xét sau khi đo
+  giống render ≥ 80–90 %.
+- **Vì sao:** model lấy nền và tỉ lệ từ ảnh toàn; ảnh toàn khác hướng máy kéo cả shot sai nền, thiếu ảnh toàn thì model tự đoán kích
+  thước vật mốc. Nền phải giống file 3D ~90 %.
+- **Máy ảo phải hợp lý trước khi render:** máy ngửa lên thì chân trời phải còn trong khung (trừ shot chủ ý nhìn trời — ghi "sky" trong
+  `start_frame`); máy thấp < 0,8 m không ngửa quá 30° — code NÂNG máy (giữ khoảng cách + điểm nhìn = giữ khung); máy quá sát cho cỡ cảnh
+  thì lùi dọc trục + ống dài hơn; không đặt được → báo lỗi, không render. Render hỏng / phẳng → ảnh shot GIỮ CHỜ, không gửi thiếu nền.
+- **Bằng chứng:** #22 L19 (`docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md`) — lượt 1–2 ảnh toàn cảnh vẽ từ ngoài tường kéo shot ra sai nền; lượt 3
+  dùng render đồng trục → cầu thang + tháp đúng suốt 3 clip. #24 shot 4 — MCU góc thấp: máy 0,45 m, cách nhân vật 0,97 m, ngửa 45°,
+  chân trời 1,9 (chỉ thấy trời) → render bị loại "nền một màu" → job 579 gửi KHÔNG có render → thành giếng thấp hơn các shot khác.
+- **Code:** `core/plate_camera.py` (camera_for kiểm/đặt lại, wide_for), `core/location_pack.py` (plan `wide`, ensure_plates),
+  `core/place_refs.py` (wide_ref/add_wide/broken/scale_sentence), `core/runner.py` ImageRunner._wait. **Độ tin:** khá (2 dự án).

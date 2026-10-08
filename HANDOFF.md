@@ -1,3 +1,28 @@
+# HANDOFF — F2 nền 3D đúng trước khi gen (09/10/2026, nhánh `worktree-agent-ada0e86a5b27e6561`, chưa push)
+
+**Đã xong** (0 USD, Blender giả trong test):
+- `core/plate_camera.py`: `camera_for` kiểm + đặt lại máy — máy ngửa lên giữ chân trời trong khung (≤ 0,8 nửa khung dưới giữa;
+  máy < 0,8 m không ngửa quá 30°) bằng cách NÂNG máy (giữ khoảng cách + điểm nhìn = giữ khung), trừ shot ghi "sky"/"bầu trời";
+  máy sát hơn `MIN_DIST_M[cỡ]` (MS 1,0 · MLS 1,2 · WS/EWS 1,5 m) lùi dọc trục + ống dài hơn; cần ống > 200 mm → `problem`.
+  Trả thêm `fixes`, `problem`, `horizon_y`, `frame_h_m`. Hàm mới `horizon_y`, `wide_for`, `wants_sky`.
+  Ngưỡng cự ly đặt dưới cự ly mặc định của từng cỡ → máy mặc định (và cache render) KHÔNG đổi; chỉ góc thấp ngửa gắt (MS/MCU/CU low) đổi khóa.
+- `core/location_pack.py`: `plan()` mỗi shot thêm `wide` {camera, key} (cùng hướng, lùi dọc trục, ống ×0,6 ≥ 18 mm, khung ≥ 3 thân
+  người / 2,5× khung shot; không chìm dưới 0,3 m), `camera_fixes`, `camera_problem`. `ensure_plates` render shot + wide cùng một lượt
+  Blender + cùng cache; index thêm `wide` {plate,key,camera,camera_plan} hoặc `wide_failed`, `camera_fixes`; máy không đặt được →
+  không render, index `failed` + diag error `plate_camera`; đặt lại máy → diag info `plate_camera_fix` + `layout_vi`.
+- `core/place_refs.py`: `missing` (thiếu wide cũng là thiếu → render trước), `broken` (render hỏng/phẳng/máy không đặt được),
+  `wide_ref`, `add_wide` (sau render shot, thay ảnh toàn cảnh chung LABEL; ưu tiên người > render > wide > khác), `scale_sentence`.
+- `core/runner.py` (KHÔNG đụng build_image_prompt): `ImageRunner._wait` giữ chờ job khi `broken` (diag error `plate_broken`, diag tự gộp
+  10 phút) · `_submit_args` + nhánh storyboard `_finish_args` thêm wide + `scale_sentence`.
+- `core/assets.py reference_note`: vai `place_wide` ("WIDE same-axis view…, do not copy its framing").
+- `knowledge/craft/goc_may.md` mục "Mỗi shot 3D một ảnh toàn CÙNG TRỤC". `tests/test_plates_f2.py` 11 test.
+
+**Cần phiên chính chạy Blender thật** (máy chính): render lại #24 (shot 4 phải ra nền có giếng, chân trời trong khung; mỗi shot có
+`wide.png` trong cache) — mở plates/index.json xem `wide`, `camera_fixes`; kiểm wide không đứng trong tường / dưới địa hình (máy lùi
+4–12 m không biết địa hình — nếu phẳng thì `wide_failed`, shot vẫn gửi không kèm wide).
+**Còn mở:** tỉ lệ giếng cần số đo thật — khai `model3d.props` [{name, at, height_m}] của nơi (đo bằng `plates3d.ground_heights` tại
+đỉnh thành giếng); chưa có thì `scale_sentence` rỗng. Kiểm vật mốc chắn máy (bán kính vật mốc) chưa làm (không có dữ liệu hình khối).
+
 # HANDOFF — F1-A công thức prompt (09/10/2026, nhánh `worktree-agent-a22dfa0dcc0951c59`, chưa push)
 
 **Đã xong** (0 USD, không gọi model):
