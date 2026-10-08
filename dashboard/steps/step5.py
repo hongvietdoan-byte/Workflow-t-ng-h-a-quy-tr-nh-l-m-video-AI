@@ -946,7 +946,25 @@ def end_popup_panel(p: Pipeline, pid: int) -> None:
         c1, c2 = st.columns([3, 1])
         headline = c1.text_input("Dòng lớn", cfg.get("headline", ""), key=f"popup_head_{pid}")
         seconds = c2.number_input("Giây cuối", 1.5, 8.0, float(cfg.get("seconds") or 3.5), 0.5, key=f"popup_sec_{pid}")
-        new = {"items": items, "headline": headline, "seconds": seconds}
+        c3, c4, c5, c6 = st.columns(4)
+        upper = c3.checkbox("VIẾT HOA (giữ dấu)", cfg.get("uppercase", True), key=f"popup_upper_{pid}")
+        scale = c4.number_input("Cỡ chữ ×", 0.5, 2.0, float(cfg.get("scale") or 1.0), 0.1, key=f"popup_scale_{pid}")
+        head_col = c5.color_picker("Màu dòng lớn", cfg.get("headline_color") or end_popup.HEADLINE_COLOR, key=f"popup_hcol_{pid}")
+        label_col = c6.color_picker("Màu chữ dưới icon", cfg.get("label_color") or end_popup.LABEL_COLOR, key=f"popup_lcol_{pid}")
+        c7, c8, c9 = st.columns([1, 3, 1])
+        pop_on = c7.checkbox("Tiếng pop", cfg.get("sound") is not False, key=f"popup_pop_{pid}",
+                             help="Mỗi icon bật lên kèm một tiếng pop, trộn vào tiếng sẵn có của video.")
+        sound_path = c8.text_input("File tiếng pop (để trống = tự lấy tiếng pop ≤ 0,5 s trong Kho âm thanh)",
+                                   cfg.get("sound") or "", key=f"popup_sound_{pid}", disabled=not pop_on)
+        vol = c9.number_input("Âm lượng pop", 0.0, 2.0, float(cfg.get("sound_volume", end_popup.SOUND_VOLUME)), 0.1,
+                              key=f"popup_vol_{pid}", disabled=not pop_on)
+        if pop_on and not sound_path.strip():
+            got_sound = end_popup.pop_sound(p.conn, {"sound": None})
+            _note(f"Tiếng pop từ Kho: {os.path.basename(got_sound)}" if got_sound
+                  else "⚠ Kho âm thanh chưa có tiếng pop ≤ 0,5 s — popup sẽ không có tiếng; chọn file ở ô bên.")
+        new = end_popup.config({"end_popup": dict(cfg, items=items, headline=headline, seconds=seconds, uppercase=upper, scale=scale,
+                                                  headline_color=head_col, label_color=label_col,
+                                                  sound=(sound_path.strip() or None) if pop_on else False, sound_volume=vol)})
         if new != cfg:
             delivery.save_settings(p, pid, dict(s, end_popup=new))
         if st.button("✖ Bỏ popup", key=f"popup_off_{pid}"):

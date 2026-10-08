@@ -83,8 +83,64 @@ class PopupRenderTests(unittest.TestCase):
         green = int(((g > 150) & (r < 90)).sum())
         self.assertGreater(red, 500)                                      # both icons popped by the end
         self.assertGreater(green, 500)
-        yellow = int(((r > 200) & (g > 180) & (b < 160)).sum())
-        self.assertGreater(yellow, 50)                                    # the headline is drawn
+        yellow = int(((r > 225) & (g > 185) & (b < 70)).sum())
+        self.assertGreater(yellow, 300)                                   # the headline is drawn in BRIGHT yellow (#FFD400), not dull
+
+    def _pop_wav(self):
+        wav = os.path.join(self.dir, "pop.wav")
+        subprocess.run([_ffmpeg(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=900:duration=0.2:sample_rate=48000",
+                        "-af", "volume=0.9", wav], check=True)
+        return wav
+
+    def _rms(self, path, t, d=0.12):
+        import numpy as np
+        raw = subprocess.run([_ffmpeg(), "-loglevel", "error", "-ss", str(t), "-t", str(d), "-i", path, "-ac", "1", "-ar", "48000",
+                              "-f", "f32le", "-"], capture_output=True, check=True).stdout
+        a = np.frombuffer(raw, dtype=np.float32)
+        return float(np.sqrt((a ** 2).mean())) if a.size else 0.0
+
+    def test_08_10_caps_bright_yellow_and_a_pop_per_icon_over_a_silent_video(self):
+        """Góp ý 08/10: VIẾT HOA giữ dấu, vàng sáng, tiếng pop đúng lúc mỗi icon bật; video không tiếng → tạo track."""
+        self.assertEqual(end_popup.caps("Hành động sắp ra mắt"), "HÀNH ĐỘNG SẮP RA MẮT")
+        self.assertEqual(end_popup.caps("tiếng khóc ai oán"), "TIẾNG KHÓC AI OÁN")
+        silent = os.path.join(self.dir, "silent.mp4")
+        subprocess.run([_ffmpeg(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=0x203040:s=360x640:d=3:r=24",
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", silent], check=True)
+        self.assertFalse(ffmpeg_studio.has_audio(silent))
+        cfg = end_popup.config({"end_popup": {"items": [{"path": self.icons[0], "label": "Hành động Trồi Lên"},
+                                                         {"path": self.icons[1], "label": "Tiếng Khóc Ai Oán"}],
+                                              "headline": "Hành động sắp ra mắt", "seconds": 2.0, "sound": self._pop_wav()}})
+        self.assertTrue(cfg["uppercase"])
+        self.assertEqual(cfg["headline_color"], "#FFD400")
+        out = os.path.join(self.dir, "pop.mp4")
+        info = end_popup.apply(self.p.conn, silent, out, cfg)
+        self.assertEqual(info["pops_s"], [1.0, 1.6])
+        self.assertTrue(ffmpeg_studio.has_audio(out))
+        self.assertAlmostEqual(ffmpeg_studio.probe_duration(out), 3.0, delta=0.15)
+        self.assertLess(self._rms(out, 0.3), 0.003)                        # silence before the popup
+        self.assertGreater(self._rms(out, 1.02), 0.03)                     # pop 1 as icon 1 pops
+        self.assertGreater(self._rms(out, 1.62), 0.03)                     # pop 2 as icon 2 pops
+        self.assertLess(self._rms(out, 1.35), 0.003)                       # nothing in between
+
+    def test_pop_is_mixed_into_the_existing_sound_not_replacing_it(self):
+        tone = os.path.join(self.dir, "tone.mp4")
+        subprocess.run([_ffmpeg(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=0x203040:s=360x640:d=3:r=24",
+                        "-f", "lavfi", "-i", "sine=frequency=220:duration=3:sample_rate=48000", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-shortest", tone], check=True)
+        cfg = end_popup.config({"end_popup": {"items": [{"path": self.icons[0], "label": "a"}], "seconds": 2.0, "sound": self._pop_wav(),
+                                              "sound_volume": 1.0}})
+        out = os.path.join(self.dir, "mix.mp4")
+        end_popup.apply(self.p.conn, tone, out, cfg)
+        before, at = self._rms(tone, 1.02), self._rms(out, 1.02)
+        self.assertGreater(self._rms(out, 0.3), 0.03)                     # the video's own sound is kept
+        self.assertGreater(at, before * 1.2)                              # + the pop on top
+
+    def test_no_pop_when_turned_off_and_missing_pop_file_is_an_error(self):
+        cfg = end_popup.config({"end_popup": {"items": [{"path": self.icons[0], "label": "a"}], "sound": False}})
+        self.assertIsNone(end_popup.pop_sound(self.p.conn, cfg))
+        cfg = end_popup.config({"end_popup": {"items": [{"path": self.icons[0], "label": "a"}], "sound": os.path.join(self.dir, "x.wav")}})
+        with self.assertRaises(ValueError):
+            end_popup.apply(self.p.conn, self.video, os.path.join(self.dir, "o.mp4"), cfg)
 
     def test_missing_icon_is_an_error_not_a_silent_gap(self):
         cfg = end_popup.config({"end_popup": {"items": [{"path": os.path.join(self.dir, "none.png"), "label": "x"}]}})
