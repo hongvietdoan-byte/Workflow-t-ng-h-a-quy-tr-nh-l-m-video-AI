@@ -120,9 +120,17 @@ def _details_html(r: dict) -> str:
     return "".join(f"<div><b>{k}:</b> {v}</div>" for k, v in lines)
 
 
+def pill_of(r: dict):
+    """(label, kind) of a card's state pill. 08/10 (#22): the final cut exists but the delivery was not exported — say so, not a bare
+    'Chờ bạn' that reads like a picture or clip to review."""
+    if r["status"] == "wait" and r.get("done") and not r.get("delivered", True):
+        return "Chờ xuất bản giao", "warn"
+    return PILL[r["status"]]
+
+
 def _card(r: dict) -> None:
     """v2: one project = one glass card: P1 (name, state pill, progress bar, open button) + ONE summary line; the rest is in its ⓘ."""
-    label, kind = PILL[r["status"]]
+    label, kind = pill_of(r)
     with D.card(f"home-{r['id']}"):
         with D.info(f"home-{r['id']}", anchor=f'<div class="home-name">#{r["id"]} {escape(r["name"])}</div>',
                     help_text="Người tạo, tiến độ, tiền, việc chờ bạn — bấm để xem"):

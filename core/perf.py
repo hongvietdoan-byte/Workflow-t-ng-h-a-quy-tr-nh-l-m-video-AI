@@ -89,7 +89,8 @@ def _progress(conn, pid: int):
     return (c("SELECT COUNT(*) FROM scenes WHERE project_id=?"),
             c("SELECT COUNT(DISTINCT scene_id) FROM jobs WHERE project_id=? AND type='image_gen' AND state='approved'"),
             c("SELECT COUNT(DISTINCT s.id) FROM scenes s JOIN motion_prompts mp ON mp.scene_id=s.id WHERE s.project_id=? AND mp.state='approved'"),
-            c("SELECT COUNT(DISTINCT scene_id) FROM jobs WHERE project_id=? AND type='video_gen' AND state='succeeded'"))
+            c("SELECT COUNT(DISTINCT scene_id) FROM jobs WHERE project_id=? AND type='video_gen' AND state IN ('succeeded','approved')"))
+    # 08/10 (#22 hiện 67 %): an APPROVED clip is finished too — counting only 'succeeded' left every reviewed project short
 
 
 def _step(done: bool, scenes: int, images: int, motion: int, videos: int) -> int:
@@ -149,7 +150,8 @@ def project_rows(conn) -> List[Dict]:
         out.append({"id": r["id"], "name": r["name"], "state": r["autopilot_state"], "note": r["autopilot_note"] or "",
                     "scenes": c("SELECT COUNT(*) c FROM scenes WHERE project_id=?"),
                     "images": c("SELECT COUNT(DISTINCT scene_id) c FROM jobs WHERE project_id=? AND type='image_gen' AND state='approved'"),
-                    "videos": c("SELECT COUNT(DISTINCT scene_id) c FROM jobs WHERE project_id=? AND type='video_gen' AND state='succeeded'"),
+                    "videos": c("SELECT COUNT(DISTINCT scene_id) c FROM jobs WHERE project_id=? AND type='video_gen'"
+                                " AND state IN ('succeeded','approved')"),
                     "active": c("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND state IN ('queued','running','retryable')"),
                     "idle_sec": None if not r["autopilot_beat"] else max(0, time.time() - r["autopilot_beat"])})
     return out
