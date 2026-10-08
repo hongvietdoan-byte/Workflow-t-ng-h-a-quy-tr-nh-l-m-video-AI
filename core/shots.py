@@ -715,8 +715,13 @@ def setup_groups(conn, project_id: int) -> List[List[Dict]]:
     """H5: the shots of one script scene that share a camera set-up (`camera_setup` A, B…) — made as ONE continuous clip from the first
     shot's picture and cut into the shots (trial 2A: shots 9+10 as one 4 s clip = 33% fewer paid seconds than two 3 s clips). The
     shots need not be next to each other (A B A B); a set-up longer than SETUP_MAX is split. Only groups of 2+ shots."""
+    return setup_groups_of(_rows(conn, project_id))
+
+
+def setup_groups_of(rows: List[Dict]) -> List[List[Dict]]:
+    """setup_groups on given rows ({id, idx, data}) — B4 học việc passes rows whose `camera_setup` it guessed (core/trainee_plans)."""
     by_key: Dict = {}
-    for r in _rows(conn, project_id):
+    for r in rows:
         d = r["data"]
         if d.get("shot_no") and d.get("camera_setup"):
             by_key.setdefault((d.get("story_scene"), str(d["camera_setup"]).upper()), []).append(r)

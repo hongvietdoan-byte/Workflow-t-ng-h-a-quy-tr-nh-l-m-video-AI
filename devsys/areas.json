@@ -176,10 +176,10 @@
       "name": "Lõi pipeline & nhà cung cấp",
       "weight": 1.0,
       "description": "CSDL, trạng thái job, vòng gửi/nhận job, giới hạn đồng thời, adapter nhà cung cấp, dấu vân tay ⚠ cũ, thùng rác, khung hình, cờ tính năng.",
-      "code": ["core/__init__.py", "core/db.py", "core/pipeline.py", "core/states.py", "core/providers.py", "core/runner.py", "core/batch.py", "core/throttle.py", "core/lineage.py", "core/trash.py", "core/formats.py", "core/features.py", "core/trainee.py", "core/adapters/__init__.py", "core/adapters/http.py", "core/adapters/factory.py", "core/adapters/check.py", "core/adapters/inspect_api.py", "core/adapters/trial.py"],
+      "code": ["core/__init__.py", "core/db.py", "core/pipeline.py", "core/states.py", "core/providers.py", "core/runner.py", "core/batch.py", "core/throttle.py", "core/lineage.py", "core/trash.py", "core/formats.py", "core/features.py", "core/trainee.py", "core/trainee_plans.py", "core/adapters/__init__.py", "core/adapters/http.py", "core/adapters/factory.py", "core/adapters/check.py", "core/adapters/inspect_api.py", "core/adapters/trial.py"],
       "assets": ["mcp_servers/*", "tools/h5_setup_test.py"],
       "docs": ["docs/V0_SETUP.md", "docs/WORKFLOW_REVIEW.md"],
-      "tests": ["tests/test_mcp_servers.py", "tests/test_trainee.py"],
+      "tests": ["tests/test_mcp_servers.py", "tests/test_trainee.py", "tests/test_trainee_plans.py"],
       "flags": [],
       "diag_stages": ["system"],
       "keywords": ["runner", "job", "throttle", "lineage", "⚠ cũ", "features.py", "cờ", "adapter"]
