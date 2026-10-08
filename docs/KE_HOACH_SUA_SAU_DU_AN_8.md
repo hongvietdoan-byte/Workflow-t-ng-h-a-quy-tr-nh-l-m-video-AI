@@ -31,10 +31,10 @@
 | S12 Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`) | 7 | 6 | 0 | 0 | 1 | 100 % |
 | S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 12 | 10 | 0 | 0 | 2 | 100 % |
 | S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 49 | 44 | 2 | 2 | 0 | 91,8 % |
-| S15 Sau Khủng Long Đỏ #22: tổng hợp 3 lượt, KLD-n, chế độ học việc (`docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md`, `docs/KE_HOACH_HOC_VIEC_2026-10-08.md`; người dùng duyệt 08/10) | 19 | 14 | 4 | 1 | 0 | 79,4 % |
+| S15 Sau Khủng Long Đỏ #22: tổng hợp 3 lượt, KLD-n, chế độ học việc (`docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md`, `docs/KE_HOACH_HOC_VIEC_2026-10-08.md`; người dùng duyệt 08/10) | 20 | 14 | 5 | 1 | 0 | 77,8 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 0 | 3 | — |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **203** | **165** | **7** | **14** | **13** | **88,6 %** |
+| **Tổng** | **204** | **165** | **8** | **14** | **13** | **88,4 %** |
 
 Đợt hiện tại: **S14** · việc kế: **S14.15** I1 — tài liệu khớp trạng thái cuối + chấm lại toàn bộ bằng AI Dev System
 <!-- /tien-do -->
@@ -267,7 +267,8 @@
 - [x] S15.16 · Vai Dựng bỏ đoạn lỗi giữa clip `cut_segment` (mục 12) · nặng:2 · ✅ · 64c0457
 - [x] S15.17 · Giá thật web ClipAI (mục 6): Seedance khớp công thức, bỏ hệ số 0,72; Kling theo độ phân giải; âm thanh theo ký tự/giây · nặng:2 · ✅ · 55b417c
 - [x] S15.18 · START LOCK Seedance 2.5 (mục 8) kiểm bằng clip lượt 3, 0 USD · nặng:1 · ✅ · ef7025c
-- [ ] S15.19 · 2 bậc chất lượng + Đạo diễn phân loại độ khó + nhạc theo đường cảm xúc (`docs/THIET_KE_2_BAC_CHAT_LUONG_VA_NHAC_2026-10-08.md` mục 5a) · nặng:3 · 🔄 · N1/N2/N3 đang làm, N4 giao diện + thanh tiến độ sau
+- [ ] S15.19 · 2 bậc chất lượng + Đạo diễn phân loại độ khó + nhạc theo đường cảm xúc (`docs/THIET_KE_2_BAC_CHAT_LUONG_VA_NHAC_2026-10-08.md` mục 5a) · nặng:3 · 🔄 · CODE XONG N1–N4 (cờ `two_tier_quality`, `music_story_arc` TẮT); bộ hạ nhạc mới mặc định; còn: chạy thật nâng nháp → 1080p (≈ 2,1 USD, chờ duyệt) rồi mới bật
+- [ ] S15.20 · Ngân sách riêng từng dự án (PA1: tự trích khi gen trả tiền đầu, trả lại khi giao/cất) · nặng:2 · 🔄 · code a67657c; chờ kiểm Dashboard thật + người dùng xem điểm 'tự bổ sung khi Director chia shot'
 
 ### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)
 - [ ] K.1 · Soạn kịch bản hài 20–30 s có **Kenta + Orion cùng dùng kỹ năng** (người dùng 30/09) · nặng:1 · ✖ · viết lại bản A (docs/KICH_BAN_KIEM_K1_2026-09-29.md) theo hồ sơ kỹ năng Kenta + Orion (đợt S10) và luật chia nhịp kỹ năng; người dùng duyệt · tạm gác — không ưu tiên (người dùng 30/09); làm sau cùng khi người dùng gọi · **người dùng 06/10: BỎ (dự án thử 30 s S14.11/S14.12 đã phủ)**
