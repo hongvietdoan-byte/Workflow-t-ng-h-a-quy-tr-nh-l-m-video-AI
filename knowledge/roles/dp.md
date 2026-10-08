@@ -161,6 +161,10 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
   phản xạ (ngã ra sau, lùi) ghi hướng so với thứ gây sợ (ngã ra sau vì sợ giếng = ngồi mặt hướng giếng, chân về phía giếng). Vì sao: #24
   không ghi `plate_view` → 9 nền cùng nhìn tháp, shot ngược vẫn có tháp, hai góc ngang hai bên trục, Kelly ngã quay lưng về giếng. Shot
   `away`/`left`/`right` không gửi ảnh Kho của địa điểm có mốc (ảnh đó kéo mốc vào khung). Code: `core/plate_view_check.py`.
+- **Máy 3D phải đứng được ở chỗ hợp lý (rà soát #24, 08/10).** Máy không đặt trong/sát vật, không sát đất mà ngửa lên trời (chân trời rơi
+  ra ngoài khung, nền chỉ còn trời) — trừ khi cố ý và ghi vào `why`. *#24 shot 4:* góc sát đất ngửa cao, nền render mất mốc. Mỗi shot 3D
+  có **ảnh toàn cùng trục** (render lùi máy dọc trục, ống rộng — 0 USD) đi kèm để model hiểu không gian; thiếu render thì không gửi ảnh
+  AI vẽ lại thay. Cỡ cảnh chọn xong thì tư thế trong `image_prompt` phải khớp cỡ (cận không thấy chân → không tả nằm sõng soài).
 - **Trong pipeline.** `plate_spot`, `weather`, `plate_view`, `practical_lights`; `lip_sync: true` chỉ ở câu then chốt cận
   (Đạo diễn N3). Máy ảo: `plate_camera.camera_for` từ `size/angle/start_frame/lens_mm/camera_setup` + hướng `plate_choice.view_of`.
 - **Kiểm.** Code: điểm khớp nền sau khi vẽ (`place_refs.background_match`), `spot_problem`/`weather_problem`/`view_problem`/`light_problem`, `needs`
@@ -222,7 +226,8 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
 
 ### Q10. Nhân vật đúng thiết kế trong khung
 - Ảnh tham chiếu chọn theo cỡ cảnh (cận → ảnh cận/chính diện; toàn → toàn thân); ảnh chuẩn chính diện là màu chuẩn. Prompt chỉ nhắc nét nhận
-  diện **đúng như ảnh** (tóc, màu trang phục chính, phụ kiện) — không đoán chiều trái/phải, xuôi/ngược khi chưa nhìn ảnh (2A: đọc sai hướng mũ
+  diện **đúng như ảnh** (tóc, màu trang phục chính, phụ kiện), gọi trang phục theo tên trong hồ sơ Kho — không gõ lại màu khác hồ sơ giữa
+  các shot (#22: sừng mũ trắng ↔ đỏ), chỉ thêm trạng thái phụ kiện — không đoán chiều trái/phải, xuôi/ngược khi chưa nhìn ảnh (2A: đọc sai hướng mũ
   của Maxim). Khi cờ `profile_digest` bật, prompt dùng bản rút gọn hồ sơ (≤ 500 ký tự ảnh / ≤ 200 video, `core/profile_digest.py`).
 - **Đạo cụ, vũ khí, tay cầm liền mạch** — lỗi phổ biến của ảnh AI vẽ rời từng shot: súng đổi tay, kiếm đổi kiểu, vòng cổ biến mất. Mỗi
   cảnh chốt một lần ở shot đầu có đạo cụ ("Kenta holds the katana in his RIGHT hand, black sheath on his left hip") rồi **chép nguyên câu**

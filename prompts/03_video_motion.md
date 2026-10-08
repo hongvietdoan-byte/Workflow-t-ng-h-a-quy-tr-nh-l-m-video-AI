@@ -5,11 +5,12 @@ Dùng knowledge pack video motion (và luật cảnh phức tạp khi cảnh là
 
 ## Quy tắc
 - Một chuyển động camera chính + một hành động chính của chủ thể.
-- KHÔNG mô tả lại ngoại hình (ảnh đã cố định). Nêu tốc độ và hướng.
-- Kèm negative prompt NGẮN, chỉ cấm rủi ro có thật của cảnh (không dán danh sách chung chung).
+- **Thứ tự** (`knowledge/formula/motion.md`; code dò, lỗi đỏ bị chặn gửi): điểm bắt đầu = tư thế thật trong ảnh đã duyệt đính kèm, không đoán từ văn bản ("The clip starts exactly on the first image") → hành động có thứ tự + điểm dừng, tốc độ, hướng → vật lý (chân không trượt) → máy quay kiểu + mức → trạng thái cuối ("It ends with …"). Hành động lên đầu, nền nhắc gọn (#22 lặp 1.200 ký tự nền đẩy hành động xuống cuối).
+- KHÔNG mô tả lại ngoại hình (ảnh đã cố định) — trừ đường chỉ-ảnh-tham-chiếu: **một câu** chốt tóc riêng + trạng thái phụ kiện (#22: tóc người mẫu ảnh OUTFIT lẫn vào Kelly).
+- Vật/bóng lao gần người: đường đi đầu → cuối, khoảng cách, "never touches / does not pass through <TÊN>" (#24 bóng xuyên người). Quái/ma/thú: luật của người không áp, tả đặc điểm thật (#24 "eyes: glowing red"). Chi tiết ghê chỉ gợi.
+- Kèm negative prompt NGẮN, chỉ rủi ro có thật của cảnh; trong `motion_prompt` tả trạng thái ĐÚNG, không nhắc tên vật cấm (L2 #22).
 - `duration_sec`: mặc định lấy `duration_s` của cảnh; nếu cảnh có `dialogue_min_sec` (thời gian tối thiểu để nói hết thoại) thì **không nhỏ hơn** giá trị đó (làm tròn lên) trong giới hạn `max_sec` của model của cảnh.
-- Dựa vào ảnh đã duyệt (đính kèm): mô tả chuyển động từ tư thế thực trong ảnh, không đoán từ văn bản.
-- Camera phải có lý do: nói điều gì thay đổi khiến camera di chuyển. Kết cảnh yên lặng, có điểm neo hình ảnh.
+- Camera phải có lý do: nói điều gì thay đổi khiến camera di chuyển.
 - Viết theo đúng `video_model` của từng cảnh (Seedance: gọi ảnh tham chiếu bằng @Image và nói rõ vai trò — ảnh = diện mạo, video tham chiếu = chỉ chuyển động; Kling: câu ngắn, rõ chủ ngữ). Cảnh/shot có thoại mà trong khung có ≥ 2 người (hoặc ≥ 2 người nói): **nêu tên người đang nói bằng một động từ nói** (vd `KENTA speaks (mouth moving, no sound).`) và người kia đang nghe — vì sao: giọng Việt ghép sau (Kling không nói tiếng Việt), nhưng model phải mở đúng miệng; tài liệu chính thức Kling 3.0 gắn từng câu với tên nhân vật và người thử thấy Kling chia thoại giữa nhân vật chưa chuẩn (`knowledge/video_motion_vocab.md` mục Kling 3.0). Code kiểm và báo khi thiếu (`core/speaker_lint.py`).
 - Cảnh có `camera_complexity: "complex"`: bắt buộc ghi rõ **tỉ lệ** (so với vật mốc), **vị trí** (khoảng cách, hướng, ai che ai), **đường máy** (điểm đầu → điểm cuối, tốc độ, độ cao), **mốc thời gian** (giây bắt đầu, kéo dài, tư thế kết) — xem knowledge/motion_prompt_lint.md.
 - Cảnh cùng `sequence` với cảnh trước: đọc `previous_spatial_state` (vị trí/hướng mọi người ở cuối cảnh trước) và bắt đầu từ đó; ghi `spatial_state` là vị trí/hướng ở CUỐI cảnh này (tiếng Anh, 1 câu) để cảnh sau nối tiếp.

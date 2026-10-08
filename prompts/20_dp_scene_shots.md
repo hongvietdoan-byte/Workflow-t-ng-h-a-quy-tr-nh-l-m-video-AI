@@ -40,4 +40,5 @@ khung giây (`target_s`), nhân vật trọng tâm (`focus`), độ mạnh kho�
                       "difficulty": "easy|complex|unknown", "difficulty_why": ""}],
  "tradeoffs": []}
 ```
-Các trường của shot và luật chia shot: xem phần "Phân shot" bên dưới.
+Các trường của shot và luật chia shot: xem phần "Phân shot" bên dưới; `image_prompt` viết theo mục "Công thức prompt ảnh" ở đó (code
+dò sau lượt của bạn — lỗi đỏ như cỡ cảnh ↔ tư thế, chi tiết ghê không gợi, vật lao sát người không đường đi bị chặn gửi gen).

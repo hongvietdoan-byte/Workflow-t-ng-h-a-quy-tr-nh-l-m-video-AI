@@ -49,6 +49,29 @@
 (nhiều nhân vật, tên đứng gần) — chặn gen ảnh shot đó; `PRECEDENCE`/`scene_establish` "No people, no characters" thuộc F2 chưa đụng;
 mô tả địa điểm trong Kho ("No stacked terraces, no fortress.") là dữ liệu, chưa viết lại.
 
+# HANDOFF — F1-D công thức prompt vào prompt Đạo diễn (09/10/2026, nhánh `worktree-agent-a1b6b770f14ec0461`, chưa push)
+
+**Đã xong** (0 USD, chỉ sửa prompt / knowledge, không đụng `core/`; commit f872a99):
+- `prompts/17_director_shots.md` (dùng chung đường một lượt 01+17 và Quay phim 20+17): mục mới "Công thức prompt ảnh (`image_prompt`) và
+  motion" — phần bắt buộc theo loại shot, cỡ cảnh ↔ tư thế, trang phục một nguồn (hồ sơ Kho), luật cứng FF chi tiết ghê chỉ gợi, vật gần
+  người có đường đi + "never touches", quái không mang luật người, tả cái đúng, các trường cho motion, chạy lại = viết lại không trồng
+  thêm (≤ ~20 %). Mỗi ý có bằng chứng #22/#24 + thứ tự ưu tiên; trỏ `knowledge/formula/`, không chép sổ.
+- `19_director_intent.md` (Tầng A không viết image_prompt): 1 mục "điều chốt trước" (loại nhân vật, wardrobe theo hồ sơ, ghê chỉ gợi,
+  `dp_notes` ghi đường đi vật gần người). `01_…`: 4 dòng trỏ công thức. `20_…`: 1 câu trỏ mục công thức trong 17.
+- `26_director_rewrite.md`: mục 2 "Viết lại, không trồng thêm" (thay/bỏ câu sai, ≤ ~20 %, lý do growth_check + chặn gửi); mục 4 thêm luật
+  công thức.
+- `03_video_motion.md`: thứ tự motion theo công thức, ngoại lệ ref-only (một câu chốt tóc/phụ kiện — trước chỉ có ở `_kld22` sau cờ),
+  đường đi vật gần người, loại nhân vật, tả cái đúng. Bỏ 2 câu trùng ("Dựa vào ảnh đã duyệt…" gộp vào điểm bắt đầu; "Kết cảnh yên lặng…"
+  trùng trạng thái cuối). `_murch`, `_kld22` không đổi (test khóa câu kld22).
+- `knowledge/roles/director.md` N6 (3 tầng bài học, trỏ prompt); `dp.md` Q6 máy 3D hợp lý + ảnh toàn cùng trục, Q10 trang phục theo hồ sơ.
+- Ký tự trước → sau: 17 23536→26661 (+13,3 %) · 19 14650→15656 (+6,9 %) · 01 9869→10488 (+6,3 %) · 03 5018→5847 (+16,5 %) ·
+  26 2686→3095 (+15,2 %) · 20 5006→5258 (+5,0 %) · director.md 47679→48584 · dp.md 38581→39455.
+- Test: `tests/test_director_prompt_formula.py` (ý bắt buộc theo từ khóa + trần độ dài 1,16×). 19 file test liên quan: 294 passed.
+
+**Còn lại / rủi ro**: chưa chạy Đạo diễn thật để đo lỗi đỏ giảm (cần tiền, người dùng quyết); 03 vượt mục tiêu 15 % chút (+16,5 %).
+
+---
+
 # HANDOFF — F1-A công thức prompt (09/10/2026, nhánh `worktree-agent-a22dfa0dcc0951c59`, chưa push)
 
 **Đã xong** (0 USD, không gọi model):

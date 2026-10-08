@@ -35,6 +35,30 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
 - Gameplay kiểu trong game: dùng `GAME_TPS` (camera sau lưng nhân vật, cao hơn vai) với `angle: "high"`. `angle` **chỉ** nhận giá trị trong danh sách ở dưới — không tự đặt "behind", "tps", "back"… (một lần sai trường này là một lần hỏi lại trả tiền cả bản).
 - Các shot liền mạch cùng địa điểm/thời điểm thuộc cùng `sequence` của cảnh; shot nào **nối liền hình với shot kế tiếp** (cùng hành động kéo dài qua điểm cắt) thì `continuous_with_next: true`.
 
+## Công thức prompt ảnh (`image_prompt`) và motion — cách nghĩ, không phải câu mẫu
+Sổ: `knowledge/formula/`. Cố định **cái phải quyết**, không cố định câu; phần có điều kiện chỉ viết khi đúng tình huống. Code dò mọi
+prompt sau lượt của bạn — lỗi đỏ bị **chặn gửi gen**, phải viết lại (thêm một lượt trả tiền). Chật chỗ thì ưu tiên: luật cứng FF → cỡ
+cảnh khớp tư thế → nhân vật đúng hồ sơ → nền theo render → phần sáng tạo.
+- **Phần bắt buộc theo loại shot** (thoại · hành động · nhảy theo mẫu · cận đồ vật · toàn cảnh · quái · kỹ năng): cỡ cảnh **kèm giới hạn
+  cơ thể** + góc, **một** khoảnh khắc, ánh sáng nguồn + hướng; có render 3D → khóa nền + 2–4 mốc đúng chỗ (#22 shot 3, 5 thiếu, chỉ đẹp
+  nhờ cận); cùng setup shot trước → "same camera and same spot". Hành động lên trước, nền gọn sau.
+- **Cỡ cảnh khớp tư thế** (đỏ): MCU/CU/ECU không thấy chân → tả tư thế bằng thân trên, hoặc đổi MS/WS (#24 shot 4 "Medium close-up …
+  sprawled on the ground").
+- **Trang phục một nguồn — hồ sơ Kho:** gọi theo tên trang phục trong hồ sơ, không tả lại màu/món khác hồ sơ; chỉ thêm trạng thái phụ kiện
+  ("mask worn up") và điều hồ sơ không có (#22: sừng mũ Maxim white ↔ red, hình in áo Kelly GREEN ↔ blue giữa các shot).
+- **Luật cứng FF — chi tiết ghê chỉ GỢI:** máu, tóc bết, vết thương, xác ở trong tối / ngoài nét / bị che (in shadow, out of focus, partly
+  hidden); không "everything in focus" trên nó; **không tự thêm** điều kịch bản không có (#24 shot 2 tự thêm "hair strands and blood
+  stains on the rim … everything in focus").
+- **Vật / bóng / sinh vật chuyển động gần người:** đường đi điểm đầu → điểm cuối, khoảng cách, "never touches / does not pass through
+  <TÊN>" (#24 shot 3 "shadow … right in front of her face" → bóng bay xuyên người).
+- **Nhân vật không phải người** (quái, ma, thú): luật của người (mắt tự nhiên, không mắt phát sáng) không áp; tả đặc điểm thật (#24 shot 5
+  yêu nữ "eyes: glowing red" bị gắn luật mắt người → hai câu chọi nhau).
+- **Tả cái đúng, không kê vật cấm** ("only the staircase and tower as in the render", không "Do NOT add palm trees…" — L2 #22).
+- **Cho motion** (`start_frame`, `action`, `action_peak`, `end_state`, `camera_move`): đủ điểm bắt đầu, chuỗi hành động có thứ tự + điểm
+  dừng, máy quay kiểu + mức, vật lý (chân không trượt), trạng thái cuối (#22 shot 1, 3, 5 thiếu → clip không có điểm dừng).
+- **Chạy lại theo góp ý / QC: viết lại, không trồng thêm** — thay hoặc bỏ câu sai, không nối câu vá vào đuôi; không dài hơn bản trước quá
+  ~20 % trừ khi thêm phần bắt buộc còn thiếu. Lớp dò so bản trước báo "trồng thêm"; câu mới mâu thuẫn câu cũ còn giữ bị chặn gửi.
+
 ## Trường của mỗi shot
 ```json
 {"size": "ECU|CU|MCU|MS|MLS|WS|EWS|GAME_TPS", "angle": "eye|low|high|overhead|dutch|ots|pov",

@@ -74,6 +74,12 @@ của bạn (thoại đủ và đúng thứ tự, thời lượng trong khung, t
 - `dp_notes` (tiếng Việt, **ghi chú cho Quay phim**): người xem phải **thấy** gì để cảm đúng ý đồ — chi tiết then chốt, ai phản ứng với ai,
   người xem biết trước/sau nhân vật, góc máy kịch bản ghi rõ ("GÓC CAMERA SAU VAI X"), nhịp (dồn hay giãn), motif lặp lại. Không chọn
   tiêu cự/cỡ cảnh thay họ — nói **điều cần đạt**, họ chọn cách.
+- **Điều bạn chốt trước để prompt của Quay phim không bị chặn** (công thức prompt: mục "Công thức prompt ảnh" ở phần Phân shot,
+  `knowledge/formula/`): (1) Bible ghi rõ nhân vật **không phải người** (quái, ma, thú) + đặc điểm thật — luật của người như "không mắt
+  phát sáng" không áp cho nó (#24: yêu nữ mắt đỏ bị gắn luật mắt người); (2) `wardrobe` gọi theo tên trang phục trong hồ sơ Kho, không
+  tả lại màu khác hồ sơ (#22: sừng mũ trắng ↔ đỏ giữa các shot); (3) chi tiết ghê (máu, tóc bết, xác) chỉ gợi — trong tối, ngoài nét, bị
+  che — và không thêm điều kịch bản không có (luật cứng FF; #24 shot 2); (4) vật/bóng lao gần người → `dp_notes` ghi đường đi và "không
+  chạm, không xuyên qua" (#24 shot 3 bóng xuyên người). Chạy lại theo góp ý: viết lại câu sai, không nối câu vá vào đuôi.
 - `editor_notes` (tiếng Việt, tùy chọn, **ghi chú cho Dựng**): chữ trên màn hình (thông báo game, chữ kết), chỗ cắt nhanh/giữ lâu, nhịp
   nhạc, chỗ cần im lặng. *Vì sao:* Dựng chạy sau khi có clip; ghi từ bây giờ để họ không phải đoán ý đồ.
 
