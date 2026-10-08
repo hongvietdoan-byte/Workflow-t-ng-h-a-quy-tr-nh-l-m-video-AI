@@ -16,6 +16,7 @@ ITS OWN camera — free (Blender), cached across projects — and the model draw
 - `ensure_async`   renders missing plates in a background thread (the Step 2 buttons have no automatic plates phase); the shot waits.
 
 S14.9 (06/10): the green-screen flag `location_plates` was removed from the code — this is the only user of the plates now."""
+import json
 import os
 import sqlite3
 import threading
@@ -27,6 +28,11 @@ FEATURE = "place_render_refs"
 ROLE = "place_render"
 SIZE_ORDER = ("EWS", "WS", "GAME_TPS", "MLS", "MS", "MCU", "CU", "ECU")
 LOW_MATCH = 0.35            # below this the model most likely redrew the place (calibrated on synthetic cases; to check on real runs)
+# KLD-17 (duyệt 08/10): NOT calibrated on real runs — on #22 the number disagreed with the person (550–552 judged wrong, 556–558 right,
+# 531/532 partly wrong; see docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md). Until True, place_match only notes the number (info, never warn)
+# and keeps each measure as a pair (place_match.json) that the person's review labels — the data to set LOW_MATCH from later.
+CALIBRATED = False
+PAIRS_FILE = "place_match.json"
 
 _RUNNING: Dict[int, threading.Thread] = {}
 _LOCK = threading.Lock()
@@ -289,9 +295,62 @@ def background_match(image_path: str, plate_path: str, box: Optional[List[float]
 
 
 def match_note(score: Optional[float]) -> tuple:
-    """(severity, words) for the diagnostics."""
+    """(severity, words) for the diagnostics. KLD-17: only "info" until CALIBRATED — the number is noted, nobody is alarmed by it."""
     if score is None:
         return ("info", "không đo được độ khớp nền với render 3D")
+    if not CALIBRATED:
+        return ("info", f"độ khớp đường nét nền ↔ render 3D chỗ đứng trong kế hoạch: {score:.2f} "
+                        f"(chỉ ghi số, chưa hiệu chỉnh — chưa dùng để cảnh báo)")
     if score < LOW_MATCH:
         return ("warn", f"nền lệch render 3D (độ khớp đường nét {score:.2f} < {LOW_MATCH}) — model có thể đã vẽ lại kiến trúc")
     return ("info", f"nền khớp render 3D (độ khớp đường nét {score:.2f})")
+
+
+def _pairs_path(data_dir: str, pid: int) -> str:
+    return os.path.join(data_dir, str(pid), PAIRS_FILE)
+
+
+def measure(conn, data_dir: str, pid: int, scene_id: int, job_id: int, image_path: str, resolution) -> tuple:
+    """KLD-17: (severity, words) of how well the drawn picture kept the render of the shot's spot IN THE PLAN. The plates/index.json
+    record is used only when it is the plan's (location_pack.stale_plates says nothing about it): a background the plan has left
+    (spot / direction / light changed after the picture was sent) is not measured — the number would compare with the wrong place.
+    Each measure is kept in <data_dir>/<pid>/place_match.json {job_id, scene_id, score, plate_key} for calibration (pairs())."""
+    ref = shot_ref(data_dir, pid, scene_id)
+    if ref is None:
+        return ("info", "không có render 3D của shot — không đo độ khớp nền")
+    gone = stale(conn, data_dir, pid, resolution)
+    if -1 in gone:
+        return ("info", "không đo độ khớp nền: " + gone[-1]["why"])
+    if scene_id in gone:
+        return ("info", "không đo độ khớp nền: render đang gắn khác chỗ đứng trong kế hoạch (" + gone[scene_id]["why"] + ")")
+    score = background_match(image_path, ref["path"], ref["_rec"].get("subject_box"))
+    if score is not None:
+        path = _pairs_path(data_dir, pid)
+        with _LOCK:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    rows = json.load(f)
+            except (OSError, ValueError):
+                rows = []
+            rows = [r for r in rows if r.get("job_id") != job_id] + [
+                {"job_id": job_id, "scene_id": scene_id, "score": round(float(score), 4), "plate_key": ref.get("plate_key")}]
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(rows, f, ensure_ascii=False, indent=1)
+    return match_note(score)
+
+
+def pairs(conn, data_dir: str, pid: int) -> List[Dict]:
+    """KLD-17: the kept measures with the PERSON's last review of each picture as label ("approve" / "reject", None = not looked at
+    yet) — the QC's decisions are not a label. The rows to calibrate LOW_MATCH from (then CALIBRATED = True)."""
+    try:
+        with open(_pairs_path(data_dir, pid), encoding="utf-8") as f:
+            rows = json.load(f)
+    except (OSError, ValueError):
+        return []
+    out = []
+    for r in rows:
+        last = conn.execute("SELECT decision FROM review_log WHERE job_id=? AND reviewer_type='user' ORDER BY decided_at DESC, rowid DESC"
+                            " LIMIT 1", (r["job_id"],)).fetchone()
+        out.append(dict(r, label=last[0] if last else None))
+    return out

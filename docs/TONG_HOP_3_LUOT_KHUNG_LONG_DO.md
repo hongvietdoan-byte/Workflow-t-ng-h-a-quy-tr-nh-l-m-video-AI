@@ -466,6 +466,8 @@ Tất cả xảy ra ở lượt 1. Lượt 2 và 3 sửa tay, vai không học l
 - **Đề xuất:**
   - **KLD-6 [C/$]:** so khóa `plan()` với `plates/index.json` ở **mọi** đường gen ảnh/video. Đổi `plate_spot`/`plate_view` mà nền cũ → chặn gửi kèm câu "nền 3D đã cũ — dựng lại (0 USD)". Ô Bước 1 báo 5 trường (`location`, `image_prompt`, `blocking`, `spatial_state`, `action`) còn nhắc chỗ cũ. = **TODO mục 4**, nâng P1.
   - **KLD-17 [C]:** `place_match` ở chế độ chỉ ghi (không cảnh báo đỏ) cho tới khi hiệu chỉnh. Lưu cặp có nhãn người (556–558 đúng; 550–552 sai; 531/532 sai một phần) làm mẫu; đo so với render của **chỗ đứng trong kế hoạch**, không phải nền đang gắn.
+    - **Đã code 08/10:** `place_refs.CALIBRATED = False` → `place_match` luôn `info` kèm số; `place_refs.measure()` bỏ qua khi nền đang gắn khác kế hoạch (`stale_plates`); mỗi lần đo lưu `<data>/<id>/place_match.json`; `place_refs.pairs()` gắn nhãn = quyết định cuối của NGƯỜI trong `review_log` (QC không tính).
+    - **Cặp có nhãn #22 (mẫu hiệu chỉnh, chỉ ghi ở đây — không sửa CSDL thật):** ảnh 556, 557, 558 = nền **đúng**; 550, 551, 552 = nền **sai**; 531, 532 = **sai một phần**. Khi đủ cặp (≥ 2 dự án) mới đặt lại `LOW_MATCH` rồi bật `CALIBRATED`.
   - **KLD-18:** ảnh toàn cảnh dựng từ render đồng trục = **TODO mục 5**.
 
 **Gen video / `model_router` / chuỗi nối**

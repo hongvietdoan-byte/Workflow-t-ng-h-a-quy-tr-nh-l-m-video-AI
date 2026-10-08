@@ -1812,10 +1812,10 @@ class ImageRunner(_Runner):
         location-pack green-screen composite (flag location_plates) was removed."""
         from . import place_refs
         if place_refs.enabled():                   # place_render_refs: did the model keep the place of the 3D render? (measured, said)
-            ref = place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"])
-            if ref is not None:
-                score = place_refs.background_match(path, ref["path"], ref["_rec"].get("subject_box"))
-                sev, words = place_refs.match_note(score)
+            # KLD-17: measured against the render of the spot in the PLAN (not a background the plan left), noted only (info), kept
+            if place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]) is not None:
+                sev, words = place_refs.measure(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], job["id"], path,
+                                                place_refs.resolution_of(self.p.project(job["project_id"])))
                 self._diag(job, sev, "place_match", words)
         from . import qc_scene
         if qc_scene.enabled():                     # QC layer 0: code checks as the picture arrives (free)
