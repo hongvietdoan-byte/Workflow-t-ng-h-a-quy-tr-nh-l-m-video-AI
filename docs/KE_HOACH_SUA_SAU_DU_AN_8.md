@@ -267,8 +267,8 @@
 - [x] S15.16 · Vai Dựng bỏ đoạn lỗi giữa clip `cut_segment` (mục 12) · nặng:2 · ✅ · 64c0457
 - [x] S15.17 · Giá thật web ClipAI (mục 6): Seedance khớp công thức, bỏ hệ số 0,72; Kling theo độ phân giải; âm thanh theo ký tự/giây · nặng:2 · ✅ · 55b417c
 - [x] S15.18 · START LOCK Seedance 2.5 (mục 8) kiểm bằng clip lượt 3, 0 USD · nặng:1 · ✅ · ef7025c
-- [ ] S15.19 · 2 bậc chất lượng + Đạo diễn phân loại độ khó + nhạc theo đường cảm xúc (`docs/THIET_KE_2_BAC_CHAT_LUONG_VA_NHAC_2026-10-08.md` mục 5a) · nặng:3 · 🔄 · CODE XONG N1–N4 (cờ `two_tier_quality`, `music_story_arc` TẮT); bộ hạ nhạc mới mặc định; còn: chạy thật nâng nháp → 1080p (≈ 2,1 USD, chờ duyệt) rồi mới bật
-- [ ] S15.20 · Ngân sách riêng từng dự án (PA1: tự trích khi gen trả tiền đầu, trả lại khi giao/cất) · nặng:2 · 🔄 · code a67657c; chờ kiểm Dashboard thật + người dùng xem điểm 'tự bổ sung khi Director chia shot'
+- [ ] S15.19 · 2 bậc chất lượng + Đạo diễn phân loại độ khó + nhạc theo đường cảm xúc (`docs/THIET_KE_2_BAC_CHAT_LUONG_VA_NHAC_2026-10-08.md` mục 5a) · nặng:3 · 🔄 · CODE XONG N1–N4 (cờ `two_tier_quality`, `music_story_arc` TẮT); bộ hạ nhạc mới mặc định; người dùng 08/10: BỎ lượt thử riêng, BẬT `two_tier_quality` để thử ngay ở các dự án tới (lần gen bản cao đầu tiên = nghiệm thu thật, luật 8)
+- [ ] S15.20 · Ngân sách riêng từng dự án (PA1: tự trích khi gen trả tiền đầu, trả lại khi giao/cất) · nặng:2 · 🔄 · code a67657c; người dùng 08/10 GIỮ tự bổ sung khi Director chia shot; chờ kiểm Dashboard thật
 
 ### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)
 - [ ] K.1 · Soạn kịch bản hài 20–30 s có **Kenta + Orion cùng dùng kỹ năng** (người dùng 30/09) · nặng:1 · ✖ · viết lại bản A (docs/KICH_BAN_KIEM_K1_2026-09-29.md) theo hồ sơ kỹ năng Kenta + Orion (đợt S10) và luật chia nhịp kỹ năng; người dùng duyệt · tạm gác — không ưu tiên (người dùng 30/09); làm sau cùng khi người dùng gọi · **người dùng 06/10: BỎ (dự án thử 30 s S14.11/S14.12 đã phủ)**
