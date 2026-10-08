@@ -1,3 +1,38 @@
+# HANDOFF — nhánh F1-B (09/10): sửa 3 câu ghép prompt sai (lỗi thật #24), áp cho MỌI dự án
+
+Nhánh: `worktree-agent-a65469680fb94d746` (chưa push). Không sửa TODO.md, `core/llm_io.py`, `core/director_report.py`, `knowledge/formula/`.
+
+## Đã làm
+1. **Luật mắt người không áp cho quái** — `core/seedance_refs.py`: `eyes_guard(data, humans)` + `glowing_eyes_written(data)`;
+   `shot_motion(..., humans=)`. Câu "natural human eyes, no glowing eyes" chỉ gắn khi mọi nhân vật trong khung là người và không ai được
+   tả mắt phát sáng/đỏ (performance/action/end_state/image_prompt, cả `motion_en`), và ghi tên: "KELLY: natural human eyes…".
+   Shot không ghi nhân vật: giữ câu chung cũ. `code_motion` đọc hồ sơ qua `assets.cast_humans`.
+   `core/assets.py`: `looks_non_human(text)`, `is_human(conn, pid, name)` (tên + description + lock_rules + tài nguyên Kho: kind pet /
+   mô tả), `cast_humans(...)`. Không có cột loại → dựa từ khóa (creature/demon/ghost/monster/… /yêu nữ/quỷ/bóng ma/tà linh…, giữ dấu, \b).
+   Đã grep "human/natural/glow/skin/teeth/blink" ở seedance_refs, runner, performance, prompts, motion_physics, shots: chỉ có luật này.
+2. **Tiết chế máu/xác cho dự án FF** — `core/looks.py`: `gore_words`, `is_ff`, `gore_restraint(proj, text, video=False, scan=None)`,
+   `GORE_VIDEO_MAX=200`. Ảnh: `build_image_prompt` (dò trên chữ Đạo diễn: image_prompt/blocking/action_peak/performance/fix — không dò
+   Lock/địa điểm), đổi "everything in focus" → "everything in focus except those hinted details" + câu "Gore restraint: … only hinted —
+   in deep shadow, out of focus or partly hidden, never shown clearly; …". Video: `VideoRunner._gore_restraint` (mọi đường: Seedance nhóm,
+   khung đầu/Kling), dò motion + image_prompt/action/end_state của các shot; quá giới hạn prompt của model → bỏ câu + diag warn (không chặn
+   gửi). Câu chỉ chữ tiếng Anh (lint Seedance chặn chữ Việt). `seedance_refs._estimated_len` cộng 200 ký tự khi nhóm có máu/xác.
+   Diag `gore_restraint` (info) khi thêm.
+3. **Khóa nền theo render 3D** — `core/assets.py`: `render_place_text(conn, place)` + `RENDER_TAG`; tách `_landmark_heights`,
+   `_sizes_sentence` (location_text giữ nguyên kết quả). `build_image_prompt(..., place_render=False)`; ImageRunner `_submit_args` tính
+   `place_refs.shot_ref` trước rồi truyền `place_render=True`; `_finish_args` → `_name_render` thay `RENDER_TAG` bằng " (Image N)" theo ảnh
+   THẬT gửi (render rơi → bỏ số + diag warn). Phòng trong nhà giữ câu INSIDE cũ; khung cuối (end_frames) không gửi render → câu cũ.
+
+## Test
+`tests/test_prompt_assembly_f1b.py` (14 test, đỏ 11/12 trước khi sửa → xanh). Khai vào `devsys/areas.json` step2.tests.
+
+## Việc mở / rủi ro
+- Nhận diện "không phải người" bằng từ khóa: mô tả người có chữ "ghost/monster" (vd "cô gái bị bóng ma ám") → mất câu mắt người (chỉ mất
+  guard, không hại). Nên có trường loại nhân vật (human/creature) trong hồ sơ — chưa làm.
+- Kling multi-shot (multi_prompt từng shot ≤ 512 ký tự) không gắn câu tiết chế vào từng shot, chỉ prompt chính.
+- Motion prompt đã lưu trước khi sửa (motion_prompts) vẫn giữ câu mắt cũ đến khi viết lại (lineage motion_stale / nút Bước 3).
+
+---
+
 # HANDOFF — Codex 06/10/2026
 
 Bước 1–2 bàn giao đã hoàn tất phần code và push main. Bản code được kiểm: `12d2779`; commit tài liệu này cập nhật trạng thái sau kiểm thử.

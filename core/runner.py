@@ -1212,6 +1212,7 @@ class VideoRunner(_Runner):
         if removed:
             self._diag(job, "info", "look_words_removed",
                        "look in-game Free Fire: đã gỡ chữ kéo về tả thực khỏi prompt video — " + ", ".join(removed))
+        motion = self._gore_restraint(job, proj, motion, group, model)
         lock = looks.video_sentence(proj)                       # S4.3: the look in every video prompt (#8: an anime close-up)
         if lock and lock not in motion:
             motion = f"{lock} {motion}"
@@ -1252,6 +1253,25 @@ class VideoRunner(_Runner):
         if proj["video_audio"] or subj_refs or image_refs or ref_video:  # extra args only when used: older providers keep working
             args += (bool(proj["video_audio"]), subj_refs or None, image_refs or None, ref_video)
         return args
+
+    def _gore_restraint(self, job, proj, motion: str, group, model) -> str:
+        """F1-B luật tầng 1 (FF): blood / gore of the clip only hinted. Judged on the motion text and the Director's picture words of the
+        clip's shots (the start frame may carry what the motion text does not repeat). Kept within the model's prompt limit (the look
+        sentence still to come is counted): over it, the sentence is left out and said — never a blocked send."""
+        from . import looks
+        from .adapters.clipai import PROMPT_LIMITS
+        rows = [r["data"] for r in group] if group else [json.loads(self.p.conn.execute(
+            "SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")]
+        scan = motion + " " + " ".join(str(d.get(k) or "") for d in rows for k in ("image_prompt", "action", "end_state"))
+        out = looks.gore_restraint(proj, motion, video=True, scan=scan)
+        if out == motion:
+            return motion
+        limit = PROMPT_LIMITS.get(model or "") or (PROMPT_LIMITS["kling"] if "kling" in str(model or "").lower() else 4000)
+        if len(out) + len(looks.video_sentence(proj)) + 1 > limit:
+            self._diag(job, "warn", "gore_restraint", f"không thêm được câu chỉ GỢI máu/xác: prompt sẽ quá {limit} ký tự")
+            return motion
+        self._diag(job, "info", "gore_restraint", "dự án FF: clip có máu/vết thương/xác — đã thêm câu chỉ GỢI, không thấy rõ")
+        return out
 
     def _speakers_named(self, job, model, motion: str, group, setup: bool) -> str:
         """S0.14 T2: a Kling clip whose prompt does not name who speaks → said in diag; with `speaker_tags` on, the sentence is added.
@@ -1633,10 +1653,12 @@ def view_notes(conn, project_id: int, data: Dict) -> str:
 
 
 def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = None, fix: Optional[str] = None,
-                       blocking_label: str = "Blocking") -> Tuple[str, list]:
+                       blocking_label: str = "Blocking", place_render: bool = False) -> Tuple[str, list]:
     """THE picture prompt of a shot (start picture and K1 end frame share it, so a safeguard added here reaches both): the in-game look
     cleaned of realism words, framing, the text (`core`, default the shot's image_prompt), blocking, the Director's acting, the Character
-    Lock, the look sentence, the fix of a retry, the place in words, and no age under 18. Returns (prompt, realism words removed)."""
+    Lock, the look sentence, the fix of a retry, the place in words, and no age under 18. Returns (prompt, realism words removed).
+    place_render: the shot's own 3D render goes with the picture — the place sentence locks the background to it (F1-B) instead of the
+    place's general description; the render's number is filled in by _finish_args (assets.RENDER_TAG)."""
     from . import looks, performance
     proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
     text = data.get("image_prompt") if core is None else core
@@ -1663,8 +1685,14 @@ def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = 
     if room:                                       # 07/10 Khủng Long Đỏ: the place's outdoor words ("plaza, palms, sea") pulled a
         prompt += (f" Setting: INSIDE a room — {room} ({place['name']} map). An interior with walls and ceiling as in the 3D render; "
                    "no plaza, tower, sky or sea except what its windows show.")   # bedroom shot outside onto a balcony
+    elif place is not None and place_render:       # F1-B (#24): "grass, palms, sea" of the general words beat the render → locked to it
+        prompt += " " + assets.render_place_text(conn, place)
     elif place is not None:                        # B1: the place in words (+ real landmark heights), whatever pictures go
         prompt += " " + assets.location_text(conn, place)
+    # F1-B luật tầng 1 (FF): blood / gore only hinted — judged on the Director's own words of the shot, not on a Lock or place text
+    scan = " ".join(str(x or "") for x in (text, data.get("blocking"), data.get("action_peak"), fix,
+                                           json.dumps(data.get("performance"), ensure_ascii=False) if data.get("performance") else ""))
+    prompt = looks.gore_restraint(proj, prompt, scan=scan)
     return no_minor_age(prompt), removed
 
 
@@ -1835,7 +1863,12 @@ class ImageRunner(_Runner):
             data["image_prompt"] = prompt = cleaned
         for gap in assets.reference_gaps(conn, job["project_id"], data):     # luật 1: a missing reference is said at generation time
             self._diag(job, assets.gap_severity(gap), "missing_reference", gap)
-        prompt, _ = build_image_prompt(conn, job["project_id"], data, fix=model_fix(job["retry_reason"]))
+        from . import place_refs
+        render = place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]) if place_refs.enabled() else None
+        prompt, _ = build_image_prompt(conn, job["project_id"], data, fix=model_fix(job["retry_reason"]), place_render=render is not None)
+        if "Gore restraint:" in prompt:                # luật 1: a sentence added by code is said
+            self._diag(job, "info", "gore_restraint", "dự án FF: shot có máu/vết thương/xác — đã thêm câu chỉ GỢI (bóng tối, ngoài nét, "
+                       "bị che), không thấy rõ")
         from . import scene_establish
         light = scene_establish.light_sentence(data)
         if light:
@@ -1862,9 +1895,8 @@ class ImageRunner(_Runner):
         if est:                                        # the scene's wide establishing picture: the shared reference for the place
             refs = ([r for r in refs if r.get("role") != "location"][:max(limit - 2, 1)]
                     + [r for r in refs if r.get("role") == "location"][:1] + [est])
-        from . import place_refs
         if place_refs.enabled():                       # the shot's own 3D render replaces the library's place picture + real numbers
-            ref = place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"])
+            ref = render
             if ref is not None:
                 refs = place_refs.swap_in(refs, ref, limit)
                 place = assets.scene_location(conn, job["project_id"], data)
@@ -1967,9 +1999,20 @@ class ImageRunner(_Runner):
                                               **({"plate_key": r["plate_key"]} if r.get("plate_key") else {})}
                                              for r in refs] + [{"label": "storyboard", "role": "storyboard",
                                                                 "file": fields["storyboard"]["storyboard_id"]}]
+        prompt = self._name_render(job, prompt, refs)
         if refs:                                       # the chosen resources' pictures go with the prompt (image-to-image)
             return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
         return (prompt,)
+
+    def _name_render(self, job, prompt: str, refs) -> str:
+        """F1-B: the background-lock sentence names the render by its number among the pictures REALLY sent ("Image 3"). A render
+        dropped on the way (unreadable / over the limit) leaves the sentence without a number — said."""
+        if assets.RENDER_TAG not in prompt:
+            return prompt
+        n = next((i for i, r in enumerate(refs or [], 1) if r.get("role") == "place_render"), None)
+        if n is None:
+            self._diag(job, "warn", "missing_reference", "câu khóa nền nhắc ảnh render 3D nhưng ảnh render không gửi được")
+        return prompt.replace(assets.RENDER_TAG, f" (Image {n})" if n else "")
 
     def _after_download(self, job, path: str) -> str:
         """After the picture arrives: how well it kept the 3D render of the place (place_render_refs) and QC layer 0. S14.9: the

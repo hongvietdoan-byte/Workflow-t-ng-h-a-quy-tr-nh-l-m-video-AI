@@ -116,6 +116,53 @@ def clean_prompt(project_row, text: str):
     return out, removed
 
 
+# F1-B — luật tầng 1 (người dùng chốt 09/10, #24 teaser kinh dị): in a Free Fire project blood, matted hair, wounds and corpses are
+# only HINTED (deep shadow, out of focus, partly hidden), never shown clearly — the picture's "everything in focus" does not reach them.
+# English words whole (\b: "bloodline" is not blood); Vietnamese with accents, never folded ("máu" ≠ "màu", "xác chết" ≠ "chính xác").
+_GORE = re.compile(
+    r"\b(?:blood(?:y|ied|stains?|[- ]stained|[- ]soaked)?|blood (?:stains?|spatters?|splatters?|pools?|drips?|smears?)|bleed(?:s|ing)?"
+    r"|gore|gory|gruesome|wounds|wounded|(?:open|bleeding|deep|fresh|gaping) wound|gash(?:es)?|corpses?|cadavers?|dead bod(?:y|ies)"
+    r"|carcass(?:es)?|severed|dismember\w*|decapitat\w*|guts|entrails|intestines|innards|mangled|mutilat\w*"
+    r"|(?:wet|matted|clumped|soaked|dripping) (?:\w+ )?hair|hair strands? (?:on|over|across|stuck|clinging|draped|hanging))\b"
+    r"|(?<!\w)(?:máu|xác chết|thi thể|thây|vết thương|tóc rối bết|tóc bết|nội tạng|đứt lìa|chặt đầu)(?!\w)", re.IGNORECASE)
+_IN_FOCUS = re.compile(r"\beverything (?:is )?(?:sharp(?:ly)? )?in (?:sharp )?focus\b", re.IGNORECASE)
+_GORE_TAG = "Gore restraint:"
+GORE_VIDEO_MAX = 200     # the video sentence is never longer (seedance_refs._estimated_len counts it before a group is closed)
+
+
+def gore_words(text: str):
+    """The gore words of a text, lower case, once each, in order."""
+    import unicodedata
+    found = [m.group(0).lower() for m in _GORE.finditer(unicodedata.normalize("NFC", text or ""))]
+    return list(dict.fromkeys(found))
+
+
+def is_ff(project_row) -> bool:
+    try:
+        return str(project_row["game"] or "").strip().upper() == "FF"
+    except (KeyError, IndexError, TypeError):
+        return False
+
+
+def gore_restraint(project_row, text: str, video: bool = False, scan: Optional[str] = None) -> str:
+    """`text` with the restraint sentence added when it (or, given, only `scan`: the Director's own words of the shot — so a costume
+    profile in the Lock does not trigger it) names blood / gore / wounds /
+    corpses and the project is a Free Fire one; any other project or a clean shot: unchanged. Image prompt: "everything in focus"
+    becomes "everything in focus except those hinted details". Short (≤ ~170 characters) — video prompts have a hard limit."""
+    if not text or not is_ff(project_row) or _GORE_TAG in text:
+        return text
+    words = gore_words(text if scan is None else scan)
+    if not words:
+        return text
+    # English only: a Vietnamese word in a Seedance prompt blocks the send (seedance_refs lint "prompt còn chữ tiếng Việt")
+    what = (", ".join([w for w in words if w.isascii()][:4]) or "the blood and wounds")[:90]
+    if video:
+        return f"{text.rstrip()} {_GORE_TAG} {what} only hinted — deep shadow, out of focus or partly hidden, never shown clearly."
+    out = _IN_FOCUS.sub("everything in focus except those hinted details", text)
+    return (f"{out.rstrip()} {_GORE_TAG} {what} are only hinted — in deep shadow, out of focus or partly hidden, never shown clearly; "
+            "they stay out of focus even where the rest of the picture is sharp.")
+
+
 def video_negative(project_row, negative: str = "") -> str:
     """The motion prompt's negative with the anti-realism words of an FF_INGAME project added (once)."""
     if of(project_row) != "FF_INGAME":

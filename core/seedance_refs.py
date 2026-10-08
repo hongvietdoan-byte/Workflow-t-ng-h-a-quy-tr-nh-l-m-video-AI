@@ -122,8 +122,12 @@ def _estimated_len(rows: List[Dict]) -> int:
     # 08/10 (#24): the estimate left out the PLACE render sentences (~330 characters per rendered shot) — a 3-shot group was estimated
     # at 2 923 characters and sent at 4 135 (> 4 000, blocked). Worst case (tính dư): every shot of the group has its own render.
     places = [{"shots": [i]} for i in range(1, len(rows) + 1)]
-    return len(prompt([(shot_motion(r["data"]), float(r["data"].get("duration_s") or 2)) for r in rows], [(n, "") for n in names],
-                      places=places))
+    motions = [shot_motion(r["data"]) for r in rows]
+    from . import looks                  # F1-B: the FF gore-restraint sentence the runner may add (≤ GORE_VIDEO_MAX characters)
+    gore = looks.GORE_VIDEO_MAX if looks.gore_words(" ".join(motions) + " " + " ".join(
+        str(r["data"].get(k) or "") for r in rows for k in ("image_prompt", "action", "end_state"))) else 0
+    return len(prompt([(m, float(r["data"].get("duration_s") or 2)) for m, r in zip(motions, rows)], [(n, "") for n in names],
+                      places=places)) + gore
 
 
 def group_of(conn, scene_id: int) -> Optional[List[Dict]]:
@@ -654,11 +658,42 @@ def _en(data: Dict, key: str):
     return en.get(key) if en.get(key) else data.get(key)
 
 
-def shot_motion(data: Dict, voice: bool = False) -> str:
+_GLOWING_EYES = re.compile(r"\bglow\w*[^.;]{0,20}\beyes?\b|\beyes?\b[^.;]{0,30}\bglow\w*|\b(?:red|burning|luminous) eyes\b"
+                           r"|\bmắt\b[^.;]{0,20}(?:đỏ|phát sáng|rực)", re.IGNORECASE)
+
+
+def glowing_eyes_written(data: Dict) -> bool:
+    """The Director wrote glowing / red eyes for someone in the shot (performance, action, image_prompt — English or Vietnamese)."""
+    bits = []
+    for src in (data, data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}):
+        perf = src.get("performance") if isinstance(src.get("performance"), dict) else {}
+        bits += [f"{k}: {v}" for k, v in perf.items() if isinstance(v, str)]
+        bits += [str(src.get(k) or "") for k in ("action", "end_state", "image_prompt")]
+    import unicodedata
+    return bool(_GLOWING_EYES.search(unicodedata.normalize("NFC", " | ".join(bits))))
+
+
+def eyes_guard(data: Dict, humans: Optional[Dict[str, bool]] = None) -> str:
+    """F1-B (09/10, #24 shot 5): the plain-eyes guard is a rule for PEOPLE. It goes only when every character in the frame is a person
+    (`humans` from assets.cast_humans; unknown → judged by the name) and nobody is written with glowing eyes, and it names who it is
+    for. A shot with no character listed keeps the old general sentence."""
+    from .assets import looks_non_human
+    if glowing_eyes_written(data):
+        return ""
+    names = [str(n) for n in dict.fromkeys(data.get("characters") or [])]
+    if not names:
+        return " Natural human eyes, no glowing eyes."
+    if not all((humans or {}).get(n, not looks_non_human(n)) for n in names):
+        return ""
+    return f" {', '.join(names)}: natural human eyes, no glowing eyes."
+
+
+def shot_motion(data: Dict, voice: bool = False, humans: Optional[Dict[str, bool]] = None) -> str:
     """A shot's motion text from the Director's fields (no Claude): size / angle / camera, then WHAT HAPPENS (the action, the end
     state), the acting, who speaks. No picture words: the shot's storyboard frame carries the composition, the identity pictures the
     looks (review 2026-09-27: image_prompt repeated looks and the style line in every shot → group prompts past 4,000 characters).
-    voice: the shot goes with its own voice line (lip sync) — "no sound" would contradict the attached audio."""
+    voice: the shot goes with its own voice line (lip sync) — "no sound" would contradict the attached audio.
+    humans: {character: is a person} (assets.cast_humans) — the plain-eyes guard only for people (eyes_guard)."""
     from .shots import SIZE_WORDS
     perf = _en(data, "performance")
     perf = perf if isinstance(perf, dict) else {}
@@ -670,7 +705,7 @@ def shot_motion(data: Dict, voice: bool = False) -> str:
         talk = " ".join(f"{s} speaks (mouth moving, no sound)." for s in speakers)
     if perf.get("intensity", 0) >= 4 or data.get("size") in ("CU", "ECU"):
         acting = soften(acting)            # Seedance 2.5 guide: over-strong emotion words make eyes glow — milder word, plain eyes
-    eyes_guard = (" Natural human eyes, no glowing eyes." if acting and (perf.get("intensity", 0) >= 4) else "")
+    guard = eyes_guard(data, humans) if acting and (perf.get("intensity", 0) >= 4) else ""
     move = str(data.get("camera_move") or "static").replace("_", " ")
     framing = _framing(data)
     action = str(_en(data, "action") or "").strip().rstrip(".")
@@ -680,7 +715,7 @@ def shot_motion(data: Dict, voice: bool = False) -> str:
     return (f"{SIZE_WORDS.get(data.get('size'), data.get('size') or 'shot')}, {data.get('angle') or 'eye'} angle, camera {move}: "
             + (f"framing {framing}. " if framing else "") + (f"{action}. " if action else "") + (f"{body} " if body else "")
             + (f"It ends with {end}. " if end else "")
-            + (f"Acting — {acting}.{eyes_guard} " if acting else "") + talk).strip()
+            + (f"Acting — {acting}.{guard} " if acting else "") + talk).strip()
 
 
 _STRONG = ((r"\b(extremely|insanely|wildly|utterly|incredibly|hysterically)\s+", ""), (r"\becstatic\b", "delighted"),
@@ -787,7 +822,9 @@ def code_motion(p, pid: int, redo_ids=()) -> int:
             continue
         from . import lipsync
         voice = lipsync.enabled() and lipsync.voiced(lipsync.method_for(d))
-        todo.append({"id": s["id"], "idx": s["idx"], "motion_prompt": shot_motion(d, voice=voice),
+        from .assets import cast_humans                    # F1-B: the plain-eyes guard only for people (profiles read)
+        humans = cast_humans(p.conn, pid, d.get("characters") or [])
+        todo.append({"id": s["id"], "idx": s["idx"], "motion_prompt": shot_motion(d, voice=voice, humans=humans),
                      "duration_sec": min(floored(d, float(d.get("duration_s") or 2)), 30)})   # 28/09: a 1 s single was
                                                                                           # cut to 1 s — the collapse was cut off
     if not todo:

@@ -1325,6 +1325,44 @@ def standard_for(conn, project_id: int, name: str) -> Optional[Dict]:
     return dict(prof, asset=asset["name"]) if prof.get("approved") else None
 
 
+# F1-B (09/10, #24 shot 5): a rule written for people ("Natural human eyes, no glowing eyes.") was sent for the well creature the
+# Director wrote with "eyes: glowing red". Characters have no "kind" column — a creature is told by the words of its name / profile.
+# Accents kept (NFC, no folding): "ma" must not match "màu"; English words whole (\b): "ghostwriter" is not a ghost.
+_NON_HUMAN = re.compile(
+    r"\b(?:creatures?|demons?|demonic|ghosts?|ghostly|monsters?|monstrous|wraiths?|phantoms?|spect(?:er|re)s?|ghouls?|zombies?|undead"
+    r"|vampires?|apparitions?|yêu nữ|yêu quái|quỷ|ma nữ|ma quỷ|ma quái|bóng ma|con ma|hồn ma|thây ma|tà linh|ác linh|oan hồn|quái vật"
+    r"|xác sống)\b", re.IGNORECASE)
+
+
+def looks_non_human(text: str) -> bool:
+    """The words describe a creature / ghost / monster rather than a person."""
+    return bool(_NON_HUMAN.search(unicodedata.normalize("NFC", str(text or ""))))
+
+
+def is_human(conn, project_id: int, name: str) -> bool:
+    """A project character is a person unless its name, profile (description, lock rules) or its library resource (a pet, or a
+    description of a creature) says otherwise. Unknown name: decided by the name alone."""
+    texts = [str(name or "")]
+    row = conn.execute("SELECT * FROM characters WHERE project_id=? AND name=?", (project_id, name)).fetchone()
+    if row is not None:
+        keys = row.keys()
+        texts += [str(row[k] or "") for k in ("description", "lock_rules") if k in keys]
+    try:
+        asset = link_characters(conn, project_id, [name]).get(name)
+    except Exception:  # noqa: BLE001 - no library tables (old test data): the profile words decide
+        asset = None
+    if asset is not None:
+        if asset.get("kind") == "pet":
+            return False
+        texts += [str(asset.get("name") or ""), str(asset.get("aliases") or ""), str(asset.get("description") or "")]
+    return not any(looks_non_human(t) for t in texts)
+
+
+def cast_humans(conn, project_id: int, names) -> Dict[str, bool]:
+    """{name: is a person} for the characters of a shot."""
+    return {str(n): is_human(conn, project_id, str(n)) for n in dict.fromkeys(names or [])}
+
+
 def location_plate(conn, place: Dict, scene: Optional[Dict]) -> Optional[Dict]:
     """B2/B3: the picture of a place that may be sent to the image model as pixels — an approved EMPTY background taken from the shot's
     own kind of camera (eye level / low / high), and only for a wide shot. A map screenshot from above, a picture whose camera nobody
@@ -1356,8 +1394,27 @@ def location_text(conn, place: Dict, for_llm: bool = False) -> str:
     heights of its landmarks (so people get the right size next to a wall or a door without copying a picture's camera).
     for_llm=True (the QC agent's brief, read by Claude): the website part of the description goes wrapped by prompts.external_block
     (rà bảo mật 06/10); the image model gets plain words (a tag and a Vietnamese note would only pollute the picture prompt)."""
+    marks, light = _landmark_heights(conn, place)
+    head = (place.get("description") or "").split("[AI đọc ảnh]")[0]
+    desc = re.sub(r"\s+", " ", head).strip()[:600]   # S5.2: 300 cut the tower's "No stacked terraces, no fortress." off its layout sentence
+    web_part = ""
+    own, web = split_web(head)
+    if for_llm and web:
+        from .prompts import external_block
+        desc = re.sub(r"\s+", " ", own).strip()[:600]
+        web_part = external_block("ff.garena.com — mô tả bối cảnh", re.sub(r"\s+", " ", web).strip()[:max(600 - len(desc), 120)])
+    bits = [f"Setting: {place['name']}" + (f" — {desc}" if desc else "")]
+    if marks:
+        bits.append(_sizes_sentence(marks))
+    if light and not light.startswith("3D render"):
+        bits.append(f"Light: {light[:120]}")
+    return ". ".join(bits) + "." + (f"\n{web_part}" if web_part else "")
+
+
+def _landmark_heights(conn, place: Dict) -> Tuple[List[Tuple[str, float]], str]:
+    """([(landmark, real height m)], light) read from the set analyses of the place's pictures."""
     marks, light = [], ""
-    for img in place["images"]:
+    for img in place.get("images") or []:
         try:
             with open(img["path"], "rb") as f:
                 sha = hashlib.sha256(f.read()).hexdigest()
@@ -1370,21 +1427,29 @@ def location_text(conn, place: Dict, for_llm: bool = False) -> str:
             name, h = str(lm.get("name") or "").strip(), lm.get("height_m")
             if name and isinstance(h, (int, float)) and name not in [m[0] for m in marks]:
                 marks.append((name, float(h)))
-    head = (place.get("description") or "").split("[AI đọc ảnh]")[0]
-    desc = re.sub(r"\s+", " ", head).strip()[:600]   # S5.2: 300 cut the tower's "No stacked terraces, no fortress." off its layout sentence
-    web_part = ""
-    own, web = split_web(head)
-    if for_llm and web:
-        from .prompts import external_block
-        desc = re.sub(r"\s+", " ", own).strip()[:600]
-        web_part = external_block("ff.garena.com — mô tả bối cảnh", re.sub(r"\s+", " ", web).strip()[:max(600 - len(desc), 120)])
-    bits = [f"Setting: {place['name']}" + (f" — {desc}" if desc else "")]
+    return marks, light
+
+
+def _sizes_sentence(marks) -> str:
+    return ("Real sizes: " + ", ".join(f"{n} about {h:g} m tall" for n, h in marks[:6])
+            + "; an adult is about 1.7 m, keep people in proportion to these")
+
+
+RENDER_TAG = "{{place_render_image}}"   # replaced by " (Image N)" once the pictures really sent are known (runner._finish_args)
+
+
+def render_place_text(conn, place: Dict, tag: str = RENDER_TAG) -> str:
+    """F1-B (09/10, #24): the place sentence of a shot that HAS its 3D render attached. The place's general description ("… stone
+    plaza; red-roof houses, grass, palms, sea around") pulled the picture away from the render, so the background is locked to the
+    render the way #22's approved prompts did — what is right, never a list of what is forbidden (bài học L2). The real landmark heights
+    stay (people's size); the library picture's light does not (the render and the scene light decide it)."""
+    marks, _light = _landmark_heights(conn, place)
+    bits = [f"Setting: {place['name']}",
+            f"Background: exactly the 3D render picture of this place{tag} (same camera and spot) — it decides the architecture, the "
+            "landmarks and where they sit in the frame; keep the scale of the objects as in that picture"]
     if marks:
-        bits.append("Real sizes: " + ", ".join(f"{n} about {h:g} m tall" for n, h in marks[:6])
-                    + "; an adult is about 1.7 m, keep people in proportion to these")
-    if light and not light.startswith("3D render"):
-        bits.append(f"Light: {light[:120]}")
-    return ". ".join(bits) + "." + (f"\n{web_part}" if web_part else "")
+        bits.append(_sizes_sentence(marks))
+    return ". ".join(bits) + "."
 
 
 def gap_severity(gap: str) -> str:
