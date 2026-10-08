@@ -264,6 +264,18 @@ def enabled() -> bool:
     return features.on(FEATURE)
 
 
+def shadow() -> bool:
+    """🎓 học việc (B1 08/10): runs and records its decision, never acts."""
+    from . import features
+    return features.shadow(FEATURE)
+
+
+def active() -> bool:
+    """On or học việc — for choosing a branch only."""
+    from . import features
+    return features.active(FEATURE)
+
+
 def note_of(res: Dict) -> str:
     """One line for the person at the storyboard gate."""
     parts = [f"Tổ QC (thử, chưa nghiệm thu): {res['verdict']}"]
