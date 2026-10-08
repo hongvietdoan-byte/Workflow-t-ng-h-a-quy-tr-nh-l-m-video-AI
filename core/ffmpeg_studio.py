@@ -259,6 +259,17 @@ def trim_head(src: str, dst: str, seconds: float, ffmpeg: Optional[str] = None) 
     return dst
 
 
+def skip_head(src: str, dst: str, seconds: float, keep: Optional[float] = None, ffmpeg: Optional[str] = None) -> str:
+    """KLD-19: the clip WITHOUT its first `seconds` (then at most `keep` seconds), re-encoded — frame accurate, the sound cut with it
+    (#22: the join 254 → 255 jerked at 1,5 s of 255; trim_head above keeps the beginning, this drops it)."""
+    ff = ffmpeg or find_ffmpeg()
+    cmd = [ff, "-y", "-i", src, "-ss", f"{seconds:.2f}"] + (["-t", f"{keep:.2f}"] if keep else []) + [*_ENCODE]
+    if has_audio(src):
+        cmd += AAC
+    run(cmd + [dst])
+    return dst
+
+
 def hold_last_frame(src: str, dst: str, extra: float, ffmpeg: Optional[str] = None) -> str:
     """The clip followed by its own last frame for `extra` seconds (sound padded with silence)."""
     ff = ffmpeg or find_ffmpeg()

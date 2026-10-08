@@ -29,6 +29,24 @@ def load_profiles(path: Optional[str] = None) -> Dict:
     return data
 
 
+def label(model: Optional[str], resolution: Optional[str] = None) -> str:
+    """KLD-23 (#22: alias `seedance` = Seedance 2.0 sent twice by mistake, ≈ 3,60 USD): "Seedance 2.0 · 720p" for an alias or a model
+    id — the real name (clipai.display_name) and the resolution asked for, else the model's own tier from data/video_models.json."""
+    from .adapters import clipai
+    if not resolution:
+        models = load_profiles()["models"]
+        key = (model or "").strip()
+        prof = models.get(key.lower()) or next((v for v in models.values() if v.get("canonical") == key), {})
+        resolution = prof.get("tier")
+    return clipai.display_name(model, resolution or "độ phân giải mặc định")
+
+
+def job_label(conn, job_id: int, model: Optional[str]) -> str:
+    """label() of a sent job, with the tier it was billed at (usage_events) when there is one."""
+    row = conn.execute("SELECT tier FROM usage_events WHERE job_id=? AND kind='video' ORDER BY id DESC LIMIT 1", (job_id,)).fetchone()
+    return label(model, row[0] if row and row[0] else None)
+
+
 def api_models(profiles: Optional[Dict] = None) -> Dict[str, Dict]:
     """Models the pipeline can actually send (the web-only ones are shown for information only)."""
     profiles = profiles or load_profiles()

@@ -420,8 +420,11 @@ def _fit_edits(rows: List[Dict], paths: List[str], durations: List[float], edits
     """P3 (core/editor_apply.py): the shots the person's edit changed in length get a copy of their clip of exactly that length - shorter =
     its first seconds (`ffmpeg_studio.trim_head`), longer = its last frame held (`hold_last_frame`). A cut with `transition` cut joins whole
     files and ignores `durations`, so a different length must live in the file. The original clip is untouched. `paths` changes in place.
+    KLD-19: `edits["head"]` {scene_id: seconds} = those first seconds of the clip are dropped first (`ffmpeg_studio.skip_head`), then the
+    rest is fitted to its length as above ("how": "head").
     Returns [{"idx", "from_s", "to_s", "how", "path"} | {"idx", "error"}] for the manifest."""
-    want = set((edits or {}).get("fit") or [])
+    head = {k: float(v) for k, v in ((edits or {}).get("head") or {}).items() if float(v or 0) > 0}
+    want = set((edits or {}).get("fit") or []) | set(head)
     out = []
     if not want:
         return out
@@ -433,11 +436,25 @@ def _fit_edits(rows: List[Dict], paths: List[str], durations: List[float], edits
         if not have:
             out.append({"idx": r.get("idx"), "error": "không đo được độ dài clip"})
             continue
-        if abs(have - float(d)) <= FIT_TOLERANCE_S:
+        drop = head.get(r.get("scene_id"), 0.0)
+        if not drop and abs(have - float(d)) <= FIT_TOLERANCE_S:
             continue
         os.makedirs(work_dir, exist_ok=True)
         dst = os.path.join(work_dir, f"fit_{r.get('idx')}.mp4")
         try:
+            if drop:
+                if drop >= have - 0.1:
+                    raise ValueError(f"bỏ {drop:g} s đầu nhưng clip chỉ dài {have:.2f} s")
+                ffmpeg_studio.skip_head(paths[i], dst, drop, keep=min(float(d), have - drop))
+                kept = ffmpeg_studio.probe_duration(dst) or (have - drop)
+                if float(d) > kept + FIT_TOLERANCE_S:          # asked longer than what is left: its last frame held
+                    held = os.path.join(work_dir, f"fit_{r.get('idx')}_hold.mp4")
+                    ffmpeg_studio.hold_last_frame(dst, held, float(d) - kept)
+                    dst = held
+                out.append({"idx": r.get("idx"), "from_s": round(have, 2), "to_s": round(float(d), 2), "how": "head",
+                            "head_s": round(drop, 2), "path": dst})
+                paths[i] = dst
+                continue
             if float(d) < have:
                 ffmpeg_studio.trim_head(paths[i], dst, float(d))
                 how = "trim"

@@ -28,14 +28,14 @@ MAX_FINDINGS = 6                         # a longer list drowns the cut ("fix ev
 RUN_CAP_USD = 0.40                       # one review (two calls, ~0.17 USD estimated): the hard lock of the task (llm_runner.spend_cap)
 AMOUNT_MIN, AMOUNT_MAX = 0.2, 3.0
 OBSERVED = ("drag", "rush", "cut_off_beat", "peak_unsupported", "music_competes", "silence_wanted", "transition_jarring", "flat_run", "other")
-ACTIONS = ("shorten_shot", "extend_hold", "music_cue", "transition", "slow_or_freeze", "suggest_flag", "retrim_from_raw", "none")
+ACTIONS = ("shorten_shot", "trim_head", "extend_hold", "music_cue", "transition", "slow_or_freeze", "suggest_flag", "retrim_from_raw", "none")
 FLAG_HINTS = ("j_cut", "motion_trim", "speed_ramp")
 TRANSITIONS = ("cut", "crossfade", "dip_to_black")
 # The shared priority scale (knowledge/roles/README.md, Dựng row): clear speech / legible text first, then the cut's rhythm, then continuity,
 # then looks. Used to order what the person reads — never to drop a proposal.
 RANK = {"music_competes": 1, "peak_unsupported": 1, "silence_wanted": 1, "drag": 3, "rush": 3, "cut_off_beat": 3, "flat_run": 3,
         "transition_jarring": 4, "other": 5}
-NEEDS_SHOT = ("shorten_shot", "extend_hold", "music_cue", "transition", "slow_or_freeze", "retrim_from_raw")
+NEEDS_SHOT = ("shorten_shot", "trim_head", "extend_hold", "music_cue", "transition", "slow_or_freeze", "retrim_from_raw")
 FILE = "editor_review.json"
 _REVIEW = re.compile(r"^<!-- review -->\n(.*?)^<!-- /review -->", re.S | re.M)   # line-anchored: the book's own header mentions the mark in prose
 
@@ -118,18 +118,22 @@ def vet(findings: List[Dict], res: Dict) -> Tuple[List[Dict], List[Dict]]:
             continue
         # The render's transition style (cut / crossfade / dip_to_black) is one setting for the whole film; a per-shot edge exists only
         # behind `shot_transitions` (unverified) — so a transition proposal is a suggestion, not something P3 can apply.
-        applicable = act in ("shorten_shot", "extend_hold", "music_cue")
-        if act in ("shorten_shot", "extend_hold", "slow_or_freeze") and (shot["dialogue"] or shot["lip_sync"]):
+        applicable = act in ("shorten_shot", "trim_head", "extend_hold", "music_cue")
+        if act in ("shorten_shot", "trim_head", "extend_hold", "slow_or_freeze") and (shot["dialogue"] or shot["lip_sync"]):
             no(f, f"shot {shot['n']} có thoại / khớp môi — không đụng")
             continue
-        if act in ("shorten_shot", "extend_hold"):
+        # KLD-19: a shot that starts on the previous clip's last frame (start_from_prev_clip) is joined by construction — its head stays
+        if act == "trim_head" and shot.get("chained"):
+            no(f, f"shot {shot['n']} là shot nối khung (bắt đầu từ khung cuối clip trước) — không bỏ đầu")
+            continue
+        if act in ("shorten_shot", "trim_head", "extend_hold"):
             if not AMOUNT_MIN <= amount <= AMOUNT_MAX:
                 no(f, f"amount {amount:g} ngoài {AMOUNT_MIN:g}–{AMOUNT_MAX:g} s")
                 continue
-            if act == "shorten_shot" and shot["seconds"] - amount < shots_mod.MIN_SHOT:
+            if act in ("shorten_shot", "trim_head") and shot["seconds"] - amount < shots_mod.MIN_SHOT:
                 no(f, f"cắt {amount:g} s làm shot {shot['n']} ngắn hơn {shots_mod.MIN_SHOT:g} s")
                 continue
-            delta = -amount if act == "shorten_shot" else amount
+            delta = amount if act == "extend_hold" else -amount
             sc = shot["story_scene"]
             target = (scenes.get(sc) or {}).get("target_s")
             if isinstance(target, (int, float)):
@@ -217,7 +221,7 @@ def reconcile(accepted: List[Dict], verdicts: List[Dict], res: Dict) -> List[Dic
 
 
 # ---- prompts ------------------------------------------------------------------------------------------------------------------------
-_CLOCK_KEYS = ("n", "story_scene", "start", "end", "seconds", "dialogue", "lip_sync", "money_shot", "speed", "transition_in")
+_CLOCK_KEYS = ("n", "story_scene", "start", "end", "seconds", "dialogue", "lip_sync", "money_shot", "speed", "transition_in", "chained")
 _SCENE_KEYS = ("scene", "start", "end", "seconds", "shots", "target_s", "peak", "focus", "emotional_intent", "editor_notes", "sound")
 
 
@@ -298,7 +302,7 @@ def run(p, project_id: int, client, data_dir: str, force: bool = False) -> Dict:
 
 def describe(f: Dict) -> str:
     """One proposal in a few words ("bớt 0,6 s", "nhạc → cut")."""
-    return {"shorten_shot": f"bớt {f['amount']:g} s", "extend_hold": f"giữ khung cuối thêm {f['amount']:g} s", "music_cue": f"nhạc → {f['value']}",
+    return {"shorten_shot": f"bớt {f['amount']:g} s", "trim_head": f"bỏ {f['amount']:g} s đầu", "extend_hold": f"giữ khung cuối thêm {f['amount']:g} s", "music_cue": f"nhạc → {f['value']}",
             "transition": f"chuyển cảnh → {f['value']}", "slow_or_freeze": f"{f['value']}", "suggest_flag": f"thử bật {f['value']}",
             "retrim_from_raw": "cắt lại từ clip gốc", "none": "nhận xét"}.get(f["action"], f["action"])
 

@@ -48,6 +48,17 @@ class AutoAttachTests(unittest.TestCase):
         self.assertNotIn(other, self.attached())
         self.assertNotIn(self.kelly, self.attached())
 
+    def test_a_one_word_common_noun_is_left_to_a_person(self):
+        # KLD-11 (#22): the prop "Mũ" was attached because the script said "đội mũ" — a common noun, not that resource's name
+        self.conn.execute("UPDATE projects SET script_text=? WHERE id=?", (SCRIPT + "\nKELLY đội mũ đỏ, cầm UMP.", self.pid))
+        self.conn.commit()
+        hat = assets.create(self.conn, "FF", "prop", "Mũ")
+        ump = assets.create(self.conn, "FF", "weapon", "UMP")       # a proper name written as a name: still attached
+        r = assets.auto_attach(self.conn, self.pid)
+        self.assertNotIn(hat, self.attached())
+        self.assertIn("Mũ", r["ambiguous"])
+        self.assertIn(ump, self.attached())
+
     def test_the_director_attaches_before_it_is_asked(self):
         from core import llm_runner
         with mock.patch.object(llm_runner, "ask_json", side_effect=llm_runner.LlmError("stop", code="test")):

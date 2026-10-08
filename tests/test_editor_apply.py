@@ -66,6 +66,14 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(pl["fit"], [10, 30])                                                         # the music cue changes no length
         self.assertEqual(pl["durations"], [2.5, 3.0, 4.0])
 
+    def test_trim_head_shortens_the_shot_and_says_which_seconds_go(self):
+        # KLD-19: the head of the clip goes (not its end) — the render gets {scene_id: seconds} in edits["head"]
+        pl = self.plan([prop("F1", "trim_head", 2, 0.5)], ["F1"])
+        self.assertEqual(pl["durations"], [3.0, 2.5, 3.0])
+        self.assertEqual(pl["fit"], [20])
+        self.assertEqual(pl["head"], {20: 0.5})
+        self.assertEqual(self.plan([prop("F1", "shorten_shot", 1, 0.5)], ["F1"])["head"], {})
+
     def test_a_shot_without_a_scene_row_is_refused(self):
         self.rc["shots"][1]["scene_id"] = None
         pl = self.plan([prop("F1", "shorten_shot", 1, 0.5), prop("F2", "music_cue", 2, value="cut")], ["F1", "F2"])
@@ -301,6 +309,13 @@ class RealRenderTests(unittest.TestCase):
         for sid_idx in (1, 2, 3):                                                                  # the shots' own clips are untouched
             from core import final_cut
             self.assertAlmostEqual(ffmpeg_studio.probe_duration(final_cut.clip_path(self.data, self.pid, sid_idx)), 3.0, delta=0.2)
+
+    def test_trim_head_drops_the_first_seconds_of_the_clip(self):
+        from core import ffmpeg_studio
+        cut, man = self.render([1.5, 3.0, 3.0], {"fit": [self.sids[0]], "head": {self.sids[0]: 1.5}, "meta": {"round": 1}})
+        self.assertEqual([(f["from_s"], f["to_s"], f["how"], f["head_s"]) for f in man["editor_fit"]], [(3.0, 1.5, "head", 1.5)])
+        self.assertAlmostEqual(ffmpeg_studio.probe_duration(cut["path"]), 7.5, delta=0.3)
+        self.assertAlmostEqual(ffmpeg_studio.probe_duration(man["editor_fit"][0]["path"]), 1.5, delta=0.1)
 
     def test_a_longer_shot_holds_its_last_frame(self):
         from core import ffmpeg_studio

@@ -132,7 +132,7 @@ def step3(p: Pipeline, pid: int):
                 new = c1.text_area("Motion prompt", r["motion_prompt"], key=f"mp_{r['sid']}", height=90, label_visibility="collapsed")
                 badge = ui.stale_badge(srow["motion_stale"]) if srow.get("motion_stale") else ui.state_badge(r["state"])
                 c2.markdown(badge, unsafe_allow_html=True)
-                c2.caption(f"{r['duration_sec']:g}s · {choice['model']}")
+                c2.caption(f"{r['duration_sec']:g}s · {model_router.label(choice['model'], choice.get('resolution'))}")   # KLD-23
                 if c3.button("Lưu chỉnh sửa", key=f"mps_{r['sid']}"):
                     act(lambda: llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": r["idx"], "motion_prompt": new, "camera": r["camera"],
                                                                                  "duration_sec": r["duration_sec"],

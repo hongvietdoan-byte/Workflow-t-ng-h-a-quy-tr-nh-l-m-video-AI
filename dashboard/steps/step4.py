@@ -315,8 +315,9 @@ def model_plan_panel(p: Pipeline, pid: int) -> None:
             cur = r["model"] if r["source"] == "override" else None
             pick = c1.selectbox("Model", options, index=options.index(cur) if cur in options else 0, key=f"vm_{pid}_{r['scene_id']}",
                                 label_visibility="collapsed",
-                                format_func=lambda a: f"Đề xuất: {api.get(r['recommended']['model'], {}).get('label', r['recommended']['model'])}"
-                                if a is None else api[a]["label"])
+                                # KLD-23: the real model + resolution ("Seedance 2.0 · 720p"), never the bare alias / a vague label
+                                format_func=lambda a: "Đề xuất: " + model_router.label(r["recommended"]["model"], r["recommended"].get("resolution"))
+                                if a is None else model_router.label(a, r.get("resolution") if a == r["model"] else None))
             if pick != cur:
                 act(lambda: model_router.set_override(p.conn, r["scene_id"], pick, p=p))
                 st.rerun()
@@ -369,7 +370,7 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason) -> None:
         elif state in ("queued", "running", "retryable"):
             st.markdown(D.shimmer(150), unsafe_allow_html=True)
         mp = p.conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (j["scene_id"],)).fetchone()
-        st.markdown(V.meta_line(j["model"], mp["duration_sec"] if mp else None, price, j["retry_count"]), unsafe_allow_html=True)
+        st.markdown(V.meta_line(model_router.job_label(p.conn, jid, j["model"]) if j["model"] else None, mp["duration_sec"] if mp else None, price, j["retry_count"]), unsafe_allow_html=True)
         if scores:                                                       # P3: the criteria behind ⓘ, one line outside
             D.line(V.scores_summary(scores, CRITERIA_LABEL), V.scores_md(scores, CRITERIA_LABEL), f"vid-{jid}-qc")
         try:
@@ -477,7 +478,7 @@ def _other_takes(p: Pipeline, j) -> None:
             kept = qc_scores(p, o["id"])
             mean = sum(s["score"] for s in kept) / len(kept) if kept else None
             st.caption(f"Job {o['id']} · {ui.state_label(o['state'], 'video_gen')}" + (f" · QC {mean:.2f}" if mean is not None else "")
-                       + (f" · {o['model']}" if o["model"] else ""))
+                       + (f" · {model_router.job_label(p.conn, o['id'], o['model'])}" if o["model"] else ""))
             show_video(o["result_path"])
             if st.button("✔ Dùng bản này cho shot", key=f"vuse_{o['id']}",
                          help="Tệp của bản này thành clip của shot; bản đang dùng vào thùng rác (vẫn chọn lại được). Không tốn credit."):

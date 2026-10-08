@@ -807,6 +807,24 @@ def _spoken_form(text: str) -> str:
     return " " + re.sub(r"[^\w]+", " ", unicodedata.normalize("NFC", text or "").lower()) + " "
 
 
+def _common_noun_only(asset: Dict, script: str) -> bool:
+    """KLD-11 (#22, "Mũ"): every name of this resource the script says is ONE word, and the script writes it in lower case somewhere
+    ("đội mũ đỏ") — a common noun (mũ, áo, súng, nhà…), not the resource's name. Characters / pets are names by nature and keep the old
+    rule; a one-word name written only as a name ("UMP", "Mũ" at the start of a line) still attaches."""
+    import unicodedata
+    if asset["kind"] in ("character", "pet"):
+        return False
+    text = unicodedata.normalize("NFC", script or "")
+    said = [n for n in names_of(asset) if _spoken_form(n) in _spoken_form(text)]
+    if not said or any(len(fold(n).split()) != 1 for n in said):
+        return False
+    for n in said:
+        low = unicodedata.normalize("NFC", n.strip()).lower()
+        if not re.search(r"(?<!\w)" + re.escape(low) + r"(?!\w)", text):
+            return False                                 # never written in lower case: used as a name
+    return True
+
+
 def auto_attach(conn, project_id: int) -> Dict[str, List[str]]:
     """Before the Director runs: attach the library resources the script names (as "➕ Dùng tất cả gợi ý" in Step 1), so the Director
     sees the places / characters of the library without a person clicking (người dùng chốt 2026-09-27). Stricter than the Step 1
@@ -843,9 +861,13 @@ def auto_attach(conn, project_id: int) -> Dict[str, List[str]]:
             for i in ids - set(mains):
                 hits[i] = [x for x in hits[i] if x != n]
     attached, ambiguous = [], []
+    script = row["script_text"]
     for aid, names in hits.items():
         if not names:
             continue                                     # its only name belongs to a character / place — not this one
+        if _common_noun_only(by_id[aid], script):
+            ambiguous.append(by_id[aid]["name"])         # KLD-11: "Mũ" matched "đội mũ" (#22) — a person chooses
+            continue
         if any(len(owners[n]) == 1 for n in names):
             conn.execute("INSERT OR IGNORE INTO project_assets (project_id, asset_id) VALUES (?,?)", (project_id, aid))
             attached.append(by_id[aid]["name"])

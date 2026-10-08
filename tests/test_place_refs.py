@@ -91,7 +91,9 @@ class PlaceRefsTests(unittest.TestCase):
         self.assertGreater(s_same, 0.9)
         self.assertLess(s_shift, s_same)
         self.assertLess(s_other, place_refs.LOW_MATCH)
-        self.assertEqual(place_refs.match_note(s_other)[0], "warn")
+        # KLD-17: not calibrated on real runs yet (#22: 550–552 measured low but were right) — only the number is noted
+        self.assertEqual(place_refs.match_note(s_other)[0], "info")
+        self.assertIn(f"{s_other:.2f}", place_refs.match_note(s_other)[1])
         self.assertEqual(place_refs.match_note(s_same)[0], "info")
         self.assertIsNone(place_refs.background_match(os.path.join(self.dir, "none.png"), plate))
 
@@ -185,6 +187,53 @@ class PlaceRefsTests(unittest.TestCase):
         gate.set()
         place_refs._RUNNING[901].join(5)
         self.assertEqual(calls, [901])
+
+
+class PlaceMatchRecordOnlyTests(unittest.TestCase):
+    """KLD-17 (duyệt 08/10): place_match only records (info) until calibrated; measured against the render of the spot IN THE PLAN
+    (never a background the plan has left); every measure kept as a pair the person's review labels later."""
+
+    def setUp(self):
+        from core.db import connect
+        from core.pipeline import Pipeline
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("thu", game="FF")
+        self.plate = town(os.path.join(self.dir, "plate.png"))
+        self.drawn = town(os.path.join(self.dir, "drawn.png"), other=True)
+
+    def ref(self):
+        return {"path": self.plate, "role": place_refs.ROLE, "_rec": {"key": "k_plan"}, "plate_key": "k_plan"}
+
+    def test_a_low_score_is_only_noted_and_kept_as_a_pair(self):
+        with mock.patch.object(place_refs, "shot_ref", return_value=self.ref()),                 mock.patch.object(place_refs, "stale", return_value={}):
+            sev, words = place_refs.measure(self.p.conn, self.dir, self.pid, 7, 550, self.drawn, (360, 640))
+        self.assertEqual(sev, "info")
+        rows = place_refs.pairs(self.p.conn, self.dir, self.pid)
+        self.assertEqual([r["job_id"] for r in rows], [550])
+        self.assertEqual(rows[0]["plate_key"], "k_plan")
+        self.assertLess(rows[0]["score"], place_refs.LOW_MATCH)
+        self.assertIsNone(rows[0]["label"])                     # nobody has looked yet
+
+    def test_a_background_the_plan_left_is_not_measured(self):
+        with mock.patch.object(place_refs, "shot_ref", return_value=self.ref()),                 mock.patch.object(place_refs, "stale", return_value={7: {"idx": 3, "why": "chỗ đứng đã đổi"}}):
+            sev, words = place_refs.measure(self.p.conn, self.dir, self.pid, 7, 551, self.drawn, (360, 640))
+        self.assertEqual(sev, "info")
+        self.assertIn("kế hoạch", words)
+        self.assertEqual(place_refs.pairs(self.p.conn, self.dir, self.pid), [])
+
+    def test_the_person_review_labels_the_pair(self):
+        with mock.patch.object(place_refs, "shot_ref", return_value=self.ref()),                 mock.patch.object(place_refs, "stale", return_value={}):
+            place_refs.measure(self.p.conn, self.dir, self.pid, 7, 556, self.drawn, (360, 640))
+            place_refs.measure(self.p.conn, self.dir, self.pid, 8, 531, self.plate, (360, 640))
+        self.p.conn.execute("PRAGMA foreign_keys=OFF")              # the job rows themselves are not what is tested
+        self.p.conn.execute("INSERT INTO review_log (job_id, reviewer_type, decision, note, decided_at) VALUES (556,'user','approve',NULL,'t')")
+        self.p.conn.execute("INSERT INTO review_log (job_id, reviewer_type, decision, note, decided_at) VALUES (531,'ai_agent','approve',NULL,'t')")
+        self.p.conn.execute("INSERT INTO review_log (job_id, reviewer_type, decision, note, decided_at) VALUES (531,'user','reject','nền sai','t2')")
+        self.p.conn.commit()
+        by = {r["job_id"]: r["label"] for r in place_refs.pairs(self.p.conn, self.dir, self.pid)}
+        self.assertEqual(by, {556: "approve", 531: "reject"})     # the person's word, not the QC's
 
 
 if __name__ == "__main__":

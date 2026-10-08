@@ -49,6 +49,24 @@ class VetTests(unittest.TestCase):
             self.assertEqual(ok, [], act)
             self.assertIn("thoại", no[0]["reason"])
 
+    def test_trim_head_drops_the_first_seconds_but_never_of_speech_lip_sync_or_a_chained_shot(self):
+        # KLD-19 (#22: the join 254 → 255 jerked at 1,5 s of 255 and nothing could drop a clip's first seconds)
+        ok, no = self.vet(f(action="trim_head", target_shot=3, amount=0.5, scene=2))
+        self.assertEqual((len(ok), no), (1, []))
+        self.assertTrue(ok[0]["applicable"])
+        self.assertIn("đầu", editor_review.describe(ok[0]))
+        ok, no = self.vet(f(action="trim_head", target_shot=1, amount=0.5))
+        self.assertEqual(ok, [])
+        self.assertIn("thoại", no[0]["reason"])
+        res = {"shots": [dict(s) for s in RES["shots"]], "scenes": RES["scenes"]}
+        res["shots"][2]["chained"] = True                       # starts on the previous clip's last frame (start_from_prev_clip)
+        ok, no = editor_review.vet([f(action="trim_head", target_shot=3, amount=0.5, scene=2)], res)
+        self.assertEqual(ok, [])
+        self.assertIn("nối", no[0]["reason"])
+        self.assertTrue(self.vet(f(action="trim_head", target_shot=3, amount=9, scene=2))[1])
+        self.assertIn("ngắn hơn", self.vet(f(action="trim_head", target_shot=4, amount=0.4, scene=2))[1][0]["reason"])
+        self.assertIn("trim_head", open(os.path.join(os.path.dirname(__file__), "..", "prompts", "24_editor_review.md"), encoding="utf-8").read())
+
     def test_numbers_are_bounded_by_the_clock(self):
         self.assertTrue(self.vet(f(amount=9))[1])                                   # above the largest cut
         self.assertTrue(self.vet(f(amount=0.05))[1])                                # below the smallest
