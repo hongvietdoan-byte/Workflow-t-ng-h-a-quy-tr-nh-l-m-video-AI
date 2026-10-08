@@ -54,6 +54,7 @@ _turns_lock = threading.Lock()
 # job, removed when it is sent. The step 2 screen says the real reason ("sẽ tự gửi khi …") instead of "bấm ▶ Gen ảnh"; core.bg_poll
 # sends the job by itself once the reason is gone. Same process as the dashboard (the background round runs inside it).
 WAIT_REASONS: Dict[int, Tuple[str, float]] = {}
+_RENDER_RETRIED: Dict[Tuple[int, int], float] = {}   # (project, scene) whose missing 3D render a clip already had made again once
 WAIT_FRESH_SEC = 300
 
 
@@ -845,6 +846,30 @@ class VideoRunner(_Runner):
         from . import seedance_refs
         return seedance_refs.uses_refs(self.p.conn, job["scene_id"])
 
+    def _render_gap(self, job) -> Optional[str]:
+        """08/10 (#24): a shot of a reference-only clip without its 3D place render failed the send at once ('thiếu render địa điểm
+        3D; tạo lại render' — a person has no button for that). Now, like a picture (ImageRunner._wait), the render is made / measured
+        again ONCE in the background (Blender, 0 USD; a plate wrongly judged flat is re-measured by location_pack) and the clip waits;
+        a shot still without a render after that goes to the send check, which says why."""
+        from . import place_refs, seedance_refs
+        pid = job["project_id"]
+        rows = self._ref_rows(job, self._sends_group(job) or [])
+        rendered = {i for ref in seedance_refs.place_pictures(self.data_dir, pid, rows) for i in ref["shots"]}
+        gaps = [(i, r) for i, r in enumerate(rows, 1) if i not in rendered and place_refs.wants_render(self.p.conn, pid, r["data"])]
+        if not gaps:
+            return None
+        thread = place_refs._RUNNING.get(pid)
+        if thread is not None and thread.is_alive():
+            return "đang dựng nền 3D (0 USD) — sẽ tự gửi khi xong"
+        todo = [(i, r) for i, r in gaps if (pid, r["id"]) not in _RENDER_RETRIED]
+        if not todo:
+            return None                     # already tried once: the send check fails it and says why
+        for _, r in todo:
+            _RENDER_RETRIED[(pid, r["id"])] = time.time()
+        place_refs.ensure_async(self.p.conn, pid, self.data_dir, place_refs.resolution_of(self.p.project(pid)),
+                                log=self._thread_diag(job, "place_render"))
+        return "dựng / đo lại nền 3D cho " + ", ".join(f"shot {i}" for i, _ in todo) + " (0 USD) — sẽ tự gửi khi xong"
+
     def _ref_rows(self, job, group) -> list:
         return group or [{"id": job["scene_id"], "data": json.loads(self.p.conn.execute(
             "SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")}]
@@ -1053,6 +1078,10 @@ class VideoRunner(_Runner):
         if place_refs.enabled() and self._refs(job) and \
                 self._stale_plates(job, self._ref_rows(job, self._sends_group(job) or [])):
             return self._hold(job, "đang render lại nền 3D đã cũ (0 USD) — sẽ tự gửi khi render xong")   # KLD-6
+        if place_refs.enabled() and self._refs(job):
+            gap = self._render_gap(job)
+            if gap:
+                return self._hold(job, gap)
         if self._waits_for_prev_clip(job):  # 07/10: starts on the previous clip's last frame — that clip is approved first
             return self._hold(job, "chờ bạn duyệt clip cảnh trước (cảnh này bắt đầu từ khung cuối clip đó) — duyệt xong sẽ tự gửi")
         if end_frames.enabled():
