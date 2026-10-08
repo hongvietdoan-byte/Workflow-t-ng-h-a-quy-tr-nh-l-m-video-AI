@@ -83,6 +83,9 @@ ACTION = re.compile(r"action|fight|chase|run|gameplay|battle|shoot|đánh|đuổ
 # the English-only words sent 4 scenes of 6 to the same "tense, driving hybrid score". The MOOD of the section decides (not its intent
 # text, which tells the whole story); first match wins.
 MOOD_STYLES = (
+    # #24: a horror mood ("rùng rợn, hồi hộp, bí ẩn rồi … ai oán") is dread, not "hushed suspense" with a ticking pulse
+    (re.compile(r"kinh dị|rùng rợn|rợn người|ma quái|ghê rợn|rùng mình|horror|creepy|eerie|\bdread", re.I),
+     "dread: a low drone and dissonant, bowed-metal strings, eerie distant textures, near-silence between the scares"),
     # S0.15 M1: a comic mood first — "tense but comedic, urgent squad banter" is a joke with urgency, not panic (project #3)
     (re.compile(r"comed|comic|hài hước|hài kịch|gây hài|buồn cười|cheeky|funny|trò khăm|chơi khăm|\bgag\b", re.I),
      "comic: light pizzicato, plucks and a bouncy bass, played straight-faced, room for the jokes"),
@@ -102,6 +105,7 @@ MOOD_STYLES = (
 # #8 wrote "the love motif" into two of these for every film; the theme is now the film's own (music_intent.motif) or "the main theme"
 # (M1), and "playful" is "uneasy" only when the film is not a comedy (#8: joking over a hidden tension; #3: the joke IS the film)
 PLAYFUL_COMEDY = "playful lightness: bouncy pizzicato and light percussion, cheeky and bright"
+HORROR_LAMENT = "eerie lament: a thin, wailing high string over a cold low drone, unsettling, never consoling"
 COMIC_DEFAULT = "light comic underscore: pizzicato, plucks and a bouncy bass, leaving room for the jokes"
 
 
@@ -110,6 +114,8 @@ def _style(sec: Dict, bpm: int = 100, theme: str = "the main theme", tone: Optio
         if rx.search(sec.get("mood") or ""):
             if style.startswith("uneasy lightness") and tone == "comedy":
                 return PLAYFUL_COMEDY
+            if tone == "horror" and style.startswith(("fragile", "heartbreak", "warm resolution")):
+                return HORROR_LAMENT          # a ghost's wail is not grief on a solo piano
             return style.format(theme=theme)
     text = " ".join((sec["mood"], sec["intent"], sec["heading"], sec["lighting"]))
     half = " (half-time feel)" if bpm > 90 else ""
@@ -121,6 +127,8 @@ def _style(sec: Dict, bpm: int = 100, theme: str = "the main theme", tone: Optio
         return "tense, driving hybrid score: pulsing low synth bass, tight electronic percussion and light orchestral hits"
     if tone == "comedy":
         return COMIC_DEFAULT
+    if tone == "horror":
+        return "dread: a low drone and dissonant strings, eerie textures, holding back before the scare"
     return "understated cinematic underscore, soft pads and light percussion"
 
 

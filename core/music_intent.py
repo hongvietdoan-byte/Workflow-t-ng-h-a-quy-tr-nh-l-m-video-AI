@@ -39,6 +39,14 @@ TONES = {
     "commercial": {"film": "promo", "bpm_max": 140, "breathe": False, "ending": "hit",
                    "colour": "Clear, confident energy; the product moment gets the biggest lift.",
                    "manner": "clear lifts on the turns"},
+    # #24 (08/10, teaser Halloween "Trồi lên & Khóc ai oán"): with no horror tone the Director wrote "commercial" + "button" and the
+    # three drafts came out "clear, confident energy … a short comic final hit" under a ghost crawling out of a well. Horror scores
+    # by dread and silence: the scare is a stinger on the cut, the quiet before it is part of the score.
+    "horror": {"film": "horror teaser", "bpm_max": 100, "breathe": False, "ending": "cliffhanger",
+               "colour": "Horror: dread, not energy. Low drones, dissonant and bowed-metal strings, distant reverb, eerie textures; drop "
+                         "to near-silence just before each scare and hit a sharp stinger exactly on it. No upbeat lift, no comic or "
+                         "playful colour, no heroic theme.",
+               "manner": "near-silence before a scare, then a sudden stinger on it"},
 }
 NEUTRAL = {"film": "short film", "bpm_max": 120, "breathe": False, "ending": "close", "colour": "", "manner": "follow the story"}
 
@@ -49,6 +57,8 @@ WORDS = {   # words of the Director's moods / emotional intents / headings that 
                          r"tấu hài|lầy lội|ngớ ngẩn", re.I),
     "drama": re.compile(r"drama|grief|heartbr|tears?\b|\bcry|sorrow|betray|đau|khóc|nước mắt|tổn thương|hy sinh|tuyệt vọng|vỡ òa|nghẹn|"
                         r"phản bội|tình yêu|mất mát|hiểu lầm", re.I),
+    "horror": re.compile(r"horror|creepy|eerie|dread|jump-?scare|ghost|haunt|kinh dị|rùng rợn|rợn người|ma quái|ghê rợn|"
+                         r"rùng mình|hù dọa|hồn ma|bóng ma|quỷ|yêu nữ|tà linh|ai oán|halloween", re.I),
     "action": re.compile(r"\baction|fight|battle|chase|combat|shoot-?out|hành động|giao tranh|đấu súng|truy đuổi|đánh nhau|"
                          r"quyết chiến", re.I),
 }
@@ -79,7 +89,7 @@ FUNCTIONS_VI = {"tension": "dồn nén", "hide": "che giấu cảm xúc", "relea
                 "place": "đặt nơi chốn", "comic": "nhịp hài", "memory": "ký ức"}
 ENTERS = ("soft", "sudden")
 BEDS = ("continuous", "sparse")
-TONE_VI = {"drama": "chính kịch", "comedy": "hài", "action": "hành động", "music_video": "MV", "commercial": "quảng cáo", None: "chưa rõ"}
+TONE_VI = {"drama": "chính kịch", "comedy": "hài", "horror": "kinh dị", "action": "hành động", "music_video": "MV", "commercial": "quảng cáo", None: "chưa rõ"}
 
 
 def _json(text) -> Dict:
@@ -111,6 +121,12 @@ def read_tone(p, pid: int, secs: Sequence[Dict], music: Optional[Dict] = None) -
     the sections' moods / intents (the tone found in the most sections; a second one that is also present is kept in "also")."""
     music = director_music(p, pid) if music is None else music
     t = str(music.get("tone") or "").strip().lower()
+    scary = sum(1 for s in secs if WORDS["horror"].search(_text(s)))
+    if t == "commercial" and secs and scary * 2 >= len(secs):
+        # #24: "commercial" says it is a promo (the format), the moods say what it sounds like — a horror teaser is scored as horror
+        return {"tone": "horror", "also": ["commercial"], "source": "mood",
+                "why": f"Đạo diễn ghi music.tone = commercial (định dạng quảng bá) nhưng {scary}/{len(secs)} cảnh có chữ kinh dị trong "
+                       "mood / ý đồ → nhạc kinh dị"}
     if t in TONES:
         return {"tone": t, "also": [], "why": f"Đạo diễn ghi music.tone = {t}", "source": "director"}
     genre = (p.project(pid)["genre"] or "").upper()
@@ -125,8 +141,9 @@ def read_tone(p, pid: int, secs: Sequence[Dict], music: Optional[Dict] = None) -
     ranked.reverse()
     best_n = ranked[0][0]
     top = sorted(k for n, k in ranked if n == best_n)
-    # a tie between comedy and something else: the comedy decides the colour (a funny film with a tense bit stays funny)
-    tone = "comedy" if "comedy" in top else top[0]
+    # a tie between comedy and something else: the comedy decides the colour (a funny film with a tense bit stays funny); then horror
+    # (a ghost that cries "ai oán" is horror, not a drama — #24)
+    tone = "comedy" if "comedy" in top else "horror" if "horror" in top else top[0]
     also = [k for n, k in ranked if k != tone]
     return {"tone": tone, "also": also, "source": "mood",
             "why": f"{counts[tone]}/{len(secs)} cảnh có chữ {TONE_VI[tone]} trong mood / ý đồ"
@@ -149,6 +166,10 @@ def ending(secs: Sequence[Dict], tone: Optional[str], music: Dict) -> Dict:
     """{"kind", "why"} of the last beat (M2). The Director's `music.ending` decides; a drama ends in resolution only when its last
     scene is warm (else it is left open); other tones take their profile's ending."""
     k = str(music.get("ending") or "").strip().lower()
+    if k == "button" and tone != "comedy":
+        # #24: "button" is a comic button — on a horror teaser it asked for "a short comic final hit"; the tone's own ending instead
+        kind = TONES.get(tone or "", NEUTRAL)["ending"]
+        return {"kind": kind, "why": f"Đạo diễn ghi music.ending = button nhưng phim không phải hài ({TONE_VI.get(tone, tone)}) → {kind}"}
     if k in ENDINGS:
         return {"kind": k, "why": f"Đạo diễn ghi music.ending = {k}"}
     if tone == "drama":
