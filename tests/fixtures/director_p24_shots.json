@@ -1,0 +1,133 @@
+{
+ "scenes": [
+  {
+   "idx": 1,
+   "shots": [
+    {
+     "size": "WS",
+     "angle": "eye",
+     "plate_spot": "plaza_front",
+     "action": "Kelly bước tới gần giếng đá cổ giữa quảng trường sương mù đêm",
+     "start_frame": "Kelly frame-left, walking toward center, three-quarter back view, the eight-sided stone well center-frame with dark hair draped over its rim and faint red stains visible on the stone, moonlit fog drifting low across the plaza",
+     "end_state": "Kelly standing a few steps from the well, facing it",
+     "characters": [
+      "KELLY"
+     ],
+     "why": "Toàn cảnh mở phim để định vị nơi chốn và gieo điềm gở (tóc + vết máu trên giếng) ngay từ giây đầu, đúng ý đồ plant."
+    },
+    {
+     "size": "MS",
+     "angle": "high",
+     "plate_spot": "plaza_front",
+     "action": "Kelly cúi người nhìn xuống miệng giếng",
+     "start_frame": "Kelly frame-center, upper body leaning forward over the well rim, looking down, hair and blood stains visible just below her face",
+     "end_state": "Kelly frozen mid-lean, eyes fixed down into the well",
+     "characters": [
+      "KELLY"
+     ],
+     "why": "Đẩy máy chậm kéo người xem lại gần miệng giếng cùng Kelly, chuẩn bị cho cú giật mình kế tiếp."
+    },
+    {
+     "size": "WS",
+     "angle": "dutch",
+     "plate_spot": "plaza_front",
+     "action": "một cái bóng tối vút ngang qua khung hình phía sau Kelly",
+     "start_frame": "Kelly frame-right silhouette still leaning over the well, a dark blurred shape already streaking across the frame-left background behind her",
+     "characters": [
+      "KELLY"
+     ],
+     "why": "Cho người xem thấy nguyên nhân (cái bóng) ngay trước phản ứng của Kelly, đúng `cause` Đạo diễn yêu cầu, góc nghiêng gợi mất thăng bằng sắp tới."
+    },
+    {
+     "size": "MCU",
+     "angle": "low",
+     "plate_spot": "plaza_front",
+     "action": "Kelly giật mình ngã bệt ra sau, mắt nhìn chằm chằm về phía giếng",
+     "start_frame": "Kelly frame-center, body already mid-fall backward, weight shifting onto her hands behind her",
+     "end_state": "Kelly seated on the ground, legs sprawled, eyes locked on the well",
+     "characters": [
+      "KELLY"
+     ],
+     "why": "Giữ phản ứng sợ hãi của Kelly đủ lâu để người xem thấm nỗi sợ trước khi cắt sang giếng, góc thấp làm cô nhỏ bé trước mối đe dọa."
+    },
+    {
+     "size": "WS",
+     "angle": "low",
+     "plate_spot": "plaza_front",
+     "action": "Yêu nữ tà linh dạng 1 bám tay lên miệng giếng rồi trườn qua thành giếng",
+     "start_frame": "the well center-frame, clawed black hands already gripping the stone rim, long black hair with red tips spilling over the edge, Kelly frame-left foreground seated watching in fear",
+     "end_state": "the creature's upper body draped over the well's stone lip, about to drop to the ground",
+     "characters": [
+      "KELLY",
+      "YÊU NỮ TÀ LINH DẠNG 1"
+     ],
+     "why": "Máy cần cẩu nâng theo đúng lúc yêu nữ trồi lên, trả lại (payoff) manh mối giếng đã gieo ở shot 1, góc thấp tăng vẻ đe dọa."
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "plate_spot": "plaza_front",
+     "action": "Yêu nữ bò xuống đất rồi đứng dậy",
+     "start_frame": "the creature already on all fours on the stone ground beside the well, long black-red hair hanging over her faceless head",
+     "end_state": "the creature standing upright facing Kelly's direction, red glitch noise flickering at wrists and ankles",
+     "characters": [
+      "YÊU NỮ TÀ LINH DẠNG 1"
+     ],
+     "why": "Tiếp nối liền mạch cú trườn, trung cảnh để thấy toàn bộ thiết kế trang phục và hiệu ứng glitch khi đứng dậy."
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "plate_spot": "plaza_front",
+     "action": "Yêu nữ biến hình từ dạng 1 sang dạng 2, hiệu ứng glitch phủ toàn thân",
+     "start_frame": "YÊU NỮ TÀ LINH DẠNG 1 center-frame standing still, red glitch noise beginning to intensify and cover her silhouette",
+     "end_state": "the figure now in dạng 2 form: white hair with red tips, black face with round red eyes, crosshatch linework visible",
+     "characters": [
+      "YÊU NỮ TÀ LINH DẠNG 1",
+      "YÊU NỮ TÀ LINH DẠNG 2"
+     ],
+     "why": "Shot biến đổi ngắn giữ máy tĩnh để hiệu ứng glitch là tâm điểm, bắc cầu sang khoảnh khắc đỉnh tiếp theo."
+    },
+    {
+     "size": "CU",
+     "angle": "eye",
+     "plate_spot": "plaza_front",
+     "action": "Yêu nữ dạng 2 quỳ xuống, ôm mặt khóc ai oán, vai run",
+     "start_frame": "YÊU NỮ TÀ LINH DẠNG 2 center-frame already kneeling on the stone ground, hands beginning to rise to cover her face",
+     "end_state": "hands fully covering her face, shoulders shaking with sobs",
+     "characters": [
+      "YÊU NỮ TÀ LINH DẠNG 2"
+     ],
+     "why": "Khoảnh khắc đỉnh (peak 5) của cảnh, cận mặt giữ đủ lâu để người xem thấm nỗi ám ảnh/thương hại trước khi cắt sang nhiễu chuyển cảnh."
+    },
+    {
+     "size": "WS",
+     "angle": "eye",
+     "plate_spot": "plaza_front",
+     "action": "màn hình nhòe, nhấp nháy, nhiễu sóng toàn khung như mất kết nối",
+     "start_frame": "the kneeling creature center-frame, the entire frame already starting to flicker with digital noise and distortion lines",
+     "characters": [
+      "YÊU NỮ TÀ LINH DẠNG 2"
+     ],
+     "why": "Chuyển cảnh bằng nhiễu được thiết kế trong chuyển động của khung để che điểm nối sang popup quảng cáo."
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "action": "nền tối mờ sương còn sót lại phía sau, chờ icon hành động Trồi Lên hiện lên ở hậu kỳ",
+     "start_frame": "empty foggy night plaza near the well, faint residual glitch flicker fading at the edges of frame, no character in focus",
+     "characters": [],
+     "why": "Khung nền tĩnh, gọn để hậu kỳ đặt icon + chữ 'Hành động Trồi Lên' mà không bị cảnh làm rối mắt."
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "action": "nền tối mờ sương tiếp tục, chờ icon hành động Tiếng Khóc Ai Oán và chữ 'Hành động sắp ra mắt' hiện lên ở hậu kỳ",
+     "start_frame": "same empty foggy night plaza near the well, glitch flicker now fully settled/faded, calm dark fog",
+     "characters": [],
+     "why": "Shot kết phim, nền gọn và tĩnh để chữ quảng cáo lớn dễ đọc, kết thúc teasing bằng lời mời chờ đón hai hành động."
+    }
+   ]
+  }
+ ]
+}

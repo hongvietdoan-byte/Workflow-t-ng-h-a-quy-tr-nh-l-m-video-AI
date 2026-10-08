@@ -155,6 +155,12 @@ Làm cho người xem **thấy rõ** điều Đạo diễn muốn họ cảm —
   `plate_view` → nền không render, shot chờ. Cảnh `night`: quyết `practical_lights` — `[]` = chỉ trăng, hoặc ≤ 3 đèn có lý do trong
   truyện (đèn tường, lửa, màn hình, đèn pin…; `where` nhìn từ máy, `color`). Đèn được đặt thật trong Blender, câu ánh sáng của prompt ảnh
   nhắc đúng đèn đó (nhân vật sáng khớp nền).
+- **Sơ đồ cảnh — trục, bên trục, hướng nền (người dùng 08/10, #24).** Trước khi chia shot: trục chính (nhân vật phía nào của vật mốc gần,
+  vật mốc nền phía nào), MỘT bên trục cho mọi góc ngang (đổi bên = ghi "vượt trục" + lý do), mỗi shot 3D một `plate_view`: shot ngược / nhìn
+  thẳng mặt nhân vật → `away`; qua vai nhìn về mốc → `landmark`; xen hướng để hậu cảnh đổi theo góc. Blocking ghi mặt hướng về đâu; động tác
+  phản xạ (ngã ra sau, lùi) ghi hướng so với thứ gây sợ (ngã ra sau vì sợ giếng = ngồi mặt hướng giếng, chân về phía giếng). Vì sao: #24
+  không ghi `plate_view` → 9 nền cùng nhìn tháp, shot ngược vẫn có tháp, hai góc ngang hai bên trục, Kelly ngã quay lưng về giếng. Shot
+  `away`/`left`/`right` không gửi ảnh Kho của địa điểm có mốc (ảnh đó kéo mốc vào khung). Code: `core/plate_view_check.py`.
 - **Trong pipeline.** `plate_spot`, `weather`, `plate_view`, `practical_lights`; `lip_sync: true` chỉ ở câu then chốt cận
   (Đạo diễn N3). Máy ảo: `plate_camera.camera_for` từ `size/angle/start_frame/lens_mm/camera_setup` + hướng `plate_choice.view_of`.
 - **Kiểm.** Code: điểm khớp nền sau khi vẽ (`place_refs.background_match`), `spot_problem`/`weather_problem`/`view_problem`/`light_problem`, `needs`

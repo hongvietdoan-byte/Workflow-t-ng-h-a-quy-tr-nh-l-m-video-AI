@@ -178,7 +178,7 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
             setups.setdefault((idx, str(s["camera_setup"])), []).append(float(s.get("duration_s") or 0))
     per_setup = (sum(_paid(c, lim) for ds in setups.values() for c in _chunks(ds, lim["max"])) if setups else None)
     usd = lim["usd"]
-    from . import continuity, performance, sound_intent
+    from . import continuity, performance, plate_view_check, sound_intent
     in_target = bool(target and target[0] - 0.05 <= total <= target[1] + 0.05) if target else None
     trade = [t for t in (obj.get("tradeoffs") or []) if isinstance(t, dict)]
     bad_trade = [t for t in (obj.get("tradeoffs") or []) if not isinstance(t, dict) or not all(str(t.get(k) or "").strip()
@@ -206,7 +206,7 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
         + opening_and_product(obj),
         "payoff_unplanted": payoff_unplanted(obj),
         "turns_without_cause": turns_without_cause(obj) + moves_without_reason(obj),
-        "continuity": continuity.axis_warnings(shots) + continuity.motif_warnings(shots)
+        "continuity": continuity.axis_warnings(shots) + plate_view_check.warnings(shots) + continuity.motif_warnings(shots)
         + continuity.lighting_warnings([sc for sc in obj.get("scenes") or [] if isinstance(sc, dict)]),
         "script_notes": [n for n in obj.get("script_notes") or [] if isinstance(n, dict) and str(n.get("note") or "").strip()],
         "paid_s": {"per_shot": per_shot, "per_scene": per_scene, "per_setup": per_setup, "setups": len(setups) or None},

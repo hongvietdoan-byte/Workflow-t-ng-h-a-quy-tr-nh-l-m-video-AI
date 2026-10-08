@@ -1794,6 +1794,9 @@ class ImageRunner(_Runner):
         est = scene_establish.reference(self.data_dir, job["project_id"], data.get("story_scene"))
         if est and indoor_spot(conn, job["project_id"], data):   # an indoor shot: the 3D render of the room is the place, never the
             est = None                                           # outdoor wide picture of the scene (07/10 Khủng Long Đỏ)
+        from .plate_choice import landmark_off_frame
+        if est and landmark_off_frame(data):                     # 08/10 (#24 shot 4): the wide picture shows the landmark the camera
+            est = None                                           # is turned away from — it pulled the tower into a reverse shot
         if est:                                        # the scene's wide establishing picture: the shared reference for the place
             refs = ([r for r in refs if r.get("role") != "location"][:max(limit - 2, 1)]
                     + [r for r in refs if r.get("role") == "location"][:1] + [est])
@@ -1851,6 +1854,10 @@ class ImageRunner(_Runner):
                 own = next((s["data"] for s in g["shots"] if s["id"] == job["scene_id"]), {})
                 if est and indoor_spot(self.p.conn, job["project_id"], own):   # indoor: the room render, not the outdoor wide picture
                     est = None
+                from .plate_choice import landmark_off_frame
+                if landmark_off_frame(own):            # 08/10 (#24): camera turned away from the landmark — no picture showing it
+                    est = None
+                    shared = [r for r in shared if r.get("role") not in ("location", "landmark")]
                 if est:                                # the scene's wide establishing picture: the shared reference for the place
                     shared = ([r for r in shared if r.get("role") != "location"][:6]
                               + [r for r in shared if r.get("role") == "location"][:1] + [est])

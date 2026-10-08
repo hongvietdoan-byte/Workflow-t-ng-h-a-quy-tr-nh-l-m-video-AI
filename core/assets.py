@@ -1453,8 +1453,10 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
             caps.append(MAX_REFS_PER_CHARACTER)
         people.append((label, own[:1] + [(img["path"], "outfit") for img in outfit[:1]] + own[1:]))
     place = scene_location(conn, project_id, scene)
-    loc = location_plate(conn, place, scene) if place else None
-    mark = location_landmark(conn, place, scene) if place and loc is None else None
+    from .plate_choice import landmark_off_frame
+    away = landmark_off_frame(scene)               # 08/10 (#24 shot 4): camera turned away from the landmark → no picture of it
+    loc = location_plate(conn, place, scene) if place and not away else None
+    mark = location_landmark(conn, place, scene) if place and loc is None and not away else None
     if mark is not None:
         loc = dict(mark, _landmark=True)
     room = max(limit - reserve - (1 if loc else 0), 0)
@@ -1483,6 +1485,8 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
             continue          # already sent as the outfit a person in the shot wears / named like a person (S14.28: "Kelly" bơi)
         if place is not None and a["id"] == place["id"]:
             continue                                          # the scene's own place: already decided above (plate or words)
+        if away and a["kind"] == "location":
+            continue                                          # 08/10: another picture of a place would pull a landmark in too
         keys = [fold(n) for n in names_of(a) if len(fold(n)) >= 3 and fold(n) not in cast]
         if any(" " + k + " " in blob for k in keys):
             pic = location_plate(conn, a, scene) if a["kind"] == "location" else best_reference(a)

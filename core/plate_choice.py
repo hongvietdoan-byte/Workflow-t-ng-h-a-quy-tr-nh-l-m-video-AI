@@ -87,6 +87,14 @@ def _raw_view(data: Dict) -> Tuple[object, Optional[str]]:
     return v, None
 
 
+def landmark_off_frame(data: Dict) -> bool:
+    """08/10 (#24, việc 16): the shot's `plate_view` turns the camera away from the place's landmark (away / left / right) — a picture of
+    the place that SHOWS the landmark (the Kho's Tháp Đồng Hồ) must not go with it: it pulled the tower into a reverse shot."""
+    raw, _ = _raw_view(data or {})
+    word = str(raw or "").strip().lower()
+    return any(word in _VIEW_WORDS[k] for k in ("away", "left", "right")) if word else False
+
+
 def _landmark_word(entry: Dict) -> str:
     return str(entry.get("landmark") or "the landmark")
 

@@ -104,9 +104,21 @@ Dự án này sản xuất **theo shot**, không theo cảnh: mỗi cảnh kịc
   / âm shot trước kéo sang). Phần lớn chỗ nối là `cut`; chuyển cảnh đặc biệt dùng nhiều thì mất tác dụng.
 - **`why`:** một câu cho người duyệt: shot cho người xem biết/cảm gì → vì sao cỡ/góc/chuyển động này → nối với shot trước thế nào.
 - **`lens_mm`** (chỉ khi cần khác mặc định theo cỡ cảnh): 24 đặt gần phóng to tiền cảnh, kéo dãn không gian; 85–135 nén hậu cảnh, tách chủ thể — dùng cho ý đồ nào là **tùy cảnh**, ghi vào `why`. **`weather`**, **`plate_spot`**,
-  **`plate_view`** (hướng máy = cái gì ở nền, kèm lý do — theo kịch bản, không theo chỗ đứng), **`practical_lights`**
+  **`plate_view`** (hướng máy = cái gì ở nền, kèm lý do — theo kịch bản, không theo chỗ đứng; xem "Sơ đồ cảnh" dưới), **`practical_lights`**
   (cảnh đêm: `[]` = chỉ trăng, hoặc đèn có lý do): chỉ khi có khối "Gói bối cảnh" (tên + luật ở đó); `weather` có thể ghi ở cảnh cho cả cảnh. **`lip_sync`**:
   chỉ khi khớp môi đang BẬT (xem khối Thời lượng). Bỏ trường nào không dùng.
+- **Sơ đồ cảnh trước khi chia shot (người dùng 08/10, #24 — BẮT BUỘC ở nơi có mô hình 3D):** vì sao: model ảnh vẽ đúng cái nền mình gửi;
+  thiếu `plate_view` thì mọi nền rơi về một hướng mặc định của chỗ đứng → 9 shot cùng một hậu cảnh, shot ngược vẫn có tháp sau lưng, người
+  xem mất địa lý. Cách nghĩ, theo thứ tự: (1) đặt **trục chính** của cảnh từ kịch bản — nhân vật ở phía nào của vật mốc gần (giếng, cửa…),
+  vật mốc nền (tháp…) nằm phía nào (vd "Kelly phía nam giếng, đi về bắc; tháp phía bắc sau giếng"); (2) chọn **MỘT bên trục** cho mọi góc
+  ngang (`left` hoặc `right`) — chỉ đổi bên khi có lý do và ghi lý do có chữ "vượt trục" vào `why`; (3) **mỗi shot** ở nơi có 3D ghi
+  `plate_view` `{background: landmark|away|left|right|scenery, why}` suy từ sơ đồ: shot ngược / nhìn thẳng mặt nhân vật từ phía vật họ đang
+  nhìn → `away` (mốc sau lưng MÁY, không thấy mốc); qua vai nhân vật nhìn về vật mốc → `landmark`; góc ngang → bên đã chọn; (4) **xen hướng
+  nền** để hậu cảnh đổi theo góc máy — không để mọi shot cùng `landmark`; (5) `blocking` ghi rõ nhân vật đứng phía nào của vật mốc gần so
+  với hướng đi đã thấy ở shot trước, mặt hướng về đâu, vật mốc nền ở trước hay sau nhân vật. **Động tác phản xạ** (ngã ra sau, lùi lại, giật
+  lùi) ghi hướng so với nguồn gây sợ: ngã vì sợ thứ trước mặt thì ngồi **mặt hướng vật đó, chân về phía nó** ("facing the well, legs toward
+  it"). Code kiểm sau Director: shot 3D thiếu `plate_view`, ≥ 80 % shot cùng một hướng nền, cảnh có cả `left` lẫn `right` không ghi lý do,
+  góc ngược mà `landmark`, động tác phản xạ mà blocking không ghi hướng — đều thành cảnh báo cho người duyệt.
 - **`hook_mid: true`** (video > 20 s): shot kết một đoạn ~10–15 s bằng một chi tiết **dở dang** (câu bị ngắt, tay chạm vào vật, ánh
   mắt nhìn ra ngoài khung) để người xem ở lại sang đoạn sau; code báo đoạn > 15 s không có móc nào.
 - **`money_shot: true`** (một shot, video quảng bá): khoảnh khắc thứ đang quảng bá hiện rõ nhất (kỹ năng bật, trang phục toàn thân) —

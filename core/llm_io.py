@@ -269,7 +269,22 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
     cast = voice_casting.after_analysis(conn, project_id, obj)
     if cast is not None:
         obj["voice_cast"] = cast
+    _plate_view_diag(conn, project_id, obj)
     return obj
+
+
+def _plate_view_diag(conn, project_id: int, obj: Dict) -> None:
+    """08/10 (#24): the background directions / facing of the plan, checked by code (core/plate_view_check) — said in ⚙ Chẩn đoán
+    (warn), never silently left to the default of the spot."""
+    from . import diag, plate_view_check
+    try:
+        shots = [(int(sc.get("idx") or 0), k, s) for sc in obj.get("scenes") or [] if isinstance(sc, dict)
+                 for k, s in enumerate(sc.get("shots") or [], 1)]
+        found = plate_view_check.warnings(shots)
+    except Exception as e:  # noqa: BLE001 - a check, never a reason to lose the paid answer
+        found = [f"không kiểm được hướng nền: {type(e).__name__}: {e}"]
+    for w in found:
+        diag.record(conn, "director", "warn", "Hướng nền / hướng nhân vật: " + w, "plate_view_check", project_id)
 
 
 def _store(pipeline: Pipeline, project_id: int, obj: Dict) -> None:

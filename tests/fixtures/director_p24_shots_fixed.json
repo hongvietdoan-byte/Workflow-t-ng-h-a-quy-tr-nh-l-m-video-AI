@@ -1,0 +1,146 @@
+{
+ "scenes": [
+  {
+   "idx": 1,
+   "shots": [
+    {
+     "size": "WS",
+     "angle": "eye",
+     "plate_spot": "plaza_front",
+     "blocking": "Kelly frame-left, walking toward center, three-quarter back view, the eight-sided stone well center-frame with dark hair draped over its rim and faint red stains visible on the stone, moonlit fog drifting low across the plaza",
+     "action": "Kelly bước tới gần giếng đá cổ giữa quảng trường sương mù đêm",
+     "end_state": "Kelly standing a few steps from the well, facing it",
+     "characters": [
+      "KELLY"
+     ],
+     "why": "Toàn cảnh mở phim để định vị nơi chốn và gieo điềm gở (tóc + vết máu trên giếng) ngay từ giây đầu, đúng ý đồ plant."
+    },
+    {
+     "size": "MS",
+     "angle": "high",
+     "plate_spot": "plaza_front",
+     "plate_view": {
+      "background": "left",
+      "why": "góc ngang phía đông trục Kelly–giếng: Kelly trái, giếng phải, tháp ló mép phải — giữ một bên trục cho mọi góc ngang"
+     },
+     "blocking": "side view from the EAST side of the Kelly–well line: Kelly frame-left on the near (south) rim, body in profile facing frame-right, leaning over the rim with both hands on the stone, face in profile looking down into the dark well; the well frame-right; the clock tower only partly visible at the far right edge; behind them the row of plaza houses",
+     "action": "Kelly đứng ở mép giếng phía mình vừa đi tới, cúi người nhìn xuống lòng giếng; tháp đồng hồ ở phía trước, sau giếng",
+     "end_state": "Kelly frozen mid-lean, eyes fixed down into the well",
+     "characters": [
+      "KELLY"
+     ],
+     "why": "Đẩy máy chậm kéo người xem lại gần miệng giếng cùng Kelly, chuẩn bị cho cú giật mình kế tiếp."
+    },
+    {
+     "size": "MS",
+     "angle": "ots",
+     "plate_spot": "plaza_front",
+     "plate_view": {
+      "background": "landmark",
+      "why": "qua vai Kelly nhìn vào miệng giếng — giếng nằm giữa Kelly và tháp"
+     },
+     "blocking": "camera behind Kelly right shoulder, Kelly frame-left foreground (back/shoulder and side of head) leaning over the well rim, the well mouth center-frame in front of her face, a dark blurred shadow shape with long trailing hair streaking fast horizontally across the well mouth right in front of her",
+     "action": "Qua vai Kelly đang cúi nhìn xuống giếng: một cái bóng đen có tóc dài vụt ngang qua miệng giếng ngay trước mặt cô",
+     "characters": [
+      "KELLY"
+     ],
+     "why": "Cho người xem thấy nguyên nhân (cái bóng) ngay trước phản ứng của Kelly, đúng `cause` Đạo diễn yêu cầu, góc nghiêng gợi mất thăng bằng sắp tới."
+    },
+    {
+     "size": "MCU",
+     "angle": "low",
+     "plate_spot": "plaza_front",
+     "plate_view": {
+      "background": "away",
+      "why": "góc ngược nhìn thẳng mặt Kelly từ phía giếng: sau lưng cô là phía quảng trường cô vừa đi tới, không thấy tháp"
+     },
+     "blocking": "Reverse angle from the well side looking at Kelly: Kelly frame-center facing camera, mid-fall backward away from the well (the well rim in the near foreground), weight onto her hands behind her, eyes locked on the well; behind her the open side of the plaza she walked in from (low walls, red-roof houses), the clock tower NOT in frame",
+     "action": "Kelly giật mình ngã ngửa ra sau, xa khỏi giếng, hai tay chống xuống đất phía sau, mắt nhìn chằm chằm vào miệng giếng trước mặt",
+     "end_state": "Kelly seated on the ground, legs sprawled, eyes locked on the well",
+     "characters": [
+      "KELLY"
+     ],
+     "why": "Giữ phản ứng sợ hãi của Kelly đủ lâu để người xem thấm nỗi sợ trước khi cắt sang giếng, góc thấp làm cô nhỏ bé trước mối đe dọa."
+    },
+    {
+     "size": "WS",
+     "angle": "low",
+     "plate_spot": "plaza_front",
+     "plate_view": {
+      "background": "left",
+      "why": "cùng bên trục với shot 2: Kelly trái nhìn sang phải, giếng và yêu nữ bên phải — không vượt trục 180°"
+     },
+     "blocking": "side view from the EAST side, low angle: Kelly frame-left foreground seated on the ground facing frame-right toward the well, legs stretched toward it, leaning back on her hands; the well frame-right; the creature gripping the rim with clawed black hands and sliding over it, long black hair with red tips spilling over the edge; plaza houses behind; clock tower off-frame right",
+     "action": "Kelly ngồi bệt ở tiền cảnh, mặt hướng về giếng; Yêu nữ tà linh dạng 1 bám tay lên miệng giếng rồi trườn qua thành giếng",
+     "end_state": "the creature's upper body draped over the well's stone lip, about to drop to the ground",
+     "characters": [
+      "KELLY",
+      "YÊU NỮ TÀ LINH DẠNG 1"
+     ],
+     "why": "Máy cần cẩu nâng theo đúng lúc yêu nữ trồi lên, trả lại (payoff) manh mối giếng đã gieo ở shot 1, góc thấp tăng vẻ đe dọa."
+    },
+    {
+     "size": "MS",
+     "angle": "low",
+     "plate_spot": "plaza_front",
+     "plate_view": {
+      "background": "landmark",
+      "why": "góc thấp ngang tầm mắt Kelly đang ngồi: yêu nữ bò xuống tiến về phía máy, giếng và tháp sau lưng nó — cảm giác bị áp sát"
+     },
+     "blocking": "low camera at Kelly's seated eye level, south of the well looking north: the creature on all fours on the stone ground in front of the well, crawling toward camera, then rising to stand; long black-red hair hanging over her faceless head, glowing red eyes; the well behind her, the clock tower in the far background",
+     "action": "Yêu nữ bò xuống đất rồi đứng dậy",
+     "end_state": "the creature standing upright facing Kelly's direction, red glitch noise flickering at wrists and ankles",
+     "characters": [
+      "YÊU NỮ TÀ LINH DẠNG 1"
+     ],
+     "why": "Tiếp nối liền mạch cú trườn, trung cảnh để thấy toàn bộ thiết kế trang phục và hiệu ứng glitch khi đứng dậy."
+    },
+    {
+     "size": "MS",
+     "angle": "eye",
+     "plate_spot": "plaza_front",
+     "plate_view": {
+      "background": "left",
+      "why": "góc ngang cùng bên trục: yêu nữ bên phải quay đầu sang trái nhìn Kelly ngoài khung — người xem biết nó nhìn ai"
+     },
+     "blocking": "side view from the EAST side: the creature frame-right standing beside the well, body facing frame-right/away, slowly turning her head to frame-left to stare at Kelly off-frame left, red glitch noise beginning to intensify over her silhouette mid-transformation; plaza houses behind; clock tower off-frame right",
+     "action": "Yêu nữ đứng thẳng, chậm rãi quay đầu nhìn về phía Kelly đang ngồi bệt dưới đất, rồi biến hình từ dạng 1 sang dạng 2, hiệu ứng glitch phủ toàn thân",
+     "end_state": "the figure now in dạng 2 form: white hair with red tips, black face with round red eyes, crosshatch linework visible",
+     "characters": [
+      "YÊU NỮ TÀ LINH DẠNG 1",
+      "YÊU NỮ TÀ LINH DẠNG 2"
+     ],
+     "why": "Shot biến đổi ngắn giữ máy tĩnh để hiệu ứng glitch là tâm điểm, bắc cầu sang khoảnh khắc đỉnh tiếp theo."
+    },
+    {
+     "size": "CU",
+     "angle": "eye",
+     "plate_spot": "plaza_front",
+     "blocking": "YÊU NỮ TÀ LINH DẠNG 2 center-frame already kneeling on the stone ground, hands beginning to rise to cover her face",
+     "action": "Yêu nữ dạng 2 quỳ xuống, ôm mặt khóc ai oán, vai run",
+     "end_state": "hands fully covering her face, shoulders shaking with sobs",
+     "characters": [
+      "YÊU NỮ TÀ LINH DẠNG 2"
+     ],
+     "why": "Khoảnh khắc đỉnh (peak 5) của cảnh, cận mặt giữ đủ lâu để người xem thấm nỗi ám ảnh/thương hại trước khi cắt sang nhiễu chuyển cảnh."
+    },
+    {
+     "size": "WS",
+     "angle": "high",
+     "plate_spot": "plaza_front",
+     "plate_view": {
+      "background": "left",
+      "why": "góc rộng hơi cao, ngang: thấy cả Kelly ngồi bên trái và yêu nữ quỳ bên phải trước khi mất tín hiệu — khung cuối để ghép popup"
+     },
+     "blocking": "wide slightly high side view from the EAST side: Kelly small, seated on the ground frame-left; the white-haired creature kneeling frame-right in front of the well, crying; the whole frame flickering with digital noise, distortion lines and signal loss; plaza houses behind",
+     "action": "màn hình nhòe, nhấp nháy, nhiễu sóng toàn khung như mất kết nối",
+     "characters": [
+      "KELLY",
+      "YÊU NỮ TÀ LINH DẠNG 2"
+     ],
+     "why": "Chuyển cảnh bằng nhiễu được thiết kế trong chuyển động của khung để che điểm nối sang popup quảng cáo."
+    }
+   ]
+  }
+ ]
+}
