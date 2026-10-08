@@ -129,7 +129,7 @@ def anchors_needed(p: Pipeline, project_id: int, scene_ids: List[int]) -> List[i
     out: List[int] = []
     for sid in scene_ids:
         g = scene_storyboard.group_of(p.conn, project_id, sid)
-        anchor = g["anchor"]["id"] if g else None
+        anchor = g["anchor"]["id"] if scene_storyboard.uses_anchor(g, sid) else None   # lỗi D: a shot turned away needs no anchor
         if anchor is not None and anchor not in scene_ids and anchor not in out:
             out.append(anchor)
     return out

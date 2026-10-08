@@ -1879,8 +1879,22 @@ class ImageRunner(_Runner):
                     prev = previous_frame_job(self.p.conn, job["project_id"], srow["idx"], sdata.get("sequence"))
                     if prev is not None:
                         previous = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{prev['id']}.png")
+                mark = None
+                if scene_storyboard.turned_away(g, job["scene_id"]):   # lỗi D 08/10: the landmark's name for the away sentence
+                    try:
+                        mark = (location_pack_entry(self.p.conn, assets.scene_location(self.p.conn, job["project_id"], own))
+                                or {}).get("landmark")
+                    except Exception:  # noqa: BLE001 - no library tables (old test data): the generic words stay
+                        mark = None
                 fields = scene_storyboard.job_fields(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], shared, job["id"],
-                                                     previous=previous)
+                                                     previous=previous, landmark=mark)
+                if fields is not None and fields.get("anchor_skipped"):
+                    view = own.get("plate_view")
+                    view = view.get("background") if isinstance(view, dict) else view
+                    self._diag(job, "info", "storyboard_anchor_skipped",
+                               f"shot quay khỏi mốc (plate_view {view}): KHÔNG gửi ảnh neo khung 1 (shot {g['anchor']['idx']}, có "
+                               f"{mark or 'mốc'}) — chỉ ảnh nhân vật/trang phục + render 3D của shot, phiên storyboard riêng, "
+                               "thêm câu 'mốc không trong khung'")
                 if fields is not None:
                     refs = fields["refs"]
                     prompt = prompt.rstrip() + fields.get("cast_note", "")

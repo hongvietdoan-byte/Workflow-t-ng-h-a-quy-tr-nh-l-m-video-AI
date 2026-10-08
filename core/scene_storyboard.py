@@ -64,10 +64,31 @@ def anchor_picture(conn, data_dir: str, pid: int, anchor_id: int) -> Optional[st
     return path if os.path.exists(path) else None
 
 
+def _shot_data(g: Dict, scene_id: int) -> Dict:
+    return next((s["data"] for s in g["shots"] if s["id"] == scene_id), {})
+
+
+def turned_away(g: Dict, scene_id: int) -> bool:
+    """08/10 (#24, lỗi D): this shot's `plate_view` turns the camera away from the place's landmark (away / left / right) while the
+    anchor frame does not — the anchor picture (frame 1, #24 shot 1 WS looking at the Tháp Đồng Hồ) shows the landmark, and sent as a
+    reference it pulled the tower into shot 4 (reverse shot towards the red-roof house; job 576 sent job_573.png)."""
+    from .plate_choice import landmark_off_frame
+    anchor = g.get("anchor")
+    if not anchor or anchor["id"] == scene_id:
+        return False
+    return landmark_off_frame(_shot_data(g, scene_id)) and not landmark_off_frame(anchor["data"])
+
+
+def uses_anchor(g: Optional[Dict], scene_id: int) -> bool:
+    """A shot of a storyboard scene drawn from the anchor picture: not the anchor itself, not a shot turned away from the landmark
+    the anchor shows (lỗi D: it gets no anchor picture, so it neither waits for it nor shares its storyboard session)."""
+    return bool(g) and g["anchor"]["id"] != scene_id and not turned_away(g, scene_id)
+
+
 def waits(conn, data_dir: str, pid: int, scene_id: int) -> bool:
-    """A non-anchor shot waits for its scene's anchor picture."""
+    """A non-anchor shot waits for its scene's anchor picture (a shot turned away from the landmark does not use it: uses_anchor)."""
     g = group_of(conn, pid, scene_id)
-    return bool(g) and g["anchor"]["id"] != scene_id and anchor_picture(conn, data_dir, pid, g["anchor"]["id"]) is None
+    return uses_anchor(g, scene_id) and anchor_picture(conn, data_dir, pid, g["anchor"]["id"]) is None
 
 
 ON_ITS_WAY = ("queued", "running", "retryable", "succeeded", "pending_review", "approved")
@@ -173,10 +194,12 @@ def cast_note(g: Dict, scene_id: int) -> str:
             "of the scene) — do not draw them, not even in the background.")
 
 
-def storyboard_id(pid: int, g: Dict, anchor_job_id: int, fresh_for: int = 0) -> str:
+def storyboard_id(pid: int, g: Dict, anchor_job_id: int, fresh_for: int = 0, own_shot: int = 0) -> str:
     """One id per scene and anchor picture: the anchor job and every frame drawn from its picture share it (a new anchor picture
-    starts a new storyboard). fresh_for = a redraw job that gets a session of its own (see fresh_session)."""
-    key = f"{pid}:{g['story_scene']}:{anchor_job_id}" + (f":redo{fresh_for}" if fresh_for else "")
+    starts a new storyboard). fresh_for = a redraw job that gets a session of its own (see fresh_session). own_shot = a shot turned
+    away from the landmark (lỗi D): a session of its own, not the anchor's (#8: the provider's session carries the earlier frames)."""
+    key = (f"{pid}:{g['story_scene']}:{anchor_job_id}" + (f":away{own_shot}" if own_shot else "")
+           + (f":redo{fresh_for}" if fresh_for else ""))
     return "sb_" + hashlib.sha1(key.encode()).hexdigest()[:12]
 
 
@@ -194,21 +217,33 @@ def fresh_session(conn, job_id: int) -> bool:
     return not (row["retry_reason"] or "").startswith(RESEND_NOTE)
 
 
+def away_note(landmark: Optional[str] = None) -> str:
+    """The sentence that goes with a shot turned away from the landmark (lỗi D): the story text still describes frame 1 with the
+    landmark — this frame looks the other way, its background comes from its own render / words."""
+    mark = landmark or "the landmark seen in frame 1"
+    return (f" The camera of this frame is turned away from {mark}: {mark} is NOT in this frame, not even far in the background — "
+            "the background is the side of the place this frame's text and its 3D render show, not the view of frame 1.")
+
+
 PREVIOUS_NOTE = ("\nImage {n} is the shot right before this one: keep exactly its camera position, framing, shot size, the character's spot "
                  "and the background — change only what this frame's text says.")
 
 
 def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], job_id: int = 0,
-               previous: Optional[str] = None) -> Optional[Dict]:
+               previous: Optional[str] = None, landmark: Optional[str] = None) -> Optional[Dict]:
     """(storyboard kwargs for the provider, the reference list to send) for this shot's picture job, or None (not in storyboard mode).
     refs = the shared references already chosen for the job; a non-anchor shot adds the anchor picture last.
     previous = the approved picture of the shot right before (project set to "always chain the previous shot"): sent after the anchor —
-    07/10 Khủng Long Đỏ: "same frame as shot 3" came out in another frame because storyboard mode sent only the anchor (shot 1)."""
+    07/10 Khủng Long Đỏ: "same frame as shot 3" came out in another frame because storyboard mode sent only the anchor (shot 1).
+    A shot turned away from the landmark (turned_away, lỗi D 08/10 #24) gets NO anchor picture and a storyboard session of its own;
+    its people/outfits still come from `refs` (the shared references keep each character's pictures) and away_note goes with the
+    prompt. landmark = the place's landmark name for that sentence."""
     g = group_of(conn, pid, scene_id)
     if g is None:
         return None
     is_anchor = g["anchor"]["id"] == scene_id
-    anchor_pic = None if is_anchor else anchor_picture(conn, data_dir, pid, g["anchor"]["id"])
+    away = turned_away(g, scene_id)
+    anchor_pic = None if is_anchor or away else anchor_picture(conn, data_dir, pid, g["anchor"]["id"])
     send = list(refs) + ([{"path": anchor_pic, "label": "frame 1 (scene anchor)", "role": "previous_scene"}] if anchor_pic else [])
     prev_note = ""
     if previous and os.path.exists(previous) and previous != anchor_pic:
@@ -216,8 +251,11 @@ def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], j
         prev_note = PREVIOUS_NOTE.format(n=len(send))
     mode = "global" if refs else "sequential"
     anchor_job = job_id if is_anchor else int(os.path.basename(anchor_pic)[4:].split(".")[0].split("_")[0]) if anchor_pic else 0
-    return {"storyboard": {"story_text": story_text(conn, pid, g), "storyboard_id": storyboard_id(pid, g, anchor_job, 0 if is_anchor or not fresh_session(conn, job_id) else job_id),
+    fresh = 0 if is_anchor or not fresh_session(conn, job_id) else job_id
+    return {"storyboard": {"story_text": story_text(conn, pid, g),
+                           "storyboard_id": storyboard_id(pid, g, anchor_job, fresh, own_shot=scene_id if away else 0),
                            "frame_index": g["index"], "group_size": len(g["shots"]), "ref_mode": mode,
                            "image_mapping": (mapping_text(send, len(refs)) + (anchor_note(g, scene_id, len(refs) + 1) if anchor_pic else "")
                                              + prev_note) if send else ""},
-            "refs": send, "anchor": is_anchor, "cast_note": cast_note(g, scene_id)}
+            "refs": send, "anchor": is_anchor, "cast_note": cast_note(g, scene_id) + (away_note(landmark) if away else ""),
+            "anchor_skipped": away}
