@@ -89,3 +89,36 @@ class StoryboardMergeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VideoMergeTests(unittest.TestCase):
+    """Chụp màn 07/10 (màn Video): nhãn '3 cần duyệt' + thẻ 'Chờ duyệt 3' nhưng nút 'Duyệt tất cả (2 clip)' — clip vừa gen còn đang tự
+    kiểm (succeeded) bị đếm là 'cần duyệt'. Cờ chat_first: số khớp nút, clip đang tự kiểm nói riêng; bỏ 4 thẻ số + thanh % (bản đồ đã nói)."""
+
+    def test_counts_match_the_button_and_no_repeated_counters(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        for k, v in (("PIPELINE_DB", os.path.join(tmp, "m.sqlite")), ("PIPELINE_DATA", os.path.join(tmp, "projects")),
+                     ("KNOWLEDGE_USER_DIR", os.path.join(tmp, "ku")), ("FEATURE_CHAT_FIRST", "1")):
+            os.environ[k] = v
+            self.addCleanup(os.environ.pop, k, None)
+        p = Pipeline(connect(os.environ["PIPELINE_DB"]))
+        pid = p.create_project("x")
+        for i, state in enumerate(("pending_review", "pending_review", "succeeded"), 1):
+            sid = p.create_scene(pid, i, f"CẢNH {i}")
+            p.conn.execute("INSERT INTO jobs (project_id, scene_id, type, state, created_at, updated_at) VALUES (?,?,'image_gen','approved','t','t')",
+                           (pid, sid))
+            p.conn.execute("INSERT INTO motion_prompts (scene_id, motion_prompt, state) VALUES (?, 'x', 'approved')", (sid,))
+            p.conn.execute("INSERT INTO jobs (project_id, scene_id, type, state, created_at, updated_at) VALUES (?,?,'video_gen',?,'t','t')",
+                           (pid, sid, state))
+        p.conn.commit()
+        at = AppTest.from_file(APP, default_timeout=30)
+        at.session_state["step"] = "Video"
+        at.run()
+        self.assertFalse(at.exception)
+        page = " ".join(m.value for m in at.markdown) + " ".join(h.proto.body for h in at.get("html"))
+        self.assertNotIn("Clip dùng được", page)
+        self.assertIn("2 cần duyệt", page)
+        self.assertNotIn("3 cần duyệt", page)
+        self.assertIn("1 đang tự kiểm", page)
+        self.assertTrue(any(b.key == f"vid_ok_all_{pid}" and "(2 clip)" in b.label for b in at.button))

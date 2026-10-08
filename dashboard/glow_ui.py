@@ -7,9 +7,9 @@ from dashboard import common as C
 
 
 def targets(p, pid: int, screen: int) -> list:
-    """screen: 1 Kịch bản · 2 Storyboard · 3 Video (others → [])."""
+    """screen: 1 Kịch bản · 2 Storyboard · 3 Video · 4 Bản giao (others → [])."""
     from core import next_glow, stage_map
-    if screen not in (1, 2, 3) or not lit_for_me(p):
+    if screen not in (1, 2, 3, 4) or not lit_for_me(p):
         return []
     kind = None
     if screen == 1:
@@ -19,7 +19,21 @@ def targets(p, pid: int, screen: int) -> list:
         b_on, b_locked, _, _ = V._budget_state(p, pid)
         kind = V.next_kind(p, pid, scenes, chars, any(c["locked"] for c in chars), b_locked, b_on)
     return next_glow.target(screen, kind, stage_map.build(p.conn, pid), pid,
-                            on_motion_tab=st.session_state.get("sb_tab") == C.SB_TABS[1])
+                            on_motion_tab=st.session_state.get("sb_tab") == C.SB_TABS[1], final=_final(p, pid) if screen == 4 else "none")
+
+
+def _final(p, pid: int) -> str:
+    """Bản giao: none (chưa dựng) · unchecked (chưa 🔎 kiểm) · blocked (còn lỗi chặn) · ok — same reading as next_step (step 5)."""
+    import json
+    from core import lineage
+    fin = lineage.latest_output(p.conn, pid, "final")
+    if fin is None:
+        return "none"
+    try:
+        qc = json.loads(fin["manifest"] or "{}").get("final_qc")
+    except ValueError:
+        qc = None
+    return "unchecked" if not qc else ("blocked" if qc.get("blocks") else "ok")
 
 
 def _email():
@@ -50,7 +64,7 @@ def person_switch(p) -> None:
 
 def render(p, pid: int, step: str, visible) -> None:
     from core import features, next_glow
-    screen = {C.STEPS[1]: 1, C.STEPS[2]: 2, C.STEPS[3]: 3}.get(step)
+    screen = {C.STEPS[1]: 1, C.STEPS[2]: 2, C.STEPS[3]: 3, C.STEPS[4]: 4}.get(step)
     if not screen or not features.on("next_glow"):
         return
     css = next_glow.big_css(pid) + next_glow.css(targets(p, pid, screen), list(visible))

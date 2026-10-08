@@ -40,8 +40,9 @@ class TargetTests(unittest.TestCase):
         self.assertIn("@keyframes", css)
         self.assertIn("prefers-reduced-motion", css)
         self.assertIn("Bấm tiếp", css)
-        self.assertIn(".st-key-step [role=\"radiogroup\"] > label:nth-child(4)", css)     # Video = 4th screen in the bar
-        self.assertIn(".st-key-sb_tab [data-baseweb=\"tab\"]:nth-of-type(2)", css)
+        # DOM thật Streamlit 1.65 (đo bằng trình duyệt 07/10): mỗi ô thanh bước = div bọc label; tab = [role=tab][data-key=0..]
+        self.assertIn('.st-key-step [role="radiogroup"] > :nth-child(4) label', css)     # Video = 4th screen in the bar
+        self.assertIn('.st-key-sb_tab [role="tab"][data-key="1"]', css)
         self.assertEqual(G.css([], STEPS), "")
 
     def test_a_key_with_odd_characters_is_never_written_into_css(self):
@@ -107,9 +108,33 @@ class BandTests(unittest.TestCase):
         p = Pipeline(connect())
         pid = p.create_project("x")
         sid = p.create_scene(pid, 1, "CẢNH 1")
-        for kind, state in (("image_gen", "approved"), ("video_gen", "pending_review")):   # a real clip waits on an approved picture
+        for kind, state in (("image_gen", "approved"), ("video_gen", "running")):   # the clip is being made: nothing to press
             p.conn.execute("INSERT INTO jobs (project_id, scene_id, type, state, created_at, updated_at) VALUES (?,?,?,?,'t','t')",
                            (pid, sid, kind, state))
         p.conn.execute("INSERT INTO motion_prompts (scene_id, motion_prompt, state) VALUES (?, 'x', 'approved')", (sid,))
-        text, level = shell_parts.next_line(p, pid, 3, "")                       # Video screen: clips wait one by one — no lit button
+        text, level = shell_parts.next_line(p, pid, 3, "")                       # Video screen while a clip is made — no lit button
         self.assertFalse(text.startswith("🟢"), text)
+
+
+class VideoAndDeliveryTests(unittest.TestCase):
+    """Người dùng 07/10 ('làm tiếp'): cùng cách 'một nút chính sáng, to, gọn' ở màn Video và Bản giao."""
+
+    def test_video_screen_lights_approve_all_clips_when_clips_wait(self):
+        self.assertEqual(G.target(3, None, rows("done", "done", "review"), 5), [("key", "vid_ok_all_5")])
+
+    def test_delivery_screen_render_then_check(self):
+        done = rows("done", "done", "done")
+        self.assertEqual(G.target(4, None, done, 5, final="none"), [("key", "render_5")])
+        self.assertEqual(G.target(4, None, done, 5, final="unchecked"), [("key", "final_qc_btn_5")])
+        self.assertEqual(G.target(4, None, done, 5, final="ok"), [])
+        self.assertEqual(G.target(4, None, rows("done", "done", "none"), 5, final="none"), [("step", "Video")])   # clips first
+
+    def test_the_new_main_buttons_are_big_and_approve_all_clips_is_one_click(self):
+        import os
+        from dashboard.design import components as D
+        css = G.big_css(5)
+        for key in ("vid_ok_all_5", "render_5", "deliver_5"):
+            self.assertIn(f".st-key-{key} button", css)
+        os.environ["FEATURE_CHAT_FIRST"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_CHAT_FIRST", None)
+        self.assertTrue(D.one_click("vid_ok_all_5"))

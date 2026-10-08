@@ -17,8 +17,10 @@ def _any(rows, stage: str, *states: str) -> bool:
     return any(r[stage] in states for r in rows)
 
 
-def target(step: int, script_kind: Optional[str], rows: List[dict], pid: int, on_motion_tab: bool = False) -> List[Target]:
-    """step: 1 Kịch bản · 2 Storyboard · 3 Video (others: nothing). rows: core.stage_map.build."""
+def target(step: int, script_kind: Optional[str], rows: List[dict], pid: int, on_motion_tab: bool = False,
+           final: str = "none") -> List[Target]:
+    """step: 1 Kịch bản · 2 Storyboard · 3 Video · 4 Bản giao (others: nothing). rows: core.stage_map.build.
+    final (Bản giao): none (chưa dựng) · unchecked (đã dựng, chưa kiểm) · blocked / ok (đã kiểm)."""
     if step == 1:
         key = _SCRIPT.get(script_kind or "")
         return [("key", key.format(pid))] if key else []
@@ -36,10 +38,19 @@ def target(step: int, script_kind: Optional[str], rows: List[dict], pid: int, on
             return tab + [("key", f"llm_mot_{pid}")]
         return [("step", "Video")] if rows else []
     if step == 3:
+        if _any(rows, "video", "review"):
+            return [("key", f"vid_ok_all_{pid}")]
         if _any(rows, "video", "none", "failed", "stale"):
             return [("key", f"gen_vid_{pid}")]
         if rows and all(r["video"] == "done" for r in rows):
             return [("step", "Bản giao")]
+    if step == 4:
+        if rows and not all(r["video"] == "done" for r in rows):
+            return [("step", "Video")]                  # clips first: the cut is made from approved clips
+        if final == "none":
+            return [("key", f"render_{pid}")]
+        if final == "unchecked":
+            return [("key", f"final_qc_btn_{pid}")]
     return []
 
 
@@ -57,9 +68,10 @@ def css(targets: List[Target], steps: List[str]) -> str:
         if kind == "key" and isinstance(val, str) and _SAFE.match(val):
             sel.append((f".st-key-{val} button, .st-key-{val}_yes button, .st-key-{val} textarea", f".st-key-{val}"))   # _yes: câu hỏi Có/Không
         elif kind == "step" and val in steps:
-            sel.append((f'.st-key-step [role="radiogroup"] > label:nth-child({steps.index(val) + 1})', None))
+            # DOM thật Streamlit 1.65 (đo 07/10): mỗi ô của thanh bước là một div bọc label; tab là [role=tab][data-key=0..]
+            sel.append((f'.st-key-step [role="radiogroup"] > :nth-child({steps.index(val) + 1}) label', None))
         elif kind == "tab" and isinstance(val, int):
-            sel.append((f'.st-key-sb_tab [data-baseweb="tab"]:nth-of-type({val})', None))
+            sel.append((f'.st-key-sb_tab [role="tab"][data-key="{val - 1}"]', None))
     if not sel:
         return ""
     glow = ", ".join(s for s, _ in sel)
@@ -74,7 +86,7 @@ def css(targets: List[Target], steps: List[str]) -> str:
 
 
 MAIN = ("script-cta_{}", "script-cta-budget_{}", "script-cta-lock_{}", "script-cta-next_{}", "gen_img_{}", "approve_all", "llm_mot_{}",
-        "btn_ok_all", "gen_vid_{}")
+        "btn_ok_all", "gen_vid_{}", "vid_ok_all_{}", "render_{}", "deliver_{}")
 
 
 def big_css(pid: int) -> str:

@@ -298,9 +298,10 @@ def grid_v2(p: Pipeline, pid: int, proj) -> None:
         if st.session_state.get(sel_key) not in {j["id"] for j in jobs}:
             st.session_state[sel_key] = latest[shown_sids[0]]["id"] if shown_sids else jobs[0]["id"]
         stale = lineage.scan(p.conn, pid)
-        for col, sid in zip(D.grid(len(shown_sids), 4), shown_sids):      # 02/10: shared n-column card grid (components.grid)
-            with col:
-                SB.image_group_v2(p, pid, history[sid], proj, (stale.get(sid) or {}).get("image_stale"))
+        with st.container(key="sb-grid"):                             # 07/10 khung hẹp: 2 thẻ/hàng dưới 1100 px (theme.css)
+            for col, sid in zip(D.grid(len(shown_sids), 4), shown_sids):  # 02/10: shared n-column card grid (components.grid)
+                with col:
+                    SB.image_group_v2(p, pid, history[sid], proj, (stale.get(sid) or {}).get("image_stale"))
         if not shown_sids:
             st.markdown(D.empty_state("Không có ảnh nào trong bộ lọc này", "Chọn “Tất cả” để xem lại mọi cảnh."), unsafe_allow_html=True)
     SB.action_bar(p, pid)
