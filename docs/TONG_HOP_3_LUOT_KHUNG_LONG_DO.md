@@ -531,7 +531,7 @@ Không thay đổi nào được tự bật. Cột **Loại**:
 | KLD-23 | Dashboard / Gen video | Thẻ cảnh + ô chọn model hiện tên thật + độ phân giải (phần còn lại TODO mục 3) | UI | giảm (3,60 USD gửi nhầm 2.0 ở #22) | S | P2 |
 | KLD-25 | Đạo diễn / Khớp môi | director.md N3: dữ liệu #22 (ref-only + reference_audio 0,03 / 0,44; `dialogue_take` từng 0,72–0,96; trang phục che miệng thì chấp nhận) | prompt | — | S | P2 |
 | KLD-26 | Dựng / Hậu kỳ | Cảnh báo rung / nhún đặt trước giây nhạc nhảy vào | code-luật | — | S | P3 |
-| KLD-27 | Kho / hồ sơ | Hồ sơ chuẩn biến thể KL (mũ đỏ có sừng, khẩu trang đeo kín, tóc bob đen một màu) qua màn Kho; hỏi người dùng mũ Maxim đỏ hay đen | mặc định / dữ liệu | — | S (+ người duyệt) | P2 |
+| KLD-27 | Kho / hồ sơ | Hồ sơ chuẩn biến thể KL (khẩu trang đeo kín, tóc bob đen một màu) qua màn Kho. **Người dùng xác nhận 08/10: mũ Maxim KL là MŨ ĐEN SỪNG ĐỎ** (lượt 3 đúng); mô tả cũ "mũ đỏ có sừng" sai vì chỉ nhìn ảnh chính diện → hồ sơ/prompt phải sửa theo | mặc định / dữ liệu | — | S (+ người duyệt) | P2 |
 | KLD-30 | Tiền / thống kê | Chuẩn hóa định dạng giờ `usage_events.at` ↔ `jobs.created_at` trong công cụ thống kê | sửa lỗi | — | S | P3 |
 | KLD-31 | Đạo diễn | Ví dụ #22 (mỗi cảnh một clip 15 s → bịa áo; chia shot → đúng), độ tin 1 mẫu | prompt | — | S | P3 |
 | KLD-32 | Dịch | Prompt dịch: chữ nhiều nghĩa giữ nguyên + báo, không đoán | prompt | — | S | P3 |

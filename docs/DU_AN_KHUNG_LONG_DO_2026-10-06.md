@@ -13,7 +13,7 @@ mặc vào; Kelly vào thấy → "hô biến" mặc bộ nữ (cặp đôi); ch
 | Nhạc nhảy | **Tiếng gốc của clip trend** (`nhac_goc_34s.m4a`). |
 
 ## 2. Tư liệu (đã chuẩn bị, 0 USD)
-- Trang phục: `D:\2026\OB55\Thao\KHỦNG LONG ĐỎ\Male_Cos_Flamedino.png` (nam: hoodie đỏ in khủng long xanh phun lửa, tay áo đen, quần jean đen rách, mũ đỏ có sừng, khẩu trang đen răng cá mập, dép khủng long đỏ) · `Female_Cos_Flamedino.png` (nữ: áo croptop đỏ in khủng long xanh, áo khoác đỏ tay sọc đen, váy da đen ngắn có móc khủng long bông xanh, mũ đen, khẩu trang răng cá mập, tất đỏ/đen, dép quỷ đỏ).
+- Trang phục: `D:\2026\OB55\Thao\KHỦNG LONG ĐỎ\Male_Cos_Flamedino.png` (nam: hoodie đỏ in khủng long xanh phun lửa, tay áo đen, quần jean đen rách, mũ ĐEN có sừng ĐỎ (người dùng xác nhận 08/10 — "mũ đỏ" cũ là mô tả nhầm từ ảnh chính diện), khẩu trang đen răng cá mập, dép khủng long đỏ) · `Female_Cos_Flamedino.png` (nữ: áo croptop đỏ in khủng long xanh, áo khoác đỏ tay sọc đen, váy da đen ngắn có móc khủng long bông xanh, mũ đen, khẩu trang răng cá mập, tất đỏ/đen, dép quỷ đỏ).
   → đưa vào Kho qua màn Kịch bản (loại **Trang phục** / `outfit`, S14.28) rồi gán cho nhân vật trong dự án (`assets.set_outfit`). Kho nhân vật đã đủ 6 ảnh nên KHÔNG gắn skin vào Maxim/Kelly.
 - Clip nhảy: 1 người thật, toàn thân, máy đứng yên, 34,43 s, 576×1024 30 fps. Đã cắt + nâng 720×1280 (Kling cần cạnh ≥ 700, 3–15,5 s):
   `KHO TÀI NGUYÊN\video ref test\khung_long_do\nhay_doan1.mp4` (0–11,5) · `nhay_doan2.mp4` (11,5–23) · `nhay_doan3.mp4` (23–34,43) · `nhac_goc_34s.m4a`.
