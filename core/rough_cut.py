@@ -71,6 +71,37 @@ def shot_clock(p, project_id: int, final_row) -> List[Dict]:
     return out
 
 
+def glitch_hints(man: Dict, shots: List[Dict], measure=None) -> int:
+    """TODO điểm 12: where a shot's clip jumps (clip_measure.jerks: `jerks` = the whole picture's motion leaps, `cuts` = a cut left inside
+    the clip), in the clip's own seconds inside the part the cut uses — hints for the Editor's `cut_segment`, set as shot["glitches"].
+    A shot whose clip was already cut at its head / middle by an earlier edit is skipped (its seconds no longer match). Measured by code
+    (OpenCV, 0 USD); nothing measurable (no OpenCV, no file) = no hint. Returns how many shots got one."""
+    clips = [c.get("path") if isinstance(c, dict) else None for c in man.get("clips") or []]
+    if len(clips) != len(shots):
+        return 0
+    moved = {f.get("idx") for f in man.get("editor_fit") or [] if isinstance(f, dict) and f.get("how") in ("head", "cut")}
+    if measure is None:
+        try:
+            from . import clip_measure
+            clip_measure._cv()
+        except Exception:  # noqa: BLE001 - no OpenCV: the review goes on without hints
+            return 0
+        measure = clip_measure.jerks
+    found = 0
+    for s, path in zip(shots, clips):
+        if not path or not os.path.exists(path) or s.get("idx") in moved or s.get("dialogue") or s.get("lip_sync"):
+            continue
+        try:
+            got = measure(path) or {}
+        except Exception:  # noqa: BLE001 - one clip that cannot be measured gives no hint, the others still do
+            continue
+        inside = {k: [t for t in got.get(k) or [] if 0 < float(t) < s["seconds"]] for k in ("jerks", "cuts")}
+        if inside["jerks"] or inside["cuts"]:
+            s["glitches"] = {k: v for k, v in inside.items() if v}
+            found += 1
+    return found
+
+
 def by_scene(shots: List[Dict], intent: Dict) -> List[Dict]:
     """One record per script scene: the seconds it really got against the Director's `target_s`, its longest shot, the intent."""
     groups: Dict[object, List[Dict]] = {}
@@ -209,6 +240,7 @@ def build(p, project_id: int, data_dir: str, ffmpeg: Optional[str] = None, force
     shots = shot_clock(p, project_id, row)
     scenes = by_scene(shots, intent)
     man = _json(row["manifest"])
+    glitch_hints(man, shots)                       # TODO điểm 12: hints for cut_segment (clip_measure.jerks, code only)
     levels, spans, err = [], [], None
     try:
         from . import final_qc

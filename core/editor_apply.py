@@ -7,7 +7,8 @@
 
 What can be applied: `shorten_shot` (the clip's first seconds), `trim_head` (KLD-19: its first N seconds dropped — never a shot with speech /
 lip sync; a shot chained on the previous clip's last frame only with its join handled: `join`="trim_tail" cuts the end of the shot before
-too, a cover kind is drawn at that cut by the render, edits["join"]), `extend_hold` (its last frame held), `music_cue` (the shot's `sound.music` for THIS render — the
+too, a cover kind is drawn at that cut by the render, edits["join"]), `cut_segment` (TODO điểm 12: `start`–`end` s in the MIDDLE of
+the clip dropped, the halves joined on a matching cut or under a cover — edits["cut"], ffmpeg_studio.cut_segment), `extend_hold` (its last frame held), `music_cue` (the shot's `sound.music` for THIS render — the
 Director's plan in the database is not touched). Everything else the Editor proposes stays a suggestion (a transition style is one setting
 of the whole film; flags unverified are never switched on here). The person decides: a proposal the Director contested is applied only if
 the person ticks it.
@@ -100,14 +101,24 @@ def plan(p, project_id: int, data_dir: str, review: Dict, rc: Dict, ids: List[st
     refused += [{"id": i, "reason": r} for i, r in gone.items()]
     chosen = [f for f in chosen if f["id"] not in gone]
     clock = {s["n"]: s for s in rc.get("shots") or []}
-    durations, music, fit, applied, head, joins = list(base), {}, [], [], {}, {}
+    durations, music, fit, applied, head, joins, cuts = list(base), {}, [], [], {}, {}, {}
     for f in chosen:
         n = f["target_shot"]
         sid = (clock.get(n) or {}).get("scene_id")
         if not sid:
             refused.append({"id": f["id"], "reason": f"shot {n} không có dòng cảnh trong CSDL"})
             continue
-        if f["action"] in ("shorten_shot", "trim_head", "extend_hold"):
+        if f["action"] == "cut_segment":                 # TODO điểm 12: the middle stretch goes, the render joins the two halves
+            f = dict(f, amount=round(float(f["end"]) - float(f["start"]), 2))     # the length is the stretch's, whatever was written
+            new = round(durations[n - 1] - f["amount"], 2)
+            if new < shots_mod.MIN_SHOT:
+                refused.append({"id": f["id"], "reason": f"shot {n} sẽ ngắn hơn {shots_mod.MIN_SHOT:g} s"})
+                continue
+            durations[n - 1] = new
+            cuts[sid] = {"start": float(f["start"]), "end": float(f["end"]), "join": f.get("join") or editor_review.JOIN_MATCH}
+            if sid not in fit:
+                fit.append(sid)
+        elif f["action"] in ("shorten_shot", "trim_head", "extend_hold"):
             delta = f["amount"] if f["action"] == "extend_hold" else -f["amount"]
             new = round(durations[n - 1] + delta, 2)
             if new < shots_mod.MIN_SHOT:
@@ -132,12 +143,13 @@ def plan(p, project_id: int, data_dir: str, review: Dict, rc: Dict, ids: List[st
                 fit.append(sid)                  # the clip of this shot gets a copy of the new length (trim, or its last frame held)
         elif f["action"] == "music_cue":
             music[sid] = f["value"]
-        applied.append({k: f[k] for k in ("id", "action", "target_shot", "amount", "value", "observed", "why", "join", "join_amount") if k in f})
+        applied.append({k: f[k] for k in ("id", "action", "target_shot", "amount", "value", "observed", "why", "join", "join_amount",
+                                          "start", "end") if k in f})
     if not applied:
         raise ValueError("không còn đề xuất nào áp được: " + "; ".join(f"{r['id']} ({r['reason']})" for r in refused) if refused else
                          "chưa chọn đề xuất nào")
-    return {"durations": durations, "music": music, "fit": fit, "head": head, "join": joins, "clips": clips, "applied": applied, "refused": refused,
-            "base": base}
+    return {"durations": durations, "music": music, "fit": fit, "head": head, "join": joins, "cut": cuts, "clips": clips, "applied": applied,
+            "refused": refused, "base": base}
 
 
 # ---- quality gate ---------------------------------------------------------------------------------------------------------------------
@@ -222,7 +234,7 @@ def apply(p, project_id: int, data_dir: str, ids: List[str], render_fn: Optional
         info = {"round": int(meta.get("round") or 0) + 1, "from_output": old["id"], "root_output": meta.get("root_output", old["id"]),
                 "review": review["fingerprint"], "applied": pl["applied"], "durations_before": pl["base"], "durations_after": pl["durations"]}
         try:
-            new = render_fn(p, project_id, data_dir, "auto", clips=pl["clips"], durations=pl["durations"], edits={"music": pl["music"], "fit": pl["fit"], "head": pl.get("head") or {}, "join": pl.get("join") or {}, "meta": info})
+            new = render_fn(p, project_id, data_dir, "auto", clips=pl["clips"], durations=pl["durations"], edits={"music": pl["music"], "fit": pl["fit"], "head": pl.get("head") or {}, "join": pl.get("join") or {}, "cut": pl.get("cut") or {}, "meta": info})
         except Exception as e:  # noqa: BLE001 - whatever stopped the render: the old cut goes back, nothing half-applied stays current
             restored = _put_back(p, data_dir, project_id, old, old_path, out_path)
             log.append({"at": _now(), "review": review["fingerprint"], "ids": ids, "kept": False, "error": str(e)[:300], "restored_output": restored})

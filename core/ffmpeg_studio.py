@@ -270,6 +270,41 @@ def skip_head(src: str, dst: str, seconds: float, keep: Optional[float] = None, 
     return dst
 
 
+CUT_AUDIO_FADE_S = 0.02     # a few ms of fade at each side of the join: no click where the waveform is cut
+
+
+def cut_segment(src: str, dst: str, start: float, end: float, cover: Optional[str] = None, ffmpeg: Optional[str] = None) -> str:
+    """TODO điểm 12: the clip WITHOUT its `start`–`end` seconds (a bad stretch in the middle), re-encoded — frame accurate, the sound cut
+    with it. `cover`: one of EDGE_TRANSITIONS drawn at the join (tail of the first half, head of the second, as at a cut between two
+    shots), "shake" = the frame shakes where the halves meet; anything else = a plain cut. Raises ValueError for a stretch not inside."""
+    have = probe_duration(src)
+    if not have or not 0 < start < end < have:
+        raise ValueError(f"đoạn {start:g}–{end:g} s không nằm trong clip ({have or 0:.2f} s)")
+    ff = ffmpeg or find_ffmpeg()
+    first, second = round(start, 3), round(have - end, 3)
+    size = probe_size(src) if cover in ("zoom_through", "shake") else None      # zoompan / the shake's crop need the frame's size
+    tail = edge_filter(first, tail=cover, size=size) if cover in EDGE_TRANSITIONS else None
+    head = edge_filter(second, head=cover, size=size) if cover in EDGE_TRANSITIONS else None
+    v = [f"[0:v]trim=start=0:end={start:.3f},setpts=PTS-STARTPTS{',' + tail if tail else ''}[v0]",
+         f"[0:v]trim=start={end:.3f},setpts=PTS-STARTPTS{',' + head if head else ''}[v1]"]
+    audio = has_audio(src)
+    if audio:
+        fd = CUT_AUDIO_FADE_S
+        v += [f"[0:a]atrim=start=0:end={start:.3f},asetpts=PTS-STARTPTS,afade=t=out:st={max(start - fd, 0):.3f}:d={fd}[a0]",
+              f"[0:a]atrim=start={end:.3f},asetpts=PTS-STARTPTS,afade=t=in:st=0:d={fd}[a1]",
+              "[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][ac]"]
+    else:
+        v.append("[v0][v1]concat=n=2:v=1:a=0[vc]")
+    if cover == "shake":
+        w, h = size or (1080, 1920)
+        v.append(f"[vc]{shake_filter([start])},scale={w}:{h}[vo]")
+    else:
+        v.append("[vc]null[vo]")
+    cmd = [ff, "-y", "-i", src, "-filter_complex", ";".join(v), "-map", "[vo]"] + (["-map", "[ac]", *AAC] if audio else []) + [*_ENCODE, dst]
+    run(cmd)
+    return dst
+
+
 def hold_last_frame(src: str, dst: str, extra: float, ffmpeg: Optional[str] = None) -> str:
     """The clip followed by its own last frame for `extra` seconds (sound padded with silence)."""
     ff = ffmpeg or find_ffmpeg()

@@ -33,6 +33,16 @@ thì nói vậy và trả danh sách rỗng — không bịa chỗ để sửa.
     1. `"join": "trim_tail"`, `"join_amount"` (giây, 0,2–3) — cắt luôn **đuôi** shot trước để hai đầu gặp nhau ở cùng một nhịp động tác (shot trước không được có thoại / khớp môi, vẫn ≥ độ dài tối thiểu). **Ưu tiên cách này** khi hai đầu là cùng một động tác: nhìn tấm ảnh, chọn số giây sao cho tư thế cuối shot trước ≈ tư thế đầu phần còn lại của shot này.
     2. `"join"` ∈ `flash` (chớp trắng) · `dip` (tối đi) · `whip` (lia nhòe) · `zoom_through` (lao vào khung) · `shake` (rung khung) — che chỗ nối khi hai đầu **không** khớp được động tác. Không loại nào có nghĩa mặc định: chọn theo nhịp và nội dung hai shot (vd lia nhòe hợp khi máy / nhân vật đang chuyển động nhanh cùng hướng; chớp trắng hợp một cú bùng; rung hợp một va chạm). Chuyển cảnh che máy phải được thiết kế **trong chuyển động** của hai shot, không dán lên chỗ đứng yên.
     Ghi rõ trong `why` vì sao chọn cách đó (khớp được động tác hay không, nhịp ra sao).
+- `cut_segment` — `target_shot`, `start`, `end` (giây **tính trong clip của shot**, 0 = khung đầu của shot trên bản dựng; đoạn dài 0,2–3 s): bỏ một
+  **đoạn lỗi ở giữa** clip (tay / mặt biến dạng, giật, một cú cắt lẫn trong clip) và nối hai phần còn lại. Dùng khi lỗi **ngắn** và **hai
+  bên đều còn dùng được**; lỗi sát đầu → `trim_head`, sát cuối → `shorten_shot`; lỗi kéo dài gần hết shot → `retrim_from_raw`.
+  - Mốc gợi ý: trường `glitches` của shot trong đồng hồ (`jerks` = chuyển động cả khung nhảy vọt, `cuts` = cú cắt lẫn trong clip, giây trong
+    clip, đo bằng máy). Chỉ là gợi ý — đối chiếu tấm ảnh nếu có; chọn `start` / `end` ôm trọn chỗ lỗi.
+  - **Bắt buộc** `"join"`: `match_cut` (hai bên khớp động tác / tư thế — cắt thẳng không thấy) hoặc một loại che `flash` · `dip` · `whip` ·
+    `zoom_through` · `shake` (khi hai bên lệch tư thế). Không loại nào có nghĩa mặc định; ghi trong `why` vì sao bỏ đoạn này và vì sao nối
+    như vậy.
+  - Không dùng cho shot có thoại / khớp môi; phần còn lại phải ≥ độ dài tối thiểu; không đẩy cảnh xa `target_s` — code từ chối.
+    Không gộp với `trim_head` trên cùng shot trong một lượt.
 - `extend_hold` — `target_shot`, `amount` (giây thêm, 0,2–3): **đóng băng khung cuối** của shot thêm chừng đó giây (không có thêm chuyển động) — chỉ khi khoảnh khắc cuối cần thời gian để người xem nhận.
 - `music_cue` — `target_shot`, `value` ∈ `keep` · `cut` · `in` · `breath` (ý đồ nhạc tại shot đó).
 - `transition` — `target_shot` (shot đầu cảnh mới), `value` ∈ `cut` · `crossfade` · `dip_to_black`. **Chỉ là gợi ý**: kiểu chuyển cảnh là cài đặt chung của cả phim, chưa chỉnh được từng chỗ.
@@ -50,5 +60,5 @@ Chỉ trả về **một JSON hợp lệ**:
  "findings": [{"at_s": 0.0, "scene": 1, "observed": "drag", "evidence": "trích trường / số / nhãn ảnh",
                "action": "shorten_shot", "target_shot": 3, "amount": 0.6, "value": "", "why": "một câu"}]}
 ```
-(`join` / `join_amount` chỉ thêm vào đề xuất `trim_head`, bắt buộc khi shot là `chained`.)
+(`join` / `join_amount` chỉ thêm vào đề xuất `trim_head`, bắt buộc khi shot là `chained`. `start` / `end` + `join` chỉ cho `cut_segment`.)
 `value` để chuỗi rỗng khi action không cần; `amount` để 0 khi không cần; `target_shot` để 0 khi không cần (`suggest_flag`, `none`).
