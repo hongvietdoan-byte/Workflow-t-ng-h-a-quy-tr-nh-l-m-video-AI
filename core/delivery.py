@@ -302,13 +302,14 @@ def twist_times(p: Pipeline, project_id: int, rows: List[Dict], durations: List[
     return (marked or ([hero] if hero is not None else []))[:2]
 
 
-def shake_in_times(p: Pipeline, rows: List[Dict], durations: List[float], transition: str = "cut", fade: float = 1.0) -> List[float]:
+def shake_in_times(p: Pipeline, rows: List[Dict], durations: List[float], transition: str = "cut", fade: float = 1.0,
+                   edits: Optional[Dict] = None) -> List[float]:
     """07/10 (Khủng Long Đỏ, "hô biến"): the starts of the shots marked `shake_in` on the render's own timeline — the frame shakes there
-    like on an impact sound."""
+    like on an impact sound. `edits["join"]` "shake" (KLD-19 c) marks one for this render only."""
     overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
     t, out = 0.0, []
     for r, d in zip([r for r in rows if r.get("path")], durations):
-        if scene_data(p, r.get("scene_id")).get("shake_in"):
+        if scene_data(p, r.get("scene_id"), edits).get("shake_in"):
             out.append(round(t, 2))
         t += float(d) - overlap
     return out
@@ -323,6 +324,11 @@ def scene_data(p: Pipeline, scene_id, edits: Optional[Dict] = None) -> Dict:
     music = ((edits or {}).get("music") or {}).get(scene_id)
     if music:
         data = dict(data, sound=dict(data.get("sound") if isinstance(data.get("sound"), dict) else {}, music=music))
+    join = ((edits or {}).get("join") or {}).get(scene_id)       # KLD-19 (c): the cover of a chained join the person approved
+    if join == "shake":
+        data = dict(data, shake_in=True)
+    elif join:
+        data = dict(data, transition_in=join)
     return data
 
 
@@ -383,17 +389,26 @@ def _flashbacks(p: Pipeline, rows: List[Dict], paths: List[str], durations: List
 TRANSITIONS_IN = ("cut", "match", "occlusion", "flash", "dip", "whip", "zoom_through", "j_cut", "l_cut")
 
 
-def _edge_transitions(p: Pipeline, rows: List[Dict], paths: List[str], durations: List[float], work_dir: str) -> List[Dict]:
+def _edge_transitions(p: Pipeline, rows: List[Dict], paths: List[str], durations: List[float], work_dir: str,
+                      edits: Optional[Dict] = None) -> List[Dict]:
     """S3.6 (feature shot_transitions): each shot's `transition_in` drawn at its cut — the end of the shot before and the start of this
     one, inside the clips (ffmpeg_studio.add_edges), so no second of the film moves. `paths` is changed in place. Returns
-    [{"idx", "head", "tail", "path"} | {"idx", "error"}] for the manifest."""
+    [{"idx", "head", "tail", "path"} | {"idx", "error"}] for the manifest.
+    KLD-19 (c): a cover the person approved for a chained join (`edits["join"]`, editor_apply) is drawn even with the flag off — only at
+    those cuts; the shots' own `transition_in` still waits for the flag."""
     from . import features
-    if not features.on("shot_transitions"):
+    joins = {k: v for k, v in ((edits or {}).get("join") or {}).items() if v in ffmpeg_studio.EDGE_TRANSITIONS}
+    flag = features.on("shot_transitions")
+    if not flag and not joins:
         return []
     usable = [r for r in rows if r.get("path")]
     kinds = []
     for r in usable:
-        row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (r.get("scene_id"),)).fetchone() if r.get("scene_id") else None
+        sid = r.get("scene_id")
+        if sid in joins:
+            kinds.append(joins[sid])
+            continue
+        row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone() if sid and flag else None
         kinds.append(str(json.loads(row["data"] or "{}").get("transition_in") or "cut") if row else "cut")
     out = []
     for i, (r, d) in enumerate(zip(usable, durations)):
@@ -546,7 +561,7 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     fitted_edits = _fit_edits(rows, paths, durations, edits, os.path.join(output_dir(data_dir, project_id), "_fit"))
     colour = _colour_match(p, project_id, rows, paths, os.path.join(output_dir(data_dir, project_id), "_colour"))
     flashbacks = _flashbacks(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))
-    edges = _edge_transitions(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_edges"))
+    edges = _edge_transitions(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_edges"), edits)
     durations = list(durations)
     held = _hold_end(paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))   # after the voices are placed
     track = selected_music(data_dir, project_id) if music_path == "auto" else music_path
@@ -607,7 +622,7 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
             if os.path.exists(staged):
                 os.remove(staged)
     hits = impact_times(audio_lib.assets_dir(data_dir, project_id)) if features.on("impact_shake") else []
-    hits = sorted(set(hits) | set(shake_in_times(p, rows, durations, settings["transition"], settings["fade"])))   # a shake the person set
+    hits = sorted(set(hits) | set(shake_in_times(p, rows, durations, settings["transition"], settings["fade"], edits)))   # a shake the person set
     shake_error = None
     if hits:                              # D9: the frame shakes on the hits the sound design placed
         staged = out + ".shake.mp4"

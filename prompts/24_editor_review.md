@@ -28,7 +28,11 @@ thì nói vậy và trả danh sách rỗng — không bịa chỗ để sửa.
 
 `action` và trường kèm theo:
 - `shorten_shot` — `target_shot` (số thứ tự shot `n`), `amount` (giây bớt, 0,2–3): cắt bớt **cuối** shot (giữ phần đầu clip).
-- `trim_head` — `target_shot`, `amount` (giây bỏ, 0,2–3): bỏ **đầu** shot (giữ phần sau) — khi đoạn đầu clip lệch / khựng / lặp động tác ở chỗ nối (vd nối 254 → 255 giật ở giây 1,5 của 255). Không dùng cho shot có thoại / khớp môi / shot nối khung (`chained`: bắt đầu từ khung cuối clip trước) — code từ chối.
+- `trim_head` — `target_shot`, `amount` (giây bỏ, 0,2–3): bỏ **đầu** shot (giữ phần sau) — khi đoạn đầu clip lệch / khựng / lặp động tác ở chỗ nối (vd nối 254 → 255 giật ở giây 1,5 của 255). Không dùng cho shot có thoại / khớp môi — code từ chối.
+  - **Shot nối khung** (`chained`: bắt đầu từ khung cuối clip trước): bỏ đầu thì chỗ nối mất khớp, nên **phải chọn cách xử lý chỗ nối trong cùng đề xuất** (thiếu → code từ chối):
+    1. `"join": "trim_tail"`, `"join_amount"` (giây, 0,2–3) — cắt luôn **đuôi** shot trước để hai đầu gặp nhau ở cùng một nhịp động tác (shot trước không được có thoại / khớp môi, vẫn ≥ độ dài tối thiểu). **Ưu tiên cách này** khi hai đầu là cùng một động tác: nhìn tấm ảnh, chọn số giây sao cho tư thế cuối shot trước ≈ tư thế đầu phần còn lại của shot này.
+    2. `"join"` ∈ `flash` (chớp trắng) · `dip` (tối đi) · `whip` (lia nhòe) · `zoom_through` (lao vào khung) · `shake` (rung khung) — che chỗ nối khi hai đầu **không** khớp được động tác. Không loại nào có nghĩa mặc định: chọn theo nhịp và nội dung hai shot (vd lia nhòe hợp khi máy / nhân vật đang chuyển động nhanh cùng hướng; chớp trắng hợp một cú bùng; rung hợp một va chạm). Chuyển cảnh che máy phải được thiết kế **trong chuyển động** của hai shot, không dán lên chỗ đứng yên.
+    Ghi rõ trong `why` vì sao chọn cách đó (khớp được động tác hay không, nhịp ra sao).
 - `extend_hold` — `target_shot`, `amount` (giây thêm, 0,2–3): **đóng băng khung cuối** của shot thêm chừng đó giây (không có thêm chuyển động) — chỉ khi khoảnh khắc cuối cần thời gian để người xem nhận.
 - `music_cue` — `target_shot`, `value` ∈ `keep` · `cut` · `in` · `breath` (ý đồ nhạc tại shot đó).
 - `transition` — `target_shot` (shot đầu cảnh mới), `value` ∈ `cut` · `crossfade` · `dip_to_black`. **Chỉ là gợi ý**: kiểu chuyển cảnh là cài đặt chung của cả phim, chưa chỉnh được từng chỗ.
@@ -46,4 +50,5 @@ Chỉ trả về **một JSON hợp lệ**:
  "findings": [{"at_s": 0.0, "scene": 1, "observed": "drag", "evidence": "trích trường / số / nhãn ảnh",
                "action": "shorten_shot", "target_shot": 3, "amount": 0.6, "value": "", "why": "một câu"}]}
 ```
+(`join` / `join_amount` chỉ thêm vào đề xuất `trim_head`, bắt buộc khi shot là `chained`.)
 `value` để chuỗi rỗng khi action không cần; `amount` để 0 khi không cần; `target_shot` để 0 khi không cần (`suggest_flag`, `none`).

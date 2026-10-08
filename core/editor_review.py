@@ -23,7 +23,7 @@ from . import claude_tasks, cost, director_two_pass, features, llm_runner, rough
 
 STAGE = "editor"
 PROMPT_EDITOR, PROMPT_DIRECTOR = "24_editor_review.md", "25_director_on_editor.md"
-PROMPT_VERSION = 3                       # bump when a prompt or a list below changes: a saved review then expires
+PROMPT_VERSION = 4                    # bump when a prompt or a list below changes: a saved review then expires
 MAX_FINDINGS = 6                         # a longer list drowns the cut ("fix everything" ruins its rhythm)
 RUN_CAP_USD = 0.40                       # one review (two calls, ~0.17 USD estimated): the hard lock of the task (llm_runner.spend_cap)
 AMOUNT_MIN, AMOUNT_MAX = 0.2, 3.0
@@ -31,6 +31,12 @@ OBSERVED = ("drag", "rush", "cut_off_beat", "peak_unsupported", "music_competes"
 ACTIONS = ("shorten_shot", "trim_head", "extend_hold", "music_cue", "transition", "slow_or_freeze", "suggest_flag", "retrim_from_raw", "none")
 FLAG_HINTS = ("j_cut", "motion_trim", "speed_ramp")
 TRANSITIONS = ("cut", "crossfade", "dip_to_black")
+# KLD-19 (c), người dùng 08/10: a chained shot (start_from_prev_clip) may lose its head only when the join is handled in the SAME proposal —
+# `join`: "trim_tail" (the shot before loses `join_amount` s of its end, so both ends meet on the same motion) or a cover drawn at that
+# cut (ffmpeg_studio.EDGE_TRANSITIONS + "shake"). No kind has a fixed meaning: the Editor picks by the rhythm and the two shots' content.
+JOIN_TAIL = "trim_tail"
+JOIN_COVERS = ("flash", "dip", "whip", "zoom_through", "shake")
+JOIN_LABEL = {"flash": "chớp trắng", "dip": "tối đi", "whip": "lia nhòe", "zoom_through": "lao vào khung", "shake": "rung khung"}
 # The shared priority scale (knowledge/roles/README.md, Dựng row): clear speech / legible text first, then the cut's rhythm, then continuity,
 # then looks. Used to order what the person reads — never to drop a proposal.
 RANK = {"music_competes": 1, "peak_unsupported": 1, "silence_wanted": 1, "drag": 3, "rush": 3, "cut_off_beat": 3, "flat_run": 3,
@@ -70,12 +76,13 @@ def _check_editor(obj) -> None:
         for key in ("observed", "evidence", "action", "why"):
             if not isinstance(f.get(key), str):
                 raise SchemaError(f"findings[{i}].{key}: cần chữ")
-        for key in ("at_s", "target_shot", "amount"):
+        for key in ("at_s", "target_shot", "amount", "join_amount"):
             if f.get(key) is None:
                 f[key] = 0
             if not isinstance(f[key], (int, float)) or isinstance(f[key], bool):
                 raise SchemaError(f"findings[{i}].{key}: cần số")
         f["value"] = str(f.get("value") or "")
+        f["join"] = str(f.get("join") or "")
 
 
 def _scene_seconds(clock: List[Dict]) -> Dict[object, float]:
@@ -122,10 +129,33 @@ def vet(findings: List[Dict], res: Dict) -> Tuple[List[Dict], List[Dict]]:
         if act in ("shorten_shot", "trim_head", "extend_hold", "slow_or_freeze") and (shot["dialogue"] or shot["lip_sync"]):
             no(f, f"shot {shot['n']} có thoại / khớp môi — không đụng")
             continue
-        # KLD-19: a shot that starts on the previous clip's last frame (start_from_prev_clip) is joined by construction — its head stays
-        if act == "trim_head" and shot.get("chained"):
-            no(f, f"shot {shot['n']} là shot nối khung (bắt đầu từ khung cuối clip trước) — không bỏ đầu")
-            continue
+        # KLD-19 (c): a shot that starts on the previous clip's last frame (start_from_prev_clip) loses its head only with the join handled
+        # in the same proposal — the tail before cut too (both ends on the same motion) or a cover drawn at that cut
+        join = str(f.get("join") or "") if act == "trim_head" else ""
+        join_amount = float(f.get("join_amount") or 0) if join == JOIN_TAIL else 0.0
+        prev = clock.get(shot["n"] - 1) if shot else None
+        if act == "trim_head":
+            how = (f"chọn cách xử lý chỗ nối: join=\"{JOIN_TAIL}\" + join_amount (cắt đuôi shot trước cho khớp động tác) hoặc "
+                   f"join={'/'.join(JOIN_COVERS)} (chuyển cảnh / hiệu ứng che chỗ nối)")
+            if shot.get("chained") and not join:
+                no(f, f"shot {shot['n']} là shot nối khung (bắt đầu từ khung cuối clip trước) — bỏ đầu mà không xử lý chỗ nối sẽ giật; {how}")
+                continue
+            if join and join != JOIN_TAIL and join not in JOIN_COVERS:
+                no(f, f"join '{join}' không thuộc danh sách — {how}")
+                continue
+            if join == JOIN_TAIL:
+                if prev is None:
+                    no(f, f"shot {shot['n']} không có shot trước để cắt đuôi — chọn cách xử lý chỗ nối khác")
+                    continue
+                if prev["dialogue"] or prev["lip_sync"]:
+                    no(f, f"shot {prev['n']} có thoại / khớp môi — không cắt đuôi; chọn cách xử lý chỗ nối khác (chuyển cảnh / hiệu ứng)")
+                    continue
+                if not AMOUNT_MIN <= join_amount <= AMOUNT_MAX:
+                    no(f, f"join_amount {join_amount:g} ngoài {AMOUNT_MIN:g}–{AMOUNT_MAX:g} s")
+                    continue
+                if prev["seconds"] - join_amount < shots_mod.MIN_SHOT:
+                    no(f, f"cắt đuôi {join_amount:g} s làm shot {prev['n']} ngắn hơn {shots_mod.MIN_SHOT:g} s")
+                    continue
         if act in ("shorten_shot", "trim_head", "extend_hold"):
             if not AMOUNT_MIN <= amount <= AMOUNT_MAX:
                 no(f, f"amount {amount:g} ngoài {AMOUNT_MIN:g}–{AMOUNT_MAX:g} s")
@@ -133,16 +163,23 @@ def vet(findings: List[Dict], res: Dict) -> Tuple[List[Dict], List[Dict]]:
             if act in ("shorten_shot", "trim_head") and shot["seconds"] - amount < shots_mod.MIN_SHOT:
                 no(f, f"cắt {amount:g} s làm shot {shot['n']} ngắn hơn {shots_mod.MIN_SHOT:g} s")
                 continue
-            delta = amount if act == "extend_hold" else -amount
-            sc = shot["story_scene"]
-            target = (scenes.get(sc) or {}).get("target_s")
-            if isinstance(target, (int, float)):
-                tol = max(rough_cut.OFF_TARGET_MIN_S, rough_cut.OFF_TARGET_SHARE * float(target))
-                before, after = abs(seconds[sc] - float(target)), abs(seconds[sc] + delta - float(target))
-                if after > before and after > tol:
-                    no(f, f"đẩy cảnh {sc} xa `target_s` {float(target):g} s hơn (còn lệch {after:.1f} s)")
-                    continue
-            seconds[sc] += delta
+            deltas: Dict[object, float] = {shot["story_scene"]: amount if act == "extend_hold" else -amount}
+            if join_amount:
+                deltas[prev["story_scene"]] = deltas.get(prev["story_scene"], 0.0) - join_amount
+            far = None
+            for sc, delta in deltas.items():
+                target = (scenes.get(sc) or {}).get("target_s")
+                if isinstance(target, (int, float)):
+                    tol = max(rough_cut.OFF_TARGET_MIN_S, rough_cut.OFF_TARGET_SHARE * float(target))
+                    before, after = abs(seconds[sc] - float(target)), abs(seconds[sc] + delta - float(target))
+                    if after > before and after > tol:
+                        far = f"đẩy cảnh {sc} xa `target_s` {float(target):g} s hơn (còn lệch {after:.1f} s)"
+                        break
+            if far:
+                no(f, far)
+                continue
+            for sc, delta in deltas.items():
+                seconds[sc] += delta
         elif act == "music_cue" and value not in sound_intent.MUSIC:
             no(f, f"value '{value}' không thuộc {'/'.join(sound_intent.MUSIC)}")
             continue
@@ -171,7 +208,8 @@ def vet(findings: List[Dict], res: Dict) -> Tuple[List[Dict], List[Dict]]:
                          "scene": f.get("scene") if f.get("scene") is not None else (shot or {}).get("story_scene"),
                          "observed": f["observed"], "rank": RANK.get(f["observed"], 5), "evidence": f["evidence"].strip(),
                          "action": act, "target_shot": shot["n"] if shot else 0, "amount": amount, "value": value,
-                         "why": f["why"].strip(), "applicable": applicable})
+                         "why": f["why"].strip(), "applicable": applicable,
+                         **({"join": join, "join_amount": join_amount} if join else {})})
     return accepted, rejected
 
 
@@ -251,7 +289,8 @@ def editor_prompt(res: Dict) -> Tuple[str, List[Tuple[str, str]]]:
 
 def director_prompt(p, project_id: int, res: Dict, accepted: List[Dict]) -> str:
     intent = director_two_pass.intent_all(p, project_id)
-    shown = [{k: f[k] for k in ("id", "at_s", "scene", "observed", "evidence", "action", "target_shot", "amount", "value", "why")} for f in accepted]
+    shown = [{k: f.get(k) for k in ("id", "at_s", "scene", "observed", "evidence", "action", "target_shot", "amount", "value", "why",
+                                    "join", "join_amount") if k in f} for f in accepted]
     return "\n\n---\n\n".join([claude_tasks._read("prompts", PROMPT_DIRECTOR),
                               claude_tasks._block("Ý đồ của bạn (theo cảnh)", [{"scene": i, **s} for i, s in sorted(intent["scenes"].items())]),
                               claude_tasks._block("Đồng hồ shot", _clock(res)),
@@ -302,6 +341,11 @@ def run(p, project_id: int, client, data_dir: str, force: bool = False) -> Dict:
 
 def describe(f: Dict) -> str:
     """One proposal in a few words ("bớt 0,6 s", "nhạc → cut")."""
+    join = f.get("join")
+    if f["action"] == "trim_head" and join:
+        how = (f"cắt {float(f.get('join_amount') or 0):g} s đuôi shot {f['target_shot'] - 1}" if join == JOIN_TAIL
+               else f"che chỗ nối bằng {JOIN_LABEL.get(join, join)}")
+        return f"bỏ {f['amount']:g} s đầu + {how}"
     return {"shorten_shot": f"bớt {f['amount']:g} s", "trim_head": f"bỏ {f['amount']:g} s đầu", "extend_hold": f"giữ khung cuối thêm {f['amount']:g} s", "music_cue": f"nhạc → {f['value']}",
             "transition": f"chuyển cảnh → {f['value']}", "slow_or_freeze": f"{f['value']}", "suggest_flag": f"thử bật {f['value']}",
             "retrim_from_raw": "cắt lại từ clip gốc", "none": "nhận xét"}.get(f["action"], f["action"])

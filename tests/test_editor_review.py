@@ -62,10 +62,44 @@ class VetTests(unittest.TestCase):
         res["shots"][2]["chained"] = True                       # starts on the previous clip's last frame (start_from_prev_clip)
         ok, no = editor_review.vet([f(action="trim_head", target_shot=3, amount=0.5, scene=2)], res)
         self.assertEqual(ok, [])
-        self.assertIn("nối", no[0]["reason"])
+        self.assertIn("chọn cách xử lý chỗ nối", no[0]["reason"])
         self.assertTrue(self.vet(f(action="trim_head", target_shot=3, amount=9, scene=2))[1])
         self.assertIn("ngắn hơn", self.vet(f(action="trim_head", target_shot=4, amount=0.4, scene=2))[1][0]["reason"])
         self.assertIn("trim_head", open(os.path.join(os.path.dirname(__file__), "..", "prompts", "24_editor_review.md"), encoding="utf-8").read())
+
+    def chained(self):
+        res = {"shots": [dict(s) for s in RES["shots"]], "scenes": RES["scenes"]}
+        res["shots"][2]["chained"] = True                       # shot 3 starts on shot 2's last frame
+        return res
+
+    def test_a_chained_shot_may_lose_its_head_when_the_tail_before_goes_too(self):
+        # KLD-19 (c), người dùng 08/10: (1) cắt luôn đuôi shot trước để hai đầu khớp động tác
+        ok, no = editor_review.vet([f(action="trim_head", target_shot=3, amount=0.5, scene=2, join="trim_tail", join_amount=0.5)],
+                                   self.chained())
+        self.assertEqual((len(ok), no), (1, []))
+        self.assertEqual((ok[0]["join"], ok[0]["join_amount"], ok[0]["applicable"]), ("trim_tail", 0.5, True))
+        self.assertIn("đuôi", editor_review.describe(ok[0]))
+        # the tail of the shot before obeys the same limits: MIN_SHOT, no speech
+        res = self.chained()
+        res["shots"][1]["seconds"] = 0.8
+        self.assertIn("ngắn hơn", editor_review.vet([f(action="trim_head", target_shot=3, amount=0.5, scene=2, join="trim_tail",
+                                                       join_amount=0.5)], res)[1][0]["reason"])
+        res = self.chained()
+        res["shots"][1]["dialogue"] = True
+        self.assertIn("thoại", editor_review.vet([f(action="trim_head", target_shot=3, amount=0.5, scene=2, join="trim_tail",
+                                                    join_amount=0.5)], res)[1][0]["reason"])
+        self.assertTrue(editor_review.vet([f(action="trim_head", target_shot=3, amount=0.5, scene=2, join="trim_tail", join_amount=9)],
+                                          self.chained())[1])
+
+    def test_a_chained_shot_may_lose_its_head_when_a_transition_or_effect_covers_the_join(self):
+        # KLD-19 (c): (2) chuyển cảnh / hiệu ứng che chỗ nối — any kind the render can draw, not only at a scene change
+        for kind in ("flash", "dip", "whip", "zoom_through", "shake"):
+            ok, no = editor_review.vet([f(action="trim_head", target_shot=3, amount=0.5, scene=2, join=kind)], self.chained())
+            self.assertEqual((len(ok), no), (1, []), kind)
+            self.assertTrue(ok[0]["applicable"])
+        ok, no = editor_review.vet([f(action="trim_head", target_shot=3, amount=0.5, scene=2, join="sparkles")], self.chained())
+        self.assertEqual(ok, [])
+        self.assertIn("chỗ nối", no[0]["reason"])
 
     def test_numbers_are_bounded_by_the_clock(self):
         self.assertTrue(self.vet(f(amount=9))[1])                                   # above the largest cut

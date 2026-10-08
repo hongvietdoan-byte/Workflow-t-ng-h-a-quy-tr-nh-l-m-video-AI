@@ -74,6 +74,28 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(pl["head"], {20: 0.5})
         self.assertEqual(self.plan([prop("F1", "shorten_shot", 1, 0.5)], ["F1"])["head"], {})
 
+    def test_a_chained_trim_head_without_a_join_is_refused(self):
+        self.rc["shots"][2]["chained"] = True
+        with self.assertRaises(ValueError) as e:
+            self.plan([prop("F1", "trim_head", 3, 0.5, scene=2)], ["F1"])
+        self.assertIn("chọn cách xử lý chỗ nối", str(e.exception))
+
+    def test_a_chained_trim_head_with_the_tail_before_cuts_both_ends_of_the_join(self):
+        self.rc["shots"][2]["chained"] = True
+        self.rc["scenes"][1]["target_s"] = None
+        pl = self.plan([dict(prop("F1", "trim_head", 3, 0.5, scene=2), join="trim_tail", join_amount=0.4)], ["F1"])
+        self.assertEqual(pl["durations"], [3.0, 2.6, 2.5])
+        self.assertEqual(sorted(pl["fit"]), [20, 30])
+        self.assertEqual(pl["head"], {30: 0.5})
+        self.assertEqual(pl["join"], {})
+
+    def test_a_chained_trim_head_with_a_cover_sends_it_to_the_render(self):
+        self.rc["shots"][2]["chained"] = True
+        self.rc["scenes"][1]["target_s"] = None
+        pl = self.plan([dict(prop("F1", "trim_head", 3, 0.5, scene=2), join="flash")], ["F1"])
+        self.assertEqual(pl["durations"], [3.0, 3.0, 2.5])
+        self.assertEqual((pl["head"], pl["join"]), ({30: 0.5}, {30: "flash"}))
+
     def test_a_shot_without_a_scene_row_is_refused(self):
         self.rc["shots"][1]["scene_id"] = None
         pl = self.plan([prop("F1", "shorten_shot", 1, 0.5), prop("F2", "music_cue", 2, value="cut")], ["F1", "F2"])
@@ -316,6 +338,24 @@ class RealRenderTests(unittest.TestCase):
         self.assertEqual([(f["from_s"], f["to_s"], f["how"], f["head_s"]) for f in man["editor_fit"]], [(3.0, 1.5, "head", 1.5)])
         self.assertAlmostEqual(ffmpeg_studio.probe_duration(cut["path"]), 7.5, delta=0.3)
         self.assertAlmostEqual(ffmpeg_studio.probe_duration(man["editor_fit"][0]["path"]), 1.5, delta=0.1)
+
+    def test_a_chained_join_cut_at_both_ends_renders_the_right_length(self):
+        # KLD-19 (c): shot 2 loses 0,4 s of its tail, shot 3 (chained) 0,5 s of its head → 9 − 0,9 s
+        from core import ffmpeg_studio
+        cut, man = self.render([3.0, 2.6, 2.5], {"fit": [self.sids[1], self.sids[2]], "head": {self.sids[2]: 0.5}, "meta": {"round": 1}})
+        self.assertEqual([(f["to_s"], f["how"]) for f in man["editor_fit"]], [(2.6, "trim"), (2.5, "head")])
+        self.assertAlmostEqual(ffmpeg_studio.probe_duration(cut["path"]), 8.1, delta=0.3)
+
+    def test_a_join_cover_is_drawn_at_that_cut_without_changing_the_length(self):
+        from core import ffmpeg_studio
+        cut, man = self.render([3.0, 3.0, 2.5], {"fit": [self.sids[2]], "head": {self.sids[2]: 0.5}, "join": {self.sids[2]: "flash"},
+                                                 "meta": {"round": 1}})
+        self.assertEqual([(e.get("head"), e.get("tail")) for e in man["shot_transitions"]], [("cut", "flash"), ("flash", None)])
+        self.assertAlmostEqual(ffmpeg_studio.probe_duration(cut["path"]), 8.5, delta=0.3)
+        shaken, man = self.render([3.0, 3.0, 2.5], {"fit": [self.sids[2]], "head": {self.sids[2]: 0.5}, "join": {self.sids[2]: "shake"},
+                                                    "meta": {"round": 1}})
+        self.assertIn(6.0, man.get("shakes") or [])                                    # the frame shakes where shot 3 starts
+        self.assertAlmostEqual(ffmpeg_studio.probe_duration(shaken["path"]), 8.5, delta=0.3)
 
     def test_a_longer_shot_holds_its_last_frame(self):
         from core import ffmpeg_studio
