@@ -72,6 +72,52 @@ def _budget_summary(p: Pipeline, pid: int, data) -> str:
     return f"chưa duyệt · {est}đã chi {spent:.2f} USD"
 
 
+def _usd_words(text: str) -> str:
+    """'$3.00' → '3.00 USD' (a caption reads two '$' as a formula, S14.39)."""
+    import re as _re
+    return _re.sub(r"\$(\d[\d.,]*)", r"\1 USD", str(text or "")).replace("$", "USD ")
+
+
+def reserve_box(p: Pipeline, pid: int, where: str = "pb") -> None:
+    """08/10 phương án 1 (core.project_reserve): phần trần đợt thử trích riêng cho dự án — số đang trích, đã dùng, ô sửa tay + nút lưu,
+    lịch sử (ai, lúc nào, bao nhiêu). Chỉ cảnh báo, không chặn."""
+    from core import project_reserve
+    try:
+        r = project_reserve.get(p.conn, pid)
+        ov = project_reserve.overview(p.conn)
+        used = project_reserve.project_spent(p.conn, pid)
+    except Exception as e:  # noqa: BLE001 - a box only: say why, never break the step
+        st.caption(f"Chưa đọc được ngân sách trích riêng: {str(e)[:160] or type(e).__name__}. Cách xử lý: tải lại trang; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán.")
+        return
+    pool = ov["pool"]
+    shared = ("đợt thử đang tắt — không trích" if pool is None else
+              f"hàng chung đợt thử {pool['usd']:.2f} USD: đã chi {pool['spent']:.2f} USD · đang trích giữ cho {ov['projects']} dự án {ov['reserved']:.2f} USD"
+              f" · còn trống {ov['free']:.2f} USD")
+    if r is None:
+        why = project_reserve.skip_reason(p.conn, pid)
+        cap(f"🔐 Ngân sách trích riêng: chưa trích" + (f" ({why})" if why else " — tự trích ở lượt gen trả tiền đầu tiên = ước tính dư cả dự án")
+            + f". {shared}.")
+    else:
+        state = "đang giữ" if r["state"] == "active" else f"đã trả lại {float(r['returned_usd'] or 0):.2f} USD về hàng chung"
+        over = " — ⚠ VƯỢT phần trích (chỉ cảnh báo)" if r["state"] == "active" and used > float(r["usd"]) + 1e-9 else ""
+        cap(f"🔐 Ngân sách trích riêng: {float(r['usd']):.2f} USD ({'sửa tay' if r['source'] == 'manual' else 'tự trích'}, {state}) · dự án đã "
+            f"dùng {used:.2f} USD{over}. {shared}." + (f" Ghi chú: {_usd_words(r['note'])}" if r.get("note") else ""))
+    c1, c2, c3 = st.columns([1, 2, 1])
+    val = c1.number_input("Số trích (USD)", min_value=0.0, value=float((r or {}).get("usd") or 0.0), step=0.5, key=f"rsv_usd_{where}_{pid}")
+    why = c2.text_input("Lý do sửa", key=f"rsv_why_{where}_{pid}")
+    if c3.button("💾 Lưu số trích", key=f"rsv_save_{where}_{pid}", disabled=r is not None and abs(val - float(r["usd"])) < 0.005 and r["state"] == "active"):
+        out = project_reserve.set_amount(p.conn, pid, val, p.actor, why, p=p)
+        if out.get("warning"):
+            st.session_state[f"rsv_warn_{pid}"] = out["warning"]
+        st.rerun()
+    if st.session_state.get(f"rsv_warn_{pid}"):
+        st.warning(st.session_state.pop(f"rsv_warn_{pid}"))
+    for h in project_reserve.history(p.conn, pid, 5):
+        before = f"{h['before_usd']:.2f} USD → " if h["before_usd"] is not None else ""
+        cap(f"{h['at']} · {h['who']}: {project_reserve.ACTIONS.get(h['action'], h['action'])} {before}{float(h['usd'] or 0):.2f} USD"
+            + (f" — {_usd_words(h['note'])}" if h.get("note") else ""))
+
+
 def project_budget_panel(p: Pipeline, pid: int) -> None:
     """💵 The project's budget by stage (core.project_budget): computed by code from the shot table, approved and LOCKED by a person;
     after that only a person raises a stage's cap, with a reason."""
@@ -113,6 +159,7 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
                 cap("🧠 Claude đọc lại từ cache (rẻ ×0,1): " + " · ".join(
                     f"{c['stage']} {c['read_share'] * 100:.0f} % ({c['calls']} lượt)" for c in cached)
                     + " — khâu 0 % là chỗ nên xem lại cách gửi (prompt dưới 1024 token không cache; đổi ảnh phía trước làm mất cache sau).")
+            reserve_box(p, pid)
             target = st.number_input("Ngân sách mục tiêu (USD, để Director chia shot trong mức này; 0 = không đặt)", min_value=0.0,
                                      value=float(data.get("target") or 0.0), step=1.0, key=f"pb_target_{pid}")
             if (target or None) != (data.get("target") or None):

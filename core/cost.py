@@ -711,6 +711,17 @@ def record_usage(conn: sqlite3.Connection, job_id: Optional[int], kind: str, pro
     conn.commit()
     from . import script_cap                  # S14.2: counted on a command-line run's --max-usd (no lock active → nothing)
     script_cap.record_row(kind, provider, model, tier, quantity)
+    if project_id is not None and not str(provider or "").startswith("mock"):
+        from . import project_reserve         # 08/10 phương án 1: lần trả tiền đầu của dự án trích ngân sách riêng từ trần đợt thử
+        try:
+            project_reserve.on_paid(conn, project_id, provider)
+        except Exception as e:  # noqa: BLE001 - the ledger row is written; the missed reservation is said in diag
+            try:
+                from . import diag
+                diag.record(conn, "system", "warning", f"không trích được ngân sách riêng dự án #{project_id}: {type(e).__name__}: {e}",
+                            code="project_reserve", project_id=project_id)
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def cancel_usage(conn: sqlite3.Connection, job_id: int) -> int:

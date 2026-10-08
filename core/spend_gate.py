@@ -136,6 +136,11 @@ def assess(conn, kind: str, provider_name: str, project_id: Optional[int] = None
         pw = project_budget.warning(conn, project_id, budget_stage, est["usd"])
         if pw:
             warns.append(pw)
+    if project_id is not None:                    # 08/10 phương án 1: phần trích riêng của dự án (chỉ cảnh báo)
+        from . import project_reserve
+        rw = project_reserve.warning(conn, project_id, est["usd"])
+        if rw:
+            warns.append(rw)
     if est.get("missing") and kind != "audio" and not any(est["missing"] in w for w in warns):
         warns.append(f"⚠ thiếu giá: {est['missing']} — {est['note']} — VẪN GỬI (thêm giá ở ⚙ → 💵 Tiền → 💲 Bảng giá)")
     return None, warns, est
