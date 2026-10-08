@@ -207,9 +207,11 @@ class SceneModeTests(unittest.TestCase):
         anchor_only = scene_storyboard.job_fields(p.conn, data, pid, shot["id"], shared, 1, previous=paths[g["anchor"]["id"]])
         self.assertEqual(len(anchor_only["refs"]), len(plain["refs"]))         # the anchor is never sent twice
 
-    def test_off_by_default_or_without_a_storyboard_provider(self):
+    def test_off_when_switched_off_or_without_a_storyboard_provider(self):
+        from unittest import mock
         from core import scene_storyboard
-        self.assertFalse(scene_storyboard.enabled())
+        with mock.patch.dict(os.environ, {"FEATURE_STORYBOARD_API": "0"}):      # verified 08/10 (#22) → on by default
+            self.assertFalse(scene_storyboard.enabled())
 
 
 if __name__ == "__main__":

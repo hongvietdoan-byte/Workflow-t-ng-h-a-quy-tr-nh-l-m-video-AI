@@ -324,3 +324,24 @@ người nói đúng lượt với 3 người trong khung; storyboard phải ghi
 - Bản nháp 480p không bắt buộc khi dự án đã nháp; tiền chỉ tiêu cho bước người dùng đã duyệt. Phóng AI từng khung (Real-ESRGAN ~1 giờ/clip 4 s) bỏ khỏi dây chuyền.
 - Phép so độ nét: A 720p (0,92) + B mẫu 480p (0,41) shot 6 scene 253 cùng hash đầu vào; thêm kind `high` (C, 1080p gen thẳng, 2,08 USD) — web ClipAI cho 1080p trên 2.5, API chưa kiểm; lỗi lần gửi đầu phải đối chiếu task trên web trước khi coi không tính tiền.
 **Source**: phiên Claude 07/10 + người dùng sửa trực tiếp; chi tiết ở memory cá nhân (feedback_scene_location_change_checklist, feedback_confirm_before_paid_and_dont_assume).
+
+## Bài học tổng hợp 3 lượt KLD — 08/10
+**Context**: Tổng kết 3 lượt dự án #22 (2 lượt thử, 1 lượt chất lượng cao một phần). Báo cáo `docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md`: mục 4 theo vai, mục 5 có 30 thay đổi KLD-n chờ duyệt, mục 6 bài học. Độ tin: 1 dự án.
+**Finding**:
+- Vai Claude thật sự chạy ở #22: director 6 lượt, motion 1, qc_team 41, video QC 37. Không chạy: screenwriter, director_rewrite, editor, translate, qc ảnh, music/sfx/subtitles, asset_checklist, lessons. Từ lượt 2, mọi sửa đều làm tay, nên vai không tự học.
+- Đường bài học chưa chạy: bảng `lessons` 0 dòng; `mistakes` dừng ở dự án 13; `experience_cases` #22 có 0 ca success.
+- Tiền: ≈ 22,5 / 48,5 USD ảnh + video không vào bản giao nào. 7,9 USD tránh được bằng thao tác / cấu hình; 13,3 USD do QC loại / tự gen lại + đặc tính model.
+- Lỗi mới 1: job hỏng `stale_input` vẫn nằm trong nút "↻ Gửi lại clip lỗi (lỗi nhà cung cấp)" (`dashboard/steps/step4.py`). Job 559 bị gửi lại y nguyên thành 566 (Seedance 2.0).
+- Lỗi mới 2: hoán đổi dòng job (560 ↔ 569) để chọn bản thì `qc_results` lệch tệp. Cần trường "bản dùng cho shot" thay vì lấy job số lớn nhất.
+- `final_cut.collect_clips` đánh mọi `.mp4` lạ trong `videos/` là dùng được. Bản dựng #33 vì vậy có 4 tệp phụ.
+- `prompts.lock_text` (dùng cho `qc_team`) chưa bỏ quần áo đồ thường cho nhân vật có ảnh OUTFIT; `370dacc` mới sửa đường video. Hệ quả: chặn nhầm 6/9 khung đã duyệt. Phải sửa trước khi đo học việc.
+- QC tự gen lại vì `look_drift` trên đường Seedance chỉ-ảnh-tham-chiếu không sửa được: clip 255 ra 0,72, tệ hơn bản 0,81, mất 2,76 USD. Mặt mịn ×0,12–0,39 ở mọi clip là đặc tính model.
+- Câu sửa của QC nhắc lại chữ của lỗi ("yellow tracksuit") thì kéo lỗi sang lần sau. Phải tả trạng thái đúng.
+- `place_match` ngưỡng 0,35 không tách được ảnh đúng (0,31–0,37) với ảnh sai (0,36–0,42), vì đo so với nền đang gắn.
+- Lớp 0 đo cỡ cảnh: chỉ 2/10 bản tự vẽ lại được dùng.
+- `auto_attach` tự gắn tài nguyên tên một chữ ("Mũ").
+- Luật motion "không tả lại ngoại hình" sai với đường chỉ-ảnh-tham-chiếu, vì không có khung đầu cố định → cần một câu chốt tóc và phụ kiện.
+- Đã có sẵn trong code, đừng đề xuất lại: `seedance_refs.prompt` đã có câu kiểu START LOCK ("Shot N starts with exactly this composition") và khóa nền ("PLACE render decides architecture").
+- "Chất lượng cao" lượt 3 chưa có số đo nét hơn: `clip_measure` 2.5 không tốt hơn Fast. Chỉ mắt người phân biệt được.
+- Chưa có công cụ CLI nạp bài học tay. `core.lessons.add_research` gắn source 'research', nên bài học sẽ bị gắn nhầm là nguồn web → đề xuất `tools/lessons_add.py` (KLD-21).
+**Source**: phân tích chỉ đọc 08/10 (bản sao CSDL, `docs/kld_runs/*`, `KIEM_22`, mục 4B).

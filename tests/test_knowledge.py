@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from core import knowledge
 from core.db import connect
@@ -32,6 +33,7 @@ class KnowledgeTests(unittest.TestCase):
         os.environ.pop("KNOWLEDGE_USER_DIR", None)
         shutil.rmtree(self.dir, ignore_errors=True)
 
+    @mock.patch.dict(os.environ, {"FEATURE_FILM_CREW": "0"})   # the scattered documents (film_crew verified 08/10 → on by default)
     def test_overview_lists_the_builtin_documents_with_sizes(self):
         ov = knowledge.overview("director")
         titles = [d["title"] for d in ov["docs"]]

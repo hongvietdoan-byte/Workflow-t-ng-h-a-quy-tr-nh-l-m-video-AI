@@ -9,7 +9,8 @@
         "-File",
         "tools/run_demo.ps1"
       ],
-      "port": 8511
+      "port": 8511,
+      "autoPort": true
     },
     {
       "name": "dashboard-real",

@@ -17,9 +17,9 @@ FEATURES: Dict[str, Dict] = {
     },
     "film_crew": {
         "label": "Tổ làm phim: Director đọc bộ nguyên tắc Đạo diễn + Quay phim (knowledge/roles/) thay cho 3 tài liệu rải rác (cinematography_basics, film_director_method, dialogue_craft), ghi tradeoffs",
-        "verified": False,
-        "why": "Kế hoạch V4 GĐ4: bộ kỹ năng nghề 3 vai (đã chấm độc lập, docs/DANH_GIA_BO_NGUYEN_TAC_V4.md) chờ người dùng duyệt; "
-               "chưa có lần Director thật nào chạy với bộ mới",
+        "verified": True,       # 08/10 người dùng duyệt: #22 Khủng Long Đỏ Director chạy bộ mới (tradeoffs, Tầng B, duyệt 2 cảnh) — docs/KIEM_22_TINH_NANG_KLD_2026-10-08.md
+        "why": "Đã chạy thật #22 (06/10): Director 6 lượt Claude với bộ nguyên tắc mới, director_raw có tradeoffs, Đạo diễn duyệt 2/2 "
+               "cảnh; video người dùng xác nhận đạt 08/10. Còn mở: chưa A/B với bộ cũ"
     },
     "director_two_pass": {
         "label": "Director hai lượt (dự án chia shot): Tầng A Đạo diễn viết Bible + ý đồ từng cảnh, Tầng B Quay phim chia shot MỖI cảnh "
@@ -240,9 +240,9 @@ FEATURES: Dict[str, Dict] = {
         "label": "S4.7: ảnh gửi Seedance (chế độ chỉ ảnh tham chiếu: khung storyboard + ảnh định danh, shot kỹ năng) đi qua Kho chủ thể "
                  "ClipAI — ảnh KHÔNG đánh dấu, tải một lần theo sha256, gửi asset://; kho từ chối / chưa duyệt xong → gửi ảnh đánh dấu "
                  "như cũ (P2m) và báo",
-        "verified": False,
-        "why": "Thử 01/10 (dự án thử #15, docs/KET_QUA_S4_7_S4_10_2026-10-01.md): 2 ảnh FF in-game (khung + Kelly) active sau ~5 s, "
-               "Seedance nhận lúc tạo — mới 1 shot / 1 nhân vật chính; chưa qua luồng chính (nhóm nhiều shot, 3 người)",
+        "verified": True,       # 08/10 người dùng duyệt: #22 26 lần gửi qua Kho chủ thể, 0 lần lùi về ảnh đánh dấu, 8/9 clip duyệt
+        "why": "Đã chạy thật #22 (06–07/10): diag video/subjects ×26 đều info, 0 từ chối / lùi về ảnh đánh dấu, 8/9 clip duyệt đi qua "
+               "Kho chủ thể, 2–3 người mỗi shot. Còn mở: nhóm nhiều shot (seedance_ref_groups gộp) chưa chạy"
     },
     "dialogue_take": {
         "label": "Khớp môi (c) — S4.2: shot thoại thấy mặt người nói (cả shot trung / nhiều người) đi trong clip nhóm Seedance 2.5 kèm MỘT "
@@ -253,15 +253,17 @@ FEATURES: Dict[str, Dict] = {
     },
     "storyboard_api": {
         "label": "Vẽ ảnh các shot của một cảnh bằng MỘT storyboard Deepix (shot rộng nhất làm neo, cùng ảnh tham chiếu) — cách Weave Canvas",
-        "verified": False,
-        "why": "Thử #7 cảnh 1 (2026-09-25): 4 khung giữ tháp/ánh sáng liền mạch hơn ảnh vẽ riêng; mới 1 cảnh, chưa thử cảnh đông người / hành động",
+        "verified": True,       # 08/10 người dùng duyệt: #22 7/9 ảnh duyệt dùng ảnh neo storyboard (cảnh 6 shot + cảnh nhảy 3 shot)
+        "why": "Đã chạy thật #22: 7/9 ảnh duyệt có ref storyboard + frame 1 (scene anchor), cảnh 1 (6 shot, có hành động) và cảnh 2 (3"
+               " shot nhảy, 2 người); video đạt 08/10. Lỗi 'khoảnh khắc MỚI' đã sửa bằng mã"
     },
     "place_render_refs": {
         "label": "Ảnh render 3D đúng góc máy từng shot (và góc rộng nhất của cảnh) làm ẢNH THAM CHIẾU cho model vẽ cả cảnh — không ghép; "
                  "prompt thêm số đo thật (ống kính, độ cao máy, vị trí đầu–chân nhân vật, đường chân trời, hướng nắng); đo độ khớp nền sau khi vẽ",
-        "verified": False,
-        "why": "Người dùng 2026-09-29: 6 ảnh Kho không đủ mọi góc; ghép phông xanh đã bỏ (#8). #7: ảnh render tháp làm tham chiếu cho kết "
-               "quả tốt nhất. Chưa chạy thật trả tiền (Blender 0 USD; ảnh model vẫn tính tiền như thường)",
+        "verified": True,       # 08/10 người dùng duyệt: #22 9/9 ảnh duyệt có render 3D, place_match ×26, nền đúng 11,5 s đoạn nhảy
+        "why": "Đã chạy thật trả tiền #22 (06–07/10): 9/9 ảnh duyệt có ref place_render (độ khớp nền 0,35–0,51), video nhảy giữ nền "
+               "render 3D suốt 11,5 s; người dùng xác nhận video đạt 08/10. Bài học: prompt cũ / ảnh toàn cảnh ngoài tường có thể "
+               "thắng render (feedback_scene_location_change_checklist)"
     },
     "end_frames": {
         "label": "Ảnh khung cuối cho shot có end_state (vẽ thêm 1 ảnh, gửi clip khung đầu + cuối)",

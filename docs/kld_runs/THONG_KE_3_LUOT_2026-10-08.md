@@ -1,5 +1,7 @@
 # Thống kê 3 lượt dự án #22 (chỉ đọc, CSDL `m.sqlite`)
 
+> Lưu ý: cột trạng thái job (mục 2) là trạng thái **hiện tại** — ảnh/clip đã duyệt và dùng ở bản thử 1 về sau bị đánh "loại" khi lượt sau đổi đầu vào (xem `docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md` mục 1).
+
 ## 1. Tiền theo lượt và model (USD, giá bảng; phần ước tính dư ghi riêng)
 
 | Lượt | Loại | Model | Số lượng (ảnh / giây / lần gọi) | USD |

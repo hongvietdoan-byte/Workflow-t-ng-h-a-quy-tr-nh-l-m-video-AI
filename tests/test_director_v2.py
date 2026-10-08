@@ -174,6 +174,7 @@ class FlagTests(unittest.TestCase):
 
     def test_film_crew_swaps_the_scattered_documents_for_the_role_rule_books(self):
         from core import prompts
+        os.environ["FEATURE_FILM_CREW"] = "0"                                    # verified 08/10 (#22) → on by default
         off = prompts.build_director_bundle(self.p, self.pid)
         self.assertNotIn("Vai Đạo diễn — bộ kỹ năng nghề", off)
         os.environ["FEATURE_FILM_CREW"] = "1"
@@ -186,6 +187,7 @@ class FlagTests(unittest.TestCase):
         """S14.4 C1b (04/10): with film_crew on, ⚙ Kiến thức still listed the 3 old documents as sent and not the role books."""
         from core import knowledge, prompts
         files = lambda ov: {d["file"]: d for d in ov["docs"]}  # noqa: E731
+        os.environ["FEATURE_FILM_CREW"] = "0"                                    # verified 08/10 (#22) → on by default
         off = files(knowledge.overview("director"))
         self.assertNotIn("knowledge/roles/director.md", off)
         self.assertFalse(any(d.get("crew_replaced") for d in off.values()))

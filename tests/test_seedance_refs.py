@@ -161,6 +161,7 @@ class SeedanceRefTests(unittest.TestCase):
         vr.provider.supports_subjects = True
         vr.subject_library = lib = CountingLibrary()
         leader = self.p.job(self.p.create_job(self.ids[0], "video_gen"))
+        os.environ["FEATURE_SEEDANCE_SUBJECTS"] = "0"                                 # verified 08/10 (#22) → on by default
         self.assertTrue(all(isinstance(p, str) for p in vr._submit_kwargs(leader)["reference_only"]))   # flag off: marked as before
         os.environ["FEATURE_SEEDANCE_SUBJECTS"] = "1"
         self.addCleanup(os.environ.pop, "FEATURE_SEEDANCE_SUBJECTS", None)
@@ -367,6 +368,8 @@ class SplitTests(unittest.TestCase):
             self.assertAlmostEqual(got, want, delta=0.15)
 
     def test_prompt_names_every_picture(self):
+        os.environ["FEATURE_SEEDANCE_SUBJECTS"] = "0"                                 # marked pictures (flag off): banner + red marks
+        self.addCleanup(os.environ.pop, "FEATURE_SEEDANCE_SUBJECTS", None)
         text = seedance_refs.prompt([("Kenta chạy", 2.0), ("Kelly quay lại", 1.5)], [("KENTA", "k.png")])
         self.assertIn("Image 2 is the storyboard frame of Shot 2", text)
         self.assertIn("Image 3 is KENTA: identity only", text)

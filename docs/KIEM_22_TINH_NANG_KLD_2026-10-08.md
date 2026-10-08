@@ -123,6 +123,7 @@ Tổng hợp: **V = 4** (film_crew, place_render_refs, seedance_subjects, storyb
 - **Hiệu lực**: có (`known_issues.py:24/47`, lớp 0 bằng code; lớp 1 Claude `scene_qc_claude` KHÔNG bật).
 - **Dấu vết**: `qc_scene/layer0.json` 46 khung: 22 cờ `shot_size`, 17 `stacked_tiers`, 3 `no_face`. Tự vẽ lại (`origin=auto`) 7 ảnh vì lệch cỡ cảnh: job 485 (từ 476), 486–488 (cùng đợt, hủy do "Request timed out"), 492, 500, 501, 534. Chi diag `image/redraw` ×7 (error).
 - **Số đo**: 5 ảnh tự vẽ lại chạy xong đều bị người loại; 3 bị hủy; **0** được duyệt. Cả 9 khung người duyệt đều mang cờ lớp 0 (shot_size: 525, 527, 528, 533, 535; no_face: 526; stacked_tiers: 556–558 — nhưng bản đồ có cầu thang nhiều tầng, người dùng chọn `bac_thang_giua`, nên cờ lạc hậu). Lỗi cũ: câu sửa tự vẽ lại XÓA câu sửa của người (đã sửa `370dacc`).
+- **Đính chính (4B, 08/10)**: "0 được duyệt" là trạng thái HIỆN TẠI. Ảnh tự vẽ lại **485 và 492 từng được duyệt và dùng trong bản thử 1** (sau bị loại khi lượt sau đổi đầu vào) — xem `docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md`. Kết luận vẫn là học việc (2/10 lần đòi vẽ lại được dùng), không phải "vô ích hoàn toàn".
 - **Kết quả**: lớp 0 "đo mặt cao khung" lệch với mắt người (người duyệt MS/MLS khi shot xin MCU); chi khoảng 7 ảnh (≈ 0,35 USD theo giá ≈ 0,05/ảnh) không ra bản dùng.
 - **Đề xuất**: tắt tự vẽ lại theo `shot_size`; giữ cờ đo ở dạng ghi chú nếu cần. Chưa đủ để `verified`.
 

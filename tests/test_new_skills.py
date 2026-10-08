@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 from streamlit.testing.v1 import AppTest
 
@@ -25,6 +26,7 @@ class KnowledgeWiringTests(Setup):
         os.environ.pop("KNOWLEDGE_USER_DIR", None)
         shutil.rmtree(self.dir, ignore_errors=True)
 
+    @mock.patch.dict(os.environ, {"FEATURE_FILM_CREW": "0"})   # the scattered documents (film_crew verified 08/10 → on by default)
     def test_director_gets_the_directing_method_and_motion_gets_the_video_prompt_rules(self):
         self.build()
         self.assertIn("Phương pháp đạo diễn", prompts.build_director_bundle(self.p, self.pid))

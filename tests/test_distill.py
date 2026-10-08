@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from core import knowledge, llm_runner
 from core.db import connect
@@ -40,6 +41,7 @@ class DistillTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             knowledge.build_distill_bundle("director")  # nothing to distil
 
+    @mock.patch.dict(os.environ, {"FEATURE_FILM_CREW": "0"})   # the scattered documents (film_crew verified 08/10 → on by default)
     def test_a_stored_playbook_replaces_the_raw_upload_in_the_prompt(self):
         before = build_director_bundle(self.p, self.pid)
         self.assertIn("Tông lạnh. Tông lạnh.", before)

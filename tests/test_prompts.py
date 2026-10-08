@@ -1,5 +1,7 @@
 import json
+import os
 import unittest
+from unittest import mock
 
 from core.db import connect
 from core.llm_io import store_scene_analysis, validate_qc_result
@@ -17,6 +19,7 @@ class PromptTests(unittest.TestCase):
                             (json.dumps({"text": "Sương mù dày đặc."}, ensure_ascii=False), self.sid))
         store_scene_analysis(self.p, self.pid, ANALYSIS)
 
+    @mock.patch.dict(os.environ, {"FEATURE_FILM_CREW": "0"})   # the scattered documents (film_crew verified 08/10 → on by default)
     def test_director_bundle_contains_prompt_knowledge_and_scenes(self):
         text = build_director_bundle(self.p, self.pid)
         self.assertIn("Character Bible", text)
