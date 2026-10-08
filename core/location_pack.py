@@ -418,25 +418,173 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
                                                        depth_range=rec.get("depth_range_m"))
             with open(os.path.join(dest, "meta.json"), "w", encoding="utf-8") as f:
                 json.dump(rec, f, ensure_ascii=False, indent=1)
+    before = index(data_dir, pid)
     idx = {}
     for it in items:
+        # KLD-6: the size the record was made at (stale_plates judges it at that size) + the spot the shot stood on before a move
+        # (move_report lists the fields still naming it, also after this new render)
+        extra = {"res": [int(v) for v in resolution]}
+        old = before.get(str(it["scene_id"])) or {}
+        moved = old.get("spot") if old.get("spot") and old.get("spot") != it["spot"] else old.get("moved_from")
+        if moved and moved != it["spot"]:
+            extra["moved_from"] = moved
         if it.get("needs"):
-            idx[str(it["scene_id"])] = {"key": it["key"], "needs": it["needs"], "place": it["place"], "spot": it["spot"]}
+            idx[str(it["scene_id"])] = {"key": it["key"], "needs": it["needs"], "place": it["place"], "spot": it["spot"], **extra}
             continue
         rec = _cached(root, it["key"])
         if rec is None:
             why = _failed(root, it["key"])
             if why:
-                idx[str(it["scene_id"])] = {"key": it["key"], "failed": why, "place": it["place"]}
+                idx[str(it["scene_id"])] = {"key": it["key"], "failed": why, "place": it["place"], "spot": it["spot"], **extra}
             continue
         idx[str(it["scene_id"])] = dict(rec, key=it["key"], env=it["env"], subject_box=it["subject_box"], distance_m=it["distance_m"],
                                         spot=it["spot"], place=it["place"], camera_plan=it["camera"], view=it["view"],
-                                        lights=it["lights"], lights_decided=it["lights_decided"], layout_vi=layout_words(it))
+                                        lights=it["lights"], lights_decided=it["lights_decided"], layout_vi=layout_words(it), **extra)
     path = _index_path(data_dir, pid)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(idx, f, ensure_ascii=False, indent=1)
     return idx
+
+
+# ---- KLD-6 (người dùng duyệt 08/10): the background in plates/index.json against the plan, on EVERY path ----
+# Khủng Long Đỏ #22: scenes 254–256 moved to `bac_thang_giua`; only the autopilot compared plan() with the index, the hand redraw drew
+# on the OLD render and the old words ("flat stone plaza, low red-roof house") beat it — 1,80 USD.
+def stale_plates(conn, pid: int, data_dir: str, resolution=(1152, 2048)) -> Dict[int, Dict]:
+    """{scene_id: {idx, old_spot, new_spot, why}} for every shot whose index record was made for another camera (spot, direction, lens,
+    light, time/weather, model…) than plan() gives now — the record's background is not this shot's any more. A record is judged at
+    the size it was made at (`res`, else `resolution`); a shot never rendered is missing, not stale; a record of a shot no longer at a
+    3D place is stale too (its old render would still be sent)."""
+    idx = index(data_dir, pid)
+    if not idx:
+        return {}
+    plans: Dict[tuple, Dict[int, Dict]] = {}
+
+    def planned(res) -> Dict[int, Dict]:
+        res = tuple(int(v) for v in res)
+        if res not in plans:
+            plans[res] = {it["scene_id"]: it for it in plan(conn, pid, res)}
+        return plans[res]
+    out: Dict[int, Dict] = {}
+    for sid, rec in idx.items():
+        try:
+            scene_id = int(sid)
+        except ValueError:
+            continue
+        res = rec.get("res") or resolution
+        if rec.get("res") and abs(res[0] / res[1] - resolution[0] / resolution[1]) > 0.01:
+            it = planned(resolution).get(scene_id)          # the frame's shape changed: the record's camera cannot be this shot's
+            why = "khung hình của dự án đã đổi"
+        else:
+            it = planned(res).get(scene_id)
+            why = None
+        if it is not None and it["key"] == rec.get("key") and why is None:
+            continue
+        old, new = rec.get("spot"), (it or {}).get("spot")
+        if it is None:
+            why = why or "shot không còn ở bối cảnh có mô hình 3D"
+        elif why is None:
+            why = f"chỗ đứng đổi {old} → {new}" if old and new and old != new else "hướng máy / cỡ cảnh / đèn / thời tiết của shot đã đổi"
+        out[scene_id] = {"idx": (it or {}).get("idx"), "old_spot": old, "new_spot": new,
+                         "why": f"nền 3D đã cũ ({why}) — dựng lại nền (0 USD, Blender) trước khi gửi"}
+    return out
+
+
+MOVE_FIELDS = ("location", "image_prompt", "blocking", "spatial_state", "action")
+# the place words of a spot label, in the label's Vietnamese and the prompts' English (folded, regex): a field naming a place word of
+# ANOTHER spot that the new spot does not have still describes the old place (#22: "plaza" = quảng trường, "red-roof" = mái đỏ)
+_PLACE_TERMS = {
+    "quảng trường": (r"quang truong", r"plaza", r"town square"),
+    "mái đỏ": (r"mai do", r"red[- ]?roof"),
+    "đồng cỏ": (r"dong co", r"meadow", r"grass", r"lawn"),
+    "cầu thang": (r"cau thang", r"bac thang", r"stair", r"\bsteps\b"),
+    "tháp": (r"\bthap\b", r"tower"),
+    "đồi": (r"tren doi", r"doi phia", r"\bhills?\b", r"hillside"),
+    "cao tốc": (r"cao toc", r"highway"),
+    "bãi xe": (r"bai xe", r"parking", r"\bvans?\b", r"\bcars?\b"),
+    "dừa": (r"rang dua", r"cay dua", r"\bpalms?\b", r"coconut"),
+    "trạm gác": (r"tram gac", r"guard ?(post|tower|house)", r"watchtower"),
+    "biển quảng cáo": (r"bien quang cao", r"billboard"),
+    "trong nhà": (r"trong nha", r"\binside\b", r"\bindoors?\b", r"interior"),
+    "phòng ngủ": (r"phong ngu", r"bedroom"),
+    "phòng khách": (r"phong khach", r"living room"),
+    "bếp": (r"\bbep\b", r"kitchen"),
+    "nhà 3 tầng": (r"nha 3 tang", r"three[- ]stor", r"3[- ]stor"),
+    "hai tầng": (r"hai tang", r"two[- ]stor", r"2[- ]stor"),
+}
+_NEGATION = re.compile(r"\b(?:do not|don't|never|without|avoid|không|đừng|chớ)\b[^.;:\n]*", re.IGNORECASE)
+_NUMBER_WORDS = {"mot", "hai", "ba", "bon", "nam", "sau", "bay", "tam", "chin", "muoi"}   # "Hai người" is not "hai tầng"
+
+
+def _terms(text: str) -> set:
+    folded = assets.fold(_NEGATION.sub(" ", text or ""))
+    return {name for name, pats in _PLACE_TERMS.items() if any(re.search(p, folded) for p in pats)}
+
+
+def _label_words(text: str) -> set:
+    """The words of a Vietnamese label WITH their marks ("đông" east ≠ "động" in "động tác"), without stop words and numbers."""
+    words = re.findall(r"\w+", _NEGATION.sub(" ", (text or "").lower()))
+    return {w for w in words if len(w) >= 2 and not w.isdigit() and assets.fold(w) not in _STOP | _NUMBER_WORDS}
+
+
+def spot_mentions(entry: Dict, data: Dict, old_spot: str, new_spot: str, motion: str = "") -> Dict[str, List[str]]:
+    """KLD-6, checklist feedback_scene_location_change_checklist: after a shot moves from `old_spot` to `new_spot`, the fields that
+    still name the old place — {field: [words]} for location / image_prompt / blocking / spatial_state / action (+ `motion_prompt`).
+    Two signals: a Vietnamese word of the old spot's label the new label lacks ("lớn", "đông"), and a place word (both languages) of
+    any spot of this place the new spot does not have ("plaza", "red-roof"). Negated clauses ("Do NOT add … plaza") are not read.
+    Only a warning: the person reads the words and decides."""
+    spots = entry.get("spots") or {}
+    old_label = str((spots.get(old_spot) or {}).get("label") or "")
+    new_label = str((spots.get(new_spot) or {}).get("label") or "")
+    old_words = _label_words(old_label) - _label_words(new_label)
+    place_terms = set().union(*[_terms(f"{sp.get('label') or ''} {name.replace('_', ' ')}") for name, sp in spots.items()]) if spots else set()
+    other_terms = place_terms - _terms(f"{new_label} {new_spot.replace('_', ' ')}")
+    texts = {k: str(data.get(k) or "") for k in MOVE_FIELDS}
+    if motion:
+        texts["motion_prompt"] = motion
+    out: Dict[str, List[str]] = {}
+    for field, text in texts.items():
+        hits = sorted(_label_words(text) & old_words) + sorted(_terms(text) & other_terms)
+        if hits:
+            out[field] = hits
+    return out
+
+
+def _motion_text(conn, scene_id: int) -> str:
+    try:
+        row = conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+    except Exception:  # noqa: BLE001 - old test databases without the table
+        return ""
+    return str(row["motion_prompt"] or "") if row else ""
+
+
+def move_report(conn, pid: int, data_dir: str, resolution=(1152, 2048)) -> List[Dict]:
+    """[{scene_id, idx, old_spot, new_spot, stale, fields}] — shots that moved to another spot (a record still on the old spot =
+    `stale`, or a new render that remembers `moved_from`) whose fields still name the old place. Empty once the fields are fixed."""
+    idx = index(data_dir, pid)
+    if not idx:
+        return []
+    stale = stale_plates(conn, pid, data_dir, resolution)
+    out = []
+    for it in plan(conn, pid, resolution):
+        rec = idx.get(str(it["scene_id"])) or {}
+        s = stale.get(it["scene_id"])
+        old = s["old_spot"] if s and s.get("old_spot") and s["old_spot"] != it["spot"] else rec.get("moved_from")
+        if not old or old == it["spot"]:
+            continue
+        data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (it["scene_id"],)).fetchone()["data"] or "{}")
+        fields = spot_mentions(it["entry"], data, old, it["spot"], _motion_text(conn, it["scene_id"]))
+        if fields:
+            out.append({"scene_id": it["scene_id"], "idx": it["idx"], "old_spot": old, "new_spot": it["spot"], "stale": bool(s),
+                        "fields": fields})
+    return out
+
+
+def move_words(item: Dict) -> str:
+    """One Vietnamese line of move_report for the person (Dashboard, diag, autopilot)."""
+    fields = "; ".join(f"{k} ({', '.join(v)})" for k, v in item["fields"].items())
+    return (f"đổi chỗ đứng {item['old_spot']} → {item['new_spot']} nhưng các trường còn nhắc chỗ cũ: {fields} — sửa đồng bộ "
+            "location / image_prompt / blocking / spatial_state / action / motion prompt (chữ cũ thắng render 3D: #22 mất 1,80 USD)")
 
 
 # ---- light of a 3D render (place_render_refs prompt sentence) ----

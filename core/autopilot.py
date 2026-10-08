@@ -195,6 +195,10 @@ def resume(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
     elif gates.get("waiting_for") == "length":           # S2.3: "Tiếp tục" = the voiced length is accepted (or the plan was edited:
         set_gates(p, project_id, {"waiting_for": None, "length_decided": True})   # the phase measures again and locks)
         _log(p, project_id, "Bạn đã xem độ dài theo giọng thật → khóa timeline và tiếp tục")
+    elif gates.get("waiting_for") == "plates":           # KLD-6: "Tiếp tục" = the person saw the 3D background warnings shown
+        ack = sorted(set(gates.get("plate_ack") or []) | set(gates.get("plate_pending") or []))
+        set_gates(p, project_id, {"waiting_for": None, "plate_ack": ack, "plate_pending": []})
+        _log(p, project_id, "Bạn đã xem cảnh báo nền 3D → chạy tiếp như hiện tại")
     elif gates.get("waiting_for") == "budget":           # approved in Bước 1 → the images phase checks it again
         set_gates(p, project_id, {"waiting_for": None})
     elif gates.get("waiting_for") == "clips":
@@ -588,7 +592,7 @@ def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         return None
     size = formats.spec(formats.project_aspect(p.project(pid)) or "9:16")["deepix"]
     w, h = (int(v) for v in str(size).lower().split("x"))
-    items = location_pack.plan(p.conn, pid)
+    items = location_pack.plan(p.conn, pid, (w, h))       # KLD-6: the keys at the size the index is rendered at (was the 9:16 default)
     if not items:
         return None
     for it in items:
@@ -603,11 +607,64 @@ def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         if it.get("light_problem"):
             _d(p, pid, "image", "warn", f"shot {it['idx']}: {it['light_problem']}", "practical_lights")
     idx = location_pack.index(ctx.data_dir, pid)
-    if all(str(it["scene_id"]) in idx and idx[str(it["scene_id"])].get("key") == it["key"] for it in items):   # failed ones included
-        return None
-    location_pack.ensure_plates(p.conn, pid, ctx.data_dir, os.path.dirname(os.path.abspath(ctx.data_dir)), (w, h),
-                                log=lambda m: _log(p, pid, m))
+    if not all(str(it["scene_id"]) in idx and idx[str(it["scene_id"])].get("key") == it["key"] for it in items):   # failed ones included
+        for sid, item in place_refs.stale(p.conn, ctx.data_dir, pid, (w, h)).items():   # KLD-6: said before the old record goes
+            _d(p, pid, "image", "warn", place_refs.stale_note(p.conn, ctx.data_dir, pid, (w, h), sid, item), "plate_stale")
+        location_pack.ensure_plates(p.conn, pid, ctx.data_dir, os.path.dirname(os.path.abspath(ctx.data_dir)), (w, h),
+                                    log=lambda m: _log(p, pid, m))
+    _plate_move_hold(p, pid, ctx, (w, h))
     return None
+
+
+def _plate_ack(p: Pipeline, pid: int, held: List[tuple], note: str) -> None:
+    """KLD-6: hold the run at the 'plates' gate for these (fingerprint, line) pairs unless the person already let them pass ("Tiếp
+    tục" at this gate acknowledges exactly what was shown — a new picture / new words make a new fingerprint)."""
+    acked = set(get_gates(p, pid).get("plate_ack") or [])
+    left = [(fp, line) for fp, line in held if fp not in acked]
+    if not left:
+        return
+    set_gates(p, pid, {"plate_pending": [fp for fp, _ in left]})
+    raise _Wait("plates", note + " " + "; ".join(line for _, line in left[:4])
+                + (f" (+{len(left) - 4} shot)" if len(left) > 4 else "")
+                + " — sửa rồi bấm Tiếp tục, hoặc bấm Tiếp tục để chạy tiếp như hiện tại (gửi tay vẫn được)")
+
+
+def _plate_move_hold(p: Pipeline, pid: int, ctx: Context, res) -> None:
+    """KLD-6 (#22: after a spot move the old words "flat stone plaza, low red-roof house" beat the new render — 1,80 USD): a moved shot
+    whose fields still name the old place and whose picture is still to be drawn holds the run (a warning, never a hard stop)."""
+    import hashlib
+    from . import lineage, location_pack
+    moves = location_pack.move_report(p.conn, pid, ctx.data_dir, res)
+    if not moves:
+        return
+    scan = lineage.scan(p.conn, pid)
+    held = []
+    for m in moves:
+        _d(p, pid, "image", "warn", f"shot {m['idx']}: {location_pack.move_words(m)}", "plate_move_words")
+        row = scan.get(m["scene_id"]) or {}
+        if row.get("image_job_id") and not row.get("image_stale"):
+            continue                                       # its picture is already drawn for the new spot — the video phase judges it
+        fp = "move:%s:%s" % (m["scene_id"], hashlib.sha1(json.dumps(m["fields"], sort_keys=True, ensure_ascii=False)
+                                                         .encode("utf-8")).hexdigest()[:10])
+        held.append((fp, f"shot {m['idx']}: {location_pack.move_words(m)}"))
+    _plate_ack(p, pid, held, "Đổi chỗ đứng nhưng chữ mô tả còn nhắc chỗ cũ (chữ cũ thắng render 3D) —")
+
+
+def _old_plate_videos(p: Pipeline, pid: int, ctx: Context) -> Dict[int, tuple]:
+    """KLD-6: {scene_id: (fingerprint, line)} — shots whose approved picture was drawn on a 3D background that is not the plan's now;
+    the autopilot does not send their clips unless the person let them pass at the 'plates' gate."""
+    import hashlib
+    from . import place_refs
+    if not place_refs.enabled():
+        return {}
+    acked = set(get_gates(p, pid).get("plate_ack") or [])
+    idx_of = {r["id"]: r["idx"] for r in _scene_rows(p, pid)}
+    out = {}
+    for sid, why in place_refs.old_plate_images(p.conn, ctx.data_dir, pid, place_refs.resolution_of(p.project(pid))).items():
+        fp = "img:%s:%s" % (sid, hashlib.sha1(why.encode("utf-8")).hexdigest()[:10])
+        if fp not in acked:
+            out[sid] = (fp, f"shot {idx_of.get(sid, sid)}: {why}")
+    return out
 
 
 def _lipsync_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
@@ -834,7 +891,11 @@ def _approve_held(p: Pipeline, pid: int, kind: str, note: str) -> int:
 def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Clips for every scene (per-scene model), redo of outdated clips, Claude's video check when switched on."""
     from . import claude_tasks, lineage, regen
+    old_plate = _old_plate_videos(p, pid, ctx)            # KLD-6: a picture on an old 3D background — no clip sent by the run
     for r in llm_io.ready_for_video(p, pid):
+        if r["scene_id"] in old_plate:
+            _d(p, pid, "video", "warn", old_plate[r["scene_id"]][1], "plate_old_image")
+            continue
         if _has(p, r["scene_id"], "video_gen", "'queued','running','succeeded','retryable','failed','pending_review','approved'"):
             continue
         if _count(p, "SELECT COUNT(*) FROM jobs WHERE scene_id=? AND type='video_gen' AND escalated=1", r["scene_id"]):
@@ -844,12 +905,16 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     for sid, r in lineage.scan(p.conn, pid).items():
         if r["video_stale"] and r["video_job_id"] and not r["motion_stale"] and r["video_state"] in ("succeeded", "approved") \
                 and not p.has_pending_take(sid, "video_gen"):            # S14.17 rà #2: a new take already waits — no 2nd paid job
+            if sid in old_plate:
+                continue                                                 # KLD-6: said above; the person decides
             _job_cap_check(p, pid)
             if _shot_sends(p, sid, "video_gen") >= _shot_cap("video_gen"):      # O3/W6: an outdated clip is not remade past the shot's cap
                 _d(p, pid, "video", "warn", f"clip của shot #{sid} đã cũ ({r['video_stale']}) nhưng đã gửi {_shot_cap('video_gen')} lần — "
                    "không tự làm lại, xem ở màn Video", "shot_cap")
                 continue
             regen.regenerate_video(p, ctx.data_dir, r["video_job_id"], f"làm lại vì {r['video_stale']}")
+    if old_plate and not _active(p, pid, "video_gen"):
+        _plate_ack(p, pid, list(old_plate.values()), "Ảnh khung đầu vẽ trên nền 3D cũ — chưa gửi video của:")
     _still_running(p, pid)
     _cap_wait(p, pid, "video_gen", "videos")
     ctx.video_runner.submit_pending(pid)

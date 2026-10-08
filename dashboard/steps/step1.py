@@ -365,6 +365,23 @@ def bulk_editor(p: Pipeline, pid: int, scenes) -> None:
                 st.rerun()
 
 
+def _plate_move_notes(p: Pipeline, pid: int) -> None:
+    """KLD-6 (08/10): a shot moved to another spot of a 3D place whose fields still name the old place (#22: the old "flat stone
+    plaza, low red-roof house" beat the new render — 1,80 USD) — said on Bước 1 until the fields are fixed."""
+    from core import location_pack, place_refs
+    if not place_refs.enabled():
+        return
+    try:
+        moves = location_pack.move_report(p.conn, pid, C.DATA, place_refs.resolution_of(p.project(pid)))
+    except Exception as e:  # noqa: BLE001 - the page never breaks; the problem is said
+        st.caption(f"⚠ Không kiểm được chỗ đứng đã đổi của các shot ({escape(str(e))})")
+        return
+    if moves:
+        say("warning", f"🏞 {len(moves)} shot đã đổi chỗ đứng nhưng chữ mô tả còn nhắc chỗ cũ — sửa đồng bộ trước khi gen ảnh:\n"
+            + "\n".join(f"- {C.unit_code(p, pid, m['idx'])}: {escape(location_pack.move_words(m))}" for m in moves),
+            f"plate-moves-{pid}", f"🏞 {len(moves)} shot đổi chỗ đứng còn chữ cũ")
+
+
 def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     status = lineage.scan(p.conn, pid)
     by_idx = {r["idx"]: r for r in status.values()}
@@ -374,6 +391,7 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
         cap(f"🏞 {with_bg}/{len(scenes)} {unit} đã có Background"
             + ("" if with_bg == len(scenes) else f" — {unit} chưa có thì không dựng được layout; chọn trong từng {unit} hoặc gắn địa điểm ở 1b"),
             summary=f"🏞 {with_bg}/{len(scenes)} {unit} đã có Background")
+    _plate_move_notes(p, pid)
     proj = p.project(pid)
     modes = {0: "Tự động: nối trong cùng nhóm cảnh", 1: "Luôn nối cảnh liền trước", 2: "Không nối"}
     if C.expert():

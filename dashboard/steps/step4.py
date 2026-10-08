@@ -143,6 +143,9 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
         st.caption("Sẽ gửi: " + "; ".join(r["label"] for r in send))
     for line in batch.chain_waits(p, pid).values():
         st.info("⏳ " + line)
+    from core import place_refs
+    for line in place_refs.video_warnings(p.conn, C.DATA, pid):     # KLD-6: picture on an old 3D background / render not the plan's
+        st.warning("🏞 " + line)
     c1, c2 = st.columns([2.6, 2])
     queued = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen' AND state='queued'", (pid,)).fetchone()[0]
     if send or queued or stale_rows:
