@@ -78,7 +78,7 @@ class ImageOrderTest(unittest.TestCase):
         from core import runner
         p, pid = _project("PUBG", None)
         text, _ = runner.build_image_prompt(p.conn, pid, {"image_prompt": "Free Fire in-game 3D render, Kelly waves, everything in focus"})
-        self.assertIn("Free Fire in-game 3D render, Kelly waves, everything in focus.", text)
+        self.assertEqual(text, "Free Fire in-game 3D render, Kelly waves, everything in focus")   # word for word, the last part as written
 
 
 class ProtectionsKeptTest(unittest.TestCase):

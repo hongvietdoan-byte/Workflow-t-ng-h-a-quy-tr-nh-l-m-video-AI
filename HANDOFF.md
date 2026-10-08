@@ -1,3 +1,29 @@
+# HANDOFF — F1-C khuôn ghép prompt (09/10/2026, nhánh `worktree-agent-a9d3224a7f9f54451`, chưa push)
+
+**Đã xong** (0 USD, không gọi model, không đọc data/):
+- `core/prompt_template.py` (mới, khai ở `devsys/areas.json` khu director): `close`/`join` (mỗi phần tự đóng câu, câu trùng nguyên văn
+  bỏ, phần CUỐI giữ đuôi như viết), `split_director` (bỏ mệnh đề phong cách trùng câu look FF; gom mệnh đề chất lượng về cuối),
+  `quality_part`, `shared_sentences` (câu lặp ≥ 2 shot motion → viết một lần).
+- `runner.build_image_prompt`: phần theo thứ tự công thức — phong cách → khung → người+hành động (chữ Đạo diễn, blocking, gaze,
+  acting, action_peak, pha kỹ năng) → `Fix:` → nền (trong nhà / khóa render / chữ địa điểm + `place_extra`) → `light` → khóa (lock_note,
+  view_notes, gore) → chốt chất lượng. Tham số mới `light`, `place_extra`; `ImageRunner._submit_args` tính light/script_sentence/geometry
+  trước và truyền vào (không nối đuôi nữa). `PRECEDENCE` (place_refs, F2) vẫn đặt đầu như cũ.
+- `lock_note`: thêm "The costume follows the profile above (or the OUTFIT image); any other colour word for these garments is wrong."
+- Câu trong nhà viết lại tả cái đúng (bỏ "no plaza, tower, sky or sea").
+- `looks.py`: câu look FF tách `style_sentence` + `quality_sentence` (`image_sentence` = cả hai, giữ cho establishing); `gore_sentence`,
+  `in_focus_except` (gore_restraint dùng lại).
+- `seedance_refs`: `shot_motion` hành động → kết → diễn → thoại → máy quay → vật lý; `prompt()` điểm bắt đầu → shot → câu chung một lần →
+  đứng yên → khóa nhận dạng (+ câu màu trang phục khi có OUTFIT) → render → luật; `prompt_limit(model)` (provider_rules → PROMPT_LIMITS);
+  `lint_group` dùng nó; `_estimated_len(..., dressed)` tính cả ảnh OUTFIT, `groups()` truyền vào.
+- `prompt_formula`: `outfit_vs_profile` + `garment_profile` (+ `_chars` thêm `_garments`) → ĐỎ `nhan_vat` khi màu khác hồ sơ (ảnh: xét cả
+  blocking/start_frame/action_peak); `_neg_lists` → cảnh báo `ta_cai_dung` (≥ 2 vật cấm, trừ phủ định phong cách/chú thích).
+- Sổ `knowledge/formula/anh_khung_dau.md`, `motion.md` thêm mục F1-C.
+- Test `tests/test_prompt_template_f1c.py` (15). Sửa có lý do: `test_trial_fixes` end-frame (câu look giờ tách đầu/cuối).
+
+**Chưa làm / rủi ro**: chỉ gộp câu lặp NGUYÊN VĂN (câu gần giống không gộp); `outfit_vs_profile` có thể ĐỎ nhầm khi gán chủ sai
+(nhiều nhân vật, tên đứng gần) — chặn gen ảnh shot đó; `PRECEDENCE`/`scene_establish` "No people, no characters" thuộc F2 chưa đụng;
+mô tả địa điểm trong Kho ("No stacked terraces, no fortress.") là dữ liệu, chưa viết lại.
+
 # HANDOFF — F1-A công thức prompt (09/10/2026, nhánh `worktree-agent-a22dfa0dcc0951c59`, chưa push)
 
 **Đã xong** (0 USD, không gọi model):

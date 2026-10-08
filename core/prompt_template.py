@@ -44,8 +44,9 @@ def _norm(s: str) -> str:
 
 
 def join(parts: Iterable[str]) -> str:
-    """Parts in order, each closed, exact repeated sentences (case/space-insensitive) said once."""
-    seen, out = set(), []
+    """Parts in order, each closed before the next one, exact repeated sentences (case/space-insensitive) said once. The LAST part
+    keeps its own ending as written (a prompt that is only the Director's words goes unchanged)."""
+    seen, out, last_open = set(), [], False
     for part in parts:
         kept = []
         for s in sentences(close(part)):
@@ -56,7 +57,9 @@ def join(parts: Iterable[str]) -> str:
             kept.append(s)
         if kept:
             out.append(" ".join(kept))
-    return " ".join(out)
+            last_open = not re.search(r"[.!?][\"'”)]?$", re.sub(r"\s+", " ", str(part)).strip().rstrip(" ,;:—-"))
+    text = " ".join(out)
+    return text[:-1] if last_open and text.endswith(".") else text
 
 
 def quality_keys(text: str) -> set:
