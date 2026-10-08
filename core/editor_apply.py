@@ -5,7 +5,8 @@
     after (rough cut alone)  ->  not worse: kept, the old cut stays beside it (A/B)   |   worse: the old cut is put back, the new one is kept
     only as a file in output/_editor/ (and in the log) for the person to look at.
 
-What can be applied: `shorten_shot` (the clip's first seconds), `extend_hold` (its last frame held), `music_cue` (the shot's `sound.music` for THIS render — the
+What can be applied: `shorten_shot` (the clip's first seconds), `trim_head` (KLD-19: its first N seconds dropped — never a shot with speech /
+lip sync / chained on the previous clip's last frame), `extend_hold` (its last frame held), `music_cue` (the shot's `sound.music` for THIS render — the
 Director's plan in the database is not touched). Everything else the Editor proposes stays a suggestion (a transition style is one setting
 of the whole film; flags unverified are never switched on here). The person decides: a proposal the Director contested is applied only if
 the person ticks it.
@@ -98,20 +99,22 @@ def plan(p, project_id: int, data_dir: str, review: Dict, rc: Dict, ids: List[st
     refused += [{"id": i, "reason": r} for i, r in gone.items()]
     chosen = [f for f in chosen if f["id"] not in gone]
     clock = {s["n"]: s for s in rc.get("shots") or []}
-    durations, music, fit, applied = list(base), {}, [], []
+    durations, music, fit, applied, head = list(base), {}, [], [], {}
     for f in chosen:
         n = f["target_shot"]
         sid = (clock.get(n) or {}).get("scene_id")
         if not sid:
             refused.append({"id": f["id"], "reason": f"shot {n} không có dòng cảnh trong CSDL"})
             continue
-        if f["action"] in ("shorten_shot", "extend_hold"):
-            delta = -f["amount"] if f["action"] == "shorten_shot" else f["amount"]
+        if f["action"] in ("shorten_shot", "trim_head", "extend_hold"):
+            delta = f["amount"] if f["action"] == "extend_hold" else -f["amount"]
             new = round(durations[n - 1] + delta, 2)
             if new < shots_mod.MIN_SHOT:
                 refused.append({"id": f["id"], "reason": f"shot {n} sẽ ngắn hơn {shots_mod.MIN_SHOT:g} s"})
                 continue
             durations[n - 1] = new
+            if f["action"] == "trim_head":
+                head[sid] = round(head.get(sid, 0.0) + f["amount"], 2)   # the render drops these first seconds before fitting the length
             fit.append(sid)                      # the clip of this shot gets a copy of the new length (trim, or its last frame held)
         elif f["action"] == "music_cue":
             music[sid] = f["value"]
@@ -119,7 +122,8 @@ def plan(p, project_id: int, data_dir: str, review: Dict, rc: Dict, ids: List[st
     if not applied:
         raise ValueError("không còn đề xuất nào áp được: " + "; ".join(f"{r['id']} ({r['reason']})" for r in refused) if refused else
                          "chưa chọn đề xuất nào")
-    return {"durations": durations, "music": music, "fit": fit, "clips": clips, "applied": applied, "refused": refused, "base": base}
+    return {"durations": durations, "music": music, "fit": fit, "head": head, "clips": clips, "applied": applied, "refused": refused,
+            "base": base}
 
 
 # ---- quality gate ---------------------------------------------------------------------------------------------------------------------
@@ -204,7 +208,7 @@ def apply(p, project_id: int, data_dir: str, ids: List[str], render_fn: Optional
         info = {"round": int(meta.get("round") or 0) + 1, "from_output": old["id"], "root_output": meta.get("root_output", old["id"]),
                 "review": review["fingerprint"], "applied": pl["applied"], "durations_before": pl["base"], "durations_after": pl["durations"]}
         try:
-            new = render_fn(p, project_id, data_dir, "auto", clips=pl["clips"], durations=pl["durations"], edits={"music": pl["music"], "fit": pl["fit"], "meta": info})
+            new = render_fn(p, project_id, data_dir, "auto", clips=pl["clips"], durations=pl["durations"], edits={"music": pl["music"], "fit": pl["fit"], "head": pl.get("head") or {}, "meta": info})
         except Exception as e:  # noqa: BLE001 - whatever stopped the render: the old cut goes back, nothing half-applied stays current
             restored = _put_back(p, data_dir, project_id, old, old_path, out_path)
             log.append({"at": _now(), "review": review["fingerprint"], "ids": ids, "kept": False, "error": str(e)[:300], "restored_output": restored})

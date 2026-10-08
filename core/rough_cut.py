@@ -66,7 +66,8 @@ def shot_clock(p, project_id: int, final_row) -> List[Dict]:
                     "start": round(start, 2), "end": round(end, 2), "seconds": round(float(item.get("seconds") or 0), 2),
                     "dialogue": bool([d for d in data.get("dialogue") or [] if isinstance(d, dict) and str(d.get("text") or "").strip()]),
                     "lip_sync": bool(data.get("lip_sync")), "money_shot": bool(data.get("money_shot")),
-                    "speed": data.get("speed"), "transition_in": data.get("transition_in")})
+                    "speed": data.get("speed"), "transition_in": data.get("transition_in"),
+                    "chained": bool(data.get("start_from_prev_clip"))})          # KLD-19: starts on the previous clip's last frame
     return out
 
 

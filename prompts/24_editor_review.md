@@ -28,6 +28,7 @@ thì nói vậy và trả danh sách rỗng — không bịa chỗ để sửa.
 
 `action` và trường kèm theo:
 - `shorten_shot` — `target_shot` (số thứ tự shot `n`), `amount` (giây bớt, 0,2–3): cắt bớt **cuối** shot (giữ phần đầu clip).
+- `trim_head` — `target_shot`, `amount` (giây bỏ, 0,2–3): bỏ **đầu** shot (giữ phần sau) — khi đoạn đầu clip lệch / khựng / lặp động tác ở chỗ nối (vd nối 254 → 255 giật ở giây 1,5 của 255). Không dùng cho shot có thoại / khớp môi / shot nối khung (`chained`: bắt đầu từ khung cuối clip trước) — code từ chối.
 - `extend_hold` — `target_shot`, `amount` (giây thêm, 0,2–3): **đóng băng khung cuối** của shot thêm chừng đó giây (không có thêm chuyển động) — chỉ khi khoảnh khắc cuối cần thời gian để người xem nhận.
 - `music_cue` — `target_shot`, `value` ∈ `keep` · `cut` · `in` · `breath` (ý đồ nhạc tại shot đó).
 - `transition` — `target_shot` (shot đầu cảnh mới), `value` ∈ `cut` · `crossfade` · `dip_to_black`. **Chỉ là gợi ý**: kiểu chuyển cảnh là cài đặt chung của cả phim, chưa chỉnh được từng chỗ.
