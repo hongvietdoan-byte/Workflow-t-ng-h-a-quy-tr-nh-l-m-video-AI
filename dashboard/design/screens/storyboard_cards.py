@@ -211,7 +211,7 @@ def _send_queued(p, pid: int) -> None:
     nothing "to make", so it waited forever. Send what is queued now (the runner keeps its own limits)."""
     runner = C.image_runner(p)
     if runner is not None:
-        act(lambda: runner.submit_pending(pid))
+        act(lambda: runner.submit_pending(pid, wait_s=20))   # lỗi B 08/10: wait for the turn, not a silent 0 (bg_poll sends later)
 
 
 def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:

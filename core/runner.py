@@ -50,6 +50,18 @@ def model_fix(retry_reason: Optional[str]) -> Optional[str]:
 _turns: Dict[Tuple[int, str], threading.RLock] = {}
 _turns_lock = threading.Lock()
 
+# Lỗi A (08/10, #24 job 578–584): why a queued job is held by _wait — {job_id: (Vietnamese reason, time)}. Written each time _wait holds a
+# job, removed when it is sent. The step 2 screen says the real reason ("sẽ tự gửi khi …") instead of "bấm ▶ Gen ảnh"; core.bg_poll
+# sends the job by itself once the reason is gone. Same process as the dashboard (the background round runs inside it).
+WAIT_REASONS: Dict[int, Tuple[str, float]] = {}
+WAIT_FRESH_SEC = 300
+
+
+def wait_reason(job_id: int) -> Optional[str]:
+    """The reason _wait last gave for this queued job (None = none known in the last 5 minutes)."""
+    hit = WAIT_REASONS.get(job_id)
+    return hit[0] if hit and time.time() - hit[1] < WAIT_FRESH_SEC else None
+
 
 class RedrawWithFix(Exception):
     """A downloaded result that must not be used (e.g. a location-pack picture drawn without the green backdrop): the job fails and a
@@ -211,12 +223,20 @@ class _Runner:
         return self.p.conn.execute("SELECT * FROM jobs WHERE project_id=? AND type=? AND state=? ORDER BY id",
                                    (project_id, self.job_type, state)).fetchall()
 
-    def submit_pending(self, project_id: int) -> int:
+    def _hold(self, job, reason: str) -> bool:
+        """_wait holds this job: remember why (WAIT_REASONS, read by the screen) and return True."""
+        WAIT_REASONS[job["id"]] = (reason, time.time())
+        return True
+
+    def submit_pending(self, project_id: int, only=None, wait_s: float = 0) -> int:
+        """Send the project's queued jobs (those _wait does not hold). only = the job ids allowed (core.bg_poll: the person's jobs).
+        wait_s (lỗi B 08/10): a person's click waits up to this long for the turn — the background round / the page's polling held it
+        and the click used to return 0 silently, the jobs only queued."""
         lock = _turn(project_id, self.job_type)
-        if not lock.acquire(blocking=False):
+        if not lock.acquire(blocking=wait_s > 0, timeout=wait_s if wait_s > 0 else -1):
             return 0                       # M3: another thread is sending this project's jobs right now
         try:
-            sent = self._submit_pending(project_id)
+            sent = self._submit_pending(project_id, only)
         finally:
             lock.release()
         self._script_cap_stop(project_id)
@@ -239,7 +259,7 @@ class _Runner:
         if not self._jobs(project_id, "running"):
             raise script_cap.CapReached(cap.stopped)
 
-    def _submit_pending(self, project_id: int) -> int:
+    def _submit_pending(self, project_id: int, only=None) -> int:
         if self.p.project(project_id)["paused"]:
             return 0
         slots = self.max_concurrent - len(self._jobs(project_id, "running"))
@@ -247,10 +267,14 @@ class _Runner:
         for job in self._jobs(project_id, "queued"):
             if slots <= 0:
                 break
+            if only is not None and job["id"] not in only:
+                continue
             if submitted and self.p.project(project_id)["paused"]:
                 break               # T2: paused while this pass was sending — the jobs sent so far are running, send no more
             if self._wait(job):
+                WAIT_REASONS.setdefault(job["id"], ("chờ điều kiện gửi (ảnh/clip đi trước, nhóm shot)", time.time()))
                 continue            # v3: this job is sent later (after the previous shot's picture / with its multi-shot group)
+            WAIT_REASONS.pop(job["id"], None)
             if job["external_id"]:
                 # T2: its task already exists at the provider (a multi-shot follower given the leader's task, relink_failed, or a send
                 # whose RUNNING step was lost) — sending it again would pay twice. It only moves to RUNNING; the next poll fetches it.
@@ -1028,9 +1052,9 @@ class VideoRunner(_Runner):
         from . import place_refs
         if place_refs.enabled() and self._refs(job) and \
                 self._stale_plates(job, self._ref_rows(job, self._sends_group(job) or [])):
-            return True                   # KLD-6: a reference-only send carries each shot's render — the new one is rendered first
-        if self._waits_for_prev_clip(job):
-            return True                   # 07/10: starts on the previous clip's last frame — that clip is approved first
+            return self._hold(job, "đang render lại nền 3D đã cũ (0 USD) — sẽ tự gửi khi render xong")   # KLD-6
+        if self._waits_for_prev_clip(job):  # 07/10: starts on the previous clip's last frame — that clip is approved first
+            return self._hold(job, "chờ bạn duyệt clip cảnh trước (cảnh này bắt đầu từ khung cuối clip đó) — duyệt xong sẽ tự gửi")
         if end_frames.enabled():
             row = end_frames.current(self.p.conn, job["scene_id"])
             if row is not None and row["state"] in ("queued", "running"):
@@ -1698,13 +1722,13 @@ class ImageRunner(_Runner):
             if any(place_refs.missing(self.p.conn, self.data_dir, job["project_id"], r["id"], r["data"]) for r in rows):
                 place_refs.ensure_async(self.p.conn, job["project_id"], self.data_dir, place_refs.resolution_of(self.p.project(job["project_id"])),
                                         log=self._thread_diag(job, "place_render"))
-                return True
+                return self._hold(job, "đang render nền 3D của cảnh (Blender, 0 USD) — sẽ tự gửi khi render xong")
             if self._stale_plates(job, rows):                # KLD-6: a render of another camera (moved spot…) — rebuilt first, 0 USD
-                return True
+                return self._hold(job, "đang render lại nền 3D đã cũ (chỗ đứng/góc máy đổi, 0 USD) — sẽ tự gửi khi render xong")
             held = place_refs.needs(self.data_dir, job["project_id"], job["scene_id"])
             if held:                                         # S5.7: no direction for a script-direction spot — wait, and say what to add
                 self._diag(job, "error", "plate_view", held)
-                return True
+                return self._hold(job, f"thiếu hướng máy cho nền 3D — CẦN BẠN SỬA: {held} (sửa xong sẽ tự gửi)")
         if scene_establish.shadow():                         # 🎓 học việc (B6 08/10): drawn apart, the shot never waits for it
             try:
                 data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
@@ -1725,15 +1749,19 @@ class ImageRunner(_Runner):
                 model = image_models.of_project(self.p.project(job["project_id"]))
             state = scene_establish.step(self.p.conn, job["project_id"], data.get("story_scene"), self.provider, self.data_dir, model,
                                          lambda sev, code, msg: self._diag(job, sev, code, msg))
-            if state == "waiting":
-                return True                                  # the scene's wide establishing picture is drawn first
+            if state == "waiting":                           # the scene's wide establishing picture is drawn first
+                return self._hold(job, "chờ ảnh toàn cảnh (establishing) của cảnh — sẽ tự gửi khi ảnh đó xong")
         if scene_storyboard.enabled() and getattr(self.provider, "supports_storyboard", False) and \
                 scene_storyboard.waits(self.p.conn, self.data_dir, job["project_id"], job["scene_id"]):
             self._anchor_wait_note(job)                      # 08/10 lỗi 11: said, never a silent wait
-            return True                                      # storyboard mode: the scene's anchor frame is drawn first
+            why = scene_storyboard.wait_reason(self.p.conn, self.data_dir, job["project_id"], job["scene_id"])
+            return self._hold(job, (why or {}).get("text", "chờ ảnh neo của cảnh (storyboard)")
+                              + ("" if (why or {}).get("stuck") else " — sẽ tự gửi khi ảnh neo xong"))
         proj = self.p.project(job["project_id"])
         chains = proj["storyboard_mode"] == 1
-        return bool(shots.mode(proj)) and chains and shots.waits_for_previous_image(self.p.conn, job["scene_id"])
+        if bool(shots.mode(proj)) and chains and shots.waits_for_previous_image(self.p.conn, job["scene_id"]):
+            return self._hold(job, "chờ ảnh đã duyệt của shot trước (nối khung) — sẽ tự gửi khi bạn duyệt ảnh đó")
+        return False
 
     def _anchor_wait_note(self, job) -> None:
         """Lỗi 11 (#24): the job waits for its scene's anchor picture. When the anchor has NO picture job on its way (not queued / running),

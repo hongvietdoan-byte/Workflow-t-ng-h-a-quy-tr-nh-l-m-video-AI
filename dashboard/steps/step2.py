@@ -106,12 +106,31 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
             else:
                 st.warning(_no)
         else:
-            waits = queued_waits(p, pid)                  # 08/10 lỗi 11: a queued picture may wait for its scene's anchor shot
-            if waits:
-                st.warning(f"⚠ {queued} ảnh đã xếp hàng nhưng chưa gửi — " + "; ".join(waits)
-                           + ". Bấm ▶ Gen ảnh chỉ gửi được khi ảnh neo đã có.")
-            else:
-                st.warning(f"⚠ {queued} ảnh đã xếp hàng nhưng chưa gửi: bấm **▶ Gen ảnh** ở trên.")
+            st.info(queued_text(p, pid, queued))         # lỗi A (08/10): the real reason + "sẽ tự gửi khi …", never "bấm ▶ Gen"
+
+
+SEND_TURN_WAIT_S = 20     # lỗi B: a click waits this long for the runner's turn (a poll downloading results holds it a few seconds)
+
+
+def queued_text(p: Pipeline, pid: int, queued: int) -> str:
+    """Lỗi A (08/10, #24): what the queued pictures wait for, from runner.WAIT_REASONS (written by ImageRunner._wait), grouped. The
+    background round (core.bg_poll, every 30 s) sends them by itself once the reason is gone — the old line "bấm ▶ Gen ảnh" made the
+    person think nothing would happen without a click."""
+    from core import runner as R
+    from core import bg_poll
+    ids = [r["id"] for r in p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='queued' ORDER BY id",
+                                           (pid,)).fetchall()]
+    groups: dict = {}
+    for jid in ids:
+        groups.setdefault(R.wait_reason(jid) or "", []).append(jid)
+    lines = [f"job {', '.join(map(str, js[:6]))}{'…' if len(js) > 6 else ''}: {why}" for why, js in groups.items() if why]
+    lines += queued_waits(p, pid) if not lines else []
+    unknown = groups.get("", [])
+    if unknown:
+        lines.append(f"{len(unknown)} ảnh chưa có lý do chờ — vòng gửi nền (≤ {bg_poll.INTERVAL_SEC} giây) sẽ tự gửi khi còn chỗ / "
+                     "ngân sách cho phép (xem ⚙ Chẩn đoán nếu vẫn nằm yên)")
+    return (f"⏳ {queued} ảnh đã xếp hàng, chưa gửi — sẽ TỰ GỬI khi hết lý do chờ (không cần bấm lại):\n\n"
+            + "\n".join(f"- {x}" for x in lines))
 
 
 def queued_waits(p: Pipeline, pid: int) -> list:
@@ -199,8 +218,13 @@ def step2(p: Pipeline, pid: int):
                      disabled=(not est_ok and not queued) or (bool(gates["block"]) and not forced)):
             def go():
                 r = batch.queue_images(p, pid, confirmed=forced)
-                sent = runner.submit_pending(pid) if runner is not None else 0
+                # lỗi B (08/10): one click = queue + send. The click waits for the turn (the page / background polling held it and the
+                # send used to return 0 silently); jobs held by a real reason are sent by core.bg_poll when it is gone (lỗi A)
+                sent = runner.submit_pending(pid, wait_s=SEND_TURN_WAIT_S) if runner is not None else 0
+                left = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='queued'",
+                                      (pid,)).fetchone()[0]
                 st.toast(f"Xếp hàng {r['created']} ảnh mới, {r['redo']} ảnh làm lại" + (f" · đã gửi {sent}" if runner else "")
+                         + (f" · {left} ảnh chờ điều kiện, sẽ tự gửi (xem lý do bên dưới)" if runner and left else "")
                          + (" · đang gen thử" if r["pilot"] else ""))
             if act(go):
                 st.rerun()

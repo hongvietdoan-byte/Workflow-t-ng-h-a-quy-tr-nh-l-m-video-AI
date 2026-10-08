@@ -137,7 +137,7 @@ class StoryboardV2Tests(unittest.TestCase):
         p, pid, sc = self.seed(1)
         a = self.job_in(p, sc[0], "pending_review")
         sent = []
-        with mock.patch.dict(os.environ, {"IMAGE_PROVIDER": "mock"}),                 mock.patch("core.runner.ImageRunner.submit_pending", lambda self_, pid_: sent.append(pid_) or 1):
+        with mock.patch.dict(os.environ, {"IMAGE_PROVIDER": "mock"}),                 mock.patch("core.runner.ImageRunner.submit_pending", lambda self_, pid_, **kw: sent.append(pid_) or 1):
             at = self.board()
             next(x for x in at.button if x.key == f"r_{a}").click().run()
         self.assertEqual(sent, [pid])

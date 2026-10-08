@@ -47,7 +47,7 @@ class ImageProgressTests(unittest.TestCase):
         os.environ["IMAGE_PROVIDER"] = "mock"
         said, _ = self.text()
         self.assertIn("chưa gửi", said)
-        self.assertIn("Gen ảnh", said)
+        self.assertIn("TỰ GỬI", said)          # lỗi A 08/10: the background round sends it — no "bấm ▶ Gen ảnh" any more
 
 
 class AutoRefreshTests(ImageProgressTests):
