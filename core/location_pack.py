@@ -18,6 +18,7 @@ import json
 import os
 import re
 import shutil
+import time
 from typing import Callable, Dict, List, Optional
 
 from . import assets, plate_camera, plate_env, plates3d
@@ -288,12 +289,68 @@ def plate_failed(data_dir: str, pid: int, scene_id: int) -> Optional[str]:
     return (rec or {}).get("failed")
 
 
-def _failed(root: str, key: str) -> Optional[str]:
+# Phiên sửa F2 (09/10): a TEMPORARY Blender failure (timeout, crash, exception — the run returned `error`) is rendered again by
+# itself: once it is RETRY_AFTER_S old, up to RETRY_TRIES runs; only then is the shot's render "broken" (the picture held for good).
+# Before, failed.json held the picture "until forget_failures" — which nothing but a test called.
+RETRY_AFTER_S, RETRY_TRIES = 600, 2
+
+
+def _now() -> float:
+    return time.time()
+
+
+def _failure(root: str, key: str) -> Optional[Dict]:
     try:
         with open(os.path.join(root, key, "failed.json"), encoding="utf-8") as f:
-            return json.load(f).get("reason") or "Blender không trả về góc máy này"
+            rec = json.load(f)
     except (OSError, ValueError):
         return None
+    return rec if isinstance(rec, dict) else {}
+
+
+def _retry_at(fail: Optional[Dict]) -> Optional[float]:
+    """When a temporary failure is rendered again (None: a lasting failure, or the tries are used up)."""
+    if fail and fail.get("transient") and int(fail.get("tries") or 1) < RETRY_TRIES:
+        return float(fail.get("at") or 0.0) + RETRY_AFTER_S
+    return None
+
+
+def _failed(root: str, key: str, retry: bool = True) -> Optional[str]:
+    """Why Blender gave no render for this camera, else None. retry: a temporary failure whose retry time has come is None (the
+    camera is missing again → rendered again)."""
+    fail = _failure(root, key)
+    if fail is None:
+        return None
+    at = _retry_at(fail) if retry else None
+    if at is not None and _now() >= at:
+        return None
+    return fail.get("reason") or "Blender không trả về góc máy này"
+
+
+def plate_retry_due(data_dir: str, pid: int, scene_id: int) -> bool:
+    """The shot's render failed TEMPORARILY and its retry time has come (place_refs.missing → ensure_async renders it again)."""
+    rec = index(data_dir, pid).get(str(scene_id)) or {}
+    return bool(rec.get("failed") and rec.get("retry_at") and _now() >= float(rec["retry_at"]))
+
+
+def forget_shot(data_dir: str, pid: int, scene_id: int) -> bool:
+    """Step 2 "↻ Render lại nền 3D" (0 USD): forget the failed render of THIS shot only (its camera + its same-axis wide) and the
+    index record's failure — `missing` then asks for it again. True when the shot had a failure."""
+    path = _index_path(data_dir, pid)
+    idx = index(data_dir, pid)
+    rec = idx.get(str(scene_id))
+    if not rec or not (rec.get("failed") or rec.get("wide_failed")):
+        return False
+    root = cache_root(os.path.dirname(os.path.abspath(data_dir)))
+    for key in {rec.get("key"), rec.get("wide_key"), (rec.get("wide") or {}).get("key")} - {None, ""}:
+        f = os.path.join(root, str(key), "failed.json")
+        if os.path.exists(f):
+            os.remove(f)
+    for k in ("failed", "retry_at", "wide_failed"):
+        rec.pop(k, None)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(idx, f, ensure_ascii=False, indent=1)
+    return True
 
 
 def forget_failures(data_root: str) -> int:
@@ -419,7 +476,7 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
     camera, camera_plan} or `wide_failed`; a missing wide never holds the shot (it then goes with the scene's old place pictures).
     A camera Blender does not return is marked failed (failed.json + diag + log) and NOT rendered again at every autopilot tick; the
     index says so and (F2) the shot's picture WAITS with the reason on Step 2 — never sent without its 3D background
-    (forget_failures = retry). A camera the geometry check cannot place (`camera_problem`) is not rendered: failed, said the same way."""
+    (a temporary failure is rendered again after RETRY_AFTER_S, ≤ RETRY_TRIES runs; Step 2 button = forget_shot). A camera the geometry check cannot place (`camera_problem`) is not rendered: failed, said the same way."""
     from . import diag
     items = plan(conn, pid, resolution)
     root = cache_root(data_root)
@@ -432,7 +489,7 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             continue                                      # F2: an impossible camera is not rendered (index: failed, below)
         wide = it.get("wide") or {}
         for kind, key, camera in (("shot", it["key"], it["camera"]), ("wide", wide.get("key"), wide.get("camera"))):
-            if key and _cached(root, key) is None and _failed(root, key) is None:
+            if key and _cached(root, key) is None and _failed(root, key, retry=kind == "shot") is None:
                 missing.setdefault((it["entry"]["sha256"], plate_env.key(it["env"])), []).append((it, kind, key, camera))
     rendered = set()
     for group in missing.values():
@@ -451,7 +508,12 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
                             weather=benv["weather"], sky_extra=benv["sky_extra"], real_height_m=first["entry"].get("real_height_m"))
         cfg["owner"] = f"dự án #{pid}"                    # the Blender lock / Dashboard say which project holds this computer's Blender
         log(f"Render nền 3D: {first['place']} · {plate_env.key(first['env'])} · {len(cams)} góc máy")
-        manifest = render(cfg, blender or plates3d.find_blender(), timeout=1800)
+        try:
+            manifest = render(cfg, blender or plates3d.find_blender(), timeout=1800)
+        except Exception as e:  # noqa: BLE001 - phiên sửa F2: a Blender error is a TEMPORARY failure of this group's cameras (failed.json,
+            # below), never an exception out of the thread — before, every tick started a new thread on the same missing wide for ever
+            manifest = {"error": str(e) or type(e).__name__, "plates": []}
+            log(f"Render nền 3D lỗi ({first['place']}): {manifest['error']}")
         by_name = {p["name"]: p for p in manifest.get("plates", [])}
         done = set()
         for it, kind, key, camera in group:
@@ -463,11 +525,20 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             os.makedirs(dest, exist_ok=True)
             if p is None:
                 what = "góc máy" if kind == "shot" else "ảnh toàn cùng trục"
-                why = (f"Blender không trả về {what} của shot {it['idx']} ({first['place']}, {plate_env.key(first['env'])})"
-                       + (" — ảnh của shot này GIỮ CHỜ (không gửi thiếu nền 3D); chọn lại góc / sửa chỗ đứng, hoặc sửa mô hình/Blender "
-                          "rồi chạy lại với forget_failures" if kind == "shot" else " — shot gửi không kèm ảnh toàn cùng trục"))
+                transient = bool(manifest.get("error"))
+                prev = _failure(root, key) or {}
+                tries = int(prev.get("tries") or 1) + 1 if transient and prev.get("transient") else 1
+                again = transient and tries < RETRY_TRIES and kind == "shot"
+                head = f"Blender không trả về {what}" + (f" (lỗi tạm: {str(manifest.get('error'))[:120]})" if transient else "")
+                why = (f"{head} của shot {it['idx']} ({first['place']}, {plate_env.key(first['env'])})"
+                       + ((" — ảnh của shot này GIỮ CHỜ (không gửi thiếu nền 3D); "
+                           + (f"tự render lại sau {RETRY_AFTER_S // 60} phút (lần {tries}/{RETRY_TRIES}), hoặc bấm “↻ Render lại nền 3D” "
+                              "ở Bước 2 (0 USD)" if again else
+                              "chọn lại góc / sửa chỗ đứng, hoặc sửa mô hình/Blender rồi bấm “↻ Render lại nền 3D” ở Bước 2 (0 USD)"))
+                          if kind == "shot" else " — shot gửi không kèm ảnh toàn cùng trục"))
                 with open(os.path.join(dest, "failed.json"), "w", encoding="utf-8") as f:
-                    json.dump({"reason": why, "manifest_error": manifest.get("error")}, f, ensure_ascii=False)
+                    json.dump({"reason": why, "manifest_error": manifest.get("error"), "transient": transient, "at": _now(),
+                               "tries": tries}, f, ensure_ascii=False)
                 diag.record(conn, "image", "warn", why, "plate_missing" if kind == "shot" else "plate_wide_missing",
                             project_id=pid, scene_id=it["scene_id"])
                 log(why)
@@ -486,12 +557,14 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             _finish(rec, dest, own)
             with open(os.path.join(dest, "meta.json"), "w", encoding="utf-8") as f:
                 json.dump(rec, f, ensure_ascii=False, indent=1)
+            if os.path.exists(os.path.join(dest, "failed.json")):
+                os.remove(os.path.join(dest, "failed.json"))     # rendered after a temporary failure: the failure is over
     before = index(data_dir, pid)
     idx = {}
     for it in items:
         # KLD-6: the size the record was made at (stale_plates judges it at that size) + the spot the shot stood on before a move
         # (move_report lists the fields still naming it, also after this new render)
-        extra = {"res": [int(v) for v in resolution]}
+        extra = {"res": [int(v) for v in resolution], **({"wide_key": it["wide"]["key"]} if (it.get("wide") or {}).get("key") else {})}
         old = before.get(str(it["scene_id"])) or {}
         moved = old.get("spot") if old.get("spot") and old.get("spot") != it["spot"] else old.get("moved_from")
         if moved and moved != it["spot"]:
@@ -509,7 +582,9 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
         if rec is None:
             why = _failed(root, it["key"])
             if why:
-                idx[str(it["scene_id"])] = {"key": it["key"], "failed": why, "place": it["place"], "spot": it["spot"], **extra}
+                at = _retry_at(_failure(root, it["key"]))
+                idx[str(it["scene_id"])] = {"key": it["key"], "failed": why, "place": it["place"], "spot": it["spot"], **extra,
+                                            **({"retry_at": at} if at is not None else {})}
             continue
         if rec.get("depth") and rec.get("depth_exposure") is None:
             # lỗi 14 (08/10): a plate finished before the depth fix read its depth wrongly — finished again from the same render (0 USD)
@@ -551,7 +626,7 @@ def _wide_record(root: str, it: Dict) -> Dict:
         return {}
     rec = _cached(root, key)
     if rec is None:
-        why = _failed(root, key)
+        why = _failed(root, key, retry=False)            # a missing wide never holds the shot: not retried by time
         return {"wide_failed": why} if why else {}
     bad = _recheck_problem(rec, os.path.join(root, key))
     if bad:

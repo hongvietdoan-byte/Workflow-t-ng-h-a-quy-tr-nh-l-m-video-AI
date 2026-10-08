@@ -11,10 +11,11 @@ Blender is faked (no real render in tests)."""
 import json
 import math
 import os
+import shutil
 from unittest import mock
 
 from core import location_pack, place_refs, plate_camera, scene_establish
-from tests.test_plate_stale_kld6 import Base, OLD_FIELDS, plate_png
+from tests.test_plate_stale_kld6 import REAL_ENSURE, Base, OLD_FIELDS, plate_png
 
 SHOT4 = {"size": "MCU", "angle": "low", "lens_mm": 50}
 FEET4 = (-217.07, 116.0, 12.67)
@@ -160,3 +161,93 @@ class ScaleTests(Base):
         self.assertNotIn("tower", s)
         self.assertNotIn("unmeasured", s)
         self.assertEqual(place_refs.scale_sentence(rec, {}, {}), "")
+
+
+class FixRoundTests(Base):
+    """Phiên sửa F2 (09/10): lỗi tạm của Blender không giữ chờ vĩnh viễn, ngoại lệ không làm vòng render vô hạn, nút render lại."""
+    def err_render(self, cfg, blender=None, timeout=0):
+        self.renders += 1
+        return {"error": "timeout", "plates": [], "out_dir": cfg["out_dir"]}
+
+    def ensure(self, render):
+        res = place_refs.resolution_of(self.p.project(self.pid))
+        return REAL_ENSURE(self.p.conn, self.pid, self.data, self.tmp, res, blender="x", render=render)
+
+    def state(self):
+        d = self.data_of()
+        return (place_refs.missing(self.p.conn, self.data, self.pid, self.sid, d),
+                place_refs.broken(self.p.conn, self.data, self.pid, self.sid, d))
+
+    def test_transient_failure_retries_after_10_minutes_then_holds_after_2_tries(self):
+        clock = [1000.0]
+        with mock.patch.object(location_pack, "_now", lambda: clock[0]):
+            self.ensure(self.err_render)
+            miss, bad = self.state()
+            self.assertFalse(miss)                                        # lần 1: giữ chờ, có lý do
+            self.assertTrue(bad)
+            self.assertNotIn("forget_failures", bad)
+            clock[0] += 601
+            miss, bad = self.state()
+            self.assertTrue(miss)                                         # cũ hơn 10 phút → thiếu → tự render lại
+            self.assertIsNone(bad)
+            self.ensure(self.err_render)
+            self.assertEqual(self.renders, 2)
+            clock[0] += 601
+            miss, bad = self.state()
+            self.assertFalse(miss)                                        # sau 2 lần: hỏng thật
+            self.assertTrue(bad)
+            self.ensure(self.err_render)
+            self.assertEqual(self.renders, 2)                             # không render lại nữa
+
+    def test_retry_button_forgets_only_this_shot(self):
+        self.ensure(self.err_render)
+        root = location_pack.cache_root(self.tmp)
+        key = location_pack.index(self.data, self.pid)[str(self.sid)]["key"]
+        self.assertTrue(os.path.exists(os.path.join(root, key, "failed.json")))
+        other = os.path.join(root, "otherkey")
+        os.makedirs(other)
+        with open(os.path.join(other, "failed.json"), "w", encoding="utf-8") as f:
+            json.dump({"reason": "x"}, f)
+        self.p.create_job(self.sid, "image_gen")
+        self.assertEqual([t[0] for t in place_refs.held_broken(self.p.conn, self.data, self.pid)], [self.sid])
+        self.assertTrue(place_refs.retry_render(self.p.conn, self.data, self.pid, self.sid))
+        self.assertFalse(os.path.exists(os.path.join(root, key, "failed.json")))
+        self.assertTrue(os.path.exists(os.path.join(other, "failed.json")))
+        self.assertEqual(self.state(), (True, None))
+        self.assertEqual(place_refs.held_broken(self.p.conn, self.data, self.pid), [])
+
+    def test_blender_exception_on_old_index_does_not_loop(self):
+        from core import plates3d
+        self.render()
+        path = os.path.join(self.data, str(self.pid), "plates", "index.json")
+        idx = json.load(open(path, encoding="utf-8"))
+        wide_key = idx[str(self.sid)].pop("wide")["key"]
+        json.dump(idx, open(path, "w", encoding="utf-8"))
+        shutil.rmtree(os.path.join(location_pack.cache_root(self.tmp), wide_key))
+        self.assertTrue(self.state()[0])
+
+        def boom(cfg, blender=None, timeout=0):
+            raise plates3d.Plates3DError("x")
+        self.ensure(boom)                                                 # không ném ra
+        self.assertEqual(self.state(), (False, None))                     # shot có nền hợp lệ: không giữ mãi
+
+    def test_wide_keeps_the_previous_shot_slot(self):
+        refs = [{"path": f"{i}.png", "role": "character"} for i in range(3)] + [{"path": "r.png", "role": place_refs.ROLE}]
+        limit = 5
+        out = place_refs.add_wide(refs, {"path": "w.png", "role": place_refs.WIDE_ROLE}, limit, reserve=1)
+        self.assertLess(len(out), limit)                                  # runner: chain and len(refs) < limit → previous_scene
+
+    def test_indoor_shot_gets_no_wide(self):
+        from core import runner
+        self.render()
+        d = self.data_of()
+        self.assertIsNotNone(place_refs.wide_for(self.p.conn, self.data, self.pid, self.sid, d))
+        with mock.patch.object(runner, "indoor_spot", return_value="Kelly's bedroom"):
+            self.assertIsNone(place_refs.wide_for(self.p.conn, self.data, self.pid, self.sid, d))
+
+    def test_sky_words_are_whole_words_and_not_negated(self):
+        self.assertFalse(plate_camera.wants_sky({"image_prompt": "city skyline, no sky"}))
+        self.assertFalse(plate_camera.wants_sky({"image_prompt": "a skyscraper behind her"}))
+        self.assertFalse(plate_camera.wants_sky({"image_prompt": "góc thấp, không thấy trời"}))
+        self.assertTrue(plate_camera.wants_sky({"image_prompt": "looking up at the night sky"}))
+        self.assertTrue(plate_camera.wants_sky({"start_frame": "ngước nhìn bầu trời"}))

@@ -11,6 +11,7 @@ the lens per size (wide = wider lens, close = longer lens, which also compresses
 Frame: vertical 9:16 by default; Blender's sensor (36 mm) spans the longer side ("AUTO" fit).
 """
 import math
+import re
 from typing import Dict, List, Optional, Sequence, Tuple
 
 SENSOR_MM = 36.0
@@ -78,7 +79,15 @@ def vfov(lens_mm: float, aspect: float) -> float:
 def wants_sky(data: Dict) -> bool:
     """The shot asks to look at the sky (then an upward tilt with the horizon out of frame is the intent, not an error)."""
     words = " ".join(str(data.get(k) or "") for k in ("start_frame", "camera_setup", "blocking", "image_prompt")).lower()
-    return any(w in words for w in SKY_WORDS)
+    # phiên sửa F2: whole words ("skyline", "skyscraper" are not the sky) and never negated ("no sky", "không thấy trời")
+    for m in _SKY_RX.finditer(words):
+        if not _SKY_NEG.search(words[max(0, m.start() - 24):m.start()]):
+            return True
+    return False
+
+
+_SKY_RX = re.compile(r"\bsky\b|" + "|".join(re.escape(w) for w in SKY_WORDS[1:]))
+_SKY_NEG = re.compile(r"(?:\b(?:no|not|without|never|nor)\s+(?:\w+\s+){0,2}|không\s+(?:thấy|có|nhìn thấy|lộ)?\s*(?:\w+\s+){0,1})$")
 
 
 def _unit(v: Sequence[float]) -> Tuple[float, float, float]:

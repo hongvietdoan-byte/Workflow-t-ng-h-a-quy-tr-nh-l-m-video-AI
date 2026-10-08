@@ -141,6 +141,8 @@ def missing(conn, data_dir: str, pid: int, scene_id: int, data: Dict) -> bool:
     if rec is not None:
         wide = rec.get("wide") or {}
         return not rec.get("wide_failed") and not (wide.get("plate") and os.path.exists(wide["plate"]))
+    if location_pack.plate_retry_due(data_dir, pid, scene_id):
+        return True                                  # phiên sửa F2: a temporary Blender failure, its retry time has come
     return not location_pack.plate_failed(data_dir, pid, scene_id) and not location_pack.plate_needs(data_dir, pid, scene_id)
 
 
@@ -153,7 +155,31 @@ def broken(conn, data_dir: str, pid: int, scene_id: int, data: Dict) -> Optional
         return None
     if location_pack.plate_needs(data_dir, pid, scene_id):
         return None                                  # S5.7: said by its own wait (thiếu hướng máy)
+    if location_pack.plate_retry_due(data_dir, pid, scene_id):
+        return None                                  # rendered again by itself (missing)
     return location_pack.plate_failed(data_dir, pid, scene_id)
+
+
+def retry_render(conn, data_dir: str, pid: int, scene_id: int) -> bool:
+    """Phiên sửa F2 — Step 2 "↻ Render lại nền 3D" (0 USD): forget THIS shot's failed render (camera + wide); `missing` then asks
+    for it and the picture runner starts ensure_async. True when the shot had a failure to forget."""
+    from . import location_pack
+    return location_pack.forget_shot(data_dir, pid, scene_id)
+
+
+def held_broken(conn, data_dir: str, pid: int) -> List[tuple]:
+    """[(scene_id, idx, reason)] of the queued pictures held because their 3D render failed (`broken`) — the Step 2 retry buttons."""
+    out = []
+    rows = conn.execute("SELECT DISTINCT s.id, s.idx, s.data FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? "
+                        "AND j.type='image_gen' AND j.state IN ('queued','retryable') ORDER BY s.idx", (pid,)).fetchall()
+    for r in rows:
+        try:
+            why = broken(conn, data_dir, pid, r["id"], json.loads(r["data"] or "{}"))
+        except Exception:  # noqa: BLE001 - a button hint only; the wait itself is said by the runner
+            why = None
+        if why:
+            out.append((r["id"], r["idx"], why))
+    return out
 
 
 WIDE_ROLE = "place_wide"
@@ -171,10 +197,20 @@ def wide_ref(data_dir: str, pid: int, scene_id: int) -> Optional[Dict]:
             **({"plate_key": wide["key"]} if wide.get("key") else {})}
 
 
-def add_wide(refs: List[Dict], wide: Optional[Dict], limit: int) -> List[Dict]:
+def wide_for(conn, data_dir: str, pid: int, scene_id: int, data: Dict) -> Optional[Dict]:
+    """wide_ref, but never for an indoor shot (phiên sửa F2): pulled back along the axis, the wide camera of a room ends up behind a
+    wall — the same rule as the scene's wide establishing picture (runner: indoor → the room's render is the place)."""
+    from . import runner
+    if runner.indoor_spot(conn, pid, data):
+        return None
+    return wide_ref(data_dir, pid, scene_id)
+
+
+def add_wide(refs: List[Dict], wide: Optional[Dict], limit: int, reserve: int = 0) -> List[Dict]:
     """F2: the wide same-axis render goes right after the shot's own render and REPLACES the scene's one-for-all wide picture
     (scene_establish LABEL / role location) — two different wide views of one place would fight. Order kept: people > shot render >
-    same-axis wide > the rest; over `limit` the last pictures go first (never the people, the render or the wide)."""
+    same-axis wide > the rest; over `limit` the last pictures go first (never the people, the render or the wide).
+    reserve: slots kept free after it (phiên sửa F2: the previous shot's picture of a chained shot, appended by the runner)."""
     if wide is None:
         return refs
     from . import scene_establish
@@ -183,7 +219,7 @@ def add_wide(refs: List[Dict], wide: Optional[Dict], limit: int) -> List[Dict]:
     if at is None:
         at = next((i for i, r in enumerate(keep) if r.get("role") in ("location", "previous_scene", "layout")), len(keep))
     out = keep[:at] + [dict(wide)] + keep[at:]
-    limit = max(limit, 1)
+    limit = max(limit - max(reserve, 0), 1)
     while len(out) > limit:
         drop = next((i for i in range(len(out) - 1, -1, -1) if out[i].get("role") not in ("character", "sheet", "outfit", ROLE, WIDE_ROLE)),
                     None)

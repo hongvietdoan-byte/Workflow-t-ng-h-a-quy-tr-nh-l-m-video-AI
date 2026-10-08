@@ -107,6 +107,20 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
                 st.warning(_no)
         else:
             st.info(queued_text(p, pid, queued))         # lỗi A (08/10): the real reason + "sẽ tự gửi khi …", never "bấm ▶ Gen"
+            plate_retry_buttons(p, pid)
+
+
+def plate_retry_buttons(p: Pipeline, pid: int) -> None:
+    """Phiên sửa F2: a picture held because its 3D background failed gets "↻ Render lại nền 3D" (Blender, 0 USD) — forgets THIS
+    shot's failed render only (place_refs.retry_render) and starts the render; the picture then goes by itself."""
+    from core import place_refs
+    if not place_refs.enabled():
+        return
+    for sid, idx, why in place_refs.held_broken(p.conn, C.DATA, pid):
+        if st.button(f"↻ Render lại nền 3D shot {idx} (0 USD)", key=f"plate_retry_{pid}_{sid}", help=why):
+            place_refs.retry_render(p.conn, C.DATA, pid, sid)
+            place_refs.ensure_async(p.conn, pid, C.DATA, place_refs.resolution_of(p.project(pid)))
+            st.rerun()
 
 
 SEND_TURN_WAIT_S = 20     # lỗi B: a click waits this long for the runner's turn (a poll downloading results holds it a few seconds)
