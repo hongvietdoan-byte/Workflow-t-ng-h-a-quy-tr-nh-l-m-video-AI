@@ -72,6 +72,9 @@ def validate_scene_analysis(data: Any) -> Dict:
             s.pop("beat")
         _check_dialogue(s.get("dialogue"), f"{w}.dialogue")
         _check_duration(s.get("duration_s"), f"{w}.duration_s")
+        if "difficulty" in s:                            # N2: never refused — a misspelt / wrong-typed label is read as "unknown"
+            from .shot_complexity import clean_label
+            s["difficulty"] = clean_label(s["difficulty"])
         for name in _req(s, "characters", list, w):
             if name not in names:
                 raise SchemaError(f"{w}.characters: '{name}' không có trong Character Bible")
@@ -242,7 +245,8 @@ def validate_motion_prompts(data: Any) -> Dict:
 
 # ---- persistence -------------------------------------------------------
 DIRECTOR_KEYS = ("location", "time", "characters", "mood", "lighting", "shot", "image_prompt", "location_asset", "sequence",
-                 "blocking", "emotional_intent", "beat", "camera_complexity", "shot_role", "dialogue", "duration_s")
+                 "blocking", "emotional_intent", "beat", "camera_complexity", "shot_role", "dialogue", "duration_s",
+                 "difficulty", "difficulty_why")      # N2: easy|complex|unknown + one sentence (missing → "unknown")
 
 
 def _empty(value: Any) -> bool:
@@ -310,6 +314,9 @@ def _store(pipeline: Pipeline, project_id: int, obj: Dict) -> None:
             if _empty(s[key]) and not _empty(merged.get(key)):
                 continue
             merged[key] = s[key]
+        if "difficulty" not in locked:                   # N2: Director's label cross-checked from the scene's fields (0 USD)
+            from . import shot_complexity
+            shot_complexity.apply(merged)
         conn.execute("UPDATE scenes SET data=? WHERE id=?",
                      (json.dumps(merged, ensure_ascii=False), row["id"]))
     conn.commit()

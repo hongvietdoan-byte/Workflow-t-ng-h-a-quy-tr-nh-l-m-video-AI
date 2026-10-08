@@ -249,6 +249,15 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
         data["money_shot"] = True                         # director.md Đ10: what the video promotes, shown best (the cover frame)
     retime = clean_retime(s, spoken)
     data.update(retime)
+    # N2 (người dùng chốt 08/10): the Director's difficulty of the shot (the scene's when the shot has none), cross-checked by
+    # core/shot_complexity — missing / misspelt → "unknown", never a refused answer; N1 reads it to pick draft-first or high tier
+    for key in ("difficulty", "difficulty_why"):
+        if s.get(key) not in (None, ""):
+            data[key] = s[key]
+        elif scene.get(key) not in (None, ""):
+            data[key] = scene[key]
+    from . import shot_complexity
+    shot_complexity.apply(data)
     return data
 
 
