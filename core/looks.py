@@ -118,10 +118,12 @@ def clean_prompt(project_row, text: str):
 
 # F1-B — luật tầng 1 (người dùng chốt 09/10, #24 teaser kinh dị): in a Free Fire project blood, matted hair, wounds and corpses are
 # only HINTED (deep shadow, out of focus, partly hidden), never shown clearly — the picture's "everything in focus" does not reach them.
-# English words whole (\b: "bloodline" is not blood); Vietnamese with accents, never folded ("máu" ≠ "màu", "xác chết" ≠ "chính xác").
+# English words whole (\b: "bloodline" is not blood, "blood-red jacket" is a colour); Vietnamese with accents, never folded ("máu" ≠
+# "màu", "xác chết" ≠ "chính xác"). F1 sửa (09/10): the ONE gore word list — prompt_formula checks with it too ("a wound" was caught by
+# the check but not by the restraint sentence).
 _GORE = re.compile(
-    r"\b(?:blood(?:y|ied|stains?|[- ]stained|[- ]soaked)?|blood (?:stains?|spatters?|splatters?|pools?|drips?|smears?)|bleed(?:s|ing)?"
-    r"|gore|gory|gruesome|wounds|wounded|(?:open|bleeding|deep|fresh|gaping) wound|gash(?:es)?|corpses?|cadavers?|dead bod(?:y|ies)"
+    r"\b(?:blood(?![- ]red\b)(?:y|ied|stains?|[- ]stained|[- ]soaked)?|blood (?:stains?|spatters?|splatters?|pools?|drips?|smears?)"
+    r"|bleed(?:s|ing)?|gore|gory|gruesome|wounds?|wounded|gash(?:es)?|corpses?|cadavers?|dead bod(?:y|ies)"
     r"|carcass(?:es)?|severed|dismember\w*|decapitat\w*|guts|entrails|intestines|innards|mangled|mutilat\w*"
     r"|(?:wet|matted|clumped|soaked|dripping) (?:\w+ )?hair|hair strands? (?:on|over|across|stuck|clinging|draped|hanging))\b"
     r"|(?<!\w)(?:máu|xác chết|thi thể|thây|vết thương|tóc rối bết|tóc bết|nội tạng|đứt lìa|chặt đầu)(?!\w)", re.IGNORECASE)
@@ -135,6 +137,12 @@ def gore_words(text: str):
     import unicodedata
     found = [m.group(0).lower() for m in _GORE.finditer(unicodedata.normalize("NFC", text or ""))]
     return list(dict.fromkeys(found))
+
+
+def gore_search(text: str):
+    """The first gore word of a text (re.Match) or None — NFC, no accent folding."""
+    import unicodedata
+    return _GORE.search(unicodedata.normalize("NFC", text or ""))
 
 
 def is_ff(project_row) -> bool:

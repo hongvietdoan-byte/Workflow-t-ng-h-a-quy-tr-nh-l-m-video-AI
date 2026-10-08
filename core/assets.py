@@ -1331,7 +1331,7 @@ def standard_for(conn, project_id: int, name: str) -> Optional[Dict]:
 _NON_HUMAN = re.compile(
     r"\b(?:creatures?|demons?|demonic|ghosts?|ghostly|monsters?|monstrous|wraiths?|phantoms?|spect(?:er|re)s?|ghouls?|zombies?|undead"
     r"|vampires?|apparitions?|yêu nữ|yêu quái|quỷ|ma nữ|ma quỷ|ma quái|bóng ma|con ma|hồn ma|thây ma|tà linh|ác linh|oan hồn|quái vật"
-    r"|xác sống)\b", re.IGNORECASE)
+    r"|xác sống|faceless|sinh vật)\b", re.IGNORECASE)     # F1 sửa #1: the one list (prompt_formula uses it too)
 
 
 def looks_non_human(text: str) -> bool:

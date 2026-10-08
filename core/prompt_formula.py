@@ -70,12 +70,11 @@ _CLOSE = re.compile(r"\bmedium close[- ]up\b|\b(?:extreme )?close[- ]up\b|\bno l
 _CLOSE_CS = re.compile(r"\b(?:MCU|ECU|CU)\b")
 _LEGS = re.compile(r"\bsprawl\w*\b|\bseated on the (?:ground|floor)\b|\bsit(?:s|ting)? on the (?:ground|floor)\b|"
                    r"\blegs? (?:stretched|spread|outstretched|splayed|sprawled)\b|\bstretched[- ]out legs\b|\bkneeling,? full[- ]body\b|"
-                   r"\bfull[- ]bod(?:y|ies)\b|\bfeet (?:are )?visible\b|\b(?:whole|entire) body\b|\bhead to toe\b|ngồi bệt|thấy chân|"
+                   r"\bfull[- ]bod(?:y|ies)\b(?! (?:reference|sheet|picture|image|turnaround|character sheet)\b)|\bfeet (?:are )?visible\b|\b(?:whole|entire) body\b|\bhead to toe\b|ngồi bệt|thấy chân|"
                    r"duỗi chân|sõng soài|\bcả người\b", I)
 
 # ---- (c) chi tiết ghê — luật tầng 1 cho mọi dự án Free Fire (người dùng chốt 09/10) ----------------------------------------
-_GORE = re.compile(r"\b(?:blood\w*|gore|gory|wounds?|wounded|corpses?|dead bod(?:y|ies)|severed|guts|entrails|decapitat\w*|dismember\w*|"
-                   r"bleed\w*|carcass\w*)\b|\bmáu\b|xác chết|thi thể|vết thương|nội tạng|đứt lìa", I)
+# F1 sửa (09/10): MỘT bộ từ máu/xác chung với câu tiết chế (looks._GORE qua looks.gore_search) — trước đây hai regex lệch nhau.
 _RESTRAINT = re.compile(r"\bonly (?:hinted|suggested|implied)\b|\bhinted\b|\bin (?:deep |dark )?shadows?\b|\bout of focus\b|\bpart(?:ly|ially) hidden\b|"
                         r"\bbarely visible\b|\boff[- ]screen\b|\bimplied\b|(?<!not )\bblurred\b|\bsoft[- ]focus\b|chỉ gợi|trong tối|"
                         r"ngoài nét|che khuất|\bkhuất\b|\bmờ\b", I)
@@ -96,8 +95,7 @@ _HUMAN_EYES = re.compile(r"\bnatural human eyes\b|\bno glowing eyes\b|\bnormal h
                          r"mắt người bình thường|không (?:có )?mắt phát sáng", I)
 _GLOW_EYES = re.compile(r"\bglowing (?:red |white |blue |green |yellow )?eyes\b|\beyes?\b[^.;,]{0,12}?\bglow(?:ing|s)?\b|"
                         r"mắt (?:đỏ )?phát sáng|mắt đỏ rực", I)
-_NON_HUMAN = re.compile(r"\b(?:creature|demon\w*|ghost\w*|monster\w*|zombie\w*|undead|wraith|beast|faceless)\b|yêu nữ|(?<!kỳ )\bquái\b|"
-                        r"\bquỷ\b|\bma nữ\b|hồn ma|bóng ma|sinh vật", I)
+_NAMED_EYES = re.compile(r"^\s*([^:]{1,160}?):\s*(?:natural|normal) human eyes\b", I)   # eyes_guard: "KELLY: natural human eyes"
 NON_HUMAN_KINDS = ("creature", "monster", "animal", "non_human", "pet", "quai")
 _CAM_STATIC = re.compile(r"\bstatic camera\b|\bcamera (?:is |stays |remains |holds )?(?:completely |fully |totally )?(?:static|locked)\b|"
                          r"\blocked[- ]off\b|máy (?:quay )?(?:đứng yên|tĩnh)", I)
@@ -154,16 +152,46 @@ def _data_text(data: Dict, keys=("blocking", "start_frame", "action", "action_pe
     return " ".join(p for p in parts if p)
 
 
-def _non_human(prompt: str, data: Dict, chars: Optional[List[Dict]]) -> str:
-    """The first sign that a character of the shot is not human (glowing eyes, demon, yêu nữ…) — '' when none."""
-    if any(str(c.get("kind") or "").lower() in NON_HUMAN_KINDS for c in _shot_chars(data, chars)):
-        return "loại nhân vật trong hồ sơ"
-    texts = [_HUMAN_EYES.sub(" ", prompt or ""), _HUMAN_EYES.sub(" ", _data_text(data)), " ".join(_names(data))]
-    texts += [_HUMAN_EYES.sub(" ", f"{c.get('description') or ''} {c.get('wardrobe') or ''}") for c in _shot_chars(data, chars)]
-    for t in texts:
-        m = _GLOW_EYES.search(t) or _NON_HUMAN.search(t)
-        if m:
-            return _snip(m)
+def _looks_non_human(text: str) -> bool:
+    from .assets import looks_non_human          # the ONE creature word list (F1 sửa #1)
+    return looks_non_human(text)
+
+
+def _profile_non_human(c: Dict) -> bool:
+    """A character profile (characters row; `_human` = assets.is_human when read from the database) that is not a person."""
+    if c.get("_human") is False or str(c.get("kind") or "").lower() in NON_HUMAN_KINDS:
+        return True
+    desc = _HUMAN_EYES.sub(" ", " ".join(str(c.get(k) or "") for k in ("description", "lock_rules")))
+    return _looks_non_human(desc) or bool(_GLOW_EYES.search(desc))
+
+
+def _text_non_human(data: Dict, chars: Optional[List[Dict]]) -> bool:
+    """Shot kind only (creature): a character of the shot, or the shot's own words, is a creature / ghost / has glowing eyes."""
+    if any(_profile_non_human(c) for c in _shot_chars(data, chars)):
+        return True
+    for t in (_HUMAN_EYES.sub(" ", _data_text(data)), " ".join(_names(data))):
+        if _looks_non_human(t) or _GLOW_EYES.search(t):
+            return True
+    return False
+
+
+def _eye_rule_on_non_human(prompt: str, data: Dict, chars: Optional[List[Dict]]) -> str:
+    """F1 sửa #1 (09/10): who a human-eyes rule is written for and is not a person — '' when nobody. A named rule ("KELLY: natural
+    human eyes", seedance_refs.eyes_guard) is judged on those names only; a general one on the shot's characters (data.characters) by
+    their profile / name — never on the action's words ("the ghost streaks past" does not make Kelly a ghost)."""
+    known = {n.lower(): n for n in _names(data)}
+    targets: List[str] = []
+    for s in _sentences(prompt):
+        if not _HUMAN_EYES.search(s):
+            continue
+        m = _NAMED_EYES.match(s)
+        named = [t.strip() for t in m.group(1).split(",") if t.strip()] if m else []
+        targets += [known.get(t.lower(), t) for t in named] if named else _names(data)
+    profiles = {str(c.get("name")): c for c in chars or [] if isinstance(c, dict)}
+    for n in dict.fromkeys(targets):
+        c = profiles.get(n)
+        if (c is not None and _profile_non_human(c)) or _looks_non_human(n):
+            return n
     return ""
 
 
@@ -176,7 +204,7 @@ def shot_kind(data: Dict, chars: Optional[List[Dict]] = None) -> str:
         return "dance_ref"
     if _SKILL.search(action):
         return "skill_fx"
-    if has_people and _non_human("", data, chars):
+    if has_people and _text_non_human(data, chars):
         return "creature"
     if any(isinstance(d, dict) and str(d.get("text") or "").strip() for d in data.get("dialogue") or []):
         return "dialogue"
@@ -245,11 +273,12 @@ def _sentences(text: str) -> List[str]:
     return [s for s in re.split(r"(?<=[.!?])\s+|\n+", text or "") if s.strip()]
 
 
-def _common(prompt: str, data: Dict, chars: Optional[List[Dict]], kind_word: str) -> List[Dict]:
+def _common(prompt: str, data: Dict, chars: Optional[List[Dict]], kind_word: str, ff: Optional[bool] = None) -> List[Dict]:
+    from . import looks
     out = []
-    gore = _GORE.search(prompt)
-    if gore and not _RESTRAINT.search(prompt):
-        out.append(_issue("red", "luat_ff", f"Chi tiết ghê “{_snip(gore)}” không có câu tiết chế — luật mọi dự án Free Fire: chỉ gợi "
+    gore = looks.gore_search(prompt)
+    if gore and not _RESTRAINT.search(prompt):      # ff False (another game): the FF rule is only a warning (F1 sửa #6)
+        out.append(_issue("warn" if ff is False else "red", "luat_ff", f"Chi tiết ghê “{_snip(gore)}” không có câu tiết chế — luật mọi dự án Free Fire: chỉ gợi "
                                             "(only hinted / in shadow / out of focus / partly hidden), không 'everything in focus' trên nó; "
                                             "hoặc bỏ hẳn chi tiết đó."))
     for s in _sentences(prompt):
@@ -268,7 +297,7 @@ def _common(prompt: str, data: Dict, chars: Optional[List[Dict]], kind_word: str
             break
     human = _HUMAN_EYES.search(prompt)
     if human:
-        what = _non_human(prompt, data, chars)
+        what = _eye_rule_on_non_human(prompt, data, chars)
         if what:
             out.append(_issue("red", "loai_nhan_vat",
                               f"Luật của người “{_snip(human)}” áp cho nhân vật không phải người ({what}) — luật mắt người chỉ dành cho "
@@ -283,7 +312,8 @@ def _common(prompt: str, data: Dict, chars: Optional[List[Dict]], kind_word: str
     return out
 
 
-def check_image(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, style_by_code: bool = False) -> List[Dict]:
+def check_image(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, style_by_code: bool = False,
+                ff: Optional[bool] = None) -> List[Dict]:
     """Prompt ảnh khung đầu: phần bắt buộc (a), khung ↔ tư thế (b), luật FF (c), vật lao sát người (d), luật người/quái (e),
     tự mâu thuẫn (f), câu dính (g). Phần code tự thêm khi dựng prompt (runner.build_image_prompt) không bị đòi trong câu của Đạo diễn:
     khung hình khi có `size` (framing_sentence), khoảnh khắc khi có `action_peak`/`performance`, phong cách khi `style_by_code` (dự án
@@ -307,16 +337,21 @@ def check_image(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, sty
     close = _CLOSE.search(prompt) or _CLOSE_CS.search(prompt)
     close_word = _snip(close) or (data.get("size") if data.get("size") in CLOSE_SIZES else "")
     if close_word:
-        pose_text = prompt + " " + _data_text(data, ("blocking", "start_frame"))
-        legs = _LEGS.search(pose_text)
-        if legs:
-            out.append(_issue("red", "khung_hinh",
-                              f"Khung “{close_word}” (không thấy chân) mâu thuẫn tư thế “{_snip(legs)}” (cần thấy chân/cả người) — "
-                              "đổi cỡ cảnh sang MS/WS, hoặc tả tư thế bằng phần trên người (vai ngả ra sau, tay chống phía sau)."))
-    return out + _common(prompt, data, chars, "ảnh")
+        # F1 sửa #9: red only when the pose is in the prompt itself (or the acting the code writes into it); a pose only in the
+        # blocking (often the whole sequence's positions) is a warning
+        perf = data.get("performance")
+        acting = " ".join(str(v) for v in perf.values() if isinstance(v, str)) if isinstance(perf, dict) else ""
+        legs = _LEGS.search(prompt + " " + acting)
+        side = None if legs else _LEGS.search(" ".join(str(data.get(k) or "") for k in ("blocking", "start_frame")))
+        if legs or side:
+            out.append(_issue("red" if legs else "warn", "khung_hinh",
+                              f"Khung “{close_word}” (không thấy chân) mâu thuẫn tư thế “{_snip(legs or side)}” (cần thấy chân/cả người)"
+                              + ("" if legs else " — tư thế chỉ ghi ở blocking") + " — đổi cỡ cảnh sang MS/WS, hoặc tả tư thế bằng "
+                              "phần trên người (vai ngả ra sau, tay chống phía sau)."))
+    return out + _common(prompt, data, chars, "ảnh", ff)
 
 
-def check_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None) -> List[Dict]:
+def check_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, ff: Optional[bool] = None) -> List[Dict]:
     """Prompt motion: điểm bắt đầu / hành động / máy quay (a), thoại / nguồn động tác / trạng thái cuối khi có, + (c)–(g)."""
     prompt, data = prompt or "", data or {}
     kind = shot_kind(data, chars)
@@ -340,7 +375,7 @@ def check_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None) ->
     if str(data.get("end_state") or "").strip() and not _END.search(prompt):
         out.append(_issue("warn", "trang_thai_cuoi", f"Thiếu trạng thái cuối (Đạo diễn ghi: “{str(data['end_state'])[:80]}”) — thêm "
                                                      "'It ends with …' để clip có điểm dừng."))
-    return out + _common(prompt, data, chars, "motion")
+    return out + _common(prompt, data, chars, "motion", ff)
 
 
 # ---- giữa các shot: cùng món đồ khác màu -------------------------------------------------------------------------------
@@ -427,19 +462,20 @@ def growth_check(old: Optional[str], new: Optional[str]) -> List[Dict]:
     if len(new) >= (1 + GROW_SHARE) * len(old) or len(added) >= GROW_SENTENCES:
         out.append(_issue("warn", "viet_chong", f"Chỉ trồng thêm vào prompt ({len(added)} câu mới, {len(old)} → {len(new)} ký tự), câu cũ "
                                                 "không được sửa — viết lại gọn theo khung công thức thay vì nối câu theo từng lỗi."))
-    old_text, added_text = " ".join(s for s in _sentences(old)), " ".join(added)
+    # F1 sửa #2: only the old sentences STILL in the new prompt — a sentence just replaced is gone, it contradicts nothing
+    old_text, added_text = " ".join(s for s in _sentences(old) if _norm(s) in new_set), " ".join(added)
     for name, x, y, fix in contradictions(added_text, old_text):
         out.append(_issue("red", "mau_thuan", f"Câu mới mâu thuẫn câu cũ ({name}): mới “{x}” ↔ cũ “{y}” — {fix}."))
     return out
 
 
 def review_shot(data: Dict, image_prompt: Optional[str], motion_prompt: Optional[str], chars: Optional[List[Dict]] = None,
-                previous: Optional[Dict] = None, style_by_code: bool = False) -> Dict:
+                previous: Optional[Dict] = None, style_by_code: bool = False, ff: Optional[bool] = None) -> Dict:
     """Một shot: {"image", "motion", "growth", "red", "kind"}. previous = {"image": prompt cũ, "motion": prompt cũ} (bản trước của lượt
     Đạo diễn / người sửa) — chỉ kiểm 'trồng thêm' khi có."""
     previous = previous or {}
-    image = check_image(image_prompt, data, chars, style_by_code) if (image_prompt or "").strip() else []
-    motion = check_motion(motion_prompt, data, chars) if (motion_prompt or "").strip() else []
+    image = check_image(image_prompt, data, chars, style_by_code, ff) if (image_prompt or "").strip() else []
+    motion = check_motion(motion_prompt, data, chars, ff) if (motion_prompt or "").strip() else []
     growth = [dict(g, kind="image") for g in growth_check(previous.get("image"), image_prompt)]
     growth += [dict(g, kind="motion") for g in growth_check(previous.get("motion"), motion_prompt)]
     return {"kind": shot_kind(data, chars), "image": image, "motion": motion, "growth": growth,
@@ -500,10 +536,26 @@ def _style_by_code(conn, project_id: int) -> bool:
 
 
 def _chars(conn, project_id: int) -> List[Dict]:
+    """The project's characters; `_human` = assets.is_human (profile + library resource: a pet, a creature)."""
     try:
-        return [dict(r) for r in conn.execute("SELECT name, description, wardrobe FROM characters WHERE project_id=?", (project_id,))]
+        rows = [dict(r) for r in conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,))]
     except Exception:  # noqa: BLE001
         return []
+    from . import assets
+    for c in rows:
+        try:
+            c["_human"] = assets.is_human(conn, project_id, str(c.get("name") or ""))
+        except Exception:  # noqa: BLE001 - unknown: judged by the profile words
+            pass
+    return rows
+
+
+def _is_ff(conn, project_id: int) -> Optional[bool]:
+    try:
+        from . import looks
+        return looks.is_ff(conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone())
+    except Exception:  # noqa: BLE001 - unknown: the FF rule stays a stop (red)
+        return None
 
 
 def snapshot(conn, project_id: int) -> Dict[Tuple, Dict]:
@@ -551,7 +603,7 @@ def after_director(conn, project_id: int, before: Optional[Dict] = None) -> None
     before = before or {}
     try:
         rows = conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
-        chars, styled = _chars(conn, project_id), _style_by_code(conn, project_id)
+        chars, styled, ff = _chars(conn, project_id), _style_by_code(conn, project_id), _is_ff(conn, project_id)
         results, cross_rows = [], []
         for r in rows:
             data = json.loads(r["data"] or "{}")
@@ -559,7 +611,7 @@ def after_director(conn, project_id: int, before: Optional[Dict] = None) -> None
             prev = before.get(_key(data, r["idx"])) or {}
             try:
                 fc = review_shot(data, image, motion, chars, previous={"image": prev.get("image"), "motion": prev.get("motion")},
-                                 style_by_code=styled)
+                                 style_by_code=styled, ff=ff)
             except Exception as e:  # noqa: BLE001 - one shot's check failing is said, the others still run
                 diag.record(conn, "director", "warn", f"không kiểm được công thức prompt {_label(data, r['idx'])}: {type(e).__name__}: {e}",
                             "prompt_formula", project_id, scene_id=r["id"])
@@ -599,7 +651,7 @@ def on_prompt_saved(conn, scene_id: int, kind: str, old: Optional[str], new: Opt
         image, motion = data.get("image_prompt"), _motion_of(conn, scene_id)
         old_fc = data.get("formula_check") or {}
         fc = review_shot(data, image, motion, _chars(conn, project_id), previous={kind: old} if old != new else None,
-                         style_by_code=_style_by_code(conn, project_id))
+                         style_by_code=_style_by_code(conn, project_id), ff=_is_ff(conn, project_id))
         fc["growth"] = [g for g in old_fc.get("growth") or [] if g.get("kind") != kind] + fc["growth"]
         fc["cross"] = old_fc.get("cross") or []
         fc["red"] = fc["red"] or any(i["level"] == "red" for i in fc["growth"])
@@ -618,10 +670,52 @@ def on_prompt_saved(conn, scene_id: int, kind: str, old: Optional[str], new: Opt
                     "prompt_formula", project_id, scene_id=scene_id)
 
 
-def red_issues(conn, scene_id: int, kind: Optional[str] = None) -> List[str]:
+FORMULA_MARK = "sai công thức"       # in the failure note of a job stopped here (runner._blocked) — autopilot / batch recognise it
+
+
+def _gore_goes(conn, scene_id: int, proj, kind: str, text: str, gore_hinted) -> bool:
+    """F1 sửa #5: the gore stop is lifted only when the restraint sentence REALLY goes with the shot. gore_hinted from the runner (bool, or
+    a callable asked only when needed) knows the send path (group prompt, Kling multi_prompt entry, the prompt limit); without it: a
+    picture always gets it (runner.build_image_prompt, no length limit), a one-shot motion when it fits the model's limit."""
+    if gore_hinted is not None:
+        return bool(gore_hinted() if callable(gore_hinted) else gore_hinted)
+    if kind == "image":
+        return True
+    from . import looks
+    try:
+        from .adapters.clipai import PROMPT_LIMITS
+        from . import model_router
+        model = str(model_router.scene_choice(conn, scene_id).get("model") or "")
+        limit = PROMPT_LIMITS.get(model) or (PROMPT_LIMITS["kling"] if "kling" in model.lower() else 4000)
+    except Exception:  # noqa: BLE001 - unknown model: the common limit
+        limit = 4000
+    out = looks.gore_restraint(proj, text, video=True)
+    return looks._GORE_TAG in out and len(out) + len(looks.video_sentence(proj)) + 1 <= limit
+
+
+def group_red_issues(conn, scene_id: int, kind: str) -> List[str]:
+    """red_issues of the shot and, for a clip (kind 'motion'), of every shot of its group (Kling multi-shot / camera set-up / Seedance
+    group) — what autopilot and the requeue button look at before queueing a job stopped on the formula again (F1 sửa #7). Shot labels
+    are added for the other shots."""
+    ids = [scene_id]
+    if kind == "motion":
+        try:
+            from . import seedance_refs, shots
+            for g in (shots.group_of(conn, scene_id), seedance_refs.group_of(conn, scene_id)):
+                ids += [r["id"] for r in g or [] if r["id"] not in ids]
+        except Exception:  # noqa: BLE001 - no group known: the shot alone (the runner still checks the whole group before paying)
+            pass
+    out = []
+    for sid in ids:
+        out += [x if sid == scene_id else f"shot #{sid} {x}" for x in red_issues(conn, sid, kind)]
+    return out
+
+
+def red_issues(conn, scene_id: int, kind: Optional[str] = None, gore_hinted=None) -> List[str]:
     """Lỗi ĐỎ của shot (câu tiếng Việt, rỗng = qua) — cho ImageRunner._blocked (kind='image') / VideoRunner._blocked (kind='motion');
-    kind=None = cả hai. Đọc data['formula_check']; prompt đã đổi từ lần kiểm (sửa qua đường không có móc) → kiểm lại ngay từ prompt
-    hiện tại (0 USD), không tin kết quả cũ. Cờ tắt → []."""
+    kind=None = cả hai. F1 sửa #3: LUÔN kiểm lại từ prompt + kế hoạch hiện tại (regex, vài ms — kết quả phụ thuộc size/blocking/
+    nhân vật/hồ sơ, không chỉ prompt); chỉ phần 'trồng thêm' lấy từ data['formula_check'] khi băm prompt khớp. Dự án FF: lỗi máu/xác
+    bỏ qua khi câu tiết chế thật sự đi theo shot (_gore_goes); dự án khác: lỗi đó chỉ là cảnh báo. Cờ tắt → []."""
     if not enabled():
         return []
     row = conn.execute("SELECT project_id, data FROM scenes WHERE id=?", (scene_id,)).fetchone()
@@ -630,25 +724,24 @@ def red_issues(conn, scene_id: int, kind: Optional[str] = None) -> List[str]:
     data = json.loads(row["data"] or "{}")
     fc = data.get("formula_check") or {}
     texts = {"image": data.get("image_prompt"), "motion": _motion_of(conn, scene_id)}
-    chars = None
-    ff = None
+    chars = proj = ff = None
     out = []
     for k in ("image", "motion") if kind is None else (kind,):
         text = texts[k]
         if not (text or "").strip():
             continue
-        if fc and fc.get(f"{k}_sha") == _sha(text):
-            issues = list(fc.get(k) or []) + [g for g in fc.get("growth") or [] if g.get("kind") == k]
-        else:
-            if chars is None:
-                chars = _chars(conn, row["project_id"])
-            issues = (check_image(text, data, chars, _style_by_code(conn, row["project_id"])) if k == "image"
-                      else check_motion(text, data, chars))
-        if ff is None:
+        if chars is None:
             from . import looks
-            ff = looks.is_ff(conn.execute("SELECT * FROM projects WHERE id=?", (row["project_id"],)).fetchone())
-        if ff:      # F1-B: a Free Fire shot gets the restraint sentence from the code when it is sent (looks.gore_restraint) — not a stop
-            issues = [i for i in issues if not str(i.get("msg", "")).startswith("Chi tiết ghê")]
+            chars = _chars(conn, row["project_id"])
+            proj = conn.execute("SELECT * FROM projects WHERE id=?", (row["project_id"],)).fetchone()
+            ff = looks.is_ff(proj)
+        issues = (check_image(text, data, chars, _style_by_code(conn, row["project_id"]), ff) if k == "image"
+                  else check_motion(text, data, chars, ff))
+        if fc and fc.get(f"{k}_sha") == _sha(text):
+            issues += [g for g in fc.get("growth") or [] if g.get("kind") == k]
+        gore = [i for i in issues if i["part"] == "luat_ff" and i["level"] == "red"]
+        if ff and gore and _gore_goes(conn, scene_id, proj, k, text, gore_hinted):
+            issues = [i for i in issues if i not in gore]
         word = "Prompt ảnh" if k == "image" else "Prompt motion"
         out += [f"{word} · {PART_LABELS.get(i['part'], i['part'])}: {i['msg']}" for i in issues if i["level"] == "red"]
     return out
