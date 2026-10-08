@@ -62,6 +62,9 @@ Mỗi bài học ghi: **áp khi nào** (điều kiện) · **vì sao** · **bằ
 
 **Thứ tự đề xuất trong một prompt**: phong cách → khung → nhân vật + hành động (phần thay đổi) → nền (gọn) → ánh sáng → khóa/luật → chốt chất lượng.
 
+## 4b. Lớp dò prompt sau mỗi lần Đạo diễn viết / viết lại (người dùng 09/10)
+Sau MỖI lượt Đạo diễn (viết, viết lại, sửa theo QC): (1) code kiểm khung công thức (thiếu phần, mâu thuẫn, dữ liệu trang phục khác hồ sơ, từ ghê, luật sai loại nhân vật); (2) **so với bản trước**: prompt chỉ dài thêm mà không bỏ / thay câu cũ → cảnh báo "trồng thêm" (như #24), câu mới mâu thuẫn câu cũ → đỏ; (3) một lượt Claude "biên tập prompt" viết lại gọn theo đúng khung khi (1)/(2) có lỗi (≈ 0,05–0,2 USD/dự án, có giá trước). Kết quả hiện ở báo cáo Đạo diễn + thẻ shot; không qua thì không gửi gen.
+
 ## 5. F3 — chi phí cho 30–60 video/tháng, 1080p
 
 Đơn giá ClipAI trong `data/pricing.json` (USD/giây ra, 9:16): Seedance 2.5 — 480p nháp 0,103 · 720p 0,231 · **1080p 0,52**; Seedance 2.0 — 1080p 0,34; Kling 3.0 Omni bản pro (1080p) **0,122**. Giả định: số giây gen = 1,75 × độ dài phim (đầu/cuối cắt bỏ, clip ≥ 4 s, gen lại ~25 %); nâng nháp = 1,4 × (chỉ cảnh đã duyệt); ảnh + Claude + âm thanh ≈ 7 USD/phim 1 phút, ≈ 10 USD/phim 2 phút. **Giá nâng nháp 2.5 → 1080p chưa đo thật** (tính như gen 1080p).
@@ -74,5 +77,15 @@ Mỗi bài học ghi: **áp khi nào** (điều kiện) · **vì sao** · **bằ
 | **D. Trộn: shot khó/then chốt (≤ 20–30 % thời lượng) nháp 2.5 → 1080p, còn lại Kling pro 1080p** | **≈ 27–31** | **≈ 50–58** |
 
 → **Không mặc định nháp 2.5 cho mọi shot** (gấp đôi ngân sách). Đề xuất: đường **D** + trần tiền mỗi phim (cảnh báo khi ước tính vượt). Ảnh khung đầu (0,05 USD) là "nháp" rẻ nhất cho bố cục; nháp video chỉ dành cho shot có động tác khó.
+
+### 5b. Phương án người dùng đề xuất 09/10 (E): theo nhãn dễ/khó của Đạo diễn (đã có: `scenes.data.difficulty`, `quality_tier.path`)
+- Shot **dễ** → gen thẳng 1080p bằng Seedance rẻ; shot **khó / quan trọng** → nháp Seedance 2.5 480p → đạt → nâng 1080p giữ nội dung.
+- Ràng buộc thật của ClipAI (`data/provider_rules.json`, `video_models.json`): **Seedance 2.0 Mini chỉ có trên web, tối đa 720p**; **Seedance 2.0 Fast qua API chỉ 480p/720p**. Qua API, 1080p chỉ có **Seedance 2.0 (0,34 USD/s)** và Seedance 2.5 (0,52).
+- Tính (shot dễ 75–80 % thời lượng, prompt tốt → gen lại ít, hệ số 1,4): **1 phút ≈ 39–40 USD, 2 phút ≈ 76–79 USD** — vượt mục tiêu ~30 %. Sàn tuyệt đối: 60 s × 0,34 = 20,4 USD dù không gen lại giây nào.
+- Cách đưa E về mục tiêu (cần người dùng chọn):
+  - **E1**: shot dễ gen Seedance 2.0 **720p** (0,15/s) rồi phóng 1080p bằng ffmpeg (không AI, tức thì) → 1 phút ≈ 28, 2 phút ≈ 56 ✔; shot dễ mềm hơn 1080p thật.
+  - **E2**: giữ 2.0 1080p cho shot dễ, nâng mục tiêu ≈ 40 / 80 USD.
+  - **E3**: giảm giây gen thừa (cắt đầu/cuối, clip tối thiểu 4 s, gom nhóm) từ hệ số 1,4 → 1,2: E ≈ 35 / 68.
+  - **E4**: thử Kling pro cho shot dễ bằng A/B 2–3 shot; chỉ dùng nếu đạt.
 
 **Phải đo trước khi chốt (≈ 3–5 USD, cần duyệt):** (1) Kling 3.0 Omni pro 1080p có giữ đúng phong cách FF + nhân vật như Seedance không — 2–3 shot #22/#24 có sẵn ảnh khung đầu; (2) giá thật của một lần nâng nháp 2.5 → 1080p.
