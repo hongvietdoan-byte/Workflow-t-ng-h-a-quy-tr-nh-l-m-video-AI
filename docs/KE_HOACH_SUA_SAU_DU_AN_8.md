@@ -31,10 +31,10 @@
 | S12 Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`) | 7 | 6 | 0 | 0 | 1 | 100 % |
 | S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 12 | 10 | 0 | 0 | 2 | 100 % |
 | S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 49 | 44 | 2 | 2 | 0 | 91,8 % |
-| S15 Sau Khủng Long Đỏ #22: tổng hợp 3 lượt, KLD-n, chế độ học việc (`docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md`, `docs/KE_HOACH_HOC_VIEC_2026-10-08.md`; người dùng duyệt 08/10) | 13 | 5 | 5 | 1 | 0 | 47,8 % |
+| S15 Sau Khủng Long Đỏ #22: tổng hợp 3 lượt, KLD-n, chế độ học việc (`docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md`, `docs/KE_HOACH_HOC_VIEC_2026-10-08.md`; người dùng duyệt 08/10) | 13 | 6 | 4 | 1 | 0 | 52,2 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 0 | 3 | — |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **197** | **156** | **8** | **14** | **13** | **86,8 %** |
+| **Tổng** | **197** | **157** | **7** | **14** | **13** | **87,1 %** |
 
 Đợt hiện tại: **S14** · việc kế: **S14.15** I1 — tài liệu khớp trạng thái cuối + chấm lại toàn bộ bằng AI Dev System
 <!-- /tien-do -->
@@ -255,7 +255,7 @@
 - [x] S15.4 · Rút kinh nghiệm theo vai + 30 thay đổi KLD + 18 bài học (4C–D) · nặng:1 · ✅ · 916cdcb
 - [ ] S15.5 · 7 thay đổi P1 (KLD-1…7; KLD-7 sau cờ TẮT, người dùng chưa cần thử) · nặng:3 · 🔄 · code gộp, chờ cả bộ test + kiểm Dashboard thật
 - [ ] S15.6 · Nút tay "Viết motion prompt" dựng shot Seedance ref-only bằng code · nặng:1 · 🔄 · 8b0eaf5, chờ kiểm Dashboard thật
-- [ ] S15.7 · KLD-21 đường nạp bài học + nạp L1–L18 (proposed, người duyệt tab Bài học) + KLD-22 · nặng:2 · 🔄 · code b7baecf; còn nạp thật 11 bài (L12–L18 không thuộc vai prompt)
+- [ ] S15.7 · KLD-21 đường nạp bài học + nạp L1–L18 (proposed, người duyệt tab Bài học) + KLD-22 · nặng:2 · ✅ · b7baecf · 08/10 đã nạp 11 bài vào CSDL thật (proposed, backup `manifest.before_lessons_add_20261008_123911`), CHỜ người dùng duyệt ở tab Bài học; L12–L18 không thuộc vai prompt (ở tài liệu + .claude-memory)
 - [ ] S15.8 · Học việc B1+B2: trạng thái on/trainee/off + bảng trainee_log + độ khớp · nặng:2 · 🔄
 - [ ] S15.9 · Học việc B3–B8: 7 vai chạy bóng, giao diện 🧪 + thẻ chấm, devsys, tài liệu · nặng:3 · ⬜
 - [x] S15.10 · P2 prompt/knowledge (KLD-8, 9, 12, 14, 15, 25) sau cờ TẮT · nặng:2 · ✅ · cc7b534 · cờ `kld_lessons_prompts` TẮT, bật khi dự án mới đo
