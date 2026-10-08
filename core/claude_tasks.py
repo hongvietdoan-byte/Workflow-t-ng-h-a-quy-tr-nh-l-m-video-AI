@@ -621,6 +621,7 @@ def bible_details(p: Pipeline, project_id: int) -> Dict[str, Dict]:
 def dismiss_bible_flag(p: Pipeline, project_id: int, name: str, index: int, by: str = "") -> None:
     """bible_check fault b (08/10): the person says "cờ này sai — bỏ". Saved in the check result (kept while the text + pictures stay the
     same); a dismissed mismatch no longer blocks the picture generation (batch.image_gates / the automatic run)."""
+    access.need_edit(p, project_id, "bỏ cờ kiểm Bible")
     cur = _bible_current(p, project_id, name)
     if cur is None:
         raise ValueError(f"{name}: không có kết quả kiểm Bible còn hiệu lực")

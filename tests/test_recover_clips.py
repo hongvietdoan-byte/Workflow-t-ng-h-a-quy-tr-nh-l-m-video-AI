@@ -103,8 +103,8 @@ class RecoverClipsTest(unittest.TestCase):
         conn.close()
         m = res["models"]["kling"]
         self.assertEqual((m["n"], m["cost"], m["free"], m["unseen"]), (3, 90.0, 1, 1))
-        self.assertAlmostEqual(m["usd"], 3 * 15 * 0.08)
-        self.assertIn("| kling | 3 | $3.60 | 90 | 0.01333 | 1 | 1 |", res["text"])   # $1.20 of the ledger for 90 units
+        self.assertAlmostEqual(m["usd"], 3 * 15 * 0.087)        # web 08/10: Kling 3.0 Omni std
+        self.assertIn("| kling | 3 | $3.92 | 90 | 0.01450 | 1 | 1 |", res["text"])   # web 08/10 Kling std 0,087 USD/s × 45 s
         self.assertIn("Task lệch giữa hai bên", res["text"])
 
 

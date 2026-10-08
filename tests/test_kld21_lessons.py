@@ -116,10 +116,10 @@ class LessonsAddToolTests(unittest.TestCase):           # KLD-21 tools/lessons_a
 
     def test_parse_the_table_of_section_6(self):
         rows = lessons_add.parse_section(open(DOC, encoding="utf-8").read(), "6")
-        self.assertEqual([r["ref"] for r in rows], [f"L{n}" for n in range(1, 19)])
+        self.assertEqual([r["ref"] for r in rows], [f"L{n}" for n in range(1, 20)])   # L19 added 08/10 (toàn cảnh cùng hướng)
         plan = lessons_add.plan(rows)
         self.assertEqual(sorted({r["group"] for r in plan["ok"]}), ["director", "motion", "qc"])
-        self.assertEqual(len(plan["ok"]), 11)
+        self.assertEqual(len(plan["ok"]), 12)
         self.assertEqual([r["ref"] for r in plan["skipped"]], [f"L{n}" for n in range(12, 19)])
 
     def test_dry_run_by_default_then_yes_writes_once(self):
@@ -129,9 +129,9 @@ class LessonsAddToolTests(unittest.TestCase):           # KLD-21 tools/lessons_a
         self.assertEqual(self.count(), 0)
         out = self.run_tool("--yes")
         self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertEqual(self.count(), 11)
+        self.assertEqual(self.count(), 12)
         out = self.run_tool("--yes")
-        self.assertEqual(self.count(), 11)                                  # same source + L# → not twice
+        self.assertEqual(self.count(), 12)                                  # same source + L# → not twice
         self.assertIn("đã có", out.stdout)
 
     def test_source_must_be_project_review(self):

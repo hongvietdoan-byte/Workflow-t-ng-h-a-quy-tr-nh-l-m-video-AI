@@ -31,10 +31,10 @@
 | S12 Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`) | 7 | 6 | 0 | 0 | 1 | 100 % |
 | S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 12 | 10 | 0 | 0 | 2 | 100 % |
 | S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 49 | 44 | 2 | 2 | 0 | 91,8 % |
-| S15 Sau Khủng Long Đỏ #22: tổng hợp 3 lượt, KLD-n, chế độ học việc (`docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md`, `docs/KE_HOACH_HOC_VIEC_2026-10-08.md`; người dùng duyệt 08/10) | 13 | 8 | 4 | 1 | 0 | 71,7 % |
+| S15 Sau Khủng Long Đỏ #22: tổng hợp 3 lượt, KLD-n, chế độ học việc (`docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md`, `docs/KE_HOACH_HOC_VIEC_2026-10-08.md`; người dùng duyệt 08/10) | 19 | 14 | 4 | 1 | 0 | 79,4 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 0 | 3 | — |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **197** | **159** | **7** | **14** | **13** | **88,4 %** |
+| **Tổng** | **203** | **165** | **7** | **14** | **13** | **88,6 %** |
 
 Đợt hiện tại: **S14** · việc kế: **S14.15** I1 — tài liệu khớp trạng thái cuối + chấm lại toàn bộ bằng AI Dev System
 <!-- /tien-do -->
@@ -260,8 +260,14 @@
 - [ ] S15.9 · Học việc B3–B8: 7 vai chạy bóng, giao diện 🧪 + thẻ chấm, devsys, tài liệu · nặng:3 · 🔄 · 924b10f + e028a1e + 3442aa6, cả bộ 3037 qua; luật 8: chỉ ✅ sau một dự án thật có trainee_log thật
 - [x] S15.10 · P2 prompt/knowledge (KLD-8, 9, 12, 14, 15, 25) sau cờ TẮT · nặng:2 · ✅ · cc7b534 · cờ `kld_lessons_prompts` TẮT, bật khi dự án mới đo
 - [x] S15.11 · P2 code/UI (KLD-11, 17, 19, 23) + KLD-19c (shot nối khung cắt đầu kèm cắt đuôi shot trước hoặc che chỗ nối) · nặng:2 · ✅ · f18b6e6 · cả bộ 2983 qua; chờ kiểm Dashboard thật
-- [ ] S15.12 · P2 còn lại: KLD-16 (gộp học việc), KLD-18 ảnh toàn cảnh = render 3D, KLD-27 hồ sơ KL (mũ Maxim đen sừng đỏ) · nặng:2 · 🔄 · 08/10 KLD-27 XONG: mô tả chuẩn ghi vào Kho #416/#417 (người dùng duyệt từng dòng; backup `manifest.before_kld27_outfit_desc_*`; #22 giữ nguyên, 0 mục cũ); KLD-18 đang làm; bài học L19 (toàn cảnh cùng hướng) đã nạp
+- [x] S15.12 · P2 còn lại: KLD-16 (gộp học việc), KLD-18 ảnh toàn cảnh = render 3D, KLD-27 hồ sơ KL (mũ Maxim đen sừng đỏ) · nặng:2 · ✅ · 08/10 KLD-27 XONG: mô tả chuẩn ghi vào Kho #416/#417 (người dùng duyệt từng dòng; backup `manifest.before_kld27_outfit_desc_*`; #22 giữ nguyên, 0 mục cũ); KLD-18 xong (a9b886b); bài học L19 (toàn cảnh cùng hướng) đã nạp
 - [ ] S15.13 · P3 (9 mục KLD) · nặng:2 · ⏸ · người dùng 08/10: để sau, làm khi có thêm bằng chứng
+- [x] S15.14 · Phân luồng dự án: vòng nền lấy clip khi đóng tab + khóa Blender cũ tự gỡ (mục 1 b/c) · nặng:2 · ✅ · 6ec0a64 · (a) ngân sách riêng từng dự án: 3 phương án chờ người dùng chọn
+- [x] S15.15 · KLD-16 + 2 lỗi kiểm Bible (ảnh cắt sát, nút bỏ cờ) · nặng:1 · ✅ · a22c868
+- [x] S15.16 · Vai Dựng bỏ đoạn lỗi giữa clip `cut_segment` (mục 12) · nặng:2 · ✅ · 64c0457
+- [x] S15.17 · Giá thật web ClipAI (mục 6): Seedance khớp công thức, bỏ hệ số 0,72; Kling theo độ phân giải; âm thanh theo ký tự/giây · nặng:2 · ✅ · 55b417c
+- [x] S15.18 · START LOCK Seedance 2.5 (mục 8) kiểm bằng clip lượt 3, 0 USD · nặng:1 · ✅ · ef7025c
+- [ ] S15.19 · 2 bậc chất lượng + Đạo diễn phân loại độ khó + nhạc theo đường cảm xúc (`docs/THIET_KE_2_BAC_CHAT_LUONG_VA_NHAC_2026-10-08.md` mục 5a) · nặng:3 · 🔄 · N1/N2/N3 đang làm, N4 giao diện + thanh tiến độ sau
 
 ### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)
 - [ ] K.1 · Soạn kịch bản hài 20–30 s có **Kenta + Orion cùng dùng kỹ năng** (người dùng 30/09) · nặng:1 · ✖ · viết lại bản A (docs/KICH_BAN_KIEM_K1_2026-09-29.md) theo hồ sơ kỹ năng Kenta + Orion (đợt S10) và luật chia nhịp kỹ năng; người dùng duyệt · tạm gác — không ưu tiên (người dùng 30/09); làm sau cùng khi người dùng gọi · **người dùng 06/10: BỎ (dự án thử 30 s S14.11/S14.12 đã phủ)**
