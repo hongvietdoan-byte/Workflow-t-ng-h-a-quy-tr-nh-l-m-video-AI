@@ -153,7 +153,15 @@ def scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
             choice["reason"] += " (chế độ thử rẻ: vẫn Seedance 2.5 — khớp môi (c) cần mốc giây, bản Fast không đọc mốc giây)"
         elif choice["model"] in ("seedance", "seedance-2.5") and choice.get("source") != "override":   # 08/10: the person's own pick for this scene stays
             choice.update(model="seedance-fast", reason=choice["reason"] + " (chế độ thử rẻ: dùng bản Fast 720p)")
+    if quality_tier.enabled():          # F3 / E1 (09/10): shot dễ → Seedance 2.0 720p; khó / chưa rõ → nháp Seedance 2.5 480p
+        choice = quality_tier.e1_choice(conn, scene_id, choice)
     return choice
+
+
+def e1_warning(conn, scene_id: int) -> Optional[str]:
+    """F3: cảnh báo của lựa chọn model theo E1 (vd. chọn tay model không phải Seedance 2.5 ở shot nháp-trước → bản cao sẽ là gen mới,
+    nội dung khác nháp), để màn Video (F4) hiện; None = không có gì để nói / cờ two_tier_quality tắt."""
+    return scene_choice(conn, scene_id).get("warning")
 
 
 def _scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:

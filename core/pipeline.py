@@ -759,7 +759,8 @@ class Pipeline:
         if job is None or job["type"] not in ("image_gen", "video_gen"):
             raise ValueError("chỉ dùng lại được bản ảnh hoặc video của một shot")
         version = self.take_version(job_id)
-        if job["state"] not in ("rejected", "succeeded", "pending_review"):
+        usable = ("rejected", "succeeded", "pending_review") + (("approved",) if job["type"] == "video_gen" else ())
+        if job["state"] not in usable:        # F3: an APPROVED draft clip (two tiers) stays choosable after its final came out
             raise InvalidTransition(f"bản v{version} (job {job_id}) đang ở trạng thái {job['state']} — không dùng lại được")
         sid, kind, pid = job["scene_id"], job["type"], job["project_id"]
         newer = self.conn.execute("SELECT id, state FROM jobs WHERE scene_id=? AND type=? AND id>? ORDER BY id",

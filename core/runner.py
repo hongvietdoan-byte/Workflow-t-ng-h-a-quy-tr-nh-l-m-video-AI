@@ -311,6 +311,11 @@ class _Runner:
             if not THROTTLE.allow(self.job_type, running_all, capped="mock" not in str(getattr(self.provider, "name", ""))):       # already includes the jobs this pass has started (they are 'running' now)
                 break  # learned limit for all projects together: wait for a slot
             kwargs = self._submit_kwargs(job) if getattr(self.provider, "supports_aspect", False) else {}
+            if kwargs.get("_hold"):                  # F3: the request may not go out unasked (a new paid final) — said, not sent
+                self._diag(job, "warn", "stale_input", f"không gửi: {kwargs['_hold']}")
+                self._running(job["id"])
+                self.p.fail(job["id"], f"stale_input: {kwargs['_hold']}")
+                continue
             with budget.SPEND_LOCK:            # limit check + ledger entry as one step: two projects must not both pass the cap
                 over = self._over_budget(job, args, kwargs)
                 if over:
@@ -585,6 +590,12 @@ class VideoRunner(_Runner):
             gate = quality_tier.final_block(self.p.conn, job["scene_id"])   # N1: no final from an unapproved / outdated draft
             if gate:
                 return f"bản cao bị chặn: {gate}"
+            if not job["external_id"]:          # F3 (#24): a final that cannot come from its draft is a NEW paid gen — never unasked
+                route = quality_tier.final_route(self.p.conn, job, self.provider)
+                self.__dict__.setdefault("_final_routes", {})[job["id"]] = route
+                hold = quality_tier.needs_confirm(job, route)
+                if hold:
+                    return f"bản cao bị chặn: {hold}"
         row = lineage.scan(self.p.conn, job["project_id"]).get(job["scene_id"]) or {}
         if row.get("motion_stale"):
             return f"motion prompt đang cũ ({row['motion_stale']}) — viết lại / duyệt lại ở Bước 3"
@@ -770,11 +781,18 @@ class VideoRunner(_Runner):
         if job["quality_tier"] == "draft":
             return quality_tier.low_tier(out, self._choice(job).get("model"))
         if job["quality_tier"] == "final":
-            route = quality_tier.final_route(self.p.conn, job, self.provider)
+            route = self.__dict__.get("_final_routes", {}).pop(job["id"], None) or quality_tier.final_route(self.p.conn, job,
+                                                                                                         self.provider)
             if route["from_sample"]:
                 return {**out, "resolution": quality_tier.FINAL_RESOLUTION, "_from_sample": route["from_sample"]}
-            self._diag(job, "info", "final_resend", f"bản cao gửi lại đúng đầu vào ở bậc cao — {quality_tier.MAY_DIFFER} "
-                                                    f"({route['why']})")
+            hold = quality_tier.needs_confirm(job, route)
+            if hold:                             # F3 (#24): not sent — _submit_pending fails the job with this reason
+                return {**out, "_hold": f"bản cao bị chặn: {hold}"}
+            confirmed = quality_tier.confirmed_new(job)
+            out["resolution"] = quality_tier.final_resolution(self._choice(job).get("model"))   # E1: the choice says 480p (draft)
+            self._diag(job, "warn" if confirmed else "info", "final_resend",
+                       f"bản cao gen MỚI ở {out['resolution']} — {quality_tier.NEW_GEN} ({route['why']})"
+                       + ("; người dùng đã xác nhận" if confirmed else "; tự gen lại kèm câu sửa (trần 1)"))
         return out
 
     def _base_submit_kwargs(self, job) -> Dict:
@@ -1485,6 +1503,9 @@ class VideoRunner(_Runner):
         from . import formats, lineage, shots
         conn = self.p.conn
         dests = [path] + [os.path.join(self._dir(leader["project_id"], "videos"), f"{r['idx']:02d}.mp4") for r in group[1:]]
+        from . import takes                     # F3 (#24 job 590/592/594): a group clip never overwrites the followers' older takes —
+        for r, dest in zip(group[1:], dests[1:]):  # each goes to the trash under its own job, its result_path follows (↩ Dùng bản này)
+            takes.make_room(conn, self.data_dir, {"id": leader["id"], "scene_id": r["id"], "project_id": leader["project_id"]}, dest)
         if group[0].get("refs"):
             from . import seedance_refs
             res = seedance_refs.split(path, group, dests)
