@@ -282,7 +282,8 @@ def plate_needs(data_dir: str, pid: int, scene_id: int) -> Optional[str]:
 
 
 def plate_failed(data_dir: str, pid: int, scene_id: int) -> Optional[str]:
-    """Why Blender gave no plate for this shot's camera (the shot then draws a normal picture instead of waiting), else None."""
+    """Why the shot has no usable plate (Blender gave none, the plate is flat, or — F2 — the camera could not be placed), else None.
+    F2 (09/10): the shot's picture then WAITS with this reason (place_refs.broken), it is never sent without its 3D background."""
     rec = index(data_dir, pid).get(str(scene_id))
     return (rec or {}).get("failed")
 
@@ -338,7 +339,12 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
         if lit["lights"]:
             camera["lights"] = plate_choice.light_rigs(lit["lights"], sp["at"], camera["location"], height)
             env = dict(env, practical=True)             # plate_env.grade: a lit night keeps its lamps (the character gets the same)
-        out.append({"scene_id": s["id"], "idx": s["idx"], "place": s["place"]["name"], "entry": s["entry"], "camera": camera, "env": env,
+        # F2 (09/10): the same-axis wide view of THIS shot's camera — rendered with it (same Blender run, same cache), sent with it
+        wide_cam = plate_camera.wide_for(camera, height, aspect, cam.get("frame_h_m"))
+        wide = {"camera": wide_cam, "key": cache_key(s["entry"], wide_cam, env, resolution)}
+        out.append({"camera_fixes": list(cam.get("fixes") or []), "camera_problem": cam.get("problem"), "wide": wide,
+                    "horizon_y": cam.get("horizon_y"),
+                    "scene_id": s["id"], "idx": s["idx"], "place": s["place"]["name"], "entry": s["entry"], "camera": camera, "env": env,
                     "subject_box": cam["subject_box"], "distance_m": cam["distance_m"], "spot": sp["name"],
                     "key": cache_key(s["entry"], camera, env, resolution), "weather_problem": plate_env.weather_of(s["data"])[1],
                     "spot_problem": spot_problem(s["entry"], s["data"]), "view": view, "view_problem": view["problem"],
@@ -352,7 +358,8 @@ def layout_words(it: Dict) -> str:
     from . import plate_choice
     v = it["view"]
     return (f"{it['spot']} · {v['words_vi']} (nền {v['background_deg']:g}°)" + (f" — lý do: {v['why']}" if v.get("why") else "")
-            + f" · {it['env']['time']}/{it['env']['weather']} · " + plate_choice.light_words_vi(it["lights"], it["lights_decided"]))
+            + f" · {it['env']['time']}/{it['env']['weather']} · " + plate_choice.light_words_vi(it["lights"], it["lights_decided"])
+            + "".join(f" · đặt lại máy: {f}" for f in it.get("camera_fixes") or []))
 
 
 def _cached(root: str, key: str) -> Optional[Dict]:
@@ -408,25 +415,33 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
                   render: Callable = plates3d.render, log: Callable[[str], None] = lambda m: None) -> Dict[str, Dict]:
     """Every shot at a 3D place gets its plate (from the cache, else rendered — one Blender run per model + time/weather, cameras
     together), finished (sky, fog, grade) and written to the project's index. Returns the index.
+    F2 (09/10): each shot also gets its same-axis WIDE view (plan()["wide"], same run, same cache) — index record `wide` {plate, key,
+    camera, camera_plan} or `wide_failed`; a missing wide never holds the shot (it then goes with the scene's old place pictures).
     A camera Blender does not return is marked failed (failed.json + diag + log) and NOT rendered again at every autopilot tick; the
-    index says so, and the shot draws a normal picture instead of waiting for a plate that will not come (forget_failures = retry)."""
+    index says so and (F2) the shot's picture WAITS with the reason on Step 2 — never sent without its 3D background
+    (forget_failures = retry). A camera the geometry check cannot place (`camera_problem`) is not rendered: failed, said the same way."""
     from . import diag
     items = plan(conn, pid, resolution)
     root = cache_root(data_root)
-    missing: Dict[tuple, List[Dict]] = {}
+    missing: Dict[tuple, List[tuple]] = {}
     for it in items:
         if it.get("needs"):
             log(f"Shot {it['idx']}: {it['needs']}")
             continue                                      # S5.7: no direction for a script-view spot — never a default plate
-        if _cached(root, it["key"]) is None and _failed(root, it["key"]) is None:
-            missing.setdefault((it["entry"]["sha256"], plate_env.key(it["env"])), []).append(it)
+        if it.get("camera_problem"):
+            continue                                      # F2: an impossible camera is not rendered (index: failed, below)
+        wide = it.get("wide") or {}
+        for kind, key, camera in (("shot", it["key"], it["camera"]), ("wide", wide.get("key"), wide.get("camera"))):
+            if key and _cached(root, key) is None and _failed(root, key) is None:
+                missing.setdefault((it["entry"]["sha256"], plate_env.key(it["env"])), []).append((it, kind, key, camera))
+    rendered = set()
     for group in missing.values():
-        first = group[0]
+        first = group[0][0]
         benv = day_light(plate_env.blender_env(first["env"], first["entry"].get("sun_azimuth", 250.0)), first["entry"])
         cams = []
         seen = set()
-        for it in group:
-            cam = dict(it["camera"], name=f"k{it['key']}")
+        for it, kind, key, camera in group:
+            cam = dict(camera, name=f"k{key}")
             if cam["name"] not in seen:
                 seen.add(cam["name"])
                 cams.append(cam)
@@ -438,27 +453,37 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
         log(f"Render nền 3D: {first['place']} · {plate_env.key(first['env'])} · {len(cams)} góc máy")
         manifest = render(cfg, blender or plates3d.find_blender(), timeout=1800)
         by_name = {p["name"]: p for p in manifest.get("plates", [])}
-        for it in group:
-            p = by_name.get(f"k{it['key']}")
-            dest = os.path.join(root, it["key"])
+        done = set()
+        for it, kind, key, camera in group:
+            if key in done:
+                continue
+            done.add(key)
+            p = by_name.get(f"k{key}")
+            dest = os.path.join(root, key)
             os.makedirs(dest, exist_ok=True)
             if p is None:
-                why = (f"Blender không trả về góc máy của shot {it['idx']} ({first['place']}, {plate_env.key(first['env'])}) — shot này vẽ "
-                       "ảnh thường (không ghép nền 3D); sửa mô hình/Blender rồi chạy lại với forget_failures")
+                what = "góc máy" if kind == "shot" else "ảnh toàn cùng trục"
+                why = (f"Blender không trả về {what} của shot {it['idx']} ({first['place']}, {plate_env.key(first['env'])})"
+                       + (" — ảnh của shot này GIỮ CHỜ (không gửi thiếu nền 3D); chọn lại góc / sửa chỗ đứng, hoặc sửa mô hình/Blender "
+                          "rồi chạy lại với forget_failures" if kind == "shot" else " — shot gửi không kèm ảnh toàn cùng trục"))
                 with open(os.path.join(dest, "failed.json"), "w", encoding="utf-8") as f:
                     json.dump({"reason": why, "manifest_error": manifest.get("error")}, f, ensure_ascii=False)
-                diag.record(conn, "image", "warn", why, "plate_missing", project_id=pid, scene_id=it["scene_id"])
+                diag.record(conn, "image", "warn", why, "plate_missing" if kind == "shot" else "plate_wide_missing",
+                            project_id=pid, scene_id=it["scene_id"])
                 log(why)
                 continue
+            if kind == "shot":
+                rendered.add(it["scene_id"])
             rec = {"camera": p.get("camera"), "depth_range_m": p.get("depth_range_m"), "subject": p.get("subject")}
-            for kind in ("file", "depth_file", "shadow_file"):
-                if p.get(kind):
-                    target = os.path.join(dest, {"file": "raw.png", "depth_file": "depth.png", "shadow_file": "shadow_raw.png"}[kind])
-                    shutil.copyfile(os.path.join(manifest["out_dir"], p[kind]), target)
-                    rec[{"file": "raw", "depth_file": "depth", "shadow_file": "shadow_raw"}[kind]] = target
+            for part in ("file", "depth_file", "shadow_file"):
+                if p.get(part):
+                    target = os.path.join(dest, {"file": "raw.png", "depth_file": "depth.png", "shadow_file": "shadow_raw.png"}[part])
+                    shutil.copyfile(os.path.join(manifest["out_dir"], p[part]), target)
+                    rec[{"file": "raw", "depth_file": "depth", "shadow_file": "shadow_raw"}[part]] = target
+            own = dict(it, key=key, camera=camera)
             rec["depth_exposure"] = (float(p["depth_exposure"]) if p.get("depth_exposure") is not None
-                                     else _legacy_depth_exposure(benv, it))
-            _finish(rec, dest, it)
+                                     else _legacy_depth_exposure(benv, own))
+            _finish(rec, dest, own)
             with open(os.path.join(dest, "meta.json"), "w", encoding="utf-8") as f:
                 json.dump(rec, f, ensure_ascii=False, indent=1)
     before = index(data_dir, pid)
@@ -473,6 +498,12 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             extra["moved_from"] = moved
         if it.get("needs"):
             idx[str(it["scene_id"])] = {"key": it["key"], "needs": it["needs"], "place": it["place"], "spot": it["spot"], **extra}
+            continue
+        if it.get("camera_problem"):                     # F2: said on Step 2 (the picture waits, core/runner ImageRunner._wait)
+            why = f"Shot {it['idx']} ({it['place']}): {it['camera_problem']}"
+            diag.record(conn, "image", "error", why, "plate_camera", project_id=pid, scene_id=it["scene_id"])
+            log(why)
+            idx[str(it["scene_id"])] = {"key": it["key"], "failed": why, "place": it["place"], "spot": it["spot"], **extra}
             continue
         rec = _cached(root, it["key"])
         if rec is None:
@@ -489,20 +520,43 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
                 json.dump(rec, f, ensure_ascii=False, indent=1)
             log(f"Shot {it['idx']}: nền 3D làm lại phần sương/màu (đọc độ sâu đúng) — 0 USD")
         bad = _recheck_problem(rec, os.path.join(root, it["key"]))
-        if bad:                                          # never sent as "the place": the shot draws without this background
-            why = f"Shot {it['idx']} ({it['place']}, {plate_env.key(it['env'])}): {bad} — không gửi nền này; xem {rec['plate']}"
+        if bad:                                          # never sent as "the place" — F2: the shot's picture waits (runner)
+            why = (f"Shot {it['idx']} ({it['place']}, {plate_env.key(it['env'])}): {bad} — không gửi nền này; xem {rec['plate']}"
+                   + "".join(f" (đã đặt lại máy: {f})" for f in it.get("camera_fixes") or []))
             diag.record(conn, "image", "error", why, "plate_flat", project_id=pid, scene_id=it["scene_id"])
             log(why)
             idx[str(it["scene_id"])] = {"key": it["key"], "failed": why, "place": it["place"], "spot": it["spot"], **extra}
             continue
+        if it["scene_id"] in rendered and it.get("camera_fixes"):
+            note = f"Shot {it['idx']} ({it['place']}): đặt lại máy nền 3D — " + "; ".join(it["camera_fixes"])
+            diag.record(conn, "image", "info", note, "plate_camera_fix", project_id=pid, scene_id=it["scene_id"])
+            log(note)
         idx[str(it["scene_id"])] = dict(rec, key=it["key"], env=it["env"], subject_box=it["subject_box"], distance_m=it["distance_m"],
                                         spot=it["spot"], place=it["place"], camera_plan=it["camera"], view=it["view"],
-                                        lights=it["lights"], lights_decided=it["lights_decided"], layout_vi=layout_words(it), **extra)
+                                        lights=it["lights"], lights_decided=it["lights_decided"], layout_vi=layout_words(it),
+                                        camera_fixes=list(it.get("camera_fixes") or []), **_wide_record(root, it), **extra)
     path = _index_path(data_dir, pid)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(idx, f, ensure_ascii=False, indent=1)
     return idx
+
+
+def _wide_record(root: str, it: Dict) -> Dict:
+    """F2: {"wide": {...}} for the shot's index record when its same-axis wide render is in the cache and not flat, else
+    {"wide_failed": reason} (failed / flat), else {} (not rendered yet — place_refs.missing then asks for it)."""
+    wide = it.get("wide") or {}
+    key = wide.get("key")
+    if not key:
+        return {}
+    rec = _cached(root, key)
+    if rec is None:
+        why = _failed(root, key)
+        return {"wide_failed": why} if why else {}
+    bad = _recheck_problem(rec, os.path.join(root, key))
+    if bad:
+        return {"wide_failed": f"ảnh toàn cùng trục: {bad}"}
+    return {"wide": {"plate": rec["plate"], "key": key, "camera": rec.get("camera"), "camera_plan": wide.get("camera")}}
 
 
 # ---- KLD-6 (người dùng duyệt 08/10): the background in plates/index.json against the plan, on EVERY path ----

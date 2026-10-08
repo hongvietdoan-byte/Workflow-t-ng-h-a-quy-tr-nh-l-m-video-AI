@@ -24,6 +24,24 @@ DEFAULT_SIZE = "MS"
 HEADROOM = {"EWS": 0.40, "WS": 0.14, "GAME_TPS": 0.30, "MLS": 0.14, "MS": 0.13, "MCU": 0.11, "CU": 0.05, "ECU": 0.02}
 HIGH_TILT_DEG, OVERHEAD_TILT_DEG = 30.0, 60.0             # how far a high / overhead camera looks down at the frame's middle
 SIDE_X = {"left": 0.36, "center": 0.5, "right": 0.64}      # where the character stands across the frame (rule of thirds, softened)
+# F2 (người dùng duyệt 09/10, #24 shot 4): a "low" MCU put the camera 0,45 m above the ground and 0,97 m from the character, tilted 45°
+# up — the render was sky only (horizon_y 1,9), flagged flat, dropped, and the picture went out with no background → the model guessed
+# the well's height. Checks on every shot camera (no AI, 0 USD):
+#  - an upward tilt keeps the horizon inside the frame (≤ HORIZON_KEEP of the half frame below the middle) unless the shot asks for the
+#    sky; a camera lower than LOW_CAM_M never tilts up more than MAX_LOW_TILT_DEG — the camera is RAISED (same distance, same aim, so
+#    the framing stays), never moved into the character;
+#  - a camera closer than MIN_DIST_M[size] (a DP lens too short for the size) goes back along its axis with a longer lens (same
+#    framing). The floors sit just under the sizes' own distances (MS 35 mm ≈ 1,11 m, MLS 32 mm ≈ 1,42 m, WS 24 mm ≈ 2,1 m), so
+#    default cameras — and their cached renders in every project — do not change; only an extreme lens does.
+HORIZON_KEEP = 0.8
+LOW_CAM_M, MAX_LOW_TILT_DEG = 0.8, 30.0
+MIN_DIST_M = {"EWS": 1.5, "WS": 1.5, "GAME_TPS": 1.5, "MLS": 1.2, "MS": 1.0}
+MAX_LENS_MM = 200.0
+SKY_WORDS = ("sky", "bầu trời", "nhìn lên trời", "ngước lên trời", "ngước nhìn trời")
+# F2: the shot's same-axis WIDE view (sent with the shot's render): same yaw/pitch, camera pulled back along its axis, wider lens
+WIDE_LENS_SHARE, WIDE_MIN_LENS = 0.6, 18.0
+WIDE_SPAN_BODY, WIDE_SPAN_FRAME = 3.0, 2.5     # the wide frame spans ≥ 3 body heights and ≥ 2,5× the shot's frame at the character
+WIDE_MIN_CAM_M = 0.3                           # a wide pulled back along an upward axis never sinks below this above the feet
 
 
 def size_of(data: Dict) -> str:
@@ -57,6 +75,12 @@ def vfov(lens_mm: float, aspect: float) -> float:
     return 2 * math.atan(SENSOR_MM / 2 / lens_mm / aspect)
 
 
+def wants_sky(data: Dict) -> bool:
+    """The shot asks to look at the sky (then an upward tilt with the horizon out of frame is the intent, not an error)."""
+    words = " ".join(str(data.get(k) or "") for k in ("start_frame", "camera_setup", "blocking", "image_prompt")).lower()
+    return any(w in words for w in SKY_WORDS)
+
+
 def _unit(v: Sequence[float]) -> Tuple[float, float, float]:
     n = math.sqrt(sum(c * c for c in v)) or 1.0
     return tuple(c / n for c in v)
@@ -78,6 +102,20 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
     visible = height_m * body_share                          # metres of the body inside the frame (top of the head down)
     frame_h = visible / fill                                  # metres the frame spans at the character's distance
     dist = frame_h / (2 * math.tan(fov / 2))
+    fixes: List[str] = []
+    problem: Optional[str] = None
+    floor = MIN_DIST_M.get(size)
+    if floor and dist < floor - 1e-6:                         # F2: too close for the size — back along the axis, longer lens
+        want = lens * floor / dist
+        if want > MAX_LENS_MM:
+            problem = (f"máy quá sát nhân vật ({dist:.2f} m với cỡ {size}) và không lùi được (cần ống {want:.0f} mm > {MAX_LENS_MM:g} mm)"
+                       " — chọn lại cỡ cảnh / ống kính")
+        else:
+            fixes.append(f"máy cách nhân vật {dist:.2f} m (quá sát cho cỡ {size}) → lùi dọc trục còn {floor:g} m, ống {lens:g}→{want:.0f} mm "
+                         "(giữ khung)")
+            lens = round(want, 1)
+            fov = vfov(lens, aspect)
+            dist = frame_h / (2 * math.tan(fov / 2))
     head = height_m
     top_of_frame = head + frame_h * HEADROOM[size]
     centre_z = top_of_frame - frame_h / 2                     # height of the frame's middle at the character's distance
@@ -88,6 +126,17 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
              "overhead": centre_z + dist * math.tan(math.radians(OVERHEAD_TILT_DEG))}.get(angle, min(eye, centre_z + 0.2))
     if size in ("EWS", "GAME_TPS") and angle not in ("low",):
         cam_z = max(cam_z, head + 2.5)                        # game third-person / establishing: above the head
+    if cam_z < centre_z and not wants_sky(data):              # F2: an upward tilt — keep the horizon in the frame
+        cap = HORIZON_KEEP * math.tan(fov / 2)
+        if cam_z < LOW_CAM_M:
+            cap = min(cap, math.tan(math.radians(MAX_LOW_TILT_DEG)))
+        tilt = (centre_z - cam_z) / dist
+        if tilt > cap + 1e-9:
+            new_z = centre_z - dist * cap
+            fixes.append(f"máy cao {cam_z:.2f} m ngửa {math.degrees(math.atan(tilt)):.0f}° (chân trời ở "
+                         f"{(0.5 + 0.5 * tilt / math.tan(fov / 2)) * 100:.0f}% — ngoài khung, chỉ thấy trời) → nâng máy lên {new_z:.2f} m, "
+                         f"ngửa {math.degrees(math.atan(cap)):.0f}° (cùng khoảng cách, cùng điểm nhìn)")
+            cam_z = new_z
     yaw = math.radians(facing_deg + (180 if behind else 0))
     fwd = (math.sin(yaw), math.cos(yaw), 0.0)                 # where the character looks
     right = (fwd[1], -fwd[0], 0.0)
@@ -98,7 +147,40 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
     box = subject_box(cam, aim, lens, aspect, spot, height_m)
     return {"camera": {"name": name, "location": [round(c, 3) for c in cam], "look_at": [round(c, 3) for c in aim], "lens": lens,
                        "angle": {"low": "low_angle", "high": "high_angle", "overhead": "high_angle"}.get(angle, "eye_level")},
-            "subject_box": box, "feet_y": box[3], "distance_m": round(dist, 2), "size": size, "side": side, "behind": behind}
+            "subject_box": box, "feet_y": box[3], "distance_m": round(dist, 2), "size": size, "side": side, "behind": behind,
+            "frame_h_m": round(frame_h, 3), "horizon_y": horizon_y(cam, aim, lens, aspect), "fixes": fixes, "problem": problem}
+
+
+def horizon_y(cam: Sequence[float], aim: Sequence[float], lens: float, aspect: float) -> float:
+    """Where the horizon line falls in the frame (fraction from the top; < 0 above the frame, > 1 below it = only sky), as
+    tools/render_plates.py camera_info measures it."""
+    d = [a - c for a, c in zip(aim, cam)]
+    flat = math.hypot(d[0], d[1]) or 1e-9
+    return round(0.5 + 0.5 * (d[2] / flat) / math.tan(vfov(lens, aspect) / 2), 3)
+
+
+def wide_for(camera: Dict, height_m: float, aspect: float = 9 / 16, frame_h: Optional[float] = None) -> Dict:
+    """F2: the same-axis WIDE view of a shot camera — the same direction (yaw and pitch: the aim vector is kept), the camera pulled
+    back along that axis and a wider lens (× WIDE_LENS_SHARE, ≥ WIDE_MIN_LENS), so the place around the character's spot and the
+    landmarks near it are seen exactly from the shot's side. A pull-back along an upward axis that would sink the camera under
+    WIDE_MIN_CAM_M above the feet is lifted (direction kept). Returns a camera dict (location, look_at, lens, wide=True)."""
+    cam, aim = list(camera["location"]), list(camera["look_at"])
+    lens = float(camera.get("lens") or 35)
+    f = _unit([a - c for a, c in zip(aim, cam)])
+    to_aim = math.sqrt(sum((a - c) ** 2 for a, c in zip(aim, cam)))
+    if frame_h is None:
+        frame_h = 2 * to_aim * math.tan(vfov(lens, aspect) / 2)
+    wlens = round(max(WIDE_MIN_LENS, min(lens, lens * WIDE_LENS_SHARE)), 1)
+    span = max(WIDE_SPAN_BODY * height_m, WIDE_SPAN_FRAME * frame_h)
+    back = max(span / (2 * math.tan(vfov(wlens, aspect) / 2)), to_aim * 1.5)
+    loc = [a - fc * back for a, fc in zip(aim, f)]
+    feet_z = ((camera.get("subject") or {}).get("location") or [None, None, None])[2]
+    if feet_z is not None and loc[2] < float(feet_z) + WIDE_MIN_CAM_M:
+        lift = float(feet_z) + WIDE_MIN_CAM_M - loc[2]
+        loc[2] += lift
+        aim = [aim[0], aim[1], aim[2] + lift]
+    out = {k: v for k, v in camera.items() if k not in ("location", "look_at", "lens", "name")}
+    return dict(out, location=[round(c, 3) for c in loc], look_at=[round(c, 3) for c in aim], lens=wlens, wide=True)
 
 
 def project(cam: Sequence[float], aim: Sequence[float], lens: float, aspect: float, point: Sequence[float]) -> Optional[Tuple[float, float]]:
