@@ -3,7 +3,7 @@ Shared by the dashboard buttons and the automatic run, so both redo exactly the 
 import json
 
 from . import access
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from . import lineage, llm_io, pilot, regen, takes
 from .pipeline import MISSING_INPUT, STALE_INPUT, Pipeline
@@ -83,6 +83,30 @@ def _stale_redos(p: Pipeline, project_id: int) -> List[Dict]:
     return out
 
 
+def _draft_tier(conn, scene_id: int, model) -> Optional[str]:
+    """The resolution label a new clip of this shot is sent at when it starts as a draft (flag two_tier_quality, shot path
+    'draft_first' and no draft yet) — e.g. '480p' — or None (sent at the plan's resolution)."""
+    from . import quality_tier
+    if not quality_tier.enabled() or quality_tier.tier_for_new_job(conn, scene_id)["quality_tier"] != "draft":
+        return None
+    low = quality_tier.low_tier({}, model)
+    return low.get("resolution") or ("std" if low.get("kling_mode") == "std" else None)
+
+
+def picked_tag(p: Pipeline, rows: List[Dict]) -> str:
+    """Price text for the clips the person picked on the Video screen (a subset of video_plan rows): each scene's own estimate
+    (cost.clip_estimate), plus the automatic remakes like video_batch_tag (tính dư); a scene without a price is said."""
+    from . import cost
+    from .pipeline import AUTO_REGEN_LIMIT
+    if not rows:
+        return ""
+    vals = [cost.clip_estimate(p.conn, r["scene_id"]) for r in rows]
+    if any(v is None for v in vals):
+        return f" · {len(rows)} clip, chưa có giá"
+    total, redo = sum(vals), AUTO_REGEN_LIMIT["video_gen"]
+    return f" · {len(rows)} clip ≈ {total:.2f} USD (ước tính; tự gen lại tối đa {redo} lần ≈ {total * (1 + redo):.2f})"
+
+
 def video_plan(p: Pipeline, project_id: int) -> List[Dict]:
     """07/10 Khủng Long Đỏ: what '▶ Gen video' would send, one row per scene: {"scene_id", "idx", "kind": new|stale, "model_name",
     "label", "why"}. The model is the REAL one (alias 'seedance' = Seedance 2.0) with its resolution, so a person sees the price level."""
@@ -94,7 +118,11 @@ def video_plan(p: Pipeline, project_id: int) -> List[Dict]:
         r["idx"] = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (r["scene_id"],)).fetchone()["idx"]
         try:
             ch = model_router.scene_choice(p.conn, r["scene_id"])
-            r["model_name"] = clipai.display_name(ch.get("model"), ch.get("resolution") or "mặc định")
+            res = ch.get("resolution") or "mặc định"
+            draft = _draft_tier(p.conn, r["scene_id"], ch.get("model"))
+            if draft is not None:          # 08/10 (#24): the first send of a draft-first shot goes at the LOW tier, not the plan's
+                res = draft
+            r["model_name"] = clipai.display_name(ch.get("model"), res) + (" (nháp)" if draft is not None else "")
         except Exception as e:  # noqa: BLE001 - a scene whose model cannot be read is said, not hidden
             r["model_name"] = f"không đọc được model ({type(e).__name__})"
         r["label"] = f"S{r['idx']:02d} · {r['model_name']}" + (f" · {r['why']}" if r["why"] else "")

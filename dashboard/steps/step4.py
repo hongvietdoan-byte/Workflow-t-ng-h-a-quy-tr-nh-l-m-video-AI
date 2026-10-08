@@ -142,6 +142,14 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
     plan = batch.video_plan(p, pid)
     new_rows = [r for r in plan if r["kind"] == "new"]
     stale_rows = {r["scene_id"]: r for r in plan if r["kind"] == "stale"}
+    # 08/10 (#24): "gen thử 3 shot khó trước" had no way in the UI — the button sent every new scene. Now the new scenes are picked
+    # too (all by default, so one click still sends everything) and the price follows what is picked.
+    new_by_id = {r["scene_id"]: r for r in new_rows}
+    all_new = len(new_rows)
+    picked_new = st.multiselect(f"Cảnh mới sẽ gửi ({all_new}) — bỏ bớt để gen thử vài cảnh trước", list(new_by_id),
+                                default=list(new_by_id), format_func=lambda sid: new_by_id[sid]["label"],
+                                key=f"gen_vid_new_{pid}") if all_new > 1 else list(new_by_id)
+    new_rows = [new_by_id[s] for s in picked_new]
     picked = st.multiselect(f"Làm lại cảnh đã cũ ({len(stale_rows)}) — chỉ cảnh bạn chọn mới được gửi", list(stale_rows),
                             format_func=lambda sid: stale_rows[sid]["label"], key=f"gen_vid_stale_{pid}") if stale_rows else []
     send = new_rows + [stale_rows[s] for s in picked]
@@ -157,7 +165,7 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
     if send or queued or stale_rows:
         label = (f"▶ Gen video ({len(new_rows)} cảnh mới" + (f", làm lại {len(picked)}/{len(stale_rows)} cảnh đã cũ" if stale_rows else "")
                  + (f", {queued} clip đang chờ gửi" if queued else "") + ")"     # 07/10: resent / redone clips only wait in the queue
-                 + cost.video_batch_tag(p, pid))
+                 + (cost.video_batch_tag(p, pid) if len(new_rows) == all_new and not picked else batch.picked_tag(p, send)))
     else:                                               # điểm 6 (07/10): nothing to send → say WHY on the button, not '(0 cảnh mới)'
         from core import stage_map
         label = "▶ Gen video — " + stage_map.video_idle_reason(stage_map.build(p.conn, pid))
