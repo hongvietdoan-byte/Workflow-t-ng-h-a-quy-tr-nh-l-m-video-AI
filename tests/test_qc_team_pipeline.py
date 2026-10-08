@@ -8,6 +8,7 @@ from unittest import mock
 from core import qc_scene, qc_team
 from core.db import connect
 from core.pipeline import Pipeline
+from tests._flags import flags_on
 from tests.test_qc_team import FakeClient
 
 
@@ -29,8 +30,9 @@ class TeamInPipelineTests(unittest.TestCase):
             folder = os.path.join(self.dir, str(self.pid), "images")
             os.makedirs(folder, exist_ok=True)
             Image.new("RGB", (360, 640), (120, 160, 220)).save(os.path.join(folder, f"job_{jid}.png"))
-        self.env = mock.patch.dict(os.environ, {"FEATURE_QC_TEAM": "1", "FEATURE_SCENE_QC": "1"})
+        self.env = mock.patch.dict(os.environ, {})
         self.env.start()
+        flags_on(self, "qc_team", "scene_qc")      # B1 học việc 08/10: FEATURE_X=1 = học việc; really ON only from 🧪
 
     def tearDown(self):
         self.env.stop()

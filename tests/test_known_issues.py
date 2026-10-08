@@ -5,6 +5,7 @@ import unittest
 from core import known_issues
 from core.db import connect
 from core.pipeline import Pipeline
+from tests._flags import flags_clear, flags_on, flags_on_ctx, flags_on_deco  # noqa: F401
 
 
 class KnownIssuesTests(unittest.TestCase):
@@ -27,10 +28,9 @@ class KnownIssuesTests(unittest.TestCase):
         self.assertFalse(any("phông xanh" in line for line in known_issues.warning_lines(self.p.conn, self.pid)))
 
     def test_per_image_qc_faults_until_the_scene_qc_is_on(self):
-        os.environ.pop("FEATURE_SCENE_QC", None)
+        flags_clear("scene_qc")
         self.assertIn("per_image_qc", [s["key"] for s in known_issues.active(self.p.conn, self.pid)])
-        os.environ["FEATURE_SCENE_QC"] = "1"
-        self.addCleanup(os.environ.pop, "FEATURE_SCENE_QC", None)
+        flags_on(self, "scene_qc")
         self.assertNotIn("per_image_qc", [s["key"] for s in known_issues.active(self.p.conn, self.pid)])
 
     def test_the_automatic_run_says_them(self):

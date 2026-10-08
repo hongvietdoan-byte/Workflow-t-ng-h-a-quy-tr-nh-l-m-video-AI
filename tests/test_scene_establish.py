@@ -7,12 +7,12 @@ import unittest
 
 from core import llm_runner, scene_establish, shots
 from tests.test_v3 import kenta_project
+from tests._flags import flags_clear, flags_on, flags_on_ctx, flags_on_deco  # noqa: F401
 
 
 class EstablishTests(unittest.TestCase):
     def setUp(self):
-        os.environ["FEATURE_SCENE_ESTABLISHING"] = "1"
-        self.addCleanup(os.environ.pop, "FEATURE_SCENE_ESTABLISHING", None)
+        flags_on(self, "scene_establishing")
         self.p, self.pid = kenta_project(shot_mode="per_shot")
         self.data = tempfile.mkdtemp()
         llm_runner.run_director(self.p, self.pid, llm_runner.MockLlm())
@@ -57,7 +57,7 @@ class EstablishTests(unittest.TestCase):
         self.assertEqual(n, len(scenes))
 
     def test_off_by_default(self):
-        os.environ.pop("FEATURE_SCENE_ESTABLISHING", None)
+        flags_clear("scene_establishing")
         r = self.runner()
         job = self.p.job(self.p.create_job(self.first["id"], "image_gen"))
         self.assertFalse(r._wait(job))

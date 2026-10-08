@@ -646,7 +646,7 @@ def _features_rule(root: str, from_file: Dict[str, str]):
         spec = importlib.util.spec_from_file_location(f"_devsys_features_{tag}", path)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        on, why = mod.on, getattr(mod, "why_state", None)
+        on, why, state_of = mod.on, getattr(mod, "why_state", None), getattr(mod, "state", None)
     except (OSError, ImportError, SyntaxError, AttributeError, ValueError, TypeError) as e:
         return None, f"{type(e).__name__}: {e}"
     env_of = getattr(mod, "_env", None)
@@ -658,10 +658,11 @@ def _features_rule(root: str, from_file: Dict[str, str]):
     mod._env = _env
 
     def rule(name: str):
-        try:
-            return bool(on(name)), (why(name) if why else "core.features.on")
+        try:                                     # B1 học việc 08/10: + mode on/trainee/off (state() of the measured repo, if it has one)
+            is_on = bool(on(name))
+            return is_on, (why(name) if why else "core.features.on"), (state_of(name) if state_of else ("on" if is_on else "off"))
         except KeyError:                         # in the ast FEATURES but not in the loaded module: say so, never guess silently
-            return None, "cờ không có trong FEATURES khi nạp core/features.py"
+            return None, "cờ không có trong FEATURES khi nạp core/features.py", None
     return rule, ""
 
 
@@ -692,11 +693,16 @@ def flags_state(root: str, cfg: Dict, files: Optional[Sequence[str]] = None) -> 
         source = "môi trường" if env else None
         if not env and from_file.get(name):
             env, source = from_file[name], "dashboard.env"
-        on, on_why = rule(name) if rule else (None, "")
+        on, on_why, mode = rule(name) if rule else (None, "", None)
         if on is None:                           # fallback: the ast reading (FEATURE_<NAME>, else `verified`) — and say why
-            on = True if env in ("1", "true", "on", "yes") else False if env in ("0", "false", "off", "no") else bool(meta.get("verified"))
+            trainee = bool(meta.get("trainee"))
+            yes = env in ("1", "true", "on", "yes")
+            on = False if trainee and (yes or env == "trainee") else True if yes else False if env in ("0", "false", "off", "no") \
+                else bool(meta.get("verified"))
+            mode = "trainee" if trainee and (yes or env == "trainee") else ("on" if on else "off")
             on_why = f"đọc bằng ast (không nạp được luật core.features.on: {on_why or rule_note})"
         out.append({"name": name, "label": meta.get("label", ""), "why": meta.get("why", ""), "verified": bool(meta.get("verified")),
+                    "trainee": bool(meta.get("trainee")), "mode": mode,
                     "env": env or None, "env_source": source, "on": on, "on_why": on_why, "sites": sites.get(name, []),
                     "areas": [a["id"] for a in cfg["areas"] if name in a.get("flags", [])]})
     return out

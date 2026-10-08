@@ -6,13 +6,13 @@ import unittest
 
 from core import llm_runner, shots
 from tests.test_v3 import _approve_all_images, _approve_all_motion, kenta_project
+from tests._flags import flags_clear, flags_on, flags_on_ctx, flags_on_deco  # noqa: F401
 
 
 class CameraSetupTests(unittest.TestCase):
     def setUp(self):
         import tempfile
-        os.environ["FEATURE_CAMERA_SETUPS"] = "1"
-        self.addCleanup(os.environ.pop, "FEATURE_CAMERA_SETUPS", None)
+        flags_on(self, "camera_setups")
         self.p, self.pid = kenta_project(shot_mode="per_shot")
         self.data = tempfile.mkdtemp()
         llm_runner.run_director(self.p, self.pid, llm_runner.MockLlm())
@@ -67,7 +67,7 @@ class CameraSetupTests(unittest.TestCase):
         self.assertAlmostEqual(lengths[1], 1.5, delta=0.15)                # not the multi-shot minimum of 3 s
 
     def test_off_by_default(self):
-        os.environ.pop("FEATURE_CAMERA_SETUPS", None)
+        flags_clear("camera_setups")
         self.assertIsNone(shots.group_of(self.p.conn, self.a2))
         self.assertTrue(shots.needs_own_image(self.p.conn, self.a2))
 

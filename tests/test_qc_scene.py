@@ -8,6 +8,7 @@ from unittest import mock
 
 from core import llm_runner, qc_scene, shots
 from tests.test_v3 import _approve_all_images, kenta_project
+from tests._flags import flags_clear, flags_on, flags_on_ctx, flags_on_deco  # noqa: F401
 
 
 def picture(path, light=0.6):
@@ -103,8 +104,7 @@ class ReviewTests(unittest.TestCase):
         self.data = tempfile.mkdtemp()
         llm_runner.run_director(self.p, self.pid, llm_runner.MockLlm())
         _approve_all_images(self.p, self.pid, self.data)   # the mock pictures are flat: made before layer 0 is on
-        os.environ["FEATURE_SCENE_QC"] = "1"
-        self.addCleanup(os.environ.pop, "FEATURE_SCENE_QC", None)
+        flags_on(self, "scene_qc")
         rows = shots.shots_of(self.p, self.pid)
         self.scene = rows[0]["data"]["story_scene"]
         self.rows = [r for r in rows if r["data"]["story_scene"] == self.scene]
@@ -213,8 +213,7 @@ class ReviewTests(unittest.TestCase):
 
 class RunnerLayerZeroTests(unittest.TestCase):
     def test_a_sure_layer_zero_fault_is_drawn_again_with_its_fix(self):
-        os.environ["FEATURE_SCENE_QC"] = "1"
-        self.addCleanup(os.environ.pop, "FEATURE_SCENE_QC", None)
+        flags_on(self, "scene_qc")
         from core.providers import MockImageProvider
         from core.runner import ImageRunner
         p, pid = kenta_project(shot_mode="per_shot")

@@ -5,6 +5,7 @@ import unittest
 from unittest import mock
 
 from core import runner, scene_establish
+from tests._flags import flags_clear, flags_on, flags_on_ctx, flags_on_deco  # noqa: F401
 
 KENTA = {"approved": True, "view_notes": {
     "facing_camera": "Facing the camera, KENTA's gauntlet arm (his LEFT) is on the RIGHT side of the frame",
@@ -28,16 +29,14 @@ class ViewNotesTests(unittest.TestCase):
         self.assertIn("RIGHT side of the frame", front)
 
     def test_a_flashback_has_its_own_light(self):
-        os.environ["FEATURE_SCENE_ESTABLISHING"] = "1"
-        self.addCleanup(os.environ.pop, "FEATURE_SCENE_ESTABLISHING", None)
+        flags_on(self, "scene_establishing")
         self.assertEqual(scene_establish.light_sentence({"time": "day", "action": "Flashback: Kenta nói với Maxim về lời hứa"}),
                          scene_establish.FLASHBACK)
         self.assertNotEqual(scene_establish.light_sentence({"time": "day", "action": "Kenta chạy"}), scene_establish.FLASHBACK)
 
     def test_scene_notes_that_mention_a_flashback_elsewhere_do_not_make_the_shot_one(self):
         """#8: scene 4's beat 'plant for the flashback promise in scene 5' turned every redraw of S4·2 into a sunset."""
-        os.environ["FEATURE_SCENE_ESTABLISHING"] = "1"
-        self.addCleanup(os.environ.pop, "FEATURE_SCENE_ESTABLISHING", None)
+        flags_on(self, "scene_establishing")
         shot = {"time": "day", "action": "Kelly nói lời trách móc", "image_prompt": "medium close-up, Kelly facing camera",
                 "beat": {"setup": "plant trực tiếp cho lời hứa flashback ở Cảnh 5"},
                 "lighting": "tông trung tính; flashback dùng ánh sáng ấm hơn"}
@@ -47,8 +46,7 @@ class ViewNotesTests(unittest.TestCase):
 
     def test_a_storyboard_is_lit_as_a_flashback_only_when_every_frame_is_one(self):
         from core import scene_storyboard
-        os.environ["FEATURE_SCENE_ESTABLISHING"] = "1"
-        self.addCleanup(os.environ.pop, "FEATURE_SCENE_ESTABLISHING", None)
+        flags_on(self, "scene_establishing")
         conn = mock.MagicMock()
         conn.execute.return_value.fetchone.return_value = None
         g = {"story_scene": 5, "shots": [{"data": {"time": "day", "action": "Kenta cõng Maxim"}},

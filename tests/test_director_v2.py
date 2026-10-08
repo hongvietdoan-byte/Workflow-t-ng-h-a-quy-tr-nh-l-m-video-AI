@@ -6,6 +6,7 @@ import os
 import unittest
 
 from core import director_report, shot_normalize
+from tests._flags import flags_clear, flags_on, flags_on_ctx, flags_on_deco  # noqa: F401
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 
@@ -170,7 +171,6 @@ class FlagTests(unittest.TestCase):
         script_parser.import_scenes(self.p, self.pid, story, full_text=SCRIPT)
         self.p.conn.execute("UPDATE projects SET script_text=? WHERE id=?", (SCRIPT, self.pid))
         self.addCleanup(os.environ.pop, "FEATURE_FILM_CREW", None)
-        self.addCleanup(os.environ.pop, "FEATURE_CAMERA_SETUPS", None)
 
     def test_film_crew_swaps_the_scattered_documents_for_the_role_rule_books(self):
         from core import prompts
@@ -209,7 +209,7 @@ class FlagTests(unittest.TestCase):
     def test_camera_setups_ask_for_and_keep_the_setup_letter(self):
         from core import prompts, shots
         self.assertNotIn("camera_setup", prompts.duration_block(self.p, self.pid))
-        os.environ["FEATURE_CAMERA_SETUPS"] = "1"
+        flags_on(self, "camera_setups")
         self.assertIn("camera_setup", prompts.duration_block(self.p, self.pid))
         shot = {"size": "MS", "role": "dialogue", "duration_s": 2, "image_prompt": "x", "action": "y", "camera_setup": "b"}
         shots.validate([shot], "s", set())

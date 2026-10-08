@@ -16,6 +16,7 @@ from core.llm_io import approve_motion_prompt, store_motion_prompts
 from core.pipeline import PLAIN_RESEND, Pipeline
 from core.providers import MockImageProvider, MockVideoProvider, ProviderError, TaskStatus
 from core.runner import ImageRunner, VideoRunner, model_fix, sendable_references
+from tests._flags import flags_clear, flags_on, flags_on_ctx, flags_on_deco  # noqa: F401
 
 
 def png(seed):
@@ -557,7 +558,7 @@ class EndFrameTests(Base):
         self.assertNotIn("17-year-old", prompt)
         self.assertIn("falls to her knees", prompt)
 
-    @mock.patch.dict(os.environ, {"FEATURE_END_FRAMES": "1"})
+    @flags_on_deco("end_frames")
     def test_sent_pictures_are_kept_a_missing_start_picture_is_said_and_redos_are_capped(self):
         from core import end_frames
         end_frames.queue(self.p, self.pid)
@@ -620,7 +621,7 @@ class EstimateTests(Base):
             self.assertAlmostEqual(cost.llm_estimate(self.p.conn, "motion", 2), 4.0)       # 2 calls × 1M input tokens × $2/M
         self.assertIn("Claude ≈", cost.llm_tag(0.05))
 
-    @mock.patch.dict(os.environ, {"FEATURE_END_FRAMES": "1"})
+    @flags_on_deco("end_frames")
     def test_the_picture_estimate_counts_end_frames_and_the_run_estimate_has_usd(self):
         self.p.set_project_field(self.pid, "shot_mode", "per_shot")
         sid2 = self.p.create_scene(self.pid, 2, "S2")
@@ -638,7 +639,7 @@ class EstimateTests(Base):
         self.p.set_project_field(self.pid, "shot_mode", "per_shot")
         self.set_data({"image_prompt": "x", "shot_no": 1, "story_scene": 1})
         self.assertEqual(cost._picture_qc_calls(self.p.conn, self.pid, 4), 4)                    # old QC: one per picture
-        with mock.patch.dict(os.environ, {"FEATURE_SCENE_QC": "1"}):
+        with flags_on_ctx("scene_qc"):
             self.assertEqual(cost._picture_qc_calls(self.p.conn, self.pid, 4), 0)                # layer 1 off: code only
             with mock.patch.dict(os.environ, {"FEATURE_SCENE_QC_CLAUDE": "1"}):
                 self.assertEqual(cost._picture_qc_calls(self.p.conn, self.pid, 4), 1 + cost.REDRAW_SHARE)   # one scene + re-looks

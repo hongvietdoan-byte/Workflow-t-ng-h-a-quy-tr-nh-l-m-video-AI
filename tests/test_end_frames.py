@@ -12,7 +12,7 @@ from core.runner import VideoRunner
 from tests.test_adapters import TOKEN, FakeTransport, ctx_of, ok
 from tests.test_v3 import _approve_all_images, _approve_all_motion, kenta_project
 
-ON = {"FEATURE_END_FRAMES": "1"}
+from tests._flags import flags_on_deco  # noqa: E402
 
 
 def _shot_with_end_state(p, pid):
@@ -66,7 +66,7 @@ class EndFrameFlowTests(unittest.TestCase):
         self.assertIsNone(end_frames.usable_path(self.p.conn, self.sid))                  # a new start picture: redraw
         self.assertIn(self.sid, end_frames.queue(self.p, self.pid))
 
-    @mock.patch.dict(os.environ, ON)
+    @flags_on_deco("end_frames")                   # B1 học việc 08/10: FEATURE_END_FRAMES=1 = học việc; really ON only from 🧪
     def test_the_clip_waits_for_its_end_frame_then_goes_out_first_plus_last(self):
         from core import batch, model_router
         _approve_all_motion(self.p, self.pid, self.data)
