@@ -236,7 +236,9 @@ class InGameLookTests(unittest.TestCase):
         p.conn.commit()
         job = p.create_job(row["id"], "image_gen")
         args = ImageRunner(p, MockImageProvider(), tempfile.mkdtemp())._submit_args(p.job(job))
-        scene_part = args[0].split("Render style")[0]
+        # F1-C (09/10): the formula puts the render style FIRST, so the Director's words are no longer before "Render style" — the
+        # whole prompt is read (the look sentence itself says neither "photorealistic" nor "bokeh")
+        scene_part = args[0]
         self.assertIn("Kenta in the hangar", scene_part)
         self.assertNotIn("photorealistic", scene_part.lower())
         self.assertNotIn("bokeh", scene_part.lower())

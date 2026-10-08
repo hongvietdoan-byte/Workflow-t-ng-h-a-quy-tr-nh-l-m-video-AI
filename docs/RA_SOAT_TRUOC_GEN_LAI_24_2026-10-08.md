@@ -59,12 +59,12 @@ Còn trong #24 (prompt thực gửi đi, dựng lại bằng `runner.build_image
 
 Tương tự cho: Đạo diễn (trường bắt buộc mỗi shot), Quay phim (plate_view, trục, camera 3D hợp lý), QC ảnh/clip, nhạc, SFX, dựng, popup.
 
-### F1 — Code theo công thức  — **phần 1 ✅ 09/10** (kiểm + chặn + sửa ghép; xem TODO); phần 2 ⬜ (ghép theo khuôn, prompt Đạo diễn)
+### F1 — Code theo công thức  — **phần 1 ✅ 09/10** (kiểm + chặn + sửa ghép; xem TODO); phần 2 ✅ 09/10 (ghép theo khuôn, prompt Đạo diễn)
 - Prompt **được ghép từ khuôn** (từng phần một hàm, mỗi phần từ trường dữ liệu), thay cho nối câu dần; câu cũ rà một lượt: giữ / chuyển thành phần khuôn / bỏ (có lý do).
 - **Kiểm công thức** trước khi gửi: thiếu phần bắt buộc, mâu thuẫn (khung ↔ tư thế, luật người ↔ quái, câu địa điểm ↔ render), từ ghê không tiết chế → báo đỏ ở thẻ shot, không gửi.
 - Người sửa tay prompt → hệ thống so với khuôn, ghi phần nào người thêm/đổi vào **sổ đề xuất công thức** (học từ sửa tay, như #22) → người dùng duyệt → vào khuôn cho dự án sau.
 
-### F2 — Nền 3D đúng trước khi gen (0 USD)
+### F2 — Nền 3D đúng trước khi gen (0 USD) — ✅ code 09/10, chờ chạy Blender thật
 - Camera 3D vô lý (trong/sát vật, sát đất mà ngửa cao, chân trời ngoài khung) → tự đặt lại theo trục hoặc báo chọn lại.
 - **Mỗi shot 3D: render ảnh toàn cùng trục** (lùi máy dọc trục, ống rộng) gửi kèm; thiếu render → không gửi ảnh.
 - Kiểm tỉ lệ vật mốc giữa các shot.

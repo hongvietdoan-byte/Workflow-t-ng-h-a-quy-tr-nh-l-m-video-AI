@@ -49,11 +49,11 @@ class DirectorPromptFormulaTest(unittest.TestCase):
 
     def test_role_books_match(self):
         d = _read("knowledge/roles/director.md")
-        self.assertIn("N6. Công thức prompt", d)
+        self.assertIn("N6. Bài học theo 3 tầng", d)
         self.assertIn("không trồng thêm", d)
         p = _read("knowledge/roles/dp.md")
         self.assertIn("ảnh toàn cùng trục", p)
-        self.assertIn("ngửa lên trời", p)
+        self.assertIn("ngửa trời", p)
         self.assertIn("hồ sơ Kho", p)
 
     def test_prompts_stay_lean(self):
