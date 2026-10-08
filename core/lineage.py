@@ -55,17 +55,36 @@ def video_input_hash(mp_row, aspect: Optional[str], model: Optional[str] = None,
     return _hash(spec)
 
 
-def video_hash_ok(stored: Optional[str], mp_row, aspect: Optional[str], model: Optional[str], audio: Optional[bool]) -> bool:
-    """A clip's stamp still matches: the current inputs with the current model/sound, or (a clip made before M16) the old formula."""
-    return not stored or stored in (video_input_hash(mp_row, aspect, model, audio), video_input_hash(mp_row, aspect))
+def video_hash_ok(stored: Optional[str], mp_row, aspect: Optional[str], model, audio: Optional[bool]) -> bool:
+    """A clip's stamp still matches: the current inputs with the current model/sound, or (a clip made before M16) the old formula.
+    `model` may be a list (08/10): every model the scene may get with or without "Thử rẻ" counts as current."""
+    if not stored:
+        return True
+    models = model if isinstance(model, (list, tuple)) else [model]
+    ok = {video_input_hash(mp_row, aspect)} | {video_input_hash(mp_row, aspect, m, audio) for m in models if m is not None}
+    return stored in ok
 
 
-def _video_model(conn, scene_id: int, proj, mp_row) -> Optional[str]:
+CHEAP_SWAP = ("seedance", "seedance-2.5")         # model_router.scene_choice: "Thử rẻ" turns these into seedance-fast
+
+
+def _video_model(conn, scene_id: int, proj, mp_row):
+    """The models the scene's clip may be made with now: the routed one, and — 08/10 (#22: 4 approved clips made in "Thử rẻ" with
+    Seedance Fast turned "⚠ cũ" the moment two_tier_quality began ignoring Thử rẻ) — the same choice with "Thử rẻ" on and off.
+    Flipping Thử rẻ (or the flag that ignores it) changes the price tier, not what the clip shows: it does not make a clip outdated."""
     try:
-        from .model_router import scene_choice
-        return scene_choice(conn, scene_id, proj, mp_row)["model"]
+        from .model_router import _scene_choice, scene_choice
+        cur = scene_choice(conn, scene_id, proj, mp_row)
+        base = _scene_choice(conn, scene_id, proj, mp_row)
     except Exception:  # noqa: BLE001 - no model choice (mock data): compare without it
         return None
+    out = [cur["model"]]
+    if base["model"] not in out:
+        out.append(base["model"])
+    if (base["model"] in CHEAP_SWAP and base.get("source") != "override" and not base.get("skill") and not base.get("take")
+            and "seedance-fast" not in out):
+        out.append("seedance-fast")
+    return out
 
 
 def _audio(proj) -> bool:

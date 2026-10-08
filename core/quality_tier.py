@@ -301,3 +301,40 @@ def final_estimate(conn, pid: int) -> Dict:
         out["scenes"].append({"scene_id": s["id"], "idx": s["idx"], "state": st, "model": model, "seconds": seconds, "usd": usd})
     out["usd"] = round(out["usd"], 4)
     return out
+
+
+def run_estimate(conn, pid: int, rows, pricing: Optional[Dict] = None) -> Dict:
+    """08/10 (#24): phần ước tính chạy tự động mà quy trình 2 bậc THÊM vào giá từng shot (cost.estimate_run, các hàng model_router.plan
+    chưa gen): shot nháp-trước trả thêm một NHÁP (bậc thấp nhất của model, như `low_tier`) và — nháp Seedance 2.5 — bản cao ở
+    FINAL_RESOLUTION thay cho độ phân giải hàng `plan` ghi. Tính dư (luật chi phí): giá bậc thấp không có → lấy giá hàng (cao hơn).
+    Cờ tắt → 0. {"usd", "drafts": số nháp, "finals_1080": số bản cao 2.5 nâng lên 1080p}."""
+    out = {"usd": 0.0, "drafts": 0, "finals_1080": 0}
+    if not enabled():
+        return out
+    from . import cost, formats, model_router, video_rules
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
+    ratio = formats.spec(formats.project_aspect(proj))["clip"] if proj is not None else "16:9"
+    for r in rows:
+        billed = float(r.get("billed_seconds") or 0)
+        if billed <= 0 or path(conn, r["scene_id"]) == "direct":
+            continue
+        model, row_usd = r["model"], r.get("cost")
+        try:
+            from .adapters.clipai import resolve_model
+            canonical, family = resolve_model(model)
+        except Exception:  # noqa: BLE001 - unknown model: priced like the row
+            canonical, family = model, None
+        if canonical == SAMPLE_MODEL:
+            draft = cost.seedance_estimate(SAMPLE_MODEL, "480p", ratio, max(billed, 4.0))
+            final = cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, max(billed, 4.0))
+            if final is not None and final > (row_usd or 0.0):
+                out["usd"] += final - (row_usd or 0.0)
+                out["finals_1080"] += 1
+        else:
+            low = None if family == "omni" else ((video_rules.rule(canonical or "").get("resolutions") or [None])[0])
+            per = model_router.price_per_sec(model, low, pricing)
+            draft = per * billed if per is not None else None
+        out["usd"] += draft if draft is not None else (row_usd or 0.0)
+        out["drafts"] += 1
+    out["usd"] = round(out["usd"], 4)
+    return out

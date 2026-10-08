@@ -90,7 +90,8 @@ def assets_panel(p: Pipeline, pid: int) -> None:
     suggested = [a for a in assets.find_in_text(p.conn, text, game, pid) if a["id"] not in chosen_ids]
     label = f"🧰 Tài nguyên đi kèm kịch bản — {len(chosen)} đã chọn" + (f" · {len(suggested)} gợi ý mới" if suggested else "")
     # S9 E1.5: open only while the project has nothing attached (suggestions alone no longer unfold it — #8 showed 3 wrong ones)
-    with st.expander(label, expanded=is_next("assets")):     # v2: optional → never open on its own
+    keep = f"as_open_{pid}"                                   # 08/10: a ➕/✖ click reruns the page — keep the list open for the next pick
+    with st.expander(label, expanded=is_next("assets") or bool(st.session_state.get(keep))):     # v2: optional → never open on its own
         cap("Chọn nhân vật, vũ khí, thú cưng, bản đồ… có sẵn trong kho (hoặc tải ảnh riêng) để dùng cùng kịch bản. Director sẽ dùng đúng "
                    "tên và thiết kế này thay vì tự nghĩ ra, và ảnh của chúng là ảnh tham khảo khi gen. **Không bấm cũng được:** lúc chạy "
                    "Director, tài nguyên kịch bản nhắc đúng tên (có dấu) được tự gắn; tên trùng nhiều tài nguyên thì để bạn chọn; cái bạn đã "
@@ -104,9 +105,11 @@ def assets_panel(p: Pipeline, pid: int) -> None:
                 c2.markdown(f"**{escape(a['name'])}** · {a['kind_label']} · xuất hiện {a['mentions']} lần"
                             + (f" — {escape(a['description'][:90])}" if a["description"] else ""))
                 if c3.button("➕ Dùng", key=f"as_use_{pid}_{a['id']}"):
+                    st.session_state[keep] = True
                     assets.attach(p.conn, pid, a["id"])
                     st.rerun()
             if st.button("➕ Dùng tất cả gợi ý", key=f"as_use_all_{pid}"):
+                st.session_state[keep] = True
                 for a in suggested:
                     assets.attach(p.conn, pid, a["id"])
                 st.rerun()
@@ -119,6 +122,7 @@ def assets_panel(p: Pipeline, pid: int) -> None:
                 scope = "riêng dự án" if a["project_id"] else "kho chung"
                 c2.markdown(f"**{escape(a['name'])}** · {a['kind_label']} · {scope} · {len(a['images'])} ảnh")
                 if c3.button("✖ Bỏ", key=f"as_drop_{pid}_{a['id']}"):
+                    st.session_state[keep] = True
                     assets.detach(p.conn, pid, a["id"])
                     st.rerun()
         library = assets.library_labels(p.conn, game, pid, chosen_ids)      # names only: the full entries (pictures, disk checks) are not needed here
@@ -127,6 +131,7 @@ def assets_panel(p: Pipeline, pid: int) -> None:
             pick = st.selectbox("Thêm từ kho", [None] + list(labels), key=f"as_pick_{pid}",
                                 format_func=lambda i: "— chọn —" if i is None else labels[i])
             if pick is not None and st.button("➕ Thêm vào dự án", key=f"as_add_{pid}"):
+                st.session_state[keep] = True
                 assets.attach(p.conn, pid, pick)
                 st.rerun()
         elif not chosen:

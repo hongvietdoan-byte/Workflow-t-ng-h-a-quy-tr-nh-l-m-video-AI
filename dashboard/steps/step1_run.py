@@ -234,13 +234,15 @@ def autopilot_panel(p: Pipeline, pid: int) -> None:
         if not issues:
             say("success", f"Sẵn sàng: {scenes} cảnh. Trần an toàn: tối đa {scenes * per} job ảnh và {scenes * per} job video (kể cả gen lại).",
                 f"script-ready-{pid}", f"Sẵn sàng · {scenes} cảnh")
+        from dashboard import quality_ui
+        mode = quality_ui.mode_label(p.project(pid))   # 08/10: two_tier_quality on → "2 bậc", not the ignored Thử rẻ
         if run_est is not None:
             say("info", "💵 Ước tính chạy tự động: " + cost.format_run_estimate(run_est).replace("$", "\\$")
-                + ("  ·  🧪 chế độ Thử rẻ đang BẬT" if p.project(pid)["test_quality"] else ""), f"script-run-estimate-{pid}",
+                + (f"  ·  {mode[1]}" if mode else ""), f"script-run-estimate-{pid}",
                 f"💵 Ước tính chạy tự động ≈ {run_est['total']:.2f} USD (tối đa ≈ {run_est['max']:.2f})"
                 + (" · ⚠ trần Claude không đủ" if run_est.get("llm_left") is not None and run_est["llm"] > run_est["llm_left"] else "")
                 + (f" · {len(run_est['unknown'])} mục chưa có giá" if run_est.get("unknown") else "")
-                + (" · 🧪 Thử rẻ" if p.project(pid)["test_quality"] else ""))
+                + (f" · {mode[0]}" if mode else ""))
         project_budget_panel(p, pid)
         tag = f" (≈ {run_est['total']:.2f} USD)" if run_est is not None else ""
         if confirm_all(f"ap_start_{pid}", ["go"], "✔ Duyệt phân cảnh & chạy tự động" + tag,

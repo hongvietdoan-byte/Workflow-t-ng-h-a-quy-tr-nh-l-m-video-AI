@@ -40,6 +40,11 @@ INTENT_KEYS = ("focus", "peak", "target_s", "dp_notes", "editor_notes", "sound")
 OUT_CHARS = {"shot": 900, "scene": 1500, "intent": 900, "character": 900, "task": 1500}
 THINK = 2.0
 IMG_TOKENS = 1100
+# 08/10 (#24: ước tính 0,21 USD, thực chi 0,47): đo trên các lượt thật trong usage_events — approx_tokens (2,5 ký tự / token) đếm thiếu
+# ~1,5 lần phần vào (#24 Tầng A 46.254 thật / 30.986 ước tính; phần chung Tầng B 56.750 / 37.160), phần ra Tầng A 4–8,7k (ước 2,9k),
+# Tầng B 8–17,6k mỗi cảnh (ước 6,5k). Luật chi phí: ước tính tính DƯ → hệ số vào + sàn phần ra = mức lớn nhất đã đo.
+INPUT_FACTOR = 1.6
+MEASURE_CALLS = 40                          # the last N Director calls of the ledger used as the floor of the output guess
 
 
 class TwoPassError(Exception):
@@ -319,6 +324,43 @@ def _ref_count(conn, project_id: int) -> int:
     return sum(1 for a in assets.project_assets(conn, project_id) if a["kind"] in ("character", "pet") and a["images"])
 
 
+def measured(conn, model: Optional[str] = None) -> Dict:
+    """The output tokens of real Director calls (usage_events, stage 'director'): one call = the rows written at the same second for one
+    project. A call with cache rows is a Tầng B (Quay phim) call, one without is Tầng A or the single Director. {"a_out", "b_out",
+    "b_in", "b_common" (the cached shared part), "calls"} — the largest seen (0 when none)."""
+    sql = ("SELECT COALESCE(project_id, deleted_project_id) pid, at, tier, quantity FROM usage_events WHERE kind='llm' AND stage='director'"
+           + (" AND model=?" if model else "") + " ORDER BY id DESC LIMIT ?")
+    calls: Dict = {}
+    try:
+        rows = conn.execute(sql, ((model,) if model else ()) + (MEASURE_CALLS * 4,)).fetchall()
+    except Exception:  # noqa: BLE001 - no ledger table (old test data): nothing measured
+        rows = []
+    for r in rows:
+        calls.setdefault((r[0], r[1]), {})[r[2]] = float(r[3] or 0)
+    import datetime as _dt
+
+    def when(at):
+        try:
+            return _dt.datetime.fromisoformat(str(at)[:19])
+        except ValueError:
+            return None
+    items = list(calls.items())[:MEASURE_CALLS]
+    b_calls = [(pid, when(at)) for (pid, at), tiers in items if tiers.get("cache_write") or tiers.get("cache_read")]
+    out = {"a_out": 0, "b_out": 0, "b_in": 0, "b_common": 0, "calls": 0}
+    for (pid, at), tiers in items:
+        if tiers.get("cache_write") or tiers.get("cache_read"):
+            out["b_out"] = max(out["b_out"], int(tiers.get("output", 0)))
+            out["b_in"] = max(out["b_in"], int(tiers.get("input", 0)))
+            out["b_common"] = max(out["b_common"], int(tiers.get("cache_write", 0) or tiers.get("cache_read", 0)))
+            out["calls"] += 1
+            continue
+        t = when(at)                                  # Tầng A = a call followed by Tầng B calls of the same project (a single Director
+        if t is not None and any(bp == pid and bt is not None and 0 <= (bt - t).total_seconds() <= 900 for bp, bt in b_calls):
+            out["a_out"] = max(out["a_out"], int(tiers.get("output", 0)))     # run is not one: its 32k answers are not Tầng A's)
+            out["calls"] += 1
+    return out
+
+
 def estimate(p: Pipeline, project_id: int, client=None, model: Optional[str] = None) -> Dict:
     """Rough cost of one Director run, both ways (luật chi phí: shown before the button). Input tokens are counted from the real prompt
     text (knowledge.approx_tokens, ~2,5 characters per token) + ~IMG_TOKENS per reference picture; output tokens are guessed from the
@@ -332,21 +374,22 @@ def estimate(p: Pipeline, project_id: int, client=None, model: Optional[str] = N
     n_shots = len(have) or (n_lines + 2 * n_scenes)
     n_chars = max(1, len(prompts.people_in_project(p, project_id)))
     imgs = _ref_count(p.conn, project_id) * IMG_TOKENS
-    tok = knowledge.approx_tokens
-    think = lambda chars: round(tok(chars) * THINK)          # noqa: E731
+    tok = lambda chars: round(knowledge.approx_tokens(chars) * INPUT_FACTOR)   # noqa: E731 - 08/10: measured undercount
+    think = lambda chars: round(knowledge.approx_tokens(chars) * THINK)      # noqa: E731
+    seen = measured(p.conn, model)
     single_in = tok(len(prompts.build_director_bundle(p, project_id))) + imgs
     single_out = think(n_shots * OUT_CHARS["shot"] + n_scenes * OUT_CHARS["scene"] + n_chars * OUT_CHARS["character"])
     single = {"calls": 1, "input": single_in, "output": single_out,
               "usd": _usd(model, {"input": single_in, "output": single_out})}
     out = {"model": model, "shots_guess": n_shots, "scenes": n_scenes, "single": single, "two_pass": None,
-           "active": "two_pass" if enabled(proj) else "single"}
+           "active": "two_pass" if enabled(proj) else "single", "measured": seen}
     if shots.mode(proj):
         intent_chars = n_scenes * OUT_CHARS["intent"] + n_chars * OUT_CHARS["character"]
         a_in = tok(len(prompts.build_intent_bundle(p, project_id))) + imgs
-        a_out = think(intent_chars)
-        common = tok(len(prompts.dp_common(p, project_id, {"characters": [], "scenes": []})) + intent_chars)
-        task = tok(OUT_CHARS["task"] + OUT_CHARS["intent"])
-        b_out = think(n_shots * OUT_CHARS["shot"])
+        a_out = max(think(intent_chars), seen["a_out"])                     # 08/10: never under the largest real Tầng A answer
+        common = max(tok(len(prompts.dp_common(p, project_id, {"characters": [], "scenes": []})) + intent_chars), seen["b_common"])
+        task = max(tok(OUT_CHARS["task"] + OUT_CHARS["intent"]), seen["b_in"])
+        b_out = max(think(n_shots * OUT_CHARS["shot"]), seen["b_out"] * n_scenes)   # per scene call, measured floor
         tiers = {"input": a_in + task * n_scenes, "cache_write": common, "cache_read": common * (n_scenes - 1),
                  "output": a_out + b_out}
         out["two_pass"] = {"calls": 1 + n_scenes, "input": tiers["input"], "cache_write": common,
@@ -372,7 +415,9 @@ def estimate_text(est: Dict) -> str:
         text = f"Ước tính Director hai lượt ({est['model']}): {two} — một lượt như cũ: {one}"
     else:
         text = f"Ước tính Director ({est['model']}): {one}" + (f" — nếu bật hai lượt: {two}" if two else "")
-    return text + f" · thô ±50%, ~{est['shots_guess']} shot, chưa tính hỏi lại"
+    seen = est.get("measured") or {}
+    return (text + f" · tính dư, ~{est['shots_guess']} shot" + (f", sàn phần ra theo {seen['calls']} lượt Director thật" if seen.get("calls") else "")
+            + ", chưa tính hỏi lại")
 
 
 def _budget_guard(p: Pipeline, client, usd: Optional[float]) -> None:

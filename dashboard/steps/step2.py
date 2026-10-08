@@ -106,7 +106,29 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
             else:
                 st.warning(_no)
         else:
-            st.warning(f"⚠ {queued} ảnh đã xếp hàng nhưng chưa gửi: bấm **▶ Gen ảnh** ở trên.")
+            waits = queued_waits(p, pid)                  # 08/10 lỗi 11: a queued picture may wait for its scene's anchor shot
+            if waits:
+                st.warning(f"⚠ {queued} ảnh đã xếp hàng nhưng chưa gửi — " + "; ".join(waits)
+                           + ". Bấm ▶ Gen ảnh chỉ gửi được khi ảnh neo đã có.")
+            else:
+                st.warning(f"⚠ {queued} ảnh đã xếp hàng nhưng chưa gửi: bấm **▶ Gen ảnh** ở trên.")
+
+
+def queued_waits(p: Pipeline, pid: int) -> list:
+    """Lỗi 11 (#24): the reasons queued pictures are held in storyboard mode (scene_storyboard.wait_reason), one per anchor."""
+    from core import scene_storyboard
+    if not scene_storyboard.enabled():
+        return []
+    out, seen = [], set()
+    for r in p.conn.execute("SELECT scene_id FROM jobs WHERE project_id=? AND type='image_gen' AND state='queued'", (pid,)).fetchall():
+        try:
+            why = scene_storyboard.wait_reason(p.conn, C.DATA, pid, r["scene_id"])
+        except Exception:  # noqa: BLE001 - a hint only
+            why = None
+        if why and why["anchor_id"] not in seen:
+            seen.add(why["anchor_id"])
+            out.append(why["text"])
+    return out
 
 
 def step2(p: Pipeline, pid: int):

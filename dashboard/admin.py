@@ -92,7 +92,7 @@ def knowledge_panel() -> None:
         tag = "" if d["source"] == "builtin" else " · bạn thêm"
         with st.expander(f"📄 {d['title']}{tag}"):
             text = knowledge.read_doc(group, d["source"], d["file"])
-            ui.html('<div class="scriptfull">' + escape(text[:6000]) + ("\n…" if len(text) > 6000 else "") + "</div>")
+            ui.html('<div class="scriptfull">' + escape(text[:6000] + ("\n…" if len(text) > 6000 else "")).replace("\n", "<br>") + "</div>")
             st.caption(f"{d['chars']:,} ký tự · {d['path']}")
             if d["source"] == "user":
                 on = st.checkbox("Bật (gửi kèm mỗi lần chạy)", d["enabled"], key=f"kb_en_{group}_{d['file']}")

@@ -178,6 +178,15 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual([a["name"] for a in assets.project_assets(self.p.conn, self.pid)], ["Lyra"])
         self.assertTrue(any("1 đã chọn" in e.label for e in at.expander))
 
+    def test_the_assets_expander_stays_open_after_a_pick(self):
+        """08/10: each ➕ Dùng reran the page and the expander (its label carries the counts → a new element) folded up again."""
+        aid = assets.create(self.p.conn, "FF", "character", "Lyra", "tóc bạc")
+        at = AppTest.from_file(APP, default_timeout=40).run()
+        next(b for b in at.button if b.key == f"as_use_{self.pid}_{aid}").click().run()
+        self.assertFalse(at.exception)
+        box = next(e for e in at.expander if "Tài nguyên đi kèm kịch bản" in e.label)
+        self.assertTrue(box.proto.expanded)
+
     def test_the_panel_only_appears_once_the_script_is_split(self):
         tmp = tempfile.mkdtemp()
         os.environ["PIPELINE_DB"] = os.path.join(tmp, "e.sqlite")

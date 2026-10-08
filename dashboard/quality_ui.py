@@ -44,6 +44,23 @@ def enabled() -> bool:
         return False
 
 
+TWO_TIER_SHORT = "🪜 2 bậc: nháp 480p → bản cao"
+TWO_TIER_FULL = ("🪜 Video 2 bậc: shot phức tạp / chưa rõ gen NHÁP 480p trước, bạn duyệt rồi ⬆ Gen bản cao; shot dễ gen thẳng bản cao "
+                 "(cờ two_tier_quality — “🧪 Thử rẻ” của dự án bị bỏ qua)")
+CHEAP_SHORT = "🧪 Thử rẻ"
+CHEAP_FULL = "🧪 Thử rẻ: ảnh cỡ nhỏ nhất · video 720p / Kling std / Seedance Fast"
+
+
+def mode_label(proj) -> Optional[Tuple[str, str]]:
+    """(chip ngắn, câu đầy đủ) của chế độ chất lượng đang THẬT SỰ áp dụng cho dự án, hoặc None (chạy thường).
+    08/10 (#24): cờ two_tier_quality bật thì code bỏ qua Thử rẻ (quality_tier.cheap_mode) — chip "🧪 Thử rẻ" khi đó là nói sai."""
+    if enabled():
+        return TWO_TIER_SHORT, TWO_TIER_FULL
+    if proj is not None and "test_quality" in proj.keys() and proj["test_quality"]:
+        return CHEAP_SHORT, CHEAP_FULL
+    return None
+
+
 def state(conn, scene_id: int) -> str:
     qt = module()
     try:

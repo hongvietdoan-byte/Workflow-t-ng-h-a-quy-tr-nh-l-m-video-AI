@@ -49,13 +49,14 @@ def _take(p: Pipeline, pid: int, got) -> None:
         return
     if not files:
         d = decide(_scene_count(p, pid), text)
-        if d["action"] == "replace":                                   # S14.38: a full script over one in use → ask once
-            ss[k["pending"]] = text
-            ss.pop(k["ask"], None)
-            return
-        if d["action"] == "ask":                                       # a few scenes / a snippet over one in use → never guess
-            ss[k["ask"]] = text
-            ss.pop(k["pending"], None)
+        if d["action"] in ("replace", "ask"):
+            # S14.38: a full script over one in use → ask once; a few scenes / a snippet → add or replace? (never guess).
+            # 08/10 (#24): the text the box held before is superseded by this paste — keeping it left its receipt ("… 1.565 ký tự")
+            # under the new one and ▶ Phân tích would split THAT old text.
+            ss[k["pending" if d["action"] == "replace" else "ask"]] = text
+            ss.pop(k["ask" if d["action"] == "replace" else "pending"], None)
+            for key in ("text", "mode", "expand"):
+                ss.pop(k[key], None)
             return
     ss[k["text"]] = text
     if not files:
@@ -191,6 +192,21 @@ def _verdict(pid: int, mode: str, forced: bool, why) -> None:
                + (" — ▶ Phân tích tách cảnh, 0 USD." if mode == "script" else " — Biên kịch viết thành kịch bản; mỗi lượt có nút ghi giá."))
     b.button("không phải, đây là " + ("ý tưởng" if other == "idea" else "kịch bản"), key=f"box_mode_{other}_{pid}",
              on_click=_set_mode, args=(pid, other), width="stretch")
+
+
+def waiting_choice(pid: int) -> bool:
+    """08/10 (#24): a card is waiting for the person (➕ Thêm vào / 🔁 Thay thế, or Thay / Hủy) — ▶ Phân tích must wait too (it used to
+    split the old box text and fail with 'Dự án đã có cảnh S01 … ValueError')."""
+    k, ss = _keys(pid), st.session_state
+    return bool(ss.get(k["pending"]) or ss.get(k["ask"]))
+
+
+def live_receipt(text: str, c: dict, recent) -> str:
+    """The receipt line to draw under the chat for the text in the box, or "" when the chat history already shows that same line
+    (08/10 #24: the receipt was saved as a chat message AND drawn again here → shown twice)."""
+    line = receipt(text, c) or "Đã nhận kịch bản — bấm ▶ Phân tích (0 USD)."
+    said = {m.get("text") for m in (recent or []) if m.get("role") == "assistant"}
+    return "" if line in said else line
 
 
 def receipt(text: str, c: dict = None) -> str:
@@ -370,8 +386,9 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
                     if file:
                         st.button("✕ Bỏ file này", key=f"box_file_drop_{pid}", on_click=lambda: (ss.pop(k["file"], None), ss.pop(k["mode"], None)))
                 else:
-                    if mode == "script" and text.strip():
-                        st.markdown("**" + (receipt(text, c) or "Đã nhận kịch bản — bấm ▶ Phân tích (0 USD).") + "**")
+                    line = live_receipt(text, c, recent) if mode == "script" and text.strip() else ""
+                    if line:
+                        st.markdown("**" + line + "**")
                     if mode == "idea" and ss.get(k["expand"]) and c["kind"] == "script":
                         st.markdown("Bạn " + ("yêu cầu" if ss[k["expand"]] == "request" else "đồng ý") + " **viết bổ sung chi tiết từ dàn ý / "
                                     "kịch bản này** → Biên kịch (giữ cảnh, nơi, thoại có sẵn). Đặt ⚙ Thiết lập + điểm then chốt, rồi mỗi lượt "
@@ -397,6 +414,8 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
         _cards(p, pid)
         has_input = bool(file) or bool(text.strip())
         ready = bool(file) or (bool(text.strip()) and (mode or ss.get(k["mode"]) or I.classify(text)["kind"]) == "script")
+        waiting = waiting_choice(pid)
+        ready = ready and not waiting                                  # 08/10: answer the card above first (no stale split / ValueError)
         if wide and ready and not p.conn.execute("SELECT 1 FROM scenes WHERE project_id=? LIMIT 1", (pid,)).fetchone():
             # Đợt 3 (người dùng 07/10 'nhiều nút thành 1 nút'): kịch bản có tiêu đề cảnh, dự án chưa có cảnh → tách luôn (0 USD, code)
             if act(lambda: analyse_script(p, pid, None, text, file)):
@@ -406,14 +425,15 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
                 Chat.append(p, pid, "assistant", f"✂ Đã tự tách {n} cảnh (0 USD, code đọc tiêu đề cảnh — không gọi model). Tách sai hoặc "
                                                  "đây là ý tưởng: ↺ Làm lại ở 🎬 Kịch bản & các cảnh.")
                 st.rerun()
-        if has_input or not wide:                                      # cờ chat_first: không có gì để tách → không treo nút xám trong chat
+        if (has_input or not wide) and not (waiting and wide):         # cờ chat_first: không có gì để tách → không treo nút xám trong chat
             with st.chat_message("assistant"):
+                if waiting:
+                    cap("Chọn ở thẻ phía trên (➕ Thêm vào / 🔁 Thay thế / Thay / Hủy) trước — ▶ Phân tích sẽ tách đúng bản bạn chọn.")
                 if st.button("▶ Phân tích (tách cảnh) · 0 USD", disabled=not ready, type="primary", key=f"btn_analyse_{pid}"):
                     if act(lambda: analyse_script(p, pid, None, text, file)):
                         ss.pop(k["file"], None)
-                        if wide:                                       # đã tách: lời nhận + nút cũ không còn treo trong chat
-                            ss.pop(k["text"], None)
-                            ss.pop(k["mode"], None)
+                        ss.pop(k["text"], None)                        # đã tách: lời nhận + nút cũ không còn treo trong chat
+                        ss.pop(k["mode"], None)                        # (08/10 #24: cờ chat_first tắt cũng vậy — trước đây còn treo)
                         Chat.append(p, pid, "assistant", "Đã phân tích và tách cảnh (0 USD).")
                         st.rerun()
         if with_reset:

@@ -13,11 +13,21 @@ from dashboard.steps.step1_director import _director_summary, _replan_button, _p
 
 def script_html(text: str) -> str:
     """Whole script as a scrollable block; scene headings in bold so the scenes can be found at a glance."""
-    lines = []
+    # 08/10 (#24): no raw newline inside the HTML — st.markdown ends an HTML block at a blank line, so every empty line of the script
+    # became a markdown paragraph (4–8 empty lines each under pre-wrap). Lines are joined with <br>; runs of empty lines count as one.
+    lines, blank = [], False
     for line in text.splitlines():
+        if not line.strip():
+            if not blank and lines:
+                lines.append("")
+            blank = True
+            continue
+        blank = False
         safe = escape(line)
         lines.append(f"<b>{safe}</b>" if script_parser._HEADING.match(line) else safe)
-    return '<div class="scriptfull">' + "\n".join(lines) + "</div>"
+    while lines and not lines[-1]:
+        lines.pop()
+    return '<div class="scriptfull">' + "<br>".join(lines) + "</div>"
 
 
 def _count_label(p: Pipeline, pid: int, scenes) -> str:

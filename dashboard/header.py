@@ -466,8 +466,13 @@ def _settings_project_body(p: Pipeline, pid: int) -> None:
                 f"Seedance 2.0/2.5 → Fast. {cheap_tip}")
     else:
         st.caption(where)
+    from dashboard import quality_ui
+    two_tier = quality_ui.enabled()                  # 08/10: the flag makes the code ignore Thử rẻ — the box must not look in force
     cheap = st.checkbox("🧪 Thử rẻ" if v2 else "🧪 Thử rẻ (ảnh cỡ nhỏ nhất · 720p · Kling std · Seedance 2.0/2.5 → Fast)", bool(proj["test_quality"]),
-                        key=f"cheap_{pid}", help=cheap_tip)
+                        key=f"cheap_{pid}", disabled=two_tier,
+                        help=(quality_ui.TWO_TIER_FULL + " — ô này không có tác dụng khi cờ bật.") if two_tier else cheap_tip)
+    if two_tier:
+        st.caption(quality_ui.TWO_TIER_FULL)
     if cheap != bool(proj["test_quality"]):
         p.set_project_field(pid, "test_quality", 1 if cheap else 0)
         st.rerun()
@@ -1068,8 +1073,10 @@ def status_line(p: Pipeline, pid: int) -> None:
     if spend:
         bits.append("💵 " + spend)
     proj = p.project(pid) if pid is not None else None
-    if proj is not None and "test_quality" in proj.keys() and proj["test_quality"]:
-        bits.append("🧪 Thử rẻ: ảnh cỡ nhỏ nhất · video 720p / Kling std / Seedance Fast")
+    from dashboard import quality_ui
+    mode = quality_ui.mode_label(proj) if proj is not None else None     # 08/10: two_tier_quality on → Thử rẻ is ignored, say 2 bậc
+    if mode:
+        bits.append(mode[1])
     broken = cost.load_pricing().get("_error")
     if broken:                                          # luật 1: a broken price table stops every paid send — say it everywhere
         bits.append(f"🔴 {escape(broken)} — mọi job trả tiền bị chặn")
@@ -1118,9 +1125,11 @@ def _status_line_v2(p: Pipeline, pid: int) -> None:
         short.append("💵 giả lập" if sp["mock"] and sp["mock"] == sp["events"] else f"💵 {sp['images']} ảnh · {sp['clips']} clip")
         full.append("💵 " + spend)
     proj = p.project(pid) if pid is not None else None
-    if proj is not None and "test_quality" in proj.keys() and proj["test_quality"]:
-        short.append("🧪 Thử rẻ")
-        full.append("🧪 Thử rẻ: ảnh cỡ nhỏ nhất · video 720p / Kling std / Seedance Fast")
+    from dashboard import quality_ui
+    mode = quality_ui.mode_label(proj) if proj is not None else None     # 08/10: two_tier_quality on → Thử rẻ is ignored, say 2 bậc
+    if mode:
+        short.append(mode[0])
+        full.append(mode[1])
     blocker = ""
     broken = cost.load_pricing().get("_error")
     if broken:                                          # luật 1: a broken price table stops every paid send — P1, stays outside

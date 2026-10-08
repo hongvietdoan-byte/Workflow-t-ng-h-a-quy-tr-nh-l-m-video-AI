@@ -81,6 +81,7 @@ def active(p: Pipeline, project_id: int) -> bool:
 def start(p: Pipeline, project_id: int) -> List[int]:
     access.need_edit(p, project_id, "chạy thử mẫu")
     scenes = pick(p, project_id)
+    scenes += anchors_needed(p, project_id, scenes)       # 08/10 lỗi 11: the anchor frames the picked shots wait for
     save(p, project_id, {"enabled": True, "scenes": scenes, "released": False})
     return scenes
 
@@ -103,8 +104,29 @@ def done(p: Pipeline, project_id: int) -> bool:
     return True
 
 
+def anchors_needed(p: Pipeline, project_id: int, scene_ids: List[int]) -> List[int]:
+    """08/10 (#24, lỗi 11): storyboard mode (core.scene_storyboard, flag storyboard_api) — a shot that is not its scene's anchor waits
+    for the anchor's picture. The anchors of these shots that are not among them (in order), [] when the mode is off."""
+    from . import scene_storyboard
+    if not scene_storyboard.enabled():
+        return []
+    out: List[int] = []
+    for sid in scene_ids:
+        g = scene_storyboard.group_of(p.conn, project_id, sid)
+        anchor = g["anchor"]["id"] if g else None
+        if anchor is not None and anchor not in scene_ids and anchor not in out:
+            out.append(anchor)
+    return out
+
+
+def scenes_of(p: Pipeline, project_id: int) -> List[int]:
+    """The pilot's shots + the storyboard anchors they wait for (an anchor left out made the pilot shots wait for ever)."""
+    chosen = get(p, project_id)["scenes"]
+    return chosen + anchors_needed(p, project_id, chosen)
+
+
 def allowed_scenes(p: Pipeline, project_id: int, scene_ids: List[int]) -> List[int]:
     if not active(p, project_id):
         return scene_ids
-    keep = set(get(p, project_id)["scenes"])
+    keep = set(scenes_of(p, project_id))
     return [s for s in scene_ids if s in keep]

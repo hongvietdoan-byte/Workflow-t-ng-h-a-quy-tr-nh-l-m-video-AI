@@ -10,6 +10,7 @@ import math
 import os
 import re
 import subprocess
+import sqlite3
 import threading
 import time
 from typing import Callable, Dict, Optional, Tuple
@@ -121,6 +122,31 @@ class _Runner:
         diag.record(self.p.conn, "image" if self.job_type == "image_gen" else "video", severity, message, code,
                     job["project_id"], job["scene_id"], job["id"])
 
+    def _thread_diag(self, job, code: str, severity: str = "info"):
+        """Lỗi 13 (08/10): a log called from ANOTHER thread (place_refs.ensure_async) cannot use this runner's connection ('SQLite objects
+        created in a thread can only be used in that same thread' → the place_render notes were lost). Each message opens its own
+        connection to the same database file; an in-memory database (tests) falls back to the runner's own one."""
+        from .place_refs import _db_path
+        kind = "image" if self.job_type == "image_gen" else "video"
+        db = _db_path(self.p.conn)
+        ids = (job["project_id"], job["scene_id"], job["id"])
+        if not db:
+            return lambda m: self._diag(job, severity, code, m)
+
+        def log(message: str) -> None:
+            c = None
+            try:
+                c = sqlite3.connect(db, timeout=60)
+                c.row_factory = sqlite3.Row
+                diag.record(c, kind, severity, message, code, *ids)
+            except Exception as e:  # noqa: BLE001 - a note must never break the render thread; say it on stderr
+                import sys
+                print(f"[diag] place_render note lost: {e}: {message}", file=sys.stderr)
+            finally:
+                if c is not None:
+                    c.close()
+        return log
+
     # ---- hooks -----------------------------------------------------------
     def _submit_args(self, job) -> Optional[Tuple]:
         raise NotImplementedError
@@ -154,7 +180,7 @@ class _Runner:
             return False
         for sid, item in hit:
             self._diag(job, "warn", "plate_stale", place_refs.stale_note(self.p.conn, self.data_dir, pid, res, sid, item))
-        place_refs.ensure_async(self.p.conn, pid, self.data_dir, res, log=lambda m: self._diag(job, "info", "place_render", m))
+        place_refs.ensure_async(self.p.conn, pid, self.data_dir, res, log=self._thread_diag(job, "place_render"))
         return True
 
     def _stamp(self, job, args) -> Dict:
@@ -1671,7 +1697,7 @@ class ImageRunner(_Runner):
             rows = scene_establish.scene_rows(self.p.conn, job["project_id"], data.get("story_scene")) if data.get("story_scene") is not None                 else [{"id": job["scene_id"], "data": data}]
             if any(place_refs.missing(self.p.conn, self.data_dir, job["project_id"], r["id"], r["data"]) for r in rows):
                 place_refs.ensure_async(self.p.conn, job["project_id"], self.data_dir, place_refs.resolution_of(self.p.project(job["project_id"])),
-                                        log=lambda m: self._diag(job, "info", "place_render", m))
+                                        log=self._thread_diag(job, "place_render"))
                 return True
             if self._stale_plates(job, rows):                # KLD-6: a render of another camera (moved spot…) — rebuilt first, 0 USD
                 return True
@@ -1703,10 +1729,28 @@ class ImageRunner(_Runner):
                 return True                                  # the scene's wide establishing picture is drawn first
         if scene_storyboard.enabled() and getattr(self.provider, "supports_storyboard", False) and \
                 scene_storyboard.waits(self.p.conn, self.data_dir, job["project_id"], job["scene_id"]):
+            self._anchor_wait_note(job)                      # 08/10 lỗi 11: said, never a silent wait
             return True                                      # storyboard mode: the scene's anchor frame is drawn first
         proj = self.p.project(job["project_id"])
         chains = proj["storyboard_mode"] == 1
         return bool(shots.mode(proj)) and chains and shots.waits_for_previous_image(self.p.conn, job["scene_id"])
+
+    def _anchor_wait_note(self, job) -> None:
+        """Lỗi 11 (#24): the job waits for its scene's anchor picture. When the anchor has NO picture job on its way (not queued / running),
+        the wait never ends — say which shot to generate (diag, once per job; the step 2 screen reads scene_storyboard.wait_reason)."""
+        try:
+            reason = scene_storyboard.wait_reason(self.p.conn, self.data_dir, job["project_id"], job["scene_id"])
+        except Exception:  # noqa: BLE001 - a note only, the wait itself stays
+            return
+        if not reason or not reason.get("stuck"):
+            return
+        seen = getattr(self, "_anchor_said", None)
+        if seen is None:
+            seen = self._anchor_said = set()
+        if job["id"] in seen:
+            return
+        seen.add(job["id"])
+        self._diag(job, "warn", "storyboard_anchor_missing", reason["text"])
 
     def _stamp(self, job, args) -> Dict:
         from . import lineage

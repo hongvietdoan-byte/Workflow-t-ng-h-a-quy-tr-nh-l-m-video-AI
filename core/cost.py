@@ -139,6 +139,8 @@ def pending_image_units(pipeline: Pipeline, project_id: int) -> int:
     fresh = [r["id"] for r in pipeline.conn.execute(
         "SELECT id FROM scenes WHERE project_id=? AND state='ready' AND id NOT IN"
         " (SELECT scene_id FROM jobs WHERE type='image_gen' AND state NOT IN ('rejected','cancelled'))", (project_id,))]
+    from . import pilot                          # 08/10 lỗi 12 (#24): while a pilot runs only its shots (+ anchors) are sent — the
+    fresh = pilot.allowed_scenes(pipeline, project_id, fresh)   # button said 9 pictures ≈ 0.47 USD when it sent 3
     return queued + sum(1 for sid in fresh if needs_own_image(pipeline.conn, sid))   # v3 multi-shot: one picture per group
 
 
@@ -549,6 +551,9 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
                                              pricing)["usd"] or 0.0
         else:
             vid_usd += r["cost"]
+    from . import quality_tier                    # 08/10 (#24): flag two_tier_quality → nháp 480p + bản cao, priced like the real run
+    two_tier = quality_tier.run_estimate(conn, project_id, todo, pricing)
+    vid_usd += two_tier["usd"]
     from . import lipsync
     if lipsync.enabled() and lipsync.post_available():   # post lip sync (sync.so) of the finished clips; "generate" shots are in the
         for r in todo:                                   # clip price already (they go to Seedance with the voice)
@@ -592,14 +597,18 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     return {"images": img_usd, "videos": round(vid_usd, 2), "llm": round(llm_usd, 2), "total": round(base, 2), "max": round(worst, 2),
             "rewrite": round(rewrite, 3), "trainee": round(trainee_usd, 2),
             "llm_left": llm_left, "unknown": sorted(set(unknown)), "counts": {"images": img["items"], "end_frames": img.get("end_frames", 0),
-                                                        "clips": len(todo), "seconds": sum(r["billed_seconds"] for r in todo)}}
+                                                        "clips": len(todo), "seconds": sum(r["billed_seconds"] for r in todo),
+                                                        "drafts": two_tier["drafts"], "finals_1080": two_tier["finals_1080"]}}
 
 
 def format_run_estimate(est: Dict) -> str:
     c = est["counts"]
     text = (f"≈ {est['total']:.2f} USD (ước tính; tối đa ≈ {est['max']:.2f} nếu mọi ảnh tự gen lại 3 lần, mọi clip 2 lần): {c['images']} ảnh"
             + (f" (gồm {c['end_frames']} khung cuối)" if c.get("end_frames") else "")
-            + f" ≈ {(est['images'] or 0):.2f} · {c['clips']} clip / {c['seconds']:.0f} giây ≈ {est['videos']:.2f} · Claude ≈ {est['llm']:.2f}"
+            + f" ≈ {(est['images'] or 0):.2f} · {c['clips']} clip / {c['seconds']:.0f} giây"
+            + (f" (2 bậc: gồm {c['drafts']} nháp 480p trước bản cao" + (f", {c['finals_1080']} bản cao 1080p" if c.get("finals_1080") else "")
+               + ")" if c.get("drafts") else "")
+            + f" ≈ {est['videos']:.2f} · Claude ≈ {est['llm']:.2f}"
             + " (đã cộng 30 % dự phòng)")
     if est.get("trainee"):
         text += f" · trong đó Tổ QC ≈ {est['trainee']:.2f} USD (học việc)"

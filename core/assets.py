@@ -736,12 +736,50 @@ def names_of(asset: Dict) -> List[str]:
     return [n for n in [asset["name"]] + re.split(r"[,;|]", asset["aliases"]) if fold(n)]
 
 
+def _said_words(text: str) -> List[str]:
+    """NFC lower-case words of a text (accents kept)."""
+    return re.sub(r"[^\w]+", " ", unicodedata.normalize("NFC", text or "").lower()).split()
+
+
+def name_spans(name: str, words: List[str]) -> List[Tuple[int, int]]:
+    """[(start, end)] word spans where `name` is said in `words`: same letters WITH accents, or — the text typed without accents
+    ("quang truong") — the folded letters where the text itself has no accent. 08/10 (#24): "ĐẠO CỤ" folded to "dao cu" matched the
+    weapon "Đao"; a written accent that differs is another word."""
+    want = _said_words(name)
+    folded = [fold(w) for w in want]
+    n, out = len(want), []
+    if not n:
+        return out
+    for i in range(len(words) - n + 1):
+        part = words[i:i + n]
+        if part == want or all(w == fold(w) and fw == fold(w) for w, fw in zip(part, folded)):
+            out.append((i, i + n))
+    return out
+
+
+def _qualifies_other_place(asset: Dict, words: List[str], other_places: List[str]) -> bool:
+    """08/10 (#24): a place whose every mention sits right before / after ANOTHER place's name ("QUẢNG TRƯỜNG THÁP ĐỒNG HỒ") is the
+    common noun of an area of that place, not the library place "Quảng Trường" (Đảo Thế Kỷ)."""
+    if asset.get("kind") != "location":
+        return False
+    mine = [sp for nm in names_of(asset) for sp in name_spans(nm, words)]
+    if not mine:
+        return False
+    others = [sp for nm in other_places for sp in name_spans(nm, words)]
+    others = [o for o in others if o not in mine]
+    if not others:
+        return False
+    return all(any(o[0] == e or o[1] == s0 for o in others) for s0, e in mine)
+
+
 def find_in_text(conn, text: str, game: Optional[str], project_id: Optional[int] = None) -> List[Dict]:
-    """Assets whose name or another name appears in the text (whole words, accents and case ignored)."""
+    """Assets whose name or another name appears in the text (whole words, case ignored; accents must agree where the text has them —
+    08/10). A place said only as the area word of another place ("Quảng Trường Tháp Đồng Hồ") is not suggested on its own."""
+    words = _said_words(text)
     body = " " + fold(text) + " "
     found = []
     # names first (no pictures read, no disk checks); full entries only for the ones the text mentions
-    sql, args = "SELECT id, name, aliases FROM assets WHERE (project_id IS NULL", []
+    sql, args = "SELECT id, kind, name, aliases FROM assets WHERE (project_id IS NULL", []
     if project_id is not None:
         sql += " OR project_id=?"
         args.append(project_id)
@@ -749,13 +787,24 @@ def find_in_text(conn, text: str, game: Optional[str], project_id: Optional[int]
     if game:
         sql += " AND game=?"
         args.append(game)
-    hit_ids = {}
+    hit_ids, rows = {}, {}
     for r in conn.execute(sql + " ORDER BY kind, lower(name)", args).fetchall():
         names = [n for n in [r["name"]] + re.split(r"[,;|]", r["aliases"] or "") if fold(n)]
-        hits = sum(body.count(" " + fold(n) + " ") for n in names if len(fold(n)) >= 2)
+        if not any(" " + fold(n) + " " in body for n in names):   # cheap pre-filter
+            continue
+        hits = sum(len(name_spans(n, words)) for n in names if len(fold(n)) >= 2)
         if hits:
             hit_ids[r["id"]] = hits
+            rows[r["id"]] = r
+    place_names = [n for aid, r in rows.items() if r["kind"] == "location" for n in names_of(dict(r, aliases=r["aliases"] or ""))]
+    if project_id is not None:
+        place_names += [n for a in _project_assets(conn, project_id) if a["kind"] == "location" for n in names_of(a)]
     for aid, hits in hit_ids.items():
+        r = rows[aid]
+        if r["kind"] == "location":
+            own = set(names_of(dict(r, aliases=r["aliases"] or "")))
+            if _qualifies_other_place(dict(r, aliases=r["aliases"] or ""), words, [n for n in place_names if n not in own]):
+                continue
         a = get(conn, aid)
         if a is not None:
             found.append(dict(a, mentions=hits))
@@ -862,9 +911,16 @@ def auto_attach(conn, project_id: int) -> Dict[str, List[str]]:
                 hits[i] = [x for x in hits[i] if x != n]
     attached, ambiguous = [], []
     script = row["script_text"]
+    words = _said_words(script)
+    place_names = [n for a in have if a["kind"] == "location" for n in names_of(a)] + [
+        n for i in hits if by_id[i]["kind"] == "location" for n in names_of(by_id[i])]
     for aid, names in hits.items():
         if not names:
             continue                                     # its only name belongs to a character / place — not this one
+        own = set(names_of(by_id[aid]))
+        if _qualifies_other_place(by_id[aid], words, [n for n in place_names if n not in own]):
+            ambiguous.append(by_id[aid]["name"])         # 08/10 (#24): "QUẢNG TRƯỜNG THÁP ĐỒNG HỒ" — the area word of Tháp Đồng Hồ
+            continue
         if _common_noun_only(by_id[aid], script):
             ambiguous.append(by_id[aid]["name"])         # KLD-11: "Mũ" matched "đội mũ" (#22) — a person chooses
             continue

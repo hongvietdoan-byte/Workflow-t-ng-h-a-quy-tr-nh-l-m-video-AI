@@ -70,6 +70,25 @@ def waits(conn, data_dir: str, pid: int, scene_id: int) -> bool:
     return bool(g) and g["anchor"]["id"] != scene_id and anchor_picture(conn, data_dir, pid, g["anchor"]["id"]) is None
 
 
+ON_ITS_WAY = ("queued", "running", "retryable", "succeeded", "pending_review", "approved")
+
+
+def wait_reason(conn, data_dir: str, pid: int, scene_id: int) -> Optional[Dict]:
+    """08/10 (#24, lỗi 11): why a shot's picture is not sent yet in storyboard mode — {"anchor_idx", "anchor_id", "stuck", "text"}, None
+    when it does not wait. stuck = the anchor shot has no picture job on its way, so the wait never ends by itself (pilot without it)."""
+    if not waits(conn, data_dir, pid, scene_id):
+        return None
+    g = group_of(conn, pid, scene_id)
+    anchor = g["anchor"]
+    live = conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state IN (" + ",".join("?" * len(ON_ITS_WAY)) + ")",
+                        (anchor["id"], *ON_ITS_WAY)).fetchone()
+    shot = next((s for s in g["shots"] if s["id"] == scene_id), {"idx": "?"})
+    text = (f"Shot {shot['idx']} chờ ảnh neo của cảnh (shot {anchor['idx']}, khung rộng nhất — chế độ storyboard)"
+            + ("" if live else f" — shot {anchor['idx']} CHƯA được xếp hàng: gen ảnh shot {anchor['idx']} trước (thêm vào gen thử / "
+                                "▶ Gen ảnh), không thì ảnh này chờ mãi"))
+    return {"anchor_idx": anchor["idx"], "anchor_id": anchor["id"], "stuck": not live, "text": text}
+
+
 PERSON_ROLES = ("character", "outfit") + assets.STANDARD_ROLES
 
 
