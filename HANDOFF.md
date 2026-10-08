@@ -1,4 +1,4 @@
-# HANDOFF — nhánh F1-B (09/10): sửa 3 câu ghép prompt sai (lỗi thật #24), áp cho MỌI dự án
+﻿# HANDOFF — nhánh F1-B (09/10): sửa 3 câu ghép prompt sai (lỗi thật #24), áp cho MỌI dự án
 
 Nhánh: `worktree-agent-a65469680fb94d746` (chưa push). Không sửa TODO.md, `core/llm_io.py`, `core/director_report.py`, `knowledge/formula/`.
 
@@ -19,11 +19,11 @@ Nhánh: `worktree-agent-a65469680fb94d746` (chưa push). Không sửa TODO.md, `
    Diag `gore_restraint` (info) khi thêm.
 3. **Khóa nền theo render 3D** — `core/assets.py`: `render_place_text(conn, place)` + `RENDER_TAG`; tách `_landmark_heights`,
    `_sizes_sentence` (location_text giữ nguyên kết quả). `build_image_prompt(..., place_render=False)`; ImageRunner `_submit_args` tính
-   `place_refs.shot_ref` trước rồi truyền `place_render=True`; `_finish_args` → `_name_render` thay `RENDER_TAG` bằng " (Image N)" theo ảnh
+   `place_refs.shot_ref` trước rồi truyền `place_render=True`; `_finish_args` → `runner.name_render` thay `RENDER_TAG` bằng " (Image N)" theo ảnh
    THẬT gửi (render rơi → bỏ số + diag warn). Phòng trong nhà giữ câu INSIDE cũ; khung cuối (end_frames) không gửi render → câu cũ.
 
 ## Test
-`tests/test_prompt_assembly_f1b.py` (14 test, đỏ 11/12 trước khi sửa → xanh). Khai vào `devsys/areas.json` step2.tests.
+`tests/test_prompt_assembly_f1b.py` (14 test, đỏ 11/12 trước khi sửa → xanh; cả bộ: 3269 qua, 1 lỗi test_storyboard_away_anchor_p24 do mình → đã sửa, chạy lại xanh). Khai vào `devsys/areas.json` step2.tests.
 
 ## Việc mở / rủi ro
 - Nhận diện "không phải người" bằng từ khóa: mô tả người có chữ "ghost/monster" (vd "cô gái bị bóng ma ám") → mất câu mắt người (chỉ mất

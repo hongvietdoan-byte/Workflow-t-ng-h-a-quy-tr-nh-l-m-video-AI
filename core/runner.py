@@ -1728,6 +1728,15 @@ def sendable_references(refs, model: Optional[str], limit: Optional[int] = None)
     return kept, dropped
 
 
+def name_render(prompt: str, refs) -> Tuple[str, bool]:
+    """F1-B: the background-lock sentence names the render by its number among the pictures REALLY sent ("Image 3"). A render dropped
+    on the way (unreadable / over the limit) leaves the sentence without a number. Returns (prompt, render left unnamed)."""
+    if assets.RENDER_TAG not in prompt:
+        return prompt, False
+    n = next((i for i, r in enumerate(refs or [], 1) if r.get("role") == "place_render"), None)
+    return prompt.replace(assets.RENDER_TAG, f" (Image {n})" if n else ""), n is None
+
+
 def location_pack_entry(conn, place) -> Optional[Dict]:
     from . import location_pack
     return location_pack.model3d(conn, place["id"]) if place else None
@@ -1999,20 +2008,12 @@ class ImageRunner(_Runner):
                                               **({"plate_key": r["plate_key"]} if r.get("plate_key") else {})}
                                              for r in refs] + [{"label": "storyboard", "role": "storyboard",
                                                                 "file": fields["storyboard"]["storyboard_id"]}]
-        prompt = self._name_render(job, prompt, refs)
+        prompt, lost = name_render(prompt, refs)
+        if lost and hasattr(self, "_diag"):
+            self._diag(job, "warn", "missing_reference", "câu khóa nền nhắc ảnh render 3D nhưng ảnh render không gửi được")
         if refs:                                       # the chosen resources' pictures go with the prompt (image-to-image)
             return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
         return (prompt,)
-
-    def _name_render(self, job, prompt: str, refs) -> str:
-        """F1-B: the background-lock sentence names the render by its number among the pictures REALLY sent ("Image 3"). A render
-        dropped on the way (unreadable / over the limit) leaves the sentence without a number — said."""
-        if assets.RENDER_TAG not in prompt:
-            return prompt
-        n = next((i for i, r in enumerate(refs or [], 1) if r.get("role") == "place_render"), None)
-        if n is None:
-            self._diag(job, "warn", "missing_reference", "câu khóa nền nhắc ảnh render 3D nhưng ảnh render không gửi được")
-        return prompt.replace(assets.RENDER_TAG, f" (Image {n})" if n else "")
 
     def _after_download(self, job, path: str) -> str:
         """After the picture arrives: how well it kept the 3D render of the place (place_render_refs) and QC layer 0. S14.9: the
