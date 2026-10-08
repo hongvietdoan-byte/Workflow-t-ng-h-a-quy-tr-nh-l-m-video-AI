@@ -160,10 +160,83 @@ def prompt_for(conn, pid: int, rows: List[Dict], with_render: bool = False) -> s
         + looks.image_sentence(proj))
 
 
-def key_of(rows: List[Dict], pictures: List[str]) -> str:
+def key_of(rows: List[Dict], pictures: List[str], *extra) -> str:
     d = rows[0]["data"] if rows else {}
-    raw = json.dumps([d.get("location"), d.get("location_asset"), d.get("time"), d.get("weather"), pictures], ensure_ascii=False)
+    raw = json.dumps([d.get("location"), d.get("location_asset"), d.get("time"), d.get("weather"), pictures, *extra], ensure_ascii=False)
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+
+
+# ---- KLD-18 / bài học L19 (người dùng duyệt 08/10, cảnh nhảy #22 lượt 3) ----
+# Turns 1–2: the establishing picture drawn by the model from outside the wall / another direction dragged every shot's background
+# wrong; turn 3: the 3D render on the same axis as the camera kept the background right for 11,5 s. The establishing picture must LOOK
+# THE SAME WAY as the background the shots need: at a 3D place it IS the render (0 USD); a model-drawn one is checked against the first
+# frame's camera direction when the background plan knows both.
+DIRECTION_TOL_DEG = 45.0
+
+
+def _deg_of(rec: Optional[Dict]) -> Optional[float]:
+    try:
+        return float(((rec or {}).get("view") or {})["background_deg"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def angle_gap(a: float, b: float) -> float:
+    g = abs(float(a) - float(b)) % 360.0
+    return min(g, 360.0 - g)
+
+
+def first_frame_deg(conn, data_dir: str, pid: int, rows: List[Dict]) -> Optional[float]:
+    """The background direction of the scene's first shot (its start frame) from the background plan: its plate record, else
+    location_pack.plan (also known when Blender failed on it). None = no plan for it (no 3D place)."""
+    if not rows:
+        return None
+    from . import location_pack
+    deg = _deg_of(location_pack.index(data_dir, pid).get(str(rows[0]["id"])))
+    if deg is not None or conn is None:
+        return deg
+    try:
+        return next((_deg_of(it) for it in location_pack.plan(conn, pid) if it["scene_id"] == rows[0]["id"]), None)
+    except Exception:  # noqa: BLE001 — no plan = direction not known (said by the caller)
+        return None
+
+
+def pictures_deg(data_dir: str, pid: int, pictures: List[str]) -> Optional[float]:
+    """The direction the reference pictures fix for a model-drawn establishing picture: the first one that is a 3D render with a
+    recorded camera direction. None = not known (library pictures carry no direction)."""
+    from . import location_pack
+    by_plate = {os.path.normcase(os.path.abspath(r.get("plate") or "")): r for r in location_pack.index(data_dir, pid).values()
+                if isinstance(r, dict) and r.get("plate")}
+    for p in pictures or []:
+        deg = _deg_of(by_plate.get(os.path.normcase(os.path.abspath(p))))
+        if deg is not None:
+            return deg
+    return None
+
+
+def _from_render(conn, pid: int, story_scene, rows: List[Dict], data_dir: str, render: Dict, say, trainee: bool) -> str:
+    """The establishing picture = the widest shot's 3D render (same axis as its camera): copied, ready, 0 USD, no picture model."""
+    import shutil
+    key = key_of(rows, [render["plate"]], "render_3d", render.get("key"))
+    idx = _load(data_dir, pid, trainee)
+    rec = idx.get(str(story_scene)) or {}
+    if rec.get("key") == key and rec.get("state") == "ready" and rec.get("path") and os.path.exists(rec["path"]):
+        return "ready"
+    dest = os.path.join(_dir(data_dir, pid, trainee), f"scene_{story_scene}.png")
+    os.makedirs(_dir(data_dir, pid, trainee), exist_ok=True)
+    shutil.copyfile(render["plate"], dest)
+    deg = _deg_of(render)
+    idx[str(story_scene)] = {"key": key, "state": "ready", "path": dest, "source": "render_3d", "render": render["plate"],
+                             "plate_key": render.get("key"), "shot": render.get("scene_id"), "background_deg": deg, "cost_usd": 0.0}
+    _save(data_dir, pid, idx, trainee)
+    if trainee:
+        _trainee_record(conn, pid, story_scene, rows, "establish",
+                        {"path": dest, "source": "render_3d", "render": render["plate"], "background_deg": deg}, 0.0)
+    else:
+        say("info", "establishing", f"ảnh toàn cảnh cảnh {story_scene} = render 3D đồng trục với máy của shot rộng nhất "
+                                    f"(shot {render.get('scene_id')}" + (f", nền {deg:g}°" if deg is not None else "")
+                                    + ") — 0 USD, không vẽ bằng model (L19)")
+    return "ready"
 
 
 def picture(data_dir: str, pid: int, story_scene) -> Optional[str]:
@@ -200,13 +273,27 @@ def step(conn, pid: int, story_scene, provider, data_dir: str, model: Optional[s
     from . import place_refs
     if place_refs.enabled() and any(place_refs.missing(conn, data_dir, pid, r["id"], r["data"]) for r in rows):
         return "waiting"                                   # the 3D renders of the scene come first (ImageRunner._wait starts them)
+    render = place_refs.scene_render_rec(data_dir, pid, rows) if place_refs.enabled() else None
+    if render:                                             # KLD-18 / L19: a 3D place → the render on the widest shot's axis, 0 USD
+        return _from_render(conn, pid, story_scene, rows, data_dir, render, say, trainee)
     pictures = scene_pictures(conn, pid, rows, data_dir)
     with_render = bool(pictures) and place_refs.enabled() and pictures[0] == place_refs.scene_render(data_dir, pid, rows)
-    key = key_of(rows, pictures)
+    first_deg = first_frame_deg(conn, data_dir, pid, rows)
+    est_deg = pictures_deg(data_dir, pid, pictures)
+    key = key_of(rows, pictures) if first_deg is None else key_of(rows, pictures, first_deg)
     idx = _load(data_dir, pid, trainee)
     rec = idx.get(str(story_scene)) or {}
     if rec.get("key") == key and rec.get("state") == "ready" and rec.get("path") and os.path.exists(rec["path"]):
         return "ready"
+    if first_deg is not None and est_deg is not None and angle_gap(first_deg, est_deg) > DIRECTION_TOL_DEG:
+        why = (f"ảnh toàn cảnh cảnh {story_scene} nhìn hướng nền {est_deg:g}° còn máy ảnh khung đầu (shot {rows[0]['id']}) nhìn "
+               f"{first_deg:g}° — khác hướng quá {DIRECTION_TOL_DEG:g}°, không dùng làm tham chiếu (L19); các shot vẽ không có nó")
+        if not (rec.get("key") == key and rec.get("state") == "failed"):
+            idx[str(story_scene)] = {"key": key, "state": "failed", "error": why, "reason": "establish_direction",
+                                     "background_deg": est_deg, "first_frame_deg": first_deg}
+            _save(data_dir, pid, idx, trainee)
+            say("warn", "establish_direction", why)
+        return "skipped"
     if rec.get("key") == key and rec.get("state") == "failed":
         return "skipped"
     from .providers import ProviderError
@@ -251,9 +338,13 @@ def step(conn, pid: int, story_scene, provider, data_dir: str, model: Optional[s
         info = getattr(provider, "usage_info", None)             # the same model / tier the picture runner records
         used, tier = (info(model) if model else info()) if info is not None else (model or "unknown", "image")
         slot.record(model=used, tier=tier)
-    idx[str(story_scene)] = {"key": key, "state": "running", "message_id": mid, "prompt": prompt, "refs": pictures}
+    idx[str(story_scene)] = {"key": key, "state": "running", "message_id": mid, "prompt": prompt, "refs": pictures, "source": "model",
+                             "background_deg": est_deg, "first_frame_deg": first_deg}
     _save(data_dir, pid, idx, trainee)
     say("info", "establishing", f"gửi ảnh toàn cảnh cảnh {story_scene} ({len(pictures)} ảnh bối cảnh tham chiếu)")
+    if first_deg is not None and est_deg is None:          # luật 1: the check could not run — said, not silent
+        say("info", "establish_direction", f"ảnh toàn cảnh cảnh {story_scene} vẽ bằng model: ảnh tham chiếu không ghi hướng nền nên "
+                                           f"chưa kiểm được có cùng hướng máy ảnh khung đầu ({first_deg:g}°) không")
     return "waiting"
 
 
@@ -262,4 +353,9 @@ def pending(conn, pid: int, data_dir: str) -> int:
     if not enabled():
         return 0
     scenes = {json.loads(r["data"] or "{}").get("story_scene") for r in conn.execute("SELECT data FROM scenes WHERE project_id=?", (pid,))}
-    return sum(1 for s in scenes if s is not None and picture(data_dir, pid, s) is None)
+    from . import place_refs
+    renders = place_refs.enabled()                         # KLD-18: a scene with a 3D render gets it for 0 USD — not priced
+
+    def free(s) -> bool:
+        return renders and place_refs.scene_render_rec(data_dir, pid, scene_rows(conn, pid, s)) is not None
+    return sum(1 for s in scenes if s is not None and picture(data_dir, pid, s) is None and not free(s))

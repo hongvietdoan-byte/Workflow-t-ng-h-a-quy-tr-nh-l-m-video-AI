@@ -109,8 +109,9 @@ def geometry_sentence(rec: Dict, data: Dict, sun_azimuth: float = 250.0) -> str:
     return (head + (" " + light if light else "")).strip()
 
 
-def scene_render(data_dir: str, pid: int, rows: List[Dict]) -> Optional[str]:
-    """The widest shot's render among a script scene's shots (rows: [{id, data}])."""
+def scene_render_rec(data_dir: str, pid: int, rows: List[Dict]) -> Optional[Dict]:
+    """The widest shot's plate record among a script scene's shots (rows: [{id, data}]), with its `scene_id` — KLD-18: the scene's
+    establishing picture IS this render (same axis as the widest shot's camera)."""
     from . import location_pack
     best = None
     for r in rows:
@@ -120,8 +121,14 @@ def scene_render(data_dir: str, pid: int, rows: List[Dict]) -> Optional[str]:
         size = str(r["data"].get("shot_size") or r["data"].get("shot") or "").upper()
         rank = SIZE_ORDER.index(size) if size in SIZE_ORDER else len(SIZE_ORDER)
         if best is None or rank < best[0]:
-            best = (rank, rec["plate"])
+            best = (rank, dict(rec, scene_id=r["id"]))
     return best[1] if best else None
+
+
+def scene_render(data_dir: str, pid: int, rows: List[Dict]) -> Optional[str]:
+    """The widest shot's render among a script scene's shots (rows: [{id, data}])."""
+    rec = scene_render_rec(data_dir, pid, rows)
+    return rec["plate"] if rec else None
 
 
 def missing(conn, data_dir: str, pid: int, scene_id: int, data: Dict) -> bool:
