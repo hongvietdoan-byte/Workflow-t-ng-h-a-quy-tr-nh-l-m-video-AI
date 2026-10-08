@@ -83,7 +83,8 @@ _AUTO_BUSY =("queued", "running", "waiting", "needs_attention", "stopped", "erro
 
 
 def _budget_state(p: Pipeline, pid: int):
-    """(enabled, locked, total, spent) of the project budget; (False, …) when the feature is off or unreadable."""
+    """(asks for the lock, locked, total, spent) of the project budget. The first is True only at "Tự chạy trong trần" on a project
+    not finished yet (core.project_budget.needs_lock / finished, user 08/10): the two other levels only see the estimate."""
     from core import project_budget
     if not project_budget.enabled():
         return False, False, 0.0, 0.0
@@ -92,7 +93,11 @@ def _budget_state(p: Pipeline, pid: int):
         spent = sum(project_budget.spent_by_stage(p.conn, pid).values())
     except Exception:  # noqa: BLE001 - a pill only
         spent = 0.0
-    return True, bool(data.get("locked")), float(data.get("total") or 0.0), float(spent)
+    try:
+        need = project_budget.needs_lock(p, pid) and not project_budget.finished(p.conn, pid)
+    except Exception:  # noqa: BLE001 - unreadable: ask for nothing, the estimate box still shows
+        need = False
+    return need, bool(data.get("locked")), float(data.get("total") or 0.0), float(spent)
 
 
 def next_kind(p: Pipeline, pid: int, scenes, chars, locked: bool, budget_locked: bool, budget_on: bool) -> str:
@@ -115,7 +120,7 @@ def _hero(p: Pipeline, pid: int, proj, scenes, chars, locked: bool, stale: int, 
     pills = [(_count_label(p, pid, scenes) if scenes else "Chưa có cảnh", "ok" if scenes else "mute"),
              (f"{len(chars)} nhân vật" if chars else "Chưa có nhân vật", "info" if chars else "mute"),
              (("Bible đã khóa", "ok") if locked else ("Bible chưa khóa", "warn")) if chars else ("Chưa có Bible", "mute")]
-    if b_on:
+    if b_on or b_locked:                                            # only "Tự chạy trong trần" has a budget to approve (user 08/10)
         pills.append(("Ngân sách đã khóa", "ok") if b_locked else ("Ngân sách chưa duyệt", "warn"))
     if stale:
         pills.append((f"{stale} mục cũ", "warn"))
@@ -128,6 +133,8 @@ def _hero(p: Pipeline, pid: int, proj, scenes, chars, locked: bool, stale: int, 
             with b:
                 if b_total:
                     st.html(D.meter(b_spent / b_total, f"Ngân sách: đã chi {b_spent:.2f} / {b_total:.2f} USD", invert=True))
+                elif chars:
+                    _estimate_box(p, pid)
             return
         with b, D.cta_box("script"):
             _primary_action(p, pid, kind, scenes, chars, b_total, b_spent, _lock_and_go)
@@ -161,25 +168,26 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
             run_director_now(p, pid, client)
         D.line('<span class="script-sum">Director chia shot + lập Character Bible</span>',
                "Director chia cảnh thành shot và lập Character Bible. Tùy chọn hai lượt ở thẻ ②.", f"script-plan-note-{pid}")
-    elif kind == "budget":
+    elif kind == "budget":                                     # only at "Tự chạy trong trần" (user 08/10)
         from core import project_budget
         try:
-            prop = project_budget.propose(p, pid)
+            view = project_budget.estimate_view(p, pid)
         except Exception as e:  # noqa: BLE001 - say it, never hide the area
             st.warning(f"Không tính được ngân sách ({type(e).__name__}: {e})")
             return
-        try:                                                   # S14.16: the approval shows the TOTAL estimated cost (tính dư)
-            st.markdown("💵 " + project_budget.cost_summary(p, pid)["md"])
-        except Exception as e:  # noqa: BLE001 - the approval still works; the missing estimate is said
-            st.caption(f"Chưa tính được phần đã chi + ước tính phần còn lại: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra dự án đã tách cảnh và bảng giá (⚙ Cài đặt), rồi tải lại trang; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán.")
+        prop = view["prop"]
+        st.markdown("💵 " + view["md"])
         if confirm_all(f"script-cta-budget_{pid}", ["go"], f"✔ Duyệt & khóa trần ngân sách {prop['total']:.2f} USD",
-                       f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng ở thẻ ③)? Sau khi khóa, mọi lời gọi trả tiền "
-                       "vượt mức khâu hoặc tổng sẽ được CẢNH BÁO (vẫn gửi); chỉ người được nâng mức, kèm lý do.", st, "Có, khóa"):
+                       f"Khóa trần dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng ở thẻ ③)? Mức Tự chạy trong trần: chạy tự động "
+                       "DỪNG khi chạm trần một khâu hoặc tổng và chờ bạn nâng trần (kèm lý do). Ảnh / clip bạn tự bấm gen chỉ được "
+                       "CẢNH BÁO khi vượt (vẫn gửi).", st, "Có, khóa"):
             project_budget.approve(p, pid, p.actor, prop)
             st.rerun()
-        D.line('<span class="script-sum">Trần = mức chặn trên (tính trường hợp xấu nhất), cao hơn số dự tính ở trên · chạy tự động chờ bước '
-               'này trước khi gen ảnh</span>',
-               "Chạy tự động chờ bước này trước khi gen ảnh. Chi tiết từng khâu ở thẻ ③.", f"script-budget-note-{pid}")
+        D.line('<span class="script-sum">Trần = số dự tính ở trên (đã cộng gen lại theo tỷ lệ đo thật) · chạm trần thì chạy tự động dừng chờ '
+               'bạn · chạy tự động chờ bước này trước khi gen ảnh</span>',
+               "Trần bằng đúng số dự tính: đã chi + phần còn lại, cộng tỷ lệ tự gen lại đo được từ các dự án trước (không phải trường hợp "
+               "mọi shot gen lại hết lượt). Chạm trần một khâu hoặc tổng: chạy tự động dừng, bạn nâng trần kèm lý do rồi bấm Tiếp tục. "
+               "Chi tiết từng khâu ở thẻ ③.", f"script-budget-note-{pid}")
     elif kind == "lock":
         st.button("✔ Duyệt & khóa → Storyboard", type="primary", key=f"script-cta-lock_{pid}", width="stretch",
                   on_click=lock_and_go, args=(p, pid))
@@ -195,6 +203,22 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
         st.button("Sang Storyboard →", type="primary", key=f"script-cta-next_{pid}", width="stretch", on_click=go)
     if b_total and kind != "analyse":
         st.html(D.meter(b_spent / b_total, f"Ngân sách: đã chi {b_spent:.2f} / {b_total:.2f} USD", invert=True))
+    elif chars and kind not in ("analyse", "plan", "budget"):
+        _estimate_box(p, pid)
+
+
+def _estimate_box(p: Pipeline, pid: int) -> None:
+    """"Tôi duyệt hết" / "Duyệt cổng chính" (and a finished project): the project's estimate only — a display, no button (user 08/10)."""
+    from core import project_budget
+    if not project_budget.enabled():
+        return
+    try:
+        view = project_budget.estimate_view(p, pid)
+    except Exception as e:  # noqa: BLE001 - the box says why, never breaks the hero
+        st.caption(f"Chưa tính được dự tính dự án: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra bảng giá (⚙ Cài đặt) rồi tải lại.")
+        return
+    st.html(D.stat("💵 Dự tính dự án", f"≈ {view['total']:.2f} USD", f"đã chi {view['spent']:.2f} USD · chỉ để xem, không cần duyệt"))
+    D.line('<span class="script-sum">Cách tính dự tính</span>', view["md"], f"script-estimate-{pid}")
 
 
 def _card_head(num: str, title: str, pills=()) -> None:

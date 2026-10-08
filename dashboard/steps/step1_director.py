@@ -205,7 +205,8 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
         prop = project_budget.propose(p, pid)
         cap(f"💵 Dự tính tổng dự án theo bảng shot này ≈ **{prop['total']:.2f} USD** — "
                    + " · ".join(f"{label} {prop['stages'][k]['cap']:.2f}" for k, label in project_budget.STAGES.items()
-                                if prop["stages"][k]["cap"]) + " (đã gồm vẽ lại / làm lại dự phòng; duyệt và khóa ở 💵 Ngân sách dự án)")
+                                if prop["stages"][k]["cap"]) + " (đã gồm tự gen lại theo tỷ lệ đo thật"
+                   + ("; duyệt và khóa trần ở 💵 Ngân sách dự án)" if project_budget.needs_lock(p, pid) else "; chỉ để xem, không cần duyệt)"))
     except Exception:  # noqa: BLE001 - an estimate line only; the budget panel says why when opened
         pass
     from core import project_defaults

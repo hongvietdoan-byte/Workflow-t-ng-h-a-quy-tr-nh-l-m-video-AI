@@ -6,7 +6,8 @@ changing any of them by hand (⚙ → Dự án → chi tiết, step 1 gates, ste
   main Duyệt cổng chính   : the default of a new project — the run stops at Bible and storyboard; balanced QC.
   auto Tự chạy trong trần : Claude approves pictures by QC; the run does not stop at the Bible; it still stops at the storyboard unless
                             the QC has earned the right to skip it (feature `storyboard_auto_trust`, core/effectiveness.look_trust) —
-                            money gates (locked project budget, trial cap) always apply.
+                            money gates (locked project budget, trial cap) always apply. ONLY this level asks for the project budget to
+                            be approved & locked (core.project_budget.needs_lock, user 08/10); the two others just show the estimate.
 """
 import json
 from typing import Dict, Optional
@@ -23,21 +24,29 @@ LEVELS: Dict[str, Dict] = {
     "auto": {"label": "Tự chạy trong trần", "mode": "auto", "policy": "balanced",
              "gates": {"bible": False, "pilot": False, "storyboard": True},
              "desc": "Claude tự duyệt ảnh theo QC; không dừng ở Bible; vẫn dừng ở storyboard trừ khi QC đã đo đủ tin cậy để bỏ qua; "
-                     "trần tiền (ngân sách khóa, đợt thử) luôn áp dụng."},
+                     "phải duyệt & khóa trần ngân sách dự án trước ảnh đầu tiên; chạm trần khâu / tổng thì dừng chờ bạn nâng trần."},
 }
+
+
+def effective_mode(p, pid: int) -> str:
+    """The person's own operating_mode: while the run is on it switches the project to automatic QC and keeps the choice in
+    autopilot_saved_cfg — that saved choice is the one meant."""
+    proj = p.project(pid)
+    mode = proj["operating_mode"]
+    try:
+        saved = json.loads(proj["autopilot_saved_cfg"] or "null")
+    except (ValueError, KeyError, IndexError, TypeError):
+        saved = None
+    if saved and saved.get("operating_mode"):
+        mode = saved["operating_mode"]
+    return mode
 
 
 def current(p, pid: int) -> str:
     """'all' | 'main' | 'auto' | 'custom' from the project's real settings."""
     proj = p.project(pid)
     gates = autopilot.get_gates(p, pid)
-    mode = proj["operating_mode"]
-    try:
-        saved = json.loads(proj["autopilot_saved_cfg"] or "null")
-    except (ValueError, KeyError, IndexError, TypeError):
-        saved = None
-    if saved and saved.get("operating_mode"):           # the run switched the project to automatic QC; give back the person's choice
-        mode = saved["operating_mode"]
+    mode = effective_mode(p, pid)
     policy = qc_policy.current(proj)
     for key, lv in LEVELS.items():
         if (mode == lv["mode"] and policy == lv["policy"]

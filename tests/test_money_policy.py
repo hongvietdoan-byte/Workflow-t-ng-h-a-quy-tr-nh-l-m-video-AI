@@ -536,6 +536,8 @@ class BudgetApprovalShowsTheTotal(unittest.TestCase):
         from tests.test_v3 import kenta_project
         p, pid = kenta_project()
         llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        from core import automation
+        automation.apply(p, pid, "auto")                  # user 08/10: only "Tự chạy trong trần" has the approval gate
         with mock.patch.object(image_models, "of_project", return_value="model-without-price"):
             s = project_budget.cost_summary(p, pid)
             why = project_budget.gate_reason(p, pid)

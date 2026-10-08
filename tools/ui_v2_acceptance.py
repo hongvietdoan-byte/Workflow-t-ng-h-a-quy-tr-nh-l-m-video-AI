@@ -73,6 +73,8 @@ class Scenario:
         ("Sang màn Video", ["RADIO:Video"]),
         ("Gen video", [r"gen_vid_\d+"]),
     ]
+    # 08/10: ngân sách chỉ đòi duyệt ở mức "Tự chạy trong trần" — dự án mới ở mức mặc định (Duyệt cổng chính) không có hai bước này
+    OPTIONAL = {"Duyệt ngân sách", "Xác nhận ngân sách"}
 
 
 def measure_clicks(v2: str) -> dict:
@@ -94,6 +96,9 @@ def measure_clicks(v2: str) -> dict:
             log.append((name, "radio step", round(time.time() - t, 2)))
             continue
         btn = next((b for b in at.button if not b.disabled and any(re.fullmatch(p, b.key or "") for p in pats)), None)
+        if btn is None and name in Scenario.OPTIONAL:
+            log.append((name, "bỏ qua (mức này không đòi)", 0))
+            continue
         if btn is None:
             log.append((name, "KHÔNG THẤY NÚT " + "|".join(pats), 0))
             return {"ok": False, "clicks": clicks, "inputs": inputs, "log": log, "exceptions": [e.message for e in at.exception]}

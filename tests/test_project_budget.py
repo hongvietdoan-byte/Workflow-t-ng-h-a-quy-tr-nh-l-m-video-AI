@@ -62,8 +62,60 @@ class BudgetTests(unittest.TestCase):
             self.assertIsNone(project_budget.check(self.p.conn, self.pid, "images", 99.0))
 
     @mock.patch.dict(os.environ, ON)
+    def test_only_the_auto_level_asks_for_the_lock(self):
+        # user 08/10: "Tôi duyệt hết" / "Duyệt cổng chính" only show the estimate — no gate, no approval pending
+        from core import automation
+        automation.apply(self.p, self.pid, "main")
+        self.assertFalse(project_budget.needs_lock(self.p, self.pid))
+        self.assertIsNone(project_budget.gate_reason(self.p, self.pid))
+        self.assertFalse(project_budget.approval_pending(self.p, self.pid))
+        automation.apply(self.p, self.pid, "auto")
+        self.assertTrue(project_budget.needs_lock(self.p, self.pid))
+        self.assertTrue(project_budget.approval_pending(self.p, self.pid))
+        view = project_budget.estimate_view(self.p, self.pid)
+        self.assertEqual(view["total"], view["prop"]["total"])          # the estimate shown IS the cap proposed
+        self.assertIn("Nếu mọi ảnh / clip đạt ngay lần đầu", view["text"])
+
+    def test_the_redo_share_is_measured_between_the_floor_and_the_regeneration_limit(self):
+        conn = self.p.conn
+        sid = conn.execute("SELECT id FROM scenes WHERE project_id=? LIMIT 1", (self.pid,)).fetchone()[0]
+        other = self.p.create_project("other")
+        osid = conn.execute("INSERT INTO scenes (project_id, idx, title, data) VALUES (?, 1, 's', '{}')", (other,)).lastrowid
+        self.assertEqual(project_budget.redo_shares(conn, self.pid)["images"], project_budget.IMAGE_REDO)   # nothing measured yet
+        for i in range(12):                                   # 12 shots approved, 12 machine retries → +100 %
+            conn.execute("INSERT INTO jobs (project_id, scene_id, type, state, retry_count, created_at, updated_at) VALUES (?,?,?,?,0,'x','x')",
+                         (other, osid, "image_gen", "approved"))
+            conn.execute("INSERT INTO jobs (project_id, scene_id, type, state, retry_count, created_at, updated_at) VALUES (?,?,?,?,1,'x','x')",
+                         (other, osid, "image_gen", "rejected"))
+        conn.execute("INSERT INTO jobs (project_id, scene_id, type, state, retry_count, created_at, updated_at) VALUES (?,?,?,?,3,'x','x')",
+                     (self.pid, sid, "image_gen", "rejected"))                    # the project itself is not counted
+        sh = project_budget.redo_shares(conn, self.pid)
+        self.assertEqual(sh["images"], 1.0)
+        self.assertEqual(sh["measured"]["images"], (12, 12))
+        for i in range(60):
+            conn.execute("INSERT INTO jobs (project_id, scene_id, type, state, retry_count, created_at, updated_at) VALUES (?,?,?,?,2,'x','x')",
+                         (other, osid, "image_gen", "rejected"))
+        self.assertEqual(project_budget.redo_shares(conn, self.pid)["images"], 3.0)   # never past AUTO_REGEN_LIMIT
+
+    @mock.patch.dict(os.environ, ON)
+    def test_at_the_auto_level_the_run_waits_when_a_locked_line_is_reached(self):
+        from core import automation
+        automation.apply(self.p, self.pid, "auto")
+        project_budget.approve(self.p, self.pid, "a@x", {"stages": {k: {"cap": 0.5 if k == "images" else 5.0} for k in project_budget.STAGES},
+                                                          "total": 30.0})
+        self.assertIsNone(project_budget.run_over(self.p, self.pid, "images"))
+        self.spend("image", "gpt-image-2.5-sunburst", "1152x2048", 12)
+        self.assertIn("Chạm trần khâu Ảnh", project_budget.run_over(self.p, self.pid, "images"))
+        project_budget.raise_cap(self.p.conn, self.pid, "images", 5.0, "a@x", "cần thêm ảnh")
+        self.assertIsNone(project_budget.run_over(self.p, self.pid, "images"))
+        automation.apply(self.p, self.pid, "main")                               # other levels: a warning only, the run goes on
+        project_budget.raise_cap(self.p.conn, self.pid, "images", -5.0, "a@x", "thử")
+        self.assertIsNone(project_budget.run_over(self.p, self.pid, "images"))
+
+    @mock.patch.dict(os.environ, ON)
     def test_the_automatic_run_waits_for_the_approved_budget_before_paying_for_pictures(self):
-        from core import autopilot
+        from core import autopilot, automation
+        automation.apply(self.p, self.pid, "auto")            # user 08/10: only "Tự chạy trong trần" waits for it
         with self.assertRaises(autopilot._Wait) as w:
             autopilot._images_phase(self.p, self.pid, autopilot.Context(tempfile.mkdtemp(), None, None, llm_runner.MockLlm()))
         self.assertEqual(w.exception.gate, "budget")

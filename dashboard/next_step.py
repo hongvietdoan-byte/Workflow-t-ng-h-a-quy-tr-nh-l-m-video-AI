@@ -34,7 +34,8 @@ def next_action(p: Pipeline, pid: int, step: int, data_dir: str = "") -> Optiona
             return ("Bấm 🤖 Lập kế hoạch trong khung chat (Đạo diễn chia shot + Character Bible)" if chat else
                     "Chạy Director ở 1d (hoặc 🚀 Tự động hoàn toàn ở 1c)"), "todo"
         from core import project_budget
-        if project_budget.enabled() and not (project_budget.get(conn, pid) or {}).get("locked"):
+        if (project_budget.needs_lock(p, pid) and not (project_budget.get(conn, pid) or {}).get("locked")
+                and not project_budget.finished(conn, pid)):     # only "Tự chạy trong trần" asks for it (user 08/10)
             return ("Duyệt & KHÓA ngân sách dự án " + ("trong khung chat" if chat else "(💵 ở 1c)")
                     + " — chạy tự động chờ bước này trước khi gen ảnh"), "todo"
         if any(c["locked"] for c in chars):         # locked = approved (a locked Bible may use the Kho pictures, no anchor)

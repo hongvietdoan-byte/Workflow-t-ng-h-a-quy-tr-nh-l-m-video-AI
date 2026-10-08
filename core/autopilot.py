@@ -445,6 +445,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         p.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (scene["id"],))
         _create_job(p, ctx, scene["id"], "image_gen")
     _still_running(p, pid)
+    _cap_wait(p, pid, "image_gen", "images")
     ctx.image_runner.submit_pending(pid)
     _budget_stop(p, pid, "image_gen")
     ctx.image_runner.poll_once(pid)
@@ -547,6 +548,17 @@ def _budget_stop(p: Pipeline, pid: int, kind: str) -> None:
                          (pid, "image" if kind == "image_gen" else "video")).fetchone()
     if row is not None:
         raise _Stop("Dừng vì ngân sách: " + row["message"])
+def _cap_wait(p: Pipeline, pid: int, kind: str, stage: str) -> None:
+    """"Tự chạy trong trần" with the budget locked (user 08/10): before sending the queued pictures / clips, WAIT when the stage line or
+    the project total is reached (core.project_budget.run_over) — they stay queued until a person raises the line and presses Tiếp tục."""
+    if not _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type=? AND state='queued'", pid, kind):
+        return
+    from . import project_budget
+    why = project_budget.run_over(p, pid, stage)
+    if why:
+        raise _Wait("budget", why)
+
+
 def _create_job(p: Pipeline, ctx: Context, scene_id: int, kind: str) -> int:
     """A new picture / clip job of the automatic run. S14.18: the machine-wide daily job cap (AUTOPILOT_DAILY_JOBS) is gone — the
     limits are per person (core/person_limits: projects) and per product (_job_cap_check, auto-regeneration limits)."""
@@ -839,6 +851,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
                 continue
             regen.regenerate_video(p, ctx.data_dir, r["video_job_id"], f"làm lại vì {r['video_stale']}")
     _still_running(p, pid)
+    _cap_wait(p, pid, "video_gen", "videos")
     ctx.video_runner.submit_pending(pid)
     _budget_stop(p, pid, "video_gen")
     ctx.video_runner.poll_once(pid)

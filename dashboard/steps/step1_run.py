@@ -67,6 +67,8 @@ def _budget_summary(p: Pipeline, pid: int, data) -> str:
         est = f"dự tính ≈ {project_budget.propose(p, pid)['total']:.2f} USD · "
     except Exception:  # noqa: BLE001 - a summary line only
         est = ""
+    if not (project_budget.needs_lock(p, pid) and not project_budget.finished(p.conn, pid)):
+        return f"{est}đã chi {spent:.2f} USD · chỉ để xem"
     return f"chưa duyệt · {est}đã chi {spent:.2f} USD"
 
 
@@ -78,11 +80,12 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
         return
     data = project_budget.get(p.conn, pid) or {}
     locked = bool(data.get("locked"))
-    title = "💵 Ngân sách dự án" + (" — 🔒 ĐÃ KHÓA" if locked else
-                                     " — chưa duyệt")
+    ask = not locked and project_budget.needs_lock(p, pid) and not project_budget.finished(p.conn, pid)   # user 08/10: only "Tự chạy trong trần"
+    title = "💵 Ngân sách dự án" + (" — 🔒 ĐÃ KHÓA" if locked else " — chưa duyệt" if ask else " — dự tính")
     # v2: closed with one summary line (the hero button approves it); the "waits before pictures" sentence moves to the sub-title
     with ui.fold(title, _budget_summary(p, pid, data), f"budget_{pid}", default_open=is_next("budget"),
-                 sub="" if locked else "chạy tự động chờ bước này trước khi gen ảnh") as budget_open:  # E1.3
+                 sub="chạy tự động chờ bước này trước khi gen ảnh" if ask else
+                 "" if locked else "mức Tôi duyệt hết / Duyệt cổng chính: chỉ hiện dự tính, không cần duyệt") as budget_open:  # E1.3
         if budget_open:
             try:
                 prop = project_budget.propose(p, pid)
@@ -96,15 +99,14 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
                     for k, label in project_budget.STAGES.items()]
             from dashboard.design import components as D     # a table that follows light/dark (st.dataframe is a canvas that stays light)
             st.html(D.table(list(rows[0]), [list(r.values()) for r in rows], num_cols=(1, 2, 3, 4)))
-            try:                                                   # S14.16: the approval shows the TOTAL estimated cost (tính dư)
-                st.markdown("💵 " + project_budget.cost_summary(p, pid)["md"])
+            try:                                                   # user 08/10: the ONE estimate (= the cap proposed), two numbers explained
+                st.markdown("💵 " + project_budget.estimate_view(p, pid)["md"])
             except Exception as e:  # noqa: BLE001 - the approval still works; the missing estimate is said
                 st.caption(f"Chưa tính được phần đã chi + ước tính phần còn lại: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra dự án đã tách cảnh và bảng giá (⚙ Cài đặt), rồi tải lại trang; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán.")
             cap(f"Tổng đề xuất ≈ {prop['total']:.2f} USD" + (f" · tổng đã khóa {data['total']:.2f} USD" if locked else "")
                        + f" · đã chi {sum(spent.values()):.2f} USD. Đề xuất = đã chi + phần còn lại do CODE tính từ bảng shot + bảng giá, cộng "
-                       f"{int(project_budget.IMAGE_REDO * 100)} % vẽ lại ảnh, {int(project_budget.VIDEO_REDO * 100)} % làm lại video, Claude ×"
-                       f"{project_budget.LLM_MARGIN}; giá chưa xác minh (Seedance) ×{project_budget.UNVERIFIED_MARGIN}. Âm thanh chưa có giá: "
-                       "vẫn giới hạn theo số lượt.")
+                       f"tự gen lại {project_budget.shares_text(prop['shares'])}, Claude ×{project_budget.LLM_MARGIN}; giá chưa xác minh "
+                       f"(Seedance) ×{project_budget.UNVERIFIED_MARGIN}. Âm thanh chưa có giá: vẫn giới hạn theo số lượt.")
             from core import cost as _cost                  # S6.6: how much Claude really read from the cache, per stage
             cached = [c for c in _cost.cache_stats(p.conn, pid) if c["input"] + c["cache_read"] + c["cache_write"]]
             if cached:
@@ -120,9 +122,10 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
                     "video / số shot (chia shot lại) trước khi duyệt.", f"script-budget-over-{pid}",
                     f"Đề xuất ≈ {prop['total']:.2f} USD vượt mục tiêu {float(data['target']):.2f} USD")
             if not locked:
-                if confirm_all(f"pb_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA ngân sách ≈ {prop['total']:.2f} USD",
-                               f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng)? Sau khi khóa, mọi lời gọi trả tiền "
-                               "vượt mức khâu hoặc tổng sẽ được CẢNH BÁO (vẫn gửi); chỉ người được nâng mức, kèm lý do.", st, "Có, khóa"):
+                if ask and confirm_all(f"pb_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA trần ngân sách ≈ {prop['total']:.2f} USD",
+                               f"Khóa trần dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng)? Mức Tự chạy trong trần: chạy tự động DỪNG "
+                               "khi chạm trần khâu hoặc tổng, chờ bạn nâng trần (kèm lý do); ảnh / clip bạn tự bấm gen chỉ được CẢNH BÁO "
+                               "khi vượt (vẫn gửi).", st, "Có, khóa"):
                     project_budget.approve(p, pid, p.actor, prop)
                     st.rerun()
                 return

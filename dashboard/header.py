@@ -577,9 +577,12 @@ def money_card(p: Pipeline, pid) -> None:
                             st.markdown("💵 " + project_budget.cost_summary(p, pid)["md"])
                         except Exception as e:  # noqa: BLE001 - the approval still works; the missing estimate is said
                             st.caption(SP.summary_error(e))
-                    if confirm_all(f"mc_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA ngân sách ≈ {prop['total']:.2f} USD",
-                                   f"Khóa ngân sách dự án ≈ {prop['total']:.2f} USD (trần từng khâu theo bảng ở màn Kịch bản)? Sau khi khóa, mọi lời "
-                                   "gọi trả tiền vượt mức sẽ được CẢNH BÁO (vẫn gửi); chỉ người được nâng mức, kèm lý do.", st, "Có, khóa"):
+                    if not (project_budget.needs_lock(p, pid) and not project_budget.finished(p.conn, pid)):
+                        pass                             # user 08/10: "Tôi duyệt hết" / "Duyệt cổng chính" only see the estimate
+                    elif confirm_all(f"mc_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA trần ngân sách ≈ {prop['total']:.2f} USD",
+                                     f"Khóa trần dự án ≈ {prop['total']:.2f} USD (trần từng khâu theo bảng ở màn Kịch bản)? Mức Tự chạy trong "
+                                     "trần: chạy tự động DỪNG khi chạm trần khâu hoặc tổng, chờ bạn nâng trần (kèm lý do); ảnh / clip bạn tự "
+                                     "bấm gen chỉ được CẢNH BÁO khi vượt (vẫn gửi).", st, "Có, khóa"):
                         project_budget.approve(p, pid, p.actor, prop)
                         st.rerun()
                 except Exception as e:  # noqa: BLE001 - the card must never break the bar
@@ -589,9 +592,19 @@ def money_card(p: Pipeline, pid) -> None:
                                "tách cảnh và bảng giá (⚙ Cài đặt), rồi tải lại trang; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán.")
         if v2 and pid is not None:                       # S14.39: ONE line for the open project + the per-stage detail in the fold
             try:
-                cs = project_budget.cost_summary(p, pid)
-                st.markdown("💵 **Dự án đang mở:** " + project_budget.md_safe(cs["line"]))
-                more.insert(0, "**Đã chi + ước tính phần còn lại** (ước tính, tính dư)\n\n" + SP.summary_detail_md(cs))
+                try:
+                    view = project_budget.estimate_view(p, pid)  # user 08/10: the ONE estimate (same number as the hero / the cap)
+                except Exception:  # noqa: BLE001 - no shot table yet / odd data: the one-take summary below still says the money
+                    view = None
+                if view is not None:
+                    st.markdown("💵 **Dự án đang mở:** " + project_budget.md_safe(view["line"]))
+                    more.insert(0, "**Dự tính dự án**\n\n" + view["md"]
+                                + ("\n\n**Một lượt mỗi thứ (chưa cộng gen lại)**\n\n" + SP.summary_detail_md(view["summary"])
+                                   if view["summary"] else ""))
+                else:
+                    cs = project_budget.cost_summary(p, pid)
+                    st.markdown("💵 **Dự án đang mở:** " + project_budget.md_safe(cs["line"]))
+                    more.insert(0, "**Đã chi + ước tính phần còn lại** (ước tính, tính dư)\n\n" + SP.summary_detail_md(cs))
             except Exception as e:  # noqa: BLE001 - the card must never break the bar; the missing estimate is said
                 st.caption(SP.summary_error(e))
         if v2 and (stage_table or any(more)):

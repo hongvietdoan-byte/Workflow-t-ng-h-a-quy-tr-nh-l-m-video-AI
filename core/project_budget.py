@@ -10,6 +10,13 @@ methods dropped half way, QC re-judging).
             (core.money_reset.set_planned); a person may still raise a line, with a reason that is kept
   target    optional: the money the person wants to spend; the Director gets it as an input (fewer lip-sync shots, fewer seconds …)
             and a proposal over it is said before any picture is paid
+  levels    (user 08/10) only "Tự chạy trong trần" (core.automation 'auto' — nobody approves pictures) asks for the approval & lock
+            (`needs_lock`): the run waits for it before the first picture and, once locked, WAITS again when a stage line or the total
+            is reached (`run_over`, a person raises the line with a reason). "Tôi duyệt hết" / "Duyệt cổng chính" only SHOW the
+            estimate (`estimate_view`) — no button, no gate. A finished project asks for nothing (`finished`).
+  redo      the redo share of pictures / clips is MEASURED from the machine retries of the other projects (`redo_shares`: jobs with
+            retry_count > 0 per approved shot), between the old fixed share and the automatic regeneration limit — enough for the run
+            to finish, far below the worst case of every shot redone to its limit.
 
 Test / acceptance runs (tools/experiments) are not production: they carry their own spend_cap and are counted under claude_other.
 Audio has no USD price yet: it stays capped by count (core.budget.check_audio)."""
@@ -24,8 +31,9 @@ from . import features
 FEATURE = "project_budget"
 STAGES = {"images": "Ảnh", "videos": "Video", "claude_director": "Claude — Director", "claude_qc": "Claude — QC",
           "claude_motion": "Claude — motion", "claude_other": "Claude — khác", "claude_chat": "chat Kịch bản"}
-IMAGE_REDO = 0.35          # #8: 11 of 33 frames redrawn in the first pass (+ scenes' wide pictures)
+IMAGE_REDO = 0.35          # #8: 11 of 33 frames redrawn in the first pass (+ scenes' wide pictures) — the FLOOR of the measured share
 VIDEO_REDO = 0.30
+REDO_MIN_SAMPLE = 10       # approved shots of other projects needed before the measured share replaces the fixed one
 LLM_MARGIN = 1.3
 OTHER_CLAUDE_USD = 0.20    # translations, checks, small calls
 UNVERIFIED_MARGIN = 1.25   # a price without an exact source (Seedance on ClipAI: the provider returns cost 0, finding 17)
@@ -33,6 +41,44 @@ UNVERIFIED_MARGIN = 1.25   # a price without an exact source (Seedance on ClipAI
 
 def enabled() -> bool:
     return features.on(FEATURE)
+
+
+def needs_lock(p, pid: int) -> bool:
+    """Only the level "Tự chạy trong trần" (the person's operating mode is automatic QC) asks for the approval & lock (user 08/10)."""
+    if not enabled():
+        return False
+    from . import automation
+    try:
+        return automation.effective_mode(p, pid) == "auto"
+    except Exception:  # noqa: BLE001 - a project row that cannot be read asks for nothing
+        return False
+
+
+def finished(conn, pid: int) -> bool:
+    """Every shot has an up-to-date clip that can be used: nothing left to pay for, so nothing to approve."""
+    from . import lineage
+    s = lineage.summary(conn, pid)
+    return bool(s["total"]) and s["videos"][0] >= s["total"]
+
+
+def redo_shares(conn, exclude_pid: Optional[int] = None) -> Dict:
+    """Machine retries per approved shot, measured on the other projects (retry_count rises only for machine-made tries, core.pipeline
+    AUTO_REGEN_LIMIT), kept between the fixed share and the regeneration limit. {"images", "videos", "measured": {kind: (retries,
+    approved) or None}}."""
+    from .pipeline import AUTO_REGEN_LIMIT
+    out, measured = {}, {}
+    for key, kind, floor in (("images", "image_gen", IMAGE_REDO), ("videos", "video_gen", VIDEO_REDO)):
+        row = conn.execute("SELECT SUM(retry_count > 0), SUM(state='approved') FROM jobs WHERE type=? AND project_id != ?",
+                           (kind, -1 if exclude_pid is None else exclude_pid)).fetchone()
+        retries, ok = int(row[0] or 0), int(row[1] or 0)
+        if ok >= REDO_MIN_SAMPLE:
+            measured[key] = (retries, ok)
+            out[key] = round(min(float(AUTO_REGEN_LIMIT[kind]), max(floor, retries / ok)), 2)
+        else:
+            measured[key] = None
+            out[key] = floor
+    out["measured"] = measured
+    return out
 
 
 def _key(pid: int) -> str:
@@ -126,12 +172,14 @@ def unpriced_by_stage(conn, pid: int) -> Dict[str, int]:
     return _ledger(conn, pid, since=(get(conn, pid) or {}).get("baseline_at"))[1]
 
 
-def remaining(p, pid: int) -> Dict[str, float]:
-    """What is still to make, priced by code from the shot table and the price table (cost.estimate_run's parts), with the redo shares
-    and margins — per stage."""
+def remaining(p, pid: int, shares: Optional[Dict] = None) -> Dict[str, float]:
+    """What is still to make, priced by code from the shot table and the price table (cost.estimate_run's parts), with the MEASURED
+    redo shares (`redo_shares`) and margins — per stage. Nothing left to make → no Claude "other" money either."""
     from . import cost, model_router, qc_agent, qc_scene
     pricing = cost.load_pricing()
     conn = p.conn
+    shares = shares or redo_shares(conn, pid)
+    ri, rv = shares["images"], shares["videos"]
     est = cost.estimate_run(p, pid, pricing)
     rows = model_router.plan(conn, pid, pricing)
     made = {r["scene_id"] for r in conn.execute("SELECT scene_id FROM jobs WHERE project_id=? AND type='video_gen' AND state IN"
@@ -139,21 +187,22 @@ def remaining(p, pid: int) -> Dict[str, float]:
     vid = sum((r["cost"] or 0) * (UNVERIFIED_MARGIN if unverified(pricing, r["model"]) else 1.0)
               for r in rows if r["scene_id"] not in made)
     director_done = bool(conn.execute("SELECT 1 FROM characters WHERE project_id=? AND TRIM(description)!=''", (pid,)).fetchone())
-    n_img = est["counts"]["images"]
-    qc = cost.llm_estimate(conn, "qc", cost._picture_qc_calls(conn, pid, n_img) + est["counts"]["clips"], pricing, images=2) or 0.0
+    n_img, n_clips = est["counts"]["images"], est["counts"]["clips"]
+    qc_calls = round(cost._picture_qc_calls(conn, pid, n_img) * (1 + ri) + n_clips * (1 + rv))      # every retake is judged again
+    qc = cost.llm_estimate(conn, "qc", qc_calls, pricing, images=2) or 0.0
     if n_img and qc_agent.enabled():
         qc += sum(qc_agent.scene_cap(n) for n in _frames_per_scene(conn, pid)) if qc_scene.enabled() else 0.0
     from . import qc_team
     if n_img and qc_team.enabled() and qc_scene.enabled():
-        qc += qc_team.FRAME_USD * n_img * (1 + IMAGE_REDO)
-    return {"images": round((est["images"] or 0.0) * (1 + IMAGE_REDO), 2),
-            "videos": round(vid * (1 + VIDEO_REDO), 2),
+        qc += qc_team.FRAME_USD * n_img * (1 + ri)
+    return {"images": round((est["images"] or 0.0) * (1 + ri), 2),
+            "videos": round(vid * (1 + rv), 2),
             "claude_director": round((0.0 if director_done else (cost.llm_estimate(conn, "director", 1, pricing) or 0.0) * LLM_MARGIN)
                                      + (est.get("rewrite") or 0.0), 2),     # S14.17: the Director's rewrites before retakes (flag on)
             "claude_qc": round(qc * LLM_MARGIN, 2),
-            "claude_motion": round(((cost.llm_estimate(conn, "motion", 1 if est["counts"]["clips"] else 0, pricing) or 0.0)
-                                    + (_translate_worst(conn, pid) if est["counts"]["clips"] else 0.0)) * LLM_MARGIN, 2),
-            "claude_other": OTHER_CLAUDE_USD,
+            "claude_motion": round(((cost.llm_estimate(conn, "motion", 1 if n_clips else 0, pricing) or 0.0)
+                                    + (_translate_worst(conn, pid) if n_clips else 0.0)) * LLM_MARGIN, 2),
+            "claude_other": OTHER_CLAUDE_USD if (n_img or n_clips or not director_done) else 0.0,
             "claude_chat": cost.llm_estimate(conn, "script_chat", 1, pricing) or 0.0}
 
 
@@ -188,11 +237,62 @@ def _frames_per_scene(conn, pid: int) -> List[int]:
 
 
 def propose(p, pid: int) -> Dict:
-    """{stage: {"spent", "left_estimate", "cap"}, "total": …} — not saved (see approve)."""
+    """{stage: {"spent", "left_estimate", "cap"}, "total": …, "shares": redo_shares} — not saved (see approve)."""
     spent = spent_by_stage(p.conn, pid)
-    left = remaining(p, pid)
+    shares = redo_shares(p.conn, pid)
+    left = remaining(p, pid, shares)
     stages = {k: {"spent": spent[k], "left_estimate": left[k], "cap": round(spent[k] + left[k], 2)} for k in STAGES}
-    return {"stages": stages, "total": round(sum(v["cap"] for v in stages.values()), 2)}
+    return {"stages": stages, "total": round(sum(v["cap"] for v in stages.values()), 2), "shares": shares}
+
+
+def shares_text(shares: Dict) -> str:
+    """'ảnh +76 % (đo 68/90 lượt), video +92 % (đo 59/64)' — where the redo share comes from."""
+    parts = []
+    for key, name in (("images", "ảnh"), ("videos", "video")):
+        m = (shares.get("measured") or {}).get(key)
+        src = f"đo từ dự án trước: {m[0]} lượt tự gen lại / {m[1]} shot đạt" if m else "mặc định, chưa đủ dữ liệu đo"
+        parts.append(f"{name} +{shares[key] * 100:.0f} % ({src})")
+    return ", ".join(parts)
+
+
+def estimate_view(p, pid: int) -> Dict:
+    """The ONE estimate shown everywhere (user 08/10): {"total" (= the cap proposed / locked: spent + what is left with the measured
+    redo), "base" (one take of everything, cost_summary), "spent", "shares", "prop", "summary", "md" (an explanation of the two
+    numbers, Markdown-safe), "line"}."""
+    prop = propose(p, pid)
+    try:
+        cs = cost_summary(p, pid)
+    except Exception:  # noqa: BLE001 - the estimate still shows; only the one-take figure is missing
+        cs = None
+    spent = round(sum(v["spent"] for v in prop["stages"].values()), 2)
+    text = (f"Dự tính cả dự án ≈ ${prop['total']:.2f} = đã chi ${spent:.2f} + phần còn lại có cộng gen lại theo tỷ lệ "
+            f"{shares_text(prop['shares'])}, Claude ×{LLM_MARGIN}")
+    if cs is not None:
+        text += (f". Nếu mọi ảnh / clip đạt ngay lần đầu: ≈ ${cs['total']:.2f} (Ảnh ${cs['images']:.2f} · Video ${cs['videos']:.2f} · "
+                 f"Claude ${cs['claude']:.2f}" + (f" · Âm thanh ${cs['audio']:.2f}" if cs.get("audio") is not None
+                                                 else f" · Âm thanh {cs['audio_items']} lượt chưa có giá") + ")")
+    return {"total": prop["total"], "base": None if cs is None else cs["total"], "spent": spent, "shares": prop["shares"], "prop": prop,
+            "summary": cs, "text": text, "md": md_safe(text), "line": f"Dự tính tổng ≈ ${prop['total']:.2f} · đã chi ${spent:.2f}"}
+
+
+def run_over(p, pid: int, stage: str) -> Optional[str]:
+    """At "Tự chạy trong trần" with the budget locked: why the automatic run must WAIT before sending more of `stage` — the stage line
+    or the total is reached (user 08/10: "đúng cơ chế duyệt và khóa trần"). A person raises the line (with a reason) and presses
+    Tiếp tục. Sends a person asks for are not stopped here (they warn, S14.16)."""
+    if not needs_lock(p, pid):
+        return None
+    data = get(p.conn, pid)
+    if not data or not data.get("locked"):
+        return None
+    spent = spent_by_stage(p.conn, pid)
+    cap = float((data.get("caps") or {}).get(stage, 0.0))
+    how = " — chạy tự động dừng trước khi gửi thêm. Nâng trần (kèm lý do) ở Bước 1 → 💵 Ngân sách dự án rồi bấm Tiếp tục"
+    if spent.get(stage, 0.0) >= cap:
+        return f"Chạm trần khâu {STAGES.get(stage, stage)}: đã chi ${spent.get(stage, 0.0):.2f} / trần ${cap:.2f}" + how
+    total = planned(p.conn, pid)
+    if total is not None and sum(spent.values()) >= total:
+        return f"Chạm trần TỔNG dự án: đã chi ${sum(spent.values()):.2f} / trần ${total:.2f}" + how
+    return None
 
 
 def approve(p, pid: int, who: str, proposal: Optional[Dict] = None) -> Dict:
@@ -328,8 +428,9 @@ def cost_summary(p, pid: int) -> Dict:
 
 def approval_pending(p, pid: int) -> bool:
     """Only yes / no: the automatic run must wait for the person to approve the project's budget (no estimate computed — cheap,
-    for checks that run every poll, e.g. autopilot.serve_waiting). The sentence with the numbers is gate_reason."""
-    if not enabled():
+    for checks that run every poll, e.g. autopilot.serve_waiting). The sentence with the numbers is gate_reason. Only the level
+    "Tự chạy trong trần" waits for it (needs_lock, user 08/10)."""
+    if not needs_lock(p, pid):
         return False
     data = get(p.conn, pid)
     return not (data and data.get("locked"))
@@ -337,8 +438,8 @@ def approval_pending(p, pid: int) -> bool:
 
 def gate_reason(p, pid: int) -> Optional[str]:
     """Why the automatic run must wait before paying for pictures: the budget is not approved yet, or the proposal is over the
-    person's target."""
-    if not enabled():
+    person's target. Only at "Tự chạy trong trần" (needs_lock, user 08/10); the other levels never wait for it."""
+    if not needs_lock(p, pid):
         return None
     data = get(p.conn, pid)
     if data and data.get("locked"):
