@@ -31,9 +31,10 @@
 | S12 Rà soát dashboard 01/10: sửa lỗi, tính năng thử, 4 màn, nhiều người dùng (`docs/RA_SOAT_DASHBOARD_2026-10-01.md`) | 7 | 6 | 0 | 0 | 1 | 100 % |
 | S13 Giao diện v2 "AI product" (gradient, kính mờ, nền tối) trên Streamlit, chạy song song nhiều nhánh (`docs/KE_HOACH_GIAO_DIEN_V2_2026-10-01.md`) | 12 | 10 | 0 | 0 | 2 | 100 % |
 | S14 Nâng cấp dashboard sau chấm lại 03/10 (`docs/KE_HOACH_NANG_CAP_DASHBOARD_2026-10-03.md`; người dùng duyệt 04/10) | 49 | 44 | 2 | 2 | 0 | 91,8 % |
+| S15 Sau Khủng Long Đỏ #22: tổng hợp 3 lượt, KLD-n, chế độ học việc (`docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md`, `docs/KE_HOACH_HOC_VIEC_2026-10-08.md`; người dùng duyệt 08/10) | 13 | 4 | 6 | 1 | 0 | 43,5 % |
 | K Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa) | 3 | 0 | 0 | 0 | 3 | — |
 | S8 Chấm lại bằng AI Development System (cuối cùng) | 5 | 2 | 0 | 0 | 0 | 42,9 % |
-| **Tổng** | **184** | **151** | **3** | **13** | **13** | **89,6 %** |
+| **Tổng** | **197** | **155** | **9** | **14** | **13** | **86,5 %** |
 
 Đợt hiện tại: **S14** · việc kế: **S14.15** I1 — tài liệu khớp trạng thái cuối + chấm lại toàn bộ bằng AI Dev System
 <!-- /tien-do -->
@@ -246,6 +247,21 @@
 - [x] S14.42 · Duyệt Kho 3 tầng (người dùng 05/10): trạng thái ảnh `claude_ok` (dùng được, hiện dấu 'Claude duyệt', thu hồi/xác nhận → `approved`), `core/kho_review.py`, bảng `kho_review_log`, lưới Tầng B trong `dashboard/admin.py`, Tầng C ở bảng kê tài nguyên, bản giao CẢNH BÁO (không chặn). Áp dụng Kho thật (sao lưu `data/backup/manifest.before_s14_42_2026-10-05.sqlite`): ảnh S14.33 23 claude_ok / 10 loại; âm thanh nguồn id 2: 14 claude_ok / 3 loại; danh sách lỗi + phương án `docs/KHO_TAI_NGUYEN_LOI_2026-10-05.md` (chưa giải quyết, gom rồi làm). Phát hiện: 33 file ảnh mục 396–413 mất trên đĩa (đã chép lại từ src_path, sha256 khớp) — nên tra vì sao mất. 12 test đỏ→xanh, cả bộ 2515 + sửa areas · nặng:2 · ✅ · 05/10
 - [x] S14.37 · Bản ghi Biên kịch 05/10c (`docs/DO_S11_2_Y_TUONG_2026-10-05c.md`): ý 1+2 đã chạy 0,616 USD (Tháp Đồng Hồ); ý 2 bị kiểm code chặn (có 'chỉ tay vào màn hình điện thoại') → chạy lại; ý 3 (gà nướng + chim cánh cụt) bị cổng chặn vì Kho chưa có pet chim cánh cụt → tạo ảnh chuẩn pet + bối cảnh bếp (ảnh ref Đạo diễn hoặc Meshy — người dùng DUYỆT Meshy 05/10, trần 10 USD); ý 3b (3 nhân vật có sẵn ở Tháp Đồng Hồ) chưa chạy; người dùng chấm sau · nặng:2 · ✅ · 05/10 XONG phần chạy: Kho nhận pet 'CHIM CÁNH CỤT' (id 414) + 'Bếp (đời thường)' (id 415, Blender, Meshy 0 USD); bản ghi `data/idea_golden/runs/20261005-212447` (ý 2 mới 0,251 + ý 3 0,256 = 0,506/0,60 USD; ý 1 bản trước 0,246), 0 miss, 3/3 đạt kiểm code. Phiếu `docs/DO_S11_2_Y_TUONG_2026-10-05c.md` CHỜ NGƯỜI DÙNG CHẤM. Điểm yếu: ý 3 lộ thủ phạm sớm (bóng mờ trên quạt), còn 'vụn gà', bỏ đoạn bước vào bếp; ý 2 Alvaro thiếu nhân quả, thoại nhạt
 - [ ] S14.15 · I1 — tài liệu khớp trạng thái cuối + chấm lại toàn bộ bằng AI Dev System · nặng:1 · ⬜
+
+### S15 — Sau Khủng Long Đỏ #22: tổng hợp 3 lượt, KLD-n, chế độ học việc (`docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md`, `docs/KE_HOACH_HOC_VIEC_2026-10-08.md`; người dùng duyệt 08/10)
+- [x] S15.1 · Thống kê 3 lượt (4A, chỉ đọc) · nặng:1 · ✅ · 1d480b4 · `docs/kld_runs/THONG_KE_3_LUOT_2026-10-08.md`
+- [x] S15.2 · Kiểm 22 tính năng chưa kiểm thật + verified 4 cờ (film_crew, place_render_refs, seedance_subjects, storyboard_api) · nặng:1 · ✅ · 916cdcb · `docs/KIEM_22_TINH_NANG_KLD_2026-10-08.md`
+- [x] S15.3 · So sánh 12 khâu (4B) · nặng:1 · ✅ · 916cdcb
+- [x] S15.4 · Rút kinh nghiệm theo vai + 30 thay đổi KLD + 18 bài học (4C–D) · nặng:1 · ✅ · 916cdcb
+- [ ] S15.5 · 7 thay đổi P1 (KLD-1…7; KLD-7 sau cờ TẮT, người dùng chưa cần thử) · nặng:3 · 🔄 · code gộp, chờ cả bộ test + kiểm Dashboard thật
+- [ ] S15.6 · Nút tay "Viết motion prompt" dựng shot Seedance ref-only bằng code · nặng:1 · 🔄 · 8b0eaf5, chờ kiểm Dashboard thật
+- [ ] S15.7 · KLD-21 đường nạp bài học + nạp L1–L18 (proposed, người duyệt tab Bài học) + KLD-22 · nặng:2 · 🔄
+- [ ] S15.8 · Học việc B1+B2: trạng thái on/trainee/off + bảng trainee_log + độ khớp · nặng:2 · 🔄
+- [ ] S15.9 · Học việc B3–B8: 7 vai chạy bóng, giao diện 🧪 + thẻ chấm, devsys, tài liệu · nặng:3 · ⬜
+- [ ] S15.10 · P2 prompt/knowledge (KLD-8, 9, 12, 14, 15, 25) sau cờ TẮT · nặng:2 · 🔄
+- [ ] S15.11 · P2 code/UI (KLD-11, 17, 19, 23) · nặng:2 · 🔄
+- [ ] S15.12 · P2 còn lại: KLD-16 (gộp học việc), KLD-18 ảnh toàn cảnh = render 3D, KLD-27 hồ sơ KL (mũ Maxim đen sừng đỏ) · nặng:2 · ⬜
+- [ ] S15.13 · P3 (9 mục KLD) · nặng:2 · ⏸ · người dùng 08/10: để sau, làm khi có thêm bằng chứng
 
 ### K — Chạy kiểm kịch bản hài 20–30 s — ⏸ KHÔNG ƯU TIÊN (người dùng 30/09: các việc test kịch bản không làm trước nữa)
 - [ ] K.1 · Soạn kịch bản hài 20–30 s có **Kenta + Orion cùng dùng kỹ năng** (người dùng 30/09) · nặng:1 · ✖ · viết lại bản A (docs/KICH_BAN_KIEM_K1_2026-09-29.md) theo hồ sơ kỹ năng Kenta + Orion (đợt S10) và luật chia nhịp kỹ năng; người dùng duyệt · tạm gác — không ưu tiên (người dùng 30/09); làm sau cùng khi người dùng gọi · **người dùng 06/10: BỎ (dự án thử 30 s S14.11/S14.12 đã phủ)**
