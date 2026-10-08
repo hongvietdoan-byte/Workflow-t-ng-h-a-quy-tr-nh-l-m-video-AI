@@ -61,6 +61,18 @@ class ProjectReviewLessonTests(unittest.TestCase):       # KLD-21
         with self.assertRaises(ValueError):
             lessons.add_project_review(self.conn, "code", "L12", "t", "b", project_id=22)
 
+    def test_approved_lessons_reach_the_prompts_as_experience_not_hard_rules(self):
+        """Người dùng 08/10: 11 bài học #22 được duyệt nhưng KHÔNG thành quy tắc cứng — vai dùng linh hoạt theo bối cảnh."""
+        d = tempfile.mkdtemp()
+        with mock.patch.dict(os.environ, {"KNOWLEDGE_USER_DIR": d}):
+            lessons.add_project_review(self.conn, "qc", "L1", "Mặt mịn", "Gen lại không sửa được", project_id=22, context="Clip 255")
+            lid = lessons.list_lessons(self.conn, "proposed")[0]["id"]
+            lessons.decide(self.conn, lid, True)
+            text = open(os.path.join(d, "qc", "bai_hoc.md"), encoding="utf-8").read()
+        self.assertIn("không phải luật cứng", text)
+        self.assertIn("bối cảnh: Clip 255", text)
+        self.assertIn("độ tin: 1 dự án", text)
+
     def test_after_delivery_harvests_mistakes_and_refreshes_cases(self):
         p = Pipeline(self.conn)
         _decide(p, self.conn, "image_gen", "reject", "tay thừa ngón")

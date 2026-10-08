@@ -378,6 +378,20 @@ def decide(conn, lesson_id: int, approve: bool) -> None:
         raise
 
 
+def _where(row) -> str:
+    """' (bối cảnh: …; độ tin: …)' from a lesson's evidence — empty when it has neither."""
+    try:
+        ev = json.loads(row.get("evidence") or "{}")
+    except (TypeError, ValueError):
+        return ""
+    if not isinstance(ev, dict):
+        return ""
+    sure = ev.get("confidence") or (f"{ev['projects']} dự án" if ev.get("projects") else "")
+    bits = [f"bối cảnh: {ev['context']}" if ev.get("context") else "", f"độ tin: {sure}" if sure else ""]
+    bits = [b for b in bits if b]
+    return f" ({'; '.join(bits)})" if bits else ""
+
+
 def sync_knowledge(conn, group: str) -> Optional[Dict]:
     """(Re)write the step's auto-maintained knowledge document from all approved lessons. The new document is built and
     checked first; the old one is removed only once the new one is in place (knowledge.replace_doc)."""
@@ -396,9 +410,13 @@ def sync_knowledge(conn, group: str) -> Optional[Dict]:
                                       "Cách xử lý: đóng chương trình đang mở file trong thư mục kiến thức (data/knowledge_user), "
                                       "tải lại trang rồi bấm lại.") from e
         return None
-    lines = ["# Bài học rút ra từ các dự án trước (đã được người duyệt)", ""]
+    # Người dùng 08/10: bài học đã duyệt là KINH NGHIỆM để cân nhắc, không phải luật cứng — each says where it came from and how sure
+    lines = ["# Bài học rút ra từ các dự án trước (đã được người duyệt)", "",
+             "Đây là kinh nghiệm, không phải luật cứng. Mỗi bài ghi bối cảnh và độ tin (số dự án đã thấy): dùng khi tình huống giống "
+             "bối cảnh đó; tình huống khác hoặc ý đồ cảnh cần khác thì được làm khác — ghi lý do (vd trong `tradeoffs`). Bài chỉ từ "
+             "1 dự án là gợi ý, chưa phải quy luật.", ""]
     for r in reversed([r for r in approved if r.get("source") != "research"]):
-        lines.append(f"- **{r['title']}**: {r['body'].strip()}")
+        lines.append(f"- **{r['title']}**: {r['body'].strip()}{_where(r)}")
     research = [r for r in approved if r.get("source") == "research"]
     if research:            # S14.5 C2b: found on the web → after the mark, sent wrapped as reference material (knowledge.user_text)
         lines += ["", knowledge.RESEARCH_MARK, "## Bài học từ nguồn nghiên cứu trên web (đã được người duyệt)", ""]
