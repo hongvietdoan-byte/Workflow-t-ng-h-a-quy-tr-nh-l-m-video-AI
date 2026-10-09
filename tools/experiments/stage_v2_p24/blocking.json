@@ -1,0 +1,23 @@
+{
+ "_ghi_chu": "V2 Sân khấu 3D (PHUONG_PHAP_SAN_KHAU_3D mục 3.1, 10): dàn cảnh #24 viết TAY từ kịch bản 9 shot + góp ý người dùng 09/10. Tọa độ so với O (Kelly đứng ở plaza_front), +y = Bắc. Giếng 1,6 m hướng 350° (như Bước 0–2), cao 0,9 m, rộng 1,5 m (người dùng chốt 09/10). Yêu nữ cao 1,7 m.",
+ "place": 263,
+ "spot": "plaza_front",
+ "aspect": "9:16",
+ "objects": [
+  {"key": "kelly", "kind": "nguoi", "at": [0.139, -0.788], "H": 1.7, "facing": 350, "label": "Kelly", "source": "Kho nhân vật 23 KELLY height_m 1,7"},
+  {"key": "gieng", "kind": "gieng", "at": [-0.278, 1.576], "h": 0.9, "d": 1.5, "hollow": true, "label": "Giếng", "source": "người dùng 09/10: cao 0,9 m, đường kính 1,5 m"},
+  {"key": "yeunu", "kind": "nguoi", "in": "gieng", "H": 1.7, "facing": 170, "label": "Yêu nữ", "source": "người dùng 09/10: cao 1,7 m"},
+  {"key": "thap", "kind": "moc", "label": "Tháp", "source": "stage.json marks (K1 đo tia)"}
+ ],
+ "beats": {
+  "di_toi": {"yeunu": {"hidden": true}},
+  "mep_gieng": {"kelly": {"at": [-0.096, 0.542]}, "yeunu": {"hidden": true}},
+  "nga": {"kelly": {"at": [0.043, -0.246], "H": 1.0, "tu_the": "ngoi", "_ly_do": "góp ý (4): ngã NGỬA ra sau, XA giếng 0,8 m, ngồi bệt (người nộm cao 1,0 m)"}, "yeunu": {"hidden": true}},
+  "bam_gieng": {"kelly": {"at": [0.043, -0.246], "H": 1.0, "tu_the": "ngoi"}},
+  "bo_ra": {"kelly": {"at": [0.043, -0.246], "H": 1.0, "tu_the": "ngoi"}, "yeunu": {"at": [-0.104, 0.591], "facing": 170}},
+  "quy": {"kelly": {"at": [0.043, -0.246], "H": 1.0, "tu_the": "ngoi"}, "yeunu": {"at": [-0.104, 0.591], "facing": 170, "H": 1.2, "tu_the": "quy"}}
+ },
+ "axis": ["kelly", "gieng"],
+ "s0": "right",
+ "_s0": "kịch bản: mọi góc ngang 'from the EAST side' của trục Kelly→giếng (trục hướng ~350°) → phía phải trục"
+}

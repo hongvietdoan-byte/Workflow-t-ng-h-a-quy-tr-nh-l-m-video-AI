@@ -1,0 +1,231 @@
+{
+ "_ghi_chu": "V2: yêu cầu khung 9 shot #24 viết TAY (thay vai Director) từ blocking/action của kịch bản + góp ý người dùng 09/10 (1)–(6). Vùng 'ngang-dọc' trên lưới một phần ba; người = vị trí MẮT; 'thay' = mặt/lưng/nghiêng.",
+ "shots": [
+  {
+   "shot": 1,
+   "nhip": "di_toi",
+   "co": "WS",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "muc_dich": "mở cảnh: Kelly tiến về giếng, tháp đồng hồ phía sau — góp ý (3): shot 1 nhìn ngang phải THẤY tháp",
+   "thanh_phan": [
+    {
+     "vat": "kelly",
+     "vai": "chinh",
+     "vung": "trai",
+     "thay": "lung|nghieng"
+    },
+    {
+     "vat": "thap",
+     "vai": "chinh",
+     "vung": "giua+phai"
+    },
+    {
+     "vat": "gieng",
+     "vai": "chinh",
+     "vung": "giua"
+    }
+   ],
+   "_sua_k5": "lần 1 'giua-duoi': máy ngang tầm mắt thì giếng 0,9 m rơi giữa khung (w 0,57) ở cả 27 phương án → bỏ ràng buộc dọc"
+  },
+  {
+   "shot": 2,
+   "nhip": "mep_gieng",
+   "co": "WS",
+   "do_cao": "cao",
+   "goc": "cui",
+   "muc_dich": "nhìn ngang phía Đông, máy cao cúi: Kelly ở mép giếng cúi nhìn vào lòng giếng (thấy nghiêng mặt), giếng bên phải",
+   "thanh_phan": [
+    {
+     "vat": "kelly",
+     "vai": "chinh",
+     "vung": "trai",
+     "thay": "nghieng"
+    },
+    {
+     "vat": "gieng",
+     "vai": "chinh",
+     "vung": "phai-duoi"
+    }
+   ],
+   "_sua_k5": "lần 1 'MS': cỡ MS ép máy cách Kelly 1,1 m, Kelly trái + giếng phải cần ≈ 2 m → máy ra sau lưng (S4 cả 27) → WS"
+  },
+  {
+   "shot": 3,
+   "nhip": "mep_gieng",
+   "co": "MS",
+   "do_cao": "cao",
+   "goc": "cui",
+   "muc_dich": "qua vai phải Kelly nhìn xuống miệng giếng (bóng lướt qua) — góp ý (3): nhìn xuống thì KHÔNG được thấy tháp",
+   "thanh_phan": [
+    {
+     "vat": "kelly",
+     "vai": "chinh",
+     "vung": "trai",
+     "thay": "lung|nghieng",
+     "co_pct": [
+      45,
+      95
+     ]
+    },
+    {
+     "vat": "gieng",
+     "vai": "chinh",
+     "vung": "giua+phai-duoi"
+    },
+    {
+     "vat": "thap",
+     "vai": "khong_duoc_co"
+    }
+   ]
+  },
+  {
+   "shot": 4,
+   "nhip": "nga",
+   "co": "MS",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "cross_ok": true,
+   "muc_dich": "góc ngược từ phía giếng nhìn mặt Kelly ngã ngửa — góp ý (2): bố cục/tỉ lệ; không thấy tháp; máy gần như trên trục (vượt trục có chủ đích)",
+   "thanh_phan": [
+    {
+     "vat": "kelly",
+     "vai": "chinh",
+     "vung": "giua",
+     "thay": "mat"
+    },
+    {
+     "vat": "thap",
+     "vai": "khong_duoc_co"
+    }
+   ]
+  },
+  {
+   "shot": 5,
+   "nhip": "bam_gieng",
+   "co": "WS",
+   "do_cao": "thap",
+   "goc": "ngang",
+   "muc_dich": "ngang phía Đông, máy thấp: Kelly ngồi bệt tiền cảnh trái nhìn giếng, yêu nữ bám miệng giếng trườn qua — góp ý (4): Kelly ngã ngửa xa giếng",
+   "thanh_phan": [
+    {
+     "vat": "kelly",
+     "vai": "chinh",
+     "vung": "trai",
+     "thay": "nghieng"
+    },
+    {
+     "vat": "yeunu",
+     "vai": "chinh",
+     "vung": "phai"
+    },
+    {
+     "vat": "gieng",
+     "vai": "phu",
+     "vung": "phai-duoi"
+    }
+   ]
+  },
+  {
+   "shot": 6,
+   "nhip": "bo_ra",
+   "co": "MLS",
+   "do_cao": "thap",
+   "goc": "ngang",
+   "muc_dich": "máy thấp ngang mắt Kelly ngồi, phía Nam nhìn lên Bắc: yêu nữ bò về phía máy rồi đứng dậy, giếng sau lưng — góp ý (5): giếng đúng hình",
+   "thanh_phan": [
+    {
+     "vat": "yeunu",
+     "vai": "chinh",
+     "vung": "giua",
+     "thay": "mat"
+    },
+    {
+     "vat": "gieng",
+     "vai": "phu",
+     "vung": "giua-duoi"
+    },
+    {
+     "vat": "thap",
+     "vai": "phu"
+    }
+   ]
+  },
+  {
+   "shot": 7,
+   "nhip": "bo_ra",
+   "co": "MLS",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "muc_dich": "ngang phía Đông: yêu nữ đứng cạnh giếng quay đầu nhìn Kelly (ngoài khung trái) rồi biến hình — góp ý (6): tỉ lệ giếng/yêu nữ phải thấy cả hai",
+   "thanh_phan": [
+    {
+     "vat": "yeunu",
+     "vai": "chinh",
+     "vung": "giua"
+    },
+    {
+     "vat": "gieng",
+     "vai": "chinh",
+     "vung": "phai-duoi"
+    },
+    {
+     "vat": "kelly",
+     "vai": "khong_duoc_co"
+    },
+    {
+     "vat": "thap",
+     "vai": "khong_duoc_co"
+    }
+   ]
+  },
+  {
+   "shot": 8,
+   "nhip": "quy",
+   "co": "MCU",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "muc_dich": "cận yêu nữ quỳ ôm mặt khóc — bỏ mốc cho gọn khung",
+   "thanh_phan": [
+    {
+     "vat": "yeunu",
+     "vai": "chinh",
+     "vung": "giua",
+     "thay": "mat"
+    },
+    {
+     "vat": "thap",
+     "vai": "khong_duoc_co"
+    }
+   ]
+  },
+  {
+   "shot": 9,
+   "nhip": "quy",
+   "co": "WS",
+   "do_cao": "cao",
+   "muc_dich": "toàn cảnh cuối hơi cao phía Đông: Kelly nhỏ ngồi bên trái, yêu nữ quỳ bên phải trước giếng, rồi nhiễu sóng",
+   "thanh_phan": [
+    {
+     "vat": "kelly",
+     "vai": "chinh",
+     "vung": "trai",
+     "co_pct": [
+      15,
+      40
+     ]
+    },
+    {
+     "vat": "yeunu",
+     "vai": "chinh",
+     "vung": "giua+phai"
+    },
+    {
+     "vat": "gieng",
+     "vai": "phu"
+    }
+   ],
+   "_sua_k5": "lần 1 yêu nữ 'phai': Kelly–yêu nữ chỉ cách 0,85 m, Kelly nhỏ (máy xa 2,4 m) không tách được hai mép 1/3 → 'giua+phai'"
+  }
+ ]
+}

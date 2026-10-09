@@ -234,10 +234,16 @@ def blender_main(cfg):
         return m
 
     placed = {}
+    # đo sàn của MỌI vật trước khi dựng bất kỳ khối nào: đáy khối trùng mặt sàn → tia xuống xuyên đáy khối đọc nhầm tầng rỗng −6,18 m
+    # (lần chạy v2 09/10: yêu nữ đứng cách người nộm Kelly 5 cm bị đặt xuống −6,18 m, thấy 0 %)
+    floor0 = {}
+    for p in cfg.get("props", []):
+        s = scn((p["at"][0], p["at"][1], 0))
+        floor0[p["name"]] = floor_hit(s.x, s.y)
     for p in cfg.get("props", []):
         r = p["at"]
         s = scn((r[0], r[1], 0))
-        fh = floor_hit(s.x, s.y)
+        fh = floor0[p["name"]]
         fz = fh[0] if fh else s.z
         frel = rel((0, 0, fz))[2]
         info = sg.measure(stage, (r[0], r[1], frel))
@@ -302,6 +308,8 @@ def blender_main(cfg):
             nz.data.materials.append(b.data.materials[0])
             info.update(height_m=hgt, facing_deg=p.get("facing", 0), eye_z=round(frel + hgt * sg.EYE, 2),
                         chest_z=round(frel + hgt * sg.CHEST, 2), hip_z=round(frel + hgt * sg.HIP, 2), source=p.get("source"))
+        if info.get("floor_status") not in ("same", "trong_gieng"):
+            warnings.append(f"{p['name']} ở {info.get('cell')} đứng trên sàn '{info.get('floor_status')}' z {frel:.2f} m — kiểm chỗ đứng")
         placed[p["name"]] = info
     bpy.context.view_layer.update()
 
@@ -483,6 +491,9 @@ def blender_main(cfg):
     s1 = None
     if cfg.get("requests") or cfg.get("shots"):
         s1 = s1_block(cfg, stage, placed, marks, scene, dg(), scn, rel, mat_of, classify, Vector, bpy, rp, out, warnings)
+    v2 = None
+    if cfg.get("v2"):
+        v2 = v2_block(cfg, stage, placed, marks, scene, dg(), scn, rel, mat_of, classify, Vector, bpy, rp, out, warnings)
 
     objects = []
     for name, e in inv.items():
@@ -508,6 +519,8 @@ def blender_main(cfg):
     dump("frames.json", frames)
     if s1 is not None:
         dump("s1.json", s1)
+    if v2 is not None:
+        dump("v2.json", v2)
     print("[stage] done", flush=True)
 
 
@@ -748,6 +761,194 @@ def s1_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
         scene.render.engine = keep
     return {"requests": reqs_out, "shots": shots_out, "measure_sec": measure_sec, "res": res, "coarse": coarse, "fine": fine,
             "rule_th": {k: list(v) for k, v in sg.RULE_TH.items()}, "first": first}
+
+
+def v2_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, Vector, bpy, rp, out, warnings):
+    """Sân khấu 3D v2 giai đoạn (b) (PHUONG_PHAP mục 6.5, 7): mỗi shot đã được GIẢI ở máy chủ (core/stage_solver) thành vài phương án;
+    ở đây đo bằng tia: thành phần khung, % thấy từng vật (trừ bị che, ghi vật che), vật cản sát ống kính, sàn dưới máy → luật P1–P4 +
+    S1–S6 (sg.check_spec). Phương án đạt tốt nhất đo lại bằng lưới mịn + render hình phác. Nhãn chỉ cho thứ chính/phụ."""
+    v2 = cfg["v2"]
+    f_ = stage.get("factor", 1.0)
+    persons = [p["name"] for p in cfg.get("props", []) if p.get("kind") == "person"]
+    st = {"objs": {}, "well_hip": None, "dgv": dgv, "axis": cfg.get("axis")}
+
+    def use(setup):
+        """Nhịp của shot: chỉ hiện người nộm của nhịp đó (ẩn = không trúng tia, không render); vật + tỉ lệ giếng ÷ hông theo nhịp."""
+        show = set(setup.get("show") or persons)
+        for ob in scene.objects:
+            if ob.name.startswith("STAGE_") and not ob.name.startswith("STAGE_WELL") and ob.type == "MESH":
+                hide = not any(ob.name.startswith(f"STAGE_{n}_") for n in show)
+                ob.hide_viewport = ob.hide_render = hide
+        bpy.context.view_layer.update()
+        st["dgv"] = bpy.context.evaluated_depsgraph_get()
+        objs = setup["objs"]
+        for k, o in objs.items():
+            if o["kind"] == "moc" and marks.get(f"{k}_object"):             # tên object mốc (tháp) do K1 đo trong lượt này
+                o["own"] = marks[f"{k}_object"]["name"]
+        st["objs"] = objs
+        st["axis"] = setup.get("axis") or cfg.get("axis")
+        hips = [placed[o["prop"]]["hip_z"] for o in objs.values()
+                if o["kind"] == "nguoi" and not o.get("in") and not o.get("tu_the") and o.get("prop") in placed]
+        st["well_hip"] = round(placed["WELL"]["top_z"] / hips[0], 2) if ("WELL" in placed and hips) else None
+
+    def group_of(obj, idx, loc, nor):
+        o = obj.original if hasattr(obj, "original") else obj
+        if o.name.startswith("STAGE_WELL"):
+            return o, "gieng"
+        if o.name.startswith("STAGE_"):
+            return o, "nguoi_" + o.name.split("_")[1].lower()
+        return o, sg.group_by_hit(classify(o, mat_of(obj, idx)), rel((0, 0, loc.z))[2], nor.z)
+
+    def first_hit(L, P):
+        seg = scn(P) - L
+        ok, _, _, _, obj, _ = scene.ray_cast(st["dgv"], L, seg.normalized(), distance=seg.length + 0.05)
+        return (obj.original if hasattr(obj, "original") else obj) if ok and obj is not None else None
+
+    def measure(C_r, A_r, lens, res, rays, spec):
+        L, A = scn(C_r), scn(A_r)
+        aspect = res[0] / res[1]
+        objs, dgv = st["objs"], st["dgv"]
+        m = sg.frame_eval(C_r, A_r, lens, aspect, objs, co=spec["co"],
+                          size_key=next(c["vat"] for c in spec["thanh_phan"] if c.get("vai") == "chinh"))
+        chinh = [c["vat"] for c in spec["thanh_phan"] if c.get("vai") == "chinh"]
+        size_key = chinh[0]
+        near_main = min(math.dist(C_r, sg.anchor_point(objs[k])) for k in chinh)
+        nu, nv = rays
+        counts, occ, occ_m = {}, 0, None
+        for j in range(nv):
+            for i in range(nu):
+                dr = Vector(sg.ray_dir(list(L), list(A), (i + 0.5) / nu, (j + 0.5) / nv, lens, aspect))
+                ok, loc, nor, idx, obj, _ = scene.ray_cast(dgv, L, dr, distance=3000)
+                if not ok or obj is None:
+                    g = "troi"
+                else:
+                    o, g = group_of(obj, idx, loc, nor)
+                    dist = (loc - L).length / f_
+                    if g not in ("san", "gieng", "troi") and not g.startswith("nguoi") and dist < near_main - 0.3:
+                        occ += 1
+                        occ_m = dist if occ_m is None else min(occ_m, dist)
+                counts[g] = counts.get(g, 0) + 1
+        total = nu * nv
+        for k, o in objs.items():                                          # % thấy = điểm trong khung mà tia tới chạm chính nó
+            pts = sg.object_points(o, C_r, spec["co"] if k == size_key else None)
+            seen, by = 0, {}
+            for P in pts:
+                if not sg.in_frame(sg.project(C_r, A_r, P, lens, aspect)):
+                    continue
+                hit = first_hit(L, P)
+                if hit is not None and hit.name.startswith(o["own"]):
+                    seen += 1
+                elif hit is not None:
+                    by[hit.name] = by.get(hit.name, 0) + 1
+            e = m["obj"][k]
+            e["seen_pct"] = round(100.0 * seen / len(pts), 1) if pts else 0.0
+            e["blocked_by"] = max(by, key=by.get) if by else None
+        floor_rel, o_ = None, L.copy()
+        for _ in range(6):
+            ok, loc, nor, idx, obj, _ = scene.ray_cast(dgv, o_, Vector((0, 0, -1)), distance=200)
+            if not ok or obj is None:
+                break
+            ob = obj.original if hasattr(obj, "original") else obj
+            if not ob.name.startswith("STAGE_"):
+                floor_rel = rel((0, 0, loc.z))[2]
+                break
+            o_ = loc - Vector((0, 0, 0.03))
+        up = scene.ray_cast(dgv, L, Vector((0, 0, 1)), distance=500)
+        roles = {c["vat"]: c.get("vai") for c in spec["thanh_phan"]}
+        labels = {}
+        for k, o in objs.items():                                          # nhãn chỉ cho thứ chính / phụ (mục 7.4)
+            if roles.get(k) not in ("chinh", "phu"):
+                continue
+            P = sg.zone_point(o, spec["co"] if roles[k] == "chinh" else None)
+            hit = first_hit(L, P)
+            b = None if hit is None or hit.name.startswith(o["own"]) else hit.name
+            stt = sg.point_state(C_r, A_r, P, lens, aspect, blocked_by=b)
+            labels[k] = {"label": o.get("label", k) + (" (chính)" if roles[k] == "chinh" else " (phụ)"), "state": stt["state"],
+                         "uv": stt["uv"] and [round(x, 3) for x in stt["uv"]], "edge": stt["edge"],
+                         "arrow": stt["arrow"] and [round(x, 3) for x in stt["arrow"]], "blocked_by": b}
+        yaw, pitch = sg.look(C_r, A_r)
+        m.update(percent={g: round(100 * n / total, 1) for g, n in sorted(counts.items(), key=lambda x: -x[1])}, rays=[nu, nv],
+                 occluder_pct=round(100 * occ / total, 1), occluder_m=None if occ_m is None else round(occ_m, 2),
+                 cam_floor=sg.floor_status(floor_rel), cam_floor_z=None if floor_rel is None else round(floor_rel, 2),
+                 cam_above_floor_m=None if floor_rel is None else round(C_r[2] - floor_rel, 2), cam_inside=bool(up[0] and up[2].z > 0.2),
+                 well_hip_ratio=st["well_hip"], horizon_w=round(sg.horizon_w(pitch, lens, aspect), 3), labels=labels,
+                 at=[round(v, 3) for v in C_r], aim=[round(v, 4) for v in A_r], lens=lens, cell=sg.cell_name(stage, C_r[0], C_r[1]),
+                 side=None if not st["axis"] else sg.axis_side(st["axis"][0], st["axis"][1], C_r))
+        return m
+
+    def clay(name, C_r, A_r, lens, res):
+        scene.render.engine = "BLENDER_WORKBENCH"
+        shd = scene.display.shading
+        shd.light, shd.color_type = "STUDIO", "OBJECT"
+        cols = {p["name"].split("_")[0]: tuple(p.get("rgb", (1.0, 0.45, 0.05))) for p in cfg.get("props", []) if p.get("kind") == "person"}
+        for ob in scene.objects:
+            if ob.type != "MESH":
+                continue
+            ob.color = (0.72, 0.72, 0.72, 1)
+            if ob.name.startswith("STAGE_WELL"):
+                ob.color = (0.35, 0.55, 0.95, 1) if ob.name == "STAGE_WELL" else (0.1, 0.1, 0.15, 1)
+            elif ob.name.startswith("STAGE_"):
+                ob.color = (*cols.get(ob.name.split("_")[1], (1.0, 0.45, 0.05)), 1)
+        try:
+            shd.show_cavity = True
+        except AttributeError:
+            pass
+        if scene.world is not None:
+            scene.world.color = (0.82, 0.86, 0.92)
+        cd = bpy.data.cameras.new(name)
+        cd.lens, cd.clip_end = lens, 2000
+        cam = bpy.data.objects.new(name, cd)
+        scene.collection.objects.link(cam)
+        cam.location = scn(C_r)
+        rp.look_at(cam, list(scn(A_r)))
+        scene.camera = cam
+        scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = res[0], res[1], 100
+        fn = f"{name}_clay_raw.png"
+        try:
+            rp.render_to(os.path.join(out, fn), False)
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"clay {name}: {e}")
+            return None
+        return fn
+
+    res, coarse, fine = v2.get("res", [576, 1024]), v2.get("coarse", [18, 32]), v2.get("fine", [36, 64])
+    t0 = time.time()
+    shots = []
+    for su in v2["setups"]:
+        spec = su["spec"]
+        use(su)
+        objs = st["objs"]
+        rows = []
+        for c in su["cands"]:
+            m = measure(c["at"], c["aim"], c["lens"], res, coarse, spec)
+            chk = sg.check_spec(m, spec, objs)
+            c1 = c.get("c1_ok", True)
+            rows.append({"tag": c["tag"], "fallback": c.get("fallback", False), "ok": chk["ok"] and c1, "c1_ok": c1, "check": chk, "m": m,
+                         "c": c})
+        rows.sort(key=lambda r: (not r["ok"], not r["c1_ok"], len(r["check"]["fail"]), r["check"]["miss"],
+                                 -sum(r["check"]["phu"].values()), r["fallback"]))
+        best = None
+        if rows:
+            c = rows[0]["c"]
+            m = measure(c["at"], c["aim"], c["lens"], res, fine, spec)
+            chk = sg.check_spec(m, spec, objs)
+            best = {"tag": c["tag"], "fallback": c.get("fallback", False), "ok": chk["ok"] and c.get("c1_ok", True),
+                    "c1_ok": c.get("c1_ok", True), "check": chk, "m": m, "name": f"v2_shot{su['shot']}"}
+        shots.append({"shot": su["shot"], "spec": spec, "objs": objs, "n": len(rows), "n_ok": sum(1 for r in rows if r["ok"]), "best": best,
+                      "rows": [{k: v for k, v in r.items() if k not in ("m", "c")} | {"at": r["m"]["at"], "pitch": round(r["m"]["pitch"], 1),
+                                                                                      "pct": r["m"]["percent"]} for r in rows]})
+    measure_sec = round(time.time() - t0, 1)
+    keep = scene.render.engine
+    try:
+        for su, s in zip(v2["setups"], shots):
+            if s["best"]:
+                use(su)
+                b = s["best"]["m"]
+                s["best"]["clay"] = clay(s["best"]["name"], b["at"], b["aim"], b["lens"], res)
+    finally:
+        scene.render.engine = keep
+    return {"shots": shots, "measure_sec": measure_sec, "res": res, "coarse": coarse, "fine": fine,
+            "rule_th": {k: list(v) for k, v in sg.RULE_TH.items()}}
 
 
 # ================================================ máy chủ ================================================
@@ -996,6 +1197,208 @@ def report_s1(out):
                   f"{'đạt' if t['ok_fine'] else 'mịn hỏng ' + ','.join(t['fail_fine'])} | {m['percent']} | yêu nữ {m.get('yeunu')}")
 
 
+# ================================ v2: giải máy từ yêu cầu khung (PHUONG_PHAP_SAN_KHAU_3D mục 6, 7, 10 — V1) ================================
+ZONE_RGB = [(255, 0, 200), (0, 170, 255), (0, 200, 90), (255, 150, 0)]
+
+
+def _aspect(blocking):
+    a = str(blocking.get("aspect", "9:16"))
+    w, h = (float(x) for x in a.split(":"))
+    return w / h, ([576, 1024] if w < h else [1024, 576])
+
+
+def blender_props(beats):
+    """Vật của bộ giải theo từng nhịp ({nhịp: {key: vật}}) → props cho blender_main. Giếng trước (người 'trong giếng' tính chân theo giếng);
+    mỗi tư thế khác nhau của một người = một người nộm riêng `STAGE_<KHÓA>_V<n>_…` (ẩn/hiện theo shot ở v2_block). Ghi `own`/`prop` vào vật."""
+    if isinstance(next(iter(beats.values()), {}).get("kind"), str):          # một dàn cảnh không nhịp
+        beats = {"": beats}
+    wells = {}
+    for objs in beats.values():
+        for o in objs.values():
+            if o["kind"] == "dao_cu" and o.get("shape") == "gieng":
+                wells[o["key"]] = o
+            elif o["kind"] == "dao_cu":
+                raise SystemExit(f"v2: chưa dựng được khối thay thế cho '{o['key']}' (mới có giếng + người nộm)")
+    if len(wells) > 1:
+        raise SystemExit("v2: dàn cảnh có > 1 giếng — Blender chỉ dựng một STAGE_WELL")
+    props = [{"name": "WELL", "kind": "well", "at": list(o["xy"]), "radius": o["r"], "height": o["h"], "sides": 8,
+              "source": o.get("source") or WELL_SRC, "hollow": bool(o.get("hollow"))} for o in wells.values()]
+    pal, variants = {}, {}
+    colours = [[1.0, 0.45, 0.05], [0.85, 0.05, 0.1], [0.2, 0.75, 0.3], [0.6, 0.3, 0.9]]
+    for objs in beats.values():
+        for o in objs.values():
+            if o["kind"] != "nguoi":
+                continue
+            sig = (o["key"], round(o["xy"][0], 3), round(o["xy"][1], 3), round(o.get("z", 0.0), 3), o["H"], o.get("facing"), o.get("in"))
+            if sig not in variants:
+                n = sum(1 for v in variants.values() if v["key"] == o["key"])
+                rgb = pal.setdefault(o["key"], colours[len(pal) % len(colours)])
+                p = {"name": f"{o['key'].upper()}_V{n}", "key": o["key"], "kind": "person", "at": list(o["xy"]), "height": o["H"],
+                     "facing": o.get("facing") or 0.0, "source": o.get("source") or "blocking.json", "rgb": rgb}
+                if o.get("in"):
+                    p["in_well"] = {"foot_z": round(o["z"] - wells[o["in"]].get("z", 0.0), 3), "rule": "chân = cao giếng − 0,72·H"}
+                variants[sig] = p
+                props.append(p)
+            o["prop"] = variants[sig]["name"]
+            o["own"] = f"STAGE_{o['prop']}_"
+    return props
+
+
+def v2_main(argv):
+    """`v2 --blocking b.json --specs s.json --out <dir> [--stage-from <dir K1>] [--solve-only] [--draw-only]`: K3 giải máy (thuần, ms)
+    → K4 Blender đo phương án (một lượt) → hình phác có vùng đích + bảng. 0 USD."""
+    import argparse
+    sys.path.insert(0, ROOT)
+    from core import stage_solver as ss
+    ap = argparse.ArgumentParser(prog="stage_grid.py v2")
+    ap.add_argument("--db", default=DEFAULT_DB)
+    ap.add_argument("--blocking", required=True)
+    ap.add_argument("--specs", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--stage-from", default=None, help="thư mục K1 có stage.json + grid.json (mốc tháp, ô sàn); mặc định --out")
+    ap.add_argument("--max-cands", type=int, default=31, help="số phương án mỗi shot gửi Blender (lời giải + đường lùi)")
+    ap.add_argument("--solve-only", action="store_true", help="chỉ giải + kiểm giai đoạn (a), không chạy Blender")
+    ap.add_argument("--draw-only", action="store_true")
+    a = ap.parse_args(argv)
+    out = os.path.abspath(a.out)
+    os.makedirs(out, exist_ok=True)
+    blocking = json.load(open(a.blocking, encoding="utf-8"))
+    specs = json.load(open(a.specs, encoding="utf-8"))
+    specs = specs.get("shots", specs) if isinstance(specs, dict) else specs
+    aspect, res = _aspect(blocking)
+    if not a.draw_only:
+        src = os.path.abspath(a.stage_from or out)
+        st = json.load(open(os.path.join(src, "stage.json"), encoding="utf-8"))
+        grid = json.load(open(os.path.join(src, "grid.json"), encoding="utf-8"))["cells"]
+        t0 = time.time()
+        sol = ss.solve_scene(specs, blocking, aspect, marks=st.get("marks"), grid_cells=grid, stage=st)
+        solve_ms = round(1000 * (time.time() - t0), 1)
+        sol["solve_ms"] = solve_ms
+        with open(os.path.join(out, "setups.json"), "w", encoding="utf-8") as f:
+            json.dump(sol, f, ensure_ascii=False, indent=1)
+        print(f"K3 giải {len(specs)} shot trong {solve_ms} ms; trục {blocking.get('axis')} s₀ = {sol['s0']}")
+        for s in sol["shots"]:
+            n_ok = sum(1 for c in s["cams"] if c["check"]["ok"] and c["c1_ok"])
+            print(f"  shot {s['shot']}: {len(s['cams'])} phương án, {n_ok} đạt giai đoạn (a)" + "".join(f"\n    ! {e}" for e in s["errors"])
+                  + "".join(f"\n    · {e}" for e in s["notes"] + s.get("advice", [])))
+        if a.solve_only:
+            return
+        m3 = _place_model3d(a.db, blocking["place"])
+        spot = m3["spots"][blocking["spot"]]
+        beats = sol["beats"]
+        props = blender_props(beats)
+        setups = []
+        for s in sol["shots"]:
+            if s["errors"] or not s["cams"]:
+                continue
+            spec = next(p for p in specs if p.get("shot") == s["shot"])
+            bo = beats[spec.get("nhip") or ""]
+            cands = [{k: c[k] for k in ("tag", "at", "aim", "lens", "fallback", "c1_ok")} for c in s["cams"][:a.max_cands]]
+            setups.append({"shot": s["shot"], "spec": spec, "cands": cands, "objs": bo,
+                           "show": [o["prop"] for o in bo.values() if o.get("prop")],
+                           "axis": None if not blocking.get("axis") else [list(bo[k]["xy"]) + [0.0] for k in blocking["axis"]]})
+        extra = [[o["xy"][0], o["xy"][1], 2.0] for bo in beats.values() for o in bo.values() if o["kind"] != "moc"]
+        cfg = {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spot["at"],
+               "anchor_model": m3["anchor"], "cell_m": 1.0, "cols": 20, "rows": 20, "acting_area": {"half_m": 3.0, "extra": extra},
+               "engine": "auto", "samples": 16, "top_view": {"centre": [0.0, 5.5], "size_m": 42.0, "px": 1260}, "props": props,
+               "axis": sol["axis"], "targets": {}, "cameras": [],
+               "v2": {"setups": setups, "res": res, "coarse": [18, 32], "fine": [36, 64]}}
+        run_blender(cfg, out, timeout=3600)
+    draw_v2(out)
+    report_v2(out)
+
+
+def _overlay_v2(out, best, spec, objs, footer):
+    """Hình phác v2: lưới một phần ba, chân trời, vùng thanh trên 15 %, VÙNG ĐÍCH từng thứ chính (khung màu) + tâm đo được (chấm vuông
+    cùng màu, nối bằng vạch khi lệch), nhãn chỉ thứ chính/phụ."""
+    from PIL import Image, ImageDraw, ImageFont
+    m = best["m"]
+    img = Image.open(os.path.join(out, best["clay"])).convert("RGBA")
+    W, H = img.size
+    ov = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(ov)
+    try:
+        font, big = ImageFont.truetype("arial.ttf", 13), ImageFont.truetype("arialbd.ttf", 16)
+    except OSError:
+        font = big = ImageFont.load_default()
+    d.rectangle([0, 0, W, H * 0.15], fill=(255, 0, 0, 30))
+    for t in (1 / 3, 2 / 3):
+        d.line([(W * t, 0), (W * t, H)], fill=(255, 255, 255, 160), width=1)
+        d.line([(0, H * t), (W, H * t)], fill=(255, 255, 255, 160), width=1)
+    wh = m["horizon_w"]
+    if 0 <= wh <= 1:
+        d.line([(0, wh * H), (W, wh * H)], fill=(0, 120, 255, 200), width=2)
+    k = 0
+    for c in spec["thanh_phan"]:
+        if c.get("vai") != "chinh":
+            continue
+        col = ZONE_RGB[k % len(ZONE_RGB)]
+        k += 1
+        z = sg.parse_zone(c.get("vung"))
+        u0, u1 = z["u"] or (0.0, 1.0)
+        w0, w1 = z["w"] or (0.0, 1.0)
+        box = [u0 * W + 3, w0 * H + 3, u1 * W - 3, w1 * H - 3]
+        for off in range(3):
+            d.rectangle([box[0] + off, box[1] + off, box[2] - off, box[3] - off], outline=(*col, 230))
+        lab = objs[c["vat"]].get("label", c["vat"])
+        d.text((box[0] + 6, box[1] + 4), f"đích {lab}: {c.get('vung') or '—'}", fill=(*col, 255), font=font)
+        uv = (m["obj"].get(c["vat"]) or {}).get("uv")
+        if uv:
+            x, y = uv[0] * W, uv[1] * H
+            d.rectangle([x - 6, y - 6, x + 6, y + 6], fill=(*col, 255), outline=(0, 0, 0, 255))
+            if sg.zone_miss(uv, z) > 0:
+                cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+                d.line([(x, y), (cx, cy)], fill=(*col, 200), width=2)
+    draw_labels(d, W, H, m["labels"], big)
+    d.rectangle([0, H - 20 * len(footer) - 6, W, H], fill=(255, 255, 255, 200))
+    for i, line in enumerate(footer):
+        d.text((6, H - 20 * len(footer) - 2 + 20 * i), line, fill=(0, 0, 0, 255), font=font)
+    img = Image.alpha_composite(img, ov).convert("RGB")
+    fn = best["clay"].replace("_clay_raw.png", "_clay.png")
+    img.save(os.path.join(out, fn))
+    return fn
+
+
+def draw_v2(out):
+    v2 = json.load(open(os.path.join(out, "v2.json"), encoding="utf-8"))
+    files, cams = [], []
+    for s in v2["shots"]:
+        objs = s["objs"]
+        b = s["best"]
+        if not b or not b.get("clay"):
+            continue
+        m = b["m"]
+        main = [c["vat"] for c in s["spec"]["thanh_phan"] if c.get("vai") == "chinh"]
+        footer = [f"shot {s['shot']} {s['spec']['co']} · {s['spec'].get('muc_dich', '')[:60]}",
+                  f"ô {m['cell']} · cao {m['cam_above_floor_m']} m · pitch {m['pitch']:.1f}° · f {m['lens']:g} · {b['tag']}",
+                  " · ".join(f"{objs[k].get('label', k)} thấy {m['obj'][k]['seen_pct']:g}% cỡ {m['obj'][k]['size_pct']}%" for k in main),
+                  ("ĐẠT P/S" if b["ok"] else "HỎNG " + "; ".join(f"{c}: {w}" for c, w in b["check"]["why"].items()))[:110]
+                  + f" · {s['n_ok']}/{s['n']} phương án đạt"]
+        files.append(_overlay_v2(out, b, s["spec"], objs, footer))
+        fov = sg.fov(m["lens"], v2["res"][0] / v2["res"][1])
+        cams.append((f"s{s['shot']}", {"xyz": m["at"], "yaw_deg": m["yaw"], "fov_h_v_deg": list(fov), "cell": m["cell"]}))
+    for i in range(0, len(files), 5):
+        _montage(out, files[i:i + 5], f"v2_shots_{i // 5 + 1}.png", "Sân khấu 3D v2 — máy GIẢI từ yêu cầu khung (khung màu = vùng đích, ô vuông = tâm đo được)")
+    if os.path.exists(os.path.join(out, "stage.json")):
+        draw_top(out, cams=cams, fn="v2_topgrid.png")
+
+
+def report_v2(out):
+    v2 = json.load(open(os.path.join(out, "v2.json"), encoding="utf-8"))
+    print(f"K4 Blender đo {sum(s['n'] for s in v2['shots'])} phương án trong {v2['measure_sec']} s")
+    print("shot | đạt/phương án | chọn | ô · cao · pitch | thấy% / cỡ% thứ chính | luật hỏng")
+    for s in v2["shots"]:
+        b = s["best"]
+        if not b:
+            print(f"{s['shot']} | 0/{s['n']} | — |")
+            continue
+        m = b["m"]
+        main = [c["vat"] for c in s["spec"]["thanh_phan"] if c.get("vai") == "chinh"]
+        print(f"{s['shot']} | {s['n_ok']}/{s['n']} | {b['tag']} | {m['cell']} · {m['cam_above_floor_m']} · {m['pitch']:.1f} | "
+              + ", ".join(f"{k} {m['obj'][k]['seen_pct']:g}/{m['obj'][k]['size_pct']}" for k in main)
+              + f" | {', '.join(b['check']['fail']) or '-'} {b['check']['why'] or ''}")
+
+
 def host_main(argv=None):
     import argparse
     argv = sys.argv[1:] if argv is None else argv
@@ -1003,6 +1406,8 @@ def host_main(argv=None):
         return fix_spot_main(argv[1:])
     if argv and argv[0] == "s1":
         return s1_main(argv[1:])
+    if argv and argv[0] == "v2":
+        return v2_main(argv[1:])
     sys.path.insert(0, ROOT)
     from core import plates3d
     ap = argparse.ArgumentParser(description="Bước 0 lưới sân khấu (0 USD)")

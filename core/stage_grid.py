@@ -8,9 +8,10 @@ Quy ước (người dùng chốt 09/10):
   j = ⌊y/c + N/2⌋ + 1 → số (Nam→Bắc). N = 20, c = 1 → O ở góc Tây-Nam của ô K11 (tâm K11 = (0,5; 0,5)).
   Vị trí chính xác = tọa độ liên tục (m, 2 số lẻ) so với O.
 - Sàn ô: |floor_z| ≤ 0,15 m = cùng mặt sàn (đứng được); lớn hơn = bậc (≤ 0,6 m) hoặc tầng khác.
-Không import gì ngoài math (Blender nạp file này theo đường dẫn).
+Không import gì ngoài thư viện chuẩn math/unicodedata (Blender nạp file này theo đường dẫn).
 """
 import math
+import unicodedata
 from typing import Dict, List, Optional, Sequence, Tuple
 
 SAME_FLOOR_M = 0.15
@@ -483,3 +484,257 @@ def rank_score(m: Dict, req: Dict) -> float:
     if m.get("subject_frame_pct") is not None:
         s -= abs(m["subject_frame_pct"] - FRAMING[req["size"]][1] * 100) * 0.5
     return round(s, 2)
+
+
+# ================================ v2: yêu cầu khung → đo → luật P/S (PHUONG_PHAP_SAN_KHAU_3D mục 3.2, 4, 7) ================================
+# Vật trên sân khấu (từ blocking.json, tọa độ so với O): {"key", "kind": "nguoi"|"dao_cu"|"moc", "xy": [x, y], "z": chân/đáy,
+#   người: "H", "facing", "rim_z" (đứng trong giếng: chỉ tính phần trên miệng giếng); đạo cụ/mốc: "h", "r"; "group" (nhóm tia), "own" (tiền tố
+#   tên object Blender của chính nó), "label"}. Yêu cầu khung (shot_specs.json): mục 3.2 — "thanh_phan": [{vat, vai, vung, thay, co_pct}].
+ROLES = ("chinh", "phu", "khong_duoc_co")
+_U_ZONE = {"trai": (0.0, 1 / 3), "giua": (1 / 3, 2 / 3), "phai": (2 / 3, 1.0)}
+_W_ZONE = {"tren": (0.0, 1 / 3), "giua": (1 / 3, 2 / 3), "duoi": (2 / 3, 1.0)}
+VIEW_FACE_DEG, VIEW_BACK_DEG = 60.0, 120.0           # mục 4: mặt ≤ 60°, lưng ≥ 120°, còn lại nghiêng
+VIEWS = ("mat", "lung", "nghieng")
+GOC = ("ngang", "cui", "ngua")
+
+
+def fold(s) -> str:
+    """Chữ thường không dấu ('Phải' → 'phai', 'đ' → 'd') để so khóa do Director/người dùng gõ."""
+    s = unicodedata.normalize("NFD", str(s).lower().replace("đ", "d"))
+    return "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+
+
+def _span(parts, table, what):
+    lo = hi = None
+    for p in parts:
+        if p in ("*", ""):
+            return None
+        if p not in table:
+            raise ValueError(f"vùng {what} '{p}' không hợp lệ (dùng {', '.join(table)})")
+        a, b = table[p]
+        lo, hi = (a, b) if lo is None else (min(lo, a), max(hi, b))
+    return None if lo is None else (lo, hi)
+
+
+def parse_zone(z) -> Dict:
+    """Vùng đích trên lưới một phần ba (mục 3.2): "ngang-dọc", vd "phai-giua", "giua+phai-duoi", "trai" (chỉ ngang), "*-tren" (chỉ dọc).
+    Nhận cả chữ có dấu / cách viết của Director: "1/3 phải, 1/3 giữa", "giữa dưới". Một chữ "tren"/"duoi" đứng riêng = chỉ dọc.
+    Trả {"u": (lo, hi) | None, "w": (lo, hi) | None} (u trái→phải, w trên→dưới, 0..1)."""
+    if z in (None, "", "*"):
+        return {"u": None, "w": None}
+    if isinstance(z, dict):
+        return {"u": None if z.get("u") is None else tuple(z["u"]), "w": None if z.get("w") is None else tuple(z["w"])}
+    s = fold(z).replace("1/3", " ")
+    for ch in ",;/":
+        s = s.replace(ch, "-")
+    parts = [p.strip() for p in s.replace("|", "+").split("-") if p.strip()] or [""]
+    if len(parts) == 1 and " " in parts[0]:
+        parts = parts[0].split()
+    parts = [[q.strip() for q in p.split("+")] for p in parts]
+    if len(parts) > 2:
+        raise ValueError(f"vùng '{z}': tối đa 2 phần (ngang-dọc)")
+    if len(parts) == 1 and all(q in ("tren", "duoi") for q in parts[0]):
+        return {"u": None, "w": _span(parts[0], _W_ZONE, "dọc")}
+    return {"u": _span(parts[0], _U_ZONE, "ngang"), "w": _span(parts[1], _W_ZONE, "dọc") if len(parts) > 1 else None}
+
+
+def zone_centre(zone: Dict, default_w: Optional[float] = None) -> Tuple[Optional[float], Optional[float]]:
+    u = None if zone.get("u") is None else (zone["u"][0] + zone["u"][1]) / 2
+    w = default_w if zone.get("w") is None else (zone["w"][0] + zone["w"][1]) / 2
+    return u, w
+
+
+def zone_miss(uv, zone: Dict) -> float:
+    """Khoảng lệch (phần khung) của điểm uv ra ngoài vùng đích; 0 = trong vùng. None/không đo được = 1."""
+    if not uv:
+        return 1.0
+    m = 0.0
+    for k, val in (("u", uv[0]), ("w", uv[1])):
+        r = zone.get(k)
+        if r is not None:
+            m = max(m, r[0] - val, val - r[1], 0.0)
+    return m
+
+
+def view_of(facing: float, obj_xy: Sequence[float], cam: Sequence[float]) -> str:
+    """Mục 4: máy thấy mặt / lưng / nghiêng của người quay hướng `facing` (độ từ Bắc)."""
+    to_cam = bearing_deg(cam[0] - obj_xy[0], cam[1] - obj_xy[1])
+    a = abs((to_cam - facing + 180.0) % 360.0 - 180.0)
+    return "mat" if a <= VIEW_FACE_DEG else ("lung" if a >= VIEW_BACK_DEG else "nghieng")
+
+
+def obj_height(o: Dict) -> float:
+    return float(o["H"] if o["kind"] == "nguoi" else o["h"])
+
+
+def object_points(o: Dict, cam: Optional[Sequence[float]] = None, co: Optional[str] = None) -> List[Tuple[float, float, float]]:
+    """Mục 4: điểm phủ vật để đo % thấy. Người: 9 mức cao × 3 điểm ngang (theo trục phải của máy) = 27; đứng trong giếng chỉ giữ phần
+    trên miệng giếng (`rim_z`); có `co` (thứ chính đo cỡ) thì chỉ giữ phần thân cỡ đó cần thấy (MCU: 35 % trên — S1 không đòi cả người).
+    Đạo cụ trụ (giếng): đáy, giữa, miệng × tâm + 4 điểm vành = 15. Mốc (tháp): 9 điểm dọc trục."""
+    x, y, z0 = float(o["xy"][0]), float(o["xy"][1]), float(o.get("z", 0.0))
+    h = obj_height(o)
+    if o["kind"] == "nguoi":
+        if cam is not None and math.hypot(cam[0] - x, cam[1] - y) > 1e-6:
+            ra = math.radians(bearing_deg(cam[0] - x, cam[1] - y) + 90)
+            rx, ry = math.sin(ra), math.cos(ra)
+        else:
+            rx, ry = 1.0, 0.0
+        rim = o.get("rim_z")
+        lo = z0 if co not in FRAMING else z0 + h * (1 - FRAMING[co][0])
+        lo = lo if rim is None else max(lo, rim)
+        span = z0 + h - lo
+        pts = [(x + rx * lat, y + ry * lat, lo + span * (0.03 + 0.95 * k / 8)) for k in range(9) for lat in (-0.12, 0.0, 0.12)]
+        if o.get("facing") is not None and co not in ("MCU", "CU", "ECU"):
+            # mặt/mũi nhô 0,25 m theo hướng mặt ở tầm mắt (V2 #24 shot 7: mũi Kelly 'không được có' lọt góc khung mà 27 điểm thân không bắt)
+            fa = math.radians(float(o["facing"]))
+            pts.append((x + math.sin(fa) * 0.25, y + math.cos(fa) * 0.25, z0 + h * EYE))
+        return pts
+    if o["kind"] == "moc":
+        return [(x, y, z0 + h * (k + 0.5) / 9) for k in range(9)]
+    r = float(o.get("r", 0.0)) * 0.9
+    pts = []
+    for fz in (0.05, 0.5, 1.0):
+        zz = z0 + h * fz
+        pts.append((x, y, zz))
+        pts += [(x + r * math.sin(math.radians(a)), y + r * math.cos(math.radians(a)), zz) for a in (0, 90, 180, 270)]
+    return pts
+
+
+def size_span(o: Dict, co: Optional[str] = None) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
+    """(điểm trên, điểm dưới) để đo cỡ trong khung. Người: đỉnh đầu → đáy phần thân của cỡ `co` (FRAMING), không thấp hơn miệng giếng
+    khi đứng trong giếng; đạo cụ/mốc: miệng/đỉnh → đáy."""
+    x, y, z0 = float(o["xy"][0]), float(o["xy"][1]), float(o.get("z", 0.0))
+    h = obj_height(o)
+    top = z0 + h
+    bot = z0
+    if o["kind"] == "nguoi":
+        body = FRAMING[co][0] if co in FRAMING else 1.0
+        bot = top - h * body
+        if o.get("rim_z") is not None:
+            bot = max(bot, float(o["rim_z"]))
+    return (x, y, top), (x, y, bot)
+
+
+def anchor_point(o: Dict, co: Optional[str] = None) -> Tuple[float, float, float]:
+    """Điểm đại diện để đặt vào vùng đích: giữa đoạn đo cỡ (người: phần thân trong khung của cỡ `co`)."""
+    t, b = size_span(o, co)
+    return t[0], t[1], (t[2] + b[2]) / 2
+
+
+def zone_point(o: Dict, co: Optional[str] = None) -> Tuple[float, float, float]:
+    """Điểm của vật được đặt vào vùng đích (S2). Người = MẮT (0,93·H — quy tắc một phần ba đặt mắt; với cỡ chặt tâm thân không thể nằm
+    ở 1/3 trên, đo 09/10: MCU 'giua-tren' lệch 0,26 khung). Đạo cụ / mốc = giữa đoạn đo cỡ."""
+    if o["kind"] == "nguoi":
+        return float(o["xy"][0]), float(o["xy"][1]), float(o.get("z", 0.0)) + EYE * float(o["H"])
+    return anchor_point(o, co)
+
+
+def frame_eval(cam, aim, lens: float, aspect: float, objs: Dict[str, Dict], co: Optional[str] = None,
+               size_key: Optional[str] = None) -> Dict:
+    """Giai đoạn (a) mục 6.5 — Python thuần: mỗi vật → % điểm trong khung, vị trí (u, w) (người: mắt; vật: tâm phần trong khung),
+    cỡ (% chiều cao khung), hướng thấy; cộng pitch/yaw máy. `size_key` = vật đo cỡ theo `co` (thứ chính đầu tiên); vật khác cả thân."""
+    yaw, pitch = look(cam, aim)
+    out = {}
+    for k, o in objs.items():
+        pts = object_points(o, cam, co if k == size_key else None)
+        pr = [project(cam, aim, p, lens, aspect) for p in pts]
+        ins = [q for q in pr if in_frame(q)]
+        t, b = size_span(o, co if k == size_key else None)
+        pt, pb = project(cam, aim, t, lens, aspect), project(cam, aim, b, lens, aspect)
+        cen = None if not ins else [round(sum(q[0] for q in ins) / len(ins), 3), round(sum(q[1] for q in ins) / len(ins), 3)]
+        if o["kind"] == "nguoi":
+            pe = project(cam, aim, zone_point(o), lens, aspect)
+            uv = [round(pe[0], 3), round(pe[1], 3)] if in_frame(pe) else None
+        else:
+            uv = cen
+        out[k] = {"n": len(pts), "in_pct": round(100.0 * len(ins) / len(pts), 1) if pts else 0.0, "uv": uv, "uv_than": cen,
+                  "size_pct": None if pt is None or pb is None else round(100.0 * (pb[1] - pt[1]), 1),
+                  "view": view_of(o["facing"], o["xy"], cam) if o["kind"] == "nguoi" and o.get("facing") is not None else None,
+                  "dist_m": round(math.dist(cam, anchor_point(o)), 2)}
+    return {"obj": out, "pitch": round(pitch, 2), "yaw": round(yaw, 2)}
+
+
+# Ngưỡng v2 — TẠM, chờ hiệu chỉnh bằng phản hồi người dùng (stage_feedback.jsonl, ≥ 3 phản hồi cùng chiều mới đổi — mục 7.3)
+RULE_TH.update({
+    "S1_nguoi_pct": (60.0, "tạm, chờ hiệu chỉnh: mục 7.2 — người chính thấy ≥ 60 % điểm phủ (trong giếng: phần trên miệng)"),
+    "S1_dao_cu_pct": (50.0, "tạm, chờ hiệu chỉnh: mục 7.2 — đạo cụ chính thấy ≥ 50 %"),
+    "S1_moc_pct": (25.0, "tạm, chờ hiệu chỉnh: mốc lớn (tháp 38 m) chỉ lọt một phần khung dọc; mục 7.2 chưa ghi số cho mốc"),
+    "S2_tol": (0.08, "tạm, chờ hiệu chỉnh: mục 7.2 — tâm vật trong vùng đích ± 0,08 khung"),
+    "S6_max_pct": (70.0, "tạm, chờ hiệu chỉnh: mục 7.2 — một nhóm ngoài yêu cầu > 70 % khung (đo #24: máy 3,4 m sàn 84,5 %)"),
+})
+
+
+def _seen(e: Dict) -> float:
+    """% thấy: có số Blender (đã trừ bị che) thì dùng, không thì % trong khung (giai đoạn a)."""
+    v = e.get("seen_pct")
+    return float(e.get("in_pct") or 0.0) if v is None else float(v)
+
+
+def check_spec(m: Dict, spec: Dict, objs: Dict[str, Dict], th: Optional[Dict] = None) -> Dict:
+    """Luật P1–P4 (vật lý) + S1–S6 (sinh từ yêu cầu khung) — mục 7.1–7.2; thay L1/L5–L10 của cách dò mù. `m` = frame_eval (+ số Blender:
+    seen_pct/blocked_by từng vật, percent, cam_floor, cam_inside, occluder_pct/_m, well_hip_ratio). Số nào chưa đo thì luật đó bỏ qua
+    (giai đoạn a). Không tự đổi ý đồ. Trả {'ok', 'fail': [mã], 'why': {mã: câu có số}, 'phu': {vật: đạt?}, 'miss': tổng lệch vùng}."""
+    why: Dict[str, List[str]] = {}
+
+    def bad(code, txt):
+        why.setdefault(code, []).append(txt)
+    if "cam_floor" in m:
+        if not (m.get("cam_floor") == "same" or (m.get("cam_floor") == "step" and spec.get("cam_on_step"))) or m.get("cam_inside"):
+            bad("P1", f"sàn dưới máy '{m.get('cam_floor')}'" + (", máy nằm trong vật" if m.get("cam_inside") else ""))
+    oc, om = m.get("occluder_pct"), m.get("occluder_m")
+    if oc is not None and (oc > _th(th, "L9_max_pct") or (om is not None and om < _th(th, "L9_min_m"))):
+        bad("P2", f"vật rắn trước thứ chính chiếm {oc}% khung, gần nhất {om} m")
+    p, goc = m.get("pitch"), fold(spec.get("goc") or "")
+    if p is not None and goc and ((goc == "ngang" and abs(p) > _th(th, "L7_ngang")) or (goc == "cui" and p > _th(th, "L7_cui"))
+                                  or (goc == "ngua" and p < _th(th, "L7_ngua"))):
+        bad("P3", f"pitch thật {p:.1f}° không phải '{spec.get('goc')}'")
+    r = m.get("well_hip_ratio")
+    if r is not None and not (_th(th, "L10_lo") <= r <= _th(th, "L10_hi")):
+        bad("P4", f"đỉnh giếng ÷ hông = {r}")
+    obj_m = m.get("obj") or {}
+    first = next((c["vat"] for c in spec.get("thanh_phan", []) if c.get("vai") == "chinh"), None)
+    tol = _th(th, "S2_tol")
+    phu, miss = {}, 0.0
+    for c in spec.get("thanh_phan", []):
+        k, vai = c["vat"], c.get("vai")
+        e = obj_m.get(k) or {}
+        o = objs.get(k) or {}
+        seen = _seen(e)
+        lab = o.get("label", k)
+        if vai == "khong_duoc_co":
+            if seen > 0:
+                bad("S5", f"{lab} không được có nhưng thấy {seen:g}%")
+            continue
+        zone = parse_zone(c.get("vung"))
+        zm = zone_miss(e.get("uv"), zone) if (zone["u"] or zone["w"]) else 0.0
+        want_view = [fold(v).strip() for v in str(c.get("thay") or "").split("|") if v.strip()]
+        lo_hi = c.get("co_pct")
+        if lo_hi is None and k == first and spec.get("co") in FRAMING:
+            share = FRAMING[spec["co"]][1] * 100
+            lo_hi = [share * (1 - _th(th, "L3_rel")), share * (1 + _th(th, "L3_rel"))]
+        if vai == "phu":
+            phu[k] = seen > 0 and zm <= tol and (not want_view or e.get("view") in want_view)
+            continue
+        need = _th(th, {"nguoi": "S1_nguoi_pct", "moc": "S1_moc_pct"}.get(o.get("kind"), "S1_dao_cu_pct"))
+        if seen < need:
+            b = e.get("blocked_by")
+            bad("S1", f"{lab} thấy {seen:g}% (< {need:g}%)" + (f", bị che bởi {b}" if b else ""))
+        if e.get("uv") is None or zm > tol:
+            bad("S2", f"{lab} ở {e.get('uv')} lệch vùng '{c.get('vung')}' {zm:.2f} khung (> {tol:g})")
+        miss += zm
+        sz = e.get("size_pct")
+        if lo_hi and (sz is None or not (lo_hi[0] <= sz <= lo_hi[1])):
+            bad("S3", f"{lab} chiếm {sz}% chiều cao khung, cần {lo_hi[0]:.0f}–{lo_hi[1]:.0f}%")
+        if want_view and e.get("view") not in want_view:
+            bad("S4", f"{lab}: máy thấy '{e.get('view')}', cần {'/'.join(want_view)}")
+    pct = m.get("percent")
+    if pct:
+        listed = {(objs.get(c["vat"]) or {}).get("group") for c in spec.get("thanh_phan", []) if c.get("vai") != "khong_duoc_co"}
+        out_ = {g: v for g, v in pct.items() if g not in listed}
+        if out_:
+            g, v = max(out_.items(), key=lambda x: x[1])
+            if v > _th(th, "S6_max_pct"):
+                bad("S6", f"'{g}' (ngoài yêu cầu) chiếm {v}% khung (> {_th(th, 'S6_max_pct'):g}%)")
+    order = ["P1", "P2", "P3", "P4", "S1", "S2", "S3", "S4", "S5", "S6"]
+    fail = [c for c in order if c in why]
+    return {"ok": not fail, "fail": fail, "why": {c: "; ".join(why[c]) for c in fail}, "phu": phu, "miss": round(miss, 3)}

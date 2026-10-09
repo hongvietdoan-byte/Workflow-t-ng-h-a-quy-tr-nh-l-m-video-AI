@@ -84,6 +84,11 @@ Không đạt ở K4 → quay về K3 dò quanh lời giải (mục 6.4). Vẫn 
 - **co_pct:** khoảng % chiều cao khung.
 - **Cỡ cảnh (`co`) là cỡ của cả khung**, đo theo thứ `chinh` đầu tiên; không phải cỡ của một nhân vật bất kỳ. Đo #24: một "toàn cảnh" tính theo cỡ Kelly ra Kelly 52 % khung.
 - Director phải ghi lý do ở `muc_dich`. Code kiểm tính tự nhất quán trước khi giải: hai thứ `chinh` cùng một vùng mà xa nhau trên sàn → báo mâu thuẫn ngay.
+- **Chốt khi làm V1 (09/10):**
+  - Cách ghi vùng: `"ngang-dọc"`, vd `"phai-giua"`, `"giua+phai-duoi"` (ghép ô), `"trai"` (chỉ ngang), `"duoi"` (chỉ dọc); nhận cả chữ có dấu.
+  - **Vị trí của NGƯỜI trong vùng = MẮT** (0,93·H), theo quy tắc một phần ba. Lý do đo được: cỡ MCU thân chiếm 85 % khung nên tâm thân không thể nằm ở 1/3 trên (lệch 0,26 khung). Đạo cụ / mốc = tâm phần thấy.
+  - Không ghi vùng dọc: mắt người đặt trên đường 1/3 trên; đạo cụ giữa khung.
+  - Nhịp: `blocking.beats` ghi đè từng vật theo nhịp (`hidden`, `at`, `H` tư thế, `in`); shot ghi `"nhip"`. Ngồi / quỳ = người nộm thấp hơn (`tu_the`).
 
 ## 4. Tính cho từng vật
 
@@ -138,6 +143,13 @@ Gọi A = thứ `chinh` thứ nhất, B = thứ `chinh` hoặc mốc thứ hai (
 - **Tinh chỉnh:** pitch khác 0 làm u lệch chút ít. Lặp 2–3 lần: chiếu lại A, B, chỉnh α và D cho đến khi lệch vùng ≤ 0,02 khung.
 
 **6.4 Đường lùi khi lời giải bị che hoặc đứng chỗ cấm.** Dò quanh lời giải: α ± 5° / 10° / 15°, D ± 10–20 %, độ cao ± 0,3 m. Khoảng 30 điểm, không phải 72 điểm mù. Giữ phương án lệch vùng ít nhất mà vẫn đạt. Hết đường lùi thì báo kiểu "giếng bị Kelly che ở mọi hướng 150–210° → đề xuất dời Kelly sang J11 hoặc đổi cỡ MCU".
+
+**6.4b Chốt khi làm V1 (09/10, `core/stage_solver.py`).**
+- **Cỡ là một khoảng** (`co_pct`, hoặc bảng cỡ ± 15 %). Ở khoảng cách đích không có điểm nào thấy AB dưới góc γ → thử các khoảng cách khác trong khoảng cỡ, gần đích trước, rồi ghi chú. #24 shot 9: 2,31 m không có, 1,97 m có.
+- **γ ≈ 0** (hai thứ cùng cột, vd giếng sau lưng yêu nữ): máy nằm trên đường B→A kéo dài.
+- B có cả vùng dọc → thả độ cao máy trong lớp ± 0,3 m (đủ ẩn). Hệ dư phương trình thì vị trí A được ưu tiên (trọng số 4), B và cỡ chịu lệch.
+- Luật S1 với thứ chính đầu tiên chỉ tính **phần thân mà cỡ cần thấy** (MCU: 35 % trên), không đòi thấy cả người.
+- Không đạt ở mọi phương án → `advice`: luật nào hỏng ở cả N phương án, kèm câu gợi ý sửa. Đây là đầu vào K5.
 
 **6.5 Hai giai đoạn kiểm.**
 - (a) Python thuần: chiếu các điểm, ra vùng / cỡ / trong khung, loại phương án sai ngay (mili giây).
@@ -202,7 +214,9 @@ Sau khi vẽ ảnh: so "nền thật" với ảnh kết quả bằng `plate_layo
 ## 9. Dữ liệu và code
 | Thứ | Nơi |
 |---|---|
-| Hình học thuần (ô ↔ tọa độ, chiếu điểm, cung góc nội tiếp, lời giải máy, luật) | `core/stage_grid.py` (+ module giải máy khi làm K3) |
+| Hình học thuần (ô ↔ tọa độ, chiếu điểm, vùng đích, luật P/S) | `core/stage_grid.py` |
+| Giải máy K3 (góc nội tiếp, tinh chỉnh, đường lùi, gợi ý sửa) | `core/stage_solver.py` |
+| Chạy v2: `py tools/stage_grid.py v2 --blocking … --specs … --out … --stage-from <thư mục K1> [--solve-only]` | `tools/stage_grid.py` |
 | Blender: đo sàn, dựng khối, đo bằng tia, clay, nền thật | `tools/stage_grid.py` |
 | Dữ liệu cảnh | `data/projects/<pid>/stage/`: `stage.json`, `grid.json`, `blocking.json`, `shot_specs.json`, `setups.json`, `stage_feedback.jsonl`, ảnh |
 | Cache sân khấu | theo (sha map, place, spot): tính lại khi map đổi |
@@ -210,8 +224,8 @@ Sau khi vẽ ảnh: so "nền thật" với ảnh kết quả bằng `plate_layo
 ## 10. Thứ tự làm (từ trạng thái hiện tại)
 | # | Việc | Chi phí |
 |---|---|---|
-| V1 | Bộ giải máy K3 (mục 6) + luật S1–S6 thay L5/L6/L8; nhãn chỉ cho `chinh`/`phu`; vẽ vùng đích lên clay | 0 USD |
-| V2 | Thử V1 trên #24 bằng `shot_specs` viết tay cho 9 shot (lấy từ góp ý của người dùng). So với 72 điểm dò mù: số đạt, độ lệch vùng, thời gian | 0 USD |
+| V1 ✅ | Bộ giải máy K3 (mục 6) + luật S1–S6 thay L5/L6/L8; nhãn chỉ cho `chinh`/`phu`; vẽ vùng đích lên clay | 0 USD |
+| V2 ✅ | Thử V1 trên #24 bằng `shot_specs` viết tay cho 9 shot (lấy từ góp ý của người dùng). So với 72 điểm dò mù: số đạt, độ lệch vùng, thời gian — kết quả ở Phụ lục A | 0 USD |
 | V3 | Director viết `blocking` + `shot_specs` (prompt dạng cách nghĩ có lý do), thay phần "Claude duyệt render" của G0 | Claude ≈ vài cent mỗi cảnh, báo trước |
 | V4 | #24: tấm ghép → người duyệt → báo giá vẽ lại shot 1–9 | báo giá |
 | V5 | Nối vào luồng (sau cờ), đo `level_9_4` và các chỗ đứng khác, Bàn đạo diễn 3D (G3) | 0 USD |
@@ -236,6 +250,11 @@ Sau khi vẽ ảnh: so "nền thật" với ảnh kết quả bằng `plate_layo
   - giếng cao 0,9 m, đường kính 1,5 m; yêu nữ cao 1,7 m;
   - nhãn ngoài khung vẽ thành mũi tên ở mép;
   - luật theo yêu cầu của Director.
+- **V1 + V2 (09/10 tối, 0 USD)** — `core/stage_solver.py`, `tools/stage_grid.py v2`, đầu vào viết tay ở `tools/experiments/stage_v2_p24/`, kết quả `data/projects/24/stage_v2/` (ngoài git):
+  - K3 giải 9 shot trong 0,1–0,6 s; K4 Blender đo 250 phương án (≈ 28 / shot) trong ≈ 32–40 s. Dò mù cũ: 216 điểm cho 3 yêu cầu, ≈ 29 s đo.
+  - Vòng K5 lần 1 (bộ giải tự báo, chưa chạy Blender): 3 yêu cầu viết tay mâu thuẫn hình học — shot 1 giếng "1/3 dưới" khi máy ngang tầm mắt; shot 2 MS quá chặt để Kelly trái + giếng phải; shot 9 Kelly–yêu nữ chỉ cách 0,85 m. Sửa yêu cầu (ghi `_sua_k5` trong file).
+  - Kết quả: **7/9 shot có máy đạt đủ P1–P4 + S1–S6** (1, 2, 4, 5, 6, 8, 9). Hỏng thật, cần sửa dàn cảnh (người dùng / Director quyết): shot 3 qua vai — Kelly che giếng còn thấy 33 %; shot 7 — yêu nữ đứng che giếng còn 13 %. Shot 5 đạt sát ngưỡng (yêu nữ thấy 60,7 %, thành giếng che phần dưới).
+  - Lỗi đo bắt được khi chạy thật → sửa tận gốc: (1) đo sàn cho mọi vật TRƯỚC khi dựng khối (yêu nữ cách người nộm Kelly 5 cm bị đặt xuống tầng −6,18 m → thấy 0 %), có cảnh báo khi người nộm không đứng trên mặt sàn; (2) điểm phủ người thêm điểm mặt/mũi (mũi Kelly "không được có" lọt góc shot 7 mà 27 điểm thân không bắt).
 - **Chưa tái hiện được:** lỗi "tường cao che" của shot 4 và 5. Có thể ảnh người dùng chê được vẽ từ camera cũ, khác camera hiện tại.
 
 ## Phụ lục B — Vì sao bỏ cách G0 cũ
