@@ -506,6 +506,8 @@ def _say_new(conn, pid: int, sev: str, msg: str, code: str = CODE, log: Callable
         seen = None
     if not seen:
         _say(conn, pid, sev, msg, code, log)
+    else:
+        log(msg)                                          # 09/10 chạy thật #24: the person at the CLI still reads why nothing ran
 
 
 def before_plates(conn, pid: int, data_dir: str, client=None, force: bool = False,

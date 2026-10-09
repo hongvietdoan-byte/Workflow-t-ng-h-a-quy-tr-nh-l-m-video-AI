@@ -562,6 +562,18 @@ class ReviewFixTests(G0Base):
         self.assertTrue(rows)
         self.assertTrue(all(r["count"] == 1 for r in rows), [(r["message"][:60], r["count"]) for r in rows])
 
+    def test_7b_a_repeated_state_is_still_printed_at_the_cli(self):
+        """09/10 chạy thật #24: the 2nd CLI run printed nothing (the 'no Claude' line was already in diag)."""
+        with mock.patch.dict(os.environ, ON):
+            pid = self.scene()
+            seen = []
+            for _ in range(2):
+                camera_plan._say_new(self.p.conn, pid, "warn", "Chưa cấu hình Claude", log=seen.append)
+        self.assertEqual(seen, ["Chưa cấu hình Claude"] * 2)
+        n = self.p.conn.execute("SELECT COUNT(*) FROM diag_events WHERE project_id=? AND message=?",
+                                (pid, "Chưa cấu hình Claude")).fetchone()[0]
+        self.assertEqual(n, 1)
+
 
 if __name__ == "__main__":
     unittest.main()
