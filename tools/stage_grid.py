@@ -282,7 +282,7 @@ def blender_main(cfg):
                         hollow=bool(p.get("hollow")))
         else:
             hgt = p["height"]
-            body_h = hgt - 0.26
+            body_h = hgt - 0.13                    # thân lên tới tâm đầu: không còn khe cổ (09/10: người nộm bò 0,6 m mất 46 % điểm vào khe)
             if p.get("in_well") is not None:
                 # đứng TRONG giếng: chân dưới mặt sàn (z âm) là cố ý — ghi rõ, không tính là lỗi "khác mặt sàn"
                 # mặt sàn lấy theo chân đế giếng (tia xuống tại tâm giếng đi qua đáy tối sát sàn → đọc tầng dưới −6,18 m, lần chạy 1)
@@ -763,6 +763,13 @@ def s1_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
             "rule_th": {k: list(v) for k, v in sg.RULE_TH.items()}, "first": first}
 
 
+def ss_end_spec(spec):
+    """= core.stage_solver.end_spec (Blender không nạp package core): khung cuối chuyển động bỏ cỡ + vùng."""
+    e = dict(spec, co=None)
+    e["thanh_phan"] = [{k: v for k, v in c.items() if k not in ("co_pct", "vung")} for c in spec["thanh_phan"]]
+    return e
+
+
 def v2_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, Vector, bpy, rp, out, warnings):
     """Sân khấu 3D v2 giai đoạn (b) (PHUONG_PHAP mục 6.5, 7): mỗi shot đã được GIẢI ở máy chủ (core/stage_solver) thành vài phương án;
     ở đây đo bằng tia: thành phần khung, % thấy từng vật (trừ bị che, ghi vật che), vật cản sát ống kính, sàn dưới máy → luật P1–P4 +
@@ -934,6 +941,11 @@ def v2_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
             chk = sg.check_spec(m, spec, objs)
             best = {"tag": c["tag"], "fallback": c.get("fallback", False), "ok": chk["ok"] and c.get("c1_ok", True),
                     "c1_ok": c.get("c1_ok", True), "check": chk, "m": m, "name": f"v2_shot{su['shot']}"}
+            if c.get("end"):                                                   # máy di chuyển: đo + chấm khung CUỐI (cỡ/vùng được đổi)
+                me = measure(c["end"]["at"], c["end"]["aim"], c["lens"], res, fine, spec)
+                ce = sg.check_spec(me, ss_end_spec(spec), objs)
+                best["end"] = {"m": me, "check": ce, "name": f"v2_shot{su['shot']}_cuoi"}
+                best["ok"] = best["ok"] and ce["ok"]
         shots.append({"shot": su["shot"], "spec": spec, "objs": objs, "n": len(rows), "n_ok": sum(1 for r in rows if r["ok"]), "best": best,
                       "rows": [{k: v for k, v in r.items() if k not in ("m", "c")} | {"at": r["m"]["at"], "pitch": round(r["m"]["pitch"], 1),
                                                                                       "pct": r["m"]["percent"]} for r in rows]})
@@ -945,6 +957,9 @@ def v2_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
                 use(su)
                 b = s["best"]["m"]
                 s["best"]["clay"] = clay(s["best"]["name"], b["at"], b["aim"], b["lens"], res)
+                if s["best"].get("end"):
+                    e = s["best"]["end"]
+                    e["clay"] = clay(e["name"], e["m"]["at"], e["m"]["aim"], e["m"]["lens"], res)
     finally:
         scene.render.engine = keep
     return {"shots": shots, "measure_sec": measure_sec, "res": res, "coarse": coarse, "fine": fine,
@@ -1292,11 +1307,15 @@ def v2_main(argv):
             if s["errors"] or not s["cams"]:
                 continue
             spec = next(p for p in specs if p.get("shot") == s["shot"])
-            bo = beats[spec.get("nhip") or ""]
-            cands = [{k: c[k] for k in ("tag", "at", "aim", "lens", "fallback", "c1_ok")} for c in s["cams"][:a.max_cands]]
+            bo = {k: v for k, v in beats[spec.get("nhip") or ""].items() if k in (s.get("objs_used") or beats[spec.get("nhip") or ""])}
+            cands = [{k: c.get(k) for k in ("tag", "at", "aim", "lens", "fallback", "c1_ok", "end")} for c in s["cams"][:a.max_cands]]
+            for c in cands:
+                if c["end"]:
+                    c["end"] = {"at": c["end"]["at"], "aim": c["end"]["aim"]}
             setups.append({"shot": s["shot"], "spec": spec, "cands": cands, "objs": bo,
                            "show": [o["prop"] for o in bo.values() if o.get("prop")],
-                           "axis": None if not blocking.get("axis") else [list(bo[k]["xy"]) + [0.0] for k in blocking["axis"]]})
+                           "axis": None if not blocking.get("axis") else
+                           [list(beats[spec.get("nhip") or ""][k]["xy"]) + [0.0] for k in blocking["axis"]]})   # trục theo nhịp đầy đủ (POV bỏ người cầm máy khỏi vật)
         extra = [[o["xy"][0], o["xy"][1], 2.0] for bo in beats.values() for o in bo.values() if o["kind"] != "moc"]
         cfg = {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spot["at"],
                "anchor_model": m3["anchor"], "cell_m": 1.0, "cols": 20, "rows": 20, "acting_area": {"half_m": 3.0, "extra": extra},
@@ -1375,6 +1394,14 @@ def draw_v2(out):
                   ("ĐẠT P/S" if b["ok"] else "HỎNG " + "; ".join(f"{c}: {w}" for c, w in b["check"]["why"].items()))[:110]
                   + f" · {s['n_ok']}/{s['n']} phương án đạt"]
         files.append(_overlay_v2(out, b, s["spec"], objs, footer))
+        if b.get("end") and b["end"].get("clay"):
+            e, mv = b["end"], s["spec"].get("may") or {}
+            em = e["m"]
+            files.append(_overlay_v2(out, e, ss_end_spec(s["spec"]), objs, [
+                f"shot {s['shot']} — KHUNG CUỐI: máy {mv.get('kieu')} {mv.get('m')} m" + (f", rung {mv['rung']}" if mv.get("rung") else ""),
+                f"ô {em['cell']} · cao {em['cam_above_floor_m']} m · pitch {em['pitch']:.1f}°",
+                " · ".join(f"{objs[k].get('label', k)} thấy {em['obj'][k]['seen_pct']:g}% cỡ {em['obj'][k]['size_pct']}%" for k in main if k in em["obj"]),
+                ("ĐẠT" if e["check"]["ok"] else "HỎNG " + "; ".join(f"{c}: {w}" for c, w in e["check"]["why"].items()))[:110]]))
         fov = sg.fov(m["lens"], v2["res"][0] / v2["res"][1])
         cams.append((f"s{s['shot']}", {"xyz": m["at"], "yaw_deg": m["yaw"], "fov_h_v_deg": list(fov), "cell": m["cell"]}))
     for i in range(0, len(files), 5):
@@ -1397,6 +1424,11 @@ def report_v2(out):
         print(f"{s['shot']} | {s['n_ok']}/{s['n']} | {b['tag']} | {m['cell']} · {m['cam_above_floor_m']} · {m['pitch']:.1f} | "
               + ", ".join(f"{k} {m['obj'][k]['seen_pct']:g}/{m['obj'][k]['size_pct']}" for k in main)
               + f" | {', '.join(b['check']['fail']) or '-'} {b['check']['why'] or ''}")
+        if b.get("end"):
+            e = b["end"]
+            print(f"   └ khung cuối ({s['spec']['may']}): ô {e['m']['cell']} · pitch {e['m']['pitch']:.1f} | "
+                  + ", ".join(f"{k} {e['m']['obj'][k]['seen_pct']:g}/{e['m']['obj'][k]['size_pct']}" for k in main if k in e["m"]["obj"])
+                  + f" | {', '.join(e['check']['fail']) or 'đạt'} {e['check']['why'] or ''}")
 
 
 def host_main(argv=None):

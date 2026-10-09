@@ -93,74 +93,92 @@
   },
   {
    "shot": 5,
-   "nhip": "bam_gieng",
-   "co": "WS",
+   "nhip": "bam_mep",
+   "co": "MS",
    "do_cao": "thap",
-   "goc": "ngang",
-   "muc_dich": "ngang phía Đông, máy thấp: Kelly ngồi bệt tiền cảnh trái nhìn giếng, yêu nữ bám miệng giếng trườn qua — góp ý (4): Kelly ngã ngửa xa giếng",
-   "thanh_phan": [
-    {
-     "vat": "kelly",
-     "vai": "chinh",
-     "vung": "trai",
-     "thay": "nghieng"
-    },
-    {
-     "vat": "yeunu",
-     "vai": "chinh",
-     "vung": "phai"
-    },
-    {
-     "vat": "gieng",
-     "vai": "phu",
-     "vung": "phai-duoi"
-    }
-   ]
-  },
-  {
-   "shot": 6,
-   "nhip": "bo_ra",
-   "co": "MLS",
-   "do_cao": "thap",
-   "goc": "ngang",
-   "muc_dich": "máy thấp ngang mắt Kelly ngồi, phía Nam nhìn lên Bắc: yêu nữ bò về phía máy rồi đứng dậy, giếng sau lưng — góp ý (5): giếng đúng hình",
+   "cao_m": 0.5,
+   "ong_kinh": 24,
+   "muc_dich": "ref emote: máy sát đất trước giếng, yêu nữ thò tay bám mép gần miệng giếng, nhô đầu lên nhìn về máy",
    "thanh_phan": [
     {
      "vat": "yeunu",
      "vai": "chinh",
      "vung": "giua",
-     "thay": "mat"
+     "thay": "mat",
+     "co_pct": [
+      12,
+      30
+     ]
     },
     {
      "vat": "gieng",
-     "vai": "phu",
+     "vai": "chinh",
      "vung": "giua-duoi"
     }
-   ]
+   ],
+   "_chot": "người dùng 09/10 chốt (a): shot 5–7 theo ref emote; 6–7 là góc nhìn Kelly bò lùi vì sợ, máy lùi + rung nhẹ",
+   "_sua_k5": "lần 1 máy 0,3 m: thành giếng che 54 % phần yêu nữ trên miệng giếng → nâng 0,5 m | lần 2: máy 0,5 m đứng sát mép (0,25 m) thấp hơn miệng giếng → không nhìn qua thành; cỡ nhỏ lại để máy lùi xa"
   },
   {
-   "shot": 7,
-   "nhip": "bo_ra",
-   "co": "MLS",
-   "do_cao": "ngang",
-   "goc": "ngang",
-   "muc_dich": "ngang phía Đông: yêu nữ đứng cạnh giếng quay đầu nhìn Kelly (ngoài khung trái) rồi biến hình — góp ý (6): tỉ lệ giếng/yêu nữ phải thấy cả hai",
+   "shot": 6,
+   "nhip": "bo",
+   "pov": "kelly",
+   "co": "MS",
+   "ong_kinh": 24,
+   "may": {
+    "kieu": "lui",
+    "m": 1.0,
+    "rung": "nhe"
+   },
+   "muc_dich": "góc nhìn Kelly ngồi bệt: yêu nữ trườn qua thành giếng bò về phía cô; Kelly sợ bò lùi → máy lùi 1 m, rung nhẹ",
    "thanh_phan": [
     {
      "vat": "yeunu",
      "vai": "chinh",
-     "vung": "giua"
+     "vung": "giua-giua",
+     "thay": "mat",
+     "co_pct": [
+      10,
+      90
+     ]
     },
     {
      "vat": "gieng",
+     "vai": "phu"
+    }
+   ],
+   "_chot": "người dùng 09/10 chốt (a): shot 5–7 theo ref emote; 6–7 là góc nhìn Kelly bò lùi vì sợ, máy lùi + rung nhẹ",
+   "_sua_k5": "lần 1 [20,90]: người nộm bò cao 0,6 m đo dọc ra 19,9 % — cỡ theo chiều cao vô nghĩa với người đang bò ngang | lần 2: mắt yêu nữ ở 1/3 trên → máy POV cúi −38°, khung cuối sàn 75 % → đặt mắt ở giữa khung"
+  },
+  {
+   "shot": 7,
+   "nhip": "lui",
+   "pov": "kelly",
+   "co": "MLS",
+   "ong_kinh": 24,
+   "may": {
+    "kieu": "lui",
+    "m": 1.0,
+    "rung": "nhe"
+   },
+   "muc_dich": "góc nhìn Kelly (đã lùi 1 m) ngước lên: yêu nữ đứng dậy trước giếng; Kelly tiếp tục bò lùi → máy lùi 1 m, rung nhẹ",
+   "thanh_phan": [
+    {
+     "vat": "yeunu",
      "vai": "chinh",
-     "vung": "phai-duoi"
+     "vung": "giua",
+     "thay": "mat",
+     "co_pct": [
+      30,
+      95
+     ]
     },
     {
-     "vat": "kelly",
-     "vai": "khong_duoc_co"
+     "vat": "gieng",
+     "vai": "phu"
     }
-   ]
+   ],
+   "_chot": "người dùng 09/10 chốt (a): shot 5–7 theo ref emote; 6–7 là góc nhìn Kelly bò lùi vì sợ, máy lùi + rung nhẹ"
   },
   {
    "shot": 8,

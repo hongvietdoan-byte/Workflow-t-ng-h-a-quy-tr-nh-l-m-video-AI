@@ -268,3 +268,34 @@ def test_same_column_different_rows_is_not_a_conflict():
     assert not any("mâu thuẫn" in e for e in ss.validate(ok, o))                       # một bên ghi hàng dưới → tách được theo dọc
     assert not any("mâu thuẫn" in e for e in ss.validate(dict(ok, thanh_phan=[ok["thanh_phan"][0], dict(ok["thanh_phan"][1], vung="giua-giua")]), o))
     assert any("mâu thuẫn" in e for e in ss.validate(dict(ok, thanh_phan=[dict(ok["thanh_phan"][0], vung="giua"), ok["thanh_phan"][1]]), o))
+
+
+def test_pov_camera_at_eye_and_dolly_back_checks_end_frame():
+    """Góc nhìn nhân vật: máy ở MẮT người đó (người đó bỏ khỏi khung); máy lùi: khung cuối dời song song m mét, luật chấm cả khung cuối
+    (bỏ cỡ + vùng). #24 shot 6–7 (người dùng 09/10: Kelly sợ bò lùi, máy lùi + rung nhẹ)."""
+    bl = dict(blocking(), beats={"bo": {"kelly": {"at": [0.043, -0.246], "H": 1.0, "tu_the": "ngoi"},
+                                        "yeunu": {"at": [-0.104, 0.591], "facing": 170, "H": 0.6, "tu_the": "bo"}}})
+    o = ss.objects_from_blocking(bl, MARKS, "bo")
+    spec = {"co": "MS", "ong_kinh": 24, "pov": "kelly", "may": {"kieu": "lui", "m": 1.0, "rung": "nhe"},
+            "thanh_phan": [{"vat": "yeunu", "vai": "chinh", "vung": "giua-giua", "thay": "mat", "co_pct": [10, 90]}]}
+    r = ss.solve_shot(spec, o, 9 / 16)
+    assert not r["errors"] and len(r["cams"]) == 1 and "kelly" not in r["objs_used"]
+    c = r["cams"][0]
+    eye = (0.043, -0.246, sg.EYE * 1.0)
+    assert math.dist(c["at"], eye) < 1e-3
+    e = c["end"]
+    assert abs(math.dist(e["at"][:2], c["at"][:2]) - 1.0) < 1e-3 and e["at"][2] == c["at"][2]
+    assert math.dist(e["at"][:2], o["yeunu"]["xy"]) > math.dist(c["at"][:2], o["yeunu"]["xy"])     # lùi = xa yêu nữ hơn
+    assert abs(sg.look(e["at"], e["aim"])[0] - sg.look(c["at"], c["aim"])[0]) < 0.01                # giữ hướng nhìn (tọa độ làm tròn 3–4 số lẻ)
+    assert "co_pct" not in ss.end_spec(spec)["thanh_phan"][0] and ss.end_spec(spec)["co"] is None
+    assert ss.move_errors({"kieu": "xoay", "m": 1}) and ss.move_errors({"kieu": "lui", "m": 0})
+
+
+def test_end_spec_copy_in_tool_matches_solver():
+    import importlib.util
+    import os
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "stage_grid.py")
+    spec_ = importlib.util.spec_from_file_location("stage_grid_tool2", p)
+    mod = importlib.util.module_from_spec(spec_)
+    spec_.loader.exec_module(mod)
+    assert mod.ss_end_spec(SPEC) == ss.end_spec(SPEC)

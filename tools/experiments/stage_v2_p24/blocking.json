@@ -129,7 +129,8 @@
      -0.246
     ],
     "H": 1.0,
-    "tu_the": "ngoi"
+    "tu_the": "ngoi",
+    "_ly_do": "shot 6 POV: máy ở mắt Kelly ngồi, lùi 1 m trong shot"
    },
    "yeunu": {
     "at": [
@@ -159,6 +160,24 @@
     ],
     "facing": 170,
     "_ly_do": "ref emote: bám MÉP GẦN của giếng (không ở tâm), ngực ngang miệng giếng"
+   }
+  },
+  "lui": {
+   "kelly": {
+    "at": [
+     0.217,
+     -1.231
+    ],
+    "H": 1.0,
+    "tu_the": "ngoi",
+    "_ly_do": "người dùng 09/10: Kelly sợ, bò LÙI 1 m sau shot 6 (máy POV lùi theo)"
+   },
+   "yeunu": {
+    "at": [
+     -0.104,
+     0.591
+    ],
+    "facing": 170
    }
   }
  },

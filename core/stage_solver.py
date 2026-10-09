@@ -353,8 +353,20 @@ def solve_shot(spec: Dict, objs: Dict[str, Dict], aspect: float, axis: Optional[
                grid: Optional[Dict[str, Dict]] = None, stage: Optional[Dict] = None, fallback: bool = True) -> Dict:
     """K3 cho một shot: lời giải (≤ 2–3) + đường lùi ≈ 30 điểm, mỗi phương án kèm frame_eval + check_spec giai đoạn (a), ô sàn dưới
     máy (grid.json nếu có), phía trục (C1). Xếp: đạt trước, rồi ít lệch vùng, rồi nhiều thứ phụ đạt. Không có lời giải → `errors`."""
-    errs = validate(spec, objs)
-    res = {"shot": spec.get("shot"), "muc_dich": spec.get("muc_dich"), "errors": errs, "notes": [], "cams": []}
+    pov = spec.get("pov")
+    errs = []
+    if pov and pov not in objs:
+        errs.append(f"pov '{pov}' không có trong dàn cảnh của nhịp")
+    if spec.get("may"):
+        errs += move_errors(spec["may"])
+    eye = None
+    if pov and pov in objs:                            # góc nhìn nhân vật: máy ở MẮT người đó, người đó không có trong khung
+        po = objs[pov]
+        eye = (po["xy"][0], po["xy"][1], po.get("z", 0.0) + sg.EYE * po["H"])
+        objs = {k: v for k, v in objs.items() if k != pov}
+    errs = validate(spec, objs) + errs
+    res = {"shot": spec.get("shot"), "muc_dich": spec.get("muc_dich"), "errors": errs, "notes": [], "cams": [], "pov": pov,
+           "objs_used": list(objs)}
     if errs:
         return res
     sh = Shot(spec, objs, aspect)
@@ -362,6 +374,14 @@ def solve_shot(spec: Dict, objs: Dict[str, Dict], aspect: float, axis: Optional[
     D = distance_for_size(sh.hA, sh.share, sh.tv)
     d0 = _horizontal(D, sh.pA[2] - sh.cz)
     starts = []                                        # (θ, d, tag, free_theta, free_d)
+    if eye is not None:
+        sh.cz = eye[2]
+        th_e, d_e = sg.bearing_deg(eye[0] - A[0], eye[1] - A[1]), math.hypot(eye[0] - A[0], eye[1] - A[1])
+        sol = sh.refine(th_e, d_e, sh.cz, free_theta=False, free_d=False)
+        res["cams"].append(_judge(sh, sol, f"góc nhìn {pov} (máy ở mắt, cao {eye[2]:.2f} m)", axis, s0, grid, stage))
+        res["lens"], res["layer"], res["share"], res["D_A"] = sh.lens, "pov", sh.share, round(D, 3)
+        res["advice"] = advise(res, sh)
+        return res
     if sh.b is not None:
         g = gamma_for(sh.uA, sh.uB, sh.th)
         if abs(g) < 0.5:                               # cùng cột dọc: máy trên đường B→A kéo dài (B ở sau A, vd giếng sau lưng yêu nữ)
@@ -450,27 +470,77 @@ def _fallback_steps():
     return out
 
 
+MOVES = {"lui": -1.0, "tien": 1.0}
+
+
+def move_errors(mv: Dict) -> List[str]:
+    k = sg.fold(mv.get("kieu") or "")
+    if k not in MOVES:
+        return [f"chuyển động máy '{mv.get('kieu')}' chưa hỗ trợ (lui / tien)"]
+    if not (0 < float(mv.get("m") or 0) <= 5):
+        return [f"quãng máy di chuyển {mv.get('m')} m phải trong (0; 5]"]
+    return []
+
+
+def move_end(C, aim, mv: Dict):
+    """Khung CUỐI của máy lùi/tiến: dời song song theo hướng nhìn trên mặt ngang `m` mét (giữ hướng, giữ cao). Rung = ghi chú cho prompt
+    chuyển động, không đổi khung."""
+    f = [aim[0] - C[0], aim[1] - C[1]]
+    n = math.hypot(*f) or 1.0
+    k = MOVES[sg.fold(mv["kieu"])] * float(mv["m"]) / n
+    dx, dy = f[0] * k, f[1] * k
+    return [round(C[0] + dx, 3), round(C[1] + dy, 3), C[2]], [round(aim[0] + dx, 4), round(aim[1] + dy, 4), aim[2]]
+
+
+def end_spec(spec: Dict) -> Dict:
+    """Luật ở khung cuối chuyển động: vẫn đủ thứ chính / không có thứ cấm / đúng hướng thấy, nhưng cỡ + vùng được đổi theo chuyển động
+    (máy lùi thì vật nhỏ lại, dồn về giữa) → bỏ co_pct, cỡ mặc định và vùng."""
+    e = dict(spec, co=None)
+    e["thanh_phan"] = [{k: v for k, v in c.items() if k not in ("co_pct", "vung")} for c in spec["thanh_phan"]]
+    return e
+
+
+def _p1_grid(C, grid, stage):
+    if grid is None or stage is None:
+        return None
+    cell = sg.cell_name(stage, C[0], C[1])
+    g = grid.get(cell) if cell else None
+    if g is None or g.get("status") != "same" or g.get("obstacle"):
+        return f"ô {cell}: {'ngoài lưới' if g is None else g.get('status')}{', vật chắn' if g and g.get('obstacle') else ''}"
+    return None
+
+
 def _judge(sh: Shot, sol: Dict, tag: str, axis, s0, grid, stage, fallback=False) -> Dict:
     C, aim = sol["at"], sol["aim"]
     ev = sg.frame_eval(C, aim, sh.lens, sh.aspect, sh.objs, co=sh.co, size_key=sh.a["vat"])
     m = dict(ev)
-    pre = None
-    if grid is not None and stage is not None:
-        cell = sg.cell_name(stage, C[0], C[1])
-        g = grid.get(cell) if cell else None
-        if g is None or g.get("status") != "same" or g.get("obstacle"):
-            pre = f"ô {cell}: {'ngoài lưới' if g is None else g.get('status')}{', vật chắn' if g and g.get('obstacle') else ''}"
+    pre = _p1_grid(C, grid, stage)
     chk = sg.check_spec(m, sh.spec, sh.objs)
     if pre:
         chk["fail"] = ["P1"] + [f for f in chk["fail"] if f != "P1"]
         chk["why"]["P1"] = pre
         chk["ok"] = False
+    end = None
+    if sh.spec.get("may"):
+        Ce, Ae = move_end(C, aim, sh.spec["may"])
+        eve = sg.frame_eval(Ce, Ae, sh.lens, sh.aspect, sh.objs)
+        ce = sg.check_spec(dict(eve), end_spec(sh.spec), sh.objs)
+        pe = _p1_grid(Ce, grid, stage)
+        if pe:
+            ce["fail"] = ["P1"] + [f for f in ce["fail"] if f != "P1"]
+            ce["why"]["P1"] = pe
+            ce["ok"] = False
+        end = {"at": Ce, "aim": Ae, "eval": eve, "check": ce, "cell": None if stage is None else sg.cell_name(stage, Ce[0], Ce[1])}
+        if not ce["ok"]:                               # khung cuối hỏng = phương án hỏng (ghi mã 'cuối:…')
+            chk["ok"] = False
+            chk["fail"] = chk["fail"] + [f"cuoi:{f}" for f in ce["fail"]]
+            chk["why"].update({f"cuoi:{k}": v for k, v in ce["why"].items()})
     side = None if not axis else sg.axis_side(axis[0], axis[1], C)
     c1 = not (s0 and side not in (s0, "on") and not sh.spec.get("cross_ok"))
     return {"tag": tag, "fallback": fallback, "at": C, "aim": aim, "lens": sh.lens, "yaw": round(sol["yaw"], 2),
             "pitch": round(sol["pitch"], 2), "theta": round(sol["theta"], 2), "d": round(sol["d"], 3), "cz": round(sol["cz"], 3),
             "resid": sol["resid"], "cell": None if stage is None else sg.cell_name(stage, C[0], C[1]), "side": side, "c1_ok": c1,
-            "eval": ev, "check": chk}
+            "eval": ev, "check": chk, "end": end}
 
 
 def _rank(c: Dict):
