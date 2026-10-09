@@ -103,8 +103,8 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
     mốc biến chuyển.
   - **Nền là một nơi thật**, kể cả khi tối: "bóng tối" = đêm/thiếu sáng ở bối cảnh của dự án, không phải nền đen trơn.
   - **Điểm yếu chung của model video — điều kiện cân nhắc, không phải luật cấm (S0.14 T5, 2026-09-30).** Cận mặt diễn tinh tế (vi biểu
-    cảm: môi run, mắt ngấn, nụ cười gượng) và khớp môi là chỗ model hay hỏng nhất — ≥ 3 nguồn làm phim AI độc lập nói vậy
-    (`research/craft/trung_quoc/LUOT_2.md` #22 #23 #25 #27) và số đo của ta cũng thấy (#8: đo mốc môi, 4 clip thoại không khớp môi). Vì vậy khi chọn cách kể một đoạn đòi vi biểu cảm, **cân nhắc** kể bằng hành động / không gian / vật (tay siết lại,
+    cảm: môi run, mắt ngấn, nụ cười gượng) và khớp môi là chỗ model hay hỏng nhất — ≥ 3 nguồn làm phim AI
+    (`research/craft/trung_quoc/LUOT_2.md`) và số đo #8 (4 clip thoại không khớp môi). Vì vậy khi chọn cách kể một đoạn đòi vi biểu cảm, **cân nhắc** kể bằng hành động / không gian / vật (tay siết lại,
     quay lưng bước đi, khoảng trống giữa hai người) hoặc phản ứng của người nghe; và **dồn** cận mặt + khớp môi vào 1–2 câu then chốt thay
     vì rải đều. Khi đoạn đó thật sự cần cận mặt (câu thú nhận, cú twist lộ trên mặt) thì vẫn chọn cận — ghi vào `tradeoffs` vì sao chấp
     nhận rủi ro gen lại. Lý do: cùng một cảm xúc có nhiều cách kể; chọn cách model làm được thì người xem thấy cảm xúc thay vì thấy lỗi.
@@ -159,7 +159,7 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   đổi hẳn nghĩa. Báo cho giọng *cảm xúc, cường độ, nhịp, chỗ ngắt, chữ nhấn* của từng câu, như chỉ đạo diễn viên lồng tiếng.
   - Những gì TTS nhận được (tài liệu chính thức ElevenLabs [Đ20]–[Đ23], skill ClipAI): `speed` 0,7–1,2; eleven_v3 chỉ có 3 mức ổn định
     (Creative = biểu cảm nhất, dễ trôi; Natural; Robust = đều, ít nghe chỉ dẫn); v3 **không đọc thẻ ngắt SSML** — ngắt bằng "…" hoặc thẻ
-    ngắt của v3 `[short pause]` / `[long pause]` [Đ22] (ElevenLabs vẫn khuyên "…" là chính — code giữ "…" cho `true`), nhấn bằng CHỮ HOA, thẻ âm như `[whispers]`, `[sighs]` đặt trước chữ nó tô màu. Câu
+    ngắt của v3 `[short pause]` / `[long pause]` [Đ22], nhấn bằng CHỮ HOA, thẻ âm như `[whispers]`, `[sighs]` đặt trước chữ nó tô màu. Câu
     quá ngắn cho kết quả kém ổn định.
 - **Trong pipeline.** Mỗi câu thoại có thể có `delivery`:
   `{"emotion": "…", "intensity": 1-5, "pace": "slow|normal|fast", "pause_before": true|"short"|"long", "stress": "chữ cần nhấn",
@@ -195,8 +195,7 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
 - **N2. Nhịp do kịch bản và cảm xúc quyết định.** Thời lượng kịch bản ghi là khung (code `shot_normalize` không co phần nào dưới mốc). Shot
   thoại ≥ âm tiết ÷ 3,5 + 0,5 s (code tự kéo dài). **Số đo thật** (2026-09-26, `py tools/measure_speech_rate.py`, 60 câu TTS ElevenLabs
   tiếng Việt của dự án #1–#4, #7): giọng thật nói **2,86 âm tiết/giây** (trung vị; 10% chậm nhất ≤ 2,34, 10% nhanh nhất ≥ 3,73) — chậm
-  hơn 3,5, nhưng 0,5 s cộng thêm bù lại: công thức lệch trung bình −0,07 s, **9/60 câu dài bị ước tính thiếu > 0,5 s**. (Nghiên cứu tiếng
-  Việt đọc thành tiếng đo ~5,25 âm tiết/giây — giọng lồng diễn cảm chậm hơn nhiều, nên không dùng số đó.) Vì vậy: câu dài (≥ 15 âm tiết)
+  hơn 3,5, nhưng 0,5 s cộng thêm bù lại: công thức lệch trung bình −0,07 s, **9/60 câu dài bị ước tính thiếu > 0,5 s**. Vì vậy: câu dài (≥ 15 âm tiết)
   cho shot dư ~0,5 s; khi giọng đã tạo, code dùng **độ dài thật** + 0,5 s thay cho ước tính (`dialogue.BREATH`, Bước 3). Chạy lại công cụ
   sau mỗi đợt có giọng mới; đổi `DIALOGUE_SYLLABLES_PER_SEC` chỉ khi số đo lệch rõ. Không shot im lặng < 1 s; toàn cảnh ≥ 1,5 s (code gộp/kéo). Thừa thời lượng: gộp im lặng →
   rút phản ứng/chèn → (nếu được phép) bỏ câu không ai đáp; thoại cần nhiều hơn khung → thoại thắng, ghi `tradeoffs`.
@@ -205,8 +204,7 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   then chốt quay cận (CU/ECU/MCU, ngang mắt, mặt không che, ≤ 5 s) là ~20% câu quan trọng nhất — đắt hơn.
   **Quyết định 2026-09-26 (người dùng): không mở tài khoản sync.so** — khớp môi CHỈ bằng cách tạo video kèm giọng (Seedance
   `reference_audio`, "prompt trực tiếp"). Vì vậy khi cờ bật: câu cần thấy miệng khớp → shot cận thấy mặt người nói;
-  các câu khác vẫn theo cách né của N3 (trung/toàn, qua vai, nghiêng, lên shot người nghe) — shot rộng giữ miệng của clip, không có bước
-  khớp môi sau.
+  các câu khác vẫn né như trên — shot rộng giữ miệng của clip, không có bước khớp môi sau.
 <!-- shot -->
   Shot đó ghi `"lip_sync": true`. Code: `lipsync.method_for` không chọn `post` khi không có `SYNC_API_KEY` (cận → `generate`, rộng → `skip`);
   khi cờ `dialogue_take` BẬT (verified 01/10/2026, S4.2) shot thoại thấy mặt người nói — cả shot trung / nhiều người — được `method_for` xếp kiểu
@@ -214,8 +212,8 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
 <!-- /shot -->
 <!-- intent:   Tầng A: ghi vào `dp_notes` câu nào cần thấy miệng khớp (và ai nói); Quay phim đặt `"lip_sync": true` và chọn kiểu làm clip.
  -->
-  **Rủi ro chưa thử:** Seedance không công bố hỗ trợ tiếng Việt — có thể miệng không khớp âm Việt; vì vậy câu then chốt vẫn nên có
-  đường lui (câu lên shot người nghe) và thử 1 shot cận (~$0,60) trước khi đặt nhiều `lip_sync: true`.
+  **Rủi ro:** khớp môi tiếng Việt chưa ổn định ở các lần đo — câu then chốt vẫn có đường lui (câu lên shot người nghe); thử 1 shot cận
+  trước khi đặt nhiều `lip_sync: true`.
 - **N4. Nhân vật đúng thiết kế.** Ảnh chuẩn Kho là chuẩn thật; hồ sơ chuẩn đã duyệt thắng mô tả của dự án; mắt người/ảnh chuẩn là trọng tài
   cuối. **Không ghi số tuổi dưới 18** — nhân vật trẻ tả "young, not yet 20" (2A: GPT Image từ chối "17-year-old"; code `no_minor_age` xoá tuổi).
 - **N5. Khởi điểm tham khảo theo thể loại FF** (số đo của các video FF cụ thể: `ff_directing.md`, 519 shot / 19 video; phần còn lại là cách nghề — [KN]). Không phải luật thể loại — tùy kịch bản, làm khác thì ghi `tradeoffs`:
@@ -238,15 +236,13 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   thế nào** vì lý do truyện (Đ3); Quay phim đặt máy (dp.md Q6).
 - **Trong pipeline.** `plate_spot` (tên chỗ đứng — danh sách hiện trong khối "Gói bối cảnh" của prompt), `weather` (chỉ các tên: clear,
   cloudy, fog, rain, storm, snow, snowfall, ice, sandstorm), `time` của cảnh (dawn, day, dusk, night). Tên lạ bị đổi về mặc định **và báo lại**.
-  Hướng máy (`plate_view` + lý do) và đèn cảnh đêm (`practical_lights`) quyết **theo kịch bản từng shot**, không theo chỗ đứng (S5.7,
-  người dùng 29/09 — xem dp.md Q6).
+  Hướng máy (`plate_view` + lý do) và đèn cảnh đêm (`practical_lights`) quyết **theo kịch bản từng shot**, không theo chỗ đứng (dp.md Q6).
 - **Kiểm.** Code: `weather_problem`, `spot_problem` trong kế hoạch nền; điểm khớp nền sau khi vẽ (`place_refs.background_match`).
 
 ### Đ9. Âm thanh cùng cảm xúc (`sound`) — 2026-09-26
 - **Làm gì · vì sao.** Âm thanh là một nửa của cảm xúc và là sợi chỉ nối các clip AI rời rạc, nên quyết **cùng lúc với hình**, không để
   hậu kỳ đoán. Bảng phân cảnh mẫu của Handbook [Đ31] ghi âm thanh cạnh cảm xúc ở *từng* shot: nhạc tắt đột ngột khi khẩu súng xuất hiện,
-  bỏ nhạc lúc phe ác tưởng đã thắng, tắt hết tiếng ở đỉnh. Trước đây pipeline chỉ có Đạo diễn vẽ hình; người làm âm thanh (`sfx_plan`)
-  tự đoán điểm nhấn từ chữ kịch bản, còn khoảng lặng nhạc duy nhất (D6) chỉ đặt trước phần TWIST.
+  bỏ nhạc lúc phe ác tưởng đã thắng, tắt hết tiếng ở đỉnh.
   - **Im lặng là công cụ mạnh nhất:** tắt nhạc thì âm nhỏ nhất (bước chân, tiếng lên đạn, hơi thở) thành to — dùng khi mối đe dọa xuất
     hiện, lúc bình yên giả tạo, ngay trước điều bị lộ. **Lặng ngắn trước cú ngoặt** để cú đánh rơi đúng (D6, editing.md E4). Nhạc **vào
     lại** khi thế trận lật.
@@ -306,18 +302,17 @@ quyết định ở lại hay lướt trong vài giây đầu, nên cảm xúc p
   vì sao) — Quay phim đặt nhịp chiếu cho shot; shot có thoại không kéo giãn.
  -->
 - **Kiểm.** Code: `shots.clean_retime` (chỉ shot không thoại), test ffmpeg độ dài đúng. Người: xem bản dựng — chậm có mượt không (nội suy
-  khung có thể méo tay/vũ khí khi chuyển động nhanh). **Chưa đo thật:** chưa có bản giao nào dùng quay chậm được người dùng xem; mốc "1–2 lần
-  mỗi phim" và giới hạn 0,25–0,9 là giá trị khởi điểm của dự án, không phải số đo (cờ `speed_ramp` còn `verified` False).
+  khung có thể méo tay/vũ khí khi chuyển động nhanh). **Chưa đo thật:** "1–2 lần mỗi phim" và 0,25–0,9 là giá trị khởi điểm,
+  không phải số đo.
 
 ### Đ12. Kỹ thuật thấy trong clip mẫu ClipAI — tư liệu, không phải công thức — 2026-09-28 (sửa 2026-09-29)
 Nguồn: clip mẫu ClipAI người dùng gửi 2026-09-28 (MV 201 s; `docs/PHAN_TICH_CLIP_MAU_CLIPAI_2026-09-28.md`).
-> Người dùng sửa 2026-09-29: máy quay, góc, dựng, âm thanh **không có nghĩa mặc định** — cùng một kỹ thuật phục vụ nhiều ý đồ khác nhau tùy tình huống. Mục này ghi **kỹ thuật đã thấy + cách làm + ý đồ ở đúng chỗ đó**, không phải công thức. Chọn khi ý đồ của cảnh cần; ghi lý do theo tình huống (như Q1: "ý nghĩa góc không cố định").
-- **Hình và lời cùng nghĩa (ở MV).** Clip là MV nên mỗi câu hát ≈ một shot minh họa đúng câu (câu "tôi có con 9" → giơ một ngón
-  tay). Đó là **quy ước của MV**, không phải nhịp cho phim thoại: phim có thể giữ một shot qua nhiều câu, cắt giữa câu, cho hình nói ngược
-  lời, hoặc để hình đi trước lời — tùy ý đồ cảnh.
-- **Một cách khép truyện trong clip này:** mở ở cổng sắt đêm mưa, kết ở cửa mở ra mưa sáng; con số 9 lặp lại. Đây là **một** cấu trúc
-  hợp với MV có một nhân vật một mục tiêu — nhiều truyện khác kết mở, kết ngược, hoặc không cần mô-típ. Chỉ dùng khi kịch bản có sẵn chất
-  liệu cho nó.
+> Người dùng sửa 2026-09-29: kỹ thuật **không có nghĩa mặc định** — mục này ghi kỹ thuật đã thấy + ý đồ ở đúng chỗ đó, không phải công
+> thức; chọn khi ý đồ cảnh cần, ghi lý do theo tình huống (như Q1).
+- **Hình và lời cùng nghĩa (ở MV):** mỗi câu hát ≈ một shot minh họa — **quy ước của MV**; phim thoại có thể giữ shot qua nhiều câu,
+  cắt giữa câu, cho hình nói ngược hoặc đi trước lời.
+- **Một cách khép truyện:** mở cổng sắt đêm mưa, kết cửa mở ra mưa sáng, số 9 lặp lại — **một** cấu trúc hợp MV một nhân vật; truyện
+  khác kết mở / kết ngược / không mô-típ. Chỉ dùng khi kịch bản có sẵn chất liệu.
 - **Ẩn dụ bằng không gian phóng đại** (người tí hon giữa phỉnh khổng lồ, 2:21–2:59): clip dùng cho nội tâm "bị cờ bạc nuốt"; cùng kỹ
   thuật có thể gây cười, gây sợ, hay chỉ là màn chuyển thế giới — ý nghĩa do ngữ cảnh.
 - **Nhân vật dễ giữ nhất quán với AI:** đám đông mặc đồng phục, mũ trùm không mặt; nhân vật chính có nhiều dấu hiệu nhận diện. Đây là

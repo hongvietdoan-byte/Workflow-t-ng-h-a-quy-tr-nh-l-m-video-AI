@@ -1,6 +1,6 @@
 # Bổ sung vai Đạo diễn — bài học dự án #22 Khủng Long Đỏ (cờ `kld_lessons_prompts`)
 
-> Bổ sung cho `director.md` (N4, Đ6, N3), không thay luật cũ. **Độ tin: 1 dự án (#22)** — là cách nghĩ có lý do, không phải luật chung;
+> Bổ sung cho `director.md` (N4, Đ6, N3, Đ7), không thay luật cũ. **Độ tin: 1 dự án (#22)** — là cách nghĩ có lý do, không phải luật chung;
 > dự án khác có căn cứ khác thì làm khác và ghi `tradeoffs`. Nguồn: `docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md` mục 4.2, 4.8.
 
 ## N4 bổ sung — Nhân vật đúng thiết kế
@@ -25,3 +25,9 @@
   từng đạt 0,72–0,96 là `dialogue_take` (#10). Cách nghĩ: shot thoại cận cần thấy miệng thì cân nhắc `dialogue_take` (người dùng chọn);
   cảnh có trang phục che miệng (khẩu trang đeo kín) thì không thấy miệng là chấp nhận được — người dùng tạm chấp nhận ở #22. Mẫu: 2 clip,
   1 dự án — chưa là kết luận về model.
+
+## Đ7 bổ sung — Chia shot hay một clip dài cho cả cảnh (KLD-31)
+- Ví dụ #22: ✘ mỗi cảnh một clip 15 s → model tự bịa chi tiết trang phục (áo liền thân không có trong ảnh OUTFIT); ✔ chia cảnh thành các
+  shot ngắn, mỗi shot một việc → trang phục đúng. Cách nghĩ: clip càng dài, model càng nhiều giây phải tự lấp, càng dễ trôi khỏi ảnh chuẩn
+  (N4). **Độ tin: 1 mẫu** — chỉ là ví dụ, không thành luật "cấm clip dài"; cảnh cần một máy liền (nhảy theo video mẫu, máy theo người) vẫn
+  được dùng clip dài, ghi `tradeoffs` vì sao.
