@@ -1288,7 +1288,10 @@ class VideoRunner(_Runner):
             parts = [((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s) for r, s in zip(rows, secs)]
             ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
             places = seedance_refs.place_pictures(self.data_dir, job["project_id"], rows)
-            motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model, places=places))
+            from . import place_refs                   # F5-A: real sizes of the library objects (the well), short form, once
+            scales = [place_refs.object_scale_sentence(conn, job["project_id"], r["data"], short=True) for r in rows]
+            motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model, places=places,
+                                                       scales=list(dict.fromkeys(x for x in scales if x))))
             segs = self._take_segments(job, rows)
             if segs:                                   # S4.2: who says which line at which second (the lines stay in Vietnamese)
                 from . import dialogue_take
@@ -1786,7 +1789,7 @@ def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = 
              framing_sentence(data),
              _action_part(data, words, blocking_label),
              f"Fix: {fix}" if fix else "",          # the retry's correction right after what it corrects, not at the tail
-             _place_part(conn, project_id, data, place, place_render, place_extra),
+             _place_part(conn, project_id, data, place, place_render, list(place_extra or []) + [_object_scale(conn, project_id, data)]),
              light,
              _lock_part(conn, project_id, data, proj, text, fix),
              pt.quality_part(look_quality, quality) if (look_quality or quality) else ""]
@@ -1813,6 +1816,15 @@ def _action_part(data: Dict, words: str, blocking_label: str) -> str:
     if skill_dossier.enabled():                     # 30/09: the skill phase as the official video shows it + what is never drawn
         bits.append(skill_dossier.image_sentence(skill_dossier.shot_skill(data)))
     return pt.join(bits)
+
+
+def _object_scale(conn, project_id: int, data: Dict) -> str:
+    """F5-A: real sizes of the library objects of the shot (the well of #24 is not in the 3D map) — empty when none is measured."""
+    from . import place_refs
+    try:
+        return place_refs.object_scale_sentence(conn, project_id, data)
+    except Exception:  # noqa: BLE001 - a sentence of information never stops the picture
+        return ""
 
 
 def _place_part(conn, project_id: int, data: Dict, place, place_render: bool, extra) -> str:

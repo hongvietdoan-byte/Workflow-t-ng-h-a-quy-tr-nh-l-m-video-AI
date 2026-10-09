@@ -884,6 +884,12 @@ def lib_asset_card(p: Pipeline, a: dict, items: list) -> None:
             e_name = st.text_input("Tên", a["name"], key=f"lib_e_name_{a['id']}")
             e_alias = st.text_input("Tên gọi khác", a["aliases"], key=f"lib_e_alias_{a['id']}")
             e_desc = st.text_area("Mô tả", a["description"], key=f"lib_e_desc_{a['id']}", height=70)
+            e_h = None
+            if a["kind"] in assets.SIZED_KINDS:           # F5-A: chiều cao thật của vật mốc (giếng #24) — câu tỉ lệ trong prompt
+                e_h = st.number_input("Chiều cao thật (m) — vật mốc, 0 = chưa đo", min_value=0.0, max_value=100.0, step=0.05,
+                                      value=float((a.get("size") or {}).get("height_m") or 0.0), key=f"lib_e_h_{a['id']}",
+                                      help="Vd thành giếng 0.9. Có số thì prompt ảnh/motion nói tỉ lệ so với người; không có thì "
+                                           "không đoán (shot cảnh báo khi vật xuất hiện ở ≥ 2 shot).")
             more = st.file_uploader("Thêm ảnh", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key=f"lib_e_up_{a['id']}")
             others = [x for x in items if x["id"] != a["id"]]
             if others:
@@ -904,6 +910,8 @@ def lib_asset_card(p: Pipeline, a: dict, items: list) -> None:
             if b1.button("💾 Lưu", key=f"lib_e_save_{a['id']}", type="primary"):
                 try:
                     assets.update(p.conn, a["id"], e_name, e_alias, e_desc)
+                    if e_h is not None:
+                        assets.set_size(p.conn, a["id"], e_h, (a.get("size") or {}).get("width_m"))
                     for f in more:
                         assets.add_image(p.conn, a["id"], f.name, f.getvalue())
                 except assets.AssetError as e:

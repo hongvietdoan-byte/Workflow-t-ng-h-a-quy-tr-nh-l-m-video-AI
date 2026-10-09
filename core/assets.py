@@ -698,7 +698,50 @@ def _row(conn, r, images_by_asset: Optional[Dict] = None) -> Dict:
     return {"id": r["id"], "claude_only": sum(1 for i in images if i.get("status") == "claude_ok" and here[i["id"]]), "game": r["game"], "kind": r["kind"], "kind_label": KINDS.get(r["kind"], r["kind"]), "name": r["name"],
             "aliases": r["aliases"] or "", "description": r["description"] or "", "project_id": r["project_id"],
             "created_by": r["created_by"], "images": [i for i in images if here[i["id"]]], "pending": pending,
-            "missing": [i["path"] for i in images if not here[i["id"]]]}   # approved pictures whose file is gone (said, luật 1)
+            "missing": [i["path"] for i in images if not here[i["id"]]],   # approved pictures whose file is gone (said, luật 1)
+            "size": _size_of(r)}                                           # F5-A: real size of an object (height_m / width_m)
+
+
+# ---- F5-A (09/10): kích thước thật của vật Kho ---------------------------------------------------------------------------
+# #24 (09/10): bản đồ 3D Tháp Đồng Hồ KHÔNG có giếng — giếng là vật Kho (#420), model ảnh tự vẽ → thành giếng cao thấp khác nhau
+# giữa các shot. Vật mốc (đạo cụ / vũ khí) mang chiều cao thật (m), tuỳ chọn bề rộng; lưu trong cột `profile` (JSON) như chiều cao
+# của nhân vật — không cột mới. Không có số = không đoán (place_refs.object_scale_sentence im lặng, readiness báo warn).
+SIZED_KINDS = ("prop", "weapon")
+
+
+def _size_of(r) -> Optional[Dict]:
+    """{"height_m", "width_m"} of an object row (None when not an object or nothing measured)."""
+    try:
+        if r["kind"] not in SIZED_KINDS or "profile" not in r.keys() or not r["profile"]:
+            return None
+        prof = json.loads(r["profile"])
+    except (ValueError, TypeError, IndexError, KeyError):
+        return None
+    out = {k: float(prof[k]) for k in ("height_m", "width_m") if isinstance(prof.get(k), (int, float)) and prof[k] > 0}
+    return out or None
+
+
+def set_size(conn, asset_id: int, height_m: Optional[float], width_m: Optional[float] = None) -> Optional[Dict]:
+    """Ghi chiều cao thật (m) / bề rộng (tuỳ chọn) của một vật Kho vào `profile` (giữ các khoá khác). 0 / None = xoá số.
+    Ngoài 0,01–100 m → AssetError (gõ nhầm cm)."""
+    row = conn.execute("SELECT kind, profile FROM assets WHERE id=?", (asset_id,)).fetchone()
+    if row is None:
+        raise AssetError("Không tìm thấy tài nguyên")
+    try:
+        prof = json.loads(row["profile"]) if row["profile"] else {}
+    except ValueError:
+        prof = {}
+    for key, val in (("height_m", height_m), ("width_m", width_m)):
+        v = float(val or 0)
+        if v and not 0.01 <= v <= 100:
+            raise AssetError(f"Kích thước {v:g} m không hợp lệ — nhập theo mét (vd 0.9), không phải cm")
+        if v:
+            prof[key] = round(v, 2)
+        else:
+            prof.pop(key, None)
+    conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(prof, ensure_ascii=False) if prof else None, asset_id))
+    conn.commit()
+    return _size_of({"kind": row["kind"], "profile": json.dumps(prof)}) if prof else None
 
 
 def get(conn, asset_id: int) -> Optional[Dict]:

@@ -289,7 +289,7 @@ def place_pictures(data_dir: str, project_id: int, rows: List[Dict]) -> List[Dic
 
 
 def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_seconds: Optional[float] = None,
-           model: Optional[str] = None, places: Optional[List[Dict]] = None) -> str:
+           model: Optional[str] = None, places: Optional[List[Dict]] = None, scales: Optional[List[str]] = None) -> str:
     """parts: [(motion prompt, seconds)] in film order. The wording of the tested P2m prompt (cut rule, which picture is which shot /
     whose identity, the shots), assembled in the motion formula's order (F1-C, docs/CONG_THUC_PROMPT_F0 mục 3.2 + 4): start point
     (the cut rule and each shot's storyboard frame) → each shot's action (what changes, first) → sentences shared by several shots, once
@@ -343,6 +343,8 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
                        "exactly as in this image throughout those shots, including during camera movement. "
                        "It decides architecture over conflicting text or storyboard details; people, outfits and starting framing "
                        "still follow their own references. Never move, add or remove a building.")
+    for sent in scales or []:            # F5-A: measured sizes of the library objects (place_refs.object_scale_sentence, short)
+        place_text += " " + sent.strip()
     # 6. rules
     rules = ("Any white banner or red mark on a reference picture is an annotation, never part of the video."
              if features.on("seedance_subjects") else

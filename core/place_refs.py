@@ -253,6 +253,88 @@ def scale_sentence(rec: Optional[Dict], entry: Optional[Dict], data: Dict, heigh
     return "Scale measured on the 3D map of this place: " + "; ".join(bits) + " — keep these proportions in every shot."
 
 
+# ---- F5-A (09/10): vật Kho có kích thước thật → câu tỉ lệ so với người ------------------------------------------------------
+# #24: giếng KHÔNG có trong bản đồ 3D (vật Kho #420) — scale_sentence chỉ đọc props của model 3D nên giếng không có số, model ảnh
+# tự vẽ, thành giếng mỗi shot một độ cao. Giờ vật Kho (đạo cụ / vũ khí) mang height_m (màn Kho) và được nói so với một người.
+PERSON_M = 1.7
+OBJECT_TEXT_KEYS = ("image_prompt", "blocking", "start_frame", "action_peak", "location")
+
+
+def shot_objects(conn, pid: int, data: Dict) -> List[Dict]:
+    """Vật Kho (assets.SIZED_KINDS, đã gắn dự án) xuất hiện trong shot: có trong danh sách characters / props của shot, hoặc tên
+    (hay tên gọi khác) được nhắc trong image_prompt / blocking / start_frame / action_peak / location (nguyên từ). Không truy vấn
+    thêm ngoài assets.project_assets (đã nhớ theo lượt vẽ)."""
+    from . import assets
+    objs = [a for a in assets.project_assets(conn, pid) if a.get("kind") in assets.SIZED_KINDS]
+    if not objs:
+        return []
+    listed = {assets.fold(str(x)) for k in ("characters", "props") for x in (data.get(k) or []) if isinstance(x, str)}
+    words = assets._said_words(" ".join(str(data.get(k) or "") for k in OBJECT_TEXT_KEYS))
+    out = []
+    for a in objs:
+        names = [n.strip() for n in assets.names_of(a) if len(assets.fold(n)) >= 3]
+        if any(assets.fold(n) in listed for n in names) or any(assets.name_spans(n, words) for n in names):
+            out.append(a)
+    return out
+
+
+def _english_name(asset: Dict) -> str:
+    """Tên đưa vào prompt (tiếng Anh, không dấu): tên gọi khác không dấu đầu tiên, không thì tên bỏ dấu."""
+    from . import assets
+    for n in [asset.get("name") or ""] + (asset.get("aliases") or "").replace(";", ",").replace("|", ",").split(","):
+        n = n.strip()
+        if n and n.isascii():
+            return n
+    return assets.fold(asset.get("name") or "the object")
+
+
+def _body_mark(ratio: float) -> str:
+    for limit, words in ((0.3, "below knee height"), (0.45, "about mid-thigh height"), (0.62, "about waist height"),
+                         (0.8, "about chest height"), (0.95, "about shoulder height"), (1.08, "about head height")):
+        if ratio < limit:
+            return words
+    return f"about {ratio:.1f} times the height"
+
+
+def object_scale_sentence(conn, pid: int, data: Dict, person_m: Optional[float] = None, short: bool = False) -> str:
+    """Câu tỉ lệ của vật Kho trong shot có kích thước thật, vd 'the stone well rim is 0.9 m high — about waist height of a 1.7 m
+    adult'. Vật chưa có số: không đoán, không câu (core/readiness báo warn). short=True: bản gọn cho motion Seedance."""
+    person = float(person_m or PERSON_M)
+    bits = []
+    for a in shot_objects(conn, pid, data):
+        size = a.get("size") or {}
+        h = size.get("height_m")
+        if not h:
+            continue
+        name = _english_name(a)
+        wide = f", {size['width_m']:g} m wide" if size.get("width_m") else ""
+        bits.append(f"the {name} is {h:g} m high{wide} — {_body_mark(h / person)} of a {person:g} m adult")
+    if not bits:
+        return ""
+    if short:
+        return "Real sizes: " + "; ".join(bits) + "."
+    return ("Real sizes of the objects in this shot (measured): " + "; ".join(bits)
+            + " — keep exactly these proportions against the people, the same in every shot.")
+
+
+def unsized_objects(conn, pid: int) -> Dict[str, List[int]]:
+    """{tên vật: [scene_id…]} của vật Kho CHƯA có chiều cao thật mà xuất hiện ở ≥ 2 shot của dự án (readiness: warn). Một lượt
+    đọc bảng scenes."""
+    from . import assets
+    if not any(a.get("kind") in assets.SIZED_KINDS and not (a.get("size") or {}).get("height_m") for a in assets.project_assets(conn, pid)):
+        return {}
+    seen: Dict[str, List[int]] = {}
+    for r in conn.execute("SELECT id, data FROM scenes WHERE project_id=?", (pid,)).fetchall():
+        try:
+            data = json.loads(r["data"] or "{}")
+        except ValueError:
+            continue
+        for a in shot_objects(conn, pid, data):
+            if not (a.get("size") or {}).get("height_m"):
+                seen.setdefault(a["name"], []).append(r["id"])
+    return {k: v for k, v in seen.items() if len(v) >= 2}
+
+
 def needs(data_dir: str, pid: int, scene_id: int) -> Optional[str]:
     """S5.7: the shot's render is held until the script decides something (a camera direction at a spot marked
     `"direction": "script"`) — the picture waits and the reason is said, never a render from a guessed direction."""
