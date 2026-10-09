@@ -586,7 +586,7 @@ def add_props(specs):
         stone.use_nodes = True
         bsdf = stone.node_tree.nodes.get("Principled BSDF")
         if bsdf is not None:
-            bsdf.inputs["Base Color"].default_value = (0.42, 0.41, 0.39, 1)
+            bsdf.inputs["Base Color"].default_value = (0.13, 0.125, 0.12, 1)   # đá tối: 0,42 ra gần trắng dưới trăng + sương (10/10)
             bsdf.inputs["Roughness"].default_value = 0.9
         wall.data.materials.append(stone)
         made.append(wall)
