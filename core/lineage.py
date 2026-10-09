@@ -19,7 +19,8 @@ CAST_KEYS = ("name", "description", "wardrobe", "ref_asset_id", "ref_image_ids",
 # have no camera_move word (dolly zoom, rack focus) into the motion prompt — editing them left the picture / clip looking up to date
 # S14.44: `plate_mode` stays here ONLY so old rows keep their hash (new rows never store it — core/shots._drop_plate_mode)
 IMAGE_SHOT_KEYS = ("size", "angle", "performance", "lens_mm", "weather", "plate_spot", "plate_mode",
-                   "plate_view", "practical_lights")      # S5.7: a changed camera direction / extra light makes the frame "cũ"
+                   "plate_view", "practical_lights",      # S5.7: a changed camera direction / extra light makes the frame "cũ"
+                   "stage_camera")                        # 10/10: máy Sân khấu 3D đổi → ảnh "cũ" (trước đó đổi máy mà ảnh vẫn "mới")
 MOTION_SHOT_KEYS = ("action", "camera_move", "end_state", "continuous_with_next", "performance", "why")
 
 
