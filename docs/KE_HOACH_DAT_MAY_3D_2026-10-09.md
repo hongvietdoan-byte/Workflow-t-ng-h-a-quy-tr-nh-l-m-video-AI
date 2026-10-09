@@ -20,6 +20,18 @@ Nhánh nền đã có (CHƯA GỘP, chưa rà): `worktree-agent-ab5a90511a3b9ff7
 - `clearance_fix()` + bắn tia trong `tools/render_plates.py` (chưa chạy thật).
 Các đợt dưới dựng TIẾP trên nhánh này.
 
+## 🔁 ĐỔI HƯỚNG 09/10 tối (người dùng): "dựng sân khấu có lưới ô rồi mới đặt máy, đo bằng số" — thay cách vá G0
+Người dùng: *"vẫn đang lặp lại tình trạng có lỗi thì sửa chứ không phải tìm ra cách làm đúng"*; *"sân khấu cũng cần tọa độ kẻ các ô thành hệ lưới để xác định vị trí chính xác"*.
+Chạy thật G0 #24 (≈ 0,37 USD) lộ ra cách làm sai từ gốc: Director đoán phương vị độ khi KHÔNG thấy sân khấu (giếng/nhân vật không có trong 3D → máy cúi chỉ thấy sàn, tỉ lệ giếng/yêu nữ không kiểm được), rồi Claude nhìn render để phán điều code đã biết bằng số (máy nghiêng −6° bị khai "cúi"). Đã dừng phiên vá 4 lỗi.
+**Cách làm đúng (như tổ quay phim thật: dựng trường quay → đi vòng xem góc → chọn):**
+- **S0 Lưới sân khấu:** gốc = chỗ đứng chính; cột chữ Tây→Đông, hàng số Nam→Bắc; ô 1 m (0,5 m chỗ diễn gần), ≈ 20×20 m. Mỗi ô bắn tia Blender từ trên xuống: cao độ sàn + vật (sàn/bậc/tường/nhà/tháp) → biết ô đi được, ô tường, ô tầng khác. Ảnh nhìn từ trên kẻ lưới + tên ô cho Director và người dùng ("dời giếng sang G8").
+- **S1 Dựng sân khấu trong 3D:** đạo cụ (giếng: khối đúng cỡ) + người nộm đúng chiều cao ở ô theo nhịp → render có giếng/người thật, tỉ lệ đúng.
+- **S2 Code đi vòng ứng viên:** nhiều vị trí máy (ô × độ cao × cỡ) → lưới tia đo % tháp/nhà/tường/trời/sàn, giếng + nhân vật trong khung và cỡ, vật cản gần nhất, phía trục. Đo, không đoán, 0 USD.
+- **S3 Director chọn theo ô từ bảng số + tấm ghép ứng viên** theo ý đồ; luật trục / gia đình nền / cúi đúng ý / không tường che kiểm bằng SỐ. Gỡ "Claude duyệt render" của G0. Người duyệt tấm ghép cuối.
+- **S4 Chạy lại #24** → tấm ghép trước khi vẽ ảnh (báo giá).
+Phần G0 đã gộp (cờ TẮT) giữ: sơ đồ cảnh, setup dùng lại, luật trục/gia đình nền — chuyển sang nói bằng ô lưới.
+**Bước 0 (đo trước khi xây, 0 USD):** lưới ô + bản đồ cao độ/vật thể #24; tên vật thể trong map có phân được tháp/nhà/tường/sàn không; đặt thử khối giếng + người nộm, render 1 góc.
+
 ## 🥇 G0 — LÀM TRƯỚC (người dùng 09/10): Director lập sơ đồ cảnh + bộ góc máy, bản đơn giản bằng công cụ hiện có
 Người dùng: "Director phải là người làm tốt khâu này". G1–G4 bên dưới là bản NÂNG CẤP (bản đồ tầng, bộ kiểm tự động, Bàn đạo diễn). G0 làm Director đặt máy đúng cho cảnh đơn giản (#24: 9 shot cùng quảng trường, ít vật, ít di chuyển, liên kết nhau) bằng những gì đã có. Dự án thử: **#24**.
 
