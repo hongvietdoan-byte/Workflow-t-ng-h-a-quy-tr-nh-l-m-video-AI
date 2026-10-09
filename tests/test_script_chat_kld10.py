@@ -56,9 +56,14 @@ def scene(p, pid):
 
 class IntentTests(unittest.TestCase):
     def test_dialogue_talk_and_approval_go_to_chat(self):
-        for text in ("ok áp dụng câu 1 và 3", "Ok áp dụng hết", "chốt hết", "đồng ý P2", "câu thoại 2 nghe cứng quá",
-                     "thoại của Maxim ở cảnh 1 có ổn không", "sửa lại câu 3 cho tự nhiên hơn", "áp dụng L1"):
+        for text in ("câu thoại 2 nghe cứng quá", "thoại của Maxim ở cảnh 1 có ổn không", "sửa lại câu 3 cho tự nhiên hơn"):
             self.assertEqual(C.intent(text), "chat", text)
+        # rà 09/10: lời đồng ý / mã Px, Lx chỉ là "chat" khi dự án có đề xuất mở / có mã đó (cần p, pid)
+        p, pid = setup_project(self)
+        C.send(p, pid, "câu thoại 1 nghe cứng quá", FakeClient(answer("Thử nhé.", [{"line": "L1", "new": NEW, "why": "B12"}])))
+        for text in ("ok áp dụng câu 1 và 3", "Ok áp dụng hết", "chốt hết", "đồng ý P1", "áp dụng L1"):
+            self.assertEqual(C.intent(text, p, pid), "chat", text)
+        self.assertNotEqual(C.intent("đồng ý P2"), "chat")                     # không có dự án / không có P2 → không phải mã
 
     def test_short_words_do_not_match_by_accident(self):
         self.assertEqual(C.intent("ok"), "ask")                               # một chữ "ok" chưa rõ ý → vẫn hỏi lại
@@ -181,6 +186,58 @@ class ChatUiTests(unittest.TestCase):
             self.assertFalse(at.exception, at.exception)
         self.assertEqual(scene(self.p, self.pid)["dialogue"][0]["text"], OLD)
         self.assertEqual(self.p.project(self.pid)["script_text"], SCRIPT)
+
+
+class ReviewFixTests(unittest.TestCase):
+    """Rà độc lập 09/10 (KLD-10): ý tưởng không lạc vào chat, đề xuất cũ không bị áp dụng nhầm, đề xuất bị thay thế, áp dụng trùng."""
+
+    def setUp(self):
+        self.p, self.pid = setup_project(self)
+
+    def test_2_idea_sentences_do_not_go_to_paid_chat(self):
+        self.assertNotEqual(C.intent("Kelly nhặt điện thoại của Kenta rồi bỏ chạy", self.p, self.pid), "chat")
+        self.assertEqual(C.intent("ý tưởng: Kenta cầm P90 đi bo", self.p, self.pid), "idea")
+        self.assertNotEqual(C.intent("Kenta cầm P90 đi bo", self.p, self.pid), "chat")
+        self.assertNotEqual(C.intent("Kelly chốt cửa rồi chạy hết sức", self.p, self.pid), "chat")   # không có đề xuất mở
+        from core import idea_to_script as I
+        I.save_state(self.p.conn, self.pid, {"inputs": {"idea": "Kelly tranh thùng thính"}})
+        self.assertNotEqual(C.intent("thêm câu thoại Kelly chọc Kenta", self.p, self.pid), "chat")   # đang viết ý tưởng → 'nói thêm'
+
+    def test_1_old_proposal_needs_its_code_named(self):
+        C.send(self.p, self.pid, "câu thoại 1 nghe cứng quá", FakeClient(answer("Thử.", [{"line": "L1", "new": NEW, "why": "B12"}])))
+        C.send(self.p, self.pid, "còn câu thoại 2 thì sao", FakeClient(answer("Thử.", [{"line": "L2", "new": "Lẹ lên!", "why": "B12"}])))
+        C.send(self.p, self.pid, "ok áp dụng", FakeClient(answer("Ok.", apply=["P1"])))           # P1 ở lượt cũ, không gọi tên
+        self.assertEqual(scene(self.p, self.pid)["dialogue"][0]["text"], OLD)
+        self.assertIn("P1", C.history(self.p, self.pid)[-1]["text"])
+        C.send(self.p, self.pid, "ok áp dụng P1", FakeClient(answer("Ok.", apply=["P1"])))        # gọi đích danh → áp dụng
+        self.assertEqual(scene(self.p, self.pid)["dialogue"][0]["text"], NEW)
+
+    def test_1_negative_reply_never_applies_even_if_claude_says_apply(self):
+        C.send(self.p, self.pid, "câu thoại 1 nghe cứng quá", FakeClient(answer("Thử.", [{"line": "L1", "new": NEW, "why": "B12"}])))
+        for text in ("không ok câu 1", "ok nhưng bỏ chữ trời", "ok?"):
+            C.send(self.p, self.pid, text, FakeClient(answer("Ok.", apply=["P1"])))
+            self.assertEqual(scene(self.p, self.pid)["dialogue"][0]["text"], OLD, text)
+
+    def test_6_superseded_proposal_is_marked_and_shown(self):
+        C.send(self.p, self.pid, "câu thoại 1 nghe cứng quá", FakeClient(answer("Thử.", [{"line": "L1", "new": NEW, "why": "B12"}])))
+        C.send(self.p, self.pid, "câu 1 ngắn hơn", FakeClient(answer("Vậy nè.", [{"line": "L1", "new": "Ủa, đồ mới hả?", "why": "B12"}])))
+        hist = C.history(self.p, self.pid)
+        self.assertEqual(hist[1]["proposals"][0]["state"], "superseded")
+        self.assertEqual(hist[-1]["proposals"][0]["state"], "open")
+        from dashboard.steps import step1_box
+        self.assertIn("superseded", step1_box._PROP_STATE)
+
+    def test_7_duplicate_apply_and_same_turn_new_proposal(self):
+        C.send(self.p, self.pid, "câu thoại 1 nghe cứng quá", FakeClient(answer("Thử.", [{"line": "L1", "new": NEW, "why": "B12"}])))
+        C.send(self.p, self.pid, "ok áp dụng câu 1", FakeClient(answer(
+            "Chốt, và thử thêm bản này.", [{"line": "L1", "new": "Ủa, đồ mới hả?", "why": "B12"}], apply=["P1", "P1"])))
+        hist = C.history(self.p, self.pid)
+        self.assertEqual(scene(self.p, self.pid)["dialogue"][0]["text"], NEW)
+        reply = next(m for m in reversed(hist) if m.get("proposals"))
+        self.assertNotIn("đã đổi", reply["text"])                               # P1 trùng không sinh cảnh báo giả
+        self.assertEqual(reply["proposals"][0]["old"], NEW)                     # câu cũ đọc SAU khi áp dụng
+        C.send(self.p, self.pid, "ok áp dụng câu 1", FakeClient(answer("Ok.", apply=[reply["proposals"][0]["id"]])))
+        self.assertEqual(scene(self.p, self.pid)["dialogue"][0]["text"], "Ủa, đồ mới hả?")
 
 
 if __name__ == "__main__":
