@@ -239,3 +239,13 @@ Code nằm ở nhánh `stage-grid-s0`, commit `40f9c69`, chưa gộp: `core/stag
   - hướng Bắc chưa có nguồn trong game (đang dùng +y của model).
 - **Chưa có:** ngưỡng ⚙ của luật. Cần đo thêm trên các shot người dùng đã chê và đã khen.
 
+**Người dùng quyết 09/10 sau Bước 0:**
+1. **Sửa spot `plaza_front` lên đúng mặt sàn** (đo bằng tia). Render nền lại tốn 0 USD; ảnh đã vẽ ở chỗ này bị đánh dấu lỗi thời.
+2. **Bắc = trục +y của model.** Đồng ý.
+3. **Giếng giữ cỡ đang dùng:** cao 0,9 m, đường kính 1,5 m.
+4. **Yêu nữ giữ 1,7 m.**
+5. **Nhãn trên hình phác:**
+   - Điểm ngoài khung không được chấm trong ảnh, vì gây hiểu lầm (tháp và yêu nữ ở `view_b`). Thay bằng mũi tên xám sát mép khung chỉ về hướng vật, kèm chữ "… ngoài khung".
+   - Điểm sau lưng máy (z_c ≤ 0) không vẽ, chỉ ghi vào bảng.
+   - Điểm trong khung nhưng bị che vẽ chấm rỗng, kèm "(bị che bởi …)".
+
