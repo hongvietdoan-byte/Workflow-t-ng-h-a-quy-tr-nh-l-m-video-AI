@@ -107,6 +107,12 @@ def blender_main(cfg):
     stage = sg.make_stage([ox, oy, floor_model], cell_m=cfg["cell_m"], cols=cfg["cols"], rows=cfg["rows"], lift_z=lift, factor=factor)
     stage.update({"origin_scene": [round(sx, 3), round(sy, 3), round(h0[0], 3)], "origin_on": h0[1].name,
                   "spot_z_model": _oz, "spot_vs_floor_m": round(_oz - floor_model, 3)})
+    if cfg.get("mode") == "floor":                      # fix-spot: chỉ đo sàn dưới spot bằng tia từ trên xuống
+        with open(os.path.join(out, "fix_spot.json"), "w", encoding="utf-8") as f:
+            json.dump({"spot_at_model": cfg["origin_model"], "floor_z_model": round(floor_model, 3), "on": h0[1].name,
+                       "normal_z": round(h0[3], 3), "diff_m": round(floor_model - _oz, 3)}, f, ensure_ascii=False, indent=1)
+        print("[stage] floor done", flush=True)
+        return
 
     def rel(v):
         return sg.rel_from_scene(stage, v)
@@ -453,6 +459,11 @@ def blender_main(cfg):
                                                                                       "group": nearest_solid[2], "uv": nearest_solid[3:]},
                                  "checks": chk, "map": ["".join(r_) for r_ in [[x[0] for x in row] for row in cells_hit]]}
 
+    # ---- Bước 2: ứng viên máy + luật L1–L10 (mục 5–8) và đo các shot hiện có — MỘT lượt Blender cho cả cảnh ----
+    s1 = None
+    if cfg.get("requests") or cfg.get("shots"):
+        s1 = s1_block(cfg, stage, placed, marks, scene, dg(), scn, rel, mat_of, classify, Vector, bpy, rp, out, warnings)
+
     objects = []
     for name, e in inv.items():
         o = bpy.data.objects.get(name)
@@ -475,16 +486,474 @@ def blender_main(cfg):
     dump("grid.json", {"origin": stage["origin_model"], "cell_m": stage["cell_m"], "cells": grid})
     dump("objects.json", objects)
     dump("frames.json", frames)
+    if s1 is not None:
+        dump("s1.json", s1)
     print("[stage] done", flush=True)
 
 
+# nhãn hình phác: khóa → (chữ, tiền tố tên object "của chính nó" khi kiểm bị che)
+LABEL_POINTS = (("kelly_dinh", "Kelly", "STAGE_KELLY"), ("yeunu_mat", "Yêu nữ", "STAGE_YEUNU"), ("gieng_tam", "Giếng", "STAGE_WELL"),
+                ("thap_chan", "Tháp (chân)", "@tower"), ("thap_dinh", "Tháp (đỉnh)", "@tower"))
+
+
+def s1_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, Vector, bpy, rp, out, warnings):
+    """Đo mỗi máy bằng lưới tia (thành phần khung, % thấy nhân vật, cỡ trong khung, vật cản, chân trời, sàn dưới máy), chấm L1–L10,
+    xếp ứng viên đạt; đo lại top-3 bằng lưới mịn và render hình phác; đo + render các shot hiện có."""
+    f_ = stage.get("factor", 1.0)
+    tower = (marks.get("thap_object") or {}).get("name") or "~"
+    pts = {"kelly_dinh": [0.0, 0.0, placed["KELLY"]["height_m"]]}
+    if "YEUNU" in placed:
+        pts["yeunu_mat"] = [placed["YEUNU"]["xyz"][0], placed["YEUNU"]["xyz"][1], placed["YEUNU"]["eye_z"]]
+    if "WELL" in placed:
+        pts["gieng_tam"] = [placed["WELL"]["xyz"][0], placed["WELL"]["xyz"][1], placed["WELL"]["top_z"]]
+    if "thap_chan" in marks:
+        pts["thap_chan"], pts["thap_dinh"] = marks["thap_chan"]["xyz"], marks["thap_dinh"]["xyz"]
+    well_hip = round(placed["WELL"]["top_z"] / placed["KELLY"]["hip_z"], 2) if "WELL" in placed else None
+
+    def group_of(obj, idx, loc, nor):
+        o = obj.original if hasattr(obj, "original") else obj
+        if o.name.startswith("STAGE_WELL"):
+            return o, "gieng"
+        if o.name.startswith("STAGE_"):
+            return o, "nguoi_" + o.name.split("_")[1].lower()
+        return o, sg.group_by_hit(classify(o, mat_of(obj, idx)), rel((0, 0, loc.z))[2], nor.z)
+
+    def blocked(L, P, own):
+        seg = P - L
+        ok, loc, _, _, obj, _ = scene.ray_cast(dgv, L, seg.normalized(), distance=max(seg.length - 0.15, 0.01))
+        if not ok or obj is None:
+            return None
+        o = obj.original if hasattr(obj, "original") else obj
+        return None if o.name.startswith(own) else o.name
+
+    def measure(C_r, A_r, lens, res, rays, size, subj="KELLY"):
+        L, A = scn(C_r), scn(A_r)
+        aspect = res[0] / res[1]
+        nu, nv = rays
+        sp = placed[subj]
+        H = sp["height_m"]
+        subj_d = math.dist(C_r, (sp["xyz"][0], sp["xyz"][1], sp["chest_z"]))
+        counts, occ, occ_m, near = {}, 0, None, None
+        for j in range(nv):
+            for i in range(nu):
+                dr = Vector(sg.ray_dir(list(L), list(A), (i + 0.5) / nu, (j + 0.5) / nv, lens, aspect))
+                ok, loc, nor, idx, obj, _ = scene.ray_cast(dgv, L, dr, distance=3000)
+                if not ok or obj is None:
+                    g = "troi"
+                else:
+                    o, g = group_of(obj, idx, loc, nor)
+                    dist = (loc - L).length / f_
+                    near = dist if near is None else min(near, dist)
+                    if g not in ("san", "gieng", "troi") and not g.startswith("nguoi") and dist < subj_d - 0.3:
+                        occ += 1
+                        occ_m = dist if occ_m is None else min(occ_m, dist)
+                counts[g] = counts.get(g, 0) + 1
+        total = nu * nv
+        # % thấy nhân vật: 9 mức cao × 3 điểm ngang (theo trục phải của máy) — chỉ tính điểm nằm trong khung
+        yaw, pitch = sg.look(C_r, A_r)
+        ra = math.radians(yaw + 90)
+        seen = inside = 0
+        for k in range(9):
+            z = sp["xyz"][2] + H * (0.05 + 0.93 * k / 8)
+            for lat in (-0.12, 0.0, 0.12):
+                P = (sp["xyz"][0] + math.sin(ra) * lat, sp["xyz"][1] + math.cos(ra) * lat, z)
+                if not sg.in_frame(sg.project(C_r, A_r, P, lens, aspect)):
+                    continue
+                inside += 1
+                PS = scn(P)
+                seg = PS - L
+                ok, _, _, _, obj, _ = scene.ray_cast(dgv, L, seg.normalized(), distance=seg.length + 0.05)
+                o = (obj.original if hasattr(obj, "original") else obj) if ok and obj is not None else None
+                seen += 1 if o is not None and o.name.startswith(f"STAGE_{subj}") else 0
+        body = sg.FRAMING[size][0]
+        top = sg.project(C_r, A_r, (sp["xyz"][0], sp["xyz"][1], H), lens, aspect)
+        bot = sg.project(C_r, A_r, (sp["xyz"][0], sp["xyz"][1], H * (1 - body)), lens, aspect)
+        # sàn dưới máy: tia từ máy xuống (bỏ khối dựng); máy trong vật: tia lên gặp mặt hướng lên
+        floor_rel, o_ = None, L.copy()
+        for _ in range(6):
+            ok, loc, nor, idx, obj, _ = scene.ray_cast(dgv, o_, Vector((0, 0, -1)), distance=200)
+            if not ok or obj is None:
+                break
+            ob = obj.original if hasattr(obj, "original") else obj
+            if not ob.name.startswith("STAGE_"):
+                floor_rel = rel((0, 0, loc.z))[2]
+                break
+            o_ = loc - Vector((0, 0, 0.03))
+        up = scene.ray_cast(dgv, L, Vector((0, 0, 1)), distance=500)
+        labels = {}
+        for key, label, own in LABEL_POINTS:
+            if key not in pts:
+                continue
+            P = pts[key]
+            b = blocked(L, scn(P), tower if own == "@tower" else own)
+            stt = sg.point_state(C_r, A_r, P, lens, aspect, blocked_by=b)
+            labels[key] = {"label": label, "state": stt["state"], "uv": stt["uv"] and [round(x, 3) for x in stt["uv"]],
+                           "edge": stt["edge"], "arrow": stt["arrow"] and [round(x, 3) for x in stt["arrow"]], "blocked_by": b,
+                           "dist_m": round(math.dist(C_r, P), 2)}
+        return {"percent": {g: round(100 * n / total, 1) for g, n in sorted(counts.items(), key=lambda x: -x[1])},
+                "rays": [nu, nv], "pitch": round(pitch, 1), "yaw": round(yaw, 1),
+                "subject_hit_pct": None if not inside else round(100 * seen / inside), "subject_points_in_frame": inside,
+                "subject_frame_pct": None if top is None or bot is None else round(100 * (bot[1] - top[1]), 1),
+                "occluder_pct": round(100 * occ / total, 1), "occluder_m": None if occ_m is None else round(occ_m, 2),
+                "nearest_m": None if near is None else round(near, 2),
+                "cam_floor": sg.floor_status(floor_rel), "cam_floor_z": None if floor_rel is None else round(floor_rel, 2),
+                "cam_above_floor_m": None if floor_rel is None else round(C_r[2] - floor_rel, 2),
+                "cam_inside": bool(up[0] and up[2].z > 0.2), "side": sg.axis_side(cfg["axis"][0], cfg["axis"][1], C_r),
+                "horizon_w": round(sg.horizon_w(pitch, lens, aspect), 3), "well_hip_ratio": well_hip,
+                "at": [round(v, 3) for v in C_r], "aim": [round(v, 3) for v in A_r], "lens": lens, "cell": sg.cell_name(stage, C_r[0], C_r[1]),
+                "labels": labels}
+
+    # hình phác Workbench (xám, đạo cụ/người màu) — một lần thiết lập cho mọi máy
+    def clay_setup():
+        scene.render.engine = "BLENDER_WORKBENCH"
+        shd = scene.display.shading
+        shd.light, shd.color_type = "STUDIO", "OBJECT"
+        for ob in scene.objects:
+            if ob.type == "MESH":
+                ob.color = (0.72, 0.72, 0.72, 1)
+                if ob.name.startswith("STAGE_WELL"):
+                    ob.color = (0.35, 0.55, 0.95, 1) if ob.name == "STAGE_WELL" else (0.1, 0.1, 0.15, 1)
+                elif ob.name.startswith("STAGE_KELLY"):
+                    ob.color = (1.0, 0.55, 0.1, 1)
+                elif ob.name.startswith("STAGE_YEUNU"):
+                    ob.color = (0.9, 0.15, 0.2, 1)
+        try:
+            shd.show_cavity = True
+        except AttributeError:
+            pass
+        if scene.world is not None:
+            scene.world.color = (0.82, 0.86, 0.92)
+
+    def clay(name, C_r, A_r, lens, res):
+        cd = bpy.data.cameras.new(name)
+        cd.lens, cd.clip_end = lens, 2000
+        cam = bpy.data.objects.new(name, cd)
+        scene.collection.objects.link(cam)
+        cam.location = scn(C_r)
+        rp.look_at(cam, list(scn(A_r)))
+        scene.camera = cam
+        scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = res[0], res[1], 100
+        fn = f"{name}_clay_raw.png"
+        try:
+            rp.render_to(os.path.join(out, fn), False)
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"clay {name}: {e}")
+            return None
+        return fn
+
+    s1cfg = cfg.get("s1", {})
+    res, coarse, fine = s1cfg.get("res", [576, 1024]), s1cfg.get("coarse", [18, 32]), s1cfg.get("fine", [36, 64])
+    aspect = res[0] / res[1]
+    t0 = time.time()
+    first = {}
+    reqs_out = []
+    for req in cfg.get("requests", []):
+        rq = dict(req)
+        for k in ("family", "s0"):
+            if rq.get(k) == "@first":
+                rq[k] = first.get(k)
+        rows = []
+        for c in sg.candidates(rq, aspect):
+            m = measure(c["at"], c["aim"], c["lens"], res, coarse, rq["size"])
+            m["alpha"], m["h"] = c["alpha"], c["h"]
+            chk = sg.check_rules(m, rq)
+            rows.append({"alpha": c["alpha"], "h": c["h"], "note": c["note"], "ok": chk["ok"], "fail": chk["fail"], "why": chk["why"],
+                         "score": sg.rank_score(m, rq), "m": m, "c": c})
+        good = sorted([r for r in rows if r["ok"]], key=lambda r: -r["score"])
+        top = []
+        for k, r in enumerate(good[:3]):
+            c = r["c"]
+            m = measure(c["at"], c["aim"], c["lens"], res, fine, rq["size"])       # đo lại bằng lưới mịn rồi chấm lại
+            m["alpha"], m["h"] = c["alpha"], c["h"]
+            chk = sg.check_rules(m, rq)
+            top.append({"rank": k + 1, "alpha": c["alpha"], "h": c["h"], "pitch": round(c["pitch"], 1), "ok_fine": chk["ok"],
+                        "fail_fine": chk["fail"], "why_fine": chk["why"], "score": sg.rank_score(m, rq), "m": m,
+                        "name": f"{rq['name']}_{k + 1}"})
+        if not first and top:
+            first = {"family": sg.background_group(top[0]["m"]["percent"]), "s0": top[0]["m"]["side"]}
+        fails = {}
+        for r in rows:
+            for L_ in r["fail"]:
+                fails[L_] = fails.get(L_, 0) + 1
+        reqs_out.append({"req": rq, "n": len(rows), "n_ok": len(good), "fail_counts": fails, "top": top,
+                         "rows": [{k: v for k, v in r.items() if k not in ("m", "c")} | {"pct": r["m"]["percent"], "pitch": r["m"]["pitch"],
+                                                                                      "frame_pct": r["m"]["subject_frame_pct"]} for r in rows]})
+    shots_out = []
+    for s in cfg.get("shots", []):
+        C_r, A_r = sg.rel_from_model(stage, s["location"]), sg.rel_from_model(stage, s["look_at"])
+        m = measure(C_r, A_r, s["lens"], res, fine, s["size"])
+        rq = {"size": s["size"], "layer": s["layer"], "want": {}, "need": []}
+        chk = sg.check_rules(m, rq)
+        shots_out.append({"idx": s["idx"], "scene_id": s["scene_id"], "size": s["size"], "layer": s["layer"], "angle": s.get("angle"),
+                          "ok": chk["ok"], "fail": chk["fail"], "why": chk["why"], "m": m, "name": f"shot{s['idx']}"})
+    measure_sec = round(time.time() - t0, 1)
+    keep = scene.render.engine
+    try:
+        clay_setup()
+        for ro in reqs_out:
+            for t in ro["top"]:
+                t["clay"] = clay(t["name"], t["m"]["at"], t["m"]["aim"], t["m"]["lens"], res)
+        for so in shots_out:
+            so["clay"] = clay(so["name"], so["m"]["at"], so["m"]["aim"], so["m"]["lens"], res)
+    finally:
+        scene.render.engine = keep
+    return {"requests": reqs_out, "shots": shots_out, "measure_sec": measure_sec, "res": res, "coarse": coarse, "fine": fine,
+            "rule_th": {k: list(v) for k, v in sg.RULE_TH.items()}, "first": first}
+
+
 # ================================================ máy chủ ================================================
+DEFAULT_DB = os.path.join(ROOT, "data", "manifest.sqlite")      # không phụ thuộc cwd; chạy từ worktree thì truyền --db
+
+
+def _place_model3d(db, place):
+    import sqlite3
+    conn = sqlite3.connect(f"file:{os.path.abspath(db)}?mode=ro", uri=True)
+    try:
+        return json.loads(conn.execute("SELECT profile FROM assets WHERE id=?", (place,)).fetchone()[0])["model3d"]
+    finally:
+        conn.close()
+
+
+def run_blender(cfg, out, timeout=1800):
+    """Ghi cfg.json, chạy Blender nền (lượt Blender chung của plates3d), lưu blender.log; lỗi thì thoát kèm 15 dòng cuối."""
+    sys.path.insert(0, ROOT)
+    from core import plates3d
+    cfg_path = os.path.join(out, "cfg.json" if cfg.get("mode") != "floor" else "cfg_floor.json")
+    with open(cfg_path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=1)
+    blender = plates3d.find_blender()
+    if not blender:
+        sys.exit("không tìm thấy Blender")
+    args = ["-b", "--factory-startup", "-P", os.path.abspath(__file__), "--", "--config", cfg_path]
+    with plates3d.blender_turn(owner="stage_grid"):
+        if blender.startswith(plates3d.STORE):
+            proc = plates3d._run_in_store(blender, args, out, timeout)
+        else:
+            import subprocess
+            proc = subprocess.run([blender] + args, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+    with open(os.path.join(out, "blender.log"), "w", encoding="utf-8") as f:
+        f.write(proc.stdout or "")
+    if proc.returncode != 0 or "[stage]" not in (proc.stdout or ""):
+        sys.exit("Blender lỗi:\n" + "\n".join((proc.stdout or "").splitlines()[-15:]))
+
+
+def fix_spot_main(argv):
+    """`fix-spot --place <id> --spot <tên> [--apply]`: đo sàn dưới spot bằng tia từ trên xuống (Blender, 0 USD). Không --apply: chỉ in
+    z cũ / z mới. --apply: ghi z mới qua location_pack.set_model3d (giữ mọi khóa khác của model3d) — người dùng duyệt trước."""
+    import argparse
+    ap = argparse.ArgumentParser(prog="stage_grid.py fix-spot")
+    ap.add_argument("--db", default=DEFAULT_DB)
+    ap.add_argument("--place", type=int, required=True)
+    ap.add_argument("--spot", required=True)
+    ap.add_argument("--out", default=None, help="thư mục tạm cho cfg/log (mặc định <thư mục CSDL>/projects/_fix_spot)")
+    ap.add_argument("--apply", action="store_true")
+    a = ap.parse_args(argv)
+    db = os.path.abspath(a.db)
+    m3 = _place_model3d(db, a.place)
+    if a.spot not in m3.get("spots", {}):
+        sys.exit(f"không có spot '{a.spot}' ({', '.join(m3.get('spots', {}))})")
+    spot = m3["spots"][a.spot]
+    out = os.path.abspath(a.out or os.path.join(os.path.dirname(db), "projects", "_fix_spot"))
+    os.makedirs(out, exist_ok=True)
+    run_blender({"mode": "floor", "model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"),
+                 "origin_model": spot["at"], "cell_m": 1.0, "cols": 20, "rows": 20}, out, timeout=900)
+    res = json.load(open(os.path.join(out, "fix_spot.json"), encoding="utf-8"))
+    old, new = float(spot["at"][2]), float(res["floor_z_model"])
+    print(f"place {a.place} spot {a.spot}: at = {spot['at']}  z cũ = {old:.3f}  sàn (tia từ trên xuống) = {new:.3f} trên {res['on']} "
+          f"(n_z {res['normal_z']})  chênh = {new - old:+.3f} m")
+    if not a.apply:
+        print("(chưa ghi — thêm --apply để ghi z mới vào CSDL)")
+        return
+    import sqlite3
+    sys.path.insert(0, ROOT)
+    from core import location_pack
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    try:
+        cur = json.loads(conn.execute("SELECT profile FROM assets WHERE id=?", (a.place,)).fetchone()["profile"])["model3d"]
+        spots = json.loads(json.dumps(cur["spots"]))
+        spots[a.spot]["at"] = [spots[a.spot]["at"][0], spots[a.spot]["at"][1], round(new, 3)]
+        note = f"09/10 Sân khấu 3D: spot {a.spot} z {old:g} → {new:.3f} (tia từ trên xuống chạm {res['on']}; người dùng duyệt)."
+        location_pack.set_model3d(conn, a.place, cur["path"], spots, default_spot=cur.get("default_spot"), anchor=cur.get("anchor"),
+                                  real_height_m=cur.get("real_height_m"), sun_azimuth=cur.get("sun_azimuth", 250.0),
+                                  notes=((cur.get("notes") or "") + " " + note).strip(), light=cur.get("light"))
+    finally:
+        conn.close()
+    print("đã ghi:", note)
+
+
+# ---- Bước 2: 3 yêu cầu góc máy mẫu cho #24 (Kelly ở O nhìn 350° về giếng; tháp ở Bắc 16 m) ----
+def requests_24(facing, well):
+    H = KELLY_H
+    mid = [well[0] / 2, well[1] / 2, round((sg.CHEST * H + WELL_H) / 2, 3)]
+    return [
+        {"name": "R1_toan_canh", "title": "toàn cảnh mở thấy tháp + giếng + Kelly", "aim": [0.0, 0.0, round(sg.CHEST * H, 3)],
+         "size": "WS", "layer": "ngang", "H": H, "want": {"thap": True}, "need": ["gieng"], "facing": facing,
+         "rank": {"thap": 1.0, "gieng": 2.0, "nguoi_kelly": 1.0}},
+        {"name": "R2_qua_vai", "title": "qua vai Kelly cúi nhìn giếng", "aim": mid, "size": "WS", "layer": "cao", "H": H,
+         "see": "back", "need": ["gieng"], "facing": facing, "s0": "@first", "family": "@first",
+         "rank": {"gieng": 2.0, "nguoi_kelly": 1.0}, "single_ok": False},
+        # nhắm giữa phần thân trong khung MS (đỉnh đầu → 0,45·H): z = H·(1 − 0,55/2); lần đầu nhắm mắt thì cả 72 hỏng L3 (100–112 %)
+        {"name": "R3_goc_nguoc", "title": "góc ngược thấy mặt Kelly, không thấy tháp",
+         "aim": [0.0, 0.0, round(H * (1 - sg.FRAMING["MS"][0] / 2), 3)],
+         "size": "MS", "layer": "thap", "H": H, "see": "face", "want": {"thap": False}, "facing": facing, "s0": "@first",
+         "reverse_ok": True, "rank": {"nguoi_kelly": 1.0}},
+    ]
+
+
+def shots_of(db, project):
+    """Camera hiện tại các shot từ location_pack.plan (CSDL chỉ đọc) → cỡ, lớp độ cao, vị trí (hệ model)."""
+    import re
+    import sqlite3
+    sys.path.insert(0, ROOT)
+    from core import location_pack
+    conn = sqlite3.connect(f"file:{os.path.abspath(db)}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        items = location_pack.plan(conn, project)
+    finally:
+        conn.close()
+    layer = {"eye_level": "ngang", "high_angle": "cao", "low_angle": "thap", "overhead": "tren_dau"}
+    out = []
+    for it in items:
+        c = it["camera"]
+        mm = re.search(r"cỡ (\w+)", str((it.get("camera_why") or {}).get("distance", "")))
+        out.append({"idx": it["idx"], "scene_id": it["scene_id"], "location": c["location"], "look_at": c["look_at"], "lens": c["lens"],
+                    "angle": c.get("angle"), "layer": layer.get(c.get("angle"), "ngang"), "size": mm.group(1) if mm else "MS",
+                    "spot": it["spot"]})
+    return out
+
+
+def s1_main(argv):
+    """`s1 --out <dir> [--project 24]`: ứng viên máy + L1–L10 cho 3 yêu cầu mẫu + đo các shot hiện có, MỘT lượt Blender."""
+    import argparse
+    ap = argparse.ArgumentParser(prog="stage_grid.py s1")
+    ap.add_argument("--db", default=DEFAULT_DB)
+    ap.add_argument("--place", type=int, default=263)
+    ap.add_argument("--spot", default="plaza_front")
+    ap.add_argument("--project", type=int, default=24)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--facing", type=float, default=350.0)
+    ap.add_argument("--well-dist", type=float, default=1.6)
+    ap.add_argument("--draw-only", action="store_true")
+    a = ap.parse_args(argv)
+    out = os.path.abspath(a.out)
+    os.makedirs(out, exist_ok=True)
+    if not a.draw_only:
+        m3 = _place_model3d(a.db, a.place)
+        cfg = build_cfg(m3, m3["spots"][a.spot], out, a.facing, a.well_dist)
+        well = cfg["props"][0]["at"]
+        cfg.update(cameras=[], requests=requests_24(a.facing, well), shots=shots_of(a.db, a.project),
+                   s1={"res": [576, 1024], "coarse": [18, 32], "fine": [36, 64]})
+        run_blender(cfg, out, timeout=3600)
+    draw_top(out, cams=[])
+    draw_s1(out)
+    report_s1(out)
+
+
+def _overlay_clay(out, rec, footer):
+    from PIL import Image, ImageDraw, ImageFont
+    m = rec["m"]
+    img = Image.open(os.path.join(out, rec["clay"])).convert("RGBA")
+    W, H = img.size
+    ov = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(ov)
+    try:
+        font, big = ImageFont.truetype("arial.ttf", 13), ImageFont.truetype("arialbd.ttf", 17)
+    except OSError:
+        font = big = ImageFont.load_default()
+    d.rectangle([0, 0, W, H * 0.15], fill=(255, 0, 0, 40))
+    for t in (1 / 3, 2 / 3):
+        d.line([(W * t, 0), (W * t, H)], fill=(255, 255, 255, 160), width=1)
+        d.line([(0, H * t), (W, H * t)], fill=(255, 255, 255, 160), width=1)
+    wh = m["horizon_w"]
+    if 0 <= wh <= 1:
+        d.line([(0, wh * H), (W, wh * H)], fill=(0, 120, 255, 230), width=2)
+    d.text((6, min(max(wh, 0), 0.95) * H + 2), f"chân trời w_h = {wh:.3f}" + ("" if 0 <= wh <= 1 else " (ngoài khung)"),
+           fill=(0, 80, 220, 255), font=font)
+    draw_labels(d, W, H, m["labels"], big)
+    d.rectangle([0, H - 64, W, H], fill=(255, 255, 255, 190))
+    for k, line in enumerate(footer):
+        d.text((6, H - 60 + 19 * k), line, fill=(0, 0, 0, 255), font=font)
+    img = Image.alpha_composite(img, ov).convert("RGB")
+    fn = rec["clay"].replace("_clay_raw.png", "_clay.png")
+    img.save(os.path.join(out, fn))
+    return fn
+
+
+def _montage(out, files, fn, title):
+    from PIL import Image, ImageDraw, ImageFont
+    ims = [Image.open(os.path.join(out, f)) for f in files if f]
+    if not ims:
+        return
+    w, h = ims[0].size
+    sheet = Image.new("RGB", (w * len(ims), h + 34), (255, 255, 255))
+    for k, im in enumerate(ims):
+        sheet.paste(im, (k * w, 34))
+    try:
+        font = ImageFont.truetype("arialbd.ttf", 20)
+    except OSError:
+        font = ImageFont.load_default()
+    ImageDraw.Draw(sheet).text((8, 6), title, fill=(0, 0, 0), font=font)
+    sheet.save(os.path.join(out, fn))
+
+
+def draw_s1(out):
+    s1 = json.load(open(os.path.join(out, "s1.json"), encoding="utf-8"))
+    for ro in s1["requests"]:
+        files, cams = [], []
+        for t in ro["top"]:
+            m = t["m"]
+            if t.get("clay"):
+                files.append(_overlay_clay(out, t, [
+                    f"#{t['rank']} α {t['alpha']}° · cao {m['cam_above_floor_m']} m · pitch {m['pitch']}° · f {m['lens']:g} · ô {m['cell']}",
+                    f"Kelly {m['subject_frame_pct']}% khung, thấy {m['subject_hit_pct']}% · " +
+                    ", ".join(f"{g} {v}" for g, v in list(m["percent"].items())[:4]),
+                    "đạt L1–L10" if t["ok_fine"] else "lưới mịn hỏng: " + ",".join(t["fail_fine"])]))
+            fov = sg.fov(m["lens"], s1["res"][0] / s1["res"][1])
+            cams.append((f"#{t['rank']}", {"xyz": m["at"], "yaw_deg": m["yaw"], "fov_h_v_deg": list(fov), "cell": m["cell"]}))
+        _montage(out, files, f"{ro['req']['name']}_top3.png", f"{ro['req']['title']} — top-3 / {ro['n_ok']} đạt / {ro['n']} ứng viên")
+        draw_top(out, cams=cams, fn=f"{ro['req']['name']}_topgrid.png")
+    files = []
+    for so in s1["shots"]:
+        m = so["m"]
+        if so.get("clay"):
+            files.append(_overlay_clay(out, so, [
+                f"shot {so['idx']} {so['size']} {so['angle']} · cao {m['cam_above_floor_m']} m trên sàn · pitch {m['pitch']}° · f {m['lens']:g}",
+                f"Kelly {m['subject_frame_pct']}% khung, thấy {m['subject_hit_pct']}% · " +
+                ", ".join(f"{g} {v}" for g, v in list(m["percent"].items())[:4]),
+                "đạt" if so["ok"] else "hỏng: " + ",".join(so["fail"])]))
+    _montage(out, files, "shots24_clay.png", "#24 — 9 shot, camera hiện tại (location_pack.plan), hình phác + số đo")
+
+
+def report_s1(out):
+    s1 = json.load(open(os.path.join(out, "s1.json"), encoding="utf-8"))
+    print(f"đo {s1['measure_sec']} s; shot mở → {s1['first']}")
+    print("shot | cỡ/góc | cao trên sàn | pitch | Kelly %khung/thấy% | tháp% sàn% trời% tường% nhà% giếng% | cản% | luật hỏng")
+    for so in s1["shots"]:
+        m, p = so["m"], so["m"]["percent"]
+        print(f"{so['idx']} | {so['size']}/{so['layer']} | {m['cam_above_floor_m']} ({m['cam_floor']}) | {m['pitch']} | "
+              f"{m['subject_frame_pct']}/{m['subject_hit_pct']} | " + " ".join(str(p.get(g, 0)) for g in ("thap", "san", "troi", "tuong", "nha", "gieng"))
+              + f" | {m['occluder_pct']}@{m['occluder_m']} | {','.join(so['fail']) or '-'}")
+    for ro in s1["requests"]:
+        print(f"{ro['req']['name']}: {ro['n_ok']}/{ro['n']} đạt; luật hỏng (số ứng viên) {ro['fail_counts']}")
+        for t in ro["top"]:
+            m = t["m"]
+            print(f"   #{t['rank']} α {t['alpha']} cao {m['cam_above_floor_m']} pitch {m['pitch']} điểm {t['score']} "
+                  f"{'đạt' if t['ok_fine'] else 'mịn hỏng ' + ','.join(t['fail_fine'])} | {m['percent']}")
+
+
 def host_main(argv=None):
     import argparse
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] == "fix-spot":
+        return fix_spot_main(argv[1:])
+    if argv and argv[0] == "s1":
+        return s1_main(argv[1:])
     sys.path.insert(0, ROOT)
     from core import plates3d
     ap = argparse.ArgumentParser(description="Bước 0 lưới sân khấu (0 USD)")
-    ap.add_argument("--db", default="data/manifest.sqlite")
+    ap.add_argument("--db", default=DEFAULT_DB)
     ap.add_argument("--place", type=int, default=263)
     ap.add_argument("--spot", default="plaza_front")
     ap.add_argument("--out", required=True)
@@ -565,8 +1034,9 @@ def build_cfg(m3, spot, out, facing, well_dist):
                          "lens": 24, "res": [576, 1024], "rays": [36, 64]}]}
 
 
-def draw_top(out):
-    """topgrid.png: ảnh trực giao + lưới 1 m + nhãn ô, tô màu ô khác sàn, gốc O, mũi tên Bắc, tháp, giếng, người."""
+def draw_top(out, cams=None, fn="topgrid.png"):
+    """topgrid.png: ảnh trực giao + lưới 1 m + nhãn ô, tô màu ô khác sàn, gốc O, mũi tên Bắc, tháp, giếng, người.
+    `cams` = [(tên, {xyz, yaw_deg, fov_h_v_deg, cell})] — mặc định các máy thử trong frames.json; mỗi máy vẽ hình nón nhìn."""
     from PIL import Image, ImageDraw, ImageFont
     st = json.load(open(os.path.join(out, "stage.json"), encoding="utf-8"))
     grid = json.load(open(os.path.join(out, "grid.json"), encoding="utf-8"))
@@ -633,8 +1103,9 @@ def draw_top(out):
         x, y = P(tw["xyz"][0], tw["xyz"][1])
         d.rectangle([x - 8, y - 8, x + 8, y + 8], outline=(255, 30, 30, 255), width=3)
         d.text((x + 10, y - 9), f"THÁP (O→{tw['dist_m']} m, {tw['bearing_deg']}°)", fill=(255, 60, 60, 255), font=big)
-    for name, fr in (json.load(open(os.path.join(out, "frames.json"), encoding="utf-8")) or {}).items():
-        cam = fr["checks"]["camera"]
+    if cams is None:
+        cams = [(n, fr["checks"]["camera"]) for n, fr in (json.load(open(os.path.join(out, "frames.json"), encoding="utf-8")) or {}).items()]
+    for name, cam in cams:
         x, y = P(cam["xyz"][0], cam["xyz"][1])
         a = math.radians(cam["yaw_deg"])
         d.ellipse([x - 5, y - 5, x + 5, y + 5], fill=(0, 255, 0, 255))
@@ -650,7 +1121,7 @@ def draw_top(out):
     d.text((px - 46, 52), "B", fill=(255, 255, 255, 255), font=big)
     d.text((10, px - 26), "Cột A→T: Tây→Đông · Hàng 1→20: Nam→Bắc · ô 1 m (phụ 0,25 m) · vàng = bậc, đỏ = tầng khác, cam = vật chắn, tím = có mái che",
            fill=(255, 255, 255, 255), font=font)
-    Image.alpha_composite(img, ov).convert("RGB").save(os.path.join(out, "topgrid.png"))
+    Image.alpha_composite(img, ov).convert("RGB").save(os.path.join(out, fn))
 
 
 def draw_clay(out, name, letter):
@@ -700,21 +1171,62 @@ def draw_clay(out, name, letter):
         y = head["uv"][1] * H
         d.line([(W * 0.05, y), (W * 0.95, y)], fill=(255, 140, 0, 230), width=2)
         d.text((W * 0.55, y - 16), f"headroom Kelly {head['uv'][1] * 100:.1f}%", fill=(200, 90, 0, 255), font=font)
-    for key, label in (("kelly_dinh", "Kelly"), ("yeunu_mat", "Yêu nữ"), ("gieng_tam", "Giếng"), ("thap_chan", "Tháp (chân)"),
-                       ("thap_dinh", "Tháp (đỉnh)")):
+    labels = {}
+    for key, label, _own in LABEL_POINTS:
         v = t.get(key)
-        if not v or not v["uv"]:
+        if not v:
             continue
-        x, y = v["uv"][0] * W, v["uv"][1] * H
-        inside = v["in_frame"]
-        xc, yc = min(max(x, 8), W - 120), min(max(y, 20), H - 8)
-        d.ellipse([xc - 4, yc - 4, xc + 4, yc + 4], fill=(0, 0, 0, 255))
-        d.text((xc + 6, yc - 20), label + ("" if inside else " (ngoài khung)") + (" (bị che)" if v["blocked_by"] else ""),
-               fill=(0, 0, 0, 255), font=big)
+        p = st.get("marks", {}).get(key, {}).get("xyz") if key.startswith("thap") else (cfg_targets(out) or {}).get(key)
+        if p is None:
+            continue
+        b = (v.get("blocked_by") or {}).get("object")
+        labels[key] = dict(sg.point_state(C, A, p, f, aspect, blocked_by=b), label=label)
+    draw_labels(d, W, H, labels, big)
     d.text((6, H - 40), f"máy {name}: ô {cam['cell']}, cao {cam['z_above_stage_m']} m, pitch {cam['pitch_deg']}°, f {f} mm",
            fill=(0, 0, 0, 255), font=font)
     d.text((6, H - 22), f"clay render {chk['clay']['render_sec']} s", fill=(0, 0, 0, 255), font=font)
     Image.alpha_composite(img, ov).convert("RGB").save(os.path.join(out, f"view_{letter}_clay.png"))
+
+
+def cfg_targets(out):
+    try:
+        return json.load(open(os.path.join(out, "cfg.json"), encoding="utf-8")).get("targets")
+    except OSError:
+        return None
+
+
+def draw_labels(d, W, H, labels, font):
+    """Nhãn hình phác theo sg.point_state (người dùng 09/10): trong khung = chấm đặc; bị che = chấm rỗng "(bị che bởi …)";
+    ngoài khung = KHÔNG chấm, mũi tên xám sát mép chỉ hướng vật + "… ngoài khung"; sau lưng máy = không vẽ (chỉ ở bảng)."""
+    for key, v in labels.items():
+        stt = v["state"]
+        if stt == "behind":
+            continue
+        if stt in ("in", "blocked"):
+            x, y = v["uv"][0] * W, v["uv"][1] * H
+            if stt == "in":
+                d.ellipse([x - 5, y - 5, x + 5, y + 5], fill=(0, 0, 0, 255))
+                txt = v["label"]
+            else:
+                d.ellipse([x - 6, y - 6, x + 6, y + 6], outline=(0, 0, 0, 255), width=2)
+                txt = f"{v['label']} (bị che bởi {str(v['blocked_by'])[:28]})"
+            tx = min(max(x + 8, 4), W - 8 * len(txt) - 4) if x + 8 * len(txt) > W else x + 8
+            d.text((tx, y - 22), txt, fill=(0, 0, 0, 255), font=font)
+            continue
+        ax, ay = v["arrow"][0] * W, v["arrow"][1] * H              # ngoài khung: mũi tên xám sát mép
+        du, dv = v["uv"][0] - 0.5, v["uv"][1] - 0.5
+        n = math.hypot(du * W, dv * H) or 1.0
+        ux, uy = du * W / n, dv * H / n
+        tail = (ax - ux * 34, ay - uy * 34)
+        grey = (90, 90, 90, 255)
+        d.line([tail, (ax, ay)], fill=grey, width=4)
+        d.polygon([(ax + ux * 6, ay + uy * 6), (ax - ux * 10 - uy * 8, ay - uy * 10 + ux * 8),
+                   (ax - ux * 10 + uy * 8, ay - uy * 10 - ux * 8)], fill=grey)
+        txt = f"{v['label']} ngoài khung"
+        tw = 8 * len(txt)
+        tx = min(max(tail[0] - tw / 2, 4), W - tw - 4)
+        ty = min(max(tail[1] + (-26 if uy > 0 else 8), 4), H - 24)
+        d.text((tx, ty), txt, fill=(70, 70, 70, 255), font=font)
 
 
 def report(out):

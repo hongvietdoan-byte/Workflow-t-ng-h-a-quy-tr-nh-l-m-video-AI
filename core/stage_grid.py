@@ -308,3 +308,172 @@ def group_by_hit(group: str, z_rel: float, normal_z: float) -> str:
     if normal_z <= 0.5:                                   # mặt đứng / dốc gắt
         return "tuong" if z_rel <= 2.5 else "nha"
     return "doc"                                          # mặt dốc vừa (ram, mái)
+
+
+# ================================ Bước 1–2 (PHUONG_PHAP_SAN_KHAU_3D mục 5–8, 6b) ================================
+# Bảng cỡ cảnh: GIỐNG HỆT core/plate_camera.FRAMING (test giữ khớp; file này không import plate_camera vì Blender nạp theo đường dẫn)
+# cỡ -> (phần thân từ đỉnh đầu nằm trong khung, phần chiều cao khung nó chiếm, ống kính mm)
+FRAMING = {"EWS": (1.0, 0.18, 20), "WS": (1.0, 0.55, 24), "GAME_TPS": (1.0, 0.42, 24), "MLS": (0.75, 0.80, 32),
+           "MS": (0.55, 0.82, 35), "MCU": (0.35, 0.85, 50), "CU": (0.22, 0.88, 65), "ECU": (0.12, 0.95, 85)}
+ALPHA_STEP = 15                                     # mục 8: 24 hướng
+
+
+def point_state(cam, aim, p, lens: float, aspect: float, blocked_by: Optional[str] = None, margin: float = 0.04) -> Dict:
+    """Nhãn hình phác (người dùng 09/10): 'in' = chấm đặc; 'blocked' = trong khung nhưng bị che → chấm rỗng "(bị che bởi …)";
+    'out' = ngoài khung → KHÔNG chấm, mũi tên xám sát mép (`arrow`, u/v trong khung, lùi `margin`) chỉ hướng vật, `edge` = mép;
+    'behind' = sau lưng máy (z_c ≤ 0) → không vẽ, chỉ ghi bảng. Ngoài khung thắng bị che."""
+    pr = project(cam, aim, p, lens, aspect)
+    if pr is None:
+        return {"state": "behind", "uv": None, "edge": None, "arrow": None, "blocked_by": blocked_by}
+    u, v = pr[0], pr[1]
+    if in_frame(pr):
+        return {"state": "blocked" if blocked_by else "in", "uv": (u, v), "edge": None, "arrow": None, "blocked_by": blocked_by,
+                "depth": pr[2]}
+    du, dv = u - 0.5, v - 0.5
+    lim = 0.5 - margin
+    tu = lim / abs(du) if abs(du) > 1e-12 else float("inf")
+    tv = lim / abs(dv) if abs(dv) > 1e-12 else float("inf")
+    t = min(tu, tv)
+    edge = ("phai" if du > 0 else "trai") if tu <= tv else ("duoi" if dv > 0 else "tren")
+    return {"state": "out", "uv": (u, v), "edge": edge, "arrow": (0.5 + du * t, 0.5 + dv * t), "blocked_by": blocked_by,
+            "depth": pr[2]}
+
+
+def layer_heights(layer: str, H: float) -> List[float]:
+    """Mục 5 bước 2 — 3 độ cao máy (so với sàn) mỗi lớp: ngang = quanh mắt (±0,15 m); thấp = 0,5–0,7·H (không sát đất);
+    cao = mắt + 0,5 / 0,75 / 1 m; trên đầu = mắt + 1,5 / 2,5 / 3,5 m."""
+    e = EYE * H
+    return {"ngang": [e - 0.15, e, e + 0.15], "thap": [0.5 * H, 0.6 * H, 0.7 * H], "cao": [e + 0.5, e + 0.75, e + 1.0],
+            "tren_dau": [e + 1.5, e + 2.5, e + 3.5]}[layer]
+
+
+def size_frame(size: str, H: float) -> Tuple[float, float, float]:
+    """(h_f = mét khung dọc phải chứa, ống kính mm, phần khung nhân vật chiếm) theo FRAMING."""
+    body, share, lens = FRAMING[size]
+    return H * body / share, float(lens), share
+
+
+def candidates(req: Dict, aspect: float) -> List[Dict]:
+    """Mục 8 bước 1: 24 hướng (15°) × 3 độ cao theo lớp. C theo mục 5 bước 3 (khoảng xiên D = frame_distance(h_f)),
+    pitch = atan2(T_z − C_z, D_h). Khi |T_z − C_z| > D (máy cao hơn khoảng cách khung) thì D_h = 0,34·D và ghi `note`."""
+    T = [float(v) for v in req["aim"]]
+    H = float(req.get("H", 1.7))
+    h_f, lens, _ = size_frame(req["size"], H)
+    lens = float(req.get("lens") or lens)
+    D = frame_distance(h_f, lens, aspect)
+    out = []
+    for k in range(360 // ALPHA_STEP):
+        alpha = k * ALPHA_STEP
+        for h in layer_heights(req["layer"], H):
+            C, note = camera_at(T, alpha, D, h), None
+            if C is None:
+                a = math.radians(alpha)
+                C, note = (T[0] + math.sin(a) * 0.34 * D, T[1] + math.cos(a) * 0.34 * D, h), "máy cao hơn khoảng cách khung → D_h = 0,34·D"
+            dh = math.hypot(C[0] - T[0], C[1] - T[1])
+            out.append({"alpha": alpha, "h": round(h, 3), "at": [C[0], C[1], C[2]], "aim": T, "lens": lens, "D": D,
+                        "pitch": math.degrees(math.atan2(T[2] - C[2], dh)), "layer": req["layer"], "size": req["size"], "note": note})
+    return out
+
+
+# Ngưỡng luật mục 7 — TẤT CẢ TẠM, chờ hiệu chỉnh trên shot người dùng chê/khen (bảng 9 shot #24 ở HANDOFF): (giá trị, lý do)
+RULE_TH = {
+    "L2_hit_pct": (80.0, "tạm, chờ hiệu chỉnh: theo mục 7; Bước 0 yêu nữ bị giếng che chân còn 67 % → phải hỏng"),
+    "L3_rel": (0.15, "tạm, chờ hiệu chỉnh: theo mục 7 (±15 % so với bảng cỡ)"),
+    "L5_thap_pct": (3.0, "tạm, chờ hiệu chỉnh: 3 % khung ≈ 70 tia/2304 — chóp tháp nhận ra được; Bước 0 toàn cảnh 25 %"),
+    "L5_need_pct": (1.0, "tạm, chờ hiệu chỉnh: đạo cụ cần thấy ≥ 1 % khung (≈ 23 tia), nhỏ hơn thì model không vẽ đúng chỗ"),
+    "L5_see_deg": (60.0, "tạm, chờ hiệu chỉnh: thấy mặt / lưng khi máy lệch ≤ 60° so với hướng mặt / sau lưng (3/4 vẫn tính)"),
+    "L7_ngang": (12.0, "tạm, chờ hiệu chỉnh: theo mục 7, |pitch| ≤ 12°"),
+    "L7_cui": (-20.0, "tạm, chờ hiệu chỉnh: theo mục 7; máy −6° từng bị khai là cúi"),
+    "L7_ngua": (8.0, "tạm, chờ hiệu chỉnh: theo mục 7"),
+    "L7_tren_dau": (-45.0, "tạm, chờ hiệu chỉnh: trên đầu = cúi gắt"),
+    "L8_max_pct": (70.0, "tạm, chờ hiệu chỉnh: Bước 0 máy 3,4 m sàn 84,5 % là hỏng, máy cúi tính đúng sàn 57 % là đạt"),
+    "L8_down_need_pct": (3.0, "tạm, chờ hiệu chỉnh: shot cúi phải có đạo cụ + người ≥ 3 % khung (Bước 0 góc b: giếng 14 %, Kelly 7,5 %)"),
+    "L9_min_m": (0.3, "tạm, chờ hiệu chỉnh: theo mục 7"),
+    "L9_max_pct": (10.0, "tạm, chờ hiệu chỉnh: theo mục 7 — vật rắn gần máy hơn nhân vật chiếm > 10 % khung"),
+    "L10_lo": (0.85, "tạm, chờ hiệu chỉnh: giếng 'cao ngang hông' (Kho 420) ±15 %"),
+    "L10_hi": (1.15, "tạm, chờ hiệu chỉnh: như trên"),
+}
+
+
+def _th(th: Optional[Dict], k: str) -> float:
+    return float((th or {}).get(k, RULE_TH[k][0]))
+
+
+def _adiff(a: float, b: float) -> float:
+    return abs((a - b + 180.0) % 360.0 - 180.0)
+
+
+def background_group(percent: Dict[str, float]) -> Optional[str]:
+    """Nhóm nền chiếm nhiều nhất (L6): bỏ sàn, trời, đạo cụ dựng, người nộm."""
+    bg = {g: v for g, v in percent.items() if g not in ("san", "troi", "gieng") and not g.startswith("nguoi")}
+    return max(bg, key=bg.get) if bg else None
+
+
+def check_rules(m: Dict, req: Dict, th: Optional[Dict] = None) -> Dict:
+    """Mục 7: L1–L10 trên số đo `m` của một máy (Blender) theo ý đồ `req`. Trả {'ok', 'fail': [L…], 'why': {L: câu có số}}.
+    Không tự đổi ý đồ. `th` = ghi đè ngưỡng (giá trị thường)."""
+    why = {}
+    pct = m.get("percent") or {}
+    floor_ok = m.get("cam_floor") == "same" or (m.get("cam_floor") == "step" and req.get("cam_on_step"))
+    if not floor_ok or m.get("cam_inside"):
+        why["L1"] = f"sàn dưới máy '{m.get('cam_floor')}'" + (", máy nằm trong vật" if m.get("cam_inside") else "")
+    hit = m.get("subject_hit_pct")
+    if hit is None or hit < _th(th, "L2_hit_pct"):
+        why["L2"] = f"nhân vật chính thấy {hit}% (< {_th(th, 'L2_hit_pct'):g}%)"
+    exp = FRAMING[req["size"]][1] * 100
+    fp = m.get("subject_frame_pct")
+    if fp is None or abs(fp / exp - 1) > _th(th, "L3_rel"):
+        why["L3"] = f"nhân vật chiếm {fp}% chiều cao khung, cỡ {req['size']} cần {exp:g}% ±{_th(th, 'L3_rel') * 100:g}%"
+    if req.get("s0") and m.get("side") not in (req["s0"], "on") and not req.get("cross_ok"):
+        why["L4"] = f"máy phía {m.get('side')} của trục, shot mở chọn {req['s0']}"
+    l5 = []
+    for g, want in (req.get("want") or {}).items():
+        v = pct.get(g, 0.0)
+        if want and v < _th(th, "L5_thap_pct"):
+            l5.append(f"cần thấy {g} nhưng {v}%")
+        if not want and v > 0:
+            l5.append(f"không được thấy {g} nhưng {v}%")
+    for g in req.get("need") or []:
+        v = pct.get(g, 0.0)
+        if v < _th(th, "L5_need_pct"):
+            l5.append(f"cần thấy {g} ≥ {_th(th, 'L5_need_pct'):g}% nhưng {v}%")
+    if req.get("see") in ("face", "back") and req.get("facing") is not None and m.get("alpha") is not None:
+        ref = req["facing"] if req["see"] == "face" else (req["facing"] + 180) % 360
+        if _adiff(m["alpha"], ref) > _th(th, "L5_see_deg"):
+            l5.append(f"cần thấy {'mặt' if req['see'] == 'face' else 'lưng'}: máy ở {m['alpha']:g}°, lệch {_adiff(m['alpha'], ref):.0f}°")
+    if l5:
+        why["L5"] = "; ".join(l5)
+    if req.get("family") and not req.get("reverse_ok"):
+        bg = background_group(pct)
+        if bg != req["family"]:
+            why["L6"] = f"nền chính '{bg}' khác shot mở '{req['family']}'"
+    p, lay = m.get("pitch"), req.get("layer")
+    if p is not None and ((lay == "ngang" and abs(p) > _th(th, "L7_ngang")) or (lay == "cao" and p > _th(th, "L7_cui"))
+                          or (lay == "thap" and p < _th(th, "L7_ngua")) or (lay == "tren_dau" and p > _th(th, "L7_tren_dau"))):
+        why["L7"] = f"pitch {p:.1f}° không hợp lớp '{lay}'"
+    bgp = {g: v for g, v in pct.items() if not g.startswith("nguoi")}     # nhân vật lấp khung (CU) là ý đồ, không phải "một màu"
+    if bgp and not req.get("single_ok"):
+        g, v = max(bgp.items(), key=lambda x: x[1])
+        if v > _th(th, "L8_max_pct"):
+            why["L8"] = f"'{g}' chiếm {v}% khung (> {_th(th, 'L8_max_pct'):g}%)"
+    if lay in ("cao", "tren_dau") or (p is not None and p <= _th(th, "L7_cui")):
+        sub = pct.get("gieng", 0.0) + sum(v for g, v in pct.items() if g.startswith("nguoi"))
+        if sub < _th(th, "L8_down_need_pct"):
+            why["L8"] = (why["L8"] + "; " if "L8" in why else "") + f"shot cúi chỉ có đạo cụ + người {sub:.1f}%"
+    oc, om = m.get("occluder_pct") or 0.0, m.get("occluder_m")
+    if oc > _th(th, "L9_max_pct") or (om is not None and om < _th(th, "L9_min_m")):
+        why["L9"] = f"vật rắn trước nhân vật chiếm {oc}% khung, gần nhất {om} m"
+    r = m.get("well_hip_ratio")
+    if r is not None and not (_th(th, "L10_lo") <= r <= _th(th, "L10_hi")):
+        why["L10"] = f"đỉnh giếng ÷ hông = {r}"
+    fail = [f"L{k}" for k in range(1, 11) if f"L{k}" in why]
+    return {"ok": not fail, "fail": fail, "why": why}
+
+
+def rank_score(m: Dict, req: Dict) -> float:
+    """Mục 8 bước 4: xếp ứng viên đạt theo ưu tiên của ý đồ — Σ trọng số × % khung của nhóm (req['rank']) − 0,5 × lệch cỡ (điểm %)."""
+    pct = m.get("percent") or {}
+    s = sum(float(w) * pct.get(g, 0.0) for g, w in (req.get("rank") or {}).items())
+    if m.get("subject_frame_pct") is not None:
+        s -= abs(m["subject_frame_pct"] - FRAMING[req["size"]][1] * 100) * 0.5
+    return round(s, 2)
