@@ -34,6 +34,21 @@
 - Với N = 20, c = 1: O nằm ở ô **K11**.
 - Đổi ngược: tên ô ra tâm ô, rồi cộng độ lệch trong ô nếu Director ghi ("K11, lệch 0,3 m về Đông").
 
+**2.3b Hai cấp lưới (người dùng 09/10, theo mẫu Bàn đạo diễn có lưới mịn trên sàn).** Ô 1 m chỉ để GỌI TÊN. Vị trí thật luôn lưu tọa độ liên tục, chính xác 0,01 m.
+- **Lưới chính 1 m, có tên** (K11): để Director và người dùng nói chuyện.
+- **Lưới phụ 0,25 m, không tên, chỉ kẻ mờ:** để nhìn và để bắt dính khi đặt bằng tay. Chọn 0,25 m vì cỡ bàn chân ≈ 0,25–0,3 m và bề ngang thân người ≈ 0,45 m. Lệch dưới 0,25 m không đổi vị trí nhân vật so với đồ vật.
+- **Bước bắt dính theo cỡ cảnh,** vì cùng một độ lệch thì máy càng gần càng thấy rõ:
+
+  | Cỡ cảnh | Máy cách nhân vật | Bước bắt dính |
+  |---|---|---|
+  | CU / MCU | ≈ 0,8–1 m | 0,05 m |
+  | MS / MLS | — | 0,1 m |
+  | WS / EWS | — | 0,25 m |
+
+  Lý do: 0,1 m ở cách 0,8 m là lệch ≈ 7° trong khung; ở cách 4 m chỉ còn ≈ 1,4°.
+- **Đo sàn (mục 3):** trong vùng diễn (6 × 6 m quanh O và quanh từng đạo cụ) mỗi ô 1 m bắn lưới 4 × 4 tia (cách 0,25 m), để không lọt bậc, gờ, bồn cây hẹp hơn 1 m. Ngoài vùng diễn giữ 3 × 3.
+- **Ghi vị trí:** tọa độ (x, y, z), kèm ô chính chỉ để đọc ("K11, +0,30 Đông, +0,15 Bắc"). Không đặt tên ô phụ, vì tên ô phụ kiểu "K11.3.2" dễ đọc nhầm.
+
 **2.4 Đường đo từ O** (ghi cho mọi vật: mốc, đạo cụ, nhân vật, máy):
 - khoảng cách ngang `d = √(x² + y²)`;
 - phương vị la bàn `β = atan2(x, y)` (0° = Bắc, 90° = Đông);
@@ -42,7 +57,7 @@
 
 ## 3. Bản đồ sàn (đo, không đoán)
 
-Với mỗi ô, bắn k × k tia từ trên xuống (mặc định 3 × 3) và ghi:
+Với mỗi ô, bắn k × k tia từ trên xuống (3 × 3; trong vùng diễn 4 × 4 = cách 0,25 m — mục 2.3b) và ghi:
 - `floor_z`: trung vị cao độ các điểm trúng có pháp tuyến hướng lên (n_z ≥ 0,9) — tức mặt ngang;
 - vật trúng: tên object và vật liệu, nhóm (tháp / nhà / tường / sàn / bậc / đạo cụ / khác);
 - độ dốc lấy từ pháp tuyến;
