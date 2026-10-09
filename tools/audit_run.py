@@ -485,9 +485,11 @@ def report_project(conn, pid: int, pricing: dict, floors: dict) -> tuple:
 
 
 def pick_projects(conn, since) -> list:
-    sql = ("SELECT DISTINCT j.project_id FROM usage_events u JOIN jobs j ON j.id=u.job_id WHERE u.provider NOT LIKE 'mock%'"
-           + (" AND u.at >= ?" if since else "") + " ORDER BY j.project_id")
-    return [r[0] for r in conn.execute(sql, (since,) if since else ())]
+    # KLD-30: `since` may be typed '2026-10-07T05:00' and u.at is '2026-10-07 06:00:00' — compared as text ' ' < 'T' dropped it
+    from core.timestamps import utc_key
+    sql = ("SELECT j.project_id, u.at FROM usage_events u JOIN jobs j ON j.id=u.job_id WHERE u.provider NOT LIKE 'mock%'")
+    floor = utc_key(since) if since else ""
+    return sorted({r[0] for r in conn.execute(sql) if not floor or utc_key(r[1]) >= floor})
 
 
 def main():

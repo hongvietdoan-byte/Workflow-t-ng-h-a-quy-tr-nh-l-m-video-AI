@@ -12,6 +12,7 @@ from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core import budget_rounds, cost  # noqa: E402
+from core.timestamps import utc_key  # noqa: E402
 
 ROUNDS = [("Lượt 1 (thử)", "0000", "2026-10-07T02:38"),
           ("Lượt 2 (thử)", "2026-10-07T02:38", "2026-10-07T07:25"),
@@ -19,13 +20,14 @@ ROUNDS = [("Lượt 1 (thử)", "0000", "2026-10-07T02:38"),
 
 
 def _norm(ts: str) -> str:
-    return (ts or "").replace(" ", "T")
+    """KLD-30: usage_events.at ('… 02:38:05') and jobs.created_at ('…T02:38:05+00:00') → one UTC form before comparing."""
+    return utc_key(ts)
 
 
 def rnd_of(ts: str) -> int:
     ts = _norm(ts)
     for i, (_, a, b) in enumerate(ROUNDS):
-        if a <= ts < b:
+        if _norm(a) <= ts < _norm(b):
             return i
     return len(ROUNDS) - 1
 
