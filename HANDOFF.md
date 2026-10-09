@@ -1,3 +1,24 @@
+# HANDOFF — F4 màn chọn model gọn (09/10/2026, nhánh `worktree-agent-a301f2427d8281c07`, chưa push)
+
+**Đã xong** (0 USD, không gọi dịch vụ):
+- `dashboard/model_line.py` (mới, chỉ ĐỌC): `shot_line(conn, pid, scene_id, row=None)` → {model_text ("Seedance 2.5 · nháp 480p → cao
+  1080p" / "Seedance 2.0 · 720p → phóng 1080p lúc dựng" / "Kling 3.0 Omni · pro"), keeps_content (True/False/None), usd (≈, clip nhóm =
+  "trong clip nhóm"), source (đề xuất / bạn chọn / …), why, warning (E1 từ scene_choice), path, text}; `shot_lines` (plan một lần);
+  `film_line` ("Phim 20 s ≈ X USD — mục tiêu < 30 USD (đạt)"; cờ two_tier_quality bật → `quality_tier.e1_estimate`, tắt → tổng plan).
+- Bước Video, bảng "🎛 Model cho từng cảnh": hiện ở CẢ chế độ thường (trước chỉ chuyên gia). Mỗi shot một dòng + popover "Đổi" (model
+  `vm_{pid}_{sid}`, đường chất lượng `qpath_{sid}` khi cờ bật, độ phân giải + lý do dạng chữ). Cảnh báo E1 màu cảnh báo trên dòng.
+  Dòng 🎬 ước tính cả phim trên đầu bảng. Phần giải thích slide + so sánh tổng 3 ưu tiên chỉ còn ở chế độ chuyên gia.
+- Thẻ clip (`quality_ui.card_block(..., line=)`): bỏ selectbox "Đường chất lượng" (đã ở "Đổi"), thay bằng một dòng 🎛 + "đổi ở bảng
+  Model (Tinh chỉnh)"; giữ nút ⬆ Gen bản cao / Gen MỚI của F3. Lưới tính `shot_lines` một lần (`step4._shot_lines`).
+- Bước 1 · 📐 Định dạng: dòng 🎬 ước tính cả phim dưới "Ưu tiên model video" khi dự án đã có cảnh.
+- `tests/test_model_line_f4.py` (5 test) + khai `devsys/areas.json`. Không sửa core/.
+
+**Còn mở / rủi ro**:
+- Độ phân giải chưa chọn tay riêng được (không có cột lưu; runner ngoài phạm vi) — trong "Đổi" chỉ hiện chữ, đi theo đường chất lượng.
+- Giá nháp→cao trên dòng tự tính bằng `cost.seedance_estimate` như `e1_estimate`; nâng 2.5 → 1080p vẫn là ƯỚC TÍNH chưa đo thật.
+
+---
+
 # HANDOFF — F2 nền 3D đúng trước khi gen (09/10/2026, nhánh `worktree-agent-ada0e86a5b27e6561`, chưa push)
 
 **Đã xong** (0 USD, Blender giả trong test):
