@@ -74,7 +74,7 @@ class ScriptChatTests(unittest.TestCase):
             self.assertTrue(rows)
             self.assertTrue(all(r['stage'] == 'script_chat' and r['project_id'] == pid for r in rows))
             self.assertEqual(len(transport.calls), 1)
-            self.assertEqual(transport.calls[0]['body']['max_tokens'], 1500)
+            self.assertEqual(transport.calls[0]['body']['max_tokens'], 3000)   # KLD-10
             from core import budget_rounds
             day = budget_rounds.daily(p.conn, project_id=pid)[0]['day']
             self.assertEqual(budget_rounds.day_detail(p.conn, day, pid)[0]['stage'], 'chat Kịch bản')

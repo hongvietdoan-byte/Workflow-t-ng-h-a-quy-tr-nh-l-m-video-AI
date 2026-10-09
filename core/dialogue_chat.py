@@ -155,8 +155,7 @@ def apply(p, pid: int, proposals: List[Dict]) -> Dict:
             data = json.loads(row["data"] or "{}")
             dial = [dict(d) for d in data.get("dialogue") or [] if isinstance(d, dict)]
             undo["scenes"].setdefault(str(ln["idx"]), {"dialogue": [dict(d) for d in dial], "text": data.get("text")})
-            spoken = [d for d in dial if str(d.get("text") or "").strip()]
-            spoken[ln["n"]]["text"] = pr["new"]              # chỉ đạo giọng (delivery) của câu giữ nguyên
+            dial[ln["n"]]["text"] = pr["new"]                # n đếm như lines() (mọi dict) · chỉ đạo giọng (delivery) giữ nguyên
             scene_text = data.get("text")
             new_text = _replace_in_text(scene_text, ln["speaker"], pr["old"], pr["new"]) if isinstance(scene_text, str) else None
             llm_io.update_scene(p, pid, ln["idx"], {"dialogue": dial}, text=new_text)

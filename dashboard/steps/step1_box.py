@@ -356,8 +356,8 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
         older, recent = Chat.window(p, pid)
         if older:
             with st.expander(f"Xem {len(older)} tin cũ hơn"):
-                _messages(older)
-        _messages(recent)
+                _messages(p, pid, older)
+        _messages(p, pid, recent, start=len(older))
         if Intake.enabled():
             from dashboard.steps.step1_intake import pending_cards, style_offer
             pending_cards(p, pid)
@@ -441,8 +441,29 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
     return has_input
 
 
-def _messages(messages):
-    for message in messages:
+_PROP_STATE = {"open": ("chờ bạn đồng ý", "info"), "applied": ("đã áp dụng", "ok"), "undone": ("đã hoàn tác", "mute")}
+
+
+def _md(text: str) -> str:
+    """Câu thoại đưa vào markdown: thoát ký tự định dạng (câu có '*' / '~' không làm vỡ thẻ)."""
+    return re.sub(r"([\\`*_~\[\]<>#|])", r"\\\1", str(text or ""))
+
+
+def _proposal_card(pid: int, i: int, pr: dict) -> None:
+    """KLD-10: thẻ đề xuất thoại — câu cũ gạch ngang, câu mới, lý do, trạng thái (đồng ý bằng lời trong chat, không nút)."""
+    from dashboard.design import components as D
+    label, kind = _PROP_STATE.get(pr.get("state", "open"), (str(pr.get("state")), "mute"))
+    with D.card(f"kld10-{pid}-{i}-{pr.get('id')}"):
+        st.html(D.pill(f"{pr.get('id')} · {pr.get('line')} · {label}", kind))
+        who = f"**{_md(pr.get('speaker'))}:** " if pr.get("speaker") else ""
+        st.markdown(f"{who}~~{_md(pr.get('old'))}~~  \n→ {_md(pr.get('new'))}  \n"
+                    + (f"*Lý do:* {_md(pr.get('why'))}  \n" if pr.get("why") else "") + f"Trạng thái: {label}")
+
+
+def _messages(p: Pipeline, pid: int, messages, start: int = 0):
+    """Tin chat; `start` = vị trí của tin đầu trong cả lịch sử (nút ↩ Hoàn tác trỏ đúng tin)."""
+    from core import script_chat as Chat
+    for i, message in enumerate(messages, start=start):
         with st.chat_message(message["role"]):
             text = message["text"]
             if len(text) > _SHOW_CHARS or len(text.splitlines()) > _SHOW_LINES:
@@ -451,3 +472,12 @@ def _messages(messages):
                     st.markdown(text)
             else:
                 st.markdown(text)
+            for pr in message.get("proposals") or []:
+                _proposal_card(pid, i, pr)
+            if message.get("applied") and not message.get("undone"):
+                # in-run (không on_click): dùng Pipeline của lượt chạy này; không fragment → không cần kết nối CSDL riêng
+                if st.button("↩ Hoàn tác · 0 USD", key=f"kld10_undo_{pid}_{i}"):
+                    if act(lambda: Chat.undo(p, pid, i)):
+                        st.rerun()
+            elif message.get("applied"):
+                cap("Đã hoàn tác lần áp dụng này.")

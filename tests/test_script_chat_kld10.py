@@ -44,7 +44,7 @@ def setup_project(test):
     sid = p.create_scene(pid, 1, "C1")
     p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({
         "action": "Maxim ướm áo hoodie đỏ", "text": "Maxim ướm áo.\nMAXIM: Hô biến! Đồ mới nè!",
-        "dialogue": [{"speaker": "MAXIM", "text": OLD, "delivery": "hào hứng"}, {"speaker": "KELLY", "text": "Đi thôi."}]},
+        "dialogue": [{"speaker": "MAXIM", "text": OLD, "delivery": {"emotion": "hào hứng"}}, {"speaker": "KELLY", "text": "Đi thôi."}]},
         ensure_ascii=False), sid))
     p.conn.commit()
     return p, pid
@@ -106,7 +106,7 @@ class SendApplyUndoTests(unittest.TestCase):
         self.assertEqual(done["applied"], ["P1"])
         self.assertTrue(done["text"].startswith("Đã áp dụng"))
         data = scene(self.p, self.pid)
-        self.assertEqual((data["dialogue"][0]["text"], data["dialogue"][0].get("delivery")), (NEW, "hào hứng"))
+        self.assertEqual((data["dialogue"][0]["text"], data["dialogue"][0].get("delivery")), (NEW, {"emotion": "hào hứng"}))
         self.assertIn("MAXIM: " + NEW, data["text"])
         self.assertIn("MAXIM: " + NEW, self.p.project(self.pid)["script_text"])
         # a second "ok" for the same proposal never applies twice
