@@ -2263,6 +2263,16 @@ class ImageRunner(_Runner):
                 sev, words = place_refs.measure(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], job["id"], path,
                                                 place_refs.resolution_of(self.p.project(job["project_id"])))
                 self._diag(job, sev, "place_match", words)
+            from . import camera_plan
+            if camera_plan.enabled():              # G0 mục 5: layout of the picture vs the render (code, 0 USD) — marked, never redrawn
+                from . import plate_layout_qc
+                try:
+                    got = plate_layout_qc.check_job(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], job["id"], path,
+                                                    place_refs.resolution_of(self.p.project(job["project_id"])))
+                    if got:
+                        self._diag(job, got[0], plate_layout_qc.CODE, got[1])
+                except Exception as e:  # noqa: BLE001 - a check must never lose the paid picture
+                    self._diag(job, "warn", plate_layout_qc.CODE, f"không so được bố cục nền với render: {type(e).__name__}: {e}")
         from . import qc_scene
         if qc_scene.shadow():                      # 🎓 học việc (B3 08/10): check, record the decision only — no layer0.json, no redraw
             self._trainee_layer0(job, path)

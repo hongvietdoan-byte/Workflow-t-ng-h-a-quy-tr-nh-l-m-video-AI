@@ -347,18 +347,25 @@ def subject_box(cam, aim, lens, aspect, spot, height_m, width_m: Optional[float]
     return [round(min(xs), 4), round(min(ys), 4), round(max(xs), 4), round(max(ys), 4)]
 
 
-def plan_cameras(shots: List[Dict], spot_of, height_of, aspect: float = 9 / 16) -> Dict[int, Dict]:
+def plan_cameras(shots: List[Dict], spot_of, height_of, aspect: float = 9 / 16, setup_field: Optional[str] = None) -> Dict[int, Dict]:
     """scene id -> camera_for(...) for shots at a 3D place. Shots of one camera_setup with the same size share the first one's camera
-    (the DP's coverage: one position, several shots). spot_of(shot) -> (xyz, facing_deg) or None; height_of(shot) -> metres."""
+    (the DP's coverage: one position, several shots). spot_of(shot) -> (xyz, facing_deg) or None; height_of(shot) -> metres.
+    G0 (flag director_camera_plan): `setup_field` = the shot field holding the Director's camera set-up of the scene (core/camera_plan
+    writes `plate_setup`); shots of one set-up + one size + one spot share the first one's camera (`shared_by` "plan") — so one cache
+    key and one render. None (flag off) = exactly the old grouping."""
     out, setups = {}, {}
     for s in shots:
         data = s["data"]
         spot = spot_of(s)
         if spot is None:
             continue
-        key = (data.get("story_scene"), data.get("camera_setup"), size_of(data)) if data.get("camera_setup") else None
+        if setup_field and data.get(setup_field):
+            key = (data.get("story_scene"), "plan", str(data[setup_field]), size_of(data), tuple(round(float(c), 3) for c in spot[0]))
+        else:
+            key = (data.get("story_scene"), data.get("camera_setup"), size_of(data)) if data.get("camera_setup") else None
         if key and key in setups:
-            out[s["id"]] = dict(setups[key], shared_with=setups[key]["camera"]["name"])
+            out[s["id"]] = dict(setups[key], shared_with=setups[key]["camera"]["name"],
+                                **({"shared_by": "plan"} if key[1] == "plan" else {}))
             continue
         cam = camera_for(data, spot[0], spot[1], height_of(s), aspect, name=f"shot_{s['id']}")
         out[s["id"]] = cam

@@ -1,3 +1,39 @@
+# HANDOFF — G0 Đạo diễn đặt máy 3D (09/10, nhánh `g0-director-camera-plan`, dựng trên `70f7259`, chưa push)
+
+## Đã xong (0 USD — Claude/Blender giả trong test; chưa chạy thật)
+- Cờ `director_camera_plan` (`core/features.py`, TẮT, chưa verified; khai khu `plates3d` trong `devsys/areas.json`, không tăng version).
+- `core/camera_plan.py` (mới):
+  - mục 1–2 `before_plates`: mỗi cảnh (story_scene × bối cảnh 3D) chưa có sơ đồ → MỘT lượt Claude khâu `director_camera_plan`
+    (ước tính ghi diag trước, qua sổ chi; STAGE_SETTINGS max_tokens 8000; cost.LLM_STAGE_TOKENS). Đầu vào: luật cách nghĩ
+    `prompts/28_director_camera_plan.md` + hướng mốc/chỗ đứng (`place_facts` từ `model3d.anchor` + spots) + kịch bản cảnh + shot + ảnh
+    `plates/top_view.png` nếu có (thiếu anchor/topview → diag warn). Ra JSON: props, beats, axis, 1–6 setup, shot→setup+size+angle.
+    `check` (code): angle theo setup, shot nhìn xuống mà setup không cúi → tách setup `X-DOWN` (high/down), vượt trục không lý do,
+    nền chưa giới thiệu (lệch > 40° cả shot mở lẫn hướng ngược), muốn thấy mốc mà nhìn lệch. `apply` ghi `plate_setup`,
+    `plate_view` = {background: phương vị độ, why}, size, angle (+ `shot`); trường `_user_locked` giữ + báo; đổi cỡ → warn.
+    Sơ đồ lưu `<data_dir>/<pid>/plates/camera_plan.json`. Claude lỗi → ghi `failed` + `tries`, tự thử tối đa 2 lượt (không trả tiền mỗi tick).
+  - mục 4 `after_plates`: mỗi setup một render (+ render shot mở) → Claude khâu `director_plate_review` chỉ khai quan sát enum
+    (`OBSERVATIONS`); `judge` (code) kết luận + cách sửa; sửa (`_apply_fix`: phương vị/angle) → `apply` → `ensure_plates` render lại,
+    ≤ 2 vòng, rồi diag error `director_plate_review` "CẦN BẠN QUYẾT". Quan sát mâu thuẫn / không rõ → không đoán, báo người.
+- mục 3 `core/plate_camera.plan_cameras(..., setup_field)` + `location_pack.plan`: cờ BẬT → shot cùng `plate_setup` + cỡ + chỗ đứng
+  dùng CÙNG camera (chiều cao người của shot đầu) → cùng cache key, render một lần. Cờ TẮT → gộp cũ y nguyên (test so trước–sau).
+- mục 5 `core/plate_layout_qc.py`: sau khi ảnh về (`runner.ImageRunner._after_download`, chỉ khi cờ bật) so ảnh với render: chân trời
+  (bước sáng/tối), dải quanh chân trời phẳng (tường che), F1 cạnh (place_refs.background_match) → diag `plate_layout` warn
+  "nền lệch render" + `<data_dir>/<pid>/plate_layout.json`. Chỉ đánh dấu, không vẽ lại. Ngưỡng tạm, CHƯA hiệu chỉnh.
+- Autopilot `_plates_phase` → `_camera_plan` trước plan() và sau ensure_plates (cờ tắt: không làm gì; lỗi → diag, chạy tiếp luồng cũ).
+- CLI: `py tools/location_pack.py camera-plan --project 24 [--yes] [--review] [--force]` (không --yes: chỉ in ước tính).
+- MockLlm (LLM_PROVIDER=mock) có câu trả lời cho 2 khâu mới.
+- Test `tests/test_camera_plan_g0.py` (29 test).
+
+## Việc mở / rủi ro
+- Chưa chạy thật (mục 6): ước tính Claude #24 ≈ 0,06 USD sơ đồ (1 cảnh) + ≈ 0,08 USD duyệt 4 góc (tối đa ≈ 0,23 nếu sửa đủ 2 vòng).
+- `beats` (chỗ đứng theo nhịp) + `props` mới được LƯU, chưa dời nhân vật/đạo cụ trong 3D (máy vẫn đặt quanh chỗ đứng đăng ký).
+- Sơ đồ có thể đổi `size` shot → prompt ảnh còn tả cỡ cũ (đã warn) — mục 6 sửa prompt shot 4–7.
+- Ngưỡng `plate_layout_qc` (chân trời 0,15; dải 30 %; F1 0,15) và luật `judge` cần đo trên render/ảnh #24 thật.
+- Chưa có nút Dashboard riêng (chạy qua autopilot khi bật cờ, hoặc CLI).
+
+## Bước kế
+- Rà nhánh; người dùng duyệt giá → bật cờ, chạy `camera-plan --project 24 --review --yes`, gửi tấm ghép render các setup, rồi mục 6.
+
 # HANDOFF — P24 đặt máy 3D theo ngôn ngữ máy của shot (09/10, nhánh worktree-agent-ab5a90511a3b9ff78)
 
 ## Đã xong (0 USD, chưa chạy Blender)

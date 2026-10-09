@@ -99,6 +99,8 @@ STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
                                                               # default 32k made turn 1's estimate 0.43 USD > the 0.3 USD per-idea cap
     "director_rewrite": {"effort": "low", "max_tokens": 6000,   # S14.17 Đạo diễn viết lại prompt MỘT shot trước khi gen lại: JSON ngắn.
                          "timeout": 90, "retries": 1},          # The person waits on the button: 90 s, one retry, then the old "Fix:" way
+    "director_camera_plan": {"effort": "medium", "max_tokens": 8000},   # G0: sơ đồ cảnh + 3–4 góc máy của MỘT cảnh: JSON ≈ 1–2k
+    "director_plate_review": {"effort": "low", "max_tokens": 1500},     # G0: quan sát enum trên MỘT render nền — JSON rất ngắn
     "lesson_judge": {"effort": "low", "max_tokens": 4000},      # S14.24 agent chấm bài học (bóng): JSON khoản trừ ngắn của 5 tiêu chí
     "asset_checklist": {"effort": "low", "max_tokens": 6000},   # S14.23 bảng kê tài nguyên trước Director: JSON ngắn (≈ 1 dòng / thứ cần);
                                                               # own entry so the 32k default never makes the worst case refuse (S11.2)
@@ -995,6 +997,12 @@ class MockLlm:
             out = {"new_prompt": f"{old} (rewritten by the Director, mock)", "changed": ["Thêm câu sửa vào thân prompt (giả lập)"],
                    "why": "giả lập"}
             return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 80, 40)
+        if prompt.startswith("# Đạo diễn — sơ đồ cảnh và bộ góc máy"):   # G0 (core/camera_plan.py)
+            from .camera_plan import mock_answer
+            return LlmReply("```json\n" + json.dumps(mock_answer(prompt), ensure_ascii=False) + "\n```", 90, 40)
+        if prompt.startswith("# Đạo diễn — duyệt render nền"):            # G0 (core/camera_plan.py)
+            from .camera_plan import mock_review
+            return LlmReply("```json\n" + json.dumps(mock_review(prompt), ensure_ascii=False) + "\n```", 60, 20)
         if prompt.startswith("# Bảng kê tài nguyên"):                  # S14.23 (core/asset_checklist.py)
             from .asset_checklist import mock_answer
             return LlmReply("```json\n" + json.dumps(mock_answer(prompt), ensure_ascii=False) + "\n```", 90, 40)

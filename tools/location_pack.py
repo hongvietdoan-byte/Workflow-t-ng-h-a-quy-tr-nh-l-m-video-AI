@@ -12,6 +12,10 @@ r"""Gói bối cảnh (kế hoạch V4 mục 1): gắn mô hình 3D cho một kh
         --lights '[{"kind":"lamp","where":"behind_left","color":"warm","why":"..."}]' --out DIR
                                                                                    S5.7: render thử MỘT nền theo hướng + đèn đã chọn
                                                                                    (đọc CSDL chỉ-đọc, không ghi gì)
+    py tools/location_pack.py camera-plan --project 24 [--yes] [--review] [--force]
+                                                                                   G0 (cờ director_camera_plan): Đạo diễn lập sơ đồ
+                                                                                   cảnh + bộ góc máy; --review: render rồi Đạo diễn
+                                                                                   xem render từng góc. Không --yes: chỉ in ước tính
 
 Không tốn tiền. Ghi CSDL chỉ ở lệnh register và script-view (hồ sơ khu vực → mục model3d).
 """
@@ -86,13 +90,39 @@ def run_preview(a) -> dict:
             "cache_key": location_pack.cache_key(entry, camera, env, res)}
 
 
+def run_camera_plan(conn, a) -> None:
+    """G0: the Director's scene map + camera set-ups (paid: Claude, estimate printed first; runs only with --yes and the flag on)."""
+    from core import camera_plan, cost
+    if not camera_plan.enabled():
+        print("Cờ director_camera_plan đang TẮT — bật ở 🧪 hoặc FEATURE_DIRECTOR_CAMERA_PLAN=1 rồi chạy lại")
+        return
+    todo = [g for g in camera_plan.groups(conn, a.project)
+            if a.force or g["key"] not in camera_plan.load_plans(DATA, a.project)]
+    one = cost.llm_estimate(conn, camera_plan.STAGE, 1, images=1)
+    look = cost.llm_estimate(conn, camera_plan.REVIEW_STAGE, 1, images=2)
+    print(f"{len(todo)} cảnh cần sơ đồ · Claude ≈ {(one or 0) * cost.LLM_MARGIN * len(todo):.3f} USD"
+          + (f" · duyệt render ≈ {(look or 0) * cost.LLM_MARGIN:.3f} USD / góc máy (×3 nếu phải sửa 2 vòng)" if a.review else ""))
+    if not a.yes:
+        print("Chưa chạy (thêm --yes để đồng ý chi tiền)")
+        return
+    res = camera_plan.before_plates(conn, a.project, DATA, force=a.force, log=print)
+    print(json.dumps(res, ensure_ascii=False))
+    if a.review:
+        root = os.path.dirname(os.path.abspath(DATA))
+        location_pack.ensure_plates(conn, a.project, DATA, root, log=print)
+        print(json.dumps(camera_plan.after_plates(conn, a.project, DATA, root, log=print), ensure_ascii=False, indent=1))
+
+
 def main():
     try:
         sys.stdout.reconfigure(encoding="utf-8")
     except AttributeError:
         pass
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("cmd", choices=("probe", "register", "plan", "render", "topview", "script-view", "preview"))
+    ap.add_argument("cmd", choices=("probe", "register", "plan", "render", "topview", "script-view", "preview", "camera-plan"))
+    ap.add_argument("--yes", action="store_true", help="camera-plan: đồng ý chi tiền Claude (không có: chỉ in ước tính)")
+    ap.add_argument("--review", action="store_true", help="camera-plan: render nền rồi Đạo diễn xem render từng góc máy")
+    ap.add_argument("--force", action="store_true", help="camera-plan: lập lại sơ đồ dù đã có")
     ap.add_argument("--spot-name", action="append", help="tên chỗ đứng (script-view / preview)")
     ap.add_argument("--off", action="store_true", help="script-view: bỏ đánh dấu")
     ap.add_argument("--landmark", help="tên mốc bằng tiếng Anh cho prompt, vd 'the clock tower'")
@@ -142,6 +172,9 @@ def main():
                   f"cách {it['distance_m']} m · ống {it['camera']['lens']} mm · ô nhân vật {it['subject_box']}"
                   + "".join(f" · ⚠ {it[k]}" for k in ("weather_problem", "spot_problem", "view_problem", "light_problem") if it.get(k))
                   + (f" · ⛔ {it['needs']}" if it.get("needs") else ""))
+        return
+    if a.cmd == "camera-plan":
+        run_camera_plan(conn, a)
         return
     if a.cmd == "topview":
         res = location_pack.top_view(conn, a.project, a.out or os.path.join(DATA, str(a.project), "plates", "top_view.png"))

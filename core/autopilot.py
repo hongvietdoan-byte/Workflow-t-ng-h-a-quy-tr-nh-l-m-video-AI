@@ -592,6 +592,7 @@ def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         return None
     size = formats.spec(formats.project_aspect(p.project(pid)) or "9:16")["deepix"]
     w, h = (int(v) for v in str(size).lower().split("x"))
+    _camera_plan(p, pid, ctx, "before")                   # G0 (flag director_camera_plan): scene map + camera set-ups first
     items = location_pack.plan(p.conn, pid, (w, h))       # KLD-6: the keys at the size the index is rendered at (was the 9:16 default)
     if not items:
         return None
@@ -612,8 +613,25 @@ def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             _d(p, pid, "image", "warn", place_refs.stale_note(p.conn, ctx.data_dir, pid, (w, h), sid, item), "plate_stale")
         location_pack.ensure_plates(p.conn, pid, ctx.data_dir, os.path.dirname(os.path.abspath(ctx.data_dir)), (w, h),
                                     log=lambda m: _log(p, pid, m))
+    _camera_plan(p, pid, ctx, "after", (w, h))           # G0: the Director looks at each set-up's render (≤ 2 fix rounds, then you)
     _plate_move_hold(p, pid, ctx, (w, h))
     return None
+
+
+def _camera_plan(p: Pipeline, pid: int, ctx: Context, when: str, res=None) -> None:
+    """G0 (core/camera_plan, flag director_camera_plan — off: nothing at all). Claude calls go through the ledger with an estimate said
+    first; a failure is said and the run goes on with the shots' own plate_view (never a stop of the automatic run)."""
+    from . import camera_plan
+    if not camera_plan.enabled():
+        return
+    try:
+        if when == "before":
+            camera_plan.before_plates(p.conn, pid, ctx.data_dir, log=lambda m: _log(p, pid, m))
+        else:
+            camera_plan.after_plates(p.conn, pid, ctx.data_dir, os.path.dirname(os.path.abspath(ctx.data_dir)), resolution=res,
+                                     log=lambda m: _log(p, pid, m))
+    except Exception as e:  # noqa: BLE001 - said; the plates of the old flow still come
+        _d(p, pid, "director", "error", f"sơ đồ cảnh / duyệt render nền (G0) lỗi: {type(e).__name__}: {e}", camera_plan.CODE)
 
 
 def _plate_ack(p: Pipeline, pid: int, held: List[tuple], note: str) -> None:

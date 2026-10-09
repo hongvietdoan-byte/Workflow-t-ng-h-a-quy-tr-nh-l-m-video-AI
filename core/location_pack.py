@@ -369,13 +369,15 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
     S5.7: the camera direction comes from the shot's `plate_view` and the extra lights from `practical_lights` (core/plate_choice) —
     both are part of the camera, so of the cache key: a changed direction or light is a new plate. `needs` = the plate must not be
     rendered yet (a script-view spot without a direction); `view_problem` / `light_problem` = reported, rendered anyway."""
-    from . import plate_choice
+    from . import camera_plan, plate_choice
     shots = shots_at_3d_places(conn, pid)
     aspect = resolution[0] / resolution[1]
     views = {s["id"]: plate_choice.view_of(s["entry"], spot_for(s["entry"], s["data"]), s["data"]) for s in shots}
+    by_setup = camera_plan.enabled()                    # G0: the Director's set-ups share one camera (flag off: the old grouping)
     cams = plate_camera.plan_cameras(
         shots, lambda s: ((spot_for(s["entry"], s["data"])["at"]), views[s["id"]]["facing_deg"]),
-        lambda s: _height(conn, pid, s["data"]), aspect)
+        lambda s: _height(conn, pid, s["data"]), aspect, setup_field=camera_plan.SETUP_FIELD if by_setup else None)
+    first_of = {f"shot_{s['id']}": s for s in shots}
     out = []
     for s in shots:
         cam = cams.get(s["id"])
@@ -384,6 +386,8 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
         env = plate_env.env_of(s["data"])
         sp = spot_for(s["entry"], s["data"])
         height = _height(conn, pid, s["data"])
+        if cam.get("shared_by") == "plan" and cam.get("shared_with") in first_of:
+            height = _height(conn, pid, first_of[cam["shared_with"]]["data"])   # G0: one set-up = one camera = one cache key
         view = views[s["id"]]
         if cam.get("shared_with"):                      # one camera set-up = one position: a different direction is not taken silently
             first = next((views[o["id"]] for o in shots if f"shot_{o['id']}" == cam["shared_with"]), None)

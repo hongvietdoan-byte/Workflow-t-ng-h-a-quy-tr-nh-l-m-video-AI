@@ -298,6 +298,8 @@ LLM_STAGE_TOKENS = {"director": (25000, 18000), "motion": (9000, 4000), "qc": (6
                     "video_analysis": (14000, 4000), "setcheck": (8000, 1200), "clipcheck": (10000, 1200),
                     "asset_vision": (6000, 900), "research": (25000, 1500),
                     "director_rewrite": (5000, 900),   # S14.17: one shot's prompt rewritten before a retake (+ the faulty picture)
+                    "director_camera_plan": (9000, 2500),   # G0: one scene's map + camera set-ups (+ the top view picture if any)
+                    "director_plate_review": (2500, 400),   # G0: one set-up's render (+ the opening render) → observations (enum)
                     "asset_checklist": (12000, 2500),  # S14.23: script + library names (≈ 30 tokens / entry, a few hundred entries), no picture
                     "lesson_judge": (4000, 1200),    # S14.24: một bài học + tài liệu cùng nhóm (≤ 12k ký tự) → khoản trừ JSON; tách
                                                      # khỏi 'lessons' để sổ chi phân biệt VIẾT và CHẤM bài học
