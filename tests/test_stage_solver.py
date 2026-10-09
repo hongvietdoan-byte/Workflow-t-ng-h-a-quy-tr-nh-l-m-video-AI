@@ -299,3 +299,11 @@ def test_end_spec_copy_in_tool_matches_solver():
     mod = importlib.util.module_from_spec(spec_)
     spec_.loader.exec_module(mod)
     assert mod.ss_end_spec(SPEC) == ss.end_spec(SPEC)
+
+
+def test_per_shot_min_seen_overrides_s1():
+    m = good_m()
+    m["obj"]["gieng"] = dict(m["obj"]["gieng"], seen_pct=33.3)
+    assert "S1" in sg.check_spec(m, SPEC, objs())["fail"]
+    spec = dict(SPEC, thanh_phan=[dict(c, thay_min=25) if c["vat"] == "gieng" else c for c in SPEC["thanh_phan"]])
+    assert "S1" not in sg.check_spec(m, spec, objs())["fail"]

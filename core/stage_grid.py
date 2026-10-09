@@ -719,6 +719,8 @@ def check_spec(m: Dict, spec: Dict, objs: Dict[str, Dict], th: Optional[Dict] = 
             phu[k] = seen > 0 and zm <= tol and (not want_view or e.get("view") in want_view)
             continue
         need = _th(th, {"nguoi": "S1_nguoi_pct", "moc": "S1_moc_pct"}.get(o.get("kind"), "S1_dao_cu_pct"))
+        if c.get("thay_min") is not None:              # ngưỡng riêng của shot do người dùng/Director chấp nhận (vd qua vai: vai che một phần)
+            need = float(c["thay_min"])
         if seen < need:
             b = e.get("blocked_by")
             bad("S1", f"{lab} thấy {seen:g}% (< {need:g}%)" + (f", bị che bởi {b}" if b else ""))

@@ -66,9 +66,11 @@
     {
      "vat": "gieng",
      "vai": "chinh",
-     "vung": "giua+phai-duoi"
+     "vung": "giua+phai-duoi",
+     "thay_min": 25
     }
-   ]
+   ],
+   "_chot": "người dùng 09/10 chọn (b): qua vai thì vai Kelly che một phần giếng là đúng chất — chấp nhận giếng thấy ≥ 25 % (riêng shot này)"
   },
   {
    "shot": 4,
