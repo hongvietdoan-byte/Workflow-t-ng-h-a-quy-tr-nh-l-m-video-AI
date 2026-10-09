@@ -3,6 +3,7 @@ from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 from dashboard.widgets import dialogue_panel
 from contextlib import nullcontext
+from core import motion_prompt_lint
 
 
 def _card(key: str):
@@ -108,6 +109,9 @@ def step3(p: Pipeline, pid: int):
                 scene_box = _card(f"sb-mot-{r['sid']}") if v2 else nullcontext()
                 scene_box.__enter__()
                 flags = json.loads(r["check_flags"] or "[]") if r["check_flags"] else []
+                end_warn = motion_prompt_lint.end_frame_problem(data, r["motion_prompt"])   # KLD-13: chỉ cảnh báo, 0 USD
+                if end_warn:
+                    flags = list(flags) + [end_warn]
                 lint = json.loads(r["lint"] or "{}") if r["lint"] else {}
                 if v2:                                         # P1: các pill; mọi chi tiết (cờ, rà prompt, nội dung kịch bản) trong ⓘ
                     with _info(f"sb-mot-{r['sid']}-more", SB.motion_pills(r, srow, voices, bool(img_id), animatic_done, flags, lint),
