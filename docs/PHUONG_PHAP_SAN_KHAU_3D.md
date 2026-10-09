@@ -269,3 +269,16 @@ Code nằm ở nhánh `stage-grid-s0`, commit `40f9c69`, chưa gộp: `core/stag
   - R1 cho Kelly chiếm khoảng 52 % chiều cao khung, ở tiền cảnh quay lưng che giếng. Đó là cỡ WS chứ chưa phải "toàn cảnh" thật; Director cần chọn cỡ EWS hoặc Kelly lệch một phần ba.
 - **Spot `level_9_4`** (z 9,376) có thể cũng thấp như `plaza_front`, phải đo trước khi dùng.
 
+## 14. Người dùng chốt 09/10: mỗi góc máy có MỤC ĐÍCH cụ thể — Director quyết thành phần khung, code tìm máy đạt
+Thay cho hai luật chung "L5 thấy mặt/lưng ≤ 60°" và "L8 không tính người": luật không còn đoán chung chung "khung nên có gì". **Director quyết cho từng shot**:
+- **Trong khung có gì:** danh sách vật/nhân vật.
+  - Mỗi thứ có vai: `chính` (đang focus, BẮT BUỘC có trong khung, không bị che) / `phụ` (nên có) / `không được có` (vd tháp trong góc ngược).
+- **Mỗi thứ nằm ở đâu trong khung:** vùng đích theo lưới một phần ba (vd Kelly ở 1/3 trái, giếng ở giữa dưới, yêu nữ ở 1/3 phải trên mép giếng), cỡ (% chiều cao khung), và thấy gì (mặt / lưng / nghiêng). Điểm nhân vật quay mặt về phía máy được tính bằng hướng mặt φ so với hướng máy.
+- **Mục đích của góc máy:** một câu nói khán giả cần thấy điều gì (vd "thấy Kelly nhìn vào giếng và thứ trong giếng cùng lúc").
+
+**Code** dùng phép chiếu ở mục 6 để đo từng thứ: có trong khung không, % bị che, rơi vào vùng nào, cỡ bao nhiêu, quay mặt hay lưng. Ứng viên **chỉ đạt khi mọi thứ `chính` đúng yêu cầu và không có thứ `không được có`**. Thứ `phụ` và độ lệch vùng đích dùng để xếp hạng.
+
+Không ứng viên nào đạt → báo thứ nào hỏng ở hướng nào (vd "giếng bị Kelly che ở mọi hướng 150–210°"), rồi đề xuất dời chỗ đứng hoặc đổi cỡ. Không nới luật một cách im lặng.
+
+Giữ các luật vật lý (L1 máy đứng chỗ hợp lệ, L4 trục, L7 cúi/ngửa đúng ý đồ, L9 vật cản sát ống kính, L10 tỉ lệ). L5/L6/L8 trở thành hệ quả của yêu cầu Director, không còn là luật chung.
+
