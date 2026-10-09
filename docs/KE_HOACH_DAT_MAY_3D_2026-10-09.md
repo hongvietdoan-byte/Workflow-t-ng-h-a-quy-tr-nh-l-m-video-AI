@@ -20,6 +20,8 @@ Nhánh nền đã có (CHƯA GỘP, chưa rà): `worktree-agent-ab5a90511a3b9ff7
 - `clearance_fix()` + bắn tia trong `tools/render_plates.py` (chưa chạy thật).
 Các đợt dưới dựng TIẾP trên nhánh này.
 
+> **Phương pháp đầy đủ: `docs/PHUONG_PHAP_SAN_KHAU_3D.md`** (nguồn chuẩn; mục dưới là tóm tắt).
+
 ## 🔁 ĐỔI HƯỚNG 09/10 tối (người dùng): "dựng sân khấu có lưới ô rồi mới đặt máy, đo bằng số" — thay cách vá G0
 Người dùng: *"vẫn đang lặp lại tình trạng có lỗi thì sửa chứ không phải tìm ra cách làm đúng"*; *"sân khấu cũng cần tọa độ kẻ các ô thành hệ lưới để xác định vị trí chính xác"*.
 Chạy thật G0 #24 (≈ 0,37 USD) lộ ra cách làm sai từ gốc: Director đoán phương vị độ khi KHÔNG thấy sân khấu (giếng/nhân vật không có trong 3D → máy cúi chỉ thấy sàn, tỉ lệ giếng/yêu nữ không kiểm được), rồi Claude nhìn render để phán điều code đã biết bằng số (máy nghiêng −6° bị khai "cúi"). Đã dừng phiên vá 4 lỗi.
