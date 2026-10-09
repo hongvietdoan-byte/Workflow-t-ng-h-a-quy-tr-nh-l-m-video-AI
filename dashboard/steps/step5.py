@@ -251,6 +251,22 @@ def extras_section(p: Pipeline, pid: int, provider):
                 st.toast(f"Đã xếp lại {n} dòng giọng đọc theo đúng thứ tự, không còn chồng tiếng" if n else
                         "Không khớp được dòng thoại nào với phụ đề (kiểm tra lại nội dung có đúng như kịch bản không)")
                 st.rerun()
+        n_ref = p.conn.execute("SELECT COUNT(*) FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id WHERE s.project_id=? "
+                               "AND m.ref_video_path IS NOT NULL AND m.ref_video_path != ''", (pid,)).fetchone()[0]
+        if n_ref and st.button(f"🎥 Lấy tiếng {n_ref} video tham chiếu làm SFX của shot (0 USD, chỉ đề xuất)", key=f"ax_refaudio_{pid}",
+                               help="Tách tiếng của video ref đã gắn ở Bước 3 thành SFX neo vào shot, KHÔNG tự đưa vào bản ghép — "
+                                    "tích 'Đưa vào bản ghép' để dùng; khi dựng tiếng được nén/giãn khớp độ dài clip nếu chênh ≤ 40 %."):
+            from core import ref_audio
+            try:
+                res = ref_audio.propose(p, C.DATA, pid)
+                words = [f"thêm {len(res['added'])} đề xuất"] if res["added"] else []
+                words += [f"shot {', '.join(map(str, res['no_audio']))} video ref không có tiếng"] if res["no_audio"] else []
+                words += [f"shot {', '.join(map(str, res['missing']))} không thấy tệp video ref"] if res["missing"] else []
+                words += [f"{len(res['already'])} shot đã có đề xuất"] if res["already"] else []
+                st.toast(" · ".join(words) or "Không có gì để tách")
+            except Exception as ex:  # noqa: BLE001 - said, not swallowed (CHUAN luật 1)
+                st.error(f"Không tách được tiếng video ref: {ex}")
+            st.rerun()
         items = audio_lib.load(directory)
         for i, e in audio_lib.mix_rows(items):          # an old voice waiting for its redo is hidden (no Xóa on it)
             with st.container(border=True):
@@ -260,6 +276,11 @@ def extras_section(p: Pipeline, pid: int, provider):
                     st.warning(f"Không tạo được: {e.get('message')} (không tự gửi lại để tránh tốn credit)")
                 elif e.get("file"):
                     st.audio(os.path.join(directory, e["file"]))
+                if e.get("source") == "ref_video":
+                    st.caption(("Đề xuất — tích 'Đưa vào bản ghép' nếu dùng. " if not e["use"] else "")
+                               + "Khi dựng: đi theo shot, nén/giãn khớp độ dài clip nếu chênh ≤ 40 %"
+                               + (f" (lần dựng trước: {e['fit_skipped']})" if e.get("fit_skipped") else
+                                  f" (lần dựng trước: tốc độ ×{e['fit_tempo']:g})" if e.get("fit_file") else "") + ".")
                 a, b, c, d = st.columns([2, 1.3, 2, 1], vertical_alignment="center")
                 sig = f"{i}_{int(bool(e['use']))}_{e['start']}_{e['volume']}"   # file changed elsewhere (voice placement) -> fresh widgets
                 use = a.checkbox("Đưa vào bản ghép", e["use"], key=f"ax_use_{pid}_{sig}", disabled=e["state"] != "succeeded")
