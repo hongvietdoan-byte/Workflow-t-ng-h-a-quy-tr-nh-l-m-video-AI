@@ -90,14 +90,18 @@ def candidates(conn, scene_id: int) -> List:
     return [r for r in rows if (cur is None or r["id"] != cur["id"]) and has_own_file(conn, r)]
 
 
-def make_room(conn, data_dir: str, job, target: str) -> Optional[str]:
+def make_room(conn, data_dir: str, job, target: str, with_raw: bool = False) -> Optional[str]:
     """Before a new take is written to `target` (the shot's NN.mp4): the file there goes to the trash under the job it belongs to,
-    and that job's result_path follows it — the older take stays reachable (and choosable). A new take ends an earlier choice."""
+    and that job's result_path follows it — the older take stays reachable (and choosable). A new take ends an earlier choice.
+    `with_raw` (rà F3, clip nhóm): the old take's uncut NN_raw.mp4 goes with it (only when the old file has an owner)."""
     prev = owner(conn, job["scene_id"], target, exclude=job["id"]) if os.path.isfile(target) else None
     moved = trash.move_to_trash(target, data_dir, job["project_id"], "videos", "bị thay bằng bản gen lại", prev or job["id"])
     if moved and prev:
         conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (moved, prev))
         conn.commit()
+        if with_raw:
+            trash.move_to_trash(os.path.splitext(target)[0] + "_raw.mp4", data_dir, job["project_id"], "videos",
+                                "bản gốc chưa cắt của bản cũ", prev)
     mark(conn, job["scene_id"], None)
     return moved
 

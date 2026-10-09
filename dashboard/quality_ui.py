@@ -139,6 +139,30 @@ def _usd_text(usd: Optional[float]) -> str:
     return f"≈ {usd:.2f} USD (ước tính)" if usd is not None else "chưa có giá"
 
 
+def new_final_texts(offer: Dict, usd: Optional[float], n: Optional[int] = None) -> Tuple[str, str]:
+    """Rà F3: (nhãn nút, câu hỏi xác nhận) của "Gen MỚI bản cao" — kèm độ phân giải THẬT của lần gen mới (offer["res_note"], vd. "gen mới
+    ở 720p — Seedance 2.5 qua API chưa có 1080p, lúc dựng phóng 1080p") và giá. `n`: nút gom n cảnh."""
+    note = offer.get("res_note") or (f"gen mới ở {offer['res']}" if offer.get("res") else "")
+    many = f" {n} cảnh" if n else ""
+    label = f"{NEW_FINAL_LABEL}{many} — " + (f"{note} — " if note else "") + _usd_text(usd)
+    who = f"{n} cảnh không nâng được từ nháp: bản cao" if n else "Bản cao"
+    ask = (f"{who} sẽ là một lần gen MỚI, nội dung KHÁC bản nháp đã duyệt" + (f" ({note})" if note else "")
+           + f" — {_usd_text(usd)}. Gen mới?")
+    return label, ask
+
+
+def batch_price(conn, pid: int, scene_ids, by: Dict) -> Optional[float]:
+    """Giá nút gom bản cao: mỗi nhóm gen chung tính một lần (core.quality_tier.batch_final_price); module cũ → cộng theo shot."""
+    qt = module()
+    if qt is not None and hasattr(qt, "batch_final_price"):
+        try:
+            return qt.batch_final_price(conn, scene_ids)
+        except Exception:  # noqa: BLE001
+            pass
+    vals = [by.get(sid) for sid in scene_ids]
+    return round(sum(vals), 2) if all(v is not None for v in vals) else None
+
+
 def scene_final_price(conn, pid: int, scene_id: int) -> Optional[float]:
     qt = module()
     if qt is not None and hasattr(qt, "scene_final_price"):      # F3: theo clip nhóm + nâng từ nháp / gen mới
@@ -253,9 +277,8 @@ def card_block(p, pid: int, scene_id: int, runner) -> None:
         # F3 (#24): không nâng được từ nháp → gen MỚI (nội dung khác nháp), chỉ khi người xác nhận rõ, có giá
         from dashboard.common import confirm_all
         st.caption(f"⚠ Không nâng được từ nháp: {offer.get('why') or '?'}")
-        if confirm_all(f"qfinal_new_{scene_id}", [scene_id], f"{NEW_FINAL_LABEL} — {_usd_text(price)}",
-                       f"Bản cao sẽ là một lần gen MỚI, nội dung KHÁC bản nháp đã duyệt — {_usd_text(price)}. Gen mới?",
-                       yes_label="Có, gen mới bản cao"):
+        label, ask = new_final_texts(offer, price)
+        if confirm_all(f"qfinal_new_{scene_id}", [scene_id], label, ask, yes_label="Có, gen mới bản cao"):
             if act(lambda: qt.request_final(p, scene_id, "user", confirm_new=True)):
                 if runner is not None:
                     act(lambda: runner.submit_pending(pid))
@@ -279,8 +302,7 @@ def batch_block(p, pid: int, runner) -> None:
     fresh = [sid for sid in ready if not offers[sid]["upgrade"]]     # F3: không nâng được từ nháp → nút gom riêng, hỏi rõ
     by = est.get("by_scene") or {}
     if scenes:
-        vals = [by.get(sid) for sid in scenes]
-        usd = round(sum(vals), 2) if all(v is not None for v in vals) else None
+        usd = batch_price(p.conn, pid, scenes, by)                    # rà F3: one price per group clip
         price = f"≈ {usd:.2f} USD (tham khảo)" if usd is not None else "chưa có giá"
         if confirm_all(f"qfinal_all_{pid}", scenes, f"⬆ Gen bản cao {len(scenes)} cảnh — {price}",
                        f"Gen bản cao cho {len(scenes)} cảnh có nháp đã duyệt — {price}?", yes_label="Có, gen bản cao"):
@@ -291,11 +313,10 @@ def batch_block(p, pid: int, runner) -> None:
                 act(lambda: runner.submit_pending(pid))
             st.rerun()
     if fresh:
-        vals = [by.get(sid) for sid in fresh]
-        usd = round(sum(vals), 2) if all(v is not None for v in vals) else None
-        if confirm_all(f"qfinal_allnew_{pid}", fresh, f"{NEW_FINAL_LABEL} {len(fresh)} cảnh — {_usd_text(usd)}",
-                       f"{len(fresh)} cảnh không nâng được từ nháp: bản cao sẽ là gen MỚI, nội dung KHÁC nháp — {_usd_text(usd)}. Gen mới?",
-                       yes_label="Có, gen mới bản cao"):
+        usd = batch_price(p.conn, pid, fresh, by)
+        notes = list(dict.fromkeys(offers[sid].get("res_note") for sid in fresh if offers[sid].get("res_note")))
+        label, ask = new_final_texts({"res_note": "; ".join(notes)}, usd, len(fresh))
+        if confirm_all(f"qfinal_allnew_{pid}", fresh, label, ask, yes_label="Có, gen mới bản cao"):
             qt = module()
             for sid in fresh:
                 act(lambda sid=sid: qt.request_final(p, sid, "user", confirm_new=True))

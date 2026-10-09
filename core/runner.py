@@ -311,6 +311,13 @@ class _Runner:
             if not THROTTLE.allow(self.job_type, running_all, capped="mock" not in str(getattr(self.provider, "name", ""))):       # already includes the jobs this pass has started (they are 'running' now)
                 break  # learned limit for all projects together: wait for a slot
             kwargs = self._submit_kwargs(job) if getattr(self.provider, "supports_aspect", False) else {}
+            if kwargs.get("_wait"):                  # rà F3: a passing provider error — stays queued, said, not failed, not sent
+                said = self.__dict__.setdefault("_final_waits", set())
+                if job["id"] not in said:             # said once, not on every heartbeat
+                    said.add(job["id"])
+                    self._diag(job, "info", "final_wait", kwargs["_wait"])
+                WAIT_REASONS[job["id"]] = (kwargs["_wait"], time.time())
+                continue
             if kwargs.get("_hold"):                  # F3: the request may not go out unasked (a new paid final) — said, not sent
                 self._diag(job, "warn", "stale_input", f"không gửi: {kwargs['_hold']}")
                 self._running(job["id"])
@@ -785,6 +792,8 @@ class VideoRunner(_Runner):
                                                                                                          self.provider)
             if route["from_sample"]:
                 return {**out, "resolution": quality_tier.FINAL_RESOLUTION, "_from_sample": route["from_sample"]}
+            if route.get("transient"):           # rà F3: the draft's expiry could not be read now — wait, try again next pass
+                return {**out, "_wait": f"bản cao chờ: {route['why']} — thử lại lượt sau"}
             hold = quality_tier.needs_confirm(job, route)
             if hold:                             # F3 (#24): not sent — _submit_pending fails the job with this reason
                 return {**out, "_hold": f"bản cao bị chặn: {hold}"}
@@ -1505,7 +1514,8 @@ class VideoRunner(_Runner):
         dests = [path] + [os.path.join(self._dir(leader["project_id"], "videos"), f"{r['idx']:02d}.mp4") for r in group[1:]]
         from . import takes                     # F3 (#24 job 590/592/594): a group clip never overwrites the followers' older takes —
         for r, dest in zip(group[1:], dests[1:]):  # each goes to the trash under its own job, its result_path follows (↩ Dùng bản này)
-            takes.make_room(conn, self.data_dir, {"id": leader["id"], "scene_id": r["id"], "project_id": leader["project_id"]}, dest)
+            takes.make_room(conn, self.data_dir, {"id": leader["id"], "scene_id": r["id"], "project_id": leader["project_id"]}, dest,
+                            with_raw=True)
         if group[0].get("refs"):
             from . import seedance_refs
             res = seedance_refs.split(path, group, dests)

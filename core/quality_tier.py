@@ -35,6 +35,9 @@ NEW_GEN = "bản cao sẽ là gen mới, nội dung khác nháp"
 """Cảnh báo khi bản cao KHÔNG nâng được từ nháp (nháp không phải Seedance 2.5 / hết hạn / không còn mã task)."""
 NEED_CONFIRM = "cần xác nhận gen MỚI bản cao"
 """Mở đầu lý do chặn job `final` không nâng được từ nháp mà người chưa xác nhận (runner không tự gửi — #24 tự gửi lại ở 720p)."""
+READ_FAIL = "không đọc được hạn bản nháp"
+"""Rà F3: lỗi TẠM khi hỏi nhà cung cấp hạn bản nháp (mạng / dịch vụ) — job bản cao giữ hàng đợi thử lại, không fail, không tính là
+"không nâng được" (upgrade_block)."""
 UPGRADE_UNMEASURED = "giá nâng 2.5 → 1080p từ nháp là ƯỚC TÍNH (chưa đo thật)"
 FILM_TARGETS = ((60.0, 30.0), (120.0, 60.0))
 """(phim dưới N giây, trần USD): < 1 phút < 30 USD, < 2 phút < 60 USD (người dùng 09/10)."""
@@ -89,7 +92,9 @@ def tier_for_new_job(conn, scene_id: int, parent_job_id: Optional[int] = None) -
         parent = conn.execute("SELECT quality_tier, draft_job_id FROM jobs WHERE id=?", (parent_job_id,)).fetchone()
         if parent is not None and parent["quality_tier"]:
             return {"quality_tier": parent["quality_tier"], "draft_job_id": parent["draft_job_id"]}
-    return {"quality_tier": "direct" if path(conn, scene_id) == "direct" else "draft", "draft_job_id": None}
+    # rà F3: theo đường của NHÓM gen chung (group_path) — e1_choice gửi cả nhóm bằng nháp 2.5 480p khi có shot khó, nên job của shot dễ
+    # trong nhóm đó cũng là `draft` (không thì đi bậc direct: 2.5 480p KHÔNG kèm draft=True, không nâng 1080p được)
+    return {"quality_tier": "direct" if group_path(conn, scene_id) == "direct" else "draft", "draft_job_id": None}
 
 
 def _canonical(model: Optional[str]):
@@ -238,17 +243,26 @@ def upgrade_block(conn, draft) -> Optional[str]:
     if not draft["external_id"]:
         return "không có mã task bản nháp ở nhà cung cấp"
     row = conn.execute("SELECT e.note FROM jobs j JOIN job_events e ON e.job_id=j.id WHERE j.draft_job_id=? AND j.quality_tier='final' "
-                       "AND e.to_state='failed' AND e.note LIKE ? ORDER BY e.id DESC LIMIT 1",
-                       (draft["id"], f"%{NEED_CONFIRM}%")).fetchone()
+                       "AND e.to_state='failed' AND e.note LIKE ? AND e.note NOT LIKE ? ORDER BY e.id DESC LIMIT 1",
+                       (draft["id"], f"%{NEED_CONFIRM}%", f"%{READ_FAIL}%")).fetchone()   # rà F3: lỗi đọc hạn tạm thời không tính
     if row is not None:
         return "lần gửi bản cao trước không nâng được từ nháp (nháp hết hạn / nhà cung cấp không xác nhận)"
     return None
 
 
 def final_offer(conn, scene_id: int) -> Dict:
-    """Nút bản cao của một shot (UI + nút gom): {"upgrade": nâng từ nháp được?, "why": lý do không nâng được, "usd": giá ước tính}."""
+    """Nút bản cao của một shot (UI + nút gom): {"upgrade": nâng từ nháp được?, "why": lý do không nâng được, "usd": giá ước tính}; không
+    nâng được thì thêm "res" (độ phân giải thật của lần gen mới) + "res_note" (câu nói rõ cho nút / hộp xác nhận)."""
     why = upgrade_block(conn, approved_draft(conn, scene_id))
-    return {"upgrade": why is None, "why": why, "usd": scene_final_price(conn, scene_id)}
+    out = {"upgrade": why is None, "why": why, "usd": scene_final_price(conn, scene_id)}
+    if why:                                  # rà F3: the new gen's REAL resolution, said on the button and in the question
+        from . import model_router
+        model = model_router.scene_choice(conn, scene_id)["model"]
+        res = final_resolution(model)
+        name = model_router.label(model).split(" · ")[0]
+        out.update(res=res, res_note=f"gen mới ở {res}" + ("" if res == FINAL_RESOLUTION else
+                                                            f" — {name} qua API chưa có {FINAL_RESOLUTION}, lúc dựng phóng {FINAL_RESOLUTION}"))
+    return out
 
 
 def request_final(p, scene_id: int, actor: str = "user", confirm_new: bool = False) -> int:
@@ -293,7 +307,7 @@ def needs_confirm(job, route: Dict) -> Optional[str]:
     """Job `final` không nâng được từ nháp (route["from_sample"] None) mà người CHƯA xác nhận gen mới → lý do chặn (bắt đầu bằng
     NEED_CONFIRM); None = được gửi. Lần tự gen lại bản cao kèm câu sửa (trần 1, RETRY_LIMIT) không cần xác nhận lại."""
     from .runner import model_fix
-    if route.get("from_sample") or confirmed_new(job) or model_fix(job["retry_reason"]):
+    if route.get("from_sample") or route.get("transient") or confirmed_new(job) or model_fix(job["retry_reason"]):
         return None
     return f"{NEED_CONFIRM} — {NEW_GEN} ({route.get('why') or 'không nâng được từ nháp'})"
 
@@ -321,7 +335,7 @@ def final_route(conn, job, provider) -> Dict:
     try:
         meta = provider.task_usage(draft["external_id"]) if hasattr(provider, "task_usage") else None
     except Exception as e:  # noqa: BLE001 - cannot confirm the sample: resend instead of paying blind
-        return {"from_sample": None, "why": f"không đọc được hạn bản nháp ({e})"}
+        return {"from_sample": None, "why": f"{READ_FAIL} ({e})", "transient": True}
     expiry = float((meta or {}).get("draft_expired_at") or 0)
     if expiry > 1e12:
         expiry /= 1000
@@ -390,7 +404,7 @@ def final_estimate(conn, pid: int) -> Dict:
     for s in conn.execute("SELECT s.id, s.idx, m.duration_sec FROM scenes s JOIN motion_prompts m ON m.scene_id=s.id "
                           "WHERE s.project_id=? ORDER BY s.idx", (pid,)).fetchall():
         st = state(conn, s["id"])
-        if st in ("final_running", "final_ok", "direct_ok") or path(conn, s["id"]) == "direct":
+        if st in ("final_running", "final_ok", "direct_ok") or group_path(conn, s["id"]) == "direct":   # rà F3: nhóm trộn = nháp
             continue
         seconds = float(s["duration_sec"] or 0)
         model, usd = _final_usd(conn, s["id"], proj, ratio, billed.get(s["id"], seconds))
@@ -414,22 +428,27 @@ def _mp_seconds(conn, scene_id: int) -> Optional[float]:
     return float(row["duration_sec"]) if row is not None and row["duration_sec"] else None
 
 
-def _clip_seconds(conn, pid: int) -> Dict[int, float]:
-    """{scene_id: giây clip tính tiền} cho các nhóm Seedance gen chung (seedance_refs.groups): shot đầu = giây cả nhóm, shot sau = 0
-    (nằm trong clip nhóm). Shot không trong nhóm: không có khóa (người gọi dùng giây của shot)."""
-    out: Dict[int, float] = {}
+def _clip_groups(conn, pid: int) -> Dict[int, tuple]:
+    """{scene_id: (shot đầu nhóm, giây clip cả nhóm)} cho mọi shot trong một nhóm Seedance gen chung (seedance_refs.groups)."""
+    out: Dict[int, tuple] = {}
     try:
         from . import seedance_refs
         if not seedance_refs.enabled(conn, pid):
             return out
         for g in seedance_refs.groups(conn, pid):
             secs = [seedance_refs.floored(r["data"], _mp_seconds(conn, r["id"]) or float(r["data"].get("duration_s") or 0)) for r in g]
-            out[g[0]["id"]] = float(seedance_refs.seconds(secs))
-            for r in g[1:]:
-                out[r["id"]] = 0.0
+            whole = float(seedance_refs.seconds(secs))
+            for r in g:
+                out[r["id"]] = (g[0]["id"], whole)
     except Exception:  # noqa: BLE001 - no group data: every shot priced alone (higher — tính dư)
         return {}
     return out
+
+
+def _clip_seconds(conn, pid: int) -> Dict[int, float]:
+    """{scene_id: giây clip tính tiền} cho các nhóm Seedance gen chung (seedance_refs.groups): shot đầu = giây cả nhóm, shot sau = 0
+    (nằm trong clip nhóm). Shot không trong nhóm: không có khóa (người gọi dùng giây của shot)."""
+    return {sid: (whole if lead == sid else 0.0) for sid, (lead, whole) in _clip_groups(conn, pid).items()}
 
 
 def final_resolution(model: Optional[str]) -> str:
@@ -456,14 +475,41 @@ def _final_usd(conn, scene_id: int, proj, ratio: str, seconds: float):
 
 
 def scene_final_price(conn, scene_id: int) -> Optional[float]:
-    """USD ước tính của bản cao MỘT shot (nút ⬆ Gen bản cao / Gen MỚI bản cao): theo clip nhóm như final_estimate."""
+    """USD ước tính của bản cao MỘT shot (nút ⬆ Gen bản cao / Gen MỚI bản cao): theo clip nhóm như final_estimate. Rà F3: shot sau của
+    một nhóm gen chung mà shot đầu CHƯA có bản cao (đang làm / đã duyệt) → bấm nó là kéo cả clip nhóm → giá cả nhóm (không phải 0)."""
     row = conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()
     if row is None:
         return None
     proj, ratio = _proj_ratio(conn, row["project_id"])
-    seconds = _clip_seconds(conn, row["project_id"]).get(scene_id, _mp_seconds(conn, scene_id) or 0.0)
-    usd = _final_usd(conn, scene_id, proj, ratio, seconds)[1]
+    lead, whole = _clip_groups(conn, row["project_id"]).get(scene_id, (scene_id, None))
+    if lead != scene_id:
+        if state(conn, lead) in ("final_running", "final_ok"):
+            return 0.0                                  # made inside the group clip already on its way
+        usd = _final_usd(conn, lead, proj, ratio, whole)[1]
+    else:
+        usd = _final_usd(conn, scene_id, proj, ratio, whole if whole is not None else (_mp_seconds(conn, scene_id) or 0.0))[1]
     return None if usd is None else round(usd, 4)
+
+
+def batch_final_price(conn, scene_ids) -> Optional[float]:
+    """Rà F3: USD của nút gom bản cao cho các shot `scene_ids` — mỗi nhóm gen chung tính MỘT lần (clip nhóm), shot lẻ theo giá riêng;
+    None khi có shot chưa tính được giá."""
+    ids = list(scene_ids)
+    if not ids:
+        return 0.0
+    row = conn.execute("SELECT project_id FROM scenes WHERE id=?", (ids[0],)).fetchone()
+    groups = _clip_groups(conn, row["project_id"]) if row is not None else {}
+    total, seen = 0.0, set()
+    for sid in ids:
+        lead = groups.get(sid, (sid, None))[0]
+        if lead in seen:
+            continue
+        seen.add(lead)
+        usd = scene_final_price(conn, lead if lead in ids else sid)
+        if usd is None:
+            return None
+        total += usd
+    return round(total, 4)
 
 
 def e1_estimate(conn, pid: int, pricing: Optional[Dict] = None) -> Dict:

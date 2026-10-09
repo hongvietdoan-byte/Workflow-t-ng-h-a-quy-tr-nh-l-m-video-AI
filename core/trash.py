@@ -96,8 +96,8 @@ def items(data_dir: str, project_id: int, kind: str, now: Optional[float] = None
 
 
 def find_for_job(data_dir: str, project_id: int, kind: str, job_id: int) -> Optional[str]:
-    for e in items(data_dir, project_id, kind):
-        if e.get("job_id") == job_id:
+    for e in items(data_dir, project_id, kind):     # rà F3: the take's clip, never its uncut NN_raw.mp4 trashed under the same job
+        if e.get("job_id") == job_id and not str(e.get("original") or "").endswith("_raw.mp4"):
             return e["path"]
     return None
 

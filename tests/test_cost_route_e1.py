@@ -220,9 +220,12 @@ class GroupPriceTests(Base):
             a, b = self.groups()
             with a, b:
                 lead = quality_tier.scene_final_price(self.p.conn, self.s1)
-                self.assertEqual(quality_tier.scene_final_price(self.p.conn, self.sids[1]), 0.0)
                 want = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "1080p", "9:16", 6.0)
                 self.assertAlmostEqual(lead, round(want, 4))
+                # rà F3: a follower alone pulls the group clip → the group's price until the leader's final exists, then 0
+                self.assertAlmostEqual(quality_tier.scene_final_price(self.p.conn, self.sids[1]), round(want, 4))
+                quality_tier.request_final(self.p, self.s1)
+                self.assertEqual(quality_tier.scene_final_price(self.p.conn, self.sids[1]), 0.0)
 
 
 class FilmEstimateTests(Base):
@@ -273,6 +276,158 @@ class UpscaleRenderTests(unittest.TestCase):
         man = json.loads(p.conn.execute("SELECT manifest FROM outputs WHERE id=?", (res["output_id"],)).fetchone()["manifest"])
         self.assertEqual(man["upscaled"], [1])                                # only the 720p clip; the 1080p one stays as it is
         self.assertIn("lanczos", man["upscale"]["how"])
+
+
+# ---- rà độc lập F3 (09/10): nhóm trộn dễ/khó, giá bản cao theo nhóm, lỗi đọc hạn nháp tạm thời, nhãn gen mới, gửi lại giữ xác nhận ----
+def GROUP(sids):
+    return mock.patch("core.shots.group_of", side_effect=lambda c, s: [{"id": x} for x in sids])
+
+
+def _send(vr, pid):
+    """The runner's real send loop, inputs stubbed (as tests/test_quality_tier.py RunnerTierTests.send)."""
+    with mock.patch.object(vr, "_submit_args", return_value=("i.png", "she dances", None, 4, "seedance-2.5")), \
+            mock.patch.object(vr, "_blocked", return_value=None), mock.patch.object(vr, "_stamp", return_value={}), \
+            mock.patch.object(vr, "_over_budget", return_value=None), mock.patch.object(vr, "_wait", return_value=False):
+        return vr._submit_pending(pid)
+
+
+class MixedGroupTierTests(Base):
+    N = 2
+
+    def test_easy_leader_of_a_group_with_a_hard_shot_is_sent_as_a_2_5_draft(self):
+        self.label("easy", self.sids[0])
+        self.label("complex", self.sids[1])
+        with ON, GROUP(self.sids):
+            jid = self.p.create_job(self.sids[0], "video_gen")
+            self.assertEqual(self.p.job(jid)["quality_tier"], "draft")
+            kw = VideoRunner(self.p, _provider(), self.data)._submit_kwargs(self.p.job(jid))
+            self.assertEqual((kw.get("draft"), kw.get("resolution")), (True, "480p"))
+
+    def test_easy_follower_of_a_hard_group_is_a_draft_too(self):
+        self.label("complex", self.sids[0])
+        self.label("easy", self.sids[1])
+        with ON, GROUP(self.sids):
+            jid = self.p.create_job(self.sids[1], "video_gen")
+            self.assertEqual(self.p.job(jid)["quality_tier"], "draft")
+
+
+class MixedGroupPriceTests(Base):
+    N = 3
+
+    def groups(self):
+        return GroupPriceTests.groups(self)
+
+    def test_final_price_of_a_mixed_group_is_the_group_clip_not_zero(self):
+        self.label("easy", self.sids[0])
+        with ON, GROUP(self.sids):
+            for sid in self.sids:
+                self.approved_draft(sid)                                       # the easy leader's take is a draft too (group)
+            a, b = self.groups()
+            with a, b:
+                want = round(cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "1080p", "9:16", 6.0), 4)
+                est = quality_tier.final_estimate(self.p.conn, self.pid)
+                self.assertAlmostEqual(est["usd"], want, places=2)
+                # a follower clicked alone pulls the whole group clip: priced as the group while the leader has no final
+                self.assertAlmostEqual(quality_tier.scene_final_price(self.p.conn, self.sids[1]), want, places=4)
+                self.assertAlmostEqual(quality_tier.batch_final_price(self.p.conn, self.sids), want, places=4)
+                self.assertAlmostEqual(quality_tier.batch_final_price(self.p.conn, self.sids[1:]), want, places=4)
+                quality_tier.request_final(self.p, self.sids[0])
+                self.assertEqual(quality_tier.scene_final_price(self.p.conn, self.sids[1]), 0.0)
+
+
+class TransientDraftReadTests(Base):
+    def test_a_failed_expiry_read_keeps_the_final_queued_and_does_not_lock_the_upgrade(self):
+        with ON:
+            self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)
+            prov = _provider()
+            prov.task_usage = mock.Mock(side_effect=RuntimeError("timeout"))
+            prov.submit = mock.Mock(return_value="seedance:new")
+            prov.submit_final_from_sample = mock.Mock(return_value="seedance:up")
+            vr = VideoRunner(self.p, prov, self.data)
+            self.assertIsNone(quality_tier.needs_confirm(self.p.job(f), quality_tier.final_route(self.p.conn, self.p.job(f), prov)))
+            self.assertEqual(_send(vr, self.pid), 0)
+            self.assertEqual(self.p.job(f)["state"], "queued")
+            prov.submit.assert_not_called()
+            self.assertTrue(quality_tier.final_offer(self.p.conn, self.s1)["upgrade"])
+            prov.task_usage = mock.Mock(return_value={"is_draft": True, "draft_expired_at": 9e12})
+            self.assertEqual(_send(vr, self.pid), 1)
+            prov.submit_final_from_sample.assert_called_once()
+            prov.submit.assert_not_called()
+
+    def test_old_failures_from_a_read_error_do_not_count_as_not_upgradable(self):
+        with ON:
+            d = self.approved_draft()
+            f = self.p._insert_job(self.pid, self.s1, "video_gen", quality_tier="final", draft_job_id=d)
+            self.p.start(f)
+            self.p.fail(f, f"stale_input: bản cao bị chặn: {quality_tier.NEED_CONFIRM} — {quality_tier.NEW_GEN} "
+                           "(không đọc được hạn bản nháp (timeout))")
+            self.assertIsNone(quality_tier.upgrade_block(self.p.conn, self.p.job(d)))
+
+
+class NewFinalLabelTests(Base):
+    def test_the_new_final_offer_says_its_real_resolution(self):
+        self.label("complex")
+        with ON:
+            self.approved_draft(model="seedance")
+            offer = quality_tier.final_offer(self.p.conn, self.s1)
+            self.assertFalse(offer["upgrade"])
+            self.assertEqual(offer["res"], quality_tier.final_resolution("seedance-2.5"))
+            self.assertIn("720p", offer["res_note"])
+            self.assertIn("chưa có 1080p", offer["res_note"])
+            from dashboard import quality_ui
+            label, ask = quality_ui.new_final_texts(offer, 1.5)
+            for text in (label, ask):
+                self.assertIn("720p", text)
+                self.assertIn("1.50 USD", text)
+
+
+class ResendKeepsYesTests(Base):
+    def test_a_plain_resend_of_a_confirmed_new_final_keeps_the_yes(self):
+        from core.runner import RESEND_NOTE
+        self.label("complex")
+        with ON:
+            self.approved_draft(model="seedance")
+            f = quality_tier.request_final(self.p, self.s1, confirm_new=True)
+            child = self.p._insert_job(self.pid, self.s1, "video_gen", parent_job_id=f, retry_count=1, retry_reason=RESEND_NOTE)
+            self.assertEqual(self.p.job(child)["confirm_new"], self.p.job(f)["confirm_new"])
+            other = self.p._insert_job(self.pid, self.s1, "video_gen", parent_job_id=f, retry_count=1, retry_reason="tay trái sai")
+            self.assertIsNone(self.p.job(other)["confirm_new"])            # a fix sentence: its own rule (needs_confirm), not the old yes
+
+
+class GroupRawTests(Base):
+    N = 2
+
+    def test_a_group_clip_moves_the_followers_old_raw_clip_too(self):
+        vids = os.path.join(self.data, str(self.pid), "videos")
+        os.makedirs(vids, exist_ok=True)
+        drafts = []
+        for i, sid in enumerate(self.sids, 1):
+            path = os.path.join(vids, f"{i:02d}.mp4")
+            for name, body in ((path, f"draft-{i}"), (os.path.join(vids, f"{i:02d}_raw.mp4"), f"raw-{i}")):
+                with open(name, "wb") as fh:
+                    fh.write(body.encode())
+            drafts.append(self.approved_draft(sid, path=path))
+        leader = self.p.create_job(self.s1, "video_gen")
+        self.p.conn.execute("UPDATE jobs SET external_id='seedance:final', model='seedance-2.5' WHERE id=?", (leader,))
+        self.p.conn.commit()
+        vr = VideoRunner(self.p, _provider(), self.data)
+        group = [{"id": sid, "idx": i, "refs": False, "data": {"duration_s": 4}} for i, sid in enumerate(self.sids, 1)]
+
+        def split(path, grp, dests):
+            with open(dests[1], "wb") as fh:
+                fh.write(b"final-2")
+
+        with mock.patch("core.shots.split_group_clip", side_effect=split), mock.patch("core.shots.trim_clip"), \
+                mock.patch.object(vr, "_clean_edges"), mock.patch.object(vr, "_motion", return_value=None):
+            vr._finish_group(self.p.job(leader), os.path.join(vids, "01.mp4"), group)
+        self.assertFalse(os.path.exists(os.path.join(vids, "02_raw.mp4")))     # the old take's uncut clip is not left for the new one
+        from core import trash
+        raws = [e for e in trash.items(self.data, self.pid, "videos") if e["original"].endswith("02_raw.mp4")]
+        self.assertEqual([e["job_id"] for e in raws], [drafts[1]])
+        back = self.p.use_older_take(drafts[1], data_dir=self.data)           # the clip comes back, not its raw
+        with open(back, "rb") as fh:
+            self.assertEqual(fh.read(), b"draft-2")
 
 
 if __name__ == "__main__":

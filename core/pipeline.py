@@ -382,6 +382,13 @@ class Pipeline:
                         else _qt.tier_for_new_job(self.conn, scene_id, parent_job_id))
                 self.conn.execute("UPDATE jobs SET quality_tier=?, draft_job_id=? WHERE id=?",
                                   (tier["quality_tier"], tier["draft_job_id"], cur.lastrowid))
+                if tier["quality_tier"] == "final" and parent_job_id is not None:
+                    # rà F3: a plain resend (same input, provider failure) of a final the person said yes to keeps that yes — a fix
+                    # sentence is not the same request (quality_tier.needs_confirm has its own rule for it)
+                    from .runner import model_fix
+                    par = self.conn.execute("SELECT confirm_new FROM jobs WHERE id=?", (parent_job_id,)).fetchone()
+                    if par is not None and par["confirm_new"] and not model_fix(retry_reason):
+                        self.conn.execute("UPDATE jobs SET confirm_new=? WHERE id=?", (par["confirm_new"], cur.lastrowid))
         self._event(cur.lastrowid, None, JobState.QUEUED, "system", retry_reason)
         self.conn.commit()
         return cur.lastrowid

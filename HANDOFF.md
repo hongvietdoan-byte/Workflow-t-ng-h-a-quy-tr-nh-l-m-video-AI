@@ -102,6 +102,20 @@ mô tả địa điểm trong Kho ("No stacked terraces, no fortress.") là dữ
 - `e1_choice` đổi model khi bật cờ trên dự án đang làm → nháp cũ làm bằng alias `seedance` (2.0) không nâng được (đúng ý: phải xác nhận).
 - Chưa nối `e1_estimate` vào Bước 1 / AI Dev System, chưa hiện `e1_warning` ở màn Video (việc F4).
 
+**Rà độc lập F3 (09/10) — đã sửa** (`tests/test_cost_route_e1.py` +8 test):
+- Nhóm trộn dễ/khó: `tier_for_new_job` (và `batch._draft_tier`) theo `group_path` → job shot dễ trong nhóm có shot khó là `draft`
+  (2.5 `draft=True` 480p), shot sau của nhóm khó cũng `draft`. `final_estimate` theo `group_path`.
+- Giá bản cao theo nhóm: `scene_final_price` của shot sau = giá cả clip nhóm khi shot đầu chưa có bản cao (0 khi đã có);
+  `batch_final_price` (nút gom) tính mỗi nhóm một lần; `_clip_groups`.
+- Lỗi TẠM khi đọc hạn nháp (`READ_FAIL`): route `transient` → job bản cao giữ hàng đợi (`_wait`, diag `final_wait` một lần), không
+  fail; `upgrade_block` bỏ qua các lần fail do lỗi đọc này (cả dữ liệu cũ).
+- Nút / hộp "Gen MỚI bản cao" ghi độ phân giải thật (`final_offer` → `res`, `res_note`; `quality_ui.new_final_texts`).
+- Gửi lại y nguyên (RESEND_NOTE / PLAIN_RESEND) một bản cao đã xác nhận giữ `confirm_new` (`Pipeline._insert_job`).
+- Clip nhóm dời cả `NN_raw.mp4` của bản cũ (`takes.make_room(with_raw=True)`, chỉ khi tệp cũ có chủ); `trash.find_for_job` bỏ qua
+  tệp `_raw` (dùng lại bản cũ lấy đúng clip).
+- KHÔNG sửa (có chủ ý): phóng lanczos + unsharp áp cho MỌI clip nhỏ hơn khung, kể cả cờ `two_tier_quality` tắt (trước là bicubic) —
+  coi là cải thiện chất lượng dựng.
+
 # HANDOFF — F1-A công thức prompt (09/10/2026, nhánh `worktree-agent-a22dfa0dcc0951c59`, chưa push)
 
 **Đã xong** (0 USD, không gọi model):
