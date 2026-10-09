@@ -84,7 +84,11 @@ def pending_cards(p: Pipeline, pid: int) -> None:
                     scene = st.selectbox("Cho cảnh", idxs, index=idxs.index(it["scene"]) if it["scene"] in idxs else None,
                                          format_func=lambda i: f"Cảnh {i}", key=f"{k}_scene", placeholder="chọn cảnh")
                 c1, c2 = st.columns(2)
-                if c1.button("✔ Gắn", type="primary", disabled=role is None, key=f"{k}_go", width="stretch"):
+                if role == "script_page":                          # 09/10: đọc chữ = lời gọi Claude, nút ghi giá riêng (không ✔ Gắn chui)
+                    from dashboard.steps.step1_chatrefs import page_label, read_page
+                    if c1.button(page_label(p.conn), type="primary", key=f"{k}_page", width="stretch") and read_page(p, pid, it):
+                        st.rerun()
+                elif c1.button("✔ Gắn", type="primary", disabled=role is None, key=f"{k}_go", width="stretch"):
                     try:
                         msg = I.apply(p, C.DATA, pid, it["id"], role, name=name, who=who, scene=scene)
                     except (*ERRORS, assets.AssetError) as e:

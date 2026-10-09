@@ -196,6 +196,10 @@ def build_prompt(conn, pid: int, state: Dict, turn: int, wish: str = "") -> str:
                 "nhân vật, diễn biến và thoại có sẵn (được sửa chữ cho tự nhiên); thêm mô tả hành động + thoại cho đủ thời lượng, không đổi chuyện."
                 if inp.get("from_script") else ""),
              ]
+    from . import chat_refs
+    refs = chat_refs.block(conn, pid)                   # 09/10: tư liệu thả vào chat (vai, tên, ghi chú) — chữ; không có → prompt như cũ
+    if refs:
+        parts.append(refs)
     tb = trend_block(conn, inp.get("trend", "off"))
     if tb:
         parts.append(tb)

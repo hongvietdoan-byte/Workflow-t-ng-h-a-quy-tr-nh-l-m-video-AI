@@ -65,6 +65,41 @@
   (dự án/shot khác có thể đọc lý do không phải của mình). Lý do của từng shot hiện tại: xem plan()["camera_why"], không dựa meta.json.
 - Dự án cũ: mọi shot `low` và shot high/ots có chữ "nhìn xuống" ĐỔI khóa → render lại (0 USD) nhưng stale_plates có thể đòi vẽ lại
   ảnh (tốn tiền) — báo người dùng trước khi chạy dự án cũ.
+# HANDOFF — Rà nhánh lệnh ngắn + ảnh/video chat: 6 lỗi đã sửa (09/10)
+
+- (VỪA) `step1_chatrefs.read_page`: trang trước lấy theo `pending` → `ask` → `text` (dự án đã có cảnh, `_take` đẩy chữ sang pending/ask) → đọc nhiều trang không mất trang 1.
+- (VỪA) `script_chat.intent`: `expand_request` xét TRƯỚC `command` → "viết kịch bản từ dàn ý này / theo dàn ý trên" lại đi đường S14.43 mục 5 (box_expand = request).
+- (VỪA) "thôi" / "bỏ qua": có đề xuất thoại mở → intent 'chat' (Biên kịch xử lý); `_command(..., typed)` chỉ xóa chữ/thẻ chờ khi gõ đúng "hủy" (`script_chat.hard_cancel`).
+- (NHẸ) `chat_refs.add` bỏ trùng (vai, nhãn, tệp), nhãn ≤ 80, mã duy nhất; `chat_refs.remove` + expander "📎 Tư liệu tham khảo (n)" có 🗑 (`step1_chatrefs.ref_list`, gọi trong `script_box`, hiện cả khi chưa có cảnh).
+- (NHẸ) Nhiều file kịch bản một tin → `step1_box.extra_files` báo "Chỉ đọc “a”, bỏ “b”, “c”".
+- (NHẸ) `chat_refs.read_page` chép ảnh gốc vào `<C.DATA>/<pid>/story_refs/` trước khi bỏ khỏi hộp chờ (chép lỗi → ValueError, ảnh vẫn chờ).
+- Test: `tests/test_chat_cmds_refs.py` `ReviewFixTests` 1–6 + `ChatAppTests.test_review_4_…` (10 đỏ trên code cũ → 166 xanh).
+- Mở: 🗑 chỉ bỏ dòng tư liệu, tệp đã chép giữ trên đĩa; ảnh trang lưu trong story_refs chưa hiện trong danh sách tư liệu.
+
+# HANDOFF — Chat Kịch bản: lệnh ngắn + ảnh/video thả vào chat (09/10)
+
+## Đã xong
+- Lỗi 1 ("phân tích kịch bản này" → hỏi lại "Bạn muốn làm gì?"): gốc là KHÔNG có bộ nhận câu lệnh — câu ngắn bị `classify` coi là ý tưởng
+  → `intent` 'ask'; dòng "Hiểu là KỊCH BẢN (thấy 1 tiêu đề cảnh)" là verdict của kịch bản CŨ còn trong khung. `core/script_chat.command`
+  (luật, có dấu NFC, khớp TRỌN tin ≤ 80 ký tự, một dòng): analyse / write / idea / script / cancel; `intent` → 'command' trước mọi nhánh.
+  `step1_box._command` chạy đúng hành động nút (▶ Phân tích 0 USD; viết → luồng Biên kịch, lượt vẫn sau nút có giá; dùng làm ý tưởng;
+  hủy thẻ / tin hỏi lại / chữ chờ) và luôn nói lý do khi không làm được. "viết kịch bản đi" trước đây thành ý tưởng "viết kịch bản đi" — đã hết.
+- Lỗi 2 (image/jpeg not allowed): `chat_input` `file_type=None` + `accept_file="multiple"`; `step1_box.media_in` lọc loại tệp, loại lạ báo
+  tiếng Việt; cờ chat_first tắt → `chat_intake.receive` lưu MỘT lần vào `<C.DATA>/<pid>/chat_inbox`, thẻ nút `step1_chatrefs.ref_cards`
+  (📄 Ảnh trang kịch bản · ≈ giá / 🏙 Bối cảnh / 🪑 Đồ vật / 🧍 Nhân vật / Hủy; video: 🎬 Video tham khảo / Hủy) + ô Nhãn.
+  Cờ bật → thẻ radio cũ có thêm vai script_page (nút có giá) và video_ref.
+- (a) `core/chat_refs.read_page`: một lời gọi `client.complete(prompt, [ảnh])`, stage `script_ocr` (STAGE_SETTINGS, LLM_STAGE_TOKENS,
+  dòng ngân sách claude_director), chỉ khi bấm; chữ → `_take` như dán (nhiều trang đọc liền nhau được nối).
+- (b)/(c) `chat_intake.apply`: bối cảnh/đồ vật/nhân vật → Kho dự án (như cũ) + dòng tư liệu; video_ref → `<C.DATA>/<pid>/story_refs/`.
+  Danh sách ở app_settings `chat_refs:<pid>`; `chat_refs.block` vào prompt Biên kịch (`idea_to_script.build_prompt`) và Đạo diễn
+  (`build_director_bundle`, `build_intent_bundle`) dạng chữ; không có tư liệu → prompt y như cũ.
+- Test: `tests/test_chat_cmds_refs.py` (luật lệnh, _command, tư liệu + prompt, OCR mock, AppTest chat). devsys/areas.json khai file mới.
+
+## Việc mở
+- Ảnh tham khảo chưa gửi kèm prompt Biên kịch / Đạo diễn (hai lớp đó chỉ gửi chữ) — mới có tên + vai + ghi chú.
+- Chưa có chỗ xem / xóa danh sách tư liệu `chat_refs` trên UI (ảnh đã vào Kho thì xóa ở Kho).
+- `script_ocr` chưa có trần riêng (một lời gọi ≈ vài cent, tính vào dòng Đạo diễn).
+
 # HANDOFF — KLD-10 nối dialogue_chat vào khung chat Kịch bản (09/10)
 
 ## Đã xong

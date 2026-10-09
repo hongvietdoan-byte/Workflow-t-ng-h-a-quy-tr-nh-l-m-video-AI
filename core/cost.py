@@ -297,6 +297,7 @@ def price_tag(usd: Optional[float], count: int = 1) -> str:
 LLM_STAGE_TOKENS = {"director": (25000, 18000), "motion": (9000, 4000), "qc": (6000, 900), "style": (9000, 1500),
                     "video_analysis": (14000, 4000), "setcheck": (8000, 1200), "clipcheck": (10000, 1200),
                     "asset_vision": (6000, 900), "research": (25000, 1500),
+                    "script_ocr": (1500, 3000),     # 09/10: chép chữ một trang kịch bản chụp (+ 1 ảnh qua `images`)
                     "director_rewrite": (5000, 900),   # S14.17: one shot's prompt rewritten before a retake (+ the faulty picture)
                     "director_camera_plan": (9000, 2500),   # G0: one scene's map + camera set-ups (+ the top view picture if any)
                     "director_plate_review": (2500, 400),   # G0: one set-up's render (+ the opening render) → observations (enum)
