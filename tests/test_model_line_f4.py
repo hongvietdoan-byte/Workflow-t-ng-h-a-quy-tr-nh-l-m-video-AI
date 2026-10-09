@@ -98,7 +98,7 @@ class ModelTableUiTests(TwoTierSeed):
         self.assertTrue({f"qpath_{s}" for s in self.sids} <= keys)               # the path choice lives once, in "Đổi"
         caps = "\n".join(c.value for c in at.caption)
         self.assertIn("Phim 20 s ≈", caps)
-        self.assertIn("đổi ở bảng Model", caps)                                  # the clip card says where to change it
+        self.assertIn("đổi ngay dưới thẻ clip", caps)                            # 09/10: the model line + Đổi sit under each clip card
         self.assertIn("nháp 480p → cao 1080p", "\n".join(m.value for m in at.markdown) + caps)
         self.assertIn(f"qfinal_{self.sids[0]}", {b.key for b in at.button})       # F3's high-tier button stays on the card
 

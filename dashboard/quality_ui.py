@@ -257,16 +257,7 @@ def card_block(p, pid: int, scene_id: int, runner, line: Optional[Dict] = None) 
         st.markdown(hard)
         if detail:
             st.caption(detail)
-    if mline is None:
-        try:
-            from dashboard import model_line
-            mline = model_line.shot_line(p.conn, pid, scene_id)
-        except Exception:  # noqa: BLE001 - the line is information: never breaks the card
-            mline = None
-    if mline:
-        st.caption("🎛 " + mline["text"] + " — đổi ở bảng Model (Tinh chỉnh)")
-        if mline.get("warning"):
-            st.markdown(D.colored("warn", "⚠ " + mline["warning"]), unsafe_allow_html=True)
+    # 09/10: the model line + "Đổi" are drawn by the clip card itself (step4._card_model) — not repeated here
     if s == "draft_stale":
         st.warning("⚠ Nháp đã cũ: " + stale_reason(p.conn, scene_id) + " — không gen bản cao từ nháp này; gen lại nháp từ đầu vào mới.")
     if s == "draft_ok":

@@ -21,10 +21,10 @@ def _latest_jobs(p: Pipeline, pid: int) -> dict:
     return latest
 
 
-def _model_notes(p: Pipeline, pid: int, proj) -> None:
-    # F4 (09/10): người dùng phải THẤY model / chất lượng / giá từng shot và tự đổi được → bảng Model gọn hiện ở cả chế độ thường
-    # (một dòng mỗi shot + một nút "Đổi"); chế độ chuyên gia thêm phần giải thích slide + so sánh tổng theo ưu tiên.
-    model_plan_panel(p, pid)
+def _model_notes(p: Pipeline, pid: int, proj, on_cards=frozenset()) -> None:
+    # F4 (09/10): người dùng phải THẤY model / chất lượng / giá từng shot và tự đổi được. Người dùng 09/10: model hiện DƯỚI THẺ CLIP
+    # của từng cảnh (phim dài khó biết đang chỉnh cảnh nào) — bảng chỉ còn các shot CHƯA có thẻ clip (chọn model trước lần gen đầu).
+    model_plan_panel(p, pid, skip=on_cards)
 
 
 def step4(p: Pipeline, pid: int):
@@ -41,14 +41,14 @@ def step4_v2(p: Pipeline, pid: int, runner, proj, summ) -> None:
     from dashboard.design import components as D
     from dashboard.design.screens import video_ui as V
     hero_c, bar_c, grid_c, set_c, tune_c = (st.container() for _ in range(5))
+    latest = _latest_jobs(p, pid)
     with tune_c, D.card("vid-tune"):
         st.markdown(D.hero_html("Tinh chỉnh", "hiếm dùng — công tắc âm thanh / QC / chủ thể, chọn model từng cảnh, thử nghiệm"), unsafe_allow_html=True)
         with st.expander("⚙ Công tắc video (âm thanh · Claude kiểm tra · chủ thể)", expanded=False):
             _video_settings(p, pid, proj, runner)
-        _model_notes(p, pid, proj)                       # expert: its own "🎛 Model cho từng cảnh" expander; else the warnings
+        _model_notes(p, pid, proj, frozenset(latest))    # shots with a clip card change their model ON the card
     with bar_c, D.card("vid-bar"):
         _video_batch(p, pid, runner)
-    latest = _latest_jobs(p, pid)
     blocked = p.conn.execute("SELECT COUNT(*) c FROM content_moderation_failures f JOIN jobs j ON j.id=f.job_id WHERE j.project_id=?",
                              (pid,)).fetchone()["c"]
     status = lineage.scan(p.conn, pid)
@@ -90,6 +90,9 @@ def step4_v2(p: Pipeline, pid: int, runner, proj, summ) -> None:
             st.markdown(D.empty_state("Chưa có clip nào", "Duyệt motion prompt ở tab Motion (Storyboard) rồi bấm “▶ Gen video” ở thanh trên."), unsafe_allow_html=True)
             st.button("✏ Mở Motion prompt (tab Motion)", key=f"vid-empty-go_{pid}", on_click=_go_step3)
         lines = _shot_lines(p, pid) if ordered else {}  # F4: dòng model của thẻ clip — kế hoạch model tính MỘT lần cho cả lưới
+        plan_rows = _plan_rows(p, pid) if ordered else {}
+        if ordered:
+            _film_line(p, pid)
         from dashboard import readiness_ui              # F5-A: "sẵn sàng gen" từng clip — một lần cho cả lưới
         ready = readiness_ui.grid(p.conn, C.DATA, pid, "video", [j["scene_id"] for j in ordered], lines=lines or None) if ordered else {}
         with st.container(key="vid-grid"):              # 07/10 khung hẹp: theo HÀNG — xuống dòng vẫn đúng thứ tự cảnh (theme.css)
@@ -97,7 +100,7 @@ def step4_v2(p: Pipeline, pid: int, runner, proj, summ) -> None:
                 for col, j in zip(st.columns(3), ordered[start:start + 3]):
                     with col:
                         video_card_v2(p, pid, j, runner, (status.get(j["scene_id"]) or {}).get("video_stale"), lines.get(j["scene_id"]),
-                                      ready=ready.get(j["scene_id"]))
+                                      ready=ready.get(j["scene_id"]), plan_row=plan_rows.get(j["scene_id"]))
     with set_c:
         clip_set_panel(p, pid)
     if C.expert():
@@ -294,7 +297,7 @@ def _go_step3() -> None:
     C.go_screen(None, "storyboard", tab=1)                # the Motion tab of the Storyboard screen
 
 
-def model_plan_panel(p: Pipeline, pid: int) -> None:
+def model_plan_panel(p: Pipeline, pid: int, skip=frozenset()) -> None:
     """Which model for which scene, from the ClipAI model guide (no fixed default). F4 (09/10): MỘT dòng mỗi shot
     "model · nháp → cao · giữ nội dung? · ≈ USD · đề xuất/bạn chọn" (dashboard.model_line) + MỘT nút "Đổi" (popover: model, độ phân
     giải, đường chất lượng); cảnh báo E1 ngay trên dòng; dòng ước tính cả phim trên đầu bảng. Giữ key cũ vm_{pid}_{sid}, qpath_{sid}."""
@@ -304,7 +307,7 @@ def model_plan_panel(p: Pipeline, pid: int) -> None:
     rows = model_router.plan(p.conn, pid, pricing)
     ready = {r["scene_id"] for r in llm_io.ready_for_video(p, pid, include_stale=True)}
     has_mp = {r["scene_id"] for r in p.conn.execute("SELECT m.scene_id FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id WHERE s.project_id=?", (pid,))}
-    rows = [r for r in rows if r["scene_id"] in has_mp]
+    rows = [r for r in rows if r["scene_id"] in has_mp and r["scene_id"] not in skip]
     proj = p.project(pid)
     prio = model_router.priority_of(proj)
     profiles = model_router.load_profiles()
@@ -331,14 +334,13 @@ def model_plan_panel(p: Pipeline, pid: int) -> None:
             if st.button("Bỏ model chung — dùng đề xuất theo cảnh", key=f"vm_clear_{pid}"):
                 p.set_video_model(pid, None)
                 st.rerun()
+        if skip:
+            st.caption("🎛 Shot đã có clip: model hiện và đổi ngay dưới thẻ clip của shot đó (nút “Đổi”).")
         if not rows:
-            st.caption("Chưa có motion prompt nào: viết ở tab Motion (Storyboard).")
+            if not skip:
+                st.caption("Chưa có motion prompt nào: viết ở tab Motion (Storyboard).")
             return
-        try:
-            film = model_line.film_line(p.conn, pid)
-            st.caption(f"🎬 **{film['text']}**", help=film["help"])
-        except Exception:  # noqa: BLE001 - an estimate never breaks the table
-            pass
+        _film_line(p, pid)
         api = model_router.api_models(profiles)
         options = [None] + list(api)
         ratio = model_line._ratio(p.conn, pid)
@@ -350,32 +352,77 @@ def model_plan_panel(p: Pipeline, pid: int) -> None:
                 text += " " + D.colored("warn", "⚠ " + line["warning"])
             c0.markdown(text, unsafe_allow_html=True, help=line["why"] or None)
             with c1.popover("Đổi", help="Đổi model / độ phân giải / đường chất lượng của shot này"):
-                cur = r["model"] if r["source"] == "override" else None
-                pick = st.selectbox("Model", options, index=options.index(cur) if cur in options else 0, key=f"vm_{pid}_{r['scene_id']}",
-                                    # KLD-23: the real model + resolution ("Seedance 2.0 · 720p"), never the bare alias / a vague label
-                                    format_func=lambda a, r=r: "Đề xuất: " + model_router.label(r["recommended"]["model"], r["recommended"].get("resolution"))
-                                    if a is None else model_router.label(a, r.get("resolution") if a == r["model"] else None))
-                if pick != cur:
-                    act(lambda: model_router.set_override(p.conn, r["scene_id"], pick, p=p))
-                    st.rerun()
-                if two_tier:
-                    qcur = quality_ui.quality_path(p.conn, r["scene_id"])
-                    keys = list(quality_ui.PATHS)
-                    qpick = st.selectbox("Đường chất lượng", keys, index=keys.index(qcur), key=f"qpath_{r['scene_id']}",
-                                         format_func=lambda k: {"auto": "Tự động (theo Đạo diễn)", "draft_first": "Nháp trước",
-                                                                "direct": "Thẳng bản cao"}[k],
-                                         help="Nháp trước = nháp rẻ → bạn duyệt → nâng bản cao (chỉ Seedance 2.5 giữ nội dung nháp). "
-                                              "Thẳng bản cao = gen một lần. Tự động = theo nhãn độ khó của Đạo diễn.")
-                    if qpick != qcur and quality_ui.set_quality_path(p.conn, r["scene_id"], qpick):
-                        st.rerun()
-                st.caption("Độ phân giải: " + line["model_text"]
-                           + (" — đi theo đường chất lượng ở trên." if two_tier else " — theo bậc mặc định của model."))
-                if line["why"]:
-                    st.caption("Vì sao: " + line["why"])
+                _model_change(p, pid, r, line, options, two_tier)
         if C.expert():
             totals = {k: model_router.total(model_router.plan(p.conn, pid, pricing, priority=k)) for k in model_router.PRIORITIES}
             st.caption("So sánh tổng (chưa tính gen lại): " + " · ".join(
                 f"{profiles['priorities'][k]['label']} ≈ " + (f"\\${v:.2f}" if v is not None else "?") for k, v in totals.items()))
+
+
+def _model_change(p: Pipeline, pid: int, r, line, options, two_tier: bool) -> None:
+    """The body of a shot's "Đổi" popover: model, quality path (two-tier on), the resolution it gives and why (keys vm_{pid}_{sid},
+    qpath_{sid} — one place per shot: the clip card when it has one, else the Model table)."""
+    from dashboard import quality_ui
+    cur = r["model"] if r["source"] == "override" else None
+    pick = st.selectbox("Model", options, index=options.index(cur) if cur in options else 0, key=f"vm_{pid}_{r['scene_id']}",
+                        # KLD-23: the real model + resolution ("Seedance 2.0 · 720p"), never the bare alias / a vague label
+                        format_func=lambda a, r=r: "Đề xuất: " + model_router.label(r["recommended"]["model"], r["recommended"].get("resolution"))
+                        if a is None else model_router.label(a, r.get("resolution") if a == r["model"] else None))
+    if pick != cur:
+        act(lambda: model_router.set_override(p.conn, r["scene_id"], pick, p=p))
+        st.rerun()
+    if two_tier:
+        qcur = quality_ui.quality_path(p.conn, r["scene_id"])
+        keys = list(quality_ui.PATHS)
+        qpick = st.selectbox("Đường chất lượng", keys, index=keys.index(qcur), key=f"qpath_{r['scene_id']}",
+                             format_func=lambda k: {"auto": "Tự động (theo Đạo diễn)", "draft_first": "Nháp trước",
+                                                    "direct": "Thẳng bản cao"}[k],
+                             help="Nháp trước = nháp rẻ → bạn duyệt → nâng bản cao (chỉ Seedance 2.5 giữ nội dung nháp). "
+                                  "Thẳng bản cao = gen một lần. Tự động = theo nhãn độ khó của Đạo diễn.")
+        if qpick != qcur and quality_ui.set_quality_path(p.conn, r["scene_id"], qpick):
+            st.rerun()
+    if line:
+        st.caption("Độ phân giải: " + line["model_text"] + (" — đi theo đường chất lượng ở trên." if two_tier else " — theo bậc mặc định của model."))
+        if line.get("why"):
+            st.caption("Vì sao: " + line["why"])
+
+
+def _plan_rows(p: Pipeline, pid: int) -> dict:
+    """{scene_id: model_router.plan row} — once per grid (the card's "Đổi")."""
+    try:
+        return {r["scene_id"]: r for r in model_router.plan(p.conn, pid, cost.load_pricing())}
+    except Exception:  # noqa: BLE001 - no picker rather than a broken grid
+        return {}
+
+
+def _film_line(p: Pipeline, pid: int) -> None:
+    from dashboard import model_line
+    try:
+        film = model_line.film_line(p.conn, pid)
+        st.caption(f"🎬 **{film['text']}**", help=film["help"])
+    except Exception:  # noqa: BLE001 - an estimate never breaks the screen
+        pass
+
+
+def _card_model(p: Pipeline, pid: int, scene_id: int, line, plan_row) -> None:
+    """09/10 (người dùng): model của cảnh hiện NGAY DƯỚI thẻ clip — một dòng + nút "Đổi" (không ở bảng riêng)."""
+    from dashboard import model_line, quality_ui
+    from dashboard.design import components as D
+    if line is None:
+        try:
+            line = model_line.shot_line(p.conn, pid, scene_id)
+        except Exception:  # noqa: BLE001 - information only
+            line = None
+    c0, c1 = st.columns([5, 1], vertical_alignment="center")
+    if line:
+        text = "🎛 " + line["text"]
+        if line.get("warning"):
+            text += " " + D.colored("warn", "⚠ " + line["warning"])
+        c0.markdown(text, unsafe_allow_html=True)
+    if plan_row is not None:
+        with c1.popover("Đổi", help="Đổi model / độ phân giải / đường chất lượng của cảnh này"):
+            api = model_router.api_models(model_router.load_profiles())
+            _model_change(p, pid, plan_row, line, [None] + list(api), quality_ui.enabled())
 
 
 def _shot_lines(p: Pipeline, pid: int) -> dict:
@@ -389,7 +436,7 @@ def _shot_lines(p: Pipeline, pid: int) -> dict:
         return {}
 
 
-def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, ready=None) -> None:
+def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, ready=None, plan_row=None) -> None:
     """One clip as a glass card (UI v2): player + first frame, state pill, measured notes as chips/rows, model/length/price line and
     the four actions always visible (✔ Duyệt · ↻ Gen lại · ✏ Sửa motion prompt · ✖ Loại); the rare ones sit in one “Thêm” popover.
     Every widget key of the classic card is kept (va_, vr_rej_, vregen_, vr_, vfix_, vfixtxt_, vnote_, vc_, vrl_, vrs_, vkeep_)."""
@@ -418,6 +465,7 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
         st.markdown(pills, unsafe_allow_html=True)
         from dashboard import readiness_ui                # F5-A: một dòng "sẵn sàng gen" + chi tiết (không nút mới)
         readiness_ui.line(ready)
+        _card_model(p, pid, j["scene_id"], line, plan_row)   # 09/10: model của cảnh dưới thẻ, nút "Đổi" tại chỗ
         from dashboard import quality_ui                  # N4: 2 bậc chất lượng — chỉ khi cờ two_tier_quality bật và có core.quality_tier
         if quality_ui.enabled():
             quality_ui.card_block(p, pid, j["scene_id"], runner, line=line)
