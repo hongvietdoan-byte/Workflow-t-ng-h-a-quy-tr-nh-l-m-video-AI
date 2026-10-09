@@ -282,3 +282,13 @@ Không ứng viên nào đạt → báo thứ nào hỏng ở hướng nào (vd 
 
 Giữ các luật vật lý (L1 máy đứng chỗ hợp lệ, L4 trục, L7 cúi/ngửa đúng ý đồ, L9 vật cản sát ống kính, L10 tỉ lệ). L5/L6/L8 trở thành hệ quả của yêu cầu Director, không còn là luật chung.
 
+**Thử yêu nữ trong giếng (09/10, `--yeunu-in-well`, 0 USD).** Giếng rỗng, yêu nữ đứng ở tâm giếng, chân ở z = −0,32 m, ngực ngang miệng giếng. Ảnh ở `data/projects/24/stage_s1b/`.
+- **R2 (qua vai, cúi):** thấy yêu nữ 30–33 % (đầu, vai, và phần thân trong lòng giếng vì máy cao nhìn xuống được); giếng che 56 %. Đúng ý đồ.
+- **R1 (toàn cảnh mở):** cả 3 phương án top-3 vẫn **đạt luật chung**, nhưng yêu nữ gần như bị Kelly che:
+  - #2: chỉ thấy 4 %;
+  - #1 và #3: thấy 19 %.
+
+  Lần thử này **chứng minh mục 14 là cần thiết**: luật chung không biết ai là đối tượng chính. Khi Director ghi yêu nữ là `chính`, các phương án này phải bị loại.
+- **R1 đặt máy quá sát Kelly** (Kelly chiếm khoảng 52 % chiều cao khung) cho một "toàn cảnh". Cỡ cảnh của yêu cầu phải là cỡ của khung chứ không phải cỡ của Kelly; Director phải ghi vùng đích của từng thứ.
+- **Nhãn:** điểm ở xa bị che (chân tháp sau người) làm rối ảnh. Chỉ nên vẽ nhãn "bị che" cho thứ `chính` và `phụ`.
+
