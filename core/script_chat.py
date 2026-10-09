@@ -84,7 +84,33 @@ def is_dialogue_talk(text, p=None, pid=None):
     return bool(agree or _DIALOGUE_TALK.search(t) or named & (line_ids | open_ids))
 
 
+# 09/10 (người dùng thử thật): "phân tích kịch bản này" gõ sau khi dán kịch bản bị coi là NỘI DUNG mới (ý tưởng ngắn → hỏi lại "Bạn muốn
+# làm gì với tin này?"). Câu LỆNH ngắn = cả tin chỉ có động từ lệnh + từ đệm (đi / nhé / này / giúp mình…), so CÓ DẤU (NFC; bỏ dấu thì
+# 'hủy' = 'Huy' tên người) và khớp TRỌN tin: "phân tích tâm lý Kelly…", "viết kịch bản về Kelly đi chợ", "hủy diệt cả map" là nội dung.
+_TAIL = r'(?:\s+(?:đi|nhé|nha|nhá|ạ|giúp|giùm|giúp mình|giùm mình|giúp tôi|hộ|hộ mình|luôn|ngay|bây giờ|now))*'
+_THIS = r'(?:\s+(?:này|đó|kia|trên|ở trên|bên trên|vừa dán|vừa gửi|mình vừa dán|mình vừa gửi))?'
+_CMDS = (
+    ('analyse', r'(?:hãy\s+)?(?:chạy\s+|bấm\s+)?(?:phân tích|tách cảnh|chia cảnh)(?:\s+(?:kịch bản|kb|cảnh))?' + _THIS),
+    ('write', r'(?:hãy\s+)?viết(?:\s+thành)?\s+kịch bản(?:\s+(?:từ|theo)\s+(?:ý tưởng|dàn ý)' + _THIS + r')?'),
+    ('idea', r'(?:dùng|lấy|coi)\s+(?:làm|là)\s+ý tưởng' + _THIS + r'|(?:đây|cái này)\s+là\s+ý tưởng'),
+    ('script', r'(?:dùng|lấy|coi)\s+(?:làm|là)\s+kịch bản' + _THIS + r'|(?:đây|cái này)\s+là\s+kịch bản'),
+    ('cancel', r'hủy|huỷ|hủy bỏ|huỷ bỏ|bỏ qua|thôi|cancel'),
+)
+_CMD_RES = [(name, re.compile(r'^\s*[▶►]?\s*(?:' + body + r')' + _TAIL + r'\s*[.!…]*\s*$', re.I)) for name, body in _CMDS]
+
+
+def command(text):
+    """Câu lệnh ngắn của khung chat (0 USD, theo luật): 'analyse' | 'write' | 'idea' | 'script' | 'cancel' | None. Chỉ tin MỘT dòng ≤ 80 ký tự."""
+    import unicodedata
+    t = unicodedata.normalize('NFC', (text or '').strip())
+    if not t or '\n' in t or len(t) > 80:
+        return None
+    return next((name for name, rx in _CMD_RES if rx.match(t)), None)
+
+
 def intent(text, p=None, pid=None):
+    if command(text):
+        return 'command'                                # step1_box._command chạy đúng hành động (không thành nội dung)
     if re.match(r'^\s*(?:sửa|viết lại|chỉnh)\s+cảnh\s+\d+\b', text, re.I):
         return 'edit'
     if idea_to_script.expand_request(text) is not None:
