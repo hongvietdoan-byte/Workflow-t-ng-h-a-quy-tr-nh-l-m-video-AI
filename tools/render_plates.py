@@ -616,12 +616,18 @@ def _plate_camera():
 def clearance(c, warnings):
     """P24 (#24 shots 4/5/7): rays round a shot camera that has a subject — is the camera inside / behind a wall on its sight line,
     and is a wall right behind the character filling a level / upward view? core/plate_camera.clearance_fix decides (step in front,
-    rise over a low wall, or report a tall one). Returns the decision (notes / warnings) and moves c's location in place."""
+    rise over a low wall, or report a tall one). Returns the decision (notes / warnings) and moves c's location in place.
+    rà P24: any error (module load, ray_cast, the decision) → the plate is rendered without the check and the manifest says so;
+    the same-axis WIDE view (c["wide"]) is never moved, only warned; an indoor camera skips the wall-behind test (a room's back
+    wall is the background there, and the downward ray would read the ceiling)."""
     try:
-        pure = _plate_camera()
+        return _clearance(c, _plate_camera())
     except Exception as e:  # noqa: BLE001 - never silent: the plate is rendered without the check, and the manifest says so
-        warnings.append(f"clearance check skipped ({c.get('name')}): {e}")
-        return {"skipped": str(e)}
+        warnings.append(f"clearance check skipped ({c.get('name')}): {type(e).__name__}: {e}")
+        return {"skipped": f"{type(e).__name__}: {e}"}
+
+
+def _clearance(c, pure):
     scene, dg = bpy.context.scene, bpy.context.evaluated_depsgraph_get()
     loc, aim, feet = Vector(c["location"]), Vector(c["look_at"]), Vector(c["subject"]["location"])
     h = float(c["subject"].get("height_m") or 1.7)
@@ -636,14 +642,22 @@ def clearance(c, warnings):
             block = (where - body).length
     bg = top = None
     flat = Vector((aim.x - loc.x, aim.y - loc.y, 0))
-    if flat.length > 0.05:
+    if flat.length > 0.05 and not c.get("indoor"):
         hit, where, *_ = scene.ray_cast(dg, loc, flat.normalized(), distance=60.0)
         if hit:
             bg = (Vector((where.x, where.y, 0)) - Vector((loc.x, loc.y, 0))).length
             past = where + flat.normalized() * 0.05
-            up = scene.ray_cast(dg, Vector((past.x, past.y, loc.z + 40.0)), Vector((0, 0, -1)))
+            # taller than a "low wall"? a level ray just above that limit, along the same view — never a ray started inside a tall
+            # wall (it would read the wall's bottom as its top)
+            limit = feet.z + h + pure.LOW_WALL_EXTRA_M + 0.05
+            tall = scene.ray_cast(dg, Vector((loc.x, loc.y, limit)), flat.normalized(), distance=bg + 0.3)
+            # the top just past the face, from 3 m above the hit (not 40 m above the camera: a roof / canopy overhead is not the wall)
+            up = scene.ray_cast(dg, Vector((past.x, past.y, where.z + 3.0)), Vector((0, 0, -1)), distance=6.0)
             top = up[1].z if up[0] else where.z
-    fix = pure.clearance_fix(list(loc), list(aim), list(feet), h, block_m=block, bg_m=bg, bg_top_z=top, block_from=list(body))
+            if tall[0]:
+                top = max(top, limit)
+    fix = pure.clearance_fix(list(loc), list(aim), list(feet), h, block_m=block, bg_m=bg, bg_top_z=top, block_from=list(body),
+                             move=not c.get("wide"))
     out = {"notes": fix["notes"], "warnings": fix["warnings"], "block_m": None if block is None else round(block, 2),
            "background_m": None if bg is None else round(bg, 2), "background_top_m": None if top is None else round(top - feet.z, 2)}
     if fix["location"] != [round(v, 3) for v in loc]:
@@ -916,6 +930,10 @@ def main():
         cam = bpy.data.objects.new(c["name"], data)
         scene.collection.objects.link(cam)
         clr = clearance(c, warnings) if c.get("subject") else None     # P24: before placing — may move c["location"]
+        if clr and clr.get("moved_from_m"):                              # rà P24: the caller re-frames the character from this
+            loc = c["location"]
+            clr["location_model"] = ([round((loc[0]) / factor, 4), round(loc[1] / factor, 4), round((loc[2] - LIFT_Z) / factor, 4)]
+                                     if c.get("model_coords") else list(loc))
         cam.location = Vector(c["location"])
         look_at(cam, c["look_at"])
         scene.camera = cam

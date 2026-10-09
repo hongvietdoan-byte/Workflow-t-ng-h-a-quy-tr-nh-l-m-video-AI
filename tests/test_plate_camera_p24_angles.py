@@ -122,5 +122,134 @@ class CacheKeyTests(unittest.TestCase):
                                          "lens": 35, "angle": "eye_level"})
 
 
+class _V:
+    """Just enough of mathutils.Vector for tools/render_plates.clearance outside Blender."""
+    def __init__(self, v):
+        self.v = [float(c) for c in v]
+
+    x = property(lambda s: s.v[0])
+    y = property(lambda s: s.v[1])
+    z = property(lambda s: s.v[2])
+    length = property(lambda s: math.sqrt(sum(c * c for c in s.v)))
+
+    def __iter__(self):
+        return iter(self.v)
+
+    def __add__(self, o):
+        return _V([a + b for a, b in zip(self.v, o)])
+
+    def __sub__(self, o):
+        return _V([a - b for a, b in zip(self.v, o)])
+
+    def __mul__(self, k):
+        return _V([a * k for a in self.v])
+
+    def normalized(self):
+        n = self.length or 1.0
+        return _V([a / n for a in self.v])
+
+
+def _render_plates(ray_cast):
+    """tools/render_plates.py loaded with a fake bpy whose scene.ray_cast is `ray_cast(origin, direction, distance)`."""
+    import importlib.util
+    import os
+    import sys
+    import types
+    bpy = types.ModuleType("bpy")
+    scene = types.SimpleNamespace(ray_cast=lambda dg, o, d, distance=1e30: ray_cast(_V(o), _V(d), distance))
+    bpy.context = types.SimpleNamespace(scene=scene, evaluated_depsgraph_get=lambda: None)
+    mu = types.ModuleType("mathutils")
+    mu.Vector = _V
+    old = {k: sys.modules.get(k) for k in ("bpy", "mathutils")}
+    sys.modules.update(bpy=bpy, mathutils=mu)
+    try:
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "render_plates.py")
+        spec = importlib.util.spec_from_file_location("render_plates_p24_test", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    finally:
+        for k, v in old.items():
+            if v is None:
+                sys.modules.pop(k, None)
+            else:
+                sys.modules[k] = v
+    return mod
+
+
+MISS = (False, None, None, None, None, None)
+
+
+class ReviewFixTests(unittest.TestCase):
+    """Rà độc lập nhánh P24 (09/10): 5 lỗi sửa kèm test đỏ → xanh."""
+
+    def _cam(self, **extra):
+        c = pc.camera_for({"size": "WS", "angle": "low"}, (0.0, 0.0, 0.0), 0.0, 1.75)["camera"]
+        return dict(c, subject={"location": [0.0, 0.0, 0.0], "height_m": 1.75}, **extra)
+
+    def test_1_moved_camera_reframes_the_subject_box(self):
+        cam = self._cam()
+        self.assertIsNone(location_pack.reframe(cam, {}, 9 / 16))
+        near = [c * 0.5 for c in cam["location"][:2]] + [cam["location"][2]]
+        rf = location_pack.reframe(cam, {"moved_from_m": cam["location"], "location_model": near}, 9 / 16)
+        old = pc.subject_box(cam["location"], cam["look_at"], cam["lens"], 9 / 16, (0, 0, 0), 1.75)
+        self.assertGreater(rf["subject_box"][3] - rf["subject_box"][1], old[3] - old[1])    # closer → the character is bigger
+        self.assertLess(rf["distance_m"], math.hypot(*cam["location"][:2]))
+        it = {"subject_box": old, "distance_m": 9.9}
+        self.assertEqual(location_pack.frame_fields(it, {"reframed": rf})["subject_box"], rf["subject_box"])
+        self.assertEqual(location_pack.frame_fields(it, {})["subject_box"], old)
+        src = open(location_pack.__file__.replace("core", "tools").replace("location_pack.py", "render_plates.py"),
+                   encoding="utf-8").read()
+        self.assertIn("location_model", src)
+
+    def test_2_a_ray_error_is_a_warning_not_a_crash(self):
+        def boom(o, d, dist):
+            raise RuntimeError("ray_cast exploded")
+        rp = _render_plates(boom)
+        warnings = []
+        c = self._cam()
+        out = rp.clearance(c, warnings)
+        self.assertIn("skipped", out)
+        self.assertTrue(any("ray_cast exploded" in w for w in warnings))
+
+    def test_3_a_wall_right_at_the_character_is_reported_not_moved_into(self):
+        cam = self._cam()
+        fix = pc.clearance_fix(cam["location"], cam["look_at"], (0, 0, 0), 1.75, block_m=0.1,
+                               block_from=[0, 0, cam["location"][2]])
+        self.assertEqual(fix["location"], list(cam["location"]))
+        self.assertTrue(fix["warnings"])
+        self.assertEqual(fix["notes"], [])
+
+    def test_4_looks_down_the_alley_and_camera_setup_do_not_tilt(self):
+        self.assertFalse(pc.looks_down({"action": "she looks down the alley"}))
+        self.assertFalse(pc.looks_down({"action": "Kelly looks down the dark street"}))
+        self.assertFalse(pc.looks_down({"camera_setup": "camera looks down at her"}))
+        self.assertTrue(pc.looks_down({"action": "she looks down the well"}))
+        self.assertTrue(pc.looks_down({"action": "she looks down at the street below"}))
+
+    def test_5_wide_is_only_warned_indoor_skips_background_and_top_ray_starts_above_the_hit(self):
+        fix = pc.clearance_fix([0, 6, 1], [0, 0, 1], (0, 0, 0), 1.75, block_m=3.0, block_from=[0, 0, 1], move=False)
+        self.assertEqual(fix["location"], [0.0, 6.0, 1.0])
+        self.assertTrue(fix["warnings"])
+        calls = []
+
+        def wall(o, d, dist):                                        # a wall 1 m behind the character, 1,2 m high
+            calls.append((list(o), list(d)))
+            if d.z < -0.5:
+                return (True, _V((o.x, o.y, 1.2)), None, 0, None, None)
+            if abs(d.z) < 1e-6 and d.y < 0 and o.z < 1.4:
+                return (True, _V((o.x, -1.0, o.z)), None, 0, None, None)
+            return MISS
+        rp = _render_plates(wall)
+        c = self._cam()
+        rp.clearance(dict(c), [])
+        down = [o for o, d in calls if d[2] < -0.5]
+        self.assertTrue(down)
+        self.assertAlmostEqual(down[0][2], c["location"][2] + 3.0, places=3)   # where.z (camera height) + 3, not loc.z + 40
+        calls.clear()
+        out = rp.clearance(dict(c, indoor={"exposure": 1.5}), [])
+        self.assertIsNone(out["background_m"])
+        self.assertFalse([o for o, d in calls if d[2] < -0.5])
+
+
 if __name__ == "__main__":
     unittest.main()

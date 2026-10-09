@@ -66,6 +66,11 @@ DOWN_WORDS = ("look down", "looks down", "looking down", "peer down", "peers dow
 # BG_NEAR_M behind the character that the camera is below is a "wall frame": raised over it (top + OVER_WALL_M) when the wall is no
 # higher than the character + LOW_WALL_EXTRA_M, else reported (a house wall — choose another plate_view)
 CLEAR_GAP_M, BG_NEAR_M, OVER_WALL_M, LOW_WALL_EXTRA_M = 0.3, 2.5, 0.15, 0.3
+# rà P24: a face closer than CLEAR_GAP_M + MIN_CLEAR_M to the character leaves no room for a camera — reported, never moved there
+MIN_CLEAR_M = 0.5                              # an over-the-shoulder camera still fits 0,5 m behind the head; closer = in the face
+# rà P24: "looks down the alley / street…" is a direction along the ground, not a look DOWN (the camera must not tilt 35°)
+AWAY_WORDS = ("alley", "alleyway", "street", "road", "corridor", "hall", "hallway", "path", "lane", "track", "tunnel", "avenue",
+              "block", "runway", "row", "aisle", "line", "barrel", "sights", "scope", "length")
 
 
 def size_of(data: Dict) -> str:
@@ -115,11 +120,17 @@ _DOWN_RX = re.compile("|".join(r"\b" + re.escape(w) + r"\b" for w in DOWN_WORDS)
 _DOWN_NEG = re.compile(r"(?:\b(?:no|not|without|never|nor|doesn't|don't|isn't)\s+(?:\w+\s+){0,1}|(?:không|chưa|chẳng)\s+(?:\w+\s+){0,1})$")
 
 
+_DOWN_AWAY = re.compile(r"\s+(?:the|a|an|this|that)\s+(?:\w+\s+)?(?:" + "|".join(AWAY_WORDS) + r")\b")
+
+
 def looks_down(data: Dict) -> bool:
     """P24: the shot's action / blocking / start frame says the character looks DOWN (into the well, at the ground) — whole words,
-    never negated ("không nhìn xuống", "does not look down")."""
-    words = " ".join(str(data.get(k) or "") for k in ("action", "blocking", "start_frame", "camera_setup")).lower()
+    never negated ("không nhìn xuống", "does not look down"), never "looks down the (dark) alley / street" (a direction along the
+    ground). camera_setup is not read (rà P24): "camera looks down at her" is the camera, not the character."""
+    words = " ".join(str(data.get(k) or "") for k in ("action", "blocking", "start_frame")).lower()
     for m in _DOWN_RX.finditer(words):
+        if _DOWN_AWAY.match(words, m.end()):
+            continue
         if not _DOWN_NEG.search(words[max(0, m.start() - 24):m.start()]):
             return True
     return False
@@ -238,7 +249,7 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
 
 def clearance_fix(location: Sequence[float], look_at: Sequence[float], feet: Sequence[float], height_m: float,
                   block_m: Optional[float] = None, bg_m: Optional[float] = None, bg_top_z: Optional[float] = None,
-                  block_from: Optional[Sequence[float]] = None) -> Dict:
+                  block_from: Optional[Sequence[float]] = None, move: bool = True) -> Dict:
     """P24: judge what Blender's rays found round a shot camera (pure; tools/render_plates.py measures, scene metres).
     block_m  = distance from block_from (the character's body, default the aim point) towards the camera to the first face (None =
                clear): the camera is inside / behind a wall → it moves along its own sight line until it is CLEAR_GAP_M in front of
@@ -248,13 +259,22 @@ def clearance_fix(location: Sequence[float], look_at: Sequence[float], feet: Seq
                that obstacle. A face closer than BG_NEAR_M behind the character while the camera looks level/up is a wall filling
                the frame: a low wall (≤ character + LOW_WALL_EXTRA_M) → the camera rises over it (top + OVER_WALL_M, same aim); a
                tall one → reported only (choose another plate_view / spot), never moved silently.
+    rà P24: a face closer than CLEAR_GAP_M + MIN_CLEAR_M to the character leaves no room — reported, the camera is not moved (it
+    would stand in the character's face). move=False (the same-axis WIDE view): nothing is moved, everything is reported (a wide
+    pulled in to a wall is no longer a wide).
     Returns {"location", "look_at", "notes" (what was changed), "warnings" (what is wrong and left)}."""
     loc, aim = [float(c) for c in location], [float(c) for c in look_at]
     notes: List[str] = []
     warnings: List[str] = []
     sight = math.dist(aim, loc)
     seg = math.dist(block_from, loc) if block_from is not None else sight
-    if block_m is not None and 0 <= block_m < seg - 1e-6:
+    blocked = block_m is not None and 0 <= block_m < seg - 1e-6
+    if blocked and (not move or block_m - CLEAR_GAP_M < MIN_CLEAR_M):
+        warnings.append(f"vật cản trên đường nhìn cách nhân vật {block_m:.2f} m (máy ở {seg:.2f} m) — "
+                        + ("không dời máy ảnh toàn cùng trục, ảnh toàn có thể chỉ thấy vật cản" if not move else
+                           f"quá sát nhân vật (< {CLEAR_GAP_M + MIN_CLEAR_M:g} m), không còn chỗ đặt máy")
+                        + "; chọn plate_view / chỗ đứng khác")
+    elif blocked:
         pull = min(seg - max(block_m - CLEAR_GAP_M, 0.0), sight - 0.3)
         f = _unit([a - c for a, c in zip(aim, loc)])
         loc = [c + fc * pull for c, fc in zip(loc, f)]
@@ -270,6 +290,9 @@ def clearance_fix(location: Sequence[float], look_at: Sequence[float], feet: Seq
         where = (f"cách sau nhân vật {behind_m:.2f} m" if behind_m >= 0 else f"trước nhân vật {-behind_m:.2f} m")
         if loc[2] >= float(bg_top_z) + OVER_WALL_M - 1e-6:
             pass                                               # the camera already sees over it
+        elif top <= height_m + LOW_WALL_EXTRA_M and not move:
+            warnings.append(f"nền ảnh toàn cùng trục là tường thấp {top:.2f} m {where} (máy cao {loc[2] - float(feet[2]):.2f} m) — "
+                            "không dời máy ảnh toàn")
         elif top <= height_m + LOW_WALL_EXTRA_M:
             new_z = float(bg_top_z) + OVER_WALL_M
             notes.append(f"máy cao {loc[2] - float(feet[2]):.2f} m sau tường thấp {top:.2f} m {where} — nền chỉ là tường → nâng máy lên "
