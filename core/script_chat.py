@@ -108,13 +108,31 @@ def command(text):
     return next((name for name, rx in _CMD_RES if rx.match(t)), None)
 
 
+# Rà 09/10: "thôi" / "bỏ qua" là lời từ chối mềm — chỉ "hủy" (đúng chữ) mới xóa nội dung đang chờ; khi có đề xuất thoại KLD-10 đang mở thì
+# "thôi" / "bỏ qua" là câu trả lời cho Biên kịch (dialogue_chat), không phải lệnh hủy.
+_HARD_CANCEL = re.compile(r'^\s*(?:hủy|huỷ|hủy bỏ|huỷ bỏ|cancel)' + _TAIL + r'\s*[.!…]*\s*$', re.I)
+
+
+def hard_cancel(text):
+    import unicodedata
+    return bool(_HARD_CANCEL.match(unicodedata.normalize('NFC', (text or '').strip())))
+
+
+def _soft_cancel_to_writer(text, p, pid):
+    """'thôi' / 'bỏ qua' (không phải 'hủy') khi dự án đang có đề xuất thoại mở → chat với Biên kịch."""
+    return command(text) == 'cancel' and not hard_cancel(text) and bool(_known_codes(p, pid)[1])
+
+
 def intent(text, p=None, pid=None):
-    if command(text):
-        return 'command'                                # step1_box._command chạy đúng hành động (không thành nội dung)
     if re.match(r'^\s*(?:sửa|viết lại|chỉnh)\s+cảnh\s+\d+\b', text, re.I):
         return 'edit'
+    # Rà 09/10 (hồi quy S14.43 mục 5): "viết kịch bản từ dàn ý này" là yêu cầu viết chi tiết (expand_request) — xét TRƯỚC lệnh 'write'.
     if idea_to_script.expand_request(text) is not None:
         return 'idea'
+    if _soft_cancel_to_writer(text, p, pid):
+        return 'chat'                                   # "thôi" khi có đề xuất thoại mở = trả lời Biên kịch, không xóa gì
+    if command(text):
+        return 'command'                                # step1_box._command chạy đúng hành động (không thành nội dung)
     classification = idea_to_script.classify(text)
     if classification['kind'] == 'unsure' and '\n' in text:
         return 'unsure'

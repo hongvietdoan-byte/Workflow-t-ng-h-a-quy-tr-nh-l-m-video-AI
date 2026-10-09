@@ -321,6 +321,122 @@ class ChatAppTests(unittest.TestCase):
         self.assertIn("CẢNH 1", at.session_state[f"box_text_{self.pid}"])
         self.assertIn("Đã đọc chữ", " ".join(m["text"] for m in C.history(self.p, self.pid)))
 
+    def test_review_4_ref_list_expander_shows_without_scenes_and_trash_removes(self):
+        chat_refs.add(self.p.conn, self.pid, "prop", "Thùng thính", "", "box.jpg", None)
+        at = self.open()
+        self.assertIn("📎 Tư liệu tham khảo (1)", [e.label for e in at.expander])
+        rid = chat_refs.items(self.p.conn, self.pid)[0]["id"]
+        next(b for b in at.button if b.key == f"crl_{self.pid}_{rid}").click().run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertEqual(chat_refs.items(self.p.conn, self.pid), [])
+
+
+PAGE1 = "CẢNH 1 - NGÀY, SÂN\nKelly chạy qua sân.\n\nCẢNH 2 - ĐÊM, NHÀ\nMaxim ngủ gật."
+PAGE2 = "CẢNH 3 - SÁNG, CHỢ\nKelly mua thính."
+
+
+class ReviewFixTests(unittest.TestCase):
+    """Rà 09/10 nhánh lệnh ngắn + ảnh/video trong chat: 6 lỗi, mỗi lỗi một test (st giả, không model)."""
+    def setUp(self):
+        from dashboard.steps import step1_box, step1_chatrefs
+        from dashboard import common
+        self.box, self.refs = step1_box, step1_chatrefs
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.data = os.path.join(self.tmp, "projects")
+        old, common.DATA = common.DATA, self.data
+        self.addCleanup(setattr, common, "DATA", old)
+        self.p = Pipeline(connect(":memory:"))
+        self.pid = self.p.create_project("ra")
+        self.st = mock.MagicMock()
+        self.st.session_state = {}
+        self.k = step1_box._keys(self.pid)
+        for mod in (step1_box, step1_chatrefs):
+            patcher = mock.patch.object(mod, "st", self.st)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def ss(self):
+        return self.st.session_state
+
+    def test_1_two_pages_read_when_scenes_exist_keep_both(self):
+        for i in range(1, 4):
+            self.p.create_scene(self.pid, i, f"C{i}")
+        pages = iter([PAGE1, PAGE2])
+        with mock.patch.object(chat_refs, "read_page", side_effect=lambda *a, **kw: next(pages)), \
+                mock.patch("dashboard.common.llm_client", return_value=None):
+            self.assertTrue(self.refs.read_page(self.p, self.pid, {"id": "1", "file": "trang1.jpg"}))
+            self.assertTrue(self.refs.read_page(self.p, self.pid, {"id": "2", "file": "trang2.jpg"}))
+        pending = self.ss().get(self.k["pending"]) or ""
+        self.assertIn("Kelly chạy qua sân", pending)
+        self.assertIn("Kelly mua thính", pending)
+
+    def test_2_write_from_this_outline_is_the_expand_request_not_the_write_command(self):
+        self.p.set_script_text(self.pid, SCRIPT)
+        for text in ("viết kịch bản từ dàn ý này", "viết kịch bản theo dàn ý trên"):
+            with self.subTest(text=text):
+                self.ss().clear()
+                kind = C.intent(text, self.p, self.pid)
+                self.assertEqual(kind, "idea")
+                self.box._take(self.p, self.pid, text)                       # nhánh 'idea' của script_box
+                self.assertEqual(self.ss()[self.k["text"]], SCRIPT)
+                self.assertEqual(self.ss()[self.k["expand"]], "request")
+
+    def test_3_thoi_with_an_open_dialogue_proposal_is_not_a_cancel(self):
+        C.append(self.p, self.pid, "assistant", "Đề xuất câu mới.",
+                 proposals=[{"id": "P1", "line": "L1", "speaker": "KELLY", "old": "Có ai không?", "new": "Ai đó?", "why": "x", "state": "open"}])
+        self.ss()[self.k["text"]] = SCRIPT
+        for text in ("thôi", "bỏ qua"):
+            with self.subTest(text=text):
+                self.assertEqual(C.intent(text, self.p, self.pid), "chat")
+                self.box._command(self.p, self.pid, "cancel", text)          # kể cả khi tới được lệnh: chữ trong khung còn nguyên
+                self.assertEqual(self.ss()[self.k["text"]], SCRIPT)
+        self.assertEqual(C.intent("hủy", self.p, self.pid), "command")
+        self.box._command(self.p, self.pid, "cancel", "hủy")
+        self.assertNotIn(self.k["text"], self.ss())
+
+    def test_4_refs_dedupe_remove_and_label_cut(self):
+        a = chat_refs.add(self.p.conn, self.pid, "prop", "Thùng thính", "", "box.jpg", None)
+        b = chat_refs.add(self.p.conn, self.pid, "prop", "Thùng  thính", "ghi chú", "box.jpg", None)
+        self.assertEqual(a["id"], b["id"])
+        self.assertEqual(len(chat_refs.items(self.p.conn, self.pid)), 1)
+        long = chat_refs.add(self.p.conn, self.pid, "location", "x" * 200, "", "nha.jpg", None)
+        self.assertEqual(len(long["label"]), 80)
+        self.assertTrue(chat_refs.remove(self.p.conn, self.pid, a["id"]))
+        self.assertFalse(chat_refs.remove(self.p.conn, self.pid, a["id"]))
+        self.assertEqual([r["id"] for r in chat_refs.items(self.p.conn, self.pid)], [long["id"]])
+
+    def test_5_several_script_files_say_which_one_is_read(self):
+        class F:
+            def __init__(self, name):
+                self.name = name
+
+            def getvalue(self):
+                return SCRIPT.encode()
+
+        class Got:
+            text, files = "", [F("a.txt"), F("b.docx"), F("c.txt")]
+        self.box._take(self.p, self.pid, Got())
+        self.assertEqual(self.ss()[self.k["file"]][0], "a.txt")
+        msg = C.history(self.p, self.pid)[-1]["text"]
+        self.assertIn("Chỉ đọc “a.txt”", msg)
+        self.assertIn("b.docx", msg)
+        self.assertIn("c.txt", msg)
+
+    def test_6_read_page_keeps_the_original_picture_in_story_refs(self):
+        it = Intake.receive(self.p, self.data, self.pid, [("trang1.jpg", PNG)], "")[0]
+
+        class Client:
+            def complete(inner, prompt, images=()):
+                return llm_runner.LlmReply(PAGE1, 10, 5)
+        chat_refs.read_page(self.p, self.data, self.pid, it["id"], Client())
+        d = os.path.join(self.data, str(self.pid), "story_refs")
+        kept = os.listdir(d) if os.path.isdir(d) else []
+        self.assertEqual(len(kept), 1)
+        with open(os.path.join(d, kept[0]), "rb") as fh:
+            self.assertEqual(fh.read(), PNG)
+        self.assertEqual(Intake.pending(self.data, self.pid), [])
+
 
 if __name__ == "__main__":
     unittest.main()

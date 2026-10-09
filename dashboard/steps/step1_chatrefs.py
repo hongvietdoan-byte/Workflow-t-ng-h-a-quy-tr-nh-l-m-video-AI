@@ -39,7 +39,8 @@ def read_page(p: Pipeline, pid: int, it) -> bool:
     if not act(lambda: out.setdefault("text", chat_refs.read_page(p, C.DATA, pid, it["id"], C.llm_client()))):
         return False
     text = out["text"]
-    prev = (ss.get(k["text"]) or "").strip() if ss.get(f"box_ocr_{pid}") else ""
+    # rà 09/10: dự án đã có cảnh → _take đẩy trang trước sang pending / ask (và xóa text) — lấy chữ ở khóa đang có, theo thứ tự đó
+    prev = next((t for t in ((ss.get(k[x]) or "").strip() for x in ("pending", "ask", "text")) if t), "") if ss.get(f"box_ocr_{pid}") else ""
     Chat.append(p, pid, "assistant", f"📄 Đã đọc chữ từ “{it['file']}” ({len(text):,} ký tự, Claude — đã ghi sổ chi):".replace(",", ".")
                 + "\n\n" + text)
     Box._take(p, pid, (prev + "\n\n" + text) if prev else text)
@@ -48,6 +49,23 @@ def read_page(p: Pipeline, pid: int, it) -> bool:
     if rec:
         Chat.append(p, pid, "assistant", rec)
     return True
+
+
+def ref_list(p: Pipeline, pid: int) -> None:
+    """Rà 09/10: danh sách tư liệu đã ghi (vào prompt Biên kịch / Đạo diễn) — xem + 🗑 bỏ từng dòng; hiện cả khi chưa có cảnh."""
+    refs = chat_refs.items(p.conn, pid)
+    if not refs:
+        return
+    with st.expander(f"📎 Tư liệu tham khảo ({len(refs)})"):
+        for r in refs:
+            a, b = st.columns([6, 1], vertical_alignment="center")
+            a.markdown(f"**{escape(chat_refs.ROLE_LABELS.get(r.get('role'), str(r.get('role'))))}** · {escape(r.get('label') or '')}"
+                       + (f" — “{escape(r['note'])}”" if r.get("note") else "") + f"  \n<small>tệp {escape(str(r.get('file') or ''))}</small>",
+                       unsafe_allow_html=True)
+            if b.button("🗑", key=f"crl_{pid}_{r.get('id')}", help="Bỏ tư liệu này khỏi danh sách (tệp trên đĩa giữ nguyên)"):
+                if act(lambda r=r: access.need_edit(p, pid, "bỏ tư liệu") or chat_refs.remove(p.conn, pid, r.get("id"))):
+                    Chat.append(p, pid, "assistant", f"Đã bỏ tư liệu “{r.get('label')}” khỏi danh sách — Biên kịch / Đạo diễn không đọc nữa.")
+                    st.rerun()
 
 
 def ref_cards(p: Pipeline, pid: int) -> None:

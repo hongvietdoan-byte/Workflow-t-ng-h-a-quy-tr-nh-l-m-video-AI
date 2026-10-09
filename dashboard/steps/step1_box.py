@@ -36,6 +36,7 @@ def _take(p: Pipeline, pid: int, got) -> None:
     if files:
         ss[k["file"]] = (files[0].name, files[0].getvalue())
         ss[k["mode"]] = "script"
+        extra_files(p, pid, files)
     if not text.strip():
         return
     started = bool(I.get_state(p.conn, pid).get("inputs"))
@@ -63,6 +64,14 @@ def _take(p: Pipeline, pid: int, got) -> None:
     if not files:
         ss.pop(k["mode"], None)                                        # a new text is classified again
         ss.pop(k["expand"], None)
+
+
+def extra_files(p: Pipeline, pid: int, files) -> None:
+    """Rà 09/10: nhiều file kịch bản trong một tin → chỉ dùng file đầu; nói rõ file nào bị bỏ (luật 1: không im lặng)."""
+    if len(files) > 1:
+        from core import script_chat as Chat
+        Chat.append(p, pid, "assistant", f"⚠ Chỉ đọc “{files[0].name}”, bỏ " + ", ".join(f"“{f.name}”" for f in files[1:])
+                    + " — mỗi lần một file kịch bản; muốn dùng file khác thì thả riêng file đó.")
 
 
 def _expand_from_chat(p: Pipeline, pid: int, rest: str) -> None:
@@ -154,7 +163,7 @@ def media_in(p: Pipeline, pid: int, files, text: str, wide: bool) -> None:
 _NO_SCRIPT = "Chưa có kịch bản nào chờ phân tích — dán kịch bản (có tiêu đề **CẢNH 1 - …**) hoặc thả file vào khung chat. Chưa tốn gì."
 
 
-def _command(p: Pipeline, pid: int, cmd: str) -> None:
+def _command(p: Pipeline, pid: int, cmd: str, typed=None) -> None:
     """09/10: a short command typed in the chat (Chat.command, 0 USD) does what its button does — never kept as content, never asked
     back. Each case says what happened or why nothing did (luật 1)."""
     from core import idea_to_script as I
@@ -181,6 +190,9 @@ def _command(p: Pipeline, pid: int, cmd: str) -> None:
     if cmd == "cancel":
         if ss.pop(k["chatask"], None) is not None:
             return say_("Đã bỏ qua tin vừa rồi — chưa làm gì.")
+        if typed is not None and not Chat.hard_cancel(typed) and (waiting_choice(pid) or text or file):
+            # rà 09/10: "thôi" / "bỏ qua" không xóa kịch bản đang chờ — chỉ gõ đúng "hủy" (typed None = gọi cũ, giữ như trước)
+            return say_("Nội dung đang chờ trong khung chat vẫn giữ nguyên — muốn bỏ thì gõ **hủy**. Chưa làm gì.")
         if waiting_choice(pid):
             resolve(None, pid, "cancel")
             return say_("Đã hủy — kịch bản hiện tại giữ nguyên.")
@@ -420,6 +432,7 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
             if scripts:
                 ss[k["file"]] = (scripts[0].name, scripts[0].getvalue())
                 ss[k["mode"]] = "script"
+                extra_files(p, pid, scripts)
                 Chat.append(p, pid, "assistant", "Đã nhận file kịch bản — bấm ▶ Phân tích (0 USD).")
         elif got:
             incoming = got if isinstance(got, str) else (getattr(got, "text", None) or "")
@@ -429,7 +442,7 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
                 kind = "idea"                                          # đang viết một ý tưởng: câu ngắn = "nói thêm" cho lượt kế (như cũ)
             if kind == "command":                                      # 09/10: "phân tích kịch bản này" = bấm ▶ Phân tích, không là nội dung
                 Chat.append(p, pid, "user", incoming)
-                _command(p, pid, Chat.command(incoming))
+                _command(p, pid, Chat.command(incoming), incoming)
             elif kind == "ask":                                       # người dùng 06/10: không chắc → hỏi lại, chưa làm gì, 0 USD
                 Chat.append(p, pid, "user", incoming)
                 ss[k["chatask"]] = incoming
@@ -458,6 +471,8 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
         if not Intake.enabled():                                       # 09/10: ảnh / video chờ chọn vai (nút 0 USD; đọc chữ = nút có giá)
             from dashboard.steps.step1_chatrefs import ref_cards
             ref_cards(p, pid)
+        from dashboard.steps.step1_chatrefs import ref_list
+        ref_list(p, pid)                                               # rà 09/10: tư liệu đã ghi — xem + 🗑 (cả khi chưa có cảnh)
         if Intake.enabled():
             from dashboard.steps.step1_intake import pending_cards, style_offer
             pending_cards(p, pid)
