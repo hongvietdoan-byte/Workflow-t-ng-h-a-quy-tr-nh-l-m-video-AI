@@ -13,10 +13,22 @@
   nút "↩ Hoàn tác · 0 USD" (in-run, không fragment).
 - Test: `tests/test_script_chat_kld10.py` (intent, send/apply/undo, AppTest UI); `devsys/areas.json` khai file mới (không tăng version).
 
+## Sửa 7 lỗi rà độc lập (09/10)
+1. `dialogue_chat.approved`: phủ định (`_NEGATE`), hỏi lại ("?"), kèm sửa ý sau từ đồng ý (`_CHANGE`) → False. `script_chat._apply_turn`
+   tự áp dụng chỉ Px của tin assistant gần nhất có đề xuất; Px cũ hơn chỉ khi gọi đích danh Px/Lx (`named_codes`), không thì ghi ⚠.
+2. `intent(text, p=None, pid=None)`: "ý tưởng/viết kịch bản/dàn ý" xét trước; "điện thoại" không tính; Lx/Px chỉ khi có thật; lời
+   đồng ý chỉ là chat khi có đề xuất mở; đang viết ý tưởng → chỉ lời đồng ý là chat. `step1_box` truyền `p, pid`.
+3. `apply` chụp chuỗi `data` thô của cảnh; `undo` ghi lại nguyên chuỗi (giữ trường lạ, dòng rỗng, `_user_locked` cũ; lineage tính
+   theo vân tay nên tự khớp lại). Kiểm "đã đổi sau khi áp dụng" bằng vân tay sha1 (`fingerprint` / `changed_since`).
+4. `_replace_in_text(..., nth)` thay đúng lần xuất hiện thứ n; không thấy → None + `notes` (không thay mù).
+5. `HEADING` + `speech()`: "CẢNH 1: …", "INT: …", "LƯU Ý: …", "GHI CHÚ: …" không phải thoại.
+6. Đề xuất bị thay → state 'superseded' (thẻ "đã có đề xuất mới hơn").
+7. Bỏ mã apply trùng; đề xuất mới cùng lượt đọc `lines()` sau khi áp dụng.
+
 ## Đang dở / việc mở
 - Chưa thử trên dashboard thật với Claude thật (tốn tiền) — cần người dùng gõ thử.
-- `_user_locked` của trường dialogue vẫn giữ sau hoàn tác (update_scene đánh khóa tay) — chấp nhận.
-- Khi đang viết ý tưởng, câu có "thoại"/"câu N" giờ đi vào chat (gọi Claude) thay vì làm "nói thêm".
+- Lúc ÁP DỤNG, `update_scene` vẫn chuẩn hóa dòng thoại (bỏ trường lạ như t_start/lang, bỏ dòng rỗng) — hoàn tác thì về nguyên trạng.
+- Ảnh chụp hoàn tác kiểu cũ (dict) vẫn đi qua `update_scene` (chỉ tin áp dụng tạo trước bản sửa này).
 
 ## Bước kế
 - Merge nhánh vào main, cập nhật TODO.md (mục KLD-10), chạy thử thật một lượt.

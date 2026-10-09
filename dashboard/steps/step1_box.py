@@ -330,7 +330,7 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
         elif got:
             incoming = got if isinstance(got, str) else (getattr(got, "text", None) or "")
             files = [] if isinstance(got, str) else list(getattr(got, "files", None) or [])
-            kind = "script" if files else Chat.intent(incoming)
+            kind = "script" if files else Chat.intent(incoming, p, pid)
             if kind == "ask" and I.get_state(p.conn, pid).get("inputs"):
                 kind = "idea"                                          # đang viết một ý tưởng: câu ngắn = "nói thêm" cho lượt kế (như cũ)
             if kind == "ask":                                          # người dùng 06/10: không chắc → hỏi lại, chưa làm gì, 0 USD
@@ -441,7 +441,8 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
     return has_input
 
 
-_PROP_STATE = {"open": ("chờ bạn đồng ý", "info"), "applied": ("đã áp dụng", "ok"), "undone": ("đã hoàn tác", "mute")}
+_PROP_STATE = {"open": ("chờ bạn đồng ý", "info"), "applied": ("đã áp dụng", "ok"), "undone": ("đã hoàn tác", "mute"),
+               "superseded": ("đã có đề xuất mới hơn", "mute")}
 
 
 def _md(text: str) -> str:

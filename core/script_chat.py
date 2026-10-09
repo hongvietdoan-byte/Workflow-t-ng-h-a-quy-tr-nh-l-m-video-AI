@@ -53,20 +53,38 @@ def window(p, pid):
 # KLD-10: câu nói về thoại / lời đồng ý áp dụng → chat với Biên kịch. So CÓ DẤU, chặn hai đầu bằng ký tự chữ (không bỏ dấu: 'thoải mái'
 # bỏ dấu thành 'thoai', 'ok' nằm trong 'book'). "ok" đứng một mình chưa đủ (chưa rõ đồng ý cái gì) → vẫn hỏi lại như cũ.
 _W, _E = r'(?<![\w])', r'(?![\w])'
-_DIALOGUE_TALK = re.compile(_W + r'(?:thoại|câu\s*\d+|[LP]\d+)' + _E, re.I)
+# 'điện thoại' (đồ vật) không phải thoại; mã Lx / Px chỉ tính khi dự án CÓ mã đó (P90 là tên súng).
+_DIALOGUE_TALK = re.compile(r'(?<!điện )' + _W + r'(?:thoại|câu\s*\d+)' + _E, re.I)
 _APPROVE_TARGET = re.compile(_W + r'(?:ok|oke|okay|okie|đồng ý|duyệt|chốt|áp dụng|apply)' + _E + r'.*?' + _W +
                              r'(?:áp dụng|câu|hết|tất cả|cả hai|cả ba|[LP]\d+|đề xuất|bản (?:mới|này|đó))' + _E, re.I)
 
 
-def is_dialogue_talk(text):
-    """Câu ngắn (một dòng) nói về thoại hoặc đồng ý áp dụng đề xuất → chat với Biên kịch (KLD-10)."""
+def _known_codes(p, pid):
+    """(mã Lx của dự án, mã Px của đề xuất đang mở) — rỗng khi không có dự án."""
+    if p is None or pid is None:
+        return set(), set()
+    try:
+        return ({ln['id'] for ln in dialogue_chat.lines(p, pid)},
+                {pr['id'] for pr in dialogue_chat.open_proposals(history(p, pid))})
+    except Exception:                                   # không đọc được (quyền / CSDL) → coi như không có mã
+        return set(), set()
+
+
+def is_dialogue_talk(text, p=None, pid=None):
+    """Câu ngắn (một dòng) nói về thoại, gọi mã Lx/Px có thật, hoặc đồng ý khi dự án ĐANG có đề xuất mở → chat với Biên kịch (KLD-10).
+    Đang viết ý tưởng (Biên kịch có inputs) → chỉ lời đồng ý mới là chat; câu khác là 'nói thêm' cho lượt kế như cũ."""
     t = (text or '').strip()
     if not t or '\n' in t or len(t) > 300:
         return False
-    return bool(_DIALOGUE_TALK.search(t) or _APPROVE_TARGET.search(t))
+    line_ids, open_ids = _known_codes(p, pid)
+    named = dialogue_chat.named_codes(t)
+    agree = bool(open_ids) and bool(_APPROVE_TARGET.search(t)) and dialogue_chat.approved(t)
+    if p is not None and pid is not None and idea_to_script.get_state(p.conn, pid).get('inputs'):
+        return agree
+    return bool(agree or _DIALOGUE_TALK.search(t) or named & (line_ids | open_ids))
 
 
-def intent(text):
+def intent(text, p=None, pid=None):
     if re.match(r'^\s*(?:sửa|viết lại|chỉnh)\s+cảnh\s+\d+\b', text, re.I):
         return 'edit'
     if idea_to_script.expand_request(text) is not None:
@@ -76,10 +94,10 @@ def intent(text):
         return 'unsure'
     if classification['kind'] == 'script':
         return 'script'
-    if is_dialogue_talk(text):
-        return 'chat'
     if re.match(r'^\s*(?:ý tưởng|viết kịch bản|dàn ý)\b', text, re.I):
         return 'idea'
+    if is_dialogue_talk(text, p, pid):
+        return 'chat'
     # A clear question / greeting is conversation.
     if re.match(r'^\s*(?:bạn|tại sao|vì sao|thế nào|làm sao|có nên|nên|chào|cảm ơn|hãy giải thích)\b', text, re.I):
         return 'chat'
@@ -109,8 +127,11 @@ def send(p, pid, text, client, record_user=True):
         append(p, pid, 'assistant', f'Chưa nhận được câu trả lời: {exc}. Không tự gửi lại; bạn có thể gửi một tin mới.')
         raise
     got = dialogue_chat.parse(reply.text)
-    notes = []
-    by_id = {ln['id']: ln for ln in all_lines}
+    notes, applied_msg = [], None
+    if got['apply']:
+        applied_msg = _apply_turn(p, pid, context, got['apply'], notes)
+    # Rà 09/10: đọc lại câu thoại SAU khi áp dụng — đề xuất mới cùng lượt cho cùng Lx phải mang câu cũ là câu vừa áp dụng.
+    by_id = {ln['id']: ln for ln in (dialogue_chat.lines(p, pid) if applied_msg else all_lines)}
     proposals, n = [], dialogue_chat.next_id(context)
     for pr in got['proposals']:
         ln = by_id.get(pr['line'])
@@ -120,27 +141,11 @@ def send(p, pid, text, client, record_user=True):
         proposals.append({'id': f'P{n}', 'line': ln['id'], 'speaker': ln['speaker'], 'old': ln['text'],
                           'new': str(pr['new']).strip(), 'why': str(pr.get('why') or '').strip(), 'state': 'open'})
         n += 1
-    applied_msg = None
-    if got['apply']:
-        last_user = next((m['text'] for m in reversed(context) if m['role'] == 'user'), '')
-        open_by_id = {pr['id']: pr for pr in dialogue_chat.open_proposals(context)}
-        if not dialogue_chat.approved(last_user):       # Claude muốn áp dụng nhưng người chưa nói đồng ý → không sửa gì
-            notes.append('Chưa áp dụng: tin của bạn chưa có lời đồng ý rõ — gõ vd "ok áp dụng câu 1" để sửa.')
-        else:
-            picked = [open_by_id[x] for x in got['apply'] if x in open_by_id]
-            closed = [x for x in got['apply'] if x not in open_by_id]
-            if closed:
-                notes.append(f"Không áp dụng {', '.join(closed)}: đề xuất không còn mở (đã áp dụng / đã hoàn tác / có đề xuất mới hơn).")
-            if picked:
-                res = dialogue_chat.apply(p, pid, picked)
-                for key, why in res['skipped'].items():
-                    notes.append(f'Không áp dụng {key}: {why}.')
-                if res['applied']:
-                    _set_state(p, pid, res['applied'], 'applied')
-                    done = [pr for pr in picked if pr['id'] in res['applied']]
-                    applied_msg = {'text': 'Đã áp dụng ' + '; '.join(f"{pr['id']} ({pr['line']}): “{pr['new']}”" for pr in done)
-                                   + ' — thoại cảnh, đoạn kịch bản cảnh và kịch bản dự án (0 USD).',
-                                   'applied': res['applied'], 'undo': res['undo'], 'after': _after(p, pid, res['undo']), 'undone': False}
+    if proposals:                                       # đề xuất cũ còn mở cho cùng câu → 'superseded' (thẻ không còn "chờ đồng ý")
+        lines_now = {pr['line'] for pr in proposals}
+        old_ids = [pr['id'] for pr in dialogue_chat.open_proposals(history(p, pid)) if pr['line'] in lines_now]
+        if old_ids:
+            _set_state(p, pid, old_ids, 'superseded')
     text_out = got['reply'] or ('Đề xuất sửa thoại:' if proposals else '(Claude không trả lời bằng chữ.)')
     if notes:
         text_out += '\n\n' + '\n'.join('⚠ ' + x for x in notes)
@@ -150,19 +155,49 @@ def send(p, pid, text, client, record_user=True):
     return text_out
 
 
-def _after(p, pid, snapshot):
-    """Trạng thái ngay sau khi áp dụng (các cảnh đã sửa + văn bản kịch bản) — hoàn tác chỉ chạy khi chưa ai đổi tiếp."""
-    out = {'script_text': p.project(pid)['script_text'] or '', 'scenes': {}}
-    for idx in (snapshot.get('scenes') or {}):
-        row = p.conn.execute('SELECT data FROM scenes WHERE project_id=? AND idx=?', (pid, int(idx))).fetchone()
-        data = json.loads(row['data'] or '{}') if row else {}
-        out['scenes'][idx] = {'dialogue': data.get('dialogue'), 'text': data.get('text')}
-    return out
+def _apply_turn(p, pid, context, wanted, notes):
+    """Áp dụng các Px Claude trả về — CHỈ khi tin cuối của người là lời đồng ý rõ. Tự áp dụng chỉ các đề xuất của tin assistant GẦN
+    NHẤT có đề xuất ("câu 1" = đề xuất vừa nói); đề xuất cũ hơn chỉ khi người gọi đích danh Px / Lx. Trả tin "Đã áp dụng …" hoặc None."""
+    last_user = next((m['text'] for m in reversed(context) if m['role'] == 'user'), '')
+    if not dialogue_chat.approved(last_user):           # Claude muốn áp dụng nhưng người chưa nói đồng ý rõ → không sửa gì
+        notes.append('Chưa áp dụng: tin của bạn chưa phải lời đồng ý rõ — gõ vd "ok áp dụng câu 1" để sửa.')
+        return None
+    wanted = list(dict.fromkeys(wanted))                # mã trùng → một lần
+    open_by_id = {pr['id']: pr for pr in dialogue_chat.open_proposals(context)}
+    latest = next((m for m in reversed(context) if m['role'] == 'assistant' and m.get('proposals')), {})
+    latest_ids = {pr['id'] for pr in latest.get('proposals') or []}
+    named = dialogue_chat.named_codes(last_user)
+    picked, closed, older = [], [], []
+    for x in wanted:
+        pr = open_by_id.get(x)
+        if pr is None:
+            closed.append(x)
+        elif x in latest_ids or x in named or pr['line'] in named:
+            picked.append(pr)
+        else:
+            older.append(x)
+    if closed:
+        notes.append(f"Không áp dụng {', '.join(closed)}: đề xuất không còn mở (đã áp dụng / đã hoàn tác / có đề xuất mới hơn).")
+    if older:
+        notes.append(f"Chưa áp dụng {', '.join(older)}: đề xuất ở lượt trước — gõ đích danh (vd \"ok áp dụng {older[0]}\") để áp dụng.")
+    if not picked:
+        return None
+    res = dialogue_chat.apply(p, pid, picked)
+    for key, why in res['skipped'].items():
+        notes.append(f'Không áp dụng {key}: {why}.')
+    notes.extend(res.get('notes') or [])
+    if not res['applied']:
+        return None
+    _set_state(p, pid, res['applied'], 'applied')
+    done = [pr for pr in picked if pr['id'] in res['applied']]
+    return {'text': 'Đã áp dụng ' + '; '.join(f"{pr['id']} ({pr['line']}): “{pr['new']}”" for pr in done)
+                    + ' — thoại cảnh, đoạn kịch bản cảnh và kịch bản dự án (0 USD).',
+            'applied': res['applied'], 'undo': res['undo'], 'after': res['after'], 'undone': False}
 
 
 def undo(p, pid, i):
-    """↩ Hoàn tác lần áp dụng ở tin thứ i: khôi phục thoại cảnh + đoạn kịch bản cảnh + kịch bản dự án; đề xuất → 'undone'.
-    Từ chối (nói rõ) khi tin không phải lần áp dụng, đã hoàn tác, hoặc thoại / kịch bản đã đổi tiếp sau đó (không đè sửa mới)."""
+    """↩ Hoàn tác lần áp dụng ở tin thứ i: ghi lại nguyên trạng cảnh + kịch bản dự án trước khi áp dụng; đề xuất → 'undone'.
+    Từ chối (nói rõ) khi tin không phải lần áp dụng, đã hoàn tác, hoặc cảnh / kịch bản đã đổi tiếp sau đó (không đè sửa mới)."""
     access.need_edit(p, pid, 'hoàn tác thoại')
     msgs = history(p, pid)
     i = int(i)
@@ -171,7 +206,7 @@ def undo(p, pid, i):
     m = msgs[i]
     if m.get('undone'):
         raise ValueError('Lần áp dụng này đã được hoàn tác rồi.')
-    if m.get('after') and _after(p, pid, m['undo']) != m['after']:
+    if not m.get('after') or dialogue_chat.changed_since(p, pid, m['undo'], m['after']):
         raise ValueError('Thoại / kịch bản đã đổi sau lần áp dụng này — không hoàn tác để khỏi đè sửa mới. Nhờ Biên kịch đề xuất lại câu cũ.')
     dialogue_chat.undo(p, pid, m['undo'])
     _set(p, pid, i, 'undone', True)

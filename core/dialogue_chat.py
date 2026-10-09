@@ -19,6 +19,28 @@ RULE_TAGS = ("B9", "B12", "B13")
 APPROVE = re.compile(r"(?<![\w])(ok|oke|okay|okie|áp dụng|ap dung|đồng ý|dong y|duyệt|chốt|sửa luôn|dùng (?:câu|bản|đề xuất)|apply|"
                      r"được rồi|làm luôn|thay luôn|lấy (?:câu|bản|đề xuất))(?![\w])", re.I)
 SPEECH = re.compile(r"^\s*([A-ZÀ-Ỹ0-9][A-ZÀ-Ỹ0-9 ._'\-]{0,40})\s*(?:\([^)]*\))?\s*:\s*(.+?)\s*$")
+# Rà 09/10: "CẢNH 1: NHÀ KELLY", "INT: PHÒNG", "LƯU Ý: …" có dạng "TÊN: câu" nhưng là tiêu đề / ghi chú, không phải thoại.
+HEADING = re.compile(r"^(?:CẢNH|CANH|SCENE|INT|EXT|INT\./EXT|LƯU Ý|LUU Y|GHI CHÚ|GHI CHU|NOTE|SHOT|PHÂN CẢNH)(?![\w])", re.I)
+_APPROVE_WORDS = (r"ok|oke|okay|okie|áp dụng|ap dung|đồng ý|dong y|duyệt|chốt|sửa luôn|dùng (?:câu|bản|đề xuất)|apply|"
+                  r"được rồi|làm luôn|thay luôn|lấy (?:câu|bản|đề xuất)")
+# Rà 09/10: phủ định trước từ đồng ý ("không ok", "chưa áp dụng"), hỏi lại ("ok?"), hay kèm sửa ý ("ok nhưng bỏ chữ trời",
+# "ok … trừ câu 2", "ok mà đổi thành …") → KHÔNG phải đồng ý.
+_NEGATE = re.compile(r"(?<![\w])(?:không|chưa|đừng|khỏi|chẳng|ko)(?![\w])\s*(?:\S+\s+){0,2}?(?:" + _APPROVE_WORDS + r")(?![\w])"
+                     r"|(?<![\w])(?:" + _APPROVE_WORDS + r")\s+(?:không|chưa)\s*[?.!]*\s*$", re.I)
+_CHANGE = re.compile(r"(?<![\w])(?:nhưng|mà|trừ|ngoại trừ|bỏ|riêng)(?![\w])|(?<![\w])(?:đổi|thay|sửa)(?![\w]).*?(?<![\w])thành(?![\w])", re.I)
+
+
+def speech(raw: str):
+    """(người nói, câu) của một dòng "TÊN: câu"; tiêu đề cảnh / ghi chú → None."""
+    m = SPEECH.match(raw or "")
+    if not m or HEADING.match(m.group(1).strip()):
+        return None
+    return m.group(1).strip(), m.group(2).strip()
+
+
+def named_codes(text: str) -> set:
+    """Mã Px / Lx người gọi đích danh trong tin."""
+    return {c.upper() for c in re.findall(r"(?<![\w])([PL]\d+)(?![\w])", text or "", re.I)}
 
 
 # ---- dữ liệu thoại ---------------------------------------------------------------------------------------------------------------
@@ -38,9 +60,9 @@ def lines(p, pid: int) -> List[Dict]:
                             "action": action})
     if not out:
         for raw in (p.project(pid)["script_text"] or "").splitlines():
-            m = SPEECH.match(raw)
-            if m:
-                out.append({"idx": None, "n": None, "speaker": m.group(1).strip(), "text": m.group(2).strip(), "action": ""})
+            sp = speech(raw)
+            if sp:
+                out.append({"idx": None, "n": None, "speaker": sp[0], "text": sp[1], "action": ""})
     for k, line in enumerate(out, start=1):
         line["id"] = f"L{k}"
     return out
@@ -67,7 +89,7 @@ def open_proposals(history: List[Dict]) -> List[Dict]:
     by_line: Dict[str, Dict] = {}
     for m in history:
         for pr in m.get("proposals") or []:
-            if pr.get("state", "open") == "open":
+            if pr.get("state", "open") == "open":       # 'applied' / 'undone' / 'superseded' = đóng
                 by_line[pr["line"]] = pr
             elif pr.get("line") in by_line and by_line[pr["line"]]["id"] == pr["id"]:
                 by_line.pop(pr["line"])
@@ -120,57 +142,123 @@ def parse(text: str) -> Dict:
 
 
 def approved(user_text: str) -> bool:
-    return bool(APPROVE.search(user_text or ""))
+    """Tin của người là lời ĐỒNG Ý rõ: có từ đồng ý, không phủ định ("không ok", "chưa áp dụng"), không hỏi lại ("ok?"), không kèm sửa ý
+    sau từ đồng ý ("ok nhưng bỏ chữ trời", "… trừ câu 2", "ok mà đổi thành …")."""
+    t = (user_text or "").strip()
+    m = APPROVE.search(t)
+    if not m or t.endswith("?") or _NEGATE.search(t):
+        return False
+    return not _CHANGE.search(t[m.end():])
 
 
 # ---- áp dụng / hoàn tác ----------------------------------------------------------------------------------------------------------
-def _replace_in_text(text: str, speaker: str, old: str, new: str) -> str:
-    """Thay câu `old` của `speaker` trong văn bản kịch bản (dòng "TÊN: câu"); không thấy dòng của người đó thì thay lần xuất hiện đầu."""
-    out, done = [], False
+def _replace_in_text(text: str, speaker: str, old: str, new: str, nth: int = 0) -> Optional[str]:
+    """Thay câu `old` của `speaker` ở dòng thoại "TÊN: câu" thứ `nth` (đếm các dòng cùng người + cùng câu, theo thứ tự). Không thấy dòng
+    đó → None (KHÔNG thay mù chữ khác: câu ngắn có thể nằm trong chữ mô tả)."""
+    out, seen, done = [], 0, False
     for raw in (text or "").splitlines(keepends=True):
-        m = SPEECH.match(raw.rstrip("\r\n"))
-        if not done and m and m.group(2).strip() == old and (not speaker or m.group(1).strip().lower() == speaker.lower()):
-            raw = raw.replace(old, new, 1)
-            done = True
+        sp = speech(raw.rstrip("\r\n"))
+        if not done and sp and sp[1] == old and (not speaker or sp[0].lower() == speaker.lower()):
+            if seen == nth:
+                head, sep, tail = raw.rpartition(old)
+                raw = head + new + tail
+                done = True
+            seen += 1
         out.append(raw)
-    joined = "".join(out)
-    return joined if done else (text or "").replace(old, new, 1)
+    return "".join(out) if done else None
+
+
+def _ordinal(all_lines: List[Dict], ln: Dict, same_scene: bool) -> int:
+    """Vị trí của câu này giữa các câu cùng người + cùng chữ (trong cả dự án, hoặc trong cảnh) — để thay đúng dòng trong văn bản."""
+    k = 0
+    for x in all_lines:
+        if x["id"] == ln["id"]:
+            return k
+        if (x["speaker"].lower(), x["text"]) == (ln["speaker"].lower(), ln["text"]) and (not same_scene or x["idx"] == ln["idx"]):
+            k += 1
+    return k
+
+
+def _sha(text) -> str:
+    import hashlib
+    return hashlib.sha1(str(text if text is not None else "").encode("utf-8")).hexdigest()
+
+
+def fingerprint(p, pid: int, snapshot: Dict) -> Dict:
+    """Vân tay hiện tại của những gì một lần áp dụng đã chạm (văn bản kịch bản + chuỗi data thô các cảnh)."""
+    out = {"script_text": _sha(p.project(pid)["script_text"] or ""), "scenes": {}}
+    for idx in snapshot.get("scenes") or {}:
+        row = p.conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx=?", (pid, int(idx))).fetchone()
+        out["scenes"][idx] = _sha(row["data"] if row else None)
+    return out
 
 
 def apply(p, pid: int, proposals: List[Dict]) -> Dict:
-    """Áp dụng các đề xuất (đã kiểm còn mở). {"applied": [Px], "skipped": {Px: lý do}, "undo": ảnh chụp trước}."""
+    """Áp dụng các đề xuất (đã kiểm còn mở). {"applied": [Px], "skipped": {Px: lý do}, "notes": [..], "undo": ảnh chụp trước (chuỗi data
+    thô của cảnh + văn bản kịch bản), "after": vân tay ngay sau khi áp dụng}."""
     from . import llm_io
-    current = {ln["id"]: ln for ln in lines(p, pid)}
+    all_lines = lines(p, pid)
+    current = {ln["id"]: ln for ln in all_lines}
     proj = p.project(pid)
     undo = {"script_text": proj["script_text"] or "", "scenes": {}}
     script = undo["script_text"]
-    out = {"applied": [], "skipped": {}, "undo": undo}
-    for pr in proposals:
+    out = {"applied": [], "skipped": {}, "notes": [], "undo": undo}
+    seen = set()
+    uniq = [pr for pr in proposals if not (pr["id"] in seen or seen.add(pr["id"]))]       # mã trùng → một lần
+    # câu sau trước: thay dòng thứ k không làm lệch thứ tự các dòng đứng trước nó
+    for pr in sorted(uniq, key=lambda x: int(str(x["line"])[1:] or 0), reverse=True):
         ln = current.get(pr["line"])
         if ln is None or ln["text"] != pr["old"]:
             out["skipped"][pr["id"]] = "câu thoại đã đổi từ lúc đề xuất — hỏi lại Biên kịch"
             continue
+        new_script = _replace_in_text(script, ln["speaker"], pr["old"], pr["new"], _ordinal(all_lines, ln, False))
+        if ln["idx"] is None and new_script is None:
+            out["skipped"][pr["id"]] = "không tìm thấy dòng thoại này trong văn bản kịch bản"
+            continue
         if ln["idx"] is not None:
             row = p.conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx=?", (pid, ln["idx"])).fetchone()
+            undo["scenes"].setdefault(str(ln["idx"]), row["data"])
             data = json.loads(row["data"] or "{}")
             dial = [dict(d) for d in data.get("dialogue") or [] if isinstance(d, dict)]
-            undo["scenes"].setdefault(str(ln["idx"]), {"dialogue": [dict(d) for d in dial], "text": data.get("text")})
             dial[ln["n"]]["text"] = pr["new"]                # n đếm như lines() (mọi dict) · chỉ đạo giọng (delivery) giữ nguyên
             scene_text = data.get("text")
-            new_text = _replace_in_text(scene_text, ln["speaker"], pr["old"], pr["new"]) if isinstance(scene_text, str) else None
+            new_text = None
+            if isinstance(scene_text, str) and scene_text.strip():
+                new_text = _replace_in_text(scene_text, ln["speaker"], pr["old"], pr["new"], _ordinal(all_lines, ln, True))
+                if new_text is None:
+                    out["notes"].append(f"{pr['id']}: không thấy dòng \"{ln['speaker']}: {pr['old']}\" trong đoạn kịch bản cảnh "
+                                        f"{ln['idx']} — đoạn đó giữ nguyên, chỉ thoại của cảnh đổi.")
             llm_io.update_scene(p, pid, ln["idx"], {"dialogue": dial}, text=new_text)
-        script = _replace_in_text(script, ln["speaker"], pr["old"], pr["new"])
+        if new_script is None:
+            out["notes"].append(f"{pr['id']}: không thấy dòng \"{ln['speaker']}: {pr['old']}\" trong kịch bản dự án — văn bản kịch bản "
+                                "giữ nguyên (không thay mù chữ khác).")
+        else:
+            script = new_script
         out["applied"].append(pr["id"])
+    out["applied"].reverse()
     if script != undo["script_text"]:
         p.set_script_text(pid, script)
+    out["after"] = fingerprint(p, pid, undo)
     return out
 
 
+def changed_since(p, pid: int, snapshot: Dict, after: Dict) -> bool:
+    """Có ai đổi kịch bản / cảnh sau lần áp dụng không (hoàn tác lúc đó sẽ đè sửa mới)."""
+    return fingerprint(p, pid, snapshot) != after
+
+
 def undo(p, pid: int, snapshot: Dict) -> None:
-    """Quay lại trước một lần áp dụng (thoại + đoạn kịch bản các cảnh đã sửa, văn bản kịch bản)."""
-    from . import llm_io
-    for idx, old in (snapshot.get("scenes") or {}).items():
-        llm_io.update_scene(p, pid, int(idx), {"dialogue": old.get("dialogue") or []},
-                            text=old.get("text") if isinstance(old.get("text"), str) else None)
+    """Quay lại ĐÚNG như trước một lần áp dụng: ghi lại nguyên chuỗi data của các cảnh đã sửa (mọi trường của dòng thoại, dòng rỗng,
+    `_user_locked` cũ) + văn bản kịch bản. Kết quả cũ (lineage) tự khớp lại vì spec cảnh trở về y như trước."""
+    from . import access
+    access.need_edit(p, pid, "hoàn tác thoại")
+    for idx, raw in (snapshot.get("scenes") or {}).items():
+        if isinstance(raw, dict):                            # ảnh chụp kiểu cũ (trước rà 09/10): chỉ có thoại + đoạn kịch bản
+            from . import llm_io
+            llm_io.update_scene(p, pid, int(idx), {"dialogue": raw.get("dialogue") or []},
+                                text=raw.get("text") if isinstance(raw.get("text"), str) else None)
+            continue
+        p.conn.execute("UPDATE scenes SET data=? WHERE project_id=? AND idx=?", (raw, pid, int(idx)))
+    p.conn.commit()
     if "script_text" in snapshot:
         p.set_script_text(pid, snapshot["script_text"])
