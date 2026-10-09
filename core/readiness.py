@@ -198,6 +198,33 @@ def _first_frame(ctx: Dict, sid: int) -> Dict:
     return _item("Ảnh khung đầu", "red", "chưa có ảnh khung đầu đã duyệt — video không gửi được", WHERE_IMAGE_APPROVE)
 
 
+def _layout(conn, ctx: Dict, data: Dict) -> Optional[Dict]:
+    """Cùng chỗ chặn đầu tiên của ImageRunner._blocked: nơi Kho có mô tả bố cục mà dự án chưa gắn → ảnh bị giữ."""
+    from . import assets
+    try:
+        why = assets.missing_layout(conn, ctx["pid"], data)
+    except Exception:  # noqa: BLE001 - unknown: the runner still checks before paying
+        return None
+    return _item("Bố cục nơi chốn", "red", why, WHERE_REFS) if why else None
+
+
+def _group(conn, sid: int) -> Optional[Dict]:
+    """VideoRunner._blocked kiểm công thức của CẢ nhóm gửi chung (Kling multi-shot / nhóm Seedance / set-up): lỗi đỏ của shot khác
+    trong nhóm cũng chặn clip này. Lỗi của chính shot đã có ở mục công thức. (Chưa gồm seedance_refs.lint_group — xem HANDOFF.)"""
+    from . import prompt_formula as pf
+    try:                                       # = prompt_formula.group_red_issues minus the shot itself (already checked, fewer queries)
+        from . import seedance_refs, shots
+        ids = []
+        for g in (shots.group_of(conn, sid), seedance_refs.group_of(conn, sid)):
+            ids += [r["id"] for r in g or [] if r["id"] != sid and r["id"] not in ids]
+        others = [f"shot #{o} {x}" for o in ids for x in pf.red_issues(conn, o, "motion")]
+    except Exception:  # noqa: BLE001
+        return None
+    if not others:
+        return None
+    return _item("Nhóm gửi chung", "red", "shot khác trong nhóm sai công thức: " + " · ".join(others), WHERE_MOTION_PROMPT)
+
+
 # ---- kết quả ------------------------------------------------------------------------------------------------------------------
 def _shot(conn, ctx: Dict, sid: int) -> Dict:
     row = ctx["scenes"].get(sid)
@@ -209,9 +236,10 @@ def _shot(conn, ctx: Dict, sid: int) -> Dict:
         data = {}
     items: List[Optional[Dict]] = [_formula(conn, ctx, sid, data)]
     if ctx["kind"] == "image":
-        items += [_plate(conn, ctx, sid, data), _refs(conn, ctx, data), _objects(conn, ctx, sid, data), _model_image(ctx)]
+        items += [_layout(conn, ctx, data), _plate(conn, ctx, sid, data), _refs(conn, ctx, data), _objects(conn, ctx, sid, data),
+                  _model_image(ctx)]
     else:
-        items += [_first_frame(ctx, sid), _objects(conn, ctx, sid, data), _model_video(conn, ctx, sid)]
+        items += [_group(conn, sid), _first_frame(ctx, sid), _objects(conn, ctx, sid, data), _model_video(conn, ctx, sid)]
     items = [i for i in items if i]
     return {"ok": not any(i["state"] == "red" for i in items), "items": items}
 

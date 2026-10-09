@@ -1351,7 +1351,17 @@ def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optiona
         h = float(data.get("height_m") or 0)
     except (TypeError, ValueError):
         h = 0
-    clean["height_m"] = round(h, 2) if 0.2 <= h <= 30 else None
+    # F5-A: an object of the library (prop / weapon) keeps its real size set in Kho (assets.set_size: 0.01–100 m, width_m): a profile
+    # saved without a number keeps the old one, and width_m is never dropped
+    kind = conn.execute("SELECT kind FROM assets WHERE id=?", (asset_id,)).fetchone()
+    sized = kind is not None and kind["kind"] in SIZED_KINDS
+    lo, hi = (0.01, 100) if sized else (0.2, 30)
+    if lo <= h <= hi:
+        clean["height_m"] = round(h, 2)
+    else:
+        clean["height_m"] = old.get("height_m") if sized and not h else None
+    if sized and old.get("width_m"):
+        clean["width_m"] = old["width_m"]
     clean["approved"] = bool(approved)
     conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(clean, ensure_ascii=False), asset_id))
     conn.commit()

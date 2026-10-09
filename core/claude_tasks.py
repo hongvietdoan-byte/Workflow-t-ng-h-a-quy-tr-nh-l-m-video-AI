@@ -768,12 +768,12 @@ TRANSLATE_AMBIGUOUS_RULE = (
 
 
 def _unbracketed(obj):
-    """`obj` without its "[chữ Việt]" kept on purpose (KLD-32) — what must already be English."""
+    """`obj` without its "[chữ Việt]" (1–2 words) kept on purpose (KLD-32) — what must already be English."""
     import re
     if isinstance(obj, dict):
         return {k: _unbracketed(v) for k, v in obj.items()}
     if isinstance(obj, str):
-        return re.sub(r"\[[^\[\]]*\]", "", obj)
+        return re.sub(r"\[\s*[^\[\]\s]+(?:\s+[^\[\]\s]+)?\s*\]", "", obj)   # 1–2 words only: a bracketed sentence stays Vietnamese
     return obj
 
 

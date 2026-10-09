@@ -1288,14 +1288,17 @@ class VideoRunner(_Runner):
             parts = [((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s) for r, s in zip(rows, secs)]
             ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
             places = seedance_refs.place_pictures(self.data_dir, job["project_id"], rows)
-            from . import place_refs                   # F5-A: real sizes of the library objects (the well), short form, once
-            scales = [place_refs.object_scale_sentence(conn, job["project_id"], r["data"], short=True) for r in rows]
-            motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model, places=places,
-                                                       scales=list(dict.fromkeys(x for x in scales if x))))
             segs = self._take_segments(job, rows)
+            block = ""
             if segs:                                   # S4.2: who says which line at which second (the lines stay in Vietnamese)
                 from . import dialogue_take
-                motion += "\n" + dialogue_take.group_block(segs, [n for n, _ in ids if not n.endswith(seedance_refs.OUTFIT_TAG)])
+                block = dialogue_take.group_block(segs, [n for n, _ in ids if not n.endswith(seedance_refs.OUTFIT_TAG)])
+            # F5-A: real sizes of the library objects (the well), short form, once — dropped first when the prompt would pass the limit
+            motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model, places=places,
+                                                       scales=_object_scales(conn, job["project_id"], rows),
+                                                       reserve=len(block) + 1 if block else 0))
+            if block:
+                motion += "\n" + block
         stretch = self._stretch(group) if setup else None
         if stretch:
             motion = no_minor_age(shots.stretch_motion(stretch, [r["id"] for r in group], str(group[0]["data"].get("shot") or "")))
@@ -1816,6 +1819,18 @@ def _action_part(data: Dict, words: str, blocking_label: str) -> str:
     if skill_dossier.enabled():                     # 30/09: the skill phase as the official video shows it + what is never drawn
         bits.append(skill_dossier.image_sentence(skill_dossier.shot_skill(data)))
     return pt.join(bits)
+
+
+def _object_scales(conn, project_id: int, rows) -> List[str]:
+    """F5-A: the short size sentences of a Seedance group (once each) — a broken library read never stops the clip."""
+    from . import place_refs
+    out = []
+    for r in rows:
+        try:
+            out.append(place_refs.object_scale_sentence(conn, project_id, r["data"], short=True))
+        except Exception:  # noqa: BLE001 - information only
+            continue
+    return list(dict.fromkeys(x for x in out if x))
 
 
 def _object_scale(conn, project_id: int, data: Dict) -> str:

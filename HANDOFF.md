@@ -270,3 +270,10 @@ Bước 1–2 bàn giao đã hoàn tất phần code và push main. Bản code �
 - `2f530dc` P4: `effectiveness.waste` tiền lãng phí theo lý do / loại, dòng 💸 ở 🎯 Hiệu quả workflow.
 - `6790416` P6: bọc ví dụ lỗi (gồm thông báo lỗi ClipAI) trong prompt viết bài học (`lessons._write_rule`) + test chèn lệnh.
   Đổi chữ prompt khâu 'lessons' (chỉ thêm khối bọc).
+
+## Rà độc lập F5 — sửa 09/10 (mục 1, 2, 4, 5)
+- KLD-32: `seedance_refs._en` bỏ `[1–2 từ]` khỏi `motion_en` trước khi ghép prompt video (chữ nhiều nghĩa vẫn báo qua `motion_en_ambiguous` + diag); `claude_tasks._unbracketed` chỉ nhận `[1–2 từ]`.
+- Readiness: thêm red "Bố cục nơi chốn" (`assets.missing_layout`, ảnh) + "Nhóm gửi chung" (red_issues các shot khác cùng nhóm, video).
+  **Chưa làm:** `seedance_refs.lint_group` (tiếng Việt / dài > prompt_limit / số ảnh) trong readiness — cần dựng prompt nhóm một lần mỗi nhóm (đọc ảnh, segs thoại); runner vẫn chặn trước khi trả tiền.
+- `assets.set_profile` giữ `width_m` + chiều cao vật Kho (prop/weapon 0,01–100 m, không gửi số thì giữ số cũ).
+- `runner._object_scales` bọc try; `seedance_refs.prompt(reserve=)` bỏ câu kích thước trước khi vượt `prompt_limit`.

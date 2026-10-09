@@ -289,7 +289,8 @@ def place_pictures(data_dir: str, project_id: int, rows: List[Dict]) -> List[Dic
 
 
 def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_seconds: Optional[float] = None,
-           model: Optional[str] = None, places: Optional[List[Dict]] = None, scales: Optional[List[str]] = None) -> str:
+           model: Optional[str] = None, places: Optional[List[Dict]] = None, scales: Optional[List[str]] = None,
+           reserve: int = 0) -> str:
     """parts: [(motion prompt, seconds)] in film order. The wording of the tested P2m prompt (cut rule, which picture is which shot /
     whose identity, the shots), assembled in the motion formula's order (F1-C, docs/CONG_THUC_PROMPT_F0 mục 3.2 + 4): start point
     (the cut rule and each shot's storyboard frame) → each shot's action (what changes, first) → sentences shared by several shots, once
@@ -359,6 +360,10 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
             continue
         for form in dict.fromkeys((name, name.upper(), name.title(), name.capitalize(), name.lower())):   # "Yêu nữ tà linh…" in a motion line
             text = _outside_dialogue(text, lambda s, a=form, b=ascii_name(form): s.replace(a, b))
+    if scales and len(text) + max(int(reserve or 0), 0) > prompt_limit(model):
+        # F5-A: the object sizes are the first thing to go when the prompt (+ `reserve`, e.g. the dialogue block added after) would pass
+        # the model's limit — lint_group would block the whole send otherwise
+        return prompt(parts, identities, look, clip_seconds, model, places, None, reserve)
     return text
 
 
@@ -699,10 +704,26 @@ def has_vietnamese(text: str) -> bool:
     return bool(VI.search(text or ""))
 
 
+# KLD-32: the translation keeps a Vietnamese word of several meanings in square brackets ("a hat [mũ]", reported in
+# motion_en_ambiguous + diag). The bracket is for the person, never for the paid video prompt: it is dropped here (1–2 words only).
+KEPT_WORD = re.compile(r"\s*\[\s*[^\[\]\s]+(?:\s+[^\[\]\s]+)?\s*\]")
+
+
+def strip_kept_words(value):
+    """`value` (text, or a dict / list of texts) without the "[chữ Việt]" kept by the translation (KLD-32)."""
+    if isinstance(value, str):
+        return KEPT_WORD.sub("", value)
+    if isinstance(value, dict):
+        return {k: strip_kept_words(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [strip_kept_words(v) for v in value]
+    return value
+
+
 def _en(data: Dict, key: str):
     """The English form of a Director field: `motion_en` (translated once, claude_tasks.translate_motion_fields) or the field itself."""
     en = data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}
-    return en.get(key) if en.get(key) else data.get(key)
+    return strip_kept_words(en.get(key)) if en.get(key) else data.get(key)
 
 
 _GLOWING_EYES = re.compile(r"\bglow\w*[^.;]{0,20}\beyes?\b|\beyes?\b[^.;]{0,30}\bglow\w*|\b(?:red|burning|luminous) eyes\b"

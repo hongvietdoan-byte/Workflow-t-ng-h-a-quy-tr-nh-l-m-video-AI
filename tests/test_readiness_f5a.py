@@ -193,3 +193,75 @@ class CardLineUiTests(VideoSeed):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _kho_setup(self):
+    Base.setUp(self)
+    env = mock.patch.dict(os.environ, FLAGS)
+    env.start()
+    self.addCleanup(env.stop)
+    self.well = assets.create(self.p.conn, "FF", "prop", "Giếng đá", aliases="stone well")
+    assets.attach(self.p.conn, self.pid, self.well)
+    self.sid2 = self.p.create_scene(self.pid, 2, "s2")
+    for sid in (self.sid, self.sid2):
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?",
+                            (json.dumps({"size": "MS", "characters": ["KELLY"], "image_prompt": GOOD}), sid))
+    self.p.conn.commit()
+
+
+class ReviewFixesF5(Base):
+    """Rà độc lập F5 (09/10): readiness khớp chỗ chặn thật (bố cục nơi chốn, cả nhóm gửi chung); set_profile giữ kích thước vật Kho;
+    câu kích thước bỏ trước khi prompt Seedance vượt giới hạn; chữ '[mũ]' (KLD-32) không vào prompt video."""
+
+    setUp = _kho_setup
+
+    def test_missing_layout_is_red_like_the_image_runner(self):
+        with mock.patch.object(assets, "missing_layout", return_value="Tháp Đồng Hồ có bố cục trong Kho nhưng dự án chưa gắn"):
+            res = readiness.shot_ready(self.p.conn, self.data, self.pid, self.sid, "image")
+        self.assertFalse(res["ok"])
+        self.assertEqual(_by(res, "Bố cục nơi chốn")["state"], "red")
+
+    def test_clean_shot_grouped_with_a_red_shot_is_red(self):
+        from core import shots
+        for sid in (self.sid, self.sid2):
+            self.p.conn.execute("INSERT INTO motion_prompts (scene_id, motion_prompt, duration_sec, state) VALUES (?, ?, 5, 'approved')",
+                                (sid, "Kelly looks down into the well. Static camera. Ends holding still."))
+        self.p.conn.commit()
+        group = [{"id": self.sid, "idx": 1}, {"id": self.sid2, "idx": 2}]
+        real = prompt_formula.red_issues
+        fake = lambda conn, sid, kind=None, gore_hinted=None: (["Prompt motion · Luật FF: máu"] if sid == self.sid2 else [])
+        with mock.patch.object(shots, "group_of", return_value=group), mock.patch.object(prompt_formula, "red_issues", side_effect=fake):
+            res = readiness.shot_ready(self.p.conn, self.data, self.pid, self.sid, "video")
+        self.assertIs(prompt_formula.red_issues, real)
+        item = _by(res, "Nhóm gửi chung")
+        self.assertEqual(item["state"], "red")
+        self.assertIn(f"shot #{self.sid2}", item["why"])
+        self.assertFalse(res["ok"])
+
+    def test_set_profile_keeps_the_real_size_of_an_object(self):
+        assets.set_size(self.p.conn, self.well, 0.1, 0.5)
+        assets.set_profile(self.p.conn, self.well, {"identity": "old stone well"}, approved=True)
+        self.assertEqual(assets.get(self.p.conn, self.well)["size"], {"height_m": 0.1, "width_m": 0.5})
+        assets.set_profile(self.p.conn, self.well, {"identity": "old stone well", "height_m": 0.9}, approved=True)
+        self.assertEqual(assets.get(self.p.conn, self.well)["size"], {"height_m": 0.9, "width_m": 0.5})
+
+    def test_sizes_go_first_when_the_seedance_prompt_would_pass_its_limit(self):
+        scale = "Real sizes: the stone well is 0.9 m high — about waist height of a 1.7 m adult."
+        parts = [("Kelly looks into the well.", 4)]
+        self.assertIn("0.9 m high", seedance_refs.prompt(parts, [], scales=[scale]))
+        limit = seedance_refs.prompt_limit(None)
+        base = len(seedance_refs.prompt(parts, [], scales=None))
+        text = seedance_refs.prompt(parts, [], scales=[scale], reserve=limit - base - 5)
+        self.assertNotIn("0.9 m high", text)
+        self.assertEqual(len(text), base)
+
+    def test_kept_vietnamese_word_never_reaches_the_video_prompt(self):
+        from core import claude_tasks
+        data = {"action": "Kelly đội mũ", "motion_en": {"action": "Kelly puts on a hat [mũ]"}}
+        action = seedance_refs._en(data, "action")
+        self.assertEqual(action, "Kelly puts on a hat")
+        text = seedance_refs.prompt([(action, 4)], [])
+        self.assertNotIn("[", text)
+        self.assertFalse(any("chưa dịch" in x for x in seedance_refs.lint_group(text, 1, 1, 1, [4], False)))
+        self.assertFalse(claude_tasks._vi(claude_tasks._unbracketed({"1": "a hat [mũ]"})))
+        self.assertTrue(claude_tasks._vi(claude_tasks._unbracketed({"1": "a hat [đội mũ đi ra ngoài]"})))   # a sentence: not English
