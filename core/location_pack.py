@@ -15,6 +15,7 @@ same camera render once.
 """
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -559,6 +560,9 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             clr = p.get("clearance") or {}
             if clr:
                 rec["clearance"] = clr
+            rf = reframe(camera, clr, resolution[0] / resolution[1]) if kind == "shot" else None
+            if rf:                                        # rà P24: Blender moved the camera — the character's box follows it
+                rec["reframed"] = rf
             if clr.get("notes") or clr.get("warnings"):
                 what = "máy shot" if kind == "shot" else "máy ảnh toàn cùng trục"
                 note = (f"Shot {it['idx']} ({first['place']}): {what} — "
@@ -626,7 +630,7 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             note = f"Shot {it['idx']} ({it['place']}): đặt lại máy nền 3D — " + "; ".join(it["camera_fixes"])
             diag.record(conn, "image", "info", note, "plate_camera_fix", project_id=pid, scene_id=it["scene_id"])
             log(note)
-        idx[str(it["scene_id"])] = dict(rec, key=it["key"], env=it["env"], subject_box=it["subject_box"], distance_m=it["distance_m"],
+        idx[str(it["scene_id"])] = dict(rec, key=it["key"], env=it["env"], **frame_fields(it, rec),
                                         spot=it["spot"], place=it["place"], camera_plan=it["camera"], view=it["view"],
                                         lights=it["lights"], lights_decided=it["lights_decided"], layout_vi=layout_words(it),
                                         camera_fixes=list(it.get("camera_fixes") or []), **_wide_record(root, it), **extra)
@@ -635,6 +639,28 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
     with open(path, "w", encoding="utf-8") as f:
         json.dump(idx, f, ensure_ascii=False, indent=1)
     return idx
+
+
+def reframe(camera: Dict, clearance: Dict, aspect: float) -> Optional[Dict]:
+    """rà P24: when Blender's rays moved the shot camera (tools/render_plates clearance → `location_model`, the model's own
+    coordinates like the plan's camera), the character's frame box / distance / horizon from that new place (same aim, lens).
+    None when the camera was not moved."""
+    loc = (clearance or {}).get("location_model")
+    subj = camera.get("subject") or {}
+    if not loc or not subj.get("location"):
+        return None
+    aim, lens, feet = camera["look_at"], float(camera.get("lens") or 35), subj["location"]
+    h = float(subj.get("height_m") or 1.75)
+    box = plate_camera.subject_box(loc, aim, lens, aspect, feet, h)
+    return {"location": [round(float(c), 3) for c in loc], "subject_box": box, "feet_y": box[3],
+            "distance_m": round(math.hypot(float(feet[0]) - float(loc[0]), float(feet[1]) - float(loc[1])), 2),
+            "horizon_y": plate_camera.horizon_y(loc, aim, lens, aspect)}
+
+
+def frame_fields(it: Dict, rec: Dict) -> Dict:
+    """The index record's subject_box / distance_m: the plan's, or the re-framed ones when Blender moved the camera (rà P24)."""
+    rf = rec.get("reframed") or {}
+    return {"subject_box": rf.get("subject_box") or it["subject_box"], "distance_m": rf.get("distance_m") or it["distance_m"]}
 
 
 def _wide_record(root: str, it: Dict) -> Dict:

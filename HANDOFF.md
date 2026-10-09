@@ -52,7 +52,19 @@
 ## Việc phiên chính
 - Render lại #24: `py tools/location_pack.py render --project 24 --fresh-shot 4 --fresh-shot 7` (shot 3, 5 đổi key nên tự render;
   shot 4, 7 key không đổi → cần --fresh-shot để chạy kiểm tia). Xem meta.json `why`/`clearance` + ảnh plate trước khi vẽ lại ảnh.
-- Rủi ro: máy bị tiến/nâng trong Blender thì `subject_box` (tính trước) lệch — ghi ở `clearance.moved_from_m`.
+- ~~Rủi ro: máy bị tiến/nâng trong Blender thì `subject_box` lệch~~ → đã sửa (rà, nhánh p24-camera-fixes): manifest có
+  `clearance.location_model`, `location_pack.reframe` tính lại `subject_box`/`distance_m`/`horizon_y` → meta.json `reframed`, index dùng.
+
+## Rà độc lập P24 (nhánh p24-camera-fixes) — đã sửa + lưu ý
+- Sửa: lỗi bpy/ray_cast trong `clearance()` → `warnings` + `skipped`, vẫn render; vật cản sát nhân vật (< 0,8 m) → chỉ cảnh báo,
+  không dời máy vào mặt; "looks down the alley/street…" và `camera_setup` không còn làm máy cúi 35°; ảnh toàn cùng trục chỉ cảnh
+  báo (không dời); cảnh `indoor` bỏ kiểm tường sau lưng; tia đo đỉnh tường bắt đầu `where.z + 3 m` + tia ngang dò tường cao.
+- `SCRIPT_VERSION` KHÔNG tăng (cố ý: cache plate cũ còn dùng, 0 USD). Hệ quả: cùng một khóa cache có thể là ảnh render TRƯỚC khi có
+  kiểm tia (không có `clearance` trong meta.json). Muốn áp kiểm tia cho plate đã cache → chỉ có `--fresh-shot IDX`.
+- `why` trong meta.json nằm theo khóa cache — khóa dùng chung giữa các dự án/shot cùng máy nên `why` là của lần render ĐẦU
+  (dự án/shot khác có thể đọc lý do không phải của mình). Lý do của từng shot hiện tại: xem plan()["camera_why"], không dựa meta.json.
+- Dự án cũ: mọi shot `low` và shot high/ots có chữ "nhìn xuống" ĐỔI khóa → render lại (0 USD) nhưng stale_plates có thể đòi vẽ lại
+  ảnh (tốn tiền) — báo người dùng trước khi chạy dự án cũ.
 # HANDOFF — KLD-10 nối dialogue_chat vào khung chat Kịch bản (09/10)
 
 ## Đã xong
