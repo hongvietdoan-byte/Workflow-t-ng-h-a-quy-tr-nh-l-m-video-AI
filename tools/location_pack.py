@@ -93,6 +93,9 @@ def run_preview(a) -> dict:
 def run_camera_plan(conn, a) -> None:
     """G0: the Director's scene map + camera set-ups (paid: Claude, estimate printed first; runs only with --yes and the flag on)."""
     from core import camera_plan, cost
+    from core.adapters.check import load_dashboard_env
+    # 09/10 chạy thật #24: the CLI did not see LLM_PROVIDER (only the launcher loads dashboard.env) → "chưa cấu hình Claude"
+    load_dashboard_env(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "dashboard.env"))
     if not camera_plan.enabled():
         print("Cờ director_camera_plan đang TẮT — bật ở 🧪 hoặc FEATURE_DIRECTOR_CAMERA_PLAN=1 rồi chạy lại")
         return

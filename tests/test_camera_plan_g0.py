@@ -507,8 +507,11 @@ class ReviewFixTests(G0Base):
             out = io.StringIO()
             with mock.patch.object(tool, "DATA", self.data), mock.patch.object(camera_plan, "before_plates", return_value={}), \
                     mock.patch.object(tool.location_pack, "ensure_plates") as ep, \
-                    mock.patch.object(camera_plan, "after_plates", return_value={}) as ap, redirect_stdout(out):
+                    mock.patch.object(camera_plan, "after_plates", return_value={}) as ap, redirect_stdout(out),                     mock.patch("core.adapters.check.load_dashboard_env") as env:
                 tool.run_camera_plan(self.p.conn, a)
+        # 09/10 chạy thật #24: the CLI must load dashboard.env (LLM_PROVIDER) from the repo root, not the cwd
+        self.assertTrue(env.call_args.args[0].endswith("dashboard.env"))
+        self.assertTrue(os.path.isabs(env.call_args.args[0]))
         want = tuple(int(v) for v in formats.spec("16:9")["deepix"].lower().split("x"))
         self.assertIn("1 cảnh cần sơ đồ", out.getvalue())
         self.assertIn(want, list(ep.call_args.args) + list(ep.call_args.kwargs.values()))
