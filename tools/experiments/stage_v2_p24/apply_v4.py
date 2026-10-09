@@ -97,7 +97,7 @@ def stage_cameras(stage_dir):
         w = (s.get("objs") or {}).get("gieng")
         if w:                                                   # khối giếng thay thế trong nền (mô hình 3D không có giếng) — 10/10
             cam["props"] = [{"kind": "well", "at": [round(v, 3) for v in sg.model_from_rel(st, [w["xy"][0], w["xy"][1], w.get("z", 0.0)])],
-                             "radius": w["r"], "height": w["h"], "hollow": True, "sides": 8}]
+                             "radius": w["r"], "height": w["h"], "hollow": True, "sides": 8, "tone": "da_toi"}]
         if sp.get("pov"):
             cam["pov"] = sp["pov"]
         if sp.get("may") and b.get("end"):
