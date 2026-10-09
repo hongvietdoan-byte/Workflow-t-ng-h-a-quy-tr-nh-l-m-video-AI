@@ -85,6 +85,7 @@ def cli_error_code(detail: str) -> str:
 # Override one stage with CLAUDE_EFFORT_<STAGE> / CLAUDE_MAX_TOKENS_<STAGE> (e.g. CLAUDE_EFFORT_DIRECTOR=high).
 STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
     "script_chat": {"effort": "low", "max_tokens": 3000, "retries": 0},   # KLD-10: JSON reply + đề xuất thoại (1500 cụt)
+    "script_ocr": {"effort": "low", "max_tokens": 6000, "retries": 0},    # 09/10: chép chữ MỘT trang kịch bản chụp (≈ 1–3k token)
     "director": {"effort": "medium", "max_tokens": 64000},     # shot plan of a whole script: long answer
     "motion": {"effort": "medium", "max_tokens": 48000},
     "translate": {"effort": "low", "max_tokens": 8000},        # the Director's Vietnamese fields → short English (28/09: the default

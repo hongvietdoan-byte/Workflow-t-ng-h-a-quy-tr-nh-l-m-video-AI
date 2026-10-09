@@ -12,7 +12,7 @@ import subprocess
 import time
 from typing import Dict, List, Optional
 
-from . import access, assets, delivery, music, script_reader
+from . import access, assets, chat_refs, delivery, music, script_reader
 
 IMAGE_EXT = ("png", "jpg", "jpeg", "webp")
 VIDEO_EXT = ("mp4", "mov", "webm")
@@ -21,9 +21,11 @@ ACCEPT = tuple(script_reader.SUPPORTED) + IMAGE_EXT + VIDEO_EXT + AUDIO_EXT
 
 ROLES = {"character": "Nhân vật", "outfit": "Trang phục", "location": "Bối cảnh", "prop": "Đạo cụ", "style": "Phong cách hình ảnh",
          "motion_ref": "Tham chiếu động tác cho một cảnh", "video_music": "Lấy tiếng làm nhạc nền",
-         "video_music2": "Lấy tiếng làm nhạc đoạn 2", "music": "Nhạc nền", "music2": "Nhạc đoạn 2"}
-ROLES_BY_TYPE = {"image": ("character", "outfit", "location", "prop", "style"),
-                 "video": ("motion_ref", "video_music", "video_music2"),
+         "video_music2": "Lấy tiếng làm nhạc đoạn 2", "music": "Nhạc nền", "music2": "Nhạc đoạn 2",
+         "script_page": "Ảnh trang kịch bản (đọc chữ, có giá)", "video_ref": "Video tham khảo cho kịch bản"}
+# 09/10: script_page = đọc chữ bằng Claude (core.chat_refs.read_page, nút có giá — KHÔNG qua apply); video_ref = tư liệu cho kịch bản.
+ROLES_BY_TYPE = {"image": ("character", "outfit", "location", "prop", "style", "script_page"),
+                 "video": ("motion_ref", "video_music", "video_music2", "video_ref"),
                  "audio": ("music", "music2")}
 NEEDS_NAME = ("character", "location", "prop")
 FEATURE = "chat_first"
@@ -205,6 +207,8 @@ def apply(p, data_dir: str, pid: int, iid: str, role: str, name: Optional[str] =
         raise ValueError("Tệp này không còn trong hộp chờ (đã gắn hoặc đã bỏ)")
     if role not in ROLES_BY_TYPE.get(it["type"], ()):
         raise ValueError(f"“{it['file']}” không dùng được làm {ROLES.get(role, role)}")
+    if role == "script_page":                                   # tốn tiền: chỉ qua nút có giá (chat_refs.read_page), không gắn chui
+        raise ValueError(f"“{it['file']}”: đọc chữ trang kịch bản là nút có giá riêng (📄 Ảnh trang kịch bản) — chưa gọi gì")
     name = " ".join((name or "").split())
     if role in NEEDS_NAME and not name:
         raise ValueError(f"Cho “{it['file']}” một cái tên ({ROLES[role].lower()} nào?)")
@@ -216,6 +220,8 @@ def apply(p, data_dir: str, pid: int, iid: str, role: str, name: Optional[str] =
         msg = f"Đã gắn ảnh “{it['file']}” làm {ROLES[role].lower()} **{name}** (Kho của dự án)"
         if rep["skipped"]:
             msg += " · bỏ qua: " + "; ".join(w for _, w in rep["skipped"])
+        else:                                                   # 09/10: cũng là tư liệu cho Biên kịch / Đạo diễn (dạng chữ)
+            chat_refs.add(p.conn, pid, role, name, it.get("text") or "", it["file"], None)
     elif role == "outfit":
         label = name or (f"{who} — trang phục" if who else "")
         if not label:
@@ -243,6 +249,12 @@ def apply(p, data_dir: str, pid: int, iid: str, role: str, name: Optional[str] =
         shutil.copyfile(it["path"], dest)
         p.set_motion_ref_video(row["id"], dest, "feature")
         msg = f"Đã gắn video “{it['file']}” làm tham chiếu động tác cho **cảnh {scene}** (chỉ lấy chuyển động, không lấy diện mạo)"
+    elif role == "video_ref":
+        label = name or os.path.splitext(it["file"])[0]
+        dest = os.path.join(chat_refs.video_dir(data_dir, pid), os.path.basename(it["path"]))
+        shutil.copyfile(it["path"], dest)
+        chat_refs.add(p.conn, pid, "video_ref", label, it.get("text") or "", it["file"], dest)
+        msg = f"Đã lưu video “{it['file']}” làm **video tham khảo** “{label}” — Biên kịch / Đạo diễn đọc tên + ghi chú (dạng chữ)"
     elif role in ("music", "music2"):
         dest_dir = music.project_dirs(data_dir, pid)[1] if role == "music" else delivery.second_music_dir(data_dir, pid)
         music.clear_selected(dest_dir)

@@ -108,7 +108,7 @@ def claude_stage(tag: Optional[str]) -> str:
     t = str(tag or "")
     if t == "script_chat":
         return "claude_chat"
-    if t.startswith("director") or t in ("screenwriter", "asset_checklist"):   # S11.1 Biên kịch / S14.23 bảng kê: before the Director, same line
+    if t.startswith("director") or t in ("screenwriter", "asset_checklist", "script_ocr"):   # S11.1 Biên kịch / S14.23 bảng kê: before the Director, same line
         return "claude_director"
     if t in ("qc", "qc_agent", "video", "video_qc", "video_analysis", "storyboard_review", "check", "scene_qc", "editor") or t.startswith("qc") \
             or t.startswith("trainee_qc"):     # 🎓 Tổ QC học việc (B5 08/10): same QC line, its own tag in the ledger
