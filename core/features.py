@@ -337,6 +337,13 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "S14.17 người dùng duyệt 04/10, chưa chạy thật Claude (core/prompt_rewrite.py; Claude lỗi → quay về 'Fix: …' + diag)",
     },
+    "change_review": {
+        "label": "Tổ rà soát tác động: MỌI thay đổi (kịch bản / shot / hồ sơ + ảnh Kho) được bắt bằng trigger; luật code rà các khâu liên "
+                 "quan (nền 3D, ảnh neo, câu tả, motion, khung cuối, video, shot kề) + agent Claude rà lệch nghĩa — mỗi thay đổi một lần, "
+                 "không trần (người dùng chốt 10/10); mục đỏ chặn gen tốn tiền của shot tới khi sửa / bỏ qua",
+        "verified": False,
+        "why": "10/10 sau QC #24 (đổi máy mà ảnh neo / storyboard / câu tả cũ vẫn dùng): người dùng yêu cầu, chưa chạy thật",
+    },
     "stage_camera": {
         "label": "Sân khấu 3D v2: shot có máy đã GIẢI từ yêu cầu khung (trường stage_camera — đã đo che khuất bằng tia, người dùng duyệt "
                  "tấm ghép) thì nền 3D dùng đúng máy đó: không tự tính lại theo cỡ/góc, không gom chung setup, không dời máy khi sát tường",

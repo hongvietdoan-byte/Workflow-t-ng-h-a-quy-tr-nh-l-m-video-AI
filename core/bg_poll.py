@@ -146,7 +146,11 @@ def round_once(db_path: str, data_dir: str) -> Dict:
     conn = connect(db_path)
     try:
         make = default_runner(data_dir)
-        out = poll_all(conn, make)
+        out = {}
+        review = change_review_round(conn, data_dir)   # 10/10: rà thay đổi TRƯỚC khi tự gửi — mục đỏ kịp chặn gen
+        if review:
+            out[(0, "change_review")] = review
+        out.update(poll_all(conn, make))
         out.update({(pid, f"{kind}_send"): r for (pid, kind), r in send_ready(conn, make).items()})   # lỗi A
         return out
     finally:
@@ -154,6 +158,21 @@ def round_once(db_path: str, data_dir: str) -> Dict:
             conn.close()
         except Exception:  # noqa: BLE001
             pass
+
+
+def change_review_round(conn, data_dir: str) -> Optional[Dict]:
+    """Tổ rà soát tác động (cờ change_review): mọi thay đổi đang chờ → luật code + agent Claude (không trần — người dùng 10/10)."""
+    from . import change_review
+    if not change_review.enabled():
+        return None
+    client = None
+    try:
+        from . import llm_runner
+        client = llm_runner.client_from_env(ledger=llm_runner.db_file(conn))
+    except Exception as e:  # noqa: BLE001 - no Claude: the code rules still run, said once
+        diag.record(conn, "system", "warn", f"Tổ rà soát tác động: không gọi được Claude ({type(e).__name__}) — chỉ chạy luật code",
+                    "change_review_noclaude", None)
+    return change_review.process_pending(conn, data_dir, client=client)
 
 
 def loop(db_path: str, one_round: Callable[[str], object], interval: float = INTERVAL_SEC, max_rounds: Optional[int] = None,

@@ -510,6 +510,40 @@ CREATE TABLE IF NOT EXISTS trainee_log (
 );
 CREATE INDEX IF NOT EXISTS idx_trainee_log ON trainee_log(feature, project_id);
 CREATE INDEX IF NOT EXISTS idx_trainee_log_job ON trainee_log(job_id);
+-- 10/10 Tổ rà soát tác động (core/change_review.py, người dùng: "mỗi lần đổi bất kì điều gì trong khâu, một agent rà các khâu liên
+-- quan"): trigger ghi MỌI thay đổi (mọi đường ghi, không phải nhớ gọi hàm) → worker rà bằng luật code + agent Claude → findings
+CREATE TABLE IF NOT EXISTS change_events (
+    id INTEGER PRIMARY KEY,
+    at TEXT NOT NULL,
+    kind TEXT NOT NULL,                -- scene / asset / asset_image
+    project_id INTEGER,
+    scene_id INTEGER,
+    asset_id INTEGER,
+    before TEXT,
+    after TEXT,
+    state TEXT NOT NULL DEFAULT 'pending',   -- pending / skipped (không đổi khâu nào) / reviewed / failed
+    keys TEXT,                         -- JSON: các trường có nghĩa đã đổi
+    reviewed_at TEXT,
+    cost_usd REAL NOT NULL DEFAULT 0,
+    note TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_change_events_state ON change_events(state, id);
+CREATE TABLE IF NOT EXISTS change_findings (
+    id INTEGER PRIMARY KEY,
+    event_id INTEGER,
+    project_id INTEGER,
+    scene_id INTEGER,
+    source TEXT NOT NULL,              -- code / claude
+    level TEXT NOT NULL,               -- do (chặn gen tốn tiền của shot) / vang
+    khau TEXT NOT NULL,
+    msg TEXT NOT NULL,
+    de_xuat TEXT,
+    status TEXT NOT NULL DEFAULT 'open',     -- open / resolved / dismissed
+    at TEXT NOT NULL,
+    resolved_at TEXT,
+    resolved_by TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_change_findings_open ON change_findings(project_id, status);
 """
 
 
@@ -568,6 +602,40 @@ def _migrate_outputs(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA foreign_keys = ON")
 
 
+# 10/10 Tổ rà soát tác động: trigger tạo SAU mọi migration (CSDL cũ: assets.profile / asset_images.status được ALTER thêm sau SCHEMA —
+# tạo trong SCHEMA thì "no such column: new.profile", test_ai_label OutputsMigrationTest)
+CHANGE_TRIGGERS = """
+CREATE TRIGGER IF NOT EXISTS trg_change_scene AFTER UPDATE OF data ON scenes
+    WHEN COALESCE(old.data, '') <> COALESCE(new.data, '')
+BEGIN
+    INSERT INTO change_events(at, kind, project_id, scene_id, before, after)
+    VALUES (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'scene', new.project_id, new.id, old.data, new.data);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_change_asset AFTER UPDATE OF profile ON assets
+    WHEN COALESCE(old.profile, '') <> COALESCE(new.profile, '')
+BEGIN
+    INSERT INTO change_events(at, kind, project_id, asset_id, before, after)
+    VALUES (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'asset', new.project_id, new.id, old.profile, new.profile);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_change_asset_image_new AFTER INSERT ON asset_images
+    WHEN COALESCE(new.status, 'approved') = 'approved'
+BEGIN
+    INSERT INTO change_events(at, kind, asset_id, after)
+    VALUES (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'asset_image', new.asset_id,
+            json_object('image_id', new.id, 'path', new.path, 'role', new.role, 'status', new.status));
+END;
+CREATE TRIGGER IF NOT EXISTS trg_change_asset_image AFTER UPDATE OF status, removed_at, path ON asset_images
+    WHEN (COALESCE(old.status, 'approved') = 'approved') <> (COALESCE(new.status, 'approved') = 'approved')
+         OR (COALESCE(new.status, 'approved') = 'approved' AND COALESCE(old.path, '') <> COALESCE(new.path, ''))
+BEGIN
+    INSERT INTO change_events(at, kind, asset_id, before, after)
+    VALUES (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'asset_image', new.asset_id,
+            json_object('image_id', old.id, 'path', old.path, 'status', old.status, 'removed_at', old.removed_at),
+            json_object('image_id', new.id, 'path', new.path, 'status', new.status, 'removed_at', new.removed_at));
+END;
+"""
+
+
 def connect(path: str = ":memory:") -> sqlite3.Connection:
     conn = sqlite3.connect(path, timeout=60)     # many background threads write: wait for the lock instead of failing
     conn.row_factory = sqlite3.Row
@@ -607,7 +675,7 @@ def schema_stamp() -> int:
         import inspect
         try:
             from .budget_rounds import TABLE as rounds_table          # S14.6: the rounds table is created in _migrate too
-            src = SCHEMA + repr(V2_COLUMNS) + rounds_table + "".join(inspect.getsource(f) for f in (_migrate, _migrate_v2, _migrate_usage_events,
+            src = SCHEMA + CHANGE_TRIGGERS + repr(V2_COLUMNS) + rounds_table + "".join(inspect.getsource(f) for f in (_migrate, _migrate_v2, _migrate_usage_events,
                                                                                        _migrate_outputs))
             _STAMP.append(int(hashlib.sha1(src.encode("utf-8")).hexdigest()[:7], 16) or 1)
         except (OSError, TypeError):
@@ -701,6 +769,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     from .retired_topics import ensure_columns       # S14.46: retired_at / retired_why on mistakes, lessons, experience_cases
     ensure_columns(conn)
     _migrate_v2(conn)
+    conn.executescript(CHANGE_TRIGGERS)               # 10/10: sau mọi cột (assets.profile / asset_images.status là cột ALTER thêm)
 
 
 V2_COLUMNS = {

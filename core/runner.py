@@ -308,6 +308,18 @@ class _Runner:
                                                             "không gửi lại (tránh trả tiền 2 lần)")
                 slots -= 1
                 continue
+            from . import change_review          # 10/10 Tổ rà soát tác động: mục đỏ còn mở → GIỮ chờ (sửa / bỏ qua thì tự gửi tiếp)
+            held = None
+            if job["scene_id"]:
+                group = getattr(self, "_sends_group", lambda j: None)(job) or []
+                for sid in [job["scene_id"]] + [g["id"] for g in group if g["id"] != job["scene_id"]]:
+                    held = change_review.blocking(self.p.conn, sid, self.data_dir)
+                    if held:
+                        break
+            if held:
+                WAIT_REASONS[job["id"]] = (held, time.time())
+                self._diag_once(job, "warn", "change_review_hold", f"chưa gửi: {held}")
+                continue
             blocked = self._blocked(job)
             if blocked:
                 self._diag(job, "warn", "stale_input", f"không gửi: {blocked}")

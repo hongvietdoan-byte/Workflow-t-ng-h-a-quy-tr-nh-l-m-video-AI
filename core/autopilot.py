@@ -451,6 +451,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     _still_running(p, pid)
     _cap_wait(p, pid, "image_gen", "images")
     ctx.image_runner.submit_pending(pid)
+    _review_wait(p, pid, "image_gen", ctx.data_dir if ctx else None)   # gửi xong phần không bị giữ; còn job bị giữ → chờ người
     _budget_stop(p, pid, "image_gen")
     ctx.image_runner.poll_once(pid)
     _retry_or_hold(p, pid, "image_gen")
@@ -552,6 +553,18 @@ def _budget_stop(p: Pipeline, pid: int, kind: str) -> None:
                          (pid, "image" if kind == "image_gen" else "video")).fetchone()
     if row is not None:
         raise _Stop("Dừng vì ngân sách: " + row["message"])
+def _review_wait(p: Pipeline, pid: int, kind: str, data_dir: Optional[str] = None) -> None:
+    """10/10 Tổ rà soát tác động: job đang chờ của loại này bị giữ vì mục đỏ → CHỜ người (thay vì 'Gen ảnh…' mãi)."""
+    from . import change_review
+    if not change_review.enabled():
+        return
+    for r in p.conn.execute("SELECT DISTINCT scene_id FROM jobs WHERE project_id=? AND type=? AND state='queued' AND scene_id IS NOT NULL",
+                            (pid, kind)).fetchall():
+        why = change_review.blocking(p.conn, r[0], data_dir)
+        if why and not why.startswith("Tổ rà soát tác động đang rà"):
+            raise _Wait("change_review", why)
+
+
 def _cap_wait(p: Pipeline, pid: int, kind: str, stage: str) -> None:
     """"Tự chạy trong trần" with the budget locked (user 08/10): before sending the queued pictures / clips, WAIT when the stage line or
     the project total is reached (core.project_budget.run_over) — they stay queued until a person raises the line and presses Tiếp tục."""
@@ -1004,6 +1017,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     _still_running(p, pid)
     _cap_wait(p, pid, "video_gen", "videos")
     ctx.video_runner.submit_pending(pid)
+    _review_wait(p, pid, "video_gen", ctx.data_dir if ctx else None)
     _budget_stop(p, pid, "video_gen")
     ctx.video_runner.poll_once(pid)
     _retry_or_hold(p, pid, "video_gen")

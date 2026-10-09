@@ -185,6 +185,8 @@ def step2(p: Pipeline, pid: int):
         else:
             st.caption(_wake)
     pilot_panel(p, pid)
+    from dashboard import change_review_ui               # 10/10 Tổ rà soát tác động: mục lệch sau mỗi thay đổi (đỏ = giữ gen)
+    change_review_ui.render(p, pid, who=(C.access_user() or {}).get("email"), read_only=C.read_only(p, pid))
     from core import known_issues
     active_issues = known_issues.active(p.conn, pid)
     if active_issues and v2:                             # v2: một dòng tóm tắt + MỘT expander đóng

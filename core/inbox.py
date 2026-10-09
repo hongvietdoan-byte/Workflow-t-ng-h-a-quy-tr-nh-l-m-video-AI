@@ -11,7 +11,7 @@ from . import access, archive, budget, delivered, money_policy, project_budget, 
 
 WAITING = ("waiting", "needs_attention")        # autopilot states that wait for a person (dashboard/next_step.py)
 
-KINDS = ("Ảnh", "Video", "Lỗi gen", "Ngân sách", "Tiền", "Chạy tự động", "Hạn mức", "Yêu cầu", "Bản giao")
+KINDS = ("Rà soát", "Ảnh", "Video", "Lỗi gen", "Ngân sách", "Tiền", "Chạy tự động", "Hạn mức", "Yêu cầu", "Bản giao")
 
 
 def _mine(created_by: Optional[str], email: str, is_owner: bool, auth_on: bool) -> bool:
@@ -46,6 +46,15 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
             out.append({"kind": kind, "project_id": pid, "project": name, "text": text, "screen": screen, "level": level,
                         "who": who, "sub": sub})
 
+        # 10/10 Tổ rà soát tác động: mục còn mở sau một thay đổi (đỏ = gen tốn tiền của shot đang bị giữ)
+        try:
+            rv = conn.execute("SELECT level, COUNT(*), GROUP_CONCAT(DISTINCT s.idx) FROM change_findings f LEFT JOIN scenes s ON "
+                              "s.id=f.scene_id WHERE f.project_id=? AND f.status='open' GROUP BY level", (pid,)).fetchall()
+        except Exception:  # noqa: BLE001 - an old database without the table: nothing to list
+            rv = []
+        for lv, n, shots in rv:
+            add("Rà soát", f"{'🔴 Giữ gen — ' if lv == 'do' else ''}{n} mục lệch sau thay đổi" + (f" (shot {shots})" if shots else ""),
+                "storyboard", "wait" if lv == "do" else "todo")
         for kind, typ, screen, label in (("Ảnh", "image_gen", "storyboard", "ảnh"), ("Video", "video_gen", "video", "clip")):
             n = conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type=? AND state='pending_review'", (pid, typ)).fetchone()[0]
             if n:

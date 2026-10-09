@@ -14,6 +14,10 @@ Kế hoạch chính nằm ở `PLAN.md` (nguồn tài liệu gốc: `Quy_Trinh_A
 4. Khi bắt đầu session mới: `git pull` trước, đọc `PLAN.md` (Mục 5 = quyết định đã chốt/còn mở, Mục 7 = lộ trình).
 5. Commit message có dòng `Co-Authored-By` theo cấu hình session; không commit secrets/API key.
 6. **Mọi thay đổi pipeline theo `docs/CHUAN_XAY_DUNG.md`** (không im lặng khi thiếu đầu vào, lớp mới kế thừa biện pháp cũ, gen lại phải đổi đầu vào ≤ 2 lần, "đã sửa" kèm bằng chứng chạy thật, mọi lời gọi tốn tiền qua sổ chi + ước tính trước).
+7. **Mỗi lần sửa code pipeline: một agent rà các khâu liên quan TRƯỚC khi commit** (người dùng 10/10). Chạy
+   `py tools/related_areas.py` (khu vực chứa file đổi + khu vực gọi tới module đổi + dùng chung cờ, theo `devsys/areas.json`) rồi giao
+   đề bài đó cho một agent (Agent tool) rà: hành vi bị đổi theo mà chưa sửa / chưa có test. Sửa hết lỗi agent báo (hoặc ghi lý do bỏ) rồi
+   mới commit. Thay đổi DỮ LIỆU sản xuất trên Dashboard do Tổ rà soát tác động (`core/change_review.py`, cờ `change_review`) lo.
 
 ## Mockup
 - `mockup/dashboard.html` — bản tương tác (bấm stepper; `#s2`… để mở thẳng bước).

@@ -289,6 +289,22 @@
    "stage": "director_plate_review"
   },
   {
+   "id": "d82",
+   "step": "step2",
+   "who": "claude",
+   "what": "Sân khấu 3D V3: Đạo diễn viết dàn cảnh (nhịp) + yêu cầu khung từng shot; code giải máy + đo, sửa ≤ 2 lượt theo số đo",
+   "where": "core/stage_director.py:STAGE",
+   "stage": "director_stage_specs"
+  },
+  {
+   "id": "d83",
+   "step": "step2",
+   "who": "claude",
+   "what": "Tổ rà soát tác động: mỗi thay đổi (shot / Kho) → agent khai khâu liên quan khớp / lệch, code quyết mức + giữ gen",
+   "where": "core/change_review.py:STAGE",
+   "stage": "change_review"
+  },
+  {
    "id": "d32",
    "step": "step2",
    "who": "code",

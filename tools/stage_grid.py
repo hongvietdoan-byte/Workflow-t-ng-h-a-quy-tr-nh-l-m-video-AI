@@ -1471,6 +1471,8 @@ def v3_main(argv):
     ap.add_argument("--stage-from", required=True)
     ap.add_argument("--hand", default=None, help="thư mục v2 của bản viết tay (v2.json) để so")
     ap.add_argument("--yes", action="store_true", help="gọi Claude thật (tốn tiền, ghi sổ chi)")
+    from core import script_cap
+    script_cap.add_argument(ap)                          # trần CỨNG khi gọi thật (test_script_cap; V3 09/10 chạy không trần ≈ 0,53 USD)
     a = ap.parse_args(argv)
     out = os.path.abspath(a.out)
     os.makedirs(out, exist_ok=True)
@@ -1489,8 +1491,9 @@ def v3_main(argv):
         print(f"V3 ước tính (model {cost.llm_model()}): 1 lượt ≈ {one * m:.3f} USD; tối đa {2 * sd.MAX_ROUNDS} lời gọi "
               f"(2 lượt sửa × hỏi lại khi sai mẫu) ≈ {worst * m:.3f} USD")
         if not a.yes:
-            print("(chưa gọi — thêm --yes)")
+            print("(chưa gọi — thêm --yes --max-usd <USD>)")
             return
+        script_cap.from_args(a, "stage_grid v3").start()
         client = llm_runner.client_from_env(ledger=llm_runner.db_file(conn))
         prev, feedback, rounds = None, [], []
         for rnd in range(1, sd.MAX_ROUNDS + 1):
