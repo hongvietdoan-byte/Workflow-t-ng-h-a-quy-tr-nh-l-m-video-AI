@@ -1431,9 +1431,113 @@ def report_v2(out):
                   + f" | {', '.join(e['check']['fail']) or 'đạt'} {e['check']['why'] or ''}")
 
 
+def _scene_shots(db, pid):
+    """Kịch bản từng shot của dự án (CSDL CHỈ ĐỌC): hành động + ghi chú khung cũ (blocking) + độ dài."""
+    import sqlite3
+    conn = sqlite3.connect(f"file:{os.path.abspath(db)}?mode=ro", uri=True)
+    try:
+        rows = conn.execute("SELECT idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall()
+    finally:
+        conn.close()
+    out = []
+    for idx, data in rows:
+        d = json.loads(data or "{}")
+        out.append({"shot": idx, "action": d.get("action", ""), "ghi_chu_khung_cu": d.get("blocking", ""),
+                    "do_dai": f"{d.get('duration')} s" if d.get("duration") else ""})
+    return out
+
+
+def _floor_notes(grid_cells, half=4.0):
+    """Ô sàn quanh vùng diễn (±half m quanh O) không cùng mặt sàn / có vật chắn — căn cứ cho Director."""
+    out = []
+    for c in grid_cells:
+        if abs(c["x"]) <= half and abs(c["y"]) <= half and (c.get("status") != "same" or c.get("obstacle")):
+            out.append(f"ô {c['cell']} (tâm {c['x']:+.1f} Đ, {c['y']:+.1f} B): {c.get('status')}"
+                       + (f", vật chắn cao {c.get('top_z')} m" if c.get("obstacle") else ""))
+    return out or ["mọi ô trong ±4 m quanh O là mặt sàn phẳng, đứng được"]
+
+
+def v3_main(argv):
+    """`v3 --inputs v3_inputs.json --out <dir> --stage-from <dir K1> --hand <dir v2 bản tay> [--yes]`: Director (Claude) viết dàn cảnh +
+    yêu cầu khung → K3/K4 (v2) → không đạt thì gửi lại kết quả đo, tối đa 2 lượt → so với bản viết tay. Không --yes: chỉ in ước tính."""
+    import argparse
+    sys.path.insert(0, ROOT)
+    from core import cost, llm_runner
+    from core import stage_director as sd
+    ap = argparse.ArgumentParser(prog="stage_grid.py v3")
+    ap.add_argument("--db", default=DEFAULT_DB)
+    ap.add_argument("--inputs", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--stage-from", required=True)
+    ap.add_argument("--hand", default=None, help="thư mục v2 của bản viết tay (v2.json) để so")
+    ap.add_argument("--yes", action="store_true", help="gọi Claude thật (tốn tiền, ghi sổ chi)")
+    a = ap.parse_args(argv)
+    out = os.path.abspath(a.out)
+    os.makedirs(out, exist_ok=True)
+    inputs = json.load(open(a.inputs, encoding="utf-8"))
+    st = json.load(open(os.path.join(a.stage_from, "stage.json"), encoding="utf-8"))
+    grid = json.load(open(os.path.join(a.stage_from, "grid.json"), encoding="utf-8"))["cells"]
+    inputs.setdefault("shots", _scene_shots(a.db, inputs["pid"]))
+    inputs.setdefault("floor", _floor_notes(grid))
+    import sqlite3
+    conn = sqlite3.connect(os.path.abspath(a.db))
+    conn.row_factory = sqlite3.Row
+    try:
+        one = cost.llm_estimate(conn, sd.STAGE, 1)
+        worst = cost.llm_estimate(conn, sd.STAGE, 2 * sd.MAX_ROUNDS)
+        m = cost.LLM_MARGIN
+        print(f"V3 ước tính (model {cost.llm_model()}): 1 lượt ≈ {one * m:.3f} USD; tối đa {2 * sd.MAX_ROUNDS} lời gọi "
+              f"(2 lượt sửa × hỏi lại khi sai mẫu) ≈ {worst * m:.3f} USD")
+        if not a.yes:
+            print("(chưa gọi — thêm --yes)")
+            return
+        client = llm_runner.client_from_env(ledger=llm_runner.db_file(conn))
+        prev, feedback, rounds = None, [], []
+        for rnd in range(1, sd.MAX_ROUNDS + 1):
+            text = sd.build_prompt(inputs, prev, feedback)
+            with open(os.path.join(out, f"prompt_r{rnd}.md"), "w", encoding="utf-8") as f:
+                f.write(text)
+            with llm_runner.tagged(sd.STAGE, inputs.get("pid")):
+                obj, tin, tout = llm_runner.ask_json(client, text, lambda o: sd.validate_answer(o, inputs, st.get("marks")),
+                                                     note=lambda s_: print("  !", s_))
+            print(f"lượt {rnd}: Claude vào {tin} / ra {tout} token")
+            bl = dict(obj["blocking"], place=inputs["place"], spot=inputs["spot"].split()[0], aspect=inputs.get("aspect", "9:16"))
+            rd = os.path.join(out, f"r{rnd}")
+            os.makedirs(rd, exist_ok=True)
+            for fn, data in (("answer.json", obj), ("blocking.json", bl), ("shot_specs.json", {"shots": obj["shot_specs"]})):
+                with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=1)
+            v2_main(["--db", a.db, "--blocking", os.path.join(rd, "blocking.json"), "--specs", os.path.join(rd, "shot_specs.json"),
+                     "--out", rd, "--stage-from", a.stage_from])
+            solve = json.load(open(os.path.join(rd, "setups.json"), encoding="utf-8"))
+            v2 = json.load(open(os.path.join(rd, "v2.json"), encoding="utf-8"))
+            feedback = sd.feedback_from(solve, v2)
+            n_ok = sum(1 for s in v2["shots"] if s.get("best") and s["best"]["ok"])
+            rounds.append({"round": rnd, "tokens": [tin, tout], "ok": n_ok, "n": len(obj["shot_specs"]), "feedback": feedback,
+                           "can_hoi": obj.get("can_hoi")})
+            print(f"lượt {rnd}: {n_ok}/{len(obj['shot_specs'])} shot đạt" + "".join(f"\n   → {x}" for x in feedback))
+            if not feedback:
+                break
+            prev = obj
+        res = {"rounds": rounds}
+        if a.hand:
+            hand = json.load(open(os.path.join(a.hand, "v2.json"), encoding="utf-8"))
+            res["compare"] = sd.compare(hand, v2)
+            print("shot | AI đạt | tay đạt | máy lệch m | hướng lệch ° | pitch AI/tay | thứ chính AI ↔ tay | thêm AI ↔ tay")
+            for r in res["compare"]:
+                print(f"{r['shot']} | {r['ai_ok']} | {r['hand_ok']} | {r.get('cam_dist_m')} | {r.get('yaw_diff')} | "
+                      f"{r.get('pitch_ai')}/{r.get('pitch_hand')} | {r['ai_main']} ↔ {r['hand_main']} | {r['ai_extra']} ↔ {r['hand_extra']}")
+        with open(os.path.join(out, "v3.json"), "w", encoding="utf-8") as f:
+            json.dump(res, f, ensure_ascii=False, indent=1)
+    finally:
+        conn.close()
+
+
 def host_main(argv=None):
     import argparse
     argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] == "v3":
+        return v3_main(argv[1:])
     if argv and argv[0] == "fix-spot":
         return fix_spot_main(argv[1:])
     if argv and argv[0] == "s1":

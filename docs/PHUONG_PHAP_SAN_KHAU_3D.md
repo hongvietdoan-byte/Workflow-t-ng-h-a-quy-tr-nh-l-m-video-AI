@@ -230,6 +230,51 @@ Sau khi vẽ ảnh: so "nền thật" với ảnh kết quả bằng `plate_layo
 | V4 | #24: tấm ghép → người duyệt → báo giá vẽ lại shot 1–9 | báo giá |
 | V5 | Nối vào luồng (sau cờ), đo `level_9_4` và các chỗ đứng khác, Bàn đạo diễn 3D (G3) | 0 USD |
 
+## 11. Quy trình CHUẨN (rút từ V1–V3 trên #24, áp cho mọi kịch bản)
+
+**11.1 So sánh V2 (người viết tay) với V3 (Director viết, 09/10).**
+
+| | V2 — tay (Claude Code + người dùng) | V3 — Director (`claude-sonnet-5`, prompt 29) |
+|---|---|---|
+| Lượt 1 | 6/9 đạt (sau 3 lần sửa mâu thuẫn do bộ giải báo trước Blender) | 4/9 đạt |
+| Lượt cuối | 9/9 — cần 4 quyết định của người dùng (tháp, shot 4, shot 5–7 theo emote, shot 3 qua vai) | 7/9 sau 1 lượt tự sửa theo số đo (lượt 2) |
+| Lỗi hay gặp (cả hai) | vùng dọc không khả thi theo độ cao máy; khoảng cỡ quá hẹp; luật tự bịa (tháp); người chồng lên đạo cụ | như bên trái + 3 thứ chính một shot; đòi "thấy nghiêng" trái với chỗ máy bị ép tới |
+| Làm tốt | — | theo đúng lời người dùng (POV + lùi + rung, qua vai `thay_min`, sau lưng-chéo, không ràng buộc tháp); tự ghi `can_hoi` khi thiếu số |
+| Máy so với bản tay (shot cùng đạt) | — | lệch 0,5–2,8 m, 4–53°: nhiều lời giải đúng — khác nhau là phong cách, không phải sai |
+| Chi phí / thời gian | 0 USD Claude, nhiều giờ người | ≈ 0,53 USD (2 lượt, 1 lần hỏi lại vì sai mẫu), ≈ 10 phút (Claude ≈ 3 phút/lời gọi + Blender ≈ 1 phút/lượt) |
+
+Kết luận: Director viết được dàn cảnh + yêu cầu khung dùng được khi có (a) prompt cách nghĩ có lý do, (b) code kiểm chặt câu trả lời,
+(c) vòng sửa bằng SỐ ĐO thật. Phần còn lại sau 2 lượt là chỗ cần người quyết (thẩm mỹ / chấp nhận che), không phải lỗi máy.
+
+**11.2 Quy trình chuẩn — 7 bước** (mỗi bước: ai làm, tốn gì, khi nào dừng):
+
+| # | Bước | Ai | Chi phí | Dừng / chuyển |
+|---|---|---|---|---|
+| B0 | **Sân khấu** (K1): đo sàn, mốc, ô cấm; đạo cụ có kích thước từ Kho (thiếu → HỎI người dùng, không tự đặt) | code + Blender | 0 USD, ≈ 20 s, một lần mỗi chỗ đứng (cache) | thiếu số đạo cụ → hỏi |
+| B1 | **Đề bài**: kịch bản từng shot (ghi chú khung cũ = chỉ để hiểu ý), chiều cao hồ sơ, vật cố định, ô sàn cấm, lời người dùng, tham chiếu | code | 0 USD | — |
+| B2 | **Director viết** `blocking` (nhịp) + `shot_specs` theo prompt 29 | Claude | ≈ 0,15–0,3 USD / cảnh 9 shot, BÁO GIÁ trước | — |
+| B3 | **Kiểm câu trả lời** (`stage_director.validate_answer`): đủ shot, vật cố định không bị dời, người không chồng đạo cụ, vùng không mâu thuẫn, chuyển động hợp lệ | code | 0 USD | sai → hỏi lại 1 lần (kèm lý do) |
+| B4 | **Giải máy** (K3, ms) + **đo Blender** (K4, ≈ 40 s / 9 shot, cả khung cuối khi máy chuyển động) | code | 0 USD | shot hỏng → B5 |
+| B5 | **Vòng sửa tự động**: gửi Director đúng số đo / lời khuyên của shot hỏng; shot đạt giữ nguyên | Claude | như B2 | ≤ 2 lượt Claude (CHUAN_XAY_DUNG) |
+| B6 | **Người duyệt tấm ghép** (hình phác + vùng đích + khung cuối + luật): shot còn hỏng hiện 2–3 LỰA CHỌN cụ thể (vd qua vai: lệch máy / chấp nhận che / đổi góc) | người dùng | 0 USD | quyết định → ghi vào spec (`thay_min`, `pov`, `may`…) + `stage_feedback.jsonl` |
+| B7 | **Khóa**: `setups.json` = camera của nền 3D; `pov` / `may` / `rung` → câu chuyển động của prompt video; rồi mới vẽ ảnh (báo giá) | code | ảnh: theo bảng giá | — |
+
+**11.3 Nguyên tắc cố định** (đã vào prompt 29 + code kiểm):
+1. Không biến góp ý / ghi chú cũ thành luật cứng; thứ không ai yêu cầu → không ghi (tháp #24).
+2. Người = vị trí MẮT trên lưới một phần ba; đạo cụ = tâm phần thấy.
+3. Tối đa 2 thứ chính / shot; cỡ là một khoảng rộng; người bò / nằm → khoảng rất rộng.
+4. Vùng phải khả thi với độ cao máy (máy ngang tầm mắt → đạo cụ thấp ở giữa khung) và với khoảng cách giữa các thứ chính.
+5. `thay` phải khớp phía máy bị ép tới; không chắc → bỏ.
+6. Máy thấp hơn miệng vật chắn không nhìn vào trong được → người trong vật đứng mép gần, hoặc máy cao hơn.
+7. Qua vai → `thay_min` cho vật bị vai che; ngưỡng CHUNG chỉ đổi khi ≥ 3 phản hồi cùng chiều.
+8. Cảm xúc của nhân vật → `pov` + `may` (lùi khi sợ, tiến khi bị hút vào), rung ghi cho prompt chuyển động.
+9. Có tham chiếu (emote) → bám góc máy của tham chiếu.
+10. Lỗi đo phát hiện khi chạy thật sửa tận gốc trong code (đo sàn trước khi dựng khối, khe cổ người nộm, mốc rộng, điểm mặt).
+
+**11.4 Tối ưu tiếp (chưa làm):** (a) đưa lời khuyên giai đoạn (a) — miễn phí, mili giây — cho Director NGAY trong lượt 1 bằng công cụ
+(tool use) thay vì chờ hết lượt; (b) thử `effort: low` để giảm token suy nghĩ (lượt 1 ra 18k token); (c) nối vào luồng sau cờ (V5): camera
+từ `setups.json` thay `plate_camera.camera_for`, câu chuyển động từ `pov`/`may`.
+
 ---
 
 ## Phụ lục A — Số đo thật #24 (09/10, 0 USD)

@@ -1,0 +1,29 @@
+{
+ "_ghi_chu": "V3 #24: đầu vào cho Director (Claude) — CHỈ dữ kiện + lời người dùng, KHÔNG có dàn cảnh / yêu cầu khung viết tay (để so công bằng với bản tay ở blocking.json + shot_specs.json). Kịch bản từng shot đọc từ CSDL (scenes.data: action, blocking cũ).",
+ "pid": 24,
+ "canh": "CẢNH 1 – ĐÊM, QUẢNG TRƯỜNG THÁP ĐỒNG HỒ: Kelly đến giếng đá cổ, yêu nữ tà linh chui lên từ giếng (9 shot)",
+ "place": 263,
+ "spot": "plaza_front (chỗ Kelly đứng nhìn về giếng)",
+ "aspect": "9:16",
+ "fixed": [
+  {"key": "gieng", "kind": "gieng", "at": [-0.278, 1.576], "h": 0.9, "d": 1.5, "hollow": true, "label": "Giếng",
+   "source": "người dùng 09/10: cao 0,9 m, đường kính 1,5 m; cách O 1,6 m hướng 350°"},
+  {"key": "thap", "kind": "moc", "label": "Tháp đồng hồ", "_vi_tri": "phía Bắc O 16,04 m, cao 38 m, rộng 9,35 m (đo tia K1)"}
+ ],
+ "people": [
+  {"key": "kelly", "label": "Kelly", "H": 1.7, "note": "nhân vật chính, đi tới giếng từ phía Nam"},
+  {"key": "yeunu", "label": "Yêu nữ tà linh", "H": 1.7, "note": "ở trong lòng giếng lúc đầu"}
+ ],
+ "user_notes": [
+  "Giếng cao 0,9 m, đường kính 1,5 m; yêu nữ cao 1,7 m.",
+  "Không có quy định nào bắt phải thấy hay không được thấy tháp.",
+  "Kelly giật mình thì ngã NGỬA ra sau, xa giếng (không ngã ngang).",
+  "Shot 4: nhìn từ sau lưng Kelly, hơi chéo, khi cô ngã ngửa.",
+  "Emote là yêu nữ chui từ giếng lên, bò ra rồi đứng trước giếng. Shot 5–7 dựng theo ref emote: shot 5 máy thấp gần mặt đất thấy yêu nữ thò tay bám miệng giếng rồi trườn ra.",
+  "Shot 6–7: góc nhìn của Kelly — Kelly sợ nên bò lùi lại, máy lùi theo, hơi rung như đang bò lùi.",
+  "Shot qua vai Kelly: vai cô che một phần giếng là chấp nhận được."
+ ],
+ "refs": [
+  "ref_troi_len_va_khoc.mp4 (15 s, emote): máy đặt trước giếng, ngang khoảng miệng giếng, nhìn thẳng vào giếng; yêu nữ thò tay bám miệng giếng, trườn qua thành giếng về phía máy, bò xuống đất rồi đứng dậy ngay trước giếng (lệch nhẹ một bên), sau đó quỳ ôm mặt khóc."
+ ]
+}
