@@ -30,7 +30,8 @@ CREATURE1 = ("a female creature whose face is a smooth featureless pure-black ma
              "legs, red high heels, constant red glitch noise around her wrists and ankles")
 
 EDITS = {
-    2: {"size": "WS"},
+    2: {"size": "WS",   # 10/10 change_audit: cỡ đổi WS mà prompt vẫn "Medium shot" → câu mở đầu theo máy (cao, nhìn xuống)
+        "image_prompt": "Wide shot, high side view looking down at Kelly and the well, Free Fire in-game 3D render style, Kelly in profile on the left facing right, leaning over the rim of an ancient octagonal stone well on the right, both hands on the stones, looking down into the dark well, clean weathered stone rim, row of red-roof plaza houses behind, the clock tower only partly visible at the right edge, foggy plaza at night, cold moonlight, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus"},
     4: {"size": "WS", "angle": "low", "camera_move": "static",
         "action": "Kelly giật mình ngã NGỬA ra sau, xa giếng, hai tay chống xuống đất phía sau, mắt vẫn dán vào miệng giếng (nhìn từ sau lưng hơi chéo)",
         "blocking": ("From behind Kelly, slightly diagonal, camera low near the ground about 1 m behind her: Kelly frame-left seen from "

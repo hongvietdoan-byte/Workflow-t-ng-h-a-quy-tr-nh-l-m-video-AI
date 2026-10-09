@@ -20,17 +20,30 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pid", type=int, required=True)
     ap.add_argument("--go", action="store_true")
+    ap.add_argument("--shots", default=None, help="chỉ các shot này (vd 2,9)")
+    ap.add_argument("--data", default=os.path.join("data", "projects"))
     a = ap.parse_args()
     p = Pipeline(connect(os.environ.get("PIPELINE_DB") or os.path.join("data", "manifest.sqlite")))
     proj = p.project(a.pid)
     rows = p.conn.execute("SELECT id, idx FROM scenes WHERE project_id=? ORDER BY idx", (a.pid,)).fetchall()
     busy = {r[0] for r in p.conn.execute("SELECT scene_id FROM jobs WHERE project_id=? AND type='image_gen' "
                                           "AND state IN ('queued','running','retryable')", (a.pid,))}
+    if a.shots:
+        want = {int(x) for x in a.shots.split(",")}
+        rows = [r for r in rows if r["idx"] in want]
     todo = [r for r in rows if r["id"] not in busy]
+    from core import change_audit                      # người dùng 10/10: đổi đầu vào → rà mọi khâu liên quan TRƯỚC khi vẽ
+    issues = change_audit.audit(p.conn, a.data, a.pid, [r["idx"] for r in todo])
+    for it in issues:
+        print(f"  shot {it['shot']} [{it['muc'].upper()}] {it['khau']}: {it['msg']}")
+    red = [it for it in issues if it["muc"] == "do"]
     model = image_models.of_project(proj)
     unit = (cost.load_pricing().get("per_image") or {}).get(model)
     print(f"#{a.pid}: {len(rows)} shot, đang có job ảnh chờ/chạy: {len(busy)} → tạo {len(todo)} job · {model} · ≈ {unit} USD/ảnh → "
           f"≈ {len(todo) * (unit or 0):.2f} USD (chưa tính QC Claude / tự vẽ lại)")
+    if a.go and red:
+        print(f"KHÔNG tạo job: {len(red)} mục ĐỎ của bộ kiểm tác động (core/change_audit) — sửa trước khi vẽ (tránh trả tiền vẽ hỏng)")
+        return
     if a.go:
         made = [(r["idx"], p._insert_job(a.pid, r["id"], "image_gen", origin="user")) for r in todo]
         p.conn.commit()
