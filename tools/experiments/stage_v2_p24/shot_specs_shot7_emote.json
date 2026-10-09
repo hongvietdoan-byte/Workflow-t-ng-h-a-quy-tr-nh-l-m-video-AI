@@ -1,0 +1,82 @@
+{
+ "_ghi_chu": "09/10 người dùng: shot 7 thử máy thấp sát đất nhìn yêu nữ thò tay rồi bò ra như ref emote (data/ref_clips/teasing_troi_len_khoc_2026-10-08/ref_troi_len_va_khoc.mp4); không ràng buộc tháp.",
+ "shots": [
+  {
+   "co": "MS",
+   "do_cao": "thap",
+   "cao_m": 0.3,
+   "shot": 74,
+   "nhip": "bam_mep",
+   "muc_dich": "emote: máy sát đất trước giếng, yêu nữ thò tay bám miệng giếng, nhô đầu lên nhìn về máy",
+   "thanh_phan": [
+    {
+     "vat": "yeunu",
+     "vai": "chinh",
+     "vung": "giua",
+     "thay": "mat",
+     "co_pct": [
+      30,
+      60
+     ]
+    },
+    {
+     "vat": "gieng",
+     "vai": "chinh",
+     "vung": "giua-duoi"
+    }
+   ],
+   "ong_kinh": 24,
+   "_sua_k5": "lần 1: yêu nữ ở TÂM giếng → máy sát đất bị thành giếng che 100 %; ref: bám mép gần"
+  },
+  {
+   "co": "MS",
+   "do_cao": "thap",
+   "cao_m": 0.3,
+   "shot": 75,
+   "nhip": "bo",
+   "muc_dich": "emote: máy sát đất hơi chéo, yêu nữ bò về phía máy (trái-giữa, dưới), giếng lệch phải sau lưng cô",
+   "thanh_phan": [
+    {
+     "vat": "yeunu",
+     "vai": "chinh",
+     "vung": "trai+giua",
+     "thay": "mat|nghieng",
+     "co_pct": [
+      40,
+      75
+     ]
+    },
+    {
+     "vat": "gieng",
+     "vai": "chinh",
+     "vung": "phai"
+    }
+   ],
+   "ong_kinh": 24,
+   "_sua_k5": "lần 1: ống 35 mm lùi 1,2 m ra sau lưng Kelly ngồi → Kelly che; ref: máy giữa hai người, góc rộng 24 mm | lần 2: thẳng hàng thì yêu nữ che hết giếng + máy ngửa 51° → chuyển góc hơi chéo, giếng lệch phải | lần 3: ghi mắt ở 1/3 dưới + máy sát đất → máy ngửa 50°, yêu nữ lọt khung dưới → bỏ ràng buộc dọc (mắt về đường 1/3 trên)"
+  },
+  {
+   "co": "MLS",
+   "do_cao": "thap",
+   "cao_m": 0.3,
+   "shot": 76,
+   "nhip": "bo_ra",
+   "muc_dich": "emote: máy sát đất, yêu nữ đứng dậy trước giếng (như cuối ref), giếng sau lưng",
+   "thanh_phan": [
+    {
+     "vat": "yeunu",
+     "vai": "chinh",
+     "vung": "giua",
+     "thay": "mat"
+    },
+    {
+     "vat": "gieng",
+     "vai": "phu",
+     "vung": "giua-duoi"
+    }
+   ],
+   "ong_kinh": 24,
+   "_sua_k5": "đổi sang 24 mm cho đồng bộ 74–75"
+  }
+ ]
+}

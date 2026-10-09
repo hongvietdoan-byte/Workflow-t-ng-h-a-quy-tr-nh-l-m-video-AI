@@ -1,5 +1,5 @@
 {
- "_ghi_chu": "V2: yêu cầu khung 9 shot #24 viết TAY (thay vai Director) từ blocking/action của kịch bản + góp ý người dùng 09/10 (1)–(6). Vùng 'ngang-dọc' trên lưới một phần ba; người = vị trí MẮT; 'thay' = mặt/lưng/nghiêng.",
+ "_ghi_chu": "V2: yêu cầu khung 9 shot #24 viết TAY (thay vai Director) từ blocking/action của kịch bản + góp ý người dùng 09/10 (1)–(6). Vùng 'ngang-dọc' trên lưới một phần ba; người = vị trí MẮT; 'thay' = mặt/lưng/nghiêng. | 09/10 người dùng: không có quy định nào về tháp → bỏ mọi ràng buộc tháp (trung lập)",
  "shots": [
   {
    "shot": 1,
@@ -14,11 +14,6 @@
      "vai": "chinh",
      "vung": "trai",
      "thay": "lung|nghieng"
-    },
-    {
-     "vat": "thap",
-     "vai": "chinh",
-     "vung": "giua+phai"
     },
     {
      "vat": "gieng",
@@ -72,31 +67,27 @@
      "vat": "gieng",
      "vai": "chinh",
      "vung": "giua+phai-duoi"
-    },
-    {
-     "vat": "thap",
-     "vai": "khong_duoc_co"
     }
    ]
   },
   {
    "shot": 4,
    "nhip": "nga",
-   "co": "MS",
-   "do_cao": "ngang",
+   "co": "WS",
+   "do_cao": "thap",
    "goc": "ngang",
-   "cross_ok": true,
-   "muc_dich": "góc ngược từ phía giếng nhìn mặt Kelly ngã ngửa — góp ý (2): bố cục/tỉ lệ; không thấy tháp; máy gần như trên trục (vượt trục có chủ đích)",
+   "muc_dich": "sau lưng-chéo Kelly ngã ngửa, máy thấp sát lưng cô, giếng sừng sững phía trước (người dùng chọn phương án 43, 09/10)",
    "thanh_phan": [
     {
      "vat": "kelly",
      "vai": "chinh",
-     "vung": "giua",
-     "thay": "mat"
+     "vung": "trai",
+     "thay": "lung|nghieng"
     },
     {
-     "vat": "thap",
-     "vai": "khong_duoc_co"
+     "vat": "gieng",
+     "vai": "chinh",
+     "vung": "giua+phai"
     }
    ]
   },
@@ -144,10 +135,6 @@
      "vat": "gieng",
      "vai": "phu",
      "vung": "giua-duoi"
-    },
-    {
-     "vat": "thap",
-     "vai": "phu"
     }
    ]
   },
@@ -172,10 +159,6 @@
     {
      "vat": "kelly",
      "vai": "khong_duoc_co"
-    },
-    {
-     "vat": "thap",
-     "vai": "khong_duoc_co"
     }
    ]
   },
@@ -192,10 +175,6 @@
      "vai": "chinh",
      "vung": "giua",
      "thay": "mat"
-    },
-    {
-     "vat": "thap",
-     "vai": "khong_duoc_co"
     }
    ]
   },

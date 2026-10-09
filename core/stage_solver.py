@@ -62,7 +62,7 @@ def objects_from_blocking(blocking: Dict, marks: Optional[Dict] = None, beat: Op
                 e["tu_the"] = o["tu_the"]
             if o.get("in"):
                 w = raw.get(o["in"]) or full[o["in"]]
-                e["xy"] = list(w["at"][:2])
+                e["xy"] = list((o.get("at") or w["at"])[:2])    # ghi "at" = chỗ trong lòng giếng (vd bám mép gần), không thì tâm
                 wz = float(w.get("z", 0.0))
                 e["z"] = wz + sg.in_well_foot_z(float(w["h"]), e["H"])
                 e["rim_z"] = wz + float(w["h"])
