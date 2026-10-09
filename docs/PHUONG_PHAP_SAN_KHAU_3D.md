@@ -1,294 +1,242 @@
-# Phương pháp Sân khấu 3D — đặt nhân vật, đạo cụ, máy quay bằng tọa độ và hình học (09/10)
+# Phương pháp Sân khấu 3D — v2 (tối ưu, 09/10)
 
-> Tổng hợp từ người dùng 09/10. (1) Không vá lỗi từng chỗ; phải có cách làm đúng. (2) Sân khấu có lưới ô. (3) Mỗi cảnh có tâm lưới cố định; từ tâm đó kẻ đường đo tới từng vị trí, dùng hình học không gian. (4) Tâm đặt trên mặt sàn chung, nơi nhân vật đứng và đạo cụ được đặt.
-> Thay cho cách G0 cũ: Director đoán phương vị máy, rồi Claude nhìn render để phán đúng sai.
-> Nguyên tắc: **mọi thứ đo được thì đo bằng số. Model chỉ quyết ý đồ và chọn trong các phương án đã đạt luật.**
+> Gộp mọi ý người dùng 09/10. (1) Không vá lỗi từng chỗ, phải có cách làm đúng. (2) Sân khấu có lưới ô. (3) Tâm lưới cố định theo cảnh; từ tâm kẻ đường đo, dùng hình học không gian. (4) Tâm nằm trên mặt sàn diễn. (5) Có "Góc nhìn camera". (6) Director quyết trong khung có gì, ai ở đâu; mỗi góc máy có mục đích; thứ đang được focus phải nằm trong khung.
+> Đã thử thật trên #24 (Bước 0, 1–2, yêu nữ trong giếng, 0 USD): phần đo và hình học làm được (Phụ lục A).
+> **v2 thay đổi lớn nhất:** máy không còn dò mù 72 hướng. Máy được **GIẢI** bằng hình học từ yêu cầu khung hình của Director. Dò thử chỉ còn là đường lùi khi lời giải bị vật che.
 
-## 1. Ba vai, không chồng việc
+## 0. Nguyên tắc
+1. **Ý đồ do Director, con số do code.** Director không bịa tọa độ, độ, mét. Code không tự đổi ý đồ.
+2. **Đo được thì đo, tính được thì tính.** Không hỏi model những gì phép chiếu và tia trả lời được (vd góc cúi, có trong khung không, bị che không).
+3. **Đúng ngay từ đầu vào.** Yêu cầu khung phải viết rõ trước, rồi máy mới được tính từ yêu cầu đó. Không render rồi mới đoán xem khung đúng hay sai.
+4. **Không im lặng.** Không đạt thì nói rõ thứ gì hỏng, ở đâu, và gợi ý cách sửa. Người dùng quyết.
+5. **Làm một lần, dùng lại.** Sân khấu (gốc, lưới, sàn) tính một lần cho mỗi chỗ đứng trên map. Mỗi góc máy render một lần, dùng chung cho mọi shot cùng góc.
 
-| Vai | Làm gì | Không làm gì |
-|---|---|---|
-| **Director (Claude)** | Viết ý đồ của cảnh bằng ngôn ngữ ô lưới: đạo cụ ở ô nào, ai đứng ô nào theo từng nhịp, ai nhìn ai, cặp nhân vật tạo trục, mỗi góc máy cần thấy gì. Sau đó chọn trong các ứng viên **đã đạt luật**. | Không bịa tọa độ, độ, khoảng cách. Không phán bằng mắt những điều code đo được. |
-| **Code (hình học + tia Blender, 0 USD)** | Đổi ô ra tọa độ. Đo sàn. Tính vị trí máy. Chiếu điểm vào khung. Kiểm vật cản và trục. Đo thành phần khung. Kiểm luật. | Không tự đổi ý đồ. Không âm thầm thay phương án khi không đạt, phải báo luật nào hỏng. |
-| **Người dùng** | Duyệt tấm ghép ứng viên cuối. Sửa bằng câu ngắn ("dời giếng sang G8", "máy A lùi 1 m"). | — |
+## 1. Dòng chảy (5 khâu)
 
-## 2. Hệ tọa độ sân khấu (mỗi cảnh một hệ, cố định)
+| # | Khâu | Ai | Ra | Chi phí |
+|---|---|---|---|---|
+| K1 | Sân khấu: gốc O, lưới, bản đồ sàn | code + tia Blender | `stage.json`, `grid.json`, `topgrid.png` | 0 USD, ≈ 20 s, mỗi chỗ đứng một lần (cache theo sha map + chỗ đứng) |
+| K2 | Dàn cảnh + yêu cầu khung từng shot | **Director** (Claude), viết theo ô lưới | `blocking.json`, `shot_specs.json` | Claude ≈ vài cent mỗi cảnh, báo trước |
+| K3 | Giải máy cho từng yêu cầu | code (hình học thuần) | C, hướng nhìn, ống kính, độ cao | 0 USD, mili giây |
+| K4 | Kiểm bằng tia + "Góc nhìn camera" | code + Blender | số đo, hình phác, nền thật, hình nón | 0 USD, ≈ 1 s mỗi máy |
+| K5 | Duyệt | người dùng (tấm ghép) | chốt / sửa bằng câu ngắn | 0 USD |
+
+Không đạt ở K4 → quay về K3 dò quanh lời giải (mục 6.4). Vẫn không đạt → báo Director/người dùng sửa K2 (dời chỗ đứng, đổi cỡ, đổi vai). Không tự nới luật.
+
+## 2. K1 — Hệ tọa độ sân khấu
 
 **2.1 Gốc O.**
-- Cảnh đã chốt một vị trí trên map thì đặt O **một lần** và lưu vào `stage.json`. Mọi shot của cảnh dùng chung O, không tính lại theo shot.
-- Mặt phẳng ngang của O: tâm vùng diễn, tức chỗ đứng chính của cảnh (spot đã đăng ký).
-- Cao độ của O: bắn tia thẳng từ trên xuống tại điểm đó; **chỗ tia chạm mặt sàn là z = 0** (sàn sân khấu).
-- Hệ quả: mọi độ cao đều là độ cao thật tính từ sàn nơi nhân vật đứng (mắt Kelly 1,6 m; máy thấp 0,5 m).
+- Mỗi chỗ đứng (spot) đã chốt có một O, lưu một lần. Mọi shot của cảnh dùng chung O.
+- Vị trí ngang của O = chỗ đứng chính. Bắn tia từ trên xuống; chỗ tia chạm mặt sàn là **z = 0**.
+- Spot đăng ký lệch khỏi mặt sàn quá 0,05 m → báo, rồi sửa bằng `fix-spot`. #24 từng lệch 0,45 m.
 
 **2.2 Trục.**
-- x hướng Đông, y hướng Bắc, z hướng lên. Đơn vị: mét, ghi 2 số lẻ.
-- Đổi từ tọa độ scene Blender: `p_sân_khấu = R(θ) · (p_scene − O)`.
-  - θ là góc giữa trục scene và hướng Bắc của map.
-  - Tỉ lệ `factor`/`LIFT_Z` giữa tọa độ model và scene dùng như trong `location_pack.reframe`.
-- ⚠ Nguồn của hướng Bắc phải ghi rõ trong `stage.json` (hướng đăng ký của map hoặc trục model). Bước 0 xác nhận.
+- x hướng Đông, y hướng Bắc (= +y của model, người dùng duyệt), z hướng lên. Đơn vị mét, ghi 2 số lẻ.
+- `p_sân_khấu = R(θ)·(p_scene − O)`. Tỉ lệ model ↔ scene theo `factor`/`LIFT_Z`.
 
-**2.3 Lưới ô (chỉ là tên gọi; vị trí thật là tọa độ liên tục).**
-- Ô vuông cạnh c = 1 m. Vùng diễn gần có thể chia c = 0,5 m. Phủ N × N ô quanh O (mặc định N = 20).
-- Cột: `i = ⌊x / c + N/2⌋` → chữ cái A, B, … (Tây → Đông).
-- Hàng: `j = ⌊y / c + N/2⌋ + 1` → số 1, 2, … (Nam → Bắc).
-- Với N = 20, c = 1: O nằm ở ô **K11**.
-- Đổi ngược: tên ô ra tâm ô, rồi cộng độ lệch trong ô nếu Director ghi ("K11, lệch 0,3 m về Đông").
+**2.3 Lưới — chỉ để gọi tên và để nhìn; vị trí thật là tọa độ liên tục.**
+- **Lưới chính 1 m, có tên:**
+  - cột = chữ cái từ Tây sang Đông: `i = ⌊x + N/2⌋`;
+  - hàng = số từ Nam lên Bắc: `j = ⌊y + N/2⌋ + 1`;
+  - N = 20, nên O ở góc Tây-Nam ô **K11**.
+- **Lưới phụ 0,25 m:** không tên, kẻ mờ.
+- **Bước bắt dính khi đặt tay, theo cỡ cảnh:** CU/MCU 0,05 m · MS 0,1 m · WS 0,25 m. Lý do: lệch 0,1 m ở khoảng cách 0,8 m ≈ 7° trong khung, ở 4 m chỉ ≈ 1,4°.
+- **Ghi vị trí:** `(x, y, z)` kèm tên để đọc, vd "K11 +0,30 Đ +0,15 B".
 
-**2.3b Hai cấp lưới (người dùng 09/10, theo mẫu Bàn đạo diễn có lưới mịn trên sàn).** Ô 1 m chỉ để GỌI TÊN. Vị trí thật luôn lưu tọa độ liên tục, chính xác 0,01 m.
-- **Lưới chính 1 m, có tên** (K11): để Director và người dùng nói chuyện.
-- **Lưới phụ 0,25 m, không tên, chỉ kẻ mờ:** để nhìn và để bắt dính khi đặt bằng tay. Chọn 0,25 m vì cỡ bàn chân ≈ 0,25–0,3 m và bề ngang thân người ≈ 0,45 m. Lệch dưới 0,25 m không đổi vị trí nhân vật so với đồ vật.
-- **Bước bắt dính theo cỡ cảnh,** vì cùng một độ lệch thì máy càng gần càng thấy rõ:
+**2.4 Bản đồ sàn.** Mỗi ô bắn 3 × 3 tia; vùng diễn 6 × 6 m quanh O và quanh đạo cụ bắn 4 × 4 (đo #24: lưới 3 × 3 bỏ lọt mép tường ở J8).
+- **Mỗi ô ghi:** `floor_z` (trung vị các điểm có pháp tuyến hướng lên, n_z ≥ 0,9), `top_z`, độ dốc, nhóm.
+- **Nhóm:** phân theo **từng điểm tia trúng**, dựa trên cao độ so với sàn và pháp tuyến. Không phân theo tên object, vì ở #24 quảng trường, tường và bậc là cùng một mesh. Tên chỉ dùng cho vật riêng: tháp, nhà, cây.
+- **Loại ô:**
+  - cùng mặt sàn: |floor_z| ≤ 0,15 m;
+  - bậc / tầng khác: lệch lớn hơn;
+  - vật chắn: cao hơn 0,3 m;
+  - có mái che.
+- Map có tầng rỗng bên dưới (#24: −6,18 m), nên tia đo dưới đạo cụ phải đo **trước khi** dựng khối thay thế.
 
-  | Cỡ cảnh | Máy cách nhân vật | Bước bắt dính |
-  |---|---|---|
-  | CU / MCU | ≈ 0,8–1 m | 0,05 m |
-  | MS / MLS | — | 0,1 m |
-  | WS / EWS | — | 0,25 m |
+## 3. K2 — Director viết dàn cảnh và yêu cầu khung (đầu vào chính)
 
-  Lý do: 0,1 m ở cách 0,8 m là lệch ≈ 7° trong khung; ở cách 4 m chỉ còn ≈ 1,4°.
-- **Đo sàn (mục 3):** trong vùng diễn (6 × 6 m quanh O và quanh từng đạo cụ) mỗi ô 1 m bắn lưới 4 × 4 tia (cách 0,25 m), để không lọt bậc, gờ, bồn cây hẹp hơn 1 m. Ngoài vùng diễn giữ 3 × 3.
-- **Ghi vị trí:** tọa độ (x, y, z), kèm ô chính chỉ để đọc ("K11, +0,30 Đông, +0,15 Bắc"). Không đặt tên ô phụ, vì tên ô phụ kiểu "K11.3.2" dễ đọc nhầm.
+**3.1 Dàn cảnh (`blocking.json`)** — một lần cho mỗi cảnh liên tục:
+- **Đạo cụ:** ô, hướng, kích thước kèm nguồn (kịch bản / Kho). Thiếu số thì hỏi người dùng, không tự đặt. Dạng đặc biệt (giếng rỗng) có cờ riêng.
+- **Nhân vật theo từng nhịp:**
+  - ô đứng, hướng mặt φ, tư thế (đứng / quỳ / ngã / trong giếng);
+  - chiều cao H lấy từ hồ sơ;
+  - người nộm cao H đặt tại `floor_z` của ô (trường hợp "trong giếng": chân ở `WELL_H − 0,72·H`).
+- **Cặp trục của từng nhịp** (A, B) và phía máy s₀, chọn ở shot mở.
 
-**2.4 Đường đo từ O** (ghi cho mọi vật: mốc, đạo cụ, nhân vật, máy):
-- khoảng cách ngang `d = √(x² + y²)`;
-- phương vị la bàn `β = atan2(x, y)` (0° = Bắc, 90° = Đông);
-- chênh cao `Δz = z`;
-- ô chứa vật.
+**3.2 Yêu cầu khung từng shot (`shot_specs.json`)** — đây là thứ quyết định máy:
+```json
+{"shot": 3,
+ "muc_dich": "thấy Kelly nhìn vào giếng và thứ trong giếng cùng lúc",
+ "co": "MS", "do_cao": "cao", "goc": "cúi",
+ "thanh_phan": [
+   {"vat": "yeunu", "vai": "chinh", "vung": "1/3 phải, 1/3 giữa", "thay": "mat", "co_pct": [15, 35]},
+   {"vat": "gieng", "vai": "chinh", "vung": "giữa dưới"},
+   {"vat": "kelly", "vai": "phu", "vung": "1/3 trái", "thay": "lung|nghieng"},
+   {"vat": "thap", "vai": "khong_duoc_co"}],
+ "nen": "cùng gia đình shot mở"}
+```
+- **vai:**
+  - `chinh` = bắt buộc trong khung, phần thấy ≥ ngưỡng, đúng vùng ± dung sai;
+  - `phu` = nên có, dùng để xếp hạng;
+  - `khong_duoc_co` = có thì hỏng.
+- **vung:** một trong 9 ô của lưới một phần ba, hoặc ghép 2 ô.
+- **thay:** mặt / lưng / nghiêng.
+- **co_pct:** khoảng % chiều cao khung.
+- **Cỡ cảnh (`co`) là cỡ của cả khung**, đo theo thứ `chinh` đầu tiên; không phải cỡ của một nhân vật bất kỳ. Đo #24: một "toàn cảnh" tính theo cỡ Kelly ra Kelly 52 % khung.
+- Director phải ghi lý do ở `muc_dich`. Code kiểm tính tự nhất quán trước khi giải: hai thứ `chinh` cùng một vùng mà xa nhau trên sàn → báo mâu thuẫn ngay.
 
-## 3. Bản đồ sàn (đo, không đoán)
+## 4. Tính cho từng vật
 
-Với mỗi ô, bắn k × k tia từ trên xuống (3 × 3; trong vùng diễn 4 × 4 = cách 0,25 m — mục 2.3b) và ghi:
-- `floor_z`: trung vị cao độ các điểm trúng có pháp tuyến hướng lên (n_z ≥ 0,9) — tức mặt ngang;
-- vật trúng: tên object và vật liệu, nhóm (tháp / nhà / tường / sàn / bậc / đạo cụ / khác);
-- độ dốc lấy từ pháp tuyến;
-- `top_z` của vật cao nhất trong ô.
+- **Điểm của nhân vật:**
+  - mắt `0,93·H`, ngực `0,72·H`, hông `0,53·H`, đỉnh đầu `H`, chân `0`;
+  - mỗi nhân vật có điểm đầu và điểm chân để đo cỡ, cộng khoảng 27 điểm phủ thân để đo % bị che.
+- **Điểm của đạo cụ:** tâm miệng, mép trên và đáy.
+- **Hướng thấy:** mặt nếu `|φ − hướng_tới_máy| ≤ 60°`, lưng nếu ≥ 120°, còn lại là nghiêng.
 
-Phân loại ô:
-- **cùng mặt sàn**: |floor_z| ≤ 0,15 m (đứng và đặt đồ được);
-- **bậc / tầng khác**: chênh lớn hơn 0,15 m;
-- **vật chắn**: tường, nhà hoặc khối cao hơn 0,3 m chiếm ô.
+## 5. Khung hình (dùng chung cho K3 và K4)
 
-Sàn quanh O dốc quá 2° thì báo: lúc này "mặt phẳng" chỉ còn là gần đúng.
+- **FOV:**
+  - `v = 2·atan(s_h / 2f)`, s_h là chiều cao cảm biến theo tỉ lệ khung của dự án (9:16 hoặc 16:9);
+  - `h` tính tương tự cho chiều ngang.
+- **Chiếu điểm P:**
+  - hệ máy (r̂, û, f̂): `x_c = (P−C)·r̂`, `y_c = (P−C)·û`, `z_c = (P−C)·f̂`;
+  - `u = 0,5 + x_c / (2·z_c·tan(h/2))`, `w = 0,5 − y_c / (2·z_c·tan(v/2))`;
+  - P có trong khung khi `z_c > 0`, `0 ≤ u ≤ 1`, `0 ≤ w ≤ 1`.
+- **Chân trời:** `w_h = 0,5 + tan(pitch) / (2·tan(v/2))`.
+- **Cỡ trong khung:** `|w_đầu − w_chân|` (hoặc phần thân trong khung với các cỡ cận).
 
-Đầu ra:
-- `grid.json`;
-- `topgrid.png`: ảnh nhìn từ trên, kẻ lưới, ghi tên ô, tô màu theo nhóm và cao độ, đánh dấu O, hướng Bắc và các mốc.
+## 6. K3 — Giải máy từ yêu cầu (thay cho dò mù)
 
-## 4. Dựng sân khấu (blocking) trong 3D
+Gọi A = thứ `chinh` thứ nhất, B = thứ `chinh` hoặc mốc thứ hai (nếu có).
 
-**4.1 Đạo cụ.**
-- Đặt bằng ô và hướng.
-- Kích thước lấy từ kịch bản hoặc hồ sơ Kho, kèm nguồn. Thiếu thì hỏi, không tự đặt.
-- Dựng **khối thay thế đúng cỡ** (giếng: trụ có đường kính và chiều cao thật) để render thấy được, tia đo trúng được.
-- Đáy đạo cụ đặt tại `floor_z` của ô.
-- Kiểm chân đế: mọi ô dưới đạo cụ phải cùng mặt sàn và không có vật chắn.
+**6.1 Khoảng cách từ cỡ.** Cỡ đích s (phần khung) và chiều cao thật của phần cần thấy h_A cho:
 
-**4.2 Nhân vật.**
-- Mỗi nhịp có: ô đứng, hướng mặt φ (độ la bàn), tư thế (đứng / quỳ / ngã).
-- Chiều cao H lấy từ hồ sơ nhân vật.
-- Dựng **người nộm** cao H tại `floor_z` của ô.
-- Các điểm nhìn dùng tỉ lệ nhân trắc học thông dụng, Bước 0 kiểm bằng người nộm:
-  - mắt `E = (x, y, floor_z + 0,93·H)`;
-  - ngực `0,72·H`;
-  - hông `0,53·H`.
-- Ô đứng phải cùng mặt sàn. Khác tầng thì báo, trừ khi kịch bản ghi rõ "đứng trên bậc".
+`D_A = h_A / (2·s·tan(v/2))`
 
-**4.3 Trục 180°.**
-- Mỗi nhịp có một cặp (A, B): hai nhân vật nhìn nhau, hoặc nhân vật và vật đang nhìn (giếng).
-- Vector trục `u = B − A` trên mặt ngang.
-- Phía của máy C: `s = dấu( (u × (C − A))_z )`.
-- Cảnh chọn một phía s₀ ở shot mở. Shot khác phía là vượt trục, chỉ được khi Director ghi lý do và là cú chuyển có chủ ý.
+Đây là khoảng cách từ máy tới A. Ống kính f mặc định theo cỡ; muốn nén hay giãn hậu cảnh thì đổi f, D_A tính lại.
 
-## 5. Tính máy quay bằng hình học
+**6.2 Phương vị từ vùng đích của 2 thứ — định lý góc nội tiếp.**
+- Góc ngang dưới đó máy thấy A và B: `γ = atan((u_B − 0,5)·2·tan(h/2)) − atan((u_A − 0,5)·2·tan(h/2))`.
+- Các điểm nhìn đoạn AB (trên mặt sàn, dài L) dưới cùng một góc γ nằm trên **một cung tròn**:
+  - bán kính `R = L / (2·sin γ)`;
+  - tâm nằm trên đường trung trực của AB, cách trung điểm `L / (2·tan γ)`.
+- Chọn **cung ở phía s₀ của trục**. Luật 180° vì thế chọn luôn lời giải, không cần kiểm sau.
+- Giao cung với đường tròn tâm A bán kính `D_A` (chiếu ngang) cho **tối đa 2 điểm C**. Chọn điểm thỏa yêu cầu "thấy" (mặt / lưng) và không đứng trong ô vật chắn.
+- **Chỉ có một thứ `chinh`:** B = mốc nền nếu yêu cầu có (thấy tháp ở vùng X), hoặc phương vị lấy từ yêu cầu "thấy mặt" (máy đặt ở `φ ± 30°` theo hướng mặt). Không có ràng buộc nào thì báo "thiếu ý đồ hướng", không tự chọn.
 
-**Đầu vào mỗi góc máy** (Director chỉ ghi ý đồ; code đổi ra số):
-- điểm nhắm T: mắt, ngực hoặc tâm nhóm;
-- hướng máy nhìn từ phía nào của nhân vật α (độ la bàn, nơi máy đứng);
-- cỡ cảnh (EWS…ECU);
-- độ cao định tính: thấp / ngang / cao / trên đầu;
-- ống kính f.
+- **Đã kiểm bằng số (09/10, Python thuần).** Đầu vào #24: Kelly ở (0; 0), yêu nữ ở (−0,28; 1,58), đích Kelly u = 0,33, yêu nữ u = 0,67, D_A = 2,4 m. Kết quả:
+  - 2 nghiệm đúng: C = (1,72; −1,68) và (−0,12; 2,40), chiếu lại ra đúng u = 0,330 / 0,670.
+  - Cung đối xứng cho ra góc ngược dấu, nên tự bị loại.
+  - Nghiệm (−0,12; 2,40) đứng sau lưng yêu nữ, bị loại theo yêu cầu "thấy mặt" (mục 4) và luật P1.
 
-**Các bước tính:**
-1. **Khung cần chứa.** Chiều cao `h_f` của phần thân trong khung lấy theo bảng cỡ cảnh sẵn có (`plate_camera` FRAMING/HEADROOM).
-   - FOV dọc `v = 2·atan(s_h / 2f)`, với s_h là chiều cao cảm biến theo tỉ lệ khung của dự án. FOV ngang `h` tính tương tự.
-   - Khoảng cách xiên `D = (h_f / 2) / tan(v / 2)`.
-2. **Độ cao máy so với sàn** h_c:
-   - ngang: bằng mắt;
-   - thấp: lấy từ 0,5·H, không sát đất;
-   - cao: mắt + 0,5–1 m;
-   - trên đầu: theo ý đồ.
-   - Ghi cả cao so với z = 0 và cao so với sàn ngay dưới máy.
-3. **Vị trí máy:**
-   - `C_xy = T_xy + D_h·(sin α, cos α)`;
-   - `C_z = floor_z(ô máy) + h_c`;
-   - D_h chọn sao cho `√(D_h² + (T_z − C_z)²) = D`.
-4. **Hướng nhìn.** `forward = (T − C)/|T − C|`. Góc cúi/ngửa thật: `pitch = atan2(T_z − C_z, D_h)`.
-5. **Kiểm chỗ đứng của máy:**
-   - ô máy phải đặt được: cùng mặt sàn, hoặc trên bậc có ghi rõ;
-   - máy không nằm trong vật: tia lên và tia xuống từ C đều phải gặp mặt ngoài.
+**6.3 Độ cao và cúi.**
+- Có vùng dọc đích của A: `pitch = ε_A − atan((0,5 − w_A)·2·tan(v/2))`, trong đó `ε_A = atan2(A_z − C_z, khoảng cách ngang)` là góc ngẩng từ máy tới A. Với độ cao máy theo lớp, giải ra pitch; hoặc cho pitch, giải ra `C_z`.
+- Không có vùng dọc thì theo lớp độ cao:
+  - ngang = bằng mắt;
+  - thấp = từ 0,5·H, không sát đất;
+  - cao = mắt + 0,5–1 m.
+- **Tinh chỉnh:** pitch khác 0 làm u lệch chút ít. Lặp 2–3 lần: chiếu lại A, B, chỉnh α và D cho đến khi lệch vùng ≤ 0,02 khung.
 
-## 6. Kiểm bằng phép chiếu và tia (thay cho "Claude nhìn render")
+**6.4 Đường lùi khi lời giải bị che hoặc đứng chỗ cấm.** Dò quanh lời giải: α ± 5° / 10° / 15°, D ± 10–20 %, độ cao ± 0,3 m. Khoảng 30 điểm, không phải 72 điểm mù. Giữ phương án lệch vùng ít nhất mà vẫn đạt. Hết đường lùi thì báo kiểu "giếng bị Kelly che ở mọi hướng 150–210° → đề xuất dời Kelly sang J11 hoặc đổi cỡ MCU".
 
-Hệ máy: phải `r̂`, lên `û`, trước `f̂`. Với mỗi điểm P: `x_c = (P−C)·r̂`, `y_c = (P−C)·û`, `z_c = (P−C)·f̂`.
-- **P có trong khung** khi `z_c > 0`, `|x_c/z_c| ≤ tan(h/2)` và `|y_c/z_c| ≤ tan(v/2)`.
-- **Vị trí P trên ảnh:**
-  - `u = 0,5 + x_c / (2·z_c·tan(h/2))`;
-  - `w = 0,5 − y_c / (2·z_c·tan(v/2))`.
-  - Áp cho chân/đỉnh tháp, mép giếng, đầu/chân từng nhân vật. Từ đó biết tháp ở đâu trong khung, nhân vật chiếm bao nhiêu phần trăm chiều cao khung, giếng cao ngang hông ai.
-- **Bị che:** bắn tia C → P. Trúng vật khác ở khoảng cách nhỏ hơn |P − C| − 0,05 m thì P bị che bởi vật đó (ghi tên vật).
-- **Thành phần khung:** bắn lưới khoảng 64 × 36 tia qua tâm các điểm ảnh. Mỗi tia ghi nhóm vật trúng (kể cả khối giếng, người nộm), không trúng gì thì là trời. Ra % tháp / nhà / tường / sàn / trời / giếng / từng nhân vật, kèm độ sâu gần nhất.
-- **Đường chân trời:** `w_h = 0,5 + tan(pitch) / (2·tan(v/2))` (pitch âm khi cúi). Đây là số thật, không cần mắt.
+**6.5 Hai giai đoạn kiểm.**
+- (a) Python thuần: chiếu các điểm, ra vùng / cỡ / trong khung, loại phương án sai ngay (mili giây).
+- (b) Blender chỉ chạy cho phương án còn lại: đo che khuất, thành phần khung, vật cản.
 
-## 6b. "Góc nhìn camera" — mỗi máy đều có ảnh xem trước (người dùng 09/10, theo mẫu Bàn đạo diễn)
+## 7. K4 — Luật kiểm (bằng số) + Góc nhìn camera
 
-Mỗi máy (ứng viên hoặc góc máy đã chọn) có **3 hình**, sinh tự động bằng Blender (0 USD). Ai cũng thấy máy đang nhìn gì trước khi vẽ ảnh.
-
-1. **Hình phác (clay):** render nhanh, xám đơn sắc (Workbench, ≈ 1–2 giây).
-   - Khối thay thế, người nộm và lưới sàn đều hiện, có nhãn tên ("Kelly", "Giếng", "Tháp").
-   - Vẽ chồng các đường hỗ trợ khung: lưới một phần ba, đường chân trời (vị trí lấy từ số `w_h` ở mục 6), vạch chừa trên đầu theo cỡ cảnh, vùng thanh trên của app (15 %).
-   - Đọc bố cục bằng mắt người trong 1 giây.
-2. **Hình nền thật:** render map có vật liệu và ánh sáng của cảnh (giờ, thời tiết). Đây là ảnh nền gửi cho model vẽ, có thêm khối giếng và người nộm.
-3. **Hình trên lưới:** trên `topgrid.png` vẽ thêm hình nón nhìn của máy (2 cạnh FOV ngang), mũi tên hướng và đường trục 180°. Thấy ngay máy ở phía nào và nhìn trùm những ô nào.
-
-**Lưu cùng bản ghi máy** (`setups.json`): đường dẫn 3 hình và bảng số mục 6–7 (% khung theo nhóm, vị trí các điểm, pitch, vật cản, luật đạt hoặc hỏng).
-
-**Sau khi vẽ ảnh:** đặt cạnh "Hình nền thật" với "Ảnh kết quả cuối" (bật tắt so sánh, như nút trong Bàn đạo diễn). QC bố cục bằng code (`core/plate_layout_qc.py`) so chân trời, vùng tường và đường nét của hai ảnh rồi đánh cờ "nền lệch render".
-
-**Về sau (Bàn đạo diễn 3D trong Dashboard, G3):** kéo máy, người, đồ trên lưới thì "Góc nhìn camera" cập nhật ngay. Cách tính dùng đúng các công thức ở mục 5–6, chỉ khác là chạy trên trình duyệt.
-
-## 7. Luật đạt / không đạt (kiểm bằng số)
-
-Mỗi luật có lý do. Ngưỡng có dấu ⚙ đặt từ số đo Bước 0, không đặt cảm tính.
-
-| # | Luật | Cách kiểm | Lý do |
-|---|---|---|---|
-| L1 | Máy đứng chỗ hợp lệ | mục 5 bước 5 | Máy trong tường hoặc ở tầng khác thì ra nền sai (shot 5 #24) |
-| L2 | Nhân vật chính thấy rõ | ≥ ⚙80 % tia nhắm vào người nộm trúng chính nó | Bị che thì model vẽ sai chỗ |
-| L3 | Đúng cỡ cảnh | % chiều cao khung của nhân vật trong ±⚙15 % so với bảng cỡ | Cỡ lệch thì ảnh lệch ý đồ |
-| L4 | Không vượt trục | `s = s₀`, trừ khi có lý do | Khán giả mất phương hướng |
-| L5 | Mốc đúng ý đồ | thấy mốc: tháp ≥ ⚙X % khung; không thấy mốc: 0 % | Ý đồ "thấy tháp / bỏ tháp" (shot 1, shot 3 #24) |
-| L6 | Cùng gia đình nền với shot mở | nhóm nền chiếm nhiều nhất trùng shot mở, hoặc góc ngược có ghi chủ ý | Cảnh liên tục, người xem không thấy phía chưa giới thiệu |
-| L7 | Cúi / ngửa đúng ý đồ | `pitch` thật: ngang \|pitch\| ≤ ⚙12°, cúi ≤ −⚙20°, ngửa ≥ ⚙8° | Lấy số thật, không lấy mắt model (máy −6° từng bị khai là "cúi") |
-| L8 | Khung không chỉ là một thứ | không nhóm nào > ⚙70 % khung, trừ khi ý đồ yêu cầu; shot cúi phải có đạo cụ hoặc nhân vật trong khung | Cúi nhìn sàn trống thì nền vô dụng (shot 2–3 #24) |
-| L9 | Không vật cản sát ống kính | vật gần nhất trước nhân vật ≥ ⚙0,3 m và không chiếm > ⚙10 % khung | Tường hoặc cột chắn trước ống kính |
-| L10 | Tỉ lệ đạo cụ / nhân vật | chiều cao giếng so với hông, ngực nhân vật lấy từ số thật của khối thay thế | Shot 7 #24 lệch tỉ lệ |
-
-## 8. Ứng viên và chọn
-
-1. Mỗi góc máy Director yêu cầu: code thử α theo bước 15° (24 hướng), 3 độ cao theo lớp góc, ống kính theo cỡ.
-2. Mỗi ứng viên chạy mục 5–7, ghi bảng số và render ảnh nhỏ (Blender, 0 USD).
-3. Bỏ ứng viên hỏng luật, ghi luật hỏng.
-4. Với ứng viên đạt, xếp hạng theo thứ tự ưu tiên của ý đồ Director (vd thấy giếng > thấy tháp > ánh sáng).
-5. Director chọn trong tối đa 3 ứng viên đạt đầu bảng, ghi lý do.
-6. **Không có ứng viên nào đạt:** báo rõ luật hỏng theo từng hướng và gợi ý dời ô máy hoặc ô nhân vật. Người dùng quyết. Không tự lùi về cách cũ một cách im lặng.
-7. Các shot cùng góc máy (cùng C, cùng hướng, cùng ống kính) dùng chung một render nền. Shot khác độ cao là góc máy khác.
-
-## 9. Dữ liệu lưu (mỗi dự án / cảnh)
-
-| File | Nội dung |
-|---|---|
-| `stage.json` | O (scene + model), θ Bắc + nguồn, c, N, floor tại O, độ dốc |
-| `grid.json` | mỗi ô: floor_z, top_z, nhóm, dốc |
-| `blocking.json` | đạo cụ (ô, tọa độ, cỡ, nguồn cỡ), nhân vật theo nhịp (ô, φ, tư thế, H), cặp trục, s₀ |
-| `setups.json` | mỗi góc máy: ý đồ, C, T, f, pitch, ô máy, các số kiểm L1–L10, ứng viên bị loại kèm lý do |
-| Ảnh | `topgrid.png` (lưới + O + mốc + đạo cụ + nhân vật + máy + đường trục), tấm ghép ứng viên |
-
-## 10. Những gì chưa biết — phải đo ở Bước 0, không giả định
-
-- **Hướng Bắc** của map #24 và nguồn của nó.
-- **Phân nhóm vật thể:** tên object/vật liệu trong map có phân được tháp / nhà / tường / sàn / bậc không. Không thì phải dùng cách khác (kích thước, chiều cao đỉnh).
-- **Các ngưỡng ⚙** ở mục 7: đo trên render #24 và trên các shot người dùng đã chê hoặc khen.
-- **Cỡ thật của giếng:** lấy từ kịch bản hoặc ảnh Kho 1127, ghi nguồn.
-- **Tỉ lệ điểm nhìn trên người nộm** (mắt, ngực, hông) so với hồ sơ nhân vật.
-
-## 11. Thứ tự làm
-
-| Bước | Việc | Chi phí |
+**7.1 Luật vật lý** (mọi shot):
+| Mã | Luật | Kiểm |
 |---|---|---|
-| 0 | Đo: lưới, sàn, nhóm vật thể, O, khối giếng, người nộm, 2 góc thử | 0 USD |
-| 1 | `core/stage_grid.py` (hình học thuần, có test) + `tools/stage_grid.py` (Blender) | 0 USD |
-| 2 | Đo khung bằng tia, luật L1–L10, ứng viên | 0 USD |
-| 3 | Director viết ý đồ theo ô và chọn ứng viên; gỡ "Claude duyệt render" của G0 | Claude ≈ vài cent mỗi cảnh, báo trước |
-| 4 | #24: tấm ghép cho người dùng duyệt, rồi mới vẽ ảnh | báo giá |
+| P1 | Máy đứng chỗ hợp lệ | ô máy đặt được; tia lên / xuống gặp mặt ngoài (máy không nằm trong vật). Đo #24: shot 4 cũ có máy nằm trong khối giếng |
+| P2 | Không vật cản sát ống kính | vật gần nhất trước thứ `chinh` ≥ 0,3 m và chiếm ≤ 10 % khung |
+| P3 | Cúi / ngửa đúng ý đồ | pitch thật: ngang \|p\| ≤ 12°, cúi ≤ −20°, ngửa ≥ 8°. Đo #24: shot 3 khai "ngang" nhưng thật là −35° |
+| P4 | Tỉ lệ đạo cụ / người | đo trên khối thay thế (giếng ÷ hông = 1,00 ở #24) |
 
-## 12. Kết quả Bước 0 trên #24 (09/10, 0 USD) — phương pháp LÀM ĐƯỢC
+**7.2 Luật yêu cầu** (sinh từ `shot_specs`):
+| Mã | Luật | Kiểm |
+|---|---|---|
+| S1 | Thứ `chinh` có trong khung và thấy rõ | phần thấy ≥ ngưỡng (người 60 %, đạo cụ 50 %; trường hợp "trong giếng" tính trên phần trên miệng giếng) |
+| S2 | Đúng vùng | tâm thứ đó nằm trong vùng đích ± 0,08 khung |
+| S3 | Đúng cỡ | cỡ trong khoảng `co_pct` |
+| S4 | Đúng hướng thấy | mặt / lưng / nghiêng theo mục 4 |
+| S5 | Không có thứ `khong_duoc_co` | phần thấy = 0 % |
+| S6 | Khung không bị một thứ ngoài yêu cầu nuốt hết | một nhóm ngoài danh sách (sàn / tường / trời) > 70 % → hỏng. Đo #24: máy cao đặt tay 3,4 m cho sàn 84,5 % |
 
-Code nằm ở nhánh `stage-grid-s0`, commit `40f9c69`, chưa gộp: `core/stage_grid.py`, `tools/stage_grid.py`, 14 test. Ảnh và số đo ở `data/projects/24/stage_s0/`.
+**7.3 Luật liên tục** (giữa các shot trong cảnh):
+| Mã | Luật | Kiểm |
+|---|---|---|
+| C1 | Trục 180° | đã khóa ở 6.2; chỉ kiểm lại khi người dùng chỉnh tay |
+| C2 | Gia đình nền | nhóm nền lớn nhất trùng shot mở, trừ khi `nen` ghi góc ngược có chủ ý |
+| C3 | Dùng lại góc máy | hai shot có cùng C, hướng nhìn, ống kính (lệch ≤ 0,05 m, 1°) dùng chung một render |
 
-- **Gốc O và sàn.**
-  - O nằm trên mesh sàn quảng trường; sàn dốc 0,02°.
-  - Lưới 20 × 20: 378 ô cùng mặt sàn, 22 ô tầng khác (mái nhà), 48 ô có vật chắn (tường thấp 0,95 / 1,43 / 1,68 m chạy chéo, thùng dầu ở K7), 15 ô có mái che.
-  - Lưới 4 × 4 bắt được mép tường ở ô J8 mà lưới 3 × 3 bỏ lọt, nên lưới mịn 0,25 m ở vùng diễn là cần thiết.
-- **Phân nhóm vật thể.**
-  - Tên object phân được tháp, nhà, cây.
-  - Quảng trường, tường thấp và bậc lại là MỘT mesh, nên phải phân theo từng điểm tia trúng: cao độ so với sàn cộng pháp tuyến (`group_by_hit`).
-- **Hình học khớp render.** Đã so trên hình phác và render:
-  - phép chiếu đặt nhãn tháp, Kelly, giếng đúng chỗ;
-  - đường chân trời tính bằng số trùng đường chân trời trong render;
-  - tháp: 16,04 m về phía Bắc O.
-- **Đo khung bằng tia.**
-  - Góc (a) toàn cảnh: trời 40,5 %, sàn 25,5 %, tháp 25,3 %. Kelly chiếm 17,7 % chiều cao khung, thấy 100 %. Chân yêu nữ bị giếng che (chỉ thấy 67 %).
-  - Góc (b) máy cao cúi, tính theo công thức mục 5: sàn 57 %, giếng 14,3 %, Kelly 7,5 %.
-  - Khi đặt máy cao 3,4 m bằng tay: sàn chiếm 84,5 %, chỉ còn thấy chân Kelly, đúng kiểu hỏng "một màu" của shot 2. Luật L8 bắt được lỗi này.
-- **Tỉ lệ đạo cụ.** Đỉnh giếng ÷ hông Kelly = 1,00 (Kho 420 ghi "cao ngang hông").
-- **Tốc độ.** Hình phác 0,2–0,4 s; nền thật 3–4 s; một lượt Blender ≈ 22 s.
-- **Bất ngờ:**
-  - spot `plaza_front` thấp hơn sàn thật 0,45 m, nên plate cũ đặt chân nhân vật dưới mặt quảng trường;
-  - dưới quảng trường có tầng rỗng sâu −6,18 m;
-  - map xoay khoảng 30° so với lưới;
-  - hướng Bắc chưa có nguồn trong game (đang dùng +y của model).
-- **Chưa có:** ngưỡng ⚙ của luật. Cần đo thêm trên các shot người dùng đã chê và đã khen.
+**Ngưỡng:**
+- Các số trên lấy từ đo #24 và từ phim thật.
+- Hiệu chỉnh tiếp từ phản hồi người dùng: mỗi lần duyệt tấm ghép, ghi "đạt / chê + lý do" vào `stage_feedback.jsonl`.
+- Ngưỡng chỉ đổi khi có ≥ 3 phản hồi cùng chiều. Không đổi theo một ca lẻ.
 
-**Người dùng quyết 09/10 sau Bước 0:**
-1. **Sửa spot `plaza_front` lên đúng mặt sàn** (đo bằng tia). Render nền lại tốn 0 USD; ảnh đã vẽ ở chỗ này bị đánh dấu lỗi thời.
-2. **Bắc = trục +y của model.** Đồng ý.
-3. **Giếng giữ cỡ đang dùng:** cao 0,9 m, đường kính 1,5 m.
-4. **Yêu nữ giữ 1,7 m.**
-5. **Nhãn trên hình phác:**
-   - Điểm ngoài khung không được chấm trong ảnh, vì gây hiểu lầm (tháp và yêu nữ ở `view_b`). Thay bằng mũi tên xám sát mép khung chỉ về hướng vật, kèm chữ "… ngoài khung".
-   - Điểm sau lưng máy (z_c ≤ 0) không vẽ, chỉ ghi vào bảng.
-   - Điểm trong khung nhưng bị che vẽ chấm rỗng, kèm "(bị che bởi …)".
+**7.4 Góc nhìn camera.** Mỗi máy có 3 hình:
+1. **Hình phác clay**, khoảng 0,2–0,4 s:
+   - người nộm và đạo cụ có nhãn;
+   - lưới một phần ba, chân trời, vạch chừa đầu, vùng thanh trên 15 %;
+   - **vẽ vùng đích của từng thứ `chinh`** để thấy ngay khung lệch bao nhiêu.
+2. **Nền thật**, khoảng 3–4 s: có vật liệu, giờ, thời tiết, khối thay thế.
+3. **Hình nón trên lưới:** hình nón nhìn, đường trục, phía s₀.
 
-## 13. Kết quả Bước 1–2 trên #24 (09/10, 0 USD, nhánh `stage-s1` `02ebf0a`, đã gộp main)
-- **Nhãn hình phác:** `point_state` chia 4 trạng thái: trong khung / bị che (chấm rỗng) / ngoài khung (mũi tên ở mép) / sau máy (chỉ ghi bảng).
-- **Spot `plaza_front`:** z 9,38 → 9,83 (tia chạm CLK_OUT_Base002), đã ghi vào CSDL máy chính. Có bản sao CSDL trước khi sửa.
-- **9 shot #24 đo bằng số** (camera cũ, theo spot cũ):
-  - đỉnh đầu Kelly lọt ra ngoài mép trên ở 8/9 shot;
-  - shot 4: máy nằm trong khối giếng;
-  - shot 3: khai "ngang" nhưng thật ra máy cúi −35°;
-  - vật cản = 0 ở cả 9 shot, nên lỗi "tường cao che" (shot 4/5) chưa tái hiện được, có thể vì camera cũ khác camera hiện tại.
-- **Ứng viên (72 mỗi yêu cầu):**
-  - R1 toàn cảnh mở: 10 đạt, #1 = 195° / 1,43 m / −5,8°;
-  - R2 qua vai cúi: 2 đạt;
-  - R3 góc ngược: 7 đạt.
-  - Luật hay hỏng: L5 (mốc), L6 (gia đình nền), L3 (cỡ), L4 (trục).
-- **Còn chờ duyệt:**
-  - ngưỡng ⚙ đang là tạm (`RULE_TH`);
-  - L5 thêm điều kiện "thấy mặt / lưng ≤ 60°";
-  - L8 không tính nhóm người;
-  - R1 cho Kelly chiếm khoảng 52 % chiều cao khung, ở tiền cảnh quay lưng che giếng. Đó là cỡ WS chứ chưa phải "toàn cảnh" thật; Director cần chọn cỡ EWS hoặc Kelly lệch một phần ba.
-- **Spot `level_9_4`** (z 9,376) có thể cũng thấp như `plaza_front`, phải đo trước khi dùng.
+**Nhãn:**
+- trong khung → chấm đặc;
+- bị che → chấm rỗng kèm "(bị che bởi …)", **chỉ vẽ cho thứ `chinh` và `phu`**;
+- ngoài khung → mũi tên ở mép;
+- sau máy → không vẽ.
 
-## 14. Người dùng chốt 09/10: mỗi góc máy có MỤC ĐÍCH cụ thể — Director quyết thành phần khung, code tìm máy đạt
-Thay cho hai luật chung "L5 thấy mặt/lưng ≤ 60°" và "L8 không tính người": luật không còn đoán chung chung "khung nên có gì". **Director quyết cho từng shot**:
-- **Trong khung có gì:** danh sách vật/nhân vật.
-  - Mỗi thứ có vai: `chính` (đang focus, BẮT BUỘC có trong khung, không bị che) / `phụ` (nên có) / `không được có` (vd tháp trong góc ngược).
-- **Mỗi thứ nằm ở đâu trong khung:** vùng đích theo lưới một phần ba (vd Kelly ở 1/3 trái, giếng ở giữa dưới, yêu nữ ở 1/3 phải trên mép giếng), cỡ (% chiều cao khung), và thấy gì (mặt / lưng / nghiêng). Điểm nhân vật quay mặt về phía máy được tính bằng hướng mặt φ so với hướng máy.
-- **Mục đích của góc máy:** một câu nói khán giả cần thấy điều gì (vd "thấy Kelly nhìn vào giếng và thứ trong giếng cùng lúc").
+Sau khi vẽ ảnh: so "nền thật" với ảnh kết quả bằng `plate_layout_qc`, đánh cờ nền lệch.
 
-**Code** dùng phép chiếu ở mục 6 để đo từng thứ: có trong khung không, % bị che, rơi vào vùng nào, cỡ bao nhiêu, quay mặt hay lưng. Ứng viên **chỉ đạt khi mọi thứ `chính` đúng yêu cầu và không có thứ `không được có`**. Thứ `phụ` và độ lệch vùng đích dùng để xếp hạng.
+## 8. K5 — Người duyệt
+- **Tấm ghép cho cả cảnh, mỗi shot gồm:** mục đích, hình phác có vùng đích, nền thật, các luật đạt.
+- **Sửa bằng câu ngắn,** Director đổi thành sửa `blocking` hoặc `shot_specs`, rồi chạy lại K3–K4 (0 USD). Ví dụ:
+  - "Kelly lùi 1 m";
+  - "yêu nữ sang 1/3 trái";
+  - "bỏ tháp".
+- Chỉ sau khi duyệt mới vẽ ảnh, và báo giá trước.
 
-Không ứng viên nào đạt → báo thứ nào hỏng ở hướng nào (vd "giếng bị Kelly che ở mọi hướng 150–210°"), rồi đề xuất dời chỗ đứng hoặc đổi cỡ. Không nới luật một cách im lặng.
+## 9. Dữ liệu và code
+| Thứ | Nơi |
+|---|---|
+| Hình học thuần (ô ↔ tọa độ, chiếu điểm, cung góc nội tiếp, lời giải máy, luật) | `core/stage_grid.py` (+ module giải máy khi làm K3) |
+| Blender: đo sàn, dựng khối, đo bằng tia, clay, nền thật | `tools/stage_grid.py` |
+| Dữ liệu cảnh | `data/projects/<pid>/stage/`: `stage.json`, `grid.json`, `blocking.json`, `shot_specs.json`, `setups.json`, `stage_feedback.jsonl`, ảnh |
+| Cache sân khấu | theo (sha map, place, spot): tính lại khi map đổi |
 
-Giữ các luật vật lý (L1 máy đứng chỗ hợp lệ, L4 trục, L7 cúi/ngửa đúng ý đồ, L9 vật cản sát ống kính, L10 tỉ lệ). L5/L6/L8 trở thành hệ quả của yêu cầu Director, không còn là luật chung.
+## 10. Thứ tự làm (từ trạng thái hiện tại)
+| # | Việc | Chi phí |
+|---|---|---|
+| V1 | Bộ giải máy K3 (mục 6) + luật S1–S6 thay L5/L6/L8; nhãn chỉ cho `chinh`/`phu`; vẽ vùng đích lên clay | 0 USD |
+| V2 | Thử V1 trên #24 bằng `shot_specs` viết tay cho 9 shot (lấy từ góp ý của người dùng). So với 72 điểm dò mù: số đạt, độ lệch vùng, thời gian | 0 USD |
+| V3 | Director viết `blocking` + `shot_specs` (prompt dạng cách nghĩ có lý do), thay phần "Claude duyệt render" của G0 | Claude ≈ vài cent mỗi cảnh, báo trước |
+| V4 | #24: tấm ghép → người duyệt → báo giá vẽ lại shot 1–9 | báo giá |
+| V5 | Nối vào luồng (sau cờ), đo `level_9_4` và các chỗ đứng khác, Bàn đạo diễn 3D (G3) | 0 USD |
 
-**Thử yêu nữ trong giếng (09/10, `--yeunu-in-well`, 0 USD).** Giếng rỗng, yêu nữ đứng ở tâm giếng, chân ở z = −0,32 m, ngực ngang miệng giếng. Ảnh ở `data/projects/24/stage_s1b/`.
-- **R2 (qua vai, cúi):** thấy yêu nữ 30–33 % (đầu, vai, và phần thân trong lòng giếng vì máy cao nhìn xuống được); giếng che 56 %. Đúng ý đồ.
-- **R1 (toàn cảnh mở):** cả 3 phương án top-3 vẫn **đạt luật chung**, nhưng yêu nữ gần như bị Kelly che:
-  - #2: chỉ thấy 4 %;
-  - #1 và #3: thấy 19 %.
+---
 
-  Lần thử này **chứng minh mục 14 là cần thiết**: luật chung không biết ai là đối tượng chính. Khi Director ghi yêu nữ là `chính`, các phương án này phải bị loại.
-- **R1 đặt máy quá sát Kelly** (Kelly chiếm khoảng 52 % chiều cao khung) cho một "toàn cảnh". Cỡ cảnh của yêu cầu phải là cỡ của khung chứ không phải cỡ của Kelly; Director phải ghi vùng đích của từng thứ.
-- **Nhãn:** điểm ở xa bị che (chân tháp sau người) làm rối ảnh. Chỉ nên vẽ nhãn "bị che" cho thứ `chính` và `phụ`.
+## Phụ lục A — Số đo thật #24 (09/10, 0 USD)
+- **Bước 0** (`40f9c69`):
+  - O nằm trên CLK_OUT_Base002, sàn dốc 0,02°;
+  - lưới 400 ô: 378 cùng mặt sàn, 22 tầng khác, 48 vật chắn, 15 có mái che;
+  - hình học khớp render (nhãn, chân trời, tháp 16,04 m phía Bắc);
+  - clay 0,2–0,4 s, nền thật 3–4 s, một lượt Blender ≈ 22 s.
+- **Bước 1–2** (`02ebf0a`):
+  - spot `plaza_front` đã nâng 9,38 → 9,83 (có bản sao CSDL trước khi sửa);
+  - 9 shot cũ: đỉnh đầu Kelly lọt ra ngoài khung 8/9 shot, máy shot 4 nằm trong giếng, shot 3 cúi −35°, vật cản bằng 0;
+  - dò 72 điểm mù: R1 10 đạt, R2 2 đạt, R3 7 đạt.
+- **Yêu nữ trong giếng** (`4aa946d`):
+  - R2 (qua vai, cúi) thấy yêu nữ 30–33 %, đúng ý đồ;
+  - R1 (toàn cảnh mở) "đạt luật chung" mà yêu nữ chỉ thấy 4–19 %, bị Kelly che. Đây là lý do có v2: Director ghi thứ `chinh`, máy được giải từ yêu cầu.
+- **Người dùng quyết 09/10:**
+  - sửa spot `plaza_front`; Bắc = +y của model;
+  - giếng cao 0,9 m, đường kính 1,5 m; yêu nữ cao 1,7 m;
+  - nhãn ngoài khung vẽ thành mũi tên ở mép;
+  - luật theo yêu cầu của Director.
+- **Chưa tái hiện được:** lỗi "tường cao che" của shot 4 và 5. Có thể ảnh người dùng chê được vẽ từ camera cũ, khác camera hiện tại.
 
+## Phụ lục B — Vì sao bỏ cách G0 cũ
+G0 cũ để Director đoán phương vị máy khi không thấy sân khấu: giếng và nhân vật không có trong 3D. Sau đó Claude nhìn render để phán những điều code đã biết bằng số; máy nghiêng −6° bị khai là "cúi". Chạy thật tốn ≈ 0,37 USD và lộ ra 4 lỗi cùng một gốc. Phần còn dùng được: sơ đồ cảnh, góc máy dùng lại, luật trục / gia đình nền (cờ `director_camera_plan` vẫn TẮT).

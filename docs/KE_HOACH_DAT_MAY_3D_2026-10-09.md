@@ -20,7 +20,7 @@ Nhánh nền đã có (CHƯA GỘP, chưa rà): `worktree-agent-ab5a90511a3b9ff7
 - `clearance_fix()` + bắn tia trong `tools/render_plates.py` (chưa chạy thật).
 Các đợt dưới dựng TIẾP trên nhánh này.
 
-> **Phương pháp đầy đủ: `docs/PHUONG_PHAP_SAN_KHAU_3D.md`** (nguồn chuẩn; mục dưới là tóm tắt).
+> **Phương pháp đầy đủ: `docs/PHUONG_PHAP_SAN_KHAU_3D.md` v2** (nguồn chuẩn: máy GIẢI từ yêu cầu khung của Director bằng định lý góc nội tiếp, dò quanh lời giải chỉ là đường lùi; thứ tự làm V1–V5 ở mục 10). Mục dưới là lịch sử.
 
 ## 🔁 ĐỔI HƯỚNG 09/10 tối (người dùng): "dựng sân khấu có lưới ô rồi mới đặt máy, đo bằng số" — thay cách vá G0
 Người dùng: *"vẫn đang lặp lại tình trạng có lỗi thì sửa chứ không phải tìm ra cách làm đúng"*; *"sân khấu cũng cần tọa độ kẻ các ô thành hệ lưới để xác định vị trí chính xác"*.
