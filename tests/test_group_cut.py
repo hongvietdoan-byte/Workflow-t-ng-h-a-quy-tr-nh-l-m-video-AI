@@ -211,15 +211,36 @@ class Step4PanelTests(unittest.TestCase):
         at = AppTest.from_file(os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py"), default_timeout=60).run()
         at.radio(key="step").set_value(at.radio(key="step").options[3]).run()
         self.assertFalse(at.exception, at.exception)
-        box = at.number_input(key=f"gcut_{jobs[1]}_0")
-        box.set_value(REAL_CUT).run()
-        at.button(key=f"gcut_go_{jobs[1]}").click().run()
-        self.assertFalse(at.exception, at.exception)
-        self.assertAlmostEqual(ffmpeg_studio.probe_duration(os.path.join(vdir, "08.mp4")), REAL_CUT, delta=0.06)
-        self.assertEqual(seedance_refs.saved_cuts(os.path.join(vdir, "08_group.mp4"))["cuts"], [REAL_CUT])
-        codes = [r["code"] for r in Pipeline(connect(db)).conn.execute("SELECT code FROM diag_events WHERE project_id=?", (pid,))]
-        self.assertIn("group_recut_by_user", codes)
+        # 09/10 (người dùng): the "✂ Điểm cắt clip nhóm" bar is no longer on the clip card (seedance_refs.recut stays — tested above)
+        self.assertFalse([w for w in at.number_input if str(w.key).startswith("gcut_")])
+        self.assertFalse([b for b in at.button if str(b.key).startswith("gcut_go_")])
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DraftPreviewTests(unittest.TestCase):
+    """09/10 (người dùng): "chưa có nút gộp xem bản draft" — clips still in review are put together to watch (0 USD, not a delivery)."""
+    def test_pending_clips_are_put_together(self):
+        import tempfile
+        from core import final_cut
+        p = Pipeline(connect())
+        pid = p.create_project("t", aspect="9:16")
+        data = tempfile.mkdtemp()
+        vdir = os.path.join(data, str(pid), "videos")
+        os.makedirs(vdir)
+        for idx in (1, 2):
+            sid = p.create_scene(pid, idx, f"S{idx}")
+            jid = p.create_job(sid, "video_gen")
+            path = os.path.join(vdir, f"{idx:02d}.mp4")
+            shutil.copyfile(FIXTURE, path)
+            p.conn.execute("UPDATE jobs SET state='pending_review', result_path=? WHERE id=?", (path, jid))
+        p.create_scene(pid, 3, "S3")                                        # no clip yet
+        p.conn.commit()
+        res = final_cut.draft_preview(p, data, pid)
+        self.assertTrue(os.path.exists(res["path"]))
+        self.assertEqual(res["shots"], [1, 2])
+        self.assertEqual(res["missing"], [3])
+        self.assertGreater(ffmpeg_studio.probe_duration(res["path"]), 0)
+        self.assertEqual(p.conn.execute("SELECT COUNT(*) FROM outputs").fetchone()[0], 0)   # never a delivery

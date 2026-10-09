@@ -226,6 +226,7 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
             with st.expander(f"👄 Khớp môi: {len(notes)} shot không có khớp môi sau (không dùng sync.so)"):
                 for i, n in notes:
                     st.caption(f"{C.unit_code(p, pid, i)}: {n}")
+    _draft_preview(p, pid)                               # 09/10: ghép xem cả bản nháp (0 USD), trước khi duyệt / gen bản cao
     from dashboard import quality_ui                      # N4: nút gom "⬆ Gen bản cao N cảnh — ≈ X USD (tham khảo)"
     if quality_ui.enabled():
         quality_ui.batch_block(p, pid, runner)
@@ -528,8 +529,7 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
                              help="Bạn là người quyết định cuối: giữ clip QC đã loại, hủy lần gen lại đang chờ (không tốn thêm credit)."):
                     if act(lambda: p.keep_rejected(keep["id"]), "Đã giữ clip"):
                         st.rerun()
-        _other_takes(p, j)
-        group_cut_panel(p, j)
+        _take_versions(p, j)     # 09/10 (người dùng): chip v1 v2 v3 như thẻ ảnh; bỏ thanh "✂ Điểm cắt clip nhóm" khỏi thẻ
         scene_expander(p, j["scene_id"], with_motion=True)
 
 
@@ -575,27 +575,63 @@ def group_cut_panel(p: Pipeline, j) -> None:
                 st.rerun()
 
 
-def _other_takes(p: Pipeline, j) -> None:
-    """KLD-2 (08/10): the shot's other takes that still have their own file — the person picks the one the chain / the cut use
-    (#22: rows 560 ↔ 569 were swapped by hand, the QC scores then belonged to the other file)."""
+def _draft_preview(p: Pipeline, pid: int) -> None:
+    """09/10 (người dùng: "chưa có nút gộp xem bản draft"): một nút ghép bản đang dùng của mọi shot — kể cả nháp / chờ duyệt — thành
+    một video để xem trọn bộ (core.final_cut.draft_preview, 0 USD, không phải bản giao)."""
+    from core import final_cut
+    out = os.path.join(C.DATA, str(pid), "output", "xem_nhap.mp4")
+    if st.button("🎞 Ghép xem bản nháp (0 USD)", key=f"draft_cut_{pid}",
+                 help="Ghép nhanh clip đang dùng của từng shot (cả nháp, cả bản chờ duyệt) theo thứ tự để xem trọn phim — không nhạc, "
+                      "không phải bản giao, không tốn credit."):
+        res = []
+        if act(lambda: res.append(final_cut.draft_preview(p, C.DATA, pid, out))) and res:
+            st.session_state[f"draft_cut_info_{pid}"] = res[0]
+    info = st.session_state.get(f"draft_cut_info_{pid}")
+    if info and os.path.exists(info["path"]):
+        st.caption(f"Bản ghép xem: {len(info['shots'])} shot · {info['seconds']:.1f} s"
+                   + (f" · thiếu clip shot {', '.join(str(i) for i in info['missing'])}" if info["missing"] else ""))
+        show_video(info["path"])
+
+
+def _take_versions(p: Pipeline, j) -> None:
+    """09/10 (người dùng, #24): các bản gen của shot còn tệp riêng = chip v1 v2 v3… như thẻ ảnh (thay expander "🎞 Bản khác của shot").
+    Bấm một chip → xem bản đó ngay dưới hàng chip + "✔ Dùng bản này cho shot" (KLD-2: chọn bản cho chuỗi nối và bản dựng, 0 USD).
+    Chip đậm = bản đang dùng cho shot."""
     from core import takes
     from dashboard.design.screens import older_take_ui
-    others = takes.candidates(p.conn, j["scene_id"])
-    if not others:
+    cur = takes.used(p.conn, j["scene_id"])
+    rows = sorted(list(takes.candidates(p.conn, j["scene_id"])) + ([cur] if cur is not None else []), key=lambda r: r["id"])
+    if len(rows) < 2:
         return
-    with st.expander(f"🎞 Bản khác của shot ({len(others)}) — chọn bản dùng cho chuỗi nối và bản dựng"):
-        for o in others:
-            kept = qc_scores(p, o["id"])
-            mean = sum(s["score"] for s in kept) / len(kept) if kept else None
-            st.caption(f"Job {o['id']} · {ui.state_label(o['state'], 'video_gen')}" + (f" · QC {mean:.2f}" if mean is not None else "")
-                       + (f" · {model_router.job_label(p.conn, o['id'], o['model'])}" if o["model"] else ""))
-            show_video(o["result_path"])
-            if o["state"] in older_take_ui.USABLE:      # 08/10: the newer takes are closed without a redo; asks first if the used one is approved
-                older_take_ui.use_button(p, o, takes.used(p.conn, j["scene_id"]), label="✔ Dùng bản này cho shot", key=f"vuse_{o['id']}")
-            elif st.button("✔ Dùng bản này cho shot", key=f"vuse_{o['id']}",
-                         help="Tệp của bản này thành clip của shot; bản đang dùng vào thùng rác (vẫn chọn lại được). Không tốn credit."):
-                if act(lambda: takes.choose(p, C.DATA, o["id"]), "Đã đổi bản dùng cho shot"):
-                    st.rerun()
+    key = f"vtake_{j['scene_id']}"
+    ids = [r["id"] for r in rows]
+    pick = st.session_state.get(key)
+    if pick not in ids:
+        pick = cur["id"] if cur is not None else ids[-1]
+    st.caption(f"🎞 {len(rows)} bản của shot — chip đậm là bản đang dùng; bấm để xem / chọn bản khác (0 USD)")
+    with st.container(key=f"vtakes-{j['scene_id']}"):
+        cols = st.columns(len(rows), gap="small")
+        for col, r, n in zip(cols, rows, range(1, len(rows) + 1)):
+            used_now = cur is not None and r["id"] == cur["id"]
+            if col.button(f"v{n}", key=f"vtk_{j['scene_id']}_{r['id']}", type="primary" if used_now else "secondary",
+                          help=f"Job {r['id']} · {ui.state_label(r['state'], 'video_gen')}" + (" · đang dùng" if used_now else "")):
+                st.session_state[key] = r["id"]
+                st.rerun()
+    o = next(r for r in rows if r["id"] == pick)
+    if cur is not None and o["id"] == cur["id"]:
+        return                                   # the card above already plays the take in use
+    kept = qc_scores(p, o["id"])
+    mean = sum(s["score"] for s in kept) / len(kept) if kept else None
+    st.caption(f"v{ids.index(o['id']) + 1} · job {o['id']} · {ui.state_label(o['state'], 'video_gen')}"
+               + (f" · QC {mean:.2f}" if mean is not None else "")
+               + (f" · {model_router.job_label(p.conn, o['id'], o['model'])}" if o["model"] else ""))
+    show_video(o["result_path"])
+    if o["state"] in older_take_ui.USABLE:      # 08/10: the newer takes are closed without a redo; asks first if the used one is approved
+        older_take_ui.use_button(p, o, cur, label="✔ Dùng bản này cho shot", key=f"vuse_{o['id']}")
+    elif st.button("✔ Dùng bản này cho shot", key=f"vuse_{o['id']}",
+                   help="Tệp của bản này thành clip của shot; bản đang dùng vào thùng rác (vẫn chọn lại được). Không tốn credit."):
+        if act(lambda: takes.choose(p, C.DATA, o["id"]), "Đã đổi bản dùng cho shot"):
+            st.rerun()
 
 
 def experiments_panel(p: Pipeline, pid: int, runner) -> None:

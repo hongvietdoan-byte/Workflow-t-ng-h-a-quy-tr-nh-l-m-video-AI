@@ -204,6 +204,8 @@ class KldVideoScreenTests(VideoSeed):
         self.p.conn.commit()
         self.p.succeed(new)
         at = self.open_video()
+        # 09/10: the takes are chips v1 v2… (like the picture cards) — pick the older one first, then use it
+        next(b for b in at.button if b.key == f"vtk_{scene}_{old}").click().run()
         btn = next(b for b in at.button if b.key == f"vuse_{old}")
         btn.click().run()
         self.assertFalse(at.exception, at.exception)

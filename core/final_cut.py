@@ -106,6 +106,35 @@ def preview_with_music(pipeline: Pipeline, data_dir: str, project_id: int, music
                                        keep_audio=keep_audio)
 
 
+def draft_preview(pipeline: Pipeline, data_dir: str, project_id: int, out_path: Optional[str] = None) -> Dict:
+    """09/10 (người dùng: "chưa có nút gộp xem bản draft"): ghép NHANH bản đang dùng của từng shot theo thứ tự — kể cả nháp / chờ
+    duyệt (bản giao chỉ lấy clip duyệt) — để xem trọn bộ trước khi duyệt. Chỉ để xem: không ghi `outputs`, không nhạc, giữ khung dự án,
+    0 USD (ffmpeg). {"path", "shots": [idx…], "missing": [idx…], "seconds"}."""
+    from . import takes
+    from .formats import canvas, project_aspect
+    conn = pipeline.conn
+    paths, shots, missing, durs = [], [], [], []
+    for r in conn.execute("SELECT id, idx FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall():
+        t = takes.used(conn, r["id"])
+        path = t["result_path"] if t is not None else None
+        if t is None or t["state"] in ("failed", "cancelled", "rejected", "queued", "running") or not path or not os.path.exists(path):
+            missing.append(r["idx"])
+            continue
+        paths.append(path)
+        shots.append(r["idx"])
+        durs.append(clip_seconds(path, None))
+    if not paths:
+        raise ValueError("chưa có clip nào (kể cả nháp) để ghép xem")
+    out = out_path or os.path.join(data_dir, str(project_id), "output", "xem_nhap.mp4")
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    try:
+        size = tuple(canvas(project_aspect(pipeline.project(project_id))))
+    except Exception:  # noqa: BLE001 - no frame spec: the clips' own size
+        size = None
+    ffmpeg_studio.render_final(paths, out, durs, "cut", 1.0, None, keep_audio=False, size=size)
+    return {"path": out, "shots": shots, "missing": missing, "seconds": round(sum(durs), 2)}
+
+
 def total_seconds(durations: List[float], transition: str, fade: float) -> float:
     total = sum(durations)
     return total - fade * (len(durations) - 1) if transition in ffmpeg_studio.OVERLAP_STYLES and durations else total
