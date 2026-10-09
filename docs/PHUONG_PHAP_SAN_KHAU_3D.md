@@ -139,6 +139,23 @@ Hệ máy: phải `r̂`, lên `û`, trước `f̂`. Với mỗi điểm P: `x_c 
 - **Thành phần khung:** bắn lưới khoảng 64 × 36 tia qua tâm các điểm ảnh. Mỗi tia ghi nhóm vật trúng (kể cả khối giếng, người nộm), không trúng gì thì là trời. Ra % tháp / nhà / tường / sàn / trời / giếng / từng nhân vật, kèm độ sâu gần nhất.
 - **Đường chân trời:** `w_h = 0,5 + tan(pitch) / (2·tan(v/2))` (pitch âm khi cúi). Đây là số thật, không cần mắt.
 
+## 6b. "Góc nhìn camera" — mỗi máy đều có ảnh xem trước (người dùng 09/10, theo mẫu Bàn đạo diễn)
+
+Mỗi máy (ứng viên hoặc góc máy đã chọn) có **3 hình**, sinh tự động bằng Blender (0 USD). Ai cũng thấy máy đang nhìn gì trước khi vẽ ảnh.
+
+1. **Hình phác (clay):** render nhanh, xám đơn sắc (Workbench, ≈ 1–2 giây).
+   - Khối thay thế, người nộm và lưới sàn đều hiện, có nhãn tên ("Kelly", "Giếng", "Tháp").
+   - Vẽ chồng các đường hỗ trợ khung: lưới một phần ba, đường chân trời (vị trí lấy từ số `w_h` ở mục 6), vạch chừa trên đầu theo cỡ cảnh, vùng thanh trên của app (15 %).
+   - Đọc bố cục bằng mắt người trong 1 giây.
+2. **Hình nền thật:** render map có vật liệu và ánh sáng của cảnh (giờ, thời tiết). Đây là ảnh nền gửi cho model vẽ, có thêm khối giếng và người nộm.
+3. **Hình trên lưới:** trên `topgrid.png` vẽ thêm hình nón nhìn của máy (2 cạnh FOV ngang), mũi tên hướng và đường trục 180°. Thấy ngay máy ở phía nào và nhìn trùm những ô nào.
+
+**Lưu cùng bản ghi máy** (`setups.json`): đường dẫn 3 hình và bảng số mục 6–7 (% khung theo nhóm, vị trí các điểm, pitch, vật cản, luật đạt hoặc hỏng).
+
+**Sau khi vẽ ảnh:** đặt cạnh "Hình nền thật" với "Ảnh kết quả cuối" (bật tắt so sánh, như nút trong Bàn đạo diễn). QC bố cục bằng code (`core/plate_layout_qc.py`) so chân trời, vùng tường và đường nét của hai ảnh rồi đánh cờ "nền lệch render".
+
+**Về sau (Bàn đạo diễn 3D trong Dashboard, G3):** kéo máy, người, đồ trên lưới thì "Góc nhìn camera" cập nhật ngay. Cách tính dùng đúng các công thức ở mục 5–6, chỉ khác là chạy trên trình duyệt.
+
 ## 7. Luật đạt / không đạt (kiểm bằng số)
 
 Mỗi luật có lý do. Ngưỡng có dấu ⚙ đặt từ số đo Bước 0, không đặt cảm tính.
