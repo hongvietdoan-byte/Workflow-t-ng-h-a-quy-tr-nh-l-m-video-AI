@@ -69,11 +69,11 @@ Tương tự cho: Đạo diễn (trường bắt buộc mỗi shot), Quay phim (
 - **Mỗi shot 3D: render ảnh toàn cùng trục** (lùi máy dọc trục, ống rộng) gửi kèm; thiếu render → không gửi ảnh.
 - Kiểm tỉ lệ vật mốc giữa các shot.
 
-### F3 — 2 bậc chất lượng đúng
+### F3 — 2 bậc chất lượng đúng — ✅ 09/10 (E1)
 - Nháp Seedance = **Seedance 2.5 chế độ nháp** để nâng 1080p giữ nội dung; không nâng được → hỏi rõ trước khi gen mới.
 - Không để bản cao ghi đè clip nháp của shot trong nhóm.
 
-### F4 — Màn chọn model gọn
+### F4 — Màn chọn model gọn — ✅ 09/10
 Mỗi shot một dòng "model · nháp → cao · giữ nội dung? · ≈ $"; một nút "Đổi" (model + độ phân giải + đường chất lượng gộp chung).
 
 ### F5 — Cổng "sẵn sàng gen" + chạy thử toàn tuyến

@@ -32,6 +32,10 @@ FREE = {   # matched by a PAID pattern but costs nothing (each with why)
 
 # (file, key source text) → why the label carries no price
 ALLOWED = {
+    ("dashboard/quality_ui.py", "f'qfinal_allnew_{pid}'"):
+        "F3: nút gom gen MỚI — nhãn từ new_final_texts(…, batch_price) có \"≈ X USD\"",
+    ("dashboard/quality_ui.py", "f'qfinal_new_{scene_id}'"):
+        "F3: nhãn dựng bởi quality_ui.new_final_texts — có \"≈ X USD\" (_usd_text) + độ phân giải thật; máy quét không đọc qua hàm",
     ("dashboard/steps/step1_characters.py", "f\"bdis_{pid}_{r['name']}_{it['index']}\""):
         "bỏ cờ kiểm Bible sai — chỉ ghi quyết định của người, 0 USD (claude_tasks.dismiss_bible_flag không gọi Claude)",
 }
