@@ -167,6 +167,13 @@ def place_on_timeline(data_dir: str, pid: int, rows: List[Dict], durations: List
         if abs(float(e.get("start") or 0.0) - start) > 1e-6:
             moved += 1
         e["start"] = start
+        if e.get("source") == "ref_video" and e.get("use"):   # F5-B: tiếng video ref người đã tích → khớp độ dài clip thật (≤ 40 %)
+            from . import ref_audio
+            try:
+                ref_audio.fit(directory, e, where[1])
+            except Exception as ex:  # noqa: BLE001 - the sound stays at its own speed; the reason is kept on the row
+                e.pop("fit_file", None)
+                e["fit_skipped"] = f"nén/giãn lỗi ({type(ex).__name__}) — giữ tốc độ gốc"
     audio_lib._save(directory, items)
     return {"moved": moved, "off": off}
 

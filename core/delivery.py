@@ -351,6 +351,20 @@ def shake_in_times(p: Pipeline, rows: List[Dict], durations: List[float], transi
     return out
 
 
+def shakes_before_music(hits: List[float], music_in: Optional[float], margin: float = 0.05) -> Optional[Dict]:
+    """KLD-26 (F5-B): the shakes (impact / `shake_in`) placed BEFORE the music comes in — #22: người dùng chê rung trước khi vào nhạc
+    ("rung/nhún chỉ khi đã vào nhạc"). A WARNING for the render report only: the render is not changed, the person may keep them.
+    None = nothing to say (no shake before, or no music to compare with)."""
+    if music_in is None or not hits:
+        return None
+    early = [round(float(t), 2) for t in hits if float(t) < float(music_in) - margin]
+    if not early:
+        return None
+    return {"times": early, "music_in": round(float(music_in), 2),
+            "note": f"{len(early)} cú rung đặt trước giây nhạc vào ({float(music_in):g} s) — rung/nhún thường chỉ hợp khi đã vào nhạc; "
+                    "giữ nếu cố ý (bản dựng không tự đổi)."}
+
+
 def scene_data(p: Pipeline, scene_id, edits: Optional[Dict] = None) -> Dict:
     """The data of one shot row as a render reads it. `edits` (editor_apply, P3): {"music": {scene_id: "keep|cut|in|breath"}} overrides that
     shot's `sound.music` for THIS render only — the Director's plan in the database is not touched (the person approved the edit, it is
@@ -761,6 +775,10 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         manifest["sound_intent"] = intent
     if hits:
         manifest["shakes"] = hits
+        early = shakes_before_music(hits, music_start if track else (start2 if track2 else None))
+        if early:                         # KLD-26: said in the report + diag; the render keeps the shakes (the person decides)
+            manifest["shake_before_music"] = early
+            diag.record(p.conn, "render", "warn", early["note"], "shake_before_music", project_id)
     if pulse:
         manifest["beat_pulse"] = len(pulse)
     if pulse_error:

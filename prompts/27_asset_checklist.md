@@ -18,6 +18,11 @@ TRƯỚC khi trả tiền cho Director.
    `phu` = thoáng qua, thiếu vẫn kể được chuyện.
 5. **`canh`**: số các cảnh (theo tiêu đề "Cảnh N" của kịch bản bên dưới) có thứ này. Kịch bản không chia cảnh → `[1]`.
 6. Một thứ chỉ kê **một dòng** (gộp mọi cảnh có nó). Tên ghi theo kịch bản (người dùng đọc), không đổi tên.
+7. **Phụ kiện đổi trạng thái được** (khẩu trang, mũ trùm, kính) của một bộ trang phục: ghi trong `vi_sao` của dòng `outfit` **trạng thái mặc
+   định** theo kịch bản / mô tả Kho (vd "khẩu trang đeo kín suốt phim"). Lý do: không ai ghi thì model tự kéo xuống / bỏ ra giữa phim (#22).
+   Kịch bản không nói → ghi "chưa rõ trạng thái — hỏi người dùng", không đoán.
+8. **Ảnh trang phục có người mẫu mặc:** ghi trong `vi_sao` tóc của **nhân vật** mặc bộ đó (theo hồ sơ nhân vật / Kho), để prompt chốt tóc
+   nhân vật — không lấy tóc của người mẫu trong ảnh (#22: ảnh OUTFIT làm lẫn tóc). Không biết ảnh có người mẫu hay không → không ghi.
 
 ## Đầu ra
 Chỉ trả về **một JSON hợp lệ**:

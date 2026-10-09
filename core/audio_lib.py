@@ -156,11 +156,12 @@ def set_mix(directory: str, index: int, use: bool, start: float, volume: float) 
 def remove(directory: str, index: int) -> None:
     items = load(directory)
     entry = items.pop(index)
-    if entry.get("file"):
-        try:
-            os.remove(os.path.join(directory, entry["file"]))
-        except OSError:
-            pass
+    for key in ("file", "fit_file"):               # fit_file: the stretched copy of a ref-video sound (core/ref_audio)
+        if entry.get(key):
+            try:
+                os.remove(os.path.join(directory, entry[key]))
+            except OSError:
+                pass
     _save(directory, items)
 
 
@@ -181,7 +182,10 @@ def mix_list(directory: str) -> List[Dict]:
             a, b = e["start"], e["start"] + (_duration(e) or 0.5)
             if any(a < y and x < b for x, y in speech):
                 volume = round(volume * SFX_UNDER_SPEECH, 3)
-        out.append({"path": os.path.join(directory, e["file"]), "start": e["start"], "volume": volume})
+        name = e["file"]                       # F5-B: a ref-video sound stretched to its clip (core/ref_audio.fit) plays its fitted copy
+        if e.get("fit_file") and os.path.exists(os.path.join(directory, e["fit_file"])):
+            name = e["fit_file"]
+        out.append({"path": os.path.join(directory, name), "start": e["start"], "volume": volume})
     return out
 
 

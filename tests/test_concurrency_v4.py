@@ -127,33 +127,41 @@ class BlenderQueueTests(unittest.TestCase):
         self.env.stop()
 
     def test_second_render_waits_for_the_first(self):
+        # F5-B (09/10): was flaky on a busy machine — a fixed time.sleep(0.2) assumed the second thread had reached its wait loop
+        # by then (waiting[-1] → IndexError when it had not). Now each step waits for an Event set by the thread itself.
         order = []
-        release = threading.Event()
+        release, first_in, second_waits = threading.Event(), threading.Event(), threading.Event()
 
         def first():
             with plates3d.blender_turn():
                 order.append("first in")
-                release.wait(5)
+                first_in.set()
+                release.wait(60)
                 order.append("first out")
 
         t = threading.Thread(target=first)
         t.start()
-        while not order:
-            time.sleep(0.01)
+        self.assertTrue(first_in.wait(60))
         waiting = []
 
+        def wait_step(_s):
+            waiting.append(plates3d.queue_length())
+            second_waits.set()                                    # the second render is inside its wait loop, lock still taken
+            time.sleep(0.01)
+
         def second():
-            with plates3d.blender_turn(sleep=lambda s: (waiting.append(plates3d.queue_length()), time.sleep(0.02))):
+            with plates3d.blender_turn(sleep=wait_step):
                 order.append("second in")
 
         t2 = threading.Thread(target=second)
         t2.start()
-        time.sleep(0.2)
+        self.assertTrue(second_waits.wait(60))
         self.assertEqual(order, ["first in"])
-        self.assertEqual(waiting[-1], 1)                          # the dashboard can show "1 render waiting"
+        self.assertEqual(waiting[0], 1)                           # the dashboard can show "1 render waiting"
         release.set()
-        t.join(5)
-        t2.join(5)
+        t.join(60)
+        t2.join(60)
+        self.assertFalse(t.is_alive() or t2.is_alive())
         self.assertEqual(order, ["first in", "first out", "second in"])
         self.assertEqual(plates3d.queue_length(), 0)
         self.assertFalse(os.path.exists(plates3d.lock_path()))
