@@ -145,3 +145,97 @@ class VideoHeroAndQcLine(_Seed):
         self.on()
         html = _md(self.open(3))
         self.assertRegex(html, r"QC 0\.57[^\n]*Tiêu chí QC · thấp nhất: Đúng hành động \(motion prompt\) 0\.25")
+
+
+class Layer0RedrawGoesThroughDirector(unittest.TestCase):
+    """Đợt C 09/10 (người dùng duyệt): ảnh bị đo lớp 0 bắt lỗi → vẽ lại qua Đạo diễn viết lại prompt (cờ director_rewrite)."""
+    setUp = F4.ShotLineTests.setUp
+
+    def _runner(self):
+        from core.runner import ImageRunner
+        r = ImageRunner.__new__(ImageRunner)
+        r.p = self.p
+        r._diag = lambda *a, **k: None
+        return r
+
+    def test_rewrite_gets_the_layer0_finding_and_the_faulty_picture(self):
+        from unittest import mock
+        from core.runner import RedrawWithFix
+        sid = self.sids[0]
+        jid = self.p.create_job(sid, "image_gen")
+        plan = mock.Mock()
+        with mock.patch.object(self.p, "_rewrite_before_retry", return_value=plan) as rw:
+            got = self._runner()._rewrite_redraw(self.p.job(jid), "x.png", RedrawWithFix("QC lớp 0: cỡ cảnh MS, shot xin CU", "Frame as CU."))
+        self.assertIs(got, plan)
+        kw = rw.call_args.kwargs
+        self.assertEqual((kw["qc"]["root_cause"], kw["qc"]["fix"], kw["by"]), ("layer0", "Frame as CU.", "qc"))
+        self.assertEqual(self.p.job(jid)["result_path"], "x.png")
+
+    def test_no_paid_rewrite_when_no_take_will_be_made(self):
+        from unittest import mock
+        from core.runner import RedrawWithFix
+        jid = self.p.create_job(self.sids[0], "image_gen")
+        with mock.patch.object(self.p, "_retries_exhausted", return_value=True), \
+                mock.patch.object(self.p, "_rewrite_before_retry") as rw:
+            self.assertIsNone(self._runner()._rewrite_redraw(self.p.job(jid), "x.png", RedrawWithFix("a", "b")))
+        rw.assert_not_called()
+
+    def test_a_rewritten_take_does_not_glue_the_old_fix_in_front(self):
+        from core.pipeline import REWRITE_NOTE
+        jid = self.p.create_job(self.sids[0], "image_gen")
+        self.p.conn.execute("UPDATE jobs SET retry_reason='Frame as CU.' WHERE id=?", (jid,))
+        self.p.conn.commit()
+        self.p.start(jid)
+        self.p.fail(jid, "redraw: x")
+        new = self.p.retry(jid, "redraw", fix=REWRITE_NOTE + " (lớp 0)")
+        self.assertTrue(self.p.job(new)["retry_reason"].startswith(REWRITE_NOTE))
+
+
+class MusicCoversTheHeldEndCard(unittest.TestCase):
+    """09/10 (#24): popup giữ khung cuối 3,5 s → brief nhạc thêm đoạn giữ âm dưới popup, bản nhạc dài thêm 3,5 s."""
+
+    def test_end_card_tail(self):
+        from unittest import mock
+        from core import music_timing
+        b = {"prompt": "Score. Cut off on a sharp unresolved final hit at 0:22.0, no tail.", "film_s": 22.0, "length_ms": 23000}
+        popup = {"end_popup": {"items": [{"path": "x.png", "label": "a"}], "headline": "Sắp ra mắt", "seconds": 3.5}}
+        with mock.patch("core.delivery.get_settings", return_value=popup):
+            out = music_timing._end_card(None, 24, b)
+        self.assertEqual(out["length_ms"], 26500)
+        self.assertIn("0:22.0-0:25.5: the end title card", out["prompt"])
+        self.assertIn("final hit at 0:22.0", out["prompt"])                         # music_fit still finds the end mark
+        with mock.patch("core.delivery.get_settings", return_value={"end_popup": dict(popup["end_popup"], hold=False)}):
+            self.assertEqual(music_timing._end_card(None, 24, b), b)
+        with mock.patch("core.delivery.get_settings", return_value={}):
+            self.assertEqual(music_timing._end_card(None, 24, b), b)
+
+
+class FragmentOwnConnection(unittest.TestCase):
+    """09/10 (người dùng bấm chip v3 → v2: SQLite khác luồng): lượt chạy riêng của fragment khung phát ở luồng khác."""
+
+    def test_other_thread_gets_its_own_connection(self):
+        import os
+        import tempfile
+        import threading
+        from unittest import mock
+        from core.db import connect
+        from core.pipeline import Pipeline
+        from dashboard import common as C
+        from dashboard.steps import step4
+        db = os.path.join(tempfile.mkdtemp(), "m.sqlite")
+        p = Pipeline(connect(db))
+        p.actor = "a@b"
+        self.assertIs(step4._own_pipeline(p), p)                           # same thread: kept
+        out = {}
+
+        def run():
+            try:
+                q = step4._own_pipeline(p)
+                out["ok"] = q is not p and q.conn.execute("SELECT 1").fetchone()[0] == 1 and q.actor == "a@b"
+            except Exception as e:  # noqa: BLE001
+                out["err"] = repr(e)
+        with mock.patch.object(C, "DB", db):
+            t = threading.Thread(target=run)
+            t.start()
+            t.join()
+        self.assertEqual(out, {"ok": True})

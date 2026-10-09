@@ -451,7 +451,8 @@ class Pipeline:
         self.transition(job_id, JobState.RETRYABLE, note=reason)
         fix = (fix or "").strip()
         before = (self.job(job_id)["retry_reason"] or "").strip()
-        if fix and not by_user and before and before not in fix and not before.startswith((PLAIN_RESEND, REWRITE_NOTE, "gửi lại")):
+        if fix and not by_user and before and before not in fix and not before.startswith((PLAIN_RESEND, REWRITE_NOTE, "gửi lại")) \
+                and not fix.startswith(REWRITE_NOTE):     # 09/10: Đạo diễn đã viết lại prompt — câu sửa nằm trong prompt
             # an automatic fix (QC: "Frame as a medium close-up") keeps the fix this take was already made with — 07/10 Khủng Long Đỏ: the
             # person's "same frame as shot 3" was dropped by the size check's redraw and the next picture lost it
             fix = f"{before} {fix}"

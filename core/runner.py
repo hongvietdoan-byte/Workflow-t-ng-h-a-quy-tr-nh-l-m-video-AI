@@ -173,6 +173,22 @@ class _Runner:
         """A reason not to send this job now (it would be made from outdated inputs); None = go."""
         return None
 
+    def _rewrite_redraw(self, job, dest: str, e: "RedrawWithFix"):
+        """Đợt C 09/10 (người dùng duyệt): vẽ lại tự động vì đo lớp 0 → Đạo diễn viết lại prompt của shot trước (cờ director_rewrite, như
+        lần gen lại QC loại) thay vì chỉ nối câu "Fix" cuối prompt. Gọi khi take còn sống, kèm tệp lỗi (Claude xem); hết lượt tự gen lại
+        thì không viết lại (không tốn tiền cho một take không làm). None = giữ cách cũ (câu sửa)."""
+        from .pipeline import _combine_fix
+        try:
+            if self.p._retries_exhausted(self.p.job(job["id"])):
+                return None
+            self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, job["id"]))
+            self.p.conn.commit()
+            return self.p._rewrite_before_retry(self.p.job(job["id"]), _combine_fix(job["retry_reason"], e.fix), note=str(e),
+                                                qc={"root_cause": "layer0", "problem": str(e), "fix": e.fix}, by="qc")
+        except Exception as ex:  # noqa: BLE001 - the redraw still goes, with the old fix sentence (said)
+            self._diag(job, "warn", "director_rewrite_fallback", f"không viết lại được prompt trước khi vẽ lại ({type(ex).__name__}: {ex})")
+            return None
+
     def _wait(self, job) -> bool:
         """True = leave the job queued for now (not an error)."""
         return False
@@ -449,9 +465,10 @@ class _Runner:
                     dest = self._after_download(job, dest)
                 except RedrawWithFix as e:            # the result is unusable for a stated reason: a new try WITH the fix (luật 6)
                     self._diag(job, "error", "redraw", str(e))
+                    plan = self._rewrite_redraw(job, dest, e)
                     self.p.fail(job["id"], f"redraw: {e}")
                     counts["failed"] += 1
-                    if self.p.retry(job["id"], str(e), fix=e.fix) is not None:
+                    if self.p.retry(job["id"], str(e), fix=plan.apply() if plan is not None else e.fix) is not None:
                         counts["retried"] += 1
                     continue
                 self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, job["id"]))

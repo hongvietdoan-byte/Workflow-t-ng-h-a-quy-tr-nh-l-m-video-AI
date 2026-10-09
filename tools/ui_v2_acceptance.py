@@ -144,6 +144,7 @@ RENAMED = {
     "inbox_kind": "header.inbox_card: bộ lọc loại việc chỉ hiện khi hộp thư > 3 việc (INBOX_SHOWN)",
     "fold_refs_{}_btn": "v2 thay thẻ gập 'Tham chiếu' bằng khối luôn mở (inputs_and_refs_v2)",
     "fold_script_{}_btn": "v2 thay thẻ gập 'Kịch bản' bằng thẻ ① + expander 'Nhập / thay kịch bản'",
+    "anim_{}": "09/10 người dùng: animatic chỉ còn MỘT nút ở tab Ảnh của Storyboard (animatic_{}) — bỏ ô animatic trùng ở tab Motion",
 }
 
 

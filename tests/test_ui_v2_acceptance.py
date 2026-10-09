@@ -19,7 +19,8 @@ class AcceptanceTests(unittest.TestCase):
     @unittest.skipUnless(_git_has(U.BASE_REV), "không có lịch sử git tới " + U.BASE_REV)
     def test_no_widget_key_pattern_lost_in_source(self):
         old, new = U.static_keys(U.BASE_REV), U.static_keys("HEAD")
-        self.assertEqual(sorted(set(old) - set(new)), [], "khóa key= trong mã nguồn bị mất so với bản cũ")
+        lost = [k for k in sorted(set(old) - set(new)) if not U._renamed(k)]      # bỏ / đổi tên có chủ ý: bảng U.RENAMED (kèm lý do)
+        self.assertEqual(lost, [], "khóa key= trong mã nguồn bị mất so với bản cũ")
 
     def test_click_count_new_project_to_first_video_not_more_than_old(self):
         # S14.14 G-a: the Kịch bản screen has no old layout any more, so a FEATURE_UI_V2=0 run is no longer "the old one" — compare with

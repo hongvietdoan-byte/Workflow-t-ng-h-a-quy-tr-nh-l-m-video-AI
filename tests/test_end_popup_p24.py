@@ -61,7 +61,7 @@ class PopupRenderTests(unittest.TestCase):
     def test_icons_and_vietnamese_words_pop_over_the_end(self):
         cfg = end_popup.config({"end_popup": {"items": [{"path": self.icons[0], "label": "Hành động Trồi Lên"},
                                                          {"path": self.icons[1], "label": "Tiếng Khóc Ai Oán"}],
-                                              "headline": "Hành động sắp ra mắt", "seconds": 2.0}})
+                                              "headline": "Hành động sắp ra mắt", "seconds": 2.0, "hold": False}})
         out = os.path.join(self.dir, "out.mp4")
         info = end_popup.apply(self.p.conn, self.video, out, cfg)
         self.assertAlmostEqual(info["start_s"], 1.0, delta=0.1)
@@ -99,6 +99,25 @@ class PopupRenderTests(unittest.TestCase):
         a = np.frombuffer(raw, dtype=np.float32)
         return float(np.sqrt((a ** 2).mean())) if a.size else 0.0
 
+    def test_09_10_default_holds_the_last_frame_so_the_last_shot_is_not_covered(self):
+        """Người dùng 09/10 (#24: popup 3,5 s che gần hết shot khóc 0,58 s): mặc định giữ khung cuối thêm `seconds`, popup nằm trên đó."""
+        cfg = end_popup.config({"end_popup": {"items": [{"path": self.icons[0], "label": "a"}], "headline": "Sắp ra mắt", "seconds": 2.0,
+                                              "sound": False}})
+        self.assertTrue(cfg["hold"])
+        out = os.path.join(self.dir, "held.mp4")
+        info = end_popup.apply(self.p.conn, self.video, out, cfg)
+        self.assertAlmostEqual(ffmpeg_studio.probe_duration(out), 5.0, delta=0.15)        # 3 s clip + 2 s held frame
+        self.assertAlmostEqual(info["start_s"], 3.0, delta=0.1)                         # the popup starts after the last shot
+        self.assertAlmostEqual(info["held_s"], 2.0)
+        from PIL import Image
+        png = os.path.join(self.dir, "before.png")
+        subprocess.run([_ffmpeg(), "-y", "-loglevel", "error", "-ss", "2.9", "-i", out, "-frames:v", "1", png], check=True)
+        src = os.path.join(self.dir, "src.png")
+        subprocess.run([_ffmpeg(), "-y", "-loglevel", "error", "-ss", "2.9", "-i", self.video, "-frames:v", "1", src], check=True)
+        a, b = Image.open(png).convert("RGB").resize((36, 64)), Image.open(src).convert("RGB").resize((36, 64))
+        diff = sum(abs(x - y) for p_, q in zip(a.getdata(), b.getdata()) for x, y in zip(p_, q)) / (36 * 64 * 3)
+        self.assertLess(diff, 8)                                                         # the last shot itself is untouched
+
     def test_08_10_caps_bright_yellow_and_a_pop_per_icon_over_a_silent_video(self):
         """Góp ý 08/10: VIẾT HOA giữ dấu, vàng sáng, tiếng pop đúng lúc mỗi icon bật; video không tiếng → tạo track."""
         self.assertEqual(end_popup.caps("Hành động sắp ra mắt"), "HÀNH ĐỘNG SẮP RA MẮT")
@@ -109,7 +128,7 @@ class PopupRenderTests(unittest.TestCase):
         self.assertFalse(ffmpeg_studio.has_audio(silent))
         cfg = end_popup.config({"end_popup": {"items": [{"path": self.icons[0], "label": "Hành động Trồi Lên"},
                                                          {"path": self.icons[1], "label": "Tiếng Khóc Ai Oán"}],
-                                              "headline": "Hành động sắp ra mắt", "seconds": 2.0, "sound": self._pop_wav()}})
+                                              "headline": "Hành động sắp ra mắt", "seconds": 2.0, "sound": self._pop_wav(), "hold": False}})
         self.assertTrue(cfg["uppercase"])
         self.assertEqual(cfg["headline_color"], "#FFD400")
         out = os.path.join(self.dir, "pop.mp4")
@@ -127,7 +146,7 @@ class PopupRenderTests(unittest.TestCase):
         subprocess.run([_ffmpeg(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=0x203040:s=360x640:d=3:r=24",
                         "-f", "lavfi", "-i", "sine=frequency=220:duration=3:sample_rate=48000", "-c:v", "libx264", "-pix_fmt", "yuv420p",
                         "-c:a", "aac", "-shortest", tone], check=True)
-        cfg = end_popup.config({"end_popup": {"items": [{"path": self.icons[0], "label": "a"}], "seconds": 2.0, "sound": self._pop_wav(),
+        cfg = end_popup.config({"end_popup": {"items": [{"path": self.icons[0], "label": "a"}], "seconds": 2.0, "hold": False, "sound": self._pop_wav(),
                                               "sound_volume": 1.0}})
         out = os.path.join(self.dir, "mix.mp4")
         end_popup.apply(self.p.conn, tone, out, cfg)

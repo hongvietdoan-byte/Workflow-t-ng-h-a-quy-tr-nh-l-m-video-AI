@@ -10,7 +10,9 @@ Trước đây Director sinh 2 shot "nền tối mờ sương, chờ icon hiện
 Cấu hình ở `projects.render_settings["end_popup"]` (delivery.DEFAULTS):
   {"items": [{"asset_id": 421, "label": "Hành động Trồi Lên"} | {"path": "...png", "label": "..."}], "headline": "...", "seconds": 3.5,
    "uppercase": true, "headline_color": "#FFD400", "label_color": "#FFFFFF", "scale": 1.0,
-   "sound": null (= tự lấy tiếng pop ≤ 0,5 s trong Kho) | "<đường dẫn>" | false (= tắt), "sound_volume": 0.9}
+   "sound": null (= tự lấy tiếng pop ≤ 0,5 s trong Kho) | "<đường dẫn>" | false (= tắt), "sound_volume": 0.9,
+   "hold": true (mặc định, 09/10 người dùng #24: GIỮ khung cuối đứng hình thêm `seconds` rồi popup hiện trên đó — shot cuối được xem
+   trọn, không bị che; false = chồng lên `seconds` cuối của video như trước)}
 Chữ vẽ bằng PIL với font có đủ dấu tiếng Việt (subtitles.font_for_text) — không dùng drawtext.
 """
 import os
@@ -63,7 +65,7 @@ def config(settings: Dict) -> Optional[Dict]:
             "uppercase": cfg.get("uppercase") is not False,
             "headline_color": "#%02X%02X%02X" % _colour(cfg.get("headline_color"), HEADLINE_COLOR),
             "label_color": "#%02X%02X%02X" % _colour(cfg.get("label_color"), LABEL_COLOR),
-            "scale": scale, "sound": sound, "sound_volume": vol}
+            "scale": scale, "sound": sound, "sound_volume": vol, "hold": cfg.get("hold") is not False}
 
 
 def caps(text: str) -> str:
@@ -288,11 +290,19 @@ def apply(conn, video: str, output: str, cfg: Dict) -> Dict:
     total = ffmpeg_studio.probe_duration(video) or 0.0
     if not size or total <= 0:
         raise ValueError("popup cuối: không đọc được kích thước / độ dài video")
+    work = tempfile.mkdtemp(prefix="end_popup_")
+    held = 0.0
+    if cfg.get("hold", True):            # 09/10: khung cuối đứng hình thêm `seconds`, popup nằm trên phần đó (shot cuối không bị che)
+        held = float(cfg["seconds"])
+        longer = os.path.join(work, "held.mp4")
+        ffmpeg_studio.run([ffmpeg_studio.find_ffmpeg(), "-y", "-i", video, "-vf", f"tpad=stop_mode=clone:stop_duration={held:.3f}",
+                           *(["-af", f"apad=pad_dur={held:.3f}"] if ffmpeg_studio.has_audio(video) else []),
+                           *ffmpeg_studio._ENCODE, *ffmpeg_studio.AAC, longer])
+        video, total = longer, total + held
     seconds = min(cfg["seconds"], total)
     start = max(0.0, total - seconds)
     sound = pop_sound(conn, cfg) if items else None
     pops = [t for t in pop_times(len(items), start) if t < total] if sound else []
-    work = tempfile.mkdtemp(prefix="end_popup_")
     try:
         frames(items, cfg["headline"], size, seconds, work, cfg)
         cmd = [ffmpeg_studio.find_ffmpeg(), "-y", "-i", video, "-framerate", str(FPS), "-itsoffset", f"{start:.3f}",
@@ -320,7 +330,7 @@ def apply(conn, video: str, output: str, cfg: Dict) -> Dict:
     finally:
         shutil.rmtree(work, ignore_errors=True)
     out = {"start_s": round(start, 2), "seconds": round(seconds, 2), "items": [i["label"] for i in items], "headline": cfg["headline"],
-           "sound": sound, "pops_s": pops}
+           "sound": sound, "pops_s": pops, "held_s": round(held, 2)}
     if items and not sound and cfg.get("sound") is not False:     # luật 1: say it, never a silent gap
         out["sound_note"] = "không có tiếng pop: Kho âm thanh không có tiếng pop ≤ 0,5 s và chưa đặt end_popup.sound"
     return out

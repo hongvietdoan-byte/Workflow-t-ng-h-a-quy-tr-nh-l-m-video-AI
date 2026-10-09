@@ -370,7 +370,25 @@ def timed_brief(p: Pipeline, pid: int) -> Optional[Dict]:
     b = brief(p, pid, seconds, arc=arc) if arc else brief(p, pid, seconds)
     if not b["film_s"]:
         return None
-    return {**b, "instrumental": True, "timed": True}
+    return {**_end_card(p, pid, b), "instrumental": True, "timed": True}
+
+
+def _end_card(p: Pipeline, pid: int, b: Dict) -> Dict:
+    """09/10 (#24, người dùng chọn "giữ khung cuối cho popup"): popup cuối phim kéo dài phim thêm N giây (core/end_popup, hold) → nhạc
+    không tắt trước popup: thêm một đoạn giữ âm dưới popup rồi tắt dần, độ dài bản nhạc cộng N giây. Không popup / không giữ → nguyên."""
+    try:
+        from . import delivery, end_popup
+        cfg = end_popup.config(delivery.get_settings(p, pid))
+    except Exception:  # noqa: BLE001 - no settings: the brief stays as it is
+        cfg = None
+    if not cfg or not cfg.get("hold"):
+        return b
+    end, extra = float(b["film_s"]), float(cfg["seconds"])
+    clock = lambda t: f"{int(t // 60)}:{t % 60:04.1f}"          # noqa: E731 - same m:ss.s as the brief
+    tail = (f" After that hit, {clock(end)}-{clock(end + extra)}: the end title card: one low held note under it, a faint shimmer, "
+            f"fading to silence by {clock(end + extra)}.")
+    return {**b, "prompt": (b["prompt"] + tail)[:PROMPT_MAX], "length_ms": b["length_ms"] + int(round(extra * 1000)),
+            "end_card_s": extra}
 
 
 def build_label(p: Pipeline, pid: int) -> Optional[str]:
