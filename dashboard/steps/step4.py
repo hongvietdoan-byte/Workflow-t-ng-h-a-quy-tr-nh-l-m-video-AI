@@ -679,11 +679,26 @@ def _draft_preview(p: Pipeline, pid: int) -> None:
             show_video(info["path"])
 
 
+def _own_pipeline(p: Pipeline) -> Pipeline:
+    """`p` when its connection works in this thread; else a new one (a fragment's own run is in another thread than the full run)."""
+    import sqlite3
+    try:
+        p.conn.execute("SELECT 1")
+        return p
+    except sqlite3.ProgrammingError:
+        mine = C.scoped(Pipeline(connect(C.DB)))
+        mine.actor = getattr(p, "actor", None)
+        return mine
+
+
 @st.fragment
 def _clip_view(p: Pipeline, pid: int, j, clip) -> None:
     """Khung phát của thẻ clip + hàng chip v1 v2 (09/10, người dùng: bấm chip đổi video NGAY trong khung phát như thẻ ảnh; bấm phải
-    nhanh). Là fragment: bấm chip chỉ chạy lại phần này; "Dùng bản này cho shot" chạy lại cả trang (đổi dữ liệu shot)."""
+    nhanh). Là fragment: bấm chip chỉ chạy lại phần này; "Dùng bản này cho shot" chạy lại cả trang (đổi dữ liệu shot).
+    09/10 (người dùng bấm v3 → v2 báo lỗi SQLite khác luồng): lượt chạy riêng của fragment ở luồng khác → mở kết nối CSDL của lượt này,
+    không dùng `p` của lượt trước (AppTest chạy lại cả trang cùng luồng nên test không thấy)."""
     from dashboard.design import components as D
+    p = _own_pipeline(p)
     view = _take_view(p, j)
     shown = view["pick"] if view and view["pick"]["id"] != j["id"] else j
     path = shown["result_path"] if shown is not j else clip
