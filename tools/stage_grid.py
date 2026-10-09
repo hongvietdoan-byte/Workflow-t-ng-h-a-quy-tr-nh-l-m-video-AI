@@ -1,0 +1,746 @@
+"""Lưới sân khấu — Bước 0 kế hoạch đặt máy 3D (docs/KE_HOACH_DAT_MAY_3D_2026-10-09.md, "ĐỔI HƯỚNG 09/10 tối"). 0 USD: Blender cục bộ.
+
+Hai chế độ trong một file:
+  * máy chủ (Python thường):  py tools/stage_grid.py --place 263 --spot plaza_front --out data/projects/24/stage_s0
+      đọc model3d của bối cảnh trong CSDL (CHỈ ĐỌC), viết cfg.json, chạy Blender nền (lượt Blender chung của plates3d),
+      rồi vẽ topgrid.png (ảnh trực giao + lưới + nhãn ô) và in bảng.
+  * trong Blender (-P tools/stage_grid.py -- --config cfg.json): bắn tia, dựng đạo cụ/người nộm, render, ghi JSON.
+Ra (trong --out): stage.json (gốc O cố định của cảnh), grid.json (mỗi ô: sàn so với O, vật trúng, bậc/tầng), objects.json (tên vật +
+nhóm), top_raw.png/topgrid.png, try_wide.png, try_down.png, frames.json (lưới tia từ máy + số kiểm hình học).
+Phần hình học thuần: core/stage_grid.py. Không ghi CSDL, không gọi API tốn tiền.
+"""
+import importlib.util
+import json
+import math
+import os
+import sys
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+
+
+def _load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+sg = _load("stage_grid_pure", os.path.join(ROOT, "core", "stage_grid.py"))
+
+try:
+    import bpy  # noqa: F401
+    IN_BLENDER = True
+except ImportError:
+    IN_BLENDER = False
+
+COLORS = {"thap": (0.85, 0.2, 0.2), "nha": (0.95, 0.55, 0.1), "tuong": (0.9, 0.85, 0.1), "bac": (0.6, 0.3, 0.9),
+          "san": (0.5, 0.75, 0.5), "cay": (0.1, 0.55, 0.1), "gieng": (0.2, 0.5, 1.0), "nguoi": (1.0, 0.2, 0.8),
+          "khac": (0.5, 0.5, 0.5), "troi": (0.6, 0.85, 1.0)}
+
+
+# ================================================ trong Blender ================================================
+def blender_main(cfg):
+    import bpy
+    from mathutils import Vector
+    rp = _load("render_plates_mod", os.path.join(HERE, "render_plates.py"))
+    out = cfg["out_dir"]
+    os.makedirs(out, exist_ok=True)
+    warnings = []
+    t0 = time.time()
+    meshes, _ = rp.load_model(cfg["model"], warnings)
+    factor, (lo, hi) = rp.normalise_scale(meshes, cfg.get("real_height_m"), warnings)
+    lift = rp.LIFT_Z
+    scene = bpy.context.scene
+    top_z = hi.z + 5
+
+    def dg():
+        return bpy.context.evaluated_depsgraph_get()
+
+    def mat_of(obj, idx):
+        try:
+            o = obj.original if hasattr(obj, "original") else obj
+            mi = o.data.polygons[idx].material_index
+            m = o.material_slots[mi].material if mi < len(o.material_slots) else None
+            return m.name if m else ""
+        except Exception:  # noqa: BLE001
+            return ""
+
+    bbox_cache = {}
+
+    def obj_box(obj):
+        o = obj.original if hasattr(obj, "original") else obj
+        if o.name not in bbox_cache:
+            pts = [o.matrix_world @ Vector(c) for c in o.bound_box]
+            bbox_cache[o.name] = ([min(p[k] for p in pts) for k in range(3)], [max(p[k] for p in pts) for k in range(3)])
+        return bbox_cache[o.name]
+
+    def down_layers(x, y, n=5):
+        """Các lớp bề mặt dưới (x, y) scene, từ trên xuống: [(z, obj, mat, normal_z)]."""
+        res, origin = [], Vector((x, y, top_z))
+        d = dg()
+        for _ in range(n):
+            ok, loc, nor, idx, obj, _ = scene.ray_cast(d, origin, Vector((0, 0, -1)))
+            if not ok or obj is None:
+                break
+            res.append((loc.z, obj, mat_of(obj, idx), nor.z))
+            origin = loc - Vector((0, 0, 0.03))
+        return res
+
+    def floor_hit(x, y):
+        for z, obj, mat, nz in down_layers(x, y, 8):
+            if obj.name == "PLATES_GROUND" or obj.name.startswith("STAGE_"):
+                continue
+            if any(k in obj.name.lower() for k in rp.PLANT_NAMES):
+                continue
+            return z, obj, mat, nz
+        return None
+
+    # ---- gốc O: tia xuống tại chỗ đứng chính ----
+    ox, oy, _oz = cfg["origin_model"]
+    sx, sy = ox * factor, oy * factor
+    h0 = floor_hit(sx, sy)
+    if h0 is None:
+        raise SystemExit("tia tại gốc O không chạm sàn")
+    floor_model = (h0[0] - lift) / factor
+    stage = sg.make_stage([ox, oy, floor_model], cell_m=cfg["cell_m"], cols=cfg["cols"], rows=cfg["rows"], lift_z=lift, factor=factor)
+    stage.update({"origin_scene": [round(sx, 3), round(sy, 3), round(h0[0], 3)], "origin_on": h0[1].name,
+                  "spot_z_model": _oz, "spot_vs_floor_m": round(_oz - floor_model, 3)})
+
+    def rel(v):
+        return sg.rel_from_scene(stage, v)
+
+    def scn(r):
+        return Vector(sg.scene_from_rel(stage, r))
+
+    # độ dốc quanh O (±2 m, bước 0,5 m)
+    def line(dx, dy):
+        zs = []
+        for k in range(-4, 5):
+            h = floor_hit(sx + dx * k * 0.5, sy + dy * k * 0.5)
+            zs.append(h[0] if h else h0[0])
+        return zs
+    stage["slope_deg"] = {"E-W": round(sg.slope_deg(line(1, 0), 0.5), 2), "N-S": round(sg.slope_deg(line(0, 1), 0.5), 2)}
+
+    # ---- lưới ô ----
+    inv = {}
+
+    def note(obj, mat, group):
+        o = obj.original if hasattr(obj, "original") else obj
+        e = inv.setdefault(o.name, {"object": o.name, "materials": {}, "hits": 0, "group_name": group})
+        e["hits"] += 1
+        e["materials"][mat] = e["materials"].get(mat, 0) + 1
+
+    def classify(obj, mat):
+        g = sg.group_by_name(obj.name, mat)
+        if g == "khac" and obj.name != "PLATES_GROUND":
+            lo_b, hi_b = obj_box(obj)
+            g = sg.group_by_shape((hi_b[2] - lift) / factor - floor_model, [hi_b[k] - lo_b[k] for k in range(3)])
+        return "san" if obj.name == "PLATES_GROUND" else g
+
+    grid = []
+    c_m = stage["cell_m"]
+    act = cfg.get("acting_area", {"half_m": 3.0, "extra": []})       # vùng diễn: 6×6 m quanh O (+ quanh giếng) → 4×4 tia mỗi ô
+
+    def offsets(k):
+        return [((a + 0.5) / k - 0.5) * c_m for a in range(k)]
+
+    def sample(cx, cy, k):
+        out_ = []
+        for px in offsets(k):
+            for py in offsets(k):
+                s = scn((cx + px, cy + py, 0))
+                layers = down_layers(s.x, s.y, 8)
+                fh = next(((z, o, m, nz) for z, o, m, nz in layers if o.name != "PLATES_GROUND" and not o.name.startswith("STAGE_")
+                           and not any(w in o.name.lower() for w in rp.PLANT_NAMES)), None)
+                out_.append((layers[0] if layers else None, fh))
+        return out_
+
+    def summarise(smp):
+        floors = [rel((0, 0, f[0]))[2] for _, f in smp if f and f[3] >= 0.9]
+        allf = [rel((0, 0, f[0]))[2] for _, f in smp if f]
+        tops = [(rel((0, 0, t[0]))[2], t) for t, _ in smp if t]
+        fz = sg.median(floors) if floors else sg.median(allf)
+        r_ = {"floor_z": None if fz is None else round(fz, 3), "status": sg.floor_status(fz), "hits": len(allf),
+              "flat_hits": len(floors)}
+        if allf:
+            r_["spread_m"] = round(max(allf) - min(allf), 3)
+            r_["inner_step"] = r_["spread_m"] > sg.SAME_FLOOR_M
+            nzs = [f[3] for _, f in smp if f]
+            r_["slope_deg"] = round(math.degrees(math.acos(max(-1, min(1, sum(nzs) / len(nzs))))), 1)
+        if tops:
+            tz, t = max(tops, key=lambda x: x[0])
+            r_["top_z"] = round(tz, 2)
+            r_["top_on"], r_["top_mat"] = t[1].name, t[2]
+            r_["top_group_name"] = classify(t[1], t[2])
+            r_["top_group"] = sg.group_by_hit(r_["top_group_name"], tz, t[3])
+            hi_over = tz - (fz or 0.0)
+            r_["covered"] = hi_over > 2.0 and len(floors) > 0                      # mái / tầng trên, có sàn dưới
+            r_["obstacle"] = (0.3 < hi_over <= 2.0) or (hi_over > 2.0 and not floors)
+        return r_
+
+    for name, cx, cy in sg.cells(stage):
+        in_act = (abs(cx) <= act["half_m"] and abs(cy) <= act["half_m"]) or any(
+            abs(cx - e[0]) <= e[2] and abs(cy - e[1]) <= e[2] for e in act.get("extra", []))
+        k = 4 if in_act else 3
+        smp = sample(cx, cy, k)
+        cell = {"cell": name, "x": round(cx, 2), "y": round(cy, 2), "rays": f"{k}x{k}", "acting": in_act}
+        cell.update(summarise(smp))
+        fh = next((f for _, f in smp if f), None)
+        if fh:
+            cell.update(on=fh[1].name, mat=fh[2], group=classify(fh[1], fh[2]))
+            if cell.get("floor_z") is not None:
+                cell["group_hit"] = sg.group_by_hit(cell["group"], cell["floor_z"], 1.0)
+        if in_act:                                       # so sánh: 3×3 trên cùng ô có bắt được bậc/gờ/vật hẹp như 4×4 không
+            s3 = summarise(sample(cx, cy, 3))
+            cell["cmp3x3"] = {k_: s3.get(k_) for k_ in ("floor_z", "status", "spread_m", "inner_step", "top_z", "obstacle")}
+        for t, f in smp:
+            if f:
+                note(f[1], f[2], classify(f[1], f[2]))
+            if t is not None:
+                note(t[1], t[2], classify(t[1], t[2]))
+        grid.append(cell)
+
+    # ---- mốc: tháp ----
+    marks = {}
+    ax, ay = cfg["anchor_model"][0] * factor, cfg["anchor_model"][1] * factor
+    tl = down_layers(ax, ay, 12)
+    tf = floor_hit(ax, ay)
+    tower_obj = tl[0][1] if tl else None
+    if tower_obj is not None:
+        lo_b, hi_b = obj_box(tower_obj)
+        foot = rel((ax, ay, min(lo_b[2], tf[0] if tf else lo_b[2])))
+        marks["thap_chan"] = sg.measure(stage, foot)
+        marks["thap_dinh"] = sg.measure(stage, rel((ax, ay, hi_b[2])))
+        marks["thap_object"] = {"name": tower_obj.name, "bbox_size_m": [round(hi_b[k] - lo_b[k], 2) for k in range(3)],
+                                "top_hit_z": round(rel((0, 0, tl[0][0]))[2], 2)}
+    marks["anchor_model"] = sg.measure(stage, sg.rel_from_model(stage, cfg["anchor_model"]))
+
+    # ---- sân khấu: giếng + người nộm ----
+    def mk_mat(name, rgb):
+        m = bpy.data.materials.new(name)
+        m.use_nodes = True
+        b = m.node_tree.nodes.get("Principled BSDF")
+        if b is not None:
+            b.inputs["Base Color"].default_value = (*rgb, 1)
+            b.inputs["Roughness"].default_value = 0.8
+        return m
+
+    placed = {}
+    for p in cfg.get("props", []):
+        r = p["at"]
+        s = scn((r[0], r[1], 0))
+        fh = floor_hit(s.x, s.y)
+        fz = fh[0] if fh else s.z
+        frel = rel((0, 0, fz))[2]
+        info = sg.measure(stage, (r[0], r[1], frel))
+        info.update(kind=p["kind"], floor_status=sg.floor_status(frel))
+        if p["kind"] == "well":
+            # chân đế TRƯỚC khi dựng khối (đáy khối trùng mặt sàn: tia đi qua đáy sẽ đọc tầng dưới — đo lần 1 ra −6,18 m)
+            base = []
+            for ang in range(0, 360, 45):
+                q = sg.offset((r[0], r[1], 0), ang, p["radius"] * 0.95)
+                qs = scn((q[0], q[1], 0))
+                f2 = floor_hit(qs.x, qs.y)
+                base.append(None if f2 is None else round(rel((0, 0, f2[0]))[2], 3))
+            info["base_floor_z"] = base
+            info["base_ok"] = all(b is not None and abs(b - frel) <= sg.SAME_FLOOR_M for b in base)
+            bpy.ops.mesh.primitive_cylinder_add(vertices=p.get("sides", 48), radius=p["radius"], depth=p["height"], location=(s.x, s.y, fz + p["height"] / 2))
+            o = bpy.context.active_object
+            o.name = "STAGE_WELL"
+            o.data.materials.append(mk_mat("STAGE_WELL_stone", (0.45, 0.43, 0.40)))
+            bpy.ops.mesh.primitive_cylinder_add(vertices=p.get("sides", 48), radius=p["radius"] - 0.18, depth=0.02, location=(s.x, s.y, fz + p["height"] + 0.005))
+            h = bpy.context.active_object
+            h.name = "STAGE_WELL_hole"
+            h.data.materials.append(mk_mat("STAGE_WELL_dark", (0.02, 0.02, 0.03)))
+            info.update(radius_m=p["radius"], height_m=p["height"], top_z=round(frel + p["height"], 2), source=p.get("source"))
+        else:
+            hgt = p["height"]
+            body_h = hgt - 0.26
+            bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=0.19, depth=body_h, location=(s.x, s.y, fz + body_h / 2))
+            b = bpy.context.active_object
+            b.name = f"STAGE_{p['name']}_body"
+            col = tuple(p.get("rgb", (1.0, 0.4, 0.1)))
+            b.data.materials.append(mk_mat(f"STAGE_{p['name']}_m", col))
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=0.12, location=(s.x, s.y, fz + hgt - 0.13))
+            hd = bpy.context.active_object
+            hd.name = f"STAGE_{p['name']}_head"
+            hd.data.materials.append(b.data.materials[0])
+            # mũi chỉ hướng mặt
+            f = math.radians(p.get("facing", 0))
+            bpy.ops.mesh.primitive_cone_add(radius1=0.06, depth=0.18, location=(s.x + math.sin(f) * 0.2, s.y + math.cos(f) * 0.2, fz + hgt - 0.13))
+            nz = bpy.context.active_object
+            nz.name = f"STAGE_{p['name']}_nose"
+            nz.rotation_euler = (math.pi / 2, 0, -f)
+            nz.data.materials.append(b.data.materials[0])
+            info.update(height_m=hgt, facing_deg=p.get("facing", 0), eye_z=round(frel + hgt * sg.EYE, 2),
+                        chest_z=round(frel + hgt * sg.CHEST, 2), hip_z=round(frel + hgt * sg.HIP, 2), source=p.get("source"))
+        placed[p["name"]] = info
+    bpy.context.view_layer.update()
+
+    # ---- ánh sáng + engine ----
+    rp.add_ground(lo, hi)
+    used = rp.setup_world({"mode": "A", "sun_elevation": 50, "sun_azimuth": 140, "exposure": -0.3}, warnings)
+    try:
+        rp.fix_terrain(None, warnings)
+        rp.fix_foliage(warnings)
+        rp.fix_water(warnings)
+    except Exception as e:  # noqa: BLE001
+        warnings.append(f"fix map: {e}")
+    engine = rp.pick_engine(cfg.get("engine", "auto"), warnings)
+    for owner, attr in ((getattr(scene, "eevee", None), "taa_render_samples"), (getattr(scene, "cycles", None), "samples")):
+        if owner is not None and hasattr(owner, attr):
+            setattr(owner, attr, int(cfg.get("samples", 16)))
+
+    def render(path, res):
+        scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = res[0], res[1], 100
+        nonlocal engine
+        try:
+            return rp.render_to(path, False)
+        except RuntimeError as e:
+            warnings.append(f"{engine} lỗi ({e}) → Cycles")
+            engine = rp.pick_engine("cycles", warnings)
+            return rp.render_to(path, False)
+
+    # ---- ảnh trực giao từ trên ----
+    tv = cfg["top_view"]
+    cd = bpy.data.cameras.new("STAGE_TOP")
+    cd.type = "ORTHO"
+    cd.ortho_scale = tv["size_m"]
+    cd.clip_end = 1000
+    cam = bpy.data.objects.new("STAGE_TOP", cd)
+    scene.collection.objects.link(cam)
+    c = scn((tv["centre"][0], tv["centre"][1], 0))
+    cam.location = (c.x, c.y, hi.z + 20)
+    cam.rotation_euler = (0, 0, 0)
+    scene.camera = cam
+    top_sec = render(os.path.join(out, "top_raw.png"), (tv["px"], tv["px"]))
+
+    # ---- máy thử + lưới tia ----
+    frames = {}
+    for cspec in cfg.get("cameras", []):
+        loc_r = tuple(cspec["at"])
+        aim_r = tuple(cspec["aim"])
+        L, A = scn(loc_r), scn(aim_r)
+        cd = bpy.data.cameras.new(cspec["name"])
+        cd.lens = cspec["lens"]
+        cd.clip_end = 2000
+        cam = bpy.data.objects.new(cspec["name"], cd)
+        scene.collection.objects.link(cam)
+        cam.location = L
+        rp.look_at(cam, list(A))
+        scene.camera = cam
+        res = cspec["res"]
+        aspect = res[0] / res[1]
+        sec = render(os.path.join(out, cspec["file"]), res)
+        d = dg()
+        nu, nv = cspec["rays"]
+        counts, nearest, nearest_solid, cells_hit = {}, None, None, []
+        for j in range(nv):
+            row = []
+            for i in range(nu):
+                u, v = (i + 0.5) / nu, (j + 0.5) / nv
+                dr = Vector(sg.ray_dir(list(L), list(A), u, v, cspec["lens"], aspect))
+                ok, loc, nor, idx, obj, _ = scene.ray_cast(d, L, dr, distance=3000)
+                if not ok or obj is None:
+                    g, dist = "troi", None
+                else:
+                    o = obj.original if hasattr(obj, "original") else obj
+                    mat = mat_of(obj, idx)
+                    if o.name.startswith("STAGE_WELL"):
+                        g = "gieng"
+                    elif o.name.startswith("STAGE_"):
+                        g = "nguoi_" + o.name.split("_")[1].lower()
+                    else:
+                        g = sg.group_by_hit(classify(o, mat), rel((0, 0, loc.z))[2], nor.z)
+                    note(o, mat, g)
+                    dist = (loc - L).length
+                    if nearest is None or dist < nearest[0]:
+                        nearest = (dist, o.name, g)
+                    if g not in ("san", "gieng") and not g.startswith("nguoi") and (nearest_solid is None or dist < nearest_solid[0]):
+                        nearest_solid = (dist, o.name, g, round(u, 2), round(v, 2))
+                counts[g] = counts.get(g, 0) + 1
+                row.append(g[:2])
+            cells_hit.append(row)
+        total = nu * nv
+        # số kiểm hình học
+        chk = {}
+        cam_floor = floor_hit(L.x, L.y)
+        cam_floor_rel = rel((0, 0, cam_floor[0]))[2] if cam_floor else None
+        yaw, pitch = sg.look(loc_r, aim_r)
+        chk["camera"] = dict(sg.measure(stage, loc_r), z_above_stage_m=round(loc_r[2], 2),
+                             z_above_floor_below_m=None if cam_floor_rel is None else round(loc_r[2] - cam_floor_rel, 2),
+                             floor_below=None if cam_floor is None else cam_floor[1].name, yaw_deg=round(yaw, 1),
+                             pitch_deg=round(pitch, 1), lens_mm=cspec["lens"], res=res)
+        targets = dict(cfg.get("targets", {}))
+        targets.update({k: v for k, v in cspec.get("targets", {}).items()})
+        tz = {}
+        if "thap_chan" in marks:
+            targets["thap_chan"] = marks["thap_chan"]["xyz"]
+            targets["thap_dinh"] = marks["thap_dinh"]["xyz"]
+        for k, p in targets.items():
+            pr = sg.project(loc_r, aim_r, p, cspec["lens"], aspect)
+            T = scn(p)
+            seg = T - L
+            ok, loc, _, _, obj, _ = scene.ray_cast(d, L, seg.normalized(), distance=max(seg.length - 0.15, 0.01))
+            blocker = None
+            if ok and obj is not None:
+                o = obj.original if hasattr(obj, "original") else obj
+                own = {"kelly": "STAGE_KELLY", "yeunu": "STAGE_YEUNU", "gieng": "STAGE_WELL",
+                       "thap": marks.get("thap_object", {}).get("name") or "~"}.get(k.split("_")[0], "~")
+                if not o.name.startswith(own):
+                    blocker = {"object": o.name, "at_m": round((loc - L).length, 2)}
+            tz[k] = {"in_frame": sg.in_frame(pr), "uv": None if pr is None else [round(pr[0], 3), round(pr[1], 3)],
+                     "dist_m": round(seg.length, 2), "blocked_by": blocker}
+        chk["targets"] = tz
+        up = scene.ray_cast(d, L, Vector((0, 0, 1)))
+        chk["camera"]["inside_object"] = bool(up[0] and up[2].z > 0.2)              # tia lên gặp mặt hướng lên = đang trong vật
+        chk["camera"]["above"] = None if not up[0] else {"object": up[4].name, "m": round((up[1] - L).length, 2)}
+        chk["camera"]["fov_h_v_deg"] = [round(x, 1) for x in sg.fov(cspec["lens"], aspect)]
+        chk["horizon_w"] = round(sg.horizon_w(pitch, cspec["lens"], aspect), 3)
+        for who in ("kelly", "yeunu"):
+            ft, hd = tz.get(f"{who}_chan"), tz.get(f"{who}_dinh") or tz.get(f"{who}_mat")
+            if ft and hd and ft["uv"] and hd["uv"]:
+                chk[f"{who}_frame_height_pct"] = round(100 * (ft["uv"][1] - hd["uv"][1]), 1)
+            pts_ = [v_ for k_, v_ in tz.items() if k_.startswith(who)]
+            if pts_:
+                chk[f"{who}_visible_pct"] = round(100 * sum(1 for v_ in pts_ if v_["in_frame"] and not v_["blocked_by"]) / len(pts_))
+        wp = placed.get("WELL")
+        if wp:
+            chk["well_top_vs_hip"] = {n_: round(wp["top_z"] / placed[n_]["hip_z"], 2) for n_ in ("KELLY", "YEUNU") if n_ in placed}
+        # hình phác clay (Workbench xám, đạo cụ/người tô màu theo vật)
+        keep = scene.render.engine
+        try:
+            scene.render.engine = "BLENDER_WORKBENCH"
+            shd = scene.display.shading
+            shd.light, shd.color_type = "STUDIO", "OBJECT"
+            for ob in scene.objects:
+                if ob.type == "MESH":
+                    ob.color = (0.72, 0.72, 0.72, 1) if not ob.name.startswith("STAGE_") else ob.color
+            for ob_name, colr in (("STAGE_WELL", (0.35, 0.55, 0.95, 1)), ("STAGE_WELL_hole", (0.1, 0.1, 0.15, 1))):
+                if bpy.data.objects.get(ob_name):
+                    bpy.data.objects[ob_name].color = colr
+            for ob in scene.objects:
+                if ob.name.startswith("STAGE_KELLY"):
+                    ob.color = (1.0, 0.55, 0.1, 1)
+                elif ob.name.startswith("STAGE_YEUNU"):
+                    ob.color = (0.9, 0.15, 0.2, 1)
+            try:
+                shd.show_cavity = True
+            except AttributeError:
+                pass
+            if scene.world is not None:
+                scene.world.color = (0.82, 0.86, 0.92)
+            clay = cspec["file"].replace("try_", "view_").replace(".png", "_clay.png")
+            clay = {"try_wide.png": "view_a_clay_raw.png", "try_down.png": "view_b_clay_raw.png"}.get(cspec["file"], clay)
+            scene.render.resolution_x, scene.render.resolution_y = res[0], res[1]
+            clay_sec = rp.render_to(os.path.join(out, clay), False)
+            chk["clay"] = {"file": clay, "render_sec": round(clay_sec, 2)}
+        except Exception as e:  # noqa: BLE001
+            warnings.append(f"clay {cspec['name']}: {e}")
+        finally:
+            scene.render.engine = keep
+        ax_a, ax_b = cfg["axis"]
+        chk["axis_side"] = sg.axis_side(ax_a, ax_b, loc_r)
+        if "thap_chan" in marks:
+            chk["angle_cam_kelly_tower_deg"] = round(sg.angle_at(loc_r, ax_a, marks["thap_chan"]["xyz"]), 1)
+        chk["camera"].update(at=list(loc_r), aim=list(aim_r))
+        frames[cspec["name"]] = {"file": cspec["file"], "render_sec": round(sec, 1), "rays": [nu, nv],
+                                 "percent": {g: round(100 * n / total, 1) for g, n in sorted(counts.items(), key=lambda x: -x[1])},
+                                 "nearest_hit": None if nearest is None else {"m": round(nearest[0], 2), "object": nearest[1], "group": nearest[2]},
+                                 "nearest_solid": None if nearest_solid is None else {"m": round(nearest_solid[0], 2), "object": nearest_solid[1],
+                                                                                      "group": nearest_solid[2], "uv": nearest_solid[3:]},
+                                 "checks": chk, "map": ["".join(r_) for r_ in [[x[0] for x in row] for row in cells_hit]]}
+
+    objects = []
+    for name, e in inv.items():
+        o = bpy.data.objects.get(name)
+        box = obj_box(o) if o is not None else None
+        top_rel = None if box is None else round((box[1][2] - lift) / factor - floor_model, 2)
+        size = None if box is None else [round(box[1][k] - box[0][k], 2) for k in range(3)]
+        e.update(top_rel_m=top_rel, bbox_size_m=size, group_shape=None if size is None else sg.group_by_shape(top_rel, size),
+                 group_by_name=sg.group_by_name(name, " ".join(e["materials"])))
+        objects.append(e)
+    objects.sort(key=lambda e: -e["hits"])
+
+    def dump(fn, data):
+        with open(os.path.join(out, fn), "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+    stage["axis"] = cfg.get("axis")
+    stage.update({"north": "+y của model/scene (θ = 0) — quy ước facing của plate_camera/location_pack; CHƯA có nguồn hướng Bắc trong game", "cell_rule": "|floor_z| ≤ 0,15 m cùng sàn; > 0,15 m bậc (≤ 0,6) / tầng khác; vật > 0,3 m = vật chắn", "marks": marks, "placed": placed,
+                  "blender": bpy.app.version_string, "engine": engine, "sky": used, "warnings": warnings,
+                  "top_view": dict(tv, render_sec=round(top_sec, 1)), "sec": round(time.time() - t0, 1)})
+    dump("stage.json", stage)
+    dump("grid.json", {"origin": stage["origin_model"], "cell_m": stage["cell_m"], "cells": grid})
+    dump("objects.json", objects)
+    dump("frames.json", frames)
+    print("[stage] done", flush=True)
+
+
+# ================================================ máy chủ ================================================
+def host_main(argv=None):
+    import argparse
+    sys.path.insert(0, ROOT)
+    from core import plates3d
+    ap = argparse.ArgumentParser(description="Bước 0 lưới sân khấu (0 USD)")
+    ap.add_argument("--db", default="data/manifest.sqlite")
+    ap.add_argument("--place", type=int, default=263)
+    ap.add_argument("--spot", default="plaza_front")
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--facing", type=float, default=350.0, help="hướng Kelly nhìn (độ từ Bắc) — #24: về giếng/tháp")
+    ap.add_argument("--well-dist", type=float, default=1.6)
+    ap.add_argument("--draw-only", action="store_true", help="chỉ vẽ lại topgrid.png + in bảng từ JSON đã có")
+    a = ap.parse_args(argv)
+    out = os.path.abspath(a.out)
+    os.makedirs(out, exist_ok=True)
+    if not a.draw_only:
+        import sqlite3
+        conn = sqlite3.connect(f"file:{os.path.abspath(a.db)}?mode=ro", uri=True)
+        prof = json.loads(conn.execute("SELECT profile FROM assets WHERE id=?", (a.place,)).fetchone()[0])
+        m3 = prof["model3d"]
+        spot = m3["spots"][a.spot]
+        cfg = build_cfg(m3, spot, out, a.facing, a.well_dist)
+        cfg_path = os.path.join(out, "cfg.json")
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=1)
+        blender = plates3d.find_blender()
+        if not blender:
+            sys.exit("không tìm thấy Blender")
+        args = ["-b", "--factory-startup", "-P", os.path.abspath(__file__), "--", "--config", cfg_path]
+        with plates3d.blender_turn(owner="stage_grid"):
+            if blender.startswith(plates3d.STORE):
+                proc = plates3d._run_in_store(blender, args, out, 1800)
+            else:
+                import subprocess
+                proc = subprocess.run([blender] + args, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1800)
+        with open(os.path.join(out, "blender.log"), "w", encoding="utf-8") as f:
+            f.write(proc.stdout or "")
+        if proc.returncode != 0 or not os.path.exists(os.path.join(out, "frames.json")):
+            sys.exit("Blender lỗi:\n" + "\n".join((proc.stdout or "").splitlines()[-15:]))
+    draw_top(out)
+    for name, letter in (("try_wide", "a"), ("try_down", "b")):
+        draw_clay(out, name, letter)
+    report(out)
+
+
+KELLY_H = 1.7          # Kho nhân vật 23 KELLY: profile.height_m = 1.7
+YEUNU_H = 1.7          # nhân vật #24 30/31 không ghi chiều cao → mặc định, báo người dùng
+WELL_H = round(sg.HIP * YEUNU_H, 2)   # Kho 420 "GIẾNG ĐÁ CỔ": "cao ngang hông" → 0,53 × 1,7 = 0,90 m
+WELL_D = 1.5           # ảnh Kho 1127 (gieng_da_sach): bề ngang / chiều cao thành ≈ 1,7 → 1,7 × 0,9 ≈ 1,5 m; tám cạnh
+WELL_SRC = "Kho 420 + ảnh 1127: cao ngang hông (0,53·1,7 = 0,90 m), rộng ≈ 1,7 × cao ≈ 1,5 m, tám cạnh"
+
+
+def build_cfg(m3, spot, out, facing, well_dist):
+    """#24 thử: Kelly đứng ở O nhìn `facing` về giếng (trục Kelly→giếng), giếng trước mặt, yêu nữ bên kia giếng nhìn Kelly."""
+    kelly = (0.0, 0.0, 0.0)
+    well = sg.offset(kelly, facing, well_dist)
+    woman = sg.offset(well, facing, 1.2)              # bên kia miệng giếng, nhìn Kelly
+    right = (facing + 90) % 360                               # phía máy theo sơ đồ G0 (#24: Đông của trục)
+    # (a) toàn cảnh ngang tầm mắt sau lưng-chéo Kelly, phía phải trục, nhìn về giếng/tháp, ngửa nhẹ cho tháp vào khung
+    cam_a = sg.offset(sg.offset(kelly, (facing + 180) % 360, 7.0), right, 2.0, dz=1.6)
+    aim_a = sg.offset(kelly, facing, 10.0, dz=1.6 + 10.0 * math.tan(math.radians(14)) + 7.0 * math.tan(math.radians(14)))
+    # (b) máy cao cúi nhìn miệng giếng (như shot 2 #24): phía phải trục, cao 3,4 m, cách tâm giếng 2,4 m
+    # mục 5: T = giữa ngực Kelly và miệng giếng; α = phía phải trục, chếch về sau Kelly; khung dọc chứa 4 m; cao = mắt + 1 m
+    t_b = ((kelly[0] + well[0]) / 2, (kelly[1] + well[1]) / 2, (sg.CHEST * KELLY_H + WELL_H) / 2)
+    cam_b = sg.camera_at(t_b, (facing + 125) % 360, sg.frame_distance(4.0, 24, 9 / 16), sg.EYE * KELLY_H + 1.0)
+    aim_b = t_b
+    hk, hy = KELLY_H, YEUNU_H
+    targets = {"kelly_chan": [*kelly[:2], 0.0], "kelly_hong": [*kelly[:2], sg.HIP * hk], "kelly_nguc": [*kelly[:2], sg.CHEST * hk],
+               "kelly_mat": [*kelly[:2], sg.EYE * hk], "kelly_dinh": [*kelly[:2], hk],
+               "gieng_tam": [well[0], well[1], WELL_H], "yeunu_chan": [woman[0], woman[1], 0.0],
+               "yeunu_hong": [woman[0], woman[1], sg.HIP * hy], "yeunu_mat": [woman[0], woman[1], sg.EYE * hy]}
+    return {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spot["at"],
+            "anchor_model": m3["anchor"], "cell_m": 1.0, "cols": 20, "rows": 20, "acting_area": {"half_m": 3.0, "extra": [[well[0], well[1], 2.0]]}, "engine": "auto", "samples": 16,
+            "top_view": {"centre": [0.0, 5.5], "size_m": 42.0, "px": 1260},
+            "props": [{"name": "WELL", "kind": "well", "at": list(well[:2]), "radius": WELL_D / 2, "height": WELL_H, "sides": 8,
+                       "source": WELL_SRC},
+                      {"name": "KELLY", "kind": "person", "at": [0.0, 0.0], "height": KELLY_H, "source": "Kho nhân vật 23 KELLY height_m", "facing": facing, "rgb": [1.0, 0.45, 0.05]},
+                      {"name": "YEUNU", "kind": "person", "at": list(woman[:2]), "height": YEUNU_H, "source": "chưa có trong hồ sơ — mặc định 1,7 m", "facing": (facing + 180) % 360,
+                       "rgb": [0.85, 0.05, 0.1]}],
+            "axis": [list(kelly), [well[0], well[1], 0.0]], "targets": targets,
+            "cameras": [{"name": "try_wide", "file": "try_wide.png", "at": [round(v, 3) for v in cam_a], "aim": [round(v, 3) for v in aim_a],
+                         "lens": 24, "res": [576, 1024], "rays": [36, 64]},
+                        {"name": "try_down", "file": "try_down.png", "at": [round(v, 3) for v in cam_b], "aim": [round(v, 3) for v in aim_b],
+                         "lens": 24, "res": [576, 1024], "rays": [36, 64]}]}
+
+
+def draw_top(out):
+    """topgrid.png: ảnh trực giao + lưới 1 m + nhãn ô, tô màu ô khác sàn, gốc O, mũi tên Bắc, tháp, giếng, người."""
+    from PIL import Image, ImageDraw, ImageFont
+    st = json.load(open(os.path.join(out, "stage.json"), encoding="utf-8"))
+    grid = json.load(open(os.path.join(out, "grid.json"), encoding="utf-8"))
+    tv = st["top_view"]
+    px, size, cx, cy = tv["px"], tv["size_m"], tv["centre"][0], tv["centre"][1]
+    s = px / size
+    raw = os.path.join(out, "top_raw.png")
+    img = Image.open(raw).convert("RGBA") if os.path.exists(raw) else Image.new("RGBA", (px, px), (40, 40, 40, 255))
+
+    def P(x, y):
+        return (x - cx) * s + px / 2, px / 2 - (y - cy) * s
+    ov = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    d = ov.load and ImageDraw.Draw(ov)
+    try:
+        font = ImageFont.truetype("arial.ttf", 11)
+        big = ImageFont.truetype("arialbd.ttf", 18)
+    except OSError:
+        font = big = ImageFont.load_default()
+    cm = st["cell_m"]
+    tint = {"step": (255, 200, 0, 90), "level": (255, 40, 40, 110), "none": (0, 0, 0, 140)}
+    for c in grid["cells"]:
+        x0, y0 = P(c["x"] - cm / 2, c["y"] + cm / 2)
+        x1, y1 = P(c["x"] + cm / 2, c["y"] - cm / 2)
+        col = tint.get(c.get("status"))
+        if c.get("obstacle"):
+            col = (255, 120, 0, 120)
+        if c.get("covered"):
+            col = (120, 0, 200, 90)
+        if col:
+            d.rectangle([x0, y0, x1, y1], fill=col)
+        if c.get("inner_step"):
+            d.line([x0, y0, x1, y1], fill=(255, 200, 0, 200), width=1)
+    hx, hy = st["cols"] * cm / 2, st["rows"] * cm / 2
+    sub = cm / 4                                          # lưới phụ 0,25 m kẻ mờ, không tên (mục 2.3b)
+    for i in range(int(st["cols"] * 4) + 1):
+        x = -hx + i * sub
+        d.line([P(x, -hy), P(x, hy)], fill=(255, 255, 255, 40), width=1)
+    for j in range(int(st["rows"] * 4) + 1):
+        y = -hy + j * sub
+        d.line([P(-hx, y), P(hx, y)], fill=(255, 255, 255, 40), width=1)
+    for i in range(st["cols"] + 1):
+        x = -hx + i * cm
+        d.line([P(x, -hy), P(x, hy)], fill=(255, 255, 255, 150), width=1)
+    for j in range(st["rows"] + 1):
+        y = -hy + j * cm
+        d.line([P(-hx, y), P(hx, y)], fill=(255, 255, 255, 150), width=1)
+    for c in grid["cells"]:
+        x, y = P(c["x"] - cm / 2 + 0.05, c["y"] + cm / 2 - 0.05)
+        d.text((x + 1, y + 1), c["cell"], fill=(0, 0, 0, 255), font=font)
+        d.text((x, y), c["cell"], fill=(255, 255, 255, 255), font=font)
+    ox, oy = P(0, 0)
+    d.ellipse([ox - 6, oy - 6, ox + 6, oy + 6], outline=(255, 0, 255, 255), width=3)
+    d.text((ox + 8, oy + 4), "O", fill=(255, 0, 255, 255), font=big)
+    for k, pl in st.get("placed", {}).items():
+        x, y = P(pl["xyz"][0], pl["xyz"][1])
+        r = (pl.get("radius_m") or 0.25) * s
+        d.ellipse([x - r, y - r, x + r, y + r], outline=(0, 160, 255, 255) if pl["kind"] == "well" else (255, 80, 0, 255), width=3)
+        if pl.get("facing_deg") is not None:
+            fa = math.radians(pl["facing_deg"])
+            d.line([x, y, x + math.sin(fa) * 30, y - math.cos(fa) * 30], fill=(255, 80, 0, 255), width=3)
+        d.text((x + r + 3, y - 9), f"{k} {pl['cell']}", fill=(255, 255, 255, 255), font=big)
+    tw = st.get("marks", {}).get("thap_chan")
+    if tw:
+        x, y = P(tw["xyz"][0], tw["xyz"][1])
+        d.rectangle([x - 8, y - 8, x + 8, y + 8], outline=(255, 30, 30, 255), width=3)
+        d.text((x + 10, y - 9), f"THÁP (O→{tw['dist_m']} m, {tw['bearing_deg']}°)", fill=(255, 60, 60, 255), font=big)
+    for name, fr in (json.load(open(os.path.join(out, "frames.json"), encoding="utf-8")) or {}).items():
+        cam = fr["checks"]["camera"]
+        x, y = P(cam["xyz"][0], cam["xyz"][1])
+        a = math.radians(cam["yaw_deg"])
+        d.ellipse([x - 5, y - 5, x + 5, y + 5], fill=(0, 255, 0, 255))
+        half = math.radians((cam.get("fov_h_v_deg") or [60, 0])[0] / 2)       # hình nón nhìn (FOV ngang) trên mặt sàn
+        reach = 8 * s
+        cone = [(x, y)] + [(x + math.sin(a + t) * reach, y - math.cos(a + t) * reach) for t in (-half, half)]
+        d.polygon(cone, fill=(0, 255, 0, 22), outline=(0, 255, 0, 230))
+        d.text((x + 7, y + 3), f"máy {name} {cam['cell']}", fill=(0, 255, 0, 255), font=big)
+    ax_ = st.get("axis")
+    if ax_:
+        d.line([P(*ax_[0][:2]), P(*ax_[1][:2])], fill=(255, 255, 0, 255), width=2)
+    d.polygon([(px - 40, 20), (px - 50, 50), (px - 30, 50)], fill=(255, 255, 255, 255))
+    d.text((px - 46, 52), "B", fill=(255, 255, 255, 255), font=big)
+    d.text((10, px - 26), "Cột A→T: Tây→Đông · Hàng 1→20: Nam→Bắc · ô 1 m (phụ 0,25 m) · vàng = bậc, đỏ = tầng khác, cam = vật chắn, tím = có mái che",
+           fill=(255, 255, 255, 255), font=font)
+    Image.alpha_composite(img, ov).convert("RGB").save(os.path.join(out, "topgrid.png"))
+
+
+def draw_clay(out, name, letter):
+    """view_<a|b>_clay.png: hình phác Workbench + nhãn (Kelly, Yêu nữ, Giếng, Tháp), lưới sàn 1 m chiếu từ số, một phần ba,
+    đường chân trời w_h, vạch headroom, vùng thanh trên 15 %."""
+    from PIL import Image, ImageDraw, ImageFont
+    fr = json.load(open(os.path.join(out, "frames.json"), encoding="utf-8")).get(name)
+    if not fr or not fr["checks"].get("clay"):
+        return
+    st = json.load(open(os.path.join(out, "stage.json"), encoding="utf-8"))
+    chk, cam = fr["checks"], fr["checks"]["camera"]
+    img = Image.open(os.path.join(out, chk["clay"]["file"])).convert("RGBA")
+    W, H = img.size
+    aspect = W / H
+    ov = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(ov)
+    try:
+        font, big = ImageFont.truetype("arial.ttf", 13), ImageFont.truetype("arialbd.ttf", 18)
+    except OSError:
+        font = big = ImageFont.load_default()
+    C, A, f = cam["at"], cam["aim"], cam["lens_mm"]
+
+    def uv(p):
+        r = sg.project(C, A, p, f, aspect)
+        return None if r is None or r[2] < 0.3 else (r[0] * W, r[1] * H)
+    hx = st["cols"] * st["cell_m"] / 2
+    for k in range(-int(hx), int(hx) + 1):                       # lưới sàn 1 m (z = 0)
+        for line in (((k, -hx), (k, hx)), ((-hx, k), (hx, k))):
+            pts = [uv((line[0][0] + (line[1][0] - line[0][0]) * t / 40, line[0][1] + (line[1][1] - line[0][1]) * t / 40, 0.0))
+                   for t in range(41)]
+            for p0, p1 in zip(pts, pts[1:]):
+                if p0 and p1 and max(abs(p0[0]), abs(p1[0])) < 4 * W and max(abs(p0[1]), abs(p1[1])) < 4 * H:
+                    d.line([p0, p1], fill=(40, 40, 40, 90 if k else 200), width=1 if k else 2)
+    d.rectangle([0, 0, W, H * 0.15], fill=(255, 0, 0, 40))
+    d.text((6, H * 0.15 - 18), "vùng thanh trên 15 %", fill=(160, 0, 0, 255), font=font)
+    for t in (1 / 3, 2 / 3):
+        d.line([(W * t, 0), (W * t, H)], fill=(255, 255, 255, 160), width=1)
+        d.line([(0, H * t), (W, H * t)], fill=(255, 255, 255, 160), width=1)
+    wh = chk["horizon_w"]
+    if 0 <= wh <= 1:
+        d.line([(0, wh * H), (W, wh * H)], fill=(0, 120, 255, 230), width=2)
+    d.text((6, min(max(wh, 0), 0.97) * H + 2), f"chân trời w_h = {wh:.3f}" + ("" if 0 <= wh <= 1 else " (ngoài khung)"),
+           fill=(0, 80, 220, 255), font=font)
+    t = chk["targets"]
+    head = t.get("kelly_dinh")
+    if head and head["uv"]:
+        y = head["uv"][1] * H
+        d.line([(W * 0.05, y), (W * 0.95, y)], fill=(255, 140, 0, 230), width=2)
+        d.text((W * 0.55, y - 16), f"headroom Kelly {head['uv'][1] * 100:.1f}%", fill=(200, 90, 0, 255), font=font)
+    for key, label in (("kelly_dinh", "Kelly"), ("yeunu_mat", "Yêu nữ"), ("gieng_tam", "Giếng"), ("thap_chan", "Tháp (chân)"),
+                       ("thap_dinh", "Tháp (đỉnh)")):
+        v = t.get(key)
+        if not v or not v["uv"]:
+            continue
+        x, y = v["uv"][0] * W, v["uv"][1] * H
+        inside = v["in_frame"]
+        xc, yc = min(max(x, 8), W - 120), min(max(y, 20), H - 8)
+        d.ellipse([xc - 4, yc - 4, xc + 4, yc + 4], fill=(0, 0, 0, 255))
+        d.text((xc + 6, yc - 20), label + ("" if inside else " (ngoài khung)") + (" (bị che)" if v["blocked_by"] else ""),
+               fill=(0, 0, 0, 255), font=big)
+    d.text((6, H - 40), f"máy {name}: ô {cam['cell']}, cao {cam['z_above_stage_m']} m, pitch {cam['pitch_deg']}°, f {f} mm",
+           fill=(0, 0, 0, 255), font=font)
+    d.text((6, H - 22), f"clay render {chk['clay']['render_sec']} s", fill=(0, 0, 0, 255), font=font)
+    Image.alpha_composite(img, ov).convert("RGB").save(os.path.join(out, f"view_{letter}_clay.png"))
+
+
+def report(out):
+    st = json.load(open(os.path.join(out, "stage.json"), encoding="utf-8"))
+    grid = json.load(open(os.path.join(out, "grid.json"), encoding="utf-8"))["cells"]
+    fr = json.load(open(os.path.join(out, "frames.json"), encoding="utf-8"))
+    cnt = {}
+    for c in grid:
+        cnt[c.get("status")] = cnt.get(c.get("status"), 0) + 1
+    print("O model", st["origin_model"], "scene", st["origin_scene"], "trên", st["origin_on"], "dốc", st["slope_deg"])
+    print("ô:", cnt, "có mái:", sum(1 for c in grid if c.get("covered")), "bậc trong ô:", sum(1 for c in grid if c.get("inner_step")))
+    for k, v in list(st["marks"].items()) + list(st["placed"].items()):
+        print(f"  {k:12s} {v}")
+    for n, f in fr.items():
+        print(n, f["percent"], "gần nhất", f["nearest_hit"], "vật rắn gần nhất", f["nearest_solid"])
+        print("   máy", f["checks"]["camera"])
+        print("   phía trục", f["checks"]["axis_side"], "góc máy-Kelly-tháp", f["checks"].get("angle_cam_kelly_tower_deg"),
+              {k: v for k, v in f["checks"].items() if k not in ("camera", "targets", "axis_side", "angle_cam_kelly_tower_deg")})
+        for t, v in f["checks"]["targets"].items():
+            print(f"     {t:10s} {v}")
+
+
+if __name__ == "__main__":
+    if IN_BLENDER:
+        argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+        with open(argv[argv.index("--config") + 1], encoding="utf-8") as fh:
+            blender_main(json.load(fh))
+    else:
+        host_main()
