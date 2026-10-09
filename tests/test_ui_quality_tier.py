@@ -33,6 +33,8 @@ class TwoTierSeed(VideoSeed):
                   (json.dumps({"difficulty": "complex", "difficulty_why": "hai người nhảy cùng lúc",
                                "difficulty_check": {"score": 4, "factors": ["2 người", "nhảy"], "suggest": "complex",
                                                     "note": "dữ liệu shot đồng ý"}}), self.sids[0]))
+        for sid in self.sids[1:]:          # 09/10: chưa có nhãn → gen thẳng; các cảnh mẫu này thử đường nháp → nhãn 'chưa rõ'
+            c.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"difficulty": "unknown"}), sid))
         c.commit()
         for sid, st in zip(self.sids, ["draft_ok", "draft_review", "draft_stale", "none", "final_ok"]):
             self.put(sid, st)
@@ -98,7 +100,7 @@ class VideoScreenTests(TwoTierSeed):
         self.assertIn("Phức tạp", html)
         self.assertIn("hai người nhảy cùng lúc", html)
         self.assertIn("dữ liệu shot đồng ý", "\n".join(c.value for c in at.caption))
-        self.assertTrue({f"qpath_{s}" for s in self.sids} <= {s.key for s in at.selectbox})
+        self.assertTrue({f"vres_{s}" for s in self.sids} <= {s.key for s in at.selectbox})   # 09/10: ô Chất lượng thay ô Cấu hình
 
     def test_gen_final_only_on_draft_ok_with_price(self):
         self.on()

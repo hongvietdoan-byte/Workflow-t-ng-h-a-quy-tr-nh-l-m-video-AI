@@ -367,6 +367,24 @@ def stale_note(conn, data_dir: str, pid: int, resolution, scene_id: int, item: D
     return note
 
 
+def _why_no_place(conn, scene_id: int) -> str:
+    """09/10 (đợt B): shot không có trong kế hoạch nền 3D — nói đúng lý do. Bối cảnh Kho có mô hình 3D nhưng mọi ảnh của nó mất tệp
+    (đường dẫn tương đối tính theo thư mục mã — chạy từ worktree / máy khác không có data/assets) thì KHÔNG phải "shot đã rời bối cảnh"."""
+    import json
+    from . import assets
+    row = conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    try:
+        lid = json.loads((row["data"] if row else None) or "{}").get("location_asset")
+    except ValueError:
+        lid = None
+    a = assets.get(conn, lid) if isinstance(lid, int) and not isinstance(lid, bool) else None
+    if a is not None and a["kind"] == "location" and not a["images"] and a.get("missing") \
+            and (assets.get_profile(conn, lid).get("model3d") or {}).get("path"):
+        return (f"không đọc được bối cảnh 3D '{a['name']}' (#{lid}): {len(a['missing'])} ảnh Kho mất tệp, vd {a['missing'][0]} — "
+                "kiểm thư mục data/assets trước khi vẽ lại")
+    return "shot không còn ở bối cảnh có mô hình 3D"
+
+
 def old_plate_images(conn, data_dir: str, pid: int, resolution) -> Dict[int, str]:
     """KLD-6: {scene_id: reason} — the shot's approved picture was drawn on a 3D background (its sent_refs `plate_key`) that is not
     the plan's now (spot / direction / light moved after the picture). Its clip would carry the old place: the autopilot does not send
@@ -399,7 +417,7 @@ def old_plate_images(conn, data_dir: str, pid: int, resolution) -> Dict[int, str
         it = plans[res].get(sid)
         if it is not None and it["key"] == key:
             continue
-        where = (f"chỗ đứng / hướng máy hiện tại: {it['spot']}" if it is not None else "shot không còn ở bối cảnh có mô hình 3D")
+        where = (f"chỗ đứng / hướng máy hiện tại: {it['spot']}" if it is not None else _why_no_place(conn, sid))
         out[sid] = (f"ảnh khung đầu (job {jid}) vẽ trên nền 3D cũ — {where}. Vẽ lại ảnh (nền mới tự dựng 0 USD) trước khi gen "
                     "video; chế độ tự chạy không tự gửi clip này, bạn bấm gửi tay vẫn được")
     return out

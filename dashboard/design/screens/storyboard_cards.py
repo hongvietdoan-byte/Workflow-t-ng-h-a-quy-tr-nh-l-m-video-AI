@@ -414,17 +414,15 @@ def action_bar(p, pid: int) -> None:
 # ---------------------------------------------------------------------------------------------------------------- Motion (step3)
 def motion_hero(p, pid: int, summ: dict, rows) -> None:
     stat = voice.status(p.conn, pid, C.DATA)
-    out = os.path.join(C.DATA, str(pid), "output", "ANIMATIC.mp4")
     m_done, m_stale = summ["motion"]
     total = summ["total"] or 0
     pills = [("⚠ %d mục cũ" % m_stale, "warn")] if m_stale else []
     with D.hero("sb-mot"):
-        st.markdown(D.hero_html("Storyboard · Motion, giọng thoại & animatic", "viết cách chuyển động cho từng cảnh, làm giọng, xem nhịp — trước khi tốn credit video",
+        st.markdown(D.hero_html("Storyboard · Motion & giọng thoại", "viết cách chuyển động cho từng cảnh, làm giọng — trước khi tốn credit video",
                                 pills), unsafe_allow_html=True)
-        c = st.columns(3)
+        c = st.columns(2)                                # 09/10: animatic chỉ ở tab Ảnh (một nút) — bỏ ô số ở đây
         c[0].markdown(D.stat("Motion prompt đã duyệt", f"{m_done} / {total}"), unsafe_allow_html=True)
         c[1].markdown(D.stat("Câu thoại có giọng", f"{stat.get('succeeded', 0)} / {stat['total']}" if stat["total"] else "—"), unsafe_allow_html=True)
-        c[2].markdown(D.stat("Animatic", "đã dựng" if os.path.exists(out) else "chưa dựng"), unsafe_allow_html=True)
         st.markdown(D.meter((m_done / total) if total else 0, "Tiến độ motion prompt"), unsafe_allow_html=True)
 
 
@@ -444,7 +442,7 @@ def scene_voice_map(p, pid: int) -> dict:
     return out
 
 
-def motion_pills(r, srow: dict, voices: dict, has_image: bool, animatic_done: bool, flags=(), lint=None) -> str:
+def motion_pills(r, srow: dict, voices: dict, has_image: bool, flags=(), lint=None) -> str:
     if srow.get("motion_stale"):
         prompt = D.pill("Prompt cũ", "warn")
     elif r["state"] == "approved":
@@ -453,8 +451,7 @@ def motion_pills(r, srow: dict, voices: dict, has_image: bool, animatic_done: bo
         prompt = D.pill("Prompt cần duyệt", "warn")
     done, tot = voices.get(r["sid"], (0, 0))
     voice_pill = D.pill("Không có thoại", "mute") if not tot else D.pill(f"Giọng {done}/{tot}", "ok" if done == tot else "warn")
-    anim = D.pill("Animatic có", "ok") if animatic_done and has_image else D.pill("Animatic: thiếu ảnh", "mute") if not has_image else D.pill("Animatic: chưa dựng", "info")
-    out = f"{prompt} {voice_pill} {anim}"
+    out = f"{prompt} {voice_pill}" + ("" if has_image else " " + D.pill("Chưa có ảnh", "mute"))   # 09/10: bỏ pill animatic từng shot
     if flags:
         out += " " + D.pill(f"⚑ {len(flags)} cờ", "warn")
     if lint:

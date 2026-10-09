@@ -37,6 +37,7 @@ class Base(unittest.TestCase):
         llm_io.approve_motion_prompt(self.p, self.s1)
         self.p.conn.execute("UPDATE motion_prompts SET video_model='seedance-2.5' WHERE scene_id=?", (self.s1,))
         self.p.conn.commit()
+        self.set_difficulty("unknown")      # 09/10: chưa có nhãn → gen thẳng; các test này thử đường nháp → nhãn 'chưa rõ' của Đạo diễn
 
     def set_difficulty(self, level, sid=None):
         sid = sid or self.s1
@@ -130,6 +131,7 @@ class PathAndStateTests(Base):
             self.assertEqual((self.tier(f), self.p.job(f)["draft_job_id"], self.p.job(f)["retry_count"]), ("final", d, 0))
             self.assertEqual(st(), "final_running")
             self.made(f)
+            self.assertEqual(st(), "final_review")              # 09/10: gen xong, chờ duyệt — không còn "đang gen"
             self.p.approve(f, "user")
             self.assertEqual(st(), "final_ok")
             s2 = self.p.create_scene(self.pid, 2, "Shot 2")

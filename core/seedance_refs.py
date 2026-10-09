@@ -86,7 +86,14 @@ def _groupable(data: Dict) -> bool:
 
 def groups(conn, project_id: int) -> List[List[Dict]]:
     """Consecutive groupable shots of one continuity group (script scene + sequence), at most GROUP_MAX_SHOTS and GROUP_MAX_SECONDS of
-    film each; only groups of 2+ shots (a lone shot is a one-shot clip)."""
+    film each; only groups of 2+ shots (a lone shot is a one-shot clip).
+    09/10 (người dùng: bấm chọn bị lag): một lượt màn Video #24 gọi hàm này ~300 lần, mỗi lần dựng prompt mọi shot để ước độ dài
+    (≈ 6/8 s một lượt) → `memo.cached` (một lần mỗi lượt Streamlit và trạng thái CSDL; ngoài Dashboard không đệm)."""
+    from .memo import cached
+    return cached(conn, ("seedance_refs.groups", project_id), lambda: _groups(conn, project_id))
+
+
+def _groups(conn, project_id: int) -> List[List[Dict]]:
     from .shots import _group_key, _rows
     out: List[List[Dict]] = []
     cur: List[Dict] = []

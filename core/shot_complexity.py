@@ -6,7 +6,11 @@ move, lip sync / spoken lines, a skill effect, a reference video, a 3D place. An
 "unknown" with a note (a draft first is cheaper than a wasted high-tier clip); "complex" is never lowered — the Director may see a
 difficulty the fields do not show.
 
-N1 (the two-tier video) reads scenes.data["difficulty"]: easy → the high tier straight away; complex / unknown / missing → a draft first.
+N1 (the two-tier video) reads scenes.data["difficulty"]: easy → the high tier straight away; complex / unknown → a draft first.
+09/10 (người dùng: "tối ưu việc gắn nhãn; không có gì thì gen thẳng"): Đạo diễn KHÔNG ghi nhãn → nhãn theo kiểm chéo (điểm ≥ COMPLEX_MIN
+→ complex, còn lại → easy), không còn mặc định 'chưa rõ' = nháp mọi shot. Kiểm chéo bớt gắt: nền 3D không cộng điểm (render được gửi
+làm tham chiếu — giúp model, không làm khó; #24 shot 1–2 "một người đi, máy tĩnh" bị hạ oan), `camera_complexity` chỉ tính khi shot không
+ghi `camera_move` (máy tĩnh / đẩy chậm mà ghi 'cảnh phức tạp' không còn bị cộng).
 """
 import re
 import unicodedata
@@ -84,12 +88,10 @@ def score(scene_data: Dict, ref_video: bool = False) -> Dict:
         add("dialogue", "có thoại", 1)
     if d.get("camera_move") in BIG_MOVES:
         add("camera_big", f"máy di chuyển ({d['camera_move']})", 1)
-    elif d.get("camera_complexity") == "complex":
+    elif not d.get("camera_move") and d.get("camera_complexity") == "complex":
         add("camera_big", "máy / cảnh phức tạp", 1)
     if ref_video:
         add("ref_video", "video tham chiếu", 1)
-    if d.get("location_asset") or d.get("plate_spot") or d.get("plate_view"):
-        add("place_3d", "nền 3D", 1)
     total = sum(f["weight"] for f in factors)
     suggest = "easy" if total <= EASY_MAX else ("complex" if total >= COMPLEX_MIN else "unknown")
     return {"score": total, "factors": factors, "suggest": suggest}
@@ -107,7 +109,9 @@ def reconcile(scene_data: Dict, ref_video: bool = False) -> Dict:
                          + f" (điểm {s['score']}) → hạ thành 'chưa rõ', nháp trước")
         label = "unknown"
     elif "difficulty" not in scene_data or scene_data.get("difficulty") in (None, ""):
-        check["note"] = "Đạo diễn chưa ghi độ khó → 'chưa rõ'"
+        label = "complex" if s["suggest"] == "complex" else "easy"
+        check["note"] = ("Đạo diễn chưa ghi độ khó → theo kiểm chéo: " + (f"'phức tạp' (điểm {s['score']}: " + " · ".join(check["factors"])
+                         + ") — nháp trước" if label == "complex" else f"'dễ' (điểm {s['score']}) — gen thẳng"))
     out = {"difficulty": label, "difficulty_check": check}
     if why:
         out["difficulty_why"] = why

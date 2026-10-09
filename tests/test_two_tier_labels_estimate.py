@@ -32,6 +32,7 @@ class TwoTierEstimateTests(unittest.TestCase):
         self.hard = self.p.create_scene(self.pid, 1, "S1")
         self.easy = self.p.create_scene(self.pid, 2, "S2")
         self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"difficulty": "easy"}), self.easy))
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"difficulty": "complex"}), self.hard))   # 09/10: nhãn rõ
         for sid in (self.hard, self.easy):
             self.p.conn.execute("INSERT INTO motion_prompts (scene_id, motion_prompt, duration_sec, state) VALUES (?, 'x', 5, 'approved')", (sid,))
         self.p.conn.commit()

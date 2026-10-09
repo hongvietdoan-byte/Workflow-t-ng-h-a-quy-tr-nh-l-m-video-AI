@@ -268,7 +268,20 @@ def current_pid(p: Pipeline):
     (rendered above the dropdown) already knows it in the same script run -- selectbox key="global_pid"."""
     ids = [r["id"] for r in archive.active_projects(p.conn, C.access_user())]          # 📦 archived projects are not offered
     pid = st.session_state.get("global_pid")
+    if pid is None:                  # 09/10 (người dùng): F5 = phiên mới → đọc dự án đang làm từ địa chỉ trang (?pid=…), không về dự án đầu
+        try:
+            pid = int(st.query_params.get("pid", ""))
+        except ValueError:
+            pid = None
+        if pid in ids:
+            st.session_state["global_pid"] = pid
     return pid if pid in ids else (ids[0] if ids else None)
+
+
+def remember_pid(pid) -> None:
+    """Ghi dự án đang mở lên địa chỉ trang (?pid=…) để F5 / mở lại tab vẫn về đúng dự án (current_pid đọc lại)."""
+    if pid is not None and st.query_params.get("pid") != str(pid):
+        st.query_params["pid"] = str(pid)
 
 
 def new_project_control(p: Pipeline) -> None:
@@ -958,6 +971,7 @@ def global_bar(p: Pipeline):
         pid = c1.selectbox("Dự án", ids, index=ids.index(default_pid) if default_pid in ids else 0,
                            format_func=lambda i: next(r["name"] for r in projects if r["id"] == i), key="global_pid",
                            label_visibility="collapsed")
+        remember_pid(pid)
         proj = p.project(pid)
         with c2:
             risk_popover(p, pid)
@@ -1025,6 +1039,7 @@ def _global_bar_v2(p: Pipeline, projects):
         pid = c1.selectbox("Dự án", ids, index=ids.index(default_pid) if default_pid in ids else 0,
                            format_func=lambda i: next(r["name"] for r in projects if r["id"] == i), key="global_pid",
                            label_visibility="collapsed")
+        remember_pid(pid)
         proj = p.project(pid)
         with c4:
             new_project_control(p)

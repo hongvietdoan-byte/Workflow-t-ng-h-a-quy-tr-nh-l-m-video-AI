@@ -739,7 +739,8 @@ V2_COLUMNS = {
                      ("stage", "TEXT")),                      # what a Claude call was for (director, qc, motion, asset_vision…)        # spend of a deleted project stays readable (its id is never reused)
     "motion_prompts": (("image_job_id", "INTEGER"), ("spec_hash", "TEXT"), ("video_model", "TEXT"), ("check_flags", "TEXT"),
                        ("lint", "TEXT"),
-                       ("quality_path", "TEXT")),   # N1: auto (NULL) | draft_first | direct — the person may override the Director
+                       ("quality_path", "TEXT"),    # N1: auto (NULL) | draft_first | direct — the person may override the Director
+                       ("video_resolution", "TEXT")),   # 09/10: chất lượng người chọn cho shot (480p/720p/1080p/4k; Kling std/pro/4k)
     "end_frames": (("sent_refs", "TEXT"),   # which pictures went with the end frame request (like jobs.sent_refs)
                    ("fix", "TEXT")),        # the person's English fix of a redo (luật 6: a redo changes the input)
     "llm_calls": (("latency_ms", "INTEGER"),          # TODO Tồn đọng P1: time of the call (send → whole answer, one attempt)

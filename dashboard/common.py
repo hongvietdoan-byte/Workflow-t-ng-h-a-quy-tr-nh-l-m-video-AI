@@ -52,7 +52,7 @@ def screen_label(key: str) -> str:
     return STEPS[SCREEN_INDEX[key]]
 
 
-SB_TABS = ("🖼 Ảnh + QC", "🎞 Motion, giọng & animatic")        # the two tabs of the Storyboard screen (dashboard/app.py)
+SB_TABS = ("🖼 Ảnh + QC", "🎞 Motion & giọng")        # the two tabs (09/10: animatic chỉ còn ở tab Ảnh, một nút) of the Storyboard screen (dashboard/app.py)
 
 
 def go_screen(project_id, key: str, tab: int = 0) -> None:
@@ -94,7 +94,7 @@ ERRORS = (sqlite3.IntegrityError, zipfile.BadZipFile, llm_runner.LlmError, Inval
 CRITERIA_LABEL = {"character": "Đúng nhân vật", "hands_face": "Không lỗi tay/mặt", "composition": "Đúng bố cục",
                   "mood_lighting": "Đúng mood / ánh sáng", "consistency": "Không chi tiết thừa/sai",
                   "scale": "Đúng tỉ lệ người/cảnh", "grounding": "Chân chạm đất", "set_match": "Khớp layout / bối cảnh",
-                  "identity": "Giữ đúng nhân vật", "physics": "Vật lý hợp lý", "motion_match": "Khớp motion prompt", "artifacts": "Không biến dạng"}
+                  "identity": "Giữ đúng nhân vật", "physics": "Vật lý hợp lý", "motion_match": "Đúng hành động (motion prompt)", "artifacts": "Không biến dạng"}
 
 FILTERS = {"all": "Tất cả", "review": "Chờ duyệt", "pass": "Đã duyệt", "fail": "Lỗi / đã loại", "run": "Chờ / đang gen"}
 

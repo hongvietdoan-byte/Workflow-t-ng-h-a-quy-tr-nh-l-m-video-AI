@@ -263,10 +263,17 @@ def extras_section(p: Pipeline, pid: int, provider):
                 words += [f"shot {', '.join(map(str, res['no_audio']))} video ref không có tiếng"] if res["no_audio"] else []
                 words += [f"shot {', '.join(map(str, res['missing']))} không thấy tệp video ref"] if res["missing"] else []
                 words += [f"{len(res['already'])} shot đã có đề xuất"] if res["already"] else []
+                words += [f"gỡ {len(res['removed'])} đề xuất của video ref cũ"] if res.get("removed") else []
+                words += [f"shot {', '.join(map(str, res['stale_used']))}: tiếng đang dùng là của video ref CŨ"] if res.get("stale_used") else []
+                if res.get("failed"):                    # rà F5 mục 6: shot lỗi được nói rõ, các shot khác vẫn tách
+                    st.session_state[f"refaudio_err_{pid}"] = " · ".join(f"shot {i}: {w}" for i, w in res["failed"])
                 st.toast(" · ".join(words) or "Không có gì để tách")
             except Exception as ex:  # noqa: BLE001 - said, not swallowed (CHUAN luật 1)
                 st.error(f"Không tách được tiếng video ref: {ex}")
             st.rerun()
+        err = st.session_state.pop(f"refaudio_err_{pid}", None)
+        if err:
+            st.warning("Không tách được tiếng video ref (các shot khác vẫn tách): " + err)
         items = audio_lib.load(directory)
         for i, e in audio_lib.mix_rows(items):          # an old voice waiting for its redo is hidden (no Xóa on it)
             with st.container(border=True):
@@ -281,6 +288,8 @@ def extras_section(p: Pipeline, pid: int, provider):
                                + "Khi dựng: đi theo shot, nén/giãn khớp độ dài clip nếu chênh ≤ 40 %"
                                + (f" (lần dựng trước: {e['fit_skipped']})" if e.get("fit_skipped") else
                                   f" (lần dựng trước: tốc độ ×{e['fit_tempo']:g})" if e.get("fit_file") else "") + ".")
+                    if e.get("ref_stale"):
+                        st.warning("⚠ " + e["ref_stale"] + " — bỏ tích rồi bấm lại nút lấy tiếng video ref để thay")
                 a, b, c, d = st.columns([2, 1.3, 2, 1], vertical_alignment="center")
                 sig = f"{i}_{int(bool(e['use']))}_{e['start']}_{e['volume']}"   # file changed elsewhere (voice placement) -> fresh widgets
                 use = a.checkbox("Đưa vào bản ghép", e["use"], key=f"ax_use_{pid}_{sig}", disabled=e["state"] != "succeeded")

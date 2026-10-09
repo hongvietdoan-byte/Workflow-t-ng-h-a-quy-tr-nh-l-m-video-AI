@@ -205,7 +205,12 @@ class KldVideoScreenTests(VideoSeed):
         self.p.succeed(new)
         at = self.open_video()
         # 09/10: the takes are chips v1 v2… (like the picture cards) — pick the older one first, then use it
+        played = lambda: [v.proto.url for v in at.get("video")]                                    # noqa: E731
+        before = played()
         next(b for b in at.button if b.key == f"vtk_{scene}_{old}").click().run()
+        self.assertEqual(len(played()), len(before))        # 09/10: the chip swaps the card's player (like a picture card), no 2nd player
+        self.assertNotEqual(played(), before)
+        self.assertEqual(next(b for b in at.button if b.key == f"vtk_{scene}_{old}").proto.type, "primary")   # chip đang xem đậm
         btn = next(b for b in at.button if b.key == f"vuse_{old}")
         btn.click().run()
         self.assertFalse(at.exception, at.exception)

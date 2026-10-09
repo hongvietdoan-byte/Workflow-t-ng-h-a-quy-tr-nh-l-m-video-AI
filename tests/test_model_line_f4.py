@@ -97,7 +97,8 @@ class ModelTableUiTests(TwoTierSeed):
         self.assertFalse([x for x in at.get("popover") if "Đổi" in x.proto.popover.label])
         keys = {s.key for s in at.selectbox}
         self.assertTrue({f"vm_{self.pid}_{s}" for s in self.sids} <= keys)       # the old model keys, now inside "Đổi"
-        self.assertTrue({f"qpath_{s}" for s in self.sids} <= keys)               # the path choice lives once, in "Đổi"
+        self.assertTrue({f"vres_{s}" for s in self.sids} <= keys)                # 09/10: "Chất lượng" next to "Model" (no "Cấu hình")
+        self.assertFalse(any(k and k.startswith("qpath_") for k in keys))
         caps = "\n".join(c.value for c in at.caption)
         self.assertIn("Phim 20 s ≈", caps)
         self.assertIn("đổi ngay dưới thẻ clip", caps)                            # 09/10: the model pickers sit under each clip card
@@ -105,13 +106,14 @@ class ModelTableUiTests(TwoTierSeed):
         self.assertIn(f"qfinal_{self.sids[0]}", {b.key for b in at.button})       # F3's high-tier button stays on the card
 
     def test_card_has_no_path_picker_and_flag_off_runs(self):
-        at = self.open(3)                                                        # flag off: no path picker anywhere, table still there
+        at = self.open(3)                                                        # flag off: quality picker still there (no path picker)
         self.assertFalse(any(s.key and s.key.startswith("qpath_") for s in at.selectbox))
         self.assertTrue(self._expand(at))
+        self.assertEqual(len([s for s in at.selectbox if s.key and s.key.startswith("vres_")]), len(self.sids))
         self.on()
         at = self.open(3)
-        paths = [s for s in at.selectbox if s.key and s.key.startswith("qpath_")]
-        self.assertEqual(len(paths), len(self.sids))                             # once per shot (the card has none any more)
+        res = [s for s in at.selectbox if s.key and s.key.startswith("vres_")]
+        self.assertEqual(len(res), len(self.sids))                               # once per shot
         self.assertFalse(at.exception)
 
 

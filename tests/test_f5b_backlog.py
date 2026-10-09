@@ -294,6 +294,57 @@ class RefVideoSound(unittest.TestCase):
         self.assertTrue(e["fit_file"].endswith("_fit.wav"))
         self.assertEqual(os.path.basename(audio_lib.mix_list(directory)[0]["path"]), e["fit_file"])
 
+    def test_one_broken_ref_does_not_stop_the_others(self):
+        """Rà F5 mục 6 (09/10): ffmpeg lỗi ở một shot → ghi `failed`, shot khác vẫn tách."""
+        import subprocess
+        from core import ref_audio
+        sid = self.p.create_scene(self.pid, 8, "S08")
+        self.p.conn.execute("INSERT INTO motion_prompts (scene_id, motion_prompt, state, ref_video_path) VALUES (?,?,?,?)",
+                            (sid, "x", "approved", self.with_sound + ".copy.mp4"))
+        self.p.conn.commit()
+        import shutil
+        shutil.copyfile(self.with_sound, self.with_sound + ".copy.mp4")
+        real = ref_audio._extract
+
+        def broken(src, dst, ff):
+            if src.endswith(".copy.mp4"):
+                raise subprocess.CalledProcessError(1, "ffmpeg", stderr=b"Invalid data found")
+            return real(src, dst, ff)
+        with mock.patch.object(ref_audio, "_extract", broken):
+            res = ref_audio.propose(self.p, self.tmp, self.pid)
+        self.assertEqual(res["added"], [5])
+        self.assertEqual(res["failed"], [(8, "Invalid data found")])
+
+    def test_changed_ref_removes_the_old_proposal_and_marks_a_used_one(self):
+        """Rà F5 mục 7: đổi video ref → đề xuất chưa tích bị gỡ (cả tệp); đã tích → giữ + `ref_stale`; tệp _fit.wav cũ bị xóa."""
+        from core import audio_lib, ref_audio
+        ref_audio.propose(self.p, self.tmp, self.pid)
+        directory = audio_lib.assets_dir(self.tmp, self.pid)
+        old_file = os.path.join(directory, audio_lib.load(directory)[0]["file"])
+        sid5 = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=5", (self.pid,)).fetchone()[0]
+        self.p.conn.execute("UPDATE motion_prompts SET ref_video_path=? WHERE scene_id=?", (self.silent, sid5))
+        self.p.conn.commit()
+        res = ref_audio.propose(self.p, self.tmp, self.pid)
+        self.assertEqual(res["removed"], [5])
+        self.assertEqual(audio_lib.load(directory), [])
+        self.assertFalse(os.path.exists(old_file))
+        self.p.conn.execute("UPDATE motion_prompts SET ref_video_path=? WHERE scene_id=?", (self.with_sound, sid5))
+        self.p.conn.commit()
+        ref_audio.propose(self.p, self.tmp, self.pid)
+        audio_lib.set_mix(directory, 0, True, 0.0, 1.0)
+        e = audio_lib.load(directory)[0]
+        ref_audio.fit(directory, e, 2.5)
+        fitted = os.path.join(directory, e["fit_file"])
+        self.assertTrue(os.path.exists(fitted))
+        ref_audio.fit(directory, e, 5.0)                                     # no longer stretched → the old copy goes
+        self.assertFalse(os.path.exists(fitted))
+        audio_lib._save(directory, [e])
+        self.p.conn.execute("UPDATE motion_prompts SET ref_video_path=NULL WHERE scene_id=?", (sid5,))
+        self.p.conn.commit()
+        res = ref_audio.propose(self.p, self.tmp, self.pid)
+        self.assertEqual(res["stale_used"], [5])
+        self.assertIn("video cũ", audio_lib.load(directory)[0]["ref_stale"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -84,7 +84,7 @@ def shot_line(conn, pid: int, scene_id: int, row: Optional[Dict] = None, ratio: 
                 usd = None if any(v is None for v in parts) else sum(parts)
         else:
             res = res or qt.E1_DIRECT_RESOLUTION
-            model_text = f"{base} · {res}" + (f" → phóng {UPSCALE_AT_EDIT} lúc dựng" if res != UPSCALE_AT_EDIT else "")
+            model_text = f"{base} · {res}" + (f" → phóng {UPSCALE_AT_EDIT} lúc dựng" if res in ("480p", "720p") else "")
             if not in_group and billed is not None:
                 usd = cost.seedance_estimate(canonical, res, ratio, sec)
     else:

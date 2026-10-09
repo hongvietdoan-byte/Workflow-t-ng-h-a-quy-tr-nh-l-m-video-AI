@@ -48,6 +48,8 @@ class Base(unittest.TestCase):
             llm_io.approve_motion_prompt(self.p, sid)
         self.p.conn.commit()
         self.s1 = self.sids[0]
+        for sid in self.sids:               # 09/10: chưa có nhãn → gen thẳng; các test này thử đường nháp → nhãn 'chưa rõ' của Đạo diễn
+            self.label("unknown", sid)
 
     def label(self, level, sid=None):
         sid = sid or self.s1

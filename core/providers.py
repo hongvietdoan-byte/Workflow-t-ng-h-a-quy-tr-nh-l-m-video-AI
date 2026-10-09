@@ -173,7 +173,10 @@ class MockVideoProvider:
 
     def submit(self, image_path, prompt, negative_prompt, duration_sec, model=None, with_audio=False, subjects=None,
               image_references=None, reference_video=None, aspect_ratio=None, resolution=None, multi_prompt=None,
-              last_frame=None, kling_mode=None, reference_audio=None) -> str:
+              last_frame=None, kling_mode=None, reference_audio=None, reference_only=None, draft=False, kling_image_refs=False,
+              high_res_sample=False) -> str:
+        # đợt B 09/10: cùng tham số với ClipAIProvider.submit — thiếu `reference_only` / `draft` thì chạy thử provider giả gãy ở đường
+        # Seedance chỉ-ảnh-tham-chiếu (clip nhóm) và nháp 2.5, đúng hai đường hay dùng nhất
         self._counter += 1
         task_id = f"mock-{self._counter}"
         self._tasks[task_id] = {"prompt": prompt.lower(), "polls": 0, "model": model, "with_audio": with_audio,
@@ -181,7 +184,17 @@ class MockVideoProvider:
                                   "reference_video": reference_video, "aspect_ratio": aspect_ratio,
                                   "resolution": resolution, "multi_prompt": multi_prompt,
                                   "image_path": image_path, "duration": duration_sec, "last_frame": last_frame,
-                                  "kling_mode": kling_mode, "reference_audio": list(reference_audio or [])}
+                                  "kling_mode": kling_mode, "reference_audio": list(reference_audio or []),
+                                  "reference_only": list(reference_only or []), "draft": bool(draft)}
+        return task_id
+
+    def submit_final_from_sample(self, sample_external_id: str, resolution: str = "1080p") -> str:
+        """Bản cao nâng từ nháp (như ClipAIVideoProvider): một task mới mang prompt của nháp — chạy thử đường 2 bậc không gãy."""
+        src = self._tasks.get(str(sample_external_id).split(":", 1)[-1]) or {}
+        self._counter += 1
+        task_id = f"mock-{self._counter}"
+        self._tasks[task_id] = dict(src or {"prompt": "", "model": "seedance-2.5", "duration": 4}, polls=0, resolution=resolution,
+                                    draft=False, from_sample=sample_external_id)
         return task_id
 
     def status(self, task_id: str) -> TaskStatus:

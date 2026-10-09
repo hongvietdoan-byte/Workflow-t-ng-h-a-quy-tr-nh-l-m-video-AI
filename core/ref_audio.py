@@ -25,15 +25,46 @@ def _extract(src: str, dst: str, ffmpeg: str) -> None:
                    check=True, capture_output=True)
 
 
+def _drop_files(directory: str, entry: Dict, keys=("file", "fit_file")) -> None:
+    for key in keys:
+        if entry.get(key):
+            try:
+                os.remove(os.path.join(directory, entry[key]))
+            except OSError:
+                pass
+
+
+def _prune(directory: str, current: Dict[int, str], out: Dict) -> None:
+    """Rà F5 mục 7 (09/10): đề xuất tiếng của video ref ĐÃ ĐỔI / ĐÃ BỎ khỏi shot. Chưa tích → gỡ (cả tệp + bản nén/giãn); người đã tích
+    → giữ (người quyết) nhưng ghi `ref_stale` để Bước 5 nói rõ đó là tiếng của video cũ."""
+    items, keep, changed = audio_lib.load(directory), [], False
+    for e in items:
+        if e.get("source") == SOURCE and current.get(e.get("anchor_idx")) != e.get("ref_video"):
+            if not e.get("use"):
+                _drop_files(directory, e)
+                out["removed"].append(e.get("anchor_idx"))
+                changed = True
+                continue
+            if not e.get("ref_stale"):
+                e["ref_stale"] = "video ref của shot đã đổi / đã bỏ — đây là tiếng của video cũ"
+                out["stale_used"].append(e.get("anchor_idx"))
+                changed = True
+        keep.append(e)
+    if changed:
+        audio_lib._save(directory, keep)
+
+
 def propose(p, data_dir: str, pid: int) -> Dict:
-    """Tách tiếng các video ref có âm thanh thành đề xuất SFX của shot. Returns {"added": [idx], "no_audio": [idx], "missing": [idx],
-    "already": [idx]} — mọi shot có video ref đều được kể (không im lặng khi bỏ qua)."""
+    """Tách tiếng các video ref có âm thanh thành đề xuất SFX của shot. Returns {"added", "no_audio", "missing", "already", "failed":
+    [(idx, lý do)], "removed", "stale_used": [idx]} — mọi shot có video ref đều được kể (không im lặng khi bỏ qua); lỗi ffmpeg một shot
+    không dừng các shot khác (rà F5 mục 6); đề xuất của video ref cũ được dọn trước (`_prune`)."""
     directory = audio_lib.assets_dir(data_dir, pid)
-    have = {(e.get("anchor_idx"), e.get("ref_video")) for e in audio_lib.load(directory) if e.get("source") == SOURCE}
-    out = {"added": [], "no_audio": [], "missing": [], "already": []}
+    out = {"added": [], "no_audio": [], "missing": [], "already": [], "failed": [], "removed": [], "stale_used": []}
     rows = p.conn.execute("SELECT s.idx, m.ref_video_path FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id "
                           "WHERE s.project_id=? AND m.ref_video_path IS NOT NULL AND m.ref_video_path != '' ORDER BY s.idx",
                           (pid,)).fetchall()
+    _prune(directory, {r["idx"]: r["ref_video_path"] for r in rows}, out)
+    have = {(e.get("anchor_idx"), e.get("ref_video")) for e in audio_lib.load(directory) if e.get("source") == SOURCE}
     ffmpeg = None
     for r in rows:
         idx, ref = r["idx"], r["ref_video_path"]
@@ -56,6 +87,10 @@ def propose(p, data_dir: str, pid: int) -> Dict:
                                 extra={"anchor_idx": idx, "offset": 0.0, "use": False, "source": SOURCE, "ref_video": ref,
                                        "ref_seconds": round(seconds, 3)})
             out["added"].append(idx)
+        except (subprocess.CalledProcessError, OSError) as ex:      # rà F5 mục 6: một shot lỗi không dừng cả lượt
+            err = getattr(ex, "stderr", None)
+            why = (err.decode("utf-8", "replace").strip().splitlines() or [""])[-1] if isinstance(err, bytes) else str(ex)
+            out["failed"].append((idx, why[:200] or type(ex).__name__))
         finally:
             try:
                 os.remove(tmp)
@@ -79,6 +114,15 @@ def fit(directory: str, entry: Dict, shot_seconds: float, ffmpeg: Optional[str] 
     """Mutates `entry` (one ref-audio row switched on): `fit_file` + `fit_tempo` when stretched, `fit_skipped` (Vietnamese reason)
     when not. The original file is never changed."""
     entry.pop("fit_skipped", None)
+    old_fit = entry.get("fit_file")
+    try:
+        return _fit(directory, entry, shot_seconds, ffmpeg)
+    finally:                                        # rà F5 mục 7: bản nén/giãn không còn dùng thì xóa (không để tệp cũ tích lại)
+        if old_fit and entry.get("fit_file") != old_fit:
+            _drop_files(directory, {"fit_file": old_fit}, keys=("fit_file",))
+
+
+def _fit(directory: str, entry: Dict, shot_seconds: float, ffmpeg: Optional[str]) -> Dict:
     ref_s = float(entry.get("ref_seconds") or (entry.get("duration_ms") or 0) / 1000.0)
     shot_s = float(shot_seconds or 0)
     if ref_s <= 0 or shot_s <= 0:

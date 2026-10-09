@@ -9,17 +9,17 @@ Không có module hoặc cờ `two_tier_quality` tắt / chưa có → `enabled(
 from typing import Dict, List, Optional, Tuple
 
 FLAG = "two_tier_quality"
-STATES = ("none", "draft_running", "draft_review", "draft_ok", "draft_stale", "final_running", "final_ok", "direct_ok")
+STATES = ("none", "draft_running", "draft_review", "draft_ok", "draft_stale", "final_running", "final_review", "final_ok", "direct_ok")
 # huy hiệu trên thẻ cảnh: (chữ, loại pill)
 STATE_PILL = {"none": ("Chưa gen", "mute"), "draft_running": ("Nháp · đang gen", "info"), "draft_review": ("Nháp · chờ duyệt", "warn"),
-              "draft_ok": ("Nháp đã duyệt", "info"), "draft_stale": ("Nháp đã cũ", "warn"), "final_running": ("Bản cao · đang gen", "info"),
+              "draft_ok": ("Nháp đã duyệt", "info"), "draft_stale": ("Nháp đã cũ", "warn"), "final_running": ("Bản cao · đang gen", "info"), "final_review": ("Bản cao · chờ duyệt", "warn"),
               "final_ok": ("Bản cao ✓", "ok"), "direct_ok": ("Cao luôn ✓", "ok")}
 # clip đang dùng trong bản dựng còn là nháp (bản cao chưa xong)
 DRAFT_IN_CUT = ("draft_review", "draft_ok", "draft_stale", "final_running")
 DRAFT_ANY = ("draft_running",) + DRAFT_IN_CUT
 FINAL_DONE = ("final_ok", "direct_ok")
 # phần đã làm của một cảnh trong chặng clip: nháp → duyệt nháp → bản cao (hoặc gen thẳng)
-WEIGHT = {"none": 0.0, "draft_running": 0.15, "draft_review": 0.3, "draft_stale": 0.3, "draft_ok": 0.5, "final_running": 0.7,
+WEIGHT = {"none": 0.0, "draft_running": 0.15, "draft_review": 0.3, "draft_stale": 0.3, "draft_ok": 0.5, "final_running": 0.7, "final_review": 0.85,
           "final_ok": 1.0, "direct_ok": 1.0}
 PATHS = {"auto": "Tự động", "draft_first": "Nháp trước", "direct": "Cao luôn"}
 DIFFICULTY = {"easy": "Dễ", "complex": "Phức tạp", "unknown": "Chưa rõ"}
@@ -94,7 +94,7 @@ def progress_lines(counts: Dict[str, int]) -> str:
     """One line of the clip stage: how many scenes at each step (only the non-zero ones)."""
     parts = [("nháp đang gen", counts.get("draft_running", 0)), ("nháp chờ duyệt", counts.get("draft_review", 0)),
              ("nháp đã duyệt", counts.get("draft_ok", 0)), ("nháp đã cũ", counts.get("draft_stale", 0)),
-             ("bản cao đang gen", counts.get("final_running", 0)),
+             ("bản cao đang gen", counts.get("final_running", 0)), ("bản cao chờ duyệt", counts.get("final_review", 0)),
              ("bản cao / cao luôn xong", counts.get("final_ok", 0) + counts.get("direct_ok", 0)), ("chưa gen", counts.get("none", 0))]
     return " · ".join(f"{n} {t}" for t, n in parts if n)
 

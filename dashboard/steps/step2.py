@@ -646,35 +646,56 @@ def pilot_panel(p: Pipeline, pid: int) -> None:
 
 def animatic_box(p: Pipeline, pid: int) -> None:
     """S2.4 (kế hoạch sau #8): the film as it will be cut — storyboard pictures for their locked seconds with a slow move, the voice
-    lines, the music and the subtitles — before any video is paid for (0 USD, ffmpeg)."""
+    lines, the music and the subtitles — before any video is paid for (0 USD, ffmpeg).
+    09/10 (người dùng): MỘT nút rõ ràng (lời giải thích trong tooltip, không còn dòng chữ trông như nút); dựng xong ghi rõ thiếu thoại /
+    nhạc; trình phát có nút "✖ Thu gọn". Chỗ duy nhất của animatic (ô trùng ở tab Motion đã bỏ)."""
     from core import animatic, delivery
     out_dir = delivery.output_dir(C.DATA, pid)
     done = next((os.path.join(out_dir, f) for f in ("ANIMATIC_sub.mp4", "ANIMATIC.mp4") if os.path.exists(os.path.join(out_dir, f))), None)
-    c1, c2 = st.columns([3, 1.4], vertical_alignment="center")
-    _about = ("🎬 **Animatic** — xem cả phim bằng ảnh storyboard + giọng + nhạc + phụ đề theo đúng độ dài từng shot, TRƯỚC khi trả tiền "
-              "video (0 USD). Ảnh tĩnh có đẩy / lia nhẹ theo chuyển động máy: để xem nhịp, thứ tự, độ dài — không phải diễn xuất.")
-    if ui.v2_on():
-        from dashboard.design.screens import storyboard_cards as SB
-        with c1:
-            SB.note("🎬 Animatic — xem nhịp cả phim · 0 USD", _about, "sb-board-anim")
-    else:
-        c1.caption(_about)
-    if c2.button("🎬 Dựng animatic" if not done else "🔄 Dựng lại animatic", key=f"animatic_{pid}"):
-        with st.spinner("Đang dựng animatic (khoảng 1 phút)…"):
+    show = f"animatic_show_{pid}"
+    about = ("Ghép ảnh storyboard + giọng thoại + nhạc + phụ đề theo đúng độ dài từng shot để xem nhịp, thứ tự, độ dài TRƯỚC khi trả tiền "
+             "video. Ảnh tĩnh có đẩy / lia nhẹ theo chuyển động máy — không phải diễn xuất. Không tốn credit (ffmpeg, khoảng 10–60 giây).")
+    c1, c2 = st.columns([1.6, 1], vertical_alignment="center")
+    if c1.button("🎬 Xem nhịp cả phim (animatic · 0 USD)" if not done else "🔄 Dựng lại animatic (0 USD)", key=f"animatic_{pid}",
+                 help=about, width="stretch"):
+        with st.spinner("Đang dựng animatic…"):
             try:
                 r = animatic.build(p, pid, C.DATA)
-                st.session_state[f"animatic_note_{pid}"] = (
-                    f"{r['shots']} shot · {r['seconds']:g} s · {r['voices']} câu thoại · " + ("có nhạc" if r["music"] else "chưa có nhạc")
-                    + (" · có phụ đề" if r["subtitles"] else "") + (f" · ⚠ {len(r['missing'])} shot chưa có ảnh (thẻ tối)" if r["missing"] else ""))
+                st.session_state[f"animatic_note_{pid}"] = animatic_note(r)
+                st.session_state[show] = True
                 done = r["path"]
             except Exception as e:  # noqa: BLE001 - said on the page, the storyboard stays usable
                 st.error(f"Không dựng được animatic: {e}")
-    if done:
-        note = st.session_state.get(f"animatic_note_{pid}")
-        if note:
-            st.caption(note)
-        player, _ = st.columns([1, 2])            # a 9:16 player at full width is taller than the screen
-        player.video(done)
+    if not done:
+        return
+    if not st.session_state.get(show):
+        if c2.button("▶ Mở bản đã dựng", key=f"animatic_open_{pid}", width="stretch"):
+            st.session_state[show] = True
+            st.rerun()
+        return
+    if c2.button("✖ Thu gọn", key=f"animatic_close_{pid}", width="stretch"):
+        st.session_state[show] = False
+        st.rerun()
+    note = st.session_state.get(f"animatic_note_{pid}")
+    if note:
+        st.caption(note)
+    player, _ = st.columns([1, 2])            # a 9:16 player at full width is taller than the screen
+    player.video(done)
+
+
+def animatic_note(r: dict) -> str:
+    """Một dòng sau khi dựng: số shot / giây + nói rõ phần CHƯA có (thoại, nhạc, ảnh) — bản chỉ có hình không bị tưởng là đủ."""
+    parts = [f"{r['shots']} shot · {r['seconds']:g} s"]
+    parts.append(f"{r['voices']} câu thoại" if r["voices"] else "⚠ chưa có thoại")
+    parts.append("có nhạc" if r["music"] else "⚠ chưa có nhạc")
+    if r["subtitles"]:
+        parts.append("có phụ đề")
+    if r["missing"]:
+        parts.append(f"⚠ {len(r['missing'])} shot chưa có ảnh (thẻ tối)")
+    out = " · ".join(parts)
+    if not r["voices"] and not r["music"]:
+        out += " — bản này chỉ có hình: làm giọng ở tab Motion & giọng, nhạc ở màn Bản giao rồi dựng lại để nghe nhịp"
+    return out
 
 
 def shot_storyboard_panel(p: Pipeline, pid: int, gate_button: bool = True) -> None:

@@ -79,7 +79,7 @@ def step_label(done: list):
 
 def storyboard(p: Pipeline, pid: int):
     """Storyboard = Ảnh + QC (step 2) and Motion & giọng (step 3) side by side in two tabs — every control of both is still there."""
-    t_img, t_mot = st.tabs(list(C.SB_TABS), key="sb_tab", default=st.session_state.get("sb_tab") or C.SB_TABS[0])
+    t_img, t_mot = st.tabs(list(C.SB_TABS), key="sb_tab", default=st.session_state.get("sb_tab") if st.session_state.get("sb_tab") in C.SB_TABS else C.SB_TABS[0])
     with t_img:
         step2(p, pid)
     with t_mot:
@@ -198,6 +198,11 @@ def main():
         shell_header(p, pid, done, cur)
     step = st.radio("Màn", visible, horizontal=True, key="step", label_visibility="collapsed", format_func=step_label(done))
     st.session_state["_step_keep"] = step
+    # 09/10 (người dùng: F5 về dự án đầu / màn đầu): màn đang mở lên địa chỉ trang (?step=…, cùng mã với liên kết sâu) — tải lại mở đúng màn
+    code = {0: "home", 1: "1", 2: "2", 3: "4", 4: "5", 5: "team", 6: "monitor"}.get(STEPS.index(step)) if step in STEPS else None
+    cur_q = st.query_params.get("step")                 # (?step=history/lessons/users đã mở hộp thoại ở thanh trên — ghi đè để F5 không mở lại)
+    if code and {"3": "2", "5a": "5", "5b": "5"}.get(cur_q, cur_q) != code:
+        st.query_params["step"] = code
     if step in (STEPS[1], STEPS[2], STEPS[3], STEPS[4]):              # cờ chat_first (Đợt 3): bản đồ shot × khâu, gập thành một dòng
         from dashboard import stage_map_ui
         stage_map_ui.render(p.conn, pid)

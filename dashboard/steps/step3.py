@@ -28,7 +28,7 @@ def step3(p: Pipeline, pid: int):
         from dashboard.design.screens import storyboard_cards as SB
         SB.motion_hero(p, pid, summ, rows)
     else:
-        step_header("Storyboard · Motion, giọng thoại & animatic", "viết cách chuyển động cho từng cảnh, làm giọng, xem nhịp — trước khi tốn credit video",
+        step_header("Storyboard · Motion & giọng thoại", "viết cách chuyển động cho từng cảnh, làm giọng — trước khi tốn credit video",
                     f"{summ['motion'][0]}/{summ['total']} prompt đã duyệt", summ["motion"][1])
     from dashboard import next_step                                     # S9 E0.1
     if not v2:                                                            # v2: the shell header already shows the next step
@@ -92,7 +92,6 @@ def step3(p: Pipeline, pid: int):
                     if act(lambda: llm_io.store_motion_prompts(p, pid, raw), "Đã lưu"):
                         st.rerun()
     voice_panel(p, pid)
-    animatic_panel(p, pid)
     motion_ok = sum(1 for r in rows if r["state"] == "approved") if rows and "state" in rows[0].keys() else 0
     with ui.fold("Motion prompt từng cảnh", f"🎬 {motion_ok}/{len(rows)} cảnh đã duyệt motion · mở để xem / sửa", f"motion_{pid}",
                  default_open=not rows or motion_ok < len(rows), sub=f"{len(rows)} cảnh") as motion_open:  # S9 E3.1
@@ -100,7 +99,6 @@ def step3(p: Pipeline, pid: int):
             if not rows:
                 st.caption("Chưa có motion prompt: duyệt ảnh ở màn Storyboard rồi bấm “🤖 Viết motion prompt”.")
             voices = SB.scene_voice_map(p, pid) if v2 else {}
-            animatic_done = os.path.exists(os.path.join(C.DATA, str(pid), "output", "ANIMATIC.mp4")) if v2 else False
             for r in rows:
                 data = json.loads(r["data"] or "{}")
                 srow = status.get(r["sid"]) or {}
@@ -114,7 +112,7 @@ def step3(p: Pipeline, pid: int):
                     flags = list(flags) + [end_warn]
                 lint = json.loads(r["lint"] or "{}") if r["lint"] else {}
                 if v2:                                         # P1: các pill; mọi chi tiết (cờ, rà prompt, nội dung kịch bản) trong ⓘ
-                    with _info(f"sb-mot-{r['sid']}-more", SB.motion_pills(r, srow, voices, bool(img_id), animatic_done, flags, lint),
+                    with _info(f"sb-mot-{r['sid']}-more", SB.motion_pills(r, srow, voices, bool(img_id), flags, lint),
                                "Cờ kiểm tra, rà prompt, nội dung kịch bản — bấm để xem"):
                         if flags:
                             st.markdown("**Cờ kiểm tra**\n" + "\n".join(f"- ⚑ {f}" for f in flags))
@@ -312,29 +310,6 @@ def voice_panel(p: Pipeline, pid: int) -> None:
                     _warn(b, f"⚠ {prob}")
             else:
                 b.caption(ui.state_label(e["state"], "audio") + (f": {e.get('message')}" if e.get("message") else ""))
-
-
-def animatic_panel(p: Pipeline, pid: int) -> None:
-    """The film's rhythm before any video credit: approved pictures × planned lengths + voices + music."""
-    out = os.path.join(C.DATA, str(pid), "output", "ANIMATIC.mp4")
-    v2 = ui.v2_on()
-    with st.expander("🎞 Animatic — xem nhịp phim trước khi gen video", expanded=os.path.exists(out) and not v2):
-        _about = ("Ghép ảnh đã duyệt theo thời lượng dự kiến của từng cảnh, kèm giọng thoại và nhạc (nếu đã có). Không tốn credit: "
-                  "dùng để chỉnh nhịp, độ dài, thoại trước bước đắt nhất (video).")
-        if v2:
-            from dashboard.design.screens import storyboard_cards as SB
-            SB.note("Xem nhịp phim bằng ảnh đã duyệt · không tốn credit", _about, "sb-anim-about")
-        else:
-            st.caption(_about)
-        if st.button("🎞 Dựng animatic", key=f"anim_{pid}"):
-            with st.spinner("Đang dựng animatic…"):
-                ok = act(lambda: st.session_state.__setitem__(f"anim_res_{pid}", delivery.animatic(p, pid, C.DATA)))
-            if ok:
-                r = st.session_state.pop(f"anim_res_{pid}")
-                st.toast(f"Animatic {r['seconds']:.0f}s, {r['scenes']} cảnh")
-                st.rerun()
-        if os.path.exists(out):
-            show_video(out)
 
 
 def _warn(target, text) -> None:

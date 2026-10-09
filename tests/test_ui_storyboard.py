@@ -215,13 +215,13 @@ class StoryboardV2Tests(unittest.TestCase):
         store_motion_prompts(p, pid, {"scenes": [{"idx": 1, "motion_prompt": "push in slowly", "camera": "push", "duration_sec": 5,
                                                   "negative_prompt": ""}]})
         at = AppTest.from_file(APP, default_timeout=60)
-        at.session_state["sb_tab"] = "🎞 Motion, giọng & animatic"
+        at.session_state["sb_tab"] = "🎞 Motion & giọng"
         at.run()
         at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
         self.assertFalse(at.exception, at.exception)
         txt = self.text(at)
         self.assertIn("Prompt cần duyệt", txt)
-        self.assertIn("Animatic", txt)
+        self.assertNotIn("Animatic", txt)                                                  # 09/10: animatic chỉ ở tab Ảnh
         self.assertIn(f"mp_{sc[0]}", {t.key for t in at.text_area})                          # every control still there
         self.assertIn(f"mpa_{sc[0]}", {b.key for b in at.button})
 
@@ -308,7 +308,7 @@ class StoryboardV2Tests(unittest.TestCase):
                        (json.dumps(["thiếu hướng máy"]), json.dumps({"ok": False, "issues": ["mơ hồ vị trí"], "revised_prompt": "push in from left"}), sc[0]))
         p.conn.commit()
         at = AppTest.from_file(APP, default_timeout=60)
-        at.session_state["sb_tab"] = "🎞 Motion, giọng & animatic"
+        at.session_state["sb_tab"] = "🎞 Motion & giọng"
         at.run()
         at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
         self.assertFalse(at.exception, at.exception)

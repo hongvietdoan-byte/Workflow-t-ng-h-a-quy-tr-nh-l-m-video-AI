@@ -95,10 +95,12 @@ cảnh khớp tư thế → nhân vật đúng hồ sơ → nền theo render �
     này hầu như không phải gen lại — nháp chỉ tốn thêm một lượt.
   - `complex` khi có thứ model hay làm hỏng: **nhiều người tương tác** (chạm nhau, đối mặt, truyền vật), **nhảy / múa**, **kỹ năng / hiệu
     ứng** (cần ảnh / video tham chiếu), **khớp môi** cận mặt, **tay** làm việc tỉ mỉ (cầm, bấm, trao vật), **máy di chuyển lớn** (track,
-    orbit, crane, whip), **nền 3D khó** (góc nhìn lạ, nhiều vật mốc phải đúng). *Vì sao — số đo thật:* #8 shot thoại khớp môi trung bình
+    orbit, crane, whip), **nền 3D khó** (góc nhìn lạ, nhiều vật mốc phải đúng) — nền 3D bình thường KHÔNG làm shot khó (render được gửi kèm làm tham chiếu, giúp model). *Vì sao — số đo thật:* #8 shot thoại khớp môi trung bình
     gen lại 1 lần/shot, #22 shot nhảy / kỹ năng 3 lần/shot; nháp rẻ cho phép sửa trước khi trả giá bản cao.
   - `unknown` khi thiếu căn cứ để chắc (chưa có ảnh tham chiếu kỹ năng, chưa biết model xử lý động tác này ra sao, kịch bản tả mơ hồ).
     Không đoán `easy` cho yên tâm — `unknown` vẫn đi đường nháp, an toàn hơn.
+    Nhưng cũng đừng ghi `unknown` cho shot `easy` rõ ràng (một người đi / đứng / nhìn, máy tĩnh) — `unknown` là trả thêm một lượt nháp.
+    Bỏ trống nhãn thì code tự chấm theo các trường (rõ khó → nháp, còn lại gen thẳng) — luôn ghi nhãn để quyết định là của bạn.
   - `difficulty_why`: một câu nêu **căn cứ cụ thể** của shot này ("1 người đứng nhìn, máy tĩnh, không thoại" / "2 người nhảy đối mặt,
     máy orbit"). Code kiểm chéo bằng các trường của shot (số người, từ khóa động tác, `camera_move`, `lip_sync`, thoại, kỹ năng, nền 3D):
     shot ghi `easy` mà các trường cho thấy khó sẽ bị hạ thành `unknown`; không bao giờ hạ `complex`.

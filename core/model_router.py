@@ -131,9 +131,17 @@ def price_per_sec(alias: str, resolution: Optional[str] = None, pricing: Optiona
     prof = load_profiles()["models"].get(alias) or {}
     if pricing:
         key = f"{prof.get('canonical', alias)}:{resolution or prof.get('tier', '')}"
-        value = (pricing.get("per_video_second") or {}).get(key)
+        table = pricing.get("per_video_second") or {}
+        value = table.get(key)
         if isinstance(value, (int, float)):
             return float(value)
+        if key not in table and resolution and resolution != prof.get("tier"):
+            # 09/10 (ô Chất lượng, vd. Seedance 2.0 @ 4K): mức không có trong bảng → công thức giá web (cost.seedance_estimate, 16:9,
+            # 4 s), không rơi về giá 720p của hồ sơ (tính dư)
+            from . import cost
+            usd = cost.seedance_estimate(prof.get("canonical", alias), resolution, "16:9", 4.0)
+            if usd is not None:
+                return usd / 4.0
     return prof.get("usd_per_sec")
 
 
@@ -155,7 +163,89 @@ def scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
             choice.update(model="seedance-fast", reason=choice["reason"] + " (chế độ thử rẻ: dùng bản Fast 720p)")
     if quality_tier.enabled():          # F3 / E1 (09/10): shot dễ → Seedance 2.0 720p; khó / chưa rõ → nháp Seedance 2.5 480p
         choice = quality_tier.e1_choice(conn, scene_id, choice)
-    return choice
+    return _with_resolution(conn, scene_id, choice, mp_row)
+
+
+# ---- chất lượng (độ phân giải) người chọn cho shot — 09/10: ô "Chất lượng" cạnh ô "Model" ----------------------------------------
+KLING_TIERS = (("std", "720p (std)"), ("pro", "1080p (pro)"), ("4k", "4K"))
+RES_LABEL = {"480p": "480p", "720p": "720p", "1080p": "1080p", "4k": "4K"}
+UPGRADE_1080 = "1080p"
+"""Seedance 2.5 qua API chỉ gen 480p/720p; 1080p = nháp 480p → duyệt → nâng 1080p từ nháp (cờ two_tier_quality bật)."""
+
+
+def _upgrade_only(model: Optional[str], res: Optional[str]) -> bool:
+    """Mức này của model chỉ có qua nâng từ nháp (Seedance 2.5 @ 1080p — luật API không có 1080p)."""
+    from . import quality_tier, video_rules
+    canonical = quality_tier._canonical(model)[0]
+    return res == UPGRADE_1080 and canonical == quality_tier.SAMPLE_MODEL \
+        and UPGRADE_1080 not in (video_rules.rule(canonical).get("resolutions") or [])
+
+
+def resolution_options(model: Optional[str]) -> List[tuple]:
+    """[(giá trị, nhãn)] các mức chất lượng model cho phép (data/provider_rules.json): Seedance theo `resolutions` (2.5 thêm 1080p qua
+    nháp khi cờ two_tier_quality bật), Kling theo `modes` (std 720p / pro 1080p / 4k). [] = model không rõ luật (mock / chỉ web)."""
+    from . import quality_tier, video_rules
+    canonical, family = quality_tier._canonical(model)[:2]
+    rule = video_rules.rule(canonical or "")
+    if family == "omni":
+        return [(k, t) for k, t in KLING_TIERS if k in (rule.get("modes") or [])]
+    out = [(r, RES_LABEL.get(r, r)) for r in (rule.get("resolutions") or [])]
+    if out and quality_tier.enabled() and _upgrade_only(model, UPGRADE_1080):
+        out.append((UPGRADE_1080, "1080p (nháp 480p → nâng)"))
+    return out
+
+
+def _with_resolution(conn, scene_id: int, choice: Dict, mp_row=None) -> Dict:
+    """Chất lượng người chọn (motion_prompts.video_resolution) thắng độ phân giải đề xuất — chỉ khi model cuối của shot cho phép mức đó
+    (đổi sang model không có mức này → về đề xuất). Seedance 2.5 @ 1080p: job nháp 480p, bản cao nâng 1080p (`final_resolution`)."""
+    if mp_row is None:
+        mp_row = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+    res = mp_row["video_resolution"] if mp_row is not None and "video_resolution" in mp_row.keys() else None
+    if not res or res not in dict(resolution_options(choice.get("model"))):
+        return choice
+    if _upgrade_only(choice.get("model"), res):
+        from . import quality_tier
+        return {**choice, "resolution": quality_tier.DRAFT_RESOLUTION, "res_source": "override", "final_resolution": res}
+    return {**choice, "resolution": res, "res_source": "override"}
+
+
+def chosen_resolution(conn, scene_id: int) -> Optional[str]:
+    row = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+    return row["video_resolution"] if row is not None and "video_resolution" in row.keys() else None
+
+
+def set_resolution(conn, scene_id: int, res: Optional[str], p=None) -> None:
+    """Chất lượng người chọn cho một shot (None = về đề xuất). Cờ two_tier_quality bật thì đặt luôn đường chất lượng: Seedance 2.5 @
+    1080p → nháp trước (nâng từ nháp, giữ nội dung); mức khác → gen thẳng một lần ở mức đó; None → tự động (theo Đạo diễn)."""
+    if p is not None:
+        access.need_edit_scene(p, scene_id, "đổi chất lượng video của cảnh")
+    choice = scene_choice(conn, scene_id)
+    model = choice["model"]
+    if res and res not in dict(resolution_options(model)):
+        raise ValueError(f"model của shot không có mức chất lượng '{res}'")
+    from . import quality_tier
+    path = None
+    members = group_members(conn, scene_id)
+    if quality_tier.enabled() and res:
+        path = "draft_first" if _upgrade_only(model, res) else "direct"
+        if choice.get("e1") and choice.get("source") != "override":
+            # E1 đổi model theo đường (gen thẳng → Seedance 2.0): chất lượng chọn trên model đang hiện → giữ model đó, không tự đổi
+            conn.executemany("UPDATE motion_prompts SET video_model=? WHERE scene_id=?", [(model, sid) for sid in members])
+    # đợt B 09/10 (#24 chạy thử): một clip nhóm gen chung = một model, một bậc → chất lượng chọn ở một shot áp cho CẢ nhóm (chỉ shot đó
+    # đổi thì nhóm vẫn đi nháp, lần gen lại thành 'bản cao' bị chặn và hỏng)
+    conn.executemany("UPDATE motion_prompts SET video_resolution=?, quality_path=? WHERE scene_id=?",
+                     [(res or None, path, sid) for sid in members])
+    conn.commit()
+
+
+def group_members(conn, scene_id: int) -> List[int]:
+    """Các shot gen chung MỘT clip với shot này (nhóm Seedance / dựng máy chung — shots.group_of), gồm chính nó; [scene_id] khi lẻ."""
+    try:
+        from . import shots
+        ids = [r["id"] for r in (shots.group_of(conn, scene_id) or [])]
+    except Exception:  # noqa: BLE001 - no shot table (old project): the shot alone
+        ids = []
+    return ids if scene_id in ids else [scene_id] + ids
 
 
 def e1_warning(conn, scene_id: int) -> Optional[str]:
@@ -302,6 +392,7 @@ def plan(conn, project_id: int, pricing: Optional[Dict] = None, priority: Option
                 choice = {**choice, "reason": choice["reason"] + f" (trong clip nhóm của shot {group[0]['idx']})"}
         unit = price_per_sec(choice["model"], choice.get("resolution"), pricing)
         rows.append({"scene_id": s["id"], "idx": s["idx"], **choice, "seconds": seconds, "billed_seconds": billed,
+                     "resolution_pick": mp["video_resolution"] if mp is not None and "video_resolution" in mp.keys() else None,
                      "usd_per_sec": unit, "cost": None if unit is None else unit * billed})
     return rows
 

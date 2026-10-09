@@ -46,13 +46,24 @@ class ReconcileTests(unittest.TestCase):
         self.assertEqual(out["difficulty"], "unknown")
         self.assertIn("kiểm chéo", out["difficulty_check"]["note"])
 
+    def test_a_3d_place_and_a_still_camera_do_not_lower_an_easy_shot(self):
+        """09/10 (#24 shot 1–2): một người đi tới giếng, máy tĩnh, nền 3D — Đạo diễn ghi 'dễ' là đúng, không bị hạ."""
+        d = {"difficulty": "easy", "characters": ["KELLY"], "action": "Kelly bước tới gần giếng đá cổ", "camera_move": "static",
+             "camera_complexity": "complex", "location_asset": 263, "plate_view": "landmark"}
+        self.assertEqual(shot_complexity.reconcile(d)["difficulty"], "easy")
+        self.assertEqual(shot_complexity.reconcile(dict(d, camera_move="whip", action="Kelly chạy"))["difficulty"], "unknown")
+
     def test_complex_is_never_lowered_and_easy_stays_easy_on_an_easy_shot(self):
         self.assertEqual(shot_complexity.reconcile({"difficulty": "complex", "characters": ["KENTA"]})["difficulty"], "complex")
         self.assertEqual(shot_complexity.reconcile({"difficulty": "easy", "characters": ["KENTA"], "camera_move": "static",
                                                     "action": "đứng yên"})["difficulty"], "easy")
 
-    def test_missing_or_unknown_spelling_becomes_unknown(self):
-        self.assertEqual(shot_complexity.reconcile({})["difficulty"], "unknown")
+    def test_missing_label_follows_the_cross_check_and_bad_spelling_becomes_unknown(self):
+        # 09/10 (người dùng): Đạo diễn không ghi nhãn → theo kiểm chéo: không gì khó → 'dễ' (gen thẳng); rõ khó → 'phức tạp'
+        self.assertEqual(shot_complexity.reconcile({})["difficulty"], "easy")
+        hard = shot_complexity.reconcile({"characters": ["KENTA", "KELLY"], "action": "Hai người nhảy", "lip_sync": True})
+        self.assertEqual(hard["difficulty"], "complex")
+        self.assertIn("chưa ghi độ khó", hard["difficulty_check"]["note"])
         self.assertEqual(shot_complexity.clean_label("dễ"), "easy")
         self.assertEqual(shot_complexity.clean_label("phức tạp"), "complex")
         self.assertEqual(shot_complexity.clean_label("very hard???"), "unknown")
@@ -65,7 +76,8 @@ class SchemaTests(unittest.TestCase):
         d1 = shots.shot_data({"idx": 1}, _shot(difficulty="easy", difficulty_why="1 người đứng yên"), 1)
         self.assertEqual((d1["difficulty"], d1["difficulty_why"]), ("easy", "1 người đứng yên"))
         d2 = shots.shot_data({"idx": 1}, _shot(), 2)
-        self.assertEqual(d2["difficulty"], "unknown")
+        self.assertIn(d2["difficulty"], ("easy", "complex"))                  # 09/10: no label → the cross-check decides
+        self.assertEqual(d2["difficulty"], shot_complexity.reconcile(dict(_shot()))["difficulty"])
 
     def test_a_wrong_type_never_refuses_the_answer(self):
         shots.validate([_shot(difficulty=3, difficulty_why=["x"])], "s", NAMES)
@@ -91,7 +103,7 @@ class SchemaTests(unittest.TestCase):
                                                         dict(base, idx=2)]})
         rows = {r["idx"]: json.loads(r["data"]) for r in p.conn.execute("SELECT idx, data FROM scenes WHERE project_id=?", (pid,))}
         self.assertEqual((rows[1]["difficulty"], rows[1]["difficulty_why"]), ("complex", "đánh nhau"))
-        self.assertEqual(rows[2]["difficulty"], "unknown")
+        self.assertEqual(rows[2]["difficulty"], "easy")                     # 09/10: no label, nothing hard → straight to high tier
 
 
 class MeasureTests(unittest.TestCase):

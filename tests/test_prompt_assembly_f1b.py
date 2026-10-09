@@ -184,7 +184,8 @@ class F1FixesRunner(unittest.TestCase):
 
         def red(conn, sid, kind=None, **kw):
             return ["Prompt motion · Máy quay: x"] if sid == 12 else []
-        with mock.patch.object(vr, "_sends_group", return_value=group), mock.patch.object(vr, "_refs", return_value=False),                 mock.patch("core.lineage.scan", return_value={}), mock.patch.object(F, "red_issues", side_effect=red):
+        with mock.patch.object(vr, "_sends_group", return_value=group), mock.patch.object(vr, "_refs", return_value=False),                 mock.patch("core.lineage.scan", return_value={}), mock.patch.object(F, "red_issues", side_effect=red), \
+                mock.patch.object(vr, "_motion", return_value={"motion_prompt": "she walks"}):   # 09/10 A1: rỗng bị chặn trước
             reason = vr._blocked({"id": 1, "project_id": pid, "scene_id": 11})
         self.assertIn("sai công thức", reason or "")
         self.assertIn("S02", reason)

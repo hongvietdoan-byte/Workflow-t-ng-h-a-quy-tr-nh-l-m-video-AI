@@ -18,7 +18,7 @@ from typing import Dict, Optional
 TIERS = ("draft", "final", "direct")
 PATHS = ("auto", "draft_first", "direct")
 DIFFICULTY = ("easy", "complex", "unknown")
-STATES = ("none", "draft_running", "draft_review", "draft_ok", "draft_stale", "final_running", "final_ok", "direct_ok")
+STATES = ("none", "draft_running", "draft_review", "draft_ok", "draft_stale", "final_running", "final_review", "final_ok", "direct_ok")
 RETRY_LIMIT = {"draft": 2, "final": 1}
 """Số lần TỰ gen lại tối đa theo bậc (5a.3): nháp 2 → hết thì dừng, báo người dùng; bản cao 1 (dựa trên nháp đã duyệt)."""
 SAMPLE_MODEL = "dreamina-seedance-2-5-260628"
@@ -70,12 +70,22 @@ def difficulty(conn, scene_id: int) -> Dict:
 
 
 def path(conn, scene_id: int) -> str:
-    """draft_first | direct. Ghi đè của người (motion_prompts.quality_path) thắng nhãn Đạo diễn; easy → direct; còn lại → nháp trước."""
+    """draft_first | direct. Ghi đè của người (motion_prompts.quality_path) thắng nhãn Đạo diễn; easy → direct; complex / unknown → nháp
+    trước; chưa có nhãn → theo kiểm chéo (shot_complexity.score: complex → nháp, còn lại gen thẳng — người dùng 09/10)."""
     row = conn.execute("SELECT quality_path FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
     chosen = row["quality_path"] if row is not None else None
     if chosen in ("draft_first", "direct"):
         return chosen
-    return "direct" if difficulty(conn, scene_id)["level"] == "easy" else "draft_first"
+    level = difficulty(conn, scene_id)["level"]
+    if level is None:            # 09/10: chưa có nhãn (dự án cũ / chưa qua kiểm chéo) → kiểm chéo ngay: rõ khó → nháp, còn lại gen thẳng
+        from . import shot_complexity
+        drow = conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+        try:
+            data = json.loads((drow["data"] if drow else None) or "{}")
+        except ValueError:
+            data = {}
+        return "draft_first" if shot_complexity.score(data)["suggest"] == "complex" else "direct"
+    return "direct" if level == "easy" else "draft_first"
 
 
 def set_path(conn, scene_id: int, value: str) -> None:
@@ -91,7 +101,11 @@ def tier_for_new_job(conn, scene_id: int, parent_job_id: Optional[int] = None) -
     if parent_job_id is not None:
         parent = conn.execute("SELECT quality_tier, draft_job_id FROM jobs WHERE id=?", (parent_job_id,)).fetchone()
         if parent is not None and parent["quality_tier"]:
-            return {"quality_tier": parent["quality_tier"], "draft_job_id": parent["draft_job_id"]}
+            # đợt B 09/10 (#24 chạy thử): người đổi ô Chất lượng sau lần gen trước (vd. bản cao 2.5 → 720p gen thẳng) thì lần gen lại theo
+            # đường MỚI — kế thừa bậc cũ làm job 'final' bị chặn "đầu vào đã đổi sau khi duyệt nháp" và hỏng, không ra clip
+            now = group_path(conn, scene_id)
+            if (parent["quality_tier"] == "direct") == (now == "direct"):
+                return {"quality_tier": parent["quality_tier"], "draft_job_id": parent["draft_job_id"]}
     # rà F3: theo đường của NHÓM gen chung (group_path) — e1_choice gửi cả nhóm bằng nháp 2.5 480p khi có shot khó, nên job của shot dễ
     # trong nhóm đó cũng là `draft` (không thì đi bậc direct: 2.5 480p KHÔNG kèm draft=True, không nâng 1080p được)
     return {"quality_tier": "direct" if group_path(conn, scene_id) == "direct" else "draft", "draft_job_id": None}
@@ -206,8 +220,10 @@ def state(conn, scene_id: int) -> str:
         return "final_ok"
     if any(tier(j) == "direct" and j["state"] == "approved" for j in jobs):
         return "direct_ok"
-    if any(tier(j) in ("final", "direct") and j["state"] in _ACTIVE + _REVIEW for j in jobs):
+    if any(tier(j) in ("final", "direct") and j["state"] in _ACTIVE for j in jobs):
         return "final_running"
+    if any(tier(j) in ("final", "direct") and j["state"] in _REVIEW for j in jobs):
+        return "final_review"           # 09/10 (người dùng, #24): bản cao đã gen xong, chờ duyệt — không phải "đang gen"
     drafts = [j for j in jobs if tier(j) == "draft"]
     ok = approved_draft(conn, scene_id)
     newer = [j for j in drafts if ok is None or j["id"] > ok["id"]]
@@ -276,7 +292,7 @@ def request_final(p, scene_id: int, actor: str = "user", confirm_new: bool = Fal
     block = final_block(conn, scene_id)
     if block:
         raise ValueError(f"Chưa gen bản cao được: {block}")
-    if state(conn, scene_id) in ("final_running", "final_ok"):
+    if state(conn, scene_id) in ("final_running", "final_review", "final_ok"):
         raise ValueError("Shot đã có bản cao (đang làm hoặc đã duyệt)")
     draft = approved_draft(conn, scene_id)
     why = upgrade_block(conn, draft)
@@ -404,7 +420,7 @@ def final_estimate(conn, pid: int) -> Dict:
     for s in conn.execute("SELECT s.id, s.idx, m.duration_sec FROM scenes s JOIN motion_prompts m ON m.scene_id=s.id "
                           "WHERE s.project_id=? ORDER BY s.idx", (pid,)).fetchall():
         st = state(conn, s["id"])
-        if st in ("final_running", "final_ok", "direct_ok") or group_path(conn, s["id"]) == "direct":   # rà F3: nhóm trộn = nháp
+        if st in ("final_running", "final_review", "final_ok", "direct_ok") or group_path(conn, s["id"]) == "direct":   # rà F3: nhóm trộn = nháp
             continue
         seconds = float(s["duration_sec"] or 0)
         model, usd = _final_usd(conn, s["id"], proj, ratio, billed.get(s["id"], seconds))
@@ -483,7 +499,7 @@ def scene_final_price(conn, scene_id: int) -> Optional[float]:
     proj, ratio = _proj_ratio(conn, row["project_id"])
     lead, whole = _clip_groups(conn, row["project_id"]).get(scene_id, (scene_id, None))
     if lead != scene_id:
-        if state(conn, lead) in ("final_running", "final_ok"):
+        if state(conn, lead) in ("final_running", "final_review", "final_ok"):
             return 0.0                                  # made inside the group clip already on its way
         usd = _final_usd(conn, lead, proj, ratio, whole)[1]
     else:

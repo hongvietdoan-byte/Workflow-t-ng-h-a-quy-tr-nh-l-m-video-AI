@@ -603,15 +603,21 @@ class VideoRunner(_Runner):
                 hold = quality_tier.needs_confirm(job, route)
                 if hold:
                     return f"bản cao bị chặn: {hold}"
-        row = lineage.scan(self.p.conn, job["project_id"]).get(job["scene_id"]) or {}
-        if row.get("motion_stale"):
-            return f"motion prompt đang cũ ({row['motion_stale']}) — viết lại / duyệt lại ở Bước 3"
-        from . import prompt_formula             # F1 (09/10): a motion prompt that breaks the formula is not paid for
         # F1 sửa #4: a job that sends its group (Kling multi-shot / Seedance group / camera set-up) pays for every shot's prompt
         group = self._sends_group(job) or []
         ids = [r["id"] for r in group] if group else []
         ids = ids if job["scene_id"] in ids else [job["scene_id"]] + ids
         idx = {r["id"]: r.get("idx") if isinstance(r, dict) else r["idx"] for r in group}
+        # rà F5 mục 3 (09/10): ô "sẵn sàng" báo đỏ "chưa có motion prompt" → chỗ gửi cũng chặn (CHUAN luật 1: không im lặng khi thiếu
+        # đầu vào — một clip nhóm thiếu prompt của một shot vẫn trả tiền cả nhóm)
+        empty = [sid for sid in ids if not ((self._motion(sid) or {"motion_prompt": ""})["motion_prompt"] or "").strip()]
+        if empty:
+            names = [f"S{idx[s]:02d}" if isinstance(idx.get(s), int) else f"shot #{s}" for s in empty]
+            return "chưa có motion prompt (" + ", ".join(names) + ") — viết ở Bước 3 (Storyboard · tab Motion)"
+        row = lineage.scan(self.p.conn, job["project_id"]).get(job["scene_id"]) or {}
+        if row.get("motion_stale"):
+            return f"motion prompt đang cũ ({row['motion_stale']}) — viết lại / duyệt lại ở Bước 3"
+        from . import prompt_formula             # F1 (09/10): a motion prompt that breaks the formula is not paid for
         reds = []
         for sid in ids:
             red = prompt_formula.red_issues(self.p.conn, sid, "motion",
@@ -814,7 +820,10 @@ class VideoRunner(_Runner):
         choice = self._choice(job)
         if choice.get("resolution"):
             out["resolution"] = choice["resolution"]
-        if quality_tier.cheap_mode(proj):    # v3 cheap test mode: 720p, Kling std (N1: ignored with flag two_tier_quality)
+        if choice.get("res_source") == "override" and out.get("resolution") in ("std", "pro", "4k"):
+            out["kling_mode"] = out.pop("resolution")      # 09/10: ô "Chất lượng" của Kling = chế độ std / pro / 4k
+        if quality_tier.cheap_mode(proj) and choice.get("res_source") != "override":
+            # v3 cheap test mode: 720p, Kling std (N1: ignored with flag two_tier_quality); chất lượng người chọn cho shot thắng
             out.pop("resolution", None)
             out["kling_mode"] = "std"
         mode = shots.mode(proj)
