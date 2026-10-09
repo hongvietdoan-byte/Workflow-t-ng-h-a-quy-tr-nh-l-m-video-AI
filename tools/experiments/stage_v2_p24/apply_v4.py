@@ -94,6 +94,10 @@ def stage_cameras(stage_dir):
         cam = {"location": [round(v, 3) for v in sg.model_from_rel(st, m["at"])],
                "look_at": [round(v, 3) for v in sg.model_from_rel(st, m["aim"])], "lens": m["lens"],
                "source": f"Sân khấu 3D v2 #24 shot {s['shot']} ({b['tag']}), duyệt 09/10", "cell": m["cell"]}
+        w = (s.get("objs") or {}).get("gieng")
+        if w:                                                   # khối giếng thay thế trong nền (mô hình 3D không có giếng) — 10/10
+            cam["props"] = [{"kind": "well", "at": [round(v, 3) for v in sg.model_from_rel(st, [w["xy"][0], w["xy"][1], w.get("z", 0.0)])],
+                             "radius": w["r"], "height": w["h"], "hollow": True, "sides": 8}]
         if sp.get("pov"):
             cam["pov"] = sp["pov"]
         if sp.get("may") and b.get("end"):

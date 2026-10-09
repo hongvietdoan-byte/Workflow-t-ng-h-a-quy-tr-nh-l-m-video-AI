@@ -391,7 +391,7 @@ def from_stage(sc: Dict, spot: Sequence[float], height_m: float, aspect: float =
     if sc.get("move"):
         why["move"] = f"máy chuyển động trong shot: {sc['move']} (nền = khung ĐẦU)"
     return {"camera": {"name": name, "location": [round(c, 3) for c in cam], "look_at": [round(c, 3) for c in aim], "lens": lens,
-                       "angle": angle, "locked": True},
+                       "angle": angle, "locked": True, **({"props": sc["props"]} if sc.get("props") else {})},
             "subject_box": box, "feet_y": box[3], "distance_m": round(math.hypot(cam[0] - spot[0], cam[1] - spot[1]), 2), "size": None,
             "side": None, "behind": False, "frame_h_m": None, "horizon_y": horizon_y(cam, aim, lens, aspect), "pitch_deg": round(pitch, 1),
             "fixes": [], "problem": None, "why": why}

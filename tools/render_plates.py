@@ -569,6 +569,41 @@ def add_lights(specs):
     return made
 
 
+def add_props(specs):
+    """V4 Sân khấu 3D (#24 người dùng 10/10): đạo cụ KHÔNG có trong mô hình (giếng) dựng thành khối thay thế đúng chỗ + đúng cỡ đã tính trên
+    sân khấu, chỉ cho camera này (xóa sau khi chụp) — model ảnh vẽ đạo cụ thật lên đúng khuôn, không tự đặt theo chữ (gốc lỗi 'tỉ lệ giếng').
+    spec = {"kind": "well", "at": [x, y, z chân] (scene), "radius", "height", "hollow", "sides"}."""
+    made = []
+    for i, p in enumerate(specs or []):
+        if p.get("kind") != "well":
+            continue
+        x, y, z = (float(v) for v in p["at"])
+        r, h, n = float(p["radius"]), float(p["height"]), int(p.get("sides") or 8)
+        bpy.ops.mesh.primitive_cylinder_add(vertices=n, radius=r, depth=h, location=(x, y, z + h / 2))
+        wall = bpy.context.active_object
+        wall.name = f"PLATES_PROP_{i}"
+        stone = bpy.data.materials.new(f"PLATES_PROP_stone_{i}")
+        stone.use_nodes = True
+        bsdf = stone.node_tree.nodes.get("Principled BSDF")
+        if bsdf is not None:
+            bsdf.inputs["Base Color"].default_value = (0.42, 0.41, 0.39, 1)
+            bsdf.inputs["Roughness"].default_value = 0.9
+        wall.data.materials.append(stone)
+        made.append(wall)
+        if p.get("hollow", True):                                        # miệng giếng tối (lòng giếng) ngay dưới mép
+            bpy.ops.mesh.primitive_cylinder_add(vertices=n, radius=r - 0.18, depth=0.02, location=(x, y, z + h + 0.005))
+            hole = bpy.context.active_object
+            hole.name = f"PLATES_PROP_{i}_hole"
+            dark = bpy.data.materials.new(f"PLATES_PROP_dark_{i}")
+            dark.use_nodes = True
+            b2 = dark.node_tree.nodes.get("Principled BSDF")
+            if b2 is not None:
+                b2.inputs["Base Color"].default_value = (0.01, 0.01, 0.012, 1)
+            hole.data.materials.append(dark)
+            made.append(hole)
+    return made
+
+
 # ---- cameras --------------------------------------------------------------------------------------------------------------
 def look_at(obj, target):
     direction = Vector(target) - obj.location
@@ -917,6 +952,8 @@ def main():
             c = dict(c, location=to_scene(c["location"], factor), look_at=to_scene(c["look_at"], factor))
             if c.get("subject"):
                 c["subject"] = dict(c["subject"], location=to_scene(c["subject"]["location"], factor))
+            if c.get("props"):
+                c["props"] = [dict(pp, at=to_scene(pp["at"], factor)) for pp in c["props"]]
             if c.get("lights"):
                 c["lights"] = [dict(lt, location=to_scene(lt["location"], factor),
                                     **({"look_at": to_scene(lt["look_at"], factor)} if lt.get("look_at") else {})) for lt in c["lights"]]
@@ -938,6 +975,7 @@ def main():
         look_at(cam, c["look_at"])
         scene.camera = cam
         practical = add_lights(c.get("lights"))
+        props_made = add_props(c.get("props"))
         info = camera_info(cam, c["look_at"], res)
         plate = os.path.join(out_dir, f"plate_{c['name']}.png")
         indoor = c.get("indoor") or None                                 # 29/09: rooms lit only through windows came out black
@@ -1012,6 +1050,8 @@ def main():
             item["indoor"] = indoor
             if fill is not None:
                 bpy.data.objects.remove(fill, do_unlink=True)
+        for o in props_made:
+            bpy.data.objects.remove(o, do_unlink=True)
         if practical:
             item["lights"] = [{"type": o.data.type, "energy": o.data.energy, "location_m": [round(v, 3) for v in o.location]}
                               for o in practical]
