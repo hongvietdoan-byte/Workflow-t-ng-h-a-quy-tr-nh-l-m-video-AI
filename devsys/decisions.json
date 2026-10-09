@@ -12,14 +12,14 @@
   "devsys": "AI Dev System"
  },
  "items": [
-{
-  "id": "s1447_chat",
-  "step": "step1",
-  "who": "claude",
-  "what": "Trả lời chat Kịch bản sau khi người dùng gửi; tư vấn, không tự sửa/gen",
-  "where": "core/script_chat.py:send",
-  "stage": "script_chat"
-},
+  {
+   "id": "s1447_chat",
+   "step": "step1",
+   "who": "claude",
+   "what": "Trả lời chat Kịch bản sau khi người dùng gửi; tư vấn, không tự sửa/gen",
+   "where": "core/script_chat.py:send",
+   "stage": "script_chat"
+  },
   {
    "id": "d01",
    "step": "step1",
@@ -610,6 +610,14 @@
    "what": "Tổ QC học việc: cùng lượt chấm từng khung, chỉ ghi trainee_log (không giữ, không ghi chú)",
    "where": "core/qc_team.py:review_scene",
    "stage": "trainee_qc_team"
+  },
+  {
+   "id": "chat_ocr",
+   "step": "step1",
+   "who": "claude",
+   "what": "Đọc chữ ảnh trang kịch bản thả vào chat (script_ocr)",
+   "where": "core/chat_refs.py:read_page",
+   "stage": "script_ocr"
   }
  ]
 }

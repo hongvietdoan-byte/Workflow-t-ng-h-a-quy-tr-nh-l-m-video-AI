@@ -1,5 +1,36 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
+- **📌 BÀN GIAO 09/10 đêm — ĐỌC ĐÂY TRƯỚC (chế độ GÓI; dừng vì hạn mức 5 giờ 67 %, đặt lại 13:00Z):**
+  - **Người dùng duyệt ảnh #24 (09/10), góp ý:**
+    - (1) bỏ hẳn máu + tóc trên giếng;
+    - (2) shot 4 bố cục/tỉ lệ sai, tường cao bên trái;
+    - (3) shot 1 nhìn ngang không thấy đồng hồ, shot 3 nhìn xuống lại thấy;
+    - (4) shot 5 Kelly ngã ngang (phải ngã ngửa ra sau, xa giếng), tường cao phía sau không có thật ở chỗ đó;
+    - (5) shot 6 giếng lỗi;
+    - (6) shot 7 lệch tỉ lệ giếng/yêu nữ;
+    - (8) chat không hiểu "phân tích kịch bản này" + không nhận ảnh.
+  - **ĐÃ LÀM — máu/tóc:**
+    - Ảnh mẫu Kho GIẾNG ĐÁ CỔ (asset 420) chính là nguồn: có tóc rủ, máu, và tóc yêu nữ lẫn ở góc ảnh.
+    - Đã vẽ bản sạch qua Deepix (0,05 USD, sổ chi stage `asset_clean`) → ảnh 1127 duyệt; ảnh cũ 1124 vào thùng rác (khôi phục được).
+    - Bỏ chữ máu/tóc ở image_prompt/blocking/why cảnh 1–2, beat cả 9 cảnh, story_scenes 26, đặc tả đạo cụ trong `script_text` (giữ `director_raw` làm lịch sử).
+  - **ĐÃ GỘP — chat** (nhánh `worktree-agent-a2f2285c9a5029c9b` + sửa 6 lỗi rà ở `worktree-agent-aa49ac4b9e53f445d`):
+    - Câu lệnh ngắn (phân tích / viết / dùng làm ý tưởng / đây là kịch bản / hủy) chạy đúng nút. `expand_request` xét trước. "thôi" không xóa khung, chỉ "hủy" mới xóa.
+    - Chat nhận ảnh/video → thẻ chọn vai: trang kịch bản (Claude đọc chữ, stage `script_ocr`, chỉ khi bấm) / bối cảnh / đồ vật / nhân vật / video tham khảo.
+    - Tư liệu ở `app_settings chat_refs:<pid>`, vào prompt Biên kịch/Đạo diễn dạng chữ; expander "📎 Tư liệu tham khảo" có 🗑.
+    - Còn mở: ảnh tham khảo chưa gửi kèm ảnh cho Claude; 🗑 không xóa tệp; `script_ocr` chưa có trần riêng.
+  - **CHƯA GỘP — máy 3D** (nhánh `worktree-agent-ab5a90511a3b9ff78`, commit `70f7259`, chưa rà, chưa render):
+    - `core/plate_camera.py` `looks_down()` → ots/high nhìn xuống cúi 35°; low đặt máy theo chiều cao người thay vì cố định 0,45 m.
+    - `clearance_fix()` + bắn tia trong `tools/render_plates.py` (chưa chạy thật).
+    - `tools/location_pack.py render --project 24 --fresh-shot N`.
+  - **NGUYÊN NHÂN máy lệch (đã giải thích người dùng):** `camera_for` tính "mù":
+    - chỉ dùng angle + size; `ots` rơi vào nhánh ngang tầm mắt (−10°);
+    - khoảng cách thuần theo cỡ cảnh (~1 m với MS/MCU);
+    - low cố định 0,45 m;
+    - không kiểm vật cản;
+    - giếng không có trong 3D.
+    - Shot 5: máy phía Đông nhìn sang Tây, 0,45 m ngửa lên → tường chắn thấp + mép tầng quảng trường che kín khung → model vẽ thành tường cao. Người dùng khẳng định chỗ đó không có tường cao → **cần đo bằng tia Blender xem máy có nằm sau vật chắn không**.
+  - **BƯỚC KẾ — ĐỔI 09/10:** người dùng HOÃN (a)/(b) và chọn hướng LAI để kiểm soát đặt máy trên map nhiều lớp: code tự dò + 4 điều kiểm (cùng tầng sàn / nhìn thấy nhau / khoảng trống / nền cùng gia đình) + 3 ứng viên render sẵn; chưa ưng thì chỉnh tay ở **Bàn đạo diễn 3D** trong Dashboard (map FF thật, như Bàn đạo diễn web ClipAI người dùng gửi). **Kế hoạch: `docs/KE_HOACH_DAT_MAY_3D_2026-10-09.md`** — **BẢN GỘP (a)+(b)+kế hoạch, 4 giai đoạn**: G1 dữ liệu map cho 2 map FF (Tháp Đồng Hồ, Cổng Trời; Bếp 415 không phải map FF, để sau) bằng 1 lần Blender: bản đồ tầng + khối chắn + bản mô phỏng GLB nhẹ (KHÔNG nạp cả map 194 MB vào trình duyệt) + so khớp + đo shot 5/7 → G2 bộ kiểm + tự dò 3 ứng viên + đạo cụ trong 3D → G3 chọn máy ở Dashboard → G4 Bàn đạo diễn. Bắt đầu G1 sau khi hạn mức 5 giờ đặt lại. Vẽ lại ảnh #24 chờ sau G3.
+
 - **📌 BÀN GIAO 09/10 tối (làm hết khối "09/10 chiều" bên dưới; chế độ GÓI, 5 giờ ~20 %):**
   - **KLD-10 nối chat — XONG, đã gộp main** (nhánh `worktree-agent-aeb1992265c3549ed`: `0f831f3` code, `36723a3` sửa 7 lỗi rà kỹ):
     - `script_chat.send` dùng `dialogue_chat` và lưu `proposals`.
