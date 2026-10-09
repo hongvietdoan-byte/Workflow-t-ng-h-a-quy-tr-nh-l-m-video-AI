@@ -30,6 +30,7 @@ def _take(p: Pipeline, pid: int, got) -> None:
     idea is already being written and the new text reads as an idea too)."""
     from core import idea_to_script as I
     k, ss = _keys(pid), st.session_state
+    ss.pop(f"box_ocr_{pid}", None)                                     # 09/10: chỉ trang ảnh đọc liền nhau mới nối (step1_chatrefs.read_page)
     text = got if isinstance(got, str) else (getattr(got, "text", None) or "")
     files = [] if isinstance(got, str) else list(getattr(got, "files", None) or [])
     if files:
