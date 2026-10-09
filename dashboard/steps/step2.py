@@ -314,6 +314,8 @@ def step2(p: Pipeline, pid: int):
     if st.session_state.get(sel_key) not in {j["id"] for j in jobs}:
         st.session_state[sel_key] = latest[shown_sids[0]]["id"] if shown_sids else jobs[0]["id"]
     stale = lineage.scan(p.conn, pid)
+    from dashboard import readiness_ui                              # F5-A: "sẵn sàng gen" — tính một lần cho cả lưới
+    ready = readiness_ui.grid(p.conn, C.DATA, pid, "image", shown_sids)
     grid, detail = st.columns([3, 1.15], gap="large")
     with grid:
         per_row = 3
@@ -321,7 +323,7 @@ def step2(p: Pipeline, pid: int):
             cols = st.columns(per_row)
             for col, sid in zip(cols, shown_sids[start:start + per_row]):
                 with col:
-                    image_card_group(p, pid, history[sid], proj, (stale.get(sid) or {}).get("image_stale"))
+                    image_card_group(p, pid, history[sid], proj, (stale.get(sid) or {}).get("image_stale"), ready=ready.get(sid))
         if not shown_sids:
             st.caption("Không có ảnh nào trong bộ lọc này.")
     with detail:
@@ -359,10 +361,12 @@ def grid_v2(p: Pipeline, pid: int, proj) -> None:
         if st.session_state.get(sel_key) not in {j["id"] for j in jobs}:
             st.session_state[sel_key] = latest[shown_sids[0]]["id"] if shown_sids else jobs[0]["id"]
         stale = lineage.scan(p.conn, pid)
+        from dashboard import readiness_ui                          # F5-A: "sẵn sàng gen" — tính một lần cho cả lưới
+        ready = readiness_ui.grid(p.conn, C.DATA, pid, "image", shown_sids)
         with st.container(key="sb-grid"):                             # 07/10 khung hẹp: 2 thẻ/hàng dưới 1100 px (theme.css)
             for col, sid in zip(D.grid(len(shown_sids), 4), shown_sids):  # 02/10: shared n-column card grid (components.grid)
                 with col:
-                    SB.image_group_v2(p, pid, history[sid], proj, (stale.get(sid) or {}).get("image_stale"))
+                    SB.image_group_v2(p, pid, history[sid], proj, (stale.get(sid) or {}).get("image_stale"), ready=ready.get(sid))
         if not shown_sids:
             st.markdown(D.empty_state("Không có ảnh nào trong bộ lọc này", "Chọn “Tất cả” để xem lại mọi cảnh."), unsafe_allow_html=True)
     SB.action_bar(p, pid)
@@ -372,7 +376,7 @@ def grid_v2(p: Pipeline, pid: int, proj) -> None:
     shot_storyboard_panel(p, pid, gate_button=False)
 
 
-def image_card_group(p: Pipeline, pid: int, history: list, proj, stale_reason=None) -> None:
+def image_card_group(p: Pipeline, pid: int, history: list, proj, stale_reason=None, ready=None) -> None:
     """One card per SCENE: every redo adds an attempt to its history; ‹ › pages through them, only the newest is live."""
     sid = history[0]["scene_id"]
     n = len(history)
@@ -391,7 +395,12 @@ def image_card_group(p: Pipeline, pid: int, history: list, proj, stale_reason=No
             if nav[2].button("›", key=f"{key}_next", disabled=is_latest, help="Bản sau (mới hơn)"):
                 st.session_state[key] = pointer + 1
                 st.rerun()
+        from dashboard import readiness_ui                  # F5-A: một dòng sẵn sàng + lý do cạnh nút gen (không nút mới)
+        if is_latest:
+            readiness_ui.line(ready)
         image_card(p, pid, j, proj, read_only=not is_latest, stale_reason=stale_reason if is_latest else None)
+        if is_latest:
+            readiness_ui.reason(ready)
         if not is_latest:                                   # 08/10 (#24): go back to this older take
             from dashboard.design.screens import older_take_ui
             older_take_ui.use_button(p, j, history[-1], pointer + 1)

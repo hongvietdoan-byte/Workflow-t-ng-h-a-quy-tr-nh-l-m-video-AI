@@ -90,11 +90,14 @@ def step4_v2(p: Pipeline, pid: int, runner, proj, summ) -> None:
             st.markdown(D.empty_state("Chưa có clip nào", "Duyệt motion prompt ở tab Motion (Storyboard) rồi bấm “▶ Gen video” ở thanh trên."), unsafe_allow_html=True)
             st.button("✏ Mở Motion prompt (tab Motion)", key=f"vid-empty-go_{pid}", on_click=_go_step3)
         lines = _shot_lines(p, pid) if ordered else {}  # F4: dòng model của thẻ clip — kế hoạch model tính MỘT lần cho cả lưới
+        from dashboard import readiness_ui              # F5-A: "sẵn sàng gen" từng clip — một lần cho cả lưới
+        ready = readiness_ui.grid(p.conn, C.DATA, pid, "video", [j["scene_id"] for j in ordered], lines=lines or None) if ordered else {}
         with st.container(key="vid-grid"):              # 07/10 khung hẹp: theo HÀNG — xuống dòng vẫn đúng thứ tự cảnh (theme.css)
             for start in range(0, len(ordered), 3):
                 for col, j in zip(st.columns(3), ordered[start:start + 3]):
                     with col:
-                        video_card_v2(p, pid, j, runner, (status.get(j["scene_id"]) or {}).get("video_stale"), lines.get(j["scene_id"]))
+                        video_card_v2(p, pid, j, runner, (status.get(j["scene_id"]) or {}).get("video_stale"), lines.get(j["scene_id"]),
+                                      ready=ready.get(j["scene_id"]))
     with set_c:
         clip_set_panel(p, pid)
     if C.expert():
@@ -385,7 +388,7 @@ def _shot_lines(p: Pipeline, pid: int) -> dict:
         return {}
 
 
-def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None) -> None:
+def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, ready=None) -> None:
     """One clip as a glass card (UI v2): player + first frame, state pill, measured notes as chips/rows, model/length/price line and
     the four actions always visible (✔ Duyệt · ↻ Gen lại · ✏ Sửa motion prompt · ✖ Loại); the rare ones sit in one “Thêm” popover.
     Every widget key of the classic card is kept (va_, vr_rej_, vregen_, vr_, vfix_, vfixtxt_, vnote_, vc_, vrl_, vrs_, vkeep_)."""
@@ -412,6 +415,8 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None) -> 
             mean = sum(s["score"] for s in scores) / len(scores)
             pills += " " + D.pill(f"QC {mean:.2f}", V.score_kind(mean, p.project(pid)["qc_auto_pass_threshold"]))
         st.markdown(pills, unsafe_allow_html=True)
+        from dashboard import readiness_ui                # F5-A: một dòng "sẵn sàng gen" + chi tiết (không nút mới)
+        readiness_ui.line(ready)
         from dashboard import quality_ui                  # N4: 2 bậc chất lượng — chỉ khi cờ two_tier_quality bật và có core.quality_tier
         if quality_ui.enabled():
             quality_ui.card_block(p, pid, j["scene_id"], runner, line=line)
@@ -477,6 +482,7 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None) -> 
         elif not stale_input:
             r2.button("↻ Gen lại", key=f"vr_{jid}", disabled=True, width="stretch",
                       help="Chưa có clip để gen lại" if not blocked else "Bị chặn nội dung: sửa motion prompt rồi mới gen lại")
+        readiness_ui.reason(ready)                       # F5-A: shot red → lý do ngay dưới nút gen lại
         r3, r4 = st.columns(2)
         r3.button("✏ Sửa motion prompt", key=f"vfix_{jid}", on_click=_go_step3, width="stretch",
                   help="Mở tab Motion của Storyboard (tab Motion).")

@@ -1,3 +1,32 @@
+# HANDOFF — F5-A ô "sẵn sàng gen" + kích thước vật Kho (09/10/2026, nhánh `worktree-agent-aa7c4219627024dac`, chưa push)
+
+**Đã xong** (0 USD, không gọi dịch vụ; Blender giả trong test):
+- `core/readiness.py` (mới, chỉ ĐỌC): `shot_ready(conn, data_dir, pid, scene_id, kind)` / `project_ready(...)` (phần chung tính MỘT
+  lần: nhân vật, model + giá, ảnh duyệt, motion, vật Kho, dòng model F4) → {ok, items:[{label, state ok|warn|red, why, fix_where}]}.
+  Mục: công thức prompt (cùng luật `prompt_formula.red_issues` + cảnh báo vàng), nền 3D (có render + góc rộng / chưa render = warn /
+  hỏng = red / chờ hướng máy = red), ảnh tham chiếu thiếu (warn), model · ≈ USD (video dùng `model_line`, cảnh báo E1 = warn), ảnh
+  khung đầu đã duyệt (video, thiếu = red), vật mốc Kho chưa có kích thước ở ≥ 2 shot (warn). `summary` / `blocked_reason` / `details_md`.
+- `dashboard/readiness_ui.py` + thẻ ảnh Bước 2 (v2 `storyboard_cards.image_group_v2` và v1 `image_card_group`) + thẻ clip
+  `step4.video_card_v2`: một dòng ("✅ Sẵn sàng" / "✅ Sẵn sàng · 1 lưu ý: Nền 3D" / "⛔ 2 việc cần sửa: …") + expander "Chi tiết
+  sẵn sàng gen"; shot red → caption "⛔ Gen sẽ bị giữ/chặn: … → sửa ở Bước X" ngay dưới nút gen. Không nút mới, giữ mọi widget key.
+- Vật Kho (kind prop / weapon = `assets.SIZED_KINDS`): `height_m` / `width_m` lưu trong cột `profile` (JSON, như chiều cao nhân vật)
+  — `assets.set_size`, `get()`/`list_assets`/`project_assets` trả `size`. Màn Kho (admin, "✏ Sửa"): một ô số "Chiều cao thật (m)"
+  (key `lib_e_h_<id>`), lưu bằng nút 💾 Lưu có sẵn.
+- `place_refs.shot_objects / object_scale_sentence / unsized_objects`: vật Kho gắn dự án có trong characters/props của shot hoặc được
+  nhắc trong image_prompt/blocking/start_frame/action_peak/location → "the stone well is 0.9 m high — about waist height of a 1.7 m
+  adult". Vào phần nền `build_image_prompt` (mọi đường: ảnh, khung cuối) và bản gọn vào phần nền Seedance
+  (`seedance_refs.prompt(..., scales=)`). Không có số → không câu.
+- `tests/test_readiness_f5a.py` (11 test) + khai `devsys/areas.json` (khu step2, không tăng version). Đo truy vấn dự án 10 shot:
+  ảnh 40, video ~125 khi màn không truyền dòng model (bước Video truyền sẵn → ít hơn).
+
+**Còn mở / rủi ro**:
+- Tên vật trong prompt: tên gọi khác không dấu đầu tiên (nên khai alias tiếng Anh, vd "stone well"); không có → tên bỏ dấu.
+- Chiều cao người mặc định 1,7 m (chưa đọc chiều cao hồ sơ nhân vật / render 3D cho câu vật Kho).
+- Lỗi đỏ readiness tính lại bằng `prompt_formula` (hàm nội bộ `_chars/_is_ff/_gore_goes/_sha`) — nếu F5-B đổi các hàm đó phải giữ chữ ký.
+- Bước 4 video: readiness chỉ xét lint motion của CHÍNH shot (runner còn chặn theo cả nhóm — `group_red_issues`).
+
+---
+
 # HANDOFF — F4 màn chọn model gọn (09/10/2026, nhánh `worktree-agent-a301f2427d8281c07`, chưa push)
 
 **Đã xong** (0 USD, không gọi dịch vụ):

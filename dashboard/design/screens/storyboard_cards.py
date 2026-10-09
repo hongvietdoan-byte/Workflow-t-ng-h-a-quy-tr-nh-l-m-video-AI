@@ -214,7 +214,7 @@ def _send_queued(p, pid: int) -> None:
         act(lambda: runner.submit_pending(pid, wait_s=20))   # lỗi B 08/10: wait for the turn, not a silent 0 (bg_poll sends later)
 
 
-def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
+def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=None) -> None:
     """Một thẻ kính cho mỗi CẢNH: ảnh · nhãn · pill trạng thái · chip QC · dải phiên bản · 4 nút luôn hiện; mọi chi tiết (điểm QC từng tiêu chí, lý do gen lại, kịch bản) trong MỘT ⓘ."""
     sid = history[0]["scene_id"]
     n = len(history)
@@ -249,6 +249,9 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
         if is_latest:                                       # S14.17: the Director rewrote this shot's prompt → old/new + ↩
             from dashboard.design.screens import prompt_versions_ui
             prompt_versions_ui.panel(p, sid, "image", act)
+        from dashboard import readiness_ui                  # F5-A: một dòng "sẵn sàng gen" + chi tiết (không nút mới)
+        if is_latest:
+            readiness_ui.line(ready)
 
         def pair():
             a = st.columns(2, gap="small")
@@ -330,6 +333,8 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None) -> None:
                 b3.button("↻ Vẽ lại", key=f"r_{jid}", disabled=True, width="stretch")
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
                 _open_detail(pid, jid)
+        if is_latest:                                       # F5-A: shot red → lý do ngay dưới nút gen
+            readiness_ui.reason(ready)
 
 
 @st.dialog("Chi tiết ảnh", width="large")
