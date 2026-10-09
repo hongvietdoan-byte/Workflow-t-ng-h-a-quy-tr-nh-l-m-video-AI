@@ -758,6 +758,25 @@ def _vi(text) -> bool:
     return has_vietnamese(json.dumps(text, ensure_ascii=False))
 
 
+# KLD-32 (F5-B, cờ `kld_lessons_prompts`): a Vietnamese word with several English meanings ("xanh" = blue/green, "mũ" = cap/helmet/
+# hood/beanie — #22 "mũ" became "helmet") is kept in square brackets and reported, never guessed. Flag off → the prompt is as before.
+AMBIGUOUS_KEY = "_ambiguous"
+TRANSLATE_AMBIGUOUS_RULE = (
+    "If a Vietnamese word has several English meanings and the field does not say which one (e.g. 'xanh' = blue or green; 'mũ' = cap, "
+    "helmet, hood or beanie), do NOT guess: write a neutral English word followed by the Vietnamese word in square brackets (e.g. "
+    "'a hat [mũ]') and list each such word under one extra key \"" + AMBIGUOUS_KEY + "\": {\"<shot key>\": [\"mũ\"]}.")
+
+
+def _unbracketed(obj):
+    """`obj` without its "[chữ Việt]" kept on purpose (KLD-32) — what must already be English."""
+    import re
+    if isinstance(obj, dict):
+        return {k: _unbracketed(v) for k, v in obj.items()}
+    if isinstance(obj, str):
+        return re.sub(r"\[[^\[\]]*\]", "", obj)
+    return obj
+
+
 def _src_key(item) -> str:
     import hashlib
     return hashlib.sha1(json.dumps(item, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:12]
@@ -781,14 +800,22 @@ def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
         return 0
 
     def check(obj):
-        if not isinstance(obj, dict) or set(obj) != set(todo):
+        if not isinstance(obj, dict) or set(obj) - {AMBIGUOUS_KEY} != set(todo):
             raise llm_io.SchemaError("trả về đúng các khóa shot đã gửi: " + ", ".join(sorted(todo)))
-        if _vi(obj):
+        if _vi(_unbracketed({k: v for k, v in obj.items() if k != AMBIGUOUS_KEY})):
             raise llm_io.SchemaError("còn chữ tiếng Việt — dịch hết sang tiếng Anh")
+    from . import features
+    try:
+        ambiguous_rule = features.on("kld_lessons_prompts")
+    except KeyError:
+        ambiguous_rule = False
     prompt = ("Translate every Vietnamese value below into short, concrete English for an AI video prompt: what the people DO and how "
               "they act. Keep names (KELLY, KENTA, MAXIM…) as they are. Do not add, explain or rewrite meaning. Return ONLY one JSON "
-              "object with the same keys and the same structure.\n\n" + _block("Fields", todo))
+              "object with the same keys and the same structure.\n\n"
+              + (TRANSLATE_AMBIGUOUS_RULE + "\n\n" if ambiguous_rule else "") + _block("Fields", todo))
     obj = _run(p, project_id, "translate", prompt, check, client)
+    amb = obj.pop(AMBIGUOUS_KEY, None)
+    amb = amb if isinstance(amb, dict) else {}
     n = 0
     for idx, fields in obj.items():
         row = p.conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=?", (project_id, int(idx))).fetchone()
@@ -800,6 +827,14 @@ def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
             en["performance"] = {**{k: base.get(k) for k in TRANSLATE_PERF if base.get(k)}, **fields["performance"]}
         d["motion_en"] = en
         d["motion_en_src"] = _src_key(todo[idx])               # the Vietnamese this translation came from (changed → again)
+        words = [str(w) for w in (amb.get(idx) or []) if str(w).strip()] if isinstance(amb.get(idx), list) else []
+        if words:                                              # KLD-32: said aloud, the person picks the meaning (Kho picture)
+            d["motion_en_ambiguous"] = words
+            diag.record(p.conn, "motion", "warn",
+                        f"Shot {idx}: chữ nhiều nghĩa giữ nguyên khi dịch ({', '.join(words)}) — xem ảnh Kho / hồ sơ rồi ghi rõ trong "
+                        "`action` (vd 'mũ' = cap / helmet / hood).", "translate_ambiguous", project_id)
+        else:
+            d.pop("motion_en_ambiguous", None)
         p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), row["id"]))
         n += 1
     p.conn.commit()
