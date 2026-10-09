@@ -1,3 +1,29 @@
+# HANDOFF — F5-B dọn việc tồn KLD (09/10/2026, chưa push, 0 USD)
+
+**Đã xong** (test `tests/test_f5b_backlog.py`, chạy cùng bộ liên quan: 199 qua):
+- KLD-9 / KLD-25: đã có sẵn ở `knowledge/roles/director_kld22.md` (cờ `kld_lessons_prompts`) — không thêm lại. **KLD-31**: mục "Đ7 bổ
+  sung" ở cùng file (một clip 15 s → bịa áo; chia shot → đúng; độ tin 1 mẫu, không là luật). Nhóm Đạo diễn (kelly/murch/film_crew bật):
+  **149 960 → 148 934** (trần 150 000, dư 1 066) nhờ gọn `director.md`: bỏ đoạn số 5,25 âm tiết/s không dùng, "Rủi ro chưa thử" N3
+  (câu Seedance không hỗ trợ tiếng Việt đã cũ), câu lịch sử Đ9, rút Đ11 "chưa đo thật", Đ12 (MV), câu trùng N3/Đ3/Đ5/Đ8.
+- KLD-13 `core/motion_prompt_lint.end_frame_problem`: `pull_out`/`crane`/`orbit` không có câu khung cuối → thêm vào cờ ⚑ ở thẻ Bước 3.
+- KLD-26 `delivery.shakes_before_music`: rung trước giây nhạc vào → `manifest.shake_before_music` + diag `shake_before_music`; rung vẫn giữ.
+  Mốc so = giây nhạc ĐẦU TIÊN vào (chưa phân biệt bài nhảy riêng ở nhạc nhiều chặng).
+- KLD-30 `core/timestamps.utc_key` dùng ở `tools/kld_round_stats.py` + `tools/audit_run.py --since`.
+- KLD-32 `claude_tasks.translate_motion_fields`: cờ `kld_lessons_prompts` bật → luật "chữ nhiều nghĩa giữ [chữ Việt] + khóa `_ambiguous`";
+  ghi `motion_en_ambiguous` + diag `translate_ambiguous`. Cờ tắt → prompt dịch y hệt. Lưu ý: chữ trong [ ] đi vào prompt video trả tiền.
+- KLD-33 `prompts/27_asset_checklist.md` mục 7–8.
+- KLD-34 (kiểm): tự gen lại VIDEO của QC (`apply_qc` → `reject("ai_agent")`, cả auto và human_qc+autofix; `qc_scene`) ĐI QUA
+  `director_rewrite` khi cờ bật; không đi qua khi: giữ cho người (`_no_auto_retry` / KLD-5), hết lượt tự sửa. Đường vẽ lại ẢNH của QC lớp 0
+  (`runner.RedrawWithFix` → `Pipeline.retry(fix=)`) KHÔNG qua director_rewrite — chưa đổi (luồng tiền, chờ người quyết).
+- Tiếng video ref → SFX: `core/ref_audio.py` (`propose`, `fit`), nút "🎥 Lấy tiếng … video tham chiếu" ở Bước 5 (đề xuất `use: False`, neo shot);
+  khi dựng `sfx_plan.place_on_timeline` nén/giãn atempo bản đã tích (≤ 40 %, hơn thì ghi `fit_skipped`), `audio_lib.mix_list` dùng `fit_file`.
+- Test chập chờn Blender queue: thay `sleep(0.2)` bằng `threading.Event`.
+
+**Để người dùng quyết:** KLD-10 (nút "Biên kịch đọc thoại" — tốn 1 lượt Claude), KLD-27 (dữ liệu hồ sơ thật).
+**Chưa thử Dashboard thật:** nút tiếng ref Bước 5, cờ ⚑ Bước 3.
+
+---
+
 # HANDOFF — F4 màn chọn model gọn (09/10/2026, nhánh `worktree-agent-a301f2427d8281c07`, chưa push)
 
 **Đã xong** (0 USD, không gọi dịch vụ):
