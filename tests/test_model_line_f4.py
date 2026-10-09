@@ -86,7 +86,7 @@ class ShotLineTests(unittest.TestCase):
 
 class ModelTableUiTests(TwoTierSeed):
     def _expand(self, at):
-        return [x for x in at.get("popover") if x.proto.popover.label == "Đổi"]
+        return [x for x in at.get("popover") if x.proto.popover.label in ("Đổi", "🎛 Đổi model")]
 
     def test_one_line_per_shot_one_change_button_and_film_line(self):
         self.p.set_project_field(self.pid, "model_priority", "balanced")

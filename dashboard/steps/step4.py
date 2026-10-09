@@ -366,7 +366,9 @@ def _model_change(p: Pipeline, pid: int, r, line, options, two_tier: bool) -> No
     cur = r["model"] if r["source"] == "override" else None
     pick = st.selectbox("Model", options, index=options.index(cur) if cur in options else 0, key=f"vm_{pid}_{r['scene_id']}",
                         # KLD-23: the real model + resolution ("Seedance 2.0 · 720p"), never the bare alias / a vague label
-                        format_func=lambda a, r=r: "Đề xuất: " + model_router.label(r["recommended"]["model"], r["recommended"].get("resolution"))
+                        # 09/10: "Đề xuất" = what the shot really gets without a pick (after cheap mode / E1), never the raw recommendation
+                        format_func=lambda a, r=r: "Đề xuất: " + (model_router.label(r["model"], r.get("resolution")) if r["source"] != "override"
+                                                                  else model_router.label(r["recommended"]["model"], r["recommended"].get("resolution")))
                         if a is None else model_router.label(a, r.get("resolution") if a == r["model"] else None))
     if pick != cur:
         act(lambda: model_router.set_override(p.conn, r["scene_id"], pick, p=p))
@@ -413,14 +415,13 @@ def _card_model(p: Pipeline, pid: int, scene_id: int, line, plan_row) -> None:
             line = model_line.shot_line(p.conn, pid, scene_id)
         except Exception:  # noqa: BLE001 - information only
             line = None
-    c0, c1 = st.columns([5, 1], vertical_alignment="center")
-    if line:
+    if line:                                     # text above, the button below: a narrow 3-card grid squeezed "Đổi" into "Đ/ổi"
         text = "🎛 " + line["text"]
         if line.get("warning"):
             text += " " + D.colored("warn", "⚠ " + line["warning"])
-        c0.markdown(text, unsafe_allow_html=True)
+        st.markdown(text, unsafe_allow_html=True)
     if plan_row is not None:
-        with c1.popover("Đổi", help="Đổi model / độ phân giải / đường chất lượng của cảnh này"):
+        with st.popover("🎛 Đổi model", help="Đổi model / độ phân giải / đường chất lượng của cảnh này"):
             api = model_router.api_models(model_router.load_profiles())
             _model_change(p, pid, plan_row, line, [None] + list(api), quality_ui.enabled())
 
