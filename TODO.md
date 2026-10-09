@@ -1,5 +1,11 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
+- **📌 BÀN GIAO 09/10 — G0 code XONG, đã gộp main (chế độ GÓI; 5 giờ ~35 %, tuần ~14 %):**
+  - **Nền máy 3D** `70f7259` rà kỹ → sửa 6 lỗi `f9ed9f3`: tính lại khung nhân vật khi Blender dời máy (`location_pack.reframe`); lỗi tia không làm đổ render; vật cản < 0,8 m sát người chỉ cảnh báo; "looks down the alley" + `camera_setup` không cúi máy; ảnh toàn chỉ cảnh báo; indoor bỏ kiểm tường. Kiểm tia Blender CHƯA chạy thật.
+  - **G0 mục 1–5** `51679d0` (cờ `director_camera_plan` TẮT): `core/camera_plan.py` (sơ đồ cảnh + 3–4 setup, `check` bằng code, duyệt render: quan sát enum + `judge` code, ≤ 2 vòng → "CẦN BẠN QUYẾT"), `core/plate_layout_qc.py` (QC bố cục bằng code, chỉ đánh dấu), `prompts/28_director_camera_plan.md`, CLI `camera-plan`. Rà kỹ → sửa 7 lỗi `7a3b165` (gộp nhầm máy khác angle/nhìn xuống/lens; ghi đè trường khóa; render lỗi vẫn gọi Claude; CLI sai khung; ước tính thiếu trần ×4; đổi máy shot đã có ảnh; diag lặp). Cả bộ test 3551 xanh; khai 2 khâu Claude vào `devsys/decisions.json` (d80, d81); areas version 36.
+  - **BƯỚC KẾ = G0 mục 6 (TỐN TIỀN, chờ người dùng duyệt):** ở `D:\AI-Video-Pipeline`: (1) `py tools/location_pack.py render --project 24 --fresh-shot 4 --fresh-shot 7` (0 USD, kiểm tia thật); (2) `FEATURE_DIRECTOR_CAMERA_PLAN=1 py tools/location_pack.py camera-plan --project 24 --review` in ước tính → duyệt → thêm `--yes` (≈ 0,06 sơ đồ + 0,08 duyệt, trần ≈ 0,23 USD + trần ×4 nếu Claude lỗi); (3) gửi tấm ghép render các setup; (4) sửa prompt shot 4–7; (5) vẽ lại shot 1–7 (≈ 0,36 USD, báo trước).
+  - Còn mở: chỗ đứng theo nhịp + vị trí giếng mới LƯU, chưa dời trong 3D; ngưỡng QC bố cục chưa hiệu chỉnh; chưa có nút Dashboard; `AWAY_WORDS` chỉ tiếng Anh; dự án cũ có shot low / nhìn xuống đổi khóa cache → báo trước khi chạy dự án cũ.
+
 - **📌 BÀN GIAO 09/10 đêm — ĐỌC ĐÂY TRƯỚC (chế độ GÓI; dừng vì hạn mức 5 giờ 67 %, đặt lại 13:00Z):**
   - **Người dùng duyệt ảnh #24 (09/10), góp ý:**
     - (1) bỏ hẳn máu + tóc trên giếng;

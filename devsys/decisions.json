@@ -273,6 +273,22 @@
    "stage": "director_rewrite"
   },
   {
+   "id": "d80",
+   "step": "step2",
+   "who": "claude",
+   "what": "Đạo diễn lập sơ đồ cảnh + bộ góc máy 3D (G0, cờ director_camera_plan)",
+   "where": "core/camera_plan.py:STAGE",
+   "stage": "director_camera_plan"
+  },
+  {
+   "id": "d81",
+   "step": "step2",
+   "who": "claude",
+   "what": "Đạo diễn duyệt render nền từng góc máy (khai quan sát, code kết luận)",
+   "where": "core/camera_plan.py:REVIEW_STAGE",
+   "stage": "director_plate_review"
+  },
+  {
    "id": "d32",
    "step": "step2",
    "who": "code",

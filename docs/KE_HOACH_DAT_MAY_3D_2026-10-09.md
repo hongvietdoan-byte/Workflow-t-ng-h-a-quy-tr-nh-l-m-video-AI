@@ -25,6 +25,8 @@ Người dùng: "Director phải là người làm tốt khâu này". G1–G4 b�
 
 **Hiện trạng sai:** Director/Quay phim ghi `plate_view` (landmark/away/left/right) TỪNG SHOT RIÊNG, không có sơ đồ chung, nên 9 shot ra nhiều hướng không ăn khớp. Ví dụ shot 5 và 7 nhìn sang Tây, thấy mặt quảng trường khán giả chưa thấy. Không có ai xem render nền trước khi vẽ ảnh. QC ảnh bằng Claude đang TẮT (nghiệm thu #8: bắt 6/12, báo nhầm 12/21); Tổ QC chỉ học việc.
 
+> **Trạng thái 09/10 (phiên tiếp):** mục 1–5 ✅ code, đã gộp main — nền máy `70f7259` + sửa 6 lỗi rà `f9ed9f3`; G0 `51679d0` + sửa 7 lỗi rà kỹ `7a3b165` (gộp nhầm máy khi khác angle/nhìn xuống/lens; ghi đè trường khóa tay; render lỗi vẫn gọi Claude; CLI sai khung 16:9; ước tính thiếu trần ×4; đổi máy shot đã có ảnh; diag lặp). Cả bộ test 3551 xanh (+ 1 sửa: khai 2 khâu Claude vào `devsys/decisions.json`). Cờ `director_camera_plan` TẮT. **Mục 6 ⬜ chờ người dùng duyệt tiền.** Lệnh: `FEATURE_DIRECTOR_CAMERA_PLAN=1 py tools/location_pack.py camera-plan --project 24 --review [--yes]` (không `--yes` chỉ in ước tính).
+
 **Việc G0:**
 1. **Sơ đồ cảnh** (Director, một lần cho mỗi cảnh liên tục/story scene). Đầu vào:
    - kịch bản + beat;
