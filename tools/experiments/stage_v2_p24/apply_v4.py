@@ -22,8 +22,12 @@ from core import stage_grid as sg  # noqa: E402
 
 STAGE_DIR = os.path.join(os.path.dirname(ROOT) if ".claude" in ROOT else ROOT, "data", "projects", "24", "stage_v2")
 TAIL = "foggy plaza at night, cold moonlight, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus"
-CREATURE1 = ("a faceless black-skinned female creature with glowing red eyes, long black hair with red tips, clawed veined arms, "
-             "tattered white dress")
+# 10/10 QC: "black-skinned … red tips" ra mặt người da sẫm có mũi + tóc gần đen (shot 5) → câu theo mô tả Kho 418 (người dùng: trang phục
+# ma nữ chui khỏi giếng không chuẩn)
+CREATURE1 = ("a female creature whose face is a smooth featureless pure-black mask with only two glowing red eyes (no nose, no mouth, no "
+             "skin features), long messy black hair whose lower half turns bright red, an off-shoulder torn white dress with a jagged hem "
+             "and a red sash at the waist, black arms covered in dark thorny veins with red claws, black stockings fading to red down the "
+             "legs, red high heels, constant red glitch noise around her wrists and ankles")
 
 EDITS = {
     2: {"size": "WS"},

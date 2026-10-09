@@ -79,10 +79,25 @@ def turned_away(g: Dict, scene_id: int) -> bool:
     return landmark_off_frame(_shot_data(g, scene_id)) and not landmark_off_frame(anchor["data"])
 
 
+def own_camera(g: Dict, scene_id: int) -> bool:
+    """10/10 (#24 QC sau V4): shot có máy Sân khấu 3D đã khóa (`stage_camera`, cờ stage_camera) — nền của nó là render của CHÍNH máy
+    đó. Ảnh neo (frame 1 cũ nhìn tháp) + phiên storyboard chung kéo lại nền cũ: 9/9 ảnh vẽ 'nền mẫu' tháp giữa + nhà mái đỏ dù máy
+    nhìn Tây (job 623–631). Như lỗi D: không ảnh neo, phiên riêng; câu dặn riêng (không ép bỏ mốc — máy có thể vẫn thấy tháp)."""
+    from . import features, plate_camera
+    if not features.on("stage_camera") or not g.get("anchor") or g["anchor"]["id"] == scene_id:
+        return False
+    return bool((_shot_data(g, scene_id) or {}).get(plate_camera.STAGE_FIELD))
+
+
+OWN_CAMERA_NOTE = (" This frame has its OWN camera on the stage (another position, height, direction and tilt than frame 1): its "
+                   "background is ONLY the 3D render of this frame's camera sent with it — the same buildings, walls, landmark (or none), "
+                   "horizon line and tilt as that render; never the view of frame 1 or of another frame.")
+
+
 def uses_anchor(g: Optional[Dict], scene_id: int) -> bool:
     """A shot of a storyboard scene drawn from the anchor picture: not the anchor itself, not a shot turned away from the landmark
     the anchor shows (lỗi D: it gets no anchor picture, so it neither waits for it nor shares its storyboard session)."""
-    return bool(g) and g["anchor"]["id"] != scene_id and not turned_away(g, scene_id)
+    return bool(g) and g["anchor"]["id"] != scene_id and not turned_away(g, scene_id) and not own_camera(g, scene_id)
 
 
 def waits(conn, data_dir: str, pid: int, scene_id: int) -> bool:
@@ -243,7 +258,8 @@ def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], j
         return None
     is_anchor = g["anchor"]["id"] == scene_id
     away = turned_away(g, scene_id)
-    anchor_pic = None if is_anchor or away else anchor_picture(conn, data_dir, pid, g["anchor"]["id"])
+    own = own_camera(g, scene_id)
+    anchor_pic = None if is_anchor or away or own else anchor_picture(conn, data_dir, pid, g["anchor"]["id"])
     send = list(refs) + ([{"path": anchor_pic, "label": "frame 1 (scene anchor)", "role": "previous_scene"}] if anchor_pic else [])
     prev_note = ""
     if previous and os.path.exists(previous) and previous != anchor_pic:
@@ -253,9 +269,10 @@ def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], j
     anchor_job = job_id if is_anchor else int(os.path.basename(anchor_pic)[4:].split(".")[0].split("_")[0]) if anchor_pic else 0
     fresh = 0 if is_anchor or not fresh_session(conn, job_id) else job_id
     return {"storyboard": {"story_text": story_text(conn, pid, g),
-                           "storyboard_id": storyboard_id(pid, g, anchor_job, fresh, own_shot=scene_id if away else 0),
+                           "storyboard_id": storyboard_id(pid, g, anchor_job, fresh, own_shot=scene_id if (away or own) else 0),
                            "frame_index": g["index"], "group_size": len(g["shots"]), "ref_mode": mode,
                            "image_mapping": (mapping_text(send, len(refs)) + (anchor_note(g, scene_id, len(refs) + 1) if anchor_pic else "")
                                              + prev_note) if send else ""},
-            "refs": send, "anchor": is_anchor, "cast_note": cast_note(g, scene_id) + (away_note(landmark) if away else ""),
-            "anchor_skipped": away}
+            "refs": send, "anchor": is_anchor,
+            "cast_note": cast_note(g, scene_id) + (away_note(landmark) if away else (OWN_CAMERA_NOTE if own else "")),
+            "anchor_skipped": away or own}

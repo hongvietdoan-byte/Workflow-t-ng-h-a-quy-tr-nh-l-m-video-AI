@@ -65,8 +65,35 @@ def shot_ref(data_dir: str, pid: int, scene_id: int) -> Optional[Dict]:
     if rec is None:
         return None
     # KLD-6: `plate_key` rides into the job's sent_refs — the picture remembers which background it was drawn on
-    return {"path": rec["plate"], "label": rec.get("place") or "the place", "role": ROLE, "_rec": rec,
+    path = rec["plate"]
+    if (rec.get("camera_plan") or {}).get("locked"):    # 10/10: máy Sân khấu 3D khóa — nền đêm quá tối (38/255) thua ảnh khác
+        path = lifted(path)
+    return {"path": path, "label": rec.get("place") or "the place", "role": ROLE, "_rec": rec,
             **({"plate_key": rec["key"]} if rec.get("key") else {})}
+
+
+LIFT_BELOW, LIFT_TO = 55.0, 80.0          # độ sáng trung bình (0–255) của nền gửi đi: dưới mức này thì nâng (gamma) lên quanh LIFT_TO
+
+
+def lifted(path: str) -> str:
+    """Bản làm sáng của một nền tối (gamma, giữ nét và bố cục) cạnh bản gốc (`*_lift.png`, làm lại khi gốc mới hơn). #24 10/10: nền đêm
+    38/255 gửi kèm vẫn bị model bỏ qua — nó chép nền của ảnh neo sáng hơn. Lỗi đọc ảnh → trả lại bản gốc (không chặn vẽ)."""
+    try:
+        from PIL import Image, ImageStat
+        out = path[:-4] + "_lift.png"
+        if os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(path):
+            return out
+        im = Image.open(path).convert("RGB")
+        mean = ImageStat.Stat(im.convert("L")).mean[0]
+        if mean >= LIFT_BELOW or mean <= 1:
+            return path
+        import math
+        g = math.log(LIFT_TO / 255.0) / math.log(mean / 255.0)    # (mean/255)^g = LIFT_TO/255
+        lut = [min(255, round(255 * (v / 255.0) ** g)) for v in range(256)]
+        im.point(lut * 3).save(out)
+        return out
+    except Exception:  # noqa: BLE001 - a picture problem never stops the drawing: the original goes
+        return path
 
 
 def swap_in(refs: List[Dict], ref: Optional[Dict], limit: int) -> List[Dict]:
