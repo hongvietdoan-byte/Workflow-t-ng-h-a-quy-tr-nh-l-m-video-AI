@@ -603,6 +603,55 @@ def preset_cameras(names, lo, hi, target, eye_h):
     return out
 
 
+def _plate_camera():
+    """core/plate_camera.py loaded by path (pure Python: math/re/typing only) — Blender's Python does not have the repo on sys.path."""
+    import importlib.util
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "core", "plate_camera.py")
+    spec = importlib.util.spec_from_file_location("plate_camera_pure", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def clearance(c, warnings):
+    """P24 (#24 shots 4/5/7): rays round a shot camera that has a subject — is the camera inside / behind a wall on its sight line,
+    and is a wall right behind the character filling a level / upward view? core/plate_camera.clearance_fix decides (step in front,
+    rise over a low wall, or report a tall one). Returns the decision (notes / warnings) and moves c's location in place."""
+    try:
+        pure = _plate_camera()
+    except Exception as e:  # noqa: BLE001 - never silent: the plate is rendered without the check, and the manifest says so
+        warnings.append(f"clearance check skipped ({c.get('name')}): {e}")
+        return {"skipped": str(e)}
+    scene, dg = bpy.context.scene, bpy.context.evaluated_depsgraph_get()
+    loc, aim, feet = Vector(c["location"]), Vector(c["look_at"]), Vector(c["subject"]["location"])
+    h = float(c["subject"].get("height_m") or 1.7)
+    # from the character's body (at the camera's height, inside their own height) to the camera — not from the aim point: a look-down
+    # shot aims at the ground beyond them (inside the well) and the rim is not a wall round the camera
+    body = Vector((feet.x, feet.y, min(max(loc.z, feet.z + 0.5), feet.z + h)))
+    back = loc - body
+    block = None
+    if back.length > 0.05:
+        hit, where, *_ = scene.ray_cast(dg, body, back.normalized(), distance=back.length)
+        if hit:
+            block = (where - body).length
+    bg = top = None
+    flat = Vector((aim.x - loc.x, aim.y - loc.y, 0))
+    if flat.length > 0.05:
+        hit, where, *_ = scene.ray_cast(dg, loc, flat.normalized(), distance=60.0)
+        if hit:
+            bg = (Vector((where.x, where.y, 0)) - Vector((loc.x, loc.y, 0))).length
+            past = where + flat.normalized() * 0.05
+            up = scene.ray_cast(dg, Vector((past.x, past.y, loc.z + 40.0)), Vector((0, 0, -1)))
+            top = up[1].z if up[0] else where.z
+    fix = pure.clearance_fix(list(loc), list(aim), list(feet), h, block_m=block, bg_m=bg, bg_top_z=top, block_from=list(body))
+    out = {"notes": fix["notes"], "warnings": fix["warnings"], "block_m": None if block is None else round(block, 2),
+           "background_m": None if bg is None else round(bg, 2), "background_top_m": None if top is None else round(top - feet.z, 2)}
+    if fix["location"] != [round(v, 3) for v in loc]:
+        out["moved_from_m"] = [round(v, 3) for v in loc]
+        c["location"] = fix["location"]
+    return out
+
+
 def camera_info(cam, target, res):
     d = Vector(target) - cam.location
     pitch = math.degrees(math.atan2(d.z, math.hypot(d.x, d.y)))
@@ -866,6 +915,7 @@ def main():
         data.clip_end = max(1000.0, span * 20)
         cam = bpy.data.objects.new(c["name"], data)
         scene.collection.objects.link(cam)
+        clr = clearance(c, warnings) if c.get("subject") else None     # P24: before placing — may move c["location"]
         cam.location = Vector(c["location"])
         look_at(cam, c["look_at"])
         scene.camera = cam
@@ -897,6 +947,8 @@ def main():
                 raise
         item = {"name": c["name"], "angle": c["angle"], "file": os.path.basename(plate), "render_sec": round(sec, 2),
                 "camera": info, "set_analysis": set_analysis(info, c["angle"], manifest["sky"]["used"])}
+        if clr is not None:
+            item["clearance"] = clr
         if cfg.get("depth", True) and engine != "BLENDER_WORKBENCH":
             far = max((Vector(p) - cam.location).length for p in ([lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z],
                                                                   [lo.x, hi.y, hi.z], [hi.x, lo.y, lo.z]))

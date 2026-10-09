@@ -1,3 +1,22 @@
+# HANDOFF — P24 đặt máy 3D theo ngôn ngữ máy của shot (09/10, nhánh worktree-agent-ab5a90511a3b9ff78)
+
+## Đã xong (0 USD, chưa chạy Blender)
+- `core/plate_camera.py` (hàm thuần): `looks_down(data)` (action/blocking/start_frame/camera_setup, nguyên từ, bỏ phủ định);
+  `camera_for`: angle high/ots + nhìn xuống → cúi 35° (qua vai: máy trên đầu 0,15 m, nhìn mặt đất phía trước nhân vật; chân trời ra
+  khỏi khung → tháp chỉ còn chân / mất); low → máy từ 0,5× chiều cao (không còn 0,45 m), WS ngửa 8°; trả thêm `why` {distance, pitch,
+  direction} + `pitch_deg` (KHÔNG nằm trong dict camera → cache key shot không đổi giữ nguyên). `clearance_fix(...)`: quyết theo tia
+  Blender — máy trong/sau vật cản → tiến dọc hướng nhìn; tường thấp ≤ cao nhân vật + 0,3 m sát sau nhân vật → nâng máy qua tường;
+  tường cao → chỉ cảnh báo (chọn plate_view khác), không im lặng.
+- `tools/render_plates.py`: `clearance()` bắn tia (thân nhân vật→máy; ngang theo hướng nhìn + tia xuống đo đỉnh vật cản), nạp
+  `core/plate_camera.py` theo đường dẫn; manifest mỗi plate có `clearance`.
+- `core/location_pack.py`: meta.json có `why` (+ `clearance`); diag `plate_clearance`; `ensure_plates(..., fresh=[idx])`;
+  CLI `tools/location_pack.py render --project N --fresh-shot IDX` (render lại dù đã cache).
+- Test: `tests/test_plate_camera_p24_angles.py` (khai `devsys/areas.json`).
+
+## Việc phiên chính
+- Render lại #24: `py tools/location_pack.py render --project 24 --fresh-shot 4 --fresh-shot 7` (shot 3, 5 đổi key nên tự render;
+  shot 4, 7 key không đổi → cần --fresh-shot để chạy kiểm tia). Xem meta.json `why`/`clearance` + ảnh plate trước khi vẽ lại ảnh.
+- Rủi ro: máy bị tiến/nâng trong Blender thì `subject_box` (tính trước) lệch — ghi ở `clearance.moved_from_m`.
 # HANDOFF — KLD-10 nối dialogue_chat vào khung chat Kịch bản (09/10)
 
 ## Đã xong

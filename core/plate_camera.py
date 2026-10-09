@@ -43,6 +43,29 @@ SKY_WORDS = ("sky", "bầu trời", "nhìn lên trời", "ngước lên trời",
 WIDE_LENS_SHARE, WIDE_MIN_LENS = 0.6, 18.0
 WIDE_SPAN_BODY, WIDE_SPAN_FRAME = 3.0, 2.5     # the wide frame spans ≥ 3 body heights and ≥ 2,5× the shot's frame at the character
 WIDE_MIN_CAM_M = 0.3                           # a wide pulled back along an upward axis never sinks below this above the feet
+# P24 (người dùng duyệt ảnh #24, 09/10): the model copies the render's composition closely, so the 3D camera must speak the shot's
+# camera language, not a generic one.
+#  - shot 3 (ots MS, Kelly CÚI nhìn xuống giếng) had the camera −10° at 1,1 m looking level at the foot of the clock tower → the
+#    picture showed the whole clock face while the script looks DOWN into the well. A high / ots shot whose action looks down tilts
+#    LOOK_DOWN_PITCH_DEG (dp.md: a clear high ≈ 30–45°) — the background is the ground around the spot; anything tall leaves the top
+#    of the frame (only its foot may stay). Over the shoulder the camera sits OTS_ABOVE_HEAD_M above the head and aims at the ground
+#    beyond the character (where they look), never at their back.
+#  - shot 5 (low WS): a camera 0,45 m above the ground behind a chest-high plaza wall saw only the wall ("tường cao"). A low camera
+#    sits at LOW_CAM_SHARE of the character's height and tilts LOW_TILT_DEG up; a wall still in its way is found by rays in Blender
+#    (tools/render_plates.py) and judged by clearance_fix below (pure: raise over a low wall, step in front of a wall the camera is
+#    inside, say a tall wall right behind the character — never silent).
+LOOK_DOWN_PITCH_DEG = 35.0
+OTS_ABOVE_HEAD_M = 0.15
+LOOK_DOWN_ANGLES = ("high", "ots")
+LOW_CAM_SHARE, LOW_TILT_DEG = 0.5, 8.0
+DOWN_WORDS = ("look down", "looks down", "looking down", "peer down", "peers down", "peering down", "peer into", "peers into",
+              "peering into", "gaze down", "gazes down", "gazing down", "glance down", "glances down", "glancing down", "stare down",
+              "stares down", "staring down", "leaning over", "leans over", "lean over", "bends over", "bending over",
+              "nhìn xuống", "cúi nhìn", "cúi xuống", "cúi người", "ngó xuống", "nhòm xuống", "nhìn chằm chằm xuống")
+# clearance (Blender rays, scene metres): the camera steps CLEAR_GAP_M in front of a face on its sight line; a wall closer than
+# BG_NEAR_M behind the character that the camera is below is a "wall frame": raised over it (top + OVER_WALL_M) when the wall is no
+# higher than the character + LOW_WALL_EXTRA_M, else reported (a house wall — choose another plate_view)
+CLEAR_GAP_M, BG_NEAR_M, OVER_WALL_M, LOW_WALL_EXTRA_M = 0.3, 2.5, 0.15, 0.3
 
 
 def size_of(data: Dict) -> str:
@@ -88,6 +111,18 @@ def wants_sky(data: Dict) -> bool:
 
 _SKY_RX = re.compile(r"\bsky\b|" + "|".join(re.escape(w) for w in SKY_WORDS[1:]))
 _SKY_NEG = re.compile(r"(?:\b(?:no|not|without|never|nor)\s+(?:\w+\s+){0,2}|không\s+(?:thấy|có|nhìn thấy|lộ)?\s*(?:\w+\s+){0,1})$")
+_DOWN_RX = re.compile("|".join(r"\b" + re.escape(w) + r"\b" for w in DOWN_WORDS))
+_DOWN_NEG = re.compile(r"(?:\b(?:no|not|without|never|nor|doesn't|don't|isn't)\s+(?:\w+\s+){0,1}|(?:không|chưa|chẳng)\s+(?:\w+\s+){0,1})$")
+
+
+def looks_down(data: Dict) -> bool:
+    """P24: the shot's action / blocking / start frame says the character looks DOWN (into the well, at the ground) — whole words,
+    never negated ("không nhìn xuống", "does not look down")."""
+    words = " ".join(str(data.get(k) or "") for k in ("action", "blocking", "start_frame", "camera_setup")).lower()
+    for m in _DOWN_RX.finditer(words):
+        if not _DOWN_NEG.search(words[max(0, m.start() - 24):m.start()]):
+            return True
+    return False
 
 
 def _unit(v: Sequence[float]) -> Tuple[float, float, float]:
@@ -131,17 +166,29 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
     eye = height_m * 0.93
     # high / overhead: a set tilt down onto the frame's middle (dp.md: high ≈ 30°, overhead ≈ 60°). Trial #8 (2026-09-27): a fixed
     # "head + 1.6 m" put a 2 m-away WS camera 56–62° down — the plate was the floor seen from above and the characters looked pasted on it
-    cam_z = {"low": 0.45, "high": centre_z + dist * math.tan(math.radians(HIGH_TILT_DEG)),
+    why = {"distance": (f"cỡ {size}{'' if data.get('size') or data.get('shot_size') else ' (shot thiếu size — mặc định MS)'}: "
+                        f"{body_share * 100:.0f}% thân trong khung, chiếm {fill * 100:.0f}% chiều cao khung, ống {lens:g} mm → "
+                        f"khung rộng {frame_h:.2f} m ở chỗ nhân vật, máy cách {dist:.2f} m")}
+    aim_z = centre_z                                          # height the camera aims at above the feet (the frame's middle)
+    down = looks_down(data)
+    down_ok = down and angle in LOOK_DOWN_ANGLES
+    low_z = height_m * LOW_CAM_SHARE
+    cam_z = {"low": low_z, "high": centre_z + dist * math.tan(math.radians(HIGH_TILT_DEG)),
              "overhead": centre_z + dist * math.tan(math.radians(OVERHEAD_TILT_DEG))}.get(angle, min(eye, centre_z + 0.2))
+    if angle == "low" and low_z >= centre_z - dist * math.tan(math.radians(LOW_TILT_DEG)):
+        # P24: a wide low shot's frame middle is below the camera — aim up a little so it still reads as a low angle
+        aim_z = low_z + dist * math.tan(math.radians(LOW_TILT_DEG))
     if size in ("EWS", "GAME_TPS") and angle not in ("low",):
         cam_z = max(cam_z, head + 2.5)                        # game third-person / establishing: above the head
-    if cam_z < centre_z and not wants_sky(data):              # F2: an upward tilt — keep the horizon in the frame
+    if down_ok and not behind:                                # P24: high + looks down — a clear tilt onto the ground round the spot
+        cam_z = max(cam_z, centre_z + dist * math.tan(math.radians(LOOK_DOWN_PITCH_DEG)))
+    if cam_z < aim_z and not wants_sky(data):                 # F2: an upward tilt — keep the horizon in the frame
         cap = HORIZON_KEEP * math.tan(fov / 2)
         if cam_z < LOW_CAM_M:
             cap = min(cap, math.tan(math.radians(MAX_LOW_TILT_DEG)))
-        tilt = (centre_z - cam_z) / dist
+        tilt = (aim_z - cam_z) / dist
         if tilt > cap + 1e-9:
-            new_z = centre_z - dist * cap
+            new_z = aim_z - dist * cap
             fixes.append(f"máy cao {cam_z:.2f} m ngửa {math.degrees(math.atan(tilt)):.0f}° (chân trời ở "
                          f"{(0.5 + 0.5 * tilt / math.tan(fov / 2)) * 100:.0f}% — ngoài khung, chỉ thấy trời) → nâng máy lên {new_z:.2f} m, "
                          f"ngửa {math.degrees(math.atan(cap)):.0f}° (cùng khoảng cách, cùng điểm nhìn)")
@@ -152,12 +199,86 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
     side = side_of(data)
     shift = (SIDE_X[side] - 0.5) * frame_h * aspect           # metres the character sits off the frame's middle
     cam = (spot[0] + fwd[0] * dist + right[0] * shift, spot[1] + fwd[1] * dist + right[1] * shift, spot[2] + cam_z)
-    aim = (spot[0] + right[0] * shift, spot[1] + right[1] * shift, spot[2] + centre_z)
+    aim = (spot[0] + right[0] * shift, spot[1] + right[1] * shift, spot[2] + aim_z)
+    if down_ok and behind:
+        # P24 shot 3: over the shoulder, looking where the character looks — down. The camera a little above the head, aimed at the
+        # ground beyond the character so the tilt is LOOK_DOWN_PITCH_DEG (≤ 45° by construction; the aim never falls behind the
+        # character — a far camera (WS/EWS) then tilts less, said in `why`)
+        cam_z = height_m + OTS_ABOVE_HEAD_M
+        reach = max(cam_z / math.tan(math.radians(LOOK_DOWN_PITCH_DEG)), dist + 0.5)
+        cam = (cam[0], cam[1], spot[2] + cam_z)
+        aim = (cam[0] - fwd[0] * reach, cam[1] - fwd[1] * reach, spot[2])
     box = subject_box(cam, aim, lens, aspect, spot, height_m)
+    hz = horizon_y(cam, aim, lens, aspect)
+    d = [a - c for a, c in zip(aim, cam)]
+    pitch = math.degrees(math.atan2(d[2], math.hypot(d[0], d[1])))
+    if down_ok:
+        why["pitch"] = (f"angle '{angle}' + hành động nhìn xuống → cúi {pitch:.0f}° (đích {LOOK_DOWN_PITCH_DEG:g}°, khoảng 30–45°): "
+                        "nền là mặt đất quanh chỗ đứng, vật cao (tháp) ra khỏi mép trên khung" + (" — qua vai, máy trên đầu "
+                        f"{OTS_ABOVE_HEAD_M:g} m nhìn xuống chỗ nhân vật nhìn" if behind else ""))
+    elif down:
+        why["pitch"] = (f"hành động nhìn xuống nhưng angle '{angle}'" + ("" if data.get("angle") else " (shot thiếu angle — mặc định eye)")
+                        + f" không thuộc {'/'.join(LOOK_DOWN_ANGLES)} → giữ máy theo angle, nghiêng {pitch:.0f}°")
+    elif angle == "low":
+        why["pitch"] = (f"angle 'low' → máy đặt từ {low_z:.2f} m ({LOW_CAM_SHARE:g}× chiều cao, không sát đất)"
+                        + (f", nâng còn {cam_z:.2f} m để giữ chân trời trong khung" if abs(cam_z - low_z) > 1e-3 else "")
+                        + f", ngửa {pitch:.0f}°; "
+                        "tường chắn trên đường nhìn: Blender bắn tia kiểm (clearance)")
+    else:
+        why["pitch"] = (f"angle '{angle}'" + ("" if data.get("angle") else " (shot thiếu angle — mặc định eye)")
+                        + f" → máy {cam_z:.2f} m, nghiêng {pitch:.0f}°")
+    why["direction"] = (f"nhân vật nhìn {facing_deg % 360:g}°, máy " + ("sau lưng (qua vai)" if behind else "trước mặt")
+                        + " — hướng theo plate_view của shot (luật trục 180° ở plate_choice)")
     return {"camera": {"name": name, "location": [round(c, 3) for c in cam], "look_at": [round(c, 3) for c in aim], "lens": lens,
                        "angle": {"low": "low_angle", "high": "high_angle", "overhead": "high_angle"}.get(angle, "eye_level")},
             "subject_box": box, "feet_y": box[3], "distance_m": round(dist, 2), "size": size, "side": side, "behind": behind,
-            "frame_h_m": round(frame_h, 3), "horizon_y": horizon_y(cam, aim, lens, aspect), "fixes": fixes, "problem": problem}
+            "frame_h_m": round(frame_h, 3), "horizon_y": hz, "pitch_deg": round(pitch, 1), "fixes": fixes, "problem": problem,
+            "why": why}
+
+
+def clearance_fix(location: Sequence[float], look_at: Sequence[float], feet: Sequence[float], height_m: float,
+                  block_m: Optional[float] = None, bg_m: Optional[float] = None, bg_top_z: Optional[float] = None,
+                  block_from: Optional[Sequence[float]] = None) -> Dict:
+    """P24: judge what Blender's rays found round a shot camera (pure; tools/render_plates.py measures, scene metres).
+    block_m  = distance from block_from (the character's body, default the aim point) towards the camera to the first face (None =
+               clear): the camera is inside / behind a wall → it moves along its own sight line until it is CLEAR_GAP_M in front of
+               that face (same aim; the framing gets tighter — said). Measured from the character, not from the aim: a look-down
+               shot aims at the ground beyond them (inside a well), and the well's rim is not a wall round the camera.
+    bg_m     = horizontal distance from the camera, along its view, to the first face at the camera's height; bg_top_z = the top of
+               that obstacle. A face closer than BG_NEAR_M behind the character while the camera looks level/up is a wall filling
+               the frame: a low wall (≤ character + LOW_WALL_EXTRA_M) → the camera rises over it (top + OVER_WALL_M, same aim); a
+               tall one → reported only (choose another plate_view / spot), never moved silently.
+    Returns {"location", "look_at", "notes" (what was changed), "warnings" (what is wrong and left)}."""
+    loc, aim = [float(c) for c in location], [float(c) for c in look_at]
+    notes: List[str] = []
+    warnings: List[str] = []
+    sight = math.dist(aim, loc)
+    seg = math.dist(block_from, loc) if block_from is not None else sight
+    if block_m is not None and 0 <= block_m < seg - 1e-6:
+        pull = min(seg - max(block_m - CLEAR_GAP_M, 0.0), sight - 0.3)
+        f = _unit([a - c for a, c in zip(aim, loc)])
+        loc = [c + fc * pull for c, fc in zip(loc, f)]
+        notes.append(f"máy nằm trong/sau vật cản (mặt vật cản cách nhân vật {block_m:.2f} m, máy ở {seg:.2f} m) → đưa máy tiến "
+                     f"{pull:.2f} m dọc hướng nhìn ra trước mặt đó (cùng hướng nhìn, khung chặt hơn)")
+    d = [a - c for a, c in zip(aim, loc)]
+    flat = math.hypot(d[0], d[1])
+    pitch = math.degrees(math.atan2(d[2], flat or 1e-9))
+    to_subject = math.hypot(feet[0] - loc[0], feet[1] - loc[1])
+    if bg_m is not None and bg_top_z is not None and pitch > -20.0 and bg_m < to_subject + BG_NEAR_M:
+        behind_m = bg_m - to_subject
+        top = float(bg_top_z) - float(feet[2])
+        where = (f"cách sau nhân vật {behind_m:.2f} m" if behind_m >= 0 else f"trước nhân vật {-behind_m:.2f} m")
+        if loc[2] >= float(bg_top_z) + OVER_WALL_M - 1e-6:
+            pass                                               # the camera already sees over it
+        elif top <= height_m + LOW_WALL_EXTRA_M:
+            new_z = float(bg_top_z) + OVER_WALL_M
+            notes.append(f"máy cao {loc[2] - float(feet[2]):.2f} m sau tường thấp {top:.2f} m {where} — nền chỉ là tường → nâng máy lên "
+                         f"{new_z - float(feet[2]):.2f} m (nhìn qua tường, cùng điểm nhìn; góc thấp giảm)")
+            loc[2] = new_z
+        else:
+            warnings.append(f"nền là vật cao {top:.1f} m {where} (máy cao {loc[2] - float(feet[2]):.2f} m) — ảnh sẽ chỉ thấy tường; "
+                            "chọn plate_view / chỗ đứng khác")
+    return {"location": [round(c, 3) for c in loc], "look_at": [round(c, 3) for c in aim], "notes": notes, "warnings": warnings}
 
 
 def horizon_y(cam: Sequence[float], aim: Sequence[float], lens: float, aspect: float) -> float:

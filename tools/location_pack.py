@@ -103,6 +103,8 @@ def main():
     ap.add_argument("--size", default="MS", help="preview: cỡ cảnh (MS, WS, CU…)")
     ap.add_argument("--lights", help="preview: JSON danh sách đèn ([] = không thêm đèn)")
     ap.add_argument("--samples", type=int, default=24)
+    ap.add_argument("--fresh-shot", type=int, action="append",
+                    help="render: render lại shot số này (idx) dù đã có trong cache — vd sau khi sửa kiểm tia Blender (P24)")
     ap.add_argument("--out")
     ap.add_argument("--db", default=os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite")))
     ap.add_argument("--model")
@@ -146,7 +148,8 @@ def main():
         print(f"{res['shots']} shot → {res['path']}" + ("".join(f" · ⚠ shot {x} và {y}: máy hai phía đối diện nhân vật — kiểm lại nếu không phải shot ngược / qua vai"
                                                              for x, y in res["opposite"])))
         return
-    idx = location_pack.ensure_plates(conn, a.project, DATA, os.path.dirname(os.path.abspath(DATA)), log=print)
+    idx = location_pack.ensure_plates(conn, a.project, DATA, os.path.dirname(os.path.abspath(DATA)), log=print,
+                                      fresh=a.fresh_shot or ())
     failed = [k for k, v in idx.items() if v.get("failed")]
     print(f"{len(idx) - len(failed)} shot có nền 3D → {os.path.join(DATA, str(a.project), 'plates', 'index.json')}"
           + (f" · ⚠ {len(failed)} shot Blender không trả về góc máy (vẽ ảnh thường)" if failed else ""))

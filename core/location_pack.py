@@ -19,7 +19,7 @@ import os
 import re
 import shutil
 import time
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Sequence
 
 from . import assets, plate_camera, plate_env, plates3d
 
@@ -398,8 +398,10 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
             env = dict(env, practical=True)             # plate_env.grade: a lit night keeps its lamps (the character gets the same)
         # F2 (09/10): the same-axis wide view of THIS shot's camera — rendered with it (same Blender run, same cache), sent with it
         wide_cam = plate_camera.wide_for(camera, height, aspect, cam.get("frame_h_m"))
-        wide = {"camera": wide_cam, "key": cache_key(s["entry"], wide_cam, env, resolution)}
+        wide = {"camera": wide_cam, "key": cache_key(s["entry"], wide_cam, env, resolution),
+                "why": {"wide": f"cùng hướng + độ nghiêng với máy shot, lùi dọc trục, ống {wide_cam['lens']:g} mm (F2)"}}
         out.append({"camera_fixes": list(cam.get("fixes") or []), "camera_problem": cam.get("problem"), "wide": wide,
+                    "camera_why": dict(cam.get("why") or {}, **({"shared_with": cam["shared_with"]} if cam.get("shared_with") else {})),
                     "horizon_y": cam.get("horizon_y"),
                     "scene_id": s["id"], "idx": s["idx"], "place": s["place"]["name"], "entry": s["entry"], "camera": camera, "env": env,
                     "subject_box": cam["subject_box"], "distance_m": cam["distance_m"], "spot": sp["name"],
@@ -469,7 +471,8 @@ def _recheck_problem(rec: Dict, dest: str) -> Optional[str]:
 
 
 def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(1152, 2048), blender: Optional[str] = None,
-                  render: Callable = plates3d.render, log: Callable[[str], None] = lambda m: None) -> Dict[str, Dict]:
+                  render: Callable = plates3d.render, log: Callable[[str], None] = lambda m: None,
+                  fresh: Sequence[int] = ()) -> Dict[str, Dict]:
     """Every shot at a 3D place gets its plate (from the cache, else rendered — one Blender run per model + time/weather, cameras
     together), finished (sky, fog, grade) and written to the project's index. Returns the index.
     F2 (09/10): each shot also gets its same-axis WIDE view (plan()["wide"], same run, same cache) — index record `wide` {plate, key,
@@ -489,7 +492,8 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             continue                                      # F2: an impossible camera is not rendered (index: failed, below)
         wide = it.get("wide") or {}
         for kind, key, camera in (("shot", it["key"], it["camera"]), ("wide", wide.get("key"), wide.get("camera"))):
-            if key and _cached(root, key) is None and _failed(root, key, retry=kind == "shot") is None:
+            again = it["idx"] in fresh                    # P24: render these shots again although cached (new Blender checks)
+            if key and (again or _cached(root, key) is None) and (again or _failed(root, key, retry=kind == "shot") is None):
                 missing.setdefault((it["entry"]["sha256"], plate_env.key(it["env"])), []).append((it, kind, key, camera))
     rendered = set()
     for group in missing.values():
@@ -545,7 +549,19 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
                 continue
             if kind == "shot":
                 rendered.add(it["scene_id"])
-            rec = {"camera": p.get("camera"), "depth_range_m": p.get("depth_range_m"), "subject": p.get("subject")}
+            rec = {"camera": p.get("camera"), "depth_range_m": p.get("depth_range_m"), "subject": p.get("subject"),
+                   # P24: why the camera stands where it does (core/plate_camera `why`) + what Blender's rays changed / found
+                   "why": (it.get("camera_why") if kind == "shot" else (it.get("wide") or {}).get("why")) or {}}
+            clr = p.get("clearance") or {}
+            if clr:
+                rec["clearance"] = clr
+            if clr.get("notes") or clr.get("warnings"):
+                what = "máy shot" if kind == "shot" else "máy ảnh toàn cùng trục"
+                note = (f"Shot {it['idx']} ({first['place']}): {what} — "
+                        + "; ".join([f"đặt lại: {n}" for n in clr.get("notes") or []] + [f"⚠ {w}" for w in clr.get("warnings") or []]))
+                diag.record(conn, "image", "warn" if clr.get("warnings") else "info", note, "plate_clearance",
+                            project_id=pid, scene_id=it["scene_id"])
+                log(note)
             for part in ("file", "depth_file", "shadow_file"):
                 if p.get(part):
                     target = os.path.join(dest, {"file": "raw.png", "depth_file": "depth.png", "shadow_file": "shadow_raw.png"}[part])
