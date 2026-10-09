@@ -71,8 +71,8 @@ class G0Base(unittest.TestCase):
                                   "plaza_front", anchor=[12.68, -31.13, 33.5])
         self.data = os.path.join(self.tmp, "projects")
 
-    def scene(self, shots=SHOTS, extra=None):
-        pid = self.p.create_project(f"g0-{len(self.calls)}-{id(shots)}-{os.urandom(3).hex()}", aspect="9:16")
+    def scene(self, shots=SHOTS, extra=None, aspect="9:16"):
+        pid = self.p.create_project(f"g0-{len(self.calls)}-{id(shots)}-{os.urandom(3).hex()}", aspect=aspect)
         for i, (size, angle, action) in enumerate(shots, 1):
             sid = self.p.create_scene(pid, i, f"s{i}")
             d = {"size": size, "angle": angle, "characters": ["KELLY"], "location_asset": self.place, "time": "day",
@@ -433,6 +433,131 @@ class LayoutJobTests(G0Base):
             rows = json.load(f)
         self.assertEqual(rows[0]["job_id"], 77)
         self.assertTrue(rows[0]["mismatch"])
+
+
+# ---- rà G0 (09/10): 7 lỗi phiên rà độc lập ---------------------------------------------------------------------------------------
+class ReviewFixTests(G0Base):
+    def keys(self, pid):
+        return {it["idx"]: it["key"] for it in location_pack.plan(self.p.conn, pid, (W, H))}
+
+    def test_1_same_setup_and_size_but_look_down_is_not_merged(self):
+        shots = [{"idx": 1, "setup": "A", "size": "WS", "angle": "eye"}, {"idx": 2, "setup": "C", "size": "MS", "angle": "ots"},
+                 {"idx": 3, "setup": "C", "size": "MS", "angle": "ots"}, {"idx": 4, "setup": "B", "size": "MCU", "angle": "eye"}]
+        with mock.patch.dict(os.environ, ON):
+            pid = self.scene()                                   # shot 3 cúi nhìn giếng, shot 2 không
+            camera_plan.before_plates(self.p.conn, pid, self.data, client=FakeClaude(answer(shots=shots)))
+            k = self.keys(pid)
+        self.assertEqual((self.shot(pid, 2)["plate_setup"], self.shot(pid, 3)["plate_setup"]), ("C", "C"))
+        self.assertNotEqual(k[2], k[3])
+
+    def test_1_setup_A_of_two_plans_is_two_cameras(self):
+        one = lambda idx, az: answer(setups=[{"id": "A", "intent": "x", "why": "y", "azimuth_deg": az, "angle": "eye",  # noqa: E731
+                                              "tilt": "level", "landmark_in_frame": "any"}],
+                                     shots=[{"idx": idx, "setup": "A", "size": "MS", "angle": "eye"}])
+        with mock.patch.dict(os.environ, ON):
+            pid = self.scene(shots=(("MS", "eye", "Kelly waits"), ("MS", "eye", "Kelly waits")),
+                             extra={1: {"story_scene": None}, 2: {"story_scene": None}})
+            res = camera_plan.before_plates(self.p.conn, pid, self.data, client=FakeClaude(one(1, 180), one(2, 0)))
+            k = self.keys(pid)
+        self.assertEqual(sorted(res["planned"]), ["shot1", "shot2"])
+        self.assertNotEqual(k[1], k[2])
+
+    def test_2_a_locked_camera_field_keeps_its_own_camera_and_shot_words(self):
+        with mock.patch.dict(os.environ, ON):
+            pid = self.scene(extra={2: {"plate_view": {"background": 90, "why": "người dùng"}, "shot": "chữ của tôi",
+                                        "_user_locked": ["plate_view", "shot"]}})
+            camera_plan.before_plates(self.p.conn, pid, self.data, client=FakeClaude(answer()))
+            k = self.keys(pid)
+        s2 = self.shot(pid, 2)
+        self.assertNotIn("plate_setup", s2)
+        self.assertEqual(s2["plate_view"]["background"], 90)
+        self.assertEqual(s2["shot"], "chữ của tôi")
+        self.assertNotEqual(k[1], k[2])
+        self.assertTrue(any("máy riêng" in m for m in self.diags(pid, "director_camera_plan")))
+
+    def test_3_a_failed_rerender_never_pays_to_look_at_the_old_render(self):
+        wrong_c = {"observations": ["camera_level", "landmark_visible"]}
+        good = [{"observations": v} for v in ReviewTests.GOOD.values()]
+        with mock.patch.dict(os.environ, ON):
+            pid = self.scene()
+            camera_plan.before_plates(self.p.conn, pid, self.data, client=FakeClaude(answer()))
+            location_pack.ensure_plates(self.p.conn, pid, self.data, self.tmp, (W, H), blender="x", render=self.fake_render)
+            look = FakeClaude(good[0], good[1], wrong_c, good[2])
+            with mock.patch.object(location_pack, "ensure_plates", side_effect=RuntimeError("Blender chết")):
+                camera_plan.after_plates(self.p.conn, pid, self.data, self.tmp, client=look, render=self.fake_render, blender="x",
+                                         resolution=(W, H))
+        self.assertEqual(len(look.prompts), 3)
+        c = next(s for s in camera_plan.load_plans(self.data, pid)["1"]["setups"] if s["id"] == "C")
+        self.assertFalse(c["review"]["done"])
+        self.assertEqual(c["review"]["rounds"], 1)
+
+    def test_4_cli_review_uses_the_project_size_and_counts_failed_scenes(self):
+        import importlib.util
+        import io
+        from contextlib import redirect_stdout
+        from core import formats
+        spec = importlib.util.spec_from_file_location("tools_location_pack_g0",
+                                                      os.path.join(os.path.dirname(__file__), "..", "tools", "location_pack.py"))
+        tool = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tool)
+        with mock.patch.dict(os.environ, ON):
+            pid = self.scene(aspect="16:9")
+            camera_plan._save_plans(self.data, pid, {"1": {"failed": "x", "tries": 1}})
+            a = mock.Mock(project=pid, yes=True, review=True, force=False)
+            out = io.StringIO()
+            with mock.patch.object(tool, "DATA", self.data), mock.patch.object(camera_plan, "before_plates", return_value={}), \
+                    mock.patch.object(tool.location_pack, "ensure_plates") as ep, \
+                    mock.patch.object(camera_plan, "after_plates", return_value={}) as ap, redirect_stdout(out):
+                tool.run_camera_plan(self.p.conn, a)
+        want = tuple(int(v) for v in formats.spec("16:9")["deepix"].lower().split("x"))
+        self.assertIn("1 cảnh cần sơ đồ", out.getvalue())
+        self.assertIn(want, list(ep.call_args.args) + list(ep.call_args.kwargs.values()))
+        self.assertEqual(ap.call_args.kwargs.get("resolution"), want)
+
+    def test_5_the_estimate_says_the_worst_case(self):
+        with mock.patch.dict(os.environ, ON):
+            pid = self.scene()
+            camera_plan.before_plates(self.p.conn, pid, self.data, client=FakeClaude(answer()))
+        self.assertTrue(any(f"tối đa ×{2 * camera_plan.MAX_TRIES}" in m for m in self.diags(pid, "director_camera_plan")))
+
+    def test_6_a_scene_with_a_drawn_picture_is_not_replanned(self):
+        client = FakeClaude(answer())
+        with mock.patch.dict(os.environ, ON):
+            pid = self.scene()
+            sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=2", (pid,)).fetchone()["id"]
+            self.p.conn.execute("INSERT INTO jobs (project_id, scene_id, type, state, result_path, created_at, updated_at) "
+                                "VALUES (?,?,'image_gen','done','x.png','t','t')", (pid, sid))
+            self.p.conn.commit()
+            res = camera_plan.before_plates(self.p.conn, pid, self.data, client=client)
+        self.assertEqual(client.prompts, [])
+        self.assertEqual(res["drawn"], ["1"])
+        self.assertNotIn("plate_setup", self.shot(pid, 1))
+        self.assertTrue(any("đã có ảnh" in m for m in self.diags(pid, "director_camera_plan")))
+
+    def test_6_a_forced_replan_that_fails_keeps_the_old_plan(self):
+        class Broken:
+            def complete(self, prompt, images=()):
+                return LlmReply("không phải JSON", 10, 5)
+        with mock.patch.dict(os.environ, ON):
+            pid = self.scene()
+            camera_plan.before_plates(self.p.conn, pid, self.data, client=FakeClaude(answer()))
+            camera_plan.before_plates(self.p.conn, pid, self.data, client=Broken(), force=True)
+        plan = camera_plan.load_plans(self.data, pid)["1"]
+        self.assertNotIn("failed", plan)
+        self.assertTrue(plan["setups"])
+        self.assertIn("error", plan["last_error"])
+
+    def test_7_a_render_not_ready_is_said_once_not_every_tick(self):
+        with mock.patch.dict(os.environ, ON):
+            pid = self.scene()
+            camera_plan.before_plates(self.p.conn, pid, self.data, client=FakeClaude(answer()))
+            for _ in range(3):                                   # ba vòng autopilot, chưa render
+                camera_plan.after_plates(self.p.conn, pid, self.data, self.tmp, client=FakeClaude({"observations": []}),
+                                         resolution=(W, H))
+        rows = self.p.conn.execute("SELECT message, count FROM diag_events WHERE project_id=? AND code=?",
+                                   (pid, camera_plan.REVIEW_CODE)).fetchall()
+        self.assertTrue(rows)
+        self.assertTrue(all(r["count"] == 1 for r in rows), [(r["message"][:60], r["count"]) for r in rows])
 
 
 if __name__ == "__main__":

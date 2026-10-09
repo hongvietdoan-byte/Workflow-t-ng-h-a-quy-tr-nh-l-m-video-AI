@@ -33,6 +33,8 @@ REVIEW_STAGE = "director_plate_review"
 CODE = "director_camera_plan"
 REVIEW_CODE = "director_plate_review"
 SETUP_FIELD = "plate_setup"
+SCENE_FIELD = "plate_setup_scene"      # rà G0: the plan (scene group key) the set-up belongs to — "A" of two plans is two cameras
+CAMERA_LOCKS = ("plate_view", "angle")  # rà G0: a shot whose camera field the person locked keeps its OWN camera (no plate_setup)
 PROMPT_FILE = "28_director_camera_plan.md"
 PLAN_HEAD = "# Đạo diễn — sơ đồ cảnh và bộ góc máy"
 REVIEW_HEAD = "# Đạo diễn — duyệt render nền"
@@ -72,6 +74,46 @@ _CONTRADICT = (("landmark_visible", "landmark_not_visible"), ("camera_tilted_dow
 
 def enabled() -> bool:
     return features.on(FLAG)
+
+
+def project_resolution(conn, pid: int) -> Tuple[int, int]:
+    """The render size of the project — the same as autopilot._plates_phase (so the CLI renders / reviews the autopilot's cache)."""
+    from . import formats
+    row = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
+    size = formats.spec((formats.project_aspect(row) if row is not None else None) or "9:16")["deepix"]
+    w, h = (int(v) for v in str(size).lower().split("x"))
+    return w, h
+
+
+def needs_plan(old: Optional[Dict], force: bool = False) -> bool:
+    """A scene needs a (new) plan: forced, none yet, or failed with tries left (MAX_TRIES)."""
+    return bool(force or old is None or (old.get("failed") and int(old.get("tries") or 0) < MAX_TRIES))
+
+
+def drawn_shots(conn, group: Dict) -> List[int]:
+    """idx of the group's shots that already have a picture (an image job with a result) — a new camera would make it stale."""
+    out = []
+    for s in group["shots"]:
+        if conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND COALESCE(result_path,'')<>'' LIMIT 1",
+                        (s["id"],)).fetchone():
+            out.append(s["idx"])
+    return out
+
+
+def todo_groups(conn, pid: int, data_dir: str, force: bool = False) -> Tuple[List[Dict], List[str], Dict[str, List[int]]]:
+    """(groups to plan, keys kept, {key: drawn shot idx} skipped) — one rule for before_plates and the CLI estimate."""
+    plans = load_plans(data_dir, pid)
+    todo, kept, drawn = [], [], {}
+    for g in groups(conn, pid):
+        if not needs_plan(plans.get(g["key"]), force):
+            kept.append(g["key"])                         # a plan, or MAX_TRIES failures (said; `force` = the person asks again)
+            continue
+        done = drawn_shots(conn, g)
+        if done and not force:
+            drawn[g["key"]] = done
+            continue
+        todo.append(g)
+    return todo, kept, drawn
 
 
 def _angdiff(a: float, b: float) -> float:
@@ -382,6 +424,7 @@ def apply(conn, pid: int, group: Dict, plan: Dict) -> Dict:
     changed: Dict[int, List[str]] = {}
     locked_out: Dict[int, List[str]] = {}
     resized: Dict[int, str] = {}
+    apart: Dict[int, List[str]] = {}
     for sh in plan["shots"]:
         row = by_idx.get(sh["idx"])
         if row is None:
@@ -396,9 +439,18 @@ def apply(conn, pid: int, group: Dict, plan: Dict) -> Dict:
         why = f"setup {st['id']}: {st['intent']} — {st['why']}" + (f"; shot: {sh['why']}" if sh.get("why") else "")
         if st.get("crosses_axis_why"):
             why += f"; vượt trục có chủ đích: {st['crosses_axis_why']}"
-        want = {SETUP_FIELD: st["id"], "plate_view": {"background": st["azimuth_deg"], "why": why}, "size": sh["size"],
-                "angle": sh["angle"]}
+        want = {SETUP_FIELD: st["id"], SCENE_FIELD: group["key"], "plate_view": {"background": st["azimuth_deg"], "why": why},
+                "size": sh["size"], "angle": sh["angle"]}
         did = []
+        own = [k for k in CAMERA_LOCKS if k in locked and data.get(k) != want[k]]
+        if own:                                            # rà G0: the person's camera field wins — the shot keeps its own camera
+            want.pop(SETUP_FIELD)
+            want.pop(SCENE_FIELD)
+            apart[sh["idx"]] = own
+            for k in (SETUP_FIELD, SCENE_FIELD):           # a set-up left from an earlier plan would still share a camera
+                if k in data and k not in locked:
+                    data.pop(k)
+                    did.append(k)
         for k, v in want.items():
             if data.get(k) == v:
                 continue
@@ -409,7 +461,9 @@ def apply(conn, pid: int, group: Dict, plan: Dict) -> Dict:
                 resized[sh["idx"]] = f"{data['size']}→{v}"
             data[k] = v
             did.append(k)
-        if {"size", "angle"} & set(did) and data.get("size") in SIZE_WORDS:
+        if {"size", "angle"} & set(did) and data.get("size") in SIZE_WORDS and "shot" in locked:
+            locked_out.setdefault(sh["idx"], []).append("shot")     # rà G0: the person's own `shot` words are kept
+        elif {"size", "angle"} & set(did) and data.get("size") in SIZE_WORDS:
             data["shot"] = (f"{SIZE_WORDS[data['size']]}, {data.get('angle') or 'eye'} angle, "
                             f"{str(data.get('camera_move') or 'static').replace('_', ' ')}")
         row["data"] = data
@@ -417,7 +471,7 @@ def apply(conn, pid: int, group: Dict, plan: Dict) -> Dict:
             conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), row["id"]))
             changed[sh["idx"]] = did
     conn.commit()
-    return {"changed": changed, "locked": locked_out, "resized": resized}
+    return {"changed": changed, "locked": locked_out, "resized": resized, "apart": apart}
 
 
 def _client(conn):
@@ -442,6 +496,18 @@ def _say(conn, pid: int, sev: str, msg: str, code: str = CODE, log: Callable[[st
     log(msg)
 
 
+def _say_new(conn, pid: int, sev: str, msg: str, code: str = CODE, log: Callable[[str], None] = lambda m: None) -> None:
+    """rà G0: a state said at every autopilot tick (no Claude, picture already drawn, estimate) is written once — again only when the
+    words change (diag.record alone merges for 10 minutes, then a new row every tick)."""
+    try:
+        seen = conn.execute("SELECT 1 FROM diag_events WHERE project_id=? AND COALESCE(code,'')=? AND message=? LIMIT 1",
+                            (pid, code or "", diag.redact(msg)[:400])).fetchone()
+    except Exception:  # noqa: BLE001 - no diag table: say it
+        seen = None
+    if not seen:
+        _say(conn, pid, sev, msg, code, log)
+
+
 def before_plates(conn, pid: int, data_dir: str, client=None, force: bool = False,
                   log: Callable[[str], None] = lambda m: None) -> Optional[Dict]:
     """Step 1–2 of G0 for every scene at a 3D place without a plan (force = again). None when the flag is off. Never raises: a
@@ -449,20 +515,19 @@ def before_plates(conn, pid: int, data_dir: str, client=None, force: bool = Fals
     if not enabled():
         return None
     from . import llm_runner
-    res: Dict = {"planned": [], "kept": [], "failed": []}
+    res: Dict = {"planned": [], "kept": [], "failed": [], "drawn": []}
     plans = load_plans(data_dir, pid)
-    todo = []
-    for g in groups(conn, pid):
-        old = plans.get(g["key"])
-        if force or old is None or (old.get("failed") and int(old.get("tries") or 0) < MAX_TRIES):
-            todo.append(g)
-        else:
-            res["kept"].append(g["key"])                  # a plan, or MAX_TRIES failures (said; `force` = the person asks again)
+    todo, res["kept"], drawn = todo_groups(conn, pid, data_dir, force)
+    for key, idxs in drawn.items():                       # rà G0: a new camera would make a paid picture stale — said, not planned
+        res["drawn"].append(key)
+        _say_new(conn, pid, "warn", f"Cảnh {key}: shot {', '.join(map(str, idxs))} đã có ảnh — không lập sơ đồ máy (đổi máy làm ảnh "
+                                    "đã vẽ lệch nền 3D); muốn lập lại cả cảnh: py tools/location_pack.py camera-plan --project "
+                                    f"{pid} --yes --force", log=log)
     if not todo:
         return res
     client = client if client is not None else _client(conn)
     if client is None:
-        _say(conn, pid, "warn", "Chưa cấu hình Claude (ANTHROPIC_API_KEY / LLM_PROVIDER) — Đạo diễn chưa lập sơ đồ cảnh + bộ góc máy "
+        _say_new(conn, pid, "warn", "Chưa cấu hình Claude (ANTHROPIC_API_KEY / LLM_PROVIDER) — Đạo diễn chưa lập sơ đồ cảnh + bộ góc máy "
                                 f"(G0) cho {len(todo)} cảnh; nền 3D dùng plate_view từng shot như cũ", log=log)
         return res
     for g in todo:
@@ -475,12 +540,20 @@ def before_plates(conn, pid: int, data_dir: str, client=None, force: bool = Fals
         for n in notes:
             _say(conn, pid, "warn", f"Cảnh {g['key']} — thiếu đầu vào sơ đồ: {n}", log=log)
         _say(conn, pid, "info", f"Cảnh {g['key']}: Đạo diễn lập sơ đồ cảnh + bộ góc máy ({len(g['shots'])} shot, {len(images)} ảnh) — "
-                                f"ước tính {_estimate(conn, STAGE, 1, len(images))}", log=log)
+                                f"ước tính {_estimate(conn, STAGE, 1, len(images))} (tối đa ×{2 * MAX_TRIES} "
+                                f"{_estimate(conn, STAGE, 2 * MAX_TRIES, len(images))} nếu Claude lỗi / trả lời sai mẫu)", log=log)
         idxs = [s["idx"] for s in g["shots"]]
         try:
             with llm_runner.tagged(STAGE, pid):
                 obj, _, _ = llm_runner.ask_json(client, text, lambda o: validate(o, idxs), images)
         except Exception as e:  # noqa: BLE001 - Claude error / bad answer twice: the old flow goes on, said
+            old = plans.get(g["key"])
+            if old and not old.get("failed"):             # rà G0: a forced re-plan that fails keeps the good plan the shots use
+                old["last_error"] = {"error": f"{type(e).__name__}: {e}", "at": time.time()}
+                _save_plans(data_dir, pid, plans)
+                _say(conn, pid, "error", f"Cảnh {g['key']}: lập lại sơ đồ cảnh lỗi ({type(e).__name__}: {e}) — giữ sơ đồ cũ", log=log)
+                res["failed"].append(g["key"])
+                continue
             tries = int((plans.get(g["key"]) or {}).get("tries") or 0) + 1
             plans[g["key"]] = {"failed": f"{type(e).__name__}: {e}", "tries": tries, "at": time.time()}
             _save_plans(data_dir, pid, plans)             # an autopilot tick never pays for the same failure for ever
@@ -497,6 +570,9 @@ def before_plates(conn, pid: int, data_dir: str, client=None, force: bool = Fals
         for idx, fields in applied["locked"].items():
             _say(conn, pid, "warn", f"Cảnh {g['key']} shot {idx}: giữ {', '.join(fields)} bạn đã sửa tay (sơ đồ muốn đổi) — máy của "
                                     "shot có thể lệch setup", log=log)
+        for idx, fields in applied["apart"].items():
+            _say(conn, pid, "warn", f"Cảnh {g['key']} shot {idx}: dùng máy riêng (không vào góc máy của sơ đồ) vì bạn đã khóa "
+                                    f"{', '.join(fields)}", log=log)
         for idx, move in applied["resized"].items():
             _say(conn, pid, "warn", f"Cảnh {g['key']} shot {idx}: sơ đồ đổi cỡ cảnh {move} — prompt ảnh của shot có thể còn tả cỡ cũ, "
                                     "xem lại trước khi vẽ", log=log)
@@ -624,9 +700,10 @@ def after_plates(conn, pid: int, data_dir: str, data_root: str, client=None, ren
         return res
     client = client if client is not None else _client(conn)
     if client is None:
-        _say(conn, pid, "warn", f"Chưa cấu hình Claude — Đạo diễn chưa xem render nền của {len(todo)} góc máy (G0)", REVIEW_CODE, log)
+        _say_new(conn, pid, "warn", f"Chưa cấu hình Claude — Đạo diễn chưa xem render nền của {len(todo)} góc máy (G0)", REVIEW_CODE,
+                 log)
         return res
-    _say(conn, pid, "info", f"Đạo diễn xem render nền {len(todo)} góc máy — ước tính {_estimate(conn, REVIEW_STAGE, len(todo), 2)} "
+    _say_new(conn, pid, "info", f"Đạo diễn xem render nền {len(todo)} góc máy — ước tính {_estimate(conn, REVIEW_STAGE, len(todo), 2)} "
                             f"(tối đa {_estimate(conn, REVIEW_STAGE, len(todo) * (1 + MAX_REVIEW_ROUNDS), 2)} nếu phải sửa)",
          REVIEW_CODE, log)
     by_key = {g["key"]: g for g in groups(conn, pid)}
@@ -656,13 +733,20 @@ def after_plates(conn, pid: int, data_dir: str, data_root: str, client=None, ren
             rounds, fixes = int(prev.get("rounds") or 0), list(prev.get("fixes") or [])
             while True:
                 rec = location_pack.plate_of(data_dir, pid, sid)
+                want_key = next((it["key"] for it in location_pack.plan(conn, pid, resolution) if it["scene_id"] == sid), None)
+                stale = rec is not None and want_key is not None and rec.get("key") not in (None, want_key)
+                if stale:
+                    rec = None                                # rà G0: the index still holds the OLD camera's render — not looked at
                 if rec is None:
-                    why = (location_pack.plate_failed(data_dir, pid, sid) or location_pack.plate_needs(data_dir, pid, sid)
+                    why = ("render đang gắn là của máy cũ, chưa có render máy mới" if stale else
+                           location_pack.plate_failed(data_dir, pid, sid) or location_pack.plate_needs(data_dir, pid, sid)
                            or "chưa render")
+                    reasons = [f"chưa có render nền: {why}"]
+                    if (prev.get("reasons") or []) != reasons:  # rà G0: said once per reason, not at every autopilot tick
+                        _say(conn, pid, "warn", f"Cảnh {key} · góc {st['id']}: chưa xem được render nền ({why}) — xem lại sau khi "
+                                                "render", REVIEW_CODE, log)
                     st["review"] = {"ok": False, "done": False, "rounds": rounds, "fixes": fixes, "tries": prev.get("tries"),
-                                    "reasons": [f"chưa có render nền: {why}"]}
-                    _say(conn, pid, "warn", f"Cảnh {key} · góc {st['id']}: chưa xem được render nền ({why}) — xem lại sau khi render",
-                         REVIEW_CODE, log)
+                                    "reasons": reasons}
                     break
                 images = [(f"Ảnh 1 — render nền góc {st['id']}:", rec["plate"])]
                 orec = None
@@ -676,7 +760,7 @@ def after_plates(conn, pid: int, data_dir: str, data_root: str, client=None, ren
                         obj, _, _ = llm_runner.ask_json(client, text, _validate_review, images)
                 except Exception as e:  # noqa: BLE001 - said; the set-up stays unreviewed (tried again next time)
                     tries = int((st.get("review") or {}).get("tries") or 0) + 1
-                    st["review"] = {"ok": False, "done": tries >= MAX_TRIES, "rounds": rounds, "tries": tries,
+                    st["review"] = {"ok": False, "done": tries >= MAX_TRIES, "rounds": rounds, "tries": tries, "fixes": fixes,
                                     "reasons": [f"Claude lỗi: {type(e).__name__}: {e}"]}
                     if tries >= MAX_TRIES:
                         res["needs_person"].append(f"{key}·{st['id']}")
@@ -709,8 +793,12 @@ def after_plates(conn, pid: int, data_dir: str, data_root: str, client=None, ren
                 apply(conn, pid, g, plan)
                 try:
                     location_pack.ensure_plates(conn, pid, data_dir, data_root, resolution, blender=blender, log=log, **rerender)
-                except Exception as e:  # noqa: BLE001 - said; the loop reads the (missing) render and stops
-                    _say(conn, pid, "error", f"Cảnh {key} · góc {st['id']}: render lại lỗi ({type(e).__name__}: {e})", REVIEW_CODE, log)
+                except Exception as e:  # noqa: BLE001 - said; never a paid look at the OLD render (rà G0)
+                    st["review"] = {"ok": False, "done": False, "rounds": rounds, "fixes": fixes, "tries": prev.get("tries"),
+                                    "reasons": [f"render lại lỗi: {type(e).__name__}: {e}"]}
+                    _say(conn, pid, "error", f"Cảnh {key} · góc {st['id']}: render lại lỗi ({type(e).__name__}: {e}) — chưa xem lại "
+                                             "(không trả tiền xem render cũ), thử lại ở lượt sau", REVIEW_CODE, log)
+                    break
             res["setups"].setdefault(key, {})[st["id"]] = st.get("review")
             _save_plans(data_dir, pid, plans)
     return res

@@ -374,7 +374,8 @@ def plan_cameras(shots: List[Dict], spot_of, height_of, aspect: float = 9 / 16, 
     """scene id -> camera_for(...) for shots at a 3D place. Shots of one camera_setup with the same size share the first one's camera
     (the DP's coverage: one position, several shots). spot_of(shot) -> (xyz, facing_deg) or None; height_of(shot) -> metres.
     G0 (flag director_camera_plan): `setup_field` = the shot field holding the Director's camera set-up of the scene (core/camera_plan
-    writes `plate_setup`); shots of one set-up + one size + one spot share the first one's camera (`shared_by` "plan") — so one cache
+    writes `plate_setup` + `plate_setup_scene`); shots of one plan's set-up + one size + one spot (+ same angle, look-down, lens, sky)
+    share the first one's camera (`shared_by` "plan") — so one cache
     key and one render. None (flag off) = exactly the old grouping."""
     out, setups = {}, {}
     for s in shots:
@@ -383,7 +384,11 @@ def plan_cameras(shots: List[Dict], spot_of, height_of, aspect: float = 9 / 16, 
         if spot is None:
             continue
         if setup_field and data.get(setup_field):
-            key = (data.get("story_scene"), "plan", str(data[setup_field]), size_of(data), tuple(round(float(c), 3) for c in spot[0]))
+            # rà G0: the set-up's plan (scene field; an old shot: its story_scene, none = the shot alone) + everything camera_for
+            # reads from the shot besides the spot/facing — a look-down / other lens / other angle / sky shot is never merged
+            scene = data.get(f"{setup_field}_scene") or data.get("story_scene") or f"shot_{s['id']}"
+            key = (scene, "plan", str(data[setup_field]), size_of(data), tuple(round(float(c), 3) for c in spot[0]),
+                   str(data.get("angle") or "eye").lower(), looks_down(data), lens_of(data, 0.0), wants_sky(data))
         else:
             key = (data.get("story_scene"), data.get("camera_setup"), size_of(data)) if data.get("camera_setup") else None
         if key and key in setups:

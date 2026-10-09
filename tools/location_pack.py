@@ -96,12 +96,14 @@ def run_camera_plan(conn, a) -> None:
     if not camera_plan.enabled():
         print("Cờ director_camera_plan đang TẮT — bật ở 🧪 hoặc FEATURE_DIRECTOR_CAMERA_PLAN=1 rồi chạy lại")
         return
-    todo = [g for g in camera_plan.groups(conn, a.project)
-            if a.force or g["key"] not in camera_plan.load_plans(DATA, a.project)]
+    todo, _, drawn = camera_plan.todo_groups(conn, a.project, DATA, a.force)   # rà G0: the same rule as before_plates
     one = cost.llm_estimate(conn, camera_plan.STAGE, 1, images=1)
     look = cost.llm_estimate(conn, camera_plan.REVIEW_STAGE, 1, images=2)
-    print(f"{len(todo)} cảnh cần sơ đồ · Claude ≈ {(one or 0) * cost.LLM_MARGIN * len(todo):.3f} USD"
-          + (f" · duyệt render ≈ {(look or 0) * cost.LLM_MARGIN:.3f} USD / góc máy (×3 nếu phải sửa 2 vòng)" if a.review else ""))
+    tries = 2 * camera_plan.MAX_TRIES
+    print(f"{len(todo)} cảnh cần sơ đồ · Claude ≈ {(one or 0) * cost.LLM_MARGIN * len(todo):.3f} USD (tối đa ×{tries} "
+          f"{(one or 0) * cost.LLM_MARGIN * len(todo) * tries:.3f} USD nếu Claude lỗi / trả lời sai mẫu)"
+          + (f" · duyệt render ≈ {(look or 0) * cost.LLM_MARGIN:.3f} USD / góc máy (×3 nếu phải sửa 2 vòng)" if a.review else "")
+          + "".join(f" · bỏ qua cảnh {k} (shot {', '.join(map(str, v))} đã có ảnh — thêm --force)" for k, v in drawn.items()))
     if not a.yes:
         print("Chưa chạy (thêm --yes để đồng ý chi tiền)")
         return
@@ -109,8 +111,10 @@ def run_camera_plan(conn, a) -> None:
     print(json.dumps(res, ensure_ascii=False))
     if a.review:
         root = os.path.dirname(os.path.abspath(DATA))
-        location_pack.ensure_plates(conn, a.project, DATA, root, log=print)
-        print(json.dumps(camera_plan.after_plates(conn, a.project, DATA, root, log=print), ensure_ascii=False, indent=1))
+        size = camera_plan.project_resolution(conn, a.project)  # rà G0: the autopilot's size (its cache), not the 9:16 default
+        location_pack.ensure_plates(conn, a.project, DATA, root, size, log=print)
+        print(json.dumps(camera_plan.after_plates(conn, a.project, DATA, root, resolution=size, log=print), ensure_ascii=False,
+                         indent=1))
 
 
 def main():
