@@ -100,7 +100,7 @@ STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
                                                               # default 32k made turn 1's estimate 0.43 USD > the 0.3 USD per-idea cap
     "director_rewrite": {"effort": "low", "max_tokens": 6000,   # S14.17 Đạo diễn viết lại prompt MỘT shot trước khi gen lại: JSON ngắn.
                          "timeout": 90, "retries": 1},          # The person waits on the button: 90 s, one retry, then the old "Fix:" way
-    "director_camera_plan": {"effort": "medium", "max_tokens": 8000},   # G0: sơ đồ cảnh + 3–4 góc máy của MỘT cảnh: JSON ≈ 1–2k
+    "director_camera_plan": {"effort": "low", "max_tokens": 16000},   # G0: sơ đồ cảnh + 3–4 góc máy của MỘT cảnh: JSON ≈ 2–3k; 09/10 #24 effort medium + 8000 → suy nghĩ ăn hết, câu trả lời bị cắt
     "director_plate_review": {"effort": "low", "max_tokens": 1500},     # G0: quan sát enum trên MỘT render nền — JSON rất ngắn
     "lesson_judge": {"effort": "low", "max_tokens": 4000},      # S14.24 agent chấm bài học (bóng): JSON khoản trừ ngắn của 5 tiêu chí
     "asset_checklist": {"effort": "low", "max_tokens": 6000},   # S14.23 bảng kê tài nguyên trước Director: JSON ngắn (≈ 1 dòng / thứ cần);
