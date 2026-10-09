@@ -1,5 +1,29 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
+- **📌 BÀN GIAO 09/10 tối (làm hết khối "09/10 chiều" bên dưới; chế độ GÓI, 5 giờ ~20 %):**
+  - **KLD-10 nối chat — XONG, đã gộp main** (nhánh `worktree-agent-aeb1992265c3549ed`: `0f831f3` code, `36723a3` sửa 7 lỗi rà kỹ):
+    - `script_chat.send` dùng `dialogue_chat` và lưu `proposals`.
+    - Chỉ áp dụng khi tin cuối đồng ý rõ: `approved` chặn phủ định / hỏi lại / "ok nhưng…".
+    - Chỉ tự áp dụng P của tin gần nhất; P cũ phải gọi đích danh. Đề xuất bị thay → 'superseded'.
+    - `intent(text, p, pid)`: ý tưởng xét trước, "điện thoại"/"P90" không lạc vào chat.
+    - Hoàn tác khôi phục nguyên chuỗi `data` cảnh.
+    - `script_text` thay đúng lần xuất hiện thứ k; tiêu đề CẢNH/LƯU Ý không tính là thoại.
+    - max_tokens 3000. Thẻ đề xuất + nút ↩ Hoàn tác ở `step1_box`.
+    - Test `tests/test_script_chat_kld10.py`, `tests/test_dialogue_chat_kld10.py`.
+    - Số đo nhánh (mã KLD-10 không nhận ở devsys.workflow): làm 147k + sửa 188k, rà 103k + 143k (lần sửa đầu bị hook chặn ghi worktree khác — phiên rà không chạy trong worktree nhánh nên không sửa được); rà bắt 7 lỗi (1 nặng).
+    - **Chưa thử trên Dashboard với Claude thật** (người dùng thử). Còn mở: lúc áp dụng, `update_scene` vẫn chuẩn hóa dòng thoại (bỏ trường lạ `t_start`/`lang`, bỏ dòng rỗng); chỉ hoàn tác mới về nguyên trạng.
+  - **Đợt C việc tốn tiền — ĐÃ CHẠY (≈ 0,91 USD):**
+    1. Cờ `director_rewrite` BẬT. Sao lưu ở `data/feature_settings.backup_2026-10-09_truoc_director_rewrite.json`.
+    2. Vẽ lại 9 ảnh khung đầu #24:
+       - job 612–620 → 7 ảnh xong;
+       - shot 3 và 4 bị `prompt_formula` chặn (0 USD), đã sửa prompt theo lời người dùng: bóng LƯỚT QUA trước mặt from left to right, cách ~1 sải tay, never touches; shot 4 MCU tả ngã bằng phần trên người, bỏ "sprawled";
+       - sửa đồng bộ image_prompt/blocking/action/action_peak/motion_en/performance.body/end_state, khóa `_user_locked`;
+       - job 614/615 hủy → job 621/622 xong;
+       - bản cũ đã duyệt giữ nguyên, **người dùng so trên Dashboard**;
+       - cả 2 ảnh mới có vệt máu nhỏ trên thành giếng → người dùng xem.
+    3. 3 nháp nhạc kinh dị #24 (29,5 s, 100 BPM) đã tải: `draft_31288`, `draft_31289`, `draft_1798` cạnh 3 nháp "comic" cũ → **người dùng chọn ở màn Nhạc**.
+  - **Còn lại:** người dùng duyệt ảnh/nhạc #24 rồi tính tiếp (đo E1 3–5 USD chưa làm); AI Dev System chấm lại mọi khâu.
+
 - **📌 BÀN GIAO 09/10 chiều (người dùng chuyển phiên khác; ĐỌC ĐÂY TRƯỚC — các khối "09/10 chiều / đợt A / đợt B" ngay dưới là chi tiết):**
   - **Đã lên main + Dashboard đã restart:** `97938f8` (ô Chất lượng, đợt A/B, lag, F5 giữ dự án, QC một dòng, tiến độ 2 bậc), `58ac7e6` (sửa lỗi bấm chip v1 v2: fragment chạy luồng riêng → `step4._own_pipeline` mở kết nối riêng; AppTest KHÔNG bắt được lỗi khác luồng — kiểm tay trên Dashboard khi thêm `st.fragment`).
   - **Đợt C — code xong, commit cùng khối này (cả bộ test xem dòng commit):** (1) ảnh bị đo lớp 0 → vẽ lại qua Đạo diễn viết lại prompt (`ImageRunner._rewrite_redraw`, cần cờ `director_rewrite`); `Pipeline.retry` không dán câu Fix cũ trước REWRITE_NOTE. (2) Popup cuối mặc định **giữ khung cuối** đứng hình thêm `seconds` rồi popup trên đó (`end_popup` `hold`, false = chồng như cũ) — #24 shot khóc không bị che, phim +3,5 s. (3) Brief nhạc theo nhịp cộng đoạn popup giữ (`music_timing._end_card`: nốt giữ dưới popup rồi tắt dần, độ dài +3,5 s). Test `tests/test_batch_a_0910.py` (Layer0…, MusicCovers…, FragmentOwnConnection), `tests/test_end_popup_p24.py` (+hold).

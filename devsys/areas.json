@@ -1,5 +1,5 @@
 {
-  "version": 33,
+  "version": 34,
   "updated": "2026-10-08",
   "_note": "Bản đồ hệ thống của AI Development System. Mỗi file .py dưới core/ và dashboard/ phải thuộc ít nhất một khu vực (thiếu = cảnh báo). 'code' / 'assets' / 'docs' là mẫu đường dẫn (fnmatch, '*' khớp cả '/'). 'tests' thêm tay ngoài các test tự dò theo import. 'flags' = tên trong core/features.py. 'diag_stages' = stage của bảng diag_events. 'ops_stages' (S14.10 Đợt 6b) = khâu của góp ý người dùng / số đo hiệu quả vận hành (core/feedback.STAGES: director, image, motion, audio, render, ui). 'keywords' dùng để gán dòng TODO.md vào khu vực (không phân biệt hoa thường). Sửa file này khi thêm module mới rồi tăng 'version'.",
   "scan_roots": ["core", "dashboard"],
