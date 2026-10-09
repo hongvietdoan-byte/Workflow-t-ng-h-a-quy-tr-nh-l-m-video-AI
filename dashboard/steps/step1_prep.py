@@ -182,6 +182,13 @@ def project_format_panel(p: Pipeline, pid: int) -> None:
                                 format_func=lambda k: pr[k]["label"], help=pr[prio]["note"])
         cap("Ưu tiên model theo slide ClipAI “Hôm nay tôi chọn mô hình video như thế nào”: " + pr[new_prio]["note"]
                    + " Model cụ thể được đề xuất cho TỪNG cảnh ở màn Video, đổi được.")
+        if p.conn.execute("SELECT 1 FROM scenes WHERE project_id=? LIMIT 1", (pid,)).fetchone():
+            try:                                # F4: ước tính cả phim (E1 khi cờ two_tier_quality bật) ngay chỗ chọn ưu tiên model
+                from dashboard import model_line
+                film = model_line.film_line(p.conn, pid)
+                st.caption(f"🎬 {film['text']} (ước tính, chưa tính gen lại)", help=film["help"])
+            except Exception:  # noqa: BLE001 - an estimate never breaks the format panel
+                pass
         has_images = p.conn.execute("SELECT 1 FROM jobs WHERE project_id=? AND type='image_gen' AND state='approved' LIMIT 1",
                                     (pid,)).fetchone()
         if new_aspect != aspect:

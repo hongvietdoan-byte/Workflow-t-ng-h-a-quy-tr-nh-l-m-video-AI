@@ -216,8 +216,10 @@ def stale_reason(conn, scene_id: int) -> str:
 
 
 # ---- Streamlit parts -----------------------------------------------------------------------------------------------------------
-def card_block(p, pid: int, scene_id: int, runner) -> None:
-    """On the scene's clip card: tier badge · Director's difficulty · path choice · ⬆ Gen bản cao (draft_ok) / why not (draft_stale)."""
+def card_block(p, pid: int, scene_id: int, runner, line: Optional[Dict] = None) -> None:
+    """On the scene's clip card: tier badge · Director's difficulty · ONE model line (F4: model · nháp → cao · giữ nội dung? · ≈ USD —
+    the path / model are changed with "Đổi" in the Model table, no second picker here) · ⬆ Gen bản cao (draft_ok) / why not (draft_stale).
+    `line` = dashboard.model_line.shot_line of the shot (the grid computes all of them once); None → computed here."""
     import streamlit as st
     from core import cost
     from dashboard.common import act
@@ -225,17 +227,22 @@ def card_block(p, pid: int, scene_id: int, runner) -> None:
     s = state(p.conn, scene_id)
     text, kind = STATE_PILL[s]
     st.markdown(D.pill(text, kind), unsafe_allow_html=True)
-    line, detail = difficulty_md(p.conn, scene_id)
-    if line:
-        st.markdown(line)
+    mline = line
+    hard, detail = difficulty_md(p.conn, scene_id)
+    if hard:
+        st.markdown(hard)
         if detail:
             st.caption(detail)
-    cur = quality_path(p.conn, scene_id)
-    keys = list(PATHS)
-    pick = st.selectbox("Đường chất lượng", keys, index=keys.index(cur), format_func=PATHS.get, key=f"qpath_{scene_id}",
-                        help="Tự động = theo nhãn độ khó của Đạo diễn (dễ → cao luôn; phức tạp / chưa rõ → nháp trước). Chọn tay thắng tự động.")
-    if pick != cur and set_quality_path(p.conn, scene_id, pick):
-        st.toast(f"Đã đặt đường: {PATHS[pick]}")
+    if mline is None:
+        try:
+            from dashboard import model_line
+            mline = model_line.shot_line(p.conn, pid, scene_id)
+        except Exception:  # noqa: BLE001 - the line is information: never breaks the card
+            mline = None
+    if mline:
+        st.caption("🎛 " + mline["text"] + " — đổi ở bảng Model (Tinh chỉnh)")
+        if mline.get("warning"):
+            st.markdown(D.colored("warn", "⚠ " + mline["warning"]), unsafe_allow_html=True)
     if s == "draft_stale":
         st.warning("⚠ Nháp đã cũ: " + stale_reason(p.conn, scene_id) + " — không gen bản cao từ nháp này; gen lại nháp từ đầu vào mới.")
     if s == "draft_ok":
