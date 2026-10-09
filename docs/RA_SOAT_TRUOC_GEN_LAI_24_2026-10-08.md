@@ -76,7 +76,7 @@ Tương tự cho: Đạo diễn (trường bắt buộc mỗi shot), Quay phim (
 ### F4 — Màn chọn model gọn — ✅ 09/10
 Mỗi shot một dòng "model · nháp → cao · giữ nội dung? · ≈ $"; một nút "Đổi" (model + độ phân giải + đường chất lượng gộp chung).
 
-### F5 — Cổng "sẵn sàng gen" + chạy thử toàn tuyến
+### F5 — Cổng "sẵn sàng gen" + chạy thử toàn tuyến — phần code ✅ 09/10; chạy thử toàn tuyến ⬜ (xem TODO bàn giao)
 - Mỗi shot một ô kiểm (công thức đủ, nền 3D, ảnh toàn, tỉ lệ, model, giá) cạnh nút gen.
 - **Chạy lại #22 và #24 bằng provider giả (0 USD)**: so prompt hệ thống tạo ra với prompt viết tay #22 — mục tiêu hệ thống tự tạo được prompt đạt mức #22 không cần sửa tay. Chạy Dashboard bằng trình duyệt như người dùng thật, sửa tới sạch.
 - Danh sách "Còn tồn" + ~10 thay đổi KLD chưa làm: làm hoặc ghi rõ lý do để lại.

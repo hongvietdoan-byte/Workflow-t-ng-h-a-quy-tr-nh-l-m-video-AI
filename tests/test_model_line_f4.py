@@ -86,19 +86,21 @@ class ShotLineTests(unittest.TestCase):
 
 class ModelTableUiTests(TwoTierSeed):
     def _expand(self, at):
-        return [x for x in at.get("popover") if x.proto.popover.label in ("Đổi", "🎛 Đổi model")]
+        # 09/10 (người dùng): no "Đổi" button — the model pickers sit directly on each shot (one model picker per shot)
+        return [s for s in at.selectbox if s.key and s.key.startswith(f"vm_{self.pid}_")]
 
     def test_one_line_per_shot_one_change_button_and_film_line(self):
         self.p.set_project_field(self.pid, "model_priority", "balanced")
         self.on()
         at = self.open(3)
-        self.assertEqual(len(self._expand(at)), len(self.sids))                  # one "Đổi" per shot, nothing else per row
+        self.assertEqual(len(self._expand(at)), len(self.sids))                  # one model picker per shot, shown directly
+        self.assertFalse([x for x in at.get("popover") if "Đổi" in x.proto.popover.label])
         keys = {s.key for s in at.selectbox}
         self.assertTrue({f"vm_{self.pid}_{s}" for s in self.sids} <= keys)       # the old model keys, now inside "Đổi"
         self.assertTrue({f"qpath_{s}" for s in self.sids} <= keys)               # the path choice lives once, in "Đổi"
         caps = "\n".join(c.value for c in at.caption)
         self.assertIn("Phim 20 s ≈", caps)
-        self.assertIn("đổi ngay dưới thẻ clip", caps)                            # 09/10: the model line + Đổi sit under each clip card
+        self.assertIn("đổi ngay dưới thẻ clip", caps)                            # 09/10: the model pickers sit under each clip card
         self.assertIn("nháp 480p → cao 1080p", "\n".join(m.value for m in at.markdown) + caps)
         self.assertIn(f"qfinal_{self.sids[0]}", {b.key for b in at.button})       # F3's high-tier button stays on the card
 
