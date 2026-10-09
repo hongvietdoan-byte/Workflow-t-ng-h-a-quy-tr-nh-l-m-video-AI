@@ -22,7 +22,7 @@ import shutil
 import time
 from typing import Callable, Dict, List, Optional, Sequence
 
-from . import assets, plate_camera, plate_env, plates3d
+from . import assets, features, plate_camera, plate_env, plates3d
 
 SCRIPT_VERSION = "v4-1"          # bump when tools/render_plates.py changes what a plate looks like (old cache entries are not reused)
 
@@ -377,7 +377,8 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
     by_setup = camera_plan.enabled()                    # G0: the Director's set-ups share one camera (flag off: the old grouping)
     cams = plate_camera.plan_cameras(
         shots, lambda s: ((spot_for(s["entry"], s["data"])["at"]), views[s["id"]]["facing_deg"]),
-        lambda s: _height(conn, pid, s["data"]), aspect, setup_field=camera_plan.SETUP_FIELD if by_setup else None)
+        lambda s: _height(conn, pid, s["data"]), aspect, setup_field=camera_plan.SETUP_FIELD if by_setup else None,
+        stage_field=plate_camera.STAGE_FIELD if features.on("stage_camera") else None)
     first_of = {f"shot_{s['id']}": s for s in shots}
     out = []
     for s in shots:

@@ -657,7 +657,7 @@ def _clearance(c, pure):
             if tall[0]:
                 top = max(top, limit)
     fix = pure.clearance_fix(list(loc), list(aim), list(feet), h, block_m=block, bg_m=bg, bg_top_z=top, block_from=list(body),
-                             move=not c.get("wide"))
+                             move=not c.get("wide") and not c.get("locked"))   # máy Sân khấu 3D v2 đã đo bằng tia: không dời
     out = {"notes": fix["notes"], "warnings": fix["warnings"], "block_m": None if block is None else round(block, 2),
            "background_m": None if bg is None else round(bg, 2), "background_top_m": None if top is None else round(top - feet.z, 2)}
     if fix["location"] != [round(v, 3) for v in loc]:

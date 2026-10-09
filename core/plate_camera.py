@@ -370,7 +370,35 @@ def subject_box(cam, aim, lens, aspect, spot, height_m, width_m: Optional[float]
     return [round(min(xs), 4), round(min(ys), 4), round(max(xs), 4), round(max(ys), 4)]
 
 
-def plan_cameras(shots: List[Dict], spot_of, height_of, aspect: float = 9 / 16, setup_field: Optional[str] = None) -> Dict[int, Dict]:
+STAGE_FIELD = "stage_camera"
+
+
+def from_stage(sc: Dict, spot: Sequence[float], height_m: float, aspect: float = 9 / 16, name: str = "shot") -> Dict:
+    """Sân khấu 3D v2 (cờ stage_camera): máy đã GIẢI + đo bằng tia (core/stage_solver, tools/stage_grid.py v2) và người dùng duyệt →
+    dùng NGUYÊN (`locked`: render_plates không dời máy khi sát tường). sc = {"location", "look_at" (tọa độ model), "lens", "source",
+    "pov"?, "move"?}. Cùng dạng trả về với camera_for."""
+    cam = [float(v) for v in sc["location"]]
+    aim = [float(v) for v in sc["look_at"]]
+    lens = float(sc["lens"])
+    d = [a - c for a, c in zip(aim, cam)]
+    pitch = math.degrees(math.atan2(d[2], math.hypot(d[0], d[1])))
+    angle = "high_angle" if pitch <= -15 else ("low_angle" if cam[2] - spot[2] < 0.6 * height_m or pitch >= 10 else "eye_level")
+    box = subject_box(cam, aim, lens, aspect, spot, height_m)
+    why = {"stage": f"máy GIẢI từ yêu cầu khung ({sc.get('source', 'stage_v2')}): cao {cam[2] - spot[2]:.2f} m trên chỗ đứng, "
+                    f"nghiêng {pitch:.0f}°, ống {lens:g} mm — đã đo che khuất bằng tia, không tự chỉnh"}
+    if sc.get("pov"):
+        why["pov"] = f"góc nhìn của {sc['pov']}"
+    if sc.get("move"):
+        why["move"] = f"máy chuyển động trong shot: {sc['move']} (nền = khung ĐẦU)"
+    return {"camera": {"name": name, "location": [round(c, 3) for c in cam], "look_at": [round(c, 3) for c in aim], "lens": lens,
+                       "angle": angle, "locked": True},
+            "subject_box": box, "feet_y": box[3], "distance_m": round(math.hypot(cam[0] - spot[0], cam[1] - spot[1]), 2), "size": None,
+            "side": None, "behind": False, "frame_h_m": None, "horizon_y": horizon_y(cam, aim, lens, aspect), "pitch_deg": round(pitch, 1),
+            "fixes": [], "problem": None, "why": why}
+
+
+def plan_cameras(shots: List[Dict], spot_of, height_of, aspect: float = 9 / 16, setup_field: Optional[str] = None,
+                 stage_field: Optional[str] = None) -> Dict[int, Dict]:
     """scene id -> camera_for(...) for shots at a 3D place. Shots of one camera_setup with the same size share the first one's camera
     (the DP's coverage: one position, several shots). spot_of(shot) -> (xyz, facing_deg) or None; height_of(shot) -> metres.
     G0 (flag director_camera_plan): `setup_field` = the shot field holding the Director's camera set-up of the scene (core/camera_plan
@@ -382,6 +410,9 @@ def plan_cameras(shots: List[Dict], spot_of, height_of, aspect: float = 9 / 16, 
         data = s["data"]
         spot = spot_of(s)
         if spot is None:
+            continue
+        if stage_field and data.get(stage_field):       # Sân khấu 3D v2: máy đã giải + duyệt — một shot một máy, không gom
+            out[s["id"]] = from_stage(data[stage_field], spot[0], height_of(s), aspect, name=f"shot_{s['id']}")
             continue
         if setup_field and data.get(setup_field):
             # rà G0: the set-up's plan (scene field; an old shot: its story_scene, none = the shot alone) + everything camera_for

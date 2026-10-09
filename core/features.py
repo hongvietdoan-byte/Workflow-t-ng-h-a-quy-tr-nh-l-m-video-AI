@@ -337,6 +337,12 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "S14.17 người dùng duyệt 04/10, chưa chạy thật Claude (core/prompt_rewrite.py; Claude lỗi → quay về 'Fix: …' + diag)",
     },
+    "stage_camera": {
+        "label": "Sân khấu 3D v2: shot có máy đã GIẢI từ yêu cầu khung (trường stage_camera — đã đo che khuất bằng tia, người dùng duyệt "
+                 "tấm ghép) thì nền 3D dùng đúng máy đó: không tự tính lại theo cỡ/góc, không gom chung setup, không dời máy khi sát tường",
+        "verified": False,
+        "why": "V4 #24 (09/10): camera 9 shot đã duyệt ở tools/experiments/stage_v2_p24 — chưa render nền thật bằng cờ này",
+    },
     "director_camera_plan": {
         "label": "G0 Đạo diễn đặt máy 3D: mỗi cảnh liên tục một sơ đồ (đạo cụ, chỗ đứng theo nhịp, trục 180°) + bộ 3–4 góc máy dùng "
                  "lại (shot cùng góc + cùng cỡ = cùng máy, render một lần); Đạo diễn xem render nền từng góc (khai quan sát, code kết "
