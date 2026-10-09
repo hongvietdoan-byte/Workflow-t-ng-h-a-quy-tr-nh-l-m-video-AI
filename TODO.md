@@ -1,5 +1,11 @@
 # TODO — Theo dõi tiến độ dự án Auto Pipeline Video AI
 
+- **📌 BÀN GIAO 09/10 tối — SÂN KHẤU 3D (thay cách vá G0; chế độ GÓI, 5 giờ ~80 %, đặt lại 15:40Z = 22:40 VN):**
+  - Người dùng: "vẫn lặp lại tình trạng có lỗi thì sửa chứ không tìm ra cách làm đúng" → phương pháp chuẩn `docs/PHUONG_PHAP_SAN_KHAU_3D.md`: gốc O trên mặt sàn diễn, lưới 1 m có tên + phụ 0,25 m, bản đồ sàn bằng tia, dựng giếng/người nộm trong 3D, tính máy bằng hình học, kiểm bằng phép chiếu/tia, luật L1–L10 bằng số, ứng viên 24 hướng × 3 cao, "Góc nhìn camera" (clay có nhãn + nền thật + hình nón).
+  - G0 chạy thật #24 ≈ 0,37 USD (Claude): sơ đồ 5 setup; 4 lỗi lộ ra → KHÔNG vá (đã dừng phiên vá).
+  - Bước 0 + 1–2 XONG, đã gộp main: `core/stage_grid.py`, `tools/stage_grid.py`, `tests/test_stage_grid.py`, `tests/test_stage_rules.py` (29 xanh). Ảnh: `data/projects/24/stage_s0/`, `stage_s1/`. Spot `plaza_front` đã nâng 9,38 → 9,83 (bản sao CSDL trước khi sửa ở scratchpad phiên).
+  - **BƯỚC KẾ:** (1) người dùng duyệt ngưỡng ⚙ + 2 cách hiểu L5/L8 + cỡ R1 (mục 13); (2) Bước 3 — Director viết ý đồ theo ô (đạo cụ, chỗ đứng theo nhịp, yêu cầu góc máy) và chọn trong top-3 ứng viên đạt; gỡ "Claude duyệt render" của G0 (cờ `director_camera_plan` vẫn TẮT); (3) #24: tấm ghép → người duyệt → báo giá vẽ lại; đo `level_9_4`.
+
 - **📌 BÀN GIAO 09/10 — G0 code XONG, đã gộp main (chế độ GÓI; 5 giờ ~35 %, tuần ~14 %):**
   - **Nền máy 3D** `70f7259` rà kỹ → sửa 6 lỗi `f9ed9f3`: tính lại khung nhân vật khi Blender dời máy (`location_pack.reframe`); lỗi tia không làm đổ render; vật cản < 0,8 m sát người chỉ cảnh báo; "looks down the alley" + `camera_setup` không cúi máy; ảnh toàn chỉ cảnh báo; indoor bỏ kiểm tường. Kiểm tia Blender CHƯA chạy thật.
   - **G0 mục 1–5** `51679d0` (cờ `director_camera_plan` TẮT): `core/camera_plan.py` (sơ đồ cảnh + 3–4 setup, `check` bằng code, duyệt render: quan sát enum + `judge` code, ≤ 2 vòng → "CẦN BẠN QUYẾT"), `core/plate_layout_qc.py` (QC bố cục bằng code, chỉ đánh dấu), `prompts/28_director_camera_plan.md`, CLI `camera-plan`. Rà kỹ → sửa 7 lỗi `7a3b165` (gộp nhầm máy khác angle/nhìn xuống/lens; ghi đè trường khóa; render lỗi vẫn gọi Claude; CLI sai khung; ước tính thiếu trần ×4; đổi máy shot đã có ảnh; diag lặp). Cả bộ test 3551 xanh; khai 2 khâu Claude vào `devsys/decisions.json` (d80, d81); areas version 36.

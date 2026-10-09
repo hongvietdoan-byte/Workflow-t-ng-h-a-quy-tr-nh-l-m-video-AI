@@ -249,3 +249,23 @@ Code nằm ở nhánh `stage-grid-s0`, commit `40f9c69`, chưa gộp: `core/stag
    - Điểm sau lưng máy (z_c ≤ 0) không vẽ, chỉ ghi vào bảng.
    - Điểm trong khung nhưng bị che vẽ chấm rỗng, kèm "(bị che bởi …)".
 
+## 13. Kết quả Bước 1–2 trên #24 (09/10, 0 USD, nhánh `stage-s1` `02ebf0a`, đã gộp main)
+- **Nhãn hình phác:** `point_state` chia 4 trạng thái: trong khung / bị che (chấm rỗng) / ngoài khung (mũi tên ở mép) / sau máy (chỉ ghi bảng).
+- **Spot `plaza_front`:** z 9,38 → 9,83 (tia chạm CLK_OUT_Base002), đã ghi vào CSDL máy chính. Có bản sao CSDL trước khi sửa.
+- **9 shot #24 đo bằng số** (camera cũ, theo spot cũ):
+  - đỉnh đầu Kelly lọt ra ngoài mép trên ở 8/9 shot;
+  - shot 4: máy nằm trong khối giếng;
+  - shot 3: khai "ngang" nhưng thật ra máy cúi −35°;
+  - vật cản = 0 ở cả 9 shot, nên lỗi "tường cao che" (shot 4/5) chưa tái hiện được, có thể vì camera cũ khác camera hiện tại.
+- **Ứng viên (72 mỗi yêu cầu):**
+  - R1 toàn cảnh mở: 10 đạt, #1 = 195° / 1,43 m / −5,8°;
+  - R2 qua vai cúi: 2 đạt;
+  - R3 góc ngược: 7 đạt.
+  - Luật hay hỏng: L5 (mốc), L6 (gia đình nền), L3 (cỡ), L4 (trục).
+- **Còn chờ duyệt:**
+  - ngưỡng ⚙ đang là tạm (`RULE_TH`);
+  - L5 thêm điều kiện "thấy mặt / lưng ≤ 60°";
+  - L8 không tính nhóm người;
+  - R1 cho Kelly chiếm khoảng 52 % chiều cao khung, ở tiền cảnh quay lưng che giếng. Đó là cỡ WS chứ chưa phải "toàn cảnh" thật; Director cần chọn cỡ EWS hoặc Kelly lệch một phần ba.
+- **Spot `level_9_4`** (z 9,376) có thể cũng thấp như `plaza_front`, phải đo trước khi dùng.
+
