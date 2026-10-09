@@ -210,3 +210,32 @@ Mỗi luật có lý do. Ngưỡng có dấu ⚙ đặt từ số đo Bước 0,
 | 2 | Đo khung bằng tia, luật L1–L10, ứng viên | 0 USD |
 | 3 | Director viết ý đồ theo ô và chọn ứng viên; gỡ "Claude duyệt render" của G0 | Claude ≈ vài cent mỗi cảnh, báo trước |
 | 4 | #24: tấm ghép cho người dùng duyệt, rồi mới vẽ ảnh | báo giá |
+
+## 12. Kết quả Bước 0 trên #24 (09/10, 0 USD) — phương pháp LÀM ĐƯỢC
+
+Code nằm ở nhánh `stage-grid-s0`, commit `40f9c69`, chưa gộp: `core/stage_grid.py`, `tools/stage_grid.py`, 14 test. Ảnh và số đo ở `data/projects/24/stage_s0/`.
+
+- **Gốc O và sàn.**
+  - O nằm trên mesh sàn quảng trường; sàn dốc 0,02°.
+  - Lưới 20 × 20: 378 ô cùng mặt sàn, 22 ô tầng khác (mái nhà), 48 ô có vật chắn (tường thấp 0,95 / 1,43 / 1,68 m chạy chéo, thùng dầu ở K7), 15 ô có mái che.
+  - Lưới 4 × 4 bắt được mép tường ở ô J8 mà lưới 3 × 3 bỏ lọt, nên lưới mịn 0,25 m ở vùng diễn là cần thiết.
+- **Phân nhóm vật thể.**
+  - Tên object phân được tháp, nhà, cây.
+  - Quảng trường, tường thấp và bậc lại là MỘT mesh, nên phải phân theo từng điểm tia trúng: cao độ so với sàn cộng pháp tuyến (`group_by_hit`).
+- **Hình học khớp render.** Đã so trên hình phác và render:
+  - phép chiếu đặt nhãn tháp, Kelly, giếng đúng chỗ;
+  - đường chân trời tính bằng số trùng đường chân trời trong render;
+  - tháp: 16,04 m về phía Bắc O.
+- **Đo khung bằng tia.**
+  - Góc (a) toàn cảnh: trời 40,5 %, sàn 25,5 %, tháp 25,3 %. Kelly chiếm 17,7 % chiều cao khung, thấy 100 %. Chân yêu nữ bị giếng che (chỉ thấy 67 %).
+  - Góc (b) máy cao cúi, tính theo công thức mục 5: sàn 57 %, giếng 14,3 %, Kelly 7,5 %.
+  - Khi đặt máy cao 3,4 m bằng tay: sàn chiếm 84,5 %, chỉ còn thấy chân Kelly, đúng kiểu hỏng "một màu" của shot 2. Luật L8 bắt được lỗi này.
+- **Tỉ lệ đạo cụ.** Đỉnh giếng ÷ hông Kelly = 1,00 (Kho 420 ghi "cao ngang hông").
+- **Tốc độ.** Hình phác 0,2–0,4 s; nền thật 3–4 s; một lượt Blender ≈ 22 s.
+- **Bất ngờ:**
+  - spot `plaza_front` thấp hơn sàn thật 0,45 m, nên plate cũ đặt chân nhân vật dưới mặt quảng trường;
+  - dưới quảng trường có tầng rỗng sâu −6,18 m;
+  - map xoay khoảng 30° so với lưới;
+  - hướng Bắc chưa có nguồn trong game (đang dùng +y của model).
+- **Chưa có:** ngưỡng ⚙ của luật. Cần đo thêm trên các shot người dùng đã chê và đã khen.
+
