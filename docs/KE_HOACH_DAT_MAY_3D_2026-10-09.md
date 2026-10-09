@@ -20,7 +20,38 @@ Nhánh nền đã có (CHƯA GỘP, chưa rà): `worktree-agent-ab5a90511a3b9ff7
 - `clearance_fix()` + bắn tia trong `tools/render_plates.py` (chưa chạy thật).
 Các đợt dưới dựng TIẾP trên nhánh này.
 
-## ⭐ BẢN GỘP (người dùng 09/10): (a) + (b) + kế hoạch này làm chung, 4 giai đoạn
+## 🥇 G0 — LÀM TRƯỚC (người dùng 09/10): Director lập sơ đồ cảnh + bộ góc máy, bản đơn giản bằng công cụ hiện có
+Người dùng: "Director phải là người làm tốt khâu này". G1–G4 bên dưới là bản NÂNG CẤP (bản đồ tầng, bộ kiểm tự động, Bàn đạo diễn). G0 làm Director đặt máy đúng cho cảnh đơn giản (#24: 9 shot cùng quảng trường, ít vật, ít di chuyển, liên kết nhau) bằng những gì đã có. Dự án thử: **#24**.
+
+**Hiện trạng sai:** Director/Quay phim ghi `plate_view` (landmark/away/left/right) TỪNG SHOT RIÊNG, không có sơ đồ chung, nên 9 shot ra nhiều hướng không ăn khớp. Ví dụ shot 5 và 7 nhìn sang Tây, thấy mặt quảng trường khán giả chưa thấy. Không có ai xem render nền trước khi vẽ ảnh. QC ảnh bằng Claude đang TẮT (nghiệm thu #8: bắt 6/12, báo nhầm 12/21); Tổ QC chỉ học việc.
+
+**Việc G0:**
+1. **Sơ đồ cảnh** (Director, một lần cho mỗi cảnh liên tục/story scene). Đầu vào:
+   - kịch bản + beat;
+   - thông tin bối cảnh: spot, hướng các mốc (tháp/nhà mái đỏ/tường thấp) tính từ `model3d.anchor` + spots;
+   - ảnh `topview` nếu có.
+
+   Ra:
+   - vị trí đạo cụ (giếng: hướng + khoảng cách so với spot);
+   - điểm đứng của nhân vật theo từng nhịp;
+   - đường trục 180°.
+2. **Bộ góc máy 3–4 setup dùng lại cho cả cảnh**, như quay phim thật (A toàn cảnh về tháp, B ngược về dãy nhà, C qua vai cúi nhìn giếng…). Mỗi setup có ý đồ + lý do + phương vị (độ) + độ cao/cúi định tính. Mỗi shot gán setup + `size` + `angle`. Luật Director viết theo dạng "cách nghĩ có lý do" ([[feedback_director_as_thinking_brain]]):
+   - cảnh liên tục giữ nền cùng gia đình với shot mở;
+   - không vượt trục;
+   - nhìn xuống thì máy cúi;
+   - không đặt góc thấp sát tường chắn.
+3. **Code tính số** từ setup: tọa độ/độ cao/cúi/ống kính qua `plate_camera.camera_for` + gộp nền `ab5a905` (`looks_down`, low theo chiều cao người — rà trước). `plate_view` = phương vị độ (đã hỗ trợ). Các shot cùng setup dùng cùng camera, nên cùng cache, render một lần.
+4. **Director duyệt render nền** (Claude nhìn ảnh, vài cent): mỗi setup một render + ý đồ → khớp / không khớp + lý do (thấy tường lạ, thấy đồng hồ khi đang cúi, nền khác shot mở…). Không khớp thì đổi phương vị/cỡ, tối đa 2 vòng, rồi báo người dùng. Model khai quan sát dạng enum, code áp luật ([[reference_qc_model_sees_but_misreasons]]).
+5. **QC bố cục bằng code sau khi vẽ ảnh:** so ảnh với render nền đã gửi (cấu trúc cạnh/độ sâu ước lượng, vị trí đường chân trời, vùng tường) → cờ "nền lệch render". Chỉ đánh dấu cho người, chưa tự vẽ lại.
+6. **Chạy thật trên #24:**
+   - sơ đồ + setup + duyệt render (≈ vài cent Claude, báo trước);
+   - gửi người dùng tấm ghép render các setup;
+   - sửa prompt shot 4–7 (shot 5 Kelly ngã ngửa ra sau xa giếng, mặt hướng giếng; shot 6 giếng nguyên vẹn; shot 7 giếng cao ngang hông yêu nữ);
+   - vẽ lại shot 1–7 (≈ 0,36 USD, báo trước).
+- Cờ mới `director_camera_plan`, TẮT mặc định; tắt thì luồng cũ y nguyên. RÀ KỸ (tiền Claude + cache plate).
+- Bài học ghi vào prompt Director + `.claude-memory` ([[feedback_lessons_into_director]]).
+
+## ⭐ BẢN GỘP (người dùng 09/10): (a) + (b) + kế hoạch này làm chung, 4 giai đoạn — BẢN NÂNG CẤP, sau G0
 (b) "gặp tường tự xoay/lùi máy" chính là tự dò + 4 điều kiểm. (a) "khối giếng trong 3D" vừa là mốc bố cục vừa là vật chắn tia. Nhánh `ab5a905` là nền chung. Các mục "Đợt 0–4" bên dưới là CHI TIẾT kỹ thuật; thứ tự làm theo giai đoạn ở đây.
 
 | GĐ | Việc | Ra gì |
