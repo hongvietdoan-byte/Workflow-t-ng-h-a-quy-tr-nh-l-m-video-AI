@@ -229,6 +229,8 @@ Sau khi vẽ ảnh: so "nền thật" với ảnh kết quả bằng `plate_layo
 | V3 | Director viết `blocking` + `shot_specs` (prompt dạng cách nghĩ có lý do), thay phần "Claude duyệt render" của G0 | Claude ≈ vài cent mỗi cảnh, báo trước |
 | V4 | #24: tấm ghép → người duyệt → báo giá vẽ lại shot 1–9 | báo giá |
 | V5 | Nối vào luồng (sau cờ), đo `level_9_4` và các chỗ đứng khác, Bàn đạo diễn 3D (G3) | 0 USD |
+| V6 | Nhánh B (mục 12): bối cảnh chỉ có 1–3 ảnh — hiệu chỉnh ảnh, tách lớp chiều sâu (model cục bộ, tải trọng số ≈ 100 MB một lần — HỎI trước), khối thay thế theo kích thước suy, chiếu ngược kiểm lệch, luật P5 vùng máy; thử trên 1 bối cảnh Kho chỉ có ảnh | 0 USD (+ vẽ thêm góc: báo giá) |
+| V7 | Đọc lại hai chiều R1–R2 (mục 13) cho cả hai nhánh; đo lại V3 #24 xem tăng từ 7/9 | Claude ≈ vài chục cent, báo giá |
 
 ## 11. Quy trình CHUẨN (rút từ V1–V3 trên #24, áp cho mọi kịch bản)
 
@@ -274,6 +276,55 @@ Kết luận: Director viết được dàn cảnh + yêu cầu khung dùng đư
 **11.4 Tối ưu tiếp (chưa làm):** (a) đưa lời khuyên giai đoạn (a) — miễn phí, mili giây — cho Director NGAY trong lượt 1 bằng công cụ
 (tool use) thay vì chờ hết lượt; (b) thử `effort: low` để giảm token suy nghĩ (lượt 1 ra 18k token); (c) nối vào luồng sau cờ (V5): camera
 từ `setups.json` thay `plate_camera.camera_for`, câu chuyển động từ `pov`/`may`.
+
+## 12. Nhánh B — bối cảnh KHÔNG có mô hình 3D, chỉ có 1–3 ảnh (người dùng 09/10; Kho: 87/90 bối cảnh thuộc nhánh này)
+
+Ý người dùng: (1) phân tích ảnh, tách lớp theo chiều sâu; (2) vẫn xếp vào sân khấu 3D; (3) vật không có kích thước → suy từ tỉ lệ với
+vật quen (ô tô to hơn người, súng vừa tay người, bóng cỡ đầu người…); (4) xếp lớp không lệch nhiều so với thực tế, thiếu góc thì vẽ thêm;
+(5) các bước khác như quy trình, Director ↔ code trao đổi HAI CHIỀU, tự kiểm lẫn nhau (mục 13). Cách làm:
+
+**12.1 Hiệu chỉnh ảnh trước (vì mọi thứ sau đều dựa vào máy ảnh của tấm chụp).** Mỗi ảnh ra: tiêu cự (EXIF, không có thì từ điểm tụ của
+các đường thẳng song song), đường chân trời (→ máy ngẩng/cúi), độ cao máy (từ một vật đứng trên sàn biết chiều cao: người, cửa, bậc).
+Ảnh không có đường thẳng nào và không có vật biết cỡ → ghi "độ tin thấp", người duyệt thấy.
+
+**12.2 Tách lớp theo chiều sâu.** Model ước lượng chiều sâu chạy CỤC BỘ (Depth Anything V2 / bản "metric"; 0 USD/lần, tải trọng số một lần)
+cho bản đồ sâu tương đối → nhân hệ số để khớp vật biết cỡ (12.4) → mét. Rồi tách thành lớp:
+- **Sàn** = mặt phẳng khớp các điểm sàn (pháp tuyến hướng lên) → z = 0 của sân khấu, đứng được hay không theo vùng sàn thấy trong ảnh.
+- **Vật giữa** (người đứng sau / trước được, che được): mỗi vật một khối thay thế (hộp / trụ) đúng kích thước 12.4 tại chỗ chân nó chạm sàn,
+  mặt trước dán ảnh tách nền của vật → có che khuất thật, có chỗ đặt nhân vật.
+- **Nền xa** (nhà, núi, trời): tấm ảnh (card) ở khoảng cách trung vị của lớp, hoặc vòm trời.
+- Đường giáp ranh giữa lớp: tách theo bước nhảy chiều sâu, không theo tên vật.
+
+**12.3 Xếp lên CÙNG một sân khấu (1–3 ảnh).** Ảnh 1 định gốc O và trục. Ảnh 2–3: khớp điểm đặc trưng (OpenCV) + vật chung → vị trí máy của
+ảnh đó trên sân khấu. **Kiểm không lệch thực tế** = chiếu ngược từng lớp vào từng ảnh gốc, đo lệch (% khung): ≤ 3 % đạt, lớn hơn → báo vật
+nào lệch ở ảnh nào (không im lặng). Vật thấy ở 2 ảnh cho 2 ước lượng vị trí → trung bình có trọng số, lệch > 15 % → hỏi Director / người.
+
+**12.4 Kích thước vật không có số.** Thứ tự nguồn: (1) Kho (`height_m`) → (2) đo trong ảnh so với vật biết cỡ CÙNG lớp sâu (tỉ lệ pixel ×
+khoảng cách) → (3) Director suy theo vật quen, ghi KHOẢNG + lý do ("ô tô con cao 1,4–1,6 m, dài 4–4,8 m"; "súng trường dài 0,9–1,1 m, vừa
+hai tay người"; "bóng đường kính ≈ 0,22 m ≈ cỡ đầu người"). Code so (2) với (3): khớp ±20 % → dùng; lệch → đọc lại cho Director (mục 13),
+vẫn lệch → hiện cho người dùng chọn. Số suy luôn gắn nhãn "ước lượng" trong dàn cảnh và tấm ghép; người dùng sửa một lần → ghi về Kho.
+
+**12.5 Vùng máy được phép (luật mới P5).** Sân khấu từ ảnh chỉ đúng gần góc chụp (thị sai nhỏ): máy lệch phương vị > ≈ 25° so với ảnh gần
+nhất, hoặc nhìn sang phía không ảnh nào thấy → lộ mặt sau tấm ảnh / chỗ trống. Bộ giải coi đó là ràng buộc như ô cấm: ưu tiên lời giải trong
+vùng phủ; nếu ý đồ bắt buộc ra ngoài → **vẽ thêm** góc đó (model ảnh, có ảnh gốc làm tham chiếu, BÁO GIÁ ≈ 0,05 USD/ảnh) → tách lớp ảnh vẽ
+thêm như 12.2 → kiểm chiếu ngược khớp phần trùng với ảnh gốc trước khi dùng.
+
+**12.6 Các bước còn lại như mục 11** (B1–B7); B0 thay bằng 12.1–12.5; tấm ghép B6 thêm: ảnh gốc + chiếu ngược các lớp + vùng máy được phép.
+
+## 13. Trao đổi HAI CHIỀU Director ↔ code (áp cho cả hai nhánh — người dùng 09/10)
+
+Mỗi chỗ một vai đưa thông tin cho vai kia, vai nhận phải **đọc lại bằng lời của mình** để vai đưa xác nhận — như đọc lại lệnh trong buồng
+lái. Lý do: V3 #24 cho thấy Director có ý đúng nhưng viết số làm ra hình khác ý (thấy nghiêng ↔ máy ở trước mặt); còn code tính đúng số
+nhưng không biết ý có được giữ không. Ba điểm đọc lại, mỗi điểm ≤ 2 vòng:
+
+| Điểm | Code đọc lại cho Director | Director trả lời | Code làm gì |
+|---|---|---|---|
+| R1 dàn cảnh | mỗi nhịp: "Kelly cách giếng 1,05 m phía Nam, quay mặt 350° (về giếng); yêu nữ trong lòng giếng, đầu nhô 0,48 m" + ảnh nhìn từ trên | từng dòng: `dung` / `sai` + sửa (khóa có sẵn, không văn xuôi) | sửa → dựng lại → đọc lại phần đổi |
+| R2 góc máy | mỗi shot: "máy ô L9 cao 0,6 m nhìn 326°; trong khung: Kelly trái thấy lưng 93 %, giếng giữa 100 %; khung cuối …" + hình phác | quan sát theo danh mục (enum) trên hình phác: thứ chính đúng chỗ? hướng thấy? cảm giác khớp `muc_dich`? | **code áp luật** từ quan sát (bài học Tổ QC: model thấy đúng nhưng suy sai) → shot nào lệch ý → quay lại B2/B5 |
+| R3 sau khi vẽ ảnh | `plate_layout_qc` so ảnh vẽ với render nền: vật lệch chỗ / thiếu | xác nhận lỗi có làm hỏng ý đồ không | vẽ lại có đổi đầu vào (≤ 3) |
+
+Chiều ngược lại cũng bắt buộc: code thiếu số / gặp mâu thuẫn → HỎI Director bằng câu cụ thể (đã có: `advice`, `can_hoi`), không tự chọn.
+Chi phí: R1 + R2 thêm ≈ 1–2 lời gọi Claude ngắn mỗi vòng (có hình phác) — báo giá trước như B2.
 
 ---
 
