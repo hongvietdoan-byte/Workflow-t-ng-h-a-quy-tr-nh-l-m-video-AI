@@ -236,6 +236,12 @@ def ray_dir(cam, aim, u: float, v: float, lens: float, aspect: float) -> Tuple[f
 
 
 # ---- sàn ô ------------------------------------------------------------------------------------------------------------------
+def in_well_foot_z(well_h: float, height: float, chest: float = CHEST) -> float:
+    """Người đứng TRONG giếng (#24 yêu nữ bò lên): ngực ngang miệng giếng → chân ở z = cao giếng − chest·H (âm = dưới mặt sàn).
+    Đầu + vai nhô lên trên miệng giếng một đoạn (1 − chest)·H."""
+    return round(well_h - chest * height, 3)
+
+
 def floor_status(dz: Optional[float]) -> str:
     if dz is None:
         return "none"

@@ -256,14 +256,34 @@ def blender_main(cfg):
             o = bpy.context.active_object
             o.name = "STAGE_WELL"
             o.data.materials.append(mk_mat("STAGE_WELL_stone", (0.45, 0.43, 0.40)))
-            bpy.ops.mesh.primitive_cylinder_add(vertices=p.get("sides", 48), radius=p["radius"] - 0.18, depth=0.02, location=(s.x, s.y, fz + p["height"] + 0.005))
+            hole_z = fz + p["height"] + 0.005
+            if p.get("hollow"):
+                # vành + lòng rỗng (người đứng trong giếng): khoét trụ trong bằng Boolean; đáy tối nằm sát mặt sàn trong lòng giếng
+                bpy.ops.mesh.primitive_cylinder_add(vertices=p.get("sides", 48), radius=p["radius"] - 0.18, depth=p["height"] + 0.4,
+                                                    location=(s.x, s.y, fz + p["height"] / 2))
+                cut = bpy.context.active_object
+                mod = o.modifiers.new("well_hollow", "BOOLEAN")
+                mod.operation, mod.object = "DIFFERENCE", cut
+                bpy.context.view_layer.objects.active = o
+                bpy.ops.object.modifier_apply(modifier=mod.name)
+                bpy.data.objects.remove(cut, do_unlink=True)
+                hole_z = fz + 0.01
+            bpy.ops.mesh.primitive_cylinder_add(vertices=p.get("sides", 48), radius=p["radius"] - 0.18, depth=0.02, location=(s.x, s.y, hole_z))
             h = bpy.context.active_object
             h.name = "STAGE_WELL_hole"
             h.data.materials.append(mk_mat("STAGE_WELL_dark", (0.02, 0.02, 0.03)))
-            info.update(radius_m=p["radius"], height_m=p["height"], top_z=round(frel + p["height"], 2), source=p.get("source"))
+            info.update(radius_m=p["radius"], height_m=p["height"], top_z=round(frel + p["height"], 2), source=p.get("source"),
+                        hollow=bool(p.get("hollow")))
         else:
             hgt = p["height"]
             body_h = hgt - 0.26
+            if p.get("in_well") is not None:
+                # đứng TRONG giếng: chân dưới mặt sàn (z âm) là cố ý — ghi rõ, không tính là lỗi "khác mặt sàn"
+                # mặt sàn lấy theo chân đế giếng (tia xuống tại tâm giếng đi qua đáy tối sát sàn → đọc tầng dưới −6,18 m, lần chạy 1)
+                frel = placed["WELL"]["xyz"][2] + p["in_well"]["foot_z"]
+                fz = scn((r[0], r[1], frel)).z
+                info.update(xyz=[r[0], r[1], round(frel, 3)], floor_status="trong_gieng",
+                            in_well=dict(p["in_well"], note="đứng trong giếng: chân dưới mặt sàn là cố ý"))
             bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=0.19, depth=body_h, location=(s.x, s.y, fz + body_h / 2))
             b = bpy.context.active_object
             b.name = f"STAGE_{p['name']}_body"
@@ -565,6 +585,35 @@ def s1_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
                 ok, _, _, _, obj, _ = scene.ray_cast(dgv, L, seg.normalized(), distance=seg.length + 0.05)
                 o = (obj.original if hasattr(obj, "original") else obj) if ok and obj is not None else None
                 seen += 1 if o is not None and o.name.startswith(f"STAGE_{subj}") else 0
+        # % thấy yêu nữ (cùng 9×3 điểm): điểm dưới miệng giếng khi đứng trong giếng mà bị cản → "bị che bởi giếng" (đúng ý: chỉ thấy phần trên)
+        yv = None
+        if "YEUNU" in placed and subj != "YEUNU":
+            yp = placed["YEUNU"]
+            yH, in_w = yp["height_m"], bool(yp.get("in_well"))
+            rim = placed["WELL"]["top_z"] if "WELL" in placed else None
+            cnt = {"thay": 0, "gieng": 0, "khac": 0, "ngoai_khung": 0}
+            seen_z = []
+            for k in range(9):
+                z = yp["xyz"][2] + yH * (0.05 + 0.93 * k / 8)
+                for lat in (-0.12, 0.0, 0.12):
+                    P = (yp["xyz"][0] + math.sin(ra) * lat, yp["xyz"][1] + math.cos(ra) * lat, z)
+                    if not sg.in_frame(sg.project(C_r, A_r, P, lens, aspect)):
+                        cnt["ngoai_khung"] += 1
+                        continue
+                    seg = scn(P) - L
+                    ok, _, _, _, obj, _ = scene.ray_cast(dgv, L, seg.normalized(), distance=seg.length + 0.05)
+                    o = (obj.original if hasattr(obj, "original") else obj) if ok and obj is not None else None
+                    if o is not None and o.name.startswith("STAGE_YEUNU"):
+                        cnt["thay"] += 1
+                        seen_z.append(z)
+                    elif (o is not None and o.name.startswith("STAGE_WELL")) or (in_w and rim is not None and z < rim):
+                        cnt["gieng"] += 1
+                    else:
+                        cnt["khac"] += 1
+            yv = {"pct_thay": round(100 * cnt["thay"] / 27), "pct_che_gieng": round(100 * cnt["gieng"] / 27),
+                  "pct_che_khac": round(100 * cnt["khac"] / 27), "pct_ngoai_khung": round(100 * cnt["ngoai_khung"] / 27),
+                  "thay_tu_z": None if not seen_z else round(min(seen_z), 2), "thay_den_z": None if not seen_z else round(max(seen_z), 2),
+                  "rim_z": rim, "in_well": in_w}
         body = sg.FRAMING[size][0]
         top = sg.project(C_r, A_r, (sp["xyz"][0], sp["xyz"][1], H), lens, aspect)
         bot = sg.project(C_r, A_r, (sp["xyz"][0], sp["xyz"][1], H * (1 - body)), lens, aspect)
@@ -601,7 +650,7 @@ def s1_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
                 "cam_inside": bool(up[0] and up[2].z > 0.2), "side": sg.axis_side(cfg["axis"][0], cfg["axis"][1], C_r),
                 "horizon_w": round(sg.horizon_w(pitch, lens, aspect), 3), "well_hip_ratio": well_hip,
                 "at": [round(v, 3) for v in C_r], "aim": [round(v, 3) for v in A_r], "lens": lens, "cell": sg.cell_name(stage, C_r[0], C_r[1]),
-                "labels": labels}
+                "labels": labels, "yeunu": yv}
 
     # hình phác Workbench (xám, đạo cụ/người màu) — một lần thiết lập cho mọi máy
     def clay_setup():
@@ -836,12 +885,13 @@ def s1_main(argv):
     ap.add_argument("--facing", type=float, default=350.0)
     ap.add_argument("--well-dist", type=float, default=1.6)
     ap.add_argument("--draw-only", action="store_true")
+    ap.add_argument("--yeunu-in-well", action="store_true", help="yêu nữ đứng trong giếng (ngực ngang miệng giếng), giếng rỗng")
     a = ap.parse_args(argv)
     out = os.path.abspath(a.out)
     os.makedirs(out, exist_ok=True)
     if not a.draw_only:
         m3 = _place_model3d(a.db, a.place)
-        cfg = build_cfg(m3, m3["spots"][a.spot], out, a.facing, a.well_dist)
+        cfg = build_cfg(m3, m3["spots"][a.spot], out, a.facing, a.well_dist, yeunu_in_well=a.yeunu_in_well)
         well = cfg["props"][0]["at"]
         cfg.update(cameras=[], requests=requests_24(a.facing, well), shots=shots_of(a.db, a.project),
                    s1={"res": [576, 1024], "coarse": [18, 32], "fine": [36, 64]})
@@ -909,6 +959,9 @@ def draw_s1(out):
                     f"#{t['rank']} α {t['alpha']}° · cao {m['cam_above_floor_m']} m · pitch {m['pitch']}° · f {m['lens']:g} · ô {m['cell']}",
                     f"Kelly {m['subject_frame_pct']}% khung, thấy {m['subject_hit_pct']}% · " +
                     ", ".join(f"{g} {v}" for g, v in list(m["percent"].items())[:4]),
+                    *([] if not m.get("yeunu") else [
+                        f"yêu nữ thấy {m['yeunu']['pct_thay']}% (z {m['yeunu']['thay_tu_z']}–{m['yeunu']['thay_den_z']}) · "
+                        f"giếng che {m['yeunu']['pct_che_gieng']}% · khác che {m['yeunu']['pct_che_khac']}% · ngoài khung {m['yeunu']['pct_ngoai_khung']}%"]),
                     "đạt L1–L10" if t["ok_fine"] else "lưới mịn hỏng: " + ",".join(t["fail_fine"])]))
             fov = sg.fov(m["lens"], s1["res"][0] / s1["res"][1])
             cams.append((f"#{t['rank']}", {"xyz": m["at"], "yaw_deg": m["yaw"], "fov_h_v_deg": list(fov), "cell": m["cell"]}))
@@ -940,7 +993,7 @@ def report_s1(out):
         for t in ro["top"]:
             m = t["m"]
             print(f"   #{t['rank']} α {t['alpha']} cao {m['cam_above_floor_m']} pitch {m['pitch']} điểm {t['score']} "
-                  f"{'đạt' if t['ok_fine'] else 'mịn hỏng ' + ','.join(t['fail_fine'])} | {m['percent']}")
+                  f"{'đạt' if t['ok_fine'] else 'mịn hỏng ' + ','.join(t['fail_fine'])} | {m['percent']} | yêu nữ {m.get('yeunu')}")
 
 
 def host_main(argv=None):
@@ -1000,11 +1053,13 @@ WELL_D = 1.5           # ảnh Kho 1127 (gieng_da_sach): bề ngang / chiều ca
 WELL_SRC = "Kho 420 + ảnh 1127: cao ngang hông (0,53·1,7 = 0,90 m), rộng ≈ 1,7 × cao ≈ 1,5 m, tám cạnh"
 
 
-def build_cfg(m3, spot, out, facing, well_dist):
-    """#24 thử: Kelly đứng ở O nhìn `facing` về giếng (trục Kelly→giếng), giếng trước mặt, yêu nữ bên kia giếng nhìn Kelly."""
+def build_cfg(m3, spot, out, facing, well_dist, yeunu_in_well=False):
+    """#24 thử: Kelly đứng ở O nhìn `facing` về giếng (trục Kelly→giếng), giếng trước mặt, yêu nữ bên kia giếng nhìn Kelly.
+    `yeunu_in_well`: yêu nữ đứng ở TÂM giếng (bò lên), ngực ngang miệng giếng, giếng thành vành + lòng rỗng."""
     kelly = (0.0, 0.0, 0.0)
     well = sg.offset(kelly, facing, well_dist)
-    woman = sg.offset(well, facing, 1.2)              # bên kia miệng giếng, nhìn Kelly
+    woman = (well[0], well[1], 0.0) if yeunu_in_well else sg.offset(well, facing, 1.2)   # bên kia miệng giếng / trong giếng, nhìn Kelly
+    foot = sg.in_well_foot_z(WELL_H, YEUNU_H) if yeunu_in_well else 0.0
     right = (facing + 90) % 360                               # phía máy theo sơ đồ G0 (#24: Đông của trục)
     # (a) toàn cảnh ngang tầm mắt sau lưng-chéo Kelly, phía phải trục, nhìn về giếng/tháp, ngửa nhẹ cho tháp vào khung
     cam_a = sg.offset(sg.offset(kelly, (facing + 180) % 360, 7.0), right, 2.0, dz=1.6)
@@ -1017,16 +1072,19 @@ def build_cfg(m3, spot, out, facing, well_dist):
     hk, hy = KELLY_H, YEUNU_H
     targets = {"kelly_chan": [*kelly[:2], 0.0], "kelly_hong": [*kelly[:2], sg.HIP * hk], "kelly_nguc": [*kelly[:2], sg.CHEST * hk],
                "kelly_mat": [*kelly[:2], sg.EYE * hk], "kelly_dinh": [*kelly[:2], hk],
-               "gieng_tam": [well[0], well[1], WELL_H], "yeunu_chan": [woman[0], woman[1], 0.0],
-               "yeunu_hong": [woman[0], woman[1], sg.HIP * hy], "yeunu_mat": [woman[0], woman[1], sg.EYE * hy]}
+               "gieng_tam": [well[0], well[1], WELL_H], "yeunu_chan": [woman[0], woman[1], foot],
+               "yeunu_hong": [woman[0], woman[1], foot + sg.HIP * hy], "yeunu_mat": [woman[0], woman[1], foot + sg.EYE * hy]}
+    yeunu = {"name": "YEUNU", "kind": "person", "at": list(woman[:2]), "height": YEUNU_H, "source": "chưa có trong hồ sơ — mặc định 1,7 m",
+             "facing": (facing + 180) % 360, "rgb": [0.85, 0.05, 0.1]}
+    if yeunu_in_well:
+        yeunu["in_well"] = {"foot_z": foot, "rule": "chân = cao giếng − 0,72·H (ngực ngang miệng giếng, đầu + vai nhô lên)"}
     return {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spot["at"],
             "anchor_model": m3["anchor"], "cell_m": 1.0, "cols": 20, "rows": 20, "acting_area": {"half_m": 3.0, "extra": [[well[0], well[1], 2.0]]}, "engine": "auto", "samples": 16,
             "top_view": {"centre": [0.0, 5.5], "size_m": 42.0, "px": 1260},
             "props": [{"name": "WELL", "kind": "well", "at": list(well[:2]), "radius": WELL_D / 2, "height": WELL_H, "sides": 8,
-                       "source": WELL_SRC},
+                       "source": WELL_SRC, "hollow": bool(yeunu_in_well)},
                       {"name": "KELLY", "kind": "person", "at": [0.0, 0.0], "height": KELLY_H, "source": "Kho nhân vật 23 KELLY height_m", "facing": facing, "rgb": [1.0, 0.45, 0.05]},
-                      {"name": "YEUNU", "kind": "person", "at": list(woman[:2]), "height": YEUNU_H, "source": "chưa có trong hồ sơ — mặc định 1,7 m", "facing": (facing + 180) % 360,
-                       "rgb": [0.85, 0.05, 0.1]}],
+                      yeunu],
             "axis": [list(kelly), [well[0], well[1], 0.0]], "targets": targets,
             "cameras": [{"name": "try_wide", "file": "try_wide.png", "at": [round(v, 3) for v in cam_a], "aim": [round(v, 3) for v in aim_a],
                          "lens": 24, "res": [576, 1024], "rays": [36, 64]},

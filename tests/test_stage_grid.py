@@ -153,3 +153,11 @@ def test_group_by_hit_splits_the_base_mesh():
     assert sg.group_by_hit("san", -6.2, 1.0) == "san_khac"   # sàn tầng dưới
     assert sg.group_by_hit("khac", 0.3, 0.7) == "doc"
     assert sg.group_by_hit("thap", 5.0, 0.0) == "thap"
+
+
+def test_in_well_foot_z_chest_at_rim():
+    # giếng 0,90 m, yêu nữ 1,7 m: chân 0,90 − 0,72·1,7 = −0,324 m (dưới sàn); ngực đúng miệng giếng, đầu nhô 0,476 m
+    z = sg.in_well_foot_z(0.90, 1.7)
+    assert z == pytest.approx(-0.324)
+    assert z + sg.CHEST * 1.7 == pytest.approx(0.90)
+    assert z + 1.7 - 0.90 == pytest.approx(0.476)
