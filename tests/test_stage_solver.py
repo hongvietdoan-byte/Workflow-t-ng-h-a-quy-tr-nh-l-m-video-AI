@@ -260,3 +260,11 @@ def test_size_range_used_when_target_distance_has_no_arc_point():
     assert any("trong khoảng cỡ" in n for n in r["notes"]) and r["cams"]
     sz = r["cams"][0]["eval"]["obj"]["kelly"]["size_pct"]
     assert 15 <= sz <= 40
+
+
+def test_same_column_different_rows_is_not_a_conflict():
+    o = objs()
+    ok = {"co": "WS", "thanh_phan": [{"vat": "kelly", "vai": "chinh", "vung": "giua-duoi"}, {"vat": "gieng", "vai": "chinh", "vung": "giua"}]}
+    assert not any("mâu thuẫn" in e for e in ss.validate(ok, o))                       # một bên ghi hàng dưới → tách được theo dọc
+    assert not any("mâu thuẫn" in e for e in ss.validate(dict(ok, thanh_phan=[ok["thanh_phan"][0], dict(ok["thanh_phan"][1], vung="giua-giua")]), o))
+    assert any("mâu thuẫn" in e for e in ss.validate(dict(ok, thanh_phan=[dict(ok["thanh_phan"][0], vung="giua"), ok["thanh_phan"][1]]), o))

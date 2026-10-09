@@ -1,0 +1,190 @@
+{
+ "_ghi_chu": "09/10 tối, người dùng hỏi: shot 4 nhìn SAU LƯNG Kelly ngã ngửa? + emote = yêu nữ chui từ giếng lên, bò ra, ĐỨNG TRƯỚC giếng (giữ dàn cảnh, đổi góc máy shot 7). Số shot 41–43 = phương án shot 4, 71–73 = phương án shot 7.",
+ "shots": [
+  {
+   "shot": 41,
+   "nhip": "nga",
+   "co": "WS",
+   "do_cao": "cao",
+   "goc": "cui",
+   "muc_dich": "sau lưng Kelly ngã ngửa, máy cao nhìn qua đầu cô vào giếng (thẳng hàng), không thấy tháp",
+   "thanh_phan": [
+    {
+     "vat": "kelly",
+     "vai": "chinh",
+     "vung": "giua-duoi",
+     "thay": "lung"
+    },
+    {
+     "vat": "gieng",
+     "vai": "chinh",
+     "vung": "giua"
+    },
+    {
+     "vat": "thap",
+     "vai": "khong_duoc_co"
+    }
+   ]
+  },
+  {
+   "shot": 44,
+   "nhip": "nga",
+   "co": "WS",
+   "do_cao": "cao",
+   "goc": "cui",
+   "muc_dich": "như 41 nhưng máy 2,5 m (41: lớp 'cao' theo Kelly NGỒI chỉ 1,68 m, cúi −8°)",
+   "thanh_phan": [
+    {
+     "vat": "kelly",
+     "vai": "chinh",
+     "vung": "giua-duoi",
+     "thay": "lung"
+    },
+    {
+     "vat": "gieng",
+     "vai": "chinh",
+     "vung": "giua"
+    },
+    {
+     "vat": "thap",
+     "vai": "khong_duoc_co"
+    }
+   ],
+   "cao_m": 2.5
+  },
+  {
+   "shot": 42,
+   "nhip": "nga",
+   "co": "WS",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "muc_dich": "sau lưng-chéo Kelly ngã ngửa ngang tầm mắt người đứng, Kelly trái, giếng giữa-phải (tháp được phép)",
+   "thanh_phan": [
+    {
+     "vat": "kelly",
+     "vai": "chinh",
+     "vung": "trai",
+     "thay": "lung|nghieng"
+    },
+    {
+     "vat": "gieng",
+     "vai": "chinh",
+     "vung": "giua+phai"
+    },
+    {
+     "vat": "thap",
+     "vai": "phu"
+    }
+   ]
+  },
+  {
+   "shot": 43,
+   "nhip": "nga",
+   "co": "WS",
+   "do_cao": "thap",
+   "goc": "ngang",
+   "muc_dich": "sau lưng-chéo Kelly ngã ngửa, máy thấp sát lưng cô, giếng sừng sững phía trước, không thấy tháp",
+   "thanh_phan": [
+    {
+     "vat": "kelly",
+     "vai": "chinh",
+     "vung": "trai",
+     "thay": "lung|nghieng"
+    },
+    {
+     "vat": "gieng",
+     "vai": "chinh",
+     "vung": "giua+phai"
+    },
+    {
+     "vat": "thap",
+     "vai": "khong_duoc_co"
+    }
+   ]
+  },
+  {
+   "shot": 71,
+   "nhip": "bo_ra",
+   "co": "WS",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "muc_dich": "ngang phía Đông, lùi xa (WS): yêu nữ đứng trước giếng, giếng lệch sang phải cạnh cô",
+   "thanh_phan": [
+    {
+     "vat": "yeunu",
+     "vai": "chinh",
+     "vung": "giua"
+    },
+    {
+     "vat": "gieng",
+     "vai": "chinh",
+     "vung": "phai"
+    },
+    {
+     "vat": "kelly",
+     "vai": "khong_duoc_co"
+    },
+    {
+     "vat": "thap",
+     "vai": "khong_duoc_co"
+    }
+   ]
+  },
+  {
+   "shot": 72,
+   "nhip": "bo_ra",
+   "co": "MLS",
+   "do_cao": "cao",
+   "goc": "cui",
+   "muc_dich": "máy hơi cao phía Đông nhìn xuống: thấy miệng giếng sau lưng yêu nữ qua đầu cô",
+   "thanh_phan": [
+    {
+     "vat": "yeunu",
+     "vai": "chinh",
+     "vung": "trai+giua"
+    },
+    {
+     "vat": "gieng",
+     "vai": "chinh",
+     "vung": "phai"
+    },
+    {
+     "vat": "kelly",
+     "vai": "khong_duoc_co"
+    },
+    {
+     "vat": "thap",
+     "vai": "khong_duoc_co"
+    }
+   ]
+  },
+  {
+   "shot": 73,
+   "nhip": "bo_ra",
+   "co": "MLS",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "muc_dich": "giữ cỡ MLS ngang, giếng chỉ là thứ PHỤ (nền sau lưng yêu nữ, bị che một phần là chấp nhận)",
+   "thanh_phan": [
+    {
+     "vat": "yeunu",
+     "vai": "chinh",
+     "vung": "giua"
+    },
+    {
+     "vat": "gieng",
+     "vai": "phu",
+     "vung": "phai"
+    },
+    {
+     "vat": "kelly",
+     "vai": "khong_duoc_co"
+    },
+    {
+     "vat": "thap",
+     "vai": "khong_duoc_co"
+    }
+   ]
+  }
+ ]
+}

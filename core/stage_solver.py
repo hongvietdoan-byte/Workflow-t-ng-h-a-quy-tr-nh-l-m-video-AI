@@ -118,7 +118,9 @@ def validate(spec: Dict, objs: Dict[str, Dict]) -> List[str]:
     for i in range(len(chinh)):
         for j in range(i + 1, len(chinh)):
             (ka, za), (kb, zb) = chinh[i], chinh[j]
-            if za["u"] and zb["u"] and za["u"] == zb["u"]:
+            # cùng ô ngang VÀ không tách được theo dọc (cùng ô dọc / không ghi dọc) → một vật phải che vật kia; khác hàng dọc thì
+            # máy cao nhìn qua đầu vật gần được (09/10: sau lưng Kelly ngã, giếng ở trên — bị chặn oan lần đầu)
+            if za["u"] and zb["u"] and za["u"] == zb["u"] and za["w"] == zb["w"]:
                 d = math.dist(objs[ka]["xy"], objs[kb]["xy"])
                 if d > SAME_ZONE_FAR_M:
                     errs.append(f"mâu thuẫn: {ka} và {kb} cùng vùng ngang mà cách nhau {d:.2f} m trên sàn (chỉ đạt khi vật này che vật kia)")

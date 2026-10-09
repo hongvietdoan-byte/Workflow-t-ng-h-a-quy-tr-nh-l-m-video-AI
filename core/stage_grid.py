@@ -590,7 +590,10 @@ def object_points(o: Dict, cam: Optional[Sequence[float]] = None, co: Optional[s
             pts.append((x + math.sin(fa) * 0.25, y + math.cos(fa) * 0.25, z0 + h * EYE))
         return pts
     if o["kind"] == "moc":
-        return [(x, y, z0 + h * (k + 0.5) / 9) for k in range(9)]
+        # trục + 4 điểm mép (0,9·r) mỗi mức cao: mốc rộng (tháp 9,35 m) lọt MÉP khung mà trục ngoài khung — V2 09/10 shot 41/43 lọt S5
+        rr = float(o.get("r", 0.0)) * 0.9
+        return [(x + rr * dx, y + rr * dy, z0 + h * (k + 0.5) / 9) for k in range(9)
+                for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1))]
     r = float(o.get("r", 0.0)) * 0.9
     pts = []
     for fz in (0.05, 0.5, 1.0):
