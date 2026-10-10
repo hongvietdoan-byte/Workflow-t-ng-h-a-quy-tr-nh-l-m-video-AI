@@ -1,0 +1,293 @@
+{
+ "_ghi_chu": "Nhãn ĐỀ XUẤT của agent (10/10, 0 USD: đọc prompt CSDL + xem ảnh mẫu Kho 23/33/416/417/418/419 + ảnh job mới nhất của shot). Khóa = 'dự án|shot|nhân vật|món'. tools/nhan_bao_nham_a18.py đọc file này để điền cột 'Agent đề xuất' — người dùng vẫn duyệt cột cuối. Ảnh xem: #22 job 527/528/535/556/557/558 (approved); #24 job 623/632/634/639/636/637/629/640/633 (mới nhất, pending_review). Cập nhật 10/10 sau sửa A26 (b): nhãn cũ giữ theo khóa (mục đã hết bị báo vẫn để lại làm vết); thêm 24 nhãn mới (15 mục mới vào bảng + 9 mục ngoài bảng) — xem ảnh #22 job 556/557/558, #24 job 632/634/629/633 + ảnh Kho 417.",
+ "nhan": {
+  "22|4|MAXIM KL|hair": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "MCU thấy rõ tóc, prompt không tả tóc; ảnh 527 vẫn đúng xám bạc nhờ ảnh ref"
+  },
+  "22|5|KELLY|crop top": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "chỉ ghi 'yellow tracksuit'; áo crop trắng thấy rõ ở ảnh 528 (vẽ đúng nhờ ref)"
+  },
+  "22|6|KELLY KL|dress": {
+   "nhan": "báo nhầm",
+   "do_chac": "vừa",
+   "ly_do": "MCU 'mid-chest up, no legs': váy ngắn ở hông ngoài khung thiết kế; 'váy' bị ghép thành dress"
+  },
+  "22|7|MAXIM KL|hair": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "prompt không gọi tên/tả Maxim; WS thấy tóc; ảnh 556 đúng nhờ ref"
+  },
+  "22|8|MAXIM KL|hair": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "prompt không gọi tên/tả Maxim; WS thấy tóc; ảnh 557 đúng nhờ ref"
+  },
+  "22|9|MAXIM KL|hair": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "prompt không gọi tên/tả Maxim; WS thấy tóc; ảnh 558 đúng nhờ ref"
+  },
+  "22|7|MAXIM KL|hands": {
+   "nhan": "báo nhầm",
+   "do_chac": "cao",
+   "ly_do": "'tay áo đen' (ống tay) bị đọc thành hands; prompt có nói 'red dinosaur outfits'"
+  },
+  "22|8|MAXIM KL|hands": {
+   "nhan": "báo nhầm",
+   "do_chac": "cao",
+   "ly_do": "'tay áo đen' (ống tay) bị đọc thành hands"
+  },
+  "22|9|MAXIM KL|hands": {
+   "nhan": "báo nhầm",
+   "do_chac": "cao",
+   "ly_do": "'tay áo đen' (ống tay) bị đọc thành hands"
+  },
+  "22|7|MAXIM KL|mask": {
+   "nhan": "báo nhầm",
+   "do_chac": "cao",
+   "ly_do": "prompt có 'both with the black shark-tooth mask worn UP' — nói chung cho hai người"
+  },
+  "22|8|MAXIM KL|mask": {
+   "nhan": "báo nhầm",
+   "do_chac": "cao",
+   "ly_do": "prompt có 'both with the black shark-tooth mask' — code không gán được vì không gọi tên"
+  },
+  "22|9|MAXIM KL|mask": {
+   "nhan": "báo nhầm",
+   "do_chac": "cao",
+   "ly_do": "prompt có 'both with the black shark-tooth mask' — code không gán được vì không gọi tên"
+  },
+  "22|7|KELLY KL|hands": {
+   "nhan": "báo nhầm",
+   "do_chac": "cao",
+   "ly_do": "'tay áo sọc đen' (ống tay) bị đọc thành hands"
+  },
+  "22|8|KELLY KL|hair": {
+   "nhan": "đúng lỗi",
+   "do_chac": "cao",
+   "ly_do": "S7 có câu khóa tóc Kelly, S8 mất; ảnh mẫu 417 tóc trắng-đỏ dễ lẫn (ảnh 557 vẫn đúng)"
+  },
+  "22|9|KELLY KL|hair": {
+   "nhan": "đúng lỗi",
+   "do_chac": "cao",
+   "ly_do": "S7 có câu khóa tóc Kelly, S9 mất; ảnh mẫu 417 tóc trắng-đỏ dễ lẫn (ảnh 558 vẫn đúng)"
+  },
+  "24|1|KELLY|crop top": {
+   "nhan": "báo nhầm",
+   "do_chac": "thấp",
+   "ly_do": "có 'yellow-white-black tracksuit'; ảnh 623 Kelly quay lưng đi về giếng, áo crop không thấy"
+  },
+  "24|2|KELLY|hair": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "S1/S4 có 'short dark bob', S2 không; WS nghiêng thấy tóc (ảnh 632 đúng nhờ ref)"
+  },
+  "24|3|KELLY|hair": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "qua vai sau lưng: tóc chiếm lớn khung, prompt không tả (ảnh 634 đúng nhờ ref)"
+  },
+  "24|4|KELLY|crop top": {
+   "nhan": "báo nhầm",
+   "do_chac": "cao",
+   "ly_do": "prompt 'seen from behind'; ảnh 639 lưng, áo crop không thấy"
+  },
+  "24|5|YÊU NỮ TÀ LINH DẠNG 1|face": {
+   "nhan": "báo nhầm",
+   "do_chac": "cao",
+   "ly_do": "có 'face is a smooth featureless pure-black mask' — màu viết 'pure-black' code không nhận"
+  },
+  "24|6|YÊU NỮ TÀ LINH DẠNG 1|face": {
+   "nhan": "báo nhầm",
+   "do_chac": "cao",
+   "ly_do": "có 'face is a smooth featureless pure-black mask' — màu viết 'pure-black' code không nhận"
+  },
+  "24|7|YÊU NỮ TÀ LINH DẠNG 1|face": {
+   "nhan": "báo nhầm",
+   "do_chac": "vừa",
+   "ly_do": "tả gián tiếp 'faceless dark female creature'; ảnh 629 mặt đen đúng"
+  },
+  "24|8|YÊU NỮ TÀ LINH DẠNG 2|dress": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "quỳ ôm mặt, váy đen chiếm nửa khung (ảnh 640), prompt không tả váy"
+  },
+  "24|9|KELLY|hair": {
+   "nhan": "đúng lỗi",
+   "do_chac": "thấp",
+   "ly_do": "WS Kelly nhỏ nhưng tóc vẫn đọc được; prompt không tả (ảnh 633 đúng)"
+  },
+  "24|1|KELLY|sneakers": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "WS toàn thân, giày thấy rõ (ảnh 623), prompt không nói giày trắng"
+  },
+  "24|2|KELLY|choker": {
+   "nhan": "báo nhầm",
+   "do_chac": "thấp",
+   "ly_do": "WS cao nhìn xuống, vòng cổ chỉ vài điểm ảnh — món nhỏ không cần chữ ở cỡ này"
+  },
+  "24|3|KELLY|choker": {
+   "nhan": "báo nhầm",
+   "do_chac": "cao",
+   "ly_do": "máy sau lưng Kelly: cổ bị tóc che, vòng cổ không thấy (ảnh 634)"
+  },
+  "24|4|KELLY|sneakers": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "ngã ngồi, chân duỗi về giếng — giày thấy rõ (ảnh 639), prompt không nói"
+  },
+  "24|5|YÊU NỮ TÀ LINH DẠNG 1|belt": {
+   "nhan": "đúng lỗi",
+   "do_chac": "cao",
+   "ly_do": "prompt 'red sash' ngược Kho (đai gai đen khóa tam giác đỏ); ảnh 636 vẽ khăn đỏ — SAI"
+  },
+  "24|6|YÊU NỮ TÀ LINH DẠNG 1|belt": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "prompt 'red sash' ngược Kho; ảnh 637 lần này đúng nhờ ref, lần S5 đã sai"
+  },
+  "22|7|KELLY KL|skirt": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "WS thấy rõ chân váy da đen (ảnh 556); prompt chỉ 'red dinosaur outfits' (đúng nhờ ref)"
+  },
+  "22|8|KELLY KL|skirt": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "WS thấy rõ chân váy đen (ảnh 557); prompt không tả (đúng nhờ ref)"
+  },
+  "22|9|KELLY KL|skirt": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "WS thấy rõ chân váy đen (ảnh 558); prompt không tả (đúng nhờ ref)"
+  },
+  "22|7|KELLY KL|stockings": {
+   "nhan": "đúng lỗi",
+   "do_chac": "thấp",
+   "ly_do": "tất lệch đỏ/đen thấy rõ ở WS (ảnh 556), prompt không tả; món là tất ngắn"
+  },
+  "22|8|KELLY KL|stockings": {
+   "nhan": "đúng lỗi",
+   "do_chac": "thấp",
+   "ly_do": "tất lệch đỏ/đen thấy rõ (ảnh 557), prompt không tả"
+  },
+  "22|9|KELLY KL|stockings": {
+   "nhan": "đúng lỗi",
+   "do_chac": "thấp",
+   "ly_do": "tất lệch đỏ/đen thấy rõ (ảnh 558), prompt không tả"
+  },
+  "24|2|KELLY|crop top": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "nghiêng, áo khoác mở thấy áo trắng bên trong (ảnh 632); prompt không tả"
+  },
+  "24|2|KELLY|tracksuit": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "WS bộ thể thao vàng chiếm thân (ảnh 632); prompt S2 không nhắc"
+  },
+  "24|2|KELLY|sneakers": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "giày trắng thấy rõ (ảnh 632); prompt không tả"
+  },
+  "24|3|KELLY|tracksuit": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "qua vai: áo khoác vàng chiếm nửa khung (ảnh 634); prompt S3 không nhắc"
+  },
+  "24|7|YÊU NỮ TÀ LINH DẠNG 1|belt": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "MLS đai gai khóa tam giác đỏ thấy rõ (ảnh 629); prompt không tả"
+  },
+  "24|7|YÊU NỮ TÀ LINH DẠNG 1|hands": {
+   "nhan": "đúng lỗi",
+   "do_chac": "thấp",
+   "ly_do": "tay đen móng đỏ thấy rõ (ảnh 629); prompt chỉ tả biến hình"
+  },
+  "24|7|YÊU NỮ TÀ LINH DẠNG 1|stockings": {
+   "nhan": "đúng lỗi",
+   "do_chac": "thấp",
+   "ly_do": "chân chuyển đỏ thấy rõ (ảnh 629); prompt không tả"
+  },
+  "24|9|KELLY|crop top": {
+   "nhan": "đúng lỗi",
+   "do_chac": "thấp",
+   "ly_do": "áo trắng trong áo khoác thấy được dù Kelly nhỏ (ảnh 633); prompt không tả đồ"
+  },
+  "24|9|KELLY|tracksuit": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "bộ vàng nổi bật (ảnh 633); prompt S9 không tả đồ Kelly"
+  },
+  "24|9|KELLY|sneakers": {
+   "nhan": "đúng lỗi",
+   "do_chac": "vừa",
+   "ly_do": "giày trắng thấy rõ (ảnh 633); prompt không tả"
+  },
+  "24|7|YÊU NỮ TÀ LINH DẠNG 2|belt": {
+   "nhan": "báo nhầm",
+   "do_chac": "vừa",
+   "ly_do": "shot biến hình, ảnh 629 vẽ dạng 1; hai dạng cùng khóa sân khấu 'yeunu'"
+  },
+  "24|7|YÊU NỮ TÀ LINH DẠNG 2|face": {
+   "nhan": "báo nhầm",
+   "do_chac": "vừa",
+   "ly_do": "shot biến hình, ảnh 629 vẽ dạng 1; dạng 2 chưa hiện"
+  },
+  "24|7|YÊU NỮ TÀ LINH DẠNG 2|hands": {
+   "nhan": "báo nhầm",
+   "do_chac": "vừa",
+   "ly_do": "shot biến hình, ảnh 629 vẽ dạng 1; dạng 2 chưa hiện"
+  },
+  "24|7|YÊU NỮ TÀ LINH DẠNG 2|legs": {
+   "nhan": "báo nhầm",
+   "do_chac": "vừa",
+   "ly_do": "shot biến hình, ảnh 629 vẽ dạng 1; dạng 2 chưa hiện"
+  },
+  "24|9|YÊU NỮ TÀ LINH DẠNG 2|face": {
+   "nhan": "báo nhầm",
+   "do_chac": "vừa",
+   "ly_do": "quỳ ôm mặt, tóc + tay che kín mặt (ảnh 633)"
+  },
+  "24|9|YÊU NỮ TÀ LINH DẠNG 2|belt": {
+   "nhan": "báo nhầm",
+   "do_chac": "thấp",
+   "ly_do": "quỳ gập người, eo bị tóc/tay che (ảnh 633)"
+  },
+  "24|9|YÊU NỮ TÀ LINH DẠNG 2|hands": {
+   "nhan": "đúng lỗi",
+   "do_chac": "thấp",
+   "ly_do": "tay đen vân trắng thấy rõ trên mặt (ảnh 633); prompt không tả"
+  },
+  "24|9|YÊU NỮ TÀ LINH DẠNG 2|legs": {
+   "nhan": "đúng lỗi",
+   "do_chac": "thấp",
+   "ly_do": "chân đỏ thấy rõ khi quỳ (ảnh 633); prompt không tả"
+  }
+ },
+ "kieu_bao_nham": [
+  "**Shot biến hình — hai dạng cùng khóa sân khấu** (4 mục, #24 S7, ngoài bảng): BYĐ chỉ có 'yeunu'; kịch bản liệt kê cả dạng 1 + dạng 2 → món dạng 2 bị đòi khi ảnh vẽ dạng 1. Gợi ý: BYĐ tách khóa từng dạng, hoặc shot 'shifting from … into …' chỉ đòi dạng đầu.",
+  "**Bị che theo tư thế** (2 mục, #24 S9 dạng 2, ngoài bảng): quỳ ôm mặt — mặt / eo bị tay, tóc che. Lọc chưa theo tư thế (K1a).",
+  "**Lưu ý 'đúng lỗi'**: mọi mục đúng lỗi mới (váy, tất, bộ thể thao, giày…) ảnh vẫn vẽ đúng nhờ ảnh tham chiếu — đúng A26 (c): giữ VÀNG."
+ ],
+ "tieu_de_kieu": "Kiểu báo nhầm CÒN LẠI sau sửa A26 (b) (gợi ý — chưa sửa code):",
+ "so_sanh": [
+  "| Dự án | món bị báo sau lọc BYĐ: trước → sau sửa | mục báo nhầm cũ (bảng 30) đã hết | mục đúng lỗi cũ còn bị báo |",
+  "|---|---|---|---|",
+  "| #22 | 26 → 13 | 8/8 | 7/7 |",
+  "| #24 | 35 → 26 | 7/7 | 8/8 |",
+  "",
+  "- 15/15 mục báo nhầm cũ hết (tay áo → hands 4, câu nhóm 'both' 3, 'pure-black' / 'faceless' 3, lưng-nghiêng 3, MCU 'no legs' + vòng cổ ở WS 2); 15/15 mục đúng lỗi cũ vẫn bị báo (không che lỗi thật). Ngoài bảng hết thêm 10 mục cũ chưa gán: Kelly KL hands S8–9 + mask S7–9, áo crop #24 S3, vòng cổ #24 S9, và `dress` #22 S7–9 (đổi thành `skirt`).",
+  "- Món MỚI bị báo: #22 S7–9 `skirt` (3) — trước là `dress` cùng chỗ (đổi tên món, không tăng). Không có mục mới nào khác.",
+  "- Bảng 30 mục mới: agent gán 15 mục chưa có nhãn → **30/30 đúng lỗi, 0 báo nhầm (0 %, n = 30)**. Trên TOÀN BỘ 39 mục bị báo (gán thêm 9 mục ngoài bảng): **6 báo nhầm / 39 ≈ 15 %** — vẫn trên ngưỡng A25 (≤ 10 %), giữ `CHAN_DO = False`.",
+  "- Độ chắc 'thấp' ở mục mới: tất #22 S7–9, tay / tất dạng 1 #24 S7, áo crop #24 S9 (Kelly nhỏ), 3 mục dạng 2 #24 S9.",
+  "- Luật mức A26 (c) đã vào code: kể cả bật `CHAN_DO`, chỉ `sai_mau` (#24 S5/S6 'red sash') và món dấu hiệu khai_bao_chu lên ĐỎ."
+ ]
+}

@@ -14,9 +14,13 @@ không đòi gì. Món bị lọc → `trang_thai: "khong_can"` + `ly_do` (khôn
 kèm `khong_loc` nói vì sao không lọc được.
 
 MỨC (A18 kế hoạch `docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md` dòng 31 + 156: "code chặn ngay"): CHƯA ĐO báo nhầm (bảng gán nhãn
-`docs/NHAN_BAO_NHAM_A18_2026-10-10.md`, ngưỡng mục 9) → `CHAN_DO = False`: 'thieu' / 'thieu_mau' là VÀNG; chỉ bật `CHAN_DO = True`
-(hoặc `check(..., chan_do=True)`) khi báo nhầm đo được ≤ ngưỡng. 'sai_mau' (chữ nói NGƯỢC màu khóa) cũng theo chế độ (A18 dòng 33:
-"thiếu / sai màu → ĐỎ" chỉ sau khi đo; bảng báo nhầm đo cả sai_mau). Chỉ 'khong_co_khoa' (thiếu đầu vào) ĐỎ ở cả hai chế độ.
+`docs/NHAN_BAO_NHAM_A18_2026-10-10.md`, ngưỡng A25) → `CHAN_DO = False`: mọi món bị báo là VÀNG; chỉ bật `CHAN_DO = True`
+(hoặc `check(..., chan_do=True)`) khi báo nhầm đo được ≤ ngưỡng. Luật mức A26 (c) (người dùng 10/10): kể cả khi bật, CHỈ 'sai_mau'
+(chữ nói NGƯỢC màu khóa) và món dấu hiệu (ô khai_bao_chu có dau_hieu, A20) được ĐỎ; 'thieu' / 'thieu_mau' của món thường LUÔN VÀNG
+(ảnh tham chiếu giữ món — 14/15 mục đúng lỗi ảnh vẫn đúng). Chỉ 'khong_co_khoa' (thiếu đầu vào) ĐỎ ở cả hai chế độ.
+A26 (b) 5 kiểu báo nhầm đã sửa: ống tay áo ≠ bàn tay (SLEEVE_VI) + tách câu '. '; câu nhóm ('both', 'two … characters') cho mọi nhân
+vật trong khung (segment); vị ngữ 'face is a … pure-black mask' + '<món>less' theo hồ sơ; lưng/lưng-nghiêng bỏ món mặt trước thân
+(FRONT_TORSO), không rõ hướng → ghi khong_loc; chân váy (skirt) + prompt tự giới hạn khung (prompt_cut) + món nhỏ ở WS/EWS (SMALL_ITEMS).
 
 Chưa nối vào pipeline (K1a). Không gọi model.
 """
@@ -55,6 +59,8 @@ ITEMS = {
     "sneakers": (("sneakers", "trainers", "running shoes"), ()),
     "heels": (("high heels", "heels", "stilettos", "pumps"), ("giày cao gót",)),
     "dress": (("dress", "gown"), ("váy",)),
+    # A26 kiểu 5: chân váy bắt đầu ở hông (khác váy liền từ vai) — tiếng Việt 'váy' thành skirt khi mô tả có áo riêng (SEPARATE_TOP_VI)
+    "skirt": (("skirt", "miniskirt", "mini skirt"), ("chân váy",)),
     "hair": (("hair", "haired", "bob", "ponytail", "braid", "locks"), ("tóc",)),
     "eyes": (("eyes", "eye"), ("mắt",)),
     "face": (("face", "faced"), ("mặt",)),
@@ -70,8 +76,19 @@ ITEMS = {
 # `framing_body(co)` (= stage_grid.FRAMING[co][0]: MLS 0,75, MS 0,55, MCU 0,35, CU 0,22, ECU 0,12) → món có vùng > phần đó không đòi.
 # Món không có ở đây (glitch, món khai_bao_chu ngoài ITEMS) = không biết vùng → vẫn đòi. Người ngồi / quỳ: chưa chỉnh (K1a).
 BODY_FROM_TOP = {"hair": 0.0, "face": 0.05, "eyes": 0.05, "mask": 0.07, "choker": 0.13, "crop top": 0.25, "tracksuit": 0.25,
-                 "dress": 0.25, "hands": 0.45, "nails": 0.45, "belt": 0.45, "stockings": 0.6, "legs": 0.6, "sneakers": 0.95, "heels": 0.95}
+                 "dress": 0.25, "hands": 0.45, "nails": 0.45, "belt": 0.45, "skirt": 0.45, "stockings": 0.6, "legs": 0.6,
+                 "sneakers": 0.95, "heels": 0.95}
 FRONT_ONLY = ("face", "eyes", "mask", "choker")   # chỉ thấy từ phía trước — quay lưng hẳn (thay = lung) không đòi
+# A26 kiểu 4 (#24 S1/S3/S4): món mặt trước THÂN (áo crop mặc dưới áo khoác, vòng cổ ở cổ họng) khuất sớm hơn đầu — BYĐ có 'lung' mà
+# không có 'mat' (lưng / lưng-nghiêng) → không đòi. Mặt / mắt / mặt nạ vẫn đòi khi lưng-nghiêng (nghiêng thấy mặt).
+FRONT_TORSO = ("choker", "crop top")
+# A26 kiểu 5 (#24 S2): món nhỏ chỉ vài điểm ảnh ở cỡ toàn → không đòi chữ (ảnh tham chiếu giữ món).
+SMALL_ITEMS = ("choker", "nails")
+SMALL_HIDDEN_AT = ("WS", "EWS")
+# Mô tả Kho tiếng Việt có áo riêng (áo croptop / áo thun…) → 'váy' trong cùng mô tả là chân váy (Kho 417: áo croptop + váy da đen ngắn)
+SEPARATE_TOP_VI = re.compile(r"(?<![\w])(?:áo croptop|áo crop|croptop|crop top|áo thun|áo phông|áo sơ mi|áo ba lỗ)(?![\w])")
+# A26 kiểu 1: 'tay áo' / 'áo … tay' = ống tay áo (chi tiết của áo), không phải bàn tay (Kho 416 'tay áo đen', 417 'áo khoác đỏ tay sọc đen')
+SLEEVE_VI = re.compile(r"(?<![\w])tay áo(?![\w])|(?<![\w])áo(?![\w])[^,;]*?(?<![\w])tay(?![\w])")
 PATTERN_WORDS = ("stripe", "stripes", "stars", "star", "print", "lines", "pattern", "vân", "gạch chéo", "sọc")  # so theo TỪ, không chuỗi con
 SKIP_NO_COLOR = {"face"}          # "youthful face with light makeup": không màu → không phải khóa trang phục
 INTENSITY = {"bright", "light", "pale", "deep", "matching", "a", "an", "the", "her", "his", "with", "and", "small", "thin"}
@@ -111,8 +128,15 @@ def _colors_in(text: str, vi: bool = False) -> List[str]:
     return out
 
 
+def _mask_sleeve(t: str) -> str:
+    """Xóa chữ 'tay' của ống tay áo (giữ độ dài chuỗi): 'tay áo đen' → '       đen'; 'áo khoác đỏ tay sọc' → 'áo khoác đỏ     sọc'."""
+    return SLEEVE_VI.sub(lambda m: (m.group(0)[:-3] + "   ") if m.group(0).endswith("tay") else " " * len(m.group(0)), t)
+
+
 def _item_of(text: str, vi: bool = False) -> Optional[str]:
     t = norm(text, vi)
+    if vi:
+        t = _mask_sleeve(t)
     best = None
     for base, (en, vn) in ITEMS.items():
         for w in ((vn + en) if vi else en):
@@ -123,12 +147,14 @@ def _item_of(text: str, vi: bool = False) -> Optional[str]:
 
 
 def _split_clauses(text: str) -> List[str]:
-    """Tách theo dấu phẩy / chấm phẩy ở mức ngoài ngoặc; 'under' / 'over' tách hai món ("white crop top under a … jacket")."""
+    """Tách theo dấu phẩy / chấm phẩy / chấm hết câu ('. ') ở mức ngoài ngoặc; 'under' / 'over' tách hai món ("white crop top under a …
+    jacket"). Chấm hết câu (A26 kiểu 1): Kho 416 '… dép khủng long đỏ. Ảnh trang phục có người mẫu: tóc' — không gộp 'đỏ' vào tóc."""
     depth, cur, out = 0, "", []
-    for ch in str(text or ""):
+    s = str(text or "")
+    for i, ch in enumerate(s):
         depth += ch == "("
         depth -= ch == ")"
-        if ch in ",;" and depth == 0:
+        if depth == 0 and (ch in ",;" or (ch == "." and (i + 1 == len(s) or s[i + 1].isspace()))):
             out.append(cur)
             cur = ""
         elif depth == 0 and ch != ")":
@@ -148,6 +174,7 @@ def declare_from_text(text: str, vi: Optional[bool] = None) -> List[Dict]:
         vi = is_vi(text)
     out: List[Dict] = []
     pat_re = _words_re(PATTERN_WORDS)
+    skirt = vi and bool(SEPARATE_TOP_VI.search(norm(text, True)))     # có áo riêng → 'váy' là chân váy (A26 kiểu 5)
     for clause in _split_clauses(text):
         head, _, tail = clause.partition(" with ")
         if re.search(pat_re, norm(head, vi)) and _item_of(head, vi) is None:
@@ -155,6 +182,17 @@ def declare_from_text(text: str, vi: Optional[bool] = None) -> List[Dict]:
             continue
         item = _item_of(head if not vi else clause, vi)
         colors = _colors_in(head if not vi else clause, vi)
+        if item == "dress" and skirt and not re.search(r"(?<![\w])(?:váy liền|đầm)(?![\w])", norm(clause, True)):
+            item = "skirt"
+        if item is None and vi and SLEEVE_VI.search(norm(clause, True)):
+            # ống tay áo: 'tay áo đen' = chi tiết của áo (như 'grey sleeve stripes' tiếng Anh) → không kiểm ở chữ; câu tả CẢ áo mà áo
+            # không có trong ITEMS ('áo khoác đỏ tay sọc đen') → không nhận ra (báo ra), không gộp màu vào món trước
+            if re.match(r"\s*tay áo(?![\w])", norm(clause, True)):
+                out.append({"mon": clause.strip(), "hoa_tiet": True, "chi_tiet": "ống tay áo — chi tiết của áo, không kiểm ở chữ",
+                            "nguon": "suy"})
+            else:
+                out.append({"mon": clause.strip(), "khong_nhan_ra": True, "mau_thay": colors, "nguon": "suy"})
+            continue
         if item is None:
             if colors and out and not out[-1].get("hoa_tiet") and not out[-1].get("khong_nhan_ra"):
                 out[-1]["mau_chinh"] += [c for c in colors if c not in out[-1]["mau_chinh"]][:max(0, 2 - len(out[-1]["mau_chinh"]))]
@@ -174,7 +212,14 @@ def declare_from_text(text: str, vi: Optional[bool] = None) -> List[Dict]:
         if prev:                                   # track jacket + track pants → một món 'tracksuit'
             prev["mau_chinh"] += [c for c in colors if c not in prev["mau_chinh"]][:max(0, 2 - len(prev["mau_chinh"]))]
             continue
-        out.append({"mon": item, "mau_chinh": colors[:2], "dau_hieu": sign, "nguon": "suy"})
+        new = {"mon": item, "mau_chinh": colors[:2], "dau_hieu": sign, "nguon": "suy"}
+        if not vi:
+            # A26 kiểu 3: hồ sơ tự tả món bằng tính từ '<món>less' ('faceless smooth black face', Kho 418) → prompt viết 'faceless' cũng
+            # là nhắc món đó. Chỉ khi chính hồ sơ có từ này (có căn cứ), không suy rộng.
+            less = [f"{w}less" for w in ITEMS[item][0] if " " not in w and re.search(_words_re([f"{w}less"]), fold(head))]
+            if less:
+                new["dong_nghia"] = less
+        out.append(new)
     return out
 
 
@@ -330,6 +375,24 @@ def color_conflicts(mo_ta: str, decl: List[Dict]) -> List[Dict]:
 
 COLOR_AFTER = re.compile(r"\s+(?:in|dyed|colou?red)\s+")
 CLAUSE_END = re.compile(r"[,.;:()]")
+# A26 kiểu 3: vị ngữ sau danh từ ('face is a smooth featureless pure-black mask', #24 S5/S6) — lấy ≤ 6 từ, dừng ở ranh giới / giới từ
+# (không lấy màu của vật khác: 'face is turned away from the red light'). Tính từ '<món>less' ('faceless dark female creature', #24 S7) —
+# ≤ 3 từ sau.
+PREDICATE = re.compile(r"\s+(?:is|are)\s+")
+STOP_WORDS = {"from", "to", "toward", "towards", "at", "in", "on", "of", "by", "into", "onto", "under", "over", "behind", "near", "as",
+              "like", "against", "through", "than", "with"}   # 'with' (rà A26): 'hair is tied with a red ribbon' — màu của vật đi kèm
+
+
+def _take_words(low: str, pos: int, n: int) -> int:
+    """Vị trí hết ≤ n từ tính từ `pos`, dừng ở ranh giới mệnh đề (BOUNDARY) hoặc giới từ (STOP_WORDS)."""
+    nb = BOUNDARY.search(low, pos)
+    limit = nb.start() if nb else len(low)
+    end = pos
+    for i, m in enumerate(re.finditer(r"\S+", low[pos:limit])):
+        if i >= n or m.group(0) in STOP_WORDS:
+            break
+        end = pos + m.end()
+    return end
 
 
 def _windows(prompt: str, item: str, extra=()):
@@ -344,9 +407,14 @@ def _windows(prompt: str, item: str, extra=()):
             start = b.end()
         end = m.end()
         after = COLOR_AFTER.match(low, end)
+        pred = PREDICATE.match(low, end)
         if after:
             nb = BOUNDARY.search(low, after.end())
             end = nb.start() if nb else len(low)
+        elif pred:
+            end = _take_words(low, pred.end(), 6)
+        elif m.group(0).endswith("less"):
+            end = _take_words(low, end, 3)
         ce = CLAUSE_END.search(low, m.end())
         yield low[start:end], low[start:ce.start() if ce else len(low)]
 
@@ -394,21 +462,48 @@ def _not_needed(d: Dict, view: Optional[Dict]) -> Tuple[Optional[str], Optional[
     thay = set(view.get("thay") or [])
     if key in FRONT_ONLY and thay == {"lung"}:
         return f"quay lưng (BYĐ thay = lung): '{d['mon']}' chỉ thấy từ phía trước", None
-    body = framing_body(view.get("co"))
-    if body is None:
-        return None, f"cỡ cảnh '{view.get('co')}' không biết — không lọc theo cỡ, vẫn đòi"
+    if key in FRONT_TORSO and "lung" in thay and "mat" not in thay:
+        return f"quay lưng (BYĐ thay = {'|'.join(view.get('thay'))}): '{d['mon']}' ở mặt trước thân, khuất khi không quay mặt", None
+    notes = []
+    if key in FRONT_ONLY + FRONT_TORSO and not thay:
+        notes.append(f"không rõ hướng (BYĐ không ghi mặt/lưng) — '{d['mon']}' chỉ thấy từ phía trước, vẫn đòi")
+    co = str(view.get("co") or "").strip().upper()
+    if key in SMALL_ITEMS and co in SMALL_HIDDEN_AT:
+        return f"món nhỏ '{d['mon']}' chỉ vài điểm ảnh ở cỡ {co} — không đòi chữ (ảnh tham chiếu giữ món)", None
+    body, cut = framing_body(view.get("co")), view.get("cat_prompt")
+    if body is None and cut is None:
+        notes.append(f"cỡ cảnh '{view.get('co')}' không biết — không lọc theo cỡ, vẫn đòi")
+        return None, "; ".join(notes)
     if key not in BODY_FROM_TOP:
-        return None, f"món '{d['mon']}' chưa có vùng thân (BODY_FROM_TOP) — không lọc theo cỡ, vẫn đòi"
-    if BODY_FROM_TOP[key] > body:
-        return (f"cỡ {str(view['co']).upper()} chỉ chứa {int(body * 100)} % thân từ đỉnh đầu; '{d['mon']}' ở "
+        notes.append(f"món '{d['mon']}' chưa có vùng thân (BODY_FROM_TOP) — không lọc theo cỡ, vẫn đòi")
+        return None, "; ".join(notes)
+    if body is not None and BODY_FROM_TOP[key] > body:
+        return (f"cỡ {co} chỉ chứa {int(body * 100)} % thân từ đỉnh đầu; '{d['mon']}' ở "
                 f"{int(BODY_FROM_TOP[key] * 100)} % — ngoài khung"), None
-    return None, None
+    if cut is not None and BODY_FROM_TOP[key] > cut:
+        return (f"prompt tự giới hạn khung ('no legs' / 'chest up' / 'waist up' ≈ {int(cut * 100)} % thân); '{d['mon']}' ở "
+                f"{int(BODY_FROM_TOP[key] * 100)} % — ngoài khung"), None
+    return None, "; ".join(notes) or None
+
+
+# A26 kiểu 5: prompt tự nói khung chỉ tới đâu (#22 S4/S6 'medium close-up from mid-chest up, no legs') → phần thân tối đa trong khung
+PROMPT_CUT = ((r"(?<![\w])(?:mid[- ]?chest|chest)[- ]up(?![\w])", 0.35), (r"(?<![\w])waist[- ]up(?![\w])", 0.5),
+              (r"(?<![\w])no legs(?![\w])", 0.55))
+
+
+def prompt_cut(prompt: str) -> Optional[float]:
+    """Phần thân (từ đỉnh đầu) mà chữ prompt tự giới hạn khung; không nói → None. Người gọi đặt vào view['cat_prompt']."""
+    low = fold(prompt)
+    hits = [v for pat, v in PROMPT_CUT if re.search(pat, low)]
+    return min(hits) if hits else None
 
 
 def check(decl: List[Dict], prompt: str, view: Optional[Dict] = None, chan_do: Optional[bool] = None) -> List[Dict]:
     """[{mon, mau_chinh, trang_thai: co|thieu|thieu_mau|sai_mau|khong_can, mau_thay, dau_hieu, dau_hieu_thay, muc, ly_do?, khong_loc?}].
-    `view` = byd_view(...) → món máy không thấy được là 'khong_can' + ly_do (muc None). `chan_do` (mặc định CHAN_DO): True → thiếu /
-    thiếu màu / sai màu ĐỎ (A18 chặn); False → VÀNG. Chỉ khong_co_khoa luôn ĐỎ. Họa tiết bỏ qua. `dau_hieu_thay` chỉ để báo."""
+    `view` = byd_view(...) → món máy không thấy được là 'khong_can' + ly_do (muc None); `view['cat_prompt']` (prompt_cut) = khung prompt
+    tự giới hạn. `chan_do` (mặc định CHAN_DO) — luật mức A26 (c): True → CHỈ 'sai_mau' và món dấu hiệu (khai_bao_chu có dau_hieu) ĐỎ;
+    'thieu' / 'thieu_mau' món thường LUÔN VÀNG; False → mọi thứ VÀNG. Chỉ khong_co_khoa luôn ĐỎ. Họa tiết bỏ qua. `dau_hieu_thay` chỉ
+    để báo."""
     chan = CHAN_DO if chan_do is None else bool(chan_do)
     out = []
     real = [d for d in decl or [] if not d.get("hoa_tiet") and not d.get("khong_nhan_ra")]
@@ -432,8 +527,9 @@ def check(decl: List[Dict], prompt: str, view: Optional[Dict] = None, chan_do: O
                "dau_hieu_thay": None, "mau_phu_thieu": []}
         if khong_loc:
             row["khong_loc"] = khong_loc
+        sign_item = d.get("nguon") == KBC_KEY and bool(d.get("dau_hieu"))    # A26 (c): món dấu hiệu khai trong khai_bao_chu
         if not wins:
-            row.update(trang_thai="thieu", muc="do" if chan else "vang")
+            row.update(trang_thai="thieu", muc="do" if chan and sign_item else "vang")
             out.append(row)
             continue
         main_ok = partial = wrong = False
@@ -457,7 +553,7 @@ def check(decl: List[Dict], prompt: str, view: Optional[Dict] = None, chan_do: O
             text = " ".join(c for _, c in wins)
             alt = [fold(x) for x in d.get("cach_viet") or () if str(x).strip()]      # cách viết tương đương (khai_bao_chu)
             row["dau_hieu_thay"] = (bool(key) and bool(re.search(_words_re(key), text))) or bool(alt and re.search(_words_re(alt), text))
-        muc = None if status == "co" else "do" if chan else "vang"
+        muc = None if status == "co" else "do" if chan and (status == "sai_mau" or sign_item) else "vang"
         row.update(trang_thai=status, muc=muc)
         out.append(row)
     return out
@@ -469,6 +565,17 @@ def unrecognized(decl: List[Dict]) -> List[str]:
 
 
 OTHER_MARKERS = ("creature", "figure", "woman", "girl", "monster", "ghost")
+# Câu nhóm (A26 kiểu 2). 'both / each' không tính khi đi với bộ phận / 'other' ('both hands', 'each other'); 'all' chỉ dạng nói về người.
+GROUP_RE = (r"(?<![\w])both(?![\w])(?!\s+(?:(?:her|his|its|their)\s+)?(?:hands|arms|legs|feet|eyes|ears|sides|ends|knees)(?![\w])"
+            r"|\s+of\s+(?:her|his|its))"
+            r"|(?<![\w])each(?![\w])(?!\s+(?:other|hand|arm|leg|foot|eye|side))"
+            r"|(?<![\w])two(?:\s+[\w-]+){0,3}?\s+(?:characters|people|friends|heroes|players)(?![\w])"
+            r"|(?<![\w])all\s+(?:of\s+them|the\s+characters|characters|two|three|four)(?![\w])")
+# 'they' chỉ là câu nhóm khi mệnh đề có tên gần nhất gọi ≥ 2 nhân vật trong khung ('Kelly and Maxim walk, they wear masks')
+THEY_RE = r"(?<![\w])they(?![\w])"
+# Người lạ không gọi bằng OTHER_MARKERS ('two other characters', 'guards', 'the crowd') → không phải câu nhóm, thuộc '_khac' (rà A26)
+STRANGER_RE = (r"(?<![\w])(?:(?<!each )other|others|another|guards?|npcs?|crowd|strangers?|bystanders?|passers?-?by|enemies|enemy"
+               r"|soldiers?|villagers?)(?![\w])")
 
 
 def segment(prompt: str, markers: Dict[str, List[str]]) -> Dict[str, str]:
@@ -478,7 +585,7 @@ def segment(prompt: str, markers: Dict[str, List[str]]) -> Dict[str, str]:
     Hai tên trúng CÙNG chỗ (thẩm định 5 #4/#5): từ đánh dấu DÀI hơn thắng ('maxim kl' hơn 'maxim'); còn hòa (từ y hệt — hai dạng yêu nữ
     cùng 'creature', không phân biệt được bằng chữ) → mệnh đề thuộc CẢ HAI, không gán theo thứ tự tên (trước đây dạng 2 rỗng → báo nhầm)."""
     out: Dict[str, List[str]] = {k: [] for k in markers}
-    owner, pending = None, []
+    owner, pending, last_named = None, [], set()
     other_re = _words_re(OTHER_MARKERS)
     clauses = []
     for clause in re.split(r"[,.;]", str(prompt or "")):
@@ -492,8 +599,18 @@ def segment(prompt: str, markers: Dict[str, List[str]]) -> Dict[str, str]:
                 m = re.search(rf"(?<![\w]){re.escape(fold(w))}(?![\w])", low)
                 if m:
                     hits.append((m.start(), -(m.end() - m.start()), name))
+        stranger = not hits and bool(re.search(STRANGER_RE, low))
+        group = re.search(GROUP_RE, low) or (re.search(THEY_RE, low) and len(last_named) >= 2)
+        if not hits and markers and group and not stranger and not re.search(other_re, low):
+            # A26 kiểu 2 (#22 S7–9): câu tả chung không gọi tên ('two stylized characters … both with the black mask') → của MỌI nhân
+            # vật trong khung (markers = nhân vật có trong khung); chỉ mệnh đề này, mệnh đề sau vẫn theo người được nhắc gần nhất
+            for o in markers:
+                out[o].append(clause)
+            continue
+        if hits:
+            last_named = {h[2] for h in hits}
         if not hits:
-            m = re.search(other_re, low)
+            m = re.search(other_re, low) or (re.search(STRANGER_RE, low) if stranger else None)
             if m:
                 hits.append((m.start(), 0, "_khac"))
         if hits:

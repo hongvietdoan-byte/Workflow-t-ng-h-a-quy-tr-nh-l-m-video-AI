@@ -63,11 +63,11 @@
      "loi": null,
      "khong_nhan_ra": [],
      "tong": {
-      "co": 3,
-      "thieu": 2,
+      "co": 2,
+      "thieu": 1,
       "thieu_mau": 0,
       "sai_mau": 0,
-      "khong_can": 0,
+      "khong_can": 2,
       "khong_co_khoa": 0
      },
      "mon": [
@@ -91,13 +91,12 @@
        ],
        "dau_hieu": null,
        "nguon": "suy",
-       "mau_thay": [
-        "black"
-       ],
+       "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "co",
-       "muc": null
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "quay lưng (BYĐ thay = lung|nghieng): 'choker' ở mặt trước thân, khuất khi không quay mặt"
       },
       {
        "mon": "crop top",
@@ -109,8 +108,9 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "quay lưng (BYĐ thay = lung|nghieng): 'crop top' ở mặt trước thân, khuất khi không quay mặt"
       },
       {
        "mon": "tracksuit",
@@ -224,10 +224,10 @@
      "khong_nhan_ra": [],
      "tong": {
       "co": 0,
-      "thieu": 5,
+      "thieu": 4,
       "thieu_mau": 0,
       "sai_mau": 0,
-      "khong_can": 0,
+      "khong_can": 1,
       "khong_co_khoa": 0
      },
      "mon": [
@@ -254,8 +254,9 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "món nhỏ 'choker' chỉ vài điểm ảnh ở cỡ WS — không đòi chữ (ảnh tham chiếu giữ món)"
       },
       {
        "mon": "crop top",
@@ -385,10 +386,10 @@
      "khong_nhan_ra": [],
      "tong": {
       "co": 0,
-      "thieu": 4,
+      "thieu": 2,
       "thieu_mau": 0,
       "sai_mau": 0,
-      "khong_can": 1,
+      "khong_can": 3,
       "khong_co_khoa": 0
      },
      "mon": [
@@ -415,8 +416,9 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "quay lưng (BYĐ thay = lung|nghieng): 'choker' ở mặt trước thân, khuất khi không quay mặt"
       },
       {
        "mon": "crop top",
@@ -428,8 +430,9 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "quay lưng (BYĐ thay = lung|nghieng): 'crop top' ở mặt trước thân, khuất khi không quay mặt"
       },
       {
        "mon": "tracksuit",
@@ -546,11 +549,11 @@
      "loi": null,
      "khong_nhan_ra": [],
      "tong": {
-      "co": 3,
-      "thieu": 2,
+      "co": 2,
+      "thieu": 1,
       "thieu_mau": 0,
       "sai_mau": 0,
-      "khong_can": 0,
+      "khong_can": 2,
       "khong_co_khoa": 0
      },
      "mon": [
@@ -574,13 +577,12 @@
        ],
        "dau_hieu": null,
        "nguon": "suy",
-       "mau_thay": [
-        "black"
-       ],
+       "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "co",
-       "muc": null
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "quay lưng (BYĐ thay = lung|nghieng): 'choker' ở mặt trước thân, khuất khi không quay mặt"
       },
       {
        "mon": "crop top",
@@ -592,8 +594,9 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "quay lưng (BYĐ thay = lung|nghieng): 'crop top' ở mặt trước thân, khuất khi không quay mặt"
       },
       {
        "mon": "tracksuit",
@@ -738,9 +741,9 @@
      "loi": null,
      "khong_nhan_ra": [],
      "tong": {
-      "co": 4,
+      "co": 5,
       "thieu": 0,
-      "thieu_mau": 1,
+      "thieu_mau": 0,
       "sai_mau": 1,
       "khong_can": 2,
       "khong_co_khoa": 0
@@ -753,11 +756,13 @@
        ],
        "dau_hieu": "two glowing red eyes",
        "nguon": "suy",
-       "mau_thay": [],
+       "mau_thay": [
+        "black"
+       ],
        "dau_hieu_thay": true,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu_mau",
-       "muc": "vang"
+       "trang_thai": "co",
+       "muc": null
       },
       {
        "mon": "hair",
@@ -975,9 +980,9 @@
      "loi": null,
      "khong_nhan_ra": [],
      "tong": {
-      "co": 4,
+      "co": 5,
       "thieu": 0,
-      "thieu_mau": 1,
+      "thieu_mau": 0,
       "sai_mau": 1,
       "khong_can": 2,
       "khong_co_khoa": 0
@@ -990,11 +995,13 @@
        ],
        "dau_hieu": "two glowing red eyes",
        "nguon": "suy",
-       "mau_thay": [],
+       "mau_thay": [
+        "black"
+       ],
        "dau_hieu_thay": true,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu_mau",
-       "muc": "vang"
+       "trang_thai": "co",
+       "muc": null
       },
       {
        "mon": "hair",
@@ -1211,8 +1218,8 @@
      "loi": null,
      "khong_nhan_ra": [],
      "tong": {
-      "co": 3,
-      "thieu": 4,
+      "co": 4,
+      "thieu": 3,
       "thieu_mau": 0,
       "sai_mau": 0,
       "khong_can": 1,
@@ -1227,10 +1234,10 @@
        "dau_hieu": "two glowing red eyes",
        "nguon": "suy",
        "mau_thay": [],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": false,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "co",
+       "muc": null
       },
       {
        "mon": "hair",
@@ -1797,10 +1804,10 @@
      "khong_nhan_ra": [],
      "tong": {
       "co": 0,
-      "thieu": 5,
+      "thieu": 4,
       "thieu_mau": 0,
       "sai_mau": 0,
-      "khong_can": 0,
+      "khong_can": 1,
       "khong_co_khoa": 0
      },
      "mon": [
@@ -1827,8 +1834,9 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "món nhỏ 'choker' chỉ vài điểm ảnh ở cỡ WS — không đòi chữ (ảnh tham chiếu giữ món)"
       },
       {
        "mon": "crop top",
@@ -1840,6 +1848,7 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ hướng (BYĐ không ghi mặt/lưng) — 'crop top' chỉ thấy từ phía trước, vẫn đòi",
        "trang_thai": "thieu",
        "muc": "vang"
       },
@@ -1944,6 +1953,7 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ hướng (BYĐ không ghi mặt/lưng) — 'face' chỉ thấy từ phía trước, vẫn đòi",
        "trang_thai": "thieu",
        "muc": "vang"
       },
@@ -2126,11 +2136,11 @@
     "loi": null,
     "khong_nhan_ra": [],
     "tong": {
-     "co": 3,
-     "thieu": 2,
+     "co": 2,
+     "thieu": 1,
      "thieu_mau": 0,
      "sai_mau": 0,
-     "khong_can": 0,
+     "khong_can": 2,
      "khong_co_khoa": 0
     },
     "mon": [
@@ -2154,13 +2164,12 @@
       ],
       "dau_hieu": null,
       "nguon": "suy",
-      "mau_thay": [
-       "black"
-      ],
+      "mau_thay": [],
       "dau_hieu_thay": null,
       "mau_phu_thieu": [],
-      "trang_thai": "co",
-      "muc": null
+      "trang_thai": "khong_can",
+      "muc": null,
+      "ly_do": "quay lưng (BYĐ thay = lung|nghieng): 'choker' ở mặt trước thân, khuất khi không quay mặt"
      },
      {
       "mon": "crop top",
@@ -2172,8 +2181,9 @@
       "mau_thay": [],
       "dau_hieu_thay": null,
       "mau_phu_thieu": [],
-      "trang_thai": "thieu",
-      "muc": "vang"
+      "trang_thai": "khong_can",
+      "muc": null,
+      "ly_do": "quay lưng (BYĐ thay = lung|nghieng): 'crop top' ở mặt trước thân, khuất khi không quay mặt"
      },
      {
       "mon": "tracksuit",

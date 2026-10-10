@@ -255,7 +255,8 @@
       "vat": "maxim",
       "co": "MCU",
       "thay": [],
-      "trong_khung": true
+      "trong_khung": true,
+      "cat_prompt": 0.35
      },
      "khai_bao_chu_loi": [
       {
@@ -270,11 +271,6 @@
       },
       {
        "muc": "vang",
-       "mon": "hands",
-       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
-      },
-      {
-       "muc": "vang",
        "mon": "mask",
        "loi": "món 'mask' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       },
@@ -284,27 +280,25 @@
        "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       }
      ],
-     "mau_mo_ta_lech": [
-      {
-       "muc": "vang",
-       "mon": "hair",
-       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính white — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
-      }
-     ],
+     "mau_mo_ta_lech": [],
      "loi": null,
      "khong_nhan_ra": [
       "Hoodie đỏ in hình khủng long xanh lá phun lửa",
+      "quần jean đen rách",
+      "MŨ ĐEN CÓ SỪNG ĐỎ",
       "không kéo xuống",
+      "dép khủng long đỏ",
       "dáng lấy theo NHÂN VẬT đang mặc",
-      "không theo người mẫu. Không phải đồ liền thân thú bông",
-      "không có đuôi."
+      "không theo người mẫu",
+      "Không phải đồ liền thân thú bông",
+      "không có đuôi"
      ],
      "tong": {
       "co": 1,
       "thieu": 1,
       "thieu_mau": 0,
       "sai_mau": 0,
-      "khong_can": 1,
+      "khong_can": 0,
       "khong_co_khoa": 0
      },
      "mon": [
@@ -323,21 +317,6 @@
        "muc": "vang"
       },
       {
-       "mon": "hands",
-       "mau_chinh": [
-        "black",
-        "red"
-       ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [],
-       "dau_hieu_thay": null,
-       "mau_phu_thieu": [],
-       "trang_thai": "khong_can",
-       "muc": null,
-       "ly_do": "cỡ MCU chỉ chứa 35 % thân từ đỉnh đầu; 'hands' ở 45 % — ngoài khung"
-      },
-      {
        "mon": "mask",
        "mau_chinh": [
         "black"
@@ -349,6 +328,7 @@
        ],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ hướng (BYĐ không ghi mặt/lưng) — 'mask' chỉ thấy từ phía trước, vẫn đòi",
        "trang_thai": "co",
        "muc": null
       }
@@ -457,6 +437,7 @@
        ],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ hướng (BYĐ không ghi mặt/lưng) — 'choker' chỉ thấy từ phía trước, vẫn đòi",
        "trang_thai": "co",
        "muc": null
       },
@@ -470,6 +451,7 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ hướng (BYĐ không ghi mặt/lưng) — 'crop top' chỉ thấy từ phía trước, vẫn đòi",
        "trang_thai": "thieu",
        "muc": "vang"
       },
@@ -539,7 +521,8 @@
       "vat": "kelly",
       "co": "MCU",
       "thay": [],
-      "trong_khung": true
+      "trong_khung": true,
+      "cat_prompt": 0.35
      },
      "khai_bao_chu_loi": [
       {
@@ -569,13 +552,8 @@
       },
       {
        "muc": "vang",
-       "mon": "hands",
-       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
-      },
-      {
-       "muc": "vang",
-       "mon": "dress",
-       "loi": "món 'dress' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+       "mon": "skirt",
+       "loi": "món 'skirt' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       },
       {
        "muc": "vang",
@@ -593,23 +571,18 @@
        "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       }
      ],
-     "mau_mo_ta_lech": [
-      {
-       "muc": "vang",
-       "mon": "hair",
-       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính brown — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
-      }
-     ],
+     "mau_mo_ta_lech": [],
      "loi": null,
      "khong_nhan_ra": [
       "Áo croptop đỏ in hình khủng long xanh lá",
       "dáng lấy theo NHÂN VẬT đang mặc",
-      "không theo người mẫu. Không phải đồ liền thân thú bông",
-      "không có đuôi."
+      "không theo người mẫu",
+      "Không phải đồ liền thân thú bông",
+      "không có đuôi"
      ],
      "tong": {
       "co": 2,
-      "thieu": 1,
+      "thieu": 0,
       "thieu_mau": 0,
       "sai_mau": 0,
       "khong_can": 2,
@@ -633,22 +606,7 @@
        "muc": null
       },
       {
-       "mon": "hands",
-       "mau_chinh": [
-        "black",
-        "red"
-       ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [],
-       "dau_hieu_thay": null,
-       "mau_phu_thieu": [],
-       "trang_thai": "khong_can",
-       "muc": null,
-       "ly_do": "cỡ MCU chỉ chứa 35 % thân từ đỉnh đầu; 'hands' ở 45 % — ngoài khung"
-      },
-      {
-       "mon": "dress",
+       "mon": "skirt",
        "mau_chinh": [
         "black"
        ],
@@ -657,8 +615,9 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "cỡ MCU chỉ chứa 35 % thân từ đỉnh đầu; 'skirt' ở 45 % — ngoài khung"
       },
       {
        "mon": "mask",
@@ -672,6 +631,7 @@
        ],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ hướng (BYĐ không ghi mặt/lưng) — 'mask' chỉ thấy từ phía trước, vẫn đòi",
        "trang_thai": "co",
        "muc": null
       },
@@ -745,11 +705,6 @@
       },
       {
        "muc": "vang",
-       "mon": "hands",
-       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
-      },
-      {
-       "muc": "vang",
        "mon": "mask",
        "loi": "món 'mask' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       },
@@ -759,24 +714,22 @@
        "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       }
      ],
-     "mau_mo_ta_lech": [
-      {
-       "muc": "vang",
-       "mon": "hair",
-       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính white — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
-      }
-     ],
+     "mau_mo_ta_lech": [],
      "loi": null,
      "khong_nhan_ra": [
       "Hoodie đỏ in hình khủng long xanh lá phun lửa",
+      "quần jean đen rách",
+      "MŨ ĐEN CÓ SỪNG ĐỎ",
       "không kéo xuống",
+      "dép khủng long đỏ",
       "dáng lấy theo NHÂN VẬT đang mặc",
-      "không theo người mẫu. Không phải đồ liền thân thú bông",
-      "không có đuôi."
+      "không theo người mẫu",
+      "Không phải đồ liền thân thú bông",
+      "không có đuôi"
      ],
      "tong": {
-      "co": 0,
-      "thieu": 3,
+      "co": 1,
+      "thieu": 1,
       "thieu_mau": 0,
       "sai_mau": 0,
       "khong_can": 0,
@@ -798,31 +751,20 @@
        "muc": "vang"
       },
       {
-       "mon": "hands",
-       "mau_chinh": [
-        "black",
-        "red"
-       ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [],
-       "dau_hieu_thay": null,
-       "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
-      },
-      {
        "mon": "mask",
        "mau_chinh": [
         "black"
        ],
        "dau_hieu": null,
        "nguon": "suy",
-       "mau_thay": [],
+       "mau_thay": [
+        "black"
+       ],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "khong_loc": "không rõ hướng (BYĐ không ghi mặt/lưng) — 'mask' chỉ thấy từ phía trước, vẫn đòi",
+       "trang_thai": "co",
+       "muc": null
       }
      ]
     },
@@ -868,13 +810,8 @@
       },
       {
        "muc": "vang",
-       "mon": "hands",
-       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
-      },
-      {
-       "muc": "vang",
-       "mon": "dress",
-       "loi": "món 'dress' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+       "mon": "skirt",
+       "loi": "món 'skirt' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       },
       {
        "muc": "vang",
@@ -892,23 +829,18 @@
        "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       }
      ],
-     "mau_mo_ta_lech": [
-      {
-       "muc": "vang",
-       "mon": "hair",
-       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính brown — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
-      }
-     ],
+     "mau_mo_ta_lech": [],
      "loi": null,
      "khong_nhan_ra": [
       "Áo croptop đỏ in hình khủng long xanh lá",
       "dáng lấy theo NHÂN VẬT đang mặc",
-      "không theo người mẫu. Không phải đồ liền thân thú bông",
-      "không có đuôi."
+      "không theo người mẫu",
+      "Không phải đồ liền thân thú bông",
+      "không có đuôi"
      ],
      "tong": {
-      "co": 1,
-      "thieu": 4,
+      "co": 2,
+      "thieu": 2,
       "thieu_mau": 0,
       "sai_mau": 0,
       "khong_can": 0,
@@ -932,21 +864,7 @@
        "muc": null
       },
       {
-       "mon": "hands",
-       "mau_chinh": [
-        "black",
-        "red"
-       ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [],
-       "dau_hieu_thay": null,
-       "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
-      },
-      {
-       "mon": "dress",
+       "mon": "skirt",
        "mau_chinh": [
         "black"
        ],
@@ -965,11 +883,13 @@
        ],
        "dau_hieu": null,
        "nguon": "suy",
-       "mau_thay": [],
+       "mau_thay": [
+        "black"
+       ],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "co",
+       "muc": null
       },
       {
        "mon": "stockings",
@@ -1040,11 +960,6 @@
       },
       {
        "muc": "vang",
-       "mon": "hands",
-       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
-      },
-      {
-       "muc": "vang",
        "mon": "mask",
        "loi": "món 'mask' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       },
@@ -1054,24 +969,22 @@
        "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       }
      ],
-     "mau_mo_ta_lech": [
-      {
-       "muc": "vang",
-       "mon": "hair",
-       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính white — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
-      }
-     ],
+     "mau_mo_ta_lech": [],
      "loi": null,
      "khong_nhan_ra": [
       "Hoodie đỏ in hình khủng long xanh lá phun lửa",
+      "quần jean đen rách",
+      "MŨ ĐEN CÓ SỪNG ĐỎ",
       "không kéo xuống",
+      "dép khủng long đỏ",
       "dáng lấy theo NHÂN VẬT đang mặc",
-      "không theo người mẫu. Không phải đồ liền thân thú bông",
-      "không có đuôi."
+      "không theo người mẫu",
+      "Không phải đồ liền thân thú bông",
+      "không có đuôi"
      ],
      "tong": {
-      "co": 0,
-      "thieu": 3,
+      "co": 1,
+      "thieu": 1,
       "thieu_mau": 0,
       "sai_mau": 0,
       "khong_can": 0,
@@ -1093,31 +1006,20 @@
        "muc": "vang"
       },
       {
-       "mon": "hands",
-       "mau_chinh": [
-        "black",
-        "red"
-       ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [],
-       "dau_hieu_thay": null,
-       "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
-      },
-      {
        "mon": "mask",
        "mau_chinh": [
         "black"
        ],
        "dau_hieu": null,
        "nguon": "suy",
-       "mau_thay": [],
+       "mau_thay": [
+        "black"
+       ],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "khong_loc": "không rõ hướng (BYĐ không ghi mặt/lưng) — 'mask' chỉ thấy từ phía trước, vẫn đòi",
+       "trang_thai": "co",
+       "muc": null
       }
      ]
     },
@@ -1161,13 +1063,8 @@
       },
       {
        "muc": "vang",
-       "mon": "hands",
-       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
-      },
-      {
-       "muc": "vang",
-       "mon": "dress",
-       "loi": "món 'dress' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+       "mon": "skirt",
+       "loi": "món 'skirt' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       },
       {
        "muc": "vang",
@@ -1185,23 +1082,18 @@
        "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       }
      ],
-     "mau_mo_ta_lech": [
-      {
-       "muc": "vang",
-       "mon": "hair",
-       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính brown — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
-      }
-     ],
+     "mau_mo_ta_lech": [],
      "loi": null,
      "khong_nhan_ra": [
       "Áo croptop đỏ in hình khủng long xanh lá",
       "dáng lấy theo NHÂN VẬT đang mặc",
-      "không theo người mẫu. Không phải đồ liền thân thú bông",
-      "không có đuôi."
+      "không theo người mẫu",
+      "Không phải đồ liền thân thú bông",
+      "không có đuôi"
      ],
      "tong": {
-      "co": 0,
-      "thieu": 5,
+      "co": 1,
+      "thieu": 3,
       "thieu_mau": 0,
       "sai_mau": 0,
       "khong_can": 0,
@@ -1222,21 +1114,7 @@
        "muc": "vang"
       },
       {
-       "mon": "hands",
-       "mau_chinh": [
-        "black",
-        "red"
-       ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [],
-       "dau_hieu_thay": null,
-       "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
-      },
-      {
-       "mon": "dress",
+       "mon": "skirt",
        "mau_chinh": [
         "black"
        ],
@@ -1255,11 +1133,14 @@
        ],
        "dau_hieu": null,
        "nguon": "suy",
-       "mau_thay": [],
+       "mau_thay": [
+        "black"
+       ],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "khong_loc": "không rõ hướng (BYĐ không ghi mặt/lưng) — 'mask' chỉ thấy từ phía trước, vẫn đòi",
+       "trang_thai": "co",
+       "muc": null
       },
       {
        "mon": "stockings",
@@ -1330,11 +1211,6 @@
       },
       {
        "muc": "vang",
-       "mon": "hands",
-       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
-      },
-      {
-       "muc": "vang",
        "mon": "mask",
        "loi": "món 'mask' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       },
@@ -1344,24 +1220,22 @@
        "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       }
      ],
-     "mau_mo_ta_lech": [
-      {
-       "muc": "vang",
-       "mon": "hair",
-       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính white — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
-      }
-     ],
+     "mau_mo_ta_lech": [],
      "loi": null,
      "khong_nhan_ra": [
       "Hoodie đỏ in hình khủng long xanh lá phun lửa",
+      "quần jean đen rách",
+      "MŨ ĐEN CÓ SỪNG ĐỎ",
       "không kéo xuống",
+      "dép khủng long đỏ",
       "dáng lấy theo NHÂN VẬT đang mặc",
-      "không theo người mẫu. Không phải đồ liền thân thú bông",
-      "không có đuôi."
+      "không theo người mẫu",
+      "Không phải đồ liền thân thú bông",
+      "không có đuôi"
      ],
      "tong": {
-      "co": 0,
-      "thieu": 3,
+      "co": 1,
+      "thieu": 1,
       "thieu_mau": 0,
       "sai_mau": 0,
       "khong_can": 0,
@@ -1383,31 +1257,20 @@
        "muc": "vang"
       },
       {
-       "mon": "hands",
-       "mau_chinh": [
-        "black",
-        "red"
-       ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [],
-       "dau_hieu_thay": null,
-       "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
-      },
-      {
        "mon": "mask",
        "mau_chinh": [
         "black"
        ],
        "dau_hieu": null,
        "nguon": "suy",
-       "mau_thay": [],
+       "mau_thay": [
+        "black"
+       ],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "khong_loc": "không rõ hướng (BYĐ không ghi mặt/lưng) — 'mask' chỉ thấy từ phía trước, vẫn đòi",
+       "trang_thai": "co",
+       "muc": null
       }
      ]
     },
@@ -1451,13 +1314,8 @@
       },
       {
        "muc": "vang",
-       "mon": "hands",
-       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
-      },
-      {
-       "muc": "vang",
-       "mon": "dress",
-       "loi": "món 'dress' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+       "mon": "skirt",
+       "loi": "món 'skirt' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       },
       {
        "muc": "vang",
@@ -1475,23 +1333,18 @@
        "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
       }
      ],
-     "mau_mo_ta_lech": [
-      {
-       "muc": "vang",
-       "mon": "hair",
-       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính brown — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
-      }
-     ],
+     "mau_mo_ta_lech": [],
      "loi": null,
      "khong_nhan_ra": [
       "Áo croptop đỏ in hình khủng long xanh lá",
       "dáng lấy theo NHÂN VẬT đang mặc",
-      "không theo người mẫu. Không phải đồ liền thân thú bông",
-      "không có đuôi."
+      "không theo người mẫu",
+      "Không phải đồ liền thân thú bông",
+      "không có đuôi"
      ],
      "tong": {
-      "co": 0,
-      "thieu": 5,
+      "co": 1,
+      "thieu": 3,
       "thieu_mau": 0,
       "sai_mau": 0,
       "khong_can": 0,
@@ -1512,21 +1365,7 @@
        "muc": "vang"
       },
       {
-       "mon": "hands",
-       "mau_chinh": [
-        "black",
-        "red"
-       ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [],
-       "dau_hieu_thay": null,
-       "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
-      },
-      {
-       "mon": "dress",
+       "mon": "skirt",
        "mau_chinh": [
         "black"
        ],
@@ -1545,11 +1384,14 @@
        ],
        "dau_hieu": null,
        "nguon": "suy",
-       "mau_thay": [],
+       "mau_thay": [
+        "black"
+       ],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "khong_loc": "không rõ hướng (BYĐ không ghi mặt/lưng) — 'mask' chỉ thấy từ phía trước, vẫn đòi",
+       "trang_thai": "co",
+       "muc": null
       },
       {
        "mon": "stockings",

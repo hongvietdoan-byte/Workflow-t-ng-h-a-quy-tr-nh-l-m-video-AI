@@ -215,8 +215,8 @@
    "nguon_khoa": "must_keep (suy món + màu, chưa có khai_bao_chu)",
    "trang_thai": {
     "hair": "co",
-    "choker": "co",
-    "crop top": "thieu",
+    "choker": "khong_can",
+    "crop top": "khong_can",
     "tracksuit": "co",
     "sneakers": "thieu"
    }
