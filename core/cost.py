@@ -299,6 +299,7 @@ LLM_STAGE_TOKENS = {"director": (25000, 18000), "motion": (9000, 4000), "qc": (6
                     "video_analysis": (14000, 4000), "setcheck": (8000, 1200), "clipcheck": (10000, 1200),
                     "asset_vision": (6000, 900), "research": (25000, 1500),
                     "script_ocr": (1500, 3000),     # 09/10: chép chữ một trang kịch bản chụp (+ 1 ảnh qua `images`)
+                    "director_byd": (9000, 6000),     # K1a: sửa BYĐ các shot hỏng (prompt 31 + shot hỏng; tính dư)
                     "director_rewrite": (5000, 900),   # S14.17: one shot's prompt rewritten before a retake (+ the faulty picture)
                     "change_review": (6000, 1500),    # 10/10 Tổ rà soát tác động: một thay đổi + các shot liên quan (chữ), JSON ngắn
                     "director_stage_specs": (9000, 12000),  # Sân khấu 3D V3: đề bài ≈ 8–9k (prompt 29 + kịch bản + căn cứ), ra suy nghĩ + JSON ≈ 6–12k

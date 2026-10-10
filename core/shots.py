@@ -258,6 +258,11 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
             data[key] = scene[key]
     from . import shot_complexity
     shot_complexity.apply(data)
+    from . import director_byd                     # K1a cờ shot_intent: BYĐ Đạo diễn điền + kết quả kiểm (tắt → không có trường mới)
+    if director_byd.enabled():
+        for key in ("byd", "byd_kiem"):
+            if isinstance(s.get(key), dict):
+                data[key] = s[key]
     return data
 
 

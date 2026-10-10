@@ -751,6 +751,21 @@
    "what": "Kiểm schema/hình học sơ đồ khối Nhánh C: khối, sàn, lối đi, vật kịch bản, số chuẩn — chỉ Python + test, CHƯA nối luồng/duyệt Kho",
    "where": "core/blockout.py:check_geometry",
    "bat": false
+  },
+  {
+   "id": "d98",
+   "step": "step1",
+   "who": "claude",
+   "what": "K1a: Đạo diễn sửa bảng ý đồ shot (BYĐ) của các shot code báo lỗi, ≤ 2 lượt rồi VÀNG có lý do (cờ shot_intent)",
+   "where": "core/director_byd.py:STAGE",
+   "stage": "director_byd"
+  },
+  {
+   "id": "d99",
+   "step": "step1",
+   "who": "code",
+   "what": "K1a: kiểm BYĐ Đạo diễn điền cho từng shot (shot_intent.validate, mã Kho có thật) — lỗi gửi lại Đạo diễn, còn lỗi → VÀNG + ⚙ Chẩn đoán (cờ shot_intent)",
+   "where": "core/director_byd.py:settle"
   }
  ]
 }

@@ -358,6 +358,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "G0 (người dùng 09/10, docs/KE_HOACH_DAT_MAY_3D_2026-10-09.md): chưa chạy thật — thử trên #24 (Claude ≈ vài cent: sơ đồ "
                "+ duyệt render, báo giá trước) rồi mới bật",
     },
+    "shot_intent": {
+        "label": "K1a Đạo diễn điền bảng ý đồ shot (BYĐ): mỗi shot thêm khối `byd` (thành phần, tư thế + vùng che, dạng, máy, nơi "
+                 "chốn) — code kiểm, sai thì gửi lỗi cho Đạo diễn sửa ≤ 2 vòng (lượt Claude nhỏ), còn sai → VÀNG có lý do; lưu "
+                 "scenes.data.byd cho lớp kiểm nhận diện / chạy khô đọc",
+        "verified": False,
+        "why": "K1a (docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md, A14/A19/A29): mới thử bằng Claude giả lập — chưa chạy Đạo diễn thật "
+               "có BYĐ (thêm token ra mỗi shot + tối đa 2 lượt sửa, ước tính hiện ở nút Director)",
+    },
     "murch_knowledge": {
         "label": "Bộ não prompt Đợt 2: Director + motion đọc thang ưu tiên cảm xúc (Murch), motion đọc kỷ luật I2V (giữ trước, hỏng thì "
                  "giảm chuyển động, check_flags gọi tên rủi ro), Director đọc phương pháp âm thanh; người xem lần đầu chấm thêm cam_xuc",

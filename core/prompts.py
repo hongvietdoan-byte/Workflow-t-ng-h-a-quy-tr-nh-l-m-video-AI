@@ -144,6 +144,8 @@ def shot_style_block(proj) -> str:
                      "ghi một dòng vào `tradeoffs` (chọn gì, bỏ gì, vì sao).")
         for st_name in picked:
             parts.append(f"## Phong cách tham khảo: {st_name}\n\n" + _read("knowledge", f"ff_styles/{st_name}.md"))
+    from . import director_byd
+    parts.append(director_byd.prompt_block())       # K1a cờ shot_intent: mỗi shot thêm khối `byd`; cờ tắt → "" (bị lọc, prompt y cũ)
     return _SEP.join(p for p in parts if p)
 
 
