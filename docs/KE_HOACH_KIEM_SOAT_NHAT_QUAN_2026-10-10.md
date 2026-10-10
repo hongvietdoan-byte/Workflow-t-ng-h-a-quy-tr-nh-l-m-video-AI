@@ -5,7 +5,7 @@
 > Bản v2 viết lại toàn bộ sau: thẩm định độc lập 6,2/10 (`docs/THAM_DINH_KE_HOACH_KIEM_SOAT_2026-10-10.md`), nghiên cứu thị trường
 > (`docs/NGHIEN_CUU_THI_TRUONG_KIEM_SOAT_VIDEO_AI_2026-10-10.md`) và các chốt của người dùng (mục A). Bản v1 (các lần vá 9b–12) ở commit
 > `a9e19ea` — đã thay hoàn toàn, không dùng nữa. Nền: `docs/RA_SOAT_KHAU_VA_KIEM_TRA_2026-10-10.md`.
-> **Trạng thái: mọi điểm đã chốt; chờ thẩm định lại rồi build K0a.**
+> **Trạng thái (10/10): thẩm định lần 2 = 7,1/10 "sửa nhỏ rồi build K0a" → đã sửa 3 điểm CAO (3.3b, 3.3 khai/so + học việc, K1a/K1b) + A14–A17; build K0a.**
 
 ## A. Các chốt của người dùng (10/10) — nguồn duy nhất cho phạm vi
 
@@ -24,6 +24,10 @@
 | A11 | **Âm thanh, phụ đề, dựng nằm trong khâu kiểm soát** ngay từ đầu. |
 | A12 | **Prompt do Đạo diễn và hệ thống HỢP TÁC viết**: hệ thống không tự chèn / sửa chữ của Đạo diễn (tránh vô tình ngược ý); hệ thống kiểm và trả lỗi cụ thể, Đạo diễn sửa, lặp tới khi đạt (mục 3.3). |
 | A13 | Người dùng **không phải đọc prompt**: mọi quyết định qua một dòng tiếng Việt + nút. |
+| A14 | (sau thẩm định lần 2) **Hệ thống KHÔNG chèn bất kỳ chữ nào** vào prompt: hệ thống phân tích → đưa **khai báo** cho Đạo diễn → Đạo diễn viết lại → hệ thống kiểm lại đủ + đúng thông tin chưa → chưa thì đưa khai báo tiếp. Khóa nhận diện, hình học, số liệu được củng cố bằng khai báo BẮT BUỘC (Đạo diễn phải thể hiện, code kiểm) — mục 3.3b. |
+| A15 | Dự án mới **chỉ dùng 2 bối cảnh có 3D: Tháp Đồng Hồ (Kho #263) và Cổng Trời (#265)** cho tới khi dựng sân khấu từ ảnh (K1b) xong. |
+| A16 | **Chấp nhận chi phí kiểm** (~10–20 % chi gen) để đầu vào / đầu ra chất lượng, thay vì sửa và gen lại nhiều: chi phí kiểm chỉ ĐO và BÁO, không phải ngưỡng chặn. |
+| A17 | Video có **2 lớp kiểm bằng code — TRƯỚC và SAU khi gen** — làm cùng đợt ảnh (K3); lớp Claude của video ở K4 (mục 3.4, 3.6, 8). |
 
 ## 0. Vì sao sửa nhiều lần vẫn lặp lại
 
@@ -51,7 +55,7 @@ chứng minh bằng số đo.
 | # | Nguyên tắc | Nghĩa cụ thể |
 |---|---|---|
 | N1 | **Một nguồn ý đồ** | Mỗi shot một BYĐ có cấu trúc. Mọi lớp kiểm đọc BYĐ (và gói thật), không đọc lại chữ tự do bằng mẫu từ để KẾT LUẬN. |
-| N2 | **Viết hợp tác, không chèn ngầm** | Đạo diễn viết prompt (câu chính, ngắn, đúng ngữ pháp model). Hệ thống KHÔNG sửa / chèn chữ của Đạo diễn; hệ thống đưa trước dữ kiện (sự thật hình học, vai ảnh, ngân sách model), kiểm bản viết, trả lỗi cụ thể; Đạo diễn sửa; lặp ≤ 2 vòng rồi hỏi người. |
+| N2 | **Viết hợp tác, hệ thống không chèn chữ (A14)** | Đạo diễn viết TOÀN BỘ prompt (ngắn, đúng ngữ pháp model). Hệ thống KHÔNG sửa / chèn chữ nào — mọi phần code từng ghép thành khai báo (3.3b); hệ thống đưa trước dữ kiện (sự thật hình học, vai ảnh, ngân sách model), kiểm bản viết, trả lỗi cụ thể; Đạo diễn sửa; lặp ≤ 2 vòng rồi hỏi người. |
 | N3 | **Kiểm trước tiền** | Mọi khâu tốn tiền (ảnh, video, TTS, nhạc, Claude lớn) có lớp kiểm TRƯỚC khi gửi, nhìn ĐÚNG gói sẽ gửi. |
 | N4 | **Model khai, code kết luận** | Lớp Claude chỉ khai điều THẤY (enum / danh sách mở có giới hạn), không khai "đúng/sai", "vô lý hay không". Code so với điều mong đợi (mục 5) và quyết. |
 | N5 | **Không giao VLM việc nó kém** | Trái/phải, đếm, vị trí, tỉ lệ, góc máy: code / bộ phát hiện / hình học 3D quyết. VLM chỉ khai có/không. Đo không được → VÀNG, không đoán. |
@@ -122,17 +126,36 @@ Vòng cho mỗi shot (ảnh và video):
    ngoài"); vai + ảnh tham chiếu đã chọn (kiểu Elements: nhân vật/vật gọi bằng tên, ngoại hình do ảnh giữ); ngân sách model (N11);
    ngoại lệ đã khai.
 2. Đạo diễn viết prompt (ngắn, câu khẳng định, ý chính đầu).
-3. Hệ thống kiểm bản viết — KHÔNG sửa chữ:
-   - code: ngân sách từ / số ý / câu phủ định; tên nhân vật/vật có trong BYĐ; mâu thuẫn hình học **ở mức trường** (prompt sinh ý → so ô
-     BYĐ + ②), regex chỉ để gợi ý (VÀNG);
-   - Claude khai (kiểu DSG): tách prompt thành ý nguyên tử; mỗi ý BYĐ: prompt **có nói / không nói / nói trái** + trích ≤ 12 từ; mỗi ý
-     của prompt không có trong BYĐ → liệt kê (ý thêm của Đạo diễn — được giữ nếu không trái BYĐ / ② / Kho / luật thế giới).
-4. Code kết luận → trả Đạo diễn danh sách lỗi cụ thể ("ý 'giếng: chỉ thành ngoài' — prompt nói 'its dark mouth facing us' (trái)").
+3. Hệ thống kiểm bản viết — KHÔNG sửa, KHÔNG chèn chữ (A14):
+   - code: ngân sách từ / số ý / câu phủ định; tên nhân vật/vật có trong BYĐ; khai báo bắt buộc (3.3b) có mặt; regex chỉ GỢI Ý (VÀNG);
+   - Claude **chỉ khai** (kiểu DSG, N4): tách prompt thành ý nguyên tử, mỗi ý = (trường BYĐ, giá trị enum, trích ≤ 12 từ) hoặc (ý ngoài
+     BYĐ, trích). Claude KHÔNG khai "đúng / trái".
+4. **Code so** từng ý khai với ô BYĐ + ② + Kho + luật thế giới → có / thiếu / trái → trả Đạo diễn danh sách lỗi cụ thể ("ô 'giếng: chỉ
+   thành ngoài' — prompt có ý 'giếng: thấy lòng' ← 'its dark mouth facing us'"). Ý ngoài BYĐ được giữ nếu không trái nguồn nào.
+   **Học việc (N8):** khi lớp Claude của vòng này chưa đạt ngưỡng mục 9, chỉ lỗi của lớp CODE được trả tự động cho Đạo diễn; lỗi suy từ
+   khai của Claude ghi `trainee_log` + so với người dùng, chưa tác động.
 5. Đạo diễn sửa → kiểm lại. ≤ 2 vòng. Vẫn đỏ → giữ, hỏi người một dòng + nút (sửa BYĐ / chấp nhận / bỏ shot).
-Kết quả: prompt cuối = chữ của Đạo diễn, đã kiểm đủ; mọi ý có nguồn. **Dấu vân tay gói** dùng lại `core/storyboard_gate.py:103` /
-`core/autopilot.py:651-685` → gói không đổi thì không kiểm lại.
-**So A/B (A7, cuối K2):** 3 shot × 2 bản (prompt viết hợp tác vs prompt Đạo diễn hiện tại), chất lượng thấp, trần cứng ≤ 1 USD, người dùng
-chấm bằng nút → điều kiện qua K3.
+Kết quả: prompt cuối = chữ của Đạo diễn, đã kiểm đủ; mọi ý có nguồn. **Dấu vân tay gói: VIẾT MỚI ở K2** (thẩm định lần 2: vân tay hiện có
+ở `storyboard_gate` chỉ là id ảnh duyệt, ở `autopilot` là trường cổng plates) — băm (prompt cuối + id/sha ảnh tham chiếu + vai + model +
+render + tham số), dùng chung ảnh và video → gói không đổi thì không kiểm lại.
+**So A/B (A7, cuối K2):** 3 shot phủ 3 kiểu (hình học, trang phục / nhận diện, hành động) × 2 bản (viết hợp tác vs cách hiện tại có chữ hệ
+thống chèn), chất lượng thấp, trần cứng ≤ 1 USD, người dùng chấm bằng nút. 2/3 chỉ là định hướng; được chạy lần 2 trong trần nếu chưa rõ.
+
+### 3.3b Chữ hệ thống → khai báo (A14)
+
+Hiện `core/runner.py` `build_image_prompt` (~dòng 1811) tự ghép nhiều phần do code viết; `looks.clean_prompt` xóa chữ Đạo diễn;
+`stage_facts.prompt_block` nối câu "…overrides any other words". Sau K2 (cờ `collab_prompt`), mọi phần chuyển thành KHAI BÁO cho Đạo diễn:
+
+| Phần code đang ghép | Thành khai báo | Kiểm sau khi Đạo diễn viết |
+|---|---|---|
+| Khóa nhận diện + màu trang phục (Identity lock F1-C, sửa lỗi #22) | BẮT BUỘC: từng món `must_keep` + màu, dạng trang phục | code: mỗi món có ý tương ứng (khai Claude + so); thiếu → lỗi trả Đạo diễn |
+| Câu sự thật hình học (`stage_facts.prompt_block`) | BẮT BUỘC: phần thấy của vật, khối thay thế = vật thật, chân trời, góc ảnh mẫu | code so ý khai với ② |
+| Ghi chú góc nhìn (view_notes), thấy mặt / lưng | BẮT BUỘC theo BYĐ `thay` | code so |
+| Phong cách dự án (style), câu chốt chất lượng | KHUYẾN NGHỊ: Đạo diễn viết theo ngân sách model | code: có ý phong cách; không trái phong cách dự án |
+| Gỡ chữ tả thực (`looks.clean_prompt`) | KHAI BÁO "tránh chữ X" thay vì xóa | code: chữ X còn → lỗi trả Đạo diễn |
+| Giới hạn máu / gore | KHAI BÁO theo luật dự án | code + Claude khai |
+
+Khai báo bắt buộc chưa thể hiện sau 2 vòng → giữ, hỏi người một dòng. Cờ tắt → hành vi cũ y hệt (test so trước/sau).
 
 ### 3.4 ④ Người duyệt gói (trước tiền)
 
@@ -142,6 +165,15 @@ máy — `scene_storyboard.own_camera`); trần số ảnh theo model; video: kh
 đầu–đỉnh–cuối, thời lượng hợp model; âm thanh: thoại đúng người nói/giọng, độ dài khớp shot; gen lại: N10.
 **Lớp Claude — học việc rồi chặn:** nhìn ảnh tham chiếu thu nhỏ có nhãn vai + prompt cuối + BYĐ; khai mỗi ảnh có kéo trái ý nào không
 (enum) — vì ảnh tham chiếu xung đột là nguồn lỗi #24 mà code không thấy được nội dung ảnh.
+
+### 3.4b Video: 2 lớp kiểm bằng code, trước và sau gen (A17 — làm ở K3)
+
+| Lớp | Kiểm (code, 0 USD) | Mức |
+|---|---|---|
+| TRƯỚC gen | khung đầu = ảnh ĐÃ DUYỆT hiện hành của chính shot (mã job + sha tệp; ảnh đã bị thay / bỏ duyệt → chặn) · khung cuối (nếu dùng) khớp `ket_thuc` BYĐ và đã duyệt · thời lượng hợp model + khớp độ dài thoại / nhịp · ảnh / video tham chiếu theo luật từng model (Kling video ref ≥ 3 s, rộng 700–4553 px, SAR 1:1; Seedance mỗi tài sản một vai; trần số ảnh) · motion có đủ đầu–đỉnh–cuối + chuyển động máy enum · dấu vân tay gói khác lần trước khi gen lại (N10) | chặn |
+| SAU gen | trôi hình / giật / viền lạ / môi (`core/clip_measure.py`, có) · **khung 0 của clip khớp ảnh khung đầu** (so ảnh, ngưỡng đo) · khung cuối khớp khung cuối duyệt (nếu có) · thời lượng thật · có tiếng / không tiếng đúng ý · **chuyển động máy so `chuyen_dong`** (luồng quang `motion_series` có sẵn → phân loại đứng / đẩy / kéo / lia — XÂY ở K3) · đầu–cuối trạng thái người (YuNet thấy mặt / lưng ở khung đầu, cuối) | lệch chắc → gen lại theo N10; không chắc → VÀNG |
+
+Lớp Claude của video (khai L1–L15 trên khung mẫu, tường thuật + chuyển động) ở K4.
 
 ### 3.5 ⑤ Gen — N bản rẻ (tùy chọn, tốn tiền)
 Mở rộng tuyến E1 (09/10) từ video sang ảnh khung đầu: 2–4 bản chất lượng thấp → ⑥ chấm theo ý → code/người chọn → nâng. Bật theo dự án,
@@ -201,7 +233,7 @@ Ba nguồn, không dựa lỗi cũ:
 | L13 | Liên tục shot kề | so trạng thái cuối/đầu (K1) | đồ / chỗ / tư thế giữ không | ✓ | ✓ | ✓ thoại |
 | L14 | Lỗi tạo hình | — | tay, mặt méo, chữ lạ: có/không + chỗ | ✓ | ✓ | — |
 | L15 | Thứ lạ ngoài BYĐ | — | danh sách mở ≤ 5 → code so "không được có" + vàng thứ lạ | ✓ | ✓ | — |
-| V1–V4 | Trôi hình, giật, môi, chuyển động máy | đo clip d42 (có) | chuyển động khớp `bat_dau→dinh→ket_thuc` / máy | — | ✓ | — |
+| V1–V4 | Trôi hình, giật, môi (có, `clip_measure`); chuyển động máy so BYĐ (XÂY K3) | đo clip d42 | chuyển động khớp `bat_dau→dinh→ket_thuc` / máy | — | ✓ | — |
 | A1 | Thoại: đúng câu, đúng người, đúng giọng | so chữ TTS d39 (có), độ dài | — | — | — | ✓ |
 | A2 | Nhạc / SFX theo nhịp, cường độ | loudness (có), mốc nhịp | SFX khớp hành động: có/không | — | — | ✓ |
 | A3 | Phụ đề: chính tả, khớp thoại, thời điểm, vùng an toàn | so chữ, so mốc thời gian (K6) | — | — | — | ✓ |
@@ -263,18 +295,19 @@ Mỗi đợt: cờ riêng (TẮT mặc định), test đỏ → xanh, rà KỸ k
 
 | Đợt | Việc | Tốn tiền | Xong khi |
 |---|---|---|---|
-| **K0a** Sổ khâu + định dạng | `devsys/stages.json` + test hợp đồng; thêm khâu code thiếu vào `decisions.json`; schema BYĐ tối thiểu + định dạng ca hồi quy; sửa `LLM_STAGE_TOKENS` khâu chấm (đo 10/10: output ~5k, ước thấp ~40 %) | 0 | test hợp đồng chạy, trang "Làm ↔ Kiểm" hiện đúng các khâu thiếu kiểm (đỏ) |
+| **K0a** Sổ khâu + định dạng | `devsys/stages.json` + test hợp đồng; thêm khâu code thiếu vào `decisions.json`; schema BYĐ tối thiểu + định dạng ca hồi quy; sửa `LLM_STAGE_TOKENS` khâu chấm (`core/cost.py:297` qc (6000, 900) → output đo ~5000 token, 10/10); gộp `tests/fixtures/stage_facts_golden.json` vào định dạng `tests/golden/` | 0 | test hợp đồng chạy, trang "Làm ↔ Kiểm" hiện đúng các khâu thiếu kiểm (đỏ) |
 | **K0b** Bảng loại lỗi + kỹ năng + luật thế giới | `knowledge/checks/*.md` cho L1–L15, V1–V4, A1–A4; bảng luật thế giới có phạm vi; ca hồi quy từ #8/#22/#24 (`ca_vang_tay`) | 0 | mỗi loại có tệp kỹ năng + cách kết luận; ≥ 15 ca hồi quy định dạng đúng |
-| **K1** BYĐ + sân khấu 3D bắt buộc | `core/shot_intent.py`; Đạo diễn điền BYĐ + `ngoai_le` (prompt 17/20/29, cờ `shot_intent`); sân khấu từ ảnh ref (V6 — tải model chiều sâu ~100 MB: hỏi người dùng trước); duyệt kiểu (c) có hình 3D trên Dashboard | Claude khi chạy Đạo diễn | một dự án mới thử có BYĐ đủ mọi shot, người dùng duyệt |
+| **K1a** BYĐ trên 2 bối cảnh có 3D (A15) | `core/shot_intent.py`; Đạo diễn điền BYĐ + `ngoai_le` (prompt 17/20/29, cờ `shot_intent`); dự án mới chỉ chọn được Tháp Đồng Hồ #263 / Cổng Trời #265; duyệt kiểu (c) có hình 3D trên Dashboard | Claude khi chạy Đạo diễn | một dự án mới thử có BYĐ đủ mọi shot, người dùng duyệt |
+| **K1b** Sân khấu 3D từ ảnh (A10, sau K4) | Nhánh B mục 12 `docs/PHUONG_PHAP_SAN_KHAU_3D.md` (hiệu chỉnh, chiều sâu, ghép ảnh, P5; tải model chiều sâu ~100 MB — hỏi người dùng trước) | 0 (code) | lệch chiếu ngược ≤ 3 % trên ≥ 3 bối cảnh → mở thêm bối cảnh cho dự án mới |
 | **K2** Viết hợp tác (ảnh) | vòng 3.3 + dấu vân tay gói + ngân sách model + ảnh tham chiếu kiểu Elements; **so A/B ≤ 1 USD** (A7) | ≤ 1 USD (A/B) + Claude vòng viết | người dùng chấm A/B: bản hợp tác ≥ bản hiện tại ở ≥ 2/3 shot |
-| **K3** Người duyệt gói ảnh | ④ lớp code chặn, lớp Claude học việc; gen lại qua ③④ + N10; một dòng tiếng Việt | Claude học việc (đo thật — báo giá trước) | lớp code bắt 100 % ca hồi quy thuộc nó; số đo Claude ghi đủ 1 dự án |
-| **K4** Video ngang ảnh | ③④⑥ cho video: khung đầu, motion đầu–đỉnh–cuối, ref video theo luật model, L1–L15 trên khung mẫu + V1–V4 | như K3 | ca hồi quy video (#22, #24) bắt đúng; ④ video chặn khung đầu sai 100 % |
+| **K3** Người duyệt gói ảnh + 2 lớp code video | ④ lớp code chặn, lớp Claude học việc; gen lại qua ③④ + N10; một dòng tiếng Việt; **video: lớp code TRƯỚC + SAU gen (3.4b, A17)** gồm phân loại chuyển động máy | Claude học việc (đo thật — báo giá trước) | lớp code bắt 100 % ca hồi quy thuộc nó; số đo Claude ghi đủ 1 dự án |
+| **K4** Video ngang ảnh (lớp Claude) | ③ motion viết hợp tác; ④⑥ lớp Claude cho video: L1–L15 trên khung mẫu (số khung mẫu chốt ở K4 theo đo), tường thuật + chuyển động | như K3 | ca hồi quy video (#22, #24) bắt đúng; ④ video chặn khung đầu sai 100 % |
 | **K5** QC sau gen + công cụ đo | DSG + đồ thị phụ thuộc; bộ phát hiện vật, Pose, embedding mặt, màu vùng (L10); Tổ QC C2/C3; N bản rẻ → chọn (tùy chọn) | QC ≈ 0,03–0,04 USD/khung (ước theo số mệnh đề) | số đo đạt mục 9 → đề xuất chặn |
 | **K6** Âm thanh, phụ đề, dựng | ③④⑥ cho A1–A4 | nhỏ | ca hồi quy âm/chữ bắt đúng |
 | **K7** Thay đổi theo BYĐ | `change_review` đọc khác biệt BYĐ | như hiện tại | không lớp nào còn đọc chữ tự do để kết luận |
 | **K8** Vận hành | quy trình mục 10 vào `docs/CHUAN_XAY_DUNG.md` + CLAUDE.md; báo cáo số đo hàng tuần | 0 | — |
 
-Phụ thuộc: K0a → K0b → K1 → K2 → K3 → K4; K5 sau K3 (song song K4 được); K6 sau K3; K7 sau K1. Điểm dừng đo: cuối K2 (A/B), cuối K3
+Phụ thuộc: K0a → K0b → K1a → K2 → K3 → K4 → K1b; K5 sau K3 (song song K4 được); K6 sau K3; K7 sau K1a. Điểm dừng đo: cuối K2 (A/B), cuối K3
 (số đo học việc), cuối K4 (video).
 
 ## 9. Chi phí (ước, đo lại ở K3) và tiêu chí nghiệm thu
@@ -288,8 +321,8 @@ Phụ thuộc: K0a → K0b → K1 → K2 → K3 → K4; K5 sau K3 (song song K4 
 | ⑥ QC (~20 mệnh đề × 9) | ~0,3–0,4 | ~0,3–0,5 (khung mẫu) | ~0,1 |
 | Cộng | ~0,7–1,1 | ~0,7–1,2 | ~0,2 |
 
-Tổng ≈ 1,6–2,5 USD / dự án; so chi gen (ảnh ~0,05 × 9 × lần gen + video ~1–2 × 9) ≈ 10–20 USD → **≈ 10–20 %**. Ngưỡng cũ "≤ 10 %"
-có thể bị vượt → giữ ngưỡng (A3) nhưng ĐO ở K3 và báo người dùng nếu vượt; giảm bằng dấu vân tay (không kiểm lại gói không đổi), gom
+Tổng ≈ 1,6–2,5 USD / dự án; so chi gen (ảnh ~0,05 × 9 × lần gen + video ~1–2 × 9) ≈ 10–20 USD → **≈ 10–20 %**. Người dùng chấp nhận
+chi phí này (A16): chi phí kiểm chỉ ĐO và BÁO, không chặn; giảm bằng dấu vân tay (không kiểm lại gói không đổi), gom
 mệnh đề, ReplayClient cho ca hồi quy.
 
 **Tiêu chí nghiệm thu:**
@@ -301,9 +334,11 @@ mệnh đề, ReplayClient cho ca hồi quy.
 | Ca hồi quy | 100 % bắt đúng ở lớp được gán | số ca |
 | Lọt | ≤ 1 lỗi / dự án trên 2 dự án mới liên tiếp; mỗi lỗi lọt xếp loại trong ngày | lỗi người dùng bắt sau |
 | Báo nhầm lớp Claude | ≤ 10 % trước khi chặn | số mục lớp đó báo |
-| Câu hỏi người dùng | ≤ 5 "cố ý hay lỗi" / dự án; ≤ 1 câu hỏi chặn / shot | đếm |
+| Câu hỏi người dùng | ≤ 5 "cố ý hay lỗi" / dự án; ≤ 1 câu hỏi chặn / shot; tổng thao tác / dự án (duyệt BYĐ + câu cố ý + câu chặn + A/B + chọn bản) đo và báo | đếm |
+| "Ô đáng ngờ" (A9) | = ô BYĐ có VÀNG, mâu thuẫn ②, có `ngoai_le`, hoặc suy từ chữ chưa duyệt — chỉ những ô này hiện mặc định | định nghĩa |
+| Vòng viết hợp tác hội tụ | ≥ 90 % shot đạt trong ≤ 2 vòng | số shot |
 | Chất lượng prompt | A/B: bản hợp tác ≥ bản hiện tại ở ≥ 2/3 shot | người dùng chấm |
-| Chi phí kiểm | đo và báo; mục tiêu ≤ 10 % chi gen (A3) | sổ chi |
+| Chi phí kiểm | đo và báo (A16 — không chặn) | sổ chi |
 | Người dùng không đọc prompt | 100 % quyết định qua một dòng + nút | rà giao diện |
 
 ## 10. Quy trình khi gặp lỗi mới
@@ -325,7 +360,7 @@ mệnh đề, ReplayClient cho ca hồi quy.
 | Công cụ đo (Pose, phát hiện, embedding) chưa có | cột "xây ở đợt" mục 4; khi chưa có → VÀNG (N5), test hợp đồng không tính là phủ |
 | Chặn nhầm làm kẹt autopilot | chỉ lớp chắc chắn chặn ngay; Claude học việc; nút Bỏ qua + lý do |
 | Luật "cố ý" lan rộng | phạm vi + hạn dùng + nút gỡ |
-| Sân khấu 3D từ ảnh ref chưa có (A10) | K1 xây V6; trước đó dự án mới chỉ dùng bối cảnh đã có 3D |
+| Sân khấu 3D từ ảnh ref chưa có (A10) | A15: chỉ Tháp Đồng Hồ + Cổng Trời tới khi K1b đạt nghiệm thu |
 | Kế hoạch dài, nhiều phiên | mỗi đợt một nhánh; `TODO.md` + kế hoạch này là nguồn trạng thái; điểm nghỉ theo skill vòng làm việc |
 
 ## 12. Tái dùng (không viết lại)
