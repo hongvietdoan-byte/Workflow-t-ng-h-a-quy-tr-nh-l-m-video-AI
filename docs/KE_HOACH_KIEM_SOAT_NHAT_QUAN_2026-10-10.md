@@ -264,6 +264,46 @@ Test hợp đồng: mỗi loại có ≥ 1 cách kiểm đang chạy hoặc họ
 **10.3 Phát hiện cái chưa biết.** L15 (câu hỏi mở có giới hạn) + mỗi lỗi người dùng bắt mà lọt được xếp vào một loại L1–L15; không xếp
 được → thêm loại mới (bảng lớn dần theo cấu trúc, không theo từng ca). Số đo "lọt theo loại" chỉ ra loại nào kiểm yếu.
 
+## 11. "Mô tả thêm" cũng phải được kiểm + bộ kỹ năng kiểm có độ phủ (người dùng 10/10)
+
+> "Phần mô tả thêm vẫn sẽ cần được kiểm, nhặt kĩ năng kiểm có mức độ phủ, bao quát được để tránh bị những lỗi sai rõ ràng và vô lý."
+> → Điểm 2 chốt kèm điều kiện này; N2 sửa: KHÔNG còn phần chữ nào không kiểm.
+
+**11.1 Tách ý mô tả thêm → kiểm như ô BYĐ.** Khi Đạo diễn/người dùng ghi "Mô tả thêm":
+1. Claude tách thành các ý ngắn, mỗi ý gắn MỘT loại trong bảng L1–L15 (enum) + đối tượng (mã Kho / người / máy / nơi).
+2. Ý đã gắn loại → đi đúng đường kiểm của loại đó: gói (④) + kết quả (⑥), như ô BYĐ.
+3. Ý không gắn được loại → mục VÀNG một dòng ("ý '…' chưa có cách kiểm") + đưa vào số đo "loại thiếu" → thêm loại mới (10.3).
+4. Code kiểm chéo ý mô tả thêm với: ô BYĐ (trái nhau → đỏ), sự thật hình học (`stage_facts`), hồ sơ Kho (`must_keep` / `forbidden`),
+   kịch bản (beat, nhân vật có trong cảnh), shot kề (liên tục).
+
+**11.2 Kiểm lẽ thường (lỗi rõ ràng, vô lý) — chạy cho MỌI chữ (ô BYĐ + mô tả thêm) và mọi kết quả:** Claude khai từng hạng mục
+có / không / không chắc + trích ≤ 12 từ; code kết luận:
+
+| Hạng mục vô lý | Ví dụ |
+|---|---|
+| Vật lý | đứng lơ lửng, xuyên tường, bóng đổ ngược nguồn sáng, nước chảy ngược |
+| Tỉ lệ | người to hơn cửa, giếng cao quá đầu, vật nhỏ như đồ chơi |
+| Góc nhìn | thấy cái máy không thể thấy (lòng giếng khi máy thấp, sau tường) |
+| Nơi chốn | vật/kiến trúc không có ở map (tường cao không có thật, tháp sai chỗ) |
+| Thời gian / ánh sáng | trăng hai phía, đêm mà bóng gắt kiểu nắng, nguồn sáng không có |
+| Liên tục | đồ trên người đổi, vết thương mất, vị trí nhảy giữa hai shot |
+| Logic vật thể | tay cầm vật không có, vật xuất hiện / biến mất vô cớ, điện thoại dùng được dù ở xa (bài học 06/10) |
+| Nhân vật | tuổi < 18 (bộ lọc), sai giới, thêm người, nhân vật làm điều trái hồ sơ |
+| Nội dung | máu/tóc/vật kinh dị không có trong BYĐ (#24 09/10), chữ/logo lạ, IP |
+| Hòa hợp (L10) | vật "dán vào": khác tông màu, thiếu bóng tiếp xúc, khác độ nét/nhiễu, khác nhiệt màu nguồn sáng |
+
+**11.3 Bộ kỹ năng kiểm (nguồn độ phủ, không lấy từ lỗi cũ).** Mỗi loại L1–L15 có một tệp kỹ năng `knowledge/checks/<loai>.md` tổng
+hợp từ nghề, mỗi mục là một câu hỏi khai được (enum) + cách code đo nếu có:
+- Giám sát kịch bản / liên tục (script supervisor continuity checklist) → L4, L5, L13.
+- Quay phim (trục 180°, cỡ cảnh, độ cao máy, đường chân trời — `knowledge/cinematography_basics.md`) → L6, L8, L9.
+- Ghép hình VFX (hòa hợp: hướng + nhiệt màu nguồn sáng, mức đen, bóng tiếp xúc, phối cảnh, độ nét, nhiễu) → L10, L7.
+- Thiết kế bối cảnh / map FF (`knowledge/ff_gameplay_visual.md`, sân khấu 3D) → L11, L12.
+- Lỗi ảnh/video AI (`knowledge/ai_image_failure_modes.md`, `i2v_motion_discipline.md`) → L14, V1–V4.
+- Hồ sơ nhân vật / Character Lock (`knowledge/character_lock.md`) → L1–L3.
+Test hợp đồng: mỗi loại có tệp kỹ năng ≥ N câu hỏi khai được; mỗi câu có cách code kết luận.
+
+**Lộ trình:** 11.1 + 11.2 vào K1 (BYĐ) và K3/K4 (người duyệt gói); 11.3 vào K0 (cùng bảng loại lỗi, trước khi build kiểm).
+
 ## 9. Điểm cần người dùng chốt trước khi build (bản gốc — xem 9b)
 
 1. **Phạm vi BYĐ:** áp cho mọi dự án mới, dự án cũ chỉ khi gen lại (đề xuất) — hay chuyển cả dự án cũ?
