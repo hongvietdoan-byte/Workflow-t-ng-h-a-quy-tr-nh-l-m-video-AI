@@ -1100,7 +1100,7 @@ def page_stages():
         kpi("Khâu", len(rows)),
         kpi("Tốn tiền thiếu kiểm trước", sum(r["thieu"] for r in rows), "đỏ", "bad" if any(r["thieu"] for r in rows) else "ok"),
         kpi("Kiểm đọc chữ tự do", sum(r["tu_do"] for r in rows), "vàng", "warn"),
-        kpi("Loại lỗi chỉ đang xây", f"{len(only)} / {len(types.get('types', []))}", ", ".join(t["id"] for t in only)),
+        kpi("Loại lỗi không có kiểm đang chạy",f"{len(only)} / {len(types.get('types', []))}", ", ".join(t["id"] for t in only)),
     ]) + "</div>", unsafe_allow_html=True)
     flags = [r for r in rows if r["ghi_co"]]
     if flags:

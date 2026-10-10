@@ -21,7 +21,8 @@ DOC_TU = ("byd", "goi", "ket_qua", "chu_tu_do")
 TRANG_THAI = ("chay", "hoc_viec", "tat", "khong_co")
 KHAU_TRANG_THAI = ("chay", "hoc_viec", "tat")
 LIVE = ("chay", "hoc_viec")
-DOT = ("K0a", "K0b", "K1a", "K1b", "K2", "K3", "K4", "K5", "K6", "K7", "K8")    # mục 8 lộ trình
+DOT = ("K0a", "K0b", "K1a", "K2", "K3", "K4", "K1b", "K5", "K6", "K7", "K8")    # mục 8 lộ trình, THỨ TỰ CHẠY (K1b sau K4)
+VAI = ("kiem", "sinh", "nguoi_duyet")    # vai của id được sổ tham chiếu: chỉ 'kiem' được nằm trong kiem_truoc / kiem_sau
 STAGE_FIELDS = ("id", "ten", "san_pham", "lam", "ton_tien", "khau_trang_thai", "kiem_truoc", "trang_thai_kiem", "kiem_sau",
                 "trang_thai_sau", "doc_tu", "nguoi_kiem", "dot")
 CODE_DO_STATES = ("co", "xay")
@@ -53,11 +54,16 @@ _FLAG_STATE = {"on": "chay", "trainee": "hoc_viec", "off": "tat"}
 
 
 def _flags_of(s: Dict) -> Dict[str, str]:
-    """Trường `co` của một dòng: tên cờ (áp cho kiểm trước) hoặc {khau|truoc|sau: tên cờ}."""
+    """Trường `co` của một dòng: tên cờ (áp cho kiểm trước) hoặc {khau|truoc|sau|<id kiểm>: tên cờ}. Khóa là id trong kiem_truoc /
+    kiem_sau = cờ của RIÊNG lớp kiểm đó (vd L3 d86 chỉ chạy khi stage_camera bật, d10/d11 thì không phụ thuộc)."""
     co = s.get("co")
     if not co:
         return {}
     return {"truoc": co} if isinstance(co, str) else dict(co)
+
+
+def _id_flags(s: Dict) -> Dict[str, str]:
+    return {k: v for k, v in _flags_of(s).items() if k not in CO_FIELDS and k in (s.get("kiem_truoc") or []) + (s.get("kiem_sau") or [])}
 
 
 def _known_flags() -> set:
@@ -78,10 +84,31 @@ def effective(doc: Dict, state=None) -> Dict:
     for s in doc.get("stages", []):
         s = dict(s)
         notes = []
+        idf = _id_flags(s)
+        for lst, field in (("kiem_truoc", "trang_thai_kiem"), ("kiem_sau", "trang_thai_sau")):
+            ids = list(s.get(lst) or [])
+            flagged = [d for d in ids if d in idf]
+            if not flagged:
+                continue
+            got = {}
+            for d in flagged:
+                try:
+                    got[d] = _FLAG_STATE[state(idf[d])]
+                except Exception as e:  # noqa: BLE001 - đọc cờ lỗi: giữ id (ghi tay), nói ra
+                    notes.append(f"không đọc được cờ '{idf[d]}' của {d} ({type(e).__name__}: {e}) — giữ ghi tay")
+            off = [d for d in flagged if got.get(d) == "tat"]
+            if off:
+                notes.append(f"{lst}: bỏ {', '.join(f'{d} (cờ {idf[d]} TẮT)' for d in off)}")
+            s[lst] = [d for d in ids if d not in off]
+            if not s[lst]:
+                s[field] = "tat"
+            elif all(d in got for d in s[lst]):        # mọi lớp còn lại đều theo cờ: trạng thái = cờ mạnh nhất
+                s[field] = "chay" if "chay" in [got[d] for d in s[lst]] else "hoc_viec"
         for part, flag in _flags_of(s).items():
             field = CO_FIELDS.get(part)
             if not field:
-                notes.append(f"co.{part}: phần lạ (khau / truoc / sau)")
+                if part not in idf:
+                    notes.append(f"co.{part}: phần lạ (khau / truoc / sau / id trong kiem_truoc, kiem_sau)")
                 continue
             if part == "truoc" and not s.get("kiem_truoc") or part == "sau" and not s.get("kiem_sau"):
                 continue
@@ -113,6 +140,12 @@ def stage_problems(doc: Dict, deci: Dict) -> List[str]:
     ids = {d["id"] for d in deci.get("items", [])}
     out: List[str] = []
     seen = set()
+    chung = list((doc.get("kiem_chung") or {}).get("ids", []))
+    vai = doc.get("vai") or {}
+    role = {d: r for r, lst in vai.items() for d in lst}
+    now = doc.get("dot_hien_tai")
+    if now is not None and now not in DOT:
+        out.append(f"dot_hien_tai '{now}' không có trong lộ trình mục 8 ({', '.join(DOT)})")
     for s in doc.get("stages", []):
         i = s.get("id")
         if i in seen:
@@ -148,14 +181,36 @@ def stage_problems(doc: Dict, deci: Dict) -> List[str]:
             out.append(f"{i}: khâu tốn tiền đang chạy không có kiểm trước đang chạy / học việc — ghi 'dot' (đợt sẽ lấp) hoặc thêm kiểm")
         if s.get("doc_tu") == "chu_tu_do" and not dot:
             out.append(f"{i}: lớp kiểm đọc chu_tu_do để kết luận (N1) — chỉ được khi có 'dot' (đợt chuyển sang BYĐ / gói)")
+        if dot in DOT and now in DOT and DOT.index(dot) <= DOT.index(now) and (
+                (s.get("ton_tien") is True and s.get("khau_trang_thai") in LIVE and not has_live_pre_check(s))
+                or s.get("doc_tu") == "chu_tu_do"):
+            out.append(f"{i}: dot '{dot}' quá hạn (đợt hiện tại {now}) — chỗ thiếu vẫn còn: lấp hoặc ghi đợt mới có lý do")
+        for lst in ("kiem_truoc", "kiem_sau"):
+            for d in s.get(lst) or []:
+                if d in chung:
+                    out.append(f"{i}: {lst} '{d}' thuộc kiem_chung (cổng tiền / điều kiện vận hành) — không phải kiểm chất lượng (N3)")
+                elif vai and role.get(d) != "kiem":
+                    out.append(f"{i}: {lst} '{d}' vai '{role.get(d) or 'chưa ghi'}' — chỉ id vai 'kiem' (stages.json 'vai') được đếm"
+                               + (" (bộ SINH không phải kiểm)" if role.get(d) == "sinh" else "")
+                               + (" (người duyệt ghi ở nguoi_kiem)" if role.get(d) == "nguoi_duyet" else ""))
         for part, flag in _flags_of(s).items():
-            if part not in CO_FIELDS:
-                out.append(f"{i}: co.{part} — phần lạ (khau / truoc / sau)")
+            if part not in CO_FIELDS and part not in _id_flags(s):
+                out.append(f"{i}: co.{part} — phần lạ (khau / truoc / sau / id trong kiem_truoc, kiem_sau)")
             elif _known_flags() and flag not in _known_flags():
                 out.append(f"{i}: co.{part} = '{flag}' không có trong core/features.FEATURES")
-    for d in (doc.get("kiem_chung") or {}).get("ids", []):
+    for d in chung:
         if d not in ids:
             out.append(f"kiem_chung: '{d}' không có trong devsys/decisions.json")
+    seen_role: Dict[str, str] = {}
+    for r, lst in vai.items():
+        if r not in VAI:
+            out.append(f"vai: '{r}' không hợp lệ (phải {' / '.join(VAI)})")
+        for d in lst:
+            if d not in ids:
+                out.append(f"vai.{r}: '{d}' không có trong devsys/decisions.json")
+            if d in seen_role:
+                out.append(f"vai: '{d}' vừa {seen_role[d]} vừa {r}")
+            seen_role[d] = r
     return out
 
 
@@ -196,6 +251,12 @@ def error_type_problems(doc: Dict, root: str = ROOT) -> List[str]:
                     out.append(f"{tag}: trang_thai '{e.get('trang_thai')}' phải có dot trong lộ trình (đang {e.get('dot')!r})")
                 if e.get("trang_thai") == "co" and kind == "code_do" and not e.get("where"):
                     out.append(f"{tag}: 'co' mà không ghi where")
+                if (e.get("trang_thai") == "hoc_viec" or e.get("bat") is False) and not _entry_flags(e):
+                    out.append(f"{tag}: '{e.get('trang_thai')}'{' / bat:false' if e.get('bat') is False else ''} phải ghi 'co' "
+                               f"(cờ quyết chạy) — đọc cờ thật, cờ TẮT thì không tính là cách kiểm có thật")
+                for f in _entry_flags(e):
+                    if _known_flags() and f not in _known_flags():
+                        out.append(f"{tag}: co '{f}' không có trong core/features.FEATURES")
                 if kind == "claude_khai" and not e.get("enum"):
                     out.append(f"{tag}: claude_khai phải ghi enum (N4: khai điều thấy, không khai đúng/sai)")
                 bad = _where_problem(e.get("where"), root)
@@ -211,14 +272,44 @@ def error_type_problems(doc: Dict, root: str = ROOT) -> List[str]:
     return out
 
 
-def _has_real(t: Dict) -> bool:
-    return any(e.get("trang_thai") == "co" for e in t.get("code_do") or []) or \
-        any(e.get("trang_thai") in ("co", "hoc_viec") for e in t.get("claude_khai") or [])
+def _entry_flags(e: Dict) -> List[str]:
+    co = e.get("co")
+    return [co] if isinstance(co, str) else list(co or [])
 
 
-def only_building(doc: Dict) -> List[Dict]:
-    """Loại lỗi chưa có cách kiểm nào CÓ THẬT (mọi mục đều 'xay')."""
-    return [t for t in doc.get("types", []) if not _has_real(t)]
+def _real_state(state=None):
+    if state is not None:
+        return state
+    from core import features
+    return features.state
+
+
+def _entry_live(e: Dict, state) -> bool:
+    """Mục có code / Claude nhưng chỉ chạy dưới cờ (`co`, một tên hoặc danh sách — bật MỘT cờ là chạy): cờ TẮT → không chạy.
+    `bat: false` không kèm `co` → coi như không chạy. Đọc cờ lỗi → không tính (không đếm thứ chưa chắc chạy)."""
+    flags = _entry_flags(e)
+    if not flags:
+        return e.get("bat") is not False
+    for f in flags:
+        try:
+            if state(f) in ("on", "trainee"):
+                return True
+        except Exception:  # noqa: BLE001 - cờ đổi tên / settings hỏng: không tính, error_type_problems báo tên cờ lạ
+            continue
+    return False
+
+
+def _has_real(t: Dict, state=None) -> bool:
+    state = _real_state(state)
+    return any(e.get("trang_thai") == "co" and _entry_live(e, state) for e in t.get("code_do") or []) or \
+        any(e.get("trang_thai") in ("co", "hoc_viec") and _entry_live(e, state) for e in t.get("claude_khai") or [])
+
+
+def only_building(doc: Dict, state=None) -> List[Dict]:
+    """Loại lỗi chưa có cách kiểm nào CÓ THẬT ĐANG CHẠY: mọi mục 'xay', hoặc mục có thật nhưng cờ của nó TẮT / `bat: false`
+    (thẩm định 3). state: hàm cờ → 'on' / 'trainee' / 'off' (mặc định core.features.state)."""
+    state = _real_state(state)
+    return [t for t in doc.get("types", []) if not _has_real(t, state)]
 
 
 def summary_rows(doc: Dict) -> List[Dict]:
@@ -233,17 +324,18 @@ def summary_rows(doc: Dict) -> List[Dict]:
             for s in doc.get("stages", [])]
 
 
-def error_type_rows(doc: Dict) -> List[Dict]:
-    """Một dòng / loại lỗi: cách kiểm có thật (co / hoc_viec) và việc còn xây (+ đợt)."""
+def error_type_rows(doc: Dict, state=None) -> List[Dict]:
+    """Một dòng / loại lỗi: cách kiểm có thật (co / hoc_viec, kèm cờ khi cờ TẮT) và việc còn xây (+ đợt)."""
+    state = _real_state(state)
     rows = []
     for t in doc.get("types", []):
         es = [("code", e) for e in t.get("code_do") or []] + [("Claude", e) for e in t.get("claude_khai") or []]
         rows.append({"id": t["id"], "ten": t["ten"], "ap_dung": ", ".join(t.get("ap_dung") or []),
                      "co": "; ".join(f"{w}: {e['mo_ta']}" + (" (học việc)" if e.get("trang_thai") == "hoc_viec" else "")
-                                     + (" (cờ TẮT)" if e.get("bat") is False else "")
+                                     + ("" if _entry_live(e, state) else f" (cờ {'/'.join(_entry_flags(e)) or 'bat:false'} TẮT — không tính)")
                                      for w, e in es if e.get("trang_thai") in ("co", "hoc_viec")),
                      "xay": "; ".join(f"{w}: {e['mo_ta']} [{e.get('dot')}]" for w, e in es if e.get("trang_thai") == "xay"),
-                     "chi_xay": not _has_real(t)})
+                     "chi_xay": not _has_real(t, state)})
     return rows
 
 
@@ -257,5 +349,5 @@ def summary_text(doc: Dict, types: Optional[Dict] = None) -> str:
     lines.append(f"Thiếu kiểm trước (tốn tiền, đang chạy): {len(miss)} — {', '.join(miss)}")
     if types:
         ob = [t["id"] for t in only_building(types)]
-        lines.append(f"Loại lỗi chỉ có 'xay' (chưa có cách kiểm thật): {len(ob)} / {len(types.get('types', []))} — {', '.join(ob)}")
+        lines.append(f"Loại lỗi không có cách kiểm nào đang chạy (chỉ 'xay' / cờ TẮT / bat:false):{len(ob)} / {len(types.get('types', []))} — {', '.join(ob)}")
     return "\n".join(lines)
