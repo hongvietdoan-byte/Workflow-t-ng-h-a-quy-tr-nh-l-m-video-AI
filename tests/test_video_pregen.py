@@ -362,6 +362,24 @@ class Fingerprint(Base):                      # (6)
 
 
 class Batch(Base):
+    def test_multishot_follower_shows_leader_red_reason_and_stays_grouped(self):
+        self.on()
+        s1, img = self.shot(picture=False)
+        s2, _ = self.shot()
+        leader, follower = [self.p.create_job(s, "video_gen") for s in (s1, s2)]
+        group = [{"id": s1, "idx": 1, "data": {}}, {"id": s2, "idx": 2, "data": {}}]
+        with mock.patch("core.shots.group_of", return_value=group):
+            self.assertEqual(self.send(), [])
+            self.assertIn("kiểm trước gen chặn", runner.wait_reason(follower) or "")
+            self.assertIn("khung đầu", runner.wait_reason(follower) or "")
+            self.assertEqual([self.state(j) for j in (leader, follower)], ["queued", "queued"])
+            self.write(self.image_path(img), b"picture-fixed")
+            with mock.patch.object(runner, "PREGEN_RECHECK_S", 0):
+                self.assertEqual(len(self.send()), 1)
+            self.assertEqual(self.state(leader), "running")
+            self.assertEqual(self.state(follower), "queued")
+            self.assertEqual([r["id"] for r in json.loads(self.p.job(leader)["sent_group"])], [s1, s2])
+
     def test_one_red_shot_does_not_stop_the_others(self):
         """Lô / autopilot (cùng gọi VideoRunner.submit_pending): shot ĐỎ giữ lại, các shot khác vẫn gửi trong cùng vòng."""
         self.on()

@@ -1378,6 +1378,12 @@ class VideoRunner(_Runner):
                 idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (group[0]["id"],)).fetchone()
                 lead = f" (S{idx['idx']:02d})" if idx else ""
                 why = self._lead_failure(group[0]["id"])         # F1 sửa #4: a leader stopped (e.g. prompt sai công thức) is said here
+                lead_job = self.p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='video_gen' ORDER BY id DESC LIMIT 1",
+                                              (group[0]["id"],)).fetchone()
+                pregen = PREGEN_HELD.get(lead_job["id"]) if lead_job else None
+                from . import video_pregen
+                if pregen and video_pregen.enabled():
+                    return self._hold(job, f"chờ clip nhóm gửi từ shot đầu nhóm{lead} — {pregen[0]}; sửa đầu vào shot đó, phần này đi cùng clip nhóm")
                 return self._hold(job, f"chờ clip nhóm gửi từ shot đầu nhóm{lead} — "
                                   + (f"shot đầu nhóm đang hỏng ({why}) — sửa rồi gửi lại shot đó, phần này đi cùng clip nhóm" if why
                                      else "gửi shot đó trước, phần này đi cùng clip nhóm"))
