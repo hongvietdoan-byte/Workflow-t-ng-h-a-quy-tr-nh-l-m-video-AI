@@ -262,4 +262,9 @@ S14.45 vẫn nhận; mã mới nhận; mã rác bị từ chối với lý do.
 
 ## Kết quả Codex — đợt 3
 
-(Codex ghi: việc · nhánh · commit · test đỏ→xanh · việc mở.)
+| Việc | Nhánh | Commit | Bằng chứng / việc mở |
+|---|---|---|---|
+| 1 | `codex/d3-viec1-so-ke-hoach` | `de1dc4a` | Đỏ thiếu module + ca kết quả gạch đầu dòng/registry null → xanh 6 test mới; hồi quy nhóm 68 test thường (trước ca thứ 6), 2 test slow của test_devsys/test_devsys_v2 xanh. Rà: API plan_progress cũ không đổi; % K theo DOT và dấu đầu tiên (không lấy trạng thái lịch sử), thiếu nguồn/đợt không 0%; chốt A đọc đúng mục A; git nhánh chỉ đọc, không API. |
+
+Sổ 8 kế hoạch, nguồn ghi chú UI đọc bằng git show nhánh. % Codex theo kết quả trong checkout: nhánh chưa gộp chưa xuất hiện trong main là 0 hợp lệ, trang Đang chạy sẽ theo dõi nhánh riêng. TODO/PLAN/data không đổi; areas.version giữ, bên gộp chạy cả bộ và khởi động lại 8502. Nhánh độc lập từ main 7764122.
+
