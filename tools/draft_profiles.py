@@ -33,7 +33,7 @@ def ahash(path: str) -> Optional[int]:
         from PIL import Image
         with Image.open(path) as im:
             small = im.convert("L").resize((8, 8))
-            px = list(small.getdata())
+            px = list(small.tobytes())  # L 8 bits, cùng thứ tự hàng/cột như trước
     except Exception:  # noqa: BLE001 - unreadable picture: no hash
         return None
     avg = sum(px) / len(px)
