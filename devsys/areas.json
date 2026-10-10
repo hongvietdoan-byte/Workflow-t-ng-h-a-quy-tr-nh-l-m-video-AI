@@ -125,7 +125,7 @@
       "code": ["core/whitebox.py", "core/location_pack.py", "core/plates3d.py", "core/plate_camera.py", "core/plate_choice.py", "core/plate_env.py", "core/meshy.py", "core/sheet_views.py", "core/camera_plan.py", "core/plate_layout_qc.py", "core/stage_grid.py", "core/stage_solver.py", "core/stage_director.py", "core/change_audit.py", "core/stage_facts.py"],
       "assets": ["tools/location_pack.py", "tools/render_plates.py", "tools/experiments/tower_plate.py", "tools/stage_grid.py", "tests/golden/*"],
       "docs": ["docs/HUONG_DAN_3D.md", "docs/RESEARCH_3D_PREVIZ.md", "docs/BAN_GIAO_2026-09-25_THAP_VA_KHOP_MOI.md"],
-      "tests": ["tests/test_whitebox.py", "tests/test_tower_pack.py", "tests/test_plates_f2.py", "tests/test_plate_camera_p24_angles.py", "tests/test_camera_plan_g0.py", "tests/test_stage_grid.py", "tests/test_stage_rules.py", "tests/test_stage_solver.py", "tests/test_stage_director.py", "tests/test_plate_camera_stage.py", "tests/test_change_audit.py", "tests/test_stage_facts.py"],
+      "tests": ["tests/test_whitebox.py", "tests/test_tower_pack.py", "tests/test_plates_f2.py", "tests/test_plate_camera_p24_angles.py", "tests/test_camera_plan_g0.py", "tests/test_plate_layout_qc.py", "tests/test_stage_grid.py", "tests/test_stage_rules.py", "tests/test_stage_solver.py", "tests/test_stage_director.py", "tests/test_plate_camera_stage.py", "tests/test_change_audit.py", "tests/test_stage_facts.py"],
       "flags": ["director_camera_plan", "stage_camera"],
       "diag_stages": [],
       "keywords": ["3D", "bối cảnh", "plate", "Blender", "phông xanh", "location", "thời tiết"]
