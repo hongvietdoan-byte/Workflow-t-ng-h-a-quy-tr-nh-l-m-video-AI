@@ -28,21 +28,22 @@ def test_all_present():
     assert rows[1]["dau_hieu_thay"] is True
 
 
-def test_missing_choker_is_red():
-    r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in a yellow tracksuit runs across the plaza"))
+def test_missing_choker_is_red_when_blocking_is_on():
+    r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in a yellow tracksuit runs across the plaza", chan_do=True))
     assert r["choker"]["trang_thai"] == "thieu" and r["choker"]["muc"] == "do"
     assert r["tracksuit"]["trang_thai"] == "co"
 
 
 def test_wrong_color_is_red():
-    r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in a red tracksuit and a black choker"))
-    assert r["tracksuit"]["trang_thai"] == "sai_mau" and r["tracksuit"]["mau_thay"] == ["red"] and r["tracksuit"]["muc"] == "do"
+    for chan in (True, False):                     # sai màu = chữ nói NGƯỢC khóa → ĐỎ ở cả hai chế độ (không phải "thiếu chữ")
+        r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in a red tracksuit and a black choker", chan_do=chan))
+        assert r["tracksuit"]["trang_thai"] == "sai_mau" and r["tracksuit"]["mau_thay"] == ["red"] and r["tracksuit"]["muc"] == "do"
 
 
 def test_color_synonyms_and_missing_color():
     r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in a golden track suit with a jet-black choker"))
     assert r["tracksuit"]["trang_thai"] == "co" and r["choker"]["trang_thai"] == "co"
-    r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in her tracksuit and black choker"))
+    r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in her tracksuit and black choker", chan_do=True))
     assert r["tracksuit"]["trang_thai"] == "thieu_mau" and r["tracksuit"]["muc"] == "do"
 
 
@@ -93,9 +94,24 @@ def test_golden_has_identity_cases():
 def test_golden_identity(case):
     """Ca hồi quy K0b (#24): khóa Kho của nhân vật × đoạn prompt nói về nó → đúng trạng thái từng món."""
     exp = case["ky_vong"]["identity_declare"]
+    assert exp.get("vat"), f"{case['id']}: ky_vong.identity_declare thiếu 'vat' (khóa sân khấu trong BYĐ thanh_phan)"
     seg = idd.segment(case["goi"]["image_prompt"], {exp["nhan_vat"]: [exp["nhan_vat"].lower()]})
-    got = {r["mon"]: r["trang_thai"] for r in idd.check(idd.declare_from_text(exp["khoa"]), seg[exp["nhan_vat"]])}
-    assert got == exp["trang_thai"]
+    view = idd.byd_view(case.get("byd"), exp["vat"])                    # lọc theo BYĐ của ca (thẩm định 4 #1)
+    rows = idd.check(idd.declare_from_text(exp["khoa"]), seg[exp["nhan_vat"]], view=view)
+    assert {r["mon"]: r["trang_thai"] for r in rows} == exp["trang_thai"]
+    assert all(r.get("ly_do") for r in rows if r["trang_thai"] == "khong_can")      # lọc phải nói lý do
+
+
+def test_golden_has_anti_false_alarm_cases():
+    """Thẩm định 4 #1: ≥ 2 ca chống báo nhầm — giày ở cỡ cận, quay lưng không đòi mặt nạ / choker; không lọc thì báo nhầm thật."""
+    want = {"chong_bao_nham_giay_o_can_mcu": {"sneakers"}, "chong_bao_nham_lung_mat_na_choker": {"mask", "choker"}}
+    got = {c["id"]: c for c in GOLDEN}
+    assert set(want) <= set(got)
+    for cid, items in want.items():
+        exp = got[cid]["ky_vong"]["identity_declare"]
+        assert {m for m, v in exp["trang_thai"].items() if v == "khong_can"} == items
+        raw = idd.check(idd.declare_from_text(exp["khoa"]), got[cid]["goi"]["image_prompt"])
+        assert {r["mon"] for r in raw if r["trang_thai"] == "thieu"} == items
 
 
 # --- Rà soát quy ước 7 (10/10): 11 lỗi — mỗi lỗi một test ---
@@ -132,6 +148,101 @@ def test_r4_dryrun_reports_character_not_in_kho():
     rows = mod.identity_rows(conn, ["KELLY", "NGƯỜI LẠ"], "Kelly in a yellow tracksuit", {"kelly"})
     loi = {r["nhan_vat"]: r["loi"] for r in rows}
     assert loi == {"NGƯỜI LẠ": "khong_co_STAGE_KEY", "KELLY": "khong_co_trong_Kho"}
+
+
+def test_dryrun_identity_rows_filter_by_byd():
+    """Thẩm định 4 #1: người gọi chạy khô truyền BYĐ → món phần dưới ở MCU thành 'khong_can' (có lý do), không còn 'thieu'."""
+    import importlib.util
+    import json
+    import os
+    import sqlite3
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "dryrun_k0b_p24.py")
+    spec = importlib.util.spec_from_file_location("dryrun_k0b_p24", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE assets (id INTEGER, profile TEXT, description TEXT)")
+    conn.execute("INSERT INTO assets VALUES (23, ?, '')", (json.dumps({"must_keep": KELLY_MUST_KEEP}),))
+    prompt = "Kelly close up, dark brown bob, black choker, white crop top under a yellow track jacket"
+    before = {m["mon"]: m["trang_thai"] for m in mod.identity_rows(conn, ["KELLY"], prompt, {"kelly"})[0]["mon"]}
+    row = mod.identity_rows(conn, ["KELLY"], prompt, {"kelly"}, byd=BYD_MCU)[0]
+    after = {m["mon"]: m["trang_thai"] for m in row["mon"]}
+    assert before["sneakers"] == "thieu" and after["sneakers"] == "khong_can"
+    assert row["tong"]["khong_can"] == 1 and row["loc_byd"]["co"] == "MCU"
+
+
+def test_default_mode_is_yellow_until_false_alarms_are_measured():
+    """A18 + thẩm định 4 #1: chưa đo báo nhầm (docs/NHAN_BAO_NHAM_A18_2026-10-10.md) → CHAN_DO = False: 'thieu' / 'thieu_mau' là
+    VÀNG; bật chặn (chan_do=True) mới ĐỎ. 'sai_mau' và 'khong_co_khoa' ĐỎ ở cả hai chế độ."""
+    assert idd.CHAN_DO is False
+    assert "A18" in idd.__doc__ and "CHAN_DO" in idd.__doc__
+    decl = idd.declare_from_text(KELLY)
+    prompt = "Kelly in her tracksuit runs across the plaza"
+    soft = _by(idd.check(decl, prompt))
+    hard = _by(idd.check(decl, prompt, chan_do=True))
+    assert (soft["choker"]["trang_thai"], soft["choker"]["muc"]) == ("thieu", "vang")
+    assert (soft["tracksuit"]["trang_thai"], soft["tracksuit"]["muc"]) == ("thieu_mau", "vang")
+    assert (hard["choker"]["muc"], hard["tracksuit"]["muc"]) == ("do", "do")
+    assert idd.check([], "x")[0]["muc"] == "do" and idd.check([], "x", chan_do=True)[0]["muc"] == "do"
+
+
+BYD_MCU = {"shot": 1, "thanh_phan": [{"vat": "kelly", "vai": "chinh", "vung": "giua", "thay": "mat"}], "may": {"co": "MCU"}}
+
+
+def test_byd_filter_framing_drops_lower_body_items_with_reason():
+    decl = idd.declare_from_text(KELLY_MUST_KEEP)
+    view = idd.byd_view(BYD_MCU, "kelly")
+    assert view == {"vat": "kelly", "co": "MCU", "thay": ["mat"], "trong_khung": True}
+    r = _by(idd.check(decl, "Kelly, short dark bob, black choker, white crop top, yellow track jacket", view=view))
+    assert r["sneakers"]["trang_thai"] == "khong_can" and r["sneakers"]["muc"] is None and "MCU" in r["sneakers"]["ly_do"]
+    assert r["tracksuit"]["trang_thai"] == "co" and r["choker"]["trang_thai"] == "co"
+    assert idd.summary(list(r.values()))["khong_can"] == 1
+    ws = idd.byd_view(dict(BYD_MCU, may={"co": "WS"}), "kelly")
+    assert _by(idd.check(decl, "Kelly, short dark bob", view=ws))["sneakers"]["trang_thai"] == "thieu"   # WS thấy cả người → vẫn đòi
+    ms = idd.byd_view(dict(BYD_MCU, may={"co": "MS"}), "kelly")
+    r = _by(idd.check(idd.declare_from_text("black belt, white heels, black stockings"), "Kelly", view=ms))
+    assert (r["belt"]["trang_thai"], r["heels"]["trang_thai"], r["stockings"]["trang_thai"]) == ("thieu", "khong_can", "khong_can")
+
+
+def test_byd_filter_unknown_region_or_framing_still_required():
+    """Món không biết vùng thân (glitch, món ngoài ITEMS) và cỡ cảnh không biết → VẪN đòi, kèm ghi chú `khong_loc` (không im lặng)."""
+    view = idd.byd_view(dict(BYD_MCU, may={"co": "ECU"}), "kelly")
+    r = _by(idd.check([{"mon": "glitch", "mau_chinh": ["red"], "nguon": "suy"}, {"mon": "cape", "mau_chinh": ["red"], "nguon": "suy"}],
+                      "Kelly's eyes", view=view))
+    assert r["glitch"]["trang_thai"] == "thieu" and "vùng" in r["glitch"]["khong_loc"]
+    assert r["cape"]["trang_thai"] == "thieu" and "vùng" in r["cape"]["khong_loc"]
+    view = idd.byd_view(dict(BYD_MCU, may={"co": None}), "kelly")
+    r = _by(idd.check(idd.declare_from_text("white sneakers"), "Kelly", view=view))
+    assert r["sneakers"]["trang_thai"] == "thieu" and "cỡ" in r["sneakers"]["khong_loc"]
+
+
+def test_byd_filter_back_view_drops_front_only_items():
+    decl = idd.declare_from_text("black face mask, black choker, yellow tracksuit")
+    back = idd.byd_view({"thanh_phan": [{"vat": "kelly", "vai": "chinh", "thay": "lung"}], "may": {"co": "WS"}}, "kelly")
+    r = _by(idd.check(decl, "Kelly from behind in a yellow tracksuit", view=back))
+    assert r["mask"]["trang_thai"] == "khong_can" and r["choker"]["trang_thai"] == "khong_can" and "lưng" in r["mask"]["ly_do"]
+    assert r["tracksuit"]["trang_thai"] == "co"
+    side = idd.byd_view({"thanh_phan": [{"vat": "kelly", "vai": "chinh", "thay": "lung|nghieng"}], "may": {"co": "WS"}}, "kelly")
+    assert _by(idd.check(decl, "Kelly in a yellow tracksuit", view=side))["mask"]["trang_thai"] == "thieu"   # nghiêng thấy mặt
+
+
+def test_byd_filter_character_not_in_frame():
+    gone = idd.byd_view({"thanh_phan": [{"vat": "gieng", "vai": "chinh"}], "may": {"co": "WS"}}, "kelly")
+    assert gone["trong_khung"] is False
+    rows = idd.check(idd.declare_from_text(KELLY), "the well at night", view=gone)
+    assert {r["trang_thai"] for r in rows} == {"khong_can"} and all("khung" in r["ly_do"] for r in rows)
+    banned = idd.byd_view({"thanh_phan": [{"vat": "kelly", "vai": "khong_duoc_co"}], "may": {"co": "WS"}}, "kelly")
+    assert banned["trong_khung"] is False
+    assert idd.byd_view(None, "kelly") is None                          # không có BYĐ → không lọc
+    assert idd.check(idd.declare_from_text(KELLY), "Kelly", view=None)[0]["trang_thai"] == "thieu"
+
+
+def test_body_table_follows_stage_grid_framing():
+    from core import stage_grid as sg
+    for co in sg.FRAMING:
+        assert idd.framing_body(co) == sg.FRAMING[co][0]
+    assert idd.framing_body("XL") is None and idd.framing_body(None) is None
+    assert set(idd.BODY_FROM_TOP) <= set(idd.ITEMS) and set(idd.FRONT_ONLY) <= set(idd.ITEMS)
 
 
 def test_r5_vietnamese_compared_with_diacritics():

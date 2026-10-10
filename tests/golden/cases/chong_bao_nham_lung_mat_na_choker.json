@@ -1,0 +1,38 @@
+{
+ "id": "chong_bao_nham_lung_mat_na_choker",
+ "nguon": "thẩm định 4 lỗ hổng #1 (10/10): shot quay lưng (BYĐ thay = lung) — mặt nạ / choker chỉ thấy từ phía trước, luật A18 không lọc sẽ đỏ oan. Ca dựng tay (khóa giả lập nhân vật đeo khẩu trang kiểu Khủng Long Đỏ, prompt viết tay)",
+ "ca_vang_tay": false,
+ "byd": {
+  "shot": 1,
+  "truyen": {"nhip": null, "muc_dich": "Kelly đi về phía giếng, máy sau lưng", "cam_xuc": ""},
+  "thanh_phan": [{"vat": "kelly", "vai": "chinh", "vung": "giua", "thay": "lung"}],
+  "hanh_dong": [],
+  "vat": [],
+  "may": {"co": "WS", "do_cao": "ngang", "goc": "ngang", "chuyen_dong": "dung_yen"},
+  "noi_chon": {"kho_id": 263, "spot": null, "thoi_gian": "night", "thoi_tiet": "fog", "anh_sang": null},
+  "ngoai_le": [],
+  "am_chu": {"thoai": [], "nhac": null, "sfx": [], "popup": null, "phu_de": null}
+ },
+ "may": {},
+ "kho": {"kelly": {"name": "KELLY (khóa giả lập có khẩu trang)", "kho_id": null, "has_picture": false}},
+ "goi": {
+  "image_prompt": "Wide shot from behind: Kelly walks toward the ancient stone well, bright yellow track jacket and matching yellow track pants, white sneakers, foggy plaza at night",
+  "refs": [],
+  "model": null
+ },
+ "anh_ket_qua": null,
+ "loi_dung": "không có lỗi trang phục: quay lưng thì mặt nạ và choker không thấy — không được đòi (ca chống báo nhầm)",
+ "loai_loi": ["L2"],
+ "lop_phai_bat": ["d95"],
+ "lop_lam": ["d09"],
+ "ky_vong": {
+  "identity_declare": {
+   "nhan_vat": "KELLY",
+   "vat": "kelly",
+   "kho_id": null,
+   "khoa": "black face mask, black choker, bright yellow track jacket, white sneakers",
+   "nguon_khoa": "khóa giả lập (dựng tay)",
+   "trang_thai": {"mask": "khong_can", "choker": "khong_can", "tracksuit": "co", "sneakers": "co"}
+  }
+ }
+}

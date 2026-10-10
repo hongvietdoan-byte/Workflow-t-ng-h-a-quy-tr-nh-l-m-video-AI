@@ -3,14 +3,31 @@
 A20 tầng "chữ": mỗi món trang phục / nhận diện = tên món + màu chủ đạo (1–2) + ≤ 1 dấu hiệu. Ô `khai_bao_chu` của hồ sơ Kho (K0b phần 2
 tạo schema `validate_khai_bao_chu`, K1a điền) được `declare_from_profile` ĐỌC trước; món chưa có ô → `declare_from_text` TẠM SUY từ
 `must_keep` (tiếng Anh) hoặc mô tả Kho (tiếng Việt), mang `nguon: "suy"` + VÀNG nhắc điền một lần. `color_conflicts` = mô tả Kho ↔ khai
-báo lệch màu chính (VÀNG). `check(decl, prompt)` so với chữ prompt: mỗi món → co / thieu / thieu_mau / sai_mau (A18: thiếu / sai màu = ĐỎ).
+báo lệch màu chính (VÀNG). `check(decl, prompt, view)` so với chữ prompt: mỗi món → co / thieu / thieu_mau / sai_mau / khong_can.
 Họa tiết (sọc, sao, viền…) KHÔNG kiểm ở chữ (A20: thuộc ảnh tham chiếu + QC sau gen) — chỉ ghi vào `hoa_tiet`.
+
+LỌC THEO BYĐ (thẩm định 4 lỗ hổng #1 — chạy khô #24 đỏ 37 món / 7 shot mà QC thấy trang phục đúng): `byd_view(byd, vat)` lấy cỡ cảnh
+(`may.co`), mặt/lưng (`thanh_phan[].thay`) và có-trong-khung của nhân vật; `check(..., view=…)` chỉ đòi chữ cho món NHÌN THẤY được:
+món nằm dưới phần thân mà cỡ cảnh chứa (BODY_FROM_TOP so `core/stage_grid.FRAMING`: MCU không đòi giày / đai), quay lưng hẳn
+(`thay` = lung) không đòi món chỉ thấy mặt trước (FRONT_ONLY: mặt nạ, choker, mặt, mắt), nhân vật không có trong khung / `khong_duoc_co`
+không đòi gì. Món bị lọc → `trang_thai: "khong_can"` + `ly_do` (không im lặng). Món không biết vùng thân / cỡ cảnh không biết → VẪN đòi,
+kèm `khong_loc` nói vì sao không lọc được.
+
+MỨC (A18 kế hoạch `docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md` dòng 31 + 156: "code chặn ngay"): CHƯA ĐO báo nhầm (bảng gán nhãn
+`docs/NHAN_BAO_NHAM_A18_2026-10-10.md`, ngưỡng mục 9) → `CHAN_DO = False`: 'thieu' / 'thieu_mau' là VÀNG; chỉ bật `CHAN_DO = True`
+(hoặc `check(..., chan_do=True)`) khi báo nhầm đo được ≤ ngưỡng. 'sai_mau' (chữ nói NGƯỢC màu khóa) và 'khong_co_khoa' (thiếu đầu vào)
+ĐỎ ở cả hai chế độ.
 
 Chưa nối vào pipeline (K1a). Không gọi model.
 """
 import re
 import unicodedata
 from typing import Dict, List, Optional, Tuple
+
+from core import stage_grid as sg
+
+# A18 — chặn ĐỎ khi thiếu chữ? False tới khi đo báo nhầm đạt ngưỡng (xem docstring module + docs/NHAN_BAO_NHAM_A18_2026-10-10.md).
+CHAN_DO = False
 
 # màu chuẩn → (đồng nghĩa tiếng Anh, tiếng Việt CÒN DẤU — so trên chữ còn dấu: 'đen' ≠ 'đến', 'tím' ≠ 'tìm', 'đỏ' ≠ 'đó')
 COLORS = {
@@ -49,6 +66,12 @@ ITEMS = {
     "belt": (("belt", "sash", "waistband"), ("đai",)),
     "glitch": (("glitch", "static", "digital noise", "distortion"), ("nhiễu",)),
 }
+# Vùng thân của món (khóa ITEMS) = phần chiều cao người tính TỪ ĐỈNH ĐẦU nơi món bắt đầu thấy; cỡ cảnh chứa phần thân
+# `framing_body(co)` (= stage_grid.FRAMING[co][0]: MLS 0,75, MS 0,55, MCU 0,35, CU 0,22, ECU 0,12) → món có vùng > phần đó không đòi.
+# Món không có ở đây (glitch, món khai_bao_chu ngoài ITEMS) = không biết vùng → vẫn đòi. Người ngồi / quỳ: chưa chỉnh (K1a).
+BODY_FROM_TOP = {"hair": 0.0, "face": 0.05, "eyes": 0.05, "mask": 0.07, "choker": 0.13, "crop top": 0.25, "tracksuit": 0.25,
+                 "dress": 0.25, "hands": 0.45, "nails": 0.45, "belt": 0.45, "stockings": 0.6, "legs": 0.6, "sneakers": 0.95, "heels": 0.95}
+FRONT_ONLY = ("face", "eyes", "mask", "choker")   # chỉ thấy từ phía trước — quay lưng hẳn (thay = lung) không đòi
 PATTERN_WORDS = ("stripe", "stripes", "stars", "star", "print", "lines", "pattern", "vân", "gạch chéo", "sọc")  # so theo TỪ, không chuỗi con
 SKIP_NO_COLOR = {"face"}          # "youthful face with light makeup": không màu → không phải khóa trang phục
 INTENSITY = {"bright", "light", "pale", "deep", "matching", "a", "an", "the", "her", "his", "with", "and", "small", "thin"}
@@ -328,9 +351,56 @@ def _windows(prompt: str, item: str, extra=()):
         yield low[start:end], low[start:ce.start() if ce else len(low)]
 
 
-def check(decl: List[Dict], prompt: str) -> List[Dict]:
-    """[{mon, mau_chinh, trang_thai: co|thieu|thieu_mau|sai_mau, mau_thay, dau_hieu, dau_hieu_thay, muc}] — muc 'do' khi thiếu / sai màu
-    (A18), None khi có. Họa tiết bỏ qua. `dau_hieu_thay` chỉ để báo (VÀNG ở K1a), không đổi trang_thai."""
+def framing_body(co) -> Optional[float]:
+    """Phần thân (từ đỉnh đầu) cỡ cảnh chứa — stage_grid.FRAMING[co][0]; cỡ không biết → None."""
+    f = sg.FRAMING.get(str(co or "").strip().upper()) if co else None
+    return f[0] if f else None
+
+
+def byd_view(byd: Optional[Dict], vat: str) -> Optional[Dict]:
+    """BYĐ → điều máy thấy của nhân vật `vat` (khóa sân khấu): {vat, co, thay [mat/lung/nghieng], trong_khung}. Không có BYĐ → None
+    (check không lọc). Nhân vật không có trong `thanh_phan` hoặc `vai: khong_duoc_co` → trong_khung False."""
+    if not isinstance(byd, dict):
+        return None
+    may = byd.get("may") if isinstance(byd.get("may"), dict) else {}
+    c = next((x for x in byd.get("thanh_phan") or [] if isinstance(x, dict) and x.get("vat") == vat), None)
+    thay = [v.strip() for v in str((c or {}).get("thay") or "").split("|") if v.strip()]
+    return {"vat": vat, "co": may.get("co"), "thay": thay, "trong_khung": bool(c) and c.get("vai") != "khong_duoc_co"}
+
+
+def _item_key(d: Dict) -> Optional[str]:
+    if d["mon"] in ITEMS:
+        return d["mon"]
+    k = _canonical(d) if d.get("nguon") == KBC_KEY else None
+    return k if k in ITEMS else None
+
+
+def _not_needed(d: Dict, view: Optional[Dict]) -> Tuple[Optional[str], Optional[str]]:
+    """(ly_do món KHÔNG cần có chữ, khong_loc = vì sao không lọc được) theo BYĐ."""
+    if view is None:
+        return None, None
+    if not view.get("trong_khung"):
+        return f"nhân vật '{view.get('vat')}' không có trong khung theo BYĐ (thanh_phan)", None
+    key = _item_key(d)
+    thay = set(view.get("thay") or [])
+    if key in FRONT_ONLY and thay == {"lung"}:
+        return f"quay lưng (BYĐ thay = lung): '{d['mon']}' chỉ thấy từ phía trước", None
+    body = framing_body(view.get("co"))
+    if body is None:
+        return None, f"cỡ cảnh '{view.get('co')}' không biết — không lọc theo cỡ, vẫn đòi"
+    if key not in BODY_FROM_TOP:
+        return None, f"món '{d['mon']}' chưa có vùng thân (BODY_FROM_TOP) — không lọc theo cỡ, vẫn đòi"
+    if BODY_FROM_TOP[key] > body:
+        return (f"cỡ {str(view['co']).upper()} chỉ chứa {int(body * 100)} % thân từ đỉnh đầu; '{d['mon']}' ở "
+                f"{int(BODY_FROM_TOP[key] * 100)} % — ngoài khung"), None
+    return None, None
+
+
+def check(decl: List[Dict], prompt: str, view: Optional[Dict] = None, chan_do: Optional[bool] = None) -> List[Dict]:
+    """[{mon, mau_chinh, trang_thai: co|thieu|thieu_mau|sai_mau|khong_can, mau_thay, dau_hieu, dau_hieu_thay, muc, ly_do?, khong_loc?}].
+    `view` = byd_view(...) → món máy không thấy được là 'khong_can' + ly_do (muc None). `chan_do` (mặc định CHAN_DO): True → thiếu /
+    thiếu màu ĐỎ (A18 chặn); False → VÀNG. sai_mau / khong_co_khoa luôn ĐỎ. Họa tiết bỏ qua. `dau_hieu_thay` chỉ để báo."""
+    chan = CHAN_DO if chan_do is None else bool(chan_do)
     out = []
     real = [d for d in decl or [] if not d.get("hoa_tiet") and not d.get("khong_nhan_ra")]
     if not real:                                   # không có khóa nào để so → ĐỎ, không trả rỗng (trông như đạt)
@@ -338,6 +408,11 @@ def check(decl: List[Dict], prompt: str) -> List[Dict]:
                  "mau_phu_thieu": [], "trang_thai": "khong_co_khoa", "muc": "do"}]
     for d in real:
         item, want = d["mon"], list(d.get("mau_chinh") or [])
+        ly_do, khong_loc = _not_needed(d, view)
+        if ly_do:
+            out.append({"mon": item, "mau_chinh": want, "dau_hieu": d.get("dau_hieu"), "nguon": d.get("nguon"), "mau_thay": [],
+                        "dau_hieu_thay": None, "mau_phu_thieu": [], "trang_thai": "khong_can", "muc": None, "ly_do": ly_do})
+            continue
         extra = list(d.get("dong_nghia") or ())
         if d.get("nguon") == KBC_KEY and item not in ITEMS and _canonical(d) in ITEMS:
             # món khai 'spiked belt' đã che món suy 'belt' (declare_from_profile) → nhận cả từ của loại đó, không ĐỎ oan 'thieu'
@@ -346,8 +421,10 @@ def check(decl: List[Dict], prompt: str) -> List[Dict]:
         syn = {c: _words_re([fold(x).replace("-", " ") for x in ws]) for c, ws in (d.get("mau_dong_nghia") or {}).items() if ws}
         row = {"mon": item, "mau_chinh": want, "dau_hieu": d.get("dau_hieu"), "nguon": d.get("nguon"), "mau_thay": [],
                "dau_hieu_thay": None, "mau_phu_thieu": []}
+        if khong_loc:
+            row["khong_loc"] = khong_loc
         if not wins:
-            row.update(trang_thai="thieu", muc="do")
+            row.update(trang_thai="thieu", muc="do" if chan else "vang")
             out.append(row)
             continue
         main_ok = partial = wrong = False
@@ -371,7 +448,8 @@ def check(decl: List[Dict], prompt: str) -> List[Dict]:
             text = " ".join(c for _, c in wins)
             alt = [fold(x) for x in d.get("cach_viet") or () if str(x).strip()]      # cách viết tương đương (khai_bao_chu)
             row["dau_hieu_thay"] = (bool(key) and bool(re.search(_words_re(key), text))) or bool(alt and re.search(_words_re(alt), text))
-        row.update(trang_thai=status, muc=None if status == "co" else "do")
+        muc = None if status == "co" else "do" if (status == "sai_mau" or chan) else "vang"
+        row.update(trang_thai=status, muc=muc)
         out.append(row)
     return out
 
@@ -419,7 +497,7 @@ def segment(prompt: str, markers: Dict[str, List[str]]) -> Dict[str, str]:
 
 
 def summary(rows: List[Dict]) -> Dict[str, int]:
-    s = {"co": 0, "thieu": 0, "thieu_mau": 0, "sai_mau": 0, "khong_co_khoa": 0}
+    s = {"co": 0, "thieu": 0, "thieu_mau": 0, "sai_mau": 0, "khong_can": 0, "khong_co_khoa": 0}
     for r in rows:
         s[r["trang_thai"]] = s.get(r["trang_thai"], 0) + 1
     return s

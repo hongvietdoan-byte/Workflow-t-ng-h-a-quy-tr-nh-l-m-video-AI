@@ -91,8 +91,10 @@ def build_byd(spec, data, conn):
     return b, issues, suy, dec.get("note")
 
 
-def identity_rows(conn, chars, prompt, in_frame=None):
-    """Chỉ nhân vật có trong khung theo BYĐ (in_frame = khóa sân khấu); chữ của mỗi nhân vật = đoạn prompt nói về nó (segment)."""
+def identity_rows(conn, chars, prompt, in_frame=None, byd=None):
+    """Chỉ nhân vật có trong khung theo BYĐ (in_frame = khóa sân khấu); chữ của mỗi nhân vật = đoạn prompt nói về nó (segment).
+    `byd` (thẩm định 4 #1) → món lọc theo cỡ cảnh / mặt-lưng / có trong khung của BYĐ (idd.byd_view): món máy không thấy = 'khong_can'
+    kèm lý do; không có BYĐ → không lọc (như trước)."""
     out = []
     if in_frame is not None:                   # nhân vật không có khóa sân khấu → báo, không lọc im lặng
         out += [{"nhan_vat": c, "kho_id": CHAR_ASSET.get(c), "loi": "khong_co_STAGE_KEY", "tong": {}, "mon": []}
@@ -113,8 +115,9 @@ def identity_rows(conn, chars, prompt, in_frame=None):
         decl, kbc_issues = idd.declare_from_profile(dict(prof, must_keep=mk), row[1] or "")   # K0b p2: ô khai_bao_chu thắng must_keep
         if any(d.get("nguon") == idd.KBC_KEY for d in decl):
             src = idd.KBC_KEY
-        rows = idd.check(decl, seg.get(name, ""))
-        out.append({"nhan_vat": name, "kho_id": aid, "nguon_khoa": src, "thieu_must_keep": not mk,
+        view = idd.byd_view(byd, STAGE_KEY.get(name)) if byd is not None else None
+        rows = idd.check(decl, seg.get(name, ""), view=view)
+        out.append({"nhan_vat": name, "kho_id": aid, "nguon_khoa": src, "thieu_must_keep": not mk, "loc_byd": view,
                     "khai_bao_chu_loi": kbc_issues, "mau_mo_ta_lech": idd.color_conflicts(row[1] or "", decl),
                     "loi": "khong_co_khoa" if any(r["trang_thai"] == "khong_co_khoa" for r in rows) else None,
                     "khong_nhan_ra": idd.unrecognized(decl), "tong": idd.summary(rows), "mon": rows})
@@ -178,7 +181,7 @@ def main():
         people = [c["vat"] for c in (spec or {}).get("thanh_phan", []) if c["vat"] not in PROPS and c.get("vai") != "khong_duoc_co"]
         shot = {"shot": idx, "scene_id": sid, "byd_hop_le": not any(i["muc"] == "do" for i in issues),
                 "byd_loi": issues, "suy_tu_chu": suy, "nguoi_trong_khung": people,
-                "nhan_dien": identity_rows(conn, data.get("characters") or [], data.get("image_prompt") or "", set(people)),
+                "nhan_dien": identity_rows(conn, data.get("characters") or [], data.get("image_prompt") or "", set(people), byd=byd),
                 "hinh_hoc": geometry(conn, data), "do": []}
         for jid, res, refs in sorted(jobs.get(sid, [])):
             plate = next((r for r in refs if r.get("role") == "place_render"), None)
