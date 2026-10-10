@@ -317,3 +317,5 @@ chậm nhất (id · giây) + tổng thời gian + số test hỏng (nếu có, 
 | Việc | Nhánh | Commit | Bằng chứng / việc mở |
 |---|---|---|---|
 | 1 | `codex/d4-viec1-ra-k3` | `025b346` (các lỗi riêng: `d571899`, `008621b`, `1754c84`, `7921f56`, `9eb14a8`, `dc7a436`, `9841fe2`, `9c79536`; fixture `e2d0c02`) | Rà đủ 4 điểm; 15 test mới, từng lỗi đỏ→xanh. Nhóm liên quan 162 passed / 2 skipped; kiểm cuối K3 + sent_package 64 passed. So gói cờ tắt từng byte và thứ tự ghi sổ với snapshot main c78bcfe. Rà độc lập trước commit + rà lượt hai; báo cáo `docs/RA_D4_VIEC1_CODEX_2026-10-10.md`. Chưa thử provider thật, chưa chạy cả bộ, K3 mặc định tắt. |
+| 2 | `d4-viec2-byd-flaky` (Claude làm thay — Codex hết gói) | `06b4a38` | Nguồn: `core/prompt_formula.py:706` `_now()` theo giây ghi vào `formula_check.at`; test so hai lần chạy vắt ranh giới giây. Đóng băng `_now` trong test; ghép 3 file 5 lần đều 62 passed. |
+| 3 | (Claude, cùng lần chạy cả bộ khi gộp) | — | Cả bộ 4004 passed / 4 skipped, 1110 s; 17 test ≥ 8 s đều đã trong `SLOW_TESTS` → không đổi `conftest.py`. Chậm nhất: test_v3 kling_multishot 47,5 s; devsys every_page 31,2 s. |
