@@ -109,3 +109,5 @@ giữ nguyên (test xanh như cũ, không còn `DeprecationWarning` getdata: ch�
 ## Kết quả Codex
 
 (Codex ghi ở đây: việc · nhánh · commit · test đỏ→xanh · việc mở.)
+
+- Việc 1 · `codex/tasks-20261010` · `30e72bb` · đỏ 5 ca thiếu measured/diag báo đạt → xanh **83 test**, gồm `test_plate_layout_qc`, `test_camera_plan_g0`, `test_stage_facts`. Người gọi duy nhất `check_job` → runner diag đã báo warn; không đổi key UI. Còn mở: ngưỡng QC chưa hiệu chỉnh trên ảnh thật; không thử dữ liệu thật/API.
