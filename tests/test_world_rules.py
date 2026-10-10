@@ -138,3 +138,24 @@ def test_golden_world_rules(case):
         got = [r["id"] for r in wr.tim(exp["luat"], q["vat"], ngu_canh=q.get("ngu_canh"), du_an=q.get("du_an"), shot=q.get("shot"),
                                         loai=q.get("loai"), hom_nay=q.get("hom_nay"))]
         assert got == q["ra"], q
+
+
+def test_project_path_uses_caller_data_dir(monkeypatch, tmp_path):
+    """Người gọi (K3: ctx autopilot / DATA dashboard) truyền data_dir TUYỆT ĐỐI → thắng PIPELINE_DATA và neo ROOT (bản sao thử, cwd khác)."""
+    monkeypatch.setenv("PIPELINE_DATA", os.path.join("data", "projects"))
+    monkeypatch.chdir(tmp_path)
+    mine = str(tmp_path / "copy" / "projects")
+    assert wr.project_path(24, mine) == os.path.join(mine, "24", "world_rules.json")
+    path = wr.project_path(24, mine)
+    assert wr.add(path, _rule(id="xe_bay_24", vat="kho:77"), du_an=24) == []
+    rules, issues = wr.load_project(24, mine)
+    assert issues == [] and [r["id"] for r in rules] == ["xe_bay_24"]
+    assert [r["id"] for r in wr.load_all(24, mine)[0]][-1] == "xe_bay_24"
+
+
+def test_write_uses_unique_temp_file(tmp_path):
+    """Ghi nguyên tử bằng tệp tạm TÊN DUY NHẤT trong cùng thư mục — tên cố định '<tệp>.tmp' đụng nhau khi hai người ghi."""
+    path = wr.project_path(24, str(tmp_path))
+    os.makedirs(path + ".tmp")                     # chỗ tên tạm cố định cũ bị chiếm → cách cũ hỏng
+    assert wr.add(path, _rule(id="xe_bay_24", vat="kho:77"), du_an=24) == []
+    assert sorted(os.listdir(os.path.dirname(path))) == ["world_rules.json", "world_rules.json.tmp"]   # không để rác tạm

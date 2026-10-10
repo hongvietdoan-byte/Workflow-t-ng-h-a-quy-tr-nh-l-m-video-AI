@@ -236,6 +236,18 @@ def test_check_uses_kbc_synonyms_and_sign_wording():
     assert r["belt"]["trang_thai"] == "sai_mau"                          # #24 shot 5/6: prompt viết đai đỏ theo mô tả Kho cũ
 
 
+def test_kbc_item_matches_canonical_item_words():
+    """Món khai_bao_chu 'spiked belt' che món suy 'belt' (cùng loại ITEMS) → khi so prompt cũng phải nhận từ của loại đó ('belt'),
+    không báo ĐỎ oan 'thieu' khi prompt viết 'black belt with spikes' (đường must_keep cũ ra 'co')."""
+    kbc = [{"mon": "spiked belt", "mau_chinh": ["black"], "dau_hieu": "spikes"}]
+    decl, issues = idd.declare_from_profile({"khai_bao_chu": kbc, "must_keep": "black belt with spikes"})
+    assert [d["mon"] for d in decl] == ["spiked belt"] and issues == []
+    rows = idd.check(decl, "Kelly wears a black belt with spikes.")
+    assert [(r["mon"], r["trang_thai"]) for r in rows] == [("spiked belt", "co")]
+    assert idd.check(decl, "Kelly wears a red belt.")[0]["trang_thai"] == "sai_mau"     # vẫn bắt sai màu
+    assert idd.check(decl, "Kelly wears a black dress.")[0]["trang_thai"] == "thieu"   # không có thắt lưng → vẫn thiếu
+
+
 def test_description_color_conflict_is_yellow():
     """#24 shot 5/6: mô tả Kho cũ 'đai đỏ ngang eo' lệch ảnh mẫu (đai gai đen + khóa tam giác đỏ) → VÀNG trước khi viết prompt."""
     decl, _ = idd.declare_from_profile({"khai_bao_chu": YN1_KBC})

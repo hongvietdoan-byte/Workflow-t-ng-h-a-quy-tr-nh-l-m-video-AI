@@ -338,7 +338,11 @@ def check(decl: List[Dict], prompt: str) -> List[Dict]:
                  "mau_phu_thieu": [], "trang_thai": "khong_co_khoa", "muc": "do"}]
     for d in real:
         item, want = d["mon"], list(d.get("mau_chinh") or [])
-        wins = list(_windows(prompt, item, d.get("dong_nghia") or ()))
+        extra = list(d.get("dong_nghia") or ())
+        if d.get("nguon") == KBC_KEY and item not in ITEMS and _canonical(d) in ITEMS:
+            # món khai 'spiked belt' đã che món suy 'belt' (declare_from_profile) → nhận cả từ của loại đó, không ĐỎ oan 'thieu'
+            extra += list(ITEMS[_canonical(d)][0])
+        wins = list(_windows(prompt, item, extra))
         syn = {c: _words_re([fold(x).replace("-", " ") for x in ws]) for c, ws in (d.get("mau_dong_nghia") or {}).items() if ws}
         row = {"mon": item, "mau_chinh": want, "dau_hieu": d.get("dau_hieu"), "nguon": d.get("nguon"), "mau_thay": [],
                "dau_hieu_thay": None, "mau_phu_thieu": []}

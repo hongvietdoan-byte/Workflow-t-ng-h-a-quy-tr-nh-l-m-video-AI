@@ -41,10 +41,14 @@ class EnumReuseTests(unittest.TestCase):
         text = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "prompts",
                                  "29_director_stage_specs.md"), encoding="utf-8").read()
         self.assertIn("tu_the", text)
-        for word in ("đứng", "ngồi bệt", "quỳ", "bò", "ngã ngửa", "nằm"):
+        # Tư thế prompt 29 cho Director dùng phải là TẬP CON của TU_THE (Director không ra mã mà kiểm không biết). Ngược lại không bắt
+        # buộc: 'nga_ngua', 'nam' chỉ dùng chạy khô / BYĐ tới khi solver đo thân nằm (K1a/K3) — chưa đưa vào prompt đang chạy.
+        in_prompt = {"dung": "đứng", "ngoi": "ngồi bệt", "quy": "quỳ", "bo": "bò"}
+        for code, word in in_prompt.items():
             self.assertIn(word, text)
-        for code in si.TU_THE:                                   # K0b phần 2: mã enum ghi rõ trong prompt 29 (giữ khớp hai nơi)
-            self.assertIn(f"`{code}`", text)
+            self.assertIn(code, si.TU_THE)
+        for code in ("nga_ngua", "nam"):
+            self.assertNotIn(f"`{code}`", text)                  # K0b: không đổi hành vi pipeline (prompt đang chạy ở director_stage_specs)
 
     def test_nga_ngua_is_a_pose(self):
         """#24 shot 4 job 635: Kelly phải NGÃ NGỬA hai tay chống sau, ảnh ra NGỒI thẳng — enum cũ chỉ ghi được 'ngoi' (không phân biệt)."""

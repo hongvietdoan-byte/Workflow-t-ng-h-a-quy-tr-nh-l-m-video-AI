@@ -18,6 +18,7 @@ import datetime
 import json
 import os
 import re
+import tempfile
 import unicodedata
 from typing import Dict, List, Optional, Tuple
 
@@ -45,6 +46,9 @@ def _issue(muc: str, luat, loi: str) -> Dict:
 
 # ---- đường dẫn --------------------------------------------------------------------------------------------------------------------
 def data_dir_abs(data_dir: Optional[str] = None) -> str:
+    """Thư mục dự án. Ưu tiên `data_dir` NGƯỜI GỌI truyền — người gọi (K3: ctx của autopilot, DATA của dashboard) phải truyền đường
+    dẫn TUYỆT ĐỐI (os.path.abspath của thư mục họ đang dùng), vì nơi khác trong repo hiểu PIPELINE_DATA tương đối theo cwd còn ở đây
+    tương đối bị neo theo ROOT của mã (bản sao thử có cwd khác → hai nơi lệch thư mục). Không truyền → PIPELINE_DATA → data/projects."""
     d = data_dir or os.environ.get("PIPELINE_DATA") or os.path.join("data", "projects")
     return os.path.normpath(d if os.path.isabs(d) else os.path.join(ROOT, d))
 
@@ -205,11 +209,19 @@ def tim(rules: List[Dict], vat: str, ngu_canh: Optional[str] = None, du_an: Opti
 # ---- thêm / gỡ (ghi nguyên tử) ---------------------------------------------------------------------------------------------------
 def _write(path: str, data: Dict) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(data, f, ensure_ascii=False, indent=1)
-        f.write("\n")
-    os.replace(tmp, path)
+    # tệp tạm TÊN DUY NHẤT trong cùng thư mục (os.replace nguyên tử chỉ khi cùng ổ) — tên cố định '<tệp>.tmp' đụng nhau khi hai người ghi
+    fd, tmp = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".part", dir=os.path.dirname(path))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+            f.write("\n")
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def _load_for_write(path: str) -> Tuple[Optional[Dict], List[Dict]]:

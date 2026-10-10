@@ -630,6 +630,25 @@ class MergeKeepsEveryPictureTests(unittest.TestCase):
         self.assertIsNotNone(assets.get(self.conn, other))
         self.assertEqual(assets.get_profile(self.conn, keep)["identity"], "white hair")
 
+    def test_merge_keeps_khai_bao_chu(self):
+        """Ô khai_bao_chu (K0b p2, A20) nằm ngoài PROFILE_KEYS: hồ sơ giống nhau ở PROFILE_KEYS mà chỉ nguồn có ô → chép ô sang đích
+        (không mất khi mục nguồn bị xóa); hai bên có ô khác nhau → từ chối, chưa đổi gì."""
+        kbc = [{"mon": "belt", "mau_chinh": ["black"]}]
+        keep = assets.create(self.conn, "FF", "character", "YN1")
+        dup = assets.create(self.conn, "FF", "character", "YN1B")
+        assets.set_profile(self.conn, keep, {"identity": "x", "must_keep": "black belt"}, approved=True)
+        assets.set_profile(self.conn, dup, {"identity": "x", "must_keep": "black belt", "khai_bao_chu": kbc}, approved=True)
+        assets.merge(self.conn, dup, keep)
+        self.assertIsNone(assets.get(self.conn, dup))
+        self.assertEqual(assets.get_profile(self.conn, keep)["khai_bao_chu"], kbc)
+        other = assets.create(self.conn, "FF", "character", "YN1C")
+        assets.set_profile(self.conn, other, {"identity": "x", "must_keep": "black belt",
+                                              "khai_bao_chu": [{"mon": "belt", "mau_chinh": ["red"]}]}, approved=True)
+        with self.assertRaises(AssetError):
+            assets.merge(self.conn, other, keep)
+        self.assertIsNotNone(assets.get(self.conn, other))
+        self.assertEqual(assets.get_profile(self.conn, keep)["khai_bao_chu"], kbc)
+
 
 class LibraryTrashTests(unittest.TestCase):
     def setUp(self):
