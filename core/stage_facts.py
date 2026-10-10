@@ -13,7 +13,7 @@ Sổ `FACTS`: mỗi loại sự thật =
 Nơi dùng: core/runner.build_image_prompt (khối câu cuối prompt), core/change_audit (câu Director trái sự thật → mục 'cau' đỏ),
 core/qc_spec.compile_frame (mệnh đề 'geometry' cho Tổ QC) + core/qc_scene (khối "Khai điều thấy" của QC lớp 1),
 core/plate_layout_qc (chân trời giải tích thay đo mù trên render đêm).
-Quy tắc: lỗi người dùng bắt mà QC lọt → thêm LOẠI / CA VÀNG vào đây (tests/fixtures/stage_facts_golden.json), không vá prompt.
+Quy tắc: lỗi người dùng bắt mà QC lọt → thêm LOẠI / CA VÀNG vào đây (tests/golden/cases/<id>.json, định dạng tests/golden/README.md), không vá prompt.
 Không có stage_camera → không sinh sự thật nào, nói rõ lý do (`missing`), không đoán.
 """
 import math

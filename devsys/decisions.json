@@ -650,6 +650,83 @@
    "what": "Đọc chữ ảnh trang kịch bản thả vào chat (script_ocr)",
    "where": "core/chat_refs.py:read_page",
    "stage": "script_ocr"
+  },
+  {
+   "id": "d84",
+   "step": "step1",
+   "who": "code",
+   "what": "Công thức prompt (prompt_formula): prompt ảnh/motion ĐỦ PHẦN theo cấu trúc, lỗi đỏ giữ gen — không kiểm nghĩa (K0a: thêm vào sổ)",
+   "where": "core/prompt_formula.py:review_shot"
+  },
+  {
+   "id": "d85",
+   "step": "step2",
+   "who": "code",
+   "what": "Sự thật hình học từ máy 3D (stage_facts): thấy miệng/lòng vật, khối thay thế, trong khung, chân trời, góc ảnh mẫu → câu cuối prompt ảnh + câu hỏi QC enum",
+   "where": "core/stage_facts.py:derive"
+  },
+  {
+   "id": "d86",
+   "step": "step2",
+   "who": "code",
+   "what": "Câu Director trái sự thật hình học → mục ĐỎ 'cau' trong bộ kiểm tác động (giữ gen tới khi sửa câu)",
+   "where": "core/stage_facts.py:contradictions"
+  },
+  {
+   "id": "d87",
+   "step": "step2",
+   "who": "code",
+   "what": "Bộ kiểm tác động (change_audit): khi có thay đổi, trường shot (máy / cỡ / câu / ảnh neo) có khớp nhau",
+   "where": "core/change_audit.py:audit"
+  },
+  {
+   "id": "d88",
+   "step": "ops",
+   "who": "code",
+   "what": "Khung 'Trước khi chạy' (before_run): cờ tốn tiền đang bật, thứ giữ việc, đầu vào thiếu — điều kiện vận hành, không xem gói",
+   "where": "core/before_run.py:collect"
+  },
+  {
+   "id": "d89",
+   "step": "step2",
+   "who": "code",
+   "what": "Giải máy sân khấu 3D từ yêu cầu khung (shot_specs) + luật P/S/C chọn nghiệm",
+   "where": "core/stage_solver.py:solve_scene"
+  },
+  {
+   "id": "d90",
+   "step": "step2",
+   "who": "code",
+   "what": "Render nền 3D bằng Blender (máy theo shot, giờ/thời tiết, khối thay thế)",
+   "where": "tools/render_plates.py:main"
+  },
+  {
+   "id": "d91",
+   "step": "step5",
+   "who": "code",
+   "what": "Popup icon/chữ cuối clip (end_popup): ghép lên khung cuối, giữ khung",
+   "where": "core/end_popup.py:apply"
+  },
+  {
+   "id": "d92",
+   "step": "step2",
+   "who": "code",
+   "what": "QC bố cục so render nền (plate_layout_qc): chân trời, mật độ nét kiến trúc",
+   "where": "core/plate_layout_qc.py:compare"
+  },
+  {
+   "id": "d93",
+   "step": "step2",
+   "who": "code",
+   "what": "Kiểm yêu cầu khung trước khi giải máy: cỡ / độ cao / góc / vai / vùng / thấy hợp lệ, có thứ chính, không mâu thuẫn vùng",
+   "where": "core/stage_solver.py:validate"
+  },
+  {
+   "id": "d94",
+   "step": "step2",
+   "who": "code",
+   "what": "Kiểm câu trả lời dàn cảnh của Đạo diễn (blocking + shot_specs): khóa vật, nhịp, vật chồng nhau",
+   "where": "core/stage_director.py:validate_answer"
   }
  ]
 }

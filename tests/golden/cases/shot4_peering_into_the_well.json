@@ -1,0 +1,60 @@
+{
+ "id": "shot4_peering_into_the_well",
+ "nguon": "rà kỹ 10/10: ca đỏ thật",
+ "ca_vang_tay": false,
+ "byd": null,
+ "may": {
+  "location": [
+   -216.062,
+   114.937,
+   10.43
+  ],
+  "look_at": [
+   -216.621,
+   115.766,
+   10.45
+  ],
+  "lens": 24.0,
+  "props": [
+   {
+    "kind": "well",
+    "at": [
+     -217.348,
+     117.576,
+     9.83
+    ],
+    "radius": 0.75,
+    "height": 0.9,
+    "hollow": true,
+    "sides": 8
+   }
+  ]
+ },
+ "kho": {},
+ "goi": {
+  "image_prompt": "Kelly is peering into the well, cold moonlight."
+ },
+ "anh_ket_qua": null,
+ "loi_dung": "câu trái hình học: 'into the well'",
+ "loai_loi": [
+  "L7"
+ ],
+ "lop_phai_bat": [
+  "d85",
+  "d86"
+ ],
+ "ky_vong": {
+  "stage_facts": {
+   "facts": {
+    "top_visible:well": false
+   },
+   "prompt_contains": [],
+   "prompt_not_contains": [],
+   "contradiction": {
+    "level": "do",
+    "phrase_contains": "into the well"
+   },
+   "judge": []
+  }
+ }
+}

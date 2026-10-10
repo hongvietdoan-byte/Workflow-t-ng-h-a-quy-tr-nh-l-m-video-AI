@@ -83,7 +83,7 @@ def main() -> None:
         print("(chưa gọi — thêm --yes --max-usd <USD>)")
         return
     cap = script_cap.from_args(a, f"qc_test_p24 {mode}").start()
-    cap.guard((est or 0) * cost.LLM_MARGIN * 2, "QC cảnh 1")    # ×2: output QC thật ≈ 5k token, ước bảng thấp ≈ 40 % (10/10)
+    cap.guard((est or 0) * cost.LLM_MARGIN, "QC cảnh 1")    # K0a: bảng qc đã theo output đo thật (5200) — bỏ ×2 cũ
     client = llm_runner.client_from_env(ledger=llm_runner.db_file(p.conn))
     if client is None:
         sys.exit("chưa cấu hình Claude")

@@ -1,0 +1,89 @@
+{
+ "id": "p24_shot8_stand_in_block",
+ "nguon": "người dùng 10/10 #24 shot 8: render 3D có giếng là khối thay thế tám cạnh → ảnh chép thành khối, QC 'place ok'",
+ "ca_vang_tay": false,
+ "byd": null,
+ "may": {
+  "location": [
+   -216.746,
+   116.08,
+   10.946
+  ],
+  "look_at": [
+   -217.384,
+   116.841,
+   10.827
+  ],
+  "lens": 50.0,
+  "props": [
+   {
+    "kind": "well",
+    "at": [
+     -217.348,
+     117.576,
+     9.83
+    ],
+    "radius": 0.75,
+    "height": 0.9,
+    "hollow": true,
+    "sides": 8
+   }
+  ]
+ },
+ "kho": {
+  "well": {
+   "name": "GIẾNG ĐÁ CỔ",
+   "desc_en": "",
+   "has_picture": true
+  }
+ },
+ "goi": {
+  "image_prompt": "Close-up, eye level, slow push-in, Free Fire in-game 3D render style, the comic-style black-faced creature with white hair and red tips kneeling on the foggy stone plaza, clawed hands covering her face, shoulders shaking, cold moonlight, everything in focus"
+ },
+ "anh_ket_qua": null,
+ "loi_dung": "không có câu trái hình học (ca chống báo nhầm)",
+ "loai_loi": [
+  "L7"
+ ],
+ "lop_phai_bat": [
+  "d85"
+ ],
+ "ky_vong": {
+  "stage_facts": {
+   "facts": {
+    "top_visible:well": true,
+    "stand_in:well": true
+   },
+   "prompt_contains": [
+    "The grey eight-sided block in the background render is a placeholder: draw it as the stone well",
+    "not a flat block"
+   ],
+   "prompt_not_contains": [
+    "only the outer wall"
+   ],
+   "contradiction": null,
+   "judge": [
+    [
+     "stand_in:well",
+     "flat_plain_block",
+     "do"
+    ],
+    [
+     "stand_in:well",
+     "drawn_as_real_object",
+     null
+    ],
+    [
+     "stand_in:well",
+     "unsure",
+     "vang"
+    ],
+    [
+     "top_visible:well",
+     "inside_visible",
+     null
+    ]
+   ]
+  }
+ }
+}

@@ -148,5 +148,12 @@ class DashboardCostTests(unittest.TestCase):
                 os.environ.pop(k, None)
 
 
+class QcStageTokensTests(unittest.TestCase):
+    def test_qc_output_follows_the_measured_calls(self):
+        # K0a kế hoạch kiểm soát: 10/10 hai lần chấm cảnh 1 #24 (sổ chi usage_events) ra 4648 / 5162 token — 900 cũ ước thấp gần 6 lần.
+        # Ước tính dư (S14.16): không thấp hơn lần đo lớn nhất.
+        self.assertGreaterEqual(cost.LLM_STAGE_TOKENS["qc"][1], 5162)
+
+
 if __name__ == "__main__":
     unittest.main()

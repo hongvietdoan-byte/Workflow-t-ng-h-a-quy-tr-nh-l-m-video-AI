@@ -1,5 +1,6 @@
 """Sự thật hình học một nguồn (core/stage_facts, người dùng 10/10 #24 shot 4 + 8): hợp đồng của sổ FACTS + bộ ca vàng + 3 nơi dùng
-(prompt ảnh, bộ kiểm tác động, QC). Ca vàng mới = một mục trong tests/fixtures/stage_facts_golden.json, test tự chạy hết."""
+(prompt ảnh, bộ kiểm tác động, QC). Ca vàng mới = một tệp tests/golden/cases/<id>.json có ky_vong.stage_facts (định dạng
+tests/golden/README.md, K0a), test tự chạy hết."""
 import json
 import os
 import sqlite3
@@ -7,8 +8,9 @@ import sqlite3
 import pytest
 
 from core import change_audit, change_review, features, qc_rules, qc_scene, qc_spec, qc_team, stage_facts as sf
+from tests import golden
 
-GOLDEN = json.load(open(os.path.join(os.path.dirname(__file__), "fixtures", "stage_facts_golden.json"), encoding="utf-8"))
+GOLDEN = golden.stage_facts_cases()
 
 
 def _case(name):

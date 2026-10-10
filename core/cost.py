@@ -294,7 +294,8 @@ def price_tag(usd: Optional[float], count: int = 1) -> str:
 # ---- Claude (batch buttons, the automatic run) ------------------------------------------------------------------------------
 # Tokens of ONE call per stage (usage_events.stage) when the ledger has no call of that stage yet: (input, output). Pictures count in
 # the input (~w*h/750 tokens each at the 1024 px edge ≈ 1,400). Rough on purpose — replaced by the measured average after the first calls.
-LLM_STAGE_TOKENS = {"director": (25000, 18000), "motion": (9000, 4000), "qc": (6000, 900), "style": (9000, 1500),
+# qc: 10/10 (K0a kế hoạch kiểm soát) hai lần chấm cảnh 1 #24 ra 4648 / 5162 token (sổ chi) → 5200 (dư), 900 cũ ước thấp ~6 lần.
+LLM_STAGE_TOKENS = {"director": (25000, 18000), "motion": (9000, 4000), "qc": (6000, 5200), "style": (9000, 1500),
                     "video_analysis": (14000, 4000), "setcheck": (8000, 1200), "clipcheck": (10000, 1200),
                     "asset_vision": (6000, 900), "research": (25000, 1500),
                     "script_ocr": (1500, 3000),     # 09/10: chép chữ một trang kịch bản chụp (+ 1 ảnh qua `images`)

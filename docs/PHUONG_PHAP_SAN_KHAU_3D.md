@@ -344,7 +344,7 @@ Ba nơi dùng (chỉ khi cờ `stage_camera` bật và shot có `stage_camera`; 
 - **QC**: Tổ QC (`qc_spec` loại `geometry`, khai `geo_seen`) và QC lớp 1 (`qc_scene`, khối "Khai điều thấy", khóa `geo`) — model chỉ khai
   điều thấy, code judge; đỏ ghi đè "place ok" của model. `plate_layout_qc` dùng chân trời giải tích khi render tối không đo được.
 
-**Quy tắc.** Lỗi người dùng bắt mà QC lọt → thêm LOẠI vào `FACTS` hoặc CA VÀNG vào `tests/fixtures/stage_facts_golden.json` (một mục JSON,
+**Quy tắc.** Lỗi người dùng bắt mà QC lọt → thêm LOẠI vào `FACTS` hoặc CA VÀNG vào `tests/golden/cases/<id>.json` (một tệp JSON định dạng `tests/golden/README.md` — K0a gộp từ `tests/fixtures/stage_facts_golden.json`,
 `tests/test_stage_facts.py` tự chạy hết) — KHÔNG vá prompt / thêm câu tay cho từng ca. Loại mới thiếu một phần (derive/prompt/observe có
 `unsure`/judge/contradicts) → test hợp đồng đỏ. Đỏ chỉ khi chắc (máy cách mép > 5 cm, vật thấy ≥ 80 %, câu Director nhắc chính vật).
 
