@@ -34,10 +34,11 @@ def test_missing_choker_is_red_when_blocking_is_on():
     assert r["tracksuit"]["trang_thai"] == "co"
 
 
-def test_wrong_color_is_red():
-    for chan in (True, False):                     # sai màu = chữ nói NGƯỢC khóa → ĐỎ ở cả hai chế độ (không phải "thiếu chữ")
+def test_wrong_color_is_red_only_when_blocking_is_on():
+    # A18 (kế hoạch dòng 33): "thiếu / sai màu → ĐỎ" chỉ SAU KHI đo báo nhầm → chưa bật chặn thì sai màu cũng VÀNG
+    for chan, muc in ((True, "do"), (False, "vang")):
         r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in a red tracksuit and a black choker", chan_do=chan))
-        assert r["tracksuit"]["trang_thai"] == "sai_mau" and r["tracksuit"]["mau_thay"] == ["red"] and r["tracksuit"]["muc"] == "do"
+        assert r["tracksuit"]["trang_thai"] == "sai_mau" and r["tracksuit"]["mau_thay"] == ["red"] and r["tracksuit"]["muc"] == muc
 
 
 def test_color_synonyms_and_missing_color():
@@ -171,9 +172,27 @@ def test_dryrun_identity_rows_filter_by_byd():
     assert row["tong"]["khong_can"] == 1 and row["loc_byd"]["co"] == "MCU"
 
 
+def test_dryrun_old_shot4_prompt_uses_same_byd_filter():
+    """Rà độc lập #5: prompt CŨ shot 4 phải lọc bằng cùng BYĐ shot 4 như prompt mới (so cũ ↔ mới không lẫn hiệu ứng lọc)."""
+    import importlib.util
+    import json
+    import os
+    import sqlite3
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "dryrun_k0b_p24.py")
+    spec = importlib.util.spec_from_file_location("dryrun_k0b_p24", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE assets (id INTEGER, profile TEXT, description TEXT)")
+    conn.execute("INSERT INTO assets VALUES (23, ?, '')", (json.dumps({"must_keep": KELLY_MUST_KEEP}),))
+    old = {"characters": ["KELLY"], "image_prompt": "Kelly close up, dark brown bob, black choker, white crop top, yellow track jacket"}
+    row = mod.old_prompt_identity(conn, old, BYD_MCU)[0]
+    assert {m["mon"]: m["trang_thai"] for m in row["mon"]}["sneakers"] == "khong_can" and row["loc_byd"]["co"] == "MCU"
+
+
 def test_default_mode_is_yellow_until_false_alarms_are_measured():
     """A18 + thẩm định 4 #1: chưa đo báo nhầm (docs/NHAN_BAO_NHAM_A18_2026-10-10.md) → CHAN_DO = False: 'thieu' / 'thieu_mau' là
-    VÀNG; bật chặn (chan_do=True) mới ĐỎ. 'sai_mau' và 'khong_co_khoa' ĐỎ ở cả hai chế độ."""
+    VÀNG; bật chặn (chan_do=True) mới ĐỎ. 'sai_mau' cũng theo chế độ (A18); 'khong_co_khoa' (thiếu đầu vào) ĐỎ ở cả hai chế độ."""
     assert idd.CHAN_DO is False
     assert "A18" in idd.__doc__ and "CHAN_DO" in idd.__doc__
     decl = idd.declare_from_text(KELLY)
@@ -234,6 +253,19 @@ def test_byd_filter_character_not_in_frame():
     banned = idd.byd_view({"thanh_phan": [{"vat": "kelly", "vai": "khong_duoc_co"}], "may": {"co": "WS"}}, "kelly")
     assert banned["trong_khung"] is False
     assert idd.byd_view(None, "kelly") is None                          # không có BYĐ → không lọc
+
+
+def test_byd_filter_missing_stage_key_or_cast_is_not_silent():
+    """Rà độc lập #1: thiếu khóa sân khấu / BYĐ chưa có thanh_phan → KHÔNG lọc 'ngoài khung' (vẫn đòi, kèm khong_loc); khóa so
+    không phân biệt hoa/thường."""
+    byd = {"may": {"co": "WS"}, "thanh_phan": [{"vat": "kelly", "vai": "chinh", "thay": "mat"}]}
+    decl = idd.declare_from_text("black choker, white sneakers")
+    for view in (idd.byd_view(byd, None), idd.byd_view(byd, ""), idd.byd_view({"may": {"co": "WS"}}, "kelly")):
+        rows = idd.check(decl, "nothing here", view=view)
+        assert {r["trang_thai"] for r in rows} == {"thieu"}, rows
+        assert all(r.get("khong_loc") for r in rows)
+    v = idd.byd_view(byd, "Kelly")
+    assert v["trong_khung"] is True and v["thay"] == ["mat"]
     assert idd.check(idd.declare_from_text(KELLY), "Kelly", view=None)[0]["trang_thai"] == "thieu"
 
 

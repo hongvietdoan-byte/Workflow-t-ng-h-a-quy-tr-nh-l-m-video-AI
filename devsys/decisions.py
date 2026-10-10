@@ -92,9 +92,11 @@ def problems(doc: Dict) -> List[str]:
 
 
 def _count(items: List[Dict]) -> Dict:
-    n = len(items)
-    c = {w: sum(1 for d in items if d.get("who") == w) for w in WHO}
-    return {"n": n, **c, "pct": {w: round(100.0 * c[w] / n, 1) if n else None for w in WHO}}
+    """Đếm điểm quyết ĐANG NỐI luồng; điểm `bat: false` (code có, chưa nối — d95/d96) không vào n / code, đếm riêng `chua_noi`."""
+    live = [d for d in items if d.get("bat") is not False]
+    n = len(live)
+    c = {w: sum(1 for d in live if d.get("who") == w) for w in WHO}
+    return {"n": n, **c, "chua_noi": len(items) - n, "pct": {w: round(100.0 * c[w] / n, 1) if n else None for w in WHO}}
 
 
 def summary(doc: Dict) -> Dict:

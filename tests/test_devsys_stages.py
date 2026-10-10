@@ -235,6 +235,19 @@ class ErrorTypeTests(unittest.TestCase):
     def test_table_has_no_problems(self):
         self.assertEqual(stages.error_type_problems(self.doc, ROOT), [])
 
+    def test_code_hoc_viec_is_shown_as_not_counted(self):
+        """Rà độc lập #4: code_do 'hoc_viec' (L11 plate_layout_qc) không tính → nhãn nói rõ 'không tính', dòng vẫn chi_xay."""
+        on = lambda f: "on"  # noqa: E731
+        row = next(r for r in stages.error_type_rows(self.doc, state=on) if r["id"] == "L11")
+        self.assertIn("học việc — không tính", row["co"])
+        self.assertTrue(row["chi_xay"])
+        t = {"types": [{"id": "X", "ten": "x", "ap_dung": ["anh"], "code_do": [],
+                        "claude_khai": [{"mo_ta": "k", "enum": ["a"], "trang_thai": "hoc_viec", "dot": "K3", "co": "qc_team"}]}]}
+        r = stages.error_type_rows(t, state=on)[0]
+        self.assertIn("(học việc)", r["co"])
+        self.assertNotIn("không tính", r["co"])
+        self.assertFalse(r["chi_xay"])
+
     def test_a_product_without_any_check_is_red(self):
         bad = {"san_pham": ["anh", "video", "am_chu"],
                "types": [{"id": "L1", "ten": "x", "ap_dung": ["anh", "video"],
@@ -347,6 +360,9 @@ class GoldenFormatTests(unittest.TestCase):
                 self.assertNotIn(d, kiem, f"{c['id']}: lop_lam '{d}' là lớp kiểm — chuyển sang lop_phai_bat")
         bad = dict(golden.load_cases()[0], lop_phai_bat=["d85"])
         self.assertIn("d85", " ".join(golden.problems(bad, kiem_ids=kiem)))
+        bad = dict(golden.load_cases()[0], lop_lam=["d999"])                    # rà độc lập #6: lop_lam phải có trong decisions
+        self.assertIn("d999", " ".join(golden.problems(bad, decision_ids=ids)))
+        self.assertIn("lop_lam", " ".join(golden.problems(dict(bad, lop_lam="d85"), decision_ids=ids)))
 
     # khóa ky_vong → (tệp test chạy lớp đó trên ca, câu chọn ca phải có trong tệp)
     LOP_CHAY = {"stage_facts": ("tests/test_stage_facts.py", "GOLDEN = golden.stage_facts_cases()"),

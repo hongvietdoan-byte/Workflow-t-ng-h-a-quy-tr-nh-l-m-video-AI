@@ -15,8 +15,8 @@ kèm `khong_loc` nói vì sao không lọc được.
 
 MỨC (A18 kế hoạch `docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md` dòng 31 + 156: "code chặn ngay"): CHƯA ĐO báo nhầm (bảng gán nhãn
 `docs/NHAN_BAO_NHAM_A18_2026-10-10.md`, ngưỡng mục 9) → `CHAN_DO = False`: 'thieu' / 'thieu_mau' là VÀNG; chỉ bật `CHAN_DO = True`
-(hoặc `check(..., chan_do=True)`) khi báo nhầm đo được ≤ ngưỡng. 'sai_mau' (chữ nói NGƯỢC màu khóa) và 'khong_co_khoa' (thiếu đầu vào)
-ĐỎ ở cả hai chế độ.
+(hoặc `check(..., chan_do=True)`) khi báo nhầm đo được ≤ ngưỡng. 'sai_mau' (chữ nói NGƯỢC màu khóa) cũng theo chế độ (A18 dòng 33:
+"thiếu / sai màu → ĐỎ" chỉ sau khi đo; bảng báo nhầm đo cả sai_mau). Chỉ 'khong_co_khoa' (thiếu đầu vào) ĐỎ ở cả hai chế độ.
 
 Chưa nối vào pipeline (K1a). Không gọi model.
 """
@@ -358,12 +358,19 @@ def framing_body(co) -> Optional[float]:
 
 
 def byd_view(byd: Optional[Dict], vat: str) -> Optional[Dict]:
-    """BYĐ → điều máy thấy của nhân vật `vat` (khóa sân khấu): {vat, co, thay [mat/lung/nghieng], trong_khung}. Không có BYĐ → None
-    (check không lọc). Nhân vật không có trong `thanh_phan` hoặc `vai: khong_duoc_co` → trong_khung False."""
+    """BYĐ → điều máy thấy của nhân vật `vat` (khóa sân khấu, so không phân biệt hoa/thường): {vat, co, thay [mat/lung/nghieng],
+    trong_khung}. Không có BYĐ → None (check không lọc). Nhân vật không có trong `thanh_phan` (có người) hoặc `vai: khong_duoc_co` →
+    trong_khung False. Thiếu khóa `vat` / BYĐ chưa có `thanh_phan` → trong_khung None + `khong_loc` (không lọc 'ngoài khung', vẫn đòi —
+    rà độc lập #1: không biến thiếu đầu vào thành 'không cần')."""
     if not isinstance(byd, dict):
         return None
     may = byd.get("may") if isinstance(byd.get("may"), dict) else {}
-    c = next((x for x in byd.get("thanh_phan") or [] if isinstance(x, dict) and x.get("vat") == vat), None)
+    key = str(vat or "").strip().lower()
+    cast = [x for x in byd.get("thanh_phan") or [] if isinstance(x, dict)] if isinstance(byd.get("thanh_phan"), list) else []
+    if not key or not cast:
+        why = "thiếu khóa sân khấu của nhân vật" if not key else "BYĐ chưa có thanh_phan"
+        return {"vat": vat, "co": may.get("co"), "thay": [], "trong_khung": None, "khong_loc": why}
+    c = next((x for x in cast if str(x.get("vat") or "").strip().lower() == key), None)
     thay = [v.strip() for v in str((c or {}).get("thay") or "").split("|") if v.strip()]
     return {"vat": vat, "co": may.get("co"), "thay": thay, "trong_khung": bool(c) and c.get("vai") != "khong_duoc_co"}
 
@@ -379,6 +386,8 @@ def _not_needed(d: Dict, view: Optional[Dict]) -> Tuple[Optional[str], Optional[
     """(ly_do món KHÔNG cần có chữ, khong_loc = vì sao không lọc được) theo BYĐ."""
     if view is None:
         return None, None
+    if view.get("trong_khung") is None:                 # thiếu khóa / thiếu thanh_phan → không lọc gì, vẫn đòi
+        return None, f"{view.get('khong_loc') or 'không biết nhân vật có trong khung'} — không lọc theo BYĐ, vẫn đòi"
     if not view.get("trong_khung"):
         return f"nhân vật '{view.get('vat')}' không có trong khung theo BYĐ (thanh_phan)", None
     key = _item_key(d)
@@ -399,7 +408,7 @@ def _not_needed(d: Dict, view: Optional[Dict]) -> Tuple[Optional[str], Optional[
 def check(decl: List[Dict], prompt: str, view: Optional[Dict] = None, chan_do: Optional[bool] = None) -> List[Dict]:
     """[{mon, mau_chinh, trang_thai: co|thieu|thieu_mau|sai_mau|khong_can, mau_thay, dau_hieu, dau_hieu_thay, muc, ly_do?, khong_loc?}].
     `view` = byd_view(...) → món máy không thấy được là 'khong_can' + ly_do (muc None). `chan_do` (mặc định CHAN_DO): True → thiếu /
-    thiếu màu ĐỎ (A18 chặn); False → VÀNG. sai_mau / khong_co_khoa luôn ĐỎ. Họa tiết bỏ qua. `dau_hieu_thay` chỉ để báo."""
+    thiếu màu / sai màu ĐỎ (A18 chặn); False → VÀNG. Chỉ khong_co_khoa luôn ĐỎ. Họa tiết bỏ qua. `dau_hieu_thay` chỉ để báo."""
     chan = CHAN_DO if chan_do is None else bool(chan_do)
     out = []
     real = [d for d in decl or [] if not d.get("hoa_tiet") and not d.get("khong_nhan_ra")]
@@ -448,7 +457,7 @@ def check(decl: List[Dict], prompt: str, view: Optional[Dict] = None, chan_do: O
             text = " ".join(c for _, c in wins)
             alt = [fold(x) for x in d.get("cach_viet") or () if str(x).strip()]      # cách viết tương đương (khai_bao_chu)
             row["dau_hieu_thay"] = (bool(key) and bool(re.search(_words_re(key), text))) or bool(alt and re.search(_words_re(alt), text))
-        muc = None if status == "co" else "do" if (status == "sai_mau" or chan) else "vang"
+        muc = None if status == "co" else "do" if chan else "vang"
         row.update(trang_thai=status, muc=muc)
         out.append(row)
     return out

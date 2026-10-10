@@ -50,6 +50,13 @@ def problems(case: Dict, error_type_ids: Iterable[str] = (), decision_ids: Itera
             out.append(f"{cid}: lớp '{d}' không có trong devsys/decisions.json")
         if kiem_ids is not None and d not in set(kiem_ids):
             out.append(f"{cid}: lop_phai_bat '{d}' không có vai 'kiem' (bộ sinh / bộ làm ghi ở lop_lam)")
+    lam = case.get("lop_lam", [])
+    if not isinstance(lam, list):
+        out.append(f"{cid}: lop_lam phải là danh sách id devsys/decisions.json")
+        lam = []
+    for d in lam:
+        if deci and d not in deci:
+            out.append(f"{cid}: lop_lam '{d}' không có trong devsys/decisions.json")
     if case.get("ca_vang_tay") and not case.get("byd"):
         out.append(f"{cid}: ca_vang_tay phải có BYĐ nhập tay")
     if case.get("byd"):

@@ -331,7 +331,8 @@ def error_type_rows(doc: Dict, state=None) -> List[Dict]:
     for t in doc.get("types", []):
         es = [("code", e) for e in t.get("code_do") or []] + [("Claude", e) for e in t.get("claude_khai") or []]
         rows.append({"id": t["id"], "ten": t["ten"], "ap_dung": ", ".join(t.get("ap_dung") or []),
-                     "co": "; ".join(f"{w}: {e['mo_ta']}" + (" (học việc)" if e.get("trang_thai") == "hoc_viec" else "")
+                     "co": "; ".join(f"{w}: {e['mo_ta']}"
+                                     + ((" (học việc — không tính)" if w == "code" else " (học việc)") if e.get("trang_thai") == "hoc_viec" else "")
                                      + ("" if _entry_live(e, state) else f" (cờ {'/'.join(_entry_flags(e)) or 'bat:false'} TẮT — không tính)")
                                      for w, e in es if e.get("trang_thai") in ("co", "hoc_viec")),
                      "xay": "; ".join(f"{w}: {e['mo_ta']} [{e.get('dot')}]" for w, e in es if e.get("trang_thai") == "xay"),

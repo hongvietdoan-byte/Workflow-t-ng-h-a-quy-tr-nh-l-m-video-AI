@@ -157,6 +157,12 @@ def pose_tool(main):
                   "→ chưa đo được tư thế (cần tải model ≈ 5–30 MB — hỏi người dùng)")
 
 
+def old_prompt_identity(conn, old, byd):
+    """Khóa nhận diện trên prompt CŨ shot 4 — lọc bằng CÙNG BYĐ shot 4 như prompt mới (rà độc lập #5: so cũ ↔ mới không lẫn hiệu ứng
+    lọc). Không có BYĐ shot 4 → không lọc (byd None), như identity_rows."""
+    return identity_rows(conn, old.get("characters") or [], old.get("image_prompt") or "", {"kelly"}, byd=byd)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--main", default="D:/AI-Video-Pipeline")
@@ -173,9 +179,11 @@ def main():
         jobs.setdefault(sid, []).append((jid, res, json.loads(refs or "[]")))
     pose_mode, pose_note = pose_tool(a.main)
     report = {"pose_tool": pose_note, "shots": []}
+    byds = {}
     for idx, (sid, data) in scenes.items():
         spec = specs.get(idx)
         byd, issues, suy, note = build_byd(spec, data, conn) if spec else (None, [{"muc": "do", "truong": "", "loi": "không có spec"}], [], None)
+        byds[idx] = byd
         with open(os.path.join(a.out, f"byd_shot{idx}.json"), "w", encoding="utf-8") as f:
             json.dump({"byd": byd, "issues": issues, "suy_tu_chu": suy, "quyet_dinh_nguoi_dung": note}, f, ensure_ascii=False, indent=1)
         people = [c["vat"] for c in (spec or {}).get("thanh_phan", []) if c["vat"] not in PROPS and c.get("vai") != "khong_duoc_co"]
@@ -193,8 +201,7 @@ def main():
         report["shots"].append(shot)
     # shot 4 prompt CŨ (trước câu sửa 10/10 'mouth')
     old = json.load(open(f"{a.main}/data/projects/{PID}/stage_v2/scene4_backup_20261010_mouth.json", encoding="utf-8"))
-    report["shot4_prompt_cu"] = {"hinh_hoc": geometry(conn, old), "nhan_dien": identity_rows(conn, old.get("characters") or [],
-                                                                                              old.get("image_prompt") or "", {"kelly"})}
+    report["shot4_prompt_cu"] = {"hinh_hoc": geometry(conn, old), "nhan_dien": old_prompt_identity(conn, old, byds.get(4))}
     with open(os.path.join(a.out, "summary.json"), "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=1)
     # in gọn

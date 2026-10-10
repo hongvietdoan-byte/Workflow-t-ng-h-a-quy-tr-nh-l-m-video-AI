@@ -51,6 +51,14 @@ class MapTests(unittest.TestCase):
         self.assertAlmostEqual(s["all"]["pct"]["code"], 60.0)
         self.assertEqual(s["by_step"]["t"]["human"], 1)
 
+    def test_unwired_points_are_not_counted(self):
+        """Rà độc lập #3: điểm `bat: false` (code có, CHƯA nối luồng — d95/d96) không đếm vào Code; đếm riêng `chua_noi`."""
+        items = [{"step": "s", "who": "code"}] * 2 + [{"step": "s", "who": "code", "bat": False}, {"step": "s", "who": "claude"}]
+        s = decisions.summary({"steps": {"s": "S"}, "items": items})
+        self.assertEqual((s["all"]["n"], s["all"]["code"], s["all"]["chua_noi"]), (3, 2, 1))
+        self.assertEqual(s["by_step"]["s"]["chua_noi"], 1)
+        self.assertGreaterEqual(decisions.summary(self.doc)["all"]["chua_noi"], 2)     # d95, d96
+
 
 class PageTests(unittest.TestCase):
     def test_page_renders_shares_and_suggestions(self):

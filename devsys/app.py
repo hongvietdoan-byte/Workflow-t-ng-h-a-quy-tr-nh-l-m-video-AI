@@ -1063,6 +1063,7 @@ def page_decisions():
         kpi("Claude", f"{al['claude']} · {al['pct']['claude']} %", "tốn token", "warn"),
         kpi("Người duyệt", f"{al['human']} · {al['pct']['human']} %", "điểm chặn"),
         kpi("Gợi ý chuyển sang code", len(s["suggest"]), "xem bảng dưới"),
+        kpi("Chưa nối luồng", al["chua_noi"], "code có, bat: false — không đếm"),
     ]) + "</div>", unsafe_allow_html=True)
     steps = doc.get("steps") or {}
     st.markdown("#### Theo bước")
@@ -1073,7 +1074,8 @@ def page_decisions():
                                 "Gợi ý": d["suggest"]} for d in s["suggest"]]), hide_index=True)
     st.markdown("#### Toàn bộ")
     st.dataframe(pd.DataFrame([{"Bước": steps.get(d["step"], d["step"]), "Ai": decisions.WHO[d["who"]], "Việc": d["what"],
-                                "Khâu": d.get("stage") or "", "Ở đâu": d["where"]} for d in doc.get("items", [])]), hide_index=True)
+                                "Khâu": d.get("stage") or "", "Ở đâu": d["where"],
+                                "Chưa nối": "chưa nối" if d.get("bat") is False else ""} for d in doc.get("items", [])]), hide_index=True)
 
 
 # ---- trang: Làm ↔ Kiểm (K0a kế hoạch kiểm soát, mục 3.9 / 7) ----------------------------------------------------------------
