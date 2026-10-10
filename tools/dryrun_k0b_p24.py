@@ -155,6 +155,21 @@ def pose_from_text(text):
     return None, None
 
 
+def byd_of_row(spec, spec_suy, data, conn, cfg=None):
+    """BYĐ của một hàng scenes → (byd, issues, suy, note, spec). K1a cờ shot_intent: `data['byd']` do Đạo diễn điền (core/director_byd)
+    thắng bản dựng lại từ shot_specs / chữ (validate lại ở đây, `spec` = thành phần của BYĐ đó); không có → build_byd như cũ."""
+    if isinstance(data.get("byd"), dict):
+        byd = data["byd"]
+        kiem = data.get("byd_kiem") if isinstance(data.get("byd_kiem"), dict) else None
+        suy = ["BYĐ do Đạo diễn điền (scenes.data.byd" + (f", kiểm lúc chạy: {kiem.get('muc')}" if kiem else "") + ")"]
+        tp = [c for c in byd.get("thanh_phan") or [] if isinstance(c, dict) and c.get("vat")]
+        return byd, shot_intent.validate(byd, conn), suy, None, {"thanh_phan": tp}
+    if spec:
+        byd, issues, suy, note = build_byd(spec, data, conn, cfg)
+        return byd, issues, spec_suy + suy, note, spec
+    return None, [{"muc": "do", "truong": "", "loi": "không có spec"}], [], None, spec
+
+
 def build_byd(spec, data, conn, cfg=None):
     cfg = cfg or project_config(PID)
     b = shot_intent.from_shot_spec(spec)
@@ -327,11 +342,7 @@ def main(argv=None):
     byds = {}
     for idx, (sid, data) in scenes.items():
         spec, spec_suy = specs.get(idx) or (None, [])
-        if spec:
-            byd, issues, suy, note = build_byd(spec, data, conn, cfg)
-            suy = spec_suy + suy
-        else:
-            byd, issues, suy, note = None, [{"muc": "do", "truong": "", "loi": "không có spec"}], [], None
+        byd, issues, suy, note, spec = byd_of_row(spec, spec_suy, data, conn, cfg)
         byds[idx] = byd
         with open(os.path.join(out, f"byd_shot{idx}.json"), "w", encoding="utf-8") as f:
             json.dump({"byd": byd, "issues": issues, "suy_tu_chu": suy, "quyet_dinh_nguoi_dung": note}, f, ensure_ascii=False, indent=1)

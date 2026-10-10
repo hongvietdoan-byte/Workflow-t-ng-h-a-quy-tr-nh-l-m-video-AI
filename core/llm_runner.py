@@ -102,6 +102,7 @@ STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
                          "timeout": 90, "retries": 1},          # The person waits on the button: 90 s, one retry, then the old "Fix:" way
     "director_camera_plan": {"effort": "low", "max_tokens": 16000},   # G0: sơ đồ cảnh + 3–4 góc máy của MỘT cảnh: JSON ≈ 2–3k; 09/10 #24 effort medium + 8000 → suy nghĩ ăn hết, câu trả lời bị cắt
     "change_review": {"effort": "low", "max_tokens": 6000},   # 10/10 Tổ rà soát tác động: một thay đổi → JSON ngắn các mục lệch
+    "director_byd": {"effort": "low", "max_tokens": 16000},    # K1a: sửa BYĐ các shot hỏng (JSON ≈ 0,3k / shot, cả phim hỏng ≈ 10k)
     "director_stage_specs": {"effort": "medium", "max_tokens": 24000},  # Sân khấu 3D V3: dàn cảnh + yêu cầu khung MỘT cảnh (JSON ≈ 4–6k + suy nghĩ);
                                                               # G0 09/10: medium + 8000 bị cắt → trần rộng
     "director_plate_review": {"effort": "low", "max_tokens": 1500},     # G0: quan sát enum trên MỘT render nền — JSON rất ngắn
@@ -809,6 +810,8 @@ def run_director(p: Pipeline, project_id: int, client, resume: bool = False) -> 
         raise
     from . import project_defaults                 # S3.8: which places (text + pictures) the plan was made with
     obj["places_at_plan"] = project_defaults.places_fingerprint(p.conn, project_id)
+    from . import director_byd                     # K1a cờ shot_intent: kiểm BYĐ từng shot, sửa ≤ 2 vòng (tắt → không làm gì)
+    director_byd.settle(p.conn, project_id, obj, client)
     p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))   # paid for: kept even if saving fails
     llm_io.store_scene_analysis(p, project_id, obj)
     director_two_pass.forget(p, project_id)       # a stored two-pass intent no longer matches this plan ("↻ Chia shot lại" must not use it)
@@ -845,6 +848,8 @@ def run_director_scene(p: Pipeline, project_id: int, scene_idx: int, client, not
         _, tin, tout = ask_json(client, prompts.build_director_bundle(p, project_id, only_scene=scene_idx, note=note), check,
                                 note=_retry_note(p, "director", project_id))
     obj = merged_box["obj"]
+    from . import director_byd                     # K1a cờ shot_intent: chỉ cảnh vừa chia lại
+    director_byd.settle(p.conn, project_id, obj, client, only_scene=scene_idx)
     n = shots.replace_from(p, project_id, obj["scenes"], scene_idx)
     p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))
     return {"scene": scene_idx, "rows": n, "input_tokens": tin, "output_tokens": tout, "normalized": obj.get("normalized") or []}
@@ -1001,6 +1006,9 @@ class MockLlm:
             out = {"new_prompt": f"{old} (rewritten by the Director, mock)", "changed": ["Thêm câu sửa vào thân prompt (giả lập)"],
                    "why": "giả lập"}
             return LlmReply("```json\n" + json.dumps(out, ensure_ascii=False) + "\n```", 80, 40)
+        if prompt.startswith("# Đạo diễn — sửa bảng ý đồ shot (BYĐ)"):     # K1a (core/director_byd.py): trả lại BYĐ cũ
+            from .director_byd import mock_answer
+            return LlmReply("```json\n" + json.dumps(mock_answer(prompt), ensure_ascii=False) + "\n```", 80, 40)
         if prompt.startswith("# Đạo diễn — sơ đồ cảnh và bộ góc máy"):   # G0 (core/camera_plan.py)
             from .camera_plan import mock_answer
             return LlmReply("```json\n" + json.dumps(mock_answer(prompt), ensure_ascii=False) + "\n```", 90, 40)

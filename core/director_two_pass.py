@@ -395,6 +395,15 @@ def estimate(p: Pipeline, project_id: int, client=None, model: Optional[str] = N
         out["two_pass"] = {"calls": 1 + n_scenes, "input": tiers["input"], "cache_write": common,
                            "cache_read": tiers["cache_read"], "output": tiers["output"], "usd": _usd(model, tiers),
                            "tier_a": {"input": a_in, "output": a_out}, "tier_b": {"common": common, "task": task, "output": b_out}}
+    from . import director_byd
+    if director_byd.enabled():                     # K1a cờ shot_intent: BYĐ mỗi shot (thêm phần ra) + tối đa 2 lượt sửa (tính dư)
+        extra = director_byd.estimate(n_shots)
+        for key in ("single", "two_pass"):
+            if out[key]:
+                out[key]["output"] += extra["extra_output"]
+                out[key]["usd"] = _usd(model, {k: v for k, v in out[key].items() if k in ("input", "output", "cache_write", "cache_read")})
+        extra["usd"] = _usd(model, {"input": extra["repair_input"], "output": extra["repair_output"]})
+        out["byd"] = extra
     return out
 
 
@@ -416,7 +425,11 @@ def estimate_text(est: Dict) -> str:
     else:
         text = f"Ước tính Director ({est['model']}): {one}" + (f" — nếu bật hai lượt: {two}" if two else "")
     seen = est.get("measured") or {}
-    return (text + f" · tính dư, ~{est['shots_guess']} shot" + (f", sàn phần ra theo {seen['calls']} lượt Director thật" if seen.get("calls") else "")
+    byd = est.get("byd")
+    if byd:                                        # K1a cờ shot_intent (tắt → câu y cũ)
+        text += (f" · BYĐ: đã cộng ~{_n(byd['extra_output'])} token ra; sửa BYĐ tối đa {byd['repair_calls_max']} lượt "
+                 f"~{_n(byd['repair_input'])} vào / ~{_n(byd['repair_output'])} ra {money(byd)}")
+    return (text +f" · tính dư, ~{est['shots_guess']} shot" + (f", sàn phần ra theo {seen['calls']} lượt Director thật" if seen.get("calls") else "")
             + ", chưa tính hỏi lại")
 
 
@@ -616,6 +629,8 @@ def run(p: Pipeline, project_id: int, client, resume: bool = False) -> Dict:
     obj["two_pass"] = {"calls": calls, "reused_intent": not a_called, "reused_scenes": reused}
     from . import project_defaults                 # S3.8: which places (text + pictures) the plan was made with
     obj["places_at_plan"] = project_defaults.places_fingerprint(p.conn, project_id)
+    from . import director_byd                     # K1a cờ shot_intent: kiểm BYĐ từng shot, sửa ≤ 2 vòng (tắt → không làm gì)
+    director_byd.settle(conn, project_id, obj, client)
     p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))     # paid for: kept even if saving fails
     llm_io.store_scene_analysis(p, project_id, obj)
     raw["done"] = True
@@ -658,6 +673,8 @@ def replan_scene(p: Pipeline, project_id: int, scene_idx: int, client, note: str
     merged = merge(dict(intent, tradeoffs=base + others), parts)
     obj = llm_io.validate_for_project(p, project_id)(merged)
     obj["review"] = review(obj)
+    from . import director_byd                     # K1a cờ shot_intent: chỉ cảnh vừa chia lại
+    director_byd.settle(p.conn, project_id, obj, client, only_scene=scene_idx)
     n = shots.replace_from(p, project_id, obj["scenes"], scene_idx)
     raw.setdefault("parts", {})[str(scene_idx)] = new[scene_idx]
     _save_raw(p, project_id, raw)
