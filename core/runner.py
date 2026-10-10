@@ -1835,7 +1835,7 @@ def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = 
              _place_part(conn, project_id, data, place, place_render, list(place_extra or []) + [_object_scale(conn, project_id, data)]),
              light,
              _lock_part(conn, project_id, data, proj, text, fix),
-             _geometry_part(conn, project_id, data, camera_end),
+             _geometry_part(conn, project_id, data, camera_end, place_render),
              pt.quality_part(look_quality, quality) if (look_quality or quality) else ""]
     prompt = pt.join(parts)
     if "Gore restraint:" in prompt:                # F1-B: "everything in focus" never reaches the hinted details
@@ -1843,14 +1843,27 @@ def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = 
     return no_minor_age(prompt), removed
 
 
-def _geometry_part(conn, project_id: int, data: Dict, camera_end: bool = False) -> str:
+def _geometry_part(conn, project_id: int, data: Dict, camera_end: bool = False, render: bool = False) -> str:
     """10/10 (#24 shot 4 + 8): the 3D stage's geometry facts of this camera (core/stage_facts) — computed by code, joined by code, not
     via the Director. Only when the stage_camera flag is on AND the shot has a stage camera; otherwise "" (the prompt stays as before).
-    camera_end: the end frame of a moving camera (its end position)."""
+    camera_end: the end frame of a moving camera (its end position). render: the shot's 3D render goes with the picture — without
+    it the sentences never mention "the render" / its grey placeholder block (rà kỹ 10/10)."""
     from . import features, stage_facts
     if not features.on("stage_camera") or not data.get("stage_camera"):
         return ""
-    return stage_facts.prompt_block(stage_facts.for_shot(conn, project_id, data, end=camera_end)["facts"])
+    return stage_facts.prompt_block(stage_facts.for_shot(conn, project_id, data, end=camera_end, render=render)["facts"])
+
+
+def geometry_contradiction_notes(conn, project_id: int, data: Dict) -> List[str]:
+    """Rà kỹ 10/10 (#24 shot 4 'its dark mouth facing us'): câu Director trái sự thật hình học của máy 3D → câu cảnh báo (prompt ảnh
+    tự mâu thuẫn — câu máy nối ở cuối nói ngược). [] khi tắt cờ / không có stage_camera / không trái."""
+    from . import features, stage_facts
+    if not features.on("stage_camera") or not data.get("stage_camera"):
+        return []
+    facts = stage_facts.for_shot(conn, project_id, data)["facts"]
+    return [f"prompt ảnh tự mâu thuẫn: câu Director \"{c['phrase']}\" trái sự thật hình học {c['fact']} — câu máy nối ở cuối nói "
+            f"ngược; sửa câu Director (Kiểm tác động khâu 'cau')"
+            for c in stage_facts.contradictions(str(data.get("image_prompt") or ""), facts)]
 
 
 def _action_part(data: Dict, words: str, blocking_label: str) -> str:
@@ -2146,6 +2159,8 @@ class ImageRunner(_Runner):
                                        light=light or "", place_extra=[chosen or "", geo or "", scale or ""])
         if "Geometry of this camera" in prompt:        # luật 1: stage_facts sentences added by code are said
             self._diag(job, "info", "stage_facts", "đã nối câu sự thật hình học của máy Sân khấu 3D (core/stage_facts) vào prompt ảnh")
+            for note in geometry_contradiction_notes(conn, job["project_id"], data):   # rà kỹ 10/10: shot cũ, không change_event
+                self._diag(job, "warn", "stage_facts_contradiction", note)
         if "Gore restraint:" in prompt:                # luật 1: a sentence added by code is said
             self._diag(job, "info", "gore_restraint", "dự án FF: shot có máu/vết thương/xác — đã thêm câu chỉ GỢI (bóng tối, ngoài nét, "
                        "bị che), không thấy rõ")

@@ -53,8 +53,13 @@ def observed(a: Dict, answer: Optional[Dict], code: Optional[Dict] = None) -> Tu
             ans.update(answer="false", confidence="high")
             return ans, "block", how + " → sai chắc chắn"
         unsure = seen not in a["fact"]["options"] or seen == stage_facts.UNSURE
-        ans.update(answer="unclear" if unsure else "false")
-        return ans, "minor", how + (" → không chắc, cần người xem" if unsure else " → lệch, cần người xem")
+        if unsure:
+            # rà kỹ 10/10 lỗi 2: 'unsure' hạ 'minor' thì frame_verdict vẫn 'pass' — im lặng. Giữ mức của mệnh đề (block) → 'unclear'
+            # + block = 'doubt' (người xem), không bao giờ tự vẽ lại vì một khai không chắc
+            ans.update(answer="unclear")
+            return ans, None, how + " → không chắc, cần người xem"
+        ans.update(answer="false")
+        return ans, "minor", how + " → lệch, cần người xem"
     if not kind or not answer:
         return answer, None, ""
     ans = dict(answer, model_answer=answer.get("answer"))

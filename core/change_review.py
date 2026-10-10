@@ -127,7 +127,19 @@ def refresh_code(conn, data_dir: str, sid: int) -> List[Dict]:
                             (sid,)).fetchall():
         if (row[1], row[2]) not in msgs:
             conn.execute("UPDATE change_findings SET status='resolved', resolved_at=?, resolved_by='code' WHERE id=?", (_now(), row[0]))
+    if enabled():
+        # rà kỹ 10/10 lỗi 3: shot cũ (#24 shot 4 "its dark mouth facing us") không có change_event nào → câu Director trái sự thật hình
+        # học chưa từng được ghi, blocking() không giữ, prompt tự mâu thuẫn. Chỉ mục khâu 'cau' của stage_facts; mục người dùng đã
+        # Bỏ qua (dismissed) không ghi lại.
+        for f in found:
+            if f["khau"] == "cau" and f["msg"].startswith(GEO_MSG) and not conn.execute(
+                    "SELECT 1 FROM change_findings WHERE COALESCE(scene_id,0)=? AND source='code' AND khau=? AND msg=? "
+                    "AND status='dismissed'", (sid, f["khau"], f["msg"])).fetchone():
+                _add(conn, None, pid, sid, "code", _code_level(f), f["khau"], f["msg"], f.get("de_xuat"))
     return found
+
+
+GEO_MSG = "câu Director trái sự thật hình học"     # core/change_audit.audit_shot — mục 'cau' của core/stage_facts
 
 
 def code_rules(conn, data_dir: str, ev_id: int, scene_ids: List[int]) -> int:

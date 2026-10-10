@@ -97,10 +97,14 @@ def compare(image_path: str, plate_path: str, box: Optional[Sequence[float]] = N
     reasons: List[str] = []
     hb, ha = horizon_row(b, mask), horizon_row(a, mask)
     source = "render" if hb is not None else None
-    analytic = hb is None and horizon_expected is not None and 0.0 < float(horizon_expected) < 1.0
+    from .place_refs import LIFT_BELOW
+    # rà kỹ 10/10 lỗi 5: số giải tích chỉ thay đo mù khi render TỐI (đêm sương: đo không ra); render sáng mà không có chân trời là
+    # cảnh không có chân trời (tường, nhà che) — không ép số. Và chỉ so khi ảnh vẽ đo được chân trời (ảnh tối không có → không cờ)
+    dark = float(b.mean()) * 255.0 < LIFT_BELOW
+    analytic = hb is None and dark and horizon_expected is not None and 0.0 < float(horizon_expected) < 1.0
     if analytic:
         hb, source = float(horizon_expected), "giai_tich"
-    if hb is not None and (ha is None or abs(ha - hb) > HORIZON_DIFF):
+    if hb is not None and (ha is None or abs(ha - hb) > HORIZON_DIFF) and not (analytic and ha is None):
         reasons.append(f"đường chân trời ảnh ở {ha * 100:.0f}% khung, render ở {hb * 100:.0f}% — máy (cúi/ngang) khác render"
                        if ha is not None else f"render có đường chân trời ở {hb * 100:.0f}% khung, ảnh không có — nền khác render")
     if analytic and reasons:

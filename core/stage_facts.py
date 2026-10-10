@@ -129,13 +129,19 @@ def _derive_top(ctx: Dict) -> List[Dict]:
         out.append(_fact("top_visible", _subject(p), above > 0,
                          {"cam_above_ground_m": round(cam_h, 2), "rim_m": round(p["height"], 2), "cam_minus_rim_m": round(above, 2),
                           "dist_m": round(d, 2), "look_down_deg": round(down, 1), "in_pct": e.get("in_pct", 0.0)},
-                         name=_name(p, ctx["objects"]), in_frame=bool(e.get("in_pct"))))
+                         name=_name(p, ctx["objects"]), in_frame=bool(e.get("in_pct")), rim_in_frame=_rim_in_frame(ctx, p)))
     return out
+
+
+def _rim_in_frame(ctx: Dict, p: Dict) -> bool:
+    """Có điểm vành (miệng: tâm + 4 điểm mép ở đỉnh) nào trong khung — chỉ thấy chân thành giếng thì không nói gì về miệng."""
+    top = [q for q in sg.object_points(_obj(p)) if abs(q[2] - (p["at"][2] + p["height"])) < 1e-6]
+    return any(sg.in_frame(sg.project(ctx["cam"], ctx["aim"], q, ctx["lens"], ctx["aspect"])) for q in top)
 
 
 def _prompt_top(f: Dict, ctx: Dict) -> str:
     n, x = f["name"], f["numbers"]
-    if not f["in_frame"]:
+    if not f["in_frame"] or not f.get("rim_in_frame", True):
         return ""
     if not f["value"]:
         return (f"Camera height: the camera is {x['cam_above_ground_m']:.2f} m above the ground, LOWER than the {n} rim "
@@ -154,15 +160,24 @@ def _judge_top(f: Dict, seen: str) -> Optional[str]:
     return "do" if seen == "inside_visible" else None
 
 
-_INSIDE = [r"\bmouth\b[^.;]{0,40}\bfacing (us|the camera|camera|the viewer)\b",
-           r"\b(look|looking|peer|peering|see|seeing|gaze|gazing|stare|staring)\w*\s+(straight\s+)?(down\s+)?into\s+(the|its)\b",
-           r"\bdark (opening|mouth|hole|interior|depths?|inside)\b",
-           r"\b(inside|interior|depths?) of (the|its) ([a-z]+ ){0,2}well\b",
-           r"\b(top[- ]down|bird'?s[- ]eye|overhead view)\b"]
+# 10/10 (rà kỹ): "looking into the camera" / "staring into the distance" / "gazes into the fog, the old well at her back" từng bị bắt
+# đỏ (giữ gen + dừng autopilot) — chỉ khớp khi tân ngữ của "into" là CHÍNH vật / lòng vật; "dark mouth" phải gắn với tên vật.
+_INNER = r"(opening|mouth|hole|interior|inside|depths?)"
+_DARK = rf"dark {_INNER}"
+_NEG = re.compile(r"\b(hidden|not|no|never|without|cannot|can't)\b")
+
+
+def _inside_patterns(words: Sequence[str]) -> List[str]:
+    w = "(" + "|".join(re.escape(x) for x in words) + ")"
+    return [r"\bmouth\b[^.;]{0,40}\bfacing (us|the camera|camera|the viewer)\b",
+            rf"\b(look|peer|see|gaz|star)\w*\s+(straight\s+)?(down\s+)?into\s+(the|its)\s+(\w+\s+){{0,2}}({w}|{_INNER})\b",
+            rf"\b{w}\b('s)?\W+(\w+\W+){{0,6}}?{_DARK}\b|\b{_DARK}\W+(\w+\W+){{0,6}}?{w}\b|\bits {_DARK}\b",
+            rf"\b(inside|interior|depths?) of (the|its) ([a-z]+ ){{0,2}}{w}\b",
+            r"\b(top[- ]down|bird'?s[- ]eye|overhead view)\b"]
 
 
 def _contra_top(f: Dict) -> List[str]:
-    return [] if f["value"] else list(_INSIDE)
+    return [] if f["value"] else _inside_patterns(KIND_WORDS.get(f["subject"].rstrip("0123456789"), (f["name"].split()[-1],)))
 
 
 # ---- stand_in: khối thay thế tám cạnh trong render nền phải vẽ thành vật thật -------------------------------------------------
@@ -182,6 +197,8 @@ def _derive_stand_in(ctx: Dict) -> List[Dict]:
 
 
 def _prompt_stand_in(f: Dict, ctx: Dict) -> str:
+    if not ctx.get("render", True):
+        return ""                                       # không gửi render: không có khối xám nào để dặn (rà kỹ 10/10)
     sides = {8: "eight-sided", 6: "six-sided"}.get(f["numbers"].get("sides"), "plain")
     lib = f" (the library object \"{f['library']}\"{': ' + f['library_desc'] if f['library_desc'] else ''})" if f.get("library") else ""
     return (f"The grey {sides} block in the background render is a placeholder: draw it as the {f['name']}{lib}, real weathered "
@@ -217,7 +234,8 @@ def _prompt_in_frame(f: Dict, ctx: Dict) -> str:
     where = {"left_third": "left third", "middle_third": "middle third", "right_third": "right third"}[f["value"]]
     part = "" if x["in_pct"] >= SURE_IN_PCT else ", only partly inside the frame"
     size = f", about {abs(x['size_pct']):.0f}% of the frame height" if x.get("size_pct") is not None and x["in_pct"] >= SURE_IN_PCT else ""
-    return f"The {f['name']} sits in the {where} of the frame{part}{size}, exactly where the render shows it."
+    tail = ", exactly where the render shows it" if ctx.get("render", True) else ""
+    return f"The {f['name']} sits in the {where} of the frame{part}{size}{tail}."
 
 
 def _judge_in_frame(f: Dict, seen: str) -> Optional[str]:
@@ -259,13 +277,23 @@ def _prompt_horizon(f: Dict, ctx: Dict) -> str:
     line = {"horizon_above_frame": "the horizon is above the top edge of the frame: the frame shows ground, no sky line",
             "horizon_below_frame": "the horizon is below the bottom edge of the frame: the frame shows sky and tall things only",
             }.get(f["value"], f"the horizon line (eye level of the camera) sits about {x['w'] * 100:.0f}% down from the top of the frame")
-    return f"Camera tilt: {tilt}; {line}, as in the render."
+    tail = ", as in the render" if ctx.get("render", True) else ""
+    return f"Camera tilt: {tilt}; {line}{tail}."
+
+
+_HORIZON_ORDER = ("horizon_above_frame", "horizon_top_third", "horizon_middle_third", "horizon_bottom_third", "horizon_below_frame")
 
 
 def _judge_horizon(f: Dict, seen: str) -> Optional[str]:
-    if seen in f["accept"] or seen == "horizon_not_visible":
+    if seen in f["accept"] or seen == "horizon_not_visible" or seen not in _HORIZON_ORDER:
         return None                                    # chân trời bị nhà / sương che là bình thường
-    return "vang"                                      # mái nhà / sương dễ bị khai là chân trời: tối đa vàng (đỏ chỉ khi chắc)
+    # rà kỹ 10/10: vàng chỉ khi khai TRÁI HẲN (cách ≥ 2 vùng, vd đúng 'trên khung' mà khai 'một phần ba dưới') — lệch một vùng là mái
+    # nhà / sương bị khai nhầm là chân trời, không biến mọi khung đêm thành doubt
+    gap = min(abs(_HORIZON_ORDER.index(seen) - _HORIZON_ORDER.index(a)) for a in f["accept"] if a in _HORIZON_ORDER)
+    return "vang" if gap >= 2 else None
+
+
+UNSURE_QUIET = {"pitch_horizon"}   # khai 'unsure' chân trời (đêm sương) không làm vàng — loại khác: unsure vẫn vàng
 
 
 # ---- ref_viewpoint: ảnh mẫu Kho chỉ cho dáng / chất liệu, không cho góc máy -------------------------------------------------
@@ -317,17 +345,19 @@ REQUIRED = ("derive", "prompt", "observe", "judge", "contradicts")
 
 
 # ---- API --------------------------------------------------------------------------------------------------------------------
-def context(data: Dict, objects: Optional[Dict] = None, aspect: float = ASPECT, end: bool = False) -> Optional[Dict]:
+def context(data: Dict, objects: Optional[Dict] = None, aspect: float = ASPECT, end: bool = False,
+            render: bool = True) -> Optional[Dict]:
     st = stage_of(data, end=end)
     if st is None:
         return None
-    return dict(st, aspect=float(aspect or ASPECT), objects=objects or {})
+    return dict(st, aspect=float(aspect or ASPECT), objects=objects or {}, render=bool(render))
 
 
-def derive(data: Dict, objects: Optional[Dict] = None, aspect: float = ASPECT, end: bool = False) -> Dict:
-    """{"facts": [...], "missing": lý do hoặc None}. Mỗi fact có prompt (câu) + question/options (khai) + contradicts (regex)."""
+def derive(data: Dict, objects: Optional[Dict] = None, aspect: float = ASPECT, end: bool = False, render: bool = True) -> Dict:
+    """{"facts": [...], "missing": lý do hoặc None}. Mỗi fact có prompt (câu) + question/options (khai) + contradicts (regex).
+    render=False: ảnh không kèm render 3D của shot → câu không nhắc 'the render' / khối xám thay thế (rà kỹ 10/10)."""
     why = missing_reason(data)
-    ctx = None if why else context(data, objects, aspect, end)
+    ctx = None if why else context(data, objects, aspect, end, render)
     if ctx is None:
         return {"facts": [], "missing": why or "không dựng được ngữ cảnh máy"}
     facts = []
@@ -352,10 +382,28 @@ def judge(f: Dict, seen: Optional[str]) -> Optional[str]:
     """Khai báo của model → None / 'vang' / 'do'. Thiếu / 'na' / ngoài danh sách = 'unsure' → 'vang' (không im lặng)."""
     seen = seen if seen in FACTS[f["kind"]]["observe"]["options"] else UNSURE
     if seen == UNSURE:
-        return "vang"
+        return None if f["kind"] in UNSURE_QUIET else "vang"
     level = FACTS[f["kind"]]["judge"](f, seen)
     assert level in LEVELS, level
     return level
+
+
+def emphasis(f: Dict) -> str:
+    """Câu sửa NHẤN MẠNH khác câu sự thật (câu sự thật đã có trong prompt mà model vẫn vẽ sai — vẽ lại cùng câu là cùng đầu vào,
+    rà kỹ 10/10 lỗi 4). "" khi loại này không có câu nhấn mạnh riêng."""
+    n, x = f.get("name") or f["subject"], f.get("numbers") or {}
+    if f["kind"] == "top_visible" and not f["value"]:
+        return (f"Camera at knee height ({x.get('cam_above_ground_m', 0):.2f} m), the {n} rim ABOVE the lens: draw the {n} side-on as "
+                f"a solid stone wall whose top edge is a straight line — no opening, no dark hole, nothing of its inside.")
+    if f["kind"] == "top_visible":
+        return f"Camera ABOVE the {n} rim: the top surface of the rim must be seen from above, as a ring."
+    if f["kind"] == "stand_in":
+        return f"Never a smooth plain block: the {n} is built of separate rough stones with visible joints and moss."
+    if f["kind"] == "in_frame" and f["value"] != "not_in_frame":
+        return f"Put the {n} in the {f['value'].replace('_', ' ')} of the frame, not elsewhere."
+    if f["kind"] == "ref_viewpoint":
+        return f"Do not copy the camera angle of the {n} reference picture: low camera, side view."
+    return ""
 
 
 def _sentences(text: str) -> List[str]:
@@ -376,6 +424,8 @@ def contradictions(text: str, facts: List[Dict]) -> List[Dict]:
             if not any(re.search(rf"(?<!\bas )\b{re.escape(w)}\b(?!-)", low) for w in words):
                 continue
             for pat in f["contradicts"]:
+                if _DARK in pat and _NEG.search(low):
+                    continue                           # "its dark mouth hidden / not visible": câu phủ định, không trái sự thật
                 m = re.search(pat, low)
                 if m:
                     out.append({"fact": f["id"], "phrase": m.group(0), "sentence": s.strip()[:300],
@@ -408,7 +458,7 @@ def library_objects(conn, pid: int, props: List[Dict]) -> Dict[str, Dict]:
     return out
 
 
-def for_shot(conn, pid: int, data: Dict, aspect: Optional[float] = None, end: bool = False) -> Dict:
+def for_shot(conn, pid: int, data: Dict, aspect: Optional[float] = None, end: bool = False, render: bool = True) -> Dict:
     """derive() với vật Kho + tỉ lệ khung của dự án (lỗi đọc → 9:16, nói trong `notes`)."""
     notes = []
     if aspect is None:
@@ -427,7 +477,7 @@ def for_shot(conn, pid: int, data: Dict, aspect: Optional[float] = None, end: bo
     for p in (st or {}).get("props") or []:
         if p["kind"] not in objects:
             notes.append(f"không có vật Kho loại '{p['kind']}' trong dự án — câu dùng tên chung '{KIND_EN.get(p['kind'], p['kind'])}'")
-    res = derive(data, objects, aspect, end)
+    res = derive(data, objects, aspect, end, render)
     res["notes"] = notes
     return res
 

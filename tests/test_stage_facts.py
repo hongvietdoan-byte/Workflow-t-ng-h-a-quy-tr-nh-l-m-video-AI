@@ -170,7 +170,7 @@ def test_rules_turn_the_geometry_report_into_a_verdict(monkeypatch):
     r = qc_rules.assertion_result(a, {"answer": "true", "confidence": "high", "geo_seen": "inside_visible"}, None)
     assert r["state"] == "fail" and r["severity"] == "block"         # model nói 'ok', code: thấy lòng giếng là sai
     r = qc_rules.assertion_result(a, {"answer": "true", "confidence": "high", "geo_seen": "unsure"}, None)
-    assert r["state"] == "unclear" and r["severity"] == "minor"
+    assert r["state"] == "unclear" and r["severity"] == "block"      # rà kỹ 10/10 lỗi 2: không hạ minor (pass im lặng)
     r = qc_rules.assertion_result(a, {"answer": "true", "confidence": "high", "geo_seen": "only_outer_wall"}, None)
     assert r["state"] == "ok"
 
@@ -216,3 +216,111 @@ def test_plate_layout_uses_the_analytic_horizon_when_the_render_shows_none(tmp_p
     res = plate_layout_qc.compare(img, dark, None, horizon_expected=0.33)
     assert res["horizon_plate"] == pytest.approx(0.33) and res["horizon_source"] == "giai_tich" and res["mismatch"]
     assert plate_layout_qc.compare(img, dark, None)["horizon_plate"] is None     # cũ: không có số giải tích → như trước
+
+
+# ---- rà kỹ 10/10: các lỗi phiên rà báo ---------------------------------------------------------------------------------------
+def _shot4_facts(render=True):
+    return sf.derive({"stage_camera": _case("p24_shot4_low_camera_well")["stage_camera"]}, render=render)["facts"]
+
+
+def test_unsure_on_every_shot4_fact_is_doubt_not_a_silent_pass(monkeypatch):
+    monkeypatch.setattr(features, "on", lambda n: n == "stage_camera")
+    geo = [a for a in qc_spec.compile_frame(None, 24, 7, _frame_data("p24_shot4_low_camera_well"), profiles={})["assertions"]
+           if a["type"] == "geometry"]
+    assert len(geo) >= 4
+    answers = {a["id"]: {"answer": "true", "confidence": "high", "geo_seen": "unsure"} for a in geo}
+    v = qc_rules.frame_verdict(geo, answers, {})
+    assert v["verdict"] == "doubt" and v["arbiter"], v["verdict"]
+
+
+def test_horizon_unsure_or_one_band_off_stays_quiet():
+    f = next(x for x in _shot4_facts() if x["kind"] == "pitch_horizon")
+    assert sf.judge(f, "unsure") is None                       # khung đêm sương: không biến mọi khung thành doubt
+    order = sf._HORIZON_ORDER
+    i = order.index(f["value"])
+    far = order[(i + 2) % len(order)] if (i + 2) < len(order) else order[i - 2]
+    assert sf.judge(f, far) == "vang"
+    near = [o for o in order if abs(order.index(o) - i) == 1 and o not in f["accept"]]
+    assert all(sf.judge(f, o) is None for o in near)
+
+
+def test_no_render_no_render_words():
+    block = sf.prompt_block(_shot4_facts(render=False))
+    assert "render" not in block and "placeholder" not in block and "only the outer wall" in block
+    assert "placeholder" in sf.prompt_block(_shot4_facts(render=True))
+
+
+def test_rim_out_of_frame_says_nothing_about_the_opening():
+    f = next(x for x in _shot4_facts() if x["kind"] == "top_visible")
+    assert "rim_in_frame" in f and f["rim_in_frame"] is True
+    assert sf._prompt_top(dict(f, rim_in_frame=False), {}) == ""
+
+
+def test_image_runner_says_the_self_contradicting_prompt(monkeypatch):
+    from core import runner
+    monkeypatch.setattr(features, "on", lambda n: n == "stage_camera")
+    c = _case("p24_shot4_low_camera_well")
+    p, pid = _project()
+    notes = runner.geometry_contradiction_notes(p.conn, pid, {"image_prompt": c["image_prompt"], "stage_camera": c["stage_camera"]})
+    assert notes and "mouth facing us" in notes[0]
+    assert runner.geometry_contradiction_notes(p.conn, pid, {"image_prompt": "Kelly by the well.", "stage_camera": c["stage_camera"]}) == []
+    monkeypatch.setattr(features, "on", lambda n: False)
+    assert runner.geometry_contradiction_notes(p.conn, pid, {"image_prompt": c["image_prompt"], "stage_camera": c["stage_camera"]}) == []
+
+
+def test_old_shot_without_change_event_is_held(monkeypatch, tmp_path):
+    monkeypatch.setattr(features, "on", lambda n: n in ("stage_camera", change_review.FLAG))
+    c = _case("p24_shot4_low_camera_well")
+    p, pid = _project()
+    idx = p.add_scene_next(pid, "s4")
+    sid = p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?", (pid, idx)).fetchone()[0]
+    p.conn.execute("UPDATE scenes SET data=? WHERE id=?",
+                   (json.dumps({"image_prompt": c["image_prompt"], "stage_camera": c["stage_camera"], "size": "WS"}), sid))
+    p.conn.execute("UPDATE change_events SET state='skipped'")
+    p.conn.commit()
+    why = change_review.blocking(p.conn, sid, str(tmp_path))
+    assert why and "mouth facing us" in why
+    fid = p.conn.execute("SELECT id FROM change_findings WHERE scene_id=? AND status='open' AND khau='cau'", (sid,)).fetchone()[0]
+    change_review.close(p.conn, fid, "dismissed", "test")              # Bỏ qua → không ghi lại mục đó
+    assert not (change_review.blocking(p.conn, sid, str(tmp_path)) or "").count("mouth facing us")
+    monkeypatch.setattr(features, "on", lambda n: n == "stage_camera")   # cờ change_review tắt: không ghi, không giữ
+    assert change_review.blocking(p.conn, sid, str(tmp_path)) is None
+
+
+def _red_frame(facts):
+    ok = {"ok": True, "evidence": "giếng đá ở giữa phải khung, nền quảng trường"}
+    frame = {"k": 1, "checks": {c: dict(ok) for c in qc_scene.CHECKS}, "verdict": "pass", "root_cause": "none",
+             "geo": {"top_visible:well": "inside_visible"}}
+    return qc_scene.validate({"frames": [frame], "scene": {}}, [(1, "K1")])
+
+
+def test_geometry_fix_ignores_the_director_words_or_blames_the_model():
+    facts = {1: [f for f in _shot4_facts() if f.get("in_frame")]}
+    c = _case("p24_shot4_low_camera_well")
+    obj = _red_frame(facts)
+    qc_scene.apply_geometry(obj, facts, {1: c["image_prompt"]})
+    f = obj["frames"][0]
+    assert f["verdict"] == "fix" and f["root_cause"] == "prompt" and 'Ignore the words "' in f["fix"] and "mouth facing us" in f["fix"]
+    obj = _red_frame(facts)
+    qc_scene.apply_geometry(obj, facts, {1: "Kelly fallen by the old stone well, foggy plaza at night."})
+    f = obj["frames"][0]
+    top = next(x for x in facts[1] if x["kind"] == "top_visible")
+    assert f["verdict"] == "fix" and f["root_cause"] == "model" and "knee height" in f["fix"] and top["prompt"] not in f["fix"]
+
+
+def test_plate_layout_bright_or_dark_without_horizon_is_not_flagged(tmp_path):
+    from PIL import Image
+    from core import plate_layout_qc
+    dark = os.path.join(str(tmp_path), "plate.png")
+    Image.new("L", (90, 160), 10).save(dark)
+    dimg = os.path.join(str(tmp_path), "dimg.png")
+    Image.new("L", (90, 160), 12).save(dimg)                 # ảnh vẽ tối, không đo được chân trời
+    assert plate_layout_qc.compare(dimg, dark, None, horizon_expected=0.33)["mismatch"] is False
+    bright = os.path.join(str(tmp_path), "bright.png")
+    Image.new("L", (90, 160), 200).save(bright)              # render sáng không có chân trời: không ép số giải tích
+    img = os.path.join(str(tmp_path), "img.png")
+    im = Image.new("L", (90, 160), 30)
+    im.paste(200, (0, 0, 90, 130))
+    im.save(img)
+    res = plate_layout_qc.compare(img, bright, None, horizon_expected=0.33)
+    assert res["horizon_source"] is None and res["horizon_plate"] is None
