@@ -58,7 +58,14 @@ def stage_facts(p, frames):
 
 
 def main() -> None:
-    mode = sys.argv[1] if len(sys.argv) > 1 else "a"
+    import argparse
+    from core import script_cap
+    ap = argparse.ArgumentParser()
+    ap.add_argument("mode", nargs="?", default="a", choices=("a", "b"))
+    ap.add_argument("--yes", action="store_true", help="gọi Claude thật (thiếu thì chỉ in ước tính)")
+    script_cap.add_argument(ap)                           # trần CỨNG (test_script_cap; lần chạy 10/10 thiếu trần — ≈ 0,144 USD)
+    a = ap.parse_args()
+    mode = a.mode
     _env()
     p = Pipeline(connect(os.path.join("data", "manifest.sqlite")))
     frames = qc_scene.scene_frames(p, PID, STORY, DATA)
@@ -72,6 +79,11 @@ def main() -> None:
     est = cost.llm_estimate(p.conn, "qc", 1)
     print(f"mode {mode}: {len(frames)} khung (jobs {[r['job_id'] for r in frames]}), {len(images)} ảnh, ước ≈ "
           f"{(est or 0) * cost.LLM_MARGIN:.3f} USD (chưa tính ảnh thêm)")
+    if not a.yes:
+        print("(chưa gọi — thêm --yes --max-usd <USD>)")
+        return
+    cap = script_cap.from_args(a, f"qc_test_p24 {mode}").start()
+    cap.guard((est or 0) * cost.LLM_MARGIN * 2, "QC cảnh 1")    # ×2: output QC thật ≈ 5k token, ước bảng thấp ≈ 40 % (10/10)
     client = llm_runner.client_from_env(ledger=llm_runner.db_file(p.conn))
     if client is None:
         sys.exit("chưa cấu hình Claude")
