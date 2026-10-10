@@ -6,15 +6,15 @@
   "khau_trang_thai": ["chay", "hoc_viec", "tat"],
   "san_pham": ["chu", "bang_shot", "kho", "san_khau", "anh", "goi", "video", "am_thanh", "phu_de", "dung"]
  },
- "dot_hien_tai": "K0a",
+ "dot_hien_tai": "K0b",
  "_dot_ghi_chu": "Thứ tự chạy mục 8: K0a < K0b < K1a < K2 < K3 < K4 < K1b < K5 < K6 < K7 < K8 (devsys/stages.DOT). Chỗ thiếu ghi dot ≤ dot_hien_tai mà vẫn thiếu → ĐỎ (quá hạn). Đổi dot_hien_tai khi xong một đợt.",
  "vai": {
   "kiem": ["d06", "d08", "d10", "d11", "d12", "d18", "d22", "d24", "d26", "d28", "d32", "d36", "d39", "d42", "d43", "d45", "d47", "d48", "d49",
-           "d79", "d81", "d83", "d84", "d86", "d87", "d92", "d93", "d94"],
+           "d79", "d81", "d83", "d84", "d86", "d87", "d92", "d93", "d94", "d95", "d96"],
   "sinh": ["d85"],
   "nguoi_duyet": ["d05", "d33", "d34", "d46", "d50"]
  },
- "_vai_ghi_chu": "Thẩm định 3 (10/10): vai của id devsys/decisions.json được sổ tham chiếu. Chỉ 'kiem' được nằm trong kiem_truoc / kiem_sau. 'sinh' = bộ SINH câu / dữ liệu (d85 stage_facts.derive sinh câu sự thật hình học, không kết luận đúng/sai) — không đếm là kiểm. 'nguoi_duyet' = cổng người (ghi bằng nguoi_kiem: true, không vào danh sách kiểm). kiem_chung (cổng tiền) cũng bị cấm trong danh sách kiểm.",
+ "_vai_ghi_chu": "Thẩm định 3 (10/10): vai của id devsys/decisions.json được sổ tham chiếu. Chỉ 'kiem' được nằm trong kiem_truoc / kiem_sau. 'sinh' = bộ SINH câu / dữ liệu (d85 stage_facts.derive sinh câu sự thật hình học, không kết luận đúng/sai) — không đếm là kiểm. 'nguoi_duyet' = cổng người (ghi bằng nguoi_kiem: true, không vào danh sách kiểm). kiem_chung (cổng tiền) cũng bị cấm trong danh sách kiểm. Thẩm định 4: d95 (identity_declare, khóa nhận diện A18) và d96 (world_rules, T2) có vai 'kiem' để ca hồi quy / sổ trỏ được nhưng CHƯA nối vào luồng (`bat: false` trong decisions) → không nằm trong kiem_truoc / kiem_sau khâu nào tới khi nối (K1a L3 / K3).",
  "kiem_chung": {
   "ids": ["d54", "d19", "d88"],
   "ghi_chu": "Cổng tiền (ước tính + cảnh báo trần), duyệt ngân sách, khung 'Trước khi chạy' — chạy cho mọi khâu tốn tiền nhưng chỉ xem tiền / điều kiện vận hành, không xem nghĩa / gói → không đếm vào kiem_truoc."

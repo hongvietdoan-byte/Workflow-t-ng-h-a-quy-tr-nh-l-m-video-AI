@@ -153,8 +153,11 @@
   "L2"
  ],
  "lop_phai_bat": [
-  "d85",
-  "d86"
+  "d86",
+  "d95"
+ ],
+ "lop_lam": [
+  "d85"
  ],
  "ky_vong": {
   "stage_facts": {
@@ -206,6 +209,7 @@
   },
   "identity_declare": {
    "nhan_vat": "KELLY",
+   "vat": "kelly",
    "kho_id": 23,
    "khoa": "dark brown chin-length bob with straight blunt bangs (hair down, never tied), black choker, white crop top under a bright yellow zip-up track jacket with a high collar, grey sleeve stripes with small black stars and thin black edge lines, matching bright yellow track pants with a black side stripe, white sneakers, youthful face with light makeup",
    "nguon_khoa": "must_keep (suy món + màu, chưa có khai_bao_chu)",

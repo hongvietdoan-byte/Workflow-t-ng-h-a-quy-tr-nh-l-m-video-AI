@@ -25,7 +25,7 @@ DOT = ("K0a", "K0b", "K1a", "K2", "K3", "K4", "K1b", "K5", "K6", "K7", "K8")    
 VAI = ("kiem", "sinh", "nguoi_duyet")    # vai của id được sổ tham chiếu: chỉ 'kiem' được nằm trong kiem_truoc / kiem_sau
 STAGE_FIELDS = ("id", "ten", "san_pham", "lam", "ton_tien", "khau_trang_thai", "kiem_truoc", "trang_thai_kiem", "kiem_sau",
                 "trang_thai_sau", "doc_tu", "nguoi_kiem", "dot")
-CODE_DO_STATES = ("co", "xay")
+CODE_DO_STATES = ("co", "hoc_viec", "xay")     # hoc_viec = code có nhưng đo chưa đúng (thẩm định 4: plate_layout_qc mù) — không tính
 KHAI_STATES = ("co", "hoc_viec", "xay")
 SAN_PHAM = ("chu", "bang_shot", "kho", "san_khau", "anh", "goi", "video", "am_thanh", "phu_de", "dung")
 

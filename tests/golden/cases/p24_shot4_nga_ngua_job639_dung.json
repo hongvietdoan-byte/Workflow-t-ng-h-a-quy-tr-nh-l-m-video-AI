@@ -162,11 +162,13 @@
       ]
      }
     }
-   ]
+   ],
+   "chua_co_lop": "K1a"
   },
   "do_tu_the": {
    "data/projects/24/images/job_639.png": "dung",
-   "cong_cu": "MediaPipe pose_landmarker_full.task (K0b phần 1): thân 639 nghiêng 41° vs 635 28° — chưa có ngưỡng (K5)"
+   "cong_cu": "MediaPipe pose_landmarker_full.task (K0b phần 1): thân 639 nghiêng 41° vs 635 28° — chưa có ngưỡng (K5)",
+   "chua_co_lop": "K5"
   }
  }
 }

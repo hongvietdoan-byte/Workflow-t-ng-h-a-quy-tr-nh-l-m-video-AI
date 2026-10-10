@@ -12,6 +12,9 @@ from typing import Dict, Iterable, List, Optional
 GOLDEN_DIR = os.path.dirname(os.path.abspath(__file__))
 CASES_DIR = os.path.join(GOLDEN_DIR, "cases")
 REQUIRED = ("id", "nguon", "ca_vang_tay", "byd", "may", "kho", "goi", "anh_ket_qua", "loi_dung", "loai_loi", "lop_phai_bat", "ky_vong")
+# Khóa ky_vong có LỚP CHẠY trong test (tests/test_stage_facts.py, test_identity_declare.py, test_world_rules.py — test_devsys_stages giữ
+# khớp). Khóa khác (am_chu, dung, do_tu_the, shot_intent) chưa lớp nào chạy → bắt buộc `chua_co_lop: "<đợt>"` (thẩm định 4 #4).
+LOP_CHAY = ("stage_facts", "identity_declare", "world_rules")
 
 
 def load_cases(lop: Optional[str] = None) -> List[Dict]:
@@ -25,8 +28,10 @@ def load_cases(lop: Optional[str] = None) -> List[Dict]:
     return [c for c in out if lop is None or lop in c.get("lop_phai_bat", [])]
 
 
-def problems(case: Dict, error_type_ids: Iterable[str] = (), decision_ids: Iterable[str] = ()) -> List[str]:
-    """Lỗi định dạng: thiếu trường, id ≠ tên tệp, loại lỗi / lớp không có trong sổ, ca vàng tay thiếu BYĐ, BYĐ sai schema."""
+def problems(case: Dict, error_type_ids: Iterable[str] = (), decision_ids: Iterable[str] = (),
+             kiem_ids: Optional[Iterable[str]] = None) -> List[str]:
+    """Lỗi định dạng: thiếu trường, id ≠ tên tệp, loại lỗi / lớp không có trong sổ, lớp phải bắt không có vai 'kiem' (kiem_ids =
+    devsys/stages.json vai.kiem), ca vàng tay thiếu BYĐ, BYĐ sai schema, kỳ vọng không lớp nào chạy mà thiếu `chua_co_lop`."""
     from core import shot_intent
     cid = case.get("id")
     out = [f"{cid}: thiếu '{k}'" for k in REQUIRED if k not in case]
@@ -43,6 +48,8 @@ def problems(case: Dict, error_type_ids: Iterable[str] = (), decision_ids: Itera
     for d in case.get("lop_phai_bat") or []:
         if deci and d not in deci:
             out.append(f"{cid}: lớp '{d}' không có trong devsys/decisions.json")
+        if kiem_ids is not None and d not in set(kiem_ids):
+            out.append(f"{cid}: lop_phai_bat '{d}' không có vai 'kiem' (bộ sinh / bộ làm ghi ở lop_lam)")
     if case.get("ca_vang_tay") and not case.get("byd"):
         out.append(f"{cid}: ca_vang_tay phải có BYĐ nhập tay")
     if case.get("byd"):
@@ -51,6 +58,9 @@ def problems(case: Dict, error_type_ids: Iterable[str] = (), decision_ids: Itera
                 out.append(f"{cid}: BYĐ {i['truong']} — {i['loi']}")
     if not isinstance(case.get("ky_vong"), dict) or not case.get("ky_vong"):
         out.append(f"{cid}: ky_vong rỗng (lớp nào phải ra gì)")
+    for k, v in (case.get("ky_vong") or {}).items() if isinstance(case.get("ky_vong"), dict) else ():
+        if k not in LOP_CHAY and not (isinstance(v, dict) and str(v.get("chua_co_lop") or "").strip()):
+            out.append(f"{cid}: ky_vong.{k} không lớp nào chạy — ghi chua_co_lop = đợt sẽ có lớp")
     return out
 
 

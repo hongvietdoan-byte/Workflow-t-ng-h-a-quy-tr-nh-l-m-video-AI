@@ -98,8 +98,22 @@ class StagesBookTests(unittest.TestCase):
                 self.assertNotIn(d, seen, f"{d} vừa {seen.get(d)} vừa {role}")
                 seen[d] = role
 
+    def test_new_check_ids_are_kiem_but_not_counted_until_wired(self):
+        """Thẩm định 4 #3: identity_declare (d95) + world_rules (d96) có id vai 'kiem' để sổ trỏ được, nhưng CHƯA nối vào luồng gen →
+        không nằm trong kiem_truoc / kiem_sau của khâu nào (không thổi số 'có kiểm')."""
+        items = {d["id"]: d for d in self.deci["items"]}
+        self.assertEqual(items["d95"]["where"], "core/identity_declare.py:check")
+        self.assertEqual(items["d96"]["where"], "core/world_rules.py:tim")
+        for d in ("d95", "d96"):
+            self.assertIn(d, self.doc["vai"]["kiem"])
+            self.assertIs(items[d].get("bat"), False)
+            self.assertIn("CHƯA nối", items[d]["what"])
+            for s in self.doc["stages"]:
+                self.assertNotIn(d, s["kiem_truoc"] + s["kiem_sau"], s["id"])
+
     def test_wave_must_not_be_due(self):
-        self.assertEqual(self.doc["dot_hien_tai"], "K0a")
+        self.assertEqual(self.doc["dot_hien_tai"], "K0b")
+        self.assertEqual(stages.stage_problems(self.doc, self.deci), [])           # đổi đợt không làm dòng nào quá hạn
         self.assertLess(stages.DOT.index("K4"), stages.DOT.index("K1b"))         # mục 8: K1b sau K4
         l9 = dict(self._row("L9"), dot="K0a")
         doc = {"stages": [l9], "vai": self.doc["vai"], "dot_hien_tai": "K0a"}
@@ -259,6 +273,24 @@ class ErrorTypeTests(unittest.TestCase):
         self.assertEqual([x["id"] for x in stages.only_building({"types": [t2]}, state=lambda n: "off")], ["Y"])
         self.assertEqual(stages.only_building({"types": [t2]}, state=lambda n: "trainee"), [])
 
+    def test_l11_plate_layout_qc_is_trainee_and_not_counted(self):
+        """Thẩm định 4 #3: chạy khô 10/10 đo plate_layout_qc MÙ khi render tối → học việc, KHÔNG tính kể cả khi cờ BẬT."""
+        l11 = next(t for t in self.doc["types"] if t["id"] == "L11")
+        e = next(e for e in l11["code_do"] if e["where"] == "core/plate_layout_qc.py:compare")
+        self.assertEqual(e["trang_thai"], "hoc_viec")
+        self.assertIn("mù", e["ghi_chu"].lower())
+        self.assertIn("L11", [t["id"] for t in stages.only_building(self.doc, state=lambda n: "on")])
+        t = {"id": "Z", "code_do": [{"mo_ta": "m", "trang_thai": "hoc_viec", "dot": "K3", "where": "core/palette.py:check", "co": "x"}],
+             "claude_khai": []}
+        self.assertEqual([x["id"] for x in stages.only_building({"types": [t]}, state=lambda n: "on")], ["Z"])
+
+    def test_unwired_code_is_not_counted(self):
+        """identity_declare (L2) / world_rules (L15): code có + test nhưng chưa nối → ghi 'xay' + đợt nối, không phải 'co'."""
+        by = {t["id"]: t for t in self.doc["types"]}
+        for tid, where, dot in (("L2", "core/identity_declare.py:check", "K1a"), ("L15", "core/world_rules.py:tim", "K3")):
+            e = next(e for e in by[tid]["code_do"] if e.get("where") == where)
+            self.assertEqual((e["trang_thai"], e["dot"]), ("xay", dot))
+
     def test_trainee_and_switched_off_entries_must_name_their_flag(self):
         for t in self.doc["types"]:
             for e in t.get("code_do", []) + t.get("claude_khai", []):
@@ -278,7 +310,8 @@ class GoldenFormatTests(unittest.TestCase):
         self.assertGreaterEqual(len(cases), 8)                         # 8 ca stage_facts gộp từ tests/fixtures (K0a)
         types = [t["id"] for t in stages.load_error_types()["types"]]
         ids = [d["id"] for d in decisions.load()["items"]]
-        self.assertEqual([p for c in cases for p in golden.problems(c, types, ids)], [])
+        kiem = stages.load_stages()["vai"]["kiem"]
+        self.assertEqual([p for c in cases for p in golden.problems(c, types, ids, kiem)], [])
         self.assertEqual(len({c["id"] for c in cases}), len(cases))
 
     def test_k0b_coverage_targets(self):
@@ -301,6 +334,42 @@ class GoldenFormatTests(unittest.TestCase):
                 self.assertIn(k, known, f"{c['id']}: khóa ky_vong '{k}' chưa ghi trong README")
         for k in known:
             self.assertIn(f"`{k}`", readme)
+
+    def test_lop_phai_bat_only_names_check_layers(self):
+        """Thẩm định 4 #3: lop_phai_bat phải là id vai 'kiem' (devsys/stages.json 'vai') — bộ SINH (d85) / bộ làm (d38, d91) ghi ở lop_lam."""
+        kiem = set(stages.load_stages()["vai"]["kiem"])
+        ids = {d["id"] for d in decisions.load()["items"]}
+        for c in golden.load_cases():
+            for d in c["lop_phai_bat"]:
+                self.assertIn(d, kiem, f"{c['id']}: lop_phai_bat '{d}' không có vai kiem")
+            for d in c.get("lop_lam") or []:
+                self.assertIn(d, ids, c["id"])
+                self.assertNotIn(d, kiem, f"{c['id']}: lop_lam '{d}' là lớp kiểm — chuyển sang lop_phai_bat")
+        bad = dict(golden.load_cases()[0], lop_phai_bat=["d85"])
+        self.assertIn("d85", " ".join(golden.problems(bad, kiem_ids=kiem)))
+
+    # khóa ky_vong → (tệp test chạy lớp đó trên ca, câu chọn ca phải có trong tệp)
+    LOP_CHAY = {"stage_facts": ("tests/test_stage_facts.py", "GOLDEN = golden.stage_facts_cases()"),
+                "identity_declare": ("tests/test_identity_declare.py", 'if "identity_declare" in (c.get("ky_vong") or {})]'),
+                "world_rules": ("tests/test_world_rules.py", 'if "world_rules" in (c.get("ky_vong") or {})]')}
+
+    def test_every_expectation_has_a_running_layer_or_says_which_wave(self):
+        """Thẩm định 4 #4: kỳ vọng mà không lớp nào chạy (am_chu, dung, do_tu_the, shot_intent) phải ghi `chua_co_lop: "<đợt>"` —
+        cấm kỳ vọng 'chết' trông như được kiểm."""
+        for k, (path, needle) in self.LOP_CHAY.items():
+            text = open(os.path.join(ROOT, *path.split("/")), encoding="utf-8").read()
+            self.assertIn(needle, text, f"{path} không chạy ca có ky_vong.{k}")
+            self.assertIn("parametrize", text, path)
+        self.assertEqual(set(self.LOP_CHAY), set(golden.LOP_CHAY))
+        for c in golden.load_cases():
+            for k, v in c["ky_vong"].items():
+                wave = v.get("chua_co_lop") if isinstance(v, dict) else None
+                if k in self.LOP_CHAY:
+                    self.assertIsNone(wave, f"{c['id']}.{k}: có lớp chạy mà ghi chua_co_lop")
+                else:
+                    self.assertIn(wave, stages.DOT, f"{c['id']}.{k}: không lớp nào chạy — ghi chua_co_lop = đợt (K…)")
+        bad = dict(golden.load_cases()[0], ky_vong={"am_chu": {"thoai": []}})
+        self.assertIn("chua_co_lop", " ".join(golden.problems(bad)))
 
     def test_format_problems_are_reported(self):
         bad = {"id": "x", "_file": "y.json", "ca_vang_tay": True, "byd": None, "loai_loi": ["L99"], "lop_phai_bat": ["d999"], "ky_vong": {}}

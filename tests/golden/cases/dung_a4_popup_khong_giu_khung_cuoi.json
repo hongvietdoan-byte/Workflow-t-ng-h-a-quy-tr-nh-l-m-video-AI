@@ -88,6 +88,9 @@
   "A4"
  ],
  "lop_phai_bat": [
+  "d48"
+ ],
+ "lop_lam": [
   "d91"
  ],
  "ky_vong": {
@@ -99,7 +102,8 @@
     "shot_nen_toi": 0,
     "ket_qua": "do"
    },
-   "lop_chay": "chưa có lớp so bản dựng ↔ BYĐ (K6); core/end_popup.apply (d91) là nơi làm đúng, chưa phải lớp kiểm"
+   "lop_chay": "chưa có lớp so bản dựng ↔ BYĐ (K6); core/end_popup.apply (d91) là nơi làm đúng, chưa phải lớp kiểm",
+   "chua_co_lop": "K6"
   }
  }
 }

@@ -144,10 +144,12 @@
  "anh_ket_qua": "data/projects/24/images/job_635.png",
  "loi_dung": "tư thế sai: ảnh vẽ Kelly ngồi thẳng, BYĐ là ngã ngửa (nga_ngua + chạm đất mông + bàn tay, thân ngả sau)",
  "loai_loi": [
-  "L4"
+  "L4",
+  "L2"
  ],
  "lop_phai_bat": [
-  "d26"
+  "d26",
+  "d95"
  ],
  "ky_vong": {
   "shot_intent": {
@@ -162,15 +164,18 @@
       ]
      }
     }
-   ]
+   ],
+   "chua_co_lop": "K1a"
   },
   "do_tu_the": {
    "data/projects/24/images/job_635.png": "sai",
    "data/projects/24/images/job_639.png": "dung",
-   "cong_cu": "chưa có: MediaPipe 1.0.1 không còn mp.solutions, thiếu pose_landmarker.task (K0b)"
+   "cong_cu": "chưa có: MediaPipe 1.0.1 không còn mp.solutions, thiếu pose_landmarker.task (K0b)",
+   "chua_co_lop": "K5"
   },
   "identity_declare": {
    "nhan_vat": "KELLY",
+   "vat": "kelly",
    "kho_id": 23,
    "khoa": "dark brown chin-length bob with straight blunt bangs (hair down, never tied), black choker, white crop top under a bright yellow zip-up track jacket with a high collar, grey sleeve stripes with small black stars and thin black edge lines, matching bright yellow track pants with a black side stripe, white sneakers, youthful face with light makeup",
    "nguon_khoa": "must_keep (suy món + màu, chưa có khai_bao_chu)",

@@ -18,8 +18,18 @@ Test định dạng + chỉ tiêu K0b (≥ 15 ca, ≥ 2 âm/chữ/dựng, ≥ 3 
 | `anh_ket_qua` | đường dẫn ảnh/clip kết quả (tùy chọn, `null` nếu ca chỉ kiểm trước tiền) |
 | `loi_dung` | lỗi ĐÚNG phải bắt (một câu), hoặc "không có …" cho ca chống báo nhầm |
 | `loai_loi` | id loại lỗi trong `devsys/error_types.json` (L1–L15, V1–V4, A1–A4) |
-| `lop_phai_bat` | id điểm quyết định trong `devsys/decisions.json` (vd `d85` stage_facts, `d86` câu trái hình học) |
-| `ky_vong` | theo lớp: `{"stage_facts": {facts, prompt_contains, prompt_not_contains, contradiction, judge}}`; lớp mới thêm khóa riêng: `identity_declare` {nhan_vat, khoa, trang_thai {món: co/thieu/thieu_mau/sai_mau}} (chạy ở `tests/test_identity_declare.py`), `shot_intent` / `do_tu_the` (K0b, chưa có lớp chạy — ghi kỳ vọng; `tu_the` theo `core/shot_intent.TU_THE`, có `nga_ngua`), `world_rules` {luat [luật theo `core/world_rules.py`], hoi [{vat, loai, ngu_canh, du_an, shot, hom_nay, ra: [id luật theo thứ tự]}], lop_chay} (chạy ở `tests/test_world_rules.py`), `am_chu` {thoai [{cau, nguoi_noi_byd, nguoi_noi_goi, ket_qua}], lop_chay} và `dung` {popup {tren, giu_khung, giay_giu, shot_nen_toi, ket_qua}, lop_chay} (ca âm/chữ/dựng — chưa có lớp chạy, K6: `lop_chay` BẮT BUỘC nói rõ lớp nào sẽ chạy) |
+| `lop_phai_bat` | id LỚP KIỂM trong `devsys/decisions.json` — phải có vai `kiem` trong `devsys/stages.json` "vai" (test hợp đồng, thẩm định 4): vd `d86` câu trái hình học, `d95` khóa nhận diện (identity_declare), `d96` luật thế giới (world_rules), `d12` rà thoại, `d48` duyệt bản thô |
+| `lop_lam` | (tùy chọn) id bộ SINH / bộ LÀM liên quan — không phải lớp kiểm: vd `d85` stage_facts.derive sinh câu sự thật, `d38` gắn tên người nói, `d91` ghép popup, `d09` Đạo diễn viết prompt |
+| `ky_vong` | theo lớp: `{"stage_facts": {facts, prompt_contains, prompt_not_contains, contradiction, judge}}`; lớp mới thêm khóa riêng: `identity_declare` {nhan_vat, vat (khóa sân khấu trong BYĐ `thanh_phan` — món lọc theo cỡ cảnh / mặt-lưng / có trong khung), khoa, trang_thai {món: co/thieu/thieu_mau/sai_mau/khong_can}} (chạy ở `tests/test_identity_declare.py`), `shot_intent` / `do_tu_the` (chưa có lớp chạy — ghi kỳ vọng; `tu_the` theo `core/shot_intent.TU_THE`, có `nga_ngua`), `world_rules` {luat [luật theo `core/world_rules.py`], hoi [{vat, loai, ngu_canh, du_an, shot, hom_nay, ra: [id luật theo thứ tự]}], lop_chay} (chạy ở `tests/test_world_rules.py`), `am_chu` {thoai [{cau, nguoi_noi_byd, nguoi_noi_goi, ket_qua}], lop_chay} và `dung` {popup {tren, giu_khung, giay_giu, shot_nen_toi, ket_qua}, lop_chay} (ca âm/chữ/dựng — chưa có lớp chạy, K6: `lop_chay` BẮT BUỘC nói rõ lớp nào sẽ chạy) |
+
+**Kỳ vọng "chết" bị cấm (thẩm định 4 #4):** khóa `ky_vong` có lớp chạy trong test = `tests/golden.LOP_CHAY` (`stage_facts`,
+`identity_declare`, `world_rules`). Khóa khác (`am_chu`, `dung`, `do_tu_the`, `shot_intent`) chưa lớp nào chạy → bắt buộc ghi
+`"chua_co_lop": "<đợt>"` trong khóa đó (đợt thuộc `devsys/stages.DOT`, vd `K1a` / `K5` / `K6`) — `golden.problems` + test hợp đồng
+`tests/test_devsys_stages.py` báo đỏ nếu thiếu, và đỏ nếu khóa có lớp chạy lại ghi `chua_co_lop`. Có lớp chạy rồi → xóa `chua_co_lop`,
+thêm khóa vào `LOP_CHAY` + test chạy ca.
+
+Ca chống báo nhầm (đúng là "không có lỗi"): `chong_bao_nham_giay_o_can_mcu` (MCU không đòi giày), `chong_bao_nham_lung_mat_na_choker`
+(quay lưng không đòi mặt nạ / choker), cùng các ca `loi_dung` "không có …".
 
 Thêm ca: lỗi người dùng bắt mà lọt → xếp loại (mục 10 kế hoạch) → thêm một tệp `cases/<id>.json`; test tự chạy. Ca cũ
 `tests/fixtures/stage_facts_golden.json` đã chuyển sang đây (K0a).

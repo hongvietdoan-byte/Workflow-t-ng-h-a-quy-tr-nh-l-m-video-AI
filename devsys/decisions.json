@@ -727,6 +727,22 @@
    "who": "code",
    "what": "Kiểm câu trả lời dàn cảnh của Đạo diễn (blocking + shot_specs): khóa vật, nhịp, vật chồng nhau",
    "where": "core/stage_director.py:validate_answer"
+  },
+  {
+   "id": "d95",
+   "step": "step1",
+   "who": "code",
+   "what": "Khóa nhận diện bằng chữ (identity_declare, A18/A20): món must_keep / khai_bao_chu + màu chính có trong prompt ảnh, lọc theo BYĐ (cỡ cảnh, mặt/lưng, có trong khung) — CHƯA nối vào luồng gen (K1a), chỉ chạy khô K0b; chưa đo báo nhầm → thiếu là VÀNG (CHAN_DO = False)",
+   "where": "core/identity_declare.py:check",
+   "bat": false
+  },
+  {
+   "id": "d96",
+   "step": "step2",
+   "who": "code",
+   "what": "Tra bảng luật thế giới có phạm vi (world_rules, T2 / A8): luật áp cho vật / ngữ cảnh / dự án / shot, không áp ngầm vật khác — CHƯA nối vào luồng (K3 đọc khi đối chiếu điều Claude khai thấy)",
+   "where": "core/world_rules.py:tim",
+   "bat": false
   }
  ]
 }

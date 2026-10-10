@@ -76,7 +76,9 @@
   "A1"
  ],
  "lop_phai_bat": [
-  "d12",
+  "d12"
+ ],
+ "lop_lam": [
   "d38"
  ],
  "ky_vong": {
@@ -90,7 +92,8 @@
      "ly_do": "người nói trong gói ≠ BYĐ; người nói không có trong thanh_phan"
     }
    ],
-   "lop_chay": "chưa có lớp chạy (K6 ④ trước gen: thoại đúng người nói) — ghi kỳ vọng"
+   "lop_chay": "chưa có lớp chạy (K6 ④ trước gen: thoại đúng người nói) — ghi kỳ vọng",
+   "chua_co_lop": "K6"
   }
  }
 }
