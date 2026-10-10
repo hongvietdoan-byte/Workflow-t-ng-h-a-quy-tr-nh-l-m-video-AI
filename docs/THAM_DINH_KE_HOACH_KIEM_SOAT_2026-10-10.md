@@ -159,3 +159,39 @@ Build = (8,5×15 + 7,5×20 + 7,5×15 + 8×15 + 7,5×10 + 9×10 + 8×5 + 8×10) /
 
 **Kết luận: CHƯA ĐẠT A21** (KH 7,9, build 8,0). Tối thiểu để ≥ 8,5: #1 (kế hoạch + code bộ lọc + đo báo nhầm), #2 (kế hoạch), #3 (sổ),
 #5 (kế hoạch); #4 nên làm cùng (0 USD). Ước sau sửa: KH ≈ 8,5–8,6, build ≈ 8,5. Tất cả 0 USD; không cần dữ liệu mới ngoài gán nhãn ≤ 30 mục.
+
+# Lần 5 — kế hoạch + build K0a/K0b + đợt đóng lỗ hổng 4 (main 0bd1b60): kế hoạch **8,1 / 10**, build **8,3 / 10** — CHƯA đạt cổng A21
+
+Agent độc lập mới, cùng thang + trọng số, chỉ đọc. 8 nhóm test (identity_declare, devsys_stages, knowledge_checks, world_rules, shot_intent,
+devsys_decisions, slow_marker, golden): **125 qua** (15,6 s).
+Kế hoạch = (8,5×15 + 8,5×20 + 7,5×15 + 8×15 + 8×10 + 7,5×10 + 8×5 + 8,5×10) / 100 ≈ 8,1 (L1 6,2 · L2 7,1 · L3 7,6 · L4 7,9).
+Build = (8,5×15 + 8×20 + 8×15 + 8,5×15 + 8×10 + 9×10 + 8×5 + 8,5×10) / 100 ≈ 8,3 (L4 8,0).
+
+**Lỗ hổng lần 4:** (1) MỘT PHẦN — lọc món BYĐ (`core/identity_declare.py:360-405`), `CHAN_DO=False` → VÀNG, 2 ca chống báo nhầm; nhưng bảng
+gán nhãn 0/30, sau lọc vẫn 38 VÀNG / 9 shot; kế hoạch dòng 160 vẫn ghi "ĐỎ"; ngưỡng ghi 3 kiểu (A18 n ≥ 30 · NHAN_BAO_NHAM:6 · mục 9 ≥ 50).
+(2) ĐÓNG — `jobs.sent_package` vào K1a (dòng 221-234, 341). (3) ĐÓNG — L11 học việc, d95/d96 `bat:false`, `dot_hien_tai` K0b.
+(4) MỘT PHẦN — `chua_co_lop` có test; Pose 32 khung → chỉ VÀNG; bộ phát hiện vật chưa thử. (5) ĐÓNG — mục 4b + R1. (6) MỘT PHẦN —
+`from_shot_spec` xong (`core/shot_intent.py:193-218`); world_rules mới 1 luật. A23 (1a/2a) có code + test.
+
+| Tiêu chí | KH L4 | KH L5 | Build L5 | Lý do |
+|---|---|---|---|---|
+| A gốc | 8,5 | 8,5 | 8,5 | gốc "gói không lưu" vào K1a; tiền đề A18 "mọi món phải có chữ" chưa chứng minh (38/70 món báo, QC thấy đúng) |
+| B độ phủ | 8 | 8,5 | 8 | 4b + R1 phủ 5 lỗi; build: phát hiện vật 0 khung, 1 luật thế giới |
+| C nhất quán | 7,5 | 7,5 | 8 | mới: dòng 160 ↔ A18; ngưỡng 3 kiểu; Nhánh C chưa vào kế hoạch; TODO "A1–A22" |
+| D khả thi | 7,5 | 8 | 8,5 | `sent_package` đúng chỗ gửi; bộ lọc BYĐ chạy; `from_shot_spec` xong |
+| E đo lường | 7,5 | 8 | 8 | sổ trung thực; báo nhầm A18 chưa đo (0 nhãn, ngưỡng chưa chốt, chưa có #22) |
+| F chi phí | 7,5 | 7,5 | 9 | không đổi; 0 USD |
+| G lộ trình | 7,5 | 8 | 8 | K0b 🟡 trung thực; còn phát hiện vật + nhãn |
+| H chốt | 8,5 | 8,5 | 8,5 | A23 vào kế hoạch + code; Nhánh C chưa có dòng A |
+
+**Lỗ hổng còn lại:**
+1. CAO — A18 chưa đo báo nhầm: người dùng gán 30 nhãn; chốt MỘT ngưỡng (n ≥ 30, ≤ 10 %) ở A18, NHAN_BAO_NHAM:6, mục 9; báo nhầm > 10 % →
+   chỉ đòi món `dau_hieu` / màu tương phản, còn lại giao ảnh tham chiếu. +0,15 KH / +0,15 build.
+2. CAO — mâu thuẫn kế hoạch: dòng 160 → VÀNG tới khi đo đạt; thêm A24 Nhánh C + đợt ở mục 8 (K1b nhánh B và C); hàng 4b #3 (dòng 287):
+   bối cảnh khối Nhánh C, vai "nền" không phải render (12b.3) → L11 không ĐỎ oan; A15 dòng 30 + rủi ro dòng 409; TODO "A1–A23". +0,25 KH.
+3. TRUNG — kết thúc K0b: thử phát hiện vật ≥ 20 khung hoặc ghi chính thức hoãn sang K5 (thiếu trọng số), sửa dòng 340; K0b ✅, `dot` → K1a. +0,1 build.
+4. TRUNG — chạy khô #22 cho A18 (`tools/nhan_bao_nham_a18.py`) để đủ ≥ 2 dự án. +0,1 build.
+5. THẤP — world_rules ≥ 3 luật từ #22/#24; ca hồi quy `segment` tách sai khi 2 dạng yêu nữ chung 'creature'. +0,05.
+
+**Kết luận: CHƯA ĐẠT A21** (KH 8,1, build 8,3). KH ≥ 8,5 cần #2 (tài liệu) + #1 (nhãn + chốt luật); build ≥ 8,5 cần #1, #3, #4. Ước sau sửa
+KH ≈ 8,5, build ≈ 8,6. 0 USD; cần người dùng gán 30 nhãn + quyết tải trọng số bộ phát hiện vật.

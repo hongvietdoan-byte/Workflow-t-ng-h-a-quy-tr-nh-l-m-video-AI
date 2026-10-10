@@ -3,7 +3,7 @@
 Thẩm định 4 lỗ hổng #1: luật A18 "mọi món must_keep phải có chữ trong prompt" chưa đo báo nhầm. Bảng này lấy từ chạy khô #24
 (prompt ảnh thật trong CSDL, BYĐ `data_out/k0b_p24/byd_shot*.json`), sinh bằng `tools/nhan_bao_nham_a18.py` — chạy lại ra đúng bảng.
 
-**Ngưỡng nhận:** Mục 9 kế hoạch chỉ có ngưỡng cho LỚP CLAUDE: báo nhầm ≤ 10 % trước khi chặn, cỡ mẫu ≥ 50 mục trên ≥ 2 dự án. Lớp CODE A18 chưa có ngưỡng riêng → tạm dùng ≤ 10 % (thẩm định 4 đề n ≥ 30) — **chờ người dùng chốt**. Chưa đạt → `CHAN_DO = False` (thiếu chữ = VÀNG, không chặn).
+**Ngưỡng nhận:** Mục 9 kế hoạch chỉ có ngưỡng cho LỚP CLAUDE: báo nhầm ≤ 10 % trước khi chặn, cỡ mẫu ≥ 50 mục trên ≥ 2 dự án. Lớp CODE A18 có ngưỡng riêng — **người dùng chốt 10/10 (A25): báo nhầm ≤ 10 % trên n ≥ 30 mục, lấy từ ≥ 2 dự án (#22 + #24)**. Chưa đạt → `CHAN_DO = False` (thiếu chữ = VÀNG, không chặn).
 
 ## Số đo trước / sau lọc theo BYĐ (#24, 9 shot)
 
