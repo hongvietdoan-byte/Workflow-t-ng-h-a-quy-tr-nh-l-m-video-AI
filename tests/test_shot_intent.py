@@ -135,6 +135,30 @@ class ValidateTests(unittest.TestCase):
         b = si.from_shot_spec(spec)
         self.assertEqual((b["shot"], b["may"]["co"], b["truyen"]["nhip"]), (2, "MCU", "nhip_a"))
         self.assertEqual({i["truong"] for i in si.validate(b)}, {"noi_chon.kho_id"})
+        self.assertEqual(b["hanh_dong"], [])                    # không có blocking → không bịa tư thế
+
+    def test_from_shot_spec_carries_beat_poses_into_hanh_dong(self):
+        """Thẩm định 3/4 (chưa đóng): tư thế từng nhịp (`blocking.beats[nhip][khoa].tu_the`) → BYĐ hanh_dong[].bat_dau.tu_the cho
+        người trong thanh_phan; người không ghi tu_the ở nhịp lẫn objects → 'dung' (đứng = mặc định người nộm, prompt 29), đánh dấu."""
+        blocking = {"objects": [{"key": "kelly", "kind": "nguoi", "at": [0, 0], "H": 1.7},
+                                {"key": "yeunu", "kind": "nguoi", "at": [1, 0], "H": 1.7},
+                                {"key": "gieng", "kind": "gieng", "at": [0, 1]}],
+                    "beats": {"nga": {"kelly": {"at": [0, -0.2], "H": 1.0, "tu_the": "nga_ngua"}, "yeunu": {"hidden": True}},
+                              "di": {"yeunu": {"at": [0.5, 0]}}}}
+        spec = {"shot": 4, "nhip": "nga", "co": "WS", "thanh_phan": [{"vat": "kelly", "vai": "chinh", "vung": "trai"},
+                                                                      {"vat": "gieng", "vai": "chinh", "vung": "giua"}]}
+        b = si.from_shot_spec(spec, blocking)
+        self.assertEqual(b["hanh_dong"], [{"ai": "kelly", "bat_dau": {"tu_the": "nga_ngua"}, "nguon": "blocking.beats.nga"}])
+        self.assertNotIn("hanh_dong[0].bat_dau.tu_the", {i["truong"] for i in si.validate(b)})
+        spec2 = {"shot": 2, "nhip": "di", "co": "MS", "thanh_phan": [{"vat": "yeunu", "vai": "chinh", "vung": "giua"}]}
+        h = si.from_shot_spec(spec2, blocking)["hanh_dong"]
+        self.assertEqual(h, [{"ai": "yeunu", "bat_dau": {"tu_the": "dung"}, "nguon": "mac_dinh_dung"}])
+        blocking["beats"]["ngoi_khong_ghi"] = {"kelly": {"H": 1.0}}           # thấp hẳn mà không ghi tu_the → không đoán 'dung'
+        b = si.from_shot_spec(dict(spec, nhip="ngoi_khong_ghi"), blocking)
+        self.assertEqual(b["hanh_dong"][0]["nguon"], "thieu_tu_the")
+        self.assertIn("hanh_dong[0].bat_dau.tu_the", {i["truong"] for i in si.validate(b) if i["muc"] == "do"})
+        with self.assertRaises(ValueError):                    # nhịp không có trong blocking → báo, không im lặng bỏ
+            si.from_shot_spec(dict(spec, nhip="khong_co"), blocking)
 
 
 if __name__ == "__main__":

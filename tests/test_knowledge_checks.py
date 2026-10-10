@@ -56,3 +56,12 @@ def test_title_sections_enums_where_flags():
                 assert f"`{flag}`" in text, f"{t['id']}: cách kiểm phụ thuộc cờ '{flag}' mà tệp không ghi tên cờ"
             if item.get("trang_thai") == "xay" and item.get("dot"):
                 assert item["dot"] in text, f"{t['id']}: cách kiểm 'xay' đợt {item['dot']} không được ghi 'chưa có (đợt …)'"
+
+
+def test_l4_lists_the_current_pose_enum():
+    """Thẩm định 4 (C): L4.md phải liệt kê ĐÚNG `core/shot_intent.TU_THE` hiện tại (có nga_ngua, nam — chỉ chạy khô)."""
+    from core import shot_intent
+    text = _read("L4")
+    for code in shot_intent.TU_THE:
+        assert f"`{code}`" in text, f"L4.md thiếu tư thế `{code}` của TU_THE"
+    assert "chạy khô" in text

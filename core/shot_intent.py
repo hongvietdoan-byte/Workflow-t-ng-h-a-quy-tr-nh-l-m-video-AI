@@ -188,11 +188,35 @@ def validate(byd: Dict, conn=None) -> List[Dict]:
     return out
 
 
-def from_shot_spec(spec: Dict) -> Dict:
-    """Một mục `shot_specs` V3 → BYĐ (phần máy + thành phần); các nhóm khác rỗng. Dùng cho ca hồi quy và K1a."""
+def from_shot_spec(spec: Dict, blocking: Optional[Dict] = None) -> Dict:
+    """Một mục `shot_specs` V3 → BYĐ (phần máy + thành phần); dùng cho ca hồi quy và K1a.
+    Có `blocking` (dàn cảnh prompt 29: objects + beats[nhip][khoa]) → tư thế của NHỊP shot chuyển vào `hanh_dong`: mỗi người
+    (`kind: nguoi`) có trong thanh_phan (trừ `khong_duoc_co`) → {ai, bat_dau: {tu_the}, nguon}. `nguon` = "blocking.beats.<nhip>" (ghi ở
+    nhịp) / "blocking.objects" (ghi ở vật gốc) / "mac_dinh_dung" (không ai ghi → đứng, mặc định người nộm prompt 29 — đánh dấu để duyệt).
+    Một nhịp = một tư thế: `dinh` / `ket_thuc` để trống (shot_specs không tả đổi tư thế trong shot). Nhịp không có trong blocking →
+    ValueError (stage_solver.beat_raw), không im lặng bỏ. Không có blocking → hanh_dong rỗng (không bịa)."""
     b = empty(int(spec.get("shot") or 0))
     b["truyen"].update(nhip=spec.get("nhip"), muc_dich=spec.get("muc_dich") or "")
     b["thanh_phan"] = [dict(c) for c in spec.get("thanh_phan") or []]
     b["may"].update(co=spec.get("co"), do_cao=spec.get("do_cao") or "ngang", goc=spec.get("goc"),
                     chuyen_dong=spec.get("may") or "dung_yen")
+    if blocking:
+        nhip = spec.get("nhip")
+        raw = stage_solver.beat_raw(blocking, nhip) if nhip else stage_solver.beat_raw(blocking)
+        base = {o.get("key"): o for o in blocking.get("objects") or []}
+        ov_all = ((blocking.get("beats") or {}).get(nhip) or {}) if nhip else {}
+        for c in b["thanh_phan"]:
+            k = c.get("vat")
+            o = raw.get(k)
+            if c.get("vai") == "khong_duoc_co" or not o or o.get("kind") != "nguoi":
+                continue
+            if (ov_all.get(k) or {}).get("tu_the"):
+                tu_the, nguon = ov_all[k]["tu_the"], f"blocking.beats.{nhip}"
+            elif (base.get(k) or {}).get("tu_the"):
+                tu_the, nguon = base[k]["tu_the"], "blocking.objects"
+            elif float(o.get("H") or 0) < 0.9 * float((base.get(k) or {}).get("H") or 0):
+                tu_the, nguon = None, "thieu_tu_the"          # thấp hơn đứng mà không ghi tư thế → validate ĐỎ 'thiếu', không đoán
+            else:
+                tu_the, nguon = "dung", "mac_dinh_dung"
+            b["hanh_dong"].append({"ai": k, "bat_dau": {"tu_the": tu_the}, "nguon": nguon})
     return b
