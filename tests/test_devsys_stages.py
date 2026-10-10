@@ -66,6 +66,54 @@ class StagesBookTests(unittest.TestCase):
         for word in ("d999", "nope", "zz", "ton_tien", "mat_troi", "??", "K99", "khong_co"):
             self.assertIn(word, got)
 
+    def _row(self, sid):
+        return next(dict(s) for s in self.doc["stages"] if s["id"] == sid)
+
+    def test_check_lists_only_take_ids_whose_role_is_kiem(self):
+        """Thẩm định 3: d85 (stage_facts.derive) là bộ SINH câu, d54/d19/d88 là cổng tiền / điều kiện vận hành, người duyệt ghi ở
+        nguoi_kiem — không id nào trong ba nhóm đó được đếm là kiểm trước / kiểm sau."""
+        vai = self.doc["vai"]
+        for lst in ("kiem_truoc", "kiem_sau"):
+            for s in self.doc["stages"]:
+                for d in s[lst]:
+                    self.assertIn(d, vai["kiem"], f"{s['id']}.{lst} {d}")
+        for d, word in (("d85", "sinh"), ("d54", "kiem_chung"), ("d33", "nguoi_duyet"), ("d999x", "vai")):
+            s = dict(self._row("L10"), kiem_truoc=["d84", d])
+            got = " ".join(stages.stage_problems({"stages": [s], "vai": vai, "kiem_chung": self.doc["kiem_chung"]}, self.deci))
+            self.assertIn(d, got)
+            self.assertIn(word, got)
+
+    def test_l8_has_no_pre_check_and_l3_says_d86_runs_only_on_change(self):
+        l8 = self._row("L8")
+        self.assertEqual((l8["kiem_truoc"], l8["trang_thai_kiem"]), ([], "khong_co"))
+        self.assertIn("change_audit", self._row("L3")["ghi_chu"])
+
+    def test_role_table_ids_exist_and_do_not_overlap(self):
+        ids = {d["id"] for d in self.deci["items"]}
+        seen = {}
+        for role, lst in self.doc["vai"].items():
+            self.assertIn(role, stages.VAI)
+            for d in lst:
+                self.assertIn(d, ids)
+                self.assertNotIn(d, seen, f"{d} vừa {seen.get(d)} vừa {role}")
+                seen[d] = role
+
+    def test_wave_must_not_be_due(self):
+        self.assertEqual(self.doc["dot_hien_tai"], "K0a")
+        self.assertLess(stages.DOT.index("K4"), stages.DOT.index("K1b"))         # mục 8: K1b sau K4
+        l9 = dict(self._row("L9"), dot="K0a")
+        doc = {"stages": [l9], "vai": self.doc["vai"], "dot_hien_tai": "K0a"}
+        got = " ".join(stages.stage_problems(doc, self.deci))
+        self.assertIn("L9", got)
+        self.assertIn("quá hạn", got)
+        doc["dot_hien_tai"] = "K3"
+        l9["dot"] = "K2"
+        self.assertIn("quá hạn", " ".join(stages.stage_problems(doc, self.deci)))
+        l9["dot"] = "K1b"                                                       # K1b sau K3 theo mục 8 → chưa tới hạn
+        self.assertNotIn("quá hạn", " ".join(stages.stage_problems(doc, self.deci)))
+        doc["dot_hien_tai"] = "K99"
+        self.assertIn("dot_hien_tai", " ".join(stages.stage_problems(doc, self.deci)))
+
     def test_summary_table_prints(self):
         rows = stages.summary_rows(self.doc)
         self.assertEqual(len(rows), len(self.doc["stages"]))
@@ -109,6 +157,31 @@ class FlagStateTests(unittest.TestCase):
         s = dict(self._row(self.doc, "L9"), co={"truoc": "scene_qc"})
         eff = stages.effective({"stages": [s]}, state=lambda n: "on")
         self.assertEqual(eff["stages"][0]["trang_thai_kiem"], "khong_co")
+
+    def test_stage_camera_rows_follow_the_flag(self):
+        """Thẩm định 3: L3 (d86), L6 (dàn cảnh + giải máy), L9 (d92) phụ thuộc cờ đang TẮT mặc định — đọc cờ thật, không ghi tay 'chay'."""
+        self.assertEqual(self._row(self.doc, "L3")["co"].get("d86"), "stage_camera")
+        self.assertEqual(self._row(self.doc, "L6")["co"].get("khau"), "stage_camera")
+        self.assertIn("d92", self._row(self.doc, "L9")["co"])
+        off = stages.effective(self.doc, state=lambda n: "off")
+        l3 = self._row(off, "L3")
+        self.assertNotIn("d86", l3["kiem_truoc"])                    # d86 tắt → không đếm; d10/d11/d84 vẫn chạy
+        self.assertEqual(l3["trang_thai_kiem"], "chay")
+        self.assertIn("d86", " ".join(l3["_co_ghi"]))
+        self.assertEqual(self._row(off, "L6")["khau_trang_thai"], "tat")
+        l9 = self._row(off, "L9")
+        self.assertNotIn("d92", l9["kiem_sau"])
+        self.assertNotIn("d24", l9["kiem_sau"])
+        on = stages.effective(self.doc, state=lambda n: "on")
+        self.assertIn("d86", self._row(on, "L3")["kiem_truoc"])
+        self.assertEqual(self._row(on, "L6")["khau_trang_thai"], "chay")
+
+    def test_every_id_flagged_off_makes_the_check_off(self):
+        s = dict(self._row(self.doc, "L9"), kiem_sau=["d24", "d92"], trang_thai_sau="chay", co={"d24": "scene_qc", "d92": "x"})
+        self.assertEqual(stages.effective({"stages": [s]}, state=lambda n: "off")["stages"][0]["trang_thai_sau"], "tat")
+        self.assertEqual(stages.effective({"stages": [s]}, state=lambda n: "trainee")["stages"][0]["trang_thai_sau"], "hoc_viec")
+        bad = dict(s, co={"d33": "scene_qc"})                        # cờ gắn cho id không có trong danh sách kiểm
+        self.assertIn("d33", " ".join(stages.stage_problems({"stages": [bad]}, decisions.load())))
 
     def test_unknown_flag_is_reported(self):
         s = dict(self._row(self.doc, "L16"), co={"truoc": "khong_co_co_nay", "giua": "x"})
@@ -168,9 +241,35 @@ class ErrorTypeTests(unittest.TestCase):
             self.assertIn(word, got)
 
     def test_only_building_is_counted(self):
-        ids = [t["id"] for t in stages.only_building(self.doc)]
+        ids = [t["id"] for t in stages.only_building(self.doc, state=lambda n: "on")]
         self.assertIn("L14", ids)
         self.assertNotIn("L7", ids)
+
+    def test_switched_off_or_flagged_off_checks_do_not_count(self):
+        """Thẩm định 3: mục `bat:false` và mục học việc / chạy phụ thuộc cờ đang TẮT không phải 'cách kiểm thật'."""
+        off = [t["id"] for t in stages.only_building(self.doc, state=lambda n: "off")]
+        on = [t["id"] for t in stages.only_building(self.doc, state=lambda n: "on")]
+        self.assertGreater(len(off), len(on))
+        for i in ("L7", "L9", "L2"):                                     # chỉ có kiểm dưới cờ (stage_camera / scene_qc / palette, qc_team)
+            self.assertIn(i, off)
+        self.assertNotIn("L8", off)                                      # plate_camera.subject_box chạy không cần cờ
+        t = {"id": "X", "code_do": [{"mo_ta": "m", "trang_thai": "co", "where": "core/palette.py:check", "bat": False}], "claude_khai": []}
+        self.assertEqual([x["id"] for x in stages.only_building({"types": [t]}, state=lambda n: "on")], ["X"])
+        t2 = {"id": "Y", "code_do": [], "claude_khai": [{"mo_ta": "k", "enum": ["a"], "trang_thai": "hoc_viec", "co": "qc_team"}]}
+        self.assertEqual([x["id"] for x in stages.only_building({"types": [t2]}, state=lambda n: "off")], ["Y"])
+        self.assertEqual(stages.only_building({"types": [t2]}, state=lambda n: "trainee"), [])
+
+    def test_trainee_and_switched_off_entries_must_name_their_flag(self):
+        for t in self.doc["types"]:
+            for e in t.get("code_do", []) + t.get("claude_khai", []):
+                if e.get("trang_thai") == "hoc_viec" or e.get("bat") is False:
+                    self.assertTrue(e.get("co"), f"{t['id']} '{e['mo_ta']}' thiếu co")
+        bad = {"san_pham": ["anh"], "types": [{"id": "L1", "ten": "x", "ap_dung": ["anh"], "code_do": [],
+               "claude_khai": [{"mo_ta": "k", "enum": ["a"], "trang_thai": "hoc_viec", "dot": "K3", "where": None},
+                               {"mo_ta": "q", "enum": ["a"], "trang_thai": "hoc_viec", "dot": "K3", "where": None, "co": "khong_co_co_nay"}]}]}
+        got = " ".join(stages.error_type_problems(bad, ROOT))
+        self.assertIn("'k'", got)
+        self.assertIn("khong_co_co_nay", got)
 
 
 class GoldenFormatTests(unittest.TestCase):
