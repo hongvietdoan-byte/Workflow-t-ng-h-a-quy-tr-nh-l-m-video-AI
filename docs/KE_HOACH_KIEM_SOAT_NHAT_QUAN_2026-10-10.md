@@ -30,6 +30,7 @@
 | A17 | Video có **2 lớp kiểm bằng code — TRƯỚC và SAU khi gen** — làm cùng đợt ảnh (K3); lớp Claude của video ở K4 (mục 3.4, 3.6, 8). |
 | A18 | (thẩm định lần 3) Trong lúc lớp Claude của vòng viết còn học việc, **khai báo bắt buộc khóa nhận diện được CHẶN bằng code**: so tên món `must_keep` + màu lấy từ hồ sơ Kho với chữ Đạo diễn viết (thiếu / sai màu → ĐỎ, trả Đạo diễn) — không quay lại kiểu code chèn. |
 | A19 | Đạo diễn **phải viết tên món must_keep + màu** trong prompt; KHÔNG tả lại dáng / mặt (ảnh tham chiếu giữ) — N11 viết lại theo đây. |
+| A20 | Trang phục nhiều màu / họa tiết — chia 3 tầng: **chữ** = tên món + màu chủ đạo (1–2) + ≤ 1 dấu hiệu đặc trưng (code kiểm, chặn); **ảnh tham chiếu** giữ toàn bộ họa tiết; **QC sau gen** kiểm họa tiết (L2: code đo màu vùng + Claude khai từng dấu hiệu). Hồ sơ Kho thêm ô `khai_bao_chu` mỗi món: {mon + đồng nghĩa, mau_chinh[] + đồng nghĩa, dau_hieu (≤ 1) + cách viết tương đương, hoa_tiet[] (chỉ cho QC)}; món chưa có ô → VÀNG nhắc điền một lần (K0b tạo trường, K1a điền cho nhân vật dùng). |
 
 ## 0. Vì sao sửa nhiều lần vẫn lặp lại
 
