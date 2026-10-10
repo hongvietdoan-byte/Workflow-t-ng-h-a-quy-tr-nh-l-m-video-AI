@@ -23,8 +23,7 @@ VAI = sg.ROLES                                  # chinh, phu, khong_duoc_co
 THAY = sg.VIEWS                                 # mat, lung, nghieng (ghép "|")
 TU_THE = ("dung", "ngoi", "quy", "bo", "nga_ngua", "nam")   # prompt 29 dòng 11–13 (đứng / ngồi bệt / quỳ / bò / ngã ngửa chống tay / nằm)
 #   — beats[nhip][khoa].tu_the. K0b phần 2: thêm nga_ngua (#24 shot 4 job 635 ra NGỒI thẳng thay vì ngã ngửa — enum cũ không phân biệt), nam.
-#   Solver đã tính thân nằm (Codex việc 2) nhưng prompt 29 CHƯA mở 'nga_ngua'/'nam' cho Director (rà 10/10): chờ tools/stage_grid.py
-#   dựng người nộm nằm — hiện người nộm Blender là trụ đứng cao H.
+#   Người nộm tools/stage_grid.py đã dựng thân nằm cùng bao hình với solver (Đợt 2).
 CHUYEN_DONG = ("dung_yen",) + tuple(stage_solver.MOVES)   # dung_yen + lui / tien (prompt 29 dòng 31 "may.kieu"); đẩy/kéo/lia: K3
 THOI_GIAN = plate_env.TIMES                     # dawn, day, dusk, night
 THOI_TIET = plate_env.WEATHERS

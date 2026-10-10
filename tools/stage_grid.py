@@ -41,6 +41,60 @@ COLORS = {"thap": (0.85, 0.2, 0.2), "nha": (0.95, 0.55, 0.1), "tuong": (0.9, 0.8
 
 
 # ================================================ trong Blender ================================================
+def add_person(bpy, p, floor, mk_mat):
+    """Dựng người nộm; thân nằm có bao hình đúng body_length/body_height của solver."""
+    x, y, z = floor
+    col = tuple(p.get("rgb", (1.0, 0.4, 0.1)))
+    material = mk_mat(f"STAGE_{p['name']}_m", col)
+    if p.get("tu_the") in ("nam", "nga_ngua"):
+        if p.get("facing") is None or not math.isfinite(p["facing"]):
+            raise ValueError("người nằm cần facing")
+        length, height = p["body_length"], p["body_height"]
+        if not all(math.isfinite(v) and v > 0 for v in (length, height, p["height"])):
+            raise ValueError("kích thước người nằm phải hữu hạn và dương")
+        facing = math.radians(p["facing"])
+        # Chọn góc nhỏ hơn đường chéo; giải kích thước hộp để bao hình vẫn đúng số solver.
+        angle = .75 * math.atan2(height, length) if p["tu_the"] == "nga_ngua" else 0
+        c, s = math.cos(angle), math.sin(angle)
+        divisor = c * c - s * s
+        long_side = (length * c - height * s) / divisor
+        thickness = (height * c - length * s) / divisor
+        if min(long_side, thickness) <= 0:
+            raise ValueError("tỉ lệ thân nằm không dựng được hộp nghiêng")
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, z + height / 2))
+        body = bpy.context.active_object
+        body.dimensions = (min(.3, height), long_side, thickness)
+        body.rotation_euler = (angle, 0, -facing)
+        body.name = f"STAGE_{p['name']}_body"
+        body.data.materials.append(material)
+        o = dict(kind="nguoi", xy=[x, y], z=z, H=p["height"], tu_the=p["tu_the"],
+                 body_length=length, body_height=height, facing=p["facing"])
+        # Đầu ở đầu dương của facing, theo đúng lying_point; nằm gọn trong bao hình thân.
+        radius = min(.12, length * .05, height * (1 - sg.EYE))
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, location=sg.lying_point(o, .45, sg.EYE))
+        head = bpy.context.active_object
+        head.name = f"STAGE_{p['name']}_head"
+        head.data.materials.append(material)
+        return
+    hgt = p["height"]
+    body_h = hgt - .13
+    bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=.19, depth=body_h, location=(x, y, z + body_h / 2))
+    body = bpy.context.active_object
+    body.name = f"STAGE_{p['name']}_body"
+    body.data.materials.append(material)
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=.12, location=(x, y, z + hgt - .13))
+    head = bpy.context.active_object
+    head.name = f"STAGE_{p['name']}_head"
+    head.data.materials.append(material)
+    facing = math.radians(p.get("facing", 0))
+    bpy.ops.mesh.primitive_cone_add(radius1=.06, depth=.18,
+                                  location=(x + math.sin(facing) * .2, y + math.cos(facing) * .2, z + hgt - .13))
+    nose = bpy.context.active_object
+    nose.name = f"STAGE_{p['name']}_nose"
+    nose.rotation_euler = (math.pi / 2, 0, -facing)
+    nose.data.materials.append(material)
+
+
 def blender_main(cfg):
     import bpy
     from mathutils import Vector
@@ -282,7 +336,6 @@ def blender_main(cfg):
                         hollow=bool(p.get("hollow")))
         else:
             hgt = p["height"]
-            body_h = hgt - 0.13                    # thân lên tới tâm đầu: không còn khe cổ (09/10: người nộm bò 0,6 m mất 46 % điểm vào khe)
             if p.get("in_well") is not None:
                 # đứng TRONG giếng: chân dưới mặt sàn (z âm) là cố ý — ghi rõ, không tính là lỗi "khác mặt sàn"
                 # mặt sàn lấy theo chân đế giếng (tia xuống tại tâm giếng đi qua đáy tối sát sàn → đọc tầng dưới −6,18 m, lần chạy 1)
@@ -290,24 +343,14 @@ def blender_main(cfg):
                 fz = scn((r[0], r[1], frel)).z
                 info.update(xyz=[r[0], r[1], round(frel, 3)], floor_status="trong_gieng",
                             in_well=dict(p["in_well"], note="đứng trong giếng: chân dưới mặt sàn là cố ý"))
-            bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=0.19, depth=body_h, location=(s.x, s.y, fz + body_h / 2))
-            b = bpy.context.active_object
-            b.name = f"STAGE_{p['name']}_body"
-            col = tuple(p.get("rgb", (1.0, 0.4, 0.1)))
-            b.data.materials.append(mk_mat(f"STAGE_{p['name']}_m", col))
-            bpy.ops.mesh.primitive_uv_sphere_add(radius=0.12, location=(s.x, s.y, fz + hgt - 0.13))
-            hd = bpy.context.active_object
-            hd.name = f"STAGE_{p['name']}_head"
-            hd.data.materials.append(b.data.materials[0])
-            # mũi chỉ hướng mặt
-            f = math.radians(p.get("facing", 0))
-            bpy.ops.mesh.primitive_cone_add(radius1=0.06, depth=0.18, location=(s.x + math.sin(f) * 0.2, s.y + math.cos(f) * 0.2, fz + hgt - 0.13))
-            nz = bpy.context.active_object
-            nz.name = f"STAGE_{p['name']}_nose"
-            nz.rotation_euler = (math.pi / 2, 0, -f)
-            nz.data.materials.append(b.data.materials[0])
+            add_person(bpy, p, (s.x, s.y, fz), mk_mat)
             info.update(height_m=hgt, facing_deg=p.get("facing", 0), eye_z=round(frel + hgt * sg.EYE, 2),
                         chest_z=round(frel + hgt * sg.CHEST, 2), hip_z=round(frel + hgt * sg.HIP, 2), source=p.get("source"))
+            if p.get("tu_the") in ("nam", "nga_ngua"):
+                bh = p["body_height"]
+                info.update(height_m=bh, body_length=p["body_length"], tu_the=p["tu_the"],
+                            eye_z=round(frel + bh * sg.EYE, 2), chest_z=round(frel + bh * sg.CHEST, 2),
+                            hip_z=round(frel + bh * sg.HIP, 2))
         if info.get("floor_status") not in ("same", "trong_gieng"):
             warnings.append(f"{p['name']} ở {info.get('cell')} đứng trên sàn '{info.get('floor_status')}' z {frel:.2f} m — kiểm chỗ đứng")
         placed[p["name"]] = info
@@ -1244,12 +1287,16 @@ def blender_props(beats):
         for o in objs.values():
             if o["kind"] != "nguoi":
                 continue
-            sig = (o["key"], round(o["xy"][0], 3), round(o["xy"][1], 3), round(o.get("z", 0.0), 3), o["H"], o.get("facing"), o.get("in"))
+            sig = (o["key"], round(o["xy"][0], 3), round(o["xy"][1], 3), round(o.get("z", 0.0), 3), o["H"], o.get("facing"), o.get("in"),
+                   o.get("tu_the"), o.get("body_length"), o.get("body_height"))
             if sig not in variants:
                 n = sum(1 for v in variants.values() if v["key"] == o["key"])
                 rgb = pal.setdefault(o["key"], colours[len(pal) % len(colours)])
                 p = {"name": f"{o['key'].upper()}_V{n}", "key": o["key"], "kind": "person", "at": list(o["xy"]), "height": o["H"],
                      "facing": o.get("facing") or 0.0, "source": o.get("source") or "blocking.json", "rgb": rgb}
+                p.update({k: o[k] for k in ("tu_the", "body_length", "body_height") if k in o})
+                if o.get("tu_the") in ("nam", "nga_ngua") and o.get("facing") is None:
+                    raise ValueError("người nằm cần facing")
                 if o.get("in"):
                     p["in_well"] = {"foot_z": round(o["z"] - wells[o["in"]].get("z", 0.0), 3), "rule": "chân = cao giếng − 0,72·H"}
                 variants[sig] = p
