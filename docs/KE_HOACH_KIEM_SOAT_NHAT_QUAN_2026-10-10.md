@@ -24,7 +24,7 @@
 | A11 | **Âm thanh, phụ đề, dựng nằm trong khâu kiểm soát** ngay từ đầu. |
 | A12 | **Prompt do Đạo diễn và hệ thống HỢP TÁC viết**: hệ thống không tự chèn / sửa chữ của Đạo diễn (tránh vô tình ngược ý); hệ thống kiểm và trả lỗi cụ thể, Đạo diễn sửa, lặp tới khi đạt (mục 3.3). |
 | A13 | Người dùng **không phải đọc prompt**: mọi quyết định qua một dòng tiếng Việt + nút. |
-| A14 | (sau thẩm định lần 2) **Hệ thống KHÔNG chèn bất kỳ chữ nào** vào prompt: hệ thống phân tích → đưa **khai báo** cho Đạo diễn → Đạo diễn viết lại → hệ thống kiểm lại đủ + đúng thông tin chưa → chưa thì đưa khai báo tiếp. Khóa nhận diện, hình học, số liệu được củng cố bằng khai báo BẮT BUỘC (Đạo diễn phải thể hiện, code kiểm) — mục 3.3b. |
+| A14 | (sau thẩm định lần 2) **Hệ thống KHÔNG chèn bất kỳ chữ nào** vào prompt: hệ thống phân tích → đưa **khai báo** cho Đạo diễn → Đạo diễn viết lại → hệ thống kiểm lại đủ + đúng thông tin chưa → chưa thì đưa khai báo tiếp (**≤ 2 vòng như N2**, vẫn chưa đạt → giữ, hỏi người một dòng). Khóa nhận diện, hình học, số liệu được củng cố bằng khai báo BẮT BUỘC (Đạo diễn phải thể hiện, code kiểm) — mục 3.3b. |
 | A15 | Dự án mới **chỉ dùng 2 bối cảnh có 3D: Tháp Đồng Hồ (Kho #263) và Cổng Trời (#265)** cho tới khi dựng sân khấu từ ảnh (K1b) xong. |
 | A16 | **Chấp nhận chi phí kiểm** (~10–20 % chi gen) để đầu vào / đầu ra chất lượng, thay vì sửa và gen lại nhiều: chi phí kiểm chỉ ĐO và BÁO, không phải ngưỡng chặn. |
 | A17 | Video có **2 lớp kiểm bằng code — TRƯỚC và SAU khi gen** — làm cùng đợt ảnh (K3); lớp Claude của video ở K4 (mục 3.4, 3.6, 8). |
@@ -208,7 +208,10 @@ dấu vân tay → ③④ lại.
   đang thiếu (prompt_formula, stage_facts, before_run, giải máy, render nền, end_popup, vòng viết hợp tác, người duyệt gói).
 - Test hợp đồng (`tests/test_devsys_stages.py`): khâu `ton_tien` thiếu `kiem_truoc` đang chạy/học việc → đỏ; lớp kiểm `doc_tu: chu_tu_do`
   để kết luận → đỏ; mỗi loại lỗi mục 4 có ≥ 1 cách kiểm CÓ THẬT (không tính "học việc" khi chưa có cách đo — thẩm định #7) cho từng loại
-  sản phẩm áp dụng; mỗi ô BYĐ có đủ 3 câu (dữ kiện / kiểm gói / mệnh đề QC).
+  sản phẩm áp dụng; mỗi ô BYĐ có đủ 3 câu (dữ kiện / kiểm gói / mệnh đề QC — test bật ở K2 khi có câu).
+  **Chống né:** `kiem_truoc`/`kiem_sau` chỉ nhận id có `vai: kiem` (không id người duyệt chung, không bộ SINH); `dot_hien_tai` trong sổ —
+  khâu tốn tiền thiếu kiểm trước mà `dot` ≤ `dot_hien_tai` → đỏ (không khai "đợt sau" mãi); trạng thái phụ thuộc cờ đọc cờ thật
+  (trường `co`), loại lỗi chỉ tính "có cách kiểm" khi cờ của nó đang bật; số liệu báo cáo lấy từ trang "Làm ↔ Kiểm", không chép tay.
 - Bộ ca hồi quy `tests/golden/` (định dạng chốt ở K0a): ca = BYĐ (tay cho dự án cũ, `ca_vang_tay`) + máy + Kho + gói + (ảnh kết quả) +
   lỗi + lớp phải bắt.
 - Trang devsys "Làm ↔ Kiểm": bảng mục 7 sinh từ sổ, đỏ khi khâu thiếu kiểm; số đo theo loại.
@@ -299,32 +302,37 @@ Mỗi đợt: cờ riêng (TẮT mặc định), test đỏ → xanh, rà KỸ k
 | Đợt | Việc | Tốn tiền | Xong khi |
 |---|---|---|---|
 | **K0a** Sổ khâu + định dạng — ✅ 10/10 (`df66a11`, `498fa12`; 8 khâu tốn tiền thiếu kiểm trước, 9 khâu đọc chữ tự do, 6/23 loại lỗi chỉ 'xây' — trang devsys "Làm ↔ Kiểm") | `devsys/stages.json` + test hợp đồng; thêm khâu code thiếu vào `decisions.json`; schema BYĐ tối thiểu + định dạng ca hồi quy; sửa `LLM_STAGE_TOKENS` khâu chấm (`core/cost.py:297` qc (6000, 900) → output đo ~5000 token, 10/10); gộp `tests/fixtures/stage_facts_golden.json` vào định dạng `tests/golden/` | 0 | test hợp đồng chạy, trang "Làm ↔ Kiểm" hiện đúng các khâu thiếu kiểm (đỏ) |
-| **K0b** Bảng loại lỗi + kỹ năng + luật thế giới | `knowledge/checks/*.md` cho L1–L15, V1–V4, A1–A4; bảng luật thế giới có phạm vi; ca hồi quy từ #8/#22/#24 (`ca_vang_tay`) | 0 | mỗi loại có tệp kỹ năng + cách kết luận; ≥ 15 ca hồi quy định dạng đúng |
+| **K0b** Bảng loại lỗi + kỹ năng + luật thế giới + bằng chứng chạy khô | `knowledge/checks/*.md` cho L1–L15, V1–V4, A1–A4; bảng luật thế giới có phạm vi; ô `khai_bao_chu` hồ sơ Kho (A20); ca hồi quy từ #8/#22/#24 (`ca_vang_tay`) gồm **≥ 2 ca âm/chữ/dựng** (thoại sai người nói; popup không giữ khung cuối) và **≥ 3 ca có BYĐ + gói**; **thử công cụ đo K5 trên khung thật #24 (0 USD, cục bộ)**: MediaPipe Pose (đã chạy được trên Py 3.14 — đo môi 29/09), YuNet (có), bộ phát hiện vật OpenCV DNN — đo đúng/sai trên ≥ 20 khung, ghi cái nào dùng được; **chạy khô kiểm khóa nhận diện A18 trên prompt thật #22/#24** (bao nhiêu prompt hiện tại sẽ đỏ) | 0 | mỗi loại có tệp kỹ năng + cách kết luận; ≥ 15 ca hồi quy (≥ 2 âm/chữ, ≥ 3 có BYĐ + gói); báo cáo công cụ đo + chạy khô có số |
 | **K1a** BYĐ trên 2 bối cảnh có 3D (A15) | `core/shot_intent.py`; Đạo diễn điền BYĐ + `ngoai_le` (prompt 17/20/29, cờ `shot_intent`); dự án mới chỉ chọn được Tháp Đồng Hồ #263 / Cổng Trời #265; duyệt kiểu (c) có hình 3D trên Dashboard | Claude khi chạy Đạo diễn | một dự án mới thử có BYĐ đủ mọi shot, người dùng duyệt |
 | **K1b** Sân khấu 3D từ ảnh (A10, sau K4) | Nhánh B mục 12 `docs/PHUONG_PHAP_SAN_KHAU_3D.md` (hiệu chỉnh, chiều sâu, ghép ảnh, P5; tải model chiều sâu ~100 MB — hỏi người dùng trước) | 0 (code) | lệch chiếu ngược ≤ 3 % trên ≥ 3 bối cảnh → mở thêm bối cảnh cho dự án mới |
 | **K2** Viết hợp tác (ảnh) | vòng 3.3 + dấu vân tay gói + ngân sách model + ảnh tham chiếu kiểu Elements; **so A/B ≤ 1 USD** (A7) | ≤ 1 USD (A/B) + Claude vòng viết | người dùng chấm A/B: bản hợp tác ≥ bản hiện tại ở ≥ 2/3 shot |
 | **K3** Người duyệt gói ảnh + 2 lớp code video | ④ lớp code chặn, lớp Claude học việc; gen lại qua ③④ + N10; một dòng tiếng Việt; **video: lớp code TRƯỚC + SAU gen (3.4b, A17)** gồm phân loại chuyển động máy | Claude học việc (đo thật — báo giá trước) | lớp code bắt 100 % ca hồi quy thuộc nó; số đo Claude ghi đủ 1 dự án |
 | **K4** Video ngang ảnh (lớp Claude) | ③ motion viết hợp tác; ④⑥ lớp Claude cho video: L1–L15 trên khung mẫu (số khung mẫu chốt ở K4 theo đo), tường thuật + chuyển động | như K3 | ca hồi quy video (#22, #24) bắt đúng; ④ video chặn khung đầu sai 100 % |
 | **K5** QC sau gen + công cụ đo | DSG + đồ thị phụ thuộc; bộ phát hiện vật, Pose, embedding mặt, màu vùng (L10); Tổ QC C2/C3; N bản rẻ → chọn (tùy chọn) | QC ≈ 0,03–0,04 USD/khung (ước theo số mệnh đề) | số đo đạt mục 9 → đề xuất chặn |
-| **K6** Âm thanh, phụ đề, dựng | ③④⑥ cho A1–A4 | nhỏ | ca hồi quy âm/chữ bắt đúng |
+| **K6** Âm thanh, phụ đề, dựng | ④ trước gen: thoại đúng người nói + giọng hồ sơ + độ dài ≤ shot; brief nhạc khớp đường cảm xúc + mốc nhịp; phụ đề chính tả + ≤ 2 dòng + vùng an toàn; danh sách cắt khớp thứ tự BYĐ + popup giữ khung cuối. ⑥ sau: so chữ TTS (d39), loudness, mốc nhịp, phụ đề so thoại + thời điểm, bản dựng so kịch bản; Claude khai SFX khớp hành động | nhỏ | ca hồi quy âm/chữ (≥ 2 từ K0b) bắt đúng 100 %; ④ chặn thoại sai người nói 100 % |
 | **K7** Thay đổi theo BYĐ | `change_review` đọc khác biệt BYĐ | như hiện tại | không lớp nào còn đọc chữ tự do để kết luận |
 | **K8** Vận hành | quy trình mục 10 vào `docs/CHUAN_XAY_DUNG.md` + CLAUDE.md; báo cáo số đo hàng tuần | 0 | — |
 
-Phụ thuộc: K0a → K0b → K1a → K2 → K3 → K4 → K1b; K5 sau K3 (song song K4 được); K6 sau K3; K7 sau K1a. Điểm dừng đo: cuối K2 (A/B), cuối K3
+Phụ thuộc: K0a → K0b → K1a → K2 → K3 → K4; **K1b (thuần code) chạy song song từ sau K2** để mở thêm bối cảnh sớm; K5 sau K3 (song song K4 được); K6 sau K3; K7 sau K1a. Điểm dừng đo: cuối K2 (A/B), cuối K3
 (số đo học việc), cuối K4 (video).
 
-## 9. Chi phí (ước, đo lại ở K3) và tiêu chí nghiệm thu
+## 9. Chi phí (theo số đo sổ chi) và tiêu chí nghiệm thu
 
-**Chi phí vận hành thêm / dự án 9 shot** (giá đo: Tổ QC C1 ≈ 0,019 USD cho ~12 mệnh đề; Tổ rà soát 0,013–0,019 USD / thay đổi):
+**Đơn giá ĐO THẬT** (`usage_events`, 10/10): Tổ QC chấm MỘT KHUNG (C1, ~12 mệnh đề) **0,018 USD/lần** (107 lần); QC cũ
+0,028 USD/lần (87); Tổ rà soát tác động 0,016 USD/thay đổi (2); Đạo diễn cả kịch bản 0,194 USD/lần (32). Đơn vị ⑥ = MỘT KHUNG (không phải
+cảnh). Vòng viết ③ / lớp Claude ④ chưa có khâu đo — ước bằng cỡ Tổ rà soát (một shot, bảng ý + đoạn chữ) ≈ 0,016–0,03 USD/lượt; ĐO thật
+ở K2 (vòng viết) và K3 (④) rồi sửa bảng dưới.
+
+**Chi phí vận hành thêm / dự án 9 shot:**
 
 | Phần | Ảnh | Video | Âm/chữ/dựng |
 |---|---|---|---|
-| ③ vòng viết (≤ 2 vòng × ~0,02) | ~0,2–0,4 | ~0,2–0,4 | ~0,1 |
-| ④ lớp Claude | ~0,2–0,3 | ~0,2–0,3 | — |
-| ⑥ QC (~20 mệnh đề × 9) | ~0,3–0,4 | ~0,3–0,5 (khung mẫu) | ~0,1 |
-| Cộng | ~0,7–1,1 | ~0,7–1,2 | ~0,2 |
+| ③ vòng viết (9 shot × 1–2 lượt × 0,016–0,03) | 0,15–0,55 | 0,15–0,55 | ~0,1 |
+| ④ lớp Claude (9 × 0,016–0,03) | 0,15–0,27 | 0,15–0,27 | — |
+| ⑥ QC (9 khung × 0,018 × 1,5 cho ~20 mệnh đề; video 2 khung mẫu/clip) | ~0,25 | ~0,5 | ~0,1 |
+| Cộng | ~0,55–1,1 | ~0,8–1,3 | ~0,2 |
 
-Tổng ≈ 1,6–2,5 USD / dự án; so chi gen (ảnh ~0,05 × 9 × lần gen + video ~1–2 × 9) ≈ 10–20 USD → **≈ 10–20 %**. Người dùng chấp nhận
+Tổng ≈ 1,55–2,6 USD / dự án (đơn giá đo thật); so chi gen (ảnh ~0,05 × 9 × lần gen + video ~1–2 × 9) ≈ 10–20 USD → **≈ 10–20 %**. Người dùng chấp nhận
 chi phí này (A16): chi phí kiểm chỉ ĐO và BÁO, không chặn; giảm bằng dấu vân tay (không kiểm lại gói không đổi), gom
 mệnh đề, ReplayClient cho ca hồi quy.
 
@@ -336,7 +344,7 @@ mệnh đề, ReplayClient cho ca hồi quy.
 | Khâu tốn tiền có kiểm trước | 100 % | `stages.json` |
 | Ca hồi quy | 100 % bắt đúng ở lớp được gán | số ca |
 | Lọt | ≤ 1 lỗi / dự án trên 2 dự án mới liên tiếp; mỗi lỗi lọt xếp loại trong ngày | lỗi người dùng bắt sau |
-| Báo nhầm lớp Claude | ≤ 10 % trước khi chặn | số mục lớp đó báo |
+| Báo nhầm lớp Claude | ≤ 10 % trước khi chặn, **cỡ mẫu ≥ 50 mục trên ≥ 2 dự án** | số mục lớp đó báo (người dùng gán đúng/nhầm bằng nút 1 chạm) |
 | Câu hỏi người dùng | ≤ 5 "cố ý hay lỗi" / dự án; ≤ 1 câu hỏi chặn / shot; tổng thao tác / dự án (duyệt BYĐ + câu cố ý + câu chặn + A/B + chọn bản) đo và báo | đếm |
 | "Ô đáng ngờ" (A9) | = ô BYĐ có VÀNG, mâu thuẫn ②, có `ngoai_le`, hoặc suy từ chữ chưa duyệt — chỉ những ô này hiện mặc định | định nghĩa |
 | Vòng viết hợp tác hội tụ | ≥ 90 % shot đạt trong ≤ 2 vòng | số shot |
