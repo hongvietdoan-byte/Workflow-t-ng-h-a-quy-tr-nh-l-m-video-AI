@@ -451,6 +451,14 @@ def test_segment_longer_marker_wins_same_start():
     assert "bomber" in seg["MAXIM"] and "bomber" in seg["MAXIM KL"]
 
 
+def test_segment_nested_names_each_own_clause():
+    """Rà 10/10: 'Kelly KL' và 'Kelly' cùng khung, mỗi người một mệnh đề — mệnh đề 'Kelly KL' chỉ của KELLY KL; mệnh đề chỉ ghi 'Kelly' hòa → của cả hai."""
+    mk = {"KELLY": ["kelly"], "KELLY KL": ["kelly kl", "kelly"]}
+    seg = idd.segment("Kelly KL dances on the bed. Kelly watches from the door.", mk)
+    assert "dances" in seg["KELLY KL"] and "dances" not in seg["KELLY"]
+    assert "watches" in seg["KELLY"] and "watches" in seg["KELLY KL"]
+
+
 def _load_tool(name):
     import importlib.util
     import os
