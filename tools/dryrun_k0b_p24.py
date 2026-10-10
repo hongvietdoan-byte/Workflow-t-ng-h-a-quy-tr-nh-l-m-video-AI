@@ -226,6 +226,9 @@ def identity_rows(conn, chars, prompt, in_frame=None, byd=None, cfg=None):
             kbc_issues = kbc_issues + got_o[1]
             src, mo_ta = f"{src}[{'+'.join(IDENTITY_ITEMS)}]+trang_phuc_{oid}:{got_o[2]}", got_o[4]
         view = idd.byd_view(byd, stage_key.get(name)) if byd is not None else None
+        cut = idd.prompt_cut(prompt)                # A26 kiểu 5: prompt tự giới hạn khung ('no legs', 'from mid-chest up')
+        if view is not None and cut is not None:
+            view["cat_prompt"] = cut
         rows = idd.check(decl, seg.get(name, ""), view=view)
         out.append({"nhan_vat": name, "kho_id": aid, "trang_phuc_kho_id": oid, "nguon_khoa": src, "thieu_must_keep": not has_mk,
                     "loc_byd": view, "khai_bao_chu_loi": kbc_issues, "mau_mo_ta_lech": idd.color_conflicts(mo_ta, decl),

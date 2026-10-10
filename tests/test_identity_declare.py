@@ -28,9 +28,10 @@ def test_all_present():
     assert rows[1]["dau_hieu_thay"] is True
 
 
-def test_missing_choker_is_red_when_blocking_is_on():
+def test_missing_choker_stays_yellow_even_when_blocking_is_on():
+    # A26 (c): 'thieu' của món thường LUÔN VÀNG (trước A26 bật chặn → ĐỎ)
     r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in a yellow tracksuit runs across the plaza", chan_do=True))
-    assert r["choker"]["trang_thai"] == "thieu" and r["choker"]["muc"] == "do"
+    assert r["choker"]["trang_thai"] == "thieu" and r["choker"]["muc"] == "vang"
     assert r["tracksuit"]["trang_thai"] == "co"
 
 
@@ -45,7 +46,7 @@ def test_color_synonyms_and_missing_color():
     r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in a golden track suit with a jet-black choker"))
     assert r["tracksuit"]["trang_thai"] == "co" and r["choker"]["trang_thai"] == "co"
     r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in her tracksuit and black choker", chan_do=True))
-    assert r["tracksuit"]["trang_thai"] == "thieu_mau" and r["tracksuit"]["muc"] == "do"
+    assert r["tracksuit"]["trang_thai"] == "thieu_mau" and r["tracksuit"]["muc"] == "vang"    # A26 (c): thiếu màu luôn VÀNG
 
 
 def test_must_keep_merges_tracksuit_and_skips_patterns():
@@ -201,7 +202,7 @@ def test_default_mode_is_yellow_until_false_alarms_are_measured():
     hard = _by(idd.check(decl, prompt, chan_do=True))
     assert (soft["choker"]["trang_thai"], soft["choker"]["muc"]) == ("thieu", "vang")
     assert (soft["tracksuit"]["trang_thai"], soft["tracksuit"]["muc"]) == ("thieu_mau", "vang")
-    assert (hard["choker"]["muc"], hard["tracksuit"]["muc"]) == ("do", "do")
+    assert (hard["choker"]["muc"], hard["tracksuit"]["muc"]) == ("vang", "vang")      # A26 (c): chỉ sai_mau / món dấu hiệu ĐỎ
     assert idd.check([], "x")[0]["muc"] == "do" and idd.check([], "x", chan_do=True)[0]["muc"] == "do"
 
 
@@ -555,3 +556,110 @@ def test_nhan_bao_nham_agent_labels_kept_on_rerun(tmp_path):
     out = "\n".join(mod.agent_summary([(22, it(7, "hands")), (22, it(8, "hair"))], agent))
     assert "đúng lỗi 0 / báo nhầm 1" in out and "100 %" in out and "1 mục trong bảng chưa có nhãn agent" in out
     assert mod.agent_summary([(22, it(8, "hair"))], agent) == []
+
+
+# --- A26 (b): 5 kiểu báo nhầm từ bảng gán nhãn docs/NHAN_BAO_NHAM_A18_2026-10-10.md — mỗi kiểu một ca dựng từ ca thật ---
+
+KHO_416 = ("Hoodie đỏ in hình khủng long xanh lá phun lửa, tay áo đen; quần jean đen rách; MŨ ĐEN CÓ SỪNG ĐỎ (nhìn chính diện dễ đọc "
+           "nhầm thành mũ đỏ — xem nhiều góc); khẩu trang đen in răng cá mập luôn đeo kín mũi và miệng, không kéo xuống; dép khủng long "
+           "đỏ. Ảnh trang phục có người mẫu: tóc, mặt, dáng lấy theo NHÂN VẬT đang mặc, không theo người mẫu. Không phải đồ liền thân "
+           "thú bông, không có đuôi.")
+KHO_417 = ("Áo croptop đỏ in hình khủng long xanh lá; áo khoác đỏ tay sọc đen; váy da đen ngắn có móc khủng long bông xanh; mũ đen; "
+           "khẩu trang đen in răng cá mập luôn đeo kín; tất đỏ/đen; dép quỷ đỏ. Ảnh trang phục có người mẫu: tóc, mặt, dáng lấy theo "
+           "NHÂN VẬT đang mặc, không theo người mẫu. Không phải đồ liền thân thú bông, không có đuôi.")
+P22_SHOT8 = ("Free Fire in-game 3D render, vertical frame, wide shot, same two stylized characters in red dinosaur (both with the black "
+             "shark-tooth mask worn UP over mouth and nose) outfits dancing standing ON the paved stone landing at the foot of one broad "
+             "flight of stone steps: the wide staircase rises straight up behind them to the plaza, bright midday sunlight")
+P24_SHOT5 = ("Medium shot, low camera close to the ground in front of the near side of an ancient eight-sided stone well, Free Fire "
+             "in-game 3D render style, clawed veined black hands gripping the near rim, a female creature whose face is a smooth "
+             "featureless pure-black mask with only two glowing red eyes (no nose, no mouth, no skin features), long messy black hair")
+MK_418 = ("faceless smooth black face with two glowing red eyes, long messy black hair turning red in the lower half, white "
+          "off-the-shoulder dress torn to jagged shreds at the hem, black thorny vine belt with a red triangle buckle")
+P24_SHOT3 = ("Over-the-shoulder shot from behind Kelly, dutch angle, Free Fire in-game 3D render style, Kelly in her yellow tracksuit "
+             "staring down into the dark well")
+
+
+def test_a26_1_sleeve_in_kho_description_is_not_hands():
+    """#22 S7–9 (bảng mục 7–9, 13): 'tay áo đen' (Kho 416) / 'áo khoác đỏ tay sọc đen' (Kho 417) = ỐNG TAY ÁO, không phải bàn tay."""
+    for desc in (KHO_416, KHO_417):
+        d = idd.declare_from_text(desc)
+        assert "hands" not in [x["mon"] for x in d if not x.get("hoa_tiet") and not x.get("khong_nhan_ra")]
+    assert any(x.get("hoa_tiet") and "tay áo" in x["mon"] for x in idd.declare_from_text(KHO_416))   # báo ra, không im lặng bỏ
+    # câu meta 'Ảnh trang phục có người mẫu: tóc …' là câu MỚI — không gộp màu 'đỏ' của dép vào tóc
+    assert not any(x["mon"] == "hair" and "red" in (x.get("mau_chinh") or []) for x in idd.declare_from_text(KHO_416))
+    assert _by(idd.declare_from_text("hai tay đen có gai/vân đen bám, móng đỏ"))["hands"]["mau_chinh"] == ["black"]   # bàn tay thật giữ
+
+
+def test_a26_2_group_clause_applies_to_every_character_in_frame():
+    """#22 S7–9 (mục 10–12): 'two stylized characters … (both with the black shark-tooth mask …)' không gọi tên → của MỌI nhân vật."""
+    mk = {"MAXIM KL": ["maxim kl", "maxim"], "KELLY KL": ["kelly kl", "kelly"]}
+    seg = idd.segment(P22_SHOT8, mk)
+    decl = idd.declare_from_text("black shark-tooth face mask")
+    for who in mk:
+        assert _by(idd.check(decl, seg[who]))["mask"]["trang_thai"] == "co", who
+    seg = idd.segment("Kelly waves at the camera, Maxim nods, both hands up", {"KELLY": ["kelly"], "MAXIM": ["maxim"]})
+    assert "both hands" not in seg["KELLY"] and "both hands" in seg["MAXIM"]          # 'both hands' không phải câu nhóm
+    seg = idd.segment("Kelly KL dances on the bed. Kelly watches from the door.", {"KELLY": ["kelly"], "KELLY KL": ["kelly kl", "kelly"]})
+    assert "dances" not in seg["KELLY"]                                                # tên lồng nhau giữ nguyên
+
+
+def test_a26_3_indirect_face_and_compound_color():
+    """#24 S5/S6 (mục 20–21): 'face is a smooth featureless pure-black mask'; S7 (mục 22): 'the faceless dark female creature' —
+    hồ sơ 418 tự ghi 'faceless' → nhận. Hồ sơ không ghi 'faceless' → không nhận; vị ngữ dừng ở giới từ (không lấy màu ánh sáng)."""
+    decl = idd.declare_from_text(MK_418)
+    assert _by(idd.check(decl, P24_SHOT5))["face"]["trang_thai"] == "co"
+    assert _by(idd.check(decl, P24_SHOT7))["face"]["trang_thai"] == "co"
+    plain = idd.declare_from_text("smooth black face with two glowing red eyes")
+    assert _by(idd.check(plain, P24_SHOT7))["face"]["trang_thai"] == "thieu"
+    r = _by(idd.check(plain, "the creature, her face is turned away from the red light"))
+    assert r["face"]["trang_thai"] == "thieu_mau"                                       # không ra sai_mau vì 'red light'
+
+
+def test_a26_4_back_view_drops_front_torso_items_and_unknown_view_is_noted():
+    """#24 S1/S3/S4 (mục 16, 19, 27): BYĐ thay = lung|nghieng → áo crop (dưới áo khoác) / vòng cổ không thấy; mặt nạ vẫn đòi (nghiêng thấy
+    mặt). BYĐ không ghi hướng → vẫn đòi, VÀNG, kèm 'không rõ hướng'."""
+    decl = idd.declare_from_text(KELLY_MUST_KEEP)
+    back = idd.byd_view({"thanh_phan": [{"vat": "kelly", "vai": "chinh", "thay": "lung|nghieng"}], "may": {"co": "MS"}}, "kelly")
+    r = _by(idd.check(decl, P24_SHOT3, view=back))
+    assert r["choker"]["trang_thai"] == "khong_can" and r["crop top"]["trang_thai"] == "khong_can" and "lưng" in r["choker"]["ly_do"]
+    assert r["hair"]["trang_thai"] == "thieu"
+    mask = idd.declare_from_text("black face mask")
+    assert _by(idd.check(mask, "Kelly", view=back))["mask"]["trang_thai"] == "thieu"
+    unk = idd.byd_view({"thanh_phan": [{"vat": "kelly", "vai": "chinh"}], "may": {"co": "MS"}}, "kelly")
+    r = _by(idd.check(decl, P24_SHOT3, view=unk))
+    assert r["choker"]["trang_thai"] == "thieu" and r["choker"]["muc"] == "vang" and "không rõ hướng" in r["choker"]["khong_loc"]
+
+
+def test_a26_5_framing_skirt_no_legs_and_small_items():
+    """#22 S6 (mục 3): MCU 'from mid-chest up, no legs' — 'váy da đen ngắn' (Kho 417, có áo croptop riêng) là CHÂN VÁY ở hông → không
+    đòi. #24 S2 (mục 26): vòng cổ ở WS quá nhỏ → không đòi; MS vẫn đòi. Prompt 'no legs' khi cỡ BYĐ không biết → không đòi giày."""
+    d = _by([x for x in idd.declare_from_text(KHO_417) if not x.get("khong_nhan_ra") and not x.get("hoa_tiet")])
+    assert "skirt" in d and "dress" not in d and d["skirt"]["mau_chinh"] == ["black"]
+    assert _by(idd.declare_from_text("váy trắng trễ vai rách tả tơi"))["dress"]["mau_chinh"] == ["white"]   # váy liền (không có áo riêng)
+    mcu = idd.byd_view({"thanh_phan": [{"vat": "kelly", "vai": "chinh"}], "may": {"co": "MCU"}}, "kelly")
+    assert _by(idd.check([d["skirt"]], "Kelly KL leaning on the doorway", view=mcu))["skirt"]["trang_thai"] == "khong_can"
+    decl = idd.declare_from_text(KELLY_MUST_KEEP)
+    ws = idd.byd_view({"thanh_phan": [{"vat": "kelly", "vai": "chinh", "thay": "nghieng"}], "may": {"co": "WS"}}, "kelly")
+    r = _by(idd.check(decl, "Wide shot, high side view looking down at Kelly and the well", view=ws))
+    assert r["choker"]["trang_thai"] == "khong_can" and "nhỏ" in r["choker"]["ly_do"] and r["sneakers"]["trang_thai"] == "thieu"
+    ms = idd.byd_view({"thanh_phan": [{"vat": "kelly", "vai": "chinh", "thay": "mat"}], "may": {"co": "MS"}}, "kelly")
+    assert _by(idd.check(decl, "Kelly", view=ms))["choker"]["trang_thai"] == "thieu"
+    nocut = idd.byd_view({"thanh_phan": [{"vat": "kelly", "vai": "chinh"}], "may": {"co": None}}, "kelly")
+    nocut["cat_prompt"] = idd.prompt_cut("medium close-up from mid-chest up, no legs")
+    assert _by(idd.check(decl, "Kelly", view=nocut))["sneakers"]["trang_thai"] == "khong_can"
+
+
+def test_a26_c_only_wrong_color_and_sign_items_can_be_red():
+    """A26 (c): CHAN_DO bật → chỉ 'sai_mau' và món dấu hiệu (khai_bao_chu có dau_hieu) lên ĐỎ; 'thieu' / 'thieu_mau' món thường LUÔN
+    VÀNG. CHAN_DO tắt (mặc định, chưa đạt A25) → mọi thứ VÀNG trừ khong_co_khoa."""
+    assert idd.CHAN_DO is False
+    decl = idd.declare_from_text(KELLY)
+    sign = [{"mon": "spiked choker", "dong_nghia": ["choker"], "mau_chinh": ["black"], "dau_hieu": "spikes", "nguon": idd.KBC_KEY}]
+    for chan in (True, False):
+        r = _by(idd.check(decl, "Kelly in her tracksuit runs across the plaza", chan_do=chan))
+        assert (r["choker"]["trang_thai"], r["choker"]["muc"]) == ("thieu", "vang")
+        assert (r["tracksuit"]["trang_thai"], r["tracksuit"]["muc"]) == ("thieu_mau", "vang")
+        r = _by(idd.check(decl, "Kelly in a red tracksuit and a black choker", chan_do=chan))
+        assert (r["tracksuit"]["trang_thai"], r["tracksuit"]["muc"]) == ("sai_mau", "do" if chan else "vang")
+        r = _by(idd.check(sign, "Kelly in a yellow tracksuit", chan_do=chan))
+        assert (r["spiked choker"]["trang_thai"], r["spiked choker"]["muc"]) == ("thieu", "do" if chan else "vang")
