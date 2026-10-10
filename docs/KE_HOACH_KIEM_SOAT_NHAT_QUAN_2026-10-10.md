@@ -220,7 +220,51 @@ Thứ tự bắt buộc: K0 trước (đo được độ phủ trước khi sử
 | Tốn tiền kiểm | dấu vân tay gói (không kiểm lại khi không đổi); trần cứng; số đo chi phí kiểm |
 | Kế hoạch dài, nhiều phiên | mỗi đợt một nhánh, `TODO.md` + kế hoạch này là nguồn trạng thái; điểm nghỉ theo skill vòng làm việc |
 
-## 9. Điểm cần người dùng chốt trước khi build
+## 9b. Người dùng chốt 10/10
+
+1. BYĐ áp cho **dự án mới**.
+2. Sửa BYĐ thay cho sửa prompt: **chờ giải thích rõ + điểm tốt** (đã gửi trong chat 10/10) rồi mới chốt.
+3. Ngưỡng mục 6: **tạm giữ**.
+4. Thứ tự K0 → … **giữ**: ảnh chuẩn thì video đỡ lỗi; **mức kiểm soát ảnh và video chặt, kỹ NHƯ NHAU** (K4 video có đủ lớp code + lớp
+   Claude + mọi loại kiểm như K3, không phải bản nhẹ).
+5. **Không phụ thuộc lỗi đã xảy ra**: dự án mới sinh lỗi mới, lỗi cũ lặp lại → nguồn độ phủ KHÔNG phải ca vàng. Sửa kế hoạch → mục 10.
+6. Ảnh #24 shot 4/8 (10/10): mọi yếu tố đạt, riêng **màu giếng chưa ăn khớp toàn bối cảnh** → loại kiểm "hòa hợp ánh sáng / màu" (mục 10, L10).
+
+## 10. Độ phủ theo cấu trúc (thay cho dựa vào lỗi cũ — người dùng 10/10 điểm 5)
+
+Ca vàng chỉ còn là **kiểm hồi quy** (lỗi cũ không quay lại). Độ phủ đến từ 3 nguồn không phụ thuộc lịch sử:
+
+**10.1 Mỗi ý trong BYĐ tự sinh ra phép kiểm của nó (theo cấu trúc).** Mỗi trường BYĐ có sẵn trong code: câu sinh vào gói (③), câu hỏi kiểm
+gói (④), mệnh đề kiểm kết quả (⑥). Dự án mới có ý đồ mới → phép kiểm mới tự có, không cần ai từng gặp lỗi đó. Test hợp đồng: trường BYĐ
+nào thiếu một trong ba → đỏ.
+
+**10.2 Bảng loại lỗi chung (taxonomy) — mỗi loại BẮT BUỘC có cách kiểm, cho cả ẢNH và VIDEO:**
+
+| # | Loại | Kiểm bằng code | Claude khai (enum) |
+|---|---|---|---|
+| L1 | Danh tính nhân vật | đếm mặt, so ảnh mẫu (embedding khi có) | có phải người X / không / không chắc |
+| L2 | Trang phục / dạng | so màu vùng thân với ảnh mẫu (`palette_check`) | từng món must_keep: có / khác / không thấy |
+| L3 | Số người, người lạ | đếm phát hiện | người không có trong BYĐ: có / không |
+| L4 | Tư thế, hành động | (Pose khi có) | tư thế: enum từ BYĐ |
+| L5 | Hướng nhìn, mặt/lưng | YuNet thấy mặt | mặt / lưng / nghiêng |
+| L6 | Vị trí trong khung | phát hiện + vùng ba phần | vùng của từng thứ |
+| L7 | Vật: có/không, phần thấy, hình dáng | hình học `stage_facts` | phần thấy, hình dáng (khối / thật) |
+| L8 | Tỉ lệ, cỡ cảnh | đo mặt/khung, chiếu 3D | cỡ |
+| L9 | Máy: góc, nghiêng, chân trời | giải tích từ máy 3D | chân trời ở ba phần nào |
+| L10 | **Hòa hợp ánh sáng / màu** (vật "dán vào", khác tông) | thống kê màu-độ sáng vùng vật so nền quanh, so render (cùng nguồn sáng) | vật nào trông khác tông / dán vào: enum |
+| L11 | Nơi chốn, nền | so render 3D (nét, chân trời), ảnh toàn cảnh | nền có thứ không có trong render: enum |
+| L12 | Thời gian, thời tiết, ánh sáng | độ sáng, nhiệt màu | ngày/đêm, sương, nguồn sáng |
+| L13 | Liên tục với shot kề | so trạng thái cuối/đầu | đồ / chỗ / tư thế giữ không |
+| L14 | Lỗi tạo hình (tay, mặt méo, chữ) | — | có / không + chỗ |
+| L15 | Thứ lạ không có trong BYĐ (máu, tóc, vật thừa) | — | **câu hỏi mở có giới hạn**: liệt kê ≤ 5 thứ thấy mà BYĐ không nói → code so danh sách "không được có" + đánh vàng thứ lạ |
+| V1–V4 (video) | trôi hình, giật, môi, chuyển động máy | đo clip (đã có d42) | chuyển động khớp `bat_dau→dinh→ket_thuc` / máy |
+
+Test hợp đồng: mỗi loại có ≥ 1 cách kiểm đang chạy hoặc học việc, cho ảnh và cho video (trừ loại chỉ áp một bên, ghi rõ).
+
+**10.3 Phát hiện cái chưa biết.** L15 (câu hỏi mở có giới hạn) + mỗi lỗi người dùng bắt mà lọt được xếp vào một loại L1–L15; không xếp
+được → thêm loại mới (bảng lớn dần theo cấu trúc, không theo từng ca). Số đo "lọt theo loại" chỉ ra loại nào kiểm yếu.
+
+## 9. Điểm cần người dùng chốt trước khi build (bản gốc — xem 9b)
 
 1. **Phạm vi BYĐ:** áp cho mọi dự án mới, dự án cũ chỉ khi gen lại (đề xuất) — hay chuyển cả dự án cũ?
 2. **Người sửa shot trên Dashboard sửa BYĐ thay cho sửa prompt** (đề xuất) — chấp nhận ẩn ô prompt tự do (vẫn xem được ở "chi tiết")?
