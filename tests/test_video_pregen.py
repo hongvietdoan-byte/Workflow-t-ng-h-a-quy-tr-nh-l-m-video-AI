@@ -77,6 +77,11 @@ class Base(unittest.TestCase):
 
     def write(self, path, body):
         os.makedirs(os.path.dirname(path), exist_ok=True)
+        if path.endswith(".png") and not body.startswith(b"\x89PNG"):
+            import hashlib
+            from PIL import Image
+            Image.new("RGB", (32, 32), tuple(hashlib.sha256(body).digest()[:3])).save(path)
+            return path
         with open(path, "wb") as f:
             f.write(body)
         return path
@@ -118,6 +123,53 @@ class Base(unittest.TestCase):
 
 
 class FlagOff(Base):
+    def test_package_bytes_and_spend_order_match_main_snapshot(self):
+        import ast
+        import datetime
+        import subprocess
+        import types
+        baseline = "c78bcfe911935688fa19414b1f5da59ad87e1848"
+        source = subprocess.check_output(["git", "show", f"{baseline}:core/runner.py"], cwd=ROOT, encoding="utf-8")
+        tree = ast.parse(source)
+        old_class = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "_Runner")
+        names = ("_submit_pending", "_write_sent_package")
+        old = ast.Module(body=[n for n in old_class.body if isinstance(n, ast.FunctionDef) and n.name in names], type_ignores=[])
+        namespace = dict(runner.__dict__)
+        exec(compile(ast.fix_missing_locations(old), "main_snapshot", "exec"), namespace)
+        scene, _ = self.shot()
+        job = self.p.create_job(scene, "video_gen")
+        class FrozenTime(datetime.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return cls(2026, 10, 10, 12, 0, 0, tzinfo=tz)
+        results = []
+        for before in (True, False):
+            vr = VideoRunner(self.p, MockVideoProvider(), self.dir)
+            if before:
+                for name in names:
+                    setattr(vr, name, types.MethodType(namespace[name], vr))
+            order = []
+            def trace(sql):
+                if sql.startswith("UPDATE jobs SET sent_package="):
+                    order.append("package")
+                elif sql.startswith("UPDATE jobs SET external_id="):
+                    order.append("external_id")
+                elif sql.startswith("UPDATE jobs SET state=") and "'running'" in sql:
+                    order.append("running")
+                elif sql.startswith("INSERT INTO usage_events"):
+                    order.append("spend")
+            self.p.conn.set_trace_callback(trace)
+            with mock.patch("core.sent_package.datetime.datetime", FrozenTime), \
+                    mock.patch("core.video_pregen.enabled", return_value=False):
+                self.assertEqual(vr.submit_pending(self.pid), 1)
+            self.p.conn.set_trace_callback(None)
+            results.append((self.p.job(job)["sent_package"], self.p.job(job)["external_id"], order))
+            self.p.conn.execute("UPDATE jobs SET state='queued', external_id=NULL, sent_package=NULL WHERE id=?", (job,))
+            self.p.conn.commit()
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(results[1][2], ["package", "external_id", "running", "spend"])
+        self.assertNotIn("pregen_fingerprint", results[1][0])
+
     def test_flag_off_sends_like_before(self):
         """Cờ tắt: y cũ — kể cả khi lớp kiểm sẽ chặn (ảnh khung đầu không có tệp)."""
         scene, _ = self.shot(picture=False)
@@ -362,6 +414,36 @@ class Fingerprint(Base):                      # (6)
 
 
 class Batch(Base):
+    def test_corrupt_start_picture_is_red_only_for_its_job(self):
+        from PIL import Image
+        self.on()
+        bad, bad_img = self.shot()
+        with open(self.image_path(bad_img), "wb") as file:
+            file.write(b"broken image")
+        good, img = self.shot()
+        Image.new("RGB", (32, 32), "green").save(self.image_path(img))
+        jobs = [self.p.create_job(s, "video_gen") for s in (bad, good)]
+        self.assertEqual(len(self.send()), 1)
+        self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
+
+
+    def test_corrupt_end_picture_is_red_only_for_its_job(self):
+        from PIL import Image
+        self.on()
+        bad, img = self.shot()
+        good, good_img = self.shot()
+        for image in (img, good_img):
+            Image.new("RGB", (32, 32), "green").save(self.image_path(image))
+        end = EndFrame.end_frame(self, bad, img)
+        with open(end, "wb") as file:
+            file.write(b"broken end image")
+        jobs = [self.p.create_job(s, "video_gen") for s in (bad, good)]
+        prov = MockVideoProvider()
+        vr = VideoRunner(self.p, prov, self.dir)
+        with mock.patch.object(vr, "_submit_kwargs", side_effect=lambda j: {"last_frame": end} if j["scene_id"] == bad else {}):
+            self.assertEqual(vr.submit_pending(self.pid), 1)
+        self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
+
     def test_file_error_in_unpaid_block_check_holds_only_its_job(self):
         self.on()
         bad, _ = self.shot()
@@ -383,7 +465,9 @@ class Batch(Base):
         self.on()
         flags_on(self, "seedance_ref_groups")
         self.p.conn.execute("UPDATE projects SET shot_mode='per_shot' WHERE id=?", (self.pid,))
-        bad, _ = self.shot(data={"shot_no": 1})
+        bad, bad_img = self.shot(data={"shot_no": 1})
+        with open(self.image_path(bad_img), "wb") as file:
+            file.write(b"broken reference image")
         good, img = self.shot()
         Image.new("RGB", (32, 32), "green").save(self.image_path(img))
         self.p.conn.execute("UPDATE motion_prompts SET video_model='seedance' WHERE scene_id=?", (bad,))

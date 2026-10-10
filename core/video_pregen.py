@@ -138,6 +138,18 @@ def _sha_file(path: str) -> Optional[str]:
         return None
 
 
+def _readable_image(path: str) -> bool:
+    from PIL import Image
+    try:
+        with Image.open(path) as image:
+            image.verify()
+        with Image.open(path) as image:
+            image.load()
+        return True
+    except (OSError, ValueError):
+        return False
+
+
 def _approved_at(conn, job_id: int) -> Optional[float]:
     row = conn.execute("SELECT at FROM job_events WHERE job_id=? AND to_state='approved' ORDER BY id DESC LIMIT 1", (job_id,)).fetchone()
     if row is None or not row["at"]:
@@ -154,7 +166,7 @@ def _check_start(conn, scene_id: int, plan: Dict, out: List[Dict]) -> None:
     path = plan.get("start_frame")
     path_needed = plan.get("reference_only") is None    # Seedance chỉ-ảnh-tham-chiếu: khung đầu KHÔNG gửi (ảnh từng shot ở mục 4)
     if path and os.path.basename(os.path.dirname(str(path))) == "chain":      # bắt đầu từ khung cuối clip trước ĐÃ DUYỆT (_chain_frame)
-        if not os.path.isfile(str(path)):
+        if not _readable_image(str(path)):
             out.append(_issue("khung_dau", DO, f"không đọc được khung đầu cắt từ clip trước ({_rel(path)})"))
         return
     img_scene = shots.image_scene(conn, scene_id)
@@ -172,7 +184,7 @@ def _check_start(conn, scene_id: int, plan: Dict, out: List[Dict]) -> None:
         out.append(_issue("khung_dau", DO, f"khung đầu sắp gửi ({os.path.basename(str(path))}) không phải ảnh ĐÃ DUYỆT hiện hành của shot "
                                            f"(job {row['id']}) — ảnh đã bị thay"))
         return
-    if not os.path.isfile(str(path)):
+    if not os.path.isfile(str(path)) or (path_needed and not _readable_image(str(path))):
         out.append(_issue("khung_dau", DO, f"không đọc được tệp ảnh khung đầu đã duyệt ({_rel(path)})"))
         return
     sha = _ref_sha(plan.get("package"), "image_path") or _sha_file(str(path))
@@ -235,7 +247,7 @@ def _check_end(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> 
                "khung cuối vẽ từ ảnh khung đầu cũ" if not end_frames.usable_path(conn, scene_id) else "tệp gửi không phải khung cuối hiện hành")
         out.append(_issue("khung_cuoi", DO, f"khung cuối sắp gửi ({_rel(lf)}) chưa được duyệt / không còn hiện hành ({why})"))
         return
-    if not os.path.isfile(lf):
+    if not _readable_image(lf):
         out.append(_issue("khung_cuoi", DO, f"không đọc được tệp khung cuối ({_rel(lf)})"))
         return
     if byd is None:
@@ -351,6 +363,13 @@ def _check_refs(conn, scene_id: int, plan: Dict, out: List[Dict]) -> None:
         out.append(_issue("tham_chieu", DO, f"{n} {what} — {rule.get('label') or canonical} nhận tối đa {cap}"
                                             + (" khi có video tham chiếu" if videos and family == "omni" else "")))
     _check_roles(plan, family, out)
+    images = list(plan.get("reference_only") or [])
+    if plan.get("reference_only") is None and family == "seedance" and clipai.SEEDANCE_REFS_WITH_FIRST_FRAME:
+        images += list(plan.get("image_references") or [])
+    for image in images:
+        path = (image.get("path") or image.get("file")) if isinstance(image, dict) else image
+        if path and not str(path).startswith(("http://", "https://", "asset://")) and not _readable_image(str(path)):
+            out.append(_issue("tham_chieu", DO, f"không đọc được ảnh tham chiếu ({_rel(path)}) — tệp mất / ảnh hỏng"))
 
 
 def _check_roles(plan: Dict, family: str, out: List[Dict]) -> None:
