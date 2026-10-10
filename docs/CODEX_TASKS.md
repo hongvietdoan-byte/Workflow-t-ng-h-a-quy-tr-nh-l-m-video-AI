@@ -269,3 +269,50 @@ S14.45 vẫn nhận; mã mới nhận; mã rác bị từ chối với lý do.
 ## Kết quả Codex — đợt 3
 
 (Codex ghi: việc · nhánh · commit · test đỏ→xanh · việc mở.)
+
+---
+---
+
+# ĐỢT 4 — rà K3 + test chập chờn + đo thời gian test (10/10 khuya, người dùng duyệt cả 3 việc)
+
+Luật chung GIỐNG đợt 1 (mục "Luật chung" đầu file) + thêm:
+- Nhánh `codex/d4-viec<N>-<tên>`. Việc 1 tách từ `origin/k3-ra-sua` (KHÔNG từ `main`); việc 2–3 tách từ `origin/main` mới nhất.
+- KHÔNG đụng nhánh Codex đợt 2–3 đang chờ gộp; KHÔNG sửa `dashboard/`; KHÔNG chạy Blender/API; KHÔNG đọc/ghi `data/`.
+- Phiên Claude lúc 00:24 11/10 sẽ KHÔNG mở phiên rà K3 nữa — chờ kết quả việc 1 của Codex rồi rà diff + gộp.
+- Ghi kết quả vào mục "Kết quả Codex — đợt 4" cuối file.
+
+## Việc 1 — Rà kỹ lớp kiểm video TRƯỚC gen K3 (vừa; RÀ + sửa lỗi tìm thấy)
+
+**Bối cảnh:** `core/video_pregen.py` `check(conn, scene_id, plan)` 6 mục, nối vào `core/runner.py` (~:371 trước SPEND_LOCK +
+`VideoRunner._pregen` ~:728), cờ `video_pregen` mặc định TẮT (ĐỎ → job giữ `queued` + WAIT_REASONS + chẩn đoán `video_pregen_hold`;
+VÀNG → gửi + chẩn đoán). `_build_package` được tách ra từ `_write_sent_package` (`core/sent_package.py`). Nhánh gốc
+`k3-video-truoc-gen` (`d2b80d5`); phiên rà trước đã sửa điểm (2) — job ĐỎ không dựng lại request mỗi nhịp (`080360a` trên
+`k3-ra-sua`). 49 test `tests/test_video_pregen.py` + `tests/test_sent_package.py` đang xanh.
+
+Đọc `git diff origin/main...origin/k3-ra-sua` + chỗ gọi tới, rà 4 điểm còn lại:
+1. **Cờ TẮT → đường gửi y hệt `main`** sau khi tách `_build_package` (gói `sent_package` từng byte giống, thứ tự ghi sổ chi / external_id
+   không đổi). Chứng minh bằng test so gói trước–sau trên cùng job giả.
+2. **Multi-shot (nhóm nhiều shot một lần gen) mà shot đầu ĐỎ** → follower kẹt mãi, bị gửi lẻ, hay được giữ cùng nhóm có lý do hiện ra?
+3. **Lỗi đọc tệp** (khung đầu/cuối, video ref mất / hỏng) chỉ chặn ĐÚNG shot đó, không làm nổ cả vòng runner hay chặn job khác.
+4. **`_submit_kwargs`** (upload ảnh Kho chủ thể lên ClipAI): lớp kiểm có chạy TRƯỚC mọi upload/lời gọi tốn tiền không; ĐỎ thì không
+   upload gì.
+
+Mỗi lỗi: test đỏ → sửa → xanh, commit riêng. Không lỗi: ghi "đã rà, không lỗi" + test chứng minh (nếu thêm). Báo cáo trong mục kết quả:
+lỗi (mức cao/trung/thấp, `file:dòng`), commit, test.
+
+## Việc 2 — Test chập chờn `test_director_byd` (nhỏ)
+
+`tests/test_director_byd.py::FlagOffTests::test_off_run_makes_no_extra_call...` hỏng 1 lần khi chạy CÙNG `tests/test_byd_fill.py` +
+`tests/test_devsys.py`, chạy lại đều qua → nghi rò cờ (`shot_intent`, `core/flags`) / biến môi trường / cache module giữa test. Tìm
+nguồn rò (thử đổi thứ tự: `-p no:randomly` nếu có, hoặc chạy ghép từng cặp), sửa ở chỗ dọn (fixture/tearDown/patch đúng phạm vi) —
+KHÔNG nới assert. Bằng chứng: chạy bộ ba file ghép ≥ 5 lần liền đều xanh (ghi lệnh + kết quả).
+
+## Việc 3 — Đo lại thời gian test (rất nhỏ, chạy lâu)
+
+Chạy cả bộ một lần: `PYTHONUTF8=1 py -m pytest -q -p no:cacheprovider --durations=30 -rf` (≈ 28 phút). Đối chiếu danh sách `slow` trong
+`conftest.py` (test ≥ ~8 s): thêm id mới chậm, bỏ id không còn chậm/không tồn tại; giữ `tests/test_slow_marker.py` xanh. Ghi bảng 30 test
+chậm nhất (id · giây) + tổng thời gian + số test hỏng (nếu có, liệt kê tên — KHÔNG sửa test ngoài phạm vi, chỉ báo).
+
+## Kết quả Codex — đợt 4
+
+(Codex ghi: việc · nhánh · commit · test đỏ→xanh · việc mở.)
