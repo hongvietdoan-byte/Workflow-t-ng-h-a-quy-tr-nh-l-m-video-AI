@@ -116,6 +116,23 @@ class TaskMemory:
         self.conn.commit()
 
 
+def _copy_package(conn, source, job_id: int, new_ext: Optional[str] = None) -> None:
+    """K1a: a job that holds a task it did not send itself (a multi-shot follower → its leader's request; a relinked job → the
+    first send under the provider's real id) carries that request's sent_package. A ledger, never a gate: never raises."""
+    try:
+        row = conn.execute("SELECT sent_package, external_id FROM jobs WHERE id=?", (source["id"],)).fetchone()
+        if row is None or not row["sent_package"]:
+            return
+        pkg = row["sent_package"]
+        if new_ext is not None:
+            data = json.loads(pkg)
+            data["relinked_from"], data["external_id"] = data.get("external_id") or row["external_id"], str(new_ext)
+            pkg = json.dumps(data, ensure_ascii=False)
+        conn.execute("UPDATE jobs SET sent_package=? WHERE id=?", (pkg, job_id))
+    except Exception:  # noqa: BLE001
+        pass
+
+
 class _Runner:
     job_type = ""
 
@@ -384,22 +401,24 @@ class _Runner:
                 # T2: the task exists (and may be billed) from here on. Its id, its stamp and RUNNING are one transaction (the UPDATEs are
                 # not committed; transition() commits them with the state) — never Pipeline.start(): a pause pressed while submit()
                 # was in flight made start() raise and left a paid job queued, sent and paid again on the next pass.
-                self.p.conn.execute("UPDATE jobs SET external_id=? WHERE id=?", (task_id, job["id"]))
                 # K1a: the package really sent, in the SAME transaction as the task id (before _stamp, which pops the runner's list
-                # of sent pictures). A ledger, never a gate: its warnings are said AFTER the commit (a diag write may roll back).
+                # of sent pictures). Built (pictures hashed) and written BEFORE the task id: no file reading while the write lock is
+                # held, and a package UPDATE that fails (even one SQLite answers with a rollback) cannot take the task id with it — the
+                # task id UPDATE below always runs after. A ledger, never a gate: its warnings are said after the ledger entry.
                 package_warns = self._write_sent_package(job, args, kwargs, sent_kwargs, task_id)
+                self.p.conn.execute("UPDATE jobs SET external_id=? WHERE id=?", (task_id, job["id"]))
                 for col, value in self._stamp(job, args).items():
                     self.p.conn.execute(f"UPDATE jobs SET {col}=? WHERE id=?", (value, job["id"]))
                 try:
                     self._running(job["id"])
                 except InvalidTransition as e:
                     self.p.conn.commit()                    # keep the task id: it is the only link to what may be billed
-                    self._say_package(job, package_warns)
                     self._record_usage(job, args, kwargs)
+                    self._say_package(job, package_warns)
                     self._cancelled_in_flight(job, task_id, e)
                     continue
+                self._record_usage(job, args, kwargs)       # the spending ledger first: a failing package note never skips it
                 self._say_package(job, package_warns)
-                self._record_usage(job, args, kwargs)
             slots -= 1
             submitted += 1
         return submitted
@@ -427,7 +446,10 @@ class _Runner:
 
     def _say_package(self, job, warns) -> None:
         for w in warns or []:
-            self._diag(job, "warn", "sent_package", w)
+            try:
+                self._diag(job, "warn", "sent_package", w)
+            except Exception:  # noqa: BLE001 - a ledger note, never a gate: the send and its ledger entry stand
+                pass
 
     def _running(self, job_id: int, note: Optional[str] = None) -> None:
         """QUEUED → RUNNING without Pipeline.start()'s pause check (T2): used once the task exists at the provider, or on the way to
@@ -560,6 +582,7 @@ class _Runner:
         new_id = self.p.resend(job_id, f"{RESEND_NOTE} (nối lại task thật {new_ext})")
         self.p.conn.execute("UPDATE jobs SET external_id=?, task_seen=0, task_unseen=0, input_hash=?, source_job_id=?, model=? WHERE id=?",
                             (new_ext, job["input_hash"], job["source_job_id"], job["model"], new_id))
+        _copy_package(self.p.conn, job, new_id, new_ext)      # K1a: the same (one) send, now under the real task id
         self.p.conn.execute("UPDATE jobs SET escalated=0 WHERE id IN (?, ?)", (job_id, new_id))
         self.p.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (job["scene_id"],))
         self._running(new_id, f"nối lại task thật {new_ext}")     # T2: one transaction with the task id; nothing is sent, so a pause does not stop it
@@ -1609,6 +1632,7 @@ class VideoRunner(_Runner):
                          (leader["id"], leader["external_id"], leader["model"] or "kling",
                           lineage.video_input_hash(mp, aspect) if mp else None,
                           lineage.approved_image_id(conn, shots.image_scene(conn, r["id"])), jid))
+            _copy_package(conn, leader, jid)       # K1a: a follower was sent as part of the leader's request (paid once)
             self._running(jid, f"phần của clip nhóm (job {leader['id']})")   # T2: one transaction with the leader's task id (paid once)
             self._clean_edges(self.p.job(jid), dest)
             try:

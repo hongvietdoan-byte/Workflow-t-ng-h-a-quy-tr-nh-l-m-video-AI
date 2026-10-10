@@ -134,6 +134,8 @@ def _one_ref(param: str, item: Any, role: Optional[str], meta: Dict[str, Dict], 
     if known.get("plate_key"):
         ref["plate_key"] = known["plate_key"]
     if path.startswith(("http://", "https://")):
+        ref["path"] = path.split("?", 1)[0].split("#", 1)[0]     # a signed URL's query may hold a token: never kept
+        ref["file"] = os.path.basename(ref["path"])
         ref["url"] = True                      # not a local file: nothing to fingerprint (not an error)
     else:
         try:

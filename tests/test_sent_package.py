@@ -305,5 +305,88 @@ class MigrationTests(unittest.TestCase):
             c.close()
 
 
+class RaSuaTests(Base):
+    """Rà độc lập K1a (sp-ra-sua): order, ledger, followers, relink, signed URLs."""
+
+    def video_scene(self, idx, prompt="slow push-in"):
+        scene = self.p.create_scene(self.pid, idx, f"S{idx}")
+        img = self.p.create_job(scene)
+        self.p.start(img)
+        self.p.succeed(img)
+        self.p.approve(img)
+        llm_io.store_motion_prompts(self.p, self.pid, {"scenes": [{"idx": idx, "motion_prompt": prompt}]})
+        llm_io.approve_motion_prompt(self.p, scene)
+        return scene
+
+    def test_pictures_hashed_before_the_task_id_is_written(self):
+        """sha256 of the pictures runs BEFORE the external_id UPDATE: no file reading while the write lock is held."""
+        scene = self.p.create_scene(self.pid, 1, "S1")
+        job = self.p.create_job(scene)
+        good = self.file("k.png", b"k")
+        seen = []
+        orig = sent_package.sha256_of
+
+        def watch(path):
+            seen.append(self.p.conn.execute("SELECT external_id FROM jobs WHERE id=?", (job,)).fetchone()[0])
+            return orig(path)
+        r = ImageRunner(self.p, MockImageProvider(), self.dir)
+        with mock.patch.object(r, "_submit_args", return_value=("p", [good])), \
+                mock.patch("core.sent_package.sha256_of", side_effect=watch):
+            r.submit_pending(self.pid)
+        self.assertEqual(seen, [None])
+        self.assertTrue(self.p.job(job)["external_id"])
+
+    def test_a_failing_package_diag_never_skips_the_ledger(self):
+        self.p.create_job(self.video_scene(1), "video_gen")
+        r = VideoRunner(self.p, MockVideoProvider(), self.dir)
+        real = r._diag
+
+        def diag(job, sev, code, msg):
+            if code == "sent_package":
+                raise sqlite3.OperationalError("diag down")
+            return real(job, sev, code, msg)
+        with mock.patch("core.sent_package.build", side_effect=RuntimeError("boom")), \
+                mock.patch.object(r, "_diag", side_effect=diag), mock.patch.object(r, "_record_usage") as usage:
+            self.assertEqual(r.submit_pending(self.pid), 1)
+        usage.assert_called_once()
+
+    def test_group_follower_carries_the_leaders_package(self):
+        s1, s2 = self.video_scene(1), self.video_scene(2)
+        leader = self.p.create_job(s1, "video_gen")
+        self.p.conn.execute("UPDATE jobs SET external_id='mock-1', model='kling', sent_package=? WHERE id=?",
+                            (json.dumps({"v": 1, "prompt": "group"}), leader))
+        self.p.start(leader)
+        follower = self.p.create_job(s2, "video_gen")
+        r = VideoRunner(self.p, MockVideoProvider(), self.dir)
+        group = [{"id": s1, "idx": 1, "data": {}}, {"id": s2, "idx": 2, "data": {}}]
+        with mock.patch("core.shots.split_group_clip"), mock.patch("core.shots.trim_clip"), mock.patch.object(r, "_clean_edges"):
+            r._finish_group(self.p.job(leader), os.path.join(self.dir, "01.mp4"), group)
+        self.assertEqual(self.p.job(follower)["external_id"], "mock-1")
+        self.assertEqual(package(self.p.conn, follower), {"v": 1, "prompt": "group"})
+        n = self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type='video_gen' AND external_id IS NOT NULL "
+                                "AND sent_package IS NULL").fetchone()[0]
+        self.assertEqual(n, 0)
+
+    def test_relinked_job_keeps_the_package_of_the_one_send(self):
+        class Relinks(VideoRunner):
+            def _find_real(self, job):
+                return "real-9"
+        job = self.p.create_job(self.video_scene(1), "video_gen")
+        self.p.conn.execute("UPDATE jobs SET external_id='queue-1', sent_package=? WHERE id=?",
+                            (json.dumps({"v": 1, "prompt": "x", "external_id": "queue-1"}), job))
+        self.p.start(job)
+        self.p.fail(job, "not_found: x")
+        new_id = Relinks(self.p, MockVideoProvider(), self.dir).relink_failed(job)
+        pkg = package(self.p.conn, new_id)
+        self.assertEqual((pkg["prompt"], pkg["external_id"], pkg["relinked_from"]), ("x", "real-9", "queue-1"))
+
+    def test_signed_url_query_never_kept(self):
+        text, _ = sent_package.build(lambda prompt, references=None: None,
+                                     ("p", ["https://cdn.example.invalid/a.png?X-Amz-Signature=abc&token=t"]), {},
+                                     kind="image", provider=None, external_id="e")
+        self.assertNotIn("abc", text)
+        self.assertEqual(json.loads(text)["refs"][0]["path"], "https://cdn.example.invalid/a.png")
+
+
 if __name__ == "__main__":
     unittest.main()

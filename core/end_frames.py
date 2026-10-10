@@ -15,7 +15,7 @@ import json
 import os
 from typing import Dict, List, Optional
 
-from . import features, spend_gate
+from . import features, sent_package, spend_gate
 from .pipeline import Pipeline
 from .providers import ProviderError
 
@@ -202,7 +202,7 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
                     used, tier = info(kwargs["model"]) if kwargs.get("model") else info()
                     slot.record(model=used, tier=tier)
             sent_meta = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs]
-            from . import sent_package               # K1a: what really left, written with the task id (a ledger, never a gate)
+            # K1a: what really left, written with the task id (a ledger, never a gate; imported at the top: nothing here may raise)
             package, warns = sent_package.safe_build(provider.submit, sent_args, kwargs, kind="image", provider=provider,
                                                      external_id=ext, meta=sent_meta, extra={"stage": "end_frame"})
             fields = {"state": "running", "external_id": ext, "prompt": prompt,
@@ -213,7 +213,10 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
                 warns.append("bảng end_frames chưa có cột sent_package (CSDL cũ chưa nâng cấp) — gói gửi không ghi")
             _set(p, row["id"], **fields)
             for w in warns:                           # said after the commit: a diag write never touches the task id
-                _diag(p, row, "warn", "sent_package", w)
+                try:
+                    _diag(p, row, "warn", "sent_package", w)
+                except Exception:  # noqa: BLE001 - a ledger note never stops the tick
+                    pass
             counts["sent"] += 1
             continue
         try:
