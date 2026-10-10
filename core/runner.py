@@ -1248,6 +1248,10 @@ class VideoRunner(_Runner):
         if not features.on("seedance_subjects") or not pictures or not getattr(self.provider, "supports_subjects", False):
             return None
         if self.__dict__.get("_pregen_local"):
+            if clean:
+                out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_clean")
+                pictures = [(label, seedance_refs.mark(path, out_dir, style="none")) for label, path in pictures]
+                clean = False
             local = [path for _, path in pictures]
             self._pregen_deferred.append({"local": local, "pictures": list(pictures), "clean": clean})
             return local

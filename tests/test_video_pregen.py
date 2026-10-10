@@ -421,6 +421,33 @@ class Fingerprint(Base):                      # (6)
 
 
 class Batch(Base):
+    def test_pregen_fingerprint_uses_clean_upload_pixels(self):
+        from PIL import Image, PngImagePlugin
+        from core import seedance_refs
+        self.on()
+        flags_on(self, "seedance_subjects")
+        scene, img = self.shot()
+        identity = os.path.join(self.tmp, "identity.png")
+        note = PngImagePlugin.PngInfo()
+        note.add_text("note", "metadata not sent to provider")
+        Image.new("RGB", (2048, 2048), "blue").save(identity, pnginfo=note)
+        job = self.p.create_job(scene, "video_gen")
+        prov = MockVideoProvider()
+        prov.supports_subjects = True
+        vr = VideoRunner(self.p, prov, self.dir)
+        vr.subject_library = object()
+        def kwargs(j):
+            return {"reference_only": vr._hosted_pictures(j, [("Kelly", identity)], clean=True)}
+        with mock.patch.object(vr, "_submit_kwargs", side_effect=kwargs), \
+                mock.patch("core.subjects.picture_refs", return_value={"refs": [{"uri": "asset://kelly", "uploaded": True}], "problems": []}):
+            self.assertEqual(vr.submit_pending(self.pid), 1)
+        clean = seedance_refs.mark(identity, os.path.join(self.dir, str(self.pid), "refs_clean"), style="none")
+        expected, _ = sent_package.safe_build(prov.submit, vr._submit_args(self.p.job(job)), {"reference_only": [clean]},
+                                             kind="video", provider=prov, external_id=None)
+        actual = json.loads(self.p.job(job)["sent_package"])["pregen_fingerprint"]
+        self.assertEqual(actual, video_pregen.fingerprint(expected))
+        self.assertNotEqual(sent_package.sha256_of(identity), sent_package.sha256_of(clean))
+
     def test_missing_image_reference_that_will_be_sent_is_not_dropped(self):
         self.on()
         bad, _ = self.shot(data={"characters": ["Kelly"]})
