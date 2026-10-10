@@ -246,8 +246,11 @@ def step1_v2(p: Pipeline, pid: int, proj, scenes, chars, risky, char_names, lock
     if inherited:
         say("info", "↪ " + inherited + " — đổi ở màn Kịch bản · Định dạng nếu dự án này khác.", f"script-inherited-{pid}",
              "Dự án này kế thừa thiết lập từ dự án trước")
+    if scenes:                                                          # 10/10: 🧭 Trước khi chạy — một lần, trước khi rẽ luồng chat_first
+        from dashboard import before_run_ui
+        before_run_ui.box(p.conn, C.DATA, pid)
 
-    if chat_intake.enabled():                                           # 07/10 cờ chat_first: khung chat lớn thay phần lớn các thẻ
+    if chat_intake.enabled():                                          # 07/10 cờ chat_first: khung chat lớn thay phần lớn các thẻ
         return _chat_first(p, pid, proj, scenes, chars, risky, char_names, locked, nxt)
 
     # ① Kịch bản (1a) — S14.28: first card in the script mode (S11 video-ref / dance modes: their VIDEO ref box goes before it)
