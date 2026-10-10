@@ -17,7 +17,15 @@ Nhánh: `worktree-agent-aae46a38b6bfcc920` (chưa push, chưa sửa TODO.md).
 - `devsys/areas.json` — thêm 2 file vào khu vực step1 (không tăng version).
 - `tests/test_before_run.py` — 5 test.
 
+## Sửa theo phiên rà (7 lỗi, mỗi lỗi một test trong tests/test_before_run.py)
+1. Mục đỏ Tổ rà soát không gắn shot (scene_id NULL) → 'vang' "không giữ gen" (blocking() chỉ giữ theo shot).
+2. Đếm thay đổi chờ rà chỉ tính event có scene_id (thay đổi Kho không giữ gen).
+3. must_keep chỉ kiểm nhân vật / pet (như core/change_audit), không kiểm bối cảnh.
+4. Nhân vật trong shot không có trong Kho của dự án → 'vang' "'X' không có trong Kho của dự án".
+5. Storyboard: neo "đang làm" chỉ tính job queued/running/retryable; câu "chưa có job gen đang chạy".
+6. `collect` bọc `core.memo.cached` (một lần mỗi lượt vẽ + trạng thái CSDL).
+7. stage_camera: bỏ vế "chưa render nền thật".
+
 ## Việc mở
-- Quy ước 7 CLAUDE.md: chưa giao agent rà khâu liên quan (đề bài: `py tools/related_areas.py`) — phiên chính làm trước khi gộp main.
-- Mục must_keep cho bối cảnh (`location_asset`) có thể báo nhiều nếu Kho địa điểm ít khi có must_keep — xem thực tế rồi quyết giữ/bỏ.
+- Quy ước 7 CLAUDE.md: phiên rà đã đọc nhánh, 7 lỗi đã sửa (mục trên).
 - Chưa xem trên Dashboard thật (chỉ test + AppTest của Bước 1 xanh).

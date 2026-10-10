@@ -19,7 +19,7 @@ PAID_FLAGS: Dict[str, Dict] = {
     "director_rewrite": {"stage": "director_rewrite", "images": 1, "unit": "lần gen lại có ghi chú / lỗi QC (Claude viết lại prompt)"},
     "two_tier_quality": {"text": "video nháp 480p rồi bản cao — giá từng clip xem ở ước tính Bước 4; bản cuối chưa chạy thật lần nào"},
     "stage_camera": {"text": "không thêm lời gọi tốn tiền (render Blender 0 USD) nhưng đổi nền 3D gửi model ảnh — ảnh vẽ trên nền này "
-                             "vẫn tính tiền như thường; chưa render nền thật bằng cờ này"},
+                             "vẫn tính tiền như thường"},
     "director_camera_plan": {"text": "thêm lời gọi Claude (sơ đồ cảnh + duyệt render từng góc) — chưa có số ước tính sẵn"},
 }
 
@@ -94,6 +94,11 @@ def _review_items(conn, pid: int) -> List[Dict]:
     on = change_review.enabled()
     red = [r for r in rows if r.get("level") == "do"]
     out = []
+    loose = [r for r in red if r.get("scene_id") is None]             # mục không gắn shot: blocking() (theo scene_id) không giữ
+    red = [r for r in red if r.get("scene_id") is not None]
+    if loose:
+        out.append(_item("vang", f"{len(loose)} mục đỏ Tổ rà soát không gắn shot nào — không giữ gen, xem 📥 Việc cần bạn",
+                         "📥 Việc cần bạn"))
     if red:
         shots = sorted({r["idx"] for r in red if r.get("idx") is not None})
         where = (" ở shot " + ", ".join(str(s) for s in shots[:10]) + (" …" if len(shots) > 10 else "")) if shots else ""
@@ -104,7 +109,8 @@ def _review_items(conn, pid: int) -> List[Dict]:
             out.append(_item("info", f"{len(red)} mục đỏ Tổ rà soát còn mở{where} — cờ change_review đang tắt nên không giữ gen",
                              "📥 Việc cần bạn"))
     try:
-        wait = conn.execute("SELECT COUNT(*) FROM change_events WHERE project_id=? AND state='pending'", (pid,)).fetchone()[0]
+        wait = conn.execute("SELECT COUNT(*) FROM change_events WHERE project_id=? AND state='pending' AND scene_id IS NOT NULL",
+                            (pid,)).fetchone()[0]
     except Exception:  # noqa: BLE001 - old database: nothing waits
         wait = 0
     if wait and on:
@@ -138,6 +144,9 @@ def _budget_items(conn, pid: int) -> List[Dict]:
     return []
 
 
+LIVE_JOB = ("queued", "running", "retryable")                         # job gen ảnh neo còn đang chạy (chưa có ảnh)
+
+
 def _storyboard_items(conn, data_dir: str, pid: int, scenes: List[Dict]) -> List[Dict]:
     """Chế độ storyboard (cờ storyboard_api): shot không phải neo chờ ảnh neo của cảnh; neo chưa có việc gen nào → chờ mãi."""
     from . import scene_storyboard
@@ -159,15 +168,15 @@ def _storyboard_items(conn, data_dir: str, pid: int, scenes: List[Dict]) -> List
         users = [s for s in shots if scene_storyboard.uses_anchor(g, s["id"])]
         if not users:
             continue
-        live = conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state IN ("
-                            + ",".join("?" * len(scene_storyboard.ON_ITS_WAY)) + ")", (anchor["id"], *scene_storyboard.ON_ITS_WAY)).fetchone()
+        live = conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state IN (" + ",".join("?" * len(LIVE_JOB))
+                            + ")", (anchor["id"], *LIVE_JOB)).fetchone()
         if live:
             waiting += len(users)
         else:
             stuck.append((anchor["idx"], len(users)))
     out = []
     if stuck:
-        out.append(_item("do", "Chế độ storyboard: " + "; ".join(f"{n} shot chờ ảnh neo shot {a} mà shot {a} chưa được xếp gen" for a, n in stuck)
+        out.append(_item("do", "Chế độ storyboard: " + "; ".join(f"{n} shot chờ ảnh neo shot {a} mà shot {a} chưa có job gen đang chạy" for a, n in stuck)
                          + " — các ảnh này chờ mãi", "Bước 2: gen ảnh shot neo trước (thêm vào gen thử / ▶ Gen ảnh)"))
     if waiting:
         out.append(_item("info", f"Chế độ storyboard: {waiting} shot chờ ảnh neo đang làm — gửi sau khi có ảnh neo", ""))
@@ -200,12 +209,17 @@ def _input_items(conn, pid: int, scenes: List[Dict]) -> List[Dict]:
     people = [r for r in rows if r["kind"] in ("character", "pet")]
     used: Dict[int, List[int]] = {}                                   # asset id → số thứ tự shot
     places: Dict[int, List[int]] = {}
+    unknown: Dict[str, List[int]] = {}                                # tên nhân vật trong shot không có trong Kho của dự án
     for s in scenes:
         d = s["data"]
         for n in d.get("characters") or []:
-            a = _match(people, n) if isinstance(n, str) else None
+            if not isinstance(n, str) or not n.strip():
+                continue
+            a = _match(people, n)
             if a:
                 used.setdefault(a["id"], []).append(s["idx"])
+            else:
+                unknown.setdefault(n.strip(), []).append(s["idx"])
         lid = d.get("location_asset")
         if isinstance(lid, int) and not isinstance(lid, bool) and lid > 0:
             places.setdefault(lid, []).append(s["idx"])
@@ -220,12 +234,15 @@ def _input_items(conn, pid: int, scenes: List[Dict]) -> List[Dict]:
         return "shot " + ", ".join(str(i) for i in ids[:8]) + (" …" if len(ids) > 8 else "")
 
     out = []
-    for aid, idxs in list(used.items()) + [(k, v) for k, v in places.items() if k not in used]:
-        a = by_id.get(aid)
-        if a is None:
-            out.append(_item("vang", f"Shot ghi bối cảnh Kho #{aid} nhưng Kho không có mã này ({shots(idxs)})",
+    for name, idxs in unknown.items():
+        out.append(_item("vang", f"'{name}' không có trong Kho của dự án — ảnh vẽ theo chữ mô tả, dễ lệch giữa các shot ({shots(idxs)})",
+                         "📚 Kho: thêm / gắn nhân vật vào dự án (hoặc sửa tên trong shot)"))
+    for lid, idxs in places.items():
+        if lid not in by_id:
+            out.append(_item("vang", f"Shot ghi bối cảnh Kho #{lid} nhưng Kho không có mã này ({shots(idxs)})",
                              "Bước 1 · thẻ ② Director / sửa shot: chọn lại địa điểm"))
-            continue
+    for aid, idxs in used.items():                                    # must_keep chỉ cho nhân vật / pet (như core/change_audit)
+        a = by_id[aid]
         if not str(_loads(a["profile"]).get("must_keep") or "").strip():
             out.append(_item("vang", f"{a['name']} (Kho #{aid}) chưa có `must_keep` trong hồ sơ chuẩn — model dễ vẽ lệch ({shots(idxs)})",
                              WHERE_KHO + " → Character Lock / phải giữ"))
@@ -249,7 +266,13 @@ def _input_items(conn, pid: int, scenes: List[Dict]) -> List[Dict]:
 
 # ---- gom ------------------------------------------------------------------------------------------------------------------------
 def collect(conn, data_dir: str, pid: int) -> Dict:
-    """Mọi nhóm của khung; mỗi phần lỗi riêng thành mục 'info', không ném."""
+    """Mọi nhóm của khung; mỗi phần lỗi riêng thành mục 'info', không ném. Trong một lượt vẽ Dashboard (core.memo.per_rerun) tính
+    một lần cho mỗi trạng thái CSDL."""
+    from .memo import cached
+    return cached(conn, ("before_run", pid, data_dir), lambda: _collect(conn, data_dir, pid))
+
+
+def _collect(conn, data_dir: str, pid: int) -> Dict:
     items: Dict[str, List[Dict]] = {k: [] for k, _ in GROUPS}
     try:
         scenes = [{"id": r["id"], "idx": r["idx"], "data": _loads(r["data"])}
