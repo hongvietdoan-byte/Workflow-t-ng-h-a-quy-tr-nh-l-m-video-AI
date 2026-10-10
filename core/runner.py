@@ -780,6 +780,10 @@ class VideoRunner(_Runner):
         super()._diag(job, "warn", code, message)
 
     def _pregen_cooling(self, job) -> bool:
+        from . import video_pregen
+        if not video_pregen.enabled():
+            PREGEN_HELD.pop(job["id"], None)
+            return False
         hit = PREGEN_HELD.get(job["id"])
         if not hit or time.time() - hit[1] >= PREGEN_RECHECK_S:
             return False

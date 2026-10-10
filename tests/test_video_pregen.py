@@ -383,6 +383,14 @@ class Batch(Base):
 
 
 class HeldJob(Base):
+    def test_turning_flag_off_releases_held_job_immediately(self):
+        scene, _ = self.shot(picture=False)
+        job = self.p.create_job(scene, "video_gen")
+        runner.PREGEN_HELD[job] = ("kiểm trước gen chặn", runner.time.time())
+        with mock.patch("core.video_pregen.enabled", return_value=False):
+            self.assertEqual(len(self.send()), 1)
+        self.assertNotIn(job, runner.PREGEN_HELD)
+
     def test_held_job_not_rebuilt_or_noted_on_every_pass(self):
         """K3 rà: dashboard dựng VideoRunner MỚI mỗi lượt — job ĐỎ không dựng lại request (Kho chủ thể / giọng / ffmpeg) mỗi nhịp,
         dòng ⚙ giữ chỉ ghi 1 lần, lý do chờ vẫn hiện; hết PREGEN_RECHECK_S thì kiểm lại."""
