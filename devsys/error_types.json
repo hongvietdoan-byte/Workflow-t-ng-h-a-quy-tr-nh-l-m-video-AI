@@ -90,6 +90,13 @@
   {"id": "A4", "ten": "Dựng: thứ tự, nhịp, chuyển cảnh, popup giữ khung cuối", "ap_dung": ["video", "am_chu"],
    "code_do": [{"mo_ta": "so kịch bản / BYĐ (thứ tự, thời lượng, popup)", "trang_thai": "xay", "dot": "K6", "where": null}],
    "claude_khai": [{"mo_ta": "duyệt bản thô (rough_cut_review, cờ TẮT)", "enum": ["de_xuat_cat"], "trang_thai": "hoc_viec", "dot": "K6",
-                    "where": "core/editor_review.py:run", "co": "rough_cut_review"}]}
+                    "where": "core/editor_review.py:run", "co": "rough_cut_review"}]},
+  {"id": "R1", "ten": "Ảnh mẫu Kho bẩn / mô tả Kho lệch ảnh mẫu", "ap_dung": ["anh", "video"],
+   "ghi_chu": "đầu vào tham chiếu Kho (mục 4b dòng 4–5): sản phẩm áp dụng = ảnh mẫu + hồ sơ Kho, lớp kiểm ở khâu L5 TRƯỚC tiền; lỗi lan vào mọi ảnh / video dùng ảnh mẫu đó",
+   "code_do": [{"mo_ta": "thứ Claude khai thấy trên ảnh mẫu không có trong hồ sơ Kho (must_keep / mô tả / khai_bao_chu) → VÀNG; trạng thái ảnh 'sach' do người duyệt (gói chỉ nhận 'sach' — hiện chỉ ghi, chưa chặn)", "trang_thai": "xay", "dot": "K1a", "where": "core/asset_clean.py:check",
+                "ghi_chu": "hàm thuần + test có (K1a) nhưng CHƯA nối vào luồng duyệt ảnh mẫu / gói → không tính"},
+               {"mo_ta": "mô tả Kho ↔ khai_bao_chu / must_keep lệch màu chính cùng món → VÀNG mo_ta_lech (#418 'đai đỏ')", "trang_thai": "xay", "dot": "K1a", "where": "core/identity_declare.py:color_conflicts",
+                "ghi_chu": "gọi qua core/asset_clean.py:check; chưa nối → không tính"}],
+   "claude_khai": [{"mo_ta": "thứ thấy trên ảnh mẫu ngoài chính vật (máu, tóc, chữ, người khác, nền rối, khác)", "enum": ["mau", "toc", "chu", "nguoi_khac", "nen_roi", "khac"], "trang_thai": "xay", "dot": "K1a", "where": null}]}
  ]
 }
