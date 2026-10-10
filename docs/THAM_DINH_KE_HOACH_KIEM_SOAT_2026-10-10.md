@@ -117,3 +117,45 @@ tên + màu món Kho? (2) Đạo diễn có phải viết màu + món must_keep 
 
 **Kết luận:** kế hoạch sẵn sàng cho K0b (sửa N11, khoảng hở 3.3b, đơn giá QC trước K2/K3). K0a sửa nhanh (0 USD) trước K0b: L8 → khong_co
 + ghi chú d86; cờ stage_camera; test cấm id kiem_chung + dot_hien_tai; error_types không tính bat:false / học việc khi cờ tắt; 9 → 11.
+
+---
+
+# Lần 4 — kế hoạch + phần build K0a + K0b (main 2aa5095): kế hoạch **7,9 / 10**, build **8,0 / 10** — CHƯA đạt cổng A21
+
+Agent độc lập mới, cùng thang + trọng số. Chạy 6 tệp test chỉ định: **128 qua** (12 s). Đọc `data_out/k0b_p24/summary.json` + bằng chứng.
+Kế hoạch = (8,5×15 + 8×20 + 7,5×15 + 7,5×15 + 7,5×10 + 7,5×10 + 7,5×5 + 8,5×10) / 100 ≈ 7,9 (L1 6,2 · L2 7,1 · L3 7,6).
+Build = (8,5×15 + 7,5×20 + 7,5×15 + 8×15 + 7,5×10 + 9×10 + 8×5 + 8×10) / 100 ≈ 8,0 (K0a L3 7,5).
+
+**Lỗ hổng lần 3:** ĐÓNG có code/test — L8 `khong_co` + ghi chú d86 (`devsys/stages.json:59`, `tests/test_devsys_stages.py:86`); cờ dòng phụ thuộc
+`stage_camera` (`:161`); chỉ id `vai: kiem` (`:72`); `dot_hien_tai` quá hạn → đỏ (`:101`); error_types không tính cờ TẮT / `bat:false` (`:248`);
+9 → 11 (kế hoạch dòng 306); n ≥ 50 / ≥ 2 dự án (dòng 349); N11 viết lại theo A19 (dòng 72); A14 ≤ 2 vòng (dòng 27); đơn giá QC đo thật
+0,018 USD/khung (dòng 323); khóa nhận diện chặn bằng CODE (A18) — `core/identity_declare.py:331` có test + chạy CSDL thật 0 món bỏ im lặng;
+≥ 2 ca âm/chữ/dựng, ≥ 3 ca BYĐ + gói (16 ca). CHƯA ĐÓNG — `from_shot_spec` vẫn không chuyển beats → hanh_dong (`core/shot_intent.py:191-198`).
+
+| Tiêu chí | KH L3 | KH L4 | Build L4 | Lý do + bằng chứng |
+|---|---|---|---|---|
+| A gốc | 8,5 | 8,5 | 8,5 | chạy khô xác nhận gốc 2 (gói không ai xem); lộ gốc mới chưa vào kế hoạch: `jobs` KHÔNG lưu prompt đã gửi (BANG_CHUNG:34) |
+| B độ phủ | 8 | 8 | 7,5 | #24: 2/9 lỗi bắt trước tiền, 5 chưa bắt (BANG_CHUNG:56); "ảnh mẫu Kho bẩn", "mô tả Kho ↔ ảnh mẫu" (BANG_CHUNG:74–77) chưa thành dòng kế hoạch; 10/16 ca là L7 |
+| C nhất quán | 7 | 7,5 | 7,5 | N11/A14 gỡ; còn: dòng 8 trạng thái cũ ("build K0a"); mục 12 dòng 382 vẫn "tái dùng vân tay" ↔ 3.3 "VIẾT MỚI"; ca hồi quy `lop_phai_bat: d85` (vai SINH, `p24_shot8_block_byd.json:144`) và `d26` cho world_rules (`t2_luat_vat_x…json:30`) trái luật vai sổ; `knowledge/checks/L4.md:6` enum TU_THE cũ |
+| D khả thi | 7 | 7,5 | 8 | identity_declare / world_rules / shot_intent chạy được, có test; Pose model có (28° vs 41°, 2 ảnh); bộ phát hiện vật CHƯA thử; A18 "mọi món phải có chữ" sẽ đỏ 7/9 shot (BANG_CHUNG:32–35) mà QC thấy trang phục đúng |
+| E đo lường | 7 | 7,5 | 7,5 | L11 tính "co" bằng `plate_layout_qc` (`devsys/error_types.json:47`) dù chạy khô đo là MÙ (BANG_CHUNG:49) → số "có cách kiểm" bị thổi; A18 chặn ngay không có ngưỡng báo nhầm (N8 chỉ miễn cho lớp "chắc chắn"); kỳ vọng `am_chu`/`dung`/`do_tu_the` của ca không lớp nào chạy |
+| F chi phí | 7 | 7,5 | 9 | đơn giá đo thật dòng 323–337; ③④ còn ước, đo ở K2/K3 có ghi; build 0 USD đúng cam kết |
+| G lộ trình | 7 | 7,5 | 8 | K1b song song sau K2 (dòng 318); K0b ghi ✅ nhưng tiêu chí "công cụ đo ≥ 20 khung" (dòng 307) chưa đạt: YuNet 18 ảnh, Pose 4, phát hiện vật 0; `dot_hien_tai` còn "K0a" (`devsys/stages.json:9`) |
+| H chốt | 8,5 | 8,5 | 8 | A18/A20/A22 bước 1 có mã + số; `identity_declare`, `world_rules` chưa có id trong `devsys/decisions.json` → sổ không trỏ được khi nối |
+
+**Lỗ hổng còn lại (chặn 8,5 trước):**
+1. CAO — A18 chặn ngay mà chưa đo chính xác: luật "mọi món must_keep" đỏ 37 món / 7 shot #24. Việc: kế hoạch A18 lọc món theo BYĐ
+   (`co`, `thay`, món nhìn thấy) + ngưỡng báo nhầm đo trên prompt #22/#24 (người gán 1 chạm, n ≥ 30) trước khi CHẶN, chưa đạt → VÀNG;
+   code: `identity_declare.check` nhận bộ lọc món + ca hồi quy chống báo nhầm (giày ở MCU, lưng). **+0,25 KH / +0,2 build** (C, D, E).
+2. CAO — gói đã gửi không được lưu → không kiểm được "prompt gửi thật", vân tay, ca hồi quy có `goi`. Việc: kế hoạch đưa "lưu gói gửi
+   (prompt cuối + refs + vai + model + sha)" vào K1a (0 USD, ghi thêm, không đổi hành vi) + test. **+0,15 KH** (A, E).
+3. CAO — sổ đo phải trung thực trước khi dùng số làm cổng: L11 `plate_layout_qc` → `hoc_viec`/không tính tới khi đo đúng ≥ 1 bối cảnh;
+   thêm id cho identity_declare + world_rules (vai kiem, `bat:false`); test `lop_phai_bat` ⊂ vai kiem; `dot_hien_tai` = K0b. **+0,2 build** (C, E).
+4. TRUNG — kết thúc K0b đúng tiêu chí: Pose đo góc thân ≥ 20 khung #22/#24 → ngưỡng "ngã ngửa" hoặc ghi không dùng được; thử bộ
+   phát hiện vật; kỳ vọng ca chưa có lớp đánh dấu `chua_co_lop` + đợt (test cấm kỳ vọng "chết"). **+0,15 build** (B, G, D).
+5. TRUNG — đưa bài học chạy khô vào kế hoạch: 5 lỗi #24 chưa bắt → mỗi lỗi một loại + đợt + câu nghiệm thu (trăng/nguồn sáng L12,
+   màu vật L10, nền mẫu L11, ảnh mẫu Kho bẩn + mô tả Kho ↔ ảnh mẫu ở L5 trước tiền); sửa dòng 8, dòng 382, L4.md. **+0,2 KH** (B, C).
+6. THẤP — `from_shot_spec` chuyển beats → hanh_dong (carry lần 3); `knowledge/world_rules.json` mới 1 luật. **+0,05**.
+
+**Kết luận: CHƯA ĐẠT A21** (KH 7,9, build 8,0). Tối thiểu để ≥ 8,5: #1 (kế hoạch + code bộ lọc + đo báo nhầm), #2 (kế hoạch), #3 (sổ),
+#5 (kế hoạch); #4 nên làm cùng (0 USD). Ước sau sửa: KH ≈ 8,5–8,6, build ≈ 8,5. Tất cả 0 USD; không cần dữ liệu mới ngoài gán nhãn ≤ 30 mục.
