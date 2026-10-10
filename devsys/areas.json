@@ -1,15 +1,15 @@
 {
-  "version": 38,
+  "version": 39,
   "updated": "2026-10-08",
-  "_note": "Bản đồ hệ thống của AI Development System. Mỗi file .py dưới core/ và dashboard/ phải thuộc ít nhất một khu vực (thiếu = cảnh báo). 'code' / 'assets' / 'docs' là mẫu đường dẫn (fnmatch, '*' khớp cả '/'). 'tests' thêm tay ngoài các test tự dò theo import. 'flags' = tên trong core/features.py. 'diag_stages' = stage của bảng diag_events. 'ops_stages' (S14.10 Đợt 6b) = khâu của góp ý người dùng / số đo hiệu quả vận hành (core/feedback.STAGES: director, image, motion, audio, render, ui). 'keywords' dùng để gán dòng TODO.md vào khu vực (không phân biệt hoa thường). Sửa file này khi thêm module mới rồi tăng 'version'.",
+  "_note": "Báº£n Ä‘á»“ há»‡ thá»‘ng cá»§a AI Development System. Má»—i file .py dÆ°á»›i core/ vÃ  dashboard/ pháº£i thuá»™c Ã­t nháº¥t má»™t khu vá»±c (thiáº¿u = cáº£nh bÃ¡o). 'code' / 'assets' / 'docs' lÃ  máº«u Ä‘Æ°á»ng dáº«n (fnmatch, '*' khá»›p cáº£ '/'). 'tests' thÃªm tay ngoÃ i cÃ¡c test tá»± dÃ² theo import. 'flags' = tÃªn trong core/features.py. 'diag_stages' = stage cá»§a báº£ng diag_events. 'ops_stages' (S14.10 Äá»£t 6b) = khÃ¢u cá»§a gÃ³p Ã½ ngÆ°á»i dÃ¹ng / sá»‘ Ä‘o hiá»‡u quáº£ váº­n hÃ nh (core/feedback.STAGES: director, image, motion, audio, render, ui). 'keywords' dÃ¹ng Ä‘á»ƒ gÃ¡n dÃ²ng TODO.md vÃ o khu vá»±c (khÃ´ng phÃ¢n biá»‡t hoa thÆ°á»ng). Sá»­a file nÃ y khi thÃªm module má»›i rá»“i tÄƒng 'version'.",
   "scan_roots": ["core", "dashboard"],
   "infra_modules": ["core/__init__.py", "core/db.py", "core/pipeline.py", "core/providers.py", "core/states.py", "core/adapters/http.py", "core/adapters/__init__.py", "dashboard/__init__.py"],
   "areas": [
     {
       "id": "step1",
-      "name": "Bước 1 · Kịch bản & Đạo diễn",
+      "name": "BÆ°á»›c 1 Â· Ká»‹ch báº£n & Äáº¡o diá»…n",
       "weight": 1.5,
-      "description": "Đọc kịch bản, tách cảnh, Director chia shot (Claude), chuẩn hóa shot, bàn đo Director, diễn xuất, liên tục, Character/World Bible, màn Bước 1.",
+      "description": "Äá»c ká»‹ch báº£n, tÃ¡ch cáº£nh, Director chia shot (Claude), chuáº©n hÃ³a shot, bÃ n Ä‘o Director, diá»…n xuáº¥t, liÃªn tá»¥c, Character/World Bible, mÃ n BÆ°á»›c 1.",
       "code": ["core/llm_runner.py", "core/llm_io.py", "core/prompts.py", "core/shots.py", "core/shot_complexity.py", "core/shot_normalize.py", "core/script_parser.py", "core/script_reader.py", "core/dialogue.py", "core/director_report.py", "core/plate_view_check.py", "core/prompt_formula.py", "core/prompt_template.py","core/continuity.py", "core/performance.py", "core/preflight.py", "core/evalset.py", "core/claude_tasks.py", "core/style.py", "core/director_two_pass.py", "core/sound_intent.py", "dashboard/steps/step1.py", "dashboard/steps/step1_run.py", "dashboard/steps/step1_prep.py", "dashboard/steps/step1_characters.py", "dashboard/steps/step1_director.py", "core/idea_to_script.py", "core/script_chat.py", "core/dialogue_chat.py","core/idea_buildable.py", "dashboard/steps/step1_idea.py", "dashboard/steps/step1_box.py", "dashboard/steps/step1_refs.py", "dashboard/steps/step1_v2.py", "core/before_run.py", "dashboard/before_run_ui.py","core/asset_checklist.py", "dashboard/steps/step1_checklist.py", "core/scene_merge.py", "tools/build_kitchen.py", "core/clean_dialogue.py", "core/chat_intake.py", "dashboard/steps/step1_intake.py", "core/chat_refs.py", "dashboard/steps/step1_chatrefs.py", "core/chat_flow.py", "dashboard/chat_start.py", "core/stage_map.py", "dashboard/stage_map_ui.py", "core/next_glow.py", "dashboard/glow_ui.py", "core/user_prefs.py", "core/shot_intent.py"],
       "assets": ["prompts/01_*", "prompts/06_*", "prompts/10_*", "prompts/16_*", "prompts/17_*", "prompts/18_*", "prompts/19_*", "prompts/20_*", "prompts/27_*", "knowledge/roles/director.md", "knowledge/roles/dp.md", "knowledge/craft/khuon_hai.md", "data/ip_blocklist.json", "eval/*", "tools/director_report.py", "tests/fixtures/director_*"],
       "docs": ["docs/PHAN_TICH_2026-09-23_NHAT_QUAN_DIRECTOR_LIPSYNC_STORYBOARD.md", "docs/BAO_CAO_CHAY_THU_2A_2026-09-25.md", "docs/BAO_CAO_SUA_LOI_2A_2026-09-25.md"],
@@ -18,13 +18,13 @@
       "diag_stages": ["director"],
       "ops_stages": ["director"],
       "ui_metrics": true,
-      "keywords": ["Director", "Đạo diễn", "kịch bản", "phân shot", "chia shot", "Bible", "llm_runner", "shot_normalize", "director_report", "continuity", "performance", "bàn đo"]
+      "keywords": ["Director", "Äáº¡o diá»…n", "ká»‹ch báº£n", "phÃ¢n shot", "chia shot", "Bible", "llm_runner", "shot_normalize", "director_report", "continuity", "performance", "bÃ n Ä‘o"]
     },
     {
       "id": "step2",
-      "name": "Bước 2 · Ảnh + QC",
+      "name": "BÆ°á»›c 2 Â· áº¢nh + QC",
       "weight": 1.2,
-      "description": "Previz/layout, storyboard (Deepix), gen ảnh, khung cuối, QC ảnh tự động, chính sách QC, cổng duyệt storyboard, màn Bước 2.",
+      "description": "Previz/layout, storyboard (Deepix), gen áº£nh, khung cuá»‘i, QC áº£nh tá»± Ä‘á»™ng, chÃ­nh sÃ¡ch QC, cá»•ng duyá»‡t storyboard, mÃ n BÆ°á»›c 2.",
       "code": ["core/place_refs.py", "core/readiness.py", "dashboard/readiness_ui.py", "core/skill_dossier.py", "tools/skill_dossier_build.py", "tools/asset_polish.py", "tools/library_audit.py", "tools/library_tidy.py", "tools/library_vision_check.py", "tools/library_location_roles.py", "core/layout.py", "core/previz.py", "core/animatic.py", "core/story_check.py", "core/scene_storyboard.py", "core/storyboard_frames.py", "core/storyboard_gate.py", "core/end_frames.py", "core/image_models.py", "core/autoqc.py", "core/qc_scene.py", "core/qc_agent.py", "core/experience.py", "core/qc_spec.py", "core/qc_measure.py", "core/qc_rules.py", "core/qc_team.py", "core/palette.py", "core/qc_golden.py", "core/llm_sources.py", "core/qc_policy.py", "core/looks.py", "core/costume.py", "core/adapters/deepix.py", "core/runner.py", "dashboard/steps/step2.py", "core/prompt_rewrite.py"],
       "assets": ["prompts/02_*", "prompts/26_*", "prompts/07_*", "prompts/08_*", "prompts/09_*", "prompts/13_*", "prompts/21_*", "prompts/14_*", "prompts/22_*", "data/qc_checklist.json", "knowledge/ai_image_failure_modes.md", "knowledge/character_lock.md", "knowledge/set_consistency_qa.md", "tools/experiments/storyboard_test.py"],
       "docs": ["docs/PHAN_TICH_LOI_GD6_2026-09-24.md", "docs/THIET_KE_LAI_QC_VA_KET_NOI_2026-09-27.md", "docs/RA_SOAT_CLAUDE_KY_NANG_2026-09-27.md"],
@@ -33,13 +33,13 @@
       "diag_stages": ["previz", "image", "qc"],
       "ops_stages": ["image"],
       "ui_metrics": true,
-      "keywords": ["ảnh", "QC", "storyboard", "Deepix", "layout", "previz", "khung cuối", "end_frame", "autoqc"]
+      "keywords": ["áº£nh", "QC", "storyboard", "Deepix", "layout", "previz", "khung cuá»‘i", "end_frame", "autoqc"]
     },
     {
       "id": "step3",
-      "name": "Bước 3 · Motion & giọng",
+      "name": "BÆ°á»›c 3 Â· Motion & giá»ng",
       "weight": 1.0,
-      "description": "Motion prompt (Claude), rà motion, giọng lồng tiếng Việt (TTS), kiểm giọng, chỉ đạo giọng, màn Bước 3.",
+      "description": "Motion prompt (Claude), rÃ  motion, giá»ng lá»“ng tiáº¿ng Viá»‡t (TTS), kiá»ƒm giá»ng, chá»‰ Ä‘áº¡o giá»ng, mÃ n BÆ°á»›c 3.",
       "code": ["core/voice.py", "core/voice_casting.py", "core/voice_check.py", "core/voice_direction.py", "core/audio_first.py", "core/project_defaults.py", "core/claude_tasks.py", "core/llm_runner.py", "dashboard/steps/step3.py", "core/motion_prompt_lint.py"],
       "assets": ["prompts/03_*", "prompts/11_*", "prompts/15_*", "knowledge/motion_prompt_lint.md", "knowledge/video_motion_vocab.md", "knowledge/motion_complex_shots.md", "knowledge/t2v_prompt_structure.md", "data/motion_vocab.json", "data/voices_vi.json", "data/pronunciation_vi.json", "tools/voice_trial.py"],
       "docs": [],
@@ -48,13 +48,13 @@
       "diag_stages": ["motion", "voice"],
       "ops_stages": ["motion", "audio"],
       "ui_metrics": true,
-      "keywords": ["motion", "giọng", "TTS", "voice", "lồng tiếng", "ElevenLabs", "delivery"]
+      "keywords": ["motion", "giá»ng", "TTS", "voice", "lá»“ng tiáº¿ng", "ElevenLabs", "delivery"]
     },
     {
       "id": "step4",
-      "name": "Bước 4 · Video + QC",
+      "name": "BÆ°á»›c 4 Â· Video + QC",
       "weight": 1.2,
-      "description": "Chọn model video theo cảnh, luật model, gửi/nhận clip ClipAI (Kling/Seedance), QC clip, gen lại, so sánh biến thể, thí nghiệm, màn Bước 4.",
+      "description": "Chá»n model video theo cáº£nh, luáº­t model, gá»­i/nháº­n clip ClipAI (Kling/Seedance), QC clip, gen láº¡i, so sÃ¡nh biáº¿n thá»ƒ, thÃ­ nghiá»‡m, mÃ n BÆ°á»›c 4.",
       "code": ["core/model_router.py", "core/video_rules.py", "core/adapters/clipai.py", "core/adapters/clipai_subjects.py", "core/subjects.py", "core/regen.py", "core/compare.py", "core/experiments.py", "core/quality_samples.py", "core/runner.py", "core/seedance_refs.py", "core/motion_physics.py", "core/clip_measure.py", "core/scene_establish.py", "core/known_issues.py", "core/claude_tasks.py", "core/speaker_lint.py", "core/hero_takes.py", "core/takes.py", "dashboard/steps/step4.py", "dashboard/quality_ui.py", "dashboard/model_line.py", "core/quality_tier.py", "core/video_qc_context.py"],
       "assets": ["prompts/12_*", "data/video_models.json", "data/provider_rules.json", "knowledge/seedance_prompting.md", "knowledge/seedance_director_workflow.md", "tools/recover_clips.py", "tools/reference_video.py", "mcp_servers/clipai.py"],
       "docs": ["docs/CLIPAI_FEATURES.md", "docs/api_notes.md"],
@@ -66,9 +66,9 @@
     },
     {
       "id": "step5",
-      "name": "Bước 5 · Âm thanh & xuất bản",
+      "name": "BÆ°á»›c 5 Â· Ã‚m thanh & xuáº¥t báº£n",
       "weight": 1.2,
-      "description": "Nhạc nền, hiệu ứng, âm nền, thư viện âm thanh, dựng + render (ffmpeg), phụ đề, vị trí chữ, khớp màu, độ to, bản giao, xem như người xem, màn Bước 5.",
+      "description": "Nháº¡c ná»n, hiá»‡u á»©ng, Ã¢m ná»n, thÆ° viá»‡n Ã¢m thanh, dá»±ng + render (ffmpeg), phá»¥ Ä‘á», vá»‹ trÃ­ chá»¯, khá»›p mÃ u, Ä‘á»™ to, báº£n giao, xem nhÆ° ngÆ°á»i xem, mÃ n BÆ°á»›c 5.",
       "code": ["core/music.py", "core/music_timing.py", "core/music_intent.py", "core/music_cues.py", "core/audio_lib.py", "core/sound_lib.py", "core/sound_ai.py", "core/sfx_plan.py", "core/sound_intent.py", "core/ambience.py", "core/waveform.py", "core/delivery.py", "core/end_popup.py", "core/ffmpeg_studio.py", "core/final_cut.py", "core/subtitles.py", "core/text_placement.py", "core/color_match.py", "core/viewer_check.py", "core/final_qc.py", "core/music_fit.py", "core/rough_cut.py", "core/editor_review.py", "core/editor_apply.py", "core/timeline_view.py", "core/adapters/clipai_audio.py", "dashboard/steps/step5.py", "core/ref_audio.py"],
       "assets": ["prompts/04_*", "prompts/24_*", "prompts/25_*", "knowledge/editor/*", "mcp_servers/ffmpeg_studio.py", "assets/*"],
       "docs": ["docs/KE_HOACH_DUYET_BAN_THO_2026-10-02.md"],
@@ -76,78 +76,78 @@
       "flags": ["loudness_normalize", "shot_color_match", "j_cut", "music_breath", "sound_intent", "impact_shake", "ambience_bed", "motion_trim", "speed_ramp", "flashback_fx", "end_hold", "music_fit", "music_story_arc", "shot_transitions", "ai_label", "rough_cut_review"],
       "diag_stages": ["music", "render"],
       "ops_stages": ["audio", "render"],
-      "keywords": ["nhạc", "âm thanh", "hiệu ứng", "phụ đề", "render", "dựng", "LUFS", "độ to", "khớp màu", "bản giao", "delivery", "subtitle", "sfx"]
+      "keywords": ["nháº¡c", "Ã¢m thanh", "hiá»‡u á»©ng", "phá»¥ Ä‘á»", "render", "dá»±ng", "LUFS", "Ä‘á»™ to", "khá»›p mÃ u", "báº£n giao", "delivery", "subtitle", "sfx"]
     },
     {
       "id": "autopilot",
-      "name": "Chạy tự động (Autopilot)",
+      "name": "Cháº¡y tá»± Ä‘á»™ng (Autopilot)",
       "weight": 1.0,
-      "description": "Chế độ tự chạy sau khi duyệt phân cảnh, chạy thử trước lô, gom việc từng bước, QC tự động trong vòng chạy.",
+      "description": "Cháº¿ Ä‘á»™ tá»± cháº¡y sau khi duyá»‡t phÃ¢n cáº£nh, cháº¡y thá»­ trÆ°á»›c lÃ´, gom viá»‡c tá»«ng bÆ°á»›c, QC tá»± Ä‘á»™ng trong vÃ²ng cháº¡y.",
       "code": ["core/autopilot.py", "core/automation.py", "core/pilot.py", "core/batch.py", "core/autoqc.py", "core/qc_policy.py"],
       "assets": ["tools/pilot_run.py", "tools/pilot_setup.py"],
       "docs": ["docs/RUNBOOK.md"],
       "tests": [],
       "flags": ["voice_check_redo", "storyboard_auto_trust", "lip_sync", "audio_first"],
       "diag_stages": ["autopilot"],
-      "keywords": ["autopilot", "tự động", "tự chạy", "pilot", "chạy thử"]
+      "keywords": ["autopilot", "tá»± Ä‘á»™ng", "tá»± cháº¡y", "pilot", "cháº¡y thá»­"]
     },
     {
       "id": "budget",
-      "name": "Ngân sách & sổ chi",
+      "name": "NgÃ¢n sÃ¡ch & sá»• chi",
       "weight": 1.0,
-      "description": "Sổ chi (usage_events), bảng giá, ước tính trước khi bấm, trần ngân sách thử + trần Claude API.",
+      "description": "Sá»• chi (usage_events), báº£ng giÃ¡, Æ°á»›c tÃ­nh trÆ°á»›c khi báº¥m, tráº§n ngÃ¢n sÃ¡ch thá»­ + tráº§n Claude API.",
       "code": ["core/budget.py", "core/project_budget.py", "core/money_reset.py", "core/cost.py", "core/spend_gate.py", "core/money_policy.py", "core/budget_rounds.py", "core/project_reserve.py", "core/script_cap.py", "dashboard/admin.py", "dashboard/header.py", "core/timestamps.py"],
       "assets": ["data/pricing.json"],
       "docs": [],
       "tests": ["tests/test_out_of_credit.py", "tests/test_project_budget.py", "tests/test_spend_gate.py", "tests/test_spend_gate_scan.py", "tests/test_money_policy.py", "tests/test_budget_rounds.py", "tests/test_project_reserve.py", "tests/test_price_label_scan.py", "tests/test_script_cap.py"],
       "flags": ["project_budget"],
       "diag_stages": [],
-      "keywords": ["ngân sách", "sổ chi", "trần", "giá", "pricing", "budget", "credit", "ước tính", "báo giá"]
+      "keywords": ["ngÃ¢n sÃ¡ch", "sá»• chi", "tráº§n", "giÃ¡", "pricing", "budget", "credit", "Æ°á»›c tÃ­nh", "bÃ¡o giÃ¡"]
     },
     {
       "id": "assets",
-      "name": "Kho tài nguyên",
+      "name": "Kho tÃ i nguyÃªn",
       "weight": 0.8,
-      "description": "Kho nhân vật/vũ khí/bối cảnh/phong cách, đọc ảnh tài nguyên bằng Claude, trang FF chính thức, hồ sơ chuẩn + bản rút gọn, đổi trang phục.",
+      "description": "Kho nhÃ¢n váº­t/vÅ© khÃ­/bá»‘i cáº£nh/phong cÃ¡ch, Ä‘á»c áº£nh tÃ i nguyÃªn báº±ng Claude, trang FF chÃ­nh thá»©c, há»“ sÆ¡ chuáº©n + báº£n rÃºt gá»n, Ä‘á»•i trang phá»¥c.",
       "code": ["core/assets.py", "core/asset_vision.py", "core/kho_review.py", "core/ff_site.py", "core/nuxt_static.py", "core/profile_digest.py", "core/costume.py", "core/looks.py", "dashboard/admin.py"],
       "assets": ["data/games.json", "tools/draft_profiles.py", "tools/enrich_ff_role_difficulty.py", "mcp_servers/project_db.py", "tools/kho_merge.py"],
       "docs": [],
       "tests": [],
       "flags": ["profile_digest"],
       "diag_stages": [],
-      "keywords": ["Kho", "tài nguyên", "hồ sơ", "asset", "KELLY", "KENTA", "MAXIM", "nhân vật"]
+      "keywords": ["Kho", "tÃ i nguyÃªn", "há»“ sÆ¡", "asset", "KELLY", "KENTA", "MAXIM", "nhÃ¢n váº­t"]
     },
     {
       "id": "plates3d",
-      "name": "Gói bối cảnh 3D",
+      "name": "GÃ³i bá»‘i cáº£nh 3D",
       "weight": 0.8,
-      "description": "Mô hình 3D → ảnh nền (Blender), máy ảo theo shot, giờ/thời tiết, ghép phông xanh, kiểm nền.",
+      "description": "MÃ´ hÃ¬nh 3D â†’ áº£nh ná»n (Blender), mÃ¡y áº£o theo shot, giá»/thá»i tiáº¿t, ghÃ©p phÃ´ng xanh, kiá»ƒm ná»n.",
       "code": ["core/whitebox.py", "core/location_pack.py", "core/plates3d.py", "core/plate_camera.py", "core/plate_choice.py", "core/plate_env.py", "core/meshy.py", "core/sheet_views.py", "core/camera_plan.py", "core/plate_layout_qc.py", "core/stage_grid.py", "core/stage_solver.py", "core/stage_director.py", "core/change_audit.py", "core/stage_facts.py"],
       "assets": ["tools/location_pack.py", "tools/render_plates.py", "tools/experiments/tower_plate.py", "tools/stage_grid.py", "tests/golden/*"],
       "docs": ["docs/HUONG_DAN_3D.md", "docs/RESEARCH_3D_PREVIZ.md", "docs/BAN_GIAO_2026-09-25_THAP_VA_KHOP_MOI.md"],
       "tests": ["tests/test_whitebox.py", "tests/test_tower_pack.py", "tests/test_plates_f2.py", "tests/test_plate_camera_p24_angles.py", "tests/test_camera_plan_g0.py", "tests/test_stage_grid.py", "tests/test_stage_rules.py", "tests/test_stage_solver.py", "tests/test_stage_director.py", "tests/test_plate_camera_stage.py", "tests/test_change_audit.py", "tests/test_stage_facts.py"],
       "flags": ["director_camera_plan", "stage_camera"],
       "diag_stages": [],
-      "keywords": ["3D", "bối cảnh", "plate", "Blender", "phông xanh", "location", "thời tiết"]
+      "keywords": ["3D", "bá»‘i cáº£nh", "plate", "Blender", "phÃ´ng xanh", "location", "thá»i tiáº¿t"]
     },
     {
       "id": "lipsync",
-      "name": "Khớp môi",
+      "name": "Khá»›p mÃ´i",
       "weight": 0.7,
-      "description": "Khớp môi toàn video: Seedance nhận giọng khi tạo hoặc khớp môi sau bằng sync.so.",
+      "description": "Khá»›p mÃ´i toÃ n video: Seedance nháº­n giá»ng khi táº¡o hoáº·c khá»›p mÃ´i sau báº±ng sync.so.",
       "code": ["core/lipsync.py", "core/dialogue_take.py", "core/adapters/syncso.py"],
       "assets": [],
       "docs": ["docs/NGHIEN_CUU_KHOP_MOI.md", "docs/BAN_GIAO_2026-09-25_THAP_VA_KHOP_MOI.md"],
       "tests": ["tests/test_lipsync.py", "tests/test_lipsync_gate.py", "tests/test_dialogue_take.py", "tests/test_dialogue_take_runner.py"],
       "flags": ["lip_sync", "dialogue_take"],
       "diag_stages": [],
-      "keywords": ["khớp môi", "lip", "sync.so", "syncso", "reference_audio"]
+      "keywords": ["khá»›p mÃ´i", "lip", "sync.so", "syncso", "reference_audio"]
     },
     {
       "id": "dashboard_ui",
-      "name": "Dashboard chung / giao diện",
+      "name": "Dashboard chung / giao diá»‡n",
       "weight": 1.0,
-      "description": "Khung dashboard, đăng nhập, thanh trên, màn chính 4 thẻ, widget dùng chung, giao diện, trình khởi động.",
+      "description": "Khung dashboard, Ä‘Äƒng nháº­p, thanh trÃªn, mÃ n chÃ­nh 4 tháº», widget dÃ¹ng chung, giao diá»‡n, trÃ¬nh khá»Ÿi Ä‘á»™ng.",
       "code": ["dashboard/__init__.py", "dashboard/design/*.py", "dashboard/design/screens/*.py", "dashboard/steps/__init__.py", "dashboard/app.py", "dashboard/common.py", "dashboard/header.py", "dashboard/overview.py", "dashboard/ui.py", "dashboard/widgets.py", "dashboard/next_step.py", "core/auth.py", "core/memo.py", "core/archive.py", "dashboard/change_review_ui.py"],
       "assets": ["mockup/*", "tools/launch_dashboard.ps1", "tools/stop_dashboard.ps1", "Start-Dashboard.bat", "Stop-Dashboard.bat", ".streamlit/*", "tools/make_icon.py", "tools/seed_demo.py", "tools/run_demo.ps1", "tools/ui_v2_acceptance.py", "tools/ui_contrast_audit.js", "tools/ui_snapshot.py", "assets/fonts/*", "dashboard/static/*", "docs/ui_snapshots/*"],
       "docs": ["docs/UI_AUDIT.md", "docs/DASHBOARD_REVIEW_2026-09-23.md", "docs/PHAN_TICH_VONG_DASHBOARD_2026-09-24.md"],
@@ -156,65 +156,65 @@
       "flags": ["ui_v2"],
       "diag_stages": [],
       "ops_stages": ["ui"],
-      "keywords": ["dashboard", "giao diện", "đăng nhập", "Chế độ chuyên gia", "thanh trên", "màn chính"]
+      "keywords": ["dashboard", "giao diá»‡n", "Ä‘Äƒng nháº­p", "Cháº¿ Ä‘á»™ chuyÃªn gia", "thanh trÃªn", "mÃ n chÃ­nh"]
     },
     {
       "id": "knowledge",
-      "name": "Kiến thức & bộ kỹ năng 3 vai",
+      "name": "Kiáº¿n thá»©c & bá»™ ká»¹ nÄƒng 3 vai",
       "weight": 0.8,
-      "description": "Kho kiến thức cho các bước Claude, bài học lặp lại, nghiên cứu định kỳ, đọc video tham khảo, bộ kỹ năng Đạo diễn / Quay phim / Dựng.",
+      "description": "Kho kiáº¿n thá»©c cho cÃ¡c bÆ°á»›c Claude, bÃ i há»c láº·p láº¡i, nghiÃªn cá»©u Ä‘á»‹nh ká»³, Ä‘á»c video tham kháº£o, bá»™ ká»¹ nÄƒng Äáº¡o diá»…n / Quay phim / Dá»±ng.",
       "code": ["core/knowledge.py", "core/lessons.py", "core/research.py", "core/reference_analysis.py", "core/video_analysis.py", "core/retired_topics.py", "tools/lessons_retire.py", "core/lesson_judge.py", "tools/lessons_add.py"],
       "assets": ["knowledge/*", "prompts/05_*", "tools/monthly_research.py", "tools/ff_style_knowledge.py", "research/*", "samples/*"],
       "docs": ["docs/DANH_GIA_BO_NGUYEN_TAC_V4.md", "docs/FF_STYLE_RESEARCH.md"],
       "tests": ["tests/test_role_knowledge.py", "tests/test_knowledge_murch.py", "tests/test_kelly_knowledge.py", "tests/test_s1446_retired_lessons.py", "tests/test_lesson_judge.py", "tests/test_s1425_feedback_mistakes.py", "tests/test_kld21_lessons.py", "tests/test_kld_lessons_prompts.py", "tests/test_f5b_backlog.py"],
       "flags": ["film_crew", "murch_knowledge", "kelly_knowledge", "kld_lessons_prompts", "risk_tags", "lesson_judge", "feedback_to_mistakes"],
       "diag_stages": [],
-      "keywords": ["kiến thức", "kỹ năng", "3 vai", "Quay phim", "bài học", "knowledge", "film_crew", "nguyên tắc"]
+      "keywords": ["kiáº¿n thá»©c", "ká»¹ nÄƒng", "3 vai", "Quay phim", "bÃ i há»c", "knowledge", "film_crew", "nguyÃªn táº¯c"]
     },
     {
       "id": "core_infra",
-      "name": "Lõi pipeline & nhà cung cấp",
+      "name": "LÃµi pipeline & nhÃ  cung cáº¥p",
       "weight": 1.0,
-      "description": "CSDL, trạng thái job, vòng gửi/nhận job, giới hạn đồng thời, adapter nhà cung cấp, dấu vân tay ⚠ cũ, thùng rác, khung hình, cờ tính năng.",
+      "description": "CSDL, tráº¡ng thÃ¡i job, vÃ²ng gá»­i/nháº­n job, giá»›i háº¡n Ä‘á»“ng thá»i, adapter nhÃ  cung cáº¥p, dáº¥u vÃ¢n tay âš  cÅ©, thÃ¹ng rÃ¡c, khung hÃ¬nh, cá» tÃ­nh nÄƒng.",
       "code": ["core/__init__.py", "core/db.py", "core/pipeline.py", "core/states.py", "core/providers.py", "core/runner.py", "core/bg_poll.py", "core/batch.py", "core/throttle.py", "core/lineage.py", "core/trash.py", "core/formats.py", "core/features.py", "core/trainee.py", "core/trainee_plans.py", "core/adapters/__init__.py", "core/adapters/http.py", "core/adapters/factory.py", "core/adapters/check.py", "core/adapters/inspect_api.py", "core/adapters/trial.py", "core/change_review.py"],
       "assets": ["mcp_servers/*", "tools/h5_setup_test.py"],
       "docs": ["docs/V0_SETUP.md", "docs/WORKFLOW_REVIEW.md"],
       "tests": ["tests/test_mcp_servers.py", "tests/test_trainee.py", "tests/test_trainee_plans.py", "tests/test_change_review.py"],
       "flags": ["change_review"],
       "diag_stages": ["system"],
-      "keywords": ["runner", "job", "throttle", "lineage", "⚠ cũ", "features.py", "cờ", "adapter"]
+      "keywords": ["runner", "job", "throttle", "lineage", "âš  cÅ©", "features.py", "cá»", "adapter"]
     },
     {
       "id": "diag",
-      "name": "Chẩn đoán, hiệu năng & giới hạn",
+      "name": "Cháº©n Ä‘oÃ¡n, hiá»‡u nÄƒng & giá»›i háº¡n",
       "weight": 0.6,
-      "description": "Ghi lỗi/cảnh báo khi chạy thật, số đo tải, giới hạn hệ thống đo từ lịch sử job, hiệu quả quy trình.",
+      "description": "Ghi lá»—i/cáº£nh bÃ¡o khi cháº¡y tháº­t, sá»‘ Ä‘o táº£i, giá»›i háº¡n há»‡ thá»‘ng Ä‘o tá»« lá»‹ch sá»­ job, hiá»‡u quáº£ quy trÃ¬nh.",
       "code": ["core/diag.py", "core/perf.py", "core/capacity.py", "core/effectiveness.py", "core/feedback.py", "core/inbox.py", "core/team.py", "core/access.py", "core/machine_auth.py", "core/person_limits.py", "core/delivered.py", "dashboard/access_ui.py", "dashboard/home.py", "dashboard/team_screen.py", "dashboard/limits_ui.py"],
       "assets": ["tools/diagnose.py", "tools/audit_run.py", "tools/load_test.py", "tools/effectiveness_baseline.py", "tools/backfill_delivered.py"],
       "docs": [],
       "tests": ["tests/test_team_money_reset.py", "tests/test_access.py", "tests/test_access_ui.py", "tests/test_machine_auth.py", "tests/test_person_limits.py", "tests/test_person_limits_ui.py", "tests/test_delivered.py", "tests/test_feedback.py", "tests/test_effectiveness_history.py"],
       "flags": [],
       "diag_stages": [],
-      "keywords": ["chẩn đoán", "diag", "hiệu năng", "giới hạn hệ thống", "capacity", "perf"]
+      "keywords": ["cháº©n Ä‘oÃ¡n", "diag", "hiá»‡u nÄƒng", "giá»›i háº¡n há»‡ thá»‘ng", "capacity", "perf"]
     },
     {
       "id": "docs",
-      "name": "Tài liệu",
+      "name": "TÃ i liá»‡u",
       "weight": 0.5,
-      "description": "Kế hoạch, tiến độ, chuẩn xây dựng, bàn giao — phải khớp code hiện tại.",
+      "description": "Káº¿ hoáº¡ch, tiáº¿n Ä‘á»™, chuáº©n xÃ¢y dá»±ng, bÃ n giao â€” pháº£i khá»›p code hiá»‡n táº¡i.",
       "code": [],
       "assets": ["tools/build_docs.sh", "tools/plan.css", "tools/make_flow_images.py"],
       "docs": ["PLAN.md", "TODO.md", "CLAUDE.md", "docs/CHUAN_XAY_DUNG.md", "docs/KE_HOACH_V4_2026-09-25.md", "docs/KE_HOACH_TONG_2026-09-24.md", "docs/KE_HOACH_2026-09-25.md", "docs/BAN_GIAO_*", "docs/KE_HOACH_V3_CHINH_THUC.md", "docs/V2_TEST_REPORT.md", "docs/*.md"],
       "tests": [],
       "flags": [],
       "diag_stages": [],
-      "keywords": ["PLAN.md", "tài liệu", "bàn giao", "build_docs", "TODO"]
+      "keywords": ["PLAN.md", "tÃ i liá»‡u", "bÃ n giao", "build_docs", "TODO"]
     },
     {
       "id": "devsys",
-      "name": "Hệ thống phát triển (AI Development System)",
+      "name": "Há»‡ thá»‘ng phÃ¡t triá»ƒn (AI Development System)",
       "weight": 0.3,
-      "description": "Chính web theo dõi tiến độ này: bản đồ khu vực, dòng thời gian, sức khỏe đo bằng code, chấm điểm AI.",
+      "description": "ChÃ­nh web theo dÃµi tiáº¿n Ä‘á»™ nÃ y: báº£n Ä‘á»“ khu vá»±c, dÃ²ng thá»i gian, sá»©c khá»e Ä‘o báº±ng code, cháº¥m Ä‘iá»ƒm AI.",
       "code": ["devsys/*.py", "devsys/answers.py", "tools/devsys_score.py", "tools/devsys_collect.py", "tools/devsys_hook.py", "tools/devsys_ui_metrics.py", "tools/plan_progress.py"],
       "assets": ["devsys/areas.json", "devsys/decisions.json", "devsys/stages.json", "devsys/error_types.json", "devsys/rubric.md", "devsys/rubric_v1.md", "devsys/rubric_v2.md", "Start-DevSystem.bat", "tools/launch_devsys.ps1"],
       "docs": [],
