@@ -630,12 +630,14 @@ def merge(conn, from_id: int, into_id: int) -> int:
                          "lại (chưa đổi gì).")
     # else: the target's approved profile wins over the source's draft (a draft is never inherited)
     # K0b p2 (A20): ô `khai_bao_chu` nằm ngoài PROFILE_KEYS (_same_profile không so) — hai bên có ô khác nhau → một người quyết; chỉ
-    # nguồn có → chép sang đích (mục nguồn bị xóa sau khi gộp, ô không được mất theo)
+    # nguồn có → chép sang đích (mục nguồn bị xóa sau khi gộp, ô không được mất theo). Người dùng 10/10 (2a): nguồn NHÁP + đích ĐÃ
+    # DUYỆT → KHÔNG chép (nháp không được thừa hưởng, như hồ sơ ở trên); nguồn đã duyệt hoặc đích cũng nháp → vẫn chép
     s_kbc, d_kbc = sp.get("khai_bao_chu"), dp.get("khai_bao_chu")
     if s_kbc is not None and d_kbc is not None and s_kbc != d_kbc:
         raise AssetError(f"Hai mục đều có khai báo chữ (khai_bao_chu) khác nhau (“{src['name']}” / “{dst['name']}”) — mở 📋 Hồ sơ "
                          "chuẩn, giữ một bản rồi gộp lại (chưa đổi gì).")
-    copy_kbc = s_kbc is not None and d_kbc is None and not copy_profile
+    draft_into_approved = bool(dp.get("approved")) and not sp.get("approved")
+    copy_kbc = s_kbc is not None and d_kbc is None and not copy_profile and not draft_into_approved
     folder = os.path.join(root(), str(into_id))
     os.makedirs(folder, exist_ok=True)
     taken = _held_paths(conn, into_id)                                 # rows of the target whose file is lost / trashed keep their name

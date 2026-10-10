@@ -328,8 +328,9 @@ FACTS: Dict[str, Dict] = {
                     "question": lambda f: f"The {f['name']}: is it drawn as a real {f['name']} (stones, texture) or as a flat plain block?"}},
     "in_frame": {
         "derive": _derive_in_frame, "prompt": _prompt_in_frame, "judge": _judge_in_frame, "contradicts": lambda f: [],
-        "observe": {"options": ("left_third", "middle_third", "right_third", "not_in_frame", UNSURE),
-                    "question": lambda f: f"Where is the {f['name']} in the picture (by its centre)?"}},
+        # Người dùng 10/10 (1a, N5): vị trí trong khung do code/hình học quyết (phép chiếu 3D; bộ phát hiện K5) — VLM không khai
+        # phần ba. Giữ derive + câu prompt (sự thật vẫn chảy vào prompt ảnh); không câu hỏi, không chấm.
+        "observe": None},
     "pitch_horizon": {
         "derive": _derive_horizon, "prompt": _prompt_horizon, "judge": _judge_horizon, "contradicts": lambda f: [],
         "observe": {"options": ("horizon_top_third", "horizon_middle_third", "horizon_bottom_third", "horizon_above_frame",
@@ -342,6 +343,12 @@ FACTS: Dict[str, Dict] = {
                                           f"frame's own low camera?"}},
 }
 REQUIRED = ("derive", "prompt", "observe", "judge", "contradicts")
+NO_DECLARE = tuple(k for k, s in FACTS.items() if s["observe"] is None)    # sự thật chỉ để nói trong prompt, không giao model khai
+
+
+def declared(f: Dict) -> bool:
+    """Sự thật được hỏi model khai (QC): vật trong khung + loại có câu observe (in_frame thì không — N5, người dùng 10/10)."""
+    return bool(f.get("in_frame")) and f["kind"] not in NO_DECLARE
 
 
 # ---- API --------------------------------------------------------------------------------------------------------------------
@@ -364,8 +371,9 @@ def derive(data: Dict, objects: Optional[Dict] = None, aspect: float = ASPECT, e
     for kind, spec in FACTS.items():
         for f in spec["derive"](ctx):
             f["prompt"] = spec["prompt"](f, ctx)
-            f["question"] = spec["observe"]["question"](f)
-            f["options"] = list(spec["observe"]["options"])
+            obs = spec["observe"]
+            f["question"] = obs["question"](f) if obs else None
+            f["options"] = list(obs["options"]) if obs else []
             f["contradicts"] = spec["contradicts"](f)
             facts.append(f)
     return {"facts": facts, "missing": None}
@@ -379,7 +387,10 @@ def prompt_block(facts: List[Dict]) -> str:
 
 
 def judge(f: Dict, seen: Optional[str]) -> Optional[str]:
-    """Khai báo của model → None / 'vang' / 'do'. Thiếu / 'na' / ngoài danh sách = 'unsure' → 'vang' (không im lặng)."""
+    """Khai báo của model → None / 'vang' / 'do'. Thiếu / 'na' / ngoài danh sách = 'unsure' → 'vang' (không im lặng).
+    Loại không khai (NO_DECLARE, vd in_frame) → ValueError: người gọi cũ còn chấm khai vị trí phải lọc bằng declared(), không im lặng."""
+    if FACTS[f["kind"]]["observe"] is None:
+        raise ValueError(f"{f['id']}: loại '{f['kind']}' không giao model khai (N5, người dùng 10/10) — lọc bằng stage_facts.declared")
     seen = seen if seen in FACTS[f["kind"]]["observe"]["options"] else UNSURE
     if seen == UNSURE:
         return None if f["kind"] in UNSURE_QUIET else "vang"
@@ -483,12 +494,12 @@ def for_shot(conn, pid: int, data: Dict, aspect: Optional[float] = None, end: bo
 
 
 def observe_items(facts: List[Dict]) -> List[Dict]:
-    """Các ô 'khai điều thấy' cho QC: [{id, question, options}] (chỉ sự thật có vật trong khung)."""
-    return [{"id": f["id"], "question": f["question"], "options": f["options"]} for f in facts if f.get("in_frame")]
+    """Các ô 'khai điều thấy' cho QC: [{id, question, options}] (chỉ sự thật có vật trong khung và được khai — declared)."""
+    return [{"id": f["id"], "question": f["question"], "options": f["options"]} for f in facts if declared(f)]
 
 
 def options_union() -> List[str]:
     out: List[str] = []
     for spec in FACTS.values():
-        out += [o for o in spec["observe"]["options"] if o not in out]
+        out += [o for o in (spec["observe"] or {}).get("options", ()) if o not in out]
     return out

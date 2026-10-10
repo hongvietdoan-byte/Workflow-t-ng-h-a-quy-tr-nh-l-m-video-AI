@@ -649,6 +649,34 @@ class MergeKeepsEveryPictureTests(unittest.TestCase):
         self.assertIsNotNone(assets.get(self.conn, other))
         self.assertEqual(assets.get_profile(self.conn, keep)["khai_bao_chu"], kbc)
 
+    def test_merge_draft_kbc_not_inherited_by_approved(self):
+        """Người dùng 10/10 (2a): nguồn NHÁP, đích ĐÃ DUYỆT → không chép khai_bao_chu của nháp (nháp không được thừa hưởng); nguồn
+        nháp + đích nháp vẫn chép; hai bên có ô khác nhau vẫn từ chối, chưa đổi gì."""
+        kbc = [{"mon": "belt", "mau_chinh": ["black"]}]
+        keep = assets.create(self.conn, "FF", "character", "YN2")
+        draft = assets.create(self.conn, "FF", "character", "YN2B")
+        assets.set_profile(self.conn, keep, {"identity": "x", "must_keep": "black belt"}, approved=True)
+        assets.set_profile(self.conn, draft, {"identity": "x", "must_keep": "black belt", "khai_bao_chu": kbc}, approved=False)
+        assets.merge(self.conn, draft, keep)
+        self.assertIsNone(assets.get(self.conn, draft))
+        prof = assets.get_profile(self.conn, keep)
+        self.assertTrue(prof.get("approved"))
+        self.assertIsNone(prof.get("khai_bao_chu"))
+        d1 = assets.create(self.conn, "FF", "character", "YN3")
+        d2 = assets.create(self.conn, "FF", "character", "YN3B")
+        assets.set_profile(self.conn, d1, {"identity": "x", "must_keep": "black belt"}, approved=False)
+        assets.set_profile(self.conn, d2, {"identity": "x", "must_keep": "black belt", "khai_bao_chu": kbc}, approved=False)
+        assets.merge(self.conn, d2, d1)
+        self.assertEqual(assets.get_profile(self.conn, d1)["khai_bao_chu"], kbc)
+        bad = assets.create(self.conn, "FF", "character", "YN2C")
+        assets.set_profile(self.conn, keep, {"identity": "x", "must_keep": "black belt", "khai_bao_chu": kbc}, approved=True)
+        assets.set_profile(self.conn, bad, {"identity": "x", "must_keep": "black belt",
+                                            "khai_bao_chu": [{"mon": "belt", "mau_chinh": ["red"]}]}, approved=False)
+        with self.assertRaises(AssetError):
+            assets.merge(self.conn, bad, keep)
+        self.assertIsNotNone(assets.get(self.conn, bad))
+        self.assertEqual(assets.get_profile(self.conn, keep)["khai_bao_chu"], kbc)
+
 
 class LibraryTrashTests(unittest.TestCase):
     def setUp(self):

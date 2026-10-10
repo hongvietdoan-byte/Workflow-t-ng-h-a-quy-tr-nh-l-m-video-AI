@@ -28,7 +28,7 @@
    "code_do": [{"mo_ta": "chiếu 3D vật lên khung (vùng 3×3)", "trang_thai": "co", "dot": null, "where": "core/stage_grid.py:point_state", "co": "stage_camera"},
                {"mo_ta": "bộ phát hiện + vùng 3×3 trên ảnh kết quả", "trang_thai": "xay", "dot": "K5", "where": null}],
    "claude_khai": [],
-   "_ghi_chu": "N5: không giao VLM vị trí."},
+   "_ghi_chu": "N5: không giao VLM vị trí. Người dùng 10/10 (1a): đã bỏ câu khai phần ba in_frame của stage_facts (observe = None)."},
   {"id": "L7", "ten": "Vật: có / không, phần thấy, hình dáng", "ap_dung": ["anh", "video"],
    "code_do": [{"mo_ta": "sự thật hình học (thấy miệng/lòng, khối thay thế, trong khung)", "trang_thai": "co", "dot": null, "where": "core/stage_facts.py:derive", "co": "stage_camera"}],
    "claude_khai": [{"mo_ta": "phần thấy · hình dáng (khối / thật) — câu hỏi observe của stage_facts", "enum": ["theo FACTS[kind].observe.options", "unsure"],

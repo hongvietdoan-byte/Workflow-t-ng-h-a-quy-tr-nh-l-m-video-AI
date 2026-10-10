@@ -171,7 +171,7 @@ def compile_frame(conn, project_id: int, frame_job: int, data: Dict, profiles: O
         res = stage_facts.for_shot(conn, project_id, data)
         geo_missing = res["missing"] if data.get("stage_camera") else None
         for f in res["facts"]:
-            if not f.get("in_frame"):
+            if not stage_facts.declared(f):          # N5 (người dùng 10/10): vị trí in_frame không khai
                 continue
             a = _a(frame_job, "geometry", f["subject"], f"Hình học máy 3D — {f['id']} = {f['value']} (code tính)",
                    f["question"] + " Report `geo_seen` only (the code decides).", f["value"], "code+model", "block", "stage_camera")

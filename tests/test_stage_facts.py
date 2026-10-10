@@ -26,7 +26,34 @@ def test_every_fact_kind_is_complete(kind):
     for key in ("derive", "prompt", "judge", "contradicts"):
         assert callable(spec[key]), f"{kind}.{key} phải là hàm"
     obs = spec["observe"]
+    if obs is None:                                    # N5 (người dùng 10/10, 1a): vị trí do code/hình học quyết, VLM không khai
+        assert kind in sf.NO_DECLARE, f"{kind}.observe = None mà không nằm trong NO_DECLARE"
+        return
     assert callable(obs.get("question")) and sf.UNSURE in obs.get("options", ()), f"{kind}.observe cần question + 'unsure'"
+
+
+def test_in_frame_is_not_declared_but_still_said():
+    """Người dùng 10/10 (1a, N5): bỏ câu khai phần ba `in_frame` cho Claude/QC — sự thật + câu prompt vẫn chảy vào prompt ảnh."""
+    assert sf.NO_DECLARE == ("in_frame",) and sf.FACTS["in_frame"]["observe"] is None
+    facts = sf.derive({"stage_camera": _case("p24_shot4_low_camera_well")["stage_camera"]})["facts"]
+    inf = [f for f in facts if f["kind"] == "in_frame"]
+    assert inf and all(f["prompt"] and f["question"] is None and f["options"] == [] for f in inf)
+    assert all(f["prompt"] in sf.prompt_block(facts) for f in inf)
+    assert all(not sf.declared(f) for f in inf) and any(sf.declared(f) for f in facts)
+    assert not [i for i in sf.observe_items(facts) if i["id"].startswith("in_frame:")]
+    assert not {"left_third", "middle_third", "right_third"} & set(sf.options_union())
+    with pytest.raises(ValueError):
+        sf.judge(inf[0], "left_third")                 # khai cũ của in_frame không được chấm im lặng
+
+
+def test_in_frame_not_asked_by_qc(monkeypatch):
+    monkeypatch.setattr(features, "on", lambda n: n == "stage_camera")
+    out = qc_spec.compile_frame(None, 24, 7, _frame_data("p24_shot4_low_camera_well"), profiles={})
+    assert not [a for a in out["assertions"] if a["type"] == "geometry" and a["fact"]["kind"] == "in_frame"]
+    frames = [{"data": _frame_data("p24_shot4_low_camera_well")}]
+    by_k = qc_scene.geometry_facts(None, 24, frames)
+    assert by_k and not [f for f in by_k[1] if f["kind"] == "in_frame"]
+    assert "in_frame:" not in qc_scene.geometry_block(by_k)
 
 
 def test_a_partial_kind_breaks_the_contract(monkeypatch):
@@ -38,6 +65,8 @@ def test_a_partial_kind_breaks_the_contract(monkeypatch):
 def test_judge_answers_of_every_kind_are_levels():
     for c in GOLDEN:
         for f in sf.derive({"stage_camera": c["stage_camera"]}, c["objects"])["facts"]:
+            if f["kind"] in sf.NO_DECLARE:
+                continue                               # không khai → không chấm (test_in_frame_is_not_declared_but_still_said)
             for seen in f["options"] + [None, "na", "nonsense"]:
                 assert sf.judge(f, seen) in sf.LEVELS
 
@@ -229,7 +258,8 @@ def test_unsure_on_every_shot4_fact_is_doubt_not_a_silent_pass(monkeypatch):
     monkeypatch.setattr(features, "on", lambda n: n == "stage_camera")
     geo = [a for a in qc_spec.compile_frame(None, 24, 7, _frame_data("p24_shot4_low_camera_well"), profiles={})["assertions"]
            if a["type"] == "geometry"]
-    assert len(geo) >= 4
+    # 1a (người dùng 10/10): in_frame không còn khai → 3 sự thật khai (trước là ≥ 4 gồm in_frame:well); ghi rõ từng loại
+    assert {a["fact"]["kind"] for a in geo} == {"top_visible", "stand_in", "pitch_horizon"} and len(geo) >= 3
     answers = {a["id"]: {"answer": "true", "confidence": "high", "geo_seen": "unsure"} for a in geo}
     v = qc_rules.frame_verdict(geo, answers, {})
     assert v["verdict"] == "doubt" and v["arbiter"], v["verdict"]
@@ -297,7 +327,7 @@ def _red_frame(facts):
 
 
 def test_geometry_fix_ignores_the_director_words_or_blames_the_model():
-    facts = {1: [f for f in _shot4_facts() if f.get("in_frame")]}
+    facts = {1: [f for f in _shot4_facts() if sf.declared(f)]}
     c = _case("p24_shot4_low_camera_well")
     obj = _red_frame(facts)
     qc_scene.apply_geometry(obj, facts, {1: c["image_prompt"]})

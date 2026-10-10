@@ -350,7 +350,7 @@ def geometry_facts(conn, pid: int, frames: List[Dict]) -> Dict[int, List[Dict]]:
     out = {}
     for k, r in enumerate(frames, 1):
         if r["data"].get("stage_camera"):
-            facts = [f for f in stage_facts.for_shot(conn, pid, r["data"])["facts"] if f.get("in_frame")]
+            facts = [f for f in stage_facts.for_shot(conn, pid, r["data"])["facts"] if stage_facts.declared(f)]
             if facts:
                 out[k] = facts
     return out
@@ -358,6 +358,9 @@ def geometry_facts(conn, pid: int, frames: List[Dict]) -> Dict[int, List[Dict]]:
 
 def geometry_block(facts_by_k: Dict[int, List[Dict]]) -> str:
     """Khối 'Khai điều thấy' cho QC lớp 1: mỗi K các câu hỏi enum; model trả `geo` = {id: lựa chọn}, code kết luận (apply_geometry)."""
+    from . import stage_facts
+    facts_by_k = {k: [f for f in facts if stage_facts.declared(f)] for k, facts in (facts_by_k or {}).items()}   # 1a: in_frame không hỏi
+    facts_by_k = {k: v for k, v in facts_by_k.items() if v}
     if not facts_by_k:
         return ""
     rows = {f"K{k}": [{"id": f["id"], "question": f["question"], "chọn": f["options"]} for f in facts] for k, facts in facts_by_k.items()}
@@ -390,7 +393,7 @@ def apply_geometry(obj: Dict, facts_by_k: Dict[int, List[Dict]], prompts: Option
     from . import stage_facts
     notes = []
     for f in obj.get("frames") or []:
-        facts = facts_by_k.get(f.get("k")) or []
+        facts = [x for x in facts_by_k.get(f.get("k")) or [] if stage_facts.declared(x)]   # 1a: in_frame không chấm khai
         if not facts:
             continue
         geo = f.get("geo") if isinstance(f.get("geo"), dict) else {}
