@@ -230,6 +230,19 @@ Thứ tự bắt buộc: K0 trước (đo được độ phủ trước khi sử
 5. **Không phụ thuộc lỗi đã xảy ra**: dự án mới sinh lỗi mới, lỗi cũ lặp lại → nguồn độ phủ KHÔNG phải ca vàng. Sửa kế hoạch → mục 10.
 6. Ảnh #24 shot 4/8 (10/10): mọi yếu tố đạt, riêng **màu giếng chưa ăn khớp toàn bối cảnh** → loại kiểm "hòa hợp ánh sáng / màu" (mục 10, L10).
 
+## 9c. Người dùng trả lời 6 câu của thẩm định (10/10)
+
+1. **Có** — chi ≤ 1 USD (có trần cứng) so ảnh prompt sinh vs prompt Đạo diễn trước K3.
+2. Trần câu hỏi "cố ý hay lỗi" theo đề xuất (≤ 5/dự án, gom theo vật) **và theo dự án**; **Đạo diễn đọc kịch bản khai trước** vật/người
+   nào cố ý làm điều trái lẽ thường ở một hay nhiều cảnh nào (ô ngoại lệ T1 điền ngay ở bước Đạo diễn, phạm vi = vật + các cảnh khai) →
+   câu hỏi chỉ còn cho thứ Đạo diễn không khai.
+3. (chưa hiểu câu hỏi — giải thích lại trong chat 10/10)
+4. **Bắt buộc dựng sân khấu 3D cho mọi dự án mới**, kể cả bối cảnh không có model 3D: dựng lại từ ảnh ref / ảnh bố cục (mục 12
+   `docs/PHUONG_PHAP_SAN_KHAU_3D.md`, V6) → mọi shot có sự thật hình học ②.
+5. **Âm thanh, phụ đề, dựng đưa luôn vào khâu kiểm soát** (không hoãn).
+6. Chưa chốt — người dùng yêu cầu rà soát công cụ / web làm video AI trên thị trường: họ có khâu kiểm như mình không; họ viết tay sao lại
+   chuẩn hơn hệ thống? (agent nghiên cứu đang chạy 10/10; kết quả đưa vào bản hợp nhất).
+
 ## 10. Độ phủ theo cấu trúc (thay cho dựa vào lỗi cũ — người dùng 10/10 điểm 5)
 
 Ca vàng chỉ còn là **kiểm hồi quy** (lỗi cũ không quay lại). Độ phủ đến từ 3 nguồn không phụ thuộc lịch sử:
