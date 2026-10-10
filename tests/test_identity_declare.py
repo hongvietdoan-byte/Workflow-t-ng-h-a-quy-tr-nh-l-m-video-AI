@@ -567,6 +567,9 @@ def test_nhan_bao_nham_giu_rieng_flag_changes_a25_note():
     giu = " ".join(mod.agent_summary([(22, it)], agent, giu_rieng=True))
     assert "TRONG MẪU" in mac_dinh and "BỘ GIỮ RIÊNG (A25/A28)" not in mac_dinh
     assert "BỘ GIỮ RIÊNG (A25/A28)" in giu and "TRONG MẪU" not in giu
+    # A28 sửa (main 60bcd50): bộ giữ riêng = 2 dự án mới sau #24, không còn "dự án K1a + dự án kế" (#24 là dự án K1a, đã dùng chỉnh luật)
+    for txt in (mac_dinh, giu):
+        assert "2 dự án mới sau #24" in txt and "K1a + dự án kế" not in txt
     assert "--giu-rieng" in open(mod.__file__, encoding="utf-8").read()
 
 
@@ -758,6 +761,36 @@ def test_k1a_missing_form_declaration_keeps_old_behavior_with_yellow_reason():
     rows = [x for x in idd.check(idd.declare_from_text(YEUNU_D2), P24_S7, view=view) if x["trang_thai"] != "khong_can"]
     assert rows and all("không rõ dạng" in x["khong_loc"] for x in rows)
     assert "canh_bao" not in idd.byd_view(byd, "yeunu")      # nhân vật một dạng (không truyền dang) → như cũ, không cảnh báo
+
+
+def test_k1a_old_byd_without_dang_che_keeps_old_results():
+    """Rà K1a: BYĐ cũ (hanh_dong chỉ tu_the, không dang/che) → kết quả check y như khi không có hanh_dong (hành vi trước K1a)."""
+    import copy
+    byd = copy.deepcopy(_byd_p24(9))
+    for c in byd["thanh_phan"]:
+        c.pop("dang", None)
+    for h in byd.get("hanh_dong") or []:
+        for st in h.values():
+            if isinstance(st, dict):
+                st.pop("che", None)
+    plain = dict(copy.deepcopy(byd), hanh_dong=[])
+    for vat, text in (("yeunu", YEUNU_D2), ("kelly", KELLY)):
+        new = idd.check(idd.declare_from_text(text), P24_S9, view=idd.byd_view(byd, vat))
+        old = idd.check(idd.declare_from_text(text), P24_S9, view=idd.byd_view(plain, vat))
+        assert new == old
+
+
+def test_k1a_unknown_che_is_reported_not_silent():
+    import copy
+    byd = copy.deepcopy(_byd_p24(9))
+    for h in byd["hanh_dong"]:
+        if h["ai"] == "yeunu":
+            h["bat_dau"]["che"] = ["mat", "bung_bu"]
+    view = idd.byd_view(byd, "yeunu", dang="dang2")
+    assert view["che"] == ["mat"] and "bung_bu" in view["canh_bao"][0]["loi"]
+    r = _by(idd.check(idd.declare_from_text(YEUNU_D2), P24_S9, view=view))
+    assert r["face"]["trang_thai"] == "khong_can"
+    assert r["belt"]["trang_thai"] != "khong_can" and "bung_bu" in r["belt"]["khong_loc"]
 
 
 def test_k1a_che_keys_match_shot_intent():

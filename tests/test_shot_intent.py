@@ -177,5 +177,31 @@ def test_k1a_optional_dang_and_che_fields():
     assert b["hanh_dong"][0]["bat_dau"]["che"] == ["mat", "eo"] and b["hanh_dong"][0]["nguon"] == "shot_specs"
 
 
+def _dryrun_mod():
+    import importlib.util
+    import os
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "dryrun_k0b_p24.py")
+    spec = importlib.util.spec_from_file_location("dryrun_k0b_p24", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_k1a_dryrun_pose_is_per_character_not_shared():
+    """Rà K1a: chạy khô suy tư thế từ chữ CHUNG cho mọi người trong shot → #24 S9 Kelly (ngồi) bị gán 'quy' vì chữ 'kneeling' của
+    yêu nữ. Tư thế phải theo đoạn chữ gắn với từng nhân vật; chữ không gắn tên ai (nhiều người) → không suy, ghi lý do."""
+    mod = _dryrun_mod()
+    cfg = mod.project_config(24)
+    spec = {"shot": 9, "thanh_phan": [{"vat": "kelly", "vai": "chinh"}, {"vat": "yeunu", "vai": "chinh"}], "co": "WS"}
+    data = {"action": "Kelly sits on the ground on the left, the creature kneeling and crying on the right"}
+    b, _i, _s, _n = mod.build_byd(spec, data, None, cfg)
+    assert {h["ai"]: h["bat_dau"]["tu_the"] for h in b["hanh_dong"]} == {"kelly": "ngoi", "yeunu": "quy"}
+    b, _i, suy, _n = mod.build_byd(spec, {"action": "kneeling in the fog"}, None, cfg)   # chữ không gọi tên ai, hai người
+    assert not b["hanh_dong"] and any("không suy" in s for s in suy)
+    one = dict(spec, thanh_phan=[{"vat": "kelly", "vai": "chinh"}])                      # một người → chữ là của người đó (như cũ)
+    b, _i, _s, _n = mod.build_byd(one, {"action": "kneeling in the fog"}, None, cfg)
+    assert [h["bat_dau"]["tu_the"] for h in b["hanh_dong"]] == ["quy"]
+
+
 if __name__ == "__main__":
     unittest.main()

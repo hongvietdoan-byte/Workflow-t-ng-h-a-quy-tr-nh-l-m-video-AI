@@ -173,10 +173,24 @@ def build_byd(spec, data, conn, cfg=None):
     names = list(dict.fromkeys(c["vat"] for c in b["thanh_phan"]))   # thứ tự thanh_phan (set làm tệp ra đổi thứ tự mỗi lần chạy)
     text = " ".join(str(data.get(k) or "") for k in ("action", "end_state", "image_prompt"))
     declared = {h.get("ai") for h in b["hanh_dong"]}     # K1a: shot_specs khai tay tư thế (+ che) → không suy đè từ chữ
-    for who in [c for c in names if c not in PROPS and c not in declared]:
-        st, phrase = pose_from_text(data.get("action") if data.get("action") else text)
-        if st is None:
-            st, phrase = pose_from_text(text)
+    people = [c for c in names if c not in PROPS]
+    # Rà K1a: tư thế suy THEO TỪNG NHÂN VẬT — chữ chia theo người được nhắc (idd.segment, từ đánh dấu của các tên cùng khóa sân khấu);
+    # trước đây cả câu dùng chung → #24 S9 Kelly bị gán 'quy' theo 'kneeling' của yêu nữ. Một người trong khung → cả chữ là của người đó.
+    marks = {w: sorted({m for n, k in cfg["stage_key"].items() if k == w for m in cfg["markers"].get(n, [n.lower()])} | {w})
+             for w in people}
+    for who in [c for c in people if c not in declared]:
+        if len(people) == 1:
+            st, phrase = pose_from_text(data.get("action") if data.get("action") else text)
+            if st is None:
+                st, phrase = pose_from_text(text)
+        else:
+            st, phrase = None, None
+            for src in ([data.get("action")] if data.get("action") else []) + [text]:
+                st, phrase = pose_from_text(idd.segment(src, marks).get(who, ""))
+                if st:
+                    break
+            if st is None:
+                suy.append(f"hanh_dong[{who}]: không suy tư thế — chữ không gắn tư thế với '{who}' (nhiều người trong khung)")
         if st:
             b["hanh_dong"].append({"ai": who, "bat_dau": st, "suy_tu_chu": True, "cum_tu": phrase})
             suy.append(f"hanh_dong[{who}].bat_dau ← chữ '{phrase}'")
