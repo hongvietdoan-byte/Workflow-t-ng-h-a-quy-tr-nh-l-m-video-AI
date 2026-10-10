@@ -775,6 +775,7 @@ class VideoRunner(_Runner):
         from . import video_pregen
         if not video_pregen.enabled():
             PREGEN_HELD.pop(job["id"], None)
+            self.__dict__.get("_pregen_fingerprints", {}).pop(job["id"], None)
             return False
         try:
             sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}

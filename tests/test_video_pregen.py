@@ -123,6 +123,15 @@ class Base(unittest.TestCase):
 
 
 class FlagOff(Base):
+    def test_manual_send_after_flag_off_has_no_cached_pregen_metadata(self):
+        scene, _ = self.shot()
+        job = self.p.create_job(scene, "video_gen")
+        vr = VideoRunner(self.p, MockVideoProvider(), self.dir)
+        vr._pregen_fingerprints = {job: "old local fingerprint"}
+        with mock.patch("core.video_pregen.enabled", return_value=False):
+            self.assertEqual(vr.submit_pending(self.pid, only=[job]), 1)
+        self.assertNotIn("pregen_fingerprint", json.loads(self.p.job(job)["sent_package"]))
+
     def test_package_bytes_and_spend_order_match_main_snapshot(self):
         import ast
         import datetime
