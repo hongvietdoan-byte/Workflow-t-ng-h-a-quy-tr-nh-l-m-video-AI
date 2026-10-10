@@ -1,0 +1,151 @@
+# Snapshot origin/main c78bcfe911935688fa19414b1f5da59ad87e1848 core/runner.py:_Runner
+def _submit_pending(self, project_id: int, only=None) -> int:
+        if self.p.project(project_id)["paused"]:
+            return 0
+        slots = self.max_concurrent - len(self._jobs(project_id, "running"))
+        submitted = 0
+        for job in self._jobs(project_id, "queued"):
+            if slots <= 0:
+                break
+            if only is not None and job["id"] not in only:
+                continue
+            if submitted and self.p.project(project_id)["paused"]:
+                break               # T2: paused while this pass was sending — the jobs sent so far are running, send no more
+            if self._wait(job):
+                WAIT_REASONS.setdefault(job["id"], ("chờ điều kiện gửi (ảnh/clip đi trước, nhóm shot)", time.time()))
+                continue            # v3: this job is sent later (after the previous shot's picture / with its multi-shot group)
+            WAIT_REASONS.pop(job["id"], None)
+            if job["external_id"]:
+                # T2: its task already exists at the provider (a multi-shot follower given the leader's task, relink_failed, or a send
+                # whose RUNNING step was lost) — sending it again would pay twice. It only moves to RUNNING; the next poll fetches it.
+                # Checked BEFORE _blocked (rà soát B1a): stale inputs must not write off a task already paid for.
+                stale = self._blocked(job)
+                self._running(job["id"], "đã có task ở nhà cung cấp — không gửi lại")
+                if stale:
+                    from .prompt_formula import FORMULA_MARK    # F1 sửa #11: a formula stop is not an "outdated input"
+                    what = stale if FORMULA_MARK in stale else f"đầu vào đã cũ ({stale})"
+                    self._diag(job, "warn", "stale_paid", f"{what} — nhưng task {job['external_id']} đã trả tiền — lấy kết "
+                                                          "quả về, không gửi lại")
+                else:
+                    self._diag(job, "info", "already_sent", f"job đã có task {job['external_id']} ở nhà cung cấp — chuyển sang đang chạy, "
+                                                            "không gửi lại (tránh trả tiền 2 lần)")
+                slots -= 1
+                continue
+            from . import change_review          # 10/10 Tổ rà soát tác động: mục đỏ còn mở → GIỮ chờ (sửa / bỏ qua thì tự gửi tiếp)
+            held = None
+            if job["scene_id"]:
+                group = getattr(self, "_sends_group", lambda j: None)(job) or []
+                for sid in [job["scene_id"]] + [g["id"] for g in group if g["id"] != job["scene_id"]]:
+                    held = change_review.blocking(self.p.conn, sid, self.data_dir)
+                    if held:
+                        break
+            if held:
+                WAIT_REASONS[job["id"]] = (held, time.time())
+                self._diag_once(job, "warn", "change_review_hold", f"chưa gửi: {held}")
+                continue
+            blocked = self._blocked(job)
+            if blocked:
+                self._diag(job, "warn", "stale_input", f"không gửi: {blocked}")
+                self._running(job["id"])                 # QUEUED→FAILED is not a transition (core/states.py): RUNNING, then fail
+                self.p.fail(job["id"], f"stale_input: {blocked}")
+                continue
+            args = self._submit_args(job)
+            if args is None and self._editing(job):
+                continue            # M5: the person is editing this shot's motion prompt — wait for the approval, do not burn a try
+            if args is None:
+                self._diag(job, "error", "missing_input", "thiếu đầu vào (ảnh đã duyệt / motion prompt / prompt ảnh)")
+                self._running(job["id"])
+                self.p.fail(job["id"], "missing inputs (approved image / motion prompt / image prompt)")
+                continue
+            running_all = self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type=? AND state='running'",
+                                              (self.job_type,)).fetchone()[0]
+            if not THROTTLE.allow(self.job_type, running_all, capped="mock" not in str(getattr(self.provider, "name", ""))):       # already includes the jobs this pass has started (they are 'running' now)
+                break  # learned limit for all projects together: wait for a slot
+            kwargs = self._submit_kwargs(job) if getattr(self.provider, "supports_aspect", False) else {}
+            if kwargs.get("_wait"):                  # rà F3: a passing provider error — stays queued, said, not failed, not sent
+                said = self.__dict__.setdefault("_final_waits", set())
+                if job["id"] not in said:             # said once, not on every heartbeat
+                    said.add(job["id"])
+                    self._diag(job, "info", "final_wait", kwargs["_wait"])
+                WAIT_REASONS[job["id"]] = (kwargs["_wait"], time.time())
+                continue
+            if kwargs.get("_hold"):                  # F3: the request may not go out unasked (a new paid final) — said, not sent
+                self._diag(job, "warn", "stale_input", f"không gửi: {kwargs['_hold']}")
+                self._running(job["id"])
+                self.p.fail(job["id"], f"stale_input: {kwargs['_hold']}")
+                continue
+            with budget.SPEND_LOCK:            # limit check + ledger entry as one step: two projects must not both pass the cap
+                over = self._over_budget(job, args, kwargs)
+                if over:
+                    self._diag(job, "warn", "budget", over)
+                    break                        # a real stop (S14.16: the service is out of credit): leave everything queued, say why
+                sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}   # '_' keys: the runner's notes, never sent
+                try:
+                    if kwargs.get("_from_sample"):       # N1: a final made from its approved Seedance 2.5 draft (draft_task)
+                        task_id = self.provider.submit_final_from_sample(kwargs["_from_sample"], resolution=kwargs.get("resolution"))
+                    else:
+                        task_id = self.provider.submit(*args, **sent_kwargs)
+                except ProviderError as e:
+                    if e.code == "rate_limited" and THROTTLE.on_rate_limited(self.job_type):   # halve the learned limit
+                        self._throttle_changed()
+                    if e.transient:
+                        self._diag(job, "warn", e.code, f"gửi job bị từ chối/tạm lỗi, sẽ thử lại: {e}")
+                        break  # network/server hiccup: leave the job queued, try again next heartbeat
+                    if e.code == "out_of_credit":           # Data Pack P5: halt every later send to this service, say it once
+                        from . import budget as _budget
+                        _budget.halt(self.p.conn, self.provider.name, str(e))
+                        self._diag(job, "error", e.code, f"HẾT TIỀN ở {self.provider.name} — đã dừng mọi lượt gửi; job giữ trong hàng "
+                                   "đợi, nạp tiền rồi mở lại ở ⚙ → 💵 Ngân sách")
+                        break
+                    self._diag(job, "warn" if e.code == RISK_CONTROL else "error", e.code, f"gửi job thất bại: {e}")
+                    self._running(job["id"])
+                    switched = self._record_provider_failure(job, e.code, str(e))
+                    self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
+                    if switched:
+                        self._retry_switched(job)
+                    continue
+                # T2: the task exists (and may be billed) from here on. Its id, its stamp and RUNNING are one transaction (the UPDATEs are
+                # not committed; transition() commits them with the state) — never Pipeline.start(): a pause pressed while submit()
+                # was in flight made start() raise and left a paid job queued, sent and paid again on the next pass.
+                # K1a: the package really sent, in the SAME transaction as the task id (before _stamp, which pops the runner's list
+                # of sent pictures). Built (pictures hashed) and written BEFORE the task id: no file reading while the write lock is
+                # held, and a package UPDATE that fails (even one SQLite answers with a rollback) cannot take the task id with it — the
+                # task id UPDATE below always runs after. A ledger, never a gate: its warnings are said after the ledger entry.
+                package_warns = self._write_sent_package(job, args, kwargs, sent_kwargs, task_id)
+                self.p.conn.execute("UPDATE jobs SET external_id=? WHERE id=?", (task_id, job["id"]))
+                for col, value in self._stamp(job, args).items():
+                    self.p.conn.execute(f"UPDATE jobs SET {col}=? WHERE id=?", (value, job["id"]))
+                try:
+                    self._running(job["id"])
+                except InvalidTransition as e:
+                    self.p.conn.commit()                    # keep the task id: it is the only link to what may be billed
+                    self._record_usage(job, args, kwargs)
+                    self._say_package(job, package_warns)
+                    self._cancelled_in_flight(job, task_id, e)
+                    continue
+                self._record_usage(job, args, kwargs)       # the spending ledger first: a failing package note never skips it
+                self._say_package(job, package_warns)
+            slots -= 1
+            submitted += 1
+        return submitted
+
+def _write_sent_package(self, job, args, kwargs, sent_kwargs, task_id) -> List[str]:
+        """K1a (core/sent_package.py): jobs.sent_package = what really left — the same args / kwargs the provider got. Never raises;
+        returns the warnings (unreadable picture, package not written) for _say_package."""
+        from . import sent_package
+        try:
+            kind = self.job_type.split("_")[0]
+            if kwargs.get("_from_sample"):
+                extra = sent_package.draft_of(self.p.conn, kwargs["_from_sample"])
+                pkg, warns = sent_package.safe_build(
+                    self.provider.submit_final_from_sample, (kwargs["_from_sample"],), {"resolution": kwargs.get("resolution")},
+                    kind=kind, provider=self.provider, external_id=task_id, model=extra.pop("draft_model", None),
+                    call="submit_final_from_sample", extra=extra)
+            else:
+                pkg, warns = sent_package.safe_build(self.provider.submit, tuple(args), sent_kwargs, kind=kind, provider=self.provider,
+                                                     external_id=task_id, meta=getattr(self, "_sent", {}).get(job["id"]))
+            if pkg is not None:
+                self.p.conn.execute("UPDATE jobs SET sent_package=? WHERE id=?", (pkg, job["id"]))
+            return warns
+        except Exception as e:  # noqa: BLE001 - a ledger, never a gate: the task exists, the send stands
+            return [f"không ghi được gói gửi ({type(e).__name__}: {e}) — job vẫn gửi, sent_package để trống"]

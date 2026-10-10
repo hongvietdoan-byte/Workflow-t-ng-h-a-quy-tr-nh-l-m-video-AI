@@ -54,6 +54,13 @@ _turns_lock = threading.Lock()
 # job, removed when it is sent. The step 2 screen says the real reason ("sẽ tự gửi khi …") instead of "bấm ▶ Gen ảnh"; core.bg_poll
 # sends the job by itself once the reason is gone. Same process as the dashboard (the background round runs inside it).
 WAIT_REASONS: Dict[int, Tuple[str, float]] = {}
+# K3 rà: a job held by the check before gen (video_pregen ĐỎ) — {job id: (reason, when held)}. Module-level like WAIT_REASONS: the
+# dashboard builds a NEW VideoRunner on every refresh, so per-runner memory (_diag_once) would let the hold note + the notes written while
+# building the request (Kho chủ thể, bản cao, prompt cắt) repeat on every heartbeat. A held job is re-checked at most every
+# PREGEN_RECHECK_S (a send asked for this very job — `only` — re-checks at once); its notes are written once per (job, code, text).
+PREGEN_HELD: Dict[int, Tuple[str, float]] = {}
+PREGEN_RECHECK_S = 30.0
+_PREGEN_SAID: set = set()
 _RENDER_RETRIED: Dict[Tuple[int, int], float] = {}   # (project, scene) whose missing 3D render a clip already had made again once
 WAIT_FRESH_SEC = 300
 
@@ -337,13 +344,23 @@ class _Runner:
                 WAIT_REASONS[job["id"]] = (held, time.time())
                 self._diag_once(job, "warn", "change_review_hold", f"chưa gửi: {held}")
                 continue
-            blocked = self._blocked(job)
+            try:
+                blocked = self._blocked(job)
+            except (OSError, ValueError, ProviderError) as error:
+                if self._pregen_prepare_error(job, error):
+                    continue
+                raise
             if blocked:
                 self._diag(job, "warn", "stale_input", f"không gửi: {blocked}")
                 self._running(job["id"])                 # QUEUED→FAILED is not a transition (core/states.py): RUNNING, then fail
                 self.p.fail(job["id"], f"stale_input: {blocked}")
                 continue
-            args = self._submit_args(job)
+            try:
+                args = self._submit_args(job)
+            except (OSError, ValueError, ProviderError) as error:
+                if self._pregen_prepare_error(job, error):
+                    continue
+                raise
             if args is None and self._editing(job):
                 continue            # M5: the person is editing this shot's motion prompt — wait for the approval, do not burn a try
             if args is None:
@@ -355,7 +372,14 @@ class _Runner:
                                               (self.job_type,)).fetchone()[0]
             if not THROTTLE.allow(self.job_type, running_all, capped="mock" not in str(getattr(self.provider, "name", ""))):       # already includes the jobs this pass has started (they are 'running' now)
                 break  # learned limit for all projects together: wait for a slot
-            kwargs = self._submit_kwargs(job) if getattr(self.provider, "supports_aspect", False) else {}
+            if only is None and self._pregen_cooling(job):
+                continue            # K3 rà: held by the check before gen a moment ago — no rebuild of the request on every heartbeat
+            try:
+                kwargs = self._prepare_kwargs(job) if getattr(self.provider, "supports_aspect", False) else {}
+            except (OSError, ValueError, ProviderError) as error:
+                if self._pregen_prepare_error(job, error):
+                    continue
+                raise
             if kwargs.get("_wait"):                  # rà F3: a passing provider error — stays queued, said, not failed, not sent
                 said = self.__dict__.setdefault("_final_waits", set())
                 if job["id"] not in said:             # said once, not on every heartbeat
@@ -368,11 +392,19 @@ class _Runner:
                 self._running(job["id"])
                 self.p.fail(job["id"], f"stale_input: {kwargs['_hold']}")
                 continue
+            if self._pregen(job, args, kwargs):      # K3 (cờ video_pregen): ĐỎ → giữ chờ người, các job khác vẫn gửi
+                continue
             with budget.SPEND_LOCK:            # limit check + ledger entry as one step: two projects must not both pass the cap
                 over = self._over_budget(job, args, kwargs)
                 if over:
                     self._diag(job, "warn", "budget", over)
                     break                        # a real stop (S14.16: the service is out of credit): leave everything queued, say why
+                try:
+                    kwargs = self._finish_kwargs(job, kwargs)
+                except (OSError, ValueError, ProviderError) as error:
+                    if self._pregen_prepare_error(job, error):
+                        continue
+                    raise
                 sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}   # '_' keys: the runner's notes, never sent
                 try:
                     if kwargs.get("_from_sample"):       # N1: a final made from its approved Seedance 2.5 draft (draft_task)
@@ -423,21 +455,42 @@ class _Runner:
             submitted += 1
         return submitted
 
+    def _build_package(self, job, args, kwargs, sent_kwargs, task_id):
+        """(JSON text of the package, warnings) for this send — one builder for the ledger (_write_sent_package) and the K3 check before
+        gen (_pregen: the same package BEFORE the send, task_id None). Never raises (sent_package.safe_build)."""
+        from . import sent_package
+        kind = self.job_type.split("_")[0]
+        if kwargs.get("_from_sample"):
+            extra = sent_package.draft_of(self.p.conn, kwargs["_from_sample"])
+            return sent_package.safe_build(
+                self.provider.submit_final_from_sample, (kwargs["_from_sample"],), {"resolution": kwargs.get("resolution")},
+                kind=kind, provider=self.provider, external_id=task_id, model=extra.pop("draft_model", None),
+                call="submit_final_from_sample", extra=extra)
+        return sent_package.safe_build(self.provider.submit, tuple(args), sent_kwargs, kind=kind, provider=self.provider,
+                                       external_id=task_id, meta=getattr(self, "_sent", {}).get(job["id"]))
+
+    def _prepare_kwargs(self, job):
+        return self._submit_kwargs(job)
+
+    def _finish_kwargs(self, job, kwargs):
+        return kwargs
+
+    def _pregen_prepare_error(self, job, error):
+        return False
+
+    def _pregen(self, job, args, kwargs) -> bool:
+        """K3 (A17): code check of the request right before it is paid for; True = held (not sent). Only the video runner checks."""
+        return False
+
+    def _pregen_cooling(self, job) -> bool:
+        """K3 rà: True = the job was held by _pregen less than PREGEN_RECHECK_S ago — stays queued with its reason, not re-checked yet."""
+        return False
+
     def _write_sent_package(self, job, args, kwargs, sent_kwargs, task_id) -> List[str]:
         """K1a (core/sent_package.py): jobs.sent_package = what really left — the same args / kwargs the provider got. Never raises;
         returns the warnings (unreadable picture, package not written) for _say_package."""
-        from . import sent_package
         try:
-            kind = self.job_type.split("_")[0]
-            if kwargs.get("_from_sample"):
-                extra = sent_package.draft_of(self.p.conn, kwargs["_from_sample"])
-                pkg, warns = sent_package.safe_build(
-                    self.provider.submit_final_from_sample, (kwargs["_from_sample"],), {"resolution": kwargs.get("resolution")},
-                    kind=kind, provider=self.provider, external_id=task_id, model=extra.pop("draft_model", None),
-                    call="submit_final_from_sample", extra=extra)
-            else:
-                pkg, warns = sent_package.safe_build(self.provider.submit, tuple(args), sent_kwargs, kind=kind, provider=self.provider,
-                                                     external_id=task_id, meta=getattr(self, "_sent", {}).get(job["id"]))
+            pkg, warns = self._build_package(job, args, kwargs, sent_kwargs, task_id)
             if pkg is not None:
                 self.p.conn.execute("UPDATE jobs SET sent_package=? WHERE id=?", (pkg, job["id"]))
             return warns
@@ -714,6 +767,116 @@ class VideoRunner(_Runner):
         if self._refs(job):
             return self._ref_lint(job)
         return None
+
+    def _pregen(self, job, args, kwargs) -> bool:
+        """K3 (A17, core/video_pregen.py, cờ video_pregen — tắt = y cũ): kiểm gói video TRƯỚC khi trả tiền. ĐỎ → không gửi: job ở lại hàng
+        đợi chờ người (WAIT_REASONS, như Tổ rà soát giữ) + một dòng ⚙ Chẩn đoán; sửa đầu vào xong lượt gửi sau tự đi. VÀNG → gửi + ghi.
+        Lớp kiểm hỏng → ĐỎ có lý do (không gửi khi chưa kiểm được). Chỉ giữ job này: vòng gửi đi tiếp sang job khác (lô / autopilot)."""
+        from . import video_pregen
+        if not video_pregen.enabled():
+            PREGEN_HELD.pop(job["id"], None)
+            self.__dict__.get("_pregen_fingerprints", {}).pop(job["id"], None)
+            return False
+        try:
+            sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}
+            pkg, _ = self._build_package(job, args, kwargs, sent_kwargs, None)
+            group = self._sends_group(job) or []
+            plan = video_pregen.plan_of(job, args, kwargs, pkg, self.data_dir, [r["id"] for r in group])
+            issues = video_pregen.check(self.p.conn, job["scene_id"], plan)
+        except Exception as e:  # noqa: BLE001 - a check that cannot run must not let the money go (luật 1: không im lặng)
+            issues = [{"ma": "loi_kiem", "muc": video_pregen.DO,
+                       "ly_do": f"lớp kiểm trước gen lỗi ({type(e).__name__}: {e}) — chưa gửi khi chưa kiểm được"}]
+        reds = [i for i in issues if i["muc"] == video_pregen.DO]
+        for i in issues:
+            if i["muc"] != video_pregen.DO:
+                self._pregen_note(job, "video_pregen", f"kiểm trước gen (vàng, vẫn gửi): {i['ly_do']}")
+        if not reds:
+            PREGEN_HELD.pop(job["id"], None)
+            self.__dict__.setdefault("_pregen_fingerprints", {})[job["id"]] = video_pregen.fingerprint(plan["package"])
+            return False
+        line = "kiểm trước gen chặn: " + video_pregen.summary(reds)
+        now = time.time()
+        WAIT_REASONS[job["id"]] = (line, now)
+        PREGEN_HELD[job["id"]] = (line, now)
+        self._pregen_note(job, "video_pregen_hold", f"chưa gửi — {line}")
+        return True
+
+    def _pregen_note(self, job, code: str, message: str) -> None:
+        """One ⚙ Chẩn đoán line per (job, code, text) for the life of the process (not per runner object — see PREGEN_HELD)."""
+        key = (job["id"], code, message)
+        if key in _PREGEN_SAID:
+            return
+        if len(_PREGEN_SAID) > 5000:
+            _PREGEN_SAID.clear()
+        _PREGEN_SAID.add(key)
+        super()._diag(job, "warn", code, message)
+
+    def _prepare_kwargs(self, job):
+        from . import video_pregen
+        self._pregen_local = video_pregen.enabled()
+        self._pregen_deferred = []
+        try:
+            return self._submit_kwargs(job)
+        finally:
+            self._pregen_local = False
+
+    def _pregen_prepare_error(self, job, error):
+        from . import video_pregen
+        if not video_pregen.enabled():
+            return False
+        line = f"kiểm trước gen chặn: không chuẩn bị được tệp / tham chiếu ({type(error).__name__}: {error}) — chỉ giữ shot này"
+        now = time.time()
+        WAIT_REASONS[job["id"]] = PREGEN_HELD[job["id"]] = (line, now)
+        self._pregen_note(job, "video_pregen_hold", f"chưa gửi — {line}")
+        return True
+
+    def _finish_kwargs(self, job, kwargs):
+        from . import seedance_refs
+        for pending in self.__dict__.get("_pregen_deferred", []):
+            hosted = self._hosted_pictures(job, pending["pictures"], clean=pending["clean"])
+            if hosted is None:
+                hosted = [path for _, path in pending["pictures"]]
+                if pending.get("mark_fallback"):
+                    out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
+                    hosted = [seedance_refs.mark(path, out_dir) for path in hosted]
+            pending["local"][:] = hosted
+        self._pregen_deferred = []
+        return kwargs
+
+    def _build_package(self, job, args, kwargs, sent_kwargs, task_id):
+        pkg, warns = super()._build_package(job, args, kwargs, sent_kwargs, task_id)
+        fingerprint = self.__dict__.get("_pregen_fingerprints", {}).get(job["id"])
+        if pkg and task_id is not None and fingerprint:
+            body = json.loads(pkg)
+            body["pregen_fingerprint"] = fingerprint
+            pkg = json.dumps(body, ensure_ascii=False)
+        return pkg, warns
+
+    def _pregen_cooling(self, job) -> bool:
+        from . import video_pregen
+        if not video_pregen.enabled():
+            PREGEN_HELD.pop(job["id"], None)
+            self.__dict__.get("_pregen_fingerprints", {}).pop(job["id"], None)
+            return False
+        hit = PREGEN_HELD.get(job["id"])
+        if not hit or time.time() - hit[1] >= PREGEN_RECHECK_S:
+            return False
+        WAIT_REASONS[job["id"]] = hit
+        return True
+
+    def _diag(self, job, severity: str, code, message: str) -> None:
+        """K3 rà: while a job is held by the check before gen, the notes written when its request is rebuilt (Kho chủ thể, bản cao,
+        prompt cắt, giọng…) are said once, not on every re-check."""
+        try:
+            held = job["id"] in PREGEN_HELD
+        except (TypeError, KeyError, IndexError):
+            held = False
+        if held:
+            key = (job["id"], "held:" + str(code), message)
+            if key in _PREGEN_SAID:
+                return
+            _PREGEN_SAID.add(key)
+        super()._diag(job, severity, code, message)
 
     def _gore_hinted(self, job, group, scene_id: int) -> bool:
         """F1 sửa #5: does the FF gore-restraint sentence really go with this shot on this job's send path? A Kling multi-shot group:
@@ -1068,6 +1231,8 @@ class VideoRunner(_Runner):
         hosted = self._hosted_pictures(job, list(zip(labels, frames))
                                        + extras, clean=True)
         if hosted:
+            if self.__dict__.get("_pregen_local"):
+                self._pregen_deferred[-1]["mark_fallback"] = True
             return hosted
         out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
         return [seedance_refs.mark(p, out_dir) for p in frames + [path for _, path in extras]]
@@ -1082,6 +1247,14 @@ class VideoRunner(_Runner):
         from . import features, seedance_refs
         if not features.on("seedance_subjects") or not pictures or not getattr(self.provider, "supports_subjects", False):
             return None
+        if self.__dict__.get("_pregen_local"):
+            if clean:
+                out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_clean")
+                pictures = [(label, seedance_refs.mark(path, out_dir, style="none")) for label, path in pictures]
+                clean = False
+            local = [path for _, path in pictures]
+            self._pregen_deferred.append({"local": local, "pictures": list(pictures), "clean": clean})
+            return local
         lib = self.subject_library
         if lib is None:
             from .adapters import factory
@@ -1289,6 +1462,12 @@ class VideoRunner(_Runner):
                 idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (group[0]["id"],)).fetchone()
                 lead = f" (S{idx['idx']:02d})" if idx else ""
                 why = self._lead_failure(group[0]["id"])         # F1 sửa #4: a leader stopped (e.g. prompt sai công thức) is said here
+                lead_job = self.p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='video_gen' ORDER BY id DESC LIMIT 1",
+                                              (group[0]["id"],)).fetchone()
+                pregen = PREGEN_HELD.get(lead_job["id"]) if lead_job else None
+                from . import video_pregen
+                if pregen and video_pregen.enabled():
+                    return self._hold(job, f"chờ clip nhóm gửi từ shot đầu nhóm{lead} — {pregen[0]}; sửa đầu vào shot đó, phần này đi cùng clip nhóm")
                 return self._hold(job, f"chờ clip nhóm gửi từ shot đầu nhóm{lead} — "
                                   + (f"shot đầu nhóm đang hỏng ({why}) — sửa rồi gửi lại shot đó, phần này đi cùng clip nhóm" if why
                                      else "gửi shot đó trước, phần này đi cùng clip nhóm"))
@@ -1434,15 +1613,24 @@ class VideoRunner(_Runner):
             image_refs = assets.scene_references(conn, job["project_id"], scene_data)
             missing = [r for r in image_refs if not os.path.exists(r["path"])]
             if missing:  # traceable: shows up in 📊 Theo dõi hiệu suất, points at exactly which picture went missing
+                from . import video_pregen
+                from .adapters.clipai import SEEDANCE_REFS_WITH_FIRST_FRAME
+                keep_missing = video_pregen.enabled() and SEEDANCE_REFS_WITH_FIRST_FRAME and not self._refs(job)
                 self._diag(job, "warn", "missing_reference",
-                          "ảnh tham chiếu không đọc được (bỏ qua, video vẫn gen): " + ", ".join(r["label"] for r in missing))
-                image_refs = [r for r in image_refs if r not in missing]
+                          ("ảnh tham chiếu không đọc được (giữ để lớp kiểm trước gen báo chặn): " if keep_missing else
+                           "ảnh tham chiếu không đọc được (bỏ qua, video vẫn gen): ") + ", ".join(r["label"] for r in missing))
+                if not keep_missing:
+                    image_refs = [r for r in image_refs if r not in missing]
         ref_video = None
         if mp["ref_video_path"] and os.path.exists(mp["ref_video_path"]):
             ref_video = {"path": mp["ref_video_path"], "refer_type": mp["ref_video_type"] or "feature"}
         elif mp["ref_video_path"]:
+            from . import video_pregen
+            if video_pregen.enabled():
+                ref_video = {"path": mp["ref_video_path"], "refer_type": mp["ref_video_type"] or "feature"}
             self._diag(job, "warn", "missing_reference",
-                      f"video tham chiếu chuyển động không đọc được (bỏ qua, video vẫn gen): {mp['ref_video_path']}")
+                      (f"video tham chiếu chuyển động không đọc được (giữ để lớp kiểm trước gen báo chặn): {mp['ref_video_path']}"
+                       if ref_video else f"video tham chiếu chuyển động không đọc được (bỏ qua, video vẫn gen): {mp['ref_video_path']}"))
         if skill:            # S10.4: the skill way sends its pictures / videos as keyword arguments (_submit_kwargs) — not twice
             subj_refs, image_refs, ref_video = [], [], None
         if proj["video_audio"] or subj_refs or image_refs or ref_video:  # extra args only when used: older providers keep working

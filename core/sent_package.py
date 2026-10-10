@@ -75,7 +75,24 @@ def rel_path(path: str) -> str:
     return p.replace("\\", "/")
 
 
+_BIG = 8 << 20                 # K3: a file this big (a reference video) is hashed once per (path, size, mtime) — the check before
+_BIG_SHA: Dict[tuple, str] = {}   # gen (core/video_pregen) builds the package on every pass of a held job; pictures are always re-read
+
+
 def sha256_of(path: str) -> str:
+    st = os.stat(path)
+    key = (os.path.abspath(path), st.st_size, st.st_mtime_ns) if st.st_size >= _BIG else None
+    if key is not None and key in _BIG_SHA:
+        return _BIG_SHA[key]
+    value = _sha256_read(path)
+    if key is not None:
+        if len(_BIG_SHA) > 500:
+            _BIG_SHA.clear()
+        _BIG_SHA[key] = value
+    return value
+
+
+def _sha256_read(path: str) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):

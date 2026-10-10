@@ -271,7 +271,6 @@ S14.45 vẫn nhận; mã mới nhận; mã rác bị từ chối với lý do.
 (Codex ghi: việc · nhánh · commit · test đỏ→xanh · việc mở.)
 
 ---
----
 
 # ĐỢT 4 — rà K3 + test chập chờn + đo thời gian test (10/10 khuya, người dùng duyệt cả 3 việc)
 
@@ -315,4 +314,6 @@ chậm nhất (id · giây) + tổng thời gian + số test hỏng (nếu có, 
 
 ## Kết quả Codex — đợt 4
 
-(Codex ghi: việc · nhánh · commit · test đỏ→xanh · việc mở.)
+| Việc | Nhánh | Commit | Bằng chứng / việc mở |
+|---|---|---|---|
+| 1 | `codex/d4-viec1-ra-k3` | `025b346` (các lỗi riêng: `d571899`, `008621b`, `1754c84`, `7921f56`, `9eb14a8`, `dc7a436`, `9841fe2`, `9c79536`; fixture `e2d0c02`) | Rà đủ 4 điểm; 15 test mới, từng lỗi đỏ→xanh. Nhóm liên quan 162 passed / 2 skipped; kiểm cuối K3 + sent_package 64 passed. So gói cờ tắt từng byte và thứ tự ghi sổ với snapshot main c78bcfe. Rà độc lập trước commit + rà lượt hai; báo cáo `docs/RA_D4_VIEC1_CODEX_2026-10-10.md`. Chưa thử provider thật, chưa chạy cả bộ, K3 mặc định tắt. |

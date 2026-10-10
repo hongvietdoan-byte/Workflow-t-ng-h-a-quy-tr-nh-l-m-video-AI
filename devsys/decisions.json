@@ -766,6 +766,13 @@
    "who": "code",
    "what": "K1a: kiểm BYĐ Đạo diễn điền cho từng shot (shot_intent.validate, mã Kho có thật) — lỗi gửi lại Đạo diễn, còn lỗi → VÀNG + ⚙ Chẩn đoán (cờ shot_intent)",
    "where": "core/director_byd.py:settle"
+  },
+  {
+   "id": "d100",
+   "step": "step4",
+   "who": "code",
+   "what": "K3: kiểm gói video TRƯỚC gen (khung đầu duyệt + sha, khung cuối + ket_thuc BYĐ, thời lượng/thoại, tham chiếu theo luật model, đầu–đỉnh–cuối + máy enum, vân tay N10) — ĐỎ giữ chờ người (cờ video_pregen)",
+   "where": "core/video_pregen.py:check"
   }
  ]
 }

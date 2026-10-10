@@ -366,6 +366,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "K1a (docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md, A14/A19/A29): mới thử bằng Claude giả lập — chưa chạy Đạo diễn thật "
                "có BYĐ (thêm token ra mỗi shot + tối đa 2 lượt sửa, ước tính hiện ở nút Director)",
     },
+    "video_pregen": {
+        "label": "K3 lớp code kiểm video TRƯỚC gen (0 USD): khung đầu = ảnh đã duyệt hiện hành (job + sha), khung cuối đã duyệt + khớp "
+                 "ket_thuc BYĐ, thời lượng hợp model + thoại, video/ảnh tham chiếu theo luật model, motion đủ đầu–đỉnh–cuối + chuyển "
+                 "động máy enum, vân tay gói khác lần gen trước (N10) — ĐỎ thì giữ job chờ người, VÀNG gửi + ghi ⚙ Chẩn đoán",
+        "verified": False,
+        "why": "K3 (docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md mục 3.4b, A17): mới thử bằng CSDL tạm + provider giả — chưa chạy trên "
+               "dự án thật (đo báo nhầm trên #24 trước khi bật)",
+    },
     "murch_knowledge": {
         "label": "Bộ não prompt Đợt 2: Director + motion đọc thang ưu tiên cảm xúc (Murch), motion đọc kỷ luật I2V (giữ trước, hỏng thì "
                  "giảm chuyển động, check_flags gọi tên rủi ro), Director đọc phương pháp âm thanh; người xem lần đầu chấm thêm cam_xuc",

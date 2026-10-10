@@ -1,0 +1,742 @@
+"""K3 (A17) lớp code kiểm video TRƯỚC gen — core/video_pregen.py, nối ở VideoRunner._pregen (cờ video_pregen, mặc định tắt).
+Mỗi mục (1)–(6) có ca chặn + ca qua; cờ tắt y cũ; một shot ĐỎ không chặn shot khác trong cùng vòng gửi (đường lô / autopilot đều đi
+qua submit_pending). CSDL tạm, provider giả, không gọi API, không đụng data/."""
+import functools
+import json
+import os
+import tempfile
+import unittest
+from unittest import mock
+
+from core import llm_io, runner, sent_package, video_pregen
+from core.db import connect
+from core.pipeline import Pipeline
+from core.providers import MockVideoProvider
+from core.runner import VideoRunner
+from tests._flags import flags_on
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def spy(provider):
+    orig = provider.submit
+    calls = []
+
+    @functools.wraps(orig)
+    def wrapper(*a, **k):
+        calls.append((a, dict(k)))
+        return orig(*a, **k)
+    provider.submit = wrapper
+    return calls
+
+
+def byd(**over):
+    b = {"shot": 1, "thanh_phan": [{"vat": "kelly", "vai": "chinh", "vung": "giua", "thay": "mat"}],
+         "hanh_dong": [{"ai": "kelly", "bat_dau": {"tu_the": "dung"}}],
+         "may": {"co": "MS", "do_cao": "ngang", "goc": "ngang", "chuyen_dong": "dung_yen"}, "noi_chon": {}}
+    b.update(over)
+    return b
+
+
+class Base(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.p = Pipeline(connect(os.path.join(self.tmp, "t.db")))
+        self.dir = os.path.join(self.tmp, "projects")
+        os.makedirs(self.dir)
+        self.pid = self.p.create_project("k3", max_retry=2)
+        self.idx = 0
+        for held in (runner.PREGEN_HELD, runner._PREGEN_SAID, runner.WAIT_REASONS):    # process-level: job ids repeat per test db
+            held.clear()
+            self.addCleanup(held.clear)
+
+    def tearDown(self):
+        self.p.conn.close()
+
+    def on(self):
+        flags_on(self, "video_pregen")
+
+    def shot(self, prompt="she walks forward", data=None, duration=5, picture=True):
+        self.idx += 1
+        scene = self.p.create_scene(self.pid, self.idx, f"S{self.idx}")
+        if data is not None:
+            self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), scene))
+            self.p.conn.commit()
+        img = self.p.create_job(scene)
+        self.p.start(img)
+        self.p.succeed(img)
+        self.p.approve(img)
+        if picture:
+            self.write(self.image_path(img), b"picture-" + str(img).encode())
+        llm_io.store_motion_prompts(self.p, self.pid, {"scenes": [{"idx": self.idx, "motion_prompt": prompt, "duration_sec": duration}]})
+        llm_io.approve_motion_prompt(self.p, scene)
+        return scene, img
+
+    def image_path(self, img):
+        return os.path.join(self.dir, str(self.pid), "images", f"job_{img}.png")
+
+    def write(self, path, body):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if path.endswith(".png") and not body.startswith(b"\x89PNG"):
+            import hashlib
+            from PIL import Image
+            Image.new("RGB", (32, 32), tuple(hashlib.sha256(body).digest()[:3])).save(path)
+            return path
+        with open(path, "wb") as f:
+            f.write(body)
+        return path
+
+    def send(self):
+        prov = MockVideoProvider()
+        calls = spy(prov)
+        VideoRunner(self.p, prov, self.dir, max_concurrent=5).submit_pending(self.pid)
+        return calls
+
+    def state(self, job):
+        return self.p.job(job)["state"]
+
+    def holds(self):
+        return [r["message"] for r in self.p.conn.execute("SELECT message FROM diag_events WHERE code='video_pregen_hold'")]
+
+    def yellows(self):
+        return [r["message"] for r in self.p.conn.execute("SELECT message FROM diag_events WHERE code='video_pregen'")]
+
+    def clip_done(self, job):
+        """The send produced a clip (paid + result): the next gen of the shot is a REDO for N10."""
+        self.p.conn.execute("UPDATE jobs SET state='succeeded', result_path='clip.mp4' WHERE id=?", (job,))
+        self.p.conn.commit()
+
+    def plan(self, scene, img, **over):
+        """A plan like VideoRunner builds it (package from the real builder), for direct check() cases."""
+        path = self.image_path(img)
+        args = (path, "she walks forward", None, over.pop("duration", 5), over.pop("model", "kling"))
+        kwargs = over.pop("kwargs", {})
+        pkg, _ = sent_package.safe_build(MockVideoProvider().submit, args, kwargs, kind="video", provider=MockVideoProvider(),
+                                         external_id=None)
+        job = {"id": over.pop("job_id", 999), "project_id": self.pid}
+        plan = video_pregen.plan_of(job, args, kwargs, pkg, self.dir, over.pop("group_ids", []))
+        plan.update(over)
+        return plan
+
+    def reds(self, issues, ma=None):
+        return [i for i in issues if i["muc"] == "do" and (ma is None or i["ma"] == ma)]
+
+
+class FlagOff(Base):
+    def test_manual_send_after_flag_off_has_no_cached_pregen_metadata(self):
+        scene, _ = self.shot()
+        job = self.p.create_job(scene, "video_gen")
+        vr = VideoRunner(self.p, MockVideoProvider(), self.dir)
+        vr._pregen_fingerprints = {job: "old local fingerprint"}
+        with mock.patch("core.video_pregen.enabled", return_value=False):
+            self.assertEqual(vr.submit_pending(self.pid, only=[job]), 1)
+        self.assertNotIn("pregen_fingerprint", json.loads(self.p.job(job)["sent_package"]))
+
+    def test_package_bytes_and_spend_order_match_main_snapshot(self):
+        import ast
+        import datetime
+        import pathlib
+        import types
+        source = (pathlib.Path(ROOT) / "tests/fixtures/k3_flagoff_runner_c78bcfe.txt").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        names = ("_submit_pending", "_write_sent_package")
+        old = ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names], type_ignores=[])
+        namespace = dict(runner.__dict__)
+        exec(compile(ast.fix_missing_locations(old), "main_snapshot", "exec"), namespace)
+        scene, _ = self.shot()
+        job = self.p.create_job(scene, "video_gen")
+        class FrozenTime(datetime.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return cls(2026, 10, 10, 12, 0, 0, tzinfo=tz)
+        results = []
+        for before in (True, False):
+            vr = VideoRunner(self.p, MockVideoProvider(), self.dir)
+            if before:
+                for name in names:
+                    setattr(vr, name, types.MethodType(namespace[name], vr))
+            order = []
+            def trace(sql):
+                if sql.startswith("UPDATE jobs SET sent_package="):
+                    order.append("package")
+                elif sql.startswith("UPDATE jobs SET external_id="):
+                    order.append("external_id")
+                elif sql.startswith("UPDATE jobs SET state=") and "'running'" in sql:
+                    order.append("running")
+                elif sql.startswith("INSERT INTO usage_events"):
+                    order.append("spend")
+            self.p.conn.set_trace_callback(trace)
+            with mock.patch("core.sent_package.datetime.datetime", FrozenTime), \
+                    mock.patch("core.video_pregen.enabled", return_value=False):
+                self.assertEqual(vr.submit_pending(self.pid), 1)
+            self.p.conn.set_trace_callback(None)
+            results.append((self.p.job(job)["sent_package"], self.p.job(job)["external_id"], order))
+            self.p.conn.execute("UPDATE jobs SET state='queued', external_id=NULL, sent_package=NULL WHERE id=?", (job,))
+            self.p.conn.commit()
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(results[1][2], ["package", "external_id", "running", "spend"])
+        self.assertNotIn("pregen_fingerprint", results[1][0])
+
+    def test_flag_off_sends_like_before(self):
+        """Cờ tắt: y cũ — kể cả khi lớp kiểm sẽ chặn (ảnh khung đầu không có tệp)."""
+        scene, _ = self.shot(picture=False)
+        job = self.p.create_job(scene, "video_gen")
+        self.assertFalse(video_pregen.enabled())
+        self.assertEqual(len(self.send()), 1)
+        self.assertEqual(self.state(job), "running")
+        self.assertEqual(self.holds(), [])
+
+
+class StartFrame(Base):                       # (1)
+    def test_pass_current_approved_picture(self):
+        self.on()
+        scene, _ = self.shot(data={"byd": byd()})
+        job = self.p.create_job(scene, "video_gen")
+        self.assertEqual(len(self.send()), 1)
+        self.assertEqual(self.state(job), "running")
+        self.assertEqual(self.holds(), [])
+
+    def test_block_missing_file_is_held_waiting_for_person(self):
+        self.on()
+        scene, _ = self.shot(picture=False)
+        job = self.p.create_job(scene, "video_gen")
+        self.assertEqual(self.send(), [])
+        self.assertEqual(self.state(job), "queued")                  # chờ người, không đốt lượt
+        self.assertIn("không đọc được tệp ảnh khung đầu", runner.wait_reason(job) or "")
+        self.assertTrue(any("khung đầu" in m for m in self.holds()))
+
+    def test_block_picture_replaced_after_last_send(self):
+        self.on()
+        scene, img = self.shot(data={"byd": byd()})
+        first = self.p.create_job(scene, "video_gen")
+        self.assertEqual(len(self.send()), 1)
+        self.clip_done(first)
+        self.write(self.image_path(img), b"another picture, same name")      # thay tệp, không duyệt lại
+        self.p.conn.execute("UPDATE motion_prompts SET motion_prompt='she runs forward' WHERE scene_id=?", (scene,))
+        self.p.conn.commit()
+        second = self.p.create_job(scene, "video_gen")
+        self.assertEqual(self.send(), [])
+        self.assertEqual(self.state(second), "queued")
+        self.assertTrue(any("đã bị thay" in m for m in self.holds()))
+
+    def test_block_not_the_current_approved_picture(self):
+        scene, old = self.shot()
+        new = self.p.create_job(scene)
+        self.p.start(new)
+        self.p.succeed(new)
+        self.p.approve(new)
+        got = video_pregen.check(self.p.conn, scene, self.plan(scene, old))
+        self.assertTrue(self.reds(got, "khung_dau"), got)
+        self.assertIn(f"job {new}", self.reds(got, "khung_dau")[0]["ly_do"])
+
+    def test_block_no_approved_picture(self):
+        scene, img = self.shot()
+        self.p.conn.execute("UPDATE jobs SET state='rejected' WHERE id=?", (img,))     # bỏ duyệt
+        got = video_pregen.check(self.p.conn, scene, self.plan(scene, img))
+        self.assertIn("ĐÃ DUYỆT", self.reds(got, "khung_dau")[0]["ly_do"])
+
+
+class EndFrame(Base):                         # (2)
+    def end_frame(self, scene, img, state="ready"):
+        path = self.write(os.path.join(self.tmp, f"end_{scene}.png"), b"end")
+        self.p.conn.execute("INSERT INTO end_frames (project_id, scene_id, start_job_id, state, path, created_at, updated_at) "
+                            "VALUES (?,?,?,?,?,datetime('now'),datetime('now'))", (self.pid, scene, img, state, path))
+        self.p.conn.commit()
+        return path
+
+    def test_pass_ready_end_frame_matching_byd(self):
+        b = byd(hanh_dong=[{"ai": "kelly", "bat_dau": {"tu_the": "dung"}, "dinh": {"tu_the": "quy"}, "ket_thuc": {"tu_the": "nga_ngua"}}])
+        scene, img = self.shot(data={"byd": b})
+        path = self.end_frame(scene, img)
+        got = video_pregen.check(self.p.conn, scene, self.plan(scene, img, kwargs={"last_frame": path}))
+        self.assertEqual([i for i in got if i["ma"] == "khung_cuoi"], [])
+
+    def test_block_end_frame_not_approved(self):
+        scene, img = self.shot(data={"byd": byd()})
+        path = self.end_frame(scene, img, state="rejected")
+        got = video_pregen.check(self.p.conn, scene, self.plan(scene, img, kwargs={"last_frame": path}))
+        self.assertTrue(self.reds(got, "khung_cuoi"), got)
+
+    def test_block_end_frame_drawn_from_old_start(self):
+        scene, img = self.shot(data={"byd": byd()})
+        path = self.end_frame(scene, img - 1000)
+        got = video_pregen.check(self.p.conn, scene, self.plan(scene, img, kwargs={"last_frame": path}))
+        self.assertTrue(self.reds(got, "khung_cuoi"), got)
+
+    def test_block_byd_says_no_change(self):
+        b = byd(hanh_dong=[{"ai": "kelly", "bat_dau": {"tu_the": "dung"}, "dinh": {"tu_the": "dung"}, "ket_thuc": {"tu_the": "dung"}}])
+        scene, img = self.shot(data={"byd": b})
+        path = self.end_frame(scene, img)
+        got = video_pregen.check(self.p.conn, scene, self.plan(scene, img, kwargs={"last_frame": path}))
+        self.assertTrue(self.reds(got, "khung_cuoi"), got)
+
+    def test_no_byd_is_yellow_not_red(self):
+        scene, img = self.shot()
+        path = self.end_frame(scene, img)
+        got = video_pregen.check(self.p.conn, scene, self.plan(scene, img, kwargs={"last_frame": path}))
+        self.assertEqual(self.reds(got), [])
+        self.assertTrue(any(i["ma"] == "byd" and i["muc"] == "vang" and "chưa có BYĐ" in i["ly_do"] for i in got))
+
+
+class Duration(Base):                         # (3)
+    def test_pass_fits_model(self):
+        scene, img = self.shot(data={"byd": byd()})
+        self.assertEqual(self.reds(video_pregen.check(self.p.conn, scene, self.plan(scene, img, duration=5)), "thoi_luong"), [])
+
+    def test_block_longer_than_model(self):
+        scene, img = self.shot(data={"byd": byd()})
+        got = video_pregen.check(self.p.conn, scene, self.plan(scene, img, duration=20))
+        self.assertIn("tối đa 15", self.reds(got, "thoi_luong")[0]["ly_do"])
+
+    def test_block_voice_longer_than_clip(self):
+        scene, img = self.shot(data={"byd": byd(), "dialogue": [{"speaker": "Kelly", "text": "đi thôi"}]})
+        audio = self.write(os.path.join(self.tmp, "line.wav"), b"wav")
+        plan = self.plan(scene, img, duration=5, kwargs={"reference_audio": [audio]})
+        with mock.patch("core.ffmpeg_studio.probe_duration", return_value=9.0):
+            got = video_pregen.check(self.p.conn, scene, plan)
+        self.assertTrue(self.reds(got, "thoi_luong"), got)
+        with mock.patch("core.ffmpeg_studio.probe_duration", return_value=4.8):
+            self.assertEqual(self.reds(video_pregen.check(self.p.conn, scene, plan), "thoi_luong"), [])
+
+
+class References(Base):                       # (4)
+    def video(self, info):
+        path = self.write(os.path.join(self.tmp, "ref.mp4"), b"mp4")
+        return path, mock.patch("core.adapters.clipai._probe_video", return_value=info)
+
+    def test_pass_kling_reference_video_by_rules(self):
+        scene, img = self.shot(data={"byd": byd()})
+        path, probe = self.video({"width": 1280, "height": 720, "sar": "1:1", "fps": 30.0, "duration": 4.0})
+        with probe:
+            got = video_pregen.check(self.p.conn, scene, self.plan(scene, img, kwargs={"reference_video": {"path": path}}))
+        self.assertEqual(self.reds(got, "tham_chieu"), [])
+
+    def test_block_kling_reference_video_too_short_narrow_or_sar(self):
+        scene, img = self.shot(data={"byd": byd()})
+        for info, word in (({"width": 1280, "height": 720, "sar": "1:1", "duration": 2.2}, "2.2 s"),
+                           ({"width": 600, "height": 600, "sar": "1:1", "duration": 4.0}, "600 px"),
+                           ({"width": 1280, "height": 720, "sar": "4:3", "duration": 4.0}, "SAR")):
+            path, probe = self.video(info)
+            with probe:
+                got = video_pregen.check(self.p.conn, scene, self.plan(scene, img, kwargs={"reference_video": {"path": path}}))
+            self.assertTrue(any(word in i["ly_do"] for i in self.reds(got, "tham_chieu")), (word, got))
+
+    def test_block_reference_video_not_measurable(self):
+        scene, img = self.shot(data={"byd": byd()})
+        path, probe = self.video({})
+        with probe:
+            got = video_pregen.check(self.p.conn, scene, self.plan(scene, img, kwargs={"reference_video": {"path": path}}))
+        self.assertTrue(any("không đo được" in i["ly_do"] for i in self.reds(got, "tham_chieu")))
+
+    def pictures(self, n, same=False):
+        return [self.write(os.path.join(self.tmp, f"r{k}.png"), b"same" if same else f"pic{k}".encode()) for k in range(n)]
+
+    def test_seedance_picture_cap(self):
+        scene, img = self.shot(data={"byd": byd()})
+        ok = video_pregen.check(self.p.conn, scene, self.plan(scene, img, model="seedance", kwargs={"reference_only": self.pictures(9)}))
+        self.assertEqual(self.reds(ok, "tham_chieu"), [])
+        bad = video_pregen.check(self.p.conn, scene, self.plan(scene, img, model="seedance", kwargs={"reference_only": self.pictures(10)}))
+        self.assertTrue(any("tối đa 9" in i["ly_do"] for i in self.reds(bad, "tham_chieu")), bad)
+
+    def test_seedance_one_asset_one_role(self):
+        scene, img = self.shot(data={"byd": byd()})
+        a, b = self.pictures(2)
+        ok = video_pregen.check(self.p.conn, scene, self.plan(scene, img, model="seedance", kwargs={"last_frame": a}))
+        self.assertEqual(self.reds(ok, "tham_chieu"), [])
+        same = self.write(os.path.join(self.tmp, "copy.png"), open(self.image_path(img), "rb").read())   # khung đầu gửi lại làm khung cuối
+        bad = video_pregen.check(self.p.conn, scene, self.plan(scene, img, model="seedance", kwargs={"last_frame": same}))
+        self.assertTrue(any("mỗi tài sản một vai" in i["ly_do"] for i in self.reds(bad, "tham_chieu")), bad)
+
+
+class Motion(Base):                           # (5)
+    def test_pass_full_beats_and_enum_move(self):
+        b = byd(hanh_dong=[{"ai": "kelly", "bat_dau": {"tu_the": "dung"}, "dinh": {"tu_the": "quy"}, "ket_thuc": {"tu_the": "nga_ngua"}}],
+                may={"co": "MS", "chuyen_dong": {"kieu": "tien", "m": 1.0}})
+        scene, img = self.shot(data={"byd": b})
+        self.assertEqual(self.reds(video_pregen.check(self.p.conn, scene, self.plan(scene, img)), "chuyen_dong"), [])
+
+    def test_block_move_outside_enum(self):
+        scene, img = self.shot(data={"byd": byd(may={"co": "MS", "chuyen_dong": "lia_ngang"})})
+        self.assertTrue(self.reds(video_pregen.check(self.p.conn, scene, self.plan(scene, img)), "chuyen_dong"))
+
+    def test_block_change_without_peak(self):
+        b = byd(hanh_dong=[{"ai": "kelly", "bat_dau": {"tu_the": "dung"}, "ket_thuc": {"tu_the": "nga_ngua"}}])
+        scene, img = self.shot(data={"byd": b})
+        got = self.reds(video_pregen.check(self.p.conn, scene, self.plan(scene, img)), "chuyen_dong")
+        self.assertTrue(any("đỉnh" in i["ly_do"] for i in got), got)
+
+    def test_regression_p24_golden_byd_not_flagged(self):
+        """Ca hồi quy #24 (tests/golden): BYĐ shot 4 / shot 8 một tư thế, máy đứng yên — lớp (5) không được báo nhầm."""
+        from tests.golden import load_cases
+        cases = [c for c in load_cases() if c["id"].startswith("p24_") and c.get("byd")]
+        self.assertGreaterEqual(len(cases), 2)
+        for c in cases:
+            scene, img = self.shot(data={"byd": c["byd"]})
+            got = video_pregen.check(self.p.conn, scene, self.plan(scene, img))
+            self.assertEqual(self.reds(got, "chuyen_dong"), [], c["id"])
+
+
+class Fingerprint(Base):                      # (6)
+    def test_block_same_package_after_a_clip(self):
+        self.on()
+        scene, _ = self.shot(data={"byd": byd()})
+        first = self.p.create_job(scene, "video_gen")
+        self.assertEqual(len(self.send()), 1)
+        self.clip_done(first)
+        again = self.p.create_job(scene, "video_gen")
+        self.assertEqual(self.send(), [])
+        self.assertEqual(self.state(again), "queued")
+        self.assertTrue(any("gen lại phải đổi đầu vào" in m for m in self.holds()), self.holds())
+
+    def test_pass_changed_input(self):
+        self.on()
+        scene, _ = self.shot(data={"byd": byd()})
+        first = self.p.create_job(scene, "video_gen")
+        self.send()
+        self.clip_done(first)
+        self.p.conn.execute("UPDATE motion_prompts SET motion_prompt='she walks forward slowly, then stops' WHERE scene_id=?", (scene,))
+        self.p.conn.commit()
+        again = self.p.create_job(scene, "video_gen")
+        self.assertEqual(len(self.send()), 1)
+        self.assertEqual(self.state(again), "running")
+
+    def test_provider_failure_without_clip_resends_yellow(self):
+        self.on()
+        scene, _ = self.shot(data={"byd": byd()})
+        first = self.p.create_job(scene, "video_gen")
+        self.send()
+        self.p.fail(first, "server_error: boom")
+        again = self.p.create_job(scene, "video_gen")
+        self.assertEqual(len(self.send()), 1)
+        self.assertEqual(self.state(again), "running")
+        self.assertTrue(any("hỏng ở nhà cung cấp" in m for m in self.yellows()))
+
+    def test_fingerprint_ignores_time_and_task_id(self):
+        a = {"v": 1, "call": "submit", "prompt": "x", "refs": [{"param": "image_path", "role": "start_frame", "sha256": "s", "path": "a"}],
+             "model": "kling", "params": {"duration_sec": 5}, "external_id": "t1", "at": "2026-10-10T00:00:00+00:00"}
+        b = dict(a, external_id="t2", at="2026-10-11T00:00:00+00:00")
+        self.assertEqual(video_pregen.fingerprint(a), video_pregen.fingerprint(json.dumps(b)))
+        self.assertNotEqual(video_pregen.fingerprint(a), video_pregen.fingerprint(dict(a, prompt="y")))
+        self.assertIsNone(video_pregen.fingerprint("not json"))
+
+
+class Batch(Base):
+    def test_pregen_fingerprint_uses_clean_upload_pixels(self):
+        from PIL import Image, PngImagePlugin
+        from core import seedance_refs
+        self.on()
+        flags_on(self, "seedance_subjects")
+        scene, img = self.shot()
+        identity = os.path.join(self.tmp, "identity.png")
+        note = PngImagePlugin.PngInfo()
+        note.add_text("note", "metadata not sent to provider")
+        Image.new("RGB", (2048, 2048), "blue").save(identity, pnginfo=note)
+        job = self.p.create_job(scene, "video_gen")
+        prov = MockVideoProvider()
+        prov.supports_subjects = True
+        vr = VideoRunner(self.p, prov, self.dir)
+        vr.subject_library = object()
+        def kwargs(j):
+            return {"reference_only": vr._hosted_pictures(j, [("Kelly", identity)], clean=True)}
+        with mock.patch.object(vr, "_submit_kwargs", side_effect=kwargs), \
+                mock.patch("core.subjects.picture_refs", return_value={"refs": [{"uri": "asset://kelly", "uploaded": True}], "problems": []}):
+            self.assertEqual(vr.submit_pending(self.pid), 1)
+        clean = seedance_refs.mark(identity, os.path.join(self.dir, str(self.pid), "refs_clean"), style="none")
+        expected, _ = sent_package.safe_build(prov.submit, vr._submit_args(self.p.job(job)), {"reference_only": [clean]},
+                                             kind="video", provider=prov, external_id=None)
+        actual = json.loads(self.p.job(job)["sent_package"])["pregen_fingerprint"]
+        self.assertEqual(actual, video_pregen.fingerprint(expected))
+        self.assertNotEqual(sent_package.sha256_of(identity), sent_package.sha256_of(clean))
+
+    def test_missing_image_reference_that_will_be_sent_is_not_dropped(self):
+        self.on()
+        bad, _ = self.shot(data={"characters": ["Kelly"]})
+        good, _ = self.shot()
+        self.p.conn.execute("UPDATE motion_prompts SET video_model='seedance' WHERE scene_id=?", (bad,))
+        self.p.conn.commit()
+        jobs = [self.p.create_job(s, "video_gen") for s in (bad, good)]
+        missing = {"label": "Kelly", "path": os.path.join(self.tmp, "missing_character.png")}
+        with mock.patch("core.adapters.clipai.SEEDANCE_REFS_WITH_FIRST_FRAME", True), \
+                mock.patch("core.assets.scene_references", return_value=[missing]):
+            self.assertEqual(len(self.send()), 1)
+        self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
+
+    def test_corrupt_start_picture_is_red_only_for_its_job(self):
+        from PIL import Image
+        self.on()
+        bad, bad_img = self.shot()
+        with open(self.image_path(bad_img), "wb") as file:
+            file.write(b"broken image")
+        good, img = self.shot()
+        Image.new("RGB", (32, 32), "green").save(self.image_path(img))
+        jobs = [self.p.create_job(s, "video_gen") for s in (bad, good)]
+        self.assertEqual(len(self.send()), 1)
+        self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
+
+    def test_corrupt_png_data_says_unreadable_start_not_check_crash(self):
+        """PNG đúng đầu tệp nhưng hỏng dữ liệu: PIL ném SyntaxError (không phải OSError) — phải báo 'không đọc được khung đầu', không
+        để rơi thành 'lớp kiểm lỗi' che mất các kiểm khác."""
+        import io
+        from PIL import Image
+        self.on()
+        scene, img = self.shot()
+        buf = io.BytesIO()
+        Image.new("RGB", (32, 32), "green").save(buf, "PNG")
+        data = bytearray(buf.getvalue())
+        data[data.find(b"IDAT") + 6] ^= 0xFF
+        with open(self.image_path(img), "wb") as file:
+            file.write(bytes(data))
+        job = self.p.create_job(scene, "video_gen")
+        self.assertEqual(len(self.send()), 0)
+        self.assertEqual(self.state(job), "queued")
+        holds = self.holds()
+        self.assertTrue(holds and "khung đầu" in holds[0], holds)
+        self.assertNotIn("lớp kiểm trước gen lỗi", holds[0])
+
+    def test_corrupt_end_picture_is_red_only_for_its_job(self):
+        from PIL import Image
+        self.on()
+        bad, img = self.shot()
+        good, good_img = self.shot()
+        for image in (img, good_img):
+            Image.new("RGB", (32, 32), "green").save(self.image_path(image))
+        end = EndFrame.end_frame(self, bad, img)
+        with open(end, "wb") as file:
+            file.write(b"broken end image")
+        jobs = [self.p.create_job(s, "video_gen") for s in (bad, good)]
+        prov = MockVideoProvider()
+        vr = VideoRunner(self.p, prov, self.dir)
+        with mock.patch.object(vr, "_submit_kwargs", side_effect=lambda j: {"last_frame": end} if j["scene_id"] == bad else {}):
+            self.assertEqual(vr.submit_pending(self.pid), 1)
+        self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
+
+    def test_file_error_in_unpaid_block_check_holds_only_its_job(self):
+        self.on()
+        bad, _ = self.shot()
+        good, _ = self.shot()
+        jobs = [self.p.create_job(s, "video_gen") for s in (bad, good)]
+        prov = MockVideoProvider()
+        vr = VideoRunner(self.p, prov, self.dir)
+        original = vr._blocked
+        def blocked(j):
+            if j["scene_id"] == bad:
+                raise OSError("reference file lost during lint")
+            return original(j)
+        with mock.patch.object(vr, "_blocked", side_effect=blocked):
+            self.assertEqual(vr.submit_pending(self.pid), 1)
+        self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
+
+    def test_broken_reference_picture_preparation_holds_only_its_job(self):
+        from PIL import Image
+        self.on()
+        flags_on(self, "seedance_ref_groups")
+        self.p.conn.execute("UPDATE projects SET shot_mode='per_shot' WHERE id=?", (self.pid,))
+        bad, bad_img = self.shot(data={"shot_no": 1})
+        with open(self.image_path(bad_img), "wb") as file:
+            file.write(b"broken reference image")
+        good, img = self.shot()
+        Image.new("RGB", (32, 32), "green").save(self.image_path(img))
+        self.p.conn.execute("UPDATE motion_prompts SET video_model='seedance' WHERE scene_id=?", (bad,))
+        self.p.conn.commit()
+        jobs = [self.p.create_job(s, "video_gen") for s in (bad, good)]
+        self.assertEqual(len(self.send()), 1)
+        self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
+        self.assertIn("UnidentifiedImageError", runner.wait_reason(jobs[0]) or "")
+
+    def test_upload_file_error_holds_only_its_job(self):
+        self.on()
+        flags_on(self, "seedance_subjects")
+        bad, img = self.shot()
+        good, _ = self.shot()
+        jobs = [self.p.create_job(s, "video_gen") for s in (bad, good)]
+        prov = MockVideoProvider()
+        prov.supports_subjects = True
+        vr = VideoRunner(self.p, prov, self.dir)
+        vr.subject_library = object()
+        def kwargs(j):
+            return {"reference_only": vr._hosted_pictures(j, [("Kelly", self.image_path(img))])} if j["scene_id"] == bad else {}
+        with mock.patch.object(vr, "_submit_kwargs", side_effect=kwargs), \
+                mock.patch("core.subjects.picture_refs", side_effect=OSError("file disappeared")):
+            self.assertEqual(vr.submit_pending(self.pid), 1)
+        self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
+        self.assertIn("file disappeared", runner.wait_reason(jobs[0]) or "")
+
+    def test_seedance_real_reference_path_checks_before_upload(self):
+        from PIL import Image
+        self.on()
+        flags_on(self, "seedance_subjects", "seedance_ref_groups")
+        self.p.conn.execute("UPDATE projects SET shot_mode='per_shot' WHERE id=?", (self.pid,))
+        scene, img = self.shot(data={"shot_no": 1, "byd": byd()})
+        Image.new("RGB", (32, 32), "blue").save(self.image_path(img))
+        self.p.conn.execute("UPDATE motion_prompts SET video_model='seedance' WHERE scene_id=?", (scene,))
+        self.p.conn.commit()
+        self.p.create_job(scene, "video_gen")
+        prov = MockVideoProvider()
+        prov.supports_subjects = True
+        vr = VideoRunner(self.p, prov, self.dir)
+        vr.subject_library = object()
+        events = []
+        check = video_pregen.check
+        def checked(*args):
+            events.append("check")
+            return check(*args)
+        def uploaded(*args):
+            events.append("upload")
+            return {"refs": [{"uri": "asset://frame", "uploaded": True}], "problems": []}
+        with mock.patch("core.video_pregen.check", side_effect=checked), \
+                mock.patch("core.subjects.picture_refs", side_effect=uploaded), \
+                mock.patch.object(vr, "_reference_pictures", wraps=vr._reference_pictures) as references:
+            self.assertEqual(vr.submit_pending(self.pid), 1)
+            references.assert_called_once()
+            self.assertEqual(events, ["check", "upload"])
+
+    def test_upload_after_check_and_same_input_redo_never_uploads(self):
+        self.on()
+        flags_on(self, "seedance_subjects")
+        scene, img = self.shot()
+        first = self.p.create_job(scene, "video_gen")
+        prov = MockVideoProvider()
+        prov.supports_subjects = True
+        vr = VideoRunner(self.p, prov, self.dir)
+        vr.subject_library = object()
+        events = []
+        check = video_pregen.check
+        def checked(*args):
+            events.append("check")
+            return check(*args)
+        def uploaded(*args):
+            events.append("upload")
+            return {"refs": [{"uri": "asset://kelly", "uploaded": True}], "problems": []}
+        def kwargs(j):
+            return {"reference_only": vr._hosted_pictures(j, [("Kelly", self.image_path(img))])}
+        with mock.patch.object(vr, "_submit_kwargs", side_effect=kwargs), \
+                mock.patch("core.video_pregen.check", side_effect=checked), \
+                mock.patch("core.subjects.picture_refs", side_effect=uploaded) as upload:
+            self.assertEqual(vr.submit_pending(self.pid), 1)
+            self.assertEqual(events, ["check", "upload"])
+            self.assertIn("pregen_fingerprint", json.loads(self.p.job(first)["sent_package"]))
+            self.clip_done(first)
+            again = self.p.create_job(scene, "video_gen")
+            upload.reset_mock()
+            self.assertEqual(vr.submit_pending(self.pid), 0)
+            upload.assert_not_called()
+            self.assertEqual(self.state(again), "queued")
+
+    def test_red_request_never_uploads_subjects(self):
+        self.on()
+        flags_on(self, "seedance_subjects")
+        scene, img = self.shot(duration=20)
+        job = self.p.create_job(scene, "video_gen")
+        prov = MockVideoProvider()
+        prov.supports_subjects = True
+        vr = VideoRunner(self.p, prov, self.dir)
+        vr.subject_library = object()
+        def kwargs(j):
+            return {"reference_only": vr._hosted_pictures(j, [("Kelly", self.image_path(img))])}
+        with mock.patch.object(vr, "_submit_kwargs", side_effect=kwargs), \
+                mock.patch("core.subjects.picture_refs", return_value={"refs": [], "problems": []}) as upload:
+            self.assertEqual(vr.submit_pending(self.pid), 0)
+        upload.assert_not_called()
+        self.assertEqual(self.state(job), "queued")
+
+
+    def test_missing_reference_video_holds_only_its_job(self):
+        self.on()
+        bad, _ = self.shot()
+        good, _ = self.shot()
+        jobs = [self.p.create_job(s, "video_gen") for s in (bad, good)]
+        self.p.conn.execute("UPDATE motion_prompts SET ref_video_path=? WHERE scene_id=?", (os.path.join(self.tmp, "missing.mp4"), bad))
+        self.p.conn.commit()
+        self.assertEqual(len(self.send()), 1)
+        self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
+
+
+    def test_multishot_follower_shows_leader_red_reason_and_stays_grouped(self):
+        self.on()
+        s1, img = self.shot(picture=False)
+        s2, _ = self.shot()
+        leader, follower = [self.p.create_job(s, "video_gen") for s in (s1, s2)]
+        group = [{"id": s1, "idx": 1, "data": {}}, {"id": s2, "idx": 2, "data": {}}]
+        with mock.patch("core.shots.group_of", return_value=group):
+            self.assertEqual(self.send(), [])
+            self.assertIn("kiểm trước gen chặn", runner.wait_reason(follower) or "")
+            self.assertIn("khung đầu", runner.wait_reason(follower) or "")
+            self.assertEqual([self.state(j) for j in (leader, follower)], ["queued", "queued"])
+            self.write(self.image_path(img), b"picture-fixed")
+            with mock.patch.object(runner, "PREGEN_RECHECK_S", 0):
+                self.assertEqual(len(self.send()), 1)
+            self.assertEqual(self.state(leader), "running")
+            self.assertEqual(self.state(follower), "queued")
+            self.assertEqual([r["id"] for r in json.loads(self.p.job(leader)["sent_group"])], [s1, s2])
+
+    def test_one_red_shot_does_not_stop_the_others(self):
+        """Lô / autopilot (cùng gọi VideoRunner.submit_pending): shot ĐỎ giữ lại, các shot khác vẫn gửi trong cùng vòng."""
+        self.on()
+        s1, _ = self.shot(data={"byd": byd()})
+        s2, _ = self.shot(data={"byd": byd()}, picture=False)          # ĐỎ (1)
+        s3, _ = self.shot(data={"byd": byd()})
+        jobs = [self.p.create_job(s, "video_gen") for s in (s1, s2, s3)]
+        self.assertEqual(len(self.send()), 2)
+        self.assertEqual([self.state(j) for j in jobs], ["running", "queued", "running"])
+
+    def test_check_crash_holds_with_reason(self):
+        self.on()
+        scene, _ = self.shot(data={"byd": byd()})
+        job = self.p.create_job(scene, "video_gen")
+        with mock.patch("core.video_pregen.check", side_effect=RuntimeError("boom")):
+            self.assertEqual(self.send(), [])
+        self.assertEqual(self.state(job), "queued")
+        self.assertTrue(any("lớp kiểm trước gen lỗi" in m for m in self.holds()))
+
+
+class HeldJob(Base):
+    def test_turning_flag_off_releases_held_job_immediately(self):
+        scene, _ = self.shot(picture=False)
+        job = self.p.create_job(scene, "video_gen")
+        runner.PREGEN_HELD[job] = ("kiểm trước gen chặn", runner.time.time())
+        with mock.patch("core.video_pregen.enabled", return_value=False):
+            self.assertEqual(len(self.send()), 1)
+        self.assertNotIn(job, runner.PREGEN_HELD)
+
+    def test_held_job_not_rebuilt_or_noted_on_every_pass(self):
+        """K3 rà: dashboard dựng VideoRunner MỚI mỗi lượt — job ĐỎ không dựng lại request (Kho chủ thể / giọng / ffmpeg) mỗi nhịp,
+        dòng ⚙ giữ chỉ ghi 1 lần, lý do chờ vẫn hiện; hết PREGEN_RECHECK_S thì kiểm lại."""
+        self.on()
+        scene, _ = self.shot(data={"byd": byd()}, picture=False)          # ĐỎ (1)
+        job = self.p.create_job(scene, "video_gen")
+        orig = VideoRunner._submit_kwargs
+        with mock.patch.object(VideoRunner, "_submit_kwargs", autospec=True, side_effect=orig) as built:
+            self.assertEqual(self.send(), [])
+            self.assertEqual(self.send(), [])
+            self.assertEqual(built.call_count, 1)
+            self.assertIn(job, runner.WAIT_REASONS)
+            with mock.patch.object(runner, "PREGEN_RECHECK_S", 0):
+                self.assertEqual(self.send(), [])
+            self.assertEqual(built.call_count, 2)
+        self.assertEqual(self.state(job), "queued")
+        self.assertEqual(len(self.holds()), 1, self.holds())
+
+    def test_fixed_input_sends_after_recheck(self):
+        self.on()
+        scene, img = self.shot(data={"byd": byd()}, picture=False)
+        job = self.p.create_job(scene, "video_gen")
+        self.assertEqual(self.send(), [])
+        self.write(self.image_path(img), b"picture-fixed")
+        with mock.patch.object(runner, "PREGEN_RECHECK_S", 0):
+            self.assertEqual(len(self.send()), 1)
+        self.assertEqual(self.state(job), "running")
+        self.assertNotIn(job, runner.PREGEN_HELD)
+
+
+class Registry(unittest.TestCase):
+    def test_flag_default_off_and_declared(self):
+        from core import features
+        self.assertIn("video_pregen", features.FEATURES)
+        self.assertFalse(features.FEATURES["video_pregen"]["verified"])
+        with open(os.path.join(ROOT, "devsys", "decisions.json"), encoding="utf-8") as f:
+            items = {d["id"]: d for d in json.load(f)["items"]}
+        self.assertEqual(items["d100"]["where"], "core/video_pregen.py:check")
+
+
+if __name__ == "__main__":
+    unittest.main()
