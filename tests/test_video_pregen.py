@@ -46,6 +46,9 @@ class Base(unittest.TestCase):
         os.makedirs(self.dir)
         self.pid = self.p.create_project("k3", max_retry=2)
         self.idx = 0
+        for held in (runner.PREGEN_HELD, runner._PREGEN_SAID, runner.WAIT_REASONS):    # process-level: job ids repeat per test db
+            held.clear()
+            self.addCleanup(held.clear)
 
     def tearDown(self):
         self.p.conn.close()
@@ -377,6 +380,37 @@ class Batch(Base):
             self.assertEqual(self.send(), [])
         self.assertEqual(self.state(job), "queued")
         self.assertTrue(any("lớp kiểm trước gen lỗi" in m for m in self.holds()))
+
+
+class HeldJob(Base):
+    def test_held_job_not_rebuilt_or_noted_on_every_pass(self):
+        """K3 rà: dashboard dựng VideoRunner MỚI mỗi lượt — job ĐỎ không dựng lại request (Kho chủ thể / giọng / ffmpeg) mỗi nhịp,
+        dòng ⚙ giữ chỉ ghi 1 lần, lý do chờ vẫn hiện; hết PREGEN_RECHECK_S thì kiểm lại."""
+        self.on()
+        scene, _ = self.shot(data={"byd": byd()}, picture=False)          # ĐỎ (1)
+        job = self.p.create_job(scene, "video_gen")
+        orig = VideoRunner._submit_kwargs
+        with mock.patch.object(VideoRunner, "_submit_kwargs", autospec=True, side_effect=orig) as built:
+            self.assertEqual(self.send(), [])
+            self.assertEqual(self.send(), [])
+            self.assertEqual(built.call_count, 1)
+            self.assertIn(job, runner.WAIT_REASONS)
+            with mock.patch.object(runner, "PREGEN_RECHECK_S", 0):
+                self.assertEqual(self.send(), [])
+            self.assertEqual(built.call_count, 2)
+        self.assertEqual(self.state(job), "queued")
+        self.assertEqual(len(self.holds()), 1, self.holds())
+
+    def test_fixed_input_sends_after_recheck(self):
+        self.on()
+        scene, img = self.shot(data={"byd": byd()}, picture=False)
+        job = self.p.create_job(scene, "video_gen")
+        self.assertEqual(self.send(), [])
+        self.write(self.image_path(img), b"picture-fixed")
+        with mock.patch.object(runner, "PREGEN_RECHECK_S", 0):
+            self.assertEqual(len(self.send()), 1)
+        self.assertEqual(self.state(job), "running")
+        self.assertNotIn(job, runner.PREGEN_HELD)
 
 
 class Registry(unittest.TestCase):

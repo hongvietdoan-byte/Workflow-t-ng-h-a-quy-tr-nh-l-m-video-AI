@@ -54,6 +54,13 @@ _turns_lock = threading.Lock()
 # job, removed when it is sent. The step 2 screen says the real reason ("sẽ tự gửi khi …") instead of "bấm ▶ Gen ảnh"; core.bg_poll
 # sends the job by itself once the reason is gone. Same process as the dashboard (the background round runs inside it).
 WAIT_REASONS: Dict[int, Tuple[str, float]] = {}
+# K3 rà: a job held by the check before gen (video_pregen ĐỎ) — {job id: (reason, when held)}. Module-level like WAIT_REASONS: the
+# dashboard builds a NEW VideoRunner on every refresh, so per-runner memory (_diag_once) would let the hold note + the notes written while
+# building the request (Kho chủ thể, bản cao, prompt cắt) repeat on every heartbeat. A held job is re-checked at most every
+# PREGEN_RECHECK_S (a send asked for this very job — `only` — re-checks at once); its notes are written once per (job, code, text).
+PREGEN_HELD: Dict[int, Tuple[str, float]] = {}
+PREGEN_RECHECK_S = 30.0
+_PREGEN_SAID: set = set()
 _RENDER_RETRIED: Dict[Tuple[int, int], float] = {}   # (project, scene) whose missing 3D render a clip already had made again once
 WAIT_FRESH_SEC = 300
 
@@ -355,6 +362,8 @@ class _Runner:
                                               (self.job_type,)).fetchone()[0]
             if not THROTTLE.allow(self.job_type, running_all, capped="mock" not in str(getattr(self.provider, "name", ""))):       # already includes the jobs this pass has started (they are 'running' now)
                 break  # learned limit for all projects together: wait for a slot
+            if only is None and self._pregen_cooling(job):
+                continue            # K3 rà: held by the check before gen a moment ago — no rebuild of the request on every heartbeat
             kwargs = self._submit_kwargs(job) if getattr(self.provider, "supports_aspect", False) else {}
             if kwargs.get("_wait"):                  # rà F3: a passing provider error — stays queued, said, not failed, not sent
                 said = self.__dict__.setdefault("_final_waits", set())
@@ -441,6 +450,10 @@ class _Runner:
 
     def _pregen(self, job, args, kwargs) -> bool:
         """K3 (A17): code check of the request right before it is paid for; True = held (not sent). Only the video runner checks."""
+        return False
+
+    def _pregen_cooling(self, job) -> bool:
+        """K3 rà: True = the job was held by _pregen less than PREGEN_RECHECK_S ago — stays queued with its reason, not re-checked yet."""
         return False
 
     def _write_sent_package(self, job, args, kwargs, sent_kwargs, task_id) -> List[str]:
@@ -731,6 +744,7 @@ class VideoRunner(_Runner):
         Lớp kiểm hỏng → ĐỎ có lý do (không gửi khi chưa kiểm được). Chỉ giữ job này: vòng gửi đi tiếp sang job khác (lô / autopilot)."""
         from . import video_pregen
         if not video_pregen.enabled():
+            PREGEN_HELD.pop(job["id"], None)
             return False
         try:
             sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}
@@ -744,13 +758,47 @@ class VideoRunner(_Runner):
         reds = [i for i in issues if i["muc"] == video_pregen.DO]
         for i in issues:
             if i["muc"] != video_pregen.DO:
-                self._diag_once(job, "warn", "video_pregen", f"kiểm trước gen (vàng, vẫn gửi): {i['ly_do']}")
+                self._pregen_note(job, "video_pregen", f"kiểm trước gen (vàng, vẫn gửi): {i['ly_do']}")
         if not reds:
+            PREGEN_HELD.pop(job["id"], None)
             return False
         line = "kiểm trước gen chặn: " + video_pregen.summary(reds)
-        WAIT_REASONS[job["id"]] = (line, time.time())
-        self._diag_once(job, "warn", "video_pregen_hold", f"chưa gửi — {line}")
+        now = time.time()
+        WAIT_REASONS[job["id"]] = (line, now)
+        PREGEN_HELD[job["id"]] = (line, now)
+        self._pregen_note(job, "video_pregen_hold", f"chưa gửi — {line}")
         return True
+
+    def _pregen_note(self, job, code: str, message: str) -> None:
+        """One ⚙ Chẩn đoán line per (job, code, text) for the life of the process (not per runner object — see PREGEN_HELD)."""
+        key = (job["id"], code, message)
+        if key in _PREGEN_SAID:
+            return
+        if len(_PREGEN_SAID) > 5000:
+            _PREGEN_SAID.clear()
+        _PREGEN_SAID.add(key)
+        super()._diag(job, "warn", code, message)
+
+    def _pregen_cooling(self, job) -> bool:
+        hit = PREGEN_HELD.get(job["id"])
+        if not hit or time.time() - hit[1] >= PREGEN_RECHECK_S:
+            return False
+        WAIT_REASONS[job["id"]] = hit
+        return True
+
+    def _diag(self, job, severity: str, code, message: str) -> None:
+        """K3 rà: while a job is held by the check before gen, the notes written when its request is rebuilt (Kho chủ thể, bản cao,
+        prompt cắt, giọng…) are said once, not on every re-check."""
+        try:
+            held = job["id"] in PREGEN_HELD
+        except (TypeError, KeyError, IndexError):
+            held = False
+        if held:
+            key = (job["id"], "held:" + str(code), message)
+            if key in _PREGEN_SAID:
+                return
+            _PREGEN_SAID.add(key)
+        super()._diag(job, severity, code, message)
 
     def _gore_hinted(self, job, group, scene_id: int) -> bool:
         """F1 sửa #5: does the FF gore-restraint sentence really go with this shot on this job's send path? A Kling multi-shot group:
