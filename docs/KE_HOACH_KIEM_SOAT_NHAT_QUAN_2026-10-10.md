@@ -32,6 +32,7 @@
 | A19 | Đạo diễn **phải viết tên món must_keep + màu** trong prompt; KHÔNG tả lại dáng / mặt (ảnh tham chiếu giữ) — N11 viết lại theo đây. |
 | A20 | Trang phục nhiều màu / họa tiết — chia 3 tầng: **chữ** = tên món + màu chủ đạo (1–2) + ≤ 1 dấu hiệu đặc trưng (code kiểm, chặn); **ảnh tham chiếu** giữ toàn bộ họa tiết; **QC sau gen** kiểm họa tiết (L2: code đo màu vùng + Claude khai từng dấu hiệu). Hồ sơ Kho thêm ô `khai_bao_chu` mỗi món: {mon + đồng nghĩa, mau_chinh[] + đồng nghĩa, dau_hieu (≤ 1) + cách viết tương đương, hoa_tiet[] (chỉ cho QC)}; món chưa có ô → VÀNG nhắc điền một lần (K0b tạo trường, K1a điền cho nhân vật dùng). |
 | A21 | **Cổng điểm**: kế hoạch + phần đã build phải được agent thẩm định độc lập chấm **≥ 8,5/10** (cùng thang 8 tiêu chí) trước khi áp vào pipeline thật (K1a trở đi — đụng Đạo diễn, prompt, gen). K0a/K0b (0 USD, không đổi hành vi pipeline) được làm để tạo BẰNG CHỨNG chạy khô; chấm lại sau mỗi đợt; dưới 8,5 → sửa theo lỗ hổng rồi chấm lại. |
+| A22 | **#24 là dự án thử** (ngoại lệ A1): bước 1 (ngay, 0 USD, KHÔNG đổi #24) — K0b dùng #24 làm dữ liệu chạy khô: dựng BYĐ 9 shot từ `shot_specs` V3 + kịch bản (lưu riêng), chạy các phép kiểm code (khóa nhận diện, hình học, vai ảnh tham chiếu, công cụ đo) trên prompt + ảnh thật, đo bắt được các lỗi người dùng từng bắt không; bước 2 (sau cổng A21 ≥ 8,5) — #24 là dự án thử đầu tiên K1a → K4, phần video còn lại đi qua 2 lớp code. |
 
 ## 0. Vì sao sửa nhiều lần vẫn lặp lại
 
