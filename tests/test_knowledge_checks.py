@@ -1,0 +1,58 @@
+"""K0b nhánh A — hợp đồng bộ kỹ năng kiểm `knowledge/checks/<ID>.md` (kế hoạch kiểm soát 10/10 mục 4 "Bộ kỹ năng kiểm").
+
+Tệp kỹ năng phải KHỚP `devsys/error_types.json`: đủ 23 loại đúng id, mỗi tệp có 4 mục bắt buộc, mọi enum Claude khai của loại xuất
+hiện trong tệp, mọi `where` (file:tên) của code đo / Claude khai được nhắc, và mọi cờ của cách kiểm phụ thuộc cờ được ghi tên (cờ TẮT
+thì không tính là có — thẩm định 3)."""
+import json
+import os
+import re
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CHECKS = os.path.join(ROOT, "knowledge", "checks")
+REQUIRED = ("## Câu hỏi khai được", "## Code kết luận thế nào", "## Đo bằng code hiện có", "## Ca lỗi thật")
+
+
+def _types():
+    with open(os.path.join(ROOT, "devsys", "error_types.json"), encoding="utf-8") as fh:
+        return json.load(fh)["types"]
+
+
+def _read(tid):
+    path = os.path.join(CHECKS, f"{tid}.md")
+    assert os.path.isfile(path), f"thiếu tệp kỹ năng kiểm {path}"
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def _flags(item):
+    co = item.get("co")
+    return [co] if isinstance(co, str) else list(co or [])
+
+
+def test_one_file_per_type_and_no_extra():
+    ids = [t["id"] for t in _types()]
+    assert len(ids) == 23
+    for tid in ids:
+        _read(tid)
+    extra = {f[:-3] for f in os.listdir(CHECKS) if f.endswith(".md") and f != "README.md"} - set(ids)
+    assert not extra, f"tệp kỹ năng không có trong error_types.json: {sorted(extra)}"
+    assert os.path.isfile(os.path.join(CHECKS, "README.md"))
+
+
+def test_title_sections_enums_where_flags():
+    for t in _types():
+        text = _read(t["id"])
+        first = text.splitlines()[0]
+        assert first == f"# {t['id']} — {t['ten']}", (t["id"], first)
+        for head in REQUIRED:
+            assert re.search(rf"^{re.escape(head)}\b", text, re.M), f"{t['id']}: thiếu mục '{head}'"
+        for k in t["claude_khai"]:
+            for e in k["enum"]:
+                assert e in text, f"{t['id']}: enum '{e}' của claude_khai không có trong tệp"
+        for item in t["code_do"] + t["claude_khai"]:
+            if item.get("where"):
+                assert item["where"] in text, f"{t['id']}: thiếu nơi đo '{item['where']}'"
+            for flag in _flags(item):
+                assert f"`{flag}`" in text, f"{t['id']}: cách kiểm phụ thuộc cờ '{flag}' mà tệp không ghi tên cờ"
+            if item.get("trang_thai") == "xay" and item.get("dot"):
+                assert item["dot"] in text, f"{t['id']}: cách kiểm 'xay' đợt {item['dot']} không được ghi 'chưa có (đợt …)'"
