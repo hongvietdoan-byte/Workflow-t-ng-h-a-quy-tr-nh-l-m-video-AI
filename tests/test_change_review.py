@@ -111,6 +111,70 @@ class ChangeReview(unittest.TestCase):
         self.assertEqual(res["failed"], 2)
         self.assertTrue(self.p.conn.execute("SELECT 1 FROM diag_events WHERE code='change_review_fail'").fetchone())
 
+    # ---- gộp theo shot (người dùng 10/10): mọi thay đổi đang chờ của CÙNG shot trong một lượt = một lần rà ----
+    def test_same_shot_changes_merge_into_one_review(self):
+        base = {"size": "MS", "image_prompt": "Medium shot, Kelly at the well", "characters": ["KELLY"]}
+        self._set(self.ids[1], dict(base, size="WS"))
+        self._set(self.ids[1], dict(base, size="WS", angle="low"))
+        self._set(self.ids[1], dict(base, size="WS", angle="low", image_prompt="Wide shot, Kelly at the well"))
+        self._set(self.ids[2], dict(base, size="CU"))
+        client = FakeClient({"muc": []})
+        res = CR.process_pending(self.p.conn, self.tmp, client=client)
+        self.assertEqual(len(client.calls), 2)                    # shot 2 (3 lần ghi) một lời gọi + shot 3 một lời gọi
+        call = next(c for c in client.calls if "`angle`" in c)
+        self.assertIn("TRƯỚC = MS", call)                         # trước = bản của lần ghi cũ nhất
+        self.assertIn("Wide shot, Kelly", call)                   # sau = bản của lần ghi mới nhất
+        rows = self.p.conn.execute("SELECT state, cost_usd FROM change_events WHERE scene_id=? AND state<>'skipped' ORDER BY id",
+                                   (self.ids[1],)).fetchall()
+        self.assertEqual([r[0] for r in rows], ["reviewed"] * 3)  # cả nhóm đánh dấu đã rà
+        self.assertEqual([r[1] > 0 for r in rows], [False, False, True])   # tiền ghi vào lần cuối
+        self.assertEqual(res["reviewed"], 4)
+        self.assertEqual(self.pending(), [])
+
+    def test_change_then_revert_on_same_shot_costs_nothing(self):
+        base = {"size": "MS", "image_prompt": "Medium shot, Kelly at the well", "characters": ["KELLY"]}
+        self._set(self.ids[1], dict(base, size="WS"))
+        self._set(self.ids[1], base)
+        client = FakeClient({"muc": []})
+        res = CR.process_pending(self.p.conn, self.tmp, client=client)
+        self.assertEqual(client.calls, [])
+        self.assertEqual(res["skipped"], 2)
+
+    def test_limit_counts_shots_not_writes(self):
+        base = {"size": "MS", "image_prompt": "Medium shot, Kelly at the well", "characters": ["KELLY"]}
+        for k in range(6):
+            self._set(self.ids[1], dict(base, size="WS", lens_mm=20 + k))
+        self._set(self.ids[2], dict(base, size="CU"))
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}), limit=2)
+        self.assertEqual(self.pending(), [])
+
+    def test_code_only_then_new_write_merges_from_original(self):
+        base = {"size": "MS", "image_prompt": "Medium shot, Kelly at the well", "characters": ["KELLY"]}
+        self._set(self.ids[1], dict(base, size="WS"))
+        CR.process_pending(self.p.conn, self.tmp, client=None)              # lượt không có Claude → code_only
+        self._set(self.ids[1], dict(base, size="WS", angle="high"))
+        client = FakeClient({"muc": []})
+        CR.process_pending(self.p.conn, self.tmp, client=client)
+        self.assertEqual(len(client.calls), 1)
+        self.assertIn("TRƯỚC = MS", client.calls[0])
+        states = {r[0] for r in self.p.conn.execute("SELECT state FROM change_events WHERE scene_id=? AND id > 0 AND state<>'skipped'",
+                                                     (self.ids[1],))}
+        self.assertEqual(states, {"reviewed"})
+
+    def test_write_during_review_stays_pending(self):
+        base = {"size": "MS", "image_prompt": "Medium shot, Kelly at the well", "characters": ["KELLY"]}
+        self._set(self.ids[1], dict(base, size="WS"))
+        outer = self
+
+        class Writing(FakeClient):
+            def complete(self, prompt, images=()):
+                outer._set(outer.ids[1], dict(base, size="CU"))          # Dashboard ghi trong lúc Claude đang rà
+                return super().complete(prompt, images)
+        CR.process_pending(self.p.conn, self.tmp, client=Writing({"muc": []}))
+        ev = self.pending()
+        self.assertEqual(len(ev), 1)
+        self.assertEqual(json.loads(ev[0]["after"])["size"], "CU")
+
     # ---- sửa theo agent rà 10/10 ----
     def test_pending_change_holds_until_reviewed(self):
         self._set(self.ids[1], {"size": "WS", "image_prompt": "Wide shot", "characters": ["KELLY"]})
