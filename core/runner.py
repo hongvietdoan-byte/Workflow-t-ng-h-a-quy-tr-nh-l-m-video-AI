@@ -364,7 +364,7 @@ class _Runner:
                 break  # learned limit for all projects together: wait for a slot
             if only is None and self._pregen_cooling(job):
                 continue            # K3 rà: held by the check before gen a moment ago — no rebuild of the request on every heartbeat
-            kwargs = self._submit_kwargs(job) if getattr(self.provider, "supports_aspect", False) else {}
+            kwargs = self._prepare_kwargs(job) if getattr(self.provider, "supports_aspect", False) else {}
             if kwargs.get("_wait"):                  # rà F3: a passing provider error — stays queued, said, not failed, not sent
                 said = self.__dict__.setdefault("_final_waits", set())
                 if job["id"] not in said:             # said once, not on every heartbeat
@@ -384,6 +384,7 @@ class _Runner:
                 if over:
                     self._diag(job, "warn", "budget", over)
                     break                        # a real stop (S14.16: the service is out of credit): leave everything queued, say why
+                kwargs = self._finish_kwargs(job, kwargs)
                 sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}   # '_' keys: the runner's notes, never sent
                 try:
                     if kwargs.get("_from_sample"):       # N1: a final made from its approved Seedance 2.5 draft (draft_task)
@@ -447,6 +448,12 @@ class _Runner:
                 call="submit_final_from_sample", extra=extra)
         return sent_package.safe_build(self.provider.submit, tuple(args), sent_kwargs, kind=kind, provider=self.provider,
                                        external_id=task_id, meta=getattr(self, "_sent", {}).get(job["id"]))
+
+    def _prepare_kwargs(self, job):
+        return self._submit_kwargs(job)
+
+    def _finish_kwargs(self, job, kwargs):
+        return kwargs
 
     def _pregen(self, job, args, kwargs) -> bool:
         """K3 (A17): code check of the request right before it is paid for; True = held (not sent). Only the video runner checks."""
@@ -761,6 +768,7 @@ class VideoRunner(_Runner):
                 self._pregen_note(job, "video_pregen", f"kiểm trước gen (vàng, vẫn gửi): {i['ly_do']}")
         if not reds:
             PREGEN_HELD.pop(job["id"], None)
+            self.__dict__.setdefault("_pregen_fingerprints", {})[job["id"]] = video_pregen.fingerprint(plan["package"])
             return False
         line = "kiểm trước gen chặn: " + video_pregen.summary(reds)
         now = time.time()
@@ -779,10 +787,42 @@ class VideoRunner(_Runner):
         _PREGEN_SAID.add(key)
         super()._diag(job, "warn", code, message)
 
+    def _prepare_kwargs(self, job):
+        from . import video_pregen
+        self._pregen_local = video_pregen.enabled()
+        self._pregen_deferred = []
+        try:
+            return self._submit_kwargs(job)
+        finally:
+            self._pregen_local = False
+
+    def _finish_kwargs(self, job, kwargs):
+        from . import seedance_refs
+        for pending in self.__dict__.get("_pregen_deferred", []):
+            hosted = self._hosted_pictures(job, pending["pictures"], clean=pending["clean"])
+            if hosted is None:
+                hosted = [path for _, path in pending["pictures"]]
+                if pending.get("mark_fallback"):
+                    out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
+                    hosted = [seedance_refs.mark(path, out_dir) for path in hosted]
+            pending["local"][:] = hosted
+        self._pregen_deferred = []
+        return kwargs
+
+    def _build_package(self, job, args, kwargs, sent_kwargs, task_id):
+        pkg, warns = super()._build_package(job, args, kwargs, sent_kwargs, task_id)
+        fingerprint = self.__dict__.get("_pregen_fingerprints", {}).get(job["id"])
+        if pkg and task_id is not None and fingerprint:
+            body = json.loads(pkg)
+            body["pregen_fingerprint"] = fingerprint
+            pkg = json.dumps(body, ensure_ascii=False)
+        return pkg, warns
+
     def _pregen_cooling(self, job) -> bool:
         from . import video_pregen
         if not video_pregen.enabled():
             PREGEN_HELD.pop(job["id"], None)
+            self.__dict__.get("_pregen_fingerprints", {}).pop(job["id"], None)
             return False
         hit = PREGEN_HELD.get(job["id"])
         if not hit or time.time() - hit[1] >= PREGEN_RECHECK_S:
@@ -1157,6 +1197,8 @@ class VideoRunner(_Runner):
         hosted = self._hosted_pictures(job, list(zip(labels, frames))
                                        + extras, clean=True)
         if hosted:
+            if self.__dict__.get("_pregen_local"):
+                self._pregen_deferred[-1]["mark_fallback"] = True
             return hosted
         out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
         return [seedance_refs.mark(p, out_dir) for p in frames + [path for _, path in extras]]
@@ -1171,6 +1213,10 @@ class VideoRunner(_Runner):
         from . import features, seedance_refs
         if not features.on("seedance_subjects") or not pictures or not getattr(self.provider, "supports_subjects", False):
             return None
+        if self.__dict__.get("_pregen_local"):
+            local = [path for _, path in pictures]
+            self._pregen_deferred.append({"local": local, "pictures": list(pictures), "clean": clean})
+            return local
         lib = self.subject_library
         if lib is None:
             from .adapters import factory

@@ -105,7 +105,13 @@ def _check_fingerprint(conn, scene_id: int, plan: Dict, out: List[Dict]) -> None
                                          "không (N10)"))
         return
     prev = _previous_sent(conn, scene_id, plan.get("job_id"))
-    if prev is None or fingerprint(prev["sent_package"]) != fp:
+    previous_fp = fingerprint(prev["sent_package"]) if prev else None
+    if prev:
+        try:
+            previous_fp = json.loads(prev["sent_package"]).get("pregen_fingerprint") or previous_fp
+        except (TypeError, ValueError, AttributeError):
+            pass
+    if prev is None or previous_fp != fp:
         return
     if _hero_second(conn, plan, scene_id):
         return

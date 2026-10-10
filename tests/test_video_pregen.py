@@ -362,6 +362,85 @@ class Fingerprint(Base):                      # (6)
 
 
 class Batch(Base):
+    def test_seedance_real_reference_path_checks_before_upload(self):
+        from PIL import Image
+        self.on()
+        flags_on(self, "seedance_subjects", "seedance_ref_groups")
+        self.p.conn.execute("UPDATE projects SET shot_mode='per_shot' WHERE id=?", (self.pid,))
+        scene, img = self.shot(data={"shot_no": 1, "byd": byd()})
+        Image.new("RGB", (32, 32), "blue").save(self.image_path(img))
+        self.p.conn.execute("UPDATE motion_prompts SET video_model='seedance' WHERE scene_id=?", (scene,))
+        self.p.conn.commit()
+        self.p.create_job(scene, "video_gen")
+        prov = MockVideoProvider()
+        prov.supports_subjects = True
+        vr = VideoRunner(self.p, prov, self.dir)
+        vr.subject_library = object()
+        events = []
+        check = video_pregen.check
+        def checked(*args):
+            events.append("check")
+            return check(*args)
+        def uploaded(*args):
+            events.append("upload")
+            return {"refs": [{"uri": "asset://frame", "uploaded": True}], "problems": []}
+        with mock.patch("core.video_pregen.check", side_effect=checked), \
+                mock.patch("core.subjects.picture_refs", side_effect=uploaded), \
+                mock.patch.object(vr, "_reference_pictures", wraps=vr._reference_pictures) as references:
+            self.assertEqual(vr.submit_pending(self.pid), 1)
+            references.assert_called_once()
+            self.assertEqual(events, ["check", "upload"])
+
+    def test_upload_after_check_and_same_input_redo_never_uploads(self):
+        self.on()
+        flags_on(self, "seedance_subjects")
+        scene, img = self.shot()
+        first = self.p.create_job(scene, "video_gen")
+        prov = MockVideoProvider()
+        prov.supports_subjects = True
+        vr = VideoRunner(self.p, prov, self.dir)
+        vr.subject_library = object()
+        events = []
+        check = video_pregen.check
+        def checked(*args):
+            events.append("check")
+            return check(*args)
+        def uploaded(*args):
+            events.append("upload")
+            return {"refs": [{"uri": "asset://kelly", "uploaded": True}], "problems": []}
+        def kwargs(j):
+            return {"reference_only": vr._hosted_pictures(j, [("Kelly", self.image_path(img))])}
+        with mock.patch.object(vr, "_submit_kwargs", side_effect=kwargs), \
+                mock.patch("core.video_pregen.check", side_effect=checked), \
+                mock.patch("core.subjects.picture_refs", side_effect=uploaded) as upload:
+            self.assertEqual(vr.submit_pending(self.pid), 1)
+            self.assertEqual(events, ["check", "upload"])
+            self.assertIn("pregen_fingerprint", json.loads(self.p.job(first)["sent_package"]))
+            self.clip_done(first)
+            again = self.p.create_job(scene, "video_gen")
+            upload.reset_mock()
+            self.assertEqual(vr.submit_pending(self.pid), 0)
+            upload.assert_not_called()
+            self.assertEqual(self.state(again), "queued")
+
+    def test_red_request_never_uploads_subjects(self):
+        self.on()
+        flags_on(self, "seedance_subjects")
+        scene, img = self.shot(duration=20)
+        job = self.p.create_job(scene, "video_gen")
+        prov = MockVideoProvider()
+        prov.supports_subjects = True
+        vr = VideoRunner(self.p, prov, self.dir)
+        vr.subject_library = object()
+        def kwargs(j):
+            return {"reference_only": vr._hosted_pictures(j, [("Kelly", self.image_path(img))])}
+        with mock.patch.object(vr, "_submit_kwargs", side_effect=kwargs), \
+                mock.patch("core.subjects.picture_refs", return_value={"refs": [], "problems": []}) as upload:
+            self.assertEqual(vr.submit_pending(self.pid), 0)
+        upload.assert_not_called()
+        self.assertEqual(self.state(job), "queued")
+
+
     def test_missing_reference_video_holds_only_its_job(self):
         self.on()
         bad, _ = self.shot()
