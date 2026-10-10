@@ -96,3 +96,84 @@ def test_golden_identity(case):
     seg = idd.segment(case["goi"]["image_prompt"], {exp["nhan_vat"]: [exp["nhan_vat"].lower()]})
     got = {r["mon"]: r["trang_thai"] for r in idd.check(idd.declare_from_text(exp["khoa"]), seg[exp["nhan_vat"]])}
     assert got == exp["trang_thai"]
+
+
+# --- Rà soát quy ước 7 (10/10): 11 lỗi — mỗi lỗi một test ---
+
+def test_r1_non_ascii_english_must_keep_stays_english():
+    mons = [d["mon"] for d in idd.declare_from_text("black choker, yellow tracksuit — never tied")]
+    assert "choker" in mons and "tracksuit" in mons
+
+
+def test_r2_pattern_word_not_substring_of_vang():
+    decl = idd.declare_from_text("áo khoác vàng")
+    assert not any(d.get("hoa_tiet") for d in decl)
+
+
+def test_r3_missing_input_is_reported_not_silent():
+    rows = idd.check(idd.declare_from_text(""), "Kelly in a yellow tracksuit")
+    assert rows[0]["trang_thai"] == "khong_co_khoa" and rows[0]["muc"] == "do"
+    assert idd.summary(rows)["khong_co_khoa"] == 1
+    assert _by(idd.declare_from_text("choker đen"))["choker"]["mau_chinh"] == ["black"]
+    assert idd.unrecognized(idd.declare_from_text("áo khoác vàng")) == ["áo khoác vàng"]
+
+
+def test_r4_dryrun_reports_character_not_in_kho():
+    import importlib.util
+    import os
+    import sqlite3
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "dryrun_k0b_p24.py")
+    spec = importlib.util.spec_from_file_location("dryrun_k0b_p24", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert os.path.isabs(mod.SPECS)
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE assets (id INTEGER, profile TEXT, description TEXT)")
+    rows = mod.identity_rows(conn, ["KELLY", "NGƯỜI LẠ"], "Kelly in a yellow tracksuit", {"kelly"})
+    loi = {r["nhan_vat"]: r["loi"] for r in rows}
+    assert loi == {"NGƯỜI LẠ": "khong_co_STAGE_KEY", "KELLY": "khong_co_trong_Kho"}
+
+
+def test_r5_vietnamese_compared_with_diacritics():
+    assert "belt" not in _by(idd.declare_from_text("khăn choàng dài màu đen"))
+    d = _by(idd.declare_from_text("mắt xanh dương, tóc đến vai màu nâu"))
+    assert d["eyes"]["mau_chinh"] == ["blue"] and "face" not in d
+    assert d["hair"]["mau_chinh"] == ["brown"]
+
+
+def test_r6_item_outside_items_no_keyerror():
+    r = idd.check([{"mon": "cap", "mau_chinh": ["red"]}], "Kelly in a red cap")
+    assert r[0]["trang_thai"] == "co"
+
+
+def test_r7_color_after_noun():
+    decl = idd.declare_from_text("yellow tracksuit")
+    assert idd.check(decl, "Kelly wears a tracksuit in bright yellow")[0]["trang_thai"] == "co"
+    assert idd.check(decl, "a tracksuit in the plaza, red light")[0]["trang_thai"] == "thieu_mau"
+
+
+def test_r8_main_color_required():
+    decl = [{"mon": "hair", "mau_chinh": ["black", "red"], "nguon": "suy"}]
+    assert idd.check(decl, "long red hair")[0]["trang_thai"] == "thieu_mau"
+    r = idd.check(decl, "long black hair")[0]
+    assert r["trang_thai"] == "co" and r["mau_phu_thieu"] == ["red"]
+
+
+def test_r9_mask_is_its_own_item():
+    r = _by(idd.check(idd.declare_from_text("black face mask"), "her youthful black face"))
+    assert r["mask"]["trang_thai"] == "thieu"
+
+
+def test_r10_segment_boundaries():
+    seg = idd.segment("Kelly and a ghost girl in a white dress", {"KELLY": ["kelly"]})
+    assert "dress" not in seg["KELLY"]
+    seg = idd.segment("Kelly waves, Miami street glows red", {"MIA": ["mia"], "K": ["kelly"]})
+    assert "glows" not in seg["MIA"]
+
+
+def test_r11_two_colors_sign_window_and_false_synonyms():
+    assert len(idd.declare_from_text("red white black dress")[0]["mau_chinh"]) == 2
+    r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in yellow tracksuit and black choker, spiked hair"))
+    assert r["choker"]["dau_hieu_thay"] is False
+    assert _by(idd.declare_from_text("ash-blonde hair"))["hair"]["mau_chinh"] != ["grey"]
+    assert _by(idd.declare_from_text("rose gold choker"))["choker"]["mau_chinh"] == ["yellow"]

@@ -19,7 +19,8 @@ import re
 import sqlite3
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # đường dẫn neo theo repo, không theo cwd
+sys.path.insert(0, ROOT)
 from core import identity_declare as idd  # noqa: E402
 from core import shot_intent, stage_facts  # noqa: E402
 
@@ -29,7 +30,7 @@ CHAR_ASSET = {"KELLY": 23, "YÊU NỮ TÀ LINH DẠNG 1": 418, "YÊU NỮ TÀ LI
 STAGE_KEY = {"KELLY": "kelly", "YÊU NỮ TÀ LINH DẠNG 1": "yeunu", "YÊU NỮ TÀ LINH DẠNG 2": "yeunu"}
 MARKERS = {"KELLY": ["kelly"], "YÊU NỮ TÀ LINH DẠNG 1": ["creature", "yêu nữ"], "YÊU NỮ TÀ LINH DẠNG 2": ["creature", "yêu nữ"]}
 PROPS = ("gieng", "thap")
-SPECS = "tools/experiments/stage_v2_p24/shot_specs.json"
+SPECS = os.path.join(ROOT, "tools/experiments/stage_v2_p24/shot_specs.json")
 # Quyết định người dùng 09/10 (TODO.md khối "người dùng CHỐT #24") — chỗ shot_specs chưa ghi.
 USER_DECISIONS = {
     4: {"note": "phương án 43: sau lưng-chéo Kelly ngã ngửa, máy thấp 0,6 m"},
@@ -92,17 +93,27 @@ def build_byd(spec, data, conn):
 def identity_rows(conn, chars, prompt, in_frame=None):
     """Chỉ nhân vật có trong khung theo BYĐ (in_frame = khóa sân khấu); chữ của mỗi nhân vật = đoạn prompt nói về nó (segment)."""
     out = []
+    if in_frame is not None:                   # nhân vật không có khóa sân khấu → báo, không lọc im lặng
+        out += [{"nhan_vat": c, "kho_id": CHAR_ASSET.get(c), "loi": "khong_co_STAGE_KEY", "tong": {}, "mon": []}
+                for c in chars if c not in STAGE_KEY]
     chars = [c for c in chars if in_frame is None or STAGE_KEY.get(c) in in_frame]
     seg = idd.segment(prompt, {c: MARKERS.get(c, [c.lower()]) for c in chars})
     for name in chars:
         aid = CHAR_ASSET.get(name)
         row = conn.execute("SELECT profile, description FROM assets WHERE id=?", (aid,)).fetchone() if aid else None
-        prof = json.loads(row[0]) if row and row[0] else {}
-        src, text = ("must_keep", prof.get("must_keep")) if prof.get("must_keep") else ("mo_ta_kho", (row or [None, ""])[1])
+        if row is None:                        # không có trong Kho → ĐỎ rõ ràng, không trả tổng 0 (trông như đạt)
+            out.append({"nhan_vat": name, "kho_id": aid, "loi": "khong_co_trong_Kho", "nguon_khoa": None,
+                        "tong": idd.summary(idd.check([], "")), "mon": idd.check([], "")})
+            continue
+        prof = json.loads(row[0]) if row[0] else {}
+        mk = prof.get("must_keep")
+        mk = ", ".join(map(str, mk)) if isinstance(mk, list) else mk
+        src, text = ("must_keep", mk) if mk else ("mo_ta_kho", row[1])
         decl = idd.declare_from_text(text or "")
         rows = idd.check(decl, seg.get(name, ""))
         out.append({"nhan_vat": name, "kho_id": aid, "nguon_khoa": src, "thieu_must_keep": src != "must_keep",
-                    "tong": idd.summary(rows), "mon": rows})
+                    "loi": "khong_co_khoa" if any(r["trang_thai"] == "khong_co_khoa" for r in rows) else None,
+                    "khong_nhan_ra": idd.unrecognized(decl), "tong": idd.summary(rows), "mon": rows})
     return out
 
 
@@ -142,7 +153,7 @@ def pose_tool(main):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--main", default="D:/AI-Video-Pipeline")
-    ap.add_argument("--out", default="data_out/k0b_p24")
+    ap.add_argument("--out", default=os.path.join(ROOT, "data_out/k0b_p24"))
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     conn = ro(a.main)
@@ -182,7 +193,7 @@ def main():
     # in gọn
     print("pose:", pose_note)
     for s in report["shots"]:
-        ids = "; ".join(f"{n['nhan_vat'][:12]}({n['nguon_khoa']}) " + ",".join(f"{m['mon']}={m['trang_thai']}" for m in n["mon"])
+        ids = "; ".join(f"{n['nhan_vat'][:12]}({n.get('nguon_khoa') or n.get('loi')}) " + ",".join(f"{m['mon']}={m['trang_thai']}" for m in n["mon"])
                         for n in s["nhan_dien"])
         g = s["hinh_hoc"]
         print(f"S{s['shot']} byd={'OK' if s['byd_hop_le'] else 'DO'} loi={[i['truong'] + ':' + i['loi'][:40] for i in s['byd_loi']]} "
