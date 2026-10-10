@@ -212,7 +212,12 @@ origin/ghi-chu-giao-dien-fatebreaker:docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-
 
 ## Kết quả Codex — đợt 2
 
-(Codex ghi: việc · nhánh · commit · test đỏ→xanh · việc mở.)
+| Việc | Nhánh | Commit | Bằng chứng / việc mở |
+|---|---|---|---|
+| 4 | `codex/d2-viec4-mockup-video` | `fb51e24` | 4 test mockup đỏ → xanh; nhóm cùng UI acceptance **8 test xanh**, phép đo AppTest 12 click + 2 nhập (mock, job running). Rà: giữ stepper/giá/A13, ảnh và vai gói gửi, 9 shot, phiên bản có trạng thái/đang dùng, Kho nguồn cạnh khai_bao_chu và R1; toàn bộ SVG/JS offline. Không đổi Dashboard/key widget; areas.version giữ. |
+
+Báo cáo `docs/NGHIEN_CUU_TOI_UU_GIAO_DIEN_2026-10-11.md` dẫn nguồn chính thức, phân biệt đo AppTest với ngân sách CSS; **chưa đo cuộn pixel bằng browser**, chưa chạy Dashboard/media/API thật. Code hiện đã 3 thẻ mỗi hàng và chip phiên bản, không lấy mô tả UI cũ làm baseline. Mockup chỉ mô phỏng, cần người duyệt trước triển khai. Cả bộ test do bên gộp chạy theo đề bài.
+
 
 ---
 ---
