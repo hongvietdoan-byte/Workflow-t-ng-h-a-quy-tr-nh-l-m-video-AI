@@ -61,6 +61,8 @@ def objects_from_blocking(blocking: Dict, marks: Optional[Dict] = None, beat: Op
             if o.get("tu_the"):
                 e["tu_the"] = o["tu_the"]
             if sg.lying(e):
+                if e.get("facing") is None:          # rà 10/10: lỗi ở đây (không phải lúc giải) để Đạo diễn gọi lại bằng SchemaError
+                    raise ValueError(f"'{k}' tư thế {e['tu_the']} cần facing (đầu → chân) — không đoán hướng thân nằm")
                 # TẠM, chưa đo: H là bề dài thân, không phải chiều cao trụ đứng; không suy từ Pose.
                 e.update(body_length=e["H"], body_height=e["H"] * (.45 if e["tu_the"] == "nga_ngua" else .2))
             if o.get("in"):

@@ -46,3 +46,23 @@ def test_readable_horizon_keeps_matching_result(tmp_path):
     res = qc.compare(str(plate), str(plate))
     assert res["measured"] is True and res["muc"] == "xanh"
     assert res["mismatch"] is False and not res["reasons"]
+
+
+def test_bright_render_without_horizon_but_edge_is_partly_measured(tmp_path):
+    """Rà 10/10 lỗi 3: render SÁNG không chân trời (tường/nhà che) mà F1 đường nét đo được → đã đo một phần, không VÀNG oan."""
+    plate = tmp_path / "wall.png"
+    Image.new("RGB", (100, 100), "white").save(plate)
+    with patch("core.place_refs.background_match", return_value=0.8):
+        res = qc.compare(str(plate), str(plate))
+    assert res["measured"] is True and res["partial"] is True and res["muc"] == "xanh" and not res["mismatch"]
+    assert any("đo được một phần" in r for r in res["reasons"])
+    with patch("core.camera_plan.enabled", return_value=True), \
+            patch("core.place_refs.shot_ref", return_value={"path": str(plate), "_rec": {}}), \
+            patch("core.place_refs.background_match", return_value=0.8), \
+            patch.object(qc, "_stage_horizon", return_value=None):
+        severity, words = qc.check_job(None, str(tmp_path), 1, 2, 3, str(plate))
+    assert severity == "info" and "đo được một phần" in words and "khớp render" not in words
+    dark = tmp_path / "night.png"                                    # render TỐI không chân trời: vẫn VÀNG dù có F1
+    Image.new("RGB", (100, 100), "black").save(dark)
+    with patch("core.place_refs.background_match", return_value=0.8):
+        assert qc.compare(str(dark), str(dark))["measured"] is False

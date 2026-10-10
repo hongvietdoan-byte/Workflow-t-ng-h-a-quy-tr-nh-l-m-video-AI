@@ -86,3 +86,17 @@ def test_person_overlapping_well_must_declare_in():
     a["blocking"]["beats"]["bo"]["yeunu"] = {"at": [-0.278, 0.85], "facing": 170, "H": 0.6}     # sát thành giếng, không khai in
     with pytest.raises(llm_io.SchemaError, match="chồng lên"):
         sd.validate_answer(a, inputs(), MARKS)
+
+
+def test_lying_person_without_facing_is_schema_error_not_solver_crash():
+    """Rà 10/10 lỗi 1: người nằm / ngã ngửa thiếu facing phải bị trả lại Đạo diễn (SchemaError) lúc kiểm, không nổ ValueError lúc giải."""
+    from core import stage_solver as ss
+    a = hand_answer()
+    kelly = next(o for o in a["blocking"]["objects"] if o["key"] == "kelly")
+    kelly["tu_the"] = "nam"
+    kelly.pop("facing")
+    with pytest.raises(llm_io.SchemaError, match="cần facing"):
+        sd.validate_answer(a, inputs(), MARKS)
+    kelly["facing"] = 350                                   # có facing → giải được, không ném ra ngoài
+    res = ss.solve_scene(a["shot_specs"][:1], a["blocking"], 9 / 16, MARKS)
+    assert len(res["shots"]) == 1
