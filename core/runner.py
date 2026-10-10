@@ -368,6 +368,8 @@ class _Runner:
                 self._running(job["id"])
                 self.p.fail(job["id"], f"stale_input: {kwargs['_hold']}")
                 continue
+            if self._pregen(job, args, kwargs):      # K3 (cờ video_pregen): ĐỎ → giữ chờ người, các job khác vẫn gửi
+                continue
             with budget.SPEND_LOCK:            # limit check + ledger entry as one step: two projects must not both pass the cap
                 over = self._over_budget(job, args, kwargs)
                 if over:
@@ -423,21 +425,29 @@ class _Runner:
             submitted += 1
         return submitted
 
+    def _build_package(self, job, args, kwargs, sent_kwargs, task_id):
+        """(JSON text of the package, warnings) for this send — one builder for the ledger (_write_sent_package) and the K3 check before
+        gen (_pregen: the same package BEFORE the send, task_id None). Never raises (sent_package.safe_build)."""
+        from . import sent_package
+        kind = self.job_type.split("_")[0]
+        if kwargs.get("_from_sample"):
+            extra = sent_package.draft_of(self.p.conn, kwargs["_from_sample"])
+            return sent_package.safe_build(
+                self.provider.submit_final_from_sample, (kwargs["_from_sample"],), {"resolution": kwargs.get("resolution")},
+                kind=kind, provider=self.provider, external_id=task_id, model=extra.pop("draft_model", None),
+                call="submit_final_from_sample", extra=extra)
+        return sent_package.safe_build(self.provider.submit, tuple(args), sent_kwargs, kind=kind, provider=self.provider,
+                                       external_id=task_id, meta=getattr(self, "_sent", {}).get(job["id"]))
+
+    def _pregen(self, job, args, kwargs) -> bool:
+        """K3 (A17): code check of the request right before it is paid for; True = held (not sent). Only the video runner checks."""
+        return False
+
     def _write_sent_package(self, job, args, kwargs, sent_kwargs, task_id) -> List[str]:
         """K1a (core/sent_package.py): jobs.sent_package = what really left — the same args / kwargs the provider got. Never raises;
         returns the warnings (unreadable picture, package not written) for _say_package."""
-        from . import sent_package
         try:
-            kind = self.job_type.split("_")[0]
-            if kwargs.get("_from_sample"):
-                extra = sent_package.draft_of(self.p.conn, kwargs["_from_sample"])
-                pkg, warns = sent_package.safe_build(
-                    self.provider.submit_final_from_sample, (kwargs["_from_sample"],), {"resolution": kwargs.get("resolution")},
-                    kind=kind, provider=self.provider, external_id=task_id, model=extra.pop("draft_model", None),
-                    call="submit_final_from_sample", extra=extra)
-            else:
-                pkg, warns = sent_package.safe_build(self.provider.submit, tuple(args), sent_kwargs, kind=kind, provider=self.provider,
-                                                     external_id=task_id, meta=getattr(self, "_sent", {}).get(job["id"]))
+            pkg, warns = self._build_package(job, args, kwargs, sent_kwargs, task_id)
             if pkg is not None:
                 self.p.conn.execute("UPDATE jobs SET sent_package=? WHERE id=?", (pkg, job["id"]))
             return warns
@@ -714,6 +724,33 @@ class VideoRunner(_Runner):
         if self._refs(job):
             return self._ref_lint(job)
         return None
+
+    def _pregen(self, job, args, kwargs) -> bool:
+        """K3 (A17, core/video_pregen.py, cờ video_pregen — tắt = y cũ): kiểm gói video TRƯỚC khi trả tiền. ĐỎ → không gửi: job ở lại hàng
+        đợi chờ người (WAIT_REASONS, như Tổ rà soát giữ) + một dòng ⚙ Chẩn đoán; sửa đầu vào xong lượt gửi sau tự đi. VÀNG → gửi + ghi.
+        Lớp kiểm hỏng → ĐỎ có lý do (không gửi khi chưa kiểm được). Chỉ giữ job này: vòng gửi đi tiếp sang job khác (lô / autopilot)."""
+        from . import video_pregen
+        if not video_pregen.enabled():
+            return False
+        try:
+            sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}
+            pkg, _ = self._build_package(job, args, kwargs, sent_kwargs, None)
+            group = self._sends_group(job) or []
+            plan = video_pregen.plan_of(job, args, kwargs, pkg, self.data_dir, [r["id"] for r in group])
+            issues = video_pregen.check(self.p.conn, job["scene_id"], plan)
+        except Exception as e:  # noqa: BLE001 - a check that cannot run must not let the money go (luật 1: không im lặng)
+            issues = [{"ma": "loi_kiem", "muc": video_pregen.DO,
+                       "ly_do": f"lớp kiểm trước gen lỗi ({type(e).__name__}: {e}) — chưa gửi khi chưa kiểm được"}]
+        reds = [i for i in issues if i["muc"] == video_pregen.DO]
+        for i in issues:
+            if i["muc"] != video_pregen.DO:
+                self._diag_once(job, "warn", "video_pregen", f"kiểm trước gen (vàng, vẫn gửi): {i['ly_do']}")
+        if not reds:
+            return False
+        line = "kiểm trước gen chặn: " + video_pregen.summary(reds)
+        WAIT_REASONS[job["id"]] = (line, time.time())
+        self._diag_once(job, "warn", "video_pregen_hold", f"chưa gửi — {line}")
+        return True
 
     def _gore_hinted(self, job, group, scene_id: int) -> bool:
         """F1 sửa #5: does the FF gore-restraint sentence really go with this shot on this job's send path? A Kling multi-shot group:
