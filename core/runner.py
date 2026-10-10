@@ -344,13 +344,23 @@ class _Runner:
                 WAIT_REASONS[job["id"]] = (held, time.time())
                 self._diag_once(job, "warn", "change_review_hold", f"chưa gửi: {held}")
                 continue
-            blocked = self._blocked(job)
+            try:
+                blocked = self._blocked(job)
+            except (OSError, ValueError, ProviderError) as error:
+                if self._pregen_prepare_error(job, error):
+                    continue
+                raise
             if blocked:
                 self._diag(job, "warn", "stale_input", f"không gửi: {blocked}")
                 self._running(job["id"])                 # QUEUED→FAILED is not a transition (core/states.py): RUNNING, then fail
                 self.p.fail(job["id"], f"stale_input: {blocked}")
                 continue
-            args = self._submit_args(job)
+            try:
+                args = self._submit_args(job)
+            except (OSError, ValueError, ProviderError) as error:
+                if self._pregen_prepare_error(job, error):
+                    continue
+                raise
             if args is None and self._editing(job):
                 continue            # M5: the person is editing this shot's motion prompt — wait for the approval, do not burn a try
             if args is None:
@@ -364,7 +374,12 @@ class _Runner:
                 break  # learned limit for all projects together: wait for a slot
             if only is None and self._pregen_cooling(job):
                 continue            # K3 rà: held by the check before gen a moment ago — no rebuild of the request on every heartbeat
-            kwargs = self._prepare_kwargs(job) if getattr(self.provider, "supports_aspect", False) else {}
+            try:
+                kwargs = self._prepare_kwargs(job) if getattr(self.provider, "supports_aspect", False) else {}
+            except (OSError, ValueError, ProviderError) as error:
+                if self._pregen_prepare_error(job, error):
+                    continue
+                raise
             if kwargs.get("_wait"):                  # rà F3: a passing provider error — stays queued, said, not failed, not sent
                 said = self.__dict__.setdefault("_final_waits", set())
                 if job["id"] not in said:             # said once, not on every heartbeat
@@ -384,7 +399,12 @@ class _Runner:
                 if over:
                     self._diag(job, "warn", "budget", over)
                     break                        # a real stop (S14.16: the service is out of credit): leave everything queued, say why
-                kwargs = self._finish_kwargs(job, kwargs)
+                try:
+                    kwargs = self._finish_kwargs(job, kwargs)
+                except (OSError, ValueError, ProviderError) as error:
+                    if self._pregen_prepare_error(job, error):
+                        continue
+                    raise
                 sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}   # '_' keys: the runner's notes, never sent
                 try:
                     if kwargs.get("_from_sample"):       # N1: a final made from its approved Seedance 2.5 draft (draft_task)
@@ -454,6 +474,9 @@ class _Runner:
 
     def _finish_kwargs(self, job, kwargs):
         return kwargs
+
+    def _pregen_prepare_error(self, job, error):
+        return False
 
     def _pregen(self, job, args, kwargs) -> bool:
         """K3 (A17): code check of the request right before it is paid for; True = held (not sent). Only the video runner checks."""
@@ -795,6 +818,16 @@ class VideoRunner(_Runner):
             return self._submit_kwargs(job)
         finally:
             self._pregen_local = False
+
+    def _pregen_prepare_error(self, job, error):
+        from . import video_pregen
+        if not video_pregen.enabled():
+            return False
+        line = f"kiểm trước gen chặn: không chuẩn bị được tệp / tham chiếu ({type(error).__name__}: {error}) — chỉ giữ shot này"
+        now = time.time()
+        WAIT_REASONS[job["id"]] = PREGEN_HELD[job["id"]] = (line, now)
+        self._pregen_note(job, "video_pregen_hold", f"chưa gửi — {line}")
+        return True
 
     def _finish_kwargs(self, job, kwargs):
         from . import seedance_refs

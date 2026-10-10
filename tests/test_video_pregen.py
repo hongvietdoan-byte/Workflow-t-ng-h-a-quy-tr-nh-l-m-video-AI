@@ -362,6 +362,55 @@ class Fingerprint(Base):                      # (6)
 
 
 class Batch(Base):
+    def test_file_error_in_unpaid_block_check_holds_only_its_job(self):
+        self.on()
+        bad, _ = self.shot()
+        good, _ = self.shot()
+        jobs = [self.p.create_job(s, "video_gen") for s in (bad, good)]
+        prov = MockVideoProvider()
+        vr = VideoRunner(self.p, prov, self.dir)
+        original = vr._blocked
+        def blocked(j):
+            if j["scene_id"] == bad:
+                raise OSError("reference file lost during lint")
+            return original(j)
+        with mock.patch.object(vr, "_blocked", side_effect=blocked):
+            self.assertEqual(vr.submit_pending(self.pid), 1)
+        self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
+
+    def test_broken_reference_picture_preparation_holds_only_its_job(self):
+        from PIL import Image
+        self.on()
+        flags_on(self, "seedance_ref_groups")
+        self.p.conn.execute("UPDATE projects SET shot_mode='per_shot' WHERE id=?", (self.pid,))
+        bad, _ = self.shot(data={"shot_no": 1})
+        good, img = self.shot()
+        Image.new("RGB", (32, 32), "green").save(self.image_path(img))
+        self.p.conn.execute("UPDATE motion_prompts SET video_model='seedance' WHERE scene_id=?", (bad,))
+        self.p.conn.commit()
+        jobs = [self.p.create_job(s, "video_gen") for s in (bad, good)]
+        self.assertEqual(len(self.send()), 1)
+        self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
+        self.assertIn("UnidentifiedImageError", runner.wait_reason(jobs[0]) or "")
+
+    def test_upload_file_error_holds_only_its_job(self):
+        self.on()
+        flags_on(self, "seedance_subjects")
+        bad, img = self.shot()
+        good, _ = self.shot()
+        jobs = [self.p.create_job(s, "video_gen") for s in (bad, good)]
+        prov = MockVideoProvider()
+        prov.supports_subjects = True
+        vr = VideoRunner(self.p, prov, self.dir)
+        vr.subject_library = object()
+        def kwargs(j):
+            return {"reference_only": vr._hosted_pictures(j, [("Kelly", self.image_path(img))])} if j["scene_id"] == bad else {}
+        with mock.patch.object(vr, "_submit_kwargs", side_effect=kwargs), \
+                mock.patch("core.subjects.picture_refs", side_effect=OSError("file disappeared")):
+            self.assertEqual(vr.submit_pending(self.pid), 1)
+        self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
+        self.assertIn("file disappeared", runner.wait_reason(jobs[0]) or "")
+
     def test_seedance_real_reference_path_checks_before_upload(self):
         from PIL import Image
         self.on()
