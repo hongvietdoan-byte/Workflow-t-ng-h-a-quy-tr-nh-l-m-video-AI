@@ -21,7 +21,7 @@ os.chdir(ROOT)
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
-from devsys import answers, collect, decisions, metrics, plan_progress, scorer, scores, workflow  # noqa: E402
+from devsys import answers, collect, decisions, metrics, plan_progress, scorer, scores, stages, workflow  # noqa: E402
 
 st.set_page_config(page_title="AI Development System", page_icon="🧭", layout="wide")
 
@@ -184,7 +184,7 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
     page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
-                              "Hiệu quả quy trình", "Ai quyết", "Bộ kỹ năng 3 vai"], label_visibility="collapsed")
+                              "Hiệu quả quy trình", "Ai quyết", "Làm ↔ Kiểm", "Bộ kỹ năng 3 vai"], label_visibility="collapsed")
     st.divider()
     st.markdown("**Test**")
     running = collect.tests_running(ROOT)
@@ -1076,7 +1076,49 @@ def page_decisions():
                                 "Khâu": d.get("stage") or "", "Ở đâu": d["where"]} for d in doc.get("items", [])]), hide_index=True)
 
 
+# ---- trang: Làm ↔ Kiểm (K0a kế hoạch kiểm soát, mục 3.9 / 7) ----------------------------------------------------------------
+_RED, _YELLOW = "background-color: #f8d0d0", "background-color: #fff1c2"
+
+
+def page_stages():
+    st.title("Làm ↔ Kiểm — khâu nào đang có kiểm trước tiền")
+    st.caption("Từ `devsys/stages.json` (sổ khâu) + `devsys/error_types.json` (bảng loại lỗi); trạng thái dòng có `co` đọc từ cờ thật "
+               "(`core.features.state`). Đỏ = khâu tốn tiền đang chạy mà không có kiểm trước đang chạy / học việc (N3). "
+               "Vàng = lớp kiểm đọc chữ tự do để kết luận (N1). Cột 'Đợt' = đợt kế hoạch sẽ lấp.")
+    try:
+        raw, types, deci = stages.load_stages(), stages.load_error_types(), decisions.load()
+    except (OSError, ValueError) as e:
+        st.error(f"Không đọc được sổ khâu / bảng loại lỗi: {e}")
+        return
+    bad = stages.stage_problems(raw, deci) + stages.error_type_problems(types)
+    if bad:
+        st.warning("Sổ lệch hợp đồng:\n\n" + "\n".join(f"- {b}" for b in bad))
+    doc = stages.effective(raw)
+    rows = stages.summary_rows(doc)
+    only = stages.only_building(types)
+    st.markdown("<div class='kpis'>" + "".join([
+        kpi("Khâu", len(rows)),
+        kpi("Tốn tiền thiếu kiểm trước", sum(r["thieu"] for r in rows), "đỏ", "bad" if any(r["thieu"] for r in rows) else "ok"),
+        kpi("Kiểm đọc chữ tự do", sum(r["tu_do"] for r in rows), "vàng", "warn"),
+        kpi("Loại lỗi chỉ đang xây", f"{len(only)} / {len(types.get('types', []))}", ", ".join(t["id"] for t in only)),
+    ]) + "</div>", unsafe_allow_html=True)
+    flags = [r for r in rows if r["ghi_co"]]
+    if flags:
+        st.info("Trạng thái đọc từ cờ khác ghi tay:\n\n" + "\n".join(f"- {r['id']}: {r['ghi_co']}" for r in flags))
+    st.markdown("#### Khâu làm")
+    df = pd.DataFrame([{"Khâu": r["id"], "Tên": r["ten"], "Tốn tiền": "có" if r["ton_tien"] else "—", "Khâu chạy": r["khau"],
+                        "Kiểm trước": r["kiem_truoc"], "Kiểm sau": r["kiem_sau"], "Đọc từ": r["doc_tu"], "Cờ": r["co"], "Đợt": r["dot"]}
+                       for r in rows])
+    marks = {i: _RED if r["thieu"] else (_YELLOW if r["tu_do"] else "") for i, r in enumerate(rows)}
+    st.dataframe(df.style.apply(lambda row: [marks[row.name]] * len(row), axis=1), hide_index=True)
+    st.markdown("#### Loại lỗi (mục 4)")
+    trows = stages.error_type_rows(types)
+    tdf = pd.DataFrame([{"Loại": r["id"], "Tên": r["ten"], "Áp cho": r["ap_dung"], "Có (code / Claude)": r["co"] or "—",
+                         "Xây (đợt)": r["xay"] or "—"} for r in trows])
+    st.dataframe(tdf.style.apply(lambda row: [_RED if trows[row.name]["chi_xay"] else ""] * len(row), axis=1), hide_index=True)
+
+
 PAGES = {"📋 Kế hoạch đang chạy": page_plan, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
-         "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Hiệu quả quy trình": page_flow, "Ai quyết": page_decisions,
+         "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Hiệu quả quy trình": page_flow, "Ai quyết": page_decisions, "Làm ↔ Kiểm": page_stages,
          "Bộ kỹ năng 3 vai": page_skills}
 PAGES[page]()

@@ -16,7 +16,11 @@ Nguồn: `docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md` mục 3.9 / 4 / 8 (K0
 `tests/test_devsys_stages.py`, `tests/test_shot_intent.py`, `tests/test_cost.py::QcStageTokensTests` (mới); cùng nhóm devsys*, stage_facts,
 ước chi: 360 passed. Bảng tóm tắt: `py -m pytest -s tests/test_devsys_stages.py -k summary`.
 
+## Đợt 2 (cùng ngày)
+- Trang devsys "Làm ↔ Kiểm" (`devsys/app.py:page_stages`): bảng khâu (đỏ = tốn tiền thiếu kiểm trước, vàng = đọc chữ tự do) + bảng
+  23 loại lỗi (đỏ = chỉ đang xây). Điều kiện "xong" của K0a.
+- Trường `co` ({khau|truoc|sau: cờ}) trên L2, L7, L15a, L16; `stages.effective` đọc `core.features.state` (lỗi → giữ ghi tay + `_co_ghi`).
+
 ## Việc mở
-- Trang devsys "Làm ↔ Kiểm" (đọc `devsys/stages.py.summary_rows`) chưa làm — điều kiện "xong" của K0a trong mục 8.
 - Plan mục 3.9 đòi "mỗi ô BYĐ đủ 3 câu (dữ kiện / kiểm gói / mệnh đề QC)" — chưa có test (K0b/K1a).
-- Trạng thái cờ trong sổ ghi theo `docs/RA_SOAT…` 10/10, không đọc `data/feature_settings.json` thật — đổi cờ thì sửa tay sổ.
+- Dòng không có `co` (vd L9 kiểm sau gồm nhiều lớp khác cờ) vẫn ghi tay theo `docs/RA_SOAT…` 10/10.

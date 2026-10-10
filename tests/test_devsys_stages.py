@@ -4,7 +4,9 @@ devsys/stages.json + BẢNG LOẠI LỖI devsys/error_types.json + định dạn
 Đỏ đúng chỗ thiếu thật nhưng không làm đỏ cả bộ: chỗ thiếu ĐÃ BIẾT phải ghi `dot` (đợt kế hoạch sẽ lấp). Khâu tốn tiền đang chạy mà không có
 lớp kiểm trước đang chạy / học việc, hoặc lớp kiểm đọc chữ tự do để kết luận → thiếu `dot` là đỏ. Chạy `-s` để in bảng khâu thiếu kiểm."""
 import os
+import tempfile
 import unittest
+from unittest import mock
 
 from devsys import decisions, stages
 from tests import golden
@@ -68,6 +70,71 @@ class StagesBookTests(unittest.TestCase):
         rows = stages.summary_rows(self.doc)
         self.assertEqual(len(rows), len(self.doc["stages"]))
         print("\n" + stages.summary_text(self.doc, stages.load_error_types()))
+
+
+class FlagStateTests(unittest.TestCase):
+    """Dòng có `co`: trạng thái đọc từ cờ thật (core.features.state) — đổi cờ không phải sửa sổ tay."""
+
+    def setUp(self):
+        self.doc = stages.load_stages()
+        self.tmp = tempfile.mkdtemp()
+        self.env = {"FEATURE_SETTINGS_FILE": os.path.join(self.tmp, "none.json")}
+
+    def _row(self, doc, sid):
+        return next(s for s in doc["stages"] if s["id"] == sid)
+
+    def test_flag_on_and_off_change_the_state(self):
+        with mock.patch.dict(os.environ, dict(self.env, FEATURE_CHANGE_REVIEW="1", FEATURE_ASSET_CHECKLIST="1")):
+            eff = stages.effective(self.doc)
+        self.assertEqual(self._row(eff, "L16")["trang_thai_kiem"], "chay")
+        self.assertEqual(self._row(eff, "L2")["khau_trang_thai"], "chay")
+        self.assertEqual(self._row(eff, "L2")["trang_thai_kiem"], "chay")
+        with mock.patch.dict(os.environ, dict(self.env, FEATURE_CHANGE_REVIEW="0", FEATURE_ASSET_CHECKLIST="0")):
+            eff = stages.effective(self.doc)
+        self.assertEqual(self._row(eff, "L16")["trang_thai_kiem"], "tat")
+        self.assertIn("change_review", " ".join(self._row(eff, "L16")["_co_ghi"]))   # khác ghi tay → nói ra
+        self.assertEqual(self._row(eff, "L2")["khau_trang_thai"], "tat")
+        self.assertEqual(self._row(self.doc, "L16")["trang_thai_kiem"], "chay")      # sổ gốc không bị sửa
+
+    def test_unreadable_flag_keeps_the_hand_value_and_says_so(self):
+        def boom(name):
+            raise KeyError(name)
+        eff = stages.effective(self.doc, state=boom)
+        l16 = self._row(eff, "L16")
+        self.assertEqual(l16["trang_thai_kiem"], "chay")
+        self.assertIn("không đọc được cờ 'change_review'", " ".join(l16["_co_ghi"]))
+        self.assertIn("không đọc được", stages.summary_rows(eff)[[r["id"] for r in stages.summary_rows(eff)].index("L16")]["ghi_co"])
+
+    def test_empty_check_list_stays_khong_co(self):
+        s = dict(self._row(self.doc, "L9"), co={"truoc": "scene_qc"})
+        eff = stages.effective({"stages": [s]}, state=lambda n: "on")
+        self.assertEqual(eff["stages"][0]["trang_thai_kiem"], "khong_co")
+
+    def test_unknown_flag_is_reported(self):
+        s = dict(self._row(self.doc, "L16"), co={"truoc": "khong_co_co_nay", "giua": "x"})
+        got = " ".join(stages.stage_problems({"stages": [s]}, decisions.load()))
+        self.assertIn("khong_co_co_nay", got)
+        self.assertIn("co.giua", got)
+
+
+class PageTests(unittest.TestCase):
+    def test_page_renders_red_rows_and_error_types(self):
+        try:
+            from streamlit.testing.v1 import AppTest
+        except ImportError:  # pragma: no cover
+            self.skipTest("streamlit.testing không có")
+        at = AppTest.from_file(os.path.join(ROOT, "devsys", "app.py"), default_timeout=180)
+        at.run()
+        at.sidebar.radio[0].set_value("Làm ↔ Kiểm").run()
+        self.assertEqual([e.value for e in at.exception], [])
+        self.assertTrue(at.title[0].value.startswith("Làm ↔ Kiểm"))
+        frames = [f.value for f in at.dataframe]
+        first = frames[0].data if hasattr(frames[0], "data") else frames[0]
+        self.assertIn("L9", list(first["Khâu"]))
+        second = frames[1].data if hasattr(frames[1], "data") else frames[1]
+        self.assertEqual(len(second), 23)
+        text = " ".join(m.value for m in at.markdown)
+        self.assertIn("Tốn tiền thiếu kiểm trước", text)
 
 
 class ErrorTypeTests(unittest.TestCase):
