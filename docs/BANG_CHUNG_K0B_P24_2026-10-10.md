@@ -64,3 +64,14 @@ bắt** (tư thế, nền mẫu, trăng, ảnh mẫu bẩn, màu giếng).
 
 Giới hạn còn lại: tách món từ chữ là SUY (tiếng Việt: "mặt đen với hai mắt tròn đỏ" gộp vào `face`); đồng nghĩa màu / món là bảng tay; chưa
 có ô `khai_bao_chu` trong hồ sơ Kho (K0b phần sau tạo trường, K1a điền).
+
+## Bổ sung 10/10 tối (sau khi người dùng duyệt)
+
+- **Model tư thế** `data/models/pose_landmarker_full.task` (MediaPipe, 9,4 MB, người dùng duyệt tải): shot 4 job 635 (ngồi — SAI) thân nghiêng
+  ra sau **28°**, job 639 (ngã ngửa — ĐÚNG) **41°**; job 637 (yêu nữ d1 bò) 5°; job 640 (yêu nữ d2 nét comic) không nhận ra người. Mới 2 ảnh
+  đối chứng → ngưỡng "ngã ngửa" (vd ≥ 35°) phải đo thêm ở K0b phần 2; nhân vật nét comic cần cách đo khác.
+- **must_keep #418 / #419** đã điền (người dùng cho tự duyệt; sao lưu `data/backup/assets_418_419_profile_before_must_keep_20261010.json`),
+  viết theo ẢNH MẪU đã duyệt — ảnh cho thấy đai của dạng 1 là **đai gai đen + khóa tam giác đỏ**, dạng 2 **đai trắng + tam giác đỏ**
+  (mô tả Kho cũ ghi "đai đỏ ngang eo").
+- Chạy lại `tools/dryrun_k0b_p24.py`: shot 5, 6 báo **`belt = sai_mau`** — prompt viết "đai đỏ" theo mô tả Kho cũ, khác ảnh mẫu. Đây là
+  mâu thuẫn thật giữa mô tả chữ của Kho và ảnh mẫu → cần một phép kiểm "mô tả Kho ↔ ảnh mẫu Kho" (khâu L5, K0b phần 2 / K1a).

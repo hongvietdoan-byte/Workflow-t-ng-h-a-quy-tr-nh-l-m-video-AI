@@ -1,5 +1,5 @@
 {
- "pose_tool": "mediapipe 1.0.1 KHÔNG có mp.solutions (bỏ ở 1.x) và KHÔNG có data/models/pose_landmarker*.task → chưa đo được tư thế (cần tải model ≈ 5–30 MB — hỏi người dùng)",
+ "pose_tool": "mediapipe 1.0.1 Tasks + pose_landmarker_full.task",
  "shots": [
   {
    "shot": 1,
@@ -484,13 +484,13 @@
     {
      "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 1",
      "kho_id": 418,
-     "nguon_khoa": "mo_ta_kho",
-     "thieu_must_keep": true,
+     "nguon_khoa": "must_keep",
+     "thieu_must_keep": false,
      "tong": {
-      "co": 9,
+      "co": 7,
       "thieu": 0,
       "thieu_mau": 0,
-      "sai_mau": 0
+      "sai_mau": 1
      },
      "mon": [
       {
@@ -498,26 +498,12 @@
        "mau_chinh": [
         "black"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "two glowing red eyes",
        "nguon": "suy",
        "mau_thay": [
         "black"
        ],
-       "dau_hieu_thay": null,
-       "trang_thai": "co",
-       "muc": null
-      },
-      {
-       "mon": "eyes",
-       "mau_chinh": [
-        "red"
-       ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [
-        "red"
-       ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       },
@@ -527,12 +513,12 @@
         "black",
         "red"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "long",
        "nguon": "suy",
        "mau_thay": [
         "black"
        ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       },
@@ -541,55 +527,40 @@
        "mau_chinh": [
         "white"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "off-the-shoulder",
        "nguon": "suy",
        "mau_thay": [
         "white"
        ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       },
       {
        "mon": "belt",
        "mau_chinh": [
-        "red"
+        "black"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "a red triangle buckle",
        "nguon": "suy",
        "mau_thay": [
         "red"
        ],
-       "dau_hieu_thay": null,
-       "trang_thai": "co",
-       "muc": null
+       "dau_hieu_thay": true,
+       "trang_thai": "sai_mau",
+       "muc": "do"
       },
       {
        "mon": "hands",
        "mau_chinh": [
-        "black",
-        "red"
+        "black"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "red claw nails",
        "nguon": "suy",
        "mau_thay": [
         "black"
        ],
-       "dau_hieu_thay": null,
-       "trang_thai": "co",
-       "muc": null
-      },
-      {
-       "mon": "nails",
-       "mau_chinh": [
-        "red"
-       ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [
-        "red"
-       ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       },
@@ -599,12 +570,12 @@
         "black",
         "red"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "fading",
        "nguon": "suy",
        "mau_thay": [
         "black"
        ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       },
@@ -619,6 +590,20 @@
         "red"
        ],
        "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "glitch",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": "constant",
+       "nguon": "suy",
+       "mau_thay": [
+        "red"
+       ],
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       }
@@ -667,13 +652,13 @@
     {
      "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 1",
      "kho_id": 418,
-     "nguon_khoa": "mo_ta_kho",
-     "thieu_must_keep": true,
+     "nguon_khoa": "must_keep",
+     "thieu_must_keep": false,
      "tong": {
-      "co": 9,
+      "co": 7,
       "thieu": 0,
       "thieu_mau": 0,
-      "sai_mau": 0
+      "sai_mau": 1
      },
      "mon": [
       {
@@ -681,26 +666,12 @@
        "mau_chinh": [
         "black"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "two glowing red eyes",
        "nguon": "suy",
        "mau_thay": [
         "black"
        ],
-       "dau_hieu_thay": null,
-       "trang_thai": "co",
-       "muc": null
-      },
-      {
-       "mon": "eyes",
-       "mau_chinh": [
-        "red"
-       ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [
-        "red"
-       ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       },
@@ -710,12 +681,12 @@
         "black",
         "red"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "long",
        "nguon": "suy",
        "mau_thay": [
         "black"
        ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       },
@@ -724,55 +695,40 @@
        "mau_chinh": [
         "white"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "off-the-shoulder",
        "nguon": "suy",
        "mau_thay": [
         "white"
        ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       },
       {
        "mon": "belt",
        "mau_chinh": [
-        "red"
+        "black"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "a red triangle buckle",
        "nguon": "suy",
        "mau_thay": [
         "red"
        ],
-       "dau_hieu_thay": null,
-       "trang_thai": "co",
-       "muc": null
+       "dau_hieu_thay": true,
+       "trang_thai": "sai_mau",
+       "muc": "do"
       },
       {
        "mon": "hands",
        "mau_chinh": [
-        "black",
-        "red"
+        "black"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "red claw nails",
        "nguon": "suy",
        "mau_thay": [
         "black"
        ],
-       "dau_hieu_thay": null,
-       "trang_thai": "co",
-       "muc": null
-      },
-      {
-       "mon": "nails",
-       "mau_chinh": [
-        "red"
-       ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [
-        "red"
-       ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       },
@@ -782,12 +738,12 @@
         "black",
         "red"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "fading",
        "nguon": "suy",
        "mau_thay": [
         "black"
        ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       },
@@ -802,6 +758,20 @@
         "red"
        ],
        "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "glitch",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": "constant",
+       "nguon": "suy",
+       "mau_thay": [
+        "red"
+       ],
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       }
@@ -849,11 +819,11 @@
     {
      "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 1",
      "kho_id": 418,
-     "nguon_khoa": "mo_ta_kho",
-     "thieu_must_keep": true,
+     "nguon_khoa": "must_keep",
+     "thieu_must_keep": false,
      "tong": {
-      "co": 2,
-      "thieu": 7,
+      "co": 3,
+      "thieu": 5,
       "thieu_mau": 0,
       "sai_mau": 0
      },
@@ -863,19 +833,7 @@
        "mau_chinh": [
         "black"
        ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [],
-       "dau_hieu_thay": null,
-       "trang_thai": "thieu",
-       "muc": "do"
-      },
-      {
-       "mon": "eyes",
-       "mau_chinh": [
-        "red"
-       ],
-       "dau_hieu": null,
+       "dau_hieu": "two glowing red eyes",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -888,12 +846,12 @@
         "black",
         "red"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "long",
        "nguon": "suy",
        "mau_thay": [
         "black"
        ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": false,
        "trang_thai": "co",
        "muc": null
       },
@@ -902,22 +860,22 @@
        "mau_chinh": [
         "white"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "off-the-shoulder",
        "nguon": "suy",
        "mau_thay": [
         "black",
         "white"
        ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": false,
        "trang_thai": "co",
        "muc": null
       },
       {
        "mon": "belt",
        "mau_chinh": [
-        "red"
+        "black"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "a red triangle buckle",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -927,22 +885,9 @@
       {
        "mon": "hands",
        "mau_chinh": [
-        "black",
-        "red"
+        "black"
        ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [],
-       "dau_hieu_thay": null,
-       "trang_thai": "thieu",
-       "muc": "do"
-      },
-      {
-       "mon": "nails",
-       "mau_chinh": [
-        "red"
-       ],
-       "dau_hieu": null,
+       "dau_hieu": "red claw nails",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -955,7 +900,7 @@
         "black",
         "red"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "fading",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -973,27 +918,41 @@
        "dau_hieu_thay": null,
        "trang_thai": "thieu",
        "muc": "do"
+      },
+      {
+       "mon": "glitch",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": "constant",
+       "nguon": "suy",
+       "mau_thay": [
+        "red"
+       ],
+       "dau_hieu_thay": false,
+       "trang_thai": "co",
+       "muc": null
       }
      ]
     },
     {
      "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 2",
      "kho_id": 419,
-     "nguon_khoa": "mo_ta_kho",
-     "thieu_must_keep": true,
+     "nguon_khoa": "must_keep",
+     "thieu_must_keep": false,
      "tong": {
       "co": 0,
-      "thieu": 6,
+      "thieu": 7,
       "thieu_mau": 0,
       "sai_mau": 0
      },
      "mon": [
       {
-       "mon": "dress",
+       "mon": "face",
        "mau_chinh": [
         "black"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "one round red eye",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -1003,10 +962,9 @@
       {
        "mon": "hair",
        "mau_chinh": [
-        "white",
-        "red"
+        "white"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "red tips",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -1014,12 +972,25 @@
        "muc": "do"
       },
       {
-       "mon": "face",
+       "mon": "dress",
        "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": "off-the-shoulder",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "belt",
+       "mau_chinh": [
+        "white",
         "black",
         "red"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "a red triangle",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -1029,10 +1000,9 @@
       {
        "mon": "hands",
        "mau_chinh": [
-        "black",
-        "white"
+        "black"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "white veins and red",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -1044,7 +1014,7 @@
        "mau_chinh": [
         "red"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "fading",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -1054,7 +1024,7 @@
       {
        "mon": "glitch",
        "mau_chinh": [],
-       "dau_hieu": null,
+       "dau_hieu": "constant",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -1099,21 +1069,49 @@
     {
      "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 2",
      "kho_id": 419,
-     "nguon_khoa": "mo_ta_kho",
-     "thieu_must_keep": true,
+     "nguon_khoa": "must_keep",
+     "thieu_must_keep": false,
      "tong": {
       "co": 4,
-      "thieu": 2,
+      "thieu": 3,
       "thieu_mau": 0,
       "sai_mau": 0
      },
      "mon": [
       {
+       "mon": "face",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": "one round red eye",
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": true,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": "red tips",
+       "nguon": "suy",
+       "mau_thay": [
+        "white"
+       ],
+       "dau_hieu_thay": true,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
        "mon": "dress",
        "mau_chinh": [
         "black"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "off-the-shoulder",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -1121,49 +1119,32 @@
        "muc": "do"
       },
       {
-       "mon": "hair",
+       "mon": "belt",
        "mau_chinh": [
         "white",
-        "red"
-       ],
-       "dau_hieu": null,
-       "nguon": "suy",
-       "mau_thay": [
-        "white"
-       ],
-       "dau_hieu_thay": null,
-       "trang_thai": "co",
-       "muc": null
-      },
-      {
-       "mon": "face",
-       "mau_chinh": [
         "black",
         "red"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "a red triangle",
        "nguon": "suy",
-       "mau_thay": [
-        "black"
-       ],
+       "mau_thay": [],
        "dau_hieu_thay": null,
-       "trang_thai": "co",
-       "muc": null
+       "trang_thai": "thieu",
+       "muc": "do"
       },
       {
        "mon": "hands",
        "mau_chinh": [
-        "black",
-        "white"
+        "black"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "white veins and red",
        "nguon": "suy",
        "mau_thay": [
         "black",
         "white",
         "red"
        ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       },
@@ -1172,7 +1153,7 @@
        "mau_chinh": [
         "red"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "fading",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -1182,12 +1163,12 @@
       {
        "mon": "glitch",
        "mau_chinh": [],
-       "dau_hieu": null,
+       "dau_hieu": "constant",
        "nguon": "suy",
        "mau_thay": [
         "red"
        ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       }
@@ -1233,8 +1214,8 @@
    "byd_loi": [],
    "suy_tu_chu": [
     "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
-    "hanh_dong[yeunu].bat_dau ← chữ 'kneel'",
-    "hanh_dong[kelly].bat_dau ← chữ 'kneel'"
+    "hanh_dong[kelly].bat_dau ← chữ 'kneel'",
+    "hanh_dong[yeunu].bat_dau ← chữ 'kneel'"
    ],
    "nguoi_trong_khung": [
     "kelly",
@@ -1318,53 +1299,65 @@
     {
      "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 2",
      "kho_id": 419,
-     "nguon_khoa": "mo_ta_kho",
-     "thieu_must_keep": true,
+     "nguon_khoa": "must_keep",
+     "thieu_must_keep": false,
      "tong": {
       "co": 3,
-      "thieu": 3,
+      "thieu": 4,
       "thieu_mau": 0,
       "sai_mau": 0
      },
      "mon": [
       {
-       "mon": "dress",
+       "mon": "face",
        "mau_chinh": [
         "black"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "one round red eye",
        "nguon": "suy",
-       "mau_thay": [
-        "black",
-        "white",
-        "red"
-       ],
+       "mau_thay": [],
        "dau_hieu_thay": null,
-       "trang_thai": "co",
-       "muc": null
+       "trang_thai": "thieu",
+       "muc": "do"
       },
       {
        "mon": "hair",
        "mau_chinh": [
-        "white",
-        "red"
+        "white"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "red tips",
        "nguon": "suy",
        "mau_thay": [
         "white"
        ],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": true,
        "trang_thai": "co",
        "muc": null
       },
       {
-       "mon": "face",
+       "mon": "dress",
        "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": "off-the-shoulder",
+       "nguon": "suy",
+       "mau_thay": [
+        "black",
+        "white",
+        "red"
+       ],
+       "dau_hieu_thay": false,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "belt",
+       "mau_chinh": [
+        "white",
         "black",
         "red"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "a red triangle",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -1374,10 +1367,9 @@
       {
        "mon": "hands",
        "mau_chinh": [
-        "black",
-        "white"
+        "black"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "white veins and red",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -1389,7 +1381,7 @@
        "mau_chinh": [
         "red"
        ],
-       "dau_hieu": null,
+       "dau_hieu": "fading",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
@@ -1399,10 +1391,10 @@
       {
        "mon": "glitch",
        "mau_chinh": [],
-       "dau_hieu": null,
+       "dau_hieu": "constant",
        "nguon": "suy",
        "mau_thay": [],
-       "dau_hieu_thay": null,
+       "dau_hieu_thay": false,
        "trang_thai": "co",
        "muc": null
       }

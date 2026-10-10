@@ -28,7 +28,7 @@
   ],
   "hanh_dong": [
    {
-    "ai": "yeunu",
+    "ai": "kelly",
     "bat_dau": {
      "tu_the": "quy",
      "cham_dat": [
@@ -39,7 +39,7 @@
     "cum_tu": "kneel"
    },
    {
-    "ai": "kelly",
+    "ai": "yeunu",
     "bat_dau": {
      "tu_the": "quy",
      "cham_dat": [
@@ -76,8 +76,8 @@
  "issues": [],
  "suy_tu_chu": [
   "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
-  "hanh_dong[yeunu].bat_dau ← chữ 'kneel'",
-  "hanh_dong[kelly].bat_dau ← chữ 'kneel'"
+  "hanh_dong[kelly].bat_dau ← chữ 'kneel'",
+  "hanh_dong[yeunu].bat_dau ← chữ 'kneel'"
  ],
  "quyet_dinh_nguoi_dung": null
 }
