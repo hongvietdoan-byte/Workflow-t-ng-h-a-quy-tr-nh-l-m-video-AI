@@ -146,7 +146,7 @@ def _readable_image(path: str) -> bool:
         with Image.open(path) as image:
             image.load()
         return True
-    except (OSError, ValueError):
+    except Exception:  # noqa: BLE001 - PIL ném cả SyntaxError (PNG hỏng checksum), struct.error, DecompressionBombError: đều = không đọc được
         return False
 
 

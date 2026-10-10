@@ -473,6 +473,25 @@ class Batch(Base):
         self.assertEqual(len(self.send()), 1)
         self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
 
+    def test_corrupt_png_data_says_unreadable_start_not_check_crash(self):
+        """PNG đúng đầu tệp nhưng hỏng dữ liệu: PIL ném SyntaxError (không phải OSError) — phải báo 'không đọc được khung đầu', không
+        để rơi thành 'lớp kiểm lỗi' che mất các kiểm khác."""
+        import io
+        from PIL import Image
+        self.on()
+        scene, img = self.shot()
+        buf = io.BytesIO()
+        Image.new("RGB", (32, 32), "green").save(buf, "PNG")
+        data = bytearray(buf.getvalue())
+        data[data.find(b"IDAT") + 6] ^= 0xFF
+        with open(self.image_path(img), "wb") as file:
+            file.write(bytes(data))
+        job = self.p.create_job(scene, "video_gen")
+        self.assertEqual(len(self.send()), 0)
+        self.assertEqual(self.state(job), "queued")
+        holds = self.holds()
+        self.assertTrue(holds and "khung đầu" in holds[0], holds)
+        self.assertNotIn("lớp kiểm trước gen lỗi", holds[0])
 
     def test_corrupt_end_picture_is_red_only_for_its_job(self):
         from PIL import Image
