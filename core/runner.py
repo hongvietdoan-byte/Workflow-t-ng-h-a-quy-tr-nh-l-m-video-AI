@@ -1536,8 +1536,12 @@ class VideoRunner(_Runner):
         if mp["ref_video_path"] and os.path.exists(mp["ref_video_path"]):
             ref_video = {"path": mp["ref_video_path"], "refer_type": mp["ref_video_type"] or "feature"}
         elif mp["ref_video_path"]:
+            from . import video_pregen
+            if video_pregen.enabled():
+                ref_video = {"path": mp["ref_video_path"], "refer_type": mp["ref_video_type"] or "feature"}
             self._diag(job, "warn", "missing_reference",
-                      f"video tham chiếu chuyển động không đọc được (bỏ qua, video vẫn gen): {mp['ref_video_path']}")
+                      (f"video tham chiếu chuyển động không đọc được (giữ để lớp kiểm trước gen báo chặn): {mp['ref_video_path']}"
+                       if ref_video else f"video tham chiếu chuyển động không đọc được (bỏ qua, video vẫn gen): {mp['ref_video_path']}"))
         if skill:            # S10.4: the skill way sends its pictures / videos as keyword arguments (_submit_kwargs) — not twice
             subj_refs, image_refs, ref_video = [], [], None
         if proj["video_audio"] or subj_refs or image_refs or ref_video:  # extra args only when used: older providers keep working

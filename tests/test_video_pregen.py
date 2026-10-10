@@ -362,6 +362,17 @@ class Fingerprint(Base):                      # (6)
 
 
 class Batch(Base):
+    def test_missing_reference_video_holds_only_its_job(self):
+        self.on()
+        bad, _ = self.shot()
+        good, _ = self.shot()
+        jobs = [self.p.create_job(s, "video_gen") for s in (bad, good)]
+        self.p.conn.execute("UPDATE motion_prompts SET ref_video_path=? WHERE scene_id=?", (os.path.join(self.tmp, "missing.mp4"), bad))
+        self.p.conn.commit()
+        self.assertEqual(len(self.send()), 1)
+        self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
+
+
     def test_multishot_follower_shows_leader_red_reason_and_stays_grouped(self):
         self.on()
         s1, img = self.shot(picture=False)
