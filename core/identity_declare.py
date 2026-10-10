@@ -22,6 +22,14 @@ A26 (b) 5 kiểu báo nhầm đã sửa: ống tay áo ≠ bàn tay (SLEEVE_VI) 
 vật trong khung (segment); vị ngữ 'face is a … pure-black mask' + '<món>less' theo hồ sơ; lưng/lưng-nghiêng bỏ món mặt trước thân
 (FRONT_TORSO), không rõ hướng → ghi khong_loc; chân váy (skirt) + prompt tự giới hạn khung (prompt_cut) + món nhỏ ở WS/EWS (SMALL_ITEMS).
 
+K1a (i) DẠNG (#24 S7 biến hình: hai dạng yêu nữ cùng khóa sân khấu 'yeunu' → món dạng 2 bị đòi khi ảnh vẽ dạng 1): BYĐ
+`thanh_phan[].dang` (tùy chọn: chữ / danh sách / {nhip: chữ|danh sách}) khai dạng có mặt theo nhịp; `byd_view(..., dang=…, nhip=…)`
+(ảnh = nhịp 'bat_dau') → dạng không có mặt ở nhịp đó = ngoài khung ('khong_can' + lý do). Người gọi nói nhân vật là một dạng mà BYĐ
+không khai dạng ở nhịp → hành vi cũ (vẫn đòi) + `canh_bao` VÀNG "không rõ dạng" (ghi vào khong_loc từng món, không im lặng).
+K1a (ii) BỊ CHE (#24 S9 dạng 2 quỳ ôm mặt): `hanh_dong[].<nhip>.che` (tùy chọn, CHE_ITEMS) cùng `tu_the` → món của vùng bị che là
+'khong_can' + "bị che theo tư thế". Lý do có trường `che` riêng: tư thế một mình KHÔNG đủ — cùng 'quy', S8/S9 ôm mặt (mặt khuất) còn
+quỳ nhìn thẳng thì lộ mặt; suy che từ tu_the sẽ biến đầu vào thiếu thành 'không cần' (CHUAN_XAY_DUNG: không im lặng).
+
 Chưa nối vào pipeline (K1a). Không gọi model.
 """
 import re
@@ -85,6 +93,10 @@ FRONT_TORSO = ("choker", "crop top")
 # A26 kiểu 5 (#24 S2): món nhỏ chỉ vài điểm ảnh ở cỡ toàn → không đòi chữ (ảnh tham chiếu giữ món).
 SMALL_ITEMS = ("choker", "nails")
 SMALL_HIDDEN_AT = ("WS", "EWS")
+# K1a (ii): vùng bị che (BYĐ hanh_dong[].<nhip>.che — khóa = shot_intent.CHE, test giữ khớp) → món (khóa ITEMS) khuất
+CHE_ITEMS = {"mat": ("face", "eyes", "mask"), "toc": ("hair",), "co": ("choker",), "than": ("crop top", "tracksuit", "dress"),
+             "eo": ("belt",), "tay": ("hands", "nails"), "chan": ("legs", "stockings"), "ban_chan": ("sneakers", "heels")}
+IMAGE_NHIP = "bat_dau"      # ảnh tĩnh = khung đầu của shot
 # Mô tả Kho tiếng Việt có áo riêng (áo croptop / áo thun…) → 'váy' trong cùng mô tả là chân váy (Kho 417: áo croptop + váy da đen ngắn)
 SEPARATE_TOP_VI = re.compile(r"(?<![\w])(?:áo croptop|áo crop|croptop|crop top|áo thun|áo phông|áo sơ mi|áo ba lỗ)(?![\w])")
 # A26 kiểu 1: 'tay áo' / 'áo … tay' = ống tay áo (chi tiết của áo), không phải bàn tay (Kho 416 'tay áo đen', 417 'áo khoác đỏ tay sọc đen')
@@ -425,11 +437,25 @@ def framing_body(co) -> Optional[float]:
     return f[0] if f else None
 
 
-def byd_view(byd: Optional[Dict], vat: str) -> Optional[Dict]:
+def _forms_at(decl, nhip: str) -> Optional[List[str]]:
+    """BYĐ thanh_phan[].dang → các dạng có mặt ở `nhip`; không khai (hoặc bảng theo nhịp thiếu nhịp này) → None."""
+    if isinstance(decl, dict):
+        decl = decl.get(nhip)
+    if decl is None:
+        return None
+    vals = [decl] if isinstance(decl, str) else list(decl) if isinstance(decl, list) else []
+    out = [str(v).strip().lower() for v in vals if str(v or "").strip()]
+    return out or None
+
+
+def byd_view(byd: Optional[Dict], vat: str, dang: Optional[str] = None, nhip: str = IMAGE_NHIP) -> Optional[Dict]:
     """BYĐ → điều máy thấy của nhân vật `vat` (khóa sân khấu, so không phân biệt hoa/thường): {vat, co, thay [mat/lung/nghieng],
     trong_khung}. Không có BYĐ → None (check không lọc). Nhân vật không có trong `thanh_phan` (có người) hoặc `vai: khong_duoc_co` →
     trong_khung False. Thiếu khóa `vat` / BYĐ chưa có `thanh_phan` → trong_khung None + `khong_loc` (không lọc 'ngoài khung', vẫn đòi —
-    rà độc lập #1: không biến thiếu đầu vào thành 'không cần')."""
+    rà độc lập #1: không biến thiếu đầu vào thành 'không cần').
+    K1a: `dang` = nhân vật là MỘT dạng của khóa sân khấu dùng chung (#24 yêu nữ dạng 1/2) → so với thanh_phan[].dang ở `nhip`: dạng
+    không có mặt → trong_khung False + `ngoai_khung` (lý do); BYĐ không khai dạng → `canh_bao` VÀNG "không rõ dạng", lọc như cũ.
+    hanh_dong[ai = vat].<nhip> → `tu_the` + `che` (vùng bị che, CHE_ITEMS)."""
     if not isinstance(byd, dict):
         return None
     may = byd.get("may") if isinstance(byd.get("may"), dict) else {}
@@ -440,7 +466,30 @@ def byd_view(byd: Optional[Dict], vat: str) -> Optional[Dict]:
         return {"vat": vat, "co": may.get("co"), "thay": [], "trong_khung": None, "khong_loc": why}
     c = next((x for x in cast if str(x.get("vat") or "").strip().lower() == key), None)
     thay = [v.strip() for v in str((c or {}).get("thay") or "").split("|") if v.strip()]
-    return {"vat": vat, "co": may.get("co"), "thay": thay, "trong_khung": bool(c) and c.get("vai") != "khong_duoc_co"}
+    view = {"vat": vat, "co": may.get("co"), "thay": thay, "trong_khung": bool(c) and c.get("vai") != "khong_duoc_co"}
+    warn = []
+    if dang and view["trong_khung"]:
+        forms = _forms_at(c.get("dang"), nhip)
+        view.update(dang=forms, nhip=nhip)
+        if forms is None:
+            warn.append({"muc": "vang", "loi": f"không rõ dạng: '{vat}' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp "
+                                               f"{nhip} — vẫn đòi món của dạng '{dang}' như cũ"})
+        elif str(dang).strip().lower() not in forms:
+            view["trong_khung"] = False
+            view["ngoai_khung"] = f"dạng '{dang}' không có mặt ở nhịp {nhip} (BYĐ thanh_phan dang = {', '.join(forms)})"
+    acts = [h for h in byd.get("hanh_dong") or [] if isinstance(h, dict) and str(h.get("ai") or "").strip().lower() == key]
+    st = next((h[nhip] for h in acts if isinstance(h.get(nhip), dict)), None)
+    if st is not None:
+        view.update(tu_the=st.get("tu_the"), nhip=nhip)
+        che = st.get("che") or []
+        che = che if isinstance(che, list) else [che]
+        view["che"] = [str(p).strip() for p in che if str(p).strip() in CHE_ITEMS]
+        bad = [str(p) for p in che if str(p).strip() not in CHE_ITEMS]
+        if bad:
+            warn.append({"muc": "vang", "loi": f"che {bad} không có trong bảng ({', '.join(CHE_ITEMS)}) — bỏ qua, món vẫn đòi"})
+    if warn:
+        view["canh_bao"] = warn
+    return view
 
 
 def _item_key(d: Dict) -> Optional[str]:
@@ -451,14 +500,27 @@ def _item_key(d: Dict) -> Optional[str]:
 
 
 def _not_needed(d: Dict, view: Optional[Dict]) -> Tuple[Optional[str], Optional[str]]:
-    """(ly_do món KHÔNG cần có chữ, khong_loc = vì sao không lọc được) theo BYĐ."""
+    """(ly_do món KHÔNG cần có chữ, khong_loc = vì sao không lọc được) theo BYĐ. Cảnh báo VÀNG của view (không rõ dạng, che lạ) được
+    ghép vào khong_loc của mọi món còn đòi — không im lặng."""
+    ly_do, khong_loc = _not_needed_core(d, view)
+    warn = "; ".join(w["loi"] for w in (view or {}).get("canh_bao") or [])
+    if ly_do or not warn:
+        return ly_do, khong_loc
+    return None, "; ".join(x for x in (warn, khong_loc) if x)
+
+
+def _not_needed_core(d: Dict, view: Optional[Dict]) -> Tuple[Optional[str], Optional[str]]:
     if view is None:
         return None, None
     if view.get("trong_khung") is None:                 # thiếu khóa / thiếu thanh_phan → không lọc gì, vẫn đòi
         return None, f"{view.get('khong_loc') or 'không biết nhân vật có trong khung'} — không lọc theo BYĐ, vẫn đòi"
     if not view.get("trong_khung"):
-        return f"nhân vật '{view.get('vat')}' không có trong khung theo BYĐ (thanh_phan)", None
+        return view.get("ngoai_khung") or f"nhân vật '{view.get('vat')}' không có trong khung theo BYĐ (thanh_phan)", None
     key = _item_key(d)
+    che = [p for p in view.get("che") or [] if key in CHE_ITEMS.get(p, ())]
+    if che:
+        return (f"bị che theo tư thế ({view.get('tu_the') or 'không ghi tư thế'}; BYĐ che: {', '.join(che)} ở nhịp "
+                f"{view.get('nhip') or IMAGE_NHIP}): '{d['mon']}' khuất"), None
     thay = set(view.get("thay") or [])
     if key in FRONT_ONLY and thay == {"lung"}:
         return f"quay lưng (BYĐ thay = lung): '{d['mon']}' chỉ thấy từ phía trước", None

@@ -10,15 +10,15 @@ từ chạy khô #22 + #24 (prompt ảnh thật trong CSDL, BYĐ `data_out/k0b_p
 | Dự án (số shot) | món `thieu` trước → sau | món bị báo (thieu + thieu_mau + sai_mau) trước → sau | thieu_mau / sai_mau sau | shot có món bị báo trước → sau | món `khong_can` sau |
 |---|---|---|---|---|---|
 | #22 (9) | 18 → 13 | 18 → 13 | 0 / 0 | 8 → 5 | 5 |
-| #24 (9) | 34 → 24 | 36 → 26 | 0 / 2 | 9 → 9 | 17 |
+| #24 (9) | 34 → 18 | 36 → 20 | 0 / 2 | 9 → 9 | 26 |
 
-(Đối chiếu: summary.json của chạy khô — đã lọc theo BYĐ — ghi số `thieu`: #22 = 13, #24 = 24; khác cột "sau" nghĩa là CSDL đổi sau lần chạy khô.)
+(Đối chiếu: summary.json của chạy khô — đã lọc theo BYĐ — ghi số `thieu`: #22 = 13, #24 = 18; khác cột "sau" nghĩa là CSDL đổi sau lần chạy khô.)
 
 ## Gán nhãn (mỗi mục một chạm)
 
 Cột cuối: ghi **đúng lỗi** (prompt thật sự thiếu / sai món đó, ảnh dễ vẽ sai) hoặc **báo nhầm** (món có trong khung đúng hoặc không
 cần chữ ở shot này). Kết quả code: `thieu` = không có chữ món; `thieu_mau` = có món, thiếu màu chính; `sai_mau` = màu ngược khóa.
-Chọn mục: chia đều giữa các dự án, trong một dự án xoay vòng theo shot. Mục đã chọn mỗi dự án: #22 = 13/13, #24 = 17/26 (tổng 30).
+Chọn mục: chia đều giữa các dự án, trong một dự án xoay vòng theo shot. Mục đã chọn mỗi dự án: #22 = 13/13, #24 = 17/20 (tổng 30).
 
 | # | Dự án | Shot (cỡ) | Nhân vật | Món (màu khóa) | Kết quả code | Mức | Trích prompt (≤ 15 từ) | Agent đề xuất (lý do ≤ 20 từ, độ chắc cao/vừa/thấp) | Người dùng: đúng lỗi / báo nhầm |
 |---|---|---|---|---|---|---|---|---|---|
@@ -53,7 +53,7 @@ Chọn mục: chia đều giữa các dự án, trong một dự án xoay vòng 
 | 29 | #24 | 9 (WS) | KELLY | tracksuit (yellow) | thieu | VÀNG | Kelly small seated on the ground on the left | **đúng lỗi** — bộ vàng nổi bật (ảnh 633); prompt S9 không tả đồ Kelly (vừa) | |
 | 30 | #24 | 2 (WS) | KELLY | sneakers (white) | thieu | VÀNG | Wide shot, high side view looking down at Kelly and the well, Free Fire in-game … | **đúng lỗi** — giày trắng thấy rõ (ảnh 632); prompt không tả (vừa) | |
 
-9 mục bị báo khác chưa đưa vào bảng (giới hạn 30).
+3 mục bị báo khác chưa đưa vào bảng (giới hạn 30).
 
 ## Món bị lọc (`khong_can`) — để người dùng xem lọc có che lỗi thật không
 
@@ -77,10 +77,19 @@ Chọn mục: chia đều giữa các dự án, trong một dự án xoay vòng 
 | #24 | 6 (MS) | YÊU NỮ TÀ LINH DẠNG 1 | stockings | cỡ MS chỉ chứa 55 % thân từ đỉnh đầu; 'stockings' ở 60 % — ngoài khung |
 | #24 | 6 (MS) | YÊU NỮ TÀ LINH DẠNG 1 | heels | cỡ MS chỉ chứa 55 % thân từ đỉnh đầu; 'heels' ở 95 % — ngoài khung |
 | #24 | 7 (MLS) | YÊU NỮ TÀ LINH DẠNG 1 | heels | cỡ MLS chỉ chứa 75 % thân từ đỉnh đầu; 'heels' ở 95 % — ngoài khung |
+| #24 | 7 (MLS) | YÊU NỮ TÀ LINH DẠNG 2 | face | dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1) |
+| #24 | 7 (MLS) | YÊU NỮ TÀ LINH DẠNG 2 | hair | dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1) |
+| #24 | 7 (MLS) | YÊU NỮ TÀ LINH DẠNG 2 | dress | dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1) |
+| #24 | 7 (MLS) | YÊU NỮ TÀ LINH DẠNG 2 | belt | dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1) |
+| #24 | 7 (MLS) | YÊU NỮ TÀ LINH DẠNG 2 | hands | dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1) |
+| #24 | 7 (MLS) | YÊU NỮ TÀ LINH DẠNG 2 | legs | dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1) |
+| #24 | 7 (MLS) | YÊU NỮ TÀ LINH DẠNG 2 | glitch | dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1) |
 | #24 | 8 (MCU) | YÊU NỮ TÀ LINH DẠNG 2 | belt | cỡ MCU chỉ chứa 35 % thân từ đỉnh đầu; 'belt' ở 45 % — ngoài khung |
 | #24 | 8 (MCU) | YÊU NỮ TÀ LINH DẠNG 2 | hands | cỡ MCU chỉ chứa 35 % thân từ đỉnh đầu; 'hands' ở 45 % — ngoài khung |
 | #24 | 8 (MCU) | YÊU NỮ TÀ LINH DẠNG 2 | legs | cỡ MCU chỉ chứa 35 % thân từ đỉnh đầu; 'legs' ở 60 % — ngoài khung |
 | #24 | 9 (WS) | KELLY | choker | món nhỏ 'choker' chỉ vài điểm ảnh ở cỡ WS — không đòi chữ (ảnh tham chiếu giữ món) |
+| #24 | 9 (WS) | YÊU NỮ TÀ LINH DẠNG 2 | face | bị che theo tư thế (quy; BYĐ che: mat ở nhịp bat_dau): 'face' khuất |
+| #24 | 9 (WS) | YÊU NỮ TÀ LINH DẠNG 2 | belt | bị che theo tư thế (quy; BYĐ che: eo ở nhịp bat_dau): 'belt' khuất |
 
 ## Giới hạn / chưa có
 - #22 không có shot_specs viết tay: BYĐ dựng từ chữ kịch bản (`spec_from_scene` — size / angle / characters / blocking),
@@ -97,7 +106,7 @@ Chọn mục: chia đều giữa các dự án, trong một dự án xoay vòng 
 
 Agent gán 30/30 mục (nhãn ĐỀ XUẤT, người dùng duyệt cột cuối): **đúng lỗi 30 / báo nhầm 0** → tỉ lệ báo nhầm ước **0 %** (n = 30; ngưỡng A25 ≤ 10 %). Độ chắc thấp: 7 mục.
 
-⚠ Thẩm định 6: bảng này được CHỌN LẠI sau khi sửa A26 (b) và cùng các mục đã dùng để sửa → số trên là số TRONG MẪU, KHÔNG dùng làm số đo A25. A25 chỉ tính trên bộ GIỮ RIÊNG (dự án K1a, chưa dùng để chỉnh luật).
+⚠ Thẩm định 6: bảng này được CHỌN LẠI sau khi sửa A26 (b) và cùng các mục đã dùng để sửa → số trên là số TRONG MẪU, KHÔNG dùng làm số đo A25. A25 chỉ tính trên bộ GIỮ RIÊNG (2 dự án mới sau #24, chưa dùng để chỉnh luật — chạy với --giu-rieng).
 
 | Dự án | đúng lỗi | báo nhầm | tỉ lệ báo nhầm |
 |---|---|---|---|

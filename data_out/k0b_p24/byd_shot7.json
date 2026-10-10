@@ -15,7 +15,11 @@
     "co_pct": [
      30,
      95
-    ]
+    ],
+    "dang": {
+     "bat_dau": "dang1",
+     "ket_thuc": "dang2"
+    }
    },
    {
     "vat": "gieng",
