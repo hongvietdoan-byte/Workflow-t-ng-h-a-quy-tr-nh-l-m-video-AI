@@ -215,10 +215,10 @@
       "name": "Hệ thống phát triển (AI Development System)",
       "weight": 0.3,
       "description": "Chính web theo dõi tiến độ này: bản đồ khu vực, dòng thời gian, sức khỏe đo bằng code, chấm điểm AI.",
-      "code": ["devsys/*.py", "devsys/answers.py", "tools/devsys_score.py", "tools/devsys_collect.py", "tools/devsys_hook.py", "tools/devsys_ui_metrics.py", "tools/plan_progress.py", "tools/related_areas.py", "conftest.py"],
+      "code": ["devsys/*.py", "devsys/answers.py", "devsys/review_gate.py", "tools/devsys_score.py", "tools/devsys_collect.py", "tools/devsys_hook.py", "tools/devsys_ui_metrics.py", "tools/plan_progress.py", "tools/related_areas.py", "conftest.py"],
       "assets": ["devsys/areas.json", "devsys/decisions.json", "devsys/stages.json", "devsys/error_types.json", "knowledge/checks/*", "devsys/rubric.md", "devsys/rubric_v1.md", "devsys/rubric_v2.md", "Start-DevSystem.bat", "tools/launch_devsys.ps1"],
       "docs": [],
-      "tests": ["tests/test_devsys.py", "tests/test_devsys_v2.py", "tests/test_devsys_answers.py", "tests/test_devsys_f1.py", "tests/test_devsys_workflow.py", "tests/test_devsys_decisions.py", "tests/test_devsys_stages.py", "tests/test_knowledge_checks.py", "tests/test_slow_marker.py"],
+      "tests": ["tests/test_devsys_review_gate.py", "tests/test_devsys.py", "tests/test_devsys_v2.py", "tests/test_devsys_answers.py", "tests/test_devsys_f1.py", "tests/test_devsys_workflow.py", "tests/test_devsys_decisions.py", "tests/test_devsys_stages.py", "tests/test_knowledge_checks.py", "tests/test_slow_marker.py"],
       "flags": [],
       "diag_stages": [],
       "keywords": ["devsys", "AI Development System"]
