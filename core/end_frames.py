@@ -15,7 +15,7 @@ import json
 import os
 from typing import Dict, List, Optional
 
-from . import features, spend_gate
+from . import features, sent_package, spend_gate
 from .pipeline import Pipeline
 from .providers import ProviderError
 
@@ -188,8 +188,9 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
                     _set(p, row["id"], note=f"chờ: {slot.over}")
                     _diag(p, row, "warn", "budget", f"khung cuối chưa gửi: {slot.over}")
                     break
+                sent_args = (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
                 try:
-                    ext = slot.send(provider.submit, assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs], **kwargs)
+                    ext = slot.send(provider.submit, *sent_args, **kwargs)
                 except ProviderError as e:
                     if e.transient:
                         break
@@ -200,9 +201,22 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
                 if info is not None:
                     used, tier = info(kwargs["model"]) if kwargs.get("model") else info()
                     slot.record(model=used, tier=tier)
-            _set(p, row["id"], state="running", external_id=ext, prompt=prompt,
-                 sent_refs=json.dumps([{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs],
-                                      ensure_ascii=False))
+            sent_meta = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs]
+            # K1a: what really left, written with the task id (a ledger, never a gate; imported at the top: nothing here may raise)
+            package, warns = sent_package.safe_build(provider.submit, sent_args, kwargs, kind="image", provider=provider,
+                                                     external_id=ext, meta=sent_meta, extra={"stage": "end_frame"})
+            fields = {"state": "running", "external_id": ext, "prompt": prompt,
+                      "sent_refs": json.dumps(sent_meta, ensure_ascii=False)}
+            if package is not None and "sent_package" in row.keys():
+                fields["sent_package"] = package
+            elif package is not None:
+                warns.append("bảng end_frames chưa có cột sent_package (CSDL cũ chưa nâng cấp) — gói gửi không ghi")
+            _set(p, row["id"], **fields)
+            for w in warns:                           # said after the commit: a diag write never touches the task id
+                try:
+                    _diag(p, row, "warn", "sent_package", w)
+                except Exception:  # noqa: BLE001 - a ledger note never stops the tick
+                    pass
             counts["sent"] += 1
             continue
         try:

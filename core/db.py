@@ -798,7 +798,8 @@ V2_COLUMNS = {
              ("sent_group", "TEXT"),   # M10 (see below)
              ("quality_tier", "TEXT"),       # N1 (cờ two_tier_quality): draft | final | direct; NULL = before two tiers
              ("draft_job_id", "INTEGER"),    # (F3: confirm_new below)
-             ("confirm_new", "TEXT")),       # F3: {by, usd, why, at} — người xác nhận gen MỚI bản cao không nâng được từ nháp; N1: a final take's approved draft (core/quality_tier.py)  # M10: the Kling multi-shot group exactly as sent (split the clip by it, not by today's plan)   # W12: provider list checks     # v3 Kling multi-shot: the job that makes this shot's clip together with its group
+             ("confirm_new", "TEXT"),
+             ("sent_package", "TEXT")),   # K1a: what really left for the provider (core/sent_package.py) — a ledger, never a gate       # F3: {by, usd, why, at} — người xác nhận gen MỚI bản cao không nâng được từ nháp; N1: a final take's approved draft (core/quality_tier.py)  # M10: the Kling multi-shot group exactly as sent (split the clip by it, not by today's plan)   # W12: provider list checks     # v3 Kling multi-shot: the job that makes this shot's clip together with its group
     # G1/G2 (docs/KE_HOACH_TONG_2026-09-24.md): what a library picture shows, for which look, and whether a person approved it
     "assets": (("profile", "TEXT"),),        # T1: the character's standard profile, approved once, inherited by every project
     "asset_images": (("role", "TEXT"), ("look", "TEXT"), ("variant", "TEXT"), ("status", "TEXT NOT NULL DEFAULT 'approved'"),
@@ -811,7 +812,8 @@ V2_COLUMNS = {
                        ("quality_path", "TEXT"),    # N1: auto (NULL) | draft_first | direct — the person may override the Director
                        ("video_resolution", "TEXT")),   # 09/10: chất lượng người chọn cho shot (480p/720p/1080p/4k; Kling std/pro/4k)
     "end_frames": (("sent_refs", "TEXT"),   # which pictures went with the end frame request (like jobs.sent_refs)
-                   ("fix", "TEXT")),        # the person's English fix of a redo (luật 6: a redo changes the input)
+                   ("fix", "TEXT"),
+                   ("sent_package", "TEXT")),   # K1a: like jobs.sent_package        # the person's English fix of a redo (luật 6: a redo changes the input)
     "llm_calls": (("latency_ms", "INTEGER"),          # TODO Tồn đọng P1: time of the call (send → whole answer, one attempt)
                   ("request_id", "TEXT")),            # Anthropic's 'request-id' header (what their support asks for)
 }
