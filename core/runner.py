@@ -356,11 +356,12 @@ class _Runner:
                 if over:
                     self._diag(job, "warn", "budget", over)
                     break                        # a real stop (S14.16: the service is out of credit): leave everything queued, say why
+                sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}   # '_' keys: the runner's notes, never sent
                 try:
                     if kwargs.get("_from_sample"):       # N1: a final made from its approved Seedance 2.5 draft (draft_task)
                         task_id = self.provider.submit_final_from_sample(kwargs["_from_sample"], resolution=kwargs.get("resolution"))
-                    else:                                # keys starting with '_' are the runner's own notes, never sent
-                        task_id = self.provider.submit(*args, **{k: v for k, v in kwargs.items() if not k.startswith("_")})
+                    else:
+                        task_id = self.provider.submit(*args, **sent_kwargs)
                 except ProviderError as e:
                     if e.code == "rate_limited" and THROTTLE.on_rate_limited(self.job_type):   # halve the learned limit
                         self._throttle_changed()
@@ -384,19 +385,49 @@ class _Runner:
                 # not committed; transition() commits them with the state) — never Pipeline.start(): a pause pressed while submit()
                 # was in flight made start() raise and left a paid job queued, sent and paid again on the next pass.
                 self.p.conn.execute("UPDATE jobs SET external_id=? WHERE id=?", (task_id, job["id"]))
+                # K1a: the package really sent, in the SAME transaction as the task id (before _stamp, which pops the runner's list
+                # of sent pictures). A ledger, never a gate: its warnings are said AFTER the commit (a diag write may roll back).
+                package_warns = self._write_sent_package(job, args, kwargs, sent_kwargs, task_id)
                 for col, value in self._stamp(job, args).items():
                     self.p.conn.execute(f"UPDATE jobs SET {col}=? WHERE id=?", (value, job["id"]))
                 try:
                     self._running(job["id"])
                 except InvalidTransition as e:
                     self.p.conn.commit()                    # keep the task id: it is the only link to what may be billed
+                    self._say_package(job, package_warns)
                     self._record_usage(job, args, kwargs)
                     self._cancelled_in_flight(job, task_id, e)
                     continue
+                self._say_package(job, package_warns)
                 self._record_usage(job, args, kwargs)
             slots -= 1
             submitted += 1
         return submitted
+
+    def _write_sent_package(self, job, args, kwargs, sent_kwargs, task_id) -> List[str]:
+        """K1a (core/sent_package.py): jobs.sent_package = what really left — the same args / kwargs the provider got. Never raises;
+        returns the warnings (unreadable picture, package not written) for _say_package."""
+        from . import sent_package
+        try:
+            kind = self.job_type.split("_")[0]
+            if kwargs.get("_from_sample"):
+                extra = sent_package.draft_of(self.p.conn, kwargs["_from_sample"])
+                pkg, warns = sent_package.safe_build(
+                    self.provider.submit_final_from_sample, (kwargs["_from_sample"],), {"resolution": kwargs.get("resolution")},
+                    kind=kind, provider=self.provider, external_id=task_id, model=extra.pop("draft_model", None),
+                    call="submit_final_from_sample", extra=extra)
+            else:
+                pkg, warns = sent_package.safe_build(self.provider.submit, tuple(args), sent_kwargs, kind=kind, provider=self.provider,
+                                                     external_id=task_id, meta=getattr(self, "_sent", {}).get(job["id"]))
+            if pkg is not None:
+                self.p.conn.execute("UPDATE jobs SET sent_package=? WHERE id=?", (pkg, job["id"]))
+            return warns
+        except Exception as e:  # noqa: BLE001 - a ledger, never a gate: the task exists, the send stands
+            return [f"không ghi được gói gửi ({type(e).__name__}: {e}) — job vẫn gửi, sent_package để trống"]
+
+    def _say_package(self, job, warns) -> None:
+        for w in warns or []:
+            self._diag(job, "warn", "sent_package", w)
 
     def _running(self, job_id: int, note: Optional[str] = None) -> None:
         """QUEUED → RUNNING without Pipeline.start()'s pause check (T2): used once the task exists at the provider, or on the way to
