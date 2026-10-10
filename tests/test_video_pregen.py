@@ -414,6 +414,19 @@ class Fingerprint(Base):                      # (6)
 
 
 class Batch(Base):
+    def test_missing_image_reference_that_will_be_sent_is_not_dropped(self):
+        self.on()
+        bad, _ = self.shot(data={"characters": ["Kelly"]})
+        good, _ = self.shot()
+        self.p.conn.execute("UPDATE motion_prompts SET video_model='seedance' WHERE scene_id=?", (bad,))
+        self.p.conn.commit()
+        jobs = [self.p.create_job(s, "video_gen") for s in (bad, good)]
+        missing = {"label": "Kelly", "path": os.path.join(self.tmp, "missing_character.png")}
+        with mock.patch("core.adapters.clipai.SEEDANCE_REFS_WITH_FIRST_FRAME", True), \
+                mock.patch("core.assets.scene_references", return_value=[missing]):
+            self.assertEqual(len(self.send()), 1)
+        self.assertEqual([self.state(j) for j in jobs], ["queued", "running"])
+
     def test_corrupt_start_picture_is_red_only_for_its_job(self):
         from PIL import Image
         self.on()

@@ -1608,9 +1608,14 @@ class VideoRunner(_Runner):
             image_refs = assets.scene_references(conn, job["project_id"], scene_data)
             missing = [r for r in image_refs if not os.path.exists(r["path"])]
             if missing:  # traceable: shows up in 📊 Theo dõi hiệu suất, points at exactly which picture went missing
+                from . import video_pregen
+                from .adapters.clipai import SEEDANCE_REFS_WITH_FIRST_FRAME
+                keep_missing = video_pregen.enabled() and SEEDANCE_REFS_WITH_FIRST_FRAME and not self._refs(job)
                 self._diag(job, "warn", "missing_reference",
-                          "ảnh tham chiếu không đọc được (bỏ qua, video vẫn gen): " + ", ".join(r["label"] for r in missing))
-                image_refs = [r for r in image_refs if r not in missing]
+                          ("ảnh tham chiếu không đọc được (giữ để lớp kiểm trước gen báo chặn): " if keep_missing else
+                           "ảnh tham chiếu không đọc được (bỏ qua, video vẫn gen): ") + ", ".join(r["label"] for r in missing))
+                if not keep_missing:
+                    image_refs = [r for r in image_refs if r not in missing]
         ref_video = None
         if mp["ref_video_path"] and os.path.exists(mp["ref_video_path"]):
             ref_video = {"path": mp["ref_video_path"], "refer_type": mp["ref_video_type"] or "feature"}
