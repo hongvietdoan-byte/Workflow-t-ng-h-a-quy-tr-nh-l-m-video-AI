@@ -1338,7 +1338,16 @@ def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optiona
     The change log (`history`) is kept; `reason` adds a dated entry (kế hoạch V4 4.4: every change of an approved profile says why).
     The short forms (`digest`, core/profile_digest.py) are made again from the new text the next time they are asked for."""
     old = get_profile(conn, asset_id)
-    def text(v) -> str:                                  # a model may answer a list: one line of "a; b", not "['a', 'b']"
+    # K0b phần 2 (A20): ô `khai_bao_chu` (khóa nhận diện bằng chữ, core/identity_declare) sống trong cùng JSON hồ sơ — không phải cột
+    # mới. Lưu hồ sơ không gửi ô này → GIỮ ô cũ (không mất dữ liệu); gửi ô sai dạng → báo lỗi, không ghi gì.
+    kbc = old.get("khai_bao_chu")
+    if data.get("khai_bao_chu") is not None:
+        from core import identity_declare
+        bad = [i for i in identity_declare.validate_khai_bao_chu(data["khai_bao_chu"]) if i["muc"] == "do"]
+        if bad:
+            raise AssetError("khai_bao_chu sai dạng: " + "; ".join(f"{i['mon']}: {i['loi']}" for i in bad[:5]))
+        kbc = data["khai_bao_chu"]
+    def text(v) -> str:                               # a model may answer a list: one line of "a; b", not "['a', 'b']"
         return "; ".join(str(x).strip() for x in v if str(x).strip()) if isinstance(v, (list, tuple)) else str(v or "").strip()
     clean: Dict = {k: text(data.get(k)) for k in PROFILE_KEYS if k != "height_m"}
     history = list(old.get("history") or [])
@@ -1362,6 +1371,8 @@ def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optiona
         clean["height_m"] = old.get("height_m") if sized and not h else None
     if sized and old.get("width_m"):
         clean["width_m"] = old["width_m"]
+    if kbc is not None:
+        clean["khai_bao_chu"] = kbc
     clean["approved"] = bool(approved)
     conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(clean, ensure_ascii=False), asset_id))
     conn.commit()
