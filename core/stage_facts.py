@@ -26,7 +26,7 @@ ASPECT = 9 / 16            # khung dọc mặc định (place_refs.resolution_of
 EPS_M = 0.05               # máy cách đỉnh vật < 5 cm: coi như ngang mép — không kết luận thấy / không thấy lòng
 SURE_IN_PCT = 80.0         # vật thấy ≥ 80 % điểm phủ: "không có trong khung" là chắc chắn sai
 THIRD_EDGE = 0.05          # cách ranh một phần ba < 0,05 khung: chấp nhận cả hai vùng
-STAND_IN_KINDS = {"well"}  # tools/render_plates.add_props chỉ dựng khối thay thế cho các loại này
+STAND_IN_KINDS = {"well", "block"}  # hợp đồng tools/render_plates.add_props
 KIND_EN = {"well": "stone well"}
 KIND_WORDS = {"well": ("well", "gieng")}     # tìm vật Kho cùng loại (tên / tên khác / mô tả, bỏ dấu)
 UNSURE = "unsure"
@@ -58,6 +58,15 @@ def stage_of(data: Dict, end: bool = False) -> Optional[Dict]:
     props = []
     for i, p in enumerate(sc.get("props") or []):
         try:
+            if p.get("kind") == "block":
+                size = [float(v) for v in p["size"]]
+                at = [float(v) for v in p["at"]]
+                angle = float(p.get("rotation_deg", 0))
+                if len(size) != 3 or len(at) != 3 or not all(math.isfinite(v) for v in [*size, *at, angle]) or min(size) <= 0:
+                    continue
+                props.append(dict(p, i=i, at=at, size=size, rotation_deg=angle, height=size[2],
+                                  radius=max(size[:2]) / 2, hollow=False, sides=0))
+                continue
             props.append({"i": i, "kind": str(p.get("kind") or "prop"), "at": [float(v) for v in p["at"]], "radius": float(p["radius"]),
                           "height": float(p["height"]), "hollow": bool(p.get("hollow")), "sides": int(p.get("sides") or 0)})
         except (KeyError, TypeError, ValueError):
@@ -79,6 +88,8 @@ def _subject(p: Dict) -> str:
 
 
 def _name(p: Dict, objects: Dict) -> str:
+    if p["kind"] == "block":
+        return p.get("mo_ta_ngan") or p.get("label") or str(p.get("vat_kho") or p.get("id") or "block")
     return KIND_EN.get(p["kind"], p["kind"].replace("_", " "))
 
 
@@ -102,8 +113,20 @@ def _thirds_ok(u: float) -> List[str]:
 def _framing(ctx: Dict) -> Dict[str, Dict]:
     """frame_eval của mọi prop (một lần mỗi ngữ cảnh)."""
     if "_fe" not in ctx:
-        objs = {_subject(p): _obj(p) for p in ctx["props"]}
+        objs = {_subject(p): _obj(p) for p in ctx["props"] if p["kind"] != "block"}
         ctx["_fe"] = sg.frame_eval(ctx["cam"], ctx["aim"], ctx["lens"], ctx["aspect"], objs)["obj"] if objs else {}
+        for p in ctx["props"]:
+            if p["kind"] != "block":
+                continue
+            angle = math.radians(p["rotation_deg"])
+            c, s = math.cos(angle), math.sin(angle)
+            length, width, height = p["size"]
+            points = [(p["at"][0] + x * c - y * s, p["at"][1] + x * s + y * c, p["at"][2] + z)
+                      for x in (-length / 2, 0, length / 2) for y in (-width / 2, 0, width / 2) for z in (0, height / 2, height)]
+            projected = [sg.project(ctx["cam"], ctx["aim"], q, ctx["lens"], ctx["aspect"]) for q in points]
+            inside = [q for q in projected if sg.in_frame(q)]
+            uv = [sum(q[k] for q in inside) / len(inside) for k in (0, 1)] if inside else None
+            ctx["_fe"][_subject(p)] = {"in_pct": 100 * len(inside) / len(points), "uv": uv, "size_pct": None}
     return ctx["_fe"]
 
 
@@ -190,9 +213,10 @@ def _derive_stand_in(ctx: Dict) -> List[Dict]:
         e = fe.get(_subject(p)) or {}
         if not e.get("in_pct"):
             continue                                    # khối không lọt khung: không có gì phải dặn
-        o = ctx["objects"].get(p["kind"]) or {}
+        o = ctx["objects"].get(str(p.get("vat_kho"))) or ctx["objects"].get(p["kind"]) or {}
         out.append(_fact("stand_in", _subject(p), True, {"in_pct": e["in_pct"], "sides": p["sides"]}, name=_name(p, ctx["objects"]),
-                         library=o.get("name"), library_desc=o.get("desc_en") or "", in_frame=True))
+                         library=o.get("name") or p.get("vat_kho"), library_desc=o.get("desc_en") or "", in_frame=True,
+                         prop_kind=p["kind"]))
     return out
 
 
@@ -201,6 +225,9 @@ def _prompt_stand_in(f: Dict, ctx: Dict) -> str:
         return ""                                       # không gửi render: không có khối xám nào để dặn (rà kỹ 10/10)
     sides = {8: "eight-sided", 6: "six-sided"}.get(f["numbers"].get("sides"), "plain")
     lib = f" (the library object \"{f['library']}\"{': ' + f['library_desc'] if f['library_desc'] else ''})" if f.get("library") else ""
+    if f.get("prop_kind") == "block":
+        return (f"The grey block in the background render is a placeholder for {f['name']}{lib}. "
+                "Draw the actual object with its described material, keeping the same place and size as the block.")
     return (f"The grey {sides} block in the background render is a placeholder: draw it as the {f['name']}{lib}, real weathered "
             f"stone, not a flat block — the same place and size as the block.")
 
@@ -458,6 +485,13 @@ def library_objects(conn, pid: int, props: List[Dict]) -> Dict[str, Dict]:
         return {}
     out = {}
     for p in props:
+        if p["kind"] == "block":
+            # Khối nhánh C có mã Kho rõ ràng: không dò theo tên chung "block" / bỏ dấu.
+            asset = next((a for a in objs if str(a.get("id")) == str(p.get("vat_kho"))), None)
+            if asset:
+                out[str(p["vat_kho"])] = {"name": asset.get("name"), "desc_en": str(asset.get("description") or ""),
+                                           "has_picture": bool(asset.get("images"))}
+            continue
         words = KIND_WORDS.get(p["kind"], (p["kind"],))
         for a in objs:
             hay = _fold(" ".join(str(a.get(k) or "") for k in ("name", "aliases", "description")))
