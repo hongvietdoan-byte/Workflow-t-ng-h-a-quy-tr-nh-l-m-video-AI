@@ -5,7 +5,8 @@ quan, tránh trường hợp tương tự"). 0 USD, chỉ đọc. Chạy TRƯỚ
 câu tả yêu nữ chép từ prompt cũ ("black-skinned") → mặt người thay vì mặt nạ đen trơn. Mỗi luật dưới đây là một khâu liên quan:
   nen     nền 3D gửi kèm = render của máy HIỆN TẠI; nền không quá tối so với ảnh khác
   neo     ảnh neo / phiên storyboard không mang khung của máy cũ
-  cau     câu tả khung trong prompt khớp máy (cỡ, cúi/ngửa, góc nhìn nhân vật, chuyển động)
+  cau     câu tả khung trong prompt khớp máy (cỡ, cúi/ngửa, góc nhìn nhân vật, chuyển động); câu Director trái sự thật hình học (core/stage_facts,
+          vd "its dark mouth facing us" khi máy thấp hơn miệng giếng) → đỏ + `de_xuat` câu đúng (không tự sửa chữ Director)
   vai     nhân vật trong shot có hồ sơ Kho đủ "must_keep" (không thì câu tả tự chế → lệch trang phục)
   anh     ảnh đang có của shot vẽ trên nền cũ → phải vẽ lại
   video   clip / khung cuối phía sau làm từ ảnh cũ → lỗi thời theo
@@ -92,6 +93,13 @@ def audit_shot(conn, data_dir: str, pid: int, scene_id: int) -> List[Dict]:
         size = data.get("size")
         if size in SIZE_WORDS and not any(w in text for w in SIZE_WORDS[size]):
             say("vang", "cau", f"cỡ {size} nhưng câu đầu prompt không nói cỡ tương ứng")
+    if locked and text:                    # 10/10 (#24 shot 4): câu Director trái sự thật hình học (core/stage_facts) — không tự sửa chữ
+        from . import stage_facts
+        facts = stage_facts.for_shot(conn, pid, data)["facts"]
+        for c in stage_facts.contradictions(str(data.get("image_prompt") or ""), facts):
+            out.append({"shot": idx, "muc": c["level"], "khau": "cau",
+                        "msg": f"câu Director trái sự thật hình học {c['fact']}: \"{c['phrase']}\" (máy Sân khấu 3D tính khác)",
+                        "de_xuat": f"Bỏ cụm \"{c['phrase']}\"; câu đúng: {c['fix']}"})
     if sc and sc.get("move") and data.get("camera_move") in (None, "static"):
         say("do", "cau", f"máy chuyển động ({sc['move'].get('kieu')}) nhưng camera_move = {data.get('camera_move')}")
     if data.get("camera_move") == "pull_out" and not ((data.get("motion_en") or {}).get("end_state") or data.get("end_state")):
@@ -153,4 +161,6 @@ if __name__ == "__main__":
     res = audit(conn, a.data, a.pid, [int(x) for x in a.shots.split(",")] if a.shots else None)
     for r in res:
         print(f"shot {r['shot']} [{r['muc'].upper()}] {r['khau']}: {r['msg']}")
+        if r.get("de_xuat"):
+            print(f"    → đề xuất: {r['de_xuat']}")
     print(f"{sum(1 for r in res if r['muc'] == 'do')} mục ĐỎ, {sum(1 for r in res if r['muc'] == 'vang')} mục vàng")

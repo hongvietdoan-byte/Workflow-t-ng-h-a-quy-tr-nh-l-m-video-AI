@@ -112,7 +112,8 @@ def prompt_for(p: Pipeline, project_id: int, scene_id: int, fix: Optional[str] =
     from . import skill_dossier
     if skill_dossier.enabled():                   # the end frame shows the skill's END phase (skill_phase_end)
         data = skill_dossier.at_end(data)
-    prompt, _ = build_image_prompt(p.conn, project_id, data, core=core, fix=fix, blocking_label="Blocking at the end")
+    prompt, _ = build_image_prompt(p.conn, project_id, data, core=core, fix=fix, blocking_label="Blocking at the end",
+                                   camera_end=True)   # stage_facts: a moving camera's END position
     return prompt
 
 

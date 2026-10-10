@@ -326,6 +326,28 @@ nhưng không biết ý có được giữ không. Ba điểm đọc lại, mỗ
 Chiều ngược lại cũng bắt buộc: code thiếu số / gặp mâu thuẫn → HỎI Director bằng câu cụ thể (đã có: `advice`, `can_hoi`), không tự chọn.
 Chi phí: R1 + R2 thêm ≈ 1–2 lời gọi Claude ngắn mỗi vòng (có hình phác) — báo giá trước như B2.
 
+## 14. Sự thật hình học (stage_facts) — một nguồn, ba nơi dùng (người dùng 10/10, #24 shot 4 + 8)
+
+**Gốc lỗi.** Shot 4: máy cao 0,60 m, miệng giếng 0,90 m → ngoài đời chỉ thấy thành giếng, ảnh lại vẽ thấy lòng giếng. Shot 8: render
+có giếng là khối thay thế tám cạnh (`tools/render_plates.add_props`) → ảnh chép thành khối. QC Claude chấm "place ok" cả hai, kể cả khi
+được đưa render + câu "máy thấp hơn miệng giếng". Sự thật hình học do code tính (stage_camera: location, look_at, lens, props) KHÔNG chảy
+sang nơi dùng; mỗi nơi một niềm tin riêng và mâu thuẫn: (1) prompt Director viết tay ("its dark mouth facing us"), (2) ảnh mẫu Kho chụp từ
+trên nhìn xuống → model chép góc của ảnh mẫu, (3) QC hỏi model PHÁN XÉT → model nhìn đúng mà suy luận sai (bài học 01/10).
+
+**Cơ chế.** `core/stage_facts.py` — sổ `FACTS`, mỗi loại = derive (code tính) + prompt (câu tiếng Anh) + observe (enum có `unsure`) +
+judge (code: None / vàng / đỏ) + contradicts (cụm chữ Director trái sự thật). Loại hiện có: `top_visible`, `stand_in`, `in_frame`
+(vùng một phần ba + tỉ lệ khung, dùng `stage_grid.frame_eval`), `pitch_horizon` (giải tích từ pitch + FOV, khung dọc 9:16), `ref_viewpoint`.
+Ba nơi dùng (chỉ khi cờ `stage_camera` bật và shot có `stage_camera`; shot không có → không sinh sự thật, nói rõ, prompt y hệt trước):
+- **Prompt ảnh**: `runner.build_image_prompt` nối khối "Geometry of this camera…" trước câu chốt chất lượng (code nối, không qua Director;
+  khung cuối dùng vị trí cuối của máy chuyển động).
+- **Bộ kiểm tác động**: câu Director trái sự thật → mục `cau` ĐỎ (khi vật lọt khung) kèm `de_xuat` câu đúng; không tự sửa chữ Director.
+- **QC**: Tổ QC (`qc_spec` loại `geometry`, khai `geo_seen`) và QC lớp 1 (`qc_scene`, khối "Khai điều thấy", khóa `geo`) — model chỉ khai
+  điều thấy, code judge; đỏ ghi đè "place ok" của model. `plate_layout_qc` dùng chân trời giải tích khi render tối không đo được.
+
+**Quy tắc.** Lỗi người dùng bắt mà QC lọt → thêm LOẠI vào `FACTS` hoặc CA VÀNG vào `tests/fixtures/stage_facts_golden.json` (một mục JSON,
+`tests/test_stage_facts.py` tự chạy hết) — KHÔNG vá prompt / thêm câu tay cho từng ca. Loại mới thiếu một phần (derive/prompt/observe có
+`unsure`/judge/contradicts) → test hợp đồng đỏ. Đỏ chỉ khi chắc (máy cách mép > 5 cm, vật thấy ≥ 80 %, câu Director nhắc chính vật).
+
 ---
 
 ## Phụ lục A — Số đo thật #24 (09/10, 0 USD)

@@ -331,13 +331,78 @@ def build_request(p, pid: int, frames: List[Dict], data_dir: str) -> Tuple[str, 
             images.append((f"Ảnh chuẩn — {n}:", assets.thumbnail(ref["path"], 900)))
     table = [_shot_line(k, r) for k, r in enumerate(frames, 1)]
     flags = {f"K{k}": flags_of(data_dir, pid, r["job_id"]) for k, r in enumerate(frames, 1) if flags_of(data_dir, pid, r["job_id"])}
+    geo = geometry_block(geometry_facts(p.conn, pid, frames))
     prompt = "\n\n---\n\n".join(x for x in [
         _read("prompts", "21_scene_qc.md"), _read("knowledge", "ai_image_failure_modes.md"),
         prompts.lock_text(p.conn, pid, names),
         "# Bảng shot của cảnh\n```json\n" + json.dumps(table, ensure_ascii=False, indent=1) + "\n```",
         ("# Cờ đo bằng code (lớp 0) — xác minh bằng mắt\n```json\n" + json.dumps(flags, ensure_ascii=False, indent=1) + "\n```") if flags else "",
-        "" if est else "(Cảnh này KHÔNG có ảnh toàn cảnh — điểm place so với mô tả nơi chốn trong bảng shot.)"] if x)
+        "" if est else "(Cảnh này KHÔNG có ảnh toàn cảnh — điểm place so với mô tả nơi chốn trong bảng shot.)", geo] if x)
     return prompt, images, labels
+
+
+# ---- sự thật hình học máy 3D (core/stage_facts, 10/10 #24 shot 4 + 8) --------------------------------------------------------
+def geometry_facts(conn, pid: int, frames: List[Dict]) -> Dict[int, List[Dict]]:
+    """{K: [fact có vật trong khung]} của các khung có máy Sân khấu 3D (cờ stage_camera); khung không có máy: không có mục."""
+    if not features.on("stage_camera"):
+        return {}
+    from . import stage_facts
+    out = {}
+    for k, r in enumerate(frames, 1):
+        if r["data"].get("stage_camera"):
+            facts = [f for f in stage_facts.for_shot(conn, pid, r["data"])["facts"] if f.get("in_frame")]
+            if facts:
+                out[k] = facts
+    return out
+
+
+def geometry_block(facts_by_k: Dict[int, List[Dict]]) -> str:
+    """Khối 'Khai điều thấy' cho QC lớp 1: mỗi K các câu hỏi enum; model trả `geo` = {id: lựa chọn}, code kết luận (apply_geometry)."""
+    if not facts_by_k:
+        return ""
+    rows = {f"K{k}": [{"id": f["id"], "question": f["question"], "chọn": f["options"]} for f in facts] for k, facts in facts_by_k.items()}
+    return ("# Khai điều thấy (hình học máy 3D — code đã tính, bạn CHỈ khai điều nhìn thấy)\nVới mỗi K dưới đây, thêm vào mục của khung "
+            "khóa `geo`: {id: một giá trị trong \"chọn\"} theo điều NHÌN THẤY trên khung; không thấy rõ → \"unsure\". Không suy ra "
+            "đúng/sai — code so với hình học máy và ghi đè điểm place khi lệch.\n```json\n"
+            + json.dumps(rows, ensure_ascii=False, indent=1) + "\n```")
+
+
+def apply_geometry(obj: Dict, facts_by_k: Dict[int, List[Dict]]) -> List[str]:
+    """Code kết luận từ khai `geo` (thiếu / sai giá trị = 'unsure'): đỏ → place.ok = False, verdict fix (root_cause prompt, câu sửa =
+    câu sự thật) — ghi đè 'place ok' của model; vàng → khung 'pass' thành 'doubt'. Phần còn lại của QC giữ nguyên. Trả các ghi chú."""
+    from . import stage_facts
+    notes = []
+    for f in obj.get("frames") or []:
+        facts = facts_by_k.get(f.get("k")) or []
+        if not facts:
+            continue
+        geo = f.get("geo") if isinstance(f.get("geo"), dict) else {}
+        red, amber = [], []
+        for fact in facts:
+            seen = geo.get(fact["id"])
+            level = stage_facts.judge(fact, seen)
+            if level == "do":
+                red.append((fact, seen))
+            elif level == "vang":
+                amber.append((fact, seen if seen in fact["options"] else stage_facts.UNSURE))
+        f["geo_judged"] = {"do": [x["id"] for x, _ in red], "vang": [x["id"] for x, _ in amber]}
+        if red:
+            why = "; ".join(f"khai {seen} nhưng máy 3D: {x['id']} = {x['value']}" for x, seen in red)
+            place = f["checks"]["place"]
+            place.update(ok=False, evidence=f"[code hình học] {why} — model ghi: {place.get('evidence')}")
+            fix = " ".join(x["prompt"] for x, _ in red if x.get("prompt"))
+            if f.get("verdict") != "fix":
+                f.update(verdict="fix", root_cause="prompt", problem=f"hình học máy 3D: {why}", fix=fix or f.get("fix") or "")
+            else:
+                f["problem"] = f"{f.get('problem') or ''}; hình học máy 3D: {why}".strip("; ")
+                f["fix"] = f"{f.get('fix') or ''} {fix}".strip()
+            notes.append(f"K{f['k']}: đỏ — {why}")
+        elif amber:
+            if f.get("verdict") == "pass":
+                f["verdict"] = "doubt"
+            f["note"] = (f"{f.get('note') or ''} hình học cần xem: " + ", ".join(f"{x['id']} khai {s}" for x, s in amber)).strip()
+            notes.append(f"K{f['k']}: vàng — " + ", ".join(x["id"] for x, _ in amber))
+    return notes
 
 
 def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: Optional[List[Dict]] = None) -> Dict:
@@ -348,6 +413,9 @@ def review_scene(p, pid: int, story_scene, client, data_dir: str, frames: Option
         raise ValueError(f"cảnh {story_scene} chưa đủ khung")
     prompt, images, labels = build_request(p, pid, frames, data_dir)
     obj = _run(p, pid, "qc", prompt, lambda o: validate(o, labels), client, images)
+    geo_notes = apply_geometry(obj, geometry_facts(p.conn, pid, frames))    # 10/10: code judges the geometry reports
+    if geo_notes:
+        obj["geometry"] = geo_notes
     applied = apply(p, pid, frames, obj, data_dir)
     rec = _load(data_dir, pid, "reviews.json")
     rec.setdefault(str(story_scene), []).append({"jobs": [r["job_id"] for r in frames], "answer": obj, "applied": applied})

@@ -78,8 +78,11 @@ def _band_density(a, mask, centre: float) -> float:
     return float(e[m].mean()) if m.any() else 0.0
 
 
-def compare(image_path: str, plate_path: str, box: Optional[Sequence[float]] = None) -> Dict:
-    """{"mismatch", "reasons" (tiếng Việt), "horizon_plate", "horizon_image", "band_ratio", "edge"}. Unreadable → not flagged, said."""
+def compare(image_path: str, plate_path: str, box: Optional[Sequence[float]] = None,
+            horizon_expected: Optional[float] = None) -> Dict:
+    """{"mismatch", "reasons" (tiếng Việt), "horizon_plate", "horizon_image", "band_ratio", "edge", "horizon_source"}. Unreadable → not
+    flagged, said. horizon_expected (10/10, core/stage_facts.horizon): the horizon row computed from the stage camera's pitch + FOV —
+    used when the render shows none (night fog: the old blind measure gave None and the horizon was never compared)."""
     from PIL import Image
     try:
         with Image.open(plate_path) as im:
@@ -93,11 +96,17 @@ def compare(image_path: str, plate_path: str, box: Optional[Sequence[float]] = N
     mask = _mask(a.shape, box)
     reasons: List[str] = []
     hb, ha = horizon_row(b, mask), horizon_row(a, mask)
+    source = "render" if hb is not None else None
+    analytic = hb is None and horizon_expected is not None and 0.0 < float(horizon_expected) < 1.0
+    if analytic:
+        hb, source = float(horizon_expected), "giai_tich"
     if hb is not None and (ha is None or abs(ha - hb) > HORIZON_DIFF):
         reasons.append(f"đường chân trời ảnh ở {ha * 100:.0f}% khung, render ở {hb * 100:.0f}% — máy (cúi/ngang) khác render"
                        if ha is not None else f"render có đường chân trời ở {hb * 100:.0f}% khung, ảnh không có — nền khác render")
+    if analytic and reasons:
+        reasons[-1] += " (chân trời render tính bằng giải tích từ góc máy 3D — render tối không đo được)"
     ratio = None
-    if hb is not None:
+    if hb is not None and not analytic:
         db = _band_density(b, mask, hb)
         if db > 1e-3:
             ratio = round(_band_density(a, mask, hb) / db, 3)
@@ -112,7 +121,28 @@ def compare(image_path: str, plate_path: str, box: Optional[Sequence[float]] = N
         edge = None
     if edge is not None and edge < EDGE_VERY_LOW:
         reasons.append(f"đường nét kiến trúc gần như không khớp render (F1 {edge:.2f})")
-    return {"mismatch": bool(reasons), "reasons": reasons, "horizon_plate": hb, "horizon_image": ha, "band_ratio": ratio, "edge": edge}
+    return {"mismatch": bool(reasons), "reasons": reasons, "horizon_plate": hb, "horizon_image": ha, "band_ratio": ratio, "edge": edge,
+            "horizon_source": source}
+
+
+def _stage_horizon(conn, pid: int, scene_id: int) -> Optional[float]:
+    """Hàng chân trời giải tích của máy Sân khấu 3D (cờ stage_camera + shot có stage_camera), None khi không có."""
+    from . import features, stage_facts
+    if not features.on("stage_camera"):
+        return None
+    try:
+        row = conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+        data = json.loads((row[0] if row else None) or "{}")
+        st = stage_facts.stage_of(data)
+        if st is None:
+            return None
+        from . import place_refs
+        proj = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
+        w, h = place_refs.resolution_of(proj) if proj is not None else (9, 16)
+        aspect = w / h
+        return stage_facts.horizon(st["cam"], st["aim"], st["lens"], aspect)["w"]
+    except Exception:  # noqa: BLE001 - no number: the render's own measure stays (as before)
+        return None
 
 
 def record_path(data_dir: str, pid: int) -> str:
@@ -132,7 +162,7 @@ def check_job(conn, data_dir: str, pid: int, scene_id: int, job_id: int, image_p
         gone = place_refs.stale(conn, data_dir, pid, resolution)
         if -1 in gone or scene_id in gone:
             return ("info", "không so bố cục: render đang gắn không còn là render của kế hoạch")
-    res = compare(image_path, ref["path"], ref["_rec"].get("subject_box"))
+    res = compare(image_path, ref["path"], ref["_rec"].get("subject_box"), horizon_expected=_stage_horizon(conn, pid, scene_id))
     row = {"job_id": job_id, "scene_id": scene_id, "plate_key": ref.get("plate_key"), **res}
     path = record_path(data_dir, pid)
     with _LOCK:

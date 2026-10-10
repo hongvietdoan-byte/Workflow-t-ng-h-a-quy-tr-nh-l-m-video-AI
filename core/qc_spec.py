@@ -12,9 +12,10 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 PRIORITY = {"identity": 1, "count": 1, "asym": 1, "headwear": 1, "skill": 1, "gaze": 2, "action": 2, "gesture": 2, "layout": 2,
-            "light": 3, "weather": 3, "continuity": 3, "place": 4, "size": 5, "angle": 5, "text": 5}
+            "light": 3, "weather": 3, "continuity": 3, "geometry": 3, "place": 4, "size": 5, "angle": 5, "text": 5}
 ROLE = {"identity": "C1", "count": "C1", "asym": "C1", "headwear": "C1", "skill": "C1", "gaze": "C2", "action": "C2", "gesture": "C2",
-        "layout": "C2", "light": "C3", "weather": "C3", "continuity": "C3", "place": "C3", "size": "T0", "angle": "T0", "text": "T0"}
+        "layout": "C2", "light": "C3", "weather": "C3", "continuity": "C3", "geometry": "C3", "place": "C3", "size": "T0", "angle": "T0",
+        "text": "T0"}
 SIZES = ("ECU", "CU", "MCU", "MS", "MLS", "LS", "WS", "EWS")
 _SIDE = re.compile(r"\b(LEFT|RIGHT)\b", re.I)
 _ARM_HEAD = re.compile(r"\b(LEFT|RIGHT)\s+(arm|hand|side|leg)\s*:", re.I)
@@ -163,5 +164,19 @@ def compile_frame(conn, project_id: int, frame_job: int, data: Dict, profiles: O
         obs = {"asym": "side", "headwear": "cap", "count": "count"}.get(a["type"])
         if obs:
             a.update(observe=obs, cast_n=len(cast), close=close)
+    geo_missing = None
+    from . import features
+    if features.on("stage_camera"):         # 10/10 (#24 shot 4 + 8): the 3D stage's facts — the model reports, stage_facts judges
+        from . import stage_facts
+        res = stage_facts.for_shot(conn, project_id, data)
+        geo_missing = res["missing"] if data.get("stage_camera") else None
+        for f in res["facts"]:
+            if not f.get("in_frame"):
+                continue
+            a = _a(frame_job, "geometry", f["subject"], f"Hình học máy 3D — {f['id']} = {f['value']} (code tính)",
+                   f["question"] + " Report `geo_seen` only (the code decides).", f["value"], "code+model", "block", "stage_camera")
+            a.update(observe="geo", fact=f, options=list(f["options"]))
+            out.append(a)
     out.sort(key=lambda a: (a["priority"], a["subject"]))
-    return {"assertions": out, "plan_conflicts": plan_conflicts(data), "missing_profiles": missing}
+    return {"assertions": out, "plan_conflicts": plan_conflicts(data), "missing_profiles": missing,
+            **({"geometry_missing": geo_missing} if geo_missing else {})}

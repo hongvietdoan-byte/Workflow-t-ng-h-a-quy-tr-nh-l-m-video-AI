@@ -52,3 +52,8 @@ of the frame height, eyes one third from the top, shoulders at the bottom edge."
  "scene": {"ok": false, "notes": "1 khung cần sửa"}}
 ```
 Mọi khung trong tấm ghép phải có đúng MỘT mục. Mọi `evidence` phải là điều NHÌN THẤY cụ thể (không viết "ổn", "tốt", "không thấy lỗi").
+
+**Khóa `geo` (chỉ khi yêu cầu có mục "Khai điều thấy")**: trong mục của khung K được hỏi, thêm `"geo": {"<id>": "<một giá trị trong
+chọn>"}`, vd `"geo": {"top_visible:well": "only_outer_wall", "stand_in:well": "drawn_as_real_object"}`. Chỉ KHAI điều nhìn thấy (thấy
+lòng giếng hay chỉ thành ngoài; giếng vẽ thành đá thật hay khối phẳng; vật ở phần ba nào…), không thấy rõ → `"unsure"`. Không tự kết
+luận đúng/sai: code so với hình học máy 3D đã tính và GHI ĐÈ điểm `place` khi lệch. Khung không được hỏi: bỏ khóa `geo`.

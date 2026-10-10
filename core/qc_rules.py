@@ -38,6 +38,23 @@ def observed(a: Dict, answer: Optional[Dict], code: Optional[Dict] = None) -> Tu
     """(answer with `answer` decided by code, severity override or None, how it was decided) for an assertion with `observe`; the
     answer unchanged for the others."""
     kind = a.get("observe")
+    if kind == "geo" and answer:
+        # 10/10 (#24 shot 4 + 8): a 3D-stage geometry fact (core/stage_facts) — the model reports `geo_seen`, stage_facts judges;
+        # missing / 'na' / not a choice = 'unsure' → vàng (said, never silent); đỏ = sure
+        from . import stage_facts
+        seen = answer.get("geo_seen")
+        level = stage_facts.judge(a["fact"], seen)
+        ans = dict(answer, model_answer=answer.get("answer"))
+        how = f"khai hình học: {seen or 'thiếu'} · sự thật {a['fact']['id']} = {a['fact']['value']}"
+        if level is None:
+            ans.update(answer="true")
+            return ans, None, how
+        if level == "do":
+            ans.update(answer="false", confidence="high")
+            return ans, "block", how + " → sai chắc chắn"
+        unsure = seen not in a["fact"]["options"] or seen == stage_facts.UNSURE
+        ans.update(answer="unclear" if unsure else "false")
+        return ans, "minor", how + (" → không chắc, cần người xem" if unsure else " → lệch, cần người xem")
     if not kind or not answer:
         return answer, None, ""
     ans = dict(answer, model_answer=answer.get("answer"))

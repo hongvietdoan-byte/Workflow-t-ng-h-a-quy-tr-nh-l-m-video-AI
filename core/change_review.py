@@ -146,7 +146,7 @@ def code_rules(conn, data_dir: str, ev_id: int, scene_ids: List[int]) -> int:
                 conn.execute("UPDATE change_findings SET status='resolved', resolved_at=?, resolved_by='code' WHERE id=?",
                              (_now(), row[0]))
         for f in found:
-            n += _add(conn, ev_id, pid, sid, "code", _code_level(f), f["khau"], f["msg"])
+            n += _add(conn, ev_id, pid, sid, "code", _code_level(f), f["khau"], f["msg"], f.get("de_xuat"))
     return n
 
 

@@ -19,6 +19,7 @@ C1_MAX_TOKENS_BASE = 400
 C1_TOKENS_PER_ASSERTION = 170   # GĐ3 01/10: 300 + 110 × 13 cut job 333 (max_tokens is not part of the replay key)
 CASES_SHOWN = 4
 OBSERVE_FIELDS = {"side": ["facing", "seen_at"], "cap": ["cap_marks"], "count": ["extra_people"]}
+# observe "geo" (10/10, core/stage_facts): field `geo_seen`, its choices per fact — see request_line / schema_for
 
 ANSWER_SCHEMA = {
     "type": "object",
@@ -180,19 +181,41 @@ def face_blocks(path: str, code: Dict) -> List[Dict]:
     return out
 
 
+GEO_NOTE = ("\n# Ô khai `geo_seen` (hình học máy 3D)\nVới mệnh đề có \"khai\": [\"geo_seen\"]: chọn ĐÚNG MỘT giá trị trong \"chọn\" "
+            "theo điều NHÌN THẤY trên khung (không đoán, không kết luận đúng/sai — code so với hình học máy đã tính); không thấy rõ → "
+            "\"unsure\". Mệnh đề khác: geo_seen = \"na\".")
+
+
+def schema_for(assertions: List[Dict]) -> Dict:
+    """ANSWER_SCHEMA itself when no geometry fact is asked (the request stays byte-for-byte the same: old replays still match); with
+    geometry facts (core/stage_facts, 10/10) one more observation field `geo_seen`."""
+    if not any(a.get("observe") == "geo" for a in assertions):
+        return ANSWER_SCHEMA
+    from . import stage_facts
+    sch = json.loads(json.dumps(ANSWER_SCHEMA))
+    item = sch["properties"]["answers"]["items"]
+    item["properties"]["geo_seen"] = {"type": "string", "enum": stage_facts.options_union() + ["na"]}
+    item["required"] = item["required"] + ["geo_seen"]
+    return sch
+
+
+def request_line(a: Dict, code: Dict) -> Dict:
+    c = code.get(a["id"]) or {}
+    if a.get("observe") == "geo":                   # 10/10: a 3D-stage geometry fact — report one fixed choice, the code judges
+        return {"id": a["id"], "vật": a["subject"], "khai": ["geo_seen"], "chọn": a["options"], "question": a["question_en"]}
+    if a.get("observe") in OBSERVE_FIELDS:          # neither the expected side nor the shot table's view: the model only reports
+        return {"id": a["id"], "người": a["subject"], "khai": OBSERVE_FIELDS[a["observe"]], "question": a["question_en"]}
+    return {"id": a["id"], "người": a["subject"], "hướng máy": a.get("view") or "không rõ", "mệnh đề": a["claim_vi"],
+            "question": a["question_en"], "số đo code": c.get("note", "")}
+
+
 def c1_request(frame: Dict, assertions: List[Dict], code: Dict, entity: List[Dict]) -> List[Dict]:
-    lines = []
-    for a in assertions:
-        c = code.get(a["id"]) or {}
-        if a.get("observe") in OBSERVE_FIELDS:      # neither the expected side nor the shot table's view: the model only reports
-            lines.append({"id": a["id"], "người": a["subject"], "khai": OBSERVE_FIELDS[a["observe"]], "question": a["question_en"]})
-            continue
-        lines.append({"id": a["id"], "người": a["subject"], "hướng máy": a.get("view") or "không rõ", "mệnh đề": a["claim_vi"],
-                      "question": a["question_en"], "số đo code": c.get("note", "")})
+    lines = [request_line(a, code) for a in assertions]
     data = frame["data"]
     head = (f"# Khung {frame.get('label') or frame['job_id']} — bảng shot: người {data.get('characters')}, cỡ {data.get('size')}, góc "
             f"{data.get('angle')}\nBlocking: {str(data.get('blocking') or '')[:300]}\n# Mệnh đề cần trả lời (đủ mọi id)\n"
-            + json.dumps(lines, ensure_ascii=False, indent=0))
+            + json.dumps(lines, ensure_ascii=False, indent=0)
+            + (GEO_NOTE if any(a.get("observe") == "geo" for a in assertions) else ""))
     return [{"role": "user", "content": entity + [{"type": "text", "text": head}, {"type": "text", "text": "Khung đầy đủ:"},
                                                   _image(frame["path"], C1_MODEL_EDGE)] + face_blocks(frame["path"], code)}]
 
@@ -221,9 +244,10 @@ def review_frame(p, pid: int, data_dir: str, frame: Dict, client, entity: Option
     palette.attach(code, p.conn, pid, frame["path"], frame["data"])
     # an assertion of a role not running yet still counts when the code alone is certain (GĐ3 01/10: #8 job 325 — the code measured a
     # certain wrong gaze, the frame passed because gaze belongs to C2)
-    mine = [a for a in spec["assertions"] if a["role"] in roles or a["role"] == "T0"
+    # 10/10: a 3D-stage geometry fact (observe "geo") is a fixed-choice report any specialist can give — asked with the running role
+    mine = [a for a in spec["assertions"] if a["role"] in roles or a["role"] == "T0" or a.get("observe") == "geo"
             or (code.get(a["id"]) or {}).get("status") in ("certain_ok", "certain_fail")]
-    ask = [a for a in mine if a["role"] in roles and (code.get(a["id"]) or {}).get("status") != "certain_ok"]
+    ask = [a for a in mine if (a["role"] in roles or a.get("observe") == "geo") and (code.get(a["id"]) or {}).get("status") != "certain_ok"]
     answers: Dict = {}
     other, problems, usage = [], [], {}
     if ask:
@@ -234,7 +258,7 @@ def review_frame(p, pid: int, data_dir: str, frame: Dict, client, entity: Option
             entity = entity_blocks(p, pid, names, views, [frame["job_id"]], data_dir,
                                    [f"S{d.get('story_scene')}·{d.get('shot_no')}"])
         msgs = c1_request(frame, ask, code, entity)
-        reply = client.ask_json(msgs, C1_SYSTEM, ANSWER_SCHEMA, C1_MAX_TOKENS_BASE + C1_TOKENS_PER_ASSERTION * len(ask),
+        reply = client.ask_json(msgs, C1_SYSTEM, schema_for(ask), C1_MAX_TOKENS_BASE + C1_TOKENS_PER_ASSERTION * len(ask),
                                 thinking={"type": "disabled"})
         parsed = parse_answers(reply.text, ask)
         answers, other, problems = parsed["answers"], parsed["other_issues"], parsed["problems"]

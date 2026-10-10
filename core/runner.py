@@ -1807,7 +1807,7 @@ def view_notes(conn, project_id: int, data: Dict) -> str:
 
 def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = None, fix: Optional[str] = None,
                        blocking_label: str = "Blocking", place_render: bool = False, light: str = "",
-                       place_extra: Optional[List[str]] = None) -> Tuple[str, list]:
+                       place_extra: Optional[List[str]] = None, camera_end: bool = False) -> Tuple[str, list]:
     """THE picture prompt of a shot (start picture and K1 end frame share it, so a safeguard added here reaches both). Returns
     (prompt, realism words removed). F1-C (09/10): assembled as named PARTS in the formula's order (docs/CONG_THUC_PROMPT_F0 mục 4,
     core/prompt_template.py): style → framing → people + action (Director text, blocking, gaze, acting, action_peak, skill phase) →
@@ -1816,7 +1816,9 @@ def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = 
     place_render: the shot's own 3D render goes with the picture — the place sentence locks the background to it (F1-B) instead of the
     place's general description; the render's number is filled in by _finish_args (assets.RENDER_TAG).
     light / place_extra: the scene light sentence and the 3D spot's direction / geometry sentences (_submit_args) — placed in their
-    parts instead of being glued to the end."""
+    parts instead of being glued to the end.
+    10/10: the 3D stage's geometry facts (core/stage_facts, flag stage_camera + a shot with stage_camera) go right before the quality
+    close; camera_end = the end frame of a moving camera."""
     from . import looks
     from . import prompt_template as pt
     proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
@@ -1833,11 +1835,22 @@ def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = 
              _place_part(conn, project_id, data, place, place_render, list(place_extra or []) + [_object_scale(conn, project_id, data)]),
              light,
              _lock_part(conn, project_id, data, proj, text, fix),
+             _geometry_part(conn, project_id, data, camera_end),
              pt.quality_part(look_quality, quality) if (look_quality or quality) else ""]
     prompt = pt.join(parts)
     if "Gore restraint:" in prompt:                # F1-B: "everything in focus" never reaches the hinted details
         prompt = looks.in_focus_except(prompt)
     return no_minor_age(prompt), removed
+
+
+def _geometry_part(conn, project_id: int, data: Dict, camera_end: bool = False) -> str:
+    """10/10 (#24 shot 4 + 8): the 3D stage's geometry facts of this camera (core/stage_facts) — computed by code, joined by code, not
+    via the Director. Only when the stage_camera flag is on AND the shot has a stage camera; otherwise "" (the prompt stays as before).
+    camera_end: the end frame of a moving camera (its end position)."""
+    from . import features, stage_facts
+    if not features.on("stage_camera") or not data.get("stage_camera"):
+        return ""
+    return stage_facts.prompt_block(stage_facts.for_shot(conn, project_id, data, end=camera_end)["facts"])
 
 
 def _action_part(data: Dict, words: str, blocking_label: str) -> str:
@@ -2131,6 +2144,8 @@ class ImageRunner(_Runner):
         # F1-C: light / spot / geometry go into their parts of the formula (place → light), never glued after the quality close
         prompt, _ = build_image_prompt(conn, job["project_id"], data, fix=model_fix(job["retry_reason"]), place_render=render is not None,
                                        light=light or "", place_extra=[chosen or "", geo or "", scale or ""])
+        if "Geometry of this camera" in prompt:        # luật 1: stage_facts sentences added by code are said
+            self._diag(job, "info", "stage_facts", "đã nối câu sự thật hình học của máy Sân khấu 3D (core/stage_facts) vào prompt ảnh")
         if "Gore restraint:" in prompt:                # luật 1: a sentence added by code is said
             self._diag(job, "info", "gore_restraint", "dự án FF: shot có máu/vết thương/xác — đã thêm câu chỉ GỢI (bóng tối, ngoài nét, "
                        "bị che), không thấy rõ")
