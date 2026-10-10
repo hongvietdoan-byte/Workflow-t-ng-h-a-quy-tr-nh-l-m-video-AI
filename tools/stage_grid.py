@@ -53,22 +53,17 @@ def add_person(bpy, p, floor, mk_mat):
         if not all(math.isfinite(v) and v > 0 for v in (length, height, p["height"])):
             raise ValueError("kích thước người nằm phải hữu hạn và dương")
         facing = math.radians(p["facing"])
-        # Chọn góc nhỏ hơn đường chéo; giải kích thước hộp để bao hình vẫn đúng số solver.
-        angle = .75 * math.atan2(height, length) if p["tu_the"] == "nga_ngua" else 0
-        c, s = math.cos(angle), math.sin(angle)
-        divisor = c * c - s * s
-        long_side = (length * c - height * s) / divisor
-        thickness = (height * c - length * s) / divisor
-        if min(long_side, thickness) <= 0:
-            raise ValueError("tỉ lệ thân nằm không dựng được hộp nghiêng")
+        o = dict(kind="nguoi", xy=[x, y], z=z, H=p["height"], tu_the=p["tu_the"],
+                 body_length=length, body_height=height, facing=p["facing"])
+        # Hộp thân lấy từ core/stage_grid.lying_slab — cùng nguồn với điểm phủ solver (rà Đợt 2: ngã ngửa nghiêng mà solver đo bao
+        # hình vuông thì điểm góc lơ lửng).
+        angle, long_side, thickness = sg.lying_slab(o)
         bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, z + height / 2))
         body = bpy.context.active_object
-        body.dimensions = (min(.3, height), long_side, thickness)
+        body.dimensions = (sg.LYING_WIDTH_M, long_side, thickness)
         body.rotation_euler = (angle, 0, -facing)
         body.name = f"STAGE_{p['name']}_body"
         body.data.materials.append(material)
-        o = dict(kind="nguoi", xy=[x, y], z=z, H=p["height"], tu_the=p["tu_the"],
-                 body_length=length, body_height=height, facing=p["facing"])
         # Đầu ở đầu dương của facing, theo đúng lying_point; nằm gọn trong bao hình thân.
         radius = min(.12, length * .05, height * (1 - sg.EYE))
         bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, location=sg.lying_point(o, .45, sg.EYE))
@@ -348,9 +343,13 @@ def blender_main(cfg):
                         chest_z=round(frel + hgt * sg.CHEST, 2), hip_z=round(frel + hgt * sg.HIP, 2), source=p.get("source"))
             if p.get("tu_the") in ("nam", "nga_ngua"):
                 bh = p["body_height"]
+                o_rel = dict(kind="nguoi", xy=[r[0], r[1]], z=frel, H=hgt, tu_the=p["tu_the"], facing=p["facing"],
+                             body_length=p["body_length"], body_height=bh)
                 info.update(height_m=bh, body_length=p["body_length"], tu_the=p["tu_the"],
-                            eye_z=round(frel + bh * sg.EYE, 2), chest_z=round(frel + bh * sg.CHEST, 2),
-                            hip_z=round(frel + bh * sg.HIP, 2))
+                            eye_z=round(sg.zone_point(o_rel)[2], 2), chest_z=round(frel + bh * sg.CHEST, 2),
+                            hip_z=round(frel + bh * sg.HIP, 2),
+                            # điểm phủ solver (so với O) — measure() đo % thấy trên đúng thân nằm, không cột đứng giữa tâm
+                            body_points=[list(q) for q in sg.object_points(o_rel)])
         if info.get("floor_status") not in ("same", "trong_gieng"):
             warnings.append(f"{p['name']} ở {info.get('cell')} đứng trên sàn '{info.get('floor_status')}' z {frel:.2f} m — kiểm chỗ đứng")
         placed[p["name"]] = info
@@ -629,18 +628,18 @@ def s1_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
         yaw, pitch = sg.look(C_r, A_r)
         ra = math.radians(yaw + 90)
         seen = inside = 0
-        for k in range(9):
-            z = sp["xyz"][2] + H * (0.05 + 0.93 * k / 8)
-            for lat in (-0.12, 0.0, 0.12):
-                P = (sp["xyz"][0] + math.sin(ra) * lat, sp["xyz"][1] + math.cos(ra) * lat, z)
-                if not sg.in_frame(sg.project(C_r, A_r, P, lens, aspect)):
-                    continue
-                inside += 1
-                PS = scn(P)
-                seg = PS - L
-                ok, _, _, _, obj, _ = scene.ray_cast(dgv, L, seg.normalized(), distance=seg.length + 0.05)
-                o = (obj.original if hasattr(obj, "original") else obj) if ok and obj is not None else None
-                seen += 1 if o is not None and o.name.startswith(f"STAGE_{subj}") else 0
+        # người nằm / ngã ngửa: điểm phủ solver trên thân (cột đứng giữa tâm của người đứng phần lớn rơi vào khoảng không)
+        pts = sp.get("body_points") or [(sp["xyz"][0] + math.sin(ra) * lat, sp["xyz"][1] + math.cos(ra) * lat,
+                                         sp["xyz"][2] + H * (0.05 + 0.93 * k / 8)) for k in range(9) for lat in (-0.12, 0.0, 0.12)]
+        for P in pts:
+            if not sg.in_frame(sg.project(C_r, A_r, P, lens, aspect)):
+                continue
+            inside += 1
+            PS = scn(P)
+            seg = PS - L
+            ok, _, _, _, obj, _ = scene.ray_cast(dgv, L, seg.normalized(), distance=seg.length + 0.05)
+            o = (obj.original if hasattr(obj, "original") else obj) if ok and obj is not None else None
+            seen += 1 if o is not None and o.name.startswith(f"STAGE_{subj}") else 0
         # % thấy yêu nữ (cùng 9×3 điểm): điểm dưới miệng giếng khi đứng trong giếng mà bị cản → "bị che bởi giếng" (đúng ý: chỉ thấy phần trên)
         yv = None
         if "YEUNU" in placed and subj != "YEUNU":

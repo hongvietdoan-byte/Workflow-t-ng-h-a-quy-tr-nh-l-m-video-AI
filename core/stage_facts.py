@@ -520,6 +520,10 @@ def for_shot(conn, pid: int, data: Dict, aspect: Optional[float] = None, end: bo
     st = stage_of(data, end=end)
     objects = library_objects(conn, pid, st["props"]) if st else {}
     for p in (st or {}).get("props") or []:
+        if p["kind"] == "block":                         # khối nhánh C: Kho tra theo mã vat_kho (library_objects), không theo loại
+            if p.get("vat_kho") is not None and str(p["vat_kho"]) not in objects:
+                notes.append(f"không có vật Kho mã {p['vat_kho']} trong dự án — câu dùng mô tả khối '{_name(p, objects)}'")
+            continue
         if p["kind"] not in objects:
             notes.append(f"không có vật Kho loại '{p['kind']}' trong dự án — câu dùng tên chung '{KIND_EN.get(p['kind'], p['kind'])}'")
     res = derive(data, objects, aspect, end, render)

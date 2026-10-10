@@ -28,8 +28,12 @@ def test_lying_pose_frames_full_body_length(pose, facing):
 def test_nga_ngua_lower_eye_height():
     o = ss.objects_from_blocking({"objects": [{"key": "a", "kind": "nguoi", "at": [0, 0],
                                                "H": 1.7, "facing": 0, "tu_the": "nga_ngua"}]})["a"]
-    assert sg.zone_point(o)[2] == pytest.approx(sg.EYE * .45 * 1.7)
+    # rà Đợt 2: mắt nằm trên mặt trên hộp thân nghiêng (lying_slab, góc 18,2°, dài 1,709 m, dày 0,244 m) — tính tay 0,722 m
+    # (trước: 0,93 × bao hình 0,765 = 0,711 m, điểm ngoài thân Blender); vẫn thấp hơn hẳn người đứng
+    assert sg.zone_point(o)[2] == pytest.approx(.722, abs=1e-3)
+    assert sg.zone_point(o)[2] < sg.EYE * 1.7 / 2
     spec = {"co": "WS", "thanh_phan": [{"vat": "a", "vai": "chinh"}]}
+    # máy "ngang" theo lớp cao = EYE × bao hình (layer_heights), không theo điểm mắt — giữ số cũ
     assert ss.Shot(spec, {"a": o}, 9 / 16).cz == pytest.approx(sg.EYE * .45 * 1.7)
 
 WELL = sg.offset((0.0, 0.0, 0.0), 350, 1.6)            # #24: Kelly ở O nhìn 350°, giếng cách 1,6 m

@@ -72,3 +72,35 @@ def test_variants_keep_pose_and_dimensions():
 def test_lying_missing_facing_refused():
     with pytest.raises(ValueError, match="facing"):
         render(dict(name="K", height=1.8, tu_the="nam", body_length=1.8, body_height=.3))
+
+
+def _local(body, q):
+    """Điểm q → tọa độ cục bộ hộp thân (X rộng, Y dài, Z dày); Blender Euler XYZ = Rz·Rx."""
+    ax, _, az = body.rotation_euler
+    dx, dy, dz = (q[k] - body.args["location"][k] for k in range(3))
+    cz, sz = math.cos(-az), math.sin(-az)
+    x, y = dx * cz - dy * sz, dx * sz + dy * cz
+    cx, sx = math.cos(-ax), math.sin(-ax)
+    return x, y * cx - dz * sx, y * sx + dz * cx
+
+
+@pytest.mark.parametrize("pose,bh", [("nam", .36), ("nga_ngua", .81)])
+@pytest.mark.parametrize("facing", [0, 90, 215])
+def test_solver_points_lie_on_mannequin(pose, bh, facing):
+    """Một sự thật hình học: điểm phủ solver (đo % thấy) + điểm mắt phải nằm trên thân người nộm Blender — ngã ngửa nghiêng không
+    được còn điểm 'lơ lửng' ở góc bao hình (đầu chân trên cao / đầu đầu dưới sàn)."""
+    p = dict(name="K", height=1.8, tu_the=pose, body_length=1.8, body_height=bh, facing=facing)
+    body, _ = render(p)
+    o = dict(kind="nguoi", xy=[2, 3], z=4, H=1.8, tu_the=pose, body_length=1.8, body_height=bh, facing=facing)
+    w, length, thick = body.dimensions
+    for q in sg.object_points(o) + [sg.zone_point(o)]:
+        x, y, z = _local(body, q)
+        assert abs(x) <= w / 2 + 1e-6 and abs(y) <= length / 2 + 1e-6 and abs(z) <= thick / 2 + 1e-6, (pose, facing, q)
+
+
+def test_lying_flat_points_unchanged():
+    """Nằm phẳng: điểm solver giữ đúng số cũ (z 0 / body_height, dọc thân ±L/2)."""
+    o = dict(kind="nguoi", xy=[0, 0], z=0, H=1.8, tu_the="nam", body_length=1.8, body_height=.36, facing=90)
+    pts = sg.object_points(o)
+    assert {round(q[2], 6) for q in pts} == {0.0, .36}
+    assert min(q[0] for q in pts) == pytest.approx(-.9) and max(q[0] for q in pts) == pytest.approx(.9)

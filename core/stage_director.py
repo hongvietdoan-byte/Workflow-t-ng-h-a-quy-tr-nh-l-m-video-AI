@@ -76,6 +76,15 @@ def validate_answer(obj, inputs: Dict, marks: Optional[Dict] = None) -> Dict:
         for k in ("h", "d", "kind"):
             if k in f and o.get(k) != f[k]:
                 errs.append(f"vật cố định '{f['key']}' bị đổi {k}: {o.get(k)} ≠ {f[k]}")
+    # tư thế ngoài enum (vd 'nga', 'lying') trước đây bị giải im lặng như người đứng — rà Đợt 2 khi prompt 29 mở nga_ngua/nam.
+    # Chỉ kiểm câu trả lời mới của Đạo diễn (blocking cũ đã lưu không bị chặn ở đây).
+    from .shot_intent import TU_THE
+    rows = [("objects", o) for o in bl.get("objects", []) if isinstance(o, dict)]
+    rows += [(f"beats.{n}", ov) for n, b in (bl.get("beats") or {}).items() if isinstance(b, dict)
+             for ov in b.values() if isinstance(ov, dict)]
+    for where, o in rows:
+        if o.get("tu_the") is not None and o["tu_the"] not in TU_THE:
+            errs.append(f"{where}: tu_the '{o['tu_the']}' không thuộc {', '.join(TU_THE)}")
     if errs:
         raise llm_io.SchemaError("; ".join(errs[:6]))
     try:
