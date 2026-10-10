@@ -981,16 +981,20 @@ def _flow_table(groups: dict, label) -> "pd.DataFrame":
 def page_flow():
     st.title("Hiệu quả quy trình — token mỗi nhánh của vòng làm việc nhiều phiên")
     st.caption("Số đo mỗi nhánh đã gộp (phiên làm / rà / sửa, lỗi rà bắt) từ `devsys/workflow_runs.jsonl` trong git. Ghi sau mỗi nhánh gộp: "
-               "`python -m devsys.workflow add S14.x --mode goi|usd|cloud --review ky|nhe --work … --review-k … --fix … --bugs …`. Miễn phí.")
+               "`python -m devsys.workflow add S14.x|K0b-TD5|CX-d2-1 --mode goi|usd|cloud --review ky|nhe --work …`. Miễn phí.")
     try:
         rows = workflow.load()
-    except workflow.WorkflowError as e:
+    except (workflow.WorkflowError, OSError, UnicodeError) as e:
         st.error(f"File số đo hỏng: {e}")
         return
+    kinds = sorted({workflow.task_kind(r.get("task")) for r in rows})
+    selected = st.multiselect("Lọc loại mã", kinds, default=kinds, format_func=lambda k: workflow.KIND_LABEL[k], key="flow_task_kinds")
+    rows = [r for r in rows if workflow.task_kind(r.get("task")) in selected]
     try:
         with open(plan_progress.PLAN_FILE, encoding="utf-8") as f:
             got = workflow.parse_plan(f.read())
-    except OSError:
+    except (OSError, UnicodeError) as error:
+        st.warning(f"không đọc được kế hoạch S: {error}")
         got = {"bad": [], "runs": []}
     if got["bad"]:
         st.warning("Dòng 'Số đo:' trong kế hoạch KHÔNG đọc được (sửa lại cho đúng dạng 'làm ≈ 200k + sửa ≈ 50k, rà ≈ 100k, rà bắt 3'):\n\n"
@@ -1001,9 +1005,11 @@ def page_flow():
         st.info(f"{len(missing)} nhánh có 'Số đo:' trong kế hoạch nhưng chưa có trong file: "
                 + ", ".join(r["task"] + (" " + r["part"] if r.get("part") else "") for r in missing) + " — `python -m devsys.workflow import-plan --write`")
     if not rows:
-        st.info("Chưa có số đo nào.")
+        st.info("Không có số đo khớp bộ lọc đã chọn." if kinds else "Chưa có số đo nào.")
         return
     s = workflow.summarize(rows)
+    st.markdown("#### Theo loại mã")
+    st.dataframe(_flow_table(s["by_kind"], ("Loại mã", lambda k: workflow.KIND_LABEL[k])), hide_index=True)
     al, ky, nhe = s["all"], s["by_review"].get("ky") or {}, s["by_review"].get("nhe") or {}
     b = workflow.BASELINES
 
