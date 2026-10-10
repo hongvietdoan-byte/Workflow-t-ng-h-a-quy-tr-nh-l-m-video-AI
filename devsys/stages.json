@@ -10,7 +10,7 @@
  "_dot_ghi_chu": "Thứ tự chạy mục 8: K0a < K0b < K1a < K2 < K3 < K4 < K1b < K5 < K6 < K7 < K8 (devsys/stages.DOT). Chỗ thiếu ghi dot ≤ dot_hien_tai mà vẫn thiếu → ĐỎ (quá hạn). Đổi dot_hien_tai khi xong một đợt.",
  "vai": {
   "kiem": ["d06", "d08", "d10", "d11", "d12", "d18", "d22", "d24", "d26", "d28", "d32", "d36", "d39", "d42", "d43", "d45", "d47", "d48", "d49",
-           "d79", "d81", "d83", "d84", "d86", "d87", "d92", "d93", "d94", "d95", "d96", "d97"],
+           "d79", "d81", "d83", "d84", "d86", "d87", "d92", "d93", "d94", "d95", "d96", "d97", "d98"],
   "sinh": ["d85"],
   "nguoi_duyet": ["d05", "d33", "d34", "d46", "d50"]
  },

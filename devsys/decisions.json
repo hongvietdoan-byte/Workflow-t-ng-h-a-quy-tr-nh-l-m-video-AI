@@ -751,6 +751,14 @@
    "what": "Kiểm schema/hình học sơ đồ khối Nhánh C: khối, sàn, lối đi, vật kịch bản, số chuẩn — chỉ Python + test, CHƯA nối luồng/duyệt Kho",
    "where": "core/blockout.py:check_geometry",
    "bat": false
+  },
+  {
+   "id": "d98",
+   "step": "step2",
+   "who": "code",
+   "what": "Tấm duyệt 2D Nhánh C + gói blockout có phiên bản/người duyệt/SHA; từ chối geometry ĐỎ, chưa nối Kho/pipeline",
+   "where": "core/blockout_sheet.py:to_location_pack",
+   "bat": false
   }
  ]
 }
