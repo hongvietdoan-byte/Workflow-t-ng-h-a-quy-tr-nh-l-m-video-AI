@@ -262,4 +262,8 @@ S14.45 vẫn nhận; mã mới nhận; mã rác bị từ chối với lý do.
 
 ## Kết quả Codex — đợt 3
 
-(Codex ghi: việc · nhánh · commit · test đỏ→xanh · việc mở.)
+| Việc | Nhánh | Commit | Test đỏ→xanh | Việc mở |
+|---|---|---|---|---|
+| 4 | `codex/d3-viec4-ma-quy-trinh` | `4122f17` | 13 ca đỏ trước sửa; giữ tương thích F1.1 sau hồi quy; 106 passed, 2 deselected (không slow); riêng giao diện slow 2 passed, 63 deselected; kiểm lại workflow sau rà: 43 passed | Claude chạy cả bộ và gộp; khởi động lại 8502 sau tích hợp. |
+
+Rà diff: giữ key widget cũ, thêm `flow_task_kinds`; không sửa Dashboard, dữ liệu thật hay version areas; kiểm mã bằng fullmatch, lỗi đọc file hiện lý do. Mã K lấy từ stages.DOT; mã kế hoạch cũ có số vẫn đọc được, mã tùy ý bị từ chối. Không gọi API.
