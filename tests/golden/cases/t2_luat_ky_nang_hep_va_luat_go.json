@@ -1,0 +1,102 @@
+{
+ "id": "t2_luat_ky_nang_hep_va_luat_go",
+ "nguon": "kế hoạch kiểm soát mục 5 ví dụ T1/T2 'bóng + ô tô lơ lửng do hiệu ứng kỹ năng Z' + 'xe FF không bay'. Ca dựng tay",
+ "ca_vang_tay": false,
+ "byd": null,
+ "may": {},
+ "kho": {
+  "xe": {
+   "name": "xe (minh họa)",
+   "kho_id": 77,
+   "has_picture": false
+  }
+ },
+ "goi": {
+  "image_prompt": "",
+  "refs": [],
+  "model": null
+ },
+ "anh_ket_qua": null,
+ "loi_dung": "luật hẹp 'xe bay do kỹ năng Z ở shot 3' bị áp cho shot khác / ngữ cảnh khác, hoặc luật đã gỡ vẫn áp — chỉ luật chung 'xe không bay' được áp",
+ "loai_loi": [
+  "L15"
+ ],
+ "lop_phai_bat": [
+  "d26"
+ ],
+ "ky_vong": {
+  "world_rules": {
+   "luat": [
+    {
+     "id": "ff_xe_khong_bay",
+     "vat": "loai:xe",
+     "ngu_canh": "*",
+     "dieu": "xe chạy trên mặt đất, không bay",
+     "pham_vi": "chung",
+     "nguon": "tu_lieu: kế hoạch kiểm soát mục 5 bảng T2"
+    },
+    {
+     "id": "p30_xe_bay_ky_nang",
+     "vat": "kho:77",
+     "ngu_canh": "ky_nang:z",
+     "dieu": "xe bay lên kèm quầng sáng xanh của kỹ năng Z",
+     "pham_vi": {
+      "du_an": 30,
+      "shot": [
+       3
+      ]
+     },
+     "nguon": "nguoi_dung: trả lời 'cố ý' (ca dựng tay minh họa)",
+     "het_han": "2026-12-31"
+    },
+    {
+     "id": "p30_xe_bay_cu",
+     "vat": "kho:77",
+     "ngu_canh": "ky_nang:z",
+     "dieu": "xe bay lên kèm quầng sáng xanh của kỹ năng Z",
+     "pham_vi": "du_an:30",
+     "nguon": "nguoi_dung: trả lời 'cố ý' (ca dựng tay minh họa)",
+     "het_han": "2026-12-31",
+     "go": true,
+     "go_ly_do": "người dùng: thực ra là lỗi"
+    }
+   ],
+   "hoi": [
+    {
+     "vat": "kho:77",
+     "loai": "xe",
+     "ngu_canh": "ky_nang:z",
+     "du_an": 30,
+     "shot": 3,
+     "hom_nay": "2026-10-10",
+     "ra": [
+      "p30_xe_bay_ky_nang",
+      "ff_xe_khong_bay"
+     ]
+    },
+    {
+     "vat": "kho:77",
+     "loai": "xe",
+     "du_an": 30,
+     "shot": 4,
+     "hom_nay": "2026-10-10",
+     "ra": [
+      "ff_xe_khong_bay"
+     ]
+    },
+    {
+     "vat": "kho:77",
+     "loai": "xe",
+     "ngu_canh": "ky_nang:z",
+     "du_an": 30,
+     "shot": 3,
+     "hom_nay": "2027-01-05",
+     "ra": [
+      "ff_xe_khong_bay"
+     ]
+    }
+   ],
+   "lop_chay": "core/world_rules.tim (chưa nối — K3)"
+  }
+ }
+}

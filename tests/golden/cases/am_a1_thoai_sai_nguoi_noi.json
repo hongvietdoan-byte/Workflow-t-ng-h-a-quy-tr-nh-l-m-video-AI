@@ -1,0 +1,96 @@
+{
+ "id": "am_a1_thoai_sai_nguoi_noi",
+ "nguon": "kế hoạch kiểm soát K0b (dòng 307) — ca âm/chữ 'thoại sai người nói'; dạng lỗi đã gặp: nhãn CTA/TITLE bị tính là người nói (d02, S14.4 C1b commit 4396d85). Ca dựng tay theo #24 shot 3 (không có job lỗi thật)",
+ "ca_vang_tay": true,
+ "byd": {
+  "shot": 3,
+  "truyen": {
+   "nhip": "goi",
+   "muc_dich": "Kelly gọi vọng xuống giếng, yêu nữ chưa xuất hiện",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "kelly",
+    "vai": "chinh",
+    "vung": "giua",
+    "thay": "mat"
+   }
+  ],
+  "hanh_dong": [],
+  "vat": [],
+  "may": {
+   "co": "MS",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": "plaza_front",
+   "thoi_gian": "night",
+   "thoi_tiet": "fog",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [
+    {
+     "ai": "kelly",
+     "cau": "Có ai ở dưới đó không?"
+    }
+   ],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "may": {},
+ "kho": {
+  "kelly": {
+   "name": "KELLY",
+   "kho_id": 23,
+   "has_picture": true
+  },
+  "yeunu": {
+   "name": "YÊU NỮ TÀ LINH DẠNG 1",
+   "kho_id": 418,
+   "has_picture": true
+  }
+ },
+ "goi": {
+  "motion_prompt": "Yêu nữ (the creature) says: \"Có ai ở dưới đó không?\" while Kelly stands at the rim of the well",
+  "tts": [
+   {
+    "nguoi_noi": "YÊU NỮ TÀ LINH DẠNG 1",
+    "cau": "Có ai ở dưới đó không?"
+   }
+  ],
+  "refs": [],
+  "model": null
+ },
+ "anh_ket_qua": null,
+ "loi_dung": "thoại sai người nói: BYĐ/kịch bản cho Kelly nói 'Có ai ở dưới đó không?', gói (motion_prompt + TTS) gán cho yêu nữ — yêu nữ còn không có trong khung",
+ "loai_loi": [
+  "A1"
+ ],
+ "lop_phai_bat": [
+  "d12",
+  "d38"
+ ],
+ "ky_vong": {
+  "am_chu": {
+   "thoai": [
+    {
+     "cau": "Có ai ở dưới đó không?",
+     "nguoi_noi_byd": "kelly",
+     "nguoi_noi_goi": "yeunu",
+     "ket_qua": "do",
+     "ly_do": "người nói trong gói ≠ BYĐ; người nói không có trong thanh_phan"
+    }
+   ],
+   "lop_chay": "chưa có lớp chạy (K6 ④ trước gen: thoại đúng người nói) — ghi kỳ vọng"
+  }
+ }
+}

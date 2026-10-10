@@ -1,0 +1,70 @@
+{
+ "id": "t2_luat_vat_x_khong_ap_vat_y",
+ "nguon": "kế hoạch kiểm soát mục 5 (T2) + bài học 'không khái quát từ 1 mẫu' (memory feedback_craft_no_fixed_meaning): luật 'cố ý' cho yêu nữ dạng 1 (#418) không được áp ngầm cho dạng 2 (#419) cùng loại. Ca dựng tay",
+ "ca_vang_tay": false,
+ "byd": null,
+ "may": {},
+ "kho": {
+  "yeunu1": {
+   "name": "YÊU NỮ TÀ LINH DẠNG 1",
+   "kho_id": 418,
+   "has_picture": true
+  },
+  "yeunu2": {
+   "name": "YÊU NỮ TÀ LINH DẠNG 2",
+   "kho_id": 419,
+   "has_picture": true
+  }
+ },
+ "goi": {
+  "image_prompt": "",
+  "refs": [],
+  "model": null
+ },
+ "anh_ket_qua": null,
+ "loi_dung": "áp luật lơ lửng của #418 cho #419 (cùng loại yêu nữ) → không hỏi 'cố ý hay lỗi' khi #419 lơ lửng — phải hỏi",
+ "loai_loi": [
+  "L15"
+ ],
+ "lop_phai_bat": [
+  "d26"
+ ],
+ "ky_vong": {
+  "world_rules": {
+   "luat": [
+    {
+     "id": "p24_yeunu1_lo_lung",
+     "vat": "kho:418",
+     "ngu_canh": "*",
+     "dieu": "yêu nữ dạng 1 lơ lửng cách mặt đất ~0,3 m khi trồi lên",
+     "pham_vi": "du_an:24",
+     "nguon": "nguoi_dung: trả lời 'cố ý' (ca dựng tay minh họa, chưa có câu hỏi thật)",
+     "loai": "yeu_nu"
+    }
+   ],
+   "hoi": [
+    {
+     "vat": "kho:418",
+     "du_an": 24,
+     "shot": 5,
+     "ra": [
+      "p24_yeunu1_lo_lung"
+     ]
+    },
+    {
+     "vat": "kho:419",
+     "du_an": 24,
+     "shot": 6,
+     "loai": "yeu_nu",
+     "ra": []
+    },
+    {
+     "vat": "kho:418",
+     "du_an": 8,
+     "ra": []
+    }
+   ],
+   "lop_chay": "core/world_rules.tim (chưa nối — K3 Tổ QC đọc T1 → T2 → T3)"
+  }
+ }
+}

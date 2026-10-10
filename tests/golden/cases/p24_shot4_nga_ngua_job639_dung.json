@@ -1,0 +1,172 @@
+{
+ "id": "p24_shot4_nga_ngua_job639_dung",
+ "nguon": "người dùng 10/10 #24 shot 4: job 639 Kelly ngã ngửa hai tay chống sau — ĐÚNG (ca chống báo nhầm, đi cặp p24_shot4_pose_job635); `goi` chép từ job 635 (cùng shot) — chưa đối chiếu prompt riêng của job 639",
+ "ca_vang_tay": false,
+ "byd": {
+  "shot": 4,
+  "truyen": {
+   "nhip": "nga",
+   "muc_dich": "sau lưng-chéo Kelly ngã ngửa, máy thấp sát lưng cô, giếng sừng sững phía trước (người dùng chọn phương án 43, 09/10)",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "kelly",
+    "vai": "chinh",
+    "vung": "trai",
+    "thay": "lung|nghieng"
+   },
+   {
+    "vat": "gieng",
+    "vai": "chinh",
+    "vung": "giua+phai"
+   }
+  ],
+  "hanh_dong": [
+   {
+    "ai": "kelly",
+    "bat_dau": {
+     "tu_the": "nga_ngua",
+     "cham_dat": [
+      "mong",
+      "ban_tay"
+     ]
+    },
+    "suy_tu_chu": true,
+    "cum_tu": "fallen back"
+   }
+  ],
+  "vat": [],
+  "may": {
+   "co": "WS",
+   "do_cao": "thap",
+   "goc": "ngang",
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": "plaza_front",
+   "thoi_gian": "night",
+   "thoi_tiet": "fog",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "may": {
+  "location": [
+   -216.062,
+   114.937,
+   10.43
+  ],
+  "look_at": [
+   -216.621,
+   115.766,
+   10.45
+  ],
+  "lens": 24.0,
+  "props": [
+   {
+    "kind": "well",
+    "at": [
+     -217.348,
+     117.576,
+     9.83
+    ],
+    "radius": 0.75,
+    "height": 0.9,
+    "hollow": true,
+    "sides": 8
+   }
+  ]
+ },
+ "kho": {
+  "well": {
+   "name": "GIẾNG ĐÁ CỔ",
+   "desc_en": "",
+   "has_picture": true
+  }
+ },
+ "goi": {
+  "image_prompt": "Wide shot from behind Kelly, slightly diagonal, low camera close to the ground, Free Fire in-game 3D render style. Kelly in her yellow-white-black tracksuit with black spiked choker and short dark bob on the left of the frame seen from behind, just fallen backward onto the stone ground away from an ancient eight-sided stone well, upper body tipped back, both hands braced on the ground behind her, head turned toward the well; the well looming ahead in the center-right of the frame, clean weathered grey stone rim, only its outer stone wall visible from this low camera, the opening not visible, foggy plaza at night, cold moonlight, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus",
+  "refs": [
+   {
+    "vai": "character",
+    "nhan": "KELLY",
+    "tep": "10.png"
+   },
+   {
+    "vai": "character",
+    "nhan": "KELLY",
+    "tep": "12.png"
+   },
+   {
+    "vai": "object",
+    "nhan": "GIẾNG ĐÁ CỔ",
+    "tep": "2.png"
+   },
+   {
+    "vai": "character",
+    "nhan": "KELLY",
+    "tep": "16.png"
+   },
+   {
+    "vai": "character",
+    "nhan": "KELLY",
+    "tep": "15.png"
+   },
+   {
+    "vai": "place_render",
+    "nhan": "Tháp Đồng Hồ",
+    "tep": "plate_lift.png",
+    "plate_key": "5b4f2d6986b12f27d522"
+   },
+   {
+    "vai": "place_wide",
+    "nhan": "WIDE same-axis view of this place (Tháp Đồng Hồ)",
+    "tep": "plate.png",
+    "plate_key": "efeaeb18b307a052a368"
+   },
+   {
+    "vai": "storyboard",
+    "nhan": "storyboard",
+    "tep": "sb_95850877706e"
+   }
+  ],
+  "model": "gpt-image-2.5-sunburst"
+ },
+ "anh_ket_qua": "data/projects/24/images/job_639.png",
+ "loi_dung": "không có lỗi tư thế: ảnh 639 vẽ Kelly ngã ngửa chống tay đúng BYĐ (nga_ngua + mông + bàn tay) — lớp tư thế không được báo",
+ "loai_loi": [
+  "L4"
+ ],
+ "lop_phai_bat": [
+  "d26"
+ ],
+ "ky_vong": {
+  "shot_intent": {
+   "hanh_dong": [
+    {
+     "ai": "kelly",
+     "bat_dau": {
+      "tu_the": "nga_ngua",
+      "cham_dat": [
+       "mong",
+       "ban_tay"
+      ]
+     }
+    }
+   ]
+  },
+  "do_tu_the": {
+   "data/projects/24/images/job_639.png": "dung",
+   "cong_cu": "MediaPipe pose_landmarker_full.task (K0b phần 1): thân 639 nghiêng 41° vs 635 28° — chưa có ngưỡng (K5)"
+  }
+ }
+}
