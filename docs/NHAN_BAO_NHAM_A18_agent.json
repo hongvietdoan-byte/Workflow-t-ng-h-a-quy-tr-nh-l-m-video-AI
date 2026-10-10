@@ -1,0 +1,43 @@
+{
+  "_ghi_chu": "Nhãn ĐỀ XUẤT của agent (10/10, 0 USD: đọc prompt CSDL + xem ảnh mẫu Kho 23/33/416/417/418/419 + ảnh job mới nhất của shot). Khóa = 'dự án|shot|nhân vật|món'. tools/nhan_bao_nham_a18.py đọc file này để điền cột 'Agent đề xuất' — người dùng vẫn duyệt cột cuối. Ảnh xem: #22 job 527/528/535/556/557/558 (approved); #24 job 623/632/634/639/636/637/629/640/633 (mới nhất, pending_review).",
+  "nhan": {
+    "22|4|MAXIM KL|hair":   {"nhan": "đúng lỗi", "do_chac": "vừa", "ly_do": "MCU thấy rõ tóc, prompt không tả tóc; ảnh 527 vẫn đúng xám bạc nhờ ảnh ref"},
+    "22|5|KELLY|crop top":  {"nhan": "đúng lỗi", "do_chac": "vừa", "ly_do": "chỉ ghi 'yellow tracksuit'; áo crop trắng thấy rõ ở ảnh 528 (vẽ đúng nhờ ref)"},
+    "22|6|KELLY KL|dress":  {"nhan": "báo nhầm", "do_chac": "vừa", "ly_do": "MCU 'mid-chest up, no legs': váy ngắn ở hông ngoài khung thiết kế; 'váy' bị ghép thành dress"},
+    "22|7|MAXIM KL|hair":   {"nhan": "đúng lỗi", "do_chac": "vừa", "ly_do": "prompt không gọi tên/tả Maxim; WS thấy tóc; ảnh 556 đúng nhờ ref"},
+    "22|8|MAXIM KL|hair":   {"nhan": "đúng lỗi", "do_chac": "vừa", "ly_do": "prompt không gọi tên/tả Maxim; WS thấy tóc; ảnh 557 đúng nhờ ref"},
+    "22|9|MAXIM KL|hair":   {"nhan": "đúng lỗi", "do_chac": "vừa", "ly_do": "prompt không gọi tên/tả Maxim; WS thấy tóc; ảnh 558 đúng nhờ ref"},
+    "22|7|MAXIM KL|hands":  {"nhan": "báo nhầm", "do_chac": "cao", "ly_do": "'tay áo đen' (ống tay) bị đọc thành hands; prompt có nói 'red dinosaur outfits'"},
+    "22|8|MAXIM KL|hands":  {"nhan": "báo nhầm", "do_chac": "cao", "ly_do": "'tay áo đen' (ống tay) bị đọc thành hands"},
+    "22|9|MAXIM KL|hands":  {"nhan": "báo nhầm", "do_chac": "cao", "ly_do": "'tay áo đen' (ống tay) bị đọc thành hands"},
+    "22|7|MAXIM KL|mask":   {"nhan": "báo nhầm", "do_chac": "cao", "ly_do": "prompt có 'both with the black shark-tooth mask worn UP' — nói chung cho hai người"},
+    "22|8|MAXIM KL|mask":   {"nhan": "báo nhầm", "do_chac": "cao", "ly_do": "prompt có 'both with the black shark-tooth mask' — code không gán được vì không gọi tên"},
+    "22|9|MAXIM KL|mask":   {"nhan": "báo nhầm", "do_chac": "cao", "ly_do": "prompt có 'both with the black shark-tooth mask' — code không gán được vì không gọi tên"},
+    "22|7|KELLY KL|hands":  {"nhan": "báo nhầm", "do_chac": "cao", "ly_do": "'tay áo sọc đen' (ống tay) bị đọc thành hands"},
+    "22|8|KELLY KL|hair":   {"nhan": "đúng lỗi", "do_chac": "cao", "ly_do": "S7 có câu khóa tóc Kelly, S8 mất; ảnh mẫu 417 tóc trắng-đỏ dễ lẫn (ảnh 557 vẫn đúng)"},
+    "22|9|KELLY KL|hair":   {"nhan": "đúng lỗi", "do_chac": "cao", "ly_do": "S7 có câu khóa tóc Kelly, S9 mất; ảnh mẫu 417 tóc trắng-đỏ dễ lẫn (ảnh 558 vẫn đúng)"},
+    "24|1|KELLY|crop top":  {"nhan": "báo nhầm", "do_chac": "thấp", "ly_do": "có 'yellow-white-black tracksuit'; ảnh 623 Kelly quay lưng đi về giếng, áo crop không thấy"},
+    "24|2|KELLY|hair":      {"nhan": "đúng lỗi", "do_chac": "vừa", "ly_do": "S1/S4 có 'short dark bob', S2 không; WS nghiêng thấy tóc (ảnh 632 đúng nhờ ref)"},
+    "24|3|KELLY|hair":      {"nhan": "đúng lỗi", "do_chac": "vừa", "ly_do": "qua vai sau lưng: tóc chiếm lớn khung, prompt không tả (ảnh 634 đúng nhờ ref)"},
+    "24|4|KELLY|crop top":  {"nhan": "báo nhầm", "do_chac": "cao", "ly_do": "prompt 'seen from behind'; ảnh 639 lưng, áo crop không thấy"},
+    "24|5|YÊU NỮ TÀ LINH DẠNG 1|face": {"nhan": "báo nhầm", "do_chac": "cao", "ly_do": "có 'face is a smooth featureless pure-black mask' — màu viết 'pure-black' code không nhận"},
+    "24|6|YÊU NỮ TÀ LINH DẠNG 1|face": {"nhan": "báo nhầm", "do_chac": "cao", "ly_do": "có 'face is a smooth featureless pure-black mask' — màu viết 'pure-black' code không nhận"},
+    "24|7|YÊU NỮ TÀ LINH DẠNG 1|face": {"nhan": "báo nhầm", "do_chac": "vừa", "ly_do": "tả gián tiếp 'faceless dark female creature'; ảnh 629 mặt đen đúng"},
+    "24|8|YÊU NỮ TÀ LINH DẠNG 2|dress": {"nhan": "đúng lỗi", "do_chac": "vừa", "ly_do": "quỳ ôm mặt, váy đen chiếm nửa khung (ảnh 640), prompt không tả váy"},
+    "24|9|KELLY|hair":      {"nhan": "đúng lỗi", "do_chac": "thấp", "ly_do": "WS Kelly nhỏ nhưng tóc vẫn đọc được; prompt không tả (ảnh 633 đúng)"},
+    "24|1|KELLY|sneakers":  {"nhan": "đúng lỗi", "do_chac": "vừa", "ly_do": "WS toàn thân, giày thấy rõ (ảnh 623), prompt không nói giày trắng"},
+    "24|2|KELLY|choker":    {"nhan": "báo nhầm", "do_chac": "thấp", "ly_do": "WS cao nhìn xuống, vòng cổ chỉ vài điểm ảnh — món nhỏ không cần chữ ở cỡ này"},
+    "24|3|KELLY|choker":    {"nhan": "báo nhầm", "do_chac": "cao", "ly_do": "máy sau lưng Kelly: cổ bị tóc che, vòng cổ không thấy (ảnh 634)"},
+    "24|4|KELLY|sneakers":  {"nhan": "đúng lỗi", "do_chac": "vừa", "ly_do": "ngã ngồi, chân duỗi về giếng — giày thấy rõ (ảnh 639), prompt không nói"},
+    "24|5|YÊU NỮ TÀ LINH DẠNG 1|belt": {"nhan": "đúng lỗi", "do_chac": "cao", "ly_do": "prompt 'red sash' ngược Kho (đai gai đen khóa tam giác đỏ); ảnh 636 vẽ khăn đỏ — SAI"},
+    "24|6|YÊU NỮ TÀ LINH DẠNG 1|belt": {"nhan": "đúng lỗi", "do_chac": "vừa", "ly_do": "prompt 'red sash' ngược Kho; ảnh 637 lần này đúng nhờ ref, lần S5 đã sai"}
+  },
+  "kieu_bao_nham": [
+    "**Ghép món sai từ mô tả Kho tiếng Việt** (4/15): 'tay áo đen' / 'tay áo sọc đen' (ống tay áo) bị đọc thành `hands`. Gợi ý: 'tay áo' → sleeves (không phải hands).",
+    "**Câu tả chung cho nhóm không gán được cho nhân vật** (3/15): 'both with the black shark-tooth mask' khi prompt không gọi tên ai → đoạn nhân vật rỗng → mọi món 'thiếu'. Gợi ý: câu có 'both / two characters / each' tính cho mọi nhân vật trong khung; prompt không gọi tên nhân vật nào nên là MỘT lỗi riêng ('không gọi tên'), không phải N món thiếu.",
+    "**Màu / món tả gián tiếp** (3/15): 'pure-black' (từ ghép gạch nối) không ra màu black; 'faceless dark …' không ra face/black. Gợi ý: tách từ ghép gạch nối khi tìm màu; nhận 'faceless' như món face, 'dark' gần nghĩa black.",
+    "**Món không thấy do hướng máy / vật che** (3/15): áo crop khi quay lưng (S1, S4), vòng cổ khi máy sau lưng (S3). Gợi ý: BYĐ 'lung' → bỏ món chỉ thấy phía trước (crop top, choker, mặt trước áo); prompt 'from behind' cũng nên tính là lưng.",
+    "**Cỡ cảnh / món nhỏ** (2/15): MCU 'no legs' vẫn đòi váy ('váy da đen ngắn' ghép thành `dress` nên vị trí món tính như áo, không lọc theo cỡ); vòng cổ ở WS nhìn cao. Gợi ý: tách skirt khỏi dress (vị trí hông); món phụ kiện nhỏ (choker…) chỉ bắt buộc từ MS trở vào.",
+    "**Lưu ý về 'đúng lỗi'**: 14/15 mục đúng lỗi có ảnh vẽ ra VẪN ĐÚNG nhờ ảnh tham chiếu; chỉ #29 (#24 S5 đai) có bằng chứng ảnh sai. Prompt thiếu chữ là rủi ro thật nhưng mức hại thấp khi ảnh ref có món → hợp lý giữ VÀNG (`CHAN_DO = False`); riêng `sai_mau` (chữ ngược Kho) đã gây ảnh sai → đáng nâng mức trước."
+  ]
+}

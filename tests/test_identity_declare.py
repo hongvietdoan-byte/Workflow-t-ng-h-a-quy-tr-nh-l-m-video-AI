@@ -541,3 +541,17 @@ def test_nhan_bao_nham_balanced_pick_and_paths(tmp_path, monkeypatch):
     with pytest.raises(SystemExit, match="chưa chạy khô"):
         mod.load_summary(77)
     assert "A25" in mod.NGUONG and "n ≥ 30" in mod.NGUONG and "#22 + #24" in mod.NGUONG
+
+
+def test_nhan_bao_nham_agent_labels_kept_on_rerun(tmp_path):
+    """Nhãn đề xuất của agent đọc từ json theo (dự án, shot, nhân vật, món) → cột riêng + mục tổng kết; thiếu nhãn → cột trống."""
+    mod = _load_tool("nhan_bao_nham_a18")
+    assert mod.load_agent(str(tmp_path / "khong_co.json")) == {}
+    agent = {"nhan": {"22|7|MAXIM KL|hands": {"nhan": "báo nhầm", "do_chac": "cao", "ly_do": "tay áo | ống tay"}},
+             "kieu_bao_nham": ["tay áo → hands"]}
+    it = lambda shot, mon: {"shot": shot, "n": {"nhan_vat": "MAXIM KL"}, "m": {"mon": mon}}
+    cell = mod.agent_cell(agent["nhan"][mod.agent_key(22, 7, "MAXIM KL", "hands")])
+    assert cell.startswith("**báo nhầm**") and "|" not in cell and "(cao)" in cell
+    out = "\n".join(mod.agent_summary([(22, it(7, "hands")), (22, it(8, "hair"))], agent))
+    assert "đúng lỗi 0 / báo nhầm 1" in out and "100 %" in out and "1 mục trong bảng chưa có nhãn agent" in out
+    assert mod.agent_summary([(22, it(8, "hair"))], agent) == []

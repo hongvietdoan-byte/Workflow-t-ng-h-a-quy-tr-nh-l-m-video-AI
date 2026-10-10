@@ -25,6 +25,8 @@ from core import identity_declare as idd  # noqa: E402
 
 DATA = os.path.join(ROOT, "data_out", "k0b_p24")       # tương thích người gọi cũ (#24)
 OUT = os.path.join(ROOT, "docs", "NHAN_BAO_NHAM_A18_2026-10-10.md")
+# Nhãn ĐỀ XUẤT của agent (không phải nhãn người dùng): khóa 'dự án|shot|nhân vật|món' → {nhan, do_chac, ly_do}; chạy lại tool giữ nhãn
+AGENT = os.path.join(ROOT, "docs", "NHAN_BAO_NHAM_A18_agent.json")
 BAO = ("thieu", "thieu_mau", "sai_mau")
 PROJECTS = (22, 24)
 NGUONG = ("Mục 9 kế hoạch chỉ có ngưỡng cho LỚP CLAUDE: báo nhầm ≤ 10 % trước khi chặn, cỡ mẫu ≥ 50 mục trên ≥ 2 dự án. Lớp CODE A18 "
@@ -49,6 +51,54 @@ def load_summary(pid) -> dict:
     if not os.path.exists(path):
         raise SystemExit(f"#{pid}: chưa chạy khô ({path} không có) — chạy `PYTHONUTF8=1 py tools/dryrun_k0b_p24.py --project {pid}` trước")
     return json.load(open(path, encoding="utf-8"))
+
+
+def load_agent(path: str = AGENT) -> dict:
+    """File nhãn đề xuất của agent; không có file → {} (cột để trống, không bịa nhãn)."""
+    if not path or not os.path.exists(path):
+        return {}
+    return json.load(open(path, encoding="utf-8"))
+
+
+def agent_key(pid, shot, nhan_vat, mon) -> str:
+    return f"{int(pid)}|{int(shot)}|{nhan_vat}|{mon}"
+
+
+def agent_cell(label) -> str:
+    if not label:
+        return ""
+    return f"**{label['nhan']}** — {label['ly_do']} ({label['do_chac']})".replace("|", "/")
+
+
+def agent_summary(chosen, agent: dict) -> list:
+    """Mục '## Agent đề xuất': đếm đúng lỗi / báo nhầm trên các mục đã chọn (theo dự án) + kiểu báo nhầm ghi trong file agent."""
+    labels = agent.get("nhan", {})
+    rows = [(p, labels.get(agent_key(p, it["shot"], it["n"]["nhan_vat"], it["m"]["mon"]))) for p, it in chosen]
+    got = [(p, lb) for p, lb in rows if lb]
+    if not got:
+        return []
+
+    def tally(sel):
+        dung = sum(1 for _, lb in sel if lb["nhan"] == "đúng lỗi")
+        nham = sum(1 for _, lb in sel if lb["nhan"] == "báo nhầm")
+        thap = sum(1 for _, lb in sel if lb.get("do_chac") == "thấp")
+        return dung, nham, thap
+
+    dung, nham, thap = tally(got)
+    out = ["## Agent đề xuất (10/10)", "",
+           f"Agent gán {len(got)}/{len(rows)} mục (nhãn ĐỀ XUẤT, người dùng duyệt cột cuối): **đúng lỗi {dung} / báo nhầm {nham}** → tỉ lệ "
+           f"báo nhầm ước **{round(100 * nham / len(got))} %** (n = {len(got)}; ngưỡng A25 ≤ 10 %). Độ chắc thấp: {thap} mục.", "",
+           "| Dự án | đúng lỗi | báo nhầm | tỉ lệ báo nhầm |", "|---|---|---|---|"]
+    for p in dict.fromkeys(p for p, _ in got):
+        d, n, _ = tally([g for g in got if g[0] == p])
+        out.append(f"| #{p} | {d} | {n} | {round(100 * n / (d + n))} % |")
+    if agent.get("kieu_bao_nham"):
+        out += ["", "Kiểu báo nhầm lặp lại (gợi ý sửa luật A18 — CHƯA sửa code A18):", ""]
+        out += [f"- {line}" for line in agent["kieu_bao_nham"]]
+    missing = len(rows) - len(got)
+    if missing:
+        out += ["", f"{missing} mục trong bảng chưa có nhãn agent (bảng đổi sau lần gán) — cần gán lại."]
+    return out + [""]
 
 
 def excerpt(text: str, item: str, n: int = 15) -> str:
@@ -136,8 +186,10 @@ def _stats(shots):
             "by_state": {k: sum(_count(s["after"], (k,)) for s in shots) for k in BAO}}
 
 
-def render(by_project, max_rows: int = 30) -> str:
-    """by_project = {pid: shots (build)} → bảng markdown gộp."""
+def render(by_project, max_rows: int = 30, agent: dict = None) -> str:
+    """by_project = {pid: shots (build)} → bảng markdown gộp; agent = load_agent() (nhãn đề xuất, cột trước cột người dùng)."""
+    agent = agent or {}
+    labels = agent.get("nhan", {})
     pids = list(by_project)
     groups = {p: _items(by_project[p], BAO) for p in pids}
     chosen = pick(groups, max_rows)
@@ -167,19 +219,21 @@ def render(by_project, max_rows: int = 30) -> str:
         "cần chữ ở shot này). Kết quả code: `thieu` = không có chữ món; `thieu_mau` = có món, thiếu màu chính; `sai_mau` = màu ngược khóa.",
         "Chọn mục: chia đều giữa các dự án, trong một dự án xoay vòng theo shot. Mục đã chọn mỗi dự án: " + ", ".join(
             f"#{p} = {sum(1 for q, _ in chosen if q == p)}/{len(groups[p])}" for p in pids) + f" (tổng {len(chosen)}).", "",
-        "| # | Dự án | Shot (cỡ) | Nhân vật | Món (màu khóa) | Kết quả code | Mức | Trích prompt (≤ 15 từ) | Người dùng: đúng lỗi / báo nhầm |",
-        "|---|---|---|---|---|---|---|---|---|"]
+        "| # | Dự án | Shot (cỡ) | Nhân vật | Món (màu khóa) | Kết quả code | Mức | Trích prompt (≤ 15 từ) | "
+        "Agent đề xuất (lý do ≤ 20 từ, độ chắc cao/vừa/thấp) | Người dùng: đúng lỗi / báo nhầm |",
+        "|---|---|---|---|---|---|---|---|---|---|"]
     for i, (p, it) in enumerate(chosen, 1):
         s, n, m = it["s"], it["n"], it["m"]
         mau = "/".join(m.get("mau_chinh") or []) or "—"
         ex = excerpt(s["seg"].get(n["nhan_vat"], ""), m["mon"]).replace("|", "/")
         lines.append(f"| {i} | #{p} | {s['shot']} ({s['co']}) | {n['nhan_vat']} | {m['mon']} ({mau}) | {m['trang_thai']} | "
-                     f"{'ĐỎ' if m['muc'] == 'do' else 'VÀNG'} | {ex} | |")
+                     f"{'ĐỎ' if m['muc'] == 'do' else 'VÀNG'} | {ex} | "
+                     f"{agent_cell(labels.get(agent_key(p, s['shot'], n['nhan_vat'], m['mon'])))} | |")
     total = sum(len(v) for v in groups.values())
     if total > len(chosen):
         lines.append(f"\n{total - len(chosen)} mục bị báo khác chưa đưa vào bảng (giới hạn {max_rows}).")
     if not chosen:
-        lines.append("| — | — | — | — | — | không còn mục bị báo | — | — | — |")
+        lines.append("| — | — | — | — | — | không còn mục bị báo | — | — | — | — |")
     if total < 30:
         lines.append(f"\n**Chưa đủ mẫu A25:** tổng {total} mục bị báo < 30 — chưa đo được ngưỡng.")
     lines += ["", "## Món bị lọc (`khong_can`) — để người dùng xem lọc có che lỗi thật không", "",
@@ -197,6 +251,7 @@ def render(by_project, max_rows: int = 30) -> str:
               "- `segment`: hai nhân vật cùng từ đánh dấu (hai dạng yêu nữ cùng 'creature'; 'MAXIM' với 'MAXIM KL' khi chỉ ghi 'Maxim')",
               "  → mệnh đề thuộc CẢ HAI (sửa 10/10, ca `test_segment_shared_marker_belongs_to_both_forms`). Đoạn tả 'biến hình từ dạng",
               "  A sang dạng B' vẫn tính cho cả hai dạng → màu của dạng kia có thể ra `sai_mau` (người dùng gán để đo).", ""]
+    lines += agent_summary(chosen, agent)
     return "\n".join(lines)
 
 
@@ -206,10 +261,11 @@ def main(argv=None):
     ap.add_argument("--projects", type=int, nargs="+", default=list(PROJECTS))
     ap.add_argument("--max", type=int, default=30)
     ap.add_argument("--out", default=OUT)
+    ap.add_argument("--agent", default=AGENT, help="file nhãn đề xuất của agent (json)")
     a = ap.parse_args(argv)
     mod = _dryrun()
     by_project = {p: build(a.main, p, mod) for p in a.projects}
-    text = render(by_project, a.max)
+    text = render(by_project, a.max, load_agent(a.agent))
     with open(a.out, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
     for p, shots in by_project.items():
