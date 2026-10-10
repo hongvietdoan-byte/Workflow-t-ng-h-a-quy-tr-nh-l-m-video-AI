@@ -28,6 +28,8 @@
 | A15 | Dự án mới **chỉ dùng 2 bối cảnh có 3D: Tháp Đồng Hồ (Kho #263) và Cổng Trời (#265)** cho tới khi dựng sân khấu từ ảnh (K1b) xong. |
 | A16 | **Chấp nhận chi phí kiểm** (~10–20 % chi gen) để đầu vào / đầu ra chất lượng, thay vì sửa và gen lại nhiều: chi phí kiểm chỉ ĐO và BÁO, không phải ngưỡng chặn. |
 | A17 | Video có **2 lớp kiểm bằng code — TRƯỚC và SAU khi gen** — làm cùng đợt ảnh (K3); lớp Claude của video ở K4 (mục 3.4, 3.6, 8). |
+| A18 | (thẩm định lần 3) Trong lúc lớp Claude của vòng viết còn học việc, **khai báo bắt buộc khóa nhận diện được CHẶN bằng code**: so tên món `must_keep` + màu lấy từ hồ sơ Kho với chữ Đạo diễn viết (thiếu / sai màu → ĐỎ, trả Đạo diễn) — không quay lại kiểu code chèn. |
+| A19 | Đạo diễn **phải viết tên món must_keep + màu** trong prompt; KHÔNG tả lại dáng / mặt (ảnh tham chiếu giữ) — N11 viết lại theo đây. |
 
 ## 0. Vì sao sửa nhiều lần vẫn lặp lại
 
@@ -64,7 +66,7 @@ chứng minh bằng số đo.
 | N8 | **Đo rồi mới chặn** | Lớp chắc chắn (hình học, đếm bằng bộ phát hiện, hợp lệ BYĐ) chặn ngay. Lớp Claude chạy học việc → đạt ngưỡng (mục 9) mới chặn. Mọi chặn có nút Bỏ qua + lý do. |
 | N9 | **Người dùng không đọc prompt** | Một dòng tiếng Việt / shot / lần gen lại; quyết bằng nút. |
 | N10 | **Gen lại phải đổi đúng đầu vào** | Chẩn đoán gốc (chữ / ảnh tham chiếu / render / model) → đổi đúng thứ đó; ≤ 2 lần tự động rồi hỏi người. |
-| N11 | **Gọn theo model** | Mỗi model có ngân sách prompt (số từ, ý chính đặt đầu, một hành động / shot, chỉ câu khẳng định — "không được có" diễn lại thành mô tả dương) và trần số ảnh tham chiếu; ngoại hình do ảnh tham chiếu giữ, chữ không tả lại. |
+| N11 | **Gọn theo model** | Mỗi model có ngân sách prompt (số từ, ý chính đặt đầu, một hành động / shot, chỉ câu khẳng định — "không được có" diễn lại thành mô tả dương) và trần số ảnh tham chiếu; ngoại hình (dáng, mặt) do ảnh tham chiếu giữ, chữ không tả lại; riêng tên món `must_keep` + màu PHẢI có trong chữ (A19). |
 
 ## 2. Kiến trúc
 
@@ -148,7 +150,7 @@ Hiện `core/runner.py` `build_image_prompt` (~dòng 1811) tự ghép nhiều ph
 
 | Phần code đang ghép | Thành khai báo | Kiểm sau khi Đạo diễn viết |
 |---|---|---|
-| Khóa nhận diện + màu trang phục (Identity lock F1-C, sửa lỗi #22) | BẮT BUỘC: từng món `must_keep` + màu, dạng trang phục | code: mỗi món có ý tương ứng (khai Claude + so); thiếu → lỗi trả Đạo diễn |
+| Khóa nhận diện + màu trang phục (Identity lock F1-C, sửa lỗi #22) | BẮT BUỘC: từng món `must_keep` + màu, dạng trang phục | **code chặn ngay (A18)**: so tên món + màu từ Kho với chữ (có bảng từ đồng nghĩa màu / món theo hồ sơ); thiếu / sai màu → ĐỎ trả Đạo diễn; lớp Claude khai thêm (học việc) cho cách diễn đạt khác |
 | Câu sự thật hình học (`stage_facts.prompt_block`) | BẮT BUỘC: phần thấy của vật, khối thay thế = vật thật, chân trời, góc ảnh mẫu | code so ý khai với ② |
 | Ghi chú góc nhìn (view_notes), thấy mặt / lưng | BẮT BUỘC theo BYĐ `thay` | code so |
 | Phong cách dự án (style), câu chốt chất lượng | KHUYẾN NGHỊ: Đạo diễn viết theo ngân sách model | code: có ý phong cách; không trái phong cách dự án |
