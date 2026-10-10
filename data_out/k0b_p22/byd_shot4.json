@@ -1,0 +1,47 @@
+{
+ "byd": {
+  "shot": 4,
+  "truyen": {
+   "nhip": null,
+   "muc_dich": "Cùng khung, Maxim đã biến thành MAXIM KHỦNG LONG, xoay người ngắm bộ đồ, gật gù hài lòng",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "maxim",
+    "vai": "chinh"
+   }
+  ],
+  "hanh_dong": [],
+  "vat": [],
+  "may": {
+   "co": "MCU",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": null,
+   "thoi_gian": "day",
+   "thoi_tiet": "clear",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "issues": [],
+ "suy_tu_chu": [
+  "may.co ← scenes.data size/shot = 'MCU'",
+  "may.do_cao/goc ← angle 'eye' = ngang/ngang",
+  "thanh_phan[maxim] ← characters; vung=None (None), thay=None (None) từ blocking",
+  "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather"
+ ],
+ "quyet_dinh_nguoi_dung": null
+}

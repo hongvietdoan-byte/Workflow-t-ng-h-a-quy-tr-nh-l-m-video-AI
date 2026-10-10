@@ -420,3 +420,116 @@ def test_kbc_survives_profile_save():
     other = assets.create(conn, "FF", "character", "KHAC")
     assets.set_profile(conn, other, {"must_keep": "black belt"}, approved=True)
     assert "khai_bao_chu" not in assets.get_profile(conn, other)        # không tự sinh ô rỗng cho hồ sơ chưa có
+
+
+# --- Thẩm định 5 (#4/#5, A25): ca hồi quy segment + tham số hóa dự án của chạy khô / bảng gán nhãn ---
+
+P24_SHOT7 = ("Point-of-view shot from Kelly's eyes low on the ground, looking slightly up, Free Fire in-game 3D render style, the faceless "
+             "dark female creature standing in front of an ancient eight-sided stone well in the center of the frame, turning her head "
+             "to stare straight at the camera, engulfed in flickering red digital glitch noise mid-transformation, shifting from "
+             "black-haired tattered-white-dress form into white-haired red-tipped comic-style crosshatch form, foggy plaza at night")
+
+
+def test_segment_shared_marker_belongs_to_both_forms():
+    """docs/NHAN_BAO_NHAM_A18 cuối tệp: #24 shot 7 hai dạng yêu nữ cùng từ đánh dấu 'creature' → trước đây chữ thuộc dạng 1 (thứ tự
+    tên), dạng 2 rỗng → mọi món dạng 2 'thieu' (báo nhầm do tách đoạn). Từ đánh dấu y hệt (không phân biệt được) → mệnh đề thuộc CẢ HAI."""
+    mk = {"YÊU NỮ TÀ LINH DẠNG 1": ["creature", "yêu nữ"], "YÊU NỮ TÀ LINH DẠNG 2": ["creature", "yêu nữ"]}
+    seg = idd.segment(P24_SHOT7, mk)
+    assert "faceless dark female creature" in seg["YÊU NỮ TÀ LINH DẠNG 2"]
+    assert "white-haired" in seg["YÊU NỮ TÀ LINH DẠNG 2"]
+    assert seg["YÊU NỮ TÀ LINH DẠNG 1"] == seg["YÊU NỮ TÀ LINH DẠNG 2"]
+    seg = idd.segment(P24_SHOT7, dict(mk, KELLY=["kelly"]))              # chữ trước 'creature' vẫn là của Kelly, không chia cho yêu nữ
+    assert "Point-of-view" in seg["KELLY"] and "Point-of-view" not in seg["YÊU NỮ TÀ LINH DẠNG 2"]
+
+
+def test_segment_longer_marker_wins_same_start():
+    """#22: 'MAXIM KL' và 'MAXIM' cùng bắt đầu ở một chỗ — từ đánh dấu DÀI hơn (cụ thể hơn) thắng, không theo thứ tự tên."""
+    mk = {"MAXIM": ["maxim"], "MAXIM KL": ["maxim kl", "maxim"]}
+    seg = idd.segment("MAXIM KL in the male Red Dinosaur outfit, black shark-tooth mask", mk)
+    assert "mask" in seg["MAXIM KL"] and seg["MAXIM"] == ""
+    seg = idd.segment("Maxim in a silver bomber jacket", mk)            # chỉ 'maxim' → hai tên trùng từ → của cả hai (không đoán)
+    assert "bomber" in seg["MAXIM"] and "bomber" in seg["MAXIM KL"]
+
+
+def _load_tool(name):
+    import importlib.util
+    import os
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", f"{name}.py")
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_dryrun_project_config_paths_anchor_repo_not_cwd(tmp_path, monkeypatch):
+    import os
+    monkeypatch.chdir(tmp_path)
+    mod = _load_tool("dryrun_k0b_p24")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    c22, c24 = mod.project_config(22), mod.project_config("24")
+    assert c22["pid"] == 22 and c22["out"] == os.path.join(root, "data_out", "k0b_p22") and os.path.isabs(c22["out"])
+    assert c24["out"] == os.path.join(root, "data_out", "k0b_p24") and c24["specs"] == mod.SPECS and mod.PID == 24
+    assert c22["specs"] is None and c22["old_prompt"] is None and c22["outfit"] == {"MAXIM KL": 416, "KELLY KL": 417}
+    with pytest.raises(SystemExit, match="#99 chưa có cấu hình"):
+        mod.project_config(99)
+    with pytest.raises(SystemExit, match="phải là số"):
+        mod.project_config("abc")
+
+
+def test_dryrun_spec_from_scene_without_hand_specs():
+    """#22 không có shot_specs → spec dựng từ chữ kịch bản; mọi ô ghi suy; không người → thanh_phan rỗng (validate ĐỎ, không bịa)."""
+    from core import shot_intent
+    mod = _load_tool("dryrun_k0b_p24")
+    cfg = mod.project_config(22)
+    data = {"size": "WS", "angle": "high", "characters": ["MAXIM KL", "KELLY KL"],
+            "blocking": "Maxim Khủng Long frame-left, Kelly Khủng Long frame-right, both facing camera, mid dance step"}
+    spec, suy = mod.spec_from_scene(7, data, cfg)
+    assert (spec["shot"], spec["co"], spec["do_cao"], spec["goc"]) == (7, "WS", "cao", "cui")
+    assert {c["vat"]: c.get("vung") for c in spec["thanh_phan"]} == {"maxim": "trai", "kelly": "phai"}
+    assert any("angle" in s for s in suy) and any("thanh_phan[maxim]" in s for s in suy)
+    b = shot_intent.from_shot_spec(spec)
+    b["noi_chon"]["kho_id"] = 263                                      # build_byd điền từ location_asset
+    assert not [i for i in shot_intent.validate(b) if i["muc"] == "do"]
+    empty, suy0 = mod.spec_from_scene(2, {"size": "CU", "angle": "ots", "characters": [], "blocking": "no person in frame"}, cfg)
+    assert empty["thanh_phan"] == [] and empty["goc"] is None and any("rỗng" in s for s in suy0)
+    assert any(i["truong"] == "thanh_phan" and i["muc"] == "do" for i in shot_intent.validate(shot_intent.from_shot_spec(empty)))
+
+
+def test_dryrun_outfit_lock_keeps_character_identity_items_only():
+    """#22 'MAXIM KL': khóa = tóc/mặt/mắt của Maxim (Kho 33) + đồ của bộ Khủng Long (Kho 416) — không đòi sneakers của Maxim, không lấy
+    'tóc' từ mô tả trang phục. Trang phục không có trong Kho → ĐỎ 'khong_co_trong_Kho'."""
+    import json
+    import sqlite3
+    mod = _load_tool("dryrun_k0b_p24")
+    cfg = mod.project_config(22)
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE assets (id INTEGER, profile TEXT, description TEXT)")
+    conn.execute("INSERT INTO assets VALUES (33, ?, '')", (json.dumps({"must_keep": "messy silver-white hair, black sneakers"}),))
+    conn.execute("INSERT INTO assets VALUES (416, NULL, 'khẩu trang đen in răng cá mập; tóc đỏ của người mẫu')")
+    row = mod.identity_rows(conn, ["MAXIM KL"], "MAXIM KL with silver-white hair and a black shark-tooth mask", {"maxim"}, cfg=cfg)[0]
+    got = {m["mon"]: (m["trang_thai"], m.get("mau_chinh")) for m in row["mon"]}
+    assert got["hair"] == ("co", ["white", "grey"]) and got["mask"][0] == "co" and "sneakers" not in got
+    assert row["trang_phuc_kho_id"] == 416 and "trang_phuc_416" in row["nguon_khoa"]
+    conn.execute("DELETE FROM assets WHERE id=416")
+    assert mod.identity_rows(conn, ["MAXIM KL"], "MAXIM KL", {"maxim"}, cfg=cfg)[0]["loi"] == "khong_co_trong_Kho"
+
+
+def test_nhan_bao_nham_balanced_pick_and_paths(tmp_path, monkeypatch):
+    """A25: bảng gộp #22 + #24 chia đều; dự án này thiếu thì bù từ dự án kia; trong một dự án lấy xoay vòng theo shot. Dữ liệu chạy
+    khô thiếu → SystemExit nói rõ (không bảng câm)."""
+    import os
+    monkeypatch.chdir(tmp_path)
+    mod = _load_tool("nhan_bao_nham_a18")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    assert mod.data_dir(22) == os.path.join(root, "data_out", "k0b_p22")
+    a = [{"shot": s, "i": i} for s in (1, 2) for i in range(10)]          # #22: 20 mục, 2 shot
+    b = [{"shot": 1, "i": i} for i in range(6)]                           # #24: 6 mục
+    got = mod.pick({22: a, 24: b}, 20)
+    assert len(got) == 20 and sum(1 for p, _ in got if p == 24) == 6      # #24 chỉ có 6 → #22 bù 14
+    assert {it["shot"] for p, it in got if p == 22}.issuperset({1, 2})
+    assert [it["shot"] for p, it in got if p == 22][:2] == [1, 2]          # xoay vòng shot, không dồn shot đầu
+    even = mod.pick({22: a, 24: [{"shot": 1, "i": i} for i in range(20)]}, 30)
+    assert sum(1 for p, _ in even if p == 22) == 15 and sum(1 for p, _ in even if p == 24) == 15
+    with pytest.raises(SystemExit, match="chưa chạy khô"):
+        mod.load_summary(77)
+    assert "A25" in mod.NGUONG and "n ≥ 30" in mod.NGUONG and "#22 + #24" in mod.NGUONG

@@ -1,0 +1,80 @@
+{
+ "byd": {
+  "shot": 7,
+  "truyen": {
+   "nhip": null,
+   "muc_dich": "Maxim Khủng Long và Kelly Khủng Long đứng cạnh nhau trên thềm đá dưới chân cầu thang nhiều tầng, bắt đầu nhảy đồng đều theo nhịp nhạc (đoạn 1).",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "maxim",
+    "vai": "chinh",
+    "vung": "trai"
+   },
+   {
+    "vat": "kelly",
+    "vai": "chinh",
+    "vung": "phai",
+    "thay": "mat"
+   }
+  ],
+  "hanh_dong": [
+   {
+    "ai": "maxim",
+    "bat_dau": {
+     "tu_the": "dung",
+     "cham_dat": [
+      "ban_chan"
+     ]
+    },
+    "suy_tu_chu": true,
+    "cum_tu": "stand"
+   },
+   {
+    "ai": "kelly",
+    "bat_dau": {
+     "tu_the": "dung",
+     "cham_dat": [
+      "ban_chan"
+     ]
+    },
+    "suy_tu_chu": true,
+    "cum_tu": "stand"
+   }
+  ],
+  "vat": [],
+  "may": {
+   "co": "WS",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": "bac_thang_giua",
+   "thoi_gian": "day",
+   "thoi_tiet": "clear",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "issues": [],
+ "suy_tu_chu": [
+  "may.co ← scenes.data size/shot = 'WS'",
+  "may.do_cao/goc ← angle 'eye' = ngang/ngang",
+  "thanh_phan[maxim] ← characters; vung=trai ('frame-left'), thay=None (None) từ blocking",
+  "thanh_phan[kelly] ← characters; vung=phai ('frame-right'), thay=mat ('facing camera') từ blocking",
+  "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+  "hanh_dong[maxim].bat_dau ← chữ 'stand'",
+  "hanh_dong[kelly].bat_dau ← chữ 'stand'"
+ ],
+ "quyet_dinh_nguoi_dung": null
+}

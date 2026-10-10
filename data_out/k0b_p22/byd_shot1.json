@@ -1,0 +1,61 @@
+{
+ "byd": {
+  "shot": 1,
+  "truyen": {
+   "nhip": null,
+   "muc_dich": "Maxim mở cửa bước vào phòng, khựng lại khi nhìn thấy thứ gì đó trên giường",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "maxim",
+    "vai": "chinh",
+    "vung": "trai"
+   }
+  ],
+  "hanh_dong": [
+   {
+    "ai": "maxim",
+    "bat_dau": {
+     "tu_the": "dung",
+     "cham_dat": [
+      "ban_chan"
+     ]
+    },
+    "suy_tu_chu": true,
+    "cum_tu": "stand"
+   }
+  ],
+  "vat": [],
+  "may": {
+   "co": "MS",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": null,
+   "thoi_gian": "day",
+   "thoi_tiet": "clear",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "issues": [],
+ "suy_tu_chu": [
+  "may.co ← scenes.data size/shot = 'MS'",
+  "may.do_cao/goc ← angle 'eye' = ngang/ngang",
+  "thanh_phan[maxim] ← characters; vung=trai ('frame-left'), thay=None (None) từ blocking",
+  "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+  "hanh_dong[maxim].bat_dau ← chữ 'stand'"
+ ],
+ "quyet_dinh_nguoi_dung": null
+}

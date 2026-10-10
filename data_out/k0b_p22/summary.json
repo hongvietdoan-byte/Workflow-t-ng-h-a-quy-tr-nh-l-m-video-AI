@@ -1,0 +1,1582 @@
+{
+ "project": 22,
+ "nguon_byd": "suy từ chữ kịch bản (scenes.data) — KHÔNG có shot_specs viết tay",
+ "pose_tool": "mediapipe 1.0.1 Tasks + pose_landmarker_full.task",
+ "do_ghi_chu": "#22 chưa khai khoảng job ảnh để đếm mặt YuNet ở đây — 'do' để trống (đo công cụ #22 ở tools/measure_tools_k0b.py → data_out/k0b_tools)",
+ "shots": [
+  {
+   "shot": 1,
+   "scene_id": 248,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "may.co ← scenes.data size/shot = 'MS'",
+    "may.do_cao/goc ← angle 'eye' = ngang/ngang",
+    "thanh_phan[maxim] ← characters; vung=trai ('frame-left'), thay=None (None) từ blocking",
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+    "hanh_dong[maxim].bat_dau ← chữ 'stand'"
+   ],
+   "nguoi_trong_khung": [
+    "maxim"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "MAXIM",
+     "kho_id": 33,
+     "trang_phuc_kho_id": null,
+     "nguon_khoa": "must_keep",
+     "thieu_must_keep": false,
+     "loc_byd": {
+      "vat": "maxim",
+      "co": "MS",
+      "thay": [],
+      "trong_khung": true
+     },
+     "khai_bao_chu_loi": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "sneakers",
+       "loi": "món 'sneakers' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      }
+     ],
+     "mau_mo_ta_lech": [],
+     "loi": null,
+     "khong_nhan_ra": [
+      "the collar",
+      "printed T-shirt with a yellow-purple graphic",
+      "silver chain hanging at the hip",
+      "ripped dark olive-brown pants"
+     ],
+     "tong": {
+      "co": 1,
+      "thieu": 0,
+      "thieu_mau": 0,
+      "sai_mau": 0,
+      "khong_can": 1,
+      "khong_co_khoa": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "white",
+        "grey"
+       ],
+       "dau_hieu": "a fringe",
+       "nguon": "suy",
+       "mau_thay": [
+        "white",
+        "grey"
+       ],
+       "dau_hieu_thay": false,
+       "mau_phu_thieu": [],
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "sneakers",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": "red panels",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "cỡ MS chỉ chứa 55 % thân từ đỉnh đầu; 'sneakers' ở 95 % — ngoài khung"
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": "shot không có máy Sân khấu 3D (stage_camera) — không sinh sự thật hình học, không đoán",
+    "notes": [],
+    "facts": {},
+    "contradictions": []
+   },
+   "do": []
+  },
+  {
+   "shot": 2,
+   "scene_id": 249,
+   "byd_hop_le": false,
+   "byd_loi": [
+    {
+     "muc": "do",
+     "truong": "thanh_phan",
+     "loi": "phải có ít nhất một thứ trong khung"
+    }
+   ],
+   "suy_tu_chu": [
+    "may.co ← scenes.data size/shot = 'CU'",
+    "may.do_cao/goc ← angle 'high' = cao/cui",
+    "thanh_phan rỗng: scenes.data.characters không có nhân vật có khóa sân khấu (shot không người?)",
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather"
+   ],
+   "nguoi_trong_khung": [],
+   "nhan_dien": [],
+   "hinh_hoc": {
+    "missing": "shot không có máy Sân khấu 3D (stage_camera) — không sinh sự thật hình học, không đoán",
+    "notes": [],
+    "facts": {},
+    "contradictions": []
+   },
+   "do": []
+  },
+  {
+   "shot": 3,
+   "scene_id": 250,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "may.co ← scenes.data size/shot = 'MCU'",
+    "may.do_cao/goc ← angle 'eye' = ngang/ngang",
+    "thanh_phan[maxim] ← characters; vung=giua ('frame-center'), thay=mat ('facing camera') từ blocking",
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather"
+   ],
+   "nguoi_trong_khung": [
+    "maxim"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "MAXIM",
+     "kho_id": 33,
+     "trang_phuc_kho_id": null,
+     "nguon_khoa": "must_keep",
+     "thieu_must_keep": false,
+     "loc_byd": {
+      "vat": "maxim",
+      "co": "MCU",
+      "thay": [
+       "mat"
+      ],
+      "trong_khung": true
+     },
+     "khai_bao_chu_loi": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "sneakers",
+       "loi": "món 'sneakers' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      }
+     ],
+     "mau_mo_ta_lech": [],
+     "loi": null,
+     "khong_nhan_ra": [
+      "the collar",
+      "printed T-shirt with a yellow-purple graphic",
+      "silver chain hanging at the hip",
+      "ripped dark olive-brown pants"
+     ],
+     "tong": {
+      "co": 1,
+      "thieu": 0,
+      "thieu_mau": 0,
+      "sai_mau": 0,
+      "khong_can": 1,
+      "khong_co_khoa": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "white",
+        "grey"
+       ],
+       "dau_hieu": "a fringe",
+       "nguon": "suy",
+       "mau_thay": [
+        "white",
+        "grey"
+       ],
+       "dau_hieu_thay": false,
+       "mau_phu_thieu": [],
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "sneakers",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": "red panels",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "cỡ MCU chỉ chứa 35 % thân từ đỉnh đầu; 'sneakers' ở 95 % — ngoài khung"
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": "shot không có máy Sân khấu 3D (stage_camera) — không sinh sự thật hình học, không đoán",
+    "notes": [],
+    "facts": {},
+    "contradictions": []
+   },
+   "do": []
+  },
+  {
+   "shot": 4,
+   "scene_id": 251,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "may.co ← scenes.data size/shot = 'MCU'",
+    "may.do_cao/goc ← angle 'eye' = ngang/ngang",
+    "thanh_phan[maxim] ← characters; vung=None (None), thay=None (None) từ blocking",
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather"
+   ],
+   "nguoi_trong_khung": [
+    "maxim"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "MAXIM KL",
+     "kho_id": 33,
+     "trang_phuc_kho_id": 416,
+     "nguon_khoa": "must_keep[hair+face+eyes]+trang_phuc_416:mo_ta_kho",
+     "thieu_must_keep": false,
+     "loc_byd": {
+      "vat": "maxim",
+      "co": "MCU",
+      "thay": [],
+      "trong_khung": true
+     },
+     "khai_bao_chu_loi": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "sneakers",
+       "loi": "món 'sneakers' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hands",
+       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "mask",
+       "loi": "món 'mask' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      }
+     ],
+     "mau_mo_ta_lech": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính white — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
+      }
+     ],
+     "loi": null,
+     "khong_nhan_ra": [
+      "Hoodie đỏ in hình khủng long xanh lá phun lửa",
+      "không kéo xuống",
+      "dáng lấy theo NHÂN VẬT đang mặc",
+      "không theo người mẫu. Không phải đồ liền thân thú bông",
+      "không có đuôi."
+     ],
+     "tong": {
+      "co": 1,
+      "thieu": 1,
+      "thieu_mau": 0,
+      "sai_mau": 0,
+      "khong_can": 1,
+      "khong_co_khoa": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "white",
+        "grey"
+       ],
+       "dau_hieu": "a fringe",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "hands",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "cỡ MCU chỉ chứa 35 % thân từ đỉnh đầu; 'hands' ở 45 % — ngoài khung"
+      },
+      {
+       "mon": "mask",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "co",
+       "muc": null
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": "shot không có máy Sân khấu 3D (stage_camera) — không sinh sự thật hình học, không đoán",
+    "notes": [],
+    "facts": {},
+    "contradictions": []
+   },
+   "do": []
+  },
+  {
+   "shot": 5,
+   "scene_id": 252,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "may.co ← scenes.data size/shot = 'MCU'",
+    "may.do_cao/goc ← angle 'eye' = ngang/ngang",
+    "thanh_phan[kelly] ← characters; vung=trai ('frame-left'), thay=None (None) từ blocking",
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+    "hanh_dong[kelly].bat_dau ← chữ 'lean'"
+   ],
+   "nguoi_trong_khung": [
+    "kelly"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "KELLY",
+     "kho_id": 23,
+     "trang_phuc_kho_id": null,
+     "nguon_khoa": "must_keep",
+     "thieu_must_keep": false,
+     "loc_byd": {
+      "vat": "kelly",
+      "co": "MCU",
+      "thay": [],
+      "trong_khung": true
+     },
+     "khai_bao_chu_loi": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "choker",
+       "loi": "món 'choker' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "crop top",
+       "loi": "món 'crop top' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "tracksuit",
+       "loi": "món 'tracksuit' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "sneakers",
+       "loi": "món 'sneakers' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      }
+     ],
+     "mau_mo_ta_lech": [],
+     "loi": null,
+     "khong_nhan_ra": [],
+     "tong": {
+      "co": 3,
+      "thieu": 1,
+      "thieu_mau": 0,
+      "sai_mau": 0,
+      "khong_can": 1,
+      "khong_co_khoa": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "brown"
+       ],
+       "dau_hieu": "straight blunt bangs",
+       "nguon": "suy",
+       "mau_thay": [
+        "brown"
+       ],
+       "dau_hieu_thay": false,
+       "mau_phu_thieu": [],
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "choker",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "crop top",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "tracksuit",
+       "mau_chinh": [
+        "yellow"
+       ],
+       "dau_hieu": "a high collar",
+       "nguon": "suy",
+       "mau_thay": [
+        "yellow"
+       ],
+       "dau_hieu_thay": false,
+       "mau_phu_thieu": [],
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "sneakers",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "cỡ MCU chỉ chứa 35 % thân từ đỉnh đầu; 'sneakers' ở 95 % — ngoài khung"
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": "shot không có máy Sân khấu 3D (stage_camera) — không sinh sự thật hình học, không đoán",
+    "notes": [],
+    "facts": {},
+    "contradictions": []
+   },
+   "do": []
+  },
+  {
+   "shot": 6,
+   "scene_id": 253,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "may.co ← scenes.data size/shot = 'MCU'",
+    "may.do_cao/goc ← angle 'eye' = ngang/ngang",
+    "thanh_phan[kelly] ← characters; vung=None (None), thay=None (None) từ blocking",
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+    "hanh_dong[kelly].bat_dau ← chữ 'lean'"
+   ],
+   "nguoi_trong_khung": [
+    "kelly"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "KELLY KL",
+     "kho_id": 23,
+     "trang_phuc_kho_id": 417,
+     "nguon_khoa": "must_keep[hair+face+eyes]+trang_phuc_417:mo_ta_kho",
+     "thieu_must_keep": false,
+     "loc_byd": {
+      "vat": "kelly",
+      "co": "MCU",
+      "thay": [],
+      "trong_khung": true
+     },
+     "khai_bao_chu_loi": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "choker",
+       "loi": "món 'choker' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "crop top",
+       "loi": "món 'crop top' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "tracksuit",
+       "loi": "món 'tracksuit' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "sneakers",
+       "loi": "món 'sneakers' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hands",
+       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "dress",
+       "loi": "món 'dress' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "mask",
+       "loi": "món 'mask' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "stockings",
+       "loi": "món 'stockings' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      }
+     ],
+     "mau_mo_ta_lech": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính brown — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
+      }
+     ],
+     "loi": null,
+     "khong_nhan_ra": [
+      "Áo croptop đỏ in hình khủng long xanh lá",
+      "dáng lấy theo NHÂN VẬT đang mặc",
+      "không theo người mẫu. Không phải đồ liền thân thú bông",
+      "không có đuôi."
+     ],
+     "tong": {
+      "co": 2,
+      "thieu": 1,
+      "thieu_mau": 0,
+      "sai_mau": 0,
+      "khong_can": 2,
+      "khong_co_khoa": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "brown"
+       ],
+       "dau_hieu": "straight blunt bangs",
+       "nguon": "suy",
+       "mau_thay": [
+        "black",
+        "brown"
+       ],
+       "dau_hieu_thay": true,
+       "mau_phu_thieu": [],
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "hands",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "cỡ MCU chỉ chứa 35 % thân từ đỉnh đầu; 'hands' ở 45 % — ngoài khung"
+      },
+      {
+       "mon": "dress",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "mask",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "stockings",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "cỡ MCU chỉ chứa 35 % thân từ đỉnh đầu; 'stockings' ở 60 % — ngoài khung"
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": "shot không có máy Sân khấu 3D (stage_camera) — không sinh sự thật hình học, không đoán",
+    "notes": [],
+    "facts": {},
+    "contradictions": []
+   },
+   "do": []
+  },
+  {
+   "shot": 7,
+   "scene_id": 254,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "may.co ← scenes.data size/shot = 'WS'",
+    "may.do_cao/goc ← angle 'eye' = ngang/ngang",
+    "thanh_phan[maxim] ← characters; vung=trai ('frame-left'), thay=None (None) từ blocking",
+    "thanh_phan[kelly] ← characters; vung=phai ('frame-right'), thay=mat ('facing camera') từ blocking",
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+    "hanh_dong[maxim].bat_dau ← chữ 'stand'",
+    "hanh_dong[kelly].bat_dau ← chữ 'stand'"
+   ],
+   "nguoi_trong_khung": [
+    "maxim",
+    "kelly"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "MAXIM KL",
+     "kho_id": 33,
+     "trang_phuc_kho_id": 416,
+     "nguon_khoa": "must_keep[hair+face+eyes]+trang_phuc_416:mo_ta_kho",
+     "thieu_must_keep": false,
+     "loc_byd": {
+      "vat": "maxim",
+      "co": "WS",
+      "thay": [],
+      "trong_khung": true
+     },
+     "khai_bao_chu_loi": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "sneakers",
+       "loi": "món 'sneakers' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hands",
+       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "mask",
+       "loi": "món 'mask' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      }
+     ],
+     "mau_mo_ta_lech": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính white — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
+      }
+     ],
+     "loi": null,
+     "khong_nhan_ra": [
+      "Hoodie đỏ in hình khủng long xanh lá phun lửa",
+      "không kéo xuống",
+      "dáng lấy theo NHÂN VẬT đang mặc",
+      "không theo người mẫu. Không phải đồ liền thân thú bông",
+      "không có đuôi."
+     ],
+     "tong": {
+      "co": 0,
+      "thieu": 3,
+      "thieu_mau": 0,
+      "sai_mau": 0,
+      "khong_can": 0,
+      "khong_co_khoa": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "white",
+        "grey"
+       ],
+       "dau_hieu": "a fringe",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "hands",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "mask",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      }
+     ]
+    },
+    {
+     "nhan_vat": "KELLY KL",
+     "kho_id": 23,
+     "trang_phuc_kho_id": 417,
+     "nguon_khoa": "must_keep[hair+face+eyes]+trang_phuc_417:mo_ta_kho",
+     "thieu_must_keep": false,
+     "loc_byd": {
+      "vat": "kelly",
+      "co": "WS",
+      "thay": [
+       "mat"
+      ],
+      "trong_khung": true
+     },
+     "khai_bao_chu_loi": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "choker",
+       "loi": "món 'choker' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "crop top",
+       "loi": "món 'crop top' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "tracksuit",
+       "loi": "món 'tracksuit' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "sneakers",
+       "loi": "món 'sneakers' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hands",
+       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "dress",
+       "loi": "món 'dress' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "mask",
+       "loi": "món 'mask' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "stockings",
+       "loi": "món 'stockings' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      }
+     ],
+     "mau_mo_ta_lech": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính brown — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
+      }
+     ],
+     "loi": null,
+     "khong_nhan_ra": [
+      "Áo croptop đỏ in hình khủng long xanh lá",
+      "dáng lấy theo NHÂN VẬT đang mặc",
+      "không theo người mẫu. Không phải đồ liền thân thú bông",
+      "không có đuôi."
+     ],
+     "tong": {
+      "co": 1,
+      "thieu": 4,
+      "thieu_mau": 0,
+      "sai_mau": 0,
+      "khong_can": 0,
+      "khong_co_khoa": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "brown"
+       ],
+       "dau_hieu": "straight blunt bangs",
+       "nguon": "suy",
+       "mau_thay": [
+        "black",
+        "brown"
+       ],
+       "dau_hieu_thay": true,
+       "mau_phu_thieu": [],
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "hands",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "dress",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "mask",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "stockings",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": "shot không có máy Sân khấu 3D (stage_camera) — không sinh sự thật hình học, không đoán",
+    "notes": [],
+    "facts": {},
+    "contradictions": []
+   },
+   "do": []
+  },
+  {
+   "shot": 8,
+   "scene_id": 255,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "may.co ← scenes.data size/shot = 'WS'",
+    "may.do_cao/goc ← angle 'eye' = ngang/ngang",
+    "thanh_phan[maxim] ← characters; vung=trai ('frame-left'), thay=None (None) từ blocking",
+    "thanh_phan[kelly] ← characters; vung=phai ('frame-right'), thay=None (None) từ blocking",
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+    "hanh_dong[maxim].bat_dau ← chữ 'stand'",
+    "hanh_dong[kelly].bat_dau ← chữ 'stand'"
+   ],
+   "nguoi_trong_khung": [
+    "maxim",
+    "kelly"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "MAXIM KL",
+     "kho_id": 33,
+     "trang_phuc_kho_id": 416,
+     "nguon_khoa": "must_keep[hair+face+eyes]+trang_phuc_416:mo_ta_kho",
+     "thieu_must_keep": false,
+     "loc_byd": {
+      "vat": "maxim",
+      "co": "WS",
+      "thay": [],
+      "trong_khung": true
+     },
+     "khai_bao_chu_loi": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "sneakers",
+       "loi": "món 'sneakers' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hands",
+       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "mask",
+       "loi": "món 'mask' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      }
+     ],
+     "mau_mo_ta_lech": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính white — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
+      }
+     ],
+     "loi": null,
+     "khong_nhan_ra": [
+      "Hoodie đỏ in hình khủng long xanh lá phun lửa",
+      "không kéo xuống",
+      "dáng lấy theo NHÂN VẬT đang mặc",
+      "không theo người mẫu. Không phải đồ liền thân thú bông",
+      "không có đuôi."
+     ],
+     "tong": {
+      "co": 0,
+      "thieu": 3,
+      "thieu_mau": 0,
+      "sai_mau": 0,
+      "khong_can": 0,
+      "khong_co_khoa": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "white",
+        "grey"
+       ],
+       "dau_hieu": "a fringe",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "hands",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "mask",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      }
+     ]
+    },
+    {
+     "nhan_vat": "KELLY KL",
+     "kho_id": 23,
+     "trang_phuc_kho_id": 417,
+     "nguon_khoa": "must_keep[hair+face+eyes]+trang_phuc_417:mo_ta_kho",
+     "thieu_must_keep": false,
+     "loc_byd": {
+      "vat": "kelly",
+      "co": "WS",
+      "thay": [],
+      "trong_khung": true
+     },
+     "khai_bao_chu_loi": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "choker",
+       "loi": "món 'choker' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "crop top",
+       "loi": "món 'crop top' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "tracksuit",
+       "loi": "món 'tracksuit' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "sneakers",
+       "loi": "món 'sneakers' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hands",
+       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "dress",
+       "loi": "món 'dress' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "mask",
+       "loi": "món 'mask' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "stockings",
+       "loi": "món 'stockings' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      }
+     ],
+     "mau_mo_ta_lech": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính brown — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
+      }
+     ],
+     "loi": null,
+     "khong_nhan_ra": [
+      "Áo croptop đỏ in hình khủng long xanh lá",
+      "dáng lấy theo NHÂN VẬT đang mặc",
+      "không theo người mẫu. Không phải đồ liền thân thú bông",
+      "không có đuôi."
+     ],
+     "tong": {
+      "co": 0,
+      "thieu": 5,
+      "thieu_mau": 0,
+      "sai_mau": 0,
+      "khong_can": 0,
+      "khong_co_khoa": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "brown"
+       ],
+       "dau_hieu": "straight blunt bangs",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "hands",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "dress",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "mask",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "stockings",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": "shot không có máy Sân khấu 3D (stage_camera) — không sinh sự thật hình học, không đoán",
+    "notes": [],
+    "facts": {},
+    "contradictions": []
+   },
+   "do": []
+  },
+  {
+   "shot": 9,
+   "scene_id": 256,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "may.co ← scenes.data size/shot = 'WS'",
+    "may.do_cao/goc ← angle 'eye' = ngang/ngang",
+    "thanh_phan[maxim] ← characters; vung=trai ('frame-left'), thay=None (None) từ blocking",
+    "thanh_phan[kelly] ← characters; vung=phai ('frame-right'), thay=None (None) từ blocking",
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+    "hanh_dong[maxim].bat_dau ← chữ 'stand'",
+    "hanh_dong[kelly].bat_dau ← chữ 'stand'"
+   ],
+   "nguoi_trong_khung": [
+    "maxim",
+    "kelly"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "MAXIM KL",
+     "kho_id": 33,
+     "trang_phuc_kho_id": 416,
+     "nguon_khoa": "must_keep[hair+face+eyes]+trang_phuc_416:mo_ta_kho",
+     "thieu_must_keep": false,
+     "loc_byd": {
+      "vat": "maxim",
+      "co": "WS",
+      "thay": [],
+      "trong_khung": true
+     },
+     "khai_bao_chu_loi": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "sneakers",
+       "loi": "món 'sneakers' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hands",
+       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "mask",
+       "loi": "món 'mask' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      }
+     ],
+     "mau_mo_ta_lech": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính white — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
+      }
+     ],
+     "loi": null,
+     "khong_nhan_ra": [
+      "Hoodie đỏ in hình khủng long xanh lá phun lửa",
+      "không kéo xuống",
+      "dáng lấy theo NHÂN VẬT đang mặc",
+      "không theo người mẫu. Không phải đồ liền thân thú bông",
+      "không có đuôi."
+     ],
+     "tong": {
+      "co": 0,
+      "thieu": 3,
+      "thieu_mau": 0,
+      "sai_mau": 0,
+      "khong_can": 0,
+      "khong_co_khoa": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "white",
+        "grey"
+       ],
+       "dau_hieu": "a fringe",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "hands",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "mask",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      }
+     ]
+    },
+    {
+     "nhan_vat": "KELLY KL",
+     "kho_id": 23,
+     "trang_phuc_kho_id": 417,
+     "nguon_khoa": "must_keep[hair+face+eyes]+trang_phuc_417:mo_ta_kho",
+     "thieu_must_keep": false,
+     "loc_byd": {
+      "vat": "kelly",
+      "co": "WS",
+      "thay": [],
+      "trong_khung": true
+     },
+     "khai_bao_chu_loi": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "choker",
+       "loi": "món 'choker' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "crop top",
+       "loi": "món 'crop top' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "tracksuit",
+       "loi": "món 'tracksuit' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "sneakers",
+       "loi": "món 'sneakers' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hands",
+       "loi": "món 'hands' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "dress",
+       "loi": "món 'dress' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "mask",
+       "loi": "món 'mask' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "stockings",
+       "loi": "món 'stockings' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      },
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "món 'hair' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"
+      }
+     ],
+     "mau_mo_ta_lech": [
+      {
+       "muc": "vang",
+       "mon": "hair",
+       "loi": "mô tả Kho ghi 'hair' màu red, khai báo (suy) ghi màu chính brown — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"
+      }
+     ],
+     "loi": null,
+     "khong_nhan_ra": [
+      "Áo croptop đỏ in hình khủng long xanh lá",
+      "dáng lấy theo NHÂN VẬT đang mặc",
+      "không theo người mẫu. Không phải đồ liền thân thú bông",
+      "không có đuôi."
+     ],
+     "tong": {
+      "co": 0,
+      "thieu": 5,
+      "thieu_mau": 0,
+      "sai_mau": 0,
+      "khong_can": 0,
+      "khong_co_khoa": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "brown"
+       ],
+       "dau_hieu": "straight blunt bangs",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "hands",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "dress",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "mask",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      },
+      {
+       "mon": "stockings",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu",
+       "muc": "vang"
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": "shot không có máy Sân khấu 3D (stage_camera) — không sinh sự thật hình học, không đoán",
+    "notes": [],
+    "facts": {},
+    "contradictions": []
+   },
+   "do": []
+  }
+ ],
+ "shot4_prompt_cu": null,
+ "prompt_cu_ghi_chu": "#22 không có bản sao lưu prompt cũ để so (chỉ #24 shot 4)"
+}
