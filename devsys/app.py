@@ -184,7 +184,7 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
     page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
-                              "Hiệu quả quy trình", "Ai quyết", "Làm ↔ Kiểm", "Bộ kỹ năng 3 vai"], label_visibility="collapsed")
+                              "Hiệu quả quy trình", "Ai quyết", "Làm ↔ Kiểm", "Bộ kỹ năng 3 vai", "Đang chạy"], label_visibility="collapsed")
     st.divider()
     st.markdown("**Test**")
     running = collect.tests_running(ROOT)
@@ -1120,7 +1120,28 @@ def page_stages():
     st.dataframe(tdf.style.apply(lambda row: [_RED if trows[row.name]["chi_xay"] else ""] * len(row), axis=1), hide_index=True)
 
 
-PAGES = {"📋 Kế hoạch đang chạy": page_plan, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
+def page_running():
+    from devsys import activity
+    st.title("Đang chạy — nhánh, worktree, việc giao")
+    st.caption("Git local sau lần fetch gần nhất; trang chỉ đọc. Có dấu rà/kết quả không đồng nghĩa đã rà độc lập hay đã gộp.")
+    data = activity.snapshot(ROOT)
+    for error in data["errors"]:
+        st.error(error)
+    st.subheader("Nhánh chưa gộp origin/main")
+    st.dataframe([{"Nhánh": b["branch"], "Của ai": b["owner"], "Commit cuối": b["commit"], "Ngày": b["date"],
+                   "Commit chưa gộp": b["ahead"], "Đổi file": b["stat"], "Bằng chứng rà": b["review_evidence"] or "Chưa thấy",
+                   "Đọc kết quả nhánh": b["report_error"] or "—"}
+                  for b in data["branches"]], hide_index=True, width="stretch")
+    st.subheader("Worktree")
+    st.dataframe(data["worktrees"], hide_index=True, width="stretch")
+    st.subheader("Việc giao Codex")
+    st.dataframe([{"Đợt": t["wave"], "Việc": t["task"], "Tên": t["title"],
+                   "Kết quả trong checkout": "Có" if t["has_result"] else "Chưa", "Nhánh": t["branch"], "Commit": t["commit"],
+                   "Kết quả trên nhánh chưa gộp": "; ".join(f"{r['source']} · {r['commit']}" for r in t["unmerged_results"])}
+                  for t in data["tasks"]], hide_index=True, width="stretch")
+
+
+PAGES = {"Đang chạy": page_running, "📋 Kế hoạch đang chạy": page_plan, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
          "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Hiệu quả quy trình": page_flow, "Ai quyết": page_decisions, "Làm ↔ Kiểm": page_stages,
          "Bộ kỹ năng 3 vai": page_skills}
 PAGES[page]()
