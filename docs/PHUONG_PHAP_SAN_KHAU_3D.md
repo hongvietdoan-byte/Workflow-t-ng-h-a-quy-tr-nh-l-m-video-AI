@@ -231,6 +231,7 @@ Sau khi vẽ ảnh: so "nền thật" với ảnh kết quả bằng `plate_layo
 | V5 | Nối vào luồng (sau cờ), đo `level_9_4` và các chỗ đứng khác, Bàn đạo diễn 3D (G3) | 0 USD |
 | V6 | Nhánh B (mục 12): bối cảnh chỉ có 1–3 ảnh — hiệu chỉnh ảnh, tách lớp chiều sâu (model cục bộ, tải trọng số ≈ 100 MB một lần — HỎI trước), khối thay thế theo kích thước suy, chiếu ngược kiểm lệch, luật P5 vùng máy; thử trên 1 bối cảnh Kho chỉ có ảnh | 0 USD (+ vẽ thêm góc: báo giá) |
 | V7 | Đọc lại hai chiều R1–R2 (mục 13) cho cả hai nhánh; đo lại V3 #24 xem tăng từ 7/9 | Claude ≈ vài chục cent, báo giá |
+| V8 | Nhánh C (mục 12b, người dùng 10/10): TỰ DỰNG sân khấu khối đơn giản theo bối cảnh — schema sơ đồ bối cảnh + kiểm hợp lệ (code), dựng Blender từ khai báo (tái dùng `add_props` / `whitebox`), kiểm số 12b.1, tấm duyệt + lưu `blockout` vào Kho; prompt Director khai sơ đồ (sau cờ TẮT); thử ≥ 3 bối cảnh Kho chỉ có ảnh | 0 USD code; Director khai ≈ vài cent/bối cảnh — báo giá trước |
 
 ## 11. Quy trình CHUẨN (rút từ V1–V3 trên #24, áp cho mọi kịch bản)
 
@@ -310,6 +311,37 @@ vùng phủ; nếu ý đồ bắt buộc ra ngoài → **vẽ thêm** góc đó 
 thêm như 12.2 → kiểm chiếu ngược khớp phần trùng với ảnh gốc trước khi dùng.
 
 **12.6 Các bước còn lại như mục 11** (B1–B7); B0 thay bằng 12.1–12.5; tấm ghép B6 thêm: ảnh gốc + chiếu ngược các lớp + vùng máy được phép.
+
+## 12b. Nhánh C — TỰ DỰNG mô phỏng 3D khối đơn giản theo bối cảnh (người dùng 10/10)
+
+Ý người dùng: bối cảnh nào chưa có mô hình 3D thì hệ thống **tự dựng một sân khấu khối đơn giản** (greybox: sàn, tường, bậc, cột, hộp,
+trụ, cửa…) theo bối cảnh, để bộ giải máy (mục 6), luật kiểm (mục 7), sự thật hình học (mục 14) và nền render chạy được như bối cảnh có 3D —
+không chờ dựng tay từng nơi. Khác nhánh B (mục 12): nhánh B dựng từ ẢNH (chiều sâu, cần ảnh tốt); nhánh C dựng từ KHAI BÁO có cấu trúc +
+kích thước, chạy được cả khi chỉ có mô tả / 1 ảnh kém. Hai nhánh ghép được: C cho khung khối trước, B tinh chỉnh vị trí + dán ảnh khi có ảnh.
+
+**12b.1 Ai làm gì (theo A14: khai báo — code dựng — code kiểm, không chèn chữ).**
+- **Director KHAI sơ đồ bối cảnh** (JSON, enum, không văn tự do): `san` (kích thước vùng diễn, mặt phẳng/bậc), danh sách khối
+  `{id, loai ∈ {tuong, bac, cot, hop, tru, cua, lan_can, mai, cay_khoi, xe_khoi, …}, tam [x,y] trên lưới mục 2, kich_thuoc [dài, rộng, cao]
+  dạng KHOẢNG + nguồn (Kho height_m / vật quen 12.4 / ảnh), huong, mo_ta_ngan, vat_kho (mã Kho nếu có)}`, cửa/lối mở, phía trời/hướng sáng.
+  Căn cứ: hồ sơ bối cảnh Kho (ảnh + mô tả), kịch bản cảnh (chỗ đứng, đường đi), luật thế giới (map FF), vật chính của BYĐ.
+- **Code DỰNG** trong Blender: mỗi khối một primitive đúng kích thước (giữa khoảng), vật liệu xám có nhãn; tái dùng `tools/render_plates.py`
+  `add_props` (khối thay thế đã có: giếng #24) và `core/whitebox.py` (người khối) — không viết bộ dựng mới song song.
+- **Code KIỂM bằng số** trước khi dùng: (a) hợp lệ hình học — khối không chồng lấn vô lý, chân khối chạm sàn, lối đi ≥ 0,8 m cho người,
+  chỗ đứng kịch bản nằm trên sàn trống; (b) mọi vật kịch bản/BYĐ nhắc tới có khối (thiếu → báo, không im lặng); (c) có ảnh tham chiếu →
+  chiếu ngược khung khối vào ảnh từ máy ước lượng (12.1), đo lệch như 12.3 (≤ 5 % khung đạt; lớn hơn → đọc lại cho Director, mục 13);
+  (d) kích thước so Kho / vật quen ±20 % như 12.4.
+
+**12b.2 Duyệt + lưu.** Người dùng thấy MỘT tấm: nhìn từ trên (lưới có tên ô + chỗ đứng kịch bản) + 2–3 góc clay có nhãn + ảnh tham chiếu
+cạnh bên. Duyệt (hoặc sửa số một lần) → lưu về hồ sơ bối cảnh Kho (`location_pack` dạng `blockout`, có phiên bản + người duyệt) → các dự án sau
+dùng lại, không khai lại. Chưa duyệt → shot dùng sân khấu này mang nhãn VÀNG "sân khấu khối chưa duyệt" ở khung "Trước khi chạy".
+
+**12b.3 Giới hạn ghi rõ.** Khối chỉ giữ BỐ CỤC + TỈ LỆ + CHE KHUẤT; hình thật (vân, chi tiết, màu) vẫn do ảnh tham chiếu bối cảnh + prompt.
+Nền render khối KHÔNG gửi như ảnh nền để chép (bài học #24 shot 8 "khối thay thế bị vẽ thành khối phẳng" — sự thật `stand_in` mục 14 áp cho
+MỌI khối nhánh C). Bối cảnh có 3D thật (Tháp Đồng Hồ #263, Cổng Trời #265) không dùng nhánh C.
+
+**12b.4 Nghiệm thu (đo được).** Trên ≥ 3 bối cảnh Kho chỉ có ảnh (gồm 1 trong nhà, 1 ngoài trời, 1 có bậc/độ cao): dựng + kiểm < 2 phút/bối
+cảnh, 0 USD phần code; bộ giải máy đạt ≥ 7/9 shot trên một kịch bản thử như #24 (Phụ lục A); chiếu ngược ≤ 5 % ở bối cảnh có ảnh; người dùng
+duyệt sơ đồ ≤ 1 lần sửa. Ca hồi quy: thiếu khối cho vật kịch bản nhắc → bị bắt; khối chồng lấn → bị bắt.
 
 ## 13. Trao đổi HAI CHIỀU Director ↔ code (áp cho cả hai nhánh — người dùng 09/10)
 

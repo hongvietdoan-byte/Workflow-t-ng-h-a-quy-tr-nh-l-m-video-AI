@@ -65,6 +65,28 @@ def related(files):
     return own, users, via_flag, A
 
 
+def slow_tests():
+    """Node id test chậm (conftest.py SLOW_TESTS, người dùng 10/10)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("_root_conftest", os.path.join(ROOT, "conftest.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return tuple(mod.SLOW_TESTS)
+
+
+def slow_needed(files, area_ids, A, slow):
+    """File test chậm PHẢI chạy cho thay đổi này: test chậm nằm trong khu vực bị đụng (chứa file đổi / gọi tới / chung cờ), hoặc chính file
+    test chậm / conftest.py bị đổi. Rỗng = bước gộp được dùng `-m "not slow"`."""
+    slow_files = sorted({s.split("::")[0] for s in slow})
+    if "conftest.py" in files:
+        return slow_files
+    need = {f for f in slow_files if f in files}
+    for a in A:
+        if a["id"] in area_ids:
+            need |= {f for f in slow_files if _match(f, a.get("tests"))}
+    return sorted(need)
+
+
 def main(argv):
     files = [f.replace("\\", "/") for f in argv] or changed_files()
     if not files:
@@ -83,6 +105,11 @@ def main(argv):
             print(f"- {k} ({by[k].get('name', '')}): {'; '.join(sorted(fs)[:6])}")
     if via_flag:
         print("\nKhu vực dùng chung cờ: " + ", ".join(sorted(via_flag)))
+    need = slow_needed(files, set(own) | set(users) | set(via_flag), A, slow_tests())
+    if need:
+        print("\nTest CHẬM bắt buộc chạy ở bước gộp (`-m slow` hoặc cả bộ): " + ", ".join(need))
+    else:
+        print('\nKhông đụng khu vực có test chậm → bước gộp được chạy `py -m pytest -q -p no:cacheprovider -m "not slow"`.')
     print("\nViệc của agent: với từng khu vực trên, đọc chỗ dùng module/cờ đổi, tìm hành vi bị đổi theo mà chưa sửa / chưa có test "
           "(đầu vào cũ còn được dùng, giả định cũ, đường ghi khác, khóa cache, chặn gen, giao diện); trả danh sách lỗi có file:dòng + "
           "đề xuất sửa; không sửa code.")
