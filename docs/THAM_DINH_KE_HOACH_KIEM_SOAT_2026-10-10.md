@@ -195,3 +195,33 @@ gán nhãn 0/30, sau lọc vẫn 38 VÀNG / 9 shot; kế hoạch dòng 160 vẫn
 
 **Kết luận: CHƯA ĐẠT A21** (KH 8,1, build 8,3). KH ≥ 8,5 cần #2 (tài liệu) + #1 (nhãn + chốt luật); build ≥ 8,5 cần #1, #3, #4. Ước sau sửa
 KH ≈ 8,5, build ≈ 8,6. 0 USD; cần người dùng gán 30 nhãn + quyết tải trọng số bộ phát hiện vật.
+
+# Lần 6 — sau A24–A27, chạy khô #22, gộp Codex đợt 1 (main b582b13): kế hoạch **8,4 / 10**, build **8,5 / 10** — CHƯA đạt cổng A21
+
+Agent độc lập, cùng thang + trọng số, chỉ đọc. 8 nhóm test: **207 qua** (12,6 s).
+KH = (9×15 + 8,5×20 + 7,5×15 + 8,5×15 + 8×10 + 8×10 + 8×5 + 9×10) / 100 = 8,35 ≈ 8,4 (L1 6,2 · L2 7,1 · L3 7,6 · L4 7,9 · L5 8,1).
+Build = (9×15 + 8,5×20 + 8×15 + 8,5×15 + 8×10 + 9×10 + 8,5×5 + 8,5×10) / 100 = 8,50 (L4 8,0 · L5 8,3).
+
+**Lỗ hổng lần 5:** (1) ĐÓNG về đo đếm — n = 39 từ #22 + #24, 6/39 ≈ 15 %, ngưỡng duy nhất A25, `CHAN_DO=False`, luật mức A26 có code; giữ VÀNG khi
+chưa đạt là đúng. (2) MỘT PHẦN — A24 + A15 + dòng 164 sửa nhưng A26 (c) sinh mâu thuẫn mới. (3) MỘT PHẦN — phát hiện vật hoãn K5, K0b ✅
+nhưng `dot_hien_tai` vẫn K0b. (4) ĐÓNG — `data_out/k0b_p22/`. (5) ĐÓNG — 6 luật thế giới + ca `segment`.
+
+| Tiêu chí | KH L5 | KH L6 | Build L6 | Lý do |
+|---|---|---|---|---|
+| A gốc | 8,5 | 9 | 9 | A26 tìm gốc thật: 14/15 "thiếu chữ" ảnh vẫn đúng nhờ ảnh tham chiếu, chỉ `sai_mau` làm ảnh sai |
+| B độ phủ | 8,5 | 8,5 | 8,5 | + Nhánh C, blockout, #22, 6 luật; chưa kế hoạch cho biến hình 2 dạng + che theo tư thế |
+| C nhất quán | 7,5 | 7,5 | 8 | A18/A20/dòng 164 ↔ A26 (c); trạng thái + TODO cũ |
+| D khả thi | 8 | 8,5 | 8,5 | blockout, solver tư thế nằm (prompt 29 hoãn có lý do), plate_layout_qc thiếu đo → VÀNG |
+| E đo lường | 8 | 8 | 8 | trung thực (15 % > 10 %) nhưng đo TRONG MẪU (cùng mục dùng để sửa), nhãn agent |
+| F chi phí | 7,5 | 8 | 9 | 0 USD; thiếu chữ luôn VÀNG bớt gánh người dùng |
+| G lộ trình | 8 | 8 | 8,5 | K0b đóng; K1a chưa nhận việc nối A27 |
+| H chốt | 8,5 | 9 | 8,5 | A24–A27 có nguồn + bằng chứng |
+
+**Lỗ hổng:** (1) CAO — A26 (c) chưa lan sang A18 (KH:33), A20 (:35), 3.3b (:164), mục 9 (:386). (2) CAO — 15 % đo trong mẫu; "0 %" của bảng
+chọn lại không phải số đo → A25 chỉ tính trên bộ giữ riêng (dự án K1a). (3) TRUNG — K1a thiếu việc A27: BYĐ tách dạng, `identity_declare` đọc
+`tu_the`, đo lại. (4) TRUNG — trạng thái cũ KH:8–10, KH:344, TODO. (5) THẤP — `dot_hien_tai` K0b ↔ ghi chú "đổi khi xong đợt". (6) THẤP — ai
+điền `khai_bao_chu`, đợt nào (R1). Ước sau sửa: KH ≈ 8,7, build ≈ 8,6.
+
+**Đã sửa ngay (phiên chính, 10/10 khuya, 0 USD):** (1) A18 + A20 + 3.3b + mục 9 khớp A26 (c); (2) mục 9 + tool `nhan_bao_nham_a18.py` ghi rõ số
+trong mẫu không dùng cho A25, đo trên bộ giữ riêng K1a; (3) K1a thêm việc (i)–(iv) nối A27; (4) dòng trạng thái KH, hàng K0b, TODO; (5) ghi chú
+`devsys/stages.json`: giữ K0b tới khi qua cổng A21; (6) R1: Claude đề xuất `khai_bao_chu`, người dùng duyệt, K1a. → thẩm định lần 7.

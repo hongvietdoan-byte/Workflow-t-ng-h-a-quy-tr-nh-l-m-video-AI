@@ -88,6 +88,8 @@ def agent_summary(chosen, agent: dict) -> list:
     out = ["## Agent đề xuất (10/10)", "",
            f"Agent gán {len(got)}/{len(rows)} mục (nhãn ĐỀ XUẤT, người dùng duyệt cột cuối): **đúng lỗi {dung} / báo nhầm {nham}** → tỉ lệ "
            f"báo nhầm ước **{round(100 * nham / len(got))} %** (n = {len(got)}; ngưỡng A25 ≤ 10 %). Độ chắc thấp: {thap} mục.", "",
+           "⚠ Thẩm định 6: bảng này được CHỌN LẠI sau khi sửa A26 (b) và cùng các mục đã dùng để sửa → số trên là số TRONG MẪU, KHÔNG dùng "
+           "làm số đo A25. A25 chỉ tính trên bộ GIỮ RIÊNG (dự án K1a, chưa dùng để chỉnh luật).", "",
            "| Dự án | đúng lỗi | báo nhầm | tỉ lệ báo nhầm |", "|---|---|---|---|"]
     for p in dict.fromkeys(p for p, _ in got):
         d, n, _ = tally([g for g in got if g[0] == p])
