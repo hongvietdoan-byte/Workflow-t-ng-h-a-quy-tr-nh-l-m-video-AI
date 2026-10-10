@@ -1,0 +1,221 @@
+{
+ "id": "p24_shot4_mouth_old_byd",
+ "nguon": "người dùng 10/10 #24 shot 4: máy cao 0,60 m, miệng giếng 0,90 m → chỉ thấy thành giếng; ảnh vẽ thấy lòng giếng, QC 'place ok' — K0b: thêm BYĐ (shot_specs tay + chốt 09/10) + gói job 626",
+ "ca_vang_tay": false,
+ "byd": {
+  "shot": 4,
+  "truyen": {
+   "nhip": "nga",
+   "muc_dich": "sau lưng-chéo Kelly ngã ngửa, máy thấp sát lưng cô, giếng sừng sững phía trước (người dùng chọn phương án 43, 09/10)",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "kelly",
+    "vai": "chinh",
+    "vung": "trai",
+    "thay": "lung|nghieng"
+   },
+   {
+    "vat": "gieng",
+    "vai": "chinh",
+    "vung": "giua+phai"
+   }
+  ],
+  "hanh_dong": [
+   {
+    "ai": "kelly",
+    "bat_dau": {
+     "tu_the": "ngoi",
+     "cham_dat": [
+      "mong",
+      "ban_tay"
+     ]
+    },
+    "suy_tu_chu": true,
+    "cum_tu": "fallen back"
+   }
+  ],
+  "vat": [],
+  "may": {
+   "co": "WS",
+   "do_cao": "thap",
+   "goc": "ngang",
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": "plaza_front",
+   "thoi_gian": "night",
+   "thoi_tiet": "fog",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "may": {
+  "location": [
+   -216.062,
+   114.937,
+   10.43
+  ],
+  "look_at": [
+   -216.621,
+   115.766,
+   10.45
+  ],
+  "lens": 24.0,
+  "props": [
+   {
+    "kind": "well",
+    "at": [
+     -217.348,
+     117.576,
+     9.83
+    ],
+    "radius": 0.75,
+    "height": 0.9,
+    "hollow": true,
+    "sides": 8
+   }
+  ]
+ },
+ "kho": {
+  "well": {
+   "name": "GIẾNG ĐÁ CỔ",
+   "desc_en": "",
+   "has_picture": true
+  }
+ },
+ "goi": {
+  "image_prompt": "Wide shot from behind Kelly, slightly diagonal, low camera close to the ground, Free Fire in-game 3D render style. Kelly in her yellow-white-black tracksuit with black spiked choker and short dark bob on the left of the frame seen from behind, just fallen backward onto the stone ground away from an ancient eight-sided stone well, upper body tipped back, both hands braced on the ground behind her, head turned toward the well; the well looming ahead in the center-right of the frame, clean weathered grey stone rim, its dark mouth facing us, foggy plaza at night, cold moonlight, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus",
+  "refs": [
+   {
+    "vai": "character",
+    "nhan": "KELLY",
+    "tep": "10.png"
+   },
+   {
+    "vai": "character",
+    "nhan": "KELLY",
+    "tep": "12.png"
+   },
+   {
+    "vai": "object",
+    "nhan": "GIẾNG ĐÁ CỔ",
+    "tep": "2.png"
+   },
+   {
+    "vai": "character",
+    "nhan": "KELLY",
+    "tep": "16.png"
+   },
+   {
+    "vai": "character",
+    "nhan": "KELLY",
+    "tep": "15.png"
+   },
+   {
+    "vai": "place_render",
+    "nhan": "Tháp Đồng Hồ",
+    "tep": "plate.png",
+    "plate_key": "5b4f2d6986b12f27d522"
+   },
+   {
+    "vai": "place_wide",
+    "nhan": "WIDE same-axis view of this place (Tháp Đồng Hồ)",
+    "tep": "plate.png",
+    "plate_key": "efeaeb18b307a052a368"
+   },
+   {
+    "vai": "previous_scene",
+    "nhan": "frame 1 (scene anchor)",
+    "tep": "job_573.png"
+   },
+   {
+    "vai": "storyboard",
+    "nhan": "storyboard",
+    "tep": "sb_ccfa094904da"
+   }
+  ],
+  "model": "gpt-image-2.5-sunburst"
+ },
+ "anh_ket_qua": "data/projects/24/images/job_626.png",
+ "loi_dung": "câu trái hình học: 'mouth facing us'",
+ "loai_loi": [
+  "L7",
+  "L2"
+ ],
+ "lop_phai_bat": [
+  "d85",
+  "d86"
+ ],
+ "ky_vong": {
+  "stage_facts": {
+   "facts": {
+    "top_visible:well": false,
+    "stand_in:well": true,
+    "ref_viewpoint:well": "differs"
+   },
+   "prompt_contains": [
+    "only the outer wall",
+    "NOT visible",
+    "placeholder",
+    "look and material only, not the camera angle"
+   ],
+   "prompt_not_contains": [
+    "dark opening are visible"
+   ],
+   "contradiction": {
+    "level": "do",
+    "phrase_contains": "mouth facing us"
+   },
+   "judge": [
+    [
+     "top_visible:well",
+     "inside_visible",
+     "do"
+    ],
+    [
+     "top_visible:well",
+     "only_outer_wall",
+     null
+    ],
+    [
+     "top_visible:well",
+     "unsure",
+     "vang"
+    ],
+    [
+     "top_visible:well",
+     null,
+     "vang"
+    ],
+    [
+     "stand_in:well",
+     "flat_plain_block",
+     "do"
+    ]
+   ]
+  },
+  "identity_declare": {
+   "nhan_vat": "KELLY",
+   "kho_id": 23,
+   "khoa": "dark brown chin-length bob with straight blunt bangs (hair down, never tied), black choker, white crop top under a bright yellow zip-up track jacket with a high collar, grey sleeve stripes with small black stars and thin black edge lines, matching bright yellow track pants with a black side stripe, white sneakers, youthful face with light makeup",
+   "nguon_khoa": "must_keep (suy món + màu, chưa có khai_bao_chu)",
+   "trang_thai": {
+    "hair": "co",
+    "choker": "co",
+    "crop top": "thieu",
+    "tracksuit": "co",
+    "sneakers": "thieu"
+   }
+  }
+ }
+}

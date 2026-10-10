@@ -1,0 +1,55 @@
+{
+ "byd": {
+  "shot": 5,
+  "truyen": {
+   "nhip": "bam_mep",
+   "muc_dich": "ref emote: máy sát đất trước giếng, yêu nữ thò tay bám mép gần miệng giếng, nhô đầu lên nhìn về máy",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "yeunu",
+    "vai": "chinh",
+    "vung": "giua",
+    "thay": "mat",
+    "co_pct": [
+     12,
+     30
+    ]
+   },
+   {
+    "vat": "gieng",
+    "vai": "chinh",
+    "vung": "giua-duoi"
+   }
+  ],
+  "hanh_dong": [],
+  "vat": [],
+  "may": {
+   "co": "MS",
+   "do_cao": "thap",
+   "goc": null,
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": "plaza_front",
+   "thoi_gian": "night",
+   "thoi_tiet": "fog",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "issues": [],
+ "suy_tu_chu": [
+  "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather"
+ ],
+ "quyet_dinh_nguoi_dung": "máy sát đất 0,5 m, yêu nữ thò tay bám MÉP GẦN giếng"
+}

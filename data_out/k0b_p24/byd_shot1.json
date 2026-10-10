@@ -1,0 +1,64 @@
+{
+ "byd": {
+  "shot": 1,
+  "truyen": {
+   "nhip": "di_toi",
+   "muc_dich": "mở cảnh: Kelly tiến về giếng giữa quảng trường (tháp có hay không đều được — người dùng 09/10)",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "kelly",
+    "vai": "chinh",
+    "vung": "trai",
+    "thay": "lung|nghieng"
+   },
+   {
+    "vat": "gieng",
+    "vai": "chinh",
+    "vung": "giua"
+   }
+  ],
+  "hanh_dong": [
+   {
+    "ai": "kelly",
+    "bat_dau": {
+     "tu_the": "dung",
+     "cham_dat": [
+      "ban_chan"
+     ]
+    },
+    "suy_tu_chu": true,
+    "cum_tu": "stand"
+   }
+  ],
+  "vat": [],
+  "may": {
+   "co": "WS",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": "plaza_front",
+   "thoi_gian": "night",
+   "thoi_tiet": "fog",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "issues": [],
+ "suy_tu_chu": [
+  "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+  "hanh_dong[kelly].bat_dau ← chữ 'stand'"
+ ],
+ "quyet_dinh_nguoi_dung": null
+}

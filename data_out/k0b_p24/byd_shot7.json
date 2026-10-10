@@ -1,0 +1,71 @@
+{
+ "byd": {
+  "shot": 7,
+  "truyen": {
+   "nhip": "lui",
+   "muc_dich": "góc nhìn Kelly (đã lùi 1 m) ngước lên: yêu nữ đứng dậy trước giếng; Kelly tiếp tục bò lùi → máy lùi 1 m, rung nhẹ",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "yeunu",
+    "vai": "chinh",
+    "vung": "giua",
+    "thay": "mat",
+    "co_pct": [
+     30,
+     95
+    ]
+   },
+   {
+    "vat": "gieng",
+    "vai": "phu"
+   }
+  ],
+  "hanh_dong": [
+   {
+    "ai": "yeunu",
+    "bat_dau": {
+     "tu_the": "dung",
+     "cham_dat": [
+      "ban_chan"
+     ]
+    },
+    "suy_tu_chu": true,
+    "cum_tu": "run"
+   }
+  ],
+  "vat": [],
+  "may": {
+   "co": "MLS",
+   "do_cao": "ngang",
+   "goc": null,
+   "chuyen_dong": {
+    "kieu": "lui",
+    "m": 1.0,
+    "rung": "nhe"
+   }
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": "plaza_front",
+   "thoi_gian": "night",
+   "thoi_tiet": "fog",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "issues": [],
+ "suy_tu_chu": [
+  "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+  "hanh_dong[yeunu].bat_dau ← chữ 'run'"
+ ],
+ "quyet_dinh_nguoi_dung": "góc nhìn Kelly ngước lên, máy lùi tiếp 1 m rung nhẹ"
+}
