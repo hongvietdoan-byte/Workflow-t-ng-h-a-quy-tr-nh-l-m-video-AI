@@ -198,13 +198,22 @@ def remaining(p, pid: int, shares: Optional[Dict] = None) -> Dict[str, float]:
         qc += qc_team.FRAME_USD * n_img * (1 + ri)
     return {"images": round((est["images"] or 0.0) * (1 + ri), 2),
             "videos": round(vid * (1 + rv), 2),
-            "claude_director": round((0.0 if director_done else (cost.llm_estimate(conn, "director", 1, pricing) or 0.0) * LLM_MARGIN)
+            "claude_director": round((0.0 if director_done else ((cost.llm_estimate(conn, "director", 1, pricing) or 0.0)
+                                                                 + _byd_repairs(conn, pricing)) * LLM_MARGIN)
                                      + (est.get("rewrite") or 0.0), 2),     # S14.17: the Director's rewrites before retakes (flag on)
             "claude_qc": round(qc * LLM_MARGIN, 2),
             "claude_motion": round(((cost.llm_estimate(conn, "motion", 1 if n_clips else 0, pricing) or 0.0)
                                     + (_translate_worst(conn, pid) if n_clips else 0.0)) * LLM_MARGIN, 2),
             "claude_other": OTHER_CLAUDE_USD if (n_img or n_clips or not director_done) else 0.0,
             "claude_chat": cost.llm_estimate(conn, "script_chat", 1, pricing) or 0.0}
+
+
+def _byd_repairs(conn, pricing) -> float:
+    """K1a cờ shot_intent: tối đa MAX_ROUNDS lượt Đạo diễn sửa BYĐ đi cùng lần chạy Director (tự chạy cũng gọi) — tắt → 0."""
+    from . import cost, director_byd
+    if not director_byd.enabled():
+        return 0.0
+    return cost.llm_estimate(conn, director_byd.STAGE, director_byd.MAX_ROUNDS, pricing) or 0.0
 
 
 def _translate_worst(conn, pid: int) -> float:

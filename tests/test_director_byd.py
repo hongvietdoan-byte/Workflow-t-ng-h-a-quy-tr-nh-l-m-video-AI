@@ -276,5 +276,48 @@ class PromptSyncTests(unittest.TestCase):
                                                                     {"canh": 3, "shot": 4, "byd": None}]})
 
 
+class ReviewFixTests(unittest.TestCase):
+    """Rà kỹ K1a (10/10): Director đã trả tiền giữ kết quả khi lượt sửa lỗi; ước tính trên nút + trần dự án tính cả lượt sửa."""
+
+    def test_network_error_in_a_repair_keeps_the_paid_director_answer(self):
+        class Boom(RepairRecorder):
+            def complete(self, prompt, images=()):
+                if _is_repair(prompt):
+                    self.repairs.append(llm_runner.plain(prompt))
+                    raise llm_runner.LlmError("mạng rớt (giả)")
+                return super().complete(prompt, images)
+        with mock.patch.dict(os.environ, ON):
+            p, pid = _project()
+            rec = Boom()                                       # Đạo diễn giả không viết byd → cần sửa → lượt sửa lỗi mạng
+            llm_runner.run_director(p, pid, rec)
+            rows = _rows(p, pid)
+        self.assertEqual(len(rec.repairs), 1)                  # lỗi gọi → dừng, không gọi tiếp
+        self.assertTrue(rows)
+        raw = json.loads(p.project(pid)["director_raw"])
+        self.assertTrue(raw["scenes"])
+        self.assertIn("mạng rớt", raw["byd_kiem"]["loi_goi"][0])
+        self.assertTrue(all(d["byd_kiem"]["muc"] == "vang" for d in rows))
+
+    def test_button_figure_includes_the_repair_rounds(self):
+        p, pid = _project()
+        with mock.patch.dict(os.environ, ON):
+            on = dtp.estimate(p, pid)
+        if on["single"]["usd"] is None:
+            self.skipTest("model chưa có giá")
+        without = dtp._usd(on["model"], {"input": on["single"]["input"], "output": on["single"]["output"]})
+        self.assertAlmostEqual(on["single"]["usd"], without + on["byd"]["usd"], places=6)
+
+    def test_project_budget_director_share_includes_the_repair_rounds(self):
+        from core import project_budget
+        p, pid = _project()
+        with mock.patch.dict(os.environ, OFF):
+            off = project_budget.remaining(p, pid)["claude_director"]
+        with mock.patch.dict(os.environ, ON):
+            on = project_budget.remaining(p, pid)["claude_director"]
+        extra = cost.llm_estimate(p.conn, director_byd.STAGE, director_byd.MAX_ROUNDS) * project_budget.LLM_MARGIN
+        self.assertGreater(extra, 0)
+        self.assertAlmostEqual(on, off + extra, delta=0.011)
+
+
 if __name__ == "__main__":
     unittest.main()

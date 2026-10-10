@@ -398,11 +398,12 @@ def estimate(p: Pipeline, project_id: int, client=None, model: Optional[str] = N
     from . import director_byd
     if director_byd.enabled():                     # K1a cờ shot_intent: BYĐ mỗi shot (thêm phần ra) + tối đa 2 lượt sửa (tính dư)
         extra = director_byd.estimate(n_shots)
-        for key in ("single", "two_pass"):
+        extra["usd"] = _usd(model, {"input": extra["repair_input"], "output": extra["repair_output"]})
+        for key in ("single", "two_pass"):             # rà 10/10: số trên nút + _budget_guard đọc `usd` → cộng cả lượt sửa (tính dư)
             if out[key]:
                 out[key]["output"] += extra["extra_output"]
-                out[key]["usd"] = _usd(model, {k: v for k, v in out[key].items() if k in ("input", "output", "cache_write", "cache_read")})
-        extra["usd"] = _usd(model, {"input": extra["repair_input"], "output": extra["repair_output"]})
+                usd = _usd(model, {k: v for k, v in out[key].items() if k in ("input", "output", "cache_write", "cache_read")})
+                out[key]["usd"] = None if usd is None or extra["usd"] is None else usd + extra["usd"]
         out["byd"] = extra
     return out
 
@@ -427,9 +428,9 @@ def estimate_text(est: Dict) -> str:
     seen = est.get("measured") or {}
     byd = est.get("byd")
     if byd:                                        # K1a cờ shot_intent (tắt → câu y cũ)
-        text += (f" · BYĐ: đã cộng ~{_n(byd['extra_output'])} token ra; sửa BYĐ tối đa {byd['repair_calls_max']} lượt "
+        text += (f" · BYĐ: đã cộng ~{_n(byd['extra_output'])} token ra + sửa BYĐ tối đa {byd['repair_calls_max']} lượt "
                  f"~{_n(byd['repair_input'])} vào / ~{_n(byd['repair_output'])} ra {money(byd)}")
-    return (text +f" · tính dư, ~{est['shots_guess']} shot" + (f", sàn phần ra theo {seen['calls']} lượt Director thật" if seen.get("calls") else "")
+    return (text + f" · tính dư, ~{est['shots_guess']} shot" + (f", sàn phần ra theo {seen['calls']} lượt Director thật" if seen.get("calls") else "")
             + ", chưa tính hỏi lại")
 
 

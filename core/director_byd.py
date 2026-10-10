@@ -105,8 +105,12 @@ def settle(conn, project_id: int, obj: Dict, client, only_scene: Optional[int] =
     rounds, tin, tout, call_errors = 0, 0, 0, []
     while bad and rounds < MAX_ROUNDS:
         rounds += 1
-        with tagged(STAGE, project_id):               # sổ chi: mỗi vòng sửa là một lượt Claude ghi usage_events stage director_byd
-            reply = client.complete(build_repair_prompt(bad, rounds))
+        try:                                          # Đạo diễn đã trả tiền: lỗi mạng / trần / khóa ở lượt sửa không được làm mất kết quả đó
+            with tagged(STAGE, project_id):           # sổ chi: mỗi vòng sửa là một lượt Claude ghi usage_events stage director_byd
+                reply = client.complete(build_repair_prompt(bad, rounds))
+        except Exception as e:  # noqa: BLE001 - nói ra (byd_kiem.loi_goi + ⚙ Chẩn đoán), không gọi thêm vòng nào
+            call_errors.append(f"vòng {rounds}: lượt sửa lỗi ({type(e).__name__}: {str(e)[:160]}) — dừng sửa")
+            break
         tin, tout = tin + reply.input_tokens, tout + reply.output_tokens
         try:
             fixed = _parse(reply.text)
