@@ -743,6 +743,14 @@
    "what": "Tra bảng luật thế giới có phạm vi (world_rules, T2 / A8): luật áp cho vật / ngữ cảnh / dự án / shot, không áp ngầm vật khác — CHƯA nối vào luồng (K3 đọc khi đối chiếu điều Claude khai thấy)",
    "where": "core/world_rules.py:tim",
    "bat": false
+  },
+  {
+   "id": "d97",
+   "step": "step2",
+   "who": "code",
+   "what": "Kiểm schema/hình học sơ đồ khối Nhánh C: khối, sàn, lối đi, vật kịch bản, số chuẩn — chỉ Python + test, CHƯA nối luồng/duyệt Kho",
+   "where": "core/blockout.py:check_geometry",
+   "bat": false
   }
  ]
 }

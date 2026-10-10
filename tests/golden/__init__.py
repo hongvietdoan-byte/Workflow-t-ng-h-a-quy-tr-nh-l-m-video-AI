@@ -14,7 +14,7 @@ CASES_DIR = os.path.join(GOLDEN_DIR, "cases")
 REQUIRED = ("id", "nguon", "ca_vang_tay", "byd", "may", "kho", "goi", "anh_ket_qua", "loi_dung", "loai_loi", "lop_phai_bat", "ky_vong")
 # Khóa ky_vong có LỚP CHẠY trong test (tests/test_stage_facts.py, test_identity_declare.py, test_world_rules.py — test_devsys_stages giữ
 # khớp). Khóa khác (am_chu, dung, do_tu_the, shot_intent) chưa lớp nào chạy → bắt buộc `chua_co_lop: "<đợt>"` (thẩm định 4 #4).
-LOP_CHAY = ("stage_facts", "identity_declare", "world_rules")
+LOP_CHAY = ("stage_facts", "identity_declare", "world_rules", "blockout")
 
 
 def load_cases(lop: Optional[str] = None) -> List[Dict]:

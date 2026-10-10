@@ -33,3 +33,5 @@ Ca chống báo nhầm (đúng là "không có lỗi"): `chong_bao_nham_giay_o_c
 
 Thêm ca: lỗi người dùng bắt mà lọt → xếp loại (mục 10 kế hoạch) → thêm một tệp `cases/<id>.json`; test tự chạy. Ca cũ
 `tests/fixtures/stage_facts_golden.json` đã chuyển sang đây (K0a).
+
+Nhánh C: `blockout` {plan, cho_dung (tùy chọn), vat_kich_ban (tùy chọn), codes} chạy ở `tests/test_blockout.py`, lớp kiểm d97 CHƯA nối pipeline. Ca tổng hợp kiểm thiếu khối/chồng lấn; có lớp test chạy nên không ghi chua_co_lop.
