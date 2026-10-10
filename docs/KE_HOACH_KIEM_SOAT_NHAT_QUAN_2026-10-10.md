@@ -304,6 +304,36 @@ Test hợp đồng: mỗi loại có tệp kỹ năng ≥ N câu hỏi khai đư
 
 **Lộ trình:** 11.1 + 11.2 vào K1 (BYĐ) và K3/K4 (người duyệt gói); 11.3 vào K0 (cùng bảng loại lỗi, trước khi build kiểm).
 
+## 12. Chuẩn so sánh theo tầng — "lẽ thường" không phải luật tuyệt đối (người dùng 10/10)
+
+> "Không thể chỉ đánh giá dựa vào 10 hạng mục liệt kê được, ví dụ cảnh yêu cầu một quả bóng và 1 ô tô có hiệu ứng bay lơ lửng do hiệu
+> ứng game thì sao?" → Hạng mục (mục 11.2) chỉ là GỢI Ý để model nhìn kỹ; KHÔNG phải luật phán. Phán là code so điều thấy với
+> **điều được mong đợi**, lấy theo 3 tầng, tầng trên thắng tầng dưới:
+
+| Tầng | Nguồn | Ví dụ |
+|---|---|---|
+| T1 Ý đồ shot | BYĐ + mô tả thêm (đã tách ý) — gồm ô **"Hiệu ứng / ngoại lệ có chủ đích"**: vật X làm điều trái lẽ thường DO Y, trông thế nào | "bóng và ô tô lơ lửng do hiệu ứng kỹ năng Z: quầng sáng xanh, hạt bụi dưới gầm" |
+| T2 Luật thế giới của dự án / game | hồ sơ kỹ năng FF (`data/skills`, cờ skill_dossier), `knowledge/ff_gameplay_visual.md`, phong cách dự án, luật người dùng đã trả lời trước (mục dưới) | xe trong FF không bay; tường keo dựng tức thì; airdrop rơi có dù; kỹ năng có màu riêng |
+| T3 Lẽ thường đời thực | mặc định (vật lý, tỉ lệ, ánh sáng…) | vật không tự lơ lửng |
+
+**Cách phán:**
+1. Model khai ĐIỀU THẤY (danh sách mở có giới hạn + hạng mục gợi ý), KHÔNG khai "đúng/sai".
+2. Code tìm điều mong đợi cho từng điều thấy theo T1 → T2 → T3.
+   - T1 khai ngoại lệ có chủ đích → **đảo chiều kiểm**: không báo "lơ lửng là vô lý" mà kiểm hiệu ứng có ĐÚNG như tả không (có quầng sáng
+     xanh? có hạt bụi? độ cao? vật nào lơ lửng — chỉ bóng + ô tô, không phải người).
+   - T2 có luật → kiểm theo luật thế giới (kỹ năng đúng màu/hình theo hồ sơ).
+   - Chỉ T3 → lệch là lỗi.
+3. Điều thấy trái T3 mà T1/T2 KHÔNG nói gì → **không tự kết luận lỗi**: mục VÀNG một dòng hỏi người dùng "ô tô lơ lửng: cố ý (hiệu ứng) hay
+   lỗi?" (nút). Trả lời "cố ý" → ghi thành **luật thế giới của dự án** (T2) kèm mô tả hiệu ứng, dùng lại cho mọi shot sau, không hỏi lại;
+   "lỗi" → mục đỏ + gen lại.
+4. Kiểm ngay từ BYĐ (trước tiền): ý trái T3 trong BYĐ / mô tả thêm mà không có lý do (ô ngoại lệ trống) → Đạo diễn được hỏi điền lý do +
+   cách hiển thị TRƯỚC khi sinh gói — tránh trường hợp model ảnh tự hiểu "lơ lửng" theo cách riêng.
+
+**Vì sao không cạn:** hạng mục chỉ giúp model nhìn; điều thấy là danh sách mở; chuẩn so là ý đồ của CHÍNH shot + luật thế giới tích lũy
+theo dự án (không phải danh sách lỗi cũ). Thứ mới chưa ai nghĩ tới → rơi vào bước 3 (hỏi một lần, thành luật).
+
+Lộ trình: ô "Hiệu ứng / ngoại lệ" + tầng T1–T3 vào K1 (BYĐ); bảng luật thế giới + câu hỏi "cố ý hay lỗi" vào K0 (cấu trúc) và K3/K4 (dùng).
+
 ## 9. Điểm cần người dùng chốt trước khi build (bản gốc — xem 9b)
 
 1. **Phạm vi BYĐ:** áp cho mọi dự án mới, dự án cũ chỉ khi gen lại (đề xuất) — hay chuyển cả dự án cũ?
