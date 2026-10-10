@@ -84,3 +84,36 @@ phủ 3 kiểu. THẤP — gộp `tests/fixtures/stage_facts_golden.json` vào `
 3D, hay tạm cho ② trống → VÀNG? (3) chi phí kiểm 10–20 %: nâng ngưỡng hay cắt lớp Claude ở shot dễ? (4) lớp code ④ video lên sớm ở K3?
 
 **Kết luận: SỬA NHỎ RỒI BUILD K0a** — sửa tài liệu #1, #3, #2 trước khi khóa test hợp đồng; mục 4–9 sửa trước K2/K3.
+
+---
+
+# Lần 3 — kế hoạch sau A14–A17 + phần K0a đã build (main eaf2370): kế hoạch **7,6 / 10**, K0a **7,5 / 10**
+
+Tổng = (8,5×15 + 8×20 + 7×15 + 7×15 + 7×10 + 7×10 + 7×5 + 8,5×10) / 100 ≈ 7,6 (lần 1 6,2 · lần 2 7,1).
+
+| Tiêu chí | L2 | L3 | Ghi chú |
+|---|---|---|---|
+| A gốc | 8 | 8,5 | 3.3b chỉ đúng dòng code tự ghép |
+| B độ phủ | 7,5 | 8 | video 2 lớp code; âm/chữ/dựng (K6) còn một dòng, chưa ca hồi quy âm/chữ |
+| C nhất quán | 6,5 | 7 | còn: N11 "chữ không tả lại ngoại hình" ↔ 3.3b "bắt buộc must_keep + màu"; khai báo bắt buộc phát hiện bằng Claude đang học việc → không chặn được; A14 "khai báo tiếp" không trần ↔ N2 ≤ 2 vòng; lối `dot` của test chưa ghi ở 3.9 |
+| D khả thi | 6 | 7 | K1a/K1b, 2 bối cảnh; K5 công cụ đo vẫn chưa có |
+| E đo lường | 7 | 7 | chưa cỡ mẫu "báo nhầm ≤ 10 %"; số "9 khâu đọc chữ tự do" SAI — sổ cho 11 |
+| F chi phí | 6,5 | 7 | đơn giá QC 0,019 USD/khung (01/10) có thể ước thấp 2–6 lần (10/10 output ~5k token ≈ 0,06 USD/lần chấm) |
+| G lộ trình | 6,5 | 7 | K1b sau K4 → 2 bối cảnh kéo dài |
+| H chốt | 8 | 8,5 | A4 âm/chữ/dựng mới trên bảng |
+
+**K0a 7,5/10 — đạt có điều kiện.** Đạt: điều kiện xong mục 8; trang đỏ đúng 8 khâu; enum BYĐ khớp shot_specs có test; ca hồi quy đúng định dạng;
+không đổi hành vi ngoài ước qc. Kẽ hở: L8 "kiểm trước: chay" sai (d85 là bộ SINH, d84 chỉ cấu trúc); d86 chỉ chạy trong change_audit
+(khi có thay đổi); chỉ 4/21 dòng gắn cờ (L3, L6, L8, L9 phụ thuộc `stage_camera` chưa gắn); error_types tính "học việc" khi cờ tắt và
+bỏ qua `bat:false` → "6/23 chỉ xây" ước thấp; `dot` không hết hạn; hợp đồng không cấm id kiem_chung / id bộ sinh trong kiem_truoc; 8 ca
+hồi quy đều L7 chữ+máy, `byd: null`, không `goi.refs`; `from_shot_spec` chưa chuyển beats → hanh_dong.
+
+**Còn lại:** CAO — bật `collab_prompt` mất Identity lock mà chỗ thay còn học việc (lỗi #22 có thể quay lại) → kiểm khai báo bắt buộc
+bằng code (so tên + màu món Kho, ĐỎ) hoặc chỉ bật khi lớp Claude 3.3 đạt ngưỡng; N11 viết lại. TRUNG — gắn cờ cho dòng phụ thuộc; `dot_hien_tai`;
+kiểm loại id; xác định đơn giá QC khung/cảnh trước K3; ≥ 2 ca hồi quy âm/chữ ở K0b. THẤP — sửa 9 → 11; cỡ mẫu n ≥ 50, ≥ 2 dự án.
+
+**Câu hỏi người dùng:** (1) khi lớp Claude vòng viết còn học việc, Identity lock giữ kiểu code chèn (tạm trái A14) hay chặn bằng code so
+tên + màu món Kho? (2) Đạo diễn có phải viết màu + món must_keep vào prompt (quyết N11 ↔ 3.3b)?
+
+**Kết luận:** kế hoạch sẵn sàng cho K0b (sửa N11, khoảng hở 3.3b, đơn giá QC trước K2/K3). K0a sửa nhanh (0 USD) trước K0b: L8 → khong_co
++ ghi chú d86; cờ stage_camera; test cấm id kiem_chung + dot_hien_tai; error_types không tính bat:false / học việc khi cờ tắt; 9 → 11.
