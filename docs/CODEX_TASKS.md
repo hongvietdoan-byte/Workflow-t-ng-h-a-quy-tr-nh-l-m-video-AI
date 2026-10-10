@@ -213,3 +213,53 @@ origin/ghi-chu-giao-dien-fatebreaker:docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-
 ## Kết quả Codex — đợt 2
 
 (Codex ghi: việc · nhánh · commit · test đỏ→xanh · việc mở.)
+
+---
+---
+
+# ĐỢT 3 — AI Dev System nắm TOÀN BỘ kế hoạch + việc đang chạy (10/10 tối, người dùng duyệt)
+
+**Vấn đề:** AI Dev System (web cổng 8502, `devsys/`) chỉ nắm kế hoạch S (`devsys/plan_progress.py` `PLAN_FILE` =
+`docs/KE_HOACH_SUA_SAU_DU_AN_8.md`), `TODO.md` và sổ khâu K0a. KHÔNG thấy: tiến độ kế hoạch kiểm soát K0a–K8
+(`docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md` mục 8, bảng dòng ~342–352 cột đợt có ✅/🟡; chốt A1–A26 mục A), điểm thẩm định cổng
+A21 (`docs/THAM_DINH_KE_HOACH_KIEM_SOAT_2026-10-10.md` các mục "# Lần N"), việc giao Codex (file này), nhánh/worktree chưa gộp, kế hoạch
+sân khấu 3D (`docs/PHUONG_PHAP_SAN_KHAU_3D.md`), ghi chú UI (nhánh `ghi-chu-giao-dien-fatebreaker`). `devsys/workflow.py:79` chỉ nhận mã
+dạng `S14.45` → lượt K0b / Codex không ghi được số đo.
+
+Luật chung GIỐNG đợt 1 + thêm: nhánh `codex/d3-viec<N>-<tên>`; KHÔNG sửa `TODO.md`; mọi số do CODE tính từ file/git (không ai tự khai);
+đọc file không được → hiện "không đọc được: <lý do>" (không im lặng, không 0 %); KHÔNG đụng vùng A18 (xem đợt 2). Test trang web: theo
+cách `tests/test_devsys.py` / `tests/test_devsys_v2.py` đang làm (2 file này có nhãn `slow` — chạy `-m slow` cho riêng chúng một lần
+trước bàn giao). Đổi `devsys/` → bên gộp khởi động lại cổng 8502.
+
+## Việc 1 — Sổ kế hoạch + tiến độ kế hoạch kiểm soát (vừa)
+1. `devsys/plans.json` (mới): danh sách MỌI kế hoạch đang sống — `{id, ten, file, kieu ∈ {viec_s, dot_bang, codex, ghi_chu, phuong_phap},
+   trang_thai ∈ {dang_chay, cho, xong, chua_lam}, ghi_chu}`; điền sẵn: kế hoạch S, kế hoạch kiểm soát, thẩm định, CODEX_TASKS (đợt 1–3),
+   sân khấu 3D, ghi chú UI (file trên nhánh → `nhanh` + `file`). Test hợp đồng: mọi `file` tồn tại (hoặc nhánh có trong `git branch -r`).
+2. `devsys/plan_progress.py` (hoặc module mới `devsys/plans.py`): đọc bảng đợt mục 8 kế hoạch kiểm soát → mỗi đợt K0a…K8: trạng thái
+   (✅ / 🟡 / chưa), mã commit trích được, thứ tự theo `devsys/stages.py:24` `DOT`; % = ✅ / tổng (🟡 = ½). Đọc mục A → số chốt (A1…An)
+   + chốt mới nhất. Không phá API cũ của `plan_progress` (trang 📋 và `tools/plan_progress.py --write` giữ nguyên kết quả — test hồi quy).
+3. Trang 📋 "Kế hoạch đang chạy" (`devsys/app.py:870` `page_plan`): thêm khối "Mọi kế hoạch" (bảng từ plans.json + % tính được) và khối
+   "Kế hoạch kiểm soát K0a–K8" (thanh đợt, đợt hiện tại = `devsys/stages.json` `dot_hien_tai`, cảnh báo nếu lệch với bảng mục 8).
+
+## Việc 2 — Trang "Đang chạy": nhánh, worktree, việc giao (vừa)
+Trang mới (thêm vào `PAGES` `devsys/app.py:1123`): đọc `git branch -r --no-merged origin/main`, `git worktree list --porcelain`,
+`git log -1` mỗi nhánh → bảng: nhánh, của ai (tiền tố `codex/` = Codex, `worktree-agent-*` / `claude/*` = Claude, khác = người), commit
+cuối + ngày, số commit chưa gộp, file đổi (`--stat` gọn), đã rà chưa (tìm "rà" / "Rà" trong message commit hoặc mục "Kết quả Codex" của file
+này nhắc tên nhánh). Thêm bảng "Việc giao Codex": parse các mục `## Việc N` theo từng `# ĐỢT` + mục "Kết quả Codex — đợt N" → mỗi việc:
+đã có kết quả chưa, nhánh, commit. Git chạy lỗi / không có git → báo rõ. Test: repo git tạm (tmp_path) có 2 nhánh chưa gộp + 1 worktree;
+file CODEX_TASKS mẫu.
+
+## Việc 3 — Thẻ cổng điểm A21 (nhỏ)
+Parse `docs/THAM_DINH_KE_HOACH_KIEM_SOAT_2026-10-10.md`: mỗi tiêu đề `# Lần N …` lấy điểm kế hoạch + build (mẫu chữ: "kế hoạch **x / 10**",
+"build **y / 10**"; lần 1–3 có cách ghi khác — đọc file, viết bộ parse chịu được từng dạng, ca nào không đọc được → ghi "không đọc được").
+Hiện ở trang Tổng quan: đường điểm theo lần so với vạch 8,5 + "ĐẠT/CHƯA ĐẠT" + lỗ hổng còn lại (số mục dưới "Lỗ hổng còn lại" của lần
+mới nhất). Test: file mẫu đủ 5 dạng tiêu đề.
+
+## Việc 4 — `devsys.workflow` nhận mã ngoài S (nhỏ)
+`devsys/workflow.py:79`: nhận thêm mã đợt kế hoạch kiểm soát (`K0b`, `K1a`…, có thể kèm hậu tố `-<chữ>` vd `K0b-TD5`) và mã Codex
+(`CX-d2-1` …); giữ kiểm chặt (không nhận chuỗi tùy ý), cập nhật docstring + trang "Hiệu quả quy trình" lọc/nhóm theo loại mã. Test: mã cũ
+S14.45 vẫn nhận; mã mới nhận; mã rác bị từ chối với lý do.
+
+## Kết quả Codex — đợt 3
+
+(Codex ghi: việc · nhánh · commit · test đỏ→xanh · việc mở.)
