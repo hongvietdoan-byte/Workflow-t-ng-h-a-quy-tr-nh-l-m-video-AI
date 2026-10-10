@@ -41,8 +41,43 @@ class EnumReuseTests(unittest.TestCase):
         text = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "prompts",
                                  "29_director_stage_specs.md"), encoding="utf-8").read()
         self.assertIn("tu_the", text)
-        for word in ("đứng", "ngồi bệt", "quỳ", "bò"):
+        for word in ("đứng", "ngồi bệt", "quỳ", "bò", "ngã ngửa", "nằm"):
             self.assertIn(word, text)
+        for code in si.TU_THE:                                   # K0b phần 2: mã enum ghi rõ trong prompt 29 (giữ khớp hai nơi)
+            self.assertIn(f"`{code}`", text)
+
+    def test_nga_ngua_is_a_pose(self):
+        """#24 shot 4 job 635: Kelly phải NGÃ NGỬA hai tay chống sau, ảnh ra NGỒI thẳng — enum cũ chỉ ghi được 'ngoi' (không phân biệt)."""
+        self.assertIn("nga_ngua", si.TU_THE)
+        self.assertIn("nam", si.TU_THE)
+        b = _good()
+        b["hanh_dong"][0]["ket_thuc"]["tu_the"] = "nga_ngua"
+        self.assertNotIn("hanh_dong[0].ket_thuc.tu_the", {i["truong"] for i in si.validate(b)})
+
+    def test_dryrun_reads_fallen_back_as_nga_ngua(self):
+        import importlib.util
+        import os
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "dryrun_k0b_p24.py")
+        spec = importlib.util.spec_from_file_location("dryrun_k0b_p24", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        for _pat, tu_the, _cham in mod.POSE_WORDS:
+            self.assertIn(tu_the, si.TU_THE)
+        self.assertEqual(mod.pose_from_text("just fallen backward onto the stone ground")[0]["tu_the"], "nga_ngua")
+        self.assertEqual(mod.pose_from_text("Kelly lying on her back")[0]["tu_the"], "nam")
+        self.assertEqual(mod.pose_from_text("Kelly sitting on the ground")[0]["tu_the"], "ngoi")
+
+    def test_golden_pose_expectations_use_the_enum(self):
+        from tests import golden
+        cases = [c for c in golden.load_cases() if "shot_intent" in (c.get("ky_vong") or {})]
+        self.assertTrue(cases)
+        for c in cases:
+            for h in c["ky_vong"]["shot_intent"].get("hanh_dong") or []:
+                for nhip in si.NHIP_HD:
+                    if h.get(nhip):
+                        self.assertIn(h[nhip]["tu_the"], si.TU_THE, c["id"])
+        job635 = next(c for c in cases if c["id"] == "p24_shot4_pose_job635")
+        self.assertEqual(job635["ky_vong"]["shot_intent"]["hanh_dong"][0]["bat_dau"]["tu_the"], "nga_ngua")
 
 
 class ValidateTests(unittest.TestCase):

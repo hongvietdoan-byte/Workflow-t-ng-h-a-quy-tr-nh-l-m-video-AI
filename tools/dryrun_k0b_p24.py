@@ -39,7 +39,8 @@ USER_DECISIONS = {
     7: {"note": "góc nhìn Kelly ngước lên, máy lùi tiếp 1 m rung nhẹ", "may": {"kieu": "lui", "m": 1.0, "rung": "nhe"}},
 }
 POSE_WORDS = [  # (regex trên chữ hành động tiếng Anh, tu_the, cham_dat) — thứ tự ưu tiên
-    (r"fallen backward|fall(?:s|en)? back|sprawl|on (?:her|his) back", "ngoi", ["mong", "ban_tay"]),
+    (r"\blying\b|\blies (?:flat|on)|\blaid out", "nam", ["lung"]),
+    (r"fallen backward|fall(?:s|en)? back|sprawl|on (?:her|his) back", "nga_ngua", ["mong", "ban_tay"]),   # K0b p2: enum có nga_ngua
     (r"\bkneel", "quy", ["dau_goi"]),
     (r"\bcrawl", "bo", ["ban_tay", "dau_goi"]),
     (r"\bsit|\bseated|\bsitting|on the ground", "ngoi", ["mong"]),

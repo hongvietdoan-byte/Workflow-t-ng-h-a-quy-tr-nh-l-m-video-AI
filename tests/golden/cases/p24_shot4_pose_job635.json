@@ -26,7 +26,7 @@
    {
     "ai": "kelly",
     "bat_dau": {
-     "tu_the": "ngoi",
+     "tu_the": "nga_ngua",
      "cham_dat": [
       "mong",
       "ban_tay"
@@ -142,7 +142,7 @@
   "model": "gpt-image-2.5-sunburst"
  },
  "anh_ket_qua": "data/projects/24/images/job_635.png",
- "loi_dung": "tư thế sai: ảnh vẽ Kelly ngồi thẳng, BYĐ là ngã ngửa (ngoi + chạm đất mông + bàn tay, thân ngả sau)",
+ "loi_dung": "tư thế sai: ảnh vẽ Kelly ngồi thẳng, BYĐ là ngã ngửa (nga_ngua + chạm đất mông + bàn tay, thân ngả sau)",
  "loai_loi": [
   "L4"
  ],
@@ -155,7 +155,7 @@
     {
      "ai": "kelly",
      "bat_dau": {
-      "tu_the": "ngoi",
+      "tu_the": "nga_ngua",
       "cham_dat": [
        "mong",
        "ban_tay"
