@@ -19,11 +19,14 @@
      "kho_id": 23,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
+     "loi": null,
+     "khong_nhan_ra": [],
      "tong": {
       "co": 3,
       "thieu": 2,
       "thieu_mau": 0,
-      "sai_mau": 0
+      "sai_mau": 0,
+      "khong_co_khoa": 0
      },
      "mon": [
       {
@@ -35,6 +38,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": false,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -49,6 +53,7 @@
         "black"
        ],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -61,6 +66,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -77,6 +83,7 @@
         "white"
        ],
        "dau_hieu_thay": false,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -89,6 +96,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       }
@@ -133,11 +141,14 @@
      "kho_id": 23,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
+     "loi": null,
+     "khong_nhan_ra": [],
      "tong": {
       "co": 0,
       "thieu": 5,
       "thieu_mau": 0,
-      "sai_mau": 0
+      "sai_mau": 0,
+      "khong_co_khoa": 0
      },
      "mon": [
       {
@@ -149,6 +160,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -161,6 +173,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -173,6 +186,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -185,6 +199,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -197,6 +212,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       }
@@ -247,11 +263,14 @@
      "kho_id": 23,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
+     "loi": null,
+     "khong_nhan_ra": [],
      "tong": {
       "co": 0,
       "thieu": 5,
       "thieu_mau": 0,
-      "sai_mau": 0
+      "sai_mau": 0,
+      "khong_co_khoa": 0
      },
      "mon": [
       {
@@ -263,6 +282,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -275,6 +295,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -287,6 +308,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -299,6 +321,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -311,6 +334,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       }
@@ -361,11 +385,14 @@
      "kho_id": 23,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
+     "loi": null,
+     "khong_nhan_ra": [],
      "tong": {
       "co": 3,
       "thieu": 2,
       "thieu_mau": 0,
-      "sai_mau": 0
+      "sai_mau": 0,
+      "khong_co_khoa": 0
      },
      "mon": [
       {
@@ -377,6 +404,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": false,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -391,6 +419,7 @@
         "black"
        ],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -403,6 +432,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -419,6 +449,7 @@
         "white"
        ],
        "dau_hieu_thay": false,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -431,6 +462,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       }
@@ -444,7 +476,8 @@
      "top_visible:well": false,
      "stand_in:well": true,
      "in_frame:well": "right_third",
-     "pitch_horizon:camera": "horizon_middle_third"
+     "pitch_horizon:camera": "horizon_middle_third",
+     "ref_viewpoint:well": "differs"
     },
     "contradictions": []
    },
@@ -486,11 +519,14 @@
      "kho_id": 418,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
+     "loi": null,
+     "khong_nhan_ra": [],
      "tong": {
-      "co": 7,
+      "co": 6,
       "thieu": 0,
-      "thieu_mau": 0,
-      "sai_mau": 1
+      "thieu_mau": 1,
+      "sai_mau": 1,
+      "khong_co_khoa": 0
      },
      "mon": [
       {
@@ -500,12 +536,11 @@
        ],
        "dau_hieu": "two glowing red eyes",
        "nguon": "suy",
-       "mau_thay": [
-        "black"
-       ],
+       "mau_thay": [],
        "dau_hieu_thay": true,
-       "trang_thai": "co",
-       "muc": null
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu_mau",
+       "muc": "do"
       },
       {
        "mon": "hair",
@@ -519,6 +554,9 @@
         "black"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [
+        "red"
+       ],
        "trang_thai": "co",
        "muc": null
       },
@@ -533,6 +571,7 @@
         "white"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -547,6 +586,7 @@
         "red"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [],
        "trang_thai": "sai_mau",
        "muc": "do"
       },
@@ -561,6 +601,7 @@
         "black"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -576,6 +617,9 @@
         "black"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [
+        "red"
+       ],
        "trang_thai": "co",
        "muc": null
       },
@@ -590,6 +634,7 @@
         "red"
        ],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -604,6 +649,7 @@
         "red"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       }
@@ -617,7 +663,8 @@
      "top_visible:well": false,
      "stand_in:well": true,
      "in_frame:well": "middle_third",
-     "pitch_horizon:camera": "horizon_bottom_third"
+     "pitch_horizon:camera": "horizon_bottom_third",
+     "ref_viewpoint:well": "differs"
     },
     "contradictions": []
    },
@@ -654,11 +701,14 @@
      "kho_id": 418,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
+     "loi": null,
+     "khong_nhan_ra": [],
      "tong": {
-      "co": 7,
+      "co": 6,
       "thieu": 0,
-      "thieu_mau": 0,
-      "sai_mau": 1
+      "thieu_mau": 1,
+      "sai_mau": 1,
+      "khong_co_khoa": 0
      },
      "mon": [
       {
@@ -668,12 +718,11 @@
        ],
        "dau_hieu": "two glowing red eyes",
        "nguon": "suy",
-       "mau_thay": [
-        "black"
-       ],
+       "mau_thay": [],
        "dau_hieu_thay": true,
-       "trang_thai": "co",
-       "muc": null
+       "mau_phu_thieu": [],
+       "trang_thai": "thieu_mau",
+       "muc": "do"
       },
       {
        "mon": "hair",
@@ -687,6 +736,9 @@
         "black"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [
+        "red"
+       ],
        "trang_thai": "co",
        "muc": null
       },
@@ -701,6 +753,7 @@
         "white"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -715,6 +768,7 @@
         "red"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [],
        "trang_thai": "sai_mau",
        "muc": "do"
       },
@@ -729,6 +783,7 @@
         "black"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -744,6 +799,9 @@
         "black"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [
+        "red"
+       ],
        "trang_thai": "co",
        "muc": null
       },
@@ -758,6 +816,7 @@
         "red"
        ],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -772,6 +831,7 @@
         "red"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       }
@@ -821,11 +881,14 @@
      "kho_id": 418,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
+     "loi": null,
+     "khong_nhan_ra": [],
      "tong": {
       "co": 3,
       "thieu": 5,
       "thieu_mau": 0,
-      "sai_mau": 0
+      "sai_mau": 0,
+      "khong_co_khoa": 0
      },
      "mon": [
       {
@@ -837,6 +900,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -849,9 +913,13 @@
        "dau_hieu": "long",
        "nguon": "suy",
        "mau_thay": [
-        "black"
+        "black",
+        "white"
        ],
        "dau_hieu_thay": false,
+       "mau_phu_thieu": [
+        "red"
+       ],
        "trang_thai": "co",
        "muc": null
       },
@@ -867,6 +935,7 @@
         "white"
        ],
        "dau_hieu_thay": false,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -879,6 +948,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -891,6 +961,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -904,6 +975,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -916,6 +988,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -930,6 +1003,7 @@
         "red"
        ],
        "dau_hieu_thay": false,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       }
@@ -940,11 +1014,16 @@
      "kho_id": 419,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
+     "loi": null,
+     "khong_nhan_ra": [
+      "the whole body"
+     ],
      "tong": {
       "co": 0,
       "thieu": 7,
       "thieu_mau": 0,
-      "sai_mau": 0
+      "sai_mau": 0,
+      "khong_co_khoa": 0
      },
      "mon": [
       {
@@ -956,6 +1035,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -968,6 +1048,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -980,6 +1061,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -987,13 +1069,13 @@
        "mon": "belt",
        "mau_chinh": [
         "white",
-        "black",
-        "red"
+        "black"
        ],
        "dau_hieu": "a red triangle",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -1006,6 +1088,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -1018,6 +1101,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -1028,6 +1112,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       }
@@ -1071,11 +1156,16 @@
      "kho_id": 419,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
+     "loi": null,
+     "khong_nhan_ra": [
+      "the whole body"
+     ],
      "tong": {
       "co": 4,
       "thieu": 3,
       "thieu_mau": 0,
-      "sai_mau": 0
+      "sai_mau": 0,
+      "khong_co_khoa": 0
      },
      "mon": [
       {
@@ -1088,7 +1178,8 @@
        "mau_thay": [
         "black"
        ],
-       "dau_hieu_thay": true,
+       "dau_hieu_thay": false,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -1102,7 +1193,8 @@
        "mau_thay": [
         "white"
        ],
-       "dau_hieu_thay": true,
+       "dau_hieu_thay": false,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -1115,6 +1207,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -1122,13 +1215,13 @@
        "mon": "belt",
        "mau_chinh": [
         "white",
-        "black",
-        "red"
+        "black"
        ],
        "dau_hieu": "a red triangle",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -1145,6 +1238,7 @@
         "red"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -1157,6 +1251,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -1169,6 +1264,7 @@
         "red"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       }
@@ -1227,11 +1323,14 @@
      "kho_id": 23,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
+     "loi": null,
+     "khong_nhan_ra": [],
      "tong": {
       "co": 0,
       "thieu": 5,
       "thieu_mau": 0,
-      "sai_mau": 0
+      "sai_mau": 0,
+      "khong_co_khoa": 0
      },
      "mon": [
       {
@@ -1243,6 +1342,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -1255,6 +1355,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -1267,6 +1368,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -1279,6 +1381,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -1291,6 +1394,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       }
@@ -1301,11 +1405,16 @@
      "kho_id": 419,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
+     "loi": null,
+     "khong_nhan_ra": [
+      "the whole body"
+     ],
      "tong": {
       "co": 3,
       "thieu": 4,
       "thieu_mau": 0,
-      "sai_mau": 0
+      "sai_mau": 0,
+      "khong_co_khoa": 0
      },
      "mon": [
       {
@@ -1317,6 +1426,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -1331,6 +1441,7 @@
         "white"
        ],
        "dau_hieu_thay": true,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -1347,6 +1458,7 @@
         "red"
        ],
        "dau_hieu_thay": false,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       },
@@ -1354,13 +1466,13 @@
        "mon": "belt",
        "mau_chinh": [
         "white",
-        "black",
-        "red"
+        "black"
        ],
        "dau_hieu": "a red triangle",
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -1373,6 +1485,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -1385,6 +1498,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": null,
+       "mau_phu_thieu": [],
        "trang_thai": "thieu",
        "muc": "do"
       },
@@ -1395,6 +1509,7 @@
        "nguon": "suy",
        "mau_thay": [],
        "dau_hieu_thay": false,
+       "mau_phu_thieu": [],
        "trang_thai": "co",
        "muc": null
       }
@@ -1436,7 +1551,8 @@
     "top_visible:well": false,
     "stand_in:well": true,
     "in_frame:well": "right_third",
-    "pitch_horizon:camera": "horizon_middle_third"
+    "pitch_horizon:camera": "horizon_middle_third",
+    "ref_viewpoint:well": "differs"
    },
    "contradictions": [
     {
@@ -1452,11 +1568,14 @@
     "kho_id": 23,
     "nguon_khoa": "must_keep",
     "thieu_must_keep": false,
+    "loi": null,
+    "khong_nhan_ra": [],
     "tong": {
      "co": 3,
      "thieu": 2,
      "thieu_mau": 0,
-     "sai_mau": 0
+     "sai_mau": 0,
+     "khong_co_khoa": 0
     },
     "mon": [
      {
@@ -1468,6 +1587,7 @@
       "nguon": "suy",
       "mau_thay": [],
       "dau_hieu_thay": false,
+      "mau_phu_thieu": [],
       "trang_thai": "co",
       "muc": null
      },
@@ -1482,6 +1602,7 @@
        "black"
       ],
       "dau_hieu_thay": null,
+      "mau_phu_thieu": [],
       "trang_thai": "co",
       "muc": null
      },
@@ -1494,6 +1615,7 @@
       "nguon": "suy",
       "mau_thay": [],
       "dau_hieu_thay": null,
+      "mau_phu_thieu": [],
       "trang_thai": "thieu",
       "muc": "do"
      },
@@ -1510,6 +1632,7 @@
        "white"
       ],
       "dau_hieu_thay": false,
+      "mau_phu_thieu": [],
       "trang_thai": "co",
       "muc": null
      },
@@ -1522,6 +1645,7 @@
       "nguon": "suy",
       "mau_thay": [],
       "dau_hieu_thay": null,
+      "mau_phu_thieu": [],
       "trang_thai": "thieu",
       "muc": "do"
      }
