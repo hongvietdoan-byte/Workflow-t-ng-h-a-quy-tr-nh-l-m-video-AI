@@ -14,7 +14,7 @@ Thẩm định 4 lỗ hổng #1: luật A18 "mọi món must_keep phải có ch�
 | shot có món bị báo | 9 | 9 |
 | món `khong_can` (lọc, có lý do) | 0 | 9 |
 
-(summary.json cũ ghi 38 món `thieu` — số "trước lọc" ở đây chạy lại cùng hàm trên CSDL hiện tại.)
+(summary.json cũ ghi 34 món `thieu` — số "trước lọc" ở đây chạy lại cùng hàm trên CSDL hiện tại.)
 
 ## Gán nhãn (mỗi mục một chạm)
 
@@ -37,9 +37,9 @@ cần chữ ở shot này). Kết quả code: `thieu` = không có chữ món; `
 | 12 | 4 (WS) | KELLY | crop top (white) | thieu | VÀNG | Wide shot from behind Kelly, slightly diagonal, low camera close to the ground, Free Fire … | |
 | 13 | 4 (WS) | KELLY | sneakers (white) | thieu | VÀNG | Wide shot from behind Kelly, slightly diagonal, low camera close to the ground, Free Fire … | |
 | 14 | 5 (MS) | YÊU NỮ TÀ LINH DẠNG 1 | face (black) | thieu_mau | VÀNG | … the near rim, a female creature whose face is a smooth featureless pure-black mask with … | |
-| 15 | 5 (MS) | YÊU NỮ TÀ LINH DẠNG 1 | belt (black) | sai_mau | ĐỎ | … with a jagged hem and a red sash at the waist, black arms covered in … | |
+| 15 | 5 (MS) | YÊU NỮ TÀ LINH DẠNG 1 | belt (black) | sai_mau | VÀNG | … with a jagged hem and a red sash at the waist, black arms covered in … | |
 | 16 | 6 (MS) | YÊU NỮ TÀ LINH DẠNG 1 | face (black) | thieu_mau | VÀNG | … 3D render style, a female creature whose face is a smooth featureless pure-black mask with … | |
-| 17 | 6 (MS) | YÊU NỮ TÀ LINH DẠNG 1 | belt (black) | sai_mau | ĐỎ | … with a jagged hem and a red sash at the waist, black arms covered in … | |
+| 17 | 6 (MS) | YÊU NỮ TÀ LINH DẠNG 1 | belt (black) | sai_mau | VÀNG | … with a jagged hem and a red sash at the waist, black arms covered in … | |
 | 18 | 7 (MLS) | YÊU NỮ TÀ LINH DẠNG 1 | face (black) | thieu | VÀNG | the faceless dark female creature standing in front of an ancient eight-sided stone well in … | |
 | 19 | 7 (MLS) | YÊU NỮ TÀ LINH DẠNG 1 | belt (black) | thieu | VÀNG | the faceless dark female creature standing in front of an ancient eight-sided stone well in … | |
 | 20 | 7 (MLS) | YÊU NỮ TÀ LINH DẠNG 1 | hands (black) | thieu | VÀNG | the faceless dark female creature standing in front of an ancient eight-sided stone well in … | |
