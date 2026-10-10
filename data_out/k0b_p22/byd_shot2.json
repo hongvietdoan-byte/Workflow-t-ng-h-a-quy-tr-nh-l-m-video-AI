@@ -1,0 +1,48 @@
+{
+ "byd": {
+  "shot": 2,
+  "truyen": {
+   "nhip": null,
+   "muc_dich": "Cận bộ đồ Khủng Long Đỏ nam xếp gọn trên giường, không có người",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [],
+  "hanh_dong": [],
+  "vat": [],
+  "may": {
+   "co": "CU",
+   "do_cao": "cao",
+   "goc": "cui",
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": null,
+   "thoi_gian": "day",
+   "thoi_tiet": "clear",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "issues": [
+  {
+   "muc": "do",
+   "truong": "thanh_phan",
+   "loi": "phải có ít nhất một thứ trong khung"
+  }
+ ],
+ "suy_tu_chu": [
+  "may.co ← scenes.data size/shot = 'CU'",
+  "may.do_cao/goc ← angle 'high' = cao/cui",
+  "thanh_phan rỗng: scenes.data.characters không có nhân vật có khóa sân khấu (shot không người?)",
+  "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather"
+ ],
+ "quyet_dinh_nguoi_dung": null
+}

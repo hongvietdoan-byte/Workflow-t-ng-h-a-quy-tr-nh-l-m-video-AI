@@ -2,6 +2,7 @@
 vật khác, hạn dùng, gỡ, ghi nguyên tử, đường dẫn neo theo gốc repo (không theo cwd)."""
 import json
 import os
+import re
 
 import pytest
 
@@ -21,6 +22,19 @@ def test_general_file_loads_without_issues():
     assert issues == []
     assert rules and all(r["pham_vi"] == "chung" for r in rules)
     assert any(r["vat"] == "loai:xe" for r in rules)          # "xe FF không bay" (mục 5, T2)
+
+
+def test_general_rules_from_p22_p24_evidence_are_item_scoped():
+    """Thẩm định 5: luật thêm từ bằng chứng #22 / #24 — mỗi luật một vật (mã Kho / loại khai rõ), có nguồn; luật của bộ nam (#416)
+    không áp sang bộ nữ (#417) dù cùng loại."""
+    rules, issues = wr.load_file(wr.GENERAL_PATH, required=True)
+    assert issues == [] and len(rules) >= 4
+    assert {r["id"] for r in wr.tim(rules, "kho:416")} == {"kld_nam_khau_trang_luon_deo", "kld_nam_khong_lien_than"}
+    assert [r["id"] for r in wr.tim(rules, "kho:417")] == ["kld_nu_khau_trang_luon_deo"]
+    assert [r["id"] for r in wr.tim(rules, "kho:419")] == ["yeunu_d2_glitch_toan_than"] and wr.tim(rules, "kho:418") == []
+    assert wr.tim(rules, "kho:263") == [] and [r["id"] for r in wr.tim(rules, "kho:263", loai="loi_vao_nha")] == [
+        "ff_nha_loi_vao_khong_canh_cua"]
+    assert all(re.search(r"#2[24]\b", r["nguon"]) for r in rules if r["vat"] != "loai:xe")     # nguồn chỉ rõ dự án bằng chứng
 
 
 def test_missing_fields_are_reported_not_silent():

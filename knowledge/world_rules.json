@@ -9,6 +9,49 @@
    "dieu": "xe trong Free Fire chạy trên mặt đất, không bay / không lơ lửng (trừ khi BYĐ khai ngoại lệ có chủ đích hoặc có luật hẹp hơn)",
    "pham_vi": "chung",
    "nguon": "tu_lieu: docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md mục 5 bảng T2 (ví dụ 'xe FF không bay')"
+  },
+  {
+   "id": "ff_nha_loi_vao_khong_canh_cua",
+   "vat": "loai:loi_vao_nha",
+   "ngu_canh": "*",
+   "dieu": "nhà trong Free Fire hầu như chỉ có lối vào để trống, không có cánh cửa → không tả 'mở cửa' / cánh cửa; nhân vật vào từ mép khung để nền giữ đúng render 3D",
+   "pham_vi": "chung",
+   "nguon": "nguoi_dung: docs/DU_AN_KHUNG_LONG_DO_2026-10-06.md dòng 127 (#22, 07/10); prompt duyệt #22 scene 248 / 252 'open doorway (no door leaf)'",
+   "ngay": "2026-10-07"
+  },
+  {
+   "id": "kld_nam_khau_trang_luon_deo",
+   "vat": "kho:416",
+   "ngu_canh": "*",
+   "dieu": "khẩu trang đen răng cá mập của bộ Khủng Long Đỏ nam luôn đeo kín mũi và miệng, không kéo xuống (kể cả lúc nói)",
+   "pham_vi": "chung",
+   "nguon": "nguoi_dung: góp ý bản thử #22 ngày 07/10 mục 4 'bộ trang phục có khẩu trang thì luôn đeo'; mô tả Kho #416 'luôn đeo kín mũi và miệng, không kéo xuống'",
+   "ngay": "2026-10-07"
+  },
+  {
+   "id": "kld_nu_khau_trang_luon_deo",
+   "vat": "kho:417",
+   "ngu_canh": "*",
+   "dieu": "khẩu trang đen răng cá mập của bộ Khủng Long Đỏ nữ luôn đeo kín, không kéo xuống (kể cả lúc nói)",
+   "pham_vi": "chung",
+   "nguon": "nguoi_dung: góp ý bản thử #22 ngày 07/10 mục 4 (phần 'không kéo xuống, kể cả lúc nói' CHỈ từ góp ý này); mô tả Kho #417 'khẩu trang đen in răng cá mập luôn đeo kín' (phần 'luôn đeo kín')",
+   "ngay": "2026-10-07"
+  },
+  {
+   "id": "kld_nam_khong_lien_than",
+   "vat": "kho:416",
+   "ngu_canh": "*",
+   "dieu": "bộ Khủng Long Đỏ nam là quần áo rời (hoodie, quần jean, mũ, khẩu trang, dép) — không phải đồ liền thân thú bông, không có đuôi",
+   "pham_vi": "chung",
+   "nguon": "tu_lieu: mô tả Kho #416 'Không phải đồ liền thân thú bông'; CSDL #22 characters MAXIM lock_rules.forbidden 'plush full-body dinosaur suit, tail'"
+  },
+  {
+   "id": "yeunu_d2_glitch_toan_than",
+   "vat": "kho:419",
+   "ngu_canh": "*",
+   "dieu": "Yêu nữ tà linh dạng 2 luôn có hiệu ứng nhiễu / glitch quanh TOÀN THÂN ở mọi shot (không chỉ lúc biến hình)",
+   "pham_vi": "chung",
+   "nguon": "tu_lieu: mô tả Kho #419 'quanh toàn thân luôn có hiệu ứng nhiễu/glitch' (dùng ở #24 shot 7–9; data_out/k0b_p24 món glitch = co ở cả 3 shot)"
   }
  ]
 }

@@ -1,5 +1,8 @@
 {
+ "project": 24,
+ "nguon_byd": "shot_specs viết tay",
  "pose_tool": "mediapipe 1.0.1 Tasks + pose_landmarker_full.task",
+ "do_ghi_chu": null,
  "shots": [
   {
    "shot": 1,
@@ -17,6 +20,7 @@
     {
      "nhan_vat": "KELLY",
      "kho_id": 23,
+     "trang_phuc_kho_id": null,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
      "loc_byd": {
@@ -177,6 +181,7 @@
     {
      "nhan_vat": "KELLY",
      "kho_id": 23,
+     "trang_phuc_kho_id": null,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
      "loc_byd": {
@@ -336,6 +341,7 @@
     {
      "nhan_vat": "KELLY",
      "kho_id": 23,
+     "trang_phuc_kho_id": null,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
      "loc_byd": {
@@ -497,6 +503,7 @@
     {
      "nhan_vat": "KELLY",
      "kho_id": 23,
+     "trang_phuc_kho_id": null,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
      "loc_byd": {
@@ -668,6 +675,7 @@
     {
      "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 1",
      "kho_id": 418,
+     "trang_phuc_kho_id": null,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
      "loc_byd": {
@@ -904,6 +912,7 @@
     {
      "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 1",
      "kho_id": 418,
+     "trang_phuc_kho_id": null,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
      "loc_byd": {
@@ -1139,6 +1148,7 @@
     {
      "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 1",
      "kho_id": 418,
+     "trang_phuc_kho_id": null,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
      "loc_byd": {
@@ -1332,6 +1342,7 @@
     {
      "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 2",
      "kho_id": 419,
+     "trang_phuc_kho_id": null,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
      "loc_byd": {
@@ -1385,8 +1396,8 @@
       "the whole body"
      ],
      "tong": {
-      "co": 0,
-      "thieu": 7,
+      "co": 3,
+      "thieu": 4,
       "thieu_mau": 0,
       "sai_mau": 0,
       "khong_can": 0,
@@ -1413,11 +1424,14 @@
        ],
        "dau_hieu": "red tips",
        "nguon": "suy",
-       "mau_thay": [],
-       "dau_hieu_thay": null,
+       "mau_thay": [
+        "black",
+        "white"
+       ],
+       "dau_hieu_thay": true,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "co",
+       "muc": null
       },
       {
        "mon": "dress",
@@ -1426,11 +1440,14 @@
        ],
        "dau_hieu": "off-the-shoulder",
        "nguon": "suy",
-       "mau_thay": [],
-       "dau_hieu_thay": null,
+       "mau_thay": [
+        "black",
+        "white"
+       ],
+       "dau_hieu_thay": false,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "co",
+       "muc": null
       },
       {
        "mon": "belt",
@@ -1477,12 +1494,14 @@
        "mau_chinh": [],
        "dau_hieu": "constant",
        "nguon": "suy",
-       "mau_thay": [],
-       "dau_hieu_thay": null,
+       "mau_thay": [
+        "red"
+       ],
+       "dau_hieu_thay": false,
        "mau_phu_thieu": [],
        "khong_loc": "món 'glitch' chưa có vùng thân (BODY_FROM_TOP) — không lọc theo cỡ, vẫn đòi",
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "co",
+       "muc": null
       }
      ]
     }
@@ -1522,6 +1541,7 @@
     {
      "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 2",
      "kho_id": 419,
+     "trang_phuc_kho_id": null,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
      "loc_byd": {
@@ -1736,6 +1756,7 @@
     {
      "nhan_vat": "KELLY",
      "kho_id": 23,
+     "trang_phuc_kho_id": null,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
      "loc_byd": {
@@ -1853,6 +1874,7 @@
     {
      "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 2",
      "kho_id": 419,
+     "trang_phuc_kho_id": null,
      "nguon_khoa": "must_keep",
      "thieu_must_keep": false,
      "loc_byd": {
@@ -2061,6 +2083,7 @@
    {
     "nhan_vat": "KELLY",
     "kho_id": 23,
+    "trang_phuc_kho_id": null,
     "nguon_khoa": "must_keep",
     "thieu_must_keep": false,
     "loc_byd": {

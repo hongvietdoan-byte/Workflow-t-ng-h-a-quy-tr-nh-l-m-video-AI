@@ -474,7 +474,9 @@ OTHER_MARKERS = ("creature", "figure", "woman", "girl", "monster", "ghost")
 def segment(prompt: str, markers: Dict[str, List[str]]) -> Dict[str, str]:
     """Chia prompt theo nhân vật: mỗi mệnh đề (, . ;) thuộc nhân vật được nhắc gần nhất (tên / từ đánh dấu); người lạ (OTHER_MARKERS
     không thuộc ai) → '_khac' — để màu tóc của 'bóng đen' không bị tính cho Kelly. Mệnh đề trước lần nhắc đầu: nếu chỉ một nhân vật thì
-    thuộc nhân vật đó, không thì bỏ. Trả {tên: chữ}."""
+    thuộc nhân vật đó, không thì bỏ. Trả {tên: chữ}.
+    Hai tên trúng CÙNG chỗ (thẩm định 5 #4/#5): từ đánh dấu DÀI hơn thắng ('maxim kl' hơn 'maxim'); còn hòa (từ y hệt — hai dạng yêu nữ
+    cùng 'creature', không phân biệt được bằng chữ) → mệnh đề thuộc CẢ HAI, không gán theo thứ tự tên (trước đây dạng 2 rỗng → báo nhầm)."""
     out: Dict[str, List[str]] = {k: [] for k in markers}
     owner, pending = None, []
     other_re = _words_re(OTHER_MARKERS)
@@ -489,17 +491,20 @@ def segment(prompt: str, markers: Dict[str, List[str]]) -> Dict[str, str]:
             for w in words:
                 m = re.search(rf"(?<![\w]){re.escape(fold(w))}(?![\w])", low)
                 if m:
-                    hits.append((m.start(), name))
+                    hits.append((m.start(), -(m.end() - m.start()), name))
         if not hits:
             m = re.search(other_re, low)
             if m:
-                hits.append((m.start(), "_khac"))
+                hits.append((m.start(), 0, "_khac"))
         if hits:
-            owner = min(hits)[1]
+            best = min(h[:2] for h in hits)
+            owner = [n for n in markers if (best[0], best[1], n) in hits] or ["_khac"]   # giữ thứ tự khai, hòa → cả nhóm
         if owner is None:
             pending.append(clause)
-        elif owner in out:
-            out[owner].append(clause)
+        else:
+            for o in owner:
+                if o in out:
+                    out[o].append(clause)
     if len(markers) == 1 and pending:
         out[next(iter(markers))] = pending + out[next(iter(markers))]
     return {k: ",".join(v) for k, v in out.items()}
