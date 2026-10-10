@@ -212,7 +212,12 @@ origin/ghi-chu-giao-dien-fatebreaker:docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-
 
 ## Kết quả Codex — đợt 2
 
-(Codex ghi: việc · nhánh · commit · test đỏ→xanh · việc mở.)
+| Việc | Nhánh | Commit | Bằng chứng / việc mở |
+|---|---|---|---|
+| 3 | `codex/d2-viec3-tam-duyet` | `163f378` | Test đỏ import module thiếu → 71 test liên quan xanh trên Windows; kiểm PNG bằng mắt. Rà diff: module thuần PIL đã có requirements; schema mới `kind=blockout`, `schema_version=1`, không đụng `assets.profile.model3d`; SHA canonical, copy dữ liệu, từ chối geometry ĐỎ, giữ VÀNG. d98 tắt, chưa nối pipeline. |
+
+Việc mở: 2–3 góc clay/ảnh tham chiếu cần bên gộp làm bằng Blender; chưa ghi Kho thật. Tấm kiểm chỗ đứng theo tham số; gói hiện duyệt geometry của plan, chưa lưu chỗ đứng/kịch bản ngoài plan. Sơ đồ nhiều issue có nhãn báo phần còn lại và trả đủ issues. Không gọi API/Blender, không đổi TODO/PLAN/data, không tăng areas.version; cả bộ do bên gộp chạy.
+
 
 ---
 ---
