@@ -85,7 +85,7 @@ def test_l4_lists_the_current_pose_enum():
     text = _read("L4")
     for code in shot_intent.TU_THE:
         assert f"`{code}`" in text, f"L4.md thiếu tư thế `{code}` của TU_THE"
-    # rà 10/10: mở cho Director bị HOÃN (người nộm Blender chưa nằm) → L4 phải nói prompt 29 chưa cho dùng + chỉ chạy khô
-    assert "prompt 29 CHƯA cho Director dùng" in text
-    assert "chạy khô" in text
+    # Đợt 2: người nộm Blender nằm cùng bao hình solver → prompt 29 đã mở; L4 phải nói đã mở + số còn tạm + còn chờ render thật
+    assert "prompt 29 đã mở" in text
+    assert "render thật" in text
     assert "chưa đo" in text

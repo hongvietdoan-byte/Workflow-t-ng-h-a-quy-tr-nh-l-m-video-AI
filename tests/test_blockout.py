@@ -15,6 +15,20 @@ def plan(*blocks):
     return {"san": {"kich_thuoc": [20, 20], "z": 0}, "khoi": list(blocks), "loi_mo": [], "huong_sang": 90}
 
 
+def test_props_translate_to_model_without_changing_legacy():
+    p = plan(box())
+    old = bo.to_props(p)
+    result = bo.to_props(p, stage={"origin_model": [10, -20, 7]})
+    assert result[0]["at"] == [13, -17, 7]
+    assert old[0]["at"] == [3, 3, 0]
+    assert {k: v for k, v in result[0].items() if k != "at"} == {k: v for k, v in old[0].items() if k != "at"}
+
+
+def test_block_library_identity_survives_props():
+    props = bo.to_props(plan(box(mo_ta_ngan="tường gỗ", vat_kho=123)))
+    assert props[0]["vat_kho"] == 123
+
+
 def test_valid_plan_has_no_issue():
     p = plan(box())
     assert bo.validate(p) == []

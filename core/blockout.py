@@ -211,11 +211,18 @@ def check_geometry(plan, cho_dung=None, vat_kich_ban=None):
     return out
 
 
-def to_props(plan):
+def to_props(plan, stage=None):
     """Giữa khoảng → hợp đồng add_props kind=block (khối thay thế, không phải hình thật). Không gọi Blender."""
     issues = validate(plan)
     if issues:
         raise ValueError("; ".join(f"{i['path']}: {i['loi']}" for i in issues))
-    return [{"kind": "block", "id": b["id"], "shape": "cylinder" if b["loai"] in ("cot", "tru") else "box",
+    props = [{"kind": "block", "id": b["id"], "shape": "cylinder" if b["loai"] in ("cot", "tru") else "box",
              "at": [*b["tam"], b.get("z", plan["san"].get("z", 0))], "size": _size(b), "rotation_deg": b["huong"],
              "label": b["mo_ta_ngan"], "source": b["nguon"], "stand_in": True} for b in plan["khoi"]]
+    for p, b in zip(props, plan["khoi"]):
+        if "vat_kho" in b:
+            p["vat_kho"] = b["vat_kho"]
+        if stage is not None:
+            from .stage_grid import model_from_rel
+            p["at"] = list(model_from_rel(stage, p["at"]))
+    return props

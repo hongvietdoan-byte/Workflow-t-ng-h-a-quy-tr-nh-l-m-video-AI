@@ -571,15 +571,36 @@ def lying(o: Dict) -> bool:
     return o["kind"] == "nguoi" and o.get("tu_the") in ("nam", "nga_ngua")
 
 
+LYING_WIDTH_M = 0.3      # bề ngang thân nằm (người nộm Blender); điểm phủ lệch ngang ±0,12 nằm trong
+
+
+def lying_slab(o: Dict) -> Tuple[float, float, float]:
+    """Thân nằm = một hộp (góc nghiêng rad quanh trục ngang, cạnh dài, bề dày) có bao hình đúng body_length × body_height.
+    Nằm: phẳng (góc 0). Ngã ngửa chống tay: đầu nâng, chân chạm sàn — góc 0,75 × đường chéo bao hình (TẠM, chưa đo Pose).
+    Một nguồn cho cả điểm phủ solver lẫn người nộm Blender (tools/stage_grid.add_person) — rà Đợt 2."""
+    length, height = float(o.get("body_length", o["H"])), obj_height(o)
+    angle = .75 * math.atan2(height, length) if o.get("tu_the") == "nga_ngua" else 0.0
+    c, s = math.cos(angle), math.sin(angle)
+    div = c * c - s * s
+    long_side, thick = (length * c - height * s) / div, (height * c - length * s) / div
+    if min(long_side, thick) <= 0:
+        raise ValueError("tỉ lệ thân nằm không dựng được hộp nghiêng")
+    return angle, long_side, thick
+
+
 def lying_point(o: Dict, along: float, height: float, lat: float = 0.0):
-    """Thân nằm: tâm sàn xy, đầu về facing, chân ngược lại; khoảng bao TẠM, chưa đo bằng Pose."""
+    """Thân nằm: tâm sàn xy, đầu về facing, chân ngược lại; khoảng bao TẠM, chưa đo bằng Pose. `along` −0,5…0,5 dọc thân (đầu dương),
+    `height` 0…1 từ mặt dưới lên mặt trên của thân — với ngã ngửa là mặt dưới/trên của hộp nghiêng (lying_slab), không phải bao hình."""
     if o.get("facing") is None:
         raise ValueError("thân nằm thiếu facing — không xác định được đầu/chân")
     a = math.radians(float(o["facing"]))
-    length = float(o.get("body_length", o["H"]))
-    return (float(o["xy"][0]) + math.sin(a) * length * along + math.cos(a) * lat,
-            float(o["xy"][1]) + math.cos(a) * length * along - math.sin(a) * lat,
-            float(o.get("z", 0)) + obj_height(o) * height)
+    tilt, long_side, thick = lying_slab(o)
+    c, s = math.cos(tilt), math.sin(tilt)
+    l, t = long_side * along, thick * (height - .5)
+    horiz = l * c - t * s
+    return (float(o["xy"][0]) + math.sin(a) * horiz + math.cos(a) * lat,
+            float(o["xy"][1]) + math.cos(a) * horiz - math.sin(a) * lat,
+            float(o.get("z", 0)) + obj_height(o) / 2 + l * s + t * c)
 
 
 def object_points(o: Dict, cam: Optional[Sequence[float]] = None, co: Optional[str] = None) -> List[Tuple[float, float, float]]:

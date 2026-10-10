@@ -100,3 +100,15 @@ def test_lying_person_without_facing_is_schema_error_not_solver_crash():
     kelly["facing"] = 350                                   # có facing → giải được, không ném ra ngoài
     res = ss.solve_scene(a["shot_specs"][:1], a["blocking"], 9 / 16, MARKS)
     assert len(res["shots"]) == 1
+
+
+def test_pose_outside_enum_is_schema_error_not_silent_standing():
+    """Rà Đợt 2 (prompt 29 mở nga_ngua/nam): tư thế ngoài TU_THE (vd 'nga') trước đây bị giải im lặng như người đứng."""
+    a = hand_answer()
+    next(o for o in a["blocking"]["objects"] if o["key"] == "kelly")["tu_the"] = "nga"
+    with pytest.raises(llm_io.SchemaError, match="tu_the"):
+        sd.validate_answer(a, inputs(), MARKS)
+    a = hand_answer()
+    a["blocking"]["beats"]["bo"].setdefault("kelly", {})["tu_the"] = "lying"
+    with pytest.raises(llm_io.SchemaError, match="tu_the"):
+        sd.validate_answer(a, inputs(), MARKS)
