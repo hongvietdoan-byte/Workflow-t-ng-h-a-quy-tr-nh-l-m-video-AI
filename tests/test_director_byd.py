@@ -7,7 +7,8 @@ import os
 import unittest
 from unittest import mock
 
-from core import cost, diag, director_byd, director_two_pass as dtp, identity_declare, llm_runner, prompts, shot_intent, shots
+from core import (cost, diag, director_byd, director_two_pass as dtp, identity_declare, llm_runner, prompt_formula, prompts,
+                  shot_intent, shots)
 from tests.test_director_two_pass import Recorder
 from tests.test_v3 import kenta_project
 
@@ -79,6 +80,9 @@ class RepairRecorder(Recorder):
         return super().complete(prompt, images)
 
 
+FROZEN_NOW = "2026-10-11T00:00:00+00:00"
+
+
 def _rows(p, pid):
     return [r["data"] for r in shots.shots_of(p, pid)]
 
@@ -105,7 +109,9 @@ class FlagOffTests(unittest.TestCase):
         self.assertEqual(on.replace(prompts._SEP + block, "", 1), off)
 
     def test_off_run_makes_no_extra_call_and_stores_nothing_new_even_if_the_director_writes_byd(self):
-        with mock.patch.dict(os.environ, OFF):
+        # D4 việc 2 (chập chờn): hai lần chạy được so từng hàng, mà formula_check["at"] (prompt_formula._now) là mốc theo GIÂY → khác
+        # nhau khi hai lần chạy vắt qua ranh giới giây (máy bận, chạy cùng test_devsys). Đóng băng đồng hồ; mọi trường khác vẫn so y nguyên.
+        with mock.patch.dict(os.environ, OFF), mock.patch.object(prompt_formula, "_now", return_value=FROZEN_NOW):
             p0, pid0 = _project()
             plain_rec = RepairRecorder()
             llm_runner.run_director(p0, pid0, plain_rec)
