@@ -281,6 +281,27 @@ class GoldenFormatTests(unittest.TestCase):
         self.assertEqual([p for c in cases for p in golden.problems(c, types, ids)], [])
         self.assertEqual(len({c["id"] for c in cases}), len(cases))
 
+    def test_k0b_coverage_targets(self):
+        """K0b (kế hoạch dòng 307): ≥ 15 ca, ≥ 2 ca âm/chữ/dựng (A*: thoại sai người nói A1, popup không giữ khung cuối A4),
+        ≥ 3 ca có BYĐ + gói; ca âm/chữ chưa có lớp chạy phải nói rõ ở ky_vong (lop_chay), không để trống."""
+        cases = golden.load_cases()
+        self.assertGreaterEqual(len(cases), 15)
+        audio = [c for c in cases if any(t.startswith("A") for t in c["loai_loi"])]
+        self.assertGreaterEqual(len(audio), 2)
+        self.assertTrue({"A1", "A4"} <= {t for c in audio for t in c["loai_loi"]})
+        for c in audio:
+            kv = next(iter(c["ky_vong"].values()))
+            self.assertTrue(str(kv.get("lop_chay") or "").strip(), c["id"])
+        with_goi = [c for c in cases if c.get("byd") and any((c.get("goi") or {}).get(k) for k in ("image_prompt", "motion_prompt"))]
+        self.assertGreaterEqual(len(with_goi), 3)
+        known = {"stage_facts", "identity_declare", "shot_intent", "do_tu_the", "world_rules", "am_chu", "dung"}
+        readme = open(os.path.join(os.path.dirname(golden.__file__), "README.md"), encoding="utf-8").read()
+        for c in cases:
+            for k in c["ky_vong"]:
+                self.assertIn(k, known, f"{c['id']}: khóa ky_vong '{k}' chưa ghi trong README")
+        for k in known:
+            self.assertIn(f"`{k}`", readme)
+
     def test_format_problems_are_reported(self):
         bad = {"id": "x", "_file": "y.json", "ca_vang_tay": True, "byd": None, "loai_loi": ["L99"], "lop_phai_bat": ["d999"], "ky_vong": {}}
         got = " ".join(golden.problems(bad, ["L1"], ["d85"]))

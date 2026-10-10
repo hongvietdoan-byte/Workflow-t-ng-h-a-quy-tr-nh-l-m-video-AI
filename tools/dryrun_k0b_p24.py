@@ -39,7 +39,8 @@ USER_DECISIONS = {
     7: {"note": "góc nhìn Kelly ngước lên, máy lùi tiếp 1 m rung nhẹ", "may": {"kieu": "lui", "m": 1.0, "rung": "nhe"}},
 }
 POSE_WORDS = [  # (regex trên chữ hành động tiếng Anh, tu_the, cham_dat) — thứ tự ưu tiên
-    (r"fallen backward|fall(?:s|en)? back|sprawl|on (?:her|his) back", "ngoi", ["mong", "ban_tay"]),
+    (r"\blying\b|\blies (?:flat|on)|\blaid out", "nam", ["lung"]),
+    (r"fallen backward|fall(?:s|en)? back|sprawl|on (?:her|his) back", "nga_ngua", ["mong", "ban_tay"]),   # K0b p2: enum có nga_ngua
     (r"\bkneel", "quy", ["dau_goi"]),
     (r"\bcrawl", "bo", ["ban_tay", "dau_goi"]),
     (r"\bsit|\bseated|\bsitting|on the ground", "ngoi", ["mong"]),
@@ -108,10 +109,13 @@ def identity_rows(conn, chars, prompt, in_frame=None):
         prof = json.loads(row[0]) if row[0] else {}
         mk = prof.get("must_keep")
         mk = ", ".join(map(str, mk)) if isinstance(mk, list) else mk
-        src, text = ("must_keep", mk) if mk else ("mo_ta_kho", row[1])
-        decl = idd.declare_from_text(text or "")
+        src = "must_keep" if mk else "mo_ta_kho"
+        decl, kbc_issues = idd.declare_from_profile(dict(prof, must_keep=mk), row[1] or "")   # K0b p2: ô khai_bao_chu thắng must_keep
+        if any(d.get("nguon") == idd.KBC_KEY for d in decl):
+            src = idd.KBC_KEY
         rows = idd.check(decl, seg.get(name, ""))
-        out.append({"nhan_vat": name, "kho_id": aid, "nguon_khoa": src, "thieu_must_keep": src != "must_keep",
+        out.append({"nhan_vat": name, "kho_id": aid, "nguon_khoa": src, "thieu_must_keep": not mk,
+                    "khai_bao_chu_loi": kbc_issues, "mau_mo_ta_lech": idd.color_conflicts(row[1] or "", decl),
                     "loi": "khong_co_khoa" if any(r["trang_thai"] == "khong_co_khoa" for r in rows) else None,
                     "khong_nhan_ra": idd.unrecognized(decl), "tong": idd.summary(rows), "mon": rows})
     return out

@@ -177,3 +177,91 @@ def test_r11_two_colors_sign_window_and_false_synonyms():
     assert r["choker"]["dau_hieu_thay"] is False
     assert _by(idd.declare_from_text("ash-blonde hair"))["hair"]["mau_chinh"] != ["grey"]
     assert _by(idd.declare_from_text("rose gold choker"))["choker"]["mau_chinh"] == ["yellow"]
+
+
+# --- K0b phần 2 (A20): ô `khai_bao_chu` trong hồ sơ Kho (assets.profile JSON, cùng chỗ must_keep — không migration) ---
+
+YN1_KBC = [{"mon": "belt", "dong_nghia": ["spiked belt", "waist belt"], "mau_chinh": ["black"], "mau_dong_nghia": {"black": ["charcoal"]},
+            "dau_hieu": "red triangle buckle", "cach_viet": ["red triangular buckle"], "hoa_tiet": ["gai kim loại"]},
+           {"mon": "dress", "dong_nghia": ["gown"], "mau_chinh": ["white"], "dau_hieu": None, "cach_viet": [], "hoa_tiet": []}]
+
+
+def test_kbc_schema_valid_and_errors_reported():
+    assert idd.validate_khai_bao_chu(YN1_KBC) == []
+    bad = [{"mon": "", "mau_chinh": []}, {"mon": "hat", "mau_chinh": ["red", "blue", "green"]}, {"mon": "cap", "mau_chinh": ["rouge"]},
+           {"mon": "scarf", "mau_chinh": ["red"], "dau_hieu": ["a", "b"]}, {"mon": "veil", "mau_chinh": ["red"], "cach_viet": ["x y"]},
+           {"mon": "boots", "mau_chinh": ["red"], "dong_nghia": ["đai"]}, {"mon": "gloves", "mau_chinh": ["red"], "dong_nghia": ["ab"]},
+           {"mon": "cape", "mau_chinh": ["red"], "mau_dong_nghia": {"blue": ["navy"]}}, {"mon": "hat", "mau_chinh": ["red"], "la": 1},
+           "khong_phai_bang"]
+    got = idd.validate_khai_bao_chu(bad)
+    loi = " | ".join(f"{i['mon']}: {i['loi']}" for i in got)
+    for word in ("mon", "hat", "rouge", "scarf", "veil", "boots", "gloves", "cape", "la"):
+        assert word in loi, word
+    assert all(i["muc"] == "do" for i in got)
+    assert idd.validate_khai_bao_chu("x")[0]["muc"] == "do"
+
+
+def test_declare_prefers_kbc_over_must_keep():
+    prof = {"must_keep": "red belt, white dress, long black hair", "khai_bao_chu": YN1_KBC}
+    decl, issues = idd.declare_from_profile(prof)
+    d = _by(decl)
+    assert d["belt"]["mau_chinh"] == ["black"] and d["belt"]["nguon"] == "khai_bao_chu"
+    assert d["hair"]["nguon"] == "suy"                                   # món chưa có ô → vẫn kiểm theo suy …
+    vang = [i for i in issues if i["muc"] == "vang"]
+    assert [i["mon"] for i in vang] == ["hair"] and "một lần" in vang[0]["loi"]   # … và VÀNG nhắc điền, không im lặng
+
+
+def test_declare_without_kbc_is_yellow_per_item():
+    decl, issues = idd.declare_from_profile({"must_keep": KELLY})
+    assert {d["nguon"] for d in decl} == {"suy"}
+    assert sorted(i["mon"] for i in issues if i["muc"] == "vang") == ["choker", "tracksuit"]
+    decl, issues = idd.declare_from_profile({})
+    assert decl == [] and issues and issues[0]["muc"] == "vang"         # check([]) sẽ ĐỎ khong_co_khoa
+    assert idd.check(decl, "Kelly")[0]["trang_thai"] == "khong_co_khoa"
+
+
+def test_invalid_kbc_item_is_red_and_falls_back():
+    prof = {"must_keep": "red belt", "khai_bao_chu": [{"mon": "belt", "mau_chinh": ["rouge"]}]}
+    decl, issues = idd.declare_from_profile(prof)
+    assert any(i["muc"] == "do" for i in issues)
+    assert _by(decl)["belt"]["nguon"] == "suy"
+
+
+def test_check_uses_kbc_synonyms_and_sign_wording():
+    decl, _ = idd.declare_from_profile({"khai_bao_chu": YN1_KBC})
+    r = _by(idd.check(decl, "a creature in a white gown, a charcoal waist belt with a red triangular buckle"))
+    assert r["belt"]["trang_thai"] == "co" and r["belt"]["dau_hieu_thay"] is True
+    assert r["dress"]["trang_thai"] == "co"
+    r = _by(idd.check(decl, "a creature in a white gown, a red waist belt"))
+    assert r["belt"]["trang_thai"] == "sai_mau"                          # #24 shot 5/6: prompt viết đai đỏ theo mô tả Kho cũ
+
+
+def test_description_color_conflict_is_yellow():
+    """#24 shot 5/6: mô tả Kho cũ 'đai đỏ ngang eo' lệch ảnh mẫu (đai gai đen + khóa tam giác đỏ) → VÀNG trước khi viết prompt."""
+    decl, _ = idd.declare_from_profile({"khai_bao_chu": YN1_KBC})
+    got = idd.color_conflicts("váy trắng rách; đai đỏ ngang eo", decl)
+    assert [(g["mon"], g["muc"]) for g in got] == [("belt", "vang")]
+    assert "red" in got[0]["loi"] and "black" in got[0]["loi"]
+    assert idd.color_conflicts("váy trắng; đai đen gai", decl) == []
+    assert idd.color_conflicts("đai ngang eo", decl) == []               # mô tả không nói màu → không có gì để so
+    assert idd.color_conflicts("", decl) == []
+
+
+def test_kbc_survives_profile_save():
+    """set_profile chỉ giữ PROFILE_KEYS → ô khai_bao_chu phải được GIỮ khi người dùng lưu hồ sơ (không mất dữ liệu), và kiểm khi ghi."""
+    from core import assets
+    from core.db import connect
+    conn = connect()
+    aid = assets.create(conn, "FF", "character", "YEU NU 1")
+    conn.execute("UPDATE assets SET profile=? WHERE id=?",
+                 ('{"must_keep": "red belt", "khai_bao_chu": [{"mon": "belt", "mau_chinh": ["black"]}]}', aid))
+    assets.set_profile(conn, aid, {"identity": "x", "must_keep": "black belt"}, approved=True)
+    assert assets.get_profile(conn, aid)["khai_bao_chu"] == [{"mon": "belt", "mau_chinh": ["black"]}]
+    assets.set_profile(conn, aid, {"must_keep": "black belt", "khai_bao_chu": YN1_KBC}, approved=True)
+    assert assets.get_profile(conn, aid)["khai_bao_chu"] == YN1_KBC
+    with pytest.raises(assets.AssetError):
+        assets.set_profile(conn, aid, {"must_keep": "x", "khai_bao_chu": [{"mon": "belt", "mau_chinh": ["rouge"]}]}, approved=True)
+    assert assets.get_profile(conn, aid)["khai_bao_chu"] == YN1_KBC     # ghi hỏng → không đổi gì
+    other = assets.create(conn, "FF", "character", "KHAC")
+    assets.set_profile(conn, other, {"must_keep": "black belt"}, approved=True)
+    assert "khai_bao_chu" not in assets.get_profile(conn, other)        # không tự sinh ô rỗng cho hồ sơ chưa có

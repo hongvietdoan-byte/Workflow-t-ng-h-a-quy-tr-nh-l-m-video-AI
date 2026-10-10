@@ -1,6 +1,6 @@
 {
- "id": "p24_shot4_pose_job635",
- "nguon": "người dùng 10/10 #24 shot 4: job 635 Kelly NGỒI thẳng (sai), job 639 ngã ngửa chống tay (đúng)",
+ "id": "p24_shot4_nga_ngua_job639_dung",
+ "nguon": "người dùng 10/10 #24 shot 4: job 639 Kelly ngã ngửa hai tay chống sau — ĐÚNG (ca chống báo nhầm, đi cặp p24_shot4_pose_job635); `goi` chép từ job 635 (cùng shot) — chưa đối chiếu prompt riêng của job 639",
  "ca_vang_tay": false,
  "byd": {
   "shot": 4,
@@ -141,8 +141,8 @@
   ],
   "model": "gpt-image-2.5-sunburst"
  },
- "anh_ket_qua": "data/projects/24/images/job_635.png",
- "loi_dung": "tư thế sai: ảnh vẽ Kelly ngồi thẳng, BYĐ là ngã ngửa (nga_ngua + chạm đất mông + bàn tay, thân ngả sau)",
+ "anh_ket_qua": "data/projects/24/images/job_639.png",
+ "loi_dung": "không có lỗi tư thế: ảnh 639 vẽ Kelly ngã ngửa chống tay đúng BYĐ (nga_ngua + mông + bàn tay) — lớp tư thế không được báo",
  "loai_loi": [
   "L4"
  ],
@@ -165,22 +165,8 @@
    ]
   },
   "do_tu_the": {
-   "data/projects/24/images/job_635.png": "sai",
    "data/projects/24/images/job_639.png": "dung",
-   "cong_cu": "chưa có: MediaPipe 1.0.1 không còn mp.solutions, thiếu pose_landmarker.task (K0b)"
-  },
-  "identity_declare": {
-   "nhan_vat": "KELLY",
-   "kho_id": 23,
-   "khoa": "dark brown chin-length bob with straight blunt bangs (hair down, never tied), black choker, white crop top under a bright yellow zip-up track jacket with a high collar, grey sleeve stripes with small black stars and thin black edge lines, matching bright yellow track pants with a black side stripe, white sneakers, youthful face with light makeup",
-   "nguon_khoa": "must_keep (suy món + màu, chưa có khai_bao_chu)",
-   "trang_thai": {
-    "hair": "co",
-    "choker": "co",
-    "crop top": "thieu",
-    "tracksuit": "co",
-    "sneakers": "thieu"
-   }
+   "cong_cu": "MediaPipe pose_landmarker_full.task (K0b phần 1): thân 639 nghiêng 41° vs 635 28° — chưa có ngưỡng (K5)"
   }
  }
 }

@@ -10,7 +10,8 @@ nên yêu cầu phải rõ, có lý do, và tự nhất quán.
    cứng sẽ loại oan góc máy tốt (bài học: "không được thấy tháp" không ai yêu cầu đã làm hỏng một shot mở). Thứ không ai nói → không ghi.
 2. **Dàn cảnh theo nhịp, vị trí theo động cơ.** Mỗi lần ai đó đổi chỗ / tư thế (đứng → ngồi bệt, bò, quỳ, ra khỏi vật) là một nhịp mới.
    Người phản ứng với nguồn sợ thì lùi XA nguồn, theo hướng ngược lại, vài chục cm đến 1 m. Ghi tư thế bằng chiều cao người nộm `H`
-   (đứng = chiều cao hồ sơ; ngồi bệt ≈ 0,55–0,6·H đứng; quỳ ≈ 0,7·H; bò ≈ 0,35·H) và `tu_the`.
+   (đứng = chiều cao hồ sơ; ngồi bệt ≈ 0,55–0,6·H đứng; quỳ ≈ 0,7·H; bò ≈ 0,35·H; ngã ngửa chống tay ≈ 0,45·H; nằm ≈ 0,2·H) và `tu_the`
+   (`dung` | `ngoi` | `quy` | `bo` | `nga_ngua` | `nam`).
 3. **Mỗi shot một mục đích, ít thứ chính.** Ghi `muc_dich` (người xem cần thấy gì, cảm gì). TỐI ĐA 2 thứ `chinh`, thứ còn lại `phu`
    (nên có) — vì càng nhiều thứ chính càng khó có máy thỏa hết (V3 #24: shot 3 thứ chính không có máy nào đạt).
    **`thay` (mặt / lưng / nghiêng) phải khớp chỗ máy mà các vùng của bạn ép ra:** máy đứng phía trước người (cùng phía họ đang nhìn)

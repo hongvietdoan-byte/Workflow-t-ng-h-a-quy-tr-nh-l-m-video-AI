@@ -1,15 +1,16 @@
 """Khóa nhận diện bằng chữ (A18 / A20 kế hoạch kiểm soát, docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md) — hàm THUẦN, K0b chạy khô.
 
-A20 tầng "chữ": mỗi món trang phục / nhận diện = tên món + màu chủ đạo (1–2) + ≤ 1 dấu hiệu. Hồ sơ Kho CHƯA có ô `khai_bao_chu`
-(K0b tạo trường, K1a điền) → `declare_from_text` TẠM SUY các món từ `must_keep` (tiếng Anh) hoặc mô tả Kho (tiếng Việt) — mọi món suy
-mang `nguon: "suy"`. `check(decl, prompt)` so với chữ prompt: mỗi món → co / thieu / thieu_mau / sai_mau (A18: thiếu / sai màu = ĐỎ).
+A20 tầng "chữ": mỗi món trang phục / nhận diện = tên món + màu chủ đạo (1–2) + ≤ 1 dấu hiệu. Ô `khai_bao_chu` của hồ sơ Kho (K0b phần 2
+tạo schema `validate_khai_bao_chu`, K1a điền) được `declare_from_profile` ĐỌC trước; món chưa có ô → `declare_from_text` TẠM SUY từ
+`must_keep` (tiếng Anh) hoặc mô tả Kho (tiếng Việt), mang `nguon: "suy"` + VÀNG nhắc điền một lần. `color_conflicts` = mô tả Kho ↔ khai
+báo lệch màu chính (VÀNG). `check(decl, prompt)` so với chữ prompt: mỗi món → co / thieu / thieu_mau / sai_mau (A18: thiếu / sai màu = ĐỎ).
 Họa tiết (sọc, sao, viền…) KHÔNG kiểm ở chữ (A20: thuộc ảnh tham chiếu + QC sau gen) — chỉ ghi vào `hoa_tiet`.
 
 Chưa nối vào pipeline (K1a). Không gọi model.
 """
 import re
 import unicodedata
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 # màu chuẩn → (đồng nghĩa tiếng Anh, tiếng Việt CÒN DẤU — so trên chữ còn dấu: 'đen' ≠ 'đến', 'tím' ≠ 'tìm', 'đỏ' ≠ 'đó')
 COLORS = {
@@ -154,16 +155,167 @@ def declare_from_text(text: str, vi: Optional[bool] = None) -> List[Dict]:
     return out
 
 
+# ---- ô `khai_bao_chu` của hồ sơ Kho (A20, K0b phần 2) ----------------------------------------------------------------------------
+# Sống trong assets.profile (JSON, cùng chỗ must_keep — core/assets.set_profile giữ ô khi lưu hồ sơ; không cột mới, không migration).
+# Một món: {mon, dong_nghia[], mau_chinh[1–2] (khóa COLORS), mau_dong_nghia {màu: [từ]}, dau_hieu (≤ 1, chữ hoặc null), cach_viet[],
+# hoa_tiet[] (chỉ cho QC sau gen — không kiểm ở chữ)}. Chữ dùng để SO prompt (mon, dong_nghia, cach_viet, mau_dong_nghia) phải tiếng Anh
+# không dấu Việt và ≥ 3 ký tự: prompt được so sau khi bỏ dấu ('đai' → 'dai' khớp nhầm 'dài'); hoa_tiet viết tiếng Việt được.
+KBC_KEY = "khai_bao_chu"
+KBC_FIELDS = ("mon", "dong_nghia", "mau_chinh", "mau_dong_nghia", "dau_hieu", "cach_viet", "hoa_tiet")
+
+
+def _kbc_word_problem(w) -> Optional[str]:
+    if not isinstance(w, str) or not w.strip():
+        return "phải là chữ, không rỗng"
+    if is_vi(w):
+        return f"'{w}' có dấu tiếng Việt — prompt so sau khi bỏ dấu, dễ khớp nhầm; viết tiếng Anh"
+    if len(fold(w).strip()) < 3:
+        return f"'{w}' quá ngắn (< 3 ký tự) — dễ khớp nhầm"
+    return None
+
+
+def validate_khai_bao_chu(items) -> List[Dict]:
+    """Lỗi dạng [{muc: 'do', mon, loi}] — rỗng = hợp lệ. Không sửa ngầm."""
+    if not isinstance(items, list):
+        return [{"muc": "do", "mon": None, "loi": "khai_bao_chu phải là danh sách món"}]
+    out, seen = [], set()
+    for i, it in enumerate(items):
+        if not isinstance(it, dict):
+            out.append({"muc": "do", "mon": f"#{i}", "loi": "món phải là bảng"})
+            continue
+        mon = it.get("mon")
+        name = mon if isinstance(mon, str) and mon.strip() else f"#{i}"
+        def bad(loi):
+            out.append({"muc": "do", "mon": name, "loi": loi})
+        for k in it:
+            if k not in KBC_FIELDS:
+                bad(f"trường lạ '{k}' (cho phép: {', '.join(KBC_FIELDS)})")
+        if name.startswith("#"):
+            bad("thiếu 'mon'")
+        else:
+            p = _kbc_word_problem(mon)
+            if p:
+                bad(f"mon {p}")
+            if fold(mon) in seen:
+                bad("trùng món")
+            seen.add(fold(mon))
+        colors = it.get("mau_chinh")
+        if not isinstance(colors, list) or not 1 <= len(colors) <= 2:
+            bad("mau_chinh phải có 1–2 màu")
+        else:
+            for c in colors:
+                if c not in COLORS:
+                    bad(f"màu '{c}' không có trong bảng ({', '.join(COLORS)})")
+        for k in ("dong_nghia", "cach_viet", "hoa_tiet"):
+            v = it.get(k)
+            if v is None:
+                continue
+            if not isinstance(v, list):
+                bad(f"{k} phải là danh sách")
+                continue
+            for w in v:
+                p = _kbc_word_problem(w) if k != "hoa_tiet" else (None if isinstance(w, str) and w.strip() else "phải là chữ")
+                if p:
+                    bad(f"{k}: {p}")
+        sign = it.get("dau_hieu")
+        if sign is not None and not (isinstance(sign, str) and sign.strip()):
+            bad("dau_hieu chỉ 1 dấu hiệu (chữ) hoặc null")
+        elif sign is not None and _kbc_word_problem(sign):
+            bad(f"dau_hieu {_kbc_word_problem(sign)}")
+        if it.get("cach_viet") and sign is None:
+            bad("cach_viet chỉ có nghĩa khi có dau_hieu")
+        syn = it.get("mau_dong_nghia")
+        if syn is not None:
+            if not isinstance(syn, dict):
+                bad("mau_dong_nghia phải là bảng {màu: [từ]}")
+            else:
+                for c, ws in syn.items():
+                    if not isinstance(colors, list) or c not in colors:
+                        bad(f"mau_dong_nghia '{c}' không thuộc mau_chinh")
+                    for w in ws if isinstance(ws, list) else [None]:
+                        p = _kbc_word_problem(w)
+                        if p:
+                            bad(f"mau_dong_nghia: {p}")
+    return out
+
+
+def _canonical(item: Dict) -> str:
+    """Món chuẩn (khóa ITEMS) của một món khai_bao_chu — để biết món suy từ must_keep đã được khai chưa."""
+    words = [item.get("mon") or ""] + list(item.get("dong_nghia") or [])
+    return _item_of(", ".join(str(w) for w in words)) or fold(item.get("mon") or "")
+
+
+def declare_from_profile(profile: Optional[Dict], mo_ta: str = "") -> Tuple[List[Dict], List[Dict]]:
+    """Khai báo khóa của một hồ sơ Kho → (decl cho `check`, lỗi [{muc, mon, loi}]).
+    Ưu tiên ô `khai_bao_chu` (nguon 'khai_bao_chu'); món trong must_keep (hoặc mô tả Kho khi chưa có must_keep) chưa có ô → vẫn suy
+    (nguon 'suy') để kiểm, kèm VÀNG "nhắc điền một lần" (A20). Món khai sai dạng → ĐỎ và bỏ (món suy cùng tên thay chỗ)."""
+    profile = profile or {}
+    decl, issues, covered = [], [], set()
+    kbc = profile.get(KBC_KEY)
+    if kbc is not None:
+        if not isinstance(kbc, list):
+            issues += validate_khai_bao_chu(kbc)
+            kbc = []
+        for it in kbc:
+            bad = validate_khai_bao_chu([it])
+            if bad:
+                issues += bad
+                continue
+            decl.append({"mon": it["mon"], "dong_nghia": list(it.get("dong_nghia") or []), "mau_chinh": list(it["mau_chinh"]),
+                         "mau_dong_nghia": dict(it.get("mau_dong_nghia") or {}), "dau_hieu": it.get("dau_hieu"),
+                         "cach_viet": list(it.get("cach_viet") or []), "hoa_tiet_qc": list(it.get("hoa_tiet") or []),
+                         "nguon": KBC_KEY})
+            covered.add(_canonical(it))
+    mk = profile.get("must_keep")
+    mk = ", ".join(map(str, mk)) if isinstance(mk, list) else str(mk or "")      # model có thể trả danh sách
+    text = mk.strip() or str(mo_ta or "").strip()
+    if not decl and not text:
+        issues.append({"muc": "vang", "mon": None, "loi": "hồ sơ chưa có khai_bao_chu, must_keep lẫn mô tả — không có khóa để so"})
+    for s in declare_from_text(text) if text else []:
+        if s.get("hoa_tiet") or s.get("khong_nhan_ra"):
+            decl.append(s)
+            continue
+        if s["mon"] in covered:
+            continue
+        decl.append(s)
+        issues.append({"muc": "vang", "mon": s["mon"],
+                       "loi": f"món '{s['mon']}' chưa có ô khai_bao_chu (đang suy từ chữ) — nhắc điền một lần trong hồ sơ Kho"})
+    return decl, issues
+
+
+def color_conflicts(mo_ta: str, decl: List[Dict]) -> List[Dict]:
+    """Mô tả Kho ↔ khai báo (khai_bao_chu / must_keep) mâu thuẫn MÀU CHÍNH của cùng một món → VÀNG [{muc, mon, loi}].
+    #24 shot 5/6: mô tả Kho cũ 'đai đỏ ngang eo' lệch ảnh mẫu (đai gai đen) → prompt viết đai đỏ. Mô tả không nói màu → không so."""
+    if not str(mo_ta or "").strip():
+        return []
+    known = {}
+    for d in decl or []:
+        if d.get("hoa_tiet") or d.get("khong_nhan_ra") or not d.get("mau_chinh"):
+            continue
+        known.setdefault(_canonical(d) if d.get("nguon") == KBC_KEY else d["mon"], d)
+    out = []
+    for s in declare_from_text(mo_ta):
+        if s.get("hoa_tiet") or s.get("khong_nhan_ra") or not s.get("mau_chinh"):
+            continue
+        d = known.get(s["mon"])
+        if d and s["mau_chinh"][0] != d["mau_chinh"][0]:
+            out.append({"muc": "vang", "mon": d["mon"],
+                        "loi": f"mô tả Kho ghi '{s['mon']}' màu {s['mau_chinh'][0]}, khai báo ({d.get('nguon')}) ghi màu chính "
+                               f"{d['mau_chinh'][0]} — sửa mô tả Kho theo ảnh mẫu (hoặc sửa khai báo)"})
+    return out
+
+
 COLOR_AFTER = re.compile(r"\s+(?:in|dyed|colou?red)\s+")
 CLAUSE_END = re.compile(r"[,.;:()]")
 
 
-def _windows(prompt: str, item: str):
+def _windows(prompt: str, item: str, extra=()):
     """Mỗi lần prompt nhắc món → (cửa sổ màu, mệnh đề). Cửa sổ màu = từ ranh giới mệnh đề trước tới hết tên món (màu đứng trước danh từ)
     + cụm 'in / dyed / colored <màu>' ngay sau danh từ tới ranh giới kế. Mệnh đề = tới dấu câu kế (để tìm dấu hiệu sau 'with').
-    Món ngoài ITEMS (khai_bao_chu K1a) → tìm đúng tên món."""
+    Món ngoài ITEMS (khai_bao_chu K1a) → tìm đúng tên món. `extra` = đồng nghĩa món từ khai_bao_chu."""
     low = fold(prompt)
-    for m in re.finditer(_words_re(ITEMS.get(item, ((fold(item),),))[0]), low):
+    words = tuple(ITEMS.get(item, ((fold(item),),))[0]) + tuple(fold(w) for w in extra or () if str(w).strip())
+    for m in re.finditer(_words_re(words), low):
         start = 0
         for b in BOUNDARY.finditer(low, 0, m.start()):
             start = b.end()
@@ -186,7 +338,8 @@ def check(decl: List[Dict], prompt: str) -> List[Dict]:
                  "mau_phu_thieu": [], "trang_thai": "khong_co_khoa", "muc": "do"}]
     for d in real:
         item, want = d["mon"], list(d.get("mau_chinh") or [])
-        wins = list(_windows(prompt, item))
+        wins = list(_windows(prompt, item, d.get("dong_nghia") or ()))
+        syn = {c: _words_re([fold(x).replace("-", " ") for x in ws]) for c, ws in (d.get("mau_dong_nghia") or {}).items() if ws}
         row = {"mon": item, "mau_chinh": want, "dau_hieu": d.get("dau_hieu"), "nguon": d.get("nguon"), "mau_thay": [],
                "dau_hieu_thay": None, "mau_phu_thieu": []}
         if not wins:
@@ -196,6 +349,7 @@ def check(decl: List[Dict], prompt: str) -> List[Dict]:
         main_ok = partial = wrong = False
         for w, _ in wins:
             seen = _colors_in(w)
+            seen += [c for c, rx in syn.items() if c not in seen and re.search(rx, w.replace("-", " "))]   # màu đồng nghĩa khai_bao_chu
             row["mau_thay"] += [c for c in seen if c not in row["mau_thay"]]
             if not want:
                 continue
@@ -211,7 +365,8 @@ def check(decl: List[Dict], prompt: str) -> List[Dict]:
         if d.get("dau_hieu"):
             key = [x for x in re.findall(r"[a-z]+", fold(d["dau_hieu"])) if x not in INTENSITY]
             text = " ".join(c for _, c in wins)
-            row["dau_hieu_thay"] = bool(key) and bool(re.search(_words_re(key), text))
+            alt = [fold(x) for x in d.get("cach_viet") or () if str(x).strip()]      # cách viết tương đương (khai_bao_chu)
+            row["dau_hieu_thay"] = (bool(key) and bool(re.search(_words_re(key), text))) or bool(alt and re.search(_words_re(alt), text))
         row.update(trang_thai=status, muc=None if status == "co" else "do")
         out.append(row)
     return out

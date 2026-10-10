@@ -1,0 +1,105 @@
+{
+ "id": "dung_a4_popup_khong_giu_khung_cuoi",
+ "nguon": "người dùng 08/10 #24: kịch bản có 2 shot nền tối chờ popup → bỏ, popup ghép lên CẢNH CUỐI; 09/10 popup che shot khóc → end_popup 'hold' giữ khung cuối đứng hình thêm 3,5 s rồi popup trên đó (TODO Đợt C, tests/test_end_popup_p24.py)",
+ "ca_vang_tay": true,
+ "byd": {
+  "shot": 9,
+  "truyen": {
+   "nhip": "ket",
+   "muc_dich": "cảnh cuối: yêu nữ khóc ai oán — popup 2 icon + chữ ghép lên cảnh này",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "yeunu",
+    "vai": "chinh",
+    "vung": "giua",
+    "thay": "mat"
+   }
+  ],
+  "hanh_dong": [],
+  "vat": [],
+  "may": {
+   "co": "MS",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": "plaza_front",
+   "thoi_gian": "night",
+   "thoi_tiet": "fog",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": {
+    "loai": "end_popup",
+    "tren": "khung_cuoi",
+    "giu_khung": true,
+    "giay": 3.5,
+    "noi_dung": [
+     "icon 421",
+     "icon 422",
+     "Hành động sắp ra mắt"
+    ]
+   },
+   "phu_de": null
+  }
+ },
+ "may": {},
+ "kho": {
+  "icon_421": {
+   "name": "icon 421",
+   "kho_id": 421,
+   "has_picture": true
+  },
+  "icon_422": {
+   "name": "icon 422",
+   "kho_id": 422,
+   "has_picture": true
+  }
+ },
+ "goi": {
+  "danh_sach_cat": [
+   {
+    "shot": 9,
+    "giay": 2.4
+   },
+   {
+    "shot": "nen_toi_cho_popup",
+    "giay": 3.5,
+    "popup": true
+   }
+  ],
+  "end_popup": {
+   "hold": false
+  },
+  "refs": [],
+  "model": null
+ },
+ "anh_ket_qua": null,
+ "loi_dung": "popup không giữ khung cuối: bản dựng thêm shot nền tối chờ popup (hoặc chồng popup lên lúc clip đang chạy) thay vì giữ khung cuối của shot 9 rồi popup trên đó",
+ "loai_loi": [
+  "A4"
+ ],
+ "lop_phai_bat": [
+  "d91"
+ ],
+ "ky_vong": {
+  "dung": {
+   "popup": {
+    "tren": "khung_cuoi",
+    "giu_khung": true,
+    "giay_giu": 3.5,
+    "shot_nen_toi": 0,
+    "ket_qua": "do"
+   },
+   "lop_chay": "chưa có lớp so bản dựng ↔ BYĐ (K6); core/end_popup.apply (d91) là nơi làm đúng, chưa phải lớp kiểm"
+  }
+ }
+}
