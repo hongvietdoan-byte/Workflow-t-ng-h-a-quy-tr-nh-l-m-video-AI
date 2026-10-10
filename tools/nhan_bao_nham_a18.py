@@ -92,8 +92,10 @@ def agent_summary(chosen, agent: dict) -> list:
     for p in dict.fromkeys(p for p, _ in got):
         d, n, _ = tally([g for g in got if g[0] == p])
         out.append(f"| #{p} | {d} | {n} | {round(100 * n / (d + n))} % |")
+    if agent.get("so_sanh"):                   # A26: so sánh trước / sau khi sửa code (ghi trong file agent, không tự bịa)
+        out += ["", "### So sánh trước / sau sửa A26 (b)", ""] + list(agent["so_sanh"])
     if agent.get("kieu_bao_nham"):
-        out += ["", "Kiểu báo nhầm lặp lại (gợi ý sửa luật A18 — CHƯA sửa code A18):", ""]
+        out += ["", agent.get("tieu_de_kieu") or "Kiểu báo nhầm lặp lại (gợi ý sửa luật A18 — CHƯA sửa code A18):", ""]
         out += [f"- {line}" for line in agent["kieu_bao_nham"]]
     missing = len(rows) - len(got)
     if missing:
