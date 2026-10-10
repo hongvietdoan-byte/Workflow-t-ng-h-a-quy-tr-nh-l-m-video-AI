@@ -47,7 +47,11 @@ def test_mark_styles(tmp_path):
     Image.new("RGB", (200, 300), (120, 120, 120)).save(src)
     outs = {s: seedance_refs.mark(str(src), str(tmp_path / "m"), s) for s in seedance_refs.MARK_STYLES}
     assert len(set(outs.values())) == 4
-    red = lambda path: sum(1 for px in Image.open(path).convert("RGB").getdata() if px[0] > 200 and px[1] < 30)  # noqa: E731
+    def red(path):
+        with Image.open(path) as im:
+            pixels = im.convert("RGB").tobytes()
+        return sum(1 for r, g in zip(pixels[0::3], pixels[1::3]) if r > 200 and g < 30)
+
     assert red(outs["eye_plus"]) > 0 and red(outs["corner_plus"]) > 0 and red(outs["banner"]) == 0 and red(outs["none"]) == 0
     assert Image.open(outs["banner"]).getpixel((5, 5)) == (255, 255, 255)
     assert Image.open(outs["none"]).getpixel((5, 5)) == (120, 120, 120)

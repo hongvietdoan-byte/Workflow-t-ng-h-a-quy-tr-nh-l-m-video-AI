@@ -115,7 +115,7 @@ class PopupRenderTests(unittest.TestCase):
         src = os.path.join(self.dir, "src.png")
         subprocess.run([_ffmpeg(), "-y", "-loglevel", "error", "-ss", "2.9", "-i", self.video, "-frames:v", "1", src], check=True)
         a, b = Image.open(png).convert("RGB").resize((36, 64)), Image.open(src).convert("RGB").resize((36, 64))
-        diff = sum(abs(x - y) for p_, q in zip(a.getdata(), b.getdata()) for x, y in zip(p_, q)) / (36 * 64 * 3)
+        diff = sum(abs(x - y) for x, y in zip(a.tobytes(), b.tobytes())) / (36 * 64 * 3)
         self.assertLess(diff, 8)                                                         # the last shot itself is untouched
 
     def test_08_10_caps_bright_yellow_and_a_pop_per_icon_over_a_silent_video(self):

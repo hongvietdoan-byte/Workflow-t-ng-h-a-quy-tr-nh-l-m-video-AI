@@ -572,9 +572,38 @@ def add_lights(specs):
 def add_props(specs):
     """V4 Sân khấu 3D (#24 người dùng 10/10): đạo cụ KHÔNG có trong mô hình (giếng) dựng thành khối thay thế đúng chỗ + đúng cỡ đã tính trên
     sân khấu, chỉ cho camera này (xóa sau khi chụp) — model ảnh vẽ đạo cụ thật lên đúng khuôn, không tự đặt theo chữ (gốc lỗi 'tỉ lệ giếng').
-    spec = {"kind": "well", "at": [x, y, z chân] (scene), "radius", "height", "hollow", "sides"}."""
+    spec = {"kind": "well", "at": [x, y, z chân] (scene), "radius", "height", "hollow", "sides"}.
+    Nhánh C: kind=block, shape=box|cylinder, at chân, size=[dài,rộng,cao], rotation_deg, label, stand_in (core/blockout)."""
     made = []
     for i, p in enumerate(specs or []):
+        if p.get("kind") == "block":
+            size, at, angle = p.get("size"), p.get("at"), p.get("rotation_deg", 0)
+            valid_vec = lambda v: isinstance(v, (list, tuple)) and len(v) == 3 and all(
+                isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x) for x in v)
+            if (not valid_vec(size) or min(size) <= 0 or not valid_vec(at) or p.get("shape") not in ("box", "cylinder")
+                    or not isinstance(angle, (int, float)) or isinstance(angle, bool) or not math.isfinite(angle)):
+                raise ValueError(f"block {i}: thiếu/sai shape, at, size hoặc rotation_deg")
+            x, y, z = at
+            centre = (x, y, z + size[2] / 2)
+            if p["shape"] == "box":
+                bpy.ops.mesh.primitive_cube_add(size=1, location=centre)
+            else:
+                bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=1, depth=1, location=centre)
+            ob = bpy.context.active_object
+            ob.name = f"PLATES_PROP_{i}"
+            ob.dimensions = tuple(size)
+            ob.rotation_euler[2] = math.radians(angle)
+            ob["label"], ob["stand_in"] = str(p.get("label") or p.get("id") or i), True
+            ob["source"] = str(p.get("source") or "chưa khai nguồn")
+            grey = bpy.data.materials.new(f"PLATES_PROP_grey_{i}")
+            grey.use_nodes = True
+            bsdf = grey.node_tree.nodes.get("Principled BSDF")
+            if bsdf is not None:
+                bsdf.inputs["Base Color"].default_value = (.35, .35, .35, 1)
+                bsdf.inputs["Roughness"].default_value = .9
+            ob.data.materials.append(grey)
+            made.append(ob)
+            continue
         if p.get("kind") != "well":
             continue
         x, y, z = (float(v) for v in p["at"])

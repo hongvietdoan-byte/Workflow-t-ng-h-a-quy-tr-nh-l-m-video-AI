@@ -340,7 +340,7 @@ class GoldenFormatTests(unittest.TestCase):
             self.assertTrue(str(kv.get("lop_chay") or "").strip(), c["id"])
         with_goi = [c for c in cases if c.get("byd") and any((c.get("goi") or {}).get(k) for k in ("image_prompt", "motion_prompt"))]
         self.assertGreaterEqual(len(with_goi), 3)
-        known = {"stage_facts", "identity_declare", "shot_intent", "do_tu_the", "world_rules", "am_chu", "dung"}
+        known = {"stage_facts", "identity_declare", "shot_intent", "do_tu_the", "world_rules", "am_chu", "dung", "blockout"}
         readme = open(os.path.join(os.path.dirname(golden.__file__), "README.md"), encoding="utf-8").read()
         for c in cases:
             for k in c["ky_vong"]:
@@ -367,7 +367,8 @@ class GoldenFormatTests(unittest.TestCase):
     # khóa ky_vong → (tệp test chạy lớp đó trên ca, câu chọn ca phải có trong tệp)
     LOP_CHAY = {"stage_facts": ("tests/test_stage_facts.py", "GOLDEN = golden.stage_facts_cases()"),
                 "identity_declare": ("tests/test_identity_declare.py", 'if "identity_declare" in (c.get("ky_vong") or {})]'),
-                "world_rules": ("tests/test_world_rules.py", 'if "world_rules" in (c.get("ky_vong") or {})]')}
+                "world_rules": ("tests/test_world_rules.py", 'if "world_rules" in (c.get("ky_vong") or {})]'),
+                "blockout": ("tests/test_blockout.py", 'if "blockout" in (c.get("ky_vong") or {})]')}
 
     def test_every_expectation_has_a_running_layer_or_says_which_wave(self):
         """Thẩm định 4 #4: kỳ vọng mà không lớp nào chạy (am_chu, dung, do_tu_the, shot_intent) phải ghi `chua_co_lop: "<đợt>"` —

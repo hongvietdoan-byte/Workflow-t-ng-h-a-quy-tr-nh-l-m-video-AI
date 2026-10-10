@@ -42,13 +42,15 @@ class EnumReuseTests(unittest.TestCase):
                                  "29_director_stage_specs.md"), encoding="utf-8").read()
         self.assertIn("tu_the", text)
         # Tư thế prompt 29 cho Director dùng phải là TẬP CON của TU_THE (Director không ra mã mà kiểm không biết). Ngược lại không bắt
-        # buộc: 'nga_ngua', 'nam' chỉ dùng chạy khô / BYĐ tới khi solver đo thân nằm (K1a/K3) — chưa đưa vào prompt đang chạy.
+        # buộc: 'nga_ngua', 'nam' — solver đã tính thân nằm (Codex việc 2) nhưng rà 10/10 HOÃN mở cho Director tới khi tools/stage_grid.py
+        # dựng người nộm nằm (hiện dựng trụ đứng cao H = bề dài thân → số Blender trái solver). Gỡ assertNotIn khi người nộm nằm xong.
         in_prompt = {"dung": "đứng", "ngoi": "ngồi bệt", "quy": "quỳ", "bo": "bò"}
         for code, word in in_prompt.items():
             self.assertIn(word, text)
             self.assertIn(code, si.TU_THE)
         for code in ("nga_ngua", "nam"):
-            self.assertNotIn(f"`{code}`", text)                  # K0b: không đổi hành vi pipeline (prompt đang chạy ở director_stage_specs)
+            self.assertNotIn(f"`{code}`", text)
+            self.assertNotIn(code, text.split("`tu_the`", 1)[1].split("\n", 1)[0])
 
     def test_nga_ngua_is_a_pose(self):
         """#24 shot 4 job 635: Kelly phải NGÃ NGỬA hai tay chống sau, ảnh ra NGỒI thẳng — enum cũ chỉ ghi được 'ngoi' (không phân biệt)."""

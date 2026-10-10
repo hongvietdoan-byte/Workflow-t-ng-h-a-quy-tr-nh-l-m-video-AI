@@ -1,0 +1,65 @@
+{
+ "id": "blockout_thieu_vat_kich_ban",
+ "nguon": "Ca tổng hợp theo mục 12b.4, PHUONG_PHAP_SAN_KHAU_3D, 10/10/2026 — không phải đo ảnh thật",
+ "ca_vang_tay": false,
+ "byd": null,
+ "may": null,
+ "kho": {},
+ "goi": {},
+ "anh_ket_qua": null,
+ "loi_dung": "Vật kịch bản thiếu khối",
+ "loai_loi": [
+  "L7"
+ ],
+ "lop_phai_bat": [
+  "d97"
+ ],
+ "ky_vong": {
+  "blockout": {
+   "plan": {
+    "san": {
+     "kich_thuoc": [
+      20,
+      20
+     ],
+     "z": 0
+    },
+    "khoi": [
+     {
+      "id": "a",
+      "loai": "hop",
+      "tam": [
+       3,
+       3
+      ],
+      "kich_thuoc": [
+       [
+        1,
+        1
+       ],
+       [
+        1,
+        1
+       ],
+       [
+        2,
+        2
+       ]
+      ],
+      "nguon": "anh",
+      "huong": 0,
+      "mo_ta_ngan": "hộp"
+     }
+    ],
+    "loi_mo": [],
+    "huong_sang": 90
+   },
+   "codes": [
+    "missing_object"
+   ],
+   "vat_kich_ban": [
+    "cửa"
+   ]
+  }
+ }
+}

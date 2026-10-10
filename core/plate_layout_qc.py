@@ -88,11 +88,11 @@ def compare(image_path: str, plate_path: str, box: Optional[Sequence[float]] = N
         with Image.open(plate_path) as im:
             pw, ph = im.size
     except (OSError, ValueError):
-        return {"mismatch": False, "reasons": ["không đọc được render nền — không so bố cục"]}
+        return {"mismatch": False, "measured": False, "muc": "vang", "reasons": ["không đọc được render nền — không so bố cục"]}
     size = (SIDE, max(8, int(round(SIDE * ph / max(pw, 1)))))
     b, a = _gray(plate_path, size), _gray(image_path, size)
     if a is None or b is None:
-        return {"mismatch": False, "reasons": ["không đọc được ảnh vẽ / render — không so bố cục"]}
+        return {"mismatch": False, "measured": False, "muc": "vang", "reasons": ["không đọc được ảnh vẽ / render — không so bố cục"]}
     mask = _mask(a.shape, box)
     reasons: List[str] = []
     hb, ha = horizon_row(b, mask), horizon_row(a, mask)
@@ -125,8 +125,18 @@ def compare(image_path: str, plate_path: str, box: Optional[Sequence[float]] = N
         edge = None
     if edge is not None and edge < EDGE_VERY_LOW:
         reasons.append(f"đường nét kiến trúc gần như không khớp render (F1 {edge:.2f})")
-    return {"mismatch": bool(reasons), "reasons": reasons, "horizon_plate": hb, "horizon_image": ha, "band_ratio": ratio, "edge": edge,
-            "horizon_source": source}
+    mismatch = bool(reasons)
+    measured = hb is not None and not (analytic and ha is None)
+    # rà 10/10: render SÁNG không có chân trời = cảnh tường/nhà che (hợp lệ, xem trên) — F1 đường nét đo được thì vẫn là đã đo, một phần
+    partial = not measured and hb is None and not dark and edge is not None
+    if partial:
+        measured = True
+        reasons.append(f"đo được một phần: render không có chân trời (cảnh che), chỉ so đường nét F1 {edge:.2f}")
+    if not measured:
+        reasons.append("không đo được chân trời render" if hb is None else "không đo được chân trời ảnh vẽ để so với giải tích")
+    return {"mismatch": mismatch, "measured": measured, "muc": "vang" if mismatch or not measured else "xanh",
+            "reasons": reasons, "horizon_plate": hb, "horizon_image": ha, "band_ratio": ratio, "edge": edge,
+            "horizon_source": source, "partial": partial}
 
 
 def _stage_horizon(conn, pid: int, scene_id: int) -> Optional[float]:
@@ -161,11 +171,11 @@ def check_job(conn, data_dir: str, pid: int, scene_id: int, job_id: int, image_p
         return None
     ref = place_refs.shot_ref(data_dir, pid, scene_id)
     if ref is None:
-        return ("info", "không có render 3D của shot — không so bố cục nền")
+        return ("warn", "không đo được bố cục: không có render 3D của shot")
     if resolution is not None:
         gone = place_refs.stale(conn, data_dir, pid, resolution)
         if -1 in gone or scene_id in gone:
-            return ("info", "không so bố cục: render đang gắn không còn là render của kế hoạch")
+            return ("warn", "không đo được bố cục: render đang gắn không còn là render của kế hoạch")
     res = compare(image_path, ref["path"], ref["_rec"].get("subject_box"), horizon_expected=_stage_horizon(conn, pid, scene_id))
     row = {"job_id": job_id, "scene_id": scene_id, "plate_key": ref.get("plate_key"), **res}
     path = record_path(data_dir, pid)
@@ -181,6 +191,10 @@ def check_job(conn, data_dir: str, pid: int, scene_id: int, job_id: int, image_p
             json.dump(rows, f, ensure_ascii=False, indent=1)
     if res["mismatch"]:
         return ("warn", "nền lệch render 3D (chỉ đánh dấu cho người duyệt, không tự vẽ lại): " + "; ".join(res["reasons"]))
+    if not res["measured"]:
+        return ("warn", "không đo được bố cục nền: " + "; ".join(res["reasons"]))
+    if res.get("partial"):
+        return ("info", "bố cục nền: " + "; ".join(res["reasons"]))
     return ("info", "bố cục nền khớp render 3D" + (f" (chân trời {res['horizon_image']:.2f}/{res['horizon_plate']:.2f})"
                                                    if res.get("horizon_plate") is not None and res.get("horizon_image") is not None
                                                    else ""))

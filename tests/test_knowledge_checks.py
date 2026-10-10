@@ -17,6 +17,27 @@ def _types():
         return json.load(fh)["types"]
 
 
+def test_l9_enum_covers_horizon_observations():
+    from core import stage_facts
+    item = next(t for t in _types() if t["id"] == "L9")
+    declared = set(item["claude_khai"][0]["enum"])
+    assert declared >= set(stage_facts.FACTS["pitch_horizon"]["observe"]["options"])
+
+
+def test_l8_enum_covers_all_framing():
+    from core import stage_grid
+    item = next(t for t in _types() if t["id"] == "L8")
+    assert set(item["claude_khai"][0]["enum"]) >= set(stage_grid.FRAMING)
+
+
+def test_l12_enum_covers_byd_times():
+    from core import shot_intent
+    item = next(t for t in _types() if t["id"] == "L12")
+    labels = {"dawn": "binh_minh", "day": "ngay", "dusk": "hoang_hon", "night": "dem"}
+    assert set(shot_intent.THOI_GIAN) == set(labels)
+    assert set(item["claude_khai"][0]["enum"]) >= set(labels.values())
+
+
 def _read(tid):
     path = os.path.join(CHECKS, f"{tid}.md")
     assert os.path.isfile(path), f"thiếu tệp kỹ năng kiểm {path}"
@@ -59,9 +80,12 @@ def test_title_sections_enums_where_flags():
 
 
 def test_l4_lists_the_current_pose_enum():
-    """Thẩm định 4 (C): L4.md phải liệt kê ĐÚNG `core/shot_intent.TU_THE` hiện tại (có nga_ngua, nam — chỉ chạy khô)."""
+    """Thẩm định 4 (C): L4.md phải liệt kê ĐÚNG `core/shot_intent.TU_THE` hiện tại (có nga_ngua, nam — solver đã hỗ trợ, số hình học còn tạm)."""
     from core import shot_intent
     text = _read("L4")
     for code in shot_intent.TU_THE:
         assert f"`{code}`" in text, f"L4.md thiếu tư thế `{code}` của TU_THE"
+    # rà 10/10: mở cho Director bị HOÃN (người nộm Blender chưa nằm) → L4 phải nói prompt 29 chưa cho dùng + chỉ chạy khô
+    assert "prompt 29 CHƯA cho Director dùng" in text
     assert "chạy khô" in text
+    assert "chưa đo" in text
