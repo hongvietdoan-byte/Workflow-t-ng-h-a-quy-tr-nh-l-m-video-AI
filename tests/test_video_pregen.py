@@ -135,14 +135,12 @@ class FlagOff(Base):
     def test_package_bytes_and_spend_order_match_main_snapshot(self):
         import ast
         import datetime
-        import subprocess
+        import pathlib
         import types
-        baseline = "c78bcfe911935688fa19414b1f5da59ad87e1848"
-        source = subprocess.check_output(["git", "show", f"{baseline}:core/runner.py"], cwd=ROOT, encoding="utf-8")
+        source = (pathlib.Path(ROOT) / "tests/fixtures/k3_flagoff_runner_c78bcfe.txt").read_text(encoding="utf-8")
         tree = ast.parse(source)
-        old_class = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "_Runner")
         names = ("_submit_pending", "_write_sent_package")
-        old = ast.Module(body=[n for n in old_class.body if isinstance(n, ast.FunctionDef) and n.name in names], type_ignores=[])
+        old = ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names], type_ignores=[])
         namespace = dict(runner.__dict__)
         exec(compile(ast.fix_missing_locations(old), "main_snapshot", "exec"), namespace)
         scene, _ = self.shot()
