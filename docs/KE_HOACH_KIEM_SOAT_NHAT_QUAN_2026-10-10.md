@@ -1,356 +1,336 @@
-# Kế hoạch: Quy trình kiểm soát chặt chẽ và nhất quán giữa khâu làm và khâu kiểm (10/10/2026)
+# Kế hoạch: Quy trình kiểm soát chặt chẽ và nhất quán giữa khâu làm và khâu kiểm — BẢN HỢP NHẤT v2 (10/10/2026)
 
-> Người dùng 10/10: "Tôi cần một plan chi tiết hoàn chỉnh để rà soát, kiểm tra tính chặt chẽ và nhất quán của các khâu. Lỗi đã sửa qua
-> nhiều dự án mà vẫn chưa hoàn thiện — cần một quy trình thực sự hoàn chỉnh." Nền: `docs/RA_SOAT_KHAU_VA_KIEM_TRA_2026-10-10.md`
-> (16 khâu làm, 20 vai kiểm, 6 khâu chưa ai kiểm). Kế hoạch này CHƯA được duyệt — mục 9 là các điểm người dùng cần chốt.
+> Yêu cầu người dùng 10/10: "một plan chi tiết hoàn chỉnh để rà soát, kiểm tra tính chặt chẽ và nhất quán của các khâu. Lỗi đã sửa qua
+> nhiều dự án mà vẫn chưa hoàn thiện — cần một quy trình thực sự hoàn chỉnh."
+> Bản v2 viết lại toàn bộ sau: thẩm định độc lập 6,2/10 (`docs/THAM_DINH_KE_HOACH_KIEM_SOAT_2026-10-10.md`), nghiên cứu thị trường
+> (`docs/NGHIEN_CUU_THI_TRUONG_KIEM_SOAT_VIDEO_AI_2026-10-10.md`) và các chốt của người dùng (mục A). Bản v1 (các lần vá 9b–12) ở commit
+> `a9e19ea` — đã thay hoàn toàn, không dùng nữa. Nền: `docs/RA_SOAT_KHAU_VA_KIEM_TRA_2026-10-10.md`.
+> **Trạng thái: mọi điểm đã chốt; chờ thẩm định lại rồi build K0a.**
+
+## A. Các chốt của người dùng (10/10) — nguồn duy nhất cho phạm vi
+
+| # | Chốt |
+|---|---|
+| A1 | Áp cho **dự án mới**. Dự án cũ chỉ dùng làm ca kiểm hồi quy (nhập Bảng ý đồ bằng tay, đánh dấu `ca_vang_tay`). |
+| A2 | Người dùng sửa shot bằng **Bảng ý đồ (BYĐ)**, không sửa prompt; **không có chữ nào không được kiểm**. |
+| A3 | Ngưỡng nghiệm thu (mục 9) **tạm giữ**. |
+| A4 | Thứ tự đợt giữ (ảnh trước, video sau) **và mức kiểm ảnh, video, âm thanh / phụ đề / dựng chặt NHƯ NHAU**. |
+| A5 | **Không phụ thuộc lỗi đã xảy ra**: độ phủ đến từ cấu trúc (mục 4), ca vàng chỉ là kiểm hồi quy. |
+| A6 | **Lẽ thường không phải luật tuyệt đối** (vd bóng + ô tô lơ lửng do hiệu ứng game) → chuẩn so theo tầng (mục 5). |
+| A7 | Chi **≤ 1 USD** (trần cứng) cho so A/B chất lượng prompt trước K3. |
+| A8 | Câu hỏi "cố ý hay lỗi" ≤ 5 / dự án, gom theo vật; **Đạo diễn đọc kịch bản khai trước** vật/người nào cố ý trái lẽ thường ở cảnh nào. |
+| A9 | Duyệt BYĐ kiểu **(c)**: mặc định chỉ hiện ô đáng ngờ, mỗi shot kèm hình render 3D nhỏ; có nút "xem tóm tắt tất cả". |
+| A10 | **Bắt buộc dựng sân khấu 3D cho mọi dự án mới**, kể cả bối cảnh không có model 3D (dựng từ ảnh ref / ảnh bố cục — mục 12 `docs/PHUONG_PHAP_SAN_KHAU_3D.md`). |
+| A11 | **Âm thanh, phụ đề, dựng nằm trong khâu kiểm soát** ngay từ đầu. |
+| A12 | **Prompt do Đạo diễn và hệ thống HỢP TÁC viết**: hệ thống không tự chèn / sửa chữ của Đạo diễn (tránh vô tình ngược ý); hệ thống kiểm và trả lỗi cụ thể, Đạo diễn sửa, lặp tới khi đạt (mục 3.3). |
+| A13 | Người dùng **không phải đọc prompt**: mọi quyết định qua một dòng tiếng Việt + nút. |
 
 ## 0. Vì sao sửa nhiều lần vẫn lặp lại
 
-| Dự án / ngày | Lỗi người dùng bắt | Cách đã sửa | Vì sao kiểu lỗi vẫn quay lại |
+| Dự án / ngày | Lỗi người dùng bắt | Cách đã sửa | Vì sao kiểu lỗi quay lại |
 |---|---|---|---|
-| #8 (27/09–01/10) | trái/phải chi tiết nhân vật, chiều mũ | thêm luật vào prompt QC → rồi "model khai enum" cho riêng mũ | chỉ áp cho 2 loại; không thành cơ chế |
-| #22 KLD (07/10) | nền không đúng map 3D, trang phục lệch mẫu, khẩu trang mất | sửa prompt từng shot bằng tay (8/9 prompt viết tay) | công thức không vào hệ thống (bài học 09/10) |
-| #24 (09/10) | tháp giữa "nền mẫu", tường cao không có thật, máu/tóc trên giếng | vá máy 3D → làm lại bằng sân khấu 3D; ảnh mẫu Kho sạch | ảnh mẫu Kho + ảnh neo cũ kéo nền; không ai đối chiếu |
-| #24 (10/10) | nghiêng máy mất (2, 6, 9), trăng luôn góc trái | câu "nền chỉ từ render", ảnh neo riêng | QC bố cục mù với ảnh đêm |
-| #24 (10/10) | thấy lòng giếng khi máy thấp hơn miệng giếng (4), giếng thành khối (8), tư thế ngã sai (4) | `stage_facts` (một nguồn sự thật hình học) | prompt Director chữ tự do trái hình học; QC cả có render vẫn chấm 'ok' |
+| #8 (27/09–01/10) | trái/phải chi tiết nhân vật, chiều mũ | luật trong prompt QC → "model khai enum" cho riêng mũ | chỉ áp 2 loại; trái/phải VLM vốn kém (~56 %, nghiên cứu) |
+| #22 KLD (07/10) | nền sai map 3D, trang phục lệch mẫu, khẩu trang mất | sửa prompt từng shot bằng tay (8/9 viết tay) — ảnh đẹp | công thức không vào hệ thống; hệ thống không có vòng nhìn–sửa như người |
+| #24 (09/10) | tháp "nền mẫu", tường cao không có thật, máu/tóc trên giếng | vá máy → sân khấu 3D; ảnh mẫu Kho sạch | ảnh mẫu + ảnh neo cũ kéo nền; không ai đối chiếu gói |
+| #24 (10/10) | nghiêng máy mất, trăng luôn góc trái, thấy lòng giếng (máy thấp hơn miệng), giếng thành khối, tư thế ngã sai, màu giếng không ăn khớp | `stage_facts` | prompt Director chữ tự do trái hình học; QC có render vẫn chấm 'ok' |
 
-**Ba gốc chung** (không phải từng lỗi):
+**Ba gốc chung** (có bằng chứng code, thẩm định xác nhận):
+1. **Không có một bản ý đồ có cấu trúc** — mỗi lớp tự hiểu lại chữ tự do bằng mẫu từ riêng (`core/qc_spec.py:20-25`,
+   `core/prompt_formula.py`, `core/stage_facts.contradictions`).
+2. **Kiểm không nhìn đúng thứ trả tiền** — không lớp nào xem cả gói gửi model (prompt + ảnh tham chiếu + vai) trước khi gửi; QC đứng sau
+   gen và đang TẮT → người dùng là cổng duy nhất.
+3. **Bài học không thành hợp đồng** — mỗi lỗi thành một luật lẻ, không có sổ "khâu nào phải có kiểm nào".
 
-1. **Không có một bản ý đồ có cấu trúc.** Đạo diễn viết chữ tự do. Prompt gửi model, ảnh tham chiếu, QC và Tổ rà soát mỗi nơi tự hiểu lại
-   chữ đó bằng cách riêng → mỗi nơi một "niềm tin", không ai so chúng với nhau.
-2. **Kiểm không đứng đúng chỗ.** Thứ thật sự trả tiền là *gói gửi model* (prompt cuối + ảnh tham chiếu + vai), nhưng không lớp nào nhìn cả
-   gói trước khi gửi; lớp mạnh nhất (QC) đứng sau khi đã trả tiền và đang TẮT → người dùng là cổng duy nhất.
-3. **Bài học không thành hợp đồng.** Lỗi người dùng bắt được sửa thành một luật lẻ ở một chỗ; không có danh sách "khâu làm nào phải có
-   khâu kiểm nào", không có bộ ca kiểm lại tự động → loại lỗi mới hoặc khâu khác lại lọt.
+**Bài học từ thị trường** (nghiên cứu): người viết tay "chuẩn hơn" vì (a) có vòng nhìn–sửa và chọn bản tốt nhất (~25 % clip dùng được);
+(b) prompt ngắn đúng ngữ pháp model; (c) prompt dài nhồi nhiều ý thì model gắn đúng thuộc tính/không gian chỉ ~50 %; (d) viết lại tự do
+thêm chi tiết sai; (e) ảnh tham chiếu ít mà có vai rõ. Không công cụ thương mại nào công bố kiểm gói tự động — đó là phần ta thêm, phải
+chứng minh bằng số đo.
 
-## 1. Nguyên tắc của quy trình (bất biến — mọi thay đổi sau này phải giữ)
+## 1. Nguyên tắc (bất biến — mọi đợt phải giữ; test hợp đồng kiểm các điểm có thể kiểm)
 
 | # | Nguyên tắc | Nghĩa cụ thể |
 |---|---|---|
-| N1 | **Một nguồn ý đồ** | Mỗi shot có MỘT Bảng ý đồ shot (BYĐ) có cấu trúc. Mọi thứ gửi model và mọi lớp kiểm đều ĐỌC BYĐ, không đọc lại chữ tự do. |
-| N2 | **Sinh, không chép tay** | Prompt ảnh / motion và danh sách ảnh tham chiếu được code SINH từ BYĐ + sự thật suy ra (hình học 3D, hồ sơ Kho). Chữ tự do chỉ là phần trang trí không kiểm được, ghi rõ như vậy. |
-| N3 | **Kiểm trước tiền** | Mọi khâu tốn tiền (ảnh, video, TTS, nhạc, Claude lớn) có một lớp kiểm TRƯỚC khi gửi, nhìn ĐÚNG gói sẽ gửi. |
-| N4 | **Model khai, code kết luận** | Lớp Claude chỉ trả lời câu hỏi chọn sẵn (có / không / trái / không chắc) về điều nó THẤY; code so với BYĐ và quyết. Không hỏi "có ổn không". |
-| N5 | **Đối xứng làm ↔ kiểm** | Mỗi khâu làm có dòng trong Sổ Làm ↔ Kiểm: kiểm trước, kiểm sau, nguồn đọc, trạng thái. Test đỏ khi khâu tốn tiền thiếu kiểm trước. |
-| N6 | **Lỗi người bắt = ca vàng** | Mỗi lỗi người dùng bắt mà máy lọt → một ca trong Bộ ca vàng + chỉ ra lớp kiểm nào lẽ ra phải bắt → sửa LỚP đó (hoặc thêm loại kiểm), không vá prompt của ca đó. |
-| N7 | **Đo rồi mới chặn** | Lớp kiểm mới chạy "học việc" (ghi, không tác động) → đo trên bộ ca vàng + dự án thật → đạt ngưỡng mới cho chặn (quyết định 08/10). Lớp code chắc chắn (hình học, đếm) được chặn ngay. |
-| N8 | **Người dùng không đọc prompt** | Người dùng thấy MỘT dòng tiếng Việt cho mỗi shot / mỗi lần gen lại: đạt gì, lệch gì, sửa ở đâu. Không bắt người dùng so chữ. |
-| N9 | **Gen lại phải đổi đúng đầu vào** | Lần gen lại phải đổi thứ gây lỗi (chữ, ảnh tham chiếu, vai ảnh, render, máy) — kiểm bằng code; ≤ 2 lần tự động rồi hỏi người. |
+| N1 | **Một nguồn ý đồ** | Mỗi shot một BYĐ có cấu trúc. Mọi lớp kiểm đọc BYĐ (và gói thật), không đọc lại chữ tự do bằng mẫu từ để KẾT LUẬN. |
+| N2 | **Viết hợp tác, không chèn ngầm** | Đạo diễn viết prompt (câu chính, ngắn, đúng ngữ pháp model). Hệ thống KHÔNG sửa / chèn chữ của Đạo diễn; hệ thống đưa trước dữ kiện (sự thật hình học, vai ảnh, ngân sách model), kiểm bản viết, trả lỗi cụ thể; Đạo diễn sửa; lặp ≤ 2 vòng rồi hỏi người. |
+| N3 | **Kiểm trước tiền** | Mọi khâu tốn tiền (ảnh, video, TTS, nhạc, Claude lớn) có lớp kiểm TRƯỚC khi gửi, nhìn ĐÚNG gói sẽ gửi. |
+| N4 | **Model khai, code kết luận** | Lớp Claude chỉ khai điều THẤY (enum / danh sách mở có giới hạn), không khai "đúng/sai", "vô lý hay không". Code so với điều mong đợi (mục 5) và quyết. |
+| N5 | **Không giao VLM việc nó kém** | Trái/phải, đếm, vị trí, tỉ lệ, góc máy: code / bộ phát hiện / hình học 3D quyết. VLM chỉ khai có/không. Đo không được → VÀNG, không đoán. |
+| N6 | **Đối xứng làm ↔ kiểm** | Mỗi khâu làm có dòng trong Sổ khâu (`devsys/stages.json`): kiểm trước, kiểm sau, đọc từ, trạng thái. Khâu tốn tiền thiếu kiểm trước → test đỏ. |
+| N7 | **Độ phủ theo cấu trúc** | Mỗi ô BYĐ và mỗi loại lỗi (mục 4) có sẵn: câu dữ kiện cho Đạo diễn, câu hỏi kiểm gói, mệnh đề kiểm kết quả. Ca vàng chỉ để kiểm hồi quy. |
+| N8 | **Đo rồi mới chặn** | Lớp chắc chắn (hình học, đếm bằng bộ phát hiện, hợp lệ BYĐ) chặn ngay. Lớp Claude chạy học việc → đạt ngưỡng (mục 9) mới chặn. Mọi chặn có nút Bỏ qua + lý do. |
+| N9 | **Người dùng không đọc prompt** | Một dòng tiếng Việt / shot / lần gen lại; quyết bằng nút. |
+| N10 | **Gen lại phải đổi đúng đầu vào** | Chẩn đoán gốc (chữ / ảnh tham chiếu / render / model) → đổi đúng thứ đó; ≤ 2 lần tự động rồi hỏi người. |
+| N11 | **Gọn theo model** | Mỗi model có ngân sách prompt (số từ, ý chính đặt đầu, một hành động / shot, chỉ câu khẳng định — "không được có" diễn lại thành mô tả dương) và trần số ảnh tham chiếu; ngoại hình do ảnh tham chiếu giữ, chữ không tả lại. |
 
-## 2. Kiến trúc mục tiêu
+## 2. Kiến trúc
 
 ```
-Kịch bản ─▶ Đạo diễn ─▶ ① BẢNG Ý ĐỒ SHOT (BYĐ, có cấu trúc)  ◀── người dùng sửa ở đây (không sửa prompt)
+Kịch bản ─▶ Đạo diễn ─▶ ① BYĐ (có cấu trúc + ô ngoại lệ có chủ đích)  ◀── người dùng duyệt kiểu (c) có hình 3D
                                │
-             ② SỰ THẬT SUY RA (code): hình học sân khấu 3D (stage_facts) · hồ sơ Kho (must_keep, dạng) · liên tục shot kề
+             ② SỰ THẬT SUY RA (code, bắt buộc mọi shot — sân khấu 3D A10): hình học · hồ sơ Kho · liên tục · luật thế giới
                                │
-             ③ BỘ SINH GÓI (code): prompt ảnh / motion + ảnh tham chiếu + vai + model  ── dấu vân tay gói
+             ③ VIẾT HỢP TÁC: Đạo diễn viết prompt ⇄ hệ thống kiểm (≤ 2 vòng) · chọn ảnh tham chiếu kiểu Elements · dấu vân tay gói
                                │
-             ④ NGƯỜI DUYỆT GÓI: lớp code (chặn) + lớp Claude khai enum (học việc → chặn)   ── trước tiền
+             ④ NGƯỜI DUYỆT GÓI: lớp code (chặn) + lớp Claude khai (học việc → chặn)            ── trước tiền
                                │ đạt
-             ⑤ GEN (tốn tiền)
+             ⑤ GEN (tốn tiền) — tùy chọn N bản rẻ → chọn → nâng (cần người dùng duyệt chi)
                                │
-             ⑥ QC SAU GEN: mệnh đề sinh từ BYĐ (Tổ QC), code đo + Claude khai enum, code kết luận
+             ⑥ QC SAU GEN: mệnh đề kiểu DSG từ BYĐ, code đo + Claude khai, code kết luận
                                │ lệch
-             ⑦ GEN LẠI: chẩn đoán gốc (chữ / ảnh / render / model) → đổi đúng đầu vào → quay lại ③④
+             ⑦ GEN LẠI: chẩn đoán gốc → đổi đúng đầu vào → quay ③④
                                │
-             ⑧ SỔ LÀM ↔ KIỂM + BỘ CA VÀNG + SỐ ĐO từng lớp kiểm (bắt đúng / báo nhầm / lọt)
+             ⑧ SỔ KHÂU + SỔ ĐIỂM QUYẾT ĐỊNH + BỘ CA HỒI QUY + SỐ ĐO (bắt đúng / báo nhầm / lọt theo loại)
 ```
 
-### 2.1 ① Bảng ý đồ shot (BYĐ)
+Cùng khung ①–⑧ áp cho **ảnh, video, âm thanh (TTS, nhạc, SFX), phụ đề, dựng** (A4, A11) — mục 6.
 
-Mở rộng `shot_specs` đã có của sân khấu 3D (V3, `core/stage_director.py`, prompt 29: `nhip`, `co`, `do_cao`, `goc`, `muc_dich`,
-`thanh_phan[{vat, vai, vung, thay}]`) thành bảng đầy đủ cho mọi shot. Trường (enum khi có thể):
+## 3. Thành phần
 
-| Nhóm | Trường | Kiểu |
+### 3.1 ① Bảng ý đồ shot (BYĐ)
+
+Mở rộng `shot_specs` sân khấu 3D V3 đã có (`prompts/29_director_stage_specs.md:55-67`, `core/stage_solver.py:90-114`; `beats` có
+`tu_the`). Mô-đun mới `core/shot_intent.py` (schema + kiểm hợp lệ).
+
+| Nhóm | Trường (enum khi có thể) |
+|---|---|
+| Truyện | `nhip`, `muc_dich`, `cam_xuc` |
+| Ai trong khung | `thanh_phan[]`: `vat` (mã Kho), `vai` chính/phụ/không_duoc_co, `vung` 3×3, `thay` mặt/lưng/nghiêng, `dang` (dạng trang phục Kho) |
+| Hành động | mỗi người: `bat_dau` / `dinh` / `ket_thuc` = tư thế (enum) + bộ phận chạm đất + hướng nhìn (mã vật) |
+| Vật | `vat[]`: mã Kho + phần phải thấy / không được thấy (mặc định do ② tính, Đạo diễn chỉ ghi khi ý đồ khác) |
+| Máy | `co`, `do_cao`, `goc`, `chuyen_dong` (enum); `stage_camera` do solver giải |
+| Nơi chốn | mã Kho + spot, thời gian, thời tiết, ánh sáng |
+| Ngoại lệ có chủ đích | `ngoai_le[]`: vật/người, điều trái lẽ thường, lý do (kỹ năng / hiệu ứng game / phong cách), cách hiển thị, phạm vi (các shot) — Đạo diễn khai từ kịch bản (A8) |
+| Âm / chữ | thoại (đã có), nhạc theo nhịp, SFX, popup, phụ đề |
+
+Không có trường chữ tự do "không kiểm": mọi ý muốn thêm phải nằm trong ô hoặc trong prompt Đạo diễn viết — mà prompt thì được kiểm (3.3).
+Kiểm hợp lệ (code, chặn): enum đúng; mã Kho có thật; người có trong kịch bản cảnh đó; dạng trang phục có trong Kho; ý BYĐ không trái
+sự thật ② trừ khi có `ngoai_le` tương ứng.
+
+### 3.2 ② Sự thật suy ra (code, 0 USD)
+
+| Nguồn | Hiện có | Phải xây (đợt) |
 |---|---|---|
-| Truyện | `nhip` (beat), `muc_dich` (vì sao shot tồn tại), `cam_xuc` | chữ ngắn + enum cảm xúc |
-| Ai trong khung | `thanh_phan[]`: `vat` (mã Kho), `vai` chính/phụ/không_duoc_co, `vung` trái/giữa/phải × trên/giữa/dưới, `thay` mặt/lưng/nghiêng, `dang` (dạng trang phục Kho, vd yêu nữ d1/d2) | enum |
-| Hành động | `bat_dau`, `dinh`, `ket_thuc` mỗi người: tư thế (enum: đứng / ngồi / ngã ngửa / bò / quỳ…) + bộ phận chạm đất + hướng nhìn | enum + chữ ngắn |
-| Vật | `vat[]`: mã Kho, phần phải thấy / không được thấy (enum: thành ngoài / mặt trên / lòng / không) — mặc định do ② tính | enum |
-| Máy | `co`, `do_cao`, `goc`, `chuyen_dong` (enum), kết quả giải máy `stage_camera` (code) | enum + số |
-| Nơi chốn | `noi` (mã Kho + spot), thời gian, thời tiết, ánh sáng | enum |
-| Âm / chữ | thoại (đã có), popup, phụ đề | đã có |
-| Tự do | `mo_ta_them` — chữ trang trí, KHÔNG kiểm | chữ |
+| Hình học sân khấu 3D | `core/stage_facts.py` (FACTS: top_visible, stand_in, in_frame, pitch_horizon, ref_viewpoint), `core/stage_grid.py`, `core/stage_solver.py` | người (mặt/lưng/vùng) từ dàn cảnh; vật không phải khối trụ; sân khấu từ ảnh ref (A10, V6 — K1) |
+| Hồ sơ Kho | `must_keep`, dạng, `height_m` | `goc_anh_mau` (góc chụp ảnh mẫu), bộ ảnh chuẩn trước/3-4/nghiêng (K1) |
+| Liên tục | trạng thái cuối shot trước | sinh điều kiện đầu shot sau (K1) |
+| Luật thế giới (T2, mục 5) | hồ sơ kỹ năng `data/skills`, `knowledge/ff_gameplay_visual.md` | bảng luật dự án có phạm vi + hạn dùng + nút gỡ (K0b) |
 
-Ai điền: Đạo diễn (Claude) điền BYĐ thay cho chữ tự do (prompt 17/20/29 đổi đầu ra); code kiểm hợp lệ (enum, mã Kho có thật, người có
-trong kịch bản, dạng trang phục có trong Kho). Dự án cũ: công cụ suy BYĐ nháp từ chữ cũ, mọi trường suy được đánh dấu `suy_tu_chu`
-→ khung "Trước khi chạy" báo cần duyệt. Người dùng sửa shot = sửa BYĐ (Dashboard), không sửa prompt.
+### 3.3 ③ Viết hợp tác (A12)
 
-### 2.2 ② Sự thật suy ra (code, 0 USD)
+Vòng cho mỗi shot (ảnh và video):
+1. Hệ thống đưa Đạo diễn **gói dữ kiện**: BYĐ của shot; sự thật ② dạng câu ngắn (vd "máy cao 0,60 m < miệng giếng 0,90 m: chỉ thấy thành
+   ngoài"); vai + ảnh tham chiếu đã chọn (kiểu Elements: nhân vật/vật gọi bằng tên, ngoại hình do ảnh giữ); ngân sách model (N11);
+   ngoại lệ đã khai.
+2. Đạo diễn viết prompt (ngắn, câu khẳng định, ý chính đầu).
+3. Hệ thống kiểm bản viết — KHÔNG sửa chữ:
+   - code: ngân sách từ / số ý / câu phủ định; tên nhân vật/vật có trong BYĐ; mâu thuẫn hình học **ở mức trường** (prompt sinh ý → so ô
+     BYĐ + ②), regex chỉ để gợi ý (VÀNG);
+   - Claude khai (kiểu DSG): tách prompt thành ý nguyên tử; mỗi ý BYĐ: prompt **có nói / không nói / nói trái** + trích ≤ 12 từ; mỗi ý
+     của prompt không có trong BYĐ → liệt kê (ý thêm của Đạo diễn — được giữ nếu không trái BYĐ / ② / Kho / luật thế giới).
+4. Code kết luận → trả Đạo diễn danh sách lỗi cụ thể ("ý 'giếng: chỉ thành ngoài' — prompt nói 'its dark mouth facing us' (trái)").
+5. Đạo diễn sửa → kiểm lại. ≤ 2 vòng. Vẫn đỏ → giữ, hỏi người một dòng + nút (sửa BYĐ / chấp nhận / bỏ shot).
+Kết quả: prompt cuối = chữ của Đạo diễn, đã kiểm đủ; mọi ý có nguồn. **Dấu vân tay gói** dùng lại `core/storyboard_gate.py:103` /
+`core/autopilot.py:651-685` → gói không đổi thì không kiểm lại.
+**So A/B (A7, cuối K2):** 3 shot × 2 bản (prompt viết hợp tác vs prompt Đạo diễn hiện tại), chất lượng thấp, trần cứng ≤ 1 USD, người dùng
+chấm bằng nút → điều kiện qua K3.
 
-- Hình học: `core/stage_facts.py` (đã có 10/10: thấy lòng/thành vật, khối thay thế, vùng khung, chân trời, góc ảnh mẫu) — mở rộng
-  thêm: người (từ dàn cảnh sân khấu: thấy mặt/lưng, vùng), vật che (tia Blender đã có trong `stage_grid`).
-- Kho: `must_keep`, dạng trang phục, chiều cao/kích thước, ảnh mẫu đã duyệt + góc chụp của ảnh mẫu (thêm trường `goc_anh_mau`).
-- Liên tục: trạng thái cuối shot trước (tư thế, chỗ đứng, đồ trên người) → điều kiện đầu shot sau.
-- Mâu thuẫn BYĐ ↔ sự thật (vd BYĐ "thấy lòng giếng" mà máy thấp hơn miệng giếng) → mục ĐỎ ngay khi Đạo diễn ghi (trước mọi gen).
+### 3.4 ④ Người duyệt gói (trước tiền)
 
-### 2.3 ③ Bộ sinh gói
+**Lớp code — chặn ngay:** BYĐ hợp lệ; prompt đã qua 3.3; ảnh tham chiếu đúng vai (mỗi người trong khung một bộ đúng dạng; không ảnh
+người không có trong khung; ảnh vật có nhãn "chỉ hình dáng/chất liệu" khi góc máy khác `goc_anh_mau`; render nền có; ảnh neo chỉ cùng
+máy — `scene_storyboard.own_camera`); trần số ảnh theo model; video: khung đầu = ảnh đã duyệt hiện hành của chính shot, motion đủ
+đầu–đỉnh–cuối, thời lượng hợp model; âm thanh: thoại đúng người nói/giọng, độ dài khớp shot; gen lại: N10.
+**Lớp Claude — học việc rồi chặn:** nhìn ảnh tham chiếu thu nhỏ có nhãn vai + prompt cuối + BYĐ; khai mỗi ảnh có kéo trái ý nào không
+(enum) — vì ảnh tham chiếu xung đột là nguồn lỗi #24 mà code không thấy được nội dung ảnh.
 
-- **Ảnh**: khuôn prompt (`prompt_formula` — đã có phần) điền từ BYĐ: cỡ + máy → ai ở đâu, tư thế, thấy mặt/lưng → vật + phần thấy →
-  nơi chốn, ánh sáng → câu sự thật hình học (`stage_facts`) → `mo_ta_them`. Ảnh tham chiếu chọn từ BYĐ: mỗi người đúng dạng trang phục,
-  mỗi vật Kho + nhãn "chỉ lấy hình dáng/chất liệu, không lấy góc máy", render nền 3D, ảnh neo (chỉ khi cùng máy). Mỗi ảnh có vai.
-- **Video**: khung đầu = ảnh đã duyệt của chính shot (kiểm mã job), motion sinh từ `bat_dau → dinh → ket_thuc` + `chuyen_dong` máy,
-  khung cuối (nếu có) từ `ket_thuc`, ảnh tham chiếu video theo luật model (Kling / Seedance — `reference_reference_asset_prompting`).
-- **Dấu vân tay gói** = băm(prompt cuối + danh sách ảnh + vai + model + tham số). Mọi lớp kiểm ghi theo dấu vân tay; gói không đổi →
-  không kiểm lại (không tốn tiền lại).
+### 3.5 ⑤ Gen — N bản rẻ (tùy chọn, tốn tiền)
+Mở rộng tuyến E1 (09/10) từ video sang ảnh khung đầu: 2–4 bản chất lượng thấp → ⑥ chấm theo ý → code/người chọn → nâng. Bật theo dự án,
+người dùng duyệt chi trước (ước tính in rõ).
 
-### 2.4 ④ Người duyệt gói (trước tiền)
+### 3.6 ⑥ QC sau gen (DSG)
+- Mệnh đề sinh từ BYĐ + ② + ngoại lệ (thay `qc_spec` đọc chữ bằng mẫu từ), **nguyên tử + đồ thị phụ thuộc** (ý cha "có Kelly trong
+  khung" sai → bỏ ý con), mỗi mệnh đề gắn loại (mục 4) để thống kê.
+- Code đo phần N5: YuNet (đã có), bộ phát hiện vật / Pose / embedding mặt / thống kê màu vùng (phải xây — K5), chân trời giải tích.
+- Claude khai (cơ chế `qc_team` enum + `qc_rules`; Tổ QC hiện chỉ có C1 — C2/C3 xây ở K5) + câu hỏi mở có giới hạn "liệt kê ≤ 5 thứ thấy
+  mà BYĐ không nói" (mục 4, L15).
+- Video: VLM chỉ chấm tường thuật + chuyển động; trôi hình / giật / viền / môi bằng đo clip (d42 đã có); không chặn tự động theo "chất
+  lượng hình" (nghiên cứu: VLM r 0,345 vs người 0,705).
+- Chạy lại ca hồi quy lớp Claude 0 USD bằng `qc_team.ReplayClient` khi prompt kiểm không đổi.
 
-**Lớp code — chặn thật từ đầu** (chỉ những thứ chắc chắn):
-- BYĐ hợp lệ; không còn trường `suy_tu_chu` chưa duyệt.
-- Sự thật hình học không mâu thuẫn (prompt + BYĐ) — `stage_facts.contradictions`.
-- Ảnh tham chiếu: đủ mỗi người trong khung một ảnh đúng dạng; không có ảnh người KHÔNG có trong khung; ảnh vật có nhãn góc khi máy khác
-  góc ảnh mẫu; render nền có khi shot có máy 3D; ảnh neo chỉ khi cùng máy (`scene_storyboard.own_camera`).
-- Video: khung đầu là ảnh đã duyệt hiện hành của shot; motion có đủ đầu-đỉnh-cuối; thời lượng hợp model.
-- Gen lại: gói khác gói lần trước ở đúng thứ gây lỗi (N9).
+### 3.7 ⑦ Gen lại
+Chẩn đoán gốc (code, từ ⑥ / ghi chú người dùng tách ý): BYĐ sai → người sửa ô; prompt sai → vòng 3.3 với lỗi cụ thể; ảnh tham chiếu
+kéo → đổi ảnh / nhãn vai; render → sửa máy / khối; model lờ ý đúng → câu nhấn mạnh khác hoặc đổi model. Kiểm "đã xử lý ý / chưa / một
+phần" + không thoái lui (ý đã đạt ở bản trước còn trong gói). Người dùng thấy: "Gen lại lần 2 · sửa 'tư thế ngã': ✅ · giữ 8/8 ý ✅ ·
+đổi: chữ tư thế + bỏ ảnh neo cũ".
 
-**Lớp Claude — học việc trước** (đọc ĐÚNG gói: prompt cuối + ảnh tham chiếu thu nhỏ có nhãn vai + BYĐ):
-- Code tách BYĐ thành các ý kiểm (vd "Kelly: ngã ngửa, hai tay chống sau", "giếng: chỉ thành ngoài").
-- Claude khai từng ý: prompt có nói / không nói / nói trái; ảnh tham chiếu có kéo trái ý không (enum) + chỗ trong prompt (trích ≤ 12 từ).
-- Code kết luận: 'trái' ở ý vai chính → đỏ; 'không nói' → vàng; 'không chắc' → vàng.
-- Học việc: ghi `trainee_log` + so với ca vàng; đạt ngưỡng (mục 6) → chặn.
+### 3.8 Thay đổi giữa chừng
+`change_review` (bật 10/10, đo 0,013–0,019 USD/thay đổi) đọc khác biệt BYĐ (bảng WATCH chuyển sang trường BYĐ); gói shot bị ảnh hưởng mất
+dấu vân tay → ③④ lại.
 
-Hiển thị: một dòng mỗi shot ở thẻ ảnh/clip: "Gói shot 4: 9/9 ý ✅ · hình học ✅ · ảnh tham chiếu ✅" hoặc "🔴 ý 'ngã ngửa' prompt nói
-'ngồi' — sửa ở BYĐ shot 4".
+### 3.9 ⑧ Sổ và số đo
+- `devsys/stages.json` (MỚI): khâu L1–L16 + A1–A4 (mục 6) → `kiem_truoc[]`, `kiem_sau[]` (id trong `devsys/decisions.json`), `doc_tu`
+  (BYĐ / gói / kết quả), `trang_thai`, `ton_tien`. Không nhồi cột vào 84 điểm quyết định. Thêm vào `decisions.json` các khâu code
+  đang thiếu (prompt_formula, stage_facts, before_run, giải máy, render nền, end_popup, vòng viết hợp tác, người duyệt gói).
+- Test hợp đồng (`tests/test_devsys_stages.py`): khâu `ton_tien` thiếu `kiem_truoc` đang chạy/học việc → đỏ; lớp kiểm `doc_tu: chu_tu_do`
+  để kết luận → đỏ; mỗi loại lỗi mục 4 có ≥ 1 cách kiểm CÓ THẬT (không tính "học việc" khi chưa có cách đo — thẩm định #7) cho từng loại
+  sản phẩm áp dụng; mỗi ô BYĐ có đủ 3 câu (dữ kiện / kiểm gói / mệnh đề QC).
+- Bộ ca hồi quy `tests/golden/` (định dạng chốt ở K0a): ca = BYĐ (tay cho dự án cũ, `ca_vang_tay`) + máy + Kho + gói + (ảnh kết quả) +
+  lỗi + lớp phải bắt.
+- Trang devsys "Làm ↔ Kiểm": bảng mục 7 sinh từ sổ, đỏ khi khâu thiếu kiểm; số đo theo loại.
 
-### 2.5 ⑥ QC sau gen
+## 4. Độ phủ theo cấu trúc (A5)
 
-- Mệnh đề QC sinh từ BYĐ (thay cho đọc chữ shot bằng mẫu từ trong `core/qc_spec.py`) + sự thật hình học (đã nối 10/10).
-- Lớp code: đo cỡ/mặt/sáng (lớp 0), chân trời giải tích, vùng người/vật bằng phát hiện (YuNet/khung) khi đo được.
-- Lớp Claude: Tổ QC khai enum (cơ chế `qc_team` đã có) → `qc_rules` kết luận.
-- Bật lại theo lộ trình: học việc trên dự án mới, đo theo mục 6, rồi chặn (quyết định 01/10: chỉ dự án mới).
+Ba nguồn, không dựa lỗi cũ:
+1. **Ô BYĐ tự sinh phép kiểm** (N7): ý đồ mới của dự án mới → phép kiểm mới tự có.
+2. **Bảng loại lỗi** — mỗi loại có cách kiểm cho từng sản phẩm áp dụng:
 
-### 2.6 ⑦ Gen lại
+| # | Loại | Code đo (hiện có / xây ở đợt) | Claude khai | Ảnh | Video | Âm/Chữ |
+|---|---|---|---|---|---|---|
+| L1 | Danh tính | đếm mặt YuNet (có) · embedding mặt (K5) | người X: có / không / không chắc | ✓ | ✓ khung mẫu | — |
+| L2 | Trang phục / dạng | `palette_check` (có, TẮT) · màu vùng thân (K5) | từng món must_keep: có / khác / không thấy | ✓ | ✓ | — |
+| L3 | Số người, người lạ | YuNet (có) · bộ phát hiện (K5) | người không có trong BYĐ: có / không | ✓ | ✓ | — |
+| L4 | Tư thế, hành động | Pose (K5) | tư thế enum | ✓ | ✓ đầu–đỉnh–cuối | — |
+| L5 | Hướng nhìn, mặt/lưng | YuNet (có) | mặt / lưng / nghiêng | ✓ | ✓ | — |
+| L6 | Vị trí trong khung | bộ phát hiện + vùng 3×3 (K5) · chiếu 3D (có) | (không giao VLM — N5) | ✓ | ✓ | — |
+| L7 | Vật: có/không, phần thấy, hình dáng | `stage_facts` (có) | phần thấy · hình dáng (khối / thật) | ✓ | ✓ | — |
+| L8 | Tỉ lệ, cỡ cảnh | đo mặt/khung (có) · chiếu 3D (có) | cỡ | ✓ | ✓ | — |
+| L9 | Máy: góc, nghiêng, chân trời | giải tích (có) | chân trời ở ba phần nào | ✓ | ✓ + chuyển động máy | — |
+| L10 | Hòa hợp ánh sáng / màu | thống kê màu-độ sáng vùng vật vs nền quanh, so render (K5) | vật nào trông dán vào / khác tông | ✓ | ✓ | — |
+| L11 | Nơi chốn, nền | so render nét / chân trời (có, sửa 10/10) | thứ trong nền không có trong render | ✓ | ✓ | — |
+| L12 | Thời gian, thời tiết, ánh sáng | độ sáng, nhiệt màu (K5) | ngày/đêm · sương · nguồn sáng | ✓ | ✓ | — |
+| L13 | Liên tục shot kề | so trạng thái cuối/đầu (K1) | đồ / chỗ / tư thế giữ không | ✓ | ✓ | ✓ thoại |
+| L14 | Lỗi tạo hình | — | tay, mặt méo, chữ lạ: có/không + chỗ | ✓ | ✓ | — |
+| L15 | Thứ lạ ngoài BYĐ | — | danh sách mở ≤ 5 → code so "không được có" + vàng thứ lạ | ✓ | ✓ | — |
+| V1–V4 | Trôi hình, giật, môi, chuyển động máy | đo clip d42 (có) | chuyển động khớp `bat_dau→dinh→ket_thuc` / máy | — | ✓ | — |
+| A1 | Thoại: đúng câu, đúng người, đúng giọng | so chữ TTS d39 (có), độ dài | — | — | — | ✓ |
+| A2 | Nhạc / SFX theo nhịp, cường độ | loudness (có), mốc nhịp | SFX khớp hành động: có/không | — | — | ✓ |
+| A3 | Phụ đề: chính tả, khớp thoại, thời điểm, vùng an toàn | so chữ, so mốc thời gian (K6) | — | — | — | ✓ |
+| A4 | Dựng: thứ tự, nhịp, chuyển cảnh, popup giữ khung cuối | so kịch bản / BYĐ (K6) | rough_cut (học việc) | — | ✓ | ✓ |
 
-- Chẩn đoán gốc bằng code từ kết quả QC / ghi chú người dùng → loại gốc: BYĐ sai (người sửa) · chữ sinh sai (sửa khuôn) · ảnh tham
-  chiếu kéo (đổi ảnh / nhãn vai) · render (sửa máy / khối) · model (đổi câu nhấn mạnh / đổi model).
-- Đạo diễn viết lại (`prompt_rewrite`, đang bật) chỉ sửa phần thuộc gốc 'chữ'; ghi chú người dùng tách thành ý → ④ kiểm "đã xử lý /
-  chưa / một phần" + không thoái lui (các ý đã đạt ở ảnh trước phải còn) + N9.
-- Người dùng thấy: "Gen lại lần 2 · sửa 'tư thế ngã': ✅ · giữ 8/8 ý ✅ · đổi: chữ tư thế + bỏ ảnh neo cũ".
+3. **Phát hiện cái chưa biết:** L15 + mọi lỗi người dùng bắt mà lọt được xếp vào một loại; không xếp được → thêm loại mới. Số đo "lọt
+   theo loại" chỉ loại kiểm yếu.
 
-### 2.7 Thay đổi giữa chừng
+**Bộ kỹ năng kiểm** `knowledge/checks/<loai>.md` (K0b): mỗi loại một tệp gom từ nghề — giám sát kịch bản / liên tục (L4, L5, L13),
+quay phim (L6, L8, L9), ghép hình VFX: hướng + nhiệt màu nguồn sáng, mức đen, bóng tiếp xúc, phối cảnh, độ nét, nhiễu (L7, L10), thiết kế
+bối cảnh / map FF (L11, L12), lỗi ảnh / video AI (L14, V1–V4), Character Lock (L1–L3), âm thanh / phụ đề / dựng (A1–A4). Mỗi mục =
+câu hỏi khai được + cách code kết luận. Hạng mục "lẽ thường" (vật lý, tỉ lệ, góc nhìn…) chỉ là GỢI Ý để model nhìn kỹ, không phải luật.
 
-Tổ rà soát tác động (`change_review`, bật 10/10) đọc **khác biệt BYĐ** (trường nào đổi) thay vì so chữ; luật code biết trường BYĐ nào ảnh
-hưởng khâu nào (bảng WATCH chuyển sang trường BYĐ); gói của shot bị ảnh hưởng tự mất dấu vân tay → ④ kiểm lại trước gen.
+## 5. Chuẩn so theo tầng (A6, A8)
 
-### 2.8 ⑧ Sổ Làm ↔ Kiểm + Bộ ca vàng + số đo
+| Tầng | Nguồn | Ví dụ |
+|---|---|---|
+| T1 Ý đồ shot | BYĐ + `ngoai_le` Đạo diễn khai từ kịch bản | "bóng + ô tô lơ lửng do hiệu ứng kỹ năng Z: quầng sáng xanh" |
+| T2 Luật thế giới | hồ sơ kỹ năng FF, tư liệu gameplay, phong cách, luật dự án do người dùng trả lời | xe FF không bay; kỹ năng đúng màu/hình |
+| T3 Lẽ thường | mặc định đời thực | vật không tự lơ lửng |
 
-- **Sổ** = mở rộng `devsys/decisions.json`: mỗi khâu thêm `kiem_truoc[]`, `kiem_sau[]`, `doc_tu` (BYĐ / gói / kết quả), `trang_thai`
-  (chạy / học việc / tắt), `ton_tien`. Thêm các khâu code đang thiếu (prompt_formula, stage_facts, before_run, giải máy, render nền,
-  end_popup, bộ sinh gói, người duyệt gói).
-- **Test hợp đồng** (`tests/test_devsys_decisions.py` mở rộng): khâu `ton_tien` mà `kiem_truoc` rỗng → đỏ; lớp kiểm khai `doc_tu: chu_tu_do`
-  → đỏ (phải đọc BYĐ hoặc gói); mỗi loại kiểm có ít nhất 1 ca vàng.
-- **Bộ ca vàng** `tests/golden/` (mở rộng `tests/fixtures/stage_facts_golden.json`): mỗi ca = shot (BYĐ + máy + Kho), gói, (ảnh kết quả
-  nếu có), lỗi đúng, lớp kiểm phải bắt. Ca từ mục 0 (≥ 15 ca: #8 trái/phải + mũ, #22 nền/trang phục/khẩu trang, #24 tháp/tường/máu-tóc/
-  nghiêng/trăng/lòng giếng/khối/tư thế/bóng lướt). Lớp code chạy ca vàng trong bộ test (0 USD); lớp Claude chạy ca vàng bằng công cụ có
-  trần `--max-usd` khi đổi prompt lớp đó.
-- **Số đo** mỗi lớp kiểm (trang devsys "Làm ↔ Kiểm"): bắt đúng / báo nhầm / lọt (lọt = người dùng bắt sau) theo dự án; tiền kiểm so
-  tiền gen.
+Code tìm điều mong đợi T1 → T2 → T3 cho từng điều Claude khai thấy:
+- T1 có ngoại lệ → **đảo chiều kiểm**: hiệu ứng có đúng như tả (quầng sáng, vật nào lơ lửng, độ cao) không.
+- T2 có luật → kiểm theo luật.
+- Chỉ T3 mà lệch, T1/T2 im lặng → **không tự kết luận**: VÀNG + câu hỏi "cố ý hay lỗi?" (≤ 5 / dự án, gom theo vật — A8). "Cố ý" → luật
+  T2 **có phạm vi** (vật + ngữ cảnh/kỹ năng + dự án), có hạn dùng, có nút gỡ; không áp ngầm cho vật khác (bài học "không khái quát từ
+  một mẫu"). "Lỗi" → đỏ + gen lại.
+- Trước tiền: ý trong BYĐ / prompt trái T3 mà `ngoai_le` trống → Đạo diễn phải khai lý do + cách hiện trong vòng 3.3.
 
-## 3. Ma trận Làm ↔ Kiểm mục tiêu
+## 6. Cùng một mức chặt cho mọi sản phẩm (A4, A11)
+
+| Sản phẩm | ① ý đồ | ② sự thật | ③ viết hợp tác | ④ duyệt gói | ⑥ QC | ⑦ gen lại |
+|---|---|---|---|---|---|---|
+| Ảnh khung đầu / neo / khung cuối | BYĐ | 3D + Kho | prompt ảnh | code + Claude | L1–L15 | N10 |
+| Video | BYĐ hành động + máy | 3D + khung đầu duyệt | motion prompt | code (khung đầu, motion, ref video theo luật model) + Claude | L1–L15 trên khung mẫu + V1–V4 | N10 |
+| TTS / thoại | thoại BYĐ | hồ sơ giọng | văn bản đọc | người nói, giọng, độ dài | A1 | đổi câu / giọng |
+| Nhạc / SFX | nhịp, cảm xúc | đường cảm xúc cả truyện | brief | độ dài, mốc nhịp | A2 | đổi brief |
+| Phụ đề | thoại | — | bản dịch | chính tả, độ dài dòng | A3 | sửa chữ |
+| Dựng / popup | thứ tự, nhịp | thời lượng | danh sách cắt | khớp kịch bản | A4 | đổi cắt |
+
+## 7. Ma trận Làm ↔ Kiểm mục tiêu
 
 | Khâu làm | Kiểm trước (đọc) | Kiểm sau | Trạng thái mục tiêu |
 |---|---|---|---|
-| L1 kịch bản | K1 dựng được, IP (kịch bản) | người | như cũ |
-| L3 Đạo diễn → **BYĐ** | hợp lệ BYĐ + mâu thuẫn sự thật (BYĐ, ②) | "Trước khi chạy" | code chặn |
-| L5 Kho / ảnh mẫu | hồ sơ đủ `must_keep`, `goc_anh_mau` | người duyệt Kho | code cảnh báo → chặn khi dùng |
-| L6 sân khấu 3D | luật P/S/C solver (số) | ② stage_facts | có |
-| L7 ảnh neo storyboard | ④ (gói) | ⑥ | học việc → chặn |
-| L8–L9 gói + gen ảnh | ④ code + Claude (gói + BYĐ) | ⑥ Tổ QC (BYĐ) + người | code chặn; Claude học việc → chặn |
-| L10 gen lại ảnh | ④ + N9 + "đã xử lý ý" | ⑥ | như L9 |
-| L11 motion | ④ video (BYĐ hành động) | — | thay "rà motion theo nút" |
-| L12–L13 gói + gen video | ④ video (khung đầu, motion, ref) | K16 đo clip + QC clip + người | code chặn; Claude học việc → chặn |
-| L14 TTS / nhạc / SFX / phụ đề | K17 TTS; nhạc theo brief | người | như cũ (giai đoạn sau) |
-| L15 dựng, popup | — | rough_cut_review (học việc) | giai đoạn sau |
+| L1 kịch bản | dựng được, IP | người | như cũ |
+| L3 Đạo diễn → BYĐ | hợp lệ + mâu thuẫn ② (BYĐ) | người duyệt kiểu (c) | code chặn |
+| L5 Kho / ảnh mẫu | `must_keep`, `goc_anh_mau`, bộ ảnh chuẩn | người duyệt Kho | code chặn khi dùng |
+| L6 sân khấu 3D (mọi dự án mới) | luật P/S/C solver | ② | có |
+| L7–L9 gói + gen ảnh | ③ + ④ | ⑥ + người | code chặn; Claude học việc → chặn |
+| L10 gen lại | ③ + ④ + N10 + không thoái lui | ⑥ | như L9 |
+| L11–L13 motion, gói + gen video | ③ + ④ video | ⑥ video + d42 + người | như ảnh |
+| L14 TTS / nhạc / SFX / phụ đề | ④ âm/chữ | A1–A3 + người | như ảnh |
+| L15 dựng, popup | ④ dựng | A4 + người | như ảnh |
 | L16 thay đổi | Tổ rà soát (khác biệt BYĐ) | — | có |
 
-## 4. Lộ trình theo đợt
+## 8. Lộ trình
 
 Mỗi đợt: cờ riêng (TẮT mặc định), test đỏ → xanh, rà KỸ khi đụng tiền / chặn job / dữ liệu, cả bộ test trước gộp, quy ước 7.
 
 | Đợt | Việc | Tốn tiền | Xong khi |
 |---|---|---|---|
-| **K0** Sổ Làm ↔ Kiểm + Bộ ca vàng (nền đo) | mở rộng `decisions.json` + test hợp đồng; ≥ 15 ca vàng từ mục 0; công cụ chạy ca vàng (code 0 USD; Claude có `--max-usd`); trang devsys "Làm ↔ Kiểm" | 0 | test hợp đồng chạy; bảng hiện đúng 6 khâu chưa kiểm (đỏ) |
-| **K1** BYĐ | schema + kiểm hợp lệ (`core/shot_intent.py`); Đạo diễn điền BYĐ (prompt 17/20/29, cờ `shot_intent`); suy BYĐ nháp cho dự án cũ (đánh dấu `suy_tu_chu`); sửa BYĐ trên Dashboard | Claude khi chạy Đạo diễn (như cũ) | #24 có BYĐ đủ 9 shot, người dùng duyệt |
-| **K2** Bộ sinh gói ảnh | prompt + ảnh tham chiếu sinh từ BYĐ + ②; dấu vân tay gói; so trước/sau trên #24, #22 (chạy khô, 0 USD) | 0 | prompt sinh ra không câu trái sự thật; người dùng duyệt 2–3 mẫu gói (một dòng) |
-| **K3** Người duyệt gói ảnh | lớp code chặn; lớp Claude học việc; một dòng tiếng Việt; gen lại đi qua ④ + N9 | lớp Claude ≈ 0,02–0,04 USD/shot/gói đổi; đo thật #24 ≈ 0,2–0,4 USD (báo giá trước) | ca vàng ảnh: lớp code bắt 100 % ca thuộc nó; số đo Claude ghi |
-| **K4** Gói + người duyệt video | khung đầu, motion từ BYĐ, ref video theo luật model; lớp code chặn; Claude học việc | như K3 | ca vàng video (khi có) |
-| **K5** QC sau gen từ BYĐ | `qc_spec` đọc BYĐ; bật Tổ QC học việc dự án mới; chẩn đoán gốc cho gen lại | QC ≈ 0,02 USD/khung (đo GĐ3) | số đo đạt mục 6 → đề xuất chặn |
-| **K6** Thay đổi theo BYĐ | `change_review` đọc khác biệt BYĐ; gói mất dấu vân tay → ④ | như hiện tại | Tổ rà soát không còn đọc chữ tự do |
-| **K7** Vận hành | quy trình mục 7 vào `docs/CHUAN_XAY_DUNG.md` + CLAUDE.md; báo cáo số đo hàng tuần | 0 | — |
+| **K0a** Sổ khâu + định dạng | `devsys/stages.json` + test hợp đồng; thêm khâu code thiếu vào `decisions.json`; schema BYĐ tối thiểu + định dạng ca hồi quy; sửa `LLM_STAGE_TOKENS` khâu chấm (đo 10/10: output ~5k, ước thấp ~40 %) | 0 | test hợp đồng chạy, trang "Làm ↔ Kiểm" hiện đúng các khâu thiếu kiểm (đỏ) |
+| **K0b** Bảng loại lỗi + kỹ năng + luật thế giới | `knowledge/checks/*.md` cho L1–L15, V1–V4, A1–A4; bảng luật thế giới có phạm vi; ca hồi quy từ #8/#22/#24 (`ca_vang_tay`) | 0 | mỗi loại có tệp kỹ năng + cách kết luận; ≥ 15 ca hồi quy định dạng đúng |
+| **K1** BYĐ + sân khấu 3D bắt buộc | `core/shot_intent.py`; Đạo diễn điền BYĐ + `ngoai_le` (prompt 17/20/29, cờ `shot_intent`); sân khấu từ ảnh ref (V6 — tải model chiều sâu ~100 MB: hỏi người dùng trước); duyệt kiểu (c) có hình 3D trên Dashboard | Claude khi chạy Đạo diễn | một dự án mới thử có BYĐ đủ mọi shot, người dùng duyệt |
+| **K2** Viết hợp tác (ảnh) | vòng 3.3 + dấu vân tay gói + ngân sách model + ảnh tham chiếu kiểu Elements; **so A/B ≤ 1 USD** (A7) | ≤ 1 USD (A/B) + Claude vòng viết | người dùng chấm A/B: bản hợp tác ≥ bản hiện tại ở ≥ 2/3 shot |
+| **K3** Người duyệt gói ảnh | ④ lớp code chặn, lớp Claude học việc; gen lại qua ③④ + N10; một dòng tiếng Việt | Claude học việc (đo thật — báo giá trước) | lớp code bắt 100 % ca hồi quy thuộc nó; số đo Claude ghi đủ 1 dự án |
+| **K4** Video ngang ảnh | ③④⑥ cho video: khung đầu, motion đầu–đỉnh–cuối, ref video theo luật model, L1–L15 trên khung mẫu + V1–V4 | như K3 | ca hồi quy video (#22, #24) bắt đúng; ④ video chặn khung đầu sai 100 % |
+| **K5** QC sau gen + công cụ đo | DSG + đồ thị phụ thuộc; bộ phát hiện vật, Pose, embedding mặt, màu vùng (L10); Tổ QC C2/C3; N bản rẻ → chọn (tùy chọn) | QC ≈ 0,03–0,04 USD/khung (ước theo số mệnh đề) | số đo đạt mục 9 → đề xuất chặn |
+| **K6** Âm thanh, phụ đề, dựng | ③④⑥ cho A1–A4 | nhỏ | ca hồi quy âm/chữ bắt đúng |
+| **K7** Thay đổi theo BYĐ | `change_review` đọc khác biệt BYĐ | như hiện tại | không lớp nào còn đọc chữ tự do để kết luận |
+| **K8** Vận hành | quy trình mục 10 vào `docs/CHUAN_XAY_DUNG.md` + CLAUDE.md; báo cáo số đo hàng tuần | 0 | — |
 
-Thứ tự bắt buộc: K0 trước (đo được độ phủ trước khi sửa), K1 → K2 → K3 nối tiếp (mỗi đợt dùng đầu ra đợt trước); K4, K5 sau K3; K6 sau K1.
+Phụ thuộc: K0a → K0b → K1 → K2 → K3 → K4; K5 sau K3 (song song K4 được); K6 sau K3; K7 sau K1. Điểm dừng đo: cuối K2 (A/B), cuối K3
+(số đo học việc), cuối K4 (video).
 
-## 5. Chi phí ước tính (chưa đo, sẽ đo ở K3 và báo lại)
+## 9. Chi phí (ước, đo lại ở K3) và tiêu chí nghiệm thu
 
-- Phát triển: 0 USD API (code + test); token Claude Code theo gói.
-- Vận hành thêm mỗi dự án 9 shot: lớp Claude ④ ảnh + video ≈ 0,4–0,7 USD; QC ⑥ ≈ 0,2–0,4 USD; Tổ rà soát ≈ 0,03 USD/thay đổi.
-  So với gen: ảnh ≈ 0,05 USD/ảnh, video 720p Seedance 2.0 ≈ 1–2 USD/clip → phần kiểm ≈ 5–10 % chi phí gen, đổi lại tránh gen lại.
-- Ước tính dùng trần ×2 cho lời gọi chấm (đo 10/10: output QC ≈ 5k token, bảng ước thấp ≈ 40 %) — sửa bảng `LLM_STAGE_TOKENS` ở K0.
+**Chi phí vận hành thêm / dự án 9 shot** (giá đo: Tổ QC C1 ≈ 0,019 USD cho ~12 mệnh đề; Tổ rà soát 0,013–0,019 USD / thay đổi):
 
-## 6. Tiêu chí nghiệm thu toàn quy trình
+| Phần | Ảnh | Video | Âm/chữ/dựng |
+|---|---|---|---|
+| ③ vòng viết (≤ 2 vòng × ~0,02) | ~0,2–0,4 | ~0,2–0,4 | ~0,1 |
+| ④ lớp Claude | ~0,2–0,3 | ~0,2–0,3 | — |
+| ⑥ QC (~20 mệnh đề × 9) | ~0,3–0,4 | ~0,3–0,5 (khung mẫu) | ~0,1 |
+| Cộng | ~0,7–1,1 | ~0,7–1,2 | ~0,2 |
 
-| Chỉ số | Ngưỡng |
-|---|---|
-| Ca vàng | 100 % ca có lớp kiểm được gán bắt đúng (lớp code: trong bộ test; lớp Claude: lần chạy có trần) |
-| Độ phủ | 0 khâu tốn tiền thiếu kiểm trước (test hợp đồng) |
-| Lọt | Trên 2 dự án mới liên tiếp: lỗi người dùng bắt mà máy lọt ≤ 1/dự án, và mỗi lỗi lọt thành ca vàng trong ngày |
-| Báo nhầm | Lớp Claude ④/⑥ báo nhầm ≤ 10 % mục (đo học việc) trước khi chặn; trái/phải không tự chặn (bài học 01/10) |
-| Chi phí kiểm | ≤ 10 % chi phí gen của dự án |
-| Người dùng | Không phải đọc prompt: mọi quyết định qua một dòng tiếng Việt + nút |
+Tổng ≈ 1,6–2,5 USD / dự án; so chi gen (ảnh ~0,05 × 9 × lần gen + video ~1–2 × 9) ≈ 10–20 USD → **≈ 10–20 %**. Ngưỡng cũ "≤ 10 %"
+có thể bị vượt → giữ ngưỡng (A3) nhưng ĐO ở K3 và báo người dùng nếu vượt; giảm bằng dấu vân tay (không kiểm lại gói không đổi), gom
+mệnh đề, ReplayClient cho ca hồi quy.
 
-## 7. Quy trình khi gặp lỗi mới (vận hành — thay cho "sửa ngay chỗ đó")
+**Tiêu chí nghiệm thu:**
 
-1. Ghi ca vàng (shot, gói, ảnh, lỗi đúng) — 0 USD.
-2. Xác định khâu làm sinh ra lỗi (BYĐ / ② / ③ / model) và lớp kiểm lẽ ra phải bắt (theo Sổ).
-3. Nếu chưa có lớp kiểm cho loại này → thêm loại vào sổ kiểm tương ứng (vd `FACTS`, mệnh đề QC) với đủ: suy ra / câu sinh / câu khai /
-   code kết luận; nếu có mà lọt → sửa lớp đó.
-4. Sửa nguồn (BYĐ / khuôn sinh), KHÔNG vá prompt của riêng ca đó.
-5. Test: ca vàng mới đỏ trên code cũ, xanh sau sửa; cả bộ test.
-6. Ghi số đo lớp kiểm (lọt +1) + bài học vào `.claude-memory`.
+| Chỉ số | Ngưỡng | Mẫu số |
+|---|---|---|
+| Độ phủ cấu trúc | 100 % ô BYĐ có đủ 3 câu; 100 % loại lỗi có cách kiểm thật cho từng sản phẩm áp dụng | số ô / số loại |
+| Khâu tốn tiền có kiểm trước | 100 % | `stages.json` |
+| Ca hồi quy | 100 % bắt đúng ở lớp được gán | số ca |
+| Lọt | ≤ 1 lỗi / dự án trên 2 dự án mới liên tiếp; mỗi lỗi lọt xếp loại trong ngày | lỗi người dùng bắt sau |
+| Báo nhầm lớp Claude | ≤ 10 % trước khi chặn | số mục lớp đó báo |
+| Câu hỏi người dùng | ≤ 5 "cố ý hay lỗi" / dự án; ≤ 1 câu hỏi chặn / shot | đếm |
+| Chất lượng prompt | A/B: bản hợp tác ≥ bản hiện tại ở ≥ 2/3 shot | người dùng chấm |
+| Chi phí kiểm | đo và báo; mục tiêu ≤ 10 % chi gen (A3) | sổ chi |
+| Người dùng không đọc prompt | 100 % quyết định qua một dòng + nút | rà giao diện |
 
-## 8. Rủi ro và cách giảm
+## 10. Quy trình khi gặp lỗi mới
+
+1. Ghi ca hồi quy (BYĐ, gói, ảnh, lỗi đúng) — 0 USD.
+2. Xếp vào loại mục 4 (không xếp được → loại mới) và xác định khâu làm sinh lỗi + lớp kiểm lẽ ra phải bắt (theo sổ khâu).
+3. Lớp kiểm chưa có cho loại → thêm (đủ: dữ kiện cho Đạo diễn / câu kiểm gói / mệnh đề QC / cách code kết luận); có mà lọt → sửa lớp đó.
+4. Sửa nguồn (BYĐ / ② / ③ / ảnh tham chiếu), KHÔNG vá prompt của riêng ca đó.
+5. Test: ca mới đỏ trên code cũ, xanh sau sửa; cả bộ test; quy ước 7.
+6. Ghi số đo (lọt +1 theo loại) + bài học `.claude-memory`.
+
+## 11. Rủi ro và cách giảm
 
 | Rủi ro | Giảm |
 |---|---|
-| BYĐ cứng nhắc, mất sắc thái đạo diễn | giữ `mo_ta_them` tự do (không kiểm); enum mở rộng dần theo ca vàng |
-| Dự án cũ phải chuyển đổi | công cụ suy BYĐ nháp + đánh dấu cần duyệt; dự án cũ không bắt buộc (như QC: chỉ dự án mới) |
-| Chặn nhầm làm kẹt autopilot | lớp code chỉ chặn điều chắc; lớp Claude học việc trước; mọi chặn có nút Bỏ qua + lý do |
-| Tốn tiền kiểm | dấu vân tay gói (không kiểm lại khi không đổi); trần cứng; số đo chi phí kiểm |
-| Kế hoạch dài, nhiều phiên | mỗi đợt một nhánh, `TODO.md` + kế hoạch này là nguồn trạng thái; điểm nghỉ theo skill vòng làm việc |
+| Vòng viết hợp tác tốn lượt / chậm | ≤ 2 vòng; dấu vân tay; dữ kiện đưa TRƯỚC để Đạo diễn viết đúng lần đầu |
+| Prompt hợp tác kém prompt hiện tại | A/B ≤ 1 USD cuối K2, không qua K3 nếu thua |
+| BYĐ cứng nhắc | ý thêm của Đạo diễn trong prompt được giữ nếu không trái nguồn; enum mở rộng theo loại lỗi |
+| Công cụ đo (Pose, phát hiện, embedding) chưa có | cột "xây ở đợt" mục 4; khi chưa có → VÀNG (N5), test hợp đồng không tính là phủ |
+| Chặn nhầm làm kẹt autopilot | chỉ lớp chắc chắn chặn ngay; Claude học việc; nút Bỏ qua + lý do |
+| Luật "cố ý" lan rộng | phạm vi + hạn dùng + nút gỡ |
+| Sân khấu 3D từ ảnh ref chưa có (A10) | K1 xây V6; trước đó dự án mới chỉ dùng bối cảnh đã có 3D |
+| Kế hoạch dài, nhiều phiên | mỗi đợt một nhánh; `TODO.md` + kế hoạch này là nguồn trạng thái; điểm nghỉ theo skill vòng làm việc |
 
-## 9b. Người dùng chốt 10/10
+## 12. Tái dùng (không viết lại)
 
-1. BYĐ áp cho **dự án mới**.
-2. Sửa BYĐ thay cho sửa prompt: **chờ giải thích rõ + điểm tốt** (đã gửi trong chat 10/10) rồi mới chốt.
-3. Ngưỡng mục 6: **tạm giữ**.
-4. Thứ tự K0 → … **giữ**: ảnh chuẩn thì video đỡ lỗi; **mức kiểm soát ảnh và video chặt, kỹ NHƯ NHAU** (K4 video có đủ lớp code + lớp
-   Claude + mọi loại kiểm như K3, không phải bản nhẹ).
-5. **Không phụ thuộc lỗi đã xảy ra**: dự án mới sinh lỗi mới, lỗi cũ lặp lại → nguồn độ phủ KHÔNG phải ca vàng. Sửa kế hoạch → mục 10.
-6. Ảnh #24 shot 4/8 (10/10): mọi yếu tố đạt, riêng **màu giếng chưa ăn khớp toàn bối cảnh** → loại kiểm "hòa hợp ánh sáng / màu" (mục 10, L10).
-
-## 9c. Người dùng trả lời 6 câu của thẩm định (10/10)
-
-1. **Có** — chi ≤ 1 USD (có trần cứng) so ảnh prompt sinh vs prompt Đạo diễn trước K3.
-2. Trần câu hỏi "cố ý hay lỗi" theo đề xuất (≤ 5/dự án, gom theo vật) **và theo dự án**; **Đạo diễn đọc kịch bản khai trước** vật/người
-   nào cố ý làm điều trái lẽ thường ở một hay nhiều cảnh nào (ô ngoại lệ T1 điền ngay ở bước Đạo diễn, phạm vi = vật + các cảnh khai) →
-   câu hỏi chỉ còn cho thứ Đạo diễn không khai.
-3. (chưa hiểu câu hỏi — giải thích lại trong chat 10/10)
-4. **Bắt buộc dựng sân khấu 3D cho mọi dự án mới**, kể cả bối cảnh không có model 3D: dựng lại từ ảnh ref / ảnh bố cục (mục 12
-   `docs/PHUONG_PHAP_SAN_KHAU_3D.md`, V6) → mọi shot có sự thật hình học ②.
-5. **Âm thanh, phụ đề, dựng đưa luôn vào khâu kiểm soát** (không hoãn).
-6. Chưa chốt — người dùng yêu cầu rà soát công cụ / web làm video AI trên thị trường: họ có khâu kiểm như mình không; họ viết tay sao lại
-   chuẩn hơn hệ thống? (agent nghiên cứu đang chạy 10/10; kết quả đưa vào bản hợp nhất).
-
-## 10. Độ phủ theo cấu trúc (thay cho dựa vào lỗi cũ — người dùng 10/10 điểm 5)
-
-Ca vàng chỉ còn là **kiểm hồi quy** (lỗi cũ không quay lại). Độ phủ đến từ 3 nguồn không phụ thuộc lịch sử:
-
-**10.1 Mỗi ý trong BYĐ tự sinh ra phép kiểm của nó (theo cấu trúc).** Mỗi trường BYĐ có sẵn trong code: câu sinh vào gói (③), câu hỏi kiểm
-gói (④), mệnh đề kiểm kết quả (⑥). Dự án mới có ý đồ mới → phép kiểm mới tự có, không cần ai từng gặp lỗi đó. Test hợp đồng: trường BYĐ
-nào thiếu một trong ba → đỏ.
-
-**10.2 Bảng loại lỗi chung (taxonomy) — mỗi loại BẮT BUỘC có cách kiểm, cho cả ẢNH và VIDEO:**
-
-| # | Loại | Kiểm bằng code | Claude khai (enum) |
-|---|---|---|---|
-| L1 | Danh tính nhân vật | đếm mặt, so ảnh mẫu (embedding khi có) | có phải người X / không / không chắc |
-| L2 | Trang phục / dạng | so màu vùng thân với ảnh mẫu (`palette_check`) | từng món must_keep: có / khác / không thấy |
-| L3 | Số người, người lạ | đếm phát hiện | người không có trong BYĐ: có / không |
-| L4 | Tư thế, hành động | (Pose khi có) | tư thế: enum từ BYĐ |
-| L5 | Hướng nhìn, mặt/lưng | YuNet thấy mặt | mặt / lưng / nghiêng |
-| L6 | Vị trí trong khung | phát hiện + vùng ba phần | vùng của từng thứ |
-| L7 | Vật: có/không, phần thấy, hình dáng | hình học `stage_facts` | phần thấy, hình dáng (khối / thật) |
-| L8 | Tỉ lệ, cỡ cảnh | đo mặt/khung, chiếu 3D | cỡ |
-| L9 | Máy: góc, nghiêng, chân trời | giải tích từ máy 3D | chân trời ở ba phần nào |
-| L10 | **Hòa hợp ánh sáng / màu** (vật "dán vào", khác tông) | thống kê màu-độ sáng vùng vật so nền quanh, so render (cùng nguồn sáng) | vật nào trông khác tông / dán vào: enum |
-| L11 | Nơi chốn, nền | so render 3D (nét, chân trời), ảnh toàn cảnh | nền có thứ không có trong render: enum |
-| L12 | Thời gian, thời tiết, ánh sáng | độ sáng, nhiệt màu | ngày/đêm, sương, nguồn sáng |
-| L13 | Liên tục với shot kề | so trạng thái cuối/đầu | đồ / chỗ / tư thế giữ không |
-| L14 | Lỗi tạo hình (tay, mặt méo, chữ) | — | có / không + chỗ |
-| L15 | Thứ lạ không có trong BYĐ (máu, tóc, vật thừa) | — | **câu hỏi mở có giới hạn**: liệt kê ≤ 5 thứ thấy mà BYĐ không nói → code so danh sách "không được có" + đánh vàng thứ lạ |
-| V1–V4 (video) | trôi hình, giật, môi, chuyển động máy | đo clip (đã có d42) | chuyển động khớp `bat_dau→dinh→ket_thuc` / máy |
-
-Test hợp đồng: mỗi loại có ≥ 1 cách kiểm đang chạy hoặc học việc, cho ảnh và cho video (trừ loại chỉ áp một bên, ghi rõ).
-
-**10.3 Phát hiện cái chưa biết.** L15 (câu hỏi mở có giới hạn) + mỗi lỗi người dùng bắt mà lọt được xếp vào một loại L1–L15; không xếp
-được → thêm loại mới (bảng lớn dần theo cấu trúc, không theo từng ca). Số đo "lọt theo loại" chỉ ra loại nào kiểm yếu.
-
-## 11. "Mô tả thêm" cũng phải được kiểm + bộ kỹ năng kiểm có độ phủ (người dùng 10/10)
-
-> "Phần mô tả thêm vẫn sẽ cần được kiểm, nhặt kĩ năng kiểm có mức độ phủ, bao quát được để tránh bị những lỗi sai rõ ràng và vô lý."
-> → Điểm 2 chốt kèm điều kiện này; N2 sửa: KHÔNG còn phần chữ nào không kiểm.
-
-**11.1 Tách ý mô tả thêm → kiểm như ô BYĐ.** Khi Đạo diễn/người dùng ghi "Mô tả thêm":
-1. Claude tách thành các ý ngắn, mỗi ý gắn MỘT loại trong bảng L1–L15 (enum) + đối tượng (mã Kho / người / máy / nơi).
-2. Ý đã gắn loại → đi đúng đường kiểm của loại đó: gói (④) + kết quả (⑥), như ô BYĐ.
-3. Ý không gắn được loại → mục VÀNG một dòng ("ý '…' chưa có cách kiểm") + đưa vào số đo "loại thiếu" → thêm loại mới (10.3).
-4. Code kiểm chéo ý mô tả thêm với: ô BYĐ (trái nhau → đỏ), sự thật hình học (`stage_facts`), hồ sơ Kho (`must_keep` / `forbidden`),
-   kịch bản (beat, nhân vật có trong cảnh), shot kề (liên tục).
-
-**11.2 Kiểm lẽ thường (lỗi rõ ràng, vô lý) — chạy cho MỌI chữ (ô BYĐ + mô tả thêm) và mọi kết quả:** Claude khai từng hạng mục
-có / không / không chắc + trích ≤ 12 từ; code kết luận:
-
-| Hạng mục vô lý | Ví dụ |
-|---|---|
-| Vật lý | đứng lơ lửng, xuyên tường, bóng đổ ngược nguồn sáng, nước chảy ngược |
-| Tỉ lệ | người to hơn cửa, giếng cao quá đầu, vật nhỏ như đồ chơi |
-| Góc nhìn | thấy cái máy không thể thấy (lòng giếng khi máy thấp, sau tường) |
-| Nơi chốn | vật/kiến trúc không có ở map (tường cao không có thật, tháp sai chỗ) |
-| Thời gian / ánh sáng | trăng hai phía, đêm mà bóng gắt kiểu nắng, nguồn sáng không có |
-| Liên tục | đồ trên người đổi, vết thương mất, vị trí nhảy giữa hai shot |
-| Logic vật thể | tay cầm vật không có, vật xuất hiện / biến mất vô cớ, điện thoại dùng được dù ở xa (bài học 06/10) |
-| Nhân vật | tuổi < 18 (bộ lọc), sai giới, thêm người, nhân vật làm điều trái hồ sơ |
-| Nội dung | máu/tóc/vật kinh dị không có trong BYĐ (#24 09/10), chữ/logo lạ, IP |
-| Hòa hợp (L10) | vật "dán vào": khác tông màu, thiếu bóng tiếp xúc, khác độ nét/nhiễu, khác nhiệt màu nguồn sáng |
-
-**11.3 Bộ kỹ năng kiểm (nguồn độ phủ, không lấy từ lỗi cũ).** Mỗi loại L1–L15 có một tệp kỹ năng `knowledge/checks/<loai>.md` tổng
-hợp từ nghề, mỗi mục là một câu hỏi khai được (enum) + cách code đo nếu có:
-- Giám sát kịch bản / liên tục (script supervisor continuity checklist) → L4, L5, L13.
-- Quay phim (trục 180°, cỡ cảnh, độ cao máy, đường chân trời — `knowledge/cinematography_basics.md`) → L6, L8, L9.
-- Ghép hình VFX (hòa hợp: hướng + nhiệt màu nguồn sáng, mức đen, bóng tiếp xúc, phối cảnh, độ nét, nhiễu) → L10, L7.
-- Thiết kế bối cảnh / map FF (`knowledge/ff_gameplay_visual.md`, sân khấu 3D) → L11, L12.
-- Lỗi ảnh/video AI (`knowledge/ai_image_failure_modes.md`, `i2v_motion_discipline.md`) → L14, V1–V4.
-- Hồ sơ nhân vật / Character Lock (`knowledge/character_lock.md`) → L1–L3.
-Test hợp đồng: mỗi loại có tệp kỹ năng ≥ N câu hỏi khai được; mỗi câu có cách code kết luận.
-
-**Lộ trình:** 11.1 + 11.2 vào K1 (BYĐ) và K3/K4 (người duyệt gói); 11.3 vào K0 (cùng bảng loại lỗi, trước khi build kiểm).
-
-## 12. Chuẩn so sánh theo tầng — "lẽ thường" không phải luật tuyệt đối (người dùng 10/10)
-
-> "Không thể chỉ đánh giá dựa vào 10 hạng mục liệt kê được, ví dụ cảnh yêu cầu một quả bóng và 1 ô tô có hiệu ứng bay lơ lửng do hiệu
-> ứng game thì sao?" → Hạng mục (mục 11.2) chỉ là GỢI Ý để model nhìn kỹ; KHÔNG phải luật phán. Phán là code so điều thấy với
-> **điều được mong đợi**, lấy theo 3 tầng, tầng trên thắng tầng dưới:
-
-| Tầng | Nguồn | Ví dụ |
-|---|---|---|
-| T1 Ý đồ shot | BYĐ + mô tả thêm (đã tách ý) — gồm ô **"Hiệu ứng / ngoại lệ có chủ đích"**: vật X làm điều trái lẽ thường DO Y, trông thế nào | "bóng và ô tô lơ lửng do hiệu ứng kỹ năng Z: quầng sáng xanh, hạt bụi dưới gầm" |
-| T2 Luật thế giới của dự án / game | hồ sơ kỹ năng FF (`data/skills`, cờ skill_dossier), `knowledge/ff_gameplay_visual.md`, phong cách dự án, luật người dùng đã trả lời trước (mục dưới) | xe trong FF không bay; tường keo dựng tức thì; airdrop rơi có dù; kỹ năng có màu riêng |
-| T3 Lẽ thường đời thực | mặc định (vật lý, tỉ lệ, ánh sáng…) | vật không tự lơ lửng |
-
-**Cách phán:**
-1. Model khai ĐIỀU THẤY (danh sách mở có giới hạn + hạng mục gợi ý), KHÔNG khai "đúng/sai".
-2. Code tìm điều mong đợi cho từng điều thấy theo T1 → T2 → T3.
-   - T1 khai ngoại lệ có chủ đích → **đảo chiều kiểm**: không báo "lơ lửng là vô lý" mà kiểm hiệu ứng có ĐÚNG như tả không (có quầng sáng
-     xanh? có hạt bụi? độ cao? vật nào lơ lửng — chỉ bóng + ô tô, không phải người).
-   - T2 có luật → kiểm theo luật thế giới (kỹ năng đúng màu/hình theo hồ sơ).
-   - Chỉ T3 → lệch là lỗi.
-3. Điều thấy trái T3 mà T1/T2 KHÔNG nói gì → **không tự kết luận lỗi**: mục VÀNG một dòng hỏi người dùng "ô tô lơ lửng: cố ý (hiệu ứng) hay
-   lỗi?" (nút). Trả lời "cố ý" → ghi thành **luật thế giới của dự án** (T2) kèm mô tả hiệu ứng, dùng lại cho mọi shot sau, không hỏi lại;
-   "lỗi" → mục đỏ + gen lại.
-4. Kiểm ngay từ BYĐ (trước tiền): ý trái T3 trong BYĐ / mô tả thêm mà không có lý do (ô ngoại lệ trống) → Đạo diễn được hỏi điền lý do +
-   cách hiển thị TRƯỚC khi sinh gói — tránh trường hợp model ảnh tự hiểu "lơ lửng" theo cách riêng.
-
-**Vì sao không cạn:** hạng mục chỉ giúp model nhìn; điều thấy là danh sách mở; chuẩn so là ý đồ của CHÍNH shot + luật thế giới tích lũy
-theo dự án (không phải danh sách lỗi cũ). Thứ mới chưa ai nghĩ tới → rơi vào bước 3 (hỏi một lần, thành luật).
-
-Lộ trình: ô "Hiệu ứng / ngoại lệ" + tầng T1–T3 vào K1 (BYĐ); bảng luật thế giới + câu hỏi "cố ý hay lỗi" vào K0 (cấu trúc) và K3/K4 (dùng).
-
-## 9. Điểm cần người dùng chốt trước khi build (bản gốc — xem 9b)
-
-1. **Phạm vi BYĐ:** áp cho mọi dự án mới, dự án cũ chỉ khi gen lại (đề xuất) — hay chuyển cả dự án cũ?
-2. **Người sửa shot trên Dashboard sửa BYĐ thay cho sửa prompt** (đề xuất) — chấp nhận ẩn ô prompt tự do (vẫn xem được ở "chi tiết")?
-3. **Ngưỡng chặn** mục 6 (báo nhầm ≤ 10 %, lọt ≤ 1/dự án) — giữ hay đổi?
-4. **Thứ tự đợt** K0 → K1 → K2 → K3 → (K4, K5, K6) → K7 — giữ hay ưu tiên video (K4) sớm hơn vì video đắt nhất?
-5. **Ca vàng ban đầu:** dùng danh sách mục 0 (≥ 15 ca) — người dùng bổ sung lỗi nào khác từng thấy?
+`shot_specs` + solver (`core/stage_solver.py`), `stage_facts.FACTS`, `qc_team` (enum, học việc, `ReplayClient`), `qc_rules`,
+`trainee_log` (`core/trainee.py`), dấu vân tay (`core/storyboard_gate.py:103`, `core/autopilot.py:651-685`),
+`scene_storyboard.own_camera`, `palette_check` (`core/palette.py`), YuNet (`text_placement.face_boxes`), đo clip d42, `change_review`,
+`before_run`, `script_cap` (trần cứng cho mọi công cụ chạy thật), `prompt_rewrite` (vòng sửa có lưu phiên bản).
