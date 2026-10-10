@@ -89,9 +89,9 @@ def agent_summary(chosen, agent: dict, giu_rieng: bool = False) -> list:
            f"Agent gán {len(got)}/{len(rows)} mục (nhãn ĐỀ XUẤT, người dùng duyệt cột cuối): **đúng lỗi {dung} / báo nhầm {nham}** → tỉ lệ "
            f"báo nhầm ước **{round(100 * nham / len(got))} %** (n = {len(got)}; ngưỡng A25 ≤ 10 %). Độ chắc thấp: {thap} mục.", "",
            ("✅ BỘ GIỮ RIÊNG (A25/A28): các dự án này CHƯA dùng để chỉnh luật A18 → số trên được tính cho ngưỡng A25 (cần ≥ 30 mục, "
-            "≥ 2 dự án: dự án thử K1a + dự án kế)." if giu_rieng else
+            "≥ 2 dự án: 2 dự án mới sau #24)." if giu_rieng else
             "⚠ Thẩm định 6: bảng này được CHỌN LẠI sau khi sửa A26 (b) và cùng các mục đã dùng để sửa → số trên là số TRONG MẪU, KHÔNG dùng "
-            "làm số đo A25. A25 chỉ tính trên bộ GIỮ RIÊNG (dự án K1a + dự án kế, chưa dùng để chỉnh luật — chạy với --giu-rieng)."), "",
+            "làm số đo A25. A25 chỉ tính trên bộ GIỮ RIÊNG (2 dự án mới sau #24, chưa dùng để chỉnh luật — chạy với --giu-rieng)."), "",
            "| Dự án | đúng lỗi | báo nhầm | tỉ lệ báo nhầm |", "|---|---|---|---|"]
     for p in dict.fromkeys(p for p, _ in got):
         d, n, _ = tally([g for g in got if g[0] == p])

@@ -106,7 +106,7 @@ Chọn mục: chia đều giữa các dự án, trong một dự án xoay vòng 
 
 Agent gán 30/30 mục (nhãn ĐỀ XUẤT, người dùng duyệt cột cuối): **đúng lỗi 30 / báo nhầm 0** → tỉ lệ báo nhầm ước **0 %** (n = 30; ngưỡng A25 ≤ 10 %). Độ chắc thấp: 7 mục.
 
-⚠ Thẩm định 6: bảng này được CHỌN LẠI sau khi sửa A26 (b) và cùng các mục đã dùng để sửa → số trên là số TRONG MẪU, KHÔNG dùng làm số đo A25. A25 chỉ tính trên bộ GIỮ RIÊNG (dự án K1a + dự án kế, chưa dùng để chỉnh luật — chạy với --giu-rieng).
+⚠ Thẩm định 6: bảng này được CHỌN LẠI sau khi sửa A26 (b) và cùng các mục đã dùng để sửa → số trên là số TRONG MẪU, KHÔNG dùng làm số đo A25. A25 chỉ tính trên bộ GIỮ RIÊNG (2 dự án mới sau #24, chưa dùng để chỉnh luật — chạy với --giu-rieng).
 
 | Dự án | đúng lỗi | báo nhầm | tỉ lệ báo nhầm |
 |---|---|---|---|
