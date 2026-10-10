@@ -75,3 +75,47 @@ có ô `khai_bao_chu` trong hồ sơ Kho (K0b phần sau tạo trường, K1a đ
   (mô tả Kho cũ ghi "đai đỏ ngang eo").
 - Chạy lại `tools/dryrun_k0b_p24.py`: shot 5, 6 báo **`belt = sai_mau`** — prompt viết "đai đỏ" theo mô tả Kho cũ, khác ảnh mẫu. Đây là
   mâu thuẫn thật giữa mô tả chữ của Kho và ảnh mẫu → cần một phép kiểm "mô tả Kho ↔ ảnh mẫu Kho" (khâu L5, K0b phần 2 / K1a).
+
+## 4. Đo công cụ K0b trên khung thật (thẩm định lần 4 lỗ hổng #4) — 10/10 tối, 0 USD
+
+Tái chạy: `PYTHONUTF8=1 py tools/measure_tools_k0b.py` → `data_out/k0b_tools/summary.json`; nhãn người ở `data_out/k0b_tools/labels.json`
+(Claude xem ảnh bằng mắt từng khung; job 635 / 639 theo chấm của người dùng). Ảnh đọc CHỈ ĐỌC từ `D:/AI-Video-Pipeline/data/projects/{22,24}`.
+Test phần thuần: `tests/test_measure_tools_k0b.py` (9 qua). Nhãn: `nga` = thân lệch rõ khỏi phương đứng (ngả sau chống tay, cúi rạp, bò,
+trèo rạp); `thang` = đứng / đi / ngồi, quỳ thẳng.
+
+**Mẫu:** 36 khung (#24: 27, #22: 9) → 32 có người gán nhãn (12 `nga`, 20 `thang`; 3 `mo_ho` = nhiều người nhỏ + nhiễu sọc, 1 không người).
+
+### (a) MediaPipe Pose (`pose_landmarker_full.task`, Tasks 1.0.1)
+
+| Chỉ số | Kết quả |
+|---|---|
+| Nhận ra người | **27 / 32** — trượt cả 4 khung yêu nữ dạng 2 nét comic (630, 638, 640, 572) + 583 (yêu nữ đứng, nhiễu sọc) |
+| Góc thân 2D, ngưỡng tốt nhất **25°** | 20 đúng / 7 sai trên 27 đo được — **0 báo nhầm**, 7 bỏ sót; mọi khung đứng ≤ 17,3° (13/13) |
+| Bỏ sót 2D | bò / trèo rạp nhìn trực diện: 636 1°, 637 4°, 627 12° (thân hướng thẳng vào máy → 2D nén); ngả sau nhìn trực diện 579 13,6°, 580 16,1°; cúi 581 14,6°, 634 16,1° |
+| Bò 628 / 582 | 174° (vai thấp hơn hông trong ảnh) — tách được "bò thấp" nhưng không ổn định (637 bò cũng chỉ 4°) |
+| Góc thân 3D (`pose_world_landmarks`), ngưỡng 20° | 21 đúng / 6 sai, **5 báo nhầm** (đứng 533 = 52°, 527 = 35°, 525 = 32°) → 3D nhiễu, không dùng |
+| **Câu hỏi thật #24: ngã ngửa vs ngồi** (5 khung: 579, 580, 626, 639 ngã ngửa · 635 ngồi) | 2D: 635 = **16,5°** nằm GIỮA nhóm ngã ngửa (13,6 · 16,1 · 26,3 · 32,7) → không ngưỡng nào tách được (tốt nhất sai đúng ca 635); 3D: 635 = 45,8° CAO NHẤT → ngược |
+
+So với số đo trước (bổ sung 10/10 tối: 635 = 28°, 639 = 41°): khác cách tính (lần này theo pixel có tỉ lệ khung, người lớn nhất) nhưng
+cùng thứ tự 635 < 639; thêm 3 khung ngã ngửa khác thì chồng lấn.
+
+**Kết luận Pose:**
+- **KHÔNG dùng được để phân biệt "ngã ngửa" với "ngồi"** (lỗi job 635) — 2D chồng lấn, 3D ngược. Ca `p24_shot4_pose_job635` giữ lớp
+  Claude khai enum (L4, học việc) + BYĐ `cham_dat`; không đặt ngưỡng Pose cho ngã ngửa.
+- **Dùng được (VÀNG, không chặn) cho "thân KHÔNG thẳng đứng"**: góc 2D ≥ 25° → 0/13 báo nhầm trên khung đứng; chỉ bắt được khi thân lệch
+  ngang khung (cúi nghiêng, ngả nghiêng), bỏ sót khi lệch theo chiều sâu. Đề xuất ngưỡng 25° cho phép kiểm "BYĐ ghi đứng mà ảnh thân
+  lệch ≥ 25°" ở K5; mẫu 27 khung / 2 dự án — chưa đủ n ≥ 50 (mục 9) để chặn.
+- Không nhận ra nhân vật nét comic / mặt nạ toàn thân (4/4 trượt) → nhân vật kiểu này cần lớp Claude.
+
+### (b) YuNet (`face_detection_yunet_2023mar.onnx`)
+Có mặt ở **14 / 36** khung: #22 mặt người thường 8/8 khung có người (526 không người → 0, đúng); #24 chỉ 6/27 (578, 579, 580, 624, 632, 639) (Kelly quay lưng, yêu nữ mặt nạ đen) → khớp kết
+luận mục 1: YuNet không dùng đếm người ở dự án nhân vật đeo mặt nạ / quay lưng.
+
+### (c) Phát hiện vật OpenCV DNN
+**Chưa thử: thiếu trọng số.** Đã tìm `*.onnx/*.caffemodel/*.pb/*.weights/*.pt/*.tflite` trong `D:/AI-Video-Pipeline` (trừ `.claude`)
+và `~/.cache/torch`, `~/.cache/huggingface`: chỉ có YuNet (mặt), YAMNet (âm thanh), face/pose landmarker; không có `torchvision`. Cần người
+dùng duyệt tải một bộ phát hiện vật (đề xuất: YOLOv8n ONNX của Ultralytics ~12 MB, hoặc MobileNet-SSD v2 COCO của OpenCV zoo ~ 30 MB —
+nguồn + cỡ chốt khi duyệt). Không tải trong đợt này.
+
+### Tổng kết tiêu chí K0b "công cụ đo ≥ 20 khung"
+Pose: 32 khung gán nhãn (27 đo được) ✅ có số + ngưỡng + kết luận; YuNet: 36 khung ✅; phát hiện vật: ❌ chưa thử (thiếu trọng số — chờ duyệt).

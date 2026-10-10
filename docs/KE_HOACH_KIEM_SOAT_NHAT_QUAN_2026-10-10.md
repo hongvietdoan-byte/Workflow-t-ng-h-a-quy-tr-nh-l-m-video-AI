@@ -5,7 +5,9 @@
 > Bản v2 viết lại toàn bộ sau: thẩm định độc lập 6,2/10 (`docs/THAM_DINH_KE_HOACH_KIEM_SOAT_2026-10-10.md`), nghiên cứu thị trường
 > (`docs/NGHIEN_CUU_THI_TRUONG_KIEM_SOAT_VIDEO_AI_2026-10-10.md`) và các chốt của người dùng (mục A). Bản v1 (các lần vá 9b–12) ở commit
 > `a9e19ea` — đã thay hoàn toàn, không dùng nữa. Nền: `docs/RA_SOAT_KHAU_VA_KIEM_TRA_2026-10-10.md`.
-> **Trạng thái (10/10): thẩm định lần 2 = 7,1/10 "sửa nhỏ rồi build K0a" → đã sửa 3 điểm CAO (3.3b, 3.3 khai/so + học việc, K1a/K1b) + A14–A17; build K0a.**
+> **Trạng thái (10/10 tối): K0a ✅; K0b 🟡 (thẩm định lần 4: kế hoạch 7,9 / build 8,0 — CHƯA đạt cổng A21 ≥ 8,5). Đang đóng 6 lỗ hổng
+> lần 4 (A18 chỉ VÀNG tới khi đo báo nhầm; "lưu gói gửi" vào K1a; sổ đo trung thực; công cụ đo ≥ 20 khung; 5 lỗi #24 chưa bắt thành dòng
+> kế hoạch — mục 4b) rồi thẩm định lần 5. Lịch sử điểm: 6,2 → 7,1 → 7,6 → 7,9.**
 
 ## A. Các chốt của người dùng (10/10) — nguồn duy nhất cho phạm vi
 
@@ -28,7 +30,7 @@
 | A15 | Dự án mới **chỉ dùng 2 bối cảnh có 3D: Tháp Đồng Hồ (Kho #263) và Cổng Trời (#265)** cho tới khi dựng sân khấu từ ảnh (K1b) xong. |
 | A16 | **Chấp nhận chi phí kiểm** (~10–20 % chi gen) để đầu vào / đầu ra chất lượng, thay vì sửa và gen lại nhiều: chi phí kiểm chỉ ĐO và BÁO, không phải ngưỡng chặn. |
 | A17 | Video có **2 lớp kiểm bằng code — TRƯỚC và SAU khi gen** — làm cùng đợt ảnh (K3); lớp Claude của video ở K4 (mục 3.4, 3.6, 8). |
-| A18 | (thẩm định lần 3) Trong lúc lớp Claude của vòng viết còn học việc, **khai báo bắt buộc khóa nhận diện được CHẶN bằng code**: so tên món `must_keep` + màu lấy từ hồ sơ Kho với chữ Đạo diễn viết (thiếu / sai màu → ĐỎ, trả Đạo diễn) — không quay lại kiểu code chèn. |
+| A18 | (thẩm định lần 3) Trong lúc lớp Claude của vòng viết còn học việc, **khai báo bắt buộc khóa nhận diện được CHẶN bằng code**: so tên món `must_keep` + màu lấy từ hồ sơ Kho với chữ Đạo diễn viết (thiếu / sai màu → ĐỎ, trả Đạo diễn) — không quay lại kiểu code chèn. **(thẩm định lần 4) ĐỎ chỉ bật SAU KHI đo báo nhầm đạt ngưỡng**: người dùng gán 1 chạm đúng / nhầm trên prompt #22/#24 (n ≥ 30, bảng `docs/NHAN_BAO_NHAM_A18_2026-10-10.md`), báo nhầm ≤ 10 % → ĐỎ; trước đó và khi chưa đạt → chỉ VÀNG (ghi + nhắc Đạo diễn, không chặn). Món đưa vào kiểm được **lọc theo BYĐ**: cỡ cảnh `co` (vd giày không kiểm ở MCU/CU), `thay` mặt / lưng (món phía trước không kiểm khi quay lưng), món không nằm trong khung → không kiểm; ca hồi quy chống báo nhầm (giày ở MCU, lưng) bắt buộc. |
 | A19 | Đạo diễn **phải viết tên món must_keep + màu** trong prompt; KHÔNG tả lại dáng / mặt (ảnh tham chiếu giữ) — N11 viết lại theo đây. |
 | A20 | Trang phục nhiều màu / họa tiết — chia 3 tầng: **chữ** = tên món + màu chủ đạo (1–2) + ≤ 1 dấu hiệu đặc trưng (code kiểm, chặn); **ảnh tham chiếu** giữ toàn bộ họa tiết; **QC sau gen** kiểm họa tiết (L2: code đo màu vùng + Claude khai từng dấu hiệu). Hồ sơ Kho thêm ô `khai_bao_chu` mỗi món: {mon + đồng nghĩa, mau_chinh[] + đồng nghĩa, dau_hieu (≤ 1) + cách viết tương đương, hoa_tiet[] (chỉ cho QC)}; món chưa có ô → VÀNG nhắc điền một lần (K0b tạo trường, K1a điền cho nhân vật dùng). |
 | A21 | **Cổng điểm**: kế hoạch + phần đã build phải được agent thẩm định độc lập chấm **≥ 8,5/10** (cùng thang 8 tiêu chí) trước khi áp vào pipeline thật (K1a trở đi — đụng Đạo diễn, prompt, gen). K0a/K0b (0 USD, không đổi hành vi pipeline) được làm để tạo BẰNG CHỨNG chạy khô; chấm lại sau mỗi đợt; dưới 8,5 → sửa theo lỗ hổng rồi chấm lại. |
@@ -142,7 +144,8 @@ Vòng cho mỗi shot (ảnh và video):
 5. Đạo diễn sửa → kiểm lại. ≤ 2 vòng. Vẫn đỏ → giữ, hỏi người một dòng + nút (sửa BYĐ / chấp nhận / bỏ shot).
 Kết quả: prompt cuối = chữ của Đạo diễn, đã kiểm đủ; mọi ý có nguồn. **Dấu vân tay gói: VIẾT MỚI ở K2** (thẩm định lần 2: vân tay hiện có
 ở `storyboard_gate` chỉ là id ảnh duyệt, ở `autopilot` là trường cổng plates) — băm (prompt cuối + id/sha ảnh tham chiếu + vai + model +
-render + tham số), dùng chung ảnh và video → gói không đổi thì không kiểm lại.
+render + tham số), dùng chung ảnh và video → gói không đổi thì không kiểm lại. Vân tay băm trên **gói gửi đã lưu từ K1a** (3.9 "Lưu gói
+gửi") — không tái dùng hàm băm cũ; mã cũ chỉ để tham khảo cách lưu (mục 12).
 **So A/B (A7, cuối K2):** 3 shot phủ 3 kiểu (hình học, trang phục / nhận diện, hành động) × 2 bản (viết hợp tác vs cách hiện tại có chữ hệ
 thống chèn), chất lượng thấp, trần cứng ≤ 1 USD, người dùng chấm bằng nút. 2/3 chỉ là định hướng; được chạy lần 2 trong trần nếu chưa rõ.
 
@@ -214,6 +217,20 @@ dấu vân tay → ③④ lại.
   **Chống né:** `kiem_truoc`/`kiem_sau` chỉ nhận id có `vai: kiem` (không id người duyệt chung, không bộ SINH); `dot_hien_tai` trong sổ —
   khâu tốn tiền thiếu kiểm trước mà `dot` ≤ `dot_hien_tai` → đỏ (không khai "đợt sau" mãi); trạng thái phụ thuộc cờ đọc cờ thật
   (trường `co`), loại lỗi chỉ tính "có cách kiểm" khi cờ của nó đang bật; số liệu báo cáo lấy từ trang "Làm ↔ Kiểm", không chép tay.
+- **Lưu gói gửi (K1a, thẩm định lần 4 lỗ hổng #2 — 0 USD, CHỈ ghi thêm, không đổi hành vi).** Hiện trạng: bảng `jobs`
+  (`core/db.py:67` + cột thêm `core/db.py:794-801`) có `external_id` (mã job nhà cung cấp), `model`, `input_hash`, `quality_tier`,
+  `sent_refs` (ảnh tham chiếu: `label`, `role`, tên tệp, `plate_key` — `core/runner.py:2222`, ghi ở `_stamp` `core/runner.py:2124` ảnh /
+  `:1249` video) — **KHÔNG có prompt cuối đã gửi, không sha ảnh, không tham số** (độ phân giải, thời lượng, seed, negative, tỉ lệ khung);
+  prompt hiện chỉ đọc lại được từ `scenes.data.image_prompt` / `motion_prompts` — là bản TRƯỚC khi code nối (`looks.clean_prompt`, khối
+  khóa Kho, câu sân khấu) và bị ghi đè khi sửa. Việc: ở đúng chỗ gửi (`core/runner.py:363` `provider.submit(*args, **kwargs)`, cùng giao
+  dịch với `external_id` dòng 386) ghi một cột mới `jobs.sent_package` (JSON) = {`prompt` cuối = `args` thật gửi đi, `negative`, `refs[]`:
+  {vai, nhãn, đường dẫn, sha256}, `provider`, `model`, `params` (mọi kwargs không bắt đầu `_`), `external_id`, `at`, `v`: 1}; cùng cách cho
+  `end_frames` (`sent_refs` → `sent_package`) và nhánh `submit_final_from_sample`. Lỗi khi tính sha / ghi gói → `_diag` VÀNG, KHÔNG chặn gửi
+  (gói là sổ, không là cổng). **Nghiệm thu đo được:** (a) test: mỗi đường gửi (ảnh, video, khung cuối, nâng từ nháp) với provider giả →
+  100 % job có `sent_package` khớp đúng `args`/kwargs đã gửi (so từng byte prompt); (b) test hành vi: cùng job, cờ tắt/bật → lời gọi
+  `provider.submit` giống hệt; (c) dự án thử K1a: truy vấn `SELECT COUNT(*) FROM jobs WHERE created_at ≥ ngày bật AND type IN
+  ('image_gen','video_gen') AND external_id IS NOT NULL AND sent_package IS NULL` = 0; (d) ≥ 1 ca hồi quy `tests/golden/` có trường `goi`
+  dựng TỪ `sent_package` của job thật (không chép tay). Từ đây: vân tay (3.3), kiểm "prompt gửi thật" (A18 chạy trên gói đã gửi), ca hồi quy.
 - Bộ ca hồi quy `tests/golden/` (định dạng chốt ở K0a): ca = BYĐ (tay cho dự án cũ, `ca_vang_tay`) + máy + Kho + gói + (ảnh kết quả) +
   lỗi + lớp phải bắt.
 - Trang devsys "Làm ↔ Kiểm": bảng mục 7 sinh từ sổ, đỏ khi khâu thiếu kiểm; số đo theo loại.
@@ -254,6 +271,21 @@ Ba nguồn, không dựa lỗi cũ:
 quay phim (L6, L8, L9), ghép hình VFX: hướng + nhiệt màu nguồn sáng, mức đen, bóng tiếp xúc, phối cảnh, độ nét, nhiễu (L7, L10), thiết kế
 bối cảnh / map FF (L11, L12), lỗi ảnh / video AI (L14, V1–V4), Character Lock (L1–L3), âm thanh / phụ đề / dựng (A1–A4). Mỗi mục =
 câu hỏi khai được + cách code kết luận. Hạng mục "lẽ thường" (vật lý, tỉ lệ, góc nhìn…) chỉ là GỢI Ý để model nhìn kỹ, không phải luật.
+
+### 4b. Bài học chạy khô #24 (thẩm định lần 4 lỗ hổng #5) — lỗi CHƯA bắt → loại + đợt + nghiệm thu
+
+Nguồn: `docs/BANG_CHUNG_K0B_P24_2026-10-10.md` mục 2 + bổ sung. Chạy khô K0b: 9 lỗi người dùng từng bắt → 2 bắt trước tiền bằng code, 2 chỉ
+phòng ngừa, 5 chưa bắt. Tư thế ngã (job 635) thuộc L4 — số đo công cụ ở BANG_CHUNG mục "Đo công cụ K0b" (Pose). Còn lại 5 lỗi dưới đây.
+**Loại mới R1** (đầu vào tham chiếu Kho — tiền tố R để không trùng mã khâu L1–L16 của sổ): sản phẩm áp dụng = ảnh mẫu + hồ sơ Kho, lớp
+kiểm đặt ở khâu L5 (Hồ sơ / ảnh mẫu Kho) TRƯỚC tiền; thêm vào `devsys/error_types.json` + `knowledge/checks/R1.md` ở K1a (bảng thành 24 loại).
+
+| # | Lỗi #24 | Loại | Lớp bắt (trước tiền → sau gen) | Đợt | Câu nghiệm thu (đo được) |
+|---|---|---|---|---|---|
+| 1 | Nguồn sáng / trăng luôn ở góc trái khung (job 623–631) dù máy quay nhiều hướng | **L12** (nguồn sáng: hướng + vị trí) | ② sự thật: hướng trăng cố định của bối cảnh (ô `nguon_sang` trong BYĐ nơi chốn) + hướng máy solver → "trăng ở phần ba trái / giữa / phải / ngoài khung" → dữ kiện Đạo diễn + câu kiểm gói; sau gen: code tìm vùng sáng nhất trên trời so phần ba dự kiến, Claude khai enum vị trí trăng | sự thật K2, đo K5 | ca hồi quy #24 (≥ 3 khung trăng sai phía) → lớp code sau gen bắt ≥ 3/3; 0 báo nhầm trên ≥ 3 khung đúng phía / không thấy trăng |
+| 2 | Màu giếng không ăn khớp nền (trông dán vào) | **L10** (hòa hợp màu) | Kho: `mau_chinh` vật đo bằng code từ ảnh mẫu đã duyệt (dữ kiện, không chèn chữ); sau gen: thống kê màu vùng vật (hộp chiếu 3D) so `mau_chinh` + so tông nền quanh (ΔE, độ sáng) | dữ kiện K2, đo K5 | ngưỡng ΔE chốt trên ≥ 10 khung gán nhãn người (đúng / lệch); ca giếng #24 bắt; báo nhầm ≤ 10 % |
+| 3 | Tháp theo "nền mẫu" (ảnh Kho toàn cảnh) thay vì render 3D — shot 2/3/8/9 | **L11** (nơi chốn, nền) | gói (lưu từ K1a): code kiểm ảnh vai "nền" phải là render plate đúng máy (`plate_key` khớp), ảnh toàn cảnh Kho không được đi kèm vai nền → ĐỎ; sau gen: so mốc tháp (hộp chiếu 3D) + chân trời. `plate_layout_qc` hiện MÙ (báo lệch 9/9) → KHÔNG tính "có cách kiểm" tới khi đo đúng ≥ 1 bối cảnh | gói K3 (lớp code ④), đo K5 | 4/4 shot nền mẫu #24 bắt ở gói; sau gen ≥ 3/4 bắt, ≤ 1/5 báo nhầm trên shot đúng render |
+| 4 | Ảnh mẫu Kho bẩn (máu / tóc trên giếng `1.png`, job 623) lan vào mọi shot | **R1** (mới) | khâu L5, một lần khi ảnh mẫu được duyệt/dùng: Claude khai thứ thấy trên ảnh mẫu (enum: máu, tóc, chữ, người khác, nền rối, khác) → code so hồ sơ: thứ không có trong `must_keep` / mô tả → VÀNG, ảnh chưa được dùng làm tham chiếu tới khi người duyệt `sach`; gói chỉ nhận ảnh có `sach` | K1a | ảnh giếng `1.png` #24 bị gắn VÀNG; 100 % ảnh trong `sent_package` dự án thử K1a có `sach` đã duyệt |
+| 5 | Mô tả Kho ↔ ảnh mẫu lệch ("đai đỏ" vs ảnh: đai gai đen + khóa tam giác đỏ, #418) → prompt viết sai màu | **R1** (mới) | khâu L5 khi điền `khai_bao_chu` (A20): Claude khai màu từng món trên ảnh mẫu (enum màu) → code so `mau_chinh` / mô tả Kho → lệch = ĐỎ cho hồ sơ (sửa Kho, không sửa prompt) | K1a | #418 "đai đỏ" bắt; 0 báo nhầm trên hồ sơ #23 Kelly (mô tả khớp ảnh); 100 % nhân vật dự án thử đã qua so trước khi gen |
 
 ## 5. Chuẩn so theo tầng (A6, A8)
 
@@ -304,8 +336,8 @@ Mỗi đợt: cờ riêng (TẮT mặc định), test đỏ → xanh, rà KỸ k
 | Đợt | Việc | Tốn tiền | Xong khi |
 |---|---|---|---|
 | **K0a** Sổ khâu + định dạng — ✅ 10/10 (`df66a11`, `498fa12`; số sống xem trang devsys "Làm ↔ Kiểm" (`devsys/stages.summary_rows` + `only_building`, theo cờ thật); số tại 10/10 sau sửa thẩm định 3: 8 khâu tốn tiền thiếu kiểm trước, 11 khâu đọc chữ tự do, 17/23 loại lỗi không có cách kiểm nào đang chạy với cờ mặc định (6/23 nếu bật hết cờ) — trước đó ghi nhầm "9 khâu" và "6/23") | `devsys/stages.json` + test hợp đồng; thêm khâu code thiếu vào `decisions.json`; schema BYĐ tối thiểu + định dạng ca hồi quy; sửa `LLM_STAGE_TOKENS` khâu chấm (`core/cost.py:297` qc (6000, 900) → output đo ~5000 token, 10/10); gộp `tests/fixtures/stage_facts_golden.json` vào định dạng `tests/golden/` | 0 | test hợp đồng chạy, trang "Làm ↔ Kiểm" hiện đúng các khâu thiếu kiểm (đỏ) |
-| **K0b** Bảng loại lỗi + kỹ năng + luật thế giới + bằng chứng chạy khô — 🟡 10/10 phần lớn xong, thẩm định 4 chưa nhận ✅ (còn: công cụ đo ≥ 20 khung, ca chưa có lớp chạy) (phần 1 `89c5f86`/`b472fda`, chạy lại CSDL thật `a95bfe7`: 31 có / 40 thiếu / 2 thiếu màu / 2 sai màu, 0 món bỏ im lặng; phần 2: `knowledge/checks/` 23 tệp + test hợp đồng, `core/world_rules.py` + `knowledge/world_rules.json` (chưa nối), ô `khai_bao_chu` trong `assets.profile` (không migration; identity_declare đọc ô, món thiếu ô → VÀNG; `color_conflicts`), TU_THE + `nga_ngua`/`nam` chỉ chạy khô (prompt 29 KHÔNG đổi tới khi solver đo thân nằm), ca hồi quy 16 (2 âm/chữ/dựng); rà kỹ bắt 4 lỗi → sửa `24ad1ca`) | `knowledge/checks/*.md` cho L1–L15, V1–V4, A1–A4; bảng luật thế giới có phạm vi; ô `khai_bao_chu` hồ sơ Kho (A20); ca hồi quy từ #8/#22/#24 (`ca_vang_tay`) gồm **≥ 2 ca âm/chữ/dựng** (thoại sai người nói; popup không giữ khung cuối) và **≥ 3 ca có BYĐ + gói**; **thử công cụ đo K5 trên khung thật #24 (0 USD, cục bộ)**: MediaPipe Pose (đã chạy được trên Py 3.14 — đo môi 29/09), YuNet (có), bộ phát hiện vật OpenCV DNN — đo đúng/sai trên ≥ 20 khung, ghi cái nào dùng được; **chạy khô kiểm khóa nhận diện A18 trên prompt thật #22/#24** (bao nhiêu prompt hiện tại sẽ đỏ) | 0 | mỗi loại có tệp kỹ năng + cách kết luận; ≥ 15 ca hồi quy (≥ 2 âm/chữ, ≥ 3 có BYĐ + gói); báo cáo công cụ đo + chạy khô có số |
-| **K1a** BYĐ trên 2 bối cảnh có 3D (A15) | `core/shot_intent.py`; Đạo diễn điền BYĐ + `ngoai_le` (prompt 17/20/29, cờ `shot_intent`); dự án mới chỉ chọn được Tháp Đồng Hồ #263 / Cổng Trời #265; duyệt kiểu (c) có hình 3D trên Dashboard | Claude khi chạy Đạo diễn | một dự án mới thử có BYĐ đủ mọi shot, người dùng duyệt |
+| **K0b** Bảng loại lỗi + kỹ năng + luật thế giới + bằng chứng chạy khô — 🟡 10/10 phần lớn xong, thẩm định 4 chưa nhận ✅ (còn: ca chưa có lớp chạy; công cụ đo: Pose 32 khung gán nhãn / 27 đo được — KHÔNG phân biệt được ngã ngửa vs ngồi, chỉ dùng VÀNG "thân lệch ≥ 25°" (0/13 báo nhầm); YuNet 36 khung; phát hiện vật chưa thử — thiếu trọng số, chờ người dùng duyệt tải — BANG_CHUNG mục 4, `tools/measure_tools_k0b.py`) (phần 1 `89c5f86`/`b472fda`, chạy lại CSDL thật `a95bfe7`: 31 có / 40 thiếu / 2 thiếu màu / 2 sai màu, 0 món bỏ im lặng; phần 2: `knowledge/checks/` 23 tệp + test hợp đồng, `core/world_rules.py` + `knowledge/world_rules.json` (chưa nối), ô `khai_bao_chu` trong `assets.profile` (không migration; identity_declare đọc ô, món thiếu ô → VÀNG; `color_conflicts`), TU_THE + `nga_ngua`/`nam` chỉ chạy khô (prompt 29 KHÔNG đổi tới khi solver đo thân nằm), ca hồi quy 16 (2 âm/chữ/dựng); rà kỹ bắt 4 lỗi → sửa `24ad1ca`) | `knowledge/checks/*.md` cho L1–L15, V1–V4, A1–A4; bảng luật thế giới có phạm vi; ô `khai_bao_chu` hồ sơ Kho (A20); ca hồi quy từ #8/#22/#24 (`ca_vang_tay`) gồm **≥ 2 ca âm/chữ/dựng** (thoại sai người nói; popup không giữ khung cuối) và **≥ 3 ca có BYĐ + gói**; **thử công cụ đo K5 trên khung thật #24 (0 USD, cục bộ)**: MediaPipe Pose (đã chạy được trên Py 3.14 — đo môi 29/09), YuNet (có), bộ phát hiện vật OpenCV DNN — đo đúng/sai trên ≥ 20 khung, ghi cái nào dùng được; **chạy khô kiểm khóa nhận diện A18 trên prompt thật #22/#24** (bao nhiêu prompt hiện tại sẽ đỏ) | 0 | mỗi loại có tệp kỹ năng + cách kết luận; ≥ 15 ca hồi quy (≥ 2 âm/chữ, ≥ 3 có BYĐ + gói); báo cáo công cụ đo + chạy khô có số |
+| **K1a** BYĐ trên 2 bối cảnh có 3D (A15) | `core/shot_intent.py`; Đạo diễn điền BYĐ + `ngoai_le` (prompt 17/20/29, cờ `shot_intent`); dự án mới chỉ chọn được Tháp Đồng Hồ #263 / Cổng Trời #265; duyệt kiểu (c) có hình 3D trên Dashboard; **lưu gói gửi** `jobs.sent_package` (3.9: prompt cuối sau khi code nối + ảnh tham chiếu + vai + sha + model + tham số + mã job; chỉ ghi thêm, không đổi hành vi); lớp code trước tiền cho lỗi mục 4b đợt K1a (ảnh mẫu Kho bẩn, mô tả Kho ↔ ảnh mẫu) | Claude khi chạy Đạo diễn | một dự án mới thử có BYĐ đủ mọi shot, người dùng duyệt; **100 % job ảnh/video mới có `sent_package` (truy vấn = 0 job thiếu) + ≥ 1 ca hồi quy có `goi` dựng từ gói**; nghiệm thu 4b đợt K1a |
 | **K1b** Sân khấu 3D từ ảnh (A10, sau K4) | Nhánh B mục 12 `docs/PHUONG_PHAP_SAN_KHAU_3D.md` (hiệu chỉnh, chiều sâu, ghép ảnh, P5; tải model chiều sâu ~100 MB — hỏi người dùng trước) | 0 (code) | lệch chiếu ngược ≤ 3 % trên ≥ 3 bối cảnh → mở thêm bối cảnh cho dự án mới |
 | **K2** Viết hợp tác (ảnh) | vòng 3.3 + dấu vân tay gói + ngân sách model + ảnh tham chiếu kiểu Elements; **so A/B ≤ 1 USD** (A7) | ≤ 1 USD (A/B) + Claude vòng viết | người dùng chấm A/B: bản hợp tác ≥ bản hiện tại ở ≥ 2/3 shot |
 | **K3** Người duyệt gói ảnh + 2 lớp code video | ④ lớp code chặn, lớp Claude học việc; gen lại qua ③④ + N10; một dòng tiếng Việt; **video: lớp code TRƯỚC + SAU gen (3.4b, A17)** gồm phân loại chuyển động máy | Claude học việc (đo thật — báo giá trước) | lớp code bắt 100 % ca hồi quy thuộc nó; số đo Claude ghi đủ 1 dự án |
@@ -379,6 +411,7 @@ mệnh đề, ReplayClient cho ca hồi quy.
 ## 12. Tái dùng (không viết lại)
 
 `shot_specs` + solver (`core/stage_solver.py`), `stage_facts.FACTS`, `qc_team` (enum, học việc, `ReplayClient`), `qc_rules`,
-`trainee_log` (`core/trainee.py`), dấu vân tay (`core/storyboard_gate.py:103`, `core/autopilot.py:651-685`),
+`trainee_log` (`core/trainee.py`), cách lưu dấu cổng (`core/storyboard_gate.py:103`, `core/autopilot.py:651-685` — CHỈ tham khảo;
+dấu vân tay gói VIẾT MỚI ở K2 theo 3.3, không tái dùng),
 `scene_storyboard.own_camera`, `palette_check` (`core/palette.py`), YuNet (`text_placement.face_boxes`), đo clip d42, `change_review`,
 `before_run`, `script_cap` (trần cứng cho mọi công cụ chạy thật), `prompt_rewrite` (vòng sửa có lưu phiên bản).

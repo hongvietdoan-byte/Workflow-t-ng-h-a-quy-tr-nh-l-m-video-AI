@@ -1,0 +1,1385 @@
+{
+ "pose_model": "D:/AI-Video-Pipeline\\data\\models\\pose_landmarker_full.task",
+ "so_khung": 36,
+ "so_khung_co_nguoi_gan_nhan": 32,
+ "pose_nhan_ra_nguoi": 27,
+ "pose_do_duoc_goc": 27,
+ "nguong": [
+  {
+   "nguong": 15,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 20,
+   "sai": 7,
+   "bao_nham": 2,
+   "bo_sot": 5
+  },
+  {
+   "nguong": 20,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 20,
+   "sai": 7,
+   "bao_nham": 0,
+   "bo_sot": 7
+  },
+  {
+   "nguong": 25,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 20,
+   "sai": 7,
+   "bao_nham": 0,
+   "bo_sot": 7
+  },
+  {
+   "nguong": 30,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 16,
+   "sai": 11,
+   "bao_nham": 0,
+   "bo_sot": 11
+  },
+  {
+   "nguong": 35,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 15,
+   "sai": 12,
+   "bao_nham": 0,
+   "bo_sot": 12
+  },
+  {
+   "nguong": 40,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 15,
+   "sai": 12,
+   "bao_nham": 0,
+   "bo_sot": 12
+  },
+  {
+   "nguong": 45,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 15,
+   "sai": 12,
+   "bao_nham": 0,
+   "bo_sot": 12
+  },
+  {
+   "nguong": 50,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 15,
+   "sai": 12,
+   "bao_nham": 0,
+   "bo_sot": 12
+  },
+  {
+   "nguong": 55,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 15,
+   "sai": 12,
+   "bao_nham": 0,
+   "bo_sot": 12
+  },
+  {
+   "nguong": 60,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 15,
+   "sai": 12,
+   "bao_nham": 0,
+   "bo_sot": 12
+  },
+  {
+   "nguong": 65,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 15,
+   "sai": 12,
+   "bao_nham": 0,
+   "bo_sot": 12
+  },
+  {
+   "nguong": 70,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 15,
+   "sai": 12,
+   "bao_nham": 0,
+   "bo_sot": 12
+  },
+  {
+   "nguong": 75,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 15,
+   "sai": 12,
+   "bao_nham": 0,
+   "bo_sot": 12
+  }
+ ],
+ "nguong_tot_nhat": {
+  "nguong": 25,
+  "do_duoc": 27,
+  "khong_do": 5,
+  "dung": 20,
+  "sai": 7,
+  "bao_nham": 0,
+  "bo_sot": 7
+ },
+ "nguong_3d": [
+  {
+   "nguong": 15,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 19,
+   "sai": 8,
+   "bao_nham": 7,
+   "bo_sot": 1
+  },
+  {
+   "nguong": 20,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 21,
+   "sai": 6,
+   "bao_nham": 5,
+   "bo_sot": 1
+  },
+  {
+   "nguong": 25,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 18,
+   "sai": 9,
+   "bao_nham": 5,
+   "bo_sot": 4
+  },
+  {
+   "nguong": 30,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 16,
+   "sai": 11,
+   "bao_nham": 4,
+   "bo_sot": 7
+  },
+  {
+   "nguong": 35,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 16,
+   "sai": 11,
+   "bao_nham": 3,
+   "bo_sot": 8
+  },
+  {
+   "nguong": 40,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 17,
+   "sai": 10,
+   "bao_nham": 2,
+   "bo_sot": 8
+  },
+  {
+   "nguong": 45,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 16,
+   "sai": 11,
+   "bao_nham": 2,
+   "bo_sot": 9
+  },
+  {
+   "nguong": 50,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 16,
+   "sai": 11,
+   "bao_nham": 1,
+   "bo_sot": 10
+  },
+  {
+   "nguong": 55,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 16,
+   "sai": 11,
+   "bao_nham": 0,
+   "bo_sot": 11
+  },
+  {
+   "nguong": 60,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 16,
+   "sai": 11,
+   "bao_nham": 0,
+   "bo_sot": 11
+  },
+  {
+   "nguong": 65,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 15,
+   "sai": 12,
+   "bao_nham": 0,
+   "bo_sot": 12
+  },
+  {
+   "nguong": 70,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 15,
+   "sai": 12,
+   "bao_nham": 0,
+   "bo_sot": 12
+  },
+  {
+   "nguong": 75,
+   "do_duoc": 27,
+   "khong_do": 5,
+   "dung": 15,
+   "sai": 12,
+   "bao_nham": 0,
+   "bo_sot": 12
+  }
+ ],
+ "nguong_tot_nhat_3d": {
+  "nguong": 20,
+  "do_duoc": 27,
+  "khong_do": 5,
+  "dung": 21,
+  "sai": 6,
+  "bao_nham": 5,
+  "bo_sot": 1
+ },
+ "nga_ngua_vs_ngoi": {
+  "mau": [
+   {
+    "job": 579,
+    "nhan": "nga",
+    "goc": 13.6
+   },
+   {
+    "job": 580,
+    "nhan": "nga",
+    "goc": 16.1
+   },
+   {
+    "job": 626,
+    "nhan": "nga",
+    "goc": 32.7
+   },
+   {
+    "job": 635,
+    "nhan": "thang",
+    "goc": 16.5
+   },
+   {
+    "job": 639,
+    "nhan": "nga",
+    "goc": 26.3
+   }
+  ],
+  "tot_nhat_2d": {
+   "nguong": 12,
+   "do_duoc": 5,
+   "khong_do": 0,
+   "dung": 4,
+   "sai": 1,
+   "bao_nham": 1,
+   "bo_sot": 0
+  },
+  "mau_3d": [
+   {
+    "job": 579,
+    "nhan": "nga",
+    "goc": 14.0
+   },
+   {
+    "job": 580,
+    "nhan": "nga",
+    "goc": 21.8
+   },
+   {
+    "job": 626,
+    "nhan": "nga",
+    "goc": 43.7
+   },
+   {
+    "job": 635,
+    "nhan": "thang",
+    "goc": 45.8
+   },
+   {
+    "job": 639,
+    "nhan": "nga",
+    "goc": 29.6
+   }
+  ],
+  "tot_nhat_3d": {
+   "nguong": 14,
+   "do_duoc": 5,
+   "khong_do": 0,
+   "dung": 4,
+   "sai": 1,
+   "bao_nham": 1,
+   "bo_sot": 0
+  }
+ },
+ "yunet_khung_co_mat": 14,
+ "phat_hien_vat": {
+  "trong_so": [],
+  "ket_qua": "chưa thử: thiếu trọng số bộ phát hiện vật trên máy (không tải theo đề bài) — cần người dùng duyệt tải (tên, nguồn, cỡ)"
+ },
+ "khung": [
+  {
+   "job": 525,
+   "du_an": 22,
+   "shot": 1,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/22/images/job_525.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 2.8,
+     "goc_3d": 32.3,
+     "vis_than": 0.99,
+     "hop": [
+      0.015,
+      0.216,
+      0.638,
+      0.885
+     ]
+    }
+   ],
+   "goc_chinh": 2.8,
+   "goc_3d_chinh": 32.3,
+   "so_mat_yunet": 1,
+   "nhan": "thang",
+   "tu_the_that": "dung",
+   "ghi_chu": "Kenta đứng"
+  },
+  {
+   "job": 526,
+   "du_an": 22,
+   "shot": 2,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/22/images/job_526.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 0,
+   "nguoi": [],
+   "goc_chinh": null,
+   "goc_3d_chinh": null,
+   "so_mat_yunet": 0,
+   "nhan": "khong_nguoi",
+   "tu_the_that": "",
+   "ghi_chu": "quần áo trên giường, không người"
+  },
+  {
+   "job": 527,
+   "du_an": 22,
+   "shot": 4,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/22/images/job_527.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 2.9,
+     "goc_3d": 35.2,
+     "vis_than": 1.0,
+     "hop": [
+      0.366,
+      0.291,
+      0.789,
+      0.869
+     ]
+    }
+   ],
+   "goc_chinh": 2.9,
+   "goc_3d_chinh": 35.2,
+   "so_mat_yunet": 1,
+   "nhan": "thang",
+   "tu_the_that": "dung",
+   "ghi_chu": "Kenta đứng chống hông"
+  },
+  {
+   "job": 528,
+   "du_an": 22,
+   "shot": 5,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/22/images/job_528.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 7.9,
+     "goc_3d": 6.0,
+     "vis_than": 1.0,
+     "hop": [
+      0.132,
+      0.215,
+      0.635,
+      1.232
+     ]
+    }
+   ],
+   "goc_chinh": 7.9,
+   "goc_3d_chinh": 6.0,
+   "so_mat_yunet": 1,
+   "nhan": "thang",
+   "tu_the_that": "dung",
+   "ghi_chu": "Kelly đứng dựa cột"
+  },
+  {
+   "job": 533,
+   "du_an": 22,
+   "shot": 3,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/22/images/job_533.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 4.1,
+     "goc_3d": 52.4,
+     "vis_than": 1.0,
+     "hop": [
+      0.084,
+      0.207,
+      0.831,
+      1.001
+     ]
+    }
+   ],
+   "goc_chinh": 4.1,
+   "goc_3d_chinh": 52.4,
+   "so_mat_yunet": 1,
+   "nhan": "thang",
+   "tu_the_that": "dung",
+   "ghi_chu": "Kenta đứng cầm áo"
+  },
+  {
+   "job": 535,
+   "du_an": 22,
+   "shot": 6,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/22/images/job_535.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 10.3,
+     "goc_3d": 7.8,
+     "vis_than": 1.0,
+     "hop": [
+      0.103,
+      0.222,
+      0.693,
+      1.242
+     ]
+    }
+   ],
+   "goc_chinh": 10.3,
+   "goc_3d_chinh": 7.8,
+   "so_mat_yunet": 1,
+   "nhan": "thang",
+   "tu_the_that": "dung",
+   "ghi_chu": "Kelly đứng"
+  },
+  {
+   "job": 556,
+   "du_an": 22,
+   "shot": 7,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/22/images/job_556.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 2,
+   "nguoi": [
+    {
+     "goc": 11.7,
+     "goc_3d": 13.0,
+     "vis_than": 1.0,
+     "hop": [
+      0.539,
+      0.312,
+      0.851,
+      0.801
+     ]
+    },
+    {
+     "goc": 10.3,
+     "goc_3d": 10.6,
+     "vis_than": 1.0,
+     "hop": [
+      0.135,
+      0.256,
+      0.486,
+      0.846
+     ]
+    }
+   ],
+   "goc_chinh": 10.3,
+   "goc_3d_chinh": 10.6,
+   "so_mat_yunet": 1,
+   "nhan": "thang",
+   "tu_the_that": "dung",
+   "ghi_chu": "2 người nhảy, đứng"
+  },
+  {
+   "job": 557,
+   "du_an": 22,
+   "shot": 8,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/22/images/job_557.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 2,
+   "nguoi": [
+    {
+     "goc": 11.5,
+     "goc_3d": 10.8,
+     "vis_than": 1.0,
+     "hop": [
+      0.571,
+      0.329,
+      0.929,
+      0.799
+     ]
+    },
+    {
+     "goc": 8.3,
+     "goc_3d": 10.7,
+     "vis_than": 1.0,
+     "hop": [
+      0.051,
+      0.287,
+      0.438,
+      0.832
+     ]
+    }
+   ],
+   "goc_chinh": 8.3,
+   "goc_3d_chinh": 10.7,
+   "so_mat_yunet": 2,
+   "nhan": "thang",
+   "tu_the_that": "dung",
+   "ghi_chu": "2 người nhảy, đứng"
+  },
+  {
+   "job": 558,
+   "du_an": 22,
+   "shot": 9,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/22/images/job_558.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 2,
+   "nguoi": [
+    {
+     "goc": 13.5,
+     "goc_3d": 15.1,
+     "vis_than": 1.0,
+     "hop": [
+      0.121,
+      0.338,
+      0.494,
+      0.816
+     ]
+    },
+    {
+     "goc": 12.6,
+     "goc_3d": 14.6,
+     "vis_than": 1.0,
+     "hop": [
+      0.529,
+      0.395,
+      0.895,
+      0.8
+     ]
+    }
+   ],
+   "goc_chinh": 13.5,
+   "goc_3d_chinh": 15.1,
+   "so_mat_yunet": 1,
+   "nhan": "thang",
+   "tu_the_that": "dung",
+   "ghi_chu": "2 người nhảy, đứng"
+  },
+  {
+   "job": 572,
+   "du_an": 24,
+   "shot": 8,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_572.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 0,
+   "nguoi": [],
+   "goc_chinh": null,
+   "goc_3d_chinh": null,
+   "so_mat_yunet": 0,
+   "nhan": "thang",
+   "tu_the_that": "dung",
+   "ghi_chu": "yêu nữ dạng 2 nửa người thẳng, nét comic"
+  },
+  {
+   "job": 573,
+   "du_an": 24,
+   "shot": 1,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_573.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 0.4,
+     "goc_3d": 2.0,
+     "vis_than": 1.0,
+     "hop": [
+      0.078,
+      0.404,
+      0.324,
+      0.795
+     ]
+    }
+   ],
+   "goc_chinh": 0.4,
+   "goc_3d_chinh": 2.0,
+   "so_mat_yunet": 0,
+   "nhan": "thang",
+   "tu_the_that": "di_bo",
+   "ghi_chu": "Kelly đi bộ, quay lưng"
+  },
+  {
+   "job": 578,
+   "du_an": 24,
+   "shot": 2,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_578.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 17.3,
+     "goc_3d": 27.6,
+     "vis_than": 0.99,
+     "hop": [
+      -0.022,
+      0.258,
+      0.498,
+      0.947
+     ]
+    }
+   ],
+   "goc_chinh": 17.3,
+   "goc_3d_chinh": 27.6,
+   "so_mat_yunet": 1,
+   "nhan": "thang",
+   "tu_the_that": "dung",
+   "ghi_chu": "Kelly đứng chống tay thành giếng, cúi nhẹ"
+  },
+  {
+   "job": 579,
+   "du_an": 24,
+   "shot": 4,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_579.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 13.6,
+     "goc_3d": 14.0,
+     "vis_than": 1.0,
+     "hop": [
+      0.101,
+      0.221,
+      1.064,
+      0.818
+     ]
+    }
+   ],
+   "goc_chinh": 13.6,
+   "goc_3d_chinh": 14.0,
+   "so_mat_yunet": 1,
+   "nhan": "nga",
+   "tu_the_that": "nga_ngua",
+   "ghi_chu": "Kelly ngồi bệt ngả sau chống 1 tay, nhìn máy"
+  },
+  {
+   "job": 580,
+   "du_an": 24,
+   "shot": 5,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_580.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 16.1,
+     "goc_3d": 21.8,
+     "vis_than": 1.0,
+     "hop": [
+      0.025,
+      0.447,
+      0.84,
+      0.741
+     ]
+    }
+   ],
+   "goc_chinh": 16.1,
+   "goc_3d_chinh": 21.8,
+   "so_mat_yunet": 1,
+   "nhan": "nga",
+   "tu_the_that": "nga_ngua",
+   "ghi_chu": "Kelly ngồi bệt ngả sau chống tay; yêu nữ trên thành giếng"
+  },
+  {
+   "job": 581,
+   "du_an": 24,
+   "shot": 3,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_581.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 14.6,
+     "goc_3d": 24.8,
+     "vis_than": 0.99,
+     "hop": [
+      0.041,
+      0.381,
+      0.517,
+      1.029
+     ]
+    }
+   ],
+   "goc_chinh": 14.6,
+   "goc_3d_chinh": 24.8,
+   "so_mat_yunet": 0,
+   "nhan": "nga",
+   "tu_the_that": "cui",
+   "ghi_chu": "Kelly cận lưng cúi qua giếng"
+  },
+  {
+   "job": 582,
+   "du_an": 24,
+   "shot": 6,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_582.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 174.9,
+     "goc_3d": 141.1,
+     "vis_than": 1.0,
+     "hop": [
+      0.33,
+      0.398,
+      0.554,
+      0.786
+     ]
+    }
+   ],
+   "goc_chinh": 174.9,
+   "goc_3d_chinh": 141.1,
+   "so_mat_yunet": 0,
+   "nhan": "nga",
+   "tu_the_that": "bo",
+   "ghi_chu": "yêu nữ bò"
+  },
+  {
+   "job": 583,
+   "du_an": 24,
+   "shot": 7,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_583.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 0,
+   "nguoi": [],
+   "goc_chinh": null,
+   "goc_3d_chinh": null,
+   "so_mat_yunet": 0,
+   "nhan": "thang",
+   "tu_the_that": "dung",
+   "ghi_chu": "yêu nữ đứng"
+  },
+  {
+   "job": 584,
+   "du_an": 24,
+   "shot": 9,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_584.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 17.1,
+     "goc_3d": 17.2,
+     "vis_than": 1.0,
+     "hop": [
+      0.054,
+      0.466,
+      0.356,
+      0.604
+     ]
+    }
+   ],
+   "goc_chinh": 17.1,
+   "goc_3d_chinh": 17.2,
+   "so_mat_yunet": 0,
+   "nhan": "mo_ho",
+   "tu_the_that": "",
+   "ghi_chu": "2 người nhỏ + nhiễu sọc"
+  },
+  {
+   "job": 623,
+   "du_an": 24,
+   "shot": 1,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_623.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 0.5,
+     "goc_3d": 0.6,
+     "vis_than": 1.0,
+     "hop": [
+      0.117,
+      0.407,
+      0.313,
+      0.801
+     ]
+    }
+   ],
+   "goc_chinh": 0.5,
+   "goc_3d_chinh": 0.6,
+   "so_mat_yunet": 0,
+   "nhan": "thang",
+   "tu_the_that": "di_bo",
+   "ghi_chu": "Kelly đi bộ, quay lưng"
+  },
+  {
+   "job": 624,
+   "du_an": 24,
+   "shot": 2,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_624.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 26.3,
+     "goc_3d": 27.3,
+     "vis_than": 0.99,
+     "hop": [
+      0.174,
+      0.386,
+      0.454,
+      0.8
+     ]
+    }
+   ],
+   "goc_chinh": 26.3,
+   "goc_3d_chinh": 27.3,
+   "so_mat_yunet": 1,
+   "nhan": "nga",
+   "tu_the_that": "cui",
+   "ghi_chu": "Kelly cúi rạp qua miệng giếng, thân gập trước ~45°"
+  },
+  {
+   "job": 625,
+   "du_an": 24,
+   "shot": 3,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_625.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 28.0,
+     "goc_3d": 30.2,
+     "vis_than": 0.97,
+     "hop": [
+      -0.11,
+      0.419,
+      0.528,
+      1.065
+     ]
+    }
+   ],
+   "goc_chinh": 28.0,
+   "goc_3d_chinh": 30.2,
+   "so_mat_yunet": 0,
+   "nhan": "nga",
+   "tu_the_that": "cui",
+   "ghi_chu": "Kelly cận lưng, cúi trước nhìn giếng; hông khuất một phần"
+  },
+  {
+   "job": 626,
+   "du_an": 24,
+   "shot": 4,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_626.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 32.7,
+     "goc_3d": 43.7,
+     "vis_than": 1.0,
+     "hop": [
+      0.047,
+      0.526,
+      0.617,
+      0.772
+     ]
+    }
+   ],
+   "goc_chinh": 32.7,
+   "goc_3d_chinh": 43.7,
+   "so_mat_yunet": 0,
+   "nhan": "nga",
+   "tu_the_that": "nga_ngua",
+   "ghi_chu": "Kelly ngồi bệt chống 2 tay ngả sau (mắt thường giống 639)"
+  },
+  {
+   "job": 627,
+   "du_an": 24,
+   "shot": 5,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_627.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 12.0,
+     "goc_3d": 50.7,
+     "vis_than": 1.0,
+     "hop": [
+      0.219,
+      0.309,
+      0.834,
+      0.58
+     ]
+    }
+   ],
+   "goc_chinh": 12.0,
+   "goc_3d_chinh": 50.7,
+   "so_mat_yunet": 0,
+   "nhan": "nga",
+   "tu_the_that": "treo_rap",
+   "ghi_chu": "yêu nữ trèo ra khỏi giếng, thân rạp trước, hông khuất sau thành giếng"
+  },
+  {
+   "job": 628,
+   "du_an": 24,
+   "shot": 6,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_628.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 174.1,
+     "goc_3d": 158.3,
+     "vis_than": 1.0,
+     "hop": [
+      0.331,
+      0.48,
+      0.573,
+      0.741
+     ]
+    }
+   ],
+   "goc_chinh": 174.1,
+   "goc_3d_chinh": 158.3,
+   "so_mat_yunet": 0,
+   "nhan": "nga",
+   "tu_the_that": "bo",
+   "ghi_chu": "yêu nữ bò 4 chân"
+  },
+  {
+   "job": 629,
+   "du_an": 24,
+   "shot": 7,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_629.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 6.1,
+     "goc_3d": 16.1,
+     "vis_than": 0.99,
+     "hop": [
+      0.187,
+      0.154,
+      0.745,
+      0.821
+     ]
+    }
+   ],
+   "goc_chinh": 6.1,
+   "goc_3d_chinh": 16.1,
+   "so_mat_yunet": 0,
+   "nhan": "thang",
+   "tu_the_that": "dung",
+   "ghi_chu": "yêu nữ đứng"
+  },
+  {
+   "job": 630,
+   "du_an": 24,
+   "shot": 8,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_630.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 0,
+   "nguoi": [],
+   "goc_chinh": null,
+   "goc_3d_chinh": null,
+   "so_mat_yunet": 0,
+   "nhan": "thang",
+   "tu_the_that": "quy",
+   "ghi_chu": "yêu nữ dạng 2 nửa người thẳng, tay che mặt, nét comic"
+  },
+  {
+   "job": 631,
+   "du_an": 24,
+   "shot": 9,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_631.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 3.6,
+     "goc_3d": 9.6,
+     "vis_than": 1.0,
+     "hop": [
+      0.075,
+      0.567,
+      0.38,
+      0.718
+     ]
+    }
+   ],
+   "goc_chinh": 3.6,
+   "goc_3d_chinh": 9.6,
+   "so_mat_yunet": 0,
+   "nhan": "mo_ho",
+   "tu_the_that": "",
+   "ghi_chu": "2 người nhỏ + nhiễu sọc: Kelly ngồi, yêu nữ quỳ gập"
+  },
+  {
+   "job": 632,
+   "du_an": 24,
+   "shot": 2,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_632.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 27.4,
+     "goc_3d": 28.9,
+     "vis_than": 1.0,
+     "hop": [
+      0.241,
+      0.398,
+      0.516,
+      0.782
+     ]
+    }
+   ],
+   "goc_chinh": 27.4,
+   "goc_3d_chinh": 28.9,
+   "so_mat_yunet": 1,
+   "nhan": "nga",
+   "tu_the_that": "cui",
+   "ghi_chu": "Kelly cúi qua thành giếng ~45°"
+  },
+  {
+   "job": 633,
+   "du_an": 24,
+   "shot": 9,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_633.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 10.9,
+     "goc_3d": 10.4,
+     "vis_than": 1.0,
+     "hop": [
+      0.117,
+      0.435,
+      0.352,
+      0.626
+     ]
+    }
+   ],
+   "goc_chinh": 10.9,
+   "goc_3d_chinh": 10.4,
+   "so_mat_yunet": 0,
+   "nhan": "mo_ho",
+   "tu_the_that": "",
+   "ghi_chu": "2 người nhỏ + nhiễu sọc"
+  },
+  {
+   "job": 634,
+   "du_an": 24,
+   "shot": 3,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_634.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 16.1,
+     "goc_3d": 20.1,
+     "vis_than": 0.84,
+     "hop": [
+      -0.026,
+      0.384,
+      0.585,
+      1.237
+     ]
+    }
+   ],
+   "goc_chinh": 16.1,
+   "goc_3d_chinh": 20.1,
+   "so_mat_yunet": 0,
+   "nhan": "nga",
+   "tu_the_that": "cui",
+   "ghi_chu": "Kelly cận lưng, cúi trước"
+  },
+  {
+   "job": 635,
+   "du_an": 24,
+   "shot": 4,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_635.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 16.5,
+     "goc_3d": 45.8,
+     "vis_than": 1.0,
+     "hop": [
+      0.111,
+      0.465,
+      0.619,
+      0.747
+     ]
+    }
+   ],
+   "goc_chinh": 16.5,
+   "goc_3d_chinh": 45.8,
+   "so_mat_yunet": 0,
+   "nhan": "thang",
+   "tu_the_that": "ngoi",
+   "ghi_chu": "Kelly ngồi chống tay — người dùng chấm SAI (ngồi, chưa ngã ngửa); mắt thường gần giống 639"
+  },
+  {
+   "job": 636,
+   "du_an": 24,
+   "shot": 5,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_636.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 1.1,
+     "goc_3d": 47.0,
+     "vis_than": 1.0,
+     "hop": [
+      0.129,
+      0.351,
+      0.845,
+      0.773
+     ]
+    }
+   ],
+   "goc_chinh": 1.1,
+   "goc_3d_chinh": 47.0,
+   "so_mat_yunet": 0,
+   "nhan": "nga",
+   "tu_the_that": "treo_rap",
+   "ghi_chu": "yêu nữ trèo qua thành giếng, rạp trước"
+  },
+  {
+   "job": 637,
+   "du_an": 24,
+   "shot": 6,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_637.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 4.1,
+     "goc_3d": 64.3,
+     "vis_than": 1.0,
+     "hop": [
+      0.267,
+      0.361,
+      0.837,
+      0.825
+     ]
+    }
+   ],
+   "goc_chinh": 4.1,
+   "goc_3d_chinh": 64.3,
+   "so_mat_yunet": 0,
+   "nhan": "nga",
+   "tu_the_that": "bo",
+   "ghi_chu": "yêu nữ bò"
+  },
+  {
+   "job": 638,
+   "du_an": 24,
+   "shot": 8,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_638.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 0,
+   "nguoi": [],
+   "goc_chinh": null,
+   "goc_3d_chinh": null,
+   "so_mat_yunet": 0,
+   "nhan": "thang",
+   "tu_the_that": "quy",
+   "ghi_chu": "yêu nữ dạng 2 quỳ thẳng, nét comic"
+  },
+  {
+   "job": 639,
+   "du_an": 24,
+   "shot": 4,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_639.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 1,
+   "nguoi": [
+    {
+     "goc": 26.3,
+     "goc_3d": 29.6,
+     "vis_than": 1.0,
+     "hop": [
+      0.038,
+      0.453,
+      0.664,
+      0.715
+     ]
+    }
+   ],
+   "goc_chinh": 26.3,
+   "goc_3d_chinh": 29.6,
+   "so_mat_yunet": 1,
+   "nhan": "nga",
+   "tu_the_that": "nga_ngua",
+   "ghi_chu": "Kelly ngã ngửa chống tay — người dùng chấm ĐÚNG"
+  },
+  {
+   "job": 640,
+   "du_an": 24,
+   "shot": 8,
+   "anh": "D:/AI-Video-Pipeline\\data/projects/24/images/job_640.png",
+   "co": [
+    1152,
+    2048
+   ],
+   "so_nguoi_pose": 0,
+   "nguoi": [],
+   "goc_chinh": null,
+   "goc_3d_chinh": null,
+   "so_mat_yunet": 0,
+   "nhan": "thang",
+   "tu_the_that": "quy",
+   "ghi_chu": "yêu nữ dạng 2 quỳ thẳng, nét comic"
+  }
+ ]
+}
