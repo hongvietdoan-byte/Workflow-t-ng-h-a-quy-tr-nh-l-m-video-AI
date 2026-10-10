@@ -129,3 +129,87 @@ giữ nguyên (test xanh như cũ, không còn `DeprecationWarning` getdata: ch�
   **Việc mở:** (a) `tools/stage_grid.py` dựng người nộm NẰM (xoay theo `facing`, cao `body_height`, dài `body_length`; chữ ký nhịp dòng ~1247
   thêm `tu_the`) → rồi mới mở `nam|nga_ngua` ở prompt 29 + gỡ assertNotIn trong test; (b) `blockout.to_props` trả `at` theo tọa độ SÂN KHẤU,
   chưa đổi sang tọa độ scene như giếng (`sg.model_from_rel`, apply_v4.py:104); (c) `core/stage_facts.STAND_IN_KINDS` chưa có `"block"`.
+
+---
+---
+
+# ĐỢT 2 — việc giao Codex (10/10 tối, người dùng duyệt cả 4 việc)
+
+Luật chung GIỐNG đợt 1 (mục "Luật chung" đầu file) + thêm:
+- Tách nhánh từ `main` MỚI NHẤT; **mỗi việc một nhánh** `codex/d2-viec<N>-<tên>` (việc 1 + 2 gộp một nhánh được — cùng vùng).
+- **KHÔNG đụng** `core/identity_declare.py`, `tools/dryrun_k0b_p24.py`, `tools/nhan_bao_nham_a18.py`, `docs/NHAN_BAO_NHAM_A18*` (Claude
+  đang sửa A18 trên nhánh `a18-sua-bao-nham`). Không sửa `dashboard/` (việc 4 chỉ làm mockup + nghiên cứu).
+- Việc có Blender: KHÔNG chạy Blender thật — test bằng mock `bpy` / kiểm AST như test `add_props` đợt 1 (`tests/test_plates_f2.py` hoặc
+  nơi bạn đã viết ở việc 4 đợt 1). Bên gộp sẽ render thật để nghiệm thu.
+- Ghi kết quả vào mục "Kết quả Codex — đợt 2" cuối file.
+
+## Việc 1 — Người nộm NẰM trong sân khấu Blender + mở lại tư thế nằm cho Đạo diễn (vừa)
+
+**Vấn đề** (rà 10/10, việc mở (a) đợt 1): solver đã tính thân nằm (`core/stage_solver.py` `objects_from_blocking`: `body_length`,
+`body_height`, bắt buộc `facing`) nhưng `tools/stage_grid.py` dựng người nộm là TRỤ ĐỨNG cao `o["H"]` (dòng ~1251 `"height": o["H"]`;
+hàm dựng trụ quanh dòng ~284–300) và không biết `tu_the`; chữ ký nhịp dòng ~1247 thiếu `tu_the` nên 2 tư thế cùng chỗ cùng H bị gộp.
+Vì vậy prompt 29 đang HOÃN `nam`/`nga_ngua` (test chặn: `tests/test_shot_intent.py` ~dòng 41–52, `knowledge/checks/L4.md`,
+chú thích `core/shot_intent.py` dòng ~26–27).
+
+**Làm:**
+1. `tools/stage_grid.py`: người có `tu_the ∈ {nam, nga_ngua}` → người nộm NẰM: dài `body_length`, cao `body_height` (nga_ngua thân
+   nghiêng chống tay — đơn giản: hộp/trụ nghiêng theo `body_height/body_length`), xoay theo `facing` (hướng đầu → chân, cùng quy ước
+   solver — đọc `core/stage_grid.lying_point`), tâm = điểm solver dùng (`anchor_point`/`lying_point`) để số bắn tia / render khớp solver.
+   Người đứng/ngồi/quỳ/bò GIỮ NGUYÊN số cũ (test hồi quy so số cũ).
+2. Thêm `tu_the` vào chữ ký nhịp (dòng ~1247).
+3. Mở lại prompt `prompts/29_director_stage_specs.md` dòng `tu_the` cho `nga_ngua`, `nam` (đúng như bản Codex đợt 1 commit `f6fb193`
+   trước khi bị hoãn); gỡ test chặn tạm + chú thích hoãn ở `core/shot_intent.py`, `L4.md`; thay bằng test hợp đồng: prompt 29 liệt kê đủ
+   `shot_intent.TU_THE` VÀ `tools/stage_grid.py` có nhánh dựng nằm.
+**Test (đỏ → xanh):** mock bpy: người `nam` facing 90° → khối nằm ngang dài ≈ body_length, cao ≈ body_height, trục dài theo facing;
+`nga_ngua` nghiêng; người đứng không đổi; chữ ký nhịp khác nhau khi chỉ khác `tu_the`; hợp đồng prompt 29 ↔ TU_THE.
+**Lưu ý:** đổi prompt 29 = đổi hành vi Đạo diễn thật (lời gọi Claude tốn tiền) → ghi rõ trong "Kết quả" để bên gộp rà kỹ.
+
+## Việc 2 — Khối nhánh C dùng được như khối thay thế (nhỏ)
+
+**Vấn đề** (việc mở (b)(c) đợt 1): `core/blockout.py:214` `to_props` trả `at` theo tọa độ SÂN KHẤU, còn giếng đi qua
+`core/stage_grid.py:101` `model_from_rel` (xem `tools/experiments/stage_v2_p24/apply_v4.py` ~dòng 104) để ra tọa độ scene;
+`core/stage_facts.py:29` `STAND_IN_KINDS = {"well"}` chưa có `"block"` (dòng ~188 bỏ qua mọi kind khác) → không có câu sự thật "khối
+thay thế = vật thật" cho khối nhánh C (12b.3 yêu cầu áp `stand_in` cho MỌI khối).
+**Làm:** `to_props(plan, stage=None)`: có `stage` → đổi `at` qua `model_from_rel` (giữ hành vi cũ khi `stage=None`, có test); thêm
+`"block"` vào `STAND_IN_KINDS` + câu sự thật dùng `mo_ta_ngan`/`vat_kho` của khối (đọc cách giếng sinh câu ở `stage_facts`).
+**Test:** to_props có/không stage; stage_facts sinh câu stand_in cho block; giếng không đổi (test cũ xanh).
+
+## Việc 3 — Nhánh C bước 12b.2: tấm duyệt sơ đồ khối + lưu bản `blockout` (vừa–lớn)
+
+**Đặc tả:** `docs/PHUONG_PHAP_SAN_KHAU_3D.md` mục **12b.2** (đọc cả 12b). Thuần Python, chưa nối Dashboard, chưa bật cờ (thêm id quyết
+định `bat:false` trong `devsys/decisions.json` như d97).
+**Làm:** module mới (vd `core/blockout_sheet.py`):
+1. `render_top_view(plan, cho_dung=[...], out_png)`: ảnh nhìn từ trên bằng PIL (hoặc matplotlib nếu đã có trong môi trường — kiểm
+   `requirements`/import, KHÔNG cài thêm gói): lưới mục 2 có tên ô, khối có nhãn `id · loai · kích thước giữa khoảng`, chỗ đứng kịch bản,
+   hướng sáng, issue của `check_geometry` tô màu (ĐỎ/VÀNG). Đường dẫn ra là tham số (không ghi `data/`).
+2. `to_location_pack(plan, nguoi_duyet, phien_ban)` → dict dạng `location_pack` kiểu `blockout` (có `phien_ban`, `nguoi_duyet`,
+   `ngay`, `issues` lúc duyệt, sha của plan) + `from_location_pack` đọc lại; plan có issue ĐỎ → từ chối đóng gói (raise, không im lặng).
+   Đọc `core/` xem `location_pack` hiện có dạng gì (Grep `location_pack`) để không đụng khóa cũ; nếu chưa có thì định nghĩa schema mới
+   trong module + ghi vào "Kết quả".
+3. (2–3 góc clay có nhãn: KHÔNG làm — cần Blender; ghi việc mở.)
+**Test:** ảnh ra đúng kích thước, có đủ nhãn khối (kiểm bằng dữ liệu vẽ trả về, không OCR); khối ĐỎ được tô; đóng gói / đọc lại khứ hồi;
+plan có ĐỎ bị từ chối; sha đổi khi plan đổi. Khai file mới vào `devsys/areas.json`.
+
+## Việc 4 — Mockup màn Video 3 cột + NGHIÊN CỨU tối ưu giao diện (vừa; KHÔNG sửa `dashboard/`)
+
+**Nguồn:** `docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-10-10.md` trên nhánh `ghi-chu-giao-dien-fatebreaker` (`git show
+origin/ghi-chu-giao-dien-fatebreaker:docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-10-10.md`) — so sánh FateBreaker ↔ Dashboard, 5 đề xuất,
+3 điều KHÔNG chép (prompt thô làm trung tâm — trái A13; bỏ stepper; giấu tiền). Mockup hiện có: `mockup/dashboard_v2_4man.html`
+(phong cách UI v2 — giữ token màu/cỡ chữ 12,5 px của nó).
+**Làm:**
+1. `mockup/video_3cot.html` (HTML tĩnh, dữ liệu giả, không gọi mạng): trái = tham chiếu của shot (nhân vật/bối cảnh/đạo cụ, ảnh nhỏ)
+   + checklist 3–4 dòng có chấm trạng thái; giữa = khung đầu + **gói gửi dạng ảnh nhỏ + vai** (`@image1 = Kelly · nhận diện`…, tương ứng
+   `jobs.sent_package` K1a) + một dòng tiếng Việt + nút (KHÔNG hiện prompt thô mặc định, có "Xem prompt" thu gọn); phải = trình xem clip +
+   **dải phiên bản V1…Vn** có trạng thái + "đang dùng"; dưới = dải phim các shot; tiền ước tính trên mọi nút tốn tiền; giữ stepper 1–4 trên đầu.
+   Thêm `mockup/kho_nguon_dich.html`: thẻ Kho ghép đôi ảnh mẫu ↔ mô tả / `khai_bao_chu`, nhãn lệch (R1).
+2. **Nghiên cứu tối ưu giao diện hơn nữa** → `docs/NGHIEN_CUU_TOI_UU_GIAO_DIEN_2026-10-11.md`: (a) đo trên mockup và trên Dashboard thật
+   (đọc code `dashboard/` + `tests/test_ui_v2_acceptance.py`, không chạy Dashboard): số lần bấm từ "dự án mới" → "video đầu", số lần cuộn
+   để duyệt 9 shot, mật độ (shot / màn 1440×900); (b) tham khảo các công cụ dựng/AI video công khai (vd Runway, Kling web, CapCut, DaVinci
+   Resolve, Premiere, Frame.io, ComfyUI…) — chỉ nêu MẪU tương tác (dải phiên bản, so cạnh nhau, phím tắt, duyệt hàng loạt, xem trước khi
+   rê chuột), dẫn nguồn URL, không chép nội dung; (c) giới hạn của Streamlit cho bố cục 3 cột / dải phim (st.columns, fragment, component
+   tùy biến) + cách làm khả thi; (d) đề xuất xếp hạng theo giá trị / công sức, mỗi đề xuất ghi file Dashboard dự kiến đụng + rủi ro test UI.
+**Không:** sửa `dashboard/`, thêm gói phụ thuộc, gọi API.
+
+## Kết quả Codex — đợt 2
+
+(Codex ghi: việc · nhánh · commit · test đỏ→xanh · việc mở.)
