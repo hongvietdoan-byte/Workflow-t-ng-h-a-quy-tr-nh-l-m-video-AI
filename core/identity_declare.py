@@ -182,7 +182,7 @@ def declare_from_text(text: str, vi: Optional[bool] = None) -> List[Dict]:
             continue
         item = _item_of(head if not vi else clause, vi)
         colors = _colors_in(head if not vi else clause, vi)
-        if item == "dress" and skirt:
+        if item == "dress" and skirt and not re.search(r"(?<![\w])(?:váy liền|đầm)(?![\w])", norm(clause, True)):
             item = "skirt"
         if item is None and vi and SLEEVE_VI.search(norm(clause, True)):
             # ống tay áo: 'tay áo đen' = chi tiết của áo (như 'grey sleeve stripes' tiếng Anh) → không kiểm ở chữ; câu tả CẢ áo mà áo
@@ -380,7 +380,7 @@ CLAUSE_END = re.compile(r"[,.;:()]")
 # ≤ 3 từ sau.
 PREDICATE = re.compile(r"\s+(?:is|are)\s+")
 STOP_WORDS = {"from", "to", "toward", "towards", "at", "in", "on", "of", "by", "into", "onto", "under", "over", "behind", "near", "as",
-              "like", "against", "through", "than"}
+              "like", "against", "through", "than", "with"}   # 'with' (rà A26): 'hair is tied with a red ribbon' — màu của vật đi kèm
 
 
 def _take_words(low: str, pos: int, n: int) -> int:
@@ -566,11 +566,16 @@ def unrecognized(decl: List[Dict]) -> List[str]:
 
 OTHER_MARKERS = ("creature", "figure", "woman", "girl", "monster", "ghost")
 # Câu nhóm (A26 kiểu 2). 'both / each' không tính khi đi với bộ phận / 'other' ('both hands', 'each other'); 'all' chỉ dạng nói về người.
-GROUP_RE = (r"(?<![\w])both(?![\w])(?!\s+(?:hands|arms|legs|feet|eyes|ears|sides|ends|knees|of\s+(?:her|his|its)))"
+GROUP_RE = (r"(?<![\w])both(?![\w])(?!\s+(?:(?:her|his|its|their)\s+)?(?:hands|arms|legs|feet|eyes|ears|sides|ends|knees)(?![\w])"
+            r"|\s+of\s+(?:her|his|its))"
             r"|(?<![\w])each(?![\w])(?!\s+(?:other|hand|arm|leg|foot|eye|side))"
             r"|(?<![\w])two(?:\s+[\w-]+){0,3}?\s+(?:characters|people|friends|heroes|players)(?![\w])"
-            r"|(?<![\w])all\s+(?:of\s+them|the\s+characters|characters|two|three|four)(?![\w])"
-            r"|(?<![\w])they(?![\w])")
+            r"|(?<![\w])all\s+(?:of\s+them|the\s+characters|characters|two|three|four)(?![\w])")
+# 'they' chỉ là câu nhóm khi mệnh đề có tên gần nhất gọi ≥ 2 nhân vật trong khung ('Kelly and Maxim walk, they wear masks')
+THEY_RE = r"(?<![\w])they(?![\w])"
+# Người lạ không gọi bằng OTHER_MARKERS ('two other characters', 'guards', 'the crowd') → không phải câu nhóm, thuộc '_khac' (rà A26)
+STRANGER_RE = (r"(?<![\w])(?:(?<!each )other|others|another|guards?|npcs?|crowd|strangers?|bystanders?|passers?-?by|enemies|enemy"
+               r"|soldiers?|villagers?)(?![\w])")
 
 
 def segment(prompt: str, markers: Dict[str, List[str]]) -> Dict[str, str]:
@@ -580,7 +585,7 @@ def segment(prompt: str, markers: Dict[str, List[str]]) -> Dict[str, str]:
     Hai tên trúng CÙNG chỗ (thẩm định 5 #4/#5): từ đánh dấu DÀI hơn thắng ('maxim kl' hơn 'maxim'); còn hòa (từ y hệt — hai dạng yêu nữ
     cùng 'creature', không phân biệt được bằng chữ) → mệnh đề thuộc CẢ HAI, không gán theo thứ tự tên (trước đây dạng 2 rỗng → báo nhầm)."""
     out: Dict[str, List[str]] = {k: [] for k in markers}
-    owner, pending = None, []
+    owner, pending, last_named = None, [], set()
     other_re = _words_re(OTHER_MARKERS)
     clauses = []
     for clause in re.split(r"[,.;]", str(prompt or "")):
@@ -594,14 +599,18 @@ def segment(prompt: str, markers: Dict[str, List[str]]) -> Dict[str, str]:
                 m = re.search(rf"(?<![\w]){re.escape(fold(w))}(?![\w])", low)
                 if m:
                     hits.append((m.start(), -(m.end() - m.start()), name))
-        if not hits and markers and re.search(GROUP_RE, low) and not re.search(other_re, low):
+        stranger = not hits and bool(re.search(STRANGER_RE, low))
+        group = re.search(GROUP_RE, low) or (re.search(THEY_RE, low) and len(last_named) >= 2)
+        if not hits and markers and group and not stranger and not re.search(other_re, low):
             # A26 kiểu 2 (#22 S7–9): câu tả chung không gọi tên ('two stylized characters … both with the black mask') → của MỌI nhân
             # vật trong khung (markers = nhân vật có trong khung); chỉ mệnh đề này, mệnh đề sau vẫn theo người được nhắc gần nhất
             for o in markers:
                 out[o].append(clause)
             continue
+        if hits:
+            last_named = {h[2] for h in hits}
         if not hits:
-            m = re.search(other_re, low)
+            m = re.search(other_re, low) or (re.search(STRANGER_RE, low) if stranger else None)
             if m:
                 hits.append((m.start(), 0, "_khac"))
         if hits:

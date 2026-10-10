@@ -663,3 +663,37 @@ def test_a26_c_only_wrong_color_and_sign_items_can_be_red():
         assert (r["tracksuit"]["trang_thai"], r["tracksuit"]["muc"]) == ("sai_mau", "do" if chan else "vang")
         r = _by(idd.check(sign, "Kelly in a yellow tracksuit", chan_do=chan))
         assert (r["spiked choker"]["trang_thai"], r["spiked choker"]["muc"]) == ("thieu", "do" if chan else "vang")
+
+
+# --- Rà độc lập A26 (10/10): 3 lỗi quy tắc mới + 'with' trong STOP_WORDS ---
+
+def test_a26_review_strangers_and_they_not_group_for_main_characters():
+    """'two other characters' / 'guards … they' = người lạ, không gán cho mọi nhân vật trong khung; 'they' chỉ là câu nhóm khi mệnh
+    đề có tên gần nhất gọi ≥ 2 nhân vật."""
+    mk = {"KELLY": ["kelly"], "MAXIM": ["maxim"]}
+    seg = idd.segment("Kelly and Maxim walk, behind, two other characters in red masks", mk)
+    assert "red masks" not in seg["KELLY"] and "red masks" not in seg["MAXIM"]
+    seg = idd.segment("Kelly stands at the gate; two guards nearby, they wear red helmets", mk)
+    assert "red helmets" not in seg["MAXIM"]
+    seg = idd.segment("Kelly and Maxim walk, they wear black masks", mk)
+    assert "black masks" in seg["KELLY"] and "black masks" in seg["MAXIM"]
+    seg = idd.segment("Kelly and Maxim hug each other, both smiling", mk)
+    assert "both smiling" in seg["MAXIM"] and "red helmets" not in idd.segment("Kelly stands at the gate; two guards nearby, they wear red helmets", mk)["KELLY"]
+
+
+def test_a26_review_both_her_hands_is_not_group_clause():
+    seg = idd.segment("Kelly waves, Maxim nods, both her hands up high", {"KELLY": ["kelly"], "MAXIM": ["maxim"]})
+    assert "hands" in seg["MAXIM"] and "hands" not in seg["KELLY"]
+
+
+def test_a26_review_vay_lien_stays_dress_even_with_separate_top():
+    assert [x["mon"] for x in idd.declare_from_text("áo thun trắng; váy liền đen dài") if not x.get("khong_nhan_ra")] == ["dress"]
+    assert "skirt" in [x["mon"] for x in idd.declare_from_text("áo thun trắng; váy đen ngắn")]
+
+
+def test_a26_review_predicate_stops_at_with():
+    assert "with" in idd.STOP_WORDS
+    r = _by(idd.check(idd.declare_from_text("long black hair"), "her hair is tied with a red ribbon"))
+    assert r["hair"]["trang_thai"] != "sai_mau" and "red" not in r["hair"]["mau_thay"]
+    r = _by(idd.check(idd.declare_from_text("long black hair"), "her hair is red with a black ribbon"))
+    assert r["hair"]["trang_thai"] == "sai_mau"
