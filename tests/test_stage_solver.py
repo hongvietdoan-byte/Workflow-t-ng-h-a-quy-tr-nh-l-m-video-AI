@@ -6,6 +6,32 @@ import pytest
 from core import stage_grid as sg
 from core import stage_solver as ss
 
+
+@pytest.mark.parametrize("pose", ["nam", "nga_ngua"])
+@pytest.mark.parametrize("facing", [0, 90, 215])
+def test_lying_pose_frames_full_body_length(pose, facing):
+    oo = ss.objects_from_blocking({"objects": [{"key": "a", "kind": "nguoi", "at": [0, 0],
+                                               "H": 1.7, "facing": facing, "tu_the": pose}]})
+    spec = {"co": "WS", "thanh_phan": [{"vat": "a", "vai": "chinh", "vung": "giua", "thay": "nghieng"}]}
+    result = ss.solve_shot(spec, oo, aspect=9 / 16, fallback=False)
+    assert not result["errors"] and result["cams"]
+    o = oo["a"]
+    assert o["body_length"] == pytest.approx(1.7)
+    angle = math.radians(facing)
+    for c in result["cams"]:
+        for sign in (-1, 1):
+            end = (sign * .85 * math.sin(angle), sign * .85 * math.cos(angle), o["z"] + o["body_height"] / 2)
+            assert sg.in_frame(sg.project(c["at"], c["aim"], end, result["lens"], 9 / 16))
+        assert c["eval"]["obj"]["a"]["in_pct"] == 100
+
+
+def test_nga_ngua_lower_eye_height():
+    o = ss.objects_from_blocking({"objects": [{"key": "a", "kind": "nguoi", "at": [0, 0],
+                                               "H": 1.7, "facing": 0, "tu_the": "nga_ngua"}]})["a"]
+    assert sg.zone_point(o)[2] == pytest.approx(sg.EYE * .45 * 1.7)
+    spec = {"co": "WS", "thanh_phan": [{"vat": "a", "vai": "chinh"}]}
+    assert ss.Shot(spec, {"a": o}, 9 / 16).cz == pytest.approx(sg.EYE * .45 * 1.7)
+
 WELL = sg.offset((0.0, 0.0, 0.0), 350, 1.6)            # #24: Kelly ở O nhìn 350°, giếng cách 1,6 m
 MARKS = {"thap_chan": {"xyz": [0.0, 16.04, -0.34]}, "thap_dinh": {"xyz": [0.0, 16.04, 38.11]},
          "thap_object": {"name": "CLK_OUT_Tower001_LOD0_plan", "bbox_size_m": [9.35, 9.35, 38.46]}}

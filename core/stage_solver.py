@@ -60,6 +60,9 @@ def objects_from_blocking(blocking: Dict, marks: Optional[Dict] = None, beat: Op
                      facing=o.get("facing"), group="nguoi_" + k.lower(), own="STAGE_" + k.upper())
             if o.get("tu_the"):
                 e["tu_the"] = o["tu_the"]
+            if sg.lying(e):
+                # TẠM, chưa đo: H là bề dài thân, không phải chiều cao trụ đứng; không suy từ Pose.
+                e.update(body_length=e["H"], body_height=e["H"] * (.45 if e["tu_the"] == "nga_ngua" else .2))
             if o.get("in"):
                 w = raw.get(o["in"]) or full[o["in"]]
                 e["xy"] = list((o.get("at") or w["at"])[:2])    # ghi "at" = chỗ trong lòng giếng (vd bám mép gần), không thì tâm
@@ -263,7 +266,7 @@ class Shot:
         self.uA = 0.5 if self.uA is None else self.uA
         self.pA = sg.zone_point(self.A, self.co)
         t, b = sg.size_span(self.A, self.co)
-        self.hA = t[2] - b[2]
+        self.hA = math.dist(t, b) / aspect if sg.lying(self.A) else t[2] - b[2]
         cp = self.a.get("co_pct")
         self.share = (cp[0] + cp[1]) / 200.0 if cp else sg.FRAMING[self.co][1]
         rel = sg.RULE_TH["L3_rel"][0]
@@ -280,8 +283,8 @@ class Shot:
                 self.b_weight = 1.0 if c.get("vai") == "chinh" else 0.5
                 break
         layer = sg.fold(spec.get("do_cao") or "ngang").replace(" ", "_")
-        Hs = [o["H"] for o in objs.values() if o["kind"] == "nguoi"]
-        H = self.A["H"] if self.A["kind"] == "nguoi" else (max(Hs) if Hs else DEFAULT_H)
+        Hs = [sg.obj_height(o) for o in objs.values() if o["kind"] == "nguoi"]
+        H = sg.obj_height(self.A) if self.A["kind"] == "nguoi" else (max(Hs) if Hs else DEFAULT_H)
         self.layer = layer
         hs = sg.layer_heights(layer, H)
         self.cz = float(spec["cao_m"]) if spec.get("cao_m") is not None else hs[1]
@@ -301,11 +304,10 @@ class Shot:
             if self.wB is not None:
                 r.append(0.5 * self.b_weight * (pb[1] - self.wB))
         if with_size:
-            t, b = sg.size_span(self.A, self.co)
-            pt, pb_ = sg.project(C, aim, t, self.lens, self.aspect), sg.project(C, aim, b, self.lens, self.aspect)
-            if pt is None or pb_ is None:
+            size = sg.projected_size(self.A, C, aim, self.lens, self.aspect, self.co)
+            if size is None:
                 return None
-            r.append((pb_[1] - pt[1]) - self.share)
+            r.append(size - self.share)
         return r
 
     def initial_aim(self, C):
@@ -362,7 +364,7 @@ def solve_shot(spec: Dict, objs: Dict[str, Dict], aspect: float, axis: Optional[
     eye = None
     if pov and pov in objs:                            # góc nhìn nhân vật: máy ở MẮT người đó, người đó không có trong khung
         po = objs[pov]
-        eye = (po["xy"][0], po["xy"][1], po.get("z", 0.0) + sg.EYE * po["H"])
+        eye = sg.zone_point(po)
         objs = {k: v for k, v in objs.items() if k != pov}
     errs = validate(spec, objs) + errs
     res = {"shot": spec.get("shot"), "muc_dich": spec.get("muc_dich"), "errors": errs, "notes": [], "cams": [], "pov": pov,

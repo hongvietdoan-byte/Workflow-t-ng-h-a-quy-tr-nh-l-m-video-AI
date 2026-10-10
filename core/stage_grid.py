@@ -564,7 +564,22 @@ def view_of(facing: float, obj_xy: Sequence[float], cam: Sequence[float]) -> str
 
 
 def obj_height(o: Dict) -> float:
-    return float(o["H"] if o["kind"] == "nguoi" else o["h"])
+    return float(o.get("body_height", o["H"]) if o["kind"] == "nguoi" else o["h"])
+
+
+def lying(o: Dict) -> bool:
+    return o["kind"] == "nguoi" and o.get("tu_the") in ("nam", "nga_ngua")
+
+
+def lying_point(o: Dict, along: float, height: float, lat: float = 0.0):
+    """Thân nằm: tâm sàn xy, đầu về facing, chân ngược lại; khoảng bao TẠM, chưa đo bằng Pose."""
+    if o.get("facing") is None:
+        raise ValueError("thân nằm thiếu facing — không xác định được đầu/chân")
+    a = math.radians(float(o["facing"]))
+    length = float(o.get("body_length", o["H"]))
+    return (float(o["xy"][0]) + math.sin(a) * length * along + math.cos(a) * lat,
+            float(o["xy"][1]) + math.cos(a) * length * along - math.sin(a) * lat,
+            float(o.get("z", 0)) + obj_height(o) * height)
 
 
 def object_points(o: Dict, cam: Optional[Sequence[float]] = None, co: Optional[str] = None) -> List[Tuple[float, float, float]]:
@@ -573,6 +588,10 @@ def object_points(o: Dict, cam: Optional[Sequence[float]] = None, co: Optional[s
     Đạo cụ trụ (giếng): đáy, giữa, miệng × tâm + 4 điểm vành = 15. Mốc (tháp): 9 điểm dọc trục."""
     x, y, z0 = float(o["xy"][0]), float(o["xy"][1]), float(o.get("z", 0.0))
     h = obj_height(o)
+    if lying(o):
+        body = FRAMING[co][0] if co in FRAMING else 1.0
+        return [lying_point(o, .5 - body * k / 8, ht, lat)
+                for k in range(9) for ht in (0.0, 1.0) for lat in (-.12, .12)]
     if o["kind"] == "nguoi":
         if cam is not None and math.hypot(cam[0] - x, cam[1] - y) > 1e-6:
             ra = math.radians(bearing_deg(cam[0] - x, cam[1] - y) + 90)
@@ -606,6 +625,9 @@ def object_points(o: Dict, cam: Optional[Sequence[float]] = None, co: Optional[s
 def size_span(o: Dict, co: Optional[str] = None) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
     """(điểm trên, điểm dưới) để đo cỡ trong khung. Người: đỉnh đầu → đáy phần thân của cỡ `co` (FRAMING), không thấp hơn miệng giếng
     khi đứng trong giếng; đạo cụ/mốc: miệng/đỉnh → đáy."""
+    if lying(o):
+        body = FRAMING[co][0] if co in FRAMING else 1.0
+        return lying_point(o, .5, .5), lying_point(o, .5 - body, .5)
     x, y, z0 = float(o["xy"][0]), float(o["xy"][1]), float(o.get("z", 0.0))
     h = obj_height(o)
     top = z0 + h
@@ -621,15 +643,31 @@ def size_span(o: Dict, co: Optional[str] = None) -> Tuple[Tuple[float, float, fl
 def anchor_point(o: Dict, co: Optional[str] = None) -> Tuple[float, float, float]:
     """Điểm đại diện để đặt vào vùng đích: giữa đoạn đo cỡ (người: phần thân trong khung của cỡ `co`)."""
     t, b = size_span(o, co)
-    return t[0], t[1], (t[2] + b[2]) / 2
+    return tuple((a + c) / 2 for a, c in zip(t, b))
 
 
 def zone_point(o: Dict, co: Optional[str] = None) -> Tuple[float, float, float]:
     """Điểm của vật được đặt vào vùng đích (S2). Người = MẮT (0,93·H — quy tắc một phần ba đặt mắt; với cỡ chặt tâm thân không thể nằm
     ở 1/3 trên, đo 09/10: MCU 'giua-tren' lệch 0,26 khung). Đạo cụ / mốc = giữa đoạn đo cỡ."""
     if o["kind"] == "nguoi":
+        if lying(o):
+            if co in ("EWS", "WS", "GAME_TPS"):
+                return anchor_point(o, co)
+            return lying_point(o, .45, EYE)
         return float(o["xy"][0]), float(o["xy"][1]), float(o.get("z", 0.0)) + EYE * float(o["H"])
     return anchor_point(o, co)
+
+
+def projected_size(o: Dict, cam, aim, lens: float, aspect: float, co=None):
+    """Người nằm đo cả bề dài ngang và cao; người khác giữ đúng số chiều cao cũ."""
+    if lying(o):
+        ps = [project(cam, aim, p, lens, aspect) for p in object_points(o, cam, co)]
+        if any(p is None for p in ps):
+            return None
+        return max(max(p[i] for p in ps) - min(p[i] for p in ps) for i in (0, 1))
+    t, b = size_span(o, co)
+    pt, pb = project(cam, aim, t, lens, aspect), project(cam, aim, b, lens, aspect)
+    return None if pt is None or pb is None else pb[1] - pt[1]
 
 
 def frame_eval(cam, aim, lens: float, aspect: float, objs: Dict[str, Dict], co: Optional[str] = None,
@@ -642,16 +680,15 @@ def frame_eval(cam, aim, lens: float, aspect: float, objs: Dict[str, Dict], co: 
         pts = object_points(o, cam, co if k == size_key else None)
         pr = [project(cam, aim, p, lens, aspect) for p in pts]
         ins = [q for q in pr if in_frame(q)]
-        t, b = size_span(o, co if k == size_key else None)
-        pt, pb = project(cam, aim, t, lens, aspect), project(cam, aim, b, lens, aspect)
+        size = projected_size(o, cam, aim, lens, aspect, co if k == size_key else None)
         cen = None if not ins else [round(sum(q[0] for q in ins) / len(ins), 3), round(sum(q[1] for q in ins) / len(ins), 3)]
         if o["kind"] == "nguoi":
-            pe = project(cam, aim, zone_point(o), lens, aspect)
+            pe = project(cam, aim, zone_point(o, co if k == size_key else None), lens, aspect)
             uv = [round(pe[0], 3), round(pe[1], 3)] if in_frame(pe) else None
         else:
             uv = cen
         out[k] = {"n": len(pts), "in_pct": round(100.0 * len(ins) / len(pts), 1) if pts else 0.0, "uv": uv, "uv_than": cen,
-                  "size_pct": None if pt is None or pb is None else round(100.0 * (pb[1] - pt[1]), 1),
+                  "size_pct": None if size is None else round(100.0 * size, 1),
                   "view": view_of(o["facing"], o["xy"], cam) if o["kind"] == "nguoi" and o.get("facing") is not None else None,
                   "dist_m": round(math.dist(cam, anchor_point(o)), 2)}
     return {"obj": out, "pitch": round(pitch, 2), "yaw": round(yaw, 2)}

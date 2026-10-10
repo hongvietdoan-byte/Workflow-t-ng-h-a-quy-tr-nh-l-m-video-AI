@@ -23,8 +23,6 @@ VAI = sg.ROLES                                  # chinh, phu, khong_duoc_co
 THAY = sg.VIEWS                                 # mat, lung, nghieng (ghép "|")
 TU_THE = ("dung", "ngoi", "quy", "bo", "nga_ngua", "nam")   # prompt 29 dòng 11–13 (đứng / ngồi bệt / quỳ / bò / ngã ngửa chống tay / nằm)
 #   — beats[nhip][khoa].tu_the. K0b phần 2: thêm nga_ngua (#24 shot 4 job 635 ra NGỒI thẳng thay vì ngã ngửa — enum cũ không phân biệt), nam.
-#   'nga_ngua', 'nam' CHỈ dùng chạy khô / BYĐ tới khi solver đo thân nằm (K1a/K3): prompt 29 (đang chạy) chưa liệt kê — stage_solver coi
-#   người nộm là trụ đứng cao H, thân nằm dài theo phương ngang sẽ bị khung cắt.
 CHUYEN_DONG = ("dung_yen",) + tuple(stage_solver.MOVES)   # dung_yen + lui / tien (prompt 29 dòng 31 "may.kieu"); đẩy/kéo/lia: K3
 THOI_GIAN = plate_env.TIMES                     # dawn, day, dusk, night
 THOI_TIET = plate_env.WEATHERS
