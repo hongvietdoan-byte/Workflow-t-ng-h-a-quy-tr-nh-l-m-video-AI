@@ -45,13 +45,13 @@
    {
     "ai": "kelly",
     "bat_dau": {
-     "tu_the": "quy",
+     "tu_the": "ngoi",
      "cham_dat": [
-      "dau_goi"
+      "mong"
      ]
     },
     "suy_tu_chu": true,
-    "cum_tu": "kneel"
+    "cum_tu": "seated"
    }
   ],
   "vat": [],
@@ -80,7 +80,7 @@
  "issues": [],
  "suy_tu_chu": [
   "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
-  "hanh_dong[kelly].bat_dau ← chữ 'kneel'"
+  "hanh_dong[kelly].bat_dau ← chữ 'seated'"
  ],
  "quyet_dinh_nguoi_dung": null
 }
