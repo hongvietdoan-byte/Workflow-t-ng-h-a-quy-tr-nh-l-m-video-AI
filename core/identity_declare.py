@@ -13,7 +13,7 @@ món nằm dưới phần thân mà cỡ cảnh chứa (BODY_FROM_TOP so `core/s
 không đòi gì. Món bị lọc → `trang_thai: "khong_can"` + `ly_do` (không im lặng). Món không biết vùng thân / cỡ cảnh không biết → VẪN đòi,
 kèm `khong_loc` nói vì sao không lọc được.
 
-MỨC (A18 kế hoạch `docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md` dòng 31 + 156: "code chặn ngay"): CHƯA ĐO báo nhầm (bảng gán nhãn
+MỨC (A18 kế hoạch `docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md` A18 + 3.3b; mức theo A26 c — chỉ sai_mau / dau_hieu được ĐỎ): CHƯA ĐO báo nhầm (bảng gán nhãn
 `docs/NHAN_BAO_NHAM_A18_2026-10-10.md`, ngưỡng A25) → `CHAN_DO = False`: mọi món bị báo là VÀNG; chỉ bật `CHAN_DO = True`
 (hoặc `check(..., chan_do=True)`) khi báo nhầm đo được ≤ ngưỡng. Luật mức A26 (c) (người dùng 10/10): kể cả khi bật, CHỈ 'sai_mau'
 (chữ nói NGƯỢC màu khóa) và món dấu hiệu (ô khai_bao_chu có dau_hieu, A20) được ĐỎ; 'thieu' / 'thieu_mau' của món thường LUÔN VÀNG

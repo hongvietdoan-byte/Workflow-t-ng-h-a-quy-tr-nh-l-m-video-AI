@@ -70,7 +70,7 @@ def agent_cell(label) -> str:
     return f"**{label['nhan']}** — {label['ly_do']} ({label['do_chac']})".replace("|", "/")
 
 
-def agent_summary(chosen, agent: dict) -> list:
+def agent_summary(chosen, agent: dict, giu_rieng: bool = False) -> list:
     """Mục '## Agent đề xuất': đếm đúng lỗi / báo nhầm trên các mục đã chọn (theo dự án) + kiểu báo nhầm ghi trong file agent."""
     labels = agent.get("nhan", {})
     rows = [(p, labels.get(agent_key(p, it["shot"], it["n"]["nhan_vat"], it["m"]["mon"]))) for p, it in chosen]
@@ -88,8 +88,10 @@ def agent_summary(chosen, agent: dict) -> list:
     out = ["## Agent đề xuất (10/10)", "",
            f"Agent gán {len(got)}/{len(rows)} mục (nhãn ĐỀ XUẤT, người dùng duyệt cột cuối): **đúng lỗi {dung} / báo nhầm {nham}** → tỉ lệ "
            f"báo nhầm ước **{round(100 * nham / len(got))} %** (n = {len(got)}; ngưỡng A25 ≤ 10 %). Độ chắc thấp: {thap} mục.", "",
-           "⚠ Thẩm định 6: bảng này được CHỌN LẠI sau khi sửa A26 (b) và cùng các mục đã dùng để sửa → số trên là số TRONG MẪU, KHÔNG dùng "
-           "làm số đo A25. A25 chỉ tính trên bộ GIỮ RIÊNG (dự án K1a, chưa dùng để chỉnh luật).", "",
+           ("✅ BỘ GIỮ RIÊNG (A25/A28): các dự án này CHƯA dùng để chỉnh luật A18 → số trên được tính cho ngưỡng A25 (cần ≥ 30 mục, "
+            "≥ 2 dự án: dự án thử K1a + dự án kế)." if giu_rieng else
+            "⚠ Thẩm định 6: bảng này được CHỌN LẠI sau khi sửa A26 (b) và cùng các mục đã dùng để sửa → số trên là số TRONG MẪU, KHÔNG dùng "
+            "làm số đo A25. A25 chỉ tính trên bộ GIỮ RIÊNG (dự án K1a + dự án kế, chưa dùng để chỉnh luật — chạy với --giu-rieng)."), "",
            "| Dự án | đúng lỗi | báo nhầm | tỉ lệ báo nhầm |", "|---|---|---|---|"]
     for p in dict.fromkeys(p for p, _ in got):
         d, n, _ = tally([g for g in got if g[0] == p])
@@ -190,7 +192,7 @@ def _stats(shots):
             "by_state": {k: sum(_count(s["after"], (k,)) for s in shots) for k in BAO}}
 
 
-def render(by_project, max_rows: int = 30, agent: dict = None) -> str:
+def render(by_project, max_rows: int = 30, agent: dict = None, giu_rieng: bool = False) -> str:
     """by_project = {pid: shots (build)} → bảng markdown gộp; agent = load_agent() (nhãn đề xuất, cột trước cột người dùng)."""
     agent = agent or {}
     labels = agent.get("nhan", {})
@@ -255,7 +257,7 @@ def render(by_project, max_rows: int = 30, agent: dict = None) -> str:
               "- `segment`: hai nhân vật cùng từ đánh dấu (hai dạng yêu nữ cùng 'creature'; 'MAXIM' với 'MAXIM KL' khi chỉ ghi 'Maxim')",
               "  → mệnh đề thuộc CẢ HAI (sửa 10/10, ca `test_segment_shared_marker_belongs_to_both_forms`). Đoạn tả 'biến hình từ dạng",
               "  A sang dạng B' vẫn tính cho cả hai dạng → màu của dạng kia có thể ra `sai_mau` (người dùng gán để đo).", ""]
-    lines += agent_summary(chosen, agent)
+    lines += agent_summary(chosen, agent, giu_rieng)
     return "\n".join(lines)
 
 
@@ -266,10 +268,11 @@ def main(argv=None):
     ap.add_argument("--max", type=int, default=30)
     ap.add_argument("--out", default=OUT)
     ap.add_argument("--agent", default=AGENT, help="file nhãn đề xuất của agent (json)")
+    ap.add_argument("--giu-rieng", action="store_true", help="dự án là BỘ GIỮ RIÊNG (chưa dùng để chỉnh luật) — số được tính cho A25")
     a = ap.parse_args(argv)
     mod = _dryrun()
     by_project = {p: build(a.main, p, mod) for p in a.projects}
-    text = render(by_project, a.max, load_agent(a.agent))
+    text = render(by_project, a.max, load_agent(a.agent), a.giu_rieng)
     with open(a.out, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
     for p, shots in by_project.items():

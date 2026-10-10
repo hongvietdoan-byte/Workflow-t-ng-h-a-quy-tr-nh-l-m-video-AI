@@ -558,6 +558,18 @@ def test_nhan_bao_nham_agent_labels_kept_on_rerun(tmp_path):
     assert mod.agent_summary([(22, it(8, "hair"))], agent) == []
 
 
+def test_nhan_bao_nham_giu_rieng_flag_changes_a25_note():
+    """Thẩm định 7 (A28): mặc định bảng ghi 'TRONG MẪU, KHÔNG dùng làm số đo A25'; --giu-rieng → ghi BỘ GIỮ RIÊNG, tính cho A25."""
+    mod = _load_tool("nhan_bao_nham_a18")
+    agent = {"nhan": {"22|7|MAXIM KL|hands": {"nhan": "đúng lỗi", "do_chac": "cao", "ly_do": "x"}}}
+    it = {"shot": 7, "n": {"nhan_vat": "MAXIM KL"}, "m": {"mon": "hands"}}
+    mac_dinh = " ".join(mod.agent_summary([(22, it)], agent))
+    giu = " ".join(mod.agent_summary([(22, it)], agent, giu_rieng=True))
+    assert "TRONG MẪU" in mac_dinh and "BỘ GIỮ RIÊNG (A25/A28)" not in mac_dinh
+    assert "BỘ GIỮ RIÊNG (A25/A28)" in giu and "TRONG MẪU" not in giu
+    assert "--giu-rieng" in open(mod.__file__, encoding="utf-8").read()
+
+
 # --- A26 (b): 5 kiểu báo nhầm từ bảng gán nhãn docs/NHAN_BAO_NHAM_A18_2026-10-10.md — mỗi kiểu một ca dựng từ ca thật ---
 
 KHO_416 = ("Hoodie đỏ in hình khủng long xanh lá phun lửa, tay áo đen; quần jean đen rách; MŨ ĐEN CÓ SỪNG ĐỎ (nhìn chính diện dễ đọc "

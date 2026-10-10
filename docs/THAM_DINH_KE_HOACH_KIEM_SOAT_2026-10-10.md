@@ -225,3 +225,15 @@ chọn lại không phải số đo → A25 chỉ tính trên bộ giữ riêng 
 **Đã sửa ngay (phiên chính, 10/10 khuya, 0 USD):** (1) A18 + A20 + 3.3b + mục 9 khớp A26 (c); (2) mục 9 + tool `nhan_bao_nham_a18.py` ghi rõ số
 trong mẫu không dùng cho A25, đo trên bộ giữ riêng K1a; (3) K1a thêm việc (i)–(iv) nối A27; (4) dòng trạng thái KH, hàng K0b, TODO; (5) ghi chú
 `devsys/stages.json`: giữ K0b tới khi qua cổng A21; (6) R1: Claude đề xuất `khai_bao_chu`, người dùng duyệt, K1a. → thẩm định lần 7.
+
+# Lần 7 — sau sửa 6 lỗ hổng lần 6 (main e457c09): kế hoạch **8,5 / 10**, build **8,5 / 10** — ĐẠT cổng A21 (sát ngưỡng)
+
+Agent độc lập, cùng thang, chỉ đọc. 3 nhóm test: **103 qua**.
+KH = (9×15 + 8,5×20 + 8×15 + 8,5×15 + 8,5×10 + 8×10 + 8,5×5 + 9×10) / 100 = 8,50 (6,2 · 7,1 · 7,6 · 7,9 · 8,1 · 8,4).
+Build = (9×15 + 8,5×20 + 8×15 + 8,5×15 + 8×10 + 9×10 + 8,5×5 + 8,5×10) / 100 = 8,50 (8,0 · 8,3 · 8,5).
+Lỗ hổng lần 6: (1)(2) MỘT PHẦN (A18 dòng 33 + A25 dòng 40 còn trỏ #22 + #24); (3)–(6) ĐÓNG.
+Còn lại: TRUNG — A18/A25 trỏ bộ trong mẫu; TRUNG — A25 đòi ≥ 2 dự án nhưng K1a chỉ 1 dự án thử (cần người dùng chốt); THẤP — tool luôn in
+"TRONG MẪU" (cần cờ giữ riêng); THẤP — docstring identity_declare, TODO, A27 gọi 6/39 là nhãn A25; THẤP — nghiệm thu K1a thiếu (i)–(iii).
+Agent: không cần thẩm định 8 nếu chỉ sửa đúng các mục này. **Đã sửa cùng ngày:** A18/A25 trỏ bộ giữ riêng; **A28** (người dùng: bộ giữ riêng =
+dự án thử K1a + dự án kế; ĐỎ A18 sớm nhất sau dự án 2); `tools/nhan_bao_nham_a18.py --giu-rieng` + test
+`test_nhan_bao_nham_giu_rieng_flag_changes_a25_note`; docstring; A27 ghi 6/39 là số trong mẫu; nghiệm thu K1a (i)–(iv). → **Mở K1a.**
