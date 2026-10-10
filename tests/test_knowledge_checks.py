@@ -1,6 +1,6 @@
 """K0b nhánh A — hợp đồng bộ kỹ năng kiểm `knowledge/checks/<ID>.md` (kế hoạch kiểm soát 10/10 mục 4 "Bộ kỹ năng kiểm").
 
-Tệp kỹ năng phải KHỚP `devsys/error_types.json`: đủ 23 loại đúng id, mỗi tệp có 4 mục bắt buộc, mọi enum Claude khai của loại xuất
+Tệp kỹ năng phải KHỚP `devsys/error_types.json`: đủ 24 loại đúng id (R1 thêm K1a), mỗi tệp có 4 mục bắt buộc, mọi enum Claude khai của loại xuất
 hiện trong tệp, mọi `where` (file:tên) của code đo / Claude khai được nhắc, và mọi cờ của cách kiểm phụ thuộc cờ được ghi tên (cờ TẮT
 thì không tính là có — thẩm định 3)."""
 import json
@@ -52,7 +52,7 @@ def _flags(item):
 
 def test_one_file_per_type_and_no_extra():
     ids = [t["id"] for t in _types()]
-    assert len(ids) == 23
+    assert len(ids) == 24
     for tid in ids:
         _read(tid)
     extra = {f[:-3] for f in os.listdir(CHECKS) if f.endswith(".md") and f != "README.md"} - set(ids)

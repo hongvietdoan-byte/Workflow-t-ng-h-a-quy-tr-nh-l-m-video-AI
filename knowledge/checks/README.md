@@ -1,7 +1,7 @@
 # Bộ kỹ năng kiểm — `knowledge/checks/<ID>.md`
 
 Nguồn: `docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md` mục 4 ("Bộ kỹ năng kiểm", K0b), mục 5 (chuẩn so theo tầng), mục 10.
-Bảng gốc: `devsys/error_types.json` (23 loại L1–L15, V1–V4, A1–A4). Test hợp đồng: `tests/test_knowledge_checks.py`.
+Bảng gốc: `devsys/error_types.json` (24 loại L1–L15, V1–V4, A1–A4, R1 — R1 thêm ở K1a theo mục 10 bước 2). Test hợp đồng: `tests/test_knowledge_checks.py`.
 
 ## Mục đích
 Mỗi loại lỗi một tệp, gom kiến thức nghề (giám sát kịch bản, quay phim, VFX ghép hình, thiết kế bối cảnh / map FF, lỗi ảnh / video AI,

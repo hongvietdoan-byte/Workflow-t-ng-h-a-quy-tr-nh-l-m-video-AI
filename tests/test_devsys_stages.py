@@ -219,7 +219,7 @@ class PageTests(unittest.TestCase):
         first = frames[0].data if hasattr(frames[0], "data") else frames[0]
         self.assertIn("L9", list(first["Khâu"]))
         second = frames[1].data if hasattr(frames[1], "data") else frames[1]
-        self.assertEqual(len(second), 23)
+        self.assertEqual(len(second), 24)
         text = " ".join(m.value for m in at.markdown)
         self.assertIn("Tốn tiền thiếu kiểm trước", text)
 
@@ -229,7 +229,7 @@ class ErrorTypeTests(unittest.TestCase):
         self.doc = stages.load_error_types()
 
     def test_every_type_of_section_4_is_listed(self):
-        want = {f"L{i}" for i in range(1, 16)} | {f"V{i}" for i in range(1, 5)} | {f"A{i}" for i in range(1, 5)}
+        want = {f"L{i}" for i in range(1, 16)} | {f"V{i}" for i in range(1, 5)} | {f"A{i}" for i in range(1, 5)} | {"R1"}
         self.assertEqual({t["id"] for t in self.doc["types"]}, want)
 
     def test_table_has_no_problems(self):
