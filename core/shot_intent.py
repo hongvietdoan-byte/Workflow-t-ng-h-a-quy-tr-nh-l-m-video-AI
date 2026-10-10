@@ -9,6 +9,7 @@ K0a CHƯA nối vào pipeline (K1a làm: Đạo diễn điền BYĐ, cờ `shot_
 Nhóm (mục 3.1): truyen · thanh_phan (ai trong khung) · hanh_dong · vat · may · noi_chon · ngoai_le (có chủ đích) · am_chu.
 Một lỗi (issue) = {"muc": "do" | "vang", "truong": "may.co", "loi": "…"}: "do" = sai schema (chặn khi nối ở K1a), "vang" = không kiểm được.
 """
+import copy
 from typing import Dict, List, Optional
 
 from core import plate_env
@@ -32,6 +33,9 @@ THOI_TIET = plate_env.WEATHERS
 CHAM_DAT = ("ban_chan", "dau_goi", "mong", "ban_tay", "lung", "hong", "bung")   # bộ phận chạm đất
 NGOAI_LE_LY_DO = ("ky_nang", "hieu_ung_game", "phong_cach")                        # mục 3.1 / A8
 NHIP_HD = ("bat_dau", "dinh", "ket_thuc")
+# K1a (ii): vùng thân bị che ở một nhịp (hanh_dong[].<nhip>.che, tùy chọn) — identity_declare.CHE_ITEMS map vùng → món (test giữ khớp).
+# Có trường riêng vì tư thế một mình không đủ: cùng 'quy', ôm mặt (#24 S9) thì mặt khuất, quỳ nhìn thẳng thì lộ mặt.
+CHE = ("mat", "toc", "co", "than", "eo", "tay", "chan", "ban_chan")
 
 GROUPS = ("truyen", "thanh_phan", "hanh_dong", "vat", "may", "noi_chon", "ngoai_le", "am_chu")
 REQUIRED = ("shot", "thanh_phan", "may", "noi_chon")
@@ -94,6 +98,28 @@ def _check_thanh_phan(items, out: List[Dict]) -> None:
         for v in str(c.get("thay") or "").split("|"):
             if v.strip():
                 _enum(out, f"{t}.thay", v.strip(), THAY)
+        if "dang" in c:
+            _check_dang(c["dang"], f"{t}.dang", out)
+
+
+def _dang_ok(v) -> bool:
+    return (isinstance(v, str) and bool(v.strip())) or (isinstance(v, list) and bool(v)
+                                                        and all(isinstance(x, str) and x.strip() for x in v))
+
+
+def _check_dang(v, t: str, out: List[Dict]) -> None:
+    """K1a (i) `thanh_phan[].dang` (tùy chọn): dạng của nhân vật có mặt — chữ / danh sách chữ / {nhip (NHIP_HD): chữ|danh sách}
+    (shot biến hình khai dạng theo nhịp: {"bat_dau": "dang1", "ket_thuc": "dang2"})."""
+    if isinstance(v, dict):
+        if not v:
+            out.append(_issue("do", t, "bảng dạng theo nhịp rỗng"))
+        for k, x in v.items():
+            if k not in NHIP_HD:
+                out.append(_issue("do", f"{t}.{k}", f"nhịp lạ (một trong {', '.join(NHIP_HD)})"))
+            elif not _dang_ok(x):
+                out.append(_issue("do", f"{t}.{k}", "dạng phải là chữ hoặc danh sách chữ không rỗng"))
+    elif not _dang_ok(v):
+        out.append(_issue("do", t, "dạng phải là chữ, danh sách chữ hoặc bảng {nhip: dạng}"))
 
 
 def _check_hanh_dong(items, names: set, out: List[Dict]) -> None:
@@ -114,6 +140,12 @@ def _check_hanh_dong(items, names: set, out: List[Dict]) -> None:
             _enum(out, f"{t}.{nhip}.tu_the", st.get("tu_the"), TU_THE, required=True)
             for b in st.get("cham_dat") or []:
                 _enum(out, f"{t}.{nhip}.cham_dat", b, CHAM_DAT)
+            if "che" in st:
+                if not isinstance(st["che"], list):
+                    out.append(_issue("do", f"{t}.{nhip}.che", "phải là danh sách vùng bị che"))
+                else:
+                    for b in st["che"]:
+                        _enum(out, f"{t}.{nhip}.che", b, CHE)
         if h.get("bat_dau") is None:
             out.append(_issue("do", f"{t}.bat_dau", "thiếu trạng thái đầu"))
 
@@ -194,12 +226,17 @@ def from_shot_spec(spec: Dict, blocking: Optional[Dict] = None) -> Dict:
     (`kind: nguoi`) có trong thanh_phan (trừ `khong_duoc_co`) → {ai, bat_dau: {tu_the}, nguon}. `nguon` = "blocking.beats.<nhip>" (ghi ở
     nhịp) / "blocking.objects" (ghi ở vật gốc) / "mac_dinh_dung" (không ai ghi → đứng, mặc định người nộm prompt 29 — đánh dấu để duyệt).
     Một nhịp = một tư thế: `dinh` / `ket_thuc` để trống (shot_specs không tả đổi tư thế trong shot). Nhịp không có trong blocking →
-    ValueError (stage_solver.beat_raw), không im lặng bỏ. Không có blocking → hanh_dong rỗng (không bịa)."""
+    ValueError (stage_solver.beat_raw), không im lặng bỏ. Không có blocking → hanh_dong rỗng (không bịa).
+    K1a: spec có `hanh_dong` viết tay (vd tư thế + `che` #24 S9) → chép vào trước, nguon "shot_specs"; blocking không ghi đè người đó."""
     b = empty(int(spec.get("shot") or 0))
     b["truyen"].update(nhip=spec.get("nhip"), muc_dich=spec.get("muc_dich") or "")
     b["thanh_phan"] = [dict(c) for c in spec.get("thanh_phan") or []]
     b["may"].update(co=spec.get("co"), do_cao=spec.get("do_cao") or "ngang", goc=spec.get("goc"),
                     chuyen_dong=spec.get("may") or "dung_yen")
+    for h in spec.get("hanh_dong") or []:
+        if isinstance(h, dict):
+            b["hanh_dong"].append(dict(copy.deepcopy(h), nguon=h.get("nguon") or "shot_specs"))
+    declared = {h.get("ai") for h in b["hanh_dong"]}
     if blocking:
         nhip = spec.get("nhip")
         raw = stage_solver.beat_raw(blocking, nhip) if nhip else stage_solver.beat_raw(blocking)
@@ -208,7 +245,7 @@ def from_shot_spec(spec: Dict, blocking: Optional[Dict] = None) -> Dict:
         for c in b["thanh_phan"]:
             k = c.get("vat")
             o = raw.get(k)
-            if c.get("vai") == "khong_duoc_co" or not o or o.get("kind") != "nguoi":
+            if c.get("vai") == "khong_duoc_co" or not o or o.get("kind") != "nguoi" or k in declared:
                 continue
             if (ov_all.get(k) or {}).get("tu_the"):
                 tu_the, nguon = ov_all[k]["tu_the"], f"blocking.beats.{nhip}"

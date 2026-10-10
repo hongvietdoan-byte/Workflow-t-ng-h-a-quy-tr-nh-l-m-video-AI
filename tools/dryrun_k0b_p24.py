@@ -33,6 +33,8 @@ PID = 24                                   # mặc định (tương thích ngư�
 KHO_LOCATION = 263
 CHAR_ASSET = {"KELLY": 23, "YÊU NỮ TÀ LINH DẠNG 1": 418, "YÊU NỮ TÀ LINH DẠNG 2": 419}
 STAGE_KEY = {"KELLY": "kelly", "YÊU NỮ TÀ LINH DẠNG 1": "yeunu", "YÊU NỮ TÀ LINH DẠNG 2": "yeunu"}
+# K1a (i): hai dạng yêu nữ dùng chung khóa sân khấu 'yeunu' → mỗi dạng một tên dạng, so với BYĐ thanh_phan[].dang (identity_declare)
+STAGE_FORM = {"YÊU NỮ TÀ LINH DẠNG 1": "dang1", "YÊU NỮ TÀ LINH DẠNG 2": "dang2"}
 MARKERS = {"KELLY": ["kelly"], "YÊU NỮ TÀ LINH DẠNG 1": ["creature", "yêu nữ"], "YÊU NỮ TÀ LINH DẠNG 2": ["creature", "yêu nữ"]}
 PROPS = ("gieng", "thap")
 SPECS = os.path.join(ROOT, "tools/experiments/stage_v2_p24/shot_specs.json")
@@ -48,7 +50,7 @@ USER_DECISIONS = {
 # Khủng Long Đỏ nam"; mô tả Kho #416/#417 "tóc, mặt, dáng lấy theo NHÂN VẬT đang mặc, không theo người mẫu".
 IDENTITY_ITEMS = ("hair", "face", "eyes")
 PROJECTS = {
-    24: {"kho_location": KHO_LOCATION, "char_asset": CHAR_ASSET, "outfit": {}, "stage_key": STAGE_KEY, "markers": MARKERS,
+    24: {"kho_location": KHO_LOCATION, "char_asset": CHAR_ASSET, "outfit": {}, "stage_key": STAGE_KEY, "stage_form": STAGE_FORM, "markers": MARKERS,
          "specs": SPECS, "user_decisions": USER_DECISIONS, "jobs": (623, 640),
          "old_prompt": "stage_v2/scene4_backup_20261010_mouth.json"},
     # #22 Khủng Long Đỏ: mã Kho theo project_assets (23 Kelly, 33 Maxim, 416/417 bộ KL); trang phục 'KL' = characters.outfit_image_ids
@@ -170,7 +172,8 @@ def build_byd(spec, data, conn, cfg=None):
     suy.append("noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather")
     names = list(dict.fromkeys(c["vat"] for c in b["thanh_phan"]))   # thứ tự thanh_phan (set làm tệp ra đổi thứ tự mỗi lần chạy)
     text = " ".join(str(data.get(k) or "") for k in ("action", "end_state", "image_prompt"))
-    for who in [c for c in names if c not in PROPS]:
+    declared = {h.get("ai") for h in b["hanh_dong"]}     # K1a: shot_specs khai tay tư thế (+ che) → không suy đè từ chữ
+    for who in [c for c in names if c not in PROPS and c not in declared]:
         st, phrase = pose_from_text(data.get("action") if data.get("action") else text)
         if st is None:
             st, phrase = pose_from_text(text)
@@ -225,7 +228,7 @@ def identity_rows(conn, chars, prompt, in_frame=None, byd=None, cfg=None):
             decl = [d for d in decl if key(d) in IDENTITY_ITEMS] + [d for d in got_o[0] if key(d) not in IDENTITY_ITEMS]
             kbc_issues = kbc_issues + got_o[1]
             src, mo_ta = f"{src}[{'+'.join(IDENTITY_ITEMS)}]+trang_phuc_{oid}:{got_o[2]}", got_o[4]
-        view = idd.byd_view(byd, stage_key.get(name)) if byd is not None else None
+        view = idd.byd_view(byd, stage_key.get(name), dang=(cfg.get("stage_form") or {}).get(name)) if byd is not None else None
         cut = idd.prompt_cut(prompt)                # A26 kiểu 5: prompt tự giới hạn khung ('no legs', 'from mid-chest up')
         if view is not None and cut is not None:
             view["cat_prompt"] = cut

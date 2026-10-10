@@ -709,3 +709,58 @@ def test_a26_review_predicate_stops_at_with():
     assert r["hair"]["trang_thai"] != "sai_mau" and "red" not in r["hair"]["mau_thay"]
     r = _by(idd.check(idd.declare_from_text("long black hair"), "her hair is red with a black ribbon"))
     assert r["hair"]["trang_thai"] == "sai_mau"
+
+
+# ---- K1a (i) dạng / (ii) bị che theo tư thế — ca hồi quy #24 S7 / S9 từ BYĐ chạy khô (data_out/k0b_p24) ---------------------------
+def _byd_p24(n):
+    import json
+    import os
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data_out", "k0b_p24", f"byd_shot{n}.json")
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)["byd"]
+
+
+YEUNU_D1 = "long black hair, faceless smooth black face, tattered white dress, white belt, black hands, black stockings, black heels"
+YEUNU_D2 = "white hair with red tips, black comic crosshatch face, torn black dress, black spiked belt, black clawed hands, black legs"
+P24_S7 = ("Point-of-view shot from Kelly's eyes low on the ground, the faceless dark female creature standing in front of an ancient "
+          "well, engulfed in flickering red digital glitch noise mid-transformation, shifting from black-haired tattered-white-dress form "
+          "into white-haired red-tipped comic-style crosshatch form, foggy plaza at night")
+P24_S9 = ("Wide shot, Kelly small seated on the ground on the left, a white-haired red-tipped female creature in a torn black dress "
+          "kneeling and crying on the right in front of an ancient stone well, heavy digital glitch noise")
+
+
+def test_k1a_p24_s7_transformation_form_absent_at_image_beat_is_not_required():
+    byd = _byd_p24(7)
+    d2 = idd.check(idd.declare_from_text(YEUNU_D2), P24_S7, view=idd.byd_view(byd, "yeunu", dang="dang2"))
+    assert d2 and all(r["trang_thai"] == "khong_can" and "không có mặt ở nhịp bat_dau" in r["ly_do"] for r in d2)
+    v1 = idd.byd_view(byd, "yeunu", dang="dang1")
+    assert v1["trong_khung"] is True and v1["dang"] == ["dang1"] and "canh_bao" not in v1
+    assert idd.byd_view(byd, "yeunu", dang="dang2", nhip="ket_thuc")["trong_khung"] is True     # khung cuối: dạng 2 có mặt
+
+
+def test_k1a_p24_s9_kneeling_covering_face_hides_face_and_waist():
+    byd = _byd_p24(9)
+    view = idd.byd_view(byd, "yeunu", dang="dang2")
+    assert view["tu_the"] == "quy" and view["che"] == ["mat", "eo"]
+    r = _by(idd.check(idd.declare_from_text(YEUNU_D2), P24_S9, view=view))
+    for mon in ("face", "belt"):
+        assert r[mon]["trang_thai"] == "khong_can" and "bị che theo tư thế" in r[mon]["ly_do"]
+    assert r["hands"]["trang_thai"] == "thieu"              # tay không bị khai che → vẫn đòi (không che lỗi thật)
+
+
+def test_k1a_missing_form_declaration_keeps_old_behavior_with_yellow_reason():
+    import copy
+    byd = copy.deepcopy(_byd_p24(7))
+    for c in byd["thanh_phan"]:
+        c.pop("dang", None)
+    view = idd.byd_view(byd, "yeunu", dang="dang2")
+    assert view["trong_khung"] is True and view["canh_bao"][0]["muc"] == "vang" and "không rõ dạng" in view["canh_bao"][0]["loi"]
+    rows = [x for x in idd.check(idd.declare_from_text(YEUNU_D2), P24_S7, view=view) if x["trang_thai"] != "khong_can"]
+    assert rows and all("không rõ dạng" in x["khong_loc"] for x in rows)
+    assert "canh_bao" not in idd.byd_view(byd, "yeunu")      # nhân vật một dạng (không truyền dang) → như cũ, không cảnh báo
+
+
+def test_k1a_che_keys_match_shot_intent():
+    from core import shot_intent as si
+    assert set(idd.CHE_ITEMS) == set(si.CHE)
+    assert all(m in idd.ITEMS for ms in idd.CHE_ITEMS.values() for m in ms)

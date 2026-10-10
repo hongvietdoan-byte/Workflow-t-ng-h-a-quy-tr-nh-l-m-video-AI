@@ -163,5 +163,19 @@ class ValidateTests(unittest.TestCase):
             si.from_shot_spec(dict(spec, nhip="khong_co"), blocking)
 
 
+def test_k1a_optional_dang_and_che_fields():
+    base = {"shot": 7, "thanh_phan": [{"vat": "yeunu", "vai": "chinh", "dang": {"bat_dau": "dang1", "ket_thuc": "dang2"}}],
+            "may": {"co": "MLS"}, "noi_chon": {"kho_id": None},
+            "hanh_dong": [{"ai": "yeunu", "bat_dau": {"tu_the": "quy", "che": ["mat", "eo"]}}]}
+    fields = {i["truong"] for i in si.validate(base)}
+    assert not any(f.startswith(("thanh_phan", "hanh_dong")) for f in fields)
+    bad = dict(base, thanh_phan=[{"vat": "yeunu", "vai": "chinh", "dang": {"giua": "dang1"}}],
+               hanh_dong=[{"ai": "yeunu", "bat_dau": {"tu_the": "quy", "che": ["bung_bu"]}}])
+    fields = {i["truong"] for i in si.validate(bad) if i["muc"] == "do"}
+    assert "thanh_phan[0].dang.giua" in fields and "hanh_dong[0].bat_dau.che" in fields
+    b = si.from_shot_spec({"shot": 9, "thanh_phan": base["thanh_phan"], "hanh_dong": base["hanh_dong"]})
+    assert b["hanh_dong"][0]["bat_dau"]["che"] == ["mat", "eo"] and b["hanh_dong"][0]["nguon"] == "shot_specs"
+
+
 if __name__ == "__main__":
     unittest.main()

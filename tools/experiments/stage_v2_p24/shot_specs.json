@@ -173,14 +173,19 @@
      "co_pct": [
       30,
       95
-     ]
+     ],
+     "dang": {
+      "bat_dau": "dang1",
+      "ket_thuc": "dang2"
+     }
     },
     {
      "vat": "gieng",
      "vai": "phu"
     }
    ],
-   "_chot": "người dùng 09/10 chốt (a): shot 5–7 theo ref emote; 6–7 là góc nhìn Kelly bò lùi vì sợ, máy lùi + rung nhẹ"
+   "_chot": "người dùng 09/10 chốt (a): shot 5–7 theo ref emote; 6–7 là góc nhìn Kelly bò lùi vì sợ, máy lùi + rung nhẹ",
+   "_k1a_dang": "biến hình dạng 1 → dạng 2: ảnh (khung đầu) vẽ dạng 1 — báo nhầm A18 #24 S7"
   },
   {
    "shot": 8,
@@ -217,14 +222,31 @@
     {
      "vat": "yeunu",
      "vai": "chinh",
-     "vung": "giua+phai"
+     "vung": "giua+phai",
+     "dang": "dang2"
     },
     {
      "vat": "gieng",
      "vai": "phu"
     }
    ],
-   "_sua_k5": "lần 1 yêu nữ 'phai': Kelly–yêu nữ chỉ cách 0,85 m, Kelly nhỏ (máy xa 2,4 m) không tách được hai mép 1/3 → 'giua+phai'"
+   "_sua_k5": "lần 1 yêu nữ 'phai': Kelly–yêu nữ chỉ cách 0,85 m, Kelly nhỏ (máy xa 2,4 m) không tách được hai mép 1/3 → 'giua+phai'",
+   "hanh_dong": [
+    {
+     "ai": "yeunu",
+     "bat_dau": {
+      "tu_the": "quy",
+      "cham_dat": [
+       "dau_goi"
+      ],
+      "che": [
+       "mat",
+       "eo"
+      ]
+     }
+    }
+   ],
+   "_k1a_che": "dạng 2 quỳ ôm mặt khóc: mặt bị tay che, eo bị tóc/tay che — báo nhầm A18 #24 S9"
   }
  ]
 }

@@ -30,7 +30,10 @@
        "lung",
        "nghieng"
       ],
-      "trong_khung": true
+      "trong_khung": true,
+      "tu_the": "dung",
+      "nhip": "bat_dau",
+      "che": []
      },
      "khai_bao_chu_loi": [
       {
@@ -190,7 +193,10 @@
       "thay": [
        "nghieng"
       ],
-      "trong_khung": true
+      "trong_khung": true,
+      "tu_the": "dung",
+      "nhip": "bat_dau",
+      "che": []
      },
      "khai_bao_chu_loi": [
       {
@@ -352,7 +358,10 @@
        "lung",
        "nghieng"
       ],
-      "trong_khung": true
+      "trong_khung": true,
+      "tu_the": "dung",
+      "nhip": "bat_dau",
+      "che": []
      },
      "khai_bao_chu_loi": [
       {
@@ -516,7 +525,10 @@
        "lung",
        "nghieng"
       ],
-      "trong_khung": true
+      "trong_khung": true,
+      "tu_the": "nga_ngua",
+      "nhip": "bat_dau",
+      "che": []
      },
      "khai_bao_chu_loi": [
       {
@@ -687,7 +699,15 @@
       "thay": [
        "mat"
       ],
-      "trong_khung": true
+      "trong_khung": true,
+      "dang": null,
+      "nhip": "bat_dau",
+      "canh_bao": [
+       {
+        "muc": "vang",
+        "loi": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang1' như cũ"
+       }
+      ]
      },
      "khai_bao_chu_loi": [
       {
@@ -761,6 +781,7 @@
        ],
        "dau_hieu_thay": true,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang1' như cũ",
        "trang_thai": "co",
        "muc": null
       },
@@ -779,6 +800,7 @@
        "mau_phu_thieu": [
         "red"
        ],
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang1' như cũ",
        "trang_thai": "co",
        "muc": null
       },
@@ -794,6 +816,7 @@
        ],
        "dau_hieu_thay": true,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang1' như cũ",
        "trang_thai": "co",
        "muc": null
       },
@@ -809,6 +832,7 @@
        ],
        "dau_hieu_thay": true,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang1' như cũ",
        "trang_thai": "sai_mau",
        "muc": "vang"
       },
@@ -824,6 +848,7 @@
        ],
        "dau_hieu_thay": true,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang1' như cũ",
        "trang_thai": "co",
        "muc": null
       },
@@ -868,7 +893,7 @@
        ],
        "dau_hieu_thay": true,
        "mau_phu_thieu": [],
-       "khong_loc": "món 'glitch' chưa có vùng thân (BODY_FROM_TOP) — không lọc theo cỡ, vẫn đòi",
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang1' như cũ; món 'glitch' chưa có vùng thân (BODY_FROM_TOP) — không lọc theo cỡ, vẫn đòi",
        "trang_thai": "co",
        "muc": null
       }
@@ -926,7 +951,17 @@
       "thay": [
        "mat"
       ],
-      "trong_khung": true
+      "trong_khung": true,
+      "dang": null,
+      "nhip": "bat_dau",
+      "tu_the": "dung",
+      "che": [],
+      "canh_bao": [
+       {
+        "muc": "vang",
+        "loi": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang1' như cũ"
+       }
+      ]
      },
      "khai_bao_chu_loi": [
       {
@@ -1000,6 +1035,7 @@
        ],
        "dau_hieu_thay": true,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang1' như cũ",
        "trang_thai": "co",
        "muc": null
       },
@@ -1018,6 +1054,7 @@
        "mau_phu_thieu": [
         "red"
        ],
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang1' như cũ",
        "trang_thai": "co",
        "muc": null
       },
@@ -1033,6 +1070,7 @@
        ],
        "dau_hieu_thay": true,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang1' như cũ",
        "trang_thai": "co",
        "muc": null
       },
@@ -1048,6 +1086,7 @@
        ],
        "dau_hieu_thay": true,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang1' như cũ",
        "trang_thai": "sai_mau",
        "muc": "vang"
       },
@@ -1063,6 +1102,7 @@
        ],
        "dau_hieu_thay": true,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang1' như cũ",
        "trang_thai": "co",
        "muc": null
       },
@@ -1107,7 +1147,7 @@
        ],
        "dau_hieu_thay": true,
        "mau_phu_thieu": [],
-       "khong_loc": "món 'glitch' chưa có vùng thân (BODY_FROM_TOP) — không lọc theo cỡ, vẫn đòi",
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang1' như cũ; món 'glitch' chưa có vùng thân (BODY_FROM_TOP) — không lọc theo cỡ, vẫn đòi",
        "trang_thai": "co",
        "muc": null
       }
@@ -1164,7 +1204,13 @@
       "thay": [
        "mat"
       ],
-      "trong_khung": true
+      "trong_khung": true,
+      "dang": [
+       "dang1"
+      ],
+      "nhip": "bat_dau",
+      "tu_the": "dung",
+      "che": []
      },
      "khai_bao_chu_loi": [
       {
@@ -1358,7 +1404,14 @@
       "thay": [
        "mat"
       ],
-      "trong_khung": true
+      "trong_khung": false,
+      "dang": [
+       "dang1"
+      ],
+      "nhip": "bat_dau",
+      "ngoai_khung": "dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1)",
+      "tu_the": "dung",
+      "che": []
      },
      "khai_bao_chu_loi": [
       {
@@ -1403,11 +1456,11 @@
       "the whole body"
      ],
      "tong": {
-      "co": 3,
-      "thieu": 4,
+      "co": 0,
+      "thieu": 0,
       "thieu_mau": 0,
       "sai_mau": 0,
-      "khong_can": 0,
+      "khong_can": 7,
       "khong_co_khoa": 0
      },
      "mon": [
@@ -1421,8 +1474,9 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1)"
       },
       {
        "mon": "hair",
@@ -1431,14 +1485,12 @@
        ],
        "dau_hieu": "red tips",
        "nguon": "suy",
-       "mau_thay": [
-        "black",
-        "white"
-       ],
-       "dau_hieu_thay": true,
+       "mau_thay": [],
+       "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "co",
-       "muc": null
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1)"
       },
       {
        "mon": "dress",
@@ -1447,14 +1499,12 @@
        ],
        "dau_hieu": "off-the-shoulder",
        "nguon": "suy",
-       "mau_thay": [
-        "black",
-        "white"
-       ],
-       "dau_hieu_thay": false,
+       "mau_thay": [],
+       "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "co",
-       "muc": null
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1)"
       },
       {
        "mon": "belt",
@@ -1467,8 +1517,9 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1)"
       },
       {
        "mon": "hands",
@@ -1480,8 +1531,9 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1)"
       },
       {
        "mon": "legs",
@@ -1493,22 +1545,21 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1)"
       },
       {
        "mon": "glitch",
        "mau_chinh": [],
        "dau_hieu": "constant",
        "nguon": "suy",
-       "mau_thay": [
-        "red"
-       ],
-       "dau_hieu_thay": false,
+       "mau_thay": [],
+       "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "khong_loc": "món 'glitch' chưa có vùng thân (BODY_FROM_TOP) — không lọc theo cỡ, vẫn đòi",
-       "trang_thai": "co",
-       "muc": null
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "dạng 'dang2' không có mặt ở nhịp bat_dau (BYĐ thanh_phan dang = dang1)"
       }
      ]
     }
@@ -1557,7 +1608,17 @@
       "thay": [
        "mat"
       ],
-      "trong_khung": true
+      "trong_khung": true,
+      "dang": null,
+      "nhip": "bat_dau",
+      "tu_the": "dung",
+      "che": [],
+      "canh_bao": [
+       {
+        "muc": "vang",
+        "loi": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang2' như cũ"
+       }
+      ]
      },
      "khai_bao_chu_loi": [
       {
@@ -1622,6 +1683,7 @@
        ],
        "dau_hieu_thay": false,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang2' như cũ",
        "trang_thai": "co",
        "muc": null
       },
@@ -1637,6 +1699,7 @@
        ],
        "dau_hieu_thay": false,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang2' như cũ",
        "trang_thai": "co",
        "muc": null
       },
@@ -1650,6 +1713,7 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang2' như cũ",
        "trang_thai": "thieu",
        "muc": "vang"
       },
@@ -1706,7 +1770,7 @@
        ],
        "dau_hieu_thay": true,
        "mau_phu_thieu": [],
-       "khong_loc": "món 'glitch' chưa có vùng thân (BODY_FROM_TOP) — không lọc theo cỡ, vẫn đòi",
+       "khong_loc": "không rõ dạng: 'yeunu' có nhiều dạng mà BYĐ thanh_phan không khai 'dang' ở nhịp bat_dau — vẫn đòi món của dạng 'dang2' như cũ; món 'glitch' chưa có vùng thân (BODY_FROM_TOP) — không lọc theo cỡ, vẫn đòi",
        "trang_thai": "co",
        "muc": null
       }
@@ -1752,8 +1816,7 @@
    "byd_loi": [],
    "suy_tu_chu": [
     "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
-    "hanh_dong[kelly].bat_dau ← chữ 'kneel'",
-    "hanh_dong[yeunu].bat_dau ← chữ 'kneel'"
+    "hanh_dong[kelly].bat_dau ← chữ 'kneel'"
    ],
    "nguoi_trong_khung": [
     "kelly",
@@ -1770,7 +1833,10 @@
       "vat": "kelly",
       "co": "WS",
       "thay": [],
-      "trong_khung": true
+      "trong_khung": true,
+      "tu_the": "quy",
+      "nhip": "bat_dau",
+      "che": []
      },
      "khai_bao_chu_loi": [
       {
@@ -1890,7 +1956,16 @@
       "vat": "yeunu",
       "co": "WS",
       "thay": [],
-      "trong_khung": true
+      "trong_khung": true,
+      "dang": [
+       "dang2"
+      ],
+      "nhip": "bat_dau",
+      "tu_the": "quy",
+      "che": [
+       "mat",
+       "eo"
+      ]
      },
      "khai_bao_chu_loi": [
       {
@@ -1936,10 +2011,10 @@
      ],
      "tong": {
       "co": 3,
-      "thieu": 4,
+      "thieu": 2,
       "thieu_mau": 0,
       "sai_mau": 0,
-      "khong_can": 0,
+      "khong_can": 2,
       "khong_co_khoa": 0
      },
      "mon": [
@@ -1953,9 +2028,9 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "khong_loc": "không rõ hướng (BYĐ không ghi mặt/lưng) — 'face' chỉ thấy từ phía trước, vẫn đòi",
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "bị che theo tư thế (quy; BYĐ che: mat ở nhịp bat_dau): 'face' khuất"
       },
       {
        "mon": "hair",
@@ -2000,8 +2075,9 @@
        "mau_thay": [],
        "dau_hieu_thay": null,
        "mau_phu_thieu": [],
-       "trang_thai": "thieu",
-       "muc": "vang"
+       "trang_thai": "khong_can",
+       "muc": null,
+       "ly_do": "bị che theo tư thế (quy; BYĐ che: eo ở nhịp bat_dau): 'belt' khuất"
       },
       {
        "mon": "hands",
@@ -2103,7 +2179,10 @@
       "lung",
       "nghieng"
      ],
-     "trong_khung": true
+     "trong_khung": true,
+     "tu_the": "nga_ngua",
+     "nhip": "bat_dau",
+     "che": []
     },
     "khai_bao_chu_loi": [
      {
