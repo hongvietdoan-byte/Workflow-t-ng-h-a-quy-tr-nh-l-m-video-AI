@@ -1,0 +1,14 @@
+{
+ "version": 1,
+ "_note": "Luật thế giới CHUNG của Free Fire (tầng T2, docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md mục 5). Định dạng + bộ đọc: core/world_rules.py. Chỉ ghi luật đã biết có nguồn; luật dự án (người dùng trả lời 'cố ý') lưu ở <data_dir>/<id>/world_rules.json. K0b: chưa nối vào luồng nào.",
+ "luat": [
+  {
+   "id": "ff_xe_khong_bay",
+   "vat": "loai:xe",
+   "ngu_canh": "*",
+   "dieu": "xe trong Free Fire chạy trên mặt đất, không bay / không lơ lửng (trừ khi BYĐ khai ngoại lệ có chủ đích hoặc có luật hẹp hơn)",
+   "pham_vi": "chung",
+   "nguon": "tu_lieu: docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md mục 5 bảng T2 (ví dụ 'xe FF không bay')"
+  }
+ ]
+}
