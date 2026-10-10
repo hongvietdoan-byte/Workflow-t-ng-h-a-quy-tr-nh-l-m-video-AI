@@ -1,0 +1,59 @@
+{
+ "byd": {
+  "shot": 8,
+  "truyen": {
+   "nhip": "quy",
+   "muc_dich": "cận yêu nữ quỳ ôm mặt khóc — bỏ mốc cho gọn khung",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "yeunu",
+    "vai": "chinh",
+    "vung": "giua",
+    "thay": "mat"
+   }
+  ],
+  "hanh_dong": [
+   {
+    "ai": "yeunu",
+    "bat_dau": {
+     "tu_the": "dung",
+     "cham_dat": [
+      "ban_chan"
+     ]
+    },
+    "suy_tu_chu": true,
+    "cum_tu": "run"
+   }
+  ],
+  "vat": [],
+  "may": {
+   "co": "MCU",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": "plaza_front",
+   "thoi_gian": "night",
+   "thoi_tiet": "fog",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "issues": [],
+ "suy_tu_chu": [
+  "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+  "hanh_dong[yeunu].bat_dau ← chữ 'run'"
+ ],
+ "quyet_dinh_nguoi_dung": null
+}

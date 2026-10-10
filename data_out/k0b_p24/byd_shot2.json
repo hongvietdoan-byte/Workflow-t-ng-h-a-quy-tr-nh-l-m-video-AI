@@ -1,0 +1,64 @@
+{
+ "byd": {
+  "shot": 2,
+  "truyen": {
+   "nhip": "mep_gieng",
+   "muc_dich": "nhìn ngang phía Đông, máy cao cúi: Kelly ở mép giếng cúi nhìn vào lòng giếng (thấy nghiêng mặt), giếng bên phải",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "kelly",
+    "vai": "chinh",
+    "vung": "trai",
+    "thay": "nghieng"
+   },
+   {
+    "vat": "gieng",
+    "vai": "chinh",
+    "vung": "phai-duoi"
+   }
+  ],
+  "hanh_dong": [
+   {
+    "ai": "kelly",
+    "bat_dau": {
+     "tu_the": "dung",
+     "cham_dat": [
+      "ban_chan"
+     ]
+    },
+    "suy_tu_chu": true,
+    "cum_tu": "lean"
+   }
+  ],
+  "vat": [],
+  "may": {
+   "co": "WS",
+   "do_cao": "cao",
+   "goc": "cui",
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": "plaza_front",
+   "thoi_gian": "night",
+   "thoi_tiet": "fog",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "issues": [],
+ "suy_tu_chu": [
+  "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+  "hanh_dong[kelly].bat_dau ← chữ 'lean'"
+ ],
+ "quyet_dinh_nguoi_dung": null
+}

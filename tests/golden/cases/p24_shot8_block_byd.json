@@ -1,0 +1,184 @@
+{
+ "id": "p24_shot8_block_byd",
+ "nguon": "người dùng 10/10 #24 shot 8: render 3D có giếng là khối thay thế tám cạnh → ảnh chép thành khối, QC 'place ok' — K0b: thêm BYĐ + gói job 630",
+ "ca_vang_tay": false,
+ "byd": {
+  "shot": 8,
+  "truyen": {
+   "nhip": "quy",
+   "muc_dich": "cận yêu nữ quỳ ôm mặt khóc — bỏ mốc cho gọn khung",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "yeunu",
+    "vai": "chinh",
+    "vung": "giua",
+    "thay": "mat"
+   }
+  ],
+  "hanh_dong": [
+   {
+    "ai": "yeunu",
+    "bat_dau": {
+     "tu_the": "dung",
+     "cham_dat": [
+      "ban_chan"
+     ]
+    },
+    "suy_tu_chu": true,
+    "cum_tu": "run"
+   }
+  ],
+  "vat": [],
+  "may": {
+   "co": "MCU",
+   "do_cao": "ngang",
+   "goc": "ngang",
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": "plaza_front",
+   "thoi_gian": "night",
+   "thoi_tiet": "fog",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "may": {
+  "location": [
+   -216.746,
+   116.08,
+   10.946
+  ],
+  "look_at": [
+   -217.384,
+   116.841,
+   10.827
+  ],
+  "lens": 50.0,
+  "props": [
+   {
+    "kind": "well",
+    "at": [
+     -217.348,
+     117.576,
+     9.83
+    ],
+    "radius": 0.75,
+    "height": 0.9,
+    "hollow": true,
+    "sides": 8
+   }
+  ]
+ },
+ "kho": {
+  "well": {
+   "name": "GIẾNG ĐÁ CỔ",
+   "desc_en": "",
+   "has_picture": true
+  }
+ },
+ "goi": {
+  "image_prompt": "Close-up, eye level, slow push-in, Free Fire in-game 3D render style, the comic-style black-faced creature with white hair and red tips kneeling on the foggy stone plaza, clawed hands covering her face, shoulders shaking, cold moonlight, everything in focus",
+  "refs": [
+   {
+    "vai": "object",
+    "nhan": "GIẾNG ĐÁ CỔ",
+    "tep": "2.png"
+   },
+   {
+    "vai": "character",
+    "nhan": "YÊU NỮ TÀ LINH DẠNG 2",
+    "tep": "3.jpg"
+   },
+   {
+    "vai": "character",
+    "nhan": "YÊU NỮ TÀ LINH DẠNG 2",
+    "tep": "1.jpg"
+   },
+   {
+    "vai": "character",
+    "nhan": "YÊU NỮ TÀ LINH DẠNG 2",
+    "tep": "2.jpg"
+   },
+   {
+    "vai": "place_render",
+    "nhan": "Tháp Đồng Hồ",
+    "tep": "plate.png",
+    "plate_key": "612f1e13fb47a954db92"
+   },
+   {
+    "vai": "place_wide",
+    "nhan": "WIDE same-axis view of this place (Tháp Đồng Hồ)",
+    "tep": "plate.png",
+    "plate_key": "37e1051fc5476c4cb8a3"
+   },
+   {
+    "vai": "previous_scene",
+    "nhan": "frame 1 (scene anchor)",
+    "tep": "job_573.png"
+   },
+   {
+    "vai": "storyboard",
+    "nhan": "storyboard",
+    "tep": "sb_ccfa094904da"
+   }
+  ],
+  "model": "gpt-image-2.5-sunburst"
+ },
+ "anh_ket_qua": "data/projects/24/images/job_630.png",
+ "loi_dung": "không có câu trái hình học (ca chống báo nhầm)",
+ "loai_loi": [
+  "L7"
+ ],
+ "lop_phai_bat": [
+  "d85"
+ ],
+ "ky_vong": {
+  "stage_facts": {
+   "facts": {
+    "top_visible:well": true,
+    "stand_in:well": true
+   },
+   "prompt_contains": [
+    "The grey eight-sided block in the background render is a placeholder: draw it as the stone well",
+    "not a flat block"
+   ],
+   "prompt_not_contains": [
+    "only the outer wall"
+   ],
+   "contradiction": null,
+   "judge": [
+    [
+     "stand_in:well",
+     "flat_plain_block",
+     "do"
+    ],
+    [
+     "stand_in:well",
+     "drawn_as_real_object",
+     null
+    ],
+    [
+     "stand_in:well",
+     "unsure",
+     "vang"
+    ],
+    [
+     "top_visible:well",
+     "inside_visible",
+     null
+    ]
+   ]
+  }
+ }
+}

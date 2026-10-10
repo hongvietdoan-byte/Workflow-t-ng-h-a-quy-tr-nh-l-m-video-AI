@@ -1,0 +1,98 @@
+"""core/identity_declare (A18 / A20, K0b): khóa nhận diện bằng chữ — có / thiếu / thiếu màu / sai màu, đồng nghĩa màu, họa tiết bỏ qua."""
+import pytest
+
+from core import identity_declare as idd
+from tests import golden
+
+KELLY = "yellow tracksuit, black spiked choker"
+KELLY_MUST_KEEP = ("dark brown chin-length bob with straight blunt bangs (hair down, never tied), black choker, white crop top under a "
+                   "bright yellow zip-up track jacket with a high collar, grey sleeve stripes with small black stars and thin black edge "
+                   "lines, matching bright yellow track pants with a black side stripe, white sneakers, youthful face with light makeup")
+
+
+def _by(rows):
+    return {r["mon"]: r for r in rows}
+
+
+def test_declare_items_colors_sign():
+    d = _by(idd.declare_from_text(KELLY))
+    assert d["tracksuit"]["mau_chinh"] == ["yellow"]
+    assert d["choker"]["mau_chinh"] == ["black"] and d["choker"]["dau_hieu"] == "spiked"
+    assert all(x["nguon"] == "suy" for x in d.values())
+
+
+def test_all_present():
+    rows = idd.check(idd.declare_from_text(KELLY), "Kelly in her yellow-white-black tracksuit with black spiked choker")
+    assert [r["trang_thai"] for r in rows] == ["co", "co"]
+    assert all(r["muc"] is None for r in rows)
+    assert rows[1]["dau_hieu_thay"] is True
+
+
+def test_missing_choker_is_red():
+    r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in a yellow tracksuit runs across the plaza"))
+    assert r["choker"]["trang_thai"] == "thieu" and r["choker"]["muc"] == "do"
+    assert r["tracksuit"]["trang_thai"] == "co"
+
+
+def test_wrong_color_is_red():
+    r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in a red tracksuit and a black choker"))
+    assert r["tracksuit"]["trang_thai"] == "sai_mau" and r["tracksuit"]["mau_thay"] == ["red"] and r["tracksuit"]["muc"] == "do"
+
+
+def test_color_synonyms_and_missing_color():
+    r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in a golden track suit with a jet-black choker"))
+    assert r["tracksuit"]["trang_thai"] == "co" and r["choker"]["trang_thai"] == "co"
+    r = _by(idd.check(idd.declare_from_text(KELLY), "Kelly in her tracksuit and black choker"))
+    assert r["tracksuit"]["trang_thai"] == "thieu_mau" and r["tracksuit"]["muc"] == "do"
+
+
+def test_must_keep_merges_tracksuit_and_skips_patterns():
+    decl = idd.declare_from_text(KELLY_MUST_KEEP)
+    d = _by([x for x in decl if not x.get("hoa_tiet")])
+    assert d["tracksuit"]["mau_chinh"] == ["yellow"]          # track jacket + track pants → một món
+    assert d["hair"]["mau_chinh"] == ["brown"] and "face" not in d
+    assert any(x.get("hoa_tiet") for x in decl)
+    r = _by(idd.check(decl, "Kelly with short dark bob, yellow tracksuit, black choker"))
+    assert r["hair"]["trang_thai"] == "co"                    # 'dark' khớp nâu đậm, không tính sai màu
+    assert r["sneakers"]["trang_thai"] == "thieu"
+
+
+def test_vietnamese_description():
+    d = _by(idd.declare_from_text("váy trắng trễ vai rách tả tơi; tóc đen dài rối, nửa dưới chuyển đỏ; giày cao gót đỏ"))
+    assert d["dress"]["mau_chinh"] == ["white"]
+    assert d["hair"]["mau_chinh"] == ["black", "red"]
+    assert d["heels"]["mau_chinh"] == ["red"]
+    r = _by(idd.check(list(d.values()), "a creature in a torn black dress with long black hair, red high heels"))
+    assert r["dress"]["trang_thai"] == "sai_mau" and r["hair"]["trang_thai"] == "co" and r["heels"]["trang_thai"] == "co"
+
+
+def test_segment_keeps_other_figure_hair_off_kelly():
+    p = ("Kelly in the foreground standing at the rim of an ancient stone well, a dark blurred shadow figure with long trailing black "
+         "hair glides past her")
+    seg = idd.segment(p, {"KELLY": ["kelly"]})
+    assert "black" not in seg["KELLY"]
+    seg = idd.segment("Kelly small seated on the left, a white-haired red-tipped female creature in a torn black dress kneeling",
+                      {"KELLY": ["kelly"], "D2": ["creature"]})
+    assert "dress" in seg["D2"] and "dress" not in seg["KELLY"]
+
+
+def test_hyphenated_compound_items():
+    d = idd.declare_from_text("váy trắng; tóc đen")
+    r = _by(idd.check(d, "shifting from black-haired tattered-white-dress form"))
+    assert r["dress"]["trang_thai"] == "co" and r["hair"]["trang_thai"] == "co"
+
+
+GOLDEN = [c for c in golden.load_cases() if "identity_declare" in (c.get("ky_vong") or {})]
+
+
+def test_golden_has_identity_cases():
+    assert len(GOLDEN) >= 2
+
+
+@pytest.mark.parametrize("case", GOLDEN, ids=[c["id"] for c in GOLDEN])
+def test_golden_identity(case):
+    """Ca hồi quy K0b (#24): khóa Kho của nhân vật × đoạn prompt nói về nó → đúng trạng thái từng món."""
+    exp = case["ky_vong"]["identity_declare"]
+    seg = idd.segment(case["goi"]["image_prompt"], {exp["nhan_vat"]: [exp["nhan_vat"].lower()]})
+    got = {r["mon"]: r["trang_thai"] for r in idd.check(idd.declare_from_text(exp["khoa"]), seg[exp["nhan_vat"]])}
+    assert got == exp["trang_thai"]

@@ -1,0 +1,1540 @@
+{
+ "pose_tool": "mediapipe 1.0.1 KHÔNG có mp.solutions (bỏ ở 1.x) và KHÔNG có data/models/pose_landmarker*.task → chưa đo được tư thế (cần tải model ≈ 5–30 MB — hỏi người dùng)",
+ "shots": [
+  {
+   "shot": 1,
+   "scene_id": 257,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+    "hanh_dong[kelly].bat_dau ← chữ 'stand'"
+   ],
+   "nguoi_trong_khung": [
+    "kelly"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "KELLY",
+     "kho_id": 23,
+     "nguon_khoa": "must_keep",
+     "thieu_must_keep": false,
+     "tong": {
+      "co": 3,
+      "thieu": 2,
+      "thieu_mau": 0,
+      "sai_mau": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "brown"
+       ],
+       "dau_hieu": "straight blunt bangs",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": false,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "choker",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "crop top",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "tracksuit",
+       "mau_chinh": [
+        "yellow"
+       ],
+       "dau_hieu": "a high collar",
+       "nguon": "suy",
+       "mau_thay": [
+        "yellow",
+        "black",
+        "white"
+       ],
+       "dau_hieu_thay": false,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "sneakers",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": null,
+    "notes": [],
+    "facts": {
+     "top_visible:well": true,
+     "stand_in:well": true,
+     "in_frame:well": "middle_third",
+     "pitch_horizon:camera": "horizon_middle_third"
+    },
+    "contradictions": []
+   },
+   "do": [
+    {
+     "job": 623,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate.png"
+    }
+   ]
+  },
+  {
+   "shot": 2,
+   "scene_id": 258,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+    "hanh_dong[kelly].bat_dau ← chữ 'lean'"
+   ],
+   "nguoi_trong_khung": [
+    "kelly"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "KELLY",
+     "kho_id": 23,
+     "nguon_khoa": "must_keep",
+     "thieu_must_keep": false,
+     "tong": {
+      "co": 0,
+      "thieu": 5,
+      "thieu_mau": 0,
+      "sai_mau": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "brown"
+       ],
+       "dau_hieu": "straight blunt bangs",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "choker",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "crop top",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "tracksuit",
+       "mau_chinh": [
+        "yellow"
+       ],
+       "dau_hieu": "a high collar",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "sneakers",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": null,
+    "notes": [],
+    "facts": {
+     "top_visible:well": true,
+     "stand_in:well": true,
+     "in_frame:well": "right_third",
+     "pitch_horizon:camera": "horizon_top_third"
+    },
+    "contradictions": []
+   },
+   "do": [
+    {
+     "job": 624,
+     "mat_anh": 1,
+     "mat_render": 0,
+     "render": "plate.png"
+    },
+    {
+     "job": 632,
+     "mat_anh": 1,
+     "mat_render": 0,
+     "render": "plate_lift.png"
+    }
+   ]
+  },
+  {
+   "shot": 3,
+   "scene_id": 259,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+    "hanh_dong[kelly].bat_dau ← chữ 'stand'"
+   ],
+   "nguoi_trong_khung": [
+    "kelly"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "KELLY",
+     "kho_id": 23,
+     "nguon_khoa": "must_keep",
+     "thieu_must_keep": false,
+     "tong": {
+      "co": 0,
+      "thieu": 5,
+      "thieu_mau": 0,
+      "sai_mau": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "brown"
+       ],
+       "dau_hieu": "straight blunt bangs",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "choker",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "crop top",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "tracksuit",
+       "mau_chinh": [
+        "yellow"
+       ],
+       "dau_hieu": "a high collar",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "sneakers",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": null,
+    "notes": [],
+    "facts": {
+     "top_visible:well": true,
+     "stand_in:well": true,
+     "in_frame:well": "middle_third",
+     "pitch_horizon:camera": "horizon_top_third"
+    },
+    "contradictions": []
+   },
+   "do": [
+    {
+     "job": 625,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate.png"
+    },
+    {
+     "job": 634,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate_lift.png"
+    }
+   ]
+  },
+  {
+   "shot": 4,
+   "scene_id": 260,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+    "hanh_dong[kelly].bat_dau ← chữ 'fallen back'"
+   ],
+   "nguoi_trong_khung": [
+    "kelly"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "KELLY",
+     "kho_id": 23,
+     "nguon_khoa": "must_keep",
+     "thieu_must_keep": false,
+     "tong": {
+      "co": 3,
+      "thieu": 2,
+      "thieu_mau": 0,
+      "sai_mau": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "brown"
+       ],
+       "dau_hieu": "straight blunt bangs",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": false,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "choker",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "crop top",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "tracksuit",
+       "mau_chinh": [
+        "yellow"
+       ],
+       "dau_hieu": "a high collar",
+       "nguon": "suy",
+       "mau_thay": [
+        "yellow",
+        "black",
+        "white"
+       ],
+       "dau_hieu_thay": false,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "sneakers",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": null,
+    "notes": [],
+    "facts": {
+     "top_visible:well": false,
+     "stand_in:well": true,
+     "in_frame:well": "right_third",
+     "pitch_horizon:camera": "horizon_middle_third"
+    },
+    "contradictions": []
+   },
+   "do": [
+    {
+     "job": 626,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate.png"
+    },
+    {
+     "job": 635,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate_lift.png"
+    },
+    {
+     "job": 639,
+     "mat_anh": 1,
+     "mat_render": 0,
+     "render": "plate_lift.png"
+    }
+   ]
+  },
+  {
+   "shot": 5,
+   "scene_id": 261,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather"
+   ],
+   "nguoi_trong_khung": [
+    "yeunu"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 1",
+     "kho_id": 418,
+     "nguon_khoa": "mo_ta_kho",
+     "thieu_must_keep": true,
+     "tong": {
+      "co": 9,
+      "thieu": 0,
+      "thieu_mau": 0,
+      "sai_mau": 0
+     },
+     "mon": [
+      {
+       "mon": "face",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "eyes",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "red"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "dress",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "white"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "belt",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "red"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "hands",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "nails",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "red"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "stockings",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "heels",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "red"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": null,
+    "notes": [],
+    "facts": {
+     "top_visible:well": false,
+     "stand_in:well": true,
+     "in_frame:well": "middle_third",
+     "pitch_horizon:camera": "horizon_bottom_third"
+    },
+    "contradictions": []
+   },
+   "do": [
+    {
+     "job": 627,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate.png"
+    },
+    {
+     "job": 636,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate_lift.png"
+    }
+   ]
+  },
+  {
+   "shot": 6,
+   "scene_id": 262,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+    "hanh_dong[yeunu].bat_dau ← chữ 'run'"
+   ],
+   "nguoi_trong_khung": [
+    "yeunu"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 1",
+     "kho_id": 418,
+     "nguon_khoa": "mo_ta_kho",
+     "thieu_must_keep": true,
+     "tong": {
+      "co": 9,
+      "thieu": 0,
+      "thieu_mau": 0,
+      "sai_mau": 0
+     },
+     "mon": [
+      {
+       "mon": "face",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "eyes",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "red"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "dress",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "white"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "belt",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "red"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "hands",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "nails",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "red"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "stockings",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "heels",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "red"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": null,
+    "notes": [],
+    "facts": {
+     "stand_in:well": true,
+     "in_frame:well": "middle_third",
+     "pitch_horizon:camera": "horizon_top_third"
+    },
+    "contradictions": []
+   },
+   "do": [
+    {
+     "job": 628,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate.png"
+    },
+    {
+     "job": 637,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate_lift.png"
+    }
+   ]
+  },
+  {
+   "shot": 7,
+   "scene_id": 263,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+    "hanh_dong[yeunu].bat_dau ← chữ 'run'"
+   ],
+   "nguoi_trong_khung": [
+    "yeunu"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 1",
+     "kho_id": 418,
+     "nguon_khoa": "mo_ta_kho",
+     "thieu_must_keep": true,
+     "tong": {
+      "co": 2,
+      "thieu": 7,
+      "thieu_mau": 0,
+      "sai_mau": 0
+     },
+     "mon": [
+      {
+       "mon": "face",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "eyes",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "dress",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black",
+        "white"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "belt",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "hands",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "nails",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "stockings",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "heels",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      }
+     ]
+    },
+    {
+     "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 2",
+     "kho_id": 419,
+     "nguon_khoa": "mo_ta_kho",
+     "thieu_must_keep": true,
+     "tong": {
+      "co": 0,
+      "thieu": 6,
+      "thieu_mau": 0,
+      "sai_mau": 0
+     },
+     "mon": [
+      {
+       "mon": "dress",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "white",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "face",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "hands",
+       "mau_chinh": [
+        "black",
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "legs",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "glitch",
+       "mau_chinh": [],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": null,
+    "notes": [],
+    "facts": {
+     "stand_in:well": true,
+     "in_frame:well": "middle_third",
+     "pitch_horizon:camera": "horizon_middle_third"
+    },
+    "contradictions": []
+   },
+   "do": [
+    {
+     "job": 629,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate.png"
+    }
+   ]
+  },
+  {
+   "shot": 8,
+   "scene_id": 264,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+    "hanh_dong[yeunu].bat_dau ← chữ 'run'"
+   ],
+   "nguoi_trong_khung": [
+    "yeunu"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 2",
+     "kho_id": 419,
+     "nguon_khoa": "mo_ta_kho",
+     "thieu_must_keep": true,
+     "tong": {
+      "co": 4,
+      "thieu": 2,
+      "thieu_mau": 0,
+      "sai_mau": 0
+     },
+     "mon": [
+      {
+       "mon": "dress",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "white",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "white"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "face",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "hands",
+       "mau_chinh": [
+        "black",
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black",
+        "white",
+        "red"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "legs",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "glitch",
+       "mau_chinh": [],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "red"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": null,
+    "notes": [],
+    "facts": {
+     "top_visible:well": true,
+     "stand_in:well": true,
+     "in_frame:well": "middle_third",
+     "pitch_horizon:camera": "horizon_middle_third"
+    },
+    "contradictions": []
+   },
+   "do": [
+    {
+     "job": 630,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate.png"
+    },
+    {
+     "job": 638,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate_lift.png"
+    },
+    {
+     "job": 640,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate_lift.png"
+    }
+   ]
+  },
+  {
+   "shot": 9,
+   "scene_id": 265,
+   "byd_hop_le": true,
+   "byd_loi": [],
+   "suy_tu_chu": [
+    "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+    "hanh_dong[yeunu].bat_dau ← chữ 'kneel'",
+    "hanh_dong[kelly].bat_dau ← chữ 'kneel'"
+   ],
+   "nguoi_trong_khung": [
+    "kelly",
+    "yeunu"
+   ],
+   "nhan_dien": [
+    {
+     "nhan_vat": "KELLY",
+     "kho_id": 23,
+     "nguon_khoa": "must_keep",
+     "thieu_must_keep": false,
+     "tong": {
+      "co": 0,
+      "thieu": 5,
+      "thieu_mau": 0,
+      "sai_mau": 0
+     },
+     "mon": [
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "brown"
+       ],
+       "dau_hieu": "straight blunt bangs",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "choker",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "crop top",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "tracksuit",
+       "mau_chinh": [
+        "yellow"
+       ],
+       "dau_hieu": "a high collar",
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "sneakers",
+       "mau_chinh": [
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      }
+     ]
+    },
+    {
+     "nhan_vat": "YÊU NỮ TÀ LINH DẠNG 2",
+     "kho_id": 419,
+     "nguon_khoa": "mo_ta_kho",
+     "thieu_must_keep": true,
+     "tong": {
+      "co": 3,
+      "thieu": 3,
+      "thieu_mau": 0,
+      "sai_mau": 0
+     },
+     "mon": [
+      {
+       "mon": "dress",
+       "mau_chinh": [
+        "black"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "black",
+        "white",
+        "red"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "hair",
+       "mau_chinh": [
+        "white",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [
+        "white"
+       ],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      },
+      {
+       "mon": "face",
+       "mau_chinh": [
+        "black",
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "hands",
+       "mau_chinh": [
+        "black",
+        "white"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "legs",
+       "mau_chinh": [
+        "red"
+       ],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "thieu",
+       "muc": "do"
+      },
+      {
+       "mon": "glitch",
+       "mau_chinh": [],
+       "dau_hieu": null,
+       "nguon": "suy",
+       "mau_thay": [],
+       "dau_hieu_thay": null,
+       "trang_thai": "co",
+       "muc": null
+      }
+     ]
+    }
+   ],
+   "hinh_hoc": {
+    "missing": null,
+    "notes": [],
+    "facts": {
+     "top_visible:well": true,
+     "stand_in:well": true,
+     "in_frame:well": "right_third",
+     "pitch_horizon:camera": "horizon_top_third"
+    },
+    "contradictions": []
+   },
+   "do": [
+    {
+     "job": 631,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate.png"
+    },
+    {
+     "job": 633,
+     "mat_anh": 0,
+     "mat_render": 0,
+     "render": "plate_lift.png"
+    }
+   ]
+  }
+ ],
+ "shot4_prompt_cu": {
+  "hinh_hoc": {
+   "missing": null,
+   "notes": [],
+   "facts": {
+    "top_visible:well": false,
+    "stand_in:well": true,
+    "in_frame:well": "right_third",
+    "pitch_horizon:camera": "horizon_middle_third"
+   },
+   "contradictions": [
+    {
+     "fact": "top_visible:well",
+     "phrase": "mouth facing us",
+     "level": "do"
+    }
+   ]
+  },
+  "nhan_dien": [
+   {
+    "nhan_vat": "KELLY",
+    "kho_id": 23,
+    "nguon_khoa": "must_keep",
+    "thieu_must_keep": false,
+    "tong": {
+     "co": 3,
+     "thieu": 2,
+     "thieu_mau": 0,
+     "sai_mau": 0
+    },
+    "mon": [
+     {
+      "mon": "hair",
+      "mau_chinh": [
+       "brown"
+      ],
+      "dau_hieu": "straight blunt bangs",
+      "nguon": "suy",
+      "mau_thay": [],
+      "dau_hieu_thay": false,
+      "trang_thai": "co",
+      "muc": null
+     },
+     {
+      "mon": "choker",
+      "mau_chinh": [
+       "black"
+      ],
+      "dau_hieu": null,
+      "nguon": "suy",
+      "mau_thay": [
+       "black"
+      ],
+      "dau_hieu_thay": null,
+      "trang_thai": "co",
+      "muc": null
+     },
+     {
+      "mon": "crop top",
+      "mau_chinh": [
+       "white"
+      ],
+      "dau_hieu": null,
+      "nguon": "suy",
+      "mau_thay": [],
+      "dau_hieu_thay": null,
+      "trang_thai": "thieu",
+      "muc": "do"
+     },
+     {
+      "mon": "tracksuit",
+      "mau_chinh": [
+       "yellow"
+      ],
+      "dau_hieu": "a high collar",
+      "nguon": "suy",
+      "mau_thay": [
+       "yellow",
+       "black",
+       "white"
+      ],
+      "dau_hieu_thay": false,
+      "trang_thai": "co",
+      "muc": null
+     },
+     {
+      "mon": "sneakers",
+      "mau_chinh": [
+       "white"
+      ],
+      "dau_hieu": null,
+      "nguon": "suy",
+      "mau_thay": [],
+      "dau_hieu_thay": null,
+      "trang_thai": "thieu",
+      "muc": "do"
+     }
+    ]
+   }
+  ]
+ }
+}

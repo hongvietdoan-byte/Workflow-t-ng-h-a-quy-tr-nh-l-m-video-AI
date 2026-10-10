@@ -19,7 +19,7 @@ Test định dạng: `tests/test_devsys_stages.py`; test chạy ca của lớp `
 | `loi_dung` | lỗi ĐÚNG phải bắt (một câu), hoặc "không có …" cho ca chống báo nhầm |
 | `loai_loi` | id loại lỗi trong `devsys/error_types.json` (L1–L15, V1–V4, A1–A4) |
 | `lop_phai_bat` | id điểm quyết định trong `devsys/decisions.json` (vd `d85` stage_facts, `d86` câu trái hình học) |
-| `ky_vong` | theo lớp: `{"stage_facts": {facts, prompt_contains, prompt_not_contains, contradiction, judge}}`; lớp mới thêm khóa riêng |
+| `ky_vong` | theo lớp: `{"stage_facts": {facts, prompt_contains, prompt_not_contains, contradiction, judge}}`; lớp mới thêm khóa riêng: `identity_declare` {nhan_vat, khoa, trang_thai {món: co/thieu/thieu_mau/sai_mau}} (chạy ở `tests/test_identity_declare.py`), `shot_intent` / `do_tu_the` (K0b, chưa có lớp chạy — ghi kỳ vọng) |
 
 Thêm ca: lỗi người dùng bắt mà lọt → xếp loại (mục 10 kế hoạch) → thêm một tệp `cases/<id>.json`; test tự chạy. Ca cũ
 `tests/fixtures/stage_facts_golden.json` đã chuyển sang đây (K0a).

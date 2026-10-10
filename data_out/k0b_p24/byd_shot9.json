@@ -1,0 +1,83 @@
+{
+ "byd": {
+  "shot": 9,
+  "truyen": {
+   "nhip": "quy",
+   "muc_dich": "toàn cảnh cuối hơi cao phía Đông: Kelly nhỏ ngồi bên trái, yêu nữ quỳ bên phải trước giếng, rồi nhiễu sóng",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "kelly",
+    "vai": "chinh",
+    "vung": "trai",
+    "co_pct": [
+     15,
+     40
+    ]
+   },
+   {
+    "vat": "yeunu",
+    "vai": "chinh",
+    "vung": "giua+phai"
+   },
+   {
+    "vat": "gieng",
+    "vai": "phu"
+   }
+  ],
+  "hanh_dong": [
+   {
+    "ai": "yeunu",
+    "bat_dau": {
+     "tu_the": "quy",
+     "cham_dat": [
+      "dau_goi"
+     ]
+    },
+    "suy_tu_chu": true,
+    "cum_tu": "kneel"
+   },
+   {
+    "ai": "kelly",
+    "bat_dau": {
+     "tu_the": "quy",
+     "cham_dat": [
+      "dau_goi"
+     ]
+    },
+    "suy_tu_chu": true,
+    "cum_tu": "kneel"
+   }
+  ],
+  "vat": [],
+  "may": {
+   "co": "WS",
+   "do_cao": "cao",
+   "goc": null,
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": "plaza_front",
+   "thoi_gian": "night",
+   "thoi_tiet": "fog",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "issues": [],
+ "suy_tu_chu": [
+  "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+  "hanh_dong[yeunu].bat_dau ← chữ 'kneel'",
+  "hanh_dong[kelly].bat_dau ← chữ 'kneel'"
+ ],
+ "quyet_dinh_nguoi_dung": null
+}

@@ -1,0 +1,65 @@
+{
+ "byd": {
+  "shot": 4,
+  "truyen": {
+   "nhip": "nga",
+   "muc_dich": "sau lưng-chéo Kelly ngã ngửa, máy thấp sát lưng cô, giếng sừng sững phía trước (người dùng chọn phương án 43, 09/10)",
+   "cam_xuc": ""
+  },
+  "thanh_phan": [
+   {
+    "vat": "kelly",
+    "vai": "chinh",
+    "vung": "trai",
+    "thay": "lung|nghieng"
+   },
+   {
+    "vat": "gieng",
+    "vai": "chinh",
+    "vung": "giua+phai"
+   }
+  ],
+  "hanh_dong": [
+   {
+    "ai": "kelly",
+    "bat_dau": {
+     "tu_the": "ngoi",
+     "cham_dat": [
+      "mong",
+      "ban_tay"
+     ]
+    },
+    "suy_tu_chu": true,
+    "cum_tu": "fallen back"
+   }
+  ],
+  "vat": [],
+  "may": {
+   "co": "WS",
+   "do_cao": "thap",
+   "goc": "ngang",
+   "chuyen_dong": "dung_yen"
+  },
+  "noi_chon": {
+   "kho_id": 263,
+   "spot": "plaza_front",
+   "thoi_gian": "night",
+   "thoi_tiet": "fog",
+   "anh_sang": null
+  },
+  "ngoai_le": [],
+  "am_chu": {
+   "thoai": [],
+   "nhac": null,
+   "sfx": [],
+   "popup": null,
+   "phu_de": null
+  }
+ },
+ "issues": [],
+ "suy_tu_chu": [
+  "noi_chon.thoi_gian/thoi_tiet ← scenes.data time/weather",
+  "hanh_dong[kelly].bat_dau ← chữ 'fallen back'"
+ ],
+ "quyet_dinh_nguoi_dung": "phương án 43: sau lưng-chéo Kelly ngã ngửa, máy thấp 0,6 m"
+}
