@@ -5,6 +5,8 @@ import os
 from typing import Dict
 
 FEATURES: Dict[str, Dict] = {
+    "support_tickets": {"label": "Kho phiếu Tiểu Nhị / Lão Đại", "verified": False,
+                        "why": "Đợt 9: chỉ thử CSDL tạm, chưa bật sản xuất"},
     "post_fx_render": {
         "label": "Hậu kỳ nhiễu sóng/glitch/nhấp nháy theo post_fx (ffmpeg, 0 USD)",
         "verified": False,
