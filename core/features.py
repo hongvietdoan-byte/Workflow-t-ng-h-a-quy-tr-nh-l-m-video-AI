@@ -5,8 +5,29 @@ import os
 from typing import Dict
 
 FEATURES: Dict[str, Dict] = {
+    "package_overrides": {
+        "label": "Chỉnh Gói gửi kèm theo shot (bỏ/thêm/ghim và hoàn tác)",
+        "verified": False,
+        "why": "Đợt 8: lõi dữ liệu kiểm bằng ảnh giả; chưa nối runner/Dashboard, chưa thử sản xuất.",
+    },
+    "layout_drift_review": {
+        "label": "Sửa dàn cảnh v3: ghi lệch bố cục ảnh đã duyệt vào Tổ rà soát (0 USD)",
+        "verified": False,
+        "why": "Đ8 việc 2: hồi quy bằng tệp/CSDL tạm; chưa thử thật, chưa nối đường ghi tay và Dashboard",
+    },
+    "short_lock_outfit": {
+        "label": "Nhận diện ngắn: bỏ đồ thường với chủ thể có ảnh OUTFIT riêng",
+        "verified": False,
+        "why": "Đ8 việc 2: MAXIM KL/KELLY KL; cờ tắt giữ nguyên prompt, chưa thử thật",
+    },
+    "tickets_admin_ui": {"label": "Trang Phiếu 8502 (Owner đăng nhập mới duyệt được; còn lại chỉ đọc)", "verified": False, "why": "Đợt 9 + đăng nhập 8502 (12/10): thử CSDL tạm, chưa dùng thật"},
     "lao_dai_pet": {"label": "Pet Lão Đại chỉ đọc", "verified": False,
                      "why": "Đợt 9: backend thử CSDL tạm; chưa kiểm GUI Windows"},
+    "auto_send_self_fix": {
+        "label": "Vòng nền tự gửi job tự sửa (QC gen lại) khi không có chạy tự động",
+        "verified": False,
+        "why": "Hộp thư 12/10 00:55: #24 job 679/680 kẹt queued, phải gửi tay; qua đúng cổng tiền/trần của nút bấm",
+    },
     "support_tickets": {"label": "Kho phiếu Tiểu Nhị / Lão Đại", "verified": False,
                         "why": "Đợt 9: chỉ thử CSDL tạm, chưa bật sản xuất"},
     "post_fx_render": {
@@ -502,6 +523,9 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
            "experimental": "Thử nghiệm — bật hết các tính năng chưa thử thật"}
 # GĐ6 / rà soát 01/10 mục 3.2 named 3 harmful flags; S14.9 (Gói L, 06/10) removed them from the code — nothing left to keep off here.
 HARMFUL: tuple = ()
+# Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
+# only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
+OPT_IN_ONLY: tuple = ("auto_send_self_fix",)
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.
@@ -628,7 +652,7 @@ def state(name: str) -> str:
             return "off"
         if trainee:
             return "trainee"
-        return "on" if (name not in HARMFUL or env in _YES) else "off"
+        return "on" if ((name not in HARMFUL and name not in OPT_IN_ONLY) or env in _YES) else "off"
     if trainee and (env in _YES or env == "trainee"):
         return "trainee"
     if env in _YES:
@@ -688,7 +712,8 @@ def _why_state(name: str) -> str:
     if s["preset"] == "stable":
         return "preset Ổn định: " + ("đã thử thật" if FEATURES[name]["verified"] else "chưa thử thật → tắt")
     if s["preset"] == "experimental":
-        return "preset Thử nghiệm" + (" (cờ từng gây hại → tắt)" if name in HARMFUL and on(name) is False else "")
+        return "preset Thử nghiệm" + ((" (cờ từng gây hại → tắt)" if name in HARMFUL and on(name) is False else
+                                     " (tự tiêu tiền → chỉ bật khi chọn riêng)" if name in OPT_IN_ONLY and on(name) is False else ""))
     env = _env(name)
     if env:
         return "dashboard.env / môi trường" + (f" (FEATURE_{name.upper()}={env} với cờ học việc → học việc)"

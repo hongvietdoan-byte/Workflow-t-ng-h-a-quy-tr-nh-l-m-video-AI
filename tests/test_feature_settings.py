@@ -17,7 +17,8 @@ class FeatureSettingsTests(unittest.TestCase):
             if k.startswith("FEATURE_") and k != "FEATURE_SETTINGS_FILE":
                 self.p.new.pop(k, None) if False else None
         self.verified = next(k for k, v in features.FEATURES.items() if v["verified"])
-        self.unverified = next(k for k, v in features.FEATURES.items() if not v["verified"] and k not in features.HARMFUL)
+        self.unverified = next(k for k, v in features.FEATURES.items() if not v["verified"] and k not in features.HARMFUL
+                               and k not in features.OPT_IN_ONLY)
 
     def tearDown(self):
         self.p.stop()
@@ -48,6 +49,18 @@ class FeatureSettingsTests(unittest.TestCase):
                 self.assertFalse(features.on(h), h)
             with mock.patch.dict(os.environ, {"FEATURE_" + self.unverified.upper(): "0"}):
                 self.assertFalse(features.on(self.unverified))            # an explicit off in the environment still holds
+
+    def test_experimental_preset_leaves_money_spending_flags_off(self):
+        with self._clean_env():
+            features.save_settings(preset="experimental")
+            for name in features.OPT_IN_ONLY:
+                self.assertIn(name, features.FEATURES)
+                self.assertFalse(features.on(name), name)
+                self.assertIn("chỉ bật khi chọn riêng", features.why_state(name))
+            with mock.patch.dict(os.environ, {"FEATURE_AUTO_SEND_SELF_FIX": "1"}):
+                self.assertTrue(features.on("auto_send_self_fix"))
+            features.save_settings(flags={"auto_send_self_fix": True})
+            self.assertTrue(features.on("auto_send_self_fix"))
 
     def test_a_single_choice_wins_and_can_be_removed(self):
         with self._clean_env():

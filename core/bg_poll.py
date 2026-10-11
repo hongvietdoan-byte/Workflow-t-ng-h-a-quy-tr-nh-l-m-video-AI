@@ -11,7 +11,9 @@ Lỗi A (08/10, #24 job 578–584 nằm 'queued' 22 phút sau khi render nền x
 render nền 3D, ảnh neo storyboard, ảnh toàn cảnh, ảnh/clip trước) trước đây chỉ đi khi có người bấm lại. Nay send_ready gửi chúng khi hết
 lý do chờ — qua đúng runner.submit_pending của nút bấm (cổng tiền/hết credit, max_concurrent, throttle, khóa _turn, dự án tạm dừng). Không
 gửi: job của chạy tự động (origin 'auto'), dự án tạm dừng / đã cất, dự án mà chạy tự động đang chạy / xếp hàng / chờ ở cổng (nó tự gửi),
-khi lệnh dòng lệnh chạm trần (script_cap), job xếp hàng quá AUTO_SEND_MAX_AGE_H giờ (nói bằng diag, bấm ▶ Gen để gửi)."""
+khi lệnh dòng lệnh chạm trần (script_cap), job xếp hàng quá AUTO_SEND_MAX_AGE_H giờ (nói bằng diag, bấm ▶ Gen để gửi).
+Ngoại lệ (cờ auto_send_self_fix, hộp thư 12/10): job tự sửa (origin 'auto', gen lại) ở dự án không có chạy tự động nào sở hữu — xem
+queued_by_person."""
 import os
 import threading
 import time
@@ -64,20 +66,42 @@ AUTO_SEND_MAX_AGE_H = 24
 AUTOPILOT_OWNS = ("running", "queued", "waiting")     # core.autopilot RUNNING / QUEUED / WAITING: the run sends (or wakes) its own jobs
 
 
+# Hộp thư 12/10 00:55 (#24 job 679/680): a machine-made redo (QC tự sửa / gen lại tự động — origin 'auto', a retry of an earlier job)
+# in a project NO automatic run owns stayed 'queued' for ever: autopilot sends its own 'auto' jobs, nobody sent these. With the flag
+# `auto_send_self_fix` the background loop sends them too — only a retry (parent_job_id set) in a project whose automatic run never ran or
+# finished (autopilot_state empty / 'done'), or one that stopped / needs attention / errored when the redo was made AFTER it stopped
+# (created after autopilot_beat: the stopped run's own leftovers stay for the person). Same gates as a click (submit_pending: money gate,
+# caps, throttle, the turn lock).
+SELF_FIX_STATES = ("", "done")
+SELF_FIX_AFTER_STOP = ("stopped", "needs_attention", "error")
+
+
 def queued_by_person(conn) -> Dict[Tuple[int, str], Dict[str, List[int]]]:
-    """{(project, kind): {"send": [job ids], "old": [job ids]}} — queued jobs a person asked for that no task exists for yet, in projects
-    where nothing else will send them (see the module note)."""
+    """{(project, kind): {"send": [job ids], "old": [job ids], "auto": [job ids]}} — queued jobs a person asked for that no task exists
+    for yet, in projects where nothing else will send them (see the module note); with `auto_send_self_fix` also the machine's own redos
+    nobody else sends ("auto" lists which of "send" + "old" are those)."""
+    from . import features
+    self_fix = features.on("auto_send_self_fix")
+    states = SELF_FIX_STATES + SELF_FIX_AFTER_STOP
+    origin_ok = ("(COALESCE(j.origin,'')<>'auto' OR (j.parent_job_id IS NOT NULL AND COALESCE(p.autopilot_state,'') IN ("
+                 + ",".join("?" * len(states)) + ")))") if self_fix else "COALESCE(j.origin,'')<>'auto'"
     rows = conn.execute(
-        "SELECT j.id, j.project_id, j.type, j.created_at FROM jobs j JOIN projects p ON p.id=j.project_id "
+        "SELECT j.id, j.project_id, j.type, j.created_at, COALESCE(j.origin,'') AS origin, COALESCE(p.autopilot_state,'') AS ap, "
+        "p.autopilot_beat AS beat FROM jobs j JOIN projects p ON p.id=j.project_id "
         "WHERE j.state='queued' AND (j.external_id IS NULL OR j.external_id='') AND j.type IN ('image_gen','video_gen') "
-        "AND COALESCE(j.origin,'')<>'auto' AND COALESCE(p.paused,0)=0 AND COALESCE(p.archived,0)=0 "
+        "AND " + origin_ok + " AND COALESCE(p.paused,0)=0 AND COALESCE(p.archived,0)=0 "
         "AND COALESCE(p.autopilot_state,'') NOT IN (" + ",".join("?" * len(AUTOPILOT_OWNS)) + ") ORDER BY j.id",
-        AUTOPILOT_OWNS).fetchall()
+        (states if self_fix else ()) + AUTOPILOT_OWNS).fetchall()
     limit = time.time() - AUTO_SEND_MAX_AGE_H * 3600
     out: Dict[Tuple[int, str], Dict[str, List[int]]] = {}
     for r in rows:
-        slot = out.setdefault((r["project_id"], KINDS[r["type"]]), {"send": [], "old": []})
+        auto = r["origin"] == "auto"
+        if auto and r["ap"] in SELF_FIX_AFTER_STOP and _epoch(r["created_at"]) <= float(r["beat"] or 0):
+            continue                                  # left over from the run that stopped: the person decides
+        slot = out.setdefault((r["project_id"], KINDS[r["type"]]), {"send": [], "old": [], "auto": []})
         slot["old" if _epoch(r["created_at"]) < limit else "send"].append(r["id"])
+        if auto:
+            slot["auto"].append(r["id"])
     return out
 
 
@@ -112,7 +136,10 @@ def send_ready(conn, make_runner: Callable) -> Dict[Tuple[int, str], Dict]:
             sent = runner.submit_pending(pid, only=set(ids["send"]))
             results[(pid, kind)] = {"sent": sent, "queued": len(ids["send"])}
             if sent:
-                diag.record(conn, kind, "info", f"vòng nền tự gửi {sent}/{len(ids['send'])} job {kind} dự án #{pid} bạn đã bấm gửi — "
+                n_auto = len(set(ids["send"]) & set(ids.get("auto", ())))
+                what = (f"job {kind} dự án #{pid} bạn đã bấm gửi" if not n_auto else
+                        f"job {kind} dự án #{pid} ({n_auto} job tự sửa — QC/lỗi tạm gen lại, không chạy tự động nào gửi)")
+                diag.record(conn, kind, "info", f"vòng nền tự gửi {sent}/{len(ids['send'])} {what} — "
                             "lý do chờ đã hết (render nền / ảnh neo / ảnh trước xong)", "bg_auto_send", project_id=pid)
         except Exception as e:  # noqa: BLE001 - one project's problem must never stop the others
             results[(pid, kind)] = {"error": f"{type(e).__name__}: {e}"}

@@ -1505,6 +1505,20 @@ def _floor_notes(grid_cells, half=4.0):
     return out or ["mọi ô trong ±4 m quanh O là mặt sàn phẳng, đứng được"]
 
 
+def review_stage_round(conn, project_id, approved_dir, new_dir):
+    """Nối producer v3 vào finding; cờ OFF không đọc baseline/CSDL và không đổi lời gọi model."""
+    from core import change_review, features
+    if not change_review.enabled() or not features.on("layout_drift_review"):
+        return 0
+    if project_id is None:
+        raise ValueError("Rà bố cục sân khấu thiếu inputs.pid của dự án")
+    n = change_review.record_stage_blocking_change(conn, project_id, approved_dir, new_dir)
+    conn.commit()
+    if n:
+        print(f"  [VÀNG] Tổ rà soát: {n} mục bố cục ảnh đã duyệt / thiếu đầu vào")
+    return n
+
+
 def v3_main(argv):
     """`v3 --inputs v3_inputs.json --out <dir> --stage-from <dir K1> --hand <dir v2 bản tay> [--yes]`: Director (Claude) viết dàn cảnh +
     yêu cầu khung → K3/K4 (v2) → không đạt thì gửi lại kết quả đo, tối đa 2 lượt → so với bản viết tay. Không --yes: chỉ in ước tính."""
@@ -1558,6 +1572,7 @@ def v3_main(argv):
             for fn, data in (("answer.json", obj), ("blocking.json", bl), ("shot_specs.json", {"shots": obj["shot_specs"]})):
                 with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=1)
+            review_stage_round(conn, inputs.get("pid"), a.hand, rd)
             v2_main(["--db", a.db, "--blocking", os.path.join(rd, "blocking.json"), "--specs", os.path.join(rd, "shot_specs.json"),
                      "--out", rd, "--stage-from", a.stage_from])
             solve = json.load(open(os.path.join(rd, "setups.json"), encoding="utf-8"))
