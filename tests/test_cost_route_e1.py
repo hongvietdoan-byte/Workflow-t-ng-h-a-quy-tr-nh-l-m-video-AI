@@ -222,7 +222,7 @@ class GroupPriceTests(Base):
             a, b = self.groups()
             with a, b:
                 lead = quality_tier.scene_final_price(self.p.conn, self.s1)
-                want = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "1080p", "9:16", 6.0)
+                want = quality_tier.upgrade_price("9:16", 6.0)
                 self.assertAlmostEqual(lead, round(want, 4))
                 # rà F3: a follower alone pulls the group clip → the group's price until the leader's final exists, then 0
                 self.assertAlmostEqual(quality_tier.scene_final_price(self.p.conn, self.sids[1]), round(want, 4))
@@ -240,7 +240,7 @@ class FilmEstimateTests(Base):
         est = quality_tier.e1_estimate(self.p.conn, self.pid)
         direct = cost.seedance_estimate(quality_tier.SEEDANCE_20, "720p", "9:16", 4.0)
         draft = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "480p", "9:16", 4.0)
-        final = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "1080p", "9:16", 4.0)
+        final = quality_tier.upgrade_price("9:16", 4.0)
         self.assertAlmostEqual(est["usd"], round(2 * direct + draft + final, 2))
         self.assertEqual((est["direct"], est["draft_first"], est["film_seconds"], est["target_usd"]), (2, 1, 12.0, 30.0))
         self.assertTrue(est["within"])
@@ -326,7 +326,7 @@ class MixedGroupPriceTests(Base):
                 self.approved_draft(sid)                                       # the easy leader's take is a draft too (group)
             a, b = self.groups()
             with a, b:
-                want = round(cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "1080p", "9:16", 6.0), 4)
+                want = round(quality_tier.upgrade_price("9:16", 6.0), 4)
                 est = quality_tier.final_estimate(self.p.conn, self.pid)
                 self.assertAlmostEqual(est["usd"], want, places=2)
                 # a follower clicked alone pulls the whole group clip: priced as the group while the leader has no final
@@ -434,3 +434,91 @@ class GroupRawTests(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MeasuredUpgradeTests(Base):
+    N = 3
+
+    def test_upgrade_route_uses_measured_seconds_without_resending_ref(self):
+        self.assertAlmostEqual(quality_tier.upgrade_price("9:16", 38), 19.9652)
+        self.assertGreater(quality_tier.upgrade_price("16:9", 38), 0)
+
+    def test_sent_group_survives_ref_flag_off_and_motion_edit(self):
+        with ON:
+            jid = self.approved_draft()
+        group = [{"id": sid, "duration_s": n} for sid, n in zip(self.sids, (3, 2, 3))]
+        self.p.conn.execute("UPDATE jobs SET sent_group=? WHERE id=?", (json.dumps(group), jid))
+        self.p.conn.execute("UPDATE motion_prompts SET duration_sec=12 WHERE scene_id=?", (self.s1,))
+        self.p.conn.commit()
+        with mock.patch("core.seedance_refs.enabled", return_value=False):
+            groups = quality_tier._clip_groups(self.p.conn, self.pid)
+            self.assertEqual(groups[self.sids[1]], (self.s1, 8.0))
+            self.assertAlmostEqual(quality_tier.scene_final_price(self.p.conn, self.s1), round(8 * .5254, 4))
+            self.assertAlmostEqual(quality_tier.batch_final_price(self.p.conn, self.sids), round(8 * .5254, 4))
+
+    def test_final_ledger_uses_original_group_seconds(self):
+        with ON:
+            draft = self.approved_draft()
+        group = [{"id": sid, "duration_s": n} for sid, n in zip(self.sids, (3, 2, 3))]
+        self.p.conn.execute("UPDATE jobs SET sent_group=? WHERE id=?", (json.dumps(group), draft))
+        final = self.p.create_job(self.s1, "video_gen")
+        self.p.conn.execute("UPDATE jobs SET quality_tier='final', draft_job_id=?, sent_package=? WHERE id=?", (draft, json.dumps({"call": "submit_final_from_sample"}), final))
+        cost.record_usage(self.p.conn, final, "video", "mock-video", quality_tier.SAMPLE_MODEL, "1080p", 4, "second")
+        self.assertEqual(self.p.conn.execute("SELECT quantity FROM usage_events WHERE job_id=?", (final,)).fetchone()[0], 8)
+
+    def test_unknown_seedance_reference_is_conservative_and_other_models_ignore_it(self):
+        self.p.conn.execute("UPDATE motion_prompts SET ref_video_path='missing.mp4' WHERE scene_id=?", (self.s1,))
+        self.p.conn.commit()
+        with mock.patch("core.model_router.scene_choice", return_value={"model": "seedance-2.5", "resolution": "720p"}):
+            price = cost.clip_estimate(self.p.conn, self.s1)
+        self.assertGreaterEqual(price, cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "720p", "9:16", 4, 15))
+        with mock.patch("core.model_router.scene_choice", return_value={"model": "kling", "resolution": "pro"}):
+            self.assertIsNotNone(cost.clip_estimate(self.p.conn, self.s1))
+
+    def test_new_generation_final_keeps_its_own_seconds(self):
+        with ON:
+            draft = self.approved_draft()
+        group = [{"id": sid, "duration_s": n} for sid, n in zip(self.sids, (3, 2, 3))]
+        self.p.conn.execute("UPDATE jobs SET sent_group=? WHERE id=?", (json.dumps(group), draft))
+        final = self.p.create_job(self.s1, "video_gen")
+        self.p.conn.execute("UPDATE jobs SET quality_tier='final', draft_job_id=?, sent_package=? WHERE id=?", (draft, json.dumps({"call": "submit"}), final))
+        cost.record_usage(self.p.conn, final, "video", "mock-video", quality_tier.SAMPLE_MODEL, "1080p", 4, "second")
+        self.assertEqual(self.p.conn.execute("SELECT quantity FROM usage_events WHERE job_id=?", (final,)).fetchone()[0], 4)
+
+    def test_new_independent_draft_is_not_absorbed_by_historical_group(self):
+        with ON:
+            old = self.approved_draft()
+            self.approved_draft(self.sids[1])
+        group = [{"id": sid, "duration_s": 4} for sid in self.sids]
+        self.p.conn.execute("UPDATE jobs SET sent_group=? WHERE id=?", (json.dumps(group), old))
+        with mock.patch("core.seedance_refs.enabled", return_value=False):
+            groups = quality_tier._clip_groups(self.p.conn, self.pid)
+            self.assertNotIn(self.sids[1], groups)
+            self.assertGreater(quality_tier.batch_final_price(self.p.conn, self.sids), 12 * .5254)
+        planned = [{"id": sid, "data": {"duration_s": 4}} for sid in self.sids]
+        with mock.patch("core.seedance_refs.enabled", return_value=True), mock.patch("core.seedance_refs.groups", return_value=[planned]):
+            self.assertNotIn(self.sids[1], quality_tier._clip_groups(self.p.conn, self.pid))
+
+    def test_new_leader_draft_supersedes_its_historical_group(self):
+        with ON:
+            old = self.approved_draft()
+            self.approved_draft()
+        group = [{"id": sid, "duration_s": 4} for sid in self.sids]
+        self.p.conn.execute("UPDATE jobs SET sent_group=? WHERE id=?", (json.dumps(group), old))
+        with mock.patch("core.seedance_refs.enabled", return_value=False):
+            self.assertEqual(quality_tier._clip_groups(self.p.conn, self.pid), {})
+        planned = [{"id": sid, "data": {"duration_s": 4}} for sid in self.sids]
+        with mock.patch("core.seedance_refs.enabled", return_value=True), mock.patch("core.seedance_refs.groups", return_value=[planned]):
+            self.assertEqual(quality_tier._clip_groups(self.p.conn, self.pid), {})
+
+    def test_single_draft_uses_actual_local_clip_duration_before_submitted_seconds(self):
+        path = os.path.join(self.data, 'draft.mp4')
+        with open(path, 'wb') as f:
+            f.write(b'local fixture')
+        with ON:
+            draft = self.approved_draft(path=path)
+        self.p.conn.execute("UPDATE jobs SET sent_package=? WHERE id=?", (json.dumps({'params': {'duration_sec': 4}}), draft))
+        cost.record_usage(self.p.conn, draft, 'video', 'mock', quality_tier.SAMPLE_MODEL, '480p', 4, 'second')
+        with mock.patch('core.ffmpeg_studio.probe_duration', return_value=5.5):
+            self.assertEqual(quality_tier.draft_seconds(self.p.conn, self.p.job(draft)), 5.5)
+            self.assertAlmostEqual(quality_tier.scene_final_price(self.p.conn, self.s1), round(5.5 * .5254, 4))

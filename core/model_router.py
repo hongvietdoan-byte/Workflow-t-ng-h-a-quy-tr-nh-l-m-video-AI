@@ -392,7 +392,12 @@ def plan(conn, project_id: int, pricing: Optional[Dict] = None, priority: Option
                 choice = {**choice, "reason": choice["reason"] + f" (trong clip nhóm của shot {group[0]['idx']})"}
         unit = price_per_sec(choice["model"], choice.get("resolution"), pricing)
         from . import cost, formats
-        ref = cost.video_reference_seconds(conn, s["id"], choice)
+        from .adapters.clipai import resolve_model
+        try:
+            _, family = resolve_model(choice["model"])
+        except Exception:
+            family = None
+        ref = cost.video_reference_seconds(conn, s["id"], choice) if family == "seedance" else {"seconds": 0.0, "warnings": []}
         price = None if unit is None else unit * billed
         if ref["seconds"] is None:
             price = None

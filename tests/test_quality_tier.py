@@ -361,7 +361,7 @@ class FinalEstimateTests(Base):
             self.p.conn.commit()
             est = quality_tier.final_estimate(self.p.conn, self.pid)
             self.assertEqual([s["scene_id"] for s in est["scenes"]], [self.s1])     # the easy shot goes direct: no final to make
-            want = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "1080p", "16:9", 4.0)
+            want = quality_tier.upgrade_price("16:9", 4.0)
             self.assertAlmostEqual(est["usd"], round(want, 4))
             f = quality_tier.request_final(self.p, self.s1)
             self.assertTrue(f)

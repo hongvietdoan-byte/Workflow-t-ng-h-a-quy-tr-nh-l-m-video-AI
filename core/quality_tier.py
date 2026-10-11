@@ -38,7 +38,55 @@ NEED_CONFIRM = "cần xác nhận gen MỚI bản cao"
 READ_FAIL = "không đọc được hạn bản nháp"
 """Rà F3: lỗi TẠM khi hỏi nhà cung cấp hạn bản nháp (mạng / dịch vụ) — job bản cao giữ hàng đợi thử lại, không fail, không tính là
 "không nâng được" (upgrade_block)."""
-UPGRADE_UNMEASURED = "giá nâng 2.5 → 1080p từ nháp là ƯỚC TÍNH (chưa đo thật)"
+UPGRADE_UNMEASURED = "giá nâng là ƯỚC TÍNH; 2.5 480p → 1080p 9:16 đã đo 0,5254 USD/s (#24 job 670–676, 38 s, 19,964 USD, task_usage 11/10/2026); đường khác tính dư"
+UPGRADE_USD_PER_SECOND = 0.5254
+
+
+def upgrade_price(ratio: str, seconds: float) -> Optional[float]:
+    """Chỉ đường nâng Seedance 2.5 nháp 480p → 1080p dọc đã đo; không gửi lại ref."""
+    from . import cost
+    if ratio == "9:16":
+        return UPGRADE_USD_PER_SECOND * max(4.0, seconds)
+    usd = cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, max(4.0, seconds))
+    return None if usd is None else usd * 1.5
+
+
+def draft_seconds(conn, draft) -> Optional[float]:
+    """Clip lẻ dùng giây file thật; nhóm dùng sổ/gói gửi vì leader có thể đã cắt."""
+    if draft is None:
+        return None
+    import os
+    from . import ffmpeg_studio
+    try:
+        grouped = bool(draft["group_leader"] or json.loads(draft["sent_group"] or "[]"))
+    except (ValueError, TypeError):
+        grouped = True  # thiếu bằng chứng clip nguyên: không lấy phần đã cắt làm cả task
+    path = draft["result_path"]
+    local = bool(path) and "://" not in str(path) and not str(path).startswith(("\\\\", "//"))
+    if local and not os.path.isabs(path):
+        path = os.path.join(os.path.dirname(os.path.dirname(__file__)), path)
+    if not grouped and local and os.path.isfile(path):
+        actual = ffmpeg_studio.probe_duration(path)
+        if actual and actual > 0:
+            return float(actual)
+    usage = conn.execute("SELECT quantity FROM usage_events WHERE job_id=? AND kind='video' AND unit='second' ORDER BY id DESC LIMIT 1", (draft["id"],)).fetchone()
+    if usage and usage["quantity"] > 0:
+        return float(usage["quantity"])
+    try:
+        package = json.loads(draft["sent_package"] or "{}")
+        value = (package.get("params") or {}).get("duration_sec")
+        if value and float(value) > 0:
+            return float(value)
+        group = json.loads(draft["sent_group"] or "[]")
+        if group:
+            return max(4.0, sum(float(r["duration_s"]) for r in group))
+    except (ValueError, TypeError, KeyError):
+        pass
+    if local:
+        seconds = ffmpeg_studio.probe_duration(path) if os.path.isfile(path) else None
+        if seconds and seconds > 0:
+            return float(seconds)
+    return None
 FILM_TARGETS = ((60.0, 30.0), (120.0, 60.0))
 """(phim dưới N giây, trần USD): < 1 phút < 30 USD, < 2 phút < 60 USD (người dùng 09/10)."""
 _ACTIVE = ("queued", "running", "retryable")
@@ -415,14 +463,18 @@ def final_estimate(conn, pid: int) -> Dict:
     F3: nâng được từ nháp (upgrade_block None) → Seedance 2.5 @ FINAL_RESOLUTION; không nâng được → gen MỚI bằng model của shot (E1:
     Seedance 2.5) ở final_resolution; nhóm gen chung một clip → giá cả nhóm ở shot đầu, shot sau 0 (`_clip_seconds`)."""
     proj, ratio = _proj_ratio(conn, pid)
+    groups = _clip_groups(conn, pid)
     billed = _clip_seconds(conn, pid)
     out = {"usd": 0.0, "scenes": [], "unknown": []}
     for s in conn.execute("SELECT s.id, s.idx, m.duration_sec FROM scenes s JOIN motion_prompts m ON m.scene_id=s.id "
                           "WHERE s.project_id=? ORDER BY s.idx", (pid,)).fetchall():
-        st = state(conn, s["id"])
+        lead = groups.get(s["id"], (s["id"], None))[0]
+        st = state(conn, lead)
+        if lead != s["id"]:
+            continue
         if st in ("final_running", "final_review", "final_ok", "direct_ok") or group_path(conn, s["id"]) == "direct":   # rà F3: nhóm trộn = nháp
             continue
-        seconds = float(s["duration_sec"] or 0)
+        seconds = billed.get(s["id"], draft_seconds(conn, approved_draft(conn, s["id"])) or float(s["duration_sec"] or 0))
         model, usd = _final_usd(conn, s["id"], proj, ratio, billed.get(s["id"], seconds))
         if usd is None:
             out["unknown"].append(s["id"])
@@ -447,15 +499,42 @@ def _mp_seconds(conn, scene_id: int) -> Optional[float]:
 def _clip_groups(conn, pid: int) -> Dict[int, tuple]:
     """{scene_id: (shot đầu nhóm, giây clip cả nhóm)} cho mọi shot trong một nhóm Seedance gen chung (seedance_refs.groups)."""
     out: Dict[int, tuple] = {}
+    superseded = set()
     try:
         from . import seedance_refs
+        current = {r["scene_id"]: r for r in conn.execute(
+            "SELECT * FROM jobs WHERE project_id=? AND type='video_gen' "
+            "AND COALESCE(quality_tier,'')!='final' AND state IN ('approved','succeeded','pending_review') ORDER BY id", (pid,))}
+        # Nhóm đã gửi sống độc lập với cờ định tuyến cho lần gen mới.
+        for job in conn.execute("SELECT * FROM jobs WHERE project_id=? AND type='video_gen' AND sent_group IS NOT NULL AND state IN ('approved','succeeded','pending_review') ORDER BY id DESC", (pid,)):
+            try:
+                group = json.loads(job["sent_group"] or "[]")
+                if not group or job["quality_tier"] == "final":
+                    continue
+                latest = current.get(job["scene_id"])
+                if latest is not None and latest["id"] != job["id"]:
+                    superseded.update(int(r["id"]) for r in group)
+                    continue
+                whole = draft_seconds(conn, job)
+                if whole:
+                    for member in group:
+                        sid = int(member["id"])
+                        latest = current.get(sid)
+                        if (latest is not None and latest["id"] > job["id"]
+                                and latest["group_leader"] != job["id"]):
+                            superseded.add(sid)
+                            continue  # nháp riêng mới hơn không thuộc task nhóm cũ
+                        out.setdefault(sid, (job["scene_id"], whole))
+            except (ValueError, TypeError, KeyError):
+                continue
         if not seedance_refs.enabled(conn, pid):
             return out
         for g in seedance_refs.groups(conn, pid):
             secs = [seedance_refs.floored(r["data"], _mp_seconds(conn, r["id"]) or float(r["data"].get("duration_s") or 0)) for r in g]
             whole = float(seedance_refs.seconds(secs))
             for r in g:
-                out[r["id"]] = (g[0]["id"], whole)
+                if r["id"] not in superseded and g[0]["id"] not in superseded:
+                    out.setdefault(r["id"], (g[0]["id"], whole))
     except Exception:  # noqa: BLE001 - no group data: every shot priced alone (higher — tính dư)
         return {}
     return out
@@ -481,11 +560,12 @@ def _final_usd(conn, scene_id: int, proj, ratio: str, seconds: float):
     if seconds <= 0:
         return SAMPLE_MODEL, 0.0                      # made inside its group's clip (priced on the group's first shot)
     if upgrade_block(conn, approved_draft(conn, scene_id)) is None:
-        return SAMPLE_MODEL, cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, max(seconds, 4.0))
+        return SAMPLE_MODEL, upgrade_price(ratio, seconds)
     model = model_router.scene_choice(conn, scene_id, proj)["model"]
     canonical, family = _canonical(model)
     if family == "seedance":
-        return model, cost.seedance_estimate(canonical, final_resolution(model), ratio, max(seconds, 4.0))
+        ref = cost.video_reference_seconds(conn, scene_id)
+        return model, cost.seedance_estimate(canonical, FINAL_RESOLUTION if canonical == SAMPLE_MODEL else final_resolution(model), ratio, max(seconds, 4.0), ref["seconds"])
     per = model_router.price_per_sec(model)
     return model, (per * seconds if per is not None else None)
 
@@ -503,7 +583,7 @@ def scene_final_price(conn, scene_id: int) -> Optional[float]:
             return 0.0                                  # made inside the group clip already on its way
         usd = _final_usd(conn, lead, proj, ratio, whole)[1]
     else:
-        usd = _final_usd(conn, scene_id, proj, ratio, whole if whole is not None else (_mp_seconds(conn, scene_id) or 0.0))[1]
+        usd = _final_usd(conn, scene_id, proj, ratio, whole if whole is not None else (draft_seconds(conn, approved_draft(conn, scene_id)) or _mp_seconds(conn, scene_id) or 0.0))[1]
     return None if usd is None else round(usd, 4)
 
 
@@ -560,7 +640,7 @@ def e1_estimate(conn, pid: int, pricing: Optional[Dict] = None) -> Dict:
             out["direct"] += 1
         else:
             out["usd"] += (cost.seedance_estimate(SAMPLE_MODEL, DRAFT_RESOLUTION, ratio, sec, ref["seconds"]) or 0.0) + \
-                          (cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, sec, ref["seconds"]) or 0.0)
+                          (upgrade_price(ratio, sec) or 0.0)
             out["draft_first"] += 1
     out["usd"] = round(out["usd"], 2)
     out["film_seconds"] = round(out["film_seconds"], 1)
@@ -599,7 +679,7 @@ def run_estimate(conn, pid: int, rows, pricing: Optional[Dict] = None) -> Dict:
                 out.setdefault("unknown", []).extend(ref["warnings"])
                 continue
             draft = cost.seedance_estimate(SAMPLE_MODEL, "480p", ratio, max(billed, 4.0), ref["seconds"])
-            final = cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, max(billed, 4.0), ref["seconds"])
+            final = upgrade_price(ratio, max(billed, 4.0))
             if final is not None and final > (row_usd or 0.0):
                 out["usd"] += final - (row_usd or 0.0)
                 out["finals_1080"] += 1

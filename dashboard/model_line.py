@@ -80,13 +80,13 @@ def shot_line(conn, pid: int, scene_id: int, row: Optional[Dict] = None, ratio: 
             final = qt.FINAL_RESOLUTION if keeps else qt.final_resolution(model)
             model_text = f"{base} · nháp {low} → cao {final}" + ("" if keeps else " (gen mới)")
             if not in_group and billed is not None:
-                parts = [cost.seedance_estimate(canonical, low, ratio, sec), cost.seedance_estimate(canonical, final, ratio, sec)]
+                parts = [cost.seedance_estimate(canonical, low, ratio, sec, row.get("input_video_s") or 0), qt.upgrade_price(ratio, sec) if keeps else cost.seedance_estimate(canonical, final, ratio, sec, row.get("input_video_s") or 0)]
                 usd = None if any(v is None for v in parts) else sum(parts)
         else:
             res = res or qt.E1_DIRECT_RESOLUTION
             model_text = f"{base} · {res}" + (f" → phóng {UPSCALE_AT_EDIT} lúc dựng" if res in ("480p", "720p") else "")
             if not in_group and billed is not None:
-                usd = cost.seedance_estimate(canonical, res, ratio, sec)
+                usd = cost.seedance_estimate(canonical, res, ratio, sec, row.get("input_video_s") or 0)
     else:
         model_text = model_router.label(model, res)
     if in_group:
