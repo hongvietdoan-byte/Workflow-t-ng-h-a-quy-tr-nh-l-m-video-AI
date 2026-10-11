@@ -762,6 +762,31 @@ Theo thiết kế việc 1 đã duyệt (gồm MÀN CAMERA: hai góc nhìn, ch�
 `layout_drift` báo shot đã duyệt bị đổi; không tự gen ảnh. Test AppTest + Playwright (≤ 2 bấm để dời một nhân vật 1 m và xem lại kiểm số).
 Đề bài chi tiết có thể chỉnh sau khi người dùng duyệt thiết kế việc 1.
 
+**Việc nhỏ đưa vào thiết kế việc 1 và làm ở việc 3 (người dùng 11/10):** phím tắt, hoàn tác nhiều bước, chép máy sang shot kế, khóa trục khi kéo;
+khung an toàn 9:16 (vùng giao diện TikTok/Reels che); dùng lại ảnh clay theo mã băm máy + khối (chỉ render lại khi đổi); Tiểu Nhị đề xuất chỉnh máy
+("nâng máy 0,3 m để không thấy miệng giếng") qua đúng chức năng này, người bấm duyệt.
+
+## Việc 4 — Kiểm luật quay phim + vòng kiểm sau gen (code, 0 USD; cờ `film_grammar_check`, `camera_match_qc` TẮT; người dùng duyệt 11/10)
+1. **Luật quay phim giữa các shot liền** (code, không Claude): trục 180° (hai nhân vật / hướng chuyển động không đổi bên vô cớ), hướng nhìn khớp
+   (eyeline), đổi góc ≥ 30° giữa hai shot cùng chủ thể (tránh jump cut), khoảng trống phía trước mặt / hướng đi (lead room), khoảng trống trên đầu
+   theo cỡ cảnh. Tính bằng `plate_camera.project` + vị trí/hướng mặt trong BYĐ + sân khấu. Vi phạm → VÀNG có lý do + gợi ý (dời máy X m / đổi góc),
+   hiện trên màn camera và trong "Trước khi chạy". Ngoại lệ có chủ ý (`byd.ngoai_le` kiểu cắt nhảy cố ý) không báo.
+2. **Vòng kiểm sau gen:** ảnh / khung đầu-cuối của clip làm ra so với máy đã đặt: cỡ cảnh, chân trời, vị trí + độ cao mắt nhân vật trong khung (đo
+   bằng công cụ sẵn có — `core/plate_layout_qc.py`, `core/clip_measure.py`; không đoán bằng Claude). Lệch quá ngưỡng → VÀNG + gợi ý gen lại (có báo
+   giá), không tự gen. Ngưỡng ghi "chưa hiệu chỉnh" tới khi đo trên ca thật (#24: ảnh thấy miệng giếng dù máy thấp).
+3. Ca vàng `knowledge/checks/` + test đỏ → xanh (vượt trục, cùng góc liền nhau, lệch chân trời).
+
+## Việc 5 — Animatic clay + bộ góc máy dùng lại + xuất vào gói gửi (cờ `clay_animatic`, `camera_setups_reuse`, `clay_refs_in_package` TẮT)
+1. **Animatic clay toàn cảnh (0 USD):** ghép mọi shot thành một video xám theo nhịp BYĐ và thời lượng shot, nhân vật khối di chuyển theo nhịp,
+   máy chạy theo `camera_move`; render Blender cục bộ một worker + ghép ffmpeg (`core/delivery`/`core/ffmpeg_studio`). Xem trên màn bàn dựng; không
+   Blender → animatic 2D từ góc nhìn đạo diễn + lý do.
+2. **Bộ góc máy dùng lại cho cả cảnh:** mỗi cảnh 3–4 góc chuẩn (toàn / trung / qua vai / phản góc) do Đạo diễn + bộ giải đặt (hướng G0 đã chốt 09/10,
+   xem `TODO.md` "làm G0 TRƯỚC"); shot chọn lại góc chuẩn thay vì máy riêng; so A/B hai phương án máy cạnh nhau, chọn một bấm.
+3. **Xuất vào gói gửi:** khung đầu/cuối clay theo máy làm "ảnh bố cục", video white model theo đường máy làm video tham chiếu chuyển động — qua
+   "Gói gửi kèm" (`core/package_overrides.py`, Đợt 8) với vai rõ ràng; KHÔNG gửi ảnh clay như ảnh nền để chép (bài học #24 shot 8, mục 12b.3) — chỉ
+   vai bố cục/chuyển động, model nào không nhận vai đó thì không gửi + lý do. Phần nối vào đường gửi job làm SAU #24 (cùng việc 3).
+4. Test: bpy giả / ffmpeg nhỏ (slow nếu ≥ 8 s); dữ liệu giả 3 shot.
+
 ## Kết quả Codex — đợt 11
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
