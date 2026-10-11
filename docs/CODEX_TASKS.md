@@ -707,6 +707,9 @@ Theo công thức chung:
 
 ## Kết quả Codex — đợt 10
 
+- Việc 3 · nhánh `codex/d8-viec3-bao-gia-video` · code `10a8823`: báo giá follower/running, ref chưa rõ tính dư, nhóm đã gửi và giá nâng 0,5254 USD/s dọc. ĐỎ 6 ca rồi XANH; rà độc lập thêm 3 ca đỏ đã sửa; **129 test xanh / 58,90 s** (8 file), diff check xanh. Báo cáo `docs/RA_D10_VIEC3_CODEX_2026-10-12.md`. Bỏ qua project_budget chờ #24; provenance original/marked, cắt follower 1080p và nhóm lịch sử orphan còn mở. Không API/data thật/cả bộ/main.
+
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
 ---
