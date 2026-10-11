@@ -319,3 +319,38 @@ chậm nhất (id · giây) + tổng thời gian + số test hỏng (nếu có, 
 | 1 | `codex/d4-viec1-ra-k3` | `025b346` (các lỗi riêng: `d571899`, `008621b`, `1754c84`, `7921f56`, `9eb14a8`, `dc7a436`, `9841fe2`, `9c79536`; fixture `e2d0c02`) | Rà đủ 4 điểm; 15 test mới, từng lỗi đỏ→xanh. Nhóm liên quan 162 passed / 2 skipped; kiểm cuối K3 + sent_package 64 passed. So gói cờ tắt từng byte và thứ tự ghi sổ với snapshot main c78bcfe. Rà độc lập trước commit + rà lượt hai; báo cáo `docs/RA_D4_VIEC1_CODEX_2026-10-10.md`. Chưa thử provider thật, chưa chạy cả bộ, K3 mặc định tắt. |
 | 2 | `d4-viec2-byd-flaky` (Claude làm thay — Codex hết gói) | `06b4a38` | Nguồn: `core/prompt_formula.py:706` `_now()` theo giây ghi vào `formula_check.at`; test so hai lần chạy vắt ranh giới giây. Đóng băng `_now` trong test; ghép 3 file 5 lần đều 62 passed. |
 | 3 | (Claude, cùng lần chạy cả bộ khi gộp) | — | Cả bộ 4004 passed / 4 skipped, 1110 s; 17 test ≥ 8 s đều đã trong `SLOW_TESTS` → không đổi `conftest.py`. Chậm nhất: test_v3 kling_multishot 47,5 s; devsys every_page 31,2 s. |
+
+---
+---
+
+# ĐỢT 5 — NGHIÊN CỨU: đồng nghiệp tự xử lý lỗi trên Dashboard (11/10, người dùng duyệt)
+
+**Vấn đề:** Dashboard sắp có đồng nghiệp dùng. Ngày 11/10, dự án #24 gặp nhiều lỗi phải sửa mà KHÔNG làm được trên Dashboard — người dùng phải chat với phiên Claude, phiên Claude giao phiên con sửa tay bằng công cụ dòng lệnh. Đồng nghiệp không chat được với phiên Claude → cần Dashboard tự phục vụ. Việc này là NGHIÊN CỨU + THIẾT KẾ (tài liệu + mockup), KHÔNG sửa `dashboard/`, `core/`.
+
+**Các ca lỗi thật 11/10 (dữ liệu thiết kế):**
+1. Ảnh vẽ thấy miệng giếng dù máy thấp (0,5 m) ngửa lên — sai hình học (`core/stage_facts.py` `_derive_top…`).
+2. Vị trí nhân vật sai sau động tác di chuyển (yêu nữ trườn ra khỏi giếng phải cách thành 1–1,5 m; blocking viết tay để 0,25 m) → phải sửa sân khấu 3D (`data/projects/<id>/stage_v2_*/blocking.json`, `tools/stage_grid.py v2`), giải lại máy, render nền (`tools/location_pack.py render`), viết lại blocking/prompt/BYĐ cho nhiều shot; giữ nhân vật khác khớp ảnh ĐÃ DUYỆT (`core/shot_lessons.py` movement_gaps, layout_drift).
+3. Thêm shot mới (shot 10) — `Pipeline.add_scene_next` + điền đủ trường như shot khác.
+4. Khung đầu + khung cuối cho video Kling (`core/end_frames.py`).
+5. Gói gửi lẫn HAI nền 3D khác góc máy (cache cũ) → model ghép nhà dính tường; chỉ tìm ra bằng cách mở `jobs.sent_package`.
+6. Vật thừa (thùng dầu đỏ) có THẬT trong map 3D Kho → xóa bằng Blender (tài nguyên DÙNG CHUNG mọi dự án).
+7. Ngoại lệ khóa nhân vật theo shot (`byd.ngoai_le`, `core/lock_exceptions.py`) — ảnh sạch không glitch ở shot 9–10.
+8. Tổ rà soát (`core/change_review.py`) báo mục đỏ cũ/đúng-nhưng-đã-xử-lý → người phải quyết bỏ qua.
+9. Duyệt ảnh từ điện thoại (người dùng không mở được Dashboard) → phiên Claude ghép ảnh so sánh gửi qua chat.
+
+**Hướng đã đề xuất với người dùng (4 lớp) — nghiên cứu sâu, phản biện, chi tiết hóa:**
+1. Chẩn đoán tự động khi loại ảnh + ô "Gói đã gửi" (nền, ảnh mẫu, ref của từng job; cảnh báo nền khác góc, vật có trong map, mâu thuẫn hình học, cảnh báo `shot_lessons`).
+2. Trợ lý sửa shot trong Dashboard: người dùng gõ/khoanh lỗi → Claude API trên máy chủ gọi CÔNG CỤ = các hàm core có sẵn (sửa blocking sân khấu, giải máy, render nền, viết lại prompt/BYĐ, thêm shot, gắn khung đầu–cuối) → xem trước 3D (0 USD) + báo giá (`core/cost.py`) → người bấm duyệt mới gen. Quyền theo dự án (`core/access.py`), trần tiền theo người, mọi lời gọi qua sổ chi; sửa tài nguyên chung (Kho, map 3D, Character Bible) cần admin duyệt.
+3. Phiếu chuyển lên: lỗi code / tài nguyên chung → phiếu kèm ảnh + gói gửi + chẩn đoán → admin + AI Dev System (`devsys/`) + phiên bảo trì; đồng nghiệp thấy trạng thái phiếu.
+4. Vòng bài học dùng chung: mỗi lần sửa ghi (lỗi, sửa, lý do) → lặp ≥ 2 lần thì đề xuất luật/kiểm → admin duyệt → áp mọi người (xem `core/lessons.py`, `knowledge/checks/`, `experience_cases`).
+
+**Luật:** chung đợt 1 + KHÔNG sửa `dashboard/`, `core/`, `data/`, TODO.md; chỉ thêm tài liệu + mockup. Nhánh `codex/d5-nghien-cuu-tu-phuc-vu`. Đọc code để biết cái gì ĐÃ CÓ (ghi file:dòng), đừng đề xuất làm lại thứ đã có. Phản biện thẳng: chỗ nào rủi ro (tiền, quyền, gửi trùng job, sửa tài nguyên chung, Claude tự quyết sai), chỗ nào nên đơn giản hơn.
+
+**Sản phẩm:**
+- `docs/NGHIEN_CUU_TU_PHUC_VU_DASHBOARD.md`: (a) bảng 9 ca lỗi × Dashboard hôm nay làm được gì / thiếu gì (file:dòng); (b) kiến trúc 4 lớp (luồng, dữ liệu mới/bảng CSDL nếu cần, công cụ cho trợ lý = danh sách hàm core + đầu vào/ra + tốn tiền hay không + quyền); (c) mô hình quyền + tiền (vai: đồng nghiệp / admin; trần; duyệt tài nguyên chung); (d) an toàn: trợ lý không được tự chi tiền, không sửa code, giới hạn số vòng, ghi vết; cách chống gửi trùng (đã có khóa `core/bg_poll`); (e) lộ trình theo đợt có ước lượng công (S/M/L) + thứ tự giá trị; (f) câu hỏi cần người dùng chốt (liệt kê, kèm đề xuất).
+- `mockup/tu_phuc_vu.html` (tĩnh, theo phong cách `mockup/dashboard.html`): màn ảnh có ô "Gói đã gửi" + chẩn đoán; khung chat "Sửa shot" với xem trước 3D + báo giá + nút duyệt; danh sách phiếu chuyển lên.
+- Ghi kết quả vào mục "Kết quả Codex — đợt 5".
+
+## Kết quả Codex — đợt 5
+
+(Codex ghi: nhánh · commit · tài liệu · việc mở.)
