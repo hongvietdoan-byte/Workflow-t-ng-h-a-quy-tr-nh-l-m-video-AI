@@ -498,7 +498,7 @@ Dẫn `file:dòng` thật (mở trên `origin/main`); không đề xuất làm l
 
 ---
 
-# ĐỢT 8 — code sau cờ TẮT, không đụng đường #24 (giao SAU khi Đợt 7 việc 1 gộp; người dùng phân công 11/10 14:35)
+# ĐỢT 8 — code sau cờ TẮT (việc 1–2) + sửa báo giá video (việc 3), không đụng đường #24 (giao SAU khi Đợt 7 việc 1 gộp; người dùng phân công 11/10 14:35)
 
 Luật chung GIỐNG đợt 1 + thêm: mỗi việc một nhánh `codex/d8-viec<N>-<tên>` từ `origin/main`; **KHÔNG sửa `core/runner.py`, `core/lock_exceptions.py`,
 `core/end_frames.py`, `core/place_refs.py` chọn nền, `core/scene_storyboard.py`** (#24 đang chạy trên đó — phần nối vào luồng ghi thành việc mở,
@@ -519,6 +519,22 @@ Việc mở: nối vào chỗ dựng gói ảnh/storyboard + màn Dashboard (sau
    KELLY KL); xác nhận bằng test, sửa sau cờ mới (KHÔNG đổi prompt khi cờ tắt — #24 đang gen).
 3. **Khung cuối dùng ảnh mốc Kho thay nền 3D** (`core/end_frames.py` — file CẤM sửa đợt này): chỉ điều tra + viết báo cáo
    `docs/RA_D8_END_FRAMES_MOC_KHO.md` (hiện chọn ảnh gì, vì sao, đề xuất sửa + test đỏ đặt sẵn đánh `xfail` có lý do) để làm sau #24.
+
+## Việc 3 — Ước tính tiền video đếm thiếu (vừa; hộp thư phiên máy chính 11/10 15:04, ca thật #24 báo giá 3,11 USD thay vì ~27)
+Không gấp với #24 (phiên máy chính tự tính tay) nhưng sửa tận gốc. ĐƯỢC sửa `core/cost.py`, `core/model_router.py`, `core/quality_tier.py`
+(không thuộc đường gửi job); KHÔNG sửa runner/end_frames/place_refs/scene_storyboard. Sửa thẳng (đây là sửa lỗi báo giá, không cần cờ) — nhưng
+ghi rõ trong "Kết quả" con số trước/sau trên dữ liệu giả dựng giống #24.
+1. **"Đã làm" quá rộng:** `core/cost.py:589-591` `estimate_run` coi mọi job `video_gen` ở trạng thái succeeded/approved/running/queued/pending_review
+   là clip đã có, KHÔNG kiểm clip đó làm từ ảnh đã duyệt HIỆN TẠI + motion prompt HIỆN TẠI → shot đã đổi ảnh/motion vẫn bị coi là xong (#24 chỉ đếm 1
+   clip). Cùng kiểu: `core/model_router.py:339-340` `_remake_runs` (`has`). Một nguồn duy nhất cho "shot này còn phải gen video không" (đọc cách
+   job ghi ảnh khởi đầu / motion — `jobs.sent_package`, `image_job_id`, sha… — để so; thiếu dữ liệu so → coi là CẦN gen + ghi lý do, không im lặng).
+2. **Không cộng giây video ref** (`input_video_s`): `core/model_router.py:393-396`, `core/cost.py:275`, `core/quality_tier.py:555/558, 593-594` → thiếu
+   ≈ 1,6 USD ở #24 (shot 5, 6, 8). Đọc bảng giá / công thức token ClipAI đang có (`seedance_estimate`) xem giây video ref tính thế nào; một hàm dùng
+   chung cho cả 3 nơi.
+3. **Cân nhắc:** `core/quality_tier.py:~88` `path()` xếp difficulty `unknown` vào đường nháp như shot khó — chỉ báo cáo (đúng/sai + đề xuất), không
+   đổi nếu chưa chắc.
+Test đỏ → xanh: dự án giả 9 shot (1 clip cũ khớp ảnh/motion hiện tại, vài clip cũ lệch, 3 shot có video ref) → số clip phải gen + tiền đúng; các test
+báo giá cũ (`tests/` grep `estimate_run`, `model_router.plan`, `quality_tier`) vẫn xanh hoặc sửa có lý do.
 
 ## Kết quả Codex — đợt 8
 
