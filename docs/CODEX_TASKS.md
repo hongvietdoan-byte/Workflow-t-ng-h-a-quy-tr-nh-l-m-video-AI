@@ -705,6 +705,9 @@ Theo công thức chung:
 
 ## Kết quả Codex — đợt 10
 
+- Việc 4 · nhánh `codex/d10-viec4-phieu` · code `9c17c84`: reopen/CAS phiếu, projection, sidebar link một lần, câu bằng chứng, pet waiting_admin, broker readonly độc lập và chi theo ngày VN. ĐỎ 4 ca → XANH 162; rà độc lập sửa 1 P2 Markdown (đỏ AppTest → **163 passed / 20,50 s**, nhóm 9 file). Báo cáo `docs/RA_D10_VIEC4_CODEX_2026-10-12.md`. GUI pet/Windows QA làm tiếp Đ9v3; lý do chỉ có trong RAM runner chưa khôi phục được. Không API/data thật/cả bộ/main.
+
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
 ---
