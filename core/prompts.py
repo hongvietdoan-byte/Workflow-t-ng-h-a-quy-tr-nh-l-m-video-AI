@@ -567,6 +567,12 @@ def short_lock_block(conn, project_id: int) -> str:
         return ""
     rows = []
     for r in conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,)):
+        # Chính sách scene_references: ảnh OUTFIT đúng chủ thể; lock_text vẫn giữ mặt/tóc/dáng.
+        if features.on("short_lock_outfit"):
+            from .adapters.deepix import reference_problem
+            if any(reference_problem(pic["path"]) is None
+                   for pic in assets.outfit_images(conn, project_id, r["name"])):
+                continue
         text = profile_digest.for_character(conn, project_id, r["name"], "lock_short")
         if text:
             rows.append(f"- **{r['name']}**: {text}")
