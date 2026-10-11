@@ -6,8 +6,8 @@
   "khau_trang_thai": ["chay", "hoc_viec", "tat"],
   "san_pham": ["chu", "bang_shot", "kho", "san_khau", "anh", "goi", "video", "am_thanh", "phu_de", "dung"]
  },
- "dot_hien_tai": "K0b",
- "_dot_ghi_chu": "Thứ tự chạy mục 8: K0a < K0b < K1a < K2 < K3 < K4 < K1b < K5 < K6 < K7 < K8 (devsys/stages.DOT). Chỗ thiếu ghi dot ≤ dot_hien_tai mà vẫn thiếu → ĐỎ (quá hạn). Đổi dot_hien_tai khi xong một đợt VÀ đợt kế được phép bắt đầu: K0b ✅ 10/10 nhưng GIỮ 'K0b' tới khi qua cổng A21 (K1a đụng pipeline thật, chưa được làm).",
+ "dot_hien_tai": "K1a",
+ "_dot_ghi_chu": "Thứ tự chạy mục 8: K0a < K0b < K1a < K2 < K3 < K4 < K1b < K5 < K6 < K7 < K8 (devsys/stages.DOT). Chỗ thiếu ghi dot ≤ dot_hien_tai mà vẫn thiếu → ĐỎ (quá hạn). Đổi dot_hien_tai khi xong một đợt VÀ đợt kế được phép bắt đầu: K0b ✅ 10/10; cổng A21 ĐẠT ở thẩm định lần 7 (8,5/8,5) → người dùng 11/10 chốt đổi sang 'K1a' (K1a đang làm).",
  "vai": {
   "kiem": ["d06", "d08", "d10", "d11", "d12", "d18", "d22", "d24", "d26", "d28", "d32", "d36", "d39", "d42", "d43", "d45", "d47", "d48", "d49",
            "d79", "d81", "d83", "d84", "d86", "d87", "d92", "d93", "d94", "d95", "d96", "d97", "d100", "d101"],
@@ -33,7 +33,7 @@
   {"id": "L3", "ten": "Đạo diễn chia shot, viết image_prompt / blocking / action", "san_pham": "bang_shot", "lam": ["d09"], "co": {"d86": "stage_camera"},
    "ton_tien": true, "khau_trang_thai": "chay",
    "kiem_truoc": ["d10", "d11", "d84", "d86"], "trang_thai_kiem": "chay", "kiem_sau": [], "trang_thai_sau": "khong_co",
-   "doc_tu": "chu_tu_do", "nguoi_kiem": true, "dot": "K1a",
+   "doc_tu": "chu_tu_do", "nguoi_kiem": true, "dot": "K2", "_dot_ly_do": "11/10: K1a dựng BYĐ + Đạo diễn điền (d98/d99) sau cờ shot_intent TẮT — L3 thôi đọc chữ tự do khi bật shot_intent sau nghiệm thu K1a trên #24; dời sang K2 (vòng viết hợp tác đọc BYĐ).",
    "ghi_chu": "Kiểm trường / cấu trúc / câu trái hình học — KHÔNG ai kiểm NGHĨA prompt ↔ ý đồ (gốc lỗi #24 shot 4). Đọc chữ tự do bằng mẫu từ; K1a đưa BYĐ. d84 prompt_formula chỉ kiểm CẤU TRÚC (đủ phần), không nhìn gói. d86 (stage_facts.contradictions) chỉ chạy trong core/change_audit.py (audit, ~dòng 99) KHI CÓ THAY ĐỔI shot + cờ stage_camera BẬT (co.d86) — không phải cổng mỗi lần Đạo diễn viết."},
   {"id": "L4", "ten": "Thoại, chọn giọng", "san_pham": "chu", "lam": ["d12", "d15", "d16"],
    "ton_tien": true, "khau_trang_thai": "chay",

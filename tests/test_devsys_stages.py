@@ -112,7 +112,7 @@ class StagesBookTests(unittest.TestCase):
                 self.assertNotIn(d, s["kiem_truoc"] + s["kiem_sau"], s["id"])
 
     def test_wave_must_not_be_due(self):
-        self.assertEqual(self.doc["dot_hien_tai"], "K0b")
+        self.assertEqual(self.doc["dot_hien_tai"], "K1a")   # người dùng 11/10: A21 lần 7 ĐẠT
         self.assertEqual(stages.stage_problems(self.doc, self.deci), [])           # đổi đợt không làm dòng nào quá hạn
         self.assertLess(stages.DOT.index("K4"), stages.DOT.index("K1b"))         # mục 8: K1b sau K4
         l9 = dict(self._row("L9"), dot="K0a")
