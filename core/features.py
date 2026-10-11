@@ -5,6 +5,8 @@ import os
 from typing import Dict
 
 FEATURES: Dict[str, Dict] = {
+    "lao_dai_pet": {"label": "Pet Lão Đại chỉ đọc", "verified": False,
+                     "why": "Đợt 9: backend thử CSDL tạm; chưa kiểm GUI Windows"},
     "support_tickets": {"label": "Kho phiếu Tiểu Nhị / Lão Đại", "verified": False,
                         "why": "Đợt 9: chỉ thử CSDL tạm, chưa bật sản xuất"},
     "post_fx_render": {
