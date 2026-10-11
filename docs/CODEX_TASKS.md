@@ -543,7 +543,7 @@ báo giá cũ (`tests/` grep `estimate_run`, `model_router.plan`, `quality_tier`
 
 ## Kết quả Codex — đợt 8
 
-(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+- Việc 1: `codex/d8-viec1-goi-gui-kem`, code `aabcf24`; module chưa có → đỏ, rà bắt 4 lỗi và 7 hồi quy đỏ → nhóm **29 passed / 1,65s**. RÀ KỸ độc lập + root đọc vòng sửa; `docs/RA_D8_VIEC1_CODEX_2026-10-11.md`. Cờ OFF, CAS/audit/replan/gói lịch sử giữ đúng. Chưa nối runner/Dashboard, chưa thử ảnh thật/cả bộ/gộp main; caller phải xác thực ACL và truyền gói cuối sau cap + root tuyệt đối.
 
 ---
 
