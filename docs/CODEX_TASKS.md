@@ -383,4 +383,6 @@ Hiện khi `shot_specs` chỉ có một phần các shot thì thứ tự nhịp 
 
 ## Kết quả Codex — đợt 6
 
-(Codex ghi: việc · nhánh · commit · test đỏ→xanh · việc mở.)
+| Việc | Nhánh | Commit code | Bằng chứng / việc mở |
+|---|---|---|---|
+| 2 | `codex/d6-viec2-ref-beats` | `4a0c638` | Đỏ module chưa có; hồi quy rà 9 đỏ → xanh. Nhóm ref_beats_tool + p24_lessons **62 passed / 1,31s**, ffmpeg portrait thật/TMP, schema, OFF, CWD, force/rollback/timeout/giới hạn khung. Rà độc lập + lượt hai, `docs/RA_D6_VIEC2_CODEX_2026-10-11.md`. Cờ TẮT; ref ≤300s, chưa thử sản xuất/cả bộ/gộp main. |
