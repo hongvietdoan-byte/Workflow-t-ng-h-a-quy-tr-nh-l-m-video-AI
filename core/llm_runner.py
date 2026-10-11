@@ -872,6 +872,11 @@ def run_qc(p: Pipeline, job_id: int, client, data_dir: str, autofix: bool = Fals
     row = p.conn.execute("SELECT idx, data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
     refs = prompts.qc_references(p, job["project_id"], row["idx"], json.loads(row["data"] or "{}"), data_dir)
     images = [("Ảnh cần chấm điểm:", path)] + [(f"Ảnh tham chiếu {i} — {r['label']}:", assets.thumbnail(r["path"], 900)) for i, r in enumerate(refs, 1)]
+    from . import features
+    if features.on("qc_observe_enum"):
+        from . import qc_observe
+        return qc_observe.run(p, job, client, data_dir, path, criteria,
+                              json.loads(row["data"] or "{}"), images, autofix)
     obj, tin, tout = ask_json(client, prompts.build_qc_bundle(p, job["scene_id"], data_dir),
                               lambda o: llm_io.validate_qc_result(o, criteria), images,
                               note=_retry_note(p, "qc", job["project_id"]))

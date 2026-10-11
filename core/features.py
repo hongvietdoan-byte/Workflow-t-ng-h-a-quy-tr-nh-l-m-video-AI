@@ -253,6 +253,11 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.22 cổng S11.2 ĐẠT: người dùng chấm phiếu 05d (docs/DO_S11_2_Y_TUONG_2026-10-05d.md) TB 4,20 ≥ 4,0, đo thật 0,709 USD; "
                "06/10 người dùng duyệt bật mặc định — dùng khi người dùng yêu cầu hoặc khi kịch bản sơ sài (Claude hỏi trong khung chat, chưa tự chi)",
     },
+    "qc_observe_enum": {
+        "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",
+        "verified": False,
+        "why": "Chưa thử thật; cờ tắt mặc định, không chắc → VÀNG chờ người, không trừ điểm",
+    },
     "qc_team": {
         "label": "Tổ QC nhiều tầng (docs/THIET_KE_TO_QC_2026-10-01.md): bảng shot → mệnh đề kiểm tra, code đo trước (mặt, hướng mắt, màu trời), "
                  "chuyên viên Nhân vật trả lời có cấu trúc 1 lượt / khung, bảng luật code kết luận — thay lớp 1 của QC theo cảnh",
@@ -535,7 +540,7 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
 HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
-OPT_IN_ONLY: tuple = ("auto_send_self_fix",)
+OPT_IN_ONLY: tuple = ("auto_send_self_fix", "qc_observe_enum")
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.

@@ -539,11 +539,14 @@ def _scenes_to_draw(conn, project_id: int) -> int:
 def _picture_qc_calls(conn, project_id: int, pictures: int) -> float:
     """Claude calls to judge the pictures still to draw: per picture (old QC), per scene + re-looks after redraws (scene QC with
     layer 1 on), none when scene QC runs without Claude (layer 0 only) or the agent is counted apart."""
-    from . import qc_agent, qc_scene, qc_team
+    from . import features, qc_agent, qc_scene, qc_team
     if not pictures:
         return 0
     if not qc_scene.active():                           # 🎓 học việc: the old per-picture QC does not run either
         return pictures
+    if features.on('qc_observe_enum') and qc_scene.claude_on():
+        # Một actual call/cảnh, nhưng ảnh + quan sát tăng theo số khung: quote tính đơn vị tương đương mỗi khung.
+        return pictures * (1 + REDRAW_SHARE)
     if qc_agent.enabled() or qc_team.active() or not qc_scene.claude_on():
         return 0
     return _scenes_to_draw(conn, project_id) * (1 + REDRAW_SHARE)
@@ -734,13 +737,15 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
         else:
             llm_usd += one
     from . import qc_agent
-    if img["items"] and qc_agent.enabled():            # the agent: several turns per scene (not measured yet — a fixed figure)
+    from . import features, qc_scene, qc_team
+    observe_scene = features.on('qc_observe_enum') and qc_scene.active() and qc_scene.claude_on()
+    if img["items"] and qc_agent.enabled() and not observe_scene:            # the agent: several turns per scene (not measured yet — a fixed figure)
         llm_usd += AGENT_SCENE_USD * _scenes_to_draw(conn, project_id)
     from . import qc_scene, qc_team
-    if img["items"] and qc_team.active() and qc_scene.active():        # Tổ QC (or 🎓 học việc, same looks): one call per frame (+ redraws)
+    if img["items"] and qc_team.active() and qc_scene.active() and not observe_scene:        # Tổ QC (or 🎓 học việc, same looks): one call per frame (+ redraws)
         llm_usd += qc_team.FRAME_USD * img["items"] * (1 + REDRAW_SHARE)
     trainee_usd = (qc_team.FRAME_USD * img["items"] * (1 + REDRAW_SHARE) * LLM_MARGIN    # 🎓 the part of it that is học việc
-                   if img["items"] and qc_team.shadow() and qc_scene.active() else 0.0)
+                   if img["items"] and qc_team.shadow() and qc_scene.active() and not observe_scene else 0.0)
     llm_usd *= LLM_MARGIN
     retry = int(proj["max_retry_count"] or 0)
     from .pipeline import AUTO_REGEN_LIMIT             # automatic regenerations: picture 3, clip 2 (S14.16), lowered by max_retry
