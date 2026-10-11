@@ -1964,10 +1964,55 @@ def no_minor_age(text: str) -> str:
     return _MINOR_AGE.sub("", text or "")
 
 
-def lock_note(conn, project_id: int, cast) -> str:
-    """Character Lock of the people in the shot, as one sentence for the image model (what must never drift)."""
+_EXC_NEGATION = re.compile(r"(?<!\w)(không|no|without|never|bỏ|sạch|clean)(?!\w)", re.I)
+
+
+def lock_exceptions(data: Optional[Dict]) -> Dict[str, Dict]:
+    """BYĐ `ngoai_le` (intentional exceptions) of THIS shot per character name → {name: {"items": [identity_declare.ITEMS keys the
+    exception talks about], "without": bool}}. 11/10 #24 shots 9–10: ngoai_le "không có hiệu ứng glitch toàn thân trong ảnh (ảnh sạch)"
+    (phạm vi [9, 10]) while the Character Lock still sent "keep … full-body glitch/noise effect; never … losing glitch effect" — the lock
+    beat the shot's own exception and both pictures came out with glitch streaks."""
+    from .identity_declare import ITEMS
+    byd = (data or {}).get("byd") or {}
+    shot = byd.get("shot", (data or {}).get("shot_no"))
+    out: Dict[str, Dict] = {}
+    for n in byd.get("ngoai_le") or []:
+        if not isinstance(n, dict) or not n.get("doi_tuong"):
+            continue
+        scope = n.get("pham_vi")
+        if isinstance(scope, list) and scope and shot is not None and str(shot).strip() not in {str(x).strip() for x in scope}:
+            continue
+        text = f"{n.get('dieu_trai') or ''} {n.get('cach_hien') or ''}"
+        items = [k for k, (en, vi) in ITEMS.items()
+                 if any(re.search(rf"(?<!\w){re.escape(w)}(?!\w)", text, re.I) for w in en + vi + (k,))]
+        if items:
+            e = out.setdefault(str(n["doi_tuong"]).strip().upper(), {"items": [], "without": False})
+            e["items"] += [k for k in items if k not in e["items"]]
+            e["without"] = e["without"] or bool(_EXC_NEGATION.search(text))
+    return out
+
+
+def _drop_excepted(body: str, items) -> str:
+    """Remove from one character's lock text every clause (split on ';' then ',') that names an excepted item."""
+    from .identity_declare import ITEMS
+    words = [w for k in items for w in ITEMS[k][0] + (k,)]
+    hit = re.compile(r"(?<!\w)(" + "|".join(re.escape(w) for w in words) + r")(?!\w)", re.I)
+    keep = []
+    for clause in body.split(";"):
+        pieces = [x for x in clause.split(",") if not hit.search(x)]
+        txt = ",".join(pieces).strip()
+        if txt and txt.lower() not in ("keep", "never"):
+            keep.append(txt)
+    return "; ".join(keep)
+
+
+def lock_note(conn, project_id: int, cast, data: Optional[Dict] = None) -> str:
+    """Character Lock of the people in the shot, as one sentence for the image model (what must never drift). `data` (the scene) →
+    the shot's BYĐ `ngoai_le` for a person overrides the matching lock clauses (lock_exceptions)."""
     from . import features, profile_digest
+    from .identity_declare import ITEMS
     parts = []
+    exc = lock_exceptions(data)
     for r in conn.execute("SELECT name, lock_rules, outfit_image_ids FROM characters WHERE project_id=?", (project_id,)):
         if r["name"] not in (cast or []):
             continue
@@ -1997,6 +2042,16 @@ def lock_note(conn, project_id: int, cast) -> str:
             parts.append(f"{r['name']}: " + "; ".join(b for b in bits if b))
     # F1-C (#22: KELLY's print "GREEN dinosaur" in the picture words, "blue dinosaur print" in the blocking) — one source for the costume;
     # phiên sửa: only when someone in the shot IS held to a costume (garment_profile; not when `may_change` frees the clothes)
+    for i, part in enumerate(parts):
+        name, _, body = part.partition(": ")
+        e = exc.get(name.strip().upper())
+        if not e:
+            continue
+        body = _drop_excepted(body, e["items"])
+        words = ", ".join(w for k in e["items"] for w in ITEMS[k][0][:3])
+        parts[i] = (f"{name}: {body}; " if body else f"{name}: ") + (
+            f"in THIS shot (intentional exception of the shot plan) draw {name} WITHOUT any {words}" if e["without"]
+            else f"in THIS shot the shot text decides the {words} (intentional exception of the shot plan)")
     if not parts:
         return ""
     from .prompt_formula import garment_profile
@@ -2172,7 +2227,7 @@ def _lock_part(conn, project_id: int, data: Dict, proj, text: str, fix: Optional
     from . import prompt_template as pt
     scan = " ".join(str(x or "") for x in (text, data.get("blocking"), data.get("action_peak"), fix,
                                            json.dumps(data.get("performance"), ensure_ascii=False) if data.get("performance") else ""))
-    return pt.join([lock_note(conn, project_id, data.get("characters")), view_notes(conn, project_id, data),
+    return pt.join([lock_note(conn, project_id, data.get("characters"), data), view_notes(conn, project_id, data),
                     looks.gore_sentence(proj, scan)])
 
 
