@@ -216,8 +216,35 @@ with st.sidebar:
 
 
 # ---- trang: Tổng quan --------------------------------------------------------------------------------------------------
+def _review_gate_card():
+    from devsys import review_gate
+    st.subheader("Cổng A21 · điểm thẩm định")
+    report = review_gate.load()
+    if report["error"]:
+        st.warning(report["error"])
+        return
+    latest = report["rows"][-1]
+    score_text = lambda v: "không đọc được" if v is None else f"{v:g}/10"
+    st.markdown(f"**Lần {latest['round']} · {latest['status']}** · kế hoạch {score_text(latest['plan'])} · "
+                f"build {score_text(latest['build'])} · cổng ≥ {review_gate.THRESHOLD:g}/10")
+    st.caption(f"Lỗ hổng theo bản thẩm định: {latest['holes']} · phần đã sửa cần lần thẩm định tiếp xác nhận" if latest["holes"] is not None else "không đọc được số lỗ hổng còn lại")
+    points = [{"Lần": r["round"], "Loại": label, "Điểm": r[key]} for r in report["rows"]
+              for key, label in (("plan", "Kế hoạch"), ("build", "Build")) if r[key] is not None]
+    if points:
+        import altair as alt
+        chart = alt.Chart(pd.DataFrame(points)).mark_line(point=True).encode(
+            x=alt.X("Lần:O", title="Lần thẩm định"), y=alt.Y("Điểm:Q", scale=alt.Scale(domain=[0, 10])), color="Loại:N")
+        threshold = alt.Chart(pd.DataFrame([{"Điểm": review_gate.THRESHOLD}])).mark_rule(strokeDash=[5, 3], color="#F79009").encode(y="Điểm:Q")
+        st.altair_chart(chart + threshold, width="stretch")
+    st.dataframe([{"Lần": r["round"], "Kế hoạch": score_text(r["plan"]), "Build": score_text(r["build"]),
+                   "Kết luận": r["status"], "Không đọc được": "; ".join(r["errors"])} for r in report["rows"]],
+                 hide_index=True, width="stretch")
+    st.caption("Lần 1–2 chưa ghi điểm build; không điền 0. Build lần 3 là phạm vi K0a theo nguồn, chưa đại diện toàn pipeline.")
+
+
 def page_overview():
     st.title("Tổng quan — mức hoàn thiện thật")
+    _review_gate_card()
     run = snap.get("latest_run")
     t = (run or {}).get("totals") or {}
     flags = snap["flags"]
