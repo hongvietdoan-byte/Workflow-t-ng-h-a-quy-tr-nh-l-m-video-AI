@@ -167,12 +167,14 @@ def spent(conn, pricing: Optional[Dict] = None, since: Optional[str] = None) -> 
     if pricing is None:
         try:
             db = next((r[2] for r in conn.execute("PRAGMA database_list") if r[1] == "main"), "")
-            cnt, last = conn.execute("SELECT COUNT(*), COALESCE(MAX(id), 0) FROM usage_events").fetchone()
-            pp = os.environ.get("PIPELINE_PRICING") or cost.DEFAULT_PRICING_PATH
-            pf = os.path.getmtime(pp) if os.path.exists(pp) else 0
-            key = (db or f"memory:{id(conn)}", since, cnt, last, pf)   # two in-memory databases must not share an answer
-            if key in _SPENT_CACHE:
-                return dict(_SPENT_CACHE[key])
+            if db:      # in-memory: no cache — id(conn) is reused once an old connection is freed (11/10: project_reserve tests read
+                        # another database's total when run in the full suite)
+                cnt, last = conn.execute("SELECT COUNT(*), COALESCE(MAX(id), 0) FROM usage_events").fetchone()
+                pp = os.environ.get("PIPELINE_PRICING") or cost.DEFAULT_PRICING_PATH
+                pf = os.path.getmtime(pp) if os.path.exists(pp) else 0
+                key = (db, since, cnt, last, pf)
+                if key in _SPENT_CACHE:
+                    return dict(_SPENT_CACHE[key])
         except Exception:  # noqa: BLE001 - no cache is always correct
             key = None
     out = _spent(conn, pricing or cost.load_pricing(), since)

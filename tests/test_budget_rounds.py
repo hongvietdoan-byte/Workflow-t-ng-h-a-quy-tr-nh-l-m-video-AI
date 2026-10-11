@@ -1,4 +1,5 @@
 """S14.6 Gói K: đợt ngân sách có lịch sử + mức dùng theo NGÀY (core.budget_rounds). 0 USD — chỉ CSDL trong bộ nhớ."""
+import os
 import sqlite3
 import unittest
 from unittest import mock
@@ -329,3 +330,24 @@ class RoundTests(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SpentCacheMemoryDbTests(unittest.TestCase):
+    """11/10 (hộp thư, phiên máy chính): test_project_reserve hỏng khi chạy cả bộ, qua khi chạy riêng. Nguồn: khóa đệm
+    `budget.spent` của CSDL trong bộ nhớ là id(conn) — kết nối của test trước bị dọn, kết nối mới nhận lại cùng id, cùng giây
+    + cùng số dòng → trả số đã chi của CSDL khác."""
+
+    def test_in_memory_database_never_reads_another_connections_answer(self):
+        from core import budget, cost
+        from core.db import connect
+        conn = connect()
+        cost.record_usage(conn, None, "llm", "real", "claude-sonnet-5", "output", 100000, "token", stage="director")
+        real = budget.spent(conn)["usd"]
+        self.assertGreater(real, 0)
+        cnt, last = conn.execute("SELECT COUNT(*), COALESCE(MAX(id), 0) FROM usage_events").fetchone()
+        pp = os.environ.get("PIPELINE_PRICING") or cost.DEFAULT_PRICING_PATH
+        pf = os.path.getmtime(pp) if os.path.exists(pp) else 0
+        budget._SPENT_CACHE.clear()
+        budget._SPENT_CACHE[(f"memory:{id(conn)}", None, cnt, last, pf)] = {"usd": 0.0, "images": 0, "unknown": [], "llm_usd": 0.0}
+        self.assertAlmostEqual(budget.spent(conn)["usd"], real)      # câu trả lời "của kết nối cũ cùng id" không được dùng
+        budget._SPENT_CACHE.clear()
