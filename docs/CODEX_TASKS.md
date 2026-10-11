@@ -417,7 +417,7 @@ Rà độc lập cả ba việc đã hoàn tất (báo cáo riêng `docs/RA_D6_V
 
 # ĐỢT 7 — thiết kế Tiểu Nhị + Lão Đại theo chốt người dùng 11/10 (tài liệu + mockup; người dùng duyệt)
 
-Nguồn: rà nhánh Đợt 5 (đã gộp `ecdc91b`) + hộp thư `TODO.md` 📨 dòng 17:45–18:40 (người dùng chốt). **Chỉ sửa tài liệu + mockup**
+Nguồn: rà nhánh Đợt 5 (đã gộp `ecdc91b`) + hộp thư `TODO.md` 📨 dòng 14:24–14:35 (người dùng chốt). **Chỉ sửa tài liệu + mockup**
 (`docs/NGHIEN_CUU_TU_PHUC_VU_DASHBOARD.md`, `docs/D5_KIEM_KE_HIEN_TRANG.md`, `mockup/tieu_nhi.html`, file mới trong `docs/`/`mockup/`); KHÔNG
 sửa `core/`, `dashboard/`, `devsys/`, `data/`, `TODO.md`; không API, không Blender. Mỗi việc một nhánh `codex/d7-viec<N>-<tên>` từ `origin/main`.
 Dẫn `file:dòng` thật (mở trên `origin/main`); không đề xuất làm lại thứ đã có. Ghi kết quả vào "Kết quả Codex — đợt 7".
@@ -498,7 +498,7 @@ Dẫn `file:dòng` thật (mở trên `origin/main`); không đề xuất làm l
 
 ---
 
-# ĐỢT 8 — code sau cờ TẮT, không đụng đường #24 (giao SAU khi Đợt 7 việc 1 gộp; người dùng phân công 11/10 18:40)
+# ĐỢT 8 — code sau cờ TẮT, không đụng đường #24 (giao SAU khi Đợt 7 việc 1 gộp; người dùng phân công 11/10 14:35)
 
 Luật chung GIỐNG đợt 1 + thêm: mỗi việc một nhánh `codex/d8-viec<N>-<tên>` từ `origin/main`; **KHÔNG sửa `core/runner.py`, `core/lock_exceptions.py`,
 `core/end_frames.py`, `core/place_refs.py` chọn nền, `core/scene_storyboard.py`** (#24 đang chạy trên đó — phần nối vào luồng ghi thành việc mở,
