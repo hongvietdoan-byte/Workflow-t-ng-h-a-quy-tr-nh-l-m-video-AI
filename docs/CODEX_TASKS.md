@@ -654,6 +654,14 @@ THẤP: `start_from_prev_clip` ghi rõ lý do; cảnh báo chỉ khi clip cũ b�
    cộng. Nâng thật = 1 lệnh `submit_final_from_sample` theo task nháp (`core/adapters/clipai.py:610-620`), KHÔNG gửi lại ref → giá nâng theo đúng
    cách đó. Test dựng nhóm theo `sent_group` khi cờ ref tắt, giây theo clip thật, follower.
 
+7. **Đơn giá nâng 1080p ĐO THẬT (hộp thư 11/10 23:53):** Seedance 2.5 nháp 480p → 1080p 9:16 qua `submit_final_from_sample` = **0,5254 USD/s**
+   (7 clip #24 job 670–676, 38 s, 19,964 USD theo `task_usage`; ≈ 0,0107 USD/1k token; clip có video vào cùng giá) → đưa vào bảng giá
+   (`data/pricing.json` mẫu trong repo / hằng trong `core/quality_tier.py`) thay nhãn `UPGRADE_UNMEASURED` (`quality_tier.py:41`), ghi nguồn đo.
+   `usage_events` ghi SAI giây clip nhóm bản cao (671: 4 thay 8, 672: 4 thay 5, 675: 4 thay 6): tìm chỗ ghi (`core/runner.py:457/461`
+   `_record_usage` → `core/cost.record_usage`) — nếu sửa được ở `core/cost.py` (tính giây từ nhóm/clip thật) thì sửa + test; nếu phải sửa
+   `runner.py` thì CHỈ viết báo cáo + test đỏ `xfail` (file #24). Runner không cắt follower từ clip nhóm 1080p (02/03/09.mp4 còn 480p) — file #24:
+   chỉ báo cáo cách sửa, làm sau #24.
+
 ## Việc 4 — Kho phiếu / trang Phiếu / pet (Đợt 9) — lỗi TRUNG
 1. `core/tickets.py:~165-174` gộp vào phiếu `closed`/`resolved` im lặng → tự chuyển `reopened` có event.
 2. `user_projection` (`:~252-257`) không xét trạng thái → phiếu đóng vẫn báo "tạm dừng"; phiếu không chặn vẫn trả tiêu đề → trả None khi đóng hoặc
