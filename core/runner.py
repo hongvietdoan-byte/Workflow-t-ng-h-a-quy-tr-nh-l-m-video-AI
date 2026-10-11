@@ -264,6 +264,15 @@ class _Runner:
         return self.p.conn.execute("SELECT * FROM jobs WHERE project_id=? AND type=? AND state=? ORDER BY id",
                                    (project_id, self.job_type, state)).fetchall()
 
+    def _diag_once(self, job, severity: str, code: str, message: str) -> None:
+        """A note written once per job (the prompt is built for the check before sending AND for the send — F1 sửa #11)."""
+        said = self.__dict__.setdefault("_said_once", set())
+        key = (job["id"], code, message)
+        if key in said:
+            return
+        said.add(key)
+        self._diag(job, severity, code, message)
+
     def _hold(self, job, reason: str) -> bool:
         """_wait holds this job: remember why (WAIT_REASONS, read by the screen) and return True."""
         WAIT_REASONS[job["id"]] = (reason, time.time())
@@ -888,15 +897,6 @@ class VideoRunner(_Runner):
             return bool(self._multi_prompt(job, proj, group, say=False)[1].get(scene_id))
         args = self._submit_args(job)
         return True if not args else looks._GORE_TAG in str(args[1])
-
-    def _diag_once(self, job, severity: str, code: str, message: str) -> None:
-        """A note written once per job (the prompt is built for the check before sending AND for the send — F1 sửa #11)."""
-        said = self.__dict__.setdefault("_said_once", set())
-        key = (job["id"], code, message)
-        if key in said:
-            return
-        said.add(key)
-        self._diag(job, severity, code, message)
 
     def _multi_prompt(self, job, proj, group, say: bool = True):
         """Kling multi-shot: each shot's own prompt (≤ KLING_SHOT_PROMPT_LIMIT) — who speaks (S0.14) and, FF project, the gore-restraint
@@ -2365,6 +2365,34 @@ class ImageRunner(_Runner):
             return self._hold(job, "chờ ảnh đã duyệt của shot trước (nối khung) — sẽ tự gửi khi bạn duyệt ảnh đó")
         return False
 
+    def _pregen_cooling(self, job) -> bool:
+        """A picture held by the package check less than PREGEN_RECHECK_S ago stays queued with its reason — no rebuild of the
+        request (and no new diag row) on every heartbeat."""
+        held = PREGEN_HELD.get(job["id"])
+        if held and time.time() - held[1] < PREGEN_RECHECK_S:
+            WAIT_REASONS[job["id"]] = held
+            return True
+        return False
+
+    def _pregen(self, job, args, kwargs) -> bool:
+        """#24 job 649 (11/10): the last check of the picture's package before it is paid for — every 3D background in it must be
+        THIS shot's current camera (place_refs.package_problem). Otherwise ĐỎ: held with the reason (never sent, never silent)."""
+        from . import place_refs
+        from . import location_pack
+        sent = getattr(self, "_sent", {}).get(job["id"])
+        if not sent or not job["scene_id"]:
+            return False
+        why = place_refs.package_problem(sent, location_pack.plate_of(self.data_dir, job["project_id"], job["scene_id"]))
+        if not why:
+            PREGEN_HELD.pop(job["id"], None)
+            return False
+        line = f"CẦN BẠN SỬA: {why} — ảnh GIỮ CHỜ, không gửi (0 USD); render lại nền 3D / sửa góc máy rồi sẽ tự gửi"
+        WAIT_REASONS[job["id"]] = PREGEN_HELD[job["id"]] = (line, time.time())
+        self._diag_once(job, "error", "plate_package_mixed", line)
+        self._sent.pop(job["id"], None)
+        getattr(self, "_storyboard", {}).pop(job["id"], None)
+        return True
+
     def _anchor_wait_note(self, job) -> None:
         """Lỗi 11 (#24): the job waits for its scene's anchor picture. When the anchor has NO picture job on its way (not queued / running),
         the wait never ends — say which shot to generate (diag, once per job; the step 2 screen reads scene_storyboard.wait_reason)."""
@@ -2450,6 +2478,7 @@ class ImageRunner(_Runner):
                 # F2 (09/10): this shot's own same-axis wide render replaces the scene's one-for-all wide picture
                 refs = place_refs.add_wide(refs, place_refs.wide_for(conn, self.data_dir, job["project_id"], job["scene_id"], data), limit,
                                            reserve=1 if chain else 0)      # the previous frame keeps its slot
+                refs = place_refs.own_place_only(refs, ref)   # #24 job 649: locked stage camera → only its own render
                 prompt = f"{place_refs.PRECEDENCE} {prompt}"   # S5.5' 30/09: words about the place lost to the render otherwise
         from . import skill_dossier
         if skill_dossier.enabled():                    # 30/09: the phase's real frame from the skill video (the dossier)
@@ -2503,10 +2532,12 @@ class ImageRunner(_Runner):
                               + [r for r in shared if r.get("role") == "location"][:1] + [est])
                 from . import place_refs
                 if place_refs.enabled():                # this frame's own 3D render replaces the library's place picture
-                    shared = place_refs.swap_in(shared, place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]), 8)
-                    if place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]) is not None:   # F2: + same-axis wide
+                    own_render = place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"])
+                    shared = place_refs.swap_in(shared, own_render, 8)
+                    if own_render is not None:                                # F2: + same-axis wide
                         shared = place_refs.add_wide(shared, place_refs.wide_for(self.p.conn, self.data_dir, job["project_id"],
                                                                                  job["scene_id"], own), 8)
+                        shared = place_refs.own_place_only(shared, own_render)   # #24 job 649: locked stage camera → one plate
                 from . import skill_dossier
                 if skill_dossier.enabled():            # the skill frame of THIS shot rides with the shared references
                     row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()

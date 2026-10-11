@@ -166,6 +166,8 @@ def missing(conn, data_dir: str, pid: int, scene_id: int, data: Dict) -> bool:
         return False
     rec = location_pack.plate_of(data_dir, pid, scene_id)
     if rec is not None:
+        if stage_locked(rec):
+            return False                             # #24 job 649: a locked stage camera never sends a wide — never waits for it
         wide = rec.get("wide") or {}
         return not rec.get("wide_failed") and not (wide.get("plate") and os.path.exists(wide["plate"]))
     if location_pack.plate_retry_due(data_dir, pid, scene_id):
@@ -213,10 +215,19 @@ WIDE_ROLE = "place_wide"
 WIDE_LABEL = "WIDE same-axis view of this place"
 
 
+def stage_locked(rec: Optional[Dict]) -> bool:
+    """The shot's plate comes from a Sân khấu 3D camera (stage_camera: solved, measured by rays, the frame approved by the person)."""
+    return bool(((rec or {}).get("camera_plan") or {}).get("locked"))
+
+
 def wide_ref(data_dir: str, pid: int, scene_id: int) -> Optional[Dict]:
-    """F2: the shot's same-axis wide 3D render (same camera direction, pulled back, wider lens) as a reference, else None."""
+    """F2: the shot's same-axis wide 3D render (same camera direction, pulled back, wider lens) as a reference, else None.
+    #24 job 649 (11/10): never for a locked stage camera — its frame is the one truth; the wide (4,8 m back, 18 mm) showed the house
+    the approved frame leaves out and the model pasted it against the wall."""
     from . import location_pack
     rec = location_pack.plate_of(data_dir, pid, scene_id)
+    if stage_locked(rec):
+        return None
     wide = (rec or {}).get("wide") or {}
     if not wide.get("plate") or not os.path.exists(wide["plate"]):
         return None
@@ -252,6 +263,54 @@ def add_wide(refs: List[Dict], wide: Optional[Dict], limit: int, reserve: int = 
                     None)
         out.pop(len(out) - 1 if drop is None else drop)
     return out
+
+
+def own_place_only(refs: List[Dict], render: Optional[Dict]) -> List[Dict]:
+    """#24 job 649: a shot drawn on a locked stage camera keeps ONE picture of the place — its own render. The scene's one-for-all
+    wide picture (scene_establish, drawn on the widest shot's camera) and any wide view go: a wider view shows what the approved frame
+    leaves out. Other shots: unchanged. (The landmark's shape picture is not a background — swap_in already handles it. The
+    previous shot's picture / the storyboard anchor are drawn pictures for continuity, not 3D backgrounds: not touched here.)"""
+    if render is None or not stage_locked(render.get("_rec")):
+        return refs
+    from . import scene_establish
+    return [r for r in refs if r.get("role") != WIDE_ROLE
+            and not (r.get("role") == "location" and r.get("label") == scene_establish.LABEL)]
+
+
+def package_problem(sent: List[Dict], rec: Optional[Dict]) -> Optional[str]:
+    """#24 job 649 (11/10): the pictures about to leave (sent_refs entries: role, file, plate_key) hold a 3D background that is not
+    THIS shot's current camera — the reason (Vietnamese), else None. Allowed: the shot's own render (index key) + — for a camera that
+    is not a locked stage camera — its own same-axis wide (index wide key). Red: a background of another camera key, a background
+    without a key, two shot renders, a plate sent while the shot has no plate record, or a wide / the scene's wide picture with a
+    locked stage camera. The picture runner holds the job with this reason (never sent, never silent)."""
+    from . import scene_establish
+    plates = [s for s in sent or [] if s.get("plate_key") or s.get("role") in (ROLE, WIDE_ROLE)]
+    locked = stage_locked(rec)
+    est = [s for s in sent or [] if s.get("role") == "location" and s.get("label") == scene_establish.LABEL]
+    if not plates and not (locked and est):
+        return None
+    if rec is None:
+        return ("gửi nền 3D (" + ", ".join(f"{s.get('file')} khóa {s.get('plate_key') or '?'}" for s in plates)
+                + ") nhưng shot không có bản ghi nền hiện tại (plates/index.json)")
+    own, wide_key = rec.get("key"), (rec.get("wide") or {}).get("key")
+    allowed = {own} | ({wide_key} if wide_key and not locked else set())
+    bad = []
+    for s in plates:
+        k = s.get("plate_key")
+        if not k:
+            bad.append(f"{s.get('file')} ({s.get('role')}) không có khóa camera")
+        elif k not in allowed:
+            what = "ảnh toàn cùng trục của máy shot (máy Sân khấu 3D khóa: chỉ gửi nền của chính máy)" if locked and k == wide_key \
+                else "nền của góc máy KHÁC"
+            bad.append(f"{s.get('file')} khóa {k} ({s.get('role')}) = {what}")
+    renders = [s for s in plates if s.get("role") == ROLE]
+    if len(renders) > 1:
+        bad.append(f"{len(renders)} ảnh nền shot trong một gói")
+    if locked and est:
+        bad.append("ảnh toàn cảnh chung của cảnh (scene_establish) đi cùng máy Sân khấu 3D khóa")
+    if not bad:
+        return None
+    return f"gói gửi lẫn nền khác góc máy hiện tại (khóa camera {own}): " + "; ".join(bad)
 
 
 def scale_sentence(rec: Optional[Dict], entry: Optional[Dict], data: Dict, height_m: Optional[float] = None,
