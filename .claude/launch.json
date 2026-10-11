@@ -18,7 +18,7 @@
       "runtimeArgs": [
         "-NoProfile",
         "-Command",
-        "$env:IMAGE_PROVIDER='deepix'; $env:VIDEO_PROVIDER='clipai'; $env:LLM_PROVIDER='claude_cli'; py -m streamlit run dashboard/app.py --server.port 8501 --server.headless true"
+        "$env:IMAGE_PROVIDER='deepix'; $env:VIDEO_PROVIDER='clipai'; $env:LLM_PROVIDER='claude_cli'; py -m dashboard.serve --server.port 8501 --server.headless true"
       ],
       "port": 8501
     },
@@ -39,7 +39,7 @@
       "runtimeArgs": [
         "-NoProfile",
         "-Command",
-        "Set-Location 'D:\\AI-Video-Pipeline'; foreach ($l in Get-Content 'dashboard.env' -Encoding UTF8) { $t = $l.Trim(); if ($t -and -not $t.StartsWith('#') -and $t.Contains('=')) { $k, $v = $t.Split('=', 2); [Environment]::SetEnvironmentVariable($k.Trim(), $v.Trim().Trim([char]34), 'Process') } }; foreach ($n in 'CLIPAI_TOKEN', 'DEEPIX_TOKEN', 'ANTHROPIC_API_KEY', 'MESHY_API_KEY') { if (-not [Environment]::GetEnvironmentVariable($n, 'Process')) { $s = [Environment]::GetEnvironmentVariable($n, 'User'); if ($s) { [Environment]::SetEnvironmentVariable($n, $s, 'Process') } } }; py -m streamlit run dashboard/app.py --server.port $env:PORT --server.address 127.0.0.1 --server.headless true --browser.gatherUsageStats false"
+        "Set-Location 'D:\\AI-Video-Pipeline'; foreach ($l in Get-Content 'dashboard.env' -Encoding UTF8) { $t = $l.Trim(); if ($t -and -not $t.StartsWith('#') -and $t.Contains('=')) { $k, $v = $t.Split('=', 2); [Environment]::SetEnvironmentVariable($k.Trim(), $v.Trim().Trim([char]34), 'Process') } }; foreach ($n in 'CLIPAI_TOKEN', 'DEEPIX_TOKEN', 'ANTHROPIC_API_KEY', 'MESHY_API_KEY') { if (-not [Environment]::GetEnvironmentVariable($n, 'Process')) { $s = [Environment]::GetEnvironmentVariable($n, 'User'); if ($s) { [Environment]::SetEnvironmentVariable($n, $s, 'Process') } } }; py -m dashboard.serve --server.port $env:PORT --server.address 127.0.0.1 --server.headless true --browser.gatherUsageStats false"
       ],
       "port": 8501,
       "autoPort": true

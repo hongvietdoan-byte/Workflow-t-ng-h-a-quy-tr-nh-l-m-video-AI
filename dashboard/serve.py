@@ -46,8 +46,11 @@ def _blender_reporter(db: str) -> None:
 
 def main(argv: Optional[List[str]] = None, run: Optional[Callable[[], object]] = None) -> object:
     argv = list(sys.argv[1:] if argv is None else argv)
-    started = start_background()
-    print(f"vòng nền: {'đã bắt đầu' if started else 'không bắt đầu (đã chạy hoặc BG_POLL=0)'}", flush=True)
+    try:
+        started = start_background()
+        print(f"vòng nền: {'đã bắt đầu' if started else 'không bắt đầu (đã chạy, tiến trình khác giữ, hoặc BG_POLL=0)'}", flush=True)
+    except Exception as e:  # noqa: BLE001 - vòng nền hỏng không được chặn máy chủ; app.py thử lại khi có phiên
+        print(f"vòng nền: lỗi khởi động {type(e).__name__}: {e} — máy chủ vẫn chạy", flush=True)
     sys.argv = ["streamlit", "run", APP] + argv
     if run is None:
         from streamlit.web import cli

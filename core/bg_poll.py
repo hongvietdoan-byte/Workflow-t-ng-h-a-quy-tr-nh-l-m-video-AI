@@ -200,8 +200,39 @@ def running() -> bool:
     return any(t.name == THREAD_NAME and t.is_alive() for t in threading.enumerate())
 
 
+_LOCKS: Dict[str, object] = {}     # khóa tệp vòng nền mỗi CSDL, giữ suốt đời tiến trình (đóng tệp = nhả)
+
+
+def _acquire_process_lock(db_path: str) -> bool:
+    """Rà tích hợp 11/10: MỘT vòng nền trên mỗi CSDL giữa các TIẾN TRÌNH (khóa _turn của runner chỉ trong một tiến trình) — Dashboard
+    cũ còn sống / mở thêm bằng launch.json cùng CSDL thì vòng thứ hai không gửi lại job 'queued' (trả tiền hai lần). Khóa của hệ điều
+    hành trên `<db>.bgpoll.lock`: tiến trình chết là tự nhả, không có khóa mồ côi. True = tiến trình này giữ khóa."""
+    path = os.path.abspath(db_path) + ".bgpoll.lock"
+    if path in _LOCKS:
+        return True
+    try:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        fh = open(path, "a+b")
+    except OSError:
+        return True                                   # không tạo được tệp khóa: giữ hành vi cũ (khóa trong tiến trình vẫn còn)
+    try:
+        if os.name == "nt":
+            import msvcrt
+            fh.seek(0)
+            msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        fh.close()
+        return False
+    _LOCKS[path] = fh
+    return True
+
+
 def start(db_path: str, data_dir: str, interval: float = INTERVAL_SEC) -> bool:
-    """Start the one background round of this dashboard process (False = already running or switched off: BG_POLL=0)."""
+    """Start the one background round of this dashboard process (False = already running, another process on this database runs it,
+    or switched off: BG_POLL=0)."""
     global _started
     if os.environ.get("BG_POLL", "1") == "0":
         return False
@@ -210,6 +241,8 @@ def start(db_path: str, data_dir: str, interval: float = INTERVAL_SEC) -> bool:
         # một luồng "bg-poll" còn sống trong tiến trình = đã chạy, không mở vòng thứ hai (hai vòng = gửi job hai lần)
         if _started or running():
             return False
+        if not _acquire_process_lock(db_path):
+            return False                              # tiến trình Dashboard khác trên cùng CSDL đang chạy vòng nền
         _started = True
     threading.Thread(target=loop, args=(db_path, lambda db: round_once(db, data_dir), interval), daemon=True,
                      name=THREAD_NAME).start()
