@@ -217,13 +217,15 @@ origin/ghi-chu-giao-dien-fatebreaker:docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-
 | 1 | `codex/d2-viec1-2-san-khau` | `08d3e47` | 8 test mới đỏ → xanh; nhóm 172 test xanh (Windows). Rà diff + rà lại prompt: giữ số dựng đứng; thân nằm theo facing, bao hình và đầu theo solver. **Prompt 29 đổi hành vi Director thật**, cần bên gộp rà kỹ và render Blender thật (phiên này chỉ bpy giả, chưa API). |
 | 2 | `codex/d2-viec1-2-san-khau` | `38c4d49` | 3 test đỏ → xanh; cùng nhóm 172 test. Rà: stage=None giữ số cũ; stage dùng model_from_rel; tên/mã Kho giữ nguyên có dấu; khối không bị ép vật liệu đá; giếng qua hồi quy. Chưa nối pipeline mới. |
 | 3 | `codex/d2-viec3-tam-duyet` | `163f378` | Test đỏ import module thiếu → 71 test liên quan xanh trên Windows; kiểm PNG bằng mắt. Rà diff: module thuần PIL đã có requirements; schema mới `kind=blockout`, `schema_version=1`, không đụng `assets.profile.model3d`; SHA canonical, copy dữ liệu, từ chối geometry ĐỎ, giữ VÀNG. d101 tắt, chưa nối pipeline. |
+| 4 | `codex/d2-viec4-mockup-video` | `fb51e24` | 4 test mockup đỏ → xanh; nhóm cùng UI acceptance **8 test xanh**, phép đo AppTest 12 click + 2 nhập (mock, job running). Rà: giữ stepper/giá/A13, ảnh và vai gói gửi, 9 shot, phiên bản có trạng thái/đang dùng, Kho nguồn cạnh khai_bao_chu và R1; toàn bộ SVG/JS offline. Không đổi Dashboard/key widget; areas.version giữ. |
 
 Không đổi TODO/PLAN/data, không chạy Blender/API, không tăng areas.version. Cả bộ do bên gộp chạy theo luật ĐỢT 2.
 
 Việc mở: 2–3 góc clay/ảnh tham chiếu cần bên gộp làm bằng Blender; chưa ghi Kho thật. Tấm kiểm chỗ đứng theo tham số; gói hiện duyệt geometry của plan, chưa lưu chỗ đứng/kịch bản ngoài plan. Sơ đồ nhiều issue có nhãn báo phần còn lại và trả đủ issues. Không gọi API/Blender, không đổi TODO/PLAN/data, không tăng areas.version; cả bộ do bên gộp chạy.
 
+Báo cáo `docs/NGHIEN_CUU_TOI_UU_GIAO_DIEN_2026-10-11.md` dẫn nguồn chính thức, phân biệt đo AppTest với ngân sách CSS; **chưa đo cuộn pixel bằng browser**, chưa chạy Dashboard/media/API thật. Code hiện đã 3 thẻ mỗi hàng và chip phiên bản, không lấy mô tả UI cũ làm baseline. Mockup chỉ mô phỏng, cần người duyệt trước triển khai. Cả bộ test do bên gộp chạy theo đề bài.
 
----
+
 ---
 
 # ĐỢT 3 — AI Dev System nắm TOÀN BỘ kế hoạch + việc đang chạy (10/10 tối, người dùng duyệt)
