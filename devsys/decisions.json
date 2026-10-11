@@ -773,6 +773,14 @@
    "who": "code",
    "what": "K3: kiểm gói video TRƯỚC gen (khung đầu duyệt + sha, khung cuối + ket_thuc BYĐ, thời lượng/thoại, tham chiếu theo luật model, đầu–đỉnh–cuối + máy enum, vân tay N10) — ĐỎ giữ chờ người (cờ video_pregen)",
    "where": "core/video_pregen.py:check"
+  },
+  {
+   "id": "d101",
+   "step": "step2",
+   "who": "code",
+   "what": "Tấm duyệt 2D Nhánh C + gói blockout có phiên bản/người duyệt/SHA; từ chối geometry ĐỎ, chưa nối Kho/pipeline",
+   "where": "core/blockout_sheet.py:to_location_pack",
+   "bat": false
   }
  ]
 }
