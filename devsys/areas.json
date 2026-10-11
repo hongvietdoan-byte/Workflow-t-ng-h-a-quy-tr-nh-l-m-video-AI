@@ -1,5 +1,5 @@
 {
-  "version": 54,
+  "version": 55,
   "updated": "2026-10-08",
   "_note": "Bản đồ hệ thống của AI Development System. Mỗi file .py dưới core/ và dashboard/ phải thuộc ít nhất một khu vực (thiếu = cảnh báo). 'code' / 'assets' / 'docs' là mẫu đường dẫn (fnmatch, '*' khớp cả '/'). 'tests' thêm tay ngoài các test tự dò theo import. 'flags' = tên trong core/features.py. 'diag_stages' = stage của bảng diag_events. 'ops_stages' (S14.10 Đợt 6b) = khâu của góp ý người dùng / số đo hiệu quả vận hành (core/feedback.STAGES: director, image, motion, audio, render, ui). 'keywords' dùng để gán dòng TODO.md vào khu vực (không phân biệt hoa thường). Sửa file này khi thêm module mới rồi tăng 'version'.",
   "scan_roots": ["core", "dashboard"],
@@ -189,10 +189,10 @@
       "name": "Chẩn đoán, hiệu năng & giới hạn",
       "weight": 0.6,
       "description": "Ghi lỗi/cảnh báo khi chạy thật, số đo tải, giới hạn hệ thống đo từ lịch sử job, hiệu quả quy trình.",
-      "code": ["devsys/tickets_page.py", "core/tickets.py", "core/diag.py", "core/perf.py", "core/capacity.py", "core/effectiveness.py", "core/feedback.py", "core/inbox.py", "core/team.py", "core/access.py", "core/machine_auth.py", "core/person_limits.py", "core/delivered.py", "dashboard/access_ui.py", "dashboard/home.py", "dashboard/team_screen.py", "dashboard/limits_ui.py", "tools/lao_dai/*.py"],
+      "code": ["devsys/tickets_page.py", "devsys/admin_auth.py", "core/tickets.py", "core/diag.py", "core/perf.py", "core/capacity.py", "core/effectiveness.py", "core/feedback.py", "core/inbox.py", "core/team.py", "core/access.py", "core/machine_auth.py", "core/person_limits.py", "core/delivered.py", "dashboard/access_ui.py", "dashboard/home.py", "dashboard/team_screen.py", "dashboard/limits_ui.py", "tools/lao_dai/*.py"],
       "assets": ["tools/diagnose.py", "tools/audit_run.py", "tools/load_test.py", "tools/effectiveness_baseline.py", "tools/backfill_delivered.py"],
       "docs": [],
-      "tests": ["tests/test_tickets_page.py", "tests/test_tickets.py", "tests/test_team_money_reset.py", "tests/test_access.py", "tests/test_access_ui.py", "tests/test_machine_auth.py", "tests/test_person_limits.py", "tests/test_person_limits_ui.py", "tests/test_delivered.py", "tests/test_feedback.py", "tests/test_effectiveness_history.py", "tests/test_lao_dai.py"],
+      "tests": ["tests/test_tickets_page.py", "tests/test_devsys_admin_auth.py", "tests/test_tickets.py", "tests/test_team_money_reset.py", "tests/test_access.py", "tests/test_access_ui.py", "tests/test_machine_auth.py", "tests/test_person_limits.py", "tests/test_person_limits_ui.py", "tests/test_delivered.py", "tests/test_feedback.py", "tests/test_effectiveness_history.py", "tests/test_lao_dai.py"],
       "flags": ["support_tickets", "tickets_admin_ui", "lao_dai_pet"],
       "diag_stages": [],
       "keywords": ["chẩn đoán", "diag", "hiệu năng", "giới hạn hệ thống", "capacity", "perf"]

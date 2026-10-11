@@ -1,6 +1,6 @@
 """AI Development System — web theo dõi quá trình sửa/cập nhật dashboard và mức hoàn thiện thật sau mỗi thay đổi.
 
-Chạy:  Start-DevSystem.bat   hoặc   py -m streamlit run devsys/app.py --server.port 8502
+Chạy:  Start-DevSystem.bat   hoặc   py -m streamlit run devsys/app.py --server.port 8502 --server.address 127.0.0.1
 Mọi số liệu tính trực tiếp từ repo mỗi lần mở/làm mới (có bộ nhớ đệm theo commit + file đang sửa + giờ sửa), không tốn tiền. Chỉ nút
 "Chấm điểm" bằng Claude API là tốn tiền: luôn hiện ước tính và phải xác nhận; lời gọi đi qua sổ chi của dự án (stage "devsys").
 """
@@ -25,6 +25,8 @@ from devsys import answers, collect, decisions, metrics, plan_progress, scorer, 
 from core import features  # noqa: E402
 
 st.set_page_config(page_title="AI Development System", page_icon="🧭", layout="wide")
+from devsys import admin_auth as _admin_auth  # noqa: E402
+_admin_auth.take_link()   # token ?s= (liên kết từ Dashboard) gỡ khỏi địa chỉ ngay ở MỌI trang, trang Phiếu xét sau
 
 CSS = """
 <style>
