@@ -389,6 +389,83 @@ def _load_dir(d: str):
     return bl, sp, cams
 
 
+def _cli_source(blocking: Dict, specs: Sequence[Dict], db: Optional[str], project: Optional[int]):
+    """Nguồn CLI: idx thật + nhịp khai rõ, không suy từ tên shot hay vị trí trong danh sách.
+
+    BYĐ được ghi từ shot_specs qua core.shot_intent.from_shot_spec:
+    scenes.data.byd.truyen.nhip. Specs là ánh xạ bổ sung, không là danh sách shot DB.
+    Trả các đoạn nhịp liên tục; thiếu ánh xạ ngắt đoạn để không so vượt shot chưa rõ.
+    """
+    import sqlite3
+    from pathlib import Path
+
+    warnings = []
+    explicit = {}
+    for spec in specs:
+        if isinstance(spec, dict) and isinstance(spec.get("shot"), int):
+            beat = spec.get("nhip")
+            if beat is not None:
+                explicit.setdefault(spec["shot"], set()).add(str(beat))
+    if db is None:
+        warnings.append(_issue("thu_tu_shot", "thứ tự suy từ shot_specs; chưa đối chiếu CSDL"))
+        if project is not None:
+            warnings.append(_issue("thu_tu_shot", "--project cần --db để đối chiếu dự án"))
+        rows = [(shot, None) for shot in sorted({s["shot"] for s in specs
+                if isinstance(s, dict) and isinstance(s.get("shot"), int)})]
+        if not rows:
+            warnings.append(_issue("thu_tu_shot", "shot_specs thiếu danh sách shot; không kiểm được thứ tự nhịp"))
+    else:
+        try:
+            if project is None:
+                raise ValueError("--db cần --project")
+            path = Path(db).expanduser().resolve()
+            if not path.is_file():
+                raise ValueError(f"CSDL không tồn tại: {path}")
+            # as_uri mã hóa #/% và ổ đĩa Windows; mode=ro không tạo DB/migration.
+            conn = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
+            try:
+                if not conn.execute("SELECT 1 FROM projects WHERE id=?", (project,)).fetchone():
+                    raise ValueError(f"không có dự án {project} trong CSDL")
+                rows = conn.execute("SELECT idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project,)).fetchall()
+            finally:
+                conn.close()
+            if not rows:
+                raise ValueError(f"dự án {project} chưa có shot trong CSDL")
+        except (OSError, sqlite3.Error, ValueError) as e:
+            return [], {}, [_issue("thu_tu_shot", f"không kiểm được nguồn CSDL: {e}")]
+    segments, current, mapping = [], [], {}
+    beats = blocking.get("beats") or {}
+    for shot, raw in rows:
+        candidates = set(explicit.get(shot, ()))
+        invalid = None
+        if raw:
+            try:
+                data = json.loads(raw)
+                byd = data.get("byd") or {}
+                truyen = byd.get("truyen") or {}
+                beat = truyen.get("nhip")
+                if beat is not None:
+                    candidates.add(str(beat))
+            except (ValueError, AttributeError, TypeError):
+                invalid = "scenes.data/BYĐ hỏng"
+        beat = next(iter(candidates)) if len(candidates) == 1 else None
+        reason = invalid or ("thiếu ánh xạ nhịp" if not candidates else
+                            "ánh xạ nhịp mâu thuẫn" if len(candidates) > 1 else
+                            "nhịp không có trong blocking" if beat not in beats else None)
+        if reason:
+            warnings.append(_issue("thu_tu_shot", f"shot {shot}: {reason}; không so vượt qua shot này", shot=shot))
+            if current:
+                segments.append(current)
+            current = []
+            continue
+        mapping[shot] = beat
+        if not current or current[-1] != beat:
+            current.append(beat)
+    if current:
+        segments.append(current)
+    return segments, mapping, warnings
+
+
 def main(argv=None) -> int:
     """py -m core.shot_lessons nhip <thư mục lượt>  |  py -m core.shot_lessons drift <lượt cũ> <lượt mới> --approved 8,9 [--moved yeunu]"""
     import argparse
@@ -401,16 +478,42 @@ def main(argv=None) -> int:
     a2.add_argument("new")
     a2.add_argument("--approved", required=True, help="số shot đã duyệt, cách nhau dấu phẩy")
     a2.add_argument("--moved", default="", help="khóa vật được sửa (cách nhau dấu phẩy)")
+    for parser in (a1, a2):
+        parser.add_argument("--db", help="CSDL chỉ đọc; đường dẫn tương đối theo thư mục chạy")
+        parser.add_argument("--project", type=int, help="mã dự án trong CSDL")
     a = ap.parse_args(argv)
+    from . import features
+    enabled = features.on("shot_lessons_db_order")
+    if not enabled and (a.db is not None or a.project is not None):
+        print("[VÀNG] cần bật cờ shot_lessons_db_order để dùng --db/--project; chưa kiểm nguồn CSDL")
+        print("1 mục VÀNG")
+        return 0
     if a.cmd == "nhip":
         bl, sp, _ = _load_dir(a.dir)
-        found = movement_gaps(bl, beat_order(bl, sp, rest=False))
+        if enabled:
+            segments, _, found = _cli_source(bl, sp, a.db, a.project)
+            for order in segments:
+                found.extend(movement_gaps(bl, order))
+        else:
+            found = movement_gaps(bl, beat_order(bl, sp, rest=False))
     else:
         old, sp_old, cams = _load_dir(a.old)
         new, sp_new, _ = _load_dir(a.new)
         by_shot = {s["shot"]: s.get("nhip") for s in list(sp_old) + list(sp_new) if isinstance(s, dict) and "shot" in s}
         shots = [int(x) for x in a.approved.split(",") if x.strip()]
-        found = layout_drift(old, new, {s: by_shot.get(s) for s in shots}, [m for m in a.moved.split(",") if m], cams)
+        if enabled:
+            _, by_shot, found = _cli_source(old, list(sp_old) + list(sp_new), a.db, a.project)
+            approved = {}
+            for shot in shots:
+                if shot not in by_shot:
+                    found.append(_issue("bo_cuc_shot_da_duyet", f"shot {shot} (đã duyệt): thiếu ánh xạ nhịp hợp lệ; chưa so bố cục", shot=shot))
+                elif by_shot[shot] not in (new.get("beats") or {}):
+                    found.append(_issue("bo_cuc_shot_da_duyet", f"shot {shot} (đã duyệt): nhịp không có trong blocking mới; chưa so bố cục", shot=shot))
+                else:
+                    approved[shot] = by_shot[shot]
+            found.extend(layout_drift(old, new, approved, [m for m in a.moved.split(",") if m], cams))
+        else:
+            found = layout_drift(old, new, {s: by_shot.get(s) for s in shots}, [m for m in a.moved.split(",") if m], cams)
     for f in found:
         print(f"[VÀNG] {f['msg']}")
     print(f"{len(found)} mục VÀNG")

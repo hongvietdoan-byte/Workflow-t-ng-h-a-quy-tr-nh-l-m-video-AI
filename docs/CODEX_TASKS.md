@@ -387,3 +387,6 @@ Hiện khi `shot_specs` chỉ có một phần các shot thì thứ tự nhịp 
 |---|---|---|---|
 | 1 | `codex/d6-viec1-post-fx` | `f9603c7` | Module chưa có → test đỏ; hồi quy huge integer 2 đỏ → xanh. Nhóm post_fx + keep_audio + final_cut **43 passed / 10,18 s**, ffmpeg thật 3 hiệu ứng có đối chứng, duration/audio/gốc/cờ tắt giữ đúng. Rà độc lập + lượt hai, `docs/RA_D6_VIEC1_CODEX_2026-10-11.md`. Cờ TẮT, chưa thử phim sản xuất, chưa cả bộ/gộp main. |
 | 2 | `codex/d6-viec2-ref-beats` | `4a0c638` | Đỏ module chưa có; hồi quy rà 9 đỏ → xanh. Nhóm ref_beats_tool + p24_lessons **62 passed / 1,31s**, ffmpeg portrait thật/TMP, schema, OFF, CWD, force/rollback/timeout/giới hạn khung. Rà độc lập + lượt hai, `docs/RA_D6_VIEC2_CODEX_2026-10-11.md`. Cờ TẮT; ref ≤300s, chưa thử sản xuất/cả bộ/gộp main. |
+| 3 | `codex/d6-viec3-thu-tu-shot` | `d92e848` | 9 failed → **78 passed (0,78 s)**. CLI bài học shot lấy thứ tự shot từ CSDL chỉ đọc, cảnh báo thiếu ánh xạ nhịp. Rà độc lập, `docs/RA_D6_VIEC3_CODEX_2026-10-11.md`. Cờ TẮT; chưa kiểm dự án thật. |
+
+Rà độc lập cả ba việc đã hoàn tất (báo cáo riêng `docs/RA_D6_VIEC<N>_CODEX_2026-10-11.md`). Tích hợp: giữ đủ ba cờ (`post_fx_render`, `ref_beats_tool`, `shot_lessons_db_order`, đều TẮT) và đăng ký areas.json, tăng version một lần.

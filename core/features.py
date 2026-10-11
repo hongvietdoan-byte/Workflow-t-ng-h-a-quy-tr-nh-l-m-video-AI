@@ -15,6 +15,11 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "ĐỢT 6 việc 2 (11/10): đã thử video tổng hợp; chưa thử ref sản xuất, chỉ bật tay cho CLI",
     },
+    "shot_lessons_db_order": {
+        "label": "Công cụ bài học shot: thứ tự từ CSDL và cảnh báo thiếu ánh xạ nhịp",
+        "verified": False,
+        "why": "Đợt 6 việc 3: chỉ CLI, CSDL chỉ đọc; chưa thử trên dự án thật",
+    },
     "seedance_sample_mode": {
         "label": "Thử độ nét Seedance 2.5: 720p hoặc bản mẫu 480p → bản cuối 1080p; kết quả thử riêng",
         "verified": False,
