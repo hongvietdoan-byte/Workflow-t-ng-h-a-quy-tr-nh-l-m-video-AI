@@ -502,6 +502,11 @@ FEATURES: Dict[str, Dict] = {
                "loại, ≈ 2,8 USD) dù prompt đã có 'chỉ lấy quần áo'. Câu mới đổi đầu ra model trả tiền và chưa thử — cần thử 1 shot rẻ "
                "(ảnh + clip 720p) trước khi bật",
     },
+    "ambient_motion": {
+        "label": "Lớp chuyển động nền nhẹ theo bối cảnh, thời tiết và giờ; thiếu thì VÀNG",
+        "verified": False,
+        "why": "Đ10.6 ca #24 shot 9 dựng lại ngoại tuyến; chưa thử thật, mặc định tắt",
+    },
     "prompt_formula": {
         "label": "Công thức prompt (F1-A): sau mỗi lượt Đạo diễn / mỗi lần lưu prompt, code kiểm phần bắt buộc của prompt ảnh + motion, "
                  "mâu thuẫn (khung ↔ tư thế, luật người ↔ quái, máy tĩnh ↔ đẩy), chi tiết ghê không tiết chế, vật lao sát người không "
@@ -685,7 +690,8 @@ def active(name: str) -> bool:
 
 # S14.4 C1b (04/10): a flag that only works together with another one (dialogue_take: the runner asks lipsync.enabled() = lip_sync
 # first). Shown in 🧪 instead of a flag that looks ON and does nothing. B1 học việc: qc_team only runs inside scene_qc (by active()).
-REQUIRES = {"dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_review_frames": ("change_review",)}
+REQUIRES = {"dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_review_frames": ("change_review",),
+            "ambient_motion": ("prompt_formula",)}
 
 
 def unmet(name: str) -> list:

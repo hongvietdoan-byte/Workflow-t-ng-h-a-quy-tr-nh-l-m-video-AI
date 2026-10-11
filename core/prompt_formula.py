@@ -33,7 +33,7 @@ PART_LABELS = {
     "diem_bat_dau": "Điểm bắt đầu", "hanh_dong": "Hành động", "vat_ly": "Vật lý", "may_quay": "Máy quay", "trang_thai_cuoi": "Trạng thái cuối",
     "nguon_dong_tac": "Nguồn động tác", "thoai": "Thoại", "duong_di_vat_gan_nguoi": "Đường đi vật gần người",
     "loai_nhan_vat": "Loại nhân vật", "mau_thuan": "Câu mâu thuẫn", "cau_chu": "Ngắt câu", "viet_chong": "Viết chồng thêm",
-    "ta_cai_dung": "Tả cái đúng",
+    "ta_cai_dung": "Tả cái đúng", "chuyen_dong_nen": "Chuyển động nền",
     "phu_nhip_ref": "Phủ nhịp ref", "bien_do_khung": "Cỡ khung ↔ biên độ", "hieu_ung_hau_ky": "Hiệu ứng để hậu kỳ",   # 11/10 #24
 }
 CLOSE_SIZES = ("ECU", "CU", "MCU")
@@ -388,6 +388,52 @@ def lint_image(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, styl
     return out + _common(prompt, data, chars, "ảnh", ff)
 
 
+def ambient_prompt_block() -> str:
+    """Đ10.6: chỉ luật cho người viết; OFF không thêm byte vào đề."""
+    from . import features
+    if not features.on("ambient_motion"):
+        return ""
+    return ("# Lớp chuyển động nền\n"
+            "Mỗi motion_prompt và action (nguồn được dịch sang motion_en.action) có một lớp chuyển động nền nhẹ, kể cả máy tĩnh. "
+            "Chọn từ bối cảnh, weather, time và BYĐ.noi_chon.thoi_tiet/thoi_gian; ghi lý do theo nguồn đó trong why. "
+            "Chỉ chuyển động vật có trong cảnh: sương lan chậm, lá/cỏ lay nhẹ, đèn/lửa chập chờn khi có. "
+            "trời lặng thì không tạo gió lớn; trong nhà không mây trôi. "
+            "Không tự thêm đạo cụ/thời tiết. Thiếu bối cảnh/thời tiết/giờ thì nói thiếu, xin bổ sung; "
+            "không bịa lý do. Lớp nền phải viết ngay trong motion gửi video, không chỉ ghi ở why.")
+
+
+_AMBIENT = re.compile(
+    r"\b(?:fog|mist|smoke|clouds?|leaves|grass|branches|flames?|lamp(?: light)?|lights?|dust|water|rain)\b"
+    r"[^.;\n]{0,45}\b(?:drift(?:s|ing)?|roll(?:s|ing)?|swirl(?:s|ing)?|mov(?:e|es|ing)|sway(?:s|ing)?|rustl(?:e|es|ing)|flicker(?:s|ing)?|rippl(?:e|es|ing)|fall(?:s|ing)?|float(?:s|ing)?)\b|"
+    r"\b(?:sương|khói|mây|lá|cỏ|cành|lửa|đèn|bụi|nước|mưa)\b[^.;\n]{0,35}\b(?:lan|trôi|lay|rung|chập chờn|gợn|rơi)\b", I)
+
+
+def ambient_hint(data: Dict) -> str:
+    """Gợi ý có điều kiện; BYĐ/location/weather/time giữ dấu, không suy diễn gió."""
+    ctx = json.dumps({k: data.get(k) for k in ("byd", "location", "weather", "time") if data.get(k)}, ensure_ascii=False)
+    if ctx == "{}":
+        return "Thiếu bối cảnh, thời tiết và giờ; bổ sung để chọn vật nền đang có và lý do, không tự thêm vật."
+    if re.search(r"trong nhà|indoor|interior|inside", ctx, I):
+        return "Bối cảnh trong nhà: nếu đèn/lửa có trong cảnh, cho ánh sáng chập chờn nhẹ; nếu không, chọn vật nền đang có."
+    if re.search(r"\bsương\b|\bfog(?:gy)?\b|\bmist(?:y)?\b", ctx, I):
+        return "Theo bối cảnh/thời tiết có sương: sương lan chậm phía sau, không cần gió; giữ giờ và ánh sáng đã khai."
+    return "Theo BYĐ/location/weather/time: chọn vật nền đang có, chuyển động nhẹ hợp thời tiết và giờ; thiếu phần nào hãy bổ sung."
+
+
+def ambient_issues(prompt: str, data: Dict) -> List[Dict]:
+    from . import features
+    if not features.on("ambient_motion"):
+        return []
+    for sentence in re.split(r"[.;\n]", prompt):
+        for match in _AMBIENT.finditer(sentence):
+            # Phủ định chỉ thuộc cụm nền; máy/người tĩnh ở mệnh đề trước không phủ định nền.
+            prefix = re.split(r",|\b(?:while|as|and|but|with|khi|còn|và|nhưng)\b", sentence[:match.start()], flags=I)[-1]
+            clause = prefix + match.group()
+            if not re.search(r"\b(?:no|not|never|without|static|still|frozen)\b|không|đứng yên", clause, I):
+                return []
+    return [_issue("warn", "chuyen_dong_nen", "Thiếu lớp chuyển động nền; máy tĩnh vẫn cần nền sống nhẹ. " + ambient_hint(data))]
+
+
 def lint_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, ff: Optional[bool] = None) -> List[Dict]:
     """Prompt motion: điểm bắt đầu / hành động / máy quay (a), thoại / nguồn động tác / trạng thái cuối khi có, + (c)–(g)."""
     prompt, data = prompt or "", data or {}
@@ -412,6 +458,7 @@ def lint_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, ff:
     if str(data.get("end_state") or "").strip() and not _END.search(prompt):
         out.append(_issue("warn", "trang_thai_cuoi", f"Thiếu trạng thái cuối (Đạo diễn ghi: “{str(data['end_state'])[:80]}”) — thêm "
                                                      "'It ends with …' để clip có điểm dừng."))
+    out += ambient_issues(prompt, data)
     out += outfit_issues(prompt, data, chars)
     return out + _common(prompt, data, chars, "motion", ff)
 
