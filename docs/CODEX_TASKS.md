@@ -602,4 +602,4 @@ token hết hạn, chỉ GET), logic chọn dáng/bong bóng từ snapshot giả
 
 ## Kết quả Codex — đợt 9
 
-(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+- Việc 1: `codex/d9-viec1-kho-phieu`, code `7356a9f`; 11 đỏ ban đầu → 16 xanh; rà bắt 3 lỗi, 11 hồi quy đỏ → nhóm **27 passed / 1,10s**. RÀ KỸ độc lập + root đọc vòng sửa; `docs/RA_D9_VIEC1_CODEX_2026-10-11.md`. Cờ OFF; schema/CAS/append-only/audit/SAVEPOINT/snapshot chỉ đọc. Hợp đồng snapshot v1 cho việc 2/3; caller lấy Identity từ session server. Chưa thử dữ liệu thật/cả bộ/gộp main.
