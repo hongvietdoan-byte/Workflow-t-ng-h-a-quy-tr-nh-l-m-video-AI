@@ -1,0 +1,10 @@
+[
+  {"id":"S","ten":"Kế hoạch sửa sau dự án 8","file":"docs/KE_HOACH_SUA_SAU_DU_AN_8.md","kieu":"viec_s","trang_thai":"dang_chay","ghi_chu":"Tiến độ trọng số theo API cũ"},
+  {"id":"K","ten":"Kiểm soát nhất quán K0a–K8","file":"docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md","kieu":"dot_bang","trang_thai":"dang_chay","ghi_chu":"Mục 8 và chốt A"},
+  {"id":"A21","ten":"Thẩm định cổng A21","file":"docs/THAM_DINH_KE_HOACH_KIEM_SOAT_2026-10-10.md","kieu":"ghi_chu","trang_thai":"dang_chay","ghi_chu":"Điểm theo lần, không có phần trăm hoàn thành"},
+  {"id":"CX1","ten":"Codex đợt 1","file":"docs/CODEX_TASKS.md","kieu":"codex","dot":1,"trang_thai":"xong","ghi_chu":"Đối chiếu phần kết quả, không dùng trạng thái này tính %"},
+  {"id":"CX2","ten":"Codex đợt 2","file":"docs/CODEX_TASKS.md","kieu":"codex","dot":2,"trang_thai":"dang_chay","ghi_chu":"Kết quả trên nhánh riêng tới khi gộp"},
+  {"id":"CX3","ten":"Codex đợt 3","file":"docs/CODEX_TASKS.md","kieu":"codex","dot":3,"trang_thai":"cho","ghi_chu":"Kết quả trên nhánh riêng tới khi gộp"},
+  {"id":"3D","ten":"Phương pháp Sân khấu 3D","file":"docs/PHUONG_PHAP_SAN_KHAU_3D.md","kieu":"phuong_phap","trang_thai":"dang_chay","ghi_chu":"Tài liệu phương pháp, không quy đổi %"},
+  {"id":"UI","ten":"Ghi chú giao diện so FateBreaker","file":"docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-10-10.md","nhanh":"origin/ghi-chu-giao-dien-fatebreaker","kieu":"ghi_chu","trang_thai":"chua_lam","ghi_chu":"Chỉ đọc trên nhánh, chưa sửa Dashboard"}
+]

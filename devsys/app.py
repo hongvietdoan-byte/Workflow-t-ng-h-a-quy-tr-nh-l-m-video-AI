@@ -867,9 +867,46 @@ def _pct_text(pct) -> str:
     return "—" if pct is None else f"{pct:g} %".replace(".", ",")
 
 
+def _all_plans_board():
+    from devsys import plans
+    book = plans.inventory(ROOT)
+    st.subheader("Mọi kế hoạch")
+    if book["error"]:
+        st.error(book["error"])
+        return
+    st.dataframe([{"Mã": p["id"], "Kế hoạch": p["ten"], "Loại": p["kieu"], "Trạng thái đăng ký": p["trang_thai"],
+                   "Tiến độ tính từ nguồn": _pct_text(p["percent"]) if not p["error"] else p["error"],
+                   "Nguồn": p.get("nhanh", "checkout") + ":" + p["file"], "Ghi chú": p["ghi_chu"]} for p in book["items"]],
+                 hide_index=True, width="stretch")
+    for p in book["items"]:
+        if p["error"]:
+            st.warning(f"{p['id']}: {p['error']}")
+    control = next((p for p in book["items"] if p["kieu"] == "dot_bang"), None)
+    st.subheader("Kế hoạch kiểm soát K0a–K8")
+    if not control or control["error"]:
+        st.warning(control["error"] if control else "không đọc được: sổ chưa có kế hoạch kiểm soát")
+        return
+    st.progress(control["percent"] / 100, text=_pct_text(control["percent"]))
+    st.markdown(" ".join(f"<span class='chip'>{escape(w['id'])} {escape(w['status'])}</span>" for w in control["waves"]),
+                unsafe_allow_html=True)
+    st.dataframe([{"Đợt": w["id"], "Trạng thái": w["status"], "Commit": ", ".join(w["commits"])}
+                  for w in control["waves"]], hide_index=True, width="stretch")
+    latest = control["latest_decision"]
+    st.caption(f"{control['decision_count']} chốt · mới nhất {latest['id']}: {latest['text']}")
+    try:
+        current = stages.load_stages()["dot_hien_tai"]
+        expected = next((w["id"] for w in control["waves"] if w["status"] != "✅"), None)
+        st.caption(f"Đợt hiện tại theo sổ khâu: {current}")
+        if current != expected:
+            st.warning(f"Lệch đợt: sổ khâu {current}; bảng mục 8 có đợt kế {expected or 'đã xong tất cả'}.")
+    except (OSError, ValueError, KeyError) as error:
+        st.warning(f"không đọc được sổ khâu: {error}")
+
+
 def page_plan():
     t1, t2 = st.columns([14, 1], vertical_alignment="center")
     t1.title("📋 Kế hoạch đang chạy")
+    _all_plans_board()
     path = plan_progress.PLAN_FILE
     plan = plan_progress.load(path)
     if plan is None:
