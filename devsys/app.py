@@ -1204,9 +1204,9 @@ def page_running():
     for error in data["errors"]:
         st.error(error)
     st.subheader("Nhánh chưa gộp origin/main")
-    dash = lambda v: "—" if v is None else v   # cột Git tính không được (shallow / không tổ tiên chung) → lý do ở cột lỗi
+    dash = lambda v: "—" if v is None else str(v)   # cột Git tính không được (shallow / không tổ tiên chung) → lý do ở cột lỗi
     st.dataframe([{"Nhánh": b["branch"], "Của ai": b["owner"], "Commit cuối": dash(b["commit"]), "Ngày": dash(b["date"]),
-                   "Commit chưa gộp": dash(b["ahead"]), "Đổi file": dash(b["stat"]), "Bằng chứng rà": b["review_evidence"] or "Chưa thấy",
+                   "Commit chưa gộp": dash(b["ahead"]), "Đổi file": dash(b["stat"].splitlines()[-1].strip() if b["stat"] else None), "Bằng chứng rà": b["review_evidence"] or "Chưa thấy",
                    "Lỗi / ghi chú Git": b["report_error"] or "—"}
                   for b in data["branches"]], hide_index=True, width="stretch")
     st.subheader("Worktree")

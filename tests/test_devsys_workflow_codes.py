@@ -65,3 +65,11 @@ def test_flow_page_warns_skipped_row_and_missing_ignores_kind_filter(tmp_path, m
         at.multiselect(key='flow_task_kinds').set_value(['CX']).run()       # bỏ chọn loại S
         assert [e.value for e in at.exception] == []
         assert info().startswith('1 nhánh') and 'S9.1' not in info()
+
+
+def test_import_plan_rejects_code_outside_contract():
+    # Rà gộp 11/10: dòng kế hoạch mã "K1"/"AB" không được ghi vào file rồi làm hỏng load() nghiêm
+    from devsys import workflow
+    text = "- [x] K1 · ✅ abc1234 11/10 · Số đo: 120k làm; 40k rà\n- [x] AB · ✅ 11/10 · Số đo: 50k làm"
+    got = workflow.parse_plan(text, year=2026)
+    assert got["runs"] == [] and len(got["bad"]) == 2 and all("S/K/CX" in b for b in got["bad"])

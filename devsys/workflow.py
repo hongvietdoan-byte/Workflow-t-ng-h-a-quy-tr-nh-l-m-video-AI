@@ -198,6 +198,9 @@ def parse_plan(text: str, year: Optional[int] = None) -> Dict:
         if not t:
             continue                                                                    # câu văn trong bảng/đoạn mô tả, không phải dòng việc
         tid = t.group("id")
+        if task_kind(tid) is None:                                                      # đường ghi: mã ngoài S/K/CX → bad, không ghi rồi làm hỏng load() nghiêm
+            bad.append(f"dòng {n} {tid}: mã không thuộc S/K/CX — «{line.strip()[:100]}»")
+            continue
         st = _STATUS_DONE.search(line)
         if not st:
             skipped.append(f"dòng {n} {tid}: việc chưa làm — chữ 'Số đo:' chỉ là mô tả")
