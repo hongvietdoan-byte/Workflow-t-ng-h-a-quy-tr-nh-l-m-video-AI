@@ -130,9 +130,10 @@ def hear(path: str) -> Optional[List[Tuple[str, float]]]:
 
 
 def summary(heard: Optional[List[Tuple[str, float]]]) -> Dict:
-    """What is stored for a sound: label (best class), score, and `voice` = "not for automatic use" (a human voice, or not an accent-type sound)."""
+    """What is stored for a sound: label (best class), score, and `voice` = human voice; `accent` = recognised accent-type sound."""
     if not heard:
-        return {"label": "", "score": 0.0, "voice": False, "text": ""}
+        return {"label": "", "score": 0.0, "voice": False, "accent": False, "text": ""}
     label, score = heard[0]
-    return {"label": label, "score": round(score, 3), "voice": label.lower() in VOICE or label.lower() not in ACCENT,
+    classification = label.strip().lower()
+    return {"label": label, "score": round(score, 3), "voice": classification in VOICE, "accent": classification in ACCENT and classification not in VOICE,
             "text": "; ".join(f"{n} {s:.2f}" for n, s in heard[:3])}

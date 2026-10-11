@@ -14,7 +14,7 @@ import os
 import re
 from typing import Dict, List, Optional, Sequence
 
-from . import ffmpeg_studio
+from . import ffmpeg_studio, sound_lib
 
 VOLUME = 0.12                 # ~-18 dB under the dialogue (ambience is felt, not listened to)
 FADE_S = 0.6
@@ -48,7 +48,7 @@ def choose(conn, data: Dict) -> Optional[Dict]:
     words = _query(data)
     if not words:
         return None
-    rows = conn.execute("SELECT id, path, name, duration, heard_label, heard_score FROM sounds WHERE voice=0 AND duration>=?",
+    rows = conn.execute(f"SELECT id, path, name, duration, heard_label, heard_score FROM sounds WHERE ({sound_lib.VOICE_SQL})=0 AND duration>=?",
                         (MIN_SECONDS,)).fetchall()
     for w in words:                                     # the first word that matches wins; the longest file of it (fewer loops)
         word = re.compile(rf"(?<![\w]){re.escape(w)}(?![\w])", re.I)     # whole words: "Crunk Knight" is not a night sound

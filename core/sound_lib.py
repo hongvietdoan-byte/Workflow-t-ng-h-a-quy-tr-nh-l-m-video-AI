@@ -330,15 +330,32 @@ def listen(conn, limit: Optional[int] = None, workers: int = 4) -> Dict:
         if heard is False:
             return {"available": False, "done": done, "failed": failed, "left": len(rows) - done - failed}
         info = sound_ai.summary(heard)
-        conn.execute("UPDATE sounds SET heard=?, heard_label=?, heard_score=?, voice=? WHERE id=?",
-                     (info["text"], info["label"], info["score"], 1 if info["voice"] else 0, r["id"]))
+        conn.execute("UPDATE sounds SET heard=?, heard_label=?, heard_score=?, voice=?, accent=? WHERE id=?",
+                     (info["text"], info["label"], info["score"], 1 if info["voice"] else 0, 1 if info["accent"] else 0, r["id"]))
         done, failed = (done + 1, failed) if heard else (done, failed + 1)
     conn.commit()
     return {"available": True, "done": done, "failed": failed,
             "left": conn.execute("SELECT COUNT(*) FROM sounds WHERE kind='sfx' AND heard IS NULL").fetchone()[0]}
 
 
-TRUSTED_SQL = "kind='sfx' AND voice=0 AND heard_label IS NOT NULL AND heard_label!='' AND heard_score>=" + str(sound_ai.TRUST)
+# Legacy voice meant "not an accent". Recover only known non-human labels;
+# unknown/unheard rows keep the old voice guard. Reading never rewrites the library.
+_AMBIENT_LABELS = {"cricket", "crickets", "insect", "wind", "wind noise (microphone)", "rain", "raindrop", "rain on surface",
+                   "bird", "bird vocalization, bird call, bird song", "chirp, tweet", "water", "stream", "waves, surf",
+                   "ocean", "traffic noise, roadway noise", "vehicle", "toilet flush", "rustle", "leaves", "howl"}
+
+
+def _labels_sql(labels):
+    return "(" + ",".join("'" + label.replace("'", "''") + "'" for label in sorted(labels)) + ")"
+
+
+_LABEL_SQL = "lower(trim(coalesce(heard_label,'')))"
+VOICE_SQL = (f"CASE WHEN {_LABEL_SQL} IN {_labels_sql(sound_ai.VOICE)} THEN 1 "
+             f"WHEN accent IS NULL AND {_LABEL_SQL} IN {_labels_sql((sound_ai.ACCENT | _AMBIENT_LABELS) - sound_ai.VOICE)} THEN 0 "
+             "ELSE voice END")
+# Both generations require an explicitly recognised accent; score alone is insufficient.
+TRUSTED_SQL = (f"kind='sfx' AND ({VOICE_SQL})=0 AND {_LABEL_SQL} IN {_labels_sql(sound_ai.ACCENT - sound_ai.VOICE)} "
+               f"AND (accent IS NULL OR accent=1) AND heard_score>={sound_ai.TRUST}")
 
 
 # ---- choosing for a project -------------------------------------------------------------------------------------------
