@@ -106,6 +106,59 @@ def _project_of(conn, sid) -> Optional[int]:
     return r[0] if r else None
 
 
+def record_stage_blocking_change(conn, project_id: int, old_dir: str, new_dir: str, moved=()) -> int:
+    """V3 gọi sau ghi blocking, trước giải/render; baseline là bản đã duyệt (--hand).
+
+    Tệp không có trigger scenes.data. Chỉ VÀNG, 0 USD; nguồn riêng tránh refresh_code
+    đóng nhầm. Caller sở hữu transaction; không đổi shot/job hay tự duyệt.
+    """
+    from . import features, shot_lessons
+    if not enabled() or not features.on("layout_drift_review"):
+        return 0
+    import os
+    rows = conn.execute("SELECT s.id,s.idx FROM scenes s WHERE s.project_id=? AND EXISTS "
+                        "(SELECT 1 FROM jobs j WHERE j.scene_id=s.id AND j.type='image_gen' AND j.state='approved')",
+                        (project_id,)).fetchall()
+    if not rows:
+        return 0
+    by_idx = {r['idx']: r['id'] for r in rows}
+    found = []
+    try:
+        def read(directory, name):
+            with open(os.path.join(directory, name), encoding='utf-8') as f:
+                return json.load(f)
+        old, new = read(old_dir, 'blocking.json'), read(new_dir, 'blocking.json')
+        specs = read(old_dir, 'shot_specs.json')
+        specs = specs.get('shots', specs) if isinstance(specs, dict) else specs
+        beats = {s['shot']: s.get('nhip') for s in specs}
+        cams = {}
+        try:
+            for s in read(old_dir, 'v2.json').get('shots', []):
+                if s.get('best'):
+                    m = s['best']['m']
+                    cams[s['shot']] = {'at': m['at'], 'aim': m['aim']}
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        for idx in by_idx:
+            if idx not in beats:
+                found.append({'shot': idx, 'msg': f'shot {idx} (đã duyệt): thiếu ánh xạ nhịp trong shot_specs bản đã duyệt — chưa kiểm bố cục'})
+            elif idx not in cams:
+                found.append({'shot': idx, 'msg': f'shot {idx} (đã duyệt): thiếu máy bản đã duyệt trong v2.json — chưa kiểm đổi bên trái/phải'})
+        found += shot_lessons.layout_drift(old, new, {i: beats[i] for i in by_idx if i in beats}, moved=moved, cams=cams)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
+        found = [{'shot': i, 'msg': f'shot {i} (đã duyệt): chưa kiểm được bố cục sân khấu — {type(e).__name__}: {e}'} for i in by_idx]
+    n = 0
+    for idx, sid in by_idx.items():
+        msgs = {f['msg'] for f in found if f['shot'] == idx}
+        for r in conn.execute("SELECT id,msg FROM change_findings WHERE scene_id=? AND source='layout_drift' AND status='open'", (sid,)).fetchall():
+            if r['msg'] not in msgs:
+                conn.execute("UPDATE change_findings SET status='resolved',resolved_at=?,resolved_by='layout_drift' WHERE id=?", (_now(), r['id']))
+        for msg in sorted(msgs):
+            n += _add(conn, None, project_id, sid, 'layout_drift', 'vang', 'lien_tuc', msg,
+                      'Giữ bố cục bản đã duyệt hoặc xem và duyệt lại ảnh shot này.')
+    return n
+
+
 def _code_level(f: Dict) -> str:
     """Mức của một mục luật code trong Tổ rà soát: 'ảnh vẽ trên nền cũ' và 'render nền chưa theo máy / khối đạo cụ' là đúng việc mà
     job vẽ lại + bước tự render nền làm → VÀNG (agent rà 10/10 lỗi 1: để đỏ thì chặn luôn job sửa nó, kẹt mãi)."""

@@ -10,6 +10,16 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Đợt 8: lõi dữ liệu kiểm bằng ảnh giả; chưa nối runner/Dashboard, chưa thử sản xuất.",
     },
+    "layout_drift_review": {
+        "label": "Sửa dàn cảnh v3: ghi lệch bố cục ảnh đã duyệt vào Tổ rà soát (0 USD)",
+        "verified": False,
+        "why": "Đ8 việc 2: hồi quy bằng tệp/CSDL tạm; chưa thử thật, chưa nối đường ghi tay và Dashboard",
+    },
+    "short_lock_outfit": {
+        "label": "Nhận diện ngắn: bỏ đồ thường với chủ thể có ảnh OUTFIT riêng",
+        "verified": False,
+        "why": "Đ8 việc 2: MAXIM KL/KELLY KL; cờ tắt giữ nguyên prompt, chưa thử thật",
+    },
     "post_fx_render": {
         "label": "Hậu kỳ nhiễu sóng/glitch/nhấp nháy theo post_fx (ffmpeg, 0 USD)",
         "verified": False,

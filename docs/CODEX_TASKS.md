@@ -543,7 +543,8 @@ báo giá cũ (`tests/` grep `estimate_run`, `model_router.plan`, `quality_tier`
 
 ## Kết quả Codex — đợt 8
 
-- Việc 1: `codex/d8-viec1-goi-gui-kem`, code `aabcf24`; module chưa có → đỏ, rà bắt 4 lỗi và 7 hồi quy đỏ → nhóm **29 passed / 1,65s**. RÀ KỸ độc lập + root đọc vòng sửa; `docs/RA_D8_VIEC1_CODEX_2026-10-11.md`. Cờ OFF, CAS/audit/replan/gói lịch sử giữ đúng. Chưa nối runner/Dashboard, chưa thử ảnh thật/cả bộ/gộp main; caller phải xác thực ACL và truyền gói cuối sau cap + root tuyệt đối.
+- Việc 1: `codex/d8-viec1-goi-gui-kem`, code `aabcf24`, bàn giao `549ca98`; 29 test xanh sau 4 finding/7 hồi quy. Cờ OFF, chưa nối runner/Dashboard. Báo cáo RA_D8_VIEC1 trên nhánh tương ứng.
+- Việc 2: `codex/d8-viec2-ky-thuat`, code `4d6956d`; 3 đỏ ban đầu → 65 xanh/1 xfail, rà OUTFIT bắt 1 P2 với 3 hồi quy đỏ → **68 passed, 1 xfail**. RÀ KỸ + root đọc sửa; báo cáo RA_D8_VIEC2 và RA_D8_END_FRAMES_MOC_KHO. Producer sân khấu v3 sinh finding VÀNG sau hai cờ OFF; OUTFIT không gửi được giữ khóa. End_frames không sửa. Chưa baseline bất biến gắn job/Dashboard/v2/v4, chưa thử thật/cả bộ/gộp main.
 
 ---
 
