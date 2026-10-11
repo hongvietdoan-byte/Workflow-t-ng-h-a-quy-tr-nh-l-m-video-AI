@@ -32,6 +32,18 @@ def test_negated_clause_is_not_a_contradiction():
         assert sf.contradictions(s, facts), s
 
 
+def test_negation_after_the_match_must_be_about_seeing_it():
+    """Rà tích hợp 11/10: "not"/"never" ngay SAU cụm khớp chỉ cứu câu khi nói về việc thấy vật ("is not visible", "hidden") —
+    "peers into the well not knowing …" vẫn là câu khẳng định trái sự thật; cụm khớp lần hai (không phủ định) trong cùng câu cũng bắt."""
+    facts = sf.derive({"stage_camera": SHOT5["stage_camera"]})["facts"]
+    for s in ("Kelly peers into the well not knowing what waits below.", "Kelly peers into the well never looking away.",
+              "Never the inside of the well at first, later the inside of the well fills the frame."):
+        assert sf.contradictions(s, facts), s
+    for s in ("The inside of the well is not visible from here.", "The inside of the well stays hidden.",
+              "The inside of the well not visible, only the rim."):
+        assert sf.contradictions(s, facts) == [], s
+
+
 def test_blocking_and_action_peak_are_scanned_too():
     facts = sf.derive({"stage_camera": SHOT5["stage_camera"]})["facts"]
     data = {"image_prompt": "Medium shot of the creature by the well.",

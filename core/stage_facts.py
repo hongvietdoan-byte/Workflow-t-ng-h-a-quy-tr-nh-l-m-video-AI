@@ -453,7 +453,10 @@ _CLAUSE_END = re.compile(r"[,;:()—–]|\s-\s")
 
 # phủ định GẮN với chính cụm khớp: đứng ngay trước (chỉ cách bởi mạo từ / tên phần của vật) hoặc ngay sau ("… is not visible")
 _NEG_BEFORE = re.compile(r"\b(never|not|no|without)\s+((the|its|a|an|or|and|nor|of|opening|mouth|rim|top|edge|hole)\s+){0,6}$")
-_NEG_AFTER = re.compile(r"^\s*((is|are|stays|remains|stay|remain)\s+)?(not\b|never\b|hidden\b|unseen\b|invisible\b|out of (view|sight)\b)")
+# sau cụm khớp: chỉ phủ định VIỆC THẤY vật ("is not visible", "stays hidden") — "peers into the well not knowing …" vẫn là khẳng định
+_SEEN_NEG = r"(hidden|unseen|invisible|out of (view|sight|frame))\b"
+_NEG_AFTER = re.compile(r"^\s*((is|are|stays|remains|stay|remain)\s+(not|never)\b|((is|are|stays|remains|stay|remain)\s+)?"
+                        + _SEEN_NEG + r"|not\s+(visible|shown|seen|in (view|frame))\b)")
 
 
 def _negated_clause(low: str, m: "re.Match") -> bool:
@@ -496,9 +499,8 @@ def contradictions(text: str, facts: List[Dict]) -> List[Dict]:
             for pat in f["contradicts"]:
                 if _DARK in pat and _NEG.search(low):
                     continue                           # "its dark mouth hidden / not visible": câu phủ định, không trái sự thật
-                m = re.search(pat, low)
-                if m and _negated_clause(low, m):
-                    continue                           # 11/10 (#24 shot 5 blocking): "never the opening or the inside of the well"
+                # 11/10 (#24 shot 5 blocking): "never the opening or the inside of the well" — lần khớp đầu tiên KHÔNG bị phủ định
+                m = next((x for x in re.finditer(pat, low) if not _negated_clause(low, x)), None)
                 if m:
                     out.append({"fact": f["id"], "phrase": m.group(0), "sentence": s.strip()[:300],
                                 "level": "do" if f.get("in_frame") else "vang", "fix": f.get("prompt") or ""})
