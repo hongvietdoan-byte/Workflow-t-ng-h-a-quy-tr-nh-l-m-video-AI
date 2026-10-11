@@ -543,11 +543,10 @@ báo giá cũ (`tests/` grep `estimate_run`, `model_router.plan`, `quality_tier`
 
 ## Kết quả Codex — đợt 8
 
-- Việc 1: `codex/d8-viec1-goi-gui-kem`, code `aabcf24`, bàn giao `549ca98`; 6 đỏ + 1 lỗi hồi quy → 29 xanh. Rà 4 finding, sửa CAS/hash/base/ảnh/undo. Cờ OFF, chưa nối Dashboard/runner sau #24; RA_D8_VIEC1 trên nhánh.
-- Việc 2: `codex/d8-viec2-ky-thuat`, code `4d6956d`, bàn giao `d762b6e`; 3 đỏ ban đầu, 3 đỏ sau rà → 68 xanh / 1 xfail có lý do. layout_drift nối stage_grid sau cờ; OUTFIT skip digest sau cờ. Endframes chỉ báo cáo/test xfail. Còn baseline immutable và kiểm decode ảnh; RA_D8_VIEC2 trên nhánh.
+- Việc 1: `codex/d8-viec1-goi-gui-kem`, code `aabcf24`, bàn giao `549ca98`; 29 test xanh sau 4 finding/7 hồi quy. Cờ OFF, chưa nối runner/Dashboard. Báo cáo RA_D8_VIEC1 trên nhánh tương ứng.
+- Việc 2: `codex/d8-viec2-ky-thuat`, code `4d6956d`; 3 đỏ ban đầu → 65 xanh/1 xfail, rà OUTFIT bắt 1 P2 với 3 hồi quy đỏ → **68 passed, 1 xfail**. RÀ KỸ + root đọc sửa; báo cáo RA_D8_VIEC2 và RA_D8_END_FRAMES_MOC_KHO. Producer sân khấu v3 sinh finding VÀNG sau hai cờ OFF; OUTFIT không gửi được giữ khóa. End_frames không sửa. Chưa baseline bất biến gắn job/Dashboard/v2/v4, chưa thử thật/cả bộ/gộp main.
 - Việc 3: `codex/d8-viec3-bao-gia-video`, code `85a26db`; 3 đỏ ban đầu, 2 đỏ sau rà độc lập → 95 passed / 49,42s. Fixture 9 shot/3 refs: 0 clip/0 USD → 8 clip/5,51 USD. Shared predicate kiểm source/motion/SHA ảnh hiện tại; shared input_video_s, URL/UNC không probe. Thiếu proof có thể tính dư; ref unknown cảnh báo, chưa chứng minh trần. RA_D8_VIEC3_CODEX_2026-10-11.md.
 
-Chỉ push nhánh riêng; không gộp main/cả bộ/test thật #24/API/data. Phiên tích hợp giữ các hunk areas và chạy cả bộ Windows trước gộp.
 
 ---
 
@@ -604,6 +603,278 @@ dáng "mất kết nối" có lý do, không im lặng. Khởi động thợ b�
 token hết hạn, chỉ GET), logic chọn dáng/bong bóng từ snapshot giả; phần GUI kiểm tay trên máy chính, ghi ảnh chụp vào `docs/images/d9/`. Kèm
 `tools/launch_lao_dai.ps1` theo kiểu `tools/launch_devsys.ps1`.
 
+**CÒN DỞ — việc 3 phần GUI (rà 12/10; backend `tools/lao_dai/broker.py` + `logic.py` ĐÃ gộp main, đừng viết lại):** (1) cửa sổ pet tkinter trong
+suốt luôn trên cùng ở góc, kéo được, không chiếm focus; (2) icon khay ẩn/mở/thoát; (3) toast Windows chỉ mã + trạng thái; (4) `tools/launch_lao_dai.ps1`
+theo kiểu `tools/launch_devsys.ps1`; (5) kênh cấp token đọc: broker `issue(session)` nhận phiên Owner đã đăng nhập — lấy từ đăng nhập 8502 mới có
+(`devsys/admin_auth.py`, phiên rà Codex làm 12/10; KHÔNG sửa file đó, chỉ gọi) hoặc đăng nhập Dashboard; token lưu kho credential Windows,
+không ghi file thường; (6) nút "Mở trên Dashboard" mở `http://localhost:8502/?ticket=<id>`; (7) ảnh chụp kiểm tay vào `docs/images/d9/`. Kiểm
+GUI trên máy Windows (máy chính). Sửa kèm lỗi pet ở ĐỢT 10 việc 4 mục 4–5 (bong bóng chỉ đếm `waiting_admin`, broker truyền `data_dir`).
+
 ## Kết quả Codex — đợt 9
+
+- Việc 1: `codex/d9-viec1-kho-phieu`, code `7356a9f`, bàn giao `963bf0b`; 27 test xanh sau 3 finding/11 hồi quy. Snapshot v1/cờ OFF; báo cáo RA_D9_VIEC1 trên nhánh tương ứng.
+- Việc 2: `codex/d9-viec2-trang-phieu`, dependency `d3cafd5` là cherry-pick code việc 1, code `636e382`; 3 đỏ ban đầu → 30 xanh; 5 finding sau rà sửa gom một vòng → **38 passed / 8,52s**. RÀ KỸ + root đọc sửa; RA_D9_VIEC2, ảnh/số đo docs/images/d9. Trang Phiếu CHỈ ĐỌC do thiếu server auth, cờ OFF giữ trang cũ; xem chi tiết 1 bấm/0 cuộn tới hàng/nút, link đúng phiếu. Quyết định ≤2 bấm chưa nghiệm thu, ghi UI/bulk/đổi trần hoãn tới auth thật. Chưa gọi từ Dashboard/cả bộ/gộp main. Tích hợp giữ hunk workaround merge của core/tickets.py và không cherry-pick dependency hai lần.
+- Việc 3 — ĐANG DỞ: `codex/d9-viec3-lao-dai`, dependency `df62cc7` là cherry-pick code7356a9f việc1, backend `42ecaec`. Broker loopback GET-only/token read-only TTL kiểm session Owner mỗi snapshot, SQLite chỉ đọc; logic dáng/bong bóng/dedupe/backoff/URL allowlist; cờ OFF. Đỏ module thiếu và mismatch due_status → 39 xanh; rà độc lập 2 finding/4 đỏ → 43 xanh /1,28s. RA_D9_VIEC3_CODEX_2026-10-11.md. CHƯA GUI tkinter/khay/toast thật/kho token OS/kênh cấp phiên server/launcher/QA Windows/PNG, chưa pilot chạy được. Dừng mở bước lớn theo hạn mức, tiếp sau reset. Chỉ push nhánh riêng, chưa toàn bộ/gộp/main. Tích hợp không cherry-pick dependency việc1 hai lần.
+
+---
+
+# ĐỢT 10 — sửa lỗi rà Đợt 8–9 + Tổ rà soát khung đầu/cuối + cảnh không đơ (11/10 tối, người dùng duyệt)
+
+Đợt 8 việc 1–2 và Đợt 9 việc 1–3 ĐÃ GỘP main (cờ TẮT). Đợt 8 việc 3 (báo giá) CHƯA gộp — sửa trên chính nhánh `codex/d8-viec3-bao-gia-video`.
+Luật chung GIỐNG đợt 1 + thêm: mỗi việc một nhánh `codex/d10-viec<N>-<tên>` từ `origin/main` (riêng việc 3 tiếp trên nhánh d8-viec3); KHÔNG sửa
+`core/runner.py`, `core/lock_exceptions.py`, `core/end_frames.py`, `core/place_refs.py`, `core/scene_storyboard.py` (#24); không API tốn tiền, không
+`data/` thật. Mỗi lỗi: test ĐỎ → sửa → xanh (ghi tên test). Ghi kết quả vào "Kết quả Codex — đợt 10".
+
+## Việc 1 — Gói gửi kèm (`core/package_overrides.py`, cờ `package_overrides`) — 3 lỗi TRUNG
+1. Ghim ảnh OUTFIT bị THÊM thay vì THAY (nhãn ref OUTFIT từ `assets.scene_references` là tên nhân vật "KELLY", `_resolve` gán tên tài nguyên
+   "Kelly đồ bơi") → gói có 2 bộ đồ. Khớp chỗ thay theo nhân vật mặc (thêm `wearer`/`character` vào edit) hoặc theo role khi chỉ một chỗ outfit.
+2. `_scene_hash` băm toàn bộ `scenes.data` → sửa `motion_en`/takes/camera_plan cũng làm chỉnh gói thành `override_stale`. Chỉ băm khóa ảnh hưởng gói
+   (`lineage.IMAGE_KEYS` + characters/location/size/outfit/plate…).
+3. `save(base_refs=None)` tự dựng gói khác gói thật lúc chạy → luôn stale. Bắt buộc truyền `base_refs`, thiếu → lỗi rõ.
+THẤP kèm: chỉnh của shot mất số hiệu sau replan phải báo VÀNG; ghim không xóa ảnh góc phụ cùng nhân vật; không lặp cảnh báo `ref_unreadable`.
+
+## Việc 2 — Việc mở kỹ thuật Đợt 8 (`layout_drift_review`, `short_lock_outfit`) — 3 lỗi TRUNG
+1. `tools/stage_grid.py:~1575` ghi finding vào CSDL từ lượt thử v3 CHƯA áp dụng → chỉ gọi ở đường áp blocking chính thức, hoặc ghi là "đề xuất" kèm
+   thư mục lượt.
+2. Thiếu bản gốc để so (`--hand` = output v2 không có `blocking.json`/`shot_specs.json`; thiếu `--hand` lộ `TypeError`) → tham số bản gốc rõ ràng
+   (`--approved-blocking`/`--approved-specs`) hoặc bản gốc gắn job ảnh đã duyệt; thiếu → lỗi rõ.
+3. Hai tiêu chí "có OUTFIT" khác nhau (`short_lock_outfit` vs `prompts.lock_text:~543` / `runner.lock_note`) → prompt video tự mâu thuẫn. Dùng CHUNG
+   tiêu chí của `lock_text` (không sửa runner; nếu cần một hàm chung thì đặt ở `core/prompts.py` và chỉ `prompts.py` gọi). THẤP: khai cờ
+   `short_lock_outfit` vào khu bước 3 trong `devsys/areas.json`; test xfail end_frames dọn thư mục tạm.
+
+## Việc 3 — Báo giá video (tiếp nhánh `codex/d8-viec3-bao-gia-video`) — 2 CAO + 3 TRUNG
+1. **CAO:** shot đi theo trong nhóm Seedance ref luôn bị coi "cần gen" (gói chép từ shot dẫn, `image_path` là ảnh shot dẫn, ảnh khác là
+   `refs_marked/*` hoặc `asset://`) → báo giá thừa (tái hiện runner thật nhóm 4 shot: thừa 0,90 USD). Chứng minh qua `sent_group` của shot dẫn + sha
+   ảnh đánh dấu, hoặc `source_job_id` + `input_hash`. Test đi bằng runner thật (MockVideoProvider), không tự chèn gói tay.
+2. **CAO — CHỜ #24 xong (người dùng chốt 11/10):** `core/project_budget.py:184-188` `remaining()` dùng chung `cost.video_need` và mức ước tính cao
+   khi giá None (không `or 0`). Làm trong commit RIÊNG cuối nhánh, ghi rõ; phiên rà Codex chỉ gộp commit này khi phiên máy chính báo #24 không còn gen.
+3. **TRUNG:** chưa biết thời lượng ref → không `continue` / không None (`quality_tier.py:552-554, 597-600`, `model_router.py:398-399`,
+   `cost.py:272-274`): chỉ None khi ref thật sự bị tính tiền; còn lại dùng giá cao (trần giây ref / money_policy).
+4. **TRUNG:** job `running` (đã trả tiền) bị tính lại → running = đang làm, không tính tiền lại; queued/retryable vẫn cần gen.
+5. **TRUNG:** `tests/test_readiness_f5a.py::KhoObjectSizeTests::test_ten_shot_project_is_not_n_plus_1` đỏ (205 truy vấn) → cache theo
+   `memo.per_rerun` hoặc chỉ đọc ref khi đường Seedance.
+THẤP: `start_from_prev_clip` ghi rõ lý do; cảnh báo chỉ khi clip cũ bị loại (không cho mọi shot chưa có clip); test 9 shot phân biệt "lệch motion" vs
+"thiếu bằng chứng"; thêm cộng giây ref ở `dashboard/model_line.py:83/89` và `quality_tier.py:484/488` nếu cùng nguồn.
+
+6. **Bản cao / nâng final (hộp thư 11/10 23:40, #24 final_estimate 18,29–21,38 USD vs đúng ≈ 19,76 theo clip):** `core/quality_tier.py:452`
+   `_clip_groups` rỗng khi `seedance_refs.enabled(pid)` = False dù job có `sent_group`/`group_leader` → tính riêng từng shot tối thiểu 4 s (`:484`);
+   giây lấy `motion_prompts.duration_sec` (`:425–426, 506`) thay vì độ dài clip nháp thật (theo `external_id`/file); nháp chưa duyệt
+   (`upgrade_block`) rơi nhánh "gen MỚI" giá 720p (`:485–488`); follower `quality_tier='direct'` bị bỏ (`:423`) trong khi `batch_final_price` vẫn
+   cộng. Nâng thật = 1 lệnh `submit_final_from_sample` theo task nháp (`core/adapters/clipai.py:610-620`), KHÔNG gửi lại ref → giá nâng theo đúng
+   cách đó. Test dựng nhóm theo `sent_group` khi cờ ref tắt, giây theo clip thật, follower.
+
+7. **Đơn giá nâng 1080p ĐO THẬT (hộp thư 11/10 23:53):** Seedance 2.5 nháp 480p → 1080p 9:16 qua `submit_final_from_sample` = **0,5254 USD/s**
+   (7 clip #24 job 670–676, 38 s, 19,964 USD theo `task_usage`; ≈ 0,0107 USD/1k token; clip có video vào cùng giá) → đưa vào bảng giá
+   (`data/pricing.json` mẫu trong repo / hằng trong `core/quality_tier.py`) thay nhãn `UPGRADE_UNMEASURED` (`quality_tier.py:41`), ghi nguồn đo.
+   `usage_events` ghi SAI giây clip nhóm bản cao (671: 4 thay 8, 672: 4 thay 5, 675: 4 thay 6): tìm chỗ ghi (`core/runner.py:457/461`
+   `_record_usage` → `core/cost.record_usage`) — nếu sửa được ở `core/cost.py` (tính giây từ nhóm/clip thật) thì sửa + test; nếu phải sửa
+   `runner.py` thì CHỈ viết báo cáo + test đỏ `xfail` (file #24). Runner không cắt follower từ clip nhóm 1080p (02/03/09.mp4 còn 480p) — file #24:
+   chỉ báo cáo cách sửa, làm sau #24.
+
+## Việc 4 — Kho phiếu / trang Phiếu / pet (Đợt 9) — lỗi TRUNG
+1. `core/tickets.py:~165-174` gộp vào phiếu `closed`/`resolved` im lặng → tự chuyển `reopened` có event.
+2. `user_projection` (`:~252-257`) không xét trạng thái → phiếu đóng vẫn báo "tạm dừng"; phiếu không chặn vẫn trả tiêu đề → trả None khi đóng hoặc
+   không chặn.
+3. `devsys/app.py` (sidebar): còn `?ticket=` thì bấm trang khác vẫn hiện Phiếu → chỉ chuyển trang ở lần mở đầu (session_state) hoặc xóa query param.
+4. `tools/lao_dai/logic.py:~60` bong bóng đếm mọi trạng thái khác `closed` → chỉ `waiting_admin` (+ đỏ/vàng); toast chỉ việc cần admin hành động.
+5. `tools/lao_dai/broker.py:~59` gọi `admin_snapshot(c)` thiếu `data_dir` → `gen_done` luôn rỗng; WAIT_REASONS không có trong tiến trình broker.
+6. **Ảnh chụp trang Phiếu 11/10 (`docs/images/d9/trang_phieu_mo_phieu_1440.png`):** (a) chi tiết phiếu hiện JSON thô (`impact`, `cause`) → viết thành câu tiếng Việt (ảnh hưởng: chặn shot 10, ≈ 0,12 USD; nguyên nhân: đoán — …; bằng chứng: job 651…); (b) hạn hiện ISO UTC `2026-10-11T08:23:13+00:00` → giờ VN `11/10 15:23` + "còn/quá N h"; (c) hàng ghi "tiền chưa rõ" dù `impact.money_usd = 0.12` → đọc đúng khóa tiền (một nguồn với `core/tickets.py`); (d) sidebar vẫn chọn trang cũ khi mở bằng `?ticket=` (cùng lỗi mục 3).
+THẤP: `due_status` bỏ qua phiếu đã xong; `blocked`/`waiting_info` quay về trạng thái trước (không về `triaged`); `_safe` chặn mọi đường dẫn tuyệt đối
+(cả `/tmp`); `spend_today` theo giờ VN; `ThreadingHTTPServer` + timeout. Đợt 9 việc 3 phần GUI/khay/toast/launcher/ảnh: làm tiếp theo đề Đợt 9.
+
+## Việc 5 — Tổ rà soát báo nhầm khung đầu ↔ cuối (hộp thư 11/10, ca thật #24)
+Ca thật #24 11/10: mục 84, 90/92/93, 102/105, 111 ("khung đầu không khớp trạng thái cuối"), 109 ("4 s chỉ một pha" dù motion chia 4 nhịp) — mỗi lần
+tốn tiền rà + người dùng phải bỏ qua. Gốc: `prompts/30_change_review.md` mục 1 bắt `blocking`/`image_prompt` (KHUNG ĐẦU) khớp `end_state`
+(trạng thái CUỐI). Sửa:
+1. Prompt: thêm nguyên tắc rõ — `image_prompt`, `blocking`, ảnh đã duyệt = **khung đầu** (`byd.hanh_dong[].bat_dau`); `action`/`motion_en` = **quá
+   trình** đầu → đỉnh → cuối; `end_state`, `byd...ket_thuc` = **khung cuối**. Chỉ so cùng loại khung; khung đầu khác trạng thái cuối là BÌNH
+   THƯỜNG. Đếm pha theo nhịp trong `motion_en`/BYĐ, không theo câu.
+2. Code (`core/change_review.py` khi dựng đề): gắn nhãn khung cho từng trường trong "Các shot liên quan" (vd `image_prompt (khung đầu)`,
+   `end_state (khung cuối)`), để Claude không lẫn. Đây là đổi hành vi Tổ rà soát đang chạy với #24 → cờ mới `change_review_frames` (TẮT); cờ tắt
+   đề giống từng byte.
+3. Ca vàng `knowledge/checks/` (L13 hoặc file mới) + test: dựng lại tối thiểu 3 mục trên từ mô tả (khung đầu đứng, cuối ngã → không được báo lệch;
+   motion 4 nhịp / 4 s → không báo "một pha"), kiểm đề có nhãn khung và nguyên tắc; không gọi Claude thật.
+
+## Việc 6 — Cảnh không được đơ: lớp chuyển động nền (góp ý người dùng 11/10 khi xem nháp v3 #24)
+Cảnh quan xung quanh, mây trôi, sương khói lan, lá/cỏ lay, đèn/lửa chập chờn… phải có chuyển động nền nhẹ, kể cả shot máy tĩnh (vd #24 shot 9).
+Theo công thức chung:
+1. **Luật cho prompt viết motion** (Đạo diễn / `core/prompt_formula.py` / prompt motion — tìm đúng chỗ viết `motion_en`): mỗi motion có một lớp
+   "chuyển động nền" chọn theo bối cảnh + thời tiết + giờ trong BYĐ / `location` / `weather` (không trái thời tiết: trời lặng thì không gió lớn, trong
+   nhà không mây…), có lý do. Sau cờ mới `ambient_motion` (TẮT) — cờ tắt prompt giống từng byte.
+2. **Kiểm bằng code VÀNG** khi motion prompt không có lớp chuyển động nền (nhận theo danh sách từ khóa/khóa có cấu trúc — không bắt Claude kết
+   luận), kể cả shot máy tĩnh; VÀNG có lý do + gợi ý theo bối cảnh. Không chặn gen.
+3. `knowledge/checks/` ca thật #24 shot 9 (máy tĩnh, cảnh đơ) + đăng ký `devsys/areas.json` + test (có cờ / không cờ, trời lặng không sinh gió).
+
+## Kết quả Codex — đợt 10
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+---
+
+# ĐỢT 11 — Bàn dựng đạo diễn 3D: tấm duyệt đủ góc, Đạo diễn khai sơ đồ khối, Trình sửa sân khấu (người dùng duyệt 11/10 tối)
+
+**NGUYÊN TẮC (người dùng chốt 11/10 tối): sân khấu do ĐẠO DIỄN (AI) DỰNG SẴN tự động cho mọi cảnh, nối theo các cảnh trước; người dùng KHÔNG dựng
+từ đầu — chỉ xem và CHỈNH từng cảnh khi cần.** Hệ quả cho cả đợt:
+- Mặc định: Đạo diễn khai sơ đồ khối + chỗ đứng/tư thế theo nhịp (đầu/đỉnh/cuối) cho TỪNG cảnh, kế thừa vị trí cuối của cảnh trước (liên tục) →
+  code kiểm số + bộ giải tự đặt máy → tấm duyệt từng cảnh sẵn để xem. Người dùng không phải thao tác gì nếu không thấy sai.
+- Trình sửa là công cụ CHỈNH MỘT CẢNH: mở đúng cảnh, sửa vị trí/tư thế/máy của cảnh đó; code tính lại và ĐỀ XUẤT lan sang các cảnh sau bị ảnh hưởng
+  (vị trí cuối cảnh này = đầu cảnh sau) — người dùng chấp nhận / bỏ từng cảnh; cảnh ĐÃ DUYỆT không tự đổi (chỉ báo `layout_drift`).
+- Chỉnh tay của người dùng được giữ khi Đạo diễn dựng lại (như khóa `_user_locked`), Đạo diễn nhận chỉnh đó làm ràng buộc cho các cảnh sau.
+- Ưu tiên tối ưu: xem nhanh từng cảnh (lật cảnh trước/sau, so với cảnh trước) và sửa ít bấm; KHÔNG làm công cụ dựng sân khấu tự do từ đầu.
+
+Đầu vào: `docs/PHUONG_PHAP_SAN_KHAU_3D.md` mục 2 (lưới), 12b (Nhánh C), 13 (hai chiều Director ↔ code), 14 (stage_facts); thiết kế "Trình sửa
+sân khấu" ở `docs/NGHIEN_CUU_TU_PHUC_VU_DASHBOARD.md` (đoạn "Trình sửa sân khấu") + `docs/THIET_KE_TIEU_NHI_LAO_DAI_D7.md` mục 6 (thứ tự tính
+năng). Đã có trên main: `core/blockout.py` (kiểm số), `core/blockout_sheet.py` (tấm nhìn từ trên + gói `blockout` có người duyệt/SHA; ảnh ví
+dụ `docs/images/d9/tam_duyet_san_khau_vi_du.png`), `core/stage_grid.py`/`core/stage_solver.py`/`core/stage_facts.py`, `tools/stage_grid.py`
+(v2/v3), `tools/render_plates.py` `add_props`, `core/whitebox.py`, `core/plates3d.py` `find_blender`.
+Luật chung GIỐNG đợt 1 + thêm: mỗi việc một nhánh `codex/d11-viec<N>-<tên>` từ `origin/main`; KHÔNG sửa `core/runner.py`, `core/lock_exceptions.py`,
+`core/end_frames.py`, `core/place_refs.py`, `core/scene_storyboard.py` và KHÔNG đọc/ghi `data/projects/24/` (#24 đang chạy trên sân khấu đó);
+không API tốn tiền (Director thật chỉ chạy khi người dùng duyệt báo giá). Hành vi mới sau cờ TẮT. Ghi kết quả vào "Kết quả Codex — đợt 11".
+
+**MÀN CAMERA (người dùng yêu cầu 11/10 tối, mẫu "Bàn đạo diễn" của Clip AI — `docs/CLIPAI_FEATURES.md` mục "Bàn đạo diễn": giao diện 3D đặt
+camera/nhân vật, "Góc nhìn đạo diễn" / "Góc nhìn camera"):** mỗi cảnh phải có màn cho thấy máy quay ĐANG QUAY THẾ NÀO và chỉnh được máy đó:
+- **Hai góc nhìn chuyển qua lại:** "Góc nhìn đạo diễn" (toàn sân khấu nhìn từ trên/xiên, thấy vị trí máy + hình nón tầm nhìn + nhân vật + khối)
+  và "Góc nhìn camera" (đúng khung hình máy thấy: ảnh clay/nền 3D render từ máy, khung tỉ lệ dự án 9:16/16:9, vạch vùng an toàn, nhãn cỡ cảnh,
+  đường chân trời, vị trí mắt nhân vật theo % khung — dùng `core/plate_camera.py` `camera_for`/`project`/`horizon_y`/`vfov`).
+- **Chỉnh máy:** vị trí (kéo trên góc nhìn đạo diễn hoặc nhập mét/tên ô), cao, hướng (yaw), ngửa/cúi (pitch), tiêu cự / cỡ cảnh (WS/MS/MCU/CU…),
+  góc (ngang mắt / thấp / cao / qua vai / POV); chuyển động máy đầu → cuối (`camera_move`: đẩy, kéo, lia, theo…) có điểm đầu/điểm cuối và xem
+  lại cả đường đi. Mỗi lần chỉnh: kiểm số ngay bằng luật sẵn có (`plate_camera` clearance/khoảng cách tối thiểu/máy thấp không ngửa quá,
+  `stage_facts` nhìn thấy gì, chân trời, che khuất) → ĐỎ/VÀNG có nút sửa; xem trước góc nhìn camera clay 0 USD.
+- **Mặc định Đạo diễn/bộ giải đặt máy sẵn** (theo NGUYÊN TẮC trên); người dùng chỉ chỉnh khi thấy sai; chỉnh tay khóa lại, lan đề xuất như vị trí
+  nhân vật. Đổi máy của cảnh đã có ảnh duyệt → VÀNG "ảnh cần vẽ lại", không tự gen.
+- Tùy chọn sau (ghi vào thiết kế, chưa làm): quay "video white model" theo đường máy làm video tham chiếu chuyển động (như Previs Stage của
+  Seedance), dùng Blender của dự án — báo giá 0 USD, chỉ tốn máy.
+
+## Việc 1 — Thiết kế + mockup Trình sửa sân khấu (tài liệu + HTML; làm ngay)
+1. `docs/THIET_KE_BAN_DUNG_3D_D11.md` (theo NGUYÊN TẮC trên — Đạo diễn dựng sẵn, người dùng chỉ chỉnh từng cảnh): luồng người dùng trên Dashboard (bước 1, cạnh "Đạo diễn"): lật xem từng cảnh đã dựng sẵn (nhìn từ trên + góc máy, so cảnh trước); khi cần chỉnh
+   → kéo/nhập vị trí nhân vật (mét, theo tên ô lưới), hướng mặt, tư thế theo nhịp (đầu/đỉnh/cuối của BYĐ) → kéo/nhập máy (vị trí, cao, hướng,
+   tiêu cự) hoặc "giải máy" bằng bộ giải → kiểm số ngay (stage_facts, chồng lấn, nhìn thấy, `layout_drift` với shot ĐÃ DUYỆT) → xem trước 3D
+   0 USD (render clay cục bộ, một worker, có hàng đợi) → lưu thành phiên bản mới của sân khấu (bản sao dự án, có hoàn tác, ai/lúc/lý do) →
+   shot bị ảnh hưởng hiện VÀNG "ảnh cần vẽ lại" (không tự gen). Ghi rõ: dữ liệu lưu ở đâu (so `stage_v2_*/blocking.json`, `shot_specs.json` hiện
+   dùng bằng CLI), chỗ nối với `tools/stage_grid.py` (gọi lại hàm có sẵn, không viết bộ giải mới), quyền (đồng nghiệp sửa bản sao dự án; Kho
+   chung chỉ Owner), cách Tiểu Nhị gọi lại đúng chức năng này. Chấm tần suất × công sức (lỗi #24 11/10: vị trí sau động tác di chuyển 0,25 m
+   → 1,25 m, bố cục shot đã duyệt bị đổi).
+2. Mockup `mockup/ban_dung_3d.html` (offline) — có MÀN CAMERA đủ như trên (nút chuyển "Góc nhìn đạo diễn" ↔ "Góc nhìn camera", chỉnh vị trí/cao/hướng/ngửa/tiêu cự/cỡ cảnh/chuyển động máy, kiểm số + xem trước khung), mở sẵn danh sách cảnh Đạo diễn đã dựng (lật trước/sau, so cảnh trước); chế độ chỉnh MỘT cảnh gồm bản đồ lưới (dùng đúng tên ô K11 = gốc O như `stage_grid.cell_name`), nhân vật + máy kéo được,
+   ô nhập số, thanh nhịp đầu/đỉnh/cuối, bảng kiểm ĐỎ/VÀNG có nút sửa ngay, khung "xem trước clay", danh sách cảnh sau bị ảnh hưởng với nút chấp nhận / bỏ từng cảnh (cảnh đã duyệt chỉ báo, không tự đổi). Dựng theo ca #24
+   (giếng, yêu nữ bò ra cách thành 1,25 m, Kelly lùi). Kiểm Playwright 1440 và 1280: 0 lỗi console, không cuộn ngang; test grep/JS nhẹ
+   (khai `devsys/areas.json` khu `dashboard_ui`, không tăng version).
+
+## Việc 2 — Tấm duyệt đủ góc clay + Đạo diễn khai sơ đồ khối (code sau cờ; render kiểm trên máy chính có Blender)
+0. **Render "góc nhìn camera" clay từng cảnh** (0 USD, Blender cục bộ, dùng camera của `core/plate_camera.camera_for` như render nền hiện có) cho màn camera; không Blender → khung vẽ 2D chiếu từ `project` + lý do.
+1. **Góc clay:** từ plan khối đã kiểm (`core/blockout.py` `to_props`), dựng Blender bằng `tools/render_plates.py` `add_props` + `core/whitebox.py`
+   (KHÔNG bộ dựng mới), render 2–3 góc clay có nhãn khối; ghép cùng tấm nhìn từ trên (`blockout_sheet.render_top_view`) + ảnh tham chiếu
+   bối cảnh (nếu có) thành MỘT tấm duyệt (mục 12b.2). Blender không có / lỗi → tấm chỉ có nhìn từ trên + dòng "chưa render góc clay: <lý do>",
+   không im lặng. Khối `tru`/`cot` vẽ tròn trên tấm nhìn từ trên (đang vẽ vuông). Cờ `blockout_clay_sheet` TẮT. Test: bpy giả / kiểm lệnh
+   dựng (như `tests/test_plates_f2.py`); render thật ghi ảnh vào `docs/images/d11/` khi chạy trên máy chính.
+2. **Đạo diễn khai sơ đồ khối (đường MẶC ĐỊNH dựng sẵn cho mọi cảnh, kế thừa vị trí cuối cảnh trước, tôn trọng chỉnh tay đã khóa):** thêm phần khai `blockout` (JSON enum theo 12b.1, không văn tự do) vào prompt Đạo diễn liên quan
+   (`prompts/29_director_stage_specs.md` hoặc prompt mới), CHỈ khi cờ `director_blockout` BẬT — cờ tắt prompt giống từng byte. Code nhận → kiểm số
+   (`core/blockout.py`) → lỗi gửi lại Đạo diễn ≤ 2 lượt (mục 13) → còn lỗi VÀNG có lý do. Ước tính chi phí trước mỗi lời gọi, qua sổ chi.
+   Test bằng Claude giả (không gọi thật).
+3. Thử nghiệm thu 12b.4 ở mức dữ liệu giả: 3 bối cảnh (trong nhà, ngoài trời, có bậc) dựng + kiểm < 2 phút, ca hồi quy thiếu khối / chồng lấn bị
+   bắt. Ghi rõ phần nào cần chạy thật trên máy chính (Blender, ảnh Kho thật) — phiên rà Codex chuyển qua hộp thư.
+
+## Việc 3 — Trình sửa sân khấu thật trên Dashboard (SAU khi #24 xong — chỉ bắt đầu khi hộp thư có dòng phiên máy chính báo #24 xong)
+Theo thiết kế việc 1 đã duyệt (gồm MÀN CAMERA: hai góc nhìn, chỉnh máy, kiểm số, xem trước khung camera clay): màn trên Dashboard sau cờ `stage_editor` TẮT; đọc/ghi bản sao sân khấu của dự án qua hàm có sẵn của
+`tools/stage_grid.py` / `core/stage_*` (tách hàm thuần nếu cần, không đổi hành vi CLI); xem trước clay 0 USD một worker; lưu phiên bản + hoàn tác;
+`layout_drift` báo shot đã duyệt bị đổi; không tự gen ảnh. Test AppTest + Playwright (≤ 2 bấm để dời một nhân vật 1 m và xem lại kiểm số).
+Đề bài chi tiết có thể chỉnh sau khi người dùng duyệt thiết kế việc 1.
+
+**Việc nhỏ đưa vào thiết kế việc 1 và làm ở việc 3 (người dùng 11/10):** phím tắt, hoàn tác nhiều bước, chép máy sang shot kế, khóa trục khi kéo;
+khung an toàn 9:16 (vùng giao diện TikTok/Reels che); dùng lại ảnh clay theo mã băm máy + khối (chỉ render lại khi đổi); Tiểu Nhị đề xuất chỉnh máy
+("nâng máy 0,3 m để không thấy miệng giếng") qua đúng chức năng này, người bấm duyệt.
+
+## Việc 4 — Kiểm luật quay phim + vòng kiểm sau gen (code, 0 USD; cờ `film_grammar_check`, `camera_match_qc` TẮT; người dùng duyệt 11/10)
+1. **Luật quay phim giữa các shot liền** (code, không Claude): trục 180° (hai nhân vật / hướng chuyển động không đổi bên vô cớ), hướng nhìn khớp
+   (eyeline), đổi góc ≥ 30° giữa hai shot cùng chủ thể (tránh jump cut), khoảng trống phía trước mặt / hướng đi (lead room), khoảng trống trên đầu
+   theo cỡ cảnh. Tính bằng `plate_camera.project` + vị trí/hướng mặt trong BYĐ + sân khấu. Vi phạm → VÀNG có lý do + gợi ý (dời máy X m / đổi góc),
+   hiện trên màn camera và trong "Trước khi chạy". Ngoại lệ có chủ ý (`byd.ngoai_le` kiểu cắt nhảy cố ý) không báo.
+2. **Vòng kiểm sau gen:** ảnh / khung đầu-cuối của clip làm ra so với máy đã đặt: cỡ cảnh, chân trời, vị trí + độ cao mắt nhân vật trong khung (đo
+   bằng công cụ sẵn có — `core/plate_layout_qc.py`, `core/clip_measure.py`; không đoán bằng Claude). Lệch quá ngưỡng → VÀNG + gợi ý gen lại (có báo
+   giá), không tự gen. Ngưỡng ghi "chưa hiệu chỉnh" tới khi đo trên ca thật (#24: ảnh thấy miệng giếng dù máy thấp).
+3. Ca vàng `knowledge/checks/` + test đỏ → xanh (vượt trục, cùng góc liền nhau, lệch chân trời).
+
+## Việc 5 — Animatic clay + bộ góc máy dùng lại + xuất vào gói gửi (cờ `clay_animatic`, `camera_setups_reuse`, `clay_refs_in_package` TẮT)
+1. **Animatic clay toàn cảnh (0 USD):** ghép mọi shot thành một video xám theo nhịp BYĐ và thời lượng shot, nhân vật khối di chuyển theo nhịp,
+   máy chạy theo `camera_move`; render Blender cục bộ một worker + ghép ffmpeg (`core/delivery`/`core/ffmpeg_studio`). Xem trên màn bàn dựng; không
+   Blender → animatic 2D từ góc nhìn đạo diễn + lý do.
+2. **Bộ góc máy dùng lại cho cả cảnh:** mỗi cảnh 3–4 góc chuẩn (toàn / trung / qua vai / phản góc) do Đạo diễn + bộ giải đặt (hướng G0 đã chốt 09/10,
+   xem `TODO.md` "làm G0 TRƯỚC"); shot chọn lại góc chuẩn thay vì máy riêng; so A/B hai phương án máy cạnh nhau, chọn một bấm.
+3. **Xuất vào gói gửi:** khung đầu/cuối clay theo máy làm "ảnh bố cục", video white model theo đường máy làm video tham chiếu chuyển động — qua
+   "Gói gửi kèm" (`core/package_overrides.py`, Đợt 8) với vai rõ ràng; KHÔNG gửi ảnh clay như ảnh nền để chép (bài học #24 shot 8, mục 12b.3) — chỉ
+   vai bố cục/chuyển động, model nào không nhận vai đó thì không gửi + lý do. Phần nối vào đường gửi job làm SAU #24 (cùng việc 3).
+4. Test: bpy giả / ffmpeg nhỏ (slow nếu ≥ 8 s); dữ liệu giả 3 shot.
+
+## Kết quả Codex — đợt 11
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+---
+
+# ĐỢT 12 — Âm thanh theo từng chuyển động (hộp thư phiên máy chính 11/10 23:28, làm tay #24 nháp v3; người dùng phân công phiên rà Codex)
+
+Nguồn: `D:\AI-Video-Output\2026-10-11_du-an-24\bang_am_thanh.md` + `nhap_v3_am_thanh.mp4` trên máy chính (cloud không đọc được — dựng ca thử từ mô
+tả dưới). Luật chung GIỐNG đợt 1; nhánh `codex/d12-viec<N>-<tên>`; KHÔNG sửa file #24 (runner/lock_exceptions/end_frames/place_refs/
+scene_storyboard); không API tốn tiền khi test; đổi hành vi sau cờ TẮT (trừ việc 1 là sửa lỗi). Ghi kết quả vào "Kết quả Codex — đợt 12".
+
+## Việc 1 — LỖI âm nền không bao giờ được chọn (nhỏ; sửa thẳng, không cờ)
+`core/ambience.py:51` lọc `voice=0`, nhưng `core/sound_ai.py:137` `summary` đặt `voice=True` cho MỌI âm không thuộc `ACCENT` (dế, gió…) → #24 cả 10 shot
+`ambience.choose` trả None dù Kho có #437 dế, #307 gió. Tách nghĩa: `voice` = giọng người; thêm trường riêng (vd `accent`) cho "không phải điểm
+nhấn" (migration cột `sounds` theo cách `core/db.py` thêm cột; dữ liệu cũ tính lại từ `heard_label` khi đọc, không cần nghe lại). Kiểm mọi chỗ đọc
+`voice` (grep) — điểm nhấn (`sfx_plan`/`sound_lib`) vẫn không lấy giọng người. Test đỏ → xanh với Kho giả có dế/gió/giọng nói.
+
+## Việc 2 — SFX theo nhịp chuyển động (vừa; cờ `motion_sfx` TẮT)
+Hiện `scenes.data.sound` của Đạo diễn chỉ 1–2 sfx/shot, không mốc giây, không theo nhịp BYĐ (#24 shot 2/6 trống; shot 7 còn ghi "glitch" dù đã đổi
+sương đỏ); `sfx_plan` gọi Claude chỉ "ít điểm nhấn". Làm:
+1. Sinh danh sách sfx THEO NHỊP từ BYĐ `hanh_dong[].bat_dau/dinh/ket_thuc` + động từ chuyển động (bước chân, vút, ngã, bám/trườn, bò, biến hình,
+   nấc, nhích/chạm…) — bảng ánh xạ động tác → loại âm (code, không Claude), Claude chỉ bổ sung khi bảng không phủ (báo giá trước).
+2. Mốc giây ĐO từ clip (hiệu khung hình / `core/clip_measure.py` `motion_series`) thay vì đoán; không đo được → mốc theo nhịp BYĐ chia đều + VÀNG.
+3. Phát hiện sfx lỗi thời: trường `sound` nhắc thứ không còn trong motion/BYĐ/`post_fx` hiện tại (vd "glitch" sau khi đổi sương đỏ) → VÀNG.
+4. Khung "âm hậu kỳ" cho `post_fx` (nhiễu sóng → tiếng rè/nhiễu) dùng chung lược đồ `core/post_fx.py`.
+
+## Việc 3 — Âm của video ref hành động + mix (vừa; cờ `ref_audio_sync` / `mix_bus` TẮT)
+1. Ghép âm ref của video ref hành động khớp động tác: ref → đoạn giây nguồn → shot, co giãn `atempo` theo tỉ lệ làm chậm ref; `motion_ref/*.mp4`
+   đã cắt mất tiếng → lấy âm từ file ref gốc (đường dẫn ghi trong ref), thiếu → VÀNG, không im lặng. Dùng lại `core/ref_audio.py` nếu phù hợp.
+2. Mix: nén nhạc theo bus hiệu ứng (sidechain ffmpeg) + kiểm số "nhạc dưới hiệu ứng 8–12 dB" + loudnorm −14 LUFS cho điện thoại (đọc
+   `core/delivery.py`/`core/ffmpeg_studio.py` loudness hiện có, không làm song song). Test ffmpeg thật cỡ nhỏ (slow nếu ≥ 8 s).
+
+## Việc 4 — Kho âm thanh còn thiếu (nhỏ; chỉ báo cáo + công cụ)
+Liệt kê theo ca #24: vải sột soạt / lết gối trên đá, tiếng chạm vai, chuông tháp lớn, sương/khói bùng (biến hình), nhạc kinh dị–bi thương có nhãn
+mood dùng được (AST mood ≈ 0 với mọi bản Kho). Viết `docs/KHO_AM_THANH_CAN_BO_SUNG.md` (nguồn miễn phí/có giấy phép đề xuất, người dùng duyệt
+trước khi tải) + đo vì sao mood ≈ 0 (nhãn AST không có mood → đề xuất cách gán mood: tay / mô hình khác) — không tải gì về Kho.
+
+## Kết quả Codex — đợt 12
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+---
+
+# ĐỢT 13 — dọn tồn đọng THẤP (sổ việc 📒 nhóm G, 12/10; người dùng duyệt)
+
+Đăng nhập admin 8502 (sổ việc nhóm F) do **phiên rà Codex** làm (Codex không tự đăng nhập được để kiểm): `devsys/admin_auth.py` — Codex KHÔNG
+sửa file này; nếu cần thao tác ghi trên 8502 thì gọi `admin_auth.current()` / `is_owner()` như `devsys/tickets_page.py`.
+Luật chung GIỐNG đợt 1; nhánh `codex/d13-viec<N>-<tên>`; KHÔNG sửa file #24; không API; mỗi lỗi test đỏ → xanh. Ghi "Kết quả Codex — đợt 13".
+
+## Việc 1 — Hậu kỳ `post_fx` (Đợt 6) — 5 mục nhỏ
+1. `core/post_fx.py:69` tên `post_fx_<sid>_<uuid>.mp4` làm `_post_fx/` phình — tên cố định theo shot + băm spec, hoặc dọn bản cũ trước khi ghi.
+2. `core/delivery.py:640-642` post_fx áp SAU `_hold_end` → `vi_tri: cuoi` rơi vào khung giữ; áp TRƯỚC `_hold_end` (hoặc ghi rõ quyết định) + test.
+3. Chưa prompt / màn nào ghi `post_fx` đúng lược đồ: thêm lược đồ vào `knowledge/roles/director_p24_1110.md:24` (sau cờ `p24_lessons` — cờ tắt
+   prompt giống từng byte).
+4. `delivery.status()` không coi bản dựng là cũ khi `post_fx` hoặc cờ đổi → thêm vào khóa so.
+5. Editor (prompt 24 / rough_cut) không biết glitch là chủ ý → truyền `manifest.post_fx` vào ngữ cảnh Editor (sau cờ `post_fx_render`); test ffmpeg
+   thật skip khi thiếu filter `rgbashift` (thay vì đỏ).
+
+## Việc 2 — Tấm duyệt khối (Đợt 2 việc 3) + mã quy trình (Đợt 3)
+1. `core/blockout_sheet.py` `_font`: `ImageFont.load_default(size=)` cần Pillow ≥ 10.1 — dò phiên bản / fallback, hoặc nâng `requirements.txt`.
+2. SHA plan khác giữa `3` và `3.0` dù hình học giống → chuẩn hóa số trước khi băm (giữ đọc được gói cũ: SHA cũ vẫn khớp với dữ liệu cũ — có test).
+3. `ngay` không múi giờ vẫn nhận → yêu cầu ISO có múi giờ / UTC, gói cũ đọc được kèm VÀNG.
+4. Skill `.claude/skills/vong-lam-viec-theo-plan/SKILL.md` (mục ghi số đo) chưa nói mã K (`K0b-TD5`) và CX (`CX-d2-1`) — thêm một câu + ví dụ.
+
+## Việc 3 — Mockup Tiểu Nhị / pet (Đợt 7)
+1. `tests/test_mockup_tieu_nhi_d7.py` chỉ grep chuỗi → thêm kiểm JS bằng Playwright (ĐỎ → XANH khi sửa ngay, chặn gen trùng, `min="0"` gắn đúng
+   `#distance`, pet không có nút "Duyệt", câu "đã báo admin, dự án tạm dừng ở shot này") — đánh `slow` nếu ≥ 8 s.
+2. `mockup/tieu_nhi.html` `lastGenerated` chỉ nhớ lần gen cuối (gen 1,2 → 1,3 → quay về 1,2 gen lại được) → nhớ tập đầu vào đã gen.
+3. `mockup/lao_dai_pet.html` dáng thường vẫn hiện danh sách 3 phiếu chờ → dáng thường ẩn danh sách / hiện "không có phiếu chờ".
+
+## Kết quả Codex — đợt 13
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)

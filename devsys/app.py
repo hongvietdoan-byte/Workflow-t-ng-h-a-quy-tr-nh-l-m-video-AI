@@ -1,6 +1,6 @@
 """AI Development System — web theo dõi quá trình sửa/cập nhật dashboard và mức hoàn thiện thật sau mỗi thay đổi.
 
-Chạy:  Start-DevSystem.bat   hoặc   py -m streamlit run devsys/app.py --server.port 8502
+Chạy:  Start-DevSystem.bat   hoặc   py -m streamlit run devsys/app.py --server.port 8502 --server.address 127.0.0.1
 Mọi số liệu tính trực tiếp từ repo mỗi lần mở/làm mới (có bộ nhớ đệm theo commit + file đang sửa + giờ sửa), không tốn tiền. Chỉ nút
 "Chấm điểm" bằng Claude API là tốn tiền: luôn hiện ước tính và phải xác nhận; lời gọi đi qua sổ chi của dự án (stage "devsys").
 """
@@ -22,8 +22,11 @@ import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from devsys import answers, collect, decisions, metrics, plan_progress, scorer, scores, stages, workflow  # noqa: E402
+from core import features  # noqa: E402
 
 st.set_page_config(page_title="AI Development System", page_icon="🧭", layout="wide")
+from devsys import admin_auth as _admin_auth  # noqa: E402
+_admin_auth.take_link()   # token ?s= (liên kết từ Dashboard) gỡ khỏi địa chỉ ngay ở MỌI trang, trang Phiếu xét sau
 
 CSS = """
 <style>
@@ -183,8 +186,11 @@ with st.sidebar:
     if st.button("🔄 Làm mới", help="Đọc lại repo (bình thường tự làm mới khi có commit / file đổi)"):
         st.cache_data.clear()
         st.rerun()
+    ticket_ui_enabled = features.on("support_tickets") and features.on("tickets_admin_ui")
     page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
-                              "Hiệu quả quy trình", "Ai quyết", "Làm ↔ Kiểm", "Bộ kỹ năng 3 vai", "Đang chạy"], label_visibility="collapsed")
+                              "Hiệu quả quy trình", "Ai quyết", "Làm ↔ Kiểm", "Bộ kỹ năng 3 vai", "Đang chạy"] + (["Phiếu"] if ticket_ui_enabled else []), label_visibility="collapsed")
+    if ticket_ui_enabled and st.query_params.get("ticket"):
+        page = "Phiếu"
     st.divider()
     st.markdown("**Test**")
     running = collect.tests_running(ROOT)
@@ -1218,7 +1224,9 @@ def page_running():
                   for t in data["tasks"]], hide_index=True, width="stretch")
 
 
-PAGES = {"Đang chạy": page_running, "📋 Kế hoạch đang chạy": page_plan, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
+from devsys.tickets_page import render as page_tickets
+
+PAGES = {"Phiếu": page_tickets, "Đang chạy": page_running, "📋 Kế hoạch đang chạy": page_plan, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
          "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Hiệu quả quy trình": page_flow, "Ai quyết": page_decisions, "Làm ↔ Kiểm": page_stages,
          "Bộ kỹ năng 3 vai": page_skills}
 PAGES[page]()

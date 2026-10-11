@@ -5,6 +5,26 @@ import os
 from typing import Dict
 
 FEATURES: Dict[str, Dict] = {
+    "package_overrides": {
+        "label": "Chỉnh Gói gửi kèm theo shot (bỏ/thêm/ghim và hoàn tác)",
+        "verified": False,
+        "why": "Đợt 8: lõi dữ liệu kiểm bằng ảnh giả; chưa nối runner/Dashboard, chưa thử sản xuất.",
+    },
+    "layout_drift_review": {
+        "label": "Sửa dàn cảnh v3: ghi lệch bố cục ảnh đã duyệt vào Tổ rà soát (0 USD)",
+        "verified": False,
+        "why": "Đ8 việc 2: hồi quy bằng tệp/CSDL tạm; chưa thử thật, chưa nối đường ghi tay và Dashboard",
+    },
+    "short_lock_outfit": {
+        "label": "Nhận diện ngắn: bỏ đồ thường với chủ thể có ảnh OUTFIT riêng",
+        "verified": False,
+        "why": "Đ8 việc 2: MAXIM KL/KELLY KL; cờ tắt giữ nguyên prompt, chưa thử thật",
+    },
+    "tickets_admin_ui": {"label": "Trang Phiếu 8502 (Owner đăng nhập mới duyệt được; còn lại chỉ đọc)", "verified": False, "why": "Đợt 9 + đăng nhập 8502 (12/10): thử CSDL tạm, chưa dùng thật"},
+    "lao_dai_pet": {"label": "Pet Lão Đại chỉ đọc", "verified": False,
+                     "why": "Đợt 9: backend thử CSDL tạm; chưa kiểm GUI Windows"},
+    "support_tickets": {"label": "Kho phiếu Tiểu Nhị / Lão Đại", "verified": False,
+                        "why": "Đợt 9: chỉ thử CSDL tạm, chưa bật sản xuất"},
     "post_fx_render": {
         "label": "Hậu kỳ nhiễu sóng/glitch/nhấp nháy theo post_fx (ffmpeg, 0 USD)",
         "verified": False,

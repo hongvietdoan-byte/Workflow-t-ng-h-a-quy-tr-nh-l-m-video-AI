@@ -1,0 +1,18 @@
+{
+  "viewport": "1440x900",
+  "view_details_clicks": 1,
+  "view_details_page_scrolls": 0,
+  "initial_scroll_top": 0,
+  "decision_button_disabled": true,
+  "decision_button_box": {
+    "x": 80,
+    "y": 451.1875,
+    "width": 60.25,
+    "height": 40
+  },
+  "link_open_clicks": 0,
+  "decision_clicks": null,
+  "decision_scrolls": null,
+  "reason": "unavailable: thiếu server auth 8502",
+  "console_errors": []
+}
