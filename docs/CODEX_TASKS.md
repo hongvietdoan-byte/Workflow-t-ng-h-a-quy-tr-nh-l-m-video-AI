@@ -494,7 +494,12 @@ Dẫn `file:dòng` thật (mở trên `origin/main`); không đề xuất làm l
 
 ## Kết quả Codex — đợt 7
 
-- Việc 1: `codex/d7-viec1-thiet-ke`, mã tài liệu `8a94fac`. Đủ 10 mục thiết kế; 42 mã ca duy nhất, 123 tham chiếu trong giới hạn và 12 link tồn tại; diff check xanh. RÀ NHẸ tự kiểm + root đọc phần đổi chính. Báo cáo `docs/RA_D7_VIEC1_CODEX_2026-10-11.md`. Chỉ tài liệu, không pytest/sản xuất; ba câu còn mở, C09 hoãn, ACL/broker/pet chưa thử. Chưa gộp main.
+| Việc | Nhánh | Commit nội dung / bàn giao | Bằng chứng / việc mở |
+|---|---|---|---|
+| 1 — thiết kế | `codex/d7-viec1-thiet-ke` | `8a94fac` / `a5c3eb9` | Đủ 10 mục; 42 mã ca, 123 tham chiếu trong giới hạn, 12 link tồn tại; diff check xanh. Ba câu còn mở, C09 hoãn, ACL/broker/pet chưa thử. Báo cáo RA_D7_VIEC1 trên nhánh tương ứng. |
+| 2 — mockup | `codex/d7-viec2-mockup` | `b5ff46a` | 2 test đỏ → 6 xanh; Chromium Tiểu Nhị 1280/390 và pet 1280: 0 lỗi console, 0 mạng, không cuộn ngang; kiểm tương tác và PNG. Root rà nhẹ sửa 2 nhãn. Báo cáo RA_D7_VIEC2; chỉ mô phỏng offline, chưa pet/Dashboard thật. |
+
+Hai nhánh từ main mới nhất tại lúc tạo (việc 1 base `229f812`, việc 2 base `5593cde`), gộp main 11/10 (phiên rà Codex, kèm sửa sau rà: hợp đồng Đợt 8 trong THIET_KE mục 3, giá cache hit Sonnet 5.5 = 0,20, mockup không ghi đè lặng lẽ, ngày phiếu, ảnh PNG chuyển `docs/images/d7/`). Phiên rà tích hợp giữ đủ kết quả và đúng dòng đăng ký test dashboard_ui, kiểm theo quy trình trước gộp. Không sửa core/dashboard/data/TODO/PLAN, không API/Blender; chưa chạy cả bộ Windows.
 
 ---
 
