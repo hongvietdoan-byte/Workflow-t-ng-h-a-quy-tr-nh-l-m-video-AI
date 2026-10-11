@@ -5,6 +5,11 @@ import os
 from typing import Dict
 
 FEATURES: Dict[str, Dict] = {
+    "ref_beats_tool": {
+        "label": "Công cụ CLI tạo dải ảnh và mẫu nhịp video ref cục bộ",
+        "verified": False,
+        "why": "ĐỢT 6 việc 2 (11/10): đã thử video tổng hợp; chưa thử ref sản xuất, chỉ bật tay cho CLI",
+    },
     "seedance_sample_mode": {
         "label": "Thử độ nét Seedance 2.5: 720p hoặc bản mẫu 480p → bản cuối 1080p; kết quả thử riêng",
         "verified": False,
