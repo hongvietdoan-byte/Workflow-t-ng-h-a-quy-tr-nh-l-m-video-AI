@@ -714,6 +714,20 @@ Luật chung GIỐNG đợt 1 + thêm: mỗi việc một nhánh `codex/d11-viec
 `core/end_frames.py`, `core/place_refs.py`, `core/scene_storyboard.py` và KHÔNG đọc/ghi `data/projects/24/` (#24 đang chạy trên sân khấu đó);
 không API tốn tiền (Director thật chỉ chạy khi người dùng duyệt báo giá). Hành vi mới sau cờ TẮT. Ghi kết quả vào "Kết quả Codex — đợt 11".
 
+**MÀN CAMERA (người dùng yêu cầu 11/10 tối, mẫu "Bàn đạo diễn" của Clip AI — `docs/CLIPAI_FEATURES.md` mục "Bàn đạo diễn": giao diện 3D đặt
+camera/nhân vật, "Góc nhìn đạo diễn" / "Góc nhìn camera"):** mỗi cảnh phải có màn cho thấy máy quay ĐANG QUAY THẾ NÀO và chỉnh được máy đó:
+- **Hai góc nhìn chuyển qua lại:** "Góc nhìn đạo diễn" (toàn sân khấu nhìn từ trên/xiên, thấy vị trí máy + hình nón tầm nhìn + nhân vật + khối)
+  và "Góc nhìn camera" (đúng khung hình máy thấy: ảnh clay/nền 3D render từ máy, khung tỉ lệ dự án 9:16/16:9, vạch vùng an toàn, nhãn cỡ cảnh,
+  đường chân trời, vị trí mắt nhân vật theo % khung — dùng `core/plate_camera.py` `camera_for`/`project`/`horizon_y`/`vfov`).
+- **Chỉnh máy:** vị trí (kéo trên góc nhìn đạo diễn hoặc nhập mét/tên ô), cao, hướng (yaw), ngửa/cúi (pitch), tiêu cự / cỡ cảnh (WS/MS/MCU/CU…),
+  góc (ngang mắt / thấp / cao / qua vai / POV); chuyển động máy đầu → cuối (`camera_move`: đẩy, kéo, lia, theo…) có điểm đầu/điểm cuối và xem
+  lại cả đường đi. Mỗi lần chỉnh: kiểm số ngay bằng luật sẵn có (`plate_camera` clearance/khoảng cách tối thiểu/máy thấp không ngửa quá,
+  `stage_facts` nhìn thấy gì, chân trời, che khuất) → ĐỎ/VÀNG có nút sửa; xem trước góc nhìn camera clay 0 USD.
+- **Mặc định Đạo diễn/bộ giải đặt máy sẵn** (theo NGUYÊN TẮC trên); người dùng chỉ chỉnh khi thấy sai; chỉnh tay khóa lại, lan đề xuất như vị trí
+  nhân vật. Đổi máy của cảnh đã có ảnh duyệt → VÀNG "ảnh cần vẽ lại", không tự gen.
+- Tùy chọn sau (ghi vào thiết kế, chưa làm): quay "video white model" theo đường máy làm video tham chiếu chuyển động (như Previs Stage của
+  Seedance), dùng Blender của dự án — báo giá 0 USD, chỉ tốn máy.
+
 ## Việc 1 — Thiết kế + mockup Trình sửa sân khấu (tài liệu + HTML; làm ngay)
 1. `docs/THIET_KE_BAN_DUNG_3D_D11.md` (theo NGUYÊN TẮC trên — Đạo diễn dựng sẵn, người dùng chỉ chỉnh từng cảnh): luồng người dùng trên Dashboard (bước 1, cạnh "Đạo diễn"): lật xem từng cảnh đã dựng sẵn (nhìn từ trên + góc máy, so cảnh trước); khi cần chỉnh
    → kéo/nhập vị trí nhân vật (mét, theo tên ô lưới), hướng mặt, tư thế theo nhịp (đầu/đỉnh/cuối của BYĐ) → kéo/nhập máy (vị trí, cao, hướng,
@@ -723,12 +737,13 @@ không API tốn tiền (Director thật chỉ chạy khi người dùng duyệt
    dùng bằng CLI), chỗ nối với `tools/stage_grid.py` (gọi lại hàm có sẵn, không viết bộ giải mới), quyền (đồng nghiệp sửa bản sao dự án; Kho
    chung chỉ Owner), cách Tiểu Nhị gọi lại đúng chức năng này. Chấm tần suất × công sức (lỗi #24 11/10: vị trí sau động tác di chuyển 0,25 m
    → 1,25 m, bố cục shot đã duyệt bị đổi).
-2. Mockup `mockup/ban_dung_3d.html` (offline): mở sẵn danh sách cảnh Đạo diễn đã dựng (lật trước/sau, so cảnh trước); chế độ chỉnh MỘT cảnh gồm bản đồ lưới (dùng đúng tên ô K11 = gốc O như `stage_grid.cell_name`), nhân vật + máy kéo được,
+2. Mockup `mockup/ban_dung_3d.html` (offline) — có MÀN CAMERA đủ như trên (nút chuyển "Góc nhìn đạo diễn" ↔ "Góc nhìn camera", chỉnh vị trí/cao/hướng/ngửa/tiêu cự/cỡ cảnh/chuyển động máy, kiểm số + xem trước khung), mở sẵn danh sách cảnh Đạo diễn đã dựng (lật trước/sau, so cảnh trước); chế độ chỉnh MỘT cảnh gồm bản đồ lưới (dùng đúng tên ô K11 = gốc O như `stage_grid.cell_name`), nhân vật + máy kéo được,
    ô nhập số, thanh nhịp đầu/đỉnh/cuối, bảng kiểm ĐỎ/VÀNG có nút sửa ngay, khung "xem trước clay", danh sách cảnh sau bị ảnh hưởng với nút chấp nhận / bỏ từng cảnh (cảnh đã duyệt chỉ báo, không tự đổi). Dựng theo ca #24
    (giếng, yêu nữ bò ra cách thành 1,25 m, Kelly lùi). Kiểm Playwright 1440 và 1280: 0 lỗi console, không cuộn ngang; test grep/JS nhẹ
    (khai `devsys/areas.json` khu `dashboard_ui`, không tăng version).
 
 ## Việc 2 — Tấm duyệt đủ góc clay + Đạo diễn khai sơ đồ khối (code sau cờ; render kiểm trên máy chính có Blender)
+0. **Render "góc nhìn camera" clay từng cảnh** (0 USD, Blender cục bộ, dùng camera của `core/plate_camera.camera_for` như render nền hiện có) cho màn camera; không Blender → khung vẽ 2D chiếu từ `project` + lý do.
 1. **Góc clay:** từ plan khối đã kiểm (`core/blockout.py` `to_props`), dựng Blender bằng `tools/render_plates.py` `add_props` + `core/whitebox.py`
    (KHÔNG bộ dựng mới), render 2–3 góc clay có nhãn khối; ghép cùng tấm nhìn từ trên (`blockout_sheet.render_top_view`) + ảnh tham chiếu
    bối cảnh (nếu có) thành MỘT tấm duyệt (mục 12b.2). Blender không có / lỗi → tấm chỉ có nhìn từ trên + dòng "chưa render góc clay: <lý do>",
@@ -742,7 +757,7 @@ không API tốn tiền (Director thật chỉ chạy khi người dùng duyệt
    bắt. Ghi rõ phần nào cần chạy thật trên máy chính (Blender, ảnh Kho thật) — phiên rà Codex chuyển qua hộp thư.
 
 ## Việc 3 — Trình sửa sân khấu thật trên Dashboard (SAU khi #24 xong — chỉ bắt đầu khi hộp thư có dòng phiên máy chính báo #24 xong)
-Theo thiết kế việc 1 đã duyệt: màn trên Dashboard sau cờ `stage_editor` TẮT; đọc/ghi bản sao sân khấu của dự án qua hàm có sẵn của
+Theo thiết kế việc 1 đã duyệt (gồm MÀN CAMERA: hai góc nhìn, chỉnh máy, kiểm số, xem trước khung camera clay): màn trên Dashboard sau cờ `stage_editor` TẮT; đọc/ghi bản sao sân khấu của dự án qua hàm có sẵn của
 `tools/stage_grid.py` / `core/stage_*` (tách hàm thuần nếu cần, không đổi hành vi CLI); xem trước clay 0 USD một worker; lưu phiên bản + hoàn tác;
 `layout_drift` báo shot đã duyệt bị đổi; không tự gen ảnh. Test AppTest + Playwright (≤ 2 bấm để dời một nhân vật 1 m và xem lại kiểm số).
 Đề bài chi tiết có thể chỉnh sau khi người dùng duyệt thiết kế việc 1.
