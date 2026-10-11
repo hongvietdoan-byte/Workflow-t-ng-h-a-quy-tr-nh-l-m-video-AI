@@ -328,9 +328,6 @@ class RoundTests(Base):
         self.assertEqual(R.window(R.current(self.conn)), ("2026-09-30 00:00:00", None))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class SpentCacheMemoryDbTests(unittest.TestCase):
     """11/10 (hộp thư, phiên máy chính): test_project_reserve hỏng khi chạy cả bộ, qua khi chạy riêng. Nguồn: khóa đệm
@@ -351,3 +348,27 @@ class SpentCacheMemoryDbTests(unittest.TestCase):
         budget._SPENT_CACHE[(f"memory:{id(conn)}", None, cnt, last, pf)] = {"usd": 0.0, "images": 0, "unknown": [], "llm_usd": 0.0}
         self.assertAlmostEqual(budget.spent(conn)["usd"], real)      # câu trả lời "của kết nối cũ cùng id" không được dùng
         budget._SPENT_CACHE.clear()
+
+    def test_file_database_keeps_the_cache(self):
+        # đệm có từ 02/10 cho CSDL thật (thanh trên cùng hỏi 6 lần mỗi lần vẽ lại) — chỉ bỏ cho CSDL trong bộ nhớ
+        import tempfile
+        from core import budget, cost
+        from core.db import connect
+        with tempfile.TemporaryDirectory() as d:
+            conn = connect(os.path.join(d, "m.sqlite"))
+            try:
+                cost.record_usage(conn, None, "llm", "real", "claude-sonnet-5", "output", 100000, "token", stage="director")
+                budget._SPENT_CACHE.clear()
+                with mock.patch.object(budget, "_spent", wraps=budget._spent) as inner:
+                    first = budget.spent(conn)["usd"]
+                    self.assertEqual(budget.spent(conn)["usd"], first)
+                    self.assertEqual(inner.call_count, 1)
+                    cost.record_usage(conn, None, "llm", "real", "claude-sonnet-5", "output", 100000, "token", stage="director")
+                    self.assertGreater(budget.spent(conn)["usd"], first)
+                    self.assertEqual(inner.call_count, 2)
+            finally:
+                conn.close()
+                budget._SPENT_CACHE.clear()
+
+if __name__ == "__main__":
+    unittest.main()
