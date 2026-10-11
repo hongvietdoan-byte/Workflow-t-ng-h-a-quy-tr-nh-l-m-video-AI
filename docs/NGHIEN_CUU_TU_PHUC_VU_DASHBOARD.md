@@ -176,7 +176,7 @@ Ngưỡng pilot đề xuất: 100% ca được tiếp nhận/phân loại, ≥95
 
 ## E. Model, giá và context
 
-Tra tài liệu chính thức ngày 11/10/2026; giá có thể đổi trước triển khai. [Bảng giá Anthropic](https://platform.claude.com/docs/en/about-claude/pricing) hiện liệt kê giá USD/triệu token: Haiku 5.5 (input ≤100k) 0,10 vào/0,50 ra; Sonnet 5.5 2/10; Opus 5.5 4/20. Haiku trên ngưỡng 100k tính 0,50/2,50. Cache ghi 5 phút 1,25× input, 1 giờ 2×; cache hit Haiku 0,01, Sonnet 0,10, Opus 0,20. Đây là bảng tham khảo API, không phải giá gói chat hoặc bảng giá đã cấu hình trong dự án.
+Tra tài liệu chính thức ngày 11/10/2026; giá có thể đổi trước triển khai. [Bảng giá Anthropic](https://platform.claude.com/docs/en/about-claude/pricing) hiện liệt kê giá USD/triệu token: Haiku 5.5 (input ≤100k) 0,10 vào/0,50 ra; Sonnet 5.5 2/10; Opus 5.5 4/20. Haiku trên ngưỡng 100k tính 0,50/2,50. Cache ghi 5 phút 1,25× input, 1 giờ 2×; cache hit Haiku 0,01, Sonnet 0,20, Opus 0,20. Đây là bảng tham khảo API, không phải giá gói chat hoặc bảng giá đã cấu hình trong dự án.
 
 Routing đề xuất: lỗi có mã và cách sửa xác định → code/template không LLM; Haiku cho phân loại và giải thích ngắn; Sonnet cho nhiều shot/đề xuất tool có ảnh; Opus chỉ bảo trì phức tạp khi admin duyệt tăng model. Chọn ID cụ thể từ tài khoản/API lúc triển khai và ghim phiên bản nếu hỗ trợ, không hardcode tên hiển thị thành ID. Không tự nâng model khi hết trần hoặc lỗi; model không có quyền tự chọn khoản chi. So chất lượng trên bộ ca trước quyết định model sản xuất, không mặc định model đắt hơn sẽ chữa đúng hơn.
 

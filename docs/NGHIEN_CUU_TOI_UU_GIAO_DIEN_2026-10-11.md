@@ -20,7 +20,7 @@ Nguồn yêu cầu: `origin/ghi-chu-giao-dien-fatebreaker:docs/GHI_CHU_GIAO_DIEN
 
 - `dashboard/steps/step4.py:115–120` đã chia `ordered` thành **3 thẻ mỗi hàng**; ghi chú so FateBreaker nói một cột là mô tả bản trước.
 - `video_card_v2` từ dòng 488: tên/trạng thái, QC, readiness, model, quality, clip, giá, note, ô sửa, hai hàng nút. Nội dung thay đổi theo trạng thái/cờ/ghi chú.
-- `_clip_view` và `_takes_strip` trong cùng file đã có fragment/chip phiên bản; nên bổ sung trạng thái và “đang dùng”, không dựng một hệ phiên bản thứ hai.
+- `_clip_view` và `_take_view` trong cùng file đã có fragment/chip phiên bản; nên bổ sung trạng thái và “đang dùng”, không dựng một hệ phiên bản thứ hai.
 - `dashboard/design/screens/video.css`: video/ảnh cao tối đa 340 px; chiều cao toàn thẻ không cố định. `theme.css` có quy tắc chuyển 2 cột ở màn hẹp.
 
 Màn **1440×900**, zoom 100%, sidebar đóng là mốc đề xuất. Không chạy trình duyệt Dashboard theo đề bài, vì vậy **chưa có số cuộn pixel thật của Dashboard**. Không gọi các ước lượng dưới đây là kết quả đo browser:
@@ -63,7 +63,7 @@ Lộ trình ít rủi ro: giữ grid hiện tại → thêm nhãn phiên bản/g
 | Ưu tiên | Đề xuất · giá trị/công sức | File dự kiến | Rủi ro và kiểm |
 |---|---|---|---|
 | 1 | Gói gửi ảnh + vai, giá trị rất cao / vừa | `dashboard/steps/step4.py`, `dashboard/design/screens/video_ui.py` | K1a phải có trước; gắn đúng job thay vì đầu vào mới; test package thiếu/cũ, không gửi nhầm ảnh |
-| 2 | Phiên bản có trạng thái + đang dùng, cao / nhỏ | `dashboard/steps/step4.py` `_clip_view`, `_takes_strip` | Đang xem ≠ approved/selected; key va_/vkeep_ giữ; test rerun fragment và đổi scene |
+| 2 | Phiên bản có trạng thái + đang dùng, cao / nhỏ | `dashboard/steps/step4.py` `_clip_view`, `_take_view` | Đang xem ≠ approved/selected; key va_/vkeep_ giữ; test rerun fragment và đổi scene |
 | 3 | Kho Nguồn ↔ hồ sơ, cao / vừa | `dashboard/admin.py:asset_library_panel`, `dashboard/header.py` hộp thoại Kho | R1 không sửa tự động/không trả tiền tự động; dấu tiếng Việt/mã Kho; sửa dữ liệu cần backup và quyền |
 | 4 | Checklist 4 dòng + chi tiết, cao / nhỏ | `dashboard/readiness_ui.py`, `dashboard/design/screens/video_ui.py` | Không làm mất lỗi chặn/readiness; test trạng thái đỏ/vàng/chưa có số |
 | 5 | Workspace một shot + dải phim, cao / lớn | `dashboard/steps/step4.py`, `dashboard/design/screens/video.css`, `dashboard/design/theme.css` | Hồi quy widget key, responsive, focus, 9 shot; đo lại click/scroll/density; không mất gen hàng loạt |
