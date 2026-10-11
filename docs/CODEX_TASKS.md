@@ -602,4 +602,5 @@ token hết hạn, chỉ GET), logic chọn dáng/bong bóng từ snapshot giả
 
 ## Kết quả Codex — đợt 9
 
-(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+- Việc 1: `codex/d9-viec1-kho-phieu`, code `7356a9f`, bàn giao `963bf0b`; 27 test xanh sau 3 finding/11 hồi quy. Snapshot v1/cờ OFF; báo cáo RA_D9_VIEC1 trên nhánh tương ứng.
+- Việc 2: `codex/d9-viec2-trang-phieu`, dependency `d3cafd5` là cherry-pick code việc 1, code `636e382`; 3 đỏ ban đầu → 30 xanh; 5 finding sau rà sửa gom một vòng → **38 passed / 8,52s**. RÀ KỸ + root đọc sửa; RA_D9_VIEC2, ảnh/số đo docs/images/d9. Trang Phiếu CHỈ ĐỌC do thiếu server auth, cờ OFF giữ trang cũ; xem chi tiết 1 bấm/0 cuộn tới hàng/nút, link đúng phiếu. Quyết định ≤2 bấm chưa nghiệm thu, ghi UI/bulk/đổi trần hoãn tới auth thật. Chưa gọi từ Dashboard/cả bộ/gộp main. Tích hợp giữ hunk workaround merge của core/tickets.py và không cherry-pick dependency hai lần.
