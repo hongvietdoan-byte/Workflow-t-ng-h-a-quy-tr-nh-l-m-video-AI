@@ -16,9 +16,9 @@ from devsys.admin_auth import read_connection  # noqa: E402 — một nguồn đ
 def queue(conn, *, now=None, kind=None, project=None):
     out=tickets.list_tickets(conn)
     for t in out:
-        t['occurrences']=conn.execute("SELECT count(*) FROM ticket_events WHERE ticket_id=? AND transition IN ('open','merge')",(t['id'],)).fetchone()[0]
+        t['occurrences']=conn.execute("SELECT count(*) FROM ticket_events WHERE ticket_id=? AND (transition IN ('open','merge') OR transition IN ('closed->reopened','resolved->reopened'))",(t['id'],)).fetchone()[0]
     def priority(t):
-        if t['state']=='closed': return (4,t['due_at'],t['id'])
+        if t['state'] in tickets.DONE_STATES: return (4,t['due_at'],t['id'])
         blocked=bool(t['impact'].get('blocked_projects') or t['impact'].get('blocked_shots'))
         due=tickets.due_status(t,now)
         return (0 if blocked else 1 if due=='red' else 2 if due=='yellow' else 3,t['due_at'],t['id'])
@@ -49,7 +49,7 @@ def decide(conn,ident,decision,actor,reason,revision, *, new_due=None):
     elif decision=='Từ chối': target='rejected'
     elif decision=='Duyệt':
         path=tickets.ACTION_PATH if t['kind'] in ('budget','shared_asset') else tickets.CODE_PATH
-        target='closed' if t['state']=='rejected' else path[path.index(t['state'])+1] if t['state'] in path[:-1] else 'triaged'
+        target=next(iter(choices)) if t['state'] in ('blocked','waiting_info') else 'closed' if t['state']=='rejected' else path[path.index(t['state'])+1] if t['state'] in path[:-1] else 'triaged'
     else: raise tickets.TicketError('Quyết định không hợp lệ')
     if target not in choices: raise tickets.TicketError('Quyết định không hợp lệ ở trạng thái này')
     return tickets.transition(conn,ident,target,actor,reason,t['state'],expected_revision=revision)
@@ -58,6 +58,36 @@ def action(t):
     if t['kind']=='budget': return 'duyệt nâng trần'
     if t['kind']=='shared_asset': return 'duyệt sửa Kho'
     return 'duyệt gộp' if t['state']=='waiting_merge' else 'giao bảo trì'
+
+def consume_ticket_link(query, session, enabled):
+    """Chỉ dùng link khi mở trang; xóa tham số để lần đổi sidebar kế tiếp có hiệu lực."""
+    if enabled and query.get('ticket'):
+        session['ticket_focus'] = query.get('ticket')
+        del query['ticket']
+        return True
+    return False
+
+def due_text(t, now=None):
+    at = tickets._time(now)
+    due = tickets._time(t['due_at'])
+    hours = (due-at).total_seconds()/3600
+    detail = 'đã xong' if t['state'] in tickets.DONE_STATES else f"{'quá' if hours<=0 else 'còn'} {abs(hours):.1f} h"
+    return due.astimezone(tickets.VN_TIME).strftime('%d/%m %H:%M')+' (giờ VN) · '+detail
+
+def evidence_text(refs):
+    names={'job_ids':'job','sent_job_ids':'job đã gửi','diag_ids':'chẩn đoán','test_ids':'test','artifacts':'tệp bằng chứng','hashes':'mã hash'}
+    return '; '.join(names.get(k,str(k))+': '+', '.join(map(str,v if isinstance(v,list) else [v])) for k,v in refs.items()) or 'chưa có'
+
+def impact_text(t):
+    impact=t['impact']
+    parts=[]
+    for field,label in [('blocked_projects','chặn dự án'),('blocked_shots','chặn shot')]:
+        if impact.get(field): parts.append(label+' '+', '.join(map(str,impact[field])))
+    return ('; '.join(parts) or 'chưa ghi nhận chặn sản xuất')+'; tiền '+tickets.money_text(t)
+
+def cause_text(t):
+    cause=t['cause']
+    return ('đã xác nhận' if cause.get('confidence')=='confirmed' else 'đoán')+' — '+str(cause.get('summary') or 'chưa rõ')+'; bằng chứng: '+evidence_text(cause.get('evidence_refs') or t['evidence_refs'])
 
 def _apply(t, label, admin, reason, items):
     """Một quyết định của Owner: ghi qua service (CAS theo revision của LẦN VẼ có nút được bấm — khóa nút mang revision), rồi chuyển
@@ -107,7 +137,8 @@ def render():
     c1,c2=st.columns(2)
     kind=c1.selectbox('Loại',['Tất cả',*sorted(tickets.KINDS)],key='ticket_kind')
     project=c2.selectbox('Dự án',['Tất cả',*sorted({t['project_id'] for t in rows if t['project_id'] is not None})],key='ticket_project')
-    linked=st.query_params.get('ticket')
+    consume_ticket_link(st.query_params, st.session_state, True)
+    linked=st.session_state.get('ticket_focus')
     focus=st.session_state.get('ticket_focus') or linked
     shown=[t for t in rows if (kind=='Tất cả' or t['kind']==kind) and (project=='Tất cả' or t['project_id']==project)]
     target=next((t for t in rows if t['id']==linked),None)
@@ -116,12 +147,11 @@ def render():
         shown=[target]+[t for t in shown if t['id']!=linked]
         st.caption('Đang mở phiếu từ liên kết; phiếu này được giữ dù bộ lọc khác.')
     st.caption(f'{len(shown)} phiếu · một hàng cho mỗi fingerprint · không tự gửi tiền')
-    open_items=[t for t in shown if t['state']!='closed']
+    open_items=[t for t in shown if t['state'] not in tickets.DONE_STATES]
     for t in shown:
         due=tickets.due_status(t)
-        remain=(tickets._time(t['due_at'])-tickets._time()).total_seconds()/3600
-        money='chưa rõ' if t['impact'].get('money_unknown',True) else str(t['impact'].get('money_usd'))+' USD'
-        summary=f"{t['title']} · dự án {t['project_id']} / shot {t['impact'].get('blocked_shots') or t['scene_id'] or '—'} · tiền {money} · {'quá hạn' if remain<=0 else 'còn'} {abs(remain):.0f} h · {action(t)} · {t['occurrences']} lần"
+        money=tickets.money_text(t)
+        summary=f"{t['title']} · dự án {t['project_id']} / shot {t['impact'].get('blocked_shots') or t['scene_id'] or '—'} · tiền {money} · {due_text(t)} · {action(t)} · {t['occurrences']} lần"
         (st.error if due=='red' else st.warning if due=='yellow' else st.info)(summary)
         allowed=set(tickets.allowed_transitions(t)) if admin else set()
         usable={'Duyệt': bool(admin) and t['state']!='closed', 'Từ chối': 'rejected' in allowed,
@@ -137,9 +167,12 @@ def render():
                 _apply(t,label,admin,reason,open_items)
         with st.expander('Chi tiết: '+t['title'],expanded=t['id']==focus):
             st.write('Trạng thái: '+t['state']+' · người làm: '+str(t['assigned_to'] or 'chưa giao'))
-            st.write('Hạn: '+t['due_at']+' · hạn gốc: '+t['original_due_at'])
+            st.write('Hạn: '+due_text(t)+' · hạn gốc: '+tickets._time(t['original_due_at']).astimezone(tickets.VN_TIME).strftime('%d/%m %H:%M')+' (giờ VN)')
             st.write('Cần: '+str(t['requested_action'] or action(t)))
-            for name,field in [('Ảnh hưởng','impact'),('Nguyên nhân','cause'),('Gỡ tạm','workaround'),('Bằng chứng (job / mã test / hash)','evidence_refs'),('Kỹ thuật (file / test / nhánh / diff)','technical')]:
+            st.text('Ảnh hưởng: '+impact_text(t))
+            st.text('Nguyên nhân: '+cause_text(t))
+            st.text('Bằng chứng: '+evidence_text(t['evidence_refs']))
+            for name,field in [('Gỡ tạm','workaround'),('Kỹ thuật (file / test / nhánh / diff)','technical')]:
                 st.write(name); st.json(t[field])
             if t['kind']=='budget':
                 st.write('Nâng trần: trước / sau / trần dự án (USD)')
