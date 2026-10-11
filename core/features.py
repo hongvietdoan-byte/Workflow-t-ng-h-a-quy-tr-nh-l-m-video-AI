@@ -20,6 +20,8 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Đ8 việc 2: MAXIM KL/KELLY KL; cờ tắt giữ nguyên prompt, chưa thử thật",
     },
+    "support_tickets": {"label": "Kho phiếu Tiểu Nhị / Lão Đại", "verified": False,
+                        "why": "Đợt 9: chỉ thử CSDL tạm, chưa bật sản xuất"},
     "post_fx_render": {
         "label": "Hậu kỳ nhiễu sóng/glitch/nhấp nháy theo post_fx (ffmpeg, 0 USD)",
         "verified": False,

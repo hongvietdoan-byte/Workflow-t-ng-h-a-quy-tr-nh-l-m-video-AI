@@ -2,6 +2,27 @@ import os
 import sqlite3
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS support_tickets (
+    id TEXT PRIMARY KEY, title TEXT NOT NULL, kind TEXT NOT NULL,
+    error_type TEXT, taxonomy_revision TEXT NOT NULL, severity TEXT NOT NULL,
+    project_id INTEGER, scene_id INTEGER, job_id INTEGER,
+    fingerprint TEXT NOT NULL UNIQUE, source_actor TEXT NOT NULL,
+    created_at TEXT NOT NULL, due_at TEXT NOT NULL, original_due_at TEXT NOT NULL,
+    owner_actor TEXT, state TEXT NOT NULL, impact TEXT NOT NULL, cause TEXT NOT NULL,
+    requested_action TEXT, assigned_to TEXT, workaround TEXT NOT NULL,
+    evidence_refs TEXT NOT NULL, technical TEXT NOT NULL, verification TEXT NOT NULL,
+    resolution TEXT, closed_by TEXT, closed_at TEXT, revision INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS ticket_events (
+    event_id TEXT PRIMARY KEY, ticket_id TEXT NOT NULL REFERENCES support_tickets(id),
+    at TEXT NOT NULL, actor TEXT NOT NULL, transition TEXT NOT NULL,
+    before_hash TEXT, after_hash TEXT NOT NULL, reason TEXT NOT NULL, evidence_refs TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS ticket_events_no_update BEFORE UPDATE ON ticket_events
+BEGIN SELECT RAISE(ABORT, 'ticket_events append-only'); END;
+CREATE TRIGGER IF NOT EXISTS ticket_events_no_delete BEFORE DELETE ON ticket_events
+BEGIN SELECT RAISE(ABORT, 'ticket_events append-only'); END;
+
 CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
