@@ -44,6 +44,23 @@ class SeedanceRefTests(unittest.TestCase):
             real_png(shots.approved_image_path(self.p.conn, self.data, self.pid, sid))
         return VideoRunner(self.p, MockVideoProvider(polls_to_finish=1), self.data)
 
+    def test_runner_follower_cost_provenance(self):
+        from core import cost
+        vr = self._ready()
+        jid = self.p.create_job(self.ids[0], "video_gen")
+        self.assertEqual(vr.submit_pending(self.pid), 1)
+        self.assertFalse(cost.video_need(self.p.conn, self.ids[0])["needed"], "paid running task")
+        with mock.patch("core.seedance_refs.split", return_value={"cuts": [2.0] * (len(self.ids)-1)}), \
+                mock.patch("core.seedance_refs.split_notes", return_value=[]), \
+                mock.patch.object(vr, "_clean_edges"), mock.patch("core.shots.trim_clip"):
+            vr.poll_once(self.pid)
+        for sid in self.ids[1:]:
+            self.assertFalse(cost.video_need(self.p.conn, sid)["needed"])
+        sid = self.ids[1]
+        self.p.conn.execute("UPDATE motion_prompts SET motion_prompt='different motion' WHERE scene_id=?", (sid,))
+        self.p.conn.commit()
+        self.assertTrue(cost.video_need(self.p.conn, sid)["needed"])
+
     def test_a_group_every_shot_draws_its_own_picture(self):
         group = shots.group_of(self.p.conn, self.ids[1])
         self.assertEqual([r["id"] for r in group], self.ids)
@@ -253,7 +270,15 @@ class SeedanceRefTests(unittest.TestCase):
             self.skipTest("needs a group of 3")
         vr = self._ready()
         done = self.p.create_job(self.ids[0], "video_gen")         # the first shot keeps its clip
-        self.p.conn.execute("UPDATE jobs SET state='approved' WHERE id=?", (done,))
+        # Clip giữ lại phải có bằng chứng làm từ ảnh/motion hiện tại; state đơn lẻ
+        # không đủ để báo giá bỏ tiền của shot này (Đ8v3).
+        current = vr._stamp(self.p.job(done), vr._submit_args(self.p.job(done)))
+        from core import sent_package
+        source_path = shots.approved_image_path(self.p.conn, self.data, self.pid, self.ids[0])
+        self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (source_path, current["source_job_id"]))
+        proof = json.dumps({"refs": [{"path": source_path, "sha256": sent_package.sha256_of(source_path)}]})
+        self.p.conn.execute("UPDATE jobs SET state='approved', source_job_id=?, input_hash=?, sent_package=? WHERE id=?",
+                            (current["source_job_id"], current["input_hash"], proof, done))
         for sid in self.ids[1:]:                                   # the others had clips, now stale → remade
             old = self.p.create_job(sid, "video_gen")
             self.p.conn.execute("UPDATE jobs SET state='rejected' WHERE id=?", (old,))

@@ -545,6 +545,8 @@ báo giá cũ (`tests/` grep `estimate_run`, `model_router.plan`, `quality_tier`
 
 - Việc 1: `codex/d8-viec1-goi-gui-kem`, code `aabcf24`, bàn giao `549ca98`; 29 test xanh sau 4 finding/7 hồi quy. Cờ OFF, chưa nối runner/Dashboard. Báo cáo RA_D8_VIEC1 trên nhánh tương ứng.
 - Việc 2: `codex/d8-viec2-ky-thuat`, code `4d6956d`; 3 đỏ ban đầu → 65 xanh/1 xfail, rà OUTFIT bắt 1 P2 với 3 hồi quy đỏ → **68 passed, 1 xfail**. RÀ KỸ + root đọc sửa; báo cáo RA_D8_VIEC2 và RA_D8_END_FRAMES_MOC_KHO. Producer sân khấu v3 sinh finding VÀNG sau hai cờ OFF; OUTFIT không gửi được giữ khóa. End_frames không sửa. Chưa baseline bất biến gắn job/Dashboard/v2/v4, chưa thử thật/cả bộ/gộp main.
+- Việc 3: `codex/d8-viec3-bao-gia-video`, code `85a26db`; 3 đỏ ban đầu, 2 đỏ sau rà độc lập → 95 passed / 49,42s. Fixture 9 shot/3 refs: 0 clip/0 USD → 8 clip/5,51 USD. Shared predicate kiểm source/motion/SHA ảnh hiện tại; shared input_video_s, URL/UNC không probe. Thiếu proof có thể tính dư; ref unknown cảnh báo, chưa chứng minh trần. RA_D8_VIEC3_CODEX_2026-10-11.md.
+
 
 ---
 
@@ -707,6 +709,10 @@ Theo công thức chung:
 
 - Việc 1: `codex/d10-viec1-goi-gui-kem`, code `d1b325f`; 5+2 đỏ ban đầu →116 xanh; rà độc lập 1 TRUNG wearer suy ra ngoài cast, 1 đỏ → **119 passed /154,46s**. OUTFIT thay đúng wearer, giữ góc phụ; hash khóa ảnh, bắt base_refs, replan orphan VÀNG, dedup. RA_D10_VIEC1_CODEX_2026-10-12.md; root đọc fix+push nhánh, chưa thử thật/cả bộ/gộp main.
 - Việc 2: `codex/d10-viec2-ky-thuat`, code `440936f`; 6 đỏ ban đầu → 70 xanh/1 xfail; rà độc lập 1 P2 baseline partial, 2 đỏ → **73 passed / 1 xfailed / 5,72s**. V3 finding đề xuất chưa áp dụng kèm thư mục lượt; baseline explicit kiểm trước Claude; Lock OUTFIT chung tiêu chí, OFF giữ chuỗi. RA_D10_VIEC2_CODEX_2026-10-12.md. Thiếu camera baseline chưa kiểm trái/phải; chưa thử thật/cả bộ/gộp main. Root đọc fix, chỉ push nhánh; areas version giữ.
+- Việc 3 · nhánh `codex/d8-viec3-bao-gia-video` · code `10a8823`: báo giá follower/running, ref chưa rõ tính dư, nhóm đã gửi và giá nâng 0,5254 USD/s dọc. ĐỎ 6 ca rồi XANH; rà độc lập thêm 3 ca đỏ đã sửa; **129 test xanh / 58,90 s** (8 file), diff check xanh. Báo cáo `docs/RA_D10_VIEC3_CODEX_2026-10-12.md`. Bỏ qua project_budget chờ #24; provenance original/marked, cắt follower 1080p và nhóm lịch sử orphan còn mở. Không API/data thật/cả bộ/main.
+
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
 ---
 

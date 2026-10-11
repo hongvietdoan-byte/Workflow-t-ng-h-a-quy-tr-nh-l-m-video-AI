@@ -269,11 +269,12 @@ def clip_estimate(conn, scene_id: int, pricing: Optional[Dict] = None, seconds: 
     mp = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
     seconds = seconds or (mp["duration_sec"] if mp and mp["duration_sec"] else None) or shots.planned_seconds(conn, scene_id) or 5
     sec = effective_duration(canonical, family, seconds)
-    if choice.get("e1"):                        # F3 / E1: Seedance 2.0 720p (shot dễ) / nháp 2.5 480p — the ClipAI token formula
+    ref = video_reference_seconds(conn, scene_id, choice) if family == "seedance" else {"seconds": 0.0, "warnings": []}
+    if choice.get("e1") or (family == "seedance" and ref["seconds"] > 0):
         from . import formats
         proj = conn.execute("SELECT p.* FROM projects p JOIN scenes s ON s.project_id=p.id WHERE s.id=?", (scene_id,)).fetchone()
         usd = seedance_estimate(canonical, choice.get("resolution") or "720p",
-                                formats.spec(formats.project_aspect(proj))["clip"] if proj is not None else "16:9", sec)
+                                formats.spec(formats.project_aspect(proj))["clip"] if proj is not None else "16:9", sec, ref["seconds"])
         if usd is not None:
             return usd
     exact = clip_price(pricing, canonical, tier, sec)
@@ -565,6 +566,112 @@ def cache_stats(conn, project_id: Optional[int] = None) -> List[Dict]:
     return out
 
 
+def video_need(conn, scene_id: int) -> Dict:
+    """Báo giá chỉ bỏ clip khi có bằng chứng khớp ảnh duyệt và motion hiện tại.
+    Stamp runner ghi trước khi bọc prompt; không dựng lại prompt hay gọi provider.
+    Không dùng quy ước legacy 'hash NULL vẫn mới' của màn lineage cho tiền.
+    """
+    from . import memo
+    return memo.cached(conn, ("cost.video_need", scene_id), lambda: _video_need(conn, scene_id))
+
+
+def _video_need(conn, scene_id: int) -> Dict:
+    from . import formats, lineage, shots
+    running = conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state='running' AND external_id IS NOT NULL AND external_id!='' LIMIT 1", (scene_id,)).fetchone()
+    if running:
+        return {"needed": False, "reason": "clip đang chạy ở nhà cung cấp, đã gửi tiền"}
+    for paid in conn.execute("SELECT sent_group FROM jobs WHERE type='video_gen' AND state='running' AND external_id IS NOT NULL AND external_id!='' AND sent_group IS NOT NULL"):
+        try:
+            if any(int(r["id"]) == scene_id for r in json.loads(paid["sent_group"] or "[]")):
+                return {"needed": False, "reason": "shot trong clip nhóm đang chạy, đã gửi tiền"}
+        except (ValueError, TypeError, KeyError):
+            pass
+    scene = conn.execute("SELECT * FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (scene["project_id"],)).fetchone()
+    image = lineage.approved_image_id(conn, shots.image_scene(conn, scene_id))
+    mp = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+    reason = "chưa có clip hoàn thành khớp đầu vào hiện tại"
+    if not image or mp is None:
+        return {"needed": True, "reason": "thiếu ảnh duyệt hoặc motion hiện tại"}
+    if mp["image_job_id"] and mp["image_job_id"] != image:
+        return {"needed": True, "reason": "motion làm từ ảnh cũ"}
+    data = json.loads(scene["data"] or "{}")
+    if mp["spec_hash"] and mp["spec_hash"] != lineage.motion_spec_hash(data):
+        return {"needed": True, "reason": "motion chưa cập nhật theo nội dung shot"}
+    for job in conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN ('succeeded','approved','pending_review') ORDER BY id DESC", (scene_id,)):
+        if not job["source_job_id"] or not job["input_hash"]:
+            reason = "clip thiếu bằng chứng ảnh / motion (source_job_id hoặc input_hash)"
+            continue
+        if job["source_job_id"] != image:
+            reason = "clip làm từ ảnh cũ"
+            continue
+        if not lineage.video_hash_ok(job["input_hash"], mp, formats.project_aspect(proj), lineage._video_model(conn, scene_id, proj, mp), lineage._audio(proj)):
+            reason = "clip làm từ motion / thời lượng / model / âm thanh cũ"
+            continue
+        # Follower giữ stamp ảnh/motion riêng do runner ghi, gói gửi là gói của leader.
+        if job["group_leader"]:
+            leader = conn.execute("SELECT sent_group, external_id, state FROM jobs WHERE id=?", (job["group_leader"],)).fetchone()
+            try:
+                members = json.loads(leader["sent_group"] or "[]") if leader else []
+                if (leader and leader["state"] in ("succeeded", "approved", "pending_review")
+                        and leader["external_id"] == job["external_id"]
+                        and any(int(r["id"]) == scene_id for r in members)):
+                    return {"needed": False, "reason": None}
+            except (ValueError, TypeError, KeyError):
+                pass
+        from . import sent_package
+        image_row = conn.execute("SELECT result_path FROM jobs WHERE id=?", (image,)).fetchone()
+        path = image_row["result_path"] if image_row else None
+        if path and not os.path.isabs(path):
+            path = os.path.join(os.path.dirname(os.path.dirname(__file__)), path)
+        try:
+            package = json.loads(job["sent_package"] or "{}")
+            refs = package.get("refs") or []
+            current_sha = sent_package.sha256_of(path) if path else None
+            matches = [r for r in refs if isinstance(r, dict) and r.get("path") and
+                       os.path.normcase(os.path.abspath(r["path"] if os.path.isabs(r["path"]) else
+                         os.path.join(os.path.dirname(os.path.dirname(__file__)), r["path"]))) == os.path.normcase(os.path.abspath(path or ""))]
+            proven = current_sha and any(r.get("sha256") == current_sha for r in matches)
+        except (OSError, ValueError, TypeError, AttributeError):
+            proven = False
+        if not proven:
+            reason = ("clip nối từ khung cuối shot trước (start_from_prev_clip), thiếu bằng chứng khung nối hiện tại"
+                      if data.get("start_from_prev_clip") else "clip thiếu bằng chứng SHA ảnh duyệt hiện tại hoặc ảnh đã thay đổi")
+            continue
+        return {"needed": False, "reason": None}
+    return {"needed": True, "reason": reason}
+
+
+UNKNOWN_REF_SECONDS = 15.0  # trần video ref Seedance của adapter; không probe URL/UNC
+
+
+def video_reference_seconds(conn, scene_id: int, choice=None) -> Dict:
+    """Thời lượng refs thực gửi, probe ffmpeg cục bộ (0 USD), đường tương đối theo gốc repo."""
+    from . import memo
+    return memo.cached(conn, ("cost.video_reference_seconds", scene_id, bool(choice and choice.get("skill"))),
+                       lambda: _video_reference_seconds(conn, scene_id, choice))
+
+
+def _video_reference_seconds(conn, scene_id: int, choice=None) -> Dict:
+    from . import ffmpeg_studio, skill_dossier
+    mp = conn.execute("SELECT ref_video_path FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+    refs = [mp["ref_video_path"]] if mp is not None and mp["ref_video_path"] else []
+    if choice and choice.get("skill"):
+        row = conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+        refs = [skill_dossier.video_ref(h) for h in skill_dossier.shot_skills(json.loads(row["data"] or "{}"))]
+    total, warnings = 0.0, []
+    for ref in refs:
+        path = ref if ref and os.path.isabs(ref) else os.path.join(os.path.dirname(os.path.dirname(__file__)), ref or "")
+        local = bool(ref) and "://" not in str(ref) and not str(ref).startswith(("\\\\", "//"))
+        duration = ffmpeg_studio.probe_duration(path) if local and os.path.isfile(path) else None
+        if duration is None or duration <= 0:
+            warnings.append(f"shot {scene_id}: chưa biết thời lượng video tham chiếu — tính dư 15 s/ref")
+            total += UNKNOWN_REF_SECONDS
+        else:
+            total += float(duration)
+    return {"seconds": total, "warnings": warnings}
+
+
 def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = None) -> Dict:
     """What the automatic run will pay for, before the start button: pictures (+ end frames), clips (each shot's model, lip-sync
     shots on Seedance included), Claude (Director, QC, motion) — base and worst case with the retries. Unknown prices are listed,
@@ -586,9 +693,13 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
         unknown.append(f"ảnh {img_model}")
         img_usd = None if img.get("unit_over") is None else img["unit_over"] * img["items"]
     rows = model_router.plan(conn, project_id, pricing)
-    made = {r["scene_id"] for r in conn.execute("SELECT scene_id FROM jobs WHERE project_id=? AND type='video_gen' AND state IN"
-                                                " ('succeeded','approved','running','queued','pending_review')", (project_id,))}
-    todo = [r for r in rows if r["scene_id"] not in made]
+    needs = {r["scene_id"]: video_need(conn, r["scene_id"]) for r in rows}
+    todo = [r for r in rows if needs[r["scene_id"]]["needed"]]
+    warnings = [f"shot {sid}: {v['reason']}" for sid, v in needs.items() if v["needed"] and conn.execute(
+        "SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN ('succeeded','approved','pending_review') LIMIT 1", (sid,)).fetchone()]
+    for r in todo:
+        warnings.extend(r.get("warnings") or [])
+        unknown.extend(r.get("warnings") or [])
     vid_usd = 0.0
     for r in todo:
         if r["cost"] is None:
@@ -599,6 +710,7 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
             vid_usd += r["cost"]
     from . import quality_tier                    # 08/10 (#24): flag two_tier_quality → nháp 480p + bản cao, priced like the real run
     two_tier = quality_tier.run_estimate(conn, project_id, todo, pricing)
+    unknown.extend(two_tier.get("unknown") or [])
     vid_usd += two_tier["usd"]
     from . import lipsync
     if lipsync.enabled() and lipsync.post_available():   # post lip sync (sync.so) of the finished clips; "generate" shots are in the
@@ -642,7 +754,7 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     llm_left = b["llm_left"] if b and b["llm_usd"] > 0 else None
     return {"images": img_usd, "videos": round(vid_usd, 2), "llm": round(llm_usd, 2), "total": round(base, 2), "max": round(worst, 2),
             "rewrite": round(rewrite, 3), "trainee": round(trainee_usd, 2),
-            "llm_left": llm_left, "unknown": sorted(set(unknown)), "counts": {"images": img["items"], "end_frames": img.get("end_frames", 0),
+            "llm_left": llm_left, "warnings": warnings, "unknown": sorted(set(unknown)), "counts": {"images": img["items"], "end_frames": img.get("end_frames", 0),
                                                         "clips": len(todo), "seconds": sum(r["billed_seconds"] for r in todo),
                                                         "drafts": two_tier["drafts"], "finals_1080": two_tier["finals_1080"]}}
 
@@ -658,6 +770,8 @@ def format_run_estimate(est: Dict) -> str:
             + " (đã cộng 30 % dự phòng)")
     if est.get("trainee"):
         text += f" · trong đó Tổ QC ≈ {est['trainee']:.2f} USD (học việc)"
+    if est.get("warnings"):
+        text += " · ⚠ " + "; ".join(est["warnings"])
     if est.get("llm_left") is not None:
         text += f" · trần Claude còn ≈ {est['llm_left']:.2f}" + (" ⚠ KHÔNG ĐỦ — sẽ vượt mức dự tính (chỉ cảnh báo, vẫn chạy)"
                                                                  if est["llm"] > est["llm_left"] else "")
@@ -757,6 +871,19 @@ def record_usage(conn: sqlite3.Connection, job_id: Optional[int], kind: str, pro
                  quantity: float, unit: str, project_id: Optional[int] = None, stage: Optional[str] = None) -> None:
     """One billed-looking submission. Job-based usage (image/video) derives the project from the job;
     audio has no job, so pass `project_id`. `stage`: what a Claude call was for (director, qc, motion, asset_vision…)."""
+    # Nâng từ task nháp tính tiền theo clip gốc, không theo motion vừa sửa / phần leader đã cắt.
+    if kind == "video" and unit == "second" and job_id is not None:
+        row = conn.execute("SELECT quality_tier, draft_job_id, sent_package FROM jobs WHERE id=?", (job_id,)).fetchone()
+        try:
+            upgraded = row and json.loads(row["sent_package"] or "{}").get("call") == "submit_final_from_sample"
+        except (ValueError, TypeError, AttributeError):
+            upgraded = False
+        if row and row["quality_tier"] == "final" and row["draft_job_id"] and upgraded:
+            from . import quality_tier
+            draft = conn.execute("SELECT * FROM jobs WHERE id=?", (row["draft_job_id"],)).fetchone()
+            measured = quality_tier.draft_seconds(conn, draft)
+            if measured:
+                quantity = measured
     if project_id is None and job_id is not None:
         row = conn.execute("SELECT project_id FROM jobs WHERE id=?", (job_id,)).fetchone()
         project_id = row["project_id"] if row else None
