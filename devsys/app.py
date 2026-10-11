@@ -224,10 +224,10 @@ def _review_gate_card():
         st.warning(report["error"])
         return
     latest = report["rows"][-1]
-    score_text = lambda v: "không đọc được" if v is None else f"{v:g}/10"
+    score_text = review_gate.score_text
     st.markdown(f"**Lần {latest['round']} · {latest['status']}** · kế hoạch {score_text(latest['plan'])} · "
-                f"build {score_text(latest['build'])} · cổng ≥ {review_gate.THRESHOLD:g}/10")
-    st.caption(f"Lỗ hổng theo bản thẩm định: {latest['holes']} · phần đã sửa cần lần thẩm định tiếp xác nhận" if latest["holes"] is not None else "không đọc được số lỗ hổng còn lại")
+                f"build {score_text(latest['build'])} · cổng ≥ {score_text(review_gate.THRESHOLD)}")
+    st.caption(review_gate.holes_text(latest))
     points = [{"Lần": r["round"], "Loại": label, "Điểm": r[key]} for r in report["rows"]
               for key, label in (("plan", "Kế hoạch"), ("build", "Build")) if r[key] is not None]
     if points:
@@ -239,7 +239,9 @@ def _review_gate_card():
     st.dataframe([{"Lần": r["round"], "Kế hoạch": score_text(r["plan"]), "Build": score_text(r["build"]),
                    "Kết luận": r["status"], "Không đọc được": "; ".join(r["errors"])} for r in report["rows"]],
                  hide_index=True, width="stretch")
-    st.caption("Lần 1–2 chưa ghi điểm build; không điền 0. Build lần 3 là phạm vi K0a theo nguồn, chưa đại diện toàn pipeline.")
+    note = review_gate.build_note(report["rows"])
+    if note:
+        st.caption(note)
 
 
 def page_overview():
@@ -1046,14 +1048,19 @@ def page_flow():
     st.title("Hiệu quả quy trình — token mỗi nhánh của vòng làm việc nhiều phiên")
     st.caption("Số đo mỗi nhánh đã gộp (phiên làm / rà / sửa, lỗi rà bắt) từ `devsys/workflow_runs.jsonl` trong git. Ghi sau mỗi nhánh gộp: "
                "`python -m devsys.workflow add S14.x|K0b-TD5|CX-d2-1 --mode goi|usd|cloud --review ky|nhe --work …`. Miễn phí.")
+    skipped = []
     try:
-        rows = workflow.load()
+        all_rows = workflow.load(skipped=skipped)
     except (workflow.WorkflowError, OSError, UnicodeError) as e:
         st.error(f"File số đo hỏng: {e}")
         return
-    kinds = sorted({workflow.task_kind(r.get("task")) for r in rows})
+    if skipped:
+        st.warning(f"{len(skipped)} dòng trong `devsys/workflow_runs.jsonl` bị LOẠI khỏi thống kê (mã việc lạ) — sửa mã rồi chạy lại "
+                   "(lệnh ghi `add` / `import-plan` vẫn từ chối tới khi sửa):\n\n"
+                   + "\n".join(f"- dòng {s['line']}: {s['reason']}" for s in skipped))
+    kinds = sorted({workflow.task_kind(r.get("task")) for r in all_rows})
     selected = st.multiselect("Lọc loại mã", kinds, default=kinds, format_func=lambda k: workflow.KIND_LABEL[k], key="flow_task_kinds")
-    rows = [r for r in rows if workflow.task_kind(r.get("task")) in selected]
+    rows = [r for r in all_rows if workflow.task_kind(r.get("task")) in selected]
     try:
         with open(plan_progress.PLAN_FILE, encoding="utf-8") as f:
             got = workflow.parse_plan(f.read())
@@ -1063,8 +1070,7 @@ def page_flow():
     if got["bad"]:
         st.warning("Dòng 'Số đo:' trong kế hoạch KHÔNG đọc được (sửa lại cho đúng dạng 'làm ≈ 200k + sửa ≈ 50k, rà ≈ 100k, rà bắt 3'):\n\n"
                    + "\n".join(f"- {b}" for b in got["bad"]))
-    have = {(r.get("task"), r.get("part") or "") for r in rows}
-    missing = [r for r in got["runs"] if (r["task"], r.get("part") or "") not in have]
+    missing = workflow.plan_missing(all_rows, got["runs"])  # toàn bộ file, không theo bộ lọc loại mã
     if missing:
         st.info(f"{len(missing)} nhánh có 'Số đo:' trong kế hoạch nhưng chưa có trong file: "
                 + ", ".join(r["task"] + (" " + r["part"] if r.get("part") else "") for r in missing) + " — `python -m devsys.workflow import-plan --write`")

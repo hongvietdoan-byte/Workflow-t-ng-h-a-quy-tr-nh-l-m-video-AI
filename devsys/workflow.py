@@ -55,7 +55,10 @@ def runs_file() -> str:
 
 
 # ---- đọc / ghi ----------------------------------------------------------------------------------------------------------
-def load(path: Optional[str] = None) -> List[Dict]:
+def load(path: Optional[str] = None, skipped: Optional[List[Dict]] = None) -> List[Dict]:
+    """Đọc file số đo. Mặc định NGHIÊM (đường ghi add/import-plan: dòng mã lạ → WorkflowError, không ghi đè làm mất dòng).
+    Trang xem truyền `skipped=[]`: dòng có mã việc lạ bị loại khỏi thống kê và được thêm vào `skipped`
+    ({line, task, reason}) để trang hiện cảnh báo — không im lặng. JSON hỏng / thiếu 'task' vẫn dừng."""
     path = path or runs_file()
     if not os.path.exists(path):
         return []
@@ -71,9 +74,20 @@ def load(path: Optional[str] = None) -> List[Dict]:
             if not isinstance(rec, dict) or not rec.get("task"):
                 raise WorkflowError(f"{path} dòng {n} thiếu mã việc 'task'")
             if task_kind(rec["task"]) is None:
-                raise WorkflowError(f"{path} dòng {n}: mã việc '{rec['task']}' không đúng dạng S14.45 / K0b-TD5 / CX-d2-1")
+                reason = f"mã việc '{rec['task']}' không đúng dạng S14.45 / K0b-TD5 / CX-d2-1"
+                if skipped is None:
+                    raise WorkflowError(f"{path} dòng {n}: {reason}")
+                skipped.append({"line": n, "task": rec["task"], "reason": reason})
+                continue
             rows.append(rec)
     return rows
+
+
+def plan_missing(rows: List[Dict], plan_runs: List[Dict]) -> List[Dict]:
+    """Nhánh có 'Số đo:' trong kế hoạch mà file chưa có. `rows` phải là TOÀN BỘ file (trước bộ lọc loại mã của trang),
+    không thì bỏ chọn một loại sẽ báo sai mọi nhánh loại đó là 'chưa có'."""
+    have = {_key(r) for r in rows}
+    return [r for r in plan_runs if _key(r) not in have]
 
 
 def _write(rows: List[Dict], path: str) -> None:
