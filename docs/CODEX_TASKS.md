@@ -696,6 +696,15 @@ Theo công thức chung:
 
 # ĐỢT 11 — Bàn dựng đạo diễn 3D: tấm duyệt đủ góc, Đạo diễn khai sơ đồ khối, Trình sửa sân khấu (người dùng duyệt 11/10 tối)
 
+**NGUYÊN TẮC (người dùng chốt 11/10 tối): sân khấu do ĐẠO DIỄN (AI) DỰNG SẴN tự động cho mọi cảnh, nối theo các cảnh trước; người dùng KHÔNG dựng
+từ đầu — chỉ xem và CHỈNH từng cảnh khi cần.** Hệ quả cho cả đợt:
+- Mặc định: Đạo diễn khai sơ đồ khối + chỗ đứng/tư thế theo nhịp (đầu/đỉnh/cuối) cho TỪNG cảnh, kế thừa vị trí cuối của cảnh trước (liên tục) →
+  code kiểm số + bộ giải tự đặt máy → tấm duyệt từng cảnh sẵn để xem. Người dùng không phải thao tác gì nếu không thấy sai.
+- Trình sửa là công cụ CHỈNH MỘT CẢNH: mở đúng cảnh, sửa vị trí/tư thế/máy của cảnh đó; code tính lại và ĐỀ XUẤT lan sang các cảnh sau bị ảnh hưởng
+  (vị trí cuối cảnh này = đầu cảnh sau) — người dùng chấp nhận / bỏ từng cảnh; cảnh ĐÃ DUYỆT không tự đổi (chỉ báo `layout_drift`).
+- Chỉnh tay của người dùng được giữ khi Đạo diễn dựng lại (như khóa `_user_locked`), Đạo diễn nhận chỉnh đó làm ràng buộc cho các cảnh sau.
+- Ưu tiên tối ưu: xem nhanh từng cảnh (lật cảnh trước/sau, so với cảnh trước) và sửa ít bấm; KHÔNG làm công cụ dựng sân khấu tự do từ đầu.
+
 Đầu vào: `docs/PHUONG_PHAP_SAN_KHAU_3D.md` mục 2 (lưới), 12b (Nhánh C), 13 (hai chiều Director ↔ code), 14 (stage_facts); thiết kế "Trình sửa
 sân khấu" ở `docs/NGHIEN_CUU_TU_PHUC_VU_DASHBOARD.md` (đoạn "Trình sửa sân khấu") + `docs/THIET_KE_TIEU_NHI_LAO_DAI_D7.md` mục 6 (thứ tự tính
 năng). Đã có trên main: `core/blockout.py` (kiểm số), `core/blockout_sheet.py` (tấm nhìn từ trên + gói `blockout` có người duyệt/SHA; ảnh ví
@@ -706,7 +715,7 @@ Luật chung GIỐNG đợt 1 + thêm: mỗi việc một nhánh `codex/d11-viec
 không API tốn tiền (Director thật chỉ chạy khi người dùng duyệt báo giá). Hành vi mới sau cờ TẮT. Ghi kết quả vào "Kết quả Codex — đợt 11".
 
 ## Việc 1 — Thiết kế + mockup Trình sửa sân khấu (tài liệu + HTML; làm ngay)
-1. `docs/THIET_KE_BAN_DUNG_3D_D11.md`: luồng người dùng trên Dashboard (bước 1, cạnh "Đạo diễn"): xem sân khấu nhìn từ trên + góc máy từng shot
+1. `docs/THIET_KE_BAN_DUNG_3D_D11.md` (theo NGUYÊN TẮC trên — Đạo diễn dựng sẵn, người dùng chỉ chỉnh từng cảnh): luồng người dùng trên Dashboard (bước 1, cạnh "Đạo diễn"): lật xem từng cảnh đã dựng sẵn (nhìn từ trên + góc máy, so cảnh trước); khi cần chỉnh
    → kéo/nhập vị trí nhân vật (mét, theo tên ô lưới), hướng mặt, tư thế theo nhịp (đầu/đỉnh/cuối của BYĐ) → kéo/nhập máy (vị trí, cao, hướng,
    tiêu cự) hoặc "giải máy" bằng bộ giải → kiểm số ngay (stage_facts, chồng lấn, nhìn thấy, `layout_drift` với shot ĐÃ DUYỆT) → xem trước 3D
    0 USD (render clay cục bộ, một worker, có hàng đợi) → lưu thành phiên bản mới của sân khấu (bản sao dự án, có hoàn tác, ai/lúc/lý do) →
@@ -714,8 +723,8 @@ không API tốn tiền (Director thật chỉ chạy khi người dùng duyệt
    dùng bằng CLI), chỗ nối với `tools/stage_grid.py` (gọi lại hàm có sẵn, không viết bộ giải mới), quyền (đồng nghiệp sửa bản sao dự án; Kho
    chung chỉ Owner), cách Tiểu Nhị gọi lại đúng chức năng này. Chấm tần suất × công sức (lỗi #24 11/10: vị trí sau động tác di chuyển 0,25 m
    → 1,25 m, bố cục shot đã duyệt bị đổi).
-2. Mockup `mockup/ban_dung_3d.html` (offline): bản đồ lưới (dùng đúng tên ô K11 = gốc O như `stage_grid.cell_name`), nhân vật + máy kéo được,
-   ô nhập số, thanh nhịp đầu/đỉnh/cuối, bảng kiểm ĐỎ/VÀNG có nút sửa ngay, khung "xem trước clay", danh sách shot bị ảnh hưởng. Dựng theo ca #24
+2. Mockup `mockup/ban_dung_3d.html` (offline): mở sẵn danh sách cảnh Đạo diễn đã dựng (lật trước/sau, so cảnh trước); chế độ chỉnh MỘT cảnh gồm bản đồ lưới (dùng đúng tên ô K11 = gốc O như `stage_grid.cell_name`), nhân vật + máy kéo được,
+   ô nhập số, thanh nhịp đầu/đỉnh/cuối, bảng kiểm ĐỎ/VÀNG có nút sửa ngay, khung "xem trước clay", danh sách cảnh sau bị ảnh hưởng với nút chấp nhận / bỏ từng cảnh (cảnh đã duyệt chỉ báo, không tự đổi). Dựng theo ca #24
    (giếng, yêu nữ bò ra cách thành 1,25 m, Kelly lùi). Kiểm Playwright 1440 và 1280: 0 lỗi console, không cuộn ngang; test grep/JS nhẹ
    (khai `devsys/areas.json` khu `dashboard_ui`, không tăng version).
 
@@ -725,7 +734,7 @@ không API tốn tiền (Director thật chỉ chạy khi người dùng duyệt
    bối cảnh (nếu có) thành MỘT tấm duyệt (mục 12b.2). Blender không có / lỗi → tấm chỉ có nhìn từ trên + dòng "chưa render góc clay: <lý do>",
    không im lặng. Khối `tru`/`cot` vẽ tròn trên tấm nhìn từ trên (đang vẽ vuông). Cờ `blockout_clay_sheet` TẮT. Test: bpy giả / kiểm lệnh
    dựng (như `tests/test_plates_f2.py`); render thật ghi ảnh vào `docs/images/d11/` khi chạy trên máy chính.
-2. **Đạo diễn khai sơ đồ khối:** thêm phần khai `blockout` (JSON enum theo 12b.1, không văn tự do) vào prompt Đạo diễn liên quan
+2. **Đạo diễn khai sơ đồ khối (đường MẶC ĐỊNH dựng sẵn cho mọi cảnh, kế thừa vị trí cuối cảnh trước, tôn trọng chỉnh tay đã khóa):** thêm phần khai `blockout` (JSON enum theo 12b.1, không văn tự do) vào prompt Đạo diễn liên quan
    (`prompts/29_director_stage_specs.md` hoặc prompt mới), CHỈ khi cờ `director_blockout` BẬT — cờ tắt prompt giống từng byte. Code nhận → kiểm số
    (`core/blockout.py`) → lỗi gửi lại Đạo diễn ≤ 2 lượt (mục 13) → còn lỗi VÀNG có lý do. Ước tính chi phí trước mỗi lời gọi, qua sổ chi.
    Test bằng Claude giả (không gọi thật).
