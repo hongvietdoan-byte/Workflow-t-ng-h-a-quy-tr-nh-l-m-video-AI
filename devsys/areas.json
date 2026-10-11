@@ -1,5 +1,5 @@
 {
-  "version": 55,
+  "version": 56,
   "updated": "2026-10-08",
   "_note": "Bản đồ hệ thống của AI Development System. Mỗi file .py dưới core/ và dashboard/ phải thuộc ít nhất một khu vực (thiếu = cảnh báo). 'code' / 'assets' / 'docs' là mẫu đường dẫn (fnmatch, '*' khớp cả '/'). 'tests' thêm tay ngoài các test tự dò theo import. 'flags' = tên trong core/features.py. 'diag_stages' = stage của bảng diag_events. 'ops_stages' (S14.10 Đợt 6b) = khâu của góp ý người dùng / số đo hiệu quả vận hành (core/feedback.STAGES: director, image, motion, audio, render, ui). 'keywords' dùng để gán dòng TODO.md vào khu vực (không phân biệt hoa thường). Sửa file này khi thêm module mới rồi tăng 'version'.",
   "scan_roots": ["core", "dashboard"],
@@ -179,8 +179,8 @@
       "code": ["core/__init__.py", "core/db.py", "core/pipeline.py", "core/states.py", "core/providers.py", "core/runner.py", "core/bg_poll.py", "core/batch.py", "core/throttle.py", "core/lineage.py", "core/trash.py", "core/formats.py", "core/features.py", "core/trainee.py", "core/trainee_plans.py", "core/adapters/__init__.py", "core/adapters/http.py", "core/adapters/factory.py", "core/adapters/check.py", "core/adapters/inspect_api.py", "core/adapters/trial.py", "core/change_review.py", "core/package_overrides.py", "core/sent_package.py", "dashboard/serve.py"],
       "assets": ["mcp_servers/*", "tools/h5_setup_test.py"],
       "docs": ["docs/V0_SETUP.md", "docs/WORKFLOW_REVIEW.md"],
-      "tests": ["tests/test_mcp_servers.py", "tests/test_trainee.py", "tests/test_trainee_plans.py", "tests/test_change_review.py", "tests/test_package_overrides.py", "tests/test_sent_package.py", "tests/test_p24_lessons_1110.py", "tests/test_bg_poll_single_process.py"],
-      "flags": ["change_review", "layout_drift_review"],
+      "tests": ["tests/test_mcp_servers.py", "tests/test_trainee.py", "tests/test_trainee_plans.py", "tests/test_change_review.py", "tests/test_package_overrides.py", "tests/test_sent_package.py", "tests/test_p24_lessons_1110.py", "tests/test_bg_poll_single_process.py", "tests/test_auto_send_queued.py"],
+      "flags": ["change_review", "layout_drift_review", "auto_send_self_fix"],
       "diag_stages": ["system"],
       "keywords": ["runner", "job", "throttle", "lineage", "⚠ cũ", "features.py", "cờ", "adapter"]
     },

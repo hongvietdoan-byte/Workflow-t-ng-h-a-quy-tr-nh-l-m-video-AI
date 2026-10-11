@@ -903,7 +903,7 @@ không trừ điểm như sai. Đọc `core/qc_agent.py`, `core/qc_rules.py`, `c
 (vd `qc_measure`, `lock_exceptions` — chỉ ĐỌC). Ca vàng: dựng lại 678/680 từ mô tả (câu trả lời model giả) → bản cũ trừ điểm sai, bản mới qua. Test không
 gọi Claude thật.
 
-## Việc 2 — Job tự sửa (origin `auto`) kẹt `queued` khi không có chạy tự động (cờ `auto_send_self_fix` TẮT)
+## Việc 2 — ✅ PHIÊN RÀ CODEX ĐÃ LÀM (12/10 01:14, Codex BỎ QUA việc này) — Job tự sửa (origin `auto`) kẹt `queued` khi không có chạy tự động (cờ `auto_send_self_fix` TẮT)
 `core/bg_poll.py:73` bỏ qua mọi job `origin='auto'` (dành cho autopilot tự gửi). Nhưng job do QC tự sửa / gen lại (`core/regen.py`, `core/pipeline.py`…
 — tìm chỗ đặt `origin='auto'`) cũng mang `auto` khi KHÔNG có autopilot → không ai gửi, kẹt queued (#24 job 679/680 phải `submit_pending` tay). Sửa: phân
 biệt job của autopilot với job tự sửa ngoài autopilot (origin riêng, vd `self_fix`, hoặc bg_poll gửi `auto` khi dự án không có autopilot đang chạy/xếp

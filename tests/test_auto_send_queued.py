@@ -150,5 +150,63 @@ class AutoSendTests(unittest.TestCase):
         R.WAIT_REASONS.pop(other, None)
 
 
+class SelfFixSendTests(unittest.TestCase):
+    """Hộp thư 12/10 00:55 (#24 job 679/680): QC tự sửa tạo job origin 'auto' ngoài chạy tự động → không ai gửi, kẹt queued."""
+    setUp, tearDown, job, make = AutoSendTests.setUp, AutoSendTests.tearDown, AutoSendTests.job, AutoSendTests.make
+
+    def retry(self, pid=None, idx=5):
+        parent = self.job(pid, idx)
+        self.conn.execute("UPDATE jobs SET state='failed' WHERE id=?", (parent,))
+        child = self.p._insert_job(pid or self.pid, self.p.job(parent)["scene_id"], "image_gen", parent_job_id=parent,
+                                   retry_count=1, retry_reason="QC tự sửa", origin="auto")
+        self.conn.commit()
+        return child
+
+    def test_self_fix_redo_without_a_run_stays_queued_when_the_flag_is_off(self):
+        jid = self.retry()
+        with mock.patch("core.features.on", lambda n: False):
+            bg_poll.send_ready(self.conn, self.make)
+        self.assertEqual(self.p.job(jid)["state"], "queued")
+
+    def test_self_fix_redo_without_a_run_is_sent_with_the_flag(self):
+        jid = self.retry()
+        with mock.patch("core.features.on", lambda n: n == "auto_send_self_fix"):
+            bg_poll.send_ready(self.conn, self.make)
+        self.assertEqual(self.p.job(jid)["state"], "running")
+
+    def test_a_stopped_run_keeps_its_redo_and_a_first_auto_job_is_never_sent(self):
+        stopped = self.p.create_project("đã dừng tự động")
+        j_stopped = self.retry(stopped)
+        self.conn.execute("UPDATE projects SET autopilot_state='stopped', autopilot_beat=? WHERE id=?", (time.time() + 1, stopped))
+        first = self.job(idx=6)
+        self.conn.execute("UPDATE jobs SET origin='auto' WHERE id=?", (first,))       # not a redo: an automatic run's own first job
+        running = self.p.create_project("đang tự động")
+        j_running = self.retry(running)
+        self.conn.execute("UPDATE projects SET autopilot_state='running' WHERE id=?", (running,))
+        self.conn.commit()
+        with mock.patch("core.features.on", lambda n: n == "auto_send_self_fix"):
+            bg_poll.send_ready(self.conn, self.make)
+        for jid in (j_stopped, first, j_running):
+            self.assertEqual(self.p.job(jid)["state"], "queued", jid)
+
+    def test_the_money_gate_still_applies_to_a_self_fix_redo(self):
+        jid = self.retry()
+        with mock.patch("core.features.on", lambda n: n == "auto_send_self_fix"), \
+                mock.patch.object(ImageRunner, "_over_budget", lambda *a: "hết credit (thử)"):
+            bg_poll.send_ready(self.conn, self.make)
+        self.assertEqual(self.p.job(jid)["state"], "queued")
+
+    def test_a_redo_made_after_the_run_stopped_is_sent_and_said_as_a_self_fix(self):
+        for state in bg_poll.SELF_FIX_AFTER_STOP:
+            pid = self.p.create_project(f"tự động {state}")
+            self.conn.execute("UPDATE projects SET autopilot_state=?, autopilot_beat=? WHERE id=?", (state, time.time() - 120, pid))
+            jid = self.retry(pid)                     # QC rejected a shot the person made by hand after stopping the run
+            with mock.patch("core.features.on", lambda n: n == "auto_send_self_fix"):
+                bg_poll.send_ready(self.conn, self.make)
+            self.assertEqual(self.p.job(jid)["state"], "running", state)
+        said = [r[0] for r in self.conn.execute("SELECT message FROM diag_events WHERE code='bg_auto_send'")]
+        self.assertTrue(said and all("job tự sửa" in m and "bạn đã bấm gửi" not in m for m in said), said)
+
+
 if __name__ == "__main__":
     unittest.main()
