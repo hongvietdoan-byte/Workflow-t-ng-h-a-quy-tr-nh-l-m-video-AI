@@ -5,6 +5,11 @@ import os
 from typing import Dict
 
 FEATURES: Dict[str, Dict] = {
+    "package_overrides": {
+        "label": "Chỉnh Gói gửi kèm theo shot (bỏ/thêm/ghim và hoàn tác)",
+        "verified": False,
+        "why": "Đợt 8: lõi dữ liệu kiểm bằng ảnh giả; chưa nối runner/Dashboard, chưa thử sản xuất.",
+    },
     "post_fx_render": {
         "label": "Hậu kỳ nhiễu sóng/glitch/nhấp nháy theo post_fx (ffmpeg, 0 USD)",
         "verified": False,

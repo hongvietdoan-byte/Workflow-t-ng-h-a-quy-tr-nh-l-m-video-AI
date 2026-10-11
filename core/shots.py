@@ -341,6 +341,12 @@ def replace_from(pipeline: Pipeline, project_id: int, scenes: List[Dict], from_s
             data = shot_data(s, shot, k)
             if s["idx"] != from_scene:                   # only the re-planned scene may lose its hand edits (its shots changed)
                 data.update(kept.get((data.get("story_scene"), data.get("shot_no")), {}))
+            else:
+                from . import features
+                previous = kept.get((data.get("story_scene"), data.get("shot_no")), {})
+                if features.on("package_overrides") and "package_overrides" in previous:
+                    data["package_overrides"] = previous["package_overrides"]
+                    data["_user_locked"] = ["package_overrides"]
             built.append((f"{heading} · shot {k}", data))
     _drop_plate_mode(conn, project_id, new, [d for _, d in built])
     for title, data in built:
