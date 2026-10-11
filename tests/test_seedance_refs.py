@@ -154,6 +154,67 @@ class SeedanceRefTests(unittest.TestCase):
         stamp = json.loads(vr._stamp(leader, args)["sent_group"])
         self.assertTrue(all(g["refs"] for g in stamp))
 
+    def _single_ref_send(self, enabled, usable):
+        """A lone reference-only shot (#24 job 662/664 shape) with the end_frames flag / the drawn end frame as given."""
+        from unittest import mock
+        vr = self._ready()
+        vr._sends_group = lambda job: None
+        job = self.p.job(self.p.create_job(self.ids[0], "video_gen"))
+        end = os.path.join(self.data, "end_263_13.png")
+        real_png(end)
+        with mock.patch.object(end_frames, "enabled", return_value=enabled),                 mock.patch.object(end_frames, "usable_path", return_value=end if usable else None):
+            self.assertTrue(vr._refs(job))
+            return vr, job, end, vr._submit_kwargs(job)
+
+    def test_reference_only_shot_sends_its_drawn_end_frame(self):
+        """11/10 (#24): flag end_frames on + a usable end frame → the reference-only request carries last_frame, and the
+        sent package keeps it with role last_frame."""
+        from core import sent_package
+        from core.adapters.clipai import ClipAIVideoProvider
+        vr, job, end, kw = self._single_ref_send(True, True)
+        self.assertEqual(kw.get("_last_frame_source"), end)             # K3 checks the drawn file …
+        self.assertTrue(kw["last_frame"].endswith("_marked.png") and os.path.exists(kw["last_frame"]))   # … the send marks it (P2m)
+        self.assertIn("reference_only", kw)
+        from core import video_pregen
+        plan = video_pregen.plan_of(job, vr._submit_args(job), kw, None, self.data, [])
+        self.assertEqual(plan["last_frame"], end)
+        pkg, _ = sent_package.build(ClipAIVideoProvider.submit, (None, "p", None, 5), kw, kind="video", provider="clipai",
+                                    external_id="X", model="seedance-2.5")
+        roles = [(r["param"], r["role"]) for r in json.loads(pkg)["refs"]]
+        self.assertIn(("last_frame", "last_frame"), roles)
+
+    def test_reference_only_shot_without_flag_or_usable_end_frame_is_unchanged(self):
+        for enabled, usable in ((False, True), (True, False)):
+            _, _, _, kw = self._single_ref_send(enabled, usable)
+            self.assertNotIn("last_frame", kw, (enabled, usable))
+
+    def test_a_group_leader_takes_no_end_frame_even_with_the_flag(self):
+        from unittest import mock
+        vr = self._ready()
+        leader = self.p.job(self.p.create_job(self.ids[0], "video_gen"))
+        end = os.path.join(self.data, "end_x.png")
+        real_png(end)
+        with mock.patch.object(end_frames, "enabled", return_value=True),                 mock.patch.object(end_frames, "usable_path", return_value=end):
+            self.assertTrue(vr._sends_group(leader))
+            self.assertNotIn("last_frame", vr._submit_kwargs(leader))
+
+    def test_k3_counts_the_end_frame_in_the_picture_cap(self):
+        from core import video_pregen
+        issues = []
+        plan = {"model": "seedance-2.0", "reference_only": ["a.png"] * 9, "last_frame": "end.png", "duration": 5}
+        video_pregen._check_refs(self.p.conn, self.ids[0], plan, issues)
+        self.assertTrue(any("10" in i["ly_do"] for i in issues), issues)
+
+    def test_a_model_without_end_frame_is_said_not_silent(self):
+        from unittest import mock
+        from core import video_rules
+        real = video_rules.rule
+        with mock.patch.object(video_rules, "rule", side_effect=lambda c: dict(real(c), last_frame=False)):
+            vr, job, end, kw = self._single_ref_send(True, True)
+        self.assertNotIn("last_frame", kw)
+        said = self.p.conn.execute("SELECT message FROM diag_events WHERE code='end_frame_unsupported'").fetchall()
+        self.assertTrue(said and "không nhận khung cuối" in said[0][0])
+
     def test_subject_library_flag_sends_unmarked_pictures_by_asset_uri_uploaded_once(self):
         """S4.7 (flag seedance_subjects, thử 01/10 #15): every picture through the Subject Library, the same picture never twice."""
         from tests.test_subjects import CountingLibrary

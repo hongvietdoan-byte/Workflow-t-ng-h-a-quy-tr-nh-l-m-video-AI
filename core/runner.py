@@ -941,8 +941,10 @@ class VideoRunner(_Runner):
         places = seedance_refs.place_pictures(self.data_dir, job["project_id"], rows)
         secs = [self._cut_seconds(r) for r in group] if group else [float(args[3])]
         audio = bool(self._take_segments(job, rows)) if group else bool(self._lip_sync_audio_planned(job))
-        problems = seedance_refs.lint_group(args[1], len(rows), len([f for f in frames if f]) + len(ids) + len(places),
-                                            len(rows) + len(ids) + len(places), secs, audio,
+        tail = self._ref_end_sentence(job, group, len(rows) + len(ids) + len(places))    # 11/10: the end frame = one more picture
+        problems = seedance_refs.lint_group(args[1] + ("\n" + tail if tail else ""), len(rows),
+                                            len([f for f in frames if f]) + len(ids) + len(places) + bool(tail),
+                                            len(rows) + len(ids) + len(places) + bool(tail), secs, audio,
                                             model=args[4])
         from . import place_refs
         if place_refs.enabled():
@@ -1084,7 +1086,7 @@ class VideoRunner(_Runner):
             out["reference_video"] = [{"path": v, "refer_type": "feature"} for v in skill["videos"]]
             return out
         group = self._sends_group(job)
-        if self._refs(job):                  # Seedance reference only (P2m): every picture marked, no start / last frame
+        if self._refs(job):                  # Seedance reference only (P2m): every picture marked, no start frame (end frame: below)
             out["reference_only"] = self._reference_pictures(job, group or [])
             if not group:
                 audio = self._lip_sync_audio(job)
@@ -1096,6 +1098,16 @@ class VideoRunner(_Runner):
                     out["reference_audio"] = [track]
                 else:
                     self._no_lip_sync_note(job, "seedance", group)
+            if not group:                    # 11/10 (#24 job 662/664): the drawn end state (K1) goes with a reference-only shot too —
+                end = self._end_frame(job, choice.get("model") or "seedance", chain=False)   # the adapter sends it as the LAST
+                if end:                                                                  # reference picture with its role sentence
+                    from . import features, seedance_refs
+                    clean = features.on("seedance_subjects") and getattr(self.provider, "supports_subjects", False)
+                    out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
+                    # the same treatment as the other pictures of this send: marked (real-person filter, P2m) or, with the Subject
+                    # Library, an unmarked copy ≤ 1280 px; K3 checks the drawn file itself (`_last_frame_source`, never sent)
+                    out["last_frame"] = seedance_refs.mark(end, out_dir, style="none" if clean else "eye_plus")
+                    out["_last_frame_source"] = end
             return out
         if group and mode != "multishot":
             pass                         # H5 camera set-up: one continuous prompt (in the motion argument), no multi_prompt
@@ -1114,13 +1126,42 @@ class VideoRunner(_Runner):
         else:
             self._no_lip_sync_note(job, choice.get("model"), group)
         if mode == "per_shot" and not group:
-            end = shots.last_frame_for(self.p.conn, self.data_dir, job["scene_id"])
-            from . import end_frames
-            if end is None and end_frames.enabled():
-                end = end_frames.usable_path(self.p.conn, job["scene_id"])      # K1: the drawn end state
-            if end and ("seedance" in (choice.get("model") or "") or end_frames.enabled()):
+            end = self._end_frame(job, choice.get("model") or "")
+            if end:
                 out["last_frame"] = end                   # K2: Seedance last_frame; Kling Omni end_frame (only with K1 on)
         return out
+
+    def _ref_end_sentence(self, job, group, n_pictures: int) -> str:
+        """The role sentence the adapter adds for a reference-only shot's end frame (picture n_pictures + 1), "" when none goes."""
+        if group or not self._end_frame(job, self._choice(job).get("model") or "seedance", chain=False):
+            return ""
+        from .adapters.clipai import ref_end_frame_sentence
+        return ref_end_frame_sentence(n_pictures + 1)
+
+    def _end_frame(self, job, model: str, chain: bool = True) -> Optional[str]:
+        """The one place that decides a shot's end frame (per-shot send and reference-only send). chain: the next shot's approved
+        picture of a continuing shot (shots.last_frame_for) first — the reference-only way never had it, so it asks without. Then the
+        drawn end state (K1, flag end_frames). Seedance takes it always, Kling Omni only with K1 on. A model whose rules
+        (data/provider_rules.json) take no end frame: not sent, said (VÀNG with the reason — never dropped silently)."""
+        from . import end_frames, shots
+        end = shots.last_frame_for(self.p.conn, self.data_dir, job["scene_id"]) if chain else None
+        if end is None and end_frames.enabled():
+            end = end_frames.usable_path(self.p.conn, job["scene_id"])      # K1: the drawn end state
+        if not end or not ("seedance" in (model or "") or end_frames.enabled()):
+            return None
+        from . import video_rules
+        from .adapters.clipai import resolve_model
+        try:
+            canonical, family = resolve_model(model or None)
+        except Exception:  # noqa: BLE001 - an unknown name is judged by the adapter, as before
+            return end
+        r = video_rules.rule(canonical)
+        if r and not r.get("end_frame" if family == "omni" else "last_frame", False):
+            self._diag_once(job, "warn", "end_frame_unsupported", f"có khung cuối ({os.path.basename(end)}) nhưng "
+                            f"{r.get('label') or canonical} không nhận khung cuối (data/provider_rules.json) — clip gửi không kèm "
+                            "khung cuối, cảnh kết thúc theo prompt")
+            return None
+        return end
 
     def _no_lip_sync_note(self, job, model, group) -> None:
         """Luật 1: a shot planned to be made WITH its voice (lip sync "generate") that goes out on another model / inside a group clip
@@ -1567,7 +1608,8 @@ class VideoRunner(_Runner):
             # F5-A: real sizes of the library objects (the well), short form, once — dropped first when the prompt would pass the limit
             motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model, places=places,
                                                        scales=_object_scales(conn, job["project_id"], rows),
-                                                       reserve=len(block) + 1 if block else 0))
+                                                       reserve=(len(block) + 1 if block else 0)
+                                                       + len(self._ref_end_sentence(job, group, len(rows) + len(ids) + len(places))) + 1))
             if block:
                 motion += "\n" + block
         stretch = self._stretch(group) if setup else None

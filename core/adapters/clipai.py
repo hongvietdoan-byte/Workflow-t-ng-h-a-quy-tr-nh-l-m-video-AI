@@ -33,6 +33,14 @@ PATH_SEEDANCE = "/api/kling/seedance-video-submit"
 # content", real run 2026-09-24): the approved start picture (drawn from the character references) carries the people instead.
 SEEDANCE_REFS_WITH_FIRST_FRAME = False
 PATH_LIST = "/api/kling/video-list"
+
+
+def ref_end_frame_sentence(n: int) -> str:
+    """11/10: the role sentence of the end frame sent as reference picture N (reference-only Seedance) — one text for the adapter
+    and the runner's checks before paying (prompt length, F5-A reserve)."""
+    return (f"Image {n} is the LAST frame: the clip ends exactly on this picture — its composition, framing, character positions, "
+            "poses and props are the final state of the shot.")
+
 PATH_DELETE = "/api/kling/video-delete"
 TASK_TYPE = {"omni": 6, "seedance": 8}
 
@@ -425,7 +433,11 @@ class ClipAIVideoProvider:
             text += f"\nAvoid: {negative_prompt}"
         extra_files: List[Tuple[str, bytes]] = []
         content_refs: List[Dict] = []                     # [{"note_label", "note_role"}] in the order attached, for the @Image note
-        if last_frame:                                    # first + last frame clip: the two frames carry the characters
+        if last_frame and reference_only is not None:     # 11/10: reference-only + end frame — Seedance refuses a last_frame ROLE next to
+            # reference media (real run 2026-09-24), so the end frame goes as the LAST reference picture with the exact role sentence
+            # of the official prompt skill (seedance-2.5-prompt-optimizer.md "关键帧图片仍作为普通参考图输入…@图片N作为尾帧")
+            text += "\n" + ref_end_frame_sentence(len(reference_only) + 1)
+        elif last_frame:                                  # first + last frame clip: the two frames carry the characters
             text += " The clip starts on the first image and must end exactly on the last image (same people, place and light)."
         elif family == "seedance" and SEEDANCE_REFS_WITH_FIRST_FRAME and reference_only is None:   # reference-only names its own pictures
             cap = 29 if canonical == "dreamina-seedance-2-5-260628" else 8  # image cap minus the first-frame image
@@ -459,11 +471,13 @@ class ClipAIVideoProvider:
         if reference_only is not None:
             if family != "seedance":
                 raise ProviderError("chỉ ảnh tham chiếu (không khung đầu) chỉ có ở Seedance", code="unsupported_option")
-            if last_frame or multi_prompt:
-                raise ProviderError("chỉ ảnh tham chiếu không đi cùng khung cuối / multi-shot", code="unsupported_option")
+            if multi_prompt:
+                raise ProviderError("chỉ ảnh tham chiếu không đi cùng multi-shot", code="unsupported_option")
+            if last_frame:                                # the end frame is one more reference picture (local), sent last
+                reference_only = list(reference_only) + [last_frame]
             cap = 30 if canonical == "dreamina-seedance-2-5-260628" else 9
             if not reference_only or len(reference_only) > cap:
-                raise ProviderError(f"cần 1–{cap} ảnh tham chiếu, có {len(reference_only)}", code="rule_violation")
+                raise ProviderError(f"cần 1–{cap} ảnh tham chiếu (kể cả khung cuối), có {len(reference_only)}", code="rule_violation")
             # S4.7: an entry is a local picture (path) or a Subject Library asset {"uri": "asset://…"} (already reviewed, sent by uri —
             # skill clipai 1.3.1 video.mjs). Order is kept: the server fills the empty urls from `image_files` in order, so @Image N is
             # the N-th entry whatever its kind.

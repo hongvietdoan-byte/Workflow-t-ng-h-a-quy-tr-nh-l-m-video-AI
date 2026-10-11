@@ -349,8 +349,8 @@ def _check_refs(conn, scene_id: int, plan: Dict, out: List[Dict]) -> None:
             out.append(_issue("tham_chieu", DO, p))
     ro = plan.get("reference_only")
     if ro is not None:
-        n, cap = len(ro or []), rule.get("max_images")
-        what = "ảnh tham chiếu (chỉ-ảnh-tham-chiếu)"
+        n, cap = len(ro or []) + (1 if plan.get("last_frame") else 0), rule.get("max_images")   # the end frame goes as one more picture
+        what = "ảnh tham chiếu (chỉ-ảnh-tham-chiếu, kể cả khung cuối)"
     elif family == "seedance":
         extra = (len(plan.get("image_references") or []) + len(plan.get("subjects") or [])) if clipai.SEEDANCE_REFS_WITH_FIRST_FRAME else 0
         n, cap = 1 + extra, rule.get("max_images")
@@ -460,7 +460,7 @@ def plan_of(job, args, kwargs: Dict, package: Optional[str], data_dir: str, grou
     return {"job_id": job["id"], "project_id": job["project_id"], "data_dir": data_dir,
             "start_frame": at(0), "prompt": at(1), "duration": at(3), "model": at(4), "with_audio": bool(at(5)),
             "subjects": at(6) or kw.get("subjects"), "image_references": at(7) or kw.get("image_references"),
-            "reference_video": at(8) or kw.get("reference_video"), "last_frame": kw.get("last_frame"),
+            "reference_video": at(8) or kw.get("reference_video"), "last_frame": kw.get("_last_frame_source") or kw.get("last_frame"),   # 11/10: a reference-only send carries a marked copy of the drawn end frame
             "reference_only": kw.get("reference_only"), "reference_audio": kw.get("reference_audio"),
             "resolution": None if kw.get("high_res_sample") else ("480p" if kw.get("draft") else kw.get("resolution")), "kling_mode": kw.get("kling_mode"),
             "kling_image_refs": bool(kw.get("kling_image_refs")), "from_sample": kw.get("_from_sample"),

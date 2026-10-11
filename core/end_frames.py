@@ -39,7 +39,7 @@ def needed(data: Dict, shot_mode: Optional[str], ignore_route: bool = False) -> 
     if shot_mode != "per_shot" or data.get("continuous_with_next"):
         return False
     if not ignore_route and route(data) == "seedance_ref":
-        return False                  # a reference-only Seedance clip takes no last frame — drawing one would be paid for nothing
+        return False                  # not drawn on its own for a reference-only Seedance clip (11/10: one drawn by hand — 🔁 vẽ lại — IS sent, as the last reference picture)
     return bool((data.get("end_state") or "").strip())
 
 

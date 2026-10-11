@@ -222,6 +222,22 @@ class ClipAITests(unittest.TestCase):
         self.assertEqual([c.get("role") for c in ctx["content"]], [None, "reference_image", "reference_video"])
         self.assertIn('name="video_files"', self.t.calls[-1]["body"].decode("utf-8", "replace"))
 
+    def test_seedance_reference_only_sends_the_end_frame_as_the_last_reference_picture(self):
+        """11/10 (#24 job 662/664): Seedance refuses a last_frame ROLE next to reference media (2026-09-24) — the end frame goes as
+        one more reference picture, last, with the official role sentence ("@图片N作为尾帧")."""
+        import shutil
+        self.t.on("POST", "/api/kling/seedance-video-submit",
+                  ok({"tasks": [{"task_id": "S10", "task_status": "submitted", "task_status_msg": ""}]}))
+        end = os.path.join(self.dir, "end_263_13.png")
+        shutil.copy(self.image, end)
+        self.p.submit(None, "Image 1 is the storyboard frame of Shot 1.", None, 5, model="seedance-2.5",
+                      reference_only=[{"uri": "asset://a"}, self.image], last_frame=end)
+        ctx = ctx_of(self.t.calls[-1])
+        self.assertEqual([c.get("role") for c in ctx["content"]], [None] + ["reference_image"] * 3)
+        self.assertNotIn("last_frame", [c.get("role") for c in ctx["content"]])
+        self.assertIn("Image 3 is the LAST frame", ctx["content"][0]["text"])
+        self.assertEqual(self.t.calls[-1]["body"].count(b'name="image_files"'), 2)
+
     def test_upload_is_named_after_real_image_format(self):
         jpeg = os.path.join(self.dir, "job_1.png")
         with open(jpeg, "wb") as f:
