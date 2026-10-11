@@ -2106,7 +2106,7 @@ def geometry_contradiction_notes(conn, project_id: int, data: Dict) -> List[str]
     facts = stage_facts.for_shot(conn, project_id, data)["facts"]
     return [f"prompt ảnh tự mâu thuẫn: câu Director \"{c['phrase']}\" trái sự thật hình học {c['fact']} — câu máy nối ở cuối nói "
             f"ngược; sửa câu Director (Kiểm tác động khâu 'cau')"
-            for c in stage_facts.contradictions(str(data.get("image_prompt") or ""), facts)]
+            for c in stage_facts.prompt_contradictions(data, facts)]     # 11/10: cả blocking / action_peak (cũng vào prompt ảnh)
 
 
 def _action_part(data: Dict, words: str, blocking_label: str) -> str:

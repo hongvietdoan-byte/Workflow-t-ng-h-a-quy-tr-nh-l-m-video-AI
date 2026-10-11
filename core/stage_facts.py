@@ -448,6 +448,38 @@ def _sentences(text: str) -> List[str]:
     return [s for s in re.split(r"(?<=[.;!?])\s+|\n+", str(text or "")) if s.strip()]
 
 
+_CLAUSE_END = re.compile(r"[,;:()—–]|\s-\s")
+
+
+# phủ định GẮN với chính cụm khớp: đứng ngay trước (chỉ cách bởi mạo từ / tên phần của vật) hoặc ngay sau ("… is not visible")
+_NEG_BEFORE = re.compile(r"\b(never|not|no|without)\s+((the|its|a|an|or|and|nor|of|opening|mouth|rim|top|edge|hole)\s+){0,6}$")
+_NEG_AFTER = re.compile(r"^\s*((is|are|stays|remains|stay|remain)\s+)?(not\b|never\b|hidden\b|unseen\b|invisible\b|out of (view|sight)\b)")
+
+
+def _negated_clause(low: str, m: "re.Match") -> bool:
+    """Cụm khớp bị phủ định NGAY trong mệnh đề của nó: "never the opening or the inside of the well", "the inside of the well is not
+    visible". Từ phủ định ở chỗ khác không cứu câu: "peers into the well without fear", "No one sees Kelly peering into the well",
+    "Kelly never blinks while peering into the well" vẫn bị bắt (rà 11/10)."""
+    a = max((x.end() for x in _CLAUSE_END.finditer(low, 0, m.start())), default=0)
+    b = next((x.start() for x in _CLAUSE_END.finditer(low, m.end())), len(low))
+    return bool(_NEG_BEFORE.search(low[a:m.start()]) or _NEG_AFTER.match(low[m.end():b]))
+
+
+# 11/10 (#24 shot 5): runner._action_part nối cả `blocking` + `action_peak` vào prompt ảnh — câu trái sự thật ở đó cũng tới model.
+PROMPT_FIELDS = ("image_prompt", "blocking", "action_peak")
+
+
+def prompt_contradictions(data: Dict, facts: List[Dict]) -> List[Dict]:
+    """contradictions() trên MỌI trường chữ code nối vào prompt ảnh (PROMPT_FIELDS), mỗi mục thêm `field`. Trước 11/10 chỉ quét
+    image_prompt — câu trong blocking lọt."""
+    out = []
+    for k in PROMPT_FIELDS:
+        v = data.get(k)
+        if isinstance(v, str) and v.strip():
+            out += [dict(c, field=k) for c in contradictions(v, facts)]
+    return out
+
+
 def contradictions(text: str, facts: List[Dict]) -> List[Dict]:
     """Câu Director trái sự thật: [{fact, phrase, sentence, level, fix}]. Chỉ khi câu đó nhắc tới chính vật (tên loại, vd 'well') —
     'dark opening' của một cửa nhà không bị bắt nhầm. Đỏ chỉ khi vật lọt khung (in_frame) — không thì vàng."""
@@ -465,6 +497,8 @@ def contradictions(text: str, facts: List[Dict]) -> List[Dict]:
                 if _DARK in pat and _NEG.search(low):
                     continue                           # "its dark mouth hidden / not visible": câu phủ định, không trái sự thật
                 m = re.search(pat, low)
+                if m and _negated_clause(low, m):
+                    continue                           # 11/10 (#24 shot 5 blocking): "never the opening or the inside of the well"
                 if m:
                     out.append({"fact": f["id"], "phrase": m.group(0), "sentence": s.strip()[:300],
                                 "level": "do" if f.get("in_frame") else "vang", "fix": f.get("prompt") or ""})

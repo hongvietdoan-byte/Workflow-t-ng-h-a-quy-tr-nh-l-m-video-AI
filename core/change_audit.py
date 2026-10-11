@@ -96,9 +96,10 @@ def audit_shot(conn, data_dir: str, pid: int, scene_id: int) -> List[Dict]:
     if locked and text:                    # 10/10 (#24 shot 4): câu Director trái sự thật hình học (core/stage_facts) — không tự sửa chữ
         from . import stage_facts
         facts = stage_facts.for_shot(conn, pid, data)["facts"]
-        for c in stage_facts.contradictions(str(data.get("image_prompt") or ""), facts):
+        for c in stage_facts.prompt_contradictions(data, facts):       # 11/10: cả blocking / action_peak (runner nối vào prompt ảnh)
+            where = "" if c["field"] == "image_prompt" else f" (trường {c['field']})"
             out.append({"shot": idx, "muc": c["level"], "khau": "cau",
-                        "msg": f"câu Director trái sự thật hình học {c['fact']}: \"{c['phrase']}\" (máy Sân khấu 3D tính khác)",
+                        "msg": f"câu Director trái sự thật hình học {c['fact']}{where}: \"{c['phrase']}\" (máy Sân khấu 3D tính khác)",
                         "de_xuat": f"Bỏ cụm \"{c['phrase']}\"; câu đúng: {c['fix']}"})
     if sc and sc.get("move") and data.get("camera_move") in (None, "static"):
         say("do", "cau", f"máy chuyển động ({sc['move'].get('kieu')}) nhưng camera_move = {data.get('camera_move')}")

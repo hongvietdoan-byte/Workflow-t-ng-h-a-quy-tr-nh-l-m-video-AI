@@ -1,0 +1,32 @@
+{
+ "id": "p24_shot5_blocking_never_inside",
+ "nguon": "#24 shot 5 (11/10): blocking viết đúng 'never the opening or the inside of the well' — từ 11/10 blocking cũng được quét (runner nối vào prompt ảnh)",
+ "ca_vang_tay": false,
+ "byd": null,
+ "may": {
+  "location": [-217.079, 116.054, 10.33],
+  "look_at": [-217.24, 116.968, 10.703],
+  "lens": 24.0,
+  "props": [
+   {"kind": "well", "at": [-217.348, 117.576, 9.83], "radius": 0.75, "height": 0.9, "hollow": true, "sides": 8}
+  ]
+ },
+ "kho": {},
+ "goi": {
+  "image_prompt": "Low camera near the ground (0.5 m) just in front of the well's near outer wall, tilted up about 22 degrees: the camera is lower than the rim, so only the near outer wall and its top edge (seen edge-on against the sky) are visible — never the opening or the inside of the well; Kelly is not in frame"
+ },
+ "anh_ket_qua": null,
+ "loi_dung": "không có câu trái hình học (ca chống báo nhầm: mệnh đề phủ định 'never … the inside of the well')",
+ "loai_loi": ["L7"],
+ "lop_phai_bat": ["d86"],
+ "lop_lam": ["d85"],
+ "ky_vong": {
+  "stage_facts": {
+   "facts": {"top_visible:well": false},
+   "prompt_contains": ["LOWER than the stone well rim"],
+   "prompt_not_contains": ["dark opening are visible"],
+   "contradiction": null,
+   "judge": [["top_visible:well", "inside_visible", "do"], ["top_visible:well", "only_outer_wall", null]]
+  }
+ }
+}
