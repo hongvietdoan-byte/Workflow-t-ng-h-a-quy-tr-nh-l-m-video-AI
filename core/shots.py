@@ -301,6 +301,19 @@ def _drop_plate_mode(conn, project_id: int, scenes: List[Dict], rows: List[Dict]
                     "ảnh/video làm như shot không có trường này.", "plate_mode_ignored", project_id)
 
 
+def _warn_orphaned_packages(conn, project_id, kept, built):
+    from . import features
+    if not features.on("package_overrides"):
+        return
+    from . import diag
+    remaining = {(d.get("story_scene"), d.get("shot_no")) for _, d in built}
+    for (scene, shot), previous in kept.items():
+        if "package_overrides" in previous and (scene, shot) not in remaining:
+            diag.record(conn, "director", "warn",
+                        f"Cảnh {scene} shot {shot} không còn sau replan; chỉnh Gói gửi kèm cần duyệt lại.",
+                        code="override_orphaned", project_id=project_id)
+
+
 def replace_from(pipeline: Pipeline, project_id: int, scenes: List[Dict], from_scene: int) -> int:
     """1.4 "↻ Chia shot lại cảnh này": replace the shot rows of script scene `from_scene` and every later scene with the plan in `scenes`
     (the whole plan), keeping the rows of earlier scenes untouched — they may already have pictures and clips. Rows are appended in
@@ -355,6 +368,7 @@ def replace_from(pipeline: Pipeline, project_id: int, scenes: List[Dict], from_s
                      (project_id, n, title, json.dumps(data, ensure_ascii=False)))
         written += 1
     conn.commit()
+    _warn_orphaned_packages(conn, project_id, kept, built)
     return written
 
 
@@ -400,6 +414,7 @@ def store_plan(pipeline: Pipeline, project_id: int, scenes: List[Dict], force: b
         conn.execute("INSERT INTO scenes (project_id, idx, title, data) VALUES (?,?,?,?)",
                      (project_id, n, title, json.dumps(data, ensure_ascii=False)))
     conn.commit()
+    _warn_orphaned_packages(conn, project_id, kept, built)
     return n
 
 

@@ -35,7 +35,11 @@ def _scene(conn, sid):
 
 
 def _scene_hash(data):
-    return _hash({k: v for k, v in data.items() if k not in ('package_overrides', '_user_locked')})
+    from .lineage import IMAGE_KEYS, IMAGE_SHOT_KEYS
+    keys = set(IMAGE_KEYS + IMAGE_SHOT_KEYS) | {
+        'characters', 'outfit', 'outfits', 'outfit_image_ids', 'plate', 'plate_key',
+        'plate_path', 'aspect', 'aspect_ratio', 'location_id'}
+    return _hash({k: v for k, v in data.items() if k in keys})
 
 
 def load(conn, scene_id):
@@ -60,12 +64,23 @@ def _root(conn, data_dir):
 
 def _resolve(conn, pid, sid, edit, root):
     allowed = {'op', 'source_kind', 'asset_image_id', 'plate_key', 'content_sha',
-               'role', 'look', 'project_id', 'scene_id'}
+               'role', 'look', 'project_id', 'scene_id', 'wearer', 'character'}
     if not isinstance(edit, dict) or set(edit) - allowed:
         raise OverrideError('Chỉnh gói chứa trường không hợp lệ; không nhận đường dẫn nhập tay.')
     if edit.get('op') not in ('exclude', 'add', 'pin') or not edit.get('role'):
         raise OverrideError('Cần thao tác bỏ/thêm/ghim và vai trò ảnh.')
     e = copy.deepcopy(edit)
+    wearer = e.get('wearer') or e.get('character')
+    if any(k in e and (not isinstance(e[k], str) or not e[k].strip()) for k in ('wearer', 'character')):
+        raise OverrideError('Tên nhân vật mặc phải là chuỗi không rỗng.')
+    if e.get('wearer') and e.get('character') and e['wearer'] != e['character']:
+        raise OverrideError('wearer và character phải cùng nhân vật.')
+    if wearer and (e['role'] != 'outfit' or e.get('source_kind') != 'kho'):
+        raise OverrideError('Nhân vật mặc chỉ áp dụng cho ảnh OUTFIT từ Kho.')
+    if wearer:
+        _, _, scene = _scene(conn, sid)
+        if wearer not in (scene.get('characters') or []):
+            raise OverrideError('Nhân vật mặc không có trong shot hiện tại.')
     if e.get('source_kind') == 'kho':
         from . import assets, looks
         row = conn.execute('SELECT i.path,i.sha256,a.name,a.project_id,a.kind,i.status,i.look,a.id FROM asset_images i '
@@ -118,7 +133,7 @@ def _resolve(conn, pid, sid, edit, root):
         raise OverrideError('Không đọc được ảnh; tải lại gói.') from exc
     if actual != e.get('content_sha'):
         raise OverrideError('SHA nội dung ảnh đã đổi; tải lại gói.')
-    e['_ref'] = {'path': path, 'label': label, 'role': e['role']}
+    e['_ref'] = {'path': path, 'label': wearer or label, 'role': e['role']}
     if e.get('plate_key'):
         e['_ref']['plate_key'] = e['plate_key']
     return e
@@ -137,9 +152,24 @@ def save(conn, scene_id, edits, who, reason, expected_revision, *, data_dir=None
     if expected_revision != current:
         raise OverrideError(f'revision đã đổi ({current}); tải lại, không ghi đè.')
     resolved = [_resolve(conn, pid, scene_id, e, _root(conn, data_dir)) for e in edits]
-    if base_refs is None:
-        from . import assets
-        base_refs = assets.scene_references(conn, pid, dict(data), limit=99)
+    if not isinstance(base_refs, list):
+        raise OverrideError('Cần base_refs là gói ảnh gốc thực tế; tải lại gói trước khi chỉnh.')
+    for e in resolved:
+        if e['op'] != 'pin' or e['role'] != 'outfit':
+            continue
+        slots = [r for r in base_refs if r.get('role') == 'outfit']
+        wearer = e.get('wearer') or e.get('character')
+        if not wearer:
+            labels = {r.get('label') for r in slots}
+            if len(labels) > 1:
+                raise OverrideError('Gói có nhiều nhân vật mặc OUTFIT; cần wearer/character rõ ràng.')
+            wearer = next(iter(labels), None)
+            if not wearer:
+                raise OverrideError('Ghim OUTFIT cần wearer/character khi gói chưa có ảnh trang phục.')
+        if wearer not in (data.get('characters') or []):
+            raise OverrideError('Nhân vật mặc không có trong shot hiện tại.')
+        e['wearer'] = wearer
+        e['_ref']['label'] = wearer
     now = datetime.now(timezone.utc).isoformat()
     after = {'schema_version': 1, 'revision': current + 1, 'project_id': pid,
              'scene_id': scene_id, 'base_scene_revision': _scene_hash(data),
@@ -187,13 +217,16 @@ def apply(refs, overrides):
         for i, r in enumerate(out):
             if r.get('role') != e['role']:
                 continue
+            if (e.get('wearer') or e.get('character')) and r.get('label') != ref.get('label'):
+                continue
             if e.get('plate_key') and r.get('plate_key') != e['plate_key']:
                 continue
             try:
                 if sha256_of(r['path']) == e['content_sha']:
                     matches.append(i)
             except (OSError, KeyError):
-                warnings.append({'severity': 'yellow', 'code': 'ref_unreadable', 'message': 'Ảnh gói gốc không đọc được.'})
+                if not any(w['code'] == 'ref_unreadable' for w in warnings):
+                    warnings.append({'severity': 'yellow', 'code': 'ref_unreadable', 'message': 'Ảnh gói gốc không đọc được.'})
         if e['op'] == 'exclude':
             out = [r for i, r in enumerate(out) if i not in matches]
             if not matches:
@@ -203,8 +236,11 @@ def apply(refs, overrides):
             slots = [i for i, r in enumerate(out) if r.get('role') == ref['role']
                      and (e['source_kind'] == 'shot_3d' or r.get('label') == ref['label'])]
             if slots:
-                out[slots[0]] = {**out[slots[0]], **copy.deepcopy(ref)}
-                out = [r for i, r in enumerate(out) if i not in slots[1:]]
+                target = next((i for i in matches if i in slots), slots[0])
+                out[target] = {**out[target], **copy.deepcopy(ref)}
+                # Ảnh góc phụ cùng người vẫn cần giữ để khóa nhận dạng.
+                if ref['role'] not in ('character', 'front_standard', 'design_sheet', 'related'):
+                    out = [r for i, r in enumerate(out) if i not in slots or i == target]
             else:
                 out.append(copy.deepcopy(ref))
         elif not matches:
