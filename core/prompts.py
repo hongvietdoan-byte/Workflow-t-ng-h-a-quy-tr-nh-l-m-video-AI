@@ -4,7 +4,7 @@ import os
 import re
 from typing import List, Optional
 
-from . import assets, dialogue, knowledge, looks
+from . import assets, dialogue, knowledge, looks, prompt_formula
 from .evalset import few_shot_text
 from .pipeline import Pipeline
 
@@ -266,6 +266,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
     ff = _SEP.join(x for x in [ff, _skill_block(people_in_project(pipeline, project_id))] if x)
     body = _SEP.join(x for x in [
         _read("prompts", "01_director_scene_analysis.md"),
+        prompt_formula.ambient_prompt_block(),
         project_frame_block(pipeline, project_id),
         _chat_refs_block(pipeline, project_id),   # 09/10: tư liệu người dùng thả vào chat Kịch bản (chữ); không có → ""
         looks.director_note(proj),
@@ -406,6 +407,7 @@ def dp_common(pipeline: Pipeline, project_id: int, intent: dict) -> str:
     ff = _SEP.join(x for x in [ff, _skill_block(names or people_in_project(pipeline, project_id))] if x)
     return _SEP.join(x for x in [
         _read("prompts", "20_dp_scene_shots.md"),
+        prompt_formula.ambient_prompt_block(),
         shot_style_block(proj),
         book,
         project_frame_block(pipeline, project_id),
@@ -684,6 +686,10 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
         body = motion_physics.sentence(str(data.get("action") or ""))
         if body:                               # S4.4: the physics of this kind of action, for the writer to keep (not a formula)
             out["physics_hint"] = body
+        from . import features
+        if features.on("ambient_motion"):
+            out["ambient_context"] = {k: data[k] for k in ("byd", "location", "weather", "time") if data.get(k)}
+            out["ambient_hint"] = prompt_formula.ambient_hint(data)
         prev = all_scenes.get(r["idx"] - 1) or {}
         if data.get("sequence") and prev.get("sequence") == data.get("sequence") and prev.get("spatial_state"):
             out["previous_spatial_state"] = prev["spatial_state"]
@@ -701,7 +707,8 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     complexity_known = any(s.get("camera_complexity") for s in scenes)
     any_complex = any(s.get("camera_complexity") == "complex" for s in scenes)
     uses_seedance = any("seedance" in (s.get("video_model") or "") for s in scenes) or video_family(pipeline, project_id) == "seedance"
-    parts = [_read("prompts", "03_video_motion.md"), looks.motion_note(pipeline.project(project_id))]
+    parts = [_read("prompts", "03_video_motion.md"), looks.motion_note(pipeline.project(project_id)),
+             prompt_formula.ambient_prompt_block()]
     for rel in ("video_motion_vocab.md", "research_notes.md", "t2v_prompt_structure.md", "reference_assets_prompting.md"):
         if f"knowledge/{rel}" not in folded:
             parts.append(_read("knowledge", rel))
