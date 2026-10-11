@@ -2579,6 +2579,17 @@ class ImageRunner(_Runner):
                                               **({"plate_key": r["plate_key"]} if r.get("plate_key") else {})}
                                              for r in refs] + [{"label": "storyboard", "role": "storyboard",
                                                                 "file": fields["storyboard"]["storyboard_id"]}]
+        if hasattr(self, "_diag"):                     # luật 1 (#24 shot 9, 11/10): a pictured person of the frame left out is said
+            say = getattr(self, "_diag_once", self._diag)   # args are built every poll while the job waits: said once per job
+            try:
+                from . import scene_storyboard as _sb
+                row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+                for who in (_sb.cast_missing(self.p.conn, job["project_id"], json.loads(row["data"] or "{}"), refs) if row else []):
+                    say(job, "warn", "missing_reference",
+                               f"nhân vật {who} có trong khung và có ảnh mẫu trong Kho nhưng gói gửi KHÔNG có ảnh nào của {who} — "
+                               "model vẽ theo chữ, dễ lệch thiết kế (trần số ảnh / bộ lọc gói)")
+            except Exception as e:  # noqa: BLE001 - a check must never stop the job; its failure is said
+                say(job, "warn", "missing_reference", f"không kiểm được ảnh mẫu nhân vật trong gói: {type(e).__name__}: {e}")
         prompt, lost = name_render(prompt, refs, fallback=lambda: _place_words(self, job))
         if lost and hasattr(self, "_diag"):
             self._diag(job, "warn", "missing_reference", "ảnh render 3D của shot không gửi được — bỏ câu khóa nền theo render, quay về "

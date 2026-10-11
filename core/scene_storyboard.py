@@ -133,21 +133,39 @@ def shared_references(conn, pid: int, shots: List[Dict], limit: int = 8, cast_of
     cast_of = the data of the shot being drawn: only ITS people's pictures go (the place and props stay shared). S4.6 (#10,
     2026-09-29): a KELLY-only and a KENTA-only frame were sent the pictures of Kelly, Kenta and Maxim (jobs 453-456 sent_refs) and came
     back with all three people; the sentence "only KELLY is in this frame" (vòng 2) helped but the pictures were still the pull."""
-    keep = None
-    if cast_of is not None:
-        own = dict(cast_of)
-        keep = {r["label"] for r in assets.scene_references(conn, pid, own, limit=99) if r.get("role") in PERSON_ROLES}
     out, seen = [], set()
+    if cast_of is not None:
+        # #24 shot 9 (11/10, jobs 645–651): walking the shots in order with the cap filled it with KELLY's per-shot 2nd pictures and
+        # one place picture per shot before shot 7 (first with DẠNG 2) — the frame's own person was never sent. The frame's people come
+        # FIRST, with the pictures picked for THIS shot (one set per person; scene_references keeps a slot for the place).
+        mine = assets.scene_references(conn, pid, dict(cast_of), limit=limit)
+        for r in mine:
+            if r.get("role") in PERSON_ROLES and r["path"] not in seen:
+                seen.add(r["path"])
+                out.append(r)
+        for r in mine:                                 # then the frame's own place / props (a prop only this shot has is not cut)
+            if r.get("role") not in PERSON_ROLES and r["path"] not in seen and len(out) < limit:
+                seen.add(r["path"])
+                out.append(r)
     for s in shots:
         data = dict(s["data"])
         for r in assets.scene_references(conn, pid, data, limit=assets.MAX_REFERENCES):
             if r["path"] in seen or len(out) >= limit:
                 continue
-            if keep is not None and r.get("role") in PERSON_ROLES and r["label"] not in keep:
-                continue                               # a person of another frame of the scene: not sent with this frame
+            if cast_of is not None and r.get("role") in PERSON_ROLES:
+                continue                               # people come only from the frame's own pick (above)
             seen.add(r["path"])
             out.append(r)
     return out
+
+
+def cast_missing(conn, pid: int, data: Dict, refs: List[Dict]) -> List[str]:
+    """Luật 1 (#24 shot 9, 11/10): people of the frame who HAVE library pictures but none of them is in the package about to be sent
+    (cap, dropped file, a later filter). Empty = every pictured person of the frame is in. People with no picture at all are already
+    told by assets.reference_gaps."""
+    sent = {r.get("label") for r in refs if r.get("role") in PERSON_ROLES}
+    want = [r["label"] for r in assets.scene_references(conn, pid, dict(data), limit=99) if r.get("role") in PERSON_ROLES]
+    return [n for n in dict.fromkeys(want) if n not in sent]
 
 
 def anchor_note(g: Dict, scene_id: int, image_no: int) -> str:
