@@ -118,6 +118,8 @@ def _plate(conn, ctx: Dict, sid: int, data: Dict) -> Optional[Dict]:
     d, pid, label = ctx["data_dir"], ctx["pid"], "Nền 3D"
     rec = location_pack.plate_of(d, pid, sid)
     if rec is not None:
+        if place_refs.stage_locked(rec):                     # #24 job 649: máy Sân khấu 3D khóa — chỉ nền của chính máy
+            return _item(label, "ok", "có render máy Sân khấu 3D của shot — chỉ gửi nền của chính máy (không góc rộng)")
         wide = rec.get("wide") or {}
         import os
         if wide.get("plate") and os.path.exists(wide["plate"]):
