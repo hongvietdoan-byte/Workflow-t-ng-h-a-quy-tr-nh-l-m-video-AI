@@ -189,7 +189,7 @@ def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[
     names = vqc.shot_characters(p.conn, job["project_id"], data, motion)
     prompt = video_qc_head() + prompts.CACHE_BREAK \
         + "\n\n---\n\n".join(x for x in [
-        prompts.lock_text(p.conn, job["project_id"], names),
+        prompts.lock_text(p.conn, job["project_id"], names, shots=[data]),     # + ngoại lệ BYĐ của shot (lock_exceptions)
         vqc.profiles_block(p.conn, job["project_id"], names),
         vqc.intent_block(data, motion),
         "# Motion prompt của clip\n" + motion,

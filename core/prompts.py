@@ -518,8 +518,14 @@ def standard_block(pipeline: Pipeline, project_id: int, names=None) -> str:
             + "\n".join(rows)) if rows else ""
 
 
-def lock_text(conn, project_id: int, names=None) -> str:
-    """Character Lock of the characters (all, or the given names) as a readable block."""
+def lock_text(conn, project_id: int, names=None, shots=None) -> str:
+    """Character Lock of the characters (all, or the given names) as a readable block. `shots` (scene data of the shot(s) being judged
+    / written): the BYĐ `ngoai_le` of those shots (core/lock_exceptions) — ONE shot → its excepted clauses leave the lock; several shots
+    (a scene QC, the motion writer) → the lock stays and each shot's exception is listed under it. 11/10 #24 shots 9–10: QC judged the
+    clean picture the exception asked for against "losing glitch effect"."""
+    from . import lock_exceptions as lx
+    shots = [d for d in (shots or []) if isinstance(d, dict)]
+    exc = lx.for_shot(shots[0]) if len(shots) == 1 else {}
     rows = []
     for r in conn.execute("SELECT name, lock_rules, outfit_image_ids FROM characters WHERE project_id=?", (project_id,)):
         if names is not None and r["name"] not in names:
@@ -533,6 +539,7 @@ def lock_text(conn, project_id: int, names=None) -> str:
                 lock = None
         if not lock:
             continue
+        lock = lx.apply_rules(lock, exc.get(str(r["name"]).strip().upper()))
         size = f"; cao ~{lock['height_m']:g} m" if lock.get("height_m") else ""
         size += f", {lock['build']}" if lock.get("build") else ""
         if (r["outfit_image_ids"] or "").strip():
@@ -544,7 +551,12 @@ def lock_text(conn, project_id: int, names=None) -> str:
             continue
         rows.append(f"- **{r['name']}**{source} — giữ: {lock.get('must_keep', '')}; được đổi: {lock.get('may_change', '')}; "
                     f"cấm lệch: {lock.get('forbidden', '')}{size}")
-    return ("# Character Lock\n" + "\n".join(rows)) if rows else ""
+    if not rows:
+        return ""
+    notes = lx.notes_for_shots(shots, names)
+    return "# Character Lock\n" + "\n".join(rows) + (
+        "\n\n## Ngoại lệ chủ ý theo shot (BYĐ — đè lên khóa ở trên, chỉ trong shot đó)\n" + "\n".join(f"- {n}" for n in notes)
+        if notes else "")
 
 
 def short_lock_block(conn, project_id: int) -> str:
@@ -605,7 +617,7 @@ def build_qc_bundle(pipeline: Pipeline, scene_id: int, data_dir: Optional[str] =
         world_bible_text(pipeline, scene["project_id"]),
         "# Character Bible\n" + bible,
     ], [                                                 # this shot
-        lock_text(pipeline.conn, scene["project_id"], data.get("characters")),
+        lock_text(pipeline.conn, scene["project_id"], data.get("characters"), shots=[data]),   # + ngoại lệ BYĐ của shot
         "# Thông số cảnh\n" + json.dumps(spec, ensure_ascii=False, indent=2),
         _reference_block(refs),
         "(Đính kèm ảnh cần chấm điểm" + (", rồi các ảnh tham chiếu." if refs else ".") + ")",
@@ -700,7 +712,7 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     skill = _skill_block(people_in_project(pipeline, project_id))
     if skill:
         parts.append(skill)
-    lock = lock_text(conn, project_id)
+    lock = lock_text(conn, project_id, shots=[json.loads(r["data"] or "{}") for r in rows])   # + ngoại lệ BYĐ từng shot
     if lock:
         parts.append(lock)
     short = short_lock_block(conn, project_id)

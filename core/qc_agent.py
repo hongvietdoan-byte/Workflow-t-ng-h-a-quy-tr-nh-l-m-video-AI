@@ -592,7 +592,7 @@ class QcAgent:
             limits,
             ("# Bối cảnh — mô tả bản đồ thật (so nền của MỌI khung với mô tả này và ảnh 'establishing'; sổ tay mục G)\n" + place) if place else "",
             "# Sổ tay kiểm tra (lỗi đã được người xác nhận — làm đủ các thao tác 'Cách soi' áp dụng được)\n" + _read("knowledge", "qc_playbook.md"),
-            prompts.lock_text(self.p.conn, self.pid, names),
+            prompts.lock_text(self.p.conn, self.pid, names, shots=[f["data"] for f in self.frames]),   # + ngoại lệ BYĐ
             ("# Ghi chú theo hướng nhìn\n```json\n" + json.dumps(views, ensure_ascii=False, indent=1) + "\n```") if views else "",
             f"# Cảnh kịch bản {self.story} — bảng shot\n```json\n" + json.dumps(table, ensure_ascii=False, indent=1) + "\n```",
             ("# Kế hoạch soi bắt buộc (do code lập từ hồ sơ)\n" + "\n".join(f"- {x}" for x in plan)) if plan else "",

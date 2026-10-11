@@ -101,8 +101,11 @@ def compile_frame(conn, project_id: int, frame_job: int, data: Dict, profiles: O
     out.append(_a(frame_job, "count", ",".join(cast) or "-", f"Trong khung có đúng {len(cast)} người: {', '.join(cast) or 'không ai'}",
                   f"Exactly {len(cast)} people are visible: {', '.join(cast) or 'nobody'}. Is that true? Also report `extra_people`.", len(cast), "code+model", "block",
                   "characters"))
+    from . import lock_exceptions as lx
+    exc = lx.for_shot(data)                 # 11/10 #24 shot 9–10: ngoại lệ BYĐ của shot đè khóa — không hỏi món ảnh sạch cố ý không có
     for name in cast:
         prof = (profiles or {}).get(name) if profiles is not None else (assets.standard_for(conn, project_id, name) if conn else None)
+        prof = lx.apply_rules(prof, exc.get(name))
         view = view_of(data, name)
         if not prof:
             missing.append(name)

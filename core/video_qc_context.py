@@ -42,14 +42,32 @@ def _intent_text(data: Dict, motion_prompt: Optional[str]) -> str:
     return " ".join(p for p in parts if p).lower()
 
 
+# 11/10 (rà tích hợp): "không glitch", "WITHOUT any glitch or distortion", "no flicker" — chữ hiệu ứng bị phủ định ngay trước (cách
+# tối đa 3 từ) không phải ý đồ; "Kelly không sợ khi màn hình glitch" vẫn là có (phủ định xa, thuộc ý khác)
+_NEG_NEAR = re.compile(r"(?<!\w)(không|chẳng|chưa|no|not|without|never|bỏ)\s+(\S+\s+){0,3}$")
+
+
 def _hits(text: str, words: Iterable[str]) -> List[str]:
-    return [w for w in words if w in text]
+    out = []
+    for w in words:
+        for m in re.finditer(re.escape(w), text):
+            head = re.split(r"[.;,!?\n]", text[:m.start()])[-1]
+            if not _NEG_NEAR.search(head):
+                out.append(w)
+                break
+    return out
+
+
+def _clean_by_exception(data: Dict) -> bool:
+    """Ngoại lệ BYĐ của shot nói ảnh/clip KHÔNG có glitch (ảnh sạch, nhiễu ghép hậu kỳ — core/lock_exceptions) → clip phải sạch."""
+    from . import lock_exceptions as lx
+    return any(e["without"] and "glitch" in e["items"] for e in lx.for_shot(data).values())
 
 
 def intended_effects(data: Dict, motion_prompt: Optional[str] = None) -> Dict[str, List[str]]:
     """{"noise": [chữ khớp], "transform": [chữ khớp]} — hiệu ứng chủ ý đọc từ câu hành động + motion prompt."""
     text = _intent_text(data, motion_prompt)
-    return {"noise": _hits(text, NOISE_WORDS), "transform": _hits(text, TRANSFORM_WORDS)}
+    return {"noise": [] if _clean_by_exception(data) else _hits(text, NOISE_WORDS), "transform": _hits(text, TRANSFORM_WORDS)}
 
 
 def soft_criteria(data: Dict, motion_prompt: Optional[str] = None) -> Tuple[str, ...]:

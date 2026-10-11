@@ -334,7 +334,7 @@ def build_request(p, pid: int, frames: List[Dict], data_dir: str) -> Tuple[str, 
     geo = geometry_block(geometry_facts(p.conn, pid, frames))
     prompt = "\n\n---\n\n".join(x for x in [
         _read("prompts", "21_scene_qc.md"), _read("knowledge", "ai_image_failure_modes.md"),
-        prompts.lock_text(p.conn, pid, names),
+        prompts.lock_text(p.conn, pid, names, shots=[r["data"] for r in frames]),   # + ngoại lệ BYĐ từng shot
         "# Bảng shot của cảnh\n```json\n" + json.dumps(table, ensure_ascii=False, indent=1) + "\n```",
         ("# Cờ đo bằng code (lớp 0) — xác minh bằng mắt\n```json\n" + json.dumps(flags, ensure_ascii=False, indent=1) + "\n```") if flags else "",
         "" if est else "(Cảnh này KHÔNG có ảnh toàn cảnh — điểm place so với mô tả nơi chốn trong bảng shot.)", geo] if x)
