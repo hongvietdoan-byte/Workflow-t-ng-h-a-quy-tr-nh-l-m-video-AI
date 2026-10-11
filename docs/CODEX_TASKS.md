@@ -705,7 +705,7 @@ Theo công thức chung:
 
 ## Kết quả Codex — đợt 10
 
-(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+- Việc 1: `codex/d10-viec1-goi-gui-kem`, code `d1b325f`; 5+2 đỏ ban đầu →116 xanh; rà độc lập 1 TRUNG wearer suy ra ngoài cast, 1 đỏ → **119 passed /154,46s**. OUTFIT thay đúng wearer, giữ góc phụ; hash khóa ảnh, bắt base_refs, replan orphan VÀNG, dedup. RA_D10_VIEC1_CODEX_2026-10-12.md; root đọc fix+push nhánh, chưa thử thật/cả bộ/gộp main.
 
 ---
 
