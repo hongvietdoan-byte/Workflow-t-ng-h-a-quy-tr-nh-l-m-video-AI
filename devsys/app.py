@@ -1204,15 +1204,16 @@ def page_running():
     for error in data["errors"]:
         st.error(error)
     st.subheader("Nhánh chưa gộp origin/main")
-    st.dataframe([{"Nhánh": b["branch"], "Của ai": b["owner"], "Commit cuối": b["commit"], "Ngày": b["date"],
-                   "Commit chưa gộp": b["ahead"], "Đổi file": b["stat"], "Bằng chứng rà": b["review_evidence"] or "Chưa thấy",
-                   "Đọc kết quả nhánh": b["report_error"] or "—"}
+    dash = lambda v: "—" if v is None else v   # cột Git tính không được (shallow / không tổ tiên chung) → lý do ở cột lỗi
+    st.dataframe([{"Nhánh": b["branch"], "Của ai": b["owner"], "Commit cuối": dash(b["commit"]), "Ngày": dash(b["date"]),
+                   "Commit chưa gộp": dash(b["ahead"]), "Đổi file": dash(b["stat"]), "Bằng chứng rà": b["review_evidence"] or "Chưa thấy",
+                   "Lỗi / ghi chú Git": b["report_error"] or "—"}
                   for b in data["branches"]], hide_index=True, width="stretch")
     st.subheader("Worktree")
     st.dataframe(data["worktrees"], hide_index=True, width="stretch")
     st.subheader("Việc giao Codex")
-    st.dataframe([{"Đợt": t["wave"], "Việc": t["task"], "Tên": t["title"],
-                   "Kết quả trong checkout": "Có" if t["has_result"] else "Chưa", "Nhánh": t["branch"], "Commit": t["commit"],
+    st.dataframe([{"Đợt": t["wave"], "Việc": dash(t["task"]), "Tên": t["title"],
+                   "Kết quả trong checkout": "Có" if t["has_result"] else "Chưa", "Nhánh": dash(t["branch"]), "Commit": dash(t["commit"]),
                    "Kết quả trên nhánh chưa gộp": "; ".join(f"{r['source']} · {r['commit']}" for r in t["unmerged_results"])}
                   for t in data["tasks"]], hide_index=True, width="stretch")
 
