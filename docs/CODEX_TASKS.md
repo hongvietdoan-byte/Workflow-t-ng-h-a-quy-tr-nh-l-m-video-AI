@@ -647,6 +647,13 @@ THẤP kèm: chỉnh của shot mất số hiệu sau replan phải báo VÀNG; 
 THẤP: `start_from_prev_clip` ghi rõ lý do; cảnh báo chỉ khi clip cũ bị loại (không cho mọi shot chưa có clip); test 9 shot phân biệt "lệch motion" vs
 "thiếu bằng chứng"; thêm cộng giây ref ở `dashboard/model_line.py:83/89` và `quality_tier.py:484/488` nếu cùng nguồn.
 
+6. **Bản cao / nâng final (hộp thư 11/10 23:40, #24 final_estimate 18,29–21,38 USD vs đúng ≈ 19,76 theo clip):** `core/quality_tier.py:452`
+   `_clip_groups` rỗng khi `seedance_refs.enabled(pid)` = False dù job có `sent_group`/`group_leader` → tính riêng từng shot tối thiểu 4 s (`:484`);
+   giây lấy `motion_prompts.duration_sec` (`:425–426, 506`) thay vì độ dài clip nháp thật (theo `external_id`/file); nháp chưa duyệt
+   (`upgrade_block`) rơi nhánh "gen MỚI" giá 720p (`:485–488`); follower `quality_tier='direct'` bị bỏ (`:423`) trong khi `batch_final_price` vẫn
+   cộng. Nâng thật = 1 lệnh `submit_final_from_sample` theo task nháp (`core/adapters/clipai.py:610-620`), KHÔNG gửi lại ref → giá nâng theo đúng
+   cách đó. Test dựng nhóm theo `sent_group` khi cờ ref tắt, giây theo clip thật, follower.
+
 ## Việc 4 — Kho phiếu / trang Phiếu / pet (Đợt 9) — lỗi TRUNG
 1. `core/tickets.py:~165-174` gộp vào phiếu `closed`/`resolved` im lặng → tự chuyển `reopened` có event.
 2. `user_projection` (`:~252-257`) không xét trạng thái → phiếu đóng vẫn báo "tạm dừng"; phiếu không chặn vẫn trả tiêu đề → trả None khi đóng hoặc
@@ -732,5 +739,43 @@ Theo thiết kế việc 1 đã duyệt: màn trên Dashboard sau cờ `stage_ed
 Đề bài chi tiết có thể chỉnh sau khi người dùng duyệt thiết kế việc 1.
 
 ## Kết quả Codex — đợt 11
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+---
+
+# ĐỢT 12 — Âm thanh theo từng chuyển động (hộp thư phiên máy chính 11/10 23:28, làm tay #24 nháp v3; người dùng phân công phiên rà Codex)
+
+Nguồn: `D:\AI-Video-Output\2026-10-11_du-an-24\bang_am_thanh.md` + `nhap_v3_am_thanh.mp4` trên máy chính (cloud không đọc được — dựng ca thử từ mô
+tả dưới). Luật chung GIỐNG đợt 1; nhánh `codex/d12-viec<N>-<tên>`; KHÔNG sửa file #24 (runner/lock_exceptions/end_frames/place_refs/
+scene_storyboard); không API tốn tiền khi test; đổi hành vi sau cờ TẮT (trừ việc 1 là sửa lỗi). Ghi kết quả vào "Kết quả Codex — đợt 12".
+
+## Việc 1 — LỖI âm nền không bao giờ được chọn (nhỏ; sửa thẳng, không cờ)
+`core/ambience.py:51` lọc `voice=0`, nhưng `core/sound_ai.py:137` `summary` đặt `voice=True` cho MỌI âm không thuộc `ACCENT` (dế, gió…) → #24 cả 10 shot
+`ambience.choose` trả None dù Kho có #437 dế, #307 gió. Tách nghĩa: `voice` = giọng người; thêm trường riêng (vd `accent`) cho "không phải điểm
+nhấn" (migration cột `sounds` theo cách `core/db.py` thêm cột; dữ liệu cũ tính lại từ `heard_label` khi đọc, không cần nghe lại). Kiểm mọi chỗ đọc
+`voice` (grep) — điểm nhấn (`sfx_plan`/`sound_lib`) vẫn không lấy giọng người. Test đỏ → xanh với Kho giả có dế/gió/giọng nói.
+
+## Việc 2 — SFX theo nhịp chuyển động (vừa; cờ `motion_sfx` TẮT)
+Hiện `scenes.data.sound` của Đạo diễn chỉ 1–2 sfx/shot, không mốc giây, không theo nhịp BYĐ (#24 shot 2/6 trống; shot 7 còn ghi "glitch" dù đã đổi
+sương đỏ); `sfx_plan` gọi Claude chỉ "ít điểm nhấn". Làm:
+1. Sinh danh sách sfx THEO NHỊP từ BYĐ `hanh_dong[].bat_dau/dinh/ket_thuc` + động từ chuyển động (bước chân, vút, ngã, bám/trườn, bò, biến hình,
+   nấc, nhích/chạm…) — bảng ánh xạ động tác → loại âm (code, không Claude), Claude chỉ bổ sung khi bảng không phủ (báo giá trước).
+2. Mốc giây ĐO từ clip (hiệu khung hình / `core/clip_measure.py` `motion_series`) thay vì đoán; không đo được → mốc theo nhịp BYĐ chia đều + VÀNG.
+3. Phát hiện sfx lỗi thời: trường `sound` nhắc thứ không còn trong motion/BYĐ/`post_fx` hiện tại (vd "glitch" sau khi đổi sương đỏ) → VÀNG.
+4. Khung "âm hậu kỳ" cho `post_fx` (nhiễu sóng → tiếng rè/nhiễu) dùng chung lược đồ `core/post_fx.py`.
+
+## Việc 3 — Âm của video ref hành động + mix (vừa; cờ `ref_audio_sync` / `mix_bus` TẮT)
+1. Ghép âm ref của video ref hành động khớp động tác: ref → đoạn giây nguồn → shot, co giãn `atempo` theo tỉ lệ làm chậm ref; `motion_ref/*.mp4`
+   đã cắt mất tiếng → lấy âm từ file ref gốc (đường dẫn ghi trong ref), thiếu → VÀNG, không im lặng. Dùng lại `core/ref_audio.py` nếu phù hợp.
+2. Mix: nén nhạc theo bus hiệu ứng (sidechain ffmpeg) + kiểm số "nhạc dưới hiệu ứng 8–12 dB" + loudnorm −14 LUFS cho điện thoại (đọc
+   `core/delivery.py`/`core/ffmpeg_studio.py` loudness hiện có, không làm song song). Test ffmpeg thật cỡ nhỏ (slow nếu ≥ 8 s).
+
+## Việc 4 — Kho âm thanh còn thiếu (nhỏ; chỉ báo cáo + công cụ)
+Liệt kê theo ca #24: vải sột soạt / lết gối trên đá, tiếng chạm vai, chuông tháp lớn, sương/khói bùng (biến hình), nhạc kinh dị–bi thương có nhãn
+mood dùng được (AST mood ≈ 0 với mọi bản Kho). Viết `docs/KHO_AM_THANH_CAN_BO_SUNG.md` (nguồn miễn phí/có giấy phép đề xuất, người dùng duyệt
+trước khi tải) + đo vì sao mood ≈ 0 (nhãn AST không có mood → đề xuất cách gán mood: tay / mô hình khác) — không tải gì về Kho.
+
+## Kết quả Codex — đợt 12
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
