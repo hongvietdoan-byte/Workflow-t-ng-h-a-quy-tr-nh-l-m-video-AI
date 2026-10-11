@@ -701,8 +701,7 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     warnings = [f"shot {sid}: {v['reason']}" for sid, v in needs.items() if v["needed"] and conn.execute(
         "SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN ('succeeded','approved','pending_review') LIMIT 1", (sid,)).fetchone()]
     for r in todo:
-        warnings.extend(r.get("warnings") or [])
-        unknown.extend(r.get("warnings") or [])
+        warnings.extend(r.get("warnings") or [])        # rà gộp 12/10: priced (15 s per unknown ref) — not "no price" (`unknown`)
     vid_usd = 0.0
     for r in todo:
         if r["cost"] is None:

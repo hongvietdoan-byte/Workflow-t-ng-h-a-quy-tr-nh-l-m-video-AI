@@ -388,10 +388,16 @@ def lint_image(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, styl
     return out + _common(prompt, data, chars, "ảnh", ff)
 
 
+def ambient_on() -> bool:
+    """Đ10.6: `ambient_motion` works only with `prompt_formula` (features.REQUIRES) — rà gộp 12/10: the rule block went into the
+    Director / DP / motion prompts with the formula OFF while 🧪 said the flag did nothing."""
+    from . import features
+    return features.on("ambient_motion") and enabled()
+
+
 def ambient_prompt_block() -> str:
     """Đ10.6: chỉ luật cho người viết; OFF không thêm byte vào đề."""
-    from . import features
-    if not features.on("ambient_motion"):
+    if not ambient_on():
         return ""
     return ("# Lớp chuyển động nền\n"
             "Mỗi motion_prompt và action (nguồn được dịch sang motion_en.action) có một lớp chuyển động nền nhẹ, kể cả máy tĩnh. "
@@ -421,8 +427,7 @@ def ambient_hint(data: Dict) -> str:
 
 
 def ambient_issues(prompt: str, data: Dict) -> List[Dict]:
-    from . import features
-    if not features.on("ambient_motion"):
+    if not ambient_on():
         return []
     for sentence in re.split(r"[.;\n]", prompt):
         for match in _AMBIENT.finditer(sentence):

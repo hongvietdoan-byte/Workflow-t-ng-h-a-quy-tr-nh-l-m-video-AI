@@ -894,6 +894,22 @@ Luật chung GIỐNG đợt 1; nhánh `codex/d13-viec<N>-<tên>`; KHÔNG sửa f
 2. `mockup/tieu_nhi.html` `lastGenerated` chỉ nhớ lần gen cuối (gen 1,2 → 1,3 → quay về 1,2 gen lại được) → nhớ tập đầu vào đã gen.
 3. `mockup/lao_dai_pet.html` dáng thường vẫn hiện danh sách 3 phiếu chờ → dáng thường ẩn danh sách / hiện "không có phiếu chờ".
 
+## Việc 4 — Tồn đọng THẤP từ rà gộp Đ10 + Đ14 (phiên rà Codex 12/10 sáng; mỗi mục test đỏ → xanh, sau cờ nếu đổi hành vi)
+1. `core/change_review.py:157-170` (Đ10v2, cờ `layout_drift_review`): mục VÀNG `layout_drift_proposal` mỗi lượt V3 ghi mục MỚI (nội dung có
+   `os.path.abspath(new_dir)`) và không bao giờ đóng → tích tụ; lượt sau đóng mục đề xuất cũ cùng shot; ghi tên lượt/đường dẫn tương đối, không đường
+   dẫn máy.
+2. `core/tickets.py:71` `_safe`: `path.startswith('/')` chặn cả lý do/tiêu đề bắt đầu bằng "/" (vd "/24 shot") — chỉ chặn mẫu đường dẫn tuyệt đối
+   thật (≥ 2 đoạn, vd `/home/x/…`, `/mnt/…`).
+3. `core/prompts.py:576-579` (`short_lock_outfit`): tiêu chí mới chỉ cần `outfit_image_ids` không rỗng — ID trỏ ảnh mất/hỏng thì mất Lock ngắn mà
+   không gửi ảnh OUTFIT nào; quay lại điều kiện "có ≥ 1 ảnh OUTFIT dùng được" (`reference_problem` None) hoặc giữ Lock khi không ảnh nào dùng được.
+4. Dọn: `video_reference_seconds` không bao giờ trả `seconds=None` → bỏ nhánh chết `model_router.py:403`, `quality_tier.py:633/678`, import
+   `resolve_model` lặp `model_router.py:405`; `cost.video_need` quét mọi job nhóm cho từng shot (bình phương số shot) → tính một lần cho cả dự án.
+5. `core/package_overrides.py`: `_scene_hash` đổi tập khóa (bản chỉnh đã lưu trước sẽ hiện "stale") và `save()/undo()` bắt buộc `base_refs` — ghi rõ
+   trong docstring + test thông báo dễ hiểu khi thiếu (chưa có caller sản xuất).
+6. `core/seedance_refs.py:403,855` regex `Dialogue \([^)]*\): "[^"]*"` dừng ở dấu `"` đầu tiên trong câu thoại (câu `Nói "chào" đi` → lint chặn
+   "còn chữ tiếng Việt") — khớp tới `"` cuối dòng (MULTILINE) hoặc đổi `"` trong câu thành `”`; thêm test cấp runner (`tests/test_dialogue_take_runner.py`):
+   nhân vật tên có dấu + shot take → `_lint` trả None (sửa `group_block` bỏ dấu tên đã gộp main 12/10, phiên rà Codex).
+
 ## Kết quả Codex — đợt 13
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
@@ -920,6 +936,12 @@ biệt job của autopilot với job tự sửa ngoài autopilot (origin riêng,
 hàng) — vẫn qua đúng `runner.submit_pending` (cổng tiền, trần, throttle); gửi tự động phải tôn trọng ủy quyền/trần dự án (không chi khi người dùng chưa
 cho tự duyệt). Chỉ sửa `core/bg_poll.py` + chỗ đặt origin; KHÔNG sửa `core/runner.py`. Test: dự án không autopilot có job tự sửa → được gửi (cờ bật) /
 giữ nguyên (cờ tắt); dự án có autopilot → bg_poll không gửi trùng.
+
+## Việc 3 — ffmpeg đọc file Kho âm thanh trên ổ mạng (hộp thư 12/10 04:18 d; nhỏ, không cờ)
+Khi dựng bản cuối #24, ffmpeg lỗi đọc file Kho âm thanh nằm trên ổ G: (Google Drive đồng bộ, lỗi 69) lúc cắt — phải chép tay về máy. Sửa: chỗ cắt/trộn
+âm từ Kho (`core/sound_lib.py`, `core/ffmpeg_studio.py`, nơi gọi khi dựng — tìm caller) chép file nguồn ở ổ mạng/thư mục đồng bộ về thư mục tạm của dự án
+(có kiểm cỡ + mtime, dùng lại bản đã chép) rồi mới đưa ffmpeg; lỗi đọc → nói rõ file nào + "chép về máy" (không im lặng). KHÔNG sửa `core/runner.py`.
+Test bằng file giả (mô phỏng lỗi đọc), không cần ổ G thật.
 
 ## Kết quả Codex — đợt 14
 

@@ -689,8 +689,7 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
         body = motion_physics.sentence(str(data.get("action") or ""))
         if body:                               # S4.4: the physics of this kind of action, for the writer to keep (not a formula)
             out["physics_hint"] = body
-        from . import features
-        if features.on("ambient_motion"):
+        if prompt_formula.ambient_on():
             out["ambient_context"] = {k: data[k] for k in ("byd", "location", "weather", "time") if data.get(k)}
             out["ambient_hint"] = prompt_formula.ambient_hint(data)
         prev = all_scenes.get(r["idx"] - 1) or {}

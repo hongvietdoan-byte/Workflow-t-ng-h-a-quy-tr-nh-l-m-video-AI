@@ -91,6 +91,10 @@ def test_dependency_when_formula_off(monkeypatch):
     monkeypatch.setenv("FEATURE_PROMPT_FORMULA", "0")
     assert features.unmet("ambient_motion") == ["prompt_formula"]
     assert not pf.enabled()
+    # rà gộp 12/10: 🧪 says "does nothing" → it really adds nothing (no rule block in the paid prompts, no YELLOW check)
+    assert not pf.ambient_on()
+    assert pf.ambient_prompt_block() == ""
+    assert pf.ambient_issues("The clip starts on the first frame. Static camera.", {}) == []
 
 
 def test_yellow_is_not_red_or_blocker():
