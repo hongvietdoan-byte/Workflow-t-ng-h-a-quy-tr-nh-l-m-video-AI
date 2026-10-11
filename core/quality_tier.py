@@ -549,14 +549,18 @@ def e1_estimate(conn, pid: int, pricing: Optional[Dict] = None) -> Dict:
             else:
                 out["usd"] += r["cost"]
             continue
+        ref = cost.video_reference_seconds(conn, r["scene_id"], r)
+        if ref["seconds"] is None:
+            out["unknown"].append(r["scene_id"])
+            continue
         sec = max(billed, 4.0)
         if group_path(conn, r["scene_id"]) == "direct":
             model = canonical if r.get("skill") or r.get("take") or r.get("source") == "override" else SEEDANCE_20
-            out["usd"] += cost.seedance_estimate(model, E1_DIRECT_RESOLUTION, ratio, sec) or 0.0
+            out["usd"] += cost.seedance_estimate(model, E1_DIRECT_RESOLUTION, ratio, sec, ref["seconds"]) or 0.0
             out["direct"] += 1
         else:
-            out["usd"] += (cost.seedance_estimate(SAMPLE_MODEL, DRAFT_RESOLUTION, ratio, sec) or 0.0) + \
-                          (cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, sec) or 0.0)
+            out["usd"] += (cost.seedance_estimate(SAMPLE_MODEL, DRAFT_RESOLUTION, ratio, sec, ref["seconds"]) or 0.0) + \
+                          (cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, sec, ref["seconds"]) or 0.0)
             out["draft_first"] += 1
     out["usd"] = round(out["usd"], 2)
     out["film_seconds"] = round(out["film_seconds"], 1)
@@ -590,8 +594,12 @@ def run_estimate(conn, pid: int, rows, pricing: Optional[Dict] = None) -> Dict:
         except Exception:  # noqa: BLE001 - unknown model: priced like the row
             canonical, family = model, None
         if canonical == SAMPLE_MODEL:
-            draft = cost.seedance_estimate(SAMPLE_MODEL, "480p", ratio, max(billed, 4.0))
-            final = cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, max(billed, 4.0))
+            ref = cost.video_reference_seconds(conn, r["scene_id"], r)
+            if ref["seconds"] is None:
+                out.setdefault("unknown", []).extend(ref["warnings"])
+                continue
+            draft = cost.seedance_estimate(SAMPLE_MODEL, "480p", ratio, max(billed, 4.0), ref["seconds"])
+            final = cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, max(billed, 4.0), ref["seconds"])
             if final is not None and final > (row_usd or 0.0):
                 out["usd"] += final - (row_usd or 0.0)
                 out["finals_1080"] += 1

@@ -336,8 +336,8 @@ def _remake_runs(conn, group):
     shots still WITHOUT a clip (each run one group clip, a lone shot a clip of its own, >= 4 s billed) — #8 2026-09-28 the estimate
     priced 19 remade shots as group clips (6.48 USD) while they went one by one (~0.48 USD each)."""
     def has(sid):
-        return bool(conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN "
-                                 "('succeeded','approved','pending_review','running')", (sid,)).fetchone())
+        from . import cost
+        return not cost.video_need(conn, sid)["needed"]
     made = [has(r["id"]) for r in group]
     if not any(made):
         return [group]
@@ -391,9 +391,20 @@ def plan(conn, project_id: int, pricing: Optional[Dict] = None, priority: Option
                 billed = 0.0                   # made inside the group clip of its first shot
                 choice = {**choice, "reason": choice["reason"] + f" (trong clip nhóm của shot {group[0]['idx']})"}
         unit = price_per_sec(choice["model"], choice.get("resolution"), pricing)
+        from . import cost, formats
+        ref = cost.video_reference_seconds(conn, s["id"], choice)
+        price = None if unit is None else unit * billed
+        if ref["seconds"] is None:
+            price = None
+        elif ref["seconds"] > 0 and billed > 0:
+            from .adapters.clipai import resolve_model
+            canonical, family = resolve_model(choice["model"])
+            if family == "seedance":
+                price = cost.seedance_estimate(canonical, choice.get("resolution") or "720p",
+                                              formats.spec(formats.project_aspect(proj))["clip"], billed, ref["seconds"])
         rows.append({"scene_id": s["id"], "idx": s["idx"], **choice, "seconds": seconds, "billed_seconds": billed,
                      "resolution_pick": mp["video_resolution"] if mp is not None and "video_resolution" in mp.keys() else None,
-                     "usd_per_sec": unit, "cost": None if unit is None else unit * billed})
+                     "usd_per_sec": unit, "cost": price, "input_video_s": ref["seconds"], "warnings": ref["warnings"]})
     return rows
 
 
