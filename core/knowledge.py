@@ -240,6 +240,24 @@ def kld_blocks(role: str) -> List[str]:
     return [kld_text(role)] if _kld_on() else []
 
 
+P24_DOC = "knowledge/roles/director_p24_1110.md"     # 11/10 bài học duyệt ảnh #24 (cờ `p24_lessons`, TẮT mặc định)
+
+
+def p24_blocks() -> List[str]:
+    """[cách nghĩ rút từ duyệt ảnh #24] khi cờ `p24_lessons` bật (Đạo diễn 17, Quay phim 20, Sân khấu 3D 29), không thì []. Bật mà
+    không đọc được tệp → nói rõ (CHUAN luật 1), không im lặng."""
+    from . import features
+    try:
+        if not features.on("p24_lessons"):
+            return []
+    except KeyError:
+        return []
+    text = _read(os.path.join(ROOT, *P24_DOC.split("/"))).strip()
+    if not text:
+        raise FileNotFoundError(f"Cờ p24_lessons bật nhưng không đọc được '{P24_DOC}' — tắt cờ hoặc khôi phục file.")
+    return [text]
+
+
 def builtin_docs(group: str) -> List[Dict]:
     out = []
     crew = _film_crew()

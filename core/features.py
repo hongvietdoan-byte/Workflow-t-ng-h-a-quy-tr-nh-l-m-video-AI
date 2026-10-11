@@ -411,6 +411,14 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "KLD-8/9/12/14/15/25 08/10, chờ dự án mới đo (độ tin 1 dự án #22; docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md mục 4)",
     },
+    "p24_lessons": {
+        "label": "Bài học duyệt ảnh #24 (11/10) vào Đạo diễn / Quay phim (prompt 17, 20, 29): thấy-được theo độ cao máy, vị trí sau "
+                 "động tác di chuyển (điểm cuối `den`), giữ bố cục shot đã duyệt, phủ đủ nhịp + chi tiết của ref emote, cỡ khung chứa "
+                 "biên độ, hiệu ứng màn hình để hậu kỳ; Sân khấu 3D v3 gửi lại Đạo diễn cả mục VÀNG 'nhịp di chuyển' (trong 2 lượt đã ước tính)",
+        "verified": False,
+        "why": "11/10 người dùng soi ảnh #24 (shot 5 miệng giếng, 7/9/10 yêu nữ sát thành 0,25 m, shot 8 ref khóc 3 nhịp); kiểm VÀNG bằng "
+               "code (core/shot_lessons, prompt_formula) chạy không cần cờ — cờ này chỉ thêm cách nghĩ vào prompt; chờ dự án mới đo",
+    },
     "lesson_judge": {
         "label": "Agent chấm bài học (CHẾ ĐỘ BÓNG): Claude chấm mỗi bài học theo 6 tiêu chí (AI ghi khoản trừ + bằng chứng, code tính "
                  "điểm), ghi vào lịch sử duyệt để so với người — KHÔNG tự duyệt, không đổi bài học hay kiến thức nào",

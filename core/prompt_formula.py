@@ -34,6 +34,7 @@ PART_LABELS = {
     "nguon_dong_tac": "Nguồn động tác", "thoai": "Thoại", "duong_di_vat_gan_nguoi": "Đường đi vật gần người",
     "loai_nhan_vat": "Loại nhân vật", "mau_thuan": "Câu mâu thuẫn", "cau_chu": "Ngắt câu", "viet_chong": "Viết chồng thêm",
     "ta_cai_dung": "Tả cái đúng",
+    "phu_nhip_ref": "Phủ nhịp ref", "bien_do_khung": "Cỡ khung ↔ biên độ", "hieu_ung_hau_ky": "Hiệu ứng để hậu kỳ",   # 11/10 #24
 }
 CLOSE_SIZES = ("ECU", "CU", "MCU")
 WIDE_SIZES = ("WS", "EWS", "MLS")
@@ -382,6 +383,8 @@ def lint_image(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, styl
                               + ("" if legs else " — tư thế chỉ ghi ở blocking") + " — đổi cỡ cảnh sang MS/WS, hoặc tả tư thế bằng "
                               "phần trên người (vai ngả ra sau, tay chống phía sau)."))
     out += outfit_issues(prompt + " " + _data_text(data, ("blocking", "start_frame", "action_peak")), data, chars)
+    from . import shot_lessons                      # 11/10 bài học #24 (VÀNG): phủ nhịp ref, cỡ khung ↔ biên độ, hiệu ứng màn hình = hậu kỳ
+    out += shot_lessons.image_issues(prompt, data)
     return out + _common(prompt, data, chars, "ảnh", ff)
 
 
@@ -719,6 +722,20 @@ def _motion_of(conn, scene_id: int) -> Optional[str]:
     return row["motion_prompt"] if row else None
 
 
+def _with_ref(conn, scene_id: int, data: Dict, motion: Optional[str]) -> Dict:
+    """11/10 (#24 shot 8): bản sao data kèm video ref động tác của shot (motion_prompts.ref_video_path → `_ref_motion`), các nhịp ghi
+    ở tệp kèm (`_ref_beats`, core/shot_lessons.load_ref_beats) và motion prompt (`_ref_text`) — chỉ để kiểm, không ghi lại vào CSDL."""
+    try:
+        row = conn.execute("SELECT ref_video_path FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+        ref = row["ref_video_path"] if row else None
+    except Exception:  # noqa: BLE001 - a database without the column: no reference
+        ref = None
+    if not ref:
+        return data
+    from . import shot_lessons
+    return dict(data, _ref_motion=ref, _ref_beats=shot_lessons.load_ref_beats(ref), _ref_text=motion or "")
+
+
 def _style_by_code(conn, project_id: int) -> bool:
     try:
         from . import looks
@@ -806,8 +823,8 @@ def after_director(conn, project_id: int, before: Optional[Dict] = None) -> None
             image, motion = data.get("image_prompt"), _motion_of(conn, r["id"])
             prev = before.get(_key(data, r["idx"])) or {}
             try:
-                fc = review_shot(data, image, motion, chars, previous={"image": prev.get("image"), "motion": prev.get("motion")},
-                                 style_by_code=styled, ff=ff)
+                fc = review_shot(_with_ref(conn, r["id"], data, motion), image, motion, chars,
+                                 previous={"image": prev.get("image"), "motion": prev.get("motion")}, style_by_code=styled, ff=ff)
             except Exception as e:  # noqa: BLE001 - one shot's check failing is said, the others still run
                 diag.record(conn, "director", "warn", f"không kiểm được công thức prompt {_label(data, r['idx'])}: {type(e).__name__}: {e}",
                             "prompt_formula", project_id, scene_id=r["id"])
@@ -857,7 +874,8 @@ def on_prompt_saved(conn, scene_id: int, kind: str, old: Optional[str], new: Opt
         data = json.loads(row["data"] or "{}")
         image, motion = data.get("image_prompt"), _motion_of(conn, scene_id)
         old_fc = data.get("formula_check") or {}
-        fc = review_shot(data, image, motion, _chars(conn, project_id), previous={kind: old} if old != new else None,
+        fc = review_shot(_with_ref(conn, scene_id, data, motion), image, motion, _chars(conn, project_id),
+                         previous={kind: old} if old != new else None,
                          style_by_code=_style_by_code(conn, project_id), ff=_is_ff(conn, project_id))
         fc["growth"] = [g for g in old_fc.get("growth") or [] if g.get("kind") != kind] + fc["growth"]
         fc["cross"] = old_fc.get("cross") or []

@@ -1342,6 +1342,8 @@ def v2_main(argv):
             n_ok = sum(1 for c in s["cams"] if c["check"]["ok"] and c["c1_ok"])
             print(f"  shot {s['shot']}: {len(s['cams'])} phương án, {n_ok} đạt giai đoạn (a)" + "".join(f"\n    ! {e}" for e in s["errors"])
                   + "".join(f"\n    · {e}" for e in s["notes"] + s.get("advice", [])))
+        for w in sol.get("continuity") or []:                 # 11/10 (#24): vị trí sau động tác di chuyển (core/shot_lessons)
+            print(f"  [VÀNG] {w['msg']}")
         if a.solve_only:
             return
         m3 = _place_model3d(a.db, blocking["place"])

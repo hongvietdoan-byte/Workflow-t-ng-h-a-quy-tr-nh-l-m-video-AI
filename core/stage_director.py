@@ -27,7 +27,9 @@ def build_prompt(inputs: Dict, prev: Optional[Dict] = None, feedback: Sequence[s
     """Đề bài: cách nghĩ (prompt 29) + căn cứ của cảnh. Lượt 2: kèm câu trả lời trước + kết quả kiểm của code (chỉ sửa shot hỏng)."""
     with open(os.path.join(_ROOT, "prompts", PROMPT_FILE), encoding="utf-8") as f:
         head = f.read()
-    L = [head, "", "---", "", f"## Cảnh: {inputs.get('canh', '')}", ""]
+    from . import knowledge
+    L = [head] + [x for b in knowledge.p24_blocks() for x in ("", b)]     # 11/10 cờ p24_lessons (TẮT → prompt y cũ)
+    L += ["", "---", "", f"## Cảnh: {inputs.get('canh', '')}", ""]
     L.append(f"Khung hình dự án: {inputs.get('aspect', '9:16')}. Chỗ đứng chính (gốc O): {inputs.get('spot', '')}.")
     L += ["", "### Vật đã cố định (GIỮ NGUYÊN số)"]
     for o in inputs["fixed"]:
@@ -153,6 +155,10 @@ def feedback_from(solve: Optional[Dict], v2: Optional[Dict]) -> List[str]:
             out.append(f"shot {s['shot']}: " + "; ".join(s["errors"]))
         elif s.get("advice"):
             out.append(f"shot {s['shot']}: " + "; ".join(s["advice"]))
+    from . import features
+    if features.on("p24_lessons"):               # 11/10: nhịp sau động tác di chuyển (VÀNG của solve_scene) — trong 2 lượt đã ước tính
+        out += [f"dàn cảnh: {w['msg']}" for w in (solve or {}).get("continuity") or []
+                if w.get("part") == "vi_tri_sau_di_chuyen"]   # lỗi của code (loi_kiem) không gửi Đạo diễn — không tốn thêm lượt
     return out
 
 

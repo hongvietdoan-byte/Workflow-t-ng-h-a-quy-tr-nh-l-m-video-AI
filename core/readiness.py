@@ -92,7 +92,9 @@ def _formula(conn, ctx: Dict, sid: int, data: Dict) -> Dict:
         return _item(label, "ok", "kiểm công thức đang tắt (cờ)")
     k = "image" if image else "motion"
     # cùng luật với prompt_formula.red_issues (chặn gửi) — tính lại ở đây với nhân vật đọc MỘT lần cho cả lưới
-    issues = (pf.lint_image(text, data, ctx["chars"], ctx["style_by_code"], ctx["ff"]) if image
+    # 11/10: cùng dữ liệu ref (video ref + nhịp) như formula_check — hai nơi không lệch nhau ở mục "Phủ nhịp ref"
+    issues = (pf.lint_image(text, pf._with_ref(conn, sid, data, (ctx.get("motion") or {}).get(sid)), ctx["chars"],
+                            ctx["style_by_code"], ctx["ff"]) if image
               else pf.lint_motion(text, data, ctx["chars"], ctx["ff"]))
     fc = data.get("formula_check") or {}
     if fc and fc.get(f"{k}_sha") == pf._sha(text):

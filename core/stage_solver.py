@@ -576,4 +576,10 @@ def solve_scene(specs: List[Dict], blocking: Dict, aspect: float, marks: Optiona
             if s0:
                 r["notes"].append(f"shot mở chọn phía trục s₀ = {s0}")
         shots.append(r)
-    return {"objs": objs, "beats": beats, "axis": axis, "s0": s0, "shots": shots}
+    # 11/10 (#24 bài học 2): nhịp sau một động tác di chuyển phải lấy điểm cuối — VÀNG, không chặn, không đổi lời giải
+    from core import shot_lessons
+    try:
+        continuity = shot_lessons.movement_gaps(blocking, shot_lessons.beat_order(blocking, specs, rest=False))
+    except (ValueError, KeyError, TypeError, AttributeError) as e:
+        continuity = [{"level": "warn", "muc": "vang", "part": "loi_kiem", "msg": f"không kiểm được nhịp di chuyển: {e}"}]
+    return {"objs": objs, "beats": beats, "axis": axis, "s0": s0, "shots": shots, "continuity": continuity}
