@@ -227,8 +227,10 @@ def _short(v, n=700) -> str:
 
 def build_prompt(conn, ev, keys: List[str], scene_ids: List[int], code_found: List[Dict]) -> str:
     import os
+    from . import features
+    frames = features.on("change_review_frames")
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    with open(os.path.join(root, "prompts", PROMPT_FILE), encoding="utf-8") as f:
+    with open(os.path.join(root, "prompts", "30_change_review_frames.md" if frames else PROMPT_FILE), encoding="utf-8") as f:
         head = f.read()
     before, after = _loads(ev["before"]), _loads(ev["after"])
     L = [head, "", "---", "", f"## Thay đổi #{ev['id']} ({ev['kind']})"]
@@ -246,7 +248,15 @@ def build_prompt(conn, ev, keys: List[str], scene_ids: List[int], code_found: Li
         fields = {k: d.get(k) for k in ("characters", "size", "angle", "camera_move", "action", "blocking", "image_prompt", "motion_en",
                                         "end_state", "dialogue", "stage_camera", "plate_view") if d.get(k) not in (None, "", [], {})}
         L.append(f"### shot {row[0]} (id {sid}){' ← shot vừa đổi' if sid == ev['scene_id'] else ''}")
-        L += [f"- {k}: {_short(v, 500)}" for k, v in fields.items()]
+        labels = {"blocking": "khung đầu", "image_prompt": "khung đầu", "action": "đầu → đỉnh → cuối",
+                  "motion_en": "đầu → đỉnh → cuối", "end_state": "khung cuối"} if frames else {}
+        L += [f"- {k}{' (' + labels[k] + ')' if k in labels else ''}: {_short(v, 500)}" for k, v in fields.items()]
+        if frames:
+            if d.get("duration_s") is not None:
+                L.append(f"- duration_s: {_short(d['duration_s'])}")
+            if d.get("byd"):
+                # Giữ cả thành phần/dạng, ngoại lệ và nhịp; cắt 500 chữ dễ mất ket_thuc.
+                L.append(f"- byd (đầu → đỉnh → cuối): {json.dumps(d['byd'], ensure_ascii=False)}")
     names = set()
     for sid in scene_ids:
         row = conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()

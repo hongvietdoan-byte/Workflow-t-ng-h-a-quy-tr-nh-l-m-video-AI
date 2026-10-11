@@ -372,6 +372,11 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "S14.17 người dùng duyệt 04/10, chưa chạy thật Claude (core/prompt_rewrite.py; Claude lỗi → quay về 'Fix: …' + diag)",
     },
+    "change_review_frames": {
+        "label": "Tổ rà soát phân biệt khung đầu, quá trình và khung cuối; đếm nhịp chuyển động thay vì câu",
+        "verified": False,
+        "why": "Đ10.5: ca #24 dựng lại ngoại tuyến, chưa thử thật Claude; mặc định tắt",
+    },
     "change_review": {
         "label": "Tổ rà soát tác động: MỌI thay đổi (kịch bản / shot / hồ sơ + ảnh Kho) được bắt bằng trigger; luật code rà các khâu liên "
                  "quan (nền 3D, ảnh neo, câu tả, motion, khung cuối, video, shot kề) + agent Claude rà lệch nghĩa — mỗi thay đổi một lần, "
@@ -672,7 +677,7 @@ def active(name: str) -> bool:
 
 # S14.4 C1b (04/10): a flag that only works together with another one (dialogue_take: the runner asks lipsync.enabled() = lip_sync
 # first). Shown in 🧪 instead of a flag that looks ON and does nothing. B1 học việc: qc_team only runs inside scene_qc (by active()).
-REQUIRES = {"dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",)}
+REQUIRES = {"dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_review_frames": ("change_review",)}
 
 
 def unmet(name: str) -> list:
