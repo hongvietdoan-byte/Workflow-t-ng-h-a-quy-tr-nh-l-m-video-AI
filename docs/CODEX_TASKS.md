@@ -705,7 +705,7 @@ Theo công thức chung:
 
 ## Kết quả Codex — đợt 10
 
-(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+- Việc 2: `codex/d10-viec2-ky-thuat`, code `440936f`; 6 đỏ ban đầu → 70 xanh/1 xfail; rà độc lập 1 P2 baseline partial, 2 đỏ → **73 passed / 1 xfailed / 5,72s**. V3 finding đề xuất chưa áp dụng kèm thư mục lượt; baseline explicit kiểm trước Claude; Lock OUTFIT chung tiêu chí, OFF giữ chuỗi. RA_D10_VIEC2_CODEX_2026-10-12.md. Thiếu camera baseline chưa kiểm trái/phải; chưa thử thật/cả bộ/gộp main. Root đọc fix, chỉ push nhánh; areas version giữ.
 
 ---
 
