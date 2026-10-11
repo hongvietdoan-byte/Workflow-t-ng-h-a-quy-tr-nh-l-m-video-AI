@@ -192,15 +192,25 @@ def loop(db_path: str, one_round: Callable[[str], object], interval: float = INT
     return n
 
 
+THREAD_NAME = "bg-poll"
+
+
+def running() -> bool:
+    """Một luồng vòng nền còn sống trong tiến trình này (tên THREAD_NAME)."""
+    return any(t.name == THREAD_NAME and t.is_alive() for t in threading.enumerate())
+
+
 def start(db_path: str, data_dir: str, interval: float = INTERVAL_SEC) -> bool:
     """Start the one background round of this dashboard process (False = already running or switched off: BG_POLL=0)."""
     global _started
     if os.environ.get("BG_POLL", "1") == "0":
         return False
     with _start_lock:
-        if _started:
+        # 11/10: Streamlit nạp lại module khi tệp đổi (cờ _started về False) và dashboard/serve.py bắt đầu vòng trước khi có phiên —
+        # một luồng "bg-poll" còn sống trong tiến trình = đã chạy, không mở vòng thứ hai (hai vòng = gửi job hai lần)
+        if _started or running():
             return False
         _started = True
     threading.Thread(target=loop, args=(db_path, lambda db: round_once(db, data_dir), interval), daemon=True,
-                     name="bg-poll").start()
+                     name=THREAD_NAME).start()
     return True

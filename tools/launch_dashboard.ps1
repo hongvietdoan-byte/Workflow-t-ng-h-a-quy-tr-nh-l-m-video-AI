@@ -90,8 +90,9 @@ $log = Join-Path $root "data\dashboard.log"
 # Local only by default (the dashboard spends credits and has no login): DASHBOARD_LAN=1 opens it to your network.
 $address = if ($env:DASHBOARD_LAN -eq "1") { "0.0.0.0" } else { "127.0.0.1" }
 $errLog = Join-Path $root "data\dashboard_err.log"
+# dashboard.serve (11/10): starts the background job round before Streamlit, so queued jobs move even when no browser is open.
 Start-Process -WindowStyle Hidden -WorkingDirectory $root -FilePath "py" -RedirectStandardOutput $log -RedirectStandardError $errLog `
-    -ArgumentList "-m", "streamlit", "run", "dashboard/app.py", "--server.port", "$port", "--server.address", $address, "--server.headless", "true", "--browser.gatherUsageStats", "false"
+    -ArgumentList "-m", "dashboard.serve", "--server.port", "$port", "--server.address", $address, "--server.headless", "true", "--browser.gatherUsageStats", "false"
 for ($i = 0; $i -lt 40 -and -not (Test-Port $port); $i++) { Start-Sleep -Milliseconds 500 }
 if (-not (Test-Port $port)) { Show-Failure "May chu chua len sau 20 giay (cong $port)."; exit 1 }
 Open-Dashboard

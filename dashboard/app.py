@@ -136,10 +136,11 @@ def main():
     p.actor = me()["email"] if auth_on() else (user_name() or None)     # the account / name box is in ⚙ (one-line top bar)
     C.scoped(p)                                          # đợt F: core writes are checked against this person's rights per project (core/access.py)
     access_ui.set_read_only(False)                       # the read-only lock is decided below, after the top bar and the screen bar
+    start_background_watch()                             # 08/10: jobs at the provider are polled + downloaded even with every tab closed
+    # 11/10: before the project check — the home screen (no project chosen) also starts it; dashboard/serve.py starts it with the server
     pid = global_bar(p)
     if pid is None:
         return
-    start_background_watch()                             # 08/10: jobs at the provider are polled + downloaded even with every tab closed
     C.periodic("purge_trash", lambda: purge_trash(DATA))              # V4 5.3: housekeeping every 60 s, not on every click
     C.periodic("purge_asset_trash", lambda: assets.purge_removed(p.conn), every=3600)   # S14.4: Kho pictures deleted > 30 days ago
     C.periodic(f"sweep_{pid}", lambda: trash.sweep_rejected(p, DATA, pid))
