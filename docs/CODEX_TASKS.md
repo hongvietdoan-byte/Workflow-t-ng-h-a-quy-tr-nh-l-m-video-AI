@@ -577,7 +577,19 @@ của việc 1 (dùng fixture).
    phiếu (ảnh hưởng, nguyên nhân + bằng chứng, cần gì, ai làm, hạn, trạng thái, phần kỹ thuật file/test/nhánh), nút chuyển trạng thái hợp lệ có lý do.
    8502 hiện chưa có ACL an toàn (THIET_KE mục 2): thao tác GHI chỉ bật khi có đăng nhập admin phía server — nếu chưa có cơ chế, trang CHỈ ĐỌC + ghi rõ
    lý do, không tự làm ACL tạm. Đọc CSDL qua đường dẫn cấu hình sẵn có (xem `core/db.py` / env), KHÔNG cứng `D:\`.
-3. Test AppTest trang phiếu với CSDL tạm; slow nếu ≥ 8 s.
+3. **Tối ưu XEM – CHỌN – DUYỆT phiếu cho admin (người dùng 11/10 yêu cầu):**
+   - **Xem:** một hàng đợi duy nhất xếp theo mức cần xử lý (chặn sản xuất → quá hạn → sắp quá hạn → còn lại); mỗi dòng đủ để quyết mà không mở:
+     tiêu đề, dự án/shot bị chặn, tiền liên quan, hạn còn lại, việc admin cần làm (1 động từ: duyệt gộp / duyệt nâng trần / duyệt sửa Kho / giao
+     bảo trì). Chi tiết mở NGAY dưới dòng (không sang trang): bằng chứng (ảnh nhỏ / job / test đỏ→xanh / diff tóm tắt / nhánh), "đã gỡ tạm bằng…".
+   - **Chọn:** lọc nhanh theo loại (code / nâng trần / Kho), theo dự án; phiếu cùng fingerprint gộp sẵn thành một (đếm số lần gặp, các dự án bị ảnh hưởng).
+   - **Duyệt:** nút quyết định ngay trên dòng (Duyệt / Từ chối / Cần thêm thông tin / Gia hạn) — lý do có mẫu chọn sẵn + ô ghi thêm; duyệt xong tự
+     chuyển phiếu kế; **duyệt hàng loạt** chỉ cho phiếu cùng loại không tốn tiền (vd đóng các phiếu trùng đã sửa) và phải xem danh sách trước khi bấm;
+     phiếu nâng trần hiện số tiền trước/sau + trần dự án, bấm duyệt mới đổi trần. Không có thao tác nào tự chi tiền.
+   - **Từ pet:** link pet mở THẲNG đúng phiếu (anchor/query `?ticket=<id>`), không mở trang chung.
+   - **Đo:** ghi số lần bấm + số lần cuộn để quyết 1 phiếu thường (mục tiêu ≤ 2 bấm, 0 cuộn trang ở 1440×900) bằng AppTest/Playwright như
+     `tools/ui_v2_acceptance.py`; so trước/sau, ghi vào "Kết quả".
+4. Test AppTest trang phiếu với CSDL tạm (thứ tự hàng đợi, gộp fingerprint, duyệt → phiếu kế, duyệt hàng loạt chặn loại tốn tiền, link `?ticket=`);
+   slow nếu ≥ 8 s.
 
 ## Việc 3 — Pet Lão Đại pilot (vừa; chạy/kiểm trên máy chính Windows)
 Theo THIET_KE mục 4, cách **Python + tkinter** (pilot): `tools/lao_dai/` — cửa sổ nhỏ trong suốt luôn trên cùng ở góc, kéo được, icon khay ẩn/mở/
