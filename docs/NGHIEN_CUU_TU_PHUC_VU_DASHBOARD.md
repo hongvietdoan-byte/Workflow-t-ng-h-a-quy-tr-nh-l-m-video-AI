@@ -1,12 +1,12 @@
-# Dashboard tự phục vụ và Tiểu Nhị — ĐỢT 5
+# Dashboard tự phục vụ, Tiểu Nhị và Lão Đại — ĐỢT 5 + 7
 
-Ngày 11/10/2026 · đối chiếu mã nguồn `b346d10` · **nghiên cứu và thiết kế, chưa triển khai sản phẩm**.
+Ngày 11/10/2026 · Đợt 7 đối chiếu mã nguồn `229f812` (bản Đợt 5: `b346d10`) · **nghiên cứu và thiết kế, chưa triển khai sản phẩm**.
 
 Đề xuất: hoàn thiện các thao tác Dashboard trước; Tiểu Nhị là lớp hướng dẫn, suy luận và chuyển phiếu gọi lại chính những thao tác ấy. “Bất kể lỗi nào” nghĩa là lỗi nào cũng có nơi tiếp nhận, người chịu trách nhiệm và trạng thái; không có nghĩa AI chữa được mọi lỗi hay được tự chi tiền. Không dùng số liệu dự án thật để khẳng định hiệu quả.
 
 ## A. Kiểm kê và phân loại
 
-[Kiểm kê hiện trạng](D5_KIEM_KE_HIEN_TRANG.md) là phần A của hồ sơ này: bảng phân loại theo toàn bộ khâu, đối chiếu 9 ca thật, nguồn `file:dòng`, chức năng đã có/thiếu, danh mục công cụ. Số dòng tính tại commit nền trên; khi triển khai phải mở lại mã nguồn. Các ca 11/10 là dữ liệu đề bài, không phải kết quả thử nghiệm phiên này.
+[Kiểm kê hiện trạng](D5_KIEM_KE_HIEN_TRANG.md) là phần A của hồ sơ này: bảng phân loại theo toàn bộ khâu, đối chiếu 9 ca thật, nguồn `file:dòng`, chức năng đã có/thiếu, danh mục công cụ. Nguồn mới theo base `229f812` ở [thiết kế Đợt 7](THIET_KE_TIEU_NHI_LAO_DAI_D7.md); tham chiếu kế thừa Đợt 5 phải mở lại mã nguồn khi triển khai. Các ca 11/10 là dữ liệu đề bài, không phải kết quả thử nghiệm phiên này.
 
 Ba thiếu hụt quyết định thứ tự làm:
 
@@ -29,7 +29,10 @@ flowchart TD
   G --> H[Kết quả thật + kiểm lại + ghi vết]
   H --> B
   C --> T[Phiếu code / tài nguyên chung]
-  T --> M[Dịch vụ bảo trì cách ly / admin tài nguyên]
+  T --> P[Lão Đại báo admin]
+  P --> M[Admin giao phiên Claude / Owner tài nguyên]
+  P -. Đợt 8+ chờ xác nhận + cách ly + 42 ca .-> W[Thợ Claude Code cách ly]
+  W --> R
   M --> R[Test + rà + admin duyệt + triển khai]
   R --> H
   H --> L[Bài học đề xuất, admin duyệt]
@@ -43,7 +46,7 @@ Kiểm miễn phí chạy trước: schema, tệp, refs, trùng nền khác came
 
 Trình sửa sân khấu: nhập/kéo vị trí nhân vật và camera, chọn beat, khóa nhân vật đã duyệt; hiển thị đơn vị mét, điểm neo và trạng thái đầu/cuối. Giải máy/render trên **bản sao dự án**, ghi cảnh báo nếu không giải được. Render cục bộ không có phí API nhưng vẫn tốn tài nguyên máy và phải giới hạn một worker, thời gian, kích thước; không đụng map dùng chung. So trước/sau nhiều shot, lựa chọn shot chịu ảnh hưởng, chỉ áp dụng khi người duyệt. Gói ảnh cũ vẫn là lịch sử bất biến; thay đổi sân khấu làm mất hiệu lực cache đúng phụ thuộc.
 
-Các màn còn lại: thêm/chèn shot theo mẫu có kiểm đủ trường; quản lý ảnh đầu–cuối; ngoại lệ khóa theo shot có phạm vi/thời hạn; đóng mục rà soát kèm lý do và bằng chứng; duyệt trên điện thoại. Không đề xuất viết lại `Pipeline.add_scene_next`, `end_frames`, `change_review` hay solver đã có.
+Các màn còn lại: thêm/chèn shot theo mẫu có kiểm đủ trường; quản lý ảnh đầu–cuối; ngoại lệ khóa theo shot có phạm vi/thời hạn; đóng mục rà soát kèm lý do và bằng chứng. Điện thoại/HTTPS để sau (chốt 11/10). Không đề xuất viết lại `Pipeline.add_scene_next`, `end_frames`, `change_review` hay solver đã có.
 
 Đường thao tác thường cũng phải bảo vệ hàng đợi: `Pipeline.reject` mặc định `respawn=True` (`core/pipeline.py:656`), nên “chỉ loại ảnh” dùng `respawn=False`. `end_frames.redo` (`:256`) tạo queued rồi worker có thể chi tiền: cần duyệt báo giá **trước enqueue**, không chỉ trước submit. `change_review.close` (`core/change_review.py:387`) đóng ĐỎ có thể mở job đang giữ; màn đóng phải hiển thị các job ảnh hưởng và không cho tiếp tục job chưa có phê duyệt còn hiệu lực. `run_director_scene` (`core/llm_runner.py:823`) có thể sửa cảnh này và các cảnh sau: preview không được hứa chỉ sửa một shot.
 
@@ -55,13 +58,13 @@ Tool đọc không ghi, tool chuẩn bị tạo bản nháp; tool áp dụng nh�
 
 Xem catalog hàm đang có và I/O trong [kiểm kê](D5_KIEM_KE_HIEN_TRANG.md). Adapter mới dự kiến gồm `read_evidence`, `prepare_shot_change`, `preview_stage`, `apply_approved_change`, `request_generation`, `close_finding`, `create_ticket`; đây là **tên thiết kế, chưa có API**. Không expose trực tiếp hàm quản trị hoặc CLI Blender.
 
-### Lớp 3 — chuyển phiếu, tài nguyên chung và lỗi code
+### Lớp 3 — Lão Đại, chuyển phiếu, tài nguyên chung và lỗi code
 
-Phiếu chứa loại, tác động, bước tái hiện, mã nguồn đang chạy, job/shot, snapshot đã lọc secret, gói gửi bất biến, diagnostics, người phụ trách và bước tiếp theo. Fingerprint lỗi + project/revision tránh tạo nhiều phiếu cho cùng lỗi; gộp bằng chứng không làm mất nguồn. Trạng thái: mới → phân loại → chờ duyệt/đang xử lý → kiểm chứng → đã triển khai → người dùng xác nhận → đóng; có nhánh chờ thông tin, không tái hiện được, bị chặn và mở lại. “Đã triển khai” cần commit và health/retest thật, không dùng câu trả lời AI làm bằng chứng. Admin nhận cảnh báo chờ quá SLA; đồng nghiệp theo dõi ngay trong dự án.
+Phiếu chứa loại, tác động, bước tái hiện, mã nguồn đang chạy, job/shot, snapshot đã lọc secret, gói gửi bất biến, diagnostics, người phụ trách và bước tiếp theo. Fingerprint lỗi + project/revision tránh tạo nhiều phiếu cho cùng lỗi; gộp bằng chứng không làm mất nguồn. Trạng thái: mới → phân loại → chờ duyệt/đang xử lý → kiểm chứng → đã triển khai → admin xác nhận kiểm chứng → đóng; có nhánh chờ thông tin, không tái hiện được, bị chặn và mở lại. “Đã triển khai” cần commit và health/retest thật, không dùng câu trả lời AI làm bằng chứng. Hạn xử lý 3 ngày (chốt 11/10). Lão Đại báo admin; đồng nghiệp chỉ thấy lỗi + nút sửa ngay, không thấy phiếu/code. Khi chặn hẳn: “đã báo admin, dự án tạm dừng ở shot này”. Chi tiết phiếu và quyết định nơi lưu ở [mục 2 thiết kế Đợt 7](THIET_KE_TIEU_NHI_LAO_DAI_D7.md#2-phiếu-admin-và-nơi-lưu-đề-xuất).
 
-**Tài nguyên chung:** admin tạo revision map/Bible/Kho mới trong vùng nháp, preview, liệt kê mọi dự án phụ thuộc, sao lưu bản gốc rồi duyệt publish. Dự án đang chạy ghim revision cũ; nâng revision là thao tác có ảnh hưởng riêng. Không xóa thùng dầu khỏi map chung chỉ vì một đồng nghiệp yêu cầu. Hoàn tác chọn revision cũ; không ghi đè âm thầm.
+**Tài nguyên chung:** chỉ Owner tạo/publish revision map/Bible/Kho mới (chốt 11/10); admin chuẩn bị trong vùng nháp, preview, liệt kê mọi dự án phụ thuộc, sao lưu bản gốc rồi duyệt publish. Dự án đang chạy ghim revision cũ; nâng revision là thao tác có ảnh hưởng riêng. Không xóa thùng dầu khỏi map chung chỉ vì một đồng nghiệp yêu cầu. Hoàn tác chọn revision cũ; không ghi đè âm thầm.
 
-**Code:** Tiểu Nhị chỉ tạo yêu cầu. Một dịch vụ bảo trì riêng, danh tính/quyền/ngân sách khác, chạy Claude Agent SDK trong worktree từ commit triển khai. Chuỗi bắt buộc: tái hiện test đỏ → sửa → test liên quan → rà độc lập → cả bộ Windows → admin duyệt diff/commit → tích hợp và health → báo lại người dùng. Không tái hiện được thì trả phiếu cần thông tin; không nới test. Dịch vụ không giữ quyền merge/push main/deploy.
+**Code:** Tiểu Nhị chỉ tạo yêu cầu. Hiện tại admin giao phiên Claude xử lý phiếu. Đợt 8+ mới đề xuất thợ Claude Code cách ly, danh tính/quyền/ngân sách riêng, chờ người dùng xác nhận và đủ bộ 42 ca. Phiếu thường chạy lô khoảng 22:00 Asia/Saigon; phiếu chặn sản xuất chạy ngay khi admin cho phép (chốt 11/10). Chuỗi bắt buộc: tái hiện test đỏ → sửa → test liên quan → rà độc lập → cả bộ Windows → admin duyệt diff/commit → tích hợp và health → báo lại người dùng. Không tái hiện được thì trả phiếu cần thông tin; không nới test. Dịch vụ không giữ quyền merge/push main/deploy.
 
 Git worktree **không phải sandbox**: dùng tài khoản Windows riêng hoặc worker VM có ACL hệ điều hành; không mount `data/`, `dashboard.env`, Kho thật, thư mục main hay credential Git. Fixture được lọc và đưa vào vùng tạm. Mạng deny mặc định; chỉ broker model API giữ khóa và endpoint được duyệt. Test không được gọi nhà cung cấp thật; timeout/quota CPU/disk/process, không cho child process vượt vùng. Python/PowerShell có thể vượt chặn shell bằng tên lệnh nên không dựa allowlist lệnh làm biên an toàn. Trên máy chính chưa chứng minh được cách ly này thì chỉ tạo phiếu cho người bảo trì, không bật tự chạy code.
 
@@ -71,32 +74,26 @@ SDK có `max_turns`, `max_budget_usd`, hooks; ngân sách SDK là ước tính p
 
 ### Lớp 4 — bài học dùng chung
 
-Ghi lỗi → thay đổi → kết quả kiểm chứng → lý do, giữ trace tới phiếu/job. Tái dùng `core/lessons.py:127` harvest, `:258` propose, `:365` decide và `:395` sync_knowledge. Quy tắc “lặp ≥2” của ĐỢT 5 là **điều kiện đề xuất mới**, không tự sửa ngưỡng clusters đang có. Hai sự kiện cùng retry một job không tính hai bằng chứng độc lập. Admin duyệt luật và test hồi quy, rollout cờ tắt rồi nhóm nhỏ, có revision/rollback. Không đưa prompt riêng/nhân vật/tài nguyên riêng của dự án vào luật công khai; bài học chung phải bỏ thông tin nhạy cảm.
+Tái dùng `experience_cases` (`core/experience.py:26–29`), `record` (:41), `relevant` (:166) làm sổ ca có ảnh/bằng chứng, success/failure/false_alarm/missed, người xác nhận; retrieval lọc ACL trước đưa vào chat. Không tạo sổ kinh nghiệm thứ hai. Ghi lỗi → thay đổi → kết quả kiểm chứng → lý do, giữ trace tới phiếu/job. Tái dùng `core/lessons.py:127` harvest, `:258` propose, `:365` decide và `:395` sync_knowledge. Quy tắc “lặp ≥2” của ĐỢT 5 là **điều kiện đề xuất mới**, không tự sửa ngưỡng clusters đang có. Hai sự kiện cùng retry một job không tính hai bằng chứng độc lập. Admin duyệt luật và test hồi quy, rollout cờ tắt rồi nhóm nhỏ, có revision/rollback. Không đưa prompt riêng/nhân vật/tài nguyên riêng của dự án vào luật công khai; bài học chung phải bỏ thông tin nhạy cảm.
 
-### Dữ liệu mới tối thiểu (đề xuất, chưa tạo CSDL)
+### Dữ liệu tối thiểu sau đối chiếu hiện trạng (đề xuất, chưa migration)
 
-| Bảng | Trường chính / ràng buộc |
-|---|---|
-| service_proposals | id, project, actor, operation, base_revision, diff, preview_refs, estimate, price_version, expires, state, approval_actor/time/hash; snapshot bất biến sau duyệt |
-| service_operations | id, proposal, actor, idempotency_key UNIQUE, expected_revision, state, job_id/external_id, reserved_usd, actual_usd, failure; một proposal chỉ áp dụng một lần |
-| service_audit | operation, actor, capability, before/after hash, result, UTC; append-only, không lưu secret |
-| support_tickets + ticket_events | project, fingerprint, severity, owner, state, evidence_refs, SLA, deployment_commit; log sự kiện append-only, ACL kế thừa dự án |
-| service_budget_reservations | user/project/session/day, ceiling, reserved/spent, pricing_version, operation; UNIQUE operation, giữ cả trạng thái gửi chưa rõ |
-
-Tái dùng `jobs`, `usage_ledger`, `diag_events`, `change_review`, `lessons` thay vì nhân bản lịch sử. Evidence blobs có hash/retention, không nhúng base64 vào chat/CSDL. Migration và cleanup là việc triển khai sau, cần backup dữ liệu thật.
+Không giữ nguyên năm bảng đề xuất Đợt 5. `service_proposals` giữ vì cần hash duyệt/revision/TTL; `service_operations` giữ vì cần claim/idempotency và unknown submit; bỏ `service_audit`, mở rộng `audit_log` đã có; `support_tickets + ticket_events` cần cho vòng đời admin, đặt cùng manifest và hiển thị trong AI Dev System; `service_budget_reservations` giữ chỉ phần reservation trợ lý chưa có, dùng lại sổ chi `usage_events` qua `core/cost.py:756` và `core/llm_runner.py:615–623`. `usage_ledger` là tên khái niệm trong bản cũ, **không phải bảng/module đã có**. Không nhân bản `diag_events`, `change_findings`, `experience_cases` hay `devsys/answers`. Quyết định và trường cụ thể: [thiết kế Đợt 7 mục 2](THIET_KE_TIEU_NHI_LAO_DAI_D7.md#2-phiếu-admin-và-nơi-lưu-đề-xuất).
 
 ## Quyền, tiền, giới hạn và hoàn tác
+
+Bảng dưới là bốn **bậc thao tác**, không phải bốn cấp trợ lý: chỉ hai trợ lý Tiểu Nhị và Lão Đại.
 
 | Bậc | Người / quyền | Chi phí và vòng đề xuất | Phê duyệt, vết, hoàn tác |
 |---|---|---|---|
 | 1 đọc/giải thích | thành viên view chỉ dự án được cấp; admin toàn hệ thống | kiểm bằng code 0 USD API; Claude ≤0,03 USD/lượt, tối đa 2 lượt suy luận | duyệt giá trước API; ghi context hash/model/usage; không ghi dữ liệu dự án |
-| 2 sửa dự án | chủ dự án hoặc watcher edit; view chỉ đề xuất | Claude ≤0,15 USD/phiên, ≤6 tool rounds; xem trước 3D 0 USD API; gen theo báo giá riêng | duyệt bản diff và duyệt gen riêng; backup snapshot, kiểm revision; revert dữ liệu không hoàn tác khoản đã chi |
-| 3 tài nguyên chung | đồng nghiệp lập phiếu; admin chuẩn bị/publish | ≤0,50 USD/phiếu phân tích; ≤2 đề xuất, preview một worker | admin duyệt revision + danh sách ảnh hưởng; rollback revision |
+| 2 sửa dự án | chủ dự án hoặc watcher edit; view chỉ đề xuất | Claude hiện đề xuất ≤0,15 USD/phiên, ≤6 tool rounds; dùng thật 2 USD/dự án, báo 80%; xem trước 3D 0 USD API; gen theo báo giá riêng | duyệt bản diff và duyệt gen riêng; backup snapshot, kiểm revision; revert dữ liệu không hoàn tác khoản đã chi |
+| 3 tài nguyên chung | đồng nghiệp lập phiếu; admin chuẩn bị, chỉ Owner publish | ≤0,50 USD/phiếu phân tích; ≤2 đề xuất, preview một worker | admin duyệt revision + danh sách ảnh hưởng; rollback revision |
 | 4 bảo trì code | dịch vụ cách ly do admin cấp capability | ≤5 USD/phiếu, 20 turns, 1 lần sửa + 1 lần rà; không tự resume tăng trần | admin duyệt ngân sách trước kích hoạt, admin duyệt merge sau test; rollback code có kiểm tương thích migration |
 
-Các số này là **trần đề xuất**, không phải cho phép tiêu ngay. Khi còn ít hơn giá ước tính cả hành động thì không bắt đầu. Giá không rõ → chờ bổ sung/duyệt mức tính dư; không ghi 0. Không đổi chính sách cap Pipeline hiện tại: `core/spend_gate.py:115` chủ yếu cảnh báo ngân sách, dừng khi dịch vụ hết credit hoặc dự án tạm dừng. Hard cap mới chỉ cho dịch vụ tự phục vụ sau khi người dùng chốt, không âm thầm chặn autopilot hiện có.
+Các số này là **trần đề xuất trừ chốt 2 USD/dự án**, không phải cho phép tiêu ngay. Khi còn ít hơn giá ước tính cả hành động thì không bắt đầu. Giá không rõ → chờ bổ sung/duyệt mức tính dư; không ghi 0. Không đổi chính sách cap Pipeline hiện tại: `core/spend_gate.py:115` chủ yếu cảnh báo ngân sách, dừng khi dịch vụ hết credit hoặc dự án tạm dừng. Hard cap mới theo dự án chỉ cho Tiểu Nhị theo chốt 11/10, không âm thầm chặn autopilot hiện có.
 
-Đề xuất mặc định mới: 2 USD/người/ngày cho dịch vụ Claude tự phục vụ; gen ảnh/video/TTS có khoản riêng theo dự án; tổng mọi khoản vẫn hiện chung để tránh lách trần. Bảo trì 10 USD/toàn hệ thống/ngày và tối đa một worker. Admin cũng chịu trần, muốn tăng cần duyệt hạn mức mới có thời hạn. Không thể dự báo chính xác hóa đơn bằng một `max_budget_usd`: broker dự trữ token đầu vào + `max_tokens` đầu ra + phần dự phòng trước mỗi call; đối soát usage thực tế sau đó. Ngày tính Asia/Saigon, thời điểm lưu UTC. Reservation chưa rõ kết quả không giải phóng khi qua ngày.
+**Chốt 11/10:** dùng thật mặc định 2 USD/dự án cho Tiểu Nhị (người dùng nghiêng 2–3), tách tiền gen; không opt-in từng người. Cảnh báo 80%; hết trần không gọi tiếp, tự lập phiếu admin nâng trần. Hiện tại giữ đề xuất 0,15 USD/phiên chat. Lão Đại đọc sổ chi miễn phí; phân tích API nếu có cần ngân sách admin riêng đã duyệt. Các con số bảo trì trong bảng vẫn chỉ đề xuất chưa được cấp phép chi. Không đổi cap cảnh báo của Pipeline. Broker dự trữ input + max output + dự phòng, đối soát usage sau gửi; reservation unknown không tự giải phóng. Thời điểm UTC, lịch lô 22:00 Asia/Saigon.
 
 Identity lấy từ đăng nhập máy chủ, không từ JSON do mô hình gửi. `core/access.py:39–56` coi None/local là hệ thống không giới hạn; `:125` bỏ kiểm khi `p.user=None`: đường dịch vụ mới phải từ chối identity trống/local, require ACL trước đọc, preview, ghi và gửi; kiểm lại lúc thực thi vì quyền có thể đã bị thu hồi. `core/auth.py` cần thẩm định xác thực trước mở mạng: e-mail tự khai không đủ. Admin tài nguyên chung kiểm `users.role=owner`, không coi chủ một dự án là admin Kho.
 
@@ -106,20 +103,13 @@ Ngoài ra, khóa hiện tại trả True nếu không tạo được file (`core
 
 Không tự tăng số vòng sau thất bại: hai lần cùng nguyên nhân → dừng/chuyển phiếu; tối đa 3 bản đề xuất trước chốt. Tôn trọng `pipeline.AUTO_REGEN_LIMIT` ảnh 3/video 2; quota dịch vụ không nâng chúng. Thay đổi đầu vào được hash và hiển thị trước khi gen lại. Bản nháp hết hạn sau 15 phút hoặc revision/giá/ACL đổi; phải xem và duyệt lại. Khi hai người sửa đồng thời, báo diff xung đột thay vì ghi đè. Sao lưu trước ghi dữ liệu thật; file publish bằng atomic replace sau validate. Rollback không xóa audit/jobs/ledger hay kết quả đã trả tiền, không hứa khôi phục tiền.
 
-## C. Vị trí và điện thoại
+## C. Vị trí hai cấp (chốt 11/10)
 
-| Phương án | Ngữ cảnh / cú bấm ước tính | Token | Quyền / điện thoại | Quyết định |
-|---|---|---|---|---|
-| Nút nổi toàn cục | cần chọn lại dự án, 2–3 | dễ kéo context thừa | kiểm ACL từng lần; nút nhỏ chiếm màn | chỉ nút mở khung có ngữ cảnh |
-| Khung trong bước/shot | có shot/job, 1 | thấp, phạm vi hẹp | kế thừa ACL; drawer trên điện thoại | **chính**, đóng mặc định |
-| Tự mở khi lỗi | có lỗi, 0 | cao nếu tự gọi API | dễ làm phiền hoặc vô tình chi | chỉ banner + nút, không tự mở chat/API |
-| Hộp phiếu | có snapshot, 1–2 | đọc trạng thái không AI | lọc theo ACL; tốt trên điện thoại | **phụ bắt buộc** |
-| Trang chat riêng | thiếu bước, 2–4 | cao hơn | chọn project trước; phù hợp tra cứu | chưa ưu tiên |
-| Zalo/Slack/email | cần liên kết tài khoản, 1–3 | tùy tải ảnh | rủi ro chuyển tiếp/link; ngoài máy | thông báo + link đăng nhập trước |
+Tiểu Nhị là đồng nghiệp trong khung phải Dashboard, ngữ cảnh dự án/shot/job, đóng mặc định; banner lỗi chỉ hiện cách sửa, không tự gọi API. Công cụ thường chạy độc lập chat. Đồng nghiệp chỉ thấy lỗi + nút sửa ngay; phiếu kỹ thuật chạy ngầm.
 
-Số cú bấm là ước lượng thiết kế, chưa đo usability. Mockup [Tiểu Nhị](../mockup/tieu_nhi.html) đặt công cụ thường cạnh ảnh, Tiểu Nhị trong khung ngữ cảnh bên phải; điện thoại chuyển thành drawer, phiếu là tab riêng. Có xem gói, sửa vị trí, xem trước, duyệt sửa, gen, đóng cảnh báo có lý do mà không mở chat.
+Lão Đại chỉ admin: **pet desktop Windows trong suốt luôn trên cùng ở máy chính**, bong bóng “📨 N phiếu chờ duyệt”, toast khi có việc cần xử lý. Pet đọc phiếu, tổng chi, job kẹt, dự án gen xong; bấm mở đúng trang Dashboard đã đăng nhập. Không có nút duyệt trên pet. So phương án và đường chỉ đọc: [thiết kế Đợt 7 mục 4](THIET_KE_TIEU_NHI_LAO_DAI_D7.md#4-lão-đại-pet-desktop-đầu-vào-đợt-9).
 
-Điện thoại không truy cập `localhost` máy Windows của người khác. Cần URL HTTPS có xác thực thật, transport/reverse proxy hoặc VPN đã chốt và hạn chế truy cập. Giai đoạn đầu chỉ responsive Dashboard + inbox; chưa tích hợp nhiều kênh. Thông báo chỉ mã phiếu, trạng thái và link đăng nhập; không gửi ảnh/secret vào tin nhắn. Duyệt từ xa phải kiểm lại user, scope, revision, TTL, CSRF; không dùng URL GET làm duyệt. Khi mạng rớt sau bấm, đọc operation cũ để hiển thị kết quả, không gửi lần hai. Người dùng có quyền view không được duyệt ảnh/gen. Kênh ngoài chỉ báo “cần bạn duyệt”, không nhận câu trả lời chat làm lệnh chi tiền.
+HTTPS, duyệt điện thoại, VPN và kênh ngoài để sau; chưa thuộc đợt gần (chốt 11/10). Phiếu admin trong AI Dev System là đề xuất, chưa có màn hoặc endpoint mới.
 
 ## D. Bộ ca chuẩn và ngưỡng mở
 
@@ -130,12 +120,12 @@ Mỗi ca chạy bằng fixture/nhà cung cấp giả trước, rồi thử nghi�
 | C01 | Thấy miệng giếng máy thấp | nêu dữ kiện hình học, preview đúng; không gen tự động |
 | C02 | Trườn khỏi giếng vẫn 0,25 m | sửa 1–1,5 m trên nháp, giữ nhân vật đã duyệt, diff các shot |
 | C03 | Thêm shot 10 | shot đủ trường, thứ tự hợp lệ, shot cũ không đổi |
-| C04 | Kling thiếu khung cuối | màn đầu–cuối, kiểm route, không gửi video khi thiếu |
+| C04 | Kling thiếu hoặc stale khung cuối sau đổi khung đầu | phân biệt `start_job_id` lệch; nút tạo lại theo đầu mới kèm giá, không tự enqueue; route bắt buộc thiếu thì giữ, route optional báo thiếu |
 | C05 | Hai plate khác máy do cache | hiển thị đúng gói lịch sử/hash, thay cache phụ thuộc; không sửa lịch sử |
 | C06 | Thùng dầu có trong map chung | phiếu admin, preview revision mới; map gốc không đổi |
 | C07 | Ngoại lệ khóa shot 9–10 | chỉ đúng shot, lý do rõ, không nới khóa cả nhân vật |
 | C08 | Mục rà đỏ đã xử lý | đóng có lý do + bằng chứng, audit giữ nguyên |
-| C09 | Duyệt ảnh bằng điện thoại | login đúng người, ảnh so sánh, bấm lại không ghi trùng |
+| C09 | Duyệt ảnh bằng điện thoại (hoãn theo chốt 11/10) | fixture giữ ca cho đợt sau; pilot máy chính thay kiểm duyệt hai tab; không tuyên bố điện thoại đã đạt |
 | C10 | Ý tưởng thiếu đầu vào | hỏi thông tin cụ thể, không tự bịa rồi gọi API |
 | C11 | Kịch bản JSON sai | chỉ ra trường lỗi, bản sửa qua schema trước áp dụng |
 | C12 | Lời thoại quá dài | đề xuất rút + tác động thời lượng, giữ nghĩa cần người duyệt |
@@ -172,11 +162,11 @@ Mỗi ca chạy bằng fixture/nhà cung cấp giả trước, rồi thử nghi�
 
 Chỉ số riêng: (i) tự giải quyết đã kiểm chứng / ca đủ điều kiện bậc 1–2; (ii) tiếp nhận/chuyển đúng nơi / toàn bộ ca; (iii) sửa sai / hành động đã áp dụng; (iv) USD mỗi ca đã giải quyết và toàn bộ phiên gồm thất bại; (v) median/p95 thời gian, số cú bấm, phiếu quá SLA. Chuyển phiếu **không tính là tự giải quyết**, và “đã trả lời” không tính là “đã sửa”.
 
-Ngưỡng pilot đề xuất: 100% ca được tiếp nhận/phân loại, ≥95% chuyển đúng nơi; ≥85% ca bậc 1–2 giải quyết có oracle; 0 truy cập trái quyền, 0 ghi tài nguyên chung chưa duyệt, 0 paid-call chưa duyệt, 0 submit trùng, 100% audit/reservation đúng. Sai sửa dữ liệu ≤1% chỉ cho lỗi nhẹ hoàn tác được; bất kỳ sự cố nghiêm trọng nào dừng pilot. Phải đạt ba vòng liên tiếp bộ 42 ca và pilot 2–3 đồng nghiệp với ≥50 yêu cầu thật; sample nhỏ không chứng minh an toàn tuyệt đối. Chi phí Claude bậc 1–2 p95 ≤0,15 USD/phiên; gen tính riêng. Trước mở toàn nhóm cần kiểm xác thực/mạng, rollback drill, restored backup, telemetry và người trực phiếu. SLA đề xuất: lỗi chặn công việc phản hồi 1 giờ làm việc, thường 1 ngày; không hứa thời gian sửa nếu provider/code bên ngoài.
+Ngưỡng pilot đề xuất: 100% ca được tiếp nhận/phân loại, ≥95% chuyển đúng nơi; ≥85% ca bậc 1–2 giải quyết có oracle; 0 truy cập trái quyền, 0 ghi tài nguyên chung chưa duyệt, 0 paid-call chưa duyệt, 0 submit trùng, 100% audit/reservation đúng. Sai sửa dữ liệu ≤1% chỉ cho lỗi nhẹ hoàn tác được; bất kỳ sự cố nghiêm trọng nào dừng pilot. Phải đạt ba vòng liên tiếp bộ 42 ca và pilot 2–3 đồng nghiệp với ≥50 yêu cầu thật; sample nhỏ không chứng minh an toàn tuyệt đối. Chi phí Claude bậc 1–2 p95 ≤0,15 USD/phiên; gen tính riêng. Trước mở toàn nhóm cần kiểm xác thực/mạng, rollback drill, restored backup, telemetry và người trực phiếu. Hạn xử lý phiếu 3 ngày (chốt 11/10); blocked/chờ thông tin vẫn tính hạn và nhắc admin, gia hạn phải có người/lý do. C09 hoãn nên bộ 42 giữ ID nhưng báo riêng 41 ca hoạt động + 1 hoãn, không đưa hoãn vào tử số đạt. Fixture, pilot tối thiểu và dự toán mỗi lượt ở [thiết kế Đợt 7 mục 5](THIET_KE_TIEU_NHI_LAO_DAI_D7.md#5-bộ-42-ca-fixture-chấm-và-pilot-tối-thiểu).
 
 ## E. Model, giá và context
 
-Tra tài liệu chính thức ngày 11/10/2026; giá có thể đổi trước triển khai. [Bảng giá Anthropic](https://platform.claude.com/docs/en/about-claude/pricing) hiện liệt kê giá USD/triệu token: Haiku 5.5 (input ≤100k) 0,10 vào/0,50 ra; Sonnet 5.5 2/10; Opus 5.5 4/20. Haiku trên ngưỡng 100k tính 0,50/2,50. Cache ghi 5 phút 1,25× input, 1 giờ 2×; cache hit Haiku 0,01, Sonnet 0,20, Opus 0,20. Đây là bảng tham khảo API, không phải giá gói chat hoặc bảng giá đã cấu hình trong dự án.
+Tra tài liệu chính thức ngày 11/10/2026; giá có thể đổi trước triển khai. [Bảng giá Anthropic](https://platform.claude.com/docs/en/about-claude/pricing) hiện liệt kê giá USD/triệu token: Haiku 5.5 (input ≤100k) 0,10 vào/0,50 ra; Sonnet 5.5 2/10; Opus 5.5 4/20. Haiku trên ngưỡng 100k tính 0,50/2,50. Cache ghi 5 phút 1,25× input, 1 giờ 2×; cache hit Haiku 0,01, Opus 0,20; **Sonnet 5.5 dự toán theo chốt 0,20 USD/MTok**. Khi mở nguồn chính thức ngày 11/10/2026, bảng và đoạn Prompt caching ghi Sonnet 5.5 hit **0,10**. Giữ 0,20 như đơn giá dự toán bảo thủ theo chốt; không gọi 0,20 là giá thực hiện hành. Khi chạy đối soát giá tài khoản/provider và usage thật. Đây là bảng tham khảo API, không phải giá gói chat hoặc bảng giá đã cấu hình trong dự án.
 
 Routing đề xuất: lỗi có mã và cách sửa xác định → code/template không LLM; Haiku cho phân loại và giải thích ngắn; Sonnet cho nhiều shot/đề xuất tool có ảnh; Opus chỉ bảo trì phức tạp khi admin duyệt tăng model. Chọn ID cụ thể từ tài khoản/API lúc triển khai và ghim phiên bản nếu hỗ trợ, không hardcode tên hiển thị thành ID. Không tự nâng model khi hết trần hoặc lỗi; model không có quyền tự chọn khoản chi. So chất lượng trên bộ ca trước quyết định model sản xuất, không mặc định model đắt hơn sẽ chữa đúng hơn.
 
@@ -188,32 +178,30 @@ Cache ứng dụng khóa theo tenant/user hoặc nhóm ACL đã chứng minh, pr
 
 ## Lộ trình Dashboard trước, Tiểu Nhị sau
 
-Ước lượng S=1–2 ngày, M=3–5, L=6–10 ngày công kỹ thuật gồm test/rà, chưa tính chờ duyệt/Blender/API thật. Tần suất dưới đây là **giả thuyết** từ 9 ví dụ; thu telemetry để sắp lại, không coi đã có thống kê.
+Bảng chấm **từng tính năng** theo tần suất giả thuyết/công sức và nguồn, cùng thứ tự đợt ở [thiết kế Đợt 7 mục 6](THIET_KE_TIEU_NHI_LAO_DAI_D7.md#6-chấm-từng-tính-năng-dashboard-và-lộ-trình). “Gói gửi kèm” chỉnh theo shot cùng “Gói đã gửi” ở **Đợt 1 Dashboard** (chốt 11/10). Bảng này là đợt sản phẩm, khác số ĐỢT giao việc Codex: lõi gói ĐỢT 8; pet/phiếu ĐỢT 9.
 
-| Đợt | Sản phẩm / cổng hoàn tất | Công / giá trị giả định |
-|---|---|---|
-| 0 | kiểm xác thực thật, ACL endpoints, audit và backup; service layer chung | M, bắt buộc trước đồng nghiệp/điện thoại |
-| 1 | Gói đã gửi + diagnostics miễn phí + hướng sửa + WAIT_REASONS, immutable evidence | M, nhiều lỗi ảnh/video, tránh gen lại sai |
-| 2 | thêm/chèn shot đủ trường, đầu–cuối, ngoại lệ shot, đóng review có lý do | M, thao tác hay gặp/ít rủi ro, tận dụng core |
-| 3 | sửa blocking/camera, khóa layout đã duyệt, preview và cache provenance | L, giá trị lớn nhưng nhiều phụ thuộc Blender |
-| 4 | responsive duyệt ảnh + inbox phiếu, HTTPS/login, trạng thái và SLA | M, tự phục vụ điện thoại và code/sharedasset |
-| 5 | bản nháp/duyệt dùng chung, revision/idempotency/reservation + hard cap opt-in | L, chứng minh đủ 42 ca an toàn cho thao tác thường |
-| 6 | Tiểu Nhị bậc 1–2 gọi đúng API đã qua cổng; pilot, routing/cache | M, chỉ bắt đầu khi tính năng lõi đã có |
-| 7 | sharedasset revision, bài học admin duyệt | M, mở sau pilot; không tự publish |
-| 8 | bảo trì code tự động cách ly + test/red/review/Windows + admin merge | L, có thể hoãn; phiếu người bảo trì vẫn đáp ứng routing |
+Mỗi đợt triển khai: test đỏ→xanh, code mới khai areas, rà kỹ tiền/quyền/dữ liệu, cả bộ Windows trước gộp theo AGENTS. Tài liệu này chưa bật hoặc triển khai chức năng nào.
 
-Mỗi đợt triển khai riêng: test đỏ→xanh, giữ widget keys (đổi có chủ ý khai RENAMED), code mới khai areas, rà kỹ tiền/quyền/dữ liệu, cả bộ Windows trước gộp theo AGENTS. Ghi kết quả thật rồi mới bật cờ cho nhóm nhỏ. ĐỢT 5 hiện tại chỉ giao bản nghiên cứu/mockup, không thực hiện các đợt sản phẩm trong bảng.
+## Các chốt (đã chốt 11/10, không hỏi lại)
 
-## Các chốt cần người dùng quyết định trước triển khai
+1. HTTPS/điện thoại để sau.
+2. Trần Tiểu Nhị theo dự án, không opt-in từng người; hết trần → phiếu admin nâng.
+3. Dùng thật 2 USD/dự án, tiền gen riêng, báo 80%; hiện giữ đề xuất 0,15 USD/phiên chat.
+4. Chỉ Owner publish Kho/map/Bible; sửa Kho chính thức → report/admin.
+5. Bảo trì tự động là đề xuất chờ xác nhận: hiện admin giao phiên Claude; Đợt 8+ Claude Code cách ly (đỏ→sửa→rà→cả bộ Windows→nhánh/báo cáo→admin gộp), lô ~22:00, chặn sản xuất chạy khi admin cho phép; chỉ mở sau cách ly và 42 ca đạt.
+6. Phiếu hạn xử lý 3 ngày.
+7. ID shot nội bộ bất biến, thứ tự riêng; ID job/ảnh cũ không đổi.
 
-1. **Quyền và mạng điện thoại:** đề xuất HTTPS + đăng nhập được xác minh, pilot nhóm nhỏ; chọn VPN/reverse proxy có sẵn sau kiểm môi trường. Không mở localhost công khai.
-2. **Cap mới:** đề xuất các trần bảng trên, opt-in riêng cho dịch vụ Tiểu Nhị, không thay cap cảnh báo Pipeline; admin duyệt tăng có thời hạn. Chốt gen dùng khoản dự án riêng và tổng chi hiển thị chung.
-3. **API chat:** đề xuất duyệt từng phiên tối đa 0,15 USD với giá/model/số lượt rõ; gen/TTS vẫn duyệt riêng. Chưa chốt thì từng call cần duyệt.
-4. **Vai trò chung:** đề xuất chỉ Owner publish Kho/map/Bible; chủ dự án chỉ sửa bản sao dự án. Có cần nhóm quản trị tài nguyên riêng thì thiết kế capability trước.
-5. **Bảo trì tự động:** đề xuất hoãn đến khi cách ly OS + broker và 42 ca đạt; trước đó tạo phiếu người bảo trì. Không giao token Git main cho worker.
-6. **Thông báo/SLA/retention:** đề xuất inbox + link đăng nhập trước, SLA 1 giờ/1 ngày làm việc; evidence 30 ngày, audit 90 ngày rồi chính sách lưu trữ admin chốt; ledger giữ theo chính sách hiện hành.
-7. **Chèn shot:** cần chốt số shot giữ ổn định hay đánh lại; đề xuất ID nội bộ bất biến + thứ tự riêng, không đổi ID job/ảnh cũ.
+Hai cấp và luồng phiếu ở B/C; dữ liệu gói chỉnh theo shot và `jobs.sent_package` bất biến ở [mục 3 thiết kế Đợt 7](THIET_KE_TIEU_NHI_LAO_DAI_D7.md#3-gói-gửi-kèm-theo-shot-đầu-vào-đợt-8).
+
+## Còn mở — ba câu, mỗi câu có đề xuất
+
+(a) Giữ `MIN_EVENTS=3`, `MIN_PROJECTS=2` (`core/lessons.py:20–21`) hay giảm khi “lặp ≥2”? **Đề xuất giữ ngưỡng xuất bài học**; hai lỗi độc lập kích hoạt phiếu/đề xuất, không tự thành luật. Retry cùng job không đếm hai lần.
+
+(b) Tiểu Nhị/Lão Đại dùng Claude API sổ chi hay hạn mức gói/CLI? **Đề xuất API cho tương tác sản phẩm** để ACL, stage/project, reservation và chi đo được; CLI/gói chỉ thợ admin cách ly, ghi nguồn chi riêng, không quy đổi gói thành USD API giả.
+
+(c) Chốt nơi lưu phiếu theo kết luận mục 2? **Đề xuất phiếu là phân hệ admin của AI Dev System, bảng mới cùng manifest**, không nhét vào `answers` hoặc dựng hệ trợ lý riêng. Đây là kết luận kỹ thuật đề xuất, chưa được người dùng chốt, chưa migration/API.
 
 ## Bằng chứng và giới hạn bản nghiên cứu
 
-Mọi chức năng mô tả ở B–E là thiết kế đề xuất. Mockup dùng dữ liệu minh họa và JavaScript cục bộ; nút duyệt không sửa dự án hoặc gửi API. Không chạy Blender, gen, dịch vụ bảo trì, migration hoặc kiểm thử dự án thật trong ĐỢT 5. Hiệu quả/chi phí thực tế và tính khả thi auth/cách ly worker vẫn cần thử theo cổng trên.
+Các phần bổ sung sản phẩm ở B–E là thiết kế đề xuất; hàm core/UI đã có được chỉ rõ để tái dùng. Mockup dùng dữ liệu minh họa và JavaScript cục bộ; nút duyệt không sửa dự án hoặc gửi API. Không chạy Blender, gen, dịch vụ bảo trì, migration hoặc kiểm thử dự án thật trong ĐỢT 5/7. Hiệu quả/chi phí thực tế và tính khả thi auth/cách ly worker vẫn cần thử theo cổng trên.
