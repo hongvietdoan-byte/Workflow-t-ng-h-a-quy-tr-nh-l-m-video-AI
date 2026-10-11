@@ -1,7 +1,8 @@
 """S14.45: bảng chấm hiệu quả quy trình nhiều phiên (skill `vong-lam-viec-theo-plan`) — số đo mỗi nhánh nằm TRONG GIT.
 
 File `devsys/workflow_runs.jsonl`: mỗi dòng một nhánh đã gộp —
-    task (S14.x) · part (A/B khi một việc chia nhiều nhánh) · date (YYYY-MM-DD) · mode (goi | usd | cloud) · review (ky | nhe | None = không rõ)
+    task (mã kế hoạch cũ S14.x/F1.1… | đợt K có trong stages.DOT, hậu tố -TD5 | CX-d2-1) · part (A/B) · date (YYYY-MM-DD)
+    mode (goi | usd | cloud) · review (ky | nhe | None = không rõ)
     work_k / review_k / fix_k (nghìn token phiên làm / rà / sửa; None = không ghi) · fix_rounds · bugs · bugs_major · commit · note · source (cli | plan:dòng N)
 Ghi:  python -m devsys.workflow add S14.45 --mode cloud --review nhe --work 150 [--review-k 0 --fix 0 --rounds 0 --bugs 0 --major 0 --note …]
 Xem:  python -m devsys.workflow list
@@ -16,6 +17,7 @@ import sys
 import tempfile
 from datetime import date, datetime
 from typing import Dict, List, Optional
+from devsys.stages import DOT
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUNS_FILE = os.path.join(ROOT, "devsys", "workflow_runs.jsonl")
@@ -23,6 +25,17 @@ MODES = ("goi", "usd", "cloud")
 MODE_LABEL = {"goi": "gói", "usd": "$", "cloud": "cloud"}
 REVIEWS = ("ky", "nhe")
 REVIEW_LABEL = {"ky": "rà kỹ", "nhe": "rà nhẹ", "?": "không rõ"}
+KIND_LABEL = {"S": "Việc kế hoạch S (gồm mã F/P cũ)", "K": "Kiểm soát K", "CX": "Codex", "?": "không đọc được mã"}
+TASK_PATTERNS = {"S": re.compile(r"(?!K[0-9]|CX)[A-Z]+[0-9]+(?:\.[0-9]+)?"),
+                 "K": re.compile(r"(?:" + "|".join(re.escape(d) for d in DOT) + r")(?:-[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z][A-Za-z0-9]*)*)?"),
+                 "CX": re.compile(r"CX-d[1-9][0-9]*-[1-9][0-9]*")}
+
+
+def task_kind(task) -> Optional[str]:
+    """S / K / CX nếu toàn chuỗi đúng hợp đồng; None cho mã rác, không trim để che đầu vào sai."""
+    if not isinstance(task, str):
+        return None
+    return next((kind for kind, pattern in TASK_PATTERNS.items() if pattern.fullmatch(task)), None)
 
 # Hai mốc ghi sẵn (skill vong-lam-viec-theo-plan mục 2 + 2b).
 BASELINES = {
@@ -57,6 +70,8 @@ def load(path: Optional[str] = None) -> List[Dict]:
                 raise WorkflowError(f"{path} dòng {n} không phải JSON ({e}) — sửa tay rồi chạy lại") from e
             if not isinstance(rec, dict) or not rec.get("task"):
                 raise WorkflowError(f"{path} dòng {n} thiếu mã việc 'task'")
+            if task_kind(rec["task"]) is None:
+                raise WorkflowError(f"{path} dòng {n}: mã việc '{rec['task']}' không đúng dạng S14.45 / K0b-TD5 / CX-d2-1")
             rows.append(rec)
     return rows
 
@@ -75,8 +90,8 @@ def _key(r: Dict):
 
 
 def validate(rec: Dict) -> Dict:
-    if not re.match(r"^[A-Z]+\d*(\.\d+)?$", str(rec.get("task") or "")):
-        raise WorkflowError(f"mã việc '{rec.get('task')}' không đúng dạng (vd. S14.45)")
+    if task_kind(rec.get("task")) is None:
+        raise WorkflowError(f"mã việc '{rec.get('task')}' không đúng dạng S14.45 / đợt K đã đăng ký (hậu tố -TD5) / CX-d2-1")
     if rec.get("mode") not in MODES:
         raise WorkflowError(f"chế độ '{rec.get('mode')}' phải là một trong {', '.join(MODES)}")
     if rec.get("review") not in REVIEWS + (None,):
@@ -245,7 +260,7 @@ def summarize(rows: List[Dict]) -> Dict:
         keys = sorted({fn(r) for r in rows})
         return {k: _group([r for r in rows if fn(r) == k]) for k in keys}
     return {"all": _group(rows), "by_review": by(lambda r: r.get("review") or "?"), "by_date": by(lambda r: r.get("date") or "?"),
-            "by_mode": by(lambda r: r.get("mode") or "?")}
+            "by_mode": by(lambda r: r.get("mode") or "?"), "by_kind": by(lambda r: task_kind(r.get("task")) or "?")}
 
 
 def compare(s: Dict) -> List[Dict]:

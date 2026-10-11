@@ -399,9 +399,12 @@ Hiện khi `shot_specs` chỉ có một phần các shot thì thứ tự nhịp 
 | 3 | `codex/d6-viec3-thu-tu-shot` | `d92e848` | 9 failed → **78 passed (0,78 s)**. CLI bài học shot lấy thứ tự shot từ CSDL chỉ đọc, cảnh báo thiếu ánh xạ nhịp. Rà độc lập, `docs/RA_D6_VIEC3_CODEX_2026-10-11.md`. Cờ TẮT; chưa kiểm dự án thật. |
 | 2 | `codex/d3-viec2-dang-chay` | `ed0c445` | Đỏ thiếu module → 3 test repo Git tạm/parse kết quả xanh; nhóm 66 test thường + 2 test slow devsys xanh. Rà: chỉ git đọc, timeout, lỗi Git/đọc báo rõ; nhánh/worktree không bị đổi; tách kết quả checkout và nhánh chưa gộp. Nguồn rà là message hoặc kết quả nhắc nhánh, KHÔNG coi là rà độc lập. |
 | 3 | `codex/d3-viec3-cong-a21` | `c6b867c` | Đỏ thiếu module + ca danh sách inline/hỏng → 7 test mới xanh; nhóm 69 test thường (trước ca thứ 7) + 2 test slow devsys xanh. Rà: điểm thiếu/ngoài 0–10 không thành 0; lần 1 lấy tổng, lần 2 lấy tiêu đề, lần 3 build K0a; không lấy điểm ước tương lai; danh sách lỗ hổng hỏng không báo 0. |
+| 4 | `codex/d3-viec4-ma-quy-trinh` | `4122f17` | 13 ca đỏ trước sửa; giữ tương thích F1.1 sau hồi quy; 106 passed, 2 deselected (không slow); riêng giao diện slow 2 passed, 63 deselected; kiểm lại workflow sau rà: 43 passed | Claude chạy cả bộ và gộp; khởi động lại 8502 sau tích hợp. |
 
 Rà độc lập cả ba việc đã hoàn tất (báo cáo riêng `docs/RA_D6_VIEC<N>_CODEX_2026-10-11.md`). Tích hợp: giữ đủ ba cờ (`post_fx_render`, `ref_beats_tool`, `shot_lessons_db_order`, đều TẮT) và đăng ký areas.json, tăng version một lần.
 
 Số đọc thực tại lúc kiểm: 7 nhánh chưa gộp, 126 worktree, 13 việc giao, 5 kết quả nhánh chưa gộp; số thay đổi theo Git, không ghi cứng UI. Các refs chỉ cập nhật sau fetch của người dùng, trang không tự fetch. Không sửa TODO/PLAN/data, không API, areas.version giữ; bên gộp chạy cả bộ/restart 8502. Nhánh độc lập từ main 7764122.
 
 Nguồn main cập nhật `e457c09` đã có lần 6: KH 8,4 / build 8,5 → CHƯA ĐẠT, 6 lỗ hổng theo bản thẩm định. Đã hỗ trợ dạng `(1)…(6)` và không đếm phần “Đã sửa ngay”; sửa xong vẫn cần thẩm định lần 7, không tự nâng điểm/trừ số. Không sửa TODO/PLAN/data/API; areas.version giữ; bên gộp chạy cả bộ/restart 8502.
+
+Rà diff: giữ key widget cũ, thêm `flow_task_kinds`; không sửa Dashboard, dữ liệu thật hay version areas; kiểm mã bằng fullmatch, lỗi đọc file hiện lý do. Mã K lấy từ stages.DOT; mã kế hoạch cũ có số vẫn đọc được, mã tùy ý bị từ chối. Không gọi API.
