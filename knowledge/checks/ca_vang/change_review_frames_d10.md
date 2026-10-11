@@ -1,4 +1,4 @@
-# L13 — Rà tác động theo khung đầu, quá trình, khung cuối
+# Ca vàng Đ10.5 (cờ change_review_frames) — Rà tác động theo khung đầu, quá trình, khung cuối
 
 Đ10.5, ca #24 ngày 11/10/2026 dựng lại từ mô tả hộp thư; không đọc dữ liệu sản xuất.
 Cờ `change_review_frames` mặc định TẮT. Kiểm ngoại tuyến chỉ chứng minh đề đúng cấu trúc, chưa chứng minh Claude hết báo nhầm.

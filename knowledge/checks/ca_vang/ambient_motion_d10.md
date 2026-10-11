@@ -1,4 +1,4 @@
-# L14 — Nền sống nhẹ, kể cả máy tĩnh
+# Ca vàng Đ10.6 (cờ ambient_motion) — Nền sống nhẹ, kể cả máy tĩnh
 
 Nguồn: người dùng xem nháp v3 #24 shot 9 ngày 11/10/2026 thấy cảnh đơ. Ca dưới đây tái dựng từ mô tả, không đọc dữ liệu sản xuất.
 Máy tĩnh ở sân giếng, ban đêm, trời lặng có sương: nhân vật giữ tư thế, sương lan chậm phía sau; không tự tạo gió mạnh.

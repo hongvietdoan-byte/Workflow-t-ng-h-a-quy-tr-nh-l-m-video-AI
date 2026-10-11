@@ -119,10 +119,12 @@ class VideoScreenTests(TwoTierSeed):
     def test_batch_button_shows_total_and_asks_first(self):
         self.put(self.sids[3], "draft_ok")
         self.on()
+        at = self.open(3)
+        # rà gộp Đ10v3 (12/10): opening the screen stores the project's aspect (9:16) and the 9:16 upgrade has its own measured price
+        # (UPGRADE_USD_PER_SECOND) — the expected price is read after the screen, as the button was
         est = Q.final_estimate(self.p.conn, self.pid)
         self.assertEqual(sorted(est["scenes"]), sorted([self.sids[0], self.sids[3]]))   # only approved, current drafts
         price = f"≈ {est['usd']:.2f} USD (tham khảo)" if est["usd"] is not None else "chưa có giá"
-        at = self.open(3)
         btn = next(b for b in at.button if b.key and b.key.startswith(f"qfinal_all_{self.pid}"))
         self.assertIn("Gen bản cao 2 cảnh", btn.label)
         self.assertIn(price, btn.label)
