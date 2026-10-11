@@ -606,3 +606,80 @@ token hết hạn, chỉ GET), logic chọn dáng/bong bóng từ snapshot giả
 - Việc 1: `codex/d9-viec1-kho-phieu`, code `7356a9f`, bàn giao `963bf0b`; 27 test xanh sau 3 finding/11 hồi quy. Snapshot v1/cờ OFF; báo cáo RA_D9_VIEC1 trên nhánh tương ứng.
 - Việc 2: `codex/d9-viec2-trang-phieu`, dependency `d3cafd5` là cherry-pick code việc 1, code `636e382`; 3 đỏ ban đầu → 30 xanh; 5 finding sau rà sửa gom một vòng → **38 passed / 8,52s**. RÀ KỸ + root đọc sửa; RA_D9_VIEC2, ảnh/số đo docs/images/d9. Trang Phiếu CHỈ ĐỌC do thiếu server auth, cờ OFF giữ trang cũ; xem chi tiết 1 bấm/0 cuộn tới hàng/nút, link đúng phiếu. Quyết định ≤2 bấm chưa nghiệm thu, ghi UI/bulk/đổi trần hoãn tới auth thật. Chưa gọi từ Dashboard/cả bộ/gộp main. Tích hợp giữ hunk workaround merge của core/tickets.py và không cherry-pick dependency hai lần.
 - Việc 3 — ĐANG DỞ: `codex/d9-viec3-lao-dai`, dependency `df62cc7` là cherry-pick code7356a9f việc1, backend `42ecaec`. Broker loopback GET-only/token read-only TTL kiểm session Owner mỗi snapshot, SQLite chỉ đọc; logic dáng/bong bóng/dedupe/backoff/URL allowlist; cờ OFF. Đỏ module thiếu và mismatch due_status → 39 xanh; rà độc lập 2 finding/4 đỏ → 43 xanh /1,28s. RA_D9_VIEC3_CODEX_2026-10-11.md. CHƯA GUI tkinter/khay/toast thật/kho token OS/kênh cấp phiên server/launcher/QA Windows/PNG, chưa pilot chạy được. Dừng mở bước lớn theo hạn mức, tiếp sau reset. Chỉ push nhánh riêng, chưa toàn bộ/gộp/main. Tích hợp không cherry-pick dependency việc1 hai lần.
+
+---
+
+# ĐỢT 10 — sửa lỗi rà Đợt 8–9 + Tổ rà soát khung đầu/cuối + cảnh không đơ (11/10 tối, người dùng duyệt)
+
+Đợt 8 việc 1–2 và Đợt 9 việc 1–3 ĐÃ GỘP main (cờ TẮT). Đợt 8 việc 3 (báo giá) CHƯA gộp — sửa trên chính nhánh `codex/d8-viec3-bao-gia-video`.
+Luật chung GIỐNG đợt 1 + thêm: mỗi việc một nhánh `codex/d10-viec<N>-<tên>` từ `origin/main` (riêng việc 3 tiếp trên nhánh d8-viec3); KHÔNG sửa
+`core/runner.py`, `core/lock_exceptions.py`, `core/end_frames.py`, `core/place_refs.py`, `core/scene_storyboard.py` (#24); không API tốn tiền, không
+`data/` thật. Mỗi lỗi: test ĐỎ → sửa → xanh (ghi tên test). Ghi kết quả vào "Kết quả Codex — đợt 10".
+
+## Việc 1 — Gói gửi kèm (`core/package_overrides.py`, cờ `package_overrides`) — 3 lỗi TRUNG
+1. Ghim ảnh OUTFIT bị THÊM thay vì THAY (nhãn ref OUTFIT từ `assets.scene_references` là tên nhân vật "KELLY", `_resolve` gán tên tài nguyên
+   "Kelly đồ bơi") → gói có 2 bộ đồ. Khớp chỗ thay theo nhân vật mặc (thêm `wearer`/`character` vào edit) hoặc theo role khi chỉ một chỗ outfit.
+2. `_scene_hash` băm toàn bộ `scenes.data` → sửa `motion_en`/takes/camera_plan cũng làm chỉnh gói thành `override_stale`. Chỉ băm khóa ảnh hưởng gói
+   (`lineage.IMAGE_KEYS` + characters/location/size/outfit/plate…).
+3. `save(base_refs=None)` tự dựng gói khác gói thật lúc chạy → luôn stale. Bắt buộc truyền `base_refs`, thiếu → lỗi rõ.
+THẤP kèm: chỉnh của shot mất số hiệu sau replan phải báo VÀNG; ghim không xóa ảnh góc phụ cùng nhân vật; không lặp cảnh báo `ref_unreadable`.
+
+## Việc 2 — Việc mở kỹ thuật Đợt 8 (`layout_drift_review`, `short_lock_outfit`) — 3 lỗi TRUNG
+1. `tools/stage_grid.py:~1575` ghi finding vào CSDL từ lượt thử v3 CHƯA áp dụng → chỉ gọi ở đường áp blocking chính thức, hoặc ghi là "đề xuất" kèm
+   thư mục lượt.
+2. Thiếu bản gốc để so (`--hand` = output v2 không có `blocking.json`/`shot_specs.json`; thiếu `--hand` lộ `TypeError`) → tham số bản gốc rõ ràng
+   (`--approved-blocking`/`--approved-specs`) hoặc bản gốc gắn job ảnh đã duyệt; thiếu → lỗi rõ.
+3. Hai tiêu chí "có OUTFIT" khác nhau (`short_lock_outfit` vs `prompts.lock_text:~543` / `runner.lock_note`) → prompt video tự mâu thuẫn. Dùng CHUNG
+   tiêu chí của `lock_text` (không sửa runner; nếu cần một hàm chung thì đặt ở `core/prompts.py` và chỉ `prompts.py` gọi). THẤP: khai cờ
+   `short_lock_outfit` vào khu bước 3 trong `devsys/areas.json`; test xfail end_frames dọn thư mục tạm.
+
+## Việc 3 — Báo giá video (tiếp nhánh `codex/d8-viec3-bao-gia-video`) — 2 CAO + 3 TRUNG
+1. **CAO:** shot đi theo trong nhóm Seedance ref luôn bị coi "cần gen" (gói chép từ shot dẫn, `image_path` là ảnh shot dẫn, ảnh khác là
+   `refs_marked/*` hoặc `asset://`) → báo giá thừa (tái hiện runner thật nhóm 4 shot: thừa 0,90 USD). Chứng minh qua `sent_group` của shot dẫn + sha
+   ảnh đánh dấu, hoặc `source_job_id` + `input_hash`. Test đi bằng runner thật (MockVideoProvider), không tự chèn gói tay.
+2. **CAO — CHỜ #24 xong (người dùng chốt 11/10):** `core/project_budget.py:184-188` `remaining()` dùng chung `cost.video_need` và mức ước tính cao
+   khi giá None (không `or 0`). Làm trong commit RIÊNG cuối nhánh, ghi rõ; phiên rà Codex chỉ gộp commit này khi phiên máy chính báo #24 không còn gen.
+3. **TRUNG:** chưa biết thời lượng ref → không `continue` / không None (`quality_tier.py:552-554, 597-600`, `model_router.py:398-399`,
+   `cost.py:272-274`): chỉ None khi ref thật sự bị tính tiền; còn lại dùng giá cao (trần giây ref / money_policy).
+4. **TRUNG:** job `running` (đã trả tiền) bị tính lại → running = đang làm, không tính tiền lại; queued/retryable vẫn cần gen.
+5. **TRUNG:** `tests/test_readiness_f5a.py::KhoObjectSizeTests::test_ten_shot_project_is_not_n_plus_1` đỏ (205 truy vấn) → cache theo
+   `memo.per_rerun` hoặc chỉ đọc ref khi đường Seedance.
+THẤP: `start_from_prev_clip` ghi rõ lý do; cảnh báo chỉ khi clip cũ bị loại (không cho mọi shot chưa có clip); test 9 shot phân biệt "lệch motion" vs
+"thiếu bằng chứng"; thêm cộng giây ref ở `dashboard/model_line.py:83/89` và `quality_tier.py:484/488` nếu cùng nguồn.
+
+## Việc 4 — Kho phiếu / trang Phiếu / pet (Đợt 9) — lỗi TRUNG
+1. `core/tickets.py:~165-174` gộp vào phiếu `closed`/`resolved` im lặng → tự chuyển `reopened` có event.
+2. `user_projection` (`:~252-257`) không xét trạng thái → phiếu đóng vẫn báo "tạm dừng"; phiếu không chặn vẫn trả tiêu đề → trả None khi đóng hoặc
+   không chặn.
+3. `devsys/app.py` (sidebar): còn `?ticket=` thì bấm trang khác vẫn hiện Phiếu → chỉ chuyển trang ở lần mở đầu (session_state) hoặc xóa query param.
+4. `tools/lao_dai/logic.py:~60` bong bóng đếm mọi trạng thái khác `closed` → chỉ `waiting_admin` (+ đỏ/vàng); toast chỉ việc cần admin hành động.
+5. `tools/lao_dai/broker.py:~59` gọi `admin_snapshot(c)` thiếu `data_dir` → `gen_done` luôn rỗng; WAIT_REASONS không có trong tiến trình broker.
+THẤP: `due_status` bỏ qua phiếu đã xong; `blocked`/`waiting_info` quay về trạng thái trước (không về `triaged`); `_safe` chặn mọi đường dẫn tuyệt đối
+(cả `/tmp`); `spend_today` theo giờ VN; `ThreadingHTTPServer` + timeout. Đợt 9 việc 3 phần GUI/khay/toast/launcher/ảnh: làm tiếp theo đề Đợt 9.
+
+## Việc 5 — Tổ rà soát báo nhầm khung đầu ↔ cuối (hộp thư 11/10, ca thật #24)
+Ca thật #24 11/10: mục 84, 90/92/93, 102/105, 111 ("khung đầu không khớp trạng thái cuối"), 109 ("4 s chỉ một pha" dù motion chia 4 nhịp) — mỗi lần
+tốn tiền rà + người dùng phải bỏ qua. Gốc: `prompts/30_change_review.md` mục 1 bắt `blocking`/`image_prompt` (KHUNG ĐẦU) khớp `end_state`
+(trạng thái CUỐI). Sửa:
+1. Prompt: thêm nguyên tắc rõ — `image_prompt`, `blocking`, ảnh đã duyệt = **khung đầu** (`byd.hanh_dong[].bat_dau`); `action`/`motion_en` = **quá
+   trình** đầu → đỉnh → cuối; `end_state`, `byd...ket_thuc` = **khung cuối**. Chỉ so cùng loại khung; khung đầu khác trạng thái cuối là BÌNH
+   THƯỜNG. Đếm pha theo nhịp trong `motion_en`/BYĐ, không theo câu.
+2. Code (`core/change_review.py` khi dựng đề): gắn nhãn khung cho từng trường trong "Các shot liên quan" (vd `image_prompt (khung đầu)`,
+   `end_state (khung cuối)`), để Claude không lẫn. Đây là đổi hành vi Tổ rà soát đang chạy với #24 → cờ mới `change_review_frames` (TẮT); cờ tắt
+   đề giống từng byte.
+3. Ca vàng `knowledge/checks/` (L13 hoặc file mới) + test: dựng lại tối thiểu 3 mục trên từ mô tả (khung đầu đứng, cuối ngã → không được báo lệch;
+   motion 4 nhịp / 4 s → không báo "một pha"), kiểm đề có nhãn khung và nguyên tắc; không gọi Claude thật.
+
+## Việc 6 — Cảnh không được đơ: lớp chuyển động nền (góp ý người dùng 11/10 khi xem nháp v3 #24)
+Cảnh quan xung quanh, mây trôi, sương khói lan, lá/cỏ lay, đèn/lửa chập chờn… phải có chuyển động nền nhẹ, kể cả shot máy tĩnh (vd #24 shot 9).
+Theo công thức chung:
+1. **Luật cho prompt viết motion** (Đạo diễn / `core/prompt_formula.py` / prompt motion — tìm đúng chỗ viết `motion_en`): mỗi motion có một lớp
+   "chuyển động nền" chọn theo bối cảnh + thời tiết + giờ trong BYĐ / `location` / `weather` (không trái thời tiết: trời lặng thì không gió lớn, trong
+   nhà không mây…), có lý do. Sau cờ mới `ambient_motion` (TẮT) — cờ tắt prompt giống từng byte.
+2. **Kiểm bằng code VÀNG** khi motion prompt không có lớp chuyển động nền (nhận theo danh sách từ khóa/khóa có cấu trúc — không bắt Claude kết
+   luận), kể cả shot máy tĩnh; VÀNG có lý do + gợi ý theo bối cảnh. Không chặn gen.
+3. `knowledge/checks/` ca thật #24 shot 9 (máy tĩnh, cảnh đơ) + đăng ký `devsys/areas.json` + test (có cờ / không cờ, trời lặng không sinh gió).
+
+## Kết quả Codex — đợt 10
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
