@@ -363,4 +363,11 @@ E. **Mô hình:** chọn model Claude cho từng bậc (hỏi đáp rẻ vs sử
 
 ## Kết quả Codex — đợt 5
 
-(Codex ghi: nhánh · commit · tài liệu · việc mở.)
+✅ Nghiên cứu + thiết kế hoàn tất 11/10/2026, nhánh `codex/d5-nghien-cuu-tu-phuc-vu` (chỉ push nhánh, chưa gộp main).
+
+- Commit nội dung `39c290a`; sửa sau rà `4a6167f`.
+- `docs/NGHIEN_CUU_TU_PHUC_VU_DASHBOARD.md`: kiến trúc 4 lớp, quyền/tiền/idempotency, placement/mobile, 42 ca chuẩn, model/cache/giá nguồn chính thức, roadmap Dashboard trước Tiểu Nhị sau, 7 chốt cần quyết định.
+- `docs/D5_KIEM_KE_HIEN_TRANG.md`: 42 loại lỗi, 9 ca thật đối chiếu code/UI, catalog tool I/O/chi phí/quyền; không đọc dữ liệu thật.
+- `mockup/tieu_nhi.html`: giao diện offline có gói gửi/chẩn đoán, công cụ sửa thông thường, chat ngữ cảnh, xem trước/duyệt dữ liệu/gen riêng, phiếu chuyển lên; chỉ mô phỏng.
+- Rà độc lập + lượt hai, báo cáo `docs/RA_D5_CODEX_2026-10-11.md`. Kiểm HTML/JS/citation bounds xanh; Node VM 6 kiểm logic: bản đầu 4 đỏ → bản sửa 6 xanh. Không chạy pytest cả bộ vì chỉ tài liệu/mockup, không gộp.
+- Việc mở: chưa visual QA do trình duyệt chặn file URL; chưa thử gen/cách ly/auth/mạng điện thoại; cần chốt 7 quyết định trong tài liệu trước triển khai. Không đổi dashboard/core/data/TODO/PLAN, không API/Blender, không restart dịch vụ.
