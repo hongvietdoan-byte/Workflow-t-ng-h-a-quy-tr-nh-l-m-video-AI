@@ -22,7 +22,7 @@ Tự rà đã sửa:
 - cast_missing hiện VÀNG ở runner; tách khỏi ĐỎ editor đề xuất, không viết lại package_problem.
 - Kiểm refs lần đầu bắt change_review_ui.py:8–37 vượt file 36 dòng; sửa thành 8–36. Bốn refs đề bài đã loại phiên bản cũ.
 - Không giả 42 ca đạt khi C09 hoãn: báo 41 active + 1 deferred, cổng đủ 42 vẫn chờ thử/chốt bộ thay thế. Pilot 8 ca không mở worker tự động.
-- Nguồn giá Anthropic ngày 11/10 ghi hit Sonnet 5.5 = 0,10 khác chốt 0,20: dự toán giữ 0,20 bảo thủ, có link/ngày và phân biệt giá thực đối soát.
+- Giá cache hit Sonnet 5.5 = 0,20 USD/MTok (input 2 × 0,1). Rà 11/10: câu cũ "nguồn ghi 0,10" là sai, đã bỏ.
 - Chuẩn hóa khoảng trắng và bảng; giải thích ma trận tần suất × công sức trước chỉ số F/công.
 
 Kiểm 2b.5: không đổi/nới test; không đọc/ghi dữ liệu thật hoặc dashboard.env; fixture và hook là thiết kế scoped server, không path chat tùy ý/CWD. Không đổi code/luồng bấm tay, autopilot, v2/v3/storyboard; điểm nối để sau #24. Không bật mặc định, không thêm parse/so chữ bỏ dấu. Cách ly OS/broker, session admin 8502, pet/toast/DPI chưa thử; worktree không được coi sandbox. Tách nhãn “Gói đã gửi”/“Gói gửi kèm” và bậc thao tác/hai trợ lý. Chi API cần duyệt riêng; pet không duyệt/gen; lô bảo trì chỉ sau admin cho phép.
