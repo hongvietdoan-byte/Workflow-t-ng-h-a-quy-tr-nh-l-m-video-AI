@@ -712,7 +712,8 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     skill = _skill_block(people_in_project(pipeline, project_id))
     if skill:
         parts.append(skill)
-    lock = lock_text(conn, project_id, shots=[json.loads(r["data"] or "{}") for r in rows])   # + ngoại lệ BYĐ từng shot
+    # + ngoại lệ BYĐ từng shot — của CẢ dự án (không chỉ lô này): khối nằm trước CACHE_BREAK, giữ giống nhau giữa các lô (C2)
+    lock = lock_text(conn, project_id, shots=[all_scenes[i] for i in sorted(all_scenes)])
     if lock:
         parts.append(lock)
     short = short_lock_block(conn, project_id)
