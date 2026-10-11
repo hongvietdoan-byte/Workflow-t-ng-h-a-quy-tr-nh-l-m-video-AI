@@ -494,7 +494,7 @@ Dẫn `file:dòng` thật (mở trên `origin/main`); không đề xuất làm l
 
 ## Kết quả Codex — đợt 7
 
-(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+- Việc 1: `codex/d7-viec1-thiet-ke`, mã tài liệu `8a94fac`. Đủ 10 mục thiết kế; 42 mã ca duy nhất, 123 tham chiếu trong giới hạn và 12 link tồn tại; diff check xanh. RÀ NHẸ tự kiểm + root đọc phần đổi chính. Báo cáo `docs/RA_D7_VIEC1_CODEX_2026-10-11.md`. Chỉ tài liệu, không pytest/sản xuất; ba câu còn mở, C09 hoãn, ACL/broker/pet chưa thử. Chưa gộp main.
 
 ---
 
