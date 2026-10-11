@@ -603,3 +603,5 @@ token hết hạn, chỉ GET), logic chọn dáng/bong bóng từ snapshot giả
 ## Kết quả Codex — đợt 9
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+- Việc 3 — ĐANG DỞ: `codex/d9-viec3-lao-dai`, dependency `df62cc7` là cherry-pick code7356a9f việc1, backend `42ecaec`. Broker loopback GET-only/token read-only TTL kiểm session Owner mỗi snapshot, SQLite chỉ đọc; logic dáng/bong bóng/dedupe/backoff/URL allowlist; cờ OFF. Đỏ module thiếu và mismatch due_status → 39 xanh; rà độc lập 2 finding/4 đỏ → 43 xanh /1,28s. RA_D9_VIEC3_CODEX_2026-10-11.md. CHƯA GUI tkinter/khay/toast thật/kho token OS/kênh cấp phiên server/launcher/QA Windows/PNG, chưa pilot chạy được. Dừng mở bước lớn theo hạn mức, tiếp sau reset. Chỉ push nhánh riêng, chưa toàn bộ/gộp/main. Tích hợp không cherry-pick dependency việc1 hai lần.
