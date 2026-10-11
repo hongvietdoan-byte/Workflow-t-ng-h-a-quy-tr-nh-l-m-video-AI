@@ -21,6 +21,8 @@ KINDS = {'code', 'budget', 'shared_asset', 'operation', 'unknown'}
 CODE_PATH = ['new', 'triaged', 'waiting_admin', 'assigned', 'investigating', 'fixing',
              'verifying', 'waiting_merge', 'deployed', 'resolved', 'closed']
 ACTION_PATH = ['new', 'triaged', 'waiting_admin', 'approved', 'applied', 'verified', 'closed']
+DONE_STATES = {'closed', 'resolved', 'verified', 'rejected'}
+VN_TIME = timezone(timedelta(hours=7))
 
 class TicketError(ValueError):
     """Thông báo có thể hiện cho admin, không chứa payload hoặc khóa."""
@@ -66,7 +68,7 @@ def _safe(value):
             _safe(item)
     elif isinstance(value, str):
         path = value.replace('\\', '/')
-        if 'base64,' in value or re.search(r'[A-Za-z]:/', path) or path.startswith(('//', '/Users/', '/home/')):
+        if 'base64,' in value or re.search(r'[A-Za-z]:/', path) or path.startswith('/'):
             raise TicketError('Chỉ lưu tham chiếu bằng chứng đã lọc, không đường dẫn máy/base64')
         if not re.fullmatch(r'[0-9a-f]{40,64}', value) and diag.redact(value) != value:
             raise TicketError('Bằng chứng chưa lọc thông tin bí mật')
@@ -179,14 +181,20 @@ def open_or_merge(conn, *, title, kind, source_actor, root_cause, project_id=Non
                 history.append(current)
                 after['workaround'] = {**current, 'history':history}
             after['revision'] += 1
+            reopened = before['state'] in ('closed', 'resolved')
+            if reopened:
+                after.update(state='reopened', closed_by=None, closed_at=None)
             _update(conn,before,after)
-            _event(conn,before,after,actor,'bổ sung bằng chứng','merge',at)
+            _event(conn,before,after,actor,'bổ sung bằng chứng',before['state']+'->reopened' if reopened else 'merge',at)
     return after
 
 def allowed_transitions(ticket):
     path = ACTION_PATH if ticket['kind'] in ('budget','shared_asset') else CODE_PATH
     state = ticket['state']
-    if state in ('blocked','waiting_info','reopened'):
+    if state in ('blocked','waiting_info'):
+        prior = ticket.get('technical', {}).get('resume_state', 'triaged')
+        return {prior} if prior in path and prior != 'closed' else {'triaged'}
+    if state == 'reopened':
         return {'triaged'}
     choices = {path[path.index(state)+1]} if state in path and state != 'closed' else set()
     if state == 'waiting_admin' and ticket['kind'] in ('budget','shared_asset'):
@@ -221,6 +229,10 @@ def transition(conn, id, to, actor, reason, expected_state, *, expected_revision
                                      after['verification'].get('health') is True and after['verification'].get('real_case')):
             raise TicketError('Triển khai cần commit, health và bằng chứng kiểm ca thật')
         after.update(state=to,revision=before['revision']+1)
+        if to in ('blocked', 'waiting_info'):
+            after['technical'] = {**after['technical'], 'resume_state':before['state']}
+        elif before['state'] in ('blocked', 'waiting_info'):
+            after['technical'] = {k:v for k,v in after['technical'].items() if k != 'resume_state'}
         if resolution is not None:
             after['resolution']=resolution
         if to == 'closed':
@@ -253,7 +265,7 @@ def extend_due(conn, id, new_due, actor, reason, *, expected_revision, now=None)
     return after
 
 def due_status(ticket, now=None):
-    if ticket['state']=='closed':
+    if ticket['state'] in DONE_STATES:
         return 'closed'
     left = _time(ticket['due_at']) - _time(now)
     return 'red' if left <= timedelta() else 'yellow' if left <= timedelta(hours=24) else 'green'
@@ -263,7 +275,31 @@ def user_projection(ticket, *, project_id=None):
     if project_id is None or ticket.get('project_id') != project_id:
         return None
     blocked = bool(ticket.get('impact',{}).get('blocked_shots') or ticket.get('impact',{}).get('blocked_projects'))
+    if not blocked or ticket['state'] in DONE_STATES:
+        return None
     return {'error':ticket['title'], 'message':'đã báo admin, dự án tạm dừng ở shot này' if blocked else ''}
+
+def money_text(ticket):
+    impact = ticket.get('impact', {})
+    value = impact.get('money_usd')
+    return 'chưa rõ' if value is None else f'{value:g} USD' if isinstance(value, (int,float)) else str(value)+' USD'
+
+def wait_reason_readonly(conn, job, now):
+    """Broker riêng đọc bằng chứng đã lưu; không import runner hay thực thi điều kiện gửi."""
+    runner = sys.modules.get('core.runner')
+    reader = getattr(runner, 'wait_reason', None)
+    if reader:
+        reason = reader(job['id'])
+        if reason:
+            return diag.redact(reason)
+    hit = conn.execute('SELECT message,last_at FROM diag_events WHERE job_id=? ORDER BY julianday(last_at) DESC,id DESC LIMIT 1', (job['id'],)).fetchone()
+    if hit and timedelta() <= now-_time(hit['last_at']) < timedelta(minutes=5):
+        return 'Chẩn đoán gần nhất: '+diag.redact(hit['message'])
+    if job['state'] == 'queued' and job['type'] == 'video_gen':
+        motion = conn.execute('SELECT state FROM motion_prompts WHERE scene_id=?', (job['scene_id'],)).fetchone()
+        if motion and motion['state'] != 'approved':
+            return 'Motion prompt chưa được duyệt'
+    return 'Chưa có bằng chứng lưu về lý do chờ; kiểm job trên Dashboard'
 
 def admin_snapshot(conn, *, now=None, pricing=None, data_dir=None):
     at=_time(now)
@@ -279,10 +315,10 @@ def admin_snapshot(conn, *, now=None, pricing=None, data_dir=None):
         out['ticket_summaries']=[{'id':r['id'],'revision':r['revision'],'title':r['title'],'kind':r['kind'],
                                   'state':r['state'],'due_at':r['due_at'],'due_status':due_status(r,at),
                                   'project_id':r['project_id'],'blocked':bool(r['impact'].get('blocked_shots') or r['impact'].get('blocked_projects'))} for r in rows]
-        out['blocked_count']=sum(r['blocked'] for r in out['ticket_summaries'] if r['state']!='closed')
+        out['blocked_count']=sum(r['blocked'] for r in out['ticket_summaries'] if r['state'] not in DONE_STATES)
         out['due']=dict(Counter({key:sum(due_status(r,at)==key for r in rows) for key in ('yellow','red')}))
         # Sổ chi dùng cả SQLite UTC và ISO UTC; ngày đầu vào khớp cả hai.
-        since=at.replace(hour=0,minute=0,second=0,microsecond=0).strftime('%Y-%m-%d')
+        since=at.astimezone(VN_TIME).replace(hour=0,minute=0,second=0,microsecond=0).astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         spent=budget.spent(conn,pricing=pricing,since=since)
         out['spend_today'].update(usd=spent['usd'],unknown=spent['unknown'])
         tables={r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -290,17 +326,12 @@ def admin_snapshot(conn, *, now=None, pricing=None, data_dir=None):
             out['spend_today']['pending']=conn.execute('SELECT COALESCE(SUM(usd),0) FROM llm_holds WHERE julianday(at)>=julianday(?)',((at-timedelta(minutes=budget.HOLD_MINUTES)).isoformat(),)).fetchone()[0]
         else:
             out['warnings'].append('Chưa có sổ giữ tiền: pending chưa rõ')
-        runner=sys.modules.get('core.runner')
-        waits=getattr(runner,'WAIT_REASONS',{}) if runner else {}
-        if runner is None:
-            out['warnings'].append('WAIT_REASONS chưa có trong tiến trình này')
-        for j in conn.execute("SELECT id,project_id,type,state,updated_at,created_at FROM jobs WHERE state IN ('running','queued','retryable')"):
+        for j in conn.execute("SELECT id,project_id,scene_id,type,state,updated_at,created_at FROM jobs WHERE state IN ('running','queued','retryable')"):
             age=(at-_time(j['updated_at'] or j['created_at'])).total_seconds()/60
             limit=diag.STUCK_MIN.get(j['type'],None) if j['state']=='running' else diag.QUEUED_MIN
             if limit is not None and age>limit:
-                hit=waits.get(j['id'])
                 out['stuck_jobs'].append({'job_id':j['id'],'project_id':j['project_id'],'state':j['state'],
-                                          'age_minutes':round(age,1),'reason':diag.redact(hit[0]) if hit else None})
+                                          'age_minutes':round(age,1),'reason':wait_reason_readonly(conn,j,at)})
         # DONE của autopilot là hoàn tất dựng; gen xong khi mọi shot có clip terminal,
         # có thể còn chờ người duyệt; không coi bộ shot rỗng là xong.
         for p in conn.execute('SELECT id FROM projects'):

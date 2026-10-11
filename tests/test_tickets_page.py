@@ -21,6 +21,36 @@ def test_from_fix_merge(store):
     assert b['evidence_refs']['sent_job_ids']==[3,4]
     assert b['state']=='new'
 
+def test_human_details_money_vietnam_time_and_link(store):
+    from devsys import tickets_page as ui
+    t=make(store,impact={'blocked_shots':[10],'money_usd':0.12},
+           cause={'confidence':'guess','summary':'thiếu mẫu','evidence_refs':{'job_ids':[651]}},
+           now='2026-10-08T08:23:13+00:00')
+    assert ui.impact_text(t)=='chặn shot 10; tiền 0.12 USD'
+    assert 'đoán — thiếu mẫu; bằng chứng: job: 651'==ui.cause_text(t)
+    assert ui.due_text(t,'2026-10-11T09:23:13+00:00')=='11/10 15:23 (giờ VN) · quá 1.0 h'
+    query={'ticket':t['id']}; session={}
+    assert not ui.consume_ticket_link(query,session,False) and query
+    assert ui.consume_ticket_link(query,session,True) and not query
+    assert session['ticket_focus']==t['id']
+    assert not ui.consume_ticket_link(query,session,True)
+
+def test_human_details_render_evidence_as_literal_text(store,tmp_path,monkeypatch):
+    from devsys import tickets_page as ui
+    refs={'artifacts':['![bằng chứng](relative/image.png)','test_case_*_01']}
+    t=make(store,impact={'blocked_shots':['shot_*_10'],'money_usd':0.12},
+           cause={'confidence':'guess','summary':'**thiếu mẫu**','evidence_refs':refs},
+           evidence_refs=refs)
+    path=tmp_path/'literal.sqlite'
+    with sqlite3.connect(path) as saved: store.backup(saved)
+    monkeypatch.setenv('PIPELINE_DB',str(path))
+    at=AppTest.from_string('from devsys.tickets_page import render\nrender()').run()
+    assert not at.exception
+    expected=['Ảnh hưởng: '+ui.impact_text(t),'Nguyên nhân: '+ui.cause_text(t),
+              'Bằng chứng: '+ui.evidence_text(refs)]
+    assert all(line in [element.value for element in at.text] for line in expected)
+    assert not any('![bằng chứng]' in element.value for element in at.markdown)
+
 def test_queue_merge_and_readonly(store,tmp_path,monkeypatch):
     from devsys import tickets_page as ui
     now=tickets._time()

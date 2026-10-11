@@ -5,15 +5,18 @@ from pathlib import Path
 import secrets
 import sqlite3
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from core import auth, features, tickets
 
 class SnapshotBroker:
-    def __init__(self, path, *, clock=time.monotonic):
+    def __init__(self, path, *, data_dir=None, clock=time.monotonic):
         configured = Path(path)
         if not configured.is_absolute():
             raise ValueError('CSDL broker cần đường dẫn tuyệt đối đã cấu hình')
         self.path = configured.resolve()
+        self.data_dir = Path(data_dir).resolve() if data_dir is not None else self.path.parent
+        if data_dir is not None and not Path(data_dir).is_absolute():
+            raise ValueError('Thư mục dữ liệu cần đường dẫn tuyệt đối đã cấu hình')
         self.clock = clock
         self._tokens = {}
 
@@ -56,7 +59,7 @@ class SnapshotBroker:
         c = self._connection()
         try:
             self._owner(c, grant[0])
-            return tickets.admin_snapshot(c)
+            return tickets.admin_snapshot(c, data_dir=str(self.data_dir))
         except PermissionError:
             self._tokens.pop(key, None)
             raise
@@ -68,6 +71,9 @@ def make_server(broker, *, host='127.0.0.1', port=0):
         raise ValueError('Broker chỉ bind 127.0.0.1')
     broker._enabled()
     class Handler(BaseHTTPRequestHandler):
+        def setup(self):
+            super().setup()
+            self.connection.settimeout(5)
         def log_message(self, *args):
             pass  # Không ghi header/token/path vào log.
         def reply(self, status, body):
@@ -95,4 +101,7 @@ def make_server(broker, *, host='127.0.0.1', port=0):
             self.close_connection = True
             self.reply(405, {'error':'Chỉ hỗ trợ GET'})
         do_POST = do_PUT = do_PATCH = do_DELETE = do_HEAD = do_OPTIONS = do_TRACE = do_CONNECT = reject
-    return HTTPServer((host, port), Handler)
+    server = ThreadingHTTPServer((host, port), Handler)
+    server.timeout = 5
+    server.daemon_threads = True
+    return server

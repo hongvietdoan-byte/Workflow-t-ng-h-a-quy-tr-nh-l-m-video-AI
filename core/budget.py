@@ -17,7 +17,7 @@ warns (`warn_llm`). `llm_since` restarts the count after the person tops up.
 import json
 import os
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Tuple, Dict, Optional
 
 from . import cost
@@ -186,8 +186,17 @@ def spent(conn, pricing: Optional[Dict] = None, since: Optional[str] = None) -> 
 
 
 def _spent(conn, pricing: Dict, since: Optional[str]) -> Dict:
-    rows = conn.execute("SELECT * FROM usage_events WHERE provider NOT LIKE 'mock%'" + (" AND at >= ?" if since else ""),
-                        (since,) if since else ()).fetchall()
+    # Tiền theo mốc thật dù sổ có cả SQLite UTC và ISO. Khoảng ngày rộng hơn
+    # giữ idx_usage_events_at; trừ 1 ngày bao phủ cả ISO có offset múi giờ.
+    lower = None
+    if since:
+        stamp = datetime.fromisoformat(since.replace('Z', '+00:00'))
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        lower = (stamp.astimezone(timezone.utc)-timedelta(days=1)).strftime('%Y-%m-%d')
+    rows = conn.execute("SELECT * FROM usage_events WHERE provider NOT LIKE 'mock%'" +
+                        (" AND at >= ? AND julianday(at) >= julianday(?)" if since else ""),
+                        (lower,since) if since else ()).fetchall()
     usd, images, unknown, llm, audios = 0.0, 0, set(), 0.0, 0
     for r in rows:
         if r["kind"] == "llm":
