@@ -638,6 +638,13 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     edges = _edge_transitions(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_edges"), edits)
     durations = list(durations)
     held = _hold_end(paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))   # after the voices are placed
+    from . import post_fx
+    post_effects = post_fx.apply(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_post_fx"))
+    for effect in post_effects:
+        if effect["muc"] == "vang":
+            from . import diag
+            diag.record(p.conn, "render", "warn", f"Shot {effect.get('idx')}: " + "; ".join(effect["reasons"]),
+                        "post_fx_warning", project_id)
     track = selected_music(data_dir, project_id) if music_path == "auto" else music_path
     fitted = None
     from . import features
@@ -755,6 +762,8 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         manifest["upscale"] = {"to": list(frame), "how": f"ffmpeg {ffmpeg_studio.UPSCALE_FLAGS} + unsharp "
                                                          f"{ffmpeg_studio.UNSHARP_SIZE}x{ffmpeg_studio.UNSHARP_SIZE}:{ffmpeg_studio.UNSHARP_AMOUNT}"}
     manifest["color_match"] = colour
+    if post_effects:
+        manifest["post_fx"] = post_effects
     if flashbacks:
         manifest["flashback_fx"] = flashbacks
     if edges:

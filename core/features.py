@@ -5,6 +5,11 @@ import os
 from typing import Dict
 
 FEATURES: Dict[str, Dict] = {
+    "post_fx_render": {
+        "label": "Hậu kỳ nhiễu sóng/glitch/nhấp nháy theo post_fx (ffmpeg, 0 USD)",
+        "verified": False,
+        "why": "ĐỢT 6 (11/10): chỉ thử clip ffmpeg tổng hợp; chưa xem bản dựng thật.",
+    },
     "seedance_sample_mode": {
         "label": "Thử độ nét Seedance 2.5: 720p hoặc bản mẫu 480p → bản cuối 1080p; kết quả thử riêng",
         "verified": False,
