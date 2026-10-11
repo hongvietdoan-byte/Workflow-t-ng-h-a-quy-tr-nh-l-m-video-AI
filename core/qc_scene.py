@@ -582,6 +582,19 @@ def run_ready_scenes(p, pid: int, client, data_dir: str) -> Dict:
         subset = to_review(frames, judged)
         try:
             from . import qc_agent, qc_team
+            if features.on('qc_observe_enum'):
+                from . import qc_observe
+                res = qc_observe.review_scene(p, pid, s, client, data_dir, subset)
+                rec = _load(data_dir, pid, 'reviews.json')
+                record = {'jobs': key, 'looked_at': [r['job_id'] for r in subset]}
+                if shadow():
+                    record['trainee'] = True
+                else:
+                    record.update(enum=res['results'], applied=res['applied'], observations=res.get('observations'))
+                rec.setdefault(str(s), []).append(record)
+                _save(data_dir, pid, 'reviews.json', rec)
+                summary['reviewed'].append((s, res['applied']))
+                continue
             if qc_team.enabled():                      # Tổ QC (01/10): code + C1 per frame, every frame held for the person
                 res = qc_team.review_scene(p, pid, s, client, data_dir, frames, focus=[r["job_id"] for r in subset])
                 if res.get("stopped"):
