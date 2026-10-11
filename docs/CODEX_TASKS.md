@@ -840,6 +840,17 @@ Liệt kê theo ca #24: vải sột soạt / lết gối trên đá, tiếng ch�
 mood dùng được (AST mood ≈ 0 với mọi bản Kho). Viết `docs/KHO_AM_THANH_CAN_BO_SUNG.md` (nguồn miễn phí/có giấy phép đề xuất, người dùng duyệt
 trước khi tải) + đo vì sao mood ≈ 0 (nhãn AST không có mood → đề xuất cách gán mood: tay / mô hình khác) — không tải gì về Kho.
 
+## Việc 5 — Thoại ĐỒNG THANH (hộp thư 12/10 00:55, #24 shot 12; cờ `unison_dialogue` TẮT)
+#24 shot 12: hai nhân vật cùng nói "…chỉ có 2 hành động sắp ra mắt!" — phiên máy chính phải chỉnh tay `audio_assets` (dòng 1 trỏ file mix, dòng 2
+`file=''` + `solo_file`). Làm: trường `unison` cho dòng thoại (≥ 2 người nói cùng lúc), TTS từng người → mix canh cùng điểm đầu (lệch từng chữ ≤ 0,06 s,
+đo bằng năng lượng/onset), bản dựng (`core/delivery.py`) + khớp môi đọc `unison` đúng (không nối tiếp hai câu). Thiếu một giọng → VÀNG, không im lặng.
+Test dữ liệu giả 2 giọng.
+
+## Việc 6 — TTS đọc lệch từ (hộp thư 12/10 00:55: giọng 70 đọc "Trồi Lên" thành "Gồi/Chôi lên"; cờ `tts_pronunciation` TẮT)
+Từ điển phát âm theo giọng/dự án (từ → cách viết cho TTS hoặc SSML/phoneme nếu provider hỗ trợ — đọc adapter TTS hiện có trước), áp trước khi gửi; kiểm
+sau TTS bằng nhận dạng giọng nói sẵn có (whisper nếu đã có trong dự án; không thêm dịch vụ tốn tiền) so chữ gốc → lệch thì VÀNG + gợi ý thêm từ điển,
+không tự gen lại quá 1 lần (luật gen lại phải đổi đầu vào). Ca thật: "Trồi Lên" (`tts_31339` → "Gồi lên", `tts_31340` → "Chôi lên").
+
 ## Kết quả Codex — đợt 12
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
@@ -874,5 +885,32 @@ Luật chung GIỐNG đợt 1; nhánh `codex/d13-viec<N>-<tên>`; KHÔNG sửa f
 3. `mockup/lao_dai_pet.html` dáng thường vẫn hiện danh sách 3 phiếu chờ → dáng thường ẩn danh sách / hiện "không có phiếu chờ".
 
 ## Kết quả Codex — đợt 13
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+---
+
+# ĐỢT 14 — QC ảnh chấm sai + job tự sửa kẹt hàng đợi (hộp thư 12/10 00:55, #24 shot 11–12)
+
+Luật chung GIỐNG đợt 1; nhánh `codex/d14-viec<N>-<tên>`; KHÔNG sửa file #24 (runner/lock_exceptions/end_frames/place_refs/scene_storyboard);
+không API tốn tiền khi test; đổi hành vi sau cờ TẮT (#24 đang chạy bằng QC + vòng nền hiện tại). Ghi "Kết quả Codex — đợt 14".
+
+## Việc 1 — QC ảnh "nhìn đúng nhưng kết luận sai" (cờ `qc_observe_enum` TẮT)
+Ca thật: ảnh 678 bị chấm "váy phải đen" dù váy đen, mặt đúng; 680 "thiếu giếng, chân không đỏ" dù có → ảnh đạt bị loại/giữ, tốn gen lại. Hướng (theo luật
+dự án "model khai, code kết luận"): model QC chỉ KHAI quan sát dạng enum theo từng mục kiểm (`thay` / `khong_thay` / `khong_chac` + vùng) cho từng đặc
+điểm trong khóa nhân vật / BYĐ (`core/qc_spec.py` `compile_frame` đã có danh sách đặc điểm), CODE so với yêu cầu và quyết điểm/ĐẠT. `khong_chac` → VÀNG,
+không trừ điểm như sai. Đọc `core/qc_agent.py`, `core/qc_rules.py`, `core/qc_policy.py`, `knowledge/checks/` trước, dùng lại khung khai báo sẵn có
+(vd `qc_measure`, `lock_exceptions` — chỉ ĐỌC). Ca vàng: dựng lại 678/680 từ mô tả (câu trả lời model giả) → bản cũ trừ điểm sai, bản mới qua. Test không
+gọi Claude thật.
+
+## Việc 2 — Job tự sửa (origin `auto`) kẹt `queued` khi không có chạy tự động (cờ `auto_send_self_fix` TẮT)
+`core/bg_poll.py:73` bỏ qua mọi job `origin='auto'` (dành cho autopilot tự gửi). Nhưng job do QC tự sửa / gen lại (`core/regen.py`, `core/pipeline.py`…
+— tìm chỗ đặt `origin='auto'`) cũng mang `auto` khi KHÔNG có autopilot → không ai gửi, kẹt queued (#24 job 679/680 phải `submit_pending` tay). Sửa: phân
+biệt job của autopilot với job tự sửa ngoài autopilot (origin riêng, vd `self_fix`, hoặc bg_poll gửi `auto` khi dự án không có autopilot đang chạy/xếp
+hàng) — vẫn qua đúng `runner.submit_pending` (cổng tiền, trần, throttle); gửi tự động phải tôn trọng ủy quyền/trần dự án (không chi khi người dùng chưa
+cho tự duyệt). Chỉ sửa `core/bg_poll.py` + chỗ đặt origin; KHÔNG sửa `core/runner.py`. Test: dự án không autopilot có job tự sửa → được gửi (cờ bật) /
+giữ nguyên (cờ tắt); dự án có autopilot → bg_poll không gửi trùng.
+
+## Kết quả Codex — đợt 14
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
