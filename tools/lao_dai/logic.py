@@ -52,13 +52,15 @@ class PetLogic:
                 if not isinstance(r,dict) or not isinstance(r.get('id'),str) or not _ID.fullmatch(r['id']) or not isinstance(r.get('state'),str) or not _ID.fullmatch(r['state']) or r.get('due_status') not in ('green','yellow','red','closed'):
                     raise ValueError()
                 key = (r['id'],r['state'],r['due_status'])
-                if r['state'] != 'closed' and key not in self._seen:
+                if r['state'] in ('waiting_admin', 'waiting_merge') and key not in self._seen:
                     toasts.append(' · '.join(key))
             # Chỉ ghi dedupe sau khi toàn snapshot hợp lệ.
             self._seen.update((r['id'],r['state'],r['due_status']) for r in rows)
             self.failures = 0
-            n = sum(v for k,v in counts.items() if k != 'closed')
-            return PetView('tickets' if n else 'idle', f'📨 {n} phiếu chờ duyệt' if n else '', toasts=toasts)
+            n = counts.get('waiting_admin', 0)
+            due = {color:sum(r['state']=='waiting_admin' and r['due_status']==color for r in rows) for color in ('yellow','red')}
+            urgency = f" · 🔴 {due['red']} quá hạn · 🟡 {due['yellow']} sắp hạn" if n else ''
+            return PetView('tickets' if n else 'idle', (f'📨 {n} phiếu chờ duyệt'+urgency) if n else '', toasts=toasts)
         except (ValueError, KeyError, TypeError):
             return self.failure('Snapshot broker thiếu hoặc sai định dạng')
 

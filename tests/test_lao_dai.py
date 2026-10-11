@@ -10,7 +10,7 @@ def broker(tmp_path, monkeypatch):
     sqlite3.connect(p).close()
     monkeypatch.setattr('core.features.on', lambda n: True)
     monkeypatch.setattr(auth, 'identity', lambda c, s: auth.Identity('a@b.c','a','owner') if s == 'owner' else (auth.Identity('m@b.c','m','member') if s == 'member' else None))
-    monkeypatch.setattr('core.tickets.admin_snapshot', lambda c: {'schema_version':1,'enabled':True,'available':True,'ticket_counts':{'new':1},'ticket_summaries':[{'id':'abc','state':'new','due_status':'green'}]})
+    monkeypatch.setattr('core.tickets.admin_snapshot', lambda c, **kw: {'schema_version':1,'enabled':True,'available':True,'ticket_counts':{'new':1},'ticket_summaries':[{'id':'abc','state':'new','due_status':'green'}]})
     return SnapshotBroker(p, clock=lambda: 10)
 
 def test_auth_expiry_revocation(broker, monkeypatch):
@@ -27,7 +27,7 @@ def test_auth_expiry_revocation(broker, monkeypatch):
 def test_readonly_and_off(broker, monkeypatch):
     before = broker.path.read_bytes()
     token = broker.issue('owner')
-    def projection(c):
+    def projection(c, **kw):
         with pytest.raises(sqlite3.OperationalError): c.execute('CREATE TABLE forbidden(x)')
         return {'available': True}
     monkeypatch.setattr('core.tickets.admin_snapshot', projection)
@@ -41,15 +41,36 @@ def test_readonly_and_off(broker, monkeypatch):
 def test_no_lan(broker):
     with pytest.raises(ValueError): make_server(broker, host='0.0.0.0')
 
+def test_broker_passes_configured_data_dir_and_threaded_server(broker, monkeypatch, tmp_path):
+    from http.server import ThreadingHTTPServer
+    broker.data_dir=tmp_path/'projects'
+    captured={}
+    def snapshot(c, **kw):
+        captured.update(kw); return {'available':True}
+    monkeypatch.setattr('core.tickets.admin_snapshot',snapshot)
+    broker.snapshot(broker.issue('owner'))
+    assert captured['data_dir']==str(broker.data_dir)
+    server=make_server(broker)
+    try:
+        assert isinstance(server,ThreadingHTTPServer) and server.timeout==5
+    finally: server.server_close()
+
+def test_only_admin_action_toasts_and_waiting_admin_bubble():
+    rows=[{'id':state,'state':state,'due_status':'red'} for state in ['new','assigned','investigating','waiting_admin','waiting_merge','closed']]
+    snap={'schema_version':1,'enabled':True,'available':True,'ticket_counts':{r['state']:1 for r in rows},'ticket_summaries':rows}
+    view=PetLogic().update(snap)
+    assert view.bubble.startswith('📨 1 phiếu') and '🔴 1' in view.bubble
+    assert view.toasts==['waiting_admin · waiting_admin · red','waiting_merge · waiting_merge · red']
+
 @pytest.mark.parametrize('value', [None, [], {}, {'schema_version':1,'enabled':True,'available':True,'ticket_counts':{'new':-1},'ticket_summaries':[]}])
 def test_bad_snapshot(value):
     assert PetLogic().update(value).state == 'disconnected'
 
 def test_logic_dedupe_and_links():
     p = PetLogic()
-    s = {'schema_version':1,'enabled':True,'available':True,'ticket_counts':{'new':2,'closed':3},'ticket_summaries':[{'id':'abc','state':'new','due_status':'yellow'}]}
+    s = {'schema_version':1,'enabled':True,'available':True,'ticket_counts':{'waiting_admin':2,'new':4,'closed':3},'ticket_summaries':[{'id':'abc','state':'waiting_admin','due_status':'yellow'}]}
     v=p.update(s)
-    assert v.state == 'tickets' and '2' in v.bubble and v.toasts == ['abc · new · yellow']
+    assert v.state == 'tickets' and '2' in v.bubble and '🟡 1' in v.bubble and v.toasts == ['abc · waiting_admin · yellow']
     assert p.update(s).toasts == []
     assert p.failure('Lỗi broker').state == 'disconnected'
     assert allowed_url('http://127.0.0.1:8502/?ticket=abc')
@@ -63,6 +84,9 @@ def test_http_get_only_and_query_denied(broker):
     server = make_server(broker)
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
+    import socket
+    slow=socket.create_connection(server.server_address,timeout=2)
+    slow.sendall(b'GET /snapshot HTTP/1.1\r\n')  # một client chưa gửi hết header
     try:
         token = broker.issue('owner')
         for method, path, headers, status in [
@@ -78,6 +102,7 @@ def test_http_get_only_and_query_denied(broker):
             assert r.status == status
             r.read(); c.close()
     finally:
+        slow.close()
         server.shutdown(); server.server_close(); t.join(3)
 
 def test_missing_db_not_created(tmp_path, monkeypatch):
@@ -123,7 +148,11 @@ def test_real_snapshot_auth_and_closed(tmp_path, monkeypatch):
     ticket=tickets.open_or_merge(c,title='test',kind='code',source_actor='tieu_nhi',root_cause='missing_ref')
     c.execute("UPDATE support_tickets SET state='closed' WHERE id=?",(ticket['id'],))
     c.commit()
-    tickets.open_or_merge(c,title='open',kind='code',source_actor='tieu_nhi',root_cause='another')
+    pending=tickets.open_or_merge(c,title='open',kind='code',source_actor='tieu_nhi',root_cause='another')
+    owner=auth.identity(c,'test-session')
+    for state in ('triaged','waiting_admin'):
+        pending=tickets.transition(c,pending['id'],state,owner,'cần admin',pending['state'])
+    c.commit()
     before=p.read_bytes()
     b=SnapshotBroker(p)
     token=b.issue('test-session')

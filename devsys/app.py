@@ -187,10 +187,14 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
     ticket_ui_enabled = features.on("support_tickets") and features.on("tickets_admin_ui")
+    from devsys.tickets_page import consume_ticket_link
+    if consume_ticket_link(st.query_params, st.session_state, ticket_ui_enabled):
+        # RENAMED: khóa radio rõ ràng để link cập nhật cả lựa chọn trên sidebar.
+        st.session_state['devsys_page'] = 'Phiếu'
+    if not ticket_ui_enabled and st.session_state.get('devsys_page') == 'Phiếu':
+        del st.session_state['devsys_page']
     page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
-                              "Hiệu quả quy trình", "Ai quyết", "Làm ↔ Kiểm", "Bộ kỹ năng 3 vai", "Đang chạy"] + (["Phiếu"] if ticket_ui_enabled else []), label_visibility="collapsed")
-    if ticket_ui_enabled and st.query_params.get("ticket"):
-        page = "Phiếu"
+                              "Hiệu quả quy trình", "Ai quyết", "Làm ↔ Kiểm", "Bộ kỹ năng 3 vai", "Đang chạy"] + (["Phiếu"] if ticket_ui_enabled else []), label_visibility="collapsed", **({'key':'devsys_page'} if ticket_ui_enabled else {}))
     st.divider()
     st.markdown("**Test**")
     running = collect.tests_running(ROOT)

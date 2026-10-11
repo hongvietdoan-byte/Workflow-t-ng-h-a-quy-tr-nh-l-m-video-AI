@@ -29,6 +29,59 @@ def test_create_merge_due_audit(store):
     assert store.execute('select count(*) from ticket_events').fetchone()[0] == 2
     assert store.execute('select count(*) from audit_log').fetchone()[0] == 2
 
+@pytest.mark.parametrize('state', ['resolved', 'closed'])
+def test_merge_reopens_finished_ticket(store, state):
+    from core import tickets
+    a = ticket(store, project_id=1, impact={'blocked_shots':[10]})
+    store.execute('UPDATE support_tickets SET state=?,closed_by=?,closed_at=? WHERE id=?',
+                  (state, OWNER.email, NOW.isoformat(), a['id']))
+    before = tickets.get(store, a['id'])
+    assert tickets.user_projection(before, project_id=1) is None
+    assert tickets.due_status(before, NOW + timedelta(days=5)) == 'closed'
+    b = ticket(store, project_id=1, evidence_refs={'job_ids':[651]})
+    assert b['state'] == 'reopened' and b['revision'] == before['revision'] + 1
+    assert b['closed_at'] is None and b['closed_by'] is None
+    assert store.execute('SELECT transition FROM ticket_events ORDER BY rowid DESC LIMIT 1').fetchone()[0] == state+'->reopened'
+
+def test_nonblocking_projection_and_absolute_path(store):
+    from core import tickets
+    assert tickets.user_projection(ticket(store, project_id=1), project_id=1) is None
+    with pytest.raises(tickets.TicketError): tickets._safe('/tmp/evidence.png')
+
+def test_paused_ticket_returns_to_previous_state(store):
+    from core import tickets
+    t = ticket(store)
+    for state in ['triaged', 'waiting_admin', 'assigned', 'blocked', 'assigned', 'waiting_info', 'assigned']:
+        t = tickets.transition(store,t['id'],state,OWNER,'kiểm',t['state'],expected_revision=t['revision'])
+    assert t['state'] == 'assigned'
+
+def test_snapshot_vietnam_day_mixed_utc_formats(store):
+    from core import tickets
+    at = datetime(2026,10,11,18,tzinfo=timezone.utc)  # 01:00 ngày 12 ở VN
+    for stamp in ['2026-10-11 16:59:59','2026-10-11T16:59:59+00:00',
+                  '2026-10-11 17:00:00','2026-10-11T17:00:00+00:00']:
+        store.execute("INSERT INTO usage_events(kind,provider,model,tier,quantity,unit,at) VALUES('llm','claude','m','x',1,'usd',?)",(stamp,))
+    before = store.total_changes
+    snap = tickets.admin_snapshot(store,now=at,pricing={'per_million_tokens':{'m':{'x':1000000}}})
+    assert snap['available'] and snap['spend_today']['usd'] == 2
+    assert store.total_changes == before
+
+def test_standalone_wait_reason_readonly(store, monkeypatch):
+    from core import tickets
+    import sys
+    monkeypatch.delitem(sys.modules, 'core.runner', raising=False)
+    store.execute("INSERT INTO projects(id,name,created_at) VALUES(1,'p',?)", (NOW.isoformat(),))
+    store.execute('INSERT INTO scenes(id,project_id,idx) VALUES(1,1,1)')
+    stamp=(NOW-timedelta(hours=2)).isoformat()
+    store.execute("INSERT INTO jobs(id,project_id,scene_id,type,state,created_at,updated_at) VALUES(1,1,1,'video_gen','queued',?,?)",(stamp,stamp))
+    store.execute("INSERT INTO motion_prompts(scene_id,motion_prompt,state) VALUES(1,'move','pending')")
+    store.commit(); store.execute('PRAGMA query_only=ON')
+    before=store.total_changes
+    snapshot=tickets.admin_snapshot(store,now=NOW)
+    assert snapshot['available']
+    assert snapshot['stuck_jobs'][0]['reason']=='Motion prompt chưa được duyệt'
+    assert 'core.runner' not in sys.modules and store.total_changes==before
+
 def test_code_lifecycle_and_cas(store):
     from core import tickets
     t = ticket(store)
@@ -125,7 +178,7 @@ def test_reject_unfiltered_evidence(store,payload):
     with pytest.raises(tickets.TicketError): ticket(store,technical=payload)
     assert store.execute('select count(*) from support_tickets').fetchone()[0]==0
 
-def test_snapshot_gen_target_stale_and_pending_readonly(store,tmp_path):
+def test_snapshot_gen_target_stale_and_pending_readonly(store,tmp_path,monkeypatch):
     from core import tickets
     store.execute("insert into projects(id,name,created_at) values(1,'p',?)",(NOW.isoformat(),))
     store.execute("insert into scenes(id,project_id,idx) values(1,1,1)")
@@ -147,6 +200,15 @@ def test_snapshot_gen_target_stale_and_pending_readonly(store,tmp_path):
     assert snap['gen_done_projects']==[1]
     assert snap['spend_today']['pending']==0.15
     assert store.execute('select count(*) from usage_events').fetchone()[0]==0
+
+    disk=tmp_path/'manifest.sqlite'
+    with sqlite3.connect(disk) as saved:
+        store.backup(saved)
+    from tools.lao_dai.broker import SnapshotBroker
+    monkeypatch.setattr('core.features.on',lambda name:True)
+    monkeypatch.setattr('core.auth.identity',lambda c,s:OWNER)
+    broker=SnapshotBroker(disk,data_dir=tmp_path)
+    assert broker.snapshot(broker.issue('test-owner'))['gen_done_projects']==[1]
 
     (tmp_path/'image.png').write_bytes(b'changed image')
     assert tickets.admin_snapshot(store,now=NOW,data_dir=str(tmp_path))['gen_done_projects']==[]
