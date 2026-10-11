@@ -654,6 +654,7 @@ THẤP: `start_from_prev_clip` ghi rõ lý do; cảnh báo chỉ khi clip cũ b�
 3. `devsys/app.py` (sidebar): còn `?ticket=` thì bấm trang khác vẫn hiện Phiếu → chỉ chuyển trang ở lần mở đầu (session_state) hoặc xóa query param.
 4. `tools/lao_dai/logic.py:~60` bong bóng đếm mọi trạng thái khác `closed` → chỉ `waiting_admin` (+ đỏ/vàng); toast chỉ việc cần admin hành động.
 5. `tools/lao_dai/broker.py:~59` gọi `admin_snapshot(c)` thiếu `data_dir` → `gen_done` luôn rỗng; WAIT_REASONS không có trong tiến trình broker.
+6. **Ảnh chụp trang Phiếu 11/10 (`docs/images/d9/trang_phieu_mo_phieu_1440.png`):** (a) chi tiết phiếu hiện JSON thô (`impact`, `cause`) → viết thành câu tiếng Việt (ảnh hưởng: chặn shot 10, ≈ 0,12 USD; nguyên nhân: đoán — …; bằng chứng: job 651…); (b) hạn hiện ISO UTC `2026-10-11T08:23:13+00:00` → giờ VN `11/10 15:23` + "còn/quá N h"; (c) hàng ghi "tiền chưa rõ" dù `impact.money_usd = 0.12` → đọc đúng khóa tiền (một nguồn với `core/tickets.py`); (d) sidebar vẫn chọn trang cũ khi mở bằng `?ticket=` (cùng lỗi mục 3).
 THẤP: `due_status` bỏ qua phiếu đã xong; `blocked`/`waiting_info` quay về trạng thái trước (không về `triaged`); `_safe` chặn mọi đường dẫn tuyệt đối
 (cả `/tmp`); `spend_today` theo giờ VN; `ThreadingHTTPServer` + timeout. Đợt 9 việc 3 phần GUI/khay/toast/launcher/ảnh: làm tiếp theo đề Đợt 9.
 
