@@ -364,3 +364,23 @@ E. **Mô hình:** chọn model Claude cho từng bậc (hỏi đáp rẻ vs sử
 ## Kết quả Codex — đợt 5
 
 (Codex ghi: nhánh · commit · tài liệu · việc mở.)
+
+---
+---
+
+# ĐỢT 6 — hậu kỳ post_fx, công cụ nhịp ref, sửa shot_lessons (11/10 trưa, người dùng duyệt cả 3)
+
+Luật chung GIỐNG đợt 1 + thêm: mỗi việc một nhánh `codex/d6-viec<N>-<tên>` từ `origin/main` mới nhất; KHÔNG đọc/ghi `data/`, không gọi API, không chạy Blender; KHÔNG sửa `dashboard/`; KHÔNG đụng đường gửi job (`core/runner.py` submit/hydrate) và khóa nhân vật (`core/lock_exceptions.py`) — #24 đang chạy trên các phần đó. Hành vi mới sau cờ TẮT (`core/features.py`). Ghi kết quả vào "Kết quả Codex — đợt 6".
+
+## Việc 1 — Hậu kỳ nhiễu sóng/glitch bằng ffmpeg đọc `post_fx` (vừa)
+Shot có `scenes.data.post_fx` (vd #24 shot 10: cuối shot màn hình nhòe, nhấp nháy, nhiễu sóng như mất kết nối → chuyển quảng cáo; xem cách phiên 11/10 ghi trường này: grep `post_fx` trong repo) — hiện CHƯA bước dựng nào đọc. Thêm: lược đồ `post_fx` tối thiểu (loại hiệu ứng: `nhieu_song`/`glitch`/`nhap_nhay`…, vị trí `cuoi`/`dau`/`ca_shot`, thời lượng s, cường độ) + hàm áp bằng ffmpeg vào clip của shot ở bước dựng (đọc cách `core/` dựng clip/rough cut làm, tái dùng ffmpeg helper sẵn có). Thiếu/ sai trường → VÀNG có lý do, không im lặng. Cờ `post_fx_render` TẮT. Test: clip ffmpeg thật cỡ nhỏ (như `tests/test_keep_audio.py` RealFfmpegTests) — độ dài không đổi, đoạn cuối khác khung gốc, cờ tắt thì byte giống; nhãn `slow` nếu ≥ ~8 s.
+
+## Việc 2 — Công cụ tạo tệp nhịp cho video ref (nhỏ)
+Kiểm "độ phủ nhịp ref" (`core/shot_lessons.ref_coverage`, quy ước `<video>.beats.json`) cần tệp nhịp mà chưa có công cụ tạo. Thêm `tools/ref_beats.py <video>`: xuất dải khung hình có mốc giờ (ffmpeg, ~1 khung/0,5 s, JPG cạnh video) + mẫu `<video>.beats.json` đúng lược đồ `shot_lessons` (nhip: [{ten, tu_s, den_s, mo_ta}], chi_tiet, tu_khoa, bien_do) để người duyệt điền; không ghi đè tệp có sẵn (cần `--force`); `--check` kiểm tệp đã điền hợp lệ. Test dùng video tạo bằng ffmpeg trong thư mục tạm.
+
+## Việc 3 — `shot_lessons drift/nhip` lấy thứ tự shot đúng (nhỏ)
+Hiện khi `shot_specs` chỉ có một phần các shot thì thứ tự nhịp có thể sai → báo nhiễu. Sửa: thứ tự shot lấy từ CSDL khi có (`scenes.idx` theo project; thêm tham số `--db`/`--project`), không có thì từ `shot_specs` + cảnh báo VÀNG "thứ tự suy từ shot_specs". Test bằng CSDL tạm (như các test khác tạo DB tạm) với shot_specs thiếu một phần.
+
+## Kết quả Codex — đợt 6
+
+(Codex ghi: việc · nhánh · commit · test đỏ→xanh · việc mở.)
