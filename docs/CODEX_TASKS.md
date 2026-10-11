@@ -684,3 +684,53 @@ Theo công thức chung:
 ## Kết quả Codex — đợt 10
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+---
+
+# ĐỢT 11 — Bàn dựng đạo diễn 3D: tấm duyệt đủ góc, Đạo diễn khai sơ đồ khối, Trình sửa sân khấu (người dùng duyệt 11/10 tối)
+
+Đầu vào: `docs/PHUONG_PHAP_SAN_KHAU_3D.md` mục 2 (lưới), 12b (Nhánh C), 13 (hai chiều Director ↔ code), 14 (stage_facts); thiết kế "Trình sửa
+sân khấu" ở `docs/NGHIEN_CUU_TU_PHUC_VU_DASHBOARD.md` (đoạn "Trình sửa sân khấu") + `docs/THIET_KE_TIEU_NHI_LAO_DAI_D7.md` mục 6 (thứ tự tính
+năng). Đã có trên main: `core/blockout.py` (kiểm số), `core/blockout_sheet.py` (tấm nhìn từ trên + gói `blockout` có người duyệt/SHA; ảnh ví
+dụ `docs/images/d9/tam_duyet_san_khau_vi_du.png`), `core/stage_grid.py`/`core/stage_solver.py`/`core/stage_facts.py`, `tools/stage_grid.py`
+(v2/v3), `tools/render_plates.py` `add_props`, `core/whitebox.py`, `core/plates3d.py` `find_blender`.
+Luật chung GIỐNG đợt 1 + thêm: mỗi việc một nhánh `codex/d11-viec<N>-<tên>` từ `origin/main`; KHÔNG sửa `core/runner.py`, `core/lock_exceptions.py`,
+`core/end_frames.py`, `core/place_refs.py`, `core/scene_storyboard.py` và KHÔNG đọc/ghi `data/projects/24/` (#24 đang chạy trên sân khấu đó);
+không API tốn tiền (Director thật chỉ chạy khi người dùng duyệt báo giá). Hành vi mới sau cờ TẮT. Ghi kết quả vào "Kết quả Codex — đợt 11".
+
+## Việc 1 — Thiết kế + mockup Trình sửa sân khấu (tài liệu + HTML; làm ngay)
+1. `docs/THIET_KE_BAN_DUNG_3D_D11.md`: luồng người dùng trên Dashboard (bước 1, cạnh "Đạo diễn"): xem sân khấu nhìn từ trên + góc máy từng shot
+   → kéo/nhập vị trí nhân vật (mét, theo tên ô lưới), hướng mặt, tư thế theo nhịp (đầu/đỉnh/cuối của BYĐ) → kéo/nhập máy (vị trí, cao, hướng,
+   tiêu cự) hoặc "giải máy" bằng bộ giải → kiểm số ngay (stage_facts, chồng lấn, nhìn thấy, `layout_drift` với shot ĐÃ DUYỆT) → xem trước 3D
+   0 USD (render clay cục bộ, một worker, có hàng đợi) → lưu thành phiên bản mới của sân khấu (bản sao dự án, có hoàn tác, ai/lúc/lý do) →
+   shot bị ảnh hưởng hiện VÀNG "ảnh cần vẽ lại" (không tự gen). Ghi rõ: dữ liệu lưu ở đâu (so `stage_v2_*/blocking.json`, `shot_specs.json` hiện
+   dùng bằng CLI), chỗ nối với `tools/stage_grid.py` (gọi lại hàm có sẵn, không viết bộ giải mới), quyền (đồng nghiệp sửa bản sao dự án; Kho
+   chung chỉ Owner), cách Tiểu Nhị gọi lại đúng chức năng này. Chấm tần suất × công sức (lỗi #24 11/10: vị trí sau động tác di chuyển 0,25 m
+   → 1,25 m, bố cục shot đã duyệt bị đổi).
+2. Mockup `mockup/ban_dung_3d.html` (offline): bản đồ lưới (dùng đúng tên ô K11 = gốc O như `stage_grid.cell_name`), nhân vật + máy kéo được,
+   ô nhập số, thanh nhịp đầu/đỉnh/cuối, bảng kiểm ĐỎ/VÀNG có nút sửa ngay, khung "xem trước clay", danh sách shot bị ảnh hưởng. Dựng theo ca #24
+   (giếng, yêu nữ bò ra cách thành 1,25 m, Kelly lùi). Kiểm Playwright 1440 và 1280: 0 lỗi console, không cuộn ngang; test grep/JS nhẹ
+   (khai `devsys/areas.json` khu `dashboard_ui`, không tăng version).
+
+## Việc 2 — Tấm duyệt đủ góc clay + Đạo diễn khai sơ đồ khối (code sau cờ; render kiểm trên máy chính có Blender)
+1. **Góc clay:** từ plan khối đã kiểm (`core/blockout.py` `to_props`), dựng Blender bằng `tools/render_plates.py` `add_props` + `core/whitebox.py`
+   (KHÔNG bộ dựng mới), render 2–3 góc clay có nhãn khối; ghép cùng tấm nhìn từ trên (`blockout_sheet.render_top_view`) + ảnh tham chiếu
+   bối cảnh (nếu có) thành MỘT tấm duyệt (mục 12b.2). Blender không có / lỗi → tấm chỉ có nhìn từ trên + dòng "chưa render góc clay: <lý do>",
+   không im lặng. Khối `tru`/`cot` vẽ tròn trên tấm nhìn từ trên (đang vẽ vuông). Cờ `blockout_clay_sheet` TẮT. Test: bpy giả / kiểm lệnh
+   dựng (như `tests/test_plates_f2.py`); render thật ghi ảnh vào `docs/images/d11/` khi chạy trên máy chính.
+2. **Đạo diễn khai sơ đồ khối:** thêm phần khai `blockout` (JSON enum theo 12b.1, không văn tự do) vào prompt Đạo diễn liên quan
+   (`prompts/29_director_stage_specs.md` hoặc prompt mới), CHỈ khi cờ `director_blockout` BẬT — cờ tắt prompt giống từng byte. Code nhận → kiểm số
+   (`core/blockout.py`) → lỗi gửi lại Đạo diễn ≤ 2 lượt (mục 13) → còn lỗi VÀNG có lý do. Ước tính chi phí trước mỗi lời gọi, qua sổ chi.
+   Test bằng Claude giả (không gọi thật).
+3. Thử nghiệm thu 12b.4 ở mức dữ liệu giả: 3 bối cảnh (trong nhà, ngoài trời, có bậc) dựng + kiểm < 2 phút, ca hồi quy thiếu khối / chồng lấn bị
+   bắt. Ghi rõ phần nào cần chạy thật trên máy chính (Blender, ảnh Kho thật) — phiên rà Codex chuyển qua hộp thư.
+
+## Việc 3 — Trình sửa sân khấu thật trên Dashboard (SAU khi #24 xong — chỉ bắt đầu khi hộp thư có dòng phiên máy chính báo #24 xong)
+Theo thiết kế việc 1 đã duyệt: màn trên Dashboard sau cờ `stage_editor` TẮT; đọc/ghi bản sao sân khấu của dự án qua hàm có sẵn của
+`tools/stage_grid.py` / `core/stage_*` (tách hàm thuần nếu cần, không đổi hành vi CLI); xem trước clay 0 USD một worker; lưu phiên bản + hoàn tác;
+`layout_drift` báo shot đã duyệt bị đổi; không tự gen ảnh. Test AppTest + Playwright (≤ 2 bấm để dời một nhân vật 1 m và xem lại kiểm số).
+Đề bài chi tiết có thể chỉnh sau khi người dùng duyệt thiết kế việc 1.
+
+## Kết quả Codex — đợt 11
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
