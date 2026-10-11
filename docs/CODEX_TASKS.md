@@ -547,7 +547,47 @@ báo giá cũ (`tests/` grep `estimate_run`, `model_router.plan`, `quality_tier`
 
 ---
 
-# ĐỢT 9 — Lão Đại pet desktop + phiếu (giao SAU khi Đợt 7 chốt nơi lưu phiếu; đề bài chi tiết viết khi đó)
+# ĐỢT 9 — kho phiếu + Tiểu Nhị tự lập phiếu + pet Lão Đại (người dùng duyệt 11/10; chạy SONG SONG Đợt 8 được)
 
-Dự kiến: (1) lưu phiếu theo kết luận Đợt 7 việc 1 mục 2 (+ hạn 3 ngày, trạng thái, phần người dùng / phần admin); (2) Tiểu Nhị tự lập phiếu khi gỡ
-tạm; (3) pet Lão Đại chạy trên máy chính (đọc chỉ đọc, toast, mở trang duyệt Dashboard). Thợ bảo trì tự động: sau khi người dùng xác nhận chốt 5.
+Đầu vào: `docs/THIET_KE_TIEU_NHI_LAO_DAI_D7.md` mục 1, 2 (phiếu, lược đồ, vòng đời, nhắc hạn), 4 (pet) — đọc kỹ, làm đúng. **Chốt người dùng
+11/10: bảng phiếu nằm CÙNG CSDL pipeline `data/manifest.sqlite`** (phương án A). Luật chung GIỐNG đợt 1 + thêm: mỗi việc một nhánh
+`codex/d9-viec<N>-<tên>` từ `origin/main`; KHÔNG sửa `core/runner.py`, `core/lock_exceptions.py`, `core/end_frames.py`, `core/place_refs.py`,
+`core/scene_storyboard.py` (#24); KHÔNG đọc/ghi `data/` thật (test dùng CSDL tạm), không API tốn tiền. Mọi tính năng mới sau cờ TẮT. Ghi kết quả vào
+"Kết quả Codex — đợt 9". Việc 2 cần việc 1 (dùng chung lớp lưu phiếu) — làm việc 1 trước hoặc cùng nhánh nối tiếp; việc 3 chỉ cần hợp đồng snapshot
+của việc 1 (dùng fixture).
+
+## Việc 1 — Kho phiếu trong CSDL pipeline (vừa)
+1. Lược đồ `support_tickets` + `ticket_events` theo THIET_KE mục 2 (id, title chữ thường, kind, error_type + taxonomy_revision, severity,
+   project/scene/job nullable, fingerprint UNIQUE, source_actor, created_at UTC, `due_at = created_at + 72 h`, owner, state, impact, cause đoán/xác nhận
+   + evidence_refs, cần gì / ai làm, phần kỹ thuật admin). Thêm vào `core/db.py` SCHEMA theo cách các bảng khác được thêm (CREATE IF NOT EXISTS +
+   `ensure_columns` nếu có) — chạy trên CSDL cũ không lỗi. `ticket_events` append-only.
+2. Module `core/tickets.py`: `open_or_merge(conn, ...)` (gộp theo fingerprint, thêm bằng chứng thay vì phiếu trùng), `transition(conn, id, to, actor,
+   reason, expected_state)` (đúng máy trạng thái THIET_KE: nhánh code và nhánh budget/shared_asset; chuyển sai → lỗi rõ; CAS), `extend_due(...)` (giữ
+   due gốc, ghi người/lý do), `due_status(ticket, now)` (vàng còn ≤ 24 h, đỏ quá 72 h; quá hạn KHÔNG tự đóng), `admin_snapshot(conn)` (projection chỉ
+   đọc cho Lão Đại: số phiếu theo trạng thái, sắp/quá hạn, chi hôm nay tách pending/unknown, job kẹt, dự án gen xong — dùng lại hàm sẵn có:
+   `budget.spent`, WAIT_REASONS, `diag`), `user_projection(ticket)` (đồng nghiệp chỉ thấy "lỗi là gì + đã báo admin, dự án tạm dừng ở shot này" khi
+   CHẶN HẲN; không lộ phiếu/code/dự án khác). Ghi vết qua `audit_log` (`core/db.py:153–159`), không bảng audit mới.
+3. Cờ `support_tickets` TẮT. Test: tạo/gộp/chuyển trạng thái đủ hai nhánh, CAS, gia hạn, nhắc hạn theo giờ giả, CSDL cũ không có bảng, projection
+   đồng nghiệp không lộ dữ liệu.
+
+## Việc 2 — Tiểu Nhị tự lập phiếu + trang phiếu admin (vừa)
+1. Hàm `tickets.from_fix(conn, project_id, scene_id, job_id, problem, temporary_fix, evidence)` để khi lỗi được GỠ TẠM bằng dữ liệu (vd "Gói gửi kèm"
+   bỏ nền rộng thừa, Đợt 8) thì tự lập/gộp phiếu kind=code với "đã gỡ tạm bằng…" — chỉ là API + test; chỗ gọi từ Dashboard để sau khi Đợt 8 nối.
+2. Trang **"Phiếu" trên AI Dev System 8502** (phân hệ admin, `devsys/app.py` trang mới): danh sách theo hạn (sắp quá hạn tô vàng, quá hạn đỏ), chi tiết
+   phiếu (ảnh hưởng, nguyên nhân + bằng chứng, cần gì, ai làm, hạn, trạng thái, phần kỹ thuật file/test/nhánh), nút chuyển trạng thái hợp lệ có lý do.
+   8502 hiện chưa có ACL an toàn (THIET_KE mục 2): thao tác GHI chỉ bật khi có đăng nhập admin phía server — nếu chưa có cơ chế, trang CHỈ ĐỌC + ghi rõ
+   lý do, không tự làm ACL tạm. Đọc CSDL qua đường dẫn cấu hình sẵn có (xem `core/db.py` / env), KHÔNG cứng `D:\`.
+3. Test AppTest trang phiếu với CSDL tạm; slow nếu ≥ 8 s.
+
+## Việc 3 — Pet Lão Đại pilot (vừa; chạy/kiểm trên máy chính Windows)
+Theo THIET_KE mục 4, cách **Python + tkinter** (pilot): `tools/lao_dai/` — cửa sổ nhỏ trong suốt luôn trên cùng ở góc, kéo được, icon khay ẩn/mở/
+thoát, không chiếm focus; dáng thường / dáng có phiếu + bong bóng "📨 N phiếu chờ duyệt"; toast Windows chỉ mã + trạng thái (không ảnh / tên nhạy
+cảm); bấm mở đúng trang phiếu 8502 hoặc trang duyệt Dashboard 8501 trong trình duyệt (KHÔNG có nút duyệt trên pet). Đọc qua **broker loopback chỉ
+đọc** (`127.0.0.1`, token read-only có hạn, không mở ra LAN) trả `tickets.admin_snapshot`; pet KHÔNG đọc SQLite trực tiếp. Lỗi broker / mất kết nối →
+dáng "mất kết nối" có lý do, không im lặng. Khởi động thợ bảo trì: CHƯA làm (chốt 5 chờ người dùng xác nhận). Test: broker (từ chối không token,
+token hết hạn, chỉ GET), logic chọn dáng/bong bóng từ snapshot giả; phần GUI kiểm tay trên máy chính, ghi ảnh chụp vào `docs/images/d9/`. Kèm
+`tools/launch_lao_dai.ps1` theo kiểu `tools/launch_devsys.ps1`.
+
+## Kết quả Codex — đợt 9
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
