@@ -383,4 +383,10 @@ Hiện khi `shot_specs` chỉ có một phần các shot thì thứ tự nhịp 
 
 ## Kết quả Codex — đợt 6
 
-(Codex ghi: việc · nhánh · commit · test đỏ→xanh · việc mở.)
+| Việc | Nhánh | Commit mã / bàn giao | Test đỏ → xanh | Việc mở |
+|---|---|---|---|---|
+| 1 — post_fx ffmpeg | `codex/d6-viec1-post-fx` | `f9603c7` / `aba2b9f` | ImportError và 2 ca số quá lớn → 43 passed | Cờ OFF; cả bộ và thử clip sản xuất khi tích hợp |
+| 2 — ref_beats | `codex/d6-viec2-ref-beats` | `4a0c638` / `681ba63` | ImportError; 9 ca rà hồi quy đỏ → 62 passed | Cờ OFF; mẫu cần người duyệt điền; cả bộ khi tích hợp |
+| 3 — thứ tự shot | `codex/d6-viec3-thu-tu-shot` | `d92e848` | 9 failed → 78 passed (0.78s) | Cờ OFF; cả bộ và kiểm dự án thật khi tích hợp |
+
+Rà độc lập cả ba việc đã hoàn tất. Báo cáo riêng: `docs/RA_D6_VIEC<N>_CODEX_2026-10-11.md` trên nhánh tương ứng. Chỉ đẩy nhánh; chưa gộp main. Claude tích hợp giữ đủ ba cờ và đăng ký areas.json, tăng version một lần, chạy cả bộ Windows trước khi gộp.
