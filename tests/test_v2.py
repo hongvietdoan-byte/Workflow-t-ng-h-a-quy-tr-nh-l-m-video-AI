@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from core import (autopilot, batch, claude_tasks, delivery, dialogue, formats, knowledge, lineage, llm_io, llm_runner, model_router,
                   pilot, prompts, qc_policy, script_parser, voice)
@@ -111,6 +112,79 @@ class LineageTests(Base):
         jid = lineage.approved_image_id(self.p.conn, sid)
         self.p.reopen_approved(jid, "đổi ý")
         self.assertEqual(lineage.scan(self.p.conn, self.pid)[sid]["motion_stale"], "ảnh của cảnh đã bị bỏ duyệt")
+
+    def test_reapprove_confirms_an_outdated_approved_image_without_a_new_job(self):
+        """11/10 (#24): ảnh đã duyệt bị 'cũ' vì sửa cảnh sau khi duyệt → "Duyệt lại" = cập nhật dấu lineage, ghi vết, không job mới."""
+        self.approve_images()
+        sid = self.sid(1)
+        llm_runner.run_motion(self.p, self.pid, llm_runner.MockLlm(), self.data)
+        llm_io.approve_motion_prompt(self.p, sid)
+        jid = lineage.approved_image_id(self.p.conn, sid)
+        before = self.p.conn.execute("SELECT state, result_path, input_hash FROM jobs WHERE id=?", (jid,)).fetchone()
+        jobs_before = self.p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        llm_io.update_scene(self.p, self.pid, 1, {"blocking": "someone new frame-right"})
+        self.assertTrue(lineage.scan(self.p.conn, self.pid)[sid]["image_stale"])
+        reason = lineage.stale_image_reason(self.p.conn, self.pid, jid)
+        self.assertIn("blocking", reason)                                        # names the field edited after the approval
+        self.p.actor = "nguoi@duyet"
+        self.assertEqual(self.p.reapprove_image(jid, "user", "vẫn đúng"), reason)
+        row = lineage.scan(self.p.conn, self.pid)[sid]
+        self.assertIsNone(row["image_stale"])
+        self.assertIsNone(row["motion_stale"])                                   # "ảnh đang cũ" was the only cause
+        after = self.p.conn.execute("SELECT state, result_path, input_hash FROM jobs WHERE id=?", (jid,)).fetchone()
+        self.assertEqual((after["state"], after["result_path"]), (before["state"], before["result_path"]))
+        self.assertEqual(after["input_hash"], lineage.current_image_hash(self.p.conn, self.pid, sid))
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0], jobs_before)
+        log = self.p.conn.execute("SELECT decision, note FROM review_log WHERE job_id=? ORDER BY id DESC LIMIT 1", (jid,)).fetchone()
+        self.assertEqual(log["decision"], "approve")
+        self.assertIn("duyệt lại ảnh cũ", log["note"])
+        self.assertIn("nguoi@duyet", log["note"])
+        ev = self.p.conn.execute("SELECT from_state, to_state, note FROM job_events WHERE job_id=? ORDER BY id DESC LIMIT 1",
+                                 (jid,)).fetchone()
+        self.assertEqual((ev["from_state"], ev["to_state"]), ("approved", "approved"))
+        self.assertTrue(self.p.conn.execute("SELECT 1 FROM audit_log WHERE action='reapprove_image' AND email='nguoi@duyet'").fetchone())
+        self.assertIsNone(lineage.stale_image_reason(self.p.conn, self.pid, jid))   # nothing left to confirm
+        llm_io.update_scene(self.p, self.pid, 1, {"blocking": "again frame-left"})  # a later edit is outdated again, named anew
+        self.assertIn("blocking", lineage.stale_image_reason(self.p.conn, self.pid, jid))
+
+    def test_reapprove_closes_only_the_image_findings_and_names_only_fields_still_changed(self):
+        from core import change_review
+        from core.states import InvalidTransition
+        self.approve_images()
+        sid = self.sid(1)
+        jid = lineage.approved_image_id(self.p.conn, sid)
+        self.p.conn.execute("UPDATE change_events SET at='2026-10-01T00:00:00.000Z'")   # the seed's edits: well before the approval
+        self.p.conn.execute("UPDATE job_events SET at='2026-10-02T00:00:00+00:00' WHERE job_id=?", (jid,))
+        self.p.conn.commit()
+        old_prompt = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()["data"]).get("image_prompt")
+        llm_io.update_scene(self.p, self.pid, 1, {"image_prompt": "temporary"})
+        llm_io.update_scene(self.p, self.pid, 1, {"image_prompt": old_prompt, "blocking": "someone new frame-right"})
+        self.assertEqual(lineage.image_changes_since_approval(self.p.conn, jid), ["blocking"])   # edited then put back: not named
+        for khau in ("anh", "neo", "motion"):
+            self.p.conn.execute("INSERT INTO change_findings (project_id, scene_id, source, level, khau, msg, at) VALUES"
+                                " (?,?,?,?,?,?,?)", (self.pid, sid, "code", "do", khau, f"lỗi {khau}", "2026-10-11T00:00:00Z"))
+        self.p.conn.execute("UPDATE change_events SET state='reviewed'")
+        self.p.conn.commit()
+        extra = self.p.create_job(sid, "image_gen")                               # a redraw already queued: refuse, cancel first
+        with self.assertRaises(InvalidTransition):
+            self.p.reapprove_image(jid)
+        self.p.cancel(extra)
+        self.p.reapprove_image(jid)
+        left = {r["khau"]: r["status"] for r in self.p.conn.execute("SELECT khau, status FROM change_findings WHERE scene_id=?", (sid,))}
+        self.assertEqual(left, {"anh": "dismissed", "neo": "dismissed", "motion": "open"})       # motion still holds its own stage
+        with mock.patch.object(change_review, "enabled", return_value=True):
+            self.assertIn("motion", change_review.blocking(self.p.conn, sid))
+
+    def test_reapprove_refuses_a_fresh_or_unapproved_image(self):
+        from core.states import InvalidTransition
+        self.approve_images()
+        jid = lineage.approved_image_id(self.p.conn, self.sid(2))
+        with self.assertRaises(InvalidTransition):                                # not outdated: nothing to confirm
+            self.p.reapprove_image(jid)
+        llm_io.update_scene(self.p, self.pid, 2, {"image_prompt": "a new prompt"})
+        self.p.reopen_approved(jid, "đổi ý", respawn=False)
+        with self.assertRaises(InvalidTransition):                                # no longer approved: ✔ Duyệt, not re-approve
+            self.p.reapprove_image(jid)
 
     def test_queue_images_redoes_only_outdated_pictures(self):
         self.approve_images()

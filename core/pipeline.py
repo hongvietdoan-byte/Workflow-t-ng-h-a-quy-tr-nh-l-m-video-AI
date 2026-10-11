@@ -653,6 +653,47 @@ class Pipeline:
         self._log_review(job_id, reviewer_type, "approve", note)
         self.transition(job_id, JobState.APPROVED, actor=reviewer_type, note=note)
 
+    def reapprove_image(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None) -> str:
+        """11/10 (#24): the person confirms that an APPROVED image lineage marks outdated (the scene was edited after the approval)
+        is still right for the new data. Its fingerprint is re-stamped the way lineage computes it (current_image_hash), so the picture
+        — and the motion prompt / clips judged against it — stop being "cũ"; the job and its file are untouched, no provider call, no
+        cost. Logged in review_log (approve, "duyệt lại ảnh cũ: …"), job_events (approved → approved, old → new stamp) and audit_log.
+        Refuses an image that is not approved, not the scene's approved image, or not outdated. Returns the reason that was confirmed.
+        The dashboard ("✔ Duyệt lại" on the image card) and scripts / Tiểu Nhị call this same function."""
+        access.need_edit_job(self, job_id, "duyệt lại ảnh")
+        from . import lineage
+        job = self.job(job_id)
+        if job["type"] != "image_gen":
+            raise ValueError("chỉ duyệt lại được ảnh (image_gen)")
+        if self.state(job_id) != JobState.APPROVED:
+            raise InvalidTransition(f"job {job_id} is {self.state(job_id).value}, not approved — dùng ✔ Duyệt")
+        reason = lineage.stale_image_reason(self.conn, job["project_id"], job_id)
+        if reason is None:
+            raise InvalidTransition(f"ảnh {job_id} không bị đánh dấu cũ (hoặc không phải ảnh đang duyệt của cảnh): không cần duyệt lại")
+        if self.has_pending_take(job["scene_id"], "image_gen"):      # rà 11/10: a paid redraw is already on its way for this shot
+            raise InvalidTransition(f"cảnh đang có ảnh mới chờ gen/đang gen — hủy bản đó trước rồi mới duyệt lại ảnh {job_id}")
+        new_hash = lineage.current_image_hash(self.conn, job["project_id"], job["scene_id"])
+        who = self.actor or (self.user or {}).get("email") or reviewer_type
+        text = f"duyệt lại ảnh cũ: {reason}" + (f" — {note}" if note else "")
+        # rà 11/10: the impact team's open findings about THIS picture (khâu anh / neo) are what the person just answered — closed as
+        # dismissed with who did it; findings about motion / end frame / video stay open (they still hold their own stage)
+        try:
+            ids = [r[0] for r in self.conn.execute("SELECT id FROM change_findings WHERE scene_id=? AND status='open' AND khau IN"
+                                                   " ('anh','neo')", (job["scene_id"],))]
+        except sqlite3.OperationalError:              # an old database without the impact team's tables
+            ids = []
+        self.conn.executemany("UPDATE change_findings SET status='dismissed', resolved_at=?, resolved_by=? WHERE id=?",
+                              [(_now(), f"{who} (duyệt lại ảnh {job_id})", i) for i in ids])
+        if ids:
+            text += f" (đóng {len(ids)} mục Tổ rà soát khâu ảnh)"
+        self.conn.execute("UPDATE jobs SET input_hash=?, updated_at=? WHERE id=?", (new_hash, _now(), job_id))
+        self._event(job_id, JobState.APPROVED, JobState.APPROVED, reviewer_type,
+                    f"{text} (dấu ảnh {job['input_hash'] or '∅'} → {new_hash}; bởi {who})")
+        self._log_review(job_id, reviewer_type, "approve", f"{text} (bởi {who})")      # commits
+        from .auth import audit
+        audit(self.conn, who, "reapprove_image", f"job {job_id} cảnh {job['scene_id']}: {text}")
+        return reason
+
     def reject(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None,
                respawn: bool = True, fix: Optional[str] = None, qc: Optional[dict] = None) -> str:
         """Reject and spawn a retry job (unless respawn=False = plain delete). By the QC ('ai_agent'): an automatic try, escalated at

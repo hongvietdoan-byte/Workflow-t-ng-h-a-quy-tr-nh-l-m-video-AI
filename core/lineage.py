@@ -135,6 +135,46 @@ def approved_image_id(conn, scene_id: int) -> Optional[int]:
     return row["id"] if row else None
 
 
+def image_changes_since_approval(conn, job_id: int) -> List[str]:
+    """11/10 (#24 "Duyệt lại"): the picture fields of the scene (IMAGE_KEYS + IMAGE_SHOT_KEYS) edited after this image was last
+    approved / re-approved, read from change_events (trigger trg_change_scene). [] = unknown, or the change was elsewhere (cast,
+    aspect, look, place) — the caller then keeps the generic lineage reason."""
+    job = conn.execute("SELECT scene_id FROM jobs WHERE id=?", (job_id,)).fetchone()
+    ev = conn.execute("SELECT at FROM job_events WHERE job_id=? AND to_state='approved' ORDER BY id DESC LIMIT 1", (job_id,)).fetchone()
+    if job is None or ev is None:
+        return []
+    try:
+        rows = conn.execute("SELECT at, before, after FROM change_events WHERE kind='scene' AND scene_id=? ORDER BY id",
+                            (job["scene_id"],)).fetchall()
+    except Exception:  # noqa: BLE001 - an old database without change_events: nothing more to tell
+        return []
+    since = str(ev["at"])[:19]
+    # both stamps are UTC ISO; the same second counts as "after" (safe side). The data as it was at the approval (the first edit's
+    # `before`) is compared with the data NOW, so a field edited and then put back is not named.
+    first = next((r for r in rows if str(r["at"])[:19] >= since), None)
+    if first is None:
+        return []
+    cur = conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+    try:
+        before, now = json.loads(first["before"] or "{}"), json.loads((cur["data"] if cur else None) or "{}")
+    except (TypeError, ValueError):
+        return []
+    return [k for k in IMAGE_KEYS + IMAGE_SHOT_KEYS if before.get(k) != now.get(k)]
+
+
+def stale_image_reason(conn, project_id: int, job_id: int) -> Optional[str]:
+    """Why this APPROVED image is outdated now; None when it is not the scene's approved image or it is up to date. The generic
+    lineage reason, made precise with the fields edited after the approval when change_events knows them."""
+    job = conn.execute("SELECT scene_id FROM jobs WHERE id=?", (job_id,)).fetchone()
+    if job is None:
+        return None
+    row = scan(conn, project_id).get(job["scene_id"]) or {}
+    if row.get("image_job_id") != job_id or not row.get("image_stale"):
+        return None
+    keys = image_changes_since_approval(conn, job_id)
+    return f"sau khi duyệt đã sửa {', '.join(keys)}" if keys else row["image_stale"]
+
+
 def stamp_motion(conn, scene_id: int) -> None:
     """A motion prompt was (re)written or approved: it now belongs to the current approved image and scene spec."""
     data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()["data"] or "{}")

@@ -187,6 +187,7 @@ class CoreEntryPointMatrix(unittest.TestCase):
                 "create_scene": lambda: p.create_scene(pid, 9, "mới"),
                 "create_job (gửi job)": lambda: p.create_job(sid, "video_gen"),
                 "approve (duyệt)": lambda: p.approve(jid),
+                "reapprove_image (duyệt lại ảnh cũ, 11/10)": lambda: p.reapprove_image(jid),
                 "reject (loại)": lambda: p.reject(jid, respawn=False),
                 "cancel": lambda: p.cancel(jid),
                 "autopilot.start": lambda: autopilot.start(p, pid),

@@ -305,7 +305,21 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
         elif state == "approved":
             r_note = st.text_input("Lý do bỏ duyệt", key=f"rn_{jid}", placeholder="chỉ cần khi bỏ duyệt")
             b1, b2, b3, b4 = pair()
-            b1.button("✔ Duyệt", key=f"a_{jid}", disabled=True, width="stretch")
+            why_old = None
+            if stale_reason:                                # 11/10 #24: same ✔ button, "Duyệt lại" = the picture still fits the new data
+                from core import lineage
+                why_old = lineage.stale_image_reason(p.conn, pid, jid)
+            if why_old:
+                mot = (lineage.scan(p.conn, pid).get(sid) or {}).get("motion_stale")
+                more = "" if not mot or mot == "ảnh đang cũ" else f" Motion prompt cũng cũ ({mot}) — duyệt lại ở Bước 3."
+                st.caption(f"⚠ Ảnh cũ: {why_old}. ✔ Duyệt lại = ảnh vẫn đúng với dữ liệu mới (0 USD, không vẽ lại).{more}")
+                if b1.button("✔ Duyệt lại", key=f"a_{jid}", type="primary", width="stretch",
+                             help="Xác nhận ảnh đã duyệt vẫn đúng sau khi sửa cảnh: hết ⚠ cũ, đóng mục Tổ rà soát khâu ảnh; "
+                                  "không gọi API, không vẽ lại"):
+                    if act(lambda: p.reapprove_image(jid, "user"), "Đã duyệt lại ảnh"):
+                        st.rerun()
+            else:
+                b1.button("✔ Duyệt", key=f"a_{jid}", disabled=True, width="stretch")
             b2.button("✖ Loại", key=f"dd_{jid}", disabled=True, width="stretch")
             st.caption("↻ Vẽ lại 1 ảnh" + retake)
             if b3.button("↻ Vẽ lại", key=f"reopen_{jid}", width="stretch",

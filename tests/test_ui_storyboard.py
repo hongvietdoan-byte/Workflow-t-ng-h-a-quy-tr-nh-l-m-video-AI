@@ -97,6 +97,32 @@ class StoryboardV2Tests(unittest.TestCase):
         self.assertIn(f"note_{review}", {t.key for t in at.text_input})                       # the reason input sits on the card
         self.assertIn(f"filter_{pid}", {r.key for r in at.radio})                              # filters unchanged
 
+    def test_outdated_approved_image_turns_the_approve_button_into_reapprove(self):
+        """11/10 (#24): ảnh đã duyệt mà lineage coi là cũ → cùng nút a_{jid} đổi nhãn "Duyệt lại" (bật) + dòng lý do; bấm = dấu
+        lineage mới, ảnh hết cũ, không job mới. Ảnh đã duyệt không cũ → nút vẫn "✔ Duyệt" bị khóa như cũ."""
+        from core import lineage, llm_io
+        p, pid, sc = self.seed(2)
+        old = self.job_in(p, sc[0], "approved")
+        fresh = self.job_in(p, sc[1], "approved")
+        self.board()                                     # the first open fills project defaults (fresh test DB); stamp after it
+        for jid, sid in ((old, sc[0]), (fresh, sc[1])):
+            p.conn.execute("UPDATE jobs SET input_hash=? WHERE id=?", (lineage.current_image_hash(p.conn, pid, sid), jid))
+        p.conn.commit()
+        llm_io.update_scene(p, pid, 1, {"blocking": "someone new frame-right"})
+        at = self.board()
+        btn = {b.key: b for b in at.button}
+        self.assertEqual(btn[f"a_{old}"].label, "✔ Duyệt lại")
+        self.assertFalse(btn[f"a_{old}"].disabled)
+        self.assertIn("blocking", " ".join(c.value for c in at.caption))          # why it is outdated, next to the button
+        self.assertEqual(btn[f"a_{fresh}"].label, "✔ Duyệt")
+        self.assertTrue(btn[f"a_{fresh}"].disabled)
+        n_jobs = len(self.states(self.db))
+        btn[f"a_{old}"].click().run()
+        q = Pipeline(connect(self.db))
+        self.assertIsNone(lineage.scan(q.conn, pid)[sc[0]]["image_stale"])
+        self.assertEqual(len(self.states(self.db)), n_jobs)
+        self.assertEqual(dict(self.states(self.db))[old], "approved")
+
     def test_failed_card_has_the_fix_input_and_a_failed_pill(self):
         p, pid, sc = self.seed(2)
         j = p.create_job(sc[0])
