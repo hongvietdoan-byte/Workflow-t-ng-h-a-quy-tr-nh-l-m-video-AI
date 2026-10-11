@@ -169,6 +169,15 @@ def open_or_merge(conn, *, title, kind, source_actor, root_cause, project_id=Non
             before = _decode(conn.execute('SELECT * FROM support_tickets WHERE fingerprint=?',(fingerprint,)).fetchone())
             after = dict(before)
             after['evidence_refs'] = _merge_refs(before['evidence_refs'],refs)
+            if workaround:
+                # Lưu từng lần gỡ tạm cùng CAS/event/audit, không đổi SLA hay state.
+                previous = before['workaround']
+                history = list(previous.get('history', []))
+                if previous and not history:
+                    history.append({k:v for k,v in previous.items() if k != 'history'})
+                current = {k:v for k,v in workaround.items() if k != 'history'}
+                history.append(current)
+                after['workaround'] = {**current, 'history':history}
             after['revision'] += 1
             _update(conn,before,after)
             _event(conn,before,after,actor,'bổ sung bằng chứng','merge',at)
@@ -331,3 +340,18 @@ def admin_snapshot(conn, *, now=None, pricing=None, data_dir=None):
         out['available']=False
         out['warnings'].append('Không đọc được snapshot: '+type(exc).__name__)
     return out
+
+def from_fix(conn, project_id, scene_id, job_id, problem, temporary_fix, evidence):
+    """Adapter Tiểu Nhị; chưa nối Dashboard, gỡ tạm không đóng lỗi gốc."""
+    if not features.on('support_tickets'):
+        return None
+    if not isinstance(problem, str) or not problem.strip() or not isinstance(temporary_fix, str) or not temporary_fix.strip():
+        raise TicketError('Cần lỗi gốc và cách đã gỡ tạm')
+    if not isinstance(evidence, dict) or not any(evidence.values()):
+        raise TicketError('Gỡ tạm cần bằng chứng đã lọc')
+    return open_or_merge(conn, title=problem, kind='code', source_actor='tieu_nhi',
+                         root_cause=problem.strip(), project_id=project_id, scene_id=scene_id,
+                         job_id=job_id, evidence_refs=evidence,
+                         workaround={'text':'đã gỡ tạm bằng: '+temporary_fix.strip(),
+                                     'actor':'tieu_nhi','at':_time().isoformat(),'verified':False},
+                         requested_action='giao bảo trì')

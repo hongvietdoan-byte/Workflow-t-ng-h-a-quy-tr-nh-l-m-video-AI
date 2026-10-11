@@ -22,6 +22,7 @@ import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from devsys import answers, collect, decisions, metrics, plan_progress, scorer, scores, stages, workflow  # noqa: E402
+from core import features  # noqa: E402
 
 st.set_page_config(page_title="AI Development System", page_icon="🧭", layout="wide")
 
@@ -183,8 +184,11 @@ with st.sidebar:
     if st.button("🔄 Làm mới", help="Đọc lại repo (bình thường tự làm mới khi có commit / file đổi)"):
         st.cache_data.clear()
         st.rerun()
+    ticket_ui_enabled = features.on("support_tickets") and features.on("tickets_admin_ui")
     page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
-                              "Hiệu quả quy trình", "Ai quyết", "Làm ↔ Kiểm", "Bộ kỹ năng 3 vai", "Đang chạy"], label_visibility="collapsed")
+                              "Hiệu quả quy trình", "Ai quyết", "Làm ↔ Kiểm", "Bộ kỹ năng 3 vai", "Đang chạy"] + (["Phiếu"] if ticket_ui_enabled else []), label_visibility="collapsed")
+    if ticket_ui_enabled and st.query_params.get("ticket"):
+        page = "Phiếu"
     st.divider()
     st.markdown("**Test**")
     running = collect.tests_running(ROOT)
@@ -1218,7 +1222,9 @@ def page_running():
                   for t in data["tasks"]], hide_index=True, width="stretch")
 
 
-PAGES = {"Đang chạy": page_running, "📋 Kế hoạch đang chạy": page_plan, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
+from devsys.tickets_page import render as page_tickets
+
+PAGES = {"Phiếu": page_tickets, "Đang chạy": page_running, "📋 Kế hoạch đang chạy": page_plan, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
          "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Hiệu quả quy trình": page_flow, "Ai quyết": page_decisions, "Làm ↔ Kiểm": page_stages,
          "Bộ kỹ năng 3 vai": page_skills}
 PAGES[page]()

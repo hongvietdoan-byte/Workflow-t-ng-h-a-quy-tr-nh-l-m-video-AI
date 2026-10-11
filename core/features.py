@@ -20,6 +20,7 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Đ8 việc 2: MAXIM KL/KELLY KL; cờ tắt giữ nguyên prompt, chưa thử thật",
     },
+    "tickets_admin_ui": {"label": "Trang phiếu admin chỉ đọc", "verified": False, "why": "Đợt 9: chưa có xác thực server 8502"},
     "support_tickets": {"label": "Kho phiếu Tiểu Nhị / Lão Đại", "verified": False,
                         "why": "Đợt 9: chỉ thử CSDL tạm, chưa bật sản xuất"},
     "post_fx_render": {
