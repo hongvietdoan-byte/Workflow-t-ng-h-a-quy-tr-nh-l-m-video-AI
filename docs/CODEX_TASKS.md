@@ -705,6 +705,9 @@ Theo công thức chung:
 
 ## Kết quả Codex — đợt 10
 
+- Việc 5 · nhánh `codex/d10-viec5-khung` · code `97d1a40`: cờ `change_review_frames` TẮT, OFF đề giống từng byte; ON START/TRANSITION/END + nhịp/BYĐ, 3 ca vàng. ĐỎ 4 lỗi/16 qua → 20 → **21 test xanh**, diff check xanh; tự rà và agent rà caller không finding. Báo cáo `docs/RA_D10_VIEC5_CODEX_2026-10-12.md`. Chưa thử Claude thật; BYĐ đầy đủ có thể tăng token khi bật. Không API/data thật/cả bộ/main.
+
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
 ---
