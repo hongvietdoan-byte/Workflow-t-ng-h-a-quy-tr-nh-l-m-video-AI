@@ -131,7 +131,6 @@ giữ nguyên (test xanh như cũ, không còn `DeprecationWarning` getdata: ch�
   chưa đổi sang tọa độ scene như giếng (`sg.model_from_rel`, apply_v4.py:104); (c) `core/stage_facts.STAND_IN_KINDS` chưa có `"block"`.
 
 ---
----
 
 # ĐỢT 2 — việc giao Codex (10/10 tối, người dùng duyệt cả 4 việc)
 
@@ -276,8 +275,17 @@ S14.45 vẫn nhận; mã mới nhận; mã rác bị từ chối với lý do.
 | Việc | Nhánh | Commit | Bằng chứng / việc mở |
 |---|---|---|---|
 | 1 | `codex/d3-viec1-so-ke-hoach` | `de1dc4a` | Đỏ thiếu module + ca kết quả gạch đầu dòng/registry null → xanh 6 test mới; hồi quy nhóm 68 test thường (trước ca thứ 6), 2 test slow của test_devsys/test_devsys_v2 xanh. Rà: API plan_progress cũ không đổi; % K theo DOT và dấu đầu tiên (không lấy trạng thái lịch sử), thiếu nguồn/đợt không 0%; chốt A đọc đúng mục A; git nhánh chỉ đọc, không API. |
+| 2 | `codex/d3-viec2-dang-chay` | `ed0c445` | Đỏ thiếu module → 3 test repo Git tạm/parse kết quả xanh; nhóm 66 test thường + 2 test slow devsys xanh. Rà: chỉ git đọc, timeout, lỗi Git/đọc báo rõ; nhánh/worktree không bị đổi; tách kết quả checkout và nhánh chưa gộp. Nguồn rà là message hoặc kết quả nhắc nhánh, KHÔNG coi là rà độc lập. |
+| 3 | `codex/d3-viec3-cong-a21` | `c6b867c` | Đỏ thiếu module + ca danh sách inline/hỏng → 7 test mới xanh; nhóm 69 test thường (trước ca thứ 7) + 2 test slow devsys xanh. Rà: điểm thiếu/ngoài 0–10 không thành 0; lần 1 lấy tổng, lần 2 lấy tiêu đề, lần 3 build K0a; không lấy điểm ước tương lai; danh sách lỗ hổng hỏng không báo 0. |
+| 4 | `codex/d3-viec4-ma-quy-trinh` | `4122f17` | 13 ca đỏ trước sửa; giữ tương thích F1.1 sau hồi quy; 106 passed, 2 deselected (không slow); riêng giao diện slow 2 passed, 63 deselected; kiểm lại workflow sau rà: 43 passed · Claude chạy cả bộ và gộp; khởi động lại 8502 sau tích hợp. |
 
 Sổ 8 kế hoạch, nguồn ghi chú UI đọc bằng git show nhánh. % Codex theo kết quả trong checkout: nhánh chưa gộp chưa xuất hiện trong main là 0 hợp lệ, trang Đang chạy sẽ theo dõi nhánh riêng. TODO/PLAN/data không đổi; areas.version giữ, bên gộp chạy cả bộ và khởi động lại 8502. Nhánh độc lập từ main 7764122.
+
+Số đọc thực tại lúc kiểm: 7 nhánh chưa gộp, 126 worktree, 13 việc giao, 5 kết quả nhánh chưa gộp; số thay đổi theo Git, không ghi cứng UI. Các refs chỉ cập nhật sau fetch của người dùng, trang không tự fetch. Không sửa TODO/PLAN/data, không API, areas.version giữ; bên gộp chạy cả bộ/restart 8502. Nhánh độc lập từ main 7764122.
+
+Nguồn main cập nhật `e457c09` đã có lần 6: KH 8,4 / build 8,5 → CHƯA ĐẠT, 6 lỗ hổng theo bản thẩm định. Đã hỗ trợ dạng `(1)…(6)` và không đếm phần “Đã sửa ngay”; sửa xong vẫn cần thẩm định lần 7, không tự nâng điểm/trừ số. Không sửa TODO/PLAN/data/API; areas.version giữ; bên gộp chạy cả bộ/restart 8502.
+
+Rà diff: giữ key widget cũ, thêm `flow_task_kinds`; không sửa Dashboard, dữ liệu thật hay version areas; kiểm mã bằng fullmatch, lỗi đọc file hiện lý do. Mã K lấy từ stages.DOT; mã kế hoạch cũ có số vẫn đọc được, mã tùy ý bị từ chối. Không gọi API.
 
 ---
 
@@ -330,7 +338,6 @@ chậm nhất (id · giây) + tổng thời gian + số test hỏng (nếu có, 
 | 3 | (Claude, cùng lần chạy cả bộ khi gộp) | — | Cả bộ 4004 passed / 4 skipped, 1110 s; 17 test ≥ 8 s đều đã trong `SLOW_TESTS` → không đổi `conftest.py`. Chậm nhất: test_v3 kling_multishot 47,5 s; devsys every_page 31,2 s. |
 
 ---
----
 
 # ĐỢT 5 — NGHIÊN CỨU: đồng nghiệp tự xử lý lỗi trên Dashboard (11/10, người dùng duyệt)
 
@@ -372,9 +379,15 @@ E. **Mô hình:** chọn model Claude cho từng bậc (hỏi đáp rẻ vs sử
 
 ## Kết quả Codex — đợt 5
 
-(Codex ghi: nhánh · commit · tài liệu · việc mở.)
+✅ Nghiên cứu + thiết kế hoàn tất 11/10/2026, nhánh `codex/d5-nghien-cuu-tu-phuc-vu` (chỉ push nhánh, chưa gộp main).
 
----
+- Commit nội dung `39c290a`; sửa sau rà `4a6167f`.
+- `docs/NGHIEN_CUU_TU_PHUC_VU_DASHBOARD.md`: kiến trúc 4 lớp, quyền/tiền/idempotency, placement/mobile, 42 ca chuẩn, model/cache/giá nguồn chính thức, roadmap Dashboard trước Tiểu Nhị sau, 7 chốt cần quyết định.
+- `docs/D5_KIEM_KE_HIEN_TRANG.md`: 42 loại lỗi, 9 ca thật đối chiếu code/UI, catalog tool I/O/chi phí/quyền; không đọc dữ liệu thật.
+- `mockup/tieu_nhi.html`: giao diện offline có gói gửi/chẩn đoán, công cụ sửa thông thường, chat ngữ cảnh, xem trước/duyệt dữ liệu/gen riêng, phiếu chuyển lên; chỉ mô phỏng.
+- Rà độc lập + lượt hai, báo cáo `docs/RA_D5_CODEX_2026-10-11.md`. Kiểm HTML/JS/citation bounds xanh; Node VM 6 kiểm logic: bản đầu 4 đỏ → bản sửa 6 xanh. Không chạy pytest cả bộ vì chỉ tài liệu/mockup, không gộp.
+- Việc mở: chưa visual QA do trình duyệt chặn file URL; chưa thử gen/cách ly/auth/mạng điện thoại; cần chốt 7 quyết định trong tài liệu trước triển khai. Không đổi dashboard/core/data/TODO/PLAN, không API/Blender, không restart dịch vụ.
+
 ---
 
 # ĐỢT 6 — hậu kỳ post_fx, công cụ nhịp ref, sửa shot_lessons (11/10 trưa, người dùng duyệt cả 3)
@@ -397,14 +410,5 @@ Hiện khi `shot_specs` chỉ có một phần các shot thì thứ tự nhịp 
 | 1 | `codex/d6-viec1-post-fx` | `f9603c7` | Module chưa có → test đỏ; hồi quy huge integer 2 đỏ → xanh. Nhóm post_fx + keep_audio + final_cut **43 passed / 10,18 s**, ffmpeg thật 3 hiệu ứng có đối chứng, duration/audio/gốc/cờ tắt giữ đúng. Rà độc lập + lượt hai, `docs/RA_D6_VIEC1_CODEX_2026-10-11.md`. Cờ TẮT, chưa thử phim sản xuất, chưa cả bộ/gộp main. |
 | 2 | `codex/d6-viec2-ref-beats` | `4a0c638` | Đỏ module chưa có; hồi quy rà 9 đỏ → xanh. Nhóm ref_beats_tool + p24_lessons **62 passed / 1,31s**, ffmpeg portrait thật/TMP, schema, OFF, CWD, force/rollback/timeout/giới hạn khung. Rà độc lập + lượt hai, `docs/RA_D6_VIEC2_CODEX_2026-10-11.md`. Cờ TẮT; ref ≤300s, chưa thử sản xuất/cả bộ/gộp main. |
 | 3 | `codex/d6-viec3-thu-tu-shot` | `d92e848` | 9 failed → **78 passed (0,78 s)**. CLI bài học shot lấy thứ tự shot từ CSDL chỉ đọc, cảnh báo thiếu ánh xạ nhịp. Rà độc lập, `docs/RA_D6_VIEC3_CODEX_2026-10-11.md`. Cờ TẮT; chưa kiểm dự án thật. |
-| 2 | `codex/d3-viec2-dang-chay` | `ed0c445` | Đỏ thiếu module → 3 test repo Git tạm/parse kết quả xanh; nhóm 66 test thường + 2 test slow devsys xanh. Rà: chỉ git đọc, timeout, lỗi Git/đọc báo rõ; nhánh/worktree không bị đổi; tách kết quả checkout và nhánh chưa gộp. Nguồn rà là message hoặc kết quả nhắc nhánh, KHÔNG coi là rà độc lập. |
-| 3 | `codex/d3-viec3-cong-a21` | `c6b867c` | Đỏ thiếu module + ca danh sách inline/hỏng → 7 test mới xanh; nhóm 69 test thường (trước ca thứ 7) + 2 test slow devsys xanh. Rà: điểm thiếu/ngoài 0–10 không thành 0; lần 1 lấy tổng, lần 2 lấy tiêu đề, lần 3 build K0a; không lấy điểm ước tương lai; danh sách lỗ hổng hỏng không báo 0. |
-| 4 | `codex/d3-viec4-ma-quy-trinh` | `4122f17` | 13 ca đỏ trước sửa; giữ tương thích F1.1 sau hồi quy; 106 passed, 2 deselected (không slow); riêng giao diện slow 2 passed, 63 deselected; kiểm lại workflow sau rà: 43 passed | Claude chạy cả bộ và gộp; khởi động lại 8502 sau tích hợp. |
 
 Rà độc lập cả ba việc đã hoàn tất (báo cáo riêng `docs/RA_D6_VIEC<N>_CODEX_2026-10-11.md`). Tích hợp: giữ đủ ba cờ (`post_fx_render`, `ref_beats_tool`, `shot_lessons_db_order`, đều TẮT) và đăng ký areas.json, tăng version một lần.
-
-Số đọc thực tại lúc kiểm: 7 nhánh chưa gộp, 126 worktree, 13 việc giao, 5 kết quả nhánh chưa gộp; số thay đổi theo Git, không ghi cứng UI. Các refs chỉ cập nhật sau fetch của người dùng, trang không tự fetch. Không sửa TODO/PLAN/data, không API, areas.version giữ; bên gộp chạy cả bộ/restart 8502. Nhánh độc lập từ main 7764122.
-
-Nguồn main cập nhật `e457c09` đã có lần 6: KH 8,4 / build 8,5 → CHƯA ĐẠT, 6 lỗ hổng theo bản thẩm định. Đã hỗ trợ dạng `(1)…(6)` và không đếm phần “Đã sửa ngay”; sửa xong vẫn cần thẩm định lần 7, không tự nâng điểm/trừ số. Không sửa TODO/PLAN/data/API; areas.version giữ; bên gộp chạy cả bộ/restart 8502.
-
-Rà diff: giữ key widget cũ, thêm `flow_task_kinds`; không sửa Dashboard, dữ liệu thật hay version areas; kiểm mã bằng fullmatch, lỗi đọc file hiện lý do. Mã K lấy từ stages.DOT; mã kế hoạch cũ có số vẫn đọc được, mã tùy ý bị từ chối. Không gọi API.
