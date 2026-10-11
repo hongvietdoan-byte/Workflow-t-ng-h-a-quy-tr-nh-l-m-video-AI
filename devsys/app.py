@@ -27,6 +27,8 @@ from core import features  # noqa: E402
 st.set_page_config(page_title="AI Development System", page_icon="🧭", layout="wide")
 from devsys import admin_auth as _admin_auth  # noqa: E402
 _admin_auth.take_link()   # token ?s= (liên kết từ Dashboard) gỡ khỏi địa chỉ ngay ở MỌI trang, trang Phiếu xét sau
+from devsys import lao_dai_channel as _lao_dai_channel  # noqa: E402
+_lao_dai_channel.render(st, _admin_auth)
 
 CSS = """
 <style>
