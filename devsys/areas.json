@@ -44,7 +44,7 @@
       "assets": ["prompts/03_*", "prompts/11_*", "prompts/15_*", "knowledge/motion_prompt_lint.md", "knowledge/video_motion_vocab.md", "knowledge/motion_complex_shots.md", "knowledge/t2v_prompt_structure.md", "data/motion_vocab.json", "data/voices_vi.json", "data/pronunciation_vi.json", "tools/voice_trial.py"],
       "docs": [],
       "tests": [],
-      "flags": ["voice_direction", "voice_check_redo", "j_cut", "audio_first", "auto_voice_cast"],
+      "flags": ["voice_direction", "voice_check_redo", "j_cut", "audio_first", "auto_voice_cast", "short_lock_outfit"],
       "diag_stages": ["motion", "voice"],
       "ops_stages": ["motion", "audio"],
       "ui_metrics": true,

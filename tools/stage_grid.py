@@ -1505,14 +1505,24 @@ def _floor_notes(grid_cells, half=4.0):
     return out or ["mọi ô trong ±4 m quanh O là mặt sàn phẳng, đứng được"]
 
 
-def review_stage_round(conn, project_id, approved_dir, new_dir):
+def review_stage_round(conn, project_id, approved_dir, new_dir, *, proposal=False, approved_blocking=None, approved_specs=None):
     """Nối producer v3 vào finding; cờ OFF không đọc baseline/CSDL và không đổi lời gọi model."""
     from core import change_review, features
     if not change_review.enabled() or not features.on("layout_drift_review"):
         return 0
     if project_id is None:
         raise ValueError("Rà bố cục sân khấu thiếu inputs.pid của dự án")
-    n = change_review.record_stage_blocking_change(conn, project_id, approved_dir, new_dir)
+    if bool(approved_blocking) != bool(approved_specs):
+        raise ValueError("Thiếu bản đã duyệt: cần cả --approved-blocking và --approved-specs")
+    if not approved_blocking or not approved_specs:
+        if not approved_dir:
+            raise ValueError("Thiếu bản đã duyệt: truyền --approved-blocking và --approved-specs")
+        approved_blocking = os.path.join(approved_dir, "blocking.json")
+        approved_specs = os.path.join(approved_dir, "shot_specs.json")
+    if not all(os.path.isfile(path) for path in (approved_blocking, approved_specs)):
+        raise ValueError("Thiếu tệp bản đã duyệt: --approved-blocking / --approved-specs phải tồn tại")
+    n = change_review.record_stage_blocking_change(conn, project_id, approved_dir, new_dir,
+            proposal=proposal, approved_blocking=approved_blocking, approved_specs=approved_specs)
     conn.commit()
     if n:
         print(f"  [VÀNG] Tổ rà soát: {n} mục bố cục ảnh đã duyệt / thiếu đầu vào")
@@ -1532,6 +1542,8 @@ def v3_main(argv):
     ap.add_argument("--out", required=True)
     ap.add_argument("--stage-from", required=True)
     ap.add_argument("--hand", default=None, help="thư mục v2 của bản viết tay (v2.json) để so")
+    ap.add_argument("--approved-blocking", help="blocking JSON của bản ảnh đã duyệt")
+    ap.add_argument("--approved-specs", help="shot_specs JSON của bản ảnh đã duyệt")
     ap.add_argument("--yes", action="store_true", help="gọi Claude thật (tốn tiền, ghi sổ chi)")
     from core import script_cap
     script_cap.add_argument(ap)                          # trần CỨNG khi gọi thật (test_script_cap; V3 09/10 chạy không trần ≈ 0,53 USD)
@@ -1555,6 +1567,11 @@ def v3_main(argv):
         if not a.yes:
             print("(chưa gọi — thêm --yes --max-usd <USD>)")
             return
+        from core import change_review, features
+        if change_review.enabled() and features.on("layout_drift_review"):
+            if not a.approved_blocking or not a.approved_specs or not all(
+                    os.path.isfile(path) for path in (a.approved_blocking, a.approved_specs)):
+                raise ValueError("Thiếu bản đã duyệt: cần --approved-blocking và --approved-specs tồn tại trước khi gọi Claude")
         script_cap.from_args(a, "stage_grid v3").start()
         client = llm_runner.client_from_env(ledger=llm_runner.db_file(conn))
         prev, feedback, rounds = None, [], []
@@ -1572,7 +1589,8 @@ def v3_main(argv):
             for fn, data in (("answer.json", obj), ("blocking.json", bl), ("shot_specs.json", {"shots": obj["shot_specs"]})):
                 with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=1)
-            review_stage_round(conn, inputs.get("pid"), a.hand, rd)
+            review_stage_round(conn, inputs.get("pid"), None, rd, proposal=True,
+                               approved_blocking=a.approved_blocking, approved_specs=a.approved_specs)
             v2_main(["--db", a.db, "--blocking", os.path.join(rd, "blocking.json"), "--specs", os.path.join(rd, "shot_specs.json"),
                      "--out", rd, "--stage-from", a.stage_from])
             solve = json.load(open(os.path.join(rd, "setups.json"), encoding="utf-8"))

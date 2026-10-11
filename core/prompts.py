@@ -518,6 +518,11 @@ def standard_block(pipeline: Pipeline, project_id: int, names=None) -> str:
             + "\n".join(rows)) if rows else ""
 
 
+def _has_outfit_ids(row):
+    """Cùng tiêu chí Lock đầy đủ và Lock ngắn; không phụ thuộc tệp/CWD."""
+    return bool((row["outfit_image_ids"] or "").strip())
+
+
 def lock_text(conn, project_id: int, names=None, shots=None) -> str:
     """Character Lock of the characters (all, or the given names) as a readable block. `shots` (scene data of the shot(s) being judged
     / written): the BYĐ `ngoai_le` of those shots (core/lock_exceptions) — ONE shot → its excepted clauses leave the lock; several shots
@@ -542,7 +547,7 @@ def lock_text(conn, project_id: int, names=None, shots=None) -> str:
         lock = lx.apply_rules(lock, exc.get(str(r["name"]).strip().upper()))
         size = f"; cao ~{lock['height_m']:g} m" if lock.get("height_m") else ""
         size += f", {lock['build']}" if lock.get("build") else ""
-        if (r["outfit_image_ids"] or "").strip():
+        if _has_outfit_ids(r):
             # KLD-4 (08/10, #22): MAXIM KL / KELLY KL were judged against the everyday clothes of the MAXIM / KELLY profile and qc_team
             # blocked 6/9 frames the person had approved — a costumed character is locked on face, hair and build only (as the
             # image path does since 370dacc, runner.lock_note); the profile's words mix clothes into must_keep, so they stay out
@@ -566,12 +571,10 @@ def short_lock_block(conn, project_id: int) -> str:
     if not features.on("profile_digest"):
         return ""
     rows = []
-    for r in conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,)):
+    for r in conn.execute("SELECT name, outfit_image_ids FROM characters WHERE project_id=?", (project_id,)):
         # Chính sách scene_references: ảnh OUTFIT đúng chủ thể; lock_text vẫn giữ mặt/tóc/dáng.
         if features.on("short_lock_outfit"):
-            from .adapters.deepix import reference_problem
-            if any(reference_problem(pic["path"]) is None
-                   for pic in assets.outfit_images(conn, project_id, r["name"])):
+            if _has_outfit_ids(r):
                 continue
         text = profile_digest.for_character(conn, project_id, r["name"], "lock_short")
         if text:

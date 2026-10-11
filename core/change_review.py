@@ -106,8 +106,9 @@ def _project_of(conn, sid) -> Optional[int]:
     return r[0] if r else None
 
 
-def record_stage_blocking_change(conn, project_id: int, old_dir: str, new_dir: str, moved=()) -> int:
-    """V3 gọi sau ghi blocking, trước giải/render; baseline là bản đã duyệt (--hand).
+def record_stage_blocking_change(conn, project_id: int, old_dir: str, new_dir: str, moved=(), *, proposal=False, approved_blocking=None, approved_specs=None) -> int:
+    """V3 gọi sau ghi blocking, trước giải/render; baseline là tệp bản đã duyệt rõ ràng.
+    proposal=True ghi đề xuất kèm thư mục lượt, không đóng finding thay đổi đã áp dụng.
 
     Tệp không có trigger scenes.data. Chỉ VÀNG, 0 USD; nguồn riêng tránh refresh_code
     đóng nhầm. Caller sở hữu transaction; không đổi shot/job hay tự duyệt.
@@ -127,8 +128,14 @@ def record_stage_blocking_change(conn, project_id: int, old_dir: str, new_dir: s
         def read(directory, name):
             with open(os.path.join(directory, name), encoding='utf-8') as f:
                 return json.load(f)
-        old, new = read(old_dir, 'blocking.json'), read(new_dir, 'blocking.json')
-        specs = read(old_dir, 'shot_specs.json')
+        if approved_blocking:
+            with open(approved_blocking, encoding='utf-8') as f:
+                old = json.load(f)
+            with open(approved_specs, encoding='utf-8') as f:
+                specs = json.load(f)
+        else:
+            old, specs = read(old_dir, 'blocking.json'), read(old_dir, 'shot_specs.json')
+        new = read(new_dir, 'blocking.json')
         specs = specs.get('shots', specs) if isinstance(specs, dict) else specs
         beats = {s['shot']: s.get('nhip') for s in specs}
         cams = {}
@@ -147,14 +154,19 @@ def record_stage_blocking_change(conn, project_id: int, old_dir: str, new_dir: s
         found += shot_lessons.layout_drift(old, new, {i: beats[i] for i in by_idx if i in beats}, moved=moved, cams=cams)
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
         found = [{'shot': i, 'msg': f'shot {i} (đã duyệt): chưa kiểm được bố cục sân khấu — {type(e).__name__}: {e}'} for i in by_idx]
+    source = 'layout_drift_proposal' if proposal else 'layout_drift'
     n = 0
     for idx, sid in by_idx.items():
         msgs = {f['msg'] for f in found if f['shot'] == idx}
-        for r in conn.execute("SELECT id,msg FROM change_findings WHERE scene_id=? AND source='layout_drift' AND status='open'", (sid,)).fetchall():
+        if proposal:
+            msgs = {f'Đề xuất sân khấu chưa áp dụng ({os.path.abspath(new_dir)}): {msg}' for msg in msgs}
+        for r in conn.execute("SELECT id,msg FROM change_findings WHERE scene_id=? AND source=? AND status='open'", (sid, source)).fetchall():
+            if proposal:
+                continue
             if r['msg'] not in msgs:
                 conn.execute("UPDATE change_findings SET status='resolved',resolved_at=?,resolved_by='layout_drift' WHERE id=?", (_now(), r['id']))
         for msg in sorted(msgs):
-            n += _add(conn, None, project_id, sid, 'layout_drift', 'vang', 'lien_tuc', msg,
+            n += _add(conn, None, project_id, sid, source, 'vang', 'lien_tuc', msg,
                       'Giữ bố cục bản đã duyệt hoặc xem và duyệt lại ảnh shot này.')
     return n
 

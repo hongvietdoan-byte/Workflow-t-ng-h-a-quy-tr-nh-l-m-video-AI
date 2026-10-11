@@ -72,7 +72,7 @@ def test_short_lock_own_outfit_does_not_remove_other_guard(monkeypatch, tmp_path
     p = Pipeline(connect())
     pid = p.create_project('KL')
     for name in ('MAXIM KL', 'KELLY KL', 'KENTA'):
-        p.conn.execute('INSERT INTO characters(project_id,name,description) VALUES (?,?,?)', (pid, name, ''))
+        p.conn.execute('INSERT INTO characters(project_id,name,description,outfit_image_ids) VALUES (?,?,?,?)', (pid, name, '', '1' if name != 'KENTA' else ''))
     monkeypatch.setattr(features, 'on', lambda n: n in ('profile_digest', 'short_lock_outfit'))
     with mock.patch('core.assets.outfit_images', side_effect=lambda c, i, n: [{'id': 1, 'path': str(own)}] if n != 'KENTA' else []), mock.patch('core.profile_digest.for_character', side_effect=lambda c, i, n, k: n + ' default clothes'):
         text = prompts.short_lock_block(p.conn, pid)
@@ -90,12 +90,13 @@ def test_short_lock_flag_off_exact_original(monkeypatch):
 
 
 @pytest.mark.xfail(strict=True, reason='Đ8 việc 2: đợi #24 xong mới sửa end_frames; khung cuối WS phải dùng mốc Kho thay nền góc khác')
-def test_end_frame_wide_reference_must_choose_landmark(tmp_path):
+def test_end_frame_wide_reference_must_choose_landmark(tmp_path, request):
     from core import assets, end_frames
     from core.providers import MockImageProvider
     from tests.test_end_frames import EndFrameFlowTests
     case = EndFrameFlowTests()
     case.setUp()
+    request.addfinalizer(lambda: __import__("shutil").rmtree(case.data))
     end_frames.queue(case.p, case.pid)
     scene = json.loads(case.p.conn.execute('SELECT data FROM scenes WHERE id=?', (case.sid,)).fetchone()[0])
     scene['size'] = 'WS'
@@ -115,7 +116,7 @@ def test_end_frame_wide_reference_must_choose_landmark(tmp_path):
 
 
 @pytest.mark.parametrize("problem", ["empty", "oversize", "unreadable"])
-def test_short_lock_unsendable_outfit_keeps_digest(problem, tmp_path, monkeypatch):
+def test_short_lock_unassigned_outfit_keeps_digest(problem, tmp_path, monkeypatch):
     own = tmp_path / "own.png"
     if problem != "unreadable":
         with own.open("wb") as f:
@@ -129,3 +130,68 @@ def test_short_lock_unsendable_outfit_keeps_digest(problem, tmp_path, monkeypatc
         text = prompts.short_lock_block(p.conn, pid)
     assert "KELLY KL default clothes" in text
     assert "KENTA default clothes" in text
+
+
+def test_stage_missing_approved_baseline_is_explicit(tmp_path, monkeypatch):
+    from tools.stage_grid import review_stage_round
+    p, pid, _ = stage_fixture(tmp_path)
+    monkeypatch.setattr(features, 'on', lambda n: n in ('change_review', 'layout_drift_review'))
+    with pytest.raises(ValueError, match='bản đã duyệt'):
+        review_stage_round(p.conn, pid, None, str(tmp_path / 'new'))
+    assert not change_review.open_findings(p.conn, pid)
+
+
+def test_v3_trial_records_proposal_without_resolving_applied(tmp_path, monkeypatch):
+    from tools.stage_grid import review_stage_round
+    p, pid, _ = stage_fixture(tmp_path)
+    monkeypatch.setattr(features, 'on', lambda n: n in ('change_review', 'layout_drift_review'))
+    review_stage_round(p.conn, pid, str(tmp_path / 'old'), str(tmp_path / 'new'))
+    review_stage_round(p.conn, pid, str(tmp_path / 'old'), str(tmp_path / 'new'), proposal=True)
+    findings = change_review.open_findings(p.conn, pid)
+    assert any(r['source'] == 'layout_drift' for r in findings)
+    proposal = [r for r in findings if r['source'] == 'layout_drift_proposal']
+    assert proposal and all('chưa áp dụng' in r['msg'] and str(tmp_path / 'new') in r['msg'] for r in proposal)
+
+
+@pytest.mark.parametrize('ids', ['1', '99', ' 1 ', 'broken'])
+def test_short_lock_matches_full_lock_outfit_policy(ids, monkeypatch):
+    p = Pipeline(connect())
+    pid = p.create_project('KL')
+    p.conn.execute("INSERT INTO characters(project_id,name,description,outfit_image_ids,lock_rules) VALUES (?,'KELLY KL','',?,?)", (pid, ids, json.dumps({'must_keep': 'default clothes'})))
+    monkeypatch.setattr(features, 'on', lambda n: n in ('profile_digest', 'short_lock_outfit'))
+    with mock.patch('core.assets.standard_for', return_value=None), mock.patch('core.profile_digest.for_character', return_value='default clothes'), mock.patch('core.assets.outfit_images', side_effect=AssertionError('same policy as full Lock')):
+        assert 'OUTFIT' in prompts.lock_text(p.conn, pid)
+        assert prompts.short_lock_block(p.conn, pid) == ''
+
+
+def test_stage_explicit_baseline_without_hand(tmp_path, monkeypatch):
+    from tools.stage_grid import review_stage_round
+    p, pid, _ = stage_fixture(tmp_path)
+    monkeypatch.setattr(features, 'on', lambda n: n in ('change_review', 'layout_drift_review'))
+    assert review_stage_round(p.conn, pid, None, str(tmp_path / 'new'), proposal=True,
+        approved_blocking=str(tmp_path / 'old' / 'blocking.json'),
+        approved_specs=str(tmp_path / 'old' / 'shot_specs.json')) > 0
+    assert all(r['source'] == 'layout_drift_proposal' for r in change_review.open_findings(p.conn, pid))
+
+
+@pytest.mark.parametrize('field', ['approved_blocking', 'approved_specs'])
+def test_stage_partial_explicit_baseline_does_not_fall_back(tmp_path, monkeypatch, field):
+    from tools.stage_grid import review_stage_round
+    p, pid, _ = stage_fixture(tmp_path)
+    monkeypatch.setattr(features, 'on', lambda n: n in ('change_review', 'layout_drift_review'))
+    with pytest.raises(ValueError, match='cả --approved-blocking'):
+        review_stage_round(p.conn, pid, str(tmp_path / 'old'), str(tmp_path / 'new'),
+                           **{field: str(tmp_path / 'missing.json')})
+    assert not change_review.open_findings(p.conn, pid)
+
+
+def test_proposal_dedupe_and_revert_leave_official_open(tmp_path, monkeypatch):
+    from tools.stage_grid import review_stage_round
+    p, pid, _ = stage_fixture(tmp_path)
+    monkeypatch.setattr(features, 'on', lambda n: n in ('change_review', 'layout_drift_review'))
+    old, new = str(tmp_path / 'old'), str(tmp_path / 'new')
+    review_stage_round(p.conn, pid, old, new)
+    assert review_stage_round(p.conn, pid, old, new, proposal=True) > 0
+    assert review_stage_round(p.conn, pid, old, new, proposal=True) == 0
+    assert review_stage_round(p.conn, pid, old, old, proposal=True) == 0
+    assert {r['source'] for r in change_review.open_findings(p.conn, pid)} == {'layout_drift', 'layout_drift_proposal'}

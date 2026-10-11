@@ -706,6 +706,7 @@ Theo công thức chung:
 ## Kết quả Codex — đợt 10
 
 - Việc 1: `codex/d10-viec1-goi-gui-kem`, code `d1b325f`; 5+2 đỏ ban đầu →116 xanh; rà độc lập 1 TRUNG wearer suy ra ngoài cast, 1 đỏ → **119 passed /154,46s**. OUTFIT thay đúng wearer, giữ góc phụ; hash khóa ảnh, bắt base_refs, replan orphan VÀNG, dedup. RA_D10_VIEC1_CODEX_2026-10-12.md; root đọc fix+push nhánh, chưa thử thật/cả bộ/gộp main.
+- Việc 2: `codex/d10-viec2-ky-thuat`, code `440936f`; 6 đỏ ban đầu → 70 xanh/1 xfail; rà độc lập 1 P2 baseline partial, 2 đỏ → **73 passed / 1 xfailed / 5,72s**. V3 finding đề xuất chưa áp dụng kèm thư mục lượt; baseline explicit kiểm trước Claude; Lock OUTFIT chung tiêu chí, OFF giữ chuỗi. RA_D10_VIEC2_CODEX_2026-10-12.md. Thiếu camera baseline chưa kiểm trái/phải; chưa thử thật/cả bộ/gộp main. Root đọc fix, chỉ push nhánh; areas version giữ.
 
 ---
 
