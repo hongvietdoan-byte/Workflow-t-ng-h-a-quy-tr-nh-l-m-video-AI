@@ -543,7 +543,11 @@ báo giá cũ (`tests/` grep `estimate_run`, `model_router.plan`, `quality_tier`
 
 ## Kết quả Codex — đợt 8
 
-(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+- Việc 1: `codex/d8-viec1-goi-gui-kem`, code `aabcf24`, bàn giao `549ca98`; 6 đỏ + 1 lỗi hồi quy → 29 xanh. Rà 4 finding, sửa CAS/hash/base/ảnh/undo. Cờ OFF, chưa nối Dashboard/runner sau #24; RA_D8_VIEC1 trên nhánh.
+- Việc 2: `codex/d8-viec2-ky-thuat`, code `4d6956d`, bàn giao `d762b6e`; 3 đỏ ban đầu, 3 đỏ sau rà → 68 xanh / 1 xfail có lý do. layout_drift nối stage_grid sau cờ; OUTFIT skip digest sau cờ. Endframes chỉ báo cáo/test xfail. Còn baseline immutable và kiểm decode ảnh; RA_D8_VIEC2 trên nhánh.
+- Việc 3: `codex/d8-viec3-bao-gia-video`, code `85a26db`; 3 đỏ ban đầu, 2 đỏ sau rà độc lập → 95 passed / 49,42s. Fixture 9 shot/3 refs: 0 clip/0 USD → 8 clip/5,51 USD. Shared predicate kiểm source/motion/SHA ảnh hiện tại; shared input_video_s, URL/UNC không probe. Thiếu proof có thể tính dư; ref unknown cảnh báo, chưa chứng minh trần. RA_D8_VIEC3_CODEX_2026-10-11.md.
+
+Chỉ push nhánh riêng; không gộp main/cả bộ/test thật #24/API/data. Phiên tích hợp giữ các hunk areas và chạy cả bộ Windows trước gộp.
 
 ---
 
