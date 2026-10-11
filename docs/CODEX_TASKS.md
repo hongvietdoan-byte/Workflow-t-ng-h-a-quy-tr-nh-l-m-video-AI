@@ -415,48 +415,118 @@ Rà độc lập cả ba việc đã hoàn tất (báo cáo riêng `docs/RA_D6_V
 
 ---
 
-# ĐỢT 7 — bổ sung nghiên cứu Tiểu Nhị (Đợt 5) sau rà (11/10 chiều, người dùng duyệt cả 2)
+# ĐỢT 7 — thiết kế Tiểu Nhị + Lão Đại theo chốt người dùng 11/10 (tài liệu + mockup; người dùng duyệt)
 
-Nguồn: rà độc lập nhánh `codex/d5-nghien-cuu-tu-phuc-vu` (đã gộp main `ecdc91b`) — tài liệu tốt, ~75 tham chiếu file:dòng không sai sự thật, nhưng
-còn thiếu các mục dưới. Luật chung GIỐNG đợt 5: **chỉ sửa tài liệu + mockup** (`docs/NGHIEN_CUU_TU_PHUC_VU_DASHBOARD.md`,
-`docs/D5_KIEM_KE_HIEN_TRANG.md`, `mockup/tieu_nhi.html`, thêm file mới trong `docs/` nếu cần); KHÔNG sửa `core/`, `dashboard/`, `devsys/`, `data/`,
-`TODO.md`; không gọi API, không chạy Blender. Mỗi việc một nhánh `codex/d7-viec<N>-<tên>` từ `origin/main` mới nhất. Đọc code để dẫn
-`file:dòng` thật (mở trên `origin/main`), không đề xuất làm lại thứ đã có. Ghi kết quả vào "Kết quả Codex — đợt 7".
+Nguồn: rà nhánh Đợt 5 (đã gộp `ecdc91b`) + hộp thư `TODO.md` 📨 dòng 17:45–18:40 (người dùng chốt). **Chỉ sửa tài liệu + mockup**
+(`docs/NGHIEN_CUU_TU_PHUC_VU_DASHBOARD.md`, `docs/D5_KIEM_KE_HIEN_TRANG.md`, `mockup/tieu_nhi.html`, file mới trong `docs/`/`mockup/`); KHÔNG
+sửa `core/`, `dashboard/`, `devsys/`, `data/`, `TODO.md`; không API, không Blender. Mỗi việc một nhánh `codex/d7-viec<N>-<tên>` từ `origin/main`.
+Dẫn `file:dòng` thật (mở trên `origin/main`); không đề xuất làm lại thứ đã có. Ghi kết quả vào "Kết quả Codex — đợt 7".
 
-## Việc 1 — Bổ sung tài liệu nghiên cứu (vừa)
-1. **Lớp 3 (phiếu lỗi) nối vào AI Dev System có sẵn** thay vì hệ phiếu mới: đọc `devsys/answers.py` (`answer()`, `load()`; kênh trả lời người
-   dùng đã có), `devsys/app.py` (web 8502), `devsys/error_types.json`. Đề xuất phiếu đi vào devsys hay bảng `support_tickets` mới — so 2 cách
-   (trùng lặp dữ liệu, quyền, ai đọc, ai đóng), chọn một, ghi lý do. Xét lại 5 bảng mới đề xuất (proposals, operations, audit, tickets,
-   budget_reservations) so với `diag_events`, `change_findings`, `usage_ledger`, `devsys/answers`: bảng nào bỏ được / gộp được, bảng nào bắt buộc.
-2. **Lớp 4 dùng `experience_cases`** (`core/experience.py:26`, đề bài Đợt 5 nêu đích danh, tài liệu bỏ sót): ca đã sửa ghi vào đâu, khóa gì,
-   Tiểu Nhị đọc lại thế nào.
-3. **Bộ 42 ca chuẩn:** định dạng fixture (tệp nào, trường nào, ca thật C01–C09 lấy dữ liệu từ đâu mà không cần `data/` thật), nơi lưu, cách
-   chấm %, **ước tính chi phí 1 lượt chạy bộ ca** (số lời gọi × model × token, dùng bảng giá đã ghi trong tài liệu — giá cache hit Sonnet 5.5 là
-   **0,20** USD/MTok, đã sửa); cân nhắc dùng lại khung `core/evalset.py` (`load_cases`, `load_golden`, `Check`). Đề xuất **bản tối thiểu cho
-   pilot đầu** (ít ca hơn, ít lần lặp hơn) bên cạnh bản đủ.
-4. **Lộ trình (e): chấm TỪNG tính năng Dashboard** theo tần suất × công sức (bảng: tính năng · ca lỗi nó giải · tần suất giả thuyết + nguồn ·
-   công S/M/L · điểm · thứ tự), không gom 9 đợt M/L; ghi rõ tần suất nào là giả thuyết cần đo.
-5. **Câu hỏi chốt (f) thêm 3 câu, mỗi câu kèm đề xuất:** (a) ngưỡng bài học — code dùng `MIN_EVENTS = 3` / `MIN_PROJECTS = 2`
-   (`core/lessons.py:20-21`), đề bài nói lặp ≥ 2: giữ hay đổi; (b) Tiểu Nhị dùng Claude API (tốn tiền theo token, sổ chi) hay hạn mức gói/CLI;
-   (c) phiếu đi devsys hay hệ mới (kết luận của mục 1).
-6. **Thêm ca vào bảng phân loại:** khung cuối bị coi là cũ khi khung đầu đổi — `core/end_frames.py:56-62` `usable_path` trả None khi
-   `start_job_id` lệch job khung đầu hiện tại (ca thật #24 11/10, TODO.md). Người dùng thấy gì, Dashboard cần nút/chẩn đoán gì.
-7. Sửa 4 tham chiếu lệch: `dashboard/steps/step1.py:294` → dòng nút mở khóa thật (292); `core/lessons.py:214` (là đoạn đếm lỗi chưa phân
-   loại 217–223, đừng dẫn cho "Dashboard sập"); `step1_prep.py:295` là đặt nhân vật lên ảnh bối cảnh, không phải "Storyboard 2D";
-   `knowledge/checks/L13.md:20` → nội dung ở dòng 24–31.
+**Chốt người dùng (ghi vào mục "Các chốt" của tài liệu, thay bản đề xuất cũ — đừng hỏi lại):**
+1. Chưa cần HTTPS / điện thoại (bỏ khỏi đợt gần; ghi là việc sau).
+2–3. Trần Tiểu Nhị **theo dự án** (không opt-in từng người); hết trần → Tiểu Nhị gửi yêu cầu admin nâng. Khi dùng thật: mặc định 2 USD/dự án
+   (người dùng nghiêng 2–3), tách khỏi tiền gen, cảnh báo ở 80 %. **Hiện tại** giữ đề xuất 0,15 USD/phiên chat.
+4. Chỉ Owner publish Kho/map/Bible; muốn sửa chính thức Kho → gửi yêu cầu/report admin.
+5. Bảo trì tự động = ĐỀ XUẤT chờ người dùng xác nhận: hiện tại phiếu lỗi code → admin giao phiên Claude; **Đợt 8+**: thợ bảo trì Claude Code
+   cách ly (test đỏ → sửa → rà → cả bộ Windows → nhánh + báo cáo → admin duyệt gộp); phiếu thường chạy lô ~22:00, phiếu chặn sản xuất chạy ngay
+   khi admin cho phép; chỉ mở khi đủ cách ly + bộ 42 ca đạt.
+6. Hạn xử lý phiếu **3 ngày**.
+7. ID shot nội bộ bất biến + thứ tự riêng (không đổi ID job/ảnh cũ).
 
-## Việc 2 — Mockup Tiểu Nhị bổ sung (nhỏ)
-`mockup/tieu_nhi.html` (offline, không gọi mạng):
-1. **Duyệt ảnh trên điện thoại** (ca 9 — #24 duyệt ảnh qua chat): ở 390 px, xem ảnh shot + so ảnh trước, nút Duyệt / Từ chối + lý do, có giá
-   gen lại nếu từ chối.
-2. **Banner tự hiện khi job lỗi** (phương án C trong tài liệu): job lỗi → banner trong bước/shot nói lỗi gì + nút mở chẩn đoán / sửa.
-3. Sửa: nhãn dự án khớp kịch bản #24 / job 649 (đang ghi "Khủng Long Đỏ"); thập phân thống nhất dấu phẩy ("1,2 m", "0,16 USD"); ô khoảng
-   cách cho nhập cả giá trị SAI hiện tại (0,25 m) để thấy cảnh báo, không chặn cứng 1–1,5; **đổi một ô sau khi đã Gen thì giữ dấu "đã gen
-   bản trước" + cảnh báo gen lần 2 sẽ tốn thêm tiền** (hiện xóa trạng thái không dấu vết → người dùng có thể trả tiền hai lần mà không biết).
-4. Kiểm bằng trình duyệt thật (Playwright, Chromium) ở 1280 và 390: 0 lỗi console, không cuộn ngang trang, các nút mới chạy; giữ hành vi đã sửa ở
-   `4a6167f` (chặn lặp thao tác, bản duyệt đúng). Có thể thêm test grep/JS nhẹ như `tests/test_mockup_video_3cot.py` (khai vào
-   `devsys/areas.json` khu `dashboard_ui` — được phép sửa đúng dòng `tests` này, KHÔNG tăng version).
+**Hai cấp trợ lý (người dùng đặt tên):**
+- **Tiểu Nhị** — đồng nghiệp (và người dùng khi làm dự án): khung phải Dashboard, phạm vi dự án/shot, gỡ lỗi bằng DỮ LIỆU qua đúng chức năng
+  Dashboard (đề xuất → người bấm duyệt), vượt quyền → tự lập phiếu.
+- **Lão Đại** — cấp trên, CHỈ admin, **pet desktop nổi luôn trên cùng ở máy chính** (như pet Codex): nhận phiếu Tiểu Nhị chuyển lên (lỗi code /
+  nâng trần / sửa Kho), nhắc phiếu sắp quá hạn 3 ngày, theo dõi chi tổng + job kẹt + dự án gen xong, khởi động thợ bảo trì khi admin cho phép.
+  Duyệt vẫn ở Dashboard đã đăng nhập (pet chỉ mở đúng trang, KHÔNG duyệt trên pet).
+- **Luồng phiếu:** đồng nghiệp CHỈ thấy **lỗi là gì + nút sửa ngay** (vd "bỏ ảnh nền rộng thừa rồi vẽ lại") — không thấy phiếu/code. Sửa tận gốc
+  chạy NGẦM: Tiểu Nhị tự lập phiếu (bằng chứng + "đã gỡ tạm bằng…") → Lão Đại báo admin → admin duyệt → thợ bảo trì sửa → admin duyệt gộp →
+  (nếu cần) Tiểu Nhị báo người dùng. Chỉ báo người dùng khi lỗi CHẶN HẲN: "đã báo admin, dự án tạm dừng ở shot này".
+- **Phiếu** (admin đọc): tiêu đề chữ thường, ảnh hưởng (dự án/shot bị chặn, tiền), nguyên nhân (đoán / đã xác nhận + bằng chứng), cần gì + ai
+  làm + hạn 3 ngày, trạng thái, phần kỹ thuật (file/test/nhánh) + nút duyệt; lỗi code sửa xong ghi "đã sửa gì, test nào".
+- **"Gói gửi kèm" chỉnh được theo shot** — xếp **Đợt 1 Dashboard** cùng "Gói đã gửi": xem gói lần trước; bỏ / thêm (từ Kho hoặc nền 3D của
+  đúng shot) / ghim ảnh cho lần vẽ tới; kiểm ngay gói (2 nền khác góc, nhân vật trong khung thiếu ảnh mẫu…) + báo giá + vẽ lại. Tiểu Nhị dùng
+  ĐÚNG chức năng này. Ca thật 11/10: job 649 (ảnh nền rộng thừa), 645–651 (thiếu ảnh mẫu Kho 419) — hôm nay phải sửa code mới gỡ được
+  (`0082b8b`, `0da6966`).
+
+## Việc 1 — Cập nhật tài liệu nghiên cứu theo chốt (vừa)
+1. Ghi các chốt + hai cấp + luồng phiếu ở trên vào `docs/NGHIEN_CUU_TU_PHUC_VU_DASHBOARD.md` (sửa mục "Các chốt", kiến trúc 4 lớp, mô hình quyền
+   + tiền, lộ trình). Chỗ nào bản cũ mâu thuẫn chốt → sửa theo chốt, ghi "(chốt 11/10)".
+2. **Phiếu đi vào AI Dev System có sẵn hay hệ mới:** đọc `devsys/answers.py` (`answer()`, `load()`), `devsys/app.py` (web 8502),
+   `devsys/error_types.json`; so 2 cách (trùng dữ liệu, quyền, ai đọc/đóng, Lão Đại đọc gì), chọn một + lý do. Xét lại 5 bảng mới đề xuất
+   (proposals, operations, audit, tickets, budget_reservations) so `diag_events`, `change_findings`, `usage_ledger`, `devsys/answers`: bỏ / gộp /
+   bắt buộc. Lược đồ phiếu đủ các trường ở trên + hạn 3 ngày + trạng thái.
+3. **Lớp 4 dùng `experience_cases`** (`core/experience.py:26`, tài liệu bỏ sót).
+4. **Thiết kế "Gói gửi kèm" theo shot:** dữ liệu lưu ở đâu (đề xuất `scenes.data` khóa riêng hay bảng mới; KHÔNG sửa gói đã gửi — `jobs.sent_package`
+   bất biến), ai đọc khi dựng gói (chỉ mô tả chỗ nối — `core/runner.py` / `core/scene_storyboard.py` / `core/place_refs.py`, KHÔNG sửa), các phép
+   kiểm ngay (dùng lại `core/place_refs.py` `package_problem` từ `0082b8b`, kiểm ảnh mẫu người trong khung từ `0da6966`), báo giá, hoàn tác,
+   ghi vết. Đây là đầu vào cho ĐỢT 8 việc 1.
+5. **Thiết kế Lão Đại** (pet): Windows app nhỏ cửa sổ trong suốt luôn trên cùng; đọc gì (phiếu, sổ chi, job kẹt, dự án gen xong) qua đường CHỈ ĐỌC
+   nào (HTTP 8501/8502 có đăng nhập hay đọc CSDL chỉ đọc); toast Windows + bong bóng "📨 N phiếu chờ duyệt"; bấm mở đúng trang Dashboard;
+   khởi động thợ bảo trì chỉ sau admin cho phép. So 2–3 cách làm (vd Python + pywebview/tkinter, Tauri/Electron) theo công sức + rủi ro. Đầu vào
+   cho ĐỢT 9.
+6. **Bộ 42 ca chuẩn:** định dạng fixture (ca thật C01–C09 lấy dữ liệu từ đâu mà không cần `data/` thật), nơi lưu, cách chấm %, **ước tính chi phí
+   1 lượt** (số lời gọi × model × token; giá cache hit Sonnet 5.5 = **0,20** USD/MTok, đã sửa); cân nhắc khung `core/evalset.py`; thêm **bản tối thiểu
+   cho pilot đầu**.
+7. **Lộ trình (e): chấm TỪNG tính năng Dashboard** theo tần suất × công sức (tính năng · ca lỗi · tần suất giả thuyết + nguồn · S/M/L · điểm · thứ
+   tự) — "Gói gửi kèm" + "Gói đã gửi" ở Đợt 1 theo chốt.
+8. **Câu hỏi chốt còn mở (mỗi câu kèm đề xuất):** (a) ngưỡng bài học `MIN_EVENTS = 3` / `MIN_PROJECTS = 2` (`core/lessons.py:20-21`) so "lặp ≥ 2";
+   (b) Tiểu Nhị / Lão Đại dùng Claude API (sổ chi) hay hạn mức gói/CLI; (c) kết luận mục 2.
+9. **Thêm ca:** khung cuối bị coi là cũ khi khung đầu đổi (`core/end_frames.py:56-62` `usable_path`, `start_job_id` lệch) — người dùng thấy gì,
+   nút sửa ngay là gì.
+10. Sửa 4 tham chiếu lệch: `dashboard/steps/step1.py:294` → 292; `core/lessons.py:214` (là đoạn 217–223 đếm lỗi chưa phân loại);
+    `step1_prep.py:295` là đặt nhân vật lên ảnh bối cảnh, không phải "Storyboard 2D"; `knowledge/checks/L13.md:20` → 24–31.
+
+## Việc 2 — Mockup theo chốt (nhỏ–vừa)
+`mockup/tieu_nhi.html` + file mới `mockup/lao_dai_pet.html` (offline, không gọi mạng):
+1. **Gói gửi kèm theo shot** trong khung shot: gói lần trước (ảnh nhỏ + vai), bỏ / thêm từ Kho hoặc nền 3D đúng shot / ghim; kiểm ngay hiện ĐỎ
+   "2 nền khác góc" / "người trong khung thiếu ảnh mẫu" kèm nút sửa ngay; báo giá vẽ lại; dựng theo ca job 649 / 645–651 (#24).
+2. **Luồng đồng nghiệp:** chỉ "lỗi là gì + nút sửa ngay"; KHÔNG hiện phiếu/code. Ca lỗi chặn hẳn → dòng "đã báo admin, dự án tạm dừng ở shot này".
+3. **Lão Đại pet** (`lao_dai_pet.html`, mô phỏng cửa sổ nhỏ góc màn hình): dáng thường / dáng có phiếu + bong bóng "📨 N phiếu chờ duyệt",
+   danh sách phiếu (trường ở trên, hạn 3 ngày, sắp quá hạn tô vàng), chi hôm nay / job kẹt / dự án gen xong; nút "Mở trên Dashboard" (không có
+   nút duyệt trên pet).
+4. Bỏ phần duyệt trên điện thoại (chốt 1). Sửa: nhãn dự án khớp #24 / job 649 (đang ghi "Khủng Long Đỏ"); thập phân dấu phẩy ("1,2 m",
+   "0,16 USD"); ô khoảng cách cho nhập cả giá trị SAI hiện tại (0,25 m) để thấy cảnh báo; **đổi một ô sau khi đã Gen thì giữ dấu "đã gen bản trước"
+   + cảnh báo gen lần 2 sẽ tốn thêm tiền**.
+5. Kiểm bằng Playwright Chromium ở 1280 (và 390 cho khung Tiểu Nhị): 0 lỗi console, không cuộn ngang, nút mới chạy; giữ hành vi đã sửa ở `4a6167f`.
+   Có thể thêm test grep/JS nhẹ như `tests/test_mockup_video_3cot.py` (khai vào `devsys/areas.json` khu `dashboard_ui` — được sửa đúng dòng `tests`
+   này, KHÔNG tăng version).
 
 ## Kết quả Codex — đợt 7
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+---
+
+# ĐỢT 8 — code sau cờ TẮT, không đụng đường #24 (giao SAU khi Đợt 7 việc 1 gộp; người dùng phân công 11/10 18:40)
+
+Luật chung GIỐNG đợt 1 + thêm: mỗi việc một nhánh `codex/d8-viec<N>-<tên>` từ `origin/main`; **KHÔNG sửa `core/runner.py`, `core/lock_exceptions.py`,
+`core/end_frames.py`, `core/place_refs.py` chọn nền, `core/scene_storyboard.py`** (#24 đang chạy trên đó — phần nối vào luồng ghi thành việc mở,
+phiên rà Codex nối sau khi #24 xong); không đọc/ghi `data/` thật, không API, không Blender. Hành vi mới sau cờ TẮT (`core/features.py`), cờ
+tắt thì byte giống. Test đỏ → xanh. Ghi kết quả vào "Kết quả Codex — đợt 8".
+
+## Việc 1 — Lõi "Gói gửi kèm" theo shot (vừa)
+Theo thiết kế Đợt 7 việc 1 mục 4. Module mới thuần (vd `core/package_overrides.py`): lưu chỉnh của shot (bỏ / thêm / ghim ảnh, ai, lúc nào, lý do),
+áp chỉnh lên danh sách ảnh tham chiếu ĐÃ dựng (hàm thuần: vào danh sách ref + chỉnh → ra danh sách mới + cảnh báo), kiểm ngay (dùng lại
+`place_refs.package_problem` và kiểm ảnh mẫu người trong khung — gọi, không sửa), hoàn tác, không bao giờ sửa `jobs.sent_package`. Cờ
+`package_overrides` TẮT. Test bằng CSDL trong bộ nhớ + ảnh giả, có ca job 649 (2 nền khác góc) và 645–651 (thiếu ảnh mẫu Kho 419) dựng lại từ mô tả.
+Việc mở: nối vào chỗ dựng gói ảnh/storyboard + màn Dashboard (sau #24).
+
+## Việc 2 — Việc mở kỹ thuật (nhỏ; mỗi mục: điều tra → test đỏ → sửa sau cờ, hoặc chỉ báo cáo nếu chạm file cấm)
+1. **`layout_drift` nối Tổ rà soát:** `core/shot_lessons.py:217` `layout_drift` hiện chỉ chạy qua CLI; đề xuất + làm (sau cờ) để đổi blocking của
+   shot ĐÃ DUYỆT sinh mục trong `core/change_review.py` (cờ `change_review`) thay vì im lặng. Đọc `knowledge/checks/L13.md:24-31`.
+2. **`short_lock_block`** (`core/prompts.py:562`): theo `docs/KIEM_22_TINH_NANG_KLD_2026-10-08.md:104` không áp cho nhân vật có ảnh OUTFIT (MAXIM KL,
+   KELLY KL); xác nhận bằng test, sửa sau cờ mới (KHÔNG đổi prompt khi cờ tắt — #24 đang gen).
+3. **Khung cuối dùng ảnh mốc Kho thay nền 3D** (`core/end_frames.py` — file CẤM sửa đợt này): chỉ điều tra + viết báo cáo
+   `docs/RA_D8_END_FRAMES_MOC_KHO.md` (hiện chọn ảnh gì, vì sao, đề xuất sửa + test đỏ đặt sẵn đánh `xfail` có lý do) để làm sau #24.
+
+## Kết quả Codex — đợt 8
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+---
+
+# ĐỢT 9 — Lão Đại pet desktop + phiếu (giao SAU khi Đợt 7 chốt nơi lưu phiếu; đề bài chi tiết viết khi đó)
+
+Dự kiến: (1) lưu phiếu theo kết luận Đợt 7 việc 1 mục 2 (+ hạn 3 ngày, trạng thái, phần người dùng / phần admin); (2) Tiểu Nhị tự lập phiếu khi gỡ
+tạm; (3) pet Lão Đại chạy trên máy chính (đọc chỉ đọc, toast, mở trang duyệt Dashboard). Thợ bảo trì tự động: sau khi người dùng xác nhận chốt 5.
