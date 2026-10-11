@@ -913,4 +913,7 @@ giữ nguyên (cờ tắt); dự án có autopilot → bg_poll không gửi trù
 
 ## Kết quả Codex — đợt 14
 
+- Việc 1 · nhánh `codex/d14-viec1-qc-quan-sat` · code `86d7a94`: cờ `qc_observe_enum` TẮT/opt-in riêng, OFF request/output byte giống `08c11b4`. ON enum/vùng/nguồn, code chấm, không chắc VÀNG; ảnh đơn/batch/autoqc/cảnh dùng chung, cảnh 1 call giữ người/shadow/lớp0. ĐỎ module → 56 xanh; rà độc lập gom 14 đỏ → 111 xanh; root kiểm cuối **113 passed / 7,81 s**, 5 file. Báo cáo `docs/RA_D14_VIEC1_CODEX_2026-10-12.md`. Chưa thử ảnh thật678/680 hoặc chi phí model; OUTFIT riêng chưa hỗ trợ (báo thiếu trước API), side/cap/geo giữ VÀNG; project_budget chờ#24. KhôngAPI/data thật/cả bộ/gộp main.
+
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
