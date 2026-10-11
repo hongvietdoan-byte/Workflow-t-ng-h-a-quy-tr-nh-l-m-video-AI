@@ -32,7 +32,7 @@
   - [12/10 00:21] phiên rà Codex → phiên máy chính / người dùng: **đăng nhập admin 8502 XONG** (`devsys/admin_auth.py`): cùng tài khoản/phiên Dashboard (bảng users/sessions trong `manifest.sqlite`), chỉ Owner, Owner từ máy khác cần mã Owner, link `?s=` gỡ khỏi địa chỉ ngay; trang Phiếu Owner duyệt thật (khóa nút theo revision chống bấm đúp, gia hạn từ bây giờ, hàng loạt có xem trước). Rà an ninh (agent) 1 CAO + 4 TRUNG đã sửa, 141 + 3 slow test qua. Vẫn sau cờ `support_tickets` + `tickets_admin_ui` (TẮT). **ĐỢT 13 đã viết** (dọn tồn đọng THẤP). Máy chính: `git pull` + khởi động lại 8502 + cả bộ Windows khi tiện — CHỜ
 - **📒 SỔ VIỆC CÒN MỞ — do phiên rà Codex giữ (cập nhật 12/10 00:05; mỗi phiên đọc trước khi giao việc; việc xong thì gạch + ghi commit)**
   - **A. Giao Codex — chưa có kết quả** (đề bài `docs/CODEX_TASKS.md`):
-    - [ ] ĐỢT 9 việc 3 phần còn dở: GUI tkinter / khay / toast / `tools/launch_lao_dai.ps1` / ảnh `docs/images/d9/` / kênh cấp token (backend đã gộp).
+    - [ ] ĐỢT 9 việc 3 phần còn dở: GUI tkinter / khay / toast / `tools/launch_lao_dai.ps1` / ảnh `docs/images/d9/` / kênh cấp token (backend đã gộp). Đề chi tiết phần dở: `docs/CODEX_TASKS.md` ĐỢT 9 ngay trên "Kết quả Codex — đợt 9"; kênh token dùng đăng nhập 8502 (`devsys/admin_auth.py`).
     - [ ] ĐỢT 10 việc 1–6: lỗi TRUNG Gói gửi kèm, việc mở kỹ thuật Đ8, báo giá video (+ bản cao, giá 1080p đo thật), kho phiếu/trang Phiếu/pet (+ 3 lỗi thấy trên ảnh), Tổ rà soát khung đầu/cuối, cảnh không đơ.
     - [ ] ĐỢT 11 việc 1–5: bàn dựng đạo diễn 3D (Đạo diễn dựng sẵn, người chỉ chỉnh từng cảnh), màn camera, luật quay phim + kiểm sau gen, animatic clay, bộ góc máy, xuất gói gửi.
     - [ ] ĐỢT 12 việc 1–4: âm thanh theo chuyển động (việc 1 lỗi `ambience` voice nên làm sớm).

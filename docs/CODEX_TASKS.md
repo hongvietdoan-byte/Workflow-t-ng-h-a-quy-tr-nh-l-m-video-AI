@@ -601,6 +601,13 @@ dáng "mất kết nối" có lý do, không im lặng. Khởi động thợ b�
 token hết hạn, chỉ GET), logic chọn dáng/bong bóng từ snapshot giả; phần GUI kiểm tay trên máy chính, ghi ảnh chụp vào `docs/images/d9/`. Kèm
 `tools/launch_lao_dai.ps1` theo kiểu `tools/launch_devsys.ps1`.
 
+**CÒN DỞ — việc 3 phần GUI (rà 12/10; backend `tools/lao_dai/broker.py` + `logic.py` ĐÃ gộp main, đừng viết lại):** (1) cửa sổ pet tkinter trong
+suốt luôn trên cùng ở góc, kéo được, không chiếm focus; (2) icon khay ẩn/mở/thoát; (3) toast Windows chỉ mã + trạng thái; (4) `tools/launch_lao_dai.ps1`
+theo kiểu `tools/launch_devsys.ps1`; (5) kênh cấp token đọc: broker `issue(session)` nhận phiên Owner đã đăng nhập — lấy từ đăng nhập 8502 mới có
+(`devsys/admin_auth.py`, phiên rà Codex làm 12/10; KHÔNG sửa file đó, chỉ gọi) hoặc đăng nhập Dashboard; token lưu kho credential Windows,
+không ghi file thường; (6) nút "Mở trên Dashboard" mở `http://localhost:8502/?ticket=<id>`; (7) ảnh chụp kiểm tay vào `docs/images/d9/`. Kiểm
+GUI trên máy Windows (máy chính). Sửa kèm lỗi pet ở ĐỢT 10 việc 4 mục 4–5 (bong bóng chỉ đếm `waiting_admin`, broker truyền `data_dir`).
+
 ## Kết quả Codex — đợt 9
 
 - Việc 1: `codex/d9-viec1-kho-phieu`, code `7356a9f`, bàn giao `963bf0b`; 27 test xanh sau 3 finding/11 hồi quy. Snapshot v1/cờ OFF; báo cáo RA_D9_VIEC1 trên nhánh tương ứng.
