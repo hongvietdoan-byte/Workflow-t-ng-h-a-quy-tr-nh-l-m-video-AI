@@ -16,11 +16,11 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 FLAGS = ("shot_transitions", "impact_shake", "music_breath", "sound_intent", "flashback_fx", "end_hold", "music_fit", "ambience_bed",
-         "motion_trim", "shot_color_match")
+         "motion_trim", "shot_color_match", "post_fx_render")
 # which manifest key shows that a flag really changed the cut
 EVIDENCE = {"shot_transitions": "shot_transitions", "impact_shake": "shakes", "music_breath": "music_breaths", "sound_intent": "sound_intent",
             "flashback_fx": "flashback_fx", "end_hold": "end_hold", "music_fit": "music_fit", "ambience_bed": "ambience",
-            "color_match": "color_match", "shot_color_match": "color_match"}
+            "color_match": "color_match", "shot_color_match": "color_match", "post_fx_render": "post_fx"}
 
 
 def read_env_file(path: str) -> dict:

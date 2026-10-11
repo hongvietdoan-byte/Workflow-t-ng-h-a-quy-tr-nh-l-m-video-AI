@@ -22,6 +22,16 @@ def filled():
             'chi_tiet': [{'ten': 'nuoc_mat', 'mo_ta': 'Nước mắt', 'tu_khoa': ['nước mắt']}]}
 
 
+def test_unfilled_template_still_warns():
+    # Rà tích hợp Đợt 6: mẫu rỗng ghi đúng <video>.beats.json không được làm mất VÀNG "ref chưa ghi nhịp" ở đường chạy thật
+    issues = ref_coverage(tool.template(5.0), {'image_prompt': 'x'})
+    assert len(issues) == 1 and 'chưa điền' in issues[0]['msg']
+    half = filled()
+    half['chi_tiet'].append({'ten': 'khoi', 'mo_ta': 'Khói', 'tu_khoa': []})
+    assert 'chưa điền' in ref_coverage(half, {'action': 'dang tay nước mắt'})[0]['msg']
+    assert 'chưa điền' in ref_coverage({'nhip': [], 'chi_tiet': []}, {})[0]['msg']
+
+
 def test_filled_compatible():
     doc = filled()
     tool.validate(doc, 1)

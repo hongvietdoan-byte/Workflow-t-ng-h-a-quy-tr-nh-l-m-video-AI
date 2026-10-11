@@ -289,6 +289,13 @@ def ref_coverage(doc: Optional[Dict], data: Dict) -> List[Dict]:
         return [_issue("phu_nhip_ref", f"Shot gắn video ref động tác mà ref chưa ghi các nhịp + chi tiết nhỏ ({os.path.basename(doc['_missing'])}) "
                                        "— xem ref, liệt kê nhịp (vd quỳ ôm mặt → dang tay gào → gục rạp) và chi tiết (nước mắt, hiệu ứng) để "
                                        "kiểm kịch bản phủ đủ.")]
+    items = [it for kind in ("nhip", "chi_tiet") for it in (doc.get(kind) or [])]
+    blank = [it for it in items if not isinstance(it, dict) or not str(it.get("ten") or "").strip()
+             or not [w for w in it.get("tu_khoa") or [] if str(w).strip()]]
+    if not doc.get("nhip") or blank:
+        # Mẫu tools/ref_beats.py chưa điền (ô ten/tu_khoa rỗng) — không coi là "đã ghi nhịp" (luật 1: không im lặng)
+        return [_issue("phu_nhip_ref", f"Tệp nhịp ref còn {len(blank) or 'không có'} nhịp/chi tiết chưa điền tên + từ khóa — điền xong rồi chạy "
+                                       "`tools/ref_beats.py --check` trước khi dùng để kiểm kịch bản phủ đủ.")]
     text, skip = _shot_text(data), _skipped(data)
     out = []
     for kind, label in (("nhip", "nhịp"), ("chi_tiet", "chi tiết")):

@@ -20,9 +20,13 @@ def stage(tmp_path):
 
 def database(tmp_path, rows):
     path = tmp_path / 'db # % nhịp.sqlite'
-    with sqlite3.connect(path) as conn:
+    conn = sqlite3.connect(path)   # đóng hẳn: `with` chỉ commit, Windows giữ khóa tệp tạm
+    try:
         conn.executescript('CREATE TABLE projects(id INTEGER PRIMARY KEY); CREATE TABLE scenes(project_id INTEGER, idx INTEGER, data TEXT); INSERT INTO projects VALUES (24);')
         conn.executemany('INSERT INTO scenes VALUES (?, ?, ?)', [(p, i, json.dumps(data)) for p, i, data in rows])
+        conn.commit()
+    finally:
+        conn.close()
     return path
 
 
