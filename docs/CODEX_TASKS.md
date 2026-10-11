@@ -705,6 +705,9 @@ Theo công thức chung:
 
 ## Kết quả Codex — đợt 10
 
+- Việc 6 · nhánh `codex/d10-viec6-chuyen-dong-nen` · code `5197a1c`: `ambient_motion` TẮT, OFF byte exact Director/motion/DP; ON lớp nền theo BYĐ/weather/time và VÀNG không chặn gen. ĐỎ 6 ca tính năng + 2 setup → 54 → 62 xanh; rà caller sửa 1 P2 (2 đỏ → **64 test xanh / 1,15 s**, 3 file), diff check xanh. Smoke 7 màn ui_v2 OFF/ON không exception. Báo cáo `docs/RA_D10_VIEC6_CODEX_2026-10-12.md`. Chưa thử Claude/video thật; rewrite chuyên biệt chưa thêm luật, sau lưu vẫn VÀNG. Không API/data thật/cả bộ/main.
+
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
 ---
