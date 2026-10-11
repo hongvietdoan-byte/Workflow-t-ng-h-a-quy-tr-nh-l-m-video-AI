@@ -836,3 +836,36 @@ trước khi tải) + đo vì sao mood ≈ 0 (nhãn AST không có mood → đ�
 ## Kết quả Codex — đợt 12
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+---
+
+# ĐỢT 13 — dọn tồn đọng THẤP (sổ việc 📒 nhóm G, 12/10; người dùng duyệt)
+
+Đăng nhập admin 8502 (sổ việc nhóm F) do **phiên rà Codex** làm (Codex không tự đăng nhập được để kiểm): `devsys/admin_auth.py` — Codex KHÔNG
+sửa file này; nếu cần thao tác ghi trên 8502 thì gọi `admin_auth.current()` / `is_owner()` như `devsys/tickets_page.py`.
+Luật chung GIỐNG đợt 1; nhánh `codex/d13-viec<N>-<tên>`; KHÔNG sửa file #24; không API; mỗi lỗi test đỏ → xanh. Ghi "Kết quả Codex — đợt 13".
+
+## Việc 1 — Hậu kỳ `post_fx` (Đợt 6) — 5 mục nhỏ
+1. `core/post_fx.py:69` tên `post_fx_<sid>_<uuid>.mp4` làm `_post_fx/` phình — tên cố định theo shot + băm spec, hoặc dọn bản cũ trước khi ghi.
+2. `core/delivery.py:640-642` post_fx áp SAU `_hold_end` → `vi_tri: cuoi` rơi vào khung giữ; áp TRƯỚC `_hold_end` (hoặc ghi rõ quyết định) + test.
+3. Chưa prompt / màn nào ghi `post_fx` đúng lược đồ: thêm lược đồ vào `knowledge/roles/director_p24_1110.md:24` (sau cờ `p24_lessons` — cờ tắt
+   prompt giống từng byte).
+4. `delivery.status()` không coi bản dựng là cũ khi `post_fx` hoặc cờ đổi → thêm vào khóa so.
+5. Editor (prompt 24 / rough_cut) không biết glitch là chủ ý → truyền `manifest.post_fx` vào ngữ cảnh Editor (sau cờ `post_fx_render`); test ffmpeg
+   thật skip khi thiếu filter `rgbashift` (thay vì đỏ).
+
+## Việc 2 — Tấm duyệt khối (Đợt 2 việc 3) + mã quy trình (Đợt 3)
+1. `core/blockout_sheet.py` `_font`: `ImageFont.load_default(size=)` cần Pillow ≥ 10.1 — dò phiên bản / fallback, hoặc nâng `requirements.txt`.
+2. SHA plan khác giữa `3` và `3.0` dù hình học giống → chuẩn hóa số trước khi băm (giữ đọc được gói cũ: SHA cũ vẫn khớp với dữ liệu cũ — có test).
+3. `ngay` không múi giờ vẫn nhận → yêu cầu ISO có múi giờ / UTC, gói cũ đọc được kèm VÀNG.
+4. Skill `.claude/skills/vong-lam-viec-theo-plan/SKILL.md` (mục ghi số đo) chưa nói mã K (`K0b-TD5`) và CX (`CX-d2-1`) — thêm một câu + ví dụ.
+
+## Việc 3 — Mockup Tiểu Nhị / pet (Đợt 7)
+1. `tests/test_mockup_tieu_nhi_d7.py` chỉ grep chuỗi → thêm kiểm JS bằng Playwright (ĐỎ → XANH khi sửa ngay, chặn gen trùng, `min="0"` gắn đúng
+   `#distance`, pet không có nút "Duyệt", câu "đã báo admin, dự án tạm dừng ở shot này") — đánh `slow` nếu ≥ 8 s.
+2. `mockup/tieu_nhi.html` `lastGenerated` chỉ nhớ lần gen cuối (gen 1,2 → 1,3 → quay về 1,2 gen lại được) → nhớ tập đầu vào đã gen.
+3. `mockup/lao_dai_pet.html` dáng thường vẫn hiện danh sách 3 phiếu chờ → dáng thường ẩn danh sách / hiện "không có phiếu chờ".
+
+## Kết quả Codex — đợt 13
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
