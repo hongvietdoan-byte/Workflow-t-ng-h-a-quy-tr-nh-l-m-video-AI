@@ -102,8 +102,14 @@ def dialogue_lines(segs: List[Dict], label: Dict[str, str], beats: Optional[Dict
 def group_block(segs: List[Dict], names: List[str]) -> str:
     """S4.2: the dialogue part added to a Seedance reference GROUP prompt (seedance_refs.prompt already maps the storyboard frames and
     the identity pictures, in `names` order) — Audio1's role, the lip-sync directive, the lines at their seconds of the clip, avoid."""
-    label = {str(n).upper(): f"C{i}" for i, n in enumerate(names, 1)}
-    who = " ".join(f"{label[str(n).upper()]} = {n}." for n in names)
+    # Hộp thư 12/10 04:18 (a), #24 job 681/682/685/686: an accented name ("C2 = YÊU NỮ TÀ LINH DẠNG 2", the lip-sync line) blocked the
+    # whole group send in seedance_refs.lint_group — names go without accents, as seedance_refs.prompt writes them ("Image N is …"); the
+    # spoken words stay Vietnamese. Labels match on the plain name too (a script name without accents vs the library's with them).
+    from .seedance_refs import ascii_name
+    names = [ascii_name(str(n)) for n in names]
+    segs = [dict(s, speaker=ascii_name(s["speaker"])) for s in segs]
+    label = {n.upper(): f"C{i}" for i, n in enumerate(names, 1)}
+    who = " ".join(f"{label[n.upper()]} = {n}." for n in names)
     return "\n".join(["Audio1 = the Vietnamese dialogue of this clip at its real seconds: timing, pauses, emotion and the phonemes each "
                       "mouth shape follows. " + who, lip_directive(segs, label), "DIALOGUE TIMELINE (seconds of the whole clip):",
                       *dialogue_lines(segs, label), f"Avoid: {AVOID_COMMON}."])

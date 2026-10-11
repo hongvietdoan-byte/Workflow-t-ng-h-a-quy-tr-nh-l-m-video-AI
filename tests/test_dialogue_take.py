@@ -57,3 +57,28 @@ def test_mark_styles(tmp_path):
     assert Image.open(outs["none"]).getpixel((5, 5)) == (120, 120, 120)
     with pytest.raises(ValueError):
         seedance_refs.mark(str(src), str(tmp_path / "m"), "stars")
+
+
+def test_group_block_names_without_accents_pass_the_group_lint():
+    """Hộp thư 12/10 04:18 (a), #24 job 681/682/685/686: 'C2 = YÊU NỮ TÀ LINH DẠNG 2' was written OUTSIDE the dialogue lines → the
+    whole group send was blocked as 'prompt còn chữ tiếng Việt'. Names go without accents there; the spoken lines stay Vietnamese."""
+    names = ["KELLY", "YÊU NỮ TÀ LINH DẠNG 2"]
+    segs = dt.segments([{"speaker": "YÊU NỮ TÀ LINH DẠNG 2", "text": "Trồi lên đi!", "file": "a.mp3", "duration_ms": 1500}])
+    block = dt.group_block(segs, names)
+    assert "C2 = YEU NU TA LINH DANG 2." in block
+    assert "Trồi lên đi!" in block                                    # the line itself is untouched
+    assert not any("tiếng Việt" in f for f in seedance_refs.lint_group(block, 1, 1, 1, [5.0], True, "seedance-2.5"))
+
+
+def test_group_block_with_plain_names_is_unchanged():
+    segs = dt.segments(LINES)
+    assert dt.group_block(segs, ["MAXIM", "KENTA", "KELLY"]).startswith(
+        "Audio1 = the Vietnamese dialogue of this clip at its real seconds: timing, pauses, emotion and the phonemes each mouth shape "
+        "follows. C1 = MAXIM. C2 = KENTA. C3 = KELLY.\nAUDIO & LIP-SYNC: C1 MAXIM and C2 KENTA and C3 KELLY speak Audio1")
+
+
+def test_group_block_speaker_in_the_line_matches_the_label_without_accents():
+    segs = dt.segments([{"speaker": "Bà Lão", "text": "Ai đó?", "file": "a.mp3", "duration_ms": 900}])
+    block = dt.group_block(segs, ["KELLY", "BÀ LÃO"])
+    assert 'Dialogue (Ba Lao / C2 lipsync @Audio1): "Ai đó?"' in block      # label found, name in the same spelling as C2 = …
+    assert "BÀ" not in block and "Bà" not in block
