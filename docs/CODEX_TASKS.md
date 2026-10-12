@@ -1072,4 +1072,7 @@ của ca shot 16 không còn 'translucent amber'; câu tỉ lệ có khi món SK
 
 ## Kết quả Codex — đợt 16
 
+- ✅ Việc 2 · nhánh `codex/d16-viec2-khoa-dao-cu` · code `cc74097`: làm sạch riêng action/fix ở builder gửi ảnh, chỉ cụm món mặc định, giữ scene/Kho/skin và OFF từng byte; preview hiện 'sẽ bỏ'. Người dùng chốt **tự suy tỉ lệ theo loại súng**: metadata/số đo ưu tiên, heuristic ghi Estimated/not measured và chỉ kích cỡ, không ép pose; loại thiếu/mâu thuẫn VÀNG. ĐỎ 3 ca (a), 3 ca (b) →56 xanh; RÀ KỸ 6 finding →6 đỏ→6 xanh; nhóm cuối **62 passed /4,53s**, giữ realism_removed/key/version. Root đọc phần sửa và kiểm component Streamlit thật bằng Chrome Playwright tại1440/1280:0 pageerror/0 tràn ngang; 2 PNG `docs/images/d16/prop_lock_*.png`. RA `docs/RA_D16_VIEC2_CODEX_2026-10-12.md`. Runner sửa tối thiểu builder2134–2139 vì trước gửi nguyên cụm mâu thuẫn. Chưa model thật/toàn Dashboard/cả bộ Windows; parser cố ý hẹp, không NLP rộng. Không API/dữ liệu thật/gộp main.
+
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
