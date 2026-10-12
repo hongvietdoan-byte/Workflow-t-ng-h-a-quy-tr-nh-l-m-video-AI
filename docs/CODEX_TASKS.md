@@ -60,13 +60,9 @@ thay vì coi là đạt. Sửa từng người gọi cho đúng.
 
 ---
 
-## Việc 2 — Bộ giải máy hiểu tư thế nằm 
-ga_ngua` / 
-am` (vừa)
+## Việc 2 — Bộ giải máy hiểu tư thế nằm `nga_ngua` / `nam` (vừa)
 
-**Bối cảnh:** `core/shot_intent.py` `TU_THE` có 
-ga_ngua` (ngã ngửa chống tay) và 
-am` (nằm) nhưng **chỉ dùng chạy khô**; prompt Đạo
+**Bối cảnh:** `core/shot_intent.py` `TU_THE` có `nga_ngua` (ngã ngửa chống tay) và `nam` (nằm) nhưng **chỉ dùng chạy khô**; prompt Đạo
 diễn `prompts/29_director_stage_specs.md` dòng ~11–13 CHƯA cho dùng, vì bộ giải coi người nộm là trụ đứng cao H: cỡ khung
 (`core/stage_solver.py:286` `sg.layer_heights(layer, H)`) và điểm ngắm tính theo chiều cao, trong khi người nằm dài ≈ H theo phương ngang →
 shot toàn thân sẽ cắt người. (Phiên rà 10/10 đã chỉ ra.)
@@ -77,13 +73,11 @@ shot toàn thân sẽ cắt người. (Phiên rà 10/10 đã chỉ ra.)
   **bề dài ngang ≈ H theo hướng `facing`** (đầu → chân), để các điểm cần lọt khung gồm cả hai đầu thân.
 - `core/stage_grid.py` (`frame_eval` dòng ~635, `FRAMING` dòng 323, chỗ dùng chiều cao người ~567/631) + `_targets` / cỡ khung trong
   solver: dùng các điểm đầu–chân thật thay cho trụ đứng khi người nằm. Người đứng/ngồi/quỳ/bò: kết quả GIỮ NGUYÊN.
-- Chỉ sau khi xanh: thêm 
-ga_ngua|nam` vào danh sách tư thế ở `prompts/29_director_stage_specs.md` dòng ~13 (một dòng, không đổi câu
+- Chỉ sau khi xanh: thêm `nga_ngua|nam` vào danh sách tư thế ở `prompts/29_director_stage_specs.md` dòng ~13 (một dòng, không đổi câu
   khác) và sửa `tests/test_shot_intent.py::test_tu_the_matches_prompt_29` cho khớp (prompt = TU_THE). Bỏ ghi chú "chỉ chạy khô" cạnh
   `TU_THE` và trong `knowledge/checks/L4.md`.
 
-**Test:** `test_lying_pose_frames_full_body_length` (người 
-am` ở cỡ WS: cả đầu lẫn chân trong khung); `test_nga_ngua_lower_eye_height`;
+**Test:** `test_lying_pose_frames_full_body_length` (người `nam` ở cỡ WS: cả đầu lẫn chân trong khung); `test_nga_ngua_lower_eye_height`;
 test cũ `tests/test_stage_solver.py`, `tests/test_stage_rules.py`, `tests/test_stage_facts.py`, `tests/test_shot_intent.py` xanh nguyên văn
 (số đo #24 trong test không được đổi cho người đứng).
 
@@ -131,8 +125,7 @@ README.
 ## Việc 5 — Dọn cảnh báo Pillow `getdata` (rất nhỏ)
 
 `Image.getdata` sẽ bị bỏ ở Pillow 14 (cảnh báo hiện trong mọi lần chạy cả bộ). Thay bằng cách tương đương không cảnh báo (vd
-`get_flattened_data()` nếu Pillow cài sẵn có, hoặc 
-umpy.asarray(img)` / `img.tobytes()`; kiểm phiên bản Pillow trong môi trường) ở:
+`get_flattened_data()` nếu Pillow cài sẵn có, hoặc `numpy.asarray(img)` / `img.tobytes()`; kiểm phiên bản Pillow trong môi trường) ở:
 `tests/test_end_popup_p24.py:118`, `tests/test_dialogue_take.py:50`; Grep thêm `getdata(` trong `core/`, `tools/`, `tests/`. Kết quả số phải
 giữ nguyên (test xanh như cũ, không còn `DeprecationWarning` getdata: chạy với `-W error::DeprecationWarning` cho riêng các file đó).
 
@@ -154,17 +147,12 @@ giữ nguyên (test xanh như cũ, không còn `DeprecationWarning` getdata: ch�
 
 - Bàn giao cuối 10/10: **260 test liên quan gộp qua (18,77 giây)** + **17 test Pillow qua với -W error::DeprecationWarning**. Đã tự rà diff theo skill 2b.5: không đổi key widget, không nới ngưỡng/assertion cũ, chỉ cập nhật hợp đồng pose theo yêu cầu; không chạm TODO/PLAN/data/API, không tăng areas.version, không bật cờ/luồng mới. Nhánh đã push, chưa gộp main; Claude rà và chạy cả bộ trước gộp. Tìm GitHub theo yêu cầu: MCP thực thi https://github.com/ahujasid/mcp-for-blender, mã nguồn Blender chính thức https://github.com/blender/blender; skill tham khảo https://github.com/arjun988/blender-skills (modeler/environment) và https://github.com/kajisho5/blender-skill (headless). Chỉ đọc tài liệu, chưa cài/chạy hay xác minh chất lượng dựng.
 
-- Rà độc lập + vòng sửa 10/10 (nhánh `claude/codex-fix-1010`, Claude): (1) người 
-am`/
-ga_ngua` thiếu `facing` → ValueError trong
-  `stage_solver.objects_from_blocking` (Đạo diễn nhận SchemaError, gọi lại) thay vì nổ lúc `solve_scene`; (2) **HOÃN** mở 
-am`/
-ga_ngua`
+- Rà độc lập + vòng sửa 10/10 (nhánh `claude/codex-fix-1010`, Claude): (1) người `nam`/`nga_ngua` thiếu `facing` → ValueError trong
+  `stage_solver.objects_from_blocking` (Đạo diễn nhận SchemaError, gọi lại) thay vì nổ lúc `solve_scene`; (2) **HOÃN** mở `nam`/`nga_ngua`
   trong `prompts/29_director_stage_specs.md` (trả về như main; giữ code solver) — test hợp đồng `test_tu_the_matches_prompt_29` chặn tới khi
   xong; (3) `plate_layout_qc`: render sáng không chân trời nhưng có F1 → `measured True`, `partial True` ("đo được một phần").
   **Việc mở:** (a) `tools/stage_grid.py` dựng người nộm NẰM (xoay theo `facing`, cao `body_height`, dài `body_length`; chữ ký nhịp dòng ~1247
-  thêm `tu_the`) → rồi mới mở 
-am|nga_ngua` ở prompt 29 + gỡ assertNotIn trong test; (b) `blockout.to_props` trả `at` theo tọa độ SÂN KHẤU,
+  thêm `tu_the`) → rồi mới mở `nam|nga_ngua` ở prompt 29 + gỡ assertNotIn trong test; (b) `blockout.to_props` trả `at` theo tọa độ SÂN KHẤU,
   chưa đổi sang tọa độ scene như giếng (`sg.model_from_rel`, apply_v4.py:104); (c) `core/stage_facts.STAND_IN_KINDS` chưa có `"block"`.
 
 ---
@@ -184,9 +172,7 @@ Luật chung GIỐNG đợt 1 (mục "Luật chung" đầu file) + thêm:
 **Vấn đề** (rà 10/10, việc mở (a) đợt 1): solver đã tính thân nằm (`core/stage_solver.py` `objects_from_blocking`: `body_length`,
 `body_height`, bắt buộc `facing`) nhưng `tools/stage_grid.py` dựng người nộm là TRỤ ĐỨNG cao `o["H"]` (dòng ~1251 `"height": o["H"]`;
 hàm dựng trụ quanh dòng ~284–300) và không biết `tu_the`; chữ ký nhịp dòng ~1247 thiếu `tu_the` nên 2 tư thế cùng chỗ cùng H bị gộp.
-Vì vậy prompt 29 đang HOÃN 
-am`/
-ga_ngua` (test chặn: `tests/test_shot_intent.py` ~dòng 41–52, `knowledge/checks/L4.md`,
+Vì vậy prompt 29 đang HOÃN `nam`/`nga_ngua` (test chặn: `tests/test_shot_intent.py` ~dòng 41–52, `knowledge/checks/L4.md`,
 chú thích `core/shot_intent.py` dòng ~26–27).
 
 **Làm:**
@@ -195,15 +181,11 @@ chú thích `core/shot_intent.py` dòng ~26–27).
    solver — đọc `core/stage_grid.lying_point`), tâm = điểm solver dùng (`anchor_point`/`lying_point`) để số bắn tia / render khớp solver.
    Người đứng/ngồi/quỳ/bò GIỮ NGUYÊN số cũ (test hồi quy so số cũ).
 2. Thêm `tu_the` vào chữ ký nhịp (dòng ~1247).
-3. Mở lại prompt `prompts/29_director_stage_specs.md` dòng `tu_the` cho 
-ga_ngua`, 
-am` (đúng như bản Codex đợt 1 commit `f6fb193`
+3. Mở lại prompt `prompts/29_director_stage_specs.md` dòng `tu_the` cho `nga_ngua`, `nam` (đúng như bản Codex đợt 1 commit `f6fb193`
    trước khi bị hoãn); gỡ test chặn tạm + chú thích hoãn ở `core/shot_intent.py`, `L4.md`; thay bằng test hợp đồng: prompt 29 liệt kê đủ
    `shot_intent.TU_THE` VÀ `tools/stage_grid.py` có nhánh dựng nằm.
-**Test (đỏ → xanh):** mock bpy: người 
-am` facing 90° → khối nằm ngang dài ≈ body_length, cao ≈ body_height, trục dài theo facing;
-
-ga_ngua` nghiêng; người đứng không đổi; chữ ký nhịp khác nhau khi chỉ khác `tu_the`; hợp đồng prompt 29 ↔ TU_THE.
+**Test (đỏ → xanh):** mock bpy: người `nam` facing 90° → khối nằm ngang dài ≈ body_length, cao ≈ body_height, trục dài theo facing;
+`nga_ngua` nghiêng; người đứng không đổi; chữ ký nhịp khác nhau khi chỉ khác `tu_the`; hợp đồng prompt 29 ↔ TU_THE.
 **Lưu ý:** đổi prompt 29 = đổi hành vi Đạo diễn thật (lời gọi Claude tốn tiền) → ghi rõ trong "Kết quả" để bên gộp rà kỹ.
 
 ## Việc 2 — Khối nhánh C dùng được như khối thay thế (nhỏ)
@@ -224,10 +206,8 @@ thay thế = vật thật" cho khối nhánh C (12b.3 yêu cầu áp `stand_in` 
 1. `render_top_view(plan, cho_dung=[...], out_png)`: ảnh nhìn từ trên bằng PIL (hoặc matplotlib nếu đã có trong môi trường — kiểm
    `requirements`/import, KHÔNG cài thêm gói): lưới mục 2 có tên ô, khối có nhãn `id · loai · kích thước giữa khoảng`, chỗ đứng kịch bản,
    hướng sáng, issue của `check_geometry` tô màu (ĐỎ/VÀNG). Đường dẫn ra là tham số (không ghi `data/`).
-2. `to_location_pack(plan, nguoi_duyet, phien_ban)` → dict dạng `location_pack` kiểu `blockout` (có `phien_ban`, 
-guoi_duyet`,
-   
-gay`, `issues` lúc duyệt, sha của plan) + `from_location_pack` đọc lại; plan có issue ĐỎ → từ chối đóng gói (raise, không im lặng).
+2. `to_location_pack(plan, nguoi_duyet, phien_ban)` → dict dạng `location_pack` kiểu `blockout` (có `phien_ban`, `nguoi_duyet`,
+   `ngay`, `issues` lúc duyệt, sha của plan) + `from_location_pack` đọc lại; plan có issue ĐỎ → từ chối đóng gói (raise, không im lặng).
    Đọc `core/` xem `location_pack` hiện có dạng gì (Grep `location_pack`) để không đụng khóa cũ; nếu chưa có thì định nghĩa schema mới
    trong module + ghi vào "Kết quả".
 3. (2–3 góc clay có nhãn: KHÔNG làm — cần Blender; ghi việc mở.)
@@ -289,8 +269,7 @@ trước bàn giao). Đổi `devsys/` → bên gộp khởi động lại cổng
 ## Việc 1 — Sổ kế hoạch + tiến độ kế hoạch kiểm soát (vừa)
 1. `devsys/plans.json` (mới): danh sách MỌI kế hoạch đang sống — `{id, ten, file, kieu ∈ {viec_s, dot_bang, codex, ghi_chu, phuong_phap},
    trang_thai ∈ {dang_chay, cho, xong, chua_lam}, ghi_chu}`; điền sẵn: kế hoạch S, kế hoạch kiểm soát, thẩm định, CODEX_TASKS (đợt 1–3),
-   sân khấu 3D, ghi chú UI (file trên nhánh → 
-hanh` + `file`). Test hợp đồng: mọi `file` tồn tại (hoặc nhánh có trong `git branch -r`).
+   sân khấu 3D, ghi chú UI (file trên nhánh → `nhanh` + `file`). Test hợp đồng: mọi `file` tồn tại (hoặc nhánh có trong `git branch -r`).
 2. `devsys/plan_progress.py` (hoặc module mới `devsys/plans.py`): đọc bảng đợt mục 8 kế hoạch kiểm soát → mỗi đợt K0a…K8: trạng thái
    (✅ / 🟡 / chưa), mã commit trích được, thứ tự theo `devsys/stages.py:24` `DOT`; % = ✅ / tổng (🟡 = ½). Đọc mục A → số chốt (A1…An)
    + chốt mới nhất. Không phá API cũ của `plan_progress` (trang 📋 và `tools/plan_progress.py --write` giữ nguyên kết quả — test hồi quy).
@@ -441,9 +420,7 @@ E. **Mô hình:** chọn model Claude cho từng bậc (hỏi đáp rẻ vs sử
 Luật chung GIỐNG đợt 1 + thêm: mỗi việc một nhánh `codex/d6-viec<N>-<tên>` từ `origin/main` mới nhất; KHÔNG đọc/ghi `data/`, không gọi API, không chạy Blender; KHÔNG sửa `dashboard/`; KHÔNG đụng đường gửi job (`core/runner.py` submit/hydrate) và khóa nhân vật (`core/lock_exceptions.py`) — #24 đang chạy trên các phần đó. Hành vi mới sau cờ TẮT (`core/features.py`). Ghi kết quả vào "Kết quả Codex — đợt 6".
 
 ## Việc 1 — Hậu kỳ nhiễu sóng/glitch bằng ffmpeg đọc `post_fx` (vừa)
-Shot có `scenes.data.post_fx` (vd #24 shot 10: cuối shot màn hình nhòe, nhấp nháy, nhiễu sóng như mất kết nối → chuyển quảng cáo; xem cách phiên 11/10 ghi trường này: grep `post_fx` trong repo) — hiện CHƯA bước dựng nào đọc. Thêm: lược đồ `post_fx` tối thiểu (loại hiệu ứng: 
-hieu_song`/`glitch`/
-hap_nhay`…, vị trí `cuoi`/`dau`/`ca_shot`, thời lượng s, cường độ) + hàm áp bằng ffmpeg vào clip của shot ở bước dựng (đọc cách `core/` dựng clip/rough cut làm, tái dùng ffmpeg helper sẵn có). Thiếu/ sai trường → VÀNG có lý do, không im lặng. Cờ `post_fx_render` TẮT. Test: clip ffmpeg thật cỡ nhỏ (như `tests/test_keep_audio.py` RealFfmpegTests) — độ dài không đổi, đoạn cuối khác khung gốc, cờ tắt thì byte giống; nhãn `slow` nếu ≥ ~8 s.
+Shot có `scenes.data.post_fx` (vd #24 shot 10: cuối shot màn hình nhòe, nhấp nháy, nhiễu sóng như mất kết nối → chuyển quảng cáo; xem cách phiên 11/10 ghi trường này: grep `post_fx` trong repo) — hiện CHƯA bước dựng nào đọc. Thêm: lược đồ `post_fx` tối thiểu (loại hiệu ứng: `nhieu_song`/`glitch`/`nhap_nhay`…, vị trí `cuoi`/`dau`/`ca_shot`, thời lượng s, cường độ) + hàm áp bằng ffmpeg vào clip của shot ở bước dựng (đọc cách `core/` dựng clip/rough cut làm, tái dùng ffmpeg helper sẵn có). Thiếu/ sai trường → VÀNG có lý do, không im lặng. Cờ `post_fx_render` TẮT. Test: clip ffmpeg thật cỡ nhỏ (như `tests/test_keep_audio.py` RealFfmpegTests) — độ dài không đổi, đoạn cuối khác khung gốc, cờ tắt thì byte giống; nhãn `slow` nếu ≥ ~8 s.
 
 ## Việc 2 — Công cụ tạo tệp nhịp cho video ref (nhỏ)
 Kiểm "độ phủ nhịp ref" (`core/shot_lessons.ref_coverage`, quy ước `<video>.beats.json`) cần tệp nhịp mà chưa có công cụ tạo. Thêm `tools/ref_beats.py <video>`: xuất dải khung hình có mốc giờ (ffmpeg, ~1 khung/0,5 s, JPG cạnh video) + mẫu `<video>.beats.json` đúng lược đồ `shot_lessons` (nhip: [{ten, tu_s, den_s, mo_ta}], chi_tiet, tu_khoa, bien_do) để người duyệt điền; không ghi đè tệp có sẵn (cần `--force`); `--check` kiểm tệp đã điền hợp lệ. Test dùng video tạo bằng ffmpeg trong thư mục tạm.
@@ -845,8 +822,7 @@ nhìn, nón nhìn, kéo/nhập vị trí, kiểm ĐỎ/VÀNG, safe area, lan đ�
 | Giới hạn Camera 1/10 mỗi cảnh (người dùng hỏi 12/10: cảnh > 10 shot thì sao) | KHÔNG giới hạn cứng. Tách 2 khái niệm: **thiết lập máy** (setup: vị trí + hướng + cỡ + đường máy) và **shot** (đoạn phim). Nhiều shot DÙNG LẠI một setup (như quay thật: master, qua vai A, qua vai B, cận phản ứng → cả đoạn đối thoại 20 shot chỉ 4–6 setup); shot nào khác biệt mới tách setup riêng ("tách từ setup này"). Sân khấu theo BỐI CẢNH (cùng một chỗ dùng chung cho mọi cảnh/shot ở đó), không theo từng shot. Danh sách bên trái: nhóm theo setup → các shot dùng nó (số shot + thumbnail), lọc theo cảnh, cuộn ảo khi dài. Khung nhìn chỉ vẽ nón nhìn của setup đang chọn + setup của shot trước/sau (mờ), không vẽ hết; xem trước camera render khi chọn (có hàng đợi), không render cả chục máy cùng lúc. Đổi một setup → báo các shot đang dùng nó (shot đã duyệt chỉ VÀNG, không tự đổi). Dữ liệu: `shot.camera_setup_id` → bảng setup của bối cảnh (thiết kế ở việc 3) |
 | (người dùng hỏi 12/10) KEYFRAME cho vật / nhân vật / máy quay | Dòng thời gian theo GIÂY của shot (độ dài = `duration_sec`), mỗi hàng một đối tượng (nhân vật, đạo cụ, máy). Keyframe lưu vị trí + hướng (+ tư thế cho nhân vật; + cỡ/tiêu cự/điểm nhìn cho máy). **Đạo diễn đặt sẵn** keyframe từ nhịp BYĐ (đầu/đỉnh/cuối) và `camera_move` (đầu/cuối); người dùng thêm/xóa/kéo keyframe ở mốc giây bất kỳ (phím K thêm tại vạch phát), chép/dán keyframe, kiểu chuyển (thẳng / mượt vào-ra / giữ). Khung nhìn vẽ ĐƯỜNG ĐI của vật/máy giữa các keyframe (chấm theo giây); nút ▶ phát clay 0 USD theo thời gian. Kiểm theo keyframe: va chạm/xuyên khối, rời khung, máy quá nhanh (m/s, °/s) so cỡ cảnh, nhân vật đi quá nhanh so dáng (đi/chạy), lệch vị trí cuối ↔ đầu shot sau → ĐỎ/VÀNG. Model video KHÔNG nhận keyframe trực tiếp → keyframe được DỊCH sang: (a) mốc giây trong motion prompt ("0–1 s…, 1–3 s…"), (b) khung đầu/cuối, (c) video clay/white model theo keyframe (Blender, 0 USD) làm video tham chiếu chuyển động khi model nhận; hiện rõ phần nào sẽ được gửi. Shot đã duyệt: đổi keyframe → VÀNG "cần gen lại". Dữ liệu: keyframe nằm trong sân khấu của shot (việc 3), Đạo diễn khai dạng số, code kiểm |
 | (người dùng hỏi 12/10) Clip AI chỉ có vật + phông xanh; bản mình có MAP 3D → camera ghi những gì? | Góc nhìn camera = MỌI thứ trong nón nhìn của máy: map 3D (plates) + nhân vật clay + đạo cụ, đúng che khuất (tường/cột che nhân vật thì bị che). Tách LỚP khi xuất, người dùng chọn lớp nào vào ảnh kết quả: (1) **nền map** (= ảnh nền 3D hiện có `plates`, dùng làm tham chiếu bối cảnh), (2) **clay nhân vật/đạo cụ trên phông xanh** (= tham chiếu bố cục/tư thế, như Clip AI), (3) **ghép** nền map + clay (ảnh bố cục Image1). Mặc định gửi model theo luật hiện có: nền map + ảnh bố cục; KHÔNG để khối xám `stand_in`/nhân vật clay lọt vào ảnh mà model sẽ chép thành chi tiết thật (luật cũ `stand_in`) — mockup hiện công tắc từng lớp + nhãn "lớp này sẽ được gửi / chỉ để xem". Kiểm: máy nằm TRONG tường/vật của map (ĐỎ), vật che mất > x % nhân vật chính (VÀNG), nhân vật ra ngoài khung, map chưa có ở chỗ máy nhìn (khoảng trống/rìa map → VÀNG). Hiệu năng: map nặng → khung nhìn dùng bản map nhẹ (LOD/khối), ảnh camera cuối render bằng Blender (như plates); không có map cho bối cảnh → phông xanh như Clip AI |
-| (người dùng 12/10) Nhân vật BỊ CHE (vd núp sau tường) — bật/tắt hiển thị + cách DIỄN GIẢI cho model và Dashboard | **Bàn dựng:** công tắc "Hiện người bị che" (phím H): nhân vật sau vật hiện viền/bóng mờ xuyên tường CHỈ trong khung nhìn — không bao giờ vào ảnh gửi model. **Code đo, không đoán** (theo kiểu `core/stage_facts.py` `top_visible`: code tính, câu tiếng Anh do code viết): mỗi nhân vật × mỗi keyframe, tia từ máy tới các điểm cơ thể (đầu, mắt, vai, thân, chân) → `visibility` = `thay` / `mot_phan` (+ phần nào lộ: "đỉnh đầu + một mắt ở mép trái tường") / `bi_che` (+ bởi vật nào) / 
-goai_khung`. **Ý đồ của Đạo diễn** khai riêng (`an` = cố ý núp/giấu, `lo` = cố ý lộ, `ra_khoi_cho_nap` lúc nào) — code so ý đồ ↔ đo: ý đồ núp mà máy vẫn thấy → ĐỎ; ý đồ thấy mà bị che → ĐỎ; lộ một phần ngoài ý đồ → VÀNG. **Diễn giải cho model (code viết, không để Claude tự tả):** che HOÀN TOÀN cả shot → KHÔNG gửi ảnh nhận diện, không nêu tên trong danh sách nhân vật thấy được (model hay vẽ ra người được nêu tên); nếu truyện cần thì chỉ tả HỆ QUẢ thấy được (bóng đổ, vạt áo ló, vật rung) + "no person visible"; che MỘT PHẦN → gửi ảnh nhận diện + câu chính xác phần lộ và vị trí so vật che ("only the top of her head and her left eye peek over the left edge of the stone wall; the rest of her body is hidden behind it"); LỘ RA giữa shot → mốc giây theo keyframe ("0–2 s: hidden behind the wall, not visible; at 2 s she steps out to the right of the wall"), khung đầu không có người đó. **Dashboard:** mỗi nhân vật mỗi nhịp có nhãn 👁 thấy / ◐ một phần / 🚫 bị che bởi <vật> / ⬚ ngoài khung (thẻ shot, Trình sửa, Gói gửi kèm); QC/khóa nhân vật dùng nhãn này: KHÔNG đánh trượt ảnh vì "thiếu" người đang bị che, nhưng ĐÁNH trượt nếu người đang phải bị che lại hiện ra; BYĐ/lock_exceptions chỉ ĐỌC nhãn (không sửa file cấm — nối sau #24). Test ca vàng: tường trước, nhân vật sau (che hoàn toàn / ló đầu / bước ra giây 2) |
+| (người dùng 12/10) Nhân vật BỊ CHE (vd núp sau tường) — bật/tắt hiển thị + cách DIỄN GIẢI cho model và Dashboard | **Bàn dựng:** công tắc "Hiện người bị che" (phím H): nhân vật sau vật hiện viền/bóng mờ xuyên tường CHỈ trong khung nhìn — không bao giờ vào ảnh gửi model. **Code đo, không đoán** (theo kiểu `core/stage_facts.py` `top_visible`: code tính, câu tiếng Anh do code viết): mỗi nhân vật × mỗi keyframe, tia từ máy tới các điểm cơ thể (đầu, mắt, vai, thân, chân) → `visibility` = `thay` / `mot_phan` (+ phần nào lộ: "đỉnh đầu + một mắt ở mép trái tường") / `bi_che` (+ bởi vật nào) / `ngoai_khung`. **Ý đồ của Đạo diễn** khai riêng (`an` = cố ý núp/giấu, `lo` = cố ý lộ, `ra_khoi_cho_nap` lúc nào) — code so ý đồ ↔ đo: ý đồ núp mà máy vẫn thấy → ĐỎ; ý đồ thấy mà bị che → ĐỎ; lộ một phần ngoài ý đồ → VÀNG. **Diễn giải cho model (code viết, không để Claude tự tả):** che HOÀN TOÀN cả shot → KHÔNG gửi ảnh nhận diện, không nêu tên trong danh sách nhân vật thấy được (model hay vẽ ra người được nêu tên); nếu truyện cần thì chỉ tả HỆ QUẢ thấy được (bóng đổ, vạt áo ló, vật rung) + "no person visible"; che MỘT PHẦN → gửi ảnh nhận diện + câu chính xác phần lộ và vị trí so vật che ("only the top of her head and her left eye peek over the left edge of the stone wall; the rest of her body is hidden behind it"); LỘ RA giữa shot → mốc giây theo keyframe ("0–2 s: hidden behind the wall, not visible; at 2 s she steps out to the right of the wall"), khung đầu không có người đó. **Dashboard:** mỗi nhân vật mỗi nhịp có nhãn 👁 thấy / ◐ một phần / 🚫 bị che bởi <vật> / ⬚ ngoài khung (thẻ shot, Trình sửa, Gói gửi kèm); QC/khóa nhân vật dùng nhãn này: KHÔNG đánh trượt ảnh vì "thiếu" người đang bị che, nhưng ĐÁNH trượt nếu người đang phải bị che lại hiện ra; BYĐ/lock_exceptions chỉ ĐỌC nhãn (không sửa file cấm — nối sau #24). Test ca vàng: tường trước, nhân vật sau (che hoàn toàn / ló đầu / bước ra giây 2) |
 | Xuất/nhập (biểu tượng góc phải) | Xuất/nhập JSON sân khấu (schema `stage_v2`) + ảnh; không dùng API Clip AI (chưa có endpoint) |
 **TRƯỚC KHI dựng mockup: đánh giá từng dòng bảng trên** (luật chung (c): đây là GÓP Ý của người dùng, chưa chắc dùng tốt) — cột thêm: tần suất, lợi ích, công sức, rủi ro, khuyến nghị LÀM / LÀM BẢN GỌN / ĐỂ SAU / KHÔNG NÊN; chỉ đưa vào mockup các dòng LÀM / LÀM BẢN GỌN, các dòng khác ghi lý do. Giao diện phải gọn: người dùng chỉ chỉnh từng cảnh, mặc định ẩn bớt bảng thông số, phím tắt + nút ít. Việc: (1) bổ sung `docs/THIET_KE_BAN_DUNG_3D_D11.md` mục "Đối chiếu Clip AI" (bảng trên + chỗ nối dữ liệu thật: plates, cast, Kho, BYĐ, Gói gửi kèm;
 cái gì chỉ là mockup, cái gì cần việc 2/3); (2) nâng `mockup/ban_dung_3d.html`: khung camera nổi trong góc nhìn đạo diễn, tab Toàn cảnh (nền 3D/phông
@@ -911,8 +887,7 @@ khung an toàn 9:16 (vùng giao diện TikTok/Reels che); dùng lại ảnh clay
 
 # ĐỢT 12 — Âm thanh theo từng chuyển động (hộp thư phiên máy chính 11/10 23:28, làm tay #24 nháp v3; người dùng phân công phiên rà Codex)
 
-Nguồn: `D:\AI-Video-Output\2026-10-11_du-an-24\bang_am_thanh.md` + 
-hap_v3_am_thanh.mp4` trên máy chính (cloud không đọc được — dựng ca thử từ mô
+Nguồn: `D:\AI-Video-Output\2026-10-11_du-an-24\bang_am_thanh.md` + `nhap_v3_am_thanh.mp4` trên máy chính (cloud không đọc được — dựng ca thử từ mô
 tả dưới). Luật chung GIỐNG đợt 1; nhánh `codex/d12-viec<N>-<tên>`; KHÔNG sửa file #24 (runner/lock_exceptions/end_frames/place_refs/
 scene_storyboard); không API tốn tiền khi test; đổi hành vi sau cờ TẮT (trừ việc 1 là sửa lỗi). Ghi kết quả vào "Kết quả Codex — đợt 12".
 
@@ -980,8 +955,7 @@ Luật chung GIỐNG đợt 1; nhánh `codex/d13-viec<N>-<tên>`; KHÔNG sửa f
 ## Việc 2 — Tấm duyệt khối (Đợt 2 việc 3) + mã quy trình (Đợt 3)
 1. `core/blockout_sheet.py` `_font`: `ImageFont.load_default(size=)` cần Pillow ≥ 10.1 — dò phiên bản / fallback, hoặc nâng `requirements.txt`.
 2. SHA plan khác giữa `3` và `3.0` dù hình học giống → chuẩn hóa số trước khi băm (giữ đọc được gói cũ: SHA cũ vẫn khớp với dữ liệu cũ — có test).
-3. 
-gay` không múi giờ vẫn nhận → yêu cầu ISO có múi giờ / UTC, gói cũ đọc được kèm VÀNG.
+3. `ngay` không múi giờ vẫn nhận → yêu cầu ISO có múi giờ / UTC, gói cũ đọc được kèm VÀNG.
 4. Skill `.claude/skills/vong-lam-viec-theo-plan/SKILL.md` (mục ghi số đo) chưa nói mã K (`K0b-TD5`) và CX (`CX-d2-1`) — thêm một câu + ví dụ.
 
 ## Việc 3 — Mockup Tiểu Nhị / pet (Đợt 7)
@@ -1138,8 +1112,7 @@ Người dùng: "khóa sẵn nhiều súng, tránh tự ý dùng và gán sai". 
 nhánh việc 2 đã gộp (`core/prop_lock.py` clean_prompt / weapon_scale). Ca thật #27 (bảng người dùng ĐÃ DUYỆT, `TODO.md` khối 📌 12/10 13:21): KELLY → SKORP
 #433 · LÍNH ĐỊCH ÁO CHOÀNG → M7 #434 · SỨ GIẢ BÓNG ĐÊM → HAWK #435 · XÚC TU ĐỎ → RPK #436 · YÊU NỮ TÀ LINH DẠNG 1 → M7 #434; đeo súng sau lưng = Kho style
 #437 'ĐEO SÚNG SAU LƯNG'. Mô tả Kho #433–436 đã có câu "In-game scale …" (commit main `0932435`).
-(a) **Bảng gán theo dự án** 
-hân vật → vũ khí Kho` (lưu như `assets.set_outfit` / `outfit_images`; KHÔNG sửa `lock_exceptions.py`): Bible/Bước 1 có ô chọn súng
+(a) **Bảng gán theo dự án** `nhân vật → vũ khí Kho` (lưu như `assets.set_outfit` / `outfit_images`; KHÔNG sửa `lock_exceptions.py`): Bible/Bước 1 có ô chọn súng
 cho từng nhân vật (gọn — một ô chọn cạnh trang phục, luật chung (a)); Đạo diễn ĐỀ XUẤT khi chạy (khai `vu_khi` theo nhân vật), người dùng duyệt = khóa;
 đổi gán → shot đã duyệt VÀNG "cần vẽ lại", không tự gen.
 (b) **Prompt ảnh/video**: shot có nhân vật X cầm súng (từ chung "gun/rifle/súng" hoặc tên sai) → chèn ĐÚNG súng của X (tên + mô tả dạng mặc định) + câu tỉ lệ từ
