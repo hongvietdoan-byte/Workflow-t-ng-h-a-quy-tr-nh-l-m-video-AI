@@ -23,3 +23,20 @@ luật cấm từ — là cách tính trước khi viết. Code kiểm lại cá
 6. **Hiệu ứng màn hình (nhiễu sóng, glitch toàn khung, sọc, mất tín hiệu) là hậu kỳ.** Không viết vào ảnh khởi đầu video — model video
    coi nhiễu là nội dung và giữ / lan cả clip. Ghi vào `post_fx` của shot để dựng bằng ffmpeg. Nhiễu là một phần thiết kế nhân vật
    (vd vệt glitch quanh cổ tay của bộ đồ) thì vẫn tả như trang phục.
+
+## Bổ sung từ duyệt ảnh thử #27 "Liệu bạn sẽ Booyah tập 1" (12/10)
+
+7. **Vũ khí / đạo cụ đã gắn Kho cho dự án: gọi đúng TÊN trong mọi shot có nó.** Kelly cầm SKORP thì shot nào thấy súng cũng viết
+   "SKORP" (kèm hình dáng ngắn), không viết chung "assault rifle / gun"; tường keo viết "bom keo / tường keo" kèm DẠNG. Vì: #27 shot
+   1 / 19 / 21 viết chung → ảnh ra súng trường / AK; khâu chọn ảnh tham chiếu khớp theo tên nên không gửi ảnh Kho. Căn cứ: danh
+   sách tài nguyên dự án gửi kèm. Code kiểm / chèn lại sau cờ `project_prop_lock`.
+8. **Tường keo có 2 dạng, chọn một dạng và giữ cả cảnh.** (a) mặc định: tường keo màu TRẮNG trơn, không họa tiết / hình; (b) skin
+   Gloowall OB55 theo ảnh Kho (người dùng 12/10). Shot sau của cùng cảnh giữ đúng dạng đã dùng. Vì: #27 shot 16 hổ phách, shot 19 băng
+   xanh — hai thứ khác nhau cho cùng một bức tường.
+9. **Chỗ núp / vật chắn chỉ dùng thứ CÓ trong model 3D của bối cảnh; cần thêm chỗ núp thì dùng tường keo.** Không tự vẽ thêm khối đá,
+   thùng, xe… mà map không có. Bom keo là vật phẩm thật của trận đấu nên hợp lệ ở mọi chỗ. Vì: #27 shot 16 địch núp sau vật cản không
+   có trong file 3D (người dùng 12/10). Căn cứ: sự thật sân khấu 3D (`stage_facts`), danh sách vật thể của chỗ đứng.
+10. **Nhiều người bị hạ cùng lúc: tư thế nằm khác nhau theo cách ngã.** Úp mặt, nghiêng, co người, ngửa — không mặc định cả nhóm nằm
+    ngửa dang tay. Vì: #27 shot 1 ba đồng đội nằm ngửa giống hệt nhau, người dùng yêu cầu có dáng úp gục.
+11. **Được dùng mọi khu vực có trong model 3D quanh mốc** (vd bãi cỏ quanh Tháp Đồng Hồ), không chỉ quảng trường; chọn theo hành
+    động của shot. Đây là gợi ý mở rộng chọn chỗ đứng (người dùng 12/10), không phải luật bắt buộc.
