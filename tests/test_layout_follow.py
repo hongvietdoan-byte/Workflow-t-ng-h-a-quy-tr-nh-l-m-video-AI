@@ -107,3 +107,45 @@ def test_change_review_checks_the_shots_keeping_its_layout():
         assert ids[0] in change_review.affected_scenes(p.conn, ev)
     with mock.patch.dict(os.environ, OFF):
         assert ids[0] not in change_review.affected_scenes(p.conn, ev)
+
+
+def test_no_deadlock_when_the_named_shot_waits_for_something_else():
+    """Rà 12/10 (CAO): shot 1 is the storyboard anchor, keeps the layout of shot 3, and shot 3 waits for its anchor (shot 1) — shot 1
+    must not wait for shot 3 for ever. A 0 USD 3D render or a chain of layout waits still makes it wait."""
+    from core import runner as R
+    p, pid, ids = _project()
+    data = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (ids[0],)).fetchone()[0])
+    src = _job(p, ids[2], "queued")
+    try:
+        R.WAIT_REASONS[src] = ("chờ ảnh neo của cảnh (storyboard) — sẽ tự gửi khi ảnh neo xong", __import__("time").time())
+        assert layout_follow.wait_reason(p.conn, pid, data) is None
+        R.WAIT_REASONS[src] = ("đang render nền 3D của cảnh (Blender, 0 USD) — sẽ tự gửi khi render xong", __import__("time").time())
+        assert "render nền 3D" in layout_follow.wait_reason(p.conn, pid, data)
+        R.WAIT_REASONS[src] = ("chờ ảnh shot 2 (giữ bố cục — continuity_from) — sẽ tự gửi khi ảnh đó xong", __import__("time").time())
+        assert layout_follow.wait_reason(p.conn, pid, data)                  # a chain A → B → C still waits
+    finally:
+        R.WAIT_REASONS.pop(src, None)
+
+
+def test_a_passing_failure_of_the_named_shot_still_waits():
+    p, pid, ids = _project()
+    data = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (ids[0],)).fetchone()[0])
+    _job(p, ids[2], "retryable")
+    assert layout_follow.wait_reason(p.conn, pid, data)
+
+
+def test_pilot_follows_the_chain_through_layout_shots():
+    p, pid, ids = _project()
+    d = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (ids[2],)).fetchone()[0])
+    d["continuity_from"] = 2                                              # 1 → 3 → 2
+    p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d), ids[2]))
+    p.conn.commit()
+    with mock.patch.dict(os.environ, ON):
+        assert pilot.anchors_needed(p, pid, [ids[0]]) == [ids[2], ids[1]]
+
+
+def test_windows_and_relative_paths_in_the_sent_package():
+    assert layout_follow.sent_layout_job({"refs": [{"role": "layout_from", "path": "data\\projects\\27\\images\\job_812.png"}]}) == 812
+    assert layout_follow.sent_layout_job(json.dumps({"refs": [{"role": "layout_from", "file": "job_9.png"}]})) == 9
+    assert layout_follow.sent_layout_job({"refs": [{"role": "anchor", "path": "images/job_9.png"}]}) is None
+    assert layout_follow.sent_layout_job("not json") is None

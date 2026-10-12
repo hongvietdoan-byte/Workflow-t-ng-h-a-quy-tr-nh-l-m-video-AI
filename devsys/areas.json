@@ -86,8 +86,8 @@
       "code": ["core/autopilot.py", "core/automation.py", "core/pilot.py", "core/batch.py", "core/autoqc.py", "core/qc_policy.py"],
       "assets": ["tools/pilot_run.py", "tools/pilot_setup.py"],
       "docs": ["docs/RUNBOOK.md"],
-      "tests": ["tests/test_bg_autoqc.py"],
-      "flags": ["voice_check_redo", "storyboard_auto_trust", "lip_sync", "audio_first"],
+      "tests": ["tests/test_layout_follow.py", "tests/test_bg_autoqc.py"],
+      "flags": ["layout_from_follow", "voice_check_redo", "storyboard_auto_trust", "lip_sync", "audio_first"],
       "diag_stages": ["autopilot"],
       "keywords": ["autopilot", "tự động", "tự chạy", "pilot", "chạy thử"]
     },
@@ -179,8 +179,8 @@
       "code": ["core/send_claim.py", "core/__init__.py", "core/db.py", "core/pipeline.py", "core/states.py", "core/providers.py", "core/runner.py", "core/bg_poll.py", "core/batch.py", "core/throttle.py", "core/lineage.py", "core/trash.py", "core/formats.py", "core/features.py", "core/trainee.py", "core/trainee_plans.py", "core/adapters/__init__.py", "core/adapters/http.py", "core/adapters/factory.py", "core/adapters/check.py", "core/adapters/inspect_api.py", "core/adapters/trial.py", "core/change_review.py", "core/package_overrides.py", "core/sent_package.py", "dashboard/serve.py"],
       "assets": ["mcp_servers/*", "tools/h5_setup_test.py", "prompts/30_change_review_frames.md", "tests/fixtures/change_review_frames_off.txt"],
       "docs": ["docs/V0_SETUP.md", "docs/WORKFLOW_REVIEW.md", "knowledge/checks/ca_vang/change_review_frames_d10.md"],
-      "tests": ["tests/test_send_claim.py", "tests/test_bg_autoqc.py", "tests/test_mcp_servers.py", "tests/test_trainee.py", "tests/test_trainee_plans.py", "tests/test_change_review.py", "tests/test_change_review_frames.py", "tests/test_package_overrides.py", "tests/test_sent_package.py", "tests/test_p24_lessons_1110.py", "tests/test_bg_poll_single_process.py", "tests/test_auto_send_queued.py"],
-      "flags": ["send_claim", "bg_autoqc", "change_review", "change_review_frames", "layout_drift_review", "auto_send_self_fix"],
+      "tests": ["tests/test_layout_follow.py", "tests/test_send_claim.py", "tests/test_bg_autoqc.py", "tests/test_mcp_servers.py", "tests/test_trainee.py", "tests/test_trainee_plans.py", "tests/test_change_review.py", "tests/test_change_review_frames.py", "tests/test_package_overrides.py", "tests/test_sent_package.py", "tests/test_p24_lessons_1110.py", "tests/test_bg_poll_single_process.py", "tests/test_auto_send_queued.py"],
+      "flags": ["layout_from_follow", "send_claim", "bg_autoqc", "change_review", "change_review_frames", "layout_drift_review", "auto_send_self_fix"],
       "diag_stages": ["system"],
       "keywords": ["runner", "job", "throttle", "lineage", "⚠ cũ", "features.py", "cờ", "adapter"]
     },

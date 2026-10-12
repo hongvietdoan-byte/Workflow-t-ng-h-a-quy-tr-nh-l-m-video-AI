@@ -4,9 +4,12 @@ were missing — with the flag `layout_from_follow` (off by default: a picture c
 
 1. wait: the shot's picture waits while the named shot has no picture yet but one is on its way (a job queued / running) — sent
    before it, it went out without the layout picture (only a `missing_reference` warning). No job on the way = sent as before + warned.
-2. pilot: a trial run that picks the shot also draws the named shot (`core.pilot.anchors_needed`), else the shot waited for ever.
+2. pilot: a trial run that picks the shot also draws the named shot (`core.pilot.anchors_needed`, with the storyboard anchors of those
+   shots, until nothing new), else the shot went out without its layout picture.
 3. outdated: the named shot redrawn and the new picture approved → the picture that kept its layout is "⚠ cũ" (core.lineage), read
-   from the picture really sent (`jobs.sent_package`, role layout_from); no package on record = no alarm.
+   from the picture really sent (`jobs.sent_package`, role layout_from); no package on record = no alarm. COST: an outdated picture is
+   redrawn by an automatic run / ▶ Gen ảnh (1 picture + its motion + clip, and the shots keeping ITS layout) — and the layout picture
+   used may be the named shot's first (not yet approved) picture, so a QC-rejected first picture can cost one more redraw.
    And core.change_review checks the shots that keep a changed shot's layout (reverse of continuity_from)."""
 import json
 import re
@@ -25,19 +28,32 @@ def _source_idx(data: Dict) -> Optional[int]:
     return v if isinstance(v, int) and not isinstance(v, bool) else None
 
 
+COMING = ("queued", "running", "retryable")          # rà 12/10: a passing failure (retryable) is still on its way
+# Holds that end by themselves without this shot (0 USD 3D renders) or a chain of layout waits (no loop: core.llm_io refuses one).
+# Any other hold of the named shot (its storyboard anchor / previous frame — maybe THIS shot — a person's fix) never makes this shot
+# wait: rà 12/10 (CAO) an anchor A with continuity_from = B, B waiting for its anchor A, waited for ever.
+SELF_RESOLVING = ("render nền 3D", "render lại nền 3D", "giữ bố cục")
+
+
 def wait_reason(conn, project_id: int, data: Dict) -> Optional[str]:
-    """Why this shot's picture waits for the shot it keeps the layout of, or None."""
+    """Why this shot's picture waits for the shot it keeps the layout of, or None (sent now; core.runner.layout_reference warns when the
+    layout picture is missing)."""
     want = _source_idx(data)
     if want is None:
         return None
-    from .runner import layout_frame_job
+    from .runner import layout_frame_job, wait_reason as held_for
     if layout_frame_job(conn, project_id, data) is not None:
         return None
-    coming = conn.execute("SELECT 1 FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE s.project_id=? AND s.idx=? AND j.type='image_gen'"
-                          " AND j.state IN ('queued','running') LIMIT 1", (project_id, want)).fetchone()
-    if coming is None:
-        return None
-    return f"chờ ảnh shot {want} (giữ bố cục — continuity_from) — sẽ tự gửi khi ảnh đó xong"
+    rows = conn.execute("SELECT j.id, j.state FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE s.project_id=? AND s.idx=? AND "
+                        "j.type='image_gen' AND j.state IN (" + ",".join("?" * len(COMING)) + ") ORDER BY j.id DESC",
+                        (project_id, want, *COMING)).fetchall()
+    for r in rows:
+        why = held_for(r["id"]) if r["state"] == "queued" else None
+        if not why:
+            return f"chờ ảnh shot {want} (giữ bố cục — continuity_from) — sẽ tự gửi khi ảnh đó xong"
+        if any(k in why for k in SELF_RESOLVING):
+            return f"chờ ảnh shot {want} (giữ bố cục — continuity_from); shot {want} đang chờ: {why}"
+    return None
 
 
 def source_scene_ids(conn, project_id: int, scene_ids: List[int]) -> List[int]:
@@ -95,12 +111,12 @@ def stale_reason(conn, project_id: int, image_job_id: int, data: Dict) -> Option
     want = _source_idx(data)
     if want is None:
         return None
+    from .runner import layout_frame_job
+    now = layout_frame_job(conn, project_id, data)              # cheap first; the sent package (a large blob) only when it can matter
+    if now is None or now["state"] != "approved":
+        return None
     row = conn.execute("SELECT sent_package FROM jobs WHERE id=?", (image_job_id,)).fetchone()
     sent = sent_layout_job(row["sent_package"]) if row is not None and "sent_package" in row.keys() else None
-    if sent is None:
-        return None
-    from .runner import layout_frame_job
-    now = layout_frame_job(conn, project_id, data)
-    if now is None or now["id"] == sent or now["state"] != "approved":
+    if sent is None or now["id"] == sent:
         return None
     return f"ảnh shot {want} (giữ bố cục theo nó) đã vẽ lại — ảnh này dựng theo bản cũ (job {sent}, nay job {now['id']})"

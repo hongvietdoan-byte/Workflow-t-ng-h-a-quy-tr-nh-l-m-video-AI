@@ -125,14 +125,20 @@ def anchors_needed(p: Pipeline, project_id: int, scene_ids: List[int]) -> List[i
     for the anchor's picture. The anchors of these shots that are not among them (in order), [] when the mode is off."""
     from . import layout_follow, scene_storyboard
     out: List[int] = []
-    if scene_storyboard.enabled():
-        for sid in scene_ids:
-            g = scene_storyboard.group_of(p.conn, project_id, sid)
-            anchor = g["anchor"]["id"] if scene_storyboard.uses_anchor(g, sid) else None   # lỗi D: a shot turned away needs no anchor
-            if anchor is not None and anchor not in scene_ids and anchor not in out:
-                out.append(anchor)
-    if layout_follow.enabled():                         # hộp thư 12/10 19:17: the shots they keep the layout of (continuity_from)
-        out += [s for s in layout_follow.source_scene_ids(p.conn, project_id, list(scene_ids) + out) if s not in out]
+    todo = list(scene_ids)
+    while todo:                                         # rà 12/10: anchors of the layout shots, layout shots of the anchors… until nothing new
+        new: List[int] = []
+        if scene_storyboard.enabled():
+            for sid in todo:
+                g = scene_storyboard.group_of(p.conn, project_id, sid)
+                anchor = g["anchor"]["id"] if scene_storyboard.uses_anchor(g, sid) else None   # lỗi D: a shot turned away needs no anchor
+                if anchor is not None and anchor not in scene_ids and anchor not in out and anchor not in new:
+                    new.append(anchor)
+        if layout_follow.enabled():                     # hộp thư 12/10 19:17: the shots they keep the layout of (continuity_from)
+            new += [s for s in layout_follow.source_scene_ids(p.conn, project_id, todo + new)
+                    if s not in scene_ids and s not in out and s not in new]
+        out += new
+        todo = new
     return out
 
 
