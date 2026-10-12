@@ -1,0 +1,32 @@
+# Bàn giao Đ11 việc 1 · 12/10/2026
+
+- Nhánh `codex/d11-viec1-ban-dung`, base `08c11b4`; chưa commit/push, chờ root RÀ NHẸ.
+- Phạm vi: thiết kế, HTML/SVG offline, QA JS + wrapper pytest, đăng ký dashboard_ui, 4 PNG.
+- Không sửa core/dashboard/backend/TODO/PLAN; không DB/dữ liệu thật/API/Blender; chi 0 USD.
+- Thiết kế: Director dựng sẵn, chỉnh một cảnh, BYĐ, manual_lock, proposal từng cảnh, approved warning.
+- Có quyền bản sao/Kho Owner, revision/CAS/audit/undo/path, Tiểu Nhị dùng API thật, hash/queue một worker.
+- Mockup có numeric/cell, kéo actor + camera, hai view, camera đầy đủ controls, safe/horizon/mắt.
+- Không claim solver, stage_facts/tia, auth, cache, render hoặc Dashboard thật đã triển khai.
+- Test nhóm 1 ĐỎ: file HTML chưa có, 1 failed / 0,15 s.
+- Nhóm 2 ĐỎ: undo gặp sự kiện change kép, 1 failed / 1,92 s; sửa chỉ ghi lịch sử khi số đổi.
+- Nhóm 3 ĐỎ: bbox g có text khiến click ngoài actor, 1 failed / 1,88 s.
+- Sửa fixture chọn circle để kéo thật; giữ assert tọa độ phải đổi, không nới test.
+- Nhóm 4 XANH: `py -m pytest -q -p no:cacheprovider tests/test_mockup_ban_dung_d11.py`.
+- **1 passed / 3,97 s**; runtime dưới 8 s, không gắn slow. Root cho phép lượt 4 do failure mới.
+- Chrome headless profile tạm, Playwright bundled; mọi request ngoài file bị abort, không install.
+- 1440/1280: console error/pageerror 0, overflow ngang 0; actor/camera drag, numeric/ô/beat/undo.
+- Kiểm accept/reject, approved không đổi, lens đổi preview, fix cao, so, lý do bắt buộc/version RAM.
+- Bốn ảnh `docs/images/d11/ban_dung_{1440,1280}_{director,camera}.png`; hai view × hai cỡ.
+- Sau test sửa nhãn khoảng cách thành số thực, chụp lại fixture ban đầu nhịp cuối (không chạy thêm nhóm test).
+- Đã xem ảnh 1280 hai view; không cuộn ngang. `git diff --check` sạch.
+- `devsys/areas.json` version giữ 56; khai assets/tests/docs tại dashboard_ui.
+- Hạn chế: lock boolean; proposal fixture không lan dependency thật; cỡ/góc/move khai báo, chưa giải/animation.
+- Safe area và ngưỡng cảnh báo minh họa; projection không mesh/tia thật; undo/version chỉ RAM.
+- Không cả bộ Windows, không nghiệm thu 12b.4/≤2 bấm/chất lượng/ACL/backend.
+- Bước kế: root đọc diff RÀ NHẸ; tích hợp chạy bộ bắt buộc rồi cập nhật TODO/kế hoạch/commit/push.
+
+- Root RÀ NHẸ phát hiện: nút Bỏ vẫn bật sau Chấp nhận, đổi nhãn Đã bỏ dù dữ liệu đã áp dụng.
+- Quyết định chốt cả nhận/bỏ: khóa hai nút và chặn handler lặp; muốn đổi quyết định dùng Undo.
+- Regression kiểm bỏ khi chờ giữ cảnh kế/chỉ đọc, Undo rồi nhận cập nhật đầu cảnh; Bỏ khóa sau nhận và click tổng hợp không đổi nhãn/dữ liệu.
+- Bổ sung đúng 2 lượt wrapper: ĐỎ 1 failed / 1,86 s (nút Bỏ chưa khóa); XANH 1 passed / 4,01 s.
+- XANH chạy Chrome/Playwright bundled ở 1440/1280, console=0 overflow=0; cập nhật đủ 4 PNG. Không API/dữ liệu thật/commit/push.
