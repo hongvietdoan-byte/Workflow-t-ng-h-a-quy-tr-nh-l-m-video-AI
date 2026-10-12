@@ -134,7 +134,8 @@ def _save(drafts_dir: str, drafts: List[Dict]) -> None:
         json.dump(drafts, f, ensure_ascii=False, indent=1)
 
 
-def record_audio_usage(ledger, provider, model: str, count: int = 1, quantity: Optional[float] = None, unit: str = "item") -> None:
+def record_audio_usage(ledger, provider, model: str, count: int = 1, quantity: Optional[float] = None, unit: str = "item",
+                       stage: Optional[str] = None) -> None:
     """ledger = (sqlite connection, project_id) or None. Every submission that went out may be billed. 08/10: `quantity` + `unit` =
     what ClipAI prices (characters of a TTS line, seconds of music / SFX); unknown → one 'item' at an over-estimate."""
     if ledger is None or provider.name.startswith("mock"):
@@ -143,7 +144,7 @@ def record_audio_usage(ledger, provider, model: str, count: int = 1, quantity: O
     conn, project_id = ledger
     for _ in range(count):
         record_usage(conn, None, "audio", provider.name, model, "default", quantity if quantity else 1, unit if quantity else "item",
-                     project_id=project_id)
+                     project_id=project_id, **({"stage": stage} if stage else {}))
 
 
 def audio_refusal(ledger, provider) -> Optional[str]:

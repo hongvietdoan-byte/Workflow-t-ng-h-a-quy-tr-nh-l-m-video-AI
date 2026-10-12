@@ -130,11 +130,13 @@ def selected_music(data_dir: str, project_id: int) -> Optional[str]:
 
 def audio_hash(data_dir: str, project_id: int) -> str:
     """Music + every sound effect / voice line switched on for the mix, with their times and file dates."""
+    from . import unison
+    unison_hash=unison.cache_state(audio_lib.assets_dir(data_dir,project_id))
     track = selected_music(data_dir, project_id)
     extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))
     stamp = lambda path: round(os.path.getmtime(path), 2) if path and os.path.exists(path) else None  # noqa: E731
     track2 = second_music(data_dir, project_id)
-    return lineage.settings_hash({"music": [os.path.basename(track) if track else None, stamp(track)],
+    return lineage.settings_hash({**unison_hash,"music": [os.path.basename(track) if track else None, stamp(track)],
                                   "extras": [[os.path.basename(e["path"]), e["start"], e["volume"], stamp(e["path"])] for e in extras],
                                   **({"music2": [os.path.basename(track2), stamp(track2)]} if track2 else {}),
                                   **({"cues": [[c["file"], c.get("start"), c.get("join"), stamp(c["path"])] for c in cues]}

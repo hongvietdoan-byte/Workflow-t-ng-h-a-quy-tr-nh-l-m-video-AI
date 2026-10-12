@@ -178,6 +178,12 @@ def _check_dialogue(value: Any, where: str) -> None:
         if not isinstance(d, dict) or not isinstance(d.get("speaker", ""), str) or not isinstance(d.get("text"), str) \
                 or not d["text"].strip():
             raise SchemaError(f"{where}[{j}]: cần {{speaker, text}} với text không rỗng")
+        if "unison" in d:
+            from .unison import speakers
+            try:
+                speakers(d)
+            except ValueError as exc:
+                raise SchemaError(f"{where}[{j}]: {exc}") from exc
 
 
 def _check_duration(value: Any, where: str) -> None:
@@ -489,6 +495,8 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
         kept = []
         for n, d in enumerate(rows):
             line = {"speaker": str(d.get("speaker") or "").strip(), "text": str(d["text"]).strip()}
+            if "unison" in d:
+                line["unison"] = d["unison"]
             # GĐ4: the Director's voice direction stays with its line — the same place with the same words, else the first unused
             # old line with those words (two people saying "Đi thôi." keep their own) — unless the edit gives a new one
             if "delivery" in d:

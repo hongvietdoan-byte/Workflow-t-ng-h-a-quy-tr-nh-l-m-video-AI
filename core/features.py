@@ -5,6 +5,8 @@ import os
 from typing import Dict
 
 FEATURES: Dict[str, Dict] = {
+    "unison_dialogue": {"label": "Thoại đồng thanh: mỗi người một giọng, chung nhịp", "verified": False,
+                        "why": "Đ12v5: thử âm thanh giả; onset chỉ proxy, chưa thử thật #24"},
     "package_overrides": {
         "label": "Chỉnh Gói gửi kèm theo shot (bỏ/thêm/ghim và hoàn tác)",
         "verified": False,
@@ -548,7 +550,7 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
 HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
-OPT_IN_ONLY: tuple = ("auto_send_self_fix", "qc_observe_enum")
+OPT_IN_ONLY: tuple = ("auto_send_self_fix", "qc_observe_enum", "unison_dialogue")
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.

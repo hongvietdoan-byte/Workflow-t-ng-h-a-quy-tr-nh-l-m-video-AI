@@ -216,6 +216,8 @@ def voice_poll(pid: int) -> None:
 def voice_panel(p: Pipeline, pid: int) -> None:
     """Character voices for the dialogue (TTS is the main path for Vietnamese lines): make them, hear them, size the clips."""
     stat = voice.status(p.conn, pid, C.DATA)
+    for warning in stat.get("unison_warnings", []):
+        st.warning(f"Đồng thanh · shot {warning['scene_id']}: {warning['reason']}")
     if not stat["total"]:
         return
     try:
@@ -236,6 +238,12 @@ def voice_panel(p: Pipeline, pid: int) -> None:
             st.caption(_about)
         if stat["no_voice"]:
             st.warning("Chưa có giọng cho: " + ", ".join(stat["no_voice"]) + " → chọn ở màn Kịch bản (Character Bible → 🎙 Giọng).")
+        from core import unison
+        if unison.enabled():
+            for ln in voice.planned_lines(p.conn, pid):
+                if ln.get("unison_group") is not None and ln.get("voice"):
+                    st.caption(f"Đồng thanh · {ln['speaker']} · {voice.vi_model(ln['voice'].get('model'))}" +
+                               budget.audio_tag(p.conn, 1, voice.vi_model(ln['voice'].get('model'))))
         c1, c2, c3 = st.columns(3)
         todo = stat["missing"] + stat.get("failed", 0)
         if c1.button(f"🎙 Tạo giọng cho {todo} câu" + budget.audio_tag(p.conn, todo, "eleven_v3"), key=f"tts_gen_{pid}", type="primary", disabled=provider is None or not todo,

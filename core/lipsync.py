@@ -43,10 +43,14 @@ def method_for(data: Dict, post_ok: Optional[bool] = None) -> str:
     """How this shot's mouth gets matched (see module doc). post_ok None = whether a sync.so key is set (post_available). Without
     post lip sync, a close shot (CU/ECU/MCU) that sees the speaker's face is made WITH the voice (Seedance reference_audio); a wider
     one keeps the clip's own mouth ("skip" — the mouth is small there)."""
+    from . import unison
+    has_unison = unison.enabled() and any(unison.speakers(d) for d in data.get("dialogue") or [] if isinstance(d, dict))
     post_ok = post_available() if post_ok is None else post_ok
     method = _method(data)
     if method in ("post", "generate") and take_on():
         return "take"
+    if has_unison and method == "post":
+        return "generate"  # sync.so không định tuyến được nhiều khuôn mặt cùng nói
     if method == "post" and not post_ok:
         return "generate" if str(data.get("size") or "MS").upper() in _CLOSE else "skip"
     return method
@@ -63,6 +67,9 @@ def voiced(method: str) -> bool:
 
 def no_post_note(data: Dict) -> Optional[str]:
     """The Bước 4 / diag note of a shot that would have been post-synced (sync.so) but no key is set, else None."""
+    from . import unison
+    if unison.enabled() and any(unison.speakers(d) for d in data.get("dialogue") or [] if isinstance(d, dict)):
+        return "Đồng thanh: post sync.so không hỗ trợ định tuyến nhiều mặt; dùng take/generate, cần người kiểm khớp môi"
     if post_available() or _method(data) != "post":
         return None
     how = method_for(data, post_ok=False)
@@ -122,6 +129,9 @@ def synced_scene_ids(data_dir: str, pid: int) -> set:
 def line_offsets(entries: List[Dict], lead: Optional[float] = None) -> List[float]:
     """Where each line starts inside its shot — the same rule as voice.place_on_timeline for a shot whose previous shot is quiet.
     lead: voice.LIP_LEAD for a shot made with its voice (the line on a whole second), else voice.LEAD."""
+    from . import unison
+    if unison.enabled():
+        return unison.schedule(entries, voice.LEAD if lead is None else lead, voice.GAP)
     out, cursor = [], voice.LEAD if lead is None else lead
     for e in entries:
         out.append(round(cursor, 3))
@@ -129,10 +139,17 @@ def line_offsets(entries: List[Dict], lead: Optional[float] = None) -> List[floa
     return out
 
 
-def shot_lines(data_dir: str, pid: int, scene_id: int) -> List[Dict]:
-    items = audio_lib.load(audio_lib.assets_dir(data_dir, pid))
-    return sorted([e for e in items if e.get("kind") == "tts" and e.get("scene_id") == scene_id and e.get("state") == "succeeded"
-                   and e.get("file")], key=lambda e: e.get("line") or 0)
+def shot_lines(data_dir: str, pid: int, scene_id: int, conn=None) -> List[Dict]:
+    directory=audio_lib.assets_dir(data_dir,pid)
+    items=audio_lib.load(directory)
+    from . import unison
+    if unison.enabled() or any(e.get('unison_group') is not None for e in items):
+        # Có context thì luôn đọc plan live, kể cả nhóm chưa có asset nào.
+        if unison.enabled() or os.path.exists(os.path.join(directory,'unison_context.json')) or any(e.get('unison_group') is not None for e in items):
+            plan=[ln for ln in unison.current_plan(directory,pid,conn) if ln['scene_id']==scene_id]
+            return unison.selected(items,plan,directory,strict=True,align=True)
+    return sorted([e for e in items if e.get("kind")=="tts" and e.get("scene_id")==scene_id and
+                   e.get("state")=="succeeded" and e.get("file")],key=lambda e:e.get('line') or 0)
 
 
 def shot_audio(data_dir: str, pid: int, scene_id: int, length_s: float, ffmpeg: str) -> Optional[Dict]:

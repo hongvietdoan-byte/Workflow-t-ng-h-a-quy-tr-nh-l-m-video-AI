@@ -76,9 +76,21 @@ def planned_lines(conn, project_id: int) -> List[Dict]:
     for s in conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall():
         data = json.loads(s["data"] or "{}")
         how = voice_direction.deliveries(data)
-        for n, (who, said) in enumerate(dialogue.scene_lines(data), 1):
-            out.append({"scene_id": s["id"], "idx": s["idx"], "line": n, "speaker": who, "text": said,
-                        "voice": voices.get(_norm(who)), "delivery": how[n - 1] if n <= len(how) else None})
+        from . import unison
+        rows = dialogue.scene_lines(data)
+        structured = [d for d in data.get("dialogue") or [] if isinstance(d, dict) and str(d.get("text") or "").strip()]
+        line_no = 0
+        for n, (who, said) in enumerate(rows, 1):
+            names = unison.speakers(structured[n-1]) if unison.enabled() and n <= len(structured) else None
+            for speaker in names or [who]:
+                line_no += 1
+                ln = {"scene_id": s["id"], "idx": s["idx"], "line": line_no, "speaker": speaker, "text": said,
+                      "voice": voices.get(_norm(speaker)), "delivery": how[n-1] if n <= len(how) else None}
+                if unison.enabled():
+                    ln["dialogue_line"] = n
+                if names:
+                    ln.update(unison_group=n, unison_speakers=names, dialogue_line=n)
+                out.append(ln)
     return out
 
 
@@ -258,6 +270,8 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
     if settle:                                                # a redo decided since (voice_check.settle_redos): old voice back / gone
         from . import voice_check
         voice_check.settle_redos(directory)
+    from . import unison
+    unison.bind(conn, data_dir, project_id)
     have = {(e["scene_id"], e.get("line")): (i, e) for i, e in _line_items(directory)}
     sent, skipped, no_voice, held = 0, 0, set(), []
     for ln in planned_lines(conn, project_id):
@@ -271,11 +285,20 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
         variant = ln["voice"].get("variant") or None           # S14.26: a voice shared by two roles (core/voice_casting.py)
         pitch = (variant or {}).get("pitch")
         old = have.get((ln["scene_id"], ln["line"]))
+        if unison.enabled() or any(e.get('unison_group') is not None for _,e in _line_items(directory)):
+            logical=ln.get('dialogue_line',ln['line'])
+            old=next(((i,e) for i,e in _line_items(directory) if e.get('scene_id')==ln['scene_id'] and
+                      e.get('dialogue_line',e.get('line'))==logical and e.get('speaker')==ln['speaker']),None)
         resends = 0
         if old is not None:
             i, e = old
             same = (e.get("text") == ln["text"] and e.get("voice_id") == ln["voice"]["voice_id"]
                     and (how is None or e.get("delivery") == how))      # feature off: a line made with direction is kept, not re-paid
+            if same and e['state'] in ('running','succeeded') and unison.enabled():
+                # Metadata/lịch đổi không làm thay đầu vào TTS: giữ task/WAV, 0 USD.
+                metadata={k:ln.get(k) for k in ('line','dialogue_line','unison_group','unison_speakers')}
+                e.update(metadata)
+                audio_lib.update(directory,i,**metadata)
             if same and e["state"] in ("running", "succeeded") and (e.get("pitch_semitones") or None) != (pitch or None):
                 # S14.26: only the variant's pitch changed (or was lost) — ffmpeg from the kept original, 0 USD, never a new TTS
                 e["pitch_semitones"] = pitch or None
@@ -298,6 +321,10 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
             have = {(e2["scene_id"], e2.get("line")): (j, e2) for j, e2 in _line_items(directory)}
         extra = {"scene_id": ln["scene_id"], "scene_idx": ln["idx"], "line": ln["line"], "speaker": ln["speaker"],
                  "text": ln["text"], "voice_id": ln["voice"]["voice_id"], "dialogue": True, "resends": resends}
+        if ln.get("dialogue_line") is not None:
+            extra["dialogue_line"] = ln["dialogue_line"]
+        if ln.get("unison_group") is not None:
+            extra.update({k: ln[k] for k in ("unison_group", "unison_speakers", "dialogue_line")})
         if pitch:
             extra["pitch_semitones"] = pitch                 # pitched after download (audio_lib.refresh → voice_casting.render_pitch)
         said = speakable(ln["text"])
@@ -316,6 +343,19 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
 
 def scene_seconds(conn, project_id: int, data_dir: str) -> Dict[int, float]:
     """scene_id -> seconds the voiced lines need (lines + gaps), only for scenes whose every line has a finished voice."""
+    from . import unison
+    directory=audio_lib.assets_dir(data_dir,project_id)
+    items=audio_lib.load(directory)
+    if unison.enabled() or any(e.get('unison_group') is not None for e in items):
+        groups={}
+        for ln in planned_lines(conn,project_id): groups.setdefault(ln['scene_id'],[]).append(ln)
+        result={}
+        for sid,plan in groups.items():
+            entries=unison.selected(items,plan,directory,align=True)
+            if len(entries)!=len(plan):continue
+            starts=unison.schedule(entries,0,GAP)
+            result[sid]=round(max(o+e['duration_ms']/1000. for o,e in zip(starts,entries)),2)
+        return result
     directory = audio_lib.assets_dir(data_dir, project_id)
     done: Dict[int, List[float]] = {}
     for _, e in _line_items(directory):
@@ -390,8 +430,14 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
     if durations is not None and len(durations) == len(clips):
         clips = [{**c, "_seconds": float(d)} for c, d in zip(clips, durations)]
     rendered = {c.get("scene_id") for c in clips}
+    from . import unison
+    unison.bind(conn,data_dir,project_id)
+    selection = unison.enabled() or any(e.get('unison_group') is not None for e in items)
+    planned = planned_lines(conn,project_id) if selection else []
     for e in items:                                  # D1: the lines of a clip left out of this render must not play at old times
         if e["kind"] == "tts" and e.get("dialogue") and e.get("scene_id") not in rendered:
+            e["use"] = False
+        if selection and e["kind"] == "tts" and e.get("dialogue"):
             e["use"] = False
     overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
     from . import lipsync
@@ -406,15 +452,28 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
         length = clip.get("_seconds") or final_cut.clip_seconds(clip["path"], clip["requested_sec"])
         lines = sorted([e for e in items if e["kind"] == "tts" and e.get("scene_id") == clip.get("scene_id")
                         and e["state"] == "succeeded" and e.get("file")], key=lambda e: e.get("line") or 0)
+        if selection:
+            chosen=unison.selected(items,[ln for ln in planned if ln['scene_id']==clip.get('scene_id')],
+                                   directory,strict=False,align=True)
+            lines=[]
+            for entry in chosen:
+                e=next(e for e in items if e.get('scene_id')==entry.get('scene_id') and e.get('line')==entry.get('line'))
+                e.update(entry);lines.append(e)
         # a lip-synced clip speaks its lines at fixed seconds (lipsync.shot_audio): they are laid there, never pushed later
         cursor = (t + leads.get(clip.get("scene_id"), LEAD) - shifts.get(clip.get("scene_id"), 0.0) if clip.get("scene_id") in synced   # S4.2: a group take's part
                   else max(t + LEAD, prev_end + GAP))                          # may start later / earlier in the clip than planned
         if (j_cut and lines and t > 0 and clip.get("scene_id") not in synced and prev_speaker
                 and (lines[0].get("speaker") or "") != prev_speaker):
             cursor = max(t - J_LEAD, prev_end + GAP)          # never over the previous line's real audio
-        for e in lines:
-            e.update(start=round(cursor, 2), use=True)
-            cursor += (e.get("duration_ms") or 0) / 1000.0 + GAP
+        from . import unison
+        offsets = unison.schedule(lines, cursor, GAP) if unison.enabled() else [None] * len(lines)
+        for e, onset in zip(lines, offsets):
+            onset = cursor if onset is None else onset
+            e.update(start=round(onset, 2), use=True)
+            if unison.enabled():
+                cursor = max(cursor, onset + (e.get("duration_ms") or 0) / 1000.0 + GAP)
+            else:
+                cursor += (e.get("duration_ms") or 0) / 1000.0 + GAP
             prev_end = cursor - GAP
             prev_speaker = e.get("speaker") or prev_speaker
             placed += 1
@@ -427,27 +486,72 @@ def cues(conn, project_id: int, data_dir: str) -> List:
     """Subtitle cues taken from the placed voice lines (exact timing); empty when no line is voiced."""
     from .subtitles import Cue
     out = []
+    from . import unison
+    seen = {}
     for _, e in _line_items(audio_lib.assets_dir(data_dir, project_id)):
         if e["state"] == "succeeded" and e.get("use") and e.get("duration_ms"):
+            key = (e.get("scene_id"), e.get("unison_group"))
+            if unison.enabled() and e.get("unison_group") is not None and key in seen:
+                seen[key].end = max(seen[key].end, round(e["start"] + e["duration_ms"]/1000.,2))
+                continue
             out.append(Cue(round(e["start"], 2), round(e["start"] + e["duration_ms"] / 1000.0, 2), e.get("text") or "",
                            e.get("speaker") or "", e.get("scene_idx")))
+            if unison.enabled() and e.get("unison_group") is not None:
+                seen[key] = out[-1]
     return sorted(out, key=lambda c: c.start)
 
 
 def status(conn, project_id: int, data_dir: str) -> Dict:
     """For the dashboard: lines total / voiced / running / failed / speakers without a voice."""
     directory = audio_lib.assets_dir(data_dir, project_id)
+    from . import unison
+    unison.bind(conn,data_dir,project_id)
     planned = planned_lines(conn, project_id)
     made = {(e["scene_id"], e.get("line")): e for _, e in _line_items(directory)}
     counts = {"total": len(planned), "succeeded": 0, "running": 0, "failed": 0, "missing": 0}
     for ln in planned:
         e = made.get((ln["scene_id"], ln["line"]))
-        if e is None or e.get("text") != ln["text"]:
+        if not unison.enabled() and any(x.get('unison_group') is not None for x in made.values()):
+            e=next((x for x in made.values() if x.get('scene_id')==ln['scene_id'] and
+                    x.get('dialogue_line',x.get('line'))==ln['line'] and x.get('speaker')==ln['speaker']),None)
+        from . import unison
+        changed = unison.enabled() and (e is not None) and (e.get("voice_id") != (ln.get("voice") or {}).get("voice_id") or
+                    e.get("unison_group") != ln.get("unison_group") or e.get("unison_speakers") != ln.get("unison_speakers"))
+        if e is None or e.get("text") != ln["text"] or changed:
             counts["missing"] += 1
         else:
             counts[e["state"]] = counts.get(e["state"], 0) + 1
     counts["no_voice"] = sorted({ln["speaker"] or "(không tên)" for ln in planned if not ln["voice"]})
+    from . import unison
+    if unison.enabled():
+        counts["unison_warnings"] = unison_warnings(conn, project_id, data_dir)
     return counts
+
+
+def unison_warnings(conn, project_id, data_dir, ffmpeg=None):
+    from . import unison
+    if not unison.enabled():
+        return []
+    directory = audio_lib.assets_dir(data_dir, project_id)
+    made = {(e["scene_id"], e.get("line")): e for _, e in _line_items(directory)}
+    groups = {}
+    for ln in planned_lines(conn, project_id):
+        if ln.get("unison_group") is not None:
+            groups.setdefault((ln["scene_id"], ln["unison_group"]), []).append(ln)
+    out = []
+    for (sid, group), plan in groups.items():
+        entries = [unison.original(made[(sid, ln["line"])]) if (sid,ln["line"]) in made else None for ln in plan]
+        if any(not e or e.get("state") != "succeeded" or e.get("speaker") != ln["speaker"] or e.get("text") != ln["text"] or not ln.get("voice") or e.get("voice_id") != ln["voice"]["voice_id"] or
+               e.get("unison_speakers") != ln.get("unison_speakers")
+               for e,ln in zip(entries,plan)):
+            result = {"state": "yellow", "reason": "Thiếu một giọng đồng thanh hoặc giọng chưa hoàn tất"}
+        else:
+            try:
+                result = unison.measure(entries, directory, ffmpeg or ffmpeg_studio.find_ffmpeg())
+            except ffmpeg_studio.FFmpegNotFound:
+                result = {"state": "yellow", "reason": "Không có ffmpeg để đo onset từng giọng"}
+        out.append(dict(result, scene_id=sid, group=group))
+    return out
 
 
 def exists_file(data_dir: str, project_id: int, entry: Dict) -> bool:

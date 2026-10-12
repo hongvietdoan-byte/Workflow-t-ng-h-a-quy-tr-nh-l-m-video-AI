@@ -99,7 +99,9 @@ def submit_tts(provider, directory: str, text: str, voice_actor_id: int, voice_n
                     else provider.generate_tts(text, voice_actor_id, model, language_code, name="pipeline-tts"))
     except ProviderError as e:
         return _add(directory, "tts", label, None, str(e), {**(extra or {}), "error_code": e.code, "transient": bool(e.transient)})
-    record_audio_usage(ledger, provider, model, quantity=len(text or ""), unit="char")
+    from . import unison
+    stage = {"stage": "tts_unison:" + str(extra.get("speaker") or "?")} if unison.enabled() and (extra or {}).get("unison_group") is not None else {}
+    record_audio_usage(ledger, provider, model, quantity=len(text or ""), unit="char", **stage)
     return _add(directory, "tts", label, asset_id, extra=extra)
 
 
@@ -211,6 +213,10 @@ def overlapping_tts(directory: str) -> List[Dict]:
     out = []
     for (i, a), (j, b) in zip(on, on[1:]):
         a_end = a["start"] + _duration(a)
+        from . import unison
+        if (unison.enabled() and a.get("unison_group") is not None and
+                (a.get("scene_id"), a.get("unison_group")) == (b.get("scene_id"), b.get("unison_group"))):
+            continue
         if b["start"] < a_end - 1e-9:
             out.append({"a": i, "b": j, "overlap": round(a_end - b["start"], 2)})
     return out

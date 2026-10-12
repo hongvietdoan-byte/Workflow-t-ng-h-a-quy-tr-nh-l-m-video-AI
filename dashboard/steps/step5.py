@@ -748,6 +748,8 @@ def render_panel(p: Pipeline, pid: int, chosen, durations) -> None:
             if silent_clips:
                 st.warning("Clip không có âm thanh: " + ", ".join(silent_clips) + " → âm thanh gốc sẽ bị bỏ cho cả bản ghép.")
         voiced = voice.status(p.conn, pid, C.DATA)
+        for warning in voiced.get("unison_warnings", []):
+            st.warning(f"Đồng thanh · shot {warning['scene_id']}: {warning['reason']}")
         extras = audio_lib.mix_list(audio_lib.assets_dir(C.DATA, pid))
         _note(f"Giọng thoại đã tạo: {voiced.get('succeeded', 0)}/{voiced['total']} câu (tự xếp theo clip khi dựng) · hiệu ứng/giọng khác trong bản trộn: {len(extras)}")
         problems = final_cut.render_problems(durations, transition, fade)

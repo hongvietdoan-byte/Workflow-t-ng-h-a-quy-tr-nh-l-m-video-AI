@@ -35,8 +35,11 @@ AVOID_COMMON = ("frozen or closed mouth while the character speaks, mouth moving
 def segments(lines: List[Dict], lead: float = voice.LEAD, gap: float = 0.35) -> List[Dict]:
     """[{speaker, text, file, start, end}] — each voiced line ({speaker, text, file, duration_ms}) one after the other: `lead` seconds of
     picture first, `gap` between lines (a speaker change needs a breath — longer than voice.GAP inside one shot)."""
+    from . import unison
+    starts = unison.schedule(lines, lead, gap) if unison.enabled() else [None] * len(lines)
     out, t = [], lead
-    for ln in lines:
+    for ln, onset in zip(lines, starts):
+        t = t if onset is None else onset
         d = (ln.get("duration_ms") or 0) / 1000.0
         if d <= 0:
             raise ValueError(f"line without a length (not voiced yet?): {ln.get('speaker')}: {ln.get('text')}")
@@ -46,7 +49,9 @@ def segments(lines: List[Dict], lead: float = voice.LEAD, gap: float = 0.35) -> 
 
 
 def length(segs: List[Dict]) -> float:
-    return round(segs[-1]["end"] + TAIL, 3) if segs else 0.0
+    from . import unison
+    end = max(s["end"] for s in segs) if unison.enabled() and segs else (segs[-1]["end"] if segs else 0)
+    return round(end + TAIL, 3) if segs else 0.0
 
 
 def billed_seconds(segs: List[Dict]) -> int:
@@ -81,6 +86,11 @@ def _stamp(a: float, b: float) -> str:
 
 def lip_directive(segs: List[Dict], label: Dict[str, str]) -> str:
     """The lip-sync block: who speaks Audio1, visemes of their own lines only, everyone else's mouth still, closed in silence."""
+    from . import unison
+    if unison.enabled() and any(len(g)>1 for g in _simultaneous(segs)):
+        return ("AUDIO & LIP-SYNC: speakers sharing a timeline window say the SAME line SIMULTANEOUSLY, "
+                "each mouth follows its own voice in Audio1. Everyone outside the named group keeps their mouth still. "
+                "Close mouths during silence; keep each reference identity attached to its named speaker.")
     speakers = sorted({s["speaker"].upper() for s in segs}, key=lambda n: label.get(n, n))
     return ("AUDIO & LIP-SYNC: " + " and ".join(f"{label.get(n, '')} {n}".strip() for n in speakers)
             + " speak Audio1 in Vietnamese. Sync the mouth, jaw, teeth and tongue to every syllable, vowel and consonant of their own "
@@ -88,14 +98,39 @@ def lip_directive(segs: List[Dict], label: Dict[str, str]) -> str:
               "the mouth closed or still. The mouth closes in every silence.")
 
 
+def _simultaneous(segs):
+    """Runner giữ start/text nhưng không copy metadata: suy nhóm chính xác từ cặp này."""
+    from . import unison
+    groups = []
+    for seg in segs:
+        matching = next((g for g in groups if unison.enabled() and
+                         (g[0]["start"], g[0]["text"], g[0].get("scene_id")) ==
+                         (seg["start"],seg["text"],seg.get("scene_id"))),None)
+        if matching is None:
+            groups.append([seg])
+        else:
+            matching.append(seg)
+    out = []
+    for group in groups:
+        if len({s["speaker"].strip().casefold() for s in group}) == len(group):
+            out.append(group)
+        else:
+            out.extend([s] for s in group)
+    return out
+
+
 def dialogue_lines(segs: List[Dict], label: Dict[str, str], beats: Optional[Dict] = None) -> List[str]:
-    """One timeline line per spoken line: its whole-second window, the speaker (C-label), the words in Vietnamese."""
+    """Một dòng timeline cho một event thoại, đồng thanh gồm tất cả người cùng nói."""
     beats = beats or {}
     out = []
-    for i, s in enumerate(segs):
-        who = f"{s['speaker']} / {label.get(s['speaker'].upper(), '')} lipsync @Audio1".replace(" /  lipsync", " / lipsync")
+    for i, group in enumerate(_simultaneous(segs)):
+        s = group[0]
+        names = " and ".join(f"{g['speaker']} / {label.get(g['speaker'].upper(), '')}".rstrip(' /') for g in group)
+        who = (names + " lipsync @Audio1" if len(group)>1 else
+               f"{s['speaker']} / {label.get(s['speaker'].upper(), '')} lipsync @Audio1".replace(" /  lipsync", " / lipsync"))
+        simultaneous = " SIMULTANEOUS UNISON" if len(group)>1 else ""
         extra = f" {beats[i].rstrip('.')}." if beats.get(i) else ""
-        out.append(f"{_stamp(s['start'], s['end'])} Dialogue ({who}): \"{s['text']}\"{extra}")
+        out.append(f"{_stamp(s['start'], max(g['end'] for g in group))} Dialogue ({who}{simultaneous}): \"{s['text']}\"{extra}")
     return out
 
 
