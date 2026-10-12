@@ -84,9 +84,22 @@ def own_camera(g: Dict, scene_id: int) -> bool:
     đó. Ảnh neo (frame 1 cũ nhìn tháp) + phiên storyboard chung kéo lại nền cũ: 9/9 ảnh vẽ 'nền mẫu' tháp giữa + nhà mái đỏ dù máy
     nhìn Tây (job 623–631). Như lỗi D: không ảnh neo, phiên riêng; câu dặn riêng (không ép bỏ mốc — máy có thể vẫn thấy tháp)."""
     from . import features, plate_camera
-    if not features.on("stage_camera") or not g.get("anchor") or g["anchor"]["id"] == scene_id:
+    if not g.get("anchor") or g["anchor"]["id"] == scene_id:
+        return False
+    if other_spot(g, scene_id):
+        return True
+    if not features.on("stage_camera"):
         return False
     return bool((_shot_data(g, scene_id) or {}).get(plate_camera.STAGE_FIELD))
+
+
+def other_spot(g: Dict, scene_id: int) -> bool:
+    """12/10 (#27 cảnh 7): a shot standing on ANOTHER spot of the 3D place than the anchor (plate_spot level_9_4 vs bac_thang_giua) —
+    the anchor picture shows another part of the map (shot 15, the gunfight spot, got the pick-up spot's frame 1, job 771). Both
+    spots written and different → treated as the shot's own camera: no anchor picture, its own render only."""
+    mine = (_shot_data(g, scene_id) or {}).get("plate_spot")
+    theirs = (g["anchor"].get("data") or {}).get("plate_spot")
+    return bool(mine and theirs and mine != theirs)
 
 
 OWN_CAMERA_NOTE = (" This frame has its OWN camera on the stage (another position, height, direction and tilt than frame 1): its "
@@ -262,15 +275,24 @@ PREVIOUS_NOTE = ("\nImage {n} is the shot right before this one: keep exactly it
                  "and the background — change only what this frame's text says.")
 
 
+LAYOUT_NOTE = ("\nImage {n} is an EARLIER shot at this same place: every person or object seen in both shots stays exactly where it is "
+               "there — same spot, spacing, order, pose and facing, relative to the landmarks and to each other — now seen from this "
+               "shot's own camera; take the camera, framing and the main character's action from this frame's text, never this "
+               "picture's framing.")
+
+
 def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], job_id: int = 0,
-               previous: Optional[str] = None, landmark: Optional[str] = None) -> Optional[Dict]:
+               previous: Optional[str] = None, landmark: Optional[str] = None, layout: Optional[str] = None,
+               layout_label: Optional[str] = None) -> Optional[Dict]:
     """(storyboard kwargs for the provider, the reference list to send) for this shot's picture job, or None (not in storyboard mode).
     refs = the shared references already chosen for the job; a non-anchor shot adds the anchor picture last.
     previous = the approved picture of the shot right before (project set to "always chain the previous shot"): sent after the anchor —
     07/10 Khủng Long Đỏ: "same frame as shot 3" came out in another frame because storyboard mode sent only the anchor (shot 1).
     A shot turned away from the landmark (turned_away, lỗi D 08/10 #24) gets NO anchor picture and a storyboard session of its own;
     its people/outfits still come from `refs` (the shared references keep each character's pictures) and away_note goes with the
-    prompt. landmark = the place's landmark name for that sentence."""
+    prompt. landmark = the place's landmark name for that sentence.
+    layout = the picture of an earlier shot of ANOTHER sequence at the same spot (scene `continuity_from`, 12/10 #27 shot 11–12: the
+    fallen teammates moved after the branch) — sent last with LAYOUT_NOTE."""
     g = group_of(conn, pid, scene_id)
     if g is None:
         return None
@@ -283,6 +305,9 @@ def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], j
     if previous and os.path.exists(previous) and previous != anchor_pic:
         send.append({"path": previous, "label": "previous shot (same camera)", "role": "same_frame"})
         prev_note = PREVIOUS_NOTE.format(n=len(send))
+    if layout and os.path.exists(layout) and layout not in (anchor_pic, previous):
+        send.append({"path": layout, "label": layout_label or "earlier shot (same place)", "role": "layout_from"})
+        prev_note += LAYOUT_NOTE.format(n=len(send))
     mode = "global" if refs else "sequential"
     anchor_job = job_id if is_anchor else int(os.path.basename(anchor_pic)[4:].split(".")[0].split("_")[0]) if anchor_pic else 0
     fresh = 0 if is_anchor or not fresh_session(conn, job_id) else job_id

@@ -21,7 +21,9 @@ def mapping_text(refs: List[Dict], shared: int) -> str:
     lines = []
     for i, r in enumerate(refs):
         head = f"Image {i + 1} ({r.get('label', '')})" if r.get("label") else f"Image {i + 1}"
-        if i < shared:
+        if r.get("role") == "layout_from":          # 12/10 #27: an earlier shot at this spot — its people's places, never its framing
+            lines.append(f"{head}: earlier shot at the same place; keep where each person and object is, not its framing.")
+        elif i < shared:
             lines.append(f"{head}: user reference image {i + 1}; preserve visible identity, subject details, and style cues.")
         elif i == shared and shared:
             lines.append(f"{head}: first generated frame visual continuity anchor; inherit style, color palette, lighting mood, "

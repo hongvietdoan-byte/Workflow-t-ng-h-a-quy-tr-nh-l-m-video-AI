@@ -25,7 +25,7 @@ KEEP_DAYS = 30
 # trường của shot → các khâu phụ thuộc (đổi trường này thì phải rà những khâu này)
 WATCH: Dict[str, Tuple[str, ...]] = {}
 for _k in ("image_prompt", "blocking", "location", "location_asset", "layout", "size", "angle", "lens_mm", "weather", "plate_spot",
-           "plate_view", "practical_lights", "stage_camera", "characters", "performance", "time", "lighting"):
+           "plate_view", "practical_lights", "stage_camera", "characters", "performance", "time", "lighting", "continuity_from"):
     WATCH[_k] = ("nen", "anh", "neo", "lien_tuc", "motion", "khung_cuoi", "video")
 for _k in ("action", "camera_move", "end_state", "continuous_with_next", "motion_en", "why", "emotional_intent", "beat"):
     WATCH[_k] = ("motion", "khung_cuoi", "video", "anh", "lien_tuc")
