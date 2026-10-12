@@ -44,8 +44,19 @@ def _blender_reporter(db: str) -> None:
     plates3d.set_reporter(report)
 
 
+def _utf8_output() -> None:
+    """12/10: chạy qua preview / dịch vụ (stdout là pipe cp1252) → print tiếng Việt ném UnicodeEncodeError, cả trong nhánh except, và
+    máy chủ thoát mã 1. Ghi UTF-8, ký tự không ghi được thì thay — dòng log không bao giờ làm sập máy chủ."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):  # luồng đã bị thay (test) / đã đóng: giữ nguyên
+            pass
+
+
 def main(argv: Optional[List[str]] = None, run: Optional[Callable[[], object]] = None) -> object:
     argv = list(sys.argv[1:] if argv is None else argv)
+    _utf8_output()
     try:
         started = start_background()
         print(f"vòng nền: {'đã bắt đầu' if started else 'không bắt đầu (đã chạy, tiến trình khác giữ, hoặc BG_POLL=0)'}", flush=True)

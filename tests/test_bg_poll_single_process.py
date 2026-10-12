@@ -59,3 +59,22 @@ def test_launch_json_dashboards_on_the_real_db_use_serve():
             if "PIPELINE_DB=" in cmd:
                 continue                                         # bản demo dùng CSDL riêng
             assert "py -m dashboard.serve" in cmd and "streamlit run dashboard/app.py" not in cmd, c["name"]
+
+
+def test_serve_survives_a_cp1252_stdout(monkeypatch):
+    """12/10: preview_start chạy serve với stdout là pipe cp1252 → print 'vòng nền: …' ném UnicodeEncodeError (cả nhánh except) và máy
+    chủ thoát mã 1. Nay ghi UTF-8 → Streamlit vẫn được chạy."""
+    import io
+    import sys
+    from dashboard import serve
+    raw = io.BytesIO()
+    out = io.TextIOWrapper(raw, encoding="cp1252")
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.setattr(sys, "stderr", io.TextIOWrapper(io.BytesIO(), encoding="cp1252"))
+    monkeypatch.setattr(sys, "argv", list(sys.argv))
+    monkeypatch.setattr(serve, "start_background", lambda: True)
+    ran = []
+    assert serve.main(["--server.port", "8598"], run=lambda: ran.append(1) or 0) == 0
+    assert ran == [1]
+    out.flush()
+    assert "vòng nền".encode("utf-8") in raw.getvalue()
