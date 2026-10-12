@@ -920,6 +920,8 @@ def loudness_line(p: Pipeline, pid: int) -> None:
                    + ("" if any(c.get("fixed") for c in off) else " · bật cờ khớp màu (FEATURE_SHOT_COLOR_MATCH=1) để tự sửa bản sao"))
     amb = man.get("ambience")
     if amb:                                   # GĐ4 D4/D5: which bed each scene got, and the scenes the library had nothing for
+        if amb.get('error'):
+            st.warning(f"🌧 Không ghép được âm nền môi trường: {amb['error']}")
         _note("🌧 Âm nền: " + (", ".join(f"cảnh {b['scene']}: {b['sound']}" for b in amb.get("beds") or []) or "không cảnh nào")
                    + (f" · chưa có âm hợp trong thư viện cho cảnh {', '.join(map(str, amb['missing']))}" if amb.get("missing") else ""))
     m = man.get("loudness")

@@ -673,7 +673,8 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
                                 settings["transition"], settings["fade"])
             extras = list(extras) + [dict({k: e[k] for k in ("path", "start", "volume")}, key=False) for e in amb["extras"]]
         except Exception as e:  # noqa: BLE001 - no bed is better than no render; the reason is kept
-            amb = {"extras": [], "missing": [], "error": str(e)[:200]}
+            amb = {"extras": [], "missing": [], "error": str(e)}
+            diag.record(p.conn, "render", "warn", f"Không ghép được âm nền môi trường: {e}", "ambience_audio", project_id)
     breaths = twist_times(p, project_id, rows, durations, settings["transition"], settings["fade"]) if features.on("music_breath") and track else []
     music_off, intent = [], None
     plan = sound_plan(p, rows, durations, settings["transition"], settings["fade"], edits)

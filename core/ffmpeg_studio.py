@@ -17,6 +17,12 @@ class FFmpegError(Exception):
     pass
 
 
+def local_audio_source(src: str, output: str) -> str:
+    """An audio input selected from Kho, snapshotted on the local TEMP disk before cutting/mixing."""
+    from . import sound_lib
+    return sound_lib.local_audio(src, os.path.dirname(os.path.abspath(output)))
+
+
 def find_ffmpeg() -> str:
     path = os.environ.get("FFMPEG_PATH") or shutil.which("ffmpeg")
     if not path:

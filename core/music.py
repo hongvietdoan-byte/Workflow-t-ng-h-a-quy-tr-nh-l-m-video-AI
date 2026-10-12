@@ -223,8 +223,11 @@ def select_draft(drafts_dir: str, selected_dir: str, index: int) -> str:
 
 def use_library_track(selected_dir: str, src_path: str) -> str:
     """Make a file of the person's own library the project's background music (copied; the original is untouched)."""
-    if not os.path.exists(src_path):
-        raise ValueError("file nhạc không còn ở vị trí cũ")
+    from .sound_lib import local_audio, SoundError
+    try:
+        src_path = local_audio(src_path, selected_dir)
+    except SoundError as exc:
+        raise ValueError(str(exc)) from exc
     clear_selected(selected_dir)
     dest = os.path.join(selected_dir, "selected" + os.path.splitext(src_path)[1].lower())
     shutil.copyfile(src_path, dest)
@@ -282,10 +285,12 @@ def pick_sources(conn, data_dir: str, project_id: int, query: str = "", limit: i
 def use_pick(pipeline: Pipeline, data_dir: str, project_id: int, path: str, second: bool = False) -> str:
     """The chosen file becomes the background music (or the second music) — copied, the original never moves. Missing file → ValueError."""
     if not os.path.exists(path):
-        raise ValueError("Tệp nhạc không còn ở vị trí cũ (ổ mạng chưa kết nối hoặc đã xóa) — chọn bản khác")
+        raise ValueError(f"Không đọc được file âm thanh {path}: hãy chép về máy rồi chọn lại bản cục bộ")
     if second:
         from . import delivery
         d2 = delivery.second_music_dir(data_dir, project_id)
+        from .sound_lib import local_audio
+        path = local_audio(path, d2)
         clear_selected(d2)
         dest = os.path.join(d2, "second" + os.path.splitext(path)[1].lower())
         shutil.copyfile(path, dest)

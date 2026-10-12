@@ -69,6 +69,7 @@ def choose(conn, data: Dict) -> Optional[Dict]:
 
 
 def _bed(src: str, seconds: float, out: str, ffmpeg: str) -> str:
+    src = ffmpeg_studio.local_audio_source(src, out)
     fade_out = max(seconds - FADE_S, 0)
     ffmpeg_studio.run([ffmpeg, "-y", "-stream_loop", "-1", "-i", src, "-t", f"{seconds:.2f}", "-af",
                        f"afade=t=in:d={FADE_S},afade=t=out:st={fade_out:.2f}:d={FADE_S},aformat=sample_rates=48000:channel_layouts=stereo",

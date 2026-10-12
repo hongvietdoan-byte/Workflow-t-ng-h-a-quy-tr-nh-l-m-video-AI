@@ -60,7 +60,9 @@ def add_local(directory: str, src_path: str, label: str, start: float = 0.0, vol
     while os.path.exists(os.path.join(directory, f"local_{n}{ext}")):
         n += 1
     name = f"local_{n}{ext}"
-    shutil.copyfile(src_path, os.path.join(directory, name))
+    from .sound_lib import local_audio
+    source = local_audio(src_path, directory)
+    shutil.copyfile(source, os.path.join(directory, name))
     entry = {"kind": "sound_effect", "label": label, "asset_id": "local", "file": name, "duration_ms": duration_ms, "state": "succeeded",
              "message": None, "use": True, "start": max(float(start), 0.0), "volume": max(min(float(volume), 2.0), 0.0), **(extra or {})}
     items.append(entry)

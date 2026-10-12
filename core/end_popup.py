@@ -371,6 +371,7 @@ def apply(conn, video: str, output: str, cfg: Dict) -> Dict:
     """The popup over the last `seconds` of `video` (the end of its last shot) + a pop sound as each icon pops, mixed into the
     video's own sound (a silent video gets a track). {"start_s", "seconds", "items", "headline", "sound", "pops_s"}."""
     from . import ffmpeg_studio
+    from .sound_lib import SoundError
     items = resolve(conn, cfg)
     size = ffmpeg_studio.probe_size(video)
     total = ffmpeg_studio.probe_duration(video) or 0.0
@@ -391,6 +392,13 @@ def apply(conn, video: str, output: str, cfg: Dict) -> Dict:
             raise ValueError('popup: vị trí nằm ngoài bản dựng')
         seconds = min(cfg["seconds"], total - start)
         sound = pop_sound(conn, cfg) if items else None
+        sound_note = None
+        if sound:
+            try:
+                sound_input = ffmpeg_studio.local_audio_source(sound, output)
+            except (OSError, ValueError, SoundError) as exc:
+                sound_note = f'tiếng pop không dùng được: {exc} — ghép icon không tiếng'
+                sound = None
         pops = [t for t in pop_times(len(items), start) if t < total] if sound else []
         frames(items, cfg["headline"], size, seconds, work, cfg)
         cmd = [ffmpeg_studio.find_ffmpeg(), "-y", "-i", video, "-framerate", str(FPS), "-itsoffset", f"{start:.3f}",
@@ -399,7 +407,7 @@ def apply(conn, video: str, output: str, cfg: Dict) -> Dict:
         video_graph = f"[0:v][1:v]overlay=0:0:eof_action=pass{gate},{ffmpeg_studio.TO_YUV709}[v]"
         if pops:
             has_audio = ffmpeg_studio.has_audio(video)
-            cmd += ["-i", sound]
+            cmd += ["-i", sound_input]
             if not has_audio:                          # a silent video: the pops go on a new track as long as the video
                 cmd += ["-f", "lavfi", "-t", f"{total:.3f}", "-i", "anullsrc=r=48000:cl=stereo"]
             norm = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo"
@@ -420,6 +428,8 @@ def apply(conn, video: str, output: str, cfg: Dict) -> Dict:
         shutil.rmtree(work, ignore_errors=True)
     out = {"start_s": round(start, 2), "seconds": round(seconds, 2), "items": [i["label"] for i in items], "headline": cfg["headline"],
            "sound": sound, "pops_s": pops, "held_s": round(held, 2)}
-    if items and not sound and cfg.get("sound") is not False:     # luật 1: say it, never a silent gap
+    if sound_note:
+        out['sound_note'] = sound_note
+    elif items and not sound and cfg.get("sound") is not False:     # luật 1: say it, never a silent gap
         out["sound_note"] = "không có tiếng pop: Kho âm thanh không có tiếng pop ≤ 0,5 s và chưa đặt end_popup.sound"
     return out

@@ -11,6 +11,12 @@ Uses: search and preview in Step 5, "use as the background music", "add as a sou
 asks for it - the automatic mode picks a background track that matches the scene moods, at no credit cost.
 """
 import os
+import hashlib
+import stat
+import tempfile
+import threading
+import time
+from contextlib import contextmanager
 import re
 import shutil
 from typing import Dict, List, Optional
@@ -39,7 +45,7 @@ SCENE_MOODS = {"kịch tính": ("cang thang", "hoi hop", "kich tinh", "tension",
                "thư giãn": ("binh yen", "thu gian", "calm", "peace", "nhe nhang", "yen tinh")}
 
 
-class SoundError(Exception):
+class SoundError(ValueError):
     """A message that can be shown to the person."""
 
 
@@ -407,11 +413,121 @@ def pick_music(conn, scene_mood_texts: List[str], min_seconds: float = 0, seed: 
     return best
 
 
+
+# Cache is disposable and always on the machine's TEMP disk, even when the project is on Drive.
+LOCAL_AUDIO_MAX_BYTES = 1024 * 1024 * 1024
+LOCAL_AUDIO_MAX_FILES = 128
+_LOCAL_AUDIO_LOCK = threading.RLock()
+
+
+def _cache_folder(work_dir):
+    scope = hashlib.sha256(os.path.normcase(os.path.abspath(work_dir)).encode()).hexdigest()[:24]
+    return os.path.join(tempfile.gettempdir(), "ai-video-audio-cache", scope)
+
+
+@contextmanager
+def _cache_process_lock(folder):
+    os.makedirs(folder, exist_ok=True)
+    lock_dir = os.path.join(tempfile.gettempdir(), 'ai-video-audio-locks')
+    os.makedirs(lock_dir, exist_ok=True)
+    with open(os.path.join(lock_dir, os.path.basename(folder) + '.lock'), 'a+b') as lock:
+        lock.seek(0, os.SEEK_END)
+        if not lock.tell():
+            lock.write(b'0'); lock.flush()
+        deadline = time.monotonic() + 120
+        while True:
+            try:
+                lock.seek(0)
+                if os.name == 'nt':
+                    import msvcrt
+                    msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise SoundError('Cache âm thanh đang bận; thử lại khi lượt dựng trước kết thúc')
+                time.sleep(.05)
+        try:
+            yield
+        finally:
+            lock.seek(0)
+            if os.name == 'nt':
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def local_audio(src: str, work_dir: str) -> str:
+    source = os.fspath(src)
+    if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", source) or source.startswith(("\\\\?\\", "\\\\.\\")):
+        raise SoundError("Nguồn âm thanh phải là file Kho; hãy chép về máy rồi chọn lại bản cục bộ")
+    with _LOCAL_AUDIO_LOCK:
+        with _cache_process_lock(_cache_folder(work_dir)):
+            return _local_audio(src, work_dir)
+
+
+def _local_audio(src: str, work_dir: str) -> str:
+    """Snapshot an already selected Kho audio source before ffmpeg. No URLs/downloads.
+
+    Cache identity is absolute source + size + nanosecond mtime, scoped to a project work directory.
+    A unique partial file is checked before atomic publication; the original is never modified.
+    """
+    source = os.fspath(src)
+    message = f"Hãy chép về máy rồi chọn lại bản cục bộ; không đọc được file âm thanh {source}"
+    cleanup_note = ''
+    if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", source) or source.startswith(("\\\\?\\", "\\\\.\\")):
+        raise SoundError("Nguồn âm thanh phải là file Kho; hãy chép về máy rồi chọn lại bản cục bộ")
+    try:
+        before = os.stat(source)
+        if not stat.S_ISREG(before.st_mode):
+            raise OSError("không phải file thường")
+        identity = (os.path.normcase(os.path.abspath(source)), before.st_size, before.st_mtime_ns)
+        folder = _cache_folder(work_dir)
+        os.makedirs(folder, exist_ok=True)
+        if (os.path.normcase(os.path.realpath(os.path.dirname(source))) == os.path.normcase(os.path.realpath(folder))
+                and re.fullmatch(r'[0-9a-f]{64}\.(mp3|wav|m4a|ogg|flac|aac)', os.path.basename(source))):
+            return source
+        key = hashlib.sha256(repr(identity).encode()).hexdigest()
+        ext = os.path.splitext(source)[1].lower()
+        if ext not in AUDIO_EXT:
+            raise OSError("định dạng không thuộc Kho âm thanh")
+        dest = os.path.join(folder, key + ext)
+        if os.path.isfile(dest) and os.path.getsize(dest) == before.st_size:
+            return dest
+        entries = [os.path.join(folder, name) for name in os.listdir(folder) if name != '.lock']
+        if len(entries) >= LOCAL_AUDIO_MAX_FILES or sum(os.path.getsize(x) for x in entries if os.path.isfile(x)) + before.st_size > LOCAL_AUDIO_MAX_BYTES:
+            raise OSError("cache tạm âm thanh đầy; dọn thư mục TEMP ai-video-audio-cache khi không dựng")
+        fd, part = tempfile.mkstemp(suffix=".part", dir=folder)
+        os.close(fd)
+        try:
+            shutil.copyfile(source, part)
+            after = os.stat(source)
+            if (after.st_size, after.st_mtime_ns) != (before.st_size, before.st_mtime_ns) or os.path.getsize(part) != before.st_size:
+                raise OSError("nguồn thay đổi khi chép hoặc bản chép chưa đủ")
+            try:
+                os.replace(part, dest)
+            except PermissionError:
+                # Another process can publish the identical immutable snapshot first on Windows.
+                if not os.path.isfile(dest) or os.path.getsize(dest) != before.st_size:
+                    raise
+        finally:
+            if os.path.exists(part):
+                try:
+                    os.remove(part)
+                except OSError as cleanup_error:
+                    # A leftover remains included in the cap; preserve the copy/source error.
+                    cleanup_note = f'; còn file tạm chưa dọn được: {part} ({cleanup_error})'
+        return dest
+    except OSError as exc:
+        raise SoundError(f"{message} ({exc}){cleanup_note}") from exc
+
+
 def copy_into(sound: Dict, dest_dir: str, name: str) -> str:
     """Copy a library file into a project folder (the original is never moved)."""
-    if not os.path.exists(sound["path"]):
-        raise SoundError("File không còn ở vị trí cũ (Drive chưa kết nối hoặc đã xóa)")
+    source = local_audio(sound["path"], dest_dir)
     os.makedirs(dest_dir, exist_ok=True)
     dest = os.path.join(dest_dir, name + sound["ext"])
-    shutil.copyfile(sound["path"], dest)
+    shutil.copyfile(source, dest)
     return dest
