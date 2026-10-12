@@ -1,5 +1,5 @@
 {
-  "version": 64,
+  "version": 65,
   "updated": "2026-10-12",
   "_note": "Bản đồ hệ thống của AI Development System. Mỗi file .py dưới core/ và dashboard/ phải thuộc ít nhất một khu vực (thiếu = cảnh báo). 'code' / 'assets' / 'docs' là mẫu đường dẫn (fnmatch, '*' khớp cả '/'). 'tests' thêm tay ngoài các test tự dò theo import. 'flags' = tên trong core/features.py. 'diag_stages' = stage của bảng diag_events. 'ops_stages' (S14.10 Đợt 6b) = khâu của góp ý người dùng / số đo hiệu quả vận hành (core/feedback.STAGES: director, image, motion, audio, render, ui). 'keywords' dùng để gán dòng TODO.md vào khu vực (không phân biệt hoa thường). Sửa file này khi thêm module mới rồi tăng 'version'.",
   "scan_roots": ["core", "dashboard"],
@@ -43,7 +43,7 @@
       "code": ["core/voice.py", "core/voice_casting.py", "core/voice_check.py", "core/voice_direction.py", "core/audio_first.py", "core/project_defaults.py", "core/claude_tasks.py", "core/llm_runner.py", "dashboard/steps/step3.py", "core/motion_prompt_lint.py"],
       "assets": ["prompts/03_*", "prompts/11_*", "prompts/15_*", "knowledge/motion_prompt_lint.md", "knowledge/video_motion_vocab.md", "knowledge/motion_complex_shots.md", "knowledge/t2v_prompt_structure.md", "data/motion_vocab.json", "data/voices_vi.json", "data/pronunciation_vi.json", "tools/voice_trial.py"],
       "docs": [],
-      "tests": [],
+      "tests": ["tests/test_code_motion_p27.py"],
       "flags": ["voice_direction", "voice_check_redo", "j_cut", "audio_first", "auto_voice_cast", "short_lock_outfit"],
       "diag_stages": ["motion", "voice"],
       "ops_stages": ["motion", "audio"],
