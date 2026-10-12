@@ -233,6 +233,17 @@ class VideoReviewFixes1210(_Flags):
         held2 = dict(s, performance={"body": "holds the SKORP ready"})
         self.assertTrue([i for i in pf.lint_motion(sr.shot_motion(held2), held2) if i["part"] == "pov_tay_khong"])
 
+    def test_pov_english_version_wins_over_the_director_field(self):   # 12/10 #27 S1/S2: motion_en sửa tay trống → hết ĐỎ giả
+        s = {"size": "MS", "angle": "pov", "camera_move": "static", "action": "nhìn ba đồng đội gục",
+             "performance": {"body": "tay siết chặt báng súng"},
+             "motion_en": {"action": "looks at three fallen teammates",
+                           "performance": {"body": "both empty hands open, fingers flex slightly"}}}
+        self.assertFalse([i for i in pf.lint_motion(sr.shot_motion(s), s) if i["part"] == "pov_tay_khong"])
+        gun_en = dict(s, motion_en={"action": "looks on", "performance": {"body": "hand tightens on the gun grip"}})
+        self.assertTrue([i for i in pf.lint_motion(sr.shot_motion(gun_en), gun_en) if i["part"] == "pov_tay_khong"])
+        no_en = dict(s, motion_en={"action": "looks at three fallen teammates"})   # chưa dịch performance: trường gốc vẫn bị kiểm
+        self.assertTrue([i for i in pf.lint_motion(sr.shot_motion(no_en), no_en) if i["part"] == "pov_tay_khong"])
+
     def test_clear_sky_written_in_the_shot_gives_drifting_clouds(self):   # rà 12/10: "video không đơ" — mây trôi
         d = {"weather": "clear", "location": "Tháp Đồng Hồ", "image_prompt": "Free Fire in-game 3D render, stone plaza under a blue sky"}
         self.assertEqual(pf.ambient_sentence(d)[0], "Clouds drift slowly across the sky in the background.")

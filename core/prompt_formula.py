@@ -552,9 +552,11 @@ def pov_hand_issues(prompt: str, data: Dict, ff: Optional[bool] = None) -> List[
     if ff is False or str((data or {}).get("angle") or "").strip().lower() != "pov":
         return []
     bits = []                                                    # rà 12/10: the acting / action only, not the whole prompt
-    for src in (data, data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}):
-        perf = src.get("performance") if isinstance(src.get("performance"), dict) else {}
-        bits += [str(v) for v in perf.values() if isinstance(v, str)] + [str(src.get("action") or "")]
+    en = data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}
+    perf = en.get("performance") or data.get("performance")     # 12/10 #27 S1/S2: the English form is what is sent (seedance_refs._en,
+    perf = perf if isinstance(perf, dict) else {}               # shot_motion: 4 keys of a dict) — hand-fixed English acting: no false ĐỎ
+    bits += [str(perf[k]) for k in ("face", "eyes", "body", "timing") if isinstance(perf.get(k), str)]
+    bits.append(str(en.get("action") or data.get("action") or ""))
     m = _POV_GUN.search(" | ".join(bits))
     if not m:
         return []
