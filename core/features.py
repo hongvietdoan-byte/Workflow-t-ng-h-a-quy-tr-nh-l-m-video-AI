@@ -32,6 +32,10 @@ FEATURES: Dict[str, Dict] = {
                "TỐN TIỀN khi bật: ảnh ⚠ cũ được chạy tự động / ▶ Gen ảnh vẽ lại (ảnh + motion + clip mỗi shot giữ bố cục)"},
     "send_claim": {"label": "Giữ chỗ gửi job trong CSDL — 2 tiến trình (script + Dashboard) không gửi trùng một job (0 USD)", "verified": False,
         "why": "Hộp thư 12/10 19:58: #27 job 776 gửi 2 lần (script + vòng nền), Deepix tạo 2 task; khóa lượt chỉ trong một tiến trình"},
+    "locomotion_end_frame": {"label": "Shot chạy/đi: không gửi khung cuối vẽ khi clip sinh dài hơn shot × 1,3 + câu mốc cảnh vật khi máy bám theo (0 USD)",
+        "verified": False,
+        "why": "Hộp thư 12/10 18:13: #27 shot 3 job 782 (shot 1–2 s, Kling sinh 3 s, khung cuối 'vài bước' ở giây 3 + máy bám sau) chạy tại chỗ; "
+               "job 783 bỏ khung cuối + câu mốc cảnh vật chạy thật — mới 1 lần thử"},
     "auto_send_self_fix": {
         "label": "Vòng nền tự gửi job tự sửa (QC gen lại) khi không có chạy tự động",
         "verified": False,

@@ -6,7 +6,7 @@ when the prompt only names the action. ONE sentence per shot (Seedance 2.5 提�
 only 1–2 highlights; a list of body parts overloads it). The first kind that matches wins, in the order below (a fight that includes
 running is described as a fight). Wording from general animation practice (weight, contact, follow-through), not from one sample."""
 import re
-from typing import Optional
+from typing import Dict, Optional
 
 # (kind, words in the Director's action — English after translation, Vietnamese before — , the sentence)
 KINDS = (
@@ -53,10 +53,60 @@ def kind(action: str) -> Optional[str]:
     return None
 
 
-def sentence(action: str) -> str:
-    """The physics sentence for this action, or "" (no body action of a known kind: a look, a line, a still moment)."""
+def sentence(action: str, camera_move: Optional[str] = None) -> str:
+    """The physics sentence for this action, or "" (no body action of a known kind: a look, a line, a still moment).
+    camera_move (optional, flag locomotion_end_frame): a run / walk the camera follows gets the ground sentence after it."""
     text = _GAME_NAME.sub(" ", action or "")
+    out = ""
     for _, rx, s in _COMPILED:
         if rx.search(text):
-            return s
-    return ""
+            out = s
+            break
+    if camera_move is not None and _ground_sentence_on() and follows(camera_move) and moves_through_space(action):
+        out = (out + " " + GROUND_SENTENCE).strip()
+    return out
+
+
+# Hộp thư 12/10 18:13 (#27 shot 3, job 782 → 783): a run the camera follows from behind, with nothing in the prompt about the place
+# moving past, came back running in place; job 783 (the sentence below, no drawn end frame) covered real ground.
+LOCOMOTION_FLAG = "locomotion_end_frame"
+GROUND_SENTENCE = ("The camera keeps the same distance, so the surroundings move past — nearby objects slide by and the destination "
+                   "grows larger; real ground is covered, never running in place.")
+STRETCH = 1.3                       # generated seconds above the shot's seconds × this → the drawn end frame lands too late
+_LOCOMOTION = [rx for k, rx, _ in _COMPILED if k in ("run", "walk")]
+_FOLLOW = re.compile(r"\b(?:follow\w*|track\w*|push[\s_-]*in|dolly[\s_-]*in|truck\w*|bám\w*|theo sau|đẩy vào)\b", re.I)
+
+
+def _ground_sentence_on() -> bool:
+    from . import features
+    return features.on(LOCOMOTION_FLAG)
+
+
+def moves_through_space(action: str) -> bool:
+    """A run or a walk anywhere in the action (not only the first kind: "runs and jumps over" still covers ground)."""
+    text = _GAME_NAME.sub(" ", action or "")
+    return any(rx.search(text) for rx in _LOCOMOTION)
+
+
+def follows(camera_move: Optional[str]) -> bool:
+    return bool(_FOLLOW.search(str(camera_move or "").replace("_", " ")))
+
+
+def shot_action(data: Dict) -> str:
+    """The Director's action and its English form (motion_en) — either one naming a run / walk counts."""
+    en = data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}
+    return " ".join(str(x) for x in (data.get("action"), en.get("action")) if x)
+
+
+def in_place_risk(data: Dict, shot_secs: float, gen_secs: float) -> Optional[str]:
+    """Why a DRAWN end frame would make this shot run in place, or None: a run / walk generated much longer than the shot (Kling ≥ 3 s,
+    Seedance ≥ 4 s for a 1–2 s shot) puts the drawn end ("a few steps on") at the end of the longer clip, so the runner covers the
+    shot's distance over the whole clip — the cut keeps the first seconds, where the legs move and the ground does not."""
+    try:
+        shot_secs, gen_secs = float(shot_secs or 0), float(gen_secs or 0)
+    except (TypeError, ValueError):
+        return None
+    if shot_secs <= 0 or gen_secs <= shot_secs * STRETCH or not moves_through_space(shot_action(data)):
+        return None
+    return (f"shot di chuyển {shot_secs:g} s nhưng clip sinh {gen_secs:g} s (> {STRETCH:g}×) — khung cuối vẽ bị ép ở giây {gen_secs:g}, "
+            "dễ thành chạy tại chỗ")

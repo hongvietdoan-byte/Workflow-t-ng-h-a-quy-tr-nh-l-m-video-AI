@@ -1203,7 +1203,8 @@ class VideoRunner(_Runner):
         (data/provider_rules.json) take no end frame: not sent, said (VÀNG with the reason — never dropped silently)."""
         from . import end_frames, shots
         end = shots.last_frame_for(self.p.conn, self.data_dir, job["scene_id"]) if chain else None
-        if end is None and end_frames.enabled():
+        drawn = end is None
+        if drawn and end_frames.enabled():
             end = end_frames.usable_path(self.p.conn, job["scene_id"])      # K1: the drawn end state
         if not end or not ("seedance" in (model or "") or end_frames.enabled()):
             return None
@@ -1213,6 +1214,8 @@ class VideoRunner(_Runner):
             canonical, family = resolve_model(model or None)
         except Exception:  # noqa: BLE001 - an unknown name is judged by the adapter, as before
             return end
+        if drawn and self._runs_in_place(job, canonical, family):
+            return None                  # the next shot's picture (chain) stays: that one IS where this shot ends
         r = video_rules.rule(canonical)
         if r and not r.get("end_frame" if family == "omni" else "last_frame", False):
             self._diag_once(job, "warn", "end_frame_unsupported", f"có khung cuối ({os.path.basename(end)}) nhưng "
@@ -1220,6 +1223,25 @@ class VideoRunner(_Runner):
                             "khung cuối, cảnh kết thúc theo prompt")
             return None
         return end
+
+    def _runs_in_place(self, job, canonical: str, family: str) -> bool:
+        """Flag locomotion_end_frame (hộp thư 12/10 18:13, #27 job 782): a run / walk generated much longer than the shot gets no drawn
+        end frame — said once (VÀNG), never dropped silently."""
+        from . import features, motion_physics
+        from .adapters.clipai import effective_duration
+        if not features.on(motion_physics.LOCOMOTION_FLAG):
+            return False
+        row = self.p.conn.execute("SELECT id, data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+        if row is None:
+            return False
+        data = json.loads(row["data"] or "{}")
+        secs = self._cut_seconds({"id": row["id"], "data": data})
+        if secs <= 0:
+            return False
+        why = motion_physics.in_place_risk(data, secs, effective_duration(canonical, family, math.ceil(secs - 1e-6)))
+        if why:
+            self._diag_once(job, "warn", "locomotion_end_frame", f"{why} — clip gửi KHÔNG kèm khung cuối vẽ (cờ {motion_physics.LOCOMOTION_FLAG})")
+        return bool(why)
 
     def _no_lip_sync_note(self, job, model, group) -> None:
         """Luật 1: a shot planned to be made WITH its voice (lip sync "generate") that goes out on another model / inside a group clip
