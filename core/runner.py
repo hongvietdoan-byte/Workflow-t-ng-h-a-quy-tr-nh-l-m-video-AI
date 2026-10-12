@@ -81,6 +81,11 @@ class RedrawWithFix(Exception):
         self.fix = fix
 
 
+class UpgradeCutFailed(Exception):
+    """A paid 1080p upgrade whose shot part could not be cut where the draft was cut: the job fails (red, diag final_cut) and is
+    NOT retried — a retry pays again; the 1080p clip is kept as <idx>_group.mp4 for ✂ cắt tay (0 USD)."""
+
+
 def _turn(project_id: int, job_type: str) -> threading.RLock:
     """M3: one submitter/poller per project and job type in this process. The dashboard tab (every few seconds) and the autopilot
     thread used to poll the same job at once - the clip was downloaded twice and a follower job could be made twice. The thread
@@ -146,6 +151,11 @@ def _span(part, edges, trim, whole, lone_ref: bool) -> Dict:
     return {"start": round(start, 3), "length": None if length is None else round(length, 3),
             "trim": round(float(trim["start"]), 3) if isinstance(trim, dict) and "start" in trim else None,
             "lone_ref": bool(lone_ref), "whole": round(float(whole), 3) if whole else None}
+
+
+def _with_whole(span: Dict, measured: Optional[float]) -> Dict:
+    """`span` with "whole" = the measured seconds of the task's whole clip; not measured → None (never guessed from the parts)."""
+    return dict(span, whole=round(float(measured), 3) if measured else None)
 
 
 def _copy_package(conn, source, job_id: int, new_ext: Optional[str] = None) -> None:
@@ -622,6 +632,10 @@ class _Runner:
                     counts["failed"] += 1
                     if self.p.retry(job["id"], str(e), fix=plan.apply() if plan is not None else e.fix) is not None:
                         counts["retried"] += 1
+                    continue
+                except UpgradeCutFailed as e:         # rà 12/10: said red in diag (final_cut); never retried (a retry pays again)
+                    self.p.fail(job["id"], f"final_cut: {e}")
+                    counts["failed"] += 1
                     continue
                 self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, job["id"]))
                 self.p.conn.commit()
@@ -1824,10 +1838,10 @@ class VideoRunner(_Runner):
                  else self._sends_group(job))       # M10: the group as it was sent (a later re-plan must not mis-cut a paid clip)
         part, edges, whole = None, None, None
         if group:
-            parts = self._finish_group(job, path, group)
+            whole = _probe(path)               # rà 12/10: the whole group clip measured (== <idx>_group.mp4), before it is cut; not
+            parts = self._finish_group(job, path, group, whole=whole)   # measured → no "whole" (never the parts' sum / res["end"])
             edges = self._clean_edges(job, path)
             part = parts[0] if isinstance(parts, list) and parts else None
-            whole = parts[-1][0] + parts[-1][1] if isinstance(parts, list) and parts else None
         else:
             whole = _probe(path)
         lone_ref = False
@@ -1881,11 +1895,13 @@ class VideoRunner(_Runner):
                 lipsync.mark(self.data_dir, leader["project_id"], r["id"], state="done",
                              shift=round(float(st) - float(rec.get("planned_start") or 0), 3))
 
-    def _finish_group(self, leader, path: str, group) -> Optional[list]:
+    def _finish_group(self, leader, path: str, group, whole: Optional[float] = None) -> Optional[list]:
         """Cut a group clip into its shots; the followers' jobs get their part. Returns each shot's part [(start, seconds)] in the whole
         clip (None when the cut points are not known) — recorded on each take (clip_span) so its final is cut at the same place."""
         from . import formats, lineage, shots
         conn = self.p.conn
+        if whole is None:
+            whole = _probe(path)                  # the whole clip's seconds, measured before it is cut (None = unknown, not guessed)
         dests = [path] + [os.path.join(self._dir(leader["project_id"], "videos"), f"{r['idx']:02d}.mp4") for r in group[1:]]
         from . import takes                     # F3 (#24 job 590/592/594): a group clip never overwrites the followers' older takes —
         for r, dest in zip(group[1:], dests[1:]):  # each goes to the trash under its own job, its result_path follows (↩ Dùng bản này)
@@ -1925,7 +1941,7 @@ class VideoRunner(_Runner):
             except Exception as e:  # noqa: BLE001
                 self._diag(self.p.job(jid), "warn", "trim_error", f"không cắt được clip theo độ dài shot: {e}")
             conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, jid))
-            self._save_span(jid, _span(parts[k], edges, trim, parts[-1][0] + parts[-1][1], False) if parts else None)
+            self._save_span(jid, _span(parts[k], edges, trim, whole, False) if parts else None)
             conn.commit()
             self.p.succeed(jid)
         return parts
@@ -2012,23 +2028,26 @@ class VideoRunner(_Runner):
                        "cũ, có thể KHÁC đoạn nháp đã duyệt: xem lại" + (" ; các shot khác của clip nhóm không được cắt 1080p tự động"
                                                                          if members else ""))
             return None
-        whole = path
-        if members:
-            whole = os.path.splitext(path)[0] + "_group.mp4"
-            shutil.copyfile(path, whole)                  # the whole 1080p group clip, kept for ✂ cắt lại (seedance_refs.recut)
+        whole = os.path.splitext(path)[0] + "_group.mp4"   # rà 12/10: always a copy — never cut a file onto itself (whole == path)
+        shutil.copyfile(path, whole)                      # the whole 1080p clip, kept for ✂ cắt lại (seedance_refs.recut)
         try:
             err = self._cut_span(job["scene_id"], whole, path, span)
         except Exception as e:  # noqa: BLE001
             err = f"{type(e).__name__}: {e}"
         if err:
-            self._diag(job, "warn", "final_cut", f"không cắt được bản cao đúng đoạn nháp job {draft['id']} ({err}) — kiểm tra file trước khi dùng")
-        self._save_span(job["id"], dict(span, whole=_probe(whole) or span.get("whole")))
+            self._diag(job, "error", "final_cut", f"không cắt được bản cao đúng đoạn nháp job {draft['id']} ({err}) — clip 1080p đã trả "
+                       f"tiền giữ ở {os.path.basename(whole)} (✂ cắt tay, 0 USD); không gửi lại")
+            if os.path.exists(path):
+                os.remove(path)                           # a wrong part (the whole clip) is never left as the shot's file
+            raise UpgradeCutFailed(err)
+        measured = _probe(whole)
+        self._save_span(job["id"], _with_whole(span, measured))
         for m in members:
             if m["scene_id"] != job["scene_id"]:
-                self._upgrade_follower(job, m, whole)
+                self._upgrade_follower(job, m, whole, measured)
         return path
 
-    def _upgrade_follower(self, final, draft, whole: str) -> None:
+    def _upgrade_follower(self, final, draft, whole: str, measured: Optional[float] = None) -> None:
         """One other shot of the upgraded group clip: its 1080p part, cut where its draft part was — a job `final` of that shot (a
         queued one is used), with the draft's stamp; never a second paid task. Not cut (said VÀNG, the shot is made again instead):
         its draft is not the approved one, its inputs changed after the draft, it already has another final, or the part is unknown."""
@@ -2059,46 +2078,91 @@ class VideoRunner(_Runner):
             return
         jid = queued[0]["id"] if queued else self.p._insert_job(final["project_id"], sid, "video_gen", quality_tier="final",
                                                                  draft_job_id=draft["id"])
-        dest = os.path.join(self._dir(final["project_id"], "videos"), f"{idx:02d}.mp4")
-        takes.make_room(conn, self.data_dir, {"id": jid, "scene_id": sid, "project_id": final["project_id"]}, dest, with_raw=True)
+        videos = self._dir(final["project_id"], "videos")
+        dest = os.path.join(videos, f"{idx:02d}.mp4")
+        tmp_dir = os.path.join(videos, ".upgrade_tmp")    # rà 12/10: cut aside first — the draft's file moves only once the cut is right
+        os.makedirs(tmp_dir, exist_ok=True)
+        tmp = os.path.join(tmp_dir, f"{idx:02d}.mp4")
+        tmp_raw = os.path.splitext(tmp)[0] + "_raw.mp4"
         conn.execute("UPDATE jobs SET group_leader=?, external_id=?, model=?, input_hash=?, source_job_id=?, draft_job_id=? WHERE id=?",
                      (final["id"], final["external_id"], final["model"] or draft["model"], draft["input_hash"], draft["source_job_id"],
                       draft["id"], jid))
         _copy_package(conn, final, jid)        # sent as part of the final's request (paid once, one ledger row on the final)
         self._running(jid, f"phần bản cao của clip nhóm 1080p (job {final['id']}) — đúng đoạn nháp job {draft['id']}, không gửi thêm task")
+        for old in (tmp, tmp_raw):
+            if os.path.exists(old):
+                os.remove(old)
         try:
-            err = self._cut_span(sid, whole, dest, span)
+            err = self._cut_span(sid, whole, tmp, span)
         except Exception as e:  # noqa: BLE001
             err = f"{type(e).__name__}: {e}"
+        if not err:
+            try:
+                takes.make_room(conn, self.data_dir, {"id": jid, "scene_id": sid, "project_id": final["project_id"]}, dest, with_raw=True)
+                os.replace(tmp, dest)
+                if os.path.exists(tmp_raw):
+                    os.replace(tmp_raw, os.path.splitext(dest)[0] + "_raw.mp4")
+            except Exception as e:  # noqa: BLE001
+                err = f"đưa phần đã cắt vào chỗ lỗi ({type(e).__name__}: {e})"
         if err:
             self._diag(self.p.job(jid), "error", "final_follower_cut", f"S{idx:02d}: không cắt được phần bản cao từ clip nhóm 1080p ({err}) — "
-                       "bản nháp cũ vẫn trong thùng rác (↩ Dùng bản này); cắt tay ở ✂ (0 USD)")
-            if os.path.exists(dest):
-                os.remove(dest)                     # a wrong part (the whole clip) is never left as the shot's file
+                       "file nháp của shot giữ nguyên; cắt tay ở ✂ (0 USD)")
+            for bad in (tmp, tmp_raw):
+                if os.path.exists(bad):
+                    os.remove(bad)                  # a wrong part (the whole clip) is never left as the shot's file
             self.p.fail(jid, f"final_follower_cut: {err}")
             return
         conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, jid))
-        self._save_span(jid, dict(span, whole=_probe(whole) or span.get("whole")))
+        self._save_span(jid, _with_whole(span, measured))
         conn.commit()
         self.p.succeed(jid)
 
     def _final_shared_task(self, job) -> Optional[Dict]:
         """A final whose draft task is already being upgraded by another final job (a group clip carries several shots): never a second
-        paid upgrade of the same task — wait for that clip (its part is cut from it, _upgrade_follower), or stop when it is done."""
-        draft = self.p.conn.execute("SELECT external_id FROM jobs WHERE id=?", (job["draft_job_id"],)).fetchone() \
-            if job["draft_job_id"] else None
-        if draft is None or not draft["external_id"]:
+        paid upgrade of the same task — wait for that clip (its part is cut from it, _upgrade_follower), or stop when it is done.
+        Only a real upgrade is held (rà 12/10): a NEW gen of the final (e.g. a Kling group, a fix, a confirmed new gen) never waits.
+        Several queued finals of one draft task, none sent yet: the lowest id goes first, the others wait (never paid twice)."""
+        if not self._upgrade_candidate(job):
             return None
-        other = self.p.conn.execute(
-            "SELECT f.id, f.state FROM jobs f JOIN jobs d ON d.id=f.draft_job_id WHERE f.type='video_gen' AND f.quality_tier='final' "
-            "AND f.id!=? AND d.external_id=? AND f.external_id IS NOT NULL AND f.state IN ('running','succeeded','pending_review','approved') "
-            "ORDER BY f.id DESC LIMIT 1", (job["id"], draft["external_id"])).fetchone()
+        conn = self.p.conn
+        task = conn.execute("SELECT external_id FROM jobs WHERE id=?", (job["draft_job_id"],)).fetchone()["external_id"]
+        rows = conn.execute(
+            "SELECT f.* FROM jobs f JOIN jobs d ON d.id=f.draft_job_id WHERE f.type='video_gen' AND f.quality_tier='final' "
+            "AND f.id!=? AND d.external_id=? ORDER BY f.id DESC", (job["id"], task)).fetchall()
+        upgrades = set()
+        for r in rows:
+            try:
+                call = json.loads(r["sent_package"] or "{}").get("call")
+            except (ValueError, TypeError, AttributeError):
+                call = None
+            if call == "submit_final_from_sample" and r["external_id"]:
+                upgrades.add(r["id"])
+        other = next((r for r in rows if r["state"] in ("running", "succeeded", "pending_review", "approved")
+                      and (r["id"] in upgrades or (r["group_leader"] and r["group_leader"] in upgrades))), None)
         if other is None:
+            first = next((r for r in rows if r["state"] == "queued" and not r["external_id"] and r["id"] < job["id"]
+                          and self._upgrade_candidate(r)), None)
+            if first is not None:
+                return {"_wait": f"task nháp này sẽ được nâng 1080p ở job {first['id']} (gửi trước) — phần shot này cắt từ clip đó, "
+                                 "không gửi thêm task"}
             return None
         if other["state"] == "running":
             return {"_wait": f"clip nhóm 1080p của task nháp này đang nâng ở job {other['id']} — phần shot này cắt từ clip đó, không gửi thêm task"}
         return {"_hold": f"clip nhóm 1080p của task nháp này đã có ở job {other['id']} (đã trả tiền) — không nâng lần 2; phần shot này "
                          "không cắt được từ clip đó (xem chẩn đoán final_follower_skipped): gen nháp lại shot này"}
+
+    def _upgrade_candidate(self, job) -> bool:
+        """A final that would be sent as an upgrade of its draft's task: a Seedance 2.5 draft with a task, no fix sentence, no
+        confirmed new gen (the same test as _upgrade_draft for a job without a package)."""
+        from . import quality_tier
+        if "quality_tier" not in job.keys() or job["quality_tier"] != "final" or not job["draft_job_id"]:
+            return False
+        draft = self.p.conn.execute("SELECT model, external_id FROM jobs WHERE id=?", (job["draft_job_id"],)).fetchone()
+        if draft is None or not draft["external_id"]:
+            return False
+        if quality_tier.confirmed_new(job) or model_fix(job["retry_reason"]):
+            return False
+        return quality_tier._canonical(draft["model"])[0] == quality_tier.SAMPLE_MODEL
 
 
 NO_CANCEL_API = ("deepix",)

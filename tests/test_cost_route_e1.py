@@ -723,7 +723,8 @@ class UpgradeReviewFixTests(UpgradeCutsTheDraftPartTests):
         f = self.final()
         self.poll()
         lead = self.p.job(f)
-        self.assertAlmostEqual(_start_second(lead["result_path"]), 0.0, delta=0.3)       # the person's cut, not the automatic 1 s
+        # the person's cut (0 s), not the automatic 1 s — a re-encoded cut keeps Y >= 16 (limited range), so 0 s reads 16/20 = 0.8
+        self.assertAlmostEqual(_start_second(lead["result_path"]), 0.8, delta=0.1)
         self.assertAlmostEqual(ffmpeg_studio.probe_duration(lead["result_path"]), 2.0, delta=0.15)
         for sid, start, sec in ((self.sids[1], 2.0, 3.0), (self.sids[2], 5.0, 3.0)):
             row = self.p.conn.execute("SELECT * FROM jobs WHERE scene_id=? AND quality_tier='final'", (sid,)).fetchone()

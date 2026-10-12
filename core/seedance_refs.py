@@ -667,9 +667,16 @@ def recut(p, leader_id: int, cuts: List[float]) -> Dict:
     out = _cut_parts(whole, bounds, dests, find_ffmpeg())
     old = (saved_cuts(whole) or {}).get("cuts")
     _save_cuts(whole, {"cuts": cuts, "by": "user", "moved": [[a, b] for a, b in zip(old or [], cuts) if a != b]}, length)
-    for m, dest in zip(members, out):
+    for k, (m, dest) in enumerate(zip(members, out)):
         if m["idx"] not in skipped and not m["result_path"] and os.path.exists(dest):
             p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, m["id"]))
+        if m["idx"] not in skipped:                       # rà 12/10: the final upgraded from this task is cut where the person cut
+            span = {"start": round(bounds[k], 3), "length": round(bounds[k + 1] - bounds[k], 3), "trim": None, "lone_ref": False,
+                    "whole": round(length, 3) if length else None}
+            try:
+                p.conn.execute("UPDATE jobs SET clip_span=? WHERE id=?", (json.dumps(span), m["id"]))
+            except Exception:  # noqa: BLE001 - an old database without the column: the final says it cannot find the span
+                pass
     p.conn.commit()
     data_dir = type(p)._data_dir_of(leader) if hasattr(type(p), "_data_dir_of") else None
     if data_dir:                                          # S4.2: a take shot's voice follows where its part now starts

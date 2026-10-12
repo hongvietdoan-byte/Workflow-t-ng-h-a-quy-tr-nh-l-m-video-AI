@@ -26,7 +26,21 @@
 follower đổi motion bị báo không cắt; follower hỏi bản cao giữa chừng chờ, chỉ 1 lần nâng; sổ chi 8 s một dòng) và
 `UpgradeLoneTrimmedDraftTests` (lẻ 1,833 s, sổ chi 5 s). Lượt xanh 9 file liên quan: 177 passed, 1 xfailed (xfail Đ8 có sẵn).
 
+## Rà độc lập 12/10 — đã sửa (6 test mới ĐỎ → XANH, `SharedTaskGuardTests` + `UpgradeReviewFixTests`)
+1+5. `_final_shared_task` chỉ giữ final là ỨNG VIÊN NÂNG (`_upgrade_candidate`: nháp 2.5 có task, không câu sửa, không xác nhận gen
+   mới) — final gen MỚI (vd nhóm Kling) không bị giữ; `other` chỉ tính final gửi `submit_final_from_sample` (hoặc follower của nó);
+   nhiều final queued cùng task nháp → id nhỏ nhất gửi trước, còn lại `_wait` (không trả tiền 2 lần).
+2. `seedance_refs.recut` (✂ cắt tay) ghi `clip_span` mới cho mỗi shot không bị bỏ qua → bản cao cắt theo điểm người dùng chỉnh.
+3. `_finish_upgrade` luôn chép clip 1080p ra `<idx>_group.mp4` trước khi cắt (không cắt file lên chính nó); cắt lỗi → diag `error`
+   `final_cut`, xóa file sai, `UpgradeCutFailed` → poll `p.fail` KHÔNG retry (retry = trả tiền lần nữa).
+4. `_upgrade_follower` cắt ra `videos/.upgrade_tmp/`, đúng rồi mới `make_room` + đổi tên vào chỗ; lỗi → file nháp giữ nguyên.
+6. `whole` = đo clip nguyên (trước khi cắt) cho leader + follower; đo lỗi → `whole` None (không đoán từ tổng phần / `res["end"]`).
+- Test `test_recut_by_hand_moves_where_the_final_is_cut` sửa kỳ vọng mốc 0 s: cắt mã hóa lại giữ Y ≥ 16 → đọc 0,8 (delta 0,1,
+  chặt hơn; mốc 1 s tự động vẫn đỏ). Không nới.
+
 ## Đang dở / việc mở
+- (7) `dashboard/steps/step4.py:626` `group_cut_panel` hiện trên thẻ final leader: follower bị bỏ qua (`final_follower_skipped`)
+  làm số điểm cắt lệch `cuts.json` của `<idx>_group.mp4` bản cao (thao tác tay, 0 USD) — chưa sửa.
 - Chưa chạy agent rà khâu liên quan (CLAUDE.md luật 7) — phiên gốc chạy trước khi gộp main (`py tools/related_areas.py`:
   core_infra/step4/step2/step1 + autopilot/budget/dashboard_ui/step3/step5 gọi tới; test CHẬM ở bước gộp).
 - Dữ liệu #24 cũ (nháp không có `clip_span`) không tự sửa được: follower 02/03/09 và 05 phải cắt tay từ `_raw`/`_group` (0 USD).
