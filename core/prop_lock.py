@@ -178,6 +178,143 @@ def _colour_words(asset: Dict, category_: str, text: str) -> List[str]:
     return list(dict.fromkeys(out))
 
 
+# Heuristic đã được người dùng chốt Đ16v2: không phải số đo, không tự gán mét.
+_WEAPON_TYPES = {
+    "SMG": r"smgs?|sub[- ]?machine guns?|súng tiểu liên|tiểu liên",
+    "rifle": r"(?:assault |sniper )?rifles?|súng trường|súng bắn tỉa",
+    "pistol": r"pistols?|handguns?|súng lục|súng ngắn",
+    "shotgun": r"shotguns?|súng săn",
+}
+_SCALE_LABEL = re.compile(r"(?<!\w)(?:scale|relative size|tỉ lệ|tỷ lệ|kích thước so người)\s*:\s*((?:[^.;\n]|(?<=\d)\.(?=\d))+)", re.I)
+_TYPE_SCALE = {
+    "SMG": "compact shoulder weapon, approximately forearm-to-shoulder length, not pistol-sized",
+    "rifle": "long shoulder weapon, larger than a forearm",
+    "pistol": "short hand-held weapon, smaller than a forearm; keep handgun proportions",
+    "shotgun": "long shoulder weapon, larger than a forearm",
+}
+
+
+def weapon_scale(conn, asset: Dict, variant: Optional[str] = None) -> str:
+    """Tỉ lệ hồ sơ/mô tả/số đo thắng ước lượng theo loại; loại mâu thuẫn không đoán.
+
+    Dùng trường hồ sơ hiện có (must_keep/identity/build), nhãn 'Tỉ lệ:' trong mô tả,
+    hoặc kích thước Kho. Không migration, không sửa hồ sơ và không API.
+    """
+    profile = assets.get_profile(conn, asset["id"])
+    if not isinstance(profile, dict):
+        profile = {}
+    desc = form_text(asset, variant) if _forms(asset.get("description") or "") else re.sub(r"^\s*\[[^\]]*\]\s*", "", str(asset.get("description") or "")).split("[", 1)[0]
+    for source in [str(profile.get(k) or "") for k in ("must_keep", "identity", "build")] + [desc]:
+        m = _SCALE_LABEL.search(source)
+        if m:
+            return m.group(1).strip()
+    size = asset.get("size") or {}
+    if size:
+        return "Library measured dimensions: " + ", ".join(f"{k.removesuffix('_m')} {float(size[k]):g} m" for k in ("height_m", "width_m") if k in size)
+    body = " ".join([str(profile.get(k) or "") for k in ("identity", "must_keep", "build")]
+                    + assets.names_of(asset) + [desc])
+    kinds = set()
+    for kind, pattern in _WEAPON_TYPES.items():
+        for m in re.finditer(r"(?<!\w)(?:" + pattern + r")(?!\w)", body, re.I):
+            if not re.search(r"(?:not|never|không(?: phải| là)?)\s+(?:an?\s+)?$", body[max(0, m.start() - 35):m.start()], re.I):
+                kinds.add(kind)
+    if len(kinds) != 1:
+        return ""
+    kind = next(iter(kinds))
+    return f"Estimated {kind} proportions (not measured): {_TYPE_SCALE[kind]}"
+
+
+# Cụm thuộc tính song ngữ; dùng riêng cho vệ sinh, giữ contract cảnh báo cũ.
+_ATTRIBUTE_GROUPS = (
+    ("black", "đen"), ("white", "trắng"), ("opaque", "đục"), ("grey", "gray", "xám"),
+    ("brown", "nâu"), ("amber", "hổ phách"), ("red", "đỏ"), ("yellow", "vàng"),
+    ("blue", "xanh lam", "xanh dương"), ("green", "xanh lá"), ("purple", "tím"),
+    ("pink", "hồng"), ("orange", "cam"), ("silver", "bạc"), ("gold", "golden"),
+    ("translucent", "transparent", "trong suốt"), ("metal", "metallic", "kim loại"),
+    ("glass", "glassy"), ("ice", "icy", "băng"), ("crystal", "crystalline", "pha lê"),
+    ("neon",), ("glowing",), ("xanh",),
+)
+_ATTRIBUTE_KEY = {word: i for i, group in enumerate(_ATTRIBUTE_GROUPS) for word in group}
+_ATTRIBUTE_RX = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(w) for w in sorted(_ATTRIBUTE_KEY, key=len, reverse=True)) + r")(?!\w)", re.I)
+_OTHER_NOUN_HEAD = re.compile(r"(?:[- ](?:shaped|like)\b|\s+(?:toy|case|rack|bottle|lamp|light)\b)", re.I)
+
+
+def _form_attributes(form: str):
+    # Một màu được nêu trong mệnh đề phủ định không phải thuộc tính chuẩn.
+    return {_ATTRIBUTE_KEY[m.group().lower()] for m in _ATTRIBUTE_RX.finditer(form)
+            if not re.search(r"(?:not|no|never|không)\s+$", form[:m.start()], re.I)}
+
+
+def clean_prompt(conn, project_id: int, data: Dict, text: str):
+    """Bỏ màu/chất liệu mâu thuẫn CHỈ trong cụm tính từ sát trước món mặc định.
+
+    Không dùng cửa sổ ký tự (dễ xóa màu vật cạnh bên), không sửa dữ liệu nguồn.
+    Nhiều món cùng loại: chỉ khớp tên riêng, không đoán từ chung. Skin giữ nguyên.
+    Trả (chữ gửi, các cụm đã bỏ) để Dashboard hiện cùng thay đổi thật.
+    """
+    if not enabled() or not text:
+        return text, []
+    pool, _, _, _ = _scan(conn, project_id, data)
+    cuts = []
+    prefix = re.compile(r"(?:" + _ATTRIBUTE_RX.pattern + r")(?:[ -]+(?:" + _ATTRIBUTE_RX.pattern + r"))*[ -]+$", re.I)
+    suffix = re.compile(r"\s+(?:is|made of|of|là|bằng)\s+((?:" + _ATTRIBUTE_RX.pattern
+                        + r")(?:[ -]+(?:" + _ATTRIBUTE_RX.pattern + r"))*)(?=\s*(?:[.;,!?]|$))", re.I)
+    for lk in locks(conn, project_id, data):
+        if lk["variant"] is not None or not lk["form"]:
+            continue
+        a, cat = lk["asset"], lk["category"]
+        kept = _form_attributes(lk["form"])
+        spans = []
+        if sum(c == cat for _, c in pool) == 1:
+            spans += [m.span() for m in _SHOT_RX[cat].finditer(text)]
+        for name in assets.names_of(a):
+            if len(assets.fold(name)) >= 3:
+                spans += [m.span() for m in re.finditer(r"(?<!\w)" + re.escape(name.strip()) + r"(?!\w)", text, re.I)]
+        for start, end in spans:
+            if _OTHER_NOUN_HEAD.match(text[end:]):
+                continue
+            if cat == "glue":
+                wall = re.match(r"[ -]walls?\b", text[end:], re.I)
+                if wall:
+                    end += wall.end()
+            after = suffix.match(text, end)
+            if after:
+                descriptors = list(_ATTRIBUTE_RX.finditer(after.group(1)))
+                conflicts = [m for m in descriptors if _ATTRIBUTE_KEY[m.group().lower()] not in kept]
+                if conflicts and len(conflicts) == len(descriptors):
+                    cuts.append((after.start(), after.end()))
+                else:
+                    for colour in conflicts:
+                        left, right = after.start(1) + colour.start(), after.start(1) + colour.end()
+                        while right < after.end(1) and text[right] in " -":
+                            right += 1
+                        if right == after.end(1):
+                            while left > after.start(1) and text[left - 1] in " -":
+                                left -= 1
+                        cuts.append((left, right))
+            m = prefix.search(text[:start])
+            if not m:
+                continue
+            for colour in _ATTRIBUTE_RX.finditer(m.group(0)):
+                if _ATTRIBUTE_KEY[colour.group().lower()] in kept:
+                    continue
+                left, right = m.start() + colour.start(), m.start() + colour.end()
+                while right < start and text[right] in " -":
+                    right += 1
+                cuts.append((left, right))
+    # Hợp nhất khoảng chồng nhau khi alias và từ chung cùng khớp một món.
+    merged = []
+    for left, right in sorted(set(cuts)):
+        if merged and left <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(right, merged[-1][1]))
+        else:
+            merged.append((left, right))
+    removed = [text[left:right].strip(" -") for left, right in merged]
+    for left, right in reversed(merged):
+        text = text[:left] + text[right:]
+    return text, removed
+
+
 def issues(conn, project_id: int, data: Dict) -> List[Dict]:
     """VÀNG (never a stop): the shot says a common word of a kind with several project props of that kind and names none — not
     guessed; a locked prop without any description in the Kho."""
@@ -192,6 +329,9 @@ def issues(conn, project_id: int, data: Dict) -> List[Dict]:
                         "msg": f"chữ shot nói '{CATEGORIES[cat]['word']}' chung chung mà dự án gắn {len(mine)} món cùng loại ("
                                + ", ".join(a["name"] for a in mine) + ") — không đoán; ghi đích danh tên món trong prompt"})
     for lk in locks(conn, project_id, data):
+        if lk["category"] == "gun" and not weapon_scale(conn, lk["asset"], lk["variant"]):
+            out.append({"level": "warn", "part": "dao_cu",
+                        "msg": f"món Kho {lk['asset']['name']} thiếu tỉ lệ — loại súng chưa rõ hoặc mâu thuẫn; thêm 'Tỉ lệ:' vào mô tả/hồ sơ hoặc kích thước ở Kho"})
         if not lk["form"]:
             out.append({"level": "warn", "part": "dao_cu",
                         "msg": f"món Kho {lk['asset']['name']} chưa có mô tả — prompt chỉ nêu được tên; thêm mô tả ở Kho"})
@@ -211,6 +351,9 @@ def prompt_part(conn, project_id: int, data: Dict) -> str:
     bits = []
     for lk in locks(conn, project_id, data):
         a, form = lk["asset"], lk["form"]
+        if lk["category"] == "gun":
+            # Nhãn tỉ lệ chỉ xuất hiện ở câu chuẩn ưu tiên, tránh 2 nguồn trái nhau.
+            form = _SCALE_LABEL.sub("", form).strip(" .;")
         over = f"; this overrides any other colour or material described above for it" if form and lk["has_forms"] else ""
         if not lk["named"]:
             word = CATEGORIES[lk["category"]]["word"]
@@ -221,6 +364,10 @@ def prompt_part(conn, project_id: int, data: Dict) -> str:
         elif lk["has_forms"] and form:
             bits.append(f"Prop lock: {a['name']} in this shot — {form}{over}"
                         + ("; as its reference picture shows" if lk["image"] else "") + "; keep this one form.")
+        if lk["category"] == "gun":
+            scale = weapon_scale(conn, a, lk["variant"])
+            if scale:
+                bits.append(f"Weapon scale: {a['name']} — {scale}.")
     return " ".join(bits)
 
 

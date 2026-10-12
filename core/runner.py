@@ -2131,9 +2131,14 @@ def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = 
     # the look sentence says the style (and the quality): the Director's own clauses of the same words are said once, not twice
     words, quality = pt.split_director(text, drop_style=looks.of(proj) == "FF_INGAME", move_quality=bool(look_quality))
     place = assets.scene_location(conn, project_id, data)
+    # Đ16v2: làm sạch riêng chữ shot gửi đi; giữ nguyên scene/Kho và phần mô tả khóa.
+    from . import prop_lock
+    lock_data = dict(data, image_prompt=raw or "")
+    action, _ = prop_lock.clean_prompt(conn, project_id, lock_data, _action_part(data, words, blocking_label))
+    fix, _ = prop_lock.clean_prompt(conn, project_id, lock_data, fix or "")
     parts = [looks.style_sentence(proj),
              framing_sentence(data),
-             _action_part(data, words, blocking_label),
+             action,
              _prop_part(conn, project_id, data, raw),   # 12/10 (#27): the project's own gun / glue wall by name (flag project_prop_lock)
              f"Fix: {fix}" if fix else "",         # the retry's correction right after what it corrects, not at the tail
              _place_part(conn, project_id, data, place, place_render, list(place_extra or []) + [_object_scale(conn, project_id, data)]),

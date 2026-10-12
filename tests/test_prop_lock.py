@@ -57,6 +57,156 @@ class PropLockTest(unittest.TestCase):
         with mock.patch.dict(os.environ, env), mock.patch.object(assets, "scene_location", return_value=None):
             return assets.scene_references(self.p.conn, self.pid, dict(shot))
 
+    def test_sent_prompt_removes_only_default_prop_modifiers_keeps_source(self):
+        shot = {"size": "WS", "image_prompt": "A translucent amber lamp glows. Kelly hides behind a translucent amber glue-grenade wall; a red car passes.",
+                "blocking": "Kelly behind the translucent amber Bom keo"}
+        original = dict(shot)
+        sent = self._prompt(shot, FLAG_ON)
+        self.assertIn("translucent amber lamp", sent)
+        self.assertIn("red car", sent)
+        self.assertNotIn("translucent amber glue", sent)
+        self.assertNotIn("translucent amber Bom keo", sent)
+        self.assertEqual(shot, original)
+        self.assertEqual(self.p.conn.execute("SELECT description FROM assets WHERE id=?", (self.glue,)).fetchone()[0], GLUE_DESC)
+
+    def test_cleanup_clause_boundaries_skin_and_off(self):
+        from core import prop_lock
+        for raw in ("Amber light falls; Kelly raises a glue wall.", "Kelly hides behind the glue wall, next to translucent amber glass.",
+                    "A translucent amber skin Gloowall OB55 wall.", "A translucent amber glue wall."):
+            shot = {"image_prompt": raw}
+            with mock.patch.dict(os.environ, FLAG_OFF):
+                clean, removed = prop_lock.clean_prompt(self.p.conn, self.pid, shot, raw)
+            self.assertEqual((clean, removed), (raw, []))
+        with mock.patch.dict(os.environ, FLAG_ON):
+            for raw in ("Amber light falls; Kelly raises a glue wall.", "Kelly hides behind the glue wall, next to translucent amber glass.",
+                        "A translucent amber skin Gloowall OB55 wall."):
+                self.assertEqual(prop_lock.clean_prompt(self.p.conn, self.pid, {"image_prompt": raw}, raw), (raw, []))
+            self.assertEqual(prop_lock.clean_prompt(self.p.conn, self.pid, {"image_prompt": "A glue wall is translucent amber."},
+                                                   "A glue wall is translucent amber."), ("A glue wall.", ["is translucent amber"]))
+            raw = "A translucent amber glue wall."
+            self.assertEqual(prop_lock.clean_prompt(self.p.conn, self.pid, {"image_prompt": raw}, raw), ("A glue wall.", ["translucent amber"]))
+
+    def test_cleanup_multiple_props_does_not_guess_generic(self):
+        from core import prop_lock
+        self._asset("prop", "Keo Hai", "glue wall two", GLUE_DESC, "two.png", None)
+        self.p.conn.commit()
+        raw = "A translucent amber glue wall stands near a red car."
+        with mock.patch.dict(os.environ, FLAG_ON):
+            self.assertEqual(prop_lock.clean_prompt(self.p.conn, self.pid, {"image_prompt": raw}, raw), (raw, []))
+            raw = "A translucent amber Bom keo stands near a red Keo Hai."
+            clean, removed = prop_lock.clean_prompt(self.p.conn, self.pid, {"image_prompt": raw}, raw)
+            self.assertNotIn("translucent amber", clean)
+            self.assertNotIn("red Keo Hai", clean)
+
+    def test_weapon_scale_actual_builder_type_and_only_when_present(self):
+        sent = self._prompt(self.RIFLE, FLAG_ON)
+        self.assertIn("Weapon scale: SKORP", sent)
+        self.assertIn("forearm-to-shoulder", sent)
+        self.assertIn("Estimated", sent)
+        self.assertNotIn("Weapon scale: SKORP", self._prompt(self.WALL, FLAG_ON))
+        self.assertNotIn("Weapon scale:", self._prompt(self.RIFLE, FLAG_OFF))
+
+    def test_weapon_scale_explicit_description_and_profile_win(self):
+        c = self.p.conn
+        c.execute("UPDATE assets SET description=? WHERE id=?", (SKORP_DESC + " Scale: exactly forearm-to-shoulder length.", self.skorp))
+        c.commit()
+        self.assertIn("exactly forearm-to-shoulder length", self._prompt(self.RIFLE, FLAG_ON))
+        c.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps({"must_keep": "Tỉ lệ: length equal to Kelly forearm."}), self.skorp))
+        c.commit()
+        sent = self._prompt(self.RIFLE, FLAG_ON)
+        self.assertIn("length equal to Kelly forearm", sent)
+        self.assertNotIn("Estimated", sent)
+        self.assertNotIn("forearm-to-shoulder", sent)
+
+    def test_weapon_scale_unknown_conflicting_types_and_negation(self):
+        from core import prop_lock
+        c = self.p.conn
+        for desc in ("A gun.", "An SMG or pistol."):
+            c.execute("UPDATE assets SET aliases='', description=? WHERE id=?", (desc, self.skorp))
+            c.commit()
+            with mock.patch.dict(os.environ, FLAG_ON):
+                warns = prop_lock.issues(c, self.pid, {"image_prompt": "Kelly holds SKORP."})
+            self.assertTrue(any("thiếu tỉ lệ" in w["msg"] for w in warns), warns)
+            self.assertNotIn("Weapon scale:", self._prompt({"image_prompt": "Kelly holds SKORP."}, FLAG_ON))
+        c.execute("UPDATE assets SET description=? WHERE id=?", ("An SMG, not a pistol.", self.skorp))
+        c.commit()
+        self.assertIn("Estimated SMG", self._prompt({"image_prompt": "Kelly holds SKORP."}, FLAG_ON))
+
+    def test_scale_measured_dimensions_and_off_prompt_byte_contract(self):
+        from core import prop_lock, runner
+        assets.set_size(self.p.conn, self.skorp, 0.45, 0.12)
+        self.assertIn("Library measured dimensions: height 0.45 m, width 0.12 m", self._prompt(self.RIFLE, FLAG_ON))
+        raw = "Kelly behind a translucent amber glue wall."
+        with mock.patch.dict(os.environ, FLAG_OFF), mock.patch.object(assets, "scene_location", return_value=None), \
+                mock.patch.object(runner, "indoor_spot", return_value=None):
+            actual = runner.build_image_prompt(self.p.conn, self.pid, {"image_prompt": raw})
+            with mock.patch.object(prop_lock, "clean_prompt", side_effect=lambda conn, pid, data, text: (text, [])):
+                baseline = runner.build_image_prompt(self.p.conn, self.pid, {"image_prompt": raw})
+        self.assertEqual(actual, baseline)
+        with mock.patch.dict(os.environ, FLAG_ON), mock.patch.object(assets, "scene_location", return_value=None), \
+                mock.patch.object(runner, "indoor_spot", return_value=None):
+            _, realism_removed = runner.build_image_prompt(self.p.conn, self.pid, {"image_prompt": raw})
+        self.assertEqual(realism_removed, [])  # return thứ 2 chỉ dành cho realism, giữ hợp đồng caller
+
+    def test_dashboard_shows_removed_phrase_and_off_has_no_diff(self):
+        from dashboard import common
+        d = {"image_prompt": "Kelly behind a translucent amber glue wall; red car.", "size": "WS"}
+        sid = self.p.conn.execute("INSERT INTO scenes (project_id, idx, data) VALUES (?,?,?)", (self.pid, 16, json.dumps(d))).lastrowid
+        self.p.conn.commit()
+        for env, expect in ((FLAG_ON, True), (FLAG_OFF, False)):
+            with mock.patch.dict(os.environ, env), mock.patch.object(common.st, "expander"), \
+                    mock.patch.object(common.st, "caption") as caption, mock.patch.object(common.ui, "html"):
+                common.scene_expander(self.p, sid)
+                matches = [call.args[0] for call in caption.call_args_list if "sẽ bỏ:" in call.args[0]]
+                self.assertEqual(bool(matches), expect)
+                if expect:
+                    self.assertIn("sẽ bỏ: translucent amber", matches[0])
+                    self.assertNotIn("red", matches[0])
+
+    def test_review_semantic_correct_attributes(self):
+        from core import prop_lock
+        raw = "Kelly holds a black SKORP."
+        with mock.patch.dict(os.environ, FLAG_ON):
+            self.assertEqual(prop_lock.clean_prompt(self.p.conn, self.pid, {"image_prompt": raw}, raw), (raw, []))
+
+    def test_review_partial_descriptor_prefix_and_suffix(self):
+        from core import prop_lock
+        self.p.conn.execute("UPDATE assets SET description=? WHERE id=?", (GLUE_DESC.replace("TRẮNG trơn", "TRẮNG ĐỤC trơn"), self.glue))
+        with mock.patch.dict(os.environ, FLAG_ON):
+            for raw, expected in (("A translucent white glue wall.", "A white glue wall."),
+                                  ("A glue wall is translucent white.", "A glue wall is white."),
+                                  ("A glue wall is white translucent.", "A glue wall is white."),
+                                  ("An opaque white glue wall.", "An opaque white glue wall.")):
+                self.assertEqual(prop_lock.clean_prompt(self.p.conn, self.pid, {"image_prompt": raw}, raw)[0], expected)
+
+    def test_review_other_noun_heads_keep_colour(self):
+        from core import prop_lock
+        with mock.patch.dict(os.environ, FLAG_ON):
+            for noun in ("gun-shaped toy", "gun case", "gun rack", "glue bottle"):
+                raw = f"A red {noun} stands beside SKORP and Bom keo."
+                self.assertEqual(prop_lock.clean_prompt(self.p.conn, self.pid, {"image_prompt": raw}, raw), (raw, []))
+
+    def test_review_decimal_scale_preserved(self):
+        self.p.conn.execute("UPDATE assets SET description=? WHERE id=?", ("An SMG. Scale: 0.45 m long, 0.12 m wide.", self.skorp))
+        sent = self._prompt({"image_prompt": "Kelly holds SKORP."}, FLAG_ON)
+        self.assertIn("Weapon scale: SKORP — 0.45 m long, 0.12 m wide.", sent)
+
+    def test_review_selected_form_scale(self):
+        self.p.conn.execute("UPDATE assets SET description=? WHERE id=?", ("(a) DEFAULT — SMG with black stock; (b) skin Tiny — Scale: pistol-sized.", self.skorp))
+        self.p.conn.execute("UPDATE asset_images SET variant='skin Tiny' WHERE asset_id=?", (self.skorp,))
+        sent = self._prompt({"image_prompt": "Kelly holds SKORP."}, FLAG_ON)
+        self.assertIn("Estimated SMG", sent)
+        self.assertNotIn("— pistol-sized", sent)
+        skin = self._prompt({"image_prompt": "Kelly holds SKORP skin Tiny."}, FLAG_ON)
+        self.assertIn("Weapon scale: SKORP — pistol-sized", skin)
+
+    def test_review_scale_does_not_override_pose(self):
+        for action in ("with one hand", "lowered", "slung over shoulder"):
+            sent = self._prompt({"image_prompt": f"Kelly carries SKORP {action}."}, FLAG_ON)
+            self.assertIn(action, sent)
+            self.assertNotIn("hold two-handed", sent)
+            self.assertNotIn("stock at the shoulder", sent)
+
     RIFLE = {"size": "MS", "image_prompt": "Kelly aims her assault rifle at the doorway, tense.", "blocking": "Kelly frame-left"}
     WALL = {"size": "WS", "image_prompt": "Kelly crouches behind a glue wall while bullets hit it."}
     SKIN = {"size": "WS", "image_prompt": "Kelly crouches behind a Gloowall OB55 wall."}
