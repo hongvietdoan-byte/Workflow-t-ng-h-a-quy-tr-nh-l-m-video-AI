@@ -70,3 +70,11 @@ luật cấm từ — là cách tính trước khi viết. Code kiểm lại cá
     walking AWAY from the camera into …" hoặc "camera in front, she walks TOWARD the camera". Chỉ viết "facing / walking into the gate"
     thì model hay đặt vật sau lưng nhân vật và cho nhân vật nhìn vào máy, nên trông như đang đi RA khỏi vật. Vì: #27 shot 11–12 (người
     dùng 12/10 "Kelly bị đi ngược hướng").
+19. **Hướng đi và bố cục NHẤT QUÁN trong cùng cảnh, và giữa các cảnh quay lại cùng một chỗ** (người dùng 12/10, #27). Trước khi viết
+    các shot của một chỗ, lập "sơ đồ chỗ" một lần: máy nhìn từ phía nào, vật cố định nằm bên nào của khung (cổng TRÁI = thực tại / cổng
+    PHẢI = song song; tường keo bên trái, địch bên phải…), nhân vật đi theo hướng nào (trái → phải, hay đi xa máy vào chiều sâu). Mọi
+    shot của chỗ đó viết theo đúng sơ đồ: cùng bên, cùng hướng, cùng phía máy. Ghi "frame-left / frame-right", "camera behind / in front",
+    "walking away from / toward the camera" vào cả `image_prompt` lẫn `blocking`. Người / vật đã có trong shot trước (vd đồng đội nằm
+    trên cỏ) mà máy vẫn nhìn về chỗ đó thì shot sau vẫn phải thấy. Đổi hướng hay vượt trục chỉ khi cố ý, có shot chuyển (cận, POV) và ghi
+    lý do vào `why`. Vì: #27 shot 3 → 4 (đi vào cổng rồi lại đi ra phía máy), shot 11–12 ngược hướng. Căn cứ: luật trục 180°
+    (`core/continuity.py`) và sơ đồ chỗ đứng 3D (`plate_spot`).
