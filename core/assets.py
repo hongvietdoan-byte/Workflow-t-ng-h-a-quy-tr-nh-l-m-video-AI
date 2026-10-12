@@ -1599,7 +1599,10 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     mark = location_landmark(conn, place, scene) if place and loc is None and not away else None
     if mark is not None:
         loc = dict(mark, _landmark=True)
-    room = max(limit - reserve - (1 if loc else 0), 0)
+    from . import prop_lock                      # 12/10 (#27): the project's gun / glue wall said only by a common word, right form
+    lock_on = prop_lock.enabled()
+    locked = {x["asset"]["id"]: (x["asset"], x["image"]) for x in prop_lock.reference_images(conn, project_id, scene)} if lock_on else {}
+    room = max(limit - reserve - (1 if loc else 0) - len(locked), 0)    # rà 12/10: a locked prop keeps its slot in a crowded shot
     counts = [0] * len(people)                     # 1 picture each first, then a 2nd (3rd) picture for the people listed first while room lasts
     for n in range(1, max(caps, default=0) + 1):
         for i, (_, items) in enumerate(people):
@@ -1609,22 +1612,20 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
         refs += [{"path": path, "label": label, "role": role} for path, role in items[:k]]
     if loc and len(refs) < limit - reserve:
         refs.append({"path": loc["path"], "label": place["name"], "role": "landmark" if loc.get("_landmark") else "location"})
+    for a, im in locked.values():
+        if len(refs) < limit - reserve and not any(r["label"] == a["name"] for r in refs):
+            refs.append({"path": im["path"], "label": a["name"], "role": "object"})
     limit = limit - reserve
     # every other chosen resource (weapon, prop, pet, place) that the scene names is a reference too
     blob = " " + fold(" ".join(str(scene.get(k) or "") for k in ("text", "image_prompt", "location"))) + " "
     cast = {fold(n) for n in names}
     people_names = {fold(r["name"]) for r in conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,))} | {
         fold(n) for x in chosen if x["kind"] == "character" for n in names_of(x)}
-    from . import prop_lock                      # 12/10 (#27): the project's gun / glue wall said only by a common word, right form
-    lock_on = prop_lock.enabled()
-    locked = {x["asset"]["id"]: x["image"] for x in prop_lock.reference_images(conn, project_id, scene)} if lock_on else {}
     for a in chosen:
         if len(refs) >= limit:
             break
         if a["id"] in locked:
-            if not any(r["label"] == a["name"] for r in refs):
-                refs.append({"path": locked[a["id"]]["path"], "label": a["name"], "role": "object"})
-            continue
+            continue                                          # already placed right after the place (its slot was kept)
         if a["kind"] not in ("weapon", "prop", "pet", "location", "outfit") or not a["images"] or any(r["label"] == a["name"] for r in refs):
             continue
         if a["kind"] == "outfit" and (any(r["path"] == im["path"] for r in refs for im in a["images"])

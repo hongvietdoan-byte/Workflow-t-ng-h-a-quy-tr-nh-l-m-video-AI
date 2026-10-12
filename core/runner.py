@@ -2643,6 +2643,8 @@ class ImageRunner(_Runner):
             except Exception as e:  # noqa: BLE001 - a check must never stop the job; its failure is said
                 say(job, "warn", "missing_reference", f"không kiểm được ảnh mẫu nhân vật trong gói: {type(e).__name__}: {e}")
         prompt, lost = name_render(prompt, refs, fallback=lambda: _place_words(self, job))
+        from . import prop_lock                        # rà 12/10: no "as its reference picture shows" for a prop picture not sent
+        prompt = prop_lock.match_refs(prompt, refs)
         if lost and hasattr(self, "_diag"):
             self._diag(job, "warn", "missing_reference", "ảnh render 3D của shot không gửi được — bỏ câu khóa nền theo render, quay về "
                                                          "câu địa điểm bằng chữ")

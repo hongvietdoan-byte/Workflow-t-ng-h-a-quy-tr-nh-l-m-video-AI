@@ -134,6 +134,73 @@ class PropLockTest(unittest.TestCase):
             names = [l["asset"]["name"] for l in prop_lock.locks(self.p.conn, self.pid, {"image_prompt": "nấp sau tường keo"})]
         self.assertEqual(names, ["Bom keo"])
 
+    # --- rà 12/10: các lỗi phiên rà bắt ---
+    def _person(self, name):
+        c = self.p.conn
+        aid = c.execute("INSERT INTO assets (game, kind, name, aliases, description) VALUES ('FF','character',?, '', '')",
+                        (name,)).lastrowid
+        for i, role in enumerate(("front_standard", "design_sheet", "related")):
+            path = os.path.join(self.tmp, f"{name}_{role}.png")
+            with open(path, "wb") as f:
+                f.write(b"\x89PNG\r\n\x1a\n" + b"0" * 64)
+            c.execute("INSERT INTO asset_images (asset_id, path, label, sort, status, role) VALUES (?,?,?,?,?,?)",
+                      (aid, path, role, i, "approved", role))
+        c.execute("INSERT INTO project_assets (project_id, asset_id) VALUES (?,?)", (self.pid, aid))
+
+    def _glue(self):
+        return next(a for a in assets.project_assets(self.p.conn, self.pid) if a["id"] == self.glue)
+
+    def test_locked_prop_keeps_its_slot_in_a_crowded_shot(self):
+        for n in ("Kelly", "Kenta", "Maxim", "Alok"):
+            self._person(n)
+        self.p.conn.commit()
+        shot = dict(self.RIFLE, characters=["Kelly", "Kenta", "Maxim", "Alok"])
+        with mock.patch.dict(os.environ, FLAG_ON), mock.patch.object(assets, "scene_location", return_value=None):
+            refs = assets.scene_references(self.p.conn, self.pid, dict(shot), limit=12, reserve=1, sheets=True)
+        labels = [r["label"] for r in refs]
+        self.assertEqual(sum(1 for l in labels if l in ("Kelly", "Kenta", "Maxim", "Alok")), 10, labels)   # people filled the rest
+        self.assertIn("SKORP", labels)
+        self.assertLessEqual(len(refs), 11)
+
+    def test_prompt_never_points_at_a_reference_picture_that_was_not_sent(self):
+        from core import prop_lock
+        text = self._prompt(self.RIFLE, FLAG_ON)
+        self.assertIn("reference picture", text)
+        with mock.patch.dict(os.environ, FLAG_ON), mock.patch.object(assets, "scene_location", return_value=None):
+            refs = assets.scene_references(self.p.conn, self.pid, dict(self.RIFLE), limit=0)   # no slot at all
+        self.assertNotIn("SKORP", [r["label"] for r in refs])
+        fixed = prop_lock.match_refs(text, refs)
+        self.assertNotIn("reference picture", fixed)
+        self.assertIn("SKORP", fixed)
+        sent = [{"label": "SKORP", "role": "object", "path": "x.png"}]
+        self.assertEqual(prop_lock.match_refs(text, sent), text)
+
+    def test_variant_needs_its_whole_distinct_phrase(self):
+        from core import prop_lock
+        glue = self._glue()
+        self.assertIsNone(prop_lock.chosen_variant(glue, "Kelly throws a Gloowall"))
+        self.assertIsNone(prop_lock.chosen_variant(glue, "glue wall, Halloween OB55 event plaza"))
+        self.assertEqual(prop_lock.chosen_variant(glue, "Gloowall OB55 skin wall"), "skin Gloowall OB55")
+        self.assertEqual(prop_lock.chosen_variant(glue, "Kelly crouches behind a Gloowall OB55 wall."), "skin Gloowall OB55")
+        self.assertEqual(prop_lock.chosen_variant(glue, "behind her skin Gloowall"), "skin Gloowall OB55")
+
+    def test_lock_overrides_other_colour_words_and_warns(self):
+        from core import prop_lock
+        shot = {"size": "WS", "image_prompt": "Kelly crouches behind a translucent amber glue-grenade wall."}
+        text = self._prompt(shot, FLAG_ON)
+        self.assertIn("TRẮNG trơn", text)
+        self.assertIn("overrides any other colour", text)
+        with mock.patch.dict(os.environ, FLAG_ON):
+            warns = prop_lock.issues(self.p.conn, self.pid, dict(shot))
+            plain = prop_lock.issues(self.p.conn, self.pid, dict(self.WALL))
+        self.assertTrue(any(w["level"] == "warn" and "amber" in w["msg"] for w in warns), warns)
+        self.assertEqual(plain, [])
+
+    def test_description_full_stop_not_glued_to_semicolon(self):
+        text = self._prompt(self.RIFLE, FLAG_ON)
+        self.assertNotIn(".;", text)
+        self.assertIn("ống nòng ngắn;", text)
+
 
 if __name__ == "__main__":
     unittest.main()
