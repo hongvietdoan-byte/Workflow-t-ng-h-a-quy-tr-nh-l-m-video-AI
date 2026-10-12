@@ -1041,3 +1041,35 @@ trong vùng; có cờ thì tự đặt trong vùng. Ca thật #24 v3: popup 1,8�
 ## Kết quả Codex — đợt 15
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+---
+
+# ĐỢT 16 — ƯU TIÊN SỐ 1 (người dùng giao 12/10 12:12, TRƯỚC mọi đợt khác) — 2 lỗi chặn dự án #27 Booyah
+
+Luật chung GIỐNG đợt 1 (cả luật người dùng 12/10: rà kĩ, đánh giá hiệu quả). Nhánh `codex/d16-viec<N>-<tên>` từ `origin/main` MỚI NHẤT. Không API tốn tiền khi
+test (Claude/ảnh = giả). KHÔNG đọc/ghi `data/projects/`. `core/runner.py` được SỬA TỐI THIỂU chỉ khi gốc lỗi nằm ở đó (ghi rõ dòng + lý do trong báo cáo; #27
+đang chạy trên runner — không đổi gì khác). Xong việc nào push nhánh việc đó NGAY + ghi "Kết quả Codex — đợt 16" (phiên rà Codex gộp gấp, phiên máy chính
+chờ để gen tiếp #27: shot 16 + 21 vẽ lại rồi 17 ảnh còn lại). Ca thật: hộp thư `TODO.md` dòng [12/10 12:10] + [12/10 12:12], `TODO.md` "#27 ẢNH THỬ v3".
+
+## Việc 1 — Từ chối ảnh kèm ghi chú KHÔNG chạy Đạo diễn viết lại prompt (cờ `director_rewrite` đang BẬT trên máy chính)
+#27 shot 16: 2 lần `Pipeline.reject(job, 'user', note=…)` mà `prompt_rewrite.versions` = 0; ghi chú chỉ nối cuối prompt ("Fix: …") → mất ý ghi chú
+lần trước, chữ mâu thuẫn cũ ('translucent amber') vẫn còn. Đường code: `core/pipeline.py` `reject` → `_rewrite_before_retry` →
+`prompt_rewrite.before_retry` → `.apply()` trước `_spawn_retry`; `prompt_rewrite.rewrite_for_retry` (`core/prompt_rewrite.py:296`) KHÔNG có nơi nào gọi
+— tìm vì sao nhánh viết lại không chạy với ảnh (image_gen) / với người từ chối (by='user'): cờ đọc sai chỗ, điều kiện kind/state, Claude lỗi bị nuốt
+(diag nói gì?), hay runner gửi job con với prompt cũ (đọc prompt trước `.apply()`?). Sửa tận gốc; **ghi chú tích lũy**: lần từ chối sau phải giữ ý các
+lần trước (đưa đủ lịch sử ghi chú cho Đạo diễn), và Đạo diễn viết lại BỎ chữ mâu thuẫn chứ không nối thêm. Không viết lại được (Claude lỗi) → nói rõ
+trên Dashboard + diag (không im lặng), giữ cách "Fix: …" cũ. **Test chạy ĐƯỜNG THẬT**: `Pipeline.reject` (user + note, image_gen và video_gen) → job con
+→ `runner.submit_pending` với provider giả bắt prompt GỬI ĐI → assert prompt mới (không còn chữ cũ, có ý cả 2 ghi chú) + `prompt_rewrite` có version.
+
+## Việc 2 — `project_prop_lock`: bỏ từ mâu thuẫn khỏi prompt gửi đi + tỉ lệ vũ khí
+(a) Món khóa ở DẠNG MẶC ĐỊNH (vd tường keo Gloowall trắng đục) mà chữ shot có từ màu/chất liệu mâu thuẫn ('translucent amber glue-grenade wall') → hiện chỉ
+VÀNG + câu 'overrides' và ảnh vẫn ánh vàng. Sửa: code BỎ/THAY các từ màu-chất liệu mâu thuẫn trong cụm tả món đó ở prompt GỬI ĐI (giữ bản gốc trong dữ liệu,
+hiện diff "đã bỏ: translucent amber" trên Dashboard), chỉ khi món ở dạng mặc định; dạng skin khác thì theo mô tả skin. Không xóa từ ngoài cụm của món đó.
+(b) Tỉ lệ vũ khí: model vẽ SKORP (SMG) nhỏ như súng lục dù có ảnh Kelly cầm SKORP → mô tả món Kho có trường kích thước/tỉ lệ so người (vd "SMG about
+forearm-to-shoulder length, held two-handed with the stock") và prop_lock chèn câu tỉ lệ đó vào prompt khi món có mặt; món chưa có tỉ lệ → VÀNG "thiếu tỉ lệ".
+Đánh giá hiệu quả (luật (c)): có nên lấy tỉ lệ tự động theo loại súng (SMG / súng trường / súng lục) thay vì nhập tay từng món không. Test: prompt gửi đi
+của ca shot 16 không còn 'translucent amber'; câu tỉ lệ có khi món SKORP có mặt; cờ TẮT giữ y cũ.
+
+## Kết quả Codex — đợt 16
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
