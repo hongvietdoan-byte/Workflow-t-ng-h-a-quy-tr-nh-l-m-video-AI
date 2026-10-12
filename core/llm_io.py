@@ -52,6 +52,7 @@ def validate_scene_analysis(data: Any) -> Dict:
         _req(c, "name", str, w)
         _req(c, "description", str, w)
         if c.get("lock") is not None:
+            c["lock"] = _clean_lock(c["lock"])
             _check_lock(c["lock"], f"{w}.lock")
     names = {c["name"] for c in chars}
     scenes = _req(obj, "scenes", list, "root")
@@ -187,6 +188,20 @@ def _check_duration(value: Any, where: str) -> None:
 
 
 LOCK_KEYS = ("must_keep", "may_change", "forbidden")
+
+
+def _clean_lock(value: Any) -> Any:
+    """A lock value written as a list of texts is joined with '; ', null = empty (#27 12/10: refused twice, 3 paid calls lost).
+    Anything else is left for _check_lock to refuse."""
+    if not isinstance(value, dict):
+        return value
+    def one(v):
+        if v is None:
+            return ""
+        if isinstance(v, list) and all(isinstance(x, str) for x in v):
+            return "; ".join(x.strip() for x in v if x.strip())
+        return v
+    return {k: one(v) for k, v in value.items()}
 
 
 def _check_lock(value: Any, where: str) -> None:
@@ -328,7 +343,7 @@ def _store(pipeline: Pipeline, project_id: int, obj: Dict) -> None:
                 conn.execute("UPDATE characters SET description=? WHERE project_id=? AND name=?", (c["description"], project_id, c["name"]))
             if "wardrobe" not in edited and (c.get("wardrobe") or "").strip():
                 conn.execute("UPDATE characters SET wardrobe=? WHERE project_id=? AND name=?", (c["wardrobe"], project_id, c["name"]))
-        if c.get("lock"):
+        if c.get("lock") and any(str(c["lock"].get(k) or "").strip() for k in LOCK_KEYS):   # all-empty lock = no lock (as set_lock)
             conn.execute("UPDATE characters SET lock_rules=? WHERE project_id=? AND name=? AND (lock_rules IS NULL OR lock_rules='')",
                          (json.dumps({k: c["lock"].get(k, "") for k in LOCK_KEYS}, ensure_ascii=False), project_id, c["name"]))
     if obj.get("genre"):

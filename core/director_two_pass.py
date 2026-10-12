@@ -100,6 +100,9 @@ def validate_intent(pipeline: Pipeline, project_id: int) -> Callable[[Any], Dict
                 for key in INTENT_KEYS + ("duration_s",):     # a scene's seconds are `target_s` here (may pass 30 s)
                     sc.pop(key, None)
         llm_io.validate_scene_analysis(probe)
+        for c, cleaned in zip(obj["characters"], probe["characters"]):   # the lock as code cleaned it (list -> text)
+            if "lock" in cleaned:
+                c["lock"] = cleaned["lock"]
         names = {c["name"] for c in obj["characters"]}
         seen = [sc["idx"] for sc in obj["scenes"]]
         if story:

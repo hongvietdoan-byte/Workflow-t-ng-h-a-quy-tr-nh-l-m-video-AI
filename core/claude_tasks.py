@@ -415,6 +415,8 @@ def redo_from_set_check(p: Pipeline, project_id: int, idx: int, fix: str, auto: 
 
 # ---- 5. Character Lock from pictures -----------------------------------------------------------------------------------------
 def _check_lock(obj) -> None:
+    if isinstance(obj, dict):                          # a list / null value is cleaned in place, as the Director's (#27 12/10)
+        obj.update(llm_io._clean_lock(obj))
     llm_io._check_lock(obj, "lock")
 
 
