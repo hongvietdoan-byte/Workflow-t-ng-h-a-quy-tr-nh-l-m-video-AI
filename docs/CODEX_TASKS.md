@@ -1004,4 +1004,7 @@ trong vùng; có cờ thì tự đặt trong vùng. Ca thật #24 v3: popup 1,8�
 
 ## Kết quả Codex — đợt 15
 
+- ✅ Việc 1 · nhánh `codex/d15-viec1-ban-giao` · code `89ce7b61`: đo clip gốc trước dựng/giao/xuất HD, kể cả manual/follower; dưới 720 hoặc không đo được báo shot + nâng 1080p/gen ≥720. Nháp có sidecar và nhãn riêng, không outputs.final/ghi đè. Guard Autopilot trước nhạc, Editor trước stash; export truy nguồn final, legacy thiếu nguồn phải dựng lại. Báo giá không coi 480 là final; nháp paid-running chỉ cộng phần cao, nguồn cao mất báo phục hồi/unknown không gửi thêm. ĐỎ 3 ca → nhóm 14 file 276 xanh/467s; rà 2 finding + follower dedup: 10 subcase đỏ → xanh; nhóm sửa 77 test +10 subtests/15,44s; caller cost/model/picker 21 xanh, UI 13 xanh/29,26s. Assert cũ giữ, fixture xuất khung nhỏ thật. RA `docs/RA_D15_VIEC1_CODEX_2026-10-12.md`. Root đọc phần sửa; giữ areas.version/key. Chưa cả bộ Windows/thử #24–27, không API/dữ liệu thật, chỉ push nhánh.
+
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
