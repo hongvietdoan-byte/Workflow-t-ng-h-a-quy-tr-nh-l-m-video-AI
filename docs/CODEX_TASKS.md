@@ -4,6 +4,30 @@
 dừng ở đó, mỗi việc **một nhánh riêng** (hoặc một commit riêng nếu chung nhánh) để gộp từng phần. Phiên Claude điều phối sẽ rà theo quy ước 7
 (`CLAUDE.md`), chạy cả bộ test rồi mới gộp vào `main`.
 
+# 📋 TRẠNG THÁI + THỨ TỰ CÒN LẠI — ĐỌC TRƯỚC (phiên rà Codex cập nhật 12/10 17:05; bảng này THẮNG mọi câu thứ tự/điều kiện cũ bên dưới)
+
+**#24 XONG 12/10; #27 Booyah ĐANG CHẠY trên máy chính.** KHÔNG đọc/ghi `data/projects/`. `core/runner.py`, `lock_exceptions.py`, `end_frames.py`,
+`place_refs.py`, `scene_storyboard.py`, `plate_camera.py`, `plate_choice.py` chỉ sửa TỐI THIỂU khi gốc lỗi nằm đó, sau cờ, ghi dòng + lý do trong báo cáo RA.
+Mọi câu "#24 đang chạy / chờ #24 xong / không đọc data/projects/24" bên dưới: coi như câu này. Việc ghi "chờ #24" = MỞ, trừ khi chạm đường gửi job của #27
+(nhóm "runner sau #24" cuối danh sách — chờ người dùng chốt).
+
+**ĐÃ XONG — KHÔNG LÀM LẠI** (gộp main): Đợt 1–8; Đ9 việc 1–3 (`2cd4e5c`; QA GUI Windows = phiên máy chính); Đ10 việc 1–6 (`4c55e0d`, trừ việc 3
+mục 2 project_budget + mục 7 runner); Đ11 việc 1 (`2cd4e5c`); Đ12 việc 1 (`2cd4e5c`); Đ14 việc 1 (`4c55e0d`), việc 2 (phiên rà Codex `4aa8ed8`); Đ15 việc 1–2
+(`09396f1`); Đ16 việc 1–2 (`09396f1`, `ae97885`), việc 3 (phiên rà Codex `8a1a6be`/`185794d` + VÀNG "người khác dùng súng đã khóa" `8e66b16`/`2f03b29`);
+Đ13 việc 4 mục 6 phần `group_block` bỏ dấu (`33939c9`). Ngoài đề (phiên rà Codex / phiên máy chính — KHÔNG viết lại, chỉ dùng lại): `tests/conftest.py` cô lập
+`data/` (`954b2e8`); kiểm nhất quán hướng đi + bố cục cờ `continuity_layout` (`7757662`/`756d29d`, `core/continuity.layout_warnings`); `assets.scene_references`
+tài nguyên nhắc tên giữ chỗ (`5e1d410`); `assets._without_spoken_lines` (`a38bdb3`); `prop_lock.shot_text` bỏ thoại + `plate_camera` giàn máy TPS (`fe8bfff`);
+`looks.clean_prompt` mệnh đề phủ định (`0cad90c`).
+
+**THỨ TỰ CÒN LẠI** (thay mọi thứ tự trong hộp thư cũ):
+1. ĐỢT 17 việc 1 → 2. ĐỢT 17 việc 2 → 3. ĐỢT 17 việc 3 → 4. ĐỢT 15 việc 3 (phủ cả popup giữa phim Đ17v2) → 5. ĐỢT 12 việc 5 → 6. ĐỢT 11 việc 1b →
+7. ĐỢT 14 việc 3 → 8. **project_budget gộp** = Đ10 việc 3 mục 2 + Đ13 việc 4 mục 9 phần `cost._video_need` + QC tính 2 lần khi `qc_observe_enum` bật (cờ này ĐÃ
+BẬT trên máy chính → số đang sai trên #27), một nhánh `codex/d10-viec3b-project-budget` → 9. ĐỢT 12 việc 6 → 10. ĐỢT 13 việc 4 mục 1–8 + phần còn lại mục 9 →
+11. ĐỢT 11 việc 2 → 12. ĐỢT 11 việc 4 (bỏ phần đã có trong `continuity_layout`) → 13. ĐỢT 12 việc 2–4 → 14. ĐỢT 13 việc 1–3 → 15. ĐỢT 11 việc 5 → 16. ĐỢT 11
+việc 3 (sau khi người dùng duyệt thiết kế Đ11 việc 1 + 1b) → 17. **Nhóm runner sau #24** — CHỈ khi người dùng/phiên máy chính chốt (#27 chạy trên runner):
+runner cắt bản cao sai đoạn (hộp thư 04:18 c), follower 1080p + `usage_events` giây clip nhóm (Đ10 việc 3 mục 7), xfail end_frames
+(`tests/test_d8_technical.py`, Đ8 việc 2), nối gửi job Đ11 việc 5.
+
 ## Luật chung (áp cho cả 5 việc)
 
 - **(người dùng 12/10 — áp MỌI đợt từ nay)** (a) **Tối ưu giao diện và nút bấm**: ít bấm nhất cho việc hay làm, nút đặt đúng chỗ dùng, tên nút nói rõ kết quả ("Gen 3 cảnh — ≈ 4,20 USD" thay vì "Chạy"), gom/ẩn nút ít dùng, trạng thái đang chạy/khóa hiện ngay trên nút, không hai nút cùng việc; kiểm bằng ảnh chụp 1440 + 1280. (b) **Rà soát thật kĩ khi build**: mỗi việc tự rà độc lập (agent/lượt rà riêng) + ghi báo cáo `docs/RA_*`, test đỏ→xanh, ca biên, không đổi hành vi khi cờ TẮT. (c) **Ý tưởng của người dùng là GÓP Ý, chưa chắc dùng tốt** → trước khi build phải KIỂM + ĐÁNH GIÁ HIỆU QUẢ: tần suất dùng × lợi ích (đỡ bao nhiêu bấm / tiền / lỗi thật đã gặp) × công sức + rủi ro; đề xuất bản đơn giản hơn nếu đạt cùng mục đích; ý nào lợi ít / trùng chức năng có sẵn / phức tạp quá thì ghi "KHÔNG NÊN LÀM (lý do)" hoặc "để sau" trong bảng đánh giá ở báo cáo — không build cho có. Người dùng xem bảng đánh giá rồi chốt.
@@ -771,7 +795,7 @@ camera/nhân vật, "Góc nhìn đạo diễn" / "Góc nhìn camera"):** mỗi c
    (giếng, yêu nữ bò ra cách thành 1,25 m, Kelly lùi). Kiểm Playwright 1440 và 1280: 0 lỗi console, không cuộn ngang; test grep/JS nhẹ
    (khai `devsys/areas.json` khu `dashboard_ui`, không tăng version).
 
-## Việc 1b — Đối chiếu "Bàn đạo diễn" Clip AI (ảnh ref người dùng gửi lại 12/10) → cập nhật thiết kế + mockup TỐI ƯU HƠN (tài liệu + HTML; làm ngay sau Đ15 việc 1–2 và Đ12 việc 5)
+## Việc 1b — Đối chiếu "Bàn đạo diễn" Clip AI (ảnh ref người dùng gửi lại 12/10) → cập nhật thiết kế + mockup TỐI ƯU HƠN (tài liệu + HTML; thứ tự theo bảng 📋 đầu file)
 Ảnh ref: `docs/images/d11/clipai_ref_xoay_goc_nhin.png` (xoay góc nhìn người xem bằng chuột), `docs/images/d11/clipai_ref_nhan_vat.png` (chọn nhân vật: bảng Thuộc tính / Tư thế, màu, vị trí/xoay/tỉ lệ XYZ, tỉ lệ đồng đều, "Lưu vào thư viện";
 gizmo di chuyển trên khung nhìn; khung "Góc nhìn camera — Ảnh kết quả cuối" nổi góc phải) và `docs/images/d11/clipai_ref_camera_toan_canh.png` (tab Toàn cảnh:
 tải ảnh nền toàn cảnh, màu nền phông xanh #2F8F5B, lưới mặt đất, hướng nguồn sáng; chọn camera: "Dùng góc nhìn hiện tại", "Về mặc định", vị trí, ĐIỂM ĐÍCH,
@@ -784,7 +808,7 @@ nhìn, nón nhìn, kéo/nhập vị trí, kiểm ĐỎ/VÀNG, safe area, lan đ�
 | Khung "Góc nhìn camera — Ảnh kết quả cuối" nổi khi đang ở góc nhìn đạo diễn | Có khung nổi (thu/phóng, bật nhãn tên, bật mũi tên hướng nhân vật, tải ảnh) + hiện CỠ CẢNH đo được, chân trời, mắt % khung, safe area; cập nhật ngay khi kéo |
 | Ảnh nền: tải ảnh toàn cảnh / màu phông xanh | Nền = render 3D THẬT của bối cảnh (plates / Tháp Đồng Hồ…) theo đúng máy; phông xanh chỉ khi chưa có map; tải ảnh toàn cảnh = tùy chọn phụ |
 | Hướng nguồn sáng (slider) | Lấy từ `plate_env` giờ/thời tiết của cảnh (mặt trời/đèn của map), chỉnh được; cảnh báo VÀNG khi lệch ánh sáng ảnh duyệt |
-| Camera 1/10, "Thêm camera" | Nhiều máy mỗi cảnh = các GÓC PHỦ (bộ góc máy Đ11 việc 4): máy chính + góc phụ (OTS, cận phản ứng) đề xuất sẵn, chọn máy làm shot |
+| Camera 1/10, "Thêm camera" | Nhiều máy mỗi cảnh = các GÓC PHỦ (bộ góc máy Đ11 việc 5 mục 2): máy chính + góc phụ (OTS, cận phản ứng) đề xuất sẵn, chọn máy làm shot |
 | Vị trí / Điểm đích / Độ nghiêng / FOV (số thô) | Nhập theo nghề: cỡ cảnh (WS…CU) ↔ tiêu cự mm ↔ FOV tự đổi qua lại; điểm đích = "nhìn vào" nhân vật/khối (chọn tên) hoặc số; roll có cảnh báo khi > 0 không có lý do |
 | "Dùng góc nhìn hiện tại" / "Về mặc định" | Có; "về mặc định" = về đề xuất của Đạo diễn/bộ giải (không phải gốc tọa độ); thêm "Giải máy" (solver sẵn có) |
 | Nhân vật: tên, màu, XYZ, xoay, tỉ lệ | Nhân vật lấy từ cast dự án (tên thật, ảnh mặt nhỏ, màu cố định theo người); tỉ lệ = CHIỀU CAO THẬT theo hồ sơ nhân vật (không kéo tỉ lệ tùy ý); vị trí theo ô lưới tên + mét |
@@ -831,6 +855,7 @@ khung an toàn 9:16 (vùng giao diện TikTok/Reels che); dùng lại ảnh clay
 ("nâng máy 0,3 m để không thấy miệng giếng") qua đúng chức năng này, người bấm duyệt.
 
 ## Việc 4 — Kiểm luật quay phim + vòng kiểm sau gen (code, 0 USD; cờ `film_grammar_check`, `camera_match_qc` TẮT; người dùng duyệt 11/10)
+**Đã có (cờ `continuity_layout`, `core/continuity`): trục 180°, hướng đi so với máy, vật cố định giữ bên, người biến mất — MỞ RỘNG, không viết lại. Ca vàng ghi ở `knowledge/checks/ca_vang/` (không phải `knowledge/checks/<id>.md`).**
 1. **Luật quay phim giữa các shot liền** (code, không Claude): trục 180° (hai nhân vật / hướng chuyển động không đổi bên vô cớ), hướng nhìn khớp
    (eyeline), đổi góc ≥ 30° giữa hai shot cùng chủ thể (tránh jump cut), khoảng trống phía trước mặt / hướng đi (lead room), khoảng trống trên đầu
    theo cỡ cảnh. Tính bằng `plate_camera.project` + vị trí/hướng mặt trong BYĐ + sân khấu. Vi phạm → VÀNG có lý do + gợi ý (dời máy X m / đổi góc),
@@ -970,9 +995,7 @@ Luật chung GIỐNG đợt 1; nhánh `codex/d13-viec<N>-<tên>`; KHÔNG sửa f
    coi là bận tạm, chờ lượt sau. `director_lease.busy()/replies()` trong UI không bọc lỗi (sổ khóa không mở được / khóa ghi > 10 s → OperationalError thay câu
    "đang chạy"). Nhãn "NHÁP — có clip 480p" chưa hiện ở màn Video (`step4._draft_preview`); cảnh báo nháp ở step5 hiện mãi khi `xem_nhap.mp4` còn dù đã có
    bản giao. `final_cut.measured_size` ghép đường tương đối theo gốc repo còn `collect_clips` theo thư mục hiện hành (PIPELINE_DATA tương đối → mọi clip
-   "không đo được" → chặn giao); dự án cũ không `aspect` + clip đầu không đo được → `require_delivery_resolution` bỏ qua im lặng. `prompt_versions_ui`:
-   cảnh báo FALLBACK cũ không hạn/không gắn job → chỉ hiện khi gắn job con mới nhất của shot hoặc cờ đang bật. Thêm `core/env_boot.py` (hàm dùng chung
-   nạp `dashboard.env` + khóa môi trường User như `tools/launch_dashboard.ps1`) cho script của phiên gọi pipeline ngoài Dashboard (lỗi #27).
+   "không đo được" → chặn giao); dự án cũ không `aspect` + clip đầu không đo được → `require_delivery_resolution` bỏ qua im lặng. ~~`prompt_versions_ui`: cảnh báo FALLBACK cũ~~ → CHUYỂN ĐỢT 17 việc 3d (Đ13 bỏ qua). Script ngoài Dashboard nạp env: DÙNG LẠI `core/adapters/check.load_dashboard_env` + thêm đọc khóa HKCU\\Environment (như script phiên máy chính 14:35) — không viết module song song (trước ghi `core/env_boot.py`) cho script của phiên gọi pipeline ngoài Dashboard (lỗi #27).
 
 ## Kết quả Codex — đợt 13
 
@@ -1009,12 +1032,12 @@ Test bằng file giả (mô phỏng lỗi đọc), không cần ổ G thật.
 
 ## Kết quả Codex — đợt 14
 
-- Việc 1 · nhánh `codex/d14-viec1-qc-quan-sat` · code `86d7a94`: cờ `qc_observe_enum` TẮT/opt-in riêng, OFF request/output byte giống `08c11b4`. ON enum/vùng/nguồn, code chấm, không chắc VÀNG; ảnh đơn/batch/autoqc/cảnh dùng chung, cảnh 1 call giữ người/shadow/lớp0. ĐỎ module → 56 xanh; rà độc lập gom 14 đỏ → 111 xanh; root kiểm cuối **113 passed / 7,81 s**, 5 file. Báo cáo `docs/RA_D14_VIEC1_CODEX_2026-10-12.md`. Chưa thử ảnh thật678/680 hoặc chi phí model; OUTFIT riêng chưa hỗ trợ (báo thiếu trước API), side/cap/geo giữ VÀNG; project_budget chờ#24. KhôngAPI/data thật/cả bộ/gộp main.
+- Việc 1 · nhánh `codex/d14-viec1-qc-quan-sat` · code `86d7a94`: cờ `qc_observe_enum` TẮT/opt-in riêng, OFF request/output byte giống `08c11b4`. ON enum/vùng/nguồn, code chấm, không chắc VÀNG; ảnh đơn/batch/autoqc/cảnh dùng chung, cảnh 1 call giữ người/shadow/lớp0. ĐỎ module → 56 xanh; rà độc lập gom 14 đỏ → 111 xanh; root kiểm cuối **113 passed / 7,81 s**, 5 file. Báo cáo `docs/RA_D14_VIEC1_CODEX_2026-10-12.md`. Chưa thử ảnh thật678/680 hoặc chi phí model; OUTFIT riêng chưa hỗ trợ (báo thiếu trước API), side/cap/geo giữ VÀNG; project_budget chờ#24. KhôngAPI/data thật/cả bộ/gộp main. → GỘP main `4c55e0d` (12/10 06:58).
+- Việc 2 · phiên rà Codex · `4aa8ed8` (cờ `auto_send_self_fix`, đã BẬT trên máy chính 12/10) — Codex bỏ qua.
 
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
-- Việc 3 — ĐANG DỞ: `codex/d9-viec3-lao-dai`, dependency `df62cc7` là cherry-pick code7356a9f việc1, backend `42ecaec`. Broker loopback GET-only/token read-only TTL kiểm session Owner mỗi snapshot, SQLite chỉ đọc; logic dáng/bong bóng/dedupe/backoff/URL allowlist; cờ OFF. Đỏ module thiếu và mismatch due_status → 39 xanh; rà độc lập 2 finding/4 đỏ → 43 xanh /1,28s. RA_D9_VIEC3_CODEX_2026-10-11.md. CHƯA GUI tkinter/khay/toast thật/kho token OS/kênh cấp phiên server/launcher/QA Windows/PNG, chưa pilot chạy được. Dừng mở bước lớn theo hạn mức, tiếp sau reset. Chỉ push nhánh riêng, chưa toàn bộ/gộp/main. Tích hợp không cherry-pick dependency việc1 hai lần.
 
 ---
 
@@ -1050,7 +1073,8 @@ trong vùng; có cờ thì tự đặt trong vùng. Ca thật #24 v3: popup 1,8�
 
 ## Kết quả Codex — đợt 15
 
-- ✅ Việc 1 · nhánh `codex/d15-viec1-ban-giao` · code `89ce7b61`: đo clip gốc trước dựng/giao/xuất HD, kể cả manual/follower; dưới 720 hoặc không đo được báo shot + nâng 1080p/gen ≥720. Nháp có sidecar và nhãn riêng, không outputs.final/ghi đè. Guard Autopilot trước nhạc, Editor trước stash; export truy nguồn final, legacy thiếu nguồn phải dựng lại. Báo giá không coi 480 là final; nháp paid-running chỉ cộng phần cao, nguồn cao mất báo phục hồi/unknown không gửi thêm. ĐỎ 3 ca → nhóm 14 file 276 xanh/467s; rà 2 finding + follower dedup: 10 subcase đỏ → xanh; nhóm sửa 77 test +10 subtests/15,44s; caller cost/model/picker 21 xanh, UI 13 xanh/29,26s. Assert cũ giữ, fixture xuất khung nhỏ thật. RA `docs/RA_D15_VIEC1_CODEX_2026-10-12.md`. Root đọc phần sửa; giữ areas.version/key. Chưa cả bộ Windows/thử #24–27, không API/dữ liệu thật, chỉ push nhánh.
+- ✅ Việc 1 · nhánh `codex/d15-viec1-ban-giao` · code `89ce7b61`: đo clip gốc trước dựng/giao/xuất HD, kể cả manual/follower; dưới 720 hoặc không đo được báo shot + nâng 1080p/gen ≥720. Nháp có sidecar và nhãn riêng, không outputs.final/ghi đè. Guard Autopilot trước nhạc, Editor trước stash; export truy nguồn final, legacy thiếu nguồn phải dựng lại. Báo giá không coi 480 là final; nháp paid-running chỉ cộng phần cao, nguồn cao mất báo phục hồi/unknown không gửi thêm. ĐỎ 3 ca → nhóm 14 file 276 xanh/467s; rà 2 finding + follower dedup: 10 subcase đỏ → xanh; nhóm sửa 77 test +10 subtests/15,44s; caller cost/model/picker 21 xanh, UI 13 xanh/29,26s. Assert cũ giữ, fixture xuất khung nhỏ thật. RA `docs/RA_D15_VIEC1_CODEX_2026-10-12.md`. Root đọc phần sửa; giữ areas.version/key. Chưa cả bộ Windows/thử #24–27, không API/dữ liệu thật, chỉ push nhánh. → GỘP main `09396f1`.
+- ✅ Việc 2 · nhánh `codex/d15-viec2-khoa-dao-dien` · code `c3853a0d`: khóa chung Director toàn bộ/chia lại cảnh trước call/autoattach; SQLite sidecar PID/token/heartbeat + pending marker atomic chống lượt trả tiền chồng, writer fence chặn chủ cũ ghi. Raw sai định dạng single/scene/A/B/merged lưu đã lọc, 16KB UTF8 ×20/dự án, không đè plan tốt; UI hero/panel/resume/replan giữ key và tắt khi busy. ĐỎ module →79→83 xanh; rà 3 finding, 6 ca đỏ→6 xanh; nhóm 5 file cuối **94 passed /22,39s**. Rà `docs/RA_D15_VIEC2_CODEX_2026-10-12.md`; root đọc phần sửa. Nếu dọn pending lỗi, tiếp tục chặn tới khi xác nhận call đã dừng và khởi động lại tiến trình sở hữu. Chưa cả bộ Windows/UI/API thật, không dữ liệu sản xuất, giữ areas.version, chỉ push nhánh. → GỘP main `09396f1`.
 
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
@@ -1101,13 +1125,13 @@ không vượt trần ảnh gửi kèm (giữ chỗ như bản sửa 12/10: ưu 
 câu suy theo loại) — có câu Kho thì dùng câu Kho.
 Đánh giá hiệu quả (luật (c)) trước khi làm UI: ô chọn ở đâu ít bấm nhất; có cần Đạo diễn đề xuất hay chỉ bảng tay. Test: ca #27 dựng lại bằng dữ liệu giả (5
 nhân vật, 4 súng): prompt gửi đi mỗi người đúng súng + trọn câu tỉ lệ; shot nêu sai súng → ĐỎ; nhân vật chưa gán → VÀNG; đeo sau lưng; cờ TẮT giữ y cũ.
-`core/runner.py` sửa tối thiểu nếu cần (như việc 2) + ghi lý do. Xong push nhánh `codex/d16-viec3-khoa-sung` NGAY.
+`core/runner.py` sửa tối thiểu nếu cần (như việc 2) + ghi lý do. (ĐÃ LÀM — phiên rà Codex; không có nhánh Codex.)
 
 ## Kết quả Codex — đợt 16
 
-- Việc 1 · nhánh `codex/d16-viec1-viet-lai-prompt` · code `09778931`: lịch sử user-note đúng chuỗi parent cùng shot/loại, giữ ý các lần từ chối; client config LlmError không bị nuốt; fallback hiện trên Dashboard kể cả versions=0, chẩn đoán chọn last_at/id. ĐỎ history ảnh/video và lỗi client →45 test+4subtests xanh; rà1P2 cảnh báo lặp đỏ→xanh, nhóm cuối **46 passed +4 subtests /4,74s**. Test đường thật reject→child→Image/VideoRunner.submit_pending bắt provider.submit: hai ý note, bỏ translucent amber, không Fix, 3 phiên bản; OFF giữ Fix/noClaude. Không sửa runner/pipeline, giữ areas.version/key. RA `docs/RA_D16_VIEC1_CODEX_2026-10-12.md`. **CHƯA xác nhận nguyên nhân production #27 versions=0**: hook đã nối ở base; cần phiên máy chính xem diag fallback/config và thử thật sau gộp. Cùng giây chẩn đoán và cảnh báo không gắn prompt/job còn giới hạn. Không API/data thật/cả bộ/gộp main.
-- ✅ Việc 2 · nhánh `codex/d15-viec2-khoa-dao-dien` · code `c3853a0d`: khóa chung Director toàn bộ/chia lại cảnh trước call/autoattach; SQLite sidecar PID/token/heartbeat + pending marker atomic chống lượt trả tiền chồng, writer fence chặn chủ cũ ghi. Raw sai định dạng single/scene/A/B/merged lưu đã lọc, 16KB UTF8 ×20/dự án, không đè plan tốt; UI hero/panel/resume/replan giữ key và tắt khi busy. ĐỎ module →79→83 xanh; rà 3 finding, 6 ca đỏ→6 xanh; nhóm 5 file cuối **94 passed /22,39s**. Rà `docs/RA_D15_VIEC2_CODEX_2026-10-12.md`; root đọc phần sửa. Nếu dọn pending lỗi, tiếp tục chặn tới khi xác nhận call đã dừng và khởi động lại tiến trình sở hữu. Chưa cả bộ Windows/UI/API thật, không dữ liệu sản xuất, giữ areas.version, chỉ push nhánh.
-- ✅ Việc 2 · nhánh `codex/d16-viec2-khoa-dao-cu` · code `cc74097`: làm sạch riêng action/fix ở builder gửi ảnh, chỉ cụm món mặc định, giữ scene/Kho/skin và OFF từng byte; preview hiện 'sẽ bỏ'. Người dùng chốt **tự suy tỉ lệ theo loại súng**: metadata/số đo ưu tiên, heuristic ghi Estimated/not measured và chỉ kích cỡ, không ép pose; loại thiếu/mâu thuẫn VÀNG. ĐỎ 3 ca (a), 3 ca (b) →56 xanh; RÀ KỸ 6 finding →6 đỏ→6 xanh; nhóm cuối **62 passed /4,53s**, giữ realism_removed/key/version. Root đọc phần sửa và kiểm component Streamlit thật bằng Chrome Playwright tại1440/1280:0 pageerror/0 tràn ngang; 2 PNG `docs/images/d16/prop_lock_*.png`. RA `docs/RA_D16_VIEC2_CODEX_2026-10-12.md`. Runner sửa tối thiểu builder2134–2139 vì trước gửi nguyên cụm mâu thuẫn. Chưa model thật/toàn Dashboard/cả bộ Windows; parser cố ý hẹp, không NLP rộng. Không API/dữ liệu thật/gộp main.
+- Việc 1 · nhánh `codex/d16-viec1-viet-lai-prompt` · code `09778931`: lịch sử user-note đúng chuỗi parent cùng shot/loại, giữ ý các lần từ chối; client config LlmError không bị nuốt; fallback hiện trên Dashboard kể cả versions=0, chẩn đoán chọn last_at/id. ĐỎ history ảnh/video và lỗi client →45 test+4subtests xanh; rà1P2 cảnh báo lặp đỏ→xanh, nhóm cuối **46 passed +4 subtests /4,74s**. Test đường thật reject→child→Image/VideoRunner.submit_pending bắt provider.submit: hai ý note, bỏ translucent amber, không Fix, 3 phiên bản; OFF giữ Fix/noClaude. Không sửa runner/pipeline, giữ areas.version/key. RA `docs/RA_D16_VIEC1_CODEX_2026-10-12.md`. **CHƯA xác nhận nguyên nhân production #27 versions=0**: hook đã nối ở base; cần phiên máy chính xem diag fallback/config và thử thật sau gộp. Cùng giây chẩn đoán và cảnh báo không gắn prompt/job còn giới hạn. Không API/data thật/cả bộ/gộp main. → GỘP main `09396f1`; nguyên nhân #27 XÁC NHẬN 14:35 = script không nạp khóa.
+- ✅ Việc 2 · nhánh `codex/d16-viec2-khoa-dao-cu` · code `cc74097`: làm sạch riêng action/fix ở builder gửi ảnh, chỉ cụm món mặc định, giữ scene/Kho/skin và OFF từng byte; preview hiện 'sẽ bỏ'. Người dùng chốt **tự suy tỉ lệ theo loại súng**: metadata/số đo ưu tiên, heuristic ghi Estimated/not measured và chỉ kích cỡ, không ép pose; loại thiếu/mâu thuẫn VÀNG. ĐỎ 3 ca (a), 3 ca (b) →56 xanh; RÀ KỸ 6 finding →6 đỏ→6 xanh; nhóm cuối **62 passed /4,53s**, giữ realism_removed/key/version. Root đọc phần sửa và kiểm component Streamlit thật bằng Chrome Playwright tại1440/1280:0 pageerror/0 tràn ngang; 2 PNG `docs/images/d16/prop_lock_*.png`. RA `docs/RA_D16_VIEC2_CODEX_2026-10-12.md`. Runner sửa tối thiểu builder2134–2139 vì trước gửi nguyên cụm mâu thuẫn. Chưa model thật/toàn Dashboard/cả bộ Windows; parser cố ý hẹp, không NLP rộng. Không API/dữ liệu thật/gộp main. → GỘP main `ae97885`.
+- Việc 3 · phiên rà Codex · `8a1a6be`/`185794d` gộp `ae97885`; bổ sung VÀNG "người khác dùng súng đã khóa" `8e66b16`/`2f03b29` (gộp `3ac9c4f`/`b9ae7a2`).
 
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
@@ -1122,6 +1146,7 @@ TẮT; `core/runner.py` chỉ sửa tối thiểu khi gốc lỗi nằm đó (gh
 Thứ tự: việc 1 → 2 → 3. Xong việc nào push nhánh việc đó ngay + "Kết quả Codex — đợt 17".
 
 ## Việc 1 — Đạo cụ / súng khóa (ca thật #27 shot 16, job 700)
+**Đã có trên main — dùng lại, không viết lại:** `prop_lock.shot_text` đã bỏ dòng thoại/lời dẫn (`fe8bfff`, dùng `assets._without_spoken_lines` `a38bdb3`); `prop_lock.match_refs` đã bỏ câu 'as its reference picture shows' khi ảnh khóa không được gửi (`640085e`) — (c) chỉ còn thêm VÀNG + đánh giá ưu tiên; `assets.scene_references` giữ chỗ tài nguyên nhắc tên (`5e1d410`).
 (a) **Đạo diễn viết lại prompt tự chèn tên DẠNG skin** ('Gloowall OB55', lấy từ mô tả Kho #367) dù prompt cũ + ghi chú không có → `prop_lock.chosen_variant`
 chọn skin → gửi ảnh cửa thang máy kim loại, trong khi cùng câu ghi 'plain white… no pattern' (0,052 USD mất). Sửa: sau khi Đạo diễn viết lại
 (`core/prompt_rewrite.py`, cùng chỗ kiểm `_new_people`), CODE kiểm tên dạng/biến thể đạo cụ mới xuất hiện mà prompt cũ + ghi chú không có → gỡ (hoặc từ chối
@@ -1138,7 +1163,7 @@ phiên máy chính vừa sửa `assets.scene_references` 15:22 (tài nguyên đ�
 Phiên máy chính đã ghi tạm `scene.data.post_popup = {asset_id, at:'end', seconds, pop_sound}` ở shot 20 — CHƯA code nào đọc. Làm: dựng (delivery / end_popup)
 đọc `post_popup` từng shot (vị trí theo thời gian shot trên timeline bản dựng, dùng lại hiệu ứng pop + âm của popup cuối), VÀNG khi có `post_popup` mà không
 ghép được (không im lặng). Ảnh #432 còn nền xanh đặc (627×423 RGBA) → tách nền (chroma key có sẵn trong ffmpeg_studio? kiểm) hoặc cho chọn khung cắt. Vị
-trí trong vùng an toàn (ĐỢT 15 việc 3 nếu đã có). Ô chỉnh trên Dashboard gọn (luật (a)): bật popup cho shot + chọn ảnh Kho + giây. Cờ mới `shot_popup` TẮT.
+trí trong vùng an toàn: dùng bảng nền tảng/vùng an toàn có sẵn của `core/subtitles` (ĐỢT 15 việc 3 làm SAU sẽ phủ thêm popup này). Ô chỉnh trên Dashboard gọn (luật (a)): bật popup cho shot + chọn ảnh Kho + giây. Cờ mới `shot_popup` TẮT.
 
 ## Việc 3 — Khớp tên Kho (gửi thiếu ảnh mẫu / khớp nhầm)
 (a) Khớp tên Kho chỉ nguyên cụm + Kho Claude tạo chỉ có tên Việt → chữ shot tiếng Anh không kéo ảnh mẫu (cổng torii #426 không được gửi ở shot 2 → cổng sai;
@@ -1147,7 +1172,7 @@ phiên máy chính đã thêm biệt danh tiếng Anh tay cho #426/#428/#429/#43
 (tiếng Anh) với 'Nỏ' #360 do so khớp bỏ dấu khi chữ không dấu → danh sách từ tiếng Anh thường (no, not, gun, …) không bao giờ khớp tên Việt gấp dấu; test.
 (c) Tài nguyên kind `style` (#427 bóng mờ, #428 trời song song) KHÔNG bao giờ được gửi làm ảnh ref (assets chỉ nhận weapon/prop/pet/location/outfit) — đúng
 nếu ảnh có HUD, nhưng phải NÓI (VÀNG "kiểu ảnh chỉ dùng bằng chữ") thay vì im lặng; đánh giá có nên cho gửi style không HUD.
-(d) Việc nhỏ (hộp thư 15:22): thẻ shot vẫn hiện cảnh báo `director_rewrite_fallback` CŨ (04:53, hồi script chưa nạp khóa) dù các lần viết lại sau đã thành
+(d) Việc nhỏ (hộp thư 15:22) — LƯU Ý: `dashboard/design/screens/prompt_versions_ui.panel` (Codex Đ16v1 `0977893`) ĐÃ chọn sự kiện mới nhất FALLBACK/DONE; tái hiện ca 04:53 trước (lần viết lại thành công có ghi DONE cùng stage không — `runner._diag` ghi fallback riêng), chỉ sửa chỗ thiếu. Ca: thẻ shot vẫn hiện cảnh báo `director_rewrite_fallback` CŨ (04:53, hồi script chưa nạp khóa) dù các lần viết lại sau đã thành
 công → chỉ hiện cảnh báo của lần gen lại MỚI NHẤT (trùng ĐỢT 13 việc 4 mục 9 — làm ở đây, Đ13 bỏ qua mục đó).
 
 ## Kết quả Codex — đợt 17
