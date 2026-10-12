@@ -771,7 +771,7 @@ camera/nhân vật, "Góc nhìn đạo diễn" / "Góc nhìn camera"):** mỗi c
    (khai `devsys/areas.json` khu `dashboard_ui`, không tăng version).
 
 ## Việc 1b — Đối chiếu "Bàn đạo diễn" Clip AI (ảnh ref người dùng gửi lại 12/10) → cập nhật thiết kế + mockup TỐI ƯU HƠN (tài liệu + HTML; làm ngay sau Đ15 việc 1–2 và Đ12 việc 5)
-Ảnh ref: `docs/images/d11/clipai_ref_nhan_vat.png` (chọn nhân vật: bảng Thuộc tính / Tư thế, màu, vị trí/xoay/tỉ lệ XYZ, tỉ lệ đồng đều, "Lưu vào thư viện";
+Ảnh ref: `docs/images/d11/clipai_ref_xoay_goc_nhin.png` (xoay góc nhìn người xem bằng chuột), `docs/images/d11/clipai_ref_nhan_vat.png` (chọn nhân vật: bảng Thuộc tính / Tư thế, màu, vị trí/xoay/tỉ lệ XYZ, tỉ lệ đồng đều, "Lưu vào thư viện";
 gizmo di chuyển trên khung nhìn; khung "Góc nhìn camera — Ảnh kết quả cuối" nổi góc phải) và `docs/images/d11/clipai_ref_camera_toan_canh.png` (tab Toàn cảnh:
 tải ảnh nền toàn cảnh, màu nền phông xanh #2F8F5B, lưới mặt đất, hướng nguồn sáng; chọn camera: "Dùng góc nhìn hiện tại", "Về mặc định", vị trí, ĐIỂM ĐÍCH,
 độ nghiêng (roll), trường nhìn FOV; thanh phím tắt V/R/S/F/T/Q/Del/Esc/Ctrl+Z + gợi ý chuột; nút "Hoạt ảnh"; danh sách Camera 1/10, Nhân vật 2/10,
@@ -793,6 +793,7 @@ nhìn, nón nhìn, kéo/nhập vị trí, kiểm ĐỎ/VÀNG, safe area, lan đ�
 | "Lưu vào thư viện" | Lưu PRESET vào Kho dự án: máy (góc + cỡ + đường), sân khấu cảnh (vị trí + tư thế) — dùng lại cảnh sau / dự án sau; Tiểu Nhị gọi lại được |
 | Tải ảnh kết quả | Ảnh kết quả = ảnh bố cục (Image1 composition) + khung clay gửi kèm gen (Gói gửi kèm Đ8) — không phải tải về rồi tải lên tay |
 | Phím tắt V/R/S/F/T/Q/Del/Esc/Ctrl+Z, gợi ý chuột, thu gọn 2 panel | Giữ đủ (cùng phím cho người đã quen Clip AI) + lật cảnh trước/sau (←/→), so cảnh trước (bóng mờ), hoàn tác theo phiên bản sân khấu |
+| Chuột chỉnh GÓC NHÌN NGƯỜI XEM bàn dựng (ảnh `docs/images/d11/clipai_ref_xoay_goc_nhin.png`: kéo trái xoay quanh, kéo phải dời, cuộn thu/phóng; T nhìn từ trên, Q đặt lại, F lấy nét vật đang chọn) — tách khỏi máy quay của shot | Giữ đủ (orbit/pan/zoom, T/Q/F) + nút góc nhìn nhanh: trên / trước / bên / sau lưng máy quay / "đứng chỗ máy" (xem đúng từ máy mà vẫn kéo được); xoay quanh vật đang chọn (không quanh gốc tọa độ); giới hạn không chui dưới sàn / xuyên tường map; góc nhìn người xem KHÔNG đổi máy quay (chỉ "Dùng góc nhìn hiện tại" mới chép sang máy); nhớ góc nhìn theo cảnh khi lật trước/sau; mockup cho thao tác này chạy được bằng chuột + bàn phím |
 | Xuất/nhập (biểu tượng góc phải) | Xuất/nhập JSON sân khấu (schema `stage_v2`) + ảnh; không dùng API Clip AI (chưa có endpoint) |
 Việc: (1) bổ sung `docs/THIET_KE_BAN_DUNG_3D_D11.md` mục "Đối chiếu Clip AI" (bảng trên + chỗ nối dữ liệu thật: plates, cast, Kho, BYĐ, Gói gửi kèm;
 cái gì chỉ là mockup, cái gì cần việc 2/3); (2) nâng `mockup/ban_dung_3d.html`: khung camera nổi trong góc nhìn đạo diễn, tab Toàn cảnh (nền 3D/phông
