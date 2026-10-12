@@ -40,3 +40,8 @@ luật cấm từ — là cách tính trước khi viết. Code kiểm lại cá
     ngửa dang tay. Vì: #27 shot 1 ba đồng đội nằm ngửa giống hệt nhau, người dùng yêu cầu có dáng úp gục.
 11. **Được dùng mọi khu vực có trong model 3D quanh mốc** (vd bãi cỏ quanh Tháp Đồng Hồ), không chỉ quảng trường; chọn theo hành
     động của shot. Đây là gợi ý mở rộng chọn chỗ đứng (người dùng 12/10), không phải luật bắt buộc.
+12. **Tỉ lệ súng so với người theo game, đo bằng chiều cao đầu.** Đo trên ảnh in-game Kelly cầm súng (người dùng 12/10, Kho
+    #433/#434/#435/#436 có ảnh "kelly_cam_…_ty_le"): SKORP ≈ 3 đầu, M7 ≈ 3,3 đầu, RPK ≈ 3,7 đầu + chân chống, Hawk ≈ 4,6 đầu (người
+    ≈ 7 đầu). Mọi súng chính đều cầm HAI tay, báng tì cánh tay/vai, nòng vượt qua hông bên kia — không bao giờ cỡ súng lục, không cầm
+    một tay kể cả khi ăn mừng (tay kia giơ lên thì súng đeo / chống xuống, không thu nhỏ). Viết cỡ này vào câu tả shot có súng. Vì: #27
+    ảnh thử SKORP bị vẽ như súng lục, cầm một tay. Căn cứ: ảnh tỉ lệ trong Kho (đo thô trên ảnh, sai số ~10 %).
