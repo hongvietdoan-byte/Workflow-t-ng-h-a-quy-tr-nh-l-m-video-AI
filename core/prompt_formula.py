@@ -409,10 +409,15 @@ def ambient_prompt_block() -> str:
             "không bịa lý do. Lớp nền phải viết ngay trong motion gửi video, không chỉ ghi ở why.")
 
 
+# hộp thư 12/10 18:13 việc 2 (#27 S6 phải viết 'light … flickers' mới qua): + vật/động từ nền hay gặp trong game (vòng sáng, tia lửa,
+# tro, tuyết, cờ, rèm, tóc; pulse / flutter / wave / glimmer / shimmer / twinkle / blow) — vẫn cần vật + động từ, phủ định như cũ
 _AMBIENT = re.compile(
-    r"\b(?:fog|mist|smoke|clouds?|leaves|grass|branches|flames?|lamp(?: light)?|lights?|dust|water|rain)\b"
-    r"[^.;\n]{0,45}\b(?:drift(?:s|ing)?|roll(?:s|ing)?|swirl(?:s|ing)?|mov(?:e|es|ing)|sway(?:s|ing)?|rustl(?:e|es|ing)|flicker(?:s|ing)?|rippl(?:e|es|ing)|fall(?:s|ing)?|float(?:s|ing)?)\b|"
-    r"\b(?:sương|khói|mây|lá|cỏ|cành|lửa|đèn|bụi|nước|mưa)\b[^.;\n]{0,35}\b(?:lan|trôi|lay|rung|chập chờn|gợn|rơi)\b", I)
+    r"\b(?:fog|mist|smoke|clouds?|leaves|grass|branches|flames?|lamp(?: light)?|lights?|dust|water|rain"
+    r"|glow\w*|rings?|sparks?|embers?|ash|snow|petals?|flags?|curtains?|hair)\b"
+    r"[^.;\n]{0,45}\b(?:drift(?:s|ing)?|roll(?:s|ing)?|swirl(?:s|ing)?|mov(?:e|es|ing)|sway(?:s|ing)?|rustl(?:e|es|ing)|flicker(?:s|ing)?|rippl(?:e|es|ing)|fall(?:s|ing)?|float(?:s|ing)?"
+    r"|puls(?:e|es|ing)|flutter(?:s|ing)?|wav(?:e|es|ing)|glimmer(?:s|ing)?|shimmer(?:s|ing)?|twinkl(?:e|es|ing)|blow(?:s|ing)?)\b|"
+    r"\b(?:sương|khói|mây|lá|cỏ|cành|lửa|đèn|bụi|nước|mưa|tia lửa|vòng sáng|tro|tuyết|cờ|rèm)\b[^.;\n]{0,35}"
+    r"\b(?:lan|trôi|lay|rung|chập chờn|gợn|rơi|nhấp nháy|bay|phấp phới|lung linh)\b", I)
 
 
 def ambient_hint(data: Dict) -> str:
