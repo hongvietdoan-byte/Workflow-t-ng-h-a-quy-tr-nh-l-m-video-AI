@@ -77,11 +77,11 @@ class LayoutFromTests(unittest.TestCase):
             f = scene_storyboard.job_fields(self.p.conn, self.data, self.pid, self.ids[1], [], 0, layout=path, layout_label="shot 1")
             plain = scene_storyboard.job_fields(self.p.conn, self.data, self.pid, self.ids[1], [], 0)
         self.assertEqual([r["role"] for r in f["refs"]], ["layout_from"])
-        self.assertIn("Image 1 is an EARLIER shot at this same place", f["storyboard"]["image_mapping"])
-        self.assertIn("Image 1 (shot 1): earlier shot at the same place", f["storyboard"]["image_mapping"])
+        self.assertIn("Image 1 is ANOTHER shot of this film at this same place", f["storyboard"]["image_mapping"])
+        self.assertIn("Image 1 (shot 1): another shot of this film at the same place", f["storyboard"]["image_mapping"])
         self.assertNotIn("continuity anchor", f["storyboard"]["image_mapping"])     # rà 12/10: not "inherit … appearance / framing"
         self.assertEqual(plain["refs"], [])                                                   # without the field: as before
-        self.assertIn("EARLIER shot at this same place", reference_note(f["refs"]))
+        self.assertIn("ANOTHER shot of this film at this same place", reference_note(f["refs"]))
 
     def test_the_runner_adds_it_in_storyboard_mode(self):
         _, path = picture(self.p, self.pid, self.ids[0], "approved", self.data)
@@ -95,7 +95,7 @@ class LayoutFromTests(unittest.TestCase):
             job = {"id": self.p.create_job(self.ids[1], "image_gen"), "project_id": self.pid, "scene_id": self.ids[1]}
             prompt, sent = ImageRunner._finish_args(fake, job, "shot 2", [])
         self.assertIn(path, sent)
-        self.assertIn("EARLIER shot at this same place", prompt)
+        self.assertIn("ANOTHER shot of this film at this same place", prompt)
         self.assertIn("layout_from", json.dumps(fake._sent[job["id"]]))
 
     def test_a_shot_on_another_spot_gets_no_anchor_picture(self):
@@ -135,15 +135,23 @@ class LayoutFromTests(unittest.TestCase):
         self.assertNotEqual(image_spec_hash(d, [], "9:16"), image_spec_hash(dict(d, continuity_from=3), [], "9:16"))
         self.assertIn("anh", WATCH["continuity_from"])
 
-    def test_the_scene_edit_takes_only_an_earlier_shot(self):
+    def test_the_scene_edit_takes_another_shot_before_or_after(self):
+        # 12/10 #27: shot 15/17 keep the layout of shot 18 (a LATER shot) — any other existing shot, never itself, no 2-shot loop
         llm_io.store_scene_analysis(self.p, self.pid, {"characters": [{"name": "KELLY", "description": "d"}], "scenes": [
             {"idx": i, "location": "l", "time": "day", "characters": ["KELLY"], "mood": "m", "lighting": "l", "shot": "s",
              "image_prompt": f"shot {i}"} for i in (1, 2, 3)]})
         self.assertIn("continuity_from", llm_io.update_scene(self.p, self.pid, 2, {"continuity_from": 1}))
-        for bad in (2, 3, 0, "1", True):
+        self.assertIn("continuity_from", llm_io.update_scene(self.p, self.pid, 2, {"continuity_from": 3}))   # a LATER shot
+        for bad in (2, 4, 0, -1, "1", True):
             with self.assertRaises(llm_io.SchemaError):
                 llm_io.update_scene(self.p, self.pid, 2, {"continuity_from": bad})
+        with self.assertRaises(llm_io.SchemaError):           # shot 3 -> 2 while 2 -> 3
+            llm_io.update_scene(self.p, self.pid, 3, {"continuity_from": 2})
+        llm_io.update_scene(self.p, self.pid, 1, {"continuity_from": 2})        # 1 -> 2 -> 3
+        with self.assertRaises(llm_io.SchemaError):           # 3 -> 1 closes the loop 1 -> 2 -> 3 -> 1
+            llm_io.update_scene(self.p, self.pid, 3, {"continuity_from": 1})
         llm_io.update_scene(self.p, self.pid, 2, {"continuity_from": None})
+        llm_io.update_scene(self.p, self.pid, 3, {"continuity_from": 1})
 
 
 if __name__ == "__main__":

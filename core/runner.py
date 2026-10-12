@@ -1990,7 +1990,7 @@ def framing_sentence(data: Dict) -> str:
 
 
 def layout_frame_job(conn, project_id: int, scene_data):
-    """12/10 (#27 shot 11–12): the picture of the EARLIER shot named by the scene's `continuity_from` (its idx) — a shot back at the same
+    """12/10 (#27 shot 11–12): the picture of the OTHER shot (before or after) named by the scene's `continuity_from` (its idx) — a shot back at the same
     spot after a branch (another `sequence`, so neither the storyboard anchor nor the previous frame reaches it) keeps the people's
     spots from it. The approved picture first, else its newest picture waiting for review (row with `id`, `state`), None without one."""
     idx = (scene_data or {}).get("continuity_from")
@@ -2015,7 +2015,7 @@ def layout_reference(runner, job, data):
         return None
     if row["state"] != "approved":
         say(job, "warn", "layout_from_unapproved", f"giữ bố cục theo ảnh shot {want} (job {row['id']}) CHƯA duyệt")
-    return {"path": path, "label": f"shot {want} (same place, earlier)", "role": "layout_from"}
+    return {"path": path, "label": f"shot {want} (same place)", "role": "layout_from"}
 
 
 def chain_previous(proj, scene_data) -> bool:

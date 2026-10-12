@@ -275,7 +275,7 @@ PREVIOUS_NOTE = ("\nImage {n} is the shot right before this one: keep exactly it
                  "and the background — change only what this frame's text says.")
 
 
-LAYOUT_NOTE = ("\nImage {n} is an EARLIER shot at this same place: every person or object seen in both shots stays exactly where it is "
+LAYOUT_NOTE = ("\nImage {n} is ANOTHER shot of this film at this same place: every person or object seen in both shots stays exactly where it is "
                "there — same spot, spacing, order, pose and facing, relative to the landmarks and to each other — now seen from this "
                "shot's own camera; take the camera, framing and the main character's action from this frame's text, never this "
                "picture's framing.")
@@ -291,7 +291,7 @@ def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], j
     A shot turned away from the landmark (turned_away, lỗi D 08/10 #24) gets NO anchor picture and a storyboard session of its own;
     its people/outfits still come from `refs` (the shared references keep each character's pictures) and away_note goes with the
     prompt. landmark = the place's landmark name for that sentence.
-    layout = the picture of an earlier shot of ANOTHER sequence at the same spot (scene `continuity_from`, 12/10 #27 shot 11–12: the
+    layout = the picture of another shot (before or after) of ANOTHER sequence at the same spot (scene `continuity_from`, 12/10 #27 shot 11–12: the
     fallen teammates moved after the branch) — sent last with LAYOUT_NOTE."""
     g = group_of(conn, pid, scene_id)
     if g is None:
@@ -306,7 +306,7 @@ def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], j
         send.append({"path": previous, "label": "previous shot (same camera)", "role": "same_frame"})
         prev_note = PREVIOUS_NOTE.format(n=len(send))
     if layout and os.path.exists(layout) and layout not in (anchor_pic, previous):
-        send.append({"path": layout, "label": layout_label or "earlier shot (same place)", "role": "layout_from"})
+        send.append({"path": layout, "label": layout_label or "another shot (same place)", "role": "layout_from"})
         prev_note += LAYOUT_NOTE.format(n=len(send))
     mode = "global" if refs else "sequential"
     anchor_job = job_id if is_anchor else int(os.path.basename(anchor_pic)[4:].split(".")[0].split("_")[0]) if anchor_pic else 0

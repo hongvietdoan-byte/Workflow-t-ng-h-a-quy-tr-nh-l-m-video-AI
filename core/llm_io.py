@@ -473,10 +473,23 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
     if "sequence" in fields:
         _check_sequence(fields["sequence"], "scene")
         data["sequence"] = fields["sequence"]
-    if "continuity_from" in fields:                 # 12/10 #27: an earlier shot of ANOTHER sequence whose layout this shot keeps
-        value = fields["continuity_from"]
-        if value is not None and (not isinstance(value, int) or isinstance(value, bool) or not 0 < value < idx):
-            raise SchemaError(f"continuity_from: chỉ nhận null hoặc số shot đứng TRƯỚC shot {idx}")
+    if "continuity_from" in fields:                 # 12/10 #27: another shot at this spot (ANOTHER sequence) whose layout this shot keeps
+        value = fields["continuity_from"]           # — before OR after it (#27 shot 15/17 keep shot 18's layout); never itself
+        if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value <= 0 or value == idx):
+            raise SchemaError(f"continuity_from: chỉ nhận null hoặc số một shot KHÁC shot {idx}")
+        if value is not None:
+            other = conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx=?", (project_id, value)).fetchone()
+            if other is None:
+                raise SchemaError(f"continuity_from: không có shot {value}")
+            seen, nxt, row_ = {value}, value, other   # follow the chain: no loop of any length (2→3, 3→4, 4→2)
+            while row_ is not None:
+                nxt = (json.loads(row_["data"] or "{}") or {}).get("continuity_from")
+                if nxt == idx:
+                    raise SchemaError(f"continuity_from: shot {value} giữ bố cục (trực tiếp/gián tiếp) theo shot {idx} — vòng giữ bố cục")
+                if not isinstance(nxt, int) or isinstance(nxt, bool) or nxt in seen:
+                    break
+                seen.add(nxt)
+                row_ = conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx=?", (project_id, nxt)).fetchone()
         data["continuity_from"] = value
     if "camera_complexity" in fields:
         _check_choice(fields["camera_complexity"] or None, COMPLEXITY, "camera_complexity")
