@@ -140,6 +140,16 @@ class TranslateAmbiguous(unittest.TestCase):
             self._run({self.idx: {"action": "Kelly bắn Xúc Tu Đỏ"}}, "0")
         self.assertIn("bắn", str(e.exception))
 
+    def test_one_word_name_opening_a_sentence_is_a_common_noun(self):
+        # rà 12/10: a one-word name "RỒNG" — "Rồng bay qua" translated "The dragon flies over" must pass (no paid retry)
+        d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.sid,)).fetchone()["data"])
+        d["characters"] = list(d.get("characters") or []) + ["RỒNG"]
+        d["action"] = "Rồng bay qua tháp"
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), self.sid))
+        self.p.conn.commit()
+        n, d, _ = self._run({self.idx: {"action": "The dragon flies over the tower"}}, "0")
+        self.assertEqual(n, 1)
+
     def test_lowercase_common_word_equal_to_a_name_is_still_vietnamese(self):
         # rà 12/10: the name LỜI DẪN is also an ordinary phrase — "lời dẫn" left untranslated must not pass as the name
         d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.sid,)).fetchone()["data"])

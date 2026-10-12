@@ -25,6 +25,13 @@ class MotionPhysicsTests(unittest.TestCase):
         self.assertIsNone(motion_physics.kind("Free Fire in-game, Kelly smiles"))         # the game's name is not gunfire
         self.assertIsNone(motion_physics.kind("nước bắn tung tóe quanh chân Kelly"))         # splashing water is not shooting
 
+    def test_fire_and_glance_are_not_gunfire(self):
+        # rà 12/10: a bare 'fire(s)' / 'shoots' gave the gun-recoil sentence to a campfire clip
+        for text in ("Kelly stares at the fire", "the bonfire fires up sparks", "he shoots a glance at Kelly"):
+            self.assertNotEqual(motion_physics.kind(text), "shoot", text)
+        self.assertEqual(motion_physics.kind("Kelly opens fire on the enemy"), "shoot")
+        self.assertEqual(motion_physics.kind("Maxim shoots at the tower"), "shoot")
+
     def test_a_reference_shot_prompt_carries_it_once(self):
         text = seedance_refs.shot_motion({"size": "MS", "angle": "eye", "camera_move": "static", "action": "Kenta runs to the tower"})
         self.assertIn("no sliding", text)

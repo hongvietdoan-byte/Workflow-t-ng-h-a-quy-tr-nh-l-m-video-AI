@@ -12,7 +12,10 @@ from typing import Optional
 KINDS = (
     # rà video #27 (12/10, S18–S20): gunfire got the melee sentence through a bare "hits?" ("he takes hits", "the glue wall is hit by a
     # stray bullet") — shooting is its own kind, before strike; being hit is not throwing a blow (no sentence for it)
-    ("shoot", r"\b(fires?|firing|fired|opens? fire|gunfire|shoots?|shooting|xả súng|nổ súng|bắn(?! tung| tóe| toé))\b",
+    # rà 12/10: never a bare 'fire(s)' / 'shoots' — "stares at the fire", "the bonfire fires up sparks", "shoots a glance"
+    ("shoot", r"\b(?:(?:fires?|fired|firing)(?: \w+ly)? (?:at|into|on|toward|towards|a shot|a burst|shots?)|opens? fire|gunfire"
+              r"|shoots?(?! (?:a |the )?(?:glance|look))(?: \w+ly)? (?:at|into|him|her|them|the|a|an)|shooting (?:at|into)"
+              r"|xả súng|nổ súng|bắn(?! tung| tóe| toé))\b",
      "Each shot jolts the gun back into the shoulder, the stance stays braced with the feet planted, and a target that is hit jerks "
      "back."),
     ("strike", r"\b(punch(?:es|ed|ing)?|kicks?|kicking|strikes?|slaps?|swing[s]? (?:a|the|his|her) (?:fist|bat|pan)|fights?|fighting"

@@ -816,7 +816,10 @@ def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
         # rà 12/10: whole words only — never "mẹ" inside a Vietnamese sentence ("mẹo"); a one-word name shorter than 4 letters only
         # in capitals. 12/10 #27 (2nd run): the Director's end_state wrote "Xúc Tu Đỏ" → also the Title Case form; never any letter
         # case (rà: "lời dẫn" left in a sentence would pass as the name LỜI DẪN and reach the paid prompt)
-        return [n.upper()] if (" " not in n.strip() and len(n.strip()) < 4) else list(dict.fromkeys((n, n.upper(), n.title())))
+        # rà 12/10: Title Case only for a name of several words — a one-word name ("Rồng") opening a sentence is a common noun
+        if " " not in n.strip():
+            return [n.upper()] if len(n.strip()) < 4 else list(dict.fromkeys((n, n.upper())))
+        return list(dict.fromkeys((n, n.upper(), n.title())))
 
     def _word_res(forms):
         return [_re.compile(r"(?<!\w)" + _re.escape(f) + r"(?!\w)") for f in forms]

@@ -465,6 +465,8 @@ _THING_LAYERS = (         # (a thing written in the shot, needs wind?, sentence)
                 r"|\bbonfires?\b", I), False,
      "The flames flicker softly."),
     (re.compile(r"\bkhói\b|\bsmoke\b", I), False, "Smoke drifts slowly in the background."),
+    # rà 12/10: an open sky written in the shot moves too (clouds need no ground wind) — kept LAST: indoors reads the flame at [3:4]
+    (re.compile(r"\bsky\b|\bskies\b|\bclouds?\b|bầu trời|\bmây\b", I), False, "Clouds drift slowly across the sky in the background."),
 )
 
 
@@ -537,15 +539,19 @@ def lint_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, ff:
 # rà video #27 (12/10, S1/S2): Free Fire has no first-person view holding a gun — a POV shot shows the viewer's two EMPTY hands
 # (knowledge/roles/director_p24_1110.md rule 13). The approved frame said "EMPTY hands" while the acting said "hands tense around the
 # rifle grip, barrel trembling" → the clip would draw a gun the game never shows.
-_POV_GUN = re.compile(r"\b(?:rifles?|guns?|pistols?|shotguns?|gun grip|rifle grip|barrels?|triggers?|weapons?|firearms?|muzzle)\b"
-                      r"|súng|báng|nòng|cò súng|vũ khí", I)
+# rà 12/10: a gun IN THE HANDS only (a hand verb 0–4 words before it, or "gun/rifle grip") — "looks at the gun on the ground",
+# "oil barrels", "triggers a trap", "nòng nọc" are not held guns
+_GUNS = r"(?:rifles?|guns?|pistols?|shotguns?|weapons?|firearms?|skorp|smg)"
+_POV_GUN = re.compile(r"\b(?:holds?|holding|held|grips?|gripping|clutch\w*|aim\w*|rais\w*|tighten\w*|tense\w*|wield\w*)\b\W+"
+                      r"(?:\w+\W+){0,4}?" + _GUNS + r"\b|\b(?:gun|rifle|pistol|weapon) grip\b|\b" + _GUNS + r" in (?:his|her|their|both|"
+                      r"the|my|your) hands?\b|(?:cầm|nắm|siết|giương|ôm)\W+(?:\w+\W+){0,4}?(?:súng|báng|vũ khí)|báng súng", I)
 
 
 def pov_hand_issues(prompt: str, data: Dict, ff: Optional[bool] = None) -> List[Dict]:
     """ĐỎ when a POV shot of a Free Fire project (ff None = FF, like _common) writes a gun into the hands (acting / action / prompt)."""
     if ff is False or str((data or {}).get("angle") or "").strip().lower() != "pov":
         return []
-    bits = [prompt or ""]
+    bits = []                                                    # rà 12/10: the acting / action only, not the whole prompt
     for src in (data, data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}):
         perf = src.get("performance") if isinstance(src.get("performance"), dict) else {}
         bits += [str(v) for v in perf.values() if isinstance(v, str)] + [str(src.get("action") or "")]

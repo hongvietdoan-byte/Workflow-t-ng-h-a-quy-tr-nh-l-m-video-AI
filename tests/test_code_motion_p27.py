@@ -223,6 +223,24 @@ class VideoReviewFixes1210(_Flags):
                                  "director_p24_1110.md"), encoding="utf-8").read()            # the Director's POV rule 13
         self.assertIn("Cả `performance` / `action` của shot POV cũng tay trống", text)
 
+    def test_pov_gun_on_the_ground_is_not_held(self):            # rà 12/10: ĐỎ only for a gun in the hands
+        s = {"size": "MS", "angle": "pov", "camera_move": "static", "action": "looks at the gun on the ground",
+             "image_prompt": "a rifle lying in the grass, oil barrels behind",
+             "performance": {"body": "both hands open", "timing": "triggers a trap after a beat"}}
+        self.assertFalse([i for i in pf.lint_motion(sr.shot_motion(s), s) if i["part"] == "pov_tay_khong"])
+        held = dict(s, performance={"body": "hand tightens on the gun grip"})
+        self.assertTrue([i for i in pf.lint_motion(sr.shot_motion(held), held) if i["part"] == "pov_tay_khong"])
+        held2 = dict(s, performance={"body": "holds the SKORP ready"})
+        self.assertTrue([i for i in pf.lint_motion(sr.shot_motion(held2), held2) if i["part"] == "pov_tay_khong"])
+
+    def test_clear_sky_written_in_the_shot_gives_drifting_clouds(self):   # rà 12/10: "video không đơ" — mây trôi
+        d = {"weather": "clear", "location": "Tháp Đồng Hồ", "image_prompt": "Free Fire in-game 3D render, stone plaza under a blue sky"}
+        self.assertEqual(pf.ambient_sentence(d)[0], "Clouds drift slowly across the sky in the background.")
+        self.assertEqual(pf.ambient_sentence(dict(d, weather="calm, no wind"))[0],
+                         "Clouds drift slowly across the sky in the background.")
+        inside = {"weather": "clear", "location": "phòng trong nhà", "image_prompt": "a room, window shows the sky"}
+        self.assertNotIn("Clouds", pf.ambient_sentence(inside)[0])          # indoors: a flame only
+
     def test_eyes_guard_writes_names_without_accents(self):     # lỗi #7: "KELLY, XÚC TU ĐỎ: natural human eyes" lưu có dấu
         self.assertEqual(sr.eyes_guard({"characters": ["XÚC TU ĐỎ"]}, {"XÚC TU ĐỎ": True}),
                          " XUC TU DO: natural human eyes, no glowing eyes.")
