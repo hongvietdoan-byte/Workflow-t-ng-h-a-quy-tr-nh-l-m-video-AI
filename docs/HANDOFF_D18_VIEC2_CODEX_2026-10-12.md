@@ -14,3 +14,4 @@
 - Bước kế: root rà độc lập theo related_areas; nếu ổn commit nhánh và tích hợp theo quy trình.
 - Sau rà độc lập: đã sửa 2 P2 (mixed spot thiếu spot đếm trùng; ảnh approved cũ che missing latest). Hai regression ĐỎ trước → 49 passed / 7 file / 4,81 s; root cần đọc fix diff trước chốt.
 - Root rà thêm cache OFF: đã gate bằng marker private từng job; OFF chưa ON giữ cache legacy, OFF sau ON dọn một lần. Regression ĐỎ trước; 50 passed / 7 file / 5,61 s sau đổi code runner; diff-check sạch.
+- Chốt root: code f89cbad6; 50 test liên quan xanh. Commit kết quả và push nhánh riêng; không tích hợp main. Việc kế Đ18 việc3, việc4 vẫn chờ người dùng duyệt kế hoạch.
