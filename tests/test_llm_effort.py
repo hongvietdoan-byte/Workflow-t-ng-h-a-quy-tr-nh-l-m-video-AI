@@ -49,8 +49,11 @@ class EffortTests(unittest.TestCase):
                 llm_runner.run_director(p, pid, self.client(calls, stop="max_tokens"))
         self.assertEqual(e.exception.code, "truncated")
         self.assertIn("64000", str(e.exception))
-        raw = json.loads(p.project(pid)["director_raw"])
-        self.assertEqual((raw["truncated"], raw["text"]), (True, "OK"))
+        # Đ15v2 (12/10): a cut answer no longer overwrites director_raw (the last good plan's answer stays); it is kept, filtered,
+        # in the Director's diagnosis book (core/director_lease.replies) instead
+        self.assertIsNone(p.project(pid)["director_raw"])
+        from core import director_lease
+        self.assertTrue(any("OK" in r[2] for r in director_lease.replies(p.conn, pid)))
 
 
 if __name__ == "__main__":
