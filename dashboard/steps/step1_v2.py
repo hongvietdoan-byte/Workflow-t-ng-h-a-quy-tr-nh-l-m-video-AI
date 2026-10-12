@@ -162,7 +162,11 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
                     label += f" (≈ {usd:.2f} USD, ước tính)"
             except Exception:  # noqa: BLE001 - the button stays, only the number is missing
                 pass
-        if st.button(label, type="primary", key=f"script-cta_{pid}", disabled=client is None, width="stretch",
+        from core import director_lease
+        running = director_lease.busy(p.conn, pid)
+        if running:
+            st.info(running)
+        if st.button(label, type="primary", key=f"script-cta_{pid}", disabled=client is None or bool(running), width="stretch",
                      help="Chạy Director: Character Bible + thông số, ý đồ, thoại từng cảnh" if client else claude_hint()):
             from dashboard.steps.step1_director import run_director_now
             run_director_now(p, pid, client)

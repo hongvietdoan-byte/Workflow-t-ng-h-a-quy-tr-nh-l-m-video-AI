@@ -1,0 +1,26 @@
+# RÀ KỸ Đợt 15 · việc 2 — 12/10/2026
+
+Phạm vi: staged diff 7 file / 520 dòng thêm so với `3da9c5b0`, caller Director UI/autopilot/BYĐ; chỉ đọc mã, viết báo cáo, không commit/push/API/dữ liệu thật.
+Kết luận sau một vòng sửa gom: **đã xử lý 3 finding dưới đây**, mã sửa để unstaged cho root đọc trước commit; nhóm cuối **94 test xanh**.
+
+- **P1 — Takeover vẫn gọi trả tiền khi chủ cũ đang trong `complete`.** `core/director_lease.py:119–143`, `GuardedClient.complete:65–69`: TTL/hard timeout cho thay owner dù PID sống và lời gọi cũ chưa trả về; kiểm trước/sau chỉ chặn ghi kết quả, không chặn lời gọi mới. Heartbeat gặp lỗi SQLite cũng chết mà không được phục hồi. Tái hiện offline: bên trong fake complete làm heartbeat cũ rồi mở hold mới → `['old-pending', 'new-paid']`, sau đó chủ cũ mới bị LeaseLost.
+  Sửa: ghi trạng thái lời gọi đang gửi theo owner bằng giao dịch nguyên tử trước gửi; khi owner còn sống và call chưa kết thúc/được xác nhận dừng, giữ chặn gửi mới dù lease hết hạn (vẫn cho phục hồi PID chết theo hợp đồng); dọn trạng thái theo owner trong finally, tránh khoảng hở checkpoint→gửi; heartbeat xử lý lỗi tạm và báo lỗi rõ.
+  Test: Event giữ fake complete, làm lease hết TTL/hard limit, gọi luồng mới → không thêm complete; nhả Event rồi mới takeover; thêm race takeover giữa checkpoint và gửi, giữ ca PID chết và late-write hiện có.
+
+- **P2 — Lỗi sidecar che mất lỗi gốc và làm hỏng luồng chẩn đoán.** `core/director_lease.py:160–166,182–186`, `core/llm_runner.py:705–708,714–715`: DELETE release hoặc callback lưu raw có thể ném OperationalError, thay lỗi client/truncated/schema ban đầu. Tái hiện offline: body ném ValueError('original client error'), ép `_open` lỗi tại cleanup → lỗi thấy được là OperationalError('cleanup unavailable'). Lưu raw đang khác hợp đồng `diag.record` không làm hỏng công việc.
+  Sửa: cleanup phải giữ ngoại lệ gốc, báo thất bại nhả khóa bằng kênh diag an toàn; raw capture bắt lỗi lưu và báo mất chẩn đoán đã lọc, giữ nguyên lỗi/trạng thái retry ban đầu; acquisition/checkpoint vẫn fail closed khi không đọc được khóa.
+  Test: lỗi client + lỗi cleanup vẫn trả đúng lỗi client; truncated + capture lỗi vẫn giữ partial/code; raw invalid + capture lỗi giữ số lần retry cũ, không phát sinh lượt do riêng lỗi lưu; không in raw/secret ra log fallback.
+
+- **P2 — Thiếu raw cho kế hoạch ghép lỗi ở chia lại cảnh hai lượt.** `core/director_two_pass.py:685–686`: replan_scene validate merged không capture/đổi SchemaError thành LlmError như run:631–638; B qua check_scene nhưng ghép với phần còn lại không hợp lệ sẽ mất dữ liệu trả lời đã trả tiền và không ghi chẩn đoán Director qua `_diagnosed`.
+  Sửa: bắt SchemaError quanh validate merged, capture stage `merged:scene:<idx>` qua bộ lọc/giới hạn hiện có rồi raise LlmError(code='bad_plan'); giữ nguyên director_raw và director_intent_raw tốt.
+  Test: fake B hợp lệ cục bộ + validate merged lỗi → có raw merged redacted/bounded, có bad_plan, plan/intent tốt không đổi; offline ép validator lỗi đã xác nhận `SchemaError`, `captured_replies=0`, plan tốt giữ nguyên.
+
+Bằng chứng: chạy đúng một nhóm cuối `py -m pytest -q -p no:cacheprovider tests/test_director_lease.py tests/test_llm_runner.py tests/test_director_two_pass.py tests/test_director_v2.py tests/test_director_safety.py` với PYTHONUTF8=1 → **85 passed / 24,54 s**. Ba tái hiện trên chỉ dùng SQLite tạm hoặc fixture bộ nhớ + MockLlm.
+Đã kiểm 2b.5: không nới test; sidecar lấy đường DB thật thay vì cwd; quyền edit trước hold/attach; autopilot dùng wrapper chung; client proxy giữ thuộc tính đọc/model/ledger/cache; single/scene/A/B dùng raw callback; giới hạn UTF-8 16000 byte ×20/dự án; nút hero/panel/resume/replan giữ key và trạng thái busy. Không chạy toàn bộ hoặc nghiệm thu UI/API thật.
+`forget` sau writer của single không có late-write bỏ lọt: nó gọi `_save_raw`, đã có writer riêng; mapping strong connection của SQLite bộ nhớ có thể giữ tài nguyên kiểm thử lâu, chưa coi là lỗi chặn sản xuất file DB.
+
+Vòng sửa gom (không commit/push): 6 ca mới bao phủ TTL/hard pending, release/capture và merged replan **đỏ 6 → xanh 6** trước/sau sửa. Thêm xác nhận pending count nhiều thread, PID chết có call pending (test crossprocess cũ tăng phạm vi), heartbeat SQLite lỗi rồi hồi phục và warnings=error giữ lỗi client → file lease **20 ca**.
+Sửa: bảng sidecar `pending_calls(project,owner,count)` tăng atomic với checkpoint trước gửi, giảm trong finally sau complete; hold và busy cùng xét pending của PID sống bất kể TTL/hard deadline, owner chết được thu hồi; writer/post-checkpoint vẫn từ chối kết quả quá hạn. Không gọi mới khi marker chưa rõ trạng thái.
+P2: release/finish lỗi giữ ngoại lệ gốc; raw lưu lỗi không đổi retry; warning chỉ ghi metadata cố định qua diag hoặc stderr, chịu được warnings=error, không ghi exception/raw bí mật. P3: merged replan có raw `merged:scene:<idx>` đã lọc/bounded và bad_plan; giữ plan/intent tốt.
+Bằng chứng cuối: đúng **MỘT** lệnh nhóm 5 file sau sửa → **94 passed / 22,39 s**; `git diff --check` sạch. Chưa chạy toàn bộ, UI/live/API thật; không đụng TODO/CODEX_TASKS/main.
+Phục hồi khi lỗi dọn pending để lại marker: tiếp tục chặn khi PID còn sống; kiểm trạng thái tác vụ nhà cung cấp, xác nhận lời gọi đã dừng rồi mới khởi động lại tiến trình sở hữu. Không tự xóa marker hoặc mở khóa khi chưa rõ để tránh trả tiền trùng.

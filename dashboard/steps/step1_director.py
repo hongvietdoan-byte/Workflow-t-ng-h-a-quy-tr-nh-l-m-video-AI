@@ -1,6 +1,7 @@
 """Step 1 · 1d/1f: Director, its reports, dialogue review, re-plan of a scene (split from step1.py, S9.5)."""
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
+from core import director_lease
 from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 
 
@@ -42,6 +43,15 @@ def director_panel(p: Pipeline, pid: int, chars) -> None:
             from dashboard.steps.step1_checklist import checklist_panel
             checklist_panel(p, pid, "dir")          # S14.23: flag asset_checklist off → draws nothing
             client = llm_client()
+            running = director_lease.busy(p.conn, pid)
+            if running:
+                st.info(running)
+            failed_replies = director_lease.replies(p.conn, pid)
+            if failed_replies:
+                with st.expander("⚙ Câu trả lời Đạo diễn sai định dạng (đã lọc bí mật)"):
+                    for stage, at, text in failed_replies:
+                        st.caption(stage)
+                        st.code(text, language="text")
             if client is not None:
                 from core import director_two_pass
                 two = director_two_pass.enabled(p.project(pid))
@@ -61,15 +71,18 @@ def director_panel(p: Pipeline, pid: int, chars) -> None:
                 except Exception as e:  # noqa: BLE001 - an estimate that cannot be made is said, never hidden
                     cap(f"💵 Chưa ước tính được chi phí Director ({type(e).__name__}: {e})")
                 label += f" · Claude ≈ {usd:.2f} USD (ước tính)" if usd is not None else " · Claude: chưa có giá"
-                go = (confirm_all(f"llm_dir_{pid}", ["again"], label + " (chạy lại)",
+                if running:
+                    go = st.button(label, key=f"llm_dir_{pid}", disabled=True)
+                else:
+                    go = (confirm_all(f"llm_dir_{pid}", ["again"], label + " (chạy lại)",
                                   "Character Bible đã khóa: chạy lại chỉ cập nhật thông số cảnh (trường bạn đã sửa tay được giữ), nhân vật đã khóa "
                                   "không đổi. Chạy?", st, "Có, chạy lại") if locked
-                      else st.button(label, type="primary", key=f"llm_dir_{pid}"))
+                          else st.button(label, type="primary", key=f"llm_dir_{pid}"))
                 pending = director_two_pass.pending_scenes(p, pid) if two else []
                 resume = bool(pending) and st.button(
                     f"↻ Chỉ hỏi lại {len(pending)} cảnh lỗi (cảnh {', '.join(map(str, pending))})"
                     + (f" · Claude ≈ {scene_usd * len(pending):.2f} USD (ước tính)" if scene_usd is not None
-                       else cost.llm_button_tag(p.conn, "director", len(pending))), key=f"llm_dir_resume_{pid}",
+                       else cost.llm_button_tag(p.conn, "director", len(pending))), key=f"llm_dir_resume_{pid}", disabled=bool(running),
                     help="Lần chạy trước dừng vì Quay phim chưa chia được các cảnh này. Dùng lại ý đồ Tầng A và các cảnh đã chia (đã trả tiền) "
                          "khi kịch bản/luật không đổi — chỉ trả tiền cho các cảnh lỗi.")
                 if go or resume:
@@ -151,7 +164,11 @@ def _replan_button(p: Pipeline, pid: int, scene_idx: int, col) -> None:
     client = llm_client()
     if client is None:
         return
+    running = director_lease.busy(p.conn, pid)
+    if running:
+        col.caption(running)
     if col.button("↻ Chia shot lại cảnh này" + cost.llm_button_tag(p.conn, "director", 1), key=f"replan_{pid}_{scene_idx}",
+                  disabled=bool(running),
                   help="Một lượt Claude chỉ cho cảnh này (phần luật chung được cache) — vài cent thay vì ~$0,3 của cả kịch bản. "
                        "Cảnh sau được ghi lại theo thứ tự phim, không đổi nội dung. Director hai lượt: Quay phim chia lại theo ý đồ "
                        "Tầng A đã lưu (không hỏi lại Đạo diễn)."):
