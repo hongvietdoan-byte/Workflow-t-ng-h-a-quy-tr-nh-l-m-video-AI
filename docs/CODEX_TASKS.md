@@ -1041,6 +1041,10 @@ Test bằng file giả (mô phỏng lỗi đọc), không cần ổ G thật.
 
 ---
 
+## Bổ sung Kết quả Codex — đợt 14
+
+- ✅ Việc3 · nhánh `codex/d14-viec3-am-thanh-local` · code `36be2286`: snapshot âm Kho vào TEMP local theo scope/nguồn/cỡ/mtime, tái dùng/atomic/khóa giữa tiến trình/trần128file1GB; ambience/pop/nhạc/SFX dùng bản local. Rà5P2 sửa gom: cache lặp, cap race, cleanup che lỗi, mất icon khi tiếng lỗi, âm nền lỗi không báo. ĐỎ→XANH **131 passed /45,84s**, cleanupfocused1green; ffmpeg thật WAVgiả1,50s; Chrome actualStep5 SQLitegiả1440/1280:0JS/exception/overflow,2PNG. Root đọc fix/xem ảnh, keys/version66 giữ. Chưa nguồnGthật/Unix/cảbộ Windows; khôngAPI/data thật/gộpmain. RA/HANDOFF13/10 kèm nhánh.
+
 # ĐỢT 15 — Chặn bản giao 480p, khóa chạy Đạo diễn, vùng an toàn lớp phủ (hộp thư phiên máy chính 12/10 07:00 / 09:56 / 10:22)
 
 Luật chung GIỐNG đợt 1; nhánh `codex/d15-viec<N>-<tên>` từ `origin/main`; KHÔNG sửa `core/runner.py`, `core/lock_exceptions.py`, `core/end_frames.py`,
