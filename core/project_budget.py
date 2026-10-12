@@ -173,7 +173,7 @@ def unpriced_by_stage(conn, pid: int) -> Dict[str, int]:
     return _ledger(conn, pid, since=(get(conn, pid) or {}).get("baseline_at"))[1]
 
 
-def remaining(p, pid: int, shares: Optional[Dict] = None) -> Dict[str, float]:
+def remaining(p, pid: int, shares: Optional[Dict] = None, *, _estimate: Optional[Dict] = None) -> Dict[str, float]:
     """What is still to make, priced by code from the shot table and the price table (cost.estimate_run's parts), with the MEASURED
     redo shares (`redo_shares`) and margins — per stage. Nothing left to make → no Claude "other" money either."""
     from . import cost, model_router, qc_agent, qc_scene
@@ -181,20 +181,19 @@ def remaining(p, pid: int, shares: Optional[Dict] = None) -> Dict[str, float]:
     conn = p.conn
     shares = shares or redo_shares(conn, pid)
     ri, rv = shares["images"], shares["videos"]
-    est = cost.estimate_run(p, pid, pricing)
-    rows = model_router.plan(conn, pid, pricing)
-    made = {r["scene_id"] for r in conn.execute("SELECT scene_id FROM jobs WHERE project_id=? AND type='video_gen' AND state IN"
-                                                " ('succeeded','approved','running','queued','pending_review')", (pid,))}
-    vid = sum((r["cost"] or 0) * (UNVERIFIED_MARGIN if unverified(pricing, r["model"]) else 1.0)
-              for r in rows if r["scene_id"] not in made)
+    est = _estimate if _estimate is not None else cost.estimate_run(p, pid, pricing)
+    # Cùng nguồn với báo giá chạy: stamp đầu vào, nhóm, nháp/bản cao và giá thiếu tính dư.
+    # Job xếp hàng / thất bại chưa trả tiền; job có clip nhưng đầu vào cũ vẫn cần làm lại.
+    vid = est["videos"]
     director_done = bool(conn.execute("SELECT 1 FROM characters WHERE project_id=? AND TRIM(description)!=''", (pid,)).fetchone())
     n_img, n_clips = est["counts"]["images"], est["counts"]["clips"]
     qc_calls = round(cost._picture_qc_calls(conn, pid, n_img) * (1 + ri) + n_clips * (1 + rv))      # every retake is judged again
     qc = cost.llm_estimate(conn, "qc", qc_calls, pricing, images=2) or 0.0
-    if n_img and qc_agent.enabled():
+    observe_scene = features.on("qc_observe_enum") and qc_scene.active() and qc_scene.claude_on()
+    if n_img and qc_agent.enabled() and not observe_scene:
         qc += sum(qc_agent.scene_cap(n) for n in _frames_per_scene(conn, pid)) if qc_scene.active() else 0.0
     from . import qc_team
-    if n_img and qc_team.active() and qc_scene.active():             # 🎓 học việc spends the same
+    if n_img and qc_team.active() and qc_scene.active() and not observe_scene:             # 🎓 học việc spends the same
         qc += qc_team.FRAME_USD * n_img * (1 + ri)
     return {"images": round((est["images"] or 0.0) * (1 + ri), 2),
             "videos": round(vid * (1 + rv), 2),
@@ -250,9 +249,12 @@ def propose(p, pid: int) -> Dict:
     """{stage: {"spent", "left_estimate", "cap"}, "total": …, "shares": redo_shares} — not saved (see approve)."""
     spent = spent_by_stage(p.conn, pid)
     shares = redo_shares(p.conn, pid)
-    left = remaining(p, pid, shares)
+    from . import cost
+    run = cost.estimate_run(p, pid)
+    left = remaining(p, pid, shares, _estimate=run)
     stages = {k: {"spent": spent[k], "left_estimate": left[k], "cap": round(spent[k] + left[k], 2)} for k in STAGES}
-    return {"stages": stages, "total": round(sum(v["cap"] for v in stages.values()), 2), "shares": shares}
+    return {"stages": stages, "total": round(sum(v["cap"] for v in stages.values()), 2), "shares": shares,
+            "incomplete": bool(run.get("incomplete")), "unpriced": run.get("unpriced") or []}
 
 
 def shares_text(shares: Dict) -> str:
@@ -281,8 +283,17 @@ def estimate_view(p, pid: int) -> Dict:
         text += (f". Nếu mọi ảnh / clip đạt ngay lần đầu: ≈ ${cs['total']:.2f} (Ảnh ${cs['images']:.2f} · Video ${cs['videos']:.2f} · "
                  f"Claude ${cs['claude']:.2f}" + (f" · Âm thanh ${cs['audio']:.2f}" if cs.get("audio") is not None
                                                  else f" · Âm thanh {cs['audio_items']} lượt chưa có giá") + ")")
-    return {"total": prop["total"], "base": None if cs is None else cs["total"], "spent": spent, "shares": prop["shares"], "prop": prop,
-            "summary": cs, "text": text, "md": md_safe(text), "line": f"Dự tính tổng ≈ ${prop['total']:.2f} · đã chi ${spent:.2f}"}
+    incomplete = bool(prop.get("incomplete"))
+    line = f"Dự tính tổng ≈ ${prop['total']:.2f} · đã chi ${spent:.2f}"
+    if incomplete:
+        missing = ", ".join(prop.get("unpriced") or [])
+        text = f"⚠ chưa tính được video ({missing}); tổng phần đã biết ≈ ${prop['total']:.2f}. " + text.replace("Dự tính cả dự án", "Dự tính phần đã biết")
+        if cs is not None:
+            text = text.replace(f"Video ${cs['videos']:.2f}", "Video chưa tính đủ giá")
+            text = text.replace("Nếu mọi ảnh / clip đạt ngay lần đầu", "Phần đã biết nếu đạt ngay lần đầu")
+        line = f"⚠ chưa tính được video · tổng phần đã biết ≈ ${prop['total']:.2f} · đã chi ${spent:.2f}"
+    return {"incomplete": incomplete, "unpriced": prop.get("unpriced") or [], "total": prop["total"], "base": None if cs is None else cs["total"], "spent": spent, "shares": prop["shares"], "prop": prop,
+            "summary": cs, "text": text, "md": md_safe(text), "line": line}
 
 
 def run_over(p, pid: int, stage: str) -> Optional[str]:
@@ -425,15 +436,19 @@ def cost_summary(p, pid: int) -> Dict:
             f"(ước tính, tính dư): Ảnh ≈ ${images:.2f} · Video ≈ ${videos:.2f} · "
             + (f"Âm thanh ≈ ${audio:.2f}" if audio is not None else f"Âm thanh {audio_items} lượt (chưa có giá USD, tính theo lượt)")
             + f" · Claude ≈ ${claude:.2f} (chat Kịch bản lượt kế ≈ ${chat_est:.2f}) · Tổng ≈ ${total:.2f}")
-    if unpriced:
+    incomplete = bool(run.get("incomplete"))
+    if incomplete:
+        text = f"⚠ chưa tính được video ({', '.join(run.get('unpriced') or [])}); tổng phần đã biết ≈ ${total:.2f}. " + text.replace("Đã chi + ước tính phần còn lại", "Đã chi + phần còn lại đã biết").replace(f"Video ≈ ${videos:.2f}", "Video chưa tính đủ giá")
+    elif unpriced:
         text += (f" — {unpriced} mục chưa có giá được ước bằng giá cao nhất × 1,5 ({', '.join(run['unknown'])})")
     else:
         text += " — mọi mục đều có giá (giá cao nhất × 1,5 chỉ dùng khi thiếu giá)"
     return {"images": round(images, 2), "videos": round(videos, 2), "audio": None if audio is None else round(audio, 2),
             "audio_items": audio_items, "claude": round(claude, 2), "chat_est": chat_est,
             "chat_spent": ledger_by_stage(p.conn, pid)["claude_chat"], "remaining": remaining, "spent": spent, "total": total,
-            "unpriced": unpriced, "text": text, "md": md_safe(text),
-            "line": f"Đã chi ${spent:.2f} · còn lại ≈ ${remaining:.2f} · tổng ≈ ${total:.2f}"}
+            "unpriced": unpriced, "incomplete": incomplete, "missing_prices": run.get("unpriced") or [], "text": text, "md": md_safe(text),
+            "line": (("⚠ chưa tính được video · tổng phần đã biết " if incomplete else "") +
+                     f"Đã chi ${spent:.2f} · còn lại ≈ ${remaining:.2f} · tổng ≈ ${total:.2f}")}
 
 
 def approval_pending(p, pid: int) -> bool:

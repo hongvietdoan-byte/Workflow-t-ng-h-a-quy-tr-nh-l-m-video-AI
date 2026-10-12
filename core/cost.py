@@ -575,7 +575,8 @@ def video_need(conn, scene_id: int) -> Dict:
     Không dùng quy ước legacy 'hash NULL vẫn mới' của màn lineage cho tiền.
     """
     from . import memo
-    return memo.cached(conn, ("cost.video_need", scene_id), lambda: _video_need(conn, scene_id))
+    from . import quality_tier
+    return memo.cached(conn, ("cost.video_need", scene_id, quality_tier.enabled()), lambda: _video_need(conn, scene_id))
 
 
 def _video_need(conn, scene_id: int) -> Dict:
@@ -647,6 +648,12 @@ def _video_need(conn, scene_id: int) -> Dict:
                       if data.get("start_from_prev_clip") else "clip thiếu bằng chứng SHA ảnh duyệt hiện tại hoặc ảnh đã thay đổi")
             continue
         return {"needed": False, "reason": None}
+    from . import quality_tier
+    draft = quality_tier.approved_draft(conn, scene_id) if quality_tier.enabled() else None
+    if (draft is not None and quality_tier.upgrade_block(conn, draft) is None
+            and quality_tier.draft_stale_reason(conn, draft) is None):
+        # Không phải clip giao đạt: nháp đã trả tiền, chỉ còn lượt nâng bản cao.
+        return {"needed": False, "final_only": True, "reason": "nháp đã duyệt; chỉ còn nâng bản cao"}
     return {"needed": True, "reason": reason}
 
 
@@ -711,21 +718,30 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     for r in todo:
         warnings.extend(r.get("warnings") or [])        # rà gộp 12/10: priced (15 s per unknown ref) — not "no price" (`unknown`)
     vid_usd = 0.0
+    unpriced = []
+    from . import project_budget
     for r in todo:
         if r["cost"] is None:
             unknown.append(f"clip {r['model']}")
-            vid_usd += money_policy.estimate("video", r["model"], r.get("resolution") or r.get("tier"), r["billed_seconds"],
-                                             pricing)["usd"] or 0.0
+            fallback = money_policy.estimate("video", r["model"], r.get("resolution") or r.get("tier"),
+                                             r["billed_seconds"], pricing)["usd"]
+            if fallback is None:
+                unpriced.append(f"clip {r['model']}")
+            else:
+                vid_usd += fallback  # Fallback đã gồm 1,5 và hệ số chưa xác minh; không nhân lần hai.
         else:
-            vid_usd += r["cost"]
+            margin = project_budget.UNVERIFIED_MARGIN if project_budget.unverified(pricing, r["model"]) else 1.0
+            vid_usd += r["cost"] * margin
     from . import quality_tier                    # 08/10 (#24): flag two_tier_quality → nháp 480p + bản cao, priced like the real run
     two_tier = quality_tier.run_estimate(conn, project_id, todo, pricing)
     unknown.extend(two_tier.get("unknown") or [])
+    unpriced.extend(two_tier.get("unknown") or [])
     vid_usd += two_tier["usd"]
     remaining_final = quality_tier.running_draft_final_estimate(conn, project_id, rows, pricing)
     vid_usd += remaining_final["usd"]
     warnings.extend(remaining_final["warnings"])
     unknown.extend(remaining_final["unknown"])
+    unpriced.extend(remaining_final["unknown"])
     from . import lipsync
     if lipsync.enabled() and lipsync.post_available():   # post lip sync (sync.so) of the finished clips; "generate" shots are in the
         for r in todo:                                   # clip price already (they go to Seedance with the voice)
@@ -735,11 +751,14 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
                 price = clip_price(pricing, sync, "post", r["billed_seconds"])
                 if price is None:
                     unknown.append("khớp môi sau")
-                    price = money_policy.estimate("video", sync, "post", r["billed_seconds"], pricing)["usd"] or 0.0
-                vid_usd += price
+                    price = money_policy.estimate("video", sync, "post", r["billed_seconds"], pricing)["usd"]
+                if price is None:
+                    unpriced.append("khớp môi sau")
+                else:
+                    vid_usd += price
     llm_calls = {"director": 0 if conn.execute("SELECT 1 FROM characters WHERE project_id=? AND TRIM(description)!=''",
                                                (project_id,)).fetchone() else 1,
-                 "qc": _picture_qc_calls(conn, project_id, img["items"]) + len(todo), "motion": 1 if todo else 0}
+                 "qc": _picture_qc_calls(conn, project_id, img["items"]) + len(todo) + remaining_final["clips"], "motion": 1 if todo else 0}
     llm_usd = 0.0
     for stage, calls in llm_calls.items():
         one = llm_estimate(conn, stage, calls, pricing, images=2 if stage == "qc" else 0)
@@ -770,14 +789,15 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     llm_left = b["llm_left"] if b and b["llm_usd"] > 0 else None
     return {"images": img_usd, "videos": round(vid_usd, 2), "llm": round(llm_usd, 2), "total": round(base, 2), "max": round(worst, 2),
             "rewrite": round(rewrite, 3), "trainee": round(trainee_usd, 2),
-            "llm_left": llm_left, "warnings": warnings, "unknown": sorted(set(unknown)), "counts": {"images": img["items"], "end_frames": img.get("end_frames", 0),
+            "llm_left": llm_left, "warnings": warnings, "unknown": sorted(set(unknown)),
+            "incomplete": bool(unpriced), "unpriced": sorted(set(unpriced)), "counts": {"images": img["items"], "end_frames": img.get("end_frames", 0),
                                                         "clips": len(todo) + remaining_final["clips"], "seconds": sum(r["billed_seconds"] for r in todo) + remaining_final["seconds"],
                                                         "drafts": two_tier["drafts"], "finals_1080": two_tier["finals_1080"] + remaining_final["finals_1080"]}}
 
 
 def format_run_estimate(est: Dict) -> str:
     c = est["counts"]
-    text = (f"≈ {est['total']:.2f} USD (ước tính; tối đa ≈ {est['max']:.2f} nếu mọi ảnh tự gen lại 3 lần, mọi clip 2 lần): {c['images']} ảnh"
+    text = (("⚠ Chưa tính được video; tổng phần đã biết " if est.get("incomplete") else "") + f"≈ {est['total']:.2f} USD (ước tính; tối đa ≈ {est['max']:.2f} nếu mọi ảnh tự gen lại 3 lần, mọi clip 2 lần): {c['images']} ảnh"
             + (f" (gồm {c['end_frames']} khung cuối)" if c.get("end_frames") else "")
             + f" ≈ {(est['images'] or 0):.2f} · {c['clips']} clip / {c['seconds']:.0f} giây"
             + (f" (2 bậc: gồm {c['drafts']} nháp 480p trước bản cao" + (f", {c['finals_1080']} bản cao 1080p" if c.get("finals_1080") else "")
