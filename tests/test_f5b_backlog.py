@@ -122,6 +122,34 @@ class TranslateAmbiguous(unittest.TestCase):
         with self.assertRaises(Exception):
             self._run({self.idx: {"action": "XÚC TU ĐỎ bắn về phía Kelly"}}, "0")
 
+    def test_name_in_another_letter_case_passes_and_refusal_names_the_words(self):
+        # 12/10 #27 (2nd paid run): end_state wrote "Xúc Tu Đỏ" — the name list holds "XÚC TU ĐỎ" → refused twice as Vietnamese,
+        # and the bare message hid why. Any letter case of the name is the name; a refusal says which words are left.
+        d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.sid,)).fetchone()["data"])
+        d["characters"] = list(d.get("characters") or []) + ["XÚC TU ĐỎ"]
+        d["action"] = "Kelly bắn Xúc Tu Đỏ"
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), self.sid))
+        self.p.conn.commit()
+        n, d, _ = self._run({self.idx: {"action": "Kelly shoots Xúc Tu Đỏ"}}, "0")
+        self.assertEqual(n, 1)
+        self.assertEqual(d["motion_en"]["action"], "Kelly shoots Xuc Tu Do")
+        d["action"] = "Kelly bắn Xúc Tu Đỏ lần nữa"            # a new source → translated again
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), self.sid))
+        self.p.conn.commit()
+        with self.assertRaises(Exception) as e:
+            self._run({self.idx: {"action": "Kelly bắn Xúc Tu Đỏ"}}, "0")
+        self.assertIn("bắn", str(e.exception))
+
+    def test_lowercase_common_word_equal_to_a_name_is_still_vietnamese(self):
+        # rà 12/10: the name LỜI DẪN is also an ordinary phrase — "lời dẫn" left untranslated must not pass as the name
+        d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.sid,)).fetchone()["data"])
+        d["dialogue"] = [{"speaker": "LỜI DẪN", "line": "Chỉ một người sống sót"}]
+        d["action"] = "Kelly nghe lời dẫn"
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), self.sid))
+        self.p.conn.commit()
+        with self.assertRaises(Exception):
+            self._run({self.idx: {"action": "Kelly hears the lời dẫn"}}, "0")
+
 
 class EndFrameLint(unittest.TestCase):
     """KLD-13: pull_out / crane / orbit mà prompt không tả khung giây cuối → ⚠ (chỉ cảnh báo)."""

@@ -813,26 +813,29 @@ def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
     from .seedance_refs import ascii_name
 
     def _name_res(n):
-        # rà 12/10: only the name as written or in capitals, whole words — never "mẹ" inside a Vietnamese sentence ("mẹo");
-        # a one-word name shorter than 4 letters only in capitals
-        forms = {n.upper()} if (" " not in n.strip() and len(n.strip()) < 4) else {n, n.upper()}
+        # rà 12/10: whole words only — never "mẹ" inside a Vietnamese sentence ("mẹo"); a one-word name shorter than 4 letters only
+        # in capitals. 12/10 #27 (2nd run): the Director's end_state wrote "Xúc Tu Đỏ" → also the Title Case form; never any letter
+        # case (rà: "lời dẫn" left in a sentence would pass as the name LỜI DẪN and reach the paid prompt)
+        forms = [n.upper()] if (" " not in n.strip() and len(n.strip()) < 4) else list(dict.fromkeys((n, n.upper(), n.title())))
         return [_re.compile(r"(?<!\w)" + _re.escape(f) + r"(?!\w)") for f in forms]
     name_res = [(n, _name_res(n)) for n in names]
 
-    def _no_names(obj, to=lambda n: ""):
+    def _no_names(obj, to=lambda m: ""):
         if isinstance(obj, dict):
             return {k: _no_names(v, to) for k, v in obj.items()}
         if isinstance(obj, str):
             for n, res in name_res:
                 for rx in res:
-                    obj = rx.sub(to(n), obj)
+                    obj = rx.sub(lambda m: to(m.group(0)), obj)
         return obj
 
     def check(obj):
         if not isinstance(obj, dict) or set(obj) - {AMBIGUOUS_KEY} != set(todo):
             raise llm_io.SchemaError("trả về đúng các khóa shot đã gửi: " + ", ".join(sorted(todo)))
-        if _vi(_no_names(_unbracketed({k: v for k, v in obj.items() if k != AMBIGUOUS_KEY}))):
-            raise llm_io.SchemaError("còn chữ tiếng Việt — dịch hết sang tiếng Anh")
+        left = _no_names(_unbracketed({k: v for k, v in obj.items() if k != AMBIGUOUS_KEY}))
+        if _vi(left):                       # the words named: 12/10 the bare "còn tiếng Việt" cost two paid runs to find the cause
+            words = sorted({w for w in _re.findall(r"\w+", json.dumps(left, ensure_ascii=False)) if _vi(w)})[:8]
+            raise llm_io.SchemaError("còn chữ tiếng Việt (" + ", ".join(words) + ") — dịch hết sang tiếng Anh")
     from . import features
     try:
         ambiguous_rule = features.on("kld_lessons_prompts")
