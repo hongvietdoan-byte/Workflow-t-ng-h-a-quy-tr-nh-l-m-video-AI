@@ -466,6 +466,8 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
                         (d.get("action") or "")[:60], lines[:70], scene_status_text(st_row) if st_row else ""]
                 with st.expander("   |   ".join(x for x in head if x),     # 07/10: stays open after 💾 (its label changes)
                                  expanded=bool(st.session_state.get(f"sd_open_{pid}_{s['idx']}"))):
+                    from dashboard import continuity_ui
+                    continuity_ui.render(p, pid, s["idx"], "step1")
                     scene_editor_box(pid, s["idx"], char_names)
                 continue
             bits = [f"S{s['idx']:02d}" + (f" · nhóm {d['sequence']}" if d.get("sequence") else "")

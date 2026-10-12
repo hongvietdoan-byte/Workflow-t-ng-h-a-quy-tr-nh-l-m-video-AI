@@ -246,6 +246,8 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
             card_details(p, proj, j, is_latest, stale_reason)
         st.markdown(pills + (" " + _qc_chips(p, proj, jid) if not busy else ""), unsafe_allow_html=True)
         _version_strip(pid, sid, key, n, pointer)
+        from dashboard import continuity_ui
+        continuity_ui.render(p, pid, j["idx"], "step2", read_only=not is_latest)
         if is_latest:                                       # S14.17: the Director rewrote this shot's prompt → old/new + ↩
             from dashboard.design.screens import prompt_versions_ui
             prompt_versions_ui.panel(p, sid, "image", act)
