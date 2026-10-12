@@ -1231,3 +1231,4 @@ change_review) — kiểm quyền sửa như các ô khác. Ảnh chụp 1440 + 
 ## Kết quả Codex — đợt 18
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+`n## Bổ sung Kết quả Codex — đợt 11`n`n- 🟡 Việc1b · nhánh codex/d11-viec1b-doi-chieu · tài liệu63fb5000: mục9 đánhgiá đủ20dòng ClipAI + stage/segment/state và điểm nối code, khuyếnnghị mockupgọn9c. Root RÀNHẸ/đốichiếu sốdòng; docs-only khôngpytest/fakered. CHỜ người dùng chốt trước HTML/test/ảnh, chưa hoàn tất toàn việc. Không API/data/backend/TODO/PLAN/areas/main.
