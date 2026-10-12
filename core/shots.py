@@ -525,7 +525,8 @@ def _encode():
     return _ENCODE
 
 
-def trim_clip(pipeline: Pipeline, scene_id: int, path: str, lone_ref: bool = False) -> bool:
+def trim_clip(pipeline: Pipeline, scene_id: int, path: str, lone_ref: bool = False, at: Optional[float] = None,
+              out: Optional[Dict] = None) -> bool:
     """Cut a downloaded clip of a SHOT row to the shot's planned length: the full clip is kept next to it as <name>_raw.mp4.
     Nothing happens for v2 rows, clips already short enough, or files ffmpeg cannot read. Returns True when cut.
     Cờ `speed_ramp` (editing.md E10): a shot with `speed` < 1 takes (length − freeze) × speed seconds of the clip and plays them
@@ -533,7 +534,10 @@ def trim_clip(pipeline: Pipeline, scene_id: int, path: str, lone_ref: bool = Fal
     line by construction — shots.clean_retime).
     lone_ref (S2.5, cờ `motion_trim`): a lone Seedance reference-only clip (≥ 4 s, the prompt spreads the action over the whole clip)
     is cut to at least the group floor of its action (seedance_refs.floored — never the bare 1–2 s plan that lost S5·1's fall) at the
-    window where it moves most, anywhere in the clip; a spoken / lip-synced shot keeps its start (motion_start)."""
+    window where it moves most, anywhere in the clip; a spoken / lip-synced shot keeps its start (motion_start).
+    `at` (12/10, bản cao nâng từ nháp): the cut starts there instead of being looked for again — the 1080p clip of the same task is cut
+    where its approved draft was cut (#24 shot 05: 1,833 s in the draft, 0 s in the final). `out` gets {"start", "have", "want"} when
+    the clip is cut (where the cut was taken — recorded on the job, core.runner clip_span)."""
     import os
     import shutil
     import subprocess
@@ -558,10 +562,13 @@ def trim_clip(pipeline: Pipeline, scene_id: int, path: str, lone_ref: bool = Fal
     source = round((want - freeze) * speed, 2) if want else 0
     if not want or not have or (vf is None and have <= want + TRIM_SLACK):
         return False
-    try:
-        start = motion_start(pipeline.conn, scene_id, path, source, have, max_shift=shift) if vf is None else 0.0
-    except Exception:  # noqa: BLE001 - a clip whose motion cannot be read is cut from its start, as always
-        start = 0.0
+    if at is not None:
+        start = max(0.0, min(float(at), max(have - min(source, have), 0.0))) if vf is None else 0.0
+    else:
+        try:
+            start = motion_start(pipeline.conn, scene_id, path, source, have, max_shift=shift) if vf is None else 0.0
+        except Exception:  # noqa: BLE001 - a clip whose motion cannot be read is cut from its start, as always
+            start = 0.0
     raw = os.path.splitext(path)[0] + "_raw.mp4"
     shutil.move(path, raw)
     audio = ["-c:a", "aac", "-b:a", "256k"] if has_audio(raw) and vf is None else ["-an"]
@@ -572,6 +579,8 @@ def trim_clip(pipeline: Pipeline, scene_id: int, path: str, lone_ref: bool = Fal
     if proc.returncode != 0 or not os.path.exists(path):
         shutil.move(raw, path)             # keep the uncut clip rather than losing it
         raise RuntimeError((proc.stderr or "")[-300:])
+    if out is not None:
+        out.update(start=float(start), have=float(have), want=float(want))
     return True
 
 
@@ -713,17 +722,13 @@ def split_group_clip(path: str, group: List[Dict], dest_paths: List[str]) -> Lis
     from .ffmpeg_studio import find_ffmpeg, has_audio
     whole = os.path.splitext(path)[0] + "_group.mp4"
     shutil.copyfile(path, whole)
-    start, out = 0.0, []
+    out = []
     try:
         ffmpeg = find_ffmpeg()
         audio = ["-c:a", "aac", "-b:a", "256k"] if has_audio(whole) else ["-an"]
     except Exception:  # noqa: BLE001 - no ffmpeg: every shot keeps the whole clip
         ffmpeg = None
-    for r, dest in zip(group, dest_paths):
-        # a multi-shot generation gives each shot its billed length (>= 3 s); an H5 set-up clip is cut at the shots' own seconds
-        sec = float(r["data"]["duration_s"]) if r["data"].get("exact") else billed_shot_seconds(r["data"])
-        if r["data"].get("offset") is not None:        # S3.4: a whole-stretch take — each shot at its own place in the stretch
-            start = float(r["data"]["offset"])
+    for (start, sec), dest in zip(group_parts(group), dest_paths):
         ok = False
         if ffmpeg:
             proc = subprocess.run([ffmpeg, "-y", "-ss", f"{start:.2f}", "-i", whole, "-t", f"{sec:.2f}", *_encode(), *audio, dest],
@@ -732,6 +737,19 @@ def split_group_clip(path: str, group: List[Dict], dest_paths: List[str]) -> Lis
         if not ok:
             shutil.copyfile(whole, dest)
         out.append(dest)
+    return out
+
+
+def group_parts(group: List[Dict]) -> List[tuple]:
+    """(start, seconds) of each shot's part in a multi-shot / set-up group clip, as split_group_clip cuts it (one source for the cut
+    and for the record of where each shot's part sits — a final made from the draft's task is cut at the very same place)."""
+    start, out = 0.0, []
+    for r in group:
+        # a multi-shot generation gives each shot its billed length (>= 3 s); an H5 set-up clip is cut at the shots' own seconds
+        sec = float(r["data"]["duration_s"]) if r["data"].get("exact") else billed_shot_seconds(r["data"])
+        if r["data"].get("offset") is not None:        # S3.4: a whole-stretch take — each shot at its own place in the stretch
+            start = float(r["data"]["offset"])
+        out.append((start, sec))
         start += sec
     return out
 

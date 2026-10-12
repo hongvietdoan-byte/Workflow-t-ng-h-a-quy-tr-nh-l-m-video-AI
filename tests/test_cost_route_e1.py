@@ -522,3 +522,187 @@ class MeasuredUpgradeTests(Base):
         with mock.patch('core.ffmpeg_studio.probe_duration', return_value=5.5):
             self.assertEqual(quality_tier.draft_seconds(self.p.conn, self.p.job(draft)), 5.5)
             self.assertAlmostEqual(quality_tier.scene_final_price(self.p.conn, self.s1), round(5.5 * .5254, 4))
+
+
+# ---- 12/10 (#24): bản cao nâng từ nháp — cắt ĐÚNG đoạn nháp, follower ra 1080p từ clip nhóm cao, sổ chi = giây clip nhóm ----------------
+def _ff():
+    try:
+        return ffmpeg_studio.find_ffmpeg()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _ramp(path, seconds, size):
+    """A clip whose brightness rises 20 per second: the first frame of a cut says where in the task clip the cut started."""
+    subprocess.run([_ff(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"color=c=black:s={size}:d={seconds}:r=24",
+                    "-vf", "format=yuv420p,geq=lum='min(255,T*20)':cb=128:cr=128", "-pix_fmt", "yuv420p", path], check=True)
+
+
+def _start_second(path):
+    w, h = ffmpeg_studio.probe_size(path)                 # the Y plane as written by geq (no range conversion)
+    out = subprocess.run([_ff(), "-v", "error", "-i", path, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "yuv420p", "-"],
+                         capture_output=True).stdout[:w * h]
+    return sum(out) / len(out) / 20.0
+
+
+class _Clips:
+    """MockVideoProvider (no paid call) whose download writes a real ramp clip: 480p-ish for a draft, 1080p-ish for an upgrade."""
+    def __init__(self, seconds):
+        from core.providers import MockVideoProvider
+        self.prov = MockVideoProvider(polls_to_finish=1)
+        self.prov.task_usage = lambda ext: {"is_draft": True, "draft_expired_at": 9e12}
+        self.prov.download = self.download
+        self.seconds = seconds
+        self.upgrades = []
+        real = self.prov.submit_final_from_sample
+
+        def upgrade(ext, resolution="1080p"):
+            self.upgrades.append(ext)
+            return real(ext, resolution=resolution)
+        self.prov.submit_final_from_sample = upgrade
+
+    def download(self, task_id, dest):
+        task = self.prov._tasks.get(task_id) or {}
+        _ramp(dest, self.seconds, "108x192" if task.get("from_sample") else "48x64")
+        return dest
+
+
+@unittest.skipUnless(_ff(), "ffmpeg missing")
+class UpgradeCutsTheDraftPartTests(Base):
+    """Runner thật (send + poll) với nhà cung cấp giả: nháp nhóm → duyệt → nâng 1080p từ task nháp."""
+    N = 3
+
+    def setUp(self):
+        super().setUp()
+        self.clips = _Clips(8)
+        self.vr = VideoRunner(self.p, self.clips.prov, self.data)
+        for pt in (ON, mock.patch("core.shots.clean_edges", return_value=None)):
+            pt.start()
+            self.addCleanup(pt.stop)
+
+    def poll(self):
+        return self.vr._poll_once(self.pid)
+
+    def group_draft(self):
+        """The leader's group draft (3 shots: 1–4 s, 4–6 s, 6–8 s of an 8 s task clip), downloaded by the runner and approved."""
+        ext = self.clips.prov.submit("i.png", "group", None, 8, model="seedance-2.5", draft=True)
+        lead = self.p.create_job(self.s1, "video_gen")
+        sent = [{"id": self.sids[0], "idx": 1, "exact": True, "duration_s": 3, "offset": 1.0},
+                {"id": self.sids[1], "idx": 2, "exact": True, "duration_s": 2},
+                {"id": self.sids[2], "idx": 3, "exact": True, "duration_s": 2}]
+        self.p.conn.execute("UPDATE jobs SET external_id=?, model='seedance-2.5', sent_group=? WHERE id=?", (ext, json.dumps(sent), lead))
+        self.p.conn.commit()
+        self.p.start(lead)
+        self.poll()
+        drafts = {r["scene_id"]: r["id"] for r in self.p.conn.execute("SELECT * FROM jobs WHERE type='video_gen' AND quality_tier='draft'")}
+        self.assertEqual(len(drafts), 3)
+        for jid in drafts.values():
+            self.p.approve(jid, "user")
+        return drafts
+
+    def final(self, sid=None):
+        f = quality_tier.request_final(self.p, sid or self.s1)
+        _send(self.vr, self.pid)
+        return f
+
+    def test_leader_final_is_cut_at_the_drafts_part(self):
+        self.group_draft()
+        f = self.final()
+        self.poll()
+        job = self.p.job(f)
+        self.assertEqual(job["state"], "succeeded")
+        self.assertEqual(ffmpeg_studio.probe_size(job["result_path"]), (108, 192))
+        self.assertAlmostEqual(_start_second(job["result_path"]), 1.0, delta=0.3)       # the draft's part started at 1 s, not 0 s
+        self.assertAlmostEqual(ffmpeg_studio.probe_duration(job["result_path"]), 3.0, delta=0.15)
+
+    def test_followers_get_their_1080p_part_from_the_group_clip(self):
+        drafts = self.group_draft()
+        f = self.final()
+        self.poll()
+        self.assertEqual(self.clips.upgrades, [self.p.job(drafts[self.s1])["external_id"]])     # one paid upgrade for the group
+        for sid, start in ((self.sids[1], 4.0), (self.sids[2], 6.0)):
+            row = self.p.conn.execute("SELECT * FROM jobs WHERE scene_id=? AND quality_tier='final'", (sid,)).fetchone()
+            self.assertIsNotNone(row, sid)
+            self.assertEqual((row["state"], row["group_leader"], row["external_id"]), ("succeeded", f, self.p.job(f)["external_id"]))
+            draft = self.p.job(drafts[sid])
+            self.assertEqual((row["source_job_id"], row["input_hash"], row["draft_job_id"]),
+                             (draft["source_job_id"], draft["input_hash"], draft["id"]))
+            self.assertIsNotNone(row["input_hash"])
+            self.assertEqual(ffmpeg_studio.probe_size(row["result_path"]), (108, 192))
+            self.assertAlmostEqual(_start_second(row["result_path"]), start, delta=0.3)
+            self.assertAlmostEqual(ffmpeg_studio.probe_duration(row["result_path"]), 2.0, delta=0.15)
+            self.assertEqual(quality_tier.state(self.p.conn, sid), "final_review")
+
+    def test_follower_whose_motion_changed_is_not_cut_silently(self):
+        self.group_draft()
+        llm_io.store_motion_prompts(self.p, self.pid, {"scenes": [{"idx": 3, "motion_prompt": "she runs away", "duration_sec": 4}]})
+        llm_io.approve_motion_prompt(self.p, self.sids[2])
+        f = self.final()
+        self.poll()
+        self.assertIsNone(self.p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND quality_tier='final'", (self.sids[2],)).fetchone())
+        notes = [m for (m,) in self.p.conn.execute("SELECT message FROM diag_events WHERE code='final_follower_skipped'")]
+        self.assertEqual(len(notes), 1)
+        self.assertIn("S03", notes[0])
+        self.assertIn("đầu vào đã đổi", notes[0])
+        self.assertIsNotNone(self.p.conn.execute("SELECT id FROM jobs WHERE scene_id=? AND quality_tier='final' AND state='succeeded'",
+                                                 (self.sids[1],)).fetchone())
+        self.assertEqual(self.p.job(f)["state"], "succeeded")
+
+    def test_a_follower_final_asked_meanwhile_waits_and_is_not_paid_twice(self):
+        self.group_draft()
+        quality_tier.request_final(self.p, self.s1)
+        f2 = quality_tier.request_final(self.p, self.sids[1])
+        _send(self.vr, self.pid)
+        self.assertEqual(len(self.clips.upgrades), 1)
+        self.assertEqual(self.p.job(f2)["state"], "queued")
+        self.poll()
+        self.assertEqual(self.p.job(f2)["state"], "succeeded")                      # its part came with the group clip
+        self.assertAlmostEqual(_start_second(self.p.job(f2)["result_path"]), 4.0, delta=0.3)
+        _send(self.vr, self.pid)
+        self.assertEqual(len(self.clips.upgrades), 1)
+
+    def test_ledger_records_the_group_clip_seconds_once(self):
+        self.group_draft()
+        f = self.final()
+        self.poll()
+        rows = self.p.conn.execute("SELECT job_id, quantity FROM usage_events WHERE kind='video' AND job_id IN "
+                                   "(SELECT id FROM jobs WHERE quality_tier='final')").fetchall()
+        self.assertEqual([(r["job_id"], round(r["quantity"], 1)) for r in rows], [(f, 8.0)])
+
+
+@unittest.skipUnless(_ff(), "ffmpeg missing")
+class UpgradeLoneTrimmedDraftTests(Base):
+    """#24 shot 05: a lone draft cut at 1,833–4,833 s of its 5 s clip; the final must be that very part, the ledger 5 s."""
+
+    def setUp(self):
+        super().setUp()
+        self.clips = _Clips(5)
+        self.vr = VideoRunner(self.p, self.clips.prov, self.data)
+        ON.start()
+        self.addCleanup(ON.stop)
+        data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.s1,)).fetchone()[0] or "{}")
+        data.update(shot_no=1)
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), self.s1))
+        self.p.conn.execute("UPDATE motion_prompts SET duration_sec=3 WHERE scene_id=?", (self.s1,))
+        self.p.conn.commit()
+
+    def test_final_is_cut_where_the_draft_was_cut_and_billed_on_the_whole_clip(self):
+        ext = self.clips.prov.submit("i.png", "lone", None, 5, model="seedance-2.5", draft=True)
+        d = self.p.create_job(self.s1, "video_gen")
+        self.p.conn.execute("UPDATE jobs SET external_id=?, model='seedance-2.5' WHERE id=?", (ext, d))
+        self.p.conn.commit()
+        self.p.start(d)
+        with mock.patch("core.shots.motion_start", return_value=1.833):
+            self.vr._poll_once(self.pid)
+        self.assertAlmostEqual(_start_second(self.p.job(d)["result_path"]), 1.833, delta=0.3)
+        self.p.approve(d, "user")
+        f = quality_tier.request_final(self.p, self.s1)
+        _send(self.vr, self.pid)
+        with mock.patch("core.shots.motion_start", return_value=0.0):          # the 1080p clip read again would cut elsewhere
+            self.vr._poll_once(self.pid)
+        job = self.p.job(f)
+        self.assertEqual(ffmpeg_studio.probe_size(job["result_path"]), (108, 192))
+        self.assertAlmostEqual(_start_second(job["result_path"]), 1.833, delta=0.3)
+        self.assertAlmostEqual(ffmpeg_studio.probe_duration(job["result_path"]), 3.0, delta=0.15)
+        q = self.p.conn.execute("SELECT quantity FROM usage_events WHERE job_id=?", (f,)).fetchone()[0]
+        self.assertAlmostEqual(q, 5.0, delta=0.1)

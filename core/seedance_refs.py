@@ -590,7 +590,7 @@ def split(path: str, group: List[Dict], dest_paths: List[str], ffmpeg: Optional[
             moved.append([bounds[k], at])
             bounds[k] = at
         out = _cut_parts(whole, bounds, dest_paths, ffmpeg)
-    res = {"paths": out, "cuts": bounds[1:-1], "by": by, "planned": plan_cuts, "found": found, "moved": moved}
+    res = {"paths": out, "cuts": bounds[1:-1], "by": by, "planned": plan_cuts, "found": found, "moved": moved, "end": bounds[-1]}
     _save_cuts(whole, res, length)
     return res
 
