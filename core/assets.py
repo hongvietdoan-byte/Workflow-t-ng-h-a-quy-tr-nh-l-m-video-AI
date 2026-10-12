@@ -1615,9 +1615,16 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     cast = {fold(n) for n in names}
     people_names = {fold(r["name"]) for r in conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,))} | {
         fold(n) for x in chosen if x["kind"] == "character" for n in names_of(x)}
+    from . import prop_lock                      # 12/10 (#27): the project's gun / glue wall said only by a common word, right form
+    lock_on = prop_lock.enabled()
+    locked = {x["asset"]["id"]: x["image"] for x in prop_lock.reference_images(conn, project_id, scene)} if lock_on else {}
     for a in chosen:
         if len(refs) >= limit:
             break
+        if a["id"] in locked:
+            if not any(r["label"] == a["name"] for r in refs):
+                refs.append({"path": locked[a["id"]]["path"], "label": a["name"], "role": "object"})
+            continue
         if a["kind"] not in ("weapon", "prop", "pet", "location", "outfit") or not a["images"] or any(r["label"] == a["name"] for r in refs):
             continue
         if a["kind"] == "outfit" and (any(r["path"] == im["path"] for r in refs for im in a["images"])
@@ -1629,7 +1636,11 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
             continue                                          # 08/10: another picture of a place would pull a landmark in too
         keys = [fold(n) for n in names_of(a) if len(fold(n)) >= 3 and fold(n) not in cast]
         if any(" " + k + " " in blob for k in keys):
-            pic = location_plate(conn, a, scene) if a["kind"] == "location" else best_reference(a)
+            if lock_on and a["kind"] in prop_lock.KINDS:    # a picture with a variant (skin) only when the shot names it
+                pics = prop_lock.usable_images(a, prop_lock.shot_text(scene) + " " + blob)
+                pic = pics[0] if pics else None
+            else:
+                pic = location_plate(conn, a, scene) if a["kind"] == "location" else best_reference(a)
             if pic is not None:
                 refs.append({"path": pic["path"], "label": a["name"],     # 07/10: an outfit named by a shot with nobody wearing it
                              "role": {"location": "location", "outfit": "outfit_object"}.get(a["kind"], "object")})   # (on the bed)

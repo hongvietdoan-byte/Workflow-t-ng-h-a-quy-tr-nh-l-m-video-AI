@@ -35,6 +35,7 @@ PART_LABELS = {
     "loai_nhan_vat": "Loại nhân vật", "mau_thuan": "Câu mâu thuẫn", "cau_chu": "Ngắt câu", "viet_chong": "Viết chồng thêm",
     "ta_cai_dung": "Tả cái đúng", "chuyen_dong_nen": "Chuyển động nền",
     "phu_nhip_ref": "Phủ nhịp ref", "bien_do_khung": "Cỡ khung ↔ biên độ", "hieu_ung_hau_ky": "Hiệu ứng để hậu kỳ",   # 11/10 #24
+    "dao_cu": "Đạo cụ dự án",                 # 12/10 #27: project_prop_lock (core/prop_lock)
 }
 CLOSE_SIZES = ("ECU", "CU", "MCU")
 WIDE_SIZES = ("WS", "EWS", "MLS")
@@ -753,6 +754,16 @@ def warnings(shots) -> List[str]:
     return out
 
 
+def _prop_issues(conn, project_id, data: Dict) -> List[Dict]:
+    """12/10 (#27, cờ project_prop_lock): VÀNG khi shot nói từ chung ('gun', 'glue wall') mà dự án gắn nhiều món cùng loại — không
+    đoán (core/prop_lock). [] khi cờ tắt; lỗi đọc Kho thành một cảnh báo, không bao giờ ném."""
+    try:
+        from . import prop_lock
+        return prop_lock.issues(conn, project_id, data)
+    except Exception as e:  # noqa: BLE001 - a check, never a reason to lose the plan
+        return [_issue("warn", "dao_cu", f"không kiểm được đạo cụ dự án: {type(e).__name__}: {e}")]
+
+
 # ---- lưu vào scenes.data + diag ------------------------------------------------------------------------------------------
 def _sha(text: Optional[str]) -> str:
     return hashlib.sha1((text or "").strip().encode("utf-8")).hexdigest()[:12]
@@ -881,6 +892,7 @@ def after_director(conn, project_id: int, before: Optional[Dict] = None) -> None
                 diag.record(conn, "director", "warn", f"không kiểm được công thức prompt {_label(data, r['idx'])}: {type(e).__name__}: {e}",
                             "prompt_formula", project_id, scene_id=r["id"])
                 continue
+            fc["image"] += _prop_issues(conn, project_id, data)
             if not fc["growth"] and prev and prev.get("image") == image and prev.get("motion") == motion:
                 fc["growth"] = prev.get("growth") or []       # unchanged prompt: the earlier 'trồng thêm' finding still holds
             fc.update(image_sha=_sha(image), motion_sha=_sha(motion), at=_now())
@@ -929,6 +941,7 @@ def on_prompt_saved(conn, scene_id: int, kind: str, old: Optional[str], new: Opt
         fc = review_shot(_with_ref(conn, scene_id, data, motion), image, motion, _chars(conn, project_id),
                          previous={kind: old} if old != new else None,
                          style_by_code=_style_by_code(conn, project_id), ff=_is_ff(conn, project_id))
+        fc["image"] += _prop_issues(conn, project_id, data)
         fc["growth"] = [g for g in old_fc.get("growth") or [] if g.get("kind") != kind] + fc["growth"]
         fc["cross"] = old_fc.get("cross") or []
         fc["red"] = fc["red"] or any(i["level"] == "red" for i in fc["growth"])

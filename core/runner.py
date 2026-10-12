@@ -2134,7 +2134,8 @@ def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = 
     parts = [looks.style_sentence(proj),
              framing_sentence(data),
              _action_part(data, words, blocking_label),
-             f"Fix: {fix}" if fix else "",          # the retry's correction right after what it corrects, not at the tail
+             _prop_part(conn, project_id, data, raw),   # 12/10 (#27): the project's own gun / glue wall by name (flag project_prop_lock)
+             f"Fix: {fix}" if fix else "",         # the retry's correction right after what it corrects, not at the tail
              _place_part(conn, project_id, data, place, place_render, list(place_extra or []) + [_object_scale(conn, project_id, data)]),
              light,
              _lock_part(conn, project_id, data, proj, text, fix),
@@ -2144,6 +2145,15 @@ def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = 
     if "Gore restraint:" in prompt:                # F1-B: "everything in focus" never reaches the hinted details
         prompt = looks.in_focus_except(prompt)
     return no_minor_age(prompt), removed
+
+
+def _prop_part(conn, project_id: int, data: Dict, raw: Optional[str]) -> str:
+    """12/10 (#27): 'Prop lock' — a shot saying only "assault rifle" / "glue wall" gets the project's own SKORP / Bom keo by name and
+    description, in the form the shot names (core/prop_lock). '' when the flag is off (the prompt stays byte for byte)."""
+    from . import prop_lock
+    if not prop_lock.enabled():
+        return ""
+    return prop_lock.prompt_part(conn, project_id, dict(data, image_prompt=raw or ""))
 
 
 def _geometry_part(conn, project_id: int, data: Dict, camera_end: bool = False, render: bool = False) -> str:

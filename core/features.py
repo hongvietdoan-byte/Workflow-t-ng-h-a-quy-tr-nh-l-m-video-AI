@@ -520,6 +520,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "Người dùng duyệt F0 09/10; kiểm bằng câu thật #22/#24 (tests/test_prompt_formula.py). Chỉ ghi kết quả, không đổi thứ gửi "
                "model; phiên chính nối red_issues vào _blocked sau",
     },
+    "project_prop_lock": {
+        "label": "Khóa đạo cụ dự án: shot chỉ nói 'assault rifle' / 'glue wall' chung chung → prompt ảnh nêu đích danh món Kho đã gắn "
+                 "(SKORP, Bom keo…) + mô tả + ảnh tham chiếu đúng dạng (ảnh có variant chỉ gửi khi shot nhắc variant); nhiều món cùng "
+                 "loại → VÀNG, không đoán (0 USD)",
+        "verified": False,
+        "why": "Lỗi thật #27 (12/10): Kho gắn SKORP + Bom keo mà ảnh ra AK / tường keo mỗi shot một kiểu. Chưa chạy thật — bật rồi "
+               "gen 1 shot rẻ để so",
+    },
     "two_tier_quality": {
         "label": "Video 2 bậc chất lượng: shot phức tạp / chưa rõ gen NHÁP 480p trước (gen lại ≤ 2), người duyệt rồi 'Gen bản cao' "
                  "(Seedance 2.5 nâng từ nháp, model khác gửi lại ở bậc cao; gen lại ≤ 1); shot dễ gen thẳng bản cao. Bỏ qua 'Thử rẻ'",
