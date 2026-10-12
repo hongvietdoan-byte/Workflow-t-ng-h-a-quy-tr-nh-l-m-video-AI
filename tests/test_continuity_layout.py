@@ -36,8 +36,8 @@ def test_walking_into_the_same_gate_from_behind_then_facing_camera_is_flagged():
 
 
 def test_walking_into_something_without_camera_side_is_said():
-    lay = run([(1, 1, s("Kelly walks toward the gate."))])[0]
-    assert lay and "không ghi máy" in lay[0]
+    lay = run([(1, 1, s("Kelly walks toward the gate.")), (1, 2, s("Kenta runs into the shrine."))])[0]
+    assert len(lay) == 1 and "không ghi máy" in lay[0] and "1·1" in lay[0] and "1·2" in lay[0]   # one line per scene
 
 
 def test_a_fixed_thing_keeps_its_side_in_every_shot_of_the_place_even_scenes_apart():
@@ -62,3 +62,29 @@ def test_someone_lying_there_vanishing_from_the_next_shot_of_the_same_place_is_f
 def test_flag_off_says_nothing():
     plan = [(1, 1, s("Kelly walks toward the gate."))]
     assert run(plan, OFF)[0] == []
+
+
+def test_review_false_alarms_are_gone():
+    """Rà 12/10: sentences that were flagged wrongly."""
+    cases = [
+        [(1, 1, s("Camera behind Kelly, she walks into the market at dusk.")), (1, 2, s("Kelly faces camera and walks into the temple at dusk."))],
+        [(1, 1, s("Kelly walks to the door. Camera behind her.")), (1, 2, s("Kelly goes to sleep."))],
+        [(1, 1, s("Kelly on the left of frame, the gate on the left.", plate_spot="p")),
+         (4, 1, s("Kelly on the right, the gate on the left.", plate_spot="p"))],
+        [(1, 1, s("The gate on the left.", plate_spot="p")), (1, 2, s("Kelly faces camera. The gate on the right.", plate_spot="p"))],
+        [(1, 1, s("Over Kenta's shoulder, the lamp on the left.", chars=("KELLY", "KENTA"), angle="ots", plate_spot="p")),
+         (1, 2, s("Over Kelly's shoulder, the lamp on the right.", chars=("KELLY", "KENTA"), angle="ots", plate_spot="p"))],
+        [(2, 1, s("Kenta lies unconscious by the wall.", chars=("KELLY", "KENTA"), plate_spot="t")),
+         (2, 2, s("Extreme close-up of Kelly's eyes.", plate_spot="t"))],
+        [(2, 1, s("Kenta lies to Kelly about the map.", chars=("KELLY", "KENTA"), plate_spot="t")), (2, 2, s("Kelly walks off.", plate_spot="t"))],
+        [(1, 1, s("Camera behind Kelly as she walks into the gate.")), (1, 2, s("Kelly walks into the gate, not facing camera."))],
+    ]
+    for plan in cases:
+        lay, ax = run(plan)
+        assert not [w for w in lay if "không ghi máy" not in w], (plan, lay)
+    swap = [(1, 1, dict(s("x", chars=("KELLY", "KENTA")), start_frame="Kelly frame-left, Kenta frame-right",
+                        blocking="They swap places: Kelly ends on the right, Kenta ends on the left"))]
+    assert not run(swap)[1]
+    glance = [(1, 1, dict(s("x"), start_frame="Kelly runs left to right")), (1, 2, s("Kelly glances toward the left."))]
+    assert not [w for w in run(glance)[1] if "đổi hướng" in w]
+

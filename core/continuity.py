@@ -32,6 +32,8 @@ class _OnPurpose:
 
 _ON_PURPOSE = _OnPurpose()
 _EXEMPT_ANGLES = ("pov", "overhead")
+_MOVE = re.compile(r"(?<!\w)(?:run|runs|running|ran|walk|walks|walking|walked|sprint\w*|dash\w*|charg\w+|driv\w+|fl(?:y|ies|ying|ew)|"
+                   r"mov(?:e|es|ing|ed)|rush\w*|chạy|đi|lao|phóng)(?!\w)", re.I)
 
 
 def _clauses(text: str) -> List[str]:
@@ -54,21 +56,32 @@ def _frame_text(shot: Dict) -> str:
     return str(shot.get("start_frame") or shot.get("blocking") or "")
 
 
-def sides(shot: Dict) -> Dict[str, int]:
-    """name -> -1 (left) / +1 (right) from the shot's start frame words; a clause that names one person and one side decides."""
+def _sides_in(text: str, names) -> Dict[str, int]:
     out: Dict[str, int] = {}
-    for clause in _clauses(_frame_text(shot)):
-        named = [n for n in shot.get("characters") or [] if re.search(rf"\b{re.escape(n)}\b", clause, re.I)]
+    for clause in _clauses(text):
+        named = [n for n in names if re.search(rf"\b{re.escape(n)}\b", clause, re.I)]
         left, right = bool(_LEFT.search(clause)), bool(_RIGHT.search(clause))
-        if len(named) == 1 and left != right:
+        if len(named) == 1 and left != right and named[0] not in out:
             out[named[0]] = -1 if left else 1
+    return out
+
+
+def sides(shot: Dict) -> Dict[str, int]:
+    """name -> -1 (left) / +1 (right) from the shot's start frame words; a clause that names one person and one side decides.
+    With `continuity_layout`: a person the start frame does not place is read from the image prompt (the opening picture) — never
+    from blocking, which tells the MOVE ("they swap places: Kelly ends on the right") (rà 12/10)."""
+    names = [str(n) for n in shot.get("characters") or [] if isinstance(n, str)]
+    out = _sides_in(str(shot.get("start_frame") or shot.get("blocking") or ""), names)
+    if _layout_on():
+        for n, v in _sides_in(str(shot.get("image_prompt") or ""), [n for n in names if n not in out]).items():
+            out.setdefault(n, v)
     return out
 
 
 def direction(shot: Dict) -> Optional[int]:
     text = f"{shot.get('start_frame') or ''} {shot.get('end_state') or ''} {shot.get('action') or ''}"
-    if _layout_on():
-        text += f" {shot.get('blocking') or ''} {shot.get('image_prompt') or ''}"
+    if _layout_on():                 # rà 12/10: only clauses that MOVE ("Kelly glances toward the left" / light is not a run)
+        text += " " + " . ".join(c for c in _clauses(f"{shot.get('blocking') or ''} . {shot.get('image_prompt') or ''}") if _MOVE.search(c))
     r, l = bool(_TO_RIGHT.search(text)), bool(_TO_LEFT.search(text))
     return (1 if r else -1) if r != l else None
 
@@ -118,24 +131,36 @@ def axis_warnings(shots: List[Tuple[int, int, Dict]]) -> List[str]:
 # #27: shot 3→4 and 11–12 walked opposite ways into the same gate (one from behind, one facing camera); the gate / glue walls / enemies
 # changed sides between shots of the same place (scene 1 ↔ scene 6); three team-mates lying in a spot vanished from the next shot there.
 _BEHIND = re.compile(r"(?<!\w)(?:camera (?:is )?behind|from behind|seen from (?:the )?back|seen from behind|back to (?:the )?camera|"
-                     r"walk(?:s|ing)? away(?: from (?:the )?camera)?|over (?:her|his|their) shoulders?|rear view|third[- ]person|tps|"
-                     r"sau lưng|từ phía sau|quay lưng(?: về máy)?|đi ra xa)(?!\w)", re.I)
+                     r"walk(?:s|ing)? away from (?:the )?camera|rear view|third[- ]person (?:view|camera)|"
+                     r"máy (?:ở )?sau lưng|từ phía sau|quay lưng về (?:phía )?máy|đi ra xa máy)(?!\w)", re.I)
 _FRONT = re.compile(r"(?<!\w)(?:fac(?:ing|es|e) (?:the )?camera|toward(?:s)? (?:the )?camera|walk(?:s|ing)? toward(?:s)? (?:the )?camera|"
                     r"front view|head[- ]on|đối diện máy|hướng về máy|nhìn thẳng máy|đi về phía máy)(?!\w)", re.I)
 _INTO = re.compile(r"(?<!\w)(?:walk(?:s|ing)?|run(?:s|ning)?|step(?:s|ping)?|head(?:s|ing)?|move(?:s|ing)?|go(?:es|ing)?)\s+"
-                   r"(?:in)?to(?:ward(?:s)?)?\s+(?:the\s+)?([a-z][a-z\- ]{2,30}?)(?=[.,;]| and | while |$)|"
-                   r"(?:đi|chạy|bước)\s+(?:vào|về phía|tới)\s+([^.,;]{3,30})", re.I)
+                   r"(?:into|toward(?:s)?|through)\s+(?:the\s+)?([a-z][a-z\- ]{2,40}?)(?=[.,;]| and | while |$)|"
+                   r"(?:đi|chạy|bước)\s+(?:vào|về phía|qua)\s+([^.,;]{3,30})", re.I)
 _OBJ_SIDE = re.compile(r"(?:the|a|an)\s+([a-z][a-z\- ]{2,30}?)\s+(?:is\s+|stands\s+|stays\s+)?(?:on|at|to)\s+(?:the\s+)?"
-                       r"(?:frame[- ])?(left|right)(?:\s+(?:side|of (?:the )?frame))?\b|"
+                       r"(?:frame[- ])?(left|right)(?:\s+(?:side|of (?:the )?frame))?\b(?!\s+of\s+(?!(?:the\s+)?frame))|"
                        r"(?:frame[- ])?(left|right)(?:\s+side)?\s*[:—-]\s*(?:the\s+|a\s+)?([a-z][a-z\- ]{2,30}?)(?=[.,;]|$)", re.I)
-_STILL = re.compile(r"(?<!\w)(?:lying|lies|lie|lay|laid|slumped|unconscious|knocked out|motionless|standing still|sprawled|"
+_STILL = re.compile(r"(?<!\w)(?:lying(?!\s+to\b)|lies(?!\s+to\b)|lay(?!\s+(?:out|down the)\b)|slumped|unconscious|knocked out|motionless|standing still|sprawled|"
                     r"nằm|gục|bất tỉnh|bất động|đứng yên)(?!\w)", re.I)
 _STOP_HEAD = {"camera", "frame", "shot", "side", "way", "her", "him", "them", "it", "left", "right"}
+# (c) only things that stay put — a person or "a soldier" walks about between shots (rà 12/10)
+_FIXED = {"gate", "torii", "wall", "walls", "door", "doorway", "tree", "building", "house", "tower", "well", "stairs", "staircase",
+          "fence", "rock", "statue", "pillar", "column", "window", "bridge", "shrine", "temple", "car", "truck", "barrel", "crate",
+          "container", "lamp", "lamppost", "sign", "bench", "fountain", "portal", "cổng", "tường", "cửa", "cây", "nhà", "tháp",
+          "giếng", "cầu", "thang", "hàng", "rào", "đá", "tượng", "cột", "xe"}
+_OBJ_SIDE_VI = re.compile(r"(cổng|tường|cửa|cây|nhà|tháp|giếng|cầu thang|hàng rào|tảng đá|tượng|cột|xe)[^.,;]{0,25}?"
+                          r"(?:ở\s+)?(?:bên\s+|phía\s+)?(trái|phải)\s*(?:khung|màn hình)?", re.I)
+
+
+def _said(rx, text: str) -> bool:
+    """A match not negated by the words right before it ("not facing camera", "không quay lưng về máy")."""
+    return any(not _NEGATION.search(text[:m.start()]) for m in rx.finditer(text))
 
 
 def _facing(shot: Dict) -> Optional[str]:
     text = " ".join(str(shot.get(k) or "") for k in ("image_prompt", "blocking", "start_frame", "action"))
-    b, f = bool(_BEHIND.search(text)), bool(_FRONT.search(text))
+    b, f = _said(_BEHIND, text), _said(_FRONT, text)
     return ("behind" if b else "front") if b != f else None
 
 
@@ -143,9 +168,23 @@ def _place(shot: Dict) -> str:
     return re.sub(r"\s+", " ", str(shot.get("plate_spot") or shot.get("location") or "")).strip().lower()
 
 
+_CUT = {"at", "in", "on", "with", "of", "from", "by", "near", "under", "behind", "past", "before", "after", "during", "toward", "towards",
+        "lúc", "khi", "với", "của", "trong", "ở"}
+
+
 def _head(phrase: str) -> str:
-    words = [w for w in re.split(r"[\s\-]+", (phrase or "").lower()) if w]
-    return words[-1] if words else ""
+    """The thing named: the words up to a preposition / an -ly adverb, the last of them ("the dense bamboo forest at dusk" → forest);
+    '' when a word of it is not a thing (camera, frame…)."""
+    words = []
+    for w in re.split(r"[\s\-]+", (phrase or "").lower()):
+        if not w:
+            continue
+        if w in _CUT or (len(w) > 4 and w.endswith("ly")):
+            break
+        words.append(w)
+    if not words or any(w in _STOP_HEAD for w in words):
+        return ""
+    return words[-1]
 
 
 def _targets(shot: Dict) -> List[str]:
@@ -165,8 +204,10 @@ def _object_sides(shot: Dict) -> Dict[str, int]:
     for m in _OBJ_SIDE.finditer(text):
         phrase, side = (m.group(1), m.group(2)) if m.group(1) else (m.group(4), m.group(3))
         h = _head(phrase)
-        if h and h not in _STOP_HEAD and h not in chars and not any(h in c for c in chars):
-            out[h] = -1 if side.lower() == "left" else 1
+        if h in _FIXED and h not in chars and not any(h in c for c in chars):
+            out.setdefault(h, -1 if side.lower() == "left" else 1)
+    for m in _OBJ_SIDE_VI.finditer(text):
+        out.setdefault(m.group(1).lower(), -1 if m.group(2).lower() == "trái" else 1)
     return out
 
 
@@ -182,22 +223,24 @@ def layout_warnings(shots: List[Tuple[int, int, Dict]]) -> List[str]:
     out: List[str] = []
     prev = None
     sides_at: Dict[Tuple[str, str], Tuple[str, int, Optional[str]]] = {}
+    unknown: Dict[int, List[str]] = {}                # scene -> shots going into something without a camera side (said once per scene)
     for scene, k, s in shots:
         tag = f"{scene}·{k}"
-        if _exempt(s):
-            prev = (scene, k, s)
+        if _exempt(s) or str(s.get("angle") or "").lower() == "ots":
+            prev = (scene, k, s)                      # rà 12/10: an over-the-shoulder pair flips the sides on purpose
             continue
         face, targets, place = _facing(s), _targets(s), _place(s)
         if targets and face is None:
-            out.append(f"shot {tag}: nhân vật đi vào/tới '{targets[0]}' mà không ghi máy ở sau lưng hay trước mặt — không kiểm được hướng đi "
-                       "(ghi 'camera behind' / 'facing camera')")
+            unknown.setdefault(scene, []).append(f"{tag} ('{targets[0]}')")
         if prev is not None and prev[0] == scene:
             pf, pt = _facing(prev[2]), _targets(prev[2])
             common = set(targets) & set(pt)
             if common and face and pf and face != pf:
                 out.append(f"shot {tag}: cùng đi vào '{sorted(common)[0]}' như shot {prev[0]}·{prev[1]} nhưng một shot máy sau lưng, một shot nhân "
                            "vật hướng về máy — người xem thấy đi ngược chiều (giữ cùng phía máy, hoặc ghi lý do)")
-            if place and place == _place(prev[2]) and not (face and pf and face != pf):
+            close = (str(s.get("shot") or s.get("size") or "").upper() in ("CU", "ECU", "INSERT", "MCU")
+                     or re.search(r"(?<!\w)(?:extreme close[- ]up|close[- ]up|insert|cận cảnh|đặc tả)(?!\w)", str(s.get("image_prompt") or ""), re.I))
+            if place and place == _place(prev[2]) and not (face and pf and face != pf) and not close:
                 gone = []
                 for n in prev[2].get("characters") or []:
                     clause = next((c for c in _clauses(str(prev[2].get("image_prompt") or "") + " . " + str(prev[2].get("blocking") or ""))
@@ -208,19 +251,20 @@ def layout_warnings(shots: List[Tuple[int, int, Dict]]) -> List[str]:
                     out.append(f"shot {tag}: {', '.join(gone)} đang nằm/đứng yên ở chỗ này trong shot {prev[0]}·{prev[1]} mà shot này (cùng chỗ, "
                                "máy không quay ngược) không có — người xem thấy biến mất (thêm vào nhân vật của shot, hoặc ghi máy nhìn hướng khác)")
         if place:
-            here = dict(_object_sides(s))
-            here.update({str(n).lower(): v for n, v in sides(s).items()})
-            for thing, side in here.items():
+            for thing, side in _object_sides(s).items():  # rà 12/10: fixed things only — people walk about between shots
                 key = (place, thing)
                 if key in sides_at:
                     first_tag, first_side, first_face = sides_at[key]
-                    turned = face and first_face and face != first_face
-                    if side != first_side and not turned:
+                    same_side_camera = face == first_face   # both said and equal, or both unsaid; one unsaid → cannot tell
+                    if side != first_side and same_side_camera:
                         out.append(f"shot {tag}: '{thing}' ở {'trái' if side < 0 else 'phải'} khung, shot {first_tag} cùng chỗ ghi "
                                    f"{'trái' if first_side < 0 else 'phải'} — giữ sơ đồ chỗ (hoặc ghi máy quay ngược / lý do)")
                 else:
                     sides_at[key] = (tag, side, face)
         prev = (scene, k, s)
+    for scene, tags in unknown.items():
+        out.append(f"cảnh {scene}: shot {', '.join(tags[:5])}" + ("…" if len(tags) > 5 else "") + " đi vào/tới một chỗ mà không ghi máy ở "
+                   "sau lưng hay trước mặt — không kiểm được hướng đi (ghi 'camera behind' / 'facing camera')")
     return out
 
 
