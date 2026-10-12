@@ -232,14 +232,19 @@ def _check_end(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> 
     from . import end_frames, shots
     lf = plan.get("last_frame")
     byd = _byd(data)
+    in_place = _in_place(conn, scene_id, plan, data)
     if not lf:
-        if byd is not None and _changes(byd) and end_frames.enabled() and not plan.get("group_ids"):
+        if in_place and end_frames.enabled() and not plan.get("group_ids") and end_frames.usable_path(conn, scene_id):
+            out.append(_issue("khung_cuoi", VANG, f"{in_place} — không gửi khung cuối vẽ (cờ locomotion_end_frame)"))
+        elif byd is not None and _changes(byd) and end_frames.enabled() and not plan.get("group_ids"):
             out.append(_issue("khung_cuoi", VANG, "BYĐ khai trạng thái cuối khác đầu nhưng clip gửi không kèm khung cuối"))
         return
     lf = str(lf)
     nxt = shots.last_frame_for(conn, plan.get("data_dir") or "", scene_id)          # shot nối tiếp: kết ở ảnh duyệt của shot sau
     drawn = end_frames.usable_path(conn, scene_id)                                  # K1: khung cuối vẽ từ ảnh khung đầu hiện hành
     same = lambda a, b: bool(a) and os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))  # noqa: E731
+    if in_place and same(drawn, lf) and not same(nxt, lf):
+        out.append(_issue("khung_cuoi", VANG, f"{in_place} — nên bỏ khung cuối vẽ, thêm câu mốc cảnh vật"))
     if not (same(nxt, lf) or same(drawn, lf)):
         row = end_frames.current(conn, scene_id)
         why = ("chưa có khung cuối" if row is None else
@@ -258,6 +263,26 @@ def _check_end(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> 
     elif ch is False and not same(nxt, lf):
         out.append(_issue("khung_cuoi", DO, "BYĐ khai trạng thái cuối = trạng thái đầu (không đổi) mà clip gửi kèm khung cuối vẽ trạng "
                                             "thái khác — sửa BYĐ hoặc bỏ khung cuối"))
+
+
+def _in_place(conn, scene_id: int, plan: Dict, data: Dict) -> Optional[str]:
+    """Cờ locomotion_end_frame (hộp thư 12/10 18:13): cùng luật với runner._runs_in_place — shot chạy/đi sinh dài hơn shot × 1,3."""
+    from . import features, motion_physics
+    from .adapters.clipai import effective_duration
+    if not features.on(motion_physics.LOCOMOTION_FLAG) or plan.get("group_ids"):
+        return None
+    canonical, family = _model(plan)
+    if canonical is None:
+        return None
+    mp = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=? AND state='approved'", (scene_id,)).fetchone()
+    try:
+        secs = float((mp["duration_sec"] if mp is not None and mp["duration_sec"] else None) or data.get("duration_s") or 0)
+        sent = float(plan.get("duration") or 0)
+    except (TypeError, ValueError):
+        return None
+    if secs <= 0 or sent <= 0:
+        return None
+    return motion_physics.in_place_risk(data, secs, effective_duration(canonical, family, sent))
 
 
 # ---- (3) thời lượng hợp model + khớp thoại -----------------------------------------------------------------------------------------
