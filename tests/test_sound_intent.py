@@ -219,6 +219,27 @@ class InGameLookTests(unittest.TestCase):
         self.assertEqual(looks.clean_prompt({"look": "FF_INGAME"}, "an unrealistic dream")[1], [])
         self.assertEqual(looks.clean_prompt({"look": "ANIME"}, "cinematic lighting"), ("cinematic lighting", []))
         self.assertIn("realistic military shooter", looks.image_sentence({"look": "FF_INGAME"}))
+
+    def test_a_negated_clause_with_a_realism_word_goes_whole(self):
+        # #27 shot 16–18 (12/10): only "not a realistic" went, "tactical shooter" / "no lens" stayed behind as things to draw
+        ff = {"look": "FF_INGAME"}
+        text, removed = looks.clean_prompt(ff, "Clear sky. Not a photorealistic film still, not blurred background, "
+                                               "not a realistic tactical shooter.")
+        self.assertEqual(text, "Clear sky. not blurred background.")
+        self.assertNotIn("tactical shooter", text)
+        self.assertIn("not a realistic tactical shooter", removed)
+        text, _ = looks.clean_prompt(ff, "Plaza at the bottom edge. Not a photorealistic film still, no motion blur, no lens bokeh.")
+        self.assertEqual(text, "Plaza at the bottom edge. no motion blur.")
+        # a negation without a realism word stays; a positive realism word still goes alone
+        self.assertEqual(looks.clean_prompt(ff, "Kelly crouched, no stacked terraces, cinematic lighting")[0],
+                         "Kelly crouched, no stacked terraces")
+        # rà 12/10: a long clause carries a sentence of its own — only the words go, as before; "no one" is no negation
+        self.assertEqual(looks.clean_prompt(ff, "Without film grain Kelly sprints across the bridge.")[0],
+                         "Without Kelly sprints across the bridge.")
+        self.assertIn("notices", looks.clean_prompt(ff, "No one notices the cinematic lighting as Kelly enters.")[0])
+        self.assertEqual(looks.clean_prompt(ff, "Bright sky. Not cinematic.")[0], "Bright sky.")
+        self.assertEqual(looks.clean_prompt(ff, "Kelly runs (no bokeh) fast")[0], "Kelly runs fast")
+        self.assertEqual(looks.clean_prompt(ff, "Not cinematic."), ("Not cinematic.", []))   # nothing left: unchanged, nothing said cut
         self.assertIn("PUBG", looks.video_negative({"look": "FF_INGAME"}, "blurry"))
         self.assertEqual(looks.video_negative({"look": "ANIME"}, "blurry"), "blurry")
 

@@ -108,6 +108,10 @@ _REALISM = re.compile(
     r"cinematic(?: (?:movie still|still|look|style|quality|lighting|colou?r grading|frame))?|(?:film|movie) still|bokeh|"
     r"shallow (?:depth of field|focus)|depth[- ]of[- ]field(?: blur)?|anamorphic(?: lens)?|film grain|"
     r"(?:filmic |film )?colou?r grading|8k|unreal engine(?: \d)?|AAA|gritty realism|hyper[- ]detailed)\b", re.IGNORECASE)
+# A negated list item: not/no/without at the start of the text or right after , . ; : ( up to the next one of them ("no one" is no
+# negation). Only a SHORT one goes whole (_NEG_CLAUSE_WORDS): a long clause carries a sentence of its own and keeps the old word cut.
+_NEG_CLAUSE = re.compile(r"(?:^|(?<=[,.;:(]))\s*(?:not|no|without)\s+(?!one\b)[^,.;:()]*", re.IGNORECASE)
+_NEG_CLAUSE_WORDS = 6
 VIDEO_NEGATIVE = ("photorealistic, realistic military shooter, PUBG style, Call of Duty style, realistic skin, cinematic depth of "
                   "field, bokeh, film grain, film colour grading")
 
@@ -118,16 +122,31 @@ def clean_prompt(project_row, text: str):
     it removed (CHUAN_XAY_DUNG luật 1: never change a prompt without saying so)."""
     if of(project_row) != "FF_INGAME" or not text:
         return text, []
-    removed = [m.group(0) for m in _REALISM.finditer(text)]
-    if not removed:
+    if not _REALISM.search(text):
         return text, []
-    out = _REALISM.sub("", text)
+    removed = []
+
+    def _drop_clause(m):
+        # 12/10 (#27 shot 16–18): "not a realistic tactical shooter" lost only "not a realistic" and left "tactical shooter" as an
+        # ASK; a SHORT negated clause holding a realism word goes whole (the look sentence already says what to avoid).
+        if not _REALISM.search(m.group(0)) or len(m.group(0).split()) > _NEG_CLAUSE_WORDS:
+            return m.group(0)
+        removed.append(m.group(0).strip())
+        return ""
+    out = _NEG_CLAUSE.sub(_drop_clause, text)
+    removed += [m.group(0) for m in _REALISM.finditer(out)]
+    out = _REALISM.sub("", out)
+    out = re.sub(r"\.\s*[,;:]+", ".", out)                            # "sky., not blurred" after a dropped clause
     out = re.sub(r"\b(?:of|with)\s+(?=[,.;:]|$)", "", out)          # "... still of" / "with" left hanging
     out = re.sub(r"^\s*(?:of|with)\b", "", out)
     out = re.sub(r"\s+([,.;:])", r"\1", out)
     out = re.sub(r"([,;:])(?:\s*[,;:])+", r"\1", out)
     out = re.sub(r"[,;:]+\s*\.", ".", out)
+    out = re.sub(r"\(\s*\)", "", out)                                 # "(no bokeh)"
+    out = re.sub(r"\.(?:\s*\.)+", ".", out)                          # "sky.." after a dropped last clause
     out = re.sub(r"\s{2,}", " ", out).strip(" ,;:")
+    if not re.sub(r"[\W_]+", "", out):                               # nothing left to draw: keep the Director's words, say nothing cut
+        return text, []
     return out, removed
 
 
