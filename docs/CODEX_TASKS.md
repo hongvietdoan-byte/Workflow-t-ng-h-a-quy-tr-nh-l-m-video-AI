@@ -1177,4 +1177,6 @@ công → chỉ hiện cảnh báo của lần gen lại MỚI NHẤT (trùng Đ
 
 ## Kết quả Codex — đợt 17
 
+- 🟡 Việc 1 · nhánh `codex/d17-viec1-dao-cu` · code `3b072ca3`: a/b + c cảnh báo hoàn tất trong phạm vi đã chốt. Rewrite từ chối skin mới ngoài prompt/ghi chú khẳng định, phân biệt mã skin, vẫn kiểm metadata khi ảnh mất; VÀNG mâu thuẫn thuộc tính cùng cụm đạo cụ. Gói refs cuối ghi diag/hiện Dashboard khi ảnh khóa thiếu; giữ namedprop reservation, chưa đổi ưu tiên. ĐỎ a/b/c + 8 subcase rà → **86 passed +14 subtests /7,48s**; 4 finding độc lập sửa gom, root đọc diff. QA component Streamlit thật Chrome 1440/1280 với dữ liệu giả: 0 pageerror/0 tràn ngang, 2 PNG `docs/images/d17/`. Giữ keys/areas.version; runner chỉ thêm cảnh báo tại `_finish_args`, lý do trong RA. **Còn chờ người dùng chốt c ưu tiên plate_wide và d POV; chưa hoàn tất toàn việc.** Chưa API/model thật/cả bộ Windows/gộp main. Bàn giao `docs/HANDOFF_D17_VIEC1_CODEX_2026-10-12.md`; rà `docs/RA_D17_VIEC1_CODEX_2026-10-12.md`.
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
