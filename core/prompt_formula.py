@@ -1005,13 +1005,19 @@ def red_issues(conn, scene_id: int, kind: Optional[str] = None, gore_hinted=None
     """Lỗi ĐỎ của shot (câu tiếng Việt, rỗng = qua) — cho ImageRunner._blocked (kind='image') / VideoRunner._blocked (kind='motion');
     kind=None = cả hai. F1 sửa #3: LUÔN kiểm lại từ prompt + kế hoạch hiện tại (regex, vài ms — kết quả phụ thuộc size/blocking/
     nhân vật/hồ sơ, không chỉ prompt); chỉ phần 'trồng thêm' lấy từ data['formula_check'] khi băm prompt khớp. Dự án FF: lỗi máu/xác
-    bỏ qua khi câu tiết chế thật sự đi theo shot (_gore_goes); dự án khác: lỗi đó chỉ là cảnh báo. Cờ tắt → []."""
-    if not enabled():
-        return []
+    bỏ qua khi câu tiết chế thật sự đi theo shot (_gore_goes); dự án khác: lỗi đó chỉ là cảnh báo. Cờ tắt → [].
+    Đ16 việc 3 (12/10): ĐỎ khóa súng theo nhân vật (cờ project_prop_lock, độc lập cờ công thức) cũng chặn gửi ảnh/clip."""
     row = conn.execute("SELECT project_id, data FROM scenes WHERE id=?", (scene_id,)).fetchone()
     if row is None:
         return []
     data = json.loads(row["data"] or "{}")
+    props = [f"Đạo cụ dự án: {i['msg']}" for i in _prop_issues(conn, row["project_id"], data) if i["level"] == "red"]
+    if not enabled():
+        return props
+    return props + _red_formula(conn, scene_id, kind, gore_hinted, row, data)
+
+
+def _red_formula(conn, scene_id: int, kind, gore_hinted, row, data) -> List[str]:
     fc = data.get("formula_check") or {}
     texts = {"image": data.get("image_prompt"), "motion": _motion_of(conn, scene_id)}
     chars = proj = ff = None

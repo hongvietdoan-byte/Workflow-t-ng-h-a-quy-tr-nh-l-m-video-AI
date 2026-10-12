@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS characters (
     ref_image_id INTEGER,
     ref_image_ids TEXT,
     outfit_image_ids TEXT,             -- asset_images ids of the outfit worn in this video (face/hair still from the ref pictures)
+    weapon_asset_id INTEGER,           -- 12/10 (#27, Đ16 việc 3): the Kho weapon locked to this character in this video (core/prop_lock)
     UNIQUE (project_id, name)
 );
 CREATE TABLE IF NOT EXISTS motion_prompts (
@@ -738,6 +739,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE characters ADD COLUMN ref_image_ids TEXT")
     if "outfit_image_ids" not in char_cols:
         conn.execute("ALTER TABLE characters ADD COLUMN outfit_image_ids TEXT")
+    if "weapon_asset_id" not in char_cols:
+        conn.execute("ALTER TABLE characters ADD COLUMN weapon_asset_id INTEGER")
     if "video_audio" not in cols:
         conn.execute("ALTER TABLE projects ADD COLUMN video_audio INTEGER NOT NULL DEFAULT 0")
     if "qc_reject_floor" not in cols:

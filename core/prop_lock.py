@@ -147,22 +147,71 @@ def _scan(conn, project_id: int, data: Dict):
     return pool, words, text, generic
 
 
+# ---- Đ16 việc 3 (người dùng 12/10 13:19, #27): KHÓA SÚNG THEO NHÂN VẬT — "khóa sẵn nhiều súng, tránh tự ý dùng và gán sai" ----------
+# characters.weapon_asset_id = the Kho weapon locked to a character in this video (like outfit_image_ids). With it, a shot that speaks
+# of guns gets each present character's OWN gun by name (several guns in one project no longer end in a mere YELLOW).
+_SLUNG = re.compile(r"(?<!\w)(?:slung|on (?:his|her|their) back|across (?:his|her|their) back|on the back|đeo (?:chéo )?(?:sau )?lưng|sau lưng)"
+                    r"(?!\w)", re.I)
+
+
+def set_weapon(conn, project_id: int, name: str, asset_id: Optional[int]) -> None:
+    """Lock a Kho weapon to a character of the project (None = no gun locked)."""
+    conn.execute("UPDATE characters SET weapon_asset_id=? WHERE project_id=? AND name=?",
+                 (int(asset_id) if asset_id else None, project_id, name))
+    conn.commit()
+
+
+def weapon_table(conn, project_id: int) -> Dict[str, int]:
+    """{character name: Kho weapon id} of the project (only characters with a gun locked)."""
+    try:
+        rows = conn.execute("SELECT name, weapon_asset_id FROM characters WHERE project_id=? AND weapon_asset_id IS NOT NULL",
+                            (project_id,)).fetchall()
+    except Exception:  # noqa: BLE001 - a database before the column: nothing locked
+        return {}
+    return {r["name"]: int(r["weapon_asset_id"]) for r in rows}
+
+
+def _holders(conn, project_id: int, data: Dict, pool) -> Dict[int, List[str]]:
+    """{gun asset id: [present characters it is locked to]} — only guns attached to the project (in `pool`)."""
+    guns = {a["id"] for a, c in pool if c == "gun"}
+    table = {assets.fold(n): (n, i) for n, i in weapon_table(conn, project_id).items()}
+    out: Dict[int, List[str]] = {}
+    for name in (data or {}).get("characters") or []:
+        hit = table.get(assets.fold(str(name)))
+        if hit and hit[1] in guns:
+            out.setdefault(hit[1], []).append(hit[0])
+    return out
+
+
+def _unlocked_people(conn, project_id: int, data: Dict) -> List[str]:
+    """Present characters with no gun locked, in a project that locks guns to characters."""
+    table = {assets.fold(n) for n in weapon_table(conn, project_id)}
+    if not table:
+        return []
+    return [str(n) for n in (data or {}).get("characters") or [] if assets.fold(str(n)) not in table]
+
+
 def locks(conn, project_id: int, data: Dict) -> List[Dict]:
     """The project props this shot is about: [{asset, category, named, variant, form, image}] — a prop the text names, or the ONE
     prop of a kind the text only says by its common word. [] when the flag is off."""
     if not enabled() or project_id is None:
         return []
     pool, words, text, generic = _scan(conn, project_id, data)
+    holders = _holders(conn, project_id, data, pool)
     out = []
     for cat in CATEGORIES:
         mine = [a for a, c in pool if c == cat]
         named = [a for a in mine if _named(a, words)]
         chosen = named or (mine if generic[cat] and len(mine) == 1 else [])
+        if cat == "gun" and holders and (generic[cat] or named):
+            # Đ16v3: the guns locked to the characters in this shot, each by name (plus a gun the text names itself)
+            chosen = list({a["id"]: a for a in [a for a in mine if a["id"] in holders] + named}.values())
         for a in chosen:
             v = chosen_variant(a, text)
             pics = usable_images(a, text)
             out.append({"asset": a, "category": cat, "named": a in named, "variant": v, "form": form_text(a, v),
-                        "has_forms": bool(_forms(a.get("description") or "") or _variants(a)), "image": pics[0] if pics else None})
+                        "has_forms": bool(_forms(a.get("description") or "") or _variants(a)), "image": pics[0] if pics else None,
+                        "holders": holders.get(a["id"], []) if cat == "gun" else []})
     return out
 
 
@@ -321,9 +370,26 @@ def issues(conn, project_id: int, data: Dict) -> List[Dict]:
     if not enabled() or project_id is None:
         return []
     pool, words, _text, generic = _scan(conn, project_id, data)
+    holders = _holders(conn, project_id, data, pool)
     out = []
+    guns = [a for a, c in pool if c == "gun"]
+    if holders and (generic["gun"] or any(_named(a, words) for a in guns)):
+        # Đ16v3: a gun the text names that is locked to nobody in this shot → ĐỎ before a paid picture
+        owners = {i: names for i, names in holders.items()}
+        for a in guns:
+            if _named(a, words) and a["id"] not in owners:
+                locked = "; ".join(f"{', '.join(n)} → {next((g['name'] for g in guns if g['id'] == i), i)}" for i, n in owners.items())
+                out.append({"level": "red", "part": "dao_cu",
+                            "msg": f"chữ shot nêu súng {a['name']} nhưng không nhân vật nào trong shot được khóa súng này (đã khóa: {locked}) "
+                                   "— sửa chữ shot theo súng đã khóa, hoặc đổi bảng gán súng ở Bước 1"})
+        nobody = _unlocked_people(conn, project_id, data)
+        if nobody:
+            out.append({"level": "warn", "part": "dao_cu",
+                        "msg": "shot có súng nhưng nhân vật " + ", ".join(nobody) + " chưa được gán súng — không đoán; gán ở Bước 1 nếu họ cầm súng"})
     for cat in CATEGORIES:
         mine = [a for a, c in pool if c == cat]
+        if cat == "gun" and holders:
+            continue                                   # Đ16v3: the characters' own guns are locked by name — not a guess
         if generic[cat] and len(mine) > 1 and not any(_named(a, words) for a in mine):
             out.append({"level": "warn", "part": "dao_cu",
                         "msg": f"chữ shot nói '{CATEGORIES[cat]['word']}' chung chung mà dự án gắn {len(mine)} món cùng loại ("
@@ -353,9 +419,18 @@ def prompt_part(conn, project_id: int, data: Dict) -> str:
         a, form = lk["asset"], lk["form"]
         if lk["category"] == "gun":
             # Nhãn tỉ lệ chỉ xuất hiện ở câu chuẩn ưu tiên, tránh 2 nguồn trái nhau.
-            form = _SCALE_LABEL.sub("", form).strip(" .;")
+            form = re.sub(r"\.\s*\.", ".", _SCALE_LABEL.sub("", re.sub(r"(?i)(?<!\w)in-game\s+(?=scale\s*:)", "", form))).strip(" .;")   # Đ16v3: "In-game scale: …" whole
         over = f"; this overrides any other colour or material described above for it" if form and lk["has_forms"] else ""
-        if not lk["named"]:
+        if lk.get("holders"):
+            # Đ16v3: whose gun it is — each present character gets their own locked gun, never another one
+            who = " and ".join(lk["holders"])
+            slung = (f"; when it is slung on the back it is this same gun at its true size, worn across the back, not in the hands"
+                     if _SLUNG.search(shot_text(data)) else "")
+            bits.append(f"Prop lock: the gun of {who} in this shot is {a['name']} from the project library"
+                        + (f" — {form}" if form else "") + over + slung
+                        + (_DRAW_PIC if lk["image"] else _DRAW)
+                        + f", never another gun (only if {who} {'holds' if len(lk['holders']) == 1 else 'hold'} or {'carries' if len(lk['holders']) == 1 else 'carry'} a gun)." )
+        elif not lk["named"]:
             word = CATEGORIES[lk["category"]]["word"]
             bits.append(f"Prop lock: the {word} in this shot is {a['name']} from the project library"
                         + (f" — {form}" if form else "") + over

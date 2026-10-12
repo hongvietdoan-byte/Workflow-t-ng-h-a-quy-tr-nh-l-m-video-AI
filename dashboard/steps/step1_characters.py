@@ -55,6 +55,27 @@ def character_reference_panel(p: Pipeline, pid: int, chars) -> None:
                         _anchor_reset(p, pid, c["name"])
                         st.rerun()
                 outfit_panel(p, pid, c["name"], right)
+                weapon_select(p, pid, c["name"], right)
+
+
+def weapon_select(p: Pipeline, pid: int, name: str, box) -> None:
+    """Đ16 việc 3 (người dùng 12/10, #27): the gun locked to this character in this video — one select next to the outfit, only when the
+    flag project_prop_lock is on and the project has guns attached (Kho → 🧰 Tài nguyên đi kèm). Shots then name this gun for them."""
+    from core import prop_lock
+    if not prop_lock.enabled():
+        return
+    guns = [a for a in assets.project_assets(p.conn, pid) if prop_lock.category(a) == "gun"]
+    if not guns:
+        return
+    current = prop_lock.weapon_table(p.conn, pid).get(name)
+    options = [None] + [a["id"] for a in guns]
+    names = {a["id"]: a["name"] for a in guns}
+    pick = box.selectbox("🔫 Súng khóa cho nhân vật", options, options.index(current) if current in options else 0,
+                         format_func=lambda o: "Không khóa súng" if o is None else names[o], key=f"weapon_{pid}_{name}",
+                         help="Shot có nhân vật này cầm/đeo súng sẽ ghi đúng tên súng này + tỉ lệ + ảnh Kho; shot nêu súng khác → ĐỎ, không gen.")
+    if pick != current:
+        prop_lock.set_weapon(p.conn, pid, name, pick)
+        st.rerun()
 
 
 def outfit_line(p: Pipeline, pid: int, name: str) -> str:
