@@ -100,6 +100,28 @@ class TranslateAmbiguous(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertIn("mũ", row["message"])
 
+    def test_vietnamese_character_names_kept_as_told_pass_the_check(self):
+        # 12/10 #27: the prompt says "keep names as they are" — 'XÚC TU ĐỎ' kept verbatim was read as "still Vietnamese", asked
+        # again, then failed (bad_json) → every motion stayed Vietnamese. A name of the shot / project is not Vietnamese text.
+        d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.sid,)).fetchone()["data"])
+        d["characters"] = list(d.get("characters") or []) + ["XÚC TU ĐỎ"]
+        d["action"] = "XÚC TU ĐỎ bắn về phía Kelly"
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), self.sid))
+        self.p.conn.commit()
+        n, d, _ = self._run({self.idx: {"action": "XÚC TU ĐỎ fires toward Kelly"}}, "0")
+        self.assertEqual(n, 1)
+        self.assertEqual(d["motion_en"]["action"], "XUC TU DO fires toward Kelly")   # kept name stored without accents
+        from core import seedance_refs
+        self.assertEqual(seedance_refs.untranslated(d), [])   # rà 12/10: the code writer sees it translated (not held again)
+
+    def test_real_vietnamese_beside_a_name_is_still_refused(self):
+        d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.sid,)).fetchone()["data"])
+        d["characters"] = list(d.get("characters") or []) + ["XÚC TU ĐỎ"]
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), self.sid))
+        self.p.conn.commit()
+        with self.assertRaises(Exception):
+            self._run({self.idx: {"action": "XÚC TU ĐỎ bắn về phía Kelly"}}, "0")
+
 
 class EndFrameLint(unittest.TestCase):
     """KLD-13: pull_out / crane / orbit mà prompt không tả khung giây cuối → ⚠ (chỉ cảnh báo)."""

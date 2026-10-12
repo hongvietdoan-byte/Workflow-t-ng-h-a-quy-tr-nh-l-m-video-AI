@@ -800,11 +800,38 @@ def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
             todo[str(r["idx"])] = item
     if not todo:
         return 0
+    # 12/10 #27: the names are KEPT as told ("XÚC TU ĐỎ", "LỜI DẪN") — a name is not Vietnamese left untranslated (the check refused
+    # every answer twice → all 21 motions stayed Vietnamese). The project's cast + every shot's characters / speakers, longest first.
+    names = {str(r["name"]) for r in p.conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,)).fetchall()}
+    for r in p.conn.execute("SELECT data FROM scenes WHERE project_id=?", (project_id,)).fetchall():
+        d = json.loads(r["data"] or "{}")
+        names |= {str(n) for n in d.get("characters") or []}
+        names |= {str(x.get("speaker")) for x in d.get("dialogue") or [] if isinstance(x, dict) and x.get("speaker")}
+    names = sorted({n for n in names if n.strip() and _vi(n)}, key=len, reverse=True)
+
+    import re as _re
+    from .seedance_refs import ascii_name
+
+    def _name_res(n):
+        # rà 12/10: only the name as written or in capitals, whole words — never "mẹ" inside a Vietnamese sentence ("mẹo");
+        # a one-word name shorter than 4 letters only in capitals
+        forms = {n.upper()} if (" " not in n.strip() and len(n.strip()) < 4) else {n, n.upper()}
+        return [_re.compile(r"(?<!\w)" + _re.escape(f) + r"(?!\w)") for f in forms]
+    name_res = [(n, _name_res(n)) for n in names]
+
+    def _no_names(obj, to=lambda n: ""):
+        if isinstance(obj, dict):
+            return {k: _no_names(v, to) for k, v in obj.items()}
+        if isinstance(obj, str):
+            for n, res in name_res:
+                for rx in res:
+                    obj = rx.sub(to(n), obj)
+        return obj
 
     def check(obj):
         if not isinstance(obj, dict) or set(obj) - {AMBIGUOUS_KEY} != set(todo):
             raise llm_io.SchemaError("trả về đúng các khóa shot đã gửi: " + ", ".join(sorted(todo)))
-        if _vi(_unbracketed({k: v for k, v in obj.items() if k != AMBIGUOUS_KEY})):
+        if _vi(_no_names(_unbracketed({k: v for k, v in obj.items() if k != AMBIGUOUS_KEY}))):
             raise llm_io.SchemaError("còn chữ tiếng Việt — dịch hết sang tiếng Anh")
     from . import features
     try:
@@ -823,6 +850,8 @@ def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
         row = p.conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=?", (project_id, int(idx))).fetchone()
         d = json.loads(row["data"] or "{}")
         en = dict(d.get("motion_en") or {})
+        fields = _no_names(fields, ascii_name)   # rà 12/10: a kept name is stored WITHOUT accents (as prompt() writes it for a group) —
+        # untranslated() / lint_group read the English with no Vietnamese left, so the held shots are rewritten and sent
         en.update({k: v for k, v in fields.items() if k != "performance"})
         if isinstance(fields.get("performance"), dict):
             base = d.get("performance") if isinstance(d.get("performance"), dict) else {}
