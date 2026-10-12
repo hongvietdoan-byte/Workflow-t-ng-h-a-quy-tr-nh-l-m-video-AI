@@ -48,9 +48,13 @@ def group_of(conn, pid: int, scene_id: int) -> Optional[Dict]:
     if not d.get("story_scene") or not d.get("shot_no"):
         return None
     shots = scene_shots(conn, pid, d["story_scene"])
+    spot = d.get("plate_spot")
+    by_spot = features.on("anchor_by_spot") and isinstance(spot, str) and bool(spot.strip())
+    if by_spot:
+        shots = [shot for shot in shots if shot["data"].get("plate_spot") == spot]
     if len(shots) < 2:
         return None
-    return {"shots": shots, "anchor": anchor_of(shots), "index": next(i for i, s in enumerate(shots) if s["id"] == scene_id),
+    return {**({"plate_spot": spot} if by_spot else {}), "shots": shots, "anchor": shots[0] if by_spot else anchor_of(shots), "index": next(i for i, s in enumerate(shots) if s["id"] == scene_id),
             "story_scene": d["story_scene"]}
 
 
@@ -62,6 +66,29 @@ def anchor_picture(conn, data_dir: str, pid: int, anchor_id: int) -> Optional[st
         return None
     path = os.path.join(data_dir, str(pid), "images", f"job_{j['id']}.png")
     return path if os.path.exists(path) else None
+
+
+def anchor_warning(conn, data_dir: str, pid: int, scene_id: int) -> Optional[str]:
+    """VÀNG trước khi gửi; không đổi cổng chờ/duyệt hoặc tự đổi shot neo."""
+    if not features.on("anchor_by_spot"):
+        return None
+    row = conn.execute("SELECT idx, data FROM scenes WHERE id=? AND project_id=?", (scene_id, pid)).fetchone()
+    d = json.loads(row["data"] or "{}") if row else {}
+    spot = d.get("plate_spot")
+    if spot is None or spot == "":
+        return None                          # không khai spot: giữ nhóm cũ
+    if not isinstance(spot, str) or not spot.strip() or not d.get("story_scene") or not d.get("shot_no"):
+        return "Ảnh neo theo chỗ: dữ liệu plate_spot / story_scene / shot_no không hợp lệ; chưa xác định được nhóm."
+    shots = [s for s in scene_shots(conn, pid, d["story_scene"]) if s["data"].get("plate_spot") == spot]
+    anchor = shots[0]
+    # Cùng lựa chọn với anchor_picture: ảnh duyệt cũ không che tệp mới bị mất.
+    job = conn.execute("SELECT id, state FROM jobs WHERE scene_id=? AND type='image_gen' "
+                       "AND state IN ('succeeded','pending_review','approved') "
+                       "ORDER BY (state='approved') DESC, id DESC LIMIT 1", (anchor["id"],)).fetchone()
+    if job and job["state"] == "approved" and anchor_picture(conn, data_dir, pid, anchor["id"]) is not None:
+        return None
+    return (f"Nhóm cảnh {d['story_scene']}, chỗ {spot}: ảnh neo shot đầu nhóm {anchor['idx']} CHƯA được duyệt "
+            "hoặc tệp ảnh không có; ảnh sẵn có vẫn theo cổng storyboard hiện tại, hãy xem và duyệt ảnh neo.")
 
 
 def _shot_data(g: Dict, scene_id: int) -> Dict:
@@ -132,7 +159,8 @@ def wait_reason(conn, data_dir: str, pid: int, scene_id: int) -> Optional[Dict]:
     live = conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state IN (" + ",".join("?" * len(ON_ITS_WAY)) + ")",
                         (anchor["id"], *ON_ITS_WAY)).fetchone()
     shot = next((s for s in g["shots"] if s["id"] == scene_id), {"idx": "?"})
-    text = (f"Shot {shot['idx']} chờ ảnh neo của cảnh (shot {anchor['idx']}, khung rộng nhất — chế độ storyboard)"
+    anchor_kind = f"đầu nhóm chỗ {g['plate_spot']}" if "plate_spot" in g else "khung rộng nhất"
+    text = (f"Shot {shot['idx']} chờ ảnh neo của cảnh (shot {anchor['idx']}, {anchor_kind} — chế độ storyboard)"
             + ("" if live else f" — shot {anchor['idx']} CHƯA được xếp hàng: gen ảnh shot {anchor['idx']} trước (thêm vào gen thử / "
                                 "▶ Gen ảnh), không thì ảnh này chờ mãi"))
     return {"anchor_idx": anchor["idx"], "anchor_id": anchor["id"], "stuck": not live, "text": text}
@@ -246,6 +274,8 @@ def storyboard_id(pid: int, g: Dict, anchor_job_id: int, fresh_for: int = 0, own
     away from the landmark (lỗi D): a session of its own, not the anchor's (#8: the provider's session carries the earlier frames)."""
     key = (f"{pid}:{g['story_scene']}:{anchor_job_id}" + (f":away{own_shot}" if own_shot else "")
            + (f":redo{fresh_for}" if fresh_for else ""))
+    if "plate_spot" in g:
+        key += ":spot:" + json.dumps(g["plate_spot"], ensure_ascii=False)
     return "sb_" + hashlib.sha1(key.encode()).hexdigest()[:12]
 
 
