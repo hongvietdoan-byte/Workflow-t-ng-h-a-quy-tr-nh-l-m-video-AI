@@ -1177,4 +1177,6 @@ công → chỉ hiện cảnh báo của lần gen lại MỚI NHẤT (trùng Đ
 
 ## Kết quả Codex — đợt 17
 
+- ✅ Việc 3 · nhánh `codex/d17-viec3-ten-kho` · code `e55255ca`: cờ `asset_english_names` OFF/OPT_IN_ONLY, tên Anh/tên riêng qua aliases, gợi ý cục bộ có căn cứ; không migration/backfill/API dịch mới. Chặn no→Nỏ, giữ alias rõ và cụm Việt không dấu; cảnh báo danh từ cụ thể của vật đã gắn chưa khớp tên + style chỉ dùng chữ, không đổi selector. DONE chung ở save_rewrite cho caller scripts, panel giữ nguyên. Costume kiểm tên/alias trước tiền và sau download, race đổi số lưu ảnh đã có tối đa3 lần không submit lại; ff_site nói rõ từng skip. ĐỎ 5 +2 caller, rà 2 finding→3 đỏ→xanh; nhóm7file **154 passed +4 subtests /53,14s**; root đọc diff sửa. UI component Kho chung/riêng bằng Chrome1440/1280:0 pageerror/0 tràn ngang,4PNG `docs/images/d17/english_*.png`. RA `docs/RA_D17_VIEC3_CODEX_2026-10-12.md`. Giữ keys/areas.version, không API/dữ liệu thật/main. Chưa cả bộ Windows/thử #27; danh từ cảnh báo hữu hạn, ngôn ngữ do người nhập xác nhận, style không HUD chưa gửi ảnh.
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
