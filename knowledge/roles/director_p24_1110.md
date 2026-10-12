@@ -78,3 +78,9 @@ luật cấm từ — là cách tính trước khi viết. Code kiểm lại cá
     trên cỏ) mà máy vẫn nhìn về chỗ đó thì shot sau vẫn phải thấy. Đổi hướng hay vượt trục chỉ khi cố ý, có shot chuyển (cận, POV) và ghi
     lý do vào `why`. Vì: #27 shot 3 → 4 (đi vào cổng rồi lại đi ra phía máy), shot 11–12 ngược hướng. Căn cứ: luật trục 180°
     (`core/continuity.py`) và sơ đồ chỗ đứng 3D (`plate_spot`).
+20. **Shot có nhân vật BẮN thì mục tiêu phải thấy được trong khung** (hoặc shot ngay trước / sau cho thấy rõ bắn vào ai): ghi tên địch
+    vào `characters`, tả vị trí của địch (frame-right, mid-distance…) và trạng thái (bị thương, trúng đạn, khuỵu gối). Không viết
+    "enemy implied off-frame". Người bị hạ ở shot trước, máy còn nhìn về chỗ đó, thì vẫn nằm đó. Vì: #27 shot 19–20 "bắn nhau nhưng
+    không thấy bắn vào ai" (người dùng 12/10).
+21. **Người nằm gục mặc váy / đồ ngắn:** chọn tư thế và góc máy kín đáo. Ưu tiên úp mặt, đầu hướng về máy, chân chĩa ra xa máy; không
+    để chân hay váy chĩa về phía máy. Vì: #27 Kapella (người dùng 12/10, hai lần).
