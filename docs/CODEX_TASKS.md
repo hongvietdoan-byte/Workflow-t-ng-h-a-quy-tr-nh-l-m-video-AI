@@ -863,6 +863,9 @@ không tự gen lại quá 1 lần (luật gen lại phải đổi đầu vào).
 
 ## Kết quả Codex — đợt 12
 
+- Việc 1 · nhánh `codex/d12-viec1-am-nen` · code `cc8dda7`: voice chỉ giọng người, accent riêng nullable; legacy dế/gió suy từ heard_label khi đọc, không UPDATE/nghe lại. Point accent/trusted vẫn loại voice; nhãn lạ giữ guard bảo thủ. ĐỎ 3/51 → 54 xanh; rà 0 blocker/1 LOW trim đã sửa (1 đỏ → **55 passed /50,49s**, 3 file); migration giữ giá trị + query_only không đổi hàng. RA `docs/RA_D12_VIEC1_CODEX_2026-10-12.md`. Chưa thử Kho thật #437/#307, chưa cả bộ/gộp main, không API/data thật.
+
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
 ---

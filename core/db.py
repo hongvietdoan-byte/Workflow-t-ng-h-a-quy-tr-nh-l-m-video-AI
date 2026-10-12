@@ -252,7 +252,8 @@ CREATE TABLE IF NOT EXISTS sounds (
     heard TEXT,
     heard_label TEXT,
     heard_score REAL,
-    voice INTEGER NOT NULL DEFAULT 0
+    voice INTEGER NOT NULL DEFAULT 0,
+    accent INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_sounds_kind ON sounds(kind, category);
 CREATE TABLE IF NOT EXISTS kho_review_log (   -- S14.42: duyệt Kho 3 tầng; mỗi dòng một lần đổi (ảnh: status nằm ở asset_images; âm thanh: trạng thái = dòng cuối)
@@ -777,7 +778,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if "archived" not in cols:          # 📦 Cất dự án (2026-09-26): hidden from the picker and the autopilot, data kept
         conn.execute("ALTER TABLE projects ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
     sound_cols = {r["name"] for r in conn.execute("PRAGMA table_info(sounds)")}
-    for column, ddl in (("tags", "TEXT"), ("heard", "TEXT"), ("heard_label", "TEXT"), ("heard_score", "REAL"), ("voice", "INTEGER NOT NULL DEFAULT 0")):
+    for column, ddl in (("tags", "TEXT"), ("heard", "TEXT"), ("heard_label", "TEXT"), ("heard_score", "REAL"), ("voice", "INTEGER NOT NULL DEFAULT 0"), ("accent", "INTEGER")):
         if column not in sound_cols:
             conn.execute(f"ALTER TABLE sounds ADD COLUMN {column} {ddl}")
     if "storyboard_mode" not in cols:
