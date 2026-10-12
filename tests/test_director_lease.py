@@ -410,3 +410,18 @@ def test_strict_warnings_keep_client_error_and_pending_fail_closed(tmp_path, mon
     with director_lease.hold(conn, 27):
         pass  # sau xác nhận tiến trình cũ đã chết, pending cũ được thu hồi
     conn.close()
+
+
+def test_old_calling_mark_of_a_reused_pid_does_not_hold_for_ever(tmp_path):
+    """Rà gộp Đ15v2 (12/10): a process died mid-call (mark left), Windows gave its PID to another process → the lease was held for
+    ever with no way to free it. The whole-run cap applies to the mark too; the message carries the date."""
+    import os
+    conn = connect(str(tmp_path / 'm.sqlite'))
+    db = director_lease._open(director_lease._path(conn))
+    old = time.time() - 30 * 86400
+    db.execute('INSERT INTO leases VALUES (27, ?, ?, ?, ?)', ('old', os.getpid(), old, old))     # a live PID (this test's)
+    db.execute('INSERT INTO pending_calls VALUES (27, ?, 1)', ('old',))
+    db.commit(); db.close()
+    assert director_lease.busy(conn, 27) == ''
+    with director_lease.hold(conn, 27):
+        assert '/' in director_lease.busy(conn, 27)          # dd/mm shown

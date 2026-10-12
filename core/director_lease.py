@@ -172,11 +172,15 @@ def _active(row, db):
     if not row or not _alive(row[2]):
         return False
     pending = db.execute('SELECT 1 FROM pending_calls WHERE project=? AND owner=? AND count>0', (row[0], row[1])).fetchone()
-    return bool(pending or (time.time() - row[4] < LEASE_SECONDS and time.time() - row[3] < MAX_RUN_SECONDS))
+    # rà gộp Đ15v2 (12/10): a "calling" mark left by a process that died mid-call, its PID then reused (Windows) — never held for ever:
+    # the whole-run cap applies to it too
+    if time.time() - row[3] >= MAX_RUN_SECONDS:
+        return False
+    return bool(pending or time.time() - row[4] < LEASE_SECONDS)
 
 
 def message(started):
-    return f'Đạo diễn đang chạy cho dự án này (bắt đầu {datetime.fromtimestamp(started):%H:%M}) — chờ xong'
+    return f'Đạo diễn đang chạy cho dự án này (bắt đầu {datetime.fromtimestamp(started):%d/%m %H:%M}) — chờ xong'
 
 
 def busy(conn, project):

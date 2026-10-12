@@ -100,7 +100,21 @@ def measured_size(path):
     if not path or "://" in str(path) or str(path).startswith(("\\\\", "//")):
         return None
     local = path if os.path.isabs(path) else os.path.join(os.path.dirname(os.path.dirname(__file__)), path)
-    return ffmpeg_studio.probe_size(local)
+    # rà gộp Đ15v1 (12/10): called ~10× per shot on every rerun of the Video / Giao screens (one ffmpeg process each, ≈ 50 ms+) →
+    # remembered per file version (path, mtime, size) and per probe function (a test's mock is never served a real answer)
+    try:
+        st = os.stat(local)
+    except OSError:
+        return ffmpeg_studio.probe_size(local)
+    key = (os.path.abspath(local), st.st_mtime_ns, st.st_size, id(ffmpeg_studio.probe_size))
+    if key not in _SIZE_CACHE:
+        if len(_SIZE_CACHE) > 2000:
+            _SIZE_CACHE.clear()
+        _SIZE_CACHE[key] = ffmpeg_studio.probe_size(local)
+    return _SIZE_CACHE[key]
+
+
+_SIZE_CACHE: Dict = {}
 
 
 def resolution_manifest(rows: List[Dict], frame) -> Dict:
