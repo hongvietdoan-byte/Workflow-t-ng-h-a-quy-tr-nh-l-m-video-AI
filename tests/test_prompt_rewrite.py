@@ -597,3 +597,15 @@ class ActualRetrySubmission(Base):
         row = self.p.conn.execute('SELECT count FROM diag_events WHERE code=?',
                                   (prompt_rewrite.FALLBACK_CODE,)).fetchone()
         self.assertEqual(row['count'], 2)
+
+
+def test_fallback_is_said_to_a_script_caller_too(capsys):
+    """Rà gộp Đ16v1 (#27 12/10): a script calling Pipeline.reject (no Claude key in its process) only got a diag row — now stderr +
+    `p.last_rewrite_fallback` say it too."""
+    p = Pipeline(connect())
+    pid = p.create_project("t")
+    sid = p.create_scene(pid, 16, "s")
+    prompt_rewrite._fallback(p, {"type": "image_gen", "scene_id": sid, "project_id": pid, "id": 1}, RuntimeError("Chưa cấu hình Claude"))
+    assert "shot 16" in p.last_rewrite_fallback and "Chưa cấu hình Claude" in p.last_rewrite_fallback
+    assert "Đạo diễn chưa viết lại prompt ảnh shot 16" in capsys.readouterr().err
+

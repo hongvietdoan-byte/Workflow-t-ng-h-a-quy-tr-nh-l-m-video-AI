@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -350,10 +351,13 @@ def _fallback(p, job, e: BaseException) -> None:
     kind = KINDS[job["type"]]
     unit = "ảnh" if kind == "image" else "clip"
     idx = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
-    diag.record(p.conn, kind, "warn",
-                f"Đạo diễn chưa viết lại prompt {unit} shot {idx['idx'] if idx else '?'} ({type(e).__name__}: {str(e)[:160]}) — lần gen "
-                "lại dùng cách cũ: nối 'Fix: …' vào cuối prompt (ghi chú của bạn giữ nguyên)", FALLBACK_CODE, job["project_id"],
-                scene_id=job["scene_id"], job_id=job["id"])
+    msg = (f"Đạo diễn chưa viết lại prompt {unit} shot {idx['idx'] if idx else '?'} ({type(e).__name__}: {str(e)[:160]}) — lần gen "
+           "lại dùng cách cũ: nối 'Fix: …' vào cuối prompt (ghi chú của bạn giữ nguyên)")
+    diag.record(p.conn, kind, "warn", msg, FALLBACK_CODE, job["project_id"], scene_id=job["scene_id"], job_id=job["id"])
+    # rà gộp Đ16v1 (12/10, #27): a script calling Pipeline.reject outside the Dashboard (no ANTHROPIC_API_KEY / dashboard.env in its
+    # process) never saw the fallback — said on stderr too and kept on the Pipeline for the caller (never silent)
+    p.last_rewrite_fallback = diag.redact(msg)
+    print("⚠ " + p.last_rewrite_fallback, file=sys.stderr)
 
 
 def before_retry(p, job, reason: Optional[str], note: Optional[str] = None, qc: Optional[Dict] = None,
