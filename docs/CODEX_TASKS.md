@@ -1111,3 +1111,45 @@ nhân vật, 4 súng): prompt gửi đi mỗi người đúng súng + trọn câ
 
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+---
+
+# ĐỢT 17 — Lỗi hệ thống khi vẽ #27 Booyah (hộp thư phiên máy chính 12/10 14:35 / 14:41 / 15:07 / 15:22)
+
+Luật chung GIỐNG đợt 1 (cả luật người dùng 12/10: giao diện gọn, rà kĩ, đánh giá hiệu quả). Nhánh `codex/d17-viec<N>-<tên>` từ `origin/main` MỚI NHẤT. Không
+API tốn tiền khi test; KHÔNG đọc/ghi `data/projects/`. #27 đang vẽ ảnh: thay đổi hành vi sau cờ sẵn có (`project_prop_lock`, `director_rewrite`) hoặc cờ mới
+TẮT; `core/runner.py` chỉ sửa tối thiểu khi gốc lỗi nằm đó (ghi lý do). Phiên máy chính đã sửa tay dữ liệu #27 cho từng ca — đây là sửa TẬN GỐC.
+Thứ tự: việc 1 → 2 → 3. Xong việc nào push nhánh việc đó ngay + "Kết quả Codex — đợt 17".
+
+## Việc 1 — Đạo cụ / súng khóa (ca thật #27 shot 16, job 700)
+(a) **Đạo diễn viết lại prompt tự chèn tên DẠNG skin** ('Gloowall OB55', lấy từ mô tả Kho #367) dù prompt cũ + ghi chú không có → `prop_lock.chosen_variant`
+chọn skin → gửi ảnh cửa thang máy kim loại, trong khi cùng câu ghi 'plain white… no pattern' (0,052 USD mất). Sửa: sau khi Đạo diễn viết lại
+(`core/prompt_rewrite.py`, cùng chỗ kiểm `_new_people`), CODE kiểm tên dạng/biến thể đạo cụ mới xuất hiện mà prompt cũ + ghi chú không có → gỡ (hoặc từ chối
+bản viết lại, quay về cách cũ có báo) + test. (b) `prop_lock.issues` VÀNG khi chữ shot nêu tên dạng skin NHƯNG tả màu/chất liệu của dạng mặc định (mâu
+thuẫn dạng). (c) **Ảnh khóa bị rơi vì trần ảnh**: job 700 `reference_images` có 4 ảnh súng nhưng gửi đi chỉ có 5 nhân vật + Bom keo + 2 nền + storyboard (9) —
+súng rơi IM LẶNG. Báo VÀNG (Dashboard + diag) khi ảnh khóa không được gửi vì trần, và đánh giá ưu tiên ảnh khóa hơn ảnh nền rộng (plate_wide) — lưu ý
+phiên máy chính vừa sửa `assets.scene_references` 15:22 (tài nguyên được nhắc tên giữ chỗ trước ảnh mặt thứ 2; test
+`test_a_named_prop_keeps_its_slot_over_second_face_pictures`) — giữ hành vi đó. (d) **Shot góc nhìn thứ nhất (POV / first-person) có chữ súng**: người dùng
+— FF không có góc nhìn thứ nhất khi cầm súng → code kiểm VÀNG/ĐỎ trước gen (đánh giá mức) + `prop_lock` KHÔNG chèn câu/ảnh súng cho shot POV (bài học Đạo diễn
+13 đã có). Test từng ca; cờ TẮT giữ y cũ.
+
+## Việc 2 — Popup icon GIỮA PHIM theo shot (người dùng #27)
+`core/end_popup` chỉ ghép icon ở cuối phim; người dùng muốn icon 'QUÉT SẠCH ĐỘI' (Kho #432) bật lên ở CUỐI shot 20 (lúc hạ gục hết địch) ~1,5 s + tiếng pop.
+Phiên máy chính đã ghi tạm `scene.data.post_popup = {asset_id, at:'end', seconds, pop_sound}` ở shot 20 — CHƯA code nào đọc. Làm: dựng (delivery / end_popup)
+đọc `post_popup` từng shot (vị trí theo thời gian shot trên timeline bản dựng, dùng lại hiệu ứng pop + âm của popup cuối), VÀNG khi có `post_popup` mà không
+ghép được (không im lặng). Ảnh #432 còn nền xanh đặc (627×423 RGBA) → tách nền (chroma key có sẵn trong ffmpeg_studio? kiểm) hoặc cho chọn khung cắt. Vị
+trí trong vùng an toàn (ĐỢT 15 việc 3 nếu đã có). Ô chỉnh trên Dashboard gọn (luật (a)): bật popup cho shot + chọn ảnh Kho + giây. Cờ mới `shot_popup` TẮT.
+
+## Việc 3 — Khớp tên Kho (gửi thiếu ảnh mẫu / khớp nhầm)
+(a) Khớp tên Kho chỉ nguyên cụm + Kho Claude tạo chỉ có tên Việt → chữ shot tiếng Anh không kéo ảnh mẫu (cổng torii #426 không được gửi ở shot 2 → cổng sai;
+phiên máy chính đã thêm biệt danh tiếng Anh tay cho #426/#428/#429/#438–440). Sửa: lúc tạo mục Kho (Claude hoặc người) BẮT BUỘC ≥ 1 tên tiếng Anh (đề xuất tự
+động, người sửa được); VÀNG khi chữ shot tả một vật dự án đã gắn mà không khớp tên (vd 'torii' nằm trong tên/mô tả). (b) `assets.find_in_text` khớp 'no'
+(tiếng Anh) với 'Nỏ' #360 do so khớp bỏ dấu khi chữ không dấu → danh sách từ tiếng Anh thường (no, not, gun, …) không bao giờ khớp tên Việt gấp dấu; test.
+(c) Tài nguyên kind `style` (#427 bóng mờ, #428 trời song song) KHÔNG bao giờ được gửi làm ảnh ref (assets chỉ nhận weapon/prop/pet/location/outfit) — đúng
+nếu ảnh có HUD, nhưng phải NÓI (VÀNG "kiểu ảnh chỉ dùng bằng chữ") thay vì im lặng; đánh giá có nên cho gửi style không HUD.
+(d) Việc nhỏ (hộp thư 15:22): thẻ shot vẫn hiện cảnh báo `director_rewrite_fallback` CŨ (04:53, hồi script chưa nạp khóa) dù các lần viết lại sau đã thành
+công → chỉ hiện cảnh báo của lần gen lại MỚI NHẤT (trùng ĐỢT 13 việc 4 mục 9 — làm ở đây, Đ13 bỏ qua mục đó).
+
+## Kết quả Codex — đợt 17
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
