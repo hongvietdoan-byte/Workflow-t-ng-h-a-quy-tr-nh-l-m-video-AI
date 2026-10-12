@@ -234,7 +234,29 @@ _WEAPON_TYPES = {
     "pistol": r"pistols?|handguns?|súng lục|súng ngắn",
     "shotgun": r"shotguns?|súng săn",
 }
-_SCALE_LABEL = re.compile(r"(?<!\w)(?:scale|relative size|tỉ lệ|tỷ lệ|kích thước so người)\s*:\s*((?:[^.;\n]|(?<=\d)\.(?=\d))+)", re.I)
+# rà gộp Đ16v2 (12/10): only a scale LABEL ("In-game scale:", "Tỉ lệ:", a sentence starting "Scale:") — not "Damage scale: 1.2";
+# the text runs to the END of its sentence ("approx. 3.0 head-heights; held two-handed" kept whole — `_scale_span`)
+_SCALE_LABEL = re.compile(r"(?:(?<!\w)in-game\s+scale|(?:^|(?<=[.;:,(]\s)|(?<=[\]—–-]\s)|(?<=\())scale|(?<!\w)(?:relative size|tỉ lệ|tỷ lệ|kích thước so người))"
+                          r"\s*:\s*", re.I)
+_NOT_END = re.compile(r"(?:approx|ca|e\.g|i\.e|vs|no|st)$", re.I)
+
+
+def _scale_span(source: str):
+    """(start, end, text) of the scale label + its words up to the end of the sentence, or None."""
+    m = _SCALE_LABEL.search(source or "")
+    if not m:
+        return None
+    i = m.end()
+    while i < len(source):
+        ch = source[i]
+        if ch == "\n":
+            break
+        if ch == "." and not (i + 1 < len(source) and source[i + 1].isdigit()) and not _NOT_END.search(source[m.end():i]):
+            break
+        i += 1
+    text = source[m.end():i].strip(" ;")
+    return (m.start(), min(i + 1, len(source)), text) if text else None
+
 _TYPE_SCALE = {
     "SMG": "compact shoulder weapon, approximately forearm-to-shoulder length, not pistol-sized",
     "rifle": "long shoulder weapon, larger than a forearm",
@@ -254,9 +276,9 @@ def weapon_scale(conn, asset: Dict, variant: Optional[str] = None) -> str:
         profile = {}
     desc = form_text(asset, variant) if _forms(asset.get("description") or "") else re.sub(r"^\s*\[[^\]]*\]\s*", "", str(asset.get("description") or "")).split("[", 1)[0]
     for source in [str(profile.get(k) or "") for k in ("must_keep", "identity", "build")] + [desc]:
-        m = _SCALE_LABEL.search(source)
-        if m:
-            return m.group(1).strip()
+        span = _scale_span(source)
+        if span:
+            return span[2]
     size = asset.get("size") or {}
     if size:
         return "Library measured dimensions: " + ", ".join(f"{k.removesuffix('_m')} {float(size[k]):g} m" for k in ("height_m", "width_m") if k in size)
@@ -344,6 +366,8 @@ def clean_prompt(conn, project_id: int, data: Dict, text: str):
             m = prefix.search(text[:start])
             if not m:
                 continue
+            if re.search(r"(?:\bno|\bnot|\bnever|\bwithout|không|chứ không phải)\s+(?:an?\s+|the\s+)?$", text[:m.start()], re.I):
+                continue                                   # rà gộp Đ16v2: "no translucent amber glue wall" keeps its meaning
             for colour in _ATTRIBUTE_RX.finditer(m.group(0)):
                 if _ATTRIBUTE_KEY[colour.group().lower()] in kept:
                     continue
@@ -419,7 +443,10 @@ def prompt_part(conn, project_id: int, data: Dict) -> str:
         a, form = lk["asset"], lk["form"]
         if lk["category"] == "gun":
             # Nhãn tỉ lệ chỉ xuất hiện ở câu chuẩn ưu tiên, tránh 2 nguồn trái nhau.
-            form = re.sub(r"\.\s*\.", ".", _SCALE_LABEL.sub("", re.sub(r"(?i)(?<!\w)in-game\s+(?=scale\s*:)", "", form))).strip(" .;")   # Đ16v3: "In-game scale: …" whole
+            span = _scale_span(form)                    # rà gộp Đ16v2/v3: the whole "In-game scale: …" sentence leaves the form
+            if span:
+                form = (form[:span[0]] + form[span[1]:])
+            form = re.sub(r"\s{2,}", " ", form).strip(" .;,")
         over = f"; this overrides any other colour or material described above for it" if form and lk["has_forms"] else ""
         if lk.get("holders"):
             # Đ16v3: whose gun it is — each present character gets their own locked gun, never another one

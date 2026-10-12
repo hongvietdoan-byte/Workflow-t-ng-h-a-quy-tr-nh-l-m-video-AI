@@ -118,3 +118,19 @@ def test_weapon_select_saves_the_choice(tmp_path, monkeypatch):
     assert not at.exception
     at.selectbox(key=f"weapon_{pid}_KELLY").set_value(aid).run()
     assert prop_lock.weapon_table(connect(db), pid) == {"KELLY": aid}
+
+
+class ReviewFixesTest(unittest.TestCase):
+    """Rà gộp Đ16v2 (12/10): a negation keeps its meaning; the scale sentence is taken whole; "Damage scale" is not a size."""
+    setUp, tearDown, _asset, _prompt = base.PropLockTest.setUp, base.PropLockTest.tearDown, base.PropLockTest._asset, base.PropLockTest._prompt
+
+    def test_negated_colour_is_not_cut(self):
+        with mock.patch.dict(os.environ, FLAG_ON):
+            for text in ("Fix: no translucent amber glue wall, plain white.", "Never a translucent amber glue wall."):
+                out, cut = prop_lock.clean_prompt(self.p.conn, self.pid, {"image_prompt": text}, text)
+                self.assertEqual((out, cut), (text, []))
+
+    def test_scale_sentence_whole_and_damage_scale_ignored(self):
+        self.assertEqual(prop_lock._scale_span("SMG. In-game scale: approx. 3.0 head-heights; held two-handed. Fires fast")[2],
+                         "approx. 3.0 head-heights; held two-handed")
+        self.assertIsNone(prop_lock._scale_span("Damage scale: 1.2. Fast."))
