@@ -1083,7 +1083,7 @@ forearm-to-shoulder length, held two-handed with the stock") và prop_lock chèn
 Đánh giá hiệu quả (luật (c)): có nên lấy tỉ lệ tự động theo loại súng (SMG / súng trường / súng lục) thay vì nhập tay từng món không. Test: prompt gửi đi
 của ca shot 16 không còn 'translucent amber'; câu tỉ lệ có khi món SKORP có mặt; cờ TẮT giữ y cũ.
 
-## Việc 3 — KHÓA SÚNG THEO NHÂN VẬT (người dùng 12/10 13:19, ƯU TIÊN SỐ 1 cùng việc 1–2; cờ `project_prop_lock` — dùng chung cờ, đã BẬT trên máy chính)
+## Việc 3 — ✅ PHIÊN RÀ CODEX ĐÃ LÀM (12/10 14:14, Codex BỎ QUA — gộp main) — KHÓA SÚNG THEO NHÂN VẬT (người dùng 12/10 13:19, ƯU TIÊN SỐ 1 cùng việc 1–2; cờ `project_prop_lock` — dùng chung cờ, đã BẬT trên máy chính)
 Người dùng: "khóa sẵn nhiều súng, tránh tự ý dùng và gán sai". Hiện `project_prop_lock` chỉ chạy khi dự án gắn MỘT súng; nhiều súng → chỉ VÀNG. Làm TRÊN
 nhánh việc 2 đã gộp (`core/prop_lock.py` clean_prompt / weapon_scale). Ca thật #27 (bảng người dùng ĐÃ DUYỆT, `TODO.md` khối 📌 12/10 13:21): KELLY → SKORP
 #433 · LÍNH ĐỊCH ÁO CHOÀNG → M7 #434 · SỨ GIẢ BÓNG ĐÊM → HAWK #435 · XÚC TU ĐỎ → RPK #436 · YÊU NỮ TÀ LINH DẠNG 1 → M7 #434; đeo súng sau lưng = Kho style
