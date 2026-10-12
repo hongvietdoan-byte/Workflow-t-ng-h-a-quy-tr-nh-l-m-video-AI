@@ -912,6 +912,10 @@ không tự gen lại quá 1 lần (luật gen lại phải đổi đầu vào).
 
 ---
 
+## Bổ sung Kết quả Codex — đợt 12
+
+- ✅ Việc 5 · nhánh `codex/d12-viec5-dong-thanh` · backend `d197de0c`, QA/nhãn `4d7bb244`: unison OFF/OPT_IN_ONLY; giọng riêng, trim silence đầu/cache dẫn xuất, giữ WAV gốc, timeline chung và guard thiếu/stale trước gọi trả tiền; OFF/ON không gửi lại giọng đã có. Rà độc lập3finding + cache tiền đã sửa. Nhãn GUI giữ ID nội bộ, hiển thị đúng số shot; ĐỎ→XANH **51 passed /14,42s**, Chrome actual component1440/1280 DB/ảnh/đườngtạm:0JS/exception/overflow,2PNG. Root đọc fix/xem ảnh. Giữ keys/areas.version60. **Chưa nghiệm thu từng chữ≤60ms**: năng lượng/onset chỉ proxy, VÀNG; chưa model thật/cả bộ Windows/bật sản xuất. Nút TTS1280 rút đuôi, caption giáước tính từnggiọng vẫn có. Không API/dữliệu thật/gộp main. RA/HANDOFF13/10 kèm nhánh.
+
 # ĐỢT 13 — dọn tồn đọng THẤP (sổ việc 📒 nhóm G, 12/10; người dùng duyệt)
 
 Đăng nhập admin 8502 (sổ việc nhóm F) do **phiên rà Codex** làm (Codex không tự đăng nhập được để kiểm): `devsys/admin_auth.py` — Codex KHÔNG
