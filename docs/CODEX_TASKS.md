@@ -20,7 +20,7 @@ tài nguyên nhắc tên giữ chỗ (`5e1d410`); `assets._without_spoken_lines`
 `looks.clean_prompt` mệnh đề phủ định (`0cad90c`).
 
 **THỨ TỰ CÒN LẠI** (thay mọi thứ tự trong hộp thư cũ):
-1. ~~ĐỢT 17 việc 1~~ → 2. ~~ĐỢT 17 việc 2~~ (đã gộp `3715c96`) → 3. ĐỢT 17 việc 3 → 4. ĐỢT 15 việc 3 (phủ cả popup giữa phim Đ17v2) → 5. ĐỢT 12 việc 5 → 6. ĐỢT 11 việc 1b →
+1. ~~ĐỢT 17 việc 1~~ → 2. ~~ĐỢT 17 việc 2~~ (đã gộp `3715c96`) → 3. ĐỢT 17 việc 3 → 3b. **ĐỢT 18 việc 1 → 2 → 3** (sân khấu 3D chung theo đoạn — người dùng 12/10; việc 4 chờ người dùng duyệt kế hoạch) → 4. ĐỢT 15 việc 3 (phủ cả popup giữa phim Đ17v2) → 5. ĐỢT 12 việc 5 → 6. ĐỢT 11 việc 1b →
 7. ĐỢT 14 việc 3 → 8. **project_budget gộp** = Đ10 việc 3 mục 2 + Đ13 việc 4 mục 9 phần `cost._video_need` + QC tính 2 lần khi `qc_observe_enum` bật (cờ này ĐÃ
 BẬT trên máy chính → số đang sai trên #27), một nhánh `codex/d10-viec3b-project-budget` → 9. ĐỢT 12 việc 6 → 10. ĐỢT 13 việc 4 mục 1–8 + phần còn lại mục 9 →
 11. ĐỢT 11 việc 2 → 12. ĐỢT 11 việc 4 (bỏ phần đã có trong `continuity_layout`) → 13. ĐỢT 12 việc 2–4 → 14. ĐỢT 13 việc 1–3 → 15. ĐỢT 11 việc 5 → 16. ĐỢT 11
@@ -1181,5 +1181,52 @@ công → chỉ hiện cảnh báo của lần gen lại MỚI NHẤT (trùng Đ
 
 - 🟡 Việc 1 · nhánh `codex/d17-viec1-dao-cu` · code `3b072ca3`: a/b + c cảnh báo hoàn tất trong phạm vi đã chốt. Rewrite từ chối skin mới ngoài prompt/ghi chú khẳng định, phân biệt mã skin, vẫn kiểm metadata khi ảnh mất; VÀNG mâu thuẫn thuộc tính cùng cụm đạo cụ. Gói refs cuối ghi diag/hiện Dashboard khi ảnh khóa thiếu; giữ namedprop reservation, chưa đổi ưu tiên. ĐỎ a/b/c + 8 subcase rà → **86 passed +14 subtests /7,48s**; 4 finding độc lập sửa gom, root đọc diff. QA component Streamlit thật Chrome 1440/1280 với dữ liệu giả: 0 pageerror/0 tràn ngang, 2 PNG `docs/images/d17/`. Giữ keys/areas.version; runner chỉ thêm cảnh báo tại `_finish_args`, lý do trong RA. **Còn chờ người dùng chốt c ưu tiên plate_wide và d POV; chưa hoàn tất toàn việc.** Chưa API/model thật/cả bộ Windows/gộp main. Bàn giao `docs/HANDOFF_D17_VIEC1_CODEX_2026-10-12.md`; rà `docs/RA_D17_VIEC1_CODEX_2026-10-12.md`.
 - ✅ Việc 2 · nhánh `codex/d17-viec2-popup-shot` · code `e129832c`: cờ `shot_popup` OFF/OPT_IN_ONLY; đọc post_popup từng shot, timeline clip thực trim/xfade và nháp, cùng hiệu ứng pop/âm/safe_box, không kéo dài shot. Tách xanh nối biên tùy chọn, giữ ảnh gốc/xanh kín; UI chọn một shot, một hàng bật/Kho/giây + nút lưu, server kiểm quyền và scene-project. Thiếu shot/ảnh/âm/đo/cấu hình báo VÀNG diag+manifest, hash theo spec/bytes/platform. ĐỎ module + caller draft; rà 4 finding và selector/videopath → **102 passed +10 subtests /22,87s**, focused output_video **6 đỏ→6 xanh /0,21s**. Root đọc vòng sửa; UI component Streamlit fakeowner Chrome1440/1280:0 pageerror/0 overflow,2 PNG `docs/images/d17/`. areas khai module/test/cờ, giữ version/keys. RA `docs/RA_D17_VIEC2_CODEX_2026-10-12.md`. Chưa thử #27/cả bộ Windows/bật sản xuất/gộp main; lookup legacy end-popup không local_root giữ assets.get cũ, guard mới bảo đảm mọi popup shot.
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+# ĐỢT 18 — Shot liền mạch dùng CHUNG một sân khấu 3D (người dùng 12/10, hộp thư phiên máy chính 19:20)
+
+Luật chung GIỐNG đợt 1 (cả luật người dùng 12/10: giao diện gọn, rà kĩ, **ý tưởng là góp ý → đánh giá hiệu quả trước khi build**). Nhánh
+`codex/d18-viec<N>-<tên>` từ `origin/main` MỚI NHẤT. Không API tốn tiền khi test; KHÔNG đọc/ghi `data/projects/`. #27 đang vẽ: mọi đổi hành vi sau cờ
+TẮT; `core/runner.py`, `scene_storyboard.py`, `plate_camera.py`, `plate_choice.py`, `place_refs.py` chỉ sửa TỐI THIỂU (ghi lý do). Thứ tự: việc 1 → 2 → 3;
+việc 4 CHỈ sau khi người dùng duyệt kế hoạch việc 1.
+
+**Người dùng muốn:** Director đã phân cảnh kỹ; các shot cùng ĐOẠN liền mạch (cùng chỗ, hành động nối tiếp — KỂ CẢ khi truyện rẽ nhánh rồi quay lại cùng
+chỗ) dùng chung MỘT bộ dựng 3D: bối cảnh + vị trí nhân vật chính/phụ + vật (đồng đội gục, tường keo, súng dưới đất…); mỗi shot chỉ đặt MÁY khác trên sân
+khấu đó → đổi góc/tình huống không lệch bố cục.
+**Ca thật #27 (12/10):** shot 11–12 hàng đồng đội gục đổi chỗ/chồng nhau so với shot 1–3 (khác `sequence`); S07 chỗ nhặt súng trùng chỗ đấu súng; S08-2 Kelly
+núp sai phía tường keo (máy nhìn về tháp → cô ở phía địch).
+**Đã có — dùng lại, KHÔNG viết lại:** vá tạm của phiên máy chính `4b280d6`: `scene.data.continuity_from` (idx shot trước) → `runner.layout_reference` gửi ảnh
+shot đó vai `layout_from` (`assets.reference_note`, `storyboard_frames.mapping_text`), `scene_storyboard.other_spot` (plate_spot khác shot neo → không ảnh
+neo), `tests/test_layout_from_p27.py`; `core/camera_plan` (G0, cờ `director_camera_plan` TẮT — sơ đồ cảnh + bộ góc máy cho cảnh trên bối cảnh có 3D);
+`core/stage_director` + `stage_solver` (Sân khấu 3D v2 — dàn cảnh `blocking` + `shot_specs` MỘT cảnh); `core/blockout_sheet` (tấm duyệt 2D, chưa nối
+pipeline); `core/continuity.layout_warnings` (cờ `continuity_layout` TẮT — kiểm hướng đi/bố cục). Kế hoạch gốc: `docs/KE_HOACH_DAT_MAY_3D_2026-10-09.md`,
+`docs/PHUONG_PHAP_SAN_KHAU_3D.md`.
+
+## Việc 1 — Kế hoạch + đánh giá (CHỈ tài liệu, không code) → `docs/KE_HOACH_SAN_KHAU_DOAN_2026-10-1x.md`
+(a) Bản đồ hiện trạng: 4 module trên làm gì, dữ liệu nằm đâu (scene.data `sequence`/`story_scene`/`plate_spot`/`plate_view`/`blocking`/`continuity_from`,
+`location_pack`, tệp plan của camera_plan), đường nào ĐANG chạy trên #27, đường nào cờ TẮT/chưa nối. (b) Định nghĩa **"đoạn liền mạch"** (segment): khóa
+đề xuất (location + plate_spot + mốc thời gian truyện?) — ai đặt (Director ghi / code suy từ sequence + plate_spot / người sửa trên Dashboard), ca rẽ nhánh
+quay lại cùng chỗ (#27 shot 1–3 ↔ 11–12). (c) **Dữ liệu sân khấu một đoạn**: vị trí người + vật (toạ độ trên mặt bằng bối cảnh, hướng mặt, tư thế: đứng/
+gục/núp), thay đổi giữa các shot trong đoạn (ai đi đâu, vật xuất hiện/mất — tường keo dựng ở shot 15), máy từng shot. Dùng cho: render nền 3D, câu prompt
+(vị trí bằng chữ), ảnh neo, QC (so ảnh với sân khấu). (d) **Đánh giá hiệu quả** (luật c) — bảng: phương án A "chỉ dữ liệu 2D mặt bằng + câu prompt +
+ảnh layout_from" / B "đặt người-vật thật trong Blender (stage_solver) mỗi đoạn" / C "giữ vá tạm continuity_from + VÀNG khi lệch"; mỗi phương án: lỗi #27 nào
+nó chặn được, công sức, rủi ro, chi phí API mỗi đoạn, số bấm của người dùng; ghi "KHÔNG NÊN LÀM" nếu lợi ít. (e) Lộ trình tối thiểu cho #27 còn đang vẽ (cái
+gì làm được ngay không cần Blender). Người dùng duyệt bảng đánh giá → mới làm việc 4.
+
+## Việc 2 — Ảnh neo storyboard theo NHÓM (story_scene, plate_spot) thay vì cả cảnh
+Rà 12/10: shot neo đổi chỗ đứng → `other_spot` làm CẢ cảnh mất ảnh neo. Sửa: chọn ảnh neo trong từng nhóm (story_scene, plate_spot) — shot cùng chỗ đứng
+nhận neo của shot đầu nhóm đó; shot không có plate_spot giữ cách cũ; VÀNG khi nhóm chưa có ảnh neo nào duyệt. Sau cờ TẮT mới (đề xuất `anchor_by_spot`);
+cờ TẮT giữ y cũ (test). Kiểm hai hướng: không nhận neo khác chỗ, không mất neo cùng chỗ.
+
+## Việc 3 — Ô `continuity_from` trên Dashboard (Bước 1/2, thẻ shot)
+Hiện chỉ sửa được bằng dữ liệu. Thêm ô gọn (luật a): chọn "Giữ bố cục theo shot …" (danh sách shot TRƯỚC, cùng địa điểm lên đầu), hiện ảnh nhỏ shot đó +
+trạng thái (đã duyệt / chờ duyệt / chưa có ảnh — VÀNG như runner nói), nút bỏ. Ghi qua `llm_io.update_scene` (đã nhận `continuity_from`, có lineage +
+change_review) — kiểm quyền sửa như các ô khác. Ảnh chụp 1440 + 1280.
+
+## Việc 4 — (SAU khi người dùng duyệt việc 1) build phương án được chọn, sau cờ TẮT
+Đề bài chi tiết sẽ viết sau khi người dùng chốt. Không bắt đầu trước.
+
+## Kết quả Codex — đợt 18
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
