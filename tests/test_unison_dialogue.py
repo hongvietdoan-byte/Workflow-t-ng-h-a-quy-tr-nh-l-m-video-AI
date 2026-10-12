@@ -317,3 +317,11 @@ def test_legacy_off_to_on_only_new_secondary_is_paid(project,monkeypatch):
         for value in ['0','1']:
             monkeypatch.setenv('FEATURE_UNISON_DIALOGUE',value)
             assert voice.generate(db,1,provider,data,settle=False)['sent']==0
+
+def test_unison_warning_uses_project_shot_index_not_database_id(project):
+    db,data=project
+    db.execute('UPDATE scenes SET idx=12 WHERE id=1')
+    db.commit()
+    warning=voice.status(db,1,data)['unison_warnings'][0]
+    assert warning['scene_id']==1
+    assert warning['scene_idx']==12

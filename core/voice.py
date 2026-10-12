@@ -550,7 +550,7 @@ def unison_warnings(conn, project_id, data_dir, ffmpeg=None):
                 result = unison.measure(entries, directory, ffmpeg or ffmpeg_studio.find_ffmpeg())
             except ffmpeg_studio.FFmpegNotFound:
                 result = {"state": "yellow", "reason": "Không có ffmpeg để đo onset từng giọng"}
-        out.append(dict(result, scene_id=sid, group=group))
+        out.append(dict(result, scene_id=sid, scene_idx=plan[0]["idx"], group=group))
     return out
 
 

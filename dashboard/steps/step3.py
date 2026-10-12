@@ -217,7 +217,7 @@ def voice_panel(p: Pipeline, pid: int) -> None:
     """Character voices for the dialogue (TTS is the main path for Vietnamese lines): make them, hear them, size the clips."""
     stat = voice.status(p.conn, pid, C.DATA)
     for warning in stat.get("unison_warnings", []):
-        st.warning(f"Đồng thanh · shot {warning['scene_id']}: {warning['reason']}")
+        st.warning(f"Đồng thanh · shot {warning['scene_idx']}: {warning['reason']}")
     if not stat["total"]:
         return
     try:
