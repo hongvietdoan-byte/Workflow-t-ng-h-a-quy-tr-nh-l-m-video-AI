@@ -45,6 +45,26 @@ def make_character_set(p: Pipeline, project_id: int, name: str, provider, data_d
     """Generate the 2 pictures, store them as a project resource "<NAME> · trang phục N", make it this character's reference and
     clear the separate outfit pictures (the set already wears the outfit). Returns {"asset_id", "paths"}. Costs 2 image credits."""
     access.need_edit(p, project_id, "tạo bộ ảnh trang phục")
+    aliases = ""
+    base = f"{name.upper()} · trang phục"
+    english = ""
+    game = p.project(project_id)["game"] or "FF"
+
+    def available_number(start):
+        # Cùng scope/kind với create: tên Việt khác vẫn có thể trùng alias Anh.
+        while assets.find_same(p.conn, game, "character", f"{base} {start}",
+                               f"{english} outfit {start}", project_id):
+            start += 1
+        return start
+
+    if assets.english_names_enabled():
+        # The new entry is made after paying: resolve its English identifier BEFORE the money gate.
+        linked = assets.link_characters(p.conn, project_id, [name]).get(name)
+        names = [name] + (assets.names_of(linked) if linked else [])
+        english = next((n for n in names if assets._english_identifier(n)), "")
+        assets.require_english_name(base, f"{english} outfit" if english else "")
+        n = available_number(1 + p.conn.execute("SELECT COUNT(*) FROM assets WHERE project_id=? AND name LIKE ?",
+                                                (project_id, base + "%")).fetchone()[0])
     refs = _refs(p, project_id, name)
     prompts = [(key, set_prompt(p, project_id, name, view, refs)) for key, view in VIEWS]
     info = getattr(provider, "usage_info", None)
@@ -83,11 +103,20 @@ def make_character_set(p: Pipeline, project_id: int, name: str, provider, data_d
                 raise ProviderError("character set took too long; try again later", code="timeout", transient=True)
             sleep(poll_every)
             waited += poll_every
-    game = p.project(project_id)["game"] or "FF"
-    base = f"{name.upper()} · trang phục"
-    n = 1 + p.conn.execute("SELECT COUNT(*) FROM assets WHERE project_id=? AND name LIKE ?", (project_id, base + "%")).fetchone()[0]
-    asset_id = assets.create(p.conn, game, "character", f"{base} {n}", f"Bộ ảnh nhân vật {name} với trang phục mới (tự tạo)", "",
-                             project_id, None)
+    latest_n = 1 + p.conn.execute("SELECT COUNT(*) FROM assets WHERE project_id=? AND name LIKE ?", (project_id, base + "%")).fetchone()[0]
+    n = max(n, latest_n) if english else latest_n
+    # Ảnh đã tải: nếu một lượt khác vừa lấy tên, chỉ đổi số và lưu lại, không gửi provider lần nữa.
+    for attempt in range(3):
+        n = available_number(n) if english else n
+        aliases = f"{english} outfit {n}" if english else ""
+        try:
+            asset_id = assets.create(p.conn, game, "character", f"{base} {n}", f"Bộ ảnh nhân vật {name} với trang phục mới (tự tạo)", aliases,
+                                     project_id, None)
+            break
+        except assets.AssetError:
+            if not english or attempt == 2 or not assets.find_same(p.conn, game, "character", f"{base} {n}", aliases, project_id):
+                raise
+            n += 1
     for key, _ in VIEWS:
         with open(paths[key], "rb") as f:
             assets.add_image(p.conn, asset_id, f"{key}.png", f.read())

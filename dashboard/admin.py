@@ -823,6 +823,13 @@ def lib_new_item_box(p, game) -> None:
         kind = c2.selectbox("Loại", list(assets.KINDS), format_func=lambda k: assets.KINDS[k], key="lib_new_kind")
         aliases = st.text_input("Tên gọi khác trong kịch bản (cách nhau bằng dấu phẩy)", key="lib_new_aliases")
         desc = st.text_area("Mô tả (ngoại hình, đặc điểm để Director dùng)", key="lib_new_desc", height=70)
+        if assets.english_names_enabled():
+            suggestion = assets.suggest_english_name(name, desc)
+            if suggestion:
+                st.caption(f"Gợi ý tên tiếng Anh / tên riêng: {suggestion} — bạn kiểm và sửa trước khi lưu.")
+            english = st.text_input("Tên tiếng Anh (bắt buộc nếu tên chính là tiếng Việt)",
+                                    key="lib_new_english", placeholder=suggestion or "vd red torii gate")
+            aliases = ", ".join(x for x in (aliases.strip(), english.strip()) if x)
         files = st.file_uploader("Ảnh tham khảo", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True, key="lib_new_files")
         why = st.text_input("Vẫn tạo dù Kho báo trùng — lý do (để trống = không tạo trùng)", key="lib_new_dup_reason")   # S14.43B
         if st.button("Thêm vào kho", key="lib_new_go", disabled=not name.strip()):

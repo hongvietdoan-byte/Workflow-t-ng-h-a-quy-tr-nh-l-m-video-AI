@@ -112,8 +112,8 @@
       "code": ["core/assets.py", "core/asset_vision.py", "core/kho_review.py", "core/ff_site.py", "core/nuxt_static.py", "core/profile_digest.py", "core/costume.py", "core/looks.py", "dashboard/admin.py"],
       "assets": ["data/games.json", "tools/draft_profiles.py", "tools/enrich_ff_role_difficulty.py", "mcp_servers/project_db.py", "tools/kho_merge.py"],
       "docs": [],
-      "tests": [],
-      "flags": ["profile_digest", "short_lock_outfit"],
+      "tests": ["tests/test_assets_names_d17.py"],
+      "flags": ["profile_digest", "short_lock_outfit", "asset_english_names"],
       "diag_stages": [],
       "keywords": ["Kho", "tài nguyên", "hồ sơ", "asset", "KELLY", "KENTA", "MAXIM", "nhân vật"]
     },

@@ -277,6 +277,38 @@ def find_duplicates(conn, game: Optional[str] = None) -> List[Dict]:
     return out
 
 
+def english_names_enabled() -> bool:
+    from . import features
+    return features.on("asset_english_names")
+
+
+def _english_identifier(value: str) -> bool:
+    """ASCII spelling / proper identifier, not a language verification or a Vietnamese transliteration."""
+    return bool(value and value.isascii() and re.search(r"[a-zA-Z]", value))
+
+
+# Specific nouns only: colour, material and generic nouns are not enough to identify a linked library item.
+_ENGLISH_ANCHORS = {"torii": "torii gate", "pagoda": "pagoda", "archway": "archway", "shrine": "shrine",
+                    "crossbow": "crossbow", "katana": "katana", "gloowall": "gloo wall"}
+_COMMON_ENGLISH = frozenset("no not gun can on in to a an and or of for at as by with from the is it be was were are "
+                            "has have had do does did so but if then than this that these those all any some one two "
+                            "wall gate red blue green man girl boy out over under up down back left right".split())
+
+
+def suggest_english_name(name: str, description: str = "") -> str:
+    """Free, conservative suggestion. Never fold a Vietnamese name to pretend it was translated."""
+    if _english_identifier(name):
+        return name.strip()
+    words = set(_said_words(name + " " + description))
+    return next((alias for word, alias in _ENGLISH_ANCHORS.items() if word in words), "")
+
+
+def require_english_name(name: str, aliases: str = "") -> None:
+    if english_names_enabled() and not any(_english_identifier(n) for n in _all_names(name, aliases)):
+        raise AssetError("Cần ít nhất một tên tiếng Anh trong tên gọi khác (vd red torii gate); nhập hoặc sửa gợi ý rồi tạo lại. "
+                         "Chưa tạo tài nguyên, không tự dịch bằng API.")
+
+
 def create(conn, game: str, kind: str, name: str, description: str = "", aliases: str = "", project_id: Optional[int] = None,
            created_by: Optional[str] = None, allow_duplicate: bool = False, duplicate_reason: str = "") -> int:
     """A new library entry. Refused (AssetError naming the existing entry) when one of the same game and kind already carries the
@@ -287,6 +319,7 @@ def create(conn, game: str, kind: str, name: str, description: str = "", aliases
         raise AssetError("Tên tài nguyên không được để trống")
     if kind not in KINDS:
         raise AssetError("Loại tài nguyên không hợp lệ")
+    require_english_name(name, aliases)
     dup = conn.execute("SELECT id FROM assets WHERE game=? AND kind=? AND lower(name)=lower(?) AND COALESCE(project_id,0)=COALESCE(?,0)",
                        (game, kind, name, project_id)).fetchone()
     if dup:
@@ -804,9 +837,11 @@ def name_spans(name: str, words: List[str]) -> List[Tuple[int, int]]:
     n, out = len(want), []
     if not n:
         return out
+    guard = english_names_enabled()
     for i in range(len(words) - n + 1):
         part = words[i:i + n]
-        if part == want or all(w == fold(w) and fw == fold(w) for w, fw in zip(part, folded)):
+        blocked = guard and n == 1 and any(w != fw and p in _COMMON_ENGLISH for w, fw, p in zip(want, folded, part))
+        if part == want or (not blocked and all(w == fold(w) and fw == fold(w) for w, fw in zip(part, folded))):
             out.append((i, i + n))
     return out
 
@@ -1530,21 +1565,47 @@ def render_place_text(conn, place: Dict, tag: str = RENDER_TAG) -> str:
 def gap_severity(gap: str) -> str:
     """A library picture whose file is gone is a fault (warn); a character that simply has no picture was already warned about at the
     Bible gate (autopilot / the Gen ảnh button), so each job only notes it (info) instead of turning every stage yellow."""
-    return "warn" if "mất file" in gap else "info"
+    return "warn" if any(s in gap for s in ("mất file", "chưa khớp tên Kho", "chỉ dùng bằng chữ")) else "info"
+
+
+def _named_resource_gaps(conn, project_id: int, scene: Dict) -> List[str]:
+    """D17: warn about a linked item named by its specific descriptor; never attach a guessed image."""
+    if not english_names_enabled():
+        return []
+    from . import prop_lock
+    words = _said_words(prop_lock.shot_text(scene) + " " + str(scene.get("location") or ""))
+    out = []
+    # Names/descriptions only: no image opens, filesystem probes or library-wide query at every poll.
+    rows = conn.execute("SELECT a.name, a.aliases, a.description, a.kind FROM assets a JOIN project_assets pa ON pa.asset_id=a.id "
+                        "WHERE pa.project_id=? ORDER BY a.kind, lower(a.name)", (project_id,)).fetchall()
+    for row in rows:
+        a = dict(row, aliases=row["aliases"] or "", description=row["description"] or "")
+        if a["kind"] not in ("weapon", "prop", "pet", "location", "outfit", "style"):
+            continue
+        named = any(name_spans(n, words) for n in names_of(a))
+        anchor = next((w for w in _ENGLISH_ANCHORS if w in words and
+                       w in _said_words(a["name"] + " " + a.get("description", ""))), None)
+        if a["kind"] == "style" and (named or anchor):
+            out.append(f"kiểu ảnh {a['name']} chỉ dùng bằng chữ — không gửi ảnh ref; ảnh có HUD có thể kéo sai hình. "
+                       "Kiểm mô tả Kho trước khi gen.")
+        elif not named and anchor:
+            out.append(f"chữ shot “{anchor}” có thể tả {a['name']} đã gắn nhưng chưa khớp tên Kho — thêm tên tiếng Anh "
+                       "vào tên gọi khác nếu đúng vật; chưa tự chọn ảnh mẫu.")
+    return out
 
 
 def reference_gaps(conn, project_id: int, scene: Dict) -> List[str]:
     """Luật 1 at generation time: what the picture of this shot will be drawn WITHOUT — a character with no reference picture (drawn from
     words), library pictures whose file is gone. Vietnamese sentences for the job's diag; empty = nothing missing."""
     names = [str(n) for n in scene.get("characters") or []]
+    out = _named_resource_gaps(conn, project_id, scene)
     if not names:
-        return []
+        return out
     from . import looks
     proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
     scene = dict(scene, _look=looks.asset_look(proj)) if proj is not None else scene
     linked = link_characters(conn, project_id, names, scene)
     saved = _reference_rows(conn, project_id)
-    out = []
     for name in dict.fromkeys(names):
         a = linked.get(name)
         if a is None and not outfit_images(conn, project_id, name):
