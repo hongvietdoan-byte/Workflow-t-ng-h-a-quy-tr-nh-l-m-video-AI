@@ -45,3 +45,6 @@ luật cấm từ — là cách tính trước khi viết. Code kiểm lại cá
     ≈ 7 đầu). Mọi súng chính đều cầm HAI tay, báng tì cánh tay/vai, nòng vượt qua hông bên kia — không bao giờ cỡ súng lục, không cầm
     một tay kể cả khi ăn mừng (tay kia giơ lên thì súng đeo / chống xuống, không thu nhỏ). Viết cỡ này vào câu tả shot có súng. Vì: #27
     ảnh thử SKORP bị vẽ như súng lục, cầm một tay. Căn cứ: ảnh tỉ lệ trong Kho (đo thô trên ảnh, sai số ~10 %).
+    Súng KHÔNG cầm trên tay thì đeo chéo SAU LƯNG đúng cỡ thật (nòng chúc xuống, báng / ống ngắm nhô qua vai, tối đa 2 khẩu) —
+    vd ăn mừng giơ tay: súng chính đeo sau lưng hoặc cầm hai tay hạ thấp, không biến thành súng lục. Viết "slung on her back" để
+    gửi kèm ảnh Kho "ĐEO SÚNG SAU LƯNG".
