@@ -1083,6 +1083,26 @@ forearm-to-shoulder length, held two-handed with the stock") và prop_lock chèn
 Đánh giá hiệu quả (luật (c)): có nên lấy tỉ lệ tự động theo loại súng (SMG / súng trường / súng lục) thay vì nhập tay từng món không. Test: prompt gửi đi
 của ca shot 16 không còn 'translucent amber'; câu tỉ lệ có khi món SKORP có mặt; cờ TẮT giữ y cũ.
 
+## Việc 3 — KHÓA SÚNG THEO NHÂN VẬT (người dùng 12/10 13:19, ƯU TIÊN SỐ 1 cùng việc 1–2; cờ `project_prop_lock` — dùng chung cờ, đã BẬT trên máy chính)
+Người dùng: "khóa sẵn nhiều súng, tránh tự ý dùng và gán sai". Hiện `project_prop_lock` chỉ chạy khi dự án gắn MỘT súng; nhiều súng → chỉ VÀNG. Làm TRÊN
+nhánh việc 2 đã gộp (`core/prop_lock.py` clean_prompt / weapon_scale). Ca thật #27 (bảng người dùng ĐÃ DUYỆT, `TODO.md` khối 📌 12/10 13:21): KELLY → SKORP
+#433 · LÍNH ĐỊCH ÁO CHOÀNG → M7 #434 · SỨ GIẢ BÓNG ĐÊM → HAWK #435 · XÚC TU ĐỎ → RPK #436 · YÊU NỮ TÀ LINH DẠNG 1 → M7 #434; đeo súng sau lưng = Kho style
+#437 'ĐEO SÚNG SAU LƯNG'. Mô tả Kho #433–436 đã có câu "In-game scale …" (commit main `0932435`).
+(a) **Bảng gán theo dự án** `nhân vật → vũ khí Kho` (lưu như `assets.set_outfit` / `outfit_images`; KHÔNG sửa `lock_exceptions.py`): Bible/Bước 1 có ô chọn súng
+cho từng nhân vật (gọn — một ô chọn cạnh trang phục, luật chung (a)); Đạo diễn ĐỀ XUẤT khi chạy (khai `vu_khi` theo nhân vật), người dùng duyệt = khóa;
+đổi gán → shot đã duyệt VÀNG "cần vẽ lại", không tự gen.
+(b) **Prompt ảnh/video**: shot có nhân vật X cầm súng (từ chung "gun/rifle/súng" hoặc tên sai) → chèn ĐÚNG súng của X (tên + mô tả dạng mặc định) + câu tỉ lệ từ
+mô tả Kho (trọn câu) + ảnh tham chiếu cầm súng đúng tỉ lệ (ảnh chính của món, vd `kelly_cam_skorp…`) trong Gói gửi kèm; shot nêu súng KHÁC súng đã khóa của
+X → ĐỎ trước gen (nói tên shot + súng đúng); nhân vật chưa gán súng mà shot có súng → VÀNG nêu tên nhân vật, KHÔNG đoán; nhân vật không cầm (súng đeo sau
+lưng) → dùng ref style #437 + câu "slung on back, correct size", không vẽ súng trên tay.
+(c) **Nhiều người cùng khung** (#27 shot 16: 4 địch bắn nhau): mỗi người đúng súng của mình (gắn câu theo từng người, không gộp "they hold rifles"); ảnh ref
+không vượt trần ảnh gửi kèm (giữ chỗ như bản sửa 12/10: ưu tiên mặt > trang phục > súng, súng trùng nhiều người chỉ 1 ảnh).
+(d) `_plain` 280 ký tự đang cắt đuôi câu "In-game scale …" → giữ TRỌN câu tỉ lệ (cắt chỗ khác hoặc tách câu tỉ lệ riêng); không chèn tỉ lệ đôi (câu Kho +
+câu suy theo loại) — có câu Kho thì dùng câu Kho.
+Đánh giá hiệu quả (luật (c)) trước khi làm UI: ô chọn ở đâu ít bấm nhất; có cần Đạo diễn đề xuất hay chỉ bảng tay. Test: ca #27 dựng lại bằng dữ liệu giả (5
+nhân vật, 4 súng): prompt gửi đi mỗi người đúng súng + trọn câu tỉ lệ; shot nêu sai súng → ĐỎ; nhân vật chưa gán → VÀNG; đeo sau lưng; cờ TẮT giữ y cũ.
+`core/runner.py` sửa tối thiểu nếu cần (như việc 2) + ghi lý do. Xong push nhánh `codex/d16-viec3-khoa-sung` NGAY.
+
 ## Kết quả Codex — đợt 16
 
 - Việc 1 · nhánh `codex/d16-viec1-viet-lai-prompt` · code `09778931`: lịch sử user-note đúng chuỗi parent cùng shot/loại, giữ ý các lần từ chối; client config LlmError không bị nuốt; fallback hiện trên Dashboard kể cả versions=0, chẩn đoán chọn last_at/id. ĐỎ history ảnh/video và lỗi client →45 test+4subtests xanh; rà1P2 cảnh báo lặp đỏ→xanh, nhóm cuối **46 passed +4 subtests /4,74s**. Test đường thật reject→child→Image/VideoRunner.submit_pending bắt provider.submit: hai ý note, bỏ translucent amber, không Fix, 3 phiên bản; OFF giữ Fix/noClaude. Không sửa runner/pipeline, giữ areas.version/key. RA `docs/RA_D16_VIEC1_CODEX_2026-10-12.md`. **CHƯA xác nhận nguyên nhân production #27 versions=0**: hook đã nối ở base; cần phiên máy chính xem diag fallback/config và thử thật sau gộp. Cùng giây chẩn đoán và cảnh báo không gắn prompt/job còn giới hạn. Không API/data thật/cả bộ/gộp main.
