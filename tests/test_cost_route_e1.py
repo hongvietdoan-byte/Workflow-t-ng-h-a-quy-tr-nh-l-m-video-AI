@@ -706,3 +706,114 @@ class UpgradeLoneTrimmedDraftTests(Base):
         self.assertAlmostEqual(ffmpeg_studio.probe_duration(job["result_path"]), 3.0, delta=0.15)
         q = self.p.conn.execute("SELECT quantity FROM usage_events WHERE job_id=?", (f,)).fetchone()[0]
         self.assertAlmostEqual(q, 5.0, delta=0.1)
+
+
+# ---- 12/10 rà độc lập: sửa 6 lỗi của nhánh nâng bản cao clip nhóm ----------------------------------------------------------------------
+@unittest.skipUnless(_ff(), "ffmpeg missing")
+class UpgradeReviewFixTests(UpgradeCutsTheDraftPartTests):
+    """Kế thừa dựng nháp nhóm 3 shot (1–4 s, 4–6 s, 6–8 s) — chỉ chạy các test mới dưới đây (các test cha chạy ở lớp cha)."""
+
+    def _videos(self):
+        return os.path.join(self.data, str(self.pid), "videos")
+
+    def test_recut_by_hand_moves_where_the_final_is_cut(self):
+        from core import seedance_refs
+        drafts = self.group_draft()
+        seedance_refs.recut(self.p, drafts[self.s1], [2.0, 5.0])
+        f = self.final()
+        self.poll()
+        lead = self.p.job(f)
+        self.assertAlmostEqual(_start_second(lead["result_path"]), 0.0, delta=0.3)       # the person's cut, not the automatic 1 s
+        self.assertAlmostEqual(ffmpeg_studio.probe_duration(lead["result_path"]), 2.0, delta=0.15)
+        for sid, start, sec in ((self.sids[1], 2.0, 3.0), (self.sids[2], 5.0, 3.0)):
+            row = self.p.conn.execute("SELECT * FROM jobs WHERE scene_id=? AND quality_tier='final'", (sid,)).fetchone()
+            self.assertEqual(row["state"], "succeeded")
+            self.assertAlmostEqual(_start_second(row["result_path"]), start, delta=0.3)
+            self.assertAlmostEqual(ffmpeg_studio.probe_duration(row["result_path"]), sec, delta=0.15)
+
+    def test_leader_final_whose_cut_fails_is_red_and_failed(self):
+        from core import seedance_refs
+        self.group_draft()
+        f = self.final()
+
+        def broken(whole, bounds, dests, ffmpeg):        # ffmpeg failing: _cut_parts copies the whole clip
+            for d in dests:
+                shutil.copyfile(whole, d)
+            return list(dests)
+        with mock.patch.object(seedance_refs, "_cut_parts", side_effect=broken):
+            self.poll()
+        self.assertEqual(self.p.job(f)["state"], "failed")
+        sev = [s for (s,) in self.p.conn.execute("SELECT severity FROM diag_events WHERE code='final_cut' AND job_id=?", (f,))]
+        self.assertEqual(sev, ["error"])
+        self.assertTrue(os.path.isfile(os.path.join(self._videos(), "01_group.mp4")))      # the paid 1080p clip kept for ✂
+        self.assertEqual(len(self.clips.upgrades), 1)
+
+    def test_follower_cut_failure_keeps_the_drafts_file_in_place(self):
+        from core import seedance_refs
+        drafts = self.group_draft()
+        self.final()
+        real = seedance_refs._cut_parts
+
+        def broken_02(whole, bounds, dests, ffmpeg):
+            if os.path.basename(dests[0]) == "02.mp4":
+                shutil.copyfile(whole, dests[0])
+                return list(dests)
+            return real(whole, bounds, dests, ffmpeg)
+        with mock.patch.object(seedance_refs, "_cut_parts", side_effect=broken_02):
+            self.poll()
+        draft = self.p.job(drafts[self.sids[1]])
+        self.assertEqual(os.path.normcase(os.path.abspath(draft["result_path"])),
+                         os.path.normcase(os.path.abspath(os.path.join(self._videos(), "02.mp4"))))
+        self.assertEqual(ffmpeg_studio.probe_size(draft["result_path"]), (48, 64))       # still the approved 480p draft part
+        self.assertAlmostEqual(_start_second(draft["result_path"]), 4.0, delta=0.3)
+
+    def test_no_whole_recorded_when_the_clip_cannot_be_measured(self):
+        with mock.patch("core.runner._probe", return_value=None):
+            drafts = self.group_draft()
+        for jid in drafts.values():
+            span = json.loads(self.p.job(jid)["clip_span"])
+            self.assertIsNone(span["whole"], jid)
+
+
+class SharedTaskGuardTests(Base):
+    """_final_shared_task: chỉ chặn khi NÂNG THẬT từ task nháp 2.5; trong các final cùng task nháp, id nhỏ nhất gửi trước."""
+    N = 2
+
+    def setUp(self):
+        super().setUp()
+        from core.providers import MockVideoProvider
+        self.vr = VideoRunner(self.p, MockVideoProvider(), self.data)
+
+    def drafts(self, model):
+        out = [self.approved_draft(sid, model=model) for sid in self.sids]
+        self.p.conn.execute(f"UPDATE jobs SET external_id='T' WHERE id IN ({','.join(map(str, out))})")
+        self.p.conn.commit()
+        return out
+
+    def final_row(self, sid, draft, state="queued", ext=None, call=None):
+        jid = self.p.create_job(sid, "video_gen")
+        self.p.conn.execute("UPDATE jobs SET quality_tier='final', draft_job_id=?, state=?, external_id=?, sent_package=? WHERE id=?",
+                            (draft, state, ext, json.dumps({"call": call}) if call else None, jid))
+        self.p.conn.commit()
+        return jid
+
+    def test_new_gen_finals_of_a_kling_group_are_not_held(self):
+        d1, d2 = self.drafts("kling-v2-6")
+        self.final_row(self.s1, d1, "running", "K1", "submit")
+        b = self.final_row(self.sids[1], d2)
+        self.assertIsNone(self.vr._final_shared_task(self.p.job(b)))
+        self.p.conn.execute("UPDATE jobs SET state='succeeded' WHERE external_id='K1'")
+        self.assertIsNone(self.vr._final_shared_task(self.p.job(b)))
+
+    def test_upgrade_of_a_2_5_group_task_still_waits(self):
+        d1, d2 = self.drafts("seedance-2.5")
+        self.final_row(self.s1, d1, "running", "U1", "submit_final_from_sample")
+        b = self.final_row(self.sids[1], d2)
+        self.assertIn("_wait", self.vr._final_shared_task(self.p.job(b)) or {})
+
+    def test_lowest_queued_final_of_a_draft_task_is_sent_first(self):
+        d1, d2 = self.drafts("seedance-2.5")
+        a = self.final_row(self.s1, d1)
+        b = self.final_row(self.sids[1], d2)
+        self.assertIsNone(self.vr._final_shared_task(self.p.job(a)))
+        self.assertIn("_wait", self.vr._final_shared_task(self.p.job(b)) or {})
