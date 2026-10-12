@@ -148,3 +148,94 @@ Ca thật và cả bộ Windows phải chạy ở bước tích hợp/triển kh
 Test đỏ trước file thiếu; sau đó Playwright Chrome mới headless, profile tạm, chặn mạng ngoài file:
 1440/1280, kéo thật, nhập số, undo, nhịp cuối, accept/reject riêng, approved không đổi, lens làm
 preview đổi, nút fix, so cảnh, console/overflow; ảnh hai góc lưu `docs/images/d11/`.
+
+## 9. Đối chiếu Clip AI — bảng đánh giá Đ11 việc 1b, chờ chốt
+
+Ngày 13/10/2026, base `3d6004bb`. Đã xem cả ba ảnh `clipai_ref_xoay_goc_nhin.png`,
+`clipai_ref_nhan_vat.png`, `clipai_ref_camera_toan_canh.png` trong `docs/images/d11/`.
+Ảnh chứng minh bố cục màn hình và nhãn điều khiển; không chứng minh thuật toán/API/chất lượng render
+của Clip AI. Không cần gọi Clip AI để đối chiếu này. Mail 12/10 11:41 và luật chung (c) yêu cầu
+người dùng chốt bảng trước khi dựng mockup. Bản dưới là **đề xuất**, chưa được duyệt.
+
+Tần suất Cao/Vừa/Thấp là giả thuyết từ lỗi #24/#27 đã ghi trong đề, chưa có telemetry.
+Công S/M/L là so sánh tương đối cho nâng prototype offline; backend/render/ACL ghi riêng,
+không phải cam kết ngày công. Lợi ích chưa đo click/tiền: không gán số tiết kiệm giả.
+
+| # | Dòng Clip AI / nhu cầu | Tần suất | Lợi ích cụ thể | Công mockup / backend | Rủi ro | Khuyến nghị và bản tối thiểu |
+|---|---|---|---|---|---|---|
+| 1 | Dựng tay từ trống → Đạo diễn dựng sẵn | Cao | Xem trước sửa, giữ liên tục | S / L | Giả có Director production | **LÀM**: fixture dựng sẵn; không thêm nút dựng cảnh trống |
+| 2 | Khung camera nổi | Cao | Kéo và thấy khung cùng lúc | M / M | Preview cũ bị tưởng render mới | **LÀM**: khung thu/phóng, tên/hướng/safe area; ghi projection và trạng thái nguồn |
+| 3 | Toàn cảnh / nền map / phông xanh | Vừa | Nhận biết đúng vùng máy quay | M / L | Panorama 2D bị coi map 3D thật | **LÀM BẢN GỌN**: chọn lớp nền fixture/phông xanh, nhãn nguồn; tải panorama để sau |
+| 4 | Hướng ánh sáng | Vừa | Thấy lệch giờ/thời tiết | S / M | Một slider không mô phỏng đèn/map | **LÀM BẢN GỌN**: nguồn giờ/thời tiết + chỉnh nâng cao, cảnh báo minh họa |
+| 5 | Nhiều camera/góc phủ | Vừa | Dùng lại góc khi đối thoại | M / L | Đồng nhất camera với shot | **LÀM BẢN GỌN**: máy chính + góc phụ fixture; chọn setup, không nhân toàn bộ scene |
+| 6 | Vị trí/đích/roll/FOV → ngôn ngữ nghề | Cao | Sửa bằng cỡ cảnh/nhìn vào người | M / M | Cỡ cảnh không tương đương lens tự động | **LÀM BẢN GỌN**: mm↔FOV với sensor/aspect rõ; cỡ cảnh là yêu cầu solver, target tên/số; roll nâng cao có lý do |
+| 7 | Dùng góc hiện tại / về mặc định / giải máy | Vừa | Chỉnh ít thao tác, hồi phục đề xuất | M / M | Orbit vô tình đổi máy, ghi đè khóa | **LÀM BẢN GỌN**: chép có diff/xác nhận; mặc định là baseline Director; solver chưa nối thì nút tắt có lý do |
+| 8 | Nhân vật tên/màu/XYZ/xoay/tỉ lệ | Cao | Không sai người hoặc kéo cao tùy ý | S / M | Thiếu hồ sơ mà bịa chiều cao | **LÀM**: cast fixture ID ổn định, chiều cao có nguồn/unknown, ẩn scale tùy ý |
+| 9 | Tư thế theo đầu/đỉnh/cuối BYĐ | Cao | Thấy động tác không bị mất | M / L | Tư thế proxy khác cơ thể thật | **LÀM BẢN GỌN**: ba nhịp, thư viện fixture và nhãn chưa đo |
+| 10 | Vật thể Kho/stand_in | Cao | Đúng kích thước/vật che | M / L | Khối tạm bị gửi thành chi tiết thật | **LÀM BẢN GỌN**: đạo cụ fixture có provenance; stand_in chỉ xem |
+| 11 | Nút Hoạt ảnh | Vừa | So đầu→cuối thay ảnh tĩnh | S / L | Trùng dòng timeline #18 | **LÀM BẢN GỌN**: chỉ một nút phát nối #17, không dựng hệ hoạt ảnh thứ hai |
+| 12 | Lưu preset thư viện | Thấp–Vừa | Dùng lại góc có chủ đích | M / L | Mang state/duyệt/quyền giữa dự án | **ĐỂ SAU**: cần revision/ACL/remap; mockup mới không có nút lưu giả thành công |
+| 13 | Ảnh kết quả vào Gói gửi kèm | Cao | Không tải xuống rồi tải lên tay | M / L | Gói mockup bị coi payload provider | **LÀM BẢN GỌN**: bảng xem lớp/nguồn sẽ gửi; nút gửi thật tắt, không thêm auto-gen |
+| 14 | Phím V/R/S/F/T/Q/Del/Esc/Undo, panel | Vừa | Tập trung khung xem | M / M | S phá chiều cao; Del xóa state | **LÀM BẢN GỌN**: V/R/F/T/Q/Esc/Undo/←→, panel; S chỉ xem kích thước, Del cảnh báo không hỗ trợ; không giữ phím nguy hiểm chỉ để giống Clip AI |
+| 15 | Orbit/pan/zoom góc người xem | Cao | Thấy vật sau tường, không đổi máy | L / L | Prototype SVG giả orbit; clipping chưa đo | **LÀM BẢN GỌN**: orbit/pan/zoom fixture, T/Q/F và góc nhanh; nhớ theo scene; không claim chống xuyên map khi chưa đo |
+| 16 | Setup dùng chung nhiều shot, không trần 10 | Cao | Chỉnh một góc và xem các shot phụ thuộc | M / L | Lan máy ghi đè approved/state | **LÀM BẢN GỌN**: registry setup fixture + danh sách shot dùng; diff trước áp, approved chỉ VÀNG; cuộn ảo để sau khi có đo danh sách lớn |
+| 17 | Keyframe vật/người/máy theo giây | Vừa | Kiểm lộ ra/move đúng thời điểm | L / L | Sinh editor animation đầy đủ; model không nhận keyframe | **LÀM BẢN GỌN**: keyframe mặc định BYĐ/move, chọn/kéo mốc và phát proxy; thêm/xóa/chép/K/curve nâng cao **ĐỂ SAU**; không giả phép đo speed/collision |
+| 18 | Map + clay, xuất lớp và che khuất | Cao | Phân biệt xem với nguồn thật gửi model | M / L | Clay/stand_in lọt refs; nền render sai camera | **LÀM BẢN GỌN**: ba lớp xem + nhãn sẽ gửi/chỉ xem, thiếu map VÀNG; ray/LOD/Blender/render cuối thuộc v2/3 |
+| 19 | Người bị che, H, visibility/ý đồ/QC | Cao | Kelly không hiện ra sai phía tường | M / L | Tia proxy thiếu mesh vẫn tuyên bố chính xác; bỏ ref người sẽ lộ giữa clip | **LÀM BẢN GỌN**: fixture che/partial/lộ giây 2, H chỉ viewer; nhãn unknown khi chưa đo. Dịch prompt/ref/QC thật **ĐỂ SAU** adapter v2/3 |
+| 20 | Xuất/nhập JSON + ảnh | Thấp | Chuyển fixture kiểm được | M / L | Path/schema/asset IDs khác scope; import ghi thật | **ĐỂ SAU**: chốt schema/revision/ACL trước; xuất ảnh fixture từ #2 đủ cho duyệt giao diện |
+
+Dòng #11 ứng với “Hoạt ảnh”; #17 là dòng KEYFRAME đầy đủ sau dòng setup. Hai dòng dùng cùng
+một timeline, không bỏ sót hay nhân đôi. Đề có 20 dòng; bảng giữ đủ 20, gom tùy chọn phụ trong
+chính dòng và ghi rõ phần để sau. **KHÔNG NÊN** kéo scale người tùy ý, xóa vật có phụ thuộc không
+qua diff, hoặc coi panorama là map 3D; đây là phần bị loại trong các dòng 3/8/14.
+
+### 9a. Mô hình chung với Đ18, không xây sân khấu riêng theo từng shot
+
+Đối chiếu kế hoạch Đ18v1 `d52253e6`, `KE_HOACH_SAN_KHAU_DOAN_2026-10-12.md` mục 2–3
+(bản nhánh nếu main chưa tích hợp): **stage_id** là sân khấu vật lý + nguồn/transform;
+**segment_id** là đoạn hành động truyện; **state_id** là mốc/patch người và vật. Quay lại cùng chỗ
+không tạo stage mới hoặc reset người gục. Gloo wall spawn tại state/event, không tồn tại từ đầu.
+`camera_setup_id` là registry thiết lập máy thuộc stage, nhưng setup có phiên bản và tham chiếu
+snapshot/target rõ; shot liên kết setup + state_start/end + keyframes. Đổi camera không dời người.
+Thiết lập tương đối theo target phải resolve trên state của shot; hai state khác nhau không tự cho
+khung giống nhau. Keyframe patch theo object ID trên khoảng thời gian shot, không đổi base map.
+Chỉnh setup dùng chung chỉ tạo proposal tới shot phụ thuộc; shot approved chỉ cảnh báo. Preset
+cross-project không mang approval, IDs hoặc state tạm; cần remap/provenance và quyền riêng.
+
+Đ18 A/B/C vẫn chờ chốt; bảng này **không** ngầm chọn B hoặc cho phép Đ18v4/backend editor.
+Nếu chọn A trước, viewer proxy/2D phải ghi rõ chưa có map/render thật; lớp visibility unknown,
+không tự bật tính năng hình học chỉ để hình giống Clip AI.
+
+### 9b. Điểm nối đã mở code, chưa nối backend
+
+Số dòng kiểm lại tại base `3d6004bb`; tên hàm là định danh chính.
+
+| Nguồn/caller | Điểm nối và giới hạn |
+|---|---|
+| Plates/map | `core/location_pack.py:368 plan`; `core/plate_camera.py:146 camera_for`, `:404 from_stage`, `:428 plan_cameras` — render nền và setup phải cùng snapshot/camera. plate là ảnh dẫn xuất, không phải mesh map |
+| Máy/kiểm | `plate_camera.py:102 vfov`, `:271 clearance_fix`, `:328 horizon_y`, `:367 project`; `stage_solver.py:555 solve_scene`; chưa có phép đổi cỡ cảnh↔lens bảo đảm đạt mà không giải hình học |
+| Ánh sáng | `core/plate_env.py:44 time_of`, `:54 weather_of`, `:62 env_of`, `:67 blender_env` — môi trường đầu vào; không suy preset này đo được ánh sáng ảnh đã duyệt |
+| Cast/Kho | `core/assets.py:1035 project_assets`, `:1639 scene_references` — nguồn tài nguyên/refs dùng chung; cast ở dữ liệu dự án, không tồn tại module `core/cast.py`; adapter cần lấy cùng ID/look, không danh mục mới |
+| BYĐ/dữ liệu shot | `core/llm_io.py:445 update_scene`, `:426 update_scenes_bulk`; backend editor phải đi cùng quyền server và change_review, không ghi scene JSON từ HTML. Nhịp fixture chưa chứng minh Director production khai số |
+| Facts/visibility | `core/stage_facts.py:390 derive`, `:542 for_shot` — facts+missing hiện có không đồng nghĩa đo đầy đủ đầu/mắt/vai/thân/chân mỗi keyframe; thiếu mesh/tia thì unknown VÀNG |
+| Blockout/Kho chung | `core/blockout_sheet.py:53 render_top_view`, `:146 to_location_pack`, `:157 read_location_pack` — pack có duyệt/SHA, không dùng nút mockup làm ACL Owner |
+| Gói gửi kèm | `core/runner.py:2602 sendable_references`, `:2901 _finish_args`; adapter tương lai cần lớp/provenance/hash và cùng giới hạn refs. Đ11v1b chỉ mô phỏng bảng gói, không sửa runner hoặc gửi provider |
+
+### 9c. Phạm vi mockup đề nghị để người dùng chốt
+
+Một cảnh đã dựng sẵn, ba shot dùng hai setup, hai nhân vật và tường/giếng fixture. Giữ cảnh
+approved chỉ đọc. Mặc định chỉ khung xem + preview nổi + nhịp; chọn vật/máy mới mở bảng số,
+Toàn cảnh/phím nâng cao/lớp gửi thu gọn. Giữ khóa tay/diff/undo RAM có nhãn rõ.
+
+1. Kéo/orbit/pan/zoom viewer không đổi shot camera; nút chép góc mới cho diff. Xem camera đổi
+   trực tiếp khi sửa máy/vật, chỉ projection fixture; lưu viewer theo cảnh, T/Q/F hoạt động.
+2. Nhìn setup→shot; chọn nhịp/keyframe mặc định, kéo mốc, phát proxy minh họa. Tư thế/chiều cao
+   có nguồn fixture; cỡ cảnh là yêu cầu, lens/FOV được đổi theo mô hình sensor có nhãn.
+3. Hiện nguồn nền/lớp và trạng thái gửi; H/ghost không đi vào ảnh xuất. Ba ca người bị che dùng
+   dữ liệu fixture, không tự tính tia rồi tuyên bố QC thật. Nút chưa nối solver/Blender/Kho/API tắt.
+4. Sau chốt mới sửa HTML/test; kiểm offline 1440/1280 hai góc, ảnh thư mục d11; tests xuất ảnh
+   vào thư mục tạm để không ghi đè ảnh tài liệu; chỉ cập nhật PNG có chủ ý trong bước nghiệm thu.
+
+Nghiệm thu đo: số thao tác cho đổi setup/xem khung, baseline prototype cũ và mới cùng fixture;
+0 console/overflow; orbit không đổi camera; H/lớp xem không lọt ảnh xuất; approved bất biến;
+phím không xử lý khi nhập; refresh mất RAM được báo. Chưa có kết quả mới và chưa thử dữ liệu thật.
