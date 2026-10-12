@@ -612,6 +612,9 @@ GUI trên máy Windows (máy chính). Sửa kèm lỗi pet ở ĐỢT 10 việc 
 
 ## Kết quả Codex — đợt 9
 
+- Việc 3 GUI — **ĐANG DỞ NGHIỆM THU WINDOWS** · nhánh `codex/d9-viec3-lao-dai` · code `44ad3e8`; merge main `94be37e` + dependency Đ10v4 `5bffa89` (không cherry-pick lại khi gộp). Có Tk/NOACTIVATE/drag/khay/WinRT toast/launcher + cấp token Owner local credential OS TTL5phút, HMAC cùng socket, mutex SID+target, DPI clamp. ĐỎ module → 44 xanh; native CredWrite bắt/sửa Unicode; rà P1/P2 3 đỏ → 50 xanh; root thấy thiếu lý do, 2 đỏ → **52 passed /13,37s**, 3 file. RA `docs/RA_D9_VIEC3_GUI_CODEX_2026-10-12.md`. Credential/mutex/shortcut QA riêng smoke thật; CHƯA GUI/toast/ảnh/DPI/hai màn/sleep-resume: @sky failed to activate captured window sau recovery, đã hỏi desktop. Không API/data thật/main/fullsuite; không coi hoàn tất Đ9v3.
+
+
 - Việc 1: `codex/d9-viec1-kho-phieu`, code `7356a9f`, bàn giao `963bf0b`; 27 test xanh sau 3 finding/11 hồi quy. Snapshot v1/cờ OFF; báo cáo RA_D9_VIEC1 trên nhánh tương ứng.
 - Việc 2: `codex/d9-viec2-trang-phieu`, dependency `d3cafd5` là cherry-pick code việc 1, code `636e382`; 3 đỏ ban đầu → 30 xanh; 5 finding sau rà sửa gom một vòng → **38 passed / 8,52s**. RÀ KỸ + root đọc sửa; RA_D9_VIEC2, ảnh/số đo docs/images/d9. Trang Phiếu CHỈ ĐỌC do thiếu server auth, cờ OFF giữ trang cũ; xem chi tiết 1 bấm/0 cuộn tới hàng/nút, link đúng phiếu. Quyết định ≤2 bấm chưa nghiệm thu, ghi UI/bulk/đổi trần hoãn tới auth thật. Chưa gọi từ Dashboard/cả bộ/gộp main. Tích hợp giữ hunk workaround merge của core/tickets.py và không cherry-pick dependency hai lần.
 - Việc 3 — ĐANG DỞ: `codex/d9-viec3-lao-dai`, dependency `df62cc7` là cherry-pick code7356a9f việc1, backend `42ecaec`. Broker loopback GET-only/token read-only TTL kiểm session Owner mỗi snapshot, SQLite chỉ đọc; logic dáng/bong bóng/dedupe/backoff/URL allowlist; cờ OFF. Đỏ module thiếu và mismatch due_status → 39 xanh; rà độc lập 2 finding/4 đỏ → 43 xanh /1,28s. RA_D9_VIEC3_CODEX_2026-10-11.md. CHƯA GUI tkinter/khay/toast thật/kho token OS/kênh cấp phiên server/launcher/QA Windows/PNG, chưa pilot chạy được. Dừng mở bước lớn theo hạn mức, tiếp sau reset. Chỉ push nhánh riêng, chưa toàn bộ/gộp/main. Tích hợp không cherry-pick dependency việc1 hai lần.
@@ -955,3 +958,5 @@ Test bằng file giả (mô phỏng lỗi đọc), không cần ổ G thật.
 
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+- Việc 3 — ĐANG DỞ: `codex/d9-viec3-lao-dai`, dependency `df62cc7` là cherry-pick code7356a9f việc1, backend `42ecaec`. Broker loopback GET-only/token read-only TTL kiểm session Owner mỗi snapshot, SQLite chỉ đọc; logic dáng/bong bóng/dedupe/backoff/URL allowlist; cờ OFF. Đỏ module thiếu và mismatch due_status → 39 xanh; rà độc lập 2 finding/4 đỏ → 43 xanh /1,28s. RA_D9_VIEC3_CODEX_2026-10-11.md. CHƯA GUI tkinter/khay/toast thật/kho token OS/kênh cấp phiên server/launcher/QA Windows/PNG, chưa pilot chạy được. Dừng mở bước lớn theo hạn mức, tiếp sau reset. Chỉ push nhánh riêng, chưa toàn bộ/gộp/main. Tích hợp không cherry-pick dependency việc1 hai lần.
