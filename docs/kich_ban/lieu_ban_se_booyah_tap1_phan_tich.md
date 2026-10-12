@@ -204,3 +204,9 @@ So với trần "< 1 phút < 30 USD":
 - Nếu chạy thật, bước 1 là tạo Kho 0 USD + render plate đêm 0 USD. Sau đó mới báo giá chính xác theo bảng shot của Đạo diễn (Đạo diễn chạy khoảng 0,5–1 USD Claude, cần duyệt riêng).
 
 Chi thật phiên này: **0 USD** (trần 0,5 USD, không gọi Claude).
+
+## 7. Cập nhật 12/10 ~09:10 — sau khi người dùng trả lời 12 câu (0 USD)
+- Phiên đã xem lại từng ảnh trong thư mục tư liệu, ảnh kịch bản gốc, dải khung video ref và playbook (slide 9, 10, 11, 13, 18).
+- **Sửa mục 2:** cổng portal **không thiếu** (đã có `cánh cổng portal.png`, nay là Kho #426). Bom keo **không thiếu**: playbook slide 18 có skin Gloowall OB55 907105556 (tường keo dạng cửa thang máy), đã gắn vào #367.
+- **Kho mới (#423–#433):** Hollow Man, Red Slicker, Cloaked Terror (cắt trước/sau từ bảng thiết kế), cổng portal torii, style bóng mờ, trời song song, vật phẩm bị nguyền, tay quỷ đỏ, banner BOOYAH OB55, huy hiệu Quét sạch đội, SKORP. Mọi ảnh ở trạng thái `claude_ok`, chờ người dùng xác nhận trong Kho.
+- **Theo chốt:** một video nối tiếp, dài hơn 1 phút được; tập 1 chỉ dùng Tháp Đồng Hồ; Kelly mặc đồ mặc định, cầm SKORP; 3 đồng đội = 4 thanh máu + số tụt hết (HUD #397) + cảnh thấy 3 đồng đội nằm dưới đất; kẹt vĩnh viễn = Kelly gục ngã → màn hình xám; HUD sạch thì ghép hậu kỳ, HUD bẩn thì làm ảnh ref; giọng 72, không chỉnh giọng quá tay.
