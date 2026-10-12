@@ -770,6 +770,36 @@ camera/nhân vật, "Góc nhìn đạo diễn" / "Góc nhìn camera"):** mỗi c
    (giếng, yêu nữ bò ra cách thành 1,25 m, Kelly lùi). Kiểm Playwright 1440 và 1280: 0 lỗi console, không cuộn ngang; test grep/JS nhẹ
    (khai `devsys/areas.json` khu `dashboard_ui`, không tăng version).
 
+## Việc 1b — Đối chiếu "Bàn đạo diễn" Clip AI (ảnh ref người dùng gửi lại 12/10) → cập nhật thiết kế + mockup TỐI ƯU HƠN (tài liệu + HTML; làm ngay sau Đ15 việc 1–2 và Đ12 việc 5)
+Ảnh ref: `docs/images/d11/clipai_ref_nhan_vat.png` (chọn nhân vật: bảng Thuộc tính / Tư thế, màu, vị trí/xoay/tỉ lệ XYZ, tỉ lệ đồng đều, "Lưu vào thư viện";
+gizmo di chuyển trên khung nhìn; khung "Góc nhìn camera — Ảnh kết quả cuối" nổi góc phải) và `docs/images/d11/clipai_ref_camera_toan_canh.png` (tab Toàn cảnh:
+tải ảnh nền toàn cảnh, màu nền phông xanh #2F8F5B, lưới mặt đất, hướng nguồn sáng; chọn camera: "Dùng góc nhìn hiện tại", "Về mặc định", vị trí, ĐIỂM ĐÍCH,
+độ nghiêng (roll), trường nhìn FOV; thanh phím tắt V/R/S/F/T/Q/Del/Esc/Ctrl+Z + gợi ý chuột; nút "Hoạt ảnh"; danh sách Camera 1/10, Nhân vật 2/10,
+Vật thể khác 1/50 + "Thêm…"). Người dùng: plan phải TỐI ƯU HƠN bản này. Đã có trong `docs/THIET_KE_BAN_DUNG_3D_D11.md` + `mockup/ban_dung_3d.html`: hai góc
+nhìn, nón nhìn, kéo/nhập vị trí, kiểm ĐỎ/VÀNG, safe area, lan đề xuất, khóa chỉnh tay. CÒN THIẾU → bổ sung thiết kế (mục mới "Đối chiếu Clip AI") + mockup:
+| Clip AI có | Mình làm (tối ưu hơn) |
+|---|---|
+| Dựng tay từ cảnh trống | Đạo diễn DỰNG SẴN mọi cảnh nối cảnh trước (giữ NGUYÊN TẮC đợt 11); người dùng chỉ chỉnh |
+| Khung "Góc nhìn camera — Ảnh kết quả cuối" nổi khi đang ở góc nhìn đạo diễn | Có khung nổi (thu/phóng, bật nhãn tên, bật mũi tên hướng nhân vật, tải ảnh) + hiện CỠ CẢNH đo được, chân trời, mắt % khung, safe area; cập nhật ngay khi kéo |
+| Ảnh nền: tải ảnh toàn cảnh / màu phông xanh | Nền = render 3D THẬT của bối cảnh (plates / Tháp Đồng Hồ…) theo đúng máy; phông xanh chỉ khi chưa có map; tải ảnh toàn cảnh = tùy chọn phụ |
+| Hướng nguồn sáng (slider) | Lấy từ `plate_env` giờ/thời tiết của cảnh (mặt trời/đèn của map), chỉnh được; cảnh báo VÀNG khi lệch ánh sáng ảnh duyệt |
+| Camera 1/10, "Thêm camera" | Nhiều máy mỗi cảnh = các GÓC PHỦ (bộ góc máy Đ11 việc 4): máy chính + góc phụ (OTS, cận phản ứng) đề xuất sẵn, chọn máy làm shot |
+| Vị trí / Điểm đích / Độ nghiêng / FOV (số thô) | Nhập theo nghề: cỡ cảnh (WS…CU) ↔ tiêu cự mm ↔ FOV tự đổi qua lại; điểm đích = "nhìn vào" nhân vật/khối (chọn tên) hoặc số; roll có cảnh báo khi > 0 không có lý do |
+| "Dùng góc nhìn hiện tại" / "Về mặc định" | Có; "về mặc định" = về đề xuất của Đạo diễn/bộ giải (không phải gốc tọa độ); thêm "Giải máy" (solver sẵn có) |
+| Nhân vật: tên, màu, XYZ, xoay, tỉ lệ | Nhân vật lấy từ cast dự án (tên thật, ảnh mặt nhỏ, màu cố định theo người); tỉ lệ = CHIỀU CAO THẬT theo hồ sơ nhân vật (không kéo tỉ lệ tùy ý); vị trí theo ô lưới tên + mét |
+| Tab Tư thế | Tư thế theo NHỊP BYĐ (đầu/đỉnh/cuối) từ thư viện tư thế + hồ sơ kỹ năng nhân vật; xem 3 nhịp liền nhau |
+| Vật thể khác 1/50 (khối trụ…) | Đạo cụ/khối từ Kho bối cảnh (giếng, cầu thang, gloo wall…) đúng kích thước; khối tạm `stand_in` không lọt vào ảnh gửi model |
+| "Hoạt ảnh" | Dòng thời gian nhịp (đầu → đỉnh → cuối) cho nhân vật + đường máy đầu→cuối (`camera_move`); xem trước chuyển động clay 0 USD |
+| "Lưu vào thư viện" | Lưu PRESET vào Kho dự án: máy (góc + cỡ + đường), sân khấu cảnh (vị trí + tư thế) — dùng lại cảnh sau / dự án sau; Tiểu Nhị gọi lại được |
+| Tải ảnh kết quả | Ảnh kết quả = ảnh bố cục (Image1 composition) + khung clay gửi kèm gen (Gói gửi kèm Đ8) — không phải tải về rồi tải lên tay |
+| Phím tắt V/R/S/F/T/Q/Del/Esc/Ctrl+Z, gợi ý chuột, thu gọn 2 panel | Giữ đủ (cùng phím cho người đã quen Clip AI) + lật cảnh trước/sau (←/→), so cảnh trước (bóng mờ), hoàn tác theo phiên bản sân khấu |
+| Xuất/nhập (biểu tượng góc phải) | Xuất/nhập JSON sân khấu (schema `stage_v2`) + ảnh; không dùng API Clip AI (chưa có endpoint) |
+Việc: (1) bổ sung `docs/THIET_KE_BAN_DUNG_3D_D11.md` mục "Đối chiếu Clip AI" (bảng trên + chỗ nối dữ liệu thật: plates, cast, Kho, BYĐ, Gói gửi kèm;
+cái gì chỉ là mockup, cái gì cần việc 2/3); (2) nâng `mockup/ban_dung_3d.html`: khung camera nổi trong góc nhìn đạo diễn, tab Toàn cảnh (nền 3D/phông
+xanh/ánh sáng theo giờ), nhiều máy/góc phủ, ô cỡ cảnh↔mm↔FOV + "nhìn vào", tư thế theo nhịp + thanh hoạt ảnh, đạo cụ từ Kho, thanh phím tắt, "Lưu
+preset"; (3) cập nhật ảnh `docs/images/d11/` (1440 + 1280, cả hai góc nhìn) + test mockup (offline, không CDN; Playwright skip khi không có trình
+duyệt như hiện tại). Không code backend (để việc 2/3).
+
 ## Việc 2 — Tấm duyệt đủ góc clay + Đạo diễn khai sơ đồ khối (code sau cờ; render kiểm trên máy chính có Blender)
 0. **Render "góc nhìn camera" clay từng cảnh** (0 USD, Blender cục bộ, dùng camera của `core/plate_camera.camera_for` như render nền hiện có) cho màn camera; không Blender → khung vẽ 2D chiếu từ `project` + lý do.
 1. **Góc clay:** từ plan khối đã kiểm (`core/blockout.py` `to_props`), dựng Blender bằng `tools/render_plates.py` `add_props` + `core/whitebox.py`
