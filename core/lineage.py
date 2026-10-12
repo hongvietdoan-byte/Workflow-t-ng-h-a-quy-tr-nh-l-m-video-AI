@@ -220,6 +220,11 @@ def _scan(conn, project_id: int) -> Dict[int, Dict]:
             legacy = _image_hash(d, cast_rows, aspect, proj)              # a picture made before S5.3 carries no place in its stamp
             if img["input_hash"] not in (legacy, _image_hash(d, cast_rows, aspect, proj, place_key(conn, project_id, d))):
                 image_stale_of[s["id"]] = "nội dung cảnh / nhân vật / tỉ lệ khung / bối cảnh (mô tả, ảnh) đã đổi"
+            else:
+                from . import layout_follow                   # hộp thư 12/10 19:17 (cờ layout_from_follow): the shot it keeps the layout of
+                why = layout_follow.stale_reason(conn, project_id, img["id"], d) if layout_follow.enabled() else None
+                if why:
+                    image_stale_of[s["id"]] = why
     base = {}                                           # v3 multi-shot: later shots of a group start from the group's picture
     mode = conn.execute("SELECT shot_mode FROM projects WHERE id=?", (project_id,)).fetchone()
     if mode is not None and mode["shot_mode"] in ("multishot", "per_shot"):   # per_shot: H5 camera set-ups share a picture too

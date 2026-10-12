@@ -2753,6 +2753,12 @@ class ImageRunner(_Runner):
         chains = proj["storyboard_mode"] == 1
         if bool(shots.mode(proj)) and chains and shots.waits_for_previous_image(self.p.conn, job["scene_id"]):
             return self._hold(job, "chờ ảnh đã duyệt của shot trước (nối khung) — sẽ tự gửi khi bạn duyệt ảnh đó")
+        from . import layout_follow                          # hộp thư 12/10 19:17 (cờ layout_from_follow): the continuity_from shot first
+        if layout_follow.enabled():
+            row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+            why = layout_follow.wait_reason(self.p.conn, job["project_id"], json.loads(row["data"] or "{}") if row else {})
+            if why:
+                return self._hold(job, why)
         return False
 
     def _pregen_cooling(self, job) -> bool:

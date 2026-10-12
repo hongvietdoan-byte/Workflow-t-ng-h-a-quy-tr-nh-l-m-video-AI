@@ -123,15 +123,16 @@ def unapproved(p: Pipeline, project_id: int) -> List[str]:
 def anchors_needed(p: Pipeline, project_id: int, scene_ids: List[int]) -> List[int]:
     """08/10 (#24, lỗi 11): storyboard mode (core.scene_storyboard, flag storyboard_api) — a shot that is not its scene's anchor waits
     for the anchor's picture. The anchors of these shots that are not among them (in order), [] when the mode is off."""
-    from . import scene_storyboard
-    if not scene_storyboard.enabled():
-        return []
+    from . import layout_follow, scene_storyboard
     out: List[int] = []
-    for sid in scene_ids:
-        g = scene_storyboard.group_of(p.conn, project_id, sid)
-        anchor = g["anchor"]["id"] if scene_storyboard.uses_anchor(g, sid) else None   # lỗi D: a shot turned away needs no anchor
-        if anchor is not None and anchor not in scene_ids and anchor not in out:
-            out.append(anchor)
+    if scene_storyboard.enabled():
+        for sid in scene_ids:
+            g = scene_storyboard.group_of(p.conn, project_id, sid)
+            anchor = g["anchor"]["id"] if scene_storyboard.uses_anchor(g, sid) else None   # lỗi D: a shot turned away needs no anchor
+            if anchor is not None and anchor not in scene_ids and anchor not in out:
+                out.append(anchor)
+    if layout_follow.enabled():                         # hộp thư 12/10 19:17: the shots they keep the layout of (continuity_from)
+        out += [s for s in layout_follow.source_scene_ids(p.conn, project_id, list(scene_ids) + out) if s not in out]
     return out
 
 

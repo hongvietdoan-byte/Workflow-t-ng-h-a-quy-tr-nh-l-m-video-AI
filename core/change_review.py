@@ -68,6 +68,9 @@ def affected_scenes(conn, ev) -> List[int]:
                 ids += [s["id"] for s in g["shots"]]
         except Exception:  # noqa: BLE001 - storyboard grouping problem: the neighbours are still checked
             pass
+        from . import layout_follow                      # hộp thư 12/10 19:17: the shots that keep this shot's layout (continuity_from)
+        if layout_follow.enabled():
+            ids += layout_follow.followers(conn, row[0], row[1])
         return list(dict.fromkeys([ev["scene_id"]] + ids))
     name = conn.execute("SELECT name FROM assets WHERE id=?", (ev["asset_id"],)).fetchone()
     if not name:
