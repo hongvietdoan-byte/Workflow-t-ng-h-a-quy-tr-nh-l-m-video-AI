@@ -328,8 +328,37 @@ class References(Base):                       # (4)
             got = video_pregen.check(self.p.conn, scene, self.plan(scene, img, kwargs={"reference_video": {"path": path}}))
         self.assertTrue(any("không đo được" in i["ly_do"] for i in self.reds(got, "tham_chieu")))
 
-    def pictures(self, n, same=False):
-        return [self.write(os.path.join(self.tmp, f"r{k}.png"), b"same" if same else f"pic{k}".encode()) for k in range(n)]
+    def pictures(self, n, same=False, size=(320, 320)):
+        """Reference pictures ClipAI accepts (sides ≥ 300 px — rà #27 12/10: the check now measures them like the adapter does)."""
+        import hashlib
+        from PIL import Image
+        out = []
+        for k in range(n):
+            body = b"same" if same else f"pic{k}".encode()
+            path = os.path.join(self.tmp, f"r{k}.png")
+            Image.new("RGB", size, tuple(hashlib.sha256(body).digest()[:3])).save(path)
+            out.append(path)
+        return out
+
+    def test_seedance_reference_picture_rules_before_sending(self):
+        # rà video #27 (12/10, lỗi code #5): KAPELLA 220×394 passed this check and the adapter refused it at send → job FAILED instead
+        # of held with a reason
+        scene, img = self.shot(data={"byd": byd()})
+        small = self.pictures(1, size=(220, 394))
+        bad = video_pregen.check(self.p.conn, scene, self.plan(scene, img, model="seedance", kwargs={"reference_only": small}))
+        self.assertTrue(any("300" in i["ly_do"] for i in self.reds(bad, "tham_chieu")), bad)
+        tall = self.pictures(1, size=(488, 1280))                   # Lính địch áo choàng 425/1.png sau thu nhỏ: tỉ lệ 0,38
+        bad = video_pregen.check(self.p.conn, scene, self.plan(scene, img, model="seedance", kwargs={"reference_only": tall}))
+        self.assertTrue(any("0.38" in i["ly_do"] for i in self.reds(bad, "tham_chieu")), bad)
+
+    def test_reference_only_does_not_count_unsent_image_references_as_a_role(self):
+        # rà video #27 (12/10, lỗi code #5): "7.png gửi 2 vai (character, reference_only)" — reference-only never sends
+        # image_references (adapter), the check counted them → shots held for nothing
+        scene, img = self.shot(data={"byd": byd()})
+        a, = self.pictures(1)
+        got = video_pregen.check(self.p.conn, scene, self.plan(scene, img, model="seedance", kwargs={
+            "reference_only": [a], "image_references": [{"path": a, "label": "MAXIM", "role": "character"}]}))
+        self.assertEqual(self.reds(got, "tham_chieu"), [], got)
 
     def test_seedance_picture_cap(self):
         scene, img = self.shot(data={"byd": byd()})

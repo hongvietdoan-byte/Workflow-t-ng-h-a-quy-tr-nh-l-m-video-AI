@@ -812,13 +812,17 @@ def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
     import re as _re
     from .seedance_refs import ascii_name
 
-    def _name_res(n):
+    def _forms(n):
         # rà 12/10: whole words only — never "mẹ" inside a Vietnamese sentence ("mẹo"); a one-word name shorter than 4 letters only
         # in capitals. 12/10 #27 (2nd run): the Director's end_state wrote "Xúc Tu Đỏ" → also the Title Case form; never any letter
         # case (rà: "lời dẫn" left in a sentence would pass as the name LỜI DẪN and reach the paid prompt)
-        forms = [n.upper()] if (" " not in n.strip() and len(n.strip()) < 4) else list(dict.fromkeys((n, n.upper(), n.title())))
+        return [n.upper()] if (" " not in n.strip() and len(n.strip()) < 4) else list(dict.fromkeys((n, n.upper(), n.title())))
+
+    def _word_res(forms):
         return [_re.compile(r"(?<!\w)" + _re.escape(f) + r"(?!\w)") for f in forms]
-    name_res = [(n, _name_res(n)) for n in names]
+    name_res = [(n, _word_res(_forms(n))) for n in names]
+    # the same forms without accents ("Xuc Tu Do", "XUC TU DO") — how a kept name is stored; accepted as kept by the name check only
+    kept_res = {n: res + _word_res([ascii_name(f) for f in _forms(n)]) for n, res in name_res}
 
     def _no_names(obj, to=lambda m: ""):
         if isinstance(obj, dict):
@@ -832,6 +836,17 @@ def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
     def check(obj):
         if not isinstance(obj, dict) or set(obj) - {AMBIGUOUS_KEY} != set(todo):
             raise llm_io.SchemaError("trả về đúng các khóa shot đã gửi: " + ", ".join(sorted(todo)))
+        # rà video #27 (12/10): "lao về phía XÚC TU ĐỎ" came back "charging toward RED TENTACLE" and passed — the clip then named
+        # one character twice ("RED TENTACLE" in the action, "XUC TU DO" in the Image label). A name of the shot's Vietnamese fields
+        # stays in its translation: as told, in capitals / Title Case, or without accents (how it is stored).
+        lost = []
+        for k in sorted(todo):
+            src, got = json.dumps(todo[k], ensure_ascii=False), json.dumps(obj.get(k), ensure_ascii=False)
+            for n, res in name_res:
+                if any(rx.search(src) for rx in res) and not any(rx.search(got) for rx in kept_res[n]) and n not in lost:
+                    lost.append(n)
+        if lost:
+            raise llm_io.SchemaError(f"tên {', '.join(lost)} bị dịch — giữ nguyên tên (viết y như bản gốc, không dịch nghĩa)")
         left = _no_names(_unbracketed({k: v for k, v in obj.items() if k != AMBIGUOUS_KEY}))
         if _vi(left):                       # the words named: 12/10 the bare "còn tiếng Việt" cost two paid runs to find the cause
             words = sorted({w for w in _re.findall(r"\w+", json.dumps(left, ensure_ascii=False)) if _vi(w)})[:8]
@@ -844,6 +859,8 @@ def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
     prompt = ("Translate every Vietnamese value below into short, concrete English for an AI video prompt: what the people DO and how "
               "they act. Keep names (KELLY, KENTA, MAXIM…) as they are. Do not add, explain or rewrite meaning. Return ONLY one JSON "
               "object with the same keys and the same structure.\n\n"
+              + ("These are character names — copy them letter for letter, never translate their meaning: "
+                 + ", ".join(names) + ".\n\n" if names else "")
               + (TRANSLATE_AMBIGUOUS_RULE + "\n\n" if ambiguous_rule else "") + _block("Fields", todo))
     obj = _run(p, project_id, "translate", prompt, check, client)
     amb = obj.pop(AMBIGUOUS_KEY, None)

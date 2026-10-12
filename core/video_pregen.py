@@ -370,6 +370,36 @@ def _check_refs(conn, scene_id: int, plan: Dict, out: List[Dict]) -> None:
         path = (image.get("path") or image.get("file")) if isinstance(image, dict) else image
         if path and not str(path).startswith(("http://", "https://", "asset://")) and not _readable_image(str(path)):
             out.append(_issue("tham_chieu", DO, f"không đọc được ảnh tham chiếu ({_rel(path)}) — tệp mất / ảnh hỏng"))
+    # rà video #27 (12/10): KAPELLA 220×394 and a 0.38-wide picture passed here and ClipAI's adapter refused them AT SEND → the job
+    # failed instead of waiting with a reason. The same rule as the adapter (clipai.reference_image_problems on the local reference-only
+    # pictures + the end frame sent as one more), measured on the same files. A picture the runner is about to host in the Subject
+    # Library (plan["hosted_pending"], flag seedance_subjects) goes as asset://… which the adapter does not measure → VÀNG, not held.
+    if plan.get("reference_only") is not None and family == "seedance":
+        local = [r for r in plan.get("reference_only") or [] if not isinstance(r, dict)]
+        if plan.get("last_frame"):
+            local.append(plan["last_frame"])
+        hosted = {os.path.normcase(os.path.abspath(str(x))) for x in plan.get("hosted_pending") or []}
+        for k, path in enumerate(local, 1):
+            if str(path).startswith(("http://", "https://", "asset://")):
+                continue
+            size = _image_size(str(path))
+            if not size:                                 # unreadable: said above
+                continue
+            for p in clipai.reference_image_problems(family, [size]):
+                maybe = os.path.normcase(os.path.abspath(str(path))) in hosted
+                out.append(_issue("tham_chieu", VANG if maybe else DO,
+                                  f"ảnh tham chiếu {k} không đạt luật ClipAI: {p.replace('ảnh 1 ', '')} — {_rel(path)} ("
+                                  + ("gửi qua Kho chủ thể; nếu Kho không nhận thì ClipAI từ chối lúc gửi" if maybe else
+                                     "ClipAI sẽ từ chối lúc gửi") + "; đổi ảnh Kho cạnh ≥ 300 px, tỉ lệ rộng/cao 0,4–2,5)"))
+
+
+def _image_size(path: str):
+    from PIL import Image
+    try:
+        with Image.open(path) as image:
+            return image.size
+    except Exception:  # noqa: BLE001 - unreadable: _readable_image says it
+        return None
 
 
 def _check_roles(plan: Dict, family: str, out: List[Dict]) -> None:
@@ -379,7 +409,9 @@ def _check_roles(plan: Dict, family: str, out: List[Dict]) -> None:
     pkg = plan.get("package")
     if family != "seedance" or not isinstance(pkg, dict):
         return
-    skip = {"image_path"} if plan.get("reference_only") is not None else (
+    # rà video #27 (12/10): reference-only sends neither the first frame nor image_references / references (adapter clipai.submit:
+    # only `reference_only` + the end frame) — counting them held 4 groups for a "2 roles" that never goes out
+    skip = {"image_path", "image_references", "references"} if plan.get("reference_only") is not None else (
         set() if clipai.SEEDANCE_REFS_WITH_FIRST_FRAME else {"image_references", "references"})
     roles: Dict[str, set] = {}
     shown: Dict[str, str] = {}

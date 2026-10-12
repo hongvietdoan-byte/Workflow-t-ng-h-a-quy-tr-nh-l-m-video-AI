@@ -459,10 +459,16 @@ _THING_LAYERS = (         # (a thing written in the shot, needs wind?, sentence)
      "Tree leaves in the background rustle gently in a light breeze."),
     (re.compile(r"mặt nước|hồ nước|\bsông\b|\bsuối\b|mặt biển|bãi biển|\bwater\b|\blake\b|\briver\b|\bpond\b|\bsea\b", I), False,
      "The water surface in the background ripples softly."),
-    (re.compile(r"\blửa\b|ngọn đuốc|\bđuốc\b|\bnến\b|\bfire\b|\bflames?\b|\btorch\w*|\bcandles?\b|\bcampfire\b", I), False,
+    # rà video #27 (12/10): never a bare 'fire' — "Free Fire" (the game's name in every image_prompt) and "fires at" (a gun) gave
+    # "The flames flicker softly" to S13–S21 under a clear day sky; a flame is a flame, a torch, a candle, a camp/bon fire, "on fire"
+    (re.compile(r"\blửa\b|ngọn đuốc|\bđuốc\b|\bnến\b|\bon fire\b|\bfireplace\b|\bflames?\b|\btorch\w*|\bcandles?\b|\bcampfires?\b"
+                r"|\bbonfires?\b", I), False,
      "The flames flicker softly."),
     (re.compile(r"\bkhói\b|\bsmoke\b", I), False, "Smoke drifts slowly in the background."),
 )
+
+
+_GAME_NAME = re.compile(r"\bfree\s*-?\s*fire\b", I)
 
 
 def ambient_sentence(data: Dict) -> Tuple[str, str]:
@@ -474,6 +480,7 @@ def ambient_sentence(data: Dict) -> Tuple[str, str]:
     weather, time = str(data.get("weather") or ""), str(data.get("time") or data.get("time_of_day") or "")
     things = " ".join(str(x or "") for x in (place, data.get("blocking"), data.get("action"), en.get("action"), data.get("image_prompt"),
                                              data.get("lighting"), data.get("practical_lights")))
+    things = _GAME_NAME.sub(" ", things)          # the game's name is not a thing in the shot ("Free Fire" ≠ fire)
     indoor, outdoor = bool(_INDOOR.search(place)), bool(_OUTDOOR.search(place))
     if indoor and outdoor:
         return "", "bối cảnh vừa trong nhà vừa ngoài trời — ghi rõ shot này ở đâu"
@@ -523,7 +530,31 @@ def lint_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, ff:
                                                      "'It ends with …' để clip có điểm dừng."))
     out += ambient_issues(prompt, data)
     out += outfit_issues(prompt, data, chars)
+    out += pov_hand_issues(prompt, data, ff)
     return out + _common(prompt, data, chars, "motion", ff)
+
+
+# rà video #27 (12/10, S1/S2): Free Fire has no first-person view holding a gun — a POV shot shows the viewer's two EMPTY hands
+# (knowledge/roles/director_p24_1110.md rule 13). The approved frame said "EMPTY hands" while the acting said "hands tense around the
+# rifle grip, barrel trembling" → the clip would draw a gun the game never shows.
+_POV_GUN = re.compile(r"\b(?:rifles?|guns?|pistols?|shotguns?|gun grip|rifle grip|barrels?|triggers?|weapons?|firearms?|muzzle)\b"
+                      r"|súng|báng|nòng|cò súng|vũ khí", I)
+
+
+def pov_hand_issues(prompt: str, data: Dict, ff: Optional[bool] = None) -> List[Dict]:
+    """ĐỎ when a POV shot of a Free Fire project (ff None = FF, like _common) writes a gun into the hands (acting / action / prompt)."""
+    if ff is False or str((data or {}).get("angle") or "").strip().lower() != "pov":
+        return []
+    bits = [prompt or ""]
+    for src in (data, data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}):
+        perf = src.get("performance") if isinstance(src.get("performance"), dict) else {}
+        bits += [str(v) for v in perf.values() if isinstance(v, str)] + [str(src.get("action") or "")]
+    m = _POV_GUN.search(" | ".join(bits))
+    if not m:
+        return []
+    return [_issue("red", "pov_tay_khong", f"POV Free Fire là TAY KHÔNG (game không có góc nhìn thứ nhất cầm súng) mà diễn xuất / hành "
+                                           f"động nhắc “{m.group(0)}” — sửa performance/action thành hai tay trống ('both hands "
+                                           "empty, fingers flex'), không viết 'no gun'.")]
 
 
 # ---- giữa các shot: cùng món đồ khác màu -------------------------------------------------------------------------------

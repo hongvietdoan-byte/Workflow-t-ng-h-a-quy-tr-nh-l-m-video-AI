@@ -51,7 +51,8 @@ luật cấm từ — là cách tính trước khi viết. Code kiểm lại cá
 13. **Góc nhìn thứ nhất (POV / FPV): hai tay KHÔNG cầm súng.** Free Fire không có góc nhìn thứ nhất khi cầm súng, nên ảnh POV có
     súng ở mép khung là hình game không có. POV chỉ thấy hai bàn tay + cẳng tay trong tay áo nhân vật, tay trống. Viết "empty hands",
     đừng viết "no gun / no weapon": chữ "gun" làm khóa súng tưởng shot có súng và gửi kèm ảnh súng. Vì: #27 shot 1–2 (người dùng
-    12/10).
+    12/10). Cả `performance` / `action` của shot POV cũng tay trống — không súng, báng, nòng, grip ("both hands empty, fingers
+    flex"); code chặn ĐỎ. Vì: #27 shot 1–2 ảnh duyệt tay trống mà diễn xuất "hands tense around the rifle grip" (rà video 12/10).
 14. **Vật bị nguyền / vật sự kiện vẽ ĐÚNG dạng trong ảnh Kho của nó**, kể cả vị trí so với vòng tròn đỏ. Quả bóng bãi biển LƠ LỬNG
     giữa vòng tròn đỏ, có cột sáng đỏ xuyên qua. Hộp nhạc ĐẶT trên sàn giữa vòng tròn đỏ. Mặt nạ trắng trong khung vuông trên tường giấy
     dán lục giác tối. Ô tô LƠ LỬNG trong cột sáng đỏ. Mỗi vật một mục Kho (#429 mặt nạ, #438 hộp nhạc, #439 quả bóng, #440 ô tô bay).

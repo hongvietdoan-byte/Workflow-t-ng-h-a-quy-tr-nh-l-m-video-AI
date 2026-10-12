@@ -10,7 +10,13 @@ from typing import Optional
 
 # (kind, words in the Director's action — English after translation, Vietnamese before — , the sentence)
 KINDS = (
-    ("strike", r"\b(punch|kick|strike|hits?|slap|swing[s]? (?:a|the|his|her) (?:fist|bat|pan)|fight|đấm|đá vào|tung cước|đánh|tát|vung)\b",
+    # rà video #27 (12/10, S18–S20): gunfire got the melee sentence through a bare "hits?" ("he takes hits", "the glue wall is hit by a
+    # stray bullet") — shooting is its own kind, before strike; being hit is not throwing a blow (no sentence for it)
+    ("shoot", r"\b(fires?|firing|fired|opens? fire|gunfire|shoots?|shooting|xả súng|nổ súng|bắn(?! tung| tóe| toé))\b",
+     "Each shot jolts the gun back into the shoulder, the stance stays braced with the feet planted, and a target that is hit jerks "
+     "back."),
+    ("strike", r"\b(punch(?:es|ed|ing)?|kicks?|kicking|strikes?|slaps?|swing[s]? (?:a|the|his|her) (?:fist|bat|pan)|fights?|fighting"
+               r"|đấm|đá vào|tung cước|đánh|tát|vung)\b",
      "The power of each blow starts from the hips and the back foot, the free hand guards, and a hit makes the other body recoil."),
     ("fall", r"\b(falls?|falling|trips?|stumbles?|collapses?|knocked down|ngã|té|vấp|đổ gục)\b",
      "The body falls with gravity at a steady speed, the hands reach out, and the landing has weight and a short settle."),
@@ -33,18 +39,21 @@ KINDS = (
      "The hand closes around the object with real contact, fingers wrapped, and the object's weight shows in the arm."),
 )
 _COMPILED = [(k, re.compile(p, re.I), s) for k, p, s in KINDS]
+_GAME_NAME = re.compile(r"\bfree\s*-?\s*fire\b", re.I)          # the game's name is not gunfire
 
 
 def kind(action: str) -> Optional[str]:
+    text = _GAME_NAME.sub(" ", action or "")
     for k, rx, _ in _COMPILED:
-        if rx.search(action or ""):
+        if rx.search(text):
             return k
     return None
 
 
 def sentence(action: str) -> str:
     """The physics sentence for this action, or "" (no body action of a known kind: a look, a line, a still moment)."""
+    text = _GAME_NAME.sub(" ", action or "")
     for _, rx, s in _COMPILED:
-        if rx.search(action or ""):
+        if rx.search(text):
             return s
     return ""

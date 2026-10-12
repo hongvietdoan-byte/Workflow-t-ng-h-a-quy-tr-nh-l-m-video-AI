@@ -196,5 +196,92 @@ class CodeMotionHoldsWhatIsWrong(_Flags):
         self.assertEqual(sr.translate_estimate(self.p.conn, self.pid), 0)
 
 
+class VideoReviewFixes1210(_Flags):
+    """Rà khâu video #27 (12/10, D:/AI-Video-Output/2026-10-12_du-an-27/ra_video_21_shot.md, lỗi code #1, #3, #7)."""
+
+    def test_game_name_free_fire_is_not_a_flame(self):          # lỗi #1: S13–S21 "The flames flicker softly" giữa trời quang
+        d = {"weather": "clear", "location": "Tháp Đồng Hồ", "image_prompt": "Free Fire in-game 3D render, Kelly on a stone plaza"}
+        self.assertEqual(pf.ambient_sentence(d)[0], "")
+        self.assertEqual(pf.ambient_sentence(dict(d, action="Kelly fires continuously"))[0], "")   # bắn súng không phải lửa
+        self.assertEqual(pf.ambient_sentence(dict(d, action="a campfire burns beside Kelly"))[0], "The flames flicker softly.")
+        self.assertEqual(pf.ambient_sentence(dict(d, action="the car is on fire"))[0], "The flames flicker softly.")
+        self.assertEqual(pf.ambient_sentence(dict(d, image_prompt="Kelly holds a torch"))[0], "The flames flicker softly.")
+
+    def test_pov_free_fire_hands_are_empty(self):               # lỗi #3: S1/S2 "hands tense around the rifle grip" ở góc POV
+        s1 = {"size": "MS", "angle": "pov", "camera_move": "handheld", "action": "Kelly looks through the gap in the door",
+              "performance": {"body": "hands tense around the rifle grip, barrel trembling"}}
+        parts = [i for i in pf.lint_motion(sr.shot_motion(s1), s1) if i["part"] == "pov_tay_khong"]
+        self.assertEqual([i["level"] for i in parts], ["red"])
+        vi = dict(s1, performance={"body": "tay siết chặt báng súng"})
+        self.assertTrue([i for i in pf.lint_motion("Static camera.", vi) if i["part"] == "pov_tay_khong"])
+        ok = dict(s1, performance={"body": "both hands open, fingers flex slightly"})
+        self.assertFalse([i for i in pf.lint_motion(sr.shot_motion(ok), ok) if i["part"] == "pov_tay_khong"])
+        eye = dict(s1, angle="eye")                               # không phải POV: cầm súng là đúng
+        self.assertFalse([i for i in pf.lint_motion(sr.shot_motion(eye), eye) if i["part"] == "pov_tay_khong"])
+        self.assertFalse([i for i in pf.lint_motion(sr.shot_motion(s1), s1, ff=False) if i["part"] == "pov_tay_khong"])
+        text = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "knowledge", "roles",
+                                 "director_p24_1110.md"), encoding="utf-8").read()            # the Director's POV rule 13
+        self.assertIn("Cả `performance` / `action` của shot POV cũng tay trống", text)
+
+    def test_eyes_guard_writes_names_without_accents(self):     # lỗi #7: "KELLY, XÚC TU ĐỎ: natural human eyes" lưu có dấu
+        self.assertEqual(sr.eyes_guard({"characters": ["XÚC TU ĐỎ"]}, {"XÚC TU ĐỎ": True}),
+                         " XUC TU DO: natural human eyes, no glowing eyes.")
+        self.assertEqual(sr.eyes_guard({"characters": ["KELLY"]}), " KELLY: natural human eyes, no glowing eyes.")
+
+
+class IdentityPictureFollowsClipaiRules(unittest.TestCase):    # lỗi #4: KAPELLA 21/2.png 220×394 bị adapter từ chối lúc gửi
+    def setUp(self):
+        import tempfile
+        from PIL import Image
+        from core import assets
+        from core.db import connect
+        from core.pipeline import Pipeline
+        self.tmp = tempfile.mkdtemp()
+        self.p = Pipeline(connect())
+        self.pid = self.p.create_project("ids27")
+        self.aid = assets.create(self.p.conn, "FF", "character", "KAPELLA")
+        self.img = {}
+        for name, size in (("2.png", (220, 394)), ("3.png", (550, 800)), ("1.png", (1116, 2929))):
+            path = os.path.join(self.tmp, name)
+            Image.new("RGB", size, (90, 90, 90)).save(path)
+            self.img[name] = path
+
+    def _pic(self, name, sort):
+        cur = self.p.conn.execute("INSERT INTO asset_images (asset_id, path, label, sort, status) VALUES (?,?,?,?,?)",
+                                  (self.aid, self.img[name], name, sort, "approved"))
+        return cur.lastrowid
+
+    def _link(self, image_id):
+        self.p.conn.execute("INSERT INTO characters (project_id, name, description, ref_asset_id, ref_image_id) VALUES (?,?,?,?,?)",
+                            (self.pid, "KAPELLA", "x", self.aid, image_id))
+        self.p.conn.commit()
+
+    def _said(self):
+        return [r["message"] for r in self.p.conn.execute("SELECT message FROM diag_events WHERE code='identity_picture_rule'")]
+
+    def test_first_picture_passing_the_rules_is_sent(self):
+        small = self._pic("2.png", 1)
+        self._pic("3.png", 2)
+        self._link(small)                                           # ảnh đã chọn 2.png (cạnh 220 < 300)
+        ids = sr.identity_pictures(self.p.conn, self.pid, [{"data": {"characters": ["KAPELLA"]}}], 8)
+        self.assertEqual(ids, [("KAPELLA", self.img["3.png"])])
+        self.assertTrue(self._said() and "KAPELLA" in self._said()[0], self._said())   # đổi ảnh thì nói ra, không im lặng
+
+    def test_no_picture_passing_keeps_the_old_one_and_says_it(self):
+        tall = self._pic("1.png", 1)                                # tỉ lệ 0,38 < 0,4 (Lính địch áo choàng 425/1.png)
+        self._link(tall)
+        ids = sr.identity_pictures(self.p.conn, self.pid, [{"data": {"characters": ["KAPELLA"]}}], 8)
+        self.assertEqual(ids, [("KAPELLA", self.img["1.png"])])
+        self.assertTrue(self._said() and "0.38" in self._said()[0], self._said())
+
+    def test_a_good_picture_is_kept_silently(self):
+        good = self._pic("3.png", 1)
+        self._pic("2.png", 2)
+        self._link(good)
+        ids = sr.identity_pictures(self.p.conn, self.pid, [{"data": {"characters": ["KAPELLA"]}}], 8)
+        self.assertEqual(ids, [("KAPELLA", self.img["3.png"])])
+        self.assertEqual(self._said(), [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -150,6 +150,22 @@ class TranslateAmbiguous(unittest.TestCase):
         with self.assertRaises(Exception):
             self._run({self.idx: {"action": "Kelly hears the lời dẫn"}}, "0")
 
+    def test_a_name_in_the_source_must_stay_in_the_translation(self):
+        # rà video #27 (12/10, lỗi code #6): "lao về phía XÚC TU ĐỎ" came back "charging toward RED TENTACLE" and passed — one
+        # character with two names in the clip (action "RED TENTACLE", end_state / Image label "XUC TU DO")
+        d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.sid,)).fetchone()["data"])
+        d["characters"] = list(d.get("characters") or []) + ["XÚC TU ĐỎ"]
+        d["action"] = "Kelly lao về phía XÚC TU ĐỎ"
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), self.sid))
+        self.p.conn.commit()
+        with self.assertRaises(Exception) as e:
+            self._run({self.idx: {"action": "Kelly charges toward RED TENTACLE"}}, "0")
+        self.assertIn("XÚC TU ĐỎ", str(e.exception))
+        self.assertIn("giữ nguyên tên", str(e.exception))
+        n, d, _ = self._run({self.idx: {"action": "Kelly charges toward Xuc Tu Do"}}, "0")   # the name without accents is the name
+        self.assertEqual(n, 1)
+        self.assertEqual(d["motion_en"]["action"], "Kelly charges toward Xuc Tu Do")
+
 
 class EndFrameLint(unittest.TestCase):
     """KLD-13: pull_out / crane / orbit mà prompt không tả khung giây cuối → ⚠ (chỉ cảnh báo)."""

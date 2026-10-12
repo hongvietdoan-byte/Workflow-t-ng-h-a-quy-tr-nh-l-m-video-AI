@@ -223,14 +223,58 @@ def identity_pictures(conn, project_id: int, rows: List[Dict], room: int) -> Lis
     links = assets.link_characters(conn, project_id, names)
     out = []
     for n in names:
-        ref = (links.get(n) or {}).get("ref")
+        link = links.get(n) or {}
+        ref = link.get("ref")
         if ref and os.path.exists(ref.get("path", "")):
-            out.append((n, ref["path"]))
+            # rà video #27 (12/10): KAPELLA's chosen 21/2.png (220×394) went and ClipAI refused the whole job at send, while 3.png
+            # (550×800) of the same library entry passes — the chosen pictures first, then the entry's others in reference order
+            more = assets.best_references(link, len(link.get("images") or []), name=n) if link.get("images") else []
+            pool = [i["path"] for i in list(link.get("refs") or [ref]) + more if i.get("path") and os.path.exists(i["path"])]
+            out.append((n, _rule_ok_picture(conn, project_id, n, list(dict.fromkeys(pool)) or [ref["path"]])))
         outfit = assets.outfit_images(conn, project_id, n)
         if outfit:     # 07/10 Khủng Long Đỏ: MAXIM KL / KELLY KL danced in their everyday clothes — only the library face picture
-            out.append((n + OUTFIT_TAG, outfit[0]["path"]))   # (everyday look) went, the costume picture never did
+            out.append((n + OUTFIT_TAG, _rule_ok_picture(conn, project_id, n + OUTFIT_TAG, [o["path"] for o in outfit])))   # (everyday
+            # look) went, the costume picture never did
     _say_speakers_without_picture(conn, project_id, rows, {n for n, _ in out})
     return out[:max(room, 0)]
+
+
+def _rule_ok_picture(conn, project_id: int, who: str, paths: List[str]) -> str:
+    """The first of `paths` ClipAI takes as a reference picture (sides ≥ 300 px, width/height 0.4–2.5 — clipai.reference_image_problems;
+    an unreadable file is not judged here, the send says it). paths[0] when it passes; another one → said; none → paths[0] kept and
+    said (the pre-gen check video_pregen holds the job with the reason instead of a refused send)."""
+    from .adapters import clipai
+    from .assets import _shape
+
+    def problems(path):
+        size = _shape(path)
+        return clipai.reference_image_problems("seedance", [size]) if size else []
+    first = problems(paths[0])
+    if not first:
+        return paths[0]
+    pick = next((p for p in paths[1:] if not problems(p)), None)
+    why = "; ".join(first).replace("ảnh 1 ", "")
+    if pick:
+        msg = (f"Ảnh nhận diện {who}: {os.path.basename(paths[0])} không đạt luật ClipAI ({why}) — gửi {os.path.basename(pick)} cùng mục "
+               "Kho. Muốn ảnh khác: Bước 1 → Character Bible chọn ảnh cạnh ≥ 300 px, tỉ lệ rộng/cao 0,4–2,5.")
+    else:
+        msg = (f"Ảnh nhận diện {who}: {os.path.basename(paths[0])} không đạt luật ClipAI ({why}) và mục Kho không có ảnh nào đạt — clip "
+               "bị giữ ở lớp kiểm trước gen / ClipAI từ chối. Cách xử lý: thêm vào Kho ảnh cạnh ≥ 300 px, tỉ lệ rộng/cao 0,4–2,5.")
+    _say_once(conn, project_id, "identity_picture_rule", msg)
+    return pick or paths[0]
+
+
+def _say_once(conn, project_id: int, code: str, msg: str) -> None:
+    """A warn diag said once per 10 minutes (identity_pictures runs on every runner tick)."""
+    from . import diag
+    try:
+        seen = conn.execute("SELECT 1 FROM diag_events WHERE code=? AND COALESCE(project_id,0)=? AND message=?"
+                            " AND (julianday('now') - julianday(last_at)) * 1440 < 10 LIMIT 1",
+                            (code, project_id or 0, diag.redact(msg)[:400])).fetchone()
+    except Exception:  # noqa: BLE001 - no diag table: record() keeps it (_keep_lost)
+        seen = None
+    if not seen:
+        diag.record(conn, "video", "warn", msg, code, project_id)
 
 
 def _say_speakers_without_picture(conn, project_id: int, rows: List[Dict], pictured: set) -> None:
@@ -774,7 +818,9 @@ def eyes_guard(data: Dict, humans: Optional[Dict[str, bool]] = None) -> str:
         return " Natural human eyes, no glowing eyes."
     if not all((humans or {}).get(n, not looks_non_human(n)) for n in names):
         return ""
-    return f" {', '.join(names)}: natural human eyes, no glowing eyes."
+    # rà video #27 (12/10): the stored motion said "KELLY, XÚC TU ĐỎ: …" — a group send strips the accents, a per-shot / Kling send
+    # did not; the name is written the way prompt() names it in the Image labels
+    return f" {', '.join(ascii_name(n) for n in names)}: natural human eyes, no glowing eyes."
 
 
 # 12/10 (#27: 19/21 VÀNG "Điểm bắt đầu"): the formula's start sentence (knowledge/formula, prompt_formula._START) for a code-written

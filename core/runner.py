@@ -843,6 +843,8 @@ class VideoRunner(_Runner):
             pkg, _ = self._build_package(job, args, kwargs, sent_kwargs, None)
             group = self._sends_group(job) or []
             plan = video_pregen.plan_of(job, args, kwargs, pkg, self.data_dir, [r["id"] for r in group])
+            # pictures waiting to go through the Subject Library (sent as asset://, not measured by the adapter) — rà video #27 12/10
+            plan["hosted_pending"] = [x for d in self.__dict__.get("_pregen_deferred", []) for x in d.get("local") or []]
             issues = video_pregen.check(self.p.conn, job["scene_id"], plan)
         except Exception as e:  # noqa: BLE001 - a check that cannot run must not let the money go (luật 1: không im lặng)
             issues = [{"ma": "loi_kiem", "muc": video_pregen.DO,
