@@ -440,6 +440,62 @@ def ambient_issues(prompt: str, data: Dict) -> List[Dict]:
     return [_issue("warn", "chuyen_dong_nen", "Thiếu lớp chuyển động nền; máy tĩnh vẫn cần nền sống nhẹ. " + ambient_hint(data))]
 
 
+# 12/10 (#27, 21/21 VÀNG "Chuyển động nền"): the motion prompts written BY CODE (seedance_refs.shot_motion) get the background layer
+# from the same rule as the writers above (ambient_prompt_block): only a thing the shot already has, moving gently as its weather / time
+# allow; indoors only a flame that is there; storm / rain / fog from the declared weather. Unknown or mixed (indoor + outdoor) → no
+# sentence, the VÀNG of ambient_issues stays and says what is missing — never a guess.
+_INDOOR = re.compile(r"trong nhà|\bindoors?\b|\binterior\b|\binside\b|trong phòng|căn phòng", I)    # not 'phòng' alone: "phòng thủ"
+_OUTDOOR = re.compile(r"ngoài trời|\boutdoors?\b|\bexterior\b|đồng cỏ|bãi cỏ|cánh đồng|\bmeadow\b|\bfield\b|rừng|\bforest\b", I)
+_CALM = re.compile(r"\bcalm\b|windless|no wind|\bstill air\b|lặng gió|trời lặng|không gió", I)
+_WEATHER_LAYERS = (       # (declared weather, sentence) — said only when the weather says so
+    (re.compile(r"\bstorm\w*|\bthunder\w*|giông|bão|sấm", I), "Dark storm clouds roll slowly across the sky in the background."),
+    (re.compile(r"\brain\w*|\bmưa\b", I), "Rain keeps falling steadily in the background."),
+    (re.compile(r"\bfog\w*|\bmist\w*|\bsương\b", I), "Thin mist drifts slowly in the background."),
+)
+_THING_LAYERS = (         # (a thing written in the shot, needs wind?, sentence)
+    (re.compile(r"đồng cỏ|bãi cỏ|thảm cỏ|\bcỏ\b|\bgrass\w*|\bmeadow\b", I), True, "The grass in the background sways gently in a light breeze."),
+    # not a bare 'cây': it is also the classifier of a gun ("cây súng")
+    (re.compile(r"cây cối|hàng cây|tán cây|lá cây|cành cây|rặng cây|\btrees?\b|\bleaves\b|\bforest\b|\brừng\b", I), True,
+     "Tree leaves in the background rustle gently in a light breeze."),
+    (re.compile(r"mặt nước|hồ nước|\bsông\b|\bsuối\b|mặt biển|bãi biển|\bwater\b|\blake\b|\briver\b|\bpond\b|\bsea\b", I), False,
+     "The water surface in the background ripples softly."),
+    (re.compile(r"\blửa\b|ngọn đuốc|\bđuốc\b|\bnến\b|\bfire\b|\bflames?\b|\btorch\w*|\bcandles?\b|\bcampfire\b", I), False,
+     "The flames flicker softly."),
+    (re.compile(r"\bkhói\b|\bsmoke\b", I), False, "Smoke drifts slowly in the background."),
+)
+
+
+def ambient_sentence(data: Dict) -> Tuple[str, str]:
+    """(sentence, why) — the background layer a code-written motion prompt carries; ("", what is missing) when it cannot be told
+    from the shot's own fields (location / weather / time / lighting / blocking / action / image_prompt)."""
+    data = data or {}
+    en = data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}
+    place = " ".join(str(data.get(k) or "") for k in ("location", "location_asset"))
+    weather, time = str(data.get("weather") or ""), str(data.get("time") or data.get("time_of_day") or "")
+    things = " ".join(str(x or "") for x in (place, data.get("blocking"), data.get("action"), en.get("action"), data.get("image_prompt"),
+                                             data.get("lighting"), data.get("practical_lights")))
+    indoor, outdoor = bool(_INDOOR.search(place)), bool(_OUTDOOR.search(place))
+    if indoor and outdoor:
+        return "", "bối cảnh vừa trong nhà vừa ngoài trời — ghi rõ shot này ở đâu"
+    if indoor:
+        for rx, _, sent in _THING_LAYERS[3:4]:                     # indoors: only a flame that is there
+            if rx.search(things):
+                return sent, "trong nhà, có lửa/nến trong cảnh"
+        return "", "bối cảnh trong nhà không có vật nền chuyển động được (lửa/nến) — ghi vật nền đang có"
+    if not weather.strip():
+        return "", "thiếu thời tiết (weather) — không đoán gió/mưa"
+    for rx, sent in _WEATHER_LAYERS:
+        if rx.search(weather):
+            return sent, f"thời tiết '{weather}'"
+    calm = bool(_CALM.search(weather))
+    for rx, windy, sent in _THING_LAYERS:
+        if windy and calm:
+            continue
+        if rx.search(things):
+            return sent, f"vật nền có trong cảnh, thời tiết '{weather}'" + (f", giờ '{time}'" if time else "")
+    return "", "không thấy vật nền nào chuyển động được trong mô tả shot (cỏ, cây, nước, lửa, khói, sương) — ghi vật nền đang có"
+
+
 def lint_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, ff: Optional[bool] = None) -> List[Dict]:
     """Prompt motion: điểm bắt đầu / hành động / máy quay (a), thoại / nguồn động tác / trạng thái cuối khi có, + (c)–(g)."""
     prompt, data = prompt or "", data or {}
@@ -454,7 +510,8 @@ def lint_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, ff:
     if not _CAMERA.search(prompt):
         out.append(_issue("warn", "may_quay", "Thiếu máy quay: kiểu + mức + khung giữ (vd 'Static camera' / 'almost static, only a "
                                               "very slow tiny drift, holding the same framing')."))
-    if any(isinstance(d, dict) and str(d.get("text") or "").strip() for d in data.get("dialogue") or []) and not _DIALOGUE.search(prompt):
+    from .speaker_lint import speakers, voice_only_of   # 12/10 #27 shot 12: a narrator's line (voice off the frame) needs no mouth
+    if speakers(data, voice_only_of(chars)) and not _DIALOGUE.search(prompt):
         out.append(_issue("warn", "thoai", "Shot có thoại mà motion không nói ai nói: 'says his line…; his mouth moves only while he "
                                            "speaks'."))
     if kind == "dance_ref" and not _DANCE_SRC.search(prompt):
