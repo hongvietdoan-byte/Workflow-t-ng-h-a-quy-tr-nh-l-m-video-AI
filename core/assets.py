@@ -1633,12 +1633,28 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     return refs
 
 
+def _without_spoken_lines(text: str) -> str:
+    """The text without its dialogue / narration lines — the rows core/dialogue reads as 'SPEAKER: words' ("KELLY: …", "Maxim: …",
+    "KELLY (thì thầm): …", "LỜI DẪN: …"); a heading such as "Ghi chú: …" / "Định vị: …" stays."""
+    from . import dialogue
+    keep = []
+    for row in (text or "").splitlines():
+        m = dialogue._LINE.match(row)
+        who = re.sub(r"\s*\(.*?\)\s*", "", m.group(1)).strip() if m else ""
+        if not (m and dialogue._is_speaker(who)):
+            keep.append(row)
+    return "\n".join(keep)
+
+
 def _named_extras(conn, scene: Dict, chosen: List[Dict], names: List[str], project_id: int, place, away: bool, locked: Dict,
                   lock_on: bool) -> List[Dict]:
     """The other chosen resources (weapon, prop, pet, place, outfit) the scene names, as refs [{path, label, role}], in library order —
     worked out BEFORE the faces share the slots (12/10, #27 shot 2), so a named prop keeps its slot."""
     from . import prop_lock
-    blob = " " + fold(" ".join(str(scene.get(k) or "") for k in ("text", "image_prompt", "location"))) + " "
+    # 12/10 (#27 shot 20): a line SPOKEN in the shot ("LỜI DẪN: … giành Booyah") is not a thing to draw — it pulled the
+    # post-production banner "BOOYAH" into the picture; only the shot's own words outside dialogue lines name props
+    blob = " " + fold(" ".join([_without_spoken_lines(str(scene.get("text") or ""))]
+                               + [str(scene.get(k) or "") for k in ("image_prompt", "location")])) + " "
     cast = {fold(n) for n in names}
     people_names = {fold(r["name"]) for r in conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,))} | {
         fold(n) for x in chosen if x["kind"] == "character" for n in names_of(x)}

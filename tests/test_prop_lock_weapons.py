@@ -165,6 +165,19 @@ class WeaponLockTest(unittest.TestCase):
         self.assertTrue(all("_paths" not in r for r in refs))
         self.assertIsNotNone(gate)
 
+    def test_a_word_in_a_spoken_line_does_not_pull_a_prop_picture(self):
+        # 12/10 (#27 shot 20): "LỜI DẪN: … giành Booyah" sent the post-production banner BOOYAH as an object to draw
+        self._asset("prop", "BANNER BOOYAH OB55", "BOOYAH", "Banner ghép hậu kỳ.", "banner.png", None)
+        shot = {"characters": [], "image_prompt": "Kelly fires across the plaza.",
+                "text": "Kelly xả súng\nLỜI DẪN: Khi kẻ địch cuối cùng còn yếu, bạn giành Booyah."}
+        with mock.patch.dict(os.environ, FLAG_ON), mock.patch.object(assets, "scene_location", return_value=None):
+            refs = assets.scene_references(self.p.conn, self.pid, shot, limit=8)
+            self.assertNotIn("BANNER BOOYAH OB55", [r["label"] for r in refs])
+            said = dict(shot, text="Kelly giơ banner BOOYAH lên")              # the shot's own words still name it
+            self.assertIn("BANNER BOOYAH OB55", [r["label"] for r in assets.scene_references(self.p.conn, self.pid, said, limit=8)])
+        self.assertEqual(assets._without_spoken_lines("Ghi chú: giữ nguyên\nKELLY: Đi thôi!\nMaxim: Booyah!\nKELLY (thì thầm):“Đi”\n"
+                                                      "Định vị: cổng bên phải"), "Ghi chú: giữ nguyên\nĐịnh vị: cổng bên phải")
+
 
 def test_weapon_select_saves_the_choice(tmp_path, monkeypatch):
     """Bước 1: one select per character (flag on, project has guns) — picking a gun locks it."""
