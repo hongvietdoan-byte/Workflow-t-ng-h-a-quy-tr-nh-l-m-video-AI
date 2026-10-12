@@ -11,7 +11,10 @@ Parallel (pytest-xdist, `-n 8`): this file is imported once per worker process, 
 🧪 file between workers (hộp thư 13/10 việc 3)."""
 import os
 import shutil
+import sys
 import tempfile
+
+import pytest
 
 if os.environ.get("PIPELINE_TEST_REAL_DATA") != "1":
     _ISOLATED = tempfile.mkdtemp(prefix="pipeline_test_data_")
@@ -24,3 +27,17 @@ def pytest_unconfigure(config):
     path = globals().get("_ISOLATED")
     if path:
         shutil.rmtree(path, ignore_errors=True)
+
+
+# core.runner keeps per-process memory keyed by job id; `:memory:` test databases restart job ids at 1, so a hold reason left by one test
+# reached the next test of the same worker (-n 8, test_layout_follow) — every test starts with it empty (tests/test_xdist_isolation.py)
+_RUNNER_MEMORY = ("WAIT_REASONS", "PREGEN_HELD", "_PREGEN_SAID", "_RENDER_RETRIED")
+
+
+@pytest.fixture(autouse=True)
+def _fresh_runner_memory():
+    mod = sys.modules.get("core.runner")
+    if mod is not None:
+        for name in _RUNNER_MEMORY:
+            getattr(mod, name).clear()
+    yield
