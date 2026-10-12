@@ -964,6 +964,16 @@ Luật chung GIỐNG đợt 1; nhánh `codex/d13-viec<N>-<tên>`; KHÔNG sửa f
    `ambience.choose` chỉ xét nhãn CHÍNH (âm gió có "Speech 0.4" ở nhãn 2 vẫn nhận — ghi lại, cân nhắc). KHÔNG thêm lọc `kind='sfx'` cho âm nền
    trước khi xem `sound_lib` phân loại theo cỡ file (>2,5 MB = music → âm nền dài bị xếp music).
 
+9. (rà gộp Đ15v1–2 + Đ16v1, 12/10 12:55) `core/cost.py:605-609` `_video_need` coi nháp ĐÃ DUYỆT (quality_tier='draft') là "cần gen" → khi bật 2 bậc,
+   `run_estimate` cộng thêm 1 nháp + bản cao (thừa ≈ 0,41 USD/shot; nháp đang chạy thì chỉ cộng phần nâng) — `project_budget`, `model_router._remake_runs`
+   chịu theo; xử lý như nháp đang chạy + test cờ BẬT. Autopilot gặp `LlmError(director_busy)` (`core/llm_runner.py:781-782`) dừng ERROR + diag "error" →
+   coi là bận tạm, chờ lượt sau. `director_lease.busy()/replies()` trong UI không bọc lỗi (sổ khóa không mở được / khóa ghi > 10 s → OperationalError thay câu
+   "đang chạy"). Nhãn "NHÁP — có clip 480p" chưa hiện ở màn Video (`step4._draft_preview`); cảnh báo nháp ở step5 hiện mãi khi `xem_nhap.mp4` còn dù đã có
+   bản giao. `final_cut.measured_size` ghép đường tương đối theo gốc repo còn `collect_clips` theo thư mục hiện hành (PIPELINE_DATA tương đối → mọi clip
+   "không đo được" → chặn giao); dự án cũ không `aspect` + clip đầu không đo được → `require_delivery_resolution` bỏ qua im lặng. `prompt_versions_ui`:
+   cảnh báo FALLBACK cũ không hạn/không gắn job → chỉ hiện khi gắn job con mới nhất của shot hoặc cờ đang bật. Thêm `core/env_boot.py` (hàm dùng chung
+   nạp `dashboard.env` + khóa môi trường User như `tools/launch_dashboard.ps1`) cho script của phiên gọi pipeline ngoài Dashboard (lỗi #27).
+
 ## Kết quả Codex — đợt 13
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
