@@ -1989,6 +1989,35 @@ def framing_sentence(data: Dict) -> str:
     return ("Framing: " + ", ".join(bits) + ". ") if bits else ""
 
 
+def layout_frame_job(conn, project_id: int, scene_data):
+    """12/10 (#27 shot 11–12): the picture of the EARLIER shot named by the scene's `continuity_from` (its idx) — a shot back at the same
+    spot after a branch (another `sequence`, so neither the storyboard anchor nor the previous frame reaches it) keeps the people's
+    spots from it. The approved picture first, else its newest picture waiting for review (row with `id`, `state`), None without one."""
+    idx = (scene_data or {}).get("continuity_from")
+    if not isinstance(idx, int) or isinstance(idx, bool):
+        return None
+    return conn.execute("SELECT j.id, j.state FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE s.project_id=? AND s.idx=?"
+                        " AND j.type='image_gen' AND j.state IN ('approved','pending_review','succeeded')"
+                        " ORDER BY (j.state='approved') DESC, j.id DESC LIMIT 1", (project_id, idx)).fetchone()
+
+
+def layout_reference(runner, job, data):
+    """The `continuity_from` shot's picture as a 'layout_from' reference, or None. Never silent: a named shot without a picture, or
+    with one not approved yet, is reported."""
+    want = (data or {}).get("continuity_from")
+    if want is None:
+        return None
+    say = getattr(runner, "_diag_once", None) or getattr(runner, "_diag", None) or (lambda *a: None)  # args rebuilt every poll
+    row = layout_frame_job(runner.p.conn, job["project_id"], data)
+    path = os.path.join(runner.data_dir, str(job["project_id"]), "images", f"job_{row['id']}.png") if row else None
+    if not path or not os.path.exists(path):
+        say(job, "warn", "missing_reference", f"shot {want} (giữ bố cục — continuity_from) chưa có ảnh: không gửi được")
+        return None
+    if row["state"] != "approved":
+        say(job, "warn", "layout_from_unapproved", f"giữ bố cục theo ảnh shot {want} (job {row['id']}) CHƯA duyệt")
+    return {"path": path, "label": f"shot {want} (same place, earlier)", "role": "layout_from"}
+
+
 def chain_previous(proj, scene_data) -> bool:
     """Send the previous approved frame as an extra reference? storyboard_mode 1 = always; 0 (default) / 2 = never. S14.9 (06/10):
     the automatic chaining inside a sequence (flag chain_previous_auto, GĐ6 F8/I2: a close-up dragged in the wide frame's layout)
@@ -2516,8 +2545,9 @@ class ImageRunner(_Runner):
         model = image_models.of_project(proj)
         sheets = image_models.accepts_sheets(model) and getattr(self.provider, "supports_model", False)
         limit = min(image_models.max_refs(model, assets.MAX_REFERENCES), 12) if sheets else assets.MAX_REFERENCES
+        keep = (1 if chain else 0) + (1 if data.get("continuity_from") is not None else 0)   # + the layout_from picture's slot
         refs = assets.scene_references(conn, job["project_id"], data,   # the previous frame keeps its slot
-                                       limit=limit, reserve=1 if chain else 0, sheets=sheets)
+                                       limit=limit, reserve=keep, sheets=sheets)
         from . import scene_establish
         est = scene_establish.reference(self.data_dir, job["project_id"], data.get("story_scene"))
         if est and indoor_spot(conn, job["project_id"], data):   # an indoor shot: the 3D render of the room is the place, never the
@@ -2534,7 +2564,7 @@ class ImageRunner(_Runner):
                 refs = place_refs.swap_in(refs, ref, limit)
                 # F2 (09/10): this shot's own same-axis wide render replaces the scene's one-for-all wide picture
                 refs = place_refs.add_wide(refs, place_refs.wide_for(conn, self.data_dir, job["project_id"], job["scene_id"], data), limit,
-                                           reserve=1 if chain else 0)      # the previous frame keeps its slot
+                                           reserve=keep)                   # the previous frame keeps its slot
                 refs = place_refs.own_place_only(refs, ref)   # #24 job 649: locked stage camera → only its own render
                 prompt = f"{place_refs.PRECEDENCE} {prompt}"   # S5.5' 30/09: words about the place lost to the render otherwise
         from . import skill_dossier
@@ -2551,6 +2581,9 @@ class ImageRunner(_Runner):
                 prev_path = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{prev['id']}.png")
                 if os.path.exists(prev_path):
                     refs = refs + [{"path": prev_path, "label": "previous scene", "role": "previous_scene"}]
+        layout = layout_reference(self, job, data)
+        if layout is not None and layout["path"] not in [r["path"] for r in refs]:   # never the same file twice
+            refs = refs + [layout]
         return self._finish_args(job, prompt, refs)
 
     def _finish_args(self, job, prompt: str, refs):
@@ -2617,15 +2650,26 @@ class ImageRunner(_Runner):
                                 or {}).get("landmark")
                     except Exception:  # noqa: BLE001 - no library tables (old test data): the generic words stay
                         mark = None
+                layout = layout_reference(self, job, sdata)
                 fields = scene_storyboard.job_fields(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], shared, job["id"],
-                                                     previous=previous, landmark=mark)
+                                                     previous=previous, landmark=mark,
+                                                     layout=layout["path"] if layout else None,
+                                                     layout_label=layout["label"] if layout else None)
                 if fields is not None and fields.get("anchor_skipped"):
                     view = own.get("plate_view")
                     view = view.get("background") if isinstance(view, dict) else view
+                    if scene_storyboard.turned_away(g, job["scene_id"]):
+                        why = f"shot quay khỏi mốc (plate_view {view})"
+                        extra = ", thêm câu 'mốc không trong khung'"
+                    elif scene_storyboard.other_spot(g, job["scene_id"]):   # rà 12/10: the reason said, not "quay khỏi mốc"
+                        why = (f"shot đứng chỗ khác shot neo (plate_spot {own.get('plate_spot')} ≠ "
+                               f"{g['anchor']['data'].get('plate_spot')})")
+                        extra = ", thêm câu 'máy riêng'"
+                    else:
+                        why, extra = "shot có máy Sân khấu 3D riêng", ", thêm câu 'máy riêng'"
                     self._diag(job, "info", "storyboard_anchor_skipped",
-                               f"shot quay khỏi mốc (plate_view {view}): KHÔNG gửi ảnh neo khung 1 (shot {g['anchor']['idx']}, có "
-                               f"{mark or 'mốc'}) — chỉ ảnh nhân vật/trang phục + render 3D của shot, phiên storyboard riêng, "
-                               "thêm câu 'mốc không trong khung'")
+                               f"{why}: KHÔNG gửi ảnh neo khung 1 (shot {g['anchor']['idx']}, có {mark or 'mốc'}) — chỉ ảnh nhân "
+                               f"vật/trang phục + render 3D của shot, phiên storyboard riêng{extra}")
                 if fields is not None:
                     refs = fields["refs"]
                     prompt = prompt.rstrip() + fields.get("cast_note", "")

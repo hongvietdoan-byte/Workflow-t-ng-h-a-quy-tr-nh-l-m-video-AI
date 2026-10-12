@@ -473,6 +473,11 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
     if "sequence" in fields:
         _check_sequence(fields["sequence"], "scene")
         data["sequence"] = fields["sequence"]
+    if "continuity_from" in fields:                 # 12/10 #27: an earlier shot of ANOTHER sequence whose layout this shot keeps
+        value = fields["continuity_from"]
+        if value is not None and (not isinstance(value, int) or isinstance(value, bool) or not 0 < value < idx):
+            raise SchemaError(f"continuity_from: chỉ nhận null hoặc số shot đứng TRƯỚC shot {idx}")
+        data["continuity_from"] = value
     if "camera_complexity" in fields:
         _check_choice(fields["camera_complexity"] or None, COMPLEXITY, "camera_complexity")
         data["camera_complexity"] = fields["camera_complexity"] or None

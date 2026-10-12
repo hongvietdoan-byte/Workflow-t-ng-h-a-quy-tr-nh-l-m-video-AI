@@ -1756,6 +1756,11 @@ def reference_note(refs: List[Dict]) -> str:
             bits.append(f"{tag} is the shot RIGHT BEFORE this one: keep exactly its camera position, lens, framing and shot size, the "
                         "character's spot and pose direction, the background and the light — change only what this shot's text says "
                         "(e.g. the clothes)")
+        elif g["role"] == "layout_from":          # 12/10 #27: an earlier shot at this spot, from another sequence (continuity_from)
+            bits.append(f"{tag} is an EARLIER shot at this same place: every person or object seen in both shots stays exactly where "
+                        "it is there — same spot, spacing, order, pose and facing, relative to the landmarks and to each other — now "
+                        "seen from this shot's own camera; take the camera, framing and the main character's action from the scene "
+                        "text, never this picture's framing")
         elif g["role"] == "previous_scene":
             bits.append(f"{tag} is the PREVIOUS scene in this sequence (storyboard continuity): keep the same render style, "
                         "color palette, lighting mood and level of detail as this image, and keep any character/prop/location "
