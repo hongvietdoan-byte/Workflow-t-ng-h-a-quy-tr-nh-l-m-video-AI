@@ -1230,4 +1230,5 @@ change_review) — kiểm quyền sửa như các ô khác. Ảnh chụp 1440 + 
 ## Kết quả Codex — đợt 18
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
-`n- ✅ Việc 2 · nhánh `codex/d18-viec2-anh-neo-theo-spot` · code `f89cbad6`: nhóm neo theo story_scene/plate_spot, shot đầu nhóm, singleton ảnh đơn; cờ anchor_by_spot OFF/OPT_IN_ONLY. ĐỎ→XANH 50 test /7 file /5,61s; rà độc lập và root sửa 3 P2 về đếm phụ thuộc, ảnh neo thiếu và cache OFF. Không đổi UI/keys, areas giữ version65. Chưa thử model thật/cả bộ Windows/bật sản xuất; không API/dữ liệu thật/gộp main. RA và HANDOFF Đ18 việc2 kèm nhánh.
+
+- ✅ Việc 2 · nhánh `codex/d18-viec2-anh-neo-theo-spot` · code `f89cbad6`: nhóm neo theo story_scene/plate_spot, shot đầu nhóm, singleton ảnh đơn; cờ anchor_by_spot OFF/OPT_IN_ONLY. ĐỎ→XANH 50 test /7 file /5,61s; rà độc lập và root sửa 3 P2 về đếm phụ thuộc, ảnh neo thiếu và cache OFF. Không đổi UI/keys, areas giữ version65. Chưa thử model thật/cả bộ Windows/bật sản xuất; không API/dữ liệu thật/gộp main. RA và HANDOFF Đ18 việc2 kèm nhánh.
