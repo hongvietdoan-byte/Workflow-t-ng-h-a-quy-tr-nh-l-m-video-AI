@@ -62,3 +62,11 @@ luật cấm từ — là cách tính trước khi viết. Code kiểm lại cá
 16. **Gọi vật trong Kho bằng tên có trong tên / tên gọi khác của mục đó** (tiếng Anh đã thêm: "torii portal gate", "beach ball",
     "music box", "floating car", "cursed mask"). Khâu chọn ảnh tham chiếu chỉ khớp nguyên cụm tên. Tả bằng từ khác thì ảnh mẫu không được
     gửi kèm, và model tự vẽ một kiểu khác. Vì: #27 shot 2 cổng "không giống" vì ảnh Kho #426 không được gửi.
+17. **Trời thế giới song song OB55 vẽ theo ảnh game, không phóng đại.** Trời đêm giông xám xanh. Trên tháp là một XOÁY MÂY GIÔNG TỐI
+    (xám đen), chỉ có một đốm sáng cam đỏ mờ ở tâm. Ô tô / xe van / hòm lơ lửng quanh tháp, bên dưới có vệt sáng đỏ nhạt. Vệt gió
+    trắng khắp trời. Cảnh vật tối, nhạt màu, chỉ điểm đỏ nhẹ. KHÔNG viết "red tornado / fiery core / red lightning / red sky", và cũng
+    không viết dạng phủ định của chúng. Vì: #27 người dùng 12/10 "không thật sự có lốc xoáy đỏ rực". Căn cứ: Kho #428.
+18. **Nhân vật đi TỚI / VÀO một vật (cổng, cửa…): ghi rõ máy đặt ở đâu so với nhân vật.** "Camera BEHIND her, seen from behind,
+    walking AWAY from the camera into …" hoặc "camera in front, she walks TOWARD the camera". Chỉ viết "facing / walking into the gate"
+    thì model hay đặt vật sau lưng nhân vật và cho nhân vật nhìn vào máy, nên trông như đang đi RA khỏi vật. Vì: #27 shot 11–12 (người
+    dùng 12/10 "Kelly bị đi ngược hướng").

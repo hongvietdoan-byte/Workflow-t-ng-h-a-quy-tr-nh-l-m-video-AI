@@ -1602,7 +1602,12 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     from . import prop_lock                      # 12/10 (#27): the project's gun / glue wall said only by a common word, right form
     lock_on = prop_lock.enabled()
     locked = {x["asset"]["id"]: (x["asset"], x["image"]) for x in prop_lock.reference_images(conn, project_id, scene)} if lock_on else {}
-    room = max(limit - reserve - (1 if loc else 0) - len(locked), 0)    # rà 12/10: a locked prop keeps its slot in a crowded shot
+    extras = _named_extras(conn, scene, chosen, names, project_id, place, away, locked, lock_on)
+    worn = {path for _, items in people for path, _ in items}   # an outfit a person here wears: sent with that person, no slot kept
+    held = [r for r in extras if r["role"] != "location" and not (r["role"] == "outfit_object" and r["_paths"] & worn)]   # a side place does not outrank faces
+    # 12/10 (#27 shot 2): a prop the shot NAMES (the torii portal) came last and lost its slot to 2nd pictures of faces — it now keeps
+    # its slot like a locked prop; faces-first below still gives every person ONE picture before any prop
+    room = max(limit - reserve - (1 if loc else 0) - len(locked) - len(held), 0)
     # rà Đ16v3 (12/10): faces first — every person keeps ONE picture before the locked guns (4 people + 4 guns lost faces);
     # a gun with no slot left is drawn from its words (prop_lock.match_refs drops "as its reference picture shows")
     room = max(room, min(len(people), max(limit - reserve - (1 if loc else 0), 0)))
@@ -1619,21 +1624,32 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
         if len(refs) < limit - reserve and not any(r["label"] == a["name"] for r in refs):
             refs.append({"path": im["path"], "label": a["name"], "role": "object"})
     limit = limit - reserve
-    # every other chosen resource (weapon, prop, pet, place) that the scene names is a reference too
+    for ref in extras:                             # every other chosen resource (weapon, prop, pet, place) that the scene names
+        if len(refs) >= limit:
+            break
+        if any(r["label"] == ref["label"] for r in refs) or (ref["role"] == "outfit_object" and any(r["path"] in ref["_paths"] for r in refs)):
+            continue          # already sent as the outfit a person in the shot wears
+        refs.append({k: v for k, v in ref.items() if k != "_paths"})
+    return refs
+
+
+def _named_extras(conn, scene: Dict, chosen: List[Dict], names: List[str], project_id: int, place, away: bool, locked: Dict,
+                  lock_on: bool) -> List[Dict]:
+    """The other chosen resources (weapon, prop, pet, place, outfit) the scene names, as refs [{path, label, role}], in library order —
+    worked out BEFORE the faces share the slots (12/10, #27 shot 2), so a named prop keeps its slot."""
+    from . import prop_lock
     blob = " " + fold(" ".join(str(scene.get(k) or "") for k in ("text", "image_prompt", "location"))) + " "
     cast = {fold(n) for n in names}
     people_names = {fold(r["name"]) for r in conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,))} | {
         fold(n) for x in chosen if x["kind"] == "character" for n in names_of(x)}
+    out: List[Dict] = []
     for a in chosen:
-        if len(refs) >= limit:
-            break
         if a["id"] in locked:
             continue                                          # already placed right after the place (its slot was kept)
-        if a["kind"] not in ("weapon", "prop", "pet", "location", "outfit") or not a["images"] or any(r["label"] == a["name"] for r in refs):
+        if a["kind"] not in ("weapon", "prop", "pet", "location", "outfit") or not a["images"] or any(r["label"] == a["name"] for r in out):
             continue
-        if a["kind"] == "outfit" and (any(r["path"] == im["path"] for r in refs for im in a["images"])
-                                      or fold(a["name"]) in people_names):
-            continue          # already sent as the outfit a person in the shot wears / named like a person (S14.28: "Kelly" bơi)
+        if a["kind"] == "outfit" and fold(a["name"]) in people_names:
+            continue          # named like a person (S14.28: "Kelly" bơi)
         if place is not None and a["id"] == place["id"]:
             continue                                          # the scene's own place: already decided above (plate or words)
         if away and a["kind"] == "location":
@@ -1646,9 +1662,10 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
             else:
                 pic = location_plate(conn, a, scene) if a["kind"] == "location" else best_reference(a)
             if pic is not None:
-                refs.append({"path": pic["path"], "label": a["name"],     # 07/10: an outfit named by a shot with nobody wearing it
-                             "role": {"location": "location", "outfit": "outfit_object"}.get(a["kind"], "object")})   # (on the bed)
-    return refs
+                out.append({"path": pic["path"], "label": a["name"],     # 07/10: an outfit named by a shot with nobody wearing it
+                            "role": {"location": "location", "outfit": "outfit_object"}.get(a["kind"], "object"),
+                            "_paths": {im["path"] for im in a["images"]}})
+    return out
 
 
 def _outfit_strip() -> bool:

@@ -142,6 +142,30 @@ class WeaponLockTest(unittest.TestCase):
         self.assertTrue(all(any(assets.fold(n) == assets.fold(l) for l in labels) for n in names), labels)
 
 
+    def test_a_named_prop_keeps_its_slot_over_second_face_pictures(self):
+        # 12/10 (#27 shot 2): 4 people × 2 pictures filled the slots and the named torii portal (Kho prop) was dropped silently
+        names = ["KELLY", "MAXIM", "SỨ GIẢ BÓNG ĐÊM", "XÚC TU ĐỎ"]
+        c = self.p.conn
+        for n in names:
+            c.execute("INSERT INTO assets (game, kind, name, description) VALUES ('FF','character',?, 'x')", (n,))
+            aid = c.execute("SELECT id FROM assets WHERE name=? AND kind='character'", (n,)).fetchone()[0]
+            for k in (1, 2):
+                path = os.path.join(self.tmp, f"face_{aid}_{k}.png")
+                open(path, "wb").write(b"\x89PNG\r\n\x1a\n" + b"0" * 64)
+                c.execute("INSERT INTO asset_images (asset_id, path, label, sort, status) VALUES (?,?,?,?,?)", (aid, path, "f", k, "approved"))
+            c.execute("INSERT INTO project_assets (project_id, asset_id) VALUES (?,?)", (self.pid, aid))
+        c.commit()
+        gate = self._asset("prop", "CỔNG PORTAL TORII", "torii portal gate", "Cổng torii trong mờ.", "gate.png", None)
+        shot = {"characters": names, "image_prompt": "Two torii portal gate frames stand on the grass, the team lies in front."}
+        with mock.patch.dict(os.environ, FLAG_ON), mock.patch.object(assets, "scene_location", return_value=None):
+            refs = assets.scene_references(c, self.pid, shot, limit=8)
+        labels = [r["label"] for r in refs]
+        self.assertIn("CỔNG PORTAL TORII", labels)
+        self.assertTrue(all(any(assets.fold(n) == assets.fold(l) for l in labels) for n in names), labels)   # still one face each
+        self.assertTrue(all("_paths" not in r for r in refs))
+        self.assertIsNotNone(gate)
+
+
 def test_weapon_select_saves_the_choice(tmp_path, monkeypatch):
     """Bước 1: one select per character (flag on, project has guns) — picking a gun locks it."""
     from streamlit.testing.v1 import AppTest
