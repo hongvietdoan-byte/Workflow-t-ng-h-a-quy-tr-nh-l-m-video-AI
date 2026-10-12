@@ -919,6 +919,15 @@ Luật chung GIỐNG đợt 1; nhánh `codex/d13-viec<N>-<tên>`; KHÔNG sửa f
    "còn chữ tiếng Việt") — khớp tới `"` cuối dòng (MULTILINE) hoặc đổi `"` trong câu thành `”`; thêm test cấp runner (`tests/test_dialogue_take_runner.py`):
    nhân vật tên có dấu + shot take → `_lint` trả None (sửa `group_block` bỏ dấu tên đã gộp main 12/10, phiên rà Codex).
 
+7. (rà gộp Đ9v3 GUI pet, 12/10 08:xx) `tools/lao_dai/logic.py:55-63` + `gui.py:27-29,154`: toast + bấm mở cả `waiting_merge` nhưng bong bóng/dáng pet
+   chỉ đếm `waiting_admin` → chỉ còn phiếu chờ merge thì pet idle mà chân trang ghi "Bấm mở đúng phiếu"; đếm cả hai ("· N chờ merge") hoặc ghi quyết
+   định vào THIET_KE_TIEU_NHI_LAO_DAI_D7.md + test. `channel.py:240-247` watchdog 2 s chạy cả `admin_snapshot` → chỉ kiểm `auth.identity` + cờ.
+   `channel.py:174-175` cấp lại quyền: gỡ token broker cũ khỏi `broker._tokens`. `devsys/lao_dai_channel.py:282-284`: chú thích "Pet: chỉ Owner…" hiện
+   đầu MỌI trang 8502 cho người không phải Owner → chỉ trang Phiếu / sidebar. Vẫn còn: QA GUI Windows thật (toast, DPI, 2 màn hình, sleep/resume).
+8. (rà gộp Đ12v1 âm nền) `core/sound_lib.py:153` quét lại thư mục: file đổi nội dung không xóa `heard`/`heard_label`/`accent` → nhãn cũ dính file mới;
+   `ambience.choose` chỉ xét nhãn CHÍNH (âm gió có "Speech 0.4" ở nhãn 2 vẫn nhận — ghi lại, cân nhắc). KHÔNG thêm lọc `kind='sfx'` cho âm nền
+   trước khi xem `sound_lib` phân loại theo cỡ file (>2,5 MB = music → âm nền dài bị xếp music).
+
 ## Kết quả Codex — đợt 13
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)

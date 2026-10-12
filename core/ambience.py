@@ -48,13 +48,19 @@ def choose(conn, data: Dict) -> Optional[Dict]:
     words = _query(data)
     if not words:
         return None
+    from . import kho_review, sound_ai
     rows = conn.execute(f"SELECT id, path, name, duration, heard_label, heard_score FROM sounds WHERE ({sound_lib.VOICE_SQL})=0 AND duration>=?",
                         (MIN_SECONDS,)).fetchall()
+    rows = sound_lib._not_rejected(conn, rows)          # rà gộp Đ12v1 (12/10): a sound the Kho review rejected is never a bed either
+    # rà gộp Đ12v1: a new listen marks every non-human label voice=0 — the heard label counts only when it IS a sound of a place
+    # (accent / ambient labels), so "Wind instrument, woodwind instrument" (a flute) never becomes the wind of a foggy scene
+    place_labels = (sound_ai.ACCENT | sound_lib._AMBIENT_LABELS) - sound_ai.VOICE
     for w in words:                                     # the first word that matches wins; the longest file of it (fewer loops)
         word = re.compile(rf"(?<![\w]){re.escape(w)}(?![\w])", re.I)     # whole words: "Crunk Knight" is not a night sound
         # the name, or what the listener heard FIRST and surely — a side label ("Wind instrument 0.29" of an air horn, "Rain 0.78" of
         # a kung-fu clip) is not what the file is (review GĐ7, real library)
-        said = lambda r: r["name"] + (f" {r['heard_label']}" if (r["heard_score"] or 0) >= HEARD_MIN else "")  # noqa: E731
+        said = lambda r: r["name"] + (f" {r['heard_label']}" if (r["heard_score"] or 0) >= HEARD_MIN  # noqa: E731
+                                      and str(r["heard_label"] or "").strip().lower() in place_labels else "")
         hits = [r for r in rows if word.search(said(r)) and os.path.exists(r["path"])]
         if hits:
             best = max(hits, key=lambda r: r["duration"] or 0)

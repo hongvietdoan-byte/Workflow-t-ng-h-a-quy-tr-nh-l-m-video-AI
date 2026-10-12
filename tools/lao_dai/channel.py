@@ -72,7 +72,7 @@ class CredentialStore:
         # pywin32 CredWrite yêu cầu Unicode; CredRead trả blob UTF-16LE bytes.
         blob=json.dumps({'token':grant.token,'port':grant.port,'expires_at':grant.expires_at})
         self.native.CredWrite({'Type':self.native.CRED_TYPE_GENERIC,'TargetName':self.target,
-            'UserName':'LaoDaiReadOnly','CredentialBlob':blob,'Persist':self.native.CRED_PERSIST_LOCAL_MACHINE},0)
+            'UserName':'LaoDaiReadOnly','CredentialBlob':blob,'Persist':self.native.CRED_PERSIST_SESSION},0)
 
     def read(self):
         with self._transaction():return self._read()

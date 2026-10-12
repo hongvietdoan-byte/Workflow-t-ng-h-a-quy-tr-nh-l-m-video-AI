@@ -1,4 +1,5 @@
 """Hồi quy giao diện/credential; không dùng credential hay CSDL sản xuất."""
+import contextlib
 import json
 import time
 import threading
@@ -77,14 +78,15 @@ def test_untrusted_port_never_receives_bearer():
 
 def test_native_store_fake_safe_target():
     class Native:
-        CRED_TYPE_GENERIC=1;CRED_PERSIST_LOCAL_MACHINE=2
+        CRED_TYPE_GENERIC=1;CRED_PERSIST_SESSION=1;CRED_PERSIST_LOCAL_MACHINE=2
         def __init__(self):self.rows={}
         def CredWrite(self,row,flags):
             assert isinstance(row['CredentialBlob'],str)
+            assert row['Persist']==self.CRED_PERSIST_SESSION   # rà gộp 12/10: gone at sign-out, never outlives the session
             self.rows[row['TargetName']]=dict(row,CredentialBlob=row['CredentialBlob'].encode('utf-16-le'))
         def CredRead(self,target,kind,flags):return self.rows[target]
         def CredDelete(self,target,kind,flags):self.rows.pop(target,None)
-    native=Native();store=CredentialStore('AI.VideoPipeline.LaoDai.QA.unittest',native=native)
+    native=Native();store=CredentialStore('AI.VideoPipeline.LaoDai.QA.unittest',native=native,lock_factory=contextlib.nullcontext)   # Linux CI: no pywin32 mutex
     grant=Grant('test-only',32001,time.time()+100)
     store.write(grant)
     assert store.read()==grant
@@ -201,7 +203,7 @@ def test_credential_conditional_delete_serializes_regrant(old_kind):
     lock=threading.RLock();observed=threading.Event();attempted=threading.Event()
     old=Grant('old',32101,time.time()+100);new=Grant('new',32102,time.time()+100)
     class Native:
-        CRED_TYPE_GENERIC=1;CRED_PERSIST_LOCAL_MACHINE=2
+        CRED_TYPE_GENERIC=1;CRED_PERSIST_SESSION=1;CRED_PERSIST_LOCAL_MACHINE=2
         row=None;pause=False
         def CredWrite(self,row,flags):self.row=dict(row,CredentialBlob=row['CredentialBlob'].encode('utf-16-le'))
         def CredRead(self,*args):

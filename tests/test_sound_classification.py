@@ -57,3 +57,24 @@ class ClassificationTests(unittest.TestCase):
             row = conn.execute('SELECT voice,heard_label,heard_score,accent FROM sounds').fetchone()
             self.assertEqual(tuple(row),(1,'Cricket',.9,None))
             conn.close()
+
+    def test_new_listen_instrument_label_and_rejected_sound_are_never_a_bed(self):
+        """Rà gộp Đ12v1 (12/10): a NEW listen sets voice=0 for every non-human label — 'Wind instrument…' (a flute) matched 'wind' and
+        became the fog bed; a sound the Kho review rejected was offered as a bed too."""
+        from core import kho_review
+        with tempfile.TemporaryDirectory() as directory:
+            conn = connect()
+            rows = [(11, 'Wind instrument, woodwind instrument', 'Flute spooky', 0, 0), (12, 'Wind', 'Gio rung', 0, 0),
+                    (13, 'Wind', 'Gio dai hon', 0, 0)]
+            for sid, label, name, voice, accent in rows:
+                p = os.path.join(directory, f'{sid}.wav'); open(p, 'wb').close()
+                conn.execute('INSERT INTO sounds(id,source_id,path,name,kind,duration,heard_label,heard_score,voice,accent) '
+                             'VALUES(?,1,?,?,?,?,?,.9,?,?)', (sid, p, name, 'sfx', 30 + sid, label, voice, accent))
+            conn.commit()
+            self.assertEqual(ambience.choose(conn, {'weather': 'fog'})['id'], 13)        # the longest real wind
+            kho_review.reject(conn, 'sound', 13, 'thử')
+            self.assertEqual(ambience.choose(conn, {'weather': 'fog'})['id'], 12)        # rejected one skipped; the flute never
+            kho_review.reject(conn, 'sound', 12, 'thử')
+            self.assertIsNone(ambience.choose(conn, {'weather': 'fog'}))
+            conn.close()
+
