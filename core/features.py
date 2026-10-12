@@ -513,6 +513,8 @@ FEATURES: Dict[str, Dict] = {
                "loại, ≈ 2,8 USD) dù prompt đã có 'chỉ lấy quần áo'. Câu mới đổi đầu ra model trả tiền và chưa thử — cần thử 1 shot rẻ "
                "(ảnh + clip 720p) trước khi bật",
     },
+    "asset_english_names": {"label": "Tên tiếng Anh khi tạo Kho + cảnh báo vật/style chưa có ảnh mẫu đúng tên", "verified": False,
+        "why": "Đ17v3 #27 torii/Nỏ: kiểm tên bằng aliases hiện có, 0 USD; chưa nghiệm thu thật, chỉ bật riêng"},
     "continuity_layout": {"label": "Kiểm nhất quán hướng đi + bố cục giữa shot (VÀNG, báo cáo Đạo diễn)", "verified": False,
         "why": "Hộp thư 12/10 15:51 (#27): hướng đi ghi trong image_prompt/blocking không được kiểm; đi ngược chiều vào cổng, cổng/tường đổi bên, đồng đội nằm biến mất"},
     "ambient_motion": {
@@ -556,7 +558,7 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
 HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
-OPT_IN_ONLY: tuple = ("auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc")
+OPT_IN_ONLY: tuple = ("auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names")
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.

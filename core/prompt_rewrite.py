@@ -367,7 +367,18 @@ def save_rewrite(p, job, res: RewriteResult, note: Optional[str] = None) -> int:
     p.conn.commit()
     from . import prompt_formula                          # F1-A (F0 mục 4b): the Director's rewrite is checked + compared to the old one
     prompt_formula.on_prompt_saved(p.conn, job["scene_id"], kind, res.old_prompt, res.new_prompt)
+    _done(p, job, res)
     return res.version
+
+
+def _done(p, job, res: RewriteResult) -> None:
+    """Every saved rewrite (including script callers) closes the old fallback on the same image/video stage."""
+    kind = KINDS[job["type"]]
+    unit = "ảnh" if kind == "image" else "clip"
+    idx = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+    diag.record(p.conn, kind, "info", f"Đạo diễn đã viết lại prompt {unit} shot {idx['idx'] if idx else '?'} (v{res.version}): "
+                + "; ".join(res.changed)[:250], DONE_CODE, job["project_id"], scene_id=job["scene_id"], job_id=job["id"])
+    p.last_rewrite_fallback = None
 
 
 def rewrite_for_retry(p, job, note: Optional[str] = None, fix: Optional[str] = None, qc: Optional[Dict] = None,
@@ -390,8 +401,6 @@ class Plan:
             return self.reason
         p, job = self.p, self.job
         kind = KINDS[job["type"]]
-        unit = "ảnh" if kind == "image" else "clip"
-        idx = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
         try:
             if current_prompt(p.conn, job["scene_id"], kind) != self.res.old_prompt:
                 raise RewriteRefused("prompt của shot vừa được sửa tay trong lúc Đạo diễn viết — giữ bản của người")
@@ -399,8 +408,6 @@ class Plan:
         except Exception as e:  # noqa: BLE001 - never lose the take: the old way, said
             _fallback(p, job, e)
             return self.reason
-        diag.record(p.conn, kind, "info", f"Đạo diễn đã viết lại prompt {unit} shot {idx['idx'] if idx else '?'} (v{version}): "
-                    + "; ".join(self.res.changed)[:250], DONE_CODE, job["project_id"], scene_id=job["scene_id"], job_id=job["id"])
         return f"{REWRITE_NOTE} (v{version}): {(self.note or '')[:300]}"
 
 

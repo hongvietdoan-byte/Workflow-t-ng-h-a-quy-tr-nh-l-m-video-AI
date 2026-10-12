@@ -143,12 +143,19 @@ def assets_panel(p: Pipeline, pid: int) -> None:
             name = n1.text_input("Tên", key=f"as_new_name_{pid}", placeholder="vd Lyra")
             kind = n2.selectbox("Loại", list(assets.KINDS), format_func=lambda k: assets.KINDS[k], key=f"as_new_kind_{pid}")
             desc = st.text_input("Mô tả ngắn (tùy chọn)", key=f"as_new_desc_{pid}", placeholder="tóc bạc dài, giáp xanh…")
+            aliases = ""
+            if assets.english_names_enabled():
+                suggestion = assets.suggest_english_name(name, desc)
+                if suggestion:
+                    st.caption(f"Gợi ý tên tiếng Anh / tên riêng: {suggestion} — bạn kiểm và sửa trước khi lưu.")
+                aliases = st.text_input("Tên tiếng Anh (bắt buộc nếu tên chính là tiếng Việt)",
+                                        key=f"as_new_english_{pid}", placeholder=suggestion or "vd red torii gate")
             files = st.file_uploader("Ảnh (JPG/PNG/WebP, tối đa 10 MB mỗi ảnh)", type=["png", "jpg", "jpeg", "webp"],
                                      accept_multiple_files=True, key=f"as_new_files_{pid}")
             share = allowed("assets") and st.checkbox("Lưu cả vào kho dùng chung", key=f"as_new_share_{pid}")
             if st.button("Lưu vào dự án", key=f"as_new_go_{pid}", disabled=not (name.strip() and files)):
                 try:
-                    aid = assets.create(p.conn, game, kind, name, desc, "", None if share else pid, me().get("email"))
+                    aid = assets.create(p.conn, game, kind, name, desc, aliases, None if share else pid, me().get("email"))
                     for f in files[: assets.MAX_IMAGES_PER_ASSET]:
                         assets.add_image(p.conn, aid, f.name, f.getvalue())
                     assets.attach(p.conn, pid, aid)

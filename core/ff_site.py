@@ -389,8 +389,14 @@ def sync(conn, game: str = "FF", created_by: Optional[str] = None, getter=fetch,
                 if new_desc != (found["description"] or ""):
                     assets.update(conn, aid, found["name"], found["aliases"], new_desc)
                     report["enriched"] += 1
-        except assets.AssetError:
+        except assets.AssetError as e:
             report["skipped"] += 1
+            if assets.english_names_enabled():
+                # D17: the automatic batch keeps going, but a refused row must name the missing input.
+                from . import diag
+                line = f"{item['name']}: {e}"
+                report.setdefault("name_errors", []).append(line)
+                diag.record(conn, "system", "warn", line, "asset_english_name")
             continue
         have = {r["src_path"] for r in conn.execute("SELECT src_path FROM asset_images WHERE asset_id=?", (aid,))}
         for url in item["images"][:PICS_PER_ITEM]:
@@ -428,7 +434,8 @@ def summary(report: Dict) -> str:
     return (f"{report['created']} mục mới, {report['enriched']} mục được bổ sung mô tả, {report['pictures']} ảnh chính thức, "
             f"{report.get('articles', 0)} bài tin tức" + (f", {report['skipped']} bỏ qua" if report["skipped"] else "")
             + (f", {report['rejected']} địa chỉ bị từ chối (ngoài danh sách máy chủ cho phép, xem Nhật ký lỗi)" if report.get("rejected") else "")
-            + (f", {report['page_errors']} trang không đọc được (xem Nhật ký lỗi)" if report.get("page_errors") else ""))
+            + (f", {report['page_errors']} trang không đọc được (xem Nhật ký lỗi)" if report.get("page_errors") else "")
+            + (f", cần sửa tên Kho: {report['name_errors'][0]} (xem Nhật ký lỗi từng mục)" if report.get("name_errors") else ""))
 
 
 # ---- running it: a button (or once a month) starts it in the background; the outcome is kept for the panel ----------------
