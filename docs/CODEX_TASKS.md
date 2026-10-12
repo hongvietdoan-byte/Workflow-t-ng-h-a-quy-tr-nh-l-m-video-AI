@@ -1177,4 +1177,6 @@ công → chỉ hiện cảnh báo của lần gen lại MỚI NHẤT (trùng Đ
 
 ## Kết quả Codex — đợt 17
 
+- ✅ Việc 2 · nhánh `codex/d17-viec2-popup-shot` · code `e129832c`: cờ `shot_popup` OFF/OPT_IN_ONLY; đọc post_popup từng shot, timeline clip thực trim/xfade và nháp, cùng hiệu ứng pop/âm/safe_box, không kéo dài shot. Tách xanh nối biên tùy chọn, giữ ảnh gốc/xanh kín; UI chọn một shot, một hàng bật/Kho/giây + nút lưu, server kiểm quyền và scene-project. Thiếu shot/ảnh/âm/đo/cấu hình báo VÀNG diag+manifest, hash theo spec/bytes/platform. ĐỎ module + caller draft; rà 4 finding và selector/videopath → **102 passed +10 subtests /22,87s**, focused output_video **6 đỏ→6 xanh /0,21s**. Root đọc vòng sửa; UI component Streamlit fakeowner Chrome1440/1280:0 pageerror/0 overflow,2 PNG `docs/images/d17/`. areas khai module/test/cờ, giữ version/keys. RA `docs/RA_D17_VIEC2_CODEX_2026-10-12.md`. Chưa thử #27/cả bộ Windows/bật sản xuất/gộp main; lookup legacy end-popup không local_root giữ assets.get cũ, guard mới bảo đảm mọi popup shot.
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
