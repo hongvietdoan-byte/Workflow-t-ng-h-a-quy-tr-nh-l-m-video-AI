@@ -835,7 +835,7 @@ def lib_new_item_box(p, game) -> None:
         if st.button("Thêm vào kho", key="lib_new_go", disabled=not name.strip()):
             try:
                 aid = assets.create(p.conn, game, kind, name, desc, aliases, None, me().get("email"),
-                                    allow_duplicate=bool(why.strip()), duplicate_reason=why)
+                                    allow_duplicate=bool(why.strip()), duplicate_reason=why, require_english=True)
                 for f in files[: assets.MAX_IMAGES_PER_ASSET]:
                     assets.add_image(p.conn, aid, f.name, f.getvalue())
             except assets.AssetError as e:

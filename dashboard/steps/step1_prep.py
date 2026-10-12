@@ -155,7 +155,8 @@ def assets_panel(p: Pipeline, pid: int) -> None:
             share = allowed("assets") and st.checkbox("Lưu cả vào kho dùng chung", key=f"as_new_share_{pid}")
             if st.button("Lưu vào dự án", key=f"as_new_go_{pid}", disabled=not (name.strip() and files)):
                 try:
-                    aid = assets.create(p.conn, game, kind, name, desc, aliases, None if share else pid, me().get("email"))
+                    aid = assets.create(p.conn, game, kind, name, desc, aliases, None if share else pid, me().get("email"),
+                                        require_english=True)
                     for f in files[: assets.MAX_IMAGES_PER_ASSET]:
                         assets.add_image(p.conn, aid, f.name, f.getvalue())
                     assets.attach(p.conn, pid, aid)

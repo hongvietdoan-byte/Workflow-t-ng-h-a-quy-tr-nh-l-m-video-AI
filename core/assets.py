@@ -310,7 +310,8 @@ def require_english_name(name: str, aliases: str = "") -> None:
 
 
 def create(conn, game: str, kind: str, name: str, description: str = "", aliases: str = "", project_id: Optional[int] = None,
-           created_by: Optional[str] = None, allow_duplicate: bool = False, duplicate_reason: str = "") -> int:
+           created_by: Optional[str] = None, allow_duplicate: bool = False, duplicate_reason: str = "",
+           require_english: bool = False) -> int:
     """A new library entry. Refused (AssetError naming the existing entry) when one of the same game and kind already carries the
     name or one of the other names, spelled any way (name_key) — S14.43B. `allow_duplicate=True` with a `duplicate_reason` creates it
     anyway (written to audit_log); the very same name in the same scope is always refused."""
@@ -319,7 +320,16 @@ def create(conn, game: str, kind: str, name: str, description: str = "", aliases
         raise AssetError("Tên tài nguyên không được để trống")
     if kind not in KINDS:
         raise AssetError("Loại tài nguyên không hợp lệ")
-    require_english_name(name, aliases)
+    if require_english:                               # D17: only where a person can type it (the two Kho forms, the FF sync row)
+        require_english_name(name, aliases)
+    elif english_names_enabled() and not any(_english_identifier(n) for n in _all_names(name, aliases)):
+        # rà 12/10 (CAO): reference / outfit uploads, chat, 3D renders, folder sync have no box for it — created, said (never refused)
+        try:
+            from . import diag
+            diag.record(conn, "system", "warn", f"tài nguyên “{name}” chưa có tên tiếng Anh — chữ shot tiếng Anh có thể không kéo "
+                        "ảnh mẫu; thêm ở Kho → tên gọi khác", "asset_english_name", project_id)
+        except Exception:  # noqa: BLE001 - a note never stops the creation
+            pass
     dup = conn.execute("SELECT id FROM assets WHERE game=? AND kind=? AND lower(name)=lower(?) AND COALESCE(project_id,0)=COALESCE(?,0)",
                        (game, kind, name, project_id)).fetchone()
     if dup:
@@ -1565,7 +1575,8 @@ def render_place_text(conn, place: Dict, tag: str = RENDER_TAG) -> str:
 def gap_severity(gap: str) -> str:
     """A library picture whose file is gone is a fault (warn); a character that simply has no picture was already warned about at the
     Bible gate (autopilot / the Gen ảnh button), so each job only notes it (info) instead of turning every stage yellow."""
-    return "warn" if any(s in gap for s in ("mất file", "chưa khớp tên Kho", "chỉ dùng bằng chữ")) else "info"
+    # rà 12/10: a style used through the whole film named in every shot is a note (info), not a yellow on every shot
+    return "warn" if any(s in gap for s in ("mất file", "chưa khớp tên Kho")) else "info"
 
 
 def _named_resource_gaps(conn, project_id: int, scene: Dict) -> List[str]:
@@ -1574,6 +1585,8 @@ def _named_resource_gaps(conn, project_id: int, scene: Dict) -> List[str]:
         return []
     from . import prop_lock
     words = _said_words(prop_lock.shot_text(scene) + " " + str(scene.get("location") or ""))
+    if "gloo wall" in " ".join(words):                # rà 12/10: "gloo wall" written as two words
+        words = list(words) + ["gloowall"]
     out = []
     # Names/descriptions only: no image opens, filesystem probes or library-wide query at every poll.
     rows = conn.execute("SELECT a.name, a.aliases, a.description, a.kind FROM assets a JOIN project_assets pa ON pa.asset_id=a.id "
@@ -1594,11 +1607,17 @@ def _named_resource_gaps(conn, project_id: int, scene: Dict) -> List[str]:
     return out
 
 
-def reference_gaps(conn, project_id: int, scene: Dict) -> List[str]:
+def is_name_note(gap: str) -> bool:
+    """A D17 note (_named_resource_gaps: a style used by words only, a linked item whose name the shot does not use) — not a missing
+    picture; core.qc_observe must not refuse a check over it (rà 12/10)."""
+    return "chưa khớp tên Kho" in gap or "chỉ dùng bằng chữ" in gap
+
+
+def reference_gaps(conn, project_id: int, scene: Dict, named: bool = True) -> List[str]:
     """Luật 1 at generation time: what the picture of this shot will be drawn WITHOUT — a character with no reference picture (drawn from
     words), library pictures whose file is gone. Vietnamese sentences for the job's diag; empty = nothing missing."""
     names = [str(n) for n in scene.get("characters") or []]
-    out = _named_resource_gaps(conn, project_id, scene)
+    out = _named_resource_gaps(conn, project_id, scene) if named else []   # named=False: core.qc_observe (missing pictures only)
     if not names:
         return out
     from . import looks

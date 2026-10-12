@@ -391,7 +391,7 @@ def sync(conn, game: str = "FF", created_by: Optional[str] = None, getter=fetch,
                     report["enriched"] += 1
         except assets.AssetError as e:
             report["skipped"] += 1
-            if assets.english_names_enabled():
+            if assets.english_names_enabled() and "tên tiếng Anh" in str(e):   # rà 12/10: a duplicate is not a missing English name
                 # D17: the automatic batch keeps going, but a refused row must name the missing input.
                 from . import diag
                 line = f"{item['name']}: {e}"

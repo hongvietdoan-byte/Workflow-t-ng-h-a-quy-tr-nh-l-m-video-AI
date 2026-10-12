@@ -33,8 +33,8 @@ def test_plain_english_never_folds_to_vietnamese_but_explicit_alias_does(p, monk
 def test_create_requires_english_alias_when_enabled_and_suggests_without_paid_call(p, monkeypatch):
     monkeypatch.setenv("FEATURE_ASSET_ENGLISH_NAMES", "1")
     with pytest.raises(assets.AssetError, match="tiếng Anh"):
-        assets.create(p.conn, "FF", "prop", "Cổng đỏ")
-    aid = assets.create(p.conn, "FF", "prop", "Cổng đỏ", aliases="red torii gate")
+        assets.create(p.conn, "FF", "prop", "Cổng đỏ", require_english=True)       # the two Kho forms
+    aid = assets.create(p.conn, "FF", "prop", "Cổng đỏ", aliases="red torii gate", require_english=True)
     assert assets.get(p.conn, aid)["aliases"] == "red torii gate"
     assert assets.suggest_english_name("Cổng đỏ", "A red torii gate") == "torii gate"
     assert assets.suggest_english_name("KELLY", "") == "KELLY"
@@ -60,7 +60,8 @@ def test_project_description_anchor_and_mentioned_style_warn_without_characters(
     gaps = assets.reference_gaps(p.conn, pid, data)
     assert any("Cổng đỏ" in g and "khớp tên" in g for g in gaps)
     assert any("Parallel sky" in g and "chỉ dùng bằng chữ" in g for g in gaps)
-    assert all(assets.gap_severity(g) == "warn" for g in gaps)
+    assert [assets.gap_severity(g) for g in gaps if "Cổng đỏ" in g] == ["warn"]
+    assert [assets.gap_severity(g) for g in gaps if "Parallel sky" in g] == ["info"]     # rà 12/10: a film-wide style is a note
     assert not assets.reference_gaps(p.conn, pid, {"image_prompt": "a red wall"})
     assert not assets.reference_gaps(p.conn, pid, {"text": "LỜI DẪN: Parallel sky at a torii gate"})
 
@@ -88,33 +89,54 @@ def test_experimental_preset_never_enables_guard(p, monkeypatch):
         assert not features.on("asset_english_names")
 
 
-def test_automatic_ff_sync_reports_refused_row_and_keeps_next_row(p, monkeypatch):
+def test_automatic_ff_sync_creates_the_row_and_says_the_missing_english_name(p, monkeypatch):
+    """Rà 12/10: the VN site gives no aliases — skipping the row every month lost it; it is created and said."""
     from core import ff_site
     monkeypatch.setenv("FEATURE_ASSET_ENGLISH_NAMES", "1")
     items = [{"kind": "prop", "name": name, "text": "", "aliases": "", "images": []}
              for name in ("Cổng lạ", "KELLY")]
     with mock.patch.object(ff_site, "collect", return_value=items), mock.patch.object(ff_site, "sync_articles", return_value=0):
         report = ff_site.sync(p.conn, "FF", None, lambda url: "", lambda url: b"")
-    assert report["created"] == 1 and report["skipped"] == 1
-    assert "Cổng lạ" in ff_site.summary(report)
+    assert report["created"] == 2 and report["skipped"] == 0 and not report.get("name_errors")
     row = p.conn.execute("SELECT message FROM diag_events WHERE code='asset_english_name'").fetchone()
     assert row and "Cổng lạ" in row["message"] and "tiếng Anh" in row["message"]
 
 
-def test_costume_guard_fails_before_spend_and_does_not_guess_vietnamese_name(p, monkeypatch, tmp_path):
-    from core import costume
+def test_automatic_paths_without_a_name_box_are_never_refused(p, monkeypatch, tmp_path):
+    """Rà 12/10 (CAO): reference / outfit uploads, chat, 3D renders, folder sync have no box for an English name."""
     monkeypatch.setenv("FEATURE_ASSET_ENGLISH_NAMES", "1")
-    pid = p.create_project("t")
-    provider = mock.Mock()
-    provider.usage_info.return_value = (None, None)
-    p.conn.execute("INSERT INTO characters(project_id,name,description) VALUES (?,?,?)", (pid, "Cô gái", "A girl"))
-    p.conn.commit()
-    with mock.patch.object(costume.spend_gate, "spend") as spend:
-        with pytest.raises(assets.AssetError, match="tiếng Anh"):
-            costume.make_character_set(p, pid, "Cô gái", provider, str(tmp_path))
-    spend.assert_not_called()
-    provider.submit.assert_not_called()
+    aid = assets.create(p.conn, "FF", "character", "Cô gái")
+    assert assets.get(p.conn, aid)["name"] == "Cô gái"
+    assert p.conn.execute("SELECT COUNT(*) FROM diag_events WHERE code='asset_english_name'").fetchone()[0] == 1
 
+
+def test_qc_enum_is_not_refused_by_the_name_notes(p, monkeypatch):
+    """Rà 12/10 (CAO): core.qc_observe refuses on any reference gap — the D17 name / style notes must not count there."""
+    pid = p.create_project("t", game="FF")
+    style = assets.create(p.conn, "FF", "style", "Parallel sky")
+    assets.attach(p.conn, pid, style)
+    monkeypatch.setenv("FEATURE_ASSET_ENGLISH_NAMES", "1")
+    data = {"image_prompt": "Wide shot beneath Parallel sky", "characters": []}
+    assert assets.reference_gaps(p.conn, pid, data)
+    assert assets.reference_gaps(p.conn, pid, data, named=False) == []
+    import inspect
+    from core import qc_observe
+    assert all(assets.is_name_note(g) for g in assets.reference_gaps(p.conn, pid, data))
+    assert "is_name_note" in inspect.getsource(qc_observe)
+
+
+def test_costume_without_english_name_is_not_refused_and_alias_never_chains(p, monkeypatch, tmp_path):
+    """Rà 12/10: no box to type a name on the costume screen → not refused (said by assets.create); the English name of an earlier
+    outfit set ("Girl outfit 1") gives "Girl outfit 2", never "Girl outfit 1 outfit 2"."""
+    import re as _re
+    src = open(costume_path(), encoding="utf-8").read()
+    assert "require_english_name" not in src
+    assert _re.sub(r"(\s+outfit\s+\d+)+\s*$", "", "Girl outfit 1 outfit 2", flags=_re.I) == "Girl"
+
+
+def costume_path():
+    from core import costume
+    return costume.__file__
 
 def test_whole_vietnamese_phrase_without_accents_survives_english_guard(p, monkeypatch):
     monkeypatch.setenv("FEATURE_ASSET_ENGLISH_NAMES", "1")

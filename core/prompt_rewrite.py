@@ -367,7 +367,11 @@ def save_rewrite(p, job, res: RewriteResult, note: Optional[str] = None) -> int:
     p.conn.commit()
     from . import prompt_formula                          # F1-A (F0 mục 4b): the Director's rewrite is checked + compared to the old one
     prompt_formula.on_prompt_saved(p.conn, job["scene_id"], kind, res.old_prompt, res.new_prompt)
-    _done(p, job, res)
+    try:                                                  # rà 12/10: the new prompt is saved — a failing note never turns it into a fallback
+        _done(p, job, res)
+    except Exception as e:  # noqa: BLE001 - said on stderr
+        import sys
+        print(f"prompt_rewrite: không ghi được dòng DONE ({type(e).__name__}: {e})", file=sys.stderr)
     return res.version
 
 

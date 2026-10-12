@@ -146,7 +146,7 @@ def _prepare(p, job, path, criteria, data):
         cast = {str(n).upper() for n in data.get('characters') or []}
         from . import prompts
         from . import assets
-        gaps = assets.reference_gaps(p.conn, job['project_id'], data)
+        gaps = [g for g in assets.reference_gaps(p.conn, job['project_id'], data) if not assets.is_name_note(g)]   # rà 12/10: D17 notes never refuse QC
         if gaps: raise ValueError('Thiếu ảnh tham chiếu chuẩn: ' + '; '.join(gaps))
         refs = assets.scene_references(p.conn, job['project_id'], data)
         if cast and not any(r['role'] == 'character' for r in refs):

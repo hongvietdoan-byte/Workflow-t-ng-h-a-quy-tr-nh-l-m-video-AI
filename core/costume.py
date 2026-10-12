@@ -8,6 +8,7 @@ Two levels, both optional:
     "reference picture comes from" choice as any other), so every scene then copies one consistent look. Nothing to approve: the set
     is used as soon as it exists, and the person can switch back in the Character Bible.
 """
+import re
 import os
 import time
 from typing import Callable, Dict, List
@@ -62,7 +63,10 @@ def make_character_set(p: Pipeline, project_id: int, name: str, provider, data_d
         linked = assets.link_characters(p.conn, project_id, [name]).get(name)
         names = [name] + (assets.names_of(linked) if linked else [])
         english = next((n for n in names if assets._english_identifier(n)), "")
-        assets.require_english_name(base, f"{english} outfit" if english else "")
+        # rà 12/10: the linked entry may be an earlier outfit set ("Girl outfit 1") — never "Girl outfit 1 outfit 2"
+        english = re.sub(r"(\s+outfit\s+\d+)+\s*$", "", english, flags=re.I).strip()
+        # rà 12/10: no English name known → made without one and said by assets.create (no box to type it on this screen; never
+        # refused after paying, never before either)
         n = available_number(1 + p.conn.execute("SELECT COUNT(*) FROM assets WHERE project_id=? AND name LIKE ?",
                                                 (project_id, base + "%")).fetchone()[0])
     refs = _refs(p, project_id, name)
