@@ -18,6 +18,7 @@ from . import diag
 RAW_LIMIT = 16000
 LEASE_SECONDS = 900
 HEARTBEAT_SECONDS = 30
+PENDING_GRACE = 3600       # rà gộp 12/10: a call mark older than the run cap + this is a dead process's leftover
 MAX_RUN_SECONDS = 6 * 3600  # ngừng lượt treo dù PID và thread heartbeat còn sống
 _memory_paths = {}
 _memory_guard = threading.Lock()
@@ -173,10 +174,10 @@ def _active(row, db):
         return False
     pending = db.execute('SELECT 1 FROM pending_calls WHERE project=? AND owner=? AND count>0', (row[0], row[1])).fetchone()
     # rà gộp Đ15v2 (12/10): a "calling" mark left by a process that died mid-call, its PID then reused (Windows) — never held for ever:
-    # the whole-run cap applies to it too
-    if time.time() - row[3] >= MAX_RUN_SECONDS:
-        return False
-    return bool(pending or time.time() - row[4] < LEASE_SECONDS)
+    # a live call still holds past the run cap (no overlapping run), but not past PENDING_GRACE after it (a real call times out long before)
+    if pending and time.time() - row[3] < MAX_RUN_SECONDS + PENDING_GRACE:
+        return True
+    return time.time() - row[4] < LEASE_SECONDS and time.time() - row[3] < MAX_RUN_SECONDS
 
 
 def message(started):
