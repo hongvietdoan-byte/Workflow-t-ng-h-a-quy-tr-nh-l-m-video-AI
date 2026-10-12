@@ -5,7 +5,10 @@ restored — the real `data/feature_settings.json` (🧪 choices of production) 
 
 Every test run gets its own empty 🧪 settings file and uploaded-knowledge folder. A test that needs its own still sets the env var /
 patches as before (it wins: mock.patch.dict / monkeypatch run after this). PIPELINE_TEST_REAL_DATA=1 keeps the machine's data
-(only for a deliberate check)."""
+(only for a deliberate check).
+
+Parallel (pytest-xdist, `-n 8`): this file is imported once per worker process, so each worker gets its own folder above — no shared
+🧪 file between workers (hộp thư 13/10 việc 3)."""
 import os
 import shutil
 import tempfile
