@@ -453,6 +453,37 @@ def issues(conn, project_id: int, data: Dict) -> List[Dict]:
             elif sents:
                 out.append({"level": "warn", "part": "dao_cu",
                             "msg": f"chữ shot nhắc súng {a['name']} mà không ai trong shot được khóa súng này (đã khóa: {locked}) — kiểm lại"})
+        # hộp thư 14:35 (#27 shot 16): "four enemies … with SKORP submachine guns" — SKORP is KELLY's. Per clause: the SUBJECT (a present
+        # person named, or a group word: enemies / soldiers…) written before the gun verb / the gun, when the gun's owner is not among them
+        present = _present(conn, project_id, data)
+        table = {assets.fold(n): i for n, i in weapon_table(conn, project_id).items()}
+        group_rx = re.compile(r"(?<!\w)(?:enem(?:y|ies)|soldiers?|guards?|troops?|squad|they all|all of them|lính|địch|kẻ thù|cả nhóm|bọn)(?!\w)", re.I)
+        flagged = set()
+        for a in guns:
+            if a["id"] not in owners or a["id"] in flagged:
+                continue                                  # locked to nobody in the shot: handled above
+            mine = {assets.fold(n) for n in owners[a["id"]]}
+            for sent in _gun_sentences(_text, a):
+                for clause in re.split(r",|;|(?<!\w)(?:while|as|and then|but|whereas|trong khi|còn)(?!\w)", sent, flags=re.I):
+                    if not _gun_sentences(clause, a):
+                        continue
+                    act = _GUN_ACTION.search(clause)
+                    gun_at = min(m.start() for n in assets.names_of(a) if len(assets.fold(n)) >= 2
+                                 for m in re.finditer(r"(?<!\w)" + re.escape(n.strip()) + r"(?!\w)", clause, re.I))
+                    cut = min(act.start(), gun_at) if act else gun_at
+                    head = " " + assets.fold(clause[:cut]) + " "
+                    subjects = [n for n in present if " " + assets.fold(n) + " " in head]
+                    group = group_rx.search(clause[:cut])
+                    if any(assets.fold(n) in mine for n in subjects) or not (subjects or group):
+                        continue
+                    who = ", ".join(subjects) if subjects else group.group(0)
+                    out.append({"level": "red" if subjects and act else "warn", "part": "dao_cu",
+                                "msg": f"chữ shot cho {who} dùng {a['name']} — súng này khóa cho {', '.join(owners[a['id']])} (\"{clause.strip()[:80]}\"); "
+                                       "sửa theo bảng gán súng (mỗi người súng của mình)"})
+                    flagged.add(a["id"])
+                    break
+                if a["id"] in flagged:
+                    break
         nobody = _unlocked_people(conn, project_id, data)
         if nobody:
             out.append({"level": "warn", "part": "dao_cu",

@@ -165,6 +165,18 @@ class WeaponLockTest(unittest.TestCase):
         self.assertTrue(all("_paths" not in r for r in refs))
         self.assertIsNotNone(gate)
 
+    def test_someone_else_given_a_gun_locked_to_another_is_flagged(self):
+        """Hộp thư 14:35 (#27 shot 16): 'four enemies … with SKORP submachine guns' — SKORP is KELLY's."""
+        shot = {"characters": ["KELLY", "LÍNH ĐỊCH ÁO CHOÀNG"],
+                "image_prompt": "Kelly hides behind a wall. Four enemies in cloaks fire with SKORP submachine guns."}
+        warn = [i for i in self._issues(shot) if "khóa cho KELLY" in i["msg"]]
+        self.assertTrue(warn, self._issues(shot))
+        named = {"characters": ["KELLY", "LÍNH ĐỊCH ÁO CHOÀNG"],
+                 "image_prompt": "Lính địch áo choàng fires the SKORP at Kelly."}
+        self.assertTrue([i for i in self._issues(named) if i["level"] == "red" and "khóa cho KELLY" in i["msg"]])
+        mine = {"characters": ["KELLY", "LÍNH ĐỊCH ÁO CHOÀNG"], "image_prompt": "Kelly fires her SKORP while the enemies take cover."}
+        self.assertFalse([i for i in self._issues(mine) if "khóa cho KELLY" in i["msg"]])
+
 
 def test_weapon_select_saves_the_choice(tmp_path, monkeypatch):
     """Bước 1: one select per character (flag on, project has guns) — picking a gun locks it."""
