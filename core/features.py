@@ -507,6 +507,8 @@ FEATURES: Dict[str, Dict] = {
                "loại, ≈ 2,8 USD) dù prompt đã có 'chỉ lấy quần áo'. Câu mới đổi đầu ra model trả tiền và chưa thử — cần thử 1 shot rẻ "
                "(ảnh + clip 720p) trước khi bật",
     },
+    "continuity_layout": {"label": "Kiểm nhất quán hướng đi + bố cục giữa shot (VÀNG, báo cáo Đạo diễn)", "verified": False,
+        "why": "Hộp thư 12/10 15:51 (#27): hướng đi ghi trong image_prompt/blocking không được kiểm; đi ngược chiều vào cổng, cổng/tường đổi bên, đồng đội nằm biến mất"},
     "ambient_motion": {
         "label": "Lớp chuyển động nền nhẹ theo bối cảnh, thời tiết và giờ; thiếu thì VÀNG",
         "verified": False,
