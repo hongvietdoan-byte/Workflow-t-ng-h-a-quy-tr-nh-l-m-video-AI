@@ -43,9 +43,16 @@ def diff_html(old: str, new: str) -> str:
 
 def panel(p, scene_id: int, kind: str, act=None) -> bool:
     """Draw the panel for one shot (kind 'image' | 'video'). Returns True when something was shown."""
+    # Fallback có thể chưa lưu được phiên bản nào: vẫn nói rõ ngay trên thẻ shot.
+    last_event = p.conn.execute("SELECT code, message FROM diag_events WHERE scene_id=? AND stage=? "
+                                "AND code IN (?,?) ORDER BY last_at DESC, id DESC LIMIT 1",
+                                (scene_id, kind, prompt_rewrite.FALLBACK_CODE, prompt_rewrite.DONE_CODE)).fetchone()
+    fallback = last_event is not None and last_event["code"] == prompt_rewrite.FALLBACK_CODE
+    if fallback:
+        st.warning(last_event["message"])
     vers = prompt_rewrite.live_versions(p.conn, scene_id, kind)
     if not any(v["source"] == "director_rewrite" for v in vers):
-        return False
+        return fallback
     last = vers[-1]
     if last["source"] != "director_rewrite":                       # reverted: say which prompt is in use, nothing to compare
         st.caption(f"↩ Đang dùng prompt cũ (v{last['version']}) — Đạo diễn từng sửa prompt shot này")

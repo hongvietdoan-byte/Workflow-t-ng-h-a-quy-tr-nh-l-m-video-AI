@@ -60,10 +60,7 @@ def _now() -> str:
 def client_for(p):
     """The Claude client for the rewrite (ledger = this database, so the call is on the cost ledger and its warnings). None = not set up."""
     from . import llm_runner
-    try:
-        return llm_runner.client_from_env(ledger=llm_runner.db_file(p.conn))
-    except llm_runner.LlmError:
-        return None
+    return llm_runner.client_from_env(ledger=llm_runner.db_file(p.conn))
 
 
 # ---- the shot's prompt and its versions -----------------------------------------------------------------------------------------
@@ -161,6 +158,25 @@ def _block(title: str, obj) -> str:
     return f"# {title}\n```json\n{json.dumps(obj, ensure_ascii=False, indent=1)}\n```"
 
 
+def _prior_notes(p, job) -> List[str]:
+    """Ghi chú người dùng của đúng chuỗi lần gen; không lấy shot/loại khác."""
+    chain, seen = [], set()
+    current = job
+    while current is not None and current["id"] not in seen:
+        if current["scene_id"] != job["scene_id"] or current["type"] != job["type"]:
+            break
+        seen.add(current["id"])
+        chain.append(current["id"])
+        current = p.job(current["parent_job_id"]) if current["parent_job_id"] else None
+    notes = []
+    for jid in reversed(chain):
+        for row in p.conn.execute("SELECT note FROM review_log WHERE job_id=? AND reviewer_type='user' "
+                                  "AND decision='reject' ORDER BY id", (jid,)):
+            if row["note"] and row["note"].strip():
+                notes.append(row["note"])
+    return notes
+
+
 def build_prompt(p, job, kind: str, old: str, note: Optional[str], fix: Optional[str], qc: Optional[Dict], seen: int,
                  by: str = "user") -> str:
     from . import looks
@@ -184,6 +200,9 @@ def build_prompt(p, job, kind: str, old: str, note: Optional[str], fix: Optional
              + (f" Look dự án: {look}" + (" — KHÔNG dùng chữ tả thực." if look == "FF_INGAME" else ".") if look else ""),
              "# Prompt cũ của shot\n```text\n" + old + "\n```",
              _block("Bối cảnh shot (kịch bản — không thêm gì ngoài đây)", shot)]
+    history = _prior_notes(p, job)
+    if history:
+        parts.append(_block("Ghi chú các lần từ chối trước (giữ ý còn đúng; ghi chú mới ưu tiên nếu mâu thuẫn)", history))
     if note:
         parts.append("# Ghi chú\n" + note)
     if fix and fix != note:

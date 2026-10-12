@@ -14,6 +14,7 @@ from core.runner import RESEND_NOTE, model_fix
 BAD = {"character": 0.5, "hands_face": 0.4, "composition": 0.6, "mood": 0.5}
 OLD = "Kelly in a red jacket stands on the rooftop at dusk, medium shot"
 NEW = "Kelly in a yellow jacket stands on the rooftop at dusk, medium shot"
+REAL_CLIENT_FOR = prompt_rewrite.client_for
 ON = {"FEATURE_DIRECTOR_REWRITE": "1"}
 OFF = {"FEATURE_DIRECTOR_REWRITE": "0"}
 
@@ -465,3 +466,134 @@ class Diff(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ActualRetrySubmission(Base):
+    """Đ16v1: bắt đúng prompt gửi provider, không chỉ gọi helper viết lại."""
+
+    def ready(self, kind):
+        pid, sid, job = self.make(kind=kind)
+        old = 'Kelly beside a translucent amber wall, medium shot'
+        self.p.conn.execute('UPDATE scenes SET data=? WHERE id=?',
+                            (json.dumps({'image_prompt': old, 'characters': ['Kelly']}), sid))
+        self.p.conn.execute('UPDATE motion_prompts SET motion_prompt=?, duration_sec=4 WHERE scene_id=?', (old, sid))
+        if kind == 'video_gen':
+            image = self.p.create_job(sid, 'image_gen')
+            self.p.start(image)
+            self.p.succeed(image)
+            self.p.approve(image)
+        self.p.conn.commit()
+        return pid, sid, job
+
+    def send(self, pid, child, kind):
+        from core.providers import MockImageProvider, MockVideoProvider
+        from core.runner import ImageRunner, VideoRunner
+        if kind == 'image_gen':
+            provider = MockImageProvider()
+            runner = ImageRunner(self.p, provider, self.tmp)
+        else:
+            provider = MockVideoProvider()
+            runner = VideoRunner(self.p, provider, self.tmp)
+        with mock.patch.object(provider, 'submit', wraps=provider.submit) as submit:
+            self.assertEqual(runner.submit_pending(pid, only={child}), 1)
+        return submit.call_args.args[0 if kind == 'image_gen' else 1]
+
+    def test_two_user_notes_reach_director_and_actual_image_and_video_submit(self):
+        for kind in ('image_gen', 'video_gen'):
+            with self.subTest(kind=kind), mock.patch.dict(os.environ, ON):
+                pid, sid, job = self.ready(kind)
+                self.client.answer = {'new_prompt': 'Kelly beside an opaque white wall, medium shot'}
+                self.p.reject(job, 'user', note='tường trắng đục')
+                first = self.child(job)['id']
+                sent = self.send(pid, first, kind)
+                self.assertNotIn('translucent amber', sent)
+                self.p.succeed(first)
+                def complete(prompt, images=()):
+                    self.assertIn('tường trắng đục', prompt)
+                    self.assertIn('cầm súng bằng hai tay', prompt)
+                    return llm_runner.LlmReply(json.dumps({'new_prompt':
+                        'Kelly holding the SMG two-handed beside an opaque white wall, medium shot'}), 100, 50)
+                with mock.patch.object(self.client, 'complete', complete):
+                    self.p.reject(first, 'user', note='cầm súng bằng hai tay')
+                final = self.child(first)['id']
+                sent = self.send(pid, final, kind)
+                self.assertIn('opaque white', sent)
+                self.assertIn('two-handed', sent)
+                self.assertNotIn('translucent amber', sent)
+                self.assertNotIn('Fix:', sent)
+                self.assertEqual(len(prompt_rewrite.versions(self.p.conn, sid, prompt_rewrite.KINDS[kind])), 3)
+
+    def test_client_configuration_failure_preserves_cause_and_dashboard_fallback(self):
+        from dashboard.design.screens import prompt_versions_ui as ui
+        pid, sid, job = self.ready('image_gen')
+        with mock.patch.dict(os.environ, ON), mock.patch.object(llm_runner, 'client_from_env',
+                side_effect=llm_runner.LlmError('Không tìm thấy lệnh claude thử', code='config')):
+            # Không patch client_for: phải qua đúng caller tạo client, nhưng tuyệt đối không gọi API.
+            with mock.patch.object(prompt_rewrite, 'client_for', wraps=REAL_CLIENT_FOR):
+                self.p.reject(job, 'user', note='tường trắng đục')
+        sent = self.send(pid, self.child(job)['id'], 'image_gen')
+        self.assertIn('Fix: tường trắng đục', sent)
+        event = self.p.conn.execute('SELECT message FROM diag_events WHERE code=?',
+                                    (prompt_rewrite.FALLBACK_CODE,)).fetchone()
+        self.assertIn('Không tìm thấy lệnh claude thử', event['message'])
+        with mock.patch.object(ui.st, 'warning') as warning:
+            self.assertTrue(ui.panel(self.p, sid, 'image'))
+        self.assertIn('Không tìm thấy lệnh claude thử', warning.call_args[0][0])
+
+    def test_off_actual_submission_keeps_original_fix_bytes(self):
+        for kind in ('image_gen', 'video_gen'):
+            with self.subTest(kind=kind), mock.patch.dict(os.environ, OFF):
+                pid, sid, job = self.ready(kind)
+                self.p.reject(job, 'user', note='tường trắng đục')
+                sent = self.send(pid, self.child(job)['id'], kind)
+                self.assertIn('translucent amber', sent)
+                self.assertIn('Fix: tường trắng đục', sent)
+                self.assertEqual(prompt_rewrite.versions(self.p.conn, sid, prompt_rewrite.KINDS[kind]), [])
+        self.assertEqual(self.client.calls, [])
+
+    def test_history_is_limited_to_parent_chain_and_retained_after_fallback(self):
+        pid, sid, job = self.ready('image_gen')
+        other = self.p.create_job(sid, 'image_gen')
+        self.p.start(other)
+        self.p.succeed(other)
+        self.p.reject(other, 'user', note='ghi chú của nhánh khác', respawn=False)
+        with mock.patch.dict(os.environ, ON):
+            self.client.error = llm_runner.LlmError('Claude giả quá giờ', code='timeout')
+            self.p.reject(job, 'user', note='tường trắng đục')
+            first = self.child(job)['id']
+            self.send(pid, first, 'image_gen')
+            self.p.succeed(first)
+            self.client.error = None
+            self.client.answer = {'new_prompt': 'Kelly holding the SMG two-handed beside an opaque white wall'}
+            self.p.reject(first, 'user', note='cầm súng bằng hai tay')
+        prompt = self.client.calls[-1][0]
+        self.assertIn('tường trắng đục', prompt)
+        self.assertIn('cầm súng bằng hai tay', prompt)
+        self.assertNotIn('ghi chú của nhánh khác', prompt)
+        from dashboard.design.screens import prompt_versions_ui as ui
+        with mock.patch.object(ui.st, 'warning') as warning, mock.patch.object(ui.st, 'expander'), \
+                mock.patch.object(ui.st, 'caption'), mock.patch.object(ui.st, 'markdown'), \
+                mock.patch.object(ui.st, 'checkbox', return_value=False), \
+                mock.patch.object(ui.st, 'button', return_value=False):
+            self.assertTrue(ui.panel(self.p, sid, 'image'))
+        warning.assert_not_called()
+
+    def test_dashboard_repeated_fallback_after_success_uses_last_occurrence(self):
+        from core import diag
+        from dashboard.design.screens import prompt_versions_ui as ui
+        from datetime import datetime, timezone, timedelta
+        pid, sid, _ = self.ready('image_gen')
+        now = datetime.now(timezone.utc)
+        sequence = ((0, prompt_rewrite.FALLBACK_CODE, 'Lỗi giả lặp'),
+                    (1, prompt_rewrite.DONE_CODE, 'Đã viết giả'),
+                    (2, prompt_rewrite.FALLBACK_CODE, 'Lỗi giả lặp'))
+        for offset, code, message in sequence:
+            with mock.patch.object(diag, '_now', return_value=
+                    (now + timedelta(seconds=offset)).isoformat(timespec='seconds')):
+                diag.record(self.p.conn, 'image', 'warn' if code == prompt_rewrite.FALLBACK_CODE else 'info',
+                            message, code, pid, scene_id=sid)
+            with mock.patch.object(ui.st, 'warning') as warning:
+                self.assertEqual(ui.panel(self.p, sid, 'image'), code == prompt_rewrite.FALLBACK_CODE)
+            self.assertEqual(warning.call_count, int(code == prompt_rewrite.FALLBACK_CODE))
+        row = self.p.conn.execute('SELECT count FROM diag_events WHERE code=?',
+                                  (prompt_rewrite.FALLBACK_CODE,)).fetchone()
+        self.assertEqual(row['count'], 2)
