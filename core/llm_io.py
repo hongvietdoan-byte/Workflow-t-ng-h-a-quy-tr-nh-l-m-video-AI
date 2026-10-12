@@ -4,6 +4,8 @@ V0: the JSON is pasted from a Claude Desktop chat; V1: it comes from the API run
 Either way it passes through the same validators, so the runner is swappable.
 """
 import json
+import os
+import re
 from typing import Any, Dict, List, Mapping, Optional
 
 from . import access
@@ -592,6 +594,313 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
         from . import prompt_formula
         prompt_formula.on_prompt_saved(conn, row["id"], "image", before.get("image_prompt"), data.get("image_prompt"))
     return sorted(changed)
+
+
+# 12/10 #27 (tách shot 6 trong phòng → ngoài trời): fields of a v3 shot update_scene has no box for — written straight into the new
+# row's data after a type check (anything else is refused, never dropped silently)
+_INSERT_DIRECT = {
+    "action": lambda v: isinstance(v, str) and bool(v.strip()),
+    "end_state": lambda v: v is None or isinstance(v, str),
+    "action_peak": lambda v: v is None or isinstance(v, str),
+    "role": lambda v: isinstance(v, str),
+    "plate_spot": lambda v: isinstance(v, str),
+    "plate_view": lambda v: isinstance(v, (dict, str)) or (isinstance(v, (int, float)) and not isinstance(v, bool)),
+    "practical_lights": lambda v: isinstance(v, list),
+    "weather": lambda v: isinstance(v, str),
+    "lens_mm": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0,
+    "continuous_with_next": lambda v: isinstance(v, bool),
+    "camera_setup": lambda v: v is None or isinstance(v, str),
+    "on_screen_text": lambda v: isinstance(v, list),
+    "lip_sync": lambda v: isinstance(v, bool),
+    "camera_move": None,                                   # checked against shots.MOVES below
+    "beat": None,                                          # _check_beat
+}
+# what update_scene itself checks and stores
+_INSERT_VIA_UPDATE = set(SCENE_FIELDS) | {"characters", "location_asset", "sequence", "continuity_from", "camera_complexity",
+                                          "shot_role", "duration_s", "dialogue", "size", "angle", "move", "video_route",
+                                          "transition_in", "start_from_prev_clip", "shake_in", "performance", "why"}
+_SHOT_FILE = re.compile(r"^S?(\d+)(?:[._])")              # videos/07.mp4, 07_raw.mp4, 07_t4a.mp4 · layouts/S07.png, S07_board.png
+
+
+def _files_by_shot_number(data_dir: str, project_id: int, after_idx: int) -> List[str]:
+    """Files of this project named by a shot number that would move (> after_idx): renaming them safely is not done here — the
+    clip/layout of shot N would be read as the NEW shot N's. Also the trash: a trashed clip is restored to videos/NN.mp4."""
+    base = os.path.join(data_dir, str(project_id))
+    found = []
+    for sub in ("videos", "layouts"):
+        folder = os.path.join(base, sub)
+        for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+            m = _SHOT_FILE.match(name)
+            if m and os.path.isfile(os.path.join(folder, name)) and int(m.group(1)) > after_idx:
+                found.append(f"{sub}/{name}")
+    trash = os.path.join(base, "trash")
+    for kind in sorted(os.listdir(trash)) if os.path.isdir(trash) else []:
+        try:
+            with open(os.path.join(trash, kind, "trash.json"), encoding="utf-8") as f:
+                entries = json.load(f)
+        except (OSError, ValueError):
+            continue
+        for e in entries if isinstance(entries, list) else []:
+            orig = str((e or {}).get("original") or "").replace("\\", "/")
+            sub, _, name = orig.partition("/")
+            m = _SHOT_FILE.match(name) if sub in ("videos", "layouts") else None
+            if m and int(m.group(1)) > after_idx:
+                found.append(f"trash/{kind}: {orig}")
+    return found
+
+
+# 12/10 rà: text naming a shot BY NUMBER ("as in shot 18", "S07") moves with the shot — the #27 shots 15/17 blocking said "shot 18"
+_SHOT_WORD = re.compile(r"(?i)(?<!·\s)(?<!·)\b(shot\s+)(\d+)\b")          # "shot 18" (not the title form "CẢNH 3 · shot 2")
+_S_WORD = re.compile(r"\bS(\d{1,3})\b(?!\s*·)")                          # "S07" standing alone (not the label "S03·2" = script scene)
+_TEXT_KEYS = ("image_prompt", "blocking", "location", "layout", "action", "text", "why", "end_state", "emotional_intent",
+              "action_peak", "camera_setup")
+
+
+def _shift_text(value, after_idx: int):
+    if not isinstance(value, str):
+        return value
+    value = _SHOT_WORD.sub(lambda m: m.group(1) + str(int(m.group(2)) + 1) if int(m.group(2)) > after_idx else m.group(0), value)
+    return _S_WORD.sub(lambda m: "S" + f"{int(m.group(1)) + 1:0{len(m.group(1))}d}" if int(m.group(1)) > after_idx else m.group(0),
+                       value)
+
+
+def _write_json_atomic(path: str, obj) -> None:
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, path)
+
+
+def _trash_entries(data_dir: str, project_id: int) -> Dict[str, List]:
+    trash = os.path.join(data_dir, str(project_id), "trash")
+    out = {}
+    for kind in sorted(os.listdir(trash)) if os.path.isdir(trash) else []:
+        path = os.path.join(trash, kind, "trash.json")
+        try:
+            with open(path, encoding="utf-8") as f:
+                entries = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if isinstance(entries, list):
+            out[path] = entries
+    return out
+
+
+def insert_scene_after(pipeline: Pipeline, project_id: int, after_idx: int, fields: Mapping[str, Any], text: Optional[str] = None,
+                       *, data_dir: Optional[str] = None) -> int:
+    """12/10 #27: insert ONE new shot right after shot `after_idx` (a shot split in two); returns its idx (= after_idx + 1).
+
+    Every shot after it moves up by one, in one transaction (BEGIN IMMEDIATE), and everything that names a shot BY NUMBER follows:
+    `continuity_from` of every shot, "shot N" / "SNN" written in the shots' text fields (_TEXT_KEYS) and motion prompts, `shot_no`
+    (+ title) of the later shots of the same script scene, the sound effects anchored to a shot number (audio_assets anchor_idx), the
+    voice lines' label (scene_idx) and the trash entries' scene_idx. What is kept by scene id (pictures, jobs, takes, plates/index.json,
+    voice lines, pilot, diag) needs nothing. Refused (SchemaError, nothing changed) when files named by a moving shot number exist
+    (videos/NN*.mp4, layouts/SNN*.png, those in the trash) or a video of a moving shot (or of a group clip with one) is on its way.
+
+    The new shot: story_scene + sequence of shot `after_idx` (`sequence` in fields overrides), shot_no right after it, no
+    picture/motion/job; `fields` go through update_scene (same checks, 🔒 kept by a Director re-run, one change event = one hand edit)
+    — image_prompt, action (or text), duration_s and plate_spot (the storyboard anchor / own camera of its script scene) are required;
+    the v3 fields update_scene has no box for (_INSERT_DIRECT) are type-checked and written as set by hand. `continuity_from` in
+    `fields` uses the NEW numbering. The moved shots keep their approved pictures / motion prompts / clips, NOT outdated: a stamp that
+    matched before is re-stamped (only shot numbers changed), and the renumbering change events of the moved shots are marked
+    'skipped' (no paid change review). No Claude call."""
+    if not data_dir:
+        raise ValueError("insert_scene_after cần data_dir (thư mục dự án) để kiểm tệp đặt tên theo số shot và dời âm thanh neo theo shot")
+    access.need_edit(pipeline, project_id, "chèn shot")
+    from . import diag, lineage, prompt_formula, scene_storyboard, shots as _shots
+    conn = pipeline.conn
+    after_idx = int(after_idx)
+    fields = dict(fields or {})
+    prev = conn.execute("SELECT id, title, data FROM scenes WHERE project_id=? AND idx=?", (project_id, after_idx)).fetchone()
+    if prev is None:
+        raise KeyError(f"Shot {after_idx} không có trong dự án #{project_id} — không chèn được shot sau nó.")
+    # ---- inputs checked BEFORE anything moves (không im lặng khi thiếu đầu vào)
+    unknown = sorted(set(fields) - set(_INSERT_DIRECT) - _INSERT_VIA_UPDATE)
+    if unknown:
+        raise SchemaError(f"chèn shot: không nhận trường {', '.join(unknown)} (máy 3D / trường khác phải đặt sau, bằng công cụ của nó)")
+    if not isinstance(fields.get("image_prompt"), str) or not fields["image_prompt"].strip():
+        raise SchemaError("chèn shot: thiếu image_prompt (prompt ảnh của shot mới)")
+    if not (isinstance(fields.get("action"), str) and fields["action"].strip()) and not (text or "").strip():
+        raise SchemaError("chèn shot: thiếu action (hoặc text) — shot mới làm gì")
+    if fields.get("duration_s") in (None, ""):
+        raise SchemaError("chèn shot: thiếu duration_s (số giây của shot mới)")
+    if not isinstance(fields.get("plate_spot"), str) or not fields["plate_spot"].strip():
+        raise SchemaError("chèn shot: thiếu plate_spot (chỗ đứng trên bối cảnh 3D) — không có thì shot mới vẽ theo ảnh neo storyboard "
+                          "của cảnh kịch bản (có thể là nền khác)")
+    direct = {}
+    for key in _INSERT_DIRECT:
+        if key not in fields:
+            continue
+        value = fields[key]
+        if key == "camera_move":
+            if value not in _shots.MOVES:
+                raise SchemaError(f"camera_move: chọn một trong {', '.join(_shots.MOVES)}")
+        elif key == "beat":
+            _check_beat(value, "beat")
+        elif not _INSERT_DIRECT[key](value):
+            raise SchemaError(f"{key}: giá trị không hợp lệ ({value!r})")
+        direct[key] = value.strip() if isinstance(value, str) else value
+    files = _files_by_shot_number(data_dir, project_id, after_idx)
+    if files:
+        raise SchemaError(f"Không chèn shot sau shot {after_idx}: đã có tệp đặt tên theo số shot sẽ bị dời ({', '.join(files[:6])}"
+                          + (f" … +{len(files) - 6}" if len(files) > 6 else "") + ") — đổi số an toàn chưa làm; xử lý các tệp đó trước.")
+    audio_dir = os.path.join(data_dir, str(project_id), "audio_assets")
+    items = _audio_items(audio_dir)
+    trashed = _trash_entries(data_dir, project_id)
+    prev_data = json.loads(prev["data"] or "{}")
+    story, no = prev_data.get("story_scene"), prev_data.get("shot_no")
+    old_anchor = scene_storyboard.anchor_of(scene_storyboard.scene_shots(conn, project_id, story)) if story and no else None
+
+    # ---- one transaction, write lock taken first: move, renumber, insert, then update_scene commits it all (error → rollback)
+    if not conn.in_transaction:
+        conn.execute("BEGIN IMMEDIATE")
+    try:
+        # a clip on its way is cut into videos/NN.mp4 of its group's shots: only one touching a moving shot is a problem
+        moving = {r[0] for r in conn.execute(
+            "SELECT COALESCE(j.group_leader, j.id) FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? "
+            "AND j.type='video_gen' AND s.idx>?", (project_id, after_idx))}
+        live = [r for r in conn.execute(
+            "SELECT j.id, s.idx, COALESCE(j.group_leader, j.id) AS g FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? "
+            "AND j.type='video_gen' AND j.state IN ('queued','running','retryable') ORDER BY j.id", (project_id,)) if r["g"] in moving]
+        if live:
+            raise SchemaError(f"Không chèn shot: video của shot sẽ bị dời đang chạy/chờ gửi (job {', '.join(str(r['id']) for r in live[:6])})"
+                              " — clip được cắt vào videos/NN.mp4 theo số shot; chờ xong hoặc hủy rồi chèn.")
+        cast_rows = conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,)).fetchall()
+        proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
+        aspect = lineage._aspect(conn, project_id)
+        last_event = conn.execute("SELECT COALESCE(MAX(id), 0) FROM change_events").fetchone()[0]
+        conn.execute("UPDATE scenes SET idx=-(idx+1) WHERE project_id=? AND idx>?", (project_id, after_idx))   # UNIQUE(project_id, idx):
+        conn.execute("UPDATE scenes SET idx=-idx WHERE project_id=? AND idx<0", (project_id,))                # via negatives
+        renumbered = []
+        for r in conn.execute("SELECT id, idx, title, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall():
+            d = json.loads(r["data"] or "{}")
+            new, title = dict(d), r["title"]
+            cf = d.get("continuity_from")
+            if isinstance(cf, int) and not isinstance(cf, bool) and cf > after_idx:
+                new["continuity_from"] = cf + 1
+            if (r["idx"] > after_idx and no and d.get("story_scene") == story
+                    and isinstance(d.get("shot_no"), int) and d["shot_no"] > no):
+                new["shot_no"] = d["shot_no"] + 1
+                title = _retitle(title, new["shot_no"])
+            for key in _TEXT_KEYS:
+                if isinstance(d.get(key), str):
+                    new[key] = _shift_text(d[key], after_idx)
+            mp = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (r["id"],)).fetchone()
+            mp_old = mp["motion_prompt"] if mp is not None else None
+            mp_new = _shift_text(mp_old, after_idx)
+            fc = d.get("formula_check")
+            if isinstance(fc, dict):                       # the formula verdict is of the same words: keep it "checked"
+                fc = dict(fc)
+                if new.get("image_prompt") != d.get("image_prompt") and fc.get("image_sha") == prompt_formula._sha(d.get("image_prompt")):
+                    fc["image_sha"] = prompt_formula._sha(new.get("image_prompt"))
+                if mp_new != mp_old and fc.get("motion_sha") == prompt_formula._sha(mp_old):
+                    fc["motion_sha"] = prompt_formula._sha(mp_new)
+                new["formula_check"] = fc
+            if new == d and title == r["title"] and mp_new == mp_old:
+                continue
+            place = lineage.place_key(conn, project_id, d)
+            olds = {lineage._image_hash(d, cast_rows, aspect, proj): lineage._image_hash(new, cast_rows, aspect, proj),
+                    lineage._image_hash(d, cast_rows, aspect, proj, place): lineage._image_hash(new, cast_rows, aspect, proj, place)}
+            for j in conn.execute("SELECT id, input_hash FROM jobs WHERE scene_id=? AND type='image_gen' AND input_hash IS NOT NULL",
+                                  (r["id"],)).fetchall():
+                if j["input_hash"] in olds:            # fresh before = fresh after: only the shot NUMBERS it names moved
+                    conn.execute("UPDATE jobs SET input_hash=? WHERE id=?", (olds[j["input_hash"]], j["id"]))
+            if mp is not None:
+                old_row, new_row = dict(mp), dict(mp, motion_prompt=mp_new)
+                spec = mp["spec_hash"]
+                if spec and spec == lineage.motion_spec_hash(d):
+                    spec = lineage.motion_spec_hash(new)
+                conn.execute("UPDATE motion_prompts SET motion_prompt=?, spec_hash=? WHERE id=?", (mp_new, spec, mp["id"]))
+                if mp_new != mp_old:                   # a clip made from this prompt: same words but the number → same stamp
+                    models = lineage._video_model(conn, r["id"], proj, old_row)
+                    models = models if isinstance(models, list) else [models]
+                    audio = lineage._audio(proj)
+                    vids = {lineage.video_input_hash(old_row, aspect): lineage.video_input_hash(new_row, aspect)}
+                    vids.update({lineage.video_input_hash(old_row, aspect, m, audio): lineage.video_input_hash(new_row, aspect, m, audio)
+                                 for m in models if m is not None})
+                    for j in conn.execute("SELECT id, input_hash FROM jobs WHERE scene_id=? AND type='video_gen' AND input_hash IS NOT NULL",
+                                          (r["id"],)).fetchall():
+                        if j["input_hash"] in vids:
+                            conn.execute("UPDATE jobs SET input_hash=? WHERE id=?", (vids[j["input_hash"]], j["id"]))
+            conn.execute("UPDATE scenes SET title=?, data=? WHERE id=?", (title, json.dumps(new, ensure_ascii=False), r["id"]))
+            renumbered.append(r["id"])
+        base = {k: prev_data[k] for k in ("story_scene", "sequence") if k in prev_data}
+        if no:
+            base["shot_no"] = no + 1
+        base.update(direct)
+        if "text" not in base and direct.get("action"):
+            base["text"] = direct["action"]
+        base["_user_locked"] = sorted(direct)
+        title = _retitle(prev["title"], no + 1) if no else f"Shot {after_idx + 1}"
+        conn.execute("INSERT INTO scenes (project_id, idx, title, state, data) VALUES (?,?,?,?,?)",
+                     (project_id, after_idx + 1, title, "ready", json.dumps(base, ensure_ascii=False)))
+        if renumbered:                                  # only the moved shots' own renumbering — never another edit's event
+            conn.execute("UPDATE change_events SET state='skipped', reviewed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), "
+                         "note='chèn shot: chỉ dời số shot (continuity_from / shot_no / số shot trong chữ), nội dung không đổi' "
+                         f"WHERE id>? AND kind='scene' AND project_id=? AND scene_id IN ({','.join('?' * len(renumbered))})",
+                         (last_event, project_id, *renumbered))
+        update_scene(pipeline, project_id, after_idx + 1, fields, text=text)   # checks + 🔒 + ONE change event; commits everything
+    except BaseException:
+        conn.rollback()
+        raise
+    # ---- files (after the commit): sounds anchored to a shot number, the voice lines' shot label, the trash entries' shot label
+    moved = False
+    for e in items:
+        for key in ("anchor_idx", "scene_idx"):
+            v = e.get(key)
+            if isinstance(v, int) and not isinstance(v, bool) and v > after_idx:
+                e[key] = v + 1
+                moved = True
+    trash_moved = {}
+    for path, entries in trashed.items():
+        hit = False
+        for e in entries:
+            v = e.get("scene_idx") if isinstance(e, dict) else None
+            if isinstance(v, int) and not isinstance(v, bool) and v > after_idx:
+                e["scene_idx"] = v + 1
+                hit = True
+        if hit:
+            trash_moved[path] = entries
+    try:
+        if moved:
+            from . import audio_lib
+            _write_json_atomic(audio_lib._manifest(audio_dir), items)
+        for path, entries in trash_moved.items():
+            _write_json_atomic(path, entries)
+    except OSError as e:
+        diag.record(conn, "system", "error", f"Đã chèn shot {after_idx + 1} nhưng KHÔNG dời được số shot trong tệp (âm thanh "
+                    f"{audio_dir} / thùng rác): {e} — sửa anchor_idx/scene_idx > {after_idx} thêm 1 bằng tay", "insert_scene", project_id)
+        raise
+    new_id = conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?", (project_id, after_idx + 1)).fetchone()["id"]
+    notes = [f"Chèn shot {after_idx + 1} sau shot {after_idx}; shot {after_idx + 1}+ cũ dời +1"
+             + (f", {len(renumbered)} shot đổi số tham chiếu (continuity_from / shot_no / số shot trong chữ)" if renumbered else "")]
+    if prev_data.get("continuous_with_next"):
+        notes.append(f"shot {after_idx} có continuous_with_next — giờ nối vào shot MỚI {after_idx + 1}")
+    nxt = conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx=?", (project_id, after_idx + 2)).fetchone()
+    if nxt is not None and json.loads(nxt["data"] or "{}").get("start_from_prev_clip"):
+        notes.append(f"shot {after_idx + 2} có start_from_prev_clip — giờ bắt đầu từ khung cuối shot MỚI {after_idx + 1}")
+    g = scene_storyboard.group_of(conn, project_id, new_id)
+    if g:                                               # storyboard (cờ storyboard_api): the widest shot of the scene is its anchor
+        anchor = g["anchor"]
+        if anchor["id"] == new_id:
+            was = f" (trước là shot {old_anchor['idx'] + (1 if old_anchor['idx'] > after_idx else 0)})" if old_anchor else ""
+            notes.append(f"shot MỚI {after_idx + 1} thành ẢNH NEO storyboard của cảnh {story}{was} — các shot khác của cảnh vẽ lại "
+                         "sẽ theo ảnh của nó")
+        elif scene_storyboard.uses_anchor(g, new_id):
+            notes.append(f"shot MỚI {after_idx + 1} vẽ theo ảnh neo storyboard shot {anchor['idx']} của cảnh {story} "
+                         "(cùng plate_spot) — kiểm nền có đúng chỗ không")
+    diag.record(conn, "director", "warn" if len(notes) > 1 else "info", "; ".join(notes), "insert_scene", project_id)
+    return after_idx + 1
+
+
+def _retitle(title: Optional[str], shot_no: int) -> str:
+    head, sep, _ = str(title or "").rpartition(" · shot ")
+    return f"{head} · shot {shot_no}" if sep else (title or f"shot {shot_no}")
+
+
+def _audio_items(directory: str) -> List[Dict]:
+    from . import audio_lib
+    return audio_lib.load(directory) if os.path.isdir(directory) else []
 
 
 def add_character(pipeline: Pipeline, project_id: int, name: str, description: str,
