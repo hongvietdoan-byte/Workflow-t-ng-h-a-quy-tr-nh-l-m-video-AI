@@ -179,12 +179,78 @@ def round_once(db_path: str, data_dir: str) -> Dict:
             out[(0, "change_review")] = review
         out.update(poll_all(conn, make))
         out.update({(pid, f"{kind}_send"): r for (pid, kind), r in send_ready(conn, make).items()})   # lỗi A
+        try:                                           # hộp thư 12/10 17:58; its failure never loses the round's sends
+            out.update({(pid, "autoqc"): r for pid, r in autoqc_round(conn, db_path, data_dir).items()})
+        except Exception as e:  # noqa: BLE001 - said
+            _say(conn, None, "warn", f"vòng nền: tự kiểm tra lỗi {type(e).__name__}: {e}", "bg_autoqc_error")
         return out
     finally:
         try:
             conn.close()
         except Exception:  # noqa: BLE001
             pass
+
+
+PAGE_SKIPS = ("running", "queued")   # dashboard/widgets.py: the page leaves the check to a RUNNING / QUEUED automatic run (not WAITING)
+AUTOQC_TRIES = 2                     # CHUẨN: the same input at most twice — then the person decides
+_autoqc_tries: Dict[Tuple[str, int, str], Tuple[Tuple[int, ...], int]] = {}
+
+
+def autoqc_round(conn, db_path: str, data_dir: str) -> Dict[int, str]:
+    """Hộp thư 12/10 17:58 (#27 job 756, 762–771 sat 'succeeded' ~1 hour): the automatic picture / clip check only started when someone
+    had the project's page open (dashboard/widgets.py) or an automatic run was going. With the flag `bg_autoqc` the background loop
+    starts it too, with the SAME rule as the page: not when a running / queued automatic run owns the project (it checks itself), not
+    in operating mode 'auto' for pictures, never twice at once (core.autoqc: one check per project, OS lock across processes), Claude
+    through the cost ledger + Claude cap (autoqc's own client factory).
+    Rà 12/10: a check that leaves the SAME pictures 'succeeded' (Claude answer unusable, scene not complete yet, Claude blocked) is not
+    restarted every 30 s — at most AUTOQC_TRIES starts per unchanged set of jobs, then one warning that the person must look; a new
+    picture / clip changes the set and the check may start again. {project: "image" / "video" / "image+video"} for the checks started."""
+    from . import features
+    if not features.on("bg_autoqc"):
+        return {}
+    from . import autoqc
+    rows = conn.execute(
+        "SELECT p.id, COALESCE(p.operating_mode,'') AS mode FROM projects p WHERE COALESCE(p.paused,0)=0 AND COALESCE(p.archived,0)=0 "
+        "AND COALESCE(p.autopilot_state,'') NOT IN (" + ",".join("?" * len(PAGE_SKIPS)) + ") AND EXISTS (SELECT 1 FROM jobs j "
+        "WHERE j.project_id=p.id AND j.type IN ('image_gen','video_gen') AND j.state='succeeded')", PAGE_SKIPS).fetchall()
+    out: Dict[int, str] = {}
+    for r in rows:
+        pid, started = r["id"], []
+        for kind, job_type, go in (("image", "image_gen", autoqc.start), ("video", "video_gen", autoqc.start_video)):
+            if kind == "image" and r["mode"] == "auto":
+                continue
+            sig = tuple(x[0] for x in conn.execute("SELECT id FROM jobs WHERE project_id=? AND type=? AND state='succeeded' ORDER BY id",
+                                                   (pid, job_type)))
+            if not sig:
+                continue
+            last, n = _autoqc_tries.get((db_path, pid, kind), ((), 0))
+            n = n if last == sig else 0
+            if n >= AUTOQC_TRIES:
+                if n == AUTOQC_TRIES:                 # said once per unchanged set
+                    _autoqc_tries[(db_path, pid, kind)] = (sig, n + 1)
+                    _say(conn, pid, "warn", f"vòng nền đã bắt đầu tự kiểm tra {'ảnh' if kind == 'image' else 'clip'} dự án #{pid} "
+                         f"{AUTOQC_TRIES} lần mà {len(sig)} job vẫn chờ (cảnh chưa đủ khung / Claude lỗi hoặc bị chặn) — không tự gọi "
+                         "lại tới khi có job mới; mở trang dự án để xem lỗi và kiểm tay", "bg_autoqc_stuck")
+                continue
+            try:
+                if go(db_path, data_dir, pid):
+                    _autoqc_tries[(db_path, pid, kind)] = (sig, n + 1)
+                    started.append(kind)
+            except Exception as e:  # noqa: BLE001 - one project's problem never stops the others; said
+                _autoqc_tries[(db_path, pid, kind)] = (sig, n + 1)
+                _say(conn, pid, "warn", f"vòng nền không bắt đầu được tự kiểm tra dự án #{pid}: {type(e).__name__}: {e}", "bg_autoqc_error")
+        if started:
+            out[pid] = "+".join(started)
+            _say(conn, pid, "info", f"vòng nền bắt đầu tự kiểm tra {' + '.join('ảnh' if k == 'image' else 'clip' for k in started)} "
+                 f"dự án #{pid} (không cần mở trang)", "bg_autoqc")
+    return out
+
+
+def _say(conn, pid: Optional[int], level: str, msg: str, code: str) -> None:
+    try:
+        diag.record(conn, "qc", level, msg, code, project_id=pid)
+    except Exception:  # noqa: BLE001 - a note never stops the round
+        pass
 
 
 def change_review_round(conn, data_dir: str) -> Optional[Dict]:

@@ -108,6 +108,32 @@ class NewPropVariant(Base):
         with mock.patch.dict(os.environ, {"FEATURE_PROJECT_PROP_LOCK": "0"}):
             self.assertIn("OB56", prompt_rewrite.propose_rewrite(self.p, job, client=client).new_prompt)
 
+    def test_positive_part_of_a_mixed_note_still_authorizes(self):
+        """Rà 12/10: "đổi sang skin X, không dùng bản mặc định" — the negation drops only its own part, not the asked-for skin."""
+        from core.prompt_rewrite import _variant_instruction as V
+        for note in ("Đổi sang skin Gloowall OB56, không dùng bản mặc định", "Use the skin Gloowall OB56, not the default one",
+                     "Skin sai, đổi sang skin Gloowall OB56"):
+            with self.subTest(note=note):
+                self.assertIn("OB56", V(note))
+        for note in ("Không dùng skin Gloowall OB56", "Lần trước dùng skin Gloowall OB56", "previous take used skin Gloowall OB56",
+                     "Do not use skin Gloowall OB56; keep default white wall."):
+            with self.subTest(note=note):
+                self.assertNotIn("OB56", V(note))
+
+    def test_variant_in_the_shot_action_is_allowed(self):
+        """Rà 12/10 L4: a skin the shot's own action names is not "added" by the Director."""
+        pid, sid, jid = self.make()
+        c = self.p.conn
+        aid = c.execute("INSERT INTO assets(game,kind,name,aliases,description) VALUES ('FF','prop','Bom keo','Gloowall','wall')").lastrowid
+        c.execute("INSERT INTO project_assets(project_id,asset_id) VALUES (?,?)", (pid, aid))
+        c.execute("INSERT INTO asset_images(asset_id,path,variant,status) VALUES (?,?,?,'approved')", (aid, "missing.png", "skin Gloowall OB56"))
+        c.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"image_prompt": NEW, "action": "Kelly throws skin Gloowall OB56"}), sid))
+        c.commit()
+        job = c.execute("SELECT * FROM jobs WHERE id=?", (jid,)).fetchone()
+        client = FakeClient({"new_prompt": NEW + "; skin Gloowall OB56", "changed": ["wall"], "why": "wall"})
+        with mock.patch.dict(os.environ, {"FEATURE_PROJECT_PROP_LOCK": "1"}):
+            self.assertIn("OB56", prompt_rewrite.propose_rewrite(self.p, job, client=client).new_prompt)
+
     def test_rewrite_rejects_new_variant_unless_old_or_note_authorizes(self):
         pid, sid, jid = self.make()
         c = self.p.conn

@@ -149,7 +149,7 @@ def test_real_render_popup_timing_sound_safe_box_and_green(tmp_path):
          patch('core.end_popup.resolve', return_value=[{'path': str(icon), 'label': '', 'remove_green': True}]):
         report = shot_popup.apply(c, 1, video, rows, [a, b], settings, 'tiktok', [2, 2])
     assert report[0]['muc'] == 'xanh'
-    assert report[0]['render']['pops_s'] == [1.5]
+    assert report[0]['render']['pops_s'] == [1.25]          # rà 12/10: ends 1.75 s, where the 0.25 s crossfade to shot 2 begins
     assert report[0]['render']['held_s'] == 0
     assert abs(ffmpeg_studio.probe_duration(video) - 3.75) < .08
     def pixels(t):
@@ -158,7 +158,9 @@ def test_real_render_popup_timing_sound_safe_box_and_green(tmp_path):
         return Image.frombytes('RGB', (320, 480), raw)
     for t in (1.0, 2.3, 3.5):
         assert max(pixels(t).getextrema()[0]) < 12
-    frame = pixels(1.9)
+    late = pixels(1.9)                                       # during the crossfade: the icon is gone already
+    assert not [1 for y in range(0, 480, 4) for x in range(0, 320, 4) if late.getpixel((x, y))[0] > 100 and late.getpixel((x, y))[1] < 60]
+    frame = pixels(1.6)
     red = [(x, y) for y in range(480) for x in range(320)
            if frame.getpixel((x, y))[0] > 100 and frame.getpixel((x, y))[1] < 60]
     assert red
@@ -169,8 +171,8 @@ def test_real_render_popup_timing_sound_safe_box_and_green(tmp_path):
     def rms(start, end):
         values = samples[int(start * 48000):int(end * 48000)]
         return math.sqrt(sum(v*v for v in values) / len(values))
-    assert rms(1.51, 1.62) > .01
-    assert rms(1.1, 1.3) < .001
+    assert rms(1.26, 1.37) > .01
+    assert rms(0.9, 1.2) < .001
     assert rms(2.1, 2.3) < .001
 
 
@@ -363,3 +365,64 @@ def test_relative_output_video_is_normalized_before_replace_and_cleanup(tmp_path
     assert report[0]['muc']=='xanh'
     assert source.read_bytes()==b'popup'
     assert not Path(str(source)+'.shot_popup.mp4').exists()
+
+
+def test_popup_ends_before_the_transition_to_the_next_shot():
+    """Rà 12/10: shot 1 of 3 × 4 s with a 1 s crossfade — the icon ends at 3 s (where the fade starts), not on the fade / black."""
+    c = connection({'asset_id': 432, 'at': 'end', 'seconds': 1.5, 'pop_sound': False})
+    rows = [{'scene_id': 1, 'path': 'a'}, {'scene_id': 2, 'path': 'b'}, {'scene_id': 3, 'path': 'c'}]
+    with patch('core.ffmpeg_studio.probe_duration', return_value=4):
+        plan = shot_popup.plan(c, 1, rows, ['a', 'b', 'c'], 'crossfade', 1, [4, 4, 4])
+    assert (plan[0]['start_s'], plan[0]['end_s']) == (1.5, 3.0)
+    with patch('core.ffmpeg_studio.probe_duration', return_value=4):
+        plan = shot_popup.plan(c, 1, rows, ['a', 'b', 'c'], 'cut', 1, [4, 4, 4])
+    assert plan[0]['end_s'] == 4.0                          # a hard cut has no transition to avoid
+
+
+def test_fingerprint_without_any_popup_keeps_the_old_hash():
+    """Rà 12/10: turning the flag on must not mark every project's cut as stale."""
+    c = connection({'asset_id': 432})
+    c.execute("UPDATE scenes SET data='{}'")
+    p = SimpleNamespace(conn=c)
+    with patch('core.features.on', return_value=True), patch('core.subtitles.get_settings', return_value={'platform': 'tiktok'}):
+        assert shot_popup.fingerprint(p, 1) is None
+        assert delivery._render_hash(p, 1, delivery.DEFAULTS) == delivery.render_hash(delivery.DEFAULTS)
+
+
+def test_bad_pop_sound_keeps_the_icon_and_says_so(tmp_path):
+    """Rà 12/10: a pop sound that is a name / missing file loses only the sound (VÀNG), the icon is still put on."""
+    c = connection({'asset_id': 432, 'seconds': 1, 'pop_sound': 'Không có tiếng này'})
+    seen = []
+    def fake_apply(conn, video, staged, cfg):
+        seen.append(cfg['sound'])
+        open(staged, 'wb').close()
+        return {'pops_s': [1.0]}
+    video = tmp_path / 'film.mp4'
+    video.write_bytes(b'x')
+    with patch('core.features.on', return_value=True), patch('core.ffmpeg_studio.probe_duration', return_value=2), \
+         patch('core.end_popup.apply', fake_apply):
+        report = shot_popup.apply(c, 1, str(video), [{'scene_id': 1, 'path': 'a'}], ['a'], {'transition': 'cut', 'fade': 0}, 'tiktok')
+    assert seen == [False] and report[0]['muc'] == 'vang' and 'tiếng pop' in report[0]['reasons'][0]
+    assert report[0]['render'] == {'pops_s': [1.0]}
+
+
+def test_pop_sound_may_name_a_kho_sound(tmp_path):
+    sound = tmp_path / 'pop.wav'
+    sound.write_bytes(b'w')
+    c = connection({'asset_id': 432})
+    c.execute('CREATE TABLE sounds(id INTEGER, name TEXT, path TEXT, kind TEXT, duration REAL)')
+    c.execute("INSERT INTO sounds VALUES(5,'Pop Free Fire',?,'sfx',0.2)", (str(sound),))
+    assert shot_popup._kho_sound(c, 'pop free fire') == str(sound)
+    assert shot_popup._kho_sound(c, '5') == str(sound)
+    assert shot_popup._kho_sound(c, str(sound)) == str(sound)
+    assert shot_popup._kho_sound(c, True) is None and shot_popup._kho_sound(c, False) is False
+
+
+def test_end_popup_error_names_the_resource_and_skips_odd_kho_rows():
+    c = sqlite3.connect(':memory:')
+    c.execute('CREATE TABLE asset_images(asset_id INTEGER, path TEXT, status TEXT, sort INTEGER, id INTEGER)')
+    with pytest.raises(ValueError, match='#77'):
+        end_popup.resolve(c, {'items': [{'asset_id': 77}], 'local_root': '/tmp'})
+    c.execute('CREATE TABLE sounds(path TEXT, name TEXT, duration REAL, kind TEXT)')
+    c.execute("INSERT INTO sounds VALUES('', 'Pop', 0.2, 'sfx')")
+    assert end_popup.pop_sound(c, {}) is None

@@ -83,6 +83,8 @@ def fingerprint(p, project_id):
             items.append({'scene_id': row['id'], 'spec': spec, 'content': content})
         except (ValueError, TypeError, AttributeError):
             items.append({'scene_id': row['id'], 'invalid': row['data']})
+    if not items:                                     # rà 12/10: no popup anywhere = the old hash (turning the flag on stales nothing)
+        return None
     return {'enabled': True, 'items': items, 'platform': subtitles.get_settings(p, project_id)['platform']}
 
 
@@ -91,6 +93,7 @@ def plan(conn, project_id, rows, paths, transition, fade, durations=None):
     overlap = float(fade) if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
     clock, timeline = 0.0, {}
     unknown = False
+    last = min(len(usable), len(paths)) - 1
     for i, (row, path) in enumerate(zip(usable, paths)):
         try:
             seconds = ffmpeg_studio.probe_duration(end_popup.local_path(path, LOCAL_ROOT))
@@ -103,7 +106,9 @@ def plan(conn, project_id, rows, paths, transition, fade, durations=None):
             unknown = True
         start = clock - (overlap if i else 0)
         if not unknown:
-            timeline.setdefault(row.get('scene_id'), []).append((start, start + seconds, seconds))
+            # rà 12/10: the popup ends where the next transition begins — not on the fade / black of the cut to the next shot
+            tail = overlap if i < last else 0.0
+            timeline.setdefault(row.get('scene_id'), []).append((start, start + seconds - tail, max(seconds - tail, 0.0)))
             clock = start + seconds
     out = []
     for row in conn.execute('SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx', (project_id,)):
@@ -137,6 +142,26 @@ def plan(conn, project_id, rows, paths, transition, fade, durations=None):
     return out
 
 
+def _kho_sound(conn, want):
+    """`pop_sound` may name a sound of the Kho (its number or exact name) instead of a file path (rà 12/10)."""
+    if want is True:
+        return None
+    if want is None or want is False:
+        return want
+    key = str(want).strip()
+    try:
+        if os.path.exists(end_popup.local_path(key, LOCAL_ROOT)):
+            return want
+    except ValueError:
+        pass
+    try:
+        row = conn.execute("SELECT path FROM sounds WHERE CAST(id AS TEXT)=? OR LOWER(name)=LOWER(?) ORDER BY id LIMIT 1",
+                           (key, key)).fetchone()
+    except Exception:  # noqa: BLE001 - a database without the sound Kho
+        row = None
+    return row[0] if row else want
+
+
 def apply(conn, project_id, video, rows, paths, settings, platform, durations=None):
     if not features.on('shot_popup'):
         return []
@@ -154,12 +179,19 @@ def apply(conn, project_id, video, rows, paths, settings, platform, durations=No
         staged = video + '.shot_popup.mp4'
         cfg = entry.pop('cfg')
         cfg['safe_box'] = subtitles.safe_box(platform)
+        sound_note = None
+        try:                                          # rà 12/10: a bad pop sound loses the sound, not the icon (said VÀNG)
+            cfg['sound'] = _kho_sound(conn, cfg.get('sound'))
+            end_popup.pop_sound(conn, cfg)
+        except Exception as exc:  # noqa: BLE001
+            sound_note = f'tiếng pop không dùng được ({str(exc)[:120]}) — ghép icon không tiếng'
+            cfg['sound'] = False
         try:
             entry['render'] = end_popup.apply(conn, video, staged, cfg)
             os.replace(staged, video)
-            note = entry['render'].get('sound_note')
-            if note:
-                entry.update(muc='vang', reasons=[note])
+            notes = [n for n in (sound_note, entry['render'].get('sound_note')) if n]
+            if notes:
+                entry.update(muc='vang', reasons=notes)
         except Exception as exc:  # giữ bản dựng còn lại, báo VÀNG qua người gọi
             entry.update(muc='vang', reasons=[f'không ghép được popup: {str(exc)[:200]}'])
         finally:

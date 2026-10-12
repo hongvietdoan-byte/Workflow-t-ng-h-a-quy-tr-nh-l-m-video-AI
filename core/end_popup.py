@@ -109,7 +109,10 @@ def pop_sound(conn, cfg: Dict) -> Optional[str]:
     except Exception:  # noqa: BLE001 - a database without the sound Kho
         return None
     for r in rows:
-        path = local_path(r[0], cfg.get('local_root'))
+        try:                                          # rà 12/10: one odd Kho row (empty path…) is skipped, as before, not fatal
+            path = local_path(r[0], cfg.get('local_root'))
+        except ValueError:
+            continue
         if os.path.exists(path):
             return path
     return None
@@ -136,9 +139,12 @@ def resolve(conn, cfg: Dict) -> List[Dict]:
             else:
                 a = assets.get(conn, int(it["asset_id"]))
                 path = a["images"][0]["path"] if a and a["images"] else None
+        if not path and it.get("asset_id"):          # rà 12/10: say which resource (its number is ours, not untrusted input)
+            raise ValueError(f"popup cuối: tài nguyên #{int(it['asset_id'])} không có ảnh icon dùng được")
         path = local_path(path, cfg.get('local_root'))
         if not path or not os.path.exists(path):
-            raise ValueError("popup cuối: không thấy tệp icon cục bộ")
+            raise ValueError("popup cuối: không thấy tệp icon cục bộ"
+                             + (f" của tài nguyên #{int(it['asset_id'])}" if it.get("asset_id") else ""))
         out.append({"path": path, "label": str(it.get("label") or "").strip(),
                     **({'remove_green': True} if it.get('remove_green') is True else {})})
     return out

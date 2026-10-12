@@ -25,6 +25,8 @@ FEATURES: Dict[str, Dict] = {
     "tickets_admin_ui": {"label": "Trang Phiếu 8502 (Owner đăng nhập mới duyệt được; còn lại chỉ đọc)", "verified": False, "why": "Đợt 9 + đăng nhập 8502 (12/10): thử CSDL tạm, chưa dùng thật"},
     "lao_dai_pet": {"label": "Pet Lão Đại chỉ đọc", "verified": False,
                      "why": "Đợt 9: backend thử CSDL tạm; chưa kiểm GUI Windows"},
+    "bg_autoqc": {"label": "Vòng nền tự bắt đầu kiểm tra ảnh/clip vừa xong (không cần mở trang dự án)", "verified": False,
+        "why": "Hộp thư 12/10 17:58: #27 ảnh xong kẹt 'succeeded' ~1 giờ khi không ai mở trang; gọi Claude QC qua sổ chi + trần như khi mở trang"},
     "auto_send_self_fix": {
         "label": "Vòng nền tự gửi job tự sửa (QC gen lại) khi không có chạy tự động",
         "verified": False,
@@ -552,7 +554,7 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
 HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
-OPT_IN_ONLY: tuple = ("auto_send_self_fix", "qc_observe_enum", "shot_popup")
+OPT_IN_ONLY: tuple = ("auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc")
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.

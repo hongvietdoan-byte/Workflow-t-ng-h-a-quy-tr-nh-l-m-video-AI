@@ -6,6 +6,7 @@ written into its prompt, up to the project's retry limit; only a picture that pa
 the person (with the scores and the problems). Runs in a background thread, one project at a time, so the page stays responsive.
 A failure (Claude Code not logged in, no key, time-out) is remembered and shown, and is not retried in a loop.
 """
+import os
 import threading
 import time
 from typing import Callable, Dict, Optional, Tuple
@@ -19,6 +20,53 @@ RETRY_AFTER = 300                       # seconds before a failed check is tried
 _lock = threading.Lock()
 _active = set()
 _errors: Dict[int, Tuple[str, float]] = {}
+_FILE_LOCKS: Dict[str, object] = {}
+
+
+def _lock_path(db_path: str, kind: str, project_id: int) -> str:
+    return os.path.abspath(db_path) + f".autoqc-{kind}-{project_id}.lock"
+
+
+def _claim(db_path: str, kind: str, project_id: int) -> bool:
+    """Rà 12/10 (bg_autoqc): `_active` is per process — a second Dashboard process on the same database (or the page after Streamlit
+    reloads this module) would check, and pay Claude for, the same pictures twice. An OS lock on `<db>.autoqc-<kind>-<project>.lock`
+    is held while the check runs; a dead process frees it. False = another process / module copy is checking this project."""
+    if db_path in ("", ":memory:"):
+        return True
+    path = _lock_path(db_path, kind, project_id)
+    if path in _FILE_LOCKS:
+        return False
+    try:
+        fh = open(path, "a+b")
+    except OSError:
+        return True                                   # no lock file possible: keep the in-process lock only (old behaviour)
+    try:
+        if os.name == "nt":
+            import msvcrt
+            fh.seek(0)
+            msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        fh.close()
+        return False
+    _FILE_LOCKS[path] = fh
+    return True
+
+
+def _release(db_path: str, kind: str, project_id: int) -> None:
+    fh = _FILE_LOCKS.pop(_lock_path(db_path, kind, project_id), None) if db_path not in ("", ":memory:") else None
+    if fh is None:
+        return
+    try:
+        if os.name == "nt":
+            import msvcrt
+            fh.seek(0)
+            msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+    except OSError:
+        pass
+    fh.close()
 
 
 def active(project_id: int) -> bool:
@@ -55,10 +103,13 @@ def start(db_path: str, data_dir: str, project_id: int, client_factory: Optional
     """Start checking this project's unchecked pictures in the background. True if a check was started."""
     conn = connect(db_path)
     client_factory = client_factory or llm_runner.ledger_factory(db_path)      # every Claude call -> cost ledger + Claude cap
-    with _lock:
-        if not can_run(conn, project_id, client_factory):
-            return False
-        _active.add(project_id)
+    try:
+        with _lock:
+            if not can_run(conn, project_id, client_factory) or not _claim(db_path, "image", project_id):
+                return False
+            _active.add(project_id)
+    finally:
+        conn.close()
     threading.Thread(target=_work, args=(db_path, data_dir, project_id, client_factory), daemon=True, name=f"autoqc-{project_id}").start()
     return True
 
@@ -105,6 +156,7 @@ def _work(db_path: str, data_dir: str, project_id: int, client_factory: Callable
     finally:
         with _lock:
             _active.discard(project_id)
+            _release(db_path, "image", project_id)
 
 
 # ---- video clips (v2): same pattern, scores frames of each finished clip ---------------------------------------------------
@@ -133,15 +185,20 @@ def start_video(db_path: str, data_dir: str, project_id: int, client_factory: Op
     conn = connect(db_path)
     p = Pipeline(conn)
     client_factory = client_factory or llm_runner.ledger_factory(db_path)
-    with _lock:
-        if video_active(project_id) or video_last_error(project_id) or not claude_tasks.unchecked_videos(p, project_id):
-            return False
-        try:
-            if client_factory() is None:
+    try:
+        with _lock:
+            if video_active(project_id) or video_last_error(project_id) or not claude_tasks.unchecked_videos(p, project_id):
                 return False
-        except llm_runner.LlmError:
-            return False
-        _video_active.add(project_id)
+            try:
+                if client_factory() is None:
+                    return False
+            except llm_runner.LlmError:
+                return False
+            if not _claim(db_path, "video", project_id):
+                return False
+            _video_active.add(project_id)
+    finally:
+        conn.close()
     threading.Thread(target=_video_work, args=(db_path, data_dir, project_id, client_factory), daemon=True,
                      name=f"autoqc-video-{project_id}").start()
     return True
@@ -174,3 +231,4 @@ def _video_work(db_path: str, data_dir: str, project_id: int, client_factory: Ca
     finally:
         with _lock:
             _video_active.discard(project_id)
+            _release(db_path, "video", project_id)

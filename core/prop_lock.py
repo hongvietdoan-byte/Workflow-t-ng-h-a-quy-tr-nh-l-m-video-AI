@@ -234,32 +234,43 @@ _POV = re.compile(r"(?<!\w)(?:POV|first[- ]person(?: view)?|góc nhìn (?:thứ 
 _OTS = re.compile(r"(?<!\w)(?:ots|over[- ]the[- ]shoulder|qua vai|third[- ]person|GAME_TPS)(?!\w)", re.I)
 
 
-def _affirmative_angle(pattern, source: str) -> bool:
-    """Dùng cùng nghĩa phủ định cho cả góc thứ nhất và góc qua vai/TPS."""
+_NOT_THIS_CAMERA_BEFORE = re.compile(r"(?:\w+['’]s|\b(?:enemy|enemies|his|her|their|someone|another|other))\s+$", re.I)
+_NOT_THIS_CAMERA_AFTER = re.compile(r"^[\s-]*(?:feed|footage|screen|monitor|display|video|shooter|style|game|cam\b)", re.I)
+
+
+def _affirmative_angle(pattern, source: str, camera: bool = False) -> bool:
+    """Dùng cùng nghĩa phủ định cho cả góc thứ nhất và góc qua vai/TPS. camera=True (chữ tự do, rà 12/10): bỏ "Maxim's POV" / "enemy
+    POV" (góc của người khác — người cầm súng vẫn hiện trong khung), "first-person shooter", "POV feed" trên màn hình."""
     for clause in re.split(r"[.;,\n]", source):
         for m in pattern.finditer(clause):
-            if not re.search(r"(?:\b(?:no|not|never|without|avoid|remove)\b|không|tránh|bỏ)(?:\s+\w+){0,4}\s*$",
-                             clause[:m.start()], re.I):
-                return True
+            if re.search(r"(?:\b(?:no|not|never|without|avoid|remove)\b|không|tránh|bỏ)(?:\s+\w+){0,4}\s*$",
+                         clause[:m.start()], re.I):
+                continue
+            if camera and (_NOT_THIS_CAMERA_BEFORE.search(clause[:m.start()]) or _NOT_THIS_CAMERA_AFTER.search(clause[m.end():])):
+                continue
+            return True
     return False
 
 
 def is_pov(data: Dict) -> bool:
-    """Góc thứ nhất rõ; không lấy câu thoại, phủ định hoặc góc qua vai/TPS."""
+    """Góc thứ nhất rõ; không lấy câu thoại, phủ định hoặc góc qua vai/TPS. Rà 12/10: trường góc máy (angle / camera_angle / camera)
+    đã ghi góc khác (eye / low / high…) thì nó thắng chữ tự do."""
     data = data or {}
-    fields = []
+    fields = {}
     for k in ("angle", "camera_angle", "camera", "shot", "size"):
         v = data.get(k)
-        fields.append(" ".join(str(x) for x in v.values()) if isinstance(v, dict) else str(v or ""))
-    explicit = " ".join(fields)
+        fields[k] = " ".join(str(x) for x in v.values()) if isinstance(v, dict) else str(v or "")
+    explicit = " ".join(fields.values())
     if _affirmative_angle(_OTS, explicit):
         return False
-    sources = fields + [shot_text(data)]
-    for source in sources:
+    angle = " ".join(fields[k] for k in ("angle", "camera_angle", "camera")).strip()
+    if angle:
+        return _affirmative_angle(_POV, angle)
+    for source in (fields["shot"], fields["size"], shot_text(data)):
         for clause in re.split(r"[.;\n]", source):
             if _affirmative_angle(_OTS, clause):
                 continue
-            if _affirmative_angle(_POV, clause):
+            if _affirmative_angle(_POV, clause, camera=True):
                 return True
     return False
 

@@ -275,11 +275,29 @@ def _variant_mentions(asset, variant, variants, text):
     return hits == [variant]
 
 
+_REST_OF_CLAUSE = re.compile(r"\b(?:not|no|never|without|remove|avoid|instead of|previous|previously|incorrectly)\b|"
+                             r"(?<!\w)(?:không|đừng|loại bỏ|bỏ|lần trước|trước đó|thay vì)(?!\w)", re.I)
+_NEAR_WORDS = re.compile(r"\b(?:wrong|old)\b|(?<!\w)(?:sai|cũ)(?!\w)", re.I)
+
+
 def _variant_instruction(text):
-    """Chỉ dẫn phủ định/nhắc lần lỗi cũ không cấp phép thêm skin."""
-    return " ; ".join(part for part in re.split(r"[.;!?\n]+", text or "")
-                      if not re.search(r"\b(?:not|no|never|without|remove|avoid|previous|previously|incorrectly|wrong|old)\b|"
-                                       r"(?<!\w)(?:không|đừng|loại bỏ|bỏ skin|lần trước|trước đó|sai)(?!\w)", part, re.I))
+    """Chỉ dẫn phủ định/nhắc lần lỗi cũ không cấp phép thêm skin. Rà 12/10: chỉ bỏ phần bị phủ định, không bỏ cả câu — "Đổi sang skin
+    Hỏa Ngục, không dùng bản mặc định" vẫn cho phép Hỏa Ngục: tách ở , / but / nhưng; từ phủ định bỏ phần còn lại của mệnh đề; "sai /
+    cũ / wrong / old" chỉ bỏ 2 từ mỗi bên."""
+    keep = []
+    for part in re.split(r"[.;!?\n,]+|\b(?:but|however)\b|(?<!\w)(?:nhưng|mà)(?!\w)", text or "", flags=re.I):
+        m = _REST_OF_CLAUSE.search(part)
+        if m:
+            part = part[:m.start()]
+        words = part.split()
+        drop = set()
+        for i, w in enumerate(words):
+            if _NEAR_WORDS.fullmatch(re.sub(r"[^\w]", "", w)):
+                drop.update(range(max(0, i - 2), i + 3))
+        part = " ".join(w for i, w in enumerate(words) if i not in drop)
+        if part.strip():
+            keep.append(part.strip())
+    return " ; ".join(keep)
 
 
 def propose_rewrite(p, job, note: Optional[str] = None, fix: Optional[str] = None, qc: Optional[Dict] = None,
@@ -317,6 +335,8 @@ def propose_rewrite(p, job, note: Optional[str] = None, fix: Optional[str] = Non
     from . import prop_lock, assets
     if prop_lock.enabled():
         added = []
+        row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()   # rà 12/10: the shot's own words
+        shot_words = prop_lock.shot_text(json.loads(row["data"] or "{}")) if row else ""            # (action / blocking) count too
         for a in assets.project_assets(p.conn, job["project_id"]):
             if a.get("kind") not in prop_lock.KINDS:
                 continue
@@ -324,7 +344,7 @@ def propose_rewrite(p, job, note: Optional[str] = None, fix: Optional[str] = Non
                 [r["variant"] for r in p.conn.execute("SELECT variant FROM asset_images WHERE asset_id=? AND variant IS NOT NULL AND trim(variant)!=''", (a["id"],))] +
                 [f.split("—", 1)[0].split("–", 1)[0].strip() for f in prop_lock._forms(a.get("description") or "")
                  if f.lower().startswith("skin ")]))
-            allowed = (old, _variant_instruction(note), _variant_instruction(fix))
+            allowed = (old, shot_words, _variant_instruction(note), _variant_instruction(fix))
             added.extend(v for v in variants if _variant_mentions(a, v, variants, new)
                          and not any(_variant_mentions(a, v, variants, source) for source in allowed))
         if added:

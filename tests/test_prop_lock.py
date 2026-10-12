@@ -125,7 +125,15 @@ class PropLockTest(unittest.TestCase):
                  ({"image_prompt": "No first-person view; camera at eye level"}, False),
                  ({"image_prompt": "Do not use POV"}, False), ({"image_prompt": "POVish camera"}, False),
                  ({"text": "LỜI DẪN: first-person view with a gun"}, False),
-                 ({"angle": "ots", "image_prompt": "POV from over the shoulder"}, False)]
+                 ({"angle": "ots", "image_prompt": "POV from over the shoulder"}, False),
+                 # rà 12/10: someone else's POV / game genre / a screen feed is not this camera; a written angle wins over free text
+                 ({"image_prompt": "Reverse shot from Maxim's POV: Kelly fires the SKORP at him"}, False),
+                 ({"image_prompt": "Kelly aims her SKORP; the enemy POV shows her through the smoke"}, False),
+                 ({"image_prompt": "a first-person shooter feel, Kelly holds SKORP"}, False),
+                 ({"angle": "eye", "image_prompt": "Kelly in first-person shooter game Free Fire style"}, False),
+                 ({"image_prompt": "Kelly looks at the screen showing a POV feed"}, False),
+                 ({"angle": "eye level", "image_prompt": "POV shot"}, False),
+                 ({"image_prompt": "POV shot, hands hold SKORP"}, True)]
         for shot, expected in cases:
             with self.subTest(shot=shot):
                 self.assertEqual(prop_lock.is_pov(shot), expected)
