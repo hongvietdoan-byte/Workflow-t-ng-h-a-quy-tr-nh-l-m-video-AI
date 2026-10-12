@@ -7,3 +7,4 @@ Còn rà/sửa: exportreframe notes, areas.flags, nội dung quá dài trướcf
 
 ## Vòng sửa sau rà độc lập
 Ba P2 đã sửa: cảnh báo/manifest export crop; areas.flags; ON giữ toàn nội dung chữ dài/multiline trước fit. Root bắt thêm overshoot popup clip, regression ĐỎ→XANH. Nhóm cuối 99 passed/24,12s; OFF AI/card+24popupframe byte-identical baseline sau fix. HUD outline chưa đo, không nghiệm thu mọi lớp chữ. Chưa commit/push; root đọc diff trước commit.
+- Code chốt d864175d; 99test xanh, root đọc fix. Kết quả/push nhánh riêng cùng docs/HANDOFF_CODEX_2026-10-12_D18_D15.md; bước kế Đ12v5 QA.

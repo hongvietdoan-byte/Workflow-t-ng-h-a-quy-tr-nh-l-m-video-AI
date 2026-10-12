@@ -1081,6 +1081,10 @@ trong vùng; có cờ thì tự đặt trong vùng. Ca thật #24 v3: popup 1,8�
 
 ---
 
+## Bổ sung Kết quả Codex — đợt 15
+
+- ✅ Việc 3 · nhánh `codex/d15-viec3-vung-an-toan` · code `d864175d`: cờ overlay_safe_zone OFF/OPT_IN_ONLY, bảng vùng dùng lại subtitles; cảnh báo VÀNG khi lấn, ON thu/dời popup cuối/nhãn AI/card, ghi notes cả xuất crop. Popup shot giữ safe_box sẵn, không margin kép; không đổi widget. ĐỎ→XANH **99 passed /24,12s**, 3P2 rà độc lập + overshoot root sửa; root đọc diff, OFF AI/card+24frame popup pixel-identical với main. PIL PNG ON/OFF và ffmpeg video giả360×640/1s; đây không phải screenshot Dashboard. Giữ areas.version66. Chưa thử sản xuất/cả bộ Windows; HUD outline/libass chưa đo, không cam kết mọi loại chữ đã nghiệm thu. RA/HANDOFF kèm nhánh; không API/dữ liệu thật/gộp main.
+
 # ĐỢT 16 — ƯU TIÊN SỐ 1 (người dùng giao 12/10 12:12, TRƯỚC mọi đợt khác) — 2 lỗi chặn dự án #27 Booyah
 
 Luật chung GIỐNG đợt 1 (cả luật người dùng 12/10: rà kĩ, đánh giá hiệu quả). Nhánh `codex/d16-viec<N>-<tên>` từ `origin/main` MỚI NHẤT. Không API tốn tiền khi
