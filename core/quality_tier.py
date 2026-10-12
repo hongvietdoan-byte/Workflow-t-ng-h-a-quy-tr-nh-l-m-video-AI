@@ -260,13 +260,32 @@ def _input_changed(conn, job) -> Optional[str]:
     return None
 
 
+def final_source_problem(conn, scene_id: int) -> Optional[str]:
+    """Task bản cao đã xong nhưng nguồn chưa đọc được: phục hồi, không tự trả tiền gen lại."""
+    from . import final_cut
+    jobs = _video_jobs(conn, scene_id)
+    for job in reversed(jobs):
+        if (job["quality_tier"] or "direct") not in ("final", "direct") or job["state"] != "approved":
+            continue
+        if final_cut.measured_size(job["result_path"]) is None:
+            return "Bản cao đã có nhưng không đo được clip gốc — kiểm tra/tải lại nguồn của task đã gửi trước khi giao; không gen lại"
+        return None
+    return None
+
+
 def state(conn, scene_id: int) -> str:
     """Một trong STATES, suy từ jobs + review_log. Job video không mang bậc (trước N1) tính như gen thẳng."""
     jobs = _video_jobs(conn, scene_id)
     tier = lambda j: j["quality_tier"] or "direct"   # noqa: E731
-    if any(tier(j) == "final" and j["state"] == "approved" for j in jobs):
+    from . import final_cut
+    def deliverable(j):
+        size = final_cut.measured_size(j["result_path"])
+        return bool(size and min(size) >= 720)
+    if final_source_problem(conn, scene_id):
+        return "final_review"
+    if any(tier(j) == "final" and j["state"] == "approved" and deliverable(j) for j in jobs):
         return "final_ok"
-    if any(tier(j) == "direct" and j["state"] == "approved" for j in jobs):
+    if any(tier(j) == "direct" and j["state"] == "approved" and deliverable(j) for j in jobs):
         return "direct_ok"
     if any(tier(j) in ("final", "direct") and j["state"] in _ACTIVE for j in jobs):
         return "final_running"
@@ -317,6 +336,9 @@ def upgrade_block(conn, draft) -> Optional[str]:
 def final_offer(conn, scene_id: int) -> Dict:
     """Nút bản cao của một shot (UI + nút gom): {"upgrade": nâng từ nháp được?, "why": lý do không nâng được, "usd": giá ước tính}; không
     nâng được thì thêm "res" (độ phân giải thật của lần gen mới) + "res_note" (câu nói rõ cho nút / hộp xác nhận)."""
+    source_problem = final_source_problem(conn, scene_id)
+    if source_problem:
+        return {"upgrade": False, "why": source_problem, "usd": None}
     why = upgrade_block(conn, approved_draft(conn, scene_id))
     out = {"upgrade": why is None, "why": why, "usd": scene_final_price(conn, scene_id)}
     if why:                                  # rà F3: the new gen's REAL resolution, said on the button and in the question
@@ -337,6 +359,9 @@ def request_final(p, scene_id: int, actor: str = "user", confirm_new: bool = Fal
     if not enabled():
         raise ValueError("Tính năng 2 bậc chất lượng đang tắt (two_tier_quality)")
     conn = p.conn
+    source_problem = final_source_problem(conn, scene_id)
+    if source_problem:
+        raise ValueError(source_problem)
     block = final_block(conn, scene_id)
     if block:
         raise ValueError(f"Chưa gen bản cao được: {block}")
@@ -472,6 +497,9 @@ def final_estimate(conn, pid: int) -> Dict:
         st = state(conn, lead)
         if lead != s["id"]:
             continue
+        if final_source_problem(conn, lead):
+            out["unknown"].append(lead)
+            continue
         if st in ("final_running", "final_review", "final_ok", "direct_ok") or group_path(conn, s["id"]) == "direct":   # rà F3: nhóm trộn = nháp
             continue
         seconds = billed.get(s["id"], draft_seconds(conn, approved_draft(conn, s["id"])) or float(s["duration_sec"] or 0))
@@ -578,6 +606,8 @@ def scene_final_price(conn, scene_id: int) -> Optional[float]:
         return None
     proj, ratio = _proj_ratio(conn, row["project_id"])
     lead, whole = _clip_groups(conn, row["project_id"]).get(scene_id, (scene_id, None))
+    if final_source_problem(conn, lead):
+        return None
     if lead != scene_id:
         if state(conn, lead) in ("final_running", "final_review", "final_ok"):
             return 0.0                                  # made inside the group clip already on its way
@@ -650,6 +680,82 @@ def e1_estimate(conn, pid: int, pricing: Optional[Dict] = None) -> Dict:
     out["line"] = (f"Phim {out['film_seconds']:.0f} s ≈ {out['usd']:.2f} USD (E1: {out['direct']} clip 2.0 720p, {out['draft_first']} "
                    f"nháp 2.5 480p + nâng 1080p, {out['other']} model khác{target}; {UPGRADE_UNMEASURED})")
     return out
+
+
+def running_draft_final_estimate(conn, pid: int, rows, pricing) -> Dict:
+    """Chỉ giá bản cao còn thiếu của nháp đã gửi; không gửi/đếm lại task nháp, kể cả cờ OFF."""
+    from . import cost, model_router
+    _, ratio = _proj_ratio(conn, pid)
+    by_scene = {r["scene_id"]: r for r in rows}
+    jobs = conn.execute("SELECT * FROM jobs WHERE project_id=? AND type='video_gen' "
+                        "AND state='running' AND external_id IS NOT NULL AND external_id!='' ORDER BY id DESC", (pid,)).fetchall()
+    covered, result = set(), {"usd": 0.0, "clips": 0, "seconds": 0.0, "finals_1080": 0, "warnings": [], "unknown": []}
+    for job in jobs:
+        if job['quality_tier'] == 'draft' and job['group_leader']:
+            leader = conn.execute("SELECT * FROM jobs WHERE id=? AND project_id=? AND type='video_gen'", (job['group_leader'], pid)).fetchone()
+            if leader is not None and leader['external_id'] == job['external_id'] and leader['quality_tier'] == 'draft':
+                job = leader
+        try:
+            ids = {int(r["id"]) for r in json.loads(job["sent_group"] or "[]")} or {job["scene_id"]}
+        except (ValueError, TypeError, KeyError):
+            ids = {job["scene_id"]}
+        if ids & covered:
+            continue
+        covered.update(ids)
+        if job["quality_tier"] != "draft":
+            continue
+        members = [by_scene[sid] for sid in ids if sid in by_scene]
+        if not members:
+            continue
+        seconds = draft_seconds(conn, job) or sum(float(r.get("seconds") or r.get("billed_seconds") or 0) for r in members)
+        seconds = max(4.0, seconds)
+        canonical, _ = _canonical(job["model"])
+        if canonical == SAMPLE_MODEL:
+            usd = upgrade_price(ratio, seconds)
+            result["finals_1080"] += 1
+            result["warnings"].append(f"shot {job['scene_id']}: nháp đang chạy đã gửi tiền; chỉ cộng bản cao còn thiếu — {UPGRADE_UNMEASURED}")
+        else:
+            model = members[0]["model"]
+            res = final_resolution(model)
+            model_canonical, model_family = _canonical(model)
+            if model_family == "seedance":
+                ref = cost.video_reference_seconds(conn, members[0]["scene_id"], members[0])
+                usd = cost.seedance_estimate(model_canonical, res, ratio, seconds, ref["seconds"])
+                result["warnings"].extend(ref["warnings"])
+            else:
+                per = model_router.price_per_sec(model, res, pricing)
+                usd = None if per is None else per * seconds
+            result["warnings"].append(f"shot {job['scene_id']}: nháp đang chạy đã gửi tiền; bản giao còn cần gen ≥ 720p")
+        if usd is None:
+            result["unknown"].append(f"bản cao sau nháp task {job['id']}")
+        else:
+            result["usd"] += usd
+        result["clips"] += 1
+        result["seconds"] += seconds
+    return result
+
+
+def delivery_quote(conn, pid: int, rows, pricing) -> list:
+    """Không báo giá gen thẳng 480p như bản giao, kể cả cờ hai bậc đang tắt."""
+    two_tier = enabled()
+    from . import cost, formats, model_router
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
+    ratio = formats.spec(formats.project_aspect(proj))["clip"]
+    result = []
+    for row in rows:
+        r = dict(row)
+        res = str(r.get("resolution") or "")
+        if res.endswith("p") and res[:-1].isdigit() and int(res[:-1]) < 720 and not (two_tier and group_path(conn, r["scene_id"]) == "draft_first"):
+            r["resolution"] = "720p"
+            per = model_router.price_per_sec(r["model"], "720p", pricing)
+            r["cost"] = None if per is None else per * r["billed_seconds"]
+            canonical, family = _canonical(r["model"])
+            if family == "seedance":
+                ref = cost.video_reference_seconds(conn, r["scene_id"], r)
+                r["cost"] = cost.seedance_estimate(canonical, "720p", ratio, r["billed_seconds"], ref["seconds"])
+            r["warnings"] = list(r.get("warnings") or []) + ["480p chỉ dùng xem nháp; bản giao cần nâng 1080p hoặc gen ≥ 720p (báo giá 720p)"]
+        result.append(r)
+    return result
 
 
 def run_estimate(conn, pid: int, rows, pricing: Optional[Dict] = None) -> Dict:

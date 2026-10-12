@@ -161,6 +161,12 @@ class ApplyTests(Base):
     """apply() end to end with a stand-in for delivery.render (the real one needs the whole project's clips and sound)."""
     def setUp(self):
         super().setUp()
+        from core import formats
+        from unittest import mock
+        # Các clip/tệp dựng stub thật đều 180×320: khung kiểm cũng xuất cùng cỡ.
+        frame = mock.patch.dict(formats.ASPECTS["9:16"], {"render": (180, 320)})
+        frame.start()
+        self.addCleanup(frame.stop)
         self.dir = tempfile.mkdtemp()
         self.out_dir = delivery.output_dir(self.dir, self.pid)
         self.out = os.path.join(self.out_dir, "FINAL_VIDEO.mp4")
@@ -317,7 +323,7 @@ class RealRenderTests(unittest.TestCase):
     def render(self, durations, edits=None):
         from unittest import mock
         with mock.patch.dict(os.environ, {"FEATURE_SOUND_INTENT": "1"}):
-            res = delivery.render(self.p, self.pid, self.data, music_path=self.music, settings=self.settings, durations=durations, edits=edits)
+            res = delivery.render(self.p, self.pid, self.data, music_path=self.music, settings=self.settings, durations=durations, edits=edits, render_size=(270, 480))
         row = self.p.conn.execute("SELECT manifest FROM outputs WHERE id=?", (res["output_id"],)).fetchone()
         return res, json.loads(row["manifest"])
 

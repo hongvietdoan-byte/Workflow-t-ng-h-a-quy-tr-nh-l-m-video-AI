@@ -602,6 +602,11 @@ def _video_need(conn, scene_id: int) -> Dict:
     if mp["spec_hash"] and mp["spec_hash"] != lineage.motion_spec_hash(data):
         return {"needed": True, "reason": "motion chưa cập nhật theo nội dung shot"}
     for job in conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN ('succeeded','approved','pending_review') ORDER BY id DESC", (scene_id,)):
+        from . import final_cut
+        size = final_cut.measured_size(job["result_path"])
+        if job["quality_tier"] == "draft" or (size and min(size) < 720):
+            reason = "clip nháp dưới chuẩn bản giao — nâng 1080p hoặc gen ≥ 720p"
+            continue
         if not job["source_job_id"] or not job["input_hash"]:
             reason = "clip thiếu bằng chứng ảnh / motion (source_job_id hoặc input_hash)"
             continue
@@ -695,9 +700,12 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     if img_usd is None and img["items"]:
         unknown.append(f"ảnh {img_model}")
         img_usd = None if img.get("unit_over") is None else img["unit_over"] * img["items"]
-    rows = model_router.plan(conn, project_id, pricing)
+    from . import quality_tier
+    rows = quality_tier.delivery_quote(conn, project_id, model_router.plan(conn, project_id, pricing), pricing)
+    source_problems = {r["scene_id"]: quality_tier.final_source_problem(conn, r["scene_id"]) for r in rows}
+    unknown.extend(f"shot {sid}: {problem}" for sid, problem in source_problems.items() if problem)
     needs = {r["scene_id"]: video_need(conn, r["scene_id"]) for r in rows}
-    todo = [r for r in rows if needs[r["scene_id"]]["needed"]]
+    todo = [r for r in rows if needs[r["scene_id"]]["needed"] and not source_problems[r["scene_id"]]]
     warnings = [f"shot {sid}: {v['reason']}" for sid, v in needs.items() if v["needed"] and conn.execute(
         "SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN ('succeeded','approved','pending_review') LIMIT 1", (sid,)).fetchone()]
     for r in todo:
@@ -714,6 +722,10 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     two_tier = quality_tier.run_estimate(conn, project_id, todo, pricing)
     unknown.extend(two_tier.get("unknown") or [])
     vid_usd += two_tier["usd"]
+    remaining_final = quality_tier.running_draft_final_estimate(conn, project_id, rows, pricing)
+    vid_usd += remaining_final["usd"]
+    warnings.extend(remaining_final["warnings"])
+    unknown.extend(remaining_final["unknown"])
     from . import lipsync
     if lipsync.enabled() and lipsync.post_available():   # post lip sync (sync.so) of the finished clips; "generate" shots are in the
         for r in todo:                                   # clip price already (they go to Seedance with the voice)
@@ -759,8 +771,8 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     return {"images": img_usd, "videos": round(vid_usd, 2), "llm": round(llm_usd, 2), "total": round(base, 2), "max": round(worst, 2),
             "rewrite": round(rewrite, 3), "trainee": round(trainee_usd, 2),
             "llm_left": llm_left, "warnings": warnings, "unknown": sorted(set(unknown)), "counts": {"images": img["items"], "end_frames": img.get("end_frames", 0),
-                                                        "clips": len(todo), "seconds": sum(r["billed_seconds"] for r in todo),
-                                                        "drafts": two_tier["drafts"], "finals_1080": two_tier["finals_1080"]}}
+                                                        "clips": len(todo) + remaining_final["clips"], "seconds": sum(r["billed_seconds"] for r in todo) + remaining_final["seconds"],
+                                                        "drafts": two_tier["drafts"], "finals_1080": two_tier["finals_1080"] + remaining_final["finals_1080"]}}
 
 
 def format_run_estimate(est: Dict) -> str:

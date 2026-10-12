@@ -499,6 +499,17 @@ def sfx_assistant(p: Pipeline, pid: int) -> None:
 
 def step5(p: Pipeline, pid: int):
     """Sound & delivery: clips → sound (music, effects, voices) → render → post (subtitles, end card, formats) → the deliverable."""
+    import json
+    draft_path = os.path.join(C.DATA, str(pid), "output", "xem_nhap.mp4")
+    if os.path.exists(draft_path + ".manifest.json"):
+        try:
+            with open(draft_path + ".manifest.json", encoding="utf-8") as f:
+                draft_manifest = json.load(f)
+            st.warning(draft_manifest.get("label") or "NHÁP — chỉ để xem")
+            with st.expander("Xem bản NHÁP"):
+                st.video(draft_path)
+        except (OSError, ValueError):
+            st.warning("Không đọc được thông tin bản NHÁP — ghép xem lại ở màn Video")
     stat = delivery.status(p, pid, C.DATA)
     state = "stale" if stat["final"]["state"] == "fresh" and stat.get("best_stale") else stat["final"]["state"]
     if ui.v2_on():

@@ -1174,6 +1174,9 @@ def _tick(p: Pipeline, project_id: int, ctx: Context) -> str:
                   ("endframes", _end_frame_phase), ("storyboard", _storyboard_phase), ("motion", _motion_phase), ("voice", _voice_phase), ("videos", _videos_phase), ("music", _music_phase),
                   ("lipsync", _lipsync_phase), ("sfx", _sfx_phase)]
         for name, fn in phases:
+            if name == "music":
+                final_cut.require_delivery_resolution(final_cut.usable_clips(p, ctx.data_dir, project_id),
+                                                      final_cut.project_frame(p.project(project_id)))
             progress_note = fn(p, project_id, ctx)
             if progress_note is not None:
                 blocked = _blocked_scenes(p, project_id)
@@ -1190,6 +1193,8 @@ def _tick(p: Pipeline, project_id: int, ctx: Context) -> str:
                 _log(p, project_id, f"{PHASE_LABELS[name]}: {progress_note}")
                 return RUNNING
         _still_running(p, project_id)
+        final_cut.require_delivery_resolution(final_cut.usable_clips(p, ctx.data_dir, project_id),
+                                              final_cut.project_frame(p.project(project_id)))
         res = delivery.deliver(p, project_id, ctx.data_dir, ctx.llm, render_fn=ctx.render or default_render, subtitle_fn=ctx.subtitle)
         out = res["final"]
         names = {"subtitle": "phụ đề", "endcard": "card cuối", "ailabel": "nhãn AI", "export": "bản xuất"}

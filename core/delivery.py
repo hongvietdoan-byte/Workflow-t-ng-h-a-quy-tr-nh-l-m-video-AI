@@ -598,9 +598,10 @@ def _loudness(path: str) -> Optional[Dict]:
 
 @_locked
 def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str] = "auto", clips: Optional[List[str]] = None,
-           durations: Optional[List[float]] = None, settings: Optional[Dict] = None, edits: Optional[Dict] = None) -> Dict:
+           durations: Optional[List[float]] = None, settings: Optional[Dict] = None, edits: Optional[Dict] = None, render_size=None) -> Dict:
     """Cut the clips (the chosen ones, or every usable clip) with the project's render settings, the selected music and the
     mix (sound effects + voice lines placed on the timeline). Returns {"path", "output_id", "seconds"}.
+    `render_size`: khung xuất tùy chọn (vd dựng kiểm nhỏ); luật độ nét áp trên khung xuất thật.
     `edits` (core/editor_apply.py, P3): {"music": {scene_id: value}, "fit": [scene_id, ...], "meta": {...}} - per-render overrides the
     person approved; `fit` = shots whose clip is cut / held to its `durations` entry; `meta` is written into the manifest as `editor_apply`."""
     access.need_edit(p, project_id, "dựng bản giao")
@@ -609,6 +610,8 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     paths = [r["path"] for r in rows if r.get("path")]
     if not paths:
         raise ValueError("chưa có clip nào để ghép")
+    frame = tuple(render_size) if render_size is not None else final_cut.project_frame(p.project(project_id))
+    final_cut.require_delivery_resolution(rows, frame)
     if durations is None or len(durations) != len(paths):
         durations = [final_cut.clip_seconds(r["path"], r.get("requested_sec")) for r in rows]
     problems = final_cut.render_problems(durations, settings["transition"], settings["fade"])
@@ -708,7 +711,6 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         track = bed
         arc_info = {**(arc_info or {}), "enter": music_start, "tracks": [{"file": os.path.basename(t["path"]), "start": t["start"],
                                                                           "join": t["join"]} for t in later]}
-    frame = formats.spec(aspect)["render"] if aspect else None
     # F3 / E1 (09/10): a clip smaller than the project frame (Seedance 2.0 720p → 1080×1920) is scaled up in the same ffmpeg pass
     # (lanczos + light unsharp, ffmpeg_studio.UPSCALE_FLAGS) — no AI step; a clip already at the frame size stays as it is
     upscale = {i for i, c in enumerate(paths) if frame and ffmpeg_studio.needs_upscale(c, frame)}
@@ -754,6 +756,7 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
             if os.path.exists(staged):
                 os.remove(staged)
     manifest = final_manifest(p, project_id, data_dir, originals, settings)
+    manifest["render_size"] = frame
     if popup:
         manifest["end_popup"] = popup
     manifest["loudness"] = _loudness(out)
@@ -1040,6 +1043,24 @@ def ai_label_layer(p: Pipeline, project_id: int, data_dir: str, parent_id: Optio
     return {"video": out, "output_id": record(p, project_id, "ailabel", out, parent["id"], {"text": text})}
 
 
+def _require_output_sources(p, project_id, parent, frame):
+    """Xuất HD phải xét clip gốc, không dùng bản đã phóng làm bằng chứng nguồn HD."""
+    if min(frame) < 1080:
+        return
+    row, seen = parent, set()
+    while row is not None and row["kind"] != "final" and row["id"] not in seen:
+        seen.add(row["id"])
+        row = p.conn.execute("SELECT * FROM outputs WHERE id=? AND project_id=?", (row["parent_id"], project_id)).fetchone()
+    try:
+        manifest = json.loads(row["manifest"] or "{}") if row is not None else {}
+        clips = manifest.get("clips") or []
+    except (ValueError, AttributeError):
+        clips = []
+    if not clips or any(not isinstance(c, dict) or not c.get("path") for c in clips):
+        raise ValueError("Không thể xuất bản giao HD: bản dựng cũ thiếu thông tin clip gốc — dựng lại từ shot, nâng 1080p hoặc gen ≥ 720p")
+    final_cut.require_delivery_resolution(clips, frame)
+
+
 @_locked
 def export_layer(p: Pipeline, project_id: int, data_dir: str, spec: Dict, parent_id: Optional[int] = None) -> Dict:
     """Another size / file-size limit of the most finished version (with subtitles and card when they exist)."""
@@ -1048,6 +1069,7 @@ def export_layer(p: Pipeline, project_id: int, data_dir: str, spec: Dict, parent
     if parent is None:
         raise ValueError("chưa có video cuối để xuất")
     w, h = int(spec["w"]), int(spec["h"])
+    _require_output_sources(p, project_id, parent, (w, h))
     out = os.path.join(output_dir(data_dir, project_id), f"FINAL_VIDEO_{w}x{h}.mp4")
     fit = spec.get("fit") or "pad"
     size = ffmpeg_studio.probe_size(parent["path"])
@@ -1103,6 +1125,8 @@ def deliver(p: Pipeline, project_id: int, data_dir: str, llm=None, music_path: O
     """The whole chain in one go. A failing optional layer is reported (diag + warnings) and the chain goes on: the final video
     always comes out when the render works. render_fn / subtitle_fn: replaceable (automatic run, tests)."""
     access.need_edit(p, project_id, "giao bản dựng")
+    final_cut.require_delivery_resolution(final_cut.collect_clips_for_render(p.conn, data_dir, project_id, clips),
+                                          final_cut.project_frame(p.project(project_id)))
     warnings = []
     before = lineage.latest_output(p.conn, project_id, "final")
     if render_fn is None:

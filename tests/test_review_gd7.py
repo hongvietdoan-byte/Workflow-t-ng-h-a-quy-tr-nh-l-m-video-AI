@@ -98,7 +98,7 @@ class ReviewTests(unittest.TestCase):
                             "-pix_fmt", "yuv420p", path], check=True)
         p.conn.commit()
         with mock.patch.dict(os.environ, {"FEATURE_SHOT_COLOR_MATCH": "1"}):
-            res = delivery.render(p, pid, data, music_path=None)
+            res = delivery.render(p, pid, data, music_path=None, render_size=(270, 480))
         man = json.loads(p.conn.execute("SELECT manifest FROM outputs WHERE id=?", (res["output_id"],)).fetchone()["manifest"])
         self.assertTrue(any(c.get("fixed") for c in man["color_match"]))
         self.assertFalse(any("match_" in json.dumps(c) for c in man["clips"]))   # lineage follows the shots' own clips

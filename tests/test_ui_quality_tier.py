@@ -46,6 +46,11 @@ class TwoTierSeed(VideoSeed):
         jid = c.execute("SELECT id FROM jobs WHERE scene_id=? AND type='video_gen' ORDER BY id LIMIT 1", (sid,)).fetchone()["id"]
         c.execute("UPDATE jobs SET quality_tier=?, state=?, source_job_id=?, input_hash=NULL WHERE id=?",
                   (tier, jstate, self.other_img if outdated else None, jid))
+        if tier in ('final', 'direct') and jstate == 'approved':
+            path = os.path.join(self.data, str(self.pid), 'videos', f'fixture-final-{sid}.mp4')
+            with open(path, 'wb') as f:
+                f.write(b'fixture video - size supplied by probe mock')
+            c.execute('UPDATE jobs SET result_path=? WHERE id=?', (path, jid))
         if tier == "draft":           # F3: a Seedance 2.5 sample with its task id = the high tier comes FROM the draft (no new gen)
             c.execute("UPDATE jobs SET model='seedance-2.5', external_id=? WHERE id=?", (f"seedance:t{jid}", jid))
         c.execute("DELETE FROM review_log WHERE job_id=? AND reviewer_type='user'", (jid,))
@@ -63,7 +68,8 @@ class TwoTierSeed(VideoSeed):
         """Flag two_tier_quality ON for the real core module and the screens; sending is a Mock (never a provider call)."""
         self.submit = mock.Mock(return_value=0)
         for s in (mock.patch.dict(os.environ, {"FEATURE_TWO_TIER_QUALITY": "1", "VIDEO_PROVIDER": "mock"}),
-                  mock.patch("core.runner.VideoRunner.submit_pending", self.submit)):
+                  mock.patch("core.runner.VideoRunner.submit_pending", self.submit),
+                  mock.patch('core.ffmpeg_studio.probe_size', side_effect=lambda path: (720, 1280) if path and os.path.isfile(path) else None)):
             s.start()
             self.addCleanup(s.stop)
 
@@ -91,6 +97,14 @@ class FlagOffTests(TwoTierSeed):
 
 
 class VideoScreenTests(TwoTierSeed):
+    def test_unknown_final_shows_restore_source_and_no_final_button(self):
+        self.on()
+        with mock.patch('core.ffmpeg_studio.probe_size', return_value=None):
+            at = self.open(3)
+        self.assertIn('kiểm tra/tải lại nguồn', '\n'.join(w.value for w in at.warning))
+        self.assertNotIn(f'qfinal_{self.sids[4]}', {b.key for b in at.button})
+        self.submit.assert_not_called()
+
     def test_badges_difficulty_and_path_choice(self):
         self.on()
         at = self.open(3)

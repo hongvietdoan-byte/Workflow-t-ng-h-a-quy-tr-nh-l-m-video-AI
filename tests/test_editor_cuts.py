@@ -177,7 +177,7 @@ class RealRenderTests(unittest.TestCase):
                             "-i", "sine=frequency=440:duration=1.5", "-shortest", "-pix_fmt", "yuv420p", "-c:a", "aac", path], check=True)
         p.conn.commit()
         settings = dict(delivery.get_settings(p, pid), keep_audio=True)
-        res = delivery.render(p, pid, data, music_path=None, settings=settings)
+        res = delivery.render(p, pid, data, music_path=None, settings=settings, render_size=(270, 480))
         self.assertTrue(os.path.exists(res["path"]))
         man = json.loads(p.conn.execute("SELECT manifest FROM outputs WHERE id=?", (res["output_id"],)).fetchone()["manifest"])
         self.assertIsNotNone(man["loudness"]["lufs"])

@@ -473,6 +473,13 @@ class ReframeExportTests(Base):
 
 
 class AutopilotV2Tests(Base):
+    def setUp(self):
+        super().setUp()
+        # MockVideoProvider tạo clip nhỏ; test quy trình xuất đúng khung nhỏ ấy.
+        frame = mock.patch.dict(formats.ASPECTS["9:16"], {"render": (360, 640)})
+        frame.start()
+        self.addCleanup(frame.stop)
+
     def ctx(self):
         return autopilot.Context(self.data, ImageRunner(self.p, MockImageProvider(), self.data),
                                  VideoRunner(self.p, MockVideoProvider(polls_to_finish=1), self.data), llm_runner.MockLlm(),
