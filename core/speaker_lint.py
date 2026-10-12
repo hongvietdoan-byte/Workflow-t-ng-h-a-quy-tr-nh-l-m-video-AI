@@ -30,20 +30,70 @@ def is_kling(model) -> bool:
     return "kling" in str(model or "").lower()
 
 
-def speakers(data: Dict) -> List[str]:
-    """Who speaks in this shot (upper case, film order, once each); on-screen text / notes are not voices."""
+# 12/10 (#27 shot 12): "LỜI DẪN speaks (mouth moving, no sound)" — the narrator is a voice OFF the frame, nobody's mouth opens for it.
+# Whole names only, compared WITH their accents ('VÕ' is a person, 'VO' the voice-over label; 'LỜI' alone is nothing).
+NARRATOR_NAMES = {"LỜI DẪN", "LỜI DẪN TRUYỆN", "LỜI DẪN CHUYỆN", "NGƯỜI DẪN", "NGƯỜI DẪN CHUYỆN", "NGƯỜI KỂ", "NGƯỜI KỂ CHUYỆN",
+                  "DẪN CHUYỆN", "DẪN TRUYỆN", "THUYẾT MINH", "LỜI THUYẾT MINH", "GIỌNG DẪN", "GIỌNG KỂ", "GIỌNG ĐỌC",
+                  "NARRATOR", "NARRATION", "VOICE OVER", "VOICE-OVER", "VOICEOVER", "VO", "V.O.", "V.O"}
+_OFF_TAG = re.compile(r"\s*\((?:V\.?O\.?|O\.?S\.?)\)$")          # "KELLY (V.O.)" / "KENTA (O.S.)": heard, not seen
+
+
+def _norm(name) -> str:
+    import unicodedata
+    return re.sub(r"\s+", " ", unicodedata.normalize("NFC", str(name or ""))).strip().upper()
+
+
+def is_narrator(name: str) -> bool:
+    """A narrator / voice-over label — a voice off the frame."""
+    raw = _norm(name)
+    return raw in NARRATOR_NAMES or bool(_OFF_TAG.search(raw))
+
+
+def in_frame(data: Dict, name, voice_only=()) -> bool:
+    """`name` speaks where we see them: not a narrator / voice-over, not a voice-only character, and — when the shot lists its
+    `characters` — one of them."""
+    who = _norm(name)
+    if not who or is_narrator(who) or who in {_norm(v) for v in voice_only or ()}:
+        return False
+    present = {_norm(c) for c in data.get("characters") or [] if _norm(c)}
+    return not present or who in present
+
+
+def speakers(data: Dict, voice_only=()) -> List[str]:
+    """Who speaks IN THIS SHOT (upper case, film order, once each): on-screen text / notes are not voices; a narrator / voice-over
+    (`is_narrator`, or a character whose profile says voice only — `voice_only`, see voice_only_names) is a voice off the frame; and
+    when the shot lists its `characters`, only those are in the frame (12/10 #27 shot 12)."""
     out = []
     for d in data.get("dialogue") or []:
         if not isinstance(d, dict):
             continue
-        who = str(d.get("speaker") or "").strip().upper()
+        who = _norm(d.get("speaker"))
+        if who and not in_frame(data, who, voice_only):
+            continue
         if who and not dialogue.is_non_speaker(who) and str(d.get("text") or "").strip() and who not in out:
             out.append(who)
     return out
 
 
+_VOICE_ONLY = re.compile(r"voice[- ]?over|ngoài hình|ngoài khung|không (?:xuất hiện|hiện hình|lộ diện) (?:trong|trên) (?:khung|hình)|"
+                         r"off[- ]screen", re.I)
+
+
+def voice_only_names(conn, project_id: int) -> List[str]:
+    """Characters whose profile says they are never seen (#27 'LỜI DẪN': "Giọng dẫn chuyện ngoài hình (voice-over), không xuất hiện
+    trong khung hình") — their lines are heard over the picture."""
+    rows = conn.execute("SELECT name, description, wardrobe FROM characters WHERE project_id=?", (project_id,)).fetchall()
+    return voice_only_of([dict(r) for r in rows])
+
+
+def voice_only_of(chars) -> List[str]:
+    """voice_only_names from profile dicts already read ({name, description, wardrobe, …})."""
+    return [_norm(c.get("name")) for c in chars or [] if isinstance(c, dict)
+            and _VOICE_ONLY.search(f"{c.get('description') or ''} {c.get('wardrobe') or ''}")]
+
+
 def on_screen(data: Dict) -> List[str]:
-    return [str(c).strip().upper() for c in data.get("characters") or [] if str(c).strip()]
+    return [_norm(c) for c in data.get("characters") or [] if _norm(c)]
 
 
 def applies(rows: Sequence[Dict]) -> bool:

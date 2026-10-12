@@ -317,7 +317,7 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
              + " ".join(f"Image {i} is the storyboard frame of Shot {i}: Shot {i} starts with exactly this composition, framing and "
                         f"these character positions." for i in range(1, n + 1)))
     # 2. the shots — a sentence repeated word for word in several shots (costume, background) is said once, after them (#22 lỗi 5)
-    raw = [str(m).strip() for m, _ in parts]
+    raw = [str(m).replace(START_SENTENCE, "").strip() for m, _ in parts]   # 12/10: the start block above says it for every shot
     texts, shared = pt.shared_sentences(raw) if n > 1 else (raw, [])
     marks = whole_marks([float(sec) for _, sec in parts]) if reads_seconds(model) else [None] * n
     shots = [f"Shot {i}" + (f" ({mk[0]}–{mk[1]} s)" if mk else "") + f": {t.strip().rstrip('.')}."
@@ -777,17 +777,37 @@ def eyes_guard(data: Dict, humans: Optional[Dict[str, bool]] = None) -> str:
     return f" {', '.join(names)}: natural human eyes, no glowing eyes."
 
 
-def shot_motion(data: Dict, voice: bool = False, humans: Optional[Dict[str, bool]] = None) -> str:
+# 12/10 (#27: 19/21 VÀNG "Điểm bắt đầu"): the formula's start sentence (knowledge/formula, prompt_formula._START) for a code-written
+# shot prompt — only with the flag prompt_formula; a group prompt says it once in its own start block (prompt() drops it from the shots).
+START_SENTENCE = "The clip starts exactly on the pose and framing of the first image."
+
+
+def untranslated(data: Dict) -> List[str]:
+    """The Director fields shot_motion would write in Vietnamese (no English in motion_en) — 12/10 #27: the translation call failed
+    (Anthropic out of credit) and 21 prompts went out with Vietnamese action sentences, approved."""
+    out = [k for k in ("action", "end_state") if has_vietnamese(str(_en(data, k) or ""))]
+    perf = _en(data, "performance")
+    if isinstance(perf, dict) and any(has_vietnamese(str(perf.get(k) or "")) for k in ("face", "eyes", "body", "timing")):
+        out.append("performance")
+    return out
+
+
+def shot_motion(data: Dict, voice: bool = False, humans: Optional[Dict[str, bool]] = None, voice_only=()) -> str:
     """A shot's motion text from the Director's fields (no Claude): size / angle / camera, then WHAT HAPPENS (the action, the end
     state), the acting, who speaks. No picture words: the shot's storyboard frame carries the composition, the identity pictures the
     looks (review 2026-09-27: image_prompt repeated looks and the style line in every shot → group prompts past 4,000 characters).
     voice: the shot goes with its own voice line (lip sync) — "no sound" would contradict the attached audio.
-    humans: {character: is a person} (assets.cast_humans) — the plain-eyes guard only for people (eyes_guard)."""
+    humans: {character: is a person} (assets.cast_humans) — the plain-eyes guard only for people (eyes_guard).
+    voice_only: characters whose profile says they are never seen (speaker_lint.voice_only_names) — no mouth for their lines.
+    12/10 (#27): only a speaker IN the frame speaks (a narrator / voice-over never does); with prompt_formula the start sentence leads,
+    with ambient_motion the background layer (prompt_formula.ambient_sentence) follows the people — both flags off: the old text."""
     from .shots import SIZE_WORDS
+    from . import prompt_formula, speaker_lint
     perf = _en(data, "performance")
     perf = perf if isinstance(perf, dict) else {}
     acting = "; ".join(f"{k}: {perf[k]}" for k in ("face", "eyes", "body", "timing") if perf.get(k))
-    speakers = [str(x.get("speaker")) for x in data.get("dialogue") or [] if isinstance(x, dict) and x.get("speaker")]
+    speakers = [str(x.get("speaker")) for x in data.get("dialogue") or [] if isinstance(x, dict) and x.get("speaker")
+                and speaker_lint.in_frame(data, x.get("speaker"), voice_only)]
     if voice:
         talk = " ".join(f"{s} says the line of the attached voice, lips in sync." for s in speakers)
     else:
@@ -805,9 +825,11 @@ def shot_motion(data: Dict, voice: bool = False, humans: Optional[Dict[str, bool
     camera = (f"{SIZE_WORDS.get(data.get('size'), data.get('size') or 'shot')}, {data.get('angle') or 'eye'} angle, camera {move}"
               + (f"; framing {framing}" if framing else "") + ".")
     camera = camera[0].upper() + camera[1:]
-    return ((f"{action}. " if action else "") + (f"It ends with {end}. " if end else "")
+    start = f"{START_SENTENCE} " if prompt_formula.enabled() else ""
+    ambient = prompt_formula.ambient_sentence(data)[0] if prompt_formula.ambient_on() else ""
+    return (start + (f"{action}. " if action else "") + (f"It ends with {end}. " if end else "")
             + (f"Acting — {acting}.{guard} " if acting else "") + (f"{talk} " if talk else "")
-            + f"{camera} " + (body or "")).strip()
+            + (f"{ambient} " if ambient else "") + f"{camera} " + (body or "")).strip()
 
 
 _STRONG = ((r"\b(extremely|insanely|wildly|utterly|incredibly|hysterically)\s+", ""), (r"\becstatic\b", "delighted"),
@@ -877,7 +899,8 @@ def short_shots(secs: List[float]) -> List[int]:
 def write_by_code(p, pid: int, llm=None) -> Dict:
     """The motion step shared by the automatic run and the Step 3 button (08/10: the button paid Claude for shots the automatic run
     writes by code): ONE Claude call turns the Director's Vietnamese fields into English (only when some are Vietnamese), then every
-    reference shot — missing or outdated — gets its prompt from code. Returns {translated, by_code, warn}."""
+    reference shot — missing or outdated — gets its prompt from code. Returns {translated, by_code, warn, held}; `held` = the shots
+    whose prompt was kept waiting for a person (code_motion: Vietnamese left / VÀNG of the formula), [] when none (12/10 #27)."""
     from . import claude_tasks, lineage, llm_runner
     out = {"translated": 0, "by_code": 0, "warn": None}
     if not enabled(p.conn, pid):
@@ -886,26 +909,35 @@ def write_by_code(p, pid: int, llm=None) -> Dict:
         try:
             out["translated"] = claude_tasks.translate_motion_fields(p, pid, llm)
         except (llm_runner.LlmError, ValueError) as e:
-            out["warn"] = f"không dịch được trường tiếng Việt ({e}) — prompt nhóm sẽ bị chặn khi gửi nếu còn tiếng Việt"
+            out["warn"] = (f"không dịch được trường tiếng Việt ({e}) — shot còn tiếng Việt được viết nhưng để CHỜ DUYỆT (không tự duyệt), "
+                           "prompt nhóm sẽ bị chặn khi gửi nếu còn tiếng Việt")
+    elif translate_estimate(p.conn, pid):
+        out["warn"] = ("chưa dịch trường tiếng Việt sang tiếng Anh (chưa có Claude) — shot còn tiếng Việt được viết nhưng để CHỜ DUYỆT; "
+                       "cấu hình Claude rồi bấm lại 'Viết motion prompt'")
     stale = [sid for sid, r in lineage.scan(p.conn, pid).items() if r["motion_stale"] and uses_refs(p.conn, sid)]
-    out["by_code"] = code_motion(p, pid, redo_ids=stale)
+    held: List[Dict] = []
+    out["by_code"] = code_motion(p, pid, redo_ids=stale, out_held=held)
+    out["held"] = held
     return out
 
 
-def code_motion(p, pid: int, redo_ids=()) -> int:
+def code_motion(p, pid: int, redo_ids=(), out_held: Optional[List[Dict]] = None) -> int:
     """Motion prompts written by code for the shots made by reference pictures that have an approved picture and no prompt yet — the
     group prompt is built from them (docs/THIET_KE_LAI_QC_VA_KET_NOI_2026-09-27.md mục 1: no Claude motion call for Seedance groups).
-    Returns how many were written (approved at once: nothing here was guessed by a model)."""
+    Returns how many were written. Approved at once (nothing here was guessed by a model) — except (12/10 #27) a prompt with Vietnamese
+    left in it or a VÀNG / ĐỎ of the prompt formula: kept 'pending', said per shot in ⚙ Chẩn đoán and listed in `out_held`."""
     from . import llm_io
     from .shots import image_scene
     if not enabled(p.conn, pid):
         return 0
+    vi_held = {sid for sid in vietnamese_held(p.conn, pid)
+               if not untranslated(json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()["data"] or "{}"))}
     todo = []
     for s in p.conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall():
         d = json.loads(s["data"] or "{}")
         if not eligible(d):
             continue
-        if s["id"] in redo_ids:                       # outdated: written again from the Director's fields, never by Claude (review)
+        if s["id"] in redo_ids or s["id"] in vi_held:  # outdated: written again from the Director's fields, never by Claude (review)
             p.conn.execute("DELETE FROM motion_prompts WHERE scene_id=?", (s["id"],))
         elif p.conn.execute("SELECT 1 FROM motion_prompts WHERE scene_id=?", (s["id"],)).fetchone():
             continue
@@ -916,12 +948,105 @@ def code_motion(p, pid: int, redo_ids=()) -> int:
         voice = lipsync.enabled() and lipsync.voiced(lipsync.method_for(d))
         from .assets import cast_humans                    # F1-B: the plain-eyes guard only for people (profiles read)
         humans = cast_humans(p.conn, pid, d.get("characters") or [])
-        todo.append({"id": s["id"], "idx": s["idx"], "motion_prompt": shot_motion(d, voice=voice, humans=humans),
+        from .speaker_lint import voice_only_names          # 12/10 #27: a voice-over character opens no mouth
+        todo.append({"id": s["id"], "idx": s["idx"],
+                     "motion_prompt": shot_motion(d, voice=voice, humans=humans, voice_only=voice_only_names(p.conn, pid)),
                      "duration_sec": min(floored(d, float(d.get("duration_s") or 2)), 30)})   # 28/09: a 1 s single was
                                                                                           # cut to 1 s — the collapse was cut off
     if not todo:
         return 0
     llm_io.store_motion_prompts(p, pid, {"scenes": [{k: t[k] for k in ("idx", "motion_prompt", "duration_sec")} for t in todo]})
+    held = []
+    from . import diag
     for t in todo:
+        why, notes = _hold_reasons(p.conn, t["id"], t["motion_prompt"])
+        if why:
+            held.append({"scene_id": t["id"], "idx": t["idx"], "why": "; ".join(why + notes),
+                         "red": any(w.startswith("ĐỎ") for w in why)})
+            diag.record(p.conn, "motion", "warn", f"Shot {t['idx']}: motion viết bằng code để CHỜ DUYỆT, không tự duyệt — "
+                        + "; ".join(why + notes), "code_motion_held", pid, scene_id=t["id"])
+            continue
         llm_io.approve_motion_prompt(p, t["id"])
+        if notes:
+            diag.record(p.conn, "motion", "info", f"Shot {t['idx']}: motion viết bằng code TỰ DUYỆT dù có VÀNG ngoài phần công thức code "
+                        "viết (viết từ trường Đạo diễn, không đoán) — " + "; ".join(notes), "code_motion_note", pid, scene_id=t["id"])
+    if out_held is not None:
+        out_held.extend(held)
     return len(todo)
+
+
+def vietnamese_held(conn, pid: int) -> List[int]:
+    """Shots made by reference pictures whose prompt waits ('pending') with Vietnamese in it — held by code_motion when the translation
+    did not run; written again by code once their English is there (a prompt a person rewrote in English is never touched)."""
+    rows = conn.execute("SELECT m.scene_id, m.motion_prompt FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id"
+                        " WHERE s.project_id=? AND m.state='pending'", (pid,)).fetchall()
+    out = []
+    for r in rows:
+        d = conn.execute("SELECT data FROM scenes WHERE id=?", (r["scene_id"],)).fetchone()
+        if _vi_besides_names(r["motion_prompt"], json.loads(d["data"] or "{}")) and uses_refs(conn, r["scene_id"]):
+            out.append(r["scene_id"])
+    return out
+
+
+def _vi_besides_names(text: str, data: Dict) -> bool:
+    """Vietnamese in a code-written prompt other than the characters' names ("YÊU NỮ TÀ LINH DẠNG 1: natural human eyes" is a name —
+    prompt() writes it without accents for the group, 08/10)."""
+    names = [str(n) for n in data.get("characters") or []] + [str(x.get("speaker")) for x in data.get("dialogue") or []
+                                                               if isinstance(x, dict) and x.get("speaker")]
+    text = str(text or "")
+    for name in sorted({n for n in names if n.strip()}, key=len, reverse=True):
+        for form in {name, name.upper(), name.title(), name.capitalize(), name.lower()}:
+            text = text.replace(form, "")
+    return has_vietnamese(text)
+
+
+# The parts of the motion formula the code writer itself must produce (knowledge/formula: start, action, camera, end state, who speaks,
+# source of the moves, background layer). A VÀNG there = the code-written prompt is short of the formula → held for a person. Any other
+# VÀNG (e.g. "hồ sơ trang phục không so được" — a note about the checker's own reach) is approved with the reason said.
+HOLD_PARTS = ("diem_bat_dau", "hanh_dong", "may_quay", "trang_thai_cuoi", "thoai", "nguon_dong_tac", "chuyen_dong_nen")
+
+
+def _hold_reasons(conn, scene_id: int, text: str):
+    """(hold, notes) for a code-written prompt (12/10 #27: 21/21 approved at once with Vietnamese sentences and the formula's VÀNG).
+    hold — must not be approved by itself: Vietnamese left in it (the translation did not run / failed), an ĐỎ of the prompt formula,
+    or a VÀNG of a HOLD_PARTS part. notes — other VÀNG: approved, the reason said (formula_check written when the prompt was saved,
+    flag prompt_formula). ([], []) = approved at once, as before."""
+    hold, notes = [], []
+    row = conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    data = json.loads(row["data"] or "{}") if row else {}
+    if _vi_besides_names(text, data):
+        fields = untranslated(data)
+        hold.append("còn chữ tiếng Việt" + (f" ở {', '.join(fields)}" if fields else "") + " (chưa dịch sang tiếng Anh — bấm lại "
+                    "'Viết motion prompt' khi Claude dịch được, hoặc sửa tay sang tiếng Anh) — chờ duyệt")
+    from . import prompt_formula
+    if prompt_formula.enabled():
+        fc = data.get("formula_check") or {}
+        if fc.get("motion_sha") != prompt_formula._sha(text):     # the check of THIS prompt did not get written (on_prompt_saved
+            hold.append("chưa kiểm được công thức của prompt này (xem ⚙ Chẩn đoán) — chờ duyệt")   # never raises): not a stale verdict
+            return hold, notes
+        for i in fc.get("motion") or []:
+            if not isinstance(i, dict) or i.get("level") not in ("warn", "red"):
+                continue
+            label = prompt_formula.PART_LABELS.get(i.get("part"), i.get("part"))
+            line = f"{'ĐỎ' if i['level'] == 'red' else 'VÀNG'} công thức {label}: {i.get('msg', '')}"
+            (hold if i["level"] == "red" or i.get("part") in HOLD_PARTS else notes).append(line)
+    return hold, notes
+
+
+def translate_estimate(conn, pid: int) -> float:
+    """USD of the ONE translation call write_by_code would make now (claude_tasks.translate_motion_fields, worst case as the budget
+    lock reads it — project_budget._translate_worst) — 0 when no shot made by reference pictures still needs English. For the Step 3
+    button: the price is shown before the click (luật chi phí)."""
+    from . import claude_tasks, project_budget
+    need = False
+    for sid, raw in conn.execute("SELECT id, data FROM scenes WHERE project_id=?", (pid,)).fetchall():
+        d = json.loads(raw or "{}")
+        item = {k: d[k] for k in claude_tasks.TRANSLATE_KEYS if d.get(k) and claude_tasks._vi(d[k])}
+        perf = d.get("performance") if isinstance(d.get("performance"), dict) else {}
+        pv = {k: perf[k] for k in claude_tasks.TRANSLATE_PERF if perf.get(k) and claude_tasks._vi(perf[k])}
+        if pv:                                                   # the same item translate_motion_fields sends
+            item["performance"] = pv
+        if item and d.get("motion_en_src") != claude_tasks._src_key(item) and uses_refs(conn, sid):
+            need = True
+            break
+    return project_budget._translate_worst(conn, pid) if need else 0.0

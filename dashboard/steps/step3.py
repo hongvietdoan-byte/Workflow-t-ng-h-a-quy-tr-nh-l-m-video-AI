@@ -43,14 +43,22 @@ def step3(p: Pipeline, pid: int):
         # for the frame-start shots
         from core import seedance_refs
         refs = {sid for sid in status if seedance_refs.uses_refs(p.conn, sid)}
+        # 12/10 #27: held in Vietnamese → written again once translated (only Claude can translate: without it the click does nothing)
+        vi_held = {sid for sid in seedance_refs.vietnamese_held(p.conn, pid)
+                   if client is not None and not (status.get(sid) or {}).get("motion_stale")}
         by_code_n = sum(1 for sid, r in status.items() if sid in refs and r["image_job_id"]
-                        and (r["motion_state"] is None or r["motion_stale"]))
+                        and (r["motion_state"] is None or r["motion_stale"] or sid in vi_held))
         claude_missing = [sid for sid, r in status.items() if sid not in refs and r["image_job_id"] and r["motion_state"] is None]
         claude_stale = [r["idx"] for sid, r in status.items() if sid not in refs and r["image_job_id"] and r["motion_stale"]]
         calls = (1 if claude_missing else 0) + (1 if claude_stale else 0)  # one Claude call per batch (all missing / all outdated)
-        calls += 1 if by_code_n else 0                                     # + at most one call translating Vietnamese fields (overestimate)
         mot_usd = cost.llm_estimate(p.conn, "motion", calls, images=min(len(claude_missing) + len(claude_stale), 12))
-        code_note = f" · {by_code_n} viết bằng code" if by_code_n else ""
+        # 12/10 (#27): the ONE translation call before the code writes (its worst case, as the budget lock reads it) is in the price
+        tr_usd = seedance_refs.translate_estimate(p.conn, pid) if by_code_n and client is not None else 0.0
+        if tr_usd:
+            calls += 1
+            mot_usd = None if mot_usd is None else round(mot_usd + tr_usd, 4)
+        todo += len(vi_held)
+        code_note = (f" · {by_code_n} viết bằng code" + (f", gồm 1 lượt dịch ≈ {tr_usd:.2f} USD" if tr_usd else "")) if by_code_n else ""
         if c1.button(f"🤖 Viết motion prompt ({len(missing)} chưa có · {len(stale_idx)} đã cũ{code_note}){cost.llm_tag(mot_usd, calls)}",
                      type="primary", key=f"llm_mot_{pid}", disabled=(client is None and not by_code_n) or not todo,
                      help=None if client else claude_hint()):
@@ -58,6 +66,9 @@ def step3(p: Pipeline, pid: int):
                 code = seedance_refs.write_by_code(p, pid, client)
                 if code["warn"]:
                     st.warning(code["warn"])
+                if code.get("held"):                                        # 12/10 #27: not approved silently — said per shot
+                    st.warning("Motion viết bằng code để CHỜ DUYỆT: " + "; ".join(f"shot {h['idx']}: {h['why'][:160]}"
+                                                                                for h in code["held"]))
                 again = lineage.scan(p.conn, pid)                           # what is left for Claude after the code step
                 left_stale = sorted(r["idx"] for r in again.values() if r["motion_stale"] and r["image_job_id"])
                 left_missing = any(r["image_job_id"] and r["motion_state"] is None for r in again.values())

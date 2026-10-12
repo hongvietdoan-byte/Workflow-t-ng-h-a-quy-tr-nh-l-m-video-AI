@@ -823,10 +823,32 @@ def _motion_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             _d(p, pid, "motion", "warn", f"autopilot bỏ qua rà prompt: {e}", "lint_skipped")
         with open(marker, "w") as f:
             f.write("1")
+    # 12/10 (#27): a code-written prompt held by code_motion is not approved silently — Vietnamese left (the translation failed) stays
+    # waiting (the group send would be blocked for it anyway); a VÀNG of the formula is approved by the automatic run, its reason said
+    held = {}
+    vi_wait = set(seedance_refs.vietnamese_held(p.conn, pid))
     for s in rows:
-        m = p.conn.execute("SELECT state FROM motion_prompts WHERE scene_id=?", (s["id"],)).fetchone()
+        m = p.conn.execute("SELECT state, motion_prompt FROM motion_prompts WHERE scene_id=?", (s["id"],)).fetchone()
         if m is not None and m["state"] != "approved":
+            h = None
+            if seedance_refs.uses_refs(p.conn, s["id"]):           # read again each tick: a held prompt is not forgotten on resume
+                why, notes = seedance_refs._hold_reasons(p.conn, s["id"], m["motion_prompt"] or "")
+                if why:
+                    h = held[s["id"]] = {"scene_id": s["id"], "idx": s["idx"], "why": "; ".join(why + notes),
+                                         "red": any(w.startswith("ĐỎ") for w in why)}
+            if s["id"] in vi_wait or (h and h.get("red")):
+                continue                                   # ĐỎ: the runner would stop it as "sai công thức" — a person fixes it
+            if h:
+                _log(p, pid, f"Tự duyệt motion shot {h['idx']} (chạy tự động duyệt mọi prompt) dù có VÀNG: " + h["why"][:300])
             llm_io.approve_motion_prompt(p, s["id"])
+    waiting = sorted(h["idx"] for h in held.values() if h.get("red") and h["scene_id"] not in vi_wait)
+    if vi_wait or waiting:
+        # stop (not "running"): every tick would pay the translation again and never get further — the person fixes, then Tiếp tục
+        note = (f"{len(vi_wait)} motion prompt viết bằng code còn tiếng Việt (chưa dịch: {code.get('warn') or 'xem ⚙ Chẩn đoán'})"
+                if vi_wait else "") + ("; " if vi_wait and waiting else "") + (
+                f"motion shot {', '.join(map(str, waiting))} có ĐỎ công thức" if waiting else "")
+        _d(p, pid, "motion", "warn", note, "code_motion_held")
+        raise _Stop(note[:300] + " — dịch được / sửa tay rồi bấm Tiếp tục")
     done = sum(1 for s in rows if _count(p, "SELECT COUNT(*) FROM motion_prompts WHERE scene_id=? AND state='approved'", s["id"]))
     if done == len(rows):
         _trainee_plans(p, pid)

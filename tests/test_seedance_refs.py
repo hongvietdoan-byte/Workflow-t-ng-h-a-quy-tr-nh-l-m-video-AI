@@ -340,6 +340,10 @@ class SeedanceRefTests(unittest.TestCase):
         from core.providers import MockImageProvider  # noqa: F401 - the images are approved by _ready
         self._ready()
         self.p.conn.execute("DELETE FROM motion_prompts WHERE scene_id IN (%s)" % ",".join(map(str, self.ids)))
+        for sid in self.ids:          # 12/10 (#27): the mock Director writes Vietnamese — translated, as the real step does first
+            d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()["data"])
+            d["motion_en"] = {"action": f"Kelly turns toward the camera, shot {sid}"}
+            self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), sid))
         self.p.conn.commit()
         n = seedance_refs.code_motion(self.p, self.pid)
         self.assertGreaterEqual(n, len(self.ids))
@@ -365,8 +369,10 @@ class SeedanceRefTests(unittest.TestCase):
         res = seedance_refs.write_by_code(self.p, self.pid, Down())
         self.assertGreaterEqual(res["by_code"], len(self.ids))
         self.assertIn("không dịch được", res["warn"])                                # rule 1: said, not swallowed
-        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM motion_prompts WHERE scene_id IN (%s) AND state='approved'"
+        # 12/10 (#27): written, but a prompt left in Vietnamese is never approved by itself — it waits for a person
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM motion_prompts WHERE scene_id IN (%s) AND state='pending'"
                                              % ",".join(map(str, self.ids))).fetchone()[0], len(self.ids))
+        self.assertTrue(set(self.ids) <= {h["scene_id"] for h in res["held"]})
         os.environ["FEATURE_SEEDANCE_REF_GROUPS"] = "0"                             # frame-start shots: nothing for code to write
         calls.clear()
         self.assertEqual(seedance_refs.write_by_code(self.p, self.pid, Down()), {"translated": 0, "by_code": 0, "warn": None})
