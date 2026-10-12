@@ -57,6 +57,98 @@ class PropLockTest(unittest.TestCase):
         with mock.patch.dict(os.environ, env), mock.patch.object(assets, "scene_location", return_value=None):
             return assets.scene_references(self.p.conn, self.pid, dict(shot))
 
+    def test_storyboard_mapping_and_sent_paths_use_recovered_gun(self):
+        from types import SimpleNamespace
+        from core import runner, scene_storyboard, scene_establish, place_refs, skill_dossier
+        shot = {"image_prompt": "Kelly holds SKORP"}
+        sid = self.p.create_scene(self.pid, 1, "priority")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(shot), sid))
+        self.p.conn.commit()
+        anchor = {"id": sid, "idx": 1, "data": shot}
+        group = {"anchor": anchor, "shots": [anchor], "story_scene": 1, "index": 1}
+        widepath = os.path.join(self.tmp, "wide.png")
+        with open(widepath, "wb") as stream:
+            stream.write(b"\x89PNG\r\n\x1a\n" + b"0" * 64)
+        shared = [{"path": widepath, "role": "place_wide", "label": "wide map"}]
+        obj = object.__new__(runner.ImageRunner)
+        obj.p, obj.provider, obj.data_dir = self.p, SimpleNamespace(supports_storyboard=True), self.tmp
+        obj._diag = mock.Mock()
+        job = {"id": 222, "project_id": self.pid, "scene_id": sid}
+        with mock.patch.dict(os.environ, FLAG_ON), mock.patch.object(scene_storyboard, "enabled", return_value=True), \
+                mock.patch.object(scene_storyboard, "group_of", return_value=group), \
+                mock.patch.object(scene_storyboard, "shared_references", return_value=shared), \
+                mock.patch.object(scene_establish, "reference", return_value=None), \
+                mock.patch.object(place_refs, "enabled", return_value=False), \
+                mock.patch.object(skill_dossier, "enabled", return_value=False):
+            result = obj._finish_args(job, "prompt", shared)
+        expected = next(a for a in assets.project_assets(self.p.conn, self.pid) if a["id"] == self.skorp)["images"][0]["path"]
+        self.assertEqual(result[1], [expected])
+        self.assertIn("Image 1 (SKORP)", obj._storyboard[222]["image_mapping"])
+        self.assertNotIn("wide map", obj._storyboard[222]["image_mapping"])
+        self.assertEqual(obj._sent[222][0]["label"], "SKORP")
+        self.assertNotIn(widepath, result[1])
+
+    def test_pov_gun_warns_without_lock_sentence_or_named_ref(self):
+        from core import prop_lock
+        shot = {"angle": "pov", "image_prompt": "Kelly holds SKORP and throws a glue wall"}
+        with mock.patch.dict(os.environ, FLAG_ON):
+            self.assertNotIn("SKORP", prop_lock.prompt_part(self.p.conn, self.pid, shot))
+            self.assertIn("Bom keo", prop_lock.prompt_part(self.p.conn, self.pid, shot))
+            self.assertTrue(any(i["level"] == "warn" and "POV" in i["msg"] for i in prop_lock.issues(self.p.conn, self.pid, shot)))
+        self.assertNotIn("SKORP", [r["label"] for r in self._refs(shot, FLAG_ON)])
+        self.assertIn("SKORP", [r["label"] for r in self._refs(shot, FLAG_OFF)])
+
+    def test_negated_ots_does_not_override_affirmative_pov(self):
+        from core import prop_lock
+        angles = ("not over-the-shoulder; POV", "Không qua vai; góc nhìn thứ nhất",
+                  "not third-person; first-person view", "Not OTS, POV with a gun")
+        with mock.patch.dict(os.environ, FLAG_ON):
+            for angle in angles:
+                shot = {"angle": angle, "image_prompt": "Kelly holds SKORP"}
+                with self.subTest(angle=angle):
+                    self.assertTrue(prop_lock.is_pov(shot))
+                    self.assertIsNotNone(prop_lock.pov_gun_issue(self.p.conn, self.pid, shot))
+                    prompt = self._prompt(shot, FLAG_ON)
+                    self.assertNotIn("Prop lock:", prompt)
+                    self.assertNotIn("Weapon scale:", prompt)
+                    self.assertNotIn("SKORP", [r["label"] for r in self._refs(shot, FLAG_ON)])
+                    self.assertIn("SKORP", [r["label"] for r in self._refs(shot, FLAG_OFF)])
+            for angle in ("not POV; OTS", "No first-person view; third-person", "Không góc nhìn thứ nhất; qua vai"):
+                with self.subTest(angle=angle):
+                    self.assertFalse(prop_lock.is_pov({"angle": angle}))
+            self.assertFalse(prop_lock.is_pov({"angle": "ots", "image_prompt": "POV with a gun"}))
+
+    def test_pov_detection_respects_negation_dialogue_ots_and_boundaries(self):
+        from core import prop_lock
+        cases = [({"angle": "pov"}, True), ({"camera": {"angle": "first-person"}}, True),
+                 ({"shot": "POV shot of Kelly"}, True), ({"image_prompt": "First-person view, hands visible"}, True),
+                 ({"image_prompt": "No first-person view; camera at eye level"}, False),
+                 ({"image_prompt": "Do not use POV"}, False), ({"image_prompt": "POVish camera"}, False),
+                 ({"text": "LỜI DẪN: first-person view with a gun"}, False),
+                 ({"angle": "ots", "image_prompt": "POV from over the shoulder"}, False)]
+        for shot, expected in cases:
+            with self.subTest(shot=shot):
+                self.assertEqual(prop_lock.is_pov(shot), expected)
+
+    def test_locked_gun_replaces_only_wide_and_only_if_sendable(self):
+        from core import prop_lock
+        shot = {"image_prompt": "Kelly holds SKORP"}
+        refs = [{"path": "face", "label": "Kelly", "role": "character"},
+                {"path": "main", "label": "map", "role": "place_render"},
+                {"path": "wide", "label": "wide", "role": "place_wide"},
+                {"path": "previous", "label": "previous", "role": "previous_scene"}]
+        with mock.patch.dict(os.environ, FLAG_ON):
+            recovered = prop_lock.prioritize_gun_refs(self.p.conn, self.pid, shot, refs, lambda ref: True)
+            self.assertEqual(len(recovered), len(refs))
+            self.assertEqual([r["path"] for r in recovered if r["role"] != "object"], ["face", "main", "previous"])
+            self.assertEqual(recovered[2]["label"], "SKORP")
+            self.assertEqual(prop_lock.prioritize_gun_refs(self.p.conn, self.pid, shot, refs, lambda ref: False), refs)
+            protected = [r for r in refs if r["role"] != "place_wide"]
+            self.assertEqual(prop_lock.prioritize_gun_refs(self.p.conn, self.pid, shot, protected, lambda ref: True), protected)
+            self.assertEqual(prop_lock.prioritize_gun_refs(self.p.conn, self.pid, shot, recovered, lambda ref: True), recovered)
+        with mock.patch.dict(os.environ, FLAG_OFF):
+            self.assertEqual(prop_lock.prioritize_gun_refs(self.p.conn, self.pid, shot, refs, lambda ref: True), refs)
+
     def test_runner_warns_from_final_package_and_dashboard_displays_it(self):
         from core import runner, diag
         from dashboard import common
