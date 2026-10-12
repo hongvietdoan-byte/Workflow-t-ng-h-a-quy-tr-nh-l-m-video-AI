@@ -48,3 +48,17 @@ luật cấm từ — là cách tính trước khi viết. Code kiểm lại cá
     Súng KHÔNG cầm trên tay thì đeo chéo SAU LƯNG đúng cỡ thật (nòng chúc xuống, báng / ống ngắm nhô qua vai, tối đa 2 khẩu) —
     vd ăn mừng giơ tay: súng chính đeo sau lưng hoặc cầm hai tay hạ thấp, không biến thành súng lục. Viết "slung on her back" để
     gửi kèm ảnh Kho "ĐEO SÚNG SAU LƯNG".
+13. **Góc nhìn thứ nhất (POV / FPV): hai tay KHÔNG cầm súng.** Free Fire không có góc nhìn thứ nhất khi cầm súng, nên ảnh POV có
+    súng ở mép khung là hình game không có. POV chỉ thấy hai bàn tay + cẳng tay trong tay áo nhân vật, tay trống. Viết "empty hands",
+    đừng viết "no gun / no weapon": chữ "gun" làm khóa súng tưởng shot có súng và gửi kèm ảnh súng. Vì: #27 shot 1–2 (người dùng
+    12/10).
+14. **Vật bị nguyền / vật sự kiện vẽ ĐÚNG dạng trong ảnh Kho của nó**, kể cả vị trí so với vòng tròn đỏ. Quả bóng bãi biển LƠ LỬNG
+    giữa vòng tròn đỏ, có cột sáng đỏ xuyên qua. Hộp nhạc ĐẶT trên sàn giữa vòng tròn đỏ. Mặt nạ trắng trong khung vuông trên tường giấy
+    dán lục giác tối. Ô tô LƠ LỬNG trong cột sáng đỏ. Mỗi vật một mục Kho (#429 mặt nạ, #438 hộp nhạc, #439 quả bóng, #440 ô tô bay).
+    Vì: #27 shot 6 tả "quả bóng nằm dưới sàn" (người dùng 12/10).
+15. **Một vật thể cố định (cổng portal…) xuất hiện ở nhiều shot thì cùng MỘT chỗ.** Shot sau chạy tới / bước qua nó thì giữ đúng
+    bối cảnh, giờ trong ngày và chỗ đứng của shot giới thiệu nó. Chỉ cảnh nhìn qua lòng cổng mới đổi thế giới. Vì: #27 hai cổng ở bãi
+    cỏ phía bắc (shot 2), nhưng shot 3–4 lại vẽ cổng trên quảng trường đá ban đêm (người dùng 12/10).
+16. **Gọi vật trong Kho bằng tên có trong tên / tên gọi khác của mục đó** (tiếng Anh đã thêm: "torii portal gate", "beach ball",
+    "music box", "floating car", "cursed mask"). Khâu chọn ảnh tham chiếu chỉ khớp nguyên cụm tên. Tả bằng từ khác thì ảnh mẫu không được
+    gửi kèm, và model tự vẽ một kiểu khác. Vì: #27 shot 2 cổng "không giống" vì ảnh Kho #426 không được gửi.
