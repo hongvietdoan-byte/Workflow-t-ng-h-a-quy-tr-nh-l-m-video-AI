@@ -280,6 +280,14 @@ def scene_expander(p: Pipeline, scene_id, expanded: bool = False, with_motion: b
                  ("Mood / ánh sáng / cỡ cảnh", " · ".join(filter(None, [d.get("mood"), d.get("lighting"), d.get("shot")]))),
                  ("Vị trí nhân vật", d.get("blocking") or ""),
                  ("Prompt ảnh", d.get("image_prompt") or "")]
+        from core import prop_lock
+        project_id = p.conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()[0]
+        prop_removed = []
+        for field in ("image_prompt", "blocking", "action_peak"):
+            _, cuts = prop_lock.clean_prompt(p.conn, project_id, d, str(d.get(field) or ""))
+            prop_removed.extend(cuts)
+        if prop_removed:
+            st.caption("✂ Prompt gửi đi — sẽ bỏ: " + "; ".join(dict.fromkeys(prop_removed)))
         if with_motion:
             m = p.conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
             lines.append(("Motion prompt", m["motion_prompt"] if m else ""))
