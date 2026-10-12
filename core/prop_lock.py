@@ -453,33 +453,44 @@ def issues(conn, project_id: int, data: Dict) -> List[Dict]:
             elif sents:
                 out.append({"level": "warn", "part": "dao_cu",
                             "msg": f"chữ shot nhắc súng {a['name']} mà không ai trong shot được khóa súng này (đã khóa: {locked}) — kiểm lại"})
-        # hộp thư 14:35 (#27 shot 16): "four enemies … with SKORP submachine guns" — SKORP is KELLY's. Per clause: the SUBJECT (a present
-        # person named, or a group word: enemies / soldiers…) written before the gun verb / the gun, when the gun's owner is not among them
+        # hộp thư 14:35 (#27 shot 16): "four enemies … with SKORP submachine guns" — SKORP is KELLY's. Attributing a gun from free text is
+        # fragile (rà: 10 ordinary sentences came out wrong) → only ever YELLOW, never a stop. Per clause: the present person written
+        # NEAREST before the gun (not across "by / bị / được": passive), else a group word (enemies / soldiers / lính…) when the gun's
+        # owner is not a group-like character; the owner there → fine. Fields are joined as sentences (never glued into one).
         present = _present(conn, project_id, data)
-        table = {assets.fold(n): i for n, i in weapon_table(conn, project_id).items()}
         group_rx = re.compile(r"(?<!\w)(?:enem(?:y|ies)|soldiers?|guards?|troops?|squad|they all|all of them|lính|địch|kẻ thù|cả nhóm|bọn)(?!\w)", re.I)
+        joined = ". ".join(str((data or {}).get(k) or "").strip().rstrip(".") for k in _TEXT_KEYS if str((data or {}).get(k) or "").strip())
         flagged = set()
         for a in guns:
             if a["id"] not in owners or a["id"] in flagged:
                 continue                                  # locked to nobody in the shot: handled above
             mine = {assets.fold(n) for n in owners[a["id"]]}
-            for sent in _gun_sentences(_text, a):
-                for clause in re.split(r",|;|(?<!\w)(?:while|as|and then|but|whereas|trong khi|còn)(?!\w)", sent, flags=re.I):
+            owner_is_group = any(group_rx.search(n) or re.search(r"(?<!\w)(?:linh|dich|enemy|soldier|guard)(?!\w)", assets.fold(n))
+                                 for n in owners[a["id"]])
+            for sent in _gun_sentences(joined, a):
+                for clause in re.split(r",|;|(?<!\w)(?:while|as|when|and|but|who|which|whereas|trong khi|còn|và|đang|khi)(?!\w)",
+                                       sent, flags=re.I):
                     if not _gun_sentences(clause, a):
                         continue
-                    act = _GUN_ACTION.search(clause)
-                    gun_at = min(m.start() for n in assets.names_of(a) if len(assets.fold(n)) >= 2
-                                 for m in re.finditer(r"(?<!\w)" + re.escape(n.strip()) + r"(?!\w)", clause, re.I))
-                    cut = min(act.start(), gun_at) if act else gun_at
-                    head = " " + assets.fold(clause[:cut]) + " "
-                    subjects = [n for n in present if " " + assets.fold(n) + " " in head]
-                    group = group_rx.search(clause[:cut])
-                    if any(assets.fold(n) in mine for n in subjects) or not (subjects or group):
-                        continue
-                    who = ", ".join(subjects) if subjects else group.group(0)
-                    out.append({"level": "red" if subjects and act else "warn", "part": "dao_cu",
-                                "msg": f"chữ shot cho {who} dùng {a['name']} — súng này khóa cho {', '.join(owners[a['id']])} (\"{clause.strip()[:80]}\"); "
-                                       "sửa theo bảng gán súng (mỗi người súng của mình)"})
+                    gun_at = min((m.start() for n in assets.names_of(a) if len(assets.fold(n)) >= 2
+                                  for m in re.finditer(r"(?<!\w)" + re.escape(n.strip()) + r"(?!\w)", clause, re.I)), default=0)
+                    head = clause[:gun_at]
+                    if re.search(r"(?<!\w)(?:by|bị|được|from|of|của)(?!\w)", head, re.I):
+                        continue                          # passive / possession: "shot by Kelly with her SKORP", "SKORP của Kelly"
+                    folded = assets.fold(head)
+                    found = [(folded.rfind(assets.fold(n)), n) for n in present if (" " + assets.fold(n) + " ") in " " + folded + " "]
+                    if found:
+                        who = max(found)[1]
+                        if assets.fold(who) in mine:
+                            continue
+                    else:
+                        g = group_rx.search(head)
+                        if not g or owner_is_group or any(" " + m + " " in " " + assets.fold(clause) + " " for m in mine):
+                            continue                      # "Lính địch ngã… trước làn đạn SKORP của Kelly": the owner is in the clause
+                        who = g.group(0)
+                    out.append({"level": "warn", "part": "dao_cu",
+                                "msg": f"chữ shot có vẻ cho {who} dùng {a['name']} — súng này khóa cho {', '.join(owners[a['id']])} (\"{clause.strip()[:80]}\"); "
+                                       "kiểm lại theo bảng gán súng (mỗi người súng của mình)"})
                     flagged.add(a["id"])
                     break
                 if a["id"] in flagged:

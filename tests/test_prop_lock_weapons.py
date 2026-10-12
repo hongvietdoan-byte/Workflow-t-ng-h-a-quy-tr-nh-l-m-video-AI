@@ -173,7 +173,23 @@ class WeaponLockTest(unittest.TestCase):
         self.assertTrue(warn, self._issues(shot))
         named = {"characters": ["KELLY", "LÍNH ĐỊCH ÁO CHOÀNG"],
                  "image_prompt": "Lính địch áo choàng fires the SKORP at Kelly."}
-        self.assertTrue([i for i in self._issues(named) if i["level"] == "red" and "khóa cho KELLY" in i["msg"]])
+        self.assertTrue([i for i in self._issues(named) if i["level"] == "warn" and "khóa cho KELLY" in i["msg"]])
+        # only ever YELLOW (rà: free-text attribution is fragile) — and none of these ordinary sentences is flagged
+        cast = ["KELLY", "LÍNH ĐỊCH ÁO CHOÀNG", "XÚC TU ĐỎ", "YÊU NỮ TÀ LINH DẠNG 1"]
+        for text in ("Lính địch áo choàng aims his M7 at Kelly who raises her SKORP.",
+                     "Lính địch áo choàng fires his M7 and Kelly returns fire with her SKORP.",
+                     "Lính địch áo choàng is shot by Kelly with her SKORP.",
+                     "Xúc Tu Đỏ fires the RPK at Kelly and she answers with the SKORP.",
+                     "Yêu nữ tà linh dạng 1 and Lính địch áo choàng aim M7 rifles at Kelly holding her SKORP.",
+                     "Lính địch áo choàng giương M7 và Kelly bắn trả bằng SKORP.",
+                     "Lính địch áo choàng chĩa M7 vào Kelly đang cầm SKORP.",
+                     "The cloaked soldiers aim their M7 rifles at Kelly.",
+                     "Soldiers fire at Kelly who returns fire with her SKORP.",
+                     "Lính địch ngã xuống trước làn đạn SKORP của Kelly."):
+            got = [i for i in self._issues({"characters": cast, "image_prompt": text}) if "dùng" in i["msg"]]
+            self.assertFalse(got, text)
+        glued = {"characters": cast, "image_prompt": "Lính địch áo choàng aims his M7 at the door", "action": "Kelly fires her SKORP"}
+        self.assertFalse([i for i in self._issues(glued) if "dùng" in i["msg"]])
         mine = {"characters": ["KELLY", "LÍNH ĐỊCH ÁO CHOÀNG"], "image_prompt": "Kelly fires her SKORP while the enemies take cover."}
         self.assertFalse([i for i in self._issues(mine) if "khóa cho KELLY" in i["msg"]])
 
