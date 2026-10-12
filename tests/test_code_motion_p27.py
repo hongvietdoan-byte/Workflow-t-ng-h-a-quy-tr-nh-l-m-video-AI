@@ -13,6 +13,7 @@ from core import prompt_formula as pf
 from core import seedance_refs as sr
 from core import speaker_lint
 import tests.test_seedance_refs as base
+from tests._flags import flags_on_ctx
 
 CAST = ["KELLY", "MAXIM", "WOLFRAHH", "KAPELLA"]
 SHOT3 = {"size": "MS", "angle": "eye", "camera_move": "static", "characters": CAST, "duration_s": 2.0,
@@ -243,6 +244,41 @@ class VideoReviewFixes1210(_Flags):
         self.assertTrue([i for i in pf.lint_motion(sr.shot_motion(gun_en), gun_en) if i["part"] == "pov_tay_khong"])
         no_en = dict(s, motion_en={"action": "looks at three fallen teammates"})   # chưa dịch performance: trường gốc vẫn bị kiểm
         self.assertTrue([i for i in pf.lint_motion(sr.shot_motion(no_en), no_en) if i["part"] == "pov_tay_khong"])
+
+    def test_back_to_camera_shot_never_writes_a_face(self):         # 13/10 #27 shot 4: tả mặt/mắt khi quay lưng → model quay mặt lại
+        s4 = {"size": "MS", "angle": "eye", "camera_move": "push_in", "characters": ["KELLY"],
+              "blocking": "Kelly frame-center with her back to the camera, stepping away across the gate threshold",
+              "action": "Kelly steps through the RIGHT gate", "performance": {"intensity": 3, "face": "resolute, lips pressed",
+              "eyes": "forward through the portal glow, slow blink", "body": "one foot across the threshold", "timing": "steady"}}
+        with flags_on_ctx("back_view_guard"):
+            text = sr.shot_motion(s4)
+            self.assertNotIn("lips pressed", text)
+            self.assertNotIn("slow blink", text)
+            self.assertIn("one foot across the threshold", text)
+            self.assertIn("KELLY stays with the back to the camera for the whole shot", text)
+            turn = dict(s4, action="Kelly turns around to face the camera")      # quay lại có chủ đích: không chặn
+            self.assertNotIn("stays with the back to the camera", sr.shot_motion(turn))
+            front = dict(s4, blocking="Kelly frame-center facing the camera")
+            self.assertIn("lips pressed", sr.shot_motion(front))
+            peek = dict(s4, blocking="Kelly crouches, peeking from behind the glue wall toward the camera")   # núp sau tường
+            self.assertIn("lips pressed", sr.shot_motion(peek))
+            self.assertNotIn("stays with the back", sr.shot_motion(peek))
+            neg = dict(s4, blocking="Kelly frame-center, never with her back to the camera")
+            self.assertNotIn("stays with the back", sr.shot_motion(neg))
+            two = dict(s4, characters=["KELLY", "XÚC TU ĐỎ"],
+                       blocking="Kelly frame-left with her back to the camera; XÚC TU ĐỎ facing the camera frame-right")
+            text2 = sr.shot_motion(two)
+            self.assertIn("KELLY stays with the back to the camera", text2)
+            self.assertNotIn("XUC TU DO stays", text2)
+            self.assertIn("lips pressed", text2)                               # một người vẫn đối diện máy: giữ tả mặt
+            glance = dict(s4, performance=dict(s4["performance"], body="glances back over her shoulder at the end"))
+            self.assertNotIn("stays with the back", sr.shot_motion(glance))
+            far = dict(s4, characters=["KELLY", "XÚC TU ĐỎ"], performance=dict(s4["performance"], face="not visible, back to camera"),
+                       blocking="Kelly frame-left, crouched behind the wall, back to camera; Xúc Tu Đỏ fighting in the distant background")
+            self.assertNotIn("XUC TU DO stays", sr.shot_motion(far))           # #27 shot 17: câu cuối blocking không dính câu face
+            self.assertIn("KELLY stays with the back", sr.shot_motion(far))
+        with flags_on_ctx("back_view_guard", value=False):
+            self.assertIn("lips pressed", sr.shot_motion(s4))                  # cờ tắt: như cũ
 
     def test_clear_sky_written_in_the_shot_gives_drifting_clouds(self):   # rà 12/10: "video không đơ" — mây trôi
         d = {"weather": "clear", "location": "Tháp Đồng Hồ", "image_prompt": "Free Fire in-game 3D render, stone plaza under a blue sky"}
