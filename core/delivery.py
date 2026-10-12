@@ -18,7 +18,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional
 
-from . import audio_lib, diag, ffmpeg_studio, final_cut, formats, lineage, music, subtitles, text_placement, voice
+from . import overlay_safe_zone, audio_lib, diag, ffmpeg_studio, final_cut, formats, lineage, music, subtitles, text_placement, voice
 from .pipeline import Pipeline
 
 DEFAULT_CARD = {"enabled": False, "title": "", "subtitle": "", "seconds": 3.0, "bg": "#000000", "color": "#FFFFFF", "font": ""}
@@ -212,6 +212,9 @@ def _locked(fn):
 def _render_hash(p, project_id, settings):
     from . import shot_popup
     fingerprint = shot_popup.fingerprint(p, project_id)
+    if settings.get('end_popup') and overlay_safe_zone.policy(subtitles.get_settings(p, project_id)['platform']):
+        return lineage.settings_hash({'render': render_hash(settings), 'shot_popup': fingerprint,
+                                      'overlay_safe_zone': overlay_safe_zone.policy(subtitles.get_settings(p, project_id)['platform'])})
     return lineage.settings_hash({'render': render_hash(settings), 'shot_popup': fingerprint}) if fingerprint else render_hash(settings)
 
 
@@ -254,6 +257,8 @@ def _layer_change(p: Pipeline, row, current: Dict, depth: int = 0) -> Optional[s
     except ValueError:
         man = {}
     kind = row["kind"]
+    if kind in ('endcard', 'ailabel') and man.get('overlay_policy') != overlay_safe_zone.policy(current['subtitle'].get('platform')):
+        return 'vùng an toàn lớp phủ đã đổi'
     if kind == "subtitle" and man.get("settings"):
         now = current["subtitle"]
         if not now.get("enabled"):
@@ -755,7 +760,9 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     if popup_cfg:                         # 08/10 (#24): the ad popup over the end of the LAST shot — never an empty shot of its own
         staged = out + ".popup.mp4"
         try:
-            popup = end_popup.apply(p.conn, out, staged, popup_cfg)
+            popup = end_popup.apply(p.conn, out, staged, {**popup_cfg, 'platform': subtitles.get_settings(p, project_id)['platform']})
+            for note in popup.get('safe_zone', []):
+                diag.record(p.conn, 'render', 'warn', note['message'], 'overlay_safe_zone', project_id)
             os.replace(staged, out)
         except Exception as e:  # noqa: BLE001 - the render without the popup is kept; said in diag + manifest (luật 1)
             popup = {"error": str(e)[:200]}
@@ -947,12 +954,12 @@ def _parent(p: Pipeline, project_id: int, parent_id: Optional[int], kinds) -> Op
     return dict(row) if row is not None and os.path.exists(row["path"]) else None
 
 
-def card_picture(width: int, height: int, card: Dict, out_png: str) -> str:
+def card_picture(width: int, height: int, card: Dict, out_png: str, platform='tiktok', notes=None) -> str:
     """Draw the end card (title + optional second line, centred) with a font that has every letter of the text."""
     from PIL import Image, ImageColor, ImageDraw, ImageFont
     bg = ImageColor.getrgb(card.get("bg") or "#000000")
     fg = ImageColor.getrgb(card.get("color") or "#FFFFFF")
-    img = Image.new("RGB", (width, height), bg)
+    img = Image.new("RGBA", (width, height))
     draw = ImageDraw.Draw(img)
     fonts = subtitles.discover()
     text_all = f"{card.get('title', '')} {card.get('subtitle', '')}"
@@ -973,16 +980,35 @@ def card_picture(width: int, height: int, card: Dict, out_png: str) -> str:
         if not text:
             continue
         f = load(size)
-        wrapped = subtitles.wrap_text(text, max(int(width * 0.85 / (size * 0.55)), 8)).split("\n")
+        max_chars = max(int(width * 0.85 / (size * 0.55)), 8)
+        if overlay_safe_zone.policy(platform):
+            wrapped = [line for paragraph in text.split('\n') for line in subtitles.wrap_text(paragraph, max_chars).split('\n')]
+        else:
+            wrapped = subtitles.wrap_text(text, max_chars).split('\n')
         lines += [(w, f, size) for w in wrapped]
     total = sum(int(s * 1.35) for _, _, s in lines)
-    y = (height - total) / 2
+    if overlay_safe_zone.policy(platform):
+        # Draw all glyphs before fitting: a long unbroken word or many lines must not be cropped first.
+        import math
+        content_w = max([width] + [math.ceil(draw.textlength(t, font=f)) + 8 for t, f, _ in lines])
+        content_h = max(height, total + max(sizes) * 2)
+        img = Image.new('RGBA', (content_w, content_h))
+        draw = ImageDraw.Draw(img)
+        drawing_width, drawing_height = content_w, content_h
+    else:
+        drawing_width, drawing_height = width, height
+    y = (drawing_height - total) / 2
     for text, f, size in lines:
         w = draw.textlength(text, font=f)
-        draw.text(((width - w) / 2, y), text, font=f, fill=fg)
+        draw.text(((drawing_width - w) / 2, y), text, font=f, fill=fg)
         y += int(size * 1.35)
     os.makedirs(os.path.dirname(out_png) or ".", exist_ok=True)
-    img.save(out_png)
+    img, note = overlay_safe_zone.place(img, platform, output_size=(width, height))
+    if note and notes is not None:
+        notes.append(note)
+    backdrop = Image.new('RGB', (width, height), bg)
+    backdrop.paste(img, mask=img.getchannel('A'))
+    backdrop.save(out_png)
     return out_png
 
 
@@ -997,11 +1023,15 @@ def end_card_layer(p: Pipeline, project_id: int, data_dir: str, parent_id: Optio
         raise ValueError("chưa có video cuối để thêm card")
     size = ffmpeg_studio.probe_size(parent["path"]) or formats.spec(formats.project_aspect(p.project(project_id)))["render"]
     folder = output_dir(data_dir, project_id)
-    png = card_picture(size[0], size[1], card, os.path.join(folder, "end_card.png"))
+    notes = []
+    platform = subtitles.get_settings(p, project_id)['platform']
+    png = card_picture(size[0], size[1], card, os.path.join(folder, "end_card.png"), platform, notes)
+    for note in notes:
+        diag.record(p.conn, 'render', 'warn', note['message'], 'overlay_safe_zone', project_id)
     out = os.path.join(folder, "FINAL_VIDEO_end.mp4")
     with ffmpeg_studio.atomic_output(out) as staged:
         ffmpeg_studio.append_still(parent["path"], png, float(card.get("seconds") or 3.0), staged)
-    return {"video": out, "output_id": record(p, project_id, "endcard", out, parent["id"], {"card": card})}
+    return {"video": out, "output_id": record(p, project_id, "endcard", out, parent["id"], {"card": card, "safe_zone": notes, "overlay_policy": overlay_safe_zone.policy(platform)})}
 
 
 AI_LABEL_DEFAULT = "Nội dung có sử dụng AI"
@@ -1011,7 +1041,7 @@ def ai_label_text() -> str:
     return (os.environ.get("AI_LABEL_TEXT") or "").strip() or AI_LABEL_DEFAULT
 
 
-def ai_label_picture(width: int, height: int, text: str, out_png: str) -> str:
+def ai_label_picture(width: int, height: int, text: str, out_png: str, platform='tiktok', notes=None) -> str:
     """S0.14 T6: a small label in the top-left corner (dark rounded box, white text, ~3 % of the short side), the rest transparent —
     kept clear of the bottom band where subtitles and game notices go. Drawn with PIL (any Vietnamese letter, no drawtext)."""
     from PIL import Image, ImageDraw, ImageFont
@@ -1025,10 +1055,23 @@ def ai_label_picture(width: int, height: int, text: str, out_png: str) -> str:
     except OSError:
         f = ImageFont.load_default()
     margin, pad = int(min(width, height) * 0.035), int(size * 0.45)
-    w = draw.textlength(text, font=f)
-    draw.rounded_rectangle([margin, margin, margin + w + 2 * pad, margin + size + 2 * pad], radius=pad, fill=(0, 0, 0, 150))
-    draw.text((margin + pad, margin + pad * 0.8), text, font=f, fill=(255, 255, 255, 235))
+    if overlay_safe_zone.policy(platform):
+        import math
+        bbox = draw.multiline_textbbox((0, 0), text, font=f)
+        w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        img = Image.new('RGBA', (max(width, math.ceil(margin + w + 2 * pad + 2)),
+                                 max(height, math.ceil(margin + text_h + 2 * pad + 2))))
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle([margin, margin, margin + w + 2 * pad, margin + text_h + 2 * pad], radius=pad, fill=(0, 0, 0, 150))
+        draw.multiline_text((margin + pad - bbox[0], margin + pad - bbox[1]), text, font=f, fill=(255, 255, 255, 235))
+    else:
+        w = draw.textlength(text, font=f)
+        draw.rounded_rectangle([margin, margin, margin + w + 2 * pad, margin + size + 2 * pad], radius=pad, fill=(0, 0, 0, 150))
+        draw.text((margin + pad, margin + pad * 0.8), text, font=f, fill=(255, 255, 255, 235))
     os.makedirs(os.path.dirname(out_png) or ".", exist_ok=True)
+    img, note = overlay_safe_zone.place(img, platform, output_size=(width, height))
+    if note and notes is not None:
+        notes.append(note)
     img.save(out_png)
     return out_png
 
@@ -1045,11 +1088,15 @@ def ai_label_layer(p: Pipeline, project_id: int, data_dir: str, parent_id: Optio
     size = ffmpeg_studio.probe_size(parent["path"]) or formats.spec(formats.project_aspect(p.project(project_id)))["render"]
     folder = output_dir(data_dir, project_id)
     text = ai_label_text()
-    png = ai_label_picture(size[0], size[1], text, os.path.join(folder, "ai_label.png"))
+    notes = []
+    platform = subtitles.get_settings(p, project_id)['platform']
+    png = ai_label_picture(size[0], size[1], text, os.path.join(folder, "ai_label.png"), platform, notes)
+    for note in notes:
+        diag.record(p.conn, 'render', 'warn', note['message'], 'overlay_safe_zone', project_id)
     out = os.path.join(folder, "FINAL_VIDEO_ai.mp4")
     with ffmpeg_studio.atomic_output(out) as staged:
         ffmpeg_studio.overlay_still(parent["path"], png, staged)
-    return {"video": out, "output_id": record(p, project_id, "ailabel", out, parent["id"], {"text": text})}
+    return {"video": out, "output_id": record(p, project_id, "ailabel", out, parent["id"], {"text": text, "safe_zone": notes, "overlay_policy": overlay_safe_zone.policy(platform)})}
 
 
 def _require_output_sources(p, project_id, parent, frame):
@@ -1088,7 +1135,8 @@ def export_layer(p: Pipeline, project_id: int, data_dir: str, spec: Dict, parent
         else:
             res = ffmpeg_studio.resize_to_size(parent["path"], staged, w, h, spec.get("max_mb") or None, fit=fit)
     res["path"] = out
-    res["output_id"] = record(p, project_id, "export", out, parent["id"], {"spec": spec})
+    res["output_id"] = record(p, project_id, "export", out, parent["id"],
+                              {"spec": spec, **{k: res[k] for k in ('safe_zone', 'overlay_policy') if k in res}})
     return res
 
 
@@ -1103,6 +1151,8 @@ def _reframe(p: Pipeline, top: Dict, w: int, h: int, max_mb: Optional[float], ou
     by_kind = {r["kind"]: r for r in chain}
     work = tempfile.mkdtemp()
     try:
+        notes = []
+        platform = subtitles.get_settings(p, top['project_id'])['platform']
         cur = os.path.join(work, "crop.mp4")
         ffmpeg_studio.resize_to_size(by_kind["final"]["path"], cur, w, h, None, fit="crop")
         sub_row = by_kind.get("subtitle")
@@ -1115,15 +1165,19 @@ def _reframe(p: Pipeline, top: Dict, w: int, h: int, max_mb: Optional[float], ou
         end_row = by_kind.get("endcard")
         if end_row is not None:
             card = json.loads(end_row["manifest"] or "{}").get("card") or {}
-            png = card_picture(w, h, {**DEFAULT_CARD, **card}, os.path.join(work, "card.png"))
+            png = card_picture(w, h, {**DEFAULT_CARD, **card}, os.path.join(work, 'card.png'), platform, notes)
             ffmpeg_studio.append_still(cur, png, float(card.get("seconds") or 3.0), os.path.join(work, "end.mp4"))
             cur = os.path.join(work, "end.mp4")
         lab_row = by_kind.get("ailabel")
         if lab_row is not None:                    # the label is redrawn for the new frame (a crop would cut it off)
             text = json.loads(lab_row["manifest"] or "{}").get("text") or ai_label_text()
-            png = ai_label_picture(w, h, text, os.path.join(work, "ai_label.png"))
+            png = ai_label_picture(w, h, text, os.path.join(work, 'ai_label.png'), platform, notes)
             cur = ffmpeg_studio.overlay_still(cur, png, os.path.join(work, "ai.mp4"))
-        return ffmpeg_studio.resize_to_size(cur, out, w, h, max_mb, fit="pad")
+        for note in notes:
+            diag.record(p.conn, 'render', 'warn', note['message'], 'overlay_safe_zone', top['project_id'])
+        result = ffmpeg_studio.resize_to_size(cur, out, w, h, max_mb, fit="pad")
+        result.update(safe_zone=notes, overlay_policy=overlay_safe_zone.policy(platform))
+        return result
     finally:
         shutil.rmtree(work, ignore_errors=True)
 

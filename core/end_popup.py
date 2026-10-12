@@ -294,6 +294,7 @@ def frames(items: List[Dict], headline: str, size, seconds: float, out_dir: str,
         iw, ih = round(W * (1 - box['left'] - box['right'])), round(H * (1 - box['top'] - box['bottom']))
         inner = dict(style)
         inner.pop('safe_box')
+        inner['_already_safe'] = True
         inner['max_card_h'] = ih * .55
         # Vẽ trong hộp an toàn; giữ tỷ lệ ảnh và chừa chỗ cho overshoot 115%.
         work = tempfile.mkdtemp(prefix='popup_safe_')
@@ -340,24 +341,44 @@ def frames(items: List[Dict], headline: str, size, seconds: float, out_dir: str,
     head_cy = top + row_h + int(W * 0.02) + (head.height // 2 if head else 0)
     total = max(1, int(round(seconds * FPS)))
     head_at = n * STAGGER_S
+    from . import overlay_safe_zone
+    expand_content = bool(overlay_safe_zone.policy((style or {}).get('platform', 'tiktok'))) and not (style or {}).get('_already_safe')
     for k in range(total):
         t = k / FPS
         img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         shade = min(1.0, t / 0.4) * 110 if (style or {}).get('shade') is not False else 0
-        img.paste((0, 0, 0, int(shade)), (0, 0, W, H))
+        # Shade là nền toàn khung, kiểm riêng nội dung icon/chữ trước khi ghép nền.
+        layers = []
         x = (W - row_w) // 2
         for i, c in enumerate(cards):
             s = _scale(t - i * STAGGER_S)
             if s > 0:
                 cw, ch = max(1, int(c.width * s)), max(1, int(c.height * s))
                 cx, cy = x + c.width // 2, top + row_h // 2
-                img.alpha_composite(c.resize((cw, ch)), (max(0, cx - cw // 2), max(0, cy - ch // 2)))
+                pos = (cx - cw // 2, cy - ch // 2)
+                layers.append((c.resize((cw, ch)), pos if expand_content else tuple(max(0, v) for v in pos)))
             x += c.width + gap
         if head is not None:
             s = _scale(t - head_at)
             if s > 0:
                 hw, hh = max(1, int(head.width * s)), max(1, int(head.height * s))
-                img.alpha_composite(head.resize((hw, hh)), (max(0, (W - hw) // 2), max(0, head_cy - hh // 2)))
+                pos = ((W - hw) // 2, head_cy - hh // 2)
+                layers.append((head.resize((hw, hh)), pos if expand_content else tuple(max(0, v) for v in pos)))
+        dx = dy = 0
+        if expand_content and layers:
+            dx = max(0, -min(pos[0] for _, pos in layers))
+            dy = max(0, -min(pos[1] for _, pos in layers))
+            img = Image.new('RGBA', (max(W, max(pos[0] + layer.width for layer, pos in layers)) + dx,
+                                     max(H, max(pos[1] + layer.height for layer, pos in layers)) + dy))
+        for layer, pos in layers:
+            img.alpha_composite(layer, (pos[0] + dx, pos[1] + dy))
+        img, note = (img, None) if (style or {}).get('_already_safe') else overlay_safe_zone.place(img, (style or {}).get('platform', 'tiktok'), output_size=(W, H))
+        if note and isinstance((style or {}).get('_safe_notes'), list) and not style['_safe_notes']:
+            style['_safe_notes'].append(note)
+        if shade:
+            backdrop = Image.new('RGBA', (W, H), (0, 0, 0, int(shade)))
+            backdrop.alpha_composite(img)
+            img = backdrop
         img.save(os.path.join(out_dir, f"p_{k:04d}.png"))
     return total
 
@@ -392,7 +413,8 @@ def apply(conn, video: str, output: str, cfg: Dict) -> Dict:
         seconds = min(cfg["seconds"], total - start)
         sound = pop_sound(conn, cfg) if items else None
         pops = [t for t in pop_times(len(items), start) if t < total] if sound else []
-        frames(items, cfg["headline"], size, seconds, work, cfg)
+        notes = []
+        frames(items, cfg["headline"], size, seconds, work, {**cfg, "_safe_notes": notes})
         cmd = [ffmpeg_studio.find_ffmpeg(), "-y", "-i", video, "-framerate", str(FPS), "-itsoffset", f"{start:.3f}",
                "-i", os.path.join(work, "p_%04d.png")]
         gate = f":enable='gte(t,{start:.6f})*lt(t,{start + seconds:.6f})'" if 'start_s' in cfg else ''
@@ -420,6 +442,8 @@ def apply(conn, video: str, output: str, cfg: Dict) -> Dict:
         shutil.rmtree(work, ignore_errors=True)
     out = {"start_s": round(start, 2), "seconds": round(seconds, 2), "items": [i["label"] for i in items], "headline": cfg["headline"],
            "sound": sound, "pops_s": pops, "held_s": round(held, 2)}
+    if notes:
+        out["safe_zone"] = notes
     if items and not sound and cfg.get("sound") is not False:     # luật 1: say it, never a silent gap
         out["sound_note"] = "không có tiếng pop: Kho âm thanh không có tiếng pop ≤ 0,5 s và chưa đặt end_popup.sound"
     return out

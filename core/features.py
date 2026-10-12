@@ -5,6 +5,7 @@ import os
 from typing import Dict
 
 FEATURES: Dict[str, Dict] = {
+    'overlay_safe_zone': {'label': 'Đặt lớp phủ trong vùng an toàn (0 USD)', 'verified': False, 'why': 'Đ15 việc 3: chưa thử sản xuất'},
     'shot_popup': {'label': 'Popup icon cuối từng shot (0 USD)', 'verified': False,
                    'why': 'Đ17 việc 2: clip/ảnh/âm thanh cục bộ, chưa thử sản xuất'},
     "package_overrides": {
@@ -561,7 +562,7 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
 HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
-OPT_IN_ONLY: tuple = ("auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names")
+OPT_IN_ONLY: tuple = ("overlay_safe_zone", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names")
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.
