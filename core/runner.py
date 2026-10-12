@@ -9,6 +9,7 @@ import json
 import math
 import os
 import re
+import shutil
 import subprocess
 import sqlite3
 import threading
@@ -80,6 +81,11 @@ class RedrawWithFix(Exception):
         self.fix = fix
 
 
+class UpgradeCutFailed(Exception):
+    """A paid 1080p upgrade whose shot part could not be cut where the draft was cut: the job fails (red, diag final_cut) and is
+    NOT retried — a retry pays again; the 1080p clip is kept as <idx>_group.mp4 for ✂ cắt tay (0 USD)."""
+
+
 def _turn(project_id: int, job_type: str) -> threading.RLock:
     """M3: one submitter/poller per project and job type in this process. The dashboard tab (every few seconds) and the autopilot
     thread used to poll the same job at once - the clip was downloaded twice and a follower job could be made twice. The thread
@@ -121,6 +127,35 @@ class TaskMemory:
     def seen(self, external_id: str) -> None:
         self.conn.execute("UPDATE jobs SET task_seen=1, task_unseen=0 WHERE external_id=? AND (task_seen=0 OR task_unseen>0)", (external_id,))
         self.conn.commit()
+
+
+def _probe(path: str) -> Optional[float]:
+    """Seconds of a local clip, None when unreadable (no ffprobe / not a media file)."""
+    try:
+        from .ffmpeg_studio import probe_duration
+        got = probe_duration(path) if path and os.path.isfile(path) else None
+        return float(got) if got else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _span(part, edges, trim, whole, lone_ref: bool) -> Dict:
+    """12/10 (#24): where a take's file was taken from its task's whole clip — {"start", "length" (None = to the end), "trim" (the
+    start shots.trim_clip cut at, None = not trimmed), "lone_ref", "whole"}. A final upgraded from this take's task is cut the same way."""
+    start, length = (float(part[0]), float(part[1])) if part else (0.0, None)
+    if isinstance(edges, dict):
+        head, tail = float(edges.get("head") or 0), float(edges.get("tail") or 0)
+        start += head
+        if length is not None:
+            length -= head + tail
+    return {"start": round(start, 3), "length": None if length is None else round(length, 3),
+            "trim": round(float(trim["start"]), 3) if isinstance(trim, dict) and "start" in trim else None,
+            "lone_ref": bool(lone_ref), "whole": round(float(whole), 3) if whole else None}
+
+
+def _with_whole(span: Dict, measured: Optional[float]) -> Dict:
+    """`span` with "whole" = the measured seconds of the task's whole clip; not measured → None (never guessed from the parts)."""
+    return dict(span, whole=round(float(measured), 3) if measured else None)
 
 
 def _copy_package(conn, source, job_id: int, new_ext: Optional[str] = None) -> None:
@@ -598,6 +633,10 @@ class _Runner:
                     if self.p.retry(job["id"], str(e), fix=plan.apply() if plan is not None else e.fix) is not None:
                         counts["retried"] += 1
                     continue
+                except UpgradeCutFailed as e:         # rà 12/10: said red in diag (final_cut); never retried (a retry pays again)
+                    self.p.fail(job["id"], f"final_cut: {e}")
+                    counts["failed"] += 1
+                    continue
                 self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, job["id"]))
                 self.p.conn.commit()
                 self.p.succeed(job["id"])
@@ -1042,6 +1081,10 @@ class VideoRunner(_Runner):
         if job["quality_tier"] == "draft":
             return quality_tier.low_tier(out, self._choice(job).get("model"))
         if job["quality_tier"] == "final":
+            shared = self._final_shared_task(job)    # 12/10: one group clip upgraded once — the other shots are cut from it
+            if shared:
+                self.__dict__.get("_final_routes", {}).pop(job["id"], None)
+                return {**out, **shared}
             route = self.__dict__.get("_final_routes", {}).pop(job["id"], None) or quality_tier.final_route(self.p.conn, job,
                                                                                                          self.provider)
             if route["from_sample"]:
@@ -1783,21 +1826,35 @@ class VideoRunner(_Runner):
         shot's own length into <idx>.mp4, so render, voice placement and subtitles all use the cut length. A Kling multi-shot
         clip is first split into one clip per shot of its group; the other shots' jobs are completed with their part."""
         from . import shots
+        draft = self._upgrade_draft(job)
+        if draft is not None:                  # 12/10 (#24): a final made from its draft's task is cut where the draft was cut
+            done = self._finish_upgrade(job, path, draft)
+            if done is not None:
+                return done
         sent = json.loads(job["sent_group"]) if "sent_group" in job.keys() and job["sent_group"] else None
         group = ([{"id": g["id"], "idx": g["idx"], "refs": bool(g.get("refs")),
                    "data": {"duration_s": g["duration_s"], "exact": bool(g.get("exact")), "offset": g.get("offset")}} for g in sent]
                  if sent
                  else self._sends_group(job))       # M10: the group as it was sent (a later re-plan must not mis-cut a paid clip)
+        part, edges, whole = None, None, None
         if group:
-            self._finish_group(job, path, group)
-            self._clean_edges(job, path)
+            whole = _probe(path)               # rà 12/10: the whole group clip measured (== <idx>_group.mp4), before it is cut; not
+            parts = self._finish_group(job, path, group, whole=whole)   # measured → no "whole" (never the parts' sum / res["end"])
+            edges = self._clean_edges(job, path)
+            part = parts[0] if isinstance(parts, list) and parts else None
+        else:
+            whole = _probe(path)
+        lone_ref = False
+        trim: Dict = {}
         try:
-            if group or not self._refs(job):   # 28/09: a lone Seedance shot's prompt spreads the action over the whole clip (>= 4 s) —
-                shots.trim_clip(self.p, job["scene_id"], path)   # cut to its 1-2 s plan, S5·1 lost the fall: kept whole instead
+            lone_ref = not group and bool(self._refs(job))
+            if not lone_ref:                   # 28/09: a lone Seedance shot's prompt spreads the action over the whole clip (>= 4 s) —
+                shots.trim_clip(self.p, job["scene_id"], path, out=trim)   # cut to its 1-2 s plan, S5·1 lost the fall: kept whole instead
             else:                              # S2.5 (cờ motion_trim): cut at its busiest window, never under the action's floor
-                shots.trim_clip(self.p, job["scene_id"], path, lone_ref=True)
+                shots.trim_clip(self.p, job["scene_id"], path, lone_ref=True, out=trim)
         except Exception as e:  # noqa: BLE001 - a clip that cannot be cut is still a usable (longer) clip
             self._diag(job, "warn", "trim_error", f"không cắt được clip theo độ dài shot ({type(e).__name__}: {e}); dùng nguyên clip")
+        self._save_span(job["id"], _span(part, edges, trim, whole, lone_ref) if (part or not group) else None)
         if not group:
             from . import lipsync
             rec = lipsync.index(self.data_dir, job["project_id"]).get(str(job["scene_id"])) or {}
@@ -1805,8 +1862,9 @@ class VideoRunner(_Runner):
                 lipsync.mark(self.data_dir, job["project_id"], job["scene_id"], state="done")
         return path
 
-    def _clean_edges(self, job, path: str) -> None:
-        """S4.5: a shot cut from a group clip loses the neighbouring shot's frames left at its edges — said, never silent."""
+    def _clean_edges(self, job, path: str) -> Optional[Dict]:
+        """S4.5: a shot cut from a group clip loses the neighbouring shot's frames left at its edges — said, never silent. Returns the
+        seconds dropped ({"head", "tail"}) or None (recorded in the take's clip_span)."""
         from . import shots
         done = shots.clean_edges(path)
         if done:
@@ -1814,6 +1872,7 @@ class VideoRunner(_Runner):
                                                    "(điểm cắt clip nhóm lệch) — bản chưa bỏ lưu ở _edges.mp4")
             if done["head"] > 0:
                 self._take_edge_shift(job, float(done["head"]))
+        return done or None
 
     def _take_edge_shift(self, job, head: float) -> None:
         """S4.2 (01/10): dropping `head` seconds at the start of a take shot's clip moves its mouths `head` seconds earlier — the shift
@@ -1836,24 +1895,35 @@ class VideoRunner(_Runner):
                 lipsync.mark(self.data_dir, leader["project_id"], r["id"], state="done",
                              shift=round(float(st) - float(rec.get("planned_start") or 0), 3))
 
-    def _finish_group(self, leader, path: str, group) -> None:
+    def _finish_group(self, leader, path: str, group, whole: Optional[float] = None) -> Optional[list]:
+        """Cut a group clip into its shots; the followers' jobs get their part. Returns each shot's part [(start, seconds)] in the whole
+        clip (None when the cut points are not known) — recorded on each take (clip_span) so its final is cut at the same place."""
         from . import formats, lineage, shots
         conn = self.p.conn
+        if whole is None:
+            whole = _probe(path)                  # the whole clip's seconds, measured before it is cut (None = unknown, not guessed)
         dests = [path] + [os.path.join(self._dir(leader["project_id"], "videos"), f"{r['idx']:02d}.mp4") for r in group[1:]]
         from . import takes                     # F3 (#24 job 590/592/594): a group clip never overwrites the followers' older takes —
         for r, dest in zip(group[1:], dests[1:]):  # each goes to the trash under its own job, its result_path follows (↩ Dùng bản này)
             takes.make_room(conn, self.data_dir, {"id": leader["id"], "scene_id": r["id"], "project_id": leader["project_id"]}, dest,
                             with_raw=True)
+        parts = None
         if group[0].get("refs"):
             from . import seedance_refs
             res = seedance_refs.split(path, group, dests)
             self._take_done(leader, group, [0.0] + list(res["cuts"]))
             for code, sev, text in seedance_refs.split_notes(res, len(group)):   # said, not hidden: how the group was cut
                 self._diag(leader, sev, code, text)
+            try:
+                bounds = [0.0] + [float(c) for c in res["cuts"]] + [float(res["end"])]
+                parts = [(a, b - a) for a, b in zip(bounds, bounds[1:])] if len(bounds) == len(group) + 1 else None
+            except (KeyError, TypeError, ValueError):
+                parts = None                      # a split that did not say where it cut: the parts are not known (said on the final)
         else:
             shots.split_group_clip(path, group, dests)
+            parts = shots.group_parts(group)
         aspect = formats.project_aspect(self.p.project(leader["project_id"]))
-        for r, dest in zip(group[1:], dests[1:]):
+        for k, (r, dest) in enumerate(zip(group[1:], dests[1:]), 1):
             follower = conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='video_gen' AND state='queued' ORDER BY id DESC LIMIT 1",
                                     (r["id"],)).fetchone()
             jid = follower["id"] if follower else self.p.create_job(r["id"], "video_gen")
@@ -1864,14 +1934,235 @@ class VideoRunner(_Runner):
                           lineage.approved_image_id(conn, shots.image_scene(conn, r["id"])), jid))
             _copy_package(conn, leader, jid)       # K1a: a follower was sent as part of the leader's request (paid once)
             self._running(jid, f"phần của clip nhóm (job {leader['id']})")   # T2: one transaction with the leader's task id (paid once)
-            self._clean_edges(self.p.job(jid), dest)
+            edges = self._clean_edges(self.p.job(jid), dest)
+            trim: Dict = {}
             try:
-                shots.trim_clip(self.p, r["id"], dest)
+                shots.trim_clip(self.p, r["id"], dest, out=trim)
             except Exception as e:  # noqa: BLE001
                 self._diag(self.p.job(jid), "warn", "trim_error", f"không cắt được clip theo độ dài shot: {e}")
             conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, jid))
+            self._save_span(jid, _span(parts[k], edges, trim, whole, False) if parts else None)
             conn.commit()
             self.p.succeed(jid)
+        return parts
+
+    # ---- 12/10 (#24): bản cao nâng từ nháp = đúng đoạn nháp đã duyệt, follower cắt từ clip nhóm 1080p ------------------------------
+    def _save_span(self, job_id: int, span: Optional[Dict]) -> None:
+        """Where this take's file sits in its task's whole clip (jobs.clip_span) — a ledger: never raises, never blocks the take."""
+        if span is None:
+            return
+        try:
+            self.p.conn.execute("UPDATE jobs SET clip_span=? WHERE id=?", (json.dumps(span), job_id))
+        except Exception:  # noqa: BLE001 - an old database without the column: the final says it cannot find the span
+            pass
+
+    def _upgrade_draft(self, job):
+        """The draft job a downloaded `final` was upgraded from (submit_final_from_sample: the very task of that draft, at 1080p), or
+        None (not a final / a NEW gen of the final). Read from the package really sent (K1a); a job without a package (old data) counts
+        as upgraded when it could only have been (a Seedance 2.5 draft, no confirmed new gen, no fix sentence)."""
+        if "quality_tier" not in job.keys() or job["quality_tier"] != "final" or not job["draft_job_id"]:
+            return None
+        draft = self.p.conn.execute("SELECT * FROM jobs WHERE id=?", (job["draft_job_id"],)).fetchone()
+        if draft is None:
+            return None
+        try:
+            call = json.loads(job["sent_package"] or "{}").get("call")
+        except (ValueError, TypeError, AttributeError):
+            call = None
+        if call:
+            return draft if call == "submit_final_from_sample" else None
+        from . import quality_tier
+        if quality_tier.confirmed_new(job) or model_fix(job["retry_reason"]) or \
+                quality_tier._canonical(draft["model"])[0] != quality_tier.SAMPLE_MODEL:
+            return None
+        return draft
+
+    def _span_of(self, job) -> Optional[Dict]:
+        try:
+            span = json.loads(job["clip_span"] or "null") if "clip_span" in job.keys() else None
+        except (ValueError, TypeError):
+            span = None
+        return span if isinstance(span, dict) else None
+
+    def _upgrade_members(self, draft) -> list:
+        """The draft jobs carried by the draft's task, in shot order: [leader, followers…] for a group clip, [] for a lone clip."""
+        from . import seedance_refs
+        conn = self.p.conn
+        lead = draft
+        if draft["group_leader"] and draft["group_leader"] != draft["id"]:
+            lead = conn.execute("SELECT * FROM jobs WHERE id=?", (draft["group_leader"],)).fetchone() or draft
+        if not lead["sent_group"] and lead["id"] == draft["id"]:
+            return []
+        members = [m for m in seedance_refs.group_members(conn, lead["id"]) if m["external_id"] == lead["external_id"]]
+        return members if len(members) >= 2 else []
+
+    def _cut_span(self, scene_id: int, whole: str, dest: str, span: Dict) -> Optional[str]:
+        """Cut `dest` out of `whole` at the draft's part (start + length, edges included) and trim it where the draft was trimmed — the
+        same cutting functions as the draft (seedance_refs._cut_parts, shots.trim_clip). Returns what went wrong, or None."""
+        from . import ffmpeg_studio, seedance_refs, shots
+        start, length = float(span.get("start") or 0.0), span.get("length")
+        if length is not None or start > 0:
+            end = start + float(length) if length is not None else (_probe(whole) or 0.0)
+            if end - start < 0.2:
+                return f"đoạn {start:.3f}–{end:.3f} s không có trong clip"
+            seedance_refs._cut_parts(whole, [start, end], [dest], ffmpeg_studio.find_ffmpeg())
+            got = _probe(dest)
+            if got is None or abs(got - (end - start)) > 0.35:   # _cut_parts copies the whole clip when ffmpeg fails: never kept silently
+                return f"cắt đoạn {start:.3f}–{end:.3f} s ra {got if got is not None else '?'} s"
+        elif os.path.normcase(os.path.abspath(whole)) != os.path.normcase(os.path.abspath(dest)):
+            shutil.copyfile(whole, dest)
+        if span.get("trim") is not None:
+            shots.trim_clip(self.p, scene_id, dest, lone_ref=bool(span.get("lone_ref")), at=float(span["trim"]))
+        return None
+
+    def _finish_upgrade(self, job, path: str, draft) -> Optional[str]:
+        """A final upgraded from its draft's task (#24 12/10): the 1080p clip is the draft's clip at a higher resolution, so the shot
+        is cut at the draft's own part (#24 shot 05: 1,833–4,833 s, cut from 0 s before), and every other shot of that group clip gets
+        its 1080p part too (02/03/09 stayed 480p) — 0 USD, nothing is sent again. None = the draft did not record its part (old take):
+        the caller cuts as before, said in diag."""
+        span = self._span_of(draft)
+        members = self._upgrade_members(draft)
+        if span is None:
+            self._diag(job, "warn", "final_span_unknown",
+                       f"bản cao nâng từ nháp job {draft['id']}: nháp không ghi đoạn đã dùng (nháp làm trước 12/10) — cắt bản cao theo cách "
+                       "cũ, có thể KHÁC đoạn nháp đã duyệt: xem lại" + (" ; các shot khác của clip nhóm không được cắt 1080p tự động"
+                                                                         if members else ""))
+            return None
+        whole = os.path.splitext(path)[0] + "_group.mp4"   # rà 12/10: always a copy — never cut a file onto itself (whole == path)
+        shutil.copyfile(path, whole)                      # the whole 1080p clip, kept for ✂ cắt lại (seedance_refs.recut)
+        try:
+            err = self._cut_span(job["scene_id"], whole, path, span)
+        except Exception as e:  # noqa: BLE001
+            err = f"{type(e).__name__}: {e}"
+        if err:
+            self._diag(job, "error", "final_cut", f"không cắt được bản cao đúng đoạn nháp job {draft['id']} ({err}) — clip 1080p đã trả "
+                       f"tiền giữ ở {os.path.basename(whole)} (✂ cắt tay, 0 USD); không gửi lại")
+            if os.path.exists(path):
+                os.remove(path)                           # a wrong part (the whole clip) is never left as the shot's file
+            raise UpgradeCutFailed(err)
+        measured = _probe(whole)
+        self._save_span(job["id"], _with_whole(span, measured))
+        for m in members:
+            if m["scene_id"] != job["scene_id"]:
+                self._upgrade_follower(job, m, whole, measured)
+        return path
+
+    def _upgrade_follower(self, final, draft, whole: str, measured: Optional[float] = None) -> None:
+        """One other shot of the upgraded group clip: its 1080p part, cut where its draft part was — a job `final` of that shot (a
+        queued one is used), with the draft's stamp; never a second paid task. Not cut (said VÀNG, the shot is made again instead):
+        its draft is not the approved one, its inputs changed after the draft, it already has another final, or the part is unknown."""
+        from . import quality_tier, takes
+        conn = self.p.conn
+        sid = draft["scene_id"]
+        idx = conn.execute("SELECT idx FROM scenes WHERE id=?", (sid,)).fetchone()["idx"]
+        rows = conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='video_gen' AND quality_tier='final' AND id!=? "
+                            "AND state NOT IN ('failed','cancelled','rejected') ORDER BY id DESC", (sid, final["id"])).fetchall()
+        queued = [r for r in rows if r["state"] == "queued" and not r["external_id"]]
+        approved = quality_tier.approved_draft(conn, sid)
+        span = self._span_of(draft)
+        why = None
+        if len(rows) > len(queued):
+            why = f"shot đã có bản cao khác (job {next(r['id'] for r in rows if r['id'] not in {q['id'] for q in queued})})"
+        elif approved is None or approved["id"] != draft["id"]:
+            why = "nháp của shot trong clip nhóm chưa được bạn duyệt (hoặc bạn đã duyệt một nháp khác)"
+        else:
+            stale = quality_tier.draft_stale_reason(conn, draft)
+            if stale:
+                why = f"đầu vào đã đổi sau khi duyệt nháp ({stale}) — cần gen lại shot này"
+            elif span is None:
+                why = "nháp không ghi đoạn đã dùng trong clip nhóm (nháp làm trước 12/10)"
+        if why:
+            self._diag(final, "warn", "final_follower_skipped",
+                       f"S{idx:02d}: không cắt bản cao từ clip nhóm 1080p (job {final['id']}): {why}. Clip nhóm 1080p giữ ở "
+                       f"{os.path.basename(whole)} (✂ cắt tay, 0 USD); không gửi thêm task")
+            return
+        jid = queued[0]["id"] if queued else self.p._insert_job(final["project_id"], sid, "video_gen", quality_tier="final",
+                                                                 draft_job_id=draft["id"])
+        videos = self._dir(final["project_id"], "videos")
+        dest = os.path.join(videos, f"{idx:02d}.mp4")
+        tmp_dir = os.path.join(videos, ".upgrade_tmp")    # rà 12/10: cut aside first — the draft's file moves only once the cut is right
+        os.makedirs(tmp_dir, exist_ok=True)
+        tmp = os.path.join(tmp_dir, f"{idx:02d}.mp4")
+        tmp_raw = os.path.splitext(tmp)[0] + "_raw.mp4"
+        conn.execute("UPDATE jobs SET group_leader=?, external_id=?, model=?, input_hash=?, source_job_id=?, draft_job_id=? WHERE id=?",
+                     (final["id"], final["external_id"], final["model"] or draft["model"], draft["input_hash"], draft["source_job_id"],
+                      draft["id"], jid))
+        _copy_package(conn, final, jid)        # sent as part of the final's request (paid once, one ledger row on the final)
+        self._running(jid, f"phần bản cao của clip nhóm 1080p (job {final['id']}) — đúng đoạn nháp job {draft['id']}, không gửi thêm task")
+        for old in (tmp, tmp_raw):
+            if os.path.exists(old):
+                os.remove(old)
+        try:
+            err = self._cut_span(sid, whole, tmp, span)
+        except Exception as e:  # noqa: BLE001
+            err = f"{type(e).__name__}: {e}"
+        if not err:
+            try:
+                takes.make_room(conn, self.data_dir, {"id": jid, "scene_id": sid, "project_id": final["project_id"]}, dest, with_raw=True)
+                os.replace(tmp, dest)
+                if os.path.exists(tmp_raw):
+                    os.replace(tmp_raw, os.path.splitext(dest)[0] + "_raw.mp4")
+            except Exception as e:  # noqa: BLE001
+                err = f"đưa phần đã cắt vào chỗ lỗi ({type(e).__name__}: {e})"
+        if err:
+            self._diag(self.p.job(jid), "error", "final_follower_cut", f"S{idx:02d}: không cắt được phần bản cao từ clip nhóm 1080p ({err}) — "
+                       "file nháp của shot giữ nguyên; cắt tay ở ✂ (0 USD)")
+            for bad in (tmp, tmp_raw):
+                if os.path.exists(bad):
+                    os.remove(bad)                  # a wrong part (the whole clip) is never left as the shot's file
+            self.p.fail(jid, f"final_follower_cut: {err}")
+            return
+        conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, jid))
+        self._save_span(jid, _with_whole(span, measured))
+        conn.commit()
+        self.p.succeed(jid)
+
+    def _final_shared_task(self, job) -> Optional[Dict]:
+        """A final whose draft task is already being upgraded by another final job (a group clip carries several shots): never a second
+        paid upgrade of the same task — wait for that clip (its part is cut from it, _upgrade_follower), or stop when it is done.
+        Only a real upgrade is held (rà 12/10): a NEW gen of the final (e.g. a Kling group, a fix, a confirmed new gen) never waits.
+        Several queued finals of one draft task, none sent yet: the lowest id goes first, the others wait (never paid twice)."""
+        if not self._upgrade_candidate(job):
+            return None
+        conn = self.p.conn
+        task = conn.execute("SELECT external_id FROM jobs WHERE id=?", (job["draft_job_id"],)).fetchone()["external_id"]
+        rows = conn.execute(
+            "SELECT f.* FROM jobs f JOIN jobs d ON d.id=f.draft_job_id WHERE f.type='video_gen' AND f.quality_tier='final' "
+            "AND f.id!=? AND d.external_id=? ORDER BY f.id DESC", (job["id"], task)).fetchall()
+        upgrades = set()
+        for r in rows:
+            try:
+                call = json.loads(r["sent_package"] or "{}").get("call")
+            except (ValueError, TypeError, AttributeError):
+                call = None
+            if call == "submit_final_from_sample" and r["external_id"]:
+                upgrades.add(r["id"])
+        other = next((r for r in rows if r["state"] in ("running", "succeeded", "pending_review", "approved")
+                      and (r["id"] in upgrades or (r["group_leader"] and r["group_leader"] in upgrades))), None)
+        if other is None:
+            first = next((r for r in rows if r["state"] == "queued" and not r["external_id"] and r["id"] < job["id"]
+                          and self._upgrade_candidate(r)), None)
+            if first is not None:
+                return {"_wait": f"task nháp này sẽ được nâng 1080p ở job {first['id']} (gửi trước) — phần shot này cắt từ clip đó, "
+                                 "không gửi thêm task"}
+            return None
+        if other["state"] == "running":
+            return {"_wait": f"clip nhóm 1080p của task nháp này đang nâng ở job {other['id']} — phần shot này cắt từ clip đó, không gửi thêm task"}
+        return {"_hold": f"clip nhóm 1080p của task nháp này đã có ở job {other['id']} (đã trả tiền) — không nâng lần 2; phần shot này "
+                         "không cắt được từ clip đó (xem chẩn đoán final_follower_skipped): gen nháp lại shot này"}
+
+    def _upgrade_candidate(self, job) -> bool:
+        """A final that would be sent as an upgrade of its draft's task: a Seedance 2.5 draft with a task, no fix sentence, no
+        confirmed new gen (the same test as _upgrade_draft for a job without a package)."""
+        from . import quality_tier
+        if "quality_tier" not in job.keys() or job["quality_tier"] != "final" or not job["draft_job_id"]:
+            return False
+        draft = self.p.conn.execute("SELECT model, external_id FROM jobs WHERE id=?", (job["draft_job_id"],)).fetchone()
+        if draft is None or not draft["external_id"]:
+            return False
+        if quality_tier.confirmed_new(job) or model_fix(job["retry_reason"]):
+            return False
+        return quality_tier._canonical(draft["model"])[0] == quality_tier.SAMPLE_MODEL
 
 
 NO_CANCEL_API = ("deepix",)

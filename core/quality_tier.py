@@ -55,6 +55,12 @@ def draft_seconds(conn, draft) -> Optional[float]:
     """Clip lẻ dùng giây file thật; nhóm dùng sổ/gói gửi vì leader có thể đã cắt."""
     if draft is None:
         return None
+    try:   # 12/10 (#24 671/672/675 ghi 4 s): the whole clip of the draft's task as downloaded — a lone clip's file is cut (05: 3 of 5 s)
+        span = json.loads(draft["clip_span"] or "null") if "clip_span" in draft.keys() else None
+        if isinstance(span, dict) and span.get("whole") and float(span["whole"]) > 0:
+            return float(span["whole"])
+    except (ValueError, TypeError):
+        pass
     import os
     from . import ffmpeg_studio
     try:
