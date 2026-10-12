@@ -969,3 +969,39 @@ Test bằng file giả (mô phỏng lỗi đọc), không cần ổ G thật.
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
 - Việc 3 — ĐANG DỞ: `codex/d9-viec3-lao-dai`, dependency `df62cc7` là cherry-pick code7356a9f việc1, backend `42ecaec`. Broker loopback GET-only/token read-only TTL kiểm session Owner mỗi snapshot, SQLite chỉ đọc; logic dáng/bong bóng/dedupe/backoff/URL allowlist; cờ OFF. Đỏ module thiếu và mismatch due_status → 39 xanh; rà độc lập 2 finding/4 đỏ → 43 xanh /1,28s. RA_D9_VIEC3_CODEX_2026-10-11.md. CHƯA GUI tkinter/khay/toast thật/kho token OS/kênh cấp phiên server/launcher/QA Windows/PNG, chưa pilot chạy được. Dừng mở bước lớn theo hạn mức, tiếp sau reset. Chỉ push nhánh riêng, chưa toàn bộ/gộp/main. Tích hợp không cherry-pick dependency việc1 hai lần.
+
+---
+
+# ĐỢT 15 — Chặn bản giao 480p, khóa chạy Đạo diễn, vùng an toàn lớp phủ (hộp thư phiên máy chính 12/10 07:00 / 09:56 / 10:22)
+
+Luật chung GIỐNG đợt 1; nhánh `codex/d15-viec<N>-<tên>` từ `origin/main`; KHÔNG sửa `core/runner.py`, `core/lock_exceptions.py`, `core/end_frames.py`,
+`core/place_refs.py`, `core/scene_storyboard.py`; KHÔNG đọc/ghi `data/projects/` (#27 Booyah đang chạy). Không API tốn tiền khi test. Ghi
+"Kết quả Codex — đợt 15". **Thứ tự: việc 1 → 2 → 3** (việc 1 chặn lỗi giao hàng thật, làm TRƯỚC Đ12 việc 5).
+
+## Việc 1 — KHÔNG BAO GIỜ giao clip 480p phóng to (người dùng chốt 12/10; KHÔNG cờ — đây là luật)
+Hiện `core/delivery.py` ~714: `upscale = {i … if ffmpeg_studio.needs_upscale(c, frame)}` phóng LẶNG LẼ mọi clip nhỏ hơn khung (480p nháp → 1080×1920).
+1. Trước `render_final` của **bản giao** (`render_final` khi dựng bản cuối, không phải bản xem nháp — tìm cờ/tham số phân biệt hiện có, vd bản
+   DRAFT ở `dashboard/next_step.py:85` "bản dựng lúc này là bản DRAFT"): clip có cạnh ngắn < 720 px khi khung có cạnh ngắn ≥ 1080 → `ValueError`
+   nêu TÊN shot + cách sửa ("nâng 1080p hoặc gen ≥ 720p"), không im lặng. 720p → 1080p vẫn được phóng như cũ (E1 đã duyệt).
+2. Bản xem nháp (DRAFT) vẫn dựng được nhưng gắn nhãn rõ "NHÁP — có clip 480p" trong manifest + màn Giao (không lẫn với bản giao).
+3. Autopilot / Tổ dựng (`core/autopilot.py`, editor) chặn trước khi chọn bản nháp 480p làm bản giao — nói lý do + việc cần làm (nâng bản cao).
+4. Báo giá (`cost.estimate_run`, `quality_tier`) KHÔNG tính phương án "nháp 480p làm bản giao".
+5. Test: ~15 file test dựng bằng clip rất nhỏ (64×64, 160×284…) → cho test một cách HỢP LỆ (vd luật chỉ áp khi clip đến từ job video thật có
+   độ phân giải đo được, hoặc tham số khung test), KHÔNG nới assert. Ca vàng: #24 v3 (shot 02/03/09 còn 480p trong clip nhóm 1080p — hộp thư 11/10 23:53).
+
+## Việc 2 — Khóa chạy Đạo diễn theo dự án + lưu câu trả lời thô (cờ không cần — sửa lỗi)
+Ca #27 (12/10 09:56): bấm "🤖 Lập kế hoạch" 2 lần cách ~5 s → 2 lượt Tầng A chạy song song, mỗi lượt tự hỏi lại + Tầng B → mất ~1,5 USD thừa; UI chỉ
+hiện lỗi một lượt. Sửa: khóa theo dự án cho `llm_runner.run_director` / `run_director_scene` (cùng kiểu khóa job / `runner._turn` — đọc, không sửa
+runner): lượt thứ hai trả "Đạo diễn đang chạy cho dự án này (bắt đầu hh:mm) — chờ xong" và KHÔNG gọi Claude; khóa tự nhả khi lỗi/treo (hạn), sống
+qua rerun Streamlit (lưu CSDL hoặc file khóa có PID + giờ). Nút trên Dashboard tắt khi đang chạy (đọc khóa). Khi câu trả lời Claude sai định dạng:
+lưu câu trả lời THÔ (đã lọc bí mật, giới hạn cỡ) vào chỗ chẩn đoán (`diag` / thư mục lượt) để xem lại. Test: 2 luồng gọi cùng lúc → 1 lời gọi giả.
+
+## Việc 3 — Vùng an toàn TikTok/Reels cho MỌI lớp phủ (hộp thư 07:00; cờ `overlay_safe_zone` TẮT)
+Đã có cho phụ đề (`core/subtitles.py:36-39`, `knowledge/editor/safe_zones.md`) và QC (`core/qc_scene.py:28` TOP_BAR). Mở rộng cho chữ/popup/HUD:
+`core/end_popup.py` (popup cuối), lớp chữ khác trong dựng. Vùng tham khảo 1080×1920: tránh trên ~0–150 px (tab), dưới ~25 % (chú thích/nhạc), phải
+~120–150 px (cột nút); cấu hình theo nền tảng (dùng lại bảng nền tảng của subtitles). Code kiểm VÀNG khi lớp phủ lấn (không chặn), đề xuất vị trí
+trong vùng; có cờ thì tự đặt trong vùng. Ca thật #24 v3: popup 1,8–20 % chiều cao lấn tab trên. Test có cờ/không cờ (không cờ: vị trí giữ y cũ).
+
+## Kết quả Codex — đợt 15
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
