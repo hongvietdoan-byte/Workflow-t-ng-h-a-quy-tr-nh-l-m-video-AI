@@ -851,7 +851,11 @@ def shot_motion(data: Dict, voice: bool = False, humans: Optional[Dict[str, bool
     from . import prompt_formula, speaker_lint
     perf = _en(data, "performance")
     perf = perf if isinstance(perf, dict) else {}
-    acting = "; ".join(f"{k}: {perf[k]}" for k in ("face", "eyes", "body", "timing") if perf.get(k))
+    back = back_view(data)                          # 13/10 #27 shot 4: a face written for a back view turns the person round
+    cast = {ascii_name(str(n)) for n in data.get("characters") or []}
+    all_back = bool(back) and (not cast or cast <= set(back))   # face / eyes dropped only when nobody in the shot faces the camera
+    acting = "; ".join(f"{k}: {perf[k]}" for k in (("body", "timing") if all_back else ("face", "eyes", "body", "timing"))
+                       if perf.get(k))
     speakers = [str(x.get("speaker")) for x in data.get("dialogue") or [] if isinstance(x, dict) and x.get("speaker")
                 and speaker_lint.in_frame(data, x.get("speaker"), voice_only)]
     if voice:
@@ -873,8 +877,10 @@ def shot_motion(data: Dict, voice: bool = False, humans: Optional[Dict[str, bool
     camera = camera[0].upper() + camera[1:]
     start = f"{START_SENTENCE} " if prompt_formula.enabled() else ""
     ambient = prompt_formula.ambient_sentence(data)[0] if prompt_formula.ambient_on() else ""
+    keep_back = (f"{', '.join(back)} stays with the back to the camera for the whole shot — the face is never seen, no turning around. "
+                 if back else "")
     return (start + (f"{action}. " if action else "") + (f"It ends with {end}. " if end else "")
-            + (f"Acting — {acting}.{guard} " if acting else "") + (f"{talk} " if talk else "")
+            + (f"Acting — {acting}.{guard} " if acting else "") + keep_back + (f"{talk} " if talk else "")
             + (f"{ambient} " if ambient else "") + f"{camera} " + (body or "")).strip()
 
 
@@ -903,6 +909,41 @@ def busy_shots(rows: List[Dict]) -> List[int]:
 
 
 FRAMING_MAX = 140
+
+
+# rà quy ước 7: never a bare "from behind" ("peeking from behind the glue wall", "an enemy rushes in from behind")
+_BACK = re.compile(r"\bback (?:turned )?to (?:the )?camera\b|\b(?:seen|shot|filmed|viewed|framed) from behind\b"
+                   r"(?!\s+(?:the|a|an|his|her|their)\b)|\b(?:walk|runn|run|mov|step)\w* away from (?:the )?camera\b|"
+                   r"quay lưng (?:về|lại) (?:phía )?máy", re.IGNORECASE)
+_TURNS_TO_CAMERA = re.compile(r"\b(?:turns?|spins?|pivots?|swings?|looks?|glances?)\b[^.;]{0,25}?\b(?:to|toward|towards|at|into)\b"
+                              r"[^.;]{0,10}?\b(?:camera|lens|viewer)\b|\bfaces? (?:the )?(?:camera|lens|viewer)\b|"
+                              r"\bglances? back over (?:his|her|their) shoulder\b|quay (?:mặt |đầu )?(?:lại|về phía máy)|ngoảnh lại|"
+                              r"nhìn vào máy", re.IGNORECASE)
+
+
+def back_view(data: Dict) -> List[str]:
+    """13/10 #27 shot 4: the names (no accents) of the people seen from BEHIND — a blocking / acting clause says back to the camera
+    and names them (one-person shot: that person) — for the 'stays with the back to the camera' sentence; [] when not a back view, when the action itself turns the person round on
+    purpose, or with flag back_view_guard off. A face / eyes written for a back view made Seedance turn Kelly round mid-shot."""
+    from . import features
+    if not features.on("back_view_guard"):
+        return []
+    from .continuity import _said                    # a negated match ("never with her back to camera") does not count
+    perf = _en(data, "performance")
+    perf = perf if isinstance(perf, dict) else {}
+    moves = " ".join(str(x or "") for x in (_en(data, "action"), _en(data, "end_state"), perf.get("body"), perf.get("timing")))
+    if _said(_TURNS_TO_CAMERA, moves):
+        return []
+    cast = [str(n) for n in dict.fromkeys(data.get("characters") or [])]
+    out = []
+    for clause in re.split(r"[.;\n]", ". ".join(str(x or "") for x in (data.get("blocking"), perf.get("face"), perf.get("eyes")))):
+        if not _said(_BACK, clause):
+            continue
+        low = clause.lower()
+        named = [n for n in cast if n.lower() in low or ascii_name(n).lower() in low]
+        out += named or (cast if len(cast) == 1 else [])   # unnamed back view of a many-person shot: not guessed
+    return [ascii_name(n) for n in dict.fromkeys(out)] or (["The character"] if not cast and _said(_BACK, " ".join(
+        str(x or "") for x in (data.get("blocking"), perf.get("face"), perf.get("eyes")))) else [])
 
 
 def _framing(data: Dict) -> str:
