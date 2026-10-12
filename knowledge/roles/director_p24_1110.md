@@ -84,6 +84,7 @@ luật cấm từ — là cách tính trước khi viết. Code kiểm lại cá
     không thấy bắn vào ai" (người dùng 12/10).
 21. **Người nằm gục mặc váy / đồ ngắn:** chọn tư thế và góc máy kín đáo. Ưu tiên úp mặt, đầu hướng về máy, chân chĩa ra xa máy; không
     để chân hay váy chĩa về phía máy. Vì: #27 Kapella (người dùng 12/10, hai lần).
+    Cập nhật 12/10 (sau 4 lần thử): với váy ngắn + tất đùi, nằm nghiêng / co gối / úp mặt vẫn lộ đùi khi máy ở gần. Cách CHẮC là cho người đó nằm NGAY SAU một người khác (xa máy hơn), chỉ thấy đầu, vai, tay, còn chân và váy bị thân người phía trước che kín.
 22. **Vật mốc lớn (cổng, tháp, xe…) phải có kích thước thật trong Kho, và shot nối nhau giữ cùng độ cao máy.** Thiếu số đo thì model
     tự đoán: cùng một cổng lúc cao gấp 5 người, lúc bé như đồ chơi. Khâu "Kích thước vật mốc" báo VÀNG là phải đo / ước ngay (so với
     xe, cửa, người trong ảnh mẫu), ghi `assets.set_size`. Hai shot liền nhau cùng chỗ, cùng hướng (vd chạy tới cổng → bước qua cổng) dùng
@@ -93,3 +94,4 @@ luật cấm từ — là cách tính trước khi viết. Code kiểm lại cá
     (đêm, cây, vệt gió) thì model lẫn bối cảnh vào vật và tự đổi dáng. Gen MỘT ảnh cùng vật, cùng góc, nền xám trơn, tả từng bộ phận
     (`tools/asset_polish.py`), người dùng duyệt, đặt làm ảnh đầu của mục Kho. Không dán ghép vật vào ảnh: người dùng 12/10 cho rằng
     chất lượng thấp. Vì: #27 cổng torii vẽ sai 4 lần; ảnh mẫu sạch đạt ~90% ngay lần đầu.
+24. **Vật phát sáng / trong mờ (cổng portal, hologram) ở cảnh BAN NGÀY: ảnh mẫu phải chụp ban ngày, vật mờ nhạt.** Ảnh mẫu đêm hay studio nền xám làm model vẽ cột đỏ đặc như đèn neon. Ảnh mẫu thứ hai "ban ngày, trong suốt khoảng một nửa, nhìn xuyên thấy trời / cây" (`tools/asset_polish.py`) đặt làm ảnh đầu; câu tả ghi rõ "CLEAR glass … faint … muted, nothing neon". Cảnh nhìn qua lòng cổng (thế giới khác) ghi "seen ONLY inside the gate opening" để trời không tràn ra ngoài. Vì: #27 người dùng 12/10 "cổng đậm và rõ quá".
