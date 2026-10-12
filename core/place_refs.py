@@ -126,6 +126,11 @@ def geometry_sentence(rec: Dict, data: Dict, sun_azimuth: float = 250.0) -> str:
                  f"{max(y0, 0) * 100:.0f}% from the top of the frame, "
                  + (f"feet at about {y1 * 100:.0f}%" if y1 <= 1.0 else "body cut by the bottom of the frame")
                  + f", centred at {((x0 + x1) / 2) * 100:.0f}% from the left")
+        if 0.0 <= y0 < y1 <= 1.0:
+            # 12/10 (#27 shot 13): the head/feet numbers alone were ignored — a body 17 % of the frame was drawn ~40 % and the tower
+            # shrank; the share says the size outright
+            where += (f" — the main character's whole body is about {(y1 - y0) * 100:.0f}% of the frame height: draw them at exactly "
+                      "this size against the background, never bigger")
         bits.append(where)
     if info.get("horizon_y") is not None and 0.0 <= float(info["horizon_y"]) <= 1.0:
         bits.append(f"the horizon line at {float(info['horizon_y']) * 100:.0f}% from the top")

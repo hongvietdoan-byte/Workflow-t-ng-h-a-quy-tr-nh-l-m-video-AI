@@ -64,7 +64,18 @@ def is_behind(data: Dict) -> bool:
     """The camera stands behind the character (over the shoulder / back to camera) — the same test plate_camera.camera_for uses."""
     angle = str(data.get("angle") or "eye").lower()
     words = f"{data.get('start_frame') or ''} {data.get('angle') or ''}".lower()
-    return angle == "ots" or "from behind" in words or "back to camera" in words or "quay lưng" in words
+    if angle == "ots" or "from behind" in words or "back to camera" in words or "quay lưng" in words:
+        return True
+    # 12/10 (#27 shot 3 / 13): the Free Fire third-person camera IS behind the character, and a shot whose own camera words say so
+    # ("camera BEHIND Kelly", "seen from behind") was rendered from the front — the background came from the wrong side
+    if str(data.get("size") or data.get("shot_size") or "").upper() == "GAME_TPS":
+        return True
+    # rà: only the camera's own words, never negated ("never seen from behind"); "back to the camera" may be about another person
+    own = f"{data.get('shot') or ''} {data.get('blocking') or ''}".lower()
+    for m in re.finditer(r"camera behind|seen from behind", own):
+        if not re.search(r"(?:\bnot|\bnever|\bno|n't)\s+(?:\w+\s+){0,2}$", own[max(0, m.start() - 30):m.start()]):
+            return True
+    return False
 
 
 def bearing(a: Sequence[float], b: Sequence[float]) -> Optional[float]:

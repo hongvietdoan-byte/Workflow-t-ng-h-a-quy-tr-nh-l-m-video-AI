@@ -48,7 +48,10 @@ def enabled() -> bool:
 
 
 def shot_text(data: Dict) -> str:
-    return " ".join(str((data or {}).get(k) or "") for k in _TEXT_KEYS)
+    """The shot's own words — without its dialogue / narration lines (12/10, #27 shot 14: the narrator saying "…ném bom keo…" put a
+    glue wall lock into the picking-up picture; core/assets._without_spoken_lines)."""
+    data = data or {}
+    return " ".join(assets._without_spoken_lines(str(data.get(k) or "")) if k == "text" else str(data.get(k) or "") for k in _TEXT_KEYS)
 
 
 def category(asset: Dict) -> Optional[str]:

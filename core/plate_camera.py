@@ -55,6 +55,8 @@ WIDE_MIN_CAM_M = 0.3                           # a wide pulled back along an upw
 #    (tools/render_plates.py) and judged by clearance_fix below (pure: raise over a low wall, step in front of a wall the camera is
 #    inside, say a tall wall right behind the character — never silent).
 LOOK_DOWN_PITCH_DEG = 35.0
+# 12/10 (#27): the Free Fire third-person camera — behind the character, a little above the head, a gentle tilt down (not a top view)
+TPS_DIST_M, TPS_ABOVE_HEAD_M, TPS_PITCH_DEG = 3.6, 0.9, 12.0
 OTS_ABOVE_HEAD_M = 0.15
 LOOK_DOWN_ANGLES = ("high", "ots")
 LOW_CAM_SHARE, LOW_TILT_DEG = 0.5, 8.0
@@ -189,8 +191,19 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
     if angle == "low" and low_z >= centre_z - dist * math.tan(math.radians(LOW_TILT_DEG)):
         # P24: a wide low shot's frame middle is below the camera — aim up a little so it still reads as a low angle
         aim_z = low_z + dist * math.tan(math.radians(LOW_TILT_DEG))
-    if size in ("EWS", "GAME_TPS") and angle not in ("low",):
-        cam_z = max(cam_z, head + 2.5)                        # game third-person / establishing: above the head
+    tps = size == "GAME_TPS" and angle not in ("low",) and not (looks_down(data) and angle in LOOK_DOWN_ANGLES)
+    why_tps = ""                                              # rà 12/10: a TPS look-down keeps the P24 over-the-shoulder rig
+    if size == "EWS" and angle in ("high", "overhead"):
+        cam_z = max(cam_z, head + 2.5)                        # establishing from above: only when the shot asks for it (12/10: an
+        #                                                       'eye' EWS was forced 4.2 m up, 33° down — a top view nobody wrote)
+    if tps:
+        # 12/10 (#27 shot 3 / 13, người dùng: "cảnh góc cam từ trên xuống sai tỉ lệ và bố cục"): "head + 2.5 m" at ~2.5 m away looked
+        # ~50° DOWN — the character was 17 % of the frame on the render and drawn ~40 % by the model, the tower shrank. The Free Fire
+        # third-person camera sits TPS_DIST_M behind, TPS_ABOVE_HEAD_M above the head, tilted TPS_PITCH_DEG down past the character
+        why_tps = (f"giàn máy góc thứ ba của game: máy sau lưng {max(dist, TPS_DIST_M):.2f} m, cao hơn đầu {TPS_ABOVE_HEAD_M:g} m, "
+                   f"chúc {TPS_PITCH_DEG:g}°" + (f" (lùi từ {dist:.2f} m)" if dist < TPS_DIST_M else ""))
+        dist = max(dist, TPS_DIST_M)
+        cam_z = height_m + TPS_ABOVE_HEAD_M
     if down_ok and not behind:                                # P24: high + looks down — a clear tilt onto the ground round the spot
         cam_z = max(cam_z, centre_z + dist * math.tan(math.radians(LOOK_DOWN_PITCH_DEG)))
     if cam_z < aim_z and not wants_sky(data):                 # F2: an upward tilt — keep the horizon in the frame
@@ -211,6 +224,11 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
     shift = (SIDE_X[side] - 0.5) * frame_h * aspect           # metres the character sits off the frame's middle
     cam = (spot[0] + fwd[0] * dist + right[0] * shift, spot[1] + fwd[1] * dist + right[1] * shift, spot[2] + cam_z)
     aim = (spot[0] + right[0] * shift, spot[1] + right[1] * shift, spot[2] + aim_z)
+    if tps:
+        # aimed past the character at TPS_PITCH_DEG: the character stands in the lower part of the frame, the place ahead fills the rest
+        aim_h = height_m * 0.5
+        reach = max((cam_z - aim_h) / math.tan(math.radians(TPS_PITCH_DEG)), dist + 1.0)
+        aim = (cam[0] - fwd[0] * reach, cam[1] - fwd[1] * reach, spot[2] + aim_h)   # along the camera → character line, past them
     if down_ok and behind:
         # P24 shot 3: over the shoulder, looking where the character looks — down. The camera a little above the head, aimed at the
         # ground beyond the character so the tilt is LOOK_DOWN_PITCH_DEG (≤ 45° by construction; the aim never falls behind the
@@ -238,10 +256,13 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
     else:
         why["pitch"] = (f"angle '{angle}'" + ("" if data.get("angle") else " (shot thiếu angle — mặc định eye)")
                         + f" → máy {cam_z:.2f} m, nghiêng {pitch:.0f}°")
+    if why_tps:
+        why["tps"] = why_tps
     why["direction"] = (f"nhân vật nhìn {facing_deg % 360:g}°, máy " + ("sau lưng (qua vai)" if behind else "trước mặt")
                         + " — hướng theo plate_view của shot (luật trục 180° ở plate_choice)")
     return {"camera": {"name": name, "location": [round(c, 3) for c in cam], "look_at": [round(c, 3) for c in aim], "lens": lens,
-                       "angle": {"low": "low_angle", "high": "high_angle", "overhead": "high_angle"}.get(angle, "eye_level")},
+                       "angle": {"low": "low_angle", "high": "high_angle", "overhead": "high_angle"}.get(angle, "eye_level")}
+                      | ({"rig": "tps"} if tps else {}),
             "subject_box": box, "feet_y": box[3], "distance_m": round(dist, 2), "size": size, "side": side, "behind": behind,
             "frame_h_m": round(frame_h, 3), "horizon_y": hz, "pitch_deg": round(pitch, 1), "fixes": fixes, "problem": problem,
             "why": why}
@@ -325,8 +346,15 @@ def wide_for(camera: Dict, height_m: float, aspect: float = 9 / 16, frame_h: Opt
         frame_h = 2 * to_aim * math.tan(vfov(lens, aspect) / 2)
     wlens = round(max(WIDE_MIN_LENS, min(lens, lens * WIDE_LENS_SHARE)), 1)
     span = max(WIDE_SPAN_BODY * height_m, WIDE_SPAN_FRAME * frame_h)
+    anchor = aim
+    if camera.get("rig") == "tps":
+        # rà 12/10: the TPS camera aims PAST the character (~8 m) — the wide view backs off from the character, not from that far aim
+        to_aim = min(to_aim, TPS_DIST_M)
+        anchor = [c + fc * to_aim for c, fc in zip(cam, f)]
+        frame_h = 2 * to_aim * math.tan(vfov(lens, aspect) / 2)
+        span = max(WIDE_SPAN_BODY * height_m, WIDE_SPAN_FRAME * frame_h)
     back = max(span / (2 * math.tan(vfov(wlens, aspect) / 2)), to_aim * 1.5)
-    loc = [a - fc * back for a, fc in zip(aim, f)]
+    loc = [a - fc * back for a, fc in zip(anchor, f)]
     feet_z = ((camera.get("subject") or {}).get("location") or [None, None, None])[2]
     if feet_z is not None and loc[2] < float(feet_z) + WIDE_MIN_CAM_M:
         lift = float(feet_z) + WIDE_MIN_CAM_M - loc[2]
