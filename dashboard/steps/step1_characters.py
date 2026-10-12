@@ -69,9 +69,12 @@ def weapon_select(p: Pipeline, pid: int, name: str, box) -> None:
         return
     current = prop_lock.weapon_table(p.conn, pid).get(name)
     options = [None] + [a["id"] for a in guns]
+    if current is not None and current not in options:      # rà: the locked gun was taken off the project — say it, never clear it silently
+        box.warning(f"Súng đã khóa cho {name} (Kho #{current}) không còn gắn dự án — gắn lại ở 🧰 Tài nguyên hoặc chọn súng khác")
+        options.append(current)
     names = {a["id"]: a["name"] for a in guns}
     pick = box.selectbox("🔫 Súng khóa cho nhân vật", options, options.index(current) if current in options else 0,
-                         format_func=lambda o: "Không khóa súng" if o is None else names[o], key=f"weapon_{pid}_{name}",
+                         format_func=lambda o: "Không khóa súng" if o is None else names.get(o, f"Kho #{o} (đã gỡ khỏi dự án)"), key=f"weapon_{pid}_{name}",
                          help="Shot có nhân vật này cầm/đeo súng sẽ ghi đúng tên súng này + tỉ lệ + ảnh Kho; shot nêu súng khác → ĐỎ, không gen.")
     if pick != current:
         prop_lock.set_weapon(p.conn, pid, name, pick)

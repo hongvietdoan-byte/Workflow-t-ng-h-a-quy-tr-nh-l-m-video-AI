@@ -97,6 +97,50 @@ class WeaponLockTest(unittest.TestCase):
         with mock.patch.dict(os.environ, dict(FLAG_OFF, FEATURE_PROMPT_FORMULA="0")):
             self.assertEqual(pf.red_issues(self.p.conn, sid, "image"), [])
 
+    def test_a_gun_name_not_used_as_a_gun_is_only_yellow(self):
+        """Rà Đ16v3 CAO-1: 'a hawk circles', a gun lying around, a line of dialogue — never a paid-send stop."""
+        for text in ("A hawk circles overhead while Kelly fires her gun.", "An RPK lies on the ground. Kelly looks at it.",
+                     'Kelly shouts: "Where is my M7?"'):
+            shot = {"characters": ["KELLY"], "image_prompt": text}
+            self.assertFalse([i for i in self._issues(shot) if i["level"] == "red"], text)
+
+    def test_a_character_named_in_the_text_counts_as_present(self):
+        """Rà Đ16v3 CAO-2: 'Xúc Tu Đỏ fires the RPK' with characters=['KELLY'] — the tentacle is in the shot; its RPK is right."""
+        shot = {"characters": ["KELLY"], "image_prompt": "Kelly ducks as Xúc Tu Đỏ fires the RPK."}
+        self.assertFalse([i for i in self._issues(shot) if i["level"] == "red"])
+        self.assertIn("the gun of XÚC TU ĐỎ in this shot is RPK", self._prompt(shot, FLAG_ON))
+
+    def test_clip_of_an_approved_picture_is_not_held_by_the_picture_words(self):
+        import json
+        sid = self.p.create_scene(self.pid, 2, "s")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?",
+                            (json.dumps({"characters": ["KELLY"], "image_prompt": "Kelly fires her RPK at the door."}), sid))
+        self.p.conn.commit()
+        with mock.patch.dict(os.environ, dict(FLAG_ON, FEATURE_PROMPT_FORMULA="0")):
+            self.assertEqual(pf.red_issues(self.p.conn, sid, "motion"), [])
+
+    def test_four_people_four_guns_keep_every_face(self):
+        names = ["KELLY", "LÍNH ĐỊCH ÁO CHOÀNG", "SỨ GIẢ BÓNG ĐÊM", "XÚC TU ĐỎ"]
+        people = [(n, [(f"/{i}.png", "identity")]) for i, n in enumerate(names)]
+        with mock.patch.dict(os.environ, FLAG_ON):
+            room_people = max(8 - 1 - 1 - 4, 0)
+        self.assertLess(room_people, len(people))      # the old rule: 2 slots for 4 faces
+        # the new rule keeps one per person (assets.scene_references): checked through the real function below
+        shot = {"characters": names, "image_prompt": "They all fire their guns."}
+        with mock.patch.dict(os.environ, FLAG_ON), mock.patch.object(assets, "scene_location", return_value=None):
+            for n in names:
+                self.p.conn.execute("INSERT INTO assets (game, kind, name, description) VALUES ('FF','character',?, 'x')", (n,))
+                aid = self.p.conn.execute("SELECT id FROM assets WHERE name=? AND kind='character'", (n,)).fetchone()[0]
+                path = os.path.join(self.tmp, f"face_{aid}.png")
+                open(path, "wb").write(b"\x89PNG\r\n\x1a\n" + b"0" * 64)
+                self.p.conn.execute("INSERT INTO asset_images (asset_id, path, label, sort, status) VALUES (?,?,?,?,?)",
+                                    (aid, path, "f", 1, "approved"))
+                self.p.conn.execute("INSERT INTO project_assets (project_id, asset_id) VALUES (?,?)", (self.pid, aid))
+            self.p.conn.commit()
+            refs = assets.scene_references(self.p.conn, self.pid, shot, limit=6)
+        labels = [r["label"] for r in refs]
+        self.assertTrue(all(any(assets.fold(n) == assets.fold(l) for l in labels) for n in names), labels)
+
 
 def test_weapon_select_saves_the_choice(tmp_path, monkeypatch):
     """Bước 1: one select per character (flag on, project has guns) — picking a gun locks it."""

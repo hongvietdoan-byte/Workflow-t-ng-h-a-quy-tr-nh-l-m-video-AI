@@ -1011,7 +1011,9 @@ def red_issues(conn, scene_id: int, kind: Optional[str] = None, gore_hinted=None
     if row is None:
         return []
     data = json.loads(row["data"] or "{}")
-    props = [f"Đạo cụ dự án: {i['msg']}" for i in _prop_issues(conn, row["project_id"], data) if i["level"] == "red"]
+    # rà Đ16v3: the gun lock reads the PICTURE words — it holds the picture back, not a clip of a picture already approved
+    props = ([f"Đạo cụ dự án: {i['msg']}" for i in _prop_issues(conn, row["project_id"], data) if i["level"] == "red"]
+             if kind in (None, "image") else [])
     if not enabled():
         return props
     return props + _red_formula(conn, scene_id, kind, gore_hinted, row, data)

@@ -176,10 +176,46 @@ def _holders(conn, project_id: int, data: Dict, pool) -> Dict[int, List[str]]:
     guns = {a["id"] for a, c in pool if c == "gun"}
     table = {assets.fold(n): (n, i) for n, i in weapon_table(conn, project_id).items()}
     out: Dict[int, List[str]] = {}
-    for name in (data or {}).get("characters") or []:
+    for name in _present(conn, project_id, data):
         hit = table.get(assets.fold(str(name)))
-        if hit and hit[1] in guns:
+        if hit and hit[1] in guns and hit[0] not in out.get(hit[1], []):
             out.setdefault(hit[1], []).append(hit[0])
+    return out
+
+
+def _present(conn, project_id: int, data: Dict) -> List[str]:
+    """Rà Đ16v3 (12/10): the shot's characters + any character with a locked gun the shot's TEXT names ("Xúc Tu Đỏ fires the RPK"
+    with characters=['KELLY'] — that character is in the shot too)."""
+    names = [str(n) for n in (data or {}).get("characters") or []]
+    said = " " + assets.fold(shot_text(data)) + " "
+    have = {assets.fold(n) for n in names}
+    for n in weapon_table(conn, project_id):
+        if assets.fold(n) not in have and " " + assets.fold(n) + " " in said:
+            names.append(n)
+    return names
+
+
+# a gun action in the same sentence as the gun's name (only then a mismatch is RED; a gun lying around, said in dialogue, or a word
+# that is also a gun's name — "a hawk circles", "a scorpion crawls" — is YELLOW: the shot's own guns are locked by name anyway)
+_GUN_ACTION = re.compile(r"(?<!\w)(?:fir(?:e|es|ed|ing)|shoot(?:s|ing)?|shot|aim(?:s|ed|ing)?|hold(?:s|ing)?|held|carr(?:y|ies|ying|ied)|"
+                         r"wield(?:s|ing)?|grip(?:s|ping)?|reload(?:s|ing)?|points?|pointing|cầm|bắn|ngắm|giương|chĩa|nạp đạn|xả đạn)(?!\w)", re.I)
+
+
+def _gun_sentences(text: str, asset: Dict) -> List[str]:
+    """Sentences that name this gun AS a gun: its name written as in the Kho (case kept — "HAWK"/"RPK", not "a hawk"), or any
+    spelling right next to a gun word."""
+    out = []
+    for sent in re.split(r"(?<=[.!?;])\s+|\n", text or ""):
+        for n in assets.names_of(asset):
+            n = n.strip()
+            if len(assets.fold(n)) < 2:
+                continue
+            exact = re.search(r"(?<!\w)" + re.escape(n) + r"(?!\w)", sent)
+            loose = re.search(r"(?<!\w)" + re.escape(n) + r"(?!\w)", sent, re.I)
+            if exact and (n.isupper() or not n.isalpha() or n != n.lower()) or loose and _SHOT_RX["gun"].search(
+                    sent[max(loose.start() - 25, 0):loose.end() + 25]):
+                out.append(sent)
+                break
     return out
 
 
@@ -188,7 +224,7 @@ def _unlocked_people(conn, project_id: int, data: Dict) -> List[str]:
     table = {assets.fold(n) for n in weapon_table(conn, project_id)}
     if not table:
         return []
-    return [str(n) for n in (data or {}).get("characters") or [] if assets.fold(str(n)) not in table]
+    return [str(n) for n in _present(conn, project_id, data) if assets.fold(str(n)) not in table]
 
 
 def locks(conn, project_id: int, data: Dict) -> List[Dict]:
@@ -400,12 +436,23 @@ def issues(conn, project_id: int, data: Dict) -> List[Dict]:
     if holders and (generic["gun"] or any(_named(a, words) for a in guns)):
         # Đ16v3: a gun the text names that is locked to nobody in this shot → ĐỎ before a paid picture
         owners = {i: names for i, names in holders.items()}
+        people = [assets.fold(n) for n in _present(conn, project_id, data)]
         for a in guns:
-            if _named(a, words) and a["id"] not in owners:
-                locked = "; ".join(f"{', '.join(n)} → {next((g['name'] for g in guns if g['id'] == i), i)}" for i, n in owners.items())
+            if not _named(a, words) or a["id"] in owners:
+                continue
+            locked = "; ".join(f"{', '.join(n)} → {next((g['name'] for g in guns if g['id'] == i), i)}" for i, n in owners.items())
+            sents = _gun_sentences(_text, a)
+            used = [x for x in sents if _GUN_ACTION.search(x) and (
+                any(" " + p + " " in " " + assets.fold(x) + " " for p in people)
+                or re.search(r"(?<!\w)(?:he|she|they|his|her|their|anh ta|cô ấy|hắn|họ)(?!\w)", x, re.I))]
+            if used:
                 out.append({"level": "red", "part": "dao_cu",
-                            "msg": f"chữ shot nêu súng {a['name']} nhưng không nhân vật nào trong shot được khóa súng này (đã khóa: {locked}) "
-                                   "— sửa chữ shot theo súng đã khóa, hoặc đổi bảng gán súng ở Bước 1"})
+                            "msg": f"chữ shot cho nhân vật dùng súng {a['name']} (\"{used[0][:80]}\") nhưng không ai trong shot được khóa súng này "
+                                   f"(đã khóa: {locked}) — sửa chữ shot theo súng đã khóa; nếu người cầm {a['name']} có trong shot thì thêm họ vào "
+                                   "nhân vật của shot hoặc gán súng ở Bước 1"})
+            elif sents:
+                out.append({"level": "warn", "part": "dao_cu",
+                            "msg": f"chữ shot nhắc súng {a['name']} mà không ai trong shot được khóa súng này (đã khóa: {locked}) — kiểm lại"})
         nobody = _unlocked_people(conn, project_id, data)
         if nobody:
             out.append({"level": "warn", "part": "dao_cu",
@@ -451,8 +498,11 @@ def prompt_part(conn, project_id: int, data: Dict) -> str:
         if lk.get("holders"):
             # Đ16v3: whose gun it is — each present character gets their own locked gun, never another one
             who = " and ".join(lk["holders"])
-            slung = (f"; when it is slung on the back it is this same gun at its true size, worn across the back, not in the hands"
-                     if _SLUNG.search(shot_text(data)) else "")
+            others = [x["asset"] for x in locks(conn, project_id, data) if x["asset"]["id"] != a["id"] and x["category"] == "gun"]
+            slung_here = any(_SLUNG.search(sent) and not any(_gun_sentences(sent, o) for o in others)
+                             for sent in re.split(r"(?<=[.!?;,])\s+", shot_text(data)))
+            slung = ("; when it is slung on the back it is this same gun at its true size, worn across the back, not in the hands"
+                     if slung_here else "")
             bits.append(f"Prop lock: the gun of {who} in this shot is {a['name']} from the project library"
                         + (f" — {form}" if form else "") + over + slung
                         + (_DRAW_PIC if lk["image"] else _DRAW)
@@ -488,7 +538,7 @@ def match_refs(prompt: str, refs) -> str:
         name = m.group("name")
         return m.group(0) if name in sent else m.group(0).replace(" as its reference picture shows", "")
     rx = re.compile(r"Prop lock: (?:the [^.;]*? in this shot is (?P<name>.+?) from the project library|(?P<name2>.+?) in this shot —)"
-                    r".*?as its reference picture shows")
+                    r"[^.]*?as its reference picture shows")   # rà Đ16v3: never across into the next prop's sentence
     return rx.sub(lambda m: fix(_Named(m)), prompt).replace(";;", ";")
 
 

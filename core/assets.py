@@ -1603,6 +1603,9 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     lock_on = prop_lock.enabled()
     locked = {x["asset"]["id"]: (x["asset"], x["image"]) for x in prop_lock.reference_images(conn, project_id, scene)} if lock_on else {}
     room = max(limit - reserve - (1 if loc else 0) - len(locked), 0)    # rà 12/10: a locked prop keeps its slot in a crowded shot
+    # rà Đ16v3 (12/10): faces first — every person keeps ONE picture before the locked guns (4 people + 4 guns lost faces);
+    # a gun with no slot left is drawn from its words (prop_lock.match_refs drops "as its reference picture shows")
+    room = max(room, min(len(people), max(limit - reserve - (1 if loc else 0), 0)))
     counts = [0] * len(people)                     # 1 picture each first, then a 2nd (3rd) picture for the people listed first while room lasts
     for n in range(1, max(caps, default=0) + 1):
         for i, (_, items) in enumerate(people):
