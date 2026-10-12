@@ -1231,3 +1231,4 @@ change_review) — kiểm quyền sửa như các ô khác. Ảnh chụp 1440 + 
 ## Kết quả Codex — đợt 18
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+`n- ✅ Việc 3 · nhánh `codex/d18-viec3-giu-bo-cuc` · code `5865a18`: ô giữ bố cục dùng chung Bước1/2 cả thẻ v2, nguồn trước cùng địa điểm lên đầu, giữ nguồn tương lai hiện có; thumbnail/trạng thái/nút bỏ, ghi update_scene có quyền và lineage/change_review. Cờ continuity_from_ui OFF/OPT_IN_ONLY, giữ keys/version66. ĐỎ→XANH 27 test /6,56s; rà độc lập sửa1P2 thiếu hookv2, root đọc fix. QA Chrome component và thẻv2 thật với DB/ảnh tạm1440/1280:0JS/0exception/không tràn,2PNG docs/images/d18. Chưa sản xuất/cả bộ Windows/API/gộp main. Việc4 vẫn chờ duyệt kế hoạch việc1.
