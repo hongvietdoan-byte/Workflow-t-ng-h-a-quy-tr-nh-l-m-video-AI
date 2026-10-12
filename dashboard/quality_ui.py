@@ -251,6 +251,10 @@ def card_block(p, pid: int, scene_id: int, runner, line: Optional[Dict] = None) 
     s = state(p.conn, scene_id)
     text, kind = STATE_PILL[s]
     st.markdown(D.pill(text, kind), unsafe_allow_html=True)
+    qt = module()
+    source_problem = qt.final_source_problem(p.conn, scene_id) if qt is not None else None
+    if source_problem:
+        st.warning(source_problem)
     mline = line
     hard, detail = difficulty_md(p.conn, scene_id)
     if hard:

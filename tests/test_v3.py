@@ -445,7 +445,8 @@ class BudgetAndCompareTests(unittest.TestCase):
         autopilot.set_gates(p, pid, {"bible": False, "storyboard": False})
         autopilot.start(p, pid)
         from unittest import mock
-        with mock.patch("core.claude_tasks.unchecked_videos", return_value=[]):     # the simulator's clips are not real videos
+        from core import formats
+        with mock.patch("core.claude_tasks.unchecked_videos", return_value=[]), mock.patch.dict(formats.ASPECTS["9:16"], {"render": (360, 640)}):  # khung nhỏ của simulator
             self.assertEqual(autopilot.run_until_done(p, pid, ctx, max_ticks=400), autopilot.DONE)
         groups = shots.multishot_groups(p.conn, pid)
         count = lambda sql: p.conn.execute(sql, (pid,)).fetchone()[0]  # noqa: E731

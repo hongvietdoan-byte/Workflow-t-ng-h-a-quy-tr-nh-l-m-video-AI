@@ -89,6 +89,51 @@ def collect_clips_for_render(conn, data_dir: str, project_id: int, clip_paths: O
             for p in clip_paths]
 
 
+def project_frame(project):
+    from . import formats
+    aspect = formats.project_aspect(project)
+    return formats.spec(aspect)["render"] if aspect else None
+
+
+def measured_size(path):
+    """Chỉ probe tệp cục bộ, đường tương đối theo gốc repo; không gửi mạng."""
+    if not path or "://" in str(path) or str(path).startswith(("\\\\", "//")):
+        return None
+    local = path if os.path.isabs(path) else os.path.join(os.path.dirname(os.path.dirname(__file__)), path)
+    return ffmpeg_studio.probe_size(local)
+
+
+def resolution_manifest(rows: List[Dict], frame) -> Dict:
+    """Đo clip gốc, kể cả tải tay/follower; không suy độ nét từ nhãn job hay clip nhóm."""
+    measured = []
+    for row in rows:
+        size = measured_size(row["path"])
+        measured.append({"title": row.get("title") or os.path.basename(row["path"]), "idx": row.get("idx"),
+                         "path": row["path"], "size": list(size) if size else None,
+                         "below_720": bool(size and min(size) < 720)})
+    low = [r for r in measured if r["below_720"]]
+    return {"frame": list(frame) if frame else None, "clips": measured,
+            "label": "NHÁP — có clip 480p" if low else "NHÁP — chỉ để xem",
+            "low_resolution": low}
+
+
+def require_delivery_resolution(rows: List[Dict], frame) -> None:
+    """Bản giao khung HD: cạnh ngắn clip >=720; lỗi đo cũng phải xử lý trước khi giao."""
+    frame = frame or (measured_size(rows[0]["path"]) if rows else None)
+    if not frame or min(frame) < 1080:
+        return
+    report = resolution_manifest(rows, frame)
+    problems = []
+    for row in report["clips"]:
+        name = f"shot {row['idx']}: {row['title']}" if row.get("idx") is not None else row["title"]
+        if row["size"] is None:
+            problems.append(f"{name}: không đo được độ phân giải — kiểm tra/tải lại clip, nâng 1080p hoặc gen ≥ 720p")
+        elif row["below_720"]:
+            problems.append(f"{name}: clip {row['size'][0]}×{row['size'][1]} dưới 720p — nâng 1080p hoặc gen ≥ 720p trước khi giao")
+    if problems:
+        raise ValueError("Không thể dựng bản giao: " + "; ".join(problems))
+
+
 def clip_seconds(path: str, requested: Optional[float]) -> float:
     """Real length when ffmpeg can read it, else the requested length, else a default."""
     return ffmpeg_studio.probe_duration(path) or requested or DEFAULT_SECONDS
@@ -126,13 +171,23 @@ def draft_preview(pipeline: Pipeline, data_dir: str, project_id: int, out_path: 
     if not paths:
         raise ValueError("chưa có clip nào (kể cả nháp) để ghép xem")
     out = out_path or os.path.join(data_dir, str(project_id), "output", "xem_nhap.mp4")
+    normalized = os.path.normcase(os.path.abspath(out))
+    registered = {os.path.normcase(os.path.abspath(r["path"])) for r in conn.execute(
+        "SELECT path FROM outputs WHERE project_id=?", (project_id,))}
+    if normalized in registered or os.path.basename(out).upper() == "FINAL_VIDEO.MP4":
+        raise ValueError("Bản NHÁP cần tệp riêng, không ghi đè bản giao — dùng xem_nhap.mp4")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     try:
         size = tuple(canvas(project_aspect(pipeline.project(project_id))))
     except Exception:  # noqa: BLE001 - no frame spec: the clips' own size
         size = None
     ffmpeg_studio.render_final(paths, out, durs, "cut", 1.0, None, keep_audio=False, size=size)
-    return {"path": out, "shots": shots, "missing": missing, "seconds": round(sum(durs), 2)}
+    manifest = resolution_manifest([{"path": path, "idx": idx, "title": f"shot {idx}"} for path, idx in zip(paths, shots)], size)
+    manifest.update(kind="draft", shots=shots, missing=missing, seconds=round(sum(durs), 2))
+    import json
+    with open(out + ".manifest.json", "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2)
+    return {"path": out, "shots": shots, "missing": missing, "seconds": round(sum(durs), 2), "manifest": manifest}
 
 
 def total_seconds(durations: List[float], transition: str, fade: float) -> float:

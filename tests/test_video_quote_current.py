@@ -41,8 +41,11 @@ class CurrentQuoteTests(Base):
 
     def test_nine_shots_only_one_matches_current_inputs(self):
         self.proven_clip(self.sids[0])
+        # Clip giả của ca báo giá có nguồn 720p đo được; ca thiếu nguồn kiểm riêng.
+        self.p.conn.execute("UPDATE jobs SET result_path='fixture-720.mp4' WHERE type='video_gen'")
         for i, sid in enumerate(self.sids[1:], 1):
             jid, _ = self.proven_clip(sid)
+            self.p.conn.execute("UPDATE jobs SET result_path='fixture-720.mp4' WHERE id=?", (jid,))
             if i % 2:
                 self.p.conn.execute("UPDATE jobs SET input_hash=NULL WHERE id=?", (jid,))
                 self.assertIn("thiếu bằng chứng", cost.video_need(self.p.conn, sid)["reason"])
@@ -52,7 +55,7 @@ class CurrentQuoteTests(Base):
         self.p.conn.commit()
         for sid in (self.sids[4], self.sids[5], self.sids[7]):
             self.p.conn.execute("UPDATE motion_prompts SET ref_video_path='fake.mp4' WHERE scene_id=?", (sid,))
-        with mock.patch.object(quality_tier, "enabled", return_value=False), mock.patch("os.path.isfile", return_value=True), mock.patch("core.ffmpeg_studio.probe_duration", return_value=3.5):
+        with mock.patch.object(quality_tier, "enabled", return_value=False), mock.patch("os.path.isfile", return_value=True), mock.patch("core.ffmpeg_studio.probe_duration", return_value=3.5), mock.patch("core.ffmpeg_studio.probe_size", return_value=(720, 1280)):
             est = cost.estimate_run(self.p, self.pid)
             rows = model_router.plan(self.p.conn, self.pid)
         self.assertEqual(est["counts"]["clips"], 8)

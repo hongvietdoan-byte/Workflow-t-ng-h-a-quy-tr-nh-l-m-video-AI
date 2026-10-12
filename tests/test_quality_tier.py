@@ -133,7 +133,9 @@ class PathAndStateTests(Base):
             self.made(f)
             self.assertEqual(st(), "final_review")              # 09/10: gen xong, chờ duyệt — không còn "đang gen"
             self.p.approve(f, "user")
-            self.assertEqual(st(), "final_ok")
+            self.p.conn.execute("UPDATE jobs SET result_path='fixture-final-720.mp4' WHERE id=?", (f,))
+            with mock.patch('core.ffmpeg_studio.probe_size', return_value=(720, 1280)):
+                self.assertEqual(st(), "final_ok")
             s2 = self.p.create_scene(self.pid, 2, "Shot 2")
             self.set_difficulty("easy", s2)
             j = self.p.create_job(s2, "video_gen")
@@ -141,7 +143,9 @@ class PathAndStateTests(Base):
             self.p.start(j)
             self.p.succeed(j)
             self.p.approve(j, "user")
-            self.assertEqual(quality_tier.state(self.p.conn, s2), "direct_ok")
+            self.p.conn.execute("UPDATE jobs SET result_path='fixture-direct-720.mp4' WHERE id=?", (j,))
+            with mock.patch('core.ffmpeg_studio.probe_size', return_value=(720, 1280)):
+                self.assertEqual(quality_tier.state(self.p.conn, s2), "direct_ok")
 
     def test_a_draft_only_the_qc_approved_still_waits_for_the_person(self):
         with ON:

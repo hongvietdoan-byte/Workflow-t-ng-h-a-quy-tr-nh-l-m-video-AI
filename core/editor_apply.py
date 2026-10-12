@@ -228,6 +228,9 @@ def apply(p, project_id: int, data_dir: str, ids: List[str], render_fn: Optional
         if sum(1 for e in log if e.get("review") == review["fingerprint"]) >= MAX_ATTEMPTS:
             raise ValueError(f"đã áp {MAX_ATTEMPTS} lần cho kết quả duyệt này — đổi đầu vào (duyệt lại) trước khi áp tiếp")
         pl = plan(p, project_id, data_dir, review, rc, ids, old)
+        from . import final_cut
+        final_cut.require_delivery_resolution(final_cut.collect_clips_for_render(p.conn, data_dir, project_id, pl["clips"]),
+                                              final_cut.project_frame(p.project(project_id)))
         before = qc_fn()
         out_path = old["path"]
         old_path = _stash(p, data_dir, project_id, old, "A")

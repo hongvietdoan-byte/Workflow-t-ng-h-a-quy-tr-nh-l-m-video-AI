@@ -163,7 +163,7 @@ class RealMusicSilenceTests(unittest.TestCase):
         subprocess.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=8", "-c:a", "aac", music], check=True)
         settings = dict(delivery.get_settings(p, pid), keep_audio=False, transition="cut")
         with mock.patch.dict(os.environ, {"FEATURE_SOUND_INTENT": flag}):
-            res = delivery.render(p, pid, data, music_path=music, settings=settings)
+            res = delivery.render(p, pid, data, music_path=music, settings=settings, render_size=(270, 480))
         man = json.loads(p.conn.execute("SELECT manifest FROM outputs WHERE id=?", (res["output_id"],)).fetchone()["manifest"])
         return ff, res["path"], man
 
