@@ -57,6 +57,57 @@ class PropLockTest(unittest.TestCase):
         with mock.patch.dict(os.environ, env), mock.patch.object(assets, "scene_location", return_value=None):
             return assets.scene_references(self.p.conn, self.pid, dict(shot))
 
+    def test_runner_warns_from_final_package_and_dashboard_displays_it(self):
+        from core import runner, diag
+        from dashboard import common
+        sid = self.p.create_scene(self.pid, 1, "refs")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"image_prompt": "Kelly holds SKORP"}), sid))
+        self.p.conn.commit()
+        obj = object.__new__(runner.ImageRunner)
+        obj.p, obj.provider = self.p, object()
+        obj._diag = lambda job, severity, code, message: diag.record(self.p.conn, "image", severity, message, code, self.pid, scene_id=sid, job_id=job["id"])
+        job = {"id": 123, "project_id": self.pid, "scene_id": sid}
+        with mock.patch.dict(os.environ, FLAG_ON), mock.patch.object(runner, "sendable_references", return_value=([], [])):
+            result = obj._finish_args(job, "prompt", [])
+        self.assertEqual(result, ("prompt",))
+        with mock.patch.dict(os.environ, FLAG_ON), mock.patch.object(common, "st") as ui, mock.patch.object(common.ui, "html"):
+            common.scene_expander(self.p, sid)
+        self.assertTrue(any("SKORP" in str(call) for call in ui.warning.call_args_list))
+
+    def test_final_refs_report_only_locked_picture_actually_missing(self):
+        from core import prop_lock
+        shot = {"image_prompt": "Kelly holds SKORP"}
+        with mock.patch.dict(os.environ, FLAG_ON):
+            self.assertTrue(prop_lock.missing_refs(self.p.conn, self.pid, shot, []))
+            lock = prop_lock.reference_images(self.p.conn, self.pid, shot)[0]
+            refs = [{"path": lock["image"]["path"], "label": "SKORP", "role": "object"}]
+            self.assertEqual(prop_lock.missing_refs(self.p.conn, self.pid, shot, refs), [])
+            self.assertTrue(prop_lock.missing_refs(self.p.conn, self.pid, shot, [dict(refs[0], path="different.png")]))
+        with mock.patch.dict(os.environ, FLAG_OFF):
+            self.assertEqual(prop_lock.missing_refs(self.p.conn, self.pid, shot, []), [])
+
+    def test_skin_conflict_attributes_belong_to_prop(self):
+        from core import prop_lock
+        cases = {
+            "A white car passes; Kelly hides behind skin Gloowall OB55.": False,
+            "Kelly uses skin Gloowall OB55; a white lamp shines.": False,
+            "Kelly uses skin Gloowall OB55, without white paint.": False,
+            "A plain white glue wall with OB55 skin, no pattern.": True,
+            "A plain white skin Gloowall OB55 wall, no pattern.": True,
+            "A no white skin Gloowall OB55 wall.": False,
+        }
+        with mock.patch.dict(os.environ, FLAG_ON):
+            for text, expected in cases.items():
+                with self.subTest(text=text):
+                    found = any("mâu thuẫn dạng" in i["msg"] for i in prop_lock.issues(self.p.conn, self.pid, {"image_prompt": text}))
+                    self.assertEqual(found, expected)
+
+    def test_skin_named_with_default_material_warns(self):
+        from core import prop_lock
+        with mock.patch.dict(os.environ, FLAG_ON):
+            issues = prop_lock.issues(self.p.conn, self.pid, {"image_prompt": "A plain white skin Gloowall OB55 wall, no pattern."})
+        self.assertTrue(any(i["level"] == "warn" and "mâu thuẫn dạng" in i["msg"] for i in issues))
+
     def test_sent_prompt_removes_only_default_prop_modifiers_keeps_source(self):
         shot = {"size": "WS", "image_prompt": "A translucent amber lamp glows. Kelly hides behind a translucent amber glue-grenade wall; a red car passes.",
                 "blocking": "Kelly behind the translucent amber Bom keo"}

@@ -84,6 +84,55 @@ class FlagOff(Base):
             self.assertFalse(features.on("director_rewrite"))
 
 
+class NewPropVariant(Base):
+    def test_variant_guard_distinguishes_ids_and_rejects_negative_notes(self):
+        pid, sid, jid = self.make()
+        c = self.p.conn
+        aid = c.execute("INSERT INTO assets(game,kind,name,aliases,description) VALUES ('FF','prop','Bom keo','Gloowall','wall')").lastrowid
+        c.execute("INSERT INTO project_assets(project_id,asset_id) VALUES (?,?)", (pid, aid))
+        for variant in ("skin Gloowall OB55", "skin Gloowall OB56"):
+            c.execute("INSERT INTO asset_images(asset_id,path,variant,status) VALUES (?,? ,?,'approved')", (aid, "missing.png", variant))
+        c.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"image_prompt": NEW + "; skin Gloowall OB55"}), sid))
+        c.commit()
+        job = c.execute("SELECT * FROM jobs WHERE id=?", (jid,)).fetchone()
+        client = FakeClient({"new_prompt": NEW + "; skin Gloowall OB56", "changed": ["wall"], "why": "wall"})
+        with mock.patch.dict(os.environ, {"FEATURE_PROJECT_PROP_LOCK": "1"}):
+            for note in (None, "Do not use skin Gloowall OB56; keep default white wall.",
+                         "Previous take incorrectly used skin Gloowall OB56. Remove that skin.", "Use skin Gloowall OB560"):
+                with self.subTest(note=note), self.assertRaises(prompt_rewrite.RewriteRefused):
+                    prompt_rewrite.propose_rewrite(self.p, job, note=note, client=client)
+            self.assertIn("OB56", prompt_rewrite.propose_rewrite(self.p, job, note="Use skin Gloowall OB56", client=client).new_prompt)
+            self.assertIn("OB56", prompt_rewrite.propose_rewrite(self.p, job, fix="Use skin Gloowall OB56", client=client).new_prompt)
+            old_skin = FakeClient({"new_prompt": NEW + "; skin Gloowall OB55 stays behind Kelly", "changed": ["wall"], "why": "wall"})
+            self.assertIn("OB55", prompt_rewrite.propose_rewrite(self.p, job, client=old_skin).new_prompt)
+        with mock.patch.dict(os.environ, {"FEATURE_PROJECT_PROP_LOCK": "0"}):
+            self.assertIn("OB56", prompt_rewrite.propose_rewrite(self.p, job, client=client).new_prompt)
+
+    def test_rewrite_rejects_new_variant_unless_old_or_note_authorizes(self):
+        pid, sid, jid = self.make()
+        c = self.p.conn
+        aid = c.execute("INSERT INTO assets (game,kind,name,aliases,description) VALUES ('FF','prop','Bom keo','Gloowall','wall')").lastrowid
+        c.execute("INSERT INTO project_assets (project_id,asset_id) VALUES (?,?)", (pid, aid))
+        image = os.path.join(self.tmp, "variant.png")
+        with open(image, "wb") as stream:
+            stream.write(b"image")
+        c.execute("INSERT INTO asset_images (asset_id,path,variant,status) VALUES (?,?,'skin Gloowall OB55','approved')", (aid, image))
+        c.commit()
+        job = c.execute("SELECT * FROM jobs WHERE id=?", (jid,)).fetchone()
+        client = FakeClient({"new_prompt": NEW + "; skin Gloowall OB55", "changed": ["wall"], "why": "wall"})
+        with mock.patch.dict(os.environ, {"FEATURE_PROJECT_PROP_LOCK": "1"}):
+            with self.assertRaisesRegex(prompt_rewrite.RewriteRefused, "biến thể"):
+                prompt_rewrite.propose_rewrite(self.p, job, note="plain wall", client=client)
+            result = prompt_rewrite.propose_rewrite(self.p, job, note="use skin Gloowall OB55", client=client)
+            self.assertIn("Gloowall OB55", result.new_prompt)
+        os.remove(image)
+        with mock.patch.dict(os.environ, {"FEATURE_PROJECT_PROP_LOCK": "1"}):
+            with self.assertRaisesRegex(prompt_rewrite.RewriteRefused, "biến thể"):
+                prompt_rewrite.propose_rewrite(self.p, job, client=client)
+        with mock.patch.dict(os.environ, {"FEATURE_PROJECT_PROP_LOCK": "0"}):
+            self.assertIn("Gloowall OB55", prompt_rewrite.propose_rewrite(self.p, job, client=client).new_prompt)
+
+
 class Rewrite(Base):
     def test_user_reject_with_note_rewrites_the_shot_prompt_and_keeps_the_old_one(self):
         _, sid, job = self.make()

@@ -2649,6 +2649,12 @@ class ImageRunner(_Runner):
                 say(job, "warn", "missing_reference", f"không kiểm được ảnh mẫu nhân vật trong gói: {type(e).__name__}: {e}")
         prompt, lost = name_render(prompt, refs, fallback=lambda: _place_words(self, job))
         from . import prop_lock                        # rà 12/10: no "as its reference picture shows" for a prop picture not sent
+        if prop_lock.enabled():
+            row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+            missing = prop_lock.missing_refs(self.p.conn, job["project_id"], json.loads(row["data"] or "{}") if row else {}, refs)
+            self._diag(job, "warn" if missing else "info", "prop_reference_dropped",
+                       f"job {job['id']}: ảnh khóa KHÔNG có trong gói gửi cuối (trần ảnh / bộ lọc): " + ", ".join(missing)
+                       + " — sửa gói tham chiếu trước gen; model chỉ nhận mô tả chữ" if missing else f"job {job['id']}: gói gửi cuối không thiếu ảnh khóa")
         prompt = prop_lock.match_refs(prompt, refs)
         if lost and hasattr(self, "_diag"):
             self._diag(job, "warn", "missing_reference", "ảnh render 3D của shot không gửi được — bỏ câu khóa nền theo render, quay về "

@@ -517,6 +517,33 @@ def issues(conn, project_id: int, data: Dict) -> List[Dict]:
         if not lk["form"]:
             out.append({"level": "warn", "part": "dao_cu",
                         "msg": f"món Kho {lk['asset']['name']} chưa có mô tả — prompt chỉ nêu được tên; thêm mô tả ở Kho"})
+        elif lk["has_forms"] and lk["variant"]:
+            default = _form_attributes(form_text(lk["asset"], None))
+            skin = _form_attributes(lk["form"])
+            spans = [m.span() for name in assets.names_of(lk["asset"])
+                     for m in re.finditer(r"(?<!\w)" + re.escape(name) + r"(?!\w)", _text, re.I)]
+            spans += [m.span() for m in _SHOT_RX[lk["category"]].finditer(_text)]
+            nearby = []
+            # Thuộc tính phải sát cụm đạo cụ; skin nằm giữa màu và tên vẫn cùng cụm.
+            prefix = re.compile(r"(?:" + _ATTRIBUTE_RX.pattern + r")(?:[ -]+(?:" + _ATTRIBUTE_RX.pattern
+                                + r"))*[ -]+(?:skin\s+)?$", re.I)
+            suffix = re.compile(r"\s+(?:is|made of|of|là|bằng|màu)\s+((?:" + _ATTRIBUTE_RX.pattern
+                                + r")(?:[ -]+(?:" + _ATTRIBUTE_RX.pattern + r"))*)(?=\s*(?:[.;,!?]|$))", re.I)
+            for a, b in spans:
+                if _OTHER_NOUN_HEAD.match(_text[b:]):
+                    continue
+                before = prefix.search(_text[:a])
+                if before and not re.search(r"(?:\bno|\bnot|\bnever|\bwithout|\black(?:s)?|không(?: có)?|chứ không phải)\s+$",
+                                            _text[:before.start()], re.I):
+                    nearby.extend(m.group().lower() for m in _ATTRIBUTE_RX.finditer(before.group()))
+                after = suffix.match(_text, b)
+                if after:
+                    nearby.extend(m.group().lower() for m in _ATTRIBUTE_RX.finditer(after.group(1)))
+            conflict = [w for w in nearby if _ATTRIBUTE_KEY.get(w) in default - skin]
+            if conflict:
+                out.append({"level": "warn", "part": "dao_cu",
+                            "msg": f"mâu thuẫn dạng: {lk['asset']['name']} chọn {lk['variant']} nhưng chữ shot tả thuộc tính mặc định "
+                                   f"({', '.join(dict.fromkeys(conflict))}) — sửa chữ shot hoặc chọn lại dạng"})
         elif lk["has_forms"] and lk["variant"] is None:
             said = _colour_words(lk["asset"], lk["category"], _text)
             if said:
@@ -601,3 +628,13 @@ class _Named:
 def reference_images(conn, project_id: int, data: Dict) -> List[Dict]:
     """[{asset, image}] the shot's locked props send as references (named or by their common word, the right form)."""
     return [{"asset": lk["asset"], "image": lk["image"]} for lk in locks(conn, project_id, data) if lk["image"] is not None]
+
+
+def missing_refs(conn, project_id: int, data: Dict, refs) -> List[str]:
+    """Ảnh khóa còn thiếu trong GÓI CUỐI; cùng tên nhưng khác ảnh/dạng vẫn thiếu."""
+    import os
+    def key(path):
+        return os.path.normcase(os.path.abspath(assets.resolve(path)))
+    sent = {key(r["path"]) for r in refs if r.get("path")}
+    return [x["asset"]["name"] for x in reference_images(conn, project_id, data)
+            if key(x["image"]["path"]) not in sent]
