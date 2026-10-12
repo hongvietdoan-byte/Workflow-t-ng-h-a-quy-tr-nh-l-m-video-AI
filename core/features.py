@@ -5,6 +5,8 @@ import os
 from typing import Dict
 
 FEATURES: Dict[str, Dict] = {
+    'shot_popup': {'label': 'Popup icon cuối từng shot (0 USD)', 'verified': False,
+                   'why': 'Đ17 việc 2: clip/ảnh/âm thanh cục bộ, chưa thử sản xuất'},
     "package_overrides": {
         "label": "Chỉnh Gói gửi kèm theo shot (bỏ/thêm/ghim và hoàn tác)",
         "verified": False,
@@ -550,7 +552,7 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
 HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
-OPT_IN_ONLY: tuple = ("auto_send_self_fix", "qc_observe_enum")
+OPT_IN_ONLY: tuple = ("auto_send_self_fix", "qc_observe_enum", "shot_popup")
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.
@@ -739,6 +741,7 @@ def _why_state(name: str) -> str:
         return "preset Ổn định: " + ("đã thử thật" if FEATURES[name]["verified"] else "chưa thử thật → tắt")
     if s["preset"] == "experimental":
         return "preset Thử nghiệm" + ((" (cờ từng gây hại → tắt)" if name in HARMFUL and on(name) is False else
+                                     " (hậu kỳ tùy chọn → chỉ bật khi chọn riêng)" if name == 'shot_popup' and on(name) is False else
                                      " (tự tiêu tiền → chỉ bật khi chọn riêng)" if name in OPT_IN_ONLY and on(name) is False else ""))
     env = _env(name)
     if env:

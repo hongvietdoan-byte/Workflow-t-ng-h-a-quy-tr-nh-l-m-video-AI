@@ -209,15 +209,21 @@ def _locked(fn):
     return wrapper
 
 
+def _render_hash(p, project_id, settings):
+    from . import shot_popup
+    fingerprint = shot_popup.fingerprint(p, project_id)
+    return lineage.settings_hash({'render': render_hash(settings), 'shot_popup': fingerprint}) if fingerprint else render_hash(settings)
+
+
 def final_manifest(p: Pipeline, project_id: int, data_dir: str, clip_paths: List[str], settings: Dict) -> Dict:
-    return {"clips": lineage.clip_manifest(p.conn, data_dir, project_id, clip_paths), "settings_hash": render_hash(settings),
+    return {"clips": lineage.clip_manifest(p.conn, data_dir, project_id, clip_paths), "settings_hash": _render_hash(p, project_id, settings),
             "audio_hash": audio_hash(data_dir, project_id), "aspect": formats.project_aspect(p.project(project_id))}
 
 
 def status(p: Pipeline, project_id: int, data_dir: str) -> Dict:
     """Latest final render and its layers, each with '⚠ cũ' reasons: {"final": {...}, "layers": [{kind, path, stale}], "best": path}."""
     settings = get_settings(p, project_id)
-    fin = lineage.final_status(p.conn, data_dir, project_id, render_hash(settings), audio_hash(data_dir, project_id))
+    fin = lineage.final_status(p.conn, data_dir, project_id, _render_hash(p, project_id, settings), audio_hash(data_dir, project_id))
     current = {"subtitle": subtitles.get_settings(p, project_id), "end_card": settings["end_card"]}
     layers, seen = [], set()
     for kind in ("subtitle", "endcard", "ailabel", "export"):
@@ -623,13 +629,11 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     keep_audio = settings["keep_audio"]
     if placed and keep_audio:        # AU-e: the video model's own speech under the Vietnamese TTS lines = two voices at once
         keep_audio = False
-        from . import diag
         diag.record(p.conn, "render", "info", "đã có giọng thoại TTS: tắt tiếng gốc của clip trong bản ghép (tránh 2 giọng chồng nhau)",
                     "clip_audio_muted", project_id)
     extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))
     lost_sounds = audio_lib.missing_in_mix(audio_lib.assets_dir(data_dir, project_id))
     if lost_sounds:                           # S14.4 C1b: never a video without a chosen sound and no word about it
-        from . import diag
         diag.record(p.conn, "render", "warn", f"bỏ {len(lost_sounds)} âm thanh đã bật nhưng mất file: {', '.join(lost_sounds[:5])}. "
                     "Cách xử lý: Bước 5 → Âm thanh: tạo/tải lại hoặc tắt các mục này, rồi ghép lại.", "mix_file_missing", project_id)
     aspect = formats.project_aspect(p.project(project_id))
@@ -645,7 +649,6 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     post_effects = post_fx.apply(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_post_fx"))
     for effect in post_effects:
         if effect["muc"] == "vang":
-            from . import diag
             diag.record(p.conn, "render", "warn", f"Shot {effect.get('idx')}: " + "; ".join(effect["reasons"]),
                         "post_fx_warning", project_id)
     track = selected_music(data_dir, project_id) if music_path == "auto" else music_path
@@ -743,7 +746,11 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
             shake_error, hits = str(e)[:200], []
             if os.path.exists(staged):
                 os.remove(staged)
-    from . import end_popup
+    from . import end_popup, shot_popup
+    shot_popups = shot_popup.apply(p.conn, project_id, out, rows, paths, settings, subtitles.get_settings(p, project_id)['platform'], durations)
+    for item in shot_popups:
+        if item['muc'] == 'vang':
+            diag.record(p.conn, 'render', 'warn', f"Shot {item['idx']}: " + '; '.join(item['reasons']), 'shot_popup_warning', project_id)
     popup_cfg, popup = end_popup.config(settings), None
     if popup_cfg:                         # 08/10 (#24): the ad popup over the end of the LAST shot — never an empty shot of its own
         staged = out + ".popup.mp4"
@@ -757,6 +764,8 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
                 os.remove(staged)
     manifest = final_manifest(p, project_id, data_dir, originals, settings)
     manifest["render_size"] = frame
+    if shot_popups:
+        manifest['shot_popup'] = shot_popups
     if popup:
         manifest["end_popup"] = popup
     manifest["loudness"] = _loudness(out)

@@ -172,7 +172,7 @@ def draft_preview(pipeline: Pipeline, data_dir: str, project_id: int, out_path: 
     from . import takes
     from .formats import canvas, project_aspect
     conn = pipeline.conn
-    paths, shots, missing, durs = [], [], [], []
+    paths, shots, missing, durs, popup_rows = [], [], [], [], []
     for r in conn.execute("SELECT id, idx FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall():
         t = takes.used(conn, r["id"])
         path = t["result_path"] if t is not None else None
@@ -182,6 +182,7 @@ def draft_preview(pipeline: Pipeline, data_dir: str, project_id: int, out_path: 
         paths.append(path)
         shots.append(r["idx"])
         durs.append(clip_seconds(path, None))
+        popup_rows.append({'scene_id': r['id'], 'idx': r['idx'], 'path': path})
     if not paths:
         raise ValueError("chưa có clip nào (kể cả nháp) để ghép xem")
     out = out_path or os.path.join(data_dir, str(project_id), "output", "xem_nhap.mp4")
@@ -196,7 +197,16 @@ def draft_preview(pipeline: Pipeline, data_dir: str, project_id: int, out_path: 
     except Exception:  # noqa: BLE001 - no frame spec: the clips' own size
         size = None
     ffmpeg_studio.render_final(paths, out, durs, "cut", 1.0, None, keep_audio=False, size=size)
+    from . import shot_popup, subtitles, diag, features
+    popups = shot_popup.apply(conn, project_id, out, popup_rows, paths, {'transition': 'cut', 'fade': 1.0},
+                              subtitles.get_settings(pipeline, project_id)['platform'] if features.on('shot_popup') else None, durs)
+    for item in popups:
+        if item['muc'] == 'vang':
+            diag.record(conn, 'render', 'warn', f"Bản nháp · shot {item['idx']}: " + '; '.join(item['reasons']),
+                        'shot_popup_warning', project_id)
     manifest = resolution_manifest([{"path": path, "idx": idx, "title": f"shot {idx}"} for path, idx in zip(paths, shots)], size)
+    if popups:
+        manifest['shot_popup'] = popups
     manifest.update(kind="draft", shots=shots, missing=missing, seconds=round(sum(durs), 2))
     import json
     with open(out + ".manifest.json", "w", encoding="utf-8") as f:

@@ -961,9 +961,65 @@ def end_card_panel(p: Pipeline, pid: int, enabled_ext: bool = None) -> None:
             st.rerun()
 
 
+def shot_popup_panel(p: Pipeline, pid: int) -> None:
+    from core import features, shot_popup, assets
+    if not features.on('shot_popup'):
+        return
+    readonly = C.read_only(p, pid)
+    with st.expander('✨ Popup icon theo shot (0 USD)', expanded=False):
+        st.caption('Icon bật lên ở cuối shot trong bản dựng, kèm tiếng pop nếu Kho có. Lưu rồi dựng lại video.')
+        pictures = [a for a in assets.project_assets(p.conn, pid) if a.get('images')]
+        choices = {a['id']: f"#{a['id']} · {a['name']}" for a in pictures}
+        rows = p.conn.execute('SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx', (pid,)).fetchall()
+        if not rows:
+            st.caption('Chưa có shot để đặt popup.')
+            return
+        picked = st.selectbox('Chọn shot', range(len(rows)), format_func=lambda i: f"Shot {rows[i]['idx']}",
+                              key=f'shot_popup_shot_{pid}')
+        row = rows[picked]
+        try:
+            spec = shot_popup.scene_data(row['data']).get('post_popup') or {}
+            if not isinstance(spec, dict):
+                raise ValueError('cấu hình popup chưa hợp lệ')
+        except (TypeError, ValueError) as exc:
+            st.warning(f"Shot {row['idx']}: {exc}")
+            return
+        sid = row['id']
+        key = f'shot_popup_{pid}_{sid}'
+        c1, c2, c3 = st.columns([1, 3, 1])
+        enabled = c1.checkbox('Bật popup', bool(spec), key=key + '_on', disabled=readonly)
+        ids = [None] + list(choices)
+        old_id = spec.get('asset_id')
+        if old_id and old_id not in ids:
+            ids.append(old_id)
+        asset_id = c2.selectbox('Ảnh Kho', ids, index=ids.index(old_id) if old_id in ids else 0,
+                                format_func=lambda i: choices.get(i, f'#{i} · ảnh không còn trong dự án' if i else 'Chọn ảnh Kho'),
+                                key=key + '_asset', disabled=readonly or not enabled)
+        try:
+            seconds = float(spec.get('seconds', 1.5))
+            if not 0.1 <= seconds <= 8:
+                seconds = 1.5
+        except (TypeError, ValueError):
+            seconds = 1.5
+        seconds = c3.number_input('Giây', .1, 8., seconds, .1, key=key + '_seconds', disabled=readonly or not enabled)
+        if enabled:
+            green = st.checkbox('Tách nền xanh nối với viền ảnh', spec.get('remove_green') is True,
+                                key=key + '_green', disabled=readonly,
+                                help='Chỉ bật với ảnh nền xanh đặc; giữ xanh bên trong icon. Không sửa ảnh gốc.')
+        else:
+            green = spec.get('remove_green') is True
+        if not enabled and not spec:
+            return
+        if st.button(f"Lưu popup shot {row['idx']}" if enabled else f"Bỏ popup shot {row['idx']}",
+                     key=key + '_save', disabled=readonly or (enabled and not asset_id)):
+            new = dict(spec, asset_id=asset_id, at='end', seconds=seconds, remove_green=green) if enabled else None
+            if act(lambda: shot_popup.save(p, pid, sid, new), f"Đã lưu popup shot {row['idx']} — dựng lại video để áp dụng"):
+                st.rerun()
+
 def end_popup_panel(p: Pipeline, pid: int) -> None:
     """08/10 (#24): the ad popup (icons popping one by one + words) over the last ~3–4 s of the LAST shot, 0 USD (core/end_popup.py).
     Applied by ▶ Dựng video cuối; changing it makes the render "cũ"."""
+    shot_popup_panel(p, pid)
     from core import end_popup
     s = delivery.get_settings(p, pid)
     cfg = s.get("end_popup") or None

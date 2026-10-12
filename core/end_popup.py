@@ -73,15 +73,34 @@ def caps(text: str) -> str:
     return unicodedata.normalize("NFC", text or "").upper()
 
 
+def local_path(path, root=None):
+    """Kiểm đường cục bộ trước mọi IO; lỗi không chứa đầu vào không tin cậy."""
+    import re
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError('popup: đường tệp cục bộ phải là chuỗi có tên')
+    path = path.strip()
+    normalized = path.replace('\\', '/')
+    tail = normalized[2:] if re.match(r'^[a-zA-Z]:', normalized) else normalized
+    devices = any(re.match(r'^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)', part.rstrip(' .'), re.I)
+                  for part in tail.split('/'))
+    if (normalized.startswith('//') or normalized.startswith(('/??/', '/Device/', '/device/')) or '\x00' in path or ':' in tail or devices
+            or re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', path) and not re.match(r'^[a-zA-Z]:[\\/]', path)):
+        raise ValueError('popup: chỉ nhận tệp cục bộ, không nhận URL/UNC/đường thiết bị')
+    if root and not os.path.isabs(path):
+        path = os.path.join(root, path)
+    return path
+
+
 def pop_sound(conn, cfg: Dict) -> Optional[str]:
     """The pop played when each icon pops: `sound` (a path; missing file = error, luật 1), else the shortest-fitting "Pop" of the
     sound Kho (sfx ≤ POP_MAX_S, the one named exactly "Pop" first), else None. `sound: false` = no pop."""
     want = cfg.get("sound")
     if want is False:
         return None
-    if want:
+    if want is not None:
+        want = local_path(want, cfg.get('local_root'))
         if not os.path.exists(want):
-            raise ValueError(f"popup cuối: không thấy file tiếng pop {want}")
+            raise ValueError("popup cuối: không thấy tệp tiếng pop cục bộ")
         return want
     try:
         rows = conn.execute("SELECT path, name, duration FROM sounds WHERE kind='sfx' AND duration>0 AND duration<=? AND "
@@ -90,8 +109,9 @@ def pop_sound(conn, cfg: Dict) -> Optional[str]:
     except Exception:  # noqa: BLE001 - a database without the sound Kho
         return None
     for r in rows:
-        if os.path.exists(r[0]):
-            return r[0]
+        path = local_path(r[0], cfg.get('local_root'))
+        if os.path.exists(path):
+            return path
     return None
 
 
@@ -102,13 +122,25 @@ def resolve(conn, cfg: Dict) -> List[Dict]:
     for it in cfg["items"]:
         path = it.get("path")
         if not path and it.get("asset_id"):
-            a = assets.get(conn, int(it["asset_id"]))
-            if a is None or not a["images"]:
-                raise ValueError(f"popup cuối: tài nguyên #{it['asset_id']} không có ảnh icon dùng được")
-            path = a["images"][0]["path"]
+            if cfg.get('local_root'):
+                # assets.get tự kiểm exists trước khi trả ảnh; đọc raw để chặn mạng trước IO.
+                images = conn.execute('SELECT path, status FROM asset_images WHERE asset_id=? ORDER BY sort, id',
+                                      (it['asset_id'],)).fetchall()
+                for image in images:
+                    if image[1] not in assets.USABLE:
+                        continue
+                    candidate = local_path(image[0], cfg['local_root'])
+                    if os.path.exists(candidate):
+                        path = candidate
+                        break
+            else:
+                a = assets.get(conn, int(it["asset_id"]))
+                path = a["images"][0]["path"] if a and a["images"] else None
+        path = local_path(path, cfg.get('local_root'))
         if not path or not os.path.exists(path):
-            raise ValueError(f"popup cuối: không thấy file icon {path}")
-        out.append({"path": path, "label": str(it.get("label") or "").strip()})
+            raise ValueError("popup cuối: không thấy tệp icon cục bộ")
+        out.append({"path": path, "label": str(it.get("label") or "").strip(),
+                    **({'remove_green': True} if it.get('remove_green') is True else {})})
     return out
 
 
@@ -184,11 +216,36 @@ def _text_block(lines: List[str], font, px: int, fill, stroke_px: int):
     return shadow
 
 
-def _card(icon_path: str, label: str, width: int, label_px: int = 0, colour=(255, 255, 255), max_label_w: float = 0):
+def remove_green_background(icon):
+    """Chỉ tách xanh nối với biên khi người dùng chọn; giữ xanh bên trong icon."""
+    from collections import deque
+    icon = icon.convert('RGBA').copy()
+    pixels = icon.load()
+    w, h = icon.size
+    queue = deque([(x, 0) for x in range(w)] + [(x, h - 1) for x in range(w)]
+                  + [(0, y) for y in range(h)] + [(w - 1, y) for y in range(h)])
+    visited = set()
+    while queue:
+        x, y = queue.popleft()
+        if (x, y) in visited or not (0 <= x < w and 0 <= y < h):
+            continue
+        visited.add((x, y))
+        r, g, b, a = pixels[x, y]
+        if not (g > 70 and g > r * 1.35 and g > b * 1.35):
+            continue
+        pixels[x, y] = (r, g, b, 0)
+        queue.extend(((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)))
+    return icon
+
+
+def _card(icon_path: str, label: str, width: int, label_px: int = 0, colour=(255, 255, 255), max_label_w: float = 0,
+          remove_green: bool = False):
     """One icon with its label under it, transparent around (RGBA)."""
     from PIL import Image
     with Image.open(icon_path) as im:
         icon = im.convert("RGBA")
+    if remove_green:
+        icon = remove_green_background(icon)
     w = int(width * ICON_SHARE)
     icon = icon.resize((w, max(1, int(icon.height * w / icon.width))))
     px = label_px or max(int(width * LABEL_SHARE), 14)
@@ -224,6 +281,26 @@ def _style(style: Optional[Dict]) -> Dict:
 def frames(items: List[Dict], headline: str, size, seconds: float, out_dir: str, style: Optional[Dict] = None) -> int:
     """The popup as transparent PNG frames (FPS) of the video's size. Returns the frame count."""
     from PIL import Image
+    if (style or {}).get('safe_box'):
+        box = style['safe_box']
+        W, H = size
+        x, y = round(W * box['left']), round(H * box['top'])
+        iw, ih = round(W * (1 - box['left'] - box['right'])), round(H * (1 - box['top'] - box['bottom']))
+        inner = dict(style)
+        inner.pop('safe_box')
+        inner['max_card_h'] = ih * .55
+        # Vẽ trong hộp an toàn; giữ tỷ lệ ảnh và chừa chỗ cho overshoot 115%.
+        work = tempfile.mkdtemp(prefix='popup_safe_')
+        try:
+            total = frames(items, headline, (iw, ih), seconds, work, inner)
+            for k in range(total):
+                with Image.open(os.path.join(work, f'p_{k:04d}.png')) as src:
+                    canvas = Image.new('RGBA', size)
+                    canvas.alpha_composite(src.convert('RGBA'), (x, y))
+                    canvas.save(os.path.join(out_dir, f'p_{k:04d}.png'))
+            return total
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
     st = _style(style)
     W, H = size
     if st["uppercase"]:
@@ -233,7 +310,10 @@ def frames(items: List[Dict], headline: str, size, seconds: float, out_dir: str,
     gap = int(W * 0.04)
     label_px = max(int(W * LABEL_SHARE * st["scale"]), 14)
     slot = (W * 0.94 - gap * max(n - 1, 0)) / max(n, 1)      # each label wraps to its share of the row
-    cards = [_card(i["path"], i["label"], W, label_px, st["label_color"], slot) for i in items]
+    cards = [_card(i["path"], i["label"], W, label_px, st["label_color"], slot, i.get('remove_green') is True) for i in items]
+    if (style or {}).get('max_card_h'):
+        limit = style['max_card_h']
+        cards = [c.resize((max(1, round(c.width * limit / c.height)), max(1, round(limit)))) if c.height > limit else c for c in cards]
     row_w = sum(c.width for c in cards) + gap * max(n - 1, 0)
     if row_w > W * 0.94 and n:                         # too wide: shrink every card the same
         k = W * 0.94 / row_w
@@ -257,7 +337,7 @@ def frames(items: List[Dict], headline: str, size, seconds: float, out_dir: str,
     for k in range(total):
         t = k / FPS
         img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-        shade = min(1.0, t / 0.4) * 110                # the shot behind dims a little so the popup reads
+        shade = min(1.0, t / 0.4) * 110 if (style or {}).get('shade') is not False else 0
         img.paste((0, 0, 0, int(shade)), (0, 0, W, H))
         x = (W - row_w) // 2
         for i, c in enumerate(cards):
@@ -291,23 +371,26 @@ def apply(conn, video: str, output: str, cfg: Dict) -> Dict:
     if not size or total <= 0:
         raise ValueError("popup cuối: không đọc được kích thước / độ dài video")
     work = tempfile.mkdtemp(prefix="end_popup_")
-    held = 0.0
-    if cfg.get("hold", True):            # 09/10: khung cuối đứng hình thêm `seconds`, popup nằm trên phần đó (shot cuối không bị che)
-        held = float(cfg["seconds"])
-        longer = os.path.join(work, "held.mp4")
-        ffmpeg_studio.run([ffmpeg_studio.find_ffmpeg(), "-y", "-i", video, "-vf", f"tpad=stop_mode=clone:stop_duration={held:.3f}",
-                           *(["-af", f"apad=pad_dur={held:.3f}"] if ffmpeg_studio.has_audio(video) else []),
-                           *ffmpeg_studio._ENCODE, *ffmpeg_studio.AAC, longer])
-        video, total = longer, total + held
-    seconds = min(cfg["seconds"], total)
-    start = max(0.0, total - seconds)
-    sound = pop_sound(conn, cfg) if items else None
-    pops = [t for t in pop_times(len(items), start) if t < total] if sound else []
     try:
+        held = 0.0
+        if cfg.get("hold", True):            # 09/10: khung cuối đứng hình thêm `seconds`, popup nằm trên phần đó (shot cuối không bị che)
+            held = float(cfg["seconds"])
+            longer = os.path.join(work, "held.mp4")
+            ffmpeg_studio.run([ffmpeg_studio.find_ffmpeg(), "-y", "-i", video, "-vf", f"tpad=stop_mode=clone:stop_duration={held:.3f}",
+                               *(["-af", f"apad=pad_dur={held:.3f}"] if ffmpeg_studio.has_audio(video) else []),
+                               *ffmpeg_studio._ENCODE, *ffmpeg_studio.AAC, longer])
+            video, total = longer, total + held
+        start = float(cfg['start_s']) if 'start_s' in cfg else max(0.0, total - cfg['seconds'])
+        if not 0 <= start < total:
+            raise ValueError('popup: vị trí nằm ngoài bản dựng')
+        seconds = min(cfg["seconds"], total - start)
+        sound = pop_sound(conn, cfg) if items else None
+        pops = [t for t in pop_times(len(items), start) if t < total] if sound else []
         frames(items, cfg["headline"], size, seconds, work, cfg)
         cmd = [ffmpeg_studio.find_ffmpeg(), "-y", "-i", video, "-framerate", str(FPS), "-itsoffset", f"{start:.3f}",
                "-i", os.path.join(work, "p_%04d.png")]
-        video_graph = f"[0:v][1:v]overlay=0:0:eof_action=pass,{ffmpeg_studio.TO_YUV709}[v]"
+        gate = f":enable='gte(t,{start:.6f})*lt(t,{start + seconds:.6f})'" if 'start_s' in cfg else ''
+        video_graph = f"[0:v][1:v]overlay=0:0:eof_action=pass{gate},{ffmpeg_studio.TO_YUV709}[v]"
         if pops:
             has_audio = ffmpeg_studio.has_audio(video)
             cmd += ["-i", sound]
