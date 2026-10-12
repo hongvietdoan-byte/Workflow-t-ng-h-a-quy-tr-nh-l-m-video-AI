@@ -14,13 +14,13 @@ Mọi câu "#24 đang chạy / chờ #24 xong / không đọc data/projects/24" 
 **ĐÃ XONG — KHÔNG LÀM LẠI** (gộp main): Đợt 1–8; Đ9 việc 1–3 (`2cd4e5c`; QA GUI Windows = phiên máy chính); Đ10 việc 1–6 (`4c55e0d`, trừ việc 3
 mục 2 project_budget + mục 7 runner); Đ11 việc 1 (`2cd4e5c`); Đ12 việc 1 (`2cd4e5c`); Đ14 việc 1 (`4c55e0d`), việc 2 (phiên rà Codex `4aa8ed8`); Đ15 việc 1–2
 (`09396f1`); Đ16 việc 1–2 (`09396f1`, `ae97885`), việc 3 (phiên rà Codex `8a1a6be`/`185794d` + VÀNG "người khác dùng súng đã khóa" `8e66b16`/`2f03b29`);
-Đ13 việc 4 mục 6 phần `group_block` bỏ dấu (`33939c9`); **Đ17 việc 1–2** (`3715c96`, phiên rà Codex sửa sau rà: `is_pov`, phủ định ghi chú skin, popup trước chuyển cảnh, tiếng pop hỏng giữ icon); vòng nền tự QC cờ `bg_autoqc` (phiên rà Codex `3715c96`, hộp thư 17:58). Ngoài đề (phiên rà Codex / phiên máy chính — KHÔNG viết lại, chỉ dùng lại): `tests/conftest.py` cô lập
+Đ13 việc 4 mục 6 phần `group_block` bỏ dấu (`33939c9`); **Đ17 việc 1–2** (`3715c96`, phiên rà Codex sửa sau rà: `is_pov`, phủ định ghi chú skin, popup trước chuyển cảnh, tiếng pop hỏng giữ icon); vòng nền tự QC cờ `bg_autoqc` (phiên rà Codex `3715c96`, hộp thư 17:58). **Đ17 việc 3** (gộp `17c881a` + sửa sau rà `5d34d9e`: đường tự tạo Kho chỉ cảnh báo thiếu tên tiếng Anh, chỉ 2 form Kho bắt buộc; QC enum bỏ qua ghi chú tên; style chỉ info; alias trang phục không nối dài). Ngoài đề (phiên rà Codex): `send_claim`, `layout_from_follow` (hộp thư 19:58 / 19:17). Ngoài đề (phiên rà Codex / phiên máy chính — KHÔNG viết lại, chỉ dùng lại): `tests/conftest.py` cô lập
 `data/` (`954b2e8`); kiểm nhất quán hướng đi + bố cục cờ `continuity_layout` (`7757662`/`756d29d`, `core/continuity.layout_warnings`); `assets.scene_references`
 tài nguyên nhắc tên giữ chỗ (`5e1d410`); `assets._without_spoken_lines` (`a38bdb3`); `prop_lock.shot_text` bỏ thoại + `plate_camera` giàn máy TPS (`fe8bfff`);
 `looks.clean_prompt` mệnh đề phủ định (`0cad90c`).
 
 **THỨ TỰ CÒN LẠI** (thay mọi thứ tự trong hộp thư cũ):
-1. ~~ĐỢT 17 việc 1~~ → 2. ~~ĐỢT 17 việc 2~~ (đã gộp `3715c96`) → 3. ĐỢT 17 việc 3 → 3b. **ĐỢT 18 việc 1 → 2 → 3** (sân khấu 3D chung theo đoạn — người dùng 12/10; việc 4 chờ người dùng duyệt kế hoạch) → 4. ĐỢT 15 việc 3 (phủ cả popup giữa phim Đ17v2) → 5. ĐỢT 12 việc 5 → 6. ĐỢT 11 việc 1b →
+1. ~~ĐỢT 17 việc 1~~ → 2. ~~ĐỢT 17 việc 2~~ (đã gộp `3715c96`) → 3. ~~ĐỢT 17 việc 3~~ (gộp `17c881a`) → 3b. **ĐỢT 18 việc 1 → 2 → 3** (sân khấu 3D chung theo đoạn — người dùng 12/10; việc 4 chờ người dùng duyệt kế hoạch) → 4. ĐỢT 15 việc 3 (phủ cả popup giữa phim Đ17v2) → 5. ĐỢT 12 việc 5 → 6. ĐỢT 11 việc 1b →
 7. ĐỢT 14 việc 3 → 8. **project_budget gộp** = Đ10 việc 3 mục 2 + Đ13 việc 4 mục 9 phần `cost._video_need` + QC tính 2 lần khi `qc_observe_enum` bật (cờ này ĐÃ
 BẬT trên máy chính → số đang sai trên #27), một nhánh `codex/d10-viec3b-project-budget` → 9. ĐỢT 12 việc 6 → 10. ĐỢT 13 việc 4 mục 1–8 + phần còn lại mục 9 →
 11. ĐỢT 11 việc 2 → 12. ĐỢT 11 việc 4 (bỏ phần đã có trong `continuity_layout`) → 13. ĐỢT 12 việc 2–4 → 14. ĐỢT 13 việc 1–3 → 15. ĐỢT 11 việc 5 → 16. ĐỢT 11
