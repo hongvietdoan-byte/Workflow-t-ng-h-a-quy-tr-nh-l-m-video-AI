@@ -282,6 +282,11 @@ def scene_expander(p: Pipeline, scene_id, expanded: bool = False, with_motion: b
                  ("Prompt ảnh", d.get("image_prompt") or "")]
         from core import prop_lock
         project_id = p.conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()[0]
+        if prop_lock.enabled():
+            event = p.conn.execute("SELECT severity, message FROM diag_events WHERE scene_id=? AND code='prop_reference_dropped' ORDER BY last_at DESC, id DESC LIMIT 1",
+                                   (scene_id,)).fetchone()
+            if event and event["severity"] == "warn":
+                st.warning(event["message"])
         prop_removed = []
         for field in ("image_prompt", "blocking", "action_peak"):
             _, cuts = prop_lock.clean_prompt(p.conn, project_id, d, str(d.get(field) or ""))

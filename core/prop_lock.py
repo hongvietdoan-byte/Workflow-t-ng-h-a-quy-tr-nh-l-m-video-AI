@@ -230,6 +230,82 @@ def _unlocked_people(conn, project_id: int, data: Dict) -> List[str]:
     return [str(n) for n in _present(conn, project_id, data) if assets.fold(str(n)) not in table]
 
 
+_POV = re.compile(r"(?<!\w)(?:POV|first[- ]person(?: view)?|góc nhìn (?:thứ nhất|người thứ nhất))(?!\w)", re.I)
+_OTS = re.compile(r"(?<!\w)(?:ots|over[- ]the[- ]shoulder|qua vai|third[- ]person|GAME_TPS)(?!\w)", re.I)
+
+
+def _affirmative_angle(pattern, source: str) -> bool:
+    """Dùng cùng nghĩa phủ định cho cả góc thứ nhất và góc qua vai/TPS."""
+    for clause in re.split(r"[.;,\n]", source):
+        for m in pattern.finditer(clause):
+            if not re.search(r"(?:\b(?:no|not|never|without|avoid|remove)\b|không|tránh|bỏ)(?:\s+\w+){0,4}\s*$",
+                             clause[:m.start()], re.I):
+                return True
+    return False
+
+
+def is_pov(data: Dict) -> bool:
+    """Góc thứ nhất rõ; không lấy câu thoại, phủ định hoặc góc qua vai/TPS."""
+    data = data or {}
+    fields = []
+    for k in ("angle", "camera_angle", "camera", "shot", "size"):
+        v = data.get(k)
+        fields.append(" ".join(str(x) for x in v.values()) if isinstance(v, dict) else str(v or ""))
+    explicit = " ".join(fields)
+    if _affirmative_angle(_OTS, explicit):
+        return False
+    sources = fields + [shot_text(data)]
+    for source in sources:
+        for clause in re.split(r"[.;\n]", source):
+            if _affirmative_angle(_OTS, clause):
+                continue
+            if _affirmative_angle(_POV, clause):
+                return True
+    return False
+
+
+def pov_gun_issue(conn, project_id: int, data: Dict) -> Optional[Dict]:
+    if not enabled() or not is_pov(data):
+        return None
+    pool, words, text, generic = _scan(conn, project_id, data)
+    if generic["gun"] or any(c == "gun" and _named(a, words) for a, c in pool):
+        return {"level": "warn", "part": "dao_cu", "msg": "POV có súng: Free Fire không có góc nhìn thứ nhất khi cầm súng — kiểm lại góc quay; vẫn cho gen, không thêm câu/ảnh súng khóa"}
+    return None
+
+
+def suppress_pov_gun_refs(conn, project_id: int, data: Dict, refs):
+    """Bộ storyboard có thể chứa súng của shot khác; chỉ bỏ ảnh đạo cụ súng, giữ ảnh người."""
+    if not enabled() or not is_pov(data):
+        return refs
+    gun_names = {a["name"] for a in assets.project_assets(conn, project_id) if category(a) == "gun"}
+    return [r for r in refs if not (r.get("role") == "object" and r.get("label") in gun_names)]
+
+
+def prioritize_gun_refs(conn, project_id: int, data: Dict, refs, sendable):
+    """Cùng số slot: ảnh súng khóa hợp lệ chỉ thay nền rộng, không lấy slot nguồn khác."""
+    if not enabled() or is_pov(data):
+        return refs
+    import os
+    def key(path):
+        return os.path.normcase(os.path.abspath(assets.resolve(path)))
+    out = list(refs)
+    sent = {key(r["path"]) for r in out if r.get("path")}
+    for lk in locks(conn, project_id, data):
+        if lk["category"] != "gun" or not lk["image"]:
+            continue
+        path = lk["image"]["path"]
+        if key(path) in sent:
+            continue
+        at = next((i for i, r in enumerate(out) if r.get("role") == "place_wide"), None)
+        if at is None:
+            break
+        ref = {"path": path, "label": lk["asset"]["name"], "role": "object"}
+        if sendable(ref):
+            out[at] = ref
+            sent.add(key(path))
+    return out
+
+
 def locks(conn, project_id: int, data: Dict) -> List[Dict]:
     """The project props this shot is about: [{asset, category, named, variant, form, image}] — a prop the text names, or the ONE
     prop of a kind the text only says by its common word. [] when the flag is off."""
@@ -239,6 +315,8 @@ def locks(conn, project_id: int, data: Dict) -> List[Dict]:
     holders = _holders(conn, project_id, data, pool)
     out = []
     for cat in CATEGORIES:
+        if cat == "gun" and is_pov(data):
+            continue
         mine = [a for a, c in pool if c == cat]
         named = [a for a in mine if _named(a, words)]
         chosen = named or (mine if generic[cat] and len(mine) == 1 else [])
@@ -435,6 +513,9 @@ def issues(conn, project_id: int, data: Dict) -> List[Dict]:
     pool, words, _text, generic = _scan(conn, project_id, data)
     holders = _holders(conn, project_id, data, pool)
     out = []
+    pov_issue = pov_gun_issue(conn, project_id, data)
+    if pov_issue:
+        out.append(pov_issue)
     guns = [a for a, c in pool if c == "gun"]
     if holders and (generic["gun"] or any(_named(a, words) for a in guns)):
         # Đ16v3: a gun the text names that is locked to nobody in this shot → ĐỎ before a paid picture
@@ -517,6 +598,33 @@ def issues(conn, project_id: int, data: Dict) -> List[Dict]:
         if not lk["form"]:
             out.append({"level": "warn", "part": "dao_cu",
                         "msg": f"món Kho {lk['asset']['name']} chưa có mô tả — prompt chỉ nêu được tên; thêm mô tả ở Kho"})
+        elif lk["has_forms"] and lk["variant"]:
+            default = _form_attributes(form_text(lk["asset"], None))
+            skin = _form_attributes(lk["form"])
+            spans = [m.span() for name in assets.names_of(lk["asset"])
+                     for m in re.finditer(r"(?<!\w)" + re.escape(name) + r"(?!\w)", _text, re.I)]
+            spans += [m.span() for m in _SHOT_RX[lk["category"]].finditer(_text)]
+            nearby = []
+            # Thuộc tính phải sát cụm đạo cụ; skin nằm giữa màu và tên vẫn cùng cụm.
+            prefix = re.compile(r"(?:" + _ATTRIBUTE_RX.pattern + r")(?:[ -]+(?:" + _ATTRIBUTE_RX.pattern
+                                + r"))*[ -]+(?:skin\s+)?$", re.I)
+            suffix = re.compile(r"\s+(?:is|made of|of|là|bằng|màu)\s+((?:" + _ATTRIBUTE_RX.pattern
+                                + r")(?:[ -]+(?:" + _ATTRIBUTE_RX.pattern + r"))*)(?=\s*(?:[.;,!?]|$))", re.I)
+            for a, b in spans:
+                if _OTHER_NOUN_HEAD.match(_text[b:]):
+                    continue
+                before = prefix.search(_text[:a])
+                if before and not re.search(r"(?:\bno|\bnot|\bnever|\bwithout|\black(?:s)?|không(?: có)?|chứ không phải)\s+$",
+                                            _text[:before.start()], re.I):
+                    nearby.extend(m.group().lower() for m in _ATTRIBUTE_RX.finditer(before.group()))
+                after = suffix.match(_text, b)
+                if after:
+                    nearby.extend(m.group().lower() for m in _ATTRIBUTE_RX.finditer(after.group(1)))
+            conflict = [w for w in nearby if _ATTRIBUTE_KEY.get(w) in default - skin]
+            if conflict:
+                out.append({"level": "warn", "part": "dao_cu",
+                            "msg": f"mâu thuẫn dạng: {lk['asset']['name']} chọn {lk['variant']} nhưng chữ shot tả thuộc tính mặc định "
+                                   f"({', '.join(dict.fromkeys(conflict))}) — sửa chữ shot hoặc chọn lại dạng"})
         elif lk["has_forms"] and lk["variant"] is None:
             said = _colour_words(lk["asset"], lk["category"], _text)
             if said:
@@ -601,3 +709,13 @@ class _Named:
 def reference_images(conn, project_id: int, data: Dict) -> List[Dict]:
     """[{asset, image}] the shot's locked props send as references (named or by their common word, the right form)."""
     return [{"asset": lk["asset"], "image": lk["image"]} for lk in locks(conn, project_id, data) if lk["image"] is not None]
+
+
+def missing_refs(conn, project_id: int, data: Dict, refs) -> List[str]:
+    """Ảnh khóa còn thiếu trong GÓI CUỐI; cùng tên nhưng khác ảnh/dạng vẫn thiếu."""
+    import os
+    def key(path):
+        return os.path.normcase(os.path.abspath(assets.resolve(path)))
+    sent = {key(r["path"]) for r in refs if r.get("path")}
+    return [x["asset"]["name"] for x in reference_images(conn, project_id, data)
+            if key(x["image"]["path"]) not in sent]

@@ -260,6 +260,28 @@ def _new_people(conn, job, old: str, new: str) -> List[str]:
     return out
 
 
+def _variant_mentions(asset, variant, variants, text):
+    """Guard riêng: định danh đầy đủ thắng alias skin chung, không đổi selector ảnh."""
+    from . import assets, prop_lock
+    said = assets.fold(text or "").split()
+    tokens = prop_lock._variant_tokens(variant)
+    if tokens and any(said[i:i + len(tokens)] == tokens for i in range(len(said) - len(tokens) + 1)):
+        return True
+    # Khi có định danh của skin khác, tên chung không cho phép skin này.
+    others = [prop_lock._variant_tokens(v) for v in variants if v != variant]
+    if any(t and any(said[i:i + len(t)] == t for i in range(len(said) - len(t) + 1)) for t in others):
+        return False
+    hits = [v for v in variants if prop_lock._says_variant(asset, v, said)]
+    return hits == [variant]
+
+
+def _variant_instruction(text):
+    """Chỉ dẫn phủ định/nhắc lần lỗi cũ không cấp phép thêm skin."""
+    return " ; ".join(part for part in re.split(r"[.;!?\n]+", text or "")
+                      if not re.search(r"\b(?:not|no|never|without|remove|avoid|previous|previously|incorrectly|wrong|old)\b|"
+                                       r"(?<!\w)(?:không|đừng|loại bỏ|bỏ skin|lần trước|trước đó|sai)(?!\w)", part, re.I))
+
+
 def propose_rewrite(p, job, note: Optional[str] = None, fix: Optional[str] = None, qc: Optional[Dict] = None,
                     client=None, by: str = "user") -> RewriteResult:
     """The Director's new prompt for the shot's next take — Claude call + code checks, NOTHING written (the job is still alive while
@@ -292,6 +314,21 @@ def propose_rewrite(p, job, note: Optional[str] = None, fix: Optional[str] = Non
     extra = _new_people(p.conn, job, old, new)
     if extra:
         raise RewriteRefused("prompt mới thêm nhân vật không có trong shot: " + ", ".join(extra))
+    from . import prop_lock, assets
+    if prop_lock.enabled():
+        added = []
+        for a in assets.project_assets(p.conn, job["project_id"]):
+            if a.get("kind") not in prop_lock.KINDS:
+                continue
+            variants = list(dict.fromkeys(prop_lock._variants(a) +
+                [r["variant"] for r in p.conn.execute("SELECT variant FROM asset_images WHERE asset_id=? AND variant IS NOT NULL AND trim(variant)!=''", (a["id"],))] +
+                [f.split("—", 1)[0].split("–", 1)[0].strip() for f in prop_lock._forms(a.get("description") or "")
+                 if f.lower().startswith("skin ")]))
+            allowed = (old, _variant_instruction(note), _variant_instruction(fix))
+            added.extend(v for v in variants if _variant_mentions(a, v, variants, new)
+                         and not any(_variant_mentions(a, v, variants, source) for source in allowed))
+        if added:
+            raise RewriteRefused("prompt mới tự thêm biến thể đạo cụ ngoài prompt cũ + ghi chú: " + ", ".join(added))
     changed = [c.strip() for c in obj.get("changed") or [] if c.strip()][:8]
     if removed:
         changed.append("Code gỡ chữ kéo về tả thực (look in-game): " + ", ".join(removed))

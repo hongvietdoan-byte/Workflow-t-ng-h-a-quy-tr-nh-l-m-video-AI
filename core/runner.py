@@ -2565,6 +2565,13 @@ class ImageRunner(_Runner):
         if dropped:
             self._diag(job, "warn", "missing_reference", "ảnh tham chiếu không gửi được (bỏ khỏi yêu cầu và khỏi câu đánh số ảnh): "
                        + ", ".join(dropped))
+        from . import prop_lock
+        if prop_lock.enabled():
+            row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+            lock_data = json.loads(row["data"] or "{}") if row else {}
+            refs = prop_lock.suppress_pov_gun_refs(self.p.conn, job["project_id"], lock_data, refs)
+            refs = prop_lock.prioritize_gun_refs(self.p.conn, job["project_id"], lock_data, refs,
+                                                lambda ref: bool(sendable_references([ref], model)[0]))
         self._sent = getattr(self, "_sent", {})
         self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"]),
                                   **({"plate_key": r["plate_key"]} if r.get("plate_key") else {})} for r in refs]   # KLD-6
@@ -2600,9 +2607,13 @@ class ImageRunner(_Runner):
                     row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
                     hit = skill_dossier.shot_skill(json.loads(row["data"] or "{}")) if row else None
                     shared = skill_dossier.add_reference(shared, skill_dossier.reference(hit), 8)
+                from . import prop_lock
+                shared = prop_lock.suppress_pov_gun_refs(self.p.conn, job["project_id"], own, shared)
                 shared, dropped = sendable_references(shared, model)     # before the mapping text is built from the list
                 if dropped:
                     self._diag(job, "warn", "missing_reference", "ảnh tham chiếu storyboard không gửi được: " + ", ".join(dropped))
+                shared = prop_lock.prioritize_gun_refs(self.p.conn, job["project_id"], own, shared,
+                                                      lambda ref: bool(sendable_references([ref], model)[0]))
                 previous = None
                 srow = self.p.conn.execute("SELECT idx, data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
                 sdata = json.loads(srow["data"] or "{}") if srow else {}
@@ -2647,8 +2658,21 @@ class ImageRunner(_Runner):
                                "model vẽ theo chữ, dễ lệch thiết kế (trần số ảnh / bộ lọc gói)")
             except Exception as e:  # noqa: BLE001 - a check must never stop the job; its failure is said
                 say(job, "warn", "missing_reference", f"không kiểm được ảnh mẫu nhân vật trong gói: {type(e).__name__}: {e}")
+        from . import prop_lock
+        if prop_lock.enabled():
+            row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+            lock_data = json.loads(row["data"] or "{}") if row else {}
+            pov_issue = prop_lock.pov_gun_issue(self.p.conn, job["project_id"], lock_data)
+            if pov_issue:
+                getattr(self, "_diag_once", self._diag)(job, "warn", "prop_pov_gun", pov_issue["msg"])
         prompt, lost = name_render(prompt, refs, fallback=lambda: _place_words(self, job))
         from . import prop_lock                        # rà 12/10: no "as its reference picture shows" for a prop picture not sent
+        if prop_lock.enabled():
+            row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+            missing = prop_lock.missing_refs(self.p.conn, job["project_id"], json.loads(row["data"] or "{}") if row else {}, refs)
+            self._diag(job, "warn" if missing else "info", "prop_reference_dropped",
+                       f"job {job['id']}: ảnh khóa KHÔNG có trong gói gửi cuối (trần ảnh / bộ lọc): " + ", ".join(missing)
+                       + " — sửa gói tham chiếu trước gen; model chỉ nhận mô tả chữ" if missing else f"job {job['id']}: gói gửi cuối không thiếu ảnh khóa")
         prompt = prop_lock.match_refs(prompt, refs)
         if lost and hasattr(self, "_diag"):
             self._diag(job, "warn", "missing_reference", "ảnh render 3D của shot không gửi được — bỏ câu khóa nền theo render, quay về "
