@@ -84,3 +84,8 @@ luật cấm từ — là cách tính trước khi viết. Code kiểm lại cá
     không thấy bắn vào ai" (người dùng 12/10).
 21. **Người nằm gục mặc váy / đồ ngắn:** chọn tư thế và góc máy kín đáo. Ưu tiên úp mặt, đầu hướng về máy, chân chĩa ra xa máy; không
     để chân hay váy chĩa về phía máy. Vì: #27 Kapella (người dùng 12/10, hai lần).
+22. **Vật mốc lớn (cổng, tháp, xe…) phải có kích thước thật trong Kho, và shot nối nhau giữ cùng độ cao máy.** Thiếu số đo thì model
+    tự đoán: cùng một cổng lúc cao gấp 5 người, lúc bé như đồ chơi. Khâu "Kích thước vật mốc" báo VÀNG là phải đo / ước ngay (so với
+    xe, cửa, người trong ảnh mẫu), ghi `assets.set_size`. Hai shot liền nhau cùng chỗ, cùng hướng (vd chạy tới cổng → bước qua cổng) dùng
+    cùng độ cao máy (ngang vai sau lưng). Máy cao nhìn xuống làm vật ở xa bé lại, người gần to lên, sai tỉ lệ. Vì: #27 shot 3 cổng nhỏ,
+    người to (người dùng 12/10); cổng #426 ≈ 9 m × 8 m.
