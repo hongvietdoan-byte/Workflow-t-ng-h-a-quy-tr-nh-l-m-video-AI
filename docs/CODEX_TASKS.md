@@ -1072,4 +1072,7 @@ của ca shot 16 không còn 'translucent amber'; câu tỉ lệ có khi món SK
 
 ## Kết quả Codex — đợt 16
 
+- Việc 1 · nhánh `codex/d16-viec1-viet-lai-prompt` · code `09778931`: lịch sử user-note đúng chuỗi parent cùng shot/loại, giữ ý các lần từ chối; client config LlmError không bị nuốt; fallback hiện trên Dashboard kể cả versions=0, chẩn đoán chọn last_at/id. ĐỎ history ảnh/video và lỗi client →45 test+4subtests xanh; rà1P2 cảnh báo lặp đỏ→xanh, nhóm cuối **46 passed +4 subtests /4,74s**. Test đường thật reject→child→Image/VideoRunner.submit_pending bắt provider.submit: hai ý note, bỏ translucent amber, không Fix, 3 phiên bản; OFF giữ Fix/noClaude. Không sửa runner/pipeline, giữ areas.version/key. RA `docs/RA_D16_VIEC1_CODEX_2026-10-12.md`. **CHƯA xác nhận nguyên nhân production #27 versions=0**: hook đã nối ở base; cần phiên máy chính xem diag fallback/config và thử thật sau gộp. Cùng giây chẩn đoán và cảnh báo không gắn prompt/job còn giới hạn. Không API/data thật/cả bộ/gộp main.
+
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)

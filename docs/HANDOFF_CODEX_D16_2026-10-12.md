@@ -1,0 +1,9 @@
+# Bàn giao sau Đ16 việc 1 — 12/10
+
+Đ16v1 đã làm phạm vi hẹp: history usernote đúngparentchain; khôngnuốtLlmErrorclient; fallbackDashboarddùversions0 và chọnlast_at/id. Code trong nhánh codex/d16-viec1-viet-lai-prompt. Test đường thật reject→jobcon→runner→provider giả bắt prompt: giữhaiý, bỏamber, cóversions; OFFgiữcũ. ĐỎ→XANH46test+4subtests/4,74s; rà1P2 sửa xong, rootđọcdiff. Khôngrunner/pipeline/data/API/main/live. CHƯA chốtnguyênnhân#27versions0: hookđãnốiđúngbase, cầnphiênmáychính kiểmdiagfallback/config và thửthật. Timestampdiaggiây vàwarningkhônggắnprompt/job cònlimit.
+
+Bước kế sau reset: get_usage_limits rồi fetch/đọc HỘP THƯ mới; Đ16 việc2 project_prop_lock trước mọiđợt cònlại. D16v1 nhánh từd932f1d1, RA/resultfileđãghi; khônglàmlại, khôngcommit HANDOFF.mdgốc đangđổi cục bộ. Đ16v2 sửa mâu thuẫnchỉcụmmón dạngmặcđịnh trongprompt gửi, giữgốc/diffUI; tỉlệtheohồsơthiếubáoVÀNG; OFFgiữbyte; đánhgiátựtheoloại vs nhập tay, khônggánchuẩnchưađo. Testgiả/RÀKỸ/caller/areasversiongiữ/pushnhánh ngay đểphiênràgộp.
+
+SauĐ16v2: Đ12v5→Đ11v1b (bảngđánhgiátrướccho người dùngchốt)→Đ14v3→Đ15v3→Đ11v2→còn lại. Đ15v1 HEAD3768c1a code89ce7b61; Đ15v2 codec3853a0 kếtquảbb9c3e5 vàbàngiao62bf0bf. Đ10/Đ14v1/Đ12v1/Đ11v1 đãlàm khônglặp; petGUIQA giao máy chính. Bỏ phầnchờ#24/project_budget/Đ11v3/nốigửiĐ11v5 tới xác nhận dựánxong.
+
+KhôngAPI/data/projects/env/secrets/main/live. Đ16 cho phép runner.pytốithiểuchỉnếugốclỗiởđó+RA; cácfilecấmkhácgiữ. Khung5giờreset12/10 16:07:27 Asia/Saigon; lịch1lượt16:11. Khôngresetcredit/muacredit/monitorđịnhkỳ. Quota≥60%1child,70–90%việcnhỏ,≥90%khôngmở/wakechild, chỉlưu push/nghỉ.
