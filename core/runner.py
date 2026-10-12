@@ -320,9 +320,15 @@ class _Runner:
         lock = _turn(project_id, self.job_type)
         if not lock.acquire(blocking=wait_s > 0, timeout=wait_s if wait_s > 0 else -1):
             return 0                       # M3: another thread is sending this project's jobs right now
+        from . import send_claim                  # hộp thư 12/10 19:58: one sender per job across PROCESSES too (cờ send_claim)
+        outer = self.__dict__.get("_send_claims")
+        self._send_claims = claims = {"owner": send_claim.new_owner(), "ids": []} if send_claim.enabled() else None
         try:
             sent = self._submit_pending(project_id, only)
         finally:
+            self._send_claims = outer
+            for jid in (claims or {}).get("ids", ()):
+                send_claim.release(self.p.conn, jid, claims["owner"])
             lock.release()
         self._script_cap_stop(project_id)
         return sent
@@ -360,6 +366,13 @@ class _Runner:
                 WAIT_REASONS.setdefault(job["id"], ("chờ điều kiện gửi (ảnh/clip đi trước, nhóm shot)", time.time()))
                 continue            # v3: this job is sent later (after the previous shot's picture / with its multi-shot group)
             WAIT_REASONS.pop(job["id"], None)
+            from . import send_claim                 # hộp thư 12/10 19:58: re-read + another process's claim, BEFORE any paid step
+            fresh, note = send_claim.take(self.p.conn, job, getattr(self, "_send_claims", None))
+            if fresh is None:
+                if note:
+                    self._diag_once(job, *note)
+                continue
+            job = fresh
             if job["external_id"]:
                 # T2: its task already exists at the provider (a multi-shot follower given the leader's task, relink_failed, or a send
                 # whose RUNNING step was lost) — sending it again would pay twice. It only moves to RUNNING; the next poll fetches it.

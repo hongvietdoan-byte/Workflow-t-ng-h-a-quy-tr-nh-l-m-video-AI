@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS support_tickets (
     evidence_refs TEXT NOT NULL, technical TEXT NOT NULL, verification TEXT NOT NULL,
     resolution TEXT, closed_by TEXT, closed_at TEXT, revision INTEGER NOT NULL DEFAULT 1
 );
+CREATE TABLE IF NOT EXISTS job_send_claims (job_id INTEGER PRIMARY KEY, owner TEXT NOT NULL, at REAL NOT NULL);  -- core/send_claim (hộp thư 12/10 19:58)
 CREATE TABLE IF NOT EXISTS ticket_events (
     event_id TEXT PRIMARY KEY, ticket_id TEXT NOT NULL REFERENCES support_tickets(id),
     at TEXT NOT NULL, actor TEXT NOT NULL, transition TEXT NOT NULL,

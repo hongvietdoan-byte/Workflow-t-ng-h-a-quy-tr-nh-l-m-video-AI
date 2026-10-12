@@ -74,7 +74,8 @@ try { pw = require('playwright'); } catch (_) {
       await page.locator('#compare').click(); assert.equal(await page.locator('#comparePanel').isVisible(),true);
       await page.locator('#viewDirector').click();
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-      const out=path.join(root,'docs/images/d11');fs.mkdirSync(out,{recursive:true});
+      const out=process.env.D11_SHOT_DIR||path.join(root,'docs/images/d11');  // hộp thư 12/10 21:05: test ghi thư mục tạm, không sửa ảnh tài liệu
+      fs.mkdirSync(out,{recursive:true});
       await page.screenshot({path:path.join(out,`ban_dung_${width}_director.png`),fullPage:true});
       await page.locator('#viewCamera').click();
       await page.screenshot({path:path.join(out,`ban_dung_${width}_camera.png`),fullPage:true});

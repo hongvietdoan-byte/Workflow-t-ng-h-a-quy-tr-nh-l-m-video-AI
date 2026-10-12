@@ -27,6 +27,8 @@ FEATURES: Dict[str, Dict] = {
                      "why": "Đợt 9: backend thử CSDL tạm; chưa kiểm GUI Windows"},
     "bg_autoqc": {"label": "Vòng nền tự bắt đầu kiểm tra ảnh/clip vừa xong (không cần mở trang dự án)", "verified": False,
         "why": "Hộp thư 12/10 17:58: #27 ảnh xong kẹt 'succeeded' ~1 giờ khi không ai mở trang; gọi Claude QC qua sổ chi + trần như khi mở trang"},
+    "send_claim": {"label": "Giữ chỗ gửi job trong CSDL — 2 tiến trình (script + Dashboard) không gửi trùng một job (0 USD)", "verified": False,
+        "why": "Hộp thư 12/10 19:58: #27 job 776 gửi 2 lần (script + vòng nền), Deepix tạo 2 task; khóa lượt chỉ trong một tiến trình"},
     "auto_send_self_fix": {
         "label": "Vòng nền tự gửi job tự sửa (QC gen lại) khi không có chạy tự động",
         "verified": False,
