@@ -8,12 +8,12 @@
 
 ## Việc kế, theo bảng ưu tiên mới nhất
 1. Đ15v3 vùng an toàn mọi lớp phủ; lấy origin/main mới. Popup Đ17v2 phải được gộp hoặc lấy đúng phần thiếu code `e129832c` trước sửa, không nhân đôi chức năng safe_box đã có.
-2. Đ12v5 đồng thanh: worktree `D:\AI-Video-Pipeline\.codex-wt\d12-viec5-dong-thanh`, branch `codex/d12-viec5-dong-thanh`, base b8782dfe. Code đã 50 test xanh + rà3finding/cache tiền sửa; root đọc diff. Còn GUI/đóng RA/kết quả trước coi hoàn tất; file local handoff đang có. Giữ source WAV, readonly liveDB binding, OFF chọn primary+C, legacy chỉ gen B khi bật.
+2. Đ12v5 đồng thanh: worktree `D:\AI-Video-Pipeline\.codex-wt\d12-viec5-dong-thanh`, branch `codex/d12-viec5-dong-thanh`, bản lưu dở `d197de0c` đã push, base b8782dfe. Code đã 50 test xanh + rà3finding/cache tiền sửa; root đọc diff. Còn GUI/đóng RA/kết quả trước coi hoàn tất; docs/HANDOFF_D12_VIEC5_CODEX_2026-10-12.md có trạng thái. Giữ source WAV, readonly liveDB binding, OFF chọn primary+C, legacy chỉ gen B khi bật.
 3. Đ11v1b bảng đánh giá cho người dùng chốt TRƯỚC mockup; rồi Đ14v3, project_budget gộp, Đ12v6, các việc còn lại theo bảng đầu CODEX_TASKS.
 - #24 đã XONG; #27 đang chạy. Nhóm runner cuối danh sách vẫn chờ user/phiên máy chính chốt. Tin autoqc 17:58 gửi phiên rà Codex, chưa tự đổi thứ tự.
 
 ## Luật tiếp tục
-- Gọi usage trước child; % là ĐÃ DÙNG. Lượt này gần80%, chưa mở việc lớn kế. Không reset credit/mua credit; user đã xóa lịch tiếp tục, KHÔNG tạo lại automation.
+- Gọi usage trước child; % là ĐÃ DÙNG. Cuối lượt83% đã dùng/17% còn; reset5h lúc22:47:22 ngày12/10 giờ Việt Nam, tuần27% đã dùng. Chưa mở việc lớn kế. Không reset credit/mua credit; user đã xóa lịch tiếp tục, KHÔNG tạo lại automation.
 - Đọc AGENTS/CLAUDE/CHUAN/skill; fetch, đọc mailbox/TODO/CODEX_TASKS origin/main mới nhất. Không đổi nhánh/pull/restart live D:\AI-Video-Pipeline, không realdata/env/API.
 - Mỗi việc nhánh riêng, đỏ→xanh, rà độc lập + callerCLAUDE7, root đọc vòng sửa, code/tests/flags areas giữ version, commit tiếng Việt+Codex, kết quả CODEX_TASKS rồi push nhánh. Không TODO/PLAN, không main.
 - QA dùng DB/ảnh giả và temp ASSET_DIR/FEATURE_SETTINGS_FILE/KNOWLEDGE_USER_DIR; helper thumbnail có cache phải neo temp. Các server QA8519 đã dừng.
