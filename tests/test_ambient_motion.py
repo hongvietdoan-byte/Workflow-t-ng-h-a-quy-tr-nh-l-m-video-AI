@@ -118,3 +118,23 @@ def test_motion_payload_carries_real_byd_weather_and_time(monkeypatch):
         assert "sương" in payload["scenes"][0]["ambient_hint"]
     finally:
         p.conn.close()
+
+
+# hộp thư 12/10 18:13 việc 2: #27 S6 phải viết 'light … flickers' mới qua — vật / động từ nền thường gặp trong game
+@pytest.mark.parametrize("text", ["Glowing red rings on the floor pulse softly and small red sparks drift.",
+                                  "Embers float up from the burning car.", "Ash falls slowly.", "Snow drifts across the yard.",
+                                  "Petals flutter in the breeze.", "The flags wave on the wall.", "Curtains blow gently.",
+                                  "Her hair flutters in the wind.", "The neon glow shimmers on the wet road.", "Sparks twinkle behind him.",
+                                  "The portal glow glimmers softly.",
+                                  "Tia lửa bay lên phía sau.", "Vòng sáng nhấp nháy dưới sàn.", "Tro bay trong gió.", "Tuyết rơi nhẹ.",
+                                  "Cờ phấp phới trên tường.", "Rèm lay nhẹ.", "Vòng sáng lung linh."])
+def test_ambient_present_game_words(text):
+    with patch("core.features.on", return_value=True):
+        assert not pf.ambient_issues(text, {})
+
+
+@pytest.mark.parametrize("text", ["No sparks drift behind her.", "She waves at the camera.", "The red rings stay still.",
+                                  "Không có tia lửa bay.", "Trong không gian trống."])
+def test_new_words_alone_or_negated_still_warn(text):
+    with patch("core.features.on", return_value=True):
+        assert pf.ambient_issues(text, {})
