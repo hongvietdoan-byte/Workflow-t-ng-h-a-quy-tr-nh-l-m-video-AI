@@ -12,6 +12,7 @@ from . import access
 import base64
 import contextlib
 import functools
+import inspect
 import io
 import json
 import os
@@ -22,7 +23,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from . import assets, diag, knowledge, llm_io, prompts
+from . import assets, diag, knowledge, llm_io, prompts, director_lease
 from .adapters.http import HttpResponse, Transport, clean_token, urllib_transport
 from .pipeline import Pipeline
 
@@ -689,7 +690,7 @@ def extract_json(text: str) -> Any:
 
 
 def ask_json(client, prompt: str, validate: Callable[[Any], Any], images: Sequence[Tuple[str, str]] = (),
-             note: Optional[Callable[[str], None]] = None):
+             note: Optional[Callable[[str], None]] = None, bad_reply: Optional[Callable[[str], None]] = None):
     """Ask, parse, validate; on a bad answer retry once telling the model what was wrong.
     Returns (validated object, total input tokens, total output tokens)."""
     tin = tout = 0
@@ -698,13 +699,20 @@ def ask_json(client, prompt: str, validate: Callable[[Any], Any], images: Sequen
         text = prompt if not error else (
             prompt + f"\n\n---\n\nCâu trả lời trước không hợp lệ ({error}). Trả lại **một JSON hợp lệ duy nhất**, "
                      "đúng định dạng yêu cầu, không thêm chữ nào khác.")
-        reply = client.complete(text, images)
+        try:
+            reply = client.complete(text, images)
+        except LlmError as e:
+            if bad_reply is not None and e.partial is not None:
+                bad_reply(e.partial)
+            raise
         tin, tout = tin + reply.input_tokens, tout + reply.output_tokens
         try:
             obj = extract_json(reply.text)
             validate(obj)
             return obj, tin, tout
         except (ValueError, llm_io.SchemaError) as e:
+            if bad_reply is not None:
+                bad_reply(reply.text)
             error = str(e)[:300]
             if note is not None and attempt == 0:
                 note(f"câu trả lời lần 1 không hợp lệ, đã hỏi lại: {error}")   # a silent retry that costs tokens
@@ -761,6 +769,22 @@ def _retry_note(p: Pipeline, stage: str, project_id: int):
     return lambda message: diag.record(p.conn, stage, "warn", message, "bad_json_retry", project_id)
 
 
+def _director_exclusive(fn):
+    @functools.wraps(fn)
+    def wrapper(p, project_id, *args, **kwargs):
+        access.need_edit(p, project_id, "chạy Đạo diễn")
+        try:
+            with director_lease.hold(p.conn, project_id) as lease:
+                bound = inspect.signature(fn).bind(p, project_id, *args, **kwargs)
+                bound.arguments['client'] = director_lease.GuardedClient(bound.arguments['client'], lease)
+                return fn(*bound.args, **bound.kwargs)
+        except director_lease.DirectorBusy as e:
+            raise LlmError(str(e), code="director_busy") from e
+        except director_lease.LeaseLost as e:
+            raise LlmError(str(e), code="director_expired") from e
+    return wrapper
+
+
 def _director_references(conn, project_id: int) -> List[Tuple[str, str]]:
     """One picture per character/pet resource already attached to the project, so the Director writes the
     Character Bible from the real design instead of inventing a plausible-sounding but wrong appearance (wrong
@@ -782,13 +806,15 @@ def _director_references(conn, project_id: int) -> List[Tuple[str, str]]:
 
 
 @_diagnosed("director", lambda p, i: i)
+@_director_exclusive
 def run_director(p: Pipeline, project_id: int, client, resume: bool = False) -> Dict:
     """The Director: one call for the whole script (Bible + scenes + shots), or — feature director_two_pass on a shot project — Tầng A
     Đạo diễn + one Tầng B Quay phim call per scene + code review (core/director_two_pass.py; same stored shape). resume (two passes
     only): reuse the paid Tầng A answer and the scenes that passed in a failed run."""
     access.need_edit(p, project_id, "chạy Director")
     from . import assets, director_two_pass
-    auto = assets.auto_attach(p.conn, project_id)            # the library resources the script names — no click needed (2026-09-27)
+    with director_lease.writing():
+        auto = assets.auto_attach(p.conn, project_id)            # the library resources the script names — no click needed (2026-09-27)
     if auto["attached"] or auto["ambiguous"]:
         diag.record(p.conn, "director", "warn" if auto["ambiguous"] else "info",
                     ("Tự gắn tài nguyên kịch bản nhắc tới: " + ", ".join(auto["attached"]) if auto["attached"] else "")
@@ -802,24 +828,24 @@ def run_director(p: Pipeline, project_id: int, client, resume: bool = False) -> 
                 "director_refs", project_id)
     try:
         obj, tin, tout = ask_json(client, prompts.build_director_bundle(p, project_id), llm_io.validate_for_project(p, project_id),
-                                  refs, note=_retry_note(p, "director", project_id))
+                                  refs, note=_retry_note(p, "director", project_id),
+                                  bad_reply=director_lease.capture(p.conn, project_id, "single"))
     except LlmError as e:
-        if e.partial is not None:                          # paid for: keep what came back, to see where the tokens went
-            p.set_project_field(project_id, "director_raw", json.dumps({"truncated": True, "error": str(e), "text": e.partial},
-                                                                       ensure_ascii=False))
         raise
     from . import project_defaults                 # S3.8: which places (text + pictures) the plan was made with
     obj["places_at_plan"] = project_defaults.places_fingerprint(p.conn, project_id)
     from . import director_byd                     # K1a cờ shot_intent: kiểm BYĐ từng shot, sửa ≤ 2 vòng (tắt → không làm gì)
     director_byd.settle(p.conn, project_id, obj, client)
-    p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))   # paid for: kept even if saving fails
-    llm_io.store_scene_analysis(p, project_id, obj)
+    with director_lease.writing():
+        p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))   # paid for: kept even if saving fails
+        llm_io.store_scene_analysis(p, project_id, obj)
     director_two_pass.forget(p, project_id)       # a stored two-pass intent no longer matches this plan ("↻ Chia shot lại" must not use it)
     return {"characters": len(obj["characters"]), "scenes": len(obj["scenes"]), "input_tokens": tin,
             "output_tokens": tout, "ip_risk_notes": obj.get("ip_risk_notes") or []}
 
 
 @_diagnosed("director", lambda p, i: i)
+@_director_exclusive
 def run_director_scene(p: Pipeline, project_id: int, scene_idx: int, client, note: str = "") -> Dict:
     """1.4 "↻ Chia shot lại cảnh này": one Claude call for ONE script scene (the shared prompt is cached), merged into the stored plan,
     normalised and line-checked as a whole, then only that scene and the later ones are rewritten (earlier scenes keep their work).
@@ -846,12 +872,14 @@ def run_director_scene(p: Pipeline, project_id: int, scene_idx: int, client, not
 
     with tagged("director", project_id):
         _, tin, tout = ask_json(client, prompts.build_director_bundle(p, project_id, only_scene=scene_idx, note=note), check,
-                                note=_retry_note(p, "director", project_id))
+                                note=_retry_note(p, "director", project_id),
+                                bad_reply=director_lease.capture(p.conn, project_id, f"scene:{scene_idx}"))
     obj = merged_box["obj"]
     from . import director_byd                     # K1a cờ shot_intent: chỉ cảnh vừa chia lại
     director_byd.settle(p.conn, project_id, obj, client, only_scene=scene_idx)
-    n = shots.replace_from(p, project_id, obj["scenes"], scene_idx)
-    p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))
+    with director_lease.writing():
+        n = shots.replace_from(p, project_id, obj["scenes"], scene_idx)
+        p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))
     return {"scene": scene_idx, "rows": n, "input_tokens": tin, "output_tokens": tout, "normalized": obj.get("normalized") or []}
 
 

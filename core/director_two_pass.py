@@ -499,7 +499,9 @@ def intent_for(p: Pipeline, project_id: int, idx: int) -> Dict:
 
 
 def _save_raw(p: Pipeline, project_id: int, raw: Dict) -> None:
-    p.set_project_field(project_id, "director_intent_raw", json.dumps(raw, ensure_ascii=False))
+    from . import director_lease
+    with director_lease.writing():
+        p.set_project_field(project_id, "director_intent_raw", json.dumps(raw, ensure_ascii=False))
 
 
 def forget(p: Pipeline, project_id: int) -> None:
@@ -532,13 +534,16 @@ def _ask_scenes(p: Pipeline, project_id: int, client, intent: Dict, todo: List[i
     retried: List[Tuple[int, str]] = []
     tokens = [0, 0]
 
+    from . import director_lease
+    captures = {idx: director_lease.capture(p.conn, project_id, f"B:{idx}") for idx in todo}
+
     def one(idx: int):
         prompt = prompts.build_dp_bundle(p, project_id, intent, idx, note=(notes or {}).get(idx, ""),
                                          current=(currents or {}).get(idx), common=common)
         box: List[str] = []
         with tagged("director", project_id):
             try:
-                part, tin, tout = ask_json(client, prompt, check_scene(by_idx[idx], names), note=box.append)
+                part, tin, tout = ask_json(client, prompt, check_scene(by_idx[idx], names), note=box.append, bad_reply=captures[idx])
             except LlmError as e:
                 return idx, None, str(e), box, e
         return idx, (part, tin, tout), None, box, None
@@ -592,10 +597,10 @@ def run(p: Pipeline, project_id: int, client, resume: bool = False) -> Dict:
     else:
         a_called = True
         try:
-            intent, tin, tout = ask_json(client, bundle, validate_intent(p, project_id), refs, note=_retry_note(p, "director", project_id))
+            from . import director_lease
+            intent, tin, tout = ask_json(client, bundle, validate_intent(p, project_id), refs, note=_retry_note(p, "director", project_id),
+                                        bad_reply=director_lease.capture(p.conn, project_id, "A"))
         except LlmError as e:
-            if e.partial is not None:
-                _save_raw(p, project_id, {"truncated": True, "error": str(e), "text": e.partial, "pass": "A"})
             raise
         raw = {"fp_a": fp_a, "intent": intent, "parts": {}}
         _save_raw(p, project_id, raw)                  # paid for: kept even if Tầng B fails
@@ -626,7 +631,8 @@ def run(p: Pipeline, project_id: int, client, resume: bool = False) -> Dict:
     try:
         obj = llm_io.validate_for_project(p, project_id)(merged)   # normaliser (film total) + schema + every line of the script
     except SchemaError as e:
-        p.set_project_field(project_id, "director_raw", json.dumps(dict(merged, invalid=str(e)), ensure_ascii=False))
+        from . import director_lease
+        director_lease.capture(p.conn, project_id, "merged")(json.dumps(dict(merged, invalid=str(e)), ensure_ascii=False))
         raise LlmError(f"kế hoạch ghép từ hai lượt không hợp lệ: {e}", code="bad_plan") from e
     obj["review"] = review(obj)
     calls = int(a_called) + len(todo)
@@ -635,8 +641,10 @@ def run(p: Pipeline, project_id: int, client, resume: bool = False) -> Dict:
     obj["places_at_plan"] = project_defaults.places_fingerprint(p.conn, project_id)
     from . import director_byd                     # K1a cờ shot_intent: kiểm BYĐ từng shot, sửa ≤ 2 vòng (tắt → không làm gì)
     director_byd.settle(conn, project_id, obj, client)
-    p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))     # paid for: kept even if saving fails
-    llm_io.store_scene_analysis(p, project_id, obj)
+    from . import director_lease
+    with director_lease.writing():
+        p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))     # paid for: kept even if saving fails
+        llm_io.store_scene_analysis(p, project_id, obj)
     raw["done"] = True
     _save_raw(p, project_id, raw)
     flagged = obj["review"]["flagged"]
@@ -675,13 +683,20 @@ def replan_scene(p: Pipeline, project_id: int, scene_idx: int, client, note: str
     base = [t for t in intent.get("tradeoffs") or [] if isinstance(t, dict)]      # the Director's own stay; the DP's of this scene go
     others = [t for t in plan.get("tradeoffs") or [] if isinstance(t, dict) and t not in base and t.get("scene") != scene_idx]
     merged = merge(dict(intent, tradeoffs=base + others), parts)
-    obj = llm_io.validate_for_project(p, project_id)(merged)
+    try:
+        obj = llm_io.validate_for_project(p, project_id)(merged)
+    except SchemaError as e:
+        from . import director_lease
+        director_lease.capture(p.conn, project_id, f"merged:scene:{scene_idx}")(json.dumps(dict(merged, invalid=str(e)), ensure_ascii=False))
+        raise LlmError(f"kế hoạch ghép khi chia lại cảnh {scene_idx} không hợp lệ: {e}", code="bad_plan") from e
     obj["review"] = review(obj)
     from . import director_byd                     # K1a cờ shot_intent: chỉ cảnh vừa chia lại
     director_byd.settle(p.conn, project_id, obj, client, only_scene=scene_idx)
-    n = shots.replace_from(p, project_id, obj["scenes"], scene_idx)
+    from . import director_lease
+    with director_lease.writing():
+        n = shots.replace_from(p, project_id, obj["scenes"], scene_idx)
+        p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))
     raw.setdefault("parts", {})[str(scene_idx)] = new[scene_idx]
     _save_raw(p, project_id, raw)
-    p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))
     return {"scene": scene_idx, "rows": n, "input_tokens": tin, "output_tokens": tout, "normalized": obj.get("normalized") or [],
             "review": obj["review"]}
