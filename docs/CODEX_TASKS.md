@@ -1039,4 +1039,7 @@ trong vùng; có cờ thì tự đặt trong vùng. Ca thật #24 v3: popup 1,8�
 
 ## Kết quả Codex — đợt 15
 
+- ✅ Việc 2 · nhánh `codex/d15-viec2-khoa-dao-dien` · code `c3853a0d`: khóa chung Director toàn bộ/chia lại cảnh trước call/autoattach; SQLite sidecar PID/token/heartbeat + pending marker atomic chống lượt trả tiền chồng, writer fence chặn chủ cũ ghi. Raw sai định dạng single/scene/A/B/merged lưu đã lọc, 16KB UTF8 ×20/dự án, không đè plan tốt; UI hero/panel/resume/replan giữ key và tắt khi busy. ĐỎ module →79→83 xanh; rà 3 finding, 6 ca đỏ→6 xanh; nhóm 5 file cuối **94 passed /22,39s**. Rà `docs/RA_D15_VIEC2_CODEX_2026-10-12.md`; root đọc phần sửa. Nếu dọn pending lỗi, tiếp tục chặn tới khi xác nhận call đã dừng và khởi động lại tiến trình sở hữu. Chưa cả bộ Windows/UI/API thật, không dữ liệu sản xuất, giữ areas.version, chỉ push nhánh.
+
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
