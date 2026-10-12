@@ -89,3 +89,7 @@ luật cấm từ — là cách tính trước khi viết. Code kiểm lại cá
     xe, cửa, người trong ảnh mẫu), ghi `assets.set_size`. Hai shot liền nhau cùng chỗ, cùng hướng (vd chạy tới cổng → bước qua cổng) dùng
     cùng độ cao máy (ngang vai sau lưng). Máy cao nhìn xuống làm vật ở xa bé lại, người gần to lên, sai tỉ lệ. Vì: #27 shot 3 cổng nhỏ,
     người to (người dùng 12/10); cổng #426 ≈ 9 m × 8 m.
+23. **Vật mốc / đạo cụ phải giống ảnh mẫu 90–100% thì làm ẢNH MẪU SẠCH trước khi vẽ các shot.** Ảnh gốc là ảnh chụp game có bối cảnh
+    (đêm, cây, vệt gió) thì model lẫn bối cảnh vào vật và tự đổi dáng. Gen MỘT ảnh cùng vật, cùng góc, nền xám trơn, tả từng bộ phận
+    (`tools/asset_polish.py`), người dùng duyệt, đặt làm ảnh đầu của mục Kho. Không dán ghép vật vào ảnh: người dùng 12/10 cho rằng
+    chất lượng thấp. Vì: #27 cổng torii vẽ sai 4 lần; ảnh mẫu sạch đạt ~90% ngay lần đầu.
