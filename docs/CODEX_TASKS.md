@@ -1229,4 +1229,6 @@ change_review) — kiểm quyền sửa như các ô khác. Ảnh chụp 1440 + 
 
 ## Kết quả Codex — đợt 18
 
+- ✅ Việc 1 · nhánh `codex/d18-viec1-ke-hoach-san-khau` · tài liệu `c460d6cd`: `docs/KE_HOACH_SAN_KHAU_DOAN_2026-10-12.md` đối chiếu code/callers/flags, phân biệt stage–segment–state, snapshot/transform/provenance/dependency và quyền dự án/Owner publish; bảng A/B/C ghi đúng giới hạn dữ liệu/proxy/model, chi phí API bổ sung và công/bấm chưa đo, lộ trình không cần Blender. Khuyến nghị A trước→B cùng dữ liệu, C gỡ trước mắt; **chờ người dùng chọn trước Đ18v4**. Root RÀ NHẸ + kiểm nguồn/dòng/link, RA `docs/RA_D18_VIEC1_CODEX_2026-10-12.md`; docs-only không tạo test đỏ giả, không đổi code/cờ/areas/TODO/PLAN/API/data. Chưa xác minh runtime #27/QA chất lượng. Đ18v2/v3 độc lập có thể tiếp; v3 đề ghi chỉ shot trước nhưng main đã cho shot sau, phải đối chiếu trước build.
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
