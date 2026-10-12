@@ -8,5 +8,5 @@ Nhánh: `claude/wonderful-fermi-am712r` (nhánh được cấp cho phiên cloud 
   Máy chính cần nối `seedance_refs.py:869` → `motion_physics.sentence(action, data.get("camera_move"))` (motion viết bằng code).
   Test: `tests/test_locomotion_end_frame.py` (6 đỏ trước → xanh).
 - **Việc 2 — XONG**: `prompt_formula._AMBIENT` nới vật (glow/rings/sparks/embers/ash/snow/petals/flags/curtains/hair + tia lửa/vòng sáng/tro/tuyết/cờ/rèm) + động từ (pulse/flutter/wave/glimmer/shimmer/twinkle/blow + nhấp nháy/bay/phấp phới/lung linh); test `tests/test_ambient_motion.py` (18 đỏ → xanh).
-- Việc 3 — chưa làm.
+- Việc 3 — ĐANG LÀM: `requirements-dev.txt` (pytest-xdist); -n 8 lần 1 trên cloud 4 nhân: 4818 qua, 6 hỏng (cả 6 hỏng y hệt khi chạy tuần tự — Linux/cloud, không do song song), 5 phút 10 giây; đang đo tuần tự + chạy song song lần 2.
 - Credit: chưa hỏi được người dùng (phiên chạy theo hộp thư).
