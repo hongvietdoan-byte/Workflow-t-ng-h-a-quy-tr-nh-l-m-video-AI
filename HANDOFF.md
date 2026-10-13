@@ -1,0 +1,16 @@
+# Bàn giao Đ12v2
+- Nhánh codex/d12-viec2-sfx-nhip; base 2c43a28f; chưa commit/push, areas.version 74.
+- Hoàn tất lõi cue code 0 USD, adapter sfx_plan, cờ motion_sfx OFF + opt-in, component UI độc lập.
+- Bằng chứng đỏ→xanh: 16 lỗi import; tự rà 2 ca đỏ; nhóm 4 file cuối 77 passed/11,10s.
+- Rà: docs/RA_D12_VIEC2_CODEX_2026-10-14.md; diff check/py_compile xanh.
+- Đỉnh optical flow chỉ đo toàn khung; máy static → dùng giây peak nhưng alignment hành động estimated+VÀNG.
+- Máy unknown/moving/quiet/series lỗi → chia đều BYĐ; không nhận diện nhân vật giả.
+- Catalog trusted có sẵn; thiếu âm → unmet+VÀNG, không đổi guard nhận diện.
+- Chưa nối step5 vì file do Claude giữ; chưa UI sản xuất/thử thật/cả bộ Windows.
+- Chưa đường Claude bổ sung trả tiền: chỉ thông báo cần luồng báo giá/duyệt hiện có khi caller nối.
+- Root fresh review trước commit; không sửa TODO/PLAN, không merge/main/live/API/data thật.
+- Vòng sửa sau rà độc lập đã đóng 3 P2: neo cue overlap + validate trước ghi; huge integer/tổng tràn → VÀNG; prompt motion hiện tại ưu tiên + cảnh báo BYĐ cũ.
+- Bằng chứng cuối: ĐỎ 14 failed/23 passed → nhóm 4 file 96 passed/11,24s; diff check xanh. Root cần đọc diff sửa; chưa commit/push.
+- QA Chrome 1440/1280 chưa chạy (Python không có Playwright); chưa cả bộ Windows/UI sản xuất/Claude trả tiền.
+- Chốt root rà lần 2: prevalidate sound/file/volume trước xóa âm explicit, cho idx0 có DB/timeline scope. ĐỎ 4 → nhóm cuối 100 passed/11,06s; legacy apply giữ đường cũ.
+- QA component đã xong bằng Node Playwright + Edge headless fallback (Chrome launch thoát0): 1440/1280 có PNG trong docs/images/d12, 3warning/cỡ, proposalstub1/cỡ, paid0, console/pageerror0, overflowfalse; đã dừng fixture8554. Chưa UI sản xuất/cả bộ/Claude trả tiền.

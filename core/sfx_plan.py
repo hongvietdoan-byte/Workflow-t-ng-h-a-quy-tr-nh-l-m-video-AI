@@ -183,18 +183,60 @@ def apply(p: Pipeline, data_dir: str, pid: int, chosen: List[Dict], scenes: Opti
     Each effect is anchored to the shot its second falls in on `scenes` (the timeline the proposal was made on; read again when not
     given), so a later render with other clip lengths moves it with its shot (place_on_timeline)."""
     access.need_edit(p, pid, "áp dụng hiệu ứng âm thanh")
-    directory = audio_lib.assets_dir(data_dir, pid)
     if scenes is None:
         scenes = timeline(p, data_dir, pid)
+    # Cue nhịp giữ shot riêng trong vùng overlap; kiểm hết trước khi xóa bản âm cũ.
+    from .motion_sfx import finite
+    anchors = []
+    for c in chosen:
+        if 'anchor_idx' not in c and 'offset' not in c:
+            anchors.append(anchor(scenes, float(c['at'])))
+            continue
+        idx, offset, at, sound_id = c.get('anchor_idx'), c.get('offset'), c.get('at'), c.get('id')
+        if (not isinstance(idx, int) or isinstance(idx, bool) or not 0 <= idx <= 2**63 - 1 or c.get('scene') != idx
+                or not finite(offset) or not finite(at) or not isinstance(sound_id, int)
+                or isinstance(sound_id, bool) or not 0 < sound_id <= 2**63 - 1):
+            raise ValueError('Cue SFX có mã/neo/thời điểm không hợp lệ.')
+        shot = next((s for s in scenes if s.get('idx') == idx), None)
+        belongs = p.conn.execute('SELECT 1 FROM scenes WHERE project_id=? AND idx=?', (pid, idx)).fetchone()
+        if (shot is None or belongs is None or not finite(shot.get('start')) or not finite(shot.get('length'), True)
+                or not finite(shot['start'] + shot['length']) or offset > round(max(shot['length'] - .05, 0), 2) + 1e-6
+                or not finite(shot['start'] + offset) or abs(at - (shot['start'] + offset)) > .011):
+            raise ValueError('Cue SFX phải thuộc shot trong timeline/dự án và đúng offset.')
+        sound = sound_lib.get(p.conn, sound_id)
+        path = sound['path'] if sound is not None else None
+        volume = c.get('volume')
+        if (not isinstance(path, str) or not path or '://' in path or path.startswith(('\\\\', '//'))
+                or not os.path.isfile(path) or not finite(volume, True) or not .1 <= volume <= 1.5):
+            raise ValueError('Cue SFX cần âm Kho còn tồn tại ở file cục bộ và âm lượng hữu hạn 0,1–1,5.')
+        anchors.append({'anchor_idx': idx, 'offset': round(offset, 2)})
+    directory = audio_lib.assets_dir(data_dir, pid)
     for i in reversed([i for i, e in enumerate(audio_lib.load(directory)) if str(e.get("label", "")).startswith(LABEL_PREFIX)]):
         audio_lib.remove(directory, i)
     n = 0
-    for c in chosen:
+    for c, cue_anchor in zip(chosen, anchors):
         row = sound_lib.get(p.conn, int(c["id"]))
         if row is None or not os.path.exists(row["path"]):
             continue
         seconds = sound_lib.ensure_duration(p.conn, row["id"])
         audio_lib.add_local(directory, row["path"], LABEL_PREFIX + row["name"], float(c["at"]), float(c["volume"]),
-                            int(seconds * 1000) if seconds else None, anchor(scenes, float(c["at"])))
+                            int(seconds * 1000) if seconds else None, cue_anchor)
         n += 1
     return n
+
+
+def propose_motion(p: Pipeline, data_dir: str, pid: int, transition: str = "cut", fade: float = 1.0, *, opted_in=False):
+    """Adapter code 0 USD, dùng cùng timeline/catalog/apply; caller Bước 5 chưa nối."""
+    from . import features, motion_sfx
+    if not opted_in or not features.on('motion_sfx'):
+        return None
+    access.need_view(p, pid, 'xem gợi ý SFX theo nhịp')
+    scenes = timeline(p, data_dir, pid, transition, fade)
+    details = {r['idx']: dict(json.loads(r['data'] or '{}'), motion_prompt=r['motion_prompt']) for r in p.conn.execute(
+        'SELECT s.idx, s.data, m.motion_prompt FROM scenes s LEFT JOIN motion_prompts m ON m.scene_id=s.id WHERE s.project_id=?', (pid,))}
+    paths = {c['idx']: c['path'] for c in final_cut.collect_clips(p, data_dir, pid)}
+    enriched = [dict(details.get(s['idx'], {}), **s, clip_path=paths.get(s['idx'])) for s in scenes]
+    result = motion_sfx.plan(enriched, catalog(p.conn), opted_in=True)
+    if not scenes:
+        result['warnings'].append('VÀNG — chưa có clip; không sinh cue.')
+    return result
