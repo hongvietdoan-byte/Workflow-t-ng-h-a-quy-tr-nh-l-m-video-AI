@@ -206,6 +206,19 @@ class SkillObjectTest(unittest.TestCase):
         self.assertIn("As it is already standing at full height Kelly",
                       st("The glue wall stands. As it pops up Kelly ducks.")[0])
 
+    def test_standing_words_leave_other_subjects_near_the_wall(self):
+        """Rà gộp S1+S2 13/10: chủ ngữ sau giới từ / danh từ thường không phải tường — không đổi chữ."""
+        st = skill_objects.standing_text
+        names = ["Tường keo", "Gloo Wall"]
+        for keep in ("The glue wall stands. The enemy emerges from behind it.",
+                     "The glue wall stands. The shadow grows larger.",
+                     "Kelly crouches behind the glue wall, then rises to shoot over it.",
+                     "The glue wall stands. The enemy behind it rises.",
+                     "Kelly đứng sau tường keo rồi trồi lên bắn."):
+            self.assertEqual(st(keep, names)[0], keep)
+        self.assertIn("already standing", st("The huge glue wall of grey panels shoots up.", names)[0])
+        self.assertIn("đã đứng sẵn", st("Bức tường keo mọc lên.", names)[0])
+
     def test_yellow_says_appears_at_once_and_director_is_told(self):
         with mock.patch.dict(os.environ, ON):
             rising = skill_objects.issues(self.conn, self.pid, {"action": JOB_909})

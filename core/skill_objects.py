@@ -77,15 +77,42 @@ _OTHER_SUBJECT = re.compile(r"^(?:camera|sun|moon|smoke|dust|fog|mist|steam|spar
                             re.I)
 
 
+_CLAUSE_START = re.compile(r"[,;:—–(]|\s-\s|(?<!\w)(?:then|and|while|as|when|but|so|until|rồi|và|khi|thì|nhưng)(?!\w)",
+                           re.I)
+_DET = {"the", "a", "an", "its", "this", "that", "their", "her", "his", "bức", "cái", "một", "những"}
+_ADVERB = {"then", "now", "soon", "just", "also", "still", "ngay", "liền"}
+_PREP = {"of", "behind", "over", "from", "near", "in", "on", "at", "by", "beside", "with", "under", "above", "below", "through",
+         "into", "onto", "across", "around", "past", "toward", "towards", "front", "sau", "trước", "cạnh", "bên", "trên", "dưới",
+         "của", "với", "ở", "trong", "ngoài", "giữa"}
+
+
 def _subject_is_object(before: str, names: Sequence[str]) -> Optional[str]:
-    """The word before the growing verb (≤ 6 words back: "the glue wall of grey flat panels shoots up") that is the skill object
-    ('it', 'wall', its name) — else None. Another subject met first stops it ("the camera rises over the wall", "the sun rises",
-    "Kelly rises behind the wall" are not the object growing)."""
+    """The subject of the growing verb when it is the skill object ('it', 'wall', its name) — else None. The subject is the
+    noun phrase that opens the verb's clause, up to its first preposition: "the glue wall of grey flat panels shoots up" → wall;
+    "the enemy emerges from behind it", "the enemy behind it rises", "the shadow grows" → None; "Kelly crouches behind the
+    glue wall, then rises" → no subject of its own (Kelly) → None (rà gộp S1+S2 13/10). Another subject stops it ("the camera
+    rises over the wall", "the sun rises")."""
     own = {w.lower() for n in names for w in re.findall(r"\w+", n)}
-    for word in reversed(re.findall(r"\w+", before)[-6:]):
-        if _SUBJECT.match(word) or word.lower() in own:
-            return word.lower()
-        if _OTHER_SUBJECT.match(word) or word[:1].isupper() and word.isalpha() and word.lower() not in own:
+    starts = list(_CLAUSE_START.finditer(before))
+    clause = before[starts[-1].end():] if starts else before
+    words = [w for w in re.findall(r"\w+", clause)]
+    while words and (words[-1].lower().endswith("ly") or words[-1].lower() in _ADVERB):
+        words.pop()                                               # "it suddenly shoots up"
+    if not words:
+        return None                                               # "…, then rises" — the subject is someone said before
+    is_obj = lambda w: bool(_SUBJECT.match(w)) or w.lower() in own
+    if is_obj(words[-1]):                                         # "in a second it shoots up" / "the enemy behind it rises"
+        i = len(words) - 1
+        while i >= 0 and (is_obj(words[i]) or words[i].lower() in _DET):
+            i -= 1
+        return None if i >= 0 and words[i].lower() in _PREP else words[-1].lower()
+    for word in words:
+        low = word.lower()
+        if low in _PREP:
+            return None
+        if _SUBJECT.match(word) or low in own:
+            return low
+        if _OTHER_SUBJECT.match(word):
             return None
     return None
 
