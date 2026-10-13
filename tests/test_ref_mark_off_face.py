@@ -98,6 +98,38 @@ class RefMarkOffFaceTest(unittest.TestCase):
             self.assertIsNone(shots.group_of(self.p.conn, self.ids[0]))         # the ladder at once
             self.assertEqual(seedance_refs.mark_style(self.p.conn, self.ids), "corner_plus")   # no mark step written
 
+    def _end_frame_send(self, deferred):
+        """A reference-only shot with a drawn end frame, the Subject Library ON but refusing every picture (Kho đầy, lỗi 6.11)."""
+        from core import shots
+        from tests.test_subjects import CountingLibrary
+        vr, leader = self._leader()
+        vr.provider.supports_subjects = True
+        vr.subject_library = CountingLibrary("failed")
+        end = shots.approved_image_path(self.p.conn, self.data, self.pid, self.ids[1])     # a real picture with the cast in it
+        with mock.patch.object(vr, "_sends_group", return_value=None), mock.patch.object(vr, "_end_frame", return_value=end),                 mock.patch.object(vr, "_lip_sync_audio", return_value=None):
+            vr._pregen_local, vr._pregen_deferred = deferred, []
+            out = vr._base_submit_kwargs(leader)
+            vr._pregen_local = False
+            out = vr._finish_kwargs(leader, out)
+        return out
+
+    def test_kho_full_fallback_marks_the_end_frame_like_the_other_pictures(self):
+        """V5 (rà gốc 13/10, G9) — fallback in the runner: the Subject Library refused, the pictures fall back to the marked way, but
+        the drawn end frame stayed the UNMARKED copy prepared for the library (refused as a real person, or sent unlike the rest).
+        It gets the same mark as the others — with ref_mark_off_face the corner, never the eye."""
+        for deferred in (False, True):
+            with mock.patch.dict(os.environ, dict(ON, FEATURE_SEEDANCE_SUBJECTS="1")):
+                out = self._end_frame_send(deferred)
+            refs = out["reference_only"]
+            self.assertTrue(refs and all(isinstance(r, str) and r.endswith("_marked_corner_plus.png") for r in refs), (deferred, refs))
+            self.assertTrue(out["last_frame"].endswith("_marked_corner_plus.png"), (deferred, out["last_frame"]))
+
+    def test_start_frame_never_eye_marked(self):
+        """V5: with the flag on, no picture of the send — the start frames included — carries the eye mark, Kho full or not."""
+        with mock.patch.dict(os.environ, dict(ON, FEATURE_SEEDANCE_SUBJECTS="1")):
+            out = self._end_frame_send(False)
+        self.assertFalse([r for r in out["reference_only"] + [out["last_frame"]] if str(r).endswith("_marked.png")])
+
     def test_skill_object_guard_reaches_the_sent_motion(self):
         """Lỗi 3 trên đường gửi video thật: câu về tường keo bỏ 'elevator/doors' + câu cấm; shot ném keo → chữ "đã đứng sẵn" + VÀNG gợi ý ghép."""
         vr, leader = self._leader()

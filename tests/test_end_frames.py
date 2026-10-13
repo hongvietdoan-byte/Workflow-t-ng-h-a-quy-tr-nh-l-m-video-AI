@@ -102,6 +102,259 @@ class EndFrameFlowTests(unittest.TestCase):
         self.assertEqual(mine["state"], "running")
 
 
+class ManualSendTests(unittest.TestCase):
+    """C5 (rà chuỗi 13/10): the Dashboard way (▶ Gen video, no autopilot) never drew the end frame and the clip went without it, said
+    nowhere; a clip waiting for its end frame waited without a reason."""
+
+    def setUp(self):
+        from core import batch, model_router
+        from tests._flags import flags_on
+        flags_on(self, "end_frames")
+        self.p, self.pid = kenta_project()
+        llm_runner.run_director(self.p, self.pid, llm_runner.MockLlm())
+        self.sid = _shot_with_end_state(self.p, self.pid)
+        self.data = tempfile.mkdtemp()
+        _approve_all_images(self.p, self.pid, self.data)
+        _approve_all_motion(self.p, self.pid, self.data)
+        model_router.set_override(self.p.conn, self.sid, "kling")
+        batch.queue_videos(self.p, self.pid, self.data)
+        self.job = self.p.conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='video_gen'", (self.sid,)).fetchone()
+        self.vr = VideoRunner(self.p, MockVideoProvider(), self.data)
+
+    def _said(self, code):
+        return [r["message"] for r in self.p.conn.execute("SELECT message FROM diag_events WHERE code=?", (code,))]
+
+    def test_manual_video_send_without_end_frame_is_said(self):
+        self.assertIsNone(self.vr._end_frame(self.job, "kling"))
+        self.assertIsNone(self.vr._end_frame(self.job, "kling"))
+        said = self._said("end_frame_missing")
+        self.assertEqual(len(said), 1)                                  # once per job
+        self.assertIn("KHÔNG kèm khung cuối", said[0])
+        self.assertIn("chưa vẽ", said[0])
+        self.assertEqual(end_frames.missing_reason(self.p.conn, self.sid), "chưa vẽ khung cuối")
+
+    def test_manual_video_send_waits_for_needed_end_frame(self):
+        """A queued end frame (🔁 vẽ khung cuối on the card) holds the clip WITH a reason the card / inbox show."""
+        from core import runner
+        end_frames.redo(self.p, self.sid)
+        self.assertTrue(self.vr._wait(self.job))
+        self.assertIn("khung cuối", runner.wait_reason(self.job["id"]) or "")
+        self.assertEqual(end_frames.missing_reason(self.p.conn, self.sid), "đang vẽ khung cuối")
+
+    def test_rejected_end_frame_is_said_not_silent(self):
+        img = MockImageProvider()
+        end_frames.queue(self.p, self.pid)
+        end_frames.tick(self.p, self.pid, img, self.data)
+        end_frames.tick(self.p, self.pid, img, self.data)
+        end_frames.reject(self.p, end_frames.current(self.p.conn, self.sid)["id"])
+        self.assertIn("loại", end_frames.missing_reason(self.p.conn, self.sid))
+        self.assertIsNone(self.vr._end_frame(self.job, "kling"))
+        self.assertTrue(any("loại" in m for m in self._said("end_frame_missing")))
+
+    def test_ready_end_frame_says_nothing(self):
+        img = MockImageProvider()
+        end_frames.queue(self.p, self.pid)
+        end_frames.tick(self.p, self.pid, img, self.data)
+        end_frames.tick(self.p, self.pid, img, self.data)
+        self.assertIsNone(end_frames.missing_reason(self.p.conn, self.sid))
+        self.assertTrue(self.vr._end_frame(self.job, "kling"))
+        self.assertEqual(self._said("end_frame_missing"), [])
+
+
+    def test_dashboard_poll_draws_the_asked_end_frame_then_the_clip_goes(self):
+        """C5 (3): the card's 🖼 Vẽ khung cuối queues (end_frames.redo); the Bước 4 poll draws it with the image provider (mock here,
+        0 USD) and lets the held clip go."""
+        from dashboard import end_frame_ui
+        end_frames.redo(self.p, self.sid)
+        img = MockImageProvider()
+        with mock.patch("core.adapters.factory.image_provider", return_value=img), \
+                mock.patch.object(self.vr, "submit_pending") as go:
+            self.assertEqual(end_frame_ui.poll(self.p, self.pid, self.data, self.vr), 0)    # sent
+            self.assertEqual(end_frame_ui.poll(self.p, self.pid, self.data, self.vr), 1)    # downloaded
+        go.assert_called_once_with(self.pid, only=[self.job["id"]])     # R1 (rà S3): only the clip that waited for it
+        self.assertTrue(end_frames.usable_path(self.p.conn, self.sid))
+        self.assertFalse(self.vr._wait(self.job))
+
+    # ---- vòng sửa sau rà S3 (RA_S3_S4 R1, R7, R8) ----------------------------------------------------------------------------------
+    def _poll(self, img, times=2):
+        from dashboard import end_frame_ui
+        with mock.patch("core.adapters.factory.image_provider", return_value=img), \
+                mock.patch.object(self.vr, "submit_pending") as go:
+            for _ in range(times):
+                end_frame_ui.poll(self.p, self.pid, self.data, self.vr)
+        return go
+
+    def test_dashboard_poll_skips_autopilot_queued_rows(self):
+        """R1: the autopilot queued an end frame, then the person stopped it — opening Bước 4 must not draw it (paid, nobody clicked);
+        the card says why and shows the priced button; a click draws exactly one picture."""
+        from core import autopilot
+        from dashboard import end_frame_ui
+        self.assertIn(self.sid, end_frames.queue(self.p, self.pid))          # the autopilot's own queue
+        autopilot.stop(self.p, self.pid)
+        img = MockImageProvider()
+        go = self._poll(img)
+        self.assertEqual(img.prompts, {})
+        go.assert_not_called()
+        why = end_frames.missing_reason(self.p.conn, self.sid)
+        self.assertIn("chạy tự động", why)
+        self.assertNotEqual(why, end_frame_ui.DRAWING)
+        with mock.patch.object(end_frame_ui, "st") as st:
+            st.button.return_value = False
+            end_frame_ui.card_block(self.p, self.pid, self.sid, lambda f: f())
+        self.assertTrue(st.button.called)                                    # the way out: the priced button
+        end_frames.redo(self.p, self.sid)                                    # the person clicks 🖼 Vẽ
+        self._poll(img)
+        self.assertEqual(len(img.prompts), 1)
+
+    def test_dashboard_poll_draws_nothing_for_a_read_only_viewer(self):
+        """R1 (b): a 'Chỉ xem' watcher opening Bước 4 never sends a paid end frame."""
+        end_frames.redo(self.p, self.sid)
+        img = MockImageProvider()
+        with mock.patch("dashboard.common.read_only", return_value=True):
+            self._poll(img)
+        self.assertEqual(img.prompts, {})
+
+    def test_budget_refused_end_frame_reason_shows_the_cap(self):
+        """R7: a queued end frame the spending limit refused says the cap (not 'đang vẽ'), and does not keep the page polling."""
+        rid = end_frames.redo(self.p, self.sid)
+        self.p.conn.execute("UPDATE end_frames SET note=? WHERE id=?", ("chờ: vượt trần dự án 10 USD", rid))
+        self.p.conn.commit()
+        why = end_frames.missing_reason(self.p.conn, self.sid)
+        self.assertTrue(why.startswith("chưa vẽ được khung cuối"), why)
+        self.assertIn("trần", why)
+        self.assertEqual(end_frames.drawing(self.p, self.pid), 0)
+
+    def test_end_frame_hold_survives_in_held_reason(self):
+        """R8: the hold for an end frame is written in diag (end_frame_wait, in HOLD_CODES) — read back after 5 minutes / elsewhere."""
+        from core import runner
+        end_frames.redo(self.p, self.sid)
+        self.assertTrue(self.vr._wait(self.job))
+        runner.WAIT_REASONS.pop(self.job["id"], None)
+        self.assertIn("end_frame_wait", runner.HOLD_CODES)
+        self.assertIn("khung cuối", runner.held_reason(self.p.conn, self.job["id"]) or "")
+
+
+class ConcurrentPollTests(unittest.TestCase):
+    """R2 (rà S3): two Bước 4 tabs (two threads, own connections) polling at once send the same end frame once."""
+
+    def setUp(self):
+        import sqlite3
+        from core.db import connect
+        from core.pipeline import Pipeline
+        from tests._flags import flags_on
+        flags_on(self, "end_frames")
+        p, self.pid = kenta_project()
+        llm_runner.run_director(p, self.pid, llm_runner.MockLlm())
+        self.sid = _shot_with_end_state(p, self.pid)
+        self.data = tempfile.mkdtemp()
+        _approve_all_images(p, self.pid, self.data)
+        end_frames.redo(p, self.sid)
+        self.db = os.path.join(self.data, "t.db")
+        out = sqlite3.connect(self.db)
+        p.conn.backup(out)
+        out.close()
+        self.open = lambda: Pipeline(connect(self.db))
+
+    def test_two_concurrent_polls_send_once(self):
+        import threading
+        import time as _t
+        from dashboard import end_frame_ui
+        calls = []
+
+        class Slow(MockImageProvider):
+            def submit(self, *a, **k):
+                calls.append(1)
+                _t.sleep(0.3)
+                return super().submit(*a, **k)
+
+        img = Slow()
+
+        def one():
+            end_frame_ui.poll(self.open(), self.pid, self.data, None)
+
+        with mock.patch("core.adapters.factory.image_provider", return_value=img):
+            ts = [threading.Thread(target=one) for _ in range(2)]
+            for t in ts:
+                t.start()
+            for t in ts:
+                t.join()
+        self.assertEqual(len(calls), 1)
+
+    def test_claimed_row_is_not_sent_again_until_the_claim_is_stale(self):
+        """R2: another PROCESS's claim ('đang gửi', fresh) holds the row; a claim left by a crash (old) is taken over."""
+        p = self.open()
+        rid = end_frames.current(p.conn, self.sid)["id"]
+        p.conn.execute("UPDATE end_frames SET note='đang gửi', updated_at=datetime('now') WHERE id=?", (rid,))
+        p.conn.commit()
+        img = MockImageProvider()
+        end_frames.tick(p, self.pid, img, self.data)
+        self.assertEqual(img.prompts, {})
+        p.conn.execute("UPDATE end_frames SET updated_at=datetime('now','-1 hour') WHERE id=?", (rid,))
+        p.conn.commit()
+        end_frames.tick(p, self.pid, img, self.data)
+        self.assertEqual(len(img.prompts), 1)
+        self.assertNotEqual(end_frames.current(p.conn, self.sid)["note"], "đang gửi")      # claim cleared once sent
+
+
+class SkillObjectSkipTests(unittest.TestCase):
+    """R3 (rà S3): a shot where the skill object appears gets no drawn end frame (the runner always drops it — the build is the code
+    composite): not queued, not drawn, the card says why and shows no paid button."""
+
+    def test_queue_skips_skill_object_rising_shot(self):
+        from core import framing_guard
+        from dashboard import end_frame_ui
+        from tests._flags import flags_on
+        flags_on(self, "end_frames", framing_guard.FLAG, "skill_object_guard")
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        sid = _shot_with_end_state(p, pid)
+        data_dir = tempfile.mkdtemp()
+        _approve_all_images(p, pid, data_dir)
+        with mock.patch("core.skill_objects.rises", return_value=True):
+            self.assertNotIn(sid, end_frames.queue(p, pid))
+            why = end_frames.missing_reason(p.conn, sid)
+            self.assertIn("vật kỹ năng", why)
+            with mock.patch.object(end_frame_ui, "st") as st:
+                end_frame_ui.card_block(p, pid, sid, lambda f: f())
+            st.button.assert_not_called()
+
+
+
+
+class SkillObjectEndFrameTests(unittest.TestCase):
+    """Rà S2 'việc cho S3' (1): the end frame of a shot with the glue wall uses the SAME words as the video prompt — it stands at full
+    height (skill_objects.standing_text / guard_prompt), never 'pops up' (người dùng 13/10 21:31)."""
+
+    def test_end_frame_prompt_says_the_wall_is_standing(self):
+        from core import skill_objects
+        from tests.test_skill_objects import GLUE_DESC
+        from tests._flags import flags_on
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        sid = _shot_with_end_state(p, pid)
+        c = p.conn
+        aid = c.execute("INSERT INTO assets (game, kind, name, aliases, description) VALUES ('FF','weapon','Bom keo','Gloowall',?)",
+                        (GLUE_DESC,)).lastrowid
+        c.execute("INSERT INTO project_assets (project_id, asset_id) VALUES (?,?)", (pid, aid))
+        data = json.loads(c.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()["data"])
+        data["end_state"] = "the Gloowall glue wall pops up in front of Kenta, who crouches behind it"
+        c.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), sid))
+        c.commit()
+        data_dir = tempfile.mkdtemp()
+        _approve_all_images(p, pid, data_dir)
+        with mock.patch.dict(os.environ, {"FEATURE_SKILL_OBJECT_GUARD": "1"}):
+            self.assertTrue(skill_objects.enabled())
+            end_frames.queue(p, pid)
+            img = MockImageProvider()
+            end_frames.tick(p, pid, img, data_dir)
+        sent = [pr for pr in img.prompts.values() if "Kenta, who crouches" in pr]
+        self.assertEqual(len(sent), 1)
+        self.assertIn(skill_objects.STANDING, sent[0])
+        self.assertNotIn("pops up", sent[0])
+        end_frames.tick(p, pid, img, data_dir)
+        self.assertTrue(end_frames.usable_path(c, sid))                 # the guarded words never make it look outdated (C6)
+
+
 class KlingEndFrameTests(unittest.TestCase):
     def test_kling_omni_gets_first_and_end_frame(self):
         t = FakeTransport()

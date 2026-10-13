@@ -453,7 +453,7 @@ def ref_mark(clip: str, every: int = 6) -> Dict:
 
 
 def measure(clip: str, picture: Optional[str] = None, audio: Optional[str] = None, speaking: bool = False,
-            turns: Optional[List[Dict]] = None) -> Dict:
+            turns: Optional[List[Dict]] = None, camera_move: Optional[str] = None) -> Dict:
     """All the checks that apply; {"flags": [...], each check's numbers}. turns: the shot's lines [{speaker, start, end}] on the clip."""
     out: Dict = {}
     if picture and os.path.exists(picture):
@@ -463,7 +463,7 @@ def measure(clip: str, picture: Optional[str] = None, audio: Optional[str] = Non
     from . import framing_guard
     if framing_guard.enabled():              # lỗi hệ thống 2 (#27): đổi bố cục / lùi máy / cắt cảnh — off: this key never appears
         try:
-            out["framing"] = framing_guard.clip_framing(clip, picture, cuts=out["motion"].get("cuts"))
+            out["framing"] = framing_guard.clip_framing(clip, picture, cuts=out["motion"].get("cuts"), camera_move=camera_move)
         except Exception as e:  # noqa: BLE001 - a measuring problem is said (VÀNG in apply_qc), never a silent pass
             out["framing"] = {"flag": None, "measured": False, "note": f"lỗi khi đo bố cục: {e}"}
     if speaking:

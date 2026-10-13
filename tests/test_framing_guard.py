@@ -13,6 +13,7 @@ import os
 import shutil
 import tempfile
 import unittest
+import unittest.mock
 
 import cv2
 import numpy as np
@@ -70,10 +71,15 @@ class EndFrameDistanceTests(unittest.TestCase):
         self.assertIn("khác khoảng cách máy", r["why"])
         self.assertIn("× 0.6", r["why"])                               # the number is said
 
-    def test_p27_end_frame_21_kept_by_the_person_passes(self):
+    def test_end_frame_without_face_is_not_ok(self):
+        """V3 (rà gốc 13/10, G7): end_284_21 (Kelly khuất sau tường) was kept as "same distance" → 907 jumped 0,6 s. The background
+        matches (scale ≈ 1) but the person's size could not be compared — not measured is never ok=True (CHUAN_XAY_DUNG)."""
         r = fg.end_frame_distance(F("s16_start_job836.jpg"), F("s16_end21_kept.jpg"))
-        self.assertIs(r["ok"], True)
+        self.assertIsNot(r["ok"], True)
+        self.assertIsNone(r["ok"])
         self.assertAlmostEqual(r["scale"], 1.0, delta=0.03)
+        self.assertIn("cỡ người", r["note"])
+        self.assertIn("corner", r)                                     # V12 reads the background shift too
 
     def test_camera_pulled_back_is_flagged_by_the_background(self):
         start = cv2.imread(F("s16_end21_kept.jpg"))
@@ -138,6 +144,67 @@ class ClipFramingTests(unittest.TestCase):
     def test_a_cut_is_red(self):
         r = fg.clip_framing(F("s17_job915_kling_kept.mp4"), F("s17_start_job910.jpg"), cuts=[0.4])
         self.assertEqual(r["kinds"], ["cut"])
+
+    def test_end_frame_architecture_drift_flags(self):
+        """V2 (rà gốc 13/10, G6): the camera stays, frame 0 keeps the start picture, but the model redraws the architecture as the clip
+        goes (858: a clock face added) — the LAST frame against the start picture is measured too → ĐỎ "frame_end"."""
+        start = cv2.imread(F("s17_start_job910.jpg"))
+        other = cv2.resize(cv2.imread(F("s16_start_job836.jpg")), (start.shape[1], start.shape[0]))
+        redrawn = start.copy()
+        w = start.shape[1]
+        redrawn[:, w // 6:] = other[:, w // 6:]                        # most of the building replaced, the camera unmoved
+        frames = [start] * 16 + [redrawn] * 8
+        clip = _write_clip(os.path.join(self.tmp, "drift.mp4"), frames)
+        r = fg.clip_framing(clip, F("s17_start_job910.jpg"))
+        self.assertEqual(r["flag"], "framing")
+        self.assertIn("frame_end", r["kinds"])
+        self.assertNotIn("frame0", r["kinds"])
+        self.assertIn("khung cuối clip", r["why"])
+        self.assertIn("kiến trúc", r["suggest"])
+
+    def test_end_frame_drift_not_flagged_on_kept_clips(self):
+        for clip, pic in (("s17_job903_seedance_kept.mp4", "s17_start_job893.jpg"), ("s17_job915_kling_kept.mp4", "s17_start_job910.jpg")):
+            r = fg.clip_framing(F(clip), F(pic))
+            self.assertNotIn("frame_end", r.get("kinds") or [], clip)
+            self.assertIsNotNone(r.get("frame_end"), clip)            # measured, the numbers kept
+
+    # ---- R5 (rà S3): V2 judges the camera over the WHOLE clip and masks the person ------------------------------------------------
+    def _frames_clip(self, frames, fps=4.0):
+        pic = os.path.join(self.tmp, "start.png")
+        cv2.imwrite(pic, frames[0])
+        return pic, unittest.mock.patch.object(fg, "_clip_frames", return_value=(frames, fps))
+
+    def test_end_drift_not_flagged_when_camera_pans_in_second_half(self):
+        """12 still samples, then the camera pans 80 % of the frame across a wide place: the last frame shows another view BY the pan
+        (old: only the first half was looked at → 'camera still' → ĐỎ frame_end, the clip held for the person)."""
+        a = cv2.imread(F("s17_start_job910.jpg"))
+        h, w = a.shape[:2]
+        b = cv2.resize(cv2.imread(F("s16_start_job836.jpg")), (w, h))
+        canvas = np.concatenate([a, b], axis=1)
+        frames = [canvas[:, :w].copy() for _ in range(12)]
+        frames += [canvas[:, int(0.8 * w * k / 12):int(0.8 * w * k / 12) + w].copy() for k in range(1, 13)]
+        pic, patch = self._frames_clip(frames)
+        with patch:
+            r = fg.clip_framing("clip.mp4", pic)
+        self.assertNotIn("frame_end", r.get("kinds") or [])
+        self.assertEqual((r.get("frame_end") or {}).get("camera"), "moves")
+
+    def test_end_drift_not_flagged_when_person_walks_toward_camera(self):
+        """The camera stays, the person walks up to it and covers 75 % of the last frame: their box (YuNet, here patched) is masked
+        before the last frame is compared with the start picture — not 'architecture redrawn'."""
+        a = cv2.imread(F("s17_start_job910.jpg"))
+        h, w = a.shape[:2]
+        frames = [a.copy() for _ in range(16)]
+        for k in range(1, 9):
+            f = a.copy()
+            half = int(w * (0.1 + 0.275 * k / 8))
+            f[:, w // 2 - half:w // 2 + half] = 70
+            frames.append(f)
+        pic, patch = self._frames_clip(frames)
+        box = [(0.125, 0.0, 0.875, 1.0)]
+        with patch, unittest.mock.patch.object(fg, "person_boxes", return_value=box, create=True):
+            r = fg.clip_framing("clip.mp4", pic)
+        self.assertNotIn("frame_end", r.get("kinds") or [])
 
     def test_nothing_to_measure_is_said(self):
         flat = [np.full((854, 480, 3), 90, np.uint8) for _ in range(12)]
@@ -287,10 +354,70 @@ class RunnerEndFrameTests(unittest.TestCase):
         self.assertIn("KHÔNG kèm khung cuối", said[0])
         self.assertIn("× 0.7", said[0])
 
+    def _action(self, action):
+        data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.sid,)).fetchone()["data"])
+        data["action"] = action
+        data.pop("motion_en", None)
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), self.sid))
+        self.p.conn.commit()
+
     def test_same_distance_end_frame_is_sent(self):
+        """Same background, nobody acting: the person's size not compared is said (VÀNG), the end frame still goes."""
         flags_on(self, fg.FLAG)
+        self._action("Kenta stands still, looking at the sky")
         cv2.imwrite(self.drawn, cv2.imread(F("s16_end21_kept.jpg")))
+        with unittest.mock.patch.object(fg, "face_height", return_value=0.12):
+            fg._END_CACHE.clear()
+            self.assertEqual(self.vr._end_frame(self.job, "kling"), self.drawn)
+        fg._END_CACHE.clear()
+        self.assertEqual(self.vr._end_frame(self.job, "kling"), self.drawn)          # not measured + no body action: sent, said
+        self.assertTrue(any("chưa đo được" in m for m in self._said()))
+
+    def test_unmeasured_end_frame_of_a_moving_person_is_not_sent(self):
+        """V3: no face in the end frame (Kelly behind the wall, end_284_21) + a body action → the end frame is NOT sent (VÀNG)."""
+        flags_on(self, fg.FLAG)
+        self._action("Kenta runs behind the wall and crouches down")
+        cv2.imwrite(self.drawn, cv2.imread(F("s16_end21_kept.jpg")))
+        fg._END_CACHE.clear()
+        self.assertIsNone(self.vr._end_frame(self.job, "kling"))
+        said = self._said()
+        self.assertEqual(len(said), 1)
+        self.assertIn("KHÔNG kèm khung cuối", said[0])
+        self.assertIn("cỡ người", said[0])
+
+    def test_unmeasured_end_frame_of_a_shooting_person_is_sent_yellow(self):
+        """R6 (rà S3): V3 drops an unmeasured end frame only for a person MOVING THROUGH SPACE (spec) — a person shooting in place
+        whose end frame shows no face (hidden / turned away on purpose) keeps it, said VÀNG."""
+        flags_on(self, fg.FLAG)
+        self._action("Kenta shoots at the enemy")
+        cv2.imwrite(self.drawn, cv2.imread(F("s16_end21_kept.jpg")))
+        fg._END_CACHE.clear()
         self.assertEqual(self.vr._end_frame(self.job, "kling"), self.drawn)
+        self.assertTrue(any("vẫn gửi" in m for m in self._said()))
+
+    def test_card_says_dropped_end_frame(self):
+        """R3 (rà S3): the runner dropped the drawn end frame (another distance) — the Bước 4 card must not say it goes with the clip."""
+        from dashboard import end_frame_ui
+        flags_on(self, fg.FLAG)
+        fg._END_CACHE.clear()
+        self.assertIsNone(self.vr._end_frame(self.job, "kling"))
+        with unittest.mock.patch.object(end_frame_ui, "st") as st:
+            st.button.return_value = False
+            end_frame_ui.card_block(self.p, self.pid, self.sid, lambda f: f())
+        captions = [str(c) for c in st.image.call_args_list] + [str(c) for c in st.caption.call_args_list]
+        self.assertFalse(any("gửi kèm clip" in c for c in captions), captions)
+        self.assertTrue(any("KHÔNG gửi" in c for c in captions), captions)
+
+    def test_skill_object_appearing_shot_gets_no_drawn_end_frame(self):
+        """V3: a shot where the skill object appears (thrown glue wall) goes without the drawn end frame — the build is the code
+        composite (hard cut), never a model morphing towards a wall standing in the last frame."""
+        flags_on(self, fg.FLAG)
+        self._action("Kenta stands still")
+        with unittest.mock.patch("core.skill_objects.rises", return_value=True),                 unittest.mock.patch("core.skill_objects.enabled", return_value=True):
+            self.assertIsNone(self.vr._end_frame(self.job, "kling"))
+        said = [r["message"] for r in self.p.conn.execute("SELECT message FROM diag_events WHERE code='end_frame_skill_object'")]
+        self.assertEqual(len(said), 1)
+        self.assertIn("GHÉP", said[0])
 
     def test_pregen_says_it_yellow(self):
         from core import video_pregen

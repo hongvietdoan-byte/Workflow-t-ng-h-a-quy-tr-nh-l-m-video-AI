@@ -1,8 +1,10 @@
 """Hộp thư 12/10 18:13 (#27 shot 3, job 782 → 783): a run / walk generated much longer than the shot gets no drawn end frame, and a run
 the camera follows gets the ground sentence — flag locomotion_end_frame (off by default: the old text and the old send, byte for byte)."""
 import json
+import os
 import tempfile
 import unittest
+from unittest import mock
 
 from core import end_frames, llm_runner, motion_physics, video_pregen
 from core.providers import MockImageProvider, MockVideoProvider
@@ -87,6 +89,66 @@ class RunnerEndFrameTests(unittest.TestCase):
         self.p.conn.execute("UPDATE motion_prompts SET duration_sec=3 WHERE scene_id=?", (self.sid,))
         self.p.conn.commit()
         self.assertEqual(self.vr._end_frame(self.job, "kling"), self.drawn)
+
+    def test_sprint_end_frame_same_scale_dropped(self):
+        """V12 (rà gốc 13/10, G12): the clip is as long as the shot (no stretch), the camera follows the run, but the drawn end frame
+        shows the background at the SAME size as the start picture (no ground covered) → not sent, said (needs framing_guard: the
+        OpenCV measure). A end frame where the destination grew is sent."""
+        import cv2
+        from core import framing_guard, shots
+        from tests.test_framing_guard import F, _zoomed
+        flags_on(self, "locomotion_end_frame", framing_guard.FLAG)
+        self.p.conn.execute("UPDATE motion_prompts SET duration_sec=3 WHERE scene_id=?", (self.sid,))
+        self.p.conn.commit()
+        start = shots.approved_image_path(self.p.conn, self.data, self.pid, shots.image_scene(self.p.conn, self.sid))
+        pic = cv2.imread(F("s16_end21_kept.jpg"))
+        cv2.imwrite(start, pic)
+        cv2.imwrite(self.drawn, pic)                                                      # same place, same size: ran in place
+        framing_guard._END_CACHE.clear()
+        self.assertIsNone(self.vr._end_frame(self.job, "kling"))
+        said = self._said()
+        self.assertEqual(len(said), 1)
+        self.assertIn("cùng cỡ", said[0])
+        self.assertIn("KHÔNG kèm khung cuối", said[0])
+        cv2.imwrite(self.drawn, _zoomed(pic, 1.10))                                       # the destination grew: ground covered
+        framing_guard._END_CACHE.clear()
+        self.vr._said_once = set()
+        with mock.patch.object(framing_guard, "face_height", return_value=0.12):
+            self.assertEqual(self.vr._end_frame(self.job, "kling"), self.drawn)
+
+    def test_same_ground_ignores_matching_person_on_new_background(self):
+        """R4 (rà S3): the person fills the middle of both frames (same size, same place — the camera follows), the ground on both sides
+        is another place: RANSAC used to lock on the person (× 1,00, corner 0) and drop a RIGHT end frame. The person's box is masked
+        (YuNet, here patched) → no verdict. The same place with the person masked is still judged."""
+        import cv2
+        from core import framing_guard
+        from tests.test_framing_guard import F
+        tmp = tempfile.mkdtemp()
+        a = cv2.imread(F("s17_start_job910.jpg"))
+        h, w = a.shape[:2]
+        b = cv2.resize(cv2.imread(F("s16_start_job836.jpg")), (w, h))
+        person = cv2.resize(cv2.imread(F("s16_end16_far.jpg")), (w, h))
+        x0, x1 = int(w * 0.3), int(w * 0.7)
+        start, end = a.copy(), b.copy()
+        start[:, x0:x1] = person[:, x0:x1]
+        end[:, x0:x1] = person[:, x0:x1]
+        sp, ep = os.path.join(tmp, "s.png"), os.path.join(tmp, "e.png")
+        cv2.imwrite(sp, start)
+        cv2.imwrite(ep, end)
+        run = {"action": "Kenta sprints toward the gate", "camera_move": "follow"}
+        box = [(0.28, 0.0, 0.72, 1.0)]
+        with mock.patch.object(framing_guard, "person_boxes", return_value=box, create=True):
+            self.assertIsNone(motion_physics.same_ground(run, framing_guard.end_frame_distance(sp, ep)))
+            self.assertTrue(motion_physics.same_ground(run, framing_guard.end_frame_distance(sp, sp)))
+
+    def test_same_ground_needs_a_followed_run(self):
+        m = {"scale": 1.0, "corner": 0.01}
+        run = {"action": "Kenta sprints toward the gate", "camera_move": "follow"}
+        self.assertTrue(motion_physics.same_ground(run, m))
+        self.assertIsNone(motion_physics.same_ground(dict(run, camera_move="static"), m))   # the person crosses a still frame
+        self.assertIsNone(motion_physics.same_ground({"action": "Kenta waves", "camera_move": "follow"}, m))
+        self.assertIsNone(motion_physics.same_ground(run, {"scale": 1.12, "corner": 0.06}))
+        self.assertIsNone(motion_physics.same_ground(run, {"scale": None}))
 
     def test_pregen_says_it_yellow(self):
         flags_on(self, "locomotion_end_frame")
