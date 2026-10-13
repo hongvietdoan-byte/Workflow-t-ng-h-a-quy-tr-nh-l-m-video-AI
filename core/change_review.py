@@ -362,9 +362,12 @@ def claude_review(conn, ev, keys, scene_ids, code_found, client) -> float:
             _add(conn, ev["id"], _project_of(conn, sid) if sid else pid, sid, "claude", lvl, it["khau"], it["ly_do"], it.get("de_xuat"))
             seen.add((sid, it["khau"]))
     if ev["kind"] in SHOT_KINDS and ev["scene_id"]:       # shot vừa đổi được rà lại: mục Claude cũ của CHÍNH nó không còn → đã sửa
+        # R9 (rà S4): chỉ đóng mục thuộc khâu mà các khóa VỪA ĐỔI chạm tới (WATCH) — prompt chỉ hỏi về các khóa đó, nên Claude không
+        # nhắc lại mục ảnh/nền/thoại cũ KHÔNG có nghĩa là đã sửa (sửa motion không được mở chặn gen của mục ảnh còn sai)
+        touched = {kh for k in keys for kh in WATCH.get(k, ())}
         for row in conn.execute("SELECT id, khau FROM change_findings WHERE source='claude' AND status='open' AND scene_id=?",
                                 (ev["scene_id"],)).fetchall():
-            if (ev["scene_id"], row[1]) not in seen:
+            if row[1] in touched and (ev["scene_id"], row[1]) not in seen:
                 conn.execute("UPDATE change_findings SET status='resolved', resolved_at=?, resolved_by='claude' WHERE id=?",
                              (_now(), row[0]))
     return usd

@@ -298,6 +298,60 @@ class ChangeReview(unittest.TestCase):
         self.assertEqual(client.calls, [])
         self.assertEqual(self.pending(), [])
 
+    # ---- vòng sửa sau rà S4 ----------------------------------------------------------------------------------------------------------
+    def test_motion_edit_keeps_open_image_finding(self):
+        # R9: lần rà một sửa motion chỉ hỏi về motion_prompt → Claude không nhắc lại mục 'anh' cũ KHÔNG có nghĩa là đã sửa
+        os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_CHANGE_REVIEW_MOTION", None)
+        sid = self.ids[1]
+        self._motion(sid, "Kelly kneels by the well")
+        self.p.conn.execute("UPDATE change_events SET state='skipped'")
+        CR._add(self.p.conn, None, self.pid, sid, "claude", "do", "anh", "ảnh sai trang phục")
+        self._old_red(sid)
+        self.p.conn.commit()
+        self._motion(sid, "Kelly stands up and walks to the well")
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
+        st = dict(self.p.conn.execute("SELECT khau, status FROM change_findings WHERE scene_id=? AND source='claude'", (sid,)).fetchall())
+        self.assertEqual(st, {"anh": "open", "motion": "resolved"})
+        self.assertIn("ảnh sai trang phục", CR.blocking(self.p.conn, sid) or "")
+
+    def test_before_run_does_not_count_motion_when_flag_off(self):
+        # R13: cờ change_review_motion tắt → sửa motion prompt không bao giờ được rà → không báo "đang chờ Tổ rà soát"
+        from core import before_run as BR
+        sid = self.ids[1]
+        self._motion(sid, "push in")
+        self.p.conn.execute("UPDATE change_events SET state='skipped'")
+        self._motion(sid, "slow push in")
+        self.p.conn.execute("UPDATE change_events SET state='skipped' WHERE kind='scene'")
+        self.p.conn.commit()
+        self.assertEqual(len([e for e in self.pending() if e["kind"] == "motion"]), 1)
+        self.assertFalse([i for i in BR._review_items(self.p.conn, self.pid) if "đang chờ Tổ rà soát" in i["text"]])
+        os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_CHANGE_REVIEW_MOTION", None)
+        self.assertTrue([i for i in BR._review_items(self.p.conn, self.pid) if "1 thay đổi đang chờ Tổ rà soát" in i["text"]])
+
+    def test_director_rewrite_event_handling(self):
+        # R14 (mặc định chờ người dùng quyết): bản viết lại TỰ ĐỘNG motion prompt của Đạo diễn không bị rà (không giữ, 0 lời gọi);
+        # người sửa tay motion prompt sau đó vẫn được rà như thường
+        os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_CHANGE_REVIEW_MOTION", None)
+        from core import prompt_rewrite as PR
+        sid = self.ids[1]
+        self._motion(sid, "push in")
+        self.p.conn.execute("UPDATE change_events SET state='skipped'")
+        self.p.conn.commit()
+        jid = self.p.create_job(sid, "video_gen")
+        job = self.p.conn.execute("SELECT * FROM jobs WHERE id=?", (jid,)).fetchone()
+        PR.save_rewrite(self.p, job, PR.RewriteResult("slow push in, Kelly turns", ["thêm quay người"], "QC", 0, "push in"))
+        self.assertEqual(PR.current_prompt(self.p.conn, sid, "video"), "slow push in, Kelly turns")
+        self.assertEqual([e for e in self.pending() if e["kind"] == "motion"], [])
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+        client = FakeClient({"muc": []})
+        CR.process_pending(self.p.conn, self.tmp, client=client)
+        self.assertEqual(client.calls, [])
+        self._motion(sid, "hand edit")                                               # người sửa tay: vẫn rà
+        self.assertEqual(len([e for e in self.pending() if e["kind"] == "motion"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
