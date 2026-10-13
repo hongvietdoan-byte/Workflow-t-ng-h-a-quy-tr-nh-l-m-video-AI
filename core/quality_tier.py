@@ -130,6 +130,11 @@ def path(conn, scene_id: int) -> str:
     chosen = row["quality_path"] if row is not None else None
     if chosen in ("draft_first", "direct"):
         return chosen
+    if on_draft_route(conn, scene_id):
+        # lỗi 8 #27 (13/10, shot 18): shot đã vào tuyến nháp → bản cao (job video mới nhất là draft / final) GIỮ tuyến đó tới khi NGƯỜI
+        # chọn khác (quality_path) — nhãn 'easy' + nhóm Seedance tách theo độ dài prompt làm đường tự trôi sang 'direct' → gen lại ra job
+        # direct 896/901 gửi 2.5 480p không draft=True, không nâng 1080p được
+        return "draft_first"
     level = difficulty(conn, scene_id)["level"]
     if level is None:            # 09/10: chưa có nhãn (dự án cũ / chưa qua kiểm chéo) → kiểm chéo ngay: rõ khó → nháp, còn lại gen thẳng
         from . import shot_complexity
@@ -140,6 +145,15 @@ def path(conn, scene_id: int) -> str:
             data = {}
         return "draft_first" if shot_complexity.score(data)["suggest"] == "complex" else "direct"
     return "direct" if level == "easy" else "draft_first"
+
+
+def on_draft_route(conn, scene_id: int) -> bool:
+    """Job video mới nhất của shot (bỏ job đã hủy / hỏng — gửi lại, bị thay, lỗi nhà cung cấp) mang bậc draft / final: shot đang ở
+    tuyến nháp → bản cao. Job mới nhất không có bậc (quality_tier NULL — trước N1 / lúc cờ tắt) = không dính (theo nhãn như cũ).
+    Về "tự động" (quality_path NULL) không thoát tuyến này — người thoát bằng cách chọn rõ gen thẳng / mức khác 1080p."""
+    row = conn.execute("SELECT quality_tier FROM jobs WHERE scene_id=? AND type='video_gen' AND state NOT IN ('cancelled','failed') "
+                       "ORDER BY id DESC LIMIT 1", (scene_id,)).fetchone()
+    return row is not None and row["quality_tier"] in ("draft", "final")
 
 
 def set_path(conn, scene_id: int, value: str) -> None:
@@ -159,6 +173,12 @@ def tier_for_new_job(conn, scene_id: int, parent_job_id: Optional[int] = None) -
             # đường MỚI — kế thừa bậc cũ làm job 'final' bị chặn "đầu vào đã đổi sau khi duyệt nháp" và hỏng, không ra clip
             now = group_path(conn, scene_id)
             if (parent["quality_tier"] == "direct") == (now == "direct"):
+                if parent["quality_tier"] == "final" and parent["draft_job_id"]:
+                    # lỗi 8 #27 (872 → 896): gen lại bản cao mà nháp của nó đã cũ (ảnh vẽ lại / motion đổi) → bản cao từ nháp đó bị chặn
+                    # "đầu vào đã đổi" — tuyến đúng là nháp MỚI từ đầu vào mới rồi mới nâng bản cao
+                    draft = conn.execute("SELECT * FROM jobs WHERE id=?", (parent["draft_job_id"],)).fetchone()
+                    if draft is None or draft_stale_reason(conn, draft):
+                        return {"quality_tier": "draft", "draft_job_id": None}
                 return {"quality_tier": parent["quality_tier"], "draft_job_id": parent["draft_job_id"]}
     # rà F3: theo đường của NHÓM gen chung (group_path) — e1_choice gửi cả nhóm bằng nháp 2.5 480p khi có shot khó, nên job của shot dễ
     # trong nhóm đó cũng là `draft` (không thì đi bậc direct: 2.5 480p KHÔNG kèm draft=True, không nâng 1080p được)
@@ -491,6 +511,14 @@ def final_route(conn, job, provider) -> Dict:
     if not meta or not meta.get("is_draft") or expiry <= time.time():
         return {"from_sample": None, "why": "bản nháp đã hết hạn ở nhà cung cấp"}
     return {"from_sample": draft["external_id"], "why": None}
+
+
+def draft_resolution_sent(choice: Dict, kwargs: Dict) -> bool:
+    """Lần gửi này là Seedance 2.5 ở 480p do ĐƯỜNG NHÁP (E1 draft_first, hoặc 1080p chỉ có qua nâng — `final_resolution`), không phải
+    người tự chọn 480p gen thẳng: gửi như vậy mà thiếu draft=True thì không nâng được (lỗi 8 #27)."""
+    if kwargs.get("resolution") != DRAFT_RESOLUTION or _canonical(choice.get("model"))[0] != SAMPLE_MODEL:
+        return False
+    return choice.get("e1") == "draft_first" or bool(choice.get("final_resolution"))
 
 
 def low_tier(kwargs: Dict, model: Optional[str]) -> Dict:

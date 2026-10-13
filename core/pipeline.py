@@ -370,25 +370,27 @@ class Pipeline:
         if who is None and parent_job_id is not None:   # a retry made by the system belongs to whoever started the original
             row = self.conn.execute("SELECT created_by FROM jobs WHERE id=?", (parent_job_id,)).fetchone()
             who = row["created_by"] if row else None
+        tier = None
+        if job_type == "video_gen":
+            from . import quality_tier as _qt
+            if _qt.enabled():          # lỗi 8 #27: tính TRƯỚC khi chèn — dòng mới (bậc NULL) không được che tuyến nháp của shot
+                tier = ({"quality_tier": quality_tier, "draft_job_id": draft_job_id} if quality_tier
+                        else _qt.tier_for_new_job(self.conn, scene_id, parent_job_id))
         cur = self.conn.execute(
             "INSERT INTO jobs (project_id, scene_id, type, state, parent_job_id, retry_count,"
             " retry_reason, created_at, updated_at, created_by, origin) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (project_id, scene_id, job_type, JobState.QUEUED.value, parent_job_id, retry_count,
              retry_reason, now, now, who, origin or self.origin))
-        if job_type == "video_gen":
-            from . import quality_tier as _qt
-            if _qt.enabled():
-                tier = ({"quality_tier": quality_tier, "draft_job_id": draft_job_id} if quality_tier
-                        else _qt.tier_for_new_job(self.conn, scene_id, parent_job_id))
-                self.conn.execute("UPDATE jobs SET quality_tier=?, draft_job_id=? WHERE id=?",
-                                  (tier["quality_tier"], tier["draft_job_id"], cur.lastrowid))
-                if tier["quality_tier"] == "final" and parent_job_id is not None:
-                    # rà F3: a plain resend (same input, provider failure) of a final the person said yes to keeps that yes — a fix
-                    # sentence is not the same request (quality_tier.needs_confirm has its own rule for it)
-                    from .runner import model_fix
-                    par = self.conn.execute("SELECT confirm_new FROM jobs WHERE id=?", (parent_job_id,)).fetchone()
-                    if par is not None and par["confirm_new"] and not model_fix(retry_reason):
-                        self.conn.execute("UPDATE jobs SET confirm_new=? WHERE id=?", (par["confirm_new"], cur.lastrowid))
+        if tier is not None:
+            self.conn.execute("UPDATE jobs SET quality_tier=?, draft_job_id=? WHERE id=?",
+                              (tier["quality_tier"], tier["draft_job_id"], cur.lastrowid))
+            if tier["quality_tier"] == "final" and parent_job_id is not None:
+                # rà F3: a plain resend (same input, provider failure) of a final the person said yes to keeps that yes — a fix
+                # sentence is not the same request (quality_tier.needs_confirm has its own rule for it)
+                from .runner import model_fix
+                par = self.conn.execute("SELECT confirm_new FROM jobs WHERE id=?", (parent_job_id,)).fetchone()
+                if par is not None and par["confirm_new"] and not model_fix(retry_reason):
+                    self.conn.execute("UPDATE jobs SET confirm_new=? WHERE id=?", (par["confirm_new"], cur.lastrowid))
         self._event(cur.lastrowid, None, JobState.QUEUED, "system", retry_reason)
         self.conn.commit()
         return cur.lastrowid
