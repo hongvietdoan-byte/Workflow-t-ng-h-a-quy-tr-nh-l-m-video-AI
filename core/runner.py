@@ -289,6 +289,10 @@ class _Runner:
         """Hook after a result is downloaded (v3: a shot clip is cut to the shot's length). Returns the final path."""
         return path
 
+    def _superseded(self, job) -> Optional[str]:
+        """Why a finished take must not become the shot's file (video: a final of a draft that is no longer the approved one), or None."""
+        return None
+
     # ---- shared ----------------------------------------------------------
     def _dir(self, project_id: int, kind: str) -> str:
         directory = os.path.join(self.data_dir, str(project_id), kind)
@@ -618,7 +622,8 @@ class _Runner:
             elif status.state == "succeeded":
                 try:
                     target = self._dest_path(job)
-                    if self.job_type == "video_gen":     # KLD-2 (08/10): the older take keeps its file (trash) + its result_path
+                    aside = self._superseded(job)
+                    if self.job_type == "video_gen" and not aside:   # KLD-2 (08/10): the older take keeps its file (trash) + its result_path
                         from . import takes
                         takes.make_room(self.p.conn, self.data_dir, job, target)
                     else:
@@ -653,6 +658,11 @@ class _Runner:
                 self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, job["id"]))
                 self.p.conn.commit()
                 self.p.succeed(job["id"])
+                if aside:                              # 13/10: paid for, kept aside under its own name, never the shot's take
+                    self._diag(job, "warn", "superseded_final", f"bản cao xong nhưng {aside} — để riêng {os.path.basename(dest)}, "
+                                                                "cho nghỉ (không thay clip của shot)")
+                    from . import quality_tier
+                    quality_tier.retire_superseded_finals(self.p, job["scene_id"])
                 if THROTTLE.on_success(self.job_type):
                     self._throttle_changed()
                 counts["succeeded"] += 1
@@ -792,6 +802,7 @@ class VideoRunner(_Runner):
         from . import lineage, quality_tier
         if quality_tier.enabled() and "quality_tier" in job.keys() and job["quality_tier"] == "final":
             gate = quality_tier.final_block(self.p.conn, job["scene_id"])   # N1: no final from an unapproved / outdated draft
+            gate = gate or quality_tier.superseded_by(self.p.conn, job)    # 13/10: a final of an older draft — a newer one is approved
             if gate:
                 return f"bản cao bị chặn: {gate}"
             if not job["external_id"]:          # F3 (#24): a final that cannot come from its draft is a NEW paid gen — never unasked
@@ -1856,7 +1867,12 @@ class VideoRunner(_Runner):
 
     def _dest_path(self, job) -> str:
         idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["idx"]
-        return os.path.join(self._dir(job["project_id"], "videos"), f"{idx:02d}.mp4")
+        name = f"{idx:02d}_final{job['id']}_nhap_cu.mp4" if self._superseded(job) else f"{idx:02d}.mp4"   # 13/10: never over NN.mp4
+        return os.path.join(self._dir(job["project_id"], "videos"), name)
+
+    def _superseded(self, job) -> Optional[str]:
+        from . import quality_tier
+        return quality_tier.superseded_by(self.p.conn, job)
 
     def _after_download(self, job, path: str) -> str:
         """v3 shot rows: the model makes at least 3-4 s, a shot may be shorter -> keep the full clip as <idx>_raw.mp4 and cut the

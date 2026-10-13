@@ -157,7 +157,7 @@ def choose(p, data_dir: str, job_id: int, note: Optional[str] = None) -> None:
         p._log_review(job_id, "user", "approve", why)
         p.transition(job_id, JobState.APPROVED, actor="user", note=why)
     elif state in (JobState.SUCCEEDED, JobState.PENDING_REVIEW):
-        p.approve(job_id, "user", why)
+        p.approve(job_id, "user", why, picked=True)
     conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (sid,))
     conn.commit()
     mark(conn, sid, job_id)

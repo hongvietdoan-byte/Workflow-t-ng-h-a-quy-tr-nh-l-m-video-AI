@@ -1004,9 +1004,7 @@ def _approve_unflagged(p: Pipeline, pid: int, kind: str) -> List[str]:
 def _approve_held(p: Pipeline, pid: int, kind: str, note: str) -> int:
     """The person looked and went on: what was held for them counts as accepted."""
     rows = p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type=? AND state='pending_review'", (pid, kind)).fetchall()
-    for r in rows:
-        p.approve(r["id"], "user", note)
-    return len(rows)
+    return sum(1 for r in rows if p.approve(r["id"], "user", note))   # 13/10: a final of an older draft is retired, not counted
 
 
 def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:

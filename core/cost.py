@@ -602,7 +602,9 @@ def _video_need(conn, scene_id: int) -> Dict:
     if mp["spec_hash"] and mp["spec_hash"] != lineage.motion_spec_hash(data):
         return {"needed": True, "reason": "motion chưa cập nhật theo nội dung shot"}
     for job in conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN ('succeeded','approved','pending_review') ORDER BY id DESC", (scene_id,)):
-        from . import final_cut
+        from . import final_cut, quality_tier
+        if job["state"] in quality_tier._RETIRABLE and quality_tier.superseded_by(conn, job):   # 13/10: as state() — a final of an older draft is not this shot's clip
+            continue
         size = final_cut.measured_size(job["result_path"])
         if job["quality_tier"] == "draft" or (size and min(size) < 720):
             reason = "clip nháp dưới chuẩn bản giao — nâng 1080p hoặc gen ≥ 720p"

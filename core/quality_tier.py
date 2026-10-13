@@ -13,7 +13,7 @@ Cờ bật:
 - Mọi lần gen lại phải đổi đầu vào theo lỗi lần trước (`regen_refusal`, CHUAN_XAY_DUNG luật 3)."""
 import json
 import time
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 TIERS = ("draft", "final", "direct")
 PATHS = ("auto", "draft_first", "direct")
@@ -279,9 +279,63 @@ def final_source_problem(conn, scene_id: int) -> Optional[str]:
     return None
 
 
+_RETIRABLE = ("queued", "retryable") + _REVIEW    # bản cao chưa gửi / chờ gửi lại / đã xong chờ duyệt — "running" = đang tốn tiền, giữ
+
+
+def superseded_by(conn, job, ok=None) -> Optional[str]:
+    """Bản cao `job` làm từ một nháp KHÔNG còn là nháp người duyệt mới nhất (13/10 #27 shot 5: final 855 từ nháp 788 kẹt chờ duyệt
+    trong khi nháp 878 mới được duyệt → shot hiện "Bản cao · chờ duyệt", request_final từ chối): lý do tiếng Việt, hoặc None.
+    `ok` = approved_draft(conn, scene) nếu đã có sẵn. Job không phải final / không gắn nháp → None."""
+    if "quality_tier" not in job.keys() or job["quality_tier"] != "final" or not job["draft_job_id"]:
+        return None
+    ok = ok if ok is not None else approved_draft(conn, job["scene_id"])
+    if ok is not None:
+        if job["draft_job_id"] == ok["id"]:
+            return None
+        return (f"làm từ nháp cũ #{job['draft_job_id']} — nháp #{ok['id']} mới được duyệt" if job["draft_job_id"] < ok["id"]
+                else f"nháp #{job['draft_job_id']} của bản cao này không còn được duyệt")
+    draft = conn.execute("SELECT state FROM jobs WHERE id=?", (job["draft_job_id"],)).fetchone()
+    if draft is None or draft["state"] != "approved":
+        return f"nháp #{job['draft_job_id']} của bản cao này không còn được duyệt"
+    return None
+
+
+def retire_superseded_finals(p, scene_id: int, actor: str = "system") -> List[int]:
+    """Nháp mới vừa được NGƯỜI duyệt (Pipeline.approve / keep_rejected), bản cao đang chạy vừa xong (runner), hoặc có người/QC bấm
+    duyệt một bản cao đã bị thay (Pipeline.approve, dữ liệu cũ): bản cao làm từ nháp không còn là nháp duyệt mới nhất mà chưa gửi /
+    đang chờ duyệt thì cho nghỉ — chưa gửi (queued / retryable) → cancelled, đã xong (succeeded / pending_review) → rejected — kèm ghi
+    chú trong job_events; không ghi review_log (không phải người/QC chấm clip). Bản cao đang chạy ở nhà cung cấp (running) để nguyên:
+    tiền đã trả, state() vẫn tính. Gỡ cờ escalated (rà 13/10: autopilot._blocked_scenes đếm job escalated đã loại = "hết số lần
+    thử"); take của shot đang trỏ vào bản vừa nghỉ (takes.used = job mới nhất khi chưa chọn) → chọn lại nháp người đã duyệt.
+    Trả về id các job đã cho nghỉ."""
+    from . import takes
+    from .states import JobState
+    conn = p.conn
+    ok = approved_draft(conn, scene_id)
+    done = []
+    for j in _video_jobs(conn, scene_id):
+        if j["state"] not in _RETIRABLE:
+            continue
+        why = superseded_by(conn, j, ok)
+        if not why:
+            continue
+        to = JobState.CANCELLED if j["state"] in ("queued", "retryable") else JobState.REJECTED
+        p.transition(j["id"], to, actor=actor, note=f"bản cao cho nghỉ: {why}")
+        conn.execute("UPDATE jobs SET escalated=0 WHERE id=?", (j["id"],))
+        done.append(j["id"])
+    if done:
+        conn.commit()
+        used = takes.used(conn, scene_id)
+        if ok is not None and used is not None and used["id"] in done:
+            takes.mark(conn, scene_id, ok["id"])
+    return done
+
+
 def state(conn, scene_id: int) -> str:
-    """Một trong STATES, suy từ jobs + review_log. Job video không mang bậc (trước N1) tính như gen thẳng."""
-    jobs = _video_jobs(conn, scene_id)
+    """Một trong STATES, suy từ jobs + review_log. Job video không mang bậc (trước N1) tính như gen thẳng.
+    13/10: bản cao làm từ nháp cũ (superseded_by) chưa gửi / chờ duyệt không tính — shot theo nháp mới nhất người đã duyệt."""
+    ok_draft = approved_draft(conn, scene_id)
+    jobs = [j for j in _video_jobs(conn, scene_id) if not (j["state"] in _RETIRABLE and superseded_by(conn, j, ok_draft))]
     tier = lambda j: j["quality_tier"] or "direct"   # noqa: E731
     from . import final_cut
     def deliverable(j):
@@ -298,7 +352,7 @@ def state(conn, scene_id: int) -> str:
     if any(tier(j) in ("final", "direct") and j["state"] in _REVIEW for j in jobs):
         return "final_review"           # 09/10 (người dùng, #24): bản cao đã gen xong, chờ duyệt — không phải "đang gen"
     drafts = [j for j in jobs if tier(j) == "draft"]
-    ok = approved_draft(conn, scene_id)
+    ok = ok_draft
     newer = [j for j in drafts if ok is None or j["id"] > ok["id"]]
     if any(j["state"] in _ACTIVE for j in newer):
         return "draft_running"

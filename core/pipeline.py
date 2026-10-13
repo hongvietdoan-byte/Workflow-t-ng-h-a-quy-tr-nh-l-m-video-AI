@@ -541,8 +541,7 @@ class Pipeline:
                             note=f"QC {overall:.2f} (suggestion only){suffix}")
             return "pending_review"
         if passed:
-            self.approve(job_id, "ai_agent", f"QC {overall:.2f} >= {threshold}")
-            return "approved"
+            return "approved" if self.approve(job_id, "ai_agent", f"QC {overall:.2f} >= {threshold}") else "rejected"
         if review_zone:
             self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent",
                             note=f"QC {overall:.2f} in review zone [{floor}, {threshold}){suffix}")
@@ -647,11 +646,29 @@ class Pipeline:
         self.conn.commit()
         return "needs_review"
 
-    def approve(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None) -> None:
+    def approve(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None, picked: bool = False) -> bool:
+        """True = approved. False = a final of a draft that is no longer the approved one, retired instead (13/10, reason in job_events).
+        `picked`: the person chose this very take (takes.choose — it rejects the other takes first, the final's own draft too)."""
         access.need_edit_job(self, job_id, "duyệt")
         self._require_reviewable(job_id)
+        job = self.job(job_id)
+        if job["type"] == "video_gen" and job["quality_tier"] == "final":
+            from . import quality_tier
+            if not picked and quality_tier.superseded_by(self.conn, job):
+                # 13/10 (#27 shot 5, dữ liệu cũ): a final of a draft that is no longer the approved one is never approved — it is
+                # retired with its reason (no exception: the QC / autopilot loops approve many jobs in a row)
+                quality_tier.retire_superseded_finals(self, job["scene_id"], actor=reviewer_type)
+                return False
         self._log_review(job_id, reviewer_type, "approve", note)
         self.transition(job_id, JobState.APPROVED, actor=reviewer_type, note=note)
+        self._retire_after_draft(job, reviewer_type)
+        return True
+
+    def _retire_after_draft(self, job, reviewer_type: str) -> None:
+        """13/10 (#27 shot 5): a newer draft approved by the person retires the finals of older drafts still unsent / waiting review."""
+        if reviewer_type == "user" and job["type"] == "video_gen" and job["quality_tier"] == "draft":
+            from . import quality_tier
+            quality_tier.retire_superseded_finals(self, job["scene_id"])
 
     def reapprove_image(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None) -> str:
         """11/10 (#24): the person confirms that an APPROVED image lineage marks outdated (the scene was edited after the approval)
@@ -777,6 +794,7 @@ class Pipeline:
         if job["type"] == "video_gen":                 # KLD-2 (08/10): the person's pick is the shot's take (chain, cut, stage map)
             from . import takes
             takes.mark(self.conn, job["scene_id"], job_id)
+        self._retire_after_draft(job, "user")
 
     def take_version(self, job_id: int) -> int:
         """vN of a take as the version strip shows it: its place among the shot's jobs of the same type (oldest = v1)."""

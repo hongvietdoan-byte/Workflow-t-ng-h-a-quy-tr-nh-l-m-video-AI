@@ -1,7 +1,9 @@
 """Khóa Đạo diễn chung theo CSDL/dự án; sổ riêng tránh commit giao dịch pipeline."""
+import atexit
 import contextlib
 import contextvars
 import ctypes
+import gc
 import os
 import re
 import sqlite3
@@ -134,6 +136,23 @@ def _path(conn):
         if conn not in _memory_paths:
             _memory_paths[conn] = os.path.join(tempfile.gettempdir(), f'director-{os.getpid()}-{uuid.uuid4().hex}.sqlite')
         return _memory_paths[conn]
+
+
+@atexit.register
+def _remove_memory_paths():
+    """Sổ khóa của CSDL `:memory:` (test) là file trong %TEMP% — xóa khi tiến trình thoát (13/10: mỗi lượt chạy cả bộ test để lại
+    ~370 file, tích tới ~435 000 file làm đầy ổ C). Sổ mở/đóng theo từng lần dùng (contextlib.closing);
+    file bị khóa / đã mất thì bỏ qua. gc trước: handle sổ mà test mở không đóng (Windows không xóa được file đang mở)."""
+    gc.collect()
+    with _memory_guard:
+        paths = list(_memory_paths.values())
+        _memory_paths.clear()
+    for path in paths:
+        for name in (path, path + '-journal', path + '-wal', path + '-shm'):
+            try:
+                os.remove(name)
+            except OSError:
+                pass
 
 
 def _open(path):

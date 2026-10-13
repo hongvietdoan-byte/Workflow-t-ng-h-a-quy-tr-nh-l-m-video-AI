@@ -3,6 +3,7 @@
 Cờ two_tier_quality TẮT = hành vi y như cũ (kể cả "Thử rẻ"); BẬT = bỏ qua test_quality, nháp → duyệt → bản cao, trần nháp 2 / bản cao 1,
 gen lại y nguyên bị từ chối (CHUAN_XAY_DUNG luật 3)."""
 import json
+import os
 import tempfile
 import time
 import unittest
@@ -13,7 +14,7 @@ from core.adapters.clipai import ClipAIVideoProvider
 from core.db import connect
 from core.pipeline import AUTO_LIMIT_CODE, Pipeline
 from core.runner import VideoRunner
-from core.states import InvalidTransition
+from core.states import InvalidTransition, JobState
 
 ON = mock.patch("core.quality_tier.enabled", return_value=True)
 OFF = mock.patch("core.quality_tier.enabled", return_value=False)
@@ -178,6 +179,145 @@ class FinalGateTests(Base):
             self.assertIn("đầu vào đã đổi", why)
             with self.assertRaises(ValueError):
                 quality_tier.request_final(self.p, self.s1)
+
+
+class SupersededFinalTests(Base):
+    """13/10 #27 shot 5: final 855 (từ nháp cũ 788) kẹt chờ duyệt → nháp mới 878 đã duyệt vẫn hiện final_review, request_final từ chối."""
+
+    def _final_of_draft_a_then_draft_b(self):
+        a = self.approved_draft()
+        f = quality_tier.request_final(self.p, self.s1)
+        self.made(f)
+        self.p.transition(f, JobState.PENDING_REVIEW)                         # như job 855: chờ người duyệt
+        self.assertEqual(quality_tier.state(self.p.conn, self.s1), "final_review")
+        b = self.approved_draft()
+        return a, f, b
+
+    def test_a_newer_approved_draft_retires_the_old_final_and_allows_a_new_one(self):
+        with ON:
+            a, f, b = self._final_of_draft_a_then_draft_b()
+            self.assertEqual(self.p.job(f)["state"], "rejected")
+            note = self.p.conn.execute("SELECT note FROM job_events WHERE job_id=? ORDER BY id DESC LIMIT 1", (f,)).fetchone()["note"]
+            self.assertIn(f"nháp cũ #{a}", note)
+            self.assertIn(f"#{b}", note)
+            self.assertIsNone(self.p.conn.execute("SELECT 1 FROM review_log WHERE job_id=? AND decision='reject'", (f,)).fetchone())
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "draft_ok")
+            f2 = quality_tier.request_final(self.p, self.s1)
+            self.assertEqual(self.p.job(f2)["draft_job_id"], b)
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "final_running")
+
+    def test_old_data_a_stuck_final_of_an_older_draft_does_not_count(self):
+        with ON:
+            a, f, b = self._final_of_draft_a_then_draft_b()
+            self.p.conn.execute("UPDATE jobs SET state='pending_review' WHERE id=?", (f,))   # dữ liệu cũ: job 855 chưa được cho nghỉ
+            self.p.conn.commit()
+            self.assertIn("nháp cũ", quality_tier.superseded_by(self.p.conn, self.p.job(f)))
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "draft_ok")
+            f2 = quality_tier.request_final(self.p, self.s1)
+            self.assertEqual(self.p.job(f2)["draft_job_id"], b)
+
+    def test_queued_final_of_an_older_draft_is_cancelled_and_the_runner_blocks_one_left_over(self):
+        with ON:
+            self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)                    # chưa gửi
+            self.approved_draft()
+            self.assertEqual(self.p.job(f)["state"], "cancelled")
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "draft_ok")
+            self.p.conn.execute("UPDATE jobs SET state='queued' WHERE id=?", (f,))            # dữ liệu cũ còn sót
+            self.p.conn.commit()
+            why = VideoRunner(self.p, _provider(), self.data)._blocked(self.p.job(f))
+            self.assertIn("bản cao bị chặn", why)
+            self.assertIn("nháp cũ", why)
+
+    def test_a_final_already_running_at_the_provider_still_counts(self):
+        with ON:
+            self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)
+            self.stamp(f)
+            self.p.start(f)                                                       # đã gửi, đang tốn tiền
+            self.approved_draft()
+            self.assertEqual(self.p.job(f)["state"], "running")
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "final_running")
+
+    def test_retired_final_is_no_longer_escalated(self):
+        """rà 13/10: autopilot._blocked_scenes đếm job escalated + rejected = 'hết số lần thử' — bản cao cho nghỉ không được kẹt cờ đó."""
+        with ON:
+            self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)
+            self.made(f)
+            self.p._hold(f, "giữ cho người")
+            self.approved_draft()
+            self.assertEqual((self.p.job(f)["state"], self.p.job(f)["escalated"]), ("rejected", 0))
+
+    def test_approving_a_stuck_final_of_an_older_draft_retires_it(self):
+        with ON:
+            a, f, b = self._final_of_draft_a_then_draft_b()
+            self.p.conn.execute("UPDATE jobs SET state='pending_review' WHERE id=?", (f,))   # dữ liệu cũ
+            self.p.conn.commit()
+            self.p.approve(f, "ai_agent", "QC cảnh: đạt")
+            self.assertEqual(self.p.job(f)["state"], "rejected")
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "draft_ok")
+
+    def test_final_of_a_newer_draft_that_lost_its_approval_does_not_count(self):
+        with ON:
+            a = self.approved_draft()
+            b = self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)
+            self.assertEqual(self.p.job(f)["draft_job_id"], b)
+            self.p.conn.execute("UPDATE jobs SET state='rejected' WHERE id=?", (b,))      # nháp B mất duyệt, còn nháp A
+            self.p.conn.commit()
+            self.assertIn(f"#{b}", quality_tier.superseded_by(self.p.conn, self.p.job(f)))
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "draft_ok")
+
+    def test_a_final_finishing_after_a_newer_draft_is_kept_aside_not_over_the_shot_clip(self):
+        with ON:
+            self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)
+            self.stamp(f)
+            self.p.start(f)                                                       # đang chạy ở nhà cung cấp
+            self.approved_draft()
+            prov = _provider()
+            prov.status = mock.Mock(return_value=mock.Mock(state="succeeded"))
+
+            def download(ext, target):
+                with open(target, "wb") as fh:
+                    fh.write(b"clip")
+                return target
+            prov.download = download
+            vr = VideoRunner(self.p, prov, self.data)
+            with mock.patch.object(vr, "_after_download", side_effect=lambda job, path: path):
+                vr._poll_once(self.pid)
+            job = self.p.job(f)
+            self.assertEqual(job["state"], "rejected")
+            self.assertTrue(job["result_path"].endswith(f"01_final{f}_nhap_cu.mp4"))
+            self.assertFalse(os.path.exists(os.path.join(os.path.dirname(job["result_path"]), "01.mp4")))
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "draft_ok")
+
+    def test_the_person_choosing_a_final_take_approves_it(self):
+        """rà vòng 2: takes.choose loại các take khác (cả nháp gốc) TRƯỚC khi duyệt bản được chọn — bản cao được chọn không bị cho nghỉ."""
+        from core import takes
+        with ON:
+            self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)
+            self.made(f)
+            self.p.transition(f, JobState.PENDING_REVIEW)
+            path = os.path.join(self.data, "final.mp4")
+            with open(path, "wb") as fh:
+                fh.write(b"clip")
+            self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (path, f))
+            self.p.conn.commit()
+            takes.choose(self.p, self.data, f)
+            self.assertEqual(self.p.job(f)["state"], "approved")
+            self.assertEqual(takes.used(self.p.conn, self.s1)["id"], f)
+
+    def test_the_qc_approving_a_draft_retires_nothing(self):
+        with ON:
+            self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)
+            d = self.p.create_job(self.s1, "video_gen")
+            self.made(d)
+            self.p.approve(d, "ai_agent")
+            self.assertEqual(self.p.job(f)["state"], "queued")
 
 
 class RunnerTierTests(Base):

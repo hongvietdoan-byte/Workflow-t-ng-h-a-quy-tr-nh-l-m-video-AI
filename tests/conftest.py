@@ -23,10 +23,42 @@ if os.environ.get("PIPELINE_TEST_REAL_DATA") != "1":
     os.makedirs(os.environ["KNOWLEDGE_USER_DIR"], exist_ok=True)
 
 
+_REAL_TEMP = tempfile.gettempdir()      # %TEMP% of the machine, read before _temp_in_tmp_path moves tempfile into tmp_path
+# 13/10 (người dùng): after every run the leftovers of EARLIER runs are deleted from %TEMP% — director_lease lease files of `:memory:`
+# databases and Python's tmpXXXXXXXX folders — only when older than the age below, so a run in another worktree right now keeps its files
+_OLD_TEMP = (("director-*.sqlite*", 3600), ("pipeline_test_data_*", 3600), ("tmp????????", 86400))
+
+
+def _remove_old_temp(now=None):
+    import glob
+    import re
+    import time
+    now = now or time.time()
+    removed = 0
+    for pattern, age in _OLD_TEMP:
+        for path in glob.glob(os.path.join(_REAL_TEMP, pattern)):
+            name = os.path.basename(path)
+            if pattern.startswith("tmp") and not (re.fullmatch(r"tmp[a-z0-9_]{8}", name) and os.path.isdir(path)):
+                continue                       # only Python's mkdtemp folders, never another program's tmp files
+            try:
+                if now - os.path.getmtime(path) < age:
+                    continue
+                if os.path.isdir(path):
+                    shutil.rmtree(path, ignore_errors=True)
+                else:
+                    os.remove(path)
+                removed += 1
+            except OSError:                    # in use / locked / already gone
+                pass
+    return removed
+
+
 def pytest_unconfigure(config):
     path = globals().get("_ISOLATED")
     if path:
         shutil.rmtree(path, ignore_errors=True)
+    if not hasattr(config, "workerinput") and os.environ.get("PIPELINE_TEST_KEEP_TEMP") != "1":   # the xdist controller only, once
+        _remove_old_temp()
 
 
 # core.runner keeps per-process memory keyed by job id; `:memory:` test databases restart job ids at 1, so a hold reason left by one test
@@ -40,4 +72,13 @@ def _fresh_runner_memory():
     if mod is not None:
         for name in _RUNNER_MEMORY:
             getattr(mod, name).clear()
+    yield
+
+
+# 13/10: tests never write into the machine's %TEMP% — every tempfile.mkdtemp / NamedTemporaryFile / director_lease's `:memory:` lease
+# file goes into the test's own tmp_path (pytest keeps only its last 3 runs). Before this each full run left ~370 director-*.sqlite and
+# many tmp* folders in %TEMP% (~435 000 files filled drive C on 12/10).
+@pytest.fixture(autouse=True)
+def _temp_in_tmp_path(tmp_path, monkeypatch):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     yield
