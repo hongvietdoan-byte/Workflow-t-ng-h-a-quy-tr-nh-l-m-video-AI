@@ -1110,6 +1110,14 @@ class VideoRunner(_Runner):
             return out
         if job["quality_tier"] == "draft":
             return quality_tier.low_tier(out, self._choice(job).get("model"))
+        if job["quality_tier"] == "direct" and quality_tier.draft_resolution_sent(self._choice(job), out):
+            # lỗi 8 #27 (896/901): bậc ghi lúc tạo job (direct) và đường lúc gửi (nháp 2.5 480p của nhóm) lệch → job 'direct' bị gửi 2.5
+            # 480p KHÔNG draft=True: không nâng 1080p được, không phải bản giao. Đường lúc gửi thắng: gửi như nháp, ghi lại bậc
+            self.p.conn.execute("UPDATE jobs SET quality_tier='draft', draft_job_id=NULL WHERE id=?", (job["id"],))
+            self.p.conn.commit()
+            self._diag_once(job, "info", "tier_to_draft", "job gen thẳng mà đường của shot lúc gửi là nháp Seedance 2.5 480p → gửi như NHÁP "
+                                                     "(draft=True, nâng 1080p được sau khi duyệt), không gửi 480p gen thẳng")
+            return quality_tier.low_tier(out, self._choice(job).get("model"))
         if job["quality_tier"] == "final":
             shared = self._final_shared_task(job)    # 12/10: one group clip upgraded once — the other shots are cut from it
             if shared:
@@ -2036,6 +2044,10 @@ class VideoRunner(_Runner):
                          (leader["id"], leader["external_id"], leader["model"] or "kling",
                           lineage.video_input_hash(mp, aspect) if mp else None,
                           lineage.approved_image_id(conn, shots.image_scene(conn, r["id"])), jid))
+            lead = conn.execute("SELECT quality_tier FROM jobs WHERE id=?", (leader["id"],)).fetchone()
+            if lead is not None and lead["quality_tier"] == "draft":
+                # lỗi 8 #27: leader gửi như nháp (kể cả đổi bậc lúc gửi) → phần của follower cũng là nháp 480p, không phải 'direct'
+                conn.execute("UPDATE jobs SET quality_tier='draft', draft_job_id=NULL WHERE id=? AND quality_tier='direct'", (jid,))
             _copy_package(conn, leader, jid)       # K1a: a follower was sent as part of the leader's request (paid once)
             self._running(jid, f"phần của clip nhóm (job {leader['id']})")   # T2: one transaction with the leader's task id (paid once)
             edges = self._clean_edges(self.p.job(jid), dest)
