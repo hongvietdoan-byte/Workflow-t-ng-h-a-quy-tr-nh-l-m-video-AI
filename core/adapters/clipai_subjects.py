@@ -12,6 +12,7 @@ Contract source: clipai 1.3.1 reference ("Personal Seedance subject workflow"):
 """
 import hashlib
 import os
+import re
 import time
 from typing import Callable, Dict, List, Optional
 
@@ -23,8 +24,23 @@ USER_AGENT = "AIVideoPipeline-ClipAI-Subjects/0.1"
 PATH_UPLOAD = "/api/kling/seedance-user-asset-upload"
 PATH_LIST = "/api/kling/seedance-user-asset-list"
 PATH_UPDATE = "/api/kling/seedance-user-asset-update"
+PATH_DELETE = "/api/kling/seedance-user-asset-delete"   # clipai 1.3.1 reference.md + scripts/subject.mjs actionDelete
+LIBRARY_LIMIT = 100                                      # ClipAI: "Each user can upload up to 100 assets" (lỗi 11 của #27)
+FULL_MESSAGE = (f"Kho chủ thể ClipAI đầy ({LIBRARY_LIMIT}/{LIBRARY_LIMIT} asset) — vào ⚙ Cài đặt → Tài nguyên & kiến thức → "
+                "📁 Kho tài nguyên → «Kho chủ thể ClipAI» để dọn bớt; lần gửi sau tự tải lại ảnh")
 IMAGE_EXT = (".jpg", ".jpeg", ".png", ".webp")
 NAME_MAX = 128
+
+
+def is_library_full(message: str) -> bool:
+    """The library refused an upload because it already holds the most assets one user may keep."""
+    m = (message or "").lower()        # ClipAI: "Each user can upload up to 100 assets" — a size limit ("up to 30MB") is NOT this
+    return bool(re.search(r"up to \d+ assets?\b", m)) and ("each user" in m or "can upload" in m)
+
+
+def full_error(detail: str = "") -> ProviderError:
+    """code 'library_full': NOT a refusal of the picture (luật: không ghi 'failed') — once the library is cleaned it uploads again."""
+    return ProviderError(FULL_MESSAGE + (f" [ClipAI: {detail[:160]}]" if detail else ""), code="library_full")
 
 
 def is_active(asset: Dict) -> bool:
@@ -78,7 +94,12 @@ class ClipAISubjectLibrary:
         with open(path, "rb") as f:
             content = f.read()
         before = {a.get("asset_id") for a in self.list_assets()}
-        self.client.post_multipart(PATH_UPLOAD, {"name": name}, [("file", os.path.basename(path), content)])
+        try:
+            self.client.post_multipart(PATH_UPLOAD, {"name": name}, [("file", os.path.basename(path), content)])
+        except ProviderError as e:
+            if is_library_full(str(e)):
+                raise full_error(str(e)) from None
+            raise
         if not wait:
             return {}
         waited = 0.0
@@ -103,6 +124,20 @@ class ClipAISubjectLibrary:
             raise ProviderError("asset not found in your library", code="not_found")
         self.client.post_json(PATH_UPDATE, {"asset_id": asset_id, "name": new_name.strip()})
 
+    def delete(self, asset_id: str) -> Dict:
+        """Delete ONE asset (cannot be undone). Same checks as scripts/subject.mjs actionDelete: the provider id must be in this token's
+        list before, and must be gone from the list after — else ProviderError (never a silent 'done'). Returns the deleted asset."""
+        asset_id = (asset_id or "").strip()
+        if not asset_id or asset_id.isdigit():
+            raise ProviderError("asset_id phải là mã provider (asset-…), không phải số id trong danh sách", code="bad_input")
+        before = self.get(asset_id)
+        if before is None:
+            raise ProviderError(f"không thấy {asset_id} trong Kho chủ thể của token này", code="not_found")
+        self.client.post_json(PATH_DELETE, {"asset_id": asset_id})
+        if any(a.get("asset_id") == asset_id for a in self.list_assets()):
+            raise ProviderError(f"ClipAI trả lời đã xóa nhưng {asset_id} vẫn còn trong danh sách", code="delete_unverified")
+        return before
+
 
 class MockSubjectLibrary:
     """Offline stand-in: every upload is 'active' at once with a deterministic id (no state kept between runs)."""
@@ -125,3 +160,8 @@ class MockSubjectLibrary:
 
     def rename(self, asset_id, new_name):
         return None
+
+    def delete(self, asset_id):
+        if not str(asset_id).startswith("asset-mock-"):
+            raise ProviderError(f"không thấy {asset_id} trong Kho chủ thể (giả lập)", code="not_found")
+        return {"asset_id": asset_id, "asset_uri": f"asset://{asset_id}", "provider_status": "active", "name": asset_id}
