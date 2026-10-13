@@ -547,6 +547,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "Lỗi thật #27 (12/10): Kho gắn SKORP + Bom keo mà ảnh ra AK / tường keo mỗi shot một kiểu. Chưa chạy thật — bật rồi "
                "gen 1 shot rẻ để so",
     },
+    "plate_anchored_image": {
+        "label": "Ảnh vẽ bám render 3D: câu NỀN của prompt ảnh sinh từ plate (mốc, khoảng cách, chân trời) thay chữ nền tự do của Đạo "
+                 "diễn (bỏ → VÀNG), render là ẢNH 1 + câu 'giữ đúng nền ảnh 1', kiểm sau vẽ bằng code → ĐỎ/VÀNG (0 USD)",
+        "verified": False,
+        "why": "Lỗi hệ thống 1 sau #27 tập 1 (13/10, shot 17/21 job 893/744): plate đứng thứ 7 trong 9 ảnh, chữ Đạo diễn tả 'nhà mái đỏ, "
+               "tường chắn' → model vẽ theo chữ. Chưa chạy thật — bật rồi gen lại 1 shot rẻ, so với render",
+    },
     "two_tier_quality": {
         "label": "Video 2 bậc chất lượng: shot phức tạp / chưa rõ gen NHÁP 480p trước (gen lại ≤ 2), người duyệt rồi 'Gen bản cao' "
                  "(Seedance 2.5 nâng từ nháp, model khác gửi lại ở bậc cao; gen lại ≤ 1); shot dễ gen thẳng bản cao. Bỏ qua 'Thử rẻ'",
@@ -723,7 +730,7 @@ def active(name: str) -> bool:
 # S14.4 C1b (04/10): a flag that only works together with another one (dialogue_take: the runner asks lipsync.enabled() = lip_sync
 # first). Shown in 🧪 instead of a flag that looks ON and does nothing. B1 học việc: qc_team only runs inside scene_qc (by active()).
 REQUIRES = {"dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_review_frames": ("change_review",),
-            "ambient_motion": ("prompt_formula",)}
+            "ambient_motion": ("prompt_formula",), "plate_anchored_image": ("place_render_refs",)}
 
 
 def unmet(name: str) -> list:
