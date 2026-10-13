@@ -43,6 +43,23 @@ class UpdateSceneEndStateTests(unittest.TestCase):
         self.assertTrue(end_frames.end_state_changed(self.p.conn, row))
         self.assertFalse(end_frames.end_state_changed(self.p.conn, {"scene_id": sid, "prompt": None}))   # never sent: not judged
 
+    def test_end_state_with_filtered_word_is_not_stale(self):
+        """C6 (rà chuỗi 13/10): the end frame's prompt passes the end_state through looks.clean_prompt (in-game: "cinematic" dropped,
+        " ," joined) — the substring test called it outdated at once: sent without, redrawn every autopilot round (paid, no cap). The
+        end_state's fingerprint is kept when it is sent and compared instead; a row without one is judged as before."""
+        from core import end_frames
+        sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=16", (self.pid,)).fetchone()[0]
+        llm_io.update_scene(self.p, self.pid, 16, {"end_state": "Kelly hidden , cinematic slow fade"})
+        cur = self.p.conn.execute("INSERT INTO end_frames (project_id, scene_id, start_job_id, state, prompt, created_at, updated_at)"
+                                  " VALUES (?,?,1,'ready','at the end of the action: Kelly hidden, slow fade. One single frame',"
+                                  " datetime('now'), datetime('now'))", (self.pid, sid))
+        row = self.p.conn.execute("SELECT * FROM end_frames WHERE id=?", (cur.lastrowid,)).fetchone()
+        self.assertTrue(end_frames.end_state_changed(self.p.conn, row))           # no fingerprint: the old test
+        end_frames.stamp_end_state(self.p.conn, row["id"], "Kelly hidden , cinematic slow fade")
+        self.assertFalse(end_frames.end_state_changed(self.p.conn, row))
+        llm_io.update_scene(self.p, self.pid, 16, {"end_state": "Kelly peeks out"})
+        self.assertTrue(end_frames.end_state_changed(self.p.conn, row))
+
 
 if __name__ == "__main__":
     unittest.main()

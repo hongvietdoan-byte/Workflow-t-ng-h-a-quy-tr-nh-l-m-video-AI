@@ -52,6 +52,20 @@ class SkillObjectTest(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
+    def test_runner_reserve_counts_the_names_of_the_pictures(self):
+        """Rà S1+S2 (13/10): the Seedance prompt numbers the pictures by NAME ("Image 3 is Bom keo …") — a skill object named only
+        there was not in the text `reserve` saw → no room kept for the skin / ban sentences added after → the prompt went past the
+        limit (cut at the end). The runner's text for `reserve` holds the parts, the identity and place names and the fix."""
+        from core import runner
+        text = runner._reserve_text([("Kelly runs.", 2.0)], [("Bom keo", "b.png"), ("KELLY", "k.png")],
+                                    [{"path": "x/plate_gloowall.png", "name": "Gloowall"}], "keep the wall")
+        self.assertIn("Bom keo", text)
+        self.assertIn("Gloowall", text)
+        self.assertIn("keep the wall", text)
+        with mock.patch.dict(os.environ, ON):
+            self.assertGreater(runner._skill_reserve(self.conn, self.pid, text),
+                               runner._skill_reserve(self.conn, self.pid, "Kelly runs. keep calm"))
+
     def test_flag_off_changes_nothing(self):
         with mock.patch.dict(os.environ, OFF):
             self.assertEqual(skill_objects.guard_prompt(self.conn, self.pid, JOB_909), (JOB_909, [], []))
