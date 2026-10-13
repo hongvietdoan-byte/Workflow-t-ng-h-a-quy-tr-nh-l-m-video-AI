@@ -250,6 +250,34 @@ class StoryboardV2Tests(unittest.TestCase):
         self.assertNotIn("Animatic", txt)                                                  # 09/10: animatic chỉ ở tab Ảnh
         self.assertIn(f"mp_{sc[0]}", {t.key for t in at.text_area})                          # every control still there
         self.assertIn(f"mpa_{sc[0]}", {b.key for b in at.button})
+        self.assertNotIn(f"es_{sc[0]}", {t.key for t in at.text_input})                    # cờ end_state_fresh tắt: như cũ
+
+    def test_motion_card_edits_end_state_with_the_same_save_button(self):
+        """Lỗi 6 (#27, cờ end_state_fresh): ô 'Trạng thái cuối' cạnh motion prompt, lưu bằng nút 'Lưu chỉnh sửa'; chỉ đổi end_state →
+        prompt cũ KHÔNG được đóng dấu lại là hợp lệ (hiện ⚠ cũ để viết lại)."""
+        import json
+        from core import lineage
+        p, pid, sc = self.seed(1)
+        d = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (sc[0],)).fetchone()["data"] or "{}")
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(dict(d, shot_no=1, end_state="Kelly kneels")), sc[0]))
+        p.conn.commit()
+        self.job_in(p, sc[0], "approved")
+        store_motion_prompts(p, pid, {"scenes": [{"idx": 1, "motion_prompt": "push in slowly", "camera": "push", "duration_sec": 5,
+                                                  "negative_prompt": ""}]})
+        os.environ["FEATURE_END_STATE_FRESH"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_END_STATE_FRESH", None)
+        at = AppTest.from_file(APP, default_timeout=60)
+        at.session_state["sb_tab"] = "🎞 Motion & giọng"
+        at.run()
+        at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
+        self.assertEqual(at.text_input(key=f"es_{sc[0]}").value, "Kelly kneels")
+        at.text_input(key=f"es_{sc[0]}").set_value("Kelly sits by the well").run()
+        at.button(key=f"mps_{sc[0]}").click().run()
+        self.assertFalse(at.exception, at.exception)
+        q = Pipeline(connect(self.db)).conn
+        self.assertEqual(json.loads(q.execute("SELECT data FROM scenes WHERE id=?", (sc[0],)).fetchone()["data"])["end_state"],
+                         "Kelly sits by the well")
+        self.assertTrue(lineage.scan(q, pid)[sc[0]]["motion_stale"])
 
 
     # -- bớt chữ: chi tiết trong ⓘ (QUY_TAC §5) ---------------------------------------------------------------------------------------

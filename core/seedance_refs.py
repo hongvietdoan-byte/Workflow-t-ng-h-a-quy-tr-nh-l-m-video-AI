@@ -781,6 +781,10 @@ def strip_kept_words(value):
 def _en(data: Dict, key: str):
     """The English form of a Director field: `motion_en` (translated once, claude_tasks.translate_motion_fields) or the field itself."""
     en = data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}
+    if en.get(key):
+        from . import claude_tasks                    # lỗi 6 (cờ end_state_fresh): a translation of an edited field is not sent
+        if claude_tasks.fresh_on() and key in claude_tasks.stale_en_keys(data):
+            return data.get(key)
     return strip_kept_words(en.get(key)) if en.get(key) else data.get(key)
 
 
@@ -1104,7 +1108,10 @@ def _hold_reasons(conn, scene_id: int, text: str):
     data = json.loads(row["data"] or "{}") if row else {}
     if _vi_besides_names(text, data):
         fields = untranslated(data)
-        hold.append("còn chữ tiếng Việt" + (f" ở {', '.join(fields)}" if fields else "") + " (chưa dịch sang tiếng Anh — bấm lại "
+        from . import claude_tasks
+        old = [k for k in claude_tasks.stale_en_keys(data) if k in fields] if claude_tasks.fresh_on() else []
+        hold.append("còn chữ tiếng Việt" + (f" ở {', '.join(fields)}" if fields else "")
+                    + (f" — bản dịch cũ của {', '.join(old)} không dùng vì trường đã sửa" if old else "") + " (chưa dịch sang tiếng Anh — bấm lại "
                     "'Viết motion prompt' khi Claude dịch được, hoặc sửa tay sang tiếng Anh) — chờ duyệt")
     from . import prompt_formula
     if prompt_formula.enabled():
