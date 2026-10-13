@@ -13,8 +13,10 @@ ROLES = ("camera_setups", "continuous_takes", "end_frames")
 
 
 def _trainee(tc, *names):
-    features.save_settings(flags={n: None for n in names}, modes={n: "trainee" for n in names})
-    tc.addCleanup(features.save_settings, modes={n: None for n in names})
+    # 13/10: change_review bật mặc định giữ ảnh của cảnh vừa sửa (setUp sửa camera_setup sau Đạo diễn) → "chưa đủ ảnh duyệt";
+    # test này chỉ đo vai học việc, nên tắt riêng change_review ở đây
+    features.save_settings(flags={**{n: None for n in names}, "change_review": False}, modes={n: "trainee" for n in names})
+    tc.addCleanup(features.save_settings, flags={"change_review": None}, modes={n: None for n in names})
 
 
 def _log(conn, pid, feature):

@@ -13,17 +13,17 @@ FEATURES: Dict[str, Dict] = {
                    'why': 'Đ17 việc 2: clip/ảnh/âm thanh cục bộ, chưa thử sản xuất'},
     "package_overrides": {
         "label": "Chỉnh Gói gửi kèm theo shot (bỏ/thêm/ghim và hoàn tác)",
-        "verified": False,
+        "verified": True,
         "why": "Đợt 8: lõi dữ liệu kiểm bằng ảnh giả; chưa nối runner/Dashboard, chưa thử sản xuất.",
     },
     "layout_drift_review": {
         "label": "Sửa dàn cảnh v3: ghi lệch bố cục ảnh đã duyệt vào Tổ rà soát (0 USD)",
-        "verified": False,
+        "verified": True,
         "why": "Đ8 việc 2: hồi quy bằng tệp/CSDL tạm; chưa thử thật, chưa nối đường ghi tay và Dashboard",
     },
     "short_lock_outfit": {
         "label": "Nhận diện ngắn: bỏ đồ thường với chủ thể có ảnh OUTFIT riêng",
-        "verified": False,
+        "verified": True,
         "why": "Đ8 việc 2: MAXIM KL/KELLY KL; cờ tắt giữ nguyên prompt, chưa thử thật",
     },
     "tickets_admin_ui": {"label": "Trang Phiếu 8502 (Owner đăng nhập mới duyệt được; còn lại chỉ đọc)", "verified": False, "why": "Đợt 9 + đăng nhập 8502 (12/10): thử CSDL tạm, chưa dùng thật"},
@@ -38,7 +38,7 @@ FEATURES: Dict[str, Dict] = {
                                "cắt cảnh / người nhảy vọt → ĐỎ, không tự duyệt (đo OpenCV, 0 USD)", "verified": False,
         "why": "13/10 #27 lỗi hệ thống 2: shot 17 Seedance lùi máy + vẽ mặt đồng hồ ×3 (QC chấm 1,00), shot 16 khung cuối Kelly ở xa → "
                "nhảy cóc; ngưỡng đặt trên clip thật #27, chưa chạy trong sản xuất (core/framing_guard.py)"},
-    "back_view_guard": {"label": "Shot quay lưng: motion bỏ tả mặt/mắt + câu 'giữ lưng về máy cả shot' (0 USD)", "verified": False,
+    "back_view_guard": {"label": "Shot quay lưng: motion bỏ tả mặt/mắt + câu 'giữ lưng về máy cả shot' (0 USD)", "verified": True,
         "why": "13/10 #27 shot 4: motion tả 'lips pressed / slow blink' cho Kelly quay lưng → Seedance quay mặt cô ra máy giữa shot"},
     "end_state_fresh": {"label": "Sửa end_state: ô sửa ở Bước 1/3 + bản dịch motion_en cũ của trường đã sửa không gửi im lặng (dịch lại qua sổ chi)",
         "verified": False,
@@ -46,7 +46,7 @@ FEATURES: Dict[str, Dict] = {
     "tts_lowercase_caps": {"label": "TTS: hạ chữ thường từ tiếng Việt viết IN HOA trước khi gửi (giữ tên/từ game; phụ đề giữ chữ gốc, 0 USD)",
         "verified": False,
         "why": "13/10 #27 lỗi 9: 'BÌNH TĨNH' đọc thành 'bình tỉnh' (đo F0); viết thường thì đúng thanh — mới thử tay 1 câu"},
-    "send_claim": {"label": "Giữ chỗ gửi job trong CSDL — 2 tiến trình (script + Dashboard) không gửi trùng một job (0 USD)", "verified": False,
+    "send_claim": {"label": "Giữ chỗ gửi job trong CSDL — 2 tiến trình (script + Dashboard) không gửi trùng một job (0 USD)", "verified": True,
         "why": "Hộp thư 12/10 19:58: #27 job 776 gửi 2 lần (script + vòng nền), Deepix tạo 2 task; khóa lượt chỉ trong một tiến trình"},
     "locomotion_end_frame": {"label": "Shot chạy/đi: không gửi khung cuối vẽ khi clip sinh dài hơn shot × 1,3 + câu mốc cảnh vật khi máy bám theo (0 USD)",
         "verified": False,
@@ -76,7 +76,7 @@ FEATURES: Dict[str, Dict] = {
     },
     "seedance_sample_mode": {
         "label": "Thử độ nét Seedance 2.5: 720p hoặc bản mẫu 480p → bản cuối 1080p; kết quả thử riêng",
-        "verified": False,
+        "verified": True,
         "why": "Người dùng 07/10 duyệt khôi phục S4.11 để so A+/B Khủng Long Đỏ; bản cuối chưa chạy thật. Mỗi bước ghi sổ chi.",
     },
     "voice_check_redo": {
@@ -129,7 +129,7 @@ FEATURES: Dict[str, Dict] = {
         "label": "Nhạc nền theo đường cảm xúc cả truyện (N3): chặng mở đầu → căng → ngoặt → cao trào → kết, MỘT bản nhạc AI liền mạch "
                  "đổi chặng đúng giây bước ngoặt trên bản dựng; tách bài chỉ khi đổi chất liệu (bài gốc), nối mượt; điểm vào bài tự động; "
                  "ducking đều 8–12 dB",
-        "verified": False,
+        "verified": True,
         "why": "Người dùng chốt 08/10 (docs/THIET_KE_2_BAC_CHAT_LUONG_VA_NHAC_2026-10-08.md mục 3). Mới thử bằng tín hiệu tổng hợp "
                "(ducking 8,3–11,7 dB với giọng −26…−14 dBFS); chưa gen nhạc thật theo brief chặng, chưa nghe bản dựng nhiều bài",
     },
@@ -354,7 +354,7 @@ FEATURES: Dict[str, Dict] = {
     },
     "end_frames": {
         "label": "Ảnh khung cuối cho shot có end_state (vẽ thêm 1 ảnh, gửi clip khung đầu + cuối)",
-        "verified": False,
+        "verified": True,
         "trainee": True,       # 08/10 người dùng: học việc — chạy + ghi quyết định, so với người, không tác động (docs/KE_HOACH_HOC_VIEC_2026-10-08.md)
         "why": "🎓 Học việc từ 08/10 (KIEM_22: kết luận T): chạy bóng, ghi trainee_log để so với người, không đổi phim; bật thật chỉ khi đủ chuẩn và bạn duyệt. K1/K2 (kế hoạch tổng K-a): tốn thêm 1 ảnh mỗi shot đổi trạng thái; chưa thử thật Kling end_frame với khung vẽ từ ảnh đầu",
     },
@@ -408,25 +408,25 @@ FEATURES: Dict[str, Dict] = {
     "director_rewrite": {
         "label": "Đạo diễn viết lại prompt shot trước mỗi lần gen lại (người từ chối kèm ghi chú / QC từ chối kèm lỗi): sửa đúng chỗ gây "
                  "lỗi, lưu bản cũ, thẻ ảnh/clip hiện so sánh cũ/mới + nút dùng lại prompt cũ — thay cho nối 'Fix: …' cuối prompt",
-        "verified": False,
+        "verified": True,
         "why": "S14.17 người dùng duyệt 04/10, chưa chạy thật Claude (core/prompt_rewrite.py; Claude lỗi → quay về 'Fix: …' + diag)",
     },
     "change_review_frames": {
         "label": "Tổ rà soát phân biệt khung đầu, quá trình và khung cuối; đếm nhịp chuyển động thay vì câu",
-        "verified": False,
+        "verified": True,
         "why": "Đ10.5: ca #24 dựng lại ngoại tuyến, chưa thử thật Claude; mặc định tắt",
     },
     "change_review": {
         "label": "Tổ rà soát tác động: MỌI thay đổi (kịch bản / shot / hồ sơ + ảnh Kho) được bắt bằng trigger; luật code rà các khâu liên "
                  "quan (nền 3D, ảnh neo, câu tả, motion, khung cuối, video, shot kề) + agent Claude rà lệch nghĩa — mỗi thay đổi một lần, "
                  "không trần (người dùng chốt 10/10); mục đỏ chặn gen tốn tiền của shot tới khi sửa / bỏ qua",
-        "verified": False,
+        "verified": True,
         "why": "10/10 sau QC #24 (đổi máy mà ảnh neo / storyboard / câu tả cũ vẫn dùng): người dùng yêu cầu, chưa chạy thật",
     },
     "stage_camera": {
         "label": "Sân khấu 3D v2: shot có máy đã GIẢI từ yêu cầu khung (trường stage_camera — đã đo che khuất bằng tia, người dùng duyệt "
                  "tấm ghép) thì nền 3D dùng đúng máy đó: không tự tính lại theo cỡ/góc, không gom chung setup, không dời máy khi sát tường",
-        "verified": False,
+        "verified": True,
         "why": "V4 #24 (09/10): camera 9 shot đã duyệt ở tools/experiments/stage_v2_p24 — chưa render nền thật bằng cờ này",
     },
     "director_camera_plan": {
@@ -441,7 +441,7 @@ FEATURES: Dict[str, Dict] = {
         "label": "K1a Đạo diễn điền bảng ý đồ shot (BYĐ): mỗi shot thêm khối `byd` (thành phần, tư thế + vùng che, dạng, máy, nơi "
                  "chốn) — code kiểm, sai thì gửi lỗi cho Đạo diễn sửa ≤ 2 vòng (lượt Claude nhỏ), còn sai → VÀNG có lý do; lưu "
                  "scenes.data.byd cho lớp kiểm nhận diện / chạy khô đọc",
-        "verified": False,
+        "verified": True,
         "why": "K1a (docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md, A14/A19/A29): mới thử bằng Claude giả lập — chưa chạy Đạo diễn thật "
                "có BYĐ (thêm token ra mỗi shot + tối đa 2 lượt sửa, ước tính hiện ở nút Director)",
     },
@@ -449,7 +449,7 @@ FEATURES: Dict[str, Dict] = {
         "label": "K3 lớp code kiểm video TRƯỚC gen (0 USD): khung đầu = ảnh đã duyệt hiện hành (job + sha), khung cuối đã duyệt + khớp "
                  "ket_thuc BYĐ, thời lượng hợp model + thoại, video/ảnh tham chiếu theo luật model, motion đủ đầu–đỉnh–cuối + chuyển "
                  "động máy enum, vân tay gói khác lần gen trước (N10) — ĐỎ thì giữ job chờ người, VÀNG gửi + ghi ⚙ Chẩn đoán",
-        "verified": False,
+        "verified": True,
         "why": "K3 (docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md mục 3.4b, A17): mới thử bằng CSDL tạm + provider giả — chưa chạy trên "
                "dự án thật (đo báo nhầm trên #24 trước khi bật)",
     },
@@ -464,7 +464,7 @@ FEATURES: Dict[str, Dict] = {
         "label": "Tự gắn giọng tiếng Việt từ phân tích cảnh: Director ghi giới tính/tuổi/tính cách vai có thoại (cùng lượt Claude), luật "
                  "0 USD gắn giọng data/voices_vi.json (vai chính giọng đầu), quá 2 vai cùng giới → dùng lại giọng + biến thể cao độ "
                  "±2–3 nửa cung (ffmpeg sau TTS) + tốc độ ClipAI; không ghi đè giọng người dùng chọn",
-        "verified": False,
+        "verified": True,
         "why": "S14.26 (05/10): chưa chạy Director thật với khối voice_traits; biến thể cao độ ffmpeg chưa nghe thử trên 4 giọng VN "
                "(giọng nam +3 nửa cung có thể nghe méo) — bật để thử ở dự án mới (core/voice_casting.py)",
     },
@@ -494,7 +494,7 @@ FEATURES: Dict[str, Dict] = {
         "label": "Bài học duyệt ảnh #24 (11/10) vào Đạo diễn / Quay phim (prompt 17, 20, 29): thấy-được theo độ cao máy, vị trí sau "
                  "động tác di chuyển (điểm cuối `den`), giữ bố cục shot đã duyệt, phủ đủ nhịp + chi tiết của ref emote, cỡ khung chứa "
                  "biên độ, hiệu ứng màn hình để hậu kỳ; Sân khấu 3D v3 gửi lại Đạo diễn cả mục VÀNG 'nhịp di chuyển' (trong 2 lượt đã ước tính)",
-        "verified": False,
+        "verified": True,
         "why": "11/10 người dùng soi ảnh #24 (shot 5 miệng giếng, 7/9/10 yêu nữ sát thành 0,25 m, shot 8 ref khóc 3 nhịp); kiểm VÀNG bằng "
                "code (core/shot_lessons, prompt_formula) chạy không cần cờ — cờ này chỉ thêm cách nghĩ vào prompt; chờ dự án mới đo",
     },
@@ -542,11 +542,11 @@ FEATURES: Dict[str, Dict] = {
         "why": "Đ11v4: chưa hiệu chỉnh trên ca thật; thiếu tọa độ/hướng mặt báo VÀNG; bật riêng"},
     "camera_match_qc": {"label": "So ảnh/khung đầu-cuối clip với máy bằng công cụ local (VÀNG, 0 USD)", "verified": False,
         "why": "Đ11v4: cỡ mặt/mắt/chân trời, ngưỡng chưa hiệu chỉnh; không model local thì VÀNG; bật riêng"},
-    "continuity_layout": {"label": "Kiểm nhất quán hướng đi + bố cục giữa shot (VÀNG, báo cáo Đạo diễn)", "verified": False,
+    "continuity_layout": {"label": "Kiểm nhất quán hướng đi + bố cục giữa shot (VÀNG, báo cáo Đạo diễn)", "verified": True,
         "why": "Hộp thư 12/10 15:51 (#27): hướng đi ghi trong image_prompt/blocking không được kiểm; đi ngược chiều vào cổng, cổng/tường đổi bên, đồng đội nằm biến mất"},
     "ambient_motion": {
         "label": "Lớp chuyển động nền nhẹ theo bối cảnh, thời tiết và giờ; thiếu thì VÀNG",
-        "verified": False,
+        "verified": True,
         "why": "Đ10.6 ca #24 shot 9 dựng lại ngoại tuyến; chưa thử thật, mặc định tắt",
     },
     "prompt_formula": {
@@ -561,7 +561,7 @@ FEATURES: Dict[str, Dict] = {
         "label": "Khóa đạo cụ dự án: shot chỉ nói 'assault rifle' / 'glue wall' chung chung → prompt ảnh nêu đích danh món Kho đã gắn "
                  "(SKORP, Bom keo…) + mô tả + ảnh tham chiếu đúng dạng (ảnh có variant chỉ gửi khi shot nhắc variant); nhiều món cùng "
                  "loại → VÀNG, không đoán (0 USD)",
-        "verified": False,
+        "verified": True,
         "why": "Lỗi thật #27 (12/10): Kho gắn SKORP + Bom keo mà ảnh ra AK / tường keo mỗi shot một kiểu. Chưa chạy thật — bật rồi "
                "gen 1 shot rẻ để so",
     },
@@ -589,7 +589,7 @@ FEATURES: Dict[str, Dict] = {
     "two_tier_quality": {
         "label": "Video 2 bậc chất lượng: shot phức tạp / chưa rõ gen NHÁP 480p trước (gen lại ≤ 2), người duyệt rồi 'Gen bản cao' "
                  "(Seedance 2.5 nâng từ nháp, model khác gửi lại ở bậc cao; gen lại ≤ 1); shot dễ gen thẳng bản cao. Bỏ qua 'Thử rẻ'",
-        "verified": False,
+        "verified": True,
         "why": "N1 (người dùng chốt 08/10, docs/THIET_KE_2_BAC_CHAT_LUONG_VA_NHAC_2026-10-08.md mục 5a): bản cuối draft_task 1080p "
                "chưa chạy thật lần nào (≈ 2,1 USD / 4 s ước tính) — phải chạy thật 1 lần (hỏi giá trước) rồi mới bật",
     },
