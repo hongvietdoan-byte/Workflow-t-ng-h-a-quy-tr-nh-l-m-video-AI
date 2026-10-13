@@ -10,5 +10,10 @@ Phạm vi 9c được duyệt 13/10; không API/backend/dữ liệu thật. Regi
 
 Giới hạn: projection SVG proxy, không Blender mesh/ray/LOD/collision/QC thật. Map và ảnh nguồn thiếu báo UNKNOWN; clay/stand_in preview_only, gửi thật tắt. Che/partial/lộ là fixture theo giây, không đo tia. Preset/JSON để sau; Director/solver/Kho/provider tắt. Keyframe chỉ kéo mốc mặc định, chưa curve/thêm/xóa. Orbit/pan là viewer local, chưa chống xuyên map. RAM mất khi refresh được ghi ngay header. Chưa chạy cả bộ/ca production, chưa gộp/push.
 
-## Đối chiếu 18 mục đã duyệt
-#1 cảnh/shot dựng sẵn; #2 preview nổi với thu/phóng và xuất SVG; #3 camera numeric/FOV/target; #4 chọn actor rồi xyz/facing/pose; #5 viewer/preset góc nhanh; #6 beat/pose proxy; #7 baseline so sánh, Director tắt; #8 registry chung; #9 provenance chiều cao không scale; #10 giếng/tường fixture (chưa chỉnh đạo cụ); #11 phát proxy; #13 bảng lớp gửi minh họa, gửi tắt; #14 phím an toàn; #15 viewer orbit/pan/zoom; #16 setup diff/approved; #17 kéo mốc keyframe chung timeline; #18 ba lớp có nhãn thiếu nguồn, chưa ánh sáng/render; #19 H/visibility fixture, ray unknown. Không coi đây là hoàn tất backend hay 18 tính năng production; điều khiển ánh sáng/nền/đạo cụ chi tiết chưa có. #12/#20 để sau đúng duyệt.
+## Đối chiếu đúng bảng mục 9
+
+Các dòng #3 (nền/map/phông xanh), #4 (ánh sáng), #10 (vật thể Kho/stand_in): mockup hiện chỉ nhãn nguồn UNKNOWN và giếng/tường fixture có provenance; CHƯA có điều khiển phông xanh, ánh sáng, đạo cụ chi tiết. Đây là phần còn thiếu, không coi việc1b hoàn tất đủ18mục.
+
+#5 nhiều camera: 2 setup + 3 shot camera riêng; #6 numeric: xyz/yaw/pitch/lens/FOV sensor/aspect/target; #8 actor: 2 actor_id/chiều cao nguồn/không scale; #9 pose: đứng/bò/lùi 3beats; #11 hoạt ảnh: phát proxy cùng timeline; #13 gói gửi: bảng lớp/source, nút provider tắt; #14 phím: V/R/F/T/Q/Esc/Undo/arrows và Sreadonly/Del disabled; #15 viewer: orbit/pan/zoom độc lập shot; #16 setup: diff trước áp, approved VÀNG; #17 keyframe: kéo mốc mặc định; #18 map/clay: lớp proxy/source UNKNOWN và nhãn preview_only; #19 H/visibility: fixturehidden/partial/visible theo giây, H không export. #12/#20 để sau đúng duyệt.
+
+Preview panel đã chuyển overlay nổi trên viewer, tự ẩn khi ở góc camera để tránh hai khung camera trùng. #1/#2/#7 cần root đối chiếu lại bảng gốc trong vòng sửa mới nếu còn yêu cầu chưa thể hiện; không tuyên bố hoàn tất18mục. Test cuối sau floating 2passed13.17s, QA1440/1280 console0/overflow0. Không tự triển khai backend.

@@ -8,3 +8,6 @@ RA: docs/RA_D11_VIEC1B_MOCKUP_CODEX_2026-10-13.md.
 Không backend/API/data thật/TODO/PLAN/main/push. areas đã có các file, version71 giữ nguyên.
 Root rà nhẹ diff + PNG rồi cả bộ Windows trước gộp.
 Giới hạn: SVG proxy, không tia/Blender; map/source UNKNOWN; provider/solver/Director/Kho tắt; preset/JSON để sau; chưa ca thật.
+
+Còn thiếu điều khiển nền/phông xanh (#3), ánh sáng (#4), props chi tiết (#10): root gom vòng sửa mới; không coi đủ18mục.
+Floating overlay đã QA xanh; 2passed13.17s.
