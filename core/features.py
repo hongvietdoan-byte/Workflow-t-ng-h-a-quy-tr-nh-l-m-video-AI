@@ -528,6 +528,10 @@ FEATURES: Dict[str, Dict] = {
     },
     "asset_english_names": {"label": "Tên tiếng Anh khi tạo Kho + cảnh báo vật/style chưa có ảnh mẫu đúng tên", "verified": False,
         "why": "Đ17v3 #27 torii/Nỏ: kiểm tên bằng aliases hiện có, 0 USD; chưa nghiệm thu thật, chỉ bật riêng"},
+    "film_grammar_check": {"label": "Kiểm hướng nhìn, 30°, lead room/headroom theo sân khấu (VÀNG, 0 USD)", "verified": False,
+        "why": "Đ11v4: chưa hiệu chỉnh trên ca thật; thiếu tọa độ/hướng mặt báo VÀNG; bật riêng"},
+    "camera_match_qc": {"label": "So ảnh/khung đầu-cuối clip với máy bằng công cụ local (VÀNG, 0 USD)", "verified": False,
+        "why": "Đ11v4: cỡ mặt/mắt/chân trời, ngưỡng chưa hiệu chỉnh; không model local thì VÀNG; bật riêng"},
     "continuity_layout": {"label": "Kiểm nhất quán hướng đi + bố cục giữa shot (VÀNG, báo cáo Đạo diễn)", "verified": False,
         "why": "Hộp thư 12/10 15:51 (#27): hướng đi ghi trong image_prompt/blocking không được kiểm; đi ngược chiều vào cổng, cổng/tường đổi bên, đồng đội nằm biến mất"},
     "ambient_motion": {
@@ -571,7 +575,7 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
 HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
-OPT_IN_ONLY: tuple = ("blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names")
+OPT_IN_ONLY: tuple = ("blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc")
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.
