@@ -932,6 +932,8 @@ không tự gen lại quá 1 lần (luật gen lại phải đổi đầu vào).
 
 ## Kết quả Codex — đợt 12
 
+- Việc 2 — phần backend/component trên `codex/d12-viec2-sfx-nhip`, code `6e789358`: map BYĐ/motion thành cue qua catalog đáng tin, post_fx cùng schema, cảnh báo âm cũ/thiếu; motion prompt hiện tại ưu tiên bản dịch cũ. Timestamp peak chỉ khi máy cố định, alignment vẫn ước tính/VÀNG; fallback BYĐ. Đỏ→xanh, rà độc lập sửa3P2 +root2guard, cuối **100 test/11,06s**. Cue overlap giữ neo shot, prevalidate âm/file/volume trước xóa, legacy giữ đường cũ. QA Edge headless1440/1280:2PNG,0console/overflow/paidAPI; Chrome launch lỗi. CờOFF+optin; RA `docs/RA_D12_VIEC2_CODEX_2026-10-14.md`. CÒN: nối caller Bước5 khi Claude giải phóng, Claude bổ sung có báo giá, clip thật/cả bộ; chưa main/live.
+
 - Việc 1 · nhánh `codex/d12-viec1-am-nen` · code `cc8dda7`: voice chỉ giọng người, accent riêng nullable; legacy dế/gió suy từ heard_label khi đọc, không UPDATE/nghe lại. Point accent/trusted vẫn loại voice; nhãn lạ giữ guard bảo thủ. ĐỎ 3/51 → 54 xanh; rà 0 blocker/1 LOW trim đã sửa (1 đỏ → **55 passed /50,49s**, 3 file); migration giữ giá trị + query_only không đổi hàng. RA `docs/RA_D12_VIEC1_CODEX_2026-10-12.md`. Chưa thử Kho thật #437/#307, chưa cả bộ/gộp main, không API/data thật.
 
 
