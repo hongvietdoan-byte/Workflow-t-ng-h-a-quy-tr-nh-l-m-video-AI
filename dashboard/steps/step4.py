@@ -255,7 +255,7 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
     if waiting and confirm_all(f"vid_ok_all_{pid}", waiting, f"✔ Duyệt tất cả ({len(waiting)} clip)",
                                f"Duyệt tất cả {len(waiting)} clip đang chờ duyệt?"):
         for jid in waiting:
-            p.approve(jid, "user", note="gate_bulk")
+            quality_ui.approve_clip(p, jid, note="gate_bulk")
         st.rerun()
     if video_busy(p.conn, pid):
         auto_poll_videos(pid)
@@ -550,7 +550,8 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
         # ---- the four actions, always visible -----------------------------------------------------------------------------------
         r1, r2 = st.columns(2)
         if r1.button("✔ Duyệt clip", key=f"va_{jid}", type="primary", disabled=not reviewable, width="stretch"):
-            act(lambda: p.approve(jid, "user"))
+            from dashboard import quality_ui
+            act(lambda: quality_ui.approve_clip(p, jid))      # 13/10: a final of an older draft is retired, said in a toast
             st.rerun()
         if can_resend:
             if r2.button(("↻ Gen lại với câu sửa" if vfix.strip() else "↻ Gửi lại") + tag, key=f"vr_{jid}", width="stretch",

@@ -1955,11 +1955,14 @@ class VideoRunner(_Runner):
         conn = self.p.conn
         if whole is None:
             whole = _probe(path)                  # the whole clip's seconds, measured before it is cut (None = unknown, not guessed)
-        dests = [path] + [os.path.join(self._dir(leader["project_id"], "videos"), f"{r['idx']:02d}.mp4") for r in group[1:]]
+        aside = self._superseded(leader)        # 13/10: a final of an older draft — its parts are kept aside, never the shots' clips
+        tail = f"_final{leader['id']}_nhap_cu" if aside else ""
+        dests = [path] + [os.path.join(self._dir(leader["project_id"], "videos"), f"{r['idx']:02d}{tail}.mp4") for r in group[1:]]
         from . import takes                     # F3 (#24 job 590/592/594): a group clip never overwrites the followers' older takes —
         for r, dest in zip(group[1:], dests[1:]):  # each goes to the trash under its own job, its result_path follows (↩ Dùng bản này)
-            takes.make_room(conn, self.data_dir, {"id": leader["id"], "scene_id": r["id"], "project_id": leader["project_id"]}, dest,
-                            with_raw=True)
+            if not aside:
+                takes.make_room(conn, self.data_dir, {"id": leader["id"], "scene_id": r["id"], "project_id": leader["project_id"]}, dest,
+                                with_raw=True)
         parts = None
         if group[0].get("refs"):
             from . import seedance_refs
@@ -1979,6 +1982,14 @@ class VideoRunner(_Runner):
         for k, (r, dest) in enumerate(zip(group[1:], dests[1:]), 1):
             follower = conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='video_gen' AND state='queued' ORDER BY id DESC LIMIT 1",
                                     (r["id"],)).fetchone()
+            prev = None
+            if aside:
+                # the group clip covered the follower's queued take; it is not made by this clip any more — never sent alone (paid, unasked)
+                if follower is not None:
+                    self.p.transition(follower["id"], JobState.CANCELLED, actor="system",
+                                      note=f"clip nhóm job {leader['id']} là bản cao bị thay ({aside}) — không gửi riêng; xếp lại khi cần")
+                    follower = None
+                prev = takes.used(conn, r["id"])     # the follower's take before this part, kept for chain_waits / _chain_frame
             jid = follower["id"] if follower else self.p.create_job(r["id"], "video_gen")
             mp = self._motion(r["id"])
             conn.execute("UPDATE jobs SET group_leader=?, external_id=?, model=?, input_hash=?, source_job_id=? WHERE id=?",
@@ -1996,7 +2007,13 @@ class VideoRunner(_Runner):
             conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, jid))
             self._save_span(jid, _span(parts[k], edges, trim, whole, False) if parts else None)
             conn.commit()
-            self.p.succeed(jid)
+            if aside:                              # 13/10: cancelled (takes.used skips it), never the follower shot's take; file kept
+                self.p.transition(jid, JobState.CANCELLED, actor="system",
+                                  note=f"bản cao cho nghỉ: phần của bản cao nhóm job {leader['id']} — {aside}")
+                if prev is not None and takes.chosen(conn, r["id"]) is None:
+                    takes.mark(conn, r["id"], prev["id"])   # the newest (cancelled) job never becomes the take read with skip_cancelled=False
+            else:
+                self.p.succeed(jid)
         return parts
 
     # ---- 12/10 (#24): bản cao nâng từ nháp = đúng đoạn nháp đã duyệt, follower cắt từ clip nhóm 1080p ------------------------------

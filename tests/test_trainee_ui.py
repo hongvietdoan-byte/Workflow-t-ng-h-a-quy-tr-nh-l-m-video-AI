@@ -196,9 +196,12 @@ class BulkApproveTests(_Base):
 
     def test_approve_all_buttons_pass_the_note(self):
         root = os.path.join(os.path.dirname(__file__), "..", "dashboard")
-        for rel in ("steps/step2.py", "steps/step4.py", "design/screens/storyboard_cards.py"):
+        calls = {"steps/step2.py": 'p.approve(jid, "user", note="gate_bulk")',
+                 "steps/step4.py": 'quality_ui.approve_clip(p, jid, note="gate_bulk")',   # 13/10: clips go through approve_clip (toast)
+                 "design/screens/storyboard_cards.py": 'p.approve(jid, "user", note="gate_bulk")'}
+        for rel, call in calls.items():
             with open(os.path.join(root, rel), encoding="utf-8") as f:
-                self.assertIn('p.approve(jid, "user", note="gate_bulk")', f.read(), rel)
+                self.assertIn(call, f.read(), rel)
 
 
 class DevsysTraineeTests(unittest.TestCase):

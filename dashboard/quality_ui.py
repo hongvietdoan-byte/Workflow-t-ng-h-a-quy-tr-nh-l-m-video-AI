@@ -240,6 +240,17 @@ def stale_reason(conn, scene_id: int) -> str:
 
 
 # ---- Streamlit parts -----------------------------------------------------------------------------------------------------------
+def approve_clip(p, job_id: int, note: Optional[str] = None) -> bool:
+    """The person's ✔ Duyệt on a clip. A final of a draft that is no longer the approved one is retired instead (Pipeline.approve →
+    False, 13/10) — the reason is said in a toast (it survives the rerun), not only in the job's history."""
+    if p.approve(job_id, "user", note):
+        return True
+    import streamlit as st
+    row = p.conn.execute("SELECT note FROM job_events WHERE job_id=? ORDER BY id DESC LIMIT 1", (job_id,)).fetchone()
+    st.toast(f"⚠ Không duyệt job {job_id}: {(row['note'] if row else None) or 'bản cao làm từ nháp không còn được duyệt'}", icon="⚠️")
+    return False
+
+
 def card_block(p, pid: int, scene_id: int, runner, line: Optional[Dict] = None) -> None:
     """On the scene's clip card: tier badge · Director's difficulty · ONE model line (F4: model · nháp → cao · giữ nội dung? · ≈ USD —
     the path / model are changed with "Đổi" in the Model table, no second picker here) · ⬆ Gen bản cao (draft_ok) / why not (draft_stale).

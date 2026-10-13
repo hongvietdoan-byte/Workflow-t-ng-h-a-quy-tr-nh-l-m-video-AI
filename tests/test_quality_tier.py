@@ -310,6 +310,76 @@ class SupersededFinalTests(Base):
             self.assertEqual(self.p.job(f)["state"], "approved")
             self.assertEqual(takes.used(self.p.conn, self.s1)["id"], f)
 
+    def test_keeping_a_qc_rejected_newer_draft_retires_the_old_final(self):
+        with ON:
+            self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)
+            self.made(f)
+            self.p.transition(f, JobState.PENDING_REVIEW)
+            b = self.p.create_job(self.s1, "video_gen")
+            self.made(b)
+            path = os.path.join(self.data, "b.mp4")
+            with open(path, "wb") as fh:
+                fh.write(b"clip")
+            self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (path, b))
+            self.p.conn.commit()
+            self.p.reject(b, "ai_agent", "QC: chưa đạt", respawn=False)
+            self.p.keep_rejected(b)
+            self.assertEqual(self.p.job(b)["state"], "approved")
+            self.assertEqual(self.p.job(f)["state"], "rejected")
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "draft_ok")
+
+    def test_a_group_final_of_an_older_draft_keeps_the_followers_parts_aside(self):
+        from core import shots, takes
+        with ON:
+            s2 = self.p.create_scene(self.pid, 2, "Shot 2")
+            old = self.p.create_job(s2, "video_gen")                        # the follower's own approved clip
+            self.p.start(old)
+            self.p.succeed(old)
+            self.p.approve(old, "user")
+            mine = os.path.join(self.data, "old_02.mp4")
+            with open(mine, "wb") as fh:
+                fh.write(b"clip")
+            self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (mine, old))
+            self.p.conn.commit()
+            q = self.p.create_job(s2, "video_gen")                          # a queued take the group clip covered
+            self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)
+            self.stamp(f)
+            self.p.start(f)
+            b = self.approved_draft()
+            vr = VideoRunner(self.p, _provider(), self.data)
+            lead = os.path.join(self.data, "01_lead.mp4")
+
+            def split(path, group, dests):
+                for d in dests[1:]:
+                    with open(d, "wb") as fh:
+                        fh.write(b"part")
+            group = [{"id": self.s1, "idx": 1, "data": {"duration_s": 2}}, {"id": s2, "idx": 2, "data": {"duration_s": 2}}]
+            with mock.patch.object(shots, "split_group_clip", side_effect=split), \
+                    mock.patch.object(shots, "group_parts", return_value=[(0.0, 2.0), (2.0, 2.0)]), \
+                    mock.patch.object(shots, "trim_clip"), mock.patch.object(vr, "_clean_edges", return_value=None):
+                vr._finish_group(self.p.job(f), lead, group, whole=4.0)
+            part = self.p.conn.execute("SELECT * FROM jobs WHERE scene_id=? AND id NOT IN (?,?) AND type='video_gen'", (s2, q, old)).fetchone()
+            self.assertEqual(part["state"], "cancelled")
+            self.assertTrue(part["result_path"].endswith(f"02_final{f}_nhap_cu.mp4"))
+            self.assertFalse(os.path.exists(os.path.join(os.path.dirname(part["result_path"]), "02.mp4")))
+            self.assertEqual(self.p.job(q)["state"], "cancelled")           # never sent alone (paid, unasked)
+            self.assertEqual(takes.used(self.p.conn, s2)["id"], old)
+            self.assertEqual(takes.used(self.p.conn, s2, skip_cancelled=False)["id"], old)   # chain_waits / _chain_frame
+            self.assertEqual(self.p.job(b)["state"], "approved")
+
+    def test_the_dashboard_says_why_a_stuck_final_was_not_approved(self):
+        from dashboard import quality_ui
+        with ON:
+            a, f, b = self._final_of_draft_a_then_draft_b()
+            self.p.conn.execute("UPDATE jobs SET state='pending_review' WHERE id=?", (f,))   # dữ liệu cũ
+            self.p.conn.commit()
+            with mock.patch("streamlit.toast") as toast:
+                self.assertFalse(quality_ui.approve_clip(self.p, f))
+            self.assertIn(f"nháp cũ #{a}", toast.call_args[0][0])
+            self.assertEqual(self.p.job(f)["state"], "rejected")
+
     def test_the_qc_approving_a_draft_retires_nothing(self):
         with ON:
             self.approved_draft()
