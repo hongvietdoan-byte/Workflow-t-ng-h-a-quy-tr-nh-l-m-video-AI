@@ -82,3 +82,18 @@ def test_no_mood_and_no_scores_distinct(audit):
     result = audit.analyse(fixture(["Sad music"]))
     assert result["ontology_has_no_mood"] is False
     assert result["windows"] == 0
+
+@pytest.mark.parametrize("location", ["https://example.invalid/private.json", r"\\server\share\private.json", "//server/share/private.json"])
+def test_network_path_rejected_before_open(audit, monkeypatch, capsys, location):
+    def forbidden(*args, **kwargs):
+        pytest.fail("Không được mở file mạng")
+    monkeypatch.setattr("builtins.open", forbidden)
+    assert audit.main(["--input", location]) == 2
+    assert capsys.readouterr().err.strip() == "Chỉ nhận đường dẫn file local; URL/UNC không được phép."
+    assert audit.main(["--input", "local.json", "--ontology", location]) == 2
+    assert capsys.readouterr().err.strip() == "Chỉ nhận đường dẫn file local; URL/UNC không được phép."
+
+
+def test_huge_int_score_is_invalid(audit):
+    with pytest.raises(ValueError):
+        audit.analyse(fixture(["Music"], [[{"label": "Music", "score": 10 ** 400}]]))

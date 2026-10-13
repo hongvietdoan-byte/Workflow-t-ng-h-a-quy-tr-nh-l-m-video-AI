@@ -50,7 +50,7 @@ không phải AST, không dùng cùng ngưỡng mood này. `core/sound_lib.py` g
 ## Công cụ đo offline (stdlib, chỉ đọc)
 
 `py tools/audio_mood_audit.py --input <JSON-do-nguoi-dung-cung-cap> [--ontology <CSV-classmap>]`
-Không có path data mặc định. JSON có `labels` (danh sách classmap đầy đủ), `windows` (danh sách
+Không có path data mặc định; URL/UNC bị từ chối trước khi mở file. JSON có `labels` (danh sách classmap đầy đủ), `windows` (danh sách
 cửa sổ, mỗi cửa sổ chứa object `label`, `score` số [0,1]), `complete_scores` boolean (mặc định false).
 Nếu dùng CSV cột `display_name` thì có thể bỏ `labels`; nếu có cả hai phải giống nhau theo thứ tự.
 Chỉ kiểm ontology: `windows: []`. Không nhận thẳng listen.json hiện tại vì bị cắt score.

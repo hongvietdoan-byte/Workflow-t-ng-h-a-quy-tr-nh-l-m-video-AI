@@ -74,6 +74,15 @@ def main(argv=None):
     parser.add_argument("--input", required=True, help="JSON nhãn và score do người dùng cung cấp")
     parser.add_argument("--ontology", help="CSV display_name, không tự tìm/tải")
     args = parser.parse_args(argv)
+    for location in (args.input, args.ontology):
+        if location is None:
+            continue
+        candidate = location.strip()
+        # UNC/extended UNC và mọi URL scheme; drive letter local vẫn hợp lệ.
+        prefix, separator, _ = candidate.partition(":")
+        if candidate.startswith(("\\\\", "//")) or (separator and len(prefix) > 1):
+            print("Chỉ nhận đường dẫn file local; URL/UNC không được phép.", file=sys.stderr)
+            return 2
     try:
         with open(args.input, encoding="utf-8-sig") as handle:
             payload = json.load(handle)

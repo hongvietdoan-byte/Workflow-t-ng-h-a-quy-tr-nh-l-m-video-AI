@@ -13,3 +13,5 @@
 - Phân biệt AST 2 s/top40/ngưỡng 0,05 với YAMNet type/voice/accent và folder/loudness của sound_lib.
 - Chưa nghe #24/đo Kho thật: chưa biết nguyên nhân mood≈0; list nguồn chỉ link/keyword, cần người duyệt tệp.
 - Root đọc diff/test để RÀ NHẸ trước push/gộp; không có agent rà độc lập theo scope được giao.
+- Root bắt URL/UNC có thể mở network FS: đỏ 6 failed/28 passed → chặn trước open → 34 xanh/0,31 s.
+- Root yêu cầu ca score int lớn: range đã kiểm trước isfinite ở tự rà; test mới xác nhận ValueError.
