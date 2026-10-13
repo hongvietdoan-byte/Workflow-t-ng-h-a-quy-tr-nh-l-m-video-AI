@@ -53,11 +53,23 @@ def current(conn, scene_id: int):
     return conn.execute("SELECT * FROM end_frames WHERE scene_id=? ORDER BY id DESC LIMIT 1", (scene_id,)).fetchone()
 
 
+def end_state_changed(conn, row) -> bool:
+    """13/10 #27 shot 16 (rà quy ước 7): the shot's end_state was edited after this end frame was drawn — its prompt (prompt_for puts
+    the end_state in verbatim) no longer holds the current text. A row never sent (no prompt) is not judged."""
+    if row is None or not row["prompt"]:
+        return False
+    data = json.loads((conn.execute("SELECT data FROM scenes WHERE id=?", (row["scene_id"],)).fetchone() or ["{}"])[0] or "{}")
+    now = (data.get("end_state") or "").strip()
+    return bool(now) and now not in row["prompt"]
+
+
 def usable_path(conn, scene_id: int) -> Optional[str]:
-    """The end frame to send with the clip: ready, drawn from the shot's current start picture, file present."""
+    """The end frame to send with the clip: ready, drawn from the shot's current start picture AND current end_state, file present."""
     row = current(conn, scene_id)
     start = _start_job(conn, scene_id)
     if row is None or row["state"] != "ready" or start is None or row["start_job_id"] != start["id"]:
+        return None
+    if end_state_changed(conn, row):
         return None
     return row["path"] if row["path"] and os.path.exists(row["path"]) else None
 
@@ -75,7 +87,8 @@ def queue(p: Pipeline, project_id: int) -> List[int]:
         if not needed(data, mode) or start is None:
             continue
         row = current(p.conn, s["id"])
-        if row is not None and row["start_job_id"] == start["id"] and row["state"] in ("queued", "running", "ready", "failed"):
+        if row is not None and row["start_job_id"] == start["id"] and row["state"] in ("queued", "running", "ready", "failed") \
+                and not (row["state"] == "ready" and end_state_changed(p.conn, row)):
             continue
         p.conn.execute("INSERT INTO end_frames (project_id, scene_id, start_job_id, state, created_at, updated_at)"
                        f" VALUES (?,?,?,'queued',{_now_sql()},{_now_sql()})", (project_id, s["id"], start["id"]))

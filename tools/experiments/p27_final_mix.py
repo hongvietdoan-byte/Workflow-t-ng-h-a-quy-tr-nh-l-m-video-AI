@@ -95,7 +95,9 @@ SFX_PLAN = [
 ]
 POPUP_SHOT = 22            # popup chữ BOOYAH (#27 không có icon prop ICON* cho core/end_popup)
 POPUP_TEXT = "BOOYAH!"
-POPUP_ASSET_IMG = "data/assets/431/1.png"   # 13/10 người dùng: popup = banner BOOYAH đỏ Kho #431 (hình khung booyah), không chữ tự vẽ
+POPUP_ASSET_IMG = "data/projects/27/popup/booyah_hud_2.png"   # GPT Image 2.5 từ 2 ảnh ref in-game người dùng gửi (popup/ref/)   # 13/10 người dùng: banner BOOYAH đỏ theo ref Kho #431, gen SẠCH
+# trên nền đen (Seedream, ref Kho #431 ảnh 1+2) — tách nền theo độ sáng; ảnh Kho đặc (đè cảnh game) tự tách thì xấu
+POPUP_Y = 0.086            # tâm banner HUD (cao ≈ 9 % khung): sát đỉnh như trong game, không che mặt Kelly shot 22 (đã thử 12–20 % che mặt)
 SUB_MAX_CHARS = 32         # phụ đề: mỗi dòng ≤ 32 ký tự, ≤ 2 dòng/lần hiện
 
 WARN: list[str] = []
@@ -531,7 +533,7 @@ def overlay_video(video: Path, lines, segs, args, tmp: Path) -> Path:
         if sg and img.exists():
             t0, t1 = sg["start"], sg["end"]
             banner = (_banner_png(img, tmp), t0, t1)
-            args._popup_info = f"banner Kho #431 {t0:.2f}–{t1:.2f}s (shot {POPUP_SHOT}), hiện dần 0,25 s + trượt xuống"
+            args._popup_info = f"banner {img.name} {t0:.2f}–{t1:.2f}s (shot {POPUP_SHOT}), nảy 1,35×→1× + hiện dần"
         elif sg:
             warn(f"không thấy {img} → popup chữ tự vẽ")
             t0, t1 = sg["start"], sg["end"]
@@ -551,26 +553,39 @@ def overlay_video(video: Path, lines, segs, args, tmp: Path) -> Path:
     extra = []
     if banner is not None:
         png, t0, t1 = banner
-        bw_px, drop = round(W * 0.98), round(H * 0.025)
-        graph += (f";[1:v]format=rgba,scale={bw_px}:-1,fade=t=in:st={t0:.3f}:d=0.25:alpha=1[bn];"
-                  f"[v0][bn]overlay=x=(W-w)/2:y=H*0.68-{drop}*max(0\\,1-(t-{t0:.3f})/0.25):shortest=1:"
+        bw_px = round(W * 0.98)
+        # nảy: 0,22 s đầu phóng 1,35× → 0,95×, rồi về 1× ở 0,34 s + hiện dần 0,18 s
+        k = f"max(0\\,t-{t0:.3f})"     # kẹp ≥ 0: trước t0 (t-t0) âm → bề rộng hàng trăm nghìn px, lỗi -22
+        zoom = f"if(lt({k}\\,0.22)\\,1.35-0.40*{k}/0.22\\,if(lt({k}\\,0.34)\\,0.95+0.05*({k}-0.22)/0.12\\,1))"
+        graph += (f";[1:v]format=rgba,scale=w='{bw_px}*{zoom}':h=-1:eval=frame,fade=t=in:st={t0:.3f}:d=0.18:alpha=1[bn];"
+                  f"[v0][bn]overlay=x=(W-w)/2:y=H*{POPUP_Y}-h/2:shortest=1:eval=frame:"
                   f"enable='between(t,{t0:.3f},{t1:.3f})'[v]")
-        extra = ["-loop", "1", "-framerate", str(FPS), "-i", str(png)]
+        extra = ["-loop", "1", "-framerate", str(FPS), "-t", f"{segs[-1]['end'] + 0.5:.3f}", "-i", str(png)]   # có hạn: ảnh lặp vô hạn từng làm treo
     else:
         graph += ";[v0]null[v]"
-    vf.write_text(graph, encoding="utf-8")
-    run(["ffmpeg", "-y", "-v", "error", "-i", str(video)] + extra + ["-/filter_complex", str(vf), "-map", "[v]", "-map", "0:a",
+    vf.write_text(graph, encoding="utf-8")   # -reinit_filter 0: clip Kling/Seedance khác thuộc tính màu → đồ thị dựng lại giữa chừng, scale eval=frame lỗi -22
+    run(["ffmpeg", "-y", "-v", "error", "-reinit_filter", "0", "-i", str(video)] + extra + ["-/filter_complex", str(vf), "-map", "[v]", "-map", "0:a",
          "-c:v", "libx264", "-preset", args.preset, "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "copy", str(out)])
     return out
 
 
 def _banner_png(img: Path, tmp: Path) -> Path:
-    """Banner Kho #431 là ảnh đặc (dải đỏ đè cảnh game): giữ dải đỏ + chữ trắng giữa + lõi băng, mép trái/phải mờ dần."""
+    """Ảnh nền ĐEN trơn (banner gen sạch): alpha = độ sáng lớn nhất của điểm, màu chia lại theo alpha (giữ vầng sáng đỏ), cắt sát.
+    Ảnh đặc (banner Kho #431 đè cảnh game): giữ dải đỏ + chữ trắng giữa + lõi băng, mép trái/phải mờ dần."""
     import numpy as np
     from PIL import Image
     im = np.asarray(Image.open(img).convert("RGB")).astype(np.float32)
     R, G, B = im[..., 0], im[..., 1], im[..., 2]
     h, w = R.shape
+    corners = np.concatenate([im[:8, :8].reshape(-1, 3), im[-8:, -8:].reshape(-1, 3)])
+    if corners.max() < 20:                                   # nền đen trơn
+        a = np.clip((im.max(axis=2) - 6) / 64, 0, 1)      # /64: dải đỏ đặc như HUD (so 3 mức 13/10; /249 nhạt, ngả cam)
+        rgb = np.clip(im / np.maximum(a, 1e-3)[..., None], 0, 255)
+        rgba = np.dstack([rgb, a * 255]).astype(np.uint8)
+        ys, xs = np.where(a > 0.02)
+        out = tmp / "popup_banner.png"
+        Image.fromarray(rgba[ys.min():ys.max() + 1, xs.min():xs.max() + 1], "RGBA").save(out)
+        return out
     red = np.clip((R - np.maximum(G, B) - 8) / 45, 0, 1)
     white = np.clip((np.minimum(np.minimum(R, G), B) - 150) / 60, 0, 1)
     mid = np.zeros_like(white)

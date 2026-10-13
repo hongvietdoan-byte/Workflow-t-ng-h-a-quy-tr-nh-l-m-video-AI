@@ -417,7 +417,8 @@ def lock_character_bible(pipeline: Pipeline, project_id: int) -> int:
     return n
 
 
-SCENE_FIELDS = ("location", "time", "mood", "lighting", "shot", "image_prompt", "blocking", "emotional_intent")
+SCENE_FIELDS = ("location", "time", "mood", "lighting", "shot", "image_prompt", "blocking", "emotional_intent",
+                "end_state")   # 13/10 #27: khung cuối đọc end_state — trước không có đường sửa tay (shot 16 cứ vẽ "ló mắt")
 
 
 BULK_FIELDS = ("video_route", "transition_in", "shake_in", "start_from_prev_clip")
@@ -457,6 +458,8 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
     for key in SCENE_FIELDS:
         if key in fields:
             value = fields[key]
+            if value is None and key == "end_state":      # insert_scene_after nhận end_state=None (_INSERT_DIRECT) — giữ như trước
+                value = ""
             if not isinstance(value, str):
                 raise SchemaError(f"{key}: cần chữ")
             data[key] = value.strip()
