@@ -139,6 +139,119 @@ def compare(image_path: str, plate_path: str, box: Optional[Sequence[float]] = N
             "horizon_source": source, "partial": partial}
 
 
+# ---- Lỗi hệ thống 1 sau #27 (13/10, cờ plate_anchored_image): ĐỎ / VÀNG thật, không chỉ đánh dấu ----------------------------------
+# Đường trời từng cột: hàng đầu tiên (từ mép trên) không còn là trời. Đo trên 6 ảnh thật #27 (shot 17/21, 13/10): ảnh SAI nền
+# (893 tháp xa + nhà mái đỏ, 744 tháp nhỏ) lệch 0,069 / 0,062; ảnh ĐÃ DUYỆT (910, 911) lệch 0,035 / 0,023 → ngưỡng tạm 0,05.
+# F1 đường nét (EDGE_VERY_LOW) KHÔNG phân biệt được 893 (0,05) với 910 (0,06) → chỉ ghi số, không là lý do.
+# Rà trên 30 ảnh duyệt/từ chối có render của #27: MỘT tín hiệu một mình (chân trời HOẶC đường trời) còn kêu ở ~12/20 ảnh đã duyệt (cổng
+# nguyền, tường keo, nhân vật cận che trời — vật thêm có chủ đích) → một tín hiệu = VÀNG (cần xem); HAI tín hiệu cùng lệch = ĐỎ.
+# Ngưỡng tạm — CHƯA hiệu chỉnh đủ (số đo ghi kèm để người duyệt tự xem).
+SKY_W, SKY_H = 72, 128
+SKYLINE_DIFF = 0.05
+SKY_SEEN = 0.02            # cả render lẫn ảnh đều không có trời (≤ 2 % chiều cao) → đường trời không phân biệt được gì
+
+
+def _sky(path: str):
+    import numpy as np
+    from PIL import Image
+    try:
+        with Image.open(path) as im:
+            a = np.asarray(im.convert("RGB").resize((SKY_W, SKY_H)), dtype=np.float32) / 255.0
+    except (OSError, ValueError):
+        return None
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    mx, mn = a.max(-1), a.min(-1)
+    sat = (mx - mn) / np.maximum(mx, 1e-3)
+    blue = (b > r + 0.06) & (b >= g - 0.02) & (mx > 0.45)
+    white = (mn > 0.78) & (sat < 0.18)                 # trời trắng / mây
+    return blue | white
+
+
+def skyline(path: str) -> Optional[List[float]]:
+    """Đường trời từng cột (0 = mép trên; trung vị trượt 5 cột), None khi không đọc được ảnh."""
+    import numpy as np
+    m = _sky(path)
+    if m is None:
+        return None
+    rows = []
+    for c in range(SKY_W):
+        col = m[:, c]
+        r = int(np.argmin(col)) if not col.all() else SKY_H
+        rows.append(r / SKY_H)
+    pad = [rows[0]] * 2 + rows + [rows[-1]] * 2
+    return [float(np.median(pad[i:i + 5])) for i in range(SKY_W)]
+
+
+def verdict(image_path: str, plate_path: str, box: Optional[Sequence[float]] = None,
+            horizon_expected: Optional[float] = None) -> Dict:
+    """compare() + đường trời → {"muc": "do"|"vang"|"xanh", "reasons", "skyline_diff", ...}. ĐỎ: chân trời lệch quá HORIZON_DIFF VÀ
+    đường trời lệch quá SKYLINE_DIFF (hai tín hiệu cùng nói nền khác render). VÀNG: một tín hiệu, dải chân trời phẳng (mảng che cảnh
+    xa) hoặc KHÔNG đo được (nói rõ)."""
+    res = compare(image_path, plate_path, box, horizon_expected)
+    red: List[str] = []
+    yellow: List[str] = []
+    for r in res.get("reasons") or []:
+        if r.startswith("đường nét kiến trúc"):
+            continue                                       # F1 chưa phân biệt được (xem trên) — chỉ ghi số
+        if "chân trời" in r and ("khác render" in r or "nền khác" in r):
+            red.append(r)
+        elif r.startswith("vùng quanh chân trời"):
+            yellow.append(r)
+    pi, ii = skyline(plate_path), skyline(image_path)
+    diff = None
+    if pi is not None and ii is not None:
+        if max(pi) > SKY_SEEN or max(ii) > SKY_SEEN:
+            diff = round(sum(abs(a - b) for a, b in zip(pi, ii)) / len(pi), 3)
+            if diff > SKYLINE_DIFF:
+                red.append(f"đường trời (mép trên của nhà/tháp/cây) lệch render trung bình {diff * 100:.0f}% chiều cao khung "
+                           f"(ngưỡng {SKYLINE_DIFF * 100:.0f}%) — kiến trúc/mốc khác chỗ hoặc khác cỡ so với render")
+    horizon_ok = res.get("measured") and not res.get("partial")
+    if diff is None and not horizon_ok:
+        yellow.append("KHÔNG đo được bố cục nền: " + ("không đọc được ảnh vẽ / render" if pi is None or ii is None else
+                      "render và ảnh đều không có trời (đường trời không so được)")
+                      + ("" if res.get("measured") else "; " + "; ".join(x for x in res.get("reasons") or []
+                                                                        if not x.startswith("đường nét"))))
+    muc = "do" if len(red) >= 2 else "vang" if red or yellow else "xanh"
+    return dict(res, muc=muc, mismatch=bool(red), reasons=red + yellow, skyline_diff=diff, signals=len(red))
+
+
+def check_strict(conn, data_dir: str, pid: int, scene_id: int, job_id: int, image_path: str, resolution=None):
+    """Như check_job nhưng theo cờ plate_anchored_image (không cần camera_plan): (severity, words) — "error" ĐỎ khi nền lệch render,
+    "warn" VÀNG khi không đo được / render cũ / thiếu render, "info" khi khớp. Ghi cùng sổ plate_layout.json. Không tự vẽ lại."""
+    from . import place_refs
+    ref = place_refs.shot_ref(data_dir, pid, scene_id)
+    if ref is None:
+        return ("warn", "VÀNG: không đo được bố cục nền — shot không có render 3D")
+    if resolution is not None:
+        gone = place_refs.stale(conn, data_dir, pid, resolution)
+        if -1 in gone or scene_id in gone:
+            return ("warn", "VÀNG: không đo được bố cục nền — render đang gắn không còn là render của kế hoạch")
+    res = verdict(image_path, ref["path"], ref["_rec"].get("subject_box"), horizon_expected=_stage_horizon(conn, pid, scene_id))
+    _record(data_dir, pid, {"job_id": job_id, "scene_id": scene_id, "plate_key": ref.get("plate_key"), "strict": True, **res})
+    nums = (f" [chân trời ảnh/render {res.get('horizon_image')}/{res.get('horizon_plate')}, đường trời lệch {res.get('skyline_diff')}, "
+            f"F1 {res.get('edge') if res.get('edge') is None else round(res['edge'], 2)}]")
+    if res["muc"] == "do":
+        return ("error", "ĐỎ: nền ảnh lệch render 3D (chỉ đánh dấu cho người duyệt, không tự vẽ lại): " + "; ".join(res["reasons"]) + nums)
+    if res["muc"] == "vang":
+        head = "VÀNG: nền có thể lệch render 3D (một tín hiệu — cần xem): " if res.get("signals") else "VÀNG: "
+        return ("warn", head + "; ".join(res["reasons"]) + nums)
+    return ("info", "bố cục nền khớp render 3D" + nums)
+
+
+def _record(data_dir: str, pid: int, row: Dict) -> None:
+    path = record_path(data_dir, pid)
+    with _LOCK:
+        try:
+            with open(path, encoding="utf-8") as f:
+                rows = json.load(f)
+        except (OSError, ValueError):
+            rows = []
+        rows = [r for r in rows if r.get("job_id") != row["job_id"]] + [row]
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(rows, f, ensure_ascii=False, indent=1)
+
+
 def _stage_horizon(conn, pid: int, scene_id: int) -> Optional[float]:
     """Hàng chân trời giải tích của máy Sân khấu 3D (cờ stage_camera + shot có stage_camera), None khi không có."""
     from . import features, stage_facts
