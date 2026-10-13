@@ -337,6 +337,59 @@ def library_lost_box(p: Pipeline) -> None:
                 _rerun_here()
 
 
+def subject_library_box(p: Pipeline) -> None:
+    """Lỗi 11 (#27): the ClipAI Subject Library holds at most 100 assets per user; full → every Seedance send falls back to marked
+    pictures. Read (free) only when asked; delete only the chosen ones, after a yes (cannot be undone)."""
+    from core.adapters.clipai_subjects import LIBRARY_LIMIT
+    with st.expander("🧑‍🎤 Kho chủ thể ClipAI (Seedance) — tối đa 100 asset", expanded=False):
+        st.caption("Mỗi ảnh gửi Seedance qua Kho chủ thể chiếm 1 chỗ. Đầy 100/100 thì mọi lần gửi rơi về ảnh đánh dấu như cũ. "
+                   "Đọc danh sách và xóa KHÔNG tốn tiền; xóa thì KHÔNG hoàn tác (lần gửi sau tự tải lại ảnh nếu cần).")
+        if st.button("🔄 Đọc Kho chủ thể", key="subj_lib_read"):
+            try:
+                lib = factory.subject_library()
+                if lib is None:
+                    raise ProviderError("chưa có Kho chủ thể (đặt SUBJECT_PROVIDER=clipai hoặc VIDEO_PROVIDER=clipai)", code="config")
+                st.session_state["subj_lib_ov"] = subjects.library_overview(_fresh(p).conn, lib)
+                st.session_state.pop("subj_lib_pick", None)          # an old choice may be in use / gone now
+            except ProviderError as e:
+                st.error(f"Không đọc được Kho chủ thể: {e}")
+        for kind, text in st.session_state.pop("subj_lib_msg", []):
+            (st.success if kind == "ok" else st.error)(text)
+        ov = st.session_state.get("subj_lib_ov")
+        if not ov:
+            return
+        used, limit = ov["count"], ov["limit"] or LIBRARY_LIMIT
+        (st.error if used >= limit else st.warning if used >= limit * 0.9 else st.info)(f"Đang dùng **{used} / {limit}** asset.")
+        rows = ov["assets"]
+        by_id = {r["asset_id"]: r for r in rows}
+        st.dataframe([{"Asset": r["asset_id"], "Tên": r["name"], "Trạng thái": r["status"], "Phân loại": r["category_label"],
+                       "Gợi ý xóa": (ov["suggested"].index(r["asset_id"]) + 1) if r["asset_id"] in ov["suggested"] else None,
+                       "Dùng lần cuối": r["last_used"] or "-", "Ai đang dùng": "; ".join(r["users"]) or "-"} for r in rows],
+                     hide_index=True, width="stretch")
+        choices = [r["asset_id"] for r in rows if r["category"] != "in_use"]      # in use by a project being made: never offered
+        if st.button(f"Chọn theo gợi ý ({len(ov['suggested'])})", key="subj_lib_suggest", disabled=not ov["suggested"]):
+            st.session_state["subj_lib_pick"] = list(ov["suggested"])
+        picked = st.multiselect("Asset sẽ xóa (asset dự án đang làm dùng không có trong danh sách)", choices, key="subj_lib_pick",
+                                format_func=lambda i: f"{i} · {by_id[i]['name']} · {by_id[i]['category_label']}")
+        if picked and confirm_all(key="subj_lib_del", ids=picked, label=f"🗑 Xóa {len(picked)} asset khỏi Kho chủ thể",
+                                  question=f"Xóa {len(picked)} asset khỏi Kho chủ thể ClipAI? Việc này KHÔNG hoàn tác.",
+                                  container=st, yes_label="Có, xóa vĩnh viễn"):
+            try:
+                lib = factory.subject_library()
+                res = subjects.delete_assets(_fresh(p).conn, lib, picked, who=me() if auth_on() else None)
+            except (ProviderError, ValueError, access.AccessDenied) as e:
+                st.error(str(e))
+                return
+            msgs = [("err", f"Chưa xóa được {aid}: {msg}") for aid, msg in res["errors"]]
+            if res["deleted"]:
+                msgs.insert(0, ("ok", f"Đã xóa {len(res['deleted'])} asset; ảnh/nhân vật dùng chúng sẽ tự tải lại ở lần gửi sau. "
+                                      "Bấm 🔄 Đọc Kho chủ thể để xem số mới."))
+            st.session_state["subj_lib_msg"] = msgs
+            st.session_state.pop("subj_lib_ov", None)
+            st.session_state.pop("subj_lib_pick", None)
+            _rerun_here()
+
+
 def library_health(p: Pipeline, game: str) -> None:
     """G6: what the library still lacks, so a project is not started on a character without a close-up or a place without an
     eye-level background."""
@@ -942,6 +995,7 @@ def asset_library_panel(p: Pipeline) -> None:
     library_review_box(p, game)
     claude_review_box(p, game)
     library_lost_box(p)
+    subject_library_box(p)
     library_health(p, game)
     plates3d_panel(p, game)
     meshy_panel(p, game)
