@@ -112,3 +112,26 @@ def test_declared_actor_missing_from_stage_is_yellow():
     with patch("core.features.on", return_value=True):
         out = G.warnings([(1, 1, shot())], objects={"B": OBJECTS["B"]})
     assert any("thiếu" in w and "A" in w for w in out)
+
+
+@pytest.mark.parametrize("bad", [{"byd": "A nhìn B"}, {"byd": {"hanh_dong": "A"}}, {"byd": {"may": "MS"}, "size": ""}])
+def test_malformed_byd_is_yellow_not_crash(bad):
+    # Rà gộp Đ11v2+v4: BYĐ do Claude viết có thể sai kiểu — báo VÀNG, không ném AttributeError làm vỡ report/khung Trước khi chạy.
+    s = dict(shot(), **bad)
+    with patch("core.features.on", return_value=True):
+        out = G.warnings([(1, 1, s)], objects=OBJECTS)
+    assert out and all(isinstance(w, str) for w in out)
+
+
+def test_before_run_survives_film_grammar_failure():
+    # Khung "Trước khi chạy": một phần lỗi chỉ thành mục info, không làm vỡ Bước 1 (hợp đồng core/before_run._collect).
+    from core import before_run, continuity
+    from core.db import connect
+    from core.pipeline import Pipeline
+    p = Pipeline(connect())
+    pid = p.create_project("t")
+    p.add_scene_next(pid, "s1")
+    with patch.object(continuity, "film_warnings", side_effect=RuntimeError("hỏng")):
+        res = before_run._collect(p.conn, "unused", pid)
+    texts = [it["text"] for g in res["groups"] for it in g["items"]]
+    assert any("luật quay" in t and "RuntimeError" in t for t in texts)

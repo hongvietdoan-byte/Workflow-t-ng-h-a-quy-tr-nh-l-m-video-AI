@@ -59,6 +59,10 @@ def warnings(shots, objects=None, aspect=9 / 16):
             if math.dist(location, aim) < .01:
                 raise ValueError
             args = (location, aim, lens, aspect)
+            byd = s.get("byd") or {}
+            # BYĐ do Claude viết có thể sai kiểu: báo VÀNG số/BYĐ không hợp lệ, không im lặng/không vỡ report (rà gộp Đ11).
+            if not isinstance(byd, dict) or not isinstance(byd.get("hanh_dong") or [], list) or not isinstance(byd.get("may") or {}, dict):
+                raise ValueError
             actors = {k: o for k, o in objs.items() if o.get("kind") == "nguoi"}
             actions = (s.get("byd") or {}).get("hanh_dong") or []
             if not actions:
@@ -130,7 +134,7 @@ def warnings(shots, objects=None, aspect=9 / 16):
                     if angle < 30:
                         out.append(f"{tag}: đổi góc {angle:.1f}° < 30° cùng chủ thể {name} — đổi góc máy ≥30° để tránh cắt nhảy")
             prev = (scene, {name: [location[i] - actors[name]["xy"][i] for i in range(2)] for name in current})
-        except (KeyError, TypeError, ValueError, OverflowError):
+        except (KeyError, TypeError, ValueError, OverflowError, AttributeError):
             out.append(f"{tag}: không kiểm luật quay — số hình học/BYĐ không hợp lệ; bổ sung số đã duyệt")
             prev = None
     return out
