@@ -969,6 +969,8 @@ def _flag_reasons(p: Pipeline, job) -> List[str]:
     out = hard_failures(scores, "video" if job["type"] == "video_gen" else "image")
     if "scene_qc_hold" in scores:                          # QC per scene kept it for a person (doubt / shot table / code flag)
         out.append("QC cảnh giữ cho người xem")
+    if "framing_hold" in scores:                           # lỗi hệ thống 2 (cờ framing_guard): đổi bố cục / lùi máy / cắt cảnh
+        out.append("đo khung hình: đổi bố cục / cắt cảnh")
     if job["escalated"]:
         out.append("hết lượt tự sửa")
     if job["type"] == "video_gen":
