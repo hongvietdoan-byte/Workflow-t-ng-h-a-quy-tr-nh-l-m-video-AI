@@ -577,6 +577,66 @@ class ChainFixS1Tests(Base):
         self.assertNotIn("clip hiện tại", video_ui.meta_line("Kling std", 1.5, 0.2, 0))
 
 
+class ReviewRoundS1Tests(Base):
+    """Vòng sửa sau rà S1 13/10 (docs/handoff/RA_S1_S2_2026-10-13.md mục 10, 11, 12)."""
+
+    def test_continue_after_clips_wait_never_approves_a_draft(self):
+        """Mục 10: người bấm Tiếp tục ở chờ 'clips' → _approve_held không duyệt NHÁP thay người (nháp phải ✔ Duyệt trên thẻ)."""
+        from core import autopilot
+        with ON:
+            d = self.p.create_job(self.s1, "video_gen")
+            self.made(d)
+            self.p.transition(d, JobState.PENDING_REVIEW)
+            s2 = self.p.create_scene(self.pid, 2, "Shot 2")
+            g = self.p.create_job(s2, "video_gen")
+            self.p.conn.execute("UPDATE jobs SET quality_tier='direct' WHERE id=?", (g,))
+            self.p.conn.commit()
+            self.p.start(g)
+            self.p.succeed(g)
+            self.p.transition(g, JobState.PENDING_REVIEW)
+            self.assertEqual(autopilot._approve_held(self.p, self.pid, "video_gen", "giữ sau khi xem"), 1)
+            self.assertEqual(self.p.job(d)["state"], "pending_review")
+            self.assertEqual(self.p.job(g)["state"], "approved")
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "draft_review")
+
+    def test_drafts_waiting_ignores_an_old_draft_after_a_newer_approved_one(self):
+        """Mục 11: nháp cũ còn 'succeeded' khi người đã duyệt nháp mới hơn → không chờ mãi."""
+        from core import autopilot
+        with ON:
+            old = self.p.create_job(self.s1, "video_gen")
+            self.made(old)
+            self.approved_draft()
+            self.assertEqual(self.p.job(old)["state"], "succeeded")
+            self.assertEqual(autopilot._drafts_waiting(self.p, self.pid), [])
+
+    def test_scene_qc_fix_on_a_final_holds_instead_of_a_paid_child(self):
+        """Mục 12 (V6 đường QC cảnh): verdict 'fix' trên bản cao → giữ cho người, không job con bản cao tốn tiền."""
+        from core import qc_scene
+        with ON, mock.patch.object(qc_scene, "trusted", return_value=True):
+            self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)
+            self.made(f)
+            jobs_before = self.p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+            obj = {"frames": [{"k": 1, "verdict": "fix", "root_cause": "render", "problem": "tay méo", "fix": "Fix the hands.",
+                               "checks": {c: {"ok": c != "artifacts", "evidence": "tay méo"} for c in qc_scene.CHECKS}}]}
+            out = qc_scene.apply(self.p, self.pid, [{"job_id": f}], obj, self.data)
+            self.assertEqual(self.p.job(f)["state"], "pending_review")
+            self.assertEqual(self.p.job(f)["escalated"], 1)
+            self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0], jobs_before)
+            self.assertIn("giữ cho người", out["K1"])
+            note = self.p.conn.execute("SELECT note FROM job_events WHERE job_id=? ORDER BY id DESC LIMIT 1", (f,)).fetchone()["note"]
+            self.assertIn("bản cao: không tự sửa", note)
+
+    def test_a_person_rejecting_a_final_still_gets_a_new_take(self):
+        with ON:
+            self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)
+            self.made(f)
+            self.p.transition(f, JobState.PENDING_REVIEW)
+            self.p.reject(f, "user", "tay méo", fix="Fix the hands.")
+            self.assertEqual(self.p.job(f)["state"], "rejected")
+
+
 class RunnerTierTests(Base):
     def test_draft_goes_as_the_seedance_2_5_sample_at_480p(self):
         with ON:
@@ -683,20 +743,23 @@ class RetryCapTests(Base):
             self.assertEqual(self.p.conn.execute("SELECT state FROM scenes WHERE id=?", (self.s1,)).fetchone()[0],
                              "needs_attention")
 
-    def test_final_is_redone_at_most_once(self):
+    def test_final_is_never_redone_by_the_machine_only_by_the_person(self):
+        """Rà 13/10 mục 12 (V6): trước đây máy loại bản cao → 1 job con bản cao (trần 1). Nay máy không bao giờ loại bản cao thành job
+        con tốn tiền (giữ cho người); người loại kèm sửa → bản cao mới gửi từ đầu vào (không từ nháp). Đổi hành vi có chủ đích."""
         with ON:
             self.approved_draft()
             f = quality_tier.request_final(self.p, self.s1)
             self.assertEqual(self.p.auto_limit(self.p.job(f)), 1)
             self.made(f)
-            self.assertEqual(self.p.reject(f, "ai_agent", "QC 0.6", fix="Keep the red hood on"), "rejected")
+            jobs_before = self.p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+            self.assertEqual(self.p.reject(f, "ai_agent", "QC 0.6", fix="Keep the red hood on"), "needs_review")
+            self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0], jobs_before)
+            self.assertEqual(self.p.job(f)["state"], "pending_review")
+            self.assertEqual(self.p.reject(f, "user", "giữ áo choàng đỏ", fix="Keep the red hood on"), "rejected")
             f2 = self.p.conn.execute("SELECT MAX(id) FROM jobs").fetchone()[0]
-            self.assertEqual((self.tier(f2), self.p.job(f2)["retry_count"]), ("final", 1))
-            self.made(f2)
-            self.assertEqual(self.p.reject(f2, "ai_agent", "QC 0.6", fix="Hands stay on the rail"), "escalated")
+            self.assertEqual(self.tier(f2), "final")
             # the redo of a final carries a fix → resent from the input, not from the draft (draft_task takes no prompt)
             self.assertIsNone(quality_tier.final_route(self.p.conn, self.p.job(f2), _provider())["from_sample"])
-
 
 class SameInputRedoTests(Base):
     def test_person_redo_without_any_fix_on_the_same_input_is_refused(self):

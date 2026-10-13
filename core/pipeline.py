@@ -46,11 +46,11 @@ PLAIN_RESEND = "gửi lại nguyên đầu vào"
 STALE_INPUT = "stale_input"
 """KLD-1 (08/10): failure-note prefix of a job the runner refused to send because its input changed after it was queued (core.runner)."""
 MISSING_INPUT = "missing inputs"
+"""failure-note prefix of a job the runner could not send (no approved picture / motion prompt) — not a provider failure either."""
 FINAL_HOLD = "final_hold"
 """C3 (13/10): failure-note prefix of a two-tier FINAL the runner did not send because it waits for the PERSON (a new paid gen to
 confirm — quality_tier.NEED_CONFIRM — or made from a draft that is no longer the approved one). Not an outdated input: "↻ Xếp hàng lại
 từ đầu vào mới" (core.batch.input_failures) and "↻ Gửi lại" leave it alone — the way out is "⬆ Gen (MỚI) bản cao" on the card."""
-"""failure-note prefix of a job the runner could not send (no approved picture / motion prompt) — not a provider failure either."""
 
 
 def _final_hold(note: Optional[str]) -> bool:
@@ -731,6 +731,15 @@ class Pipeline:
         self.conn.commit()
         return "needs_review"
 
+    def _hold_final(self, job_id: int, note: str) -> str:
+        """Like _hold, also for a take already waiting for review (the reason is written as an event either way)."""
+        if self.state(job_id) == JobState.PENDING_REVIEW:
+            self._event(job_id, JobState.PENDING_REVIEW, JobState.PENDING_REVIEW, "ai_agent", note)
+            self.conn.execute("UPDATE jobs SET escalated=1 WHERE id=?", (job_id,))
+            self.conn.commit()
+            return "needs_review"
+        return self._hold(job_id, note)
+
     def approve(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None, picked: bool = False) -> bool:
         """True = approved. False = a final of a draft that is no longer the approved one, retired instead (13/10, reason in job_events).
         `picked`: the person chose this very take (takes.choose — it rejects the other takes first, the final's own draft too)."""
@@ -826,6 +835,11 @@ class Pipeline:
         # score line or the Vietnamese note meant for people
         reason = note if fix is None else _combine_fix(self.job(job_id)["retry_reason"], fix)
         auto = reviewer_type == "ai_agent"
+        if auto and respawn and self._final_from_draft(self.job(job_id)):
+            # rà 13/10 mục 12 (V6 on every path): the machine (QC cảnh verdict "fix", …) never rejects a FINAL into a paid child final —
+            # it must reproduce the approved draft; held for the person (to fix it → a new DRAFT)
+            return self._hold_final(job_id, f"bản cao: không tự sửa / không tự gen lại (bản cao phải giữ đúng nháp đã duyệt; muốn sửa → "
+                                            f"gen NHÁP mới) — {note or ''}".rstrip(" —")[:2000])
         why = self._same_input_regen(self.job(job_id), reason) if respawn else None
         if why:                                   # N1 5a.4.4: a redo must change its input — never the same paid input again
             if not auto:

@@ -43,3 +43,17 @@ Chạy: 23 file test liên quan — 448 passed, 2 skipped (không chạy cả b�
 
 ## Bước kế
 - Phiên chính gộp nhánh, chạy cả bộ test một lần ở bước gộp (S3 sau S1 vì cùng `core/runner.py`).
+
+## Vòng sửa sau rà (13/10, `docs/handoff/RA_S1_S2_2026-10-13.md` mục 10–14)
+- **10** `core/autopilot.py` `_approve_held`: "Tiếp tục" ở chờ "clips" bỏ qua job `quality_tier='draft'` khi cờ two_tier_quality bật
+  (nháp chỉ người ✔ trên thẻ). Test `ReviewRoundS1Tests::test_continue_after_clips_wait_never_approves_a_draft`.
+- **11** `_drafts_waiting`: tính theo shot, chỉ shot có `quality_tier.state()=='draft_review'` (nháp cũ còn succeeded sau nháp mới đã
+  duyệt không giữ chạy mãi). Test `…test_drafts_waiting_ignores_an_old_draft_after_a_newer_approved_one`.
+- **12** `Pipeline.reject`: máy (ai_agent) loại bản cao từ nháp (`_final_from_draft`) + respawn → `_hold_final` (pending_review,
+  escalated, ghi lý do), không job con. `qc_scene.apply` ghi "giữ cho người (không tự gen lại…)". Người loại vẫn sinh job con.
+  Test `…test_scene_qc_fix_on_a_final_holds_instead_of_a_paid_child`, `…test_a_person_rejecting_a_final_still_gets_a_new_take`;
+  `RetryCapTests::test_final_is_redone_at_most_once` → `test_final_is_never_redone_by_the_machine_only_by_the_person` (đổi có chủ đích).
+- **13** chỉ kiểm: `VideoRunner._hold_prefix` trả `final_hold` chỉ khi lý do bắt đầu "bản cao bị chặn" → ĐỎ V4 (S2) trên bản cao vẫn ra
+  `stale_input`. Hết khi S2 bỏ ĐỎ V4 (mục 1); nếu S2 giữ ĐỎ thì phải sửa ở đây.
+- **14** `core/pipeline.py`: FINAL_HOLD dời xuống sau docstring của MISSING_INPUT.
+- Chạy: 1059 passed, 4 skipped (các file khu vực liên quan + test chậm của related_areas).

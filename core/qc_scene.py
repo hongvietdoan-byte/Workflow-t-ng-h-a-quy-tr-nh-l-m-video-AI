@@ -503,7 +503,8 @@ def apply(p, pid: int, frames: List[Dict], obj: Dict, data_dir: str) -> Dict[str
                 p.transition(r["job_id"], JobState.PENDING_REVIEW, actor="ai_agent", note="QC cảnh")
             res = p.reject(r["job_id"], "ai_agent", f"QC cảnh [{f['root_cause']}]: {f['problem']} — {evidence}"[:600], fix=f["fix"],
                            qc={"root_cause": f.get("root_cause"), "problem": f.get("problem"), "fix": f.get("fix")})   # S14.17 Đạo diễn đọc lỗi
-            out[f"K{k}"] = f"vẽ lại ({f['root_cause']}) → {res}"
+            out[f"K{k}"] = (f"giữ cho người (không tự gen lại: {f['root_cause']})" if res == "needs_review"
+                            else f"vẽ lại ({f['root_cause']}) → {res}")
         else:
             why = "bảng shot cần người sửa" if f["verdict"] == "fix" else "chưa đủ rõ"
             _hold(p, r["job_id"], f"QC cảnh: {why} — {f.get('problem') or evidence}"[:600])

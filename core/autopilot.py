@@ -1008,18 +1008,26 @@ def _approve_unflagged(p: Pipeline, pid: int, kind: str) -> List[str]:
 
 
 def _drafts_waiting(p: Pipeline, pid: int) -> List[str]:
-    """C2: 'S03' of the two-tier drafts (flag two_tier_quality) waiting for the person's approval (succeeded / pending_review)."""
+    """C2: 'S03' of the shots whose two-tier draft waits for the person's approval (flag two_tier_quality). Rà 13/10 mục 11: judged per
+    SHOT by quality_tier.state() == 'draft_review' — an old draft left 'succeeded' after a newer draft was approved (or a final made)
+    no longer keeps the run waiting forever."""
     from . import quality_tier
     if not quality_tier.enabled():
         return []
-    return [f"S{r['idx']:02d}" for r in p.conn.execute(
-        "SELECT s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type='video_gen' AND j.quality_tier='draft'"
-        " AND j.state IN ('succeeded','pending_review') ORDER BY s.idx", (pid,))]
+    rows = p.conn.execute(
+        "SELECT DISTINCT s.id, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type='video_gen'"
+        " AND j.quality_tier='draft' AND j.state IN ('succeeded','pending_review') ORDER BY s.idx", (pid,)).fetchall()
+    return [f"S{r['idx']:02d}" for r in rows if quality_tier.state(p.conn, r["id"]) == "draft_review"]
 
 
 def _approve_held(p: Pipeline, pid: int, kind: str, note: str) -> int:
     """The person looked and went on: what was held for them counts as accepted."""
-    rows = p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type=? AND state='pending_review'", (pid, kind)).fetchall()
+    from . import quality_tier
+    skip_drafts = kind == "video_gen" and quality_tier.enabled()
+    rows = p.conn.execute("SELECT id, quality_tier FROM jobs WHERE project_id=? AND type=? AND state='pending_review'",
+                          (pid, kind)).fetchall()
+    # rà 13/10 mục 10 (C2): "Tiếp tục" is not the person's ✔ on a two-tier DRAFT — a draft is approved on its card (the final follows it)
+    rows = [r for r in rows if not (skip_drafts and r["quality_tier"] == "draft")]
     return sum(1 for r in rows if p.approve(r["id"], "user", note))   # 13/10: a final of an older draft is retired, not counted
 
 
