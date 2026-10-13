@@ -17,6 +17,12 @@ def require_ffmpeg():
     except f.FFmpegNotFound:
         pytest.skip('ffmpeg not installed')
 
+def require_filter(ffmpeg, name):
+    listing = subprocess.check_output([ffmpeg, '-hide_banner', '-filters'], text=True, stderr=subprocess.STDOUT)
+    if not any(name == field for line in listing.splitlines() for field in line.split()[1:2]):
+        pytest.skip(f'ffmpeg thiếu filter {name} — chỉ bỏ ca dùng filter này')
+
+
 @pytest.fixture
 def real_ffmpeg():
     return require_ffmpeg()
@@ -30,14 +36,16 @@ def test_real_ffmpeg_missing_skips_only_real_tests():
 def test_huge_integer_is_yellow_and_next_shot_survives(tmp_path, key):
     p = pipeline({**SPEC, key: 10**1000})
     p.conn.execute('INSERT INTO scenes VALUES(2, ?)', (json.dumps({'post_fx': SPEC}),))
-    paths = ['a.mp4', 'b.mp4']
+    for name in ('a.mp4', 'b.mp4'):
+        (tmp_path / name).write_bytes(b'fake-source')
+    paths = [str(tmp_path / 'a.mp4'), str(tmp_path / 'b.mp4')]
     def run(cmd):
         with open(cmd[-1], 'wb') as output:
             output.write(b'complete')
     with mock.patch('core.features.on', return_value=True), mock.patch.object(f, 'run', side_effect=run), mock.patch.object(f, 'find_ffmpeg', return_value='ffmpeg'):
         result = post_fx.apply(p, [{'path': paths[0], 'scene_id': 1}, {'path': paths[1], 'scene_id': 2}], paths, [2, 2], str(tmp_path))
     assert [r['muc'] for r in result] == ['vang', 'xanh']
-    assert result[0]['reasons'] and paths[0] == 'a.mp4' and paths[1] != 'b.mp4'
+    assert result[0]['reasons'] and paths[0] == str(tmp_path / 'a.mp4') and paths[1] != str(tmp_path / 'b.mp4')
 
 @pytest.mark.parametrize('bad', [None, {}, {'loai': 'x'}, {**SPEC, 'cuong_do': float('nan')}, {**SPEC, 'thoi_luong_s': True}, {**SPEC, 'vi_tri': 'x'}])
 def test_invalid_is_yellow(bad):
@@ -78,7 +86,9 @@ def test_invalid_duration_is_yellow(seconds):
 def test_ffmpeg_failure_isolated_and_partial_removed(tmp_path):
     p = pipeline(SPEC)
     p.conn.execute('INSERT INTO scenes VALUES(2, ?)', (json.dumps({'post_fx': SPEC}),))
-    paths = ['a.mp4', 'b.mp4']
+    for name in ('a.mp4', 'b.mp4'):
+        (tmp_path / name).write_bytes(b'fake-source')
+    paths = [str(tmp_path / 'a.mp4'), str(tmp_path / 'b.mp4')]
     def run(cmd):
         with open(cmd[-1], 'wb') as output:
             output.write(b'partial')
@@ -87,7 +97,7 @@ def test_ffmpeg_failure_isolated_and_partial_removed(tmp_path):
     with mock.patch('core.features.on', return_value=True), mock.patch.object(f, 'run', side_effect=run), mock.patch.object(f, 'find_ffmpeg', return_value='ffmpeg'):
         result = post_fx.apply(p, [{'path': paths[0], 'scene_id': 1}, {'path': paths[1], 'scene_id': 2}], paths, [2, 2], str(tmp_path))
     assert [r['muc'] for r in result] == ['vang', 'xanh']
-    assert paths[0] == 'a.mp4' and paths[1] != 'b.mp4'
+    assert paths[0] == str(tmp_path / 'a.mp4') and paths[1] != str(tmp_path / 'b.mp4')
     assert not list(tmp_path.glob('*.part-*'))
 
 def test_delivery_records_warning_and_manifest_for_each_shot(tmp_path, real_ffmpeg):
@@ -114,6 +124,8 @@ def test_delivery_records_warning_and_manifest_for_each_shot(tmp_path, real_ffmp
 @pytest.mark.parametrize('kind', ['nhieu_song', 'glitch', 'nhap_nhay'])
 def test_real_effect_duration_audio_and_disabled_bytes(tmp_path, kind, real_ffmpeg):
     ff = real_ffmpeg
+    if kind == 'glitch':
+        require_filter(ff, 'rgbashift')
     src = str(tmp_path / 'src.mp4')
     subprocess.run([ff, '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=d=2:s=128x72:r=24', '-f', 'lavfi', '-i', 'sine=d=2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', src], check=True)
     before = open(src, 'rb').read()

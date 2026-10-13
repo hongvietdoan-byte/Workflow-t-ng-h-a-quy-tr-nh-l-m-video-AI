@@ -15,7 +15,7 @@ import shutil
 import tempfile
 from typing import Dict, List, Optional
 
-from . import delivery, director_two_pass, ffmpeg_studio, lineage, music_timing, performance, viewer_check
+from . import delivery, director_two_pass, features, ffmpeg_studio, lineage, music_timing, performance, viewer_check
 
 MAX_SHEETS = 12                     # llm_runner.MAX_IMAGES: more images than this in one call is refused
 PAIRS_PER_SHEET = 6                 # 2 columns × 3 rows of "before | after" pairs
@@ -220,9 +220,11 @@ def fingerprint(final_row, intent: Dict) -> str:
         made = [stat.st_size, int(stat.st_mtime)]
     except OSError:
         made = None
-    blob = json.dumps({"file": made, "path": final_row["path"], "timeline": man.get("timeline"),
-                       "fade": man.get("fade"), "transition": man.get("transition"), "intent": intent.get("fingerprint")},
-                      sort_keys=True, ensure_ascii=False, default=str)
+    inputs = {"file": made, "path": final_row["path"], "timeline": man.get("timeline"),
+                       "fade": man.get("fade"), "transition": man.get("transition"), "intent": intent.get("fingerprint")}
+    if features.on("post_fx_render"):
+        inputs["post_fx"] = man.get("post_fx", [])
+    blob = json.dumps(inputs, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:16]
 
 
@@ -256,6 +258,8 @@ def build(p, project_id: int, data_dir: str, ffmpeg: Optional[str] = None, force
               "flags": flags_for(scenes, intent, spans, err), "sheets": pics["paths"],
               "coverage": {"moments_seen": pics["seen"], "moments_total": pics["total"], "dropped": pics["dropped"],
                            "images": len(pics["paths"]), "images_max": MAX_SHEETS}}
+    if features.on("post_fx_render"):
+        result["post_fx"] = man.get("post_fx", [])
     os.makedirs(os.path.dirname(path_of(data_dir, project_id)), exist_ok=True)
     with open(path_of(data_dir, project_id), "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=1)
