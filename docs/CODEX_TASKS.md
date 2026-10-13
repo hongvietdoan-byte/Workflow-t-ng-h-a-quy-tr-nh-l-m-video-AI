@@ -999,6 +999,8 @@ Luật chung GIỐNG đợt 1; nhánh `codex/d13-viec<N>-<tên>`; KHÔNG sửa f
 
 ## Kết quả Codex — đợt 13
 
+- Việc 4 (phần đã làm) · `codex/d13-viec4-ton-dong` · code `3752329d`: mục1–5 trừ cost O(n²), mục7–8, mục9 phần độc lập (director_busy, lease UI, nháp, cwd/khung legacy, HKCU env). ĐỎ11+4+6+2 ca → nhóm12file **357 passed/1 xfailed/10 subtests**, 104,41s; tự rà thêm2 lifecycle đỏ→45 xanh; rà độc lập2P2→**70 xanh/7,24s**. Hai cờ `ambience_voice_guard`/`delivery_unknown_guard` OFF/OPT_IN, areas.version68 giữ; widget keys giữ. Chrome component1440/1280: 2PNG, không lỗi/tràn ngang, đúng nhãn/khóa nút. RA `docs/RA_D13_VIEC4_CODEX_2026-10-13.md`. Còn mục6 seedance_refs do máy chính đang sửa, cost O(n²) cần đối chiếu ngân sách27c2e9f3, QA pet Windows thật; scan cùngsize/cùngmtimegiây chưa nhận. Chưa cả bộ/gộp/API/production; không đánh dấu trọn việc4 xong.
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
 ---
