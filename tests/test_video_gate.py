@@ -143,6 +143,52 @@ class VideoGate(Base):
             j3 = self.p.create_job(s3, "video_gen")
             self.assertIsNone(video_gate.hold(self.p.conn, self.dir, self.p.job(j3)))
 
+    def test_autopilot_waits_with_gate_reason(self):
+        # R11 (rà S4): cổng giữ mọi clip đang chờ → autopilot CHỜ người có lý do (không quay "Gen video…" mãi); bỏ qua có lý do → chạy
+        from core import autopilot
+        flags_on(self, "video_gate")
+        scene, img = self.shot()
+        self.plate(img, "error")
+        job = self.p.create_job(scene, "video_gen")
+        with mock.patch("core.place_refs.shot_ref", return_value=RENDER):
+            with self.assertRaises(autopilot._Wait) as w:
+                autopilot._gate_wait(self.p, self.pid, self.dir)
+            self.assertEqual(w.exception.gate, "video_gate")
+            self.assertIn("S01", str(w.exception))
+            self.assertIn("lệch nền 3D", str(w.exception))
+            self.assertIn("Bước 4", str(w.exception))                              # chỉ đường thoát
+            other = self.p.create_job(self.shot()[0], "video_gen")                 # một clip khác gửi được → không dừng cả lượt
+            with mock.patch("core.place_refs.shot_ref", side_effect=lambda d, p_, s: RENDER if s == scene else None):
+                autopilot._gate_wait(self.p, self.pid, self.dir)
+            self.p.conn.execute("UPDATE jobs SET state='cancelled' WHERE id=?", (other,))
+            video_gate.skip(self.p.conn, img, "nền lệch nhẹ, chấp nhận", "a@b")
+            autopilot._gate_wait(self.p, self.pid, self.dir)                       # bỏ qua có lý do → không chờ
+        self.assertEqual(self.p.job(job)["state"], "queued")
+
+    def test_unreviewed_newer_take_is_not_called_redrawing(self):
+        # R11: take ảnh mới đã về mà người chưa duyệt ≠ "đang vẽ lại ảnh"; nhóm liền mạch có nút Bỏ qua chờ nhóm (bắt buộc lý do)
+        flags_on(self, "video_gate")
+        g = {"shot_no": 1, "story_scene": 3, "sequence": 2}
+        s1, img1 = self.shot(dict(g))
+        s2, _ = self.shot(dict(g, shot_no=2))
+        newer = self.p.create_job(s2)
+        self.p.start(newer)
+        self.p.succeed(newer)                                                      # về rồi, chờ người duyệt
+        job = self.p.create_job(s1, "video_gen")
+        with mock.patch("core.place_refs.shot_ref", return_value=None):
+            why = video_gate.hold(self.p.conn, self.dir, self.p.job(job))
+            self.assertIn("S02 có ảnh mới chờ duyệt", why)
+            self.assertNotIn("đang vẽ lại", why)
+            self.assertIn("Bỏ qua chờ nhóm", why)
+            waits = video_gate.group_waits(self.p.conn, self.pid)
+            self.assertEqual([(r["idx"], r["image_job_id"]) for r in waits], [(1, img1)])
+            with self.assertRaises(ValueError):
+                video_gate.skip(self.p.conn, img1, " ", group=True)
+            video_gate.skip(self.p.conn, img1, "shot kề không đổi nền", "a@b", group=True)
+            self.assertIsNone(video_gate.hold(self.p.conn, self.dir, self.p.job(job)))
+            self.assertEqual(video_gate.group_waits(self.p.conn, self.pid), [])
+            self.assertIsNone(video_gate.skipped(self.p.conn, img1))               # bỏ qua chờ nhóm ≠ bỏ qua kiểm nền
+
     def test_flag_off_never_holds(self):
         scene, img = self.shot()
         self.plate(img, "error")
@@ -194,6 +240,24 @@ class UpgradeHold(Base):
         self.p.conn.execute("INSERT INTO review_log(job_id, reviewer_type, decision, decided_at) VALUES (?,?,?,?)",
                             (draft, "ai_agent", "approve", "2026-10-13T10:00:00+00:00"))
         self.assertIsNone(vr._draft_approved_at(self.p.job(final)))               # máy duyệt sau cùng ≠ người duyệt
+
+    def test_autopilot_review_wait_lets_upgrade_from_approved_draft(self):
+        # R10 (rà S4): autopilot dùng cùng `since` như runner (C9) — mục đỏ khâu ảnh cũ không dừng bản cao nâng từ nháp người duyệt
+        from core import autopilot
+        scene, _ = self.shot()
+        self.p.conn.execute("UPDATE change_events SET state='skipped'")
+        draft = self.p.create_job(scene, "video_gen")
+        self.p.conn.execute("UPDATE jobs SET quality_tier='draft', state='approved' WHERE id=?", (draft,))
+        self.p.conn.execute("INSERT INTO review_log(job_id, reviewer_type, decision, decided_at) VALUES (?,?,?,?)",
+                            (draft, "user", "approve", "2026-10-13T09:00:00+00:00"))
+        final = self.p.create_job(scene, "video_gen")
+        self.p.conn.execute("UPDATE jobs SET quality_tier='final', draft_job_id=? WHERE id=?", (draft, final))
+        self.p.conn.commit()
+        self.red(scene, "anh", "2026-10-13T08:00:00Z")
+        autopilot._review_wait(self.p, self.pid, "video_gen", self.dir)            # không ném _Wait
+        self.p.conn.execute("UPDATE jobs SET draft_job_id=NULL WHERE id=?", (final,))
+        with self.assertRaises(autopilot._Wait):                                   # gen thường vẫn chờ người như cũ
+            autopilot._review_wait(self.p, self.pid, "video_gen", self.dir)
 
 
 class Migration(unittest.TestCase):

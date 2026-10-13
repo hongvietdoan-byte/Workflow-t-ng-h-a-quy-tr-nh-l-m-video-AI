@@ -16,6 +16,8 @@ from typing import Dict, List, Optional
 FLAG = "video_gate"
 CODE = "video_gate"
 LIVE_IMAGE = ("queued", "running", "retryable", "succeeded", "pending_review")
+REDRAWING = ("queued", "running", "retryable")       # R11 (rà S4): đang vẽ thật; succeeded / pending_review = ảnh mới chờ người duyệt
+GROUP_MARK = "[nhóm] "                               # lần Bỏ qua chờ nhóm liền mạch (cùng bảng video_gate_skips, khác Bỏ qua kiểm nền)
 
 
 def enabled() -> bool:
@@ -30,20 +32,26 @@ def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
-def skipped(conn, image_job_id: int) -> Optional[Dict]:
-    """Lần người bấm Bỏ qua cổng nền của ảnh này (mới nhất), hoặc None."""
+def skipped(conn, image_job_id: int, group: bool = False) -> Optional[Dict]:
+    """Lần người bấm Bỏ qua cổng nền của ảnh này (mới nhất), hoặc None. group=True: lần Bỏ qua CHỜ NHÓM liền mạch (lý do bắt đầu
+    GROUP_MARK) — hai loại bỏ qua không thay nhau."""
     try:
-        row = conn.execute("SELECT * FROM video_gate_skips WHERE image_job_id=? ORDER BY id DESC LIMIT 1", (image_job_id,)).fetchone()
+        op = "LIKE" if group else "NOT LIKE"
+        row = conn.execute(f"SELECT * FROM video_gate_skips WHERE image_job_id=? AND reason {op} ? ORDER BY id DESC LIMIT 1",
+                           (image_job_id, GROUP_MARK.strip() + "%")).fetchone()
     except Exception:  # noqa: BLE001 - an old database without the table: nothing skipped
         return None
     return dict(row) if row else None
 
 
-def skip(conn, image_job_id: int, reason: str, who: Optional[str] = None) -> None:
-    """Người chấp nhận nền của ảnh này dù kiểm nền ĐỎ — bắt buộc có lý do (không bỏ qua im lặng)."""
+def skip(conn, image_job_id: int, reason: str, who: Optional[str] = None, group: bool = False) -> None:
+    """Người chấp nhận nền của ảnh này dù kiểm nền ĐỎ — bắt buộc có lý do (không bỏ qua im lặng). group=True (R11 rà S4): gửi clip của
+    shot có ảnh này mà KHÔNG chờ cả nhóm liền mạch duyệt ảnh (lý do ghi kèm GROUP_MARK)."""
     reason = (reason or "").strip()
     if len(reason) < 3:
-        raise ValueError("Cần ghi lý do bỏ qua kiểm nền (ít nhất vài chữ)")
+        raise ValueError("Cần ghi lý do bỏ qua " + ("chờ nhóm liền mạch" if group else "kiểm nền") + " (ít nhất vài chữ)")
+    if group:
+        reason = GROUP_MARK + reason
     row = conn.execute("SELECT scene_id FROM jobs WHERE id=? AND type='image_gen'", (image_job_id,)).fetchone()
     if row is None:
         raise ValueError(f"không có ảnh job #{image_job_id}")
@@ -94,9 +102,12 @@ def group_missing(conn, scene_id: int) -> List[str]:
             out.append(f"{label} chưa duyệt ảnh")
             continue
         q = ",".join("?" * len(LIVE_IMAGE))
-        if conn.execute(f"SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND id>? AND state IN ({q})",
-                        (r["id"], img, *LIVE_IMAGE)).fetchone():
+        newer = conn.execute(f"SELECT state FROM jobs WHERE scene_id=? AND type='image_gen' AND id>? AND state IN ({q})",
+                             (r["id"], img, *LIVE_IMAGE)).fetchall()
+        if any(n["state"] in REDRAWING for n in newer):
             out.append(f"{label} đang vẽ lại ảnh")
+        elif newer:                                     # R11: take mới đã về, người chưa duyệt / bỏ — không phải "đang vẽ"
+            out.append(f"{label} có ảnh mới chờ duyệt")
     return out
 
 
@@ -121,9 +132,11 @@ def hold(conn, data_dir: str, job) -> Optional[str]:
                 why.append(f"ảnh khung đầu (job {img}) lệch nền 3D — vẽ lại ảnh hoặc bấm 'Bỏ qua kiểm nền' kèm lý do ở Bước 4 "
                            f"({str(got[1])[:160]})")
     missing = group_missing(conn, sid)
+    if missing and img is not None and skipped(conn, img, group=True):
+        missing = []                                    # người đã Bỏ qua chờ nhóm (có lý do) cho ảnh khung đầu này
     if missing:
         why.append("nhóm shot liền mạch chưa đủ ảnh duyệt: " + ", ".join(missing[:6]) + (f" (+{len(missing) - 6})" if len(missing) > 6 else "")
-                   + " — clip gửi khi cả nhóm đã duyệt ảnh")
+                   + " — clip gửi khi cả nhóm đã duyệt ảnh, hoặc bấm 'Bỏ qua chờ nhóm' kèm lý do ở Bước 4")
     return ("Cổng ảnh → video: " + "; ".join(why)) if why else None
 
 
@@ -142,4 +155,22 @@ def red_images(conn, data_dir: str, project_id: int) -> List[Dict]:
                            "id DESC LIMIT 1", (img,)).fetchone()
         if hit and hit["severity"] == "error":
             out.append({"scene_id": r["id"], "idx": r["idx"], "image_job_id": img, "msg": hit["message"]})
+    return out
+
+
+def group_waits(conn, project_id: int) -> List[Dict]:
+    """Màn Bước 4 (R11 rà S4): clip đang chờ vì nhóm liền mạch chưa đủ ảnh duyệt, chưa ai Bỏ qua chờ nhóm —
+    [{scene_id, idx, image_job_id, missing: [...]}]. Shot chưa có ảnh khung đầu duyệt không có nút (không có gì để gắn lý do)."""
+    from . import lineage, shots
+    out = []
+    rows = conn.execute("SELECT DISTINCT s.id, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND "
+                        "j.type='video_gen' AND j.state='queued' ORDER BY s.idx", (project_id,)).fetchall()
+    for r in rows:
+        missing = group_missing(conn, r["id"])
+        if not missing:
+            continue
+        img = lineage.approved_image_id(conn, shots.image_scene(conn, r["id"]))
+        if img is None or skipped(conn, img, group=True):
+            continue
+        out.append({"scene_id": r["id"], "idx": r["idx"], "image_job_id": img, "missing": missing})
     return out

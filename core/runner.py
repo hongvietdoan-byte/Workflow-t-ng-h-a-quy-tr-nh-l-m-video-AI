@@ -833,18 +833,24 @@ class _Runner:
             sleep(interval)
 
 
+def draft_approved_at(conn, job) -> Optional[str]:
+    """C9 (rà chuỗi 13/10): job video bản cao (quality_tier 'final') có nháp gốc NGƯỜI đã duyệt → giờ duyệt nháp đó (review_log);
+    None = không phải lệnh nâng từ nháp đã duyệt. Dùng chung runner + autopilot (R10 rà S4: hai nơi quyết giống nhau)."""
+    keys = job.keys()
+    if "quality_tier" not in keys or job["quality_tier"] != "final" or "draft_job_id" not in keys or not job["draft_job_id"]:
+        return None
+    row = conn.execute("SELECT reviewer_type, decision, decided_at FROM review_log WHERE job_id=? ORDER BY id DESC LIMIT 1",
+                       (job["draft_job_id"],)).fetchone()
+    if row is None or row["reviewer_type"] != "user" or row["decision"] != "approve":
+        return None
+    return row["decided_at"]
+
+
 class VideoRunner(_Runner):
     job_type = "video_gen"
 
     def _draft_approved_at(self, job) -> Optional[str]:
-        """C9 (rà chuỗi 13/10): job bản cao (quality_tier 'final') có nháp gốc NGƯỜI đã duyệt → giờ duyệt nháp đó (review_log)."""
-        if "quality_tier" not in job.keys() or job["quality_tier"] != "final" or not job["draft_job_id"]:
-            return None
-        row = self.p.conn.execute("SELECT reviewer_type, decision, decided_at FROM review_log WHERE job_id=? ORDER BY id DESC LIMIT 1",
-                                  (job["draft_job_id"],)).fetchone()
-        if row is None or row["reviewer_type"] != "user" or row["decision"] != "approve":
-            return None
-        return row["decided_at"]
+        return draft_approved_at(self.p.conn, job)
 
     def _gate_hold(self, job) -> Optional[str]:
         from . import video_gate
