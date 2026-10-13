@@ -66,3 +66,46 @@ def test_bright_render_without_horizon_but_edge_is_partly_measured(tmp_path):
     Image.new("RGB", (100, 100), "black").save(dark)
     with patch("core.place_refs.background_match", return_value=0.8):
         assert qc.compare(str(dark), str(dark))["measured"] is False
+
+
+# ---- Lỗi hệ thống 1 sau #27 (13/10): verdict ĐỎ/VÀNG trên ảnh thật (tests/fixtures/p27_plate_anchor, thu nhỏ 144×256) ----------
+# 893 (từ chối, shot 17: tháp xa + nhà mái đỏ) · 910 (duyệt) · 744 (từ chối, shot 21: tháp nhỏ, máy khác) · 911 (duyệt)
+import os  # noqa: E402
+from unittest import mock  # noqa: E402
+
+FIX = os.path.join(os.path.dirname(__file__), "fixtures", "p27_plate_anchor")
+BOX_285 = [0.187, 0.1476, 0.4976, 0.6268]
+
+
+@pytest.mark.parametrize("plate, job, box, muc", [
+    ("plate285", "job893", BOX_285, "vang"),            # từ chối: tháp xa + nhà mái đỏ (đường trời lệch)
+    ("plate285", "job910", BOX_285, "xanh"),            # đã duyệt
+    ("plate289", "job744", [0.3221, 0.5237, 0.4764, 0.7946], "do"),    # từ chối: tháp nhỏ, máy khác (chân trời + đường trời)
+    ("plate289", "job911", [0.3221, 0.5237, 0.4764, 0.7946], "xanh"),  # đã duyệt
+])
+def test_verdict_on_real_p27_pictures(plate, job, box, muc):
+    res = qc.verdict(os.path.join(FIX, job + ".jpg"), os.path.join(FIX, plate + ".jpg"), box)
+    assert res["muc"] == muc, res["reasons"]
+    assert not any(r.startswith("đường nét kiến trúc") for r in res["reasons"])   # F1 không phân biệt được — chỉ ghi số
+
+
+def test_unmeasurable_is_yellow_never_silent(tmp_path):
+    flat = tmp_path / "wall.png"
+    Image.new("RGB", (90, 160), (120, 110, 100)).save(flat)
+    res = qc.verdict(str(flat), str(flat))
+    assert res["muc"] == "vang" and any("KHÔNG đo được" in r for r in res["reasons"])
+    res = qc.verdict(str(tmp_path / "gone.png"), str(flat))
+    assert res["muc"] == "vang" and any("KHÔNG đo được" in r for r in res["reasons"])
+
+
+def test_check_strict_says_red_and_records(tmp_path):
+    ref = {"path": os.path.join(FIX, "plate289.jpg"), "_rec": {"subject_box": [0.3221, 0.5237, 0.4764, 0.7946]}, "plate_key": "k"}
+    with mock.patch("core.place_refs.shot_ref", return_value=ref), mock.patch.object(qc, "_stage_horizon", return_value=None):
+        sev, words = qc.check_strict(None, str(tmp_path), 27, 289, 744, os.path.join(FIX, "job744.jpg"))
+        assert sev == "error" and words.startswith("ĐỎ") and "đường trời" in words
+        sev, words = qc.check_strict(None, str(tmp_path), 27, 289, 911, os.path.join(FIX, "job911.jpg"))
+        assert sev == "info" and "khớp" in words
+    rows = json.loads((tmp_path / "27" / "plate_layout.json").read_text(encoding="utf-8"))
+    assert [(r["job_id"], r["muc"]) for r in rows] == [(744, "do"), (911, "xanh")]
+    with mock.patch("core.place_refs.shot_ref", return_value=None):
+        assert qc.check_strict(None, str(tmp_path), 27, 289, 1, "x.png")[0] == "warn"

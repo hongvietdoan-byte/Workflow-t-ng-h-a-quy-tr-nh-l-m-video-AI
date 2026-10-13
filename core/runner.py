@@ -2966,8 +2966,10 @@ class ImageRunner(_Runner):
             geo = place_refs.geometry_sentence(render["_rec"], data, (entry or {}).get("sun_azimuth", 250.0))
             scale = place_refs.scale_sentence(render["_rec"], entry, data)   # F2 việc 4: measured prop sizes (empty if none)
         # F1-C: light / spot / geometry go into their parts of the formula (place → light), never glued after the quality close
-        prompt, _ = build_image_prompt(conn, job["project_id"], data, fix=model_fix(job["retry_reason"]), place_render=render is not None,
-                                       light=light or "", place_extra=[chosen or "", geo or "", scale or ""])
+        words_data, ground = self._plate_anchor_words(job, data, render)   # lỗi 1 #27 (cờ plate_anchored_image); tắt → (data, "")
+        prompt, _ = build_image_prompt(conn, job["project_id"], words_data, fix=model_fix(job["retry_reason"]),
+                                       place_render=render is not None, light=light or "",
+                                       place_extra=([ground] if ground else []) + [chosen or "", geo or "", scale or ""])
         if "Geometry of this camera" in prompt:        # luật 1: stage_facts sentences added by code are said
             self._diag(job, "info", "stage_facts", "đã nối câu sự thật hình học của máy Sân khấu 3D (core/stage_facts) vào prompt ảnh")
             for note in geometry_contradiction_notes(conn, job["project_id"], data):   # rà kỹ 10/10: shot cũ, không change_event
@@ -3022,6 +3024,29 @@ class ImageRunner(_Runner):
             refs = refs + [layout]
         return self._finish_args(job, prompt, refs)
 
+    def _plate_anchor_words(self, job, data: Dict, render) -> Tuple[Dict, str]:
+        """Lỗi hệ thống 1 sau #27 (cờ plate_anchored_image): (data cho prompt với image_prompt đã bỏ chữ tả nền của Đạo diễn, câu NỀN
+        sinh từ plate + mốc 3D). Cờ tắt / shot không có render → (data, "") — prompt như cũ từng byte. Chữ bỏ → VÀNG; không biết mốc →
+        VÀNG (không im lặng). Chỉ đổi chữ GỬI ĐI, không ghi lại scenes.data."""
+        from . import plate_anchor
+        if render is None or not plate_anchor.enabled():
+            return data, ""
+        conn = self.p.conn
+        say = getattr(self, "_diag_once", self._diag)
+        names = list(data.get("characters") or [])
+        stripped, removed = plate_anchor.strip_scenery(data.get("image_prompt") or "", names)
+        if removed:
+            say(job, "warn", plate_anchor.CODE_WORDS, plate_anchor.words_note(removed))
+        place = assets.scene_location(conn, job["project_id"], data)
+        entry = location_pack_entry(conn, place)
+        from . import place_refs
+        w, h = place_refs.resolution_of(self.p.project(job["project_id"]))
+        ground, notes = plate_anchor.background_sentence(render["_rec"], entry, (place or {}).get("name") or render.get("label") or "the place",
+                                                         (entry or {}).get("landmark"), aspect=w / h if h else None)
+        if notes:
+            say(job, "warn", plate_anchor.CODE_BACKGROUND, "câu nền sinh từ plate thiếu dữ liệu: " + "; ".join(notes))
+        return dict(data, image_prompt=stripped), ground
+
     def _finish_args(self, job, prompt: str, refs):
         """The picture job's (prompt, reference paths). Storyboard mode (feature storyboard_api, a provider that draws storyboard
         frames): the scene's shared references + the anchor frame replace the shot's own, and the storyboard fields go with the job
@@ -3030,6 +3055,10 @@ class ImageRunner(_Runner):
         from . import image_models
         proj = self.p.project(job["project_id"])
         model = image_models.of_project(proj) if getattr(self.provider, "supports_model", False) else None
+        from . import plate_anchor
+        anchored = plate_anchor.enabled()
+        if anchored:                                   # lỗi 1 #27: render của shot là ẢNH 1 (không bị trần số ảnh cắt, đánh số 1)
+            refs = plate_anchor.plate_first(refs)
         refs, dropped = sendable_references(refs, model)
         if dropped:
             self._diag(job, "warn", "missing_reference", "ảnh tham chiếu không gửi được (bỏ khỏi yêu cầu và khỏi câu đánh số ảnh): "
@@ -3078,6 +3107,8 @@ class ImageRunner(_Runner):
                     shared = skill_dossier.add_reference(shared, skill_dossier.reference(hit), 8)
                 from . import prop_lock
                 shared = prop_lock.suppress_pov_gun_refs(self.p.conn, job["project_id"], own, shared)
+                if anchored:                           # lỗi 1 #27: render của shot là ảnh 1 của storyboard (image_mapping theo thứ tự này)
+                    shared = plate_anchor.plate_first(shared)
                 shared, dropped = sendable_references(shared, model)     # before the mapping text is built from the list
                 if dropped:
                     self._diag(job, "warn", "missing_reference", "ảnh tham chiếu storyboard không gửi được: " + ", ".join(dropped))
@@ -3146,6 +3177,8 @@ class ImageRunner(_Runner):
             if pov_issue:
                 getattr(self, "_diag_once", self._diag)(job, "warn", "prop_pov_gun", pov_issue["msg"])
         prompt, lost = name_render(prompt, refs, fallback=lambda: _place_words(self, job))
+        if anchored:                                   # rà gộp lỗi 1: câu nền "as Image 1 shows it" theo gói THẬT (render rơi → bỏ câu)
+            prompt = plate_anchor.fit_ground(prompt, refs)
         from . import prop_lock                        # rà 12/10: no "as its reference picture shows" for a prop picture not sent
         if prop_lock.enabled():                        # rà 12/10: one note per job (not every poll), info only for a sent package
             missing = prop_lock.missing_refs(self.p.conn, job["project_id"], lock_data, refs)
@@ -3159,7 +3192,10 @@ class ImageRunner(_Runner):
             self._diag(job, "warn", "missing_reference", "ảnh render 3D của shot không gửi được — bỏ câu khóa nền theo render, quay về "
                                                          "câu địa điểm bằng chữ")
         if refs:                                       # the chosen resources' pictures go with the prompt (image-to-image)
-            return (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
+            text = assets.reference_note(refs) + "Scene: " + prompt
+            if anchored:                               # lỗi 1 #27: "giữ đúng nền / kiến trúc / bố cục của ảnh 1" đứng đầu
+                text = plate_anchor.with_keep(text, refs)
+            return (text, [r["path"] for r in refs])
         return (prompt,)
 
     def _after_download(self, job, path: str) -> str:
@@ -3172,8 +3208,17 @@ class ImageRunner(_Runner):
                 sev, words = place_refs.measure(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], job["id"], path,
                                                 place_refs.resolution_of(self.p.project(job["project_id"])))
                 self._diag(job, sev, "place_match", words)
-            from . import camera_plan
-            if camera_plan.enabled():              # G0 mục 5: layout of the picture vs the render (code, 0 USD) — marked, never redrawn
+            from . import camera_plan, plate_anchor
+            if plate_anchor.enabled() and place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]) is not None:
+                # lỗi 1 #27: shot có render → kiểm sau vẽ ĐỎ/VÀNG (không cần camera_plan; không đo được → VÀNG, không im lặng)
+                from . import plate_layout_qc
+                try:
+                    got = plate_layout_qc.check_strict(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], job["id"], path,
+                                                       place_refs.resolution_of(self.p.project(job["project_id"])))
+                    self._diag(job, got[0], plate_layout_qc.CODE, got[1])
+                except Exception as e:  # noqa: BLE001 - a check must never lose the paid picture
+                    self._diag(job, "warn", plate_layout_qc.CODE, f"VÀNG: không so được bố cục nền với render: {type(e).__name__}: {e}")
+            elif camera_plan.enabled():            # G0 mục 5: layout of the picture vs the render (code, 0 USD) — marked, never redrawn
                 from . import plate_layout_qc
                 try:
                     got = plate_layout_qc.check_job(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], job["id"], path,
