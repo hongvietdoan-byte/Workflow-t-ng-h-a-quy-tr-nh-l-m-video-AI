@@ -6,6 +6,9 @@ reported and never resubmitted automatically (that would only burn credits).
 """
 import json
 import os
+import tempfile
+import threading
+from contextlib import contextmanager
 from typing import Dict, List, Optional
 
 from . import access
@@ -33,9 +36,59 @@ def load(directory: str) -> List[Dict]:
         return []
 
 
+_manifest_locks = {}
+_manifest_locks_guard = threading.Lock()
+
+
+@contextmanager
+def manifest_lock(directory):
+    """Khóa cùng manifest giữa thread/process; không giữ khóa trong ASR."""
+    key = os.path.normcase(os.path.abspath(directory))
+    with _manifest_locks_guard:
+        lock = _manifest_locks.setdefault(key, threading.RLock())
+    with lock:
+        with open(os.path.join(directory, ".assets.lock"), "a+b") as fh:
+            if os.name == "nt":
+                import msvcrt
+                if os.fstat(fh.fileno()).st_size == 0:
+                    fh.write(b"0"); fh.flush()
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                if os.name == "nt":
+                    fh.seek(0)
+                    msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+
+
+def _write_manifest(directory, items):
+    fd, path = tempfile.mkstemp(prefix=".assets-", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(items, f, ensure_ascii=False, indent=1)
+        os.replace(path, _manifest(directory))
+    finally:
+        if os.path.exists(path):
+            os.unlink(path)
+
+
 def _save(directory: str, items: List[Dict]) -> None:
-    with open(_manifest(directory), "w", encoding="utf-8") as f:
-        json.dump(items, f, ensure_ascii=False, indent=1)
+    with manifest_lock(directory):
+        _write_manifest(directory, items)
+
+
+def patch_manifest(directory, patch):
+    """Đọc mới + sửa chọn lọc + ghi nguyên tử, cùng khóa với mọi _save."""
+    with manifest_lock(directory):
+        items = load(directory)
+        if patch(items):
+            _write_manifest(directory, items)
 
 
 def _add(directory: str, kind: str, label: str, asset_id: Optional[str], message: Optional[str] = None,

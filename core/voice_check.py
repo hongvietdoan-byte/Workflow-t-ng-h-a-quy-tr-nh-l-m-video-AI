@@ -14,6 +14,7 @@ import difflib
 import os
 import re
 import subprocess
+import threading
 from typing import Callable, Dict, List, Optional
 
 from . import access
@@ -112,6 +113,28 @@ def transcribe(path: str) -> Optional[str]:
         _model = WhisperModel(os.environ.get("VOICE_ASR_MODEL", "small"), device="auto", compute_type="int8")
     segments, _ = _model.transcribe(path, language="vi", beam_size=5, vad_filter=False)
     return " ".join(s.text.strip() for s in segments).strip()
+
+
+_local_models = {}
+_local_model_lock = threading.Lock()
+
+
+def transcribe_local(path: str) -> Optional[str]:
+    """Chỉ model có sẵn: không tải model hay gọi dịch vụ mạng."""
+    if not asr_available():
+        return None
+    try:
+        from faster_whisper import WhisperModel
+        name = os.environ.get("VOICE_ASR_MODEL", "small")
+        with _local_model_lock:
+            model = _local_models.get(name)
+            if model is None:
+                model = WhisperModel(name, device="auto", compute_type="int8", local_files_only=True)
+                _local_models[name] = model
+        segments, _ = model.transcribe(path, language="vi", beam_size=5, vad_filter=False)
+        return " ".join(s.text.strip() for s in segments).strip()
+    except Exception:
+        return None
 
 
 def _words(text: str) -> List[str]:

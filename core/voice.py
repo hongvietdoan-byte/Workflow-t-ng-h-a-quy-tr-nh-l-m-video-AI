@@ -49,6 +49,11 @@ def set_profile(conn, project_id: int, name: str, profile: Optional[Dict]) -> No
             keep["auto"] = True
         if isinstance(profile.get("variant"), dict) and profile["variant"].get("pitch"):
             keep["variant"] = {k: float(v) for k, v in profile["variant"].items() if k in ("pitch", "speed") and v}
+        if isinstance(profile.get("pronunciation"), dict):
+            from . import tts_pronunciation
+            cfg = profile["pronunciation"]
+            keep["pronunciation"] = {"words": tts_pronunciation.validate(cfg.get("words") or {}),
+                                     "voice_id": cfg.get("voice_id"), "model": cfg.get("model")}
         clean = json.dumps(keep, ensure_ascii=False)
     conn.execute("UPDATE characters SET voice_profile=? WHERE project_id=? AND name=?", (clean, project_id, name))
     conn.commit()
@@ -260,6 +265,8 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
         voice_check.settle_redos(directory)
     have = {(e["scene_id"], e.get("line")): (i, e) for i, e in _line_items(directory)}
     sent, skipped, no_voice, held = 0, 0, set(), []
+    from . import tts_pronunciation
+    pronunciation_on = features.on("tts_pronunciation")
     for ln in planned_lines(conn, project_id):
         if scene_ids is not None and ln["scene_id"] not in scene_ids:
             continue
@@ -270,12 +277,25 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
         how = ln.get("delivery") if features.on("voice_direction") else None   # GĐ4: the Director's direction of the line
         variant = ln["voice"].get("variant") or None           # S14.26: a voice shared by two roles (core/voice_casting.py)
         pitch = (variant or {}).get("pitch")
+        said = speakable(ln["text"])
+        pron_meta = None
+        if pronunciation_on:
+            said, pron_meta = tts_pronunciation.prepare(said, ln["voice"], model)
         old = have.get((ln["scene_id"], ln["line"]))
         resends = 0
+        pronunciation_redo = None
         if old is not None:
             i, e = old
             same = (e.get("text") == ln["text"] and e.get("voice_id") == ln["voice"]["voice_id"]
                     and (how is None or e.get("delivery") == how))      # feature off: a line made with direction is kept, not re-paid
+            if same and pronunciation_on and e["state"] in ("running", "succeeded"):
+                if tts_pronunciation.changed(e, speakable(ln["text"]), said, pron_meta):
+                    if not by_person or e["state"] == "running":
+                        held.append(f"S{ln['idx']:02d}: VÀNG từ điển/giọng đổi — giữ bản cũ; bấm tạo giọng để gửi chữ mới")
+                        continue
+                    import uuid
+                    pronunciation_redo = uuid.uuid4().hex
+                    same = False
             if same and e["state"] in ("running", "succeeded") and (e.get("pitch_semitones") or None) != (pitch or None):
                 # S14.26: only the variant's pitch changed (or was lost) — ffmpeg from the kept original, 0 USD, never a new TTS
                 e["pitch_semitones"] = pitch or None
@@ -294,23 +314,34 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
                     held.append(f"S{ln['idx']:02d} {ln['speaker'] or ''}: {why}")
                     continue
                 resends = int(e.get("resends") or 0) + (0 if e.get("refused") else 1)
-            audio_lib.remove(directory, i)                  # the line or the voice changed (or an allowed resend): make it again
+            if pronunciation_redo:
+                audio_lib.update(directory, i, state="superseded", redo_token=pronunciation_redo)
+            else:
+                audio_lib.remove(directory, i)                  # the line or the voice changed (or an allowed resend): make it again
             have = {(e2["scene_id"], e2.get("line")): (j, e2) for j, e2 in _line_items(directory)}
         extra = {"scene_id": ln["scene_id"], "scene_idx": ln["idx"], "line": ln["line"], "speaker": ln["speaker"],
                  "text": ln["text"], "voice_id": ln["voice"]["voice_id"], "dialogue": True, "resends": resends}
+        if pronunciation_redo:
+            extra["redo_of"] = pronunciation_redo
         if pitch:
             extra["pitch_semitones"] = pitch                 # pitched after download (audio_lib.refresh → voice_casting.render_pitch)
-        said = speakable(ln["text"])
+        if pron_meta:
+            extra["pronunciation"] = pron_meta
         if slow and ln["scene_id"] in slow:
             said = slow_end(said)
             extra["slow_end"] = True
         if how:
             extra["delivery"] = how
             said = voice_direction.spoken_text(said, how, model)
+        if pron_meta:
+            extra["pronunciation"]["sent_text"] = said
         audio_lib.submit_tts(provider, directory, said, ln["voice"]["voice_id"], ln["voice"].get("voice_name", ""),
                              model, None, ledger=(conn, project_id) if ledger else None,
                              extra=extra, params=voice_casting.tts_params(voice_direction.params(how, model), variant))
         sent += 1
+    if pronunciation_on and settle:
+        from . import voice_check
+        voice_check.settle_redos(directory)
     return {"sent": sent, "skipped": skipped, "no_voice": sorted(no_voice), "held": held}
 
 
