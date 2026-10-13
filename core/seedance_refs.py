@@ -212,6 +212,56 @@ def mark(path: str, out_dir: str, style: str = "eye_plus") -> str:
     return out
 
 
+MARK_KEY = "ref_mark"        # scenes.data: "eye_plus" once the corner mark was refused as "real person" (flag ref_mark_off_face)
+
+
+def mark_off_face() -> bool:
+    try:
+        from . import features
+        return features.on("ref_mark_off_face")
+    except Exception:  # noqa: BLE001 - unreadable settings: the old behaviour (off)
+        return False
+
+
+def _scene_data(conn, scene_ids) -> List[Dict]:
+    out = []
+    for sid in scene_ids or []:
+        row = conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()
+        out.append(json.loads(row["data"] or "{}") if row else {})
+    return out
+
+
+def mark_style(conn, scene_ids) -> str:
+    """Lỗi hệ thống 4 (#27 13/10: Seedance 2.5 drew the red plus of the marked pictures onto Kelly's face, shots 8–9, 18). Flag
+    ref_mark_off_face off: "eye_plus" (as before). On: "corner_plus" (banner + plus in the corner, off every face) first; after a
+    "real person" refusal of that send (S4.6 A/B 29/09: 2.0 Fast refused the corner mark) the shots carry ref_mark = "eye_plus" and
+    go back to the eye mark — the ban sentence of `prompt` goes with it either way."""
+    if not mark_off_face():
+        return "eye_plus"
+    return "eye_plus" if any(d.get(MARK_KEY) == "eye_plus" for d in _scene_data(conn, scene_ids)) else "corner_plus"
+
+
+def step_mark_back(conn, scene_ids) -> bool:
+    """After a "real person" refusal: shots sent with the corner mark go back to the eye mark (the input changes once). True when
+    changed; False when the flag is off or they already used the eye mark (the route ladder goes on as before)."""
+    if not mark_off_face() or mark_style(conn, scene_ids) != "corner_plus":
+        return False
+    for sid in scene_ids:
+        row = conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()
+        data = json.loads(row["data"] or "{}") if row else {}
+        data[MARK_KEY] = "eye_plus"
+        conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), sid))
+    conn.commit()
+    return True
+
+
+def mark_ban_sentence(names: List[str]) -> str:
+    """The sentence that forbids drawing the reference marks on the people (flag ref_mark_off_face; #27 shots 8–9, 18)."""
+    who = ", ".join(ascii_name(n) for n in names) if names else "anyone"
+    return (f"Never draw a plus sign, cross, crosshair or any red mark on {who}'s face, head, body or clothes, at any moment — the red "
+            "plus and the white banner on the reference pictures are only labels.")
+
+
 def identity_pictures(conn, project_id: int, rows: List[Dict], room: int) -> List[tuple]:
     """(name, path) of one reference picture per character of the shots, in order of appearance, at most `room`."""
     from . import assets
@@ -401,6 +451,9 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
     rules = ("Any white banner or red mark on a reference picture is an annotation, never part of the video."
              if features.on("seedance_subjects") else
              "The white banner and red marks on the reference pictures are annotations, never part of the video.")
+    if mark_off_face():                  # lỗi hệ thống 4 (#27 13/10): the plus was drawn onto Kelly's face — said by name, always
+        rules += " " + mark_ban_sentence(list(dict.fromkeys(nm[:-len(OUTFIT_TAG)] if nm.endswith(OUTFIT_TAG) else nm
+                                                            for nm, _ in identities)))
     blocks = [start.strip(), "\n".join(shots), "\n".join(shared_lines), still, identity.strip(), place_text.strip(), rules]
     text = "\n".join(b for b in blocks if b)
     # 08/10 (#24): a character named in Vietnamese ("YÊU NỮ TÀ LINH DẠNG 1") put accented letters into "Image N is …" and the shot

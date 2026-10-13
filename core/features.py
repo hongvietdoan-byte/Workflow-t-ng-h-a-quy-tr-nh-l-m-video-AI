@@ -559,6 +559,20 @@ FEATURES: Dict[str, Dict] = {
         "why": "Lỗi thật #27 (12/10): Kho gắn SKORP + Bom keo mà ảnh ra AK / tường keo mỗi shot một kiểu. Chưa chạy thật — bật rồi "
                "gen 1 shot rẻ để so",
     },
+    "skill_object_guard": {
+        "label": "Vật kỹ năng (tường keo…): prompt ảnh + motion bỏ từ dễ hiểu sai (elevator/door/thang máy/cửa) → tả hình dạng/chất "
+                 "liệu + câu cấm; Kho đưa Đạo diễn kèm lưu ý; shot vật kỹ năng mọc lên → VÀNG gợi ý dựng bằng GHÉP code (0 USD)",
+        "verified": False,
+        "why": "Lỗi hệ thống 3 #27 (13/10): skin Gloowall OB55 'cửa thang máy' → model vẽ thang máy thật (cửa mở, nhìn xuyên, người "
+               "đứng trong), shot 16 gen 6 lần hỏng, giao bằng ghép code. Chưa gen thật với chữ mới",
+    },
+    "ref_mark_off_face": {
+        "label": "Ảnh tham chiếu đánh dấu gửi Seedance: dấu '+' đỏ đặt ở GÓC ảnh (không trên mặt) + luôn kèm câu cấm dấu/chữ thập trên "
+                 "mặt, đầu, người (0 USD)",
+        "verified": False,
+        "why": "Lỗi hệ thống 4 #27 (13/10): Kho chủ thể đầy → gửi ảnh đánh dấu cũ (dấu + trên mắt) → Seedance 2.5 chép dấu lên mặt "
+               "Kelly shot 8–9, 18. Kiểu corner_plus chưa thử qua bộ lọc người thật",
+    },
     "two_tier_quality": {
         "label": "Video 2 bậc chất lượng: shot phức tạp / chưa rõ gen NHÁP 480p trước (gen lại ≤ 2), người duyệt rồi 'Gen bản cao' "
                  "(Seedance 2.5 nâng từ nháp, model khác gửi lại ở bậc cao; gen lại ≤ 1); shot dễ gen thẳng bản cao. Bỏ qua 'Thử rẻ'",
