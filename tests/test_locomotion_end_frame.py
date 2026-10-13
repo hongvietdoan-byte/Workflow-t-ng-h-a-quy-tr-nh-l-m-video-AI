@@ -1,6 +1,7 @@
 """Hộp thư 12/10 18:13 (#27 shot 3, job 782 → 783): a run / walk generated much longer than the shot gets no drawn end frame, and a run
 the camera follows gets the ground sentence — flag locomotion_end_frame (off by default: the old text and the old send, byte for byte)."""
 import json
+import os
 import tempfile
 import unittest
 from unittest import mock
@@ -114,6 +115,31 @@ class RunnerEndFrameTests(unittest.TestCase):
         self.vr._said_once = set()
         with mock.patch.object(framing_guard, "face_height", return_value=0.12):
             self.assertEqual(self.vr._end_frame(self.job, "kling"), self.drawn)
+
+    def test_same_ground_ignores_matching_person_on_new_background(self):
+        """R4 (rà S3): the person fills the middle of both frames (same size, same place — the camera follows), the ground on both sides
+        is another place: RANSAC used to lock on the person (× 1,00, corner 0) and drop a RIGHT end frame. The person's box is masked
+        (YuNet, here patched) → no verdict. The same place with the person masked is still judged."""
+        import cv2
+        from core import framing_guard
+        from tests.test_framing_guard import F
+        tmp = tempfile.mkdtemp()
+        a = cv2.imread(F("s17_start_job910.jpg"))
+        h, w = a.shape[:2]
+        b = cv2.resize(cv2.imread(F("s16_start_job836.jpg")), (w, h))
+        person = cv2.resize(cv2.imread(F("s16_end16_far.jpg")), (w, h))
+        x0, x1 = int(w * 0.3), int(w * 0.7)
+        start, end = a.copy(), b.copy()
+        start[:, x0:x1] = person[:, x0:x1]
+        end[:, x0:x1] = person[:, x0:x1]
+        sp, ep = os.path.join(tmp, "s.png"), os.path.join(tmp, "e.png")
+        cv2.imwrite(sp, start)
+        cv2.imwrite(ep, end)
+        run = {"action": "Kenta sprints toward the gate", "camera_move": "follow"}
+        box = [(0.28, 0.0, 0.72, 1.0)]
+        with mock.patch.object(framing_guard, "person_boxes", return_value=box, create=True):
+            self.assertIsNone(motion_physics.same_ground(run, framing_guard.end_frame_distance(sp, ep)))
+            self.assertTrue(motion_physics.same_ground(run, framing_guard.end_frame_distance(sp, sp)))
 
     def test_same_ground_needs_a_followed_run(self):
         m = {"scale": 1.0, "corner": 0.01}

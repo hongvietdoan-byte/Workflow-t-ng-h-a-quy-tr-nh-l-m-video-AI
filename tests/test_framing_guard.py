@@ -168,6 +168,44 @@ class ClipFramingTests(unittest.TestCase):
             self.assertNotIn("frame_end", r.get("kinds") or [], clip)
             self.assertIsNotNone(r.get("frame_end"), clip)            # measured, the numbers kept
 
+    # ---- R5 (rà S3): V2 judges the camera over the WHOLE clip and masks the person ------------------------------------------------
+    def _frames_clip(self, frames, fps=4.0):
+        pic = os.path.join(self.tmp, "start.png")
+        cv2.imwrite(pic, frames[0])
+        return pic, unittest.mock.patch.object(fg, "_clip_frames", return_value=(frames, fps))
+
+    def test_end_drift_not_flagged_when_camera_pans_in_second_half(self):
+        """12 still samples, then the camera pans 80 % of the frame across a wide place: the last frame shows another view BY the pan
+        (old: only the first half was looked at → 'camera still' → ĐỎ frame_end, the clip held for the person)."""
+        a = cv2.imread(F("s17_start_job910.jpg"))
+        h, w = a.shape[:2]
+        b = cv2.resize(cv2.imread(F("s16_start_job836.jpg")), (w, h))
+        canvas = np.concatenate([a, b], axis=1)
+        frames = [canvas[:, :w].copy() for _ in range(12)]
+        frames += [canvas[:, int(0.8 * w * k / 12):int(0.8 * w * k / 12) + w].copy() for k in range(1, 13)]
+        pic, patch = self._frames_clip(frames)
+        with patch:
+            r = fg.clip_framing("clip.mp4", pic)
+        self.assertNotIn("frame_end", r.get("kinds") or [])
+        self.assertEqual((r.get("frame_end") or {}).get("camera"), "moves")
+
+    def test_end_drift_not_flagged_when_person_walks_toward_camera(self):
+        """The camera stays, the person walks up to it and covers 75 % of the last frame: their box (YuNet, here patched) is masked
+        before the last frame is compared with the start picture — not 'architecture redrawn'."""
+        a = cv2.imread(F("s17_start_job910.jpg"))
+        h, w = a.shape[:2]
+        frames = [a.copy() for _ in range(16)]
+        for k in range(1, 9):
+            f = a.copy()
+            half = int(w * (0.1 + 0.275 * k / 8))
+            f[:, w // 2 - half:w // 2 + half] = 70
+            frames.append(f)
+        pic, patch = self._frames_clip(frames)
+        box = [(0.125, 0.0, 0.875, 1.0)]
+        with patch, unittest.mock.patch.object(fg, "person_boxes", return_value=box, create=True):
+            r = fg.clip_framing("clip.mp4", pic)
+        self.assertNotIn("frame_end", r.get("kinds") or [])
+
     def test_nothing_to_measure_is_said(self):
         flat = [np.full((854, 480, 3), 90, np.uint8) for _ in range(12)]
         clip = _write_clip(os.path.join(self.tmp, "flat.mp4"), flat)
@@ -346,6 +384,29 @@ class RunnerEndFrameTests(unittest.TestCase):
         self.assertEqual(len(said), 1)
         self.assertIn("KHÔNG kèm khung cuối", said[0])
         self.assertIn("cỡ người", said[0])
+
+    def test_unmeasured_end_frame_of_a_shooting_person_is_sent_yellow(self):
+        """R6 (rà S3): V3 drops an unmeasured end frame only for a person MOVING THROUGH SPACE (spec) — a person shooting in place
+        whose end frame shows no face (hidden / turned away on purpose) keeps it, said VÀNG."""
+        flags_on(self, fg.FLAG)
+        self._action("Kenta shoots at the enemy")
+        cv2.imwrite(self.drawn, cv2.imread(F("s16_end21_kept.jpg")))
+        fg._END_CACHE.clear()
+        self.assertEqual(self.vr._end_frame(self.job, "kling"), self.drawn)
+        self.assertTrue(any("vẫn gửi" in m for m in self._said()))
+
+    def test_card_says_dropped_end_frame(self):
+        """R3 (rà S3): the runner dropped the drawn end frame (another distance) — the Bước 4 card must not say it goes with the clip."""
+        from dashboard import end_frame_ui
+        flags_on(self, fg.FLAG)
+        fg._END_CACHE.clear()
+        self.assertIsNone(self.vr._end_frame(self.job, "kling"))
+        with unittest.mock.patch.object(end_frame_ui, "st") as st:
+            st.button.return_value = False
+            end_frame_ui.card_block(self.p, self.pid, self.sid, lambda f: f())
+        captions = [str(c) for c in st.image.call_args_list] + [str(c) for c in st.caption.call_args_list]
+        self.assertFalse(any("gửi kèm clip" in c for c in captions), captions)
+        self.assertTrue(any("KHÔNG gửi" in c for c in captions), captions)
 
     def test_skill_object_appearing_shot_gets_no_drawn_end_frame(self):
         """V3: a shot where the skill object appears (thrown glue wall) goes without the drawn end frame — the build is the code
