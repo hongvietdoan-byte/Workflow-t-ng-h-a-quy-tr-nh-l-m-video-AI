@@ -90,6 +90,8 @@ def _formula(conn, ctx: Dict, sid: int, data: Dict) -> Dict:
         return _item(label, "red", "chưa có " + ("prompt ảnh" if image else "motion prompt"), where)
     # rà Đ16v3 (12/10): the gun lock's RED stops the picture even with the formula check off — the grid says it too
     props = [f"{pf.PART_LABELS.get('dao_cu')}: {i['msg']}" for i in pf._prop_issues(conn, ctx["pid"], data) if i["level"] == "red"] if image else []
+    if not image:      # rà S2 13/10 mục 5: the clip-send ĐỎ (V4/V13) the runner holds on — the grid says it too, never green
+        props = pf._clip_send_reds(conn, sid, ctx["pid"], data)
     if props:
         return _item(label, "red", " · ".join(props), where)
     if not ctx["formula"]:

@@ -1,5 +1,6 @@
-"""Dựng shot vật kỹ năng bằng GHÉP code (lỗi hệ thống 3, #27 shot 16): clip người (ném) tới lúc vật chạm đất + khung cuối (vật đã
-dựng) trồi lên từ dưới trong vài khung + rung tắt dần, giữ tới hết clip. 0 USD, không gọi API, không ghi CSDL.
+"""Dựng shot vật kỹ năng bằng GHÉP code (lỗi hệ thống 3, #27 shot 16): clip người (ném) tới lúc vật chạm đất → CẮT CỨNG sang khung
+cuối (tường đứng sẵn đủ cao — người dùng 13/10 21:31: tường keo XUẤT HIỆN LUÔN, không mọc) + rung tắt dần, giữ tới hết clip.
+--rise > 0 chỉ để dựng lại bản ghép cũ (trồi lên từ dưới). 0 USD, không gọi API, không ghi CSDL.
 
     py tools/skill_object_composite.py --clip videos/16_kling.mp4 --end images/end_284_21.png --cut 0.87 --out videos/16_ghep.mp4
 """
@@ -14,17 +15,22 @@ if __package__ in (None, ''):
 from core import skill_objects
 
 
-def main(argv=None) -> int:
+def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--clip", required=True, help="clip người (phần ném / chạy), giữ cỡ + fps + độ dài")
     ap.add_argument("--end", required=True, help="khung cuối: vật kỹ năng đã dựng xong (ảnh)")
-    ap.add_argument("--cut", type=float, required=True, help="giây vật chạm đất (bắt đầu trồi lên)")
+    ap.add_argument("--cut", type=float, required=True, help="giây vật chạm đất (cắt sang khung cuối)")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--rise", type=int, default=7, help="số khung trồi lên (mặc định 7, như shot 16)")
+    ap.add_argument("--rise", type=int, default=0, help="số khung trồi lên (mặc định 0 = cắt cứng, tường xuất hiện luôn; >0 chỉ "
+                                                         "để dựng lại bản cũ, vd 7 như shot 16)")
     ap.add_argument("--shake", type=int, default=8, help="số khung rung sau khi dựng xong")
     ap.add_argument("--shake-px", type=int, default=10)
     ap.add_argument("--top", type=int, default=None, help="hàng điểm ảnh mép trên của vật (mặc định tự đo: khác clip ≥ 1/2 bề ngang)")
-    a = ap.parse_args(argv)
+    return ap
+
+
+def main(argv=None) -> int:
+    a = parser().parse_args(argv)
     for p in (a.clip, a.end):
         if not Path(p).exists():
             print(f"không thấy tệp: {p}", file=sys.stderr)

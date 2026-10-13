@@ -101,6 +101,22 @@ class ImageReadyTests(Base):
         self.p.conn.commit()
         self.assertEqual(_by(self.ready("video"), "Ảnh khung đầu")["state"], "ok")
 
+    def test_clip_send_red_shows_in_the_grid(self):
+        """Rà S2 13/10 mục 5: ĐỎ gửi clip (V4/V13, prompt_formula._clip_send_reds) runner chặn → lưới cũng ĐỎ, kể cả khi cờ công thức
+        tắt (không im lặng)."""
+        self.p.conn.execute("INSERT INTO motion_prompts (scene_id, motion_prompt, duration_sec, state) VALUES (?, ?, 5, 'approved')",
+                            (self.sid, "Clip starts on the first frame: Kelly looks down into the well. Static camera. Ends holding."))
+        self.p.conn.commit()
+        red = "Ảnh tham chiếu: ảnh 1 (120×120) nhỏ hơn 300 px"
+        for formula in ("1", "0"):
+            with mock.patch.dict(os.environ, {"FEATURE_PROMPT_FORMULA": formula}), \
+                    mock.patch.object(prompt_formula, "_clip_send_reds", return_value=[red]):
+                item = _by(self.ready("video"), "Công thức prompt")
+            self.assertEqual(item["state"], "red", formula)
+            self.assertIn("120×120", item["why"])
+        with mock.patch.object(prompt_formula, "_clip_send_reds", return_value=[red]):
+            self.assertNotIn("120×120", _by(self.ready("image"), "Công thức prompt")["why"])   # a clip red, not a picture red
+
 
 class KhoObjectSizeTests(Base):
     """Vật Kho 'Giếng đá' (alias stone well) ở 2 shot: có 0.9 m → câu tỉ lệ trong prompt cả 2 shot; không số → không câu, warn."""

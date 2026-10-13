@@ -571,8 +571,9 @@ FEATURES: Dict[str, Dict] = {
     },
     "skill_object_guard": {
         "label": "Vật kỹ năng (tường keo…): prompt ảnh + motion bỏ từ dễ hiểu sai (elevator/door/thang máy/cửa) → tả hình dạng/chất "
-                 "liệu + câu cấm; skin = hoa văn theo ảnh DẠNG TRIỂN KHAI (không 'metal-panel'); Kho đưa Đạo diễn kèm lưu ý; shot "
-                 "vật kỹ năng mọc lên → VÀNG gợi ý GHÉP code, thiếu ảnh dạng triển khai trong Kho → ĐỎ trước gửi clip (0 USD)",
+                 "liệu + câu cấm; tường XUẤT HIỆN LUÔN khi ném (chữ tả quá trình → 'already standing at full height'); skin = hoa "
+                 "văn theo ảnh DẠNG TRIỂN KHAI (không 'metal-panel'); Kho đưa Đạo diễn kèm lưu ý; shot ném keo → VÀNG gợi ý GHÉP "
+                 "code cắt cứng, Kho thiếu ảnh dạng triển khai → VÀNG 'skin tả bằng chữ' (0 USD)",
         "verified": False,
         "why": "Lỗi hệ thống 3 #27 (13/10): skin Gloowall OB55 'cửa thang máy' → model vẽ thang máy thật (cửa mở, nhìn xuyên, người "
                "đứng trong), shot 16 gen 6 lần hỏng, giao bằng ghép code. Chưa gen thật với chữ mới",

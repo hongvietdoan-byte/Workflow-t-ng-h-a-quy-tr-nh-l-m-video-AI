@@ -121,9 +121,9 @@ class SkillObjectTest(unittest.TestCase):
             mapped = skill_objects.guard_prompt(self.conn, self.pid, skill_objects.deployed_line(5, "Bom keo") + " " + JOB_909)[0]
         self.assertNotIn("metal-panel skin", new)
         self.assertIn("patterned skin glue wall", new)
-        self.assertIn("The Bom keo skin is a printed surface pattern on one solid block", new)
+        self.assertIn("The glue wall skin is a printed surface pattern on one solid block", new)
         self.assertIn("skin pattern shown in Image 5 glue wall", mapped)     # the DEPLOYED picture of the prompt is pointed at
-        self.assertIn("The Bom keo skin is the pattern shown in Image 5", mapped)
+        self.assertIn("The glue wall skin is the pattern shown in Image 5", mapped)
         for word in ("elevator", "door", "lift"):
             self.assertNotIn(word, mapped.lower())
         with mock.patch.dict(os.environ, ON):
@@ -135,24 +135,32 @@ class SkillObjectTest(unittest.TestCase):
         self.conn.commit()
         return sid
 
-    def test_rising_skill_object_without_deployed_picture_blocks(self):
+    def test_thrown_glue_without_deployed_picture_is_yellow_never_red(self):
+        """Rà S2 13/10 mục 1 (quyết định người dùng 21:31: tường XUẤT HIỆN LUÔN): shot ném keo không bao giờ ĐỎ vì vật kỹ năng; Kho
+        thiếu ảnh dạng triển khai → chỉ VÀNG 'skin tả bằng chữ'."""
         from core import prompt_formula
         sid = self._rising_scene()
         with mock.patch.dict(os.environ, OFF):
             self.assertEqual(skill_objects.send_issues(self.conn, self.pid, {"action": JOB_909}), [])
-            self.assertFalse([x for x in prompt_formula.red_issues(self.conn, sid, "motion") if "TRIỂN KHAI" in x])
         with mock.patch.dict(os.environ, ON):
-            red = skill_objects.send_issues(self.conn, self.pid, {"action": JOB_909})
+            got = skill_objects.send_issues(self.conn, self.pid, {"action": JOB_909})
+            thrown = skill_objects.send_issues(self.conn, self.pid, {"action": "Kelly throws the gloo grenade and ducks."})
             standing = skill_objects.send_issues(self.conn, self.pid, {"image_prompt": SCENE_285})
-            blocked = [x for x in prompt_formula.red_issues(self.conn, sid, "motion") if "TRIỂN KHAI" in x]
-            image_side = [x for x in prompt_formula.red_issues(self.conn, sid, "image") if "TRIỂN KHAI" in x]
-        self.assertEqual([i["level"] for i in red], ["red"])
-        self.assertEqual(red[0]["suggest"]["route"], "compose")
-        self.assertIn(skill_objects.COMPOSE_TOOL, red[0]["msg"])
+            motion_reds = prompt_formula.red_issues(self.conn, sid, "motion")
+            yellow = skill_objects.issues(self.conn, self.pid, {"action": JOB_909})
+        self.assertEqual([i["level"] for i in got], ["warn"])
+        self.assertIn("chưa có ảnh dạng triển khai, skin tả bằng chữ", got[0]["msg"])
+        self.assertEqual([i["level"] for i in thrown], ["warn"])
         self.assertEqual(standing, [])                                     # the wall already standing: the start frame shows it
-        self.assertEqual(len(blocked), 1)                                  # the clip is held before paying
-        self.assertEqual(image_side, [])                                   # the start picture is not held for it
-        # the Kho gets a picture of the wall deployed → no stop, and the picture goes with the shot
+        self.assertFalse([x for x in motion_reds if "Đạo cụ dự án" in x])  # the clip is not held for the skill object
+        self.assertTrue([i for i in yellow if "skin tả bằng chữ" in i["msg"]])   # said where the prompt formula shows VÀNG
+        tid = self.p.create_scene(self.pid, 2)
+        self.conn.execute("UPDATE scenes SET data=? WHERE id=?",
+                          (json.dumps({"action": "Kelly throws gloo grenade at the gate", "shot_no": 2}), tid))
+        self.conn.commit()
+        with mock.patch.dict(os.environ, ON):
+            self.assertEqual(prompt_formula.red_issues(self.conn, tid, "motion"), [])
+        # the Kho gets a picture of the wall deployed → nothing said, and the picture goes with the shot
         aid = self.conn.execute("SELECT id FROM assets WHERE name='Bom keo'").fetchone()["id"]
         pic = os.path.join(self.tmp, "tuong_keo.png")
         from PIL import Image
@@ -165,7 +173,91 @@ class SkillObjectTest(unittest.TestCase):
             pics = skill_objects.deployed_pictures(self.conn, self.pid, [{"data": {"action": JOB_909}}])
         self.assertEqual(pics, [("Bom keo", pic)])
 
-    def test_composite_rises_from_the_bottom_then_shakes_and_holds(self):
+    def test_wall_appears_at_once_never_described_rising(self):
+        """Rà S2 13/10 mục 2: câu vật kỹ năng không tả quá trình mọc (rise/grow/emerge/shoots up/pops up) → 'already standing at full
+        height'; câu cấm nói tường xuất hiện luôn; gửi lại không chồng câu."""
+        import re
+        with mock.patch.dict(os.environ, ON):
+            new, removed, _ = skill_objects.guard_prompt(self.conn, self.pid, JOB_909)
+            twice = skill_objects.guard_prompt(self.conn, self.pid, new)[0]
+            vi = skill_objects.guard_prompt(self.conn, self.pid, "Kelly ném bom keo, tường keo mọc lên ngay trước mặt.")[0]
+            house = skill_objects.guard_prompt(self.conn, self.pid, "Kelly throws the glue grenade. The sun rises over the hills.")[0]
+        ban = "appears at once at full height, never grows, rises or emerges"
+        self.assertIn(ban, skill_objects.FORBID)
+        body = new.replace(skill_objects.forbid_sentence(["Bom keo"]), "")
+        self.assertFalse(re.search(r"(?i)\b(?:ris(?:e|es|ing)|rose|grow(?:s|ing)?|emerg\w*|shoots?\s+(?:\w+\s+)?up|pops?\s+up)\b", body),
+                         body)
+        self.assertIn("already standing at full height", body)
+        self.assertIn(ban, new)
+        self.assertEqual(twice, new)                                     # idempotent: a re-send changes nothing
+        self.assertNotIn("mọc", vi)
+        self.assertIn("đã đứng sẵn đủ cao", vi)
+        self.assertIn("The sun rises over the hills", house)            # not a sentence about the skill object
+        self.assertTrue([w for w in removed if "up" in w.lower()])     # what was replaced is said (diag)
+
+    def test_standing_words_keep_the_grammar_and_other_subjects(self):
+        st = skill_objects.standing_text
+        self.assertEqual(st("The glue wall has risen.")[0], "The glue wall has been already standing at full height.")
+        self.assertEqual(st("The glue wall will rise.")[0], "The glue wall will stand at full height at once.")
+        self.assertEqual(st("The glue wall rose.")[0], "The glue wall was already standing at full height.")
+        for keep in ("The drone hovers, then it rises. Kelly throws the glue grenade.",
+                     "The camera rises over the glue wall.", "Kelly rises behind the glue wall."):
+            self.assertEqual(st(keep)[0], keep)
+        self.assertIn("As it is already standing at full height Kelly",
+                      st("The glue wall stands. As it pops up Kelly ducks.")[0])
+
+    def test_yellow_says_appears_at_once_and_director_is_told(self):
+        with mock.patch.dict(os.environ, ON):
+            rising = skill_objects.issues(self.conn, self.pid, {"action": JOB_909})
+            ctx = assets.context_text(self.conn, self.pid)
+        plan = [i for i in rising if "suggest" in i]
+        text = " ".join(i["msg"] for i in plan) + " " + " ".join(plan[0]["suggest"]["steps"])
+        self.assertIn("xuất hiện luôn", text)
+        for word in ("mọc lên", "trồi lên"):
+            self.assertNotIn(word, text)
+        self.assertIn("XUẤT HIỆN LUÔN", ctx)
+        self.assertIn("không tả quá trình mọc", ctx)
+        from core import features
+        label = features.FEATURES["skill_object_guard"]["label"]
+        self.assertNotIn("mọc lên", label)
+        self.assertNotIn("ĐỎ", label)
+
+    def test_skin_sentence_is_generic_and_clean(self):
+        """Rà S2 13/10 mục 3: câu skin nói 'glue wall' chung, không lấy tên Kho / biến thể (chữ Việt, 'thang máy', elevator)."""
+        items = [{"name": "Tường keo thang máy", "images": [{"variant": "skin Gloowall thang máy elevator", "path": "x.png"}]}]
+        with mock.patch.object(prop_lock, "chosen_variant", return_value="skin Gloowall thang máy elevator"):
+            s = skill_objects.skin_sentence(items, "the glue wall skin", [], None)
+            shown = skill_objects.skin_sentence(items, "the glue wall skin", [], 4)
+        for t in (s, shown):
+            self.assertTrue(t.startswith("The glue wall skin is"), t)
+            for word in ("thang", "elevator", "Tường", "Gloowall"):
+                self.assertNotIn(word, t)
+        self.assertIn("Image 4", shown)
+        with mock.patch.dict(os.environ, ON):
+            new = skill_objects.guard_prompt(self.conn, self.pid, JOB_909)[0]
+        self.assertIn("The glue wall skin is a printed surface pattern on one solid block", new)
+
+    def test_lone_elevator_word_becomes_patterned_not_metal(self):
+        """Rà S2 13/10 mục 4: 'elevator' một mình → 'patterned' (không 'metal-panel', lỗi job 908 tấm thép trơn)."""
+        with mock.patch.dict(os.environ, ON):
+            new = skill_objects.guard_prompt(self.conn, self.pid, "The glue wall has a grey elevator look with small lights.")[0]
+        self.assertIn("grey patterned look", new)
+        self.assertNotIn("metal-panel", new)
+
+    def test_composite_hard_cut_by_default(self):
+        """Rà S2 13/10 mục 2: ghép mặc định CẮT CỨNG (tường xuất hiện luôn) — khung ngay sau điểm cắt đã là khung cuối."""
+        import inspect
+        h, w = 40, 20
+        clip = [np.full((h, w, 3), 10 * i, np.uint8) for i in range(12)]
+        end = np.full((h, w, 3), 200, np.uint8)
+        frames = skill_objects.composite_frames(clip, end, cut_index=3, total=12, shake=0)
+        self.assertTrue((frames[2] == clip[2]).all())
+        self.assertTrue((frames[3] == end).all())          # no partial wall: it is there at once
+        self.assertEqual(inspect.signature(skill_objects.compose).parameters["rise"].default, 0)
+        from tools import skill_object_composite
+        self.assertEqual(skill_object_composite.parser().get_default("rise"), 0)
+
+    def test_composite_old_rise_still_possible_when_asked(self):
         h, w = 40, 20
         clip = [np.full((h, w, 3), 10 * i, np.uint8) for i in range(12)]
         end = np.full((h, w, 3), 200, np.uint8)

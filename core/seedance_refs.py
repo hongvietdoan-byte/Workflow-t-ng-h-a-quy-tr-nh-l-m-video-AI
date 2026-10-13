@@ -368,7 +368,7 @@ def _rule_ok_picture(conn, project_id: int, who: str, paths: List[str]) -> str:
     pick = next((p for p in paths[1:] if not problems(p)), None)
     why = "; ".join(first).replace("ảnh 1 ", "")
     if pick is None and rule_early_on():
-        padded = pad_to_rule(paths[0])        # V13 (#27 s17 job 798: 488×1280, the library had nothing else) — padded, not refused
+        padded = pad_to_rule(paths[0], conn)  # V13 (#27 s17 job 798: 488×1280, the library had nothing else) — padded, not refused
         if padded and not problems(padded):
             _say_once(conn, project_id, "identity_picture_padded",
                       f"Ảnh nhận diện {who}: {os.path.basename(paths[0])} không đạt luật ClipAI ({why}) và mục Kho không có ảnh nào đạt — "
@@ -389,7 +389,8 @@ def _rule_ok_picture(conn, project_id: int, who: str, paths: List[str]) -> str:
 # (job 798: "ảnh 4 (488×1280) tỉ lệ 0.38 — cần 0.4–2.5" found only when sending). Flag ref_rule_early: (1) a picture with no passing
 # alternative is padded on a plain background (and enlarged to the least side) instead of refused; (2) what still breaks the rule is a
 # ĐỎ of the prompt formula (prompt_formula.red_issues → queue / price / autopilot / send), not a refused paid send.
-PAD_DIR: Optional[str] = None     # where padded copies go (None: <repo>/data/ref_padded — never the Kho folder, the library scans it)
+PAD_DIR: Optional[str] = None     # where padded copies go (None: <data folder in use>/ref_padded — never the Kho folder, the library
+                                  # scans it; rà S2 13/10 mục 8: the running data folder, not the source code's place)
 PAD_RATIO = (0.4, 2.5)
 PAD_MIN_SIDE = 300
 
@@ -402,13 +403,28 @@ def rule_early_on() -> bool:
         return False
 
 
-def pad_to_rule(path: str) -> Optional[str]:
+def pad_dir(conn=None) -> str:
+    """Where padded copies go: PAD_DIR; else next to the database file in use (data/manifest.sqlite → data/ref_padded); else beside
+    the projects folder (PIPELINE_DATA, default data/projects → data/ref_padded)."""
+    if PAD_DIR:
+        return PAD_DIR
+    try:
+        db = next((r[2] for r in conn.execute("PRAGMA database_list") if r[1] == "main"), "") if conn is not None else ""
+    except Exception:  # noqa: BLE001 - a closed / odd connection: the projects folder decides
+        db = ""
+    if db:
+        return os.path.join(os.path.dirname(os.path.abspath(db)), "ref_padded")
+    projects = os.environ.get("PIPELINE_DATA") or os.path.join("data", "projects")
+    return os.path.join(os.path.dirname(os.path.abspath(projects)), "ref_padded")
+
+
+def pad_to_rule(path: str, conn=None) -> Optional[str]:
     """A copy of the picture padded with its own edge colour to width/height within PAD_RATIO and enlarged (LANCZOS) so its short side
     is ≥ PAD_MIN_SIDE; made again only when the source is newer. None when it cannot be read."""
     try:
         from PIL import Image
         import hashlib
-        out_dir = PAD_DIR or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "ref_padded")
+        out_dir = pad_dir(conn)
         os.makedirs(out_dir, exist_ok=True)
         key = hashlib.sha1(os.path.abspath(path).lower().encode("utf-8")).hexdigest()[:10]
         out = os.path.join(out_dir, f"{os.path.splitext(os.path.basename(path))[0]}_{key}_pad.png")

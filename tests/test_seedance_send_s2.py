@@ -247,5 +247,51 @@ class ReferenceRuleV13(unittest.TestCase):
         self.assertIn("120×120", red[0])
 
 
+class AfterReviewS2(unittest.TestCase):
+    """Vòng sửa sau rà 13/10 (docs/handoff/RA_S1_S2_2026-10-13.md mục 6–8)."""
+    setUp = base.SeedanceRefTests.setUp
+    _ready = base.SeedanceRefTests._ready
+
+    def test_note_sent_follows_the_real_mark_style(self):
+        """Mục 6: lượt gửi đánh dấu tại chỗ ghi đúng kiểu dấu thật (cờ bật = corner_plus), không ghi 'eye_plus' mặc định."""
+        vr = self._ready()
+        frame = shots.approved_image_path(self.p.conn, self.data, self.pid, self.ids[0])
+        sid = self.ids[0]
+        with env(ref_mark_off_face=True), mock.patch.object(seedance_refs, "mark", side_effect=lambda p, o, s: p), \
+                mock.patch.object(type(vr), "_hosted_pictures", return_value=None):
+            vr._pregen_deferred = [{"pictures": [("KELLY", frame)], "clean": False, "mark_fallback": True, "scene_ids": [sid],
+                                    "local": []}]
+            vr._finish_kwargs({"project_id": self.pid}, {})
+        d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()["data"])
+        self.assertEqual(d.get(seedance_refs.SENT_KEY), "corner_plus")
+
+    def test_skin_room_only_when_the_prompt_has_a_skill_object(self):
+        """Mục 7: +140 ký tự chỗ câu skin chỉ khi prompt nói tới vật kỹ năng (không cắt câu kích thước mọi prompt)."""
+        from core import skill_objects
+        with env(skill_object_guard=True):
+            plain = skill_objects.reserve(self.p.conn, self.pid, "Kelly runs to the gate.")
+            wall = skill_objects.reserve(self.p.conn, self.pid, "Kelly throws the glue grenade; the glue wall stands.")
+            old = skill_objects.reserve()
+        self.assertEqual(wall - plain, skill_objects.SKIN_ROOM)
+        self.assertEqual(old, wall)                                      # no text given: room for everything, as before
+        with env(skill_object_guard=False):
+            self.assertEqual(skill_objects.reserve(self.p.conn, self.pid, "the glue wall"), 0)
+
+    def test_padded_copy_goes_to_the_running_data_folder(self):
+        """Mục 8: bản đệm ghi vào thư mục data đang chạy (cạnh CSDL / PIPELINE_DATA), không theo chỗ đặt mã nguồn."""
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        narrow = os.path.join(tmp, "narrow.png")
+        Image.new("RGB", (100, 400), (50, 50, 50)).save(narrow)
+        with mock.patch.dict(os.environ, {"PIPELINE_DATA": os.path.join(tmp, "data", "projects")}):
+            out = seedance_refs.pad_to_rule(narrow, self.p.conn)                 # in-memory DB: PIPELINE_DATA's parent
+        self.assertEqual(os.path.normcase(os.path.dirname(out)), os.path.normcase(os.path.join(tmp, "data", "ref_padded")))
+        os.makedirs(os.path.join(tmp, "other"))
+        conn = connect(os.path.join(tmp, "other", "manifest.sqlite"))
+        self.addCleanup(conn.close)
+        out2 = seedance_refs.pad_to_rule(narrow, conn)                          # a file DB: next to it
+        self.assertEqual(os.path.normcase(os.path.dirname(out2)), os.path.normcase(os.path.join(tmp, "other", "ref_padded")))
+
+
 if __name__ == "__main__":
     unittest.main()

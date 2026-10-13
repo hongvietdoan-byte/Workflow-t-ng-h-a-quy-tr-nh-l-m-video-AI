@@ -99,7 +99,7 @@ class RefMarkOffFaceTest(unittest.TestCase):
             self.assertEqual(seedance_refs.mark_style(self.p.conn, self.ids), "corner_plus")   # no mark step written
 
     def test_skill_object_guard_reaches_the_sent_motion(self):
-        """Lỗi 3 trên đường gửi video thật: câu về tường keo bỏ 'elevator/doors' + câu cấm; shot tường mọc lên → VÀNG gợi ý ghép."""
+        """Lỗi 3 trên đường gửi video thật: câu về tường keo bỏ 'elevator/doors' + câu cấm; shot ném keo → chữ "đã đứng sẵn" + VÀNG gợi ý ghép."""
         vr, leader = self._leader()
         sid = self.ids[0]
         self.p.conn.execute("UPDATE motion_prompts SET motion_prompt=? WHERE scene_id=?",
@@ -116,6 +116,8 @@ class RefMarkOffFaceTest(unittest.TestCase):
         self.assertNotIn("is a solid skill object", off)
         self.assertNotIn("elevator", on.lower())
         self.assertIn("grey flat panels", on)
+        self.assertNotIn("shoots up", on)                                  # tường xuất hiện luôn (13/10 21:31)
+        self.assertIn("already standing at full height", on)
         self.assertIn("is a solid skill object", on)
         codes = {r[0] for r in self.p.conn.execute("SELECT code FROM diag_events")}
         self.assertIn("skill_object_compose", codes)

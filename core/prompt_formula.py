@@ -1262,7 +1262,8 @@ def red_issues(conn, scene_id: int, kind: Optional[str] = None, gore_hinted=None
 
 def _clip_send_reds(conn, scene_id: int, project_id: int, data: Dict) -> List[str]:
     """ĐỎ of a clip send, independent of the prompt_formula flag (each behind its own flag; [] when off; never raises):
-    V4 (skill_object_guard) — the skill object appears and the Kho has no DEPLOYED picture of it;
+    V4 (skill_object_guard) — only a 'red' of skill_objects.send_issues (none since rà S2 13/10 mục 1: a glue throw is never ĐỎ;
+    the missing DEPLOYED picture is a VÀNG shown by skill_objects.issues) — kept so a future red of that check still holds the clip;
     V13 (ref_rule_early) — a reference picture of a reference-only clip still breaks ClipAI's size rule."""
     out = []
     try:
