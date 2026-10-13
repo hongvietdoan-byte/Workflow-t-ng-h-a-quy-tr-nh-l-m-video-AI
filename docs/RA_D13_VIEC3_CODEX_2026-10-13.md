@@ -1,5 +1,7 @@
 # Rà nhẹ Đ13 việc 3 — mockup Tiểu Nhị / pet
 
+- Root rà thêm số cùng giá trị: 1.20/1.2 không phải đầu vào mới. Test đỏ 1 failed/2 passed → chuẩn hóa distance/camera bằng Number trước khóa → nhóm 7 passed/5,45 s. Root đọc diff và xem hai PNG 1280 tạm. Lượt gọi nhầm tên file test không tồn tại không chạy test nào, đã chạy lại đúng nhóm; không đổi assert để che lỗi.
+
 - Nhánh `codex/d13-viec3-mockup-pet`, base `1cb845b2`, giữ areas.version 72.
 - Phạm vi: hai mockup HTML + test hiện có, không backend/phiếu thật/API.
 - ĐỎ: browser chạy JS thật phát hiện quay 1.2 sau 1.3 còn được gen và dáng thường còn 3 phiếu (cả 1440/1280); 1 fail + 2 pass / 10,61s.

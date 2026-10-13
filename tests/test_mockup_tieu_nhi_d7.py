@@ -76,6 +76,8 @@ const { pathToFileURL } = require('node:url');
       await page.locator('#distance').fill('1.2');
       await page.locator('#preview').click();
       if (await page.locator('#previewPanel').isVisible()) failures.push('quay lại 1.2 phải chặn gen trùng');
+      await page.locator('#distance').fill('1.20'); await page.locator('#preview').click();
+      if (await page.locator('#previewPanel').isVisible()) failures.push('đổi cách viết cùng số không phải đầu vào mới');
       await page.locator('#blockedDemo').click();
       assert.equal(await page.locator('#blockedMessage').innerText(), 'đã báo admin, dự án tạm dừng ở shot này');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);

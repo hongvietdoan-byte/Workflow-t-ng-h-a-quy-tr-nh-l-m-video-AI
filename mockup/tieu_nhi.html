@@ -55,7 +55,7 @@ $('closeFinding').onclick=()=>{if(!$('reason').value.trim()){say('Cần nhập l
 $('blockedDemo').onclick=()=>{$('blockedMessage').hidden=!$('blockedMessage').hidden};
 $('analyze').onclick=()=>{if(!$('message').value.trim()){say('Cần mô tả lỗi trước.');return}$('userBubble').textContent=$('message').value;$('chatResult').hidden=false;say('Đang hiển thị câu trả lời mẫu. Không gọi Claude hoặc chi tiền.')};
 
-function inputSnapshot(){return JSON.stringify({fields:['distance','camera','beat','scope'].map(id=>$(id).value),refs:draftPackage})}
+function inputSnapshot(){return JSON.stringify({fields:['distance','camera','beat','scope'].map(id=>['distance','camera'].includes(id)?Number($(id).value):$(id).value),refs:draftPackage})}
 const initialPackage=[{id:'plate9',name:'Nền 3D shot 9 · C9 · r12',role:'nền',pinned:false},{id:'wide',name:'Nền rộng thừa · C7 · r11',role:'nền',pinned:false}];
 let draftPackage=initialPackage.map(x=>({...x}));
 function packageProblems(){const errors=[];if(draftPackage.filter(x=>x.role==='nền').length>1)errors.push('ĐỎ · 2 nền khác góc');if(!draftPackage.some(x=>x.id==='kho419'))errors.push('ĐỎ · người trong khung thiếu ảnh mẫu Kho 419');if(!draftPackage.some(x=>x.role==='nền'))errors.push('ĐỎ · thiếu nền đúng shot');return errors}

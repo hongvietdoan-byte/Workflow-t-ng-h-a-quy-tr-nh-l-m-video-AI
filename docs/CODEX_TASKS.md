@@ -1001,6 +1001,8 @@ Luật chung GIỐNG đợt 1; nhánh `codex/d13-viec<N>-<tên>`; KHÔNG sửa f
 
 ## Kết quả Codex — đợt 13
 
+- Việc 3 — nhánh `codex/d13-viec3-mockup-pet`, code `ca5bd2ba` + sửa root số tương đương: Set nhớ mọi snapshot đã gen, chặn cả preview/gen khi quay đầu vào cũ; pet dáng thường ẩn phiếu. Browser JS offline 1440/1280: đỏ đúng hai lỗi →7 xanh; root thêm ca 1.20/1.2 đỏ→xanh, cuối **7 passed/5,45 s**, 0 lỗi console/JS/overflow/mạng. RA `docs/RA_D13_VIEC3_CODEX_2026-10-13.md`; ảnh tmp không ghi đè tài liệu, slow giữ theo số đo đầu ≥8 s. Chưa native GUI/backend/cả bộ/main/API.
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
 ---
