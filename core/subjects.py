@@ -11,6 +11,7 @@ from .pipeline import Pipeline
 
 import json
 import os
+import re
 
 GAMES_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "games.json")
 _DEFAULT_GAMES = [{"key": "FF", "label": "Free Fire (FF)", "covered": True},
@@ -188,6 +189,13 @@ def ensure_picture(conn, library, path: str, label: str) -> Dict:
     try:
         asset = library.upload(path, name)
     except ProviderError as e:
+        from .adapters.clipai_subjects import full_error, is_library_full
+        if e.code != "library_full" and is_library_full(str(e)):     # lỗi 11 #27: whatever library said it, the library is FULL
+            e = full_error(str(e))
+        if e.code == "library_full":              # the library is full, the picture is fine: never remembered as refused
+            conn.execute("DELETE FROM seedance_subject_pictures WHERE sha=? AND status='processing'", (sha,))
+            conn.commit()
+            raise e from None
         if e.code == "asset_failed":
             _save_picture(conn, sha, name, "failed", None, str(e), path)
         elif e.code != "timeout":                 # nothing reached the library (bad input / network): a later call may upload
@@ -202,13 +210,123 @@ def picture_refs(conn, library, pictures: List[tuple]) -> Dict:
     when EVERY picture has an active asset, else {"refs": None, "problems": [...]} — the caller then sends the marked pictures and says
     why (mixing would leave one face unmarked AND unreviewed)."""
     from .providers import ProviderError
-    refs, problems = [], []
+    refs, problems, full = [], [], False
     for label, path in pictures:
+        if full:                                  # lỗi 11 #27: no more uploads into a full library (all-or-nothing anyway)
+            problems.append(f"{label}: chưa thử (Kho chủ thể đầy)")
+            continue
         try:
             a = ensure_picture(conn, library, path, label)
             refs.append({"uri": a["asset_uri"], "label": label, "asset_id": a["asset_id"], "uploaded": a["uploaded"]})
         except ProviderError as e:
+            if e.code == "library_full":
+                full = True
+                problems.insert(0, str(e))        # first, in plain words: what to do
+                continue
             problems.append(f"{label}: [{e.code}] {e}")
         except OSError as e:
             problems.append(f"{label}: không đọc được ảnh ({e})")
-    return {"refs": refs, "problems": []} if not problems else {"refs": None, "problems": problems}
+    if not problems:
+        return {"refs": refs, "problems": [], "library_full": False}
+    return {"refs": None, "problems": problems, "library_full": full}
+
+
+# ---- lỗi 11 (#27): the library holds at most 100 assets per user — see what each one is used for, suggest, delete on request ------------
+CATEGORY_LABEL = {"rejected": "bị kho từ chối (không dùng được)", "orphan": "không còn ai dùng",
+                  "done_project": "chỉ dự án đã cất / đã giao", "unknown": "có trong bộ nhớ ảnh, chưa rõ dự án",
+                  "in_use": "đang dùng (dự án đang làm)"}
+_SUGGEST_RANK = {"rejected": 0, "orphan": 1, "done_project": 2}
+_PROJECT_IN_NAME = re.compile(r"^P(\d+)_")                                     # runner labels: P{project_id}_… (kept by picture_name)
+_PROJECT_IN_PATH = re.compile(r"(?:^|[\\/])(?:projects|data)[\\/](\d+)[\\/]")   # PIPELINE_DATA = data/projects/<pid>/…
+
+
+def _projects_of_picture(name: Optional[str], path: Optional[str]) -> List[Optional[int]]:
+    """Projects a remembered picture belongs to: the one in its library name (first use) and the one in its last path. One row per
+    sha, so a picture shared by two projects shows both when they differ; neither readable → [None] (category 'unknown')."""
+    found = [int(m.group(1)) for m in (_PROJECT_IN_NAME.match(name or ""), _PROJECT_IN_PATH.search(path or "")) if m]
+    return list(dict.fromkeys(found)) or [None]
+
+
+def library_overview(conn, library, assets: Optional[List[Dict]] = None) -> Dict:
+    """Every asset of the library with what uses it and a cleanup category. Nothing is deleted here.
+    in_use = a character link or a remembered picture of a project still being made (not archived, not delivered) → never suggested;
+    rejected / orphan / done_project → suggested in that order, the least recently used first. {"count", "limit", "assets", "suggested"}."""
+    from .adapters.clipai_subjects import LIBRARY_LIMIT
+    assets = library.list_assets() if assets is None else assets
+    _pictures_table(conn)
+    projects = {r["id"]: {"name": r["name"], "done": bool(r["archived"])}
+                for r in conn.execute("SELECT id, name, COALESCE(archived,0) AS archived FROM projects")}
+    try:
+        for r in conn.execute("SELECT DISTINCT project_id FROM deliveries"):
+            if r["project_id"] in projects:
+                projects[r["project_id"]]["done"] = True
+    except Exception:  # noqa: BLE001 - an old database without the deliveries table: no project counts as delivered
+        pass
+    uses: Dict[str, List[tuple]] = {}           # asset_id -> [(project id or None, text)]
+    last: Dict[str, str] = {}
+    for r in conn.execute("SELECT name, asset_id, path, updated_at FROM seedance_subject_pictures WHERE asset_id IS NOT NULL"):
+        for pid in _projects_of_picture(r["name"], r["path"]):
+            uses.setdefault(r["asset_id"], []).append((pid, f"ảnh {r['name']}"))
+        if r["updated_at"] and r["updated_at"] > last.get(r["asset_id"], ""):
+            last[r["asset_id"]] = r["updated_at"]
+    for r in conn.execute("SELECT project_id, name, subject_asset_id FROM characters WHERE subject_asset_id IS NOT NULL"):
+        uses.setdefault(r["subject_asset_id"], []).append((r["project_id"], f"nhân vật {r['name']}"))
+    rows = []
+    for a in assets:
+        aid = a.get("asset_id")
+        used = uses.get(aid, [])
+        if a.get("provider_status") == "failed":
+            category = "rejected"
+        elif not used:
+            category = "orphan"
+        elif any(pid in projects and not projects[pid]["done"] for pid, _ in used):
+            category = "in_use"
+        elif any(pid not in projects for pid, _ in used):
+            category = "unknown"
+        else:
+            category = "done_project"
+        users = [(f"#{pid} {projects[pid]['name']}" + (" (đã xong)" if projects[pid]["done"] else "") if pid in projects
+                  else "dự án ?") + f" · {what}" for pid, what in used]
+        rows.append({"asset_id": aid, "name": a.get("name"), "status": a.get("provider_status"), "local_id": a.get("id"),
+                     "created": a.get("created_at") or a.get("create_time"), "last_used": last.get(aid), "category": category,
+                     "category_label": CATEGORY_LABEL[category], "users": users, "suggest": category in _SUGGEST_RANK})
+
+    def age(r):
+        lid = r["local_id"]
+        return (_SUGGEST_RANK[r["category"]], r["last_used"] or str(r["created"] or ""), lid if isinstance(lid, int) else 0,
+                str(r["asset_id"]))
+    suggested = [r["asset_id"] for r in sorted((r for r in rows if r["suggest"]), key=age)]
+    return {"count": len(assets), "limit": LIBRARY_LIMIT, "assets": rows, "suggested": suggested}
+
+
+def delete_assets(conn, library, asset_ids: List[str], who=None) -> Dict:
+    """Delete the chosen assets from the ClipAI library (CANNOT be undone) and forget them locally so the next run uploads again.
+    who: the signed-in identity ({'role','perms'}); None = system / sign-in off. Needs the "Kho tài nguyên" right. An asset still used by a
+    project being made is refused before anything is deleted (ValueError). {"deleted": [...], "errors": [(asset_id, message)]} — every
+    error is said, never skipped."""
+    from . import auth
+    from .access import AccessDenied
+    from .providers import ProviderError
+    if who is not None and not auth.can(who, "assets"):
+        raise AccessDenied("Xóa asset ở Kho chủ thể ClipAI cần quyền “Kho tài nguyên” — nhờ Owner cấp ở 👥 Nhóm.")
+    ids = list(dict.fromkeys(a.strip() for a in asset_ids if a and a.strip()))
+    by = {r["asset_id"]: r for r in library_overview(conn, library)["assets"]}
+    busy = [i for i in ids if by.get(i, {}).get("category") == "in_use"]
+    if busy:
+        raise ValueError("Không xóa asset đang được dự án đang làm dùng: " + ", ".join(f"{i} ({'; '.join(by[i]['users'])})" for i in busy))
+    deleted, errors = [], []
+    for aid in ids:
+        try:
+            library.delete(aid)
+        except ProviderError as e:
+            errors.append((aid, f"[{e.code}] {e}"))
+            continue
+        deleted.append(aid)
+        # a refused picture keeps its 'failed' memory (same input → same answer, luật 6); any other picture is forgotten → uploaded again
+        conn.execute("UPDATE seedance_subject_pictures SET asset_id=NULL, asset_uri=NULL, updated_at=CURRENT_TIMESTAMP "
+                     "WHERE asset_id=? AND status='failed'", (aid,))
+        conn.execute("DELETE FROM seedance_subject_pictures WHERE asset_id=? AND status!='failed'", (aid,))
+        conn.execute("UPDATE characters SET subject_asset_id=NULL, subject_asset_uri=NULL, subject_status=NULL, subject_name=NULL "
+                     "WHERE subject_asset_id=?", (aid,))
+        conn.commit()
+    return {"deleted": deleted, "errors": errors}
