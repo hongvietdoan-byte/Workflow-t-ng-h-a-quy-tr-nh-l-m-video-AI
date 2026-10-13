@@ -1,7 +1,7 @@
 # Tối ưu màn Video và Kho — ĐỢT 2 việc 4
 
 Ngày khảo sát 10/10/2026; tên file 11/10 theo đề bài. Chỉ mockup HTML, dữ liệu/giá giả, SVG nội bộ; chưa sửa Dashboard.
-Nguồn yêu cầu: `origin/ghi-chu-giao-dien-fatebreaker:docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-10-10.md`.
+Nguồn yêu cầu: `docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-10-10.md` (chép từ nhánh `ghi-chu-giao-dien-fatebreaker` vào main 13/10).
 
 ## 1. Đo mốc hiện tại, phân biệt phép đo và ước lượng
 

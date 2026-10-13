@@ -188,13 +188,19 @@ Mỗi đợt triển khai: test đỏ→xanh, code mới khai areas, rà kỹ ti
 2. Trần Tiểu Nhị theo dự án, không opt-in từng người; hết trần → phiếu admin nâng.
 3. Dùng thật 2 USD/dự án, tiền gen riêng, báo 80%; hiện giữ đề xuất 0,15 USD/phiên chat.
 4. Chỉ Owner publish Kho/map/Bible; sửa Kho chính thức → report/admin.
-5. Bảo trì tự động là đề xuất chờ xác nhận: hiện admin giao phiên Claude; Đợt 8+ Claude Code cách ly (đỏ→sửa→rà→cả bộ Windows→nhánh/báo cáo→admin gộp), lô ~22:00, chặn sản xuất chạy khi admin cho phép; chỉ mở sau cách ly và 42 ca đạt.
+5. Bảo trì tự động (**người dùng xác nhận theo đề xuất 13/10**): hiện admin giao phiên Claude; Đợt 8+ Claude Code cách ly (đỏ→sửa→rà→cả bộ Windows→nhánh/báo cáo→admin gộp), lô ~22:00, chặn sản xuất chạy khi admin cho phép; chỉ mở sau cách ly và 42 ca đạt.
 6. Phiếu hạn xử lý 3 ngày.
 7. ID shot nội bộ bất biến, thứ tự riêng; ID job/ảnh cũ không đổi.
 
 Hai cấp và luồng phiếu ở B/C; dữ liệu gói chỉnh theo shot và `jobs.sent_package` bất biến ở [mục 3 thiết kế Đợt 7](THIET_KE_TIEU_NHI_LAO_DAI_D7.md#3-gói-gửi-kèm-theo-shot-đầu-vào-đợt-8).
 
-## Còn mở — ba câu, mỗi câu có đề xuất
+## Chốt thêm 13/10 (người dùng, không hỏi lại)
+
+8. Ngưỡng xuất bài học giữ `MIN_EVENTS=3`, `MIN_PROJECTS=2` (câu (a) dưới).
+9. Tiểu Nhị/Lão Đại chạy bằng **Claude API** qua sổ chi (câu (b) dưới).
+10. Phiếu trùng lỗi ở **nhiều dự án gộp chung một phiếu**: fingerprint gộp KHÔNG gồm dự án (bỏ project khỏi khóa UNIQUE ở `THIET_KE_TIEU_NHI_LAO_DAI_D7.md` mục `support_tickets`); dự án bị ảnh hưởng ghi thành danh sách trong phiếu; ACL vẫn chỉ cho người có quyền từng dự án thấy chứng cứ của dự án đó.
+
+## Câu đã mở trước 13/10 (giữ để tra; đã chốt ở trên)
 
 (a) Giữ `MIN_EVENTS=3`, `MIN_PROJECTS=2` (`core/lessons.py:20–21`) hay giảm khi “lặp ≥2”? **Đề xuất giữ ngưỡng xuất bài học**; hai lỗi độc lập kích hoạt phiếu/đề xuất, không tự thành luật. Retry cùng job không đếm hai lần.
 

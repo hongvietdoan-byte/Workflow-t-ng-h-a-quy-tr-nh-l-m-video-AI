@@ -9,5 +9,5 @@
   {"id":"CX5","ten":"Codex đợt 5 — nghiên cứu Tiểu Nhị","file":"docs/NGHIEN_CUU_TU_PHUC_VU_DASHBOARD.md","kieu":"ghi_chu","trang_thai":"xong","ghi_chu":"Nghiên cứu, không chia việc nên không quy đổi %; gộp main 11/10"},
   {"id":"CX6","ten":"Codex đợt 6","file":"docs/CODEX_TASKS.md","kieu":"codex","dot":6,"trang_thai":"xong","ghi_chu":"Đã gộp main 11/10, 3 cờ TẮT"},
   {"id":"3D","ten":"Phương pháp Sân khấu 3D","file":"docs/PHUONG_PHAP_SAN_KHAU_3D.md","kieu":"phuong_phap","trang_thai":"dang_chay","ghi_chu":"Tài liệu phương pháp, không quy đổi %"},
-  {"id":"UI","ten":"Ghi chú giao diện so FateBreaker","file":"docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-10-10.md","nhanh":"origin/ghi-chu-giao-dien-fatebreaker","kieu":"ghi_chu","trang_thai":"chua_lam","ghi_chu":"Chỉ đọc trên nhánh, chưa sửa Dashboard"}
+  {"id":"UI","ten":"Ghi chú giao diện so FateBreaker","file":"docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-10-10.md","kieu":"ghi_chu","trang_thai":"chua_lam","ghi_chu":"Chép vào main 13/10 (nhánh đã xóa), chưa sửa Dashboard"}
 ]

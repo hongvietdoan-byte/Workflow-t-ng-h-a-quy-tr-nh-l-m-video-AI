@@ -20,7 +20,7 @@ tài nguyên nhắc tên giữ chỗ (`5e1d410`); `assets._without_spoken_lines`
 `looks.clean_prompt` mệnh đề phủ định (`0cad90c`).
 
 **THỨ TỰ CÒN LẠI** (thay mọi thứ tự trong hộp thư cũ):
-1. ~~ĐỢT 17 việc 1~~ → 2. ~~ĐỢT 17 việc 2~~ (đã gộp `3715c96`) → 3. ~~ĐỢT 17 việc 3~~ (gộp `17c881a`) → 3b. **ĐỢT 18 việc 1 → 2 → 3** (sân khấu 3D chung theo đoạn — người dùng 12/10; việc 4 chờ người dùng duyệt kế hoạch) → 4. ĐỢT 15 việc 3 (phủ cả popup giữa phim Đ17v2) → 5. ĐỢT 12 việc 5 → 6. ĐỢT 11 việc 1b →
+1. ~~ĐỢT 17 việc 1~~ → 2. ~~ĐỢT 17 việc 2~~ (đã gộp `3715c96`) → 3. ~~ĐỢT 17 việc 3~~ (gộp `17c881a`) → 3b. **ĐỢT 18 việc 1 → 2 → 3** (**người dùng 13/10 chọn phương án A** theo khuyến nghị `docs/KE_HOACH_SAN_KHAU_DOAN_2026-10-12.md` — B trên cùng dữ liệu khi cần đo che khuất, C gỡ trước mắt; Đ18 việc 4 = phần A) (sân khấu 3D chung theo đoạn — người dùng 12/10; việc 4 chờ người dùng duyệt kế hoạch) → 4. ĐỢT 15 việc 3 (phủ cả popup giữa phim Đ17v2) → 5. ĐỢT 12 việc 5 → 6. ĐỢT 11 việc 1b →
 7. ĐỢT 14 việc 3 → 8. **project_budget gộp** = Đ10 việc 3 mục 2 + Đ13 việc 4 mục 9 phần `cost._video_need` + QC tính 2 lần khi `qc_observe_enum` bật (cờ này ĐÃ
 BẬT trên máy chính → số đang sai trên #27), một nhánh `codex/d10-viec3b-project-budget` → 9. ĐỢT 12 việc 6 → 10. ĐỢT 13 việc 4 mục 1–8 + phần còn lại mục 9 →
 11. ĐỢT 11 việc 2 → 12. ĐỢT 11 việc 4 (bỏ phần đã có trong `continuity_layout`) → 13. ĐỢT 12 việc 2–4 → 14. ĐỢT 13 việc 1–3 → 15. ĐỢT 11 việc 5 → 16. ĐỢT 11
@@ -216,8 +216,7 @@ plan có ĐỎ bị từ chối; sha đổi khi plan đổi. Khai file mới và
 
 ## Việc 4 — Mockup màn Video 3 cột + NGHIÊN CỨU tối ưu giao diện (vừa; KHÔNG sửa `dashboard/`)
 
-**Nguồn:** `docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-10-10.md` trên nhánh `ghi-chu-giao-dien-fatebreaker` (`git show
-origin/ghi-chu-giao-dien-fatebreaker:docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-10-10.md`) — so sánh FateBreaker ↔ Dashboard, 5 đề xuất,
+**Nguồn:** `docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-10-10.md` (chép từ nhánh `ghi-chu-giao-dien-fatebreaker` vào main 13/10, nhánh đã xóa) — so sánh FateBreaker ↔ Dashboard, 5 đề xuất,
 3 điều KHÔNG chép (prompt thô làm trung tâm — trái A13; bỏ stepper; giấu tiền). Mockup hiện có: `mockup/dashboard_v2_4man.html`
 (phong cách UI v2 — giữ token màu/cỡ chữ 12,5 px của nó).
 **Làm:**
