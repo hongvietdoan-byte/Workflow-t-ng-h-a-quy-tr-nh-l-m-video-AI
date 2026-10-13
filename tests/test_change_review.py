@@ -258,8 +258,8 @@ class ChangeReview(unittest.TestCase):
         self._old_red(sid)
         self.assertIn("motion tả trạng thái cuối cũ", CR.blocking(self.p.conn, sid))
         self._motion(sid, "Kelly stands up and walks to the well")                # người sửa prompt ở Bước 3
-        ev = self.pending()
-        self.assertEqual([(e["kind"], e["scene_id"]) for e in ev], [("motion", sid)])
+        ev = [e for e in self.pending() if e["kind"] == "motion"]                  # (+ dòng sổ sách scenes.data của công thức)
+        self.assertEqual([e["scene_id"] for e in ev], [sid])
         self.assertEqual(ev[0]["project_id"], self.pid)
         self.assertIn("đang rà", CR.blocking(self.p.conn, sid))                   # chờ rà bản mới, không giữ vì mục cũ
         client = FakeClient({"muc": [{"khau": "motion", "shot": 2, "quan_sat": "khop", "ly_do": "khớp end_state"}]})
@@ -282,14 +282,17 @@ class ChangeReview(unittest.TestCase):
         self.assertEqual(len(client.calls), 1)                                     # một shot = một lời gọi
         self.assertIn("`size`: TRƯỚC = MS", client.calls[0])
         self.assertIn("`motion_prompt`: TRƯỚC = push in", client.calls[0])
-        self.assertNotIn("`image_prompt`", client.calls[0])                        # không trộn ảnh chụp đầy đủ với khóa lẻ
+        change = client.calls[0].split("## Thay đổi #")[1].split("## Các shot liên quan")[0]
+        self.assertNotIn("`image_prompt`", change)                                 # không trộn ảnh chụp đầy đủ với khóa lẻ
 
     def test_motion_edit_flag_off_costs_nothing_and_never_holds(self):
         sid = self.ids[1]
         self._motion(sid, "push in")
         self.p.conn.execute("UPDATE change_events SET state='skipped'")
         self._motion(sid, "slow push in")
-        self.assertIsNone(CR.blocking(self.p.conn, sid))                           # cờ tắt: như trước, không giữ
+        self.p.conn.execute("UPDATE change_events SET state='skipped' WHERE kind='scene'")   # dòng sổ sách scenes.data (như trước)
+        self.assertEqual(len([e for e in self.pending() if e["kind"] == "motion"]), 1)
+        self.assertIsNone(CR.blocking(self.p.conn, sid))                           # cờ tắt: lần sửa motion không giữ (như trước)
         client = FakeClient({"muc": []})
         CR.process_pending(self.p.conn, self.tmp, client=client)
         self.assertEqual(client.calls, [])
