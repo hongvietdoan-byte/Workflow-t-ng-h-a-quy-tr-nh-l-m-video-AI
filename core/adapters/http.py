@@ -7,6 +7,7 @@ never to result-download URLs, and is never included in error messages.
 import json
 import mimetypes
 import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -110,6 +111,40 @@ def parse_envelope(payload) -> object:
         transient = any(h in message.lower() for h in _RATE_LIMIT_HINTS)
         raise ProviderError(f"API error ({signal}): {message}", code="api_error", transient=transient)
     return payload.get("data")
+
+
+_RETRY_AFTER = re.compile(r"retry after\s*(\d+(?:\.\d+)?)", re.I)
+
+
+def is_rate_limited(e: ProviderError) -> bool:
+    """The vendor asked us to slow down (HTTP 429, or ClipAI code 1130 "Too many requests, please retry after Ns") — nothing failed."""
+    return e.code == "rate_limited" or (bool(getattr(e, "transient", False)) and any(h in str(e).lower() for h in _RATE_LIMIT_HINTS))
+
+
+def retry_after_seconds(message: str) -> Optional[float]:
+    """Seconds the vendor told us to wait ("please retry after 7s" → 7.0), or None."""
+    m = _RETRY_AFTER.search(message or "")
+    return float(m.group(1)) if m else None
+
+
+def call_rate_limited(fn: Callable[[], object], sleep: Callable[[float], None], tries: int = 3, max_total: float = 90.0,
+                      pad: float = 1.0, default_wait: float = 3.0):
+    """fn() — when the vendor says "too many requests", wait the seconds it named (+ pad) and try again, at most `tries` more times and
+    `max_total` seconds of waiting in all (13/10: xóa 77 asset liên tiếp → 26 lần ClipAI 1130). Still refused → ProviderError
+    code "rate_limited" saying how long it waited (never a silent skip). Any other error goes up unchanged."""
+    waited = 0.0
+    for attempt in range(tries + 1):
+        try:
+            return fn()
+        except ProviderError as e:
+            if not is_rate_limited(e):
+                raise
+            wait = (retry_after_seconds(str(e)) or default_wait) + pad
+            if attempt >= tries or waited + wait > max_total:
+                raise ProviderError(f"nhà cung cấp vẫn báo gọi quá nhanh sau {attempt} lần thử lại ({waited:.0f} s chờ): {e}",
+                                    code="rate_limited", transient=True) from None
+            sleep(wait)
+            waited += wait
 
 
 class ApiClient:
