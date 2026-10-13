@@ -66,7 +66,7 @@ việc — phiên điều phối cập nhật). Mỗi việc thêm cờ mới th
   hiện tại). `effect`: cho phép từ "cửa thang máy" CHỈ trong khối mô tả hiệu ứng theo bước (mục 3.2), kèm câu khóa: tường đứng
   sẵn khi ném · cabin nông ~1 m sau cửa, không hành lang/tòa nhà · nữ quỷ đứng yên trong cabin, không bước ra · không người thật
   khác. Shot không nhắc hiệu ứng → vẫn TĨNH.
-- Khung đầu/cuối theo bước: khung đầu = trạng thái bước 1, khung cuối = bước 3 (biến thể có / không nữ quỷ).
+- Khung đầu/cuối theo bước: khung đầu = trạng thái bước 1 (cửa mở, đèn xanh); khung cuối = bước 3 cửa mở đèn đỏ (có / không nữ quỷ) khi clip dừng ở ≈ 9 s, hoặc lại bước 1 khi clip đủ vòng ≈ 12 s (khi đó bước 3 dùng ảnh tham chiếu, không làm khung cuối).
 - Test: prompt ảnh + motion ở hai chế độ (so chữ trước–sau), luật cấm vẫn giữ ở chế độ TĨNH (không đổi hành vi hiện có).
 
 ### C5 · Lỗi 10 — đưa khâu dựng `tools/experiments/p27_final_mix.py` thành Bước 5 (việc lớn ≈ $15–25, làm SAU C1–C4)
@@ -80,7 +80,7 @@ việc — phiên điều phối cập nhật). Mỗi việc thêm cờ mới th
 |---|---|---|---|
 | **M0** | Sau mỗi việc cloud gộp main: `git pull` ở `D:\AI-Video-Pipeline` + khởi động lại 8501 (và 8502 nếu đổi `devsys/`) + cả bộ test Windows `py -m pytest -q -n 8 -p no:cacheprovider`. Sau C1: **bật** `change_review` + `change_review_motion` ở 🧪 (sao lưu `data/feature_settings.json` trước) | 0 | Q2 |
 | **M1** | Đưa bảng thiết kế `docs/images/kho/kho367_bom_keo_obt55_halloween_thang_may_day_du.jpg` vào **Kho #367** làm ảnh thiết kế chính (`design_sheet`, sort đầu); viết lại mô tả Kho theo mục 3.1 (tiếng Việt + câu prompt tiếng Anh); ảnh cũ `gloowall_ob55_trien_khai_1.png` KHÔNG thêm. Gen lại ảnh mẫu "dạng triển khai" theo bảng: **báo giá + hỏi trước** (≈ 0,05 USD/ảnh; đề xuất 2 ảnh: bước 1 + bước 3 có nữ quỷ) | ≈ 0,1 | Q1, Q4 |
-| **M2** | **Thử 1 clip hiệu ứng bom keo** (sau C4 + M1): dự án tập 2 hoặc dự án thử, shot cận tường keo đứng trong nền FF, Seedance 2.5 720p ≈ 10 s theo khung mục 3.2, khung đầu = bước 1, khung cuối = bước 3 có nữ quỷ. **Báo giá + hỏi** (≈ 2,3–3 USD; thêm biến thể không nữ quỷ ≈ +2,3). Gửi người dùng xem → quyết Q3: đạt → kịch bản tập 2 dùng hiệu ứng; không → TĨNH | ≈ 2,5–5 | Q3 — có video quay hiệu ứng trong game thì gửi kèm làm video tham chiếu (cách T1 tốt nhất) |
+| **M2** | **Thử 1 clip hiệu ứng bom keo** (sau C4 + M1): dự án tập 2 hoặc dự án thử, shot cận tường keo đứng trong nền FF, Seedance 2.5 720p ≈ 9–12 s theo khung mục 3.2, khung đầu = bước 1, khung cuối = bước 3 có nữ quỷ (clip ≈ 9 s — đề xuất thử bản này trước). **Báo giá + hỏi** (≈ 2,1–2,8 USD; thêm biến thể không nữ quỷ ≈ +2,1–2,8). Gửi người dùng xem → quyết Q3: đạt → kịch bản tập 2 dùng hiệu ứng; không → TĨNH | ≈ 2,5–5 | Q3 — có video quay hiệu ứng trong game thì gửi kèm làm video tham chiếu (cách T1 tốt nhất) |
 | **M3** | **Sân khấu 3D thật + biên đạo hành động** (TODO mục "SÂN KHẤU 3D CHƯA DÙNG ĐÚNG CÁCH"): (1) đọc tài liệu chính thức GPT Image 2.5 / Seedance 2.5 / Kling qua API: sửa-từ-ảnh, ảnh độ sâu, video hình nộm; (2) render 3D đứng ĐẦU danh sách ref + câu vai trò; (3) đặt hình nộm mỗi nhân vật (màu = định danh, `core/whitebox.py`) + khối thô vật kịch bản (cổng, tường keo) vào cảnh 3D theo sơ đồ cảnh; (4) gửi `depth.png` nơi API nhận; (5) Kling gửi kèm render; shot 8/9 điền `plate_spot`. Thử thật 1–2 shot: báo giá + hỏi | thử ≈ 1–3 | Q5 — cần Blender |
 | **M4** | **Đo ngưỡng** `framing_guard` / V2 / V12 / hộp thân trên clip THẬT #27 (job 912/903/915/907 + clip đã duyệt), ghi số đo, chỉnh ngưỡng nếu lệch (test kèm số đo thật) | 0 | Q7a |
 | **M5** | Kiểm cả chuỗi Bước 2 → 4 bằng **bấm thật** trên Dashboard 8501 với nhà cung cấp GIẢ trên bản sao dự án (memory `reference_safe_copy_testing`); ghi nhật ký vướng + ảnh chụp ở `docs/handoff/` | 0 | TODO "kiểm CẢ CHUỖI" bước (2) |
@@ -96,29 +96,34 @@ Thứ tự gợi ý máy chính: M6 → M1 → M4 → M5 → (sau C4) M2 → M3 
 - Tường keo = **khối cửa thang máy kim loại cũ** (khung thép gỉ, dải đèn vàng phía trên, tủ khóa hai bên, bảng điều khiển, biển
   hình người đỏ, biển cảnh báo vàng dưới chân). Mặt sau / mặt cửa đóng có **dấu tay máu**. Nhìn từ trên: tường **cong nhẹ**; nhìn
   ngang: khối mỏng đứng.
-- **Mô tả thiết kế:** ban đầu là thang máy bình thường → cửa bắt đầu đóng, đóng tới một nửa thì **kẹt** → đèn trắng trong cabin
-  **chớp loạn** → đột nhiên **chuyển đèn đỏ**, cửa mở ra **xuất hiện nữ quỷ** (bước 3) → cửa đóng → mở lại về bước 1, **lặp vòng**.
+- **Mô tả thiết kế (nguyên văn, người dùng xác nhận cách hiểu 14/10):** 开始为正常电梯，然后电梯门开始关闭关到一半卡住打开，此时电梯内白灯狂闪，
+  突然变为红灯，电梯门打开出现女鬼step3，接着电梯门关闭，再打开回到step1形成循环 = (1) thang máy bình thường, cửa mở, cabin đèn xanh lạnh →
+  (2) cửa bắt đầu đóng, đóng **một nửa thì kẹt rồi BẬT MỞ RA LẠI** → (3) **ngay lúc đó** đèn trắng trong cabin **chớp loạn** → (4) **đột
+  ngột chuyển đèn đỏ**, cửa mở, **nữ quỷ xuất hiện** (bước 3; ngẫu nhiên có / không) → (5) cửa **đóng**, rồi **MỞ RA LẠI về bước 1**, lặp vòng.
 - **Trọng điểm:** hiệu ứng **ngẫu nhiên** — có tường mở cửa có nữ quỷ, có tường không (bước 3 có hai trạng thái).
 - Nữ quỷ: tóc đen rất dài che mặt, váy đỏ rách, da xám tái, **dấu tam giác đỏ** ở eo, đứng thẳng.
 - Lựu đạn: thân tròn đỏ, nắp đen có tam giác đỏ.
 
 ### 3.2 Mô tả theo 3 bước (người dùng hỏi 14/10: "mô tả lần lượt theo 3 step thì sao?")
 **Được — và đây là cách nên dùng.** Seedance 2.5 bám **mốc giây** (khác 2.0/Fast chỉ bám "Shot n" — S4.8), nên viết hiệu ứng thành
-các đoạn có mốc giây theo đúng 3 bước của bảng, kèm ảnh khung đầu (bước 1) + khung cuối (bước 3). Khung gợi ý cho clip ≈ 10 s:
+các đoạn có mốc giây theo đúng 3 bước của bảng, kèm ảnh khung đầu (bước 1) + khung cuối (bước 3). Khung gợi ý cho clip ≈ 12 s (đủ một vòng; muốn ngắn hơn thì bỏ đoạn lặp cuối, còn ≈ 9 s):
 
 | Giây | Bước | Mô tả (ý cho prompt) |
 |---|---|---|
-| 0–2 | Bước 1 | Tường keo đứng sẵn (đã ném xong), cửa thang máy **mở**, cabin nông đèn trắng-xanh dịu, trống |
-| 2–4,5 | Bước 2 | Cửa trượt đóng tới **một nửa thì kẹt**, rung nhẹ; đèn trắng trong cabin **chớp loạn** |
-| 4,5–5 | chuyển | Đèn đột ngột **chuyển đỏ** toàn cabin |
-| 5–8 | Bước 3 | Cửa **mở hẳn**, cabin đỏ — biến thể A: **nữ quỷ đứng yên** giữa cabin (tóc che mặt, váy đỏ); biến thể B: cabin trống |
-| 8–10 | về đầu | Cửa đóng lại (vòng lặp — có thể cắt ở đây khi dựng) |
+| 0–2 | Bước 1 | Tường keo đứng sẵn (đã ném xong), cửa thang máy **mở**, cabin nông đèn **xanh lạnh** bình thường, trống |
+| 2–3,5 | Bước 2 | Hai cánh cửa trượt vào, đóng được **một nửa thì kẹt** (khựng lại, khe giữa còn hở) |
+| 3,5–4,5 | Bước 2 | Cửa **bật mở ra lại** |
+| 4,5–6 | Bước 2 | **Ngay lúc đó** đèn trắng trong cabin **chớp loạn** (cửa vẫn mở) |
+| 6–6,5 | chuyển | Đèn **đột ngột chuyển đỏ** toàn cabin |
+| 6,5–9 | Bước 3 | Cửa mở, cabin đỏ — biến thể A: **nữ quỷ xuất hiện, đứng yên** giữa cabin (tóc che mặt, váy đỏ); biến thể B: cabin đỏ trống |
+| 9–10,5 | lặp | Cửa **đóng** lại |
+| 10,5–12 | lặp | Cửa **mở ra lại**, cabin về **đèn xanh** bình thường như bước 1 (có thể cắt trước đoạn này khi dựng) |
 
 Câu khóa bắt buộc (chống lỗi 3 tập 1): tường đứng sẵn từ giây 0, không mọc lên · sau cửa chỉ là **cabin nông ~1 m**, không hành lang,
 không tòa nhà, không nhìn xuyên · nữ quỷ **không bước ra**, không đổi tư thế lớn · không người thật nào khác · khung thép, tủ khóa,
 biển báo giữ nguyên suốt clip. Ảnh tham chiếu: bảng thiết kế (chỉ lấy hình dạng/chất liệu/màu), không lấy chữ trên bảng.
 
-Rủi ro còn lại (vì sao phải thử 1 clip trước): 5 trạng thái trong 10 s có thể bị trộn/bỏ bước; model có thể mở rộng cabin thành
+Rủi ro còn lại (vì sao phải thử 1 clip trước): 7 nhịp trong 9–12 s có thể bị trộn/bỏ bước; model có thể mở rộng cabin thành
 thang máy thật; nữ quỷ có thể vướng bộ lọc nội dung hoặc đổi hình. Không đạt → cách dự phòng: chia 2 clip (bước 1–2 / bước 3) rồi
 dựng nối; vẫn không đạt → TĨNH (Q3).
 
