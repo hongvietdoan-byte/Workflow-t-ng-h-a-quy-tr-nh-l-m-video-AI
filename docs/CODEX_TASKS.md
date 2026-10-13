@@ -35,7 +35,7 @@ runner cắt bản cao sai đoạn (hộp thư 04:18 c), follower 1080p + `usage
 - Đọc `docs/CHUAN_XAY_DUNG.md` trước. Ba luật hay vi phạm: **không im lặng khi thiếu đầu vào** (thiếu / không đo được → báo VÀNG có lý do,
   không trả "đạt"); **test đỏ trước, xanh sau** (viết test, chạy thấy đỏ, sửa, chạy thấy xanh); **không nới test cũ để che lỗi**.
 - Chạy test: `PYTHONUTF8=1 py -m pytest -q -p no:cacheprovider <các file test liên quan>` (Windows dùng `py`; Linux/macOS dùng
-  `python3`). Chỉ chạy file liên quan, KHÔNG cần chạy cả bộ (≈ 28 phút; bên gộp chạy).
+  `python3`). Chỉ chạy file liên quan, KHÔNG cần chạy cả bộ (bên gộp chạy: `-n 8` ≈ 7,5 phút, tuần tự ≈ 28 phút).
 - File `.py` mới phải khai vào `devsys/areas.json` (đúng khu vực, sửa tối thiểu một dòng, giữ định dạng). **KHÔNG tăng `version`.**
   Không dùng PowerShell `Set-Content` để sửa JSON (làm hỏng dấu tiếng Việt).
 - KHÔNG sửa `TODO.md`, `PLAN.md`, `PLAN.docx/pdf`. KHÔNG gọi dịch vụ tốn tiền (ClipAI, Claude API, Kling…). KHÔNG đọc/ghi `data/`.
@@ -349,7 +349,7 @@ KHÔNG nới assert. Bằng chứng: chạy bộ ba file ghép ≥ 5 lần liề
 
 ## Việc 3 — Đo lại thời gian test (rất nhỏ, chạy lâu)
 
-Chạy cả bộ một lần: `PYTHONUTF8=1 py -m pytest -q -p no:cacheprovider --durations=30 -rf` (≈ 28 phút). Đối chiếu danh sách `slow` trong
+Chạy cả bộ một lần: `PYTHONUTF8=1 py -m pytest -q -n 8 -p no:cacheprovider --durations=30 -rf` (≈ 7,5 phút; tuần tự ≈ 28 phút). Đối chiếu danh sách `slow` trong
 `conftest.py` (test ≥ ~8 s): thêm id mới chậm, bỏ id không còn chậm/không tồn tại; giữ `tests/test_slow_marker.py` xanh. Ghi bảng 30 test
 chậm nhất (id · giây) + tổng thời gian + số test hỏng (nếu có, liệt kê tên — KHÔNG sửa test ngoài phạm vi, chỉ báo).
 

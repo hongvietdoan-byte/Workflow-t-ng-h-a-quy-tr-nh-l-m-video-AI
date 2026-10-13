@@ -169,7 +169,9 @@ def project_budget_panel(p: Pipeline, pid: int) -> None:
                     "video / số shot (chia shot lại) trước khi duyệt.", f"script-budget-over-{pid}",
                     f"Đề xuất ≈ {prop['total']:.2f} USD vượt mục tiêu {float(data['target']):.2f} USD")
             if not locked:
-                if ask and confirm_all(f"pb_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA trần ngân sách ≈ {prop['total']:.2f} USD",
+                if ask and project_budget.lock_blocked(prop):
+                    st.warning(project_budget.lock_blocked(prop))
+                elif ask and confirm_all(f"pb_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA trần ngân sách ≈ {prop['total']:.2f} USD",
                                f"Khóa trần dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng)? Mức Tự chạy trong trần: chạy tự động DỪNG "
                                "khi chạm trần khâu hoặc tổng, chờ bạn nâng trần (kèm lý do); ảnh / clip bạn tự bấm gen chỉ được CẢNH BÁO "
                                "khi vượt (vẫn gửi).", st, "Có, khóa"):

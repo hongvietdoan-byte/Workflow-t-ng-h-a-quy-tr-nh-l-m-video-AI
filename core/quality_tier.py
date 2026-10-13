@@ -749,7 +749,7 @@ def running_draft_final_estimate(conn, pid: int, rows, pricing) -> Dict:
     by_scene = {r["scene_id"]: r for r in rows}
     jobs = conn.execute("SELECT * FROM jobs WHERE project_id=? AND type='video_gen' "
                         "AND state IN ('running','approved') AND external_id IS NOT NULL AND external_id!='' ORDER BY id DESC", (pid,)).fetchall()
-    covered, result = set(), {"usd": 0.0, "clips": 0, "seconds": 0.0, "finals_1080": 0, "warnings": [], "unknown": []}
+    covered, result = set(), {"usd": 0.0, "clips": 0, "seconds": 0.0, "finals_1080": 0, "warnings": [], "unknown": [], "covered": set()}
     for job in jobs:
         if job["state"] == "approved":
             # Chỉ nháp hiện tại người đã duyệt, nâng được; final_only là cùng quyết định của quote.
@@ -797,6 +797,7 @@ def running_draft_final_estimate(conn, pid: int, rows, pricing) -> Dict:
             result["unknown"].append(f"bản cao sau nháp task {job['id']}")
         else:
             result["usd"] += usd
+        result["covered"].update(ids)     # cả nhóm đã có lượt bản cao này — estimate_run không đếm lại shot nào trong nhóm
         result["clips"] += 1
         result["seconds"] += seconds
     return result

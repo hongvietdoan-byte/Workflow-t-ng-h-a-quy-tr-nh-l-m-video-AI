@@ -316,9 +316,22 @@ def run_over(p, pid: int, stage: str) -> Optional[str]:
     return None
 
 
+def lock_blocked(prop: Dict) -> Optional[str]:
+    """Rà gộp 13/10 (CHUAN_XAY_DUNG mục 1): thiếu giá video → tổng chỉ là phần đã biết; khóa trần lúc đó làm trần khâu Video = đã
+    chi (+ phần biết) và chạy tự động dừng ngay trước clip đầu. Không khóa; nói thiếu gì + cách xử lý."""
+    if not prop.get("incomplete"):
+        return None
+    missing = ", ".join(prop.get("unpriced") or []) or "không rõ mục"
+    return (f"⚠ Chưa khóa được trần: thiếu giá ({missing}) — tổng ≈ {prop.get('total', 0):.2f} USD mới là PHẦN ĐÃ BIẾT. "
+            "Thêm giá model ở ⚙ Cài đặt → Bảng giá (hoặc đổi model shot) rồi duyệt lại.")
+
+
 def approve(p, pid: int, who: str, proposal: Optional[Dict] = None) -> Dict:
     access.need_edit(p, pid, "duyệt & khóa ngân sách")
     prop = proposal or propose(p, pid)
+    blocked = lock_blocked(prop)
+    if blocked:
+        raise ValueError(blocked)
     old = get(p.conn, pid) or {}
     data = {"caps": {k: v["cap"] for k, v in prop["stages"].items()}, "total": prop["total"], "approved_by": who, "approved_at": _now(),
             "locked": True, "raises": old.get("raises") or [], "target": old.get("target"), "proposal": prop,

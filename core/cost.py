@@ -714,7 +714,11 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     source_problems = {r["scene_id"]: quality_tier.final_source_problem(conn, r["scene_id"]) for r in rows}
     unknown.extend(f"shot {sid}: {problem}" for sid, problem in source_problems.items() if problem)
     needs = {r["scene_id"]: video_need(conn, r["scene_id"]) for r in rows}
-    todo = [r for r in rows if needs[r["scene_id"]]["needed"] and not source_problems[r["scene_id"]]]
+    # Rà gộp 13/10: nháp NHÓM đã gửi tiền được nâng một lượt cho cả nhóm (running_draft_final_estimate) — shot cùng nhóm chưa
+    # được người duyệt không được cộng thêm nháp + bản cao lần nữa.
+    remaining_final = quality_tier.running_draft_final_estimate(conn, project_id, rows, pricing)
+    todo = [r for r in rows if needs[r["scene_id"]]["needed"] and not source_problems[r["scene_id"]]
+            and r["scene_id"] not in remaining_final["covered"]]
     warnings = [f"shot {sid}: {v['reason']}" for sid, v in needs.items() if v["needed"] and conn.execute(
         "SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state IN ('succeeded','approved','pending_review') LIMIT 1", (sid,)).fetchone()]
     for r in todo:
@@ -739,7 +743,6 @@ def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = 
     unknown.extend(two_tier.get("unknown") or [])
     unpriced.extend(two_tier.get("unknown") or [])
     vid_usd += two_tier["usd"]
-    remaining_final = quality_tier.running_draft_final_estimate(conn, project_id, rows, pricing)
     vid_usd += remaining_final["usd"]
     warnings.extend(remaining_final["warnings"])
     unknown.extend(remaining_final["unknown"])

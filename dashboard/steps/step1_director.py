@@ -220,7 +220,8 @@ def _crew_notes(p: Pipeline, pid: int) -> None:
     try:                                             # S6.1 (Q7): the whole project's estimate the moment the shot plan exists
         from core import project_budget
         prop = project_budget.propose(p, pid)
-        cap(f"💵 Dự tính tổng dự án theo bảng shot này ≈ **{prop['total']:.2f} USD** — "
+        cap(("⚠ chưa tính được giá: " + ", ".join(prop["unpriced"]) + " · tổng PHẦN ĐÃ BIẾT " if prop.get("incomplete") else "")
+                   + f"💵 Dự tính tổng dự án theo bảng shot này ≈ **{prop['total']:.2f} USD** — "
                    + " · ".join(f"{label} {prop['stages'][k]['cap']:.2f}" for k, label in project_budget.STAGES.items()
                                 if prop["stages"][k]["cap"]) + " (đã gồm tự gen lại theo tỷ lệ đo thật"
                    + ("; duyệt và khóa trần ở 💵 Ngân sách dự án)" if project_budget.needs_lock(p, pid) else "; chỉ để xem, không cần duyệt)"))

@@ -117,6 +117,18 @@ class BudgetVideoRemainderTests(Base):
         self.assertIn('chưa tính được video', summary['text'])
         self.assertNotIn('mọi mục đều có giá', summary['text'])
 
+    def test_missing_video_price_blocks_the_budget_lock(self):
+        # Rà gộp 13/10: khóa trần khi thiếu giá video → trần khâu Video = đã chi → chạy tự động dừng trước clip đầu. Không khóa, nói rõ.
+        row = {'scene_id': self.s1, 'model': 'unknown-model', 'resolution': '720p', 'billed_seconds': 4, 'cost': None}
+        pricing = {'currency': 'USD', 'per_video_clip': {}, 'per_image': {'mock-image': 1}, 'per_video_second': {}}
+        with OFF, mock.patch('core.model_router.plan', return_value=[row]), mock.patch.object(cost, 'load_pricing', return_value=pricing):
+            prop = project_budget.propose(self.p, self.pid)
+            self.assertIn('clip unknown-model', project_budget.lock_blocked(prop))
+            with mock.patch('core.access.need_edit'), self.assertRaises(ValueError):
+                project_budget.approve(self.p, self.pid, 'user', prop)
+        self.assertFalse((project_budget.get(self.p.conn, self.pid) or {}).get('locked'))
+        self.assertIsNone(project_budget.lock_blocked({'incomplete': False, 'total': 1.0}))
+
     def test_summary_component_does_not_claim_unknown_video_is_free(self):
         from dashboard.design.screens import shell_parts
         summary = {'audio': None, 'audio_items': 1, 'images': 1, 'videos': 0,
@@ -125,3 +137,30 @@ class BudgetVideoRemainderTests(Base):
         self.assertIn('chưa tính được video', text)
         self.assertNotIn('Video ≈', text)
         self.assertNotIn('được ước bằng giá cao nhất', text)
+
+
+class GroupDraftRemainderTests(Base):
+    N = 3
+
+    def test_group_draft_member_not_yet_approved_is_not_priced_twice(self):
+        # Rà gộp 13/10: nháp nhóm A(leader)+B+C, người duyệt A và B, C còn pending_review → chỉ MỘT lượt bản cao cho cả nhóm,
+        # không cộng thêm nháp + bản cao cho C.
+        import json
+        a, b, c = self.sids
+        with ON:
+            leader = self.approved_draft(a)
+            group = json.dumps([{"id": a}, {"id": b}, {"id": c}])
+            self.p.conn.execute("UPDATE jobs SET quality_tier='draft', sent_group=? WHERE id=?", (group, leader))
+            ext = self.p.conn.execute("SELECT external_id FROM jobs WHERE id=?", (leader,)).fetchone()[0]
+            for sid, approve in ((b, True), (c, False)):
+                jid = self.p.create_job(sid, "video_gen")
+                self.p.conn.execute("UPDATE jobs SET model='seedance-2.5', external_id=?, quality_tier='draft', group_leader=? WHERE id=?",
+                                    (ext, leader, jid))
+                self.p.conn.commit()
+                self.p.start(jid)
+                self.p.succeed(jid)
+                if approve:
+                    self.p.approve(jid, "user")
+            est = cost.estimate_run(self.p, self.pid)
+        self.assertEqual(est['counts']['drafts'], 0)
+        self.assertEqual(est['counts']['finals_1080'], 1)

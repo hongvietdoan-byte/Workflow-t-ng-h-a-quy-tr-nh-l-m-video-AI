@@ -607,6 +607,8 @@ def money_card(p: Pipeline, pid) -> None:
                             st.caption(SP.summary_error(e))
                     if not (project_budget.needs_lock(p, pid) and not project_budget.finished(p.conn, pid)):
                         pass                             # user 08/10: "Tôi duyệt hết" / "Duyệt cổng chính" only see the estimate
+                    elif project_budget.lock_blocked(prop):
+                        st.warning(project_budget.lock_blocked(prop))
                     elif confirm_all(f"mc_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA trần ngân sách ≈ {prop['total']:.2f} USD",
                                      f"Khóa trần dự án ≈ {prop['total']:.2f} USD (trần từng khâu theo bảng ở màn Kịch bản)? Mức Tự chạy trong "
                                      "trần: chạy tự động DỪNG khi chạm trần khâu hoặc tổng, chờ bạn nâng trần (kèm lý do); ảnh / clip bạn tự "

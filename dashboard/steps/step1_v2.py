@@ -181,7 +181,9 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
             return
         prop = view["prop"]
         st.markdown("💵 " + view["md"])
-        if confirm_all(f"script-cta-budget_{pid}", ["go"], f"✔ Duyệt & khóa trần ngân sách {prop['total']:.2f} USD",
+        if project_budget.lock_blocked(prop):
+            st.warning(project_budget.lock_blocked(prop))
+        elif confirm_all(f"script-cta-budget_{pid}", ["go"], f"✔ Duyệt & khóa trần ngân sách {prop['total']:.2f} USD",
                        f"Khóa trần dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng ở thẻ ③)? Mức Tự chạy trong trần: chạy tự động "
                        "DỪNG khi chạm trần một khâu hoặc tổng và chờ bạn nâng trần (kèm lý do). Ảnh / clip bạn tự bấm gen chỉ được "
                        "CẢNH BÁO khi vượt (vẫn gửi).", st, "Có, khóa"):
@@ -221,7 +223,9 @@ def _estimate_box(p: Pipeline, pid: int) -> None:
     except Exception as e:  # noqa: BLE001 - the box says why, never breaks the hero
         st.caption(f"Chưa tính được dự tính dự án: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra bảng giá (⚙ Cài đặt) rồi tải lại.")
         return
-    st.html(D.stat("💵 Dự tính dự án", f"≈ {view['total']:.2f} USD", f"đã chi {view['spent']:.2f} USD · chỉ để xem, không cần duyệt"))
+    st.html(D.stat("💵 Dự tính dự án", ("⚠ phần đã biết " if view.get("incomplete") else "") + f"≈ {view['total']:.2f} USD",
+                   f"đã chi {view['spent']:.2f} USD · chỉ để xem, không cần duyệt"
+                   + (" · chưa tính được giá: " + ", ".join(view.get("unpriced") or []) if view.get("incomplete") else "")))
     D.line('<span class="script-sum">Cách tính dự tính</span>', view["md"], f"script-estimate-{pid}")
     from dashboard.steps.step1_run import reserve_box                  # 08/10 phương án 1: phần trích riêng + sửa tay
     reserve_box(p, pid, "est")
