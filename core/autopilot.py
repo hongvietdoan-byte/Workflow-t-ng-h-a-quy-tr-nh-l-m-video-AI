@@ -28,7 +28,7 @@ from .pipeline import Pipeline, PipelinePaused
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
 QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
 PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "previz": "Dựng layout / storyboard", "images": "Gen ảnh + QC",
-                "plates": "Nền 3D của bối cảnh (render theo góc máy)", "lipsync": "Khớp môi (sau khi có clip)", "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "voicefirst": "Giọng trước hình (khóa timeline)", "storycheck": "Người xem lần đầu đọc bảng shot", "videos": "Gen video + QC video",
+                "plates": "Nền 3D của bối cảnh (render theo góc máy)", "lipsync": "Khớp môi (sau khi có clip)", "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "drafts": "Duyệt nháp video (2 bậc)", "motion": "Motion prompt", "voice": "Giọng thoại", "voicefirst": "Giọng trước hình (khóa timeline)", "storycheck": "Người xem lần đầu đọc bảng shot", "videos": "Gen video + QC video",
                 "music": "Nhạc nền", "sfx": "Hiệu ứng âm thanh", "render": "Xuất bản", "done": "Hoàn tất"}
 MAX_SCENES = int(os.environ.get("AUTOPILOT_MAX_SCENES", "12"))
 LOG_KEEP = 60
@@ -993,8 +993,12 @@ def _hero_block(p: Pipeline, pid: int, scene_id: int) -> Optional[str]:
 def _approve_unflagged(p: Pipeline, pid: int, kind: str) -> List[str]:
     """Approve the waiting results that nothing flags; return 'S03: character 0.40 < 0.60' notes for the ones held for a person."""
     held = []
+    from . import quality_tier
+    two_tier = kind == "video_gen" and quality_tier.enabled()
     for j in p.conn.execute("SELECT j.*, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type=?"
                             " AND j.state='pending_review'", (pid, kind)).fetchall():
+        if two_tier and j["quality_tier"] == "draft":
+            continue       # C2 (13/10): a draft is approved by the person only — the run waits (_drafts_waiting), never ai_agent
         why = _flag_reasons(p, j)
         if why:
             held.append(f"S{j['idx']:02d}: " + ", ".join(why))
@@ -1003,9 +1007,27 @@ def _approve_unflagged(p: Pipeline, pid: int, kind: str) -> List[str]:
     return held
 
 
+def _drafts_waiting(p: Pipeline, pid: int) -> List[str]:
+    """C2: 'S03' of the shots whose two-tier draft waits for the person's approval (flag two_tier_quality). Rà 13/10 mục 11: judged per
+    SHOT by quality_tier.state() == 'draft_review' — an old draft left 'succeeded' after a newer draft was approved (or a final made)
+    no longer keeps the run waiting forever."""
+    from . import quality_tier
+    if not quality_tier.enabled():
+        return []
+    rows = p.conn.execute(
+        "SELECT DISTINCT s.id, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type='video_gen'"
+        " AND j.quality_tier='draft' AND j.state IN ('succeeded','pending_review') ORDER BY s.idx", (pid,)).fetchall()
+    return [f"S{r['idx']:02d}" for r in rows if quality_tier.state(p.conn, r["id"]) == "draft_review"]
+
+
 def _approve_held(p: Pipeline, pid: int, kind: str, note: str) -> int:
     """The person looked and went on: what was held for them counts as accepted."""
-    rows = p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type=? AND state='pending_review'", (pid, kind)).fetchall()
+    from . import quality_tier
+    skip_drafts = kind == "video_gen" and quality_tier.enabled()
+    rows = p.conn.execute("SELECT id, quality_tier FROM jobs WHERE project_id=? AND type=? AND state='pending_review'",
+                          (pid, kind)).fetchall()
+    # rà 13/10 mục 10 (C2): "Tiếp tục" is not the person's ✔ on a two-tier DRAFT — a draft is approved on its card (the final follows it)
+    rows = [r for r in rows if not (skip_drafts and r["quality_tier"] == "draft")]
     return sum(1 for r in rows if p.approve(r["id"], "user", note))   # 13/10: a final of an older draft is retired, not counted
 
 
@@ -1055,6 +1077,10 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if held and not _active(p, pid, "video_gen"):
         raise _Wait("clips", f"{len(held)} clip QC còn lỗi (" + "; ".join(held[:3]) + ") — xem ở màn Video: giữ, sửa hoặc gen lại, "
                              "rồi bấm Tiếp tục (clip còn chờ sẽ được giữ như bạn đã xem)")
+    drafts = _drafts_waiting(p, pid)
+    if drafts and not _active(p, pid, "video_gen"):
+        raise _Wait("drafts", f"{len(drafts)} nháp chờ bạn duyệt (" + ", ".join(drafts[:6]) + ") — xem ở màn Video: ✔ Duyệt rồi "
+                              "⬆ Gen bản cao (máy không duyệt nháp thay bạn)")
     fresh = lineage.summary(p.conn, pid)["videos"][0]
     total = len(_scene_rows(p, pid))
     return None if fresh == total else f"Video: {fresh}/{total} dùng được"

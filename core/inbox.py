@@ -22,6 +22,51 @@ def _mine(created_by: Optional[str], email: str, is_owner: bool, auth_on: bool) 
     return is_owner
 
 
+def _final_hold(conn, job_id: int) -> bool:
+    from . import quality_tier
+    row = conn.execute("SELECT note FROM job_events WHERE job_id=? AND to_state='failed' ORDER BY id DESC LIMIT 1", (job_id,)).fetchone()
+    return bool(row) and quality_tier.final_hold_note(row["note"])
+
+
+def _shots(idx: List[int]) -> str:
+    return ", ".join(str(i) for i in idx[:8]) + ("…" if len(idx) > 8 else "")
+
+
+def _video_waits(conn, pid: int, final_hold: List[int]) -> List[str]:
+    """C7 (13/10, U2): clips that wait for the PERSON with no other line in 📥 — queued clips the runner keeps (kiểm trước gen ĐỎ / bản
+    cao chờ — Tổ rà soát has its own line), finals waiting for a confirmation, drafts the person approved still without their final
+    (flag two_tier_quality)."""
+    from .runner import held_reason
+    out = []
+    held = {}
+    for r in conn.execute("SELECT j.id, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type='video_gen'"
+                          " AND j.state='queued' AND EXISTS (SELECT 1 FROM diag_events d WHERE d.job_id=j.id AND d.code IN"
+                          " ('video_pregen_hold','final_wait')) ORDER BY s.idx", (pid,)).fetchall():
+        why = held_reason(conn, r["id"])
+        if why:
+            held.setdefault(why, []).append(r["idx"])
+    for why, idx in held.items():
+        out.append(f"Clip bị giữ chưa gửi ở shot {_shots(idx)}: {why[:180]}")
+    if final_hold:
+        out.append(f"Bản cao chờ bạn xác nhận gen mới ở shot {_shots(final_hold)} — bấm “⬆ Gen MỚI bản cao” trên thẻ (không xếp hàng lại)")
+    from . import quality_tier
+    if quality_tier.enabled():
+        cand = [r for r in conn.execute(
+            "SELECT DISTINCT s.id, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id JOIN review_log l ON l.job_id=j.id WHERE "
+            "j.project_id=? AND j.type='video_gen' AND j.quality_tier='draft' AND j.state='approved' AND l.reviewer_type='user' "
+            "AND l.decision='approve' ORDER BY s.idx", (pid,)).fetchall()]
+        ready = []
+        for r in cand:
+            try:
+                if quality_tier.state(conn, r["id"]) == "draft_ok":
+                    ready.append(r["idx"])
+            except Exception:  # noqa: BLE001 - one unreadable shot never hides the list
+                continue
+        if ready:
+            out.append(f"{len(ready)} nháp đã duyệt chờ gen bản cao: shot {_shots(ready)} — bấm “⬆ Gen bản cao” ở màn Video")
+    return out
+
+
 def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_on: bool = False, team_wide: bool = False) -> List[Dict]:
     """Rights (core/access.py): a person gets the items of the projects they made and of projects where they are a watcher with the
     "Được sửa" level (they can act on those). A "Chỉ xem" watcher gets none (nothing there is theirs to do). Only the Owner can widen
@@ -74,11 +119,17 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
         # (pipeline.create_job makes only these two); a shot that already has a newer job is not listed (storyboard_cards.board_stats).
         # One query for both types (⌂ / every page draws this for every project).
         failed = {"image_gen": [], "video_gen": []}
-        for r in conn.execute("SELECT j.type, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=?"
+        final_hold = []
+        for r in conn.execute("SELECT j.id, j.type, j.quality_tier, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=?"
                               " AND j.type IN ('image_gen','video_gen') AND j.state IN ('failed','retryable')"
                               " AND NOT EXISTS (SELECT 1 FROM jobs k WHERE k.scene_id=j.scene_id AND k.type=j.type AND k.id>j.id)"
                               " ORDER BY s.idx", (pid,)).fetchall():
+            if r["quality_tier"] == "final" and _final_hold(conn, r["id"]):
+                final_hold.append(r["idx"])           # C3/C7: waits for the person's confirmation — not a generation error
+                continue
             failed[r["type"]].append(r["idx"])
+        for line in _video_waits(conn, pid, final_hold):
+            add("Video", line, "video", "wait")
         for typ, screen, label in (("image_gen", "storyboard", "ảnh"), ("video_gen", "video", "clip")):
             idx = failed[typ]
             if idx:

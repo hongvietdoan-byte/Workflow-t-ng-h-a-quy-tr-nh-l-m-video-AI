@@ -407,7 +407,7 @@ def _model_change(p: Pipeline, pid: int, r, line, options, two_tier: bool) -> No
                                   "Chỉ hiện các mức model đang chọn cho phép.") + _group_note(p, r["scene_id"]),
                             on_change=_save_pick, args=(r["scene_id"], f"vres_{r['scene_id']}", "resolution"))
     if line:
-        st.caption("🎛 " + line["text"], help=("Vì sao: " + line["why"]) if line.get("why") else None)
+        st.caption("🎛 Lần gen tới: " + line["text"], help=("Vì sao: " + line["why"]) if line.get("why") else None)   # U4: ≠ clip hiện tại
 
 
 PENDING_PICKS = "vid_pending_picks"
@@ -469,7 +469,7 @@ def _card_model(p: Pipeline, pid: int, scene_id: int, line, plan_row) -> None:
         api = model_router.api_models(model_router.load_profiles())
         _model_change(p, pid, plan_row, line, [None] + list(api), quality_ui.enabled())
     elif line:
-        st.caption("🎛 " + line["text"])
+        st.caption("🎛 Lần gen tới: " + line["text"])
     if line and line.get("warning"):
         st.markdown(D.colored("warn", "⚠ " + line["warning"]), unsafe_allow_html=True)
 
@@ -521,7 +521,7 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
             quality_ui.card_block(p, pid, j["scene_id"], runner, line=line)
         _clip_view(p, pid, j, clip)            # 09/10: khung phát + chip v1 v2 — một fragment (bấm chip không chạy lại cả trang)
         mp = p.conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (j["scene_id"],)).fetchone()
-        st.markdown(V.meta_line(model_router.job_label(p.conn, jid, j["model"]) if j["model"] else None, mp["duration_sec"] if mp else None, price, j["retry_count"]), unsafe_allow_html=True)
+        st.markdown(V.meta_line(model_router.job_label(p.conn, jid, j["model"]) if j["model"] else None, mp["duration_sec"] if mp else None, price, j["retry_count"], current=bool(j["model"])), unsafe_allow_html=True)
         try:
             flags = qc_scene.flags_of(C.DATA, pid, j["source_job_id"]) if j["source_job_id"] else []
         except Exception:  # noqa: BLE001 - a missing/broken layer-0 file never hides the clip
@@ -541,9 +541,14 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
             st.text_input("Câu sửa cho lần gen lại (nên viết tiếng Anh)", key=f"vnote_{jid}")
         vfix = ""
         input_note = p.failure_note(jid) if state == "failed" else None
-        stale_input = bool(input_note) and input_note.startswith((STALE_INPUT, MISSING_INPUT))
+        from core import quality_tier as _qt
+        final_hold = bool(input_note) and _qt.final_hold_note(input_note)   # C3 (13/10): waits for the person — not an outdated input
+        stale_input = bool(input_note) and (final_hold or input_note.startswith((STALE_INPUT, MISSING_INPUT)))
         can_resend = state == "failed" and not blocked and not j["escalated"] and not stale_input
-        if stale_input:                                   # KLD-1 (08/10): never resent unchanged — the batch bar requeues it from new inputs
+        if final_hold:
+            st.caption("⏸ Bản cao chờ bạn xác nhận — " + input_note.split(": ", 1)[-1][:300]
+                       + ". Không gửi lại / không xếp hàng lại (sẽ thành nháp mới tốn tiền): dùng nút “⬆ Gen MỚI bản cao” / “⬆ Gen bản cao” trên thẻ.")
+        elif stale_input:                                 # KLD-1 (08/10): never resent unchanged — the batch bar requeues it from new inputs
             st.caption("⚠ Hỏng vì đầu vào đã cũ / thiếu — không gửi lại y nguyên. Dùng “↻ Xếp hàng lại từ đầu vào mới” ở thanh trên.")
         if can_resend:
             vfix = st.text_input("Câu sửa (tiếng Anh) — trống = gửi lại y nguyên, chỉ khi lỗi do nhà cung cấp", key=f"vfixtxt_{jid}")
@@ -721,6 +726,11 @@ def _clip_view(p: Pipeline, pid: int, j, clip) -> None:
                 st.caption(f"⚠ Không phát được video: {os.path.basename(path)}")
     elif j["state"] in ("queued", "running", "retryable"):
         st.markdown(D.shimmer(150), unsafe_allow_html=True)
+        if j["state"] == "queued":                      # C7 (13/10): a held clip says why on its card (like Bước 2), not only in ⚙
+            from core import runner as _R
+            why = _R.held_reason(p.conn, j["id"])
+            if why:
+                st.caption("⏸ " + why)
     if view:
         _take_strip(p, j, view)
 

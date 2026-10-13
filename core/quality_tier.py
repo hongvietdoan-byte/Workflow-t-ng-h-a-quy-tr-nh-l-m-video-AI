@@ -69,7 +69,7 @@ def draft_seconds(conn, draft) -> Optional[float]:
         grouped = True  # thiếu bằng chứng clip nguyên: không lấy phần đã cắt làm cả task
     path = draft["result_path"]
     local = bool(path) and "://" not in str(path) and not str(path).startswith(("\\\\", "//"))
-    if local and not os.path.isabs(path):
+    if local and not os.path.isabs(path) and not os.path.exists(path):     # U5: cwd first (worktree / bản sao), then the repo
         path = os.path.join(os.path.dirname(os.path.dirname(__file__)), path)
     if not grouped and local and os.path.isfile(path):
         actual = ffmpeg_studio.probe_duration(path)
@@ -286,12 +286,40 @@ def _input_changed(conn, job) -> Optional[str]:
     return None
 
 
+def outdated_final(conn, job, ok=None, used=None) -> Optional[str]:
+    """C1 (13/10 #27 shot 17, scene 285): bản cao ĐÃ DUYỆT `job` không còn là clip của shot — nháp gốc (`draft_job_id`) cũ hơn nháp
+    NGƯỜI duyệt mới nhất (nháp 903 → final 905 duyệt; rồi nháp 915 duyệt), hoặc take đang dùng (`takes.used`) là một nháp mới hơn bản
+    cao này. Lý do tiếng Việt, hoặc None (bản cao vẫn tính). Job không phải final đã duyệt → None. Không xóa / đổi job: chỉ thôi tính
+    nó trong state() / final_source_problem() (bản cao cũ vẫn là một take người chọn lại được).
+    `ok` = approved_draft(conn, scene), `used` = takes.used(conn, scene) nếu đã có sẵn ("" = chưa tính)."""
+    if "quality_tier" not in job.keys() or job["quality_tier"] != "final" or job["state"] != "approved" or not job["draft_job_id"]:
+        return None
+    ok = ok if ok is not None else approved_draft(conn, job["scene_id"])
+    if ok is not None and job["draft_job_id"] < ok["id"]:
+        return f"bản cao #{job['id']} làm từ nháp cũ #{job['draft_job_id']} — nháp #{ok['id']} được duyệt sau"
+    if used is None:
+        from . import takes
+        used = takes.used(conn, job["scene_id"])
+    if (used is not None and used["id"] > job["id"] and (used["quality_tier"] or "") == "draft"
+            and used["state"] in takes_usable()):     # nháp đang chạy / bị loại chưa phải "clip đang dùng"
+        return f"clip đang dùng là nháp #{used['id']} (mới hơn bản cao #{job['id']})"
+    return None
+
+
+def takes_usable():
+    from .takes import USABLE
+    return USABLE
+
+
 def final_source_problem(conn, scene_id: int) -> Optional[str]:
-    """Task bản cao đã xong nhưng nguồn chưa đọc được: phục hồi, không tự trả tiền gen lại."""
+    """Task bản cao đã xong nhưng nguồn chưa đọc được: phục hồi, không tự trả tiền gen lại. C1: bản cao đã thay (outdated_final) bỏ qua."""
     from . import final_cut
     jobs = _video_jobs(conn, scene_id)
+    ok = approved_draft(conn, scene_id)
     for job in reversed(jobs):
         if (job["quality_tier"] or "direct") not in ("final", "direct") or job["state"] != "approved":
+            continue
+        if outdated_final(conn, job, ok):
             continue
         if final_cut.measured_size(job["result_path"]) is None:
             return "Bản cao đã có nhưng không đo được clip gốc — kiểm tra/tải lại nguồn của task đã gửi trước khi giao; không gen lại"
@@ -353,9 +381,13 @@ def retire_superseded_finals(p, scene_id: int, actor: str = "system") -> List[in
 
 def state(conn, scene_id: int) -> str:
     """Một trong STATES, suy từ jobs + review_log. Job video không mang bậc (trước N1) tính như gen thẳng.
-    13/10: bản cao làm từ nháp cũ (superseded_by) chưa gửi / chờ duyệt không tính — shot theo nháp mới nhất người đã duyệt."""
+    13/10: bản cao làm từ nháp cũ (superseded_by) chưa gửi / chờ duyệt không tính — shot theo nháp mới nhất người đã duyệt; bản cao ĐÃ
+    DUYỆT của nháp cũ / không còn là clip đang dùng (outdated_final, C1) cũng không tính."""
     ok_draft = approved_draft(conn, scene_id)
-    jobs = [j for j in _video_jobs(conn, scene_id) if not (j["state"] in _RETIRABLE and superseded_by(conn, j, ok_draft))]
+    from . import takes
+    used = takes.used(conn, scene_id)
+    jobs = [j for j in _video_jobs(conn, scene_id) if not (j["state"] in _RETIRABLE and superseded_by(conn, j, ok_draft))
+            and not outdated_final(conn, j, ok_draft, used)]     # C1: bản cao đã duyệt của nháp cũ không chặn nháp mới
     tier = lambda j: j["quality_tier"] or "direct"   # noqa: E731
     from . import final_cut
     def deliverable(j):
@@ -465,6 +497,28 @@ def request_final(p, scene_id: int, actor: str = "user", confirm_new: bool = Fal
                      (json.dumps({"by": actor, "usd": round(usd, 4), "why": why, "at": time.time()}, ensure_ascii=False), jid))
         conn.commit()
     return jid
+
+
+def final_hold_note(note: Optional[str]) -> bool:
+    """C3: the failure note of a final held for the PERSON (pipeline.FINAL_HOLD; old data: 'stale_input: bản cao bị chặn: cần xác nhận
+    gen MỚI…' / '…nháp cũ…' written before 13/10) — not an outdated input, never requeued as a new paid draft."""
+    from .pipeline import FINAL_HOLD
+    note = note or ""
+    if note.startswith(FINAL_HOLD):
+        return True
+    return "bản cao bị chặn:" in note and (NEED_CONFIRM in note or "nháp cũ #" in note or "không còn được duyệt" in note)
+
+
+def hold_prefix(conn, job) -> str:
+    """C3: failure-note prefix when the runner does not send a FINAL — pipeline.STALE_INPUT only when the approved draft's input really
+    changed (a new draft from the new input is the way); otherwise FINAL_HOLD (waits for the person: confirm / newer draft)."""
+    from .pipeline import FINAL_HOLD, STALE_INPUT
+    if "quality_tier" not in job.keys() or job["quality_tier"] != "final":
+        return STALE_INPUT
+    ok = approved_draft(conn, job["scene_id"])
+    if ok is not None and ok["id"] == job["draft_job_id"] and draft_stale_reason(conn, ok):
+        return STALE_INPUT
+    return FINAL_HOLD
 
 
 def confirmed_new(job) -> bool:

@@ -5,7 +5,7 @@ import json
 from . import access
 from typing import Dict, List, Optional
 
-from . import lineage, llm_io, pilot, regen, takes
+from . import lineage, llm_io, pilot, quality_tier, regen, takes
 from .pipeline import MISSING_INPUT, STALE_INPUT, Pipeline
 
 LIVE = "('queued','running','succeeded','pending_review','approved','retryable')"
@@ -200,7 +200,12 @@ def queue_videos(p: Pipeline, project_id: int, data_dir: str, only=None) -> Dict
 
 # ---- KLD-1 (08/10): "↻ Gửi lại clip lỗi" chỉ cho lỗi nhà cung cấp --------------------------------------------------------------------
 def _input_failed(p: Pipeline, job_id: int) -> bool:
-    return (p.failure_note(job_id) or "").startswith((STALE_INPUT, MISSING_INPUT))
+    note = p.failure_note(job_id) or ""
+    return note.startswith((STALE_INPUT, MISSING_INPUT)) and not quality_tier.final_hold_note(note)   # C3: bản cao chờ người ≠ đầu vào cũ
+
+
+def _held_final(p: Pipeline, job_id: int) -> bool:
+    return quality_tier.final_hold_note(p.failure_note(job_id))
 
 
 def provider_failures(p: Pipeline, project_id: int, kind: str = "video_gen") -> List[int]:
@@ -209,7 +214,7 @@ def provider_failures(p: Pipeline, project_id: int, kind: str = "video_gen") -> 
     rows = p.conn.execute("SELECT j.id FROM jobs j WHERE j.project_id=? AND j.type=? AND j.state='failed' AND j.escalated=0"
                           " AND NOT EXISTS (SELECT 1 FROM content_moderation_failures f WHERE f.job_id=j.id) ORDER BY j.id",
                           (project_id, kind)).fetchall()
-    return [r["id"] for r in rows if not _input_failed(p, r["id"])]
+    return [r["id"] for r in rows if not _input_failed(p, r["id"]) and not _held_final(p, r["id"])]
 
 
 def input_failures(p: Pipeline, project_id: int, kind: str = "video_gen") -> List[Dict]:

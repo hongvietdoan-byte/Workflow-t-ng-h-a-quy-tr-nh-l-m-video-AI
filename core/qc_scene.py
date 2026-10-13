@@ -496,13 +496,15 @@ def apply(p, pid: int, frames: List[Dict], obj: Dict, data_dir: str) -> Dict[str
                 if job["state"] == "succeeded":
                     p.transition(r["job_id"], JobState.PENDING_REVIEW, actor="ai_agent", note="QC cảnh: đạt")
                 ok = p.approve(r["job_id"], "ai_agent", "QC cảnh: đạt — " + f["seen"][:120] if f.get("seen") else "QC cảnh: đạt")
-                out[f"K{k}"] = "duyệt" if ok else "cho nghỉ (bản cao từ nháp cũ)"
+                out[f"K{k}"] = "duyệt" if ok else ("chờ người duyệt (nháp)" if job["quality_tier"] == "draft"
+                                                    else "cho nghỉ (bản cao từ nháp cũ)")
         elif f["verdict"] == "fix" and f["root_cause"] != "plan":
             if job["state"] == "succeeded":
                 p.transition(r["job_id"], JobState.PENDING_REVIEW, actor="ai_agent", note="QC cảnh")
             res = p.reject(r["job_id"], "ai_agent", f"QC cảnh [{f['root_cause']}]: {f['problem']} — {evidence}"[:600], fix=f["fix"],
                            qc={"root_cause": f.get("root_cause"), "problem": f.get("problem"), "fix": f.get("fix")})   # S14.17 Đạo diễn đọc lỗi
-            out[f"K{k}"] = f"vẽ lại ({f['root_cause']}) → {res}"
+            out[f"K{k}"] = (f"giữ cho người (không tự gen lại: {f['root_cause']})" if res == "needs_review"
+                            else f"vẽ lại ({f['root_cause']}) → {res}")
         else:
             why = "bảng shot cần người sửa" if f["verdict"] == "fix" else "chưa đủ rõ"
             _hold(p, r["job_id"], f"QC cảnh: {why} — {f.get('problem') or evidence}"[:600])

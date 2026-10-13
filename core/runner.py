@@ -72,6 +72,24 @@ def wait_reason(job_id: int) -> Optional[str]:
     return hit[0] if hit and time.time() - hit[1] < WAIT_FRESH_SEC else None
 
 
+HOLD_CODES = ("change_review_hold", "video_pregen_hold", "final_wait")
+"""C7 (13/10): diag codes the video runner writes when it KEEPS a queued job (Tổ rà soát, kiểm trước gen ĐỎ, bản cao chờ)."""
+
+
+def held_reason(conn, job_id: int) -> Optional[str]:
+    """C7: why a QUEUED job is not sent — the runner's fresh reason (wait_reason), else the newest hold note it wrote in diag (survives
+    a restart / another process). None = nothing known (it simply waits for its turn)."""
+    why = wait_reason(job_id)
+    if why:
+        return why
+    try:
+        row = conn.execute("SELECT message FROM diag_events WHERE job_id=? AND code IN (%s) ORDER BY last_at DESC, id DESC LIMIT 1"
+                           % ",".join("?" * len(HOLD_CODES)), (job_id, *HOLD_CODES)).fetchone()
+    except Exception:  # noqa: BLE001 - an old database without diag: nothing known
+        return None
+    return f"(lần giữ gần nhất) {row['message']}" if row else None
+
+
 class RedrawWithFix(Exception):
     """A downloaded result that must not be used (e.g. a location-pack picture drawn without the green backdrop): the job fails and a
     new try goes with `fix` (English, for the model)."""
@@ -227,6 +245,9 @@ class _Runner:
         """Extra keyword arguments (frame format, per-scene resolution) — only for providers that declare `supports_aspect`,
         so simpler providers (and test doubles) keep receiving the v1 call."""
         return {}
+
+    def _hold_prefix(self, job, why: str) -> str:
+        return "stale_input"
 
     def _blocked(self, job) -> Optional[str]:
         """A reason not to send this job now (it would be made from outdated inputs); None = go."""
@@ -412,9 +433,10 @@ class _Runner:
                     continue
                 raise
             if blocked:
-                self._diag(job, "warn", "stale_input", f"không gửi: {blocked}")
+                prefix = self._hold_prefix(job, blocked)  # C3: a final waiting for the person is not an outdated input
+                self._diag(job, "warn", prefix, f"không gửi: {blocked}")
                 self._running(job["id"])                 # QUEUED→FAILED is not a transition (core/states.py): RUNNING, then fail
-                self.p.fail(job["id"], f"stale_input: {blocked}")
+                self.p.fail(job["id"], f"{prefix}: {blocked}")
                 continue
             try:
                 args = self._submit_args(job)
@@ -449,9 +471,10 @@ class _Runner:
                 WAIT_REASONS[job["id"]] = (kwargs["_wait"], time.time())
                 continue
             if kwargs.get("_hold"):                  # F3: the request may not go out unasked (a new paid final) — said, not sent
-                self._diag(job, "warn", "stale_input", f"không gửi: {kwargs['_hold']}")
+                prefix = self._hold_prefix(job, kwargs["_hold"])
+                self._diag(job, "warn", prefix, f"không gửi: {kwargs['_hold']}")
                 self._running(job["id"])
-                self.p.fail(job["id"], f"stale_input: {kwargs['_hold']}")
+                self.p.fail(job["id"], f"{prefix}: {kwargs['_hold']}")
                 continue
             if self._pregen(job, args, kwargs):      # K3 (cờ video_pregen): ĐỎ → giữ chờ người, các job khác vẫn gửi
                 continue
@@ -793,6 +816,14 @@ class _Runner:
 
 class VideoRunner(_Runner):
     job_type = "video_gen"
+
+    def _hold_prefix(self, job, why: str) -> str:
+        """C3 (13/10): 'final_hold' for a final the runner keeps for the person ("bản cao bị chặn: cần xác nhận…" / nháp cũ) — the
+        "↻ Xếp hàng lại từ đầu vào mới" button would turn it into a NEW paid draft; 'stale_input' otherwise (as before)."""
+        from . import quality_tier
+        if quality_tier.enabled() and str(why).startswith("bản cao bị chặn"):
+            return quality_tier.hold_prefix(self.p.conn, job)
+        return "stale_input"
 
     def _choice(self, job) -> Dict:
         from . import model_router

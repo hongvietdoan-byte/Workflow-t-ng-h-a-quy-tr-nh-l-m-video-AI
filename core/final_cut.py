@@ -96,10 +96,11 @@ def project_frame(project):
 
 
 def measured_size(path):
-    """Chỉ probe tệp cục bộ, đường tương đối theo gốc repo; không gửi mạng."""
+    """Chỉ probe tệp cục bộ; đường tương đối: theo thư mục đang chạy trước (như assets._resolved — U5 13/10: chạy mã từ worktree / bản
+    sao thì `data/` nằm ở cwd, không ở thư mục mã → mọi bản cao thành "không đo được clip gốc"), không có thì theo gốc repo. Không gửi mạng."""
     if not path or "://" in str(path) or str(path).startswith(("\\\\", "//")):
         return None
-    local = path if os.path.isabs(path) else os.path.join(os.path.dirname(os.path.dirname(__file__)), path)
+    local = path if os.path.isabs(path) or os.path.exists(path) else os.path.join(os.path.dirname(os.path.dirname(__file__)), path)
     # rà gộp Đ15v1 (12/10): called ~10× per shot on every rerun of the Video / Giao screens (one ffmpeg process each, ≈ 50 ms+) →
     # remembered per file version (path, mtime, size) and per probe function (a test's mock is never served a real answer)
     try:
