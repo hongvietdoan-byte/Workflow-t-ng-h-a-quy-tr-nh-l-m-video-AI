@@ -1,4 +1,5 @@
 # Bàn giao Đ13 việc 2 — 14/10/2026
+- Đã commit code `bad2a535`; root đọc diff vòng sửa và hồi quy, không thấy lỗi còn mở trong phạm vi. Nhánh chỉ push riêng; cả bộ Windows thuộc phiên gộp, không gộp main/live.
 - DONE triển khai, chưa commit/push; nhánh codex/d13-viec2-goi-blockout từ 2c43a28f.
 - Đổi core/blockout_sheet.py, tests/test_blockout_sheet.py, skill vòng làm việc (câu K/CX + ví dụ).
 - Schema 2: SHA chuẩn hóa số hình học exact ratio, ngày ISO aware; schema 1 SHA raw + naive đọc được có cảnh báo duyệt lại.
