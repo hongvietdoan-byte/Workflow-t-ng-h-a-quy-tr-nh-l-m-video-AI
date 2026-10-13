@@ -870,7 +870,8 @@ def shot_motion(data: Dict, voice: bool = False, humans: Optional[Dict[str, bool
     action = str(_en(data, "action") or "").strip().rstrip(".")
     end = str(_en(data, "end_state") or "").strip().rstrip(".")
     from . import motion_physics
-    body = motion_physics.sentence(action)          # S4.4: one body-physics sentence for the kind of action (weight, contact)
+    body = motion_physics.sentence(action, data.get("camera_move"))   # S4.4 + cờ locomotion_end_frame (câu mốc cảnh vật khi máy bám theo)
+    # S4.4: one body-physics sentence for the kind of action (weight, contact)
     # F1-C (công thức motion): what changes first — the action, its end, the acting, who speaks — then the camera, then the physics
     camera = (f"{SIZE_WORDS.get(data.get('size'), data.get('size') or 'shot')}, {data.get('angle') or 'eye'} angle, camera {move}"
               + (f"; framing {framing}" if framing else "") + ".")
