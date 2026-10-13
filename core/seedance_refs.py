@@ -241,10 +241,32 @@ def mark_style(conn, scene_ids) -> str:
     return "eye_plus" if any(d.get(MARK_KEY) == "eye_plus" for d in _scene_data(conn, scene_ids)) else "corner_plus"
 
 
+SENT_KEY = "ref_mark_sent"   # scenes.data: how the last reference-only send carried its pictures — a mark style, or "hosted"
+
+
+def note_sent(conn, scene_ids, how: str) -> None:
+    """Remember how the pictures of this send went (flag ref_mark_off_face only): "hosted" = Subject Library, unmarked — a
+    "real person" refusal then cannot be answered by changing the mark (nothing was marked)."""
+    if not mark_off_face():
+        return
+    for sid in scene_ids or []:
+        row = conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()
+        if row is None:
+            continue
+        data = json.loads(row["data"] or "{}")
+        if data.get(SENT_KEY) != how:
+            data[SENT_KEY] = how
+            conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), sid))
+    conn.commit()
+
+
 def step_mark_back(conn, scene_ids) -> bool:
     """After a "real person" refusal: shots sent with the corner mark go back to the eye mark (the input changes once). True when
-    changed; False when the flag is off or they already used the eye mark (the route ladder goes on as before)."""
+    changed; False when the flag is off, they already used the eye mark, or the send went unmarked through the Subject Library
+    (ref_mark_sent "hosted": the same pictures would go again — rule 'gen lại phải đổi đầu vào'; the route ladder goes on)."""
     if not mark_off_face() or mark_style(conn, scene_ids) != "corner_plus":
+        return False
+    if any(d.get(SENT_KEY) == "hosted" for d in _scene_data(conn, scene_ids)):
         return False
     for sid in scene_ids:
         row = conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()

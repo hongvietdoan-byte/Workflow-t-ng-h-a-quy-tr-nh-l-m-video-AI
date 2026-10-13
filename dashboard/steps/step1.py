@@ -321,8 +321,8 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
         if perf is not None:
             fields["performance"], fields["why"] = perf, why_text
         fields.update(camera)
-        if end_state is not None:
-            fields["end_state"] = end_state
+        if end_state is not None and end_state.strip() != (d.get("end_state") or "").strip():
+            fields["end_state"] = end_state          # only a real edit: an untouched box never writes "" / locks end_state
         if char_names:
             fields["characters"] = cast
         if act(lambda: llm_io.update_scene(p, pid, idx, fields, text=text), f"Đã lưu cảnh {idx}"):

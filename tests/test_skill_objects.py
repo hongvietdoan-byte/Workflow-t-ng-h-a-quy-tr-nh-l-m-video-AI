@@ -80,6 +80,15 @@ class SkillObjectTest(unittest.TestCase):
         self.assertIn("red front door", new)              # a sentence not about the skill object is untouched
         self.assertEqual(removed, ["elevator-door style panel"])
 
+    def test_a_building_door_in_a_wall_sentence_stays(self):
+        """Rà gộp 13/10: câu chỉ có 'wall' (không tên vật kỹ năng) mà nói tường/cửa nhà thật → giữ nguyên; câu 'the wall shoots up'
+        (job 909) vẫn được sửa."""
+        with mock.patch.dict(os.environ, ON):
+            new, _, _ = skill_objects.guard_prompt(self.conn, self.pid, "Kelly throws the glue grenade. She then runs through the "
+                                                   "warehouse door in the brick wall. The wall shoots up, grey elevator doors.")
+        self.assertIn("warehouse door in the brick wall", new)
+        self.assertIn("grey flat panels", new)
+
     def test_text_without_skill_object_is_untouched(self):
         with mock.patch.dict(os.environ, ON):
             text = "Kelly bursts out of the side doorway into the open air."

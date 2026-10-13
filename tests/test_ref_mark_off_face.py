@@ -81,6 +81,23 @@ class RefMarkOffFaceTest(unittest.TestCase):
             self.assertIsNone(shots.group_of(self.p.conn, self.ids[0]))         # then the ladder as before
             self.assertIn("seedance", model_router.scene_choice(self.p.conn, self.ids[0])["model"])
 
+    def test_real_person_refusal_of_unmarked_subject_library_pictures_goes_down_the_ladder(self):
+        """Rà gộp 13/10: ảnh đi qua Kho chủ thể (asset://, không dấu) bị từ chối 'người thật' → đổi dấu không đổi gì ở đầu vào
+        (gửi lại y hệt, tốn tiền) → đi thẳng bậc tuyến cũ, không ghi ref_mark."""
+        from core import shots
+        from core.adapters.clipai import REAL_PERSON
+        from tests.test_subjects import CountingLibrary
+        with mock.patch.dict(os.environ, dict(ON, FEATURE_SEEDANCE_SUBJECTS="1")):
+            vr, leader = self._leader()
+            vr.provider.supports_subjects = True
+            vr.subject_library = CountingLibrary()
+            self.p.conn.execute("UPDATE jobs SET model='seedance-2.5' WHERE id=?", (leader["id"],))
+            refs = vr._submit_kwargs(self.p.job(leader["id"]))["reference_only"]
+            self.assertTrue(refs and all(isinstance(r, dict) for r in refs))
+            self.assertTrue(vr._on_refused(self.p.job(leader["id"]), REAL_PERSON, "may contain real person"))
+            self.assertIsNone(shots.group_of(self.p.conn, self.ids[0]))         # the ladder at once
+            self.assertEqual(seedance_refs.mark_style(self.p.conn, self.ids), "corner_plus")   # no mark step written
+
     def test_skill_object_guard_reaches_the_sent_motion(self):
         """Lỗi 3 trên đường gửi video thật: câu về tường keo bỏ 'elevator/doors' + câu cấm; shot tường mọc lên → VÀNG gợi ý ghép."""
         vr, leader = self._leader()

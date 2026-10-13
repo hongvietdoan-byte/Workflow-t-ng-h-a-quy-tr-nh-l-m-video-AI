@@ -686,6 +686,27 @@ class DashboardSmokeTests(unittest.TestCase):
         self.assertEqual(data["end_state"], "Kelly ngồi bên giếng")
         self.assertIn("end_state", data.get("_user_locked") or [])
 
+    def test_saving_a_shot_without_end_state_does_not_lock_an_empty_end_state(self):
+        """Rà gộp 13/10 (cờ end_state_fresh): shot chưa có end_state, bấm 'Lưu cảnh' không sửa ô → không ghi "" và không khóa
+        end_state (_user_locked chặn Đạo diễn điền sau này, lineage báo ⚠ cũ oan)."""
+        import json
+        p, pid = self.seed()
+        row = p.conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=1", (pid,)).fetchone()
+        d = json.loads(row["data"] or "{}")
+        d.pop("end_state", None)
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(dict(d, shot_no=1)), row["id"]))
+        p.conn.commit()
+        os.environ["FEATURE_END_STATE_FRESH"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_END_STATE_FRESH", None)
+        at = self.script_open(pid)
+        at.toggle(key=f"sd_open_{pid}_1").set_value(True).run()
+        self.assertEqual(at.text_input(key=f"sd_{pid}_1_end").value, "")
+        next(b for b in at.button if b.key == f"sds_{pid}_1").click().run()
+        self.assertFalse(at.exception)
+        data = json.loads(Pipeline(connect(self.db)).conn.execute("SELECT data FROM scenes WHERE id=?", (row["id"],)).fetchone()["data"])
+        self.assertNotIn("end_state", data.get("_user_locked") or [])
+        self.assertNotIn("end_state", data)
+
     def test_subject_library_panel_defaults_to_free_fire_and_links_a_character(self):
         from core import subjects
         p, pid = self.seed()

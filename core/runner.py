@@ -913,6 +913,10 @@ class VideoRunner(_Runner):
                 if pending.get("mark_fallback"):
                     out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
                     hosted = [seedance_refs.mark(path, out_dir, pending.get("mark_style", "eye_plus")) for path in hosted]
+                    if pending.get("scene_ids"):
+                        seedance_refs.note_sent(self.p.conn, pending["scene_ids"], pending.get("mark_style", "eye_plus"))
+            elif pending.get("scene_ids"):
+                seedance_refs.note_sent(self.p.conn, pending["scene_ids"], "hosted")
             pending["local"][:] = hosted
         self._pregen_deferred = []
         return kwargs
@@ -1391,7 +1395,11 @@ class VideoRunner(_Runner):
             if self.__dict__.get("_pregen_local"):
                 self._pregen_deferred[-1]["mark_fallback"] = True
                 self._pregen_deferred[-1]["mark_style"] = style
+                self._pregen_deferred[-1]["scene_ids"] = [r["id"] for r in rows]   # decided in _finish_kwargs
+            else:
+                seedance_refs.note_sent(conn, [r["id"] for r in rows], "hosted")
             return hosted
+        seedance_refs.note_sent(conn, [r["id"] for r in rows], style)
         out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
         return [seedance_refs.mark(p, out_dir, style) for p in frames + [path for _, path in extras]]
 

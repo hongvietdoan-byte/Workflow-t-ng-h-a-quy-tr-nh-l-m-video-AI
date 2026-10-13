@@ -47,6 +47,9 @@ _RISES = re.compile(r"(?<!\w)(?:pops?|popping|shoots?|shooting|springs?|springin
                     r"(?<!\w)(?:throws?|throwing|flicks?|tosses?|tossing|hurls?)\s+(?:\w+\s+){0,3}(?:glue|gloo)\w*(?:[ -]grenades?|[ -]bombs?)?|"
                     r"ném\s+bom\s+keo|mọc\s+(?:lên|ngay)|dựng\s+lên|trồi\s+lên|bật\s+lên", re.I)
 _WALL = re.compile(r"(?<!\w)walls?(?!\w)", re.I)
+# a sentence about a real building's wall / door ("the warehouse door in the brick wall") is not about the skill object
+_BUILDING = re.compile(r"(?<!\w)(?:houses?|buildings?|warehouses?|rooms?|towers?|shops?|stores?|garages?|homes?|apartments?|barns?|"
+                       r"churche?s?|halls?|bricks?|nhà|phòng|tòa|cửa hàng|nhà kho)(?!\w)", re.I)
 
 FORBID = ("{names} is a solid skill object standing on the ground, not part of a building: one closed solid surface with no opening "
           "of any kind, no room or space inside, nothing is seen through it and nobody stands in it.")
@@ -112,7 +115,8 @@ def sanitize(text: str, names: Sequence[str] = ()) -> Tuple[str, List[str]]:
     removed: List[str] = []
     out = []
     for sent in _sentences(text):
-        about = (rx and rx.search(sent)) or any(r.search(sent) for r in _generic_rx()) or _WALL.search(sent)
+        about = ((rx and rx.search(sent)) or any(r.search(sent) for r in _generic_rx())
+                 or (_WALL.search(sent) and not _BUILDING.search(sent)))
         if about and MISREAD_RX.search(sent):
             for pat, rep in _EN_FIXES + _VI_FIXES:
                 def sub(m, rep=rep):

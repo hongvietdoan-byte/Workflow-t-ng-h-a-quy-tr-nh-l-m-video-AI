@@ -144,7 +144,7 @@ def hero(p, pid: int, summ: dict, proj) -> None:
 def status_table(p, pid: int) -> str:
     """Bảng trạng thái từng cảnh (thay st.dataframe, nền theo giao diện)."""
     rows = p.conn.execute(
-        "SELECT j.state, j.retry_count, j.escalated, s.idx, s.id sid, (SELECT AVG(score) FROM qc_results WHERE job_id=j.id) AS qc "
+        "SELECT j.state, j.retry_count, j.escalated, s.idx, s.id sid, (SELECT AVG(score) FROM qc_results WHERE job_id=j.id AND criterion NOT IN ('scene_qc_hold','framing_hold')) AS qc "
         "FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type='image_gen' AND j.state NOT IN ('rejected','cancelled') "
         "ORDER BY s.idx", (pid,)).fetchall()
     if not rows:

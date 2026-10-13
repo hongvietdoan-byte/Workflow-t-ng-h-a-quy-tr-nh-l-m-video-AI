@@ -76,6 +76,18 @@ class EffectivenessTests(unittest.TestCase):
         lines = effectiveness.summary_lines(r, manual_min_per_sec=30)
         self.assertTrue(any(line.startswith("So với làm tay") for line in lines) or r["wall_min_per_sec"] == 0)
 
+    def test_hold_marker_rows_are_not_averaged_into_the_qc_score(self):
+        """Rà gộp 13/10: framing_hold / scene_qc_hold là dấu giữ (score 0.0), không phải điểm — AVG gộp vào kéo điểm QC xuống."""
+        jid = self.picture(self.sids[0], {k: 0.9 for k in ("a", "b")}, "approve")
+        for marker in ("scene_qc_hold", "framing_hold"):
+            self.conn.execute("INSERT INTO qc_results (job_id, criterion, score, threshold_at_time, auto_decision) VALUES (?,?,?,?,?)",
+                              (jid, marker, 0.0, 1.0, "hold"))
+        self.conn.commit()
+        r = effectiveness.report(self.conn, self.pid, PRICING)
+        self.assertEqual(r["qc"]["pairs"], 1)
+        self.assertEqual(r["qc"]["agreement"], 1.0)                 # 0.9 ≥ ngưỡng: AI đồng ý với người, dấu giữ không tính
+        self.assertEqual(effectiveness.look_trust(self.conn, None, None)["agreement"], 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()
