@@ -36,6 +36,10 @@ PART_LABELS = {
     "ta_cai_dung": "Tả cái đúng", "chuyen_dong_nen": "Chuyển động nền",
     "phu_nhip_ref": "Phủ nhịp ref", "bien_do_khung": "Cỡ khung ↔ biên độ", "hieu_ung_hau_ky": "Hiệu ứng để hậu kỳ",   # 11/10 #24
     "dao_cu": "Đạo cụ dự án",                 # 12/10 #27: project_prop_lock (core/prop_lock)
+    "nhat_quan": "Diễn xuất ↔ hành động",     # 13/10 V9 (cờ motion_consistency_lint)
+    "nhip": "Số nhịp ↔ thời lượng",          # 13/10 V9
+    "trang_thai_nv": "Trạng thái nhân vật",   # 13/10 V10 (cờ character_state_lock)
+    "anh_ref": "Ảnh tham chiếu",             # 13/10 V13 (cờ ref_rule_early)
 }
 CLOSE_SIZES = ("ECU", "CU", "MCU")
 WIDE_SIZES = ("WS", "EWS", "MLS")
@@ -538,7 +542,139 @@ def lint_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, ff:
     out += ambient_issues(prompt, data)
     out += outfit_issues(prompt, data, chars)
     out += pov_hand_issues(prompt, data, ff)
+    out += beat_issues(data)
+    out += state_issues(prompt, data)
     return out + _common(prompt, data, chars, "motion", ff)
+
+
+# ---- V9 (rà gốc video #27 13/10, G11): diễn xuất lệch hành động / nhiều nhịp trong ít giây — kiểm trước gửi, 0 USD -------------------
+# s15 performance.body "…ném dứt khoát bằng một tay" (the throw is shot 16's); s6 body "finally stops rigid looking up" (shot 7's);
+# s20 1,5 s "thụp → bật → chạy" (859 never reached its end state); s1 POV acting "hands tense around the rifle grip" (pov_hand_issues,
+# ĐỎ since 12/10). Flag motion_consistency_lint off → nothing. Verbs are matched as whole words, Vietnamese WITH accents ("ném" ≠ "nem").
+_VERBS = {
+    "throw": r"\b(?:throw\w*|threw|toss\w*|hurl\w*)\b|\bném\b|\bquăng\b",
+    "shoot": r"\b(?:shoots?|shooting|fires?|firing|opens fire)\b|\bbắn\b|\bnổ súng\b",
+    "jump": r"\b(?:jump\w*|leap\w*|vault\w*)\b|\bnhảy\b|\bbật lên\b",
+    "run": r"\b(?:runs?|running|ran|sprint\w*|dash(?:es|ed|ing)?)\b|\bchạy\b",
+    "fall": r"\b(?:falls?|fell|falling|collaps\w*)\b|\bngã\b|\bgục\b",
+    "crouch": r"\b(?:crouch\w*|kneel\w*|knelt|ducks?|ducking)\b|\bquỳ\b|\bthụp\b|\bngồi xổm\b|\bnúp\b",
+    "stop": r"\b(?:stops?|stopped|stopping|halts?|halted)\b|\bdừng lại\b|\bkhựng\b",
+    "look_up": r"\blook(?:s|ing|ed)? up\b|\bngước\b|\bnhìn lên\b",
+    "climb": r"\bclimb\w*\b|\bleo\b|\btrèo\b",
+    "grab": r"\b(?:grab\w*|snatch\w*|picks? up|picking up)\b|\bnhặt\b|\bchộp\b",
+    "reload": r"\breload\w*\b|\bnạp đạn\b",
+}
+_VERB_RX = {k: re.compile(v, I) for k, v in _VERBS.items()}
+_BEAT_SPLIT = re.compile(r"\bthen\b|\brồi\b|\bsau đó\b|→|->|;", I)
+BEATS_PER_SECOND = 1.0                 # rà gốc 13/10: more beats than seconds → the model skips one (s20)
+
+
+def consistency_on() -> bool:
+    try:
+        from . import features
+        return features.on("motion_consistency_lint")
+    except Exception:  # noqa: BLE001 - unreadable settings: the old behaviour (off)
+        return False
+
+
+def _verbs_in(text: str) -> set:
+    return {k for k, rx in _VERB_RX.items() if rx.search(text or "")}
+
+
+def _field(data: Dict, key: str) -> str:
+    """The English (motion_en) and the Director's own text of a field, together (either may be what is sent)."""
+    en = data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}
+    return " | ".join(str(x) for x in (en.get(key), data.get(key)) if x)
+
+
+def _acting_body(data: Dict) -> str:
+    bits = []
+    for src in (data, data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}):
+        perf = src.get("performance") if isinstance(src.get("performance"), dict) else {}
+        bits += [str(perf[k]) for k in ("body", "timing") if isinstance(perf.get(k), str)]
+    return " | ".join(bits)
+
+
+def beat_count(text: str) -> int:
+    """Beats of an action: separated parts ('then', 'rồi', '→', ';') or distinct action verbs, whichever is more."""
+    text = text or ""
+    if not text.strip():
+        return 0
+    return max(1 + len(_BEAT_SPLIT.findall(text)), len(_verbs_in(text)))
+
+
+def beat_issues(data: Dict) -> List[Dict]:
+    """VÀNG: more beats in the shot's action than its seconds (× BEATS_PER_SECOND) — split the shot or give it more time."""
+    if not consistency_on():
+        return []
+    data = data or {}
+    try:
+        sec = float(data.get("duration_s") or 0)
+    except (TypeError, ValueError):
+        sec = 0.0
+    en = data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}
+    action = str(en.get("action") or data.get("action") or "")
+    beats = beat_count(action)
+    if sec <= 0 or beats < 2 or beats <= sec * BEATS_PER_SECOND:
+        return []
+    return [_issue("warn", "nhip", f"Hành động có {beats} nhịp trong {sec:g} s (> {BEATS_PER_SECOND:g} nhịp/giây) — model sẽ bỏ nhịp, "
+                                   "không tới trạng thái cuối (#27 s20: 1,5 s thụp→bật→chạy). Tách shot hoặc tăng thời lượng.")]
+
+
+def bleed_issues(data: Dict, neighbours: Iterable[Tuple[str, Dict]]) -> List[Dict]:
+    """VÀNG: an action verb in the acting (performance body / timing) that is not in the shot's own action / end state but is in a
+    neighbouring shot's — the acting runs into the next / previous shot (s15 'ném' = shot 16's throw)."""
+    if not consistency_on():
+        return []
+    data = data or {}
+    acting = _verbs_in(_acting_body(data))
+    own = _verbs_in(" | ".join(_field(data, k) for k in ("action", "action_peak", "end_state")))
+    out = []
+    for label, other in neighbours:
+        theirs = _verbs_in(" | ".join(_field(other or {}, k) for k in ("action", "action_peak", "end_state")))
+        bleed = sorted((acting - own) & theirs)
+        if bleed:
+            out.append(_issue("warn", "nhat_quan", f"Diễn xuất (performance) có động tác {', '.join(bleed)} không có trong hành động của "
+                                                   f"shot này mà là hành động của {label} — lấn sang shot kề; bỏ khỏi performance "
+                                                   "hoặc đưa vào action của shot này."))
+    return out
+
+
+def consistency_issues(conn, scene_id: int, data: Dict) -> List[Dict]:
+    """bleed_issues against the previous and the next shot of the project (by idx). [] when off; never raises."""
+    if not consistency_on():
+        return []
+    try:
+        row = conn.execute("SELECT project_id, idx FROM scenes WHERE id=?", (scene_id,)).fetchone()
+        if row is None:
+            return []
+        near = []
+        for label, op, order in (("shot trước", "<", "DESC"), ("shot sau", ">", "ASC")):
+            r = conn.execute(f"SELECT idx, data FROM scenes WHERE project_id=? AND idx {op} ? ORDER BY idx {order} LIMIT 1",
+                             (row["project_id"], row["idx"])).fetchone()
+            if r is not None:
+                near.append((f"{label} (#{r['idx']})", json.loads(r["data"] or "{}")))
+        return bleed_issues(data, near)
+    except Exception as e:  # noqa: BLE001 - a check, never a reason to lose the plan
+        return [_issue("warn", "nhat_quan", f"không kiểm được diễn xuất ↔ shot kề: {type(e).__name__}: {e}")]
+
+
+def state_issues(prompt: str, data: Dict) -> List[Dict]:
+    """V10 (cờ character_state_lock): a character state written in words (seedance_refs.character_states) — the identity picture
+    is the normal look, so (1) the prompt must lock the state for the whole shot, (2) a state picture is missing (VÀNG, said)."""
+    from . import seedance_refs
+    if not seedance_refs.state_lock_on():
+        return []
+    states = seedance_refs.character_states(data or {})
+    out = []
+    for name, state in states.items():
+        locked = re.search(rf"\b{re.escape(name)}\b[^.]{{0,40}}\bstays\b", prompt or "", I)
+        out.append(_issue("warn", "trang_thai_nv", f"{name} ở trạng thái '{state}' chỉ có trong chữ — ảnh danh tính là dạng thường, cuối "
+                                                   "clip model trôi về ảnh (#27 shot 9 mất bóng mờ). Cần ảnh trạng thái (cắt từ khung "
+                                                   "đầu đã duyệt) làm ảnh danh tính"
+                                                   + ("." if locked else "; prompt chưa có câu giữ trạng thái cả shot "
+                                                      f"('{name} stays {state} for the whole shot…').")))
+    return out
 
 
 # rà video #27 (12/10, S1/S2): Free Fire has no first-person view holding a gun — a POV shot shows the viewer's two EMPTY hands
@@ -994,6 +1130,7 @@ def after_director(conn, project_id: int, before: Optional[Dict] = None) -> None
                             "prompt_formula", project_id, scene_id=r["id"])
                 continue
             fc["image"] += _prop_issues(conn, project_id, data)
+            fc["motion"] += consistency_issues(conn, r["id"], data)        # V9 (cờ motion_consistency_lint): needs the shots around
             if not fc["growth"] and prev and prev.get("image") == image and prev.get("motion") == motion:
                 fc["growth"] = prev.get("growth") or []       # unchanged prompt: the earlier 'trồng thêm' finding still holds
             fc.update(image_sha=_sha(image), motion_sha=_sha(motion), at=_now())
@@ -1043,6 +1180,7 @@ def on_prompt_saved(conn, scene_id: int, kind: str, old: Optional[str], new: Opt
                          previous={kind: old} if old != new else None,
                          style_by_code=_style_by_code(conn, project_id), ff=_is_ff(conn, project_id))
         fc["image"] += _prop_issues(conn, project_id, data)
+        fc["motion"] += consistency_issues(conn, scene_id, data)          # V9 (cờ motion_consistency_lint)
         fc["growth"] = [g for g in old_fc.get("growth") or [] if g.get("kind") != kind] + fc["growth"]
         fc["cross"] = old_fc.get("cross") or []
         fc["red"] = fc["red"] or any(i["level"] == "red" for i in fc["growth"])
@@ -1115,9 +1253,31 @@ def red_issues(conn, scene_id: int, kind: Optional[str] = None, gore_hinted=None
     # rà Đ16v3: the gun lock reads the PICTURE words — it holds the picture back, not a clip of a picture already approved
     props = ([f"Đạo cụ dự án: {i['msg']}" for i in _prop_issues(conn, row["project_id"], data) if i["level"] == "red"]
              if kind in (None, "image") else [])
+    if kind in (None, "motion"):         # 13/10 V4 + V13: what a CLIP send would get wrong, caught before queueing / paying
+        props += _clip_send_reds(conn, scene_id, row["project_id"], data)
     if not enabled():
         return props
     return props + _red_formula(conn, scene_id, kind, gore_hinted, row, data)
+
+
+def _clip_send_reds(conn, scene_id: int, project_id: int, data: Dict) -> List[str]:
+    """ĐỎ of a clip send, independent of the prompt_formula flag (each behind its own flag; [] when off; never raises):
+    V4 (skill_object_guard) — the skill object appears and the Kho has no DEPLOYED picture of it;
+    V13 (ref_rule_early) — a reference picture of a reference-only clip still breaks ClipAI's size rule."""
+    out = []
+    try:
+        from . import skill_objects
+        out += [f"Đạo cụ dự án: {i['msg']}" for i in skill_objects.send_issues(conn, project_id, data) if i["level"] == "red"]
+    except Exception as e:  # noqa: BLE001 - a check; said, never a silent pass
+        out.append(f"Đạo cụ dự án: không kiểm được vật kỹ năng ({type(e).__name__}: {e}) — xem ⚙ Chẩn đoán")
+    try:
+        from . import seedance_refs
+        if seedance_refs.rule_early_on() and seedance_refs.uses_refs(conn, scene_id):
+            out += [f"{PART_LABELS['anh_ref']}: {x}" for x in seedance_refs.reference_rule_issues(conn, project_id, [
+                {"id": scene_id, "data": data}])]
+    except Exception as e:  # noqa: BLE001
+        out.append(f"{PART_LABELS['anh_ref']}: không kiểm được luật ảnh tham chiếu ({type(e).__name__}: {e})")
+    return out
 
 
 def _red_formula(conn, scene_id: int, kind, gore_hinted, row, data) -> List[str]:
