@@ -182,6 +182,11 @@ def generate(video, force=False):
 
 
 def main(argv=None):
+    for stream in (sys.stdout, sys.stderr):   # 13/10: piped on Windows (cp1252) the Vietnamese lines failed — always UTF-8
+        try:
+            stream.reconfigure(encoding='utf-8', errors='replace')
+        except (AttributeError, ValueError):
+            pass
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('video', help='Video cục bộ; đầu ra cạnh video (.beats.jpg, .beats.json)')
     group = parser.add_mutually_exclusive_group()

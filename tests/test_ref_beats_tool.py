@@ -115,7 +115,7 @@ def test_real_video_and_cli_from_other_directory(tmp_path):
     script = Path(tool.__file__).resolve()
     result = subprocess.run([sys.executable, str(script), str(video), '--check'], cwd=tmp_path,
                             capture_output=True, text=True, encoding='utf-8',
-                            env={**os.environ, 'FEATURE_REF_BEATS_TOOL': '1',
+                            env={**os.environ, 'FEATURE_REF_BEATS_TOOL': '1', **_CP1252,
                                  'FEATURE_SETTINGS_FILE': str(tmp_path / 'feature_settings.json')})
     assert result.returncode == 0, result.stderr
     assert not ref_coverage(json.loads(beats.read_text(encoding='utf-8')), {'action': 'dang tay nước mắt'})
@@ -208,10 +208,14 @@ def test_real_portrait_bounded(tmp_path):
     with Image.open(video.with_suffix('.beats.jpg')) as sheet:
         assert sheet.width <= 480 and sheet.height <= 264
 
+# 13/10: a Windows console piped in cp1252 (no PYTHONUTF8) made the Vietnamese lines fail — the CLI must print UTF-8 anyway
+_CP1252 = {'PYTHONIOENCODING': 'cp1252', 'PYTHONUTF8': '0'}
+
+
 def test_default_flag_off_cli_before_source_access(tmp_path):
     assert tool.features.FEATURES['ref_beats_tool']['verified'] is False
     script = Path(tool.__file__).resolve()
-    env = {**os.environ, 'FEATURE_REF_BEATS_TOOL': '0', 'FEATURE_SETTINGS_FILE': str(tmp_path / 'settings.json')}
+    env = {**os.environ, 'FEATURE_REF_BEATS_TOOL': '0', **_CP1252, 'FEATURE_SETTINGS_FILE': str(tmp_path / 'settings.json')}
     result = subprocess.run([sys.executable, str(script), str(tmp_path / 'missing.mp4')],
                             capture_output=True, text=True, encoding='utf-8', env=env)
     assert result.returncode == 1
