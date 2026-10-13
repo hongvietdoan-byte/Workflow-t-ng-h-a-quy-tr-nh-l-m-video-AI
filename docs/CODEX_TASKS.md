@@ -930,6 +930,8 @@ không tự gen lại quá 1 lần (luật gen lại phải đổi đầu vào).
 
 ## Kết quả Codex — đợt 12
 
+- Việc 6 · nhánh `codex/d12-viec6-phat-am` · code `7f497699`: từ điển chữ thuần theo dự án/giọng/model; giữ câu gốc, đổi đầu vào mới cho tạo lại bằng tay, giữ audio cũ khi lỗi; ASR chỉ model local có sẵn, cảnh báo VÀNG. Cờ `tts_pronunciation` OFF/OPT_IN_ONLY. ĐỎ module thiếu và 6 hồi quy rà kỹ → **90 passed /7,80s**, 4 file test; 5 finding đã sửa. QA thành phần Streamlit bằng Chrome 1440/1280, sửa/chỉ xem: 4 PNG, không lỗi/tràn ngang. RA `docs/RA_D12_VIEC6_CODEX_2026-10-13.md`. Chưa thử giọng70/API/model thật/cả bộ/gộp; cần kiểm tích hợp Đ12v5, race các writer cũ chưa xử lý toàn diện. Không dữ liệu thật/live; areas.version giữ 68.
+
 - Việc 1 · nhánh `codex/d12-viec1-am-nen` · code `cc8dda7`: voice chỉ giọng người, accent riêng nullable; legacy dế/gió suy từ heard_label khi đọc, không UPDATE/nghe lại. Point accent/trusted vẫn loại voice; nhãn lạ giữ guard bảo thủ. ĐỎ 3/51 → 54 xanh; rà 0 blocker/1 LOW trim đã sửa (1 đỏ → **55 passed /50,49s**, 3 file); migration giữ giá trị + query_only không đổi hàng. RA `docs/RA_D12_VIEC1_CODEX_2026-10-12.md`. Chưa thử Kho thật #437/#307, chưa cả bộ/gộp main, không API/data thật.
 
 
