@@ -25,8 +25,9 @@ def video_busy(conn, pid: int) -> bool:
     if not autoqc.video_last_error(pid) and claude_tasks.unchecked_videos(Pipeline(conn), pid) and llm_client() is not None:
         return True
     from core import end_frames
-    if end_frames.enabled() and end_frames.pending(Pipeline(conn), pid):
-        return True                                    # C5: an end frame being drawn (its clip waits for it)
+    if end_frames.enabled() and end_frames.drawing(Pipeline(conn), pid):
+        return True                                    # C5: an end frame being drawn (its clip waits for it); R1/R7: not one nobody
+                                                       # draws now (autopilot's while stopped) nor one the spending limit refused
     return bool(one("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen' AND state='queued' AND retry_count>0"))
 
 

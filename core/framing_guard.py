@@ -49,7 +49,13 @@ FACE_WIDTH = 960            # pictures are compared at one width: YuNet's box on
 # person jumps away, background unchanged) 0.054 (0.144) — must stay out of this check, "jump" flags it
 END_DRIFT = 0.30            # last frame's inlier share below this × frame 0's share …
 END_DRIFT_MIN = 0.03        # … (and below at least this) → the background is not the start picture's any more
-CAM_STILL = 0.10            # the samples of the clip's first half moved a picture corner less than this → the camera stayed
+CAM_STILL = 0.10            # the clip's samples moved a picture corner less than this IN TOTAL (summed sample to sample) → camera stayed
+# R4/R5 (rà S3): the person is masked before a background is compared (YuNet face → a body box down to the frame's bottom)
+BODY_W = (1.2, 2.2)         # body box: from x − 1,2 × face width to x + 2,2 × face width …
+BODY_UP = 0.6               # … from y − 0,6 × face height down to the bottom of the frame
+GROUND_INLIERS = 20         # V12 judges "same ground" only on at least this many matched background points …
+GROUND_SHARE = 0.15         # … and this share of the start picture's (masked) keypoints
+_STILL_MOVES = ("pan", "orbit", "follow", "track", "truck", "dolly", "crane", "tilt", "whip", "handheld", "bám", "lia", "quay quanh")
 
 
 def enabled() -> bool:
@@ -68,23 +74,44 @@ def _gray(img):
     return cv2.resize(g, (WIDTH, max(1, int(g.shape[0] * WIDTH / g.shape[1]))), interpolation=cv2.INTER_AREA)
 
 
-def _features(img):
+def _features(img, boxes=None):
+    """ORB on the WIDTH copy; boxes = [(x0, y0, x1, y1) as shares of the picture] left out (R4/R5: the person's body)."""
     cv2 = _cv()
     g = _gray(img)
-    k, d = cv2.ORB_create(ORB_N, edgeThreshold=15, patchSize=15).detectAndCompute(g, None)
+    mask = None
+    if boxes:
+        import numpy as np
+        h, w = g.shape[:2]
+        mask = np.full((h, w), 255, np.uint8)
+        for x0, y0, x1, y1 in boxes:
+            mask[max(0, int(y0 * h)):max(0, int(y1 * h)), max(0, int(x0 * w)):max(0, int(x1 * w))] = 0
+    k, d = cv2.ORB_create(ORB_N, edgeThreshold=15, patchSize=15).detectAndCompute(g, mask)
     return g.shape, k, d
 
 
-def similarity(a, b, fa=None, fb=None) -> Dict:
+def person_boxes(img) -> List[Tuple[float, float, float, float]]:
+    """R4/R5 (rà S3): the body boxes of the people YuNet sees (face → body down to the frame's bottom), as shares of the picture;
+    [] without a face / the model (then nothing is masked — the callers' gates decide)."""
+    from .clip_measure import _faces
+    h, w = img.shape[:2]
+    out = []
+    for x, y, fw, fh, _ in _faces(img):
+        if fh / h < FACE_MIN_H:
+            continue
+        out.append((max(0.0, (x - BODY_W[0] * fw) / w), max(0.0, (y - BODY_UP * fh) / h), min(1.0, (x + BODY_W[1] * fw) / w), 1.0))
+    return out
+
+
+def similarity(a, b, fa=None, fb=None, boxes=None) -> Dict:
     """b against a (BGR images, any size; b is resized to a's aspect): {"scale", "dx", "dy" (share of width / height), "inliers",
     "keypoints" (of a), "inlier_share"} — scale < 1: b shows the same things smaller (camera further back). "scale" None when there is
-    nothing to match (said in "note")."""
+    nothing to match (said in "note"). boxes: parts of BOTH pictures left out (the person — R4/R5)."""
     import numpy as np
     cv2 = _cv()
-    (h, w), ka, da = fa or _features(a)
+    (h, w), ka, da = fa or _features(a, boxes)
     if fb is None:
         bb = cv2.resize(b, (w, h), interpolation=cv2.INTER_AREA) if b.shape[1] * h != b.shape[0] * w else b
-        fb = _features(bb)
+        fb = _features(bb, boxes)
     _, kb, db = fb
     out: Dict = {"keypoints": len(ka or ())}
     if da is None or db is None or len(ka) < MIN_KEYPOINTS:
@@ -147,7 +174,8 @@ def end_frame_distance(start_path: str, end_path: str) -> Dict:
     fa, fb = face_height(a, True), face_height(b, True)
     ratio = round(fb / fa, 3) if fa and fb else None
     out: Dict = {"scale": sim.get("scale"), "corner": sim.get("corner"), "inliers": sim.get("inliers"), "face_ratio": ratio,
-                 "face_start": round(fa, 3) if fa else None, "face_end": round(fb, 3) if fb else None}
+                 "face_start": round(fa, 3) if fa else None, "face_end": round(fb, 3) if fb else None,
+                 "ground": _ground(a, b, sim)}
     bad = []
     s = sim.get("scale")
     if s is not None and not 1 / END_SCALE <= s <= END_SCALE:
@@ -170,6 +198,16 @@ def end_frame_distance(start_path: str, end_path: str) -> Dict:
                     if (fa or fb) else "chưa so được cỡ người (không thấy mặt)")
         return dict(out, ok=None, note="; ".join(part))
     return dict(out, ok=True, **({"note": "; ".join(part)} if part else {}))
+
+
+def _ground(a, b, sim: Dict) -> Dict:
+    """R4 (rà S3): the background alone (people masked) for V12 "same ground" — a person filling the frame at the same size used to
+    make RANSAC answer × 1,00 / corner 0 on the PERSON while the place behind had changed. No one seen → the whole picture, as before."""
+    boxes = person_boxes(a) + person_boxes(b)
+    g = similarity(a, b, boxes=boxes) if boxes else sim
+    out = {k: g.get(k) for k in ("scale", "corner", "inliers", "inlier_share")}
+    out["masked"] = bool(boxes)
+    return out
 
 
 _END_CACHE: Dict[Tuple, Dict] = {}
@@ -199,9 +237,10 @@ def _clip_frames(clip: str) -> Tuple[List, float]:
     return frames(clip, width=WIDTH)          # the measures all work on a WIDTH copy (a 1080p clip: 4× fewer pixels for the faces)
 
 
-def clip_framing(clip: str, picture: Optional[str], cuts: Optional[List[float]] = None) -> Dict:
+def clip_framing(clip: str, picture: Optional[str], cuts: Optional[List[float]] = None, camera_move: Optional[str] = None) -> Dict:
     """Did the clip keep the start picture's layout (module doc)? {"flag": "framing" | None, "why", "frame0", "zoom", "face_jumps",
-    "cuts", "suggest"} or {"flag": None, "measured": False, "note"} when nothing could be measured — never a silent pass."""
+    "cuts", "suggest"} or {"flag": None, "measured": False, "note"} when nothing could be measured — never a silent pass.
+    camera_move (R5): the shot's planned camera move — a moving camera's last frame is not compared with the start picture."""
     fs, fps = _clip_frames(clip)
     if len(fs) < 3:
         return {"flag": None, "measured": False, "note": "không đọc được clip / clip quá ngắn — chưa đo được bố cục"}
@@ -250,7 +289,7 @@ def clip_framing(clip: str, picture: Optional[str], cuts: Optional[List[float]] 
         notes.append("khung 0 ít điểm đặc trưng — chưa đo được zoom / lùi máy")
     # 2b. V2: the last frame vs the start picture — the camera stayed but the architecture changed (only when frame 0 kept the picture)
     if pic is not None and out["frame0_measured"] and "frame0" not in kinds:
-        _end_drift(out, pic, fs, step, why, notes, kinds)
+        _end_drift(out, pic, fs, step, why, notes, kinds, camera_move)
     # 3. the person jumps (face size leaps inside FACE_JUMP_S)
     sizes = [(i / fps, face_height(f)) for i, f in enumerate(fs)]
     sizes = [(t, h) for t, h in sizes if h]
@@ -288,18 +327,42 @@ def clip_framing(clip: str, picture: Optional[str], cuts: Optional[List[float]] 
     return out
 
 
-def _end_drift(out: Dict, pic, fs, step, why, notes, kinds) -> None:
-    """V2: {"frame_end": {...}} and a "frame_end" kind when the camera stayed (the samples of the clip's first half moved < CAM_STILL)
-    but the last frame matches the start picture much less than frame 0 did — the model redrew the place as the clip went. A moving
-    camera (pan / follow) is not judged (said in the note): its last frame shows another view by design."""
+def _camera_travel(fs, step) -> Optional[float]:
+    """R5 (rà S3): how far the camera moved over the WHOLE clip — the picture-corner shift summed sample to sample (a pan in the second
+    half counts; a person covering the frame late does not move the background). None when two samples could not be matched."""
+    idx = list(range(0, len(fs), step))
+    if idx[-1] != len(fs) - 1:
+        idx.append(len(fs) - 1)
+    feats = [_features(fs[i]) for i in idx]
+    total = 0.0
+    for fa, fb in zip(feats, feats[1:]):
+        r = similarity(None, None, fa=fa, fb=fb)
+        if r.get("scale") is None:
+            return None
+        total += r.get("corner") or 0.0
+    return total
+
+
+def _end_drift(out: Dict, pic, fs, step, why, notes, kinds, camera_move: Optional[str] = None) -> None:
+    """V2: {"frame_end": {...}} and a "frame_end" kind when the camera stayed (R5: the corner shift summed over the WHOLE clip
+    < CAM_STILL, and the shot plans no camera move) but the last frame matches the start picture much less than frame 0 did — the
+    model redrew the place as the clip went. A moving camera (pan / follow) is not judged (said in the note): its last frame shows
+    another view by design. R5: the people (YuNet body boxes) are masked before the last frame is compared."""
     f0 = out.get("frame0") or {}
-    last = similarity(pic, fs[-1])
+    boxes = person_boxes(pic) + person_boxes(fs[0]) + person_boxes(fs[-1])
+    last = similarity(pic, fs[-1], boxes=boxes or None)
     out["frame_end"] = {k: last.get(k) for k in ("scale", "corner", "inliers", "inlier_share")}
-    base = _features(fs[0])
-    half = [similarity(fs[0], fs[i], fa=base) for i in range(step, len(fs) // 2 + 1, step)]
-    if any(h.get("scale") is None or (h.get("corner") or 0) > CAM_STILL for h in half):
+    if boxes:
+        out["frame_end"]["masked"] = True
+        f0 = similarity(pic, fs[0], boxes=boxes)          # the same mask on both sides of the comparison
+    move = str(camera_move or "").lower()
+    planned = next((m for m in _STILL_MOVES if m in move), None)
+    travel = None if planned else _camera_travel(fs, step)
+    if planned or travel is None or travel > CAM_STILL:
         out["frame_end"]["camera"] = "moves"
-        notes.append("máy chuyển động trong nửa đầu clip — không so khung cuối clip với ảnh đầu (kiến trúc)")
+        out["frame_end"]["travel"] = None if travel is None else round(travel, 3)
+        notes.append("máy chuyển động trong clip" + (f" (kế hoạch: {camera_move})" if planned else "")
+                     + " — không so khung cuối clip với ảnh đầu (kiến trúc)")
         return
     share0 = f0.get("inlier_share") or 0.0
     limit = max(END_DRIFT_MIN, END_DRIFT * share0)

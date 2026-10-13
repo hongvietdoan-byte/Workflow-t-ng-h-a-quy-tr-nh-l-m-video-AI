@@ -72,7 +72,7 @@ def wait_reason(job_id: int) -> Optional[str]:
     return hit[0] if hit and time.time() - hit[1] < WAIT_FRESH_SEC else None
 
 
-HOLD_CODES = ("change_review_hold", "video_pregen_hold", "final_wait")
+HOLD_CODES = ("change_review_hold", "video_pregen_hold", "final_wait", "end_frame_wait")
 """C7 (13/10): diag codes the video runner writes when it KEEPS a queued job (Tổ rà soát, kiểm trước gen ĐỎ, bản cao chờ)."""
 
 
@@ -1271,6 +1271,10 @@ class VideoRunner(_Runner):
         end = shots.last_frame_for(self.p.conn, self.data_dir, job["scene_id"]) if chain else None
         drawn = end is None
         if drawn and end_frames.enabled():
+            if end_frames.skip_reason(self.p.conn, job["scene_id"], self._scene_data(job)):
+                row = end_frames.current(self.p.conn, job["scene_id"])     # R3 (rà S3): never drawn / sent — said once (GHÉP)
+                self._skill_object_appears(job, (row["path"] if row is not None else None) or "")
+                return None
             end = end_frames.usable_path(self.p.conn, job["scene_id"])      # K1: the drawn end state
             if not end:                  # C5 (rà chuỗi 13/10): a shot that needs one goes without it — said once, never silently
                 why = end_frames.missing_reason(self.p.conn, job["scene_id"])
@@ -1318,6 +1322,8 @@ class VideoRunner(_Runner):
                             f"{framing_guard.FLAG}); vẽ lại khung cuối cùng khoảng cách máy với ảnh đầu nếu cần khung cuối")
             return True
         if res.get("ok") is None:
+            if not self._scene_data(job).get("characters") and res.get("scale") is not None:
+                return False             # R6 (rà S3): no one in the shot, the background measured — no "cỡ người" VÀNG noise
             acting = self._person_acts(job)
             if acting:                   # V3 (rà gốc 13/10, G7): end_284_21 (Kelly behind the wall) went → 907 jumped 0,6 s
                 self._diag_once(job, "warn", "end_frame_distance", f"chưa đo được khoảng cách máy / cỡ người của {what} "
@@ -1333,26 +1339,25 @@ class VideoRunner(_Runner):
         return json.loads(row["data"] or "{}") if row is not None else {}
 
     def _person_acts(self, job) -> Optional[str]:
-        """V3: the body action of the shot's people ("chạy / đi" or the physics kind), None for a still shot / no one in it."""
+        """V3: "di chuyển" when the shot's people move through space (spec: an unmeasured end frame is not sent only then), None for
+        everything else. R6 (rà S3): a body action in place (shoot / strike) no longer counts — an end_state hiding the face on
+        purpose (behind a wall, turned away) is a right end frame; it goes, said VÀNG. TODO (spec V3): measure the body box."""
         from . import motion_physics
         data = self._scene_data(job)
         if not data.get("characters") and not data.get("action"):
             return None
-        action = motion_physics.shot_action(data)
-        if motion_physics.moves_through_space(action):
-            return "di chuyển"
-        k = motion_physics.kind(action)
-        return f"cử động ({k})" if k else None
+        return "di chuyển" if motion_physics.moves_through_space(motion_physics.shot_action(data)) else None
 
     def _skill_object_appears(self, job, end: str) -> bool:
         """V3 (rà gốc 13/10; người dùng 21:31 — tường keo XUẤT HIỆN LUÔN): a shot where the skill object appears (thrown) gets no drawn
         end frame — a model morphing towards a wall standing in the last frame draws it growing / wrong (#27 shot 16: 6 clips); the
         build is the code composite (hard cut). Under flag framing_guard (off by default) with skill_object_guard on; said once."""
         from . import framing_guard, skill_objects
-        if not framing_guard.enabled() or not skill_objects.enabled() or not skill_objects.rises(self._scene_data(job)):
+        from . import end_frames               # R3 (rà S3): ONE rule with queue / tick / card (end_frames.skip_reason)
+        if not end_frames.skip_reason(self.p.conn, job["scene_id"], self._scene_data(job)):
             return False
         self._diag_once(job, "warn", "end_frame_skill_object", f"shot có vật kỹ năng xuất hiện (ném keo) — clip gửi KHÔNG kèm khung cuối "
-                        f"vẽ ({os.path.basename(end)}); dựng bằng GHÉP code cắt cứng sang khung có tường (`py {skill_objects.COMPOSE_TOOL}`)")
+                        f"vẽ{f' ({os.path.basename(end)})' if end else ''}; dựng bằng GHÉP code cắt cứng sang khung có tường (`py {skill_objects.COMPOSE_TOOL}`)")
         return True
 
     def _same_ground(self, job, end: str) -> bool:
@@ -1721,8 +1726,13 @@ class VideoRunner(_Runner):
             return self._hold(job, "chờ bạn duyệt clip cảnh trước (cảnh này bắt đầu từ khung cuối clip đó) — duyệt xong sẽ tự gửi")
         if end_frames.enabled():
             row = end_frames.current(self.p.conn, job["scene_id"])
-            if row is not None and row["state"] in ("queued", "running"):   # C5: held WITH the reason (card / inbox), never silently
-                return self._hold(job, "đang vẽ khung cuối (shot đổi trạng thái) — clip tự gửi kèm khung cuối khi vẽ xong")
+            if row is not None and row["state"] in ("queued", "running") and not end_frames.skip_reason(self.p.conn, job["scene_id"]):
+                # C5: held WITH the reason (card / inbox), never silently. R8 (rà S3): also in diag (end_frame_wait ∈ HOLD_CODES) so
+                # held_reason reads it after WAIT_FRESH_SEC / in another process; R1/R7: the real reason (autopilot's row waiting, cap)
+                why = end_frames.missing_reason(self.p.conn, job["scene_id"]) or "đang vẽ khung cuối"
+                line = f"chờ khung cuối: {why} (shot đổi trạng thái) — clip tự gửi kèm khung cuối khi vẽ xong"
+                self._diag_once(job, "info", "end_frame_wait", line)
+                return self._hold(job, line)
         group = shots.group_of(self.p.conn, job["scene_id"]) or []
         if len(group) < 2:
             return False

@@ -125,9 +125,13 @@ def same_ground(data: Dict, measure: Optional[Dict]) -> Optional[str]:
     follows: with a still camera the runner crosses the frame and the background rightly stays."""
     if not measure or not follows(data.get("camera_move")) or not moves_through_space(shot_action(data)):
         return None
-    s, c = measure.get("scale"), measure.get("corner")
+    g = measure.get("ground") or measure      # R4 (rà S3): the background with the people masked (framing_guard._ground)
+    s, c = g.get("scale"), g.get("corner")
     if s is None or c is None:
         return None
+    from .framing_guard import GROUND_INLIERS, GROUND_SHARE
+    if "inliers" in g and ((g.get("inliers") or 0) < GROUND_INLIERS or (g.get("inlier_share") or 0) < GROUND_SHARE):
+        return None                           # too few background points to call it "the same place" (not judged)
     if 1 / SAME_GROUND_SCALE <= s <= SAME_GROUND_SCALE and c <= SAME_GROUND_CORNER:
         return (f"shot chạy/đi máy bám theo nhưng khung cuối vẽ cùng cỡ, cùng chỗ với ảnh đầu (nền × {s:.2f}, góc lệch {c * 100:.0f} %) "
                 "— không thấy quãng đường, dễ thành chạy tại chỗ")

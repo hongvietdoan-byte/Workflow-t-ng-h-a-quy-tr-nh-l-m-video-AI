@@ -40,3 +40,24 @@ thêm `locomotion_end_frame`. Đổi hành vi với người đang bật cờ: C
 Không sửa `db.py`, `llm_io.py`, `change_review.py`, `step3.py`, `runner.py:~396`, `plate_anchor.py`, `claude_tasks.py`. `runner.py` sửa:
 `_finish_kwargs`, `_base_submit_kwargs` (nhánh ref-only khung cuối), `_end_frame`/`_end_frame_off_distance` + hàm mới, `_wait` (khung
 cuối), `_submit_args` (place_pictures + reserve), hàm module `_reserve_text`.
+
+## Vòng sửa sau rà (RA_S3_S4 R1–R8, 13/10)
+Test đỏ commit `876f9a5d` (13 test đỏ) → xanh. R12 để bước gộp (vùng S4 `claude_tasks.py`).
+| Lỗi | Sửa | Test |
+|---|---|---|
+| R1 CHẶN | `end_frames.redo` (người bấm, `auto=False`) ghi `app_settings` `end_frame_asked:<row>` (`mark_asked`, không đổi CSDL); `tick(..., only_ids=)`; `end_frame_ui.poll` chỉ vẽ `asked_ids`, bỏ qua khi `dashboard.common.read_only`, vẽ xong `submit_pending(pid, only=[clip đang xếp của đúng shot đó])`; hàng chạy tự động xếp khi chạy tự động không chạy → `missing_reason` = `AUTO_WAITING` (thẻ hiện lý do + nút có giá = đường thoát) | `test_end_frames::ManualSendTests::test_dashboard_poll_skips_autopilot_queued_rows`, `::test_dashboard_poll_draws_nothing_for_a_read_only_viewer`, `::test_dashboard_poll_draws_the_asked_end_frame_then_the_clip_goes` (sửa: `only=[job]`) |
+| R2 | `tick` bọc khóa `runner._turn(pid, "end_frame")` không chờ; `_claim` nguyên tử `note='đang gửi'` (cũ > 120 s thì lấy lại), nhả khi lỗi tạm, xóa khi gửi xong | `ConcurrentPollTests::test_two_concurrent_polls_send_once`, `::test_claimed_row_is_not_sent_again_until_the_claim_is_stale` |
+| R3 | `end_frames.skip_reason` (vật kỹ năng xuất hiện, cờ framing_guard + skill_object_guard) dùng chung: `queue` bỏ qua, `tick` loại hàng đang xếp (0 USD), `redo` báo lỗi, `usable_path` None, `missing_reason` = `SKILL_SKIP` (thẻ không có nút), `_wait` không giữ, `runner._end_frame` nói `end_frame_skill_object` 1 lần; `end_frames.dropped_reason` đọc diag "KHÔNG kèm" có tên tệp → thẻ "đã vẽ nhưng KHÔNG gửi: <lý do>" | `SkillObjectSkipTests::test_queue_skips_skill_object_rising_shot`, `test_framing_guard::test_card_says_dropped_end_frame` |
+| R4 | `framing_guard.person_boxes` (YuNet mặt → hộp thân xuống đáy khung), `similarity(..., boxes=)` che hộp; `end_frame_distance` thêm `ground` (nền đã che người); `same_ground` đọc `ground` + chỉ phán khi ≥ 20 điểm khớp và ≥ 15 % | `test_locomotion_end_frame::test_same_ground_ignores_matching_person_on_new_background` |
+| R5 | `_end_drift`: máy chuyển động = cộng dồn góc lệch giữa các mẫu liên tiếp trên CẢ clip (`_camera_travel`); che hộp người cả hai phía khi so khung cuối; `clip_framing/measure(..., camera_move=)` (pan/follow/orbit… → không phán) | `test_framing_guard::test_end_drift_not_flagged_when_camera_pans_in_second_half`, `::test_end_drift_not_flagged_when_person_walks_toward_camera` |
+| R6 | `_person_acts` chỉ `moves_through_space` (bắn/đánh tại chỗ → vẫn gửi + VÀNG); shot không `characters` mà đo được nền → không ghi VÀNG cỡ người. TODO spec: đo hộp thân | `test_framing_guard::test_unmeasured_end_frame_of_a_shooting_person_is_sent_yellow` |
+| R7 | hàng `queued` có `note 'chờ:%'` → "chưa vẽ được khung cuối: chờ: <trần>"; `end_frames.drawing` (thay `pending` trong `widgets.video_busy`) không tính hàng bị sổ chi chặn / hàng không ai vẽ | `ManualSendTests::test_budget_refused_end_frame_reason_shows_the_cap` |
+| R8 | `_wait` ghi diag `end_frame_wait` (lý do thật từ `missing_reason`), thêm vào `HOLD_CODES` | `ManualSendTests::test_end_frame_hold_survives_in_held_reason` |
+
+Kết quả: 119 file liên quan (`related_areas` + file nhắc end_frames/framing_guard/autopilot, trừ 5 file chậm) `-n 8`: 1898 passed, 1 đỏ
+(`test_skill_object_appearing_shot_gets_no_drawn_end_frame` — sửa: `_end_frame` nói GHÉP khi `skip_reason`) → chạy lại 6 file sát: 136 passed.
+
+Việc cho bước gộp: (1) `core/claude_tasks.py:_measure_clip` (vùng S4) truyền `camera_move=data.get("camera_move")` vào
+`clip_measure.measure` (tham số đã có, mặc định None — phần cộng dồn chuyển động máy đã chạy không cần nó); (2) R12. Rủi ro: hàng khung
+cuối chạy tự động xếp mà chạy tự động dừng hẳn thì clip của shot đó chờ tới khi người bấm 🖼 Vẽ (có giá) hoặc chạy tự động chạy lại —
+chưa có nút "gửi clip KHÔNG kèm khung cuối"; ngưỡng hộp thân / GROUND_* chỉ kiểm bằng ảnh tổng hợp.

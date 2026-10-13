@@ -87,6 +87,77 @@ def end_state_changed(conn, row) -> bool:
     return now not in row["prompt"]
 
 
+# ---- vòng sửa sau rà S3 (RA_S3_S4 R1–R3, R7) ----------------------------------------------------------------------------------------
+_ASK_KEY = "end_frame_asked:{}"     # app_settings: this row was asked by a person (🖼 Vẽ on the card) — only those are drawn by Bước 4
+AUTO_WAITING = "khung cuối do chạy tự động xếp — chờ chạy tự động chạy tiếp, hoặc bấm 🖼 Vẽ khung cuối"
+BUDGET_PREFIX = "chưa vẽ được khung cuối: "
+SKILL_SKIP = "shot vật kỹ năng xuất hiện: dựng GHÉP code, không vẽ khung cuối"
+CLAIM = "đang gửi"
+CLAIM_STALE_S = 120                 # a claim older than this was left by a crashed sender: taken over
+DROP_CODES = ("end_frame_distance", "locomotion_end_frame", "end_frame_skill_object", "end_frame_unsupported")
+
+
+def mark_asked(conn, row_id: int, asked_by: Optional[str] = None) -> None:
+    conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                 (_ASK_KEY.format(row_id), asked_by or "người bấm"))
+    conn.commit()
+
+
+def asked(conn, row_id: int) -> bool:
+    return conn.execute("SELECT 1 FROM app_settings WHERE key=?", (_ASK_KEY.format(row_id),)).fetchone() is not None
+
+
+def asked_ids(p: Pipeline, project_id: int) -> List[int]:
+    """R1: the queued / running end frames a person asked for — the only ones the Bước 4 poll draws (the autopilot draws its own)."""
+    return [r[0] for r in p.conn.execute(
+        "SELECT e.id FROM end_frames e JOIN app_settings a ON a.key = 'end_frame_asked:' || e.id"
+        " WHERE e.project_id=? AND e.state IN ('queued','running') ORDER BY e.id", (project_id,)).fetchall()]
+
+
+def _autopilot_running(conn, project_id: int) -> bool:
+    row = conn.execute("SELECT autopilot_state FROM projects WHERE id=?", (project_id,)).fetchone()
+    return bool(row is not None and row[0] in ("running", "queued"))
+
+
+def _budget_blocked(row) -> bool:
+    return row["state"] == "queued" and (row["note"] or "").startswith("chờ:")
+
+
+def drawing(p: Pipeline, project_id: int) -> int:
+    """R1/R7: end frames something will really move on — a person's (Bước 4 poll) or any while the autopilot runs; not a row the spending
+    limit refused (it waits for the cap to change: the page need not keep polling for it)."""
+    auto = _autopilot_running(p.conn, project_id)
+    mine = set(asked_ids(p, project_id))
+    rows = p.conn.execute("SELECT * FROM end_frames WHERE project_id=? AND state IN ('queued','running')", (project_id,)).fetchall()
+    return sum(1 for r in rows if not _budget_blocked(r) and (auto or r["id"] in mine))
+
+
+def skip_reason(conn, scene_id: int, data: Optional[Dict] = None) -> Optional[str]:
+    """R3: a shot whose drawn end frame the runner ALWAYS drops (the skill object appears — the build is the code composite; flags
+    framing_guard + skill_object_guard): not queued, not drawn, said. One rule for queue / tick / card / runner."""
+    from . import framing_guard, skill_objects
+    if not framing_guard.enabled() or not skill_objects.enabled():
+        return None
+    if data is None:
+        row = conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+        data = json.loads(row["data"] or "{}") if row is not None else {}
+    return SKILL_SKIP if skill_objects.rises(data) else None
+
+
+def dropped_reason(conn, scene_id: int, path: Optional[str]) -> Optional[str]:
+    """R3: the runner's newest note that it did NOT send this drawn end frame (another distance, same ground, skill object, model
+    takes none) — the card must not say it goes with the clip."""
+    if not path:
+        return None
+    try:
+        row = conn.execute("SELECT message FROM diag_events WHERE scene_id=? AND code IN (%s) AND message LIKE ? AND message LIKE ?"
+                           " ORDER BY last_at DESC, id DESC LIMIT 1" % ",".join("?" * len(DROP_CODES)),
+                           (scene_id, *DROP_CODES, f"%{os.path.basename(path)}%", "%KHÔNG kèm%")).fetchone()
+    except Exception:  # noqa: BLE001 - an old database without diag: nothing known
+        return None
+    return row[0] if row else None
+
+
 def missing_reason(conn, scene_id: int) -> Optional[str]:
     """C5 (rà chuỗi 13/10): why this shot has no end frame to send (Vietnamese), None when one is usable or none is needed / the
     feature is off. Read by the runner (said once per clip, never dropped silently) and the Bước 4 card."""
@@ -97,6 +168,9 @@ def missing_reason(conn, scene_id: int) -> Optional[str]:
     mode = proj["shot_mode"] if proj is not None and "shot_mode" in proj.keys() else None
     if row is None or not needed(json.loads(row["data"] or "{}"), mode):
         return None
+    skip = skip_reason(conn, scene_id, json.loads(row["data"] or "{}"))
+    if skip:
+        return skip
     if usable_path(conn, scene_id):
         return None
     cur = current(conn, scene_id)
@@ -106,6 +180,10 @@ def missing_reason(conn, scene_id: int) -> Optional[str]:
     if cur is None:
         return "chưa vẽ khung cuối"
     if cur["state"] in ("queued", "running"):
+        if _budget_blocked(cur):                       # R7: the spending limit refused it — say the cap, not "đang vẽ"
+            return BUDGET_PREFIX + cur["note"]
+        if not asked(conn, cur["id"]) and not _autopilot_running(conn, row["project_id"]):
+            return AUTO_WAITING                        # R1: nobody draws it now (the Bước 4 poll draws only what a person asked)
         return "đang vẽ khung cuối"
     if cur["state"] == "rejected":
         return "khung cuối bị loại" + (f" ({cur['note']})" if cur["note"] else "")
@@ -124,7 +202,7 @@ def usable_path(conn, scene_id: int) -> Optional[str]:
     start = _start_job(conn, scene_id)
     if row is None or row["state"] != "ready" or start is None or row["start_job_id"] != start["id"]:
         return None
-    if end_state_changed(conn, row):
+    if end_state_changed(conn, row) or skip_reason(conn, scene_id):
         return None
     return row["path"] if row["path"] and os.path.exists(row["path"]) else None
 
@@ -139,7 +217,7 @@ def queue(p: Pipeline, project_id: int) -> List[int]:
     for s in p.conn.execute("SELECT id, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall():
         data = json.loads(s["data"] or "{}")
         start = _start_job(p.conn, s["id"])
-        if not needed(data, mode) or start is None:
+        if not needed(data, mode) or start is None or skip_reason(p.conn, s["id"], data):
             continue
         row = current(p.conn, s["id"])
         if row is not None and row["start_job_id"] == start["id"] and row["state"] in ("queued", "running", "ready", "failed") \
@@ -218,17 +296,47 @@ def _diag(p: Pipeline, row, severity: str, code: str, message: str) -> None:
     diag.record(p.conn, "image", severity, message, code, row["project_id"], row["scene_id"])
 
 
-def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int]:
+def _claim(p: Pipeline, row_id: int) -> bool:
+    """R2: take the row for sending (atomic, across processes: two Dashboard tabs / a script) — False when another sender holds it.
+    A claim older than CLAIM_STALE_S (a crash) is taken over, so a row never stays stuck."""
+    cur = p.conn.execute(f"UPDATE end_frames SET note=?, updated_at={_now_sql()} WHERE id=? AND state='queued' AND (note IS NULL OR"
+                         " note NOT LIKE ? OR updated_at < datetime('now', ?))",
+                         (CLAIM, row_id, CLAIM + "%", f"-{CLAIM_STALE_S} seconds"))
+    p.conn.commit()
+    return cur.rowcount == 1
+
+
+def tick(p: Pipeline, project_id: int, provider, data_dir: str, only_ids=None) -> Dict[str, int]:
     """Send queued end frames (the approved start picture + the characters' references go along), poll running ones, download.
     The same safeguards as the start picture: one prompt builder, reference gaps said, only sendable pictures numbered, what was sent
-    kept (sent_refs), the spending limit and the ledger."""
+    kept (sent_refs), the spending limit and the ledger. only_ids (R1): the rows allowed (the Bước 4 poll: the ones a person asked).
+    R2: one ticker per project in this process (another thread busy → this round skipped) + a claim per row across processes."""
+    from .runner import _turn
+    lock = _turn(project_id, "end_frame")
+    if not lock.acquire(blocking=False):
+        return {"sent": 0, "ready": 0, "failed": 0, "running": 0}
+    try:
+        return _tick(p, project_id, provider, data_dir, only_ids)
+    finally:
+        lock.release()
+
+
+def _tick(p: Pipeline, project_id: int, provider, data_dir: str, only_ids=None) -> Dict[str, int]:
     from . import assets, formats, image_models
     from .runner import sendable_references
     counts = {"sent": 0, "ready": 0, "failed": 0, "running": 0}
     proj = p.project(project_id)
+    allowed = None if only_ids is None else set(only_ids)
     for row in p.conn.execute("SELECT * FROM end_frames WHERE project_id=? AND state IN ('queued','running') ORDER BY id",
                               (project_id,)).fetchall():
+        if allowed is not None and row["id"] not in allowed:
+            continue
         if row["state"] == "queued":
+            skip = skip_reason(p.conn, row["scene_id"])
+            if skip:                                   # R3: never paid for a picture the runner always drops
+                _set(p, row["id"], state="rejected", note=skip)
+                _diag(p, row, "info", "end_frame_skill_object", f"khung cuối không vẽ: {skip}")
+                continue
             start = os.path.join(data_dir, str(project_id), "images", f"job_{row['start_job_id']}.png")
             if not os.path.exists(start):
                 _set(p, row["id"], state="failed", note="thiếu file ảnh khung đầu")
@@ -264,6 +372,8 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
                 kwargs["size"] = image_models.size_for(proj, model or image_models.of_project(proj))
             if model:
                 kwargs["model"] = model
+            if not _claim(p, row["id"]):
+                continue                               # R2: another tab / process is sending this row right now
             # S14.1: the gate adds the project's locked budget (it was skipped), a paused project and 'out_of_credit' → halt
             with spend_gate.spend(p.conn, "image", provider.name, project_id=project_id,
                                   model=kwargs.get("model") or _usage_model(provider), ledger_stage="end_frame") as slot:
@@ -276,6 +386,7 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
                     ext = slot.send(provider.submit, *sent_args, **kwargs)
                 except ProviderError as e:
                     if e.transient:
+                        _set(p, row["id"], note=row["note"])          # R2: claim released, tried again next round
                         break
                     _set(p, row["id"], state="failed", note=f"{e.code or 'error'}: {e}")
                     counts["failed"] += 1
@@ -288,7 +399,7 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
             # K1a: what really left, written with the task id (a ledger, never a gate; imported at the top: nothing here may raise)
             package, warns = sent_package.safe_build(provider.submit, sent_args, kwargs, kind="image", provider=provider,
                                                      external_id=ext, meta=sent_meta, extra={"stage": "end_frame"})
-            fields = {"state": "running", "external_id": ext, "prompt": prompt,
+            fields = {"state": "running", "external_id": ext, "prompt": prompt, "note": None,
                       "sent_refs": json.dumps(sent_meta, ensure_ascii=False)}
             if package is not None and "sent_package" in row.keys():
                 fields["sent_package"] = package
@@ -337,14 +448,18 @@ def reject(p: Pipeline, row_id: int, note: Optional[str] = None) -> None:
     _set(p, row_id, state="rejected", note=note or "người dùng loại")
 
 
-def redo(p: Pipeline, scene_id: int, fix: Optional[str] = None, auto: bool = False) -> int:
+def redo(p: Pipeline, scene_id: int, fix: Optional[str] = None, auto: bool = False, asked_by: Optional[str] = None) -> int:
     """Draw the end frame again. `fix` (English) goes into the new prompt so the input changes. The person asked (default): never
-    capped, the automatic count starts again. `auto=True` (the run by itself): at most pipeline.AUTO_REGEN_LIMIT["image_gen"] since the
-    person's last redo — then the layer to fix is the shot's end_state / start picture (ValueError, said)."""
+    capped, the automatic count starts again, the row is marked asked (R1: the Bước 4 poll draws only those). `auto=True` (the run by
+    itself): at most pipeline.AUTO_REGEN_LIMIT["image_gen"] since the person's last redo — then the layer to fix is the shot's end_state
+    / start picture (ValueError, said)."""
     access.need_edit_scene(p, scene_id, "vẽ lại khung cuối")
     start = _start_job(p.conn, scene_id)
     if start is None:
         raise ValueError("shot chưa có ảnh khung đầu đã duyệt — không vẽ khung cuối được")
+    skip = skip_reason(p.conn, scene_id)
+    if skip:
+        raise ValueError(skip)
     from .pipeline import AUTO_REGEN_LIMIT
     limit = AUTO_REGEN_LIMIT["image_gen"]
     done = _auto_count(p.conn, scene_id)
@@ -359,6 +474,8 @@ def redo(p: Pipeline, scene_id: int, fix: Optional[str] = None, auto: bool = Fal
     cur = p.conn.execute("INSERT INTO end_frames (project_id, scene_id, start_job_id, state, fix, created_at, updated_at)"
                          f" VALUES (?,?,?,'queued',?,{_now_sql()},{_now_sql()})", (project_id, scene_id, start["id"], (fix or "").strip() or None))
     p.conn.commit()
+    if not auto:
+        mark_asked(p.conn, cur.lastrowid, asked_by)
     return cur.lastrowid
 
 
