@@ -1,4 +1,5 @@
 # Bàn giao Đ13 việc 1 phần độc lập — 14/10/2026
+- Code đã commit `728be4be`; root đọc diff vòng hai và caller, không thấy lỗi thêm trong phạm vi. Push riêng; mục 2/4 tiếp tục MỞ.
 - DONE mục 1/3/5; nhánh codex/d13-viec1-post-fx từ 2c43a28f; chưa commit/push.
 - Mục 1: post_fx tên shot + SHA256 sourcebytes/spec/seconds/filter/encode, luôn render qua atomic_output; failure giữ bản trước.
 - Mục 3: rule 6 director_p24_1110 có schema đầy đủ, cổng p24_lessons giữ nguyên; OFF prompt byte-identical.

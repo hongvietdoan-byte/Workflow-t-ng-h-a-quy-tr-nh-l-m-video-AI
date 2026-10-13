@@ -1003,6 +1003,8 @@ Luật chung GIỐNG đợt 1; nhánh `codex/d13-viec<N>-<tên>`; KHÔNG sửa f
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
+- **14/10 — Việc 1, mục 1/3/5 độc lập:** `codex/d13-viec1-post-fx`, code `728be4be`. Tên file shot + SHA đầu vào, ghi atomic; schema Đạo diễn gated `p24_lessons` và lưu tới scene.data cả v2/v3; manifest.post_fx tới Editor + Đạo diễn rà lại gated `post_fx_render`, fingerprint tránh cache cũ. Đỏ 5 lỗi → 108 xanh; rà độc lập bắt 2 P2 caller, 3 hồi quy đỏ → **147 xanh / 131,81 s**, 6 file (ffmpeg thật local; thiếu rgbashift chỉ skip ca glitch). Root đọc diff vòng sửa; môi trường dict giả, native env whitelist, không API/data thật; areas giữ 74. RA `docs/RA_D13_VIEC1_CODEX_2026-10-14.md`. **MỞ mục 2/4** (delivery đang do Claude giữ), chưa cả bộ Windows gồm slow/gộp/live; tên mới không dọn UUID cũ.
+
 ---
 
 # ĐỢT 14 — QC ảnh chấm sai + job tự sửa kẹt hàng đợi (hộp thư 12/10 00:55, #24 shot 11–12)
