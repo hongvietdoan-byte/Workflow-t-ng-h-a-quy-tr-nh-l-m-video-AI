@@ -24,6 +24,9 @@ def video_busy(conn, pid: int) -> bool:
         return True
     if not autoqc.video_last_error(pid) and claude_tasks.unchecked_videos(Pipeline(conn), pid) and llm_client() is not None:
         return True
+    from core import end_frames
+    if end_frames.enabled() and end_frames.pending(Pipeline(conn), pid):
+        return True                                    # C5: an end frame being drawn (its clip waits for it)
     return bool(one("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen' AND state='queued' AND retry_count>0"))
 
 
@@ -54,6 +57,10 @@ def _poll_running(pid: int, kind: str) -> None:
         except ProviderError as e:
             st.caption(f"⚠ Chưa hỏi được trạng thái ({e}); sẽ thử lại.")
     auto_run = autopilot.status(p, pid)["state"] in ("running", "queued")
+    if kind == "video" and not auto_run:               # C5: end frames asked on the card (🖼 Vẽ khung cuối); the autopilot draws its own
+        from dashboard import end_frame_ui
+        if end_frame_ui.poll(p, pid, C.DATA, runner if provider is not None else None):
+            st.rerun()
     if not auto_run:                                   # the automatic run does its own checks; avoid doing them twice
         if kind == "image" and p.project(pid)["operating_mode"] != "auto":
             autoqc.start(C.DB, C.DATA, pid)

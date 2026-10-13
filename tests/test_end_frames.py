@@ -161,6 +161,21 @@ class ManualSendTests(unittest.TestCase):
         self.assertEqual(self._said("end_frame_missing"), [])
 
 
+    def test_dashboard_poll_draws_the_asked_end_frame_then_the_clip_goes(self):
+        """C5 (3): the card's 🖼 Vẽ khung cuối queues (end_frames.redo); the Bước 4 poll draws it with the image provider (mock here,
+        0 USD) and lets the held clip go."""
+        from dashboard import end_frame_ui
+        end_frames.redo(self.p, self.sid)
+        img = MockImageProvider()
+        with mock.patch("core.adapters.factory.image_provider", return_value=img), \
+                mock.patch.object(self.vr, "submit_pending") as go:
+            self.assertEqual(end_frame_ui.poll(self.p, self.pid, self.data, self.vr), 0)    # sent
+            self.assertEqual(end_frame_ui.poll(self.p, self.pid, self.data, self.vr), 1)    # downloaded
+        go.assert_called_once_with(self.pid)
+        self.assertTrue(end_frames.usable_path(self.p.conn, self.sid))
+        self.assertFalse(self.vr._wait(self.job))
+
+
 class SkillObjectEndFrameTests(unittest.TestCase):
     """Rà S2 'việc cho S3' (1): the end frame of a shot with the glue wall uses the SAME words as the video prompt — it stands at full
     height (skill_objects.standing_text / guard_prompt), never 'pops up' (người dùng 13/10 21:31)."""
