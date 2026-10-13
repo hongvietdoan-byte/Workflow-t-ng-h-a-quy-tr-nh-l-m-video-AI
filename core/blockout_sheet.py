@@ -1,6 +1,6 @@
 """12b.2: tấm duyệt 2D, gói blockout độc lập; chưa ghi Kho/nối pipeline hay chạy Blender.
 
-Schema mới kind=blockout/schema_version=1, khác assets.profile.model3d hiện hành.
+Schema mới kind=blockout/schema_version=2 (đọc được schema 1), khác assets.profile.model3d hiện hành.
 Gói giữ plan, SHA, người duyệt, phiên bản, thời điểm và issues khi duyệt.
 """
 from copy import deepcopy
@@ -36,18 +36,73 @@ def _standing_xy(at):
     return list(p) if bo._vector(p, 2) else None
 
 
-def _sha(plan):
+def _legacy_sha(plan):
     return hashlib.sha256(json.dumps(plan, ensure_ascii=False, sort_keys=True,
                                      separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
 
 
+_GEOMETRY = {
+    None: {"huong_sang"},
+    "san": {"kich_thuoc", "z"},
+    "khoi": {"tam", "kich_thuoc", "kich_thuoc_chuan", "huong", "z"},
+    "loi_mo": {"tam", "kich_thuoc", "huong"},
+}
+
+
+def _sha(plan):
+    """SHA schema 2: chỉ số hình học đồng nhất int/float có cùng giá trị chính xác.
+
+    Mã hóa cây có nhãn kiểu tránh va chạm số với chữ/bool/object; giữ thứ tự list.
+    as_integer_ratio không làm tròn float, không ép int lớn qua float hay Decimal context.
+    """
+    def geometry_field(path):
+        if len(path) == 1:
+            return path[0] in _GEOMETRY[None]
+        if len(path) == 2 and path[0] == "san":
+            return path[1] in _GEOMETRY["san"]
+        return (len(path) == 3 and path[0] in ("khoi", "loi_mo")
+                and type(path[1]) is int and path[2] in _GEOMETRY[path[0]])
+
+    def encode(value, path=(), geometry=False):
+        if isinstance(value, bool):
+            return ["bool", value]
+        if isinstance(value, (int, float)):
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError("số trong plan phải hữu hạn")
+            if geometry:
+                n, d = value.as_integer_ratio()
+                return ["number", str(n), str(d)]
+            return ["int" if isinstance(value, int) else "float", value]
+        if isinstance(value, dict):
+            return ["object", [[key, encode(item, path + (key,),
+                       geometry_field(path + (key,)))] for key, item in sorted(value.items())]]
+        if isinstance(value, (list, tuple)):
+            return ["list", [encode(item, path + (index,), geometry) for index, item in enumerate(value)]]
+        if value is None:
+            return ["null"]
+        if isinstance(value, str):
+            return ["string", value]
+        raise ValueError("plan chứa kiểu dữ liệu không hỗ trợ")
+    return hashlib.sha256(json.dumps(encode(plan), ensure_ascii=False, separators=(",", ":"),
+                                    allow_nan=False).encode("utf-8")).hexdigest()
+
+
 def _font(size):
-    for name in ("C:/Windows/Fonts/arial.ttf", "DejaVuSans.ttf"):
+    for name in ("C:/Windows/Fonts/arial.ttf", "DejaVuSans.ttf",
+                 "C:/Windows/Fonts/tahoma.ttf", "C:/Windows/Fonts/segoeui.ttf"):
         try:
             return ImageFont.truetype(name, size)
         except OSError:
             pass
-    return ImageFont.load_default(size=size)
+    try:
+        font = ImageFont.load_default(size=size)
+    except TypeError:  # Pillow < 10.1 chưa nhận size; không cần nâng dependency.
+        font = ImageFont.load_default()
+    try:
+        font.getbbox("Sơ đồ khối · Đứng · Hướng sáng")
+    except UnicodeEncodeError as error:
+        raise ValueError("Thiếu font Unicode để vẽ nhãn tiếng Việt; cài Arial/DejaVu Sans/Tahoma/Segoe UI rồi render lại") from error
+    return font
 
 
 def render_top_view(plan, cho_dung, out_png):
@@ -166,7 +221,7 @@ def to_location_pack(plan, nguoi_duyet, phien_ban):
     issues = bo.check_geometry(plan)
     if any(i["muc"] == "do" for i in issues):
         raise ValueError("plan có issue ĐỎ: " + "; ".join(i["loi"] for i in issues if i["muc"] == "do"))
-    return {"kind": "blockout", "schema_version": 1, "phien_ban": phien_ban,
+    return {"kind": "blockout", "schema_version": 2, "phien_ban": phien_ban,
             "nguoi_duyet": nguoi_duyet.strip(), "ngay": datetime.now(timezone.utc).isoformat(),
             "issues": deepcopy(issues), "sha256": _sha(plan), "plan": deepcopy(plan)}
 
@@ -177,15 +232,21 @@ def read_location_pack(pack):
     `issues` trong gói là BẢN GHI LỊCH SỬ lúc duyệt, không phải điều kiện đọc: luật kiểm trong blockout.py đổi thì gói cũ vẫn đọc
     được nhưng kèm cảnh báo VÀNG "luật kiểm đã đổi, cần duyệt lại" (can_duyet_lai) và báo rõ nếu kiểm hiện tại có ĐỎ (co_do).
     """
-    if not isinstance(pack, dict) or pack.get("kind") != "blockout" or pack.get("schema_version") != 1:
-        raise ValueError("không phải location_pack blockout schema 1")
-    if "plan" not in pack or pack.get("sha256") != _sha(pack["plan"]):
+    version = pack.get("schema_version") if isinstance(pack, dict) else None
+    if (not isinstance(pack, dict) or pack.get("kind") != "blockout"
+            or type(version) is not int or version not in (1, 2)):
+        raise ValueError("không phải location_pack blockout schema 1 hoặc 2")
+    hash_plan = _legacy_sha if version == 1 else _sha
+    if "plan" not in pack or pack.get("sha256") != hash_plan(pack["plan"]):
         raise ValueError("sha256 của plan không khớp")
     _check_approval(pack.get("nguoi_duyet"), pack.get("phien_ban"))
     try:
-        datetime.fromisoformat(pack["ngay"])
+        approved_at = datetime.fromisoformat(pack["ngay"])
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError("ngày duyệt không hợp lệ") from error
+    naive_date = approved_at.utcoffset() is None
+    if version == 2 and naive_date:
+        raise ValueError("ngày duyệt schema 2 phải có múi giờ ISO")
     recorded = pack.get("issues")
     if not isinstance(recorded, list) or not all(isinstance(i, dict) and i.get("muc") == "vang" for i in recorded):
         raise ValueError("issues lúc duyệt phải là danh sách issue VÀNG (gói ĐỎ không được duyệt)")
@@ -195,6 +256,9 @@ def read_location_pack(pack):
     if current != recorded:
         warning = (f"luật kiểm đã đổi, cần duyệt lại: lúc duyệt {len(recorded)} issue, kiểm hiện tại {len(current)} issue"
                    + (" — có ĐỎ: " + "; ".join(f"{i['path']}: {i['loi']}" for i in red) if red else ""))
+    if naive_date:
+        warning = "; ".join(filter(None, [warning,
+            "ngày duyệt gói cũ thiếu múi giờ — chưa xác định thời điểm UTC, cần duyệt lại"]))
     return {"plan": deepcopy(pack["plan"]), "can_duyet_lai": bool(warning), "canh_bao": warning, "co_do": bool(red),
             "issues_luc_duyet": deepcopy(recorded), "issues_hien_tai": current}
 
