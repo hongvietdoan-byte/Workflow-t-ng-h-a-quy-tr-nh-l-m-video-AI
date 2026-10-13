@@ -12,7 +12,7 @@
 |---|---|---|
 | Q1 | Ảnh mẫu tường keo (gen từ thông tin thiếu) | **Gen lại** theo bảng thiết kế đầy đủ (mục 3) — ảnh cũ `gloowall_ob55_trien_khai_1.png` KHÔNG đưa vào Kho |
 | Q2 | Bật `change_review_motion` + R14 (rà bản motion máy tự viết lại) | **Bật CẢ HAI**, nhưng phải sửa tối ưu vấn đề của R14 (mục 1, việc C1). Thêm lời gọi Claude: tạm chấp nhận |
-| Q3 | Tập 2 có hiện đủ hiệu ứng bom keo (cửa mở + nữ quỷ)? | **Chưa quyết** — thử **1 clip** hiệu ứng trước (mục 3, việc M2). Không ổn → tập 2 dùng **tường keo TĨNH**, không hiệu ứng |
+| Q3 | Tập 2 có hiện đủ hiệu ứng bom keo (cửa mở + nữ quỷ)? | **ĐỔI 14/10 (sau khi chốt thứ tự 3 bước): KHÔNG làm hiệu ứng động** — hiệu ứng chiếm quá nhiều thời gian trong clip. Tập 2 dùng tường keo **TĨNH ở trạng thái CỬA THANG MÁY MỞ** (ảnh tĩnh, không đóng/mở, không chớp đèn). Trạng thái cửa mở nào (bước 1 đèn xanh / bước 3 đèn đỏ có hoặc không nữ quỷ): **chờ người dùng chọn** sau khi so ảnh mẫu đã gen. Việc M2 (thử clip hiệu ứng) **BỎ**; mục 3.2 giữ làm tư liệu |
 | Q4 | Đưa bảng thiết kế vào Kho #367 + viết lại mô tả + gen lại ảnh mẫu | **Đồng ý** (việc M1) |
 | Q5–7 | Sân khấu 3D · dọn "Chờ bạn" thừa · 3 việc nhỏ (ngưỡng khung cuối, nút gửi không khung cuối, lỗi 10) | **Giải quyết hết** |
 | Q8 | Tạo dự án tập 2 | **Đã có** dự án tập 2 trên máy chính — không tạo lại; phiên máy chính kiểm lại Kho gắn theo TODO dòng "TẬP 2 = DỰ ÁN MỚI SẠCH" |
@@ -59,7 +59,7 @@ việc — phiên điều phối cập nhật). Mỗi việc thêm cờ mới th
   có quyền tiền), đi cùng đường gửi hiện có (`runner._end_frame` cho phép "người chọn bỏ khung cuối").
 - File: `dashboard/steps/step4.py`, `core/runner.py` (`_end_frame`), test giao diện + runner.
 
-### C4 · Tường keo: chế độ "HIỆU ỨNG" / "TĨNH" cho `skill_object_guard` (≈ $8–12) — chuẩn bị cho việc M2
+### C4 · Tường keo TĨNH "cửa thang máy mở" cho `skill_object_guard` (≈ $8–12) — **sửa theo Q3 đổi 14/10:** không làm chế độ hiệu ứng động; chỉ cho phép tả trạng thái tĩnh cửa MỞ (cabin nông, đèn theo trạng thái người dùng chọn), giữ mọi câu khóa chống thang máy thật. Phần dưới về `effect` là thiết kế cũ, chỉ làm nếu người dùng mở lại
 - Hiện `core/skill_objects.py` (cờ `skill_object_guard`) BỎ mọi từ elevator/door/thang máy/cửa và ép "already standing at full
   height" → đúng cho **TĨNH**, nhưng chặn luôn hiệu ứng cửa thang máy thật của skin (bảng thiết kế mục 3).
 - Thêm lựa chọn theo vật kỹ năng (dữ liệu Kho `profile`, không cứng tên): `effect_mode: static | effect` (mặc định `static` = hành vi
