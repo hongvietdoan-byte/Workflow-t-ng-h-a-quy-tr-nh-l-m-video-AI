@@ -878,6 +878,8 @@ khung an toàn 9:16 (vùng giao diện TikTok/Reels che); dùng lại ảnh clay
 
 ## Kết quả Codex — đợt 11
 
+- Việc 4 — phần backend/QC local đã push nhánh `codex/d11-viec4-luat-quay`, code `3716cace`: thêm eyeline/30°/lead room/headroom, so ảnh và hai khung clip với máy, báo VÀNG thiếu số/ngưỡng chưa hiệu chỉnh; hai cờ OFF. Đỏ→xanh, rà độc lập sửa 3 P2 và hai lỗi root, **59 test xanh / 1,88 s**. Rà tại `docs/RA_D11_VIEC4_CODEX_2026-10-13.md`. Còn dở: nối blocking đã duyệt vào report/màn camera, subject ID/trạng thái cuối, GUI và ca thật; chưa cả bộ, không gộp main/live/API.
+
 - ✅ Việc 1 — nhánh `codex/d11-viec1-ban-dung`, mã `867e9ac`. Thiết kế bàn dựng 3D và mockup offline hai góc nhìn; Playwright Chrome thật kiểm kéo actor/camera, đổi lens, beat, undo, khóa cảnh đã duyệt và nhận/từ chối đề xuất. Test đỏ → xanh: 1 passed (4,01 s); hai kích thước 1440/1280 không lỗi console, không tràn ngang. Bốn ảnh ở `docs/images/d11/`; rà tại `docs/RA_D11_VIEC1_CODEX_2026-10-12.md`. Preview SVG minh họa; Blender/solver/ACL/cache thật thuộc phần triển khai tiếp. Chưa chạy cả bộ; không gộp main.
 
 
