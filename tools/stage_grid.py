@@ -1536,6 +1536,7 @@ def v3_main(argv):
     sys.path.insert(0, ROOT)
     from core import cost, llm_runner
     from core import stage_director as sd
+    from core import stage_solver as ss
     ap = argparse.ArgumentParser(prog="stage_grid.py v3")
     ap.add_argument("--db", default=DEFAULT_DB)
     ap.add_argument("--inputs", required=True)
@@ -1559,11 +1560,19 @@ def v3_main(argv):
     conn = sqlite3.connect(os.path.abspath(a.db))
     conn.row_factory = sqlite3.Row
     try:
+        from core import features
+        from core import director_blockout
+        blockout_on = director_blockout.scene_uses_blockout(conn, inputs)
+        inputs['_blockout_enabled'] = blockout_on
         one = cost.llm_estimate(conn, sd.STAGE, 1)
-        worst = cost.llm_estimate(conn, sd.STAGE, 2 * sd.MAX_ROUNDS)
+        max_calls = 3 if blockout_on else 2 * sd.MAX_ROUNDS
+        worst = cost.llm_estimate(conn, sd.STAGE, max_calls)
         m = cost.LLM_MARGIN
-        print(f"V3 ước tính (model {cost.llm_model()}): 1 lượt ≈ {one * m:.3f} USD; tối đa {2 * sd.MAX_ROUNDS} lời gọi "
-              f"(2 lượt sửa × hỏi lại khi sai mẫu) ≈ {worst * m:.3f} USD")
+        if blockout_on:
+            print(f"V3 + sơ đồ khối ước tính: 1 lượt ≈ {one * m:.3f} USD; tối đa 3 lời gọi (đầu + 2 sửa) ≈ {worst * m:.3f} USD")
+        else:
+            print(f"V3 ước tính (model {cost.llm_model()}): 1 lượt ≈ {one * m:.3f} USD; tối đa {2 * sd.MAX_ROUNDS} lời gọi "
+                  f"(2 lượt sửa × hỏi lại khi sai mẫu) ≈ {worst * m:.3f} USD")
         if not a.yes:
             print("(chưa gọi — thêm --yes --max-usd <USD>)")
             return
@@ -1575,31 +1584,96 @@ def v3_main(argv):
         script_cap.from_args(a, "stage_grid v3").start()
         client = llm_runner.client_from_env(ledger=llm_runner.db_file(conn))
         prev, feedback, rounds = None, [], []
-        for rnd in range(1, sd.MAX_ROUNDS + 1):
+        for rnd in range(1, (1 if blockout_on else sd.MAX_ROUNDS) + 1):
             text = sd.build_prompt(inputs, prev, feedback)
             with open(os.path.join(out, f"prompt_r{rnd}.md"), "w", encoding="utf-8") as f:
                 f.write(text)
-            with llm_runner.tagged(sd.STAGE, inputs.get("pid")):
-                obj, tin, tout = llm_runner.ask_json(client, text, lambda o: sd.validate_answer(o, inputs, st.get("marks")),
-                                                     note=lambda s_: print("  !", s_))
+            if blockout_on:
+                from core import director_blockout
+                checked = {}
+                def validate_declaration(answer):
+                    from core import llm_io
+                    sd.validate_answer(answer, inputs, st.get('marks'))
+                    if not answer['shot_specs']:
+                        raise llm_io.SchemaError('Nhánh C cần ít nhất một shot để đặt camera')
+                    blocking = director_blockout.blocking_from_plan(answer, st.get('marks'))
+                    blocking['aspect'] = inputs.get('aspect', '9:16')
+                    aspect, resolution = _aspect(blocking)
+                    solution = ss.solve_scene(answer['shot_specs'], blocking, aspect,
+                                marks=st.get('marks'), grid_cells=grid, stage=st)
+                    errors = []
+                    for shot in solution['shots']:
+                        cams = shot.get('cams') or []
+                        best = cams[0] if cams else None
+                        if shot.get('errors') or best is None or not (best['check']['ok'] and best['c1_ok']):
+                            reasons = shot.get('errors') or shot.get('advice') or (
+                                      list(best['check']['why'].values()) if best else ['không có phương án máy'])
+                            errors.append(f"shot {shot['shot']}: "+'; '.join(reasons))
+                    if errors:
+                        raise llm_io.SchemaError('Kiểm máy bằng số chưa đạt: '+'; '.join(errors))
+                    checked.update(blocking=blocking, solve=solution, resolution=resolution)
+                declaration = director_blockout.run_stage(conn, client, inputs, text,
+                                      validate_declaration)
+                with open(os.path.join(out, 'blockout_review.json'), 'w', encoding='utf-8') as f:
+                    json.dump(declaration, f, ensure_ascii=False, indent=1)
+                if not declaration['ok']:
+                    print('  ! '+declaration['warning'])
+                    from core import diag
+                    diag.record(conn, sd.STAGE, 'warn', declaration['warning'], 'blockout_invalid', inputs.get('pid'))
+                    return
+                obj = declaration['answer']; tin, tout = declaration['tokens']
+                for issue in declaration['issues']:
+                    if issue['muc']=='vang': print('  ! '+issue['loi'])
+            else:
+                with llm_runner.tagged(sd.STAGE, inputs.get("pid")):
+                    obj, tin, tout = llm_runner.ask_json(client, text, lambda o: sd.validate_answer(o, inputs, st.get("marks")),
+                                                         note=lambda s_: print("  !", s_))
             print(f"lượt {rnd}: Claude vào {tin} / ra {tout} token")
-            bl = dict(obj["blocking"], place=inputs["place"], spot=inputs["spot"].split()[0], aspect=inputs.get("aspect", "9:16"))
+            bl = dict(checked['blocking'] if blockout_on else obj["blocking"], place=inputs["place"],
+                      spot=inputs["spot"].split()[0], aspect=inputs.get("aspect", "9:16"))
             rd = os.path.join(out, f"r{rnd}")
             os.makedirs(rd, exist_ok=True)
+            if blockout_on:
+                from core import blockout_clay
+                solve = checked['solve']
+                first = solve['shots'][0]
+                cam = first['cams'][0]
+                objects = solve['beats'][first.get('nhip') or '']
+                with open(os.path.join(rd, 'blockout.json'), 'w', encoding='utf-8') as f:
+                    json.dump(obj['blockout'], f, ensure_ascii=False, indent=1)
+                preview = blockout_clay.render_sheet(obj['blockout'], inputs.get('cho_dung') or [],
+                            os.path.join(rd, 'blockout_sheet.png'), reference=inputs.get('blockout_reference'),
+                            camera={'location':cam['at'],'look_at':cam['aim'],'lens':cam['lens']},
+                            resolution=tuple(checked['resolution']),
+                            people=[{'key':key,'at':[*o['xy'],o.get('z',0)],'H':o['H'],'facing':o.get('facing') or 0,
+                                     'tu_the':o.get('tu_the','dung')}
+                                    for key,o in objects.items() if o.get('kind')=='nguoi'])
+                with open(os.path.join(rd, 'blockout_preview.json'), 'w', encoding='utf-8') as f:
+                    json.dump(preview, f, ensure_ascii=False, indent=1)
             for fn, data in (("answer.json", obj), ("blocking.json", bl), ("shot_specs.json", {"shots": obj["shot_specs"]})):
                 with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=1)
             review_stage_round(conn, inputs.get("pid"), None, rd, proposal=True,
                                approved_blocking=a.approved_blocking, approved_specs=a.approved_specs)
-            v2_main(["--db", a.db, "--blocking", os.path.join(rd, "blocking.json"), "--specs", os.path.join(rd, "shot_specs.json"),
-                     "--out", rd, "--stage-from", a.stage_from])
-            solve = json.load(open(os.path.join(rd, "setups.json"), encoding="utf-8"))
-            v2 = json.load(open(os.path.join(rd, "v2.json"), encoding="utf-8"))
+            if blockout_on:
+                # Nhánh C chỉ có ảnh: solver chung + renderer add_props; không buộc có model3d thật.
+                v2 = {'measurement':'numeric_only', 'warning':'Chưa đo Blender che khuất/khung ảnh thật; kiểm tâm XY người trên sàn phẳng, chưa kiểm toàn thân/tư thế/sàn nhiều cao độ',
+                      'shots':[{'shot':s['shot'],'spec':next(sp for sp in obj['shot_specs'] if sp['shot']==s['shot']),
+                                'best':dict(s['cams'][0],ok=True,m=s['cams'][0])} for s in solve['shots']]}
+                for fn,data in (('setups.json',solve),('v2.json',v2)):
+                    with open(os.path.join(rd,fn),'w',encoding='utf-8') as f: json.dump(data,f,ensure_ascii=False,indent=1)
+            else:
+                v2_main(["--db", a.db, "--blocking", os.path.join(rd, "blocking.json"), "--specs", os.path.join(rd, "shot_specs.json"),
+                         "--out", rd, "--stage-from", a.stage_from])
+                solve = json.load(open(os.path.join(rd, "setups.json"), encoding="utf-8"))
+                v2 = json.load(open(os.path.join(rd, "v2.json"), encoding="utf-8"))
             feedback = sd.feedback_from(solve, v2)
             n_ok = sum(1 for s in v2["shots"] if s.get("best") and s["best"]["ok"])
             rounds.append({"round": rnd, "tokens": [tin, tout], "ok": n_ok, "n": len(obj["shot_specs"]), "feedback": feedback,
                            "can_hoi": obj.get("can_hoi")})
-            print(f"lượt {rnd}: {n_ok}/{len(obj['shot_specs'])} shot đạt" + "".join(f"\n   → {x}" for x in feedback))
+            print(f"lượt {rnd}: {n_ok}/{len(obj['shot_specs'])} shot đạt" +
+                  (' kiểm số (chưa đo Blender che khuất/khung)' if blockout_on else '') +
+                  "".join(f"\n   → {x}" for x in feedback))
             if not feedback:
                 break
             prev = obj

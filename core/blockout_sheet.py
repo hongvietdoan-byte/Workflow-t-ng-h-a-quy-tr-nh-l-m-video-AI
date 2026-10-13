@@ -94,10 +94,27 @@ def render_top_view(plan, cho_dung, out_png):
         size = bo._size(block)
         polygon = [point(*p) for p in bo._rect(block["tam"], size, block["huong"])]
         color = COLORS[level]
-        draw.polygon(polygon, fill=color, outline="#273743")
+        shape = "ellipse" if block["loai"] in ("tru", "cot") else "polygon"
+        if shape == "ellipse":
+            # Ellipse xoay cùng chân đế (cột tròn có hai kích thước bằng nhau).
+            a = math.radians(block["huong"])
+            cx, cy = block["tam"]
+            oval = [point(cx + size[0]/2*math.cos(t)*math.cos(a) - size[1]/2*math.sin(t)*math.sin(a),
+                          cy + size[0]/2*math.cos(t)*math.sin(a) + size[1]/2*math.sin(t)*math.cos(a))
+                    for t in [n*math.tau/64 for n in range(64)]]
+            draw.polygon(oval, fill=color, outline="#273743")
+        else:
+            draw.polygon(polygon, fill=color, outline="#273743")
         label = f"{block['id']} · {block['loai']} · {'×'.join(f'{v:g}' for v in size)} m"
-        draw.text(point(*block["tam"]), label, font=small, fill="#172b3a", anchor="mm")
-        blocks.append({"id": block["id"], "label": label, "polygon": polygon, "level": level, "color": color})
+        # Mép sàn gần mép ảnh: giữ toàn bộ nhãn trong canvas, có bounds để QA.
+        tx, ty = point(*block["tam"])
+        bb = draw.textbbox((0, 0), label, font=small)
+        tx = max(4-bb[0], min(tx-(bb[2]-bb[0])/2, SIZE[0]-4-bb[2]))
+        ty = max(4-bb[1], min(ty-(bb[3]-bb[1])/2, SIZE[1]-4-bb[3]))
+        label_box = draw.textbbox((tx, ty), label, font=small)
+        draw.text((tx, ty), label, font=small, fill="#172b3a")
+        blocks.append({"id": block["id"], "label": label, "label_box":label_box,
+                       "polygon": polygon, "shape": shape, "level": level, "color": color})
     standing = []
     for i, at in enumerate(cho_dung or []):
         xy = _standing_xy(at)

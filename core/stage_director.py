@@ -53,7 +53,8 @@ def build_prompt(inputs: Dict, prev: Optional[Dict] = None, feedback: Sequence[s
               "### Code đã giải máy + đo trên sân khấu 3D — các shot CHƯA đạt (sửa dàn cảnh / yêu cầu của đúng các shot này; shot đã "
               "đạt giữ nguyên; không nới yêu cầu mà người dùng đã nói rõ)"] + [f"- {x}" for x in feedback]
         L.append("\nTrả lại TOÀN BỘ JSON (cả shot đã đạt), cùng định dạng.")
-    return "\n".join(L)
+    from .director_blockout import append_prompt
+    return append_prompt("\n".join(L), inputs)
 
 
 def validate_answer(obj, inputs: Dict, marks: Optional[Dict] = None) -> Dict:
@@ -110,6 +111,12 @@ def validate_answer(obj, inputs: Dict, marks: Optional[Dict] = None) -> Dict:
         errs += [f"shot {s.get('shot')}: {e}" for e in overlap_errors(o)]
     if errs:
         raise llm_io.SchemaError("; ".join(dict.fromkeys(errs[:8])))
+    from .director_blockout import enabled, issues_for
+    if enabled(inputs):
+        problems = issues_for(obj, inputs)
+        red = [i for i in problems if i['muc']=='do']
+        if red:
+            raise llm_io.SchemaError('; '.join(f"{i['path']}: {i['loi']}" for i in red))
     return obj
 
 
