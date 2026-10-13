@@ -216,6 +216,26 @@ class ChangeReview(unittest.TestCase):
         self.p.conn.execute("UPDATE asset_images SET status='approved' WHERE id=900")
         self.assertEqual(len([e for e in self.pending() if e["kind"] == "asset_image"]), 1)
 
+    def test_review_reads_the_motion_prompt_sent_not_old_motion_en(self):
+        """Lỗi 5 (#27 shot 16): người sửa tay motion prompt (motion_prompts) — motion_en (bản dịch trường Đạo diễn) còn tả bản cũ →
+        agent so bản cũ, giữ oan. Nguồn sự thật cho khâu motion = motion prompt GỬI ĐI; motion_en chỉ hiện khi chưa có motion prompt."""
+        sid = self.ids[1]
+        self._set(sid, {"size": "MS", "characters": ["KELLY"], "action": "Kelly ném bom keo",
+                        "motion_en": {"action": "Kelly throws, green glue crystals grow"}})
+        self.p.conn.execute("INSERT INTO motion_prompts(scene_id, motion_prompt, state) VALUES (?,?, 'approved')",
+                            (sid, "Kelly throws; a metal elevator-door wall rises from the ground in two beats"))
+        self.p.conn.execute("UPDATE change_events SET state='skipped'")
+        self._set(sid, {"size": "MS", "characters": ["KELLY"], "action": "Kelly ném bom keo, tường thang máy mọc",
+                        "motion_en": {"action": "Kelly throws, green glue crystals grow"}})
+        ev = self.pending()[0]
+        text = CR.build_prompt(self.p.conn, ev, ["action"], [sid], [])
+        self.assertIn("elevator-door wall rises", text)            # bản gửi đi
+        self.assertNotIn("green glue crystals", text.split("## Các shot liên quan")[1])
+        # chưa có motion prompt (shot kề) → motion_en vẫn là nguồn của bản code sắp viết
+        self._set(self.ids[2], {"size": "MS", "characters": ["KELLY"], "motion_en": {"action": "Kelly waits"}})
+        text = CR.build_prompt(self.p.conn, ev, ["action"], [sid, self.ids[2]], [])
+        self.assertIn("Kelly waits", text)
+
 
 if __name__ == "__main__":
     unittest.main()
