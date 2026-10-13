@@ -107,3 +107,42 @@ class FramingCap(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EndFrameSentAndCameraMove(unittest.TestCase):
+    """R12 (rà S3+S4): QC chỉ được thấy 'khung cuối DỰ KIẾN' khi clip THẬT SỰ gửi kèm khung đó (jobs.sent_package);
+    _measure_clip truyền camera_move của shot vào clip_measure.measure (R5 S3)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.p = Pipeline(connect(":memory:"))
+        self.pid = self.p.create_project("#27")
+        self.sid = self.p.create_scene(self.pid, 1, "S17")
+        self.jid = self.p.create_job(self.sid, "video_gen")
+        self.end = os.path.join(self.tmp, "end.png")
+        open(self.end, "wb").write(b"e")
+        self.p.conn.execute("INSERT INTO end_frames (project_id, scene_id, start_job_id, state, path, created_at, updated_at)"
+                            " VALUES (?,?,?, 'ready', ?, datetime('now'), datetime('now'))", (self.pid, self.sid, self.jid, self.end))
+        self.p.conn.commit()
+
+    def _layout(self, pkg):
+        self.p.conn.execute("UPDATE jobs SET sent_package=? WHERE id=?", (json.dumps(pkg) if pkg is not None else None, self.jid))
+        job = self.p.conn.execute("SELECT * FROM jobs WHERE id=?", (self.jid,)).fetchone()
+        with mock.patch("core.place_refs.shot_ref", return_value=None):
+            return [label for label, _ in claude_tasks._layout_images(self.p, job, self.tmp, [], None)]
+
+    def test_layout_skips_end_frame_not_sent(self):
+        labels = self._layout({"v": 1, "refs": [{"param": "image_path", "role": "start_frame", "path": "a.png"}], "params": {}})
+        self.assertFalse(any("DỰ KIẾN" in x for x in labels))
+        self.assertFalse(any("DỰ KIẾN" in x for x in self._layout(None)))       # job cũ không có gói gửi = không gửi
+
+    def test_layout_keeps_end_frame_when_sent(self):
+        labels = self._layout({"v": 1, "refs": [{"param": "last_frame", "role": "last_frame", "path": "end_m.png"}], "params": {}})
+        self.assertTrue(any("DỰ KIẾN" in x for x in labels))
+
+    def test_measure_clip_passes_camera_move(self):
+        job = self.p.conn.execute("SELECT * FROM jobs WHERE id=?", (self.jid,)).fetchone()
+        with mock.patch("core.clip_measure.measure", return_value={}) as m, \
+                mock.patch("core.shots.approved_image_path", return_value=None):
+            claude_tasks._measure_clip(self.p, job, "c.mp4", {"camera_move": "pan_left"}, None, self.tmp)
+        self.assertEqual(m.call_args.kwargs.get("camera_move"), "pan_left")

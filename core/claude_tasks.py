@@ -287,12 +287,32 @@ def _layout_images(p: Pipeline, job, data_dir: str, frames: List[str], first) ->
         pass
     try:
         from . import end_frames
-        row = end_frames.current(p.conn, job["scene_id"])
+        row = end_frames.current(p.conn, job["scene_id"]) if _end_frame_sent(job) else None   # R12: chỉ khung cuối ĐÃ gửi kèm clip
         if row is not None and row["state"] == "ready" and row["path"] and os.path.exists(row["path"]):
             out.append(("Khung cuối DỰ KIẾN (đã vẽ cho shot):", row["path"]))
     except Exception:  # noqa: BLE001 - an old database without end_frames: nothing to add
         pass
     return out
+
+
+def _end_frame_sent(job) -> bool:
+    """R12 (rà S3+S4): clip của job này có THẬT SỰ được gửi kèm khung cuối không — đọc gói gửi (jobs.sent_package, K1a): một ref vai
+    last_frame / end_frame hoặc tham số last_frame. S3 bỏ khung cuối (end_frames.skip_reason, V3/V12, vật kỹ năng → GHÉP) thì gói không có
+    → QC không được so bố cục với khung đó. Không có gói (job cũ / không đọc được) = coi như không gửi."""
+    try:
+        raw = job["sent_package"]
+    except (IndexError, KeyError):
+        return False
+    try:
+        pkg = json.loads(raw) if raw else None
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(pkg, dict):
+        return False
+    if any(isinstance(r, dict) and (r.get("role") in ("last_frame", "end_frame") or r.get("param") == "last_frame")
+           for r in pkg.get("refs") or []):
+        return True
+    return bool((pkg.get("params") or {}).get("last_frame"))
 
 
 def _measure_clip(p: Pipeline, job, path: str, data: Dict, first, data_dir: str) -> Optional[Dict]:
@@ -303,7 +323,8 @@ def _measure_clip(p: Pipeline, job, path: str, data: Dict, first, data_dir: str)
     speaking = bool(data.get("dialogue"))
     audio, turns, note = _shot_voice(data_dir, job["project_id"], job["scene_id"], path) if speaking else (None, None, None)
     try:
-        out = clip_measure.measure(path, picture, audio=audio, speaking=speaking, turns=turns)
+        out = clip_measure.measure(path, picture, audio=audio, speaking=speaking, turns=turns,
+                                  camera_move=data.get("camera_move"))   # R5 (S3): máy chuyển động theo kế hoạch
     except Exception:  # noqa: BLE001 - a measuring problem never stops the QC
         return None
     if note and isinstance(out.get("lips"), dict):
