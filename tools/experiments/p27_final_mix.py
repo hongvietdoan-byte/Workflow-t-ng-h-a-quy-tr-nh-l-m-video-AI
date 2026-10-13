@@ -95,6 +95,7 @@ SFX_PLAN = [
 ]
 POPUP_SHOT = 22            # popup chữ BOOYAH (#27 không có icon prop ICON* cho core/end_popup)
 POPUP_TEXT = "BOOYAH!"
+POPUP_ASSET_IMG = "data/assets/431/1.png"   # 13/10 người dùng: popup = banner BOOYAH đỏ Kho #431 (hình khung booyah), không chữ tự vẽ
 SUB_MAX_CHARS = 32         # phụ đề: mỗi dòng ≤ 32 ký tự, ≤ 2 dòng/lần hiện
 
 WARN: list[str] = []
@@ -325,6 +326,20 @@ def _leaf(src_args: list[str], chain: str, total: float, args) -> list[str]:
     return ["-i", str(out)]
 
 
+def _extend_music(f: Path, span: float, args) -> Path:
+    """13/10 người dùng 'kéo dài thêm nhạc': nhạc ngắn hơn đoạn → bản dài hơn = phần đầu (bỏ 4 s đuôi) nối mềm 3 s vào một bản sao
+    bắt đầu giữa bài, GIỮ đoạn kết gốc ở cuối (không lặp lại từ đầu, không im)."""
+    mdur = probe(f)["dur"]
+    head, xf = mdur - 4.0, 3.0
+    start = max(0.0, mdur - (span + 0.2 - head + xf))            # head + (mdur - start) - xf = span + 0,2
+    out = args._leaf_dir / f"ext_{f.stem}_{int(span * 1000)}.wav"
+    if not out.exists():
+        run(["ffmpeg", "-y", "-v", "error", "-i", str(f), "-i", str(f), "-filter_complex",
+             f"[0:a]atrim=0:{head:.6f}[a];[1:a]atrim=start={start:.6f},asetpts=PTS-STARTPTS[b];"
+             f"[a][b]acrossfade=d={xf}:c1=tri:c2=tri[o]", "-map", "[o]", "-c:a", "pcm_f32le", "-ar", "48000", str(out)])
+    return out
+
+
 def audio_graph(lines, segs, mA: Path, mB: Path, vo_lufs: float, args) -> tuple[list[str], str]:
     """Trả (inputs, filter_complex); input 0 = video nối (kèm audio im/clip); input 1.. = WAV lớp tiếng (_leaf), cùng dài = phim."""
     by_n = {s["n"]: s for s in segs}
@@ -346,6 +361,10 @@ def audio_graph(lines, segs, mA: Path, mB: Path, vo_lufs: float, args) -> tuple[
     for name, f, t0, t1 in specs:
         span = t1 - t0
         mdur = probe(f)["dur"]
+        if mdur < span and name in args.extend_music:
+            f = _extend_music(f, span, args)
+            args._music_ext = getattr(args, "_music_ext", []) + [f"{name}: {mdur:.2f}s → {probe(f)['dur']:.2f}s (nối mềm 3 s, giữ đoạn kết gốc)"]
+            mdur = probe(f)["dur"]
         loop = mdur < span and args.music_fill == "loop"
         play = span if (mdur >= span or loop) else mdur
         if mdur < span:
@@ -505,9 +524,16 @@ def overlay_video(video: Path, lines, segs, args, tmp: Path) -> Path:
                             f"x=(w-tw)/2:y=h*0.68-th/2:enable='between(t,{t:.3f},{t + d:.3f})'")
                 t += d
             args._sub_info.append(f"L{ln['n']} {ln['start']:.2f}–{ln['end']:.2f}s, {len(chunks)} khối")
+    banner = None
     if args.popup:
         sg = {s["n"]: s for s in segs}.get(POPUP_SHOT)
-        if sg:
+        img = ROOT / POPUP_ASSET_IMG
+        if sg and img.exists():
+            t0, t1 = sg["start"], sg["end"]
+            banner = (_banner_png(img, tmp), t0, t1)
+            args._popup_info = f"banner Kho #431 {t0:.2f}–{t1:.2f}s (shot {POPUP_SHOT}), hiện dần 0,25 s + trượt xuống"
+        elif sg:
+            warn(f"không thấy {img} → popup chữ tự vẽ")
             t0, t1 = sg["start"], sg["end"]
             pf = tmp / "popup.txt"
             pf.write_text(POPUP_TEXT, encoding="utf-8")
@@ -517,11 +543,44 @@ def overlay_video(video: Path, lines, segs, args, tmp: Path) -> Path:
                         f"y=h*0.40-th/2-if(lt(t-{t0:.3f}\\,1)\\,{amp}*abs(sin(3*PI*(t-{t0:.3f})))*(1-(t-{t0:.3f}))\\,0):"
                         f"enable='between(t,{t0:.3f},{t1:.3f})'")
             args._popup_info = f"{POPUP_TEXT} {t0:.2f}–{t1:.2f}s (shot {POPUP_SHOT}; #27 không có icon ICON* cho core/end_popup)"
+    if not filt and banner is None:
+        return video
     out = tmp / "video_ov.mp4"
     vf = tmp / "ov_filter.txt"
-    vf.write_text(",".join(filt), encoding="utf-8")
-    run(["ffmpeg", "-y", "-v", "error", "-i", str(video), "-/vf", str(vf), "-map", "0:v", "-map", "0:a",
+    graph = f"[0:v]{','.join(filt) if filt else 'null'}[v0]"
+    extra = []
+    if banner is not None:
+        png, t0, t1 = banner
+        bw_px, drop = round(W * 0.98), round(H * 0.025)
+        graph += (f";[1:v]format=rgba,scale={bw_px}:-1,fade=t=in:st={t0:.3f}:d=0.25:alpha=1[bn];"
+                  f"[v0][bn]overlay=x=(W-w)/2:y=H*0.68-{drop}*max(0\\,1-(t-{t0:.3f})/0.25):shortest=1:"
+                  f"enable='between(t,{t0:.3f},{t1:.3f})'[v]")
+        extra = ["-loop", "1", "-framerate", str(FPS), "-i", str(png)]
+    else:
+        graph += ";[v0]null[v]"
+    vf.write_text(graph, encoding="utf-8")
+    run(["ffmpeg", "-y", "-v", "error", "-i", str(video)] + extra + ["-/filter_complex", str(vf), "-map", "[v]", "-map", "0:a",
          "-c:v", "libx264", "-preset", args.preset, "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "copy", str(out)])
+    return out
+
+
+def _banner_png(img: Path, tmp: Path) -> Path:
+    """Banner Kho #431 là ảnh đặc (dải đỏ đè cảnh game): giữ dải đỏ + chữ trắng giữa + lõi băng, mép trái/phải mờ dần."""
+    import numpy as np
+    from PIL import Image
+    im = np.asarray(Image.open(img).convert("RGB")).astype(np.float32)
+    R, G, B = im[..., 0], im[..., 1], im[..., 2]
+    h, w = R.shape
+    red = np.clip((R - np.maximum(G, B) - 8) / 45, 0, 1)
+    white = np.clip((np.minimum(np.minimum(R, G), B) - 150) / 60, 0, 1)
+    mid = np.zeros_like(white)
+    mid[:, int(w * 0.3):int(w * 0.7)] = 1
+    y, x = np.linspace(0, 1, h)[:, None], np.linspace(0, 1, w)[None, :]
+    core = np.clip(1 - np.abs(y - 0.55) / 0.35, 0, 1) * np.clip(1 - np.abs(x - 0.5) / 0.3, 0, 1)
+    a = np.maximum(np.maximum(red, white * mid), np.clip(core * 1.6, 0, 0.9))
+    a = np.clip(a * np.clip(np.minimum(x, 1 - x) / 0.06, 0, 1), 0, 1)
+    out = tmp / "popup_banner.png"
+    Image.fromarray(np.dstack([im, a * 255]).astype(np.uint8), "RGBA").save(out)
     return out
 
 
@@ -586,6 +645,7 @@ def main() -> None:
     ap.add_argument("--vo-map", default="", help="ép shot cho L1..L9, vd 2,4,6,8,10,12,14,17,20")
     ap.add_argument("--music-gain", type=float, default=None, help="dB cho nhạc (mặc định tự đo = lời dẫn −10 LU)")
     ap.add_argument("--music-fill", choices=["silence", "loop"], default="silence")
+    ap.add_argument("--extend-music", default="", help="kéo dài nhạc ngắn bằng nối mềm (giữ đoạn kết): A, B hoặc AB")
     ap.add_argument("--clip-audio-db", type=float, default=None, help="giữ tiếng gốc clip ở mức dB (vd -30); mặc định bỏ")
     ap.add_argument("--preset", default="fast", help="x264 preset cho hình")
     ap.add_argument("--jobs", type=int, default=4, help="số shot chuẩn hóa song song")
