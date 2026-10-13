@@ -34,3 +34,8 @@
 - Font giữ Arial/DejaVu cũ, thử thêm Tahoma/Segoe UI local. Khi chỉ còn bitmap Latin-1, kiểm nhãn tiếng Việt và báo **ValueError thiếu font Unicode + cách bổ sung font** trước tạo PNG; không bỏ dấu/thay nhãn/PNG giả, không nâng dependency. Root đã chốt cách báo thiếu đầu vào này.
 - Nhóm 5 file cũ + 2 hồi quy: **97 passed / 3,43 s**; `git diff --check` sạch. `patch.object(os, "environ", dict_gia)` trước imports/calls, context manager teardown; không patch.dict môi trường thật, không subprocess/API/model thật. Các caller test tự mock client/model/ước tính trước gọi.
 - Giữ version 74, widget keys và schema 1; chưa cả bộ Windows/commit/push. Root đọc diff vòng sửa trước gộp.
+
+## QA Pillow cũ thật — chưa chạy được
+
+- HEAD `ef9178bb`: exec_command bị automatic policy chặn trước chạy action ProcessStartInfo whitelist env + pip `--isolated --only-binary=:all: --no-deps --target <TEMP riêng>` Pillow 10.0.1 (dự định Python bundled 3.12.14); chỉ trả `blocked by policy`, không lý do chi tiết.
+- Chưa chạy pip/cài wheel/probe/sinh PNG; **chưa có actual-old-Pillow proof**. Không bypass/đổi runtime/test lại/commit/push; 97 test mô phỏng trước đó không chứng minh Pillow cũ thật hoặc hỗ trợ Python 3.14.

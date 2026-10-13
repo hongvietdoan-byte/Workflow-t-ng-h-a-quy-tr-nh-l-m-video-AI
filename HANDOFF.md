@@ -19,3 +19,6 @@
 - Security: toàn lượt sửa/test dùng patch.object(os, "environ", dict giả) trước import/call, context manager khôi phục; không đọc/sao chép môi trường thật, không API/model/provider thật/subprocess. Proof patch.dict cũ không được dùng làm bằng chứng security.
 - Thiếu mọi font Unicode: ValueError actionable, không bỏ dấu/âm thầm thay nhãn; Arial/DejaVu bình thường giữ nguyên, thêm Tahoma/Segoe UI local; root đã đồng ý.
 - git diff --check sạch; chưa commit/push/cả bộ Windows. Root đọc diff vòng sửa và kiểm tích hợp trước gộp.
+
+## QA bổ sung HEAD ef9178bb
+- QA actual Pillow 10.0.1 còn mở: automatic policy chặn ProcessStartInfo whitelist env + pip isolated/binary-only/target TEMP trước chạy; `blocked by policy`, không lý do chi tiết. Chưa chạy pip/cài/probe/PNG/actual proof; không bypass/đổi runtime/test lại/commit/push. Root đọc RA giới hạn rồi quyết bước kế.
