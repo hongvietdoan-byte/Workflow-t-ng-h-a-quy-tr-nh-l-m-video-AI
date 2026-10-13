@@ -415,6 +415,8 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
         img = job_image(pid, jid)
         if img:
             show_image(img, width="stretch")
+            from dashboard import camera_match_ui
+            camera_match_ui.render(p, pid, j["scene_id"], img)
         else:
             ui.html('<div style="height:120px;border-radius:8px;background:var(--bg);display:grid;place-items:center;'
                     f'color:var(--muted)">{"⏳ đang gen…" if state == "running" else "chưa có ảnh"}</div>')

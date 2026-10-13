@@ -715,6 +715,8 @@ def _clip_view(p: Pipeline, pid: int, j, clip) -> None:
         with (right if src else st.container()):
             try:
                 st.video(path)
+                from dashboard import camera_match_ui
+                camera_match_ui.render(p, pid, shown["scene_id"], path, "video")
             except Exception:  # noqa: BLE001 - unreadable file: say so instead of breaking the page
                 st.caption(f"⚠ Không phát được video: {os.path.basename(path)}")
     elif j["state"] in ("queued", "running", "retryable"):

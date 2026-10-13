@@ -230,6 +230,8 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
         img = C.job_image(pid, jid)
         if img and not busy:
             C.show_image(img, width="stretch")
+            from dashboard import camera_match_ui
+            camera_match_ui.render(p, pid, sid, img)
         elif busy:
             st.markdown(D.shimmer(230), unsafe_allow_html=True)
         else:
