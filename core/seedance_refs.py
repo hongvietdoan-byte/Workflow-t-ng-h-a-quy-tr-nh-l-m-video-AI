@@ -121,6 +121,53 @@ def _groups(conn, project_id: int) -> List[List[Dict]]:
             close()
         cur.append(r)
     close()
+    if keep_approved_on() and out:
+        kept = person_kept(conn, project_id, [r["id"] for g in out for r in g])
+        out = [g for g in out if not (any(r["id"] in kept for r in g) and not all(r["id"] in kept for r in g))]
+    return out
+
+
+# ---- V8 (rà gốc video #27 13/10, G3): a group must not re-make a shot the PERSON already approved ----------------------------------
+# (5,6) 788 → 879: shot 6 approved v1, shot 5 failed → the group clip was made again for both, the person "dùng lại bản v1"; (10,11)
+# three rounds. With the flag a group with a person-approved, still current member is not sent as a group: every shot of it goes
+# alone (a lone shot is a one-shot clip, route "single" in effect) — the approved take stays, only the others are made again. A
+# group whose members are ALL approved stays a group (its final upgrade is priced / sent per group clip, core.quality_tier).
+def keep_approved_on() -> bool:
+    try:
+        from . import features
+        return features.on("group_keep_approved")
+    except Exception:  # noqa: BLE001 - unreadable settings: the old behaviour (off)
+        return False
+
+
+def person_kept(conn, project_id: int, scene_ids: List[int]) -> set:
+    """The scenes whose newest clip job is APPROVED BY A PERSON (review_log 'user') and still current: made from the scene's approved
+    picture and from the motion prompt as it is now (the clip's own model counted). Never asks the model router (no loop back here)."""
+    from . import lineage
+    from .shots import image_scene
+    aspect = lineage._aspect(conn, project_id)
+    out = set()
+    for sid in scene_ids:
+        job = conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='video_gen' AND state NOT IN ('failed','cancelled','rejected')"
+                           " ORDER BY id DESC LIMIT 1", (sid,)).fetchone()
+        if job is None or job["state"] != "approved":
+            continue
+        who = conn.execute("SELECT reviewer_type FROM review_log WHERE job_id=? AND decision='approve' ORDER BY id DESC LIMIT 1",
+                           (job["id"],)).fetchone()
+        if who is None or who["reviewer_type"] != "user":
+            continue
+        img = conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved' ORDER BY id DESC LIMIT 1",
+                           (image_scene(conn, sid),)).fetchone()
+        keys = job.keys()
+        if img is None or ("source_job_id" in keys and job["source_job_id"] and job["source_job_id"] != img["id"]):
+            continue
+        mp = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone()
+        stored = job["input_hash"] if "input_hash" in keys else None
+        model = job["model"] if "model" in keys else None
+        if mp is None or (stored and stored not in {lineage.video_input_hash(mp, aspect)} | {
+                lineage.video_input_hash(mp, aspect, model, a) for a in (True, False) if model}):
+            continue
+        out.add(sid)
     return out
 
 
@@ -171,6 +218,9 @@ def mark(path: str, out_dir: str, style: str = "eye_plus") -> str:
     only, "corner_plus" the banner + the plus in the picture's bottom-right corner (off every face), "none" an unmarked copy."""
     if style not in MARK_STYLES:
         raise ValueError(f"unknown mark style {style!r}")
+    if style == "eye_plus" and mark_off_face():
+        style = "corner_plus"             # V5 (rà gốc 13/10): flag ref_mark_off_face on → no caller ever marks an eye (a start frame
+        #                                   included — quality_samples / experiments still ask for the default "eye_plus")
     from PIL import Image, ImageDraw, ImageFont
     from . import text_placement
     os.makedirs(out_dir, exist_ok=True)
@@ -212,7 +262,7 @@ def mark(path: str, out_dir: str, style: str = "eye_plus") -> str:
     return out
 
 
-MARK_KEY = "ref_mark"        # scenes.data: "eye_plus" once the corner mark was refused as "real person" (flag ref_mark_off_face)
+MARK_KEY = "ref_mark"        # scenes.data: old rows may carry "eye_plus" (written until V5, 13/10) — read by nothing any more
 
 
 def mark_off_face() -> bool:
@@ -233,12 +283,13 @@ def _scene_data(conn, scene_ids) -> List[Dict]:
 
 def mark_style(conn, scene_ids) -> str:
     """Lỗi hệ thống 4 (#27 13/10: Seedance 2.5 drew the red plus of the marked pictures onto Kelly's face, shots 8–9, 18). Flag
-    ref_mark_off_face off: "eye_plus" (as before). On: "corner_plus" (banner + plus in the corner, off every face) first; after a
-    "real person" refusal of that send (S4.6 A/B 29/09: 2.0 Fast refused the corner mark) the shots carry ref_mark = "eye_plus" and
-    go back to the eye mark — the ban sentence of `prompt` goes with it either way."""
+    ref_mark_off_face off: "eye_plus" (as before). On: always "corner_plus" (banner + plus in the corner, off every face).
+    V5 (rà gốc video #27 13/10, G9): the old step back to the eye mark after a "real person" refusal put the plus on the START FRAME's
+    face again (job 852/853/896) — gone: a refusal now goes down the route ladder (step_mark_back False); an old row still carrying
+    ref_mark = "eye_plus" is not followed any more."""
     if not mark_off_face():
         return "eye_plus"
-    return "eye_plus" if any(d.get(MARK_KEY) == "eye_plus" for d in _scene_data(conn, scene_ids)) else "corner_plus"
+    return "corner_plus"
 
 
 SENT_KEY = "ref_mark_sent"   # scenes.data: how the last reference-only send carried its pictures — a mark style, or "hosted"
@@ -261,20 +312,10 @@ def note_sent(conn, scene_ids, how: str) -> None:
 
 
 def step_mark_back(conn, scene_ids) -> bool:
-    """After a "real person" refusal: shots sent with the corner mark go back to the eye mark (the input changes once). True when
-    changed; False when the flag is off, they already used the eye mark, or the send went unmarked through the Subject Library
-    (ref_mark_sent "hosted": the same pictures would go again — rule 'gen lại phải đổi đầu vào'; the route ladder goes on)."""
-    if not mark_off_face() or mark_style(conn, scene_ids) != "corner_plus":
-        return False
-    if any(d.get(SENT_KEY) == "hosted" for d in _scene_data(conn, scene_ids)):
-        return False
-    for sid in scene_ids:
-        row = conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()
-        data = json.loads(row["data"] or "{}") if row else {}
-        data[MARK_KEY] = "eye_plus"
-        conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), sid))
-    conn.commit()
-    return True
+    """After a "real person" refusal: is there a mark step to take before the route ladder? Always False now (V5, rà gốc 13/10):
+    flag ref_mark_off_face off — there never was one; on — the only step was back to the EYE mark, which drew the plus onto the
+    start frame's face (G9). The caller goes down the route ladder (group → single → Kling), which changes the input (luật 6)."""
+    return False
 
 
 def mark_ban_sentence(names: List[str]) -> str:
@@ -326,6 +367,14 @@ def _rule_ok_picture(conn, project_id: int, who: str, paths: List[str]) -> str:
         return paths[0]
     pick = next((p for p in paths[1:] if not problems(p)), None)
     why = "; ".join(first).replace("ảnh 1 ", "")
+    if pick is None and rule_early_on():
+        padded = pad_to_rule(paths[0], conn)  # V13 (#27 s17 job 798: 488×1280, the library had nothing else) — padded, not refused
+        if padded and not problems(padded):
+            _say_once(conn, project_id, "identity_picture_padded",
+                      f"Ảnh nhận diện {who}: {os.path.basename(paths[0])} không đạt luật ClipAI ({why}) và mục Kho không có ảnh nào đạt — "
+                      f"gửi bản đệm nền trơn {os.path.basename(padded)} (0 USD, hình giữ nguyên). Muốn ảnh tốt hơn: thêm vào Kho ảnh "
+                      "cạnh ≥ 300 px, tỉ lệ rộng/cao 0,4–2,5.")
+            return padded
     if pick:
         msg = (f"Ảnh nhận diện {who}: {os.path.basename(paths[0])} không đạt luật ClipAI ({why}) — gửi {os.path.basename(pick)} cùng mục "
                "Kho. Muốn ảnh khác: Bước 1 → Character Bible chọn ảnh cạnh ≥ 300 px, tỉ lệ rộng/cao 0,4–2,5.")
@@ -334,6 +383,88 @@ def _rule_ok_picture(conn, project_id: int, who: str, paths: List[str]) -> str:
                "bị giữ ở lớp kiểm trước gen / ClipAI từ chối. Cách xử lý: thêm vào Kho ảnh cạnh ≥ 300 px, tỉ lệ rộng/cao 0,4–2,5.")
     _say_once(conn, project_id, "identity_picture_rule", msg)
     return pick or paths[0]
+
+
+# ---- V13 (rà gốc video #27 13/10, G13): a reference picture against ClipAI's size rule is caught BEFORE the send ------------------
+# (job 798: "ảnh 4 (488×1280) tỉ lệ 0.38 — cần 0.4–2.5" found only when sending). Flag ref_rule_early: (1) a picture with no passing
+# alternative is padded on a plain background (and enlarged to the least side) instead of refused; (2) what still breaks the rule is a
+# ĐỎ of the prompt formula (prompt_formula.red_issues → queue / price / autopilot / send), not a refused paid send.
+PAD_DIR: Optional[str] = None     # where padded copies go (None: <data folder in use>/ref_padded — never the Kho folder, the library
+                                  # scans it; rà S2 13/10 mục 8: the running data folder, not the source code's place)
+PAD_RATIO = (0.4, 2.5)
+PAD_MIN_SIDE = 300
+
+
+def rule_early_on() -> bool:
+    try:
+        from . import features
+        return features.on("ref_rule_early")
+    except Exception:  # noqa: BLE001 - unreadable settings: the old behaviour (off)
+        return False
+
+
+def pad_dir(conn=None) -> str:
+    """Where padded copies go: PAD_DIR; else next to the database file in use (data/manifest.sqlite → data/ref_padded); else beside
+    the projects folder (PIPELINE_DATA, default data/projects → data/ref_padded)."""
+    if PAD_DIR:
+        return PAD_DIR
+    try:
+        db = next((r[2] for r in conn.execute("PRAGMA database_list") if r[1] == "main"), "") if conn is not None else ""
+    except Exception:  # noqa: BLE001 - a closed / odd connection: the projects folder decides
+        db = ""
+    if db:
+        return os.path.join(os.path.dirname(os.path.abspath(db)), "ref_padded")
+    projects = os.environ.get("PIPELINE_DATA") or os.path.join("data", "projects")
+    return os.path.join(os.path.dirname(os.path.abspath(projects)), "ref_padded")
+
+
+def pad_to_rule(path: str, conn=None) -> Optional[str]:
+    """A copy of the picture padded with its own edge colour to width/height within PAD_RATIO and enlarged (LANCZOS) so its short side
+    is ≥ PAD_MIN_SIDE; made again only when the source is newer. None when it cannot be read."""
+    try:
+        from PIL import Image
+        import hashlib
+        out_dir = pad_dir(conn)
+        os.makedirs(out_dir, exist_ok=True)
+        key = hashlib.sha1(os.path.abspath(path).lower().encode("utf-8")).hexdigest()[:10]
+        out = os.path.join(out_dir, f"{os.path.splitext(os.path.basename(path))[0]}_{key}_pad.png")
+        if os.path.exists(out) and os.path.getmtime(out) >= os.path.getmtime(path):
+            return out
+        im = Image.open(path).convert("RGB")
+        w, h = im.size
+        lo, hi = PAD_RATIO
+        nw, nh = w, h
+        if w / h < lo:
+            nw = int(math.ceil(h * lo)) + 1
+        elif w / h > hi:
+            nh = int(math.ceil(w / hi)) + 1
+        bg = im.getpixel((0, 0))
+        canvas = Image.new("RGB", (nw, nh), bg)
+        canvas.paste(im, ((nw - w) // 2, (nh - h) // 2))
+        if min(canvas.size) < PAD_MIN_SIDE:
+            k = PAD_MIN_SIDE / min(canvas.size)
+            canvas = canvas.resize((int(math.ceil(canvas.size[0] * k)), int(math.ceil(canvas.size[1] * k))), Image.LANCZOS)
+        canvas.save(out)
+        return out
+    except Exception:  # noqa: BLE001 - unreadable picture: not padded, the rule check says it
+        return None
+
+
+def reference_rule_issues(conn, project_id: int, rows: List[Dict]) -> List[str]:
+    """V13: the identity pictures this clip would send that still break ClipAI's rule (after the alternative / pad) — Vietnamese
+    lines for a ĐỎ before queueing. [] with flag ref_rule_early off."""
+    if not rule_early_on():
+        return []
+    from .adapters import clipai
+    from .assets import _shape
+    out = []
+    for name, path in identity_pictures(conn, project_id, rows, MAX_PICTURES):
+        size = _shape(path) if path and os.path.exists(path) else None
+        bad = clipai.reference_image_problems("seedance", [size]) if size else []
+        if bad:
+            out.append(f"ảnh nhận diện {ascii_name(name)} ({os.path.basename(path)}) sai luật ClipAI: {'; '.join(bad).replace('ảnh 1 ', '')}"
+                       " — đổi ảnh Kho (cạnh ≥ 300 px, tỉ lệ rộng/cao 0,4–2,5) trước khi gửi")
+    return out
 
 
 def _say_once(conn, project_id: int, code: str, msg: str) -> None:
@@ -393,8 +524,11 @@ def whole_marks(secs: List[float]) -> List[tuple]:
     return out
 
 
-def place_pictures(data_dir: str, project_id: int, rows: List[Dict]) -> List[Dict]:
-    """Local renders only, appended after identities; a shared file keeps one Image number."""
+def place_pictures(data_dir: str, project_id: int, rows: List[Dict], starts: Optional[Dict[int, str]] = None) -> List[Dict]:
+    """Local renders only, appended after identities; a shared file keeps one Image number.
+    starts: {scene_id: approved start frame} — with flag plate_view_sentence, each render is measured against the start frames of
+    its shots (`plate_view`) and carries "view": "same" | "other" | None (None = not measured: no start frame / no OpenCV / too few
+    points — `prompt` then writes the careful sentence, as for "other"). Without `starts` nothing is measured (None)."""
     from . import place_refs
     if not place_refs.enabled():
         return []
@@ -408,19 +542,75 @@ def place_pictures(data_dir: str, project_id: int, rows: List[Dict]) -> List[Dic
             seen[key] = {"path": ref["path"], "shots": []}
             out.append(seen[key])
         seen[key]["shots"].append(number)
+        if plate_view_on() and starts is not None:
+            view = plate_view(ref["path"], starts.get(row["id"]))["view"]
+            prev = seen[key].get("view", "same")
+            seen[key]["view"] = view if prev == "same" else prev          # one shot of another camera / unmeasured → not "same"
     return out
+
+
+# ---- V1 (rà gốc video #27 13/10, G6): the 3D place render must not win over the approved start frame ------------------------------
+# s17 job 858/912: the render was a camera AT GROUND LEVEL facing the tower foot, the approved start frame a HIGH camera behind Kelly.
+# The prompt said the render "decides architecture over conflicting text or storyboard details" → Seedance reconciled the two by
+# pulling the camera back and drawing a clock face. With the flag: the start frame decides framing, camera distance / angle and what
+# is in view; the render is a reference for the architecture's details only — and when it is another camera, it is said so.
+PLATE_SAME_SCALE = 1.30       # background scale outside [1/1.30, 1.30] → another camera distance (framing_guard.ZOOM_IN)
+PLATE_SAME_CORNER = 0.15      # a picture corner moved more than 15 % of the frame → another framing / angle
+PLATE_SAME_INLIERS = 0.05     # fewer than 5 % of the render's points match the start frame → another view (framing_guard.F0_INLIERS)
+
+
+def plate_view_on() -> bool:
+    try:
+        from . import features
+        return features.on("plate_view_sentence")
+    except Exception:  # noqa: BLE001 - unreadable settings: the old behaviour (off)
+        return False
+
+
+def plate_view(plate_path: Optional[str], start_path: Optional[str]) -> Dict:
+    """{"view": "same" | "other" | None, "why"} — the render against the approved start frame (framing_guard.similarity, 0 USD).
+    None = not measurable (said in "why", the caller writes the careful sentence — never silently 'same')."""
+    if not plate_path or not start_path or not os.path.isfile(plate_path) or not os.path.isfile(start_path):
+        return {"view": None, "why": "thiếu render hoặc ảnh khung đầu — không so được góc máy"}
+    try:
+        from . import framing_guard
+        a, b = framing_guard._read(plate_path), framing_guard._read(start_path)
+        if a is None or b is None:
+            return {"view": None, "why": "không đọc được render / ảnh khung đầu"}
+        sim = framing_guard.similarity(a, b)
+    except Exception as e:  # noqa: BLE001 - no OpenCV: not measured, said
+        return {"view": None, "why": f"không đo được ({type(e).__name__})"}
+    if sim.get("scale") is None:
+        return {"view": "other", "why": sim.get("note") or "không khớp điểm nào"}
+    s, corner, share = sim["scale"], sim.get("corner") or 0.0, sim.get("inlier_share") or 0.0
+    same = (1 / PLATE_SAME_SCALE <= s <= PLATE_SAME_SCALE and corner <= PLATE_SAME_CORNER and share >= PLATE_SAME_INLIERS)
+    return {"view": "same" if same else "other",
+            "why": f"tỉ lệ {s:.2f}, lệch góc {corner:.2f}, điểm khớp {share:.0%}"}
+
+
+def _place_sentence(number: int, targets: str, view: Optional[str]) -> str:
+    """The PLACE render sentence (flag plate_view_sentence): never 'the render decides'; a render of another / unmeasured camera is
+    said to be one, so the model does not move the camera to match it."""
+    head = f" Image {number} is the 3D PLACE render for {targets}"
+    rule = (" The storyboard frame decides framing, camera distance, angle and what is in view — never pull back or re-frame to match "
+            "this render; never move, add or remove a building.")
+    if view == "same":
+        return head + ": buildings, tower, walls and ground keep exactly these shapes, also where camera movement reveals more." + rule
+    return (head + ", from ANOTHER camera position: only a reference for the shape and material of buildings already in view or "
+            "revealed by camera movement." + rule)
 
 
 def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_seconds: Optional[float] = None,
            model: Optional[str] = None, places: Optional[List[Dict]] = None, scales: Optional[List[str]] = None,
-           reserve: int = 0) -> str:
+           reserve: int = 0, objects: Optional[List[tuple]] = None) -> str:
     """parts: [(motion prompt, seconds)] in film order. The wording of the tested P2m prompt (cut rule, which picture is which shot /
     whose identity, the shots), assembled in the motion formula's order (F1-C, docs/CONG_THUC_PROMPT_F0 mục 3.2 + 4): start point
     (the cut rule and each shot's storyboard frame) → each shot's action (what changes, first) → sentences shared by several shots, once
     → what stays still → identity lock (each picture's role, the costume once for the whole group) → the place renders → the rules
     (reference marks). clip_seconds: the length really asked for (Seedance makes ≥ 4 s) — the shots' marks are stretched to it, so the
     last shot does not end before the clip does (review 2026-09-27). model: time marks only for a model that reads them
-    (`reads_seconds`); the others get "Shot N:" alone (S4.8, 2026-09-29)."""
+    (`reads_seconds`); the others get "Shot N:" alone (S4.8, 2026-09-29). objects: [(Kho name, path)] of DEPLOYED skill-object
+    pictures sent after the place renders (V4; the caller sends them in that order — None: nothing, as before)."""
     from . import features               # S4.7: with the Subject Library the pictures may go unmarked — a sentence true either way
     from . import prompt_template as pt
     n = len(parts)
@@ -463,12 +653,19 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
     place_text = ""
     for k, place in enumerate(places or [], 1):
         targets = ", ".join(f"Shot {i}" for i in place["shots"])
+        if plate_view_on():              # V1 (rà gốc 13/10): the start frame decides framing + camera distance, not the render
+            place_text += _place_sentence(n + len(identities) + k, targets, place.get("view"))
+            continue
         place_text += (f" Image {n + len(identities) + k} is the PLACE render for {targets}: keep the buildings, tower, walls and ground "
                        "exactly as in this image throughout those shots, including during camera movement. "
                        "It decides architecture over conflicting text or storyboard details; people, outfits and starting framing "
                        "still follow their own references. Never move, add or remove a building.")
     for sent in scales or []:            # F5-A: measured sizes of the library objects (place_refs.object_scale_sentence, short)
         place_text += " " + sent.strip()
+    if objects:                          # V4: the DEPLOYED skill-object pictures (skill_objects.deployed_pictures), after the renders
+        from . import skill_objects
+        first = n + len(identities) + len(places or []) + 1
+        place_text += "".join(" " + skill_objects.deployed_line(first + k, ascii_name(name)) for k, (name, _) in enumerate(objects))
     # 6. rules
     rules = ("Any white banner or red mark on a reference picture is an annotation, never part of the video."
              if features.on("seedance_subjects") else
@@ -489,7 +686,7 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
     if scales and len(text) + max(int(reserve or 0), 0) > prompt_limit(model):
         # F5-A: the object sizes are the first thing to go when the prompt (+ `reserve`, e.g. the dialogue block added after) would pass
         # the model's limit — lint_group would block the whole send otherwise
-        return prompt(parts, identities, look, clip_seconds, model, places, None, reserve)
+        return prompt(parts, identities, look, clip_seconds, model, places, None, reserve, objects)
     return text
 
 
@@ -959,9 +1156,66 @@ def shot_motion(data: Dict, voice: bool = False, humans: Optional[Dict[str, bool
     ambient = prompt_formula.ambient_sentence(data)[0] if prompt_formula.ambient_on() else ""
     keep_back = (f"{', '.join(back)} stays with the back to the camera for the whole shot — the face is never seen, no turning around. "
                  if back else "")
+    keep_state = state_sentences(data) if state_lock_on() else ""   # V10: the state written in words wins over the identity picture
     return (start + (f"{action}. " if action else "") + (f"It ends with {end}. " if end else "")
-            + (f"Acting — {acting}.{guard} " if acting else "") + keep_back + (f"{talk} " if talk else "")
-            + (f"{ambient} " if ambient else "") + f"{camera} " + (body or "")).strip()
+            + (f"Acting — {acting}.{guard} " if acting else "") + keep_back + (f"{keep_state} " if keep_state else "")
+            + (f"{talk} " if talk else "") + (f"{ambient} " if ambient else "") + f"{camera} " + (body or "")).strip()
+
+
+# ---- V10 (rà gốc video #27 13/10, G10): a character STATE written only in words (Kelly a blurred ghost, shots 4–11) while the
+# identity picture is the normal look → the model drifted back to the picture by the end of the clip (shot 9 lost the ghost). With
+# flag character_state_lock: a lock sentence per state for the whole shot (code-written motion) + a VÀNG in the prompt formula that
+# the identity picture shows the normal look (prompt_formula.state_issues). The state comes from scenes.data["character_state"]
+# ({name: words}, set by a person / the Director) or from a clause that puts the state right after the name ("KELLY, a blurred
+# translucent ghost, …", "KELLY dạng bóng mờ") — never from a ghost / shadow that merely passes in the shot.
+_STATE_EN = (r"(?:(?:blurred|blurry|semi-transparent|translucent|see-through|faded|ghostly)\s+){1,3}(?:ghost|figure|form|body|silhouette)"
+             r"|(?:blurred|blurry)\s+ghost|ghost(?:ly)?\s+(?:form|state|body)")
+_STATE_VI = {"bóng mờ": "a blurred translucent ghost", "mờ ảo": "blurred and translucent", "trong suốt": "translucent",
+             "hồn ma": "a translucent ghost"}
+_STATE_LINK = r"(?:\s*[,(:—–-]\s*|\s+)(?:(?:is|as|in|a|an|the|still|now|stays|remains|dạng|ở|là|vẫn|trong|một|thành)\s+){0,3}"
+
+
+def state_lock_on() -> bool:
+    try:
+        from . import features
+        return features.on("character_state_lock")
+    except Exception:  # noqa: BLE001 - unreadable settings: the old behaviour (off)
+        return False
+
+
+def character_states(data: Dict) -> Dict[str, str]:
+    """{NAME without accents: English words of the state} of the characters of the shot (see the block comment above)."""
+    data = data or {}
+    cast = [str(n) for n in dict.fromkeys(data.get("characters") or []) if str(n).strip()]
+    out: Dict[str, str] = {}
+    given = data.get("character_state") if isinstance(data.get("character_state"), dict) else {}
+    for name, words in given.items():
+        words = str(words or "").strip()
+        en = _STATE_VI.get(words.lower(), words) if has_vietnamese(words) else words
+        if en and not has_vietnamese(en):
+            out[ascii_name(str(name))] = en.rstrip(".")
+    en_src = data.get("motion_en") if isinstance(data.get("motion_en"), dict) else {}
+    text = " | ".join(str(src.get(k) or "") for src in (data, en_src) for k in ("image_prompt", "blocking", "action", "start_frame"))
+    for name in cast:
+        key = ascii_name(name)
+        if key in out:
+            continue
+        forms = "|".join(re.escape(f) for f in dict.fromkeys((name, key)))
+        m = re.search(rf"(?<!\w)(?:{forms})(?:'s)?{_STATE_LINK}(?P<s>{_STATE_EN}|{'|'.join(map(re.escape, _STATE_VI))})(?!\w)",
+                      text, re.I)
+        if m:
+            found = m.group("s").lower()
+            state = _STATE_VI.get(found, found)
+            if re.search(r"(?:ghost|figure|form|body|silhouette)$", state) and not re.match(r"(?:a|an|the)\s", state):
+                state = "a " + state
+            out[key] = state
+    return out
+
+
+def state_sentences(data: Dict) -> str:
+    """The lock sentence of each state ('' when none)."""
+    return " ".join(f"{name} stays {state} for the whole shot, first to last frame — the identity picture shows the normal look; keep "
+                    f"this state, not the picture." for name, state in character_states(data).items())
 
 
 _STRONG = ((r"\b(extremely|insanely|wildly|utterly|incredibly|hysterically)\s+", ""), (r"\becstatic\b", "delighted"),

@@ -943,9 +943,10 @@ class VideoRunner(_Runner):
                 hosted = [path for _, path in pending["pictures"]]
                 if pending.get("mark_fallback"):
                     out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
-                    hosted = [seedance_refs.mark(path, out_dir, pending.get("mark_style", "eye_plus")) for path in hosted]
-                    if pending.get("scene_ids"):
-                        seedance_refs.note_sent(self.p.conn, pending["scene_ids"], pending.get("mark_style", "eye_plus"))
+                    style = pending.get("mark_style") or seedance_refs.mark_style(self.p.conn, pending.get("scene_ids") or [])
+                    hosted = [seedance_refs.mark(path, out_dir, style) for path in hosted]
+                    if pending.get("scene_ids"):     # rà S2 13/10 mục 6: the style really sent, never an assumed "eye_plus"
+                        seedance_refs.note_sent(self.p.conn, pending["scene_ids"], style)
             elif pending.get("scene_ids"):
                 seedance_refs.note_sent(self.p.conn, pending["scene_ids"], "hosted")
             pending["local"][:] = hosted
@@ -1774,7 +1775,8 @@ class VideoRunner(_Runner):
                                                        scales=_object_scales(conn, job["project_id"], rows),
                                                        reserve=(len(block) + 1 if block else 0)
                                                        + len(self._ref_end_sentence(job, group, len(rows) + len(ids) + len(places))) + 1
-                                                       + _skill_reserve()))
+                                                       + _skill_reserve(conn, job["project_id"], " ".join(p for p, _ in parts) + " "
+                                                                        + (model_fix(job["retry_reason"]) or ""))))
             if block:
                 motion += "\n" + block
         stretch = self._stretch(group) if setup else None
@@ -1925,10 +1927,6 @@ class VideoRunner(_Runner):
             from . import seedance_refs
             group = self._sends_group(job)
             ids = [r["id"] for r in group] if group else [job["scene_id"]]
-            if kind == REAL_PERSON and seedance_refs.step_mark_back(self.p.conn, ids):   # lỗi hệ thống 4 (cờ ref_mark_off_face)
-                self._diag(job, "warn", kind, f"Seedance từ chối (ảnh giống người thật) với dấu '+' ở góc ảnh → {len(ids)} shot gửi lại "
-                           "với dấu trên mắt + câu cấm vẽ dấu lên người")
-                return True
             data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
             step = seedance_refs.next_route(data, bool(group))
             seedance_refs.set_route(self.p.conn, ids, step)
@@ -2472,15 +2470,15 @@ def chain_previous(proj, scene_data) -> bool:
 _MINOR_AGE = re.compile(r"\b(?:[1-9]|1[0-7])[- ]?(?:-|\s)?years?[- ]old\b[,]?\s*", re.IGNORECASE)
 
 
-def _skill_reserve() -> int:
+def _skill_reserve(conn=None, project_id=None, text=None) -> int:
     from . import skill_objects                      # lỗi hệ thống 3: room for the ban sentence added after the prompt (0 when off)
-    return skill_objects.reserve()
+    return skill_objects.reserve(conn, project_id, text)   # rà S2 13/10 mục 7: skin room only with a skill object in the text
 
 
 def _skill_object_guard(runner, job, text: str, what: str, group=None) -> str:
     """Lỗi hệ thống 3 (#27 13/10, cờ skill_object_guard — tắt: trả nguyên văn): câu nói tới vật kỹ năng (tường keo…) bỏ từ model hiểu
-    thành vật thật (elevator/door/thang máy) + câu cấm (core/skill_objects); đã thay gì → ghi diag. Video: shot có vật kỹ năng mọc lên
-    → VÀNG gợi ý dựng bằng ghép code."""
+    thành vật thật (elevator/door/thang máy) + chữ tả quá trình mọc → "đã đứng sẵn" + câu cấm (core/skill_objects); đã thay gì → ghi
+    diag. Video: shot ném keo (tường XUẤT HIỆN LUÔN, người dùng 13/10 21:31) → VÀNG gợi ý dựng bằng ghép code cắt cứng."""
     from . import skill_objects
     if not skill_objects.enabled() or not text:
         return text
@@ -2496,8 +2494,9 @@ def _skill_object_guard(runner, job, text: str, what: str, group=None) -> str:
                                                                        .fetchone() or {"data": "{}"})["data"] or "{}")}]
         if any(skill_objects.rises(r["data"]) for r in rows):
             say(job, "warn", "skill_object_compose",
-                f"shot có {', '.join(names)} mọc lên — model video hay vẽ sai vật kỹ năng (#27 shot 16: 6 lần gen hỏng); gợi ý dựng bằng "
-                f"GHÉP code: clip người + khung cuối trồi lên + rung (`py {skill_objects.COMPOSE_TOOL}`)")
+                f"shot có {', '.join(names)} xuất hiện (ném keo) — tường xuất hiện luôn, prompt tả tường đã đứng sẵn đủ cao (không tả "
+                f"mọc); model video hay vẽ sai vật kỹ năng (#27 shot 16: 6 lần gen hỏng) → gợi ý dựng bằng GHÉP code: clip người cắt "
+                f"cứng sang khung cuối có tường + rung (`py {skill_objects.COMPOSE_TOOL}`)")
     return new
 
 

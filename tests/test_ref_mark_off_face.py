@@ -1,6 +1,6 @@
 """Lỗi hệ thống 4 (#27 13/10, cờ ref_mark_off_face): Seedance 2.5 chép dấu '+' đỏ của ảnh tham chiếu đánh dấu (Kho chủ thể đầy → gửi
 ảnh đánh dấu cũ, dấu trên mắt) lên mặt Kelly shot 8–9, 18. Cờ bật: dấu ở góc ảnh + câu cấm theo tên; bị từ chối 'người thật' →
-quay lại dấu trên mắt một lần (đổi đầu vào), rồi bậc tuyến cũ. Cùng chỗ: lỗi 3 (cờ skill_object_guard) trên prompt video thật.
+bậc tuyến cũ ngay (V5 13/10: không còn bước quay lại dấu trên mắt). Cùng chỗ: lỗi 3 (cờ skill_object_guard) trên prompt video thật.
 Không gọi API."""
 import json
 import os
@@ -63,7 +63,9 @@ class RefMarkOffFaceTest(unittest.TestCase):
         with mock.patch.dict(os.environ, OFF):
             self.assertNotIn("Never draw", seedance_refs.prompt([("Kelly runs.", 2.0)], [("KELLY", "k.png")]))
 
-    def test_real_person_refusal_goes_back_to_the_eye_mark_once_then_the_old_ladder(self):
+    def test_real_person_refusal_goes_down_the_ladder_never_back_to_the_eye_mark(self):
+        """V5 (rà gốc 13/10, G9): the old step back to the eye mark drew the plus onto the start frame's face (852/853/896) — a
+        refusal now goes straight down the route ladder; the corner mark and the ban sentence stay."""
         from core import model_router
         from core.adapters.clipai import REAL_PERSON
         with mock.patch.dict(os.environ, ON):
@@ -71,15 +73,13 @@ class RefMarkOffFaceTest(unittest.TestCase):
             self.p.conn.execute("UPDATE jobs SET model='seedance-2.5' WHERE id=?", (leader["id"],))
             self.assertEqual(seedance_refs.mark_style(self.p.conn, self.ids), "corner_plus")
             self.assertTrue(vr._on_refused(self.p.job(leader["id"]), REAL_PERSON, "may contain real person"))
-            self.assertEqual(seedance_refs.mark_style(self.p.conn, self.ids), "eye_plus")
+            self.assertEqual(seedance_refs.mark_style(self.p.conn, self.ids), "corner_plus")
             from core import shots
-            self.assertIsNotNone(shots.group_of(self.p.conn, self.ids[0]))     # still the group: only the mark changed
-            refs = vr._submit_kwargs(self.p.job(leader["id"]))["reference_only"]
-            self.assertTrue(all(p.endswith("_marked.png") for p in refs))
-            self.assertIn("Never draw a plus sign", vr._submit_args(self.p.job(leader["id"]))[1])
-            self.assertTrue(vr._on_refused(self.p.job(leader["id"]), REAL_PERSON, "may contain real person"))
-            self.assertIsNone(shots.group_of(self.p.conn, self.ids[0]))         # then the ladder as before
+            self.assertIsNone(shots.group_of(self.p.conn, self.ids[0]))         # the ladder at once
             self.assertIn("seedance", model_router.scene_choice(self.p.conn, self.ids[0])["model"])
+            refs = vr._submit_kwargs(self.p.job(leader["id"]))["reference_only"]
+            self.assertTrue(refs and all(p.endswith("_marked_corner_plus.png") for p in refs))
+            self.assertIn("Never draw a plus sign", vr._submit_args(self.p.job(leader["id"]))[1])
 
     def test_real_person_refusal_of_unmarked_subject_library_pictures_goes_down_the_ladder(self):
         """Rà gộp 13/10: ảnh đi qua Kho chủ thể (asset://, không dấu) bị từ chối 'người thật' → đổi dấu không đổi gì ở đầu vào
@@ -99,7 +99,7 @@ class RefMarkOffFaceTest(unittest.TestCase):
             self.assertEqual(seedance_refs.mark_style(self.p.conn, self.ids), "corner_plus")   # no mark step written
 
     def test_skill_object_guard_reaches_the_sent_motion(self):
-        """Lỗi 3 trên đường gửi video thật: câu về tường keo bỏ 'elevator/doors' + câu cấm; shot tường mọc lên → VÀNG gợi ý ghép."""
+        """Lỗi 3 trên đường gửi video thật: câu về tường keo bỏ 'elevator/doors' + câu cấm; shot ném keo → chữ "đã đứng sẵn" + VÀNG gợi ý ghép."""
         vr, leader = self._leader()
         sid = self.ids[0]
         self.p.conn.execute("UPDATE motion_prompts SET motion_prompt=? WHERE scene_id=?",
@@ -116,6 +116,8 @@ class RefMarkOffFaceTest(unittest.TestCase):
         self.assertNotIn("is a solid skill object", off)
         self.assertNotIn("elevator", on.lower())
         self.assertIn("grey flat panels", on)
+        self.assertNotIn("shoots up", on)                                  # tường xuất hiện luôn (13/10 21:31)
+        self.assertIn("already standing at full height", on)
         self.assertIn("is a solid skill object", on)
         codes = {r[0] for r in self.p.conn.execute("SELECT code FROM diag_events")}
         self.assertIn("skill_object_compose", codes)

@@ -3,6 +3,7 @@ Fixture là câu THẬT của #24 Teasing (bản cao 08/10) và #22 Khủng Long
 docs/RA_SOAT_TRUOC_GEN_LAI_24_2026-10-08.md mục 1)."""
 import copy
 import json
+import os
 import unittest
 from unittest import mock
 
@@ -387,3 +388,60 @@ class RunnerGate(unittest.TestCase):
 
     def test_clean_prompt_goes(self):
         self.assertIsNone(self.blocked(P22_CLEAN_IMAGE))
+
+
+# ---- V9 (rà gốc video #27 13/10, G11): diễn xuất lệch hành động / quá nhiều nhịp — cờ motion_consistency_lint ---------------------
+LINT_ON = {"FEATURE_MOTION_CONSISTENCY_LINT": "1"}
+LINT_OFF = {"FEATURE_MOTION_CONSISTENCY_LINT": "0"}
+# #27 s15 / s16 (chữ Đạo diễn, tóm gọn): shot 15 lấy bom keo ra, diễn xuất đã 'ném'; shot 16 mới ném
+S15 = {"action": "Kelly rút bom keo từ thắt lưng, nhìn về phía cổng", "duration_s": 2,
+       "performance": {"body": "vai căng, ném dứt khoát bằng một tay", "face": "mắt nheo lại"}}
+S16 = {"action": "Kelly ném bom keo, tường keo mọc lên ngay trước mặt", "duration_s": 2}
+# #27 s20: 1,5 s thụp → bật → chạy
+S20 = {"action": "Kelly thụp xuống → bật dậy → chạy về phía cổng", "duration_s": 1.5}
+# #27 s1: POV, diễn xuất cầm súng
+S1 = {"angle": "POV", "action": "the viewer looks around the plaza", "duration_s": 3,
+      "performance": {"body": "hands tense around the rifle grip, barrel trembling"}}
+
+
+class MotionConsistencyV9(unittest.TestCase):
+    def test_performance_bleed_from_next_shot_warns(self):
+        with mock.patch.dict(os.environ, LINT_OFF):
+            self.assertEqual(F.bleed_issues(S15, [("shot sau (#16)", S16)]), [])
+        with mock.patch.dict(os.environ, LINT_ON):
+            out = F.bleed_issues(S15, [("shot sau (#16)", S16)])
+            own = F.bleed_issues(S16, [("shot trước (#15)", S15)])      # shot 16 throws in its own action: no bleed
+        self.assertEqual([(i["level"], i["part"]) for i in out], [("warn", "nhat_quan")])
+        self.assertIn("throw", out[0]["msg"])
+        self.assertIn("shot sau (#16)", out[0]["msg"])
+        self.assertEqual(own, [])
+
+    def test_bleed_reaches_the_saved_formula_check(self):
+        p = Pipeline(connect())
+        pid = p.create_project("v9")
+        ids = [p.create_scene(pid, i + 1) for i in range(2)]
+        for sid, d in zip(ids, (S15, S16)):
+            p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), sid))
+        p.conn.commit()
+        with mock.patch.dict(os.environ, LINT_ON), mock.patch.object(F, "enabled", return_value=True):
+            F.after_director(p.conn, pid)
+        fc = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (ids[0],)).fetchone()["data"])["formula_check"]
+        self.assertIn("nhat_quan", [i["part"] for i in fc["motion"]])
+
+    def test_pov_performance_weapon_flagged(self):
+        out = F.pov_hand_issues("POV shot.", S1)                        # since 12/10: the acting counts too (ĐỎ)
+        self.assertEqual([i["level"] for i in out], ["red"])
+
+    def test_too_many_beats_for_seconds(self):
+        with mock.patch.dict(os.environ, LINT_OFF):
+            self.assertEqual(F.beat_issues(S20), [])
+        with mock.patch.dict(os.environ, LINT_ON):
+            out = F.beat_issues(S20)
+            fine = F.beat_issues(dict(S20, duration_s=4))
+            single = F.beat_issues({"action": "Kelly crouches behind the wall", "duration_s": 1})
+            lint = F.lint_motion("The clip starts exactly on the first image. Kelly drops. Static camera.", S20)
+        self.assertEqual([i["part"] for i in out], ["nhip"])
+        self.assertIn("3 nhịp trong 1.5 s", out[0]["msg"])
+        self.assertEqual(fine, [])
+        self.assertEqual(single, [])
+        self.assertIn("nhip", [i["part"] for i in lint])
