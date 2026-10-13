@@ -912,7 +912,7 @@ class VideoRunner(_Runner):
                 hosted = [path for _, path in pending["pictures"]]
                 if pending.get("mark_fallback"):
                     out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
-                    hosted = [seedance_refs.mark(path, out_dir) for path in hosted]
+                    hosted = [seedance_refs.mark(path, out_dir, pending.get("mark_style", "eye_plus")) for path in hosted]
             pending["local"][:] = hosted
         self._pregen_deferred = []
         return kwargs
@@ -1175,7 +1175,8 @@ class VideoRunner(_Runner):
                     out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
                     # the same treatment as the other pictures of this send: marked (real-person filter, P2m) or, with the Subject
                     # Library, an unmarked copy ≤ 1280 px; K3 checks the drawn file itself (`_last_frame_source`, never sent)
-                    out["last_frame"] = seedance_refs.mark(end, out_dir, style="none" if clean else "eye_plus")
+                    out["last_frame"] = seedance_refs.mark(end, out_dir, style="none" if clean else
+                                                           seedance_refs.mark_style(self.p.conn, [job["scene_id"]]))
                     out["_last_frame_source"] = end
             return out
         if group and mode != "multishot":
@@ -1362,12 +1363,14 @@ class VideoRunner(_Runner):
         extras += [(f"P{job['project_id']}_place_{k}", ref["path"]) for k, ref in enumerate(places, 1)]
         hosted = self._hosted_pictures(job, list(zip(labels, frames))
                                        + extras, clean=True)
+        style = seedance_refs.mark_style(conn, [r["id"] for r in rows])   # lỗi hệ thống 4: "eye_plus" unless ref_mark_off_face
         if hosted:
             if self.__dict__.get("_pregen_local"):
                 self._pregen_deferred[-1]["mark_fallback"] = True
+                self._pregen_deferred[-1]["mark_style"] = style
             return hosted
         out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
-        return [seedance_refs.mark(p, out_dir) for p in frames + [path for _, path in extras]]
+        return [seedance_refs.mark(p, out_dir, style) for p in frames + [path for _, path in extras]]
 
     subject_library = None          # S4.7: the Seedance Subject Library (tests set a double; else core.adapters.factory's)
 
@@ -1851,9 +1854,13 @@ class VideoRunner(_Runner):
         if self._refs(job):                  # P2m group -> Seedance per shot -> Kling (the person's order, 2026-09-27)
             from . import seedance_refs
             group = self._sends_group(job)
+            ids = [r["id"] for r in group] if group else [job["scene_id"]]
+            if kind == REAL_PERSON and seedance_refs.step_mark_back(self.p.conn, ids):   # lỗi hệ thống 4 (cờ ref_mark_off_face)
+                self._diag(job, "warn", kind, f"Seedance từ chối (ảnh giống người thật) với dấu '+' ở góc ảnh → {len(ids)} shot gửi lại "
+                           "với dấu trên mắt + câu cấm vẽ dấu lên người")
+                return True
             data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
             step = seedance_refs.next_route(data, bool(group))
-            ids = [r["id"] for r in group] if group else [job["scene_id"]]
             seedance_refs.set_route(self.p.conn, ids, step)
             why = "ảnh giống người thật" if kind == REAL_PERSON else "video có thể dính bản quyền"
             self._diag(job, "warn", kind, f"Seedance từ chối ({why}, dù ảnh đã đánh dấu) → {len(ids)} shot chuyển sang "
