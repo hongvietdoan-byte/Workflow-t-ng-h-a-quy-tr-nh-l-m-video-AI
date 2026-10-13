@@ -182,6 +182,29 @@ class AutoCleanupTests(unittest.TestCase):
         delivered.mark(self.conn, self.pid, "D:/out/x.mp4")
         self.assertEqual(self.lib.deleted, [])
 
+    def test_rejected_frame_that_is_the_source_of_a_kept_video_is_kept(self):
+        sid = self.conn.execute("SELECT scene_id FROM jobs WHERE id=?", (self.rej,)).fetchone()[0]
+        vid = self.p.create_job(sid, "video_gen")
+        self.conn.execute("UPDATE jobs SET state='approved', source_job_id=? WHERE id=?", (self.rej, vid))
+        self.conn.commit()
+        delivered.mark(self.conn, self.pid, "D:/out/x.mp4")
+        self.assertEqual(self.lib.deleted, [])
+
+    def test_asset_with_another_picture_row_that_is_not_a_rejected_frame_is_kept(self):
+        self.conn.execute("INSERT INTO seedance_subject_pictures (sha, name, asset_id, asset_uri, status, path) VALUES (?,?,?,?,?,?)",
+                          ("s1b", f"P{self.pid}_S1_frame_zzz", "asset-1", "asset://asset-1", "active",
+                           f"data/projects/{self.pid}/refs_clean/job_{self.ok}_zz_marked_none.png"))
+        self.conn.commit()
+        self.assertEqual(subjects.rejected_frame_assets(self.conn, self.pid), [])
+
+    def test_a_second_schedule_while_one_runs_for_the_project_is_skipped(self):
+        started = []
+        with mock.patch("core.place_refs._db_path", return_value="X:/fake.db"),                 mock.patch.object(subjects, "_spawn", side_effect=lambda fn: started.append(fn)):
+            self.assertTrue(subjects.schedule_auto_cleanup(self.conn, self.pid, "giao"))
+            self.assertFalse(subjects.schedule_auto_cleanup(self.conn, self.pid, "cất"))
+        self.assertEqual(len(started), 1)
+        subjects._RUNNING.discard(self.pid)
+
 
 if __name__ == "__main__":
     unittest.main()

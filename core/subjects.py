@@ -12,6 +12,7 @@ from .pipeline import Pipeline
 import json
 import os
 import re
+import threading
 
 GAMES_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "games.json")
 _DEFAULT_GAMES = [{"key": "FF", "label": "Free Fire (FF)", "covered": True},
@@ -355,18 +356,36 @@ def rejected_frame_assets(conn, project_id: int) -> List[Dict]:
     for r in rows:
         owners.setdefault(r["asset_id"], set()).update(_projects_of_picture(r["name"], r["path"]))
     linked = {r[0] for r in conn.execute("SELECT subject_asset_id FROM characters WHERE subject_asset_id IS NOT NULL")}
-    out, seen = [], set()
+    by_asset: Dict[str, List] = {}
     for r in rows:
-        aid = r["asset_id"]
-        m = _JOB_IN_FILE.match(os.path.basename((r["path"] or "").replace("\\", "/")))
-        if not m or aid in seen or aid in linked or owners.get(aid) != {project_id}:
+        by_asset.setdefault(r["asset_id"], []).append(r)
+    out = []
+    for aid, group in by_asset.items():
+        if aid in linked or owners.get(aid) != {project_id}:
             continue
-        job = conn.execute("SELECT 1 FROM jobs WHERE id=? AND project_id=? AND type='image_gen' AND state='rejected'",
-                           (int(m.group(1)), project_id)).fetchone()
-        if job is not None:
-            seen.add(aid)
-            out.append({"asset_id": aid, "name": r["name"], "job_id": int(m.group(1))})
+        jobs = []                                 # EVERY remembered picture of this asset must be a rejected frame — else it is kept
+        for r in group:
+            m = _JOB_IN_FILE.match(os.path.basename((r["path"] or "").replace("\\", "/")))
+            jid = int(m.group(1)) if m else None
+            if jid is None or not _rejected_unused_frame(conn, project_id, jid):
+                jobs = []
+                break
+            jobs.append((jid, r["name"]))
+        if jobs:
+            out.append({"asset_id": aid, "name": jobs[0][1], "job_id": jobs[0][0]})
     return out
+
+
+def _rejected_unused_frame(conn, project_id: int, job_id: int) -> bool:
+    """A rejected image_gen job of this project that no kept video was made from (jobs.source_job_id). Unsure → False (kept)."""
+    if conn.execute("SELECT 1 FROM jobs WHERE id=? AND project_id=? AND type='image_gen' AND state='rejected'",
+                    (job_id, project_id)).fetchone() is None:
+        return False
+    try:
+        used = conn.execute("SELECT 1 FROM jobs WHERE source_job_id=? AND state NOT IN ('rejected','failed')", (job_id,)).fetchone()
+    except Exception:  # noqa: BLE001 - an old database without jobs.source_job_id: cannot tell → keep
+        return False
+    return used is None
 
 
 def _cleanup_note(conn, project_id: int, severity: str, message: str) -> None:
@@ -402,8 +421,11 @@ def run_auto_cleanup(conn, project_id: int, why: str, library=None) -> Dict:
     return res
 
 
+_RUNNING_LOCK = threading.Lock()
+_RUNNING: set = set()                             # projects whose background cleanup is running (a 2nd delivery / put-away waits for next time)
+
+
 def _spawn(fn) -> None:
-    import threading
     threading.Thread(target=fn, name="subject-auto-cleanup", daemon=True).start()
 
 
@@ -420,6 +442,11 @@ def schedule_auto_cleanup(conn, project_id: int, why: str) -> bool:
             run_auto_cleanup(conn, project_id, why)
             return True
 
+        with _RUNNING_LOCK:
+            if project_id in _RUNNING:
+                return False
+            _RUNNING.add(project_id)
+
         def work():
             import sqlite3
             c = None
@@ -433,7 +460,12 @@ def schedule_auto_cleanup(conn, project_id: int, why: str) -> bool:
             finally:
                 if c is not None:
                     c.close()
-        _spawn(work)
+                _RUNNING.discard(project_id)
+        try:
+            _spawn(work)
+        except Exception:
+            _RUNNING.discard(project_id)
+            raise
         return True
     except Exception as e:  # noqa: BLE001 - never breaks the delivery / put-away
         try:
