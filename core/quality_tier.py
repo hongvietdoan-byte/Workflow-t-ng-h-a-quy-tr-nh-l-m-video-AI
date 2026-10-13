@@ -748,9 +748,16 @@ def running_draft_final_estimate(conn, pid: int, rows, pricing) -> Dict:
     _, ratio = _proj_ratio(conn, pid)
     by_scene = {r["scene_id"]: r for r in rows}
     jobs = conn.execute("SELECT * FROM jobs WHERE project_id=? AND type='video_gen' "
-                        "AND state='running' AND external_id IS NOT NULL AND external_id!='' ORDER BY id DESC", (pid,)).fetchall()
+                        "AND state IN ('running','approved') AND external_id IS NOT NULL AND external_id!='' ORDER BY id DESC", (pid,)).fetchall()
     covered, result = set(), {"usd": 0.0, "clips": 0, "seconds": 0.0, "finals_1080": 0, "warnings": [], "unknown": []}
     for job in jobs:
+        if job["state"] == "approved":
+            # Chỉ nháp hiện tại người đã duyệt, nâng được; final_only là cùng quyết định của quote.
+            if not cost.video_need(conn, job["scene_id"]).get("final_only"):
+                continue
+            draft = approved_draft(conn, job["scene_id"])
+            if draft is None or draft["id"] != job["id"]:
+                continue
         if job['quality_tier'] == 'draft' and job['group_leader']:
             leader = conn.execute("SELECT * FROM jobs WHERE id=? AND project_id=? AND type='video_gen'", (job['group_leader'], pid)).fetchone()
             if leader is not None and leader['external_id'] == job['external_id'] and leader['quality_tier'] == 'draft':
@@ -773,7 +780,7 @@ def running_draft_final_estimate(conn, pid: int, rows, pricing) -> Dict:
         if canonical == SAMPLE_MODEL:
             usd = upgrade_price(ratio, seconds)
             result["finals_1080"] += 1
-            result["warnings"].append(f"shot {job['scene_id']}: nháp đang chạy đã gửi tiền; chỉ cộng bản cao còn thiếu — {UPGRADE_UNMEASURED}")
+            result["warnings"].append(f"shot {job['scene_id']}: nháp đã gửi tiền; chỉ cộng bản cao còn thiếu — {UPGRADE_UNMEASURED}")
         else:
             model = members[0]["model"]
             res = final_resolution(model)
