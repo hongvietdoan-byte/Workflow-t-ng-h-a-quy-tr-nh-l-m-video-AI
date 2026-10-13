@@ -1,19 +1,45 @@
-# RÀ NHẸ Đ11 việc 1b mockup
+# Rà và sửa gộp Đ11 việc 1b mockup — 13/10/2026
 
-Phạm vi 9c được duyệt 13/10; không API/backend/dữ liệu thật. Registry stage/segment/state + actors ID ổn định là nguồn geometry, shot cameras nằm trong registry.shots. `scenes.beats` là accessor trực tiếp states, không sync mirror mỗi render. Bản Director ban đầu chỉ dùng so sánh.
+Phạm vi người dùng duyệt: 18 dòng mục 9/9c `THIET_KE_BAN_DUNG_3D_D11.md`; #12 preset và #20 JSON để sau. Chỉ HTML/JS/test/PNG offline, không backend, API, dữ liệu thật hoặc editor 2D riêng. Registry stage/segment/state/setup/shot là nguồn đang chỉnh; `scenes.beats` accessor vào states. Snapshot stage chỉ là revision giữ geometry của approved, không phải bản sao editor độc lập.
 
-- Test đầu đỏ: browser thiếu registry/bảng chọn vật. Sau bổ sung: kiểm Chrome 1440/1280, edit state và undo đồng nhất registry; viewer orbit/pan/zoom độc lập máy, H không đổi SVG export, camera lens/FOV, target, keyframe/timeline/play, drag, diff setup, approved, layers, nhập phím, đề xuất cảnh sau.
-- Đo thực bằng browser trên prototype c5544891 và mới, cùng fixture 3 shot: đổi lens hai shot chưa duyệt rồi xem máy. Baseline 5 thao tác, mới 5 (fill+change tính một thao tác). Chưa chứng minh giảm bấm; thêm diff đổi cách kiểm hơn là tuyên bố tiết kiệm.
-- `related_areas.py`: chỉ dashboard_ui, không caller production; test chậm UI bắt buộc ở bước gộp. Assets/test đã khai areas, giữ version71.
-- Tự rà 2b.5: không test nới assert; file URL tuyệt đối; browser context mới, chặn mọi request ngoài file; env test thay dict giả trước subprocess và tự teardown; không đọc API/data. Không hành vi autopilot/hàng loạt/cờ production nào thay.
-- PNG cập nhật có chủ ý sau chạy script tay, pytest dùng tmp_path.
+## Một vòng sửa sau rà độc lập
 
-Giới hạn: projection SVG proxy, không Blender mesh/ray/LOD/collision/QC thật. Map và ảnh nguồn thiếu báo UNKNOWN; clay/stand_in preview_only, gửi thật tắt. Che/partial/lộ là fixture theo giây, không đo tia. Preset/JSON để sau; Director/solver/Kho/provider tắt. Keyframe chỉ kéo mốc mặc định, chưa curve/thêm/xóa. Orbit/pan là viewer local, chưa chống xuyên map. RAM mất khi refresh được ghi ngay header. Chưa chạy cả bộ/ca production, chưa gộp/push.
+1. P2 drag: bỏ deltaXY/34; client→SVG bằng inverse CTM và inverse yaw/pitch/zoom của viewer. World axis lock/snap áp sau inverse. Actor/camera kéo về mốc đang chọn; nét hướng mặt không chặn chọn.
+2. P2 keyframe: giới hạn từng mốc bởi hàng xóm và khoảng cách 0,1 s; luôn start < peak < end, tránh chia 0.
+3. P2 timeline: Director/camera/export dùng chung sampler state theo giây; pose đổi ở mốc, máy nội suy theo start/end đã kéo. Nhãn chuyển động/cỡ cảnh/góc là yêu cầu solver, chưa xây đường mới.
+4. P2 diff: giữ shot_id/setup_id/point, revision và snapshot nguồn; đổi shot/setup/point hoặc sửa đầu vào hủy pending. Confirm chặn revision cũ; setup diff liệt kê trước/sau từng shot, approved chỉ VÀNG. Undo phục hồi states/shot/setup/stage/snapshot cùng nhau.
+5. P2 target: actor_id resolve trên state đang sample, hướng pinhole bám mắt fixture; nhập yaw/pitch quay về manual. Numeric endpoint đưa thời gian về đúng mốc đang chỉnh.
 
-## Đối chiếu đúng bảng mục 9
+## Đối chiếu 18 dòng bản gọn đã duyệt
 
-Các dòng #3 (nền/map/phông xanh), #4 (ánh sáng), #10 (vật thể Kho/stand_in): mockup hiện chỉ nhãn nguồn UNKNOWN và giếng/tường fixture có provenance; CHƯA có điều khiển phông xanh, ánh sáng, đạo cụ chi tiết. Đây là phần còn thiếu, không coi việc1b hoàn tất đủ18mục.
+| Dòng | Hiện có và giới hạn |
+|---|---|
+| #1 | Fixture Director dựng sẵn ba shot, không dựng cảnh trống |
+| #2 | Preview máy nổi thu/phóng, cùng shot/khung/safe area, hướng/mm; xuất SVG projection `preview_only` |
+| #3 | Chọn nền fixture/phông xanh, source_asset_id; map/panorama thật thiếu UNKNOWN, không tải panorama |
+| #4 | Giờ/thời tiết nguồn + azimuth nâng cao; nét hướng/overlay minh họa, không đo/render ánh sáng |
+| #5 | Hai setup có camera khác nhau + ba shot độc lập; setup→shot có danh sách/diff |
+| #6 | XYZ/yaw/pitch/mm↔FOV/sensor/aspect, target actor_id; cỡ cảnh/góc là yêu cầu solver, roll nâng cao chưa hỗ trợ có lý do |
+| #7 | Chép hướng viewer/dán máy/về snapshot Director fixture đều diff/xác nhận; giữ actor/state/approved; solver chưa nối tắt |
+| #8 | Hai cast actor_id cố định, nguồn chiều cao fixture; XYZ/hướng mặt; không scale người |
+| #9 | Đứng/bò/lùi theo đầu/đỉnh/cuối BYĐ; pose proxy chưa đo cơ thể thật |
+| #10 | Chọn đạo cụ object_id fixture, chỉnh XY/rộng/sâu/cao qua registry.stage.objects + provenance; stand_in chỉ viewer, không xuất/gửi; không ghi Kho |
+| #11 | Một nút phát proxy dùng cùng timeline #17 |
+| #13 | Bảng lớp/source gửi; thiếu map/source UNKNOWN, provider/Director/Kho thật tắt |
+| #14 | V/R/F/T/Q/Esc/Undo/←→, bảng chọn vật/máy; S chỉ kích thước, Del cảnh báo; bỏ qua phím trong input |
+| #15 | Viewer yaw/pitch/pan ngang/zoom độc lập máy, T/Q/F, nhớ theo scene; SVG world projection fixture, chưa chống xuyên map |
+| #16 | Registry setup + danh sách shot, diff/revision/undo; approved giữ snapshot, không trần 10 hardcode; chưa đo danh sách lớn |
+| #17 | Mốc BYĐ mặc định kéo theo giây, monotonic, cùng sampler; thêm/xóa/curve/K để sau |
+| #18 | Clay/map/source với nhãn nguồn/preview_only; render/map/Blender/LOD/ray thật chưa nối |
+| #19 | hidden/partial/visible theo giây là fixture, ray/QC UNKNOWN; H chỉ viewer, không xuất; adapter prompt/ref thật để sau |
 
-#5 nhiều camera: 2 setup + 3 shot camera riêng; #6 numeric: xyz/yaw/pitch/lens/FOV sensor/aspect/target; #8 actor: 2 actor_id/chiều cao nguồn/không scale; #9 pose: đứng/bò/lùi 3beats; #11 hoạt ảnh: phát proxy cùng timeline; #13 gói gửi: bảng lớp/source, nút provider tắt; #14 phím: V/R/F/T/Q/Esc/Undo/arrows và Sreadonly/Del disabled; #15 viewer: orbit/pan/zoom độc lập shot; #16 setup: diff trước áp, approved VÀNG; #17 keyframe: kéo mốc mặc định; #18 map/clay: lớp proxy/source UNKNOWN và nhãn preview_only; #19 H/visibility: fixturehidden/partial/visible theo giây, H không export. #12/#20 để sau đúng duyệt.
+Sửa stage dùng chung chỉ tác động shot chưa duyệt; approved resolve stage snapshot revision đã giữ. Đây là fence fixture cục bộ, không thay thế revision/ACL/change_review production. RAM mất khi refresh ghi ngay header. Chưa chạy ca production.
 
-Preview panel đã chuyển overlay nổi trên viewer, tự ẩn khi ở góc camera để tránh hai khung camera trùng. #1/#2/#7 cần root đối chiếu lại bảng gốc trong vòng sửa mới nếu còn yêu cầu chưa thể hiện; không tuyên bố hoàn tất18mục. Test cuối sau floating 2passed13.17s, QA1440/1280 console0/overflow0. Không tự triển khai backend.
+## Bằng chứng
+
+- Đỏ trước: thêm các hồi quy browser bắt lỗi đã rà và điều khiển thiếu; `test_mockup_ban_dung_d11.py`: **1 failed, 1 passed / 9,03 s** trên bản trước sửa.
+- Xanh cuối: **3 passed / 50,00 s**, hai ca môi trường giả thiếu/có credential giả + test nơi ghi ảnh. Môi trường subprocess thay dict trước runtime/imports; không in/so credential; pytest monkeypatch tự teardown. HTML chỉ registry/model fixture; context Chrome mới, mọi request ngoài file bị chặn, không dùng profile người dùng.
+- Browser: actor/camera drag 16 tổ hợp yaw0/90 × pitch30/90 × zoom0,7/1,4; world-axis-lock; numeric camera endpoint có hiệu ứng; keyframe monotonic/sampler; target ở tâm pinhole; pending ID/revision; approved shot/SVG bất biến khi stage đổi; props/undo; baseline/diff/undo.
+- QA Chrome 1440/1280 hai góc: **console0 / overflow0**. Bốn PNG `docs/images/d11/ban_dung_*.png` recapture có chủ ý sau xanh; pytest luôn ảnh thư mục tạm.
+- Baseline c5544891 và bản mới cùng fixture đổi lens hai shot + xem máy: **5/5 thao tác**, chưa chứng minh giảm bấm, không gán tiết kiệm giả.
+- related_areas: chỉ dashboard_ui, không caller production; **test chậm UI bắt buộc ở bước gộp**. File đã khai areas, giữ version71. Không chạy cả bộ, không gộp/push/main.

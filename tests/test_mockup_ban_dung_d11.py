@@ -1,19 +1,25 @@
 """Chạy tương tác offline thật; không cần DB, mạng hay hồ sơ Chrome người dùng."""
 import os
 from pathlib import Path
-import shutil
-import subprocess
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_browser_stage_editor(tmp_path, monkeypatch):
+@pytest.mark.parametrize("with_fake_credentials", [False, True])
+def test_browser_stage_editor(tmp_path, monkeypatch, with_fake_credentials):
     # Cách ly toàn bộ môi trường trước lookup/runtime; teardown phục hồi nguyên trạng.
     monkeypatch.setattr(os, "environ", {"SYSTEMROOT": "C:/Windows", "WINDIR": "C:/Windows",
                                       "USERPROFILE": "C:/Users/hongviet.doan",
                                       "TEMP": str(tmp_path), "TMP": str(tmp_path)})
+    if with_fake_credentials:
+        os.environ.update({"ANTHROPIC_API_KEY": "fixture-not-a-key", "OPENAI_API_KEY": "fixture-not-a-key",
+                           "D11_MODEL_REGISTRY": "fixture-only"})
+    # Các module chạy/lookup chỉ import sau dict giả; monkeypatch teardown cả hai ca.
+    import shutil
+    import subprocess
+
     assert (ROOT / "mockup/ban_dung_3d.html").is_file(), "thiếu màn bàn dựng"
     node = shutil.which("node")
     bundled = Path.home() / ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe"
