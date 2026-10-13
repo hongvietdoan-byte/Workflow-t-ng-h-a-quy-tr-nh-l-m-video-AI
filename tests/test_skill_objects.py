@@ -1,5 +1,6 @@
 """Lỗi hệ thống 3 (#27 13/10, cờ skill_object_guard): skin Gloowall OB55 'cửa thang máy' → model video vẽ thang máy thật. Chữ thật lấy
 từ job 909 / scenes 284–287 của #27 (CSDL sản xuất, đọc). Dữ liệu giả, không gọi API."""
+import json
 import os
 import shutil
 import tempfile
@@ -112,6 +113,57 @@ class SkillObjectTest(unittest.TestCase):
         self.assertNotIn("cửa thang máy", ctx)
         self.assertIn("tường dạng tấm phẳng kim loại xám", ctx)
         self.assertIn("VẬT KỸ NĂNG", ctx)
+
+    def test_guard_keeps_skin_reference_not_plain_metal(self):
+        """V4 (rà gốc 13/10, G8): 'metal-panel skin' made job 908 a plain steel slab — the skin is a pattern, taken from a picture."""
+        with mock.patch.dict(os.environ, ON):
+            new = skill_objects.guard_prompt(self.conn, self.pid, JOB_909)[0]
+            mapped = skill_objects.guard_prompt(self.conn, self.pid, skill_objects.deployed_line(5, "Bom keo") + " " + JOB_909)[0]
+        self.assertNotIn("metal-panel skin", new)
+        self.assertIn("patterned skin glue wall", new)
+        self.assertIn("The Bom keo skin is a printed surface pattern on one solid block", new)
+        self.assertIn("skin pattern shown in Image 5 glue wall", mapped)     # the DEPLOYED picture of the prompt is pointed at
+        self.assertIn("The Bom keo skin is the pattern shown in Image 5", mapped)
+        for word in ("elevator", "door", "lift"):
+            self.assertNotIn(word, mapped.lower())
+        with mock.patch.dict(os.environ, ON):
+            self.assertEqual(skill_objects.guard_prompt(self.conn, self.pid, new)[0].count("printed surface pattern"), 1)
+
+    def _rising_scene(self):
+        sid = self.p.create_scene(self.pid, 1)
+        self.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"action": JOB_909, "shot_no": 1}), sid))
+        self.conn.commit()
+        return sid
+
+    def test_rising_skill_object_without_deployed_picture_blocks(self):
+        from core import prompt_formula
+        sid = self._rising_scene()
+        with mock.patch.dict(os.environ, OFF):
+            self.assertEqual(skill_objects.send_issues(self.conn, self.pid, {"action": JOB_909}), [])
+            self.assertFalse([x for x in prompt_formula.red_issues(self.conn, sid, "motion") if "TRIỂN KHAI" in x])
+        with mock.patch.dict(os.environ, ON):
+            red = skill_objects.send_issues(self.conn, self.pid, {"action": JOB_909})
+            standing = skill_objects.send_issues(self.conn, self.pid, {"image_prompt": SCENE_285})
+            blocked = [x for x in prompt_formula.red_issues(self.conn, sid, "motion") if "TRIỂN KHAI" in x]
+            image_side = [x for x in prompt_formula.red_issues(self.conn, sid, "image") if "TRIỂN KHAI" in x]
+        self.assertEqual([i["level"] for i in red], ["red"])
+        self.assertEqual(red[0]["suggest"]["route"], "compose")
+        self.assertIn(skill_objects.COMPOSE_TOOL, red[0]["msg"])
+        self.assertEqual(standing, [])                                     # the wall already standing: the start frame shows it
+        self.assertEqual(len(blocked), 1)                                  # the clip is held before paying
+        self.assertEqual(image_side, [])                                   # the start picture is not held for it
+        # the Kho gets a picture of the wall deployed → no stop, and the picture goes with the shot
+        aid = self.conn.execute("SELECT id FROM assets WHERE name='Bom keo'").fetchone()["id"]
+        pic = os.path.join(self.tmp, "tuong_keo.png")
+        from PIL import Image
+        Image.new("RGB", (400, 400), (90, 90, 90)).save(pic)
+        self.conn.execute("INSERT INTO asset_images (asset_id, path, label, status) VALUES (?,?,?, 'approved')",
+                          (aid, pic, "Tường keo dạng triển khai (skin Gloowall OB55)"))
+        self.conn.commit()
+        with mock.patch.dict(os.environ, ON):
+            self.assertEqual(skill_objects.send_issues(self.conn, self.pid, {"action": JOB_909}), [])
+            pics = skill_objects.deployed_pictures(self.conn, self.pid, [{"data": {"action": JOB_909}}])
+        self.assertEqual(pics, [("Bom keo", pic)])
 
     def test_composite_rises_from_the_bottom_then_shakes_and_holds(self):
         h, w = 40, 20

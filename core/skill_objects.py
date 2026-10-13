@@ -24,8 +24,11 @@ _EN_FIXES: List[Tuple[re.Pattern, object]] = [
     (re.compile(r"(?<!\w)(?:an?\s+)?(?:elevator|lift)[- ]?doors?(?:[- ]style)?(?:\s+(panels?))?(?!\w)", re.I),
      lambda m: ("" if not re.match(r"an?\s", m.group(0), re.I) else "a ") + "flat "
      + (m.group(1) or ("panels" if re.search(r"doors(?!\w)", m.group(0), re.I) else "panel"))),
-    (re.compile(r"(?<!\w)(?:an?\s+)?(?:elevator|lift)[- ](?:skin|style)(?!\w)", re.I),
-     lambda m: ("" if not re.match(r"an?\s", m.group(0), re.I) else "a ") + "metal-panel skin"),
+    # V4 (rà gốc 13/10, G8): "metal-panel skin" made job 908 a plain steel wall (skin lost) — the skin is a PATTERN, said so; the
+    # pattern itself comes from a picture (skin_sentence / DEPLOYED picture), never from metal words
+    (re.compile(r"(?<!\w)(?:an?\s+)?(?:elevator|lift)[- ](skin|style)(?!\w)", re.I),
+     lambda m: ("" if not re.match(r"an?\s", m.group(0), re.I) else "a ") + ("patterned skin" if m.group(1).lower() == "skin"
+                                                                              else "patterned")),
     (re.compile(r"(?<!\w)(?:an\s+)?elevators?(?!\w)", re.I),
      lambda m: ("a " if re.match(r"an\s", m.group(0), re.I) else "") + "metal-panel"),
     (re.compile(r"(?<!\w)doorways?(?!\w)", re.I), lambda m: "panel"),
@@ -151,17 +154,113 @@ def guard_prompt(conn, project_id: Optional[int], text: str) -> Tuple[str, List[
     named, generic = _present_names(conn, project_id, text)
     if not named and not generic:
         return text, [], []
-    names = _names_of([a for a in skill_assets(conn, project_id) if a["name"] in named])
+    items = [a for a in skill_assets(conn, project_id) if a["name"] in named]
+    names = _names_of(items)
     new, removed = sanitize(text, names)
+    shown = deployed_marker(new)
+    if shown:                                   # V4: the prompt maps a DEPLOYED picture → the skin is the one shown there
+        new = re.sub(r"(?<!\w)patterned skin(?!\w)", f"skin pattern shown in Image {shown}", new)
     sentence = forbid_sentence(named or ["the glue wall"])
     if sentence not in new:
         new = new.rstrip() + ("\n" if "\n" in new else " ") + sentence
+    skin = skin_sentence(items, new, removed, shown)
+    if skin and skin not in new:
+        new = new.rstrip() + " " + skin
     return new, removed, named or ["glue wall"]
 
 
+# ---- V4 (rà gốc video #27 13/10, G8): the skin needs a PICTURE of the deployed object, words alone swap one fault for another ----
+# 891: "elevator" words → a real lift (doors open); 908: the words replaced by metal words → a plain steel slab, skin gone. The only
+# picture sent was the grenade (Bom keo 1.png). Formula: the Kho keeps a picture of the object DEPLOYED (the wall standing, with its
+# skin) — an asset picture whose label / variant / file name says "triển khai" / "deployed"; it goes as a reference picture with the
+# line `deployed_line` ("Image N is the DEPLOYED …") and the skin words point at it. A shot where the object APPEARS (rises) without
+# such a picture is a ĐỎ before sending (send_issues), with the code-composite route suggested.
+_DEPLOYED = ("trien khai", "deployed")
+_DEPLOYED_RX = re.compile(r"Image (\d+) is the DEPLOYED ")
+
+
+def deployed_marker(text: str) -> Optional[int]:
+    m = _DEPLOYED_RX.search(text or "")
+    return int(m.group(1)) if m else None
+
+
+def deployed_line(number: int, name: str) -> str:
+    return (f"Image {number} is the DEPLOYED {name} as it stands once it has appeared: copy its shape, height and skin; the surface "
+            f"pattern of Image {number} is printed decoration on one solid block.")
+
+
+def deployed_images(asset: Dict) -> List[Dict]:
+    """The asset's pictures of the object deployed (label / variant / file name says "triển khai" / "deployed", accents ignored)."""
+    from . import assets
+    out = []
+    for img in asset.get("images") or []:
+        words = " " + assets.fold(" ".join(str(img.get(k) or "") for k in ("label", "variant")) + " "
+                                  + os.path.splitext(os.path.basename(str(img.get("path") or "")))[0].replace("_", " ")) + " "
+        if any(" " + w + " " in words for w in _DEPLOYED):
+            out.append(img)
+    return out
+
+
+def deployed_pictures(conn, project_id: Optional[int], rows: Sequence[Dict]) -> List[Tuple[str, str]]:
+    """[(Kho name, path)] — one DEPLOYED picture per skill object the shots speak of (flag off / none: [])."""
+    if not enabled():
+        return []
+    from . import prop_lock
+    text = " ".join(prop_lock.shot_text(r.get("data") or {}) for r in rows)
+    named, _ = _present_names(conn, project_id, text)
+    out = []
+    for a in skill_assets(conn, project_id):
+        pics = deployed_images(a) if a["name"] in named else []
+        if pics and os.path.exists(pics[0]["path"]):
+            out.append((a["name"], pics[0]["path"]))
+    return out
+
+
+def skin_sentence(items: Sequence[Dict], text: str, removed: Sequence[str], shown: Optional[int]) -> str:
+    """'' unless the text speaks of the object's SKIN (the word 'skin', or its picture variant) — then where the skin comes from."""
+    from . import prop_lock
+    variant = next((v for a in items for v in [prop_lock.chosen_variant(a, text)] if v), None)
+    if not variant and not re.search(r"(?<!\w)skin(?!\w)", text or "", re.I):
+        return ""
+    from .seedance_refs import ascii_name           # the video prompt is English only (lint_group blocks Vietnamese letters)
+    label = ascii_name(variant or (items[0]["name"] if items else "glue wall"))
+    if shown:
+        return f"The {label} skin is the pattern shown in Image {shown}: printed on one solid block, never separate metal plates."
+    return f"The {label} skin is a printed surface pattern on one solid block, never separate metal plates."
+
+
+def send_issues(conn, project_id: Optional[int], data: Dict) -> List[Dict]:
+    """ĐỎ before a CLIP is sent (prompt_formula.red_issues, kind 'motion'): the skill object appears in the shot and the Kho has no
+    DEPLOYED picture of it — the model draws the skin from words (891 lift / 908 plain steel). [] when off / nothing found."""
+    if not enabled() or not data:
+        return []
+    from . import prop_lock
+    text = prop_lock.shot_text(data)
+    motion = data.get("motion_en") or {}
+    if isinstance(motion, dict):
+        text += " " + " ".join(str(v) for v in motion.values() if isinstance(v, str))
+    named, generic = _present_names(conn, project_id, text)
+    if not named and not generic:
+        return []
+    items = [a for a in skill_assets(conn, project_id) if a["name"] in named]
+    if not rises(data, _names_of(items)):
+        return []
+    missing = [a["name"] for a in items if not deployed_images(a)]   # no Kho object attached: issues() says VÀNG (compose), not here
+    if not missing:
+        return []
+    return [{"level": "red", "part": "dao_cu", "suggest": compose_plan(data),
+             "msg": f"shot có {', '.join(missing)} mọc lên mà Kho chưa có ảnh DẠNG TRIỂN KHAI (tường đã dựng, đúng skin; nhãn ảnh ghi "
+                    "'triển khai') — model video sẽ vẽ skin theo chữ (891 thang máy thật, 908 tấm thép trơn). Thêm ảnh đó vào Kho, "
+                    f"hoặc dựng bằng GHÉP code (`{COMPOSE_TOOL}`): clip người + khung cuối trồi lên + rung"}]
+
+
+SKIN_ROOM = 140                     # V4: the skin sentence (skin_sentence) added after the ban sentence
+
+
 def reserve() -> int:
-    """Characters the send may add after a model-limited prompt is built (the ban sentence + a longer name); 0 when off."""
-    return len(FORBID) + 40 if enabled() else 0
+    """Characters the send may add after a model-limited prompt is built (the ban sentence + a longer name + the skin sentence);
+    0 when off."""
+    return len(FORBID) + 40 + SKIN_ROOM if enabled() else 0
 
 
 def rises(data: Dict, names: Sequence[str] = ()) -> bool:
