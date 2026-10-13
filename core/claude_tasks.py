@@ -784,6 +784,58 @@ def _src_key(item) -> str:
     return hashlib.sha1(json.dumps(item, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:12]
 
 
+FRESH_FLAG = "end_state_fresh"
+
+
+def fresh_on() -> bool:
+    from . import features
+    try:
+        return features.on(FRESH_FLAG)
+    except KeyError:
+        return False
+
+
+def _translate_item(d: Dict) -> Dict:
+    """The Vietnamese fields of a shot that translate_motion_fields sends (the same item its `motion_en_src` is made from)."""
+    item = {k: d[k] for k in TRANSLATE_KEYS if d.get(k) and _vi(d[k])}
+    perf = d.get("performance") if isinstance(d.get("performance"), dict) else {}
+    pv = {k: perf[k] for k in TRANSLATE_PERF if perf.get(k) and _vi(perf[k])}
+    if pv:
+        item["performance"] = pv
+    return item
+
+
+def stale_en_keys(d: Dict) -> List[str]:
+    """Lỗi 6 (#27, 13/10, cờ end_state_fresh): the keys of `motion_en` whose translation no longer belongs to the Director's field —
+    end_state (or action / performance) edited after the translation. Such a key must not be sent as if current: seedance_refs._en
+    then reads the field itself (Vietnamese → untranslated() holds the prompt until translated again; English written by a person →
+    used as written). Per field when the translation stored `motion_en_src_fields`; an older translation is judged by its
+    `motion_en_src` (the whole item, the rule translate_motion_fields re-translates by); no record → trusted as before.
+    An EMPTIED field keeps its translation (a hand-written motion_en with no source, #27 sessions) — said here, not guessed."""
+    en = d.get("motion_en") if isinstance(d.get("motion_en"), dict) else {}
+    per = d.get("motion_en_src_fields") if isinstance(d.get("motion_en_src_fields"), dict) else None
+    item = None
+    out = []
+    for key in TRANSLATE_KEYS + ("performance",):
+        if not en.get(key):
+            continue
+        cur = d.get(key)
+        if key == "performance":
+            cur = cur if isinstance(cur, dict) and any(cur.get(k) for k in TRANSLATE_PERF) else None
+        if not cur:
+            continue
+        if item is None:
+            item = _translate_item(d)
+        if key not in item:                       # the field is English now (a person wrote it) → the old translation is not it
+            out.append(key)
+        elif per is not None and key in per:
+            if per[key] != _src_key(item[key]):
+                out.append(key)
+        elif d.get("motion_en_src") and d["motion_en_src"] != _src_key(item):
+            out.append(key)
+    return out
+
+
 def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
     """Review 2026-09-27: 28/33 motion prompts of #8 carried Vietnamese (the Director's `action` and some `performance`), and how far
     Seedance follows Vietnamese is not measured. ONE call translates only the Vietnamese fields of every shot into short English for a
@@ -881,6 +933,8 @@ def translate_motion_fields(p: Pipeline, project_id: int, client) -> int:
             en["performance"] = {**{k: base.get(k) for k in TRANSLATE_PERF if base.get(k)}, **fields["performance"]}
         d["motion_en"] = en
         d["motion_en_src"] = _src_key(todo[idx])               # the Vietnamese this translation came from (changed → again)
+        if fresh_on():                                         # lỗi 6: per field, so one edited field is told apart (stale_en_keys)
+            d["motion_en_src_fields"] = {k: _src_key(v) for k, v in todo[idx].items()}
         words = [str(w) for w in (amb.get(idx) or []) if str(w).strip()] if isinstance(amb.get(idx), list) else []
         if words:                                              # KLD-32: said aloud, the person picks the meaning (Kho picture)
             d["motion_en_ambiguous"] = words

@@ -238,6 +238,10 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
     c6, c7 = st.columns([4, 1])
     blocking = c6.text_input("🧍 Vị trí nhân vật (blocking)" + lk("blocking"), d.get("blocking") or "", key=f"{k}_blocking",
                              help="Ai đứng bên trái/giữa/phải khung, tiền/hậu cảnh, nhìn về đâu. Các cảnh cùng nhóm giữ nguyên bên trái/phải.")
+    from core import claude_tasks as _ct            # lỗi 6 (#27, cờ end_state_fresh): khung cuối đọc end_state — sửa được tại đây
+    end_state = st.text_input("🏁 Trạng thái cuối shot (khung cuối)" + lk("end_state"), d.get("end_state") or "", key=f"{k}_end",
+                              help="Khoảnh khắc cuối clip: ai ở đâu, tư thế gì. Đổi → khung cuối + motion hiện ⚠ cũ; bản dịch tiếng Anh cũ "
+                                   "không gửi (dịch lại khi bấm 'Viết motion prompt').") if d.get("shot_no") and _ct.fresh_on() else None
     seq_value = d.get("sequence") if isinstance(d.get("sequence"), int) else 0
     sequence = c7.number_input("Nhóm cảnh" + lk("sequence"), min_value=0, value=seq_value, step=1, key=f"{k}_seq",
                                help="Các cảnh liên tiếp cùng nơi, liền mạch dùng chung 1 số (0 = không nhóm).")
@@ -317,6 +321,8 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
         if perf is not None:
             fields["performance"], fields["why"] = perf, why_text
         fields.update(camera)
+        if end_state is not None and end_state.strip() != (d.get("end_state") or "").strip():
+            fields["end_state"] = end_state          # only a real edit: an untouched box never writes "" / locks end_state
         if char_names:
             fields["characters"] = cast
         if act(lambda: llm_io.update_scene(p, pid, idx, fields, text=text), f"Đã lưu cảnh {idx}"):

@@ -191,11 +191,15 @@ def pronunciation() -> Dict[str, str]:
         return {}
 
 
-def speakable(text: str, words: Optional[Dict[str, str]] = None) -> str:
+def speakable(text: str, words: Optional[Dict[str, str]] = None, keep=()) -> str:
     """The text sent to TTS: English game words and names written the way a Vietnamese voice should say them (whole words,
-    any case). The subtitles keep the original text."""
+    any case). The subtitles keep the original text. Flag tts_lowercase_caps (lỗi 9, #27): Vietnamese words in capitals are
+    lowered first ("BÌNH TĨNH" was read "bình tỉnh"); `keep` = names / game words left as written (tts_caps.keep_words)."""
     import re
     words = pronunciation() if words is None else words
+    from . import tts_caps
+    if tts_caps.enabled():
+        text = tts_caps.lower_caps(text, list(keep) + list(words))
     for src in sorted(words, key=len, reverse=True):
         text = re.sub(r"(?<![\w])" + re.escape(src) + r"(?![\w])", words[src], text, flags=re.IGNORECASE)
     return text
@@ -300,7 +304,11 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
                  "text": ln["text"], "voice_id": ln["voice"]["voice_id"], "dialogue": True, "resends": resends}
         if pitch:
             extra["pitch_semitones"] = pitch                 # pitched after download (audio_lib.refresh → voice_casting.render_pitch)
-        said = speakable(ln["text"])
+        from . import tts_caps                                 # lỗi 9 (cờ tts_lowercase_caps): chữ IN HOA tiếng Việt sai thanh
+        caps_keep = tts_caps.keep_words(conn, project_id) if tts_caps.enabled() else ()
+        said = speakable(ln["text"], keep=caps_keep)
+        if tts_caps.enabled() and tts_caps.lower_caps(ln["text"], caps_keep) != ln["text"]:
+            extra["caps_lowered"] = True                     # rule 1: said (the label keeps the text sent, subtitles the capitals)
         if slow and ln["scene_id"] in slow:
             said = slow_end(said)
             extra["slow_end"] = True

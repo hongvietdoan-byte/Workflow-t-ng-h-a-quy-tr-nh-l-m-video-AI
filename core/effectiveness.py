@@ -69,12 +69,18 @@ def _first_pass(conn, project_id: int, job_type: str) -> Dict:
             "tries_per_scene": sum(s["tries"] for s in done) / len(done)}
 
 
+# hold markers written into qc_results with score 0.0 (qc_scene / qc_observe: scene_qc_hold; pipeline._framing_hold: framing_hold) —
+# a "kept for a person" sign, never a score: left out of every AVG(score)
+HOLD_MARKERS_SQL = "('scene_qc_hold','framing_hold')"
+
+
 def _agreement(conn, project_id: int) -> Dict:
     """QC agent verdict (mean score >= the threshold of the time) vs the person's decision, on pictures that have both."""
     rows = conn.execute(
         "SELECT j.id, AVG(q.score) AS score, MAX(q.threshold_at_time) AS threshold,"
         " (SELECT r.decision FROM review_log r WHERE r.job_id=j.id AND r.reviewer_type='user' AND COALESCE(r.note, '') NOT LIKE '[thử tự động]%' ORDER BY r.id DESC LIMIT 1) AS person"
-        " FROM jobs j JOIN qc_results q ON q.job_id=j.id WHERE j.project_id=? AND j.type='image_gen' GROUP BY j.id",
+        " FROM jobs j JOIN qc_results q ON q.job_id=j.id WHERE j.project_id=? AND j.type='image_gen'"
+        f" AND q.criterion NOT IN {HOLD_MARKERS_SQL} GROUP BY j.id",
         (project_id,)).fetchall()
     both = [r for r in rows if r["person"]]
     if not both:
@@ -99,6 +105,7 @@ def look_trust(conn, look: Optional[str], image_model: Optional[str]) -> Dict:
         " (SELECT r.decision FROM review_log r WHERE r.job_id=j.id AND r.reviewer_type='user' AND COALESCE(r.note, '') NOT LIKE '[thử tự động]%' ORDER BY r.id DESC LIMIT 1) AS person"
         " FROM jobs j JOIN qc_results q ON q.job_id=j.id JOIN projects pr ON pr.id=j.project_id"
         " WHERE j.type='image_gen' AND COALESCE(pr.look,'')=COALESCE(?,'') AND COALESCE(pr.image_model,'')=COALESCE(?,'')"
+        f" AND q.criterion NOT IN {HOLD_MARKERS_SQL}"
         " GROUP BY j.id", (look, image_model)).fetchall()
     both = [r for r in rows if r["person"]]
     if not both:

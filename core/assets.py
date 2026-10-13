@@ -1969,13 +1969,15 @@ def context_text(conn, project_id: int) -> str:
         also = f" (tên khác: {a['aliases']})" if a["aliases"].strip() else ""
         pics = f" — có {len(a['images'])} ảnh tham khảo" if a["images"] else ""
         own, web = split_web(a["description"])
+        from . import skill_objects                     # lỗi hệ thống 3 (cờ skill_object_guard): no "thang máy/cửa" to the Director
+        own = skill_objects.director_description(a, own) if own else own
         own_brief = _brief(own) if own else ""
         desc = f": {own_brief}" if own_brief else ""
         if web:                                          # same total budget as before: the website part gets what the own text left
             web_lines.append(f"- {a['name']}: {_brief(web, max(CONTEXT_DESC_CHARS - len(own_brief), 120))}")
         ident = f" (id {a['id']})" if a["kind"] == "location" and a["images"] else ""
         worn = " — trang phục để nhân vật mặc, không phải nhân vật (không thêm vào Character Bible)" if a["kind"] == "outfit" else ""
-        lines.append(f"- [{a['kind_label']}] **{a['name']}**{ident}{also}{desc}{pics}{worn}")
+        lines.append(f"- [{a['kind_label']}] **{a['name']}**{ident}{also}{desc}{pics}{worn}{skill_objects.director_note(a)}")
     news = _news_for(conn, items)
     site = ("\n\n## Mô tả từ website chính thức (ff.garena.com) của các mục trên\n"
             + external_block("ff.garena.com — mô tả mục Kho", "\n".join(web_lines))) if web_lines else ""

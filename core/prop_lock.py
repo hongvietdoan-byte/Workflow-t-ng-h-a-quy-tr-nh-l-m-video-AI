@@ -518,9 +518,12 @@ def clean_prompt(conn, project_id: int, data: Dict, text: str):
 
 def issues(conn, project_id: int, data: Dict) -> List[Dict]:
     """VÀNG (never a stop): the shot says a common word of a kind with several project props of that kind and names none — not
-    guessed; a locked prop without any description in the Kho."""
+    guessed; a locked prop without any description in the Kho. Lỗi hệ thống 3 (cờ riêng skill_object_guard): + VÀNG vật kỹ năng
+    (core/skill_objects.issues — từ dễ hiểu sai, gợi ý ghép code) — [] khi cờ đó tắt."""
+    from . import skill_objects
+    skill = skill_objects.issues(conn, project_id, data) if project_id is not None else []
     if not enabled() or project_id is None:
-        return []
+        return skill
     pool, words, _text, generic = _scan(conn, project_id, data)
     holders = _holders(conn, project_id, data, pool)
     out = []
@@ -642,7 +645,7 @@ def issues(conn, project_id: int, data: Dict) -> List[Dict]:
                 out.append({"level": "warn", "part": "dao_cu",
                             "msg": f"chữ shot tả {lk['asset']['name']} bằng màu/chất liệu khác ({', '.join(said)}) mà món khóa ở dạng "
                                    f"mặc định ({lk['form'][:60]}) — câu khóa đè lên, nên sửa chữ shot cho khỏi mâu thuẫn"})
-    return out
+    return out + skill
 
 
 def prompt_part(conn, project_id: int, data: Dict) -> str:

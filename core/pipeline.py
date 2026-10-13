@@ -505,9 +505,12 @@ class Pipeline:
         if hard:                                  # a wrong face / broken hands cannot be averaged away by good lighting
             issues = ("Tiêu chí chặn cứng dưới mức sàn: " + ", ".join(hard) + (f". {issues}" if issues else ""))
         suffix = f" — {issues}" if issues else ""
+        framing = self._framing_hold(job, measured)     # lỗi hệ thống 2 (cờ framing_guard — off: None, nothing written)
+        if framing:
+            suffix = f" — {framing}{suffix}"
         if self._draft_suggest_only(job):
             return self._draft_suggest(job, scores, threshold, overall, hard, soft, suffix)
-        passed = overall >= threshold and not hard
+        passed = overall >= threshold and not hard and not framing
         auto = proj["operating_mode"] == "auto"
         floor = proj["qc_review_floor"]
         review_zone = auto and not passed and floor is not None and overall >= floor
@@ -521,6 +524,8 @@ class Pipeline:
                  ("fail" if too_low else "pass" if passed else "review" if review_zone else "fail") if auto
                  else ("fail" if too_low else None)))
         self.conn.commit()
+        if framing:                               # never approved by itself, never regenerated with the same input (rule 6)
+            return self._hold(job_id, f"QC {overall:.2f}{suffix}"[:2000])
         hold = None if passed else self._no_auto_retry(job, scores, threshold, fix, measured)
         if qc is None:                            # S14.17 rà (c): what the Director reads before rewriting (picture QC and clip QC)
             low = [f"{k} {v:.2f}" for k, v in scores.items() if v < threshold]
@@ -549,6 +554,36 @@ class Pipeline:
         if hold:
             return self._hold(job_id, f"QC {overall:.2f} < {threshold} — {hold}{suffix}")
         return self.reject(job_id, "ai_agent", f"QC {overall:.2f} < {threshold}{suffix}", fix=fix, qc=qc)
+
+    FRAMING_CODE = "framing_guard"
+
+    def _framing_hold(self, job, measured: Optional[dict]) -> Optional[str]:
+        """Lỗi hệ thống 2 (#27 13/10, cờ framing_guard, core/framing_guard.py): the clip changed its layout (frame 0 off the approved
+        start picture, the camera pulled back / pushed in, the person jumped, a cut inside) → why (Vietnamese, with the numbers and
+        what to change), a `framing_hold` row in qc_results (the autopilot reads it: autopilot._flag_reasons) and one RED diag line.
+        Not measured → said (VÀNG), not blocked. None: flag off / not a clip / nothing wrong."""
+        if job["type"] != "video_gen":
+            return None
+        from . import diag, framing_guard
+        if not framing_guard.enabled():
+            return None
+        fr = measured.get("framing") if isinstance(measured, dict) else None
+        where = dict(code=self.FRAMING_CODE, project_id=job["project_id"], scene_id=job["scene_id"], job_id=job["id"])
+        if not isinstance(fr, dict):
+            diag.record(self.conn, "video", "warn", f"Clip job {job['id']}: chưa đo được bố cục (lớp đo 0 không chạy — thiếu OpenCV / lỗi "
+                        "đọc clip) — không chặn, cần xem bằng mắt khung đầu ↔ ảnh đã duyệt", **where)
+            return None
+        if fr.get("flag"):
+            why = f"ĐỎ đo khung hình: {fr.get('why')}; {fr.get('suggest') or ''} — không tự duyệt, cần bạn xem"
+            self.conn.execute("INSERT INTO qc_results (job_id, criterion, score, threshold_at_time, auto_decision) VALUES (?,?,?,?,?)",
+                              (job["id"], "framing_hold", 0.0, 1.0, "hold"))
+            self.conn.commit()
+            diag.record(self.conn, "video", "error", f"Clip job {job['id']}: {why}", **where)
+            return why
+        if fr.get("measured") is False or fr.get("frame0_measured") is False:
+            diag.record(self.conn, "video", "warn", f"Clip job {job['id']}: chưa đo được bố cục đủ — {fr.get('note') or 'không rõ'} "
+                        "— không chặn, cần xem bằng mắt", **where)
+        return None
 
     def _draft_suggest_only(self, job) -> bool:
         """A draft clip under flag two_tier_quality: the machine QC only suggests (người dùng 08/10, #24)."""

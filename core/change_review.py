@@ -262,9 +262,20 @@ def build_prompt(conn, ev, keys: List[str], scene_ids: List[int], code_found: Li
         d = _loads(row[1])
         fields = {k: d.get(k) for k in ("characters", "size", "angle", "camera_move", "action", "blocking", "image_prompt", "motion_en",
                                         "end_state", "dialogue", "stage_camera", "plate_view") if d.get(k) not in (None, "", [], {})}
+        # Lỗi 5 (#27 shot 16, 13/10): MỘT nguồn sự thật cho khâu motion = motion prompt GỬI ĐI (motion_prompts). motion_en chỉ là bản
+        # dịch trường Đạo diễn mà code dùng để VIẾT prompt — người sửa tay prompt thì motion_en còn tả bản cũ, agent so bản cũ → giữ
+        # oan. Có prompt → hiện prompt, bỏ motion_en; chưa có → motion_en (nguồn của bản code sắp viết).
+        try:
+            mp = conn.execute("SELECT motion_prompt, state FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone()
+        except Exception:  # noqa: BLE001 - a bare database without the motion table: motion_en as before
+            mp = None
+        if mp is not None and str(mp[0] or "").strip():
+            fields.pop("motion_en", None)
+            fields["motion_prompt"] = f"[{'đã duyệt' if mp[1] == 'approved' else 'chờ duyệt'}] {mp[0]}"
         L.append(f"### shot {row[0]} (id {sid}){' ← shot vừa đổi' if sid == ev['scene_id'] else ''}")
         labels = {"blocking": "khung đầu", "image_prompt": "khung đầu", "action": "đầu → đỉnh → cuối",
                   "motion_en": "đầu → đỉnh → cuối", "end_state": "khung cuối"} if frames else {}
+        labels = {**labels, "motion_prompt": "bản GỬI ĐI cho model video"}
         L += [f"- {k}{' (' + labels[k] + ')' if k in labels else ''}: {_short(v, 500)}" for k, v in fields.items()]
         if frames:
             if d.get("duration_s") is not None:

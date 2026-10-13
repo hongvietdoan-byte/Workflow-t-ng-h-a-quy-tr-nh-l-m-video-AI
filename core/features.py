@@ -34,8 +34,18 @@ FEATURES: Dict[str, Dict] = {
     "layout_from_follow": {"label": "Shot giữ bố cục (continuity_from): chờ ảnh shot nguồn, thử mẫu kéo shot nguồn, ảnh nguồn vẽ lại → ⚠ cũ", "verified": False,
         "why": "Hộp thư 12/10 19:17: #27 shot 15/17 giữ bố cục theo shot 18 — gửi trước ảnh nguồn thì thiếu ảnh bố cục; nguồn vẽ lại không báo cũ. "
                "TỐN TIỀN khi bật: ảnh ⚠ cũ được chạy tự động / ▶ Gen ảnh vẽ lại (ảnh + motion + clip mỗi shot giữ bố cục)"},
+    "framing_guard": {"label": "Giữ bố cục video: khung cuối khác khoảng cách máy → không gửi (VÀNG); clip đổi bố cục / lùi máy / "
+                               "cắt cảnh / người nhảy vọt → ĐỎ, không tự duyệt (đo OpenCV, 0 USD)", "verified": False,
+        "why": "13/10 #27 lỗi hệ thống 2: shot 17 Seedance lùi máy + vẽ mặt đồng hồ ×3 (QC chấm 1,00), shot 16 khung cuối Kelly ở xa → "
+               "nhảy cóc; ngưỡng đặt trên clip thật #27, chưa chạy trong sản xuất (core/framing_guard.py)"},
     "back_view_guard": {"label": "Shot quay lưng: motion bỏ tả mặt/mắt + câu 'giữ lưng về máy cả shot' (0 USD)", "verified": False,
         "why": "13/10 #27 shot 4: motion tả 'lips pressed / slow blink' cho Kelly quay lưng → Seedance quay mặt cô ra máy giữa shot"},
+    "end_state_fresh": {"label": "Sửa end_state: ô sửa ở Bước 1/3 + bản dịch motion_en cũ của trường đã sửa không gửi im lặng (dịch lại qua sổ chi)",
+        "verified": False,
+        "why": "13/10 #27 lỗi 6: end_state sửa mà motion_en.end_state vẫn là bản dịch cũ → prompt code viết gửi trạng thái cuối cũ, tự duyệt"},
+    "tts_lowercase_caps": {"label": "TTS: hạ chữ thường từ tiếng Việt viết IN HOA trước khi gửi (giữ tên/từ game; phụ đề giữ chữ gốc, 0 USD)",
+        "verified": False,
+        "why": "13/10 #27 lỗi 9: 'BÌNH TĨNH' đọc thành 'bình tỉnh' (đo F0); viết thường thì đúng thanh — mới thử tay 1 câu"},
     "send_claim": {"label": "Giữ chỗ gửi job trong CSDL — 2 tiến trình (script + Dashboard) không gửi trùng một job (0 USD)", "verified": False,
         "why": "Hộp thư 12/10 19:58: #27 job 776 gửi 2 lần (script + vòng nền), Deepix tạo 2 task; khóa lượt chỉ trong một tiến trình"},
     "locomotion_end_frame": {"label": "Shot chạy/đi: không gửi khung cuối vẽ khi clip sinh dài hơn shot × 1,3 + câu mốc cảnh vật khi máy bám theo (0 USD)",
@@ -554,6 +564,20 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Lỗi thật #27 (12/10): Kho gắn SKORP + Bom keo mà ảnh ra AK / tường keo mỗi shot một kiểu. Chưa chạy thật — bật rồi "
                "gen 1 shot rẻ để so",
+    },
+    "skill_object_guard": {
+        "label": "Vật kỹ năng (tường keo…): prompt ảnh + motion bỏ từ dễ hiểu sai (elevator/door/thang máy/cửa) → tả hình dạng/chất "
+                 "liệu + câu cấm; Kho đưa Đạo diễn kèm lưu ý; shot vật kỹ năng mọc lên → VÀNG gợi ý dựng bằng GHÉP code (0 USD)",
+        "verified": False,
+        "why": "Lỗi hệ thống 3 #27 (13/10): skin Gloowall OB55 'cửa thang máy' → model vẽ thang máy thật (cửa mở, nhìn xuyên, người "
+               "đứng trong), shot 16 gen 6 lần hỏng, giao bằng ghép code. Chưa gen thật với chữ mới",
+    },
+    "ref_mark_off_face": {
+        "label": "Ảnh tham chiếu đánh dấu gửi Seedance: dấu '+' đỏ đặt ở GÓC ảnh (không trên mặt) + luôn kèm câu cấm dấu/chữ thập trên "
+                 "mặt, đầu, người (0 USD)",
+        "verified": False,
+        "why": "Lỗi hệ thống 4 #27 (13/10): Kho chủ thể đầy → gửi ảnh đánh dấu cũ (dấu + trên mắt) → Seedance 2.5 chép dấu lên mặt "
+               "Kelly shot 8–9, 18. Kiểu corner_plus chưa thử qua bộ lọc người thật",
     },
     "two_tier_quality": {
         "label": "Video 2 bậc chất lượng: shot phức tạp / chưa rõ gen NHÁP 480p trước (gen lại ≤ 2), người duyệt rồi 'Gen bản cao' "

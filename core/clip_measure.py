@@ -460,6 +460,12 @@ def measure(clip: str, picture: Optional[str] = None, audio: Optional[str] = Non
         out["look"] = look_drift(clip, picture)
     out["motion"] = jerks(clip)
     out["ref_mark"] = ref_mark(clip)
+    from . import framing_guard
+    if framing_guard.enabled():              # lỗi hệ thống 2 (#27): đổi bố cục / lùi máy / cắt cảnh — off: this key never appears
+        try:
+            out["framing"] = framing_guard.clip_framing(clip, picture, cuts=out["motion"].get("cuts"))
+        except Exception as e:  # noqa: BLE001 - a measuring problem is said (VÀNG in apply_qc), never a silent pass
+            out["framing"] = {"flag": None, "measured": False, "note": f"lỗi khi đo bố cục: {e}"}
     if speaking:
         lips = lip_sync(clip, audio, turns)
         if "turns" not in lips:              # no landmark model / no face / no voice: say why, keep the old numbers (not a check)
