@@ -1700,7 +1700,8 @@ class VideoRunner(_Runner):
             motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model, places=places,
                                                        scales=_object_scales(conn, job["project_id"], rows),
                                                        reserve=(len(block) + 1 if block else 0)
-                                                       + len(self._ref_end_sentence(job, group, len(rows) + len(ids) + len(places))) + 1))
+                                                       + len(self._ref_end_sentence(job, group, len(rows) + len(ids) + len(places))) + 1
+                                                       + _skill_reserve()))
             if block:
                 motion += "\n" + block
         stretch = self._stretch(group) if setup else None
@@ -1719,6 +1720,7 @@ class VideoRunner(_Runner):
         if removed:
             self._diag(job, "info", "look_words_removed",
                        "look in-game Free Fire: đã gỡ chữ kéo về tả thực khỏi prompt video — " + ", ".join(removed))
+        motion = _skill_object_guard(self, job, motion, "video", group)   # lỗi hệ thống 3 (cờ skill_object_guard)
         motion = self._gore_restraint(job, proj, motion, group, model)
         lock = looks.video_sentence(proj)                       # S4.3: the look in every video prompt (#8: an anime close-up)
         if lock and lock not in motion:
@@ -2387,6 +2389,35 @@ def chain_previous(proj, scene_data) -> bool:
 
 
 _MINOR_AGE = re.compile(r"\b(?:[1-9]|1[0-7])[- ]?(?:-|\s)?years?[- ]old\b[,]?\s*", re.IGNORECASE)
+
+
+def _skill_reserve() -> int:
+    from . import skill_objects                      # lỗi hệ thống 3: room for the ban sentence added after the prompt (0 when off)
+    return skill_objects.reserve()
+
+
+def _skill_object_guard(runner, job, text: str, what: str, group=None) -> str:
+    """Lỗi hệ thống 3 (#27 13/10, cờ skill_object_guard — tắt: trả nguyên văn): câu nói tới vật kỹ năng (tường keo…) bỏ từ model hiểu
+    thành vật thật (elevator/door/thang máy) + câu cấm (core/skill_objects); đã thay gì → ghi diag. Video: shot có vật kỹ năng mọc lên
+    → VÀNG gợi ý dựng bằng ghép code."""
+    from . import skill_objects
+    if not skill_objects.enabled() or not text:
+        return text
+    conn = runner.p.conn
+    new, removed, names = skill_objects.guard_prompt(conn, job["project_id"], text)
+    say = getattr(runner, "_diag_once", None) or getattr(runner, "_diag", None)
+    if names and say:
+        say(job, "info", "skill_object_words",
+            f"vật kỹ năng {', '.join(names)}: prompt {what} thêm câu cấm (không cửa mở / không nhìn xuyên / không ai đứng trong)"
+            + (" + thay từ dễ hiểu sai: " + ", ".join(removed) if removed else ""))
+    if what == "video" and names and say:
+        rows = group or [{"id": job["scene_id"], "data": json.loads((conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],))
+                                                                       .fetchone() or {"data": "{}"})["data"] or "{}")}]
+        if any(skill_objects.rises(r["data"]) for r in rows):
+            say(job, "warn", "skill_object_compose",
+                f"shot có {', '.join(names)} mọc lên — model video hay vẽ sai vật kỹ năng (#27 shot 16: 6 lần gen hỏng); gợi ý dựng bằng "
+                f"GHÉP code: clip người + khung cuối trồi lên + rung (`py {skill_objects.COMPOSE_TOOL}`)")
+    return new
 
 
 def no_minor_age(text: str) -> str:
@@ -3085,6 +3116,7 @@ class ImageRunner(_Runner):
                     f"job {job['id']}: ảnh khóa KHÔNG có trong gói gửi cuối (trần ảnh / bộ lọc): " + ", ".join(missing)
                     + " — sửa gói tham chiếu trước gen; model chỉ nhận mô tả chữ" if missing else f"job {job['id']}: gói gửi cuối không thiếu ảnh khóa")
         prompt = prop_lock.match_refs(prompt, refs)
+        prompt = _skill_object_guard(self, job, prompt, "ảnh")          # lỗi hệ thống 3 (cờ skill_object_guard)
         if lost and hasattr(self, "_diag"):
             self._diag(job, "warn", "missing_reference", "ảnh render 3D của shot không gửi được — bỏ câu khóa nền theo render, quay về "
                                                          "câu địa điểm bằng chữ")
