@@ -330,9 +330,7 @@ class ChangeReview(unittest.TestCase):
         self.addCleanup(os.environ.pop, "FEATURE_CHANGE_REVIEW_MOTION", None)
         self.assertTrue([i for i in BR._review_items(self.p.conn, self.pid) if "1 thay đổi đang chờ Tổ rà soát" in i["text"]])
 
-    def test_director_rewrite_event_handling(self):
-        # R14 (mặc định chờ người dùng quyết): bản viết lại TỰ ĐỘNG motion prompt của Đạo diễn không bị rà (không giữ, 0 lời gọi);
-        # người sửa tay motion prompt sau đó vẫn được rà như thường
+    def _rewrite_setup(self):
         os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "1"
         self.addCleanup(os.environ.pop, "FEATURE_CHANGE_REVIEW_MOTION", None)
         from core import prompt_rewrite as PR
@@ -342,16 +340,93 @@ class ChangeReview(unittest.TestCase):
         self.p.conn.commit()
         jid = self.p.create_job(sid, "video_gen")
         job = self.p.conn.execute("SELECT * FROM jobs WHERE id=?", (jid,)).fetchone()
-        PR.save_rewrite(self.p, job, PR.RewriteResult("slow push in, Kelly turns", ["thêm quay người"], "QC", 0, "push in"))
+        return PR, sid, job
+
+    def test_director_rewrite_is_reviewed_now_and_green_sends_at_once(self):
+        # C1 (người dùng 14/10 bật R14, sửa tối ưu): bản motion máy tự viết lại được rà NGAY tại chỗ (một lời gọi, nhãn change_review)
+        # — xanh thì không còn thay đổi chờ, lần gen lại không bị giữ tới vòng nền sau
+        PR, sid, job = self._rewrite_setup()
+        client = FakeClient({"muc": []})
+        with mock.patch.object(PR, "client_for", return_value=client):
+            PR.save_rewrite(self.p, job, PR.RewriteResult("slow push in, Kelly turns", ["thêm quay người"], "QC", 0, "push in"))
         self.assertEqual(PR.current_prompt(self.p.conn, sid, "video"), "slow push in, Kelly turns")
+        self.assertEqual(len(client.calls), 1)
+        self.assertEqual(client.tags[0][0], CR.STAGE)
         self.assertEqual([e for e in self.pending() if e["kind"] == "motion"], [])
         self.assertIsNone(CR.blocking(self.p.conn, sid))
-        client = FakeClient({"muc": []})
-        CR.process_pending(self.p.conn, self.tmp, client=client)
-        self.assertEqual(client.calls, [])
-        self._motion(sid, "hand edit")                                               # người sửa tay: vẫn rà
-        self.assertEqual(len([e for e in self.pending() if e["kind"] == "motion"]), 1)
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))      # vòng nền không rà lại lần nữa
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM change_events WHERE kind='motion' AND state='reviewed'")
+                         .fetchone()[0], 1)
 
+    def test_director_rewrite_red_holds_with_reason(self):
+        PR, sid, job = self._rewrite_setup()
+        ans = {"muc": [{"khau": "motion", "shot": 2, "quan_sat": "lech", "muc_do": "do", "ly_do": "bỏ mất trạng thái cuối 'đứng sau tường'"}]}
+        with mock.patch.object(PR, "client_for", return_value=FakeClient(ans)):
+            PR.save_rewrite(self.p, job, PR.RewriteResult("slow push in, Kelly turns", ["thêm quay người"], "QC", 0, "push in"))
+        reason = CR.blocking(self.p.conn, sid)
+        self.assertIsNotNone(reason)
+        self.assertIn("trạng thái cuối", reason)
+
+    def test_director_rewrite_red_gets_one_more_rewrite_then_sends(self):
+        # ĐỎ → Đạo diễn viết lại thêm MỘT lần với lời Tổ rà soát làm ghi chú; bản hai xanh → gửi được
+        PR, sid, job = self._rewrite_setup()
+        red = {"muc": [{"khau": "motion", "shot": 2, "quan_sat": "lech", "muc_do": "do", "ly_do": "bỏ mất trạng thái cuối"}]}
+        answers = iter([red, {"muc": []}])
+
+        class Seq(FakeClient):
+            def complete(self, prompt, images=()):
+                self.answer = next(answers)
+                return super().complete(prompt, images)
+        client = Seq(None)
+        second = PR.RewriteResult("slow push in, Kelly turns, ends behind the wall", ["giữ trạng thái cuối"], "Tổ rà soát", 0,
+                                  "slow push in, Kelly turns")
+        with mock.patch.object(PR, "client_for", return_value=client), \
+                mock.patch.object(PR, "propose_rewrite", return_value=second) as again:
+            plan = PR.Plan(self.p, job, "Fix: x", PR.RewriteResult("slow push in, Kelly turns", ["thêm quay người"], "QC", 0, "push in"),
+                           "x")
+            plan.apply()
+        self.assertEqual(again.call_count, 1)
+        self.assertIn("trạng thái cuối", again.call_args.kwargs.get("fix") or "")
+        self.assertEqual(PR.current_prompt(self.p.conn, sid, "video"), "slow push in, Kelly turns, ends behind the wall")
+        self.assertEqual(len(client.calls), 2)
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+
+    def test_director_rewrite_red_on_image_stage_does_not_rewrite_motion_again(self):
+        # ĐỎ thuộc khâu ảnh / nền: viết lại motion lần hai vô ích → không gọi, runner giữ kèm lý do như thường
+        PR, sid, job = self._rewrite_setup()
+        red = {"muc": [{"khau": "anh", "shot": 2, "quan_sat": "lech", "muc_do": "do", "ly_do": "ảnh khung đầu sai nền"}]}
+        with mock.patch.object(PR, "client_for", return_value=FakeClient(red)), \
+                mock.patch.object(PR, "propose_rewrite") as again:
+            PR.Plan(self.p, job, "Fix: x", PR.RewriteResult("slow push in, Kelly turns", ["x"], "QC", 0, "push in"), "x").apply()
+        again.assert_not_called()
+        self.assertIn("ảnh khung đầu sai nền", CR.blocking(self.p.conn, sid) or "")
+
+    def test_director_rewrite_without_claude_does_not_hold_and_says_so(self):
+        # không gọi được Claude → luật code chạy, thay đổi thành 'code_only' (không giữ gen), VÀNG nói rõ — không im lặng
+        PR, sid, job = self._rewrite_setup()
+        with mock.patch.object(PR, "client_for", return_value=None):
+            PR.save_rewrite(self.p, job, PR.RewriteResult("slow push in, Kelly turns", ["thêm quay người"], "QC", 0, "push in"))
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+        self.assertEqual(self.p.conn.execute("SELECT state FROM change_events WHERE kind='motion' ORDER BY id DESC").fetchone()[0],
+                         "code_only")
+        self.assertTrue(self.p.conn.execute("SELECT 1 FROM diag_events WHERE code='rewrite_review_noclaude'").fetchone())
+
+    def test_director_rewrite_not_reviewed_when_motion_flag_off(self):
+        # cờ change_review_motion tắt: như trước — không rà, không gọi Claude, không giữ
+        from core import prompt_rewrite as PR
+        sid = self.ids[1]
+        self._motion(sid, "push in")
+        self.p.conn.execute("UPDATE change_events SET state='skipped'")
+        self.p.conn.commit()
+        jid = self.p.create_job(sid, "video_gen")
+        job = self.p.conn.execute("SELECT * FROM jobs WHERE id=?", (jid,)).fetchone()
+        client = FakeClient({"muc": []})
+        with mock.patch.object(PR, "client_for", return_value=client):
+            PR.save_rewrite(self.p, job, PR.RewriteResult("slow push in, Kelly turns", ["thêm quay người"], "QC", 0, "push in"))
+        self.assertEqual(client.calls, [])
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+        self._motion(sid, "hand edit")                                               # người sửa tay: vẫn ghi để rà khi bật cờ
+        self.assertEqual(len([e for e in self.pending() if e["kind"] == "motion"]), 1)
 
 if __name__ == "__main__":
     unittest.main()

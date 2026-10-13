@@ -50,6 +50,11 @@ class RewriteResult:
     removed_words: List[str] = field(default_factory=list)
 
 
+# C1 (rà soát R14 — người dùng 14/10 chọn BẬT): khi cờ change_review_motion bật, bản motion prompt Đạo diễn TỰ viết lại trước lần gen
+# lại cũng qua Tổ rà soát — rà NGAY tại chỗ (không chờ vòng nền), xanh gửi luôn; ĐỎ → viết lại thêm MỘT lần (Plan.apply) rồi mới giữ.
+REVIEW_AUTO_REWRITE = True
+
+
 def enabled() -> bool:
     return features.on(FLAG)
 
@@ -202,7 +207,9 @@ def build_prompt(p, job, kind: str, old: str, note: Optional[str], fix: Optional
             shot.update({k: mp[k] for k in ("camera", "duration_sec", "negative_prompt") if mp[k]})
     with open(os.path.join(_ROOT, "prompts", PROMPT_FILE), encoding="utf-8") as f:
         system = f.read()
-    who = "Tổ QC (máy) từ chối" if by == "qc" else "Người dùng yêu cầu gen lại"
+    who = {"qc": "Tổ QC (máy) từ chối",
+           "change_review": "Tổ rà soát tác động chấm ĐỎ bản bạn vừa viết lại — sửa đúng điều được nêu, giữ phần còn lại"}.get(
+        by, "Người dùng yêu cầu gen lại")
     look = looks.of(proj)
     parts = [system,
              f"# Việc lần này\nShot {row['idx']} — prompt {'ẢNH (image_prompt)' if kind == 'image' else 'VIDEO (motion_prompt)'}; {who}."
@@ -373,11 +380,16 @@ def save_rewrite(p, job, res: RewriteResult, note: Optional[str] = None) -> int:
                                note=(note or "")[:600], changed=res.changed, why=res.why[:600], job_id=job["id"], who=p.actor)
     last_ev = _last_change_event(p.conn)
     _set_prompt(p.conn, job["scene_id"], kind, res.new_prompt)
-    if kind == "video" and last_ev is not None:           # R14 (rà S4, mặc định chờ người dùng quyết): bản viết lại TỰ ĐỘNG của
-        # Đạo diễn trước lần gen lại không qua Tổ rà soát motion (không giữ chính lần gen lại, không gọi Claude) — như chèn shot
-        p.conn.execute("UPDATE change_events SET state='skipped', reviewed_at=?, note=? WHERE id>? AND kind='motion' AND scene_id=? "
-                       "AND state='pending'", (_now(), "Đạo diễn viết lại motion prompt tự động trước khi gen lại — không rà (R14)",
-                                               last_ev, job["scene_id"]))
+    if kind == "video" and last_ev is not None:
+        from . import change_review
+        if not (REVIEW_AUTO_REWRITE and change_review.motion_enabled()):
+            # cờ change_review_motion tắt (hoặc tắt rà bản tự viết): như trước C1 — bản viết lại tự động không qua Tổ rà soát motion
+            p.conn.execute("UPDATE change_events SET state='skipped', reviewed_at=?, note=? WHERE id>? AND kind='motion' AND "
+                           "scene_id=? AND state='pending'", (_now(), "Đạo diễn viết lại motion prompt tự động trước khi gen lại — "
+                                                              "không rà (cờ change_review_motion tắt)", last_ev, job["scene_id"]))
+        else:
+            p.conn.commit()
+            _review_now(p, job)
     p.conn.commit()
     from . import prompt_formula                          # F1-A (F0 mục 4b): the Director's rewrite is checked + compared to the old one
     prompt_formula.on_prompt_saved(p.conn, job["scene_id"], kind, res.old_prompt, res.new_prompt)
@@ -387,6 +399,41 @@ def save_rewrite(p, job, res: RewriteResult, note: Optional[str] = None) -> int:
         import sys
         print(f"prompt_rewrite: không ghi được dòng DONE ({type(e).__name__}: {e})", file=sys.stderr)
     return res.version
+
+
+def _review_now(p, job) -> None:
+    """C1: rà ngay bản motion vừa viết lại (change_review.review_scene_now) — một lời gọi Claude qua sổ chi, nhãn change_review.
+    Không có Claude → chỉ luật code (thay đổi 'code_only', không giữ gen) + VÀNG; không bao giờ làm hỏng lần gen lại."""
+    from . import change_review, world_rules
+    try:
+        client = client_for(p)
+    except Exception:  # noqa: BLE001 - no Claude set up: the code rules still run, said below
+        client = None
+    try:
+        change_review.review_scene_now(p.conn, world_rules.data_dir_abs(), job["scene_id"], client=client)
+    except Exception as e:  # noqa: BLE001 - said; the background round reviews what is still pending
+        diag.record(p.conn, "video", "warn", f"Rà soát bản motion Đạo diễn vừa viết lại lỗi ({type(e).__name__}: {str(e)[:160]}) — "
+                    "vòng nền rà lại", "rewrite_review_fail", job["project_id"], scene_id=job["scene_id"], job_id=job["id"])
+        return
+    if client is None:
+        diag.record(p.conn, "video", "warn", "Chưa rà bằng Claude bản motion Đạo diễn vừa viết lại (không gọi được Claude) — luật code "
+                    "đã chạy, lần gen lại không bị giữ; vòng nền rà khi có Claude", "rewrite_review_noclaude", job["project_id"],
+                    scene_id=job["scene_id"], job_id=job["id"])
+
+
+def _red_after_review(p, job) -> Optional[str]:
+    """Lý do ĐỎ của Tổ rà soát cho shot ngay sau lần rà tại chỗ (None = gửi được)."""
+    from . import change_review
+    if not (REVIEW_AUTO_REWRITE and change_review.motion_enabled()):
+        return None
+    try:
+        rows = p.conn.execute("SELECT khau, msg FROM change_findings WHERE scene_id=? AND status='open' AND level='do' AND khau IN "
+                              "('motion', 'khung_cuoi', 'video') ORDER BY id", (job["scene_id"],)).fetchall()
+    except Exception:  # noqa: BLE001 - the runner checks again before sending (blocking)
+        return None
+    # chỉ ĐỎ của khâu mà motion prompt sửa được (motion / khung cuối / video) mới đáng một lần viết lại nữa — ĐỎ khâu ảnh / nền thì
+    # viết lại motion vô ích: runner giữ kèm lý do như thường
+    return "; ".join(f"{r[0]}: {r[1]}" for r in rows[:3]) or None
 
 
 def _done(p, job, res: RewriteResult) -> None:
@@ -426,7 +473,27 @@ class Plan:
         except Exception as e:  # noqa: BLE001 - never lose the take: the old way, said
             _fallback(p, job, e)
             return self.reason
+        if kind == "video":
+            version = self._second_try(version)
         return f"{REWRITE_NOTE} (v{version}): {(self.note or '')[:300]}"
+
+    def _second_try(self, version: int) -> int:
+        """C1: Tổ rà soát chấm ĐỎ bản viết lại → Đạo diễn viết lại thêm MỘT lần, lời ĐỎ làm điều phải sửa (đổi đầu vào — luật gen lại).
+        Vẫn ĐỎ → giữ: runner báo lý do, người quyết ở 📥 Việc cần bạn."""
+        p, job = self.p, self.job
+        red = _red_after_review(p, job)
+        if not red:
+            return version
+        try:
+            again = propose_rewrite(p, job, note=self.note, fix=red, by="change_review")
+            if current_prompt(p.conn, job["scene_id"], "video") != again.old_prompt:
+                raise RewriteRefused("prompt của shot vừa đổi trong lúc Đạo diễn viết lại lần hai")
+            return save_rewrite(p, job, again, f"Tổ rà soát: {red}")
+        except Exception as e:  # noqa: BLE001 - the first rewrite stays; the hold + its reason are shown by the runner
+            diag.record(p.conn, "video", "warn", f"Đạo diễn chưa viết lại lần hai theo Tổ rà soát ({type(e).__name__}: {str(e)[:160]})"
+                        " — lần gen lại chờ bạn ở 📥 Việc cần bạn", "rewrite_review_red", job["project_id"],
+                        scene_id=job["scene_id"], job_id=job["id"])
+            return version
 
 
 def _fallback(p, job, e: BaseException) -> None:
