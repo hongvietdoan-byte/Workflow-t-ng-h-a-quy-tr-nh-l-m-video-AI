@@ -9,7 +9,11 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_browser_stage_editor(tmp_path):
+def test_browser_stage_editor(tmp_path, monkeypatch):
+    # Cách ly toàn bộ môi trường trước lookup/runtime; teardown phục hồi nguyên trạng.
+    monkeypatch.setattr(os, "environ", {"SYSTEMROOT": "C:/Windows", "WINDIR": "C:/Windows",
+                                      "USERPROFILE": "C:/Users/hongviet.doan",
+                                      "TEMP": str(tmp_path), "TMP": str(tmp_path)})
     assert (ROOT / "mockup/ban_dung_3d.html").is_file(), "thiếu màn bàn dựng"
     node = shutil.which("node")
     bundled = Path.home() / ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe"
