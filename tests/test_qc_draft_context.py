@@ -111,14 +111,22 @@ class DraftSuggestOnly(Base):
         self.assertEqual(self.p.state(good).value, "pending_review")
         self.assertEqual(self.p.state(bad).value, "pending_review")
 
-    def test_final_and_direct_keep_the_old_automatic_redo(self):
+    def test_direct_keeps_the_old_automatic_redo(self):
         with ON:
-            for tier in ("final", "direct"):
-                _, j = self.clip(PLAIN, tier=tier)
-                before = self.jobs()
-                self.assertEqual(self.p.apply_qc(j, QC592, issues="Keep the yellow jacket.", autofix=True), "auto_fix")
-                self.assertEqual(self.p.state(j).value, "rejected")
-                self.assertEqual(self.jobs(), before + 1)
+            _, j = self.clip(PLAIN, tier="direct")
+            before = self.jobs()
+            self.assertEqual(self.p.apply_qc(j, QC592, issues="Keep the yellow jacket.", autofix=True), "auto_fix")
+            self.assertEqual(self.p.state(j).value, "rejected")
+            self.assertEqual(self.jobs(), before + 1)
+
+    def test_final_is_never_auto_fixed(self):
+        """V6 (13/10, rà gom #27): bản cao phải giữ đúng nháp đã duyệt — QC dưới ngưỡng giữ cho người, không job con (trước: auto_fix)."""
+        with ON:
+            _, j = self.clip(PLAIN, tier="final")
+            before = self.jobs()
+            self.assertEqual(self.p.apply_qc(j, QC592, issues="Keep the yellow jacket.", autofix=True), "needs_review")
+            self.assertEqual(self.p.state(j).value, "pending_review")
+            self.assertEqual(self.jobs(), before)
 
     def test_flag_off_draft_label_changes_nothing(self):
         with OFF:

@@ -39,8 +39,9 @@ def layer0_rows(flags: List[Dict]) -> str:
     return f'<div class="vid-l0"><small>Đo lớp 0 (ảnh khung đầu)</small>{rows}{more}</div>'
 
 
-def meta_line(model: Optional[str], seconds: Optional[float], usd: Optional[float], retries: int) -> str:
-    bits = [escape(model or "model mặc định")]
+def meta_line(model: Optional[str], seconds: Optional[float], usd: Optional[float], retries: int, current: bool = False) -> str:
+    """`current`: `model` is the one the CLIP ON THE CARD was made with (U4 13/10) — said, so it is not read as the next gen's model."""
+    bits = [("clip hiện tại: " if current and model else "") + escape(model or "model mặc định")]
     if seconds:
         bits.append(f"{seconds:g} s")
     bits.append(f"≈ {usd:.2f} USD (ước tính)" if usd is not None else "chưa có giá")

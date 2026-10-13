@@ -28,7 +28,7 @@ from .pipeline import Pipeline, PipelinePaused
 RUNNING, WAITING, STOPPED, ATTENTION, DONE, ERROR = "running", "waiting", "stopped", "needs_attention", "done", "error"
 QUEUED = "queued"   # approved, waiting for a free slot (see Manager.max_parallel)
 PHASE_LABELS = {"director": "Director (Character Bible + thông số cảnh)", "previz": "Dựng layout / storyboard", "images": "Gen ảnh + QC",
-                "plates": "Nền 3D của bối cảnh (render theo góc máy)", "lipsync": "Khớp môi (sau khi có clip)", "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "motion": "Motion prompt", "voice": "Giọng thoại", "voicefirst": "Giọng trước hình (khóa timeline)", "storycheck": "Người xem lần đầu đọc bảng shot", "videos": "Gen video + QC video",
+                "plates": "Nền 3D của bối cảnh (render theo góc máy)", "lipsync": "Khớp môi (sau khi có clip)", "setcheck": "QC đồng bộ cả bộ ảnh", "endframes": "Ảnh khung cuối (shot đổi trạng thái)", "storyboard": "Duyệt storyboard trước khi gen video", "clips": "Xem clip còn lỗi", "drafts": "Duyệt nháp video (2 bậc)", "motion": "Motion prompt", "voice": "Giọng thoại", "voicefirst": "Giọng trước hình (khóa timeline)", "storycheck": "Người xem lần đầu đọc bảng shot", "videos": "Gen video + QC video",
                 "music": "Nhạc nền", "sfx": "Hiệu ứng âm thanh", "render": "Xuất bản", "done": "Hoàn tất"}
 MAX_SCENES = int(os.environ.get("AUTOPILOT_MAX_SCENES", "12"))
 LOG_KEEP = 60
@@ -993,14 +993,28 @@ def _hero_block(p: Pipeline, pid: int, scene_id: int) -> Optional[str]:
 def _approve_unflagged(p: Pipeline, pid: int, kind: str) -> List[str]:
     """Approve the waiting results that nothing flags; return 'S03: character 0.40 < 0.60' notes for the ones held for a person."""
     held = []
+    from . import quality_tier
+    two_tier = kind == "video_gen" and quality_tier.enabled()
     for j in p.conn.execute("SELECT j.*, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type=?"
                             " AND j.state='pending_review'", (pid, kind)).fetchall():
+        if two_tier and j["quality_tier"] == "draft":
+            continue       # C2 (13/10): a draft is approved by the person only — the run waits (_drafts_waiting), never ai_agent
         why = _flag_reasons(p, j)
         if why:
             held.append(f"S{j['idx']:02d}: " + ", ".join(why))
         else:
             p.approve(j["id"], "ai_agent", "autopilot")
     return held
+
+
+def _drafts_waiting(p: Pipeline, pid: int) -> List[str]:
+    """C2: 'S03' of the two-tier drafts (flag two_tier_quality) waiting for the person's approval (succeeded / pending_review)."""
+    from . import quality_tier
+    if not quality_tier.enabled():
+        return []
+    return [f"S{r['idx']:02d}" for r in p.conn.execute(
+        "SELECT s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type='video_gen' AND j.quality_tier='draft'"
+        " AND j.state IN ('succeeded','pending_review') ORDER BY s.idx", (pid,))]
 
 
 def _approve_held(p: Pipeline, pid: int, kind: str, note: str) -> int:
@@ -1055,6 +1069,10 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if held and not _active(p, pid, "video_gen"):
         raise _Wait("clips", f"{len(held)} clip QC còn lỗi (" + "; ".join(held[:3]) + ") — xem ở màn Video: giữ, sửa hoặc gen lại, "
                              "rồi bấm Tiếp tục (clip còn chờ sẽ được giữ như bạn đã xem)")
+    drafts = _drafts_waiting(p, pid)
+    if drafts and not _active(p, pid, "video_gen"):
+        raise _Wait("drafts", f"{len(drafts)} nháp chờ bạn duyệt (" + ", ".join(drafts[:6]) + ") — xem ở màn Video: ✔ Duyệt rồi "
+                              "⬆ Gen bản cao (máy không duyệt nháp thay bạn)")
     fresh = lineage.summary(p.conn, pid)["videos"][0]
     total = len(_scene_rows(p, pid))
     return None if fresh == total else f"Video: {fresh}/{total} dùng được"

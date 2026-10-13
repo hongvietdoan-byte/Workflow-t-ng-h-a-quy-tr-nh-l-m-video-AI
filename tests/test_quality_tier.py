@@ -380,6 +380,41 @@ class SupersededFinalTests(Base):
             self.assertIn(f"nháp cũ #{a}", toast.call_args[0][0])
             self.assertEqual(self.p.job(f)["state"], "rejected")
 
+    def _approved_final(self):
+        a = self.approved_draft()
+        f = quality_tier.request_final(self.p, self.s1)
+        self.made(f)
+        self.p.approve(f, "user")
+        self.p.conn.execute("UPDATE jobs SET result_path='fixture-final-1080.mp4' WHERE id=?", (f,))
+        self.p.conn.commit()
+        return a, f
+
+    def test_newer_approved_draft_reopens_final_after_old_final_approved(self):
+        """C1/U1 (#27 shot 17, scene 285): nháp 903 duyệt → bản cao 905 duyệt → nháp 915 duyệt, đang dùng → shot về draft_ok (nút ⬆),
+        request_final gắn nháp mới; bản cao cũ giữ nguyên làm take; bản dựng tính shot là nháp (_DRAFT)."""
+        from dashboard import quality_ui
+        with ON, mock.patch('core.ffmpeg_studio.probe_size', return_value=(1080, 1920)):
+            a, f = self._approved_final()
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "final_ok")
+            b = self.approved_draft()
+            self.assertEqual(self.p.job(f)["state"], "approved")                      # không xóa / không đổi bản cao cũ
+            self.assertIn(f"nháp cũ #{a}", quality_tier.outdated_final(self.p.conn, self.p.job(f)))
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "draft_ok")
+            self.assertIsNone(quality_tier.final_source_problem(self.p.conn, self.s1))
+            self.assertEqual(quality_ui.draft_scenes(self.p.conn, self.pid), [(self.s1, 1)])
+            f2 = quality_tier.request_final(self.p, self.s1)
+            self.assertEqual(self.p.job(f2)["draft_job_id"], b)
+
+    def test_used_draft_take_newer_than_the_approved_final_marks_the_shot_draft(self):
+        """C1: take đang dùng là một nháp mới hơn bản cao đã duyệt (chưa được người duyệt) → không phải final_ok."""
+        with ON, mock.patch('core.ffmpeg_studio.probe_size', return_value=(1080, 1920)):
+            a, f = self._approved_final()
+            d = self.p.create_job(self.s1, "video_gen")
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "final_ok")    # nháp đang chạy chưa là clip đang dùng
+            self.made(d)
+            self.assertEqual(self.tier(d), "draft")
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "draft_review")
+
     def test_the_qc_approving_a_draft_retires_nothing(self):
         with ON:
             self.approved_draft()
@@ -388,6 +423,158 @@ class SupersededFinalTests(Base):
             self.made(d)
             self.p.approve(d, "ai_agent")
             self.assertEqual(self.p.job(f)["state"], "queued")
+
+
+class ChainFixS1Tests(Base):
+    """Rà gom chuỗi ảnh→video 13/10 (docs/handoff/DANH_SACH_SUA_CHUOI_2026-10-13.md, phiên S1): C2, C3, C7, V6, U4, U5."""
+
+    def test_video_phase_never_approves_draft_as_ai(self):
+        """C2: autopilot / QC cảnh không duyệt NHÁP bằng ai_agent (shot kẹt 'Nháp · chờ duyệt' không nút) — chờ người, có _Wait."""
+        from core import autopilot
+        with ON:
+            d = self.p.create_job(self.s1, "video_gen")
+            self.made(d)
+            self.p.transition(d, JobState.PENDING_REVIEW)
+            self.assertEqual(autopilot._approve_unflagged(self.p, self.pid, "video_gen"), [])
+            self.assertEqual(self.p.job(d)["state"], "pending_review")
+            self.assertIsNone(self.p.conn.execute("SELECT 1 FROM review_log WHERE job_id=? AND decision='approve'", (d,)).fetchone())
+            self.assertEqual(autopilot._drafts_waiting(self.p, self.pid), ["S01"])
+            self.assertFalse(self.p.approve(d, "ai_agent", "QC cảnh: đạt"))          # phòng thủ: máy không duyệt nháp
+            self.assertEqual(self.p.job(d)["state"], "pending_review")
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "draft_review")
+            self.assertTrue(self.p.approve(d, "user"))
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "draft_ok")
+            self.assertEqual(autopilot._drafts_waiting(self.p, self.pid), [])
+
+    def _final_needing_confirm(self):
+        self.approved_draft()
+        f = quality_tier.request_final(self.p, self.s1)
+        vr = VideoRunner(self.p, _provider(), self.data)
+        with mock.patch.object(quality_tier, "final_route",
+                               return_value={"from_sample": None, "why": "bản nháp đã hết hạn ở nhà cung cấp"}):
+            why = vr._blocked(self.p.job(f))
+        self.assertIn(quality_tier.NEED_CONFIRM, why)
+        prefix = vr._hold_prefix(self.p.job(f), why)
+        self.p.start(f)                                       # như runner: RUNNING rồi FAILED (chưa gửi gì)
+        self.p.fail(f, f"{prefix}: {why}")
+        return f, prefix
+
+    def test_requeue_input_failures_skips_final_needing_confirm(self):
+        """C3: bản cao chờ xác nhận gen mới không phải 'đầu vào cũ' — ↻ Xếp hàng lại không tạo NHÁP mới tốn tiền, ↻ Gửi lại từ chối."""
+        from core import batch, pipeline
+        with ON:
+            f, prefix = self._final_needing_confirm()
+            self.assertEqual(prefix, pipeline.FINAL_HOLD)
+            self.assertEqual(batch.input_failures(self.p, self.pid), [])
+            self.assertNotIn(f, batch.provider_failures(self.p, self.pid))
+            jobs_before = self.p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+            self.assertEqual(batch.requeue_input_failures(self.p, self.pid)["created"], 0)
+            self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0], jobs_before)
+            with self.assertRaises(InvalidTransition):
+                self.p.retry(f, "gửi lại", by_user=True)
+            self.assertEqual(quality_tier.state(self.p.conn, self.s1), "draft_ok")     # nút ⬆ Gen MỚI bản cao vẫn được đề xuất
+            self.assertFalse(quality_tier.final_offer(self.p.conn, self.s1)["upgrade"])
+
+    def test_old_stale_input_note_of_a_final_needing_confirm_is_not_requeued(self):
+        from core import batch
+        with ON:
+            self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)
+            self.p.start(f)
+            self.p.fail(f, f"stale_input: bản cao bị chặn: {quality_tier.NEED_CONFIRM} — {quality_tier.NEW_GEN} (x)")   # dữ liệu trước 13/10
+            self.assertEqual(batch.input_failures(self.p, self.pid), [])
+
+    def test_a_final_of_a_changed_draft_input_stays_stale_input(self):
+        with ON:
+            self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)
+            self.p.conn.execute("UPDATE motion_prompts SET duration_sec=6 WHERE scene_id=?", (self.s1,))
+            self.p.conn.commit()
+            vr = VideoRunner(self.p, _provider(), self.data)
+            why = vr._blocked(self.p.job(f))
+            self.assertEqual(vr._hold_prefix(self.p.job(f), why), "stale_input")    # nháp mới từ đầu vào mới là đúng tuyến
+
+    def test_final_below_threshold_never_autofixes(self):
+        """V6: bản cao dưới ngưỡng không bao giờ tự sửa / tự loại (không job con final) — giữ cho người, so lỗi với nháp đã duyệt."""
+        with ON:
+            d = self.approved_draft()
+            self.p.conn.execute("INSERT INTO qc_results (job_id, criterion, score, threshold_at_time) VALUES (?,?,?,?)",
+                                (d, "motion", 0.6, 0.85))
+            self.p.conn.commit()
+            f = quality_tier.request_final(self.p, self.s1)
+            self.made(f)
+            jobs_before = self.p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+            out = self.p.apply_qc(f, {"motion": 0.6, "identity": 0.9}, issues="Make the jump higher", autofix=True)
+            self.assertEqual(out, "needs_review")
+            self.assertEqual(self.p.job(f)["state"], "pending_review")
+            self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0], jobs_before)
+            note = self.p.conn.execute("SELECT note FROM job_events WHERE job_id=? ORDER BY id DESC LIMIT 1", (f,)).fetchone()["note"]
+            self.assertIn("bản cao: không tự sửa", note)
+            self.assertIn(f"nháp #{d} đã có cùng lỗi (motion)", note)
+
+    def test_final_far_below_the_floor_is_not_rejected_either(self):
+        with ON:
+            self.approved_draft()
+            f = quality_tier.request_final(self.p, self.s1)
+            self.made(f)
+            self.p.conn.execute("UPDATE projects SET qc_reject_floor=0.5 WHERE id=?", (self.pid,))
+            self.p.conn.commit()
+            self.assertEqual(self.p.apply_qc(f, {"motion": 0.1}, issues="Fix all"), "needs_review")
+            self.assertIn("chưa có điểm QC để so", self.p.conn.execute(
+                "SELECT note FROM job_events WHERE job_id=? ORDER BY id DESC LIMIT 1", (f,)).fetchone()["note"])
+
+    def test_queued_video_shows_wait_reason(self):
+        """C7: lý do giữ job video (Tổ rà soát / kiểm trước gen / bản cao chờ) đọc được cho thẻ Bước 4 — cả khi runner đã khởi động lại."""
+        from core import diag, runner
+        jid = self.p.create_job(self.s1, "video_gen")
+        self.assertIsNone(runner.held_reason(self.p.conn, jid))
+        diag.record(self.p.conn, "video", "warn", "chưa gửi — kiểm trước gen chặn: thiếu khung cuối", code="video_pregen_hold",
+                    project_id=self.pid, scene_id=self.s1, job_id=jid)
+        self.assertIn("thiếu khung cuối", runner.held_reason(self.p.conn, jid))
+        runner.WAIT_REASONS[jid] = ("Tổ rà soát giữ: shot lệch", time.time())
+        try:
+            self.assertEqual(runner.held_reason(self.p.conn, jid), "Tổ rà soát giữ: shot lệch")
+        finally:
+            runner.WAIT_REASONS.pop(jid, None)
+
+    def test_inbox_lists_drafts_waiting_for_final_and_held_clips(self):
+        """C7/U2: hộp thư có 'nháp đã duyệt chờ gen bản cao', 'bản cao chờ xác nhận' (không phải Lỗi gen), clip bị giữ."""
+        from core import diag, inbox
+        with ON:
+            self.approved_draft()
+            texts = [i["text"] for i in inbox.items(self.p.conn, "")]
+            self.assertTrue(any("nháp đã duyệt chờ gen bản cao: shot 1" in t for t in texts), texts)
+            f, _ = self._final_needing_confirm()
+            texts = [i["text"] for i in inbox.items(self.p.conn, "")]
+            self.assertTrue(any("Bản cao chờ bạn xác nhận gen mới ở shot 1" in t for t in texts), texts)
+            self.assertFalse(any(t.startswith("Gen clip lỗi") for t in texts), texts)
+            s2 = self.p.create_scene(self.pid, 2, "Shot 2")
+            q = self.p.create_job(s2, "video_gen")
+            diag.record(self.p.conn, "video", "warn", "chưa gửi — kiểm trước gen chặn: prompt sai công thức", code="video_pregen_hold",
+                        project_id=self.pid, scene_id=s2, job_id=q)
+            texts = [i["text"] for i in inbox.items(self.p.conn, "")]
+            self.assertTrue(any("Clip bị giữ chưa gửi ở shot 2" in t and "prompt sai công thức" in t for t in texts), texts)
+
+    def test_measured_size_tries_the_working_folder_first(self):
+        """U5: đường tương đối theo cwd trước (worktree / bản sao), rồi gốc repo — như assets._resolved."""
+        from core import final_cut
+        here = os.getcwd()
+        os.chdir(self.data)
+        try:
+            with open("clip_u5.mp4", "wb") as fh:
+                fh.write(b"clip")
+            with mock.patch("core.ffmpeg_studio.probe_size", return_value=(1080, 1920)) as probe:
+                self.assertEqual(final_cut.measured_size("clip_u5.mp4"), (1080, 1920))
+            self.assertEqual(os.path.normcase(os.path.abspath(probe.call_args[0][0])),
+                             os.path.normcase(os.path.join(os.path.realpath(self.data), "clip_u5.mp4")))
+        finally:
+            os.chdir(here)
+
+    def test_card_meta_line_says_the_current_clip_model(self):
+        """U4: dòng model của clip trên thẻ là model ĐÃ dùng cho clip ('clip hiện tại'), khác dòng 'Lần gen tới'."""
+        from dashboard.design.screens import video_ui
+        self.assertIn("clip hiện tại: Kling std", video_ui.meta_line("Kling std", 1.5, 0.2, 0, current=True))
+        self.assertNotIn("clip hiện tại", video_ui.meta_line("Kling std", 1.5, 0.2, 0))
 
 
 class RunnerTierTests(Base):

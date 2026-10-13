@@ -496,7 +496,8 @@ def apply(p, pid: int, frames: List[Dict], obj: Dict, data_dir: str) -> Dict[str
                 if job["state"] == "succeeded":
                     p.transition(r["job_id"], JobState.PENDING_REVIEW, actor="ai_agent", note="QC cảnh: đạt")
                 ok = p.approve(r["job_id"], "ai_agent", "QC cảnh: đạt — " + f["seen"][:120] if f.get("seen") else "QC cảnh: đạt")
-                out[f"K{k}"] = "duyệt" if ok else "cho nghỉ (bản cao từ nháp cũ)"
+                out[f"K{k}"] = "duyệt" if ok else ("chờ người duyệt (nháp)" if job["quality_tier"] == "draft"
+                                                    else "cho nghỉ (bản cao từ nháp cũ)")
         elif f["verdict"] == "fix" and f["root_cause"] != "plan":
             if job["state"] == "succeeded":
                 p.transition(r["job_id"], JobState.PENDING_REVIEW, actor="ai_agent", note="QC cảnh")

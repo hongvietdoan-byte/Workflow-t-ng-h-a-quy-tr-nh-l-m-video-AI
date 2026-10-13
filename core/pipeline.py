@@ -46,7 +46,18 @@ PLAIN_RESEND = "gửi lại nguyên đầu vào"
 STALE_INPUT = "stale_input"
 """KLD-1 (08/10): failure-note prefix of a job the runner refused to send because its input changed after it was queued (core.runner)."""
 MISSING_INPUT = "missing inputs"
+FINAL_HOLD = "final_hold"
+"""C3 (13/10): failure-note prefix of a two-tier FINAL the runner did not send because it waits for the PERSON (a new paid gen to
+confirm — quality_tier.NEED_CONFIRM — or made from a draft that is no longer the approved one). Not an outdated input: "↻ Xếp hàng lại
+từ đầu vào mới" (core.batch.input_failures) and "↻ Gửi lại" leave it alone — the way out is "⬆ Gen (MỚI) bản cao" on the card."""
 """failure-note prefix of a job the runner could not send (no approved picture / motion prompt) — not a provider failure either."""
+
+
+def _final_hold(note: Optional[str]) -> bool:
+    from . import quality_tier
+    return quality_tier.final_hold_note(note)
+
+
 REWRITE_NOTE = "Đạo diễn đã sửa prompt"
 """S14.17 (core/prompt_rewrite.py): retry_reason prefix of a take whose shot prompt the Director rewrote before it — the fix is IN the prompt
 now, so nothing more reaches the model (core.runner.model_fix) and it is not carried into the next QC fix (_combine_fix)."""
@@ -444,6 +455,8 @@ class Pipeline:
             # KLD-1 (08/10): job 559 của #22 hỏng vì đầu vào đã cũ bị gửi lại Y NGUYÊN thành 566 — gửi lại không có câu sửa chỉ dành cho
             # lỗi nhà cung cấp; đầu vào cũ phải xếp hàng lại từ đầu vào mới (core.batch.requeue_input_failures)
             raise InvalidTransition(f"job {job_id} hỏng vì đầu vào đã cũ — không gửi lại y nguyên; xếp hàng lại từ đầu vào mới")
+        if not (fix or "").strip() and _final_hold(self.failure_note(job_id)):
+            raise InvalidTransition(f"job {job_id} là bản cao chờ bạn xác nhận — không gửi lại y nguyên; dùng “⬆ Gen MỚI bản cao” trên thẻ")
         if not by_user and self._retries_exhausted(self.job(job_id)):
             self._escalate(self.job(job_id), limit=True)
             return None
@@ -528,6 +541,13 @@ class Pipeline:
         self.conn.commit()
         if framing:                               # never approved by itself, never regenerated with the same input (rule 6)
             return self._hold(job_id, f"QC {overall:.2f}{suffix}"[:2000])
+        if not passed and self._final_from_draft(job):
+            # V6 (13/10, G4 #27): a FINAL must reproduce the approved draft — the QC re-judged it on the motion (the same fault the person
+            # accepted on the draft: 876 = draft 833's suggestion) → Director v2 → the child final was blocked "đầu vào đã đổi" → 3 lost
+            # 1080p clips. A final is never auto-fixed / auto-rejected (no paid child final): held for the person, with the draft's QC.
+            why = (f"QC {overall:.2f} < {threshold} — bản cao: không tự sửa / không tự gen lại (bản cao phải giữ đúng nháp đã duyệt; "
+                   "muốn sửa → gen NHÁP mới)" + self._same_as_draft(job, scores, threshold) + suffix)
+            return self._hold(job_id, why[:2000])
         hold = None if passed else self._no_auto_retry(job, scores, threshold, fix, measured)
         if qc is None:                            # S14.17 rà (c): what the Director reads before rewriting (picture QC and clip QC)
             low = [f"{k} {v:.2f}" for k, v in scores.items() if v < threshold]
@@ -595,6 +615,34 @@ class Pipeline:
         return _qt.enabled()
 
     DRAFT_SUGGEST_CODE = "qc_draft_suggest"
+
+    def _final_from_draft(self, job) -> bool:
+        """V6: a two-tier clip made FROM an approved draft (quality_tier 'final', or 'direct' carrying a draft_job_id) — never auto-fixed."""
+        if job["type"] != "video_gen" or "quality_tier" not in job.keys():
+            return False
+        if not (job["quality_tier"] == "final" or (job["quality_tier"] == "direct" and job["draft_job_id"])):
+            return False
+        from . import quality_tier as _qt
+        return _qt.enabled()
+
+    def _same_as_draft(self, job, scores: Mapping[str, float], threshold: float) -> str:
+        """V6: ' — nháp #N đã có cùng lỗi (…) khi bạn duyệt' / ' — nháp #N không có lỗi này (…): bản cao lệch nháp?' / ' — nháp #N chưa
+        có điểm QC để so' (said, never guessed)."""
+        draft = job["draft_job_id"]
+        if not draft:
+            return ""
+        low = {k for k, v in scores.items() if v < threshold}
+        rows = self.conn.execute("SELECT criterion, score, threshold_at_time FROM qc_results WHERE job_id=?", (draft,)).fetchall()
+        if not rows:
+            return f" — nháp #{draft} chưa có điểm QC để so"
+        before = {r["criterion"] for r in rows if r["score"] < (r["threshold_at_time"] if r["threshold_at_time"] is not None else threshold)}
+        same, new = sorted(low & before), sorted(low - before)
+        out = ""
+        if same:
+            out += f" — nháp #{draft} đã có cùng lỗi ({', '.join(same)}) khi bạn duyệt"
+        if new:
+            out += f" — nháp #{draft} không có lỗi này ({', '.join(new)}): bản cao lệch nháp?"
+        return out
 
     def _draft_suggest(self, job, scores: Mapping[str, float], threshold: float, overall: float, hard: list, soft: tuple,
                        suffix: str) -> str:
@@ -689,6 +737,11 @@ class Pipeline:
         access.need_edit_job(self, job_id, "duyệt")
         self._require_reviewable(job_id)
         job = self.job(job_id)
+        if reviewer_type != "user" and self._draft_suggest_only(job):
+            # C2 (13/10): a two-tier DRAFT is approved by the PERSON only (quality_tier.approved_draft) — a machine approval (autopilot /
+            # QC cảnh) left the shot "Nháp · chờ duyệt" with no ✔ button (job already approved) and no way to the final. Kept waiting.
+            self._draft_needs_person(job, reviewer_type)
+            return False
         if job["type"] == "video_gen" and job["quality_tier"] == "final":
             from . import quality_tier
             if not picked and quality_tier.superseded_by(self.conn, job):
@@ -700,6 +753,20 @@ class Pipeline:
         self.transition(job_id, JobState.APPROVED, actor=reviewer_type, note=note)
         self._retire_after_draft(job, reviewer_type)
         return True
+
+    DRAFT_PERSON_CODE = "draft_needs_person"
+
+    def _draft_needs_person(self, job, reviewer_type: str) -> None:
+        """C2: a machine tried to approve a two-tier draft — it stays for the person (pending_review), said once in diag."""
+        if self.state(job["id"]) == JobState.SUCCEEDED:
+            self.transition(job["id"], JobState.PENDING_REVIEW, actor=reviewer_type, note="nháp: chỉ người duyệt — chờ bạn duyệt")
+        try:
+            from . import diag
+            diag.record(self.conn, "video", "info", f"Bản NHÁP job {job['id']}: {reviewer_type} không được duyệt nháp (chỉ người duyệt "
+                        "nháp mới gen bản cao) — chờ bạn duyệt ở màn Video", code=self.DRAFT_PERSON_CODE, project_id=job["project_id"],
+                        scene_id=job["scene_id"], job_id=job["id"])
+        except Exception:  # noqa: BLE001 - the note is a convenience; the job keeps waiting for the person either way
+            pass
 
     def _retire_after_draft(self, job, reviewer_type: str) -> None:
         """13/10 (#27 shot 5): a newer draft approved by the person retires the finals of older drafts still unsent / waiting review."""
