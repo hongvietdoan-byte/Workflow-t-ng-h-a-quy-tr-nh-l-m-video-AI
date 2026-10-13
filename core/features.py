@@ -427,6 +427,27 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "10/10 sau QC #24 (đổi máy mà ảnh neo / storyboard / câu tả cũ vẫn dùng): người dùng yêu cầu, chưa chạy thật",
     },
+    "change_review_motion": {
+        "label": "Tổ rà soát rà cả lần SỬA MOTION PROMPT (Bước 3 / viết lại): mục Claude cũ của shot được rà lại theo bản mới (đúng → tự "
+                 "đóng, hết giữ gen); mỗi lần sửa một lời gọi Claude qua sổ chi như thay đổi shot",
+        "verified": False,
+        "why": "Rà chuỗi 13/10 C4 (#27 shot 16): sửa motion prompt không sinh thay đổi → mục đỏ khâu motion cũ giữ gen mãi tới khi bấm tay. "
+               "TỐN TIỀN khi bật: thêm lời gọi Claude mỗi lần prompt đổi; thử CSDL tạm + Claude giả, chưa chạy thật",
+    },
+    "video_gate": {
+        "label": "Cổng trước gửi video: ảnh khung đầu phải qua kiểm nền 3D (plate_layout không ĐỎ, hoặc bạn bấm Bỏ qua có lý do) và CẢ "
+                 "nhóm shot liền mạch đã duyệt ảnh — chưa đủ thì clip GIỮ chờ, có lý do (0 USD)",
+        "verified": False,
+        "why": "Rà gốc video #27 V7 (13/10): 25 job video bỏ vì ảnh duyệt rồi mới thấy nền sai 3D / shot kề đổi nền sau khi gen; thử "
+               "CSDL tạm, chưa chạy thật",
+    },
+    "qc_framing_cap": {
+        "label": "QC video: so bố cục ảnh khung đầu ↔ khung CUỐI clip (+ render 3D, khung cuối dự kiến); đo máy thấy đổi bố cục → hạ "
+                 "trần điểm motion_match / artifacts",
+        "verified": False,
+        "why": "Rà gốc video #27 V11 (13/10): 912 lùi máy + mặt đồng hồ, 858, 782 chạy tại chỗ đều QC ≥ 0,93. Đổi prompt QC (thêm 1–3 "
+               "ảnh/clip) — chưa chạy thật Claude",
+    },
     "stage_camera": {
         "label": "Sân khấu 3D v2: shot có máy đã GIẢI từ yêu cầu khung (trường stage_camera — đã đo che khuất bằng tia, người dùng duyệt "
                  "tấm ghép) thì nền 3D dùng đúng máy đó: không tự tính lại theo cỡ/góc, không gom chung setup, không dời máy khi sát tường",
@@ -798,7 +819,7 @@ def active(name: str) -> bool:
 
 # S14.4 C1b (04/10): a flag that only works together with another one (dialogue_take: the runner asks lipsync.enabled() = lip_sync
 # first). Shown in 🧪 instead of a flag that looks ON and does nothing. B1 học việc: qc_team only runs inside scene_qc (by active()).
-REQUIRES = {"dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_review_frames": ("change_review",),
+REQUIRES = {"dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_review_frames": ("change_review",), "change_review_motion": ("change_review",),
             "ambient_motion": ("prompt_formula",), "plate_anchored_image": ("place_render_refs",)}
 
 

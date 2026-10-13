@@ -33,6 +33,8 @@ def step4(p: Pipeline, pid: int):
     summ = lineage.summary(p.conn, pid)
     from dashboard import change_review_ui              # 10/10: mục đỏ khâu motion / video giữ cả clip — hiện cả ở màn Video
     change_review_ui.render(p, pid, who=(C.access_user() or {}).get("email"), read_only=C.read_only(p, pid))
+    from dashboard import video_gate_ui                 # V7 (cờ video_gate): clip giữ vì ảnh khung đầu lệch nền 3D — bỏ qua có lý do
+    video_gate_ui.render(p, pid, C.DATA, who=(C.access_user() or {}).get("email"), read_only=C.read_only(p, pid))
     return step4_v2(p, pid, runner, proj, summ)                       # UI v2: the only composition since S14.14 G-a (06/10)
 
 

@@ -236,6 +236,65 @@ class ChangeReview(unittest.TestCase):
         text = CR.build_prompt(self.p.conn, ev, ["action"], [sid, self.ids[2]], [])
         self.assertIn("Kelly waits", text)
 
+    # ---- C4 (rà chuỗi 13/10): sửa motion prompt là một thay đổi của shot (cờ change_review_motion) ----------------------------------
+    def _motion(self, sid, text):
+        from core.llm_io import store_motion_prompts
+        idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (sid,)).fetchone()[0]
+        if not self.p.conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state='approved'", (sid,)).fetchone():
+            jid = self.p.create_job(sid, "image_gen")
+            self.p.conn.execute("UPDATE jobs SET state='approved' WHERE id=?", (jid,))
+        store_motion_prompts(self.p, self.pid, {"scenes": [{"idx": idx, "motion_prompt": text}]})
+
+    def _old_red(self, sid):
+        CR._add(self.p.conn, None, self.pid, sid, "claude", "do", "motion", "motion tả trạng thái cuối cũ")
+        self.p.conn.commit()
+
+    def test_editing_motion_prompt_requeues_review_and_lifts_old_red(self):
+        os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_CHANGE_REVIEW_MOTION", None)
+        sid = self.ids[1]
+        self._motion(sid, "Kelly kneels by the well")
+        self.p.conn.execute("UPDATE change_events SET state='skipped'")
+        self._old_red(sid)
+        self.assertIn("motion tả trạng thái cuối cũ", CR.blocking(self.p.conn, sid))
+        self._motion(sid, "Kelly stands up and walks to the well")                # người sửa prompt ở Bước 3
+        ev = self.pending()
+        self.assertEqual([(e["kind"], e["scene_id"]) for e in ev], [("motion", sid)])
+        self.assertEqual(ev[0]["project_id"], self.pid)
+        self.assertIn("đang rà", CR.blocking(self.p.conn, sid))                   # chờ rà bản mới, không giữ vì mục cũ
+        client = FakeClient({"muc": [{"khau": "motion", "shot": 2, "quan_sat": "khop", "ly_do": "khớp end_state"}]})
+        CR.process_pending(self.p.conn, self.tmp, client=client)
+        self.assertEqual(len(client.calls), 1)
+        self.assertIn("`motion_prompt`", client.calls[0])
+        self.assertIn("SAU = Kelly stands up", client.calls[0])
+        self.assertIsNone(CR.blocking(self.p.conn, sid))                           # Claude thấy khớp → mục đỏ cũ tự đóng
+
+    def test_motion_edit_and_shot_edit_merge_per_source(self):
+        os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_CHANGE_REVIEW_MOTION", None)
+        sid = self.ids[1]
+        self._motion(sid, "push in")
+        self.p.conn.execute("UPDATE change_events SET state='skipped'")
+        self._set(sid, {"size": "WS", "image_prompt": "Medium shot, Kelly at the well", "characters": ["KELLY"]})
+        self._motion(sid, "slow push in")
+        client = FakeClient({"muc": []})
+        CR.process_pending(self.p.conn, self.tmp, client=client)
+        self.assertEqual(len(client.calls), 1)                                     # một shot = một lời gọi
+        self.assertIn("`size`: TRƯỚC = MS", client.calls[0])
+        self.assertIn("`motion_prompt`: TRƯỚC = push in", client.calls[0])
+        self.assertNotIn("`image_prompt`", client.calls[0])                        # không trộn ảnh chụp đầy đủ với khóa lẻ
+
+    def test_motion_edit_flag_off_costs_nothing_and_never_holds(self):
+        sid = self.ids[1]
+        self._motion(sid, "push in")
+        self.p.conn.execute("UPDATE change_events SET state='skipped'")
+        self._motion(sid, "slow push in")
+        self.assertIsNone(CR.blocking(self.p.conn, sid))                           # cờ tắt: như trước, không giữ
+        client = FakeClient({"muc": []})
+        CR.process_pending(self.p.conn, self.tmp, client=client)
+        self.assertEqual(client.calls, [])
+        self.assertEqual(self.pending(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

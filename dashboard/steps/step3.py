@@ -33,6 +33,8 @@ def step3(p: Pipeline, pid: int):
     from dashboard import next_step                                     # S9 E0.1
     if not v2:                                                            # v2: the shell header already shows the next step
         ui.html(next_step.band(p, pid, 3, C.DATA))
+    from dashboard import change_review_ui    # C4 (rà chuỗi 13/10): mục đỏ khâu motion giữ clip — người sửa prompt ở đây thấy + đóng được
+    change_review_ui.render(p, pid, who=(C.access_user() or {}).get("email"), read_only=C.read_only(p, pid), key="cr3")
     stale_idx = sorted(r["idx"] for r in status.values() if r["motion_stale"] and r["image_job_id"])
     missing = [r for r in approved_imgs if r["motion_state"] is None]
     client = llm_client()
@@ -104,7 +106,8 @@ def step3(p: Pipeline, pid: int):
                         st.rerun()
     voice_panel(p, pid)
     motion_ok = sum(1 for r in rows if r["state"] == "approved") if rows and "state" in rows[0].keys() else 0
-    with ui.fold("Motion prompt từng cảnh", f"🎬 {motion_ok}/{len(rows)} cảnh đã duyệt motion · mở để xem / sửa", f"motion_{pid}",
+    with ui.fold("Motion prompt từng cảnh", f"🎬 {motion_ok}/{len(rows)} cảnh đã duyệt motion · mở để xem / sửa"
+                 + (" (cả 🏁 trạng thái cuối)" if claude_tasks.fresh_on() else ""), f"motion_{pid}",   # lỗi 6: ô end_state nằm trong
                  default_open=not rows or motion_ok < len(rows), sub=f"{len(rows)} cảnh") as motion_open:  # S9 E3.1
         if motion_open:
             if not rows:
@@ -145,7 +148,7 @@ def step3(p: Pipeline, pid: int):
                 new = c1.text_area("Motion prompt", r["motion_prompt"], key=f"mp_{r['sid']}", height=90, label_visibility="collapsed")
                 end_old = data.get("end_state") or ""      # lỗi 6 (#27, cờ end_state_fresh): khung cuối sửa ngay cạnh motion, cùng nút Lưu
                 end_new = end_old
-                if data.get("shot_no") and claude_tasks.fresh_on():
+                if (data.get("shot_no") or end_old) and claude_tasks.fresh_on():   # lỗi 6: shot không số mà có end_state cũng sửa được
                     end_new = c1.text_input("🏁 Trạng thái cuối shot (khung cuối)", end_old, key=f"es_{r['sid']}",
                                             help="Đổi → khung cuối + motion hiện ⚠ cũ (viết lại motion); bản dịch tiếng Anh cũ không gửi.")
                 badge = ui.stale_badge(srow["motion_stale"]) if srow.get("motion_stale") else ui.state_badge(r["state"])

@@ -279,6 +279,38 @@ class StoryboardV2Tests(unittest.TestCase):
                          "Kelly sits by the well")
         self.assertTrue(lineage.scan(q, pid)[sc[0]]["motion_stale"])
 
+    def test_motion_tab_shows_end_state_box_and_review_frame_when_flags_on_in_settings(self):
+        """Lỗi 6 + C4 (rà chuỗi 13/10, U3): cờ end_state_fresh bật ở 🧪 (tệp cài đặt, như máy chính) → ô 🏁 hiện ở tab Motion, cả shot
+        chưa có số shot mà có end_state; khung 🔎 Rà soát hiện ở tab Motion (mục đỏ khâu motion đóng được ngay đây, khóa nút riêng)."""
+        import json
+        from core import change_review as CR
+        from tests._flags import flags_on
+        flags_on(self, "end_state_fresh", "change_review")
+        p, pid, sc = self.seed(1)
+        d = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (sc[0],)).fetchone()["data"] or "{}")
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(dict(d, end_state="Kelly kneels")), sc[0]))
+        p.conn.commit()
+        self.job_in(p, sc[0], "approved")
+        store_motion_prompts(p, pid, {"scenes": [{"idx": 1, "motion_prompt": "push in slowly", "camera": "push", "duration_sec": 5,
+                                                  "negative_prompt": ""}]})
+        p.conn.execute("UPDATE change_events SET state='skipped'")
+        CR._add(p.conn, None, pid, sc[0], "claude", "do", "motion", "motion tả trạng thái cuối cũ")
+        fid = p.conn.execute("SELECT id FROM change_findings").fetchone()[0]
+        p.conn.commit()
+        at = AppTest.from_file(APP, default_timeout=60)
+        at.session_state["sb_tab"] = "🎞 Motion & giọng"
+        at.run()
+        at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
+        self.assertFalse(at.exception, at.exception)
+        self.assertEqual(at.text_input(key=f"es_{sc[0]}").value, "Kelly kneels")
+        keys = {b.key for b in at.button}
+        self.assertIn(f"cr3_ok_{fid}", keys)                                      # khung Rà soát ở tab Motion
+        self.assertIn(f"cr_ok_{fid}", keys)                                       # và vẫn ở tab Ảnh (khóa khác, không trùng)
+        at.button(key=f"cr3_ok_{fid}").click().run()
+        self.assertFalse(at.exception, at.exception)
+        q = Pipeline(connect(self.db)).conn
+        self.assertEqual(q.execute("SELECT status FROM change_findings WHERE id=?", (fid,)).fetchone()[0], "resolved")
+
 
     # -- bớt chữ: chi tiết trong ⓘ (QUY_TAC §5) ---------------------------------------------------------------------------------------
     def test_card_keeps_p1_and_moves_details_into_an_info_popover(self):
