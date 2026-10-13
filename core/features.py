@@ -571,17 +571,49 @@ FEATURES: Dict[str, Dict] = {
     },
     "skill_object_guard": {
         "label": "Vật kỹ năng (tường keo…): prompt ảnh + motion bỏ từ dễ hiểu sai (elevator/door/thang máy/cửa) → tả hình dạng/chất "
-                 "liệu + câu cấm; Kho đưa Đạo diễn kèm lưu ý; shot vật kỹ năng mọc lên → VÀNG gợi ý dựng bằng GHÉP code (0 USD)",
+                 "liệu + câu cấm; skin = hoa văn theo ảnh DẠNG TRIỂN KHAI (không 'metal-panel'); Kho đưa Đạo diễn kèm lưu ý; shot "
+                 "vật kỹ năng mọc lên → VÀNG gợi ý GHÉP code, thiếu ảnh dạng triển khai trong Kho → ĐỎ trước gửi clip (0 USD)",
         "verified": False,
         "why": "Lỗi hệ thống 3 #27 (13/10): skin Gloowall OB55 'cửa thang máy' → model vẽ thang máy thật (cửa mở, nhìn xuyên, người "
                "đứng trong), shot 16 gen 6 lần hỏng, giao bằng ghép code. Chưa gen thật với chữ mới",
     },
     "ref_mark_off_face": {
         "label": "Ảnh tham chiếu đánh dấu gửi Seedance: dấu '+' đỏ đặt ở GÓC ảnh (không trên mặt) + luôn kèm câu cấm dấu/chữ thập trên "
-                 "mặt, đầu, người (0 USD)",
+                 "mặt, đầu, người; không bao giờ dấu trên mắt (kể cả ảnh khung đầu, kể cả sau khi bị từ chối — đi bậc tuyến) (0 USD)",
         "verified": False,
         "why": "Lỗi hệ thống 4 #27 (13/10): Kho chủ thể đầy → gửi ảnh đánh dấu cũ (dấu + trên mắt) → Seedance 2.5 chép dấu lên mặt "
                "Kelly shot 8–9, 18. Kiểu corner_plus chưa thử qua bộ lọc người thật",
+    },
+    "plate_view_sentence": {
+        "label": "Prompt video Seedance: ảnh khung đầu quyết bố cục + khoảng cách máy; render 3D chỉ là tham chiếu kiến trúc (không còn "
+                 "câu 'render quyết kiến trúc'); render khác góc máy → nói rõ 'góc máy khác' (đo OpenCV, 0 USD)",
+        "verified": False,
+        "why": "Rà gốc video #27 V1 (13/10, shot 17 job 858/912): plate máy sát đất ↔ khung đầu máy cao sau lưng Kelly; câu 'PLACE "
+               "render decides architecture' → Seedance lùi máy + vẽ mặt đồng hồ. Chưa gen thật với câu mới",
+    },
+    "group_keep_approved": {
+        "label": "Nhóm Seedance: shot NGƯỜI đã duyệt (còn mới) không bị gen lại theo bạn cùng nhóm — nhóm có shot đã duyệt lẫn shot "
+                 "chưa đạt thì mỗi shot đi riêng (0 USD)",
+        "verified": False,
+        "why": "Rà gốc video #27 V8 (13/10, G3): (5,6) 788→879 shot 6 đã duyệt bị gen lại vì shot 5; (10,11) ba vòng. Chưa chạy thật",
+    },
+    "motion_consistency_lint": {
+        "label": "Kiểm trước gửi: diễn xuất có động tác của shot kề (lấn shot), số nhịp hành động > số giây → VÀNG có lý do (0 USD)",
+        "verified": False,
+        "why": "Rà gốc video #27 V9 (13/10, G11): s15 diễn xuất 'ném' (của shot 16), s6 'dừng, ngước lên' (shot 7), s20 1,5 s ba nhịp "
+               "→ 859 không tới trạng thái cuối. Chỉ cảnh báo, chưa so với người",
+    },
+    "character_state_lock": {
+        "label": "Trạng thái nhân vật chỉ có trong chữ (vd Kelly bóng mờ) → motion code viết thêm câu giữ trạng thái cả shot + VÀNG "
+                 "thiếu ảnh trạng thái (0 USD)",
+        "verified": False,
+        "why": "Rà gốc video #27 V10 (13/10, G10): ảnh danh tính Kelly dạng thường, chữ 'bóng mờ' → cuối shot 9 mất bóng mờ. Chưa gen thật",
+    },
+    "ref_rule_early": {
+        "label": "Ảnh tham chiếu sai luật ClipAI (tỉ lệ 0,4–2,5, cạnh ≥ 300 px): đệm nền trơn khi Kho không có ảnh khác + ĐỎ trước khi "
+                 "xếp / báo giá thay vì hỏng lúc gửi (0 USD)",
+        "verified": False,
+        "why": "Rà gốc video #27 V13 (13/10, G13): shot 17 job 798 ảnh 488×1280 (0,38) chỉ bị bắt lúc gửi. Chưa gửi thật bản đệm",
     },
     "plate_anchored_image": {
         "label": "Ảnh vẽ bám render 3D: câu NỀN của prompt ảnh sinh từ plate (mốc, khoảng cách, chân trời) thay chữ nền tự do của Đạo "
