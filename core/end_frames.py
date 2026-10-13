@@ -53,14 +53,69 @@ def current(conn, scene_id: int):
     return conn.execute("SELECT * FROM end_frames WHERE scene_id=? ORDER BY id DESC LIMIT 1", (scene_id,)).fetchone()
 
 
+_SRC_KEY = "end_frame_src:{}"        # app_settings: the fingerprint of the end_state an end frame row was drawn from (C6)
+
+
+def _fingerprint(end_state: str) -> str:
+    import hashlib
+    return hashlib.sha1((end_state or "").strip().encode("utf-8")).hexdigest()
+
+
+def stamp_end_state(conn, row_id: int, end_state: str) -> None:
+    """C6 (rà chuỗi 13/10): remember WHICH end_state this row was drawn from (written when it is sent). The prompt is not the end_state
+    verbatim — looks.clean_prompt drops words ("cinematic"), joins " ,", the skill-object guard rewrites "pops up" — so the old
+    substring test called a fresh end frame outdated: the clip went without it and every autopilot round drew it again (paid)."""
+    conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                 (_SRC_KEY.format(row_id), _fingerprint(end_state)))
+    conn.commit()
+
+
 def end_state_changed(conn, row) -> bool:
-    """13/10 #27 shot 16 (rà quy ước 7): the shot's end_state was edited after this end frame was drawn — its prompt (prompt_for puts
-    the end_state in verbatim) no longer holds the current text. A row never sent (no prompt) is not judged."""
+    """13/10 #27 shot 16 (rà quy ước 7): the shot's end_state was edited after this end frame was drawn. C6: compared by the stamped
+    fingerprint (stamp_end_state); a row without one (drawn before) by the old test — its prompt no longer holds the current text.
+    A row never sent (no prompt) is not judged."""
     if row is None or not row["prompt"]:
         return False
     data = json.loads((conn.execute("SELECT data FROM scenes WHERE id=?", (row["scene_id"],)).fetchone() or ["{}"])[0] or "{}")
     now = (data.get("end_state") or "").strip()
-    return bool(now) and now not in row["prompt"]
+    if not now:
+        return False
+    rid = row["id"] if "id" in row.keys() else None
+    stamp = conn.execute("SELECT value FROM app_settings WHERE key=?", (_SRC_KEY.format(rid),)).fetchone() if rid else None
+    if stamp is not None:
+        return stamp[0] != _fingerprint(now)
+    return now not in row["prompt"]
+
+
+def missing_reason(conn, scene_id: int) -> Optional[str]:
+    """C5 (rà chuỗi 13/10): why this shot has no end frame to send (Vietnamese), None when one is usable or none is needed / the
+    feature is off. Read by the runner (said once per clip, never dropped silently) and the Bước 4 card."""
+    if not enabled():
+        return None
+    row = conn.execute("SELECT data, project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    proj = conn.execute("SELECT * FROM projects WHERE id=?", (row["project_id"],)).fetchone() if row is not None else None
+    mode = proj["shot_mode"] if proj is not None and "shot_mode" in proj.keys() else None
+    if row is None or not needed(json.loads(row["data"] or "{}"), mode):
+        return None
+    if usable_path(conn, scene_id):
+        return None
+    cur = current(conn, scene_id)
+    start = _start_job(conn, scene_id)
+    if start is None:
+        return "chưa có ảnh khung đầu đã duyệt"
+    if cur is None:
+        return "chưa vẽ khung cuối"
+    if cur["state"] in ("queued", "running"):
+        return "đang vẽ khung cuối"
+    if cur["state"] == "rejected":
+        return "khung cuối bị loại" + (f" ({cur['note']})" if cur["note"] else "")
+    if cur["state"] == "failed":
+        return "vẽ khung cuối lỗi" + (f": {cur['note']}" if cur["note"] else "")
+    if cur["start_job_id"] != start["id"]:
+        return "khung cuối vẽ từ ảnh khung đầu cũ"
+    if end_state_changed(conn, cur):
+        return "end_state đã sửa sau khi vẽ khung cuối"
+    return "thiếu tệp khung cuối"
 
 
 def usable_path(conn, scene_id: int) -> Optional[str]:
@@ -130,6 +185,20 @@ def prompt_for(p: Pipeline, project_id: int, scene_id: int, fix: Optional[str] =
     return prompt
 
 
+def _skill_guard(p: Pipeline, row, prompt: str) -> str:
+    """Rà S2 'việc cho S3' (1), flag skill_object_guard: the end frame's prompt gets THE guard of the start picture and the clip
+    (skill_objects.guard_prompt — the glue wall 'already standing at full height', never popping up; no elevator words; the ban
+    sentence) — a layer added later inherits the measure (CHUAN_XAY_DUNG). Flag off / no skill object: the prompt unchanged."""
+    from . import skill_objects
+    if not skill_objects.enabled():
+        return prompt
+    new, removed, names = skill_objects.guard_prompt(p.conn, row["project_id"], prompt)
+    if names:
+        _diag(p, row, "info", "skill_object_words", f"khung cuối: vật kỹ năng {', '.join(names)} — tả đã đứng sẵn đủ cao + câu cấm"
+              + (" + thay từ: " + ", ".join(removed) if removed else ""))
+    return new
+
+
 def _set(p: Pipeline, row_id: int, **fields) -> None:
     cols = ", ".join(f"{k}=?" for k in fields)
     p.conn.execute(f"UPDATE end_frames SET {cols}, updated_at={_now_sql()} WHERE id=?", (*fields.values(), row_id))
@@ -187,6 +256,7 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
                 counts["failed"] += 1
                 continue
             prompt = prompt_for(p, project_id, row["scene_id"], fix=row["fix"] if "fix" in row.keys() else None)
+            prompt = _skill_guard(p, row, prompt)
             kwargs = {}
             aspect = formats.project_aspect(proj)
             from . import quality_tier                # N1: flag two_tier_quality on → "Thử rẻ" ignored
@@ -225,7 +295,8 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str) -> Dict[str, int
             elif package is not None:
                 warns.append("bảng end_frames chưa có cột sent_package (CSDL cũ chưa nâng cấp) — gói gửi không ghi")
             _set(p, row["id"], **fields)
-            for w in warns:                           # said after the commit: a diag write never touches the task id
+            stamp_end_state(p.conn, row["id"], data.get("end_state") or "")      # C6: the end_state it was drawn from
+            for w in warns:                         # said after the commit: a diag write never touches the task id
                 try:
                     _diag(p, row, "warn", "sent_package", w)
                 except Exception:  # noqa: BLE001 - a ledger note never stops the tick

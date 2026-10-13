@@ -947,6 +947,10 @@ class VideoRunner(_Runner):
                     hosted = [seedance_refs.mark(path, out_dir, style) for path in hosted]
                     if pending.get("scene_ids"):     # rà S2 13/10 mục 6: the style really sent, never an assumed "eye_plus"
                         seedance_refs.note_sent(self.p.conn, pending["scene_ids"], style)
+                    source = pending.get("last_frame")
+                    if source and kwargs.get("last_frame") and kwargs.get("_last_frame_source") == source:
+                        kwargs["last_frame"] = seedance_refs.mark(source, out_dir, style)   # V5: the drawn end frame (an unmarked
+                        #                                     copy for the library) marked like the rest of this send
             elif pending.get("scene_ids"):
                 seedance_refs.note_sent(self.p.conn, pending["scene_ids"], "hosted")
             pending["local"][:] = hosted
@@ -1216,12 +1220,18 @@ class VideoRunner(_Runner):
                 if end:                                                                  # reference picture with its role sentence
                     from . import features, seedance_refs
                     clean = features.on("seedance_subjects") and getattr(self.provider, "supports_subjects", False)
+                    pics = out["reference_only"] or []
+                    deferred = self.__dict__.get("_pregen_local") and self.__dict__.get("_pregen_deferred")
+                    if clean and not deferred and not all(isinstance(x, dict) for x in pics):
+                        clean = False            # V5 (rà gốc 13/10): the Subject Library refused (Kho đầy) — marked like the rest
                     out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
                     # the same treatment as the other pictures of this send: marked (real-person filter, P2m) or, with the Subject
                     # Library, an unmarked copy ≤ 1280 px; K3 checks the drawn file itself (`_last_frame_source`, never sent)
                     out["last_frame"] = seedance_refs.mark(end, out_dir, style="none" if clean else
                                                            seedance_refs.mark_style(self.p.conn, [job["scene_id"]]))
                     out["_last_frame_source"] = end
+                    if clean and deferred and deferred[-1].get("mark_fallback"):
+                        deferred[-1]["last_frame"] = end    # decided in _finish_kwargs with the other pictures (V5)
             return out
         if group and mode != "multishot":
             pass                         # H5 camera set-up: one continuous prompt (in the motion argument), no multi_prompt
@@ -1262,6 +1272,11 @@ class VideoRunner(_Runner):
         drawn = end is None
         if drawn and end_frames.enabled():
             end = end_frames.usable_path(self.p.conn, job["scene_id"])      # K1: the drawn end state
+            if not end:                  # C5 (rà chuỗi 13/10): a shot that needs one goes without it — said once, never silently
+                why = end_frames.missing_reason(self.p.conn, job["scene_id"])
+                if why:
+                    self._diag_once(job, "warn", "end_frame_missing", f"clip gửi KHÔNG kèm khung cuối: {why} — bấm “🖼 Vẽ khung cuối” "
+                                    "trên thẻ Bước 4 rồi gen lại nếu cần cảnh kết đúng end_state")
         if not end or not ("seedance" in (model or "") or end_frames.enabled()):
             return None
         from . import video_rules
@@ -1272,6 +1287,10 @@ class VideoRunner(_Runner):
             return end
         if drawn and self._runs_in_place(job, canonical, family):
             return None                  # the next shot's picture (chain) stays: that one IS where this shot ends
+        if drawn and self._skill_object_appears(job, end):
+            return None
+        if drawn and self._same_ground(job, end):
+            return None
         if self._end_frame_off_distance(job, end, drawn):
             return None
         r = video_rules.rule(canonical)
@@ -1299,9 +1318,58 @@ class VideoRunner(_Runner):
                             f"{framing_guard.FLAG}); vẽ lại khung cuối cùng khoảng cách máy với ảnh đầu nếu cần khung cuối")
             return True
         if res.get("ok") is None:
+            acting = self._person_acts(job)
+            if acting:                   # V3 (rà gốc 13/10, G7): end_284_21 (Kelly behind the wall) went → 907 jumped 0,6 s
+                self._diag_once(job, "warn", "end_frame_distance", f"chưa đo được khoảng cách máy / cỡ người của {what} "
+                                f"({os.path.basename(end)}): {res.get('note')} — shot có người {acting}: clip gửi KHÔNG kèm khung cuối "
+                                f"(cờ {framing_guard.FLAG}; không đo được không coi là đạt); vẽ lại khung cuối thấy rõ mặt nếu cần")
+                return True
             self._diag_once(job, "warn", "end_frame_distance", f"chưa đo được khoảng cách máy của {what} ({os.path.basename(end)}): "
                             f"{res.get('note')} — vẫn gửi, cần xem bằng mắt")
         return False
+
+    def _scene_data(self, job) -> Dict:
+        row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+        return json.loads(row["data"] or "{}") if row is not None else {}
+
+    def _person_acts(self, job) -> Optional[str]:
+        """V3: the body action of the shot's people ("chạy / đi" or the physics kind), None for a still shot / no one in it."""
+        from . import motion_physics
+        data = self._scene_data(job)
+        if not data.get("characters") and not data.get("action"):
+            return None
+        action = motion_physics.shot_action(data)
+        if motion_physics.moves_through_space(action):
+            return "di chuyển"
+        k = motion_physics.kind(action)
+        return f"cử động ({k})" if k else None
+
+    def _skill_object_appears(self, job, end: str) -> bool:
+        """V3 (rà gốc 13/10; người dùng 21:31 — tường keo XUẤT HIỆN LUÔN): a shot where the skill object appears (thrown) gets no drawn
+        end frame — a model morphing towards a wall standing in the last frame draws it growing / wrong (#27 shot 16: 6 clips); the
+        build is the code composite (hard cut). Under flag framing_guard (off by default) with skill_object_guard on; said once."""
+        from . import framing_guard, skill_objects
+        if not framing_guard.enabled() or not skill_objects.enabled() or not skill_objects.rises(self._scene_data(job)):
+            return False
+        self._diag_once(job, "warn", "end_frame_skill_object", f"shot có vật kỹ năng xuất hiện (ném keo) — clip gửi KHÔNG kèm khung cuối "
+                        f"vẽ ({os.path.basename(end)}); dựng bằng GHÉP code cắt cứng sang khung có tường (`py {skill_objects.COMPOSE_TOOL}`)")
+        return True
+
+    def _same_ground(self, job, end: str) -> bool:
+        """V12 (rà gốc 13/10, G12; flags locomotion_end_frame + framing_guard — the OpenCV measure): a run / walk the camera follows whose
+        drawn end frame shows the start picture's place at the same size (no ground covered) → not sent, said once."""
+        from . import features, framing_guard, motion_physics, shots
+        if not features.on(motion_physics.LOCOMOTION_FLAG) or not framing_guard.enabled():
+            return False
+        data = self._scene_data(job)
+        if not motion_physics.follows(data.get("camera_move")) or not motion_physics.moves_through_space(motion_physics.shot_action(data)):
+            return False
+        start = shots.approved_image_path(self.p.conn, self.data_dir, job["project_id"], shots.image_scene(self.p.conn, job["scene_id"]))
+        why = motion_physics.same_ground(data, framing_guard.end_frame_check(start, end))
+        if why:
+            self._diag_once(job, "warn", "locomotion_end_frame", f"{why} — clip gửi KHÔNG kèm khung cuối vẽ ({os.path.basename(end)}, cờ "
+                            f"{motion_physics.LOCOMOTION_FLAG} + {framing_guard.FLAG})")
+        return bool(why)
 
     def _runs_in_place(self, job, canonical: str, family: str) -> bool:
         """Flag locomotion_end_frame (hộp thư 12/10 18:13, #27 job 782): a run / walk generated much longer than the shot gets no drawn
@@ -1653,8 +1721,8 @@ class VideoRunner(_Runner):
             return self._hold(job, "chờ bạn duyệt clip cảnh trước (cảnh này bắt đầu từ khung cuối clip đó) — duyệt xong sẽ tự gửi")
         if end_frames.enabled():
             row = end_frames.current(self.p.conn, job["scene_id"])
-            if row is not None and row["state"] in ("queued", "running"):
-                return True
+            if row is not None and row["state"] in ("queued", "running"):   # C5: held WITH the reason (card / inbox), never silently
+                return self._hold(job, "đang vẽ khung cuối (shot đổi trạng thái) — clip tự gửi kèm khung cuối khi vẽ xong")
         group = shots.group_of(self.p.conn, job["scene_id"]) or []
         if len(group) < 2:
             return False
@@ -1764,7 +1832,10 @@ class VideoRunner(_Runner):
             rows = self._ref_rows(job, group)
             parts = [((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s) for r, s in zip(rows, secs)]
             ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
-            places = seedance_refs.place_pictures(self.data_dir, job["project_id"], rows)
+            # V1 (rà gốc 13/10; S2 → S3): each render measured against the approved start frames (flag plate_view_sentence)
+            starts = ({r["id"]: self._start_frame(job["project_id"], r["id"]) for r in rows}
+                      if seedance_refs.plate_view_on() else None)
+            places = seedance_refs.place_pictures(self.data_dir, job["project_id"], rows, starts=starts)
             segs = self._take_segments(job, rows)
             block = ""
             if segs:                                   # S4.2: who says which line at which second (the lines stay in Vietnamese)
@@ -1775,8 +1846,8 @@ class VideoRunner(_Runner):
                                                        scales=_object_scales(conn, job["project_id"], rows),
                                                        reserve=(len(block) + 1 if block else 0)
                                                        + len(self._ref_end_sentence(job, group, len(rows) + len(ids) + len(places))) + 1
-                                                       + _skill_reserve(conn, job["project_id"], " ".join(p for p, _ in parts) + " "
-                                                                        + (model_fix(job["retry_reason"]) or ""))))
+                                                       + _skill_reserve(conn, job["project_id"],
+                                                                        _reserve_text(parts, ids, places, model_fix(job["retry_reason"])))))
             if block:
                 motion += "\n" + block
         stretch = self._stretch(group) if setup else None
@@ -2468,6 +2539,15 @@ def chain_previous(proj, scene_data) -> bool:
 
 
 _MINOR_AGE = re.compile(r"\b(?:[1-9]|1[0-7])[- ]?(?:-|\s)?years?[- ]old\b[,]?\s*", re.IGNORECASE)
+
+
+def _reserve_text(parts, ids, places, fix=None) -> str:
+    """The text `skill_objects.reserve` judges (rà S1+S2 13/10): the shots' motion, the NAMES the prompt numbers its pictures by
+    ("Image 3 is Bom keo …" — a skill object named only there still gets the skin / ban sentences after the prompt is built) and the
+    retry's fix."""
+    names = [str(n) for n, _ in (ids or [])]
+    names += [str(r.get("name") or os.path.splitext(os.path.basename(r.get("path") or ""))[0]) for r in (places or [])]
+    return " ".join([p for p, _ in (parts or [])] + names + [fix or ""])
 
 
 def _skill_reserve(conn=None, project_id=None, text=None) -> int:

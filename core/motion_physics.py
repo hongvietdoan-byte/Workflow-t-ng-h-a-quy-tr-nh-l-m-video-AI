@@ -110,3 +110,25 @@ def in_place_risk(data: Dict, shot_secs: float, gen_secs: float) -> Optional[str
         return None
     return (f"shot di chuyển {shot_secs:g} s nhưng clip sinh {gen_secs:g} s (> {STRETCH:g}×) — khung cuối vẽ bị ép ở giây {gen_secs:g}, "
             "dễ thành chạy tại chỗ")
+
+
+# V12 (rà gốc video #27 13/10, G12): the stretch rule misses a run as long as its clip whose drawn end frame shows NO ground covered.
+# With the camera following the runner, ground covered = the place ahead grows (background scale > 1) or slides by (corner shift);
+# the end frame at the start picture's size and place means "a few steps" drawn in place → the model runs in place (782).
+SAME_GROUND_SCALE = 1.05            # background scale inside [1/1.05, 1.05] …
+SAME_GROUND_CORNER = 0.05           # … and the picture's corners moved less than 5 % of the frame → the end frame shows the same spot
+
+
+def same_ground(data: Dict, measure: Optional[Dict]) -> Optional[str]:
+    """Why a drawn end frame of this run / walk shows no ground covered, or None. measure: framing_guard.end_frame_distance of the
+    start picture → end frame ({"scale", "corner"}); not measured → None (the distance check says it). Only a run / walk the camera
+    follows: with a still camera the runner crosses the frame and the background rightly stays."""
+    if not measure or not follows(data.get("camera_move")) or not moves_through_space(shot_action(data)):
+        return None
+    s, c = measure.get("scale"), measure.get("corner")
+    if s is None or c is None:
+        return None
+    if 1 / SAME_GROUND_SCALE <= s <= SAME_GROUND_SCALE and c <= SAME_GROUND_CORNER:
+        return (f"shot chạy/đi máy bám theo nhưng khung cuối vẽ cùng cỡ, cùng chỗ với ảnh đầu (nền × {s:.2f}, góc lệch {c * 100:.0f} %) "
+                "— không thấy quãng đường, dễ thành chạy tại chỗ")
+    return None

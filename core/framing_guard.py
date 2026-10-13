@@ -44,6 +44,12 @@ FACE_JUMP = 1.8             # biggest face height changes more than × this insi
 FACE_JUMP_S = 0.35          # in 0,2 s); a walk away over seconds stays below
 FACE_MIN_H = 0.03           # faces smaller than this share of the frame height are too noisy to compare
 FACE_WIDTH = 960            # pictures are compared at one width: YuNet's box on a stylised face moves ±10 % with the resolution
+# (b2) V2 (rà gốc 13/10, G6): the clip's LAST frame vs the start picture — the camera stayed, the architecture was redrawn as the clip
+# went (858: a clock face grown on the tower, frame 0 fine). #27: kept 903 last/start 0.24 (frame 0 0.21), 915 0.14 (0.12); 907 (the
+# person jumps away, background unchanged) 0.054 (0.144) — must stay out of this check, "jump" flags it
+END_DRIFT = 0.30            # last frame's inlier share below this × frame 0's share …
+END_DRIFT_MIN = 0.03        # … (and below at least this) → the background is not the start picture's any more
+CAM_STILL = 0.10            # the samples of the clip's first half moved a picture corner less than this → the camera stayed
 
 
 def enabled() -> bool:
@@ -140,7 +146,7 @@ def end_frame_distance(start_path: str, end_path: str) -> Dict:
     sim = similarity(a, b)
     fa, fb = face_height(a, True), face_height(b, True)
     ratio = round(fb / fa, 3) if fa and fb else None
-    out: Dict = {"scale": sim.get("scale"), "inliers": sim.get("inliers"), "face_ratio": ratio,
+    out: Dict = {"scale": sim.get("scale"), "corner": sim.get("corner"), "inliers": sim.get("inliers"), "face_ratio": ratio,
                  "face_start": round(fa, 3) if fa else None, "face_end": round(fb, 3) if fb else None}
     bad = []
     s = sim.get("scale")
@@ -158,8 +164,11 @@ def end_frame_distance(start_path: str, end_path: str) -> Dict:
                                                                     "khung cuối")) + ")")
     part = [] if s is not None else ["chưa đo được tỉ lệ nền"]
     if ratio is None:
-        part.append("chưa so được cỡ người (không thấy mặt ở " + ("ảnh đầu" if not fa else "khung cuối") + ")"
+        # V3 (rà gốc 13/10, G7): end_284_21 (Kelly behind the wall, no face) passed as ok=True → 907 jumped. Not measured is never a
+        # pass (CHUAN_XAY_DUNG): ok None, the runner decides (a person acting → the end frame is not sent)
+        part.append("chưa so được cỡ người (không thấy mặt ở " + ("ảnh đầu" if not fa else "khung cuối") + " — người khuất / quay đi?)"
                     if (fa or fb) else "chưa so được cỡ người (không thấy mặt)")
+        return dict(out, ok=None, note="; ".join(part))
     return dict(out, ok=True, **({"note": "; ".join(part)} if part else {}))
 
 
@@ -239,6 +248,9 @@ def clip_framing(clip: str, picture: Optional[str], cuts: Optional[List[float]] 
             why.append(f"máy tiến / phóng cảnh trong clip (nền × {hi[1]:.2f} ở {hi[0]} s so khung 0)")
     else:
         notes.append("khung 0 ít điểm đặc trưng — chưa đo được zoom / lùi máy")
+    # 2b. V2: the last frame vs the start picture — the camera stayed but the architecture changed (only when frame 0 kept the picture)
+    if pic is not None and out["frame0_measured"] and "frame0" not in kinds:
+        _end_drift(out, pic, fs, step, why, notes, kinds)
     # 3. the person jumps (face size leaps inside FACE_JUMP_S)
     sizes = [(i / fps, face_height(f)) for i, f in enumerate(fs)]
     sizes = [(t, h) for t, h in sizes if h]
@@ -276,6 +288,29 @@ def clip_framing(clip: str, picture: Optional[str], cuts: Optional[List[float]] 
     return out
 
 
+def _end_drift(out: Dict, pic, fs, step, why, notes, kinds) -> None:
+    """V2: {"frame_end": {...}} and a "frame_end" kind when the camera stayed (the samples of the clip's first half moved < CAM_STILL)
+    but the last frame matches the start picture much less than frame 0 did — the model redrew the place as the clip went. A moving
+    camera (pan / follow) is not judged (said in the note): its last frame shows another view by design."""
+    f0 = out.get("frame0") or {}
+    last = similarity(pic, fs[-1])
+    out["frame_end"] = {k: last.get(k) for k in ("scale", "corner", "inliers", "inlier_share")}
+    base = _features(fs[0])
+    half = [similarity(fs[0], fs[i], fa=base) for i in range(step, len(fs) // 2 + 1, step)]
+    if any(h.get("scale") is None or (h.get("corner") or 0) > CAM_STILL for h in half):
+        out["frame_end"]["camera"] = "moves"
+        notes.append("máy chuyển động trong nửa đầu clip — không so khung cuối clip với ảnh đầu (kiến trúc)")
+        return
+    share0 = f0.get("inlier_share") or 0.0
+    limit = max(END_DRIFT_MIN, END_DRIFT * share0)
+    share = (last.get("inlier_share") or 0.0) if last.get("scale") is not None else 0.0
+    if share < limit:
+        kinds.append("frame_end")
+        why.append(f"khung cuối clip khác ảnh đầu dù máy đứng yên (khớp {last.get('inliers', 0)}/{last.get('keypoints', 0)} điểm = "
+                   f"{share * 100:.1f} % so với khung 0 {share0 * 100:.1f} %, ngưỡng {limit * 100:.1f} %) — model vẽ thêm / bớt "
+                   "kiến trúc trong clip; xem khung đầu ↔ khung cuối clip cạnh nhau")
+
+
 def suggestion(kinds: List[str]) -> str:
     """What to change before generating again (rule 6: a retry changes its input) — kinds: frame0 / zoom / jump / cut."""
     tips = []
@@ -283,5 +318,7 @@ def suggestion(kinds: List[str]) -> str:
         tips.append("bỏ khung cuối (hoặc vẽ lại khung cuối CÙNG khoảng cách máy với ảnh đầu)")
     if "frame0" in kinds or "zoom" in kinds or "cut" in kinds:
         tips.append("đổi model (Kling giữ khung đầu sát hơn — #27 shot 17: Seedance lùi máy ×3, Kling 915 giữ đúng)")
+    if "frame_end" in kinds:
+        tips.append("prompt nói rõ kiến trúc giữ nguyên như ảnh khung đầu (không thêm mặt đồng hồ / tầng / cửa)")
     tips.append("hoặc dựng phần vật / kiến trúc bằng ghép code")
     return "gợi ý: " + "; ".join(dict.fromkeys(tips))
