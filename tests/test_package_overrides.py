@@ -389,3 +389,11 @@ def test_d10_outfit_wearer_must_belong_to_shot_even_when_inferred(setup, target)
                  'owner', 'ghim', 0, base_refs=refs)
     assert conn.execute('SELECT data FROM scenes WHERE id=9').fetchone()[0] == before
     assert conn.execute('SELECT count(*) FROM audit_log').fetchone()[0] == 0
+
+
+def test_missing_base_refs_has_actionable_error_before_scene_lookup(setup):
+    conn, path, sha = setup
+    with pytest.raises(pkg.OverrideError, match='base_refs.*tải lại'):
+        pkg.save(conn, 999, [], 'owner', 'chỉnh', 0)
+    with pytest.raises(pkg.OverrideError, match='base_refs.*tải lại'):
+        pkg.undo(conn, 999, 1, 'owner')

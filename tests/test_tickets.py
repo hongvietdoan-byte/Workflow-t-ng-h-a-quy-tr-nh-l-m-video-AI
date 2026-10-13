@@ -273,3 +273,12 @@ def test_snapshot_bad_evidence_warns_readonly(store,tmp_path,monkeypatch,problem
     assert snap['gen_done_projects']==[]
     assert any('Dự án 1' in warning for warning in snap['warnings'])
     assert store.total_changes==before
+
+
+def test_slash_prefixed_reason_is_not_machine_path():
+    from core import tickets
+    for value in ('/24 shot', '/lý do cần sửa'):
+        tickets._safe(value)
+    for value in ('/home/x/file.png', '/mnt/data', 'C:/Users/x/a.png', '//server/share/file'):
+        with pytest.raises(tickets.TicketError):
+            tickets._safe(value)

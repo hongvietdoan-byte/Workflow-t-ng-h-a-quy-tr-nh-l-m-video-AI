@@ -150,7 +150,7 @@ def test_v3_trial_records_proposal_without_resolving_applied(tmp_path, monkeypat
     findings = change_review.open_findings(p.conn, pid)
     assert any(r['source'] == 'layout_drift' for r in findings)
     proposal = [r for r in findings if r['source'] == 'layout_drift_proposal']
-    assert proposal and all('chưa áp dụng' in r['msg'] and str(tmp_path / 'new') in r['msg'] for r in proposal)
+    assert proposal and all('chưa áp dụng' in r['msg'] and '(new)' in r['msg'] and str(tmp_path) not in r['msg'] for r in proposal)
 
 
 @pytest.mark.parametrize('ids', ['1', '99', ' 1 ', 'broken'])
@@ -159,9 +159,9 @@ def test_short_lock_matches_full_lock_outfit_policy(ids, monkeypatch):
     pid = p.create_project('KL')
     p.conn.execute("INSERT INTO characters(project_id,name,description,outfit_image_ids,lock_rules) VALUES (?,'KELLY KL','',?,?)", (pid, ids, json.dumps({'must_keep': 'default clothes'})))
     monkeypatch.setattr(features, 'on', lambda n: n in ('profile_digest', 'short_lock_outfit'))
-    with mock.patch('core.assets.standard_for', return_value=None), mock.patch('core.profile_digest.for_character', return_value='default clothes'), mock.patch('core.assets.outfit_images', side_effect=AssertionError('same policy as full Lock')):
+    with mock.patch('core.assets.standard_for', return_value=None), mock.patch('core.profile_digest.for_character', return_value='default clothes'), mock.patch('core.assets.outfit_images', return_value=[]):
         assert 'OUTFIT' in prompts.lock_text(p.conn, pid)
-        assert prompts.short_lock_block(p.conn, pid) == ''
+        assert 'default clothes' in prompts.short_lock_block(p.conn, pid)
 
 
 def test_stage_explicit_baseline_without_hand(tmp_path, monkeypatch):
@@ -194,4 +194,31 @@ def test_proposal_dedupe_and_revert_leave_official_open(tmp_path, monkeypatch):
     assert review_stage_round(p.conn, pid, old, new, proposal=True) > 0
     assert review_stage_round(p.conn, pid, old, new, proposal=True) == 0
     assert review_stage_round(p.conn, pid, old, old, proposal=True) == 0
-    assert {r['source'] for r in change_review.open_findings(p.conn, pid)} == {'layout_drift', 'layout_drift_proposal'}
+    assert {r['source'] for r in change_review.open_findings(p.conn, pid)} == {'layout_drift'}
+    assert p.conn.execute("SELECT count(*) FROM change_findings WHERE source='layout_drift_proposal' AND status='resolved'").fetchone()[0] > 0
+
+
+def test_proposal_latest_round_resolves_previous(tmp_path, monkeypatch):
+    import shutil
+    p, pid, sid = stage_fixture(tmp_path)
+    monkeypatch.setattr(features, 'on', lambda n: n in ('change_review', 'layout_drift_review'))
+    change_review.record_stage_blocking_change(p.conn, pid, str(tmp_path/'old'), str(tmp_path/'new'), proposal=True)
+    shutil.copytree(tmp_path/'new', tmp_path/'round2')
+    change_review.record_stage_blocking_change(p.conn, pid, str(tmp_path/'old'), str(tmp_path/'round2'), proposal=True)
+    rows = change_review.open_findings(p.conn, pid)
+    assert rows and all('(round2)' in r['msg'] and str(tmp_path) not in r['msg'] for r in rows)
+    assert p.conn.execute("SELECT count(*) FROM change_findings WHERE status='resolved'").fetchone()[0] > 0
+
+
+@pytest.mark.parametrize('problem', ['missing', 'empty', 'oversize'])
+def test_assigned_unusable_outfit_keeps_short_lock(problem, tmp_path, monkeypatch):
+    own = tmp_path/'own.png'
+    if problem != 'missing':
+        with own.open('wb') as f:
+            f.truncate(11*1024*1024 if problem == 'oversize' else 0)
+    p = Pipeline(connect())
+    pid = p.create_project('KL')
+    p.conn.execute("INSERT INTO characters(project_id,name,description,outfit_image_ids) VALUES (?,'KELLY','', '99')", (pid,))
+    monkeypatch.setattr(features, 'on', lambda n: n in ('profile_digest', 'short_lock_outfit'))
+    with mock.patch('core.assets.outfit_images', return_value=[{'id':99,'path':str(own)}]), mock.patch('core.profile_digest.for_character', return_value='face hair build'):
+        assert 'face hair build' in prompts.short_lock_block(p.conn, pid)

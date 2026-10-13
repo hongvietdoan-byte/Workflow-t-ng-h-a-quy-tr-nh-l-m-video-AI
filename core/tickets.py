@@ -68,7 +68,7 @@ def _safe(value):
             _safe(item)
     elif isinstance(value, str):
         path = value.replace('\\', '/')
-        if 'base64,' in value or re.search(r'[A-Za-z]:/', path) or path.startswith('/'):
+        if 'base64,' in value or re.search(r'[A-Za-z]:/', path) or re.match(r'^/[^/\s]+/[^/\s]+', path) or path.startswith('//'):
             raise TicketError('Chỉ lưu tham chiếu bằng chứng đã lọc, không đường dẫn máy/base64')
         if not re.fullmatch(r'[0-9a-f]{40,64}', value) and diag.redact(value) != value:
             raise TicketError('Bằng chứng chưa lọc thông tin bí mật')

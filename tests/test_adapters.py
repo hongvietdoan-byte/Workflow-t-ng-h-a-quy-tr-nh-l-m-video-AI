@@ -541,3 +541,38 @@ class FactoryAndRunnerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_dashboard_env_reads_only_launcher_user_keys_without_overwrite(tmp_path,monkeypatch):
+    import sys,types
+    from core.adapters import check
+    # Môi trường giả hoàn toàn: teardown trả đúng cả trường hợp biến chưa tồn tại.
+    monkeypatch.setattr(os,'environ',{})
+    calls=[]
+    class RegistryKey:
+        def __enter__(self):return self
+        def __exit__(self,*a):pass
+    def query(key,name):
+        calls.append(name)
+        return 'FAKE-'+name,1
+    fake=types.SimpleNamespace(HKEY_CURRENT_USER=1,OpenKey=lambda root,path:RegistryKey(),QueryValueEx=query)
+    monkeypatch.setitem(sys.modules,'winreg',fake)
+    for key in ('CLIPAI_TOKEN','DEEPIX_TOKEN','ANTHROPIC_API_KEY','MESHY_API_KEY'):
+        monkeypatch.delenv(key,raising=False)
+    monkeypatch.setenv('CLIPAI_TOKEN','processfake')
+    env=tmp_path/'dashboard.env';env.write_text('DEEPIX_TOKEN=filefake\nLLM_PROVIDER=mock\n',encoding='utf-8')
+    check.load_dashboard_env(str(env))
+    assert os.environ['CLIPAI_TOKEN']=='processfake' and os.environ['DEEPIX_TOKEN']=='filefake'
+    assert os.environ.get('ANTHROPIC_API_KEY')=='FAKE-ANTHROPIC_API_KEY'
+    assert set(calls)=={'ANTHROPIC_API_KEY','MESHY_API_KEY'}
+
+
+def test_dashboard_env_fixture_restores_provider_absent_and_present(tmp_path,monkeypatch):
+    from pytest import MonkeyPatch
+    for initial in (None,'synthetic-existing-provider'):
+        if initial is None:monkeypatch.delenv('LLM_PROVIDER',raising=False)
+        else:monkeypatch.setenv('LLM_PROVIDER',initial)
+        with MonkeyPatch.context() as isolated:
+            test_dashboard_env_reads_only_launcher_user_keys_without_overwrite(tmp_path,isolated)
+        provider=os.environ.get('LLM_PROVIDER')
+        assert provider==initial

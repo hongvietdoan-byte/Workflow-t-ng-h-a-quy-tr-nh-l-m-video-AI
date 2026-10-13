@@ -49,6 +49,25 @@ class SnapshotBroker:
         self._tokens[hashlib.sha256(token.encode()).digest()] = (session, now + ttl)
         return token
 
+    def revoke(self, token):
+        self._tokens.pop(hashlib.sha256((token or '').encode()).digest(), None)
+
+    def validate(self, token):
+        """Watchdog chỉ kiểm cờ, token, phiên Owner; không quét kho phiếu/sổ chi."""
+        self._enabled()
+        key = hashlib.sha256((token or '').encode()).digest()
+        grant = self._tokens.get(key)
+        if grant is None or grant[1] <= self.clock():
+            self.revoke(token)
+            raise PermissionError('Token chỉ đọc thiếu hoặc hết hạn')
+        c = self._connection()
+        try:
+            self._owner(c, grant[0])
+        except PermissionError:
+            self.revoke(token)
+            raise
+        finally: c.close()
+
     def snapshot(self, token):
         self._enabled()
         key = hashlib.sha256((token or '').encode()).digest()

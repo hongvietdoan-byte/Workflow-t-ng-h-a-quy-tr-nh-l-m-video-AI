@@ -172,7 +172,10 @@ class ChannelService:
     def _authorize(self,session):
         # Phiên sai không làm gián đoạn grant đang chạy của Owner khác.
         token=self.broker.issue(session,ttl=300)
-        self.stop()
+        try:self.stop()
+        except Exception:
+            # stop có thể lỗi khi xóa credential cũ; token mới chưa thành grant.
+            self.broker.revoke(token);raise
         with self._lock:
             service=self
             class Handler(BaseHTTPRequestHandler):
@@ -194,7 +197,7 @@ class ChannelService:
                             if grant is None:raise PermissionError()
                             grant.validate()
                             if re.fullmatch(r'/hello\?nonce=[a-f0-9]{64}',self.path):
-                                service.broker.snapshot(grant.token) # kiểm Owner thật mỗi poll trước proof
+                                service.broker.validate(grant.token) # kiểm Owner thật mỗi poll trước proof
                                 self.reply(200,{'proof':proof(grant.token,self.path.split('=')[1])})
                             elif self.path=='/snapshot':
                                 supplied=self.headers.get('Authorization','')
@@ -208,12 +211,15 @@ class ChannelService:
                 def reject(self):
                     self.close_connection=True;self.reply(405,{'error':'Chỉ GET'})
                 do_POST=do_PUT=do_PATCH=do_DELETE=do_HEAD=do_OPTIONS=do_TRACE=do_CONNECT=reject
-            self.server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
+            try:self.server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
+            except Exception:
+                self.broker.revoke(token);raise
             self.server.daemon_threads=True
             self.grant=Grant(token,self.server.server_port,time.time()+300)
             try:self.store.write(self.grant)
             except Exception:
-                self.server.server_close();self.server=None;self.grant=None;raise
+                self.server.server_close();self.server=None
+                self.invalidate();raise
             self._done=threading.Event()
             threading.Thread(target=self.server.serve_forever,daemon=True,name='lao-dai-broker').start()
             threading.Thread(target=self._watch,args=(self._done,),daemon=True,name='lao-dai-expiry').start()
@@ -222,7 +228,9 @@ class ChannelService:
         with self._lock:
             previous=self.grant
             self.grant=None
-            if previous is not None:delete_grant(self.store,previous)
+            if previous is not None:
+                self.broker.revoke(previous.token)
+                delete_grant(self.store,previous)
 
     def check(self):
         with self._lifecycle:self._check()
@@ -231,7 +239,7 @@ class ChannelService:
         with self._lock:
             try:
                 if self.grant is None:raise PermissionError()
-                self.grant.validate();self.broker.snapshot(self.grant.token)
+                self.grant.validate();self.broker.validate(self.grant.token)
             except (PermissionError,ValueError):
                 self.invalidate();invalid=True
             else:invalid=False

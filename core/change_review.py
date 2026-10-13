@@ -162,10 +162,8 @@ def record_stage_blocking_change(conn, project_id: int, old_dir: str, new_dir: s
     for idx, sid in by_idx.items():
         msgs = {f['msg'] for f in found if f['shot'] == idx}
         if proposal:
-            msgs = {f'Đề xuất sân khấu chưa áp dụng ({os.path.abspath(new_dir)}): {msg}' for msg in msgs}
+            msgs = {f'Đề xuất sân khấu chưa áp dụng ({os.path.basename(os.path.normpath(new_dir))}): {msg}' for msg in msgs}
         for r in conn.execute("SELECT id,msg FROM change_findings WHERE scene_id=? AND source=? AND status='open'", (sid, source)).fetchall():
-            if proposal:
-                continue
             if r['msg'] not in msgs:
                 conn.execute("UPDATE change_findings SET status='resolved',resolved_at=?,resolved_by='layout_drift' WHERE id=?", (_now(), r['id']))
         for msg in sorted(msgs):

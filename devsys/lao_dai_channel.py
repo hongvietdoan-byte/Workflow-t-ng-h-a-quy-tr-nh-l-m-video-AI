@@ -22,7 +22,7 @@ def render(st,admin_auth):
     if not features.on('lao_dai_pet') or not features.on('support_tickets'):return
     who=admin_auth.current()
     if not admin_auth.is_owner(who) or not admin_auth.request_source()[1]:
-        st.caption('Pet: chỉ Owner đăng nhập trên máy chạy 8502 được cấp quyền.')
+        st.sidebar.caption('Pet: chỉ Owner đăng nhập trên máy chạy 8502 được cấp quyền.')
         return
     with st.expander('Lão Đại · quyền đọc trên máy này'):
         st.caption('Bấm cấp token chỉ đọc trong kho Windows, hạn 5 phút. Hết hạn cần bấm cấp lại; pet không duyệt phiếu.')

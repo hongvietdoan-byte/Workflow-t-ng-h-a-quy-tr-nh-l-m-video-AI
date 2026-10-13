@@ -19,13 +19,18 @@ class MemoryStore:
         if self.value == grant: self.value = None
 
 class Broker:
-    def __init__(self): self.enabled=True; self.valid=True; self.tokens={}; self.reads=0
+    def __init__(self): self.enabled=True; self.valid=True; self.tokens={}; self.reads=0; self.issued=0
     def _enabled(self):
         if not self.enabled: raise PermissionError()
     def issue(self, session, ttl=300):
         self._enabled()
         if session!='owner' or not self.valid: raise PermissionError()
-        token='synthetic-token-for-test'; self.tokens[token]=True; return token
+        self.issued+=1; token='synthetic-token-for-test-'+str(self.issued); self.tokens[token]=True; return token
+    def validate(self, token):
+        self._enabled()
+        if not self.valid or token not in self.tokens: raise PermissionError()
+    def revoke(self, token):
+        self.tokens.pop(token,None)
     def snapshot(self, token):
         self._enabled()
         if not self.valid or token not in self.tokens: raise PermissionError()
@@ -162,6 +167,7 @@ def test_ui_off_and_remote_owner_cannot_create_service(monkeypatch):
     from devsys import lao_dai_channel as module
     class UI:
         session_state={}
+        def __init__(self):self.sidebar=self
         def caption(self,text):pass
     class Auth:
         TOKEN_KEY='private-session'
@@ -299,3 +305,109 @@ def test_disconnected_draw_shows_reason(reason):
     app.controller=type('Controller',(),{'selected':None})()
     app.draw(PetView('disconnected','Mất kết nối',reason))
     assert any(row['text']==reason and row.get('width')==290*app.scale for row in app.canvas.texts)
+
+
+def test_watchdog_checks_auth_without_reading_ticket_snapshot():
+    broker=Broker();store=MemoryStore();service=ChannelService(broker,store)
+    try:
+        service.authorize('owner',local=True,owner=True)
+        service.check()
+        assert broker.reads==0
+        first=service.grant.token
+        service.authorize('owner',local=True,owner=True)
+        assert first not in broker.tokens
+        second=service.grant.token
+        service.stop()
+        assert second not in broker.tokens
+    finally:service.stop()
+
+
+def test_three_reauthorizations_and_failed_store_leave_no_token():
+    broker=Broker();store=MemoryStore();service=ChannelService(broker,store)
+    try:
+        previous=[]
+        for _ in range(3):
+            service.authorize('owner',local=True,owner=True)
+            token=service.grant.token
+            assert token not in previous and set(broker.tokens)=={token}
+            previous.append(token)
+        service.stop()
+        def fail(grant):raise OSError('fake credential failure')
+        store.write=fail
+        with pytest.raises(OSError):service.authorize('owner',local=True,owner=True)
+        assert not broker.tokens and not service.active
+    finally:service.stop()
+
+
+def test_bind_failure_revokes_new_token(monkeypatch):
+    import tools.lao_dai.channel as channel
+    broker=Broker();store=MemoryStore();service=ChannelService(broker,store)
+    def fail(*a,**k):raise OSError('fake bind failure')
+    monkeypatch.setattr(channel,'ThreadingHTTPServer',fail)
+    with pytest.raises(OSError):service.authorize('owner',local=True,owner=True)
+    assert not broker.tokens and not service.active and store.value is None
+
+
+def test_partial_credential_write_cleans_grant_and_token():
+    broker=Broker();store=MemoryStore();service=ChannelService(broker,store)
+    def fail(grant):
+        store.value=grant
+        raise OSError('fake partial write')
+    store.write=fail
+    with pytest.raises(OSError):service.authorize('owner',local=True,owner=True)
+    assert not broker.tokens and not service.active and store.value is None
+
+
+@pytest.fixture
+def real_owner_broker(tmp_path, monkeypatch):
+    import sqlite3
+    from core import auth, tickets
+    from tools.lao_dai.broker import SnapshotBroker
+    path=tmp_path/'owner-fixture.sqlite'
+    conn=sqlite3.connect(path)
+    conn.executescript("CREATE TABLE users(email TEXT,name TEXT,role TEXT,perms TEXT,active INTEGER); "
+                      "CREATE TABLE sessions(token_hash TEXT,email TEXT,expires_at REAL); "
+                      "INSERT INTO users VALUES ('fixture@example.test','Fixture','owner','[]',1)")
+    session='synthetic-session'
+    conn.execute('INSERT INTO sessions VALUES (?,?,?)',
+                 (auth._hash(session),'fixture@example.test',time.time()+300))
+    conn.commit()
+    flags={'enabled':True}
+    monkeypatch.setattr('core.features.on',lambda name:flags['enabled'])
+    def no_snapshot(*args,**kwargs):raise AssertionError('validate không được quét phiếu/sổ chi')
+    monkeypatch.setattr(tickets,'admin_snapshot',no_snapshot)
+    try:yield SnapshotBroker(path),conn,session,flags,path
+    finally:conn.close()
+
+
+def test_reauthorize_delete_failure_revokes_new_token_real_broker(real_owner_broker):
+    broker,conn,session,flags,path=real_owner_broker
+    store=MemoryStore();service=ChannelService(broker,store)
+    token=broker.issue(session)
+    service.grant=Grant(token,12345,time.time()+299)
+    store.value=service.grant
+    before=path.read_bytes()
+    def fail(grant):raise PermissionError('synthetic credential deletion error')
+    store.delete_if=fail
+    with pytest.raises(PermissionError,match='synthetic credential deletion'):
+        service.authorize(session,local=True,owner=True)
+    assert not broker._tokens and not service.active and service.server is None
+    assert path.read_bytes()==before
+
+
+@pytest.mark.parametrize('reason',['owner_disabled','session_revoked','flag_off','expired'])
+def test_real_broker_watchdog_rechecks_auth_without_snapshot(real_owner_broker,reason):
+    broker,conn,session,flags,path=real_owner_broker
+    store=MemoryStore();service=ChannelService(broker,store)
+    token=broker.issue(session)
+    service.grant=Grant(token,12345,time.time()+299);store.value=service.grant
+    before=path.read_bytes();service.check()
+    assert service.active and path.read_bytes()==before
+    if reason=='owner_disabled':conn.execute('UPDATE users SET active=0')
+    elif reason=='session_revoked':conn.execute('DELETE FROM sessions')
+    elif reason=='flag_off':flags['enabled']=False
+    else:broker.clock=lambda:float('inf')
+    conn.commit();before=path.read_bytes()
+    service.check()
+    assert not broker._tokens and not service.active and store.value is None
+    assert path.read_bytes()==before

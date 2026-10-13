@@ -58,9 +58,11 @@ class PetLogic:
             self._seen.update((r['id'],r['state'],r['due_status']) for r in rows)
             self.failures = 0
             n = counts.get('waiting_admin', 0)
-            due = {color:sum(r['state']=='waiting_admin' and r['due_status']==color for r in rows) for color in ('yellow','red')}
-            urgency = f" · 🔴 {due['red']} quá hạn · 🟡 {due['yellow']} sắp hạn" if n else ''
-            return PetView('tickets' if n else 'idle', (f'📨 {n} phiếu chờ duyệt'+urgency) if n else '', toasts=toasts)
+            merge = counts.get('waiting_merge', 0)
+            total = n + merge
+            due = {color:sum(r['state'] in ('waiting_admin', 'waiting_merge') and r['due_status']==color for r in rows) for color in ('yellow','red')}
+            urgency = f" · 🔴 {due['red']} quá hạn · 🟡 {due['yellow']} sắp hạn" if total else ''
+            return PetView('tickets' if total else 'idle', (f'📨 {n} phiếu chờ duyệt' + (f' · {merge} chờ merge' if merge else '') + urgency) if total else '', toasts=toasts)
         except (ValueError, KeyError, TypeError):
             return self.failure('Snapshot broker thiếu hoặc sai định dạng')
 

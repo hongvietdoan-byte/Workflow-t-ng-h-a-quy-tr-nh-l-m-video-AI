@@ -48,12 +48,21 @@ def choose(conn, data: Dict) -> Optional[Dict]:
     words = _query(data)
     if not words:
         return None
-    from . import kho_review, sound_ai
-    rows = conn.execute(f"SELECT id, path, name, duration, heard_label, heard_score FROM sounds WHERE ({sound_lib.VOICE_SQL})=0 AND duration>=?",
+    from . import features, kho_review, sound_ai
+    rows = conn.execute(f"SELECT id, path, name, duration, heard, heard_label, heard_score FROM sounds WHERE ({sound_lib.VOICE_SQL})=0 AND duration>=?",
                         (MIN_SECONDS,)).fetchall()
     rows = sound_lib._not_rejected(conn, rows)          # rà gộp Đ12v1 (12/10): a sound the Kho review rejected is never a bed either
     # rà gộp Đ12v1: a new listen marks every non-human label voice=0 — the heard label counts only when it IS a sound of a place
     # (accent / ambient labels), so "Wind instrument, woodwind instrument" (a flute) never becomes the wind of a foggy scene
+    def trusted_voice(row):
+        # Chỉ nhãn YAMNet đủ TRUST; không diễn giải tên file thành nội dung âm.
+        for part in str(row["heard"] or "").split(';'):
+            match = re.fullmatch(r'\s*(.+?)\s+([0-9]+(?:\.[0-9]+)?)\s*', part)
+            if match and match[1].strip().lower() in sound_ai.VOICE and float(match[2]) >= sound_ai.TRUST:
+                return True
+        return False
+    if features.on("ambience_voice_guard"):
+        rows = [r for r in rows if not trusted_voice(r)]
     place_labels = (sound_ai.ACCENT | sound_lib._AMBIENT_LABELS) - sound_ai.VOICE
     for w in words:                                     # the first word that matches wins; the longest file of it (fewer loops)
         word = re.compile(rf"(?<![\w]){re.escape(w)}(?![\w])", re.I)     # whole words: "Crunk Knight" is not a night sound

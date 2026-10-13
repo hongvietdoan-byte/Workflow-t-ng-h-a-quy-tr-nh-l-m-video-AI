@@ -399,10 +399,7 @@ def plan(conn, project_id: int, pricing: Optional[Dict] = None, priority: Option
             family = None
         ref = cost.video_reference_seconds(conn, s["id"], choice) if family == "seedance" else {"seconds": 0.0, "warnings": []}
         price = None if unit is None else unit * billed
-        if ref["seconds"] is None:
-            price = None
-        elif ref["seconds"] > 0 and billed > 0:
-            from .adapters.clipai import resolve_model
+        if ref["seconds"] > 0 and billed > 0:
             canonical, family = resolve_model(choice["model"])
             if family == "seedance":
                 price = cost.seedance_estimate(canonical, choice.get("resolution") or "720p",

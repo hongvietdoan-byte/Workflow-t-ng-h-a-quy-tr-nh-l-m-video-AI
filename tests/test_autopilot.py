@@ -400,3 +400,15 @@ class PrevizInAutopilotTests(Setup):
         autopilot.start(self.p, self.pid)
         self.assertEqual(autopilot.run_until_done(self.p, self.pid, self.ctx), autopilot.DONE)
         self.assertTrue(self.p.conn.execute("SELECT COUNT(*) FROM diag_events WHERE code='previz_skipped'").fetchone()[0])
+
+
+def test_director_busy_autopilot_waits_for_next_tick(tmp_path):
+    p=Pipeline(connect());pid=p.create_project('busy')
+    autopilot.start(p,pid)
+    ctx=autopilot.Context(str(tmp_path),None,None,llm_runner.MockLlm(),None,None)
+    with mock.patch.object(autopilot,'_director_phase',side_effect=llm_runner.LlmError('đang chạy',code='director_busy')):
+        assert autopilot.tick(p,pid,ctx)==autopilot.RUNNING
+    assert autopilot.status(p,pid)['state']==autopilot.RUNNING
+    rows=p.conn.execute("SELECT severity,code FROM diag_events WHERE project_id=?",(pid,)).fetchall()
+    assert any(r['code']=='director_busy' and r['severity']=='warn' for r in rows)
+    assert not any(r['severity']=='error' for r in rows)

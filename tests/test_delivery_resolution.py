@@ -281,3 +281,48 @@ class DeliveryUnknownFinalTests(QuoteBase):
         self.p.conn.execute("UPDATE jobs SET state='approved',quality_tier='final',result_path='fixture720.mp4' WHERE id=?", (j,))
         with patch('core.ffmpeg_studio.probe_size', return_value=(720, 1280)):
             self.assertEqual(quality_tier.state(self.p.conn, self.s1), 'final_ok')
+
+
+def test_measure_relative_paths_follow_collect_clips_cwd(tmp_path, monkeypatch):
+    from unittest.mock import patch
+    monkeypatch.chdir(tmp_path)
+    path=tmp_path/'data'/'shot.mp4';path.parent.mkdir();path.write_bytes(b'clip')
+    with patch('core.ffmpeg_studio.probe_size',return_value=(720,1280)) as probe:
+        assert final_cut.measured_size('data/shot.mp4')==(720,1280)
+    assert __import__('os').path.abspath(probe.call_args.args[0])==str(path)
+
+
+def test_legacy_unknown_frame_does_not_silently_allow_delivery(monkeypatch):
+    import pytest
+    with patch('core.ffmpeg_studio.probe_size',return_value=None):
+        monkeypatch.setenv('FEATURE_DELIVERY_UNKNOWN_GUARD','0')
+        assert final_cut.require_delivery_resolution([{'title':'Shot 09','path':'09.mp4'}],None) is None
+        monkeypatch.setenv('FEATURE_DELIVERY_UNKNOWN_GUARD','1')
+        with pytest.raises(ValueError,match='Shot 09.*không đo được'):
+            final_cut.require_delivery_resolution([{'title':'Shot 09','path':'09.mp4'}], None)
+
+
+def test_video_preview_displays_measured_draft_label(tmp_path,monkeypatch):
+    from unittest.mock import MagicMock
+    from dashboard.steps import step4 as ui
+    path=tmp_path/'preview.mp4';path.write_bytes(b'draft')
+    fake=MagicMock()
+    fake.button.return_value=False
+    fake.session_state={'draft_cut_info_1':{'path':str(path),'shots':[1],'seconds':4,'missing':[],'manifest':{'label':'NHÁP — có clip 480p'}}}
+    fake.columns.side_effect=lambda *a,**k:[MagicMock(),MagicMock()]
+    monkeypatch.setattr(ui,'st',fake);monkeypatch.setattr(ui,'show_video',lambda *a:None)
+    ui._draft_preview(None,1)
+    fake.warning.assert_called_once_with('NHÁP — có clip 480p')
+
+
+def test_fresh_delivery_hides_stale_draft_warning(tmp_path,monkeypatch):
+    import json
+    from unittest.mock import MagicMock
+    from dashboard.steps import step5 as ui
+    out=tmp_path/'1'/'output';out.mkdir(parents=True)
+    (out/'xem_nhap.mp4.manifest.json').write_text(json.dumps({'label':'NHÁP — có clip 480p'}),encoding='utf-8')
+    fake=MagicMock();monkeypatch.setattr(ui,'st',fake);monkeypatch.setattr(ui.C,'DATA',str(tmp_path))
+    monkeypatch.setattr(ui.delivery,'status',lambda *a:{'final':{'state':'fresh'}})
+    monkeypatch.setattr(ui.ui,'v2_on',lambda:True);monkeypatch.setattr(ui,'step5_v2',lambda *a:None)
+    ui.step5(None,1)
+    fake.warning.assert_not_called()

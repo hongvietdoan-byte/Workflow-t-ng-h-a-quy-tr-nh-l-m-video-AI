@@ -5,6 +5,19 @@ from core import director_lease
 from dashboard.steps.step1_v2 import cap, say, is_next  # noqa: F401  (v2: long captions / notes become a one-line summary + ⓘ)
 
 
+def lease_status(conn, pid, *, with_replies=True, ui=None):
+    """Lỗi sổ khóa thì khóa nút gửi và báo VÀNG; không đưa path/nội dung lỗi ra UI."""
+    import sqlite3
+    try:
+        running = director_lease.busy(conn, pid)
+        replies = director_lease.replies(conn, pid) if with_replies else []
+        return running, replies
+    except (sqlite3.Error, OSError):
+        message = "Chưa kiểm được sổ khóa Đạo diễn — tạm khóa nút chạy; kiểm tra lưu trữ rồi tải lại."
+        (ui or st).warning(message)
+        return message, []
+
+
 def _director_summary(p: Pipeline, pid: int, chars) -> str:
     if not chars:
         return "chưa chạy"
@@ -43,10 +56,9 @@ def director_panel(p: Pipeline, pid: int, chars) -> None:
             from dashboard.steps.step1_checklist import checklist_panel
             checklist_panel(p, pid, "dir")          # S14.23: flag asset_checklist off → draws nothing
             client = llm_client()
-            running = director_lease.busy(p.conn, pid)
+            running, failed_replies = lease_status(p.conn, pid)
             if running:
                 st.info(running)
-            failed_replies = director_lease.replies(p.conn, pid)
             if failed_replies:
                 with st.expander("⚙ Câu trả lời Đạo diễn sai định dạng (đã lọc bí mật)"):
                     for stage, at, text in failed_replies:
@@ -164,7 +176,7 @@ def _replan_button(p: Pipeline, pid: int, scene_idx: int, col) -> None:
     client = llm_client()
     if client is None:
         return
-    running = director_lease.busy(p.conn, pid)
+    running, _ = lease_status(p.conn, pid, with_replies=False, ui=col)
     if running:
         col.caption(running)
     if col.button("↻ Chia shot lại cảnh này" + cost.llm_button_tag(p.conn, "director", 1), key=f"replan_{pid}_{scene_idx}",

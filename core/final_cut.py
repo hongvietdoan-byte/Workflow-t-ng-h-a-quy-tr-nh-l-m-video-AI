@@ -96,10 +96,10 @@ def project_frame(project):
 
 
 def measured_size(path):
-    """Chỉ probe tệp cục bộ, đường tương đối theo gốc repo; không gửi mạng."""
+    """Chỉ probe tệp cục bộ, đường tương đối theo cwd như collect_clips; không gửi mạng."""
     if not path or "://" in str(path) or str(path).startswith(("\\\\", "//")):
         return None
-    local = path if os.path.isabs(path) else os.path.join(os.path.dirname(os.path.dirname(__file__)), path)
+    local = path if os.path.isabs(path) else os.path.abspath(path)
     # rà gộp Đ15v1 (12/10): called ~10× per shot on every rerun of the Video / Giao screens (one ffmpeg process each, ≈ 50 ms+) →
     # remembered per file version (path, mtime, size) and per probe function (a test's mock is never served a real answer)
     try:
@@ -134,7 +134,13 @@ def resolution_manifest(rows: List[Dict], frame) -> Dict:
 def require_delivery_resolution(rows: List[Dict], frame) -> None:
     """Bản giao khung HD: cạnh ngắn clip >=720; lỗi đo cũng phải xử lý trước khi giao."""
     frame = frame or (measured_size(rows[0]["path"]) if rows else None)
-    if not frame or min(frame) < 1080:
+    if not frame:
+        from . import features
+        if rows and features.on("delivery_unknown_guard"):
+            names = "; ".join(r.get("title") or os.path.basename(r["path"]) for r in rows)
+            raise ValueError(f"Không thể dựng bản giao: {names}: không đo được khung — chọn aspect hoặc kiểm tra/tải lại clip")
+        return
+    if min(frame) < 1080:
         return
     report = resolution_manifest(rows, frame)
     problems = []

@@ -3,6 +3,10 @@
 Ghi UPDATE riêng có CAS trên nguyên văn scenes.data, giữ khóa _user_locked.
 Đường dẫn chỉ lấy từ Kho hoặc index nền đúng shot; apply không đọc CSDL và
 chỉ đọc nội dung ảnh để xác minh SHA. who do caller đã xác thực cung cấp.
+
+save()/undo() bắt buộc base_refs là list gói ảnh gốc thực tế, kể cả gói rỗng.
+Fingerprint cảnh dùng IMAGE_KEYS/IMAGE_SHOT_KEYS và khóa chọn ảnh; chỉnh đã lưu
+bằng tập khóa cũ có thể stale, cần tải lại gói rồi lưu/duyệt lại; không migration tự động.
 """
 import copy
 import hashlib
@@ -35,6 +39,7 @@ def _scene(conn, sid):
 
 
 def _scene_hash(data):
+    """Dấu cảnh theo tập khóa hiện tại; dấu phiên bản cũ được coi stale để duyệt lại."""
     from .lineage import IMAGE_KEYS, IMAGE_SHOT_KEYS
     keys = set(IMAGE_KEYS + IMAGE_SHOT_KEYS) | {
         'characters', 'outfit', 'outfits', 'outfit_image_ids', 'plate', 'plate_key',
@@ -146,14 +151,14 @@ def save(conn, scene_id, edits, who, reason, expected_revision, *, data_dir=None
         raise OverrideError('Cần người chỉnh và lý do.')
     if not isinstance(edits, list):
         raise OverrideError('Danh sách chỉnh gói không hợp lệ.')
+    if not isinstance(base_refs, list):
+        raise OverrideError('Cần base_refs là gói ảnh gốc thực tế; tải lại gói trước khi chỉnh.')
     pid, raw, data = _scene(conn, scene_id)
     before = data.get('package_overrides')
     current = (before or {}).get('revision', 0)
     if expected_revision != current:
         raise OverrideError(f'revision đã đổi ({current}); tải lại, không ghi đè.')
     resolved = [_resolve(conn, pid, scene_id, e, _root(conn, data_dir)) for e in edits]
-    if not isinstance(base_refs, list):
-        raise OverrideError('Cần base_refs là gói ảnh gốc thực tế; tải lại gói trước khi chỉnh.')
     for e in resolved:
         if e['op'] != 'pin' or e['role'] != 'outfit':
             continue
@@ -274,6 +279,8 @@ def check(conn, data_dir, pid, scene_id, refs):
 def undo(conn, scene_id, to_revision, who, *, data_dir=None, base_refs=None):
     if not _on():
         raise OverrideError('Cờ Gói gửi kèm đang tắt.')
+    if not isinstance(base_refs, list):
+        raise OverrideError('Cần base_refs là gói ảnh gốc thực tế; tải lại gói trước khi chỉnh.')
     pid, _, data = _scene(conn, scene_id)
     current = data.get('package_overrides') or {}
     target = None

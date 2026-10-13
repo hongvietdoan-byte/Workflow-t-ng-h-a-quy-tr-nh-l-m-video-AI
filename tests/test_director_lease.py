@@ -425,3 +425,18 @@ def test_old_calling_mark_of_a_reused_pid_does_not_hold_for_ever(tmp_path):
     assert director_lease.busy(conn, 27) == ''
     with director_lease.hold(conn, 27):
         assert '/' in director_lease.busy(conn, 27)          # dd/mm shown
+
+
+def test_ui_lease_storage_error_is_fail_closed(monkeypatch):
+    from dashboard.steps import step1_director as ui
+    import sqlite3
+    messages=[]
+    monkeypatch.setattr(ui.st,'warning',messages.append)
+    monkeypatch.setattr(director_lease,'busy',lambda *a: (_ for _ in ()).throw(sqlite3.OperationalError('fake locked db')))
+    running,replies=ui.lease_status(None,27)
+    assert running and replies==[] and messages
+    assert 'fake locked db' not in running
+    monkeypatch.setattr(director_lease,'busy',lambda *a:'')
+    monkeypatch.setattr(director_lease,'replies',lambda *a: (_ for _ in ()).throw(OSError('fake disk')))
+    running,replies=ui.lease_status(None,27)
+    assert running and replies==[] and len(messages)==2

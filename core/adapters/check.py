@@ -56,6 +56,22 @@ def load_dashboard_env(path: str = "dashboard.env") -> None:
                     os.environ.setdefault(key.strip(), value.strip().strip('"'))
     except OSError:
         pass
+    # Giống launcher: chỉ bốn khóa User, ưu tiên Process rồi dashboard.env.
+    # Không log/ghi ra tệp; không gọi provider.
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as user_env:
+            for key in ("CLIPAI_TOKEN", "DEEPIX_TOKEN", "ANTHROPIC_API_KEY", "MESHY_API_KEY"):
+                if os.environ.get(key):
+                    continue
+                try:
+                    value, _ = winreg.QueryValueEx(user_env, key)
+                except OSError:
+                    continue
+                if isinstance(value, str) and value:
+                    os.environ[key] = value
+    except (ImportError, OSError):
+        pass
 
 
 def check_llm(client=None) -> Tuple[str, bool, str]:

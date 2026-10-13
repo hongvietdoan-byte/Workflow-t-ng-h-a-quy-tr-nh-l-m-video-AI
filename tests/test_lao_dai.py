@@ -59,7 +59,7 @@ def test_only_admin_action_toasts_and_waiting_admin_bubble():
     rows=[{'id':state,'state':state,'due_status':'red'} for state in ['new','assigned','investigating','waiting_admin','waiting_merge','closed']]
     snap={'schema_version':1,'enabled':True,'available':True,'ticket_counts':{r['state']:1 for r in rows},'ticket_summaries':rows}
     view=PetLogic().update(snap)
-    assert view.bubble.startswith('📨 1 phiếu') and '🔴 1' in view.bubble
+    assert view.bubble.startswith('📨 1 phiếu') and '1 chờ merge' in view.bubble and '🔴 2' in view.bubble
     assert view.toasts==['waiting_admin · waiting_admin · red','waiting_merge · waiting_merge · red']
 
 @pytest.mark.parametrize('value', [None, [], {}, {'schema_version':1,'enabled':True,'available':True,'ticket_counts':{'new':-1},'ticket_summaries':[]}])
@@ -165,3 +165,8 @@ def test_real_snapshot_auth_and_closed(tmp_path, monkeypatch):
     c.close()
 
 
+
+
+def test_only_waiting_merge_pet_stays_actionable():
+    view=PetLogic().update({'schema_version':1,'enabled':True,'available':True,'ticket_counts':{'waiting_merge':1},'ticket_summaries':[{'id':'a','state':'waiting_merge','due_status':'yellow'}]})
+    assert view.state=='tickets' and '1 chờ merge' in view.bubble and '🟡 1' in view.bubble

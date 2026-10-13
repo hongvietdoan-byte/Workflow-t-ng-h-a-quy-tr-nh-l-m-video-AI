@@ -1257,6 +1257,12 @@ def _tick(p: Pipeline, project_id: int, ctx: Context) -> str:
         _d(p, project_id, "autopilot", "warn", str(e), "stopped")
         return STOPPED
     except (llm_runner.LlmError, ValueError, OSError, ffmpeg_studio.FFmpegError, ffmpeg_studio.FFmpegNotFound) as e:
+        if isinstance(e, llm_runner.LlmError) and e.code == "director_busy":
+            message = "Đạo diễn đang chạy — chờ lượt sau, không gửi thêm lượt Claude."
+            if not _tick_set(p, project_id, note=message):
+                raise _Stopped()
+            _d(p, project_id, "director", "warn", message, "director_busy")
+            return RUNNING
         if not _tick_set(p, project_id, ERROR, f"Lỗi: {e}"):
             raise _Stopped()
         _log(p, project_id, f"Lỗi: {str(e)[:200]}")

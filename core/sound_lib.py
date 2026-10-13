@@ -150,7 +150,7 @@ def scan(conn, source_id: int) -> Dict:
                          (source_id, path, name, category, kind, mood, search, os.path.splitext(n)[1].lower(), st.st_size, int(st.st_mtime)))
             rep["added"] += 1
         elif row["size"] != st.st_size or row["mtime"] != int(st.st_mtime):
-            conn.execute("UPDATE sounds SET name=?, category=?, kind=?, mood=?, search=?, size=?, mtime=?, duration=NULL WHERE id=?",
+            conn.execute("UPDATE sounds SET name=?, category=?, kind=?, mood=?, search=?, size=?, mtime=?, duration=NULL, heard=NULL, heard_label=NULL, heard_score=NULL, voice=0, accent=NULL WHERE id=?",
                          (name, category, kind, mood, search, st.st_size, int(st.st_mtime), row["id"]))
             rep["changed"] += 1
         else:

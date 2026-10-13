@@ -666,9 +666,6 @@ def e1_estimate(conn, pid: int, pricing: Optional[Dict] = None) -> Dict:
                 out["usd"] += r["cost"]
             continue
         ref = cost.video_reference_seconds(conn, r["scene_id"], r)
-        if ref["seconds"] is None:
-            out["unknown"].append(r["scene_id"])
-            continue
         sec = max(billed, 4.0)
         if group_path(conn, r["scene_id"]) == "direct":
             model = canonical if r.get("skill") or r.get("take") or r.get("source") == "override" else SEEDANCE_20
@@ -787,9 +784,6 @@ def run_estimate(conn, pid: int, rows, pricing: Optional[Dict] = None) -> Dict:
             canonical, family = model, None
         if canonical == SAMPLE_MODEL:
             ref = cost.video_reference_seconds(conn, r["scene_id"], r)
-            if ref["seconds"] is None:
-                out.setdefault("unknown", []).extend(ref["warnings"])
-                continue
             draft = cost.seedance_estimate(SAMPLE_MODEL, "480p", ratio, max(billed, 4.0), ref["seconds"])
             final = upgrade_price(ratio, max(billed, 4.0))
             if final is not None and final > (row_usd or 0.0):

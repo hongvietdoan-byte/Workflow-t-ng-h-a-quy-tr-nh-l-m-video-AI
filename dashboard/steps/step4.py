@@ -670,6 +670,7 @@ def _draft_preview(p: Pipeline, pid: int) -> None:
             st.session_state[f"draft_cut_info_{pid}"] = res[0]
     info = st.session_state.get(f"draft_cut_info_{pid}")
     if info and os.path.exists(info["path"]):
+        st.warning((info.get("manifest") or {}).get("label") or "NHÁP — chỉ để xem")
         c1, c2 = st.columns([3, 1], vertical_alignment="center")
         c1.caption(f"Bản ghép xem: {len(info['shots'])} shot · {info['seconds']:.1f} s"
                    + (f" · thiếu clip shot {', '.join(str(i) for i in info['missing'])}" if info["missing"] else ""))

@@ -563,3 +563,28 @@ class SfxPlanTests(Base):
 def llm_runner_mock():
     from core import llm_runner
     return llm_runner.MockLlm()
+
+
+def test_rescan_changed_audio_invalidates_listen_metadata(tmp_path):
+    conn=connect()
+    path=tmp_path/'wind.wav';path.write_bytes(b'old')
+    sid=sound_lib.add_source(conn,str(tmp_path));sound_lib.scan(conn,sid)
+    conn.execute("UPDATE sounds SET heard='Wind 0.9',heard_label='Wind',heard_score=.9,voice=0,accent=1,duration=20")
+    sound_lib.scan(conn,sid)
+    assert conn.execute('SELECT heard FROM sounds').fetchone()[0]=='Wind 0.9'
+    path.write_bytes(b'changed audio bytes')
+    sound_lib.scan(conn,sid)
+    assert tuple(conn.execute('SELECT heard,heard_label,heard_score,voice,accent,duration FROM sounds').fetchone())==(None,None,None,0,None,None)
+
+
+def test_ambience_rejects_secondary_trusted_speech(tmp_path, monkeypatch):
+    from core import ambience
+    conn=connect();path=tmp_path/'wind.wav';path.write_bytes(b'fake')
+    sid=sound_lib.add_source(conn,str(tmp_path));sound_lib.scan(conn,sid)
+    conn.execute("UPDATE sounds SET duration=20,heard='Wind 0.90; Speech 0.40',heard_label='Wind',heard_score=.9,voice=0")
+    monkeypatch.setenv('FEATURE_AMBIENCE_VOICE_GUARD', '0')
+    assert ambience.choose(conn,{'weather':'fog'}) is not None
+    monkeypatch.setenv('FEATURE_AMBIENCE_VOICE_GUARD', '1')
+    assert ambience.choose(conn,{'weather':'fog'}) is None
+    conn.execute("UPDATE sounds SET heard='Wind 0.90; Speech 0.39'")
+    assert ambience.choose(conn,{'weather':'fog'}) is not None
