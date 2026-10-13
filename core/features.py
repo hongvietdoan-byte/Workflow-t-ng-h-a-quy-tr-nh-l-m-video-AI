@@ -34,6 +34,10 @@ FEATURES: Dict[str, Dict] = {
     "layout_from_follow": {"label": "Shot giữ bố cục (continuity_from): chờ ảnh shot nguồn, thử mẫu kéo shot nguồn, ảnh nguồn vẽ lại → ⚠ cũ", "verified": False,
         "why": "Hộp thư 12/10 19:17: #27 shot 15/17 giữ bố cục theo shot 18 — gửi trước ảnh nguồn thì thiếu ảnh bố cục; nguồn vẽ lại không báo cũ. "
                "TỐN TIỀN khi bật: ảnh ⚠ cũ được chạy tự động / ▶ Gen ảnh vẽ lại (ảnh + motion + clip mỗi shot giữ bố cục)"},
+    "subject_auto_cleanup": {"label": "Giao bản cuối / cất dự án → tự xóa khỏi Kho chủ thể ClipAI các khung ảnh ĐÃ BỊ LOẠI của dự án đó "
+                                      "(chạy nền, 0 USD)",
+        "verified": True,       # 13/10 người dùng duyệt tính năng (Kho chủ thể đầy 100/100 ở #27); thư viện giả lập, chưa chạy thật
+        "why": "13/10 #27: Kho chủ thể đầy vì khung ảnh bị loại vẫn nằm trong Kho; chỉ xóa khung job image_gen 'rejected' của đúng dự án"},
     "framing_guard": {"label": "Giữ bố cục video: khung cuối khác khoảng cách máy → không gửi (VÀNG); clip đổi bố cục / lùi máy / "
                                "cắt cảnh / người nhảy vọt → ĐỎ, không tự duyệt (đo OpenCV, 0 USD)", "verified": False,
         "why": "13/10 #27 lỗi hệ thống 2: shot 17 Seedance lùi máy + vẽ mặt đồng hồ ×3 (QC chấm 1,00), shot 16 khung cuối Kelly ở xa → "

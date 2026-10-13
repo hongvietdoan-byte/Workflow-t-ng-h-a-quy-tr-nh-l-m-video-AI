@@ -18,7 +18,7 @@ from typing import Callable, Dict, List, Optional
 
 from ..providers import ProviderError
 from .clipai import DEFAULT_BASE
-from .http import ApiClient, Transport, clean_token, urllib_transport
+from .http import ApiClient, Transport, call_rate_limited, clean_token, urllib_transport
 
 USER_AGENT = "AIVideoPipeline-ClipAI-Subjects/0.1"
 PATH_UPLOAD = "/api/kling/seedance-user-asset-upload"
@@ -70,7 +70,8 @@ class ClipAISubjectLibrary:
         size = min(max(page_size, 1), 100)
         out: List[Dict] = []
         for page in range(1, max(max_pages, 1) + 1):
-            data = self.client.get(PATH_LIST, {"asset_type": asset_type, "page": page, "page_size": size}) or {}
+            query = {"asset_type": asset_type, "page": page, "page_size": size}
+            data = call_rate_limited(lambda: self.client.get(PATH_LIST, query), self._sleep) or {}
             rows = list(data.get("assets") or [])
             out += rows
             count = data.get("count")
@@ -128,15 +129,43 @@ class ClipAISubjectLibrary:
         """Delete ONE asset (cannot be undone). Same checks as scripts/subject.mjs actionDelete: the provider id must be in this token's
         list before, and must be gone from the list after — else ProviderError (never a silent 'done'). Returns the deleted asset."""
         asset_id = (asset_id or "").strip()
-        if not asset_id or asset_id.isdigit():
+        if not asset_id or asset_id.isdigit():           # checked before any call: a bad id sends nothing
             raise ProviderError("asset_id phải là mã provider (asset-…), không phải số id trong danh sách", code="bad_input")
-        before = self.get(asset_id)
-        if before is None:
-            raise ProviderError(f"không thấy {asset_id} trong Kho chủ thể của token này", code="not_found")
-        self.client.post_json(PATH_DELETE, {"asset_id": asset_id})
-        if any(a.get("asset_id") == asset_id for a in self.list_assets()):
-            raise ProviderError(f"ClipAI trả lời đã xóa nhưng {asset_id} vẫn còn trong danh sách", code="delete_unverified")
-        return before
+        res = self.delete_many([asset_id])
+        if res["errors"]:
+            raise res["errors"][0][1]
+        return res["deleted"][0]
+
+    def delete_many(self, asset_ids: List[str], known: Optional[List[Dict]] = None) -> Dict:
+        """Delete several assets reading the list ONCE before (or `known`, a list just read) and ONCE after the whole batch — 13/10: a
+        get() + a list per asset made ClipAI answer 1130 "Too many requests" 26 times in 77 deletes. A 1130 waits what ClipAI said and
+        tries again (http.call_rate_limited). {"deleted": [asset dicts], "errors": [(asset_id, ProviderError)]}: an id that is not a
+        provider id / not in the list, a call still refused, or an asset still listed after the batch ("delete_unverified") — all said."""
+        listed = {a.get("asset_id"): a for a in (self.list_assets() if known is None else known)}
+        sent, errors = [], []
+        for raw in asset_ids:
+            aid = (raw or "").strip()
+            if not aid or aid.isdigit():
+                errors.append((aid, ProviderError("asset_id phải là mã provider (asset-…), không phải số id trong danh sách",
+                                                  code="bad_input")))
+            elif aid not in listed:
+                errors.append((aid, ProviderError(f"không thấy {aid} trong Kho chủ thể của token này", code="not_found")))
+            else:
+                try:
+                    call_rate_limited(lambda: self.client.post_json(PATH_DELETE, {"asset_id": aid}), self._sleep)
+                    sent.append(aid)
+                except ProviderError as e:
+                    errors.append((aid, e))
+        if not sent:
+            return {"deleted": [], "errors": errors}
+        still = {a.get("asset_id") for a in self.list_assets()}
+        deleted = []
+        for aid in sent:
+            if aid in still:
+                errors.append((aid, ProviderError(f"ClipAI trả lời đã xóa nhưng {aid} vẫn còn trong danh sách", code="delete_unverified")))
+            else:
+                deleted.append(listed[aid])
+        return {"deleted": deleted, "errors": errors}
 
 
 class MockSubjectLibrary:

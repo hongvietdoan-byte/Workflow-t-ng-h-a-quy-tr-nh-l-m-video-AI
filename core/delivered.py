@@ -63,6 +63,8 @@ def mark(conn, project_id: int, path: str, by: Optional[str] = None, source: str
     conn.commit()
     from . import project_reserve                 # 08/10 phương án 1: phần trích riêng chưa dùng trả về hàng chung khi giao bản cuối
     project_reserve.release_quietly(conn, project_id, by, f"giao bản cuối ({source})")
+    from . import subjects                        # 13/10: khung ảnh bị loại của dự án → tự dọn khỏi Kho chủ thể (nền, không chặn việc giao)
+    subjects.schedule_auto_cleanup(conn, project_id, f"giao bản cuối ({source})")
     return cur.lastrowid
 
 

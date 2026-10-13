@@ -12,6 +12,7 @@ from .pipeline import Pipeline
 import json
 import os
 import re
+import threading
 
 GAMES_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "games.json")
 _DEFAULT_GAMES = [{"key": "FF", "label": "Free Fire (FF)", "covered": True},
@@ -310,18 +311,26 @@ def delete_assets(conn, library, asset_ids: List[str], who=None) -> Dict:
     if who is not None and not auth.can(who, "assets"):
         raise AccessDenied("Xóa asset ở Kho chủ thể ClipAI cần quyền “Kho tài nguyên” — nhờ Owner cấp ở 👥 Nhóm.")
     ids = list(dict.fromkeys(a.strip() for a in asset_ids if a and a.strip()))
-    by = {r["asset_id"]: r for r in library_overview(conn, library)["assets"]}
+    listed = library.list_assets()                # 13/10: the ONE list read before the batch (overview + delete_many share it)
+    by = {r["asset_id"]: r for r in library_overview(conn, library, listed)["assets"]}
     busy = [i for i in ids if by.get(i, {}).get("category") == "in_use"]
     if busy:
         raise ValueError("Không xóa asset đang được dự án đang làm dùng: " + ", ".join(f"{i} ({'; '.join(by[i]['users'])})" for i in busy))
-    deleted, errors = [], []
-    for aid in ids:
-        try:
-            library.delete(aid)
-        except ProviderError as e:
-            errors.append((aid, f"[{e.code}] {e}"))
-            continue
-        deleted.append(aid)
+    errors = []
+    if hasattr(library, "delete_many"):           # ClipAI: one list after the whole batch, 1130 waited out (not one get+list per asset)
+        res = library.delete_many(ids, known=listed)
+        gone = {a.get("asset_id") for a in res["deleted"]}
+        errors = [(aid, f"[{e.code}] {e}") for aid, e in res["errors"]]
+    else:                                         # mock / test doubles
+        gone = set()
+        for aid in ids:
+            try:
+                library.delete(aid)
+                gone.add(aid)
+            except ProviderError as e:
+                errors.append((aid, f"[{e.code}] {e}"))
+    deleted = [aid for aid in ids if aid in gone]
+    for aid in deleted:
         # a refused picture keeps its 'failed' memory (same input → same answer, luật 6); any other picture is forgotten → uploaded again
         conn.execute("UPDATE seedance_subject_pictures SET asset_id=NULL, asset_uri=NULL, updated_at=CURRENT_TIMESTAMP "
                      "WHERE asset_id=? AND status='failed'", (aid,))
@@ -330,3 +339,137 @@ def delete_assets(conn, library, asset_ids: List[str], who=None) -> Dict:
                      "WHERE subject_asset_id=?", (aid,))
         conn.commit()
     return {"deleted": deleted, "errors": errors}
+
+
+# ---- 13/10 (người dùng chốt): giao bản cuối / cất dự án → tự dọn khỏi Kho các KHUNG ẢNH ĐÃ BỊ LOẠI của dự án đó (cờ subject_auto_cleanup) ----
+# Only a picture whose file is a frame of an image_gen job of THIS project that was rejected (refs_clean/job_<id>_…), whose every remembered
+# use is this project, and that no character links. Approved frames, place plates, character pictures and other projects' assets are never
+# touched. list/delete are free calls. Runs in a background thread; a missing token / network error is a yellow note, retried next time.
+_JOB_IN_FILE = re.compile(r"^job_(\d+)_")
+
+
+def rejected_frame_assets(conn, project_id: int) -> List[Dict]:
+    """[{"asset_id", "name", "job_id"}] of this project's rejected frames still in the library (read only)."""
+    _pictures_table(conn)
+    rows = conn.execute("SELECT asset_id, name, path FROM seedance_subject_pictures WHERE asset_id IS NOT NULL").fetchall()
+    owners: Dict[str, set] = {}
+    for r in rows:
+        owners.setdefault(r["asset_id"], set()).update(_projects_of_picture(r["name"], r["path"]))
+    linked = {r[0] for r in conn.execute("SELECT subject_asset_id FROM characters WHERE subject_asset_id IS NOT NULL")}
+    by_asset: Dict[str, List] = {}
+    for r in rows:
+        by_asset.setdefault(r["asset_id"], []).append(r)
+    out = []
+    for aid, group in by_asset.items():
+        if aid in linked or owners.get(aid) != {project_id}:
+            continue
+        jobs = []                                 # EVERY remembered picture of this asset must be a rejected frame — else it is kept
+        for r in group:
+            m = _JOB_IN_FILE.match(os.path.basename((r["path"] or "").replace("\\", "/")))
+            jid = int(m.group(1)) if m else None
+            if jid is None or not _rejected_unused_frame(conn, project_id, jid):
+                jobs = []
+                break
+            jobs.append((jid, r["name"]))
+        if jobs:
+            out.append({"asset_id": aid, "name": jobs[0][1], "job_id": jobs[0][0]})
+    return out
+
+
+def _rejected_unused_frame(conn, project_id: int, job_id: int) -> bool:
+    """A rejected image_gen job of this project that no kept video was made from (jobs.source_job_id). Unsure → False (kept)."""
+    if conn.execute("SELECT 1 FROM jobs WHERE id=? AND project_id=? AND type='image_gen' AND state='rejected'",
+                    (job_id, project_id)).fetchone() is None:
+        return False
+    try:
+        used = conn.execute("SELECT 1 FROM jobs WHERE source_job_id=? AND state NOT IN ('rejected','failed')", (job_id,)).fetchone()
+    except Exception:  # noqa: BLE001 - an old database without jobs.source_job_id: cannot tell → keep
+        return False
+    return used is None
+
+
+def _cleanup_note(conn, project_id: int, severity: str, message: str) -> None:
+    from . import diag
+    diag.record(conn, "video", severity, message, code="subject_cleanup", project_id=project_id)
+
+
+def run_auto_cleanup(conn, project_id: int, why: str, library=None) -> Dict:
+    """Delete this project's rejected frames from the library now and say what was deleted (diag info) or what could not be (diag warn —
+    the rows stay, so the next delivery / put-away tries again). Never raises."""
+    found = rejected_frame_assets(conn, project_id)
+    if not found:
+        return {"deleted": [], "errors": []}
+    ids = [f["asset_id"] for f in found]
+    names = {f["asset_id"]: f"{f['asset_id']} ({f['name']}, job #{f['job_id']})" for f in found}
+    try:
+        if library is None:
+            from .adapters import factory
+            library = factory.subject_library()
+        if library is None:
+            raise RuntimeError("chưa cấu hình Kho chủ thể (SUBJECT_PROVIDER / VIDEO_PROVIDER)")
+        res = delete_assets(conn, library, ids)
+    except Exception as e:  # noqa: BLE001 - the delivery / put-away already went through: say it, try again next time
+        _cleanup_note(conn, project_id, "warn", f"Tự dọn Kho chủ thể ({why}) chưa chạy được: {type(e).__name__}: {e} — "
+                                                f"còn {len(ids)} khung bị loại: " + ", ".join(names[i] for i in ids))
+        return {"deleted": [], "errors": [(i, str(e)) for i in ids]}
+    if res["deleted"]:
+        _cleanup_note(conn, project_id, "info", f"Tự dọn Kho chủ thể ({why}): đã xóa {len(res['deleted'])} khung ảnh bị loại: "
+                                                + ", ".join(names.get(i, i) for i in res["deleted"]))
+    if res["errors"]:
+        _cleanup_note(conn, project_id, "warn", f"Tự dọn Kho chủ thể ({why}): {len(res['errors'])} khung chưa xóa được (lần giao/cất "
+                                                "sau thử lại): " + "; ".join(f"{names.get(i, i)}: {m}" for i, m in res["errors"]))
+    return res
+
+
+_RUNNING_LOCK = threading.Lock()
+_RUNNING: set = set()                             # projects whose background cleanup is running (a 2nd delivery / put-away waits for next time)
+
+
+def _spawn(fn) -> None:
+    threading.Thread(target=fn, name="subject-auto-cleanup", daemon=True).start()
+
+
+def schedule_auto_cleanup(conn, project_id: int, why: str) -> bool:
+    """Called after a delivery is recorded / a project is put away. Flag off or nothing to clean → nothing (False). Else the cleanup runs
+    in the background on its own connection (an in-memory database — tests — runs it here). Never raises, never blocks the caller."""
+    try:
+        from . import features
+        if not features.on("subject_auto_cleanup") or not rejected_frame_assets(conn, project_id):
+            return False
+        from .place_refs import _db_path
+        db = _db_path(conn)
+        if not db:
+            run_auto_cleanup(conn, project_id, why)
+            return True
+
+        with _RUNNING_LOCK:
+            if project_id in _RUNNING:
+                return False
+            _RUNNING.add(project_id)
+
+        def work():
+            import sqlite3
+            c = None
+            try:
+                c = sqlite3.connect(db, timeout=60)
+                c.row_factory = sqlite3.Row
+                run_auto_cleanup(c, project_id, why)
+            except Exception as e:  # noqa: BLE001 - a background note must never crash; say it on stderr
+                import sys
+                print(f"[subject_cleanup] dự án #{project_id}: {type(e).__name__}: {e}", file=sys.stderr)
+            finally:
+                if c is not None:
+                    c.close()
+                _RUNNING.discard(project_id)
+        try:
+            _spawn(work)
+        except Exception:
+            _RUNNING.discard(project_id)
+            raise
+        return True
+    except Exception as e:  # noqa: BLE001 - never breaks the delivery / put-away
+        try:
+            _cleanup_note(conn, project_id, "warn", f"Tự dọn Kho chủ thể ({why}) không khởi động được: {type(e).__name__}: {e}")
+        except Exception:  # noqa: BLE001
+            pass
+        return False

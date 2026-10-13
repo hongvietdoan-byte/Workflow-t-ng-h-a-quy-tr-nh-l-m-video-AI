@@ -61,6 +61,8 @@ def _move(p: Pipeline, put_away=None, bring_back=None, approval=None) -> None:
     if put_away is not None:                      # 08/10 phương án 1: phần trích riêng chưa dùng trả về hàng chung khi cất
         from . import project_reserve
         project_reserve.release_quietly(p.conn, put_away, p.actor, "cất dự án (📦)")
+        from . import subjects                    # 13/10: khung ảnh bị loại của dự án → tự dọn khỏi Kho chủ thể (nền, không chặn việc cất)
+        subjects.schedule_auto_cleanup(p.conn, put_away, "cất dự án (📦)")
     if stop:
         autopilot.stop(p, put_away, "Dự án đã cất (📦) — chạy tự động dừng")
 
