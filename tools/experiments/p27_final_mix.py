@@ -23,6 +23,7 @@ Ví dụ (PowerShell):
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -203,7 +204,8 @@ def build_segments(args, scenes, tmp: Path) -> list[dict]:
     common = ["-c:v", "libx264", "-preset", args.preset, "-crf", "18", "-pix_fmt", "yuv420p",
               "-r", str(FPS), "-video_track_timescale", "15360",
               "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"]
-    segs = []
+    segs, todo = [], []
+    args.seg_cache.mkdir(parents=True, exist_ok=True)
     for s in scenes:
         n = s["idx"]
         clip = Path(args.clips_dir) / f"{n:02d}.mp4"
@@ -246,7 +248,7 @@ def build_segments(args, scenes, tmp: Path) -> list[dict]:
             dur_db = s["duration_s"] or 2.0
             frames = max(1, round(dur_db * FPS))
             dur = frames / FPS
-            txt = tmp / f"miss_{n:02d}.txt"
+            txt = args.seg_cache / f"miss_{n:02d}.txt"       # đường cố định → khóa đệm ổn định giữa các lần chạy
             txt.write_text(f"thiếu shot {n}", encoding="utf-8")
             vf = (f"drawtext=fontfile='{ff_path(FONT)}':textfile='{ff_path(txt)}':fontcolor=white:"
                   f"fontsize={H // 20}:x=(w-tw)/2:y=(h-th)/2")
@@ -256,9 +258,26 @@ def build_segments(args, scenes, tmp: Path) -> list[dict]:
                    "-map", "[v]", "-map", "[a]", "-frames:v", str(frames)] + common + [str(seg)]
             kind = f"THIẾU → đen {dur_db:.2f}s (CSDL)"
             warn(f"shot {n} thiếu clip → khung đen {dur:.2f}s")
-        run(cmd)
-        segs.append({"n": n, "file": seg, "frames": frames, "dur": dur, "kind": kind})
-        print(f"  shot {n:2d}: {dur:6.3f}s  {kind}", flush=True)
+        # 13/10 người dùng 'dựng mất nhiều thời gian': đệm theo dấu (lệnh + kích thước/mtime clip) ở args.seg_cache — đổi 1 shot
+        # chỉ mã hóa lại shot đó; các shot cần làm chạy song song (--jobs)
+        st_ = clip.stat() if info is not None else None
+        key = hashlib.sha1(json.dumps([cmd[:-1], st_.st_size if st_ else 0, st_.st_mtime_ns if st_ else 0,
+                                       txt.read_text(encoding="utf-8") if info is None else ""]).encode("utf-8")).hexdigest()[:16]
+        seg = args.seg_cache / f"seg_{n:02d}_{key}.mp4"
+        hit = seg.exists()
+        if not hit:
+            todo.append((cmd[:-1] + [str(seg.with_suffix(".part.mp4"))], seg))
+        segs.append({"n": n, "file": seg, "frames": frames, "dur": dur, "kind": kind + (" · đệm" if hit else "")})
+    if todo:
+        from concurrent.futures import ThreadPoolExecutor
+        def one(job):
+            c, final = job
+            run(c)
+            os.replace(c[-1], final)
+        with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as ex:
+            list(ex.map(one, todo))
+    for sg in segs:
+        print(f"  shot {sg['n']:2d}: {sg['dur']:6.3f}s  {sg['kind']}", flush=True)
     t = 0.0
     for sg in segs:
         sg["start"], t = t, t + sg["dur"]
@@ -293,20 +312,32 @@ def place_vo(lines, segs) -> None:
         warn(f"L{lines[-1]['n']} kết thúc {lines[-1]['end']:.2f}s > hết phim {total:.2f}s (bị cắt)")
 
 
+def _leaf(src_args: list[str], chain: str, total: float, args) -> list[str]:
+    """13/10 (lượt dựng treo ở 10,4 s): MỘT đồ thị ffmpeg 29 đầu vào + asplit + adelay tới 83 s tự khóa (chạy hết CPU, không tiến).
+    Mỗi lớp tiếng (1 câu thoại / 1 nhạc / 1 lần SFX) được làm riêng thành WAV dài đúng bằng phim (trễ nằm sẵn trong WAV), đồ thị
+    trộn cuối chỉ còn các WAV thẳng hàng từ 0 → không khóa được. Dùng chung giữa 2 bản (cùng khóa → cùng tệp)."""
+    key = hashlib.sha1(json.dumps([src_args, chain, round(total, 6)]).encode("utf-8")).hexdigest()[:16]
+    out = args._leaf_dir / f"leaf_{key}.wav"
+    if not out.exists():
+        run(["ffmpeg", "-y", "-v", "error"] + src_args
+            + ["-filter_complex", f"[0:a]{chain},apad,atrim=0:{total:.6f}[o]", "-map", "[o]",
+               "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2", str(out)])
+    return ["-i", str(out)]
+
+
 def audio_graph(lines, segs, mA: Path, mB: Path, vo_lufs: float, args) -> tuple[list[str], str]:
-    """Trả (inputs, filter_complex); input 0 = video nối (kèm audio im/clip)."""
+    """Trả (inputs, filter_complex); input 0 = video nối (kèm audio im/clip); input 1.. = WAV lớp tiếng (_leaf), cùng dài = phim."""
     by_n = {s["n"]: s for s in segs}
     total = segs[-1]["end"]
     inputs, parts, vo_labels = [], [], []
     k = 1
     for ln in lines:
-        inputs += ["-i", str(ln["file"])]
         d = int(round(ln["start"] * 1000))
-        parts.append(f"[{k}:a]aresample=48000,aformat=channel_layouts=stereo,adelay={d}|{d}[vo{k}]")
-        vo_labels.append(f"[vo{k}]")
+        inputs += _leaf(["-i", str(ln["file"])], f"aresample=48000,aformat=channel_layouts=stereo,adelay={d}|{d}", total, args)
+        vo_labels.append(f"[{k}:a]")
         k += 1
     parts.append(f"{''.join(vo_labels)}amix=inputs={len(vo_labels)}:normalize=0:duration=longest,"
-                 f"apad,atrim=0:{total:.6f},asplit=2[vobus][vosc]")
+                 f"atrim=0:{total:.6f},asplit=2[vobus][vosc]")
     last = segs[-1]["n"]
     specs = [("A", mA, by_n[2]["start"], by_n[11]["end"]),
              ("B", mB, by_n[12]["start"], by_n[last]["end"])]
@@ -316,7 +347,6 @@ def audio_graph(lines, segs, mA: Path, mB: Path, vo_lufs: float, args) -> tuple[
         span = t1 - t0
         mdur = probe(f)["dur"]
         loop = mdur < span and args.music_fill == "loop"
-        inputs += (["-stream_loop", str(math.ceil(span / mdur) - 1)] if loop else []) + ["-i", str(f)]
         play = span if (mdur >= span or loop) else mdur
         if mdur < span:
             warn(f"nhạc {name} {f.name} dài {mdur:.2f}s < đoạn {span:.2f}s → "
@@ -324,14 +354,15 @@ def audio_graph(lines, segs, mA: Path, mB: Path, vo_lufs: float, args) -> tuple[
         # gain riêng từng đoạn nhạc: LUFS nhạc = LUFS lời dẫn − 10 (hoặc ép --music-gain)
         music_gain_db = args.music_gain if args.music_gain is not None else (vo_lufs - 10.0) - lufs_of(f)
         d = int(round(t0 * 1000))
-        parts.append(f"[{k}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:{play:.6f},"
-                     f"asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.5,afade=t=out:st={max(0, play - 0.8):.6f}:d=0.8,"
-                     f"volume={music_gain_db:.2f}dB,adelay={d}|{d}[m{name}]")
-        m_labels.append(f"[m{name}]")
+        src = (["-stream_loop", str(math.ceil(span / mdur) - 1)] if loop else []) + ["-i", str(f)]
+        inputs += _leaf(src, f"aresample=48000,aformat=channel_layouts=stereo,atrim=0:{play:.6f},"
+                             f"asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.5,afade=t=out:st={max(0, play - 0.8):.6f}:d=0.8,"
+                             f"volume={music_gain_db:.2f}dB,adelay={d}|{d}", total, args)
+        m_labels.append(f"[{k}:a]")
         args._music_info.append((name, f.name, t0, t1, mdur, play, music_gain_db))
         k += 1
     parts.append(f"{''.join(m_labels)}amix=inputs={len(m_labels)}:normalize=0:duration=longest,"
-                 f"apad,atrim=0:{total:.6f}[mus]")
+                 f"atrim=0:{total:.6f}[mus]")
     # hạ nhạc thêm khi có lời dẫn (~4–6 dB lúc đang nói)
     parts.append("[mus][vosc]sidechaincompress=threshold=0.03:ratio=4:attack=30:release=400[musd]")
     mix_in = ["[vobus]", "[musd]"]
@@ -368,13 +399,12 @@ def _ambience(parts, inputs, k, by_n, vo_lufs, args, mix_in) -> int:
     else:
         g = (vo_lufs + args.amb_wind_db) - lufs_of(wind)
         reps = max(0, math.ceil(span / probe(wind)["dur"]) - 1)   # lặp HỮU HẠN (-stream_loop -1 / aloop -1 làm ffmpeg treo)
-        inputs += ["-stream_loop", str(reps), "-i", str(wind)]
         d = int(round(t0 * 1000))
-        parts.append(f"[{k}:a]aresample=48000,aformat=channel_layouts=stereo,"
-                     f"atrim=0:{span:.6f},asetpts=PTS-STARTPTS,"
-                     f"afade=t=in:st=0:d=0.5,afade=t=out:st={span - 0.5:.6f}:d=0.5,volume={g:.2f}dB,"
-                     f"adelay={d}|{d},apad,atrim=0:{total:.6f}[ambw]")
-        mix_in.append("[ambw]")
+        inputs += _leaf(["-stream_loop", str(reps), "-i", str(wind)],
+                        f"aresample=48000,aformat=channel_layouts=stereo,atrim=0:{span:.6f},asetpts=PTS-STARTPTS,"
+                        f"afade=t=in:st=0:d=0.5,afade=t=out:st={span - 0.5:.6f}:d=0.5,volume={g:.2f}dB,adelay={d}|{d}",
+                        total, args)
+        mix_in.append(f"[{k}:a]")
         args._amb_info.append(f"gió {wind.name} {t0:.2f}–{t1:.2f}s gain {g:+.1f} dB (≈{args.amb_wind_db:+.0f} LU dưới lời dẫn)")
         k += 1
     if gun is None:
@@ -382,17 +412,19 @@ def _ambience(parts, inputs, k, by_n, vo_lufs, args, mix_in) -> int:
     else:
         g = (vo_lufs + args.amb_gun_db) - lufs_of(gun)
         at = [t for t in AMB_GUN_AT if t < span - 1.0]
-        inputs += ["-i", str(gun)]
-        lab = "".join(f"[g{i}]" for i in range(len(at)))
-        parts.append(f"[{k}:a]aresample=48000,aformat=channel_layouts=stereo,lowpass=f=1100,highpass=f=120,"
-                     f"aecho=0.8:0.6:90|240:0.35|0.2,volume={g:.2f}dB,asplit={len(at)}{lab}")
+    if gun is not None and not at:
+        warn("đoạn âm nền quá ngắn cho súng xa → bỏ lớp súng xa")
+    elif gun is not None:
         gl = []
-        for i, t in enumerate(at):
+        for t in at:
             d = int(round((t0 + t) * 1000))
-            parts.append(f"[g{i}]adelay={d}|{d}[gd{i}]")
-            gl.append(f"[gd{i}]")
+            inputs += _leaf(["-i", str(gun)], f"aresample=48000,aformat=channel_layouts=stereo,lowpass=f=1100,highpass=f=120,"
+                                              f"aecho=0.8:0.6:90|240:0.35|0.2,volume={g:.2f}dB,adelay={d}|{d}", total, args)
+            gl.append(f"[{k}:a]")
+            k += 1
+        k -= 1                                     # the k += 1 below counts the last one
         parts.append(f"{''.join(gl)}amix=inputs={len(gl)}:normalize=0:duration=longest,"
-                     f"afade=t=out:st={t1 - 0.5:.6f}:d=0.5,apad,atrim=0:{total:.6f}[ambg]")
+                     f"afade=t=out:st={t1 - 0.5:.6f}:d=0.5,atrim=0:{total:.6f}[ambg]")
         mix_in.append("[ambg]")
         args._amb_info.append(f"súng xa {gun.name} ×{len(at)} lúc {', '.join(f'{t0 + t:.1f}' for t in at)}s "
                               f"gain {g:+.1f} dB (≈{args.amb_gun_db:+.0f} LU dưới lời dẫn)")
@@ -420,17 +452,15 @@ def _sfx(parts, inputs, k, by_n, vo_lufs, args, mix_in) -> int:
         t = sg["start"] + (sg["dur"] / 2 if off == "mid" else float(off))
         g = (vo_lufs + SFX_GROUP_LU[grp]) - cache[str(f)]
         pre = "lowpass=f=1100,highpass=f=120,aecho=0.8:0.6:90|240:0.35|0.2," if grp == "xa" else ""
-        inputs += ["-i", str(f)]
-        outs = "".join(f"[s{j}_{i}]" for i in range(len(reps)))
-        parts.append(f"[{k}:a]aresample=48000,aformat=channel_layouts=stereo,{pre}volume={g:.2f}dB,asplit={len(reps)}{outs}")
-        for i, r in enumerate(reps):
+        for r in reps:
             d = int(round((t + r) * 1000))
-            parts.append(f"[s{j}_{i}]adelay={d}|{d}[sd{j}_{i}]")
-            labels.append(f"[sd{j}_{i}]")
+            inputs += _leaf(["-i", str(f)], f"aresample=48000,aformat=channel_layouts=stereo,{pre}volume={g:.2f}dB,adelay={d}|{d}",
+                            total, args)
+            labels.append(f"[{k}:a]")
+            k += 1
         args._sfx_info.append(f"shot {shot}: {f.name} ({grp}, {g:+.1f} dB) lúc " + ", ".join(f"{t + r:.2f}" for r in reps) + " s")
-        k += 1
     if labels:
-        parts.append(f"{''.join(labels)}amix=inputs={len(labels)}:normalize=0:duration=longest,apad,atrim=0:{total:.6f}[sfxbus]")
+        parts.append(f"{''.join(labels)}amix=inputs={len(labels)}:normalize=0:duration=longest,atrim=0:{total:.6f}[sfxbus]")
         mix_in.append("[sfxbus]")
     return k
 
@@ -558,6 +588,8 @@ def main() -> None:
     ap.add_argument("--music-fill", choices=["silence", "loop"], default="silence")
     ap.add_argument("--clip-audio-db", type=float, default=None, help="giữ tiếng gốc clip ở mức dB (vd -30); mặc định bỏ")
     ap.add_argument("--preset", default="fast", help="x264 preset cho hình")
+    ap.add_argument("--jobs", type=int, default=4, help="số shot chuẩn hóa song song")
+    ap.add_argument("--seg-cache", default="", help="thư mục đệm shot đã chuẩn hóa (mặc định <out-dir>/_dem_shot)")
     ap.add_argument("--only", default="", help="chỉ dựng bản: ban1 | ban2")
     ap.add_argument("--vo-file", action="append", default=[], help="thay tệp một câu: 9=đường/dẫn.mp3 (lặp được)")
     ap.add_argument("--no-sfx", dest="sfx", action="store_false", help="tắt hiệu ứng âm thanh")
@@ -589,6 +621,7 @@ def main() -> None:
         ln["sub_text"] = next((t for t in vo_by_shot.values() if norm_text(t)[:25] == norm_text(ln["text"])[:25]), "")
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    args.seg_cache = Path(args.seg_cache) if args.seg_cache else out_dir / "_dem_shot"
     suffix = f"_{args.tag}" if args.tag else ""
 
     with tempfile.TemporaryDirectory(prefix="p27mix_") as td:
@@ -603,6 +636,7 @@ def main() -> None:
         video = overlay_video(video, lines, segs, args, tmp)
 
         vo_lufs = max(lufs_of(ln["file"]) for ln in lines)
+        args._leaf_dir = tmp
         results, music_info = {}, []
         print("[2/3] Trộn âm thanh + loudnorm 2 lượt", flush=True)
         for name, fa, fb in VERSIONS:
