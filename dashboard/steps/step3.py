@@ -143,10 +143,19 @@ def step3(p: Pipeline, pid: int):
                     if path:
                         show_image(path, width=96)
                 new = c1.text_area("Motion prompt", r["motion_prompt"], key=f"mp_{r['sid']}", height=90, label_visibility="collapsed")
+                end_old = data.get("end_state") or ""      # lỗi 6 (#27, cờ end_state_fresh): khung cuối sửa ngay cạnh motion, cùng nút Lưu
+                end_new = end_old
+                if data.get("shot_no") and claude_tasks.fresh_on():
+                    end_new = c1.text_input("🏁 Trạng thái cuối shot (khung cuối)", end_old, key=f"es_{r['sid']}",
+                                            help="Đổi → khung cuối + motion hiện ⚠ cũ (viết lại motion); bản dịch tiếng Anh cũ không gửi.")
                 badge = ui.stale_badge(srow["motion_stale"]) if srow.get("motion_stale") else ui.state_badge(r["state"])
                 c2.markdown(badge, unsafe_allow_html=True)
                 c2.caption(f"{r['duration_sec']:g}s · {model_router.label(choice['model'], choice.get('resolution'))}")   # KLD-23
                 if c3.button("Lưu chỉnh sửa", key=f"mps_{r['sid']}"):
+                    if end_new != end_old:                 # end_state first: a prompt typed in the same click is stamped after it
+                        act(lambda: llm_io.update_scene(p, pid, r["idx"], {"end_state": end_new}))
+                        if new == r["motion_prompt"]:      # the old prompt is NOT re-stamped as current for the new end state
+                            st.rerun()
                     act(lambda: llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": r["idx"], "motion_prompt": new, "camera": r["camera"],
                                                                                  "duration_sec": r["duration_sec"],
                                                                                  "negative_prompt": r["negative_prompt"]}]}))
