@@ -923,12 +923,28 @@ def main():
     out_dir = cfg["out_dir"]
     os.makedirs(out_dir, exist_ok=True)
     warnings = []
+    clay = bool(cfg.get("blockout_clay"))
     manifest = {"blender": bpy.app.version_string, "model": {"path": cfg["model"],
-                "size_mb": round(os.path.getsize(cfg["model"]) / 1e6, 1)}, "plates": [], "warnings": warnings}
-    meshes, import_sec = load_model(cfg["model"], warnings)
+                "size_mb": 0 if clay else round(os.path.getsize(cfg["model"]) / 1e6, 1)}, "plates": [], "warnings": warnings}
+    if clay:
+        # Nhánh C không có model: vẫn dùng add_props và đường camera/render hiện có.
+        bpy.ops.object.select_all(action='SELECT')
+        bpy.ops.object.delete(use_global=False)
+        meshes, import_sec = [], 0
+    else:
+        meshes, import_sec = load_model(cfg["model"], warnings)
     manifest["model"].update({"objects": len(meshes), "triangles": triangles(meshes), "import_sec": round(import_sec, 1)})
     log(f"imported {len(meshes)} meshes, {manifest['model']['triangles']:,} triangles in {import_sec:.1f}s")
-    factor, (lo, hi) = normalise_scale(meshes, cfg.get("real_height_m"), warnings)
+    if clay:
+        width, depth = cfg["floor"]["kich_thuoc"]
+        z = cfg["floor"].get("z", 0)
+        factor, lo, hi = 1.0, Vector((-width/2, -depth/2, z)), Vector((width/2, depth/2, z+3))
+        floor_objects = add_props([{"kind":"block", "shape":"box", "at":[0,0,z-.1],
+                                    "size":[width,depth,.1], "id":"san"}])
+        for ob in floor_objects:
+            ob.data.materials.clear(); ob.data.materials.append(clay_material())
+    else:
+        factor, (lo, hi) = normalise_scale(meshes, cfg.get("real_height_m"), warnings)
     manifest["scale_factor"] = factor
     manifest["bbox_m"] = {"min": [round(v, 2) for v in lo], "max": [round(v, 2) for v in hi],
                           "size": [round(hi[i] - lo[i], 2) for i in range(3)]}
@@ -962,6 +978,11 @@ def main():
     if cfg.get("weather"):
         manifest["weather"] = apply_weather(cfg["weather"], warnings)
     scene = bpy.context.scene
+    if clay:
+        for actor in cfg.get('actors') or []:
+            body, height = add_actor(actor, 1.0)
+            key = actor['keys'][0]
+            _place_actor(body, height, key, key, 0.0)
     res = cfg.get("resolution") or [1280, 720]
     scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = int(res[0]), int(res[1]), 100
     engine = pick_engine((cfg.get("engine") or "auto").lower(), warnings)
@@ -1005,6 +1026,9 @@ def main():
         scene.camera = cam
         practical = add_lights(c.get("lights"))
         props_made = add_props(c.get("props"))
+        if clay:
+            for ob in props_made:
+                ob.data.materials.clear(); ob.data.materials.append(clay_material())
         info = camera_info(cam, c["look_at"], res)
         plate = os.path.join(out_dir, f"plate_{c['name']}.png")
         indoor = c.get("indoor") or None                                 # 29/09: rooms lit only through windows came out black

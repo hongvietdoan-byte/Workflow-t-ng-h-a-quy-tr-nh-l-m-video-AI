@@ -277,6 +277,12 @@ def motif_warnings(shots: List[Tuple[int, int, Dict]]) -> List[str]:
     return [f"motif \"{m}\" chỉ có ở shot {w[0]} — motif phải lặp lại (và biến tấu) mới thành motif" for m, w in count.items() if len(w) < 2]
 
 
+def film_warnings(shots, objects=None, aspect=9 / 16):
+    """Đ11v4: adapter hình học cho report và màn camera tương lai; cờ riêng TẮT."""
+    from . import film_grammar
+    return film_grammar.warnings(shots, objects, aspect)
+
+
 # dp.md Q8: the scene's `lighting` is one reference table for all its shots, written as source — side — colour (K) — key:fill — tone
 _LIGHT_PARTS = (("nguồn", re.compile(r"sun|moon|lamp|street ?light|daylight|fire|torch|neon|window|screen|candle|lantern|headlight|flash|sky|"
                                      r"mặt trời|trăng|đèn|lửa|cửa sổ|màn hình", re.I)),

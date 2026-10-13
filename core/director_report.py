@@ -208,6 +208,7 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
         "turns_without_cause": turns_without_cause(obj) + moves_without_reason(obj),
         "continuity": continuity.axis_warnings(shots) + continuity.layout_warnings(shots) + plate_view_check.warnings(shots)
         + continuity.motif_warnings(shots)
+        + continuity.film_warnings(shots)
         + continuity.lighting_warnings([sc for sc in obj.get("scenes") or [] if isinstance(sc, dict)])
         + prompt_formula.warnings(shots),          # F1-A: công thức prompt (F0) — phần thiếu / mâu thuẫn / ghê / khác màu giữa shot
         "script_notes": [n for n in obj.get("script_notes") or [] if isinstance(n, dict) and str(n.get("note") or "").strip()],

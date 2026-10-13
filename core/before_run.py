@@ -289,6 +289,13 @@ def _collect(conn, data_dir: str, pid: int) -> Dict:
             items[group] += fn()
         except Exception as e:  # noqa: BLE001 - the frame is information: one part failing is said, never breaks Bước 1
             items[group].append(_unreadable(what, e))
+    try:                                   # Đ11v4 (cờ film_grammar_check): như các phần trên — lỗi thành mục info, không vỡ Bước 1
+        from . import continuity
+        items["inputs"] += [_item("vang", w, "Bổ sung dàn cảnh/máy đã duyệt; kiểm lại trước khi gen")
+                            for w in continuity.film_warnings([(s["data"].get("story_scene", 0), s["data"].get("shot_no", s["idx"]), s["data"])
+                                                               for s in scenes])]
+    except Exception as e:  # noqa: BLE001
+        items["inputs"].append(_unreadable("luật quay phim", e))
     items["ops"] = [_item("info", t, f) for t, f in OPS_LINES]
     groups = [{"key": k, "title": t, "items": items[k]} for k, t in GROUPS]
     counts = {lv: sum(1 for g in groups for i in g["items"] if i["level"] == lv) for lv in ("do", "vang", "info")}
