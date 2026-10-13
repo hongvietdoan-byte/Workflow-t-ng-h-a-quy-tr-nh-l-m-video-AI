@@ -33,12 +33,25 @@ for _k in ("dialogue", "text", "on_screen_text"):
     WATCH[_k] = ("thoai", "motion", "video", "phu_de")
 for _k in ("duration_s", "sound", "mood"):
     WATCH[_k] = ("dung", "nhac", "video")
+# C4 (rà chuỗi 13/10): lần sửa motion prompt (trigger trg_change_motion, kind 'motion') — chỉ rà khi bật cờ MOTION_FLAG
+MOTION_WATCH = ("motion_prompt",)
+WATCH["motion_prompt"] = ("motion", "khung_cuoi", "video")
+MOTION_FLAG = "change_review_motion"
+SHOT_KINDS = ("scene", "motion")     # thay đổi của MỘT shot (trường shot hoặc motion prompt) — gộp chung một lần rà
 ASSET_WATCH = ("identity", "must_keep", "may_change", "forbidden", "height_m", "build", "size", "wardrobe")
 
 
 def enabled() -> bool:
     from . import features
     return features.on(FLAG)
+
+
+def motion_enabled() -> bool:
+    from . import features
+    try:
+        return enabled() and features.on(MOTION_FLAG)
+    except KeyError:
+        return False
 
 
 def _loads(s) -> Dict:
@@ -55,7 +68,7 @@ def changed_keys(before: Dict, after: Dict, watch: Sequence[str]) -> List[str]:
 
 def affected_scenes(conn, ev) -> List[int]:
     """Shot bị ảnh hưởng: shot đổi + shot kề (liên tục) + (nếu nó là ảnh neo storyboard) cả nhóm; đổi Kho → mọi shot có vật đó."""
-    if ev["kind"] == "scene":
+    if ev["kind"] in SHOT_KINDS:
         row = conn.execute("SELECT project_id, idx FROM scenes WHERE id=?", (ev["scene_id"],)).fetchone()
         if row is None:
             return []
@@ -251,7 +264,7 @@ def build_prompt(conn, ev, keys: List[str], scene_ids: List[int], code_found: Li
     L = [head, "", "---", "", f"## Thay đổi #{ev['id']} ({ev['kind']})"]
     for k in keys:
         L.append(f"- `{k}`: TRƯỚC = {_short(before.get(k))}\n  SAU = {_short(after.get(k))}")
-    if ev["kind"] != "scene":
+    if ev["kind"] not in SHOT_KINDS:
         r = conn.execute("SELECT name, kind FROM assets WHERE id=?", (ev["asset_id"],)).fetchone()
         L.append(f"- vật Kho #{ev['asset_id']}: {r[0] if r else '?'} ({r[1] if r else '?'})")
     L += ["", "## Các shot liên quan (bản HIỆN TẠI)"]
@@ -348,10 +361,13 @@ def claude_review(conn, ev, keys, scene_ids, code_found, client) -> float:
         if lvl:
             _add(conn, ev["id"], _project_of(conn, sid) if sid else pid, sid, "claude", lvl, it["khau"], it["ly_do"], it.get("de_xuat"))
             seen.add((sid, it["khau"]))
-    if ev["kind"] == "scene" and ev["scene_id"]:          # shot vừa đổi được rà lại: mục Claude cũ của CHÍNH nó không còn → đã sửa
+    if ev["kind"] in SHOT_KINDS and ev["scene_id"]:       # shot vừa đổi được rà lại: mục Claude cũ của CHÍNH nó không còn → đã sửa
+        # R9 (rà S4): chỉ đóng mục thuộc khâu mà các khóa VỪA ĐỔI chạm tới (WATCH) — prompt chỉ hỏi về các khóa đó, nên Claude không
+        # nhắc lại mục ảnh/nền/thoại cũ KHÔNG có nghĩa là đã sửa (sửa motion không được mở chặn gen của mục ảnh còn sai)
+        touched = {kh for k in keys for kh in WATCH.get(k, ())}
         for row in conn.execute("SELECT id, khau FROM change_findings WHERE source='claude' AND status='open' AND scene_id=?",
                                 (ev["scene_id"],)).fetchall():
-            if (ev["scene_id"], row[1]) not in seen:
+            if row[1] in touched and (ev["scene_id"], row[1]) not in seen:
                 conn.execute("UPDATE change_findings SET status='resolved', resolved_at=?, resolved_by='claude' WHERE id=?",
                              (_now(), row[0]))
     return usd
@@ -369,16 +385,25 @@ def _group_by_scene(conn, rows, states) -> List[Tuple[Dict, List[int]]]:
     out: List[Tuple[Dict, List[int]]] = []
     done = set()
     for ev in rows:
-        if ev["kind"] != "scene" or not ev["scene_id"]:
+        if ev["kind"] not in SHOT_KINDS or not ev["scene_id"]:
             out.append((dict(ev), [ev["id"]]))
             continue
         if ev["scene_id"] in done:
             continue
         done.add(ev["scene_id"])
-        grp = conn.execute(f"SELECT * FROM change_events WHERE kind='scene' AND scene_id=? AND state IN ({q}) ORDER BY id",
+        grp = conn.execute(f"SELECT * FROM change_events WHERE kind IN ('scene', 'motion') AND scene_id=? AND state IN ({q}) ORDER BY id",
                            (ev["scene_id"], *states)).fetchall()
         merged = dict(grp[-1])
-        merged["before"] = grp[0]["before"]
+        merged["kind"] = "scene" if any(g["kind"] == "scene" for g in grp) else "motion"
+        # C4: ảnh chụp shot (kind scene: cả scenes.data) và motion prompt (kind motion: chỉ khóa motion_prompt) gộp theo TỪNG nguồn —
+        # trước = lần ghi cũ nhất của nguồn đó, sau = lần ghi mới nhất (không trộn ảnh chụp đầy đủ với một khóa lẻ)
+        before, after = {}, {}
+        for kind in ("scene", "motion"):
+            part = [g for g in grp if g["kind"] == kind]
+            if part:
+                before.update(_loads(part[0]["before"]))
+                after.update(_loads(part[-1]["after"]))
+        merged["before"], merged["after"] = json.dumps(before, ensure_ascii=False), json.dumps(after, ensure_ascii=False)
         merged["state"] = "pending" if any(g["state"] == "pending" for g in grp) else grp[-1]["state"]
         merged["had_code_only"] = any(g["state"] == "code_only" for g in grp)
         out.append((merged, [g["id"] for g in grp]))
@@ -394,8 +419,12 @@ def process_pending(conn, data_dir: str, client=None, limit: int = ROUND_LIMIT, 
     states = ("pending", "code_only") if client is not None else ("pending",)
     q = ','.join('?' * len(states))
     # LIMIT đếm theo NHÓM (một shot = một dòng), không theo lần ghi: một shot ghi 6 lần không chiếm hết lượt của shot khác
+    if not motion_enabled():                    # C4: cờ change_review_motion tắt → lần sửa motion prompt không rà (như trước cờ)
+        conn.execute("UPDATE change_events SET state='skipped', reviewed_at=?, note=? WHERE kind='motion' AND state IN ('pending', "
+                     "'code_only')", (_now(), f"cờ {MOTION_FLAG} tắt — sửa motion prompt không rà"))
+        conn.commit()
     rows = conn.execute(f"SELECT * FROM change_events WHERE id IN (SELECT MIN(id) FROM change_events WHERE state IN ({q}) GROUP BY "
-                        f"CASE WHEN kind='scene' AND scene_id IS NOT NULL THEN 'S' || scene_id ELSE 'E' || id END) "
+                        f"CASE WHEN kind IN ('scene', 'motion') AND scene_id IS NOT NULL THEN 'S' || scene_id ELSE 'E' || id END) "
                         f"ORDER BY state DESC, id LIMIT ?", (*states, limit)).fetchall()
     for ev, ids in _group_by_scene(conn, rows, states):
         if time.time() - t0 > budget_s:
@@ -403,14 +432,14 @@ def process_pending(conn, data_dir: str, client=None, limit: int = ROUND_LIMIT, 
         mark = f"id IN ({','.join('?' * len(ids))})"
         try:
             before, after = _loads(ev["before"]), _loads(ev["after"])
-            if ev["kind"] == "scene":
+            if ev["kind"] in SHOT_KINDS:
                 keys = changed_keys(before, after, list(WATCH))
             elif ev["kind"] == "asset":
                 keys = changed_keys(before, after, ASSET_WATCH)
             else:
                 keys = ["anh_kho"]
             if not keys:
-                if ev["kind"] == "scene" and ev.get("had_code_only"):    # đổi rồi hoàn tác: mục code cũ của shot kề tự đóng
+                if ev["kind"] in SHOT_KINDS and ev.get("had_code_only"):    # đổi rồi hoàn tác: mục code cũ của shot kề tự đóng
                     code_rules(conn, data_dir, ev["id"], affected_scenes(conn, ev))
                 conn.execute(f"UPDATE change_events SET state='skipped', reviewed_at=? WHERE {mark}", (_now(), *ids))
                 res["skipped"] += len(ids)
@@ -446,12 +475,25 @@ def process_pending(conn, data_dir: str, client=None, limit: int = ROUND_LIMIT, 
     return res
 
 
-def blocking(conn, scene_id: int, data_dir: Optional[str] = None) -> Optional[str]:
+UPGRADE_KHAU = ("video", "motion", "khung_cuoi")    # C9: khâu mà lệnh NÂNG từ nháp đã duyệt còn đi qua (prompt / khung cuối / clip)
+
+
+def _stamp(at) -> str:
+    """Hai kiểu giờ UTC trong CSDL ('…Z' của change_* và '…+00:00' của review_log) → so được đến giây."""
+    return str(at or "")[:19]
+
+
+def blocking(conn, scene_id: int, data_dir: Optional[str] = None, since: Optional[str] = None,
+             notes: Optional[List[str]] = None) -> Optional[str]:
     """Lý do chặn gen tốn tiền của shot: thay đổi của shot còn chờ rà (agent rà 10/10 lỗi 6: sửa xong bấm Gen ngay thì chưa ai rà) hoặc
-    mục 'do' còn mở. data_dir có → chạy lại luật code của shot trước (mục đã hết tự đóng). None = được gửi. Cờ tắt → không chặn."""
+    mục 'do' còn mở. data_dir có → chạy lại luật code của shot trước (mục đã hết tự đóng). None = được gửi. Cờ tắt → không chặn.
+    C9 (rà chuỗi 13/10): `since` = lúc NGƯỜI duyệt nháp mà job bản cao nâng lên — chỉ mục đỏ MỚI hơn lúc đó VÀ thuộc khâu UPGRADE_KHAU
+    mới giữ; mục đỏ khác (vd. khâu ảnh / nền cũ) không giữ mà ghi vào `notes` (người gọi báo VÀNG, không im lặng)."""
     if not enabled():
         return None
-    wait = conn.execute("SELECT id FROM change_events WHERE scene_id=? AND state='pending' ORDER BY id LIMIT 1", (scene_id,)).fetchone()
+    kinds = "('scene', 'motion')" if motion_enabled() else "('scene')"   # C4: cờ tắt → sửa motion không giữ
+    wait = conn.execute(f"SELECT id FROM change_events WHERE scene_id=? AND state='pending' AND kind IN {kinds} ORDER BY id LIMIT 1",
+                        (scene_id,)).fetchone()
     if wait:
         return f"Tổ rà soát tác động đang rà thay đổi #{wait[0]} của shot này (vài chục giây) — gửi ngay sau khi rà xong"
     if data_dir:
@@ -460,8 +502,13 @@ def blocking(conn, scene_id: int, data_dir: Optional[str] = None) -> Optional[st
             conn.commit()
         except Exception:  # noqa: BLE001 - a rule problem never decides the hold by itself: the stored findings decide
             pass
-    rows = conn.execute("SELECT khau, msg FROM change_findings WHERE scene_id=? AND status='open' AND level='do' ORDER BY id",
+    rows = conn.execute("SELECT khau, msg, at FROM change_findings WHERE scene_id=? AND status='open' AND level='do' ORDER BY id",
                         (scene_id,)).fetchall()
+    if since is not None:
+        keep = [r for r in rows if r[0] in UPGRADE_KHAU and _stamp(r[2]) >= _stamp(since)]
+        if notes is not None:
+            notes += [f"{r[0]}: {r[1]}" for r in rows if r not in keep]
+        rows = keep
     if not rows:
         return None
     return ("Tổ rà soát tác động: " + "; ".join(f"{r[0]}: {r[1]}" for r in rows[:3])

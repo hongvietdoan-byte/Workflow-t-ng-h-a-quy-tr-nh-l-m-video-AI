@@ -5,7 +5,8 @@ import streamlit as st
 from core import change_review as CR
 
 
-def render(p, pid: int, who=None, read_only: bool = False) -> None:
+def render(p, pid: int, who=None, read_only: bool = False, key: str = "cr") -> None:
+    """`key`: tiền tố khóa nút — C4 (13/10) khung này hiện ở CẢ tab Ảnh (Bước 2) và tab Motion (Bước 3) trong cùng một lượt vẽ."""
     if not CR.enabled():
         return
     rows = CR.open_findings(p.conn, pid)
@@ -28,9 +29,9 @@ def render(p, pid: int, who=None, read_only: bool = False) -> None:
             if read_only:
                 continue
             a, b, _ = st.columns([1, 1, 6])
-            if a.button("✓ Đã sửa", key=f"cr_ok_{r['id']}"):
+            if a.button("✓ Đã sửa", key=f"{key}_ok_{r['id']}"):
                 CR.close(p.conn, r["id"], "resolved", who)
                 st.rerun()
-            if b.button("Bỏ qua", key=f"cr_skip_{r['id']}", help="Chấp nhận lệch này — shot không bị giữ gen vì mục này nữa"):
+            if b.button("Bỏ qua", key=f"{key}_skip_{r['id']}", help="Chấp nhận lệch này — shot không bị giữ gen vì mục này nữa"):
                 CR.close(p.conn, r["id"], "dismissed", who)
                 st.rerun()

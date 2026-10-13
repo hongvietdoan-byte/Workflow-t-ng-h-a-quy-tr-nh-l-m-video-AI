@@ -558,11 +558,37 @@ def _review_wait(p: Pipeline, pid: int, kind: str, data_dir: Optional[str] = Non
     from . import change_review
     if not change_review.enabled():
         return
-    for r in p.conn.execute("SELECT DISTINCT scene_id FROM jobs WHERE project_id=? AND type=? AND state='queued' AND scene_id IS NOT NULL",
-                            (pid, kind)).fetchall():
-        why = change_review.blocking(p.conn, r[0], data_dir)
+    from .runner import draft_approved_at
+    # R10 (rà S4): theo JOB, cùng `since` như runner (C9) — bản cao nâng từ nháp NGƯỜI đã duyệt không bị dừng "CHỜ người" vì mục đỏ cũ
+    for job in p.conn.execute("SELECT * FROM jobs WHERE project_id=? AND type=? AND state='queued' AND scene_id IS NOT NULL ORDER BY id",
+                              (pid, kind)).fetchall():
+        why = change_review.blocking(p.conn, job["scene_id"], data_dir, since=draft_approved_at(p.conn, job))
         if why and not why.startswith("Tổ rà soát tác động đang rà"):
             raise _Wait("change_review", why)
+
+
+def _gate_wait(p: Pipeline, pid: int, data_dir: Optional[str]) -> None:
+    """R11 (rà S4): cổng ảnh → video (core.video_gate, V7) giữ MỌI clip đang chờ và không clip nào đang chạy → CHỜ người với lý do
+    (thay vì 'Gen video…' mãi). Đường thoát ở Bước 4: vẽ lại / duyệt ảnh, hoặc 'Bỏ qua kiểm nền' / 'Bỏ qua chờ nhóm' kèm lý do."""
+    from . import video_gate
+    from .runner import draft_approved_at
+    if not video_gate.enabled() or not data_dir or             _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='video_gen' AND state='running'", pid):
+        return
+    jobs = p.conn.execute("SELECT * FROM jobs WHERE project_id=? AND type='video_gen' AND state='queued' AND scene_id IS NOT NULL "
+                          "ORDER BY id", (pid,)).fetchall()
+    if not jobs:
+        return
+    held = []
+    for job in jobs:
+        if draft_approved_at(p.conn, job):                 # như runner: bản cao nâng từ nháp đã duyệt không qua cổng
+            return
+        why = video_gate.hold(p.conn, data_dir, job)
+        if not why:
+            return
+        idx = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+        held.append(f"S{idx[0]:02d}: {why}" if idx else why)
+    raise _Wait("video_gate", f"{len(held)} clip chờ cổng ảnh → video — " + "; ".join(held[:3])
+                + (f" (+{len(held) - 3})" if len(held) > 3 else "") + ". Xử lý ở Bước 4 (🚧 Cổng ảnh → video) rồi bấm Tiếp tục")
 
 
 def _cap_wait(p: Pipeline, pid: int, kind: str, stage: str) -> None:
@@ -1062,6 +1088,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     _cap_wait(p, pid, "video_gen", "videos")
     ctx.video_runner.submit_pending(pid)
     _review_wait(p, pid, "video_gen", ctx.data_dir if ctx else None)
+    _gate_wait(p, pid, ctx.data_dir if ctx else None)
     _budget_stop(p, pid, "video_gen")
     ctx.video_runner.poll_once(pid)
     _retry_or_hold(p, pid, "video_gen")

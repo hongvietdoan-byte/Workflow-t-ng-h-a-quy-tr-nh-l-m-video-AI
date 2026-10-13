@@ -73,6 +73,14 @@ def current_prompt(conn, scene_id: int, kind: str) -> Optional[str]:
     return (row["motion_prompt"] if row else None) or None
 
 
+def _last_change_event(conn) -> Optional[int]:
+    """Mã lần ghi change_events lớn nhất hiện có (None = CSDL cũ chưa có bảng)."""
+    try:
+        return conn.execute("SELECT COALESCE(MAX(id), 0) FROM change_events").fetchone()[0]
+    except Exception:  # noqa: BLE001 - old database without the table: nothing to skip
+        return None
+
+
 def _set_prompt(conn, scene_id: int, kind: str, text: str) -> None:
     if kind == "image":
         row = conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
@@ -363,7 +371,13 @@ def save_rewrite(p, job, res: RewriteResult, note: Optional[str] = None) -> int:
         _add_version(p.conn, job["project_id"], job["scene_id"], kind, res.old_prompt, "original" if not vers else "manual", who=p.actor)
     res.version = _add_version(p.conn, job["project_id"], job["scene_id"], kind, res.new_prompt, "director_rewrite",
                                note=(note or "")[:600], changed=res.changed, why=res.why[:600], job_id=job["id"], who=p.actor)
+    last_ev = _last_change_event(p.conn)
     _set_prompt(p.conn, job["scene_id"], kind, res.new_prompt)
+    if kind == "video" and last_ev is not None:           # R14 (rà S4, mặc định chờ người dùng quyết): bản viết lại TỰ ĐỘNG của
+        # Đạo diễn trước lần gen lại không qua Tổ rà soát motion (không giữ chính lần gen lại, không gọi Claude) — như chèn shot
+        p.conn.execute("UPDATE change_events SET state='skipped', reviewed_at=?, note=? WHERE id>? AND kind='motion' AND scene_id=? "
+                       "AND state='pending'", (_now(), "Đạo diễn viết lại motion prompt tự động trước khi gen lại — không rà (R14)",
+                                               last_ev, job["scene_id"]))
     p.conn.commit()
     from . import prompt_formula                          # F1-A (F0 mục 4b): the Director's rewrite is checked + compared to the old one
     prompt_formula.on_prompt_saved(p.conn, job["scene_id"], kind, res.old_prompt, res.new_prompt)

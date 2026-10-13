@@ -841,7 +841,7 @@ def insert_scene_after(pipeline: Pipeline, project_id: int, after_idx: int, fiel
         if renumbered:                                  # only the moved shots' own renumbering — never another edit's event
             conn.execute("UPDATE change_events SET state='skipped', reviewed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), "
                          "note='chèn shot: chỉ dời số shot (continuity_from / shot_no / số shot trong chữ), nội dung không đổi' "
-                         f"WHERE id>? AND kind='scene' AND project_id=? AND scene_id IN ({','.join('?' * len(renumbered))})",
+                         f"WHERE id>? AND kind IN ('scene', 'motion') AND project_id=? AND scene_id IN ({','.join('?' * len(renumbered))})",
                          (last_event, project_id, *renumbered))
         update_scene(pipeline, project_id, after_idx + 1, fields, text=text)   # checks + 🔒 + ONE change event; commits everything
     except BaseException:

@@ -109,8 +109,9 @@ def _review_items(conn, pid: int) -> List[Dict]:
             out.append(_item("info", f"{len(red)} mục đỏ Tổ rà soát còn mở{where} — cờ change_review đang tắt nên không giữ gen",
                              "📥 Việc cần bạn"))
     try:
-        wait = conn.execute("SELECT COUNT(*) FROM change_events WHERE project_id=? AND state='pending' AND scene_id IS NOT NULL",
-                            (pid,)).fetchone()[0]
+        # R13 (rà S4): cờ change_review_motion tắt → lần sửa motion prompt không bao giờ được rà (vòng nền đánh skipped) — không đếm
+        wait = conn.execute("SELECT COUNT(*) FROM change_events WHERE project_id=? AND state='pending' AND scene_id IS NOT NULL "
+                            "AND (kind<>'motion' OR ?)", (pid, 1 if change_review.motion_enabled() else 0)).fetchone()[0]
     except Exception:  # noqa: BLE001 - old database: nothing waits
         wait = 0
     if wait and on:

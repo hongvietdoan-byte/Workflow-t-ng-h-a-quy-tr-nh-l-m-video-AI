@@ -72,7 +72,7 @@ def wait_reason(job_id: int) -> Optional[str]:
     return hit[0] if hit and time.time() - hit[1] < WAIT_FRESH_SEC else None
 
 
-HOLD_CODES = ("change_review_hold", "video_pregen_hold", "final_wait", "end_frame_wait")
+HOLD_CODES = ("change_review_hold", "video_pregen_hold", "final_wait", "end_frame_wait", "video_gate_hold")
 """C7 (13/10): diag codes the video runner writes when it KEEPS a queued job (Tổ rà soát, kiểm trước gen ĐỎ, bản cao chờ)."""
 
 
@@ -249,6 +249,14 @@ class _Runner:
     def _hold_prefix(self, job, why: str) -> str:
         return "stale_input"
 
+    def _draft_approved_at(self, job) -> Optional[str]:
+        """C9: lúc NGƯỜI duyệt nháp mà job bản cao này nâng lên (None = không phải lệnh nâng từ nháp đã duyệt)."""
+        return None
+
+    def _gate_hold(self, job) -> Optional[str]:
+        """V7: lý do GIỮ job trước khi gửi (cổng đầu vào), None = được gửi."""
+        return None
+
     def _blocked(self, job) -> Optional[str]:
         """A reason not to send this job now (it would be made from outdated inputs); None = go."""
         return None
@@ -418,13 +426,24 @@ class _Runner:
             held = None
             if job["scene_id"]:
                 group = getattr(self, "_sends_group", lambda j: None)(job) or []
+                since = self._draft_approved_at(job)     # C9: bản cao nâng từ nháp NGƯỜI đã duyệt — mục đỏ cũ / khâu ảnh không giữ
+                passed: List[str] = []
                 for sid in [job["scene_id"]] + [g["id"] for g in group if g["id"] != job["scene_id"]]:
-                    held = change_review.blocking(self.p.conn, sid, self.data_dir)
+                    held = change_review.blocking(self.p.conn, sid, self.data_dir, since=since, notes=passed)
                     if held:
                         break
+                if not held and passed:
+                    self._diag_once(job, "warn", "change_review_upgrade",
+                                    "VÀNG: bản cao nâng từ nháp bạn đã duyệt — không giữ vì mục đỏ cũ hơn lúc duyệt / khâu nháp đã "
+                                    "có: " + "; ".join(passed[:3]) + (f" (+{len(passed) - 3})" if len(passed) > 3 else ""))
             if held:
                 WAIT_REASONS[job["id"]] = (held, time.time())
                 self._diag_once(job, "warn", "change_review_hold", f"chưa gửi: {held}")
+                continue
+            gate = self._gate_hold(job)                  # V7: ảnh khung đầu chưa qua kiểm nền 3D / nhóm liền mạch chưa duyệt đủ ảnh
+            if gate:
+                WAIT_REASONS[job["id"]] = (gate, time.time())
+                self._diag_once(job, "warn", "video_gate_hold", f"chưa gửi: {gate}")
                 continue
             try:
                 blocked = self._blocked(job)
@@ -814,8 +833,30 @@ class _Runner:
             sleep(interval)
 
 
+def draft_approved_at(conn, job) -> Optional[str]:
+    """C9 (rà chuỗi 13/10): job video bản cao (quality_tier 'final') có nháp gốc NGƯỜI đã duyệt → giờ duyệt nháp đó (review_log);
+    None = không phải lệnh nâng từ nháp đã duyệt. Dùng chung runner + autopilot (R10 rà S4: hai nơi quyết giống nhau)."""
+    keys = job.keys()
+    if "quality_tier" not in keys or job["quality_tier"] != "final" or "draft_job_id" not in keys or not job["draft_job_id"]:
+        return None
+    row = conn.execute("SELECT reviewer_type, decision, decided_at FROM review_log WHERE job_id=? ORDER BY id DESC LIMIT 1",
+                       (job["draft_job_id"],)).fetchone()
+    if row is None or row["reviewer_type"] != "user" or row["decision"] != "approve":
+        return None
+    return row["decided_at"]
+
+
 class VideoRunner(_Runner):
     job_type = "video_gen"
+
+    def _draft_approved_at(self, job) -> Optional[str]:
+        return draft_approved_at(self.p.conn, job)
+
+    def _gate_hold(self, job) -> Optional[str]:
+        from . import video_gate
+        if self._draft_approved_at(job):            # nâng từ nháp đã duyệt: ảnh đầu đã qua mắt người ở bản nháp
+            return None
+        return video_gate.hold(self.p.conn, self.data_dir, job)
 
     def _hold_prefix(self, job, why: str) -> str:
         """C3 (13/10): 'final_hold' for a final the runner keeps for the person ("bản cao bị chặn: cần xác nhận…" / nháp cũ) — the

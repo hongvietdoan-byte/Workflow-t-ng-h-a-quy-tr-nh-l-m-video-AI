@@ -568,6 +568,16 @@ CREATE TABLE IF NOT EXISTS change_findings (
     resolved_by TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_change_findings_open ON change_findings(project_id, status);
+-- V7 (rà gốc video 13/10, cờ video_gate — core/video_gate.py): người bấm "Bỏ qua" cổng kiểm nền của MỘT ảnh khung đầu, kèm lý do
+CREATE TABLE IF NOT EXISTS video_gate_skips (
+    id INTEGER PRIMARY KEY,
+    image_job_id INTEGER NOT NULL,
+    scene_id INTEGER,
+    reason TEXT NOT NULL,
+    who TEXT,
+    at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_video_gate_skips_job ON video_gate_skips(image_job_id);
 """
 
 
@@ -634,6 +644,15 @@ CREATE TRIGGER IF NOT EXISTS trg_change_scene AFTER UPDATE OF data ON scenes
 BEGIN
     INSERT INTO change_events(at, kind, project_id, scene_id, before, after)
     VALUES (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'scene', new.project_id, new.id, old.data, new.data);
+END;
+-- C4 (rà chuỗi 13/10): sửa tay motion prompt (Bước 3 / store_motion_prompts / mọi đường ghi) cũng là một thay đổi của shot — kind
+-- 'motion' (không lẫn với ảnh chụp scenes.data mà lineage đọc); chỉ được rà khi bật cờ change_review_motion (core/change_review.py)
+CREATE TRIGGER IF NOT EXISTS trg_change_motion AFTER UPDATE OF motion_prompt ON motion_prompts
+    WHEN COALESCE(old.motion_prompt, '') <> COALESCE(new.motion_prompt, '')
+BEGIN
+    INSERT INTO change_events(at, kind, project_id, scene_id, before, after)
+    VALUES (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'motion', (SELECT project_id FROM scenes WHERE id = new.scene_id), new.scene_id,
+            json_object('motion_prompt', old.motion_prompt), json_object('motion_prompt', new.motion_prompt));
 END;
 CREATE TRIGGER IF NOT EXISTS trg_change_asset AFTER UPDATE OF profile ON assets
     WHEN COALESCE(old.profile, '') <> COALESCE(new.profile, '')
