@@ -183,6 +183,9 @@ def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[
     measured = _measure_clip(p, job, path, data, first, data_dir)
     layout = framing_cap_on()
     if layout:                                    # V11 (cờ qc_framing_cap): thấy được bố cục cần giữ, không chỉ 6 khung
+        if frames and first and os.path.exists(first):   # R15 (rà S4): khung cuối = khung N/N đã gửi — gắn nhãn, không gửi trùng ảnh
+            label, pic = images[len(frames) - 1]
+            images[len(frames) - 1] = (label.rstrip(":") + " — KHUNG CUỐI clip, so bố cục với ảnh khung đầu đã duyệt:", pic)
         images += _layout_images(p, job, data_dir, frames, first)
     criteria = video_criteria()
     # 08/10 #24 (job 592/594): QC must know every character of the shot (also the form after a transformation) and what the script
@@ -201,20 +204,26 @@ def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[
         _block("Đo bằng máy (lớp 0)", measured) if measured else "",
         layout_block(measured) if layout else ""] if x)
     obj = _run(p, job["project_id"], "video", prompt, lambda o: llm_io.validate_qc_result(o, criteria), client, images)
-    if layout:
-        capped = cap_for_framing(obj["criteria"], measured)
-        if capped:
-            from . import diag
-            diag.record(p.conn, "video", "warn", f"QC clip job {job_id}: đo máy thấy đổi bố cục → hạ trần "
-                        + ", ".join(f"{k} {v[0]:.2f}→{v[1]:.2f}" for k, v in capped.items()), FRAMING_CAP_CODE, job["project_id"],
-                        job_id=job_id)
+    scores = obj["criteria"]                      # R15 (rà S4): điểm GỐC của Claude — không bị code ghi đè
+    capped = cap_for_framing(scores, measured) if layout else {}
+    if capped:
+        from . import diag, framing_guard
+        # framing_guard bật → pipeline._framing_hold đã GIỮ clip (trần không đổi quyết định): qc_results / sổ kinh nghiệm giữ điểm gốc
+        # (đo QC khớp người không lẫn điểm code). Không có lưới giữ đó → điểm sau trần mới vào quyết định (như V11).
+        held_anyway = framing_guard.enabled()
+        if not held_anyway:
+            scores = dict(scores, **{k: v[1] for k, v in capped.items()})
+        diag.record(p.conn, "video", "warn", f"QC clip job {job_id}: đo máy thấy đổi bố cục → hạ trần "
+                    + ", ".join(f"{k} {v[0]:.2f}→{v[1]:.2f}" for k, v in capped.items())
+                    + (" (điểm gốc Claude giữ trong qc_results; clip bị giữ vì đổi bố cục)" if held_anyway else
+                       " (điểm sau trần dùng để quyết)"), FRAMING_CAP_CODE, job["project_id"], job_id=job_id)
     proj = p.project(job["project_id"])
     fix = bool(proj["qc_autofix"]) if autofix is None else autofix
     issues = str(obj.get("issues") or "").strip() or None
-    decision = p.apply_qc(job_id, obj["criteria"], issues=issues, autofix=fix, measured=measured,   # KLD-5 reads look_drift
+    decision = p.apply_qc(job_id, scores, issues=issues, autofix=fix, measured=measured,   # KLD-5 reads look_drift
                           soft=vqc.soft_criteria(data, motion))
     vqc.note_case(p.conn, job, data, motion, obj["criteria"], p.project(job["project_id"])["qc_auto_pass_threshold"], issues)
-    return {"decision": decision, "issues": issues}
+    return {"decision": decision, "issues": issues, **({"capped": capped} if capped else {})}
 
 
 FRAMING_CAP_FLAG = "qc_framing_cap"
@@ -243,7 +252,7 @@ def layout_block(measured: Optional[Dict]) -> str:
     fr = measured.get("framing") if isinstance(measured, dict) else None
     if isinstance(fr, dict):
         if fr.get("flag"):
-            L.append(f"- ĐO BẰNG MÁY (OpenCV, tin được): {fr.get('why')} — điểm motion_match / artifacts bị code hạ trần "
+            L.append(f"- ĐO BẰNG MÁY (OpenCV, số đo mới chưa kiểm chứng thật — xác nhận bằng mắt): {fr.get('why')} — điểm motion_match / artifacts bị code hạ trần "
                      f"{FRAMING_CAP:.2f}; hãy xác nhận bằng mắt và mô tả trong issues.")
         elif fr.get("zoom"):
             z = fr["zoom"]
@@ -252,7 +261,8 @@ def layout_block(measured: Optional[Dict]) -> str:
 
 
 def cap_for_framing(criteria: Dict, measured: Optional[Dict]) -> Dict:
-    """Đo máy thấy đổi bố cục (framing.flag) → hạ motion_match / artifacts xuống FRAMING_CAP tại chỗ. {key: (cũ, mới)} các điểm đã hạ."""
+    """Đo máy thấy đổi bố cục (framing.flag) → các điểm motion_match / artifacts cần hạ xuống FRAMING_CAP: {key: (gốc, sau trần)}.
+    R15 (rà S4): KHÔNG sửa `criteria` (điểm gốc của Claude giữ nguyên) — người gọi tự quyết dùng điểm nào."""
     fr = measured.get("framing") if isinstance(measured, dict) else None
     if not (isinstance(fr, dict) and fr.get("flag")):
         return {}
@@ -261,15 +271,13 @@ def cap_for_framing(criteria: Dict, measured: Optional[Dict]) -> Dict:
         v = criteria.get(k)
         if isinstance(v, (int, float)) and not isinstance(v, bool) and v > FRAMING_CAP:
             out[k] = (float(v), FRAMING_CAP)
-            criteria[k] = FRAMING_CAP
     return out
 
 
 def _layout_images(p: Pipeline, job, data_dir: str, frames: List[str], first) -> List:
-    """Ảnh thêm cho câu hỏi bố cục: khung cuối clip (đặt cạnh ảnh khung đầu), render 3D của shot, khung cuối dự kiến (nếu có)."""
+    """Ảnh thêm cho câu hỏi bố cục: render 3D của shot, khung cuối dự kiến (nếu có). Khung cuối clip là khung N/N đã gửi (qc_video gắn
+    nhãn — R15 rà S4: không gửi trùng)."""
     out = []
-    if frames and first and os.path.exists(first):
-        out.append(("KHUNG CUỐI clip — so bố cục với ảnh khung đầu đã duyệt:", frames[-1]))
     try:
         from . import place_refs
         ref = place_refs.shot_ref(data_dir, job["project_id"], job["scene_id"])

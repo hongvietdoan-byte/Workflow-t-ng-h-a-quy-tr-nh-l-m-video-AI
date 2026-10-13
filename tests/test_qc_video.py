@@ -86,6 +86,24 @@ class FramingCap(unittest.TestCase):
         self.assertNotIn("Kiểm bố cục", seen["prompt"])
         self.assertFalse(any("KHUNG CUỐI clip" in label for label, _ in seen["images"]))
 
+    def test_cap_keeps_original_scores_for_trust(self):
+        # R15 (rà S4): framing_guard bật (đường thật: chỉ khi đó mới có số đo bố cục) → clip bị giữ vì đổi bố cục; điểm gốc của Claude
+        # giữ trong qc_results + sổ kinh nghiệm (đo QC khớp người), trần chỉ ghi diag; số đo V2 không gọi "tin được"; không gửi trùng ảnh
+        flags_on(self, "qc_framing_cap", "framing_guard")
+        with mock.patch("core.video_qc_context.note_case") as note:
+            out, scores, seen = self.run_qc(M912)
+        self.assertEqual(scores["motion_match"], 0.97)
+        self.assertEqual(scores["artifacts"], 0.96)
+        self.assertEqual(note.call_args[0][4]["motion_match"], 0.97)
+        self.assertNotEqual(out["decision"], "approved")
+        self.assertEqual(out["capped"]["motion_match"], (0.97, claude_tasks.FRAMING_CAP))
+        why = self.p.conn.execute("SELECT message FROM diag_events WHERE code='qc_framing_cap'").fetchone()
+        self.assertIn("motion_match 0.97→0.50", why["message"])
+        self.assertNotIn("tin được", seen["prompt"])
+        pics = [pic for _, pic in seen["images"]]
+        self.assertEqual(pics.count(self.frames[-1]), 1)                           # khung 6/6 gửi một lần, gắn nhãn khung cuối
+        self.assertTrue(any("KHUNG CUỐI clip" in label for label, _ in seen["images"]))
+
 
 if __name__ == "__main__":
     unittest.main()
