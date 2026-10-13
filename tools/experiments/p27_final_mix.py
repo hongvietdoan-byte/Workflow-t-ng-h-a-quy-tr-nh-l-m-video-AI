@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import shutil
@@ -315,7 +316,7 @@ def audio_graph(lines, segs, mA: Path, mB: Path, vo_lufs: float, args) -> tuple[
         span = t1 - t0
         mdur = probe(f)["dur"]
         loop = mdur < span and args.music_fill == "loop"
-        inputs += (["-stream_loop", "-1"] if loop else []) + ["-i", str(f)]
+        inputs += (["-stream_loop", str(math.ceil(span / mdur) - 1)] if loop else []) + ["-i", str(f)]
         play = span if (mdur >= span or loop) else mdur
         if mdur < span:
             warn(f"nhạc {name} {f.name} dài {mdur:.2f}s < đoạn {span:.2f}s → "
@@ -366,9 +367,10 @@ def _ambience(parts, inputs, k, by_n, vo_lufs, args, mix_in) -> int:
         warn(f"không thấy tệp gió Kho #{AMB_WIND_SOUND} → bỏ lớp gió")
     else:
         g = (vo_lufs + args.amb_wind_db) - lufs_of(wind)
-        inputs += ["-i", str(wind)]          # lặp bằng aloop (không -stream_loop: lavfi treo khi đầu vào vô hạn)
+        reps = max(0, math.ceil(span / probe(wind)["dur"]) - 1)   # lặp HỮU HẠN (-stream_loop -1 / aloop -1 làm ffmpeg treo)
+        inputs += ["-stream_loop", str(reps), "-i", str(wind)]
         d = int(round(t0 * 1000))
-        parts.append(f"[{k}:a]aresample=48000,aformat=channel_layouts=stereo,aloop=loop=-1:size={int(probe(wind)['dur'] * 48000) - 64},"
+        parts.append(f"[{k}:a]aresample=48000,aformat=channel_layouts=stereo,"
                      f"atrim=0:{span:.6f},asetpts=PTS-STARTPTS,"
                      f"afade=t=in:st=0:d=0.5,afade=t=out:st={span - 0.5:.6f}:d=0.5,volume={g:.2f}dB,"
                      f"adelay={d}|{d},apad,atrim=0:{total:.6f}[ambw]")
