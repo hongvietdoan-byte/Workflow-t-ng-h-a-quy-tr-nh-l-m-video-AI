@@ -49,6 +49,25 @@ def with_keep(prompt: str, refs: List[Dict]) -> str:
     return prompt
 
 
+_GROUND = re.compile(r"\s*(?:Background — measured on the 3D map of [^\n]*?)?Draw the background only as Image 1 shows it: [^\n]*?"
+                     r"nothing added, moved or removed\.")
+
+
+def fit_ground(prompt: str, refs: List[Dict]) -> str:
+    """Câu NỀN (background_sentence) theo gói THẬT gửi đi (rà gộp lỗi 1, 13/10): render là ảnh n ≠ 1 → đổi "Image 1" thành "Image n";
+    render rơi khỏi gói (không đọc được / quá trần) → bỏ cả câu, không trỏ "Image 1" vào ảnh người — nền quay về chữ địa điểm
+    (name_render) và việc mất render đã được báo (missing_reference)."""
+    m = _GROUND.search(prompt or "")
+    if not m:
+        return prompt
+    n = next((i for i, r in enumerate(refs or [], 1) if r.get("role") == ROLE), None)
+    if n == 1:
+        return prompt
+    if n:
+        return prompt[:m.start()] + m.group(0).replace("Image 1", f"Image {n}") + prompt[m.end():]
+    return (prompt[:m.start()] + prompt[m.end():]).strip()
+
+
 # ---- (a) nền sinh từ dữ liệu sân khấu 3D -------------------------------------------------------------------------------------------
 def _third(u: float) -> str:
     return "the left third" if u < 1 / 3 else "the middle" if u < 2 / 3 else "the right third"

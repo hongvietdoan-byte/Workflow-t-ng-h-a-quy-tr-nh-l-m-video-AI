@@ -158,6 +158,43 @@ class RunnerSends(_Send):
         self.assertFalse(self.diags(pa.CODE_WORDS))
 
 
+    def test_flag_on_render_dropped_from_package_no_image_1_background_sentence(self):
+        """Rà gộp lỗi 1: render rơi khỏi gói (không đọc được / quá trần) → câu nền 'as Image 1 shows it' không được trỏ vào ảnh 1 là
+        người; chữ nền Đạo diễn đã bỏ thì nền quay về chữ địa điểm (name_render) — không nói về một ảnh không có."""
+        from core import runner as rmod
+        real = rmod.sendable_references
+
+        def drop_render(refs, model, limit=None):
+            kept, dropped = real([r for r in refs if r.get("role") != "place_render"], model, limit)
+            return kept, dropped + [r["path"] for r in refs if r.get("role") == "place_render"]
+        with mock.patch.object(rmod, "sendable_references", side_effect=drop_render):
+            prompt = self.send({"FEATURE_PLATE_ANCHORED_IMAGE": "1"})
+        self.assertNotIn("place_render", [s["role"] for s in self.sent()])
+        self.assertNotIn("Image 1 shows it", prompt)
+        self.assertNotIn("Background — measured on the 3D map", prompt)
+        self.assertFalse(prompt.startswith(pa.KEEP))
+
+    def test_flag_off_never_touches_the_plate_anchor_code(self):
+        """Cờ TẮT: không hàm nào của plate_anchor sửa chữ / thứ tự ảnh được gọi → gói + prompt là đường cũ."""
+        boom = mock.Mock(side_effect=AssertionError("plate_anchor gọi khi cờ tắt"))
+        with mock.patch.object(pa, "strip_scenery", boom), mock.patch.object(pa, "background_sentence", boom),                 mock.patch.object(pa, "plate_first", boom), mock.patch.object(pa, "with_keep", boom),                 mock.patch.object(pa, "fit_ground", boom, create=True):
+            prompt = self.send({"FEATURE_PLATE_ANCHORED_IMAGE": "0"})
+        self.assertIn(SCENERY.rstrip("."), prompt)
+
+
+def test_fit_ground_renumbers_or_drops_the_background_sentence():
+    rec = {"camera": {"horizon_y": 0.4}}
+    ground, _ = pa.background_sentence(rec, None, "Bermuda")
+    text = "KELLY runs. " + ground + " Bright daylight."
+    render = {"role": pa.ROLE, "path": "r"}
+    kelly = {"role": "character", "path": "k"}
+    assert pa.fit_ground(text, [render, kelly]) == text
+    assert "as Image 2 shows it" in pa.fit_ground(text, [kelly, render]) and "Image 1 shows" not in pa.fit_ground(text, [kelly, render])
+    gone = pa.fit_ground(text, [kelly])
+    assert "Image 1" not in gone and "measured on the 3D map" not in gone and gone == "KELLY runs. Bright daylight."
+    assert pa.fit_ground("no ground here", []) == "no ground here"
+
+
 def test_after_download_diag_red_from_check_strict(tmp_path):
     """Ảnh về: cờ bật + shot có render → check_strict (không cần camera_plan), ĐỎ ghi diag 'error'."""
     from core import camera_plan, place_refs

@@ -3177,6 +3177,8 @@ class ImageRunner(_Runner):
             if pov_issue:
                 getattr(self, "_diag_once", self._diag)(job, "warn", "prop_pov_gun", pov_issue["msg"])
         prompt, lost = name_render(prompt, refs, fallback=lambda: _place_words(self, job))
+        if anchored:                                   # rà gộp lỗi 1: câu nền "as Image 1 shows it" theo gói THẬT (render rơi → bỏ câu)
+            prompt = plate_anchor.fit_ground(prompt, refs)
         from . import prop_lock                        # rà 12/10: no "as its reference picture shows" for a prop picture not sent
         if prop_lock.enabled():                        # rà 12/10: one note per job (not every poll), info only for a sent package
             missing = prop_lock.missing_refs(self.p.conn, job["project_id"], lock_data, refs)
