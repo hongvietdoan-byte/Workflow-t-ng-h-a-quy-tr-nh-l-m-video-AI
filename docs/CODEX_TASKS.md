@@ -878,6 +878,8 @@ khung an toàn 9:16 (vùng giao diện TikTok/Reels che); dùng lại ảnh clay
 
 ## Kết quả Codex — đợt 11
 
+- Việc 2 · `codex/d11-viec2-clay` · code `b4e97fa1`: backend/V3 CLI Nhánh C, camera clay/sidecar bền + topview/3góc/legend, fallback chiếu2D có lý do; trụ/cột tròn. Đạo diễn khai JSON sau cờ OFF, model3d thật giữ đường cũ, kiểm plan và người/vật mọi nhịp, khóa/kế thừa explicit; estimate/ledger, tối đa đầu+2sửa, cùng lỗi2lần dừng. ĐỎ module/caller, 10ca rà và4hướng sáng → **158 passed /19,53s**,10file, `--tb=no`; 3nhóm rà đã đóng. Blender thật3fixture tạm: indoor8,29s/outdoor7,41s/steps7,40s,4góc/ca,6PNG và sidecar decode được. Hai cờ OFF/OPT_IN, areas.version68 giữ. RA `docs/RA_D11_VIEC2_CODEX_2026-10-13.md`. Chưa nối Dashboard/autopilot adapter, tư thế khác đứng/sàn nhiều cao độ/7trên9/chiếu≤5%/Kho thật/Claude thật/cả bộ/gộp; không API/dữ liệu thật/live.
+
 - ✅ Việc 1 — nhánh `codex/d11-viec1-ban-dung`, mã `867e9ac`. Thiết kế bàn dựng 3D và mockup offline hai góc nhìn; Playwright Chrome thật kiểm kéo actor/camera, đổi lens, beat, undo, khóa cảnh đã duyệt và nhận/từ chối đề xuất. Test đỏ → xanh: 1 passed (4,01 s); hai kích thước 1440/1280 không lỗi console, không tràn ngang. Bốn ảnh ở `docs/images/d11/`; rà tại `docs/RA_D11_VIEC1_CODEX_2026-10-12.md`. Preview SVG minh họa; Blender/solver/ACL/cache thật thuộc phần triển khai tiếp. Chưa chạy cả bộ; không gộp main.
 
 
