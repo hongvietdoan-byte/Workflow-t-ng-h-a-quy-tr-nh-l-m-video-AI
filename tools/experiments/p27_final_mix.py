@@ -607,7 +607,7 @@ def mix_version(video: Path, lines, segs, mA, mB, vo_lufs, out: Path, args) -> d
     m = json.loads(err[err.rindex("{"):err.rindex("}") + 1])
     ln2 = (f"loudnorm=I=-14:TP=-1.5:LRA=11:measured_I={m['input_i']}:measured_TP={m['input_tp']}:"
            f"measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:offset={m['target_offset']}:"
-           f"linear=true:print_format=summary,aresample=48000")
+           f"linear=true:print_format=summary,aresample=48000,alimiter=limit=0.84:level=false")   # 13/10: TP −0,7 lọt → chặn đỉnh ≈ −1,5 dB
     run(base + ["-filter_complex", fc + f";[pre]{ln2}[o]", "-map", "0:v", "-map", "[o]",
                 "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
                 "-movflags", "+faststart", "-shortest", str(out)])
