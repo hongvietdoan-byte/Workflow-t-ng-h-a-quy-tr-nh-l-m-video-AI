@@ -588,7 +588,8 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
             # 08/10 (#24 shot 7): a v3 shot's `action` (its title line, read by the Director / motion prompt) stayed the old sentence when
             # the person edited "Nội dung kịch bản của cảnh" — the two drifted apart. The box IS the shot's action: they move together.
             data["action"] = data["text"]
-    changed =[k for k in set(before) | set(data) if k not in ("_user_locked", "text") and before.get(k) != data.get(k)
+    blank = lambda v: "" if v is None else v   # noqa: E731 — ô để trống trên trường chưa có không phải "người sửa" (Bước 1 gửi mọi ô)
+    changed =[k for k in set(before) | set(data) if k not in ("_user_locked", "text") and blank(before.get(k)) != blank(data.get(k))
                and not (k == "dialogue" and "dialogue" not in fields)]
     data["_user_locked"] = sorted(set(data.get("_user_locked") or []) | set(changed))
     conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), row["id"]))
