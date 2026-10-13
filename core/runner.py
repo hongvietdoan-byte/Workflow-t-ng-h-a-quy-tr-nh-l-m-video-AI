@@ -1227,6 +1227,8 @@ class VideoRunner(_Runner):
             return end
         if drawn and self._runs_in_place(job, canonical, family):
             return None                  # the next shot's picture (chain) stays: that one IS where this shot ends
+        if self._end_frame_off_distance(job, end, drawn):
+            return None
         r = video_rules.rule(canonical)
         if r and not r.get("end_frame" if family == "omni" else "last_frame", False):
             self._diag_once(job, "warn", "end_frame_unsupported", f"có khung cuối ({os.path.basename(end)}) nhưng "
@@ -1234,6 +1236,27 @@ class VideoRunner(_Runner):
                             "khung cuối, cảnh kết thúc theo prompt")
             return None
         return end
+
+    def _end_frame_off_distance(self, job, end: str, drawn: bool) -> bool:
+        """Flag framing_guard (lỗi hệ thống 2, #27 shot 16 job 889 / 898): an end frame at another camera distance / shot size than the
+        start picture makes the model cut or drag the person — not sent, said once (VÀNG with the numbers, core/framing_guard).
+        Could not measure → said, sent as before."""
+        from . import framing_guard, shots
+        if not framing_guard.enabled():
+            return False
+        start = shots.approved_image_path(self.p.conn, self.data_dir, job["project_id"], shots.image_scene(self.p.conn, job["scene_id"]))
+        res = framing_guard.end_frame_check(start, end)
+        if not res:
+            return False
+        what = "khung cuối vẽ" if drawn else "ảnh duyệt của shot sau (khung cuối nối tiếp)"
+        if res.get("ok") is False:
+            self._diag_once(job, "warn", "end_frame_distance", f"{res['why']} — clip gửi KHÔNG kèm {what} ({os.path.basename(end)}, cờ "
+                            f"{framing_guard.FLAG}); vẽ lại khung cuối cùng khoảng cách máy với ảnh đầu nếu cần khung cuối")
+            return True
+        if res.get("ok") is None:
+            self._diag_once(job, "warn", "end_frame_distance", f"chưa đo được khoảng cách máy của {what} ({os.path.basename(end)}): "
+                            f"{res.get('note')} — vẫn gửi, cần xem bằng mắt")
+        return False
 
     def _runs_in_place(self, job, canonical: str, family: str) -> bool:
         """Flag locomotion_end_frame (hộp thư 12/10 18:13, #27 job 782): a run / walk generated much longer than the shot gets no drawn

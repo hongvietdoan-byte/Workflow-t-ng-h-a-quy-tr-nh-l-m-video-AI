@@ -34,6 +34,10 @@ FEATURES: Dict[str, Dict] = {
     "layout_from_follow": {"label": "Shot giữ bố cục (continuity_from): chờ ảnh shot nguồn, thử mẫu kéo shot nguồn, ảnh nguồn vẽ lại → ⚠ cũ", "verified": False,
         "why": "Hộp thư 12/10 19:17: #27 shot 15/17 giữ bố cục theo shot 18 — gửi trước ảnh nguồn thì thiếu ảnh bố cục; nguồn vẽ lại không báo cũ. "
                "TỐN TIỀN khi bật: ảnh ⚠ cũ được chạy tự động / ▶ Gen ảnh vẽ lại (ảnh + motion + clip mỗi shot giữ bố cục)"},
+    "framing_guard": {"label": "Giữ bố cục video: khung cuối khác khoảng cách máy → không gửi (VÀNG); clip đổi bố cục / lùi máy / "
+                               "cắt cảnh / người nhảy vọt → ĐỎ, không tự duyệt (đo OpenCV, 0 USD)", "verified": False,
+        "why": "13/10 #27 lỗi hệ thống 2: shot 17 Seedance lùi máy + vẽ mặt đồng hồ ×3 (QC chấm 1,00), shot 16 khung cuối Kelly ở xa → "
+               "nhảy cóc; ngưỡng đặt trên clip thật #27, chưa chạy trong sản xuất (core/framing_guard.py)"},
     "back_view_guard": {"label": "Shot quay lưng: motion bỏ tả mặt/mắt + câu 'giữ lưng về máy cả shot' (0 USD)", "verified": False,
         "why": "13/10 #27 shot 4: motion tả 'lips pressed / slow blink' cho Kelly quay lưng → Seedance quay mặt cô ra máy giữa shot"},
     "send_claim": {"label": "Giữ chỗ gửi job trong CSDL — 2 tiến trình (script + Dashboard) không gửi trùng một job (0 USD)", "verified": False,

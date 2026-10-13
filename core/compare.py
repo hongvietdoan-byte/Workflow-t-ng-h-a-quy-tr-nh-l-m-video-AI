@@ -110,8 +110,8 @@ def metrics(p: Pipeline, project_id: int, data_dir: str) -> Dict:
             minutes = None
 
     def qc(kind: str) -> Optional[float]:
-        v = _q(conn, "SELECT AVG(q.score) FROM qc_results q JOIN jobs j ON j.id=q.job_id WHERE j.project_id=? AND j.type=?",
-               (project_id, kind))
+        v = _q(conn, "SELECT AVG(q.score) FROM qc_results q JOIN jobs j ON j.id=q.job_id WHERE j.project_id=? AND j.type=?"
+               " AND q.criterion<>'framing_hold'", (project_id, kind))      # framing_hold (cờ framing_guard): a hold marker, not a score
         return round(v, 3) if v is not None else None
     clip_check = claude_tasks.last_clip_set_check(data_dir, project_id)
     return {

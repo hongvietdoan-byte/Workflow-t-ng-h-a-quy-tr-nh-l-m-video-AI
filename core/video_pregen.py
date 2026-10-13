@@ -255,6 +255,7 @@ def _check_end(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> 
     if not _readable_image(lf):
         out.append(_issue("khung_cuoi", DO, f"không đọc được tệp khung cuối ({_rel(lf)})"))
         return
+    _check_end_distance(conn, scene_id, plan, lf, out)
     if byd is None:
         return                                       # VÀNG "chưa có BYĐ" nói một lần ở _check_motion
     ch = _changes(byd)
@@ -263,6 +264,21 @@ def _check_end(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> 
     elif ch is False and not same(nxt, lf):
         out.append(_issue("khung_cuoi", DO, "BYĐ khai trạng thái cuối = trạng thái đầu (không đổi) mà clip gửi kèm khung cuối vẽ trạng "
                                             "thái khác — sửa BYĐ hoặc bỏ khung cuối"))
+
+
+def _check_end_distance(conn, scene_id: int, plan: Dict, lf: str, out: List[Dict]) -> None:
+    """Cờ framing_guard (lỗi hệ thống 2): khung cuối khác khoảng cách máy với ảnh đầu → VÀNG có số đo (runner._end_frame đã bỏ khung
+    đó; tới đây là đường khác gửi kèm). Không đo được → VÀNG nói rõ."""
+    from . import framing_guard, shots
+    if not framing_guard.enabled():
+        return
+    start = plan.get("start_frame") or shots.approved_image_path(conn, plan.get("data_dir") or "", plan.get("project_id") or 0,
+                                                                  shots.image_scene(conn, scene_id))
+    res = framing_guard.end_frame_check(str(start) if start else None, lf)
+    if res and res.get("ok") is False:
+        out.append(_issue("khung_cuoi", VANG, f"{res['why']} — nên bỏ khung cuối này hoặc vẽ lại cùng khoảng cách máy (cờ framing_guard)"))
+    elif res and res.get("ok") is None:
+        out.append(_issue("khung_cuoi", VANG, f"chưa đo được khoảng cách máy của khung cuối: {res.get('note')}"))
 
 
 def _in_place(conn, scene_id: int, plan: Dict, data: Dict) -> Optional[str]:
