@@ -326,6 +326,7 @@ def access_user():
 def scoped(p: Pipeline) -> Pipeline:
     """Make `p` act as the signed-in person: every core write on it is then checked against their rights on the project."""
     p.user = access_user()
+    p.data_dir = os.path.abspath(DATA)
     return p
 
 def project_level(p: Pipeline, pid: int):

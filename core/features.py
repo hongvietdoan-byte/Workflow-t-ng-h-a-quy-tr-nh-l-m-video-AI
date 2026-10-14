@@ -65,6 +65,8 @@ FEATURES: Dict[str, Dict] = {
     },
     "support_tickets": {"label": "Kho phiếu Tiểu Nhị / Lão Đại", "verified": False,
                         "why": "Đợt 9: chỉ thử CSDL tạm, chưa bật sản xuất"},
+    "ref_audio_sync": {"label": "Tiếng ref từ nguồn GỐC theo đoạn và tốc độ (0 USD)", "verified": False,
+                       "why": "Đ12v3: thiếu metadata báo VÀNG; chưa nghe bản dựng sản xuất"},
     "mix_bus": {
         "label": "Nhạc nén riêng dưới bus hiệu ứng (SFX) 8–12 dB (ffmpeg, 0 USD)",
         "verified": False,
@@ -673,7 +675,7 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
 HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
-OPT_IN_ONLY: tuple = ("blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc")
+OPT_IN_ONLY: tuple = ("ref_audio_sync", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc")
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.

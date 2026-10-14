@@ -853,7 +853,7 @@ V2_COLUMNS = {
                      ("removed_from", "TEXT")),   # the status it had before, given back by assets.restore_image
     "usage_events": (("deleted_project_id", "INTEGER"),
                      ("stage", "TEXT")),                      # what a Claude call was for (director, qc, motion, asset_vision…)        # spend of a deleted project stays readable (its id is never reused)
-    "motion_prompts": (("image_job_id", "INTEGER"), ("spec_hash", "TEXT"), ("video_model", "TEXT"), ("check_flags", "TEXT"),
+    "motion_prompts": (("ref_audio_metadata", "TEXT"), ("image_job_id", "INTEGER"), ("spec_hash", "TEXT"), ("video_model", "TEXT"), ("check_flags", "TEXT"),
                        ("lint", "TEXT"),
                        ("quality_path", "TEXT"),    # N1: auto (NULL) | draft_first | direct — the person may override the Director
                        ("video_resolution", "TEXT")),   # 09/10: chất lượng người chọn cho shot (480p/720p/1080p/4k; Kling std/pro/4k)

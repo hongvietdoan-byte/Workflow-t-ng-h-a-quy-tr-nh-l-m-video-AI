@@ -104,8 +104,9 @@ class PipelinePaused(Exception):
 
 
 class Pipeline:
-    def __init__(self, conn: sqlite3.Connection):
+    def __init__(self, conn: sqlite3.Connection, *, data_dir: Optional[str] = None):
         self.conn = conn
+        self.data_dir = os.path.abspath(data_dir) if data_dir else None  # cấu hình tin cậy, không suy từ path upload
         self.actor: Optional[str] = None   # who is working (dashboard user name); stamped on the jobs created through this object
         self.origin: Optional[str] = None  # 'auto' while the automatic run works (autopilot.tick): stamped on jobs.origin (S14.16 job cap)
         self.user: Optional[dict] = None   # {'email','role'} of the signed-in person (dashboard) -> per-project rights, core/access.py;
@@ -234,13 +235,23 @@ class Pipeline:
         self.conn.execute("UPDATE projects SET storyboard_mode=? WHERE id=?", (1 if on else 0, project_id))
         self.conn.commit()
 
-    def set_motion_ref_video(self, scene_id: int, path: Optional[str], refer_type: str = "feature") -> None:
+    def set_motion_ref_video(self, scene_id: int, path: Optional[str], refer_type: str = "feature", *, ref_audio_metadata=None) -> None:
         """A local video the generator copies MOTION from for this scene (never appearance — that still comes only
         from the approved first-frame image / Character Bible). `refer_type`: "feature" copies the motion into a new
         clip (default), "base" edits the given clip instead — only meaningful on Kling. `path=None` clears it."""
         access.need_edit_scene(self, scene_id, "gắn video tham chiếu")
-        self.conn.execute("UPDATE motion_prompts SET ref_video_path=?, ref_video_type=? WHERE scene_id=?",
-                          (path, refer_type, scene_id))
+        import json
+        from . import ref_audio
+        metadata = None
+        if path and ref_audio_metadata is not None:
+            if not self.data_dir:
+                raise ValueError("VÀNG: chưa cấu hình thư mục dữ liệu tin cậy cho tiếng ref")
+            scene = self.conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()
+            root = os.path.join(self.data_dir, str(scene["project_id"]))
+            ref_audio.validate_local_path(path, root)
+            metadata = ref_audio.validate_metadata(ref_audio_metadata, root)
+        self.conn.execute("UPDATE motion_prompts SET ref_video_path=?, ref_video_type=?, ref_audio_metadata=? WHERE scene_id=?",
+                          (path, refer_type, json.dumps(metadata) if metadata else None, scene_id))
         self.conn.commit()
 
     def set_script_text(self, project_id: int, text: str) -> None:

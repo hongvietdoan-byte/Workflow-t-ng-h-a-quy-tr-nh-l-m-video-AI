@@ -1252,3 +1252,10 @@ change_review) — kiểm quyền sửa như các ô khác. Ảnh chụp 1440 + 
 ## Bổ sung Kết quả Codex — đợt 11
 
 - 🟡 Việc1b · nhánh codex/d11-viec1b-doi-chieu · tài liệu63fb5000: mục9 đánhgiá đủ20dòng ClipAI + stage/segment/state và điểm nối code, khuyếnnghị mockupgọn9c. Root RÀNHẸ/đốichiếu sốdòng; docs-only khôngpytest/fakered. CHỜ người dùng chốt trước HTML/test/ảnh, chưa hoàn tất toàn việc. Không API/data/backend/TODO/PLAN/areas/main.
+
+### Kết quả Codex — Đ12 việc 3 mục 1 (14/10/2026, đã rà/sửa/QA, chờ commit và push nhánh)
+- Nhánh `codex/d12-viec3-ref-audio`: schema `ref_audio_metadata` lưu `source_path/start/end/speed` theo lựa chọn đã DUYỆT; speed=0,5 phát chậm×2. Nguồn GỐC được tải riêng ở Bước3, ref legacy thiếu báo VÀNG khi ON; cờ `ref_audio_sync` TẮT.
+- Tách đoạn gốc với atempo, fit shot trim/pad không đổi tốc độ lần hai. Giới hạn nguồn trong project, không UNC, finite/bounds/duration/timeout. OFF dùng extract/fit cũ; không làm lại mix_bus.
+- Rà độc lập 2finding và root3finding đã sửa: root dự án tin cậy trước probe; SHA256 bytes nguồn hữu hạn512MiB + kiểm trước/sau extraction; nguồn đổi/mất/overflow VÀNG và clean tmp; fit≤600s và atomic WAV tạm/os.replace. Root đã đọc diff vòng2. Cờ thêm OPT_IN_ONLY: preset experimental không tự bật; RED1→GREEN1 /0,16s.
+- Test nhóm vòng sửa47qua/6bỏqua /6,47s; focused vòng2 RED3→XANH13 /1,23s + flag1GREEN (14test riêng file mới). Proof ffmpeg thật nguồn440/880Hz và ref silent chứng minh nguồn đúng đoạn/tốc độ/độ dài ở lượt triển khai. QA component thật fake pipeline1440/1280 height1500 đủfields,0pageerror/overflow,2PNG docs/images/d12; root đã xem1280; fixture/server riêng đã dọn. Chưa cả bộ Windows/gộp/sản xuất; sẵn sàng root commit/push NHÁNH.
+- Bàn giao `HANDOFF.md`, tự rà `docs/RA_D12_VIEC3_CODEX_2026-10-14.md`; areas.version75 giữ nguyên.
