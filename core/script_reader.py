@@ -112,7 +112,8 @@ def table_to_paragraphs(rows: List[List[str]], start: int = 1, label: str = "") 
         cur: Optional[dict] = None
         # 14/10 tập 2 (#31): a 'Voice over' / 'Lời dẫn' / 'Narration' column is the narrator, not a character speaking
         said_by = next(("LỜI DẪN" for j, ro in mapping.items() if ro == "dialogue"
-                        and re.search(r"\b(?:voice|voiceover|vo|loi dan|narration|narrator|thuyet minh)\b", fold(head[j]))), "LỜI THOẠI")
+                        and re.search(r"\b(?:voice over|voiceover|vo|v o|loi dan|narration|narrator|thuyet minh)\b", fold(head[j]))),
+                       "LỜI THOẠI")   # rà 14/10: "Voice" đứng riêng = cột thoại như cũ
         for r in rows[head_i + 1:]:
             get = lambda role: next((r[j] for j, ro in mapping.items() if ro == role and j < len(r)), "")  # noqa: E731
             scene_label, desc, talk, who = get("scene"), get("description"), get("dialogue"), get("speaker")
@@ -126,8 +127,11 @@ def table_to_paragraphs(rows: List[List[str]], start: int = 1, label: str = "") 
             if talk:
                 for line in _lines(talk):
                     tag = re.match(r"^\s*([^\W\d_][^:\n]{0,28}):\s*\S", line)
-                    # a narration column: only a CAPITALS tag ("KELLY:", "LỜI DẪN:") names a speaker — "Bốn đối thủ ập tới: …" is narration
-                    if tag and (said_by != "LỜI DẪN" or tag.group(1).strip() == tag.group(1).strip().upper()):
+                    # a narration column: a CAPITALS tag ("KELLY:", "LỜI DẪN:") or a 1–2 word Titled name ("Kelly:", "Mr. Waggor:")
+                    # names a speaker — "Bốn đối thủ ập tới: …" (a lower-case phrase) is narration
+                    name = tag.group(1).strip() if tag else ""
+                    titled = 1 <= len(name.split()) <= 2 and all(w[0].isupper() for w in name.split())
+                    if tag and (said_by != "LỜI DẪN" or name == name.upper() or titled):
                         cur["talk"].append(line)
                     else:
                         cur["talk"].append(f"{(who or said_by).strip().upper()}: {line}")

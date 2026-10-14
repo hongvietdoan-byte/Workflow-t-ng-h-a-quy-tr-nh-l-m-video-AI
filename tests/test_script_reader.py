@@ -120,6 +120,19 @@ class TableScriptTests(unittest.TestCase):
         self.assertIn("LỜI DẪN: Bốn đối thủ ập tới: Tai Họa, Xúc Tu Đỏ.", text)
         self.assertIn("KELLY: Tới đây!", text)
 
+    def test_a_plain_voice_column_is_dialogue_and_a_titled_name_is_a_speaker(self):
+        # rà 14/10: header "Voice" = cột thoại như cũ; trong cột lời dẫn "Kelly:" / "Mr. Waggor:" vẫn là người nói
+        rows = [["Cảnh", "Mô tả", "Voice"], ["1", "Hai người.", "Kelly: Đi thôi."]]
+        text = scenes_of(from_text("\n".join("\t".join(r) for r in rows)))[0].text
+        self.assertIn("Kelly: Đi thôi.", text)
+        self.assertNotIn("LỜI DẪN", text)
+        rows = [["Cảnh", "Mô tả", "Voice over"], ["1", "Địch lao tới.", "Kelly: Tới!"], ["1", "", "Mr. Waggor: Gâu!"]]
+        text = scenes_of(from_text("\n".join("\t".join(r) for r in rows)))[0].text
+        self.assertIn("Kelly: Tới!", text)
+        self.assertNotIn("LỜI DẪN: Kelly", text)
+        self.assertIn("Mr. Waggor: Gâu!", text)
+        self.assertNotIn("LỜI DẪN: Mr.", text)
+
     def test_without_a_scene_column_a_new_description_starts_a_scene(self):
         rows = [["Mô tả", "Nhân vật", "Lời thoại"], ["Cửa mở.", "Lyra", "Ai đó?"], ["", "Kael", "Là ta."], ["Trời sáng.", "", ""]]
         scenes = scenes_of(read_script("x.xlsx", xlsx_bytes([("S", rows)])))
