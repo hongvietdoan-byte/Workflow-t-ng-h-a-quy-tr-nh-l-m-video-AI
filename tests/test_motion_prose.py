@@ -76,6 +76,13 @@ class MotionProseOn(_Flag):
         self.assertIn("camera track;", text)
         self.assertNotIn("follows behind", text)
 
+    def test_leaning_forward_is_a_pose_not_the_way_she_goes(self):
+        # 14/10: "leaning forward" / "weight driving forward" là tư thế — chạy SANG TRÁI vẫn không đoán chiều máy
+        d = dict(RUN_BEHIND, motion_en={"action": "KELLY dashes five steps to the left, torso leaning forward, weight driving forward."})
+        text = sr.shot_motion(d)
+        self.assertIn("camera track;", text)
+        self.assertNotIn("follows behind", text)
+
     def test_glance_at_the_camera_is_not_running_toward_it(self):
         # rà 14/10: "(at|into) the camera" của travel_truth khớp cả cái liếc mắt — chạy ngang khung không phải máy lùi trước mặt
         d = dict(RUN_TOWARD, action="Kelly chạy ngang khung từ trái sang phải.",

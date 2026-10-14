@@ -26,8 +26,9 @@ _RUN_TOWARD = re.compile(r"(?<!\w)" + _GO + r"(?:\s+[\w'-]+){0,8}?\s+towards? (?
 # hướng đi trái / phải (chạy ngang) và hướng đi xa / về phía trước (máy sau lưng thật sự bám theo)
 _SIDEWAYS = re.compile(r"(?<!\w)(?:to(?:wards?)? the (?:left|right)|" + _GO + r"(?:\s+\w+){0,3}?\s+(?:left|right)|"
                        r"from (?:frame-)?(?:left|right) to (?:frame-)?(?:left|right)|sang (?:trái|phải)|ngang)(?!\w)", re.I)
-_AWAY = re.compile(r"away from (?:the )?camera|(?<!\w)(?:forward|straight ahead|into the distance|xa (?:dần )?máy|về phía trước|"
-                   r"thẳng về phía trước)(?!\w)", re.I)
+# "forward / straight ahead" chỉ là HƯỚNG ĐI khi theo sau động từ di chuyển — "leaning forward", "weight driving forward" là tư thế
+_AWAY = re.compile(r"away from (?:the )?camera|(?<!\w)(?:" + _GO + r"(?:\s+\w+){0,3}?\s+(?:forward|straight ahead)|into the distance|"
+                   r"xa (?:dần )?máy|về phía trước|thẳng về phía trước)(?!\w)", re.I)
 
 
 def enabled() -> bool:
