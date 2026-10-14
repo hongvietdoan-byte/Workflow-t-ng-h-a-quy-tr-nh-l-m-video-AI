@@ -17,6 +17,65 @@ def _info(key: str, anchor=None, help_text="Bấm để xem chi tiết"):
     return components.info(key, anchor=anchor, help_text=help_text)
 
 
+def _motion_ref_editor(p, pid, r):
+    with st.expander("🎥 Video tham chiếu chuyển động" + (" — đã gắn" if r["ref_video_path"] else ""), expanded=False):
+        st.caption("Video chỉ cho model **chuyển động/nhịp/lực**; **diện mạo vẫn lấy từ ảnh khung đầu và ảnh tham chiếu**. "
+                   "Cảnh có video tham chiếu được đề xuất dùng Seedance (tham chiếu đa phương thức). Kling: 'feature' tạo clip mới theo "
+                   "chuyển động, 'base' sửa trực tiếp clip này; không dùng cùng lúc với âm thanh tự sinh của Kling.")
+        if r["ref_video_path"]:
+            st.caption(f"Đang gắn: `{os.path.basename(r['ref_video_path'])}`")
+            if st.button("✖ Bỏ video tham chiếu", key=f"mprv_clear_{r['sid']}"):
+                act(lambda: p.set_motion_ref_video(r["sid"], None), "Đã bỏ")
+                st.rerun()
+        up = st.file_uploader("Tải video tham chiếu (MP4)", type=["mp4", "mov", "webm"], key=f"mprv_up_{r['sid']}")
+        refer_type = st.radio("Kiểu tham chiếu (chỉ Kling)", ["feature", "base"], horizontal=True, key=f"mprv_type_{r['sid']}")
+        from core import features as ref_features
+        sync_ref = ref_features.on("ref_audio_sync")
+        original_up = None
+        ref_start, ref_end, ref_speed = 0.0, 0.0, 1.0
+        if sync_ref:
+            with st.expander("Âm ref: nguồn GỐC và đoạn đã dùng", expanded=False):
+                st.caption("Tải riêng tệp gốc còn tiếng. Tốc độ 0,5 = chậm ×2; tối đa 600 giây nguồn. Thiếu metadata sẽ báo VÀNG.")
+                original_up = st.file_uploader("Tệp video GỐC còn tiếng", type=["mp4", "mov", "webm"], key=f"mprv_source_{r['sid']}")
+                ref_start = st.number_input("Giây đầu nguồn", min_value=0.0, value=0.0, key=f"mprv_start_{r['sid']}")
+                ref_end = st.number_input("Giây cuối nguồn", min_value=0.0, value=0.0, key=f"mprv_end_{r['sid']}")
+                ref_speed = st.number_input("Tốc độ phát ref", min_value=0.01, max_value=100.0, value=1.0, key=f"mprv_speed_{r['sid']}")
+        if st.button("⬆ Lưu video tham chiếu", key=f"mprv_save_{r['sid']}",
+                     disabled=up is None and not (sync_ref and original_up is not None and r["ref_video_path"])):
+            def save_ref():
+                import uuid
+                from core import ref_audio
+                metadata = None
+                new_files = []
+                folder = project_dir(pid, "motion_ref")
+                try:
+                    if original_up is not None:
+                        source = os.path.join(folder, f"original_{uuid.uuid4().hex}.mp4")
+                        new_files.append(source)
+                        with open(source, "wb") as f:
+                            f.write(original_up.getbuffer())
+                        metadata = ref_audio.validate_metadata(dict(source_path=source, start=ref_start, end=ref_end, speed=ref_speed),
+                                                               os.path.dirname(folder))
+                    elif sync_ref and (ref_start or ref_end or ref_speed != 1):
+                        raise ValueError("VÀNG: hãy tải tệp GỐC còn tiếng trước khi khai đoạn/tốc độ")
+                    dest = r["ref_video_path"]
+                    if up is not None:
+                        dest = os.path.join(folder, f"scene_{r['idx']}_{uuid.uuid4().hex}.mp4" if sync_ref else f"scene_{r['idx']}_{up.name}")
+                        new_files.append(dest)
+                        with open(dest, "wb") as f:
+                            f.write(up.getbuffer())
+                    p.set_motion_ref_video(r["sid"], dest, refer_type, ref_audio_metadata=metadata)
+                except Exception:
+                    for file in new_files:
+                        try:
+                            os.remove(file)
+                        except OSError:
+                            pass
+                    raise
+            act(save_ref, "Đã gắn video tham chiếu")
+            st.rerun()
+
+
 def step3(p: Pipeline, pid: int):
     summ = lineage.summary(p.conn, pid)
     status = lineage.scan(p.conn, pid)
@@ -191,23 +250,7 @@ def step3(p: Pipeline, pid: int):
                                     act(lambda: claude_tasks.apply_lint(p, pid, r["sid"]), "Đã thay prompt (chờ duyệt lại)")
                                     st.rerun()
                 if C.expert():
-                    with st.expander("🎥 Video tham chiếu chuyển động" + (" — đã gắn" if r["ref_video_path"] else ""), expanded=False):
-                        st.caption("Video chỉ cho model **chuyển động/nhịp/lực**; **diện mạo vẫn lấy từ ảnh khung đầu và ảnh tham chiếu**. "
-                                   "Cảnh có video tham chiếu được đề xuất dùng Seedance (tham chiếu đa phương thức). Kling: 'feature' tạo clip mới theo "
-                                   "chuyển động, 'base' sửa trực tiếp clip này; không dùng cùng lúc với âm thanh tự sinh của Kling.")
-                        if r["ref_video_path"]:
-                            st.caption(f"Đang gắn: `{os.path.basename(r['ref_video_path'])}`")
-                            if st.button("✖ Bỏ video tham chiếu", key=f"mprv_clear_{r['sid']}"):
-                                act(lambda: p.set_motion_ref_video(r["sid"], None), "Đã bỏ")
-                                st.rerun()
-                        up = st.file_uploader("Tải video tham chiếu (MP4)", type=["mp4", "mov", "webm"], key=f"mprv_up_{r['sid']}")
-                        refer_type = st.radio("Kiểu tham chiếu (chỉ Kling)", ["feature", "base"], horizontal=True, key=f"mprv_type_{r['sid']}")
-                        if st.button("⬆ Lưu video tham chiếu", key=f"mprv_save_{r['sid']}", disabled=up is None):
-                            dest = os.path.join(project_dir(pid, "motion_ref"), f"scene_{r['idx']}_{up.name}")
-                            with open(dest, "wb") as f:
-                                f.write(up.getbuffer())
-                            act(lambda: p.set_motion_ref_video(r["sid"], dest, refer_type), "Đã gắn video tham chiếu")
-                            st.rerun()
+                    _motion_ref_editor(p, pid, r)
                 if not v2:
                     scene_expander(p, r["sid"])
                 scene_box.__exit__(None, None, None)
