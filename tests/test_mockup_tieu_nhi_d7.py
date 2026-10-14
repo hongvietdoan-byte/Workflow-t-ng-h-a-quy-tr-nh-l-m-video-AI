@@ -21,13 +21,35 @@ def test_pet_offline_and_admin_fields():
     assert 'id="togglePet"' in text
 
 
+def _browser_tools():
+    """(node, thư mục module playwright, chrome): bản Node đi kèm Codex + Chrome trên máy chính trước; máy khác (cloud) dùng node trên
+    PATH, playwright nó tìm được và Chromium của Playwright (PLAYWRIGHT_BROWSERS_PATH). Không có công cụ → bỏ qua như
+    test_mockup_ban_dung_d11 (thiếu môi trường, không phải lỗi mockup)."""
+    import os
+    import shutil
+    runtime = Path.home() / ".cache/codex-runtimes/codex-primary-runtime/dependencies/node"
+    node = runtime / "bin/node.exe"
+    playwright = runtime / "node_modules/playwright"
+    if not node.is_file():
+        found = shutil.which("node")
+        node = Path(found) if found else None
+        playwright = None
+        if node is not None:
+            run = subprocess.run([str(node), "-p", "require.resolve('playwright')"], capture_output=True, text=True, timeout=30)
+            if run.returncode == 0 and run.stdout.strip():
+                playwright = Path(run.stdout.strip()).parent
+    chrome = next((c for c in (Path("C:/Program Files/Google/Chrome/Application/chrome.exe"),
+                               Path(os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "/opt/pw-browsers")) / "chromium")
+                   if c.is_file()), None)
+    if node is None or playwright is None or chrome is None:
+        pytest.skip("không có Node + Playwright + Chrome/Chromium để chạy kiểm mockup trên trình duyệt")
+    return node, playwright, chrome
+
+
 @pytest.mark.slow
 def test_browser_offline_repair_generation_and_pet(tmp_path):
     """Chạy JS thật trong Chrome, không mở phiên trình duyệt người dùng/mạng."""
-    runtime = Path("C:/Users/hongviet.doan/.cache/codex-runtimes/codex-primary-runtime/dependencies/node")
-    node = runtime / "bin/node.exe"
-    chrome = Path("C:/Program Files/Google/Chrome/Application/chrome.exe")
-    assert node.is_file() and chrome.is_file(), "Cần Node bundled và Chrome để kiểm mockup"
+    node, playwright, chrome = _browser_tools()
     script = r'''
 const { chromium } = require(process.argv[1]);
 const assert = require('node:assert/strict');
@@ -106,7 +128,7 @@ const { pathToFileURL } = require('node:url');
     env = {"SYSTEMROOT": "C:/Windows", "WINDIR": "C:/Windows", "TEMP": str(tmp_path),
            "TMP": str(tmp_path), "PYTHONUTF8": "1"}
     result = subprocess.run(
-        [str(node), "-e", script, str(runtime / "node_modules/playwright"), str(chrome), str(ROOT), str(tmp_path)],
+        [str(node), "-e", script, str(playwright), str(chrome), str(ROOT), str(tmp_path)],
         env=env, capture_output=True, text=True, encoding="utf-8", timeout=90,
     )
     assert result.returncode == 0, result.stderr
