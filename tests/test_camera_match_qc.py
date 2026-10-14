@@ -6,6 +6,7 @@ from core import camera_match_qc as Q
 def test_off_no_detector():
     with patch("core.features.on", return_value=False), patch("core.clip_measure._faces", side_effect=AssertionError):
         assert Q.check_image("missing", {}, {}) == []
+        assert Q.check_clip("missing", {}, {}, end_actor={}) == []
 
 
 def test_missing_inputs_not_green():
@@ -99,7 +100,79 @@ def test_last_frame_without_end_actor_cannot_reuse_start_state(tmp_path):
     measured = Q.expected(camera, actor)
     with patch("core.features.on", return_value=True), patch("core.clip_measure._cv", return_value=cv), patch.object(Q, "_measure", return_value=measured):
         out = Q.check_clip(str(path), camera, actor)
-    final = [i for i in out if i["loi"].startswith("Khung cuối")]
+    final = [i for i in out if i["loi"].startswith("Khung cuối") and "expected" in i and i.get("code") != "subject_identity_unverified"]
     assert len(final) == 2
     assert all(i["expected"].get("eyes") is None and i["expected"].get("face_height") is None for i in final)
     assert all("chân trời" not in i["loi"] for i in final)
+
+def test_matching_numbers_still_warn_identity():
+    import os
+    measured = {"face_height": .12, "eyes": [.5, .4], "horizon": .5}
+    with patch.object(os, "environ", {}), patch.object(Q.features, "on", return_value=True), patch.object(Q, "_local", return_value=True), patch("core.clip_measure._cv") as cv, patch.object(Q, "_measure", return_value=measured), patch.object(Q, "expected", return_value=measured):
+        cv.return_value.imread.return_value = object()
+        out = Q.check_image("fake.png", {}, {"id": "A"})
+    assert any("chưa xác minh danh tính" in i["loi"] for i in out)
+    assert all(i["muc"] == "vang" for i in out)
+
+
+def test_clip_missing_end_state_is_explicit():
+    import os
+    with patch.object(os, "environ", {}), patch.object(Q.features, "on", return_value=True), patch.object(Q, "_local", return_value=True), patch("core.clip_measure._cv") as cv, patch.object(Q, "_measure", return_value={}):
+        cap = cv.return_value.VideoCapture.return_value
+        cap.get.return_value = 2
+        cap.read.return_value = (True, object())
+        out = Q.check_clip("fake.mp4", {}, {"id": "A"})
+    assert any("Khung cuối" in i["loi"] and "thiếu trạng thái" in i["loi"] for i in out)
+
+
+def test_clip_different_subject_end_is_not_compared():
+    import os
+    with patch.object(os, "environ", {}), patch.object(Q.features, "on", return_value=True), patch.object(Q, "_local", return_value=True), patch("core.clip_measure._cv") as cv, patch.object(Q, "_measure", return_value={}), patch.object(Q, "expected", return_value={}) as target:
+        cap = cv.return_value.VideoCapture.return_value
+        cap.get.return_value = 2
+        cap.read.return_value = (True, object())
+        out = Q.check_clip("fake.mp4", {}, {"id": "A"}, end_actor={"id": "B"})
+    assert target.call_args_list[-1].args[1] is None
+    assert any("ID chủ thể đầu/cuối không khớp" in i["loi"] for i in out)
+
+def test_explicit_matching_end_state_keeps_geometry_and_unverified_identity():
+    import os
+    start, end = {"id": "A", "xy": [0, 0], "z": 0, "H": 1.7}, {"id": "A", "xy": [1, 0], "z": 0, "H": 1.7}
+    measured = {"face_height": .12, "eyes": [.5, .4], "horizon": .5}
+    with patch.object(os, "environ", {}), patch.object(Q.features, "on", return_value=True), patch.object(Q, "_local", return_value=True), patch("core.clip_measure._cv") as cv, patch.object(Q, "_measure", return_value=measured), patch.object(Q, "expected", return_value=measured) as target:
+        cap = cv.return_value.VideoCapture.return_value
+        cap.get.return_value = 2
+        cap.read.return_value = (True, object())
+        out = Q.check_clip("fake.mp4", {}, start, end_actor=end)
+    assert target.call_args_list[-1].args[1] == end
+    assert any("Khung cuối" in i["loi"] and "chưa xác minh danh tính" in i["loi"] for i in out)
+    assert not any("thiếu trạng thái" in i["loi"] for i in out)
+
+
+import pytest
+
+@pytest.mark.parametrize("actor", ["A", ["A"], 42])
+def test_malformed_actor_keeps_horizon_and_yellow(actor):
+    import os
+    camera = {"location": [0, -5, 1.6], "look_at": [0, 0, 1], "lens": 35}
+    with patch.object(os, "environ", {}), patch.object(Q.features, "on", return_value=True), patch.object(Q, "_local", return_value=True), patch("core.clip_measure._cv") as cv, patch.object(Q, "_measure", return_value={"horizon": .99}):
+        cv.return_value.imread.return_value = object()
+        cap = cv.return_value.VideoCapture.return_value
+        cap.get.return_value = 2
+        cap.read.return_value = (True, object())
+        for out in (Q.check_image("fake.png", camera, actor), Q.check_clip("fake.mp4", camera, actor, end_actor=actor)):
+            assert all(i["muc"] == "vang" for i in out)
+            horizon = [i for i in out if "chân trời lệch" in i["loi"]]
+            assert horizon and all(i["expected"].get("horizon") is not None for i in horizon)
+            assert any("thiếu trạng thái" in i["loi"] for i in out)
+
+
+def test_matching_geometry_retains_diagnostics():
+    import os
+    measured = {"face_height": .12, "eyes": [.5, .4], "horizon": .5}
+    with patch.object(os, "environ", {}), patch.object(Q.features, "on", return_value=True), patch.object(Q, "_local", return_value=True), patch("core.clip_measure._cv") as cv, patch.object(Q, "_measure", return_value=measured), patch.object(Q, "expected", return_value=measured):
+        cv.return_value.imread.return_value = object()
+        out = Q.check_image("fake.png", {}, {"id": "A"})
+    assert out[0]["measured"] == measured
+    assert out[0]["expected"] == measured
+    assert out[0]["code"] == "subject_identity_unverified"

@@ -1252,3 +1252,9 @@ change_review) — kiểm quyền sửa như các ô khác. Ảnh chụp 1440 + 
 ## Bổ sung Kết quả Codex — đợt 11
 
 - 🟡 Việc1b · nhánh codex/d11-viec1b-doi-chieu · tài liệu63fb5000: mục9 đánhgiá đủ20dòng ClipAI + stage/segment/state và điểm nối code, khuyếnnghị mockupgọn9c. Root RÀNHẸ/đốichiếu sốdòng; docs-only khôngpytest/fakered. CHỜ người dùng chốt trước HTML/test/ảnh, chưa hoàn tất toàn việc. Không API/data/backend/TODO/PLAN/areas/main.
+
+
+## Bổ sung Kết quả Codex — đợt 11, việc 4 chủ thể cuối
+- Nhánh `codex/d11-viec4-chu-the-cuoi`, chưa commit/push: QC chưa xác minh ID luôn VÀNG; thiếu trạng thái cuối rõ; ID khác không so geometry người đầu với người cuối, giữ horizon. Adapter snapshot ID/end-state CHỜ nguồn A, không thêm schema.
+- Rà độc lập bắt 2 P2 đã gom sửa: actor sai kiểu không crash/không mất horizon; warning danh tính giữ số đo khi geometry khớp. UI một warning bullet giữ mọi thông báo, name-only chuyển caption bằng code explicit.
+- ĐỎ 4 ban đầu →74 xanh; vòng rà ĐỎ 5 failed/16 passed → focused **87 passed/8,00 s**, 5 file. QA component cuối 1440/1280 CHỜ root rerun sau fix; chưa cả bộ Windows/clip thật/main. RA và HANDOFF đã cập nhật.

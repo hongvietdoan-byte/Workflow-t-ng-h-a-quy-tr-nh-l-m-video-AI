@@ -28,11 +28,21 @@ def render(p, pid, scene_id, path, kind="image"):
             xyz = subject["location"]
             actor = {"xy": xyz[:2], "z": xyz[2], "H": subject["height_m"]}
         check = camera_match_qc.check_clip if kind == "video" else camera_match_qc.check_image
-        issues = check(path, camera, actor)
+        # Chưa có contract snapshot đã duyệt chứa ID/trạng thái cuối.
+        # Tên chỉ giúp đọc số hình học, không chứng minh đúng người hay vị trí cuối.
+        issues = check(path, camera, actor, end_actor=None) if kind == "video" else check(path, camera, actor)
+        if actor:
+            note = "Tên chủ thể trong camera_plan chưa xác minh ID; số hình học chỉ tham khảo"
+            if kind == "video":
+                note += "; thiếu snapshot trạng thái cuối đã duyệt"
+            if not any(i.get("code") == "subject_identity_unverified" for i in issues):
+                issues.append({"muc": "vang", "loi": note})
         # Ngay khi số khớp cũng không tuyên bố cả ảnh/clip đạt QC.
         with st.expander("📐 So với máy — ngưỡng chưa hiệu chỉnh", expanded=False):
-            for i in issues:
-                st.warning(i["loi"])
+            if issues:
+                st.warning(issues[0]["loi"] if len(issues) == 1 else "\n".join("- " + i["loi"] for i in issues))
+            if actor and any(i.get("code") == "subject_identity_unverified" for i in issues):
+                st.caption(note)
             if issues and issues[0].get("measured") is not None:
                 st.caption("Số đo local / dự kiến từ máy (None = chưa đo):")
                 st.json({"do": issues[0]["measured"], "may": issues[0]["expected"]})

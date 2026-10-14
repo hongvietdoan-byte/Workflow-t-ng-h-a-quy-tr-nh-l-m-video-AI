@@ -40,14 +40,17 @@ def expected(camera, actor=None, aspect=9 / 16):
     try:
         args = camera["location"], camera["look_at"], float(camera["lens"]), aspect
         out["horizon"] = plate_camera.horizon_y(*args)
-        if actor:
+    except (KeyError, TypeError, ValueError, ZeroDivisionError, OverflowError):
+        return {}
+    try:
+        if isinstance(actor, dict) and actor:
             xy, z, h = actor["xy"], float(actor["z"]), float(actor["H"])
             eyes = plate_camera.project(*args, [xy[0], xy[1], z + h * .93])
             top = plate_camera.project(*args, [xy[0], xy[1], z + h])
             chin = plate_camera.project(*args, [xy[0], xy[1], z + h * .86])
             out.update(eyes=eyes, face_height=abs(chin[1] - top[1]) if chin and top else None)
-    except (KeyError, TypeError, ValueError, ZeroDivisionError, OverflowError):
-        return {}
+    except (KeyError, IndexError, TypeError, ValueError, ZeroDivisionError, OverflowError):
+        pass
     return out
 
 
@@ -73,6 +76,17 @@ def _measure(frame):
     return out
 
 
+def _subject_warnings(actor):
+    # Detector chỉ tìm mặt, chưa nhận dạng ID: một mặt cũng không chứng minh đúng người.
+    text = "chưa xác minh danh tính chủ thể bằng công cụ local; số mặt/mắt không chứng minh đúng ID"
+    if not isinstance(actor, dict) or not actor:
+        text += "; thiếu trạng thái chủ thể đã duyệt hoặc trạng thái không hợp lệ để so cỡ mặt/vị trí mắt"
+    elif not actor.get("id"):
+        text += "; thiếu ID chủ thể đã duyệt; số hình học chỉ là tham khảo chưa gắn danh tính"
+    return [dict(_issue(text), code="subject_identity_unverified")]
+
+
+
 def check_image(path, camera, actor=None, aspect=9 / 16):
     if not features.on("camera_match_qc"):
         return []
@@ -86,7 +100,10 @@ def check_image(path, camera, actor=None, aspect=9 / 16):
                 measured = _measure(frame)
         except Exception:  # Công cụ/model local thiếu: không gọi API thay thế.
             pass
-    return compare(measured, target)
+    issues = compare(measured, target) + _subject_warnings(actor)
+    for issue in issues:
+        issue.update(measured=dict(measured), expected=dict(target))
+    return issues
 
 
 def check_clip(path, camera, actor=None, aspect=9 / 16, end_actor=None):
@@ -110,7 +127,17 @@ def check_clip(path, camera, actor=None, aspect=9 / 16, end_actor=None):
                 # Máy di chuyển: không so khung cuối với máy đầu nếu thiếu máy cuối.
                 target = camera.get("end_camera") or {}
             state = actor if label == "đầu" else end_actor
-            issues = compare(_measure(frame) if ok else {}, expected(target, state, aspect))
+            subject_issues = _subject_warnings(state)
+            if label == "cuối" and isinstance(actor, dict) and isinstance(end_actor, dict):
+                start_id, end_id = actor.get("id"), end_actor.get("id")
+                if start_id is not None and end_id is not None and start_id != end_id:
+                    state = None
+                    subject_issues.append(_issue("ID chủ thể đầu/cuối không khớp; không so mắt/cỡ mặt của hai người khác nhau"))
+            measured = _measure(frame) if ok else {}
+            projected = expected(target, state, aspect)
+            issues = compare(measured, projected) + subject_issues
+            for issue in issues:
+                issue.update(measured=dict(measured), expected=dict(projected))
             out.extend(dict(i, loi=f"Khung {label}: {i['loi']}") for i in issues)
     except Exception:
         out.append(_issue("không đo được khung đầu/cuối clip bằng công cụ local"))
