@@ -104,14 +104,30 @@ class UpgradeCutFailed(Exception):
     NOT retried — a retry pays again; the 1080p clip is kept as <idx>_group.mp4 for ✂ cắt tay (0 USD)."""
 
 
-def _turn(project_id: int, job_type: str) -> threading.RLock:
+def _db_key(conn) -> str:
+    """Which database a connection works on: its file (normalised — every connection to manifest.sqlite is the same database), or this
+    very connection for an in-memory one (two `:memory:` connections are two databases)."""
+    if conn is None:
+        return ""
+    try:
+        row = conn.execute("PRAGMA database_list").fetchone()
+        path = row[2] if row else ""
+    except Exception:  # noqa: BLE001 - closed, or read from another thread (sqlite3 same-thread rule): keyed by itself — callers
+        path = ""      # take the turn in the connection's own thread (a test's holder thread gets the lock object first)
+    return os.path.normcase(os.path.abspath(path)) if path else f"mem:{id(conn)}"
+
+
+def _turn(project_id: int, job_type: str, conn=None) -> threading.RLock:
     """M3: one submitter/poller per project and job type in this process. The dashboard tab (every few seconds) and the autopilot
     thread used to poll the same job at once - the clip was downloaded twice and a follower job could be made twice. The thread
-    that finds it busy skips this round (the other one does the work); re-entrant for nested calls in one thread."""
+    that finds it busy skips this round (the other one does the work); re-entrant for nested calls in one thread.
+    conn: the turn is per DATABASE too (rà 15/10: project 1 of another database — a test's in-memory one whose background thread was
+    still polling — held the turn, submit_pending returned 0, flaky only under pytest -n 8). Every caller passes its connection."""
+    key = (_db_key(conn), project_id, job_type)
     with _turns_lock:
-        lock = _turns.get((project_id, job_type))
+        lock = _turns.get(key)
         if lock is None:
-            lock = _turns[(project_id, job_type)] = threading.RLock()
+            lock = _turns[key] = threading.RLock()
         return lock
 
 
@@ -350,7 +366,7 @@ class _Runner:
         """Send the project's queued jobs (those _wait does not hold). only = the job ids allowed (core.bg_poll: the person's jobs).
         wait_s (lỗi B 08/10): a person's click waits up to this long for the turn — the background round / the page's polling held it
         and the click used to return 0 silently, the jobs only queued."""
-        lock = _turn(project_id, self.job_type)
+        lock = _turn(project_id, self.job_type, self.p.conn)
         if not lock.acquire(blocking=wait_s > 0, timeout=wait_s if wait_s > 0 else -1):
             return 0                       # M3: another thread is sending this project's jobs right now
         from . import send_claim                  # hộp thư 12/10 19:58: one sender per job across PROCESSES too (cờ send_claim)
@@ -629,7 +645,7 @@ class _Runner:
                    f"(đã ghi sổ chi); {asked}. Chi tiết: {error}")
 
     def poll_once(self, project_id: int) -> Dict[str, int]:
-        lock = _turn(project_id, self.job_type)
+        lock = _turn(project_id, self.job_type, self.p.conn)
         if not lock.acquire(blocking=False):
             n = self.p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type=? AND state='running'",
                                     (project_id, self.job_type)).fetchone()[0]
@@ -2005,7 +2021,9 @@ class VideoRunner(_Runner):
             negative = skill_dossier.video_negative(hit, negative)
         from .adapters.clipai import PROMPT_LIMITS
         from . import chat_prompt as _d6
-        shown = self._d6_pictures(job, group, model, path, skill) if _d6.enabled() else []   # D6 off: nothing extra to read
+        # D6 off: nothing extra to read. The send's own group (_base_submit_kwargs reads _sends_group, not this function's `group`,
+        # which stays None for a scene without shot_no) — the pictures D6 sees are the ones that go
+        shown = self._d6_pictures(job, self._sends_group(job), model, path, skill) if _d6.enabled() else []
         motion = chat_rewrite(self, job, "video", motion, shown, model,
                                    limit=PROMPT_LIMITS.get(model or "") or (PROMPT_LIMITS["kling"] if "kling" in str(model or "").lower() else 4000))
         args = (path, motion, looks.video_negative(proj, negative), duration, model)
@@ -2533,7 +2551,7 @@ def cancel_all(p: Pipeline, project_id: int, video: Optional[_Runner] = None, im
     from . import access
     access.need_edit(p, project_id, "hủy việc đang chạy")
     runners = {"video_gen": video, "image_gen": image}
-    locks = [_turn(project_id, kind) for kind in ("image_gen", "video_gen")]          # one fixed order: never two orders, never a deadlock
+    locks = [_turn(project_id, kind, p.conn) for kind in ("image_gen", "video_gen")]          # one fixed order: never two orders, never a deadlock
     held = []
     for lock in locks:
         if not lock.acquire(timeout=CANCEL_WAIT_S if wait is None else wait):

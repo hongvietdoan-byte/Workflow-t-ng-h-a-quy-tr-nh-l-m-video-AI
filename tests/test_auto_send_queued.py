@@ -110,7 +110,7 @@ class AutoSendTests(unittest.TestCase):
     def test_a_click_waits_for_the_turn_instead_of_returning_0(self):
         # lỗi B: the page's / background poll held the project's turn when the person clicked → submit_pending returned 0, only queued
         jid = self.job()
-        lock = R._turn(self.pid, "image_gen")
+        lock = R._turn(self.pid, "image_gen", self.conn)
         held = threading.Event()
 
         def poller():

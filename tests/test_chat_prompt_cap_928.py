@@ -7,9 +7,11 @@ import json
 import os
 import shutil
 import tempfile
+import unittest
 from unittest import mock
 
 from core import chat_prompt
+from tests import test_seedance_refs as refs_base   # module, not the class: pytest would run its tests twice
 from tests.test_chat_prompt import ChatPromptTests, FakeClaude
 
 GROUP = ("Image 1 is the storyboard frame of Shot 1. Image 2 is KELLY. Shot 1 (0-3 s): KELLY crouches behind the glue wall. "
@@ -97,6 +99,14 @@ class CodesAnyCase(ChatPromptTests):
         old = "Image 1 is Shot 1. Images 2/3 are KELLY. Shot 2 throws."
         self.assertEqual(chat_prompt.check(old, "IMAGE 1 is SHOT 1; images 2 AND 3 show KELLY; shot 2 throws.", 999), [])
 
+    def test_lower_case_shot_in_the_assembled_prose_is_not_a_code(self):
+        # rà 15/10: real motion prompts (#2x scene 272/280) say "(same spot as shot 2)" — the scene's shot number, prose
+        old = "Kelly runs across the field (same spot as shot 2) toward the gate. Shot 1 x"
+        self.assertEqual(chat_prompt.check(old, "Kelly runs across the field to the same spot, toward the gate. Shot 1 x", 999), [])
+        self.assertEqual(chat_prompt.required_codes(old), ["Shot 1"])
+        self.assertEqual(chat_prompt.check("Shot 2 x", "SHOT 2 x", 999), [])
+        self.assertTrue(chat_prompt.check("Shot 2 x", "shot 12 x", 999))
+
     def test_another_number_is_still_a_lost_code(self):
         problems = chat_prompt.check("Shot 1 runs. Shot 2 throws. Image 3 KELLY.", "SHOT 1 runs. SHOT 12 throws. IMAGE 30 KELLY.", 999)
         self.assertTrue(problems)
@@ -140,3 +150,73 @@ class D6SeesTheSentPictures(GroupClipFingerprint):
             out = r._reference_pictures(self._job(), [{"id": 3, "data": {}}])
         self.assertEqual(seen, [[("P1_S3_frame", "a.png"), ("P1_KELLY", "k.png")]])
         self.assertEqual(out, [{"uri": "asset://1"}, {"uri": "asset://2"}])
+
+
+class D6SeesTheSentPicturesRealSources(unittest.TestCase):
+    """Rà 15/10: the same check WITHOUT mocking _reference_sources — a real 2-shot reference-only group (approved storyboard pictures,
+    one character picture, one shared 3D place render): the pictures D6 is given in _submit_args are, in order, the pictures the send
+    hosts / marks, and each D6 label 'Image N' is the picture the assembled prompt calls 'Image N'."""
+    setUp = refs_base.SeedanceRefTests.setUp
+    _ready = refs_base.SeedanceRefTests._ready
+
+    def _run(self, start_frame=None):
+        from tests._flags import flags_on
+        flags_on(self, "chat_prompts")
+        vr = self._ready()
+        job = self.p.job(self.p.create_job(self.ids[0], "video_gen"))
+        plate, kelly = os.path.join(self.data, "place.png"), os.path.join(self.data, "kelly.png")
+        refs_base.real_png(plate)
+        refs_base.real_png(kelly, (200, 60, 60))
+        if start_frame:
+            real = vr._start_frame
+            vr._start_frame = lambda pid, sid: start_frame(real, pid, sid)
+        seen, sent = {}, []
+
+        def d6(runner, job, kind, assembled, images, model, limit=4000):
+            seen.update(assembled=assembled, images=list(images))
+            return assembled
+
+        def hosted(job, pictures, clean=False):
+            sent.append([path for _, path in pictures])
+            return None                                                   # no Subject Library: the marked way, as before
+        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "1"}), \
+                mock.patch("core.place_refs.shot_ref", return_value={"path": plate, "label": "Tower", "role": "place_render"}), \
+                mock.patch("core.seedance_refs.identity_pictures", return_value=[("KELLY", kelly)]), \
+                mock.patch("core.seedance_refs.mark", side_effect=lambda p, *a, **k: p), \
+                mock.patch("core.runner.chat_rewrite", side_effect=d6), mock.patch.object(vr, "_hosted_pictures", side_effect=hosted):
+            sent_pictures = vr._submit_kwargs(job)["reference_only"]
+            vr._submit_args(job)
+            lint = vr._ref_lint(job)
+        return seen, sent, sent_pictures, plate, kelly, lint
+
+    def test_group_clip_d6_sees_the_sent_pictures_with_the_prompt_numbers(self):
+        seen, sent, sent_pictures, plate, kelly, lint = self._run()
+        d6_paths = [p for _, p in seen["images"]]
+        self.assertEqual(d6_paths, sent_pictures)                        # same pictures, same order (marked way: mark patched out)
+        self.assertEqual(d6_paths, sent[0])
+        n = len(self.ids)
+        self.assertEqual(d6_paths[n:], [kelly, plate])
+        for label, path in seen["images"]:
+            num = int(label.split(":")[0].split()[1])
+            self.assertEqual(sent_pictures[num - 1], path)
+            if path == kelly:
+                self.assertIn(f"Image {num} is KELLY", seen["assembled"])
+            elif path == plate:
+                self.assertRegex(seen["assembled"], rf"Image {num} is the (3D )?PLACE render")
+            else:
+                self.assertIn(f"Image {num} is the storyboard frame of Shot {num}", seen["assembled"])
+        self.assertIsNone(lint)
+
+    def test_a_shot_without_its_frame_d6_still_sees_what_goes_and_the_send_is_blocked(self):
+        seen, sent, sent_pictures, plate, kelly, lint = self._run(
+            start_frame=lambda real, pid, sid: None if sid == self.ids[-1] else real(pid, sid))
+        self.assertEqual([p for _, p in seen["images"]], sent_pictures)
+        self.assertEqual(len(sent_pictures), len(self.ids) - 1 + 2)
+        self.assertIn("bảng Image↔Shot", lint or "")                     # numbering would not match: blocked before paying
+
+    def test_d6_off_reads_no_picture_list(self):
+        vr = self._ready()
+        job = self.p.job(self.p.create_job(self.ids[0], "video_gen"))
+        with mock.patch.object(vr, "_d6_pictures", side_effect=AssertionError("D6 off must not build its list")), \
+                mock.patch("core.seedance_refs.mark", side_effect=lambda p, *a, **k: p):
+            self.assertTrue(vr._submit_args(job))

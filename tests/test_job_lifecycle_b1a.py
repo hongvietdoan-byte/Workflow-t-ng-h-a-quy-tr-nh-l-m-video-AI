@@ -263,8 +263,8 @@ class CancelAll(_Base):
         held = []
         real = runner._turn
 
-        def spy(project_id, job_type):
-            lock = real(project_id, job_type)
+        def spy(project_id, job_type, conn=None):
+            lock = real(project_id, job_type, conn)
             held.append(job_type)
             return lock
 
@@ -355,9 +355,10 @@ class ReviewFixes(_Base):
         self.p.conn.execute("UPDATE jobs SET external_id='v-1' WHERE id=?", (jid,))
         self.p.start(jid)
         taken, release = threading.Event(), threading.Event()
+        turn = runner._turn(self.pid, "video_gen", self.p.conn)        # the connection is read in ITS thread (sqlite3 same-thread rule)
 
         def hold():
-            with runner._turn(self.pid, "video_gen"):
+            with turn:
                 taken.set()
                 release.wait(10)
 
@@ -397,9 +398,10 @@ class DeleteWhileBusy(CancelButtons):
         import threading
         from core import runner
         taken, release = threading.Event(), threading.Event()
+        turn = runner._turn(self.pid, "video_gen", self.p.conn)        # the connection is read in ITS thread (sqlite3 same-thread rule)
 
         def hold():
-            with runner._turn(self.pid, "video_gen"):
+            with turn:
                 taken.set()
                 release.wait(60)
 

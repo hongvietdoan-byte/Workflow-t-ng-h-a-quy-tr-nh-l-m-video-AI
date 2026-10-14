@@ -33,7 +33,12 @@ INTENT_KEYS = ("shot", "size", "angle", "camera_move", "action", "action_peak", 
 _LIST_SEP = r"\s*(?:,\s*and|,|and|&|/|-|–|to)\s*"
 # #29 926/928 (14/10): "mất mã Shot 1, Shot 2" — a code in other capitals ("SHOT 1", "shot 1", "IMAGE 3") is the same code; the
 # number still has to match exactly (\b: "Shot 12" is not "Shot 1"). Block tags [Event] keep their exact spelling.
-REF_TOKEN = re.compile(r"(?i:\bImages \d+(?:" + _LIST_SEP + r"\d+)+\b|\bImages? \d+(?:/\d+)*\b|\bShot \d+\b)|\[[A-Z][A-Za-z ]*\]")
+# Rà 14/10: the codes the rewrite MUST keep are read from the assembled prompt in their exact capitals ("Shot 2", "Image 3") — a
+# lower-case "shot 2" there is prose ("same spot as shot 2" = the scene's own shot number), not a code; only the ANSWER is read in
+# any capitals (REF_TOKEN_ANY_CASE).
+_CODES = r"\bImages \d+(?:" + _LIST_SEP + r"\d+)+\b|\bImages? \d+(?:/\d+)*\b|\bShot \d+\b"
+REF_TOKEN = re.compile(_CODES + r"|\[[A-Z][A-Za-z ]*\]")
+REF_TOKEN_ANY_CASE = re.compile(r"(?i:" + _CODES + r")|\[[A-Z][A-Za-z ]*\]")
 _CODE_WORD = re.compile(r"^(images|image|shot)\b", re.I)
 MAX_CALLS_PER_JOB = 2                  # inputs that keep changing every poll never pay again and again: the last prompt written is kept
 CALLS_KEY = "chat_prompt_calls:{}"
@@ -121,8 +126,9 @@ def input_parts(kind: str, model: Optional[str], assembled: str, images: Sequenc
             for k, v in vals.items()}
 
 
-def cap_reason(calls: Dict, key: str, parts: Dict[str, str]) -> str:
-    """Why this job reached MAX_CALLS_PER_JOB, from what its paid calls remembered."""
+def cap_reason(calls: Dict, key: str, parts) -> str:
+    """Why this job reached MAX_CALLS_PER_JOB, from what its paid calls remembered. parts: {part: short hash}, or a callable giving
+    it — called only when the inputs did change (it rereads every picture)."""
     keys = calls.get("keys") or []
     if key in keys:
         return ("cùng đầu vào (vân tay không đổi) mà chưa có bản dùng được — các lượt trước bị code từ chối hoặc Claude lỗi, "
@@ -130,6 +136,7 @@ def cap_reason(calls: Dict, key: str, parts: Dict[str, str]) -> str:
     before = calls.get("parts") or {}
     if not before:
         return "đầu vào khác lần gọi trước (bản ghi cũ không lưu phần nào đổi)"
+    parts = parts() if callable(parts) else parts
     changed = [name for k, name in PART_NAMES if before.get(k) != parts.get(k)]
     return "đầu vào đổi: " + (", ".join(changed) if changed else "không rõ phần nào")
 
@@ -158,7 +165,7 @@ def build_text(kind: str, model: Optional[str], assembled: str, images: Sequence
 def fix_text(first: str, answer: str, problems: Sequence[str], assembled: str, limit: int) -> str:
     """Việc 5 (14/10): the ONE fix turn after `check` refused the answer — the same brief + exactly what was wrong + the refused text,
     so Claude repairs that point instead of the paid answer being thrown away."""
-    lost = sorted(_ref_units(assembled) - _ref_units(answer))
+    lost = sorted(_ref_units(assembled) - _ref_units(answer, any_case=True))
     how = []
     if lost:
         how.append(f"Bản của bạn thiếu {', '.join(lost)}: đặt lại đúng chữ đó vào câu nói về ảnh / đoạn đó (giữ nguyên số, như bản code "
@@ -172,10 +179,11 @@ def fix_text(first: str, answer: str, problems: Sequence[str], assembled: str, l
             f"# Bản bạn vừa viết (bị từ chối)\n{answer}")
 
 
-def _ref_units(text: str) -> set:
-    """The picture / shot / block codes of a text, one per picture: "Images 2/3" → {"Image 2", "Image 3"}."""
+def _ref_units(text: str, any_case: bool = False) -> set:
+    """The picture / shot / block codes of a text, one per picture: "Images 2/3" → {"Image 2", "Image 3"}. any_case: also "SHOT 1",
+    "image 3" — for the rewrite's ANSWER; the assembled prompt's codes are only the exactly written ones."""
     out = set()
-    for tok in REF_TOKEN.findall(text or ""):
+    for tok in (REF_TOKEN_ANY_CASE if any_case else REF_TOKEN).findall(text or ""):
         tok = _CODE_WORD.sub(lambda w: {"images": "Images", "image": "Image", "shot": "Shot"}[w.group(1).lower()], tok)
         m = _IMAGES_GROUP.fullmatch(tok)
         lst = None if m else _IMAGES_LIST.fullmatch(tok)
@@ -217,7 +225,7 @@ def check(assembled: str, prompt: str, limit: int) -> List[str]:
         problems.append("prompt rỗng")
     if len(prompt) > limit:
         problems.append(f"dài {len(prompt)} > {limit} ký tự")
-    lost = sorted(_ref_units(assembled) - _ref_units(prompt))
+    lost = sorted(_ref_units(assembled) - _ref_units(prompt, any_case=True))
     if lost:
         problems.append("mất mã ảnh / shot: " + ", ".join(lost))
     viet_before = set(VIETNAMESE.findall(assembled.lower()))
@@ -321,7 +329,7 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
         calls = json.loads(calls[0]) if calls else {"n": 0, "last": None}
         parts = lambda: input_parts(kind, model, assembled, pics, intent, notes, limit)   # noqa: E731 - only when needed (rereads pictures)
         if calls["n"] >= MAX_CALLS_PER_JOB:
-            say("warn", "chat_prompt_cap", f"D6 job {job['id']}: đã gọi Claude {calls['n']} lần, {cap_reason(calls, key, parts())} — "
+            say("warn", "chat_prompt_cap", f"D6 job {job['id']}: đã gọi Claude {calls['n']} lần, {cap_reason(calls, key, parts)} — "
                 + ("dùng bản D6 gần nhất" if calls.get("last") else "gửi bản code ghép như cũ") + " (không gọi thêm)")
             return calls.get("last") or assembled
         if client is None:

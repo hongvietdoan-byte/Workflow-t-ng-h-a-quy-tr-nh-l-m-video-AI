@@ -391,7 +391,7 @@ def tick(p: Pipeline, project_id: int, provider, data_dir: str, only_ids=None) -
     kept (sent_refs), the spending limit and the ledger. only_ids (R1): the rows allowed (the Bước 4 poll: the ones a person asked).
     R2: one ticker per project in this process (another thread busy → this round skipped) + a claim per row across processes."""
     from .runner import _turn
-    lock = _turn(project_id, "end_frame")
+    lock = _turn(project_id, "end_frame", p.conn)
     if not lock.acquire(blocking=False):
         return {"sent": 0, "ready": 0, "failed": 0, "running": 0}
     try:

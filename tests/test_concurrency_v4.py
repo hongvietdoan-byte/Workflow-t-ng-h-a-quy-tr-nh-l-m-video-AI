@@ -77,11 +77,54 @@ class OnePollerTests(unittest.TestCase):
             self.assertTrue(a.acquire(blocking=False))            # nested call in the same thread
             a.release()
 
+    def test_the_lock_is_per_database(self):
+        # rà 15/10: test_scene_regen ... test_runner_passes_the_flag_only_when_the_project_asks went red only under -n 8 — project 1
+        # of ANOTHER in-memory database (a thread of an earlier test in the same worker still polling it) held the turn and
+        # submit_pending returned 0 (KeyError 'mock-1')
+        mem1, mem2 = connect(), connect()
+        self.assertIsNot(_turn(1, "video_gen", mem1), _turn(1, "video_gen", mem2))
+        self.assertIs(_turn(1, "video_gen", mem1), _turn(1, "video_gen", mem1))
+        tmp = tempfile.mkdtemp()
+        path = os.path.join(tmp, "m.sqlite")
+        self.assertIs(_turn(1, "video_gen", connect(path)), _turn(1, "video_gen", connect(path)))   # dashboard tab: same file
+        from core.llm_io import approve_motion_prompt, store_motion_prompts
+        from core.providers import MockVideoProvider
+        from core.runner import VideoRunner
+        p = Pipeline(connect())
+        pid = p.create_project("t")
+        scene = p.create_scene(pid, 1, "S1")
+        img = p.create_job(scene)
+        p.start(img)
+        p.succeed(img)
+        p.approve(img)
+        store_motion_prompts(p, pid, {"scenes": [{"idx": 1, "motion_prompt": "push in"}]})
+        approve_motion_prompt(p, scene)
+        data = os.path.join(tmp, "projects")
+        os.makedirs(os.path.join(data, str(pid), "images"))
+        with open(os.path.join(data, str(pid), "images", f"job_{img}.png"), "wb") as f:
+            f.write(b"\x89PNG-fake")
+        p.create_job(scene, "video_gen")
+        other, held, done = connect(), threading.Event(), threading.Event()
+        theirs = _turn(pid, "video_gen", other)                   # another database's poller of ITS project with the same id
+
+        def hold():
+            with theirs:
+                held.set()
+                done.wait(5)
+        t = threading.Thread(target=hold)
+        t.start()
+        held.wait(5)
+        try:
+            self.assertEqual(VideoRunner(p, MockVideoProvider(), data).submit_pending(pid), 1)
+        finally:
+            done.set()
+            t.join(5)
+
     def test_submit_is_skipped_while_another_thread_submits(self):
         tmp = tempfile.mkdtemp()
         p, pid = project(tmp, jobs=2)
         runner = ImageRunner(p, MockImageProvider(), os.path.join(tmp, "projects"))
-        lock = _turn(pid, "image_gen")
+        lock = _turn(pid, "image_gen", p.conn)
         held = threading.Event()
         done = threading.Event()
 
