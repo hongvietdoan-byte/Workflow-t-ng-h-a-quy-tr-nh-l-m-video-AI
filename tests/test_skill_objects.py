@@ -143,6 +143,14 @@ class SkillObjectTest(unittest.TestCase):
         with mock.patch.dict(os.environ, ON):
             self.assertEqual(skill_objects.guard_prompt(self.conn, self.pid, new)[0].count("printed surface pattern"), 1)
 
+    def test_guard_says_the_wall_curves_around_the_thrower(self):
+        """Người dùng 14/10 (#28/#29): tường keo cong, hai đầu về phía người ném, mặt lồi về hướng địch — mọi prompt có tường keo, một lần."""
+        with mock.patch.dict(os.environ, ON):
+            new = skill_objects.guard_prompt(self.conn, self.pid, JOB_909)[0]
+            again = skill_objects.guard_prompt(self.conn, self.pid, new)[0]
+        self.assertIn(skill_objects.SHAPE["glue"], new)
+        self.assertEqual(again.count(skill_objects.SHAPE["glue"]), 1)
+
     def _rising_scene(self):
         sid = self.p.create_scene(self.pid, 1)
         self.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"action": JOB_909, "shot_no": 1}), sid))

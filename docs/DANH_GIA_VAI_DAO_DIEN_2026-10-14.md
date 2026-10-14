@@ -97,3 +97,40 @@ thì áp cùng cách cho prompt ẢNH khung đầu (hiện cũng viết mù trư
 - **Cloud:** D1 phần code (bảng điểm đọc CSDL, test trên CSDL tạm dựng lại ca #22/#24/#27) · D3 bản tách đề xuất (người dùng duyệt) · D5.
 - **Máy chính:** chạy D1 trên CSDL thật #22/#24/#27 (0 USD) → gửi số; bật cờ D2 ở 🧪 trước tập 2 (sao lưu `data/feature_settings.json`).
 - **Người dùng quyết:** đồng ý hướng "code viết sự thật" (D2) cho tập 2? Duyệt danh sách bài học chuyển sang hồ sơ Kho (D3)?
+
+## 5. Kết quả thử D6 (14/10, dự án thử one-shot Tháp Đồng Hồ — A #28 cờ TẮT / B #29 cờ BẬT, thao tác trên Dashboard)
+Nhật ký đầy đủ: `docs/handoff/THU_D6_NHAT_KY_2026-10-14.md`. Bộ so mù: `D:\AI-Video-Output\2026-10-14_thu_d6\`.
+
+**So mù (người dùng chọn trước khi mở đáp án):**
+| Khâu | Kết quả | D6 thật sự chạy |
+|---|---|---|
+| Ảnh shot 1 / 3 / 5 | D6 / cũ / D6 → **D6 2/3** (thua shot 3: lỗi hình súng) | 3/5 prompt (shot 2, 4 bị code chặn → đối chứng) |
+| Bản dựng nháp cả 5 shot | **D6 thắng** ("chuyển động không đơ, nhanh nhẹn, tự nhiên") | video: chỉ shot 5 (nhóm S01–S02 chặn mã, S03–S04 chạm trần 2 lượt) |
+| Clip shot 5 | **D6 thắng** | có |
+
+Điểm D6 hơn: giữ chi tiết ảnh tham chiếu (vết xước mặt Kelly); sửa câu sai của code ghép ("back to camera, face never seen" trái ảnh khung
+đầu). **Loại lỗi MỚI do D6:** tự gọi mốc "clock tower" (dịch tên Kho "Tháp Đồng Hồ") → Seedance vẽ mặt đồng hồ (shot 5, ~giây 13–15).
+Tiền thật (sổ chi): A 3,28 USD · B 3,21 USD (ảnh 5 + clip nháp 5 + Đạo diễn + rà soát + D6 ≈ 0,04 USD/lượt) — tổng ≈ 6,5 USD < trần 15.
+
+**Kết luận theo luật quyết định:** D6 thắng ≥ 2/3 (ảnh) và thắng video, NHƯNG thêm một loại lỗi mới + 2/5 prompt ảnh, 2/3 lượt video bị
+chính code chặn. Đã sửa cả hai nhóm lỗi (dưới) → **đề xuất BẬT `chat_prompts` cho tập 2 #27 — người dùng quyết.**
+
+**Lỗi lọc được và cách xử lý (✅ đã sửa 14/10 · ⏳ còn mở):**
+1. ✅ `video_pregen` chặn nhầm "thiếu nhịp đỉnh" khi đầu/cuối cùng tư thế; đổi tư thế mà thiếu nhịp → VÀNG (người dùng: tư thế đúng kịch
+   bản mới quan trọng) — `shot_intent.missing_beat`.
+2. ✅ D6 so mã ảnh theo chữ ("Images 2/3" ≠ "Image 2, Image 3") → so theo số; đề bài D6 liệt kê mã bắt buộc + trần ký tự; chữ "clock
+   tower/face" mà bản code ghép không có → code đổi "stone tower" + diag `chat_prompt_feature_word` (`core/chat_prompt.py`).
+3. ✅ Bộ chọn model còn Seedance 2.0 cho shot "dễ" (trái quyết định 13/10) → shot dễ = Seedance 2.5 720p; ước tính phim tính giá 2.5.
+4. ✅ Tường keo: (a) ảnh "triển khai" #1166 (M1) thêm KHÔNG gắn dạng → bị coi là ảnh dạng trắng mặc định, prompt nói "plain white" + gửi ảnh
+   thang máy → model vẽ khối tuyết trắng; đã gắn dạng `skin Gloowall OB55 thang máy` cho #1149/#1166 (kịch bản ghi "skin thang máy" giờ khớp
+   dạng); mô tả Kho #367 thêm cách kịch bản gọi dạng skin + HÌNH DẠNG cong. (b) mọi prompt có tường keo thêm câu: tường CONG, hai đầu cong
+   về phía người ném, mặt lồi về hướng địch (`skill_objects.SHAPE`, người dùng chọn sơ đồ "Ảnh 1").
+5. ⏳ Đạo diễn: shot 3 BYĐ `quy` trái kịch bản "đứng sát" (ảnh/clip hai bản đều ngồi xổm) — code chưa so tư thế BYĐ ↔ chữ kịch bản.
+6. ⏳ Đạo diễn: shot 1 máy phía trước Kelly mà nền `landmark` (code đã báo VÀNG `plate_view_check` nhưng không sửa) → clip Kelly chạy
+   XUỐNG cầu thang (hướng ngược kịch bản) ở cả hai bản.
+7. ⏳ Kelly núp bên PHẢI tường (kịch bản: bên TRÁI) shot 3 cả hai bản.
+8. ⏳ `framing_guard` ĐỎ 4/10 clip (Seedance lùi máy / vẽ lại bố cục) — job 929, 930, 931, 935.
+9. ⏳ Bản dựng nháp không có tiếng (dự án chưa chọn nhạc; kịch bản không thoại) — kiểm lại bước nhạc trước tập 2.
+10. ⏳ Thao tác Dashboard: nút "▶ Gen video" phải bấm 2 lần (lần 1 chỉ xếp hàng); thẻ ảnh không tự tải lại sau khi gen ("Chờ gen" tới khi F5);
+    đăng nhập lần đầu sau khởi động lại báo "E-mail không hợp lệ" dù đúng; S05 chỉ có lựa chọn 720p (không nháp 480p cho shot lẻ).
+11. ⏳ Tổ rà soát báo ĐỎ ngay sau tách cảnh (characters rỗng trước khi Đạo diễn chạy) — báo động sớm.

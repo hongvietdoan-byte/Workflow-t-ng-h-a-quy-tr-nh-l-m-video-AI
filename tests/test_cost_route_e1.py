@@ -70,12 +70,12 @@ class Base(unittest.TestCase):
 
 
 class RouteTests(Base):
-    def test_easy_shot_goes_seedance_2_0_at_720p(self):
+    def test_easy_shot_goes_seedance_2_5_at_720p(self):
         self.label("easy")
         with ON:
             ch = model_router.scene_choice(self.p.conn, self.s1)
-            self.assertEqual((ch["model"], ch["resolution"], ch["e1"]), ("seedance", "720p", "direct"))
-            self.assertIn("E1: shot dễ — 2.0 720p, dựng phóng 1080p", ch["reason"])
+            self.assertEqual((ch["model"], ch["resolution"], ch["e1"]), ("seedance-2.5", "720p", "direct"))   # 13/10: bỏ Seedance 2.0
+            self.assertIn("E1: shot dễ — Seedance 2.5 720p, dựng phóng 1080p", ch["reason"])
             jid = self.p.create_job(self.s1, "video_gen")
             self.assertEqual(self.p.job(jid)["quality_tier"], "direct")
             kw = VideoRunner(self.p, _provider(), self.data)._submit_kwargs(self.p.job(jid))
@@ -238,7 +238,7 @@ class FilmEstimateTests(Base):
         self.label("easy", self.sids[1])
         self.label("complex", self.sids[2])
         est = quality_tier.e1_estimate(self.p.conn, self.pid)
-        direct = cost.seedance_estimate(quality_tier.SEEDANCE_20, "720p", "9:16", 4.0)
+        direct = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "720p", "9:16", 4.0)   # 13/10: shot dễ = Seedance 2.5
         draft = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "480p", "9:16", 4.0)
         final = quality_tier.upgrade_price("9:16", 4.0)
         self.assertAlmostEqual(est["usd"], round(2 * direct + draft + final, 2))

@@ -44,7 +44,7 @@ class ShotLineTests(unittest.TestCase):
         with _on():
             lines = model_line.shot_lines(self.p.conn, self.pid)
         easy, hard, mine, kling = (lines[s] for s in self.sids)
-        self.assertEqual(easy["model_text"], "Seedance 2.0 · 720p → phóng 1080p lúc dựng")
+        self.assertEqual(easy["model_text"], "Seedance 2.5 · 720p → phóng 1080p lúc dựng")   # 13/10: bỏ Seedance 2.0
         self.assertIsNone(easy["keeps_content"])
         self.assertEqual(easy["source"], "đề xuất")
         self.assertEqual(hard["model_text"], "Seedance 2.5 · nháp 480p → cao 1080p")

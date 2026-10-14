@@ -26,9 +26,11 @@ FINAL_RESOLUTION = "1080p"
 """Bản cao nâng từ nháp Seedance 2.5 (`draft_task`): mặc định 1080p (clipai.submit_final_from_sample tham số hóa)."""
 MAY_DIFFER = "nội dung có thể khác bản nháp"
 # ---- E1 (người dùng chốt 09/10, docs/CONG_THUC_PROMPT_F0_NHAP_2026-10-09.md mục 5–5b; F3) --------------------------------------------
-# Shot dễ (path direct) → gen thẳng Seedance 2.0 720p, lúc dựng phóng 1080p bằng ffmpeg (không AI — quyết định 07/10). Shot khó /
+# Shot dễ (path direct) → gen thẳng 720p, lúc dựng phóng 1080p bằng ffmpeg (không AI — quyết định 07/10). Shot khó /
 # quan trọng / chưa rõ (draft_first) → nháp Seedance 2.5 `draft=True` 480p → người duyệt → nâng 1080p TỪ NHÁP (giữ nội dung).
-E1_DIRECT_MODEL, E1_DIRECT_RESOLUTION = "seedance", "720p"
+# Người dùng 13/10 tối: bỏ Seedance 2.0 — video HẾT Seedance 2.5 (2.0 duyệt ≈ 6 %, #24 0/20); shot dễ = Seedance 2.5 720p (thử D6 #28/#29
+# 14/10: S05 còn bị đề xuất Seedance 2.0).
+E1_DIRECT_MODEL, E1_DIRECT_RESOLUTION = "seedance-2.5", "720p"
 E1_DRAFT_MODEL, DRAFT_RESOLUTION = "seedance-2.5", "480p"
 SEEDANCE_20 = "dreamina-seedance-2-0-260128"
 NEW_GEN = "bản cao sẽ là gen mới, nội dung khác nháp"
@@ -223,7 +225,7 @@ def e1_choice(conn, scene_id: int, choice: Dict) -> Dict:
             return {**choice, "resolution": E1_DIRECT_RESOLUTION, "e1": "direct",
                     "reason": choice["reason"] + " — E1: shot dễ — gen thẳng 720p (giữ Seedance 2.5 vì cách này cần 2.5), dựng phóng 1080p"}
         return {**choice, "model": E1_DIRECT_MODEL, "resolution": E1_DIRECT_RESOLUTION, "e1": "direct",
-                "reason": choice["reason"] + " — E1: shot dễ — 2.0 720p, dựng phóng 1080p"}
+                "reason": choice["reason"] + " — E1: shot dễ — Seedance 2.5 720p, dựng phóng 1080p"}
     return {**choice, "model": E1_DRAFT_MODEL, "resolution": DRAFT_RESOLUTION, "e1": "draft_first",
             "reason": choice["reason"] + " — E1: shot khó / quan trọng / chưa rõ — nháp Seedance 2.5 480p, duyệt rồi nâng 1080p từ nháp"}
 
@@ -807,7 +809,7 @@ def e1_estimate(conn, pid: int, pricing: Optional[Dict] = None) -> Dict:
             continue
         sec = max(billed, 4.0)
         if group_path(conn, r["scene_id"]) == "direct":
-            model = canonical if r.get("skill") or r.get("take") or r.get("source") == "override" else SEEDANCE_20
+            model = canonical if r.get("skill") or r.get("take") or r.get("source") == "override" else _canonical(E1_DIRECT_MODEL)[0]
             out["usd"] += cost.seedance_estimate(model, E1_DIRECT_RESOLUTION, ratio, sec, ref["seconds"]) or 0.0
             out["direct"] += 1
         else:

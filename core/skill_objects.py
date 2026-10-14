@@ -62,6 +62,11 @@ FORBID = ("{names} is a solid skill object standing on the ground, not part of a
           "of any kind, no room or space inside, nothing is seen through it and nobody stands in it. It appears at once at full height, "
           "never grows, rises or emerges.")
 
+# Người dùng 14/10 (thử D6 #28/#29, chọn trên sơ đồ): tường keo FF CONG — hai đầu cong về phía người ném (ôm lấy người ném), mặt lồi
+# quay về phía trước / hướng địch. Ảnh + clip hai bản đều vẽ khối thẳng / sai hướng khi prompt không nói.
+SHAPE = {"glue": ("The glue wall is a curved arc, not a flat slab: its two ends bend back toward the person who threw it, wrapping around "
+                  "them, and its outer convex face points forward, toward the enemy.")}
+
 # rà S2 13/10 mục 2 (người dùng 21:31: tường keo XUẤT HIỆN LUÔN): the words that describe the object GROWING, in a sentence about it.
 # pop / shoot / spring need "up" (a gun shoots); rise / grow / emerge / erupt do not.
 STANDING = "already standing at full height"
@@ -288,6 +293,10 @@ def guard_prompt(conn, project_id: Optional[int], text: str) -> Tuple[str, List[
     sentence = forbid_sentence(named or ["the glue wall"])
     if sentence not in new:
         new = new.rstrip() + ("\n" if "\n" in new else " ") + sentence
+    from . import prop_lock
+    for cat in (dict.fromkeys(prop_lock.category(a) for a in items) if items else ["glue"]):
+        if SHAPE.get(cat) and SHAPE[cat] not in new:
+            new = new.rstrip() + " " + SHAPE[cat]
     skin = skin_sentence(items, new, removed, shown)
     if skin and skin not in new:
         new = new.rstrip() + " " + skin

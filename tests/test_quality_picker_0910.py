@@ -61,9 +61,9 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(quality_tier.path(c, self.sids[1]), "draft_first")
             ch = self.choice(1)
             self.assertEqual((ch["resolution"], ch["final_resolution"]), ("480p", "1080p"))
-            model_router.set_resolution(c, self.sids[0], "1080p")             # shot dễ: 2.0 thẳng 1080p, không phóng lúc dựng
+            model_router.set_resolution(c, self.sids[0], "1080p")             # shot dễ: 13/10 hết Seedance 2.5 → 1080p = nháp → nâng
             from dashboard import model_line
-            self.assertEqual(model_line.shot_line(c, self.pid, self.sids[0])["model_text"], "Seedance 2.0 · 1080p")
+            self.assertEqual(model_line.shot_line(c, self.pid, self.sids[0])["model_text"], "Seedance 2.5 · nháp 480p → cao 1080p")
             model_router.set_resolution(c, self.sids[1], None)                # back to the Director's path
             self.assertIsNone(c.execute("SELECT quality_path FROM motion_prompts WHERE scene_id=?", (self.sids[1],)).fetchone()[0])
 

@@ -30,6 +30,11 @@ INTENT_KEYS = ("shot", "size", "angle", "camera_move", "action", "action_peak", 
 REF_TOKEN = re.compile(r"\bImages? \d+(?:/\d+)*\b|\bShot \d+\b|\[[A-Z][A-Za-z ]*\]")
 MAX_CALLS_PER_JOB = 2                  # inputs that keep changing every poll never pay again and again: the last prompt written is kept
 CALLS_KEY = "chat_prompt_calls:{}"
+# Thử D6 #29 14/10: "Images 2/3" là HAI mã (Image 2, Image 3) — Claude viết "Image 2 and Image 3" không phải mất mã.
+_IMAGES_GROUP = re.compile(r"\bImages? (\d+(?:/\d+)*)\b")
+# Thử D6 #29 14/10 shot 5: D6 tự gọi mốc là "clock tower" (dịch tên Kho "Tháp Đồng Hồ") → Seedance vẽ mặt đồng hồ, tháp thật không có.
+# Chữ tả một bộ phận mà bản code ghép không nói thì không được thêm: code đổi về chữ trung tính (không bỏ cả bản D6).
+_ADDED_FEATURE = ((re.compile(r"\bclock[- ]?tower\b", re.I), "stone tower"), (re.compile(r"\bclock[- ]?faces?\b", re.I), "tower top"))
 VIETNAMESE = re.compile(r"[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]", re.I)
 
 
@@ -100,8 +105,43 @@ def build_text(kind: str, model: Optional[str], assembled: str, images: Sequence
             f"# Ý đồ shot của Đạo diễn\n{json.dumps(intent, ensure_ascii=False, indent=1)}\n\n"
             f"# Mô tả / ghi chú của người dùng (thắng ý đồ cũ khi khác nhau)\n{said}\n\n"
             f"# Bản code ghép (DỮ KIỆN — giữ đủ dữ kiện và mọi mã ảnh, được viết lại câu chữ, bỏ trùng, sửa chỗ trái ảnh)\n{assembled}\n\n"
+            f"# Bắt buộc (code kiểm, sai là bản của bạn bị bỏ)\n- Giữ ĐÚNG CHỮ từng mã: {', '.join(required_codes(assembled)) or '(không có)'}"
+            " — mỗi mã viết riêng (\"Image 2\", \"Image 3\"), không gộp, không đổi tên.\n"
+            f"- Tối đa {limit} ký tự (đếm cả khoảng trắng); quá là bị bỏ.\n"
+            "- Không gọi tên vật / mốc bằng một bộ phận mà ảnh và bản code ghép không có (vd tên Kho \"Tháp Đồng Hồ\" nhưng tháp KHÔNG có "
+            "mặt đồng hồ → \"the tower\", không viết \"clock tower\").\n\n"
             f"# Trả về\nĐúng một JSON: {{\"prompt\": \"<prompt tiếng Anh, ≤ {limit} ký tự>\", \"changes\": [\"<điều bạn đổi so với bản code "
             "ghép, tiếng Việt, ngắn>\"]}}")
+
+
+def _ref_units(text: str) -> set:
+    """The picture / shot / block codes of a text, one per picture: "Images 2/3" → {"Image 2", "Image 3"}."""
+    out = set()
+    for tok in REF_TOKEN.findall(text or ""):
+        m = _IMAGES_GROUP.fullmatch(tok)
+        if m:
+            out.update(f"Image {n}" for n in m.group(1).split("/"))
+        else:
+            out.add(tok)
+    return out
+
+
+def required_codes(assembled: str) -> List[str]:
+    """The codes the rewrite must keep word for word (told to Claude, checked after)."""
+    def key(t):
+        last = t.split()[-1]
+        return (t.split()[0], int(last) if last.isdigit() else 0, t)
+    return sorted(_ref_units(assembled), key=key)
+
+
+def no_added_features(assembled: str, prompt: str) -> Tuple[str, List[str]]:
+    """(prompt, the words replaced) — a landmark feature the assembled prompt never names ("clock tower") goes back to a neutral word."""
+    fixed = []
+    for rx, neutral in _ADDED_FEATURE:
+        if not rx.search(assembled or "") and rx.search(prompt):
+            fixed += [m.group(0) for m in rx.finditer(prompt)]
+            prompt = rx.sub(neutral, prompt)
+    return prompt, fixed
 
 
 def check(assembled: str, prompt: str, limit: int) -> List[str]:
@@ -111,7 +151,7 @@ def check(assembled: str, prompt: str, limit: int) -> List[str]:
         problems.append("prompt rỗng")
     if len(prompt) > limit:
         problems.append(f"dài {len(prompt)} > {limit} ký tự")
-    lost = sorted(set(REF_TOKEN.findall(assembled)) - set(REF_TOKEN.findall(prompt)))
+    lost = sorted(_ref_units(assembled) - _ref_units(prompt))
     if lost:
         problems.append("mất mã ảnh / shot: " + ", ".join(lost))
     viet_before = set(VIETNAMESE.findall(assembled.lower()))
@@ -216,6 +256,10 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
             return assembled
         from .runner import no_minor_age
         new = no_minor_age(obj["prompt"]).strip()
+        new, fixed = no_added_features(assembled, new)
+        if fixed:
+            say("info", "chat_prompt_feature_word", "D6: bỏ chữ tả bộ phận bản code ghép không có (" + ", ".join(dict.fromkeys(fixed))
+                + ") — vd 'clock tower' làm model vẽ mặt đồng hồ")
         problems = check(assembled, new, limit)
         if problems:
             say("warn", "chat_prompt_refused", "D6: bản Claude viết không gửi được (" + "; ".join(problems) + ") — gửi bản code ghép như cũ")

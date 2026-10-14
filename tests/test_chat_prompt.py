@@ -57,7 +57,7 @@ class ChatPromptTests(unittest.TestCase):
 
     def test_claude_sees_the_pictures_and_its_coherent_prompt_is_sent(self):
         good = ("Image 1 is the 3D PLACE render, Image 2 is KELLY. Kelly crouches behind the glue wall at frame-left, holding her SKORP "
-                "with both hands; the clock tower stays small in the distance as in Image 1.")
+                "with both hands; the tower stays small in the distance as in Image 1.")
         claude = FakeClaude([{"prompt": good, "changes": ["bỏ 'Fix:', gộp khóa SKORP vào câu tả"]}])
         self.p.conn.execute("INSERT INTO review_log (job_id, reviewer_type, decision, note, decided_at) VALUES (?,?,?,?,datetime('now'))",
                             (self.jid, "user", "reject", "tháp to quá, Kelly phải núp sau tường keo"))
@@ -171,7 +171,7 @@ class PilotToolTests(unittest.TestCase):
 
         class Echo:
             def complete(self, prompt, images=()):
-                old = prompt.split("# Bản code ghép", 1)[1].split("\n", 1)[1].split("\n\n# Trả về", 1)[0]
+                old = prompt.split("# Bản code ghép", 1)[1].split("\n", 1)[1].split("\n\n# Bắt buộc", 1)[0]
                 return LlmReply(text=json.dumps({"prompt": "D6 VERSION " + old.strip(), "changes": ["gộp câu"]}))
 
         with mock.patch("core.prompt_rewrite.client_for", return_value=Echo()):
@@ -212,3 +212,26 @@ class SafetyTests(ChatPromptTests):
     def test_block_tags_must_survive(self):
         self.assertTrue(chat_prompt.check("[Event] Image 1 run", "Image 1 run", 999))
         self.assertEqual(chat_prompt.check("[Event] Image 1 run", "[Event] Image 1 she runs", 999), [])
+
+
+class D6TrialFixes(unittest.TestCase):
+    """Thử D6 #28/#29 (14/10): 2/5 prompt ảnh + 2/3 lượt video bị code chặn; D6 thêm 'clock tower' → mặt đồng hồ."""
+
+    def test_grouped_image_code_counts_per_picture(self):
+        old = "Images 2/3 are KELLY. Image 1 is the render."
+        self.assertEqual(chat_prompt.check(old, "Image 1 is the render; Image 2 and Image 3 show KELLY.", 999), [])
+        self.assertTrue(chat_prompt.check(old, "Image 1 is the render; Image 2 shows KELLY.", 999))
+        self.assertEqual(chat_prompt.required_codes(old), ["Image 1", "Image 2", "Image 3"])
+
+    def test_claude_is_told_the_exact_codes_and_the_limit(self):
+        text = chat_prompt.build_text("video", "seedance", "Shot 1 runs. Shot 2 throws. Images 2/3 KELLY.", [], {}, [], 4000)
+        self.assertIn("Image 2, Image 3, Shot 1, Shot 2", text)
+        self.assertIn("Tối đa 4000 ký tự", text)
+        self.assertIn("clock tower", text)
+
+    def test_added_clock_tower_goes_back_to_a_neutral_word(self):
+        new, fixed = chat_prompt.no_added_features("The buildings and the tower stay.", "The buildings, clock tower and steps stay.")
+        self.assertEqual(new, "The buildings, stone tower and steps stay.")
+        self.assertEqual(fixed, ["clock tower"])
+        kept, none = chat_prompt.no_added_features("no clock tower in frame", "no clock tower in frame, fog")
+        self.assertEqual((kept, none), ("no clock tower in frame, fog", []))
