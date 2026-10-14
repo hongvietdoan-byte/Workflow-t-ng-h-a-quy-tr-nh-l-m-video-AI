@@ -371,9 +371,10 @@ FEATURES: Dict[str, Dict] = {
                "người nói cho đúng người mở miệng đúng lượt. Còn mở: độ khớp đo 0,39–0,53 < 0,65 (S4.10) — hướng tiếp: mốc 0,1 s / dời giọng",
     },
     "anchor_by_spot": {
-        "label": "Ảnh neo theo nhóm cảnh và chỗ đứng: shot đầu nhóm làm neo; cảnh báo khi neo chưa duyệt",
+        "label": "Ảnh neo theo chỗ đứng: shot ở chỗ KHÁC neo cả cảnh (chỗ có 2+ shot) neo vào shot rộng nhất tại chỗ đó; cảnh báo khi neo chưa duyệt",
         "verified": False,
-        "why": "Đ18 việc 2; chưa thử thật, chỉ bật riêng để kiểm tra",
+        "why": "Đ18 việc 2; sửa 14/10 (thử D6 #28: shot 2–5 cùng đỉnh bậc thang không ảnh nào nối nhau) — neo = shot rộng nhất tại chỗ, "
+               "shot ở chỗ neo cả cảnh / shot một mình giữ như cũ. Chưa thử thật; đề xuất bật cho tập 2",
     },
     "storyboard_api": {
         "label": "Vẽ ảnh các shot của một cảnh bằng MỘT storyboard Deepix (shot rộng nhất làm neo, cùng ảnh tham chiếu) — cách Weave Canvas",
