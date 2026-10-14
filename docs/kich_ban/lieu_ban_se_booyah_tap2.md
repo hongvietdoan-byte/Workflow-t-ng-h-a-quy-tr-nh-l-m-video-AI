@@ -34,3 +34,16 @@ Nguồn: ảnh bảng kịch bản trong chat 14/10 + tư liệu `D:\2026\OB55\H
 1. Bức tường 2 cửa: ở đoạn đường dài phía trước Cổng Trời, 2 cửa quay hướng đối diện Cổng Trời, Kelly đứng ở giữa; thế giới BÌNH THƯỜNG (thực tại).
 2. 'Trang phục Tai họa' = Kho #425 LÍNH ĐỊCH ÁO CHOÀNG — đúng.
 3. Lời dẫn cảnh 5 kết thúc '… Tháp Đồng Hồ ở Thế Giới song song' — đúng.
+
+## NHÁP lời dẫn bổ sung (Claude 14/10, CHỜ người dùng duyệt) — `[+]` = câu thêm, còn lại là chữ gốc
+
+Người dùng 14/10: viết thêm cho vừa tiến độ cảnh, nhịp truyện KHÁ NHANH không chậm; **tốc độ đọc TTS 1,2** (gốc 1,0 — trần ClipAI 0,7–1,2). Ước ở 1,2 ≈ 93 s cả 8 cảnh.
+
+1. [+] Trận mới, vẫn là bạn — Kelly, đứng giữa con đường dài trước Cổng Trời. · (gốc) Phía sau lưng bạn thấy bức tường với 2 cánh cửa… hành trình tiếp theo của bạn!
+2. [+] Cửa số 1 bật mở — chào mừng tới thế giới song song. · (gốc) Bạn bước vào mê cung tại Cổng Trời. · [+] Rẽ trái, rẽ phải, ngõ cụt… cuối cùng cũng tới trung tâm mê cung. · (gốc) Tại đây bạn thấy một chiếc cũi… thử chạm vào chiếc cũi.
+3. (gốc) Chiếc cũi phát ra ánh sáng rực rỡ… lên kẻ địch. · [+] Vừa cầm lên, hào quang đỏ bùng khắp thân súng. · (gốc) Có lẽ đây chính là vật…
+4. [+] Bốn đối thủ ập tới: Tai Họa, Yêu Nữ Tà Linh, Sứ Giả Bóng Đêm, Xúc Tu Đỏ. · (gốc) Tận dụng lợi thế về vũ khí, bạn chan… giành Booyah. · [+] Quét sạch cả đội — quẩy thôi!
+5. [+] Nhưng một Booyah là chưa đủ. · (gốc) Kelly muốn tiếp tục thử thách này… Thế Giới song song.
+6. (gốc, giữ nguyên) Bạn bắt gặp một cái xác… quyết định đi tiếp.
+7. [+] Tháp Đồng Hồ im ắng đến lạ… · (gốc) Đang khám phá thì bạn bất ngờ bị địch bắn và lập tức trở lại thế giới thực tại.
+8. (gốc) Đen đủi thay… đang đứng chờ sẵn. · [+] Ba khẩu súng, ba tràng cười. · (gốc) Kết quả là bạn bị chan không thương tiếc và trận đấu kết thúc. · [+] Hạng 48 trên 50… lần sau nhớ đừng đẻ trứng nhé!
