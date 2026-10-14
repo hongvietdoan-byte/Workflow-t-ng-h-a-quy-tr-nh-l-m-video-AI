@@ -125,34 +125,122 @@ def _relation(rec: Optional[Dict], a, b) -> Optional[str]:
 
 
 def _label(sp: Dict) -> str:
+    """Nhãn chỗ đứng cho NGƯỜI (diag tiếng Việt)."""
     return str(sp.get("label") or sp.get("name") or "").split(" (", 1)[0].strip() or str(sp.get("name"))
 
 
-def for_shot(conn, pid: int, scene_id: int, data: Dict, rec: Optional[Dict] = None) -> Dict:
-    out = {"sentence": "", "warn": [], "facts": None}
-    words = _words(data)
-    if not _said(_MOVE, words):
-        return out                                   # shot không di chuyển: không có hướng chạy để nói
-    # VÀNG "không đủ dữ liệu" chỉ khi chữ shot thật sự nói đi LÊN / XUỐNG cầu thang / dốc (shot đứng trên bậc mà chạy ngang thì không)
-    slope_said = _said(_UPDOWN, words)
+def _label_en(sp: Dict, low: bool, stairs: bool) -> str:
+    """Nhãn chỗ đứng cho PROMPT tiếng Anh (14/10 #30: "from chân cầu thang nhiều tầng …" lọt vào prompt ảnh): `label_en` của chỗ
+    đứng nếu có; nhãn đã là chữ ASCII thì dùng nguyên; còn lại mô tả trung tính theo thấp / cao — không để tiếng Việt vào prompt."""
+    for key in ("label_en", "label"):
+        text = str(sp.get(key) or "").split(" (", 1)[0].strip()
+        if text and (key == "label_en" or all(ord(ch) < 128 for ch in text)):
+            return text
+    if stairs:
+        return "the foot of the stairs" if low else "the top of the stairs"
+    return "the bottom of the slope" if low else "the top of the slope"
+
+
+def route(conn, pid: int, scene_id: int, data: Dict) -> Dict:
+    """Đường đi A→B của shot — MỘT nguồn cho câu hướng chạy (for_shot) VÀ chỗ đặt máy 3D (camera_route → plate_camera.travel_camera):
+    {"entry", "here" (chỗ đứng của shot), "a", "b", "arriving", "why"}; a/b None khi không biết (why = lý do, tiếng Việt)."""
+    out = {"entry": None, "here": None, "a": None, "b": None, "arriving": False, "why": None}
     from . import assets, location_pack
     try:
         place = assets.scene_location(conn, pid, data)
         entry = location_pack.model3d(conn, place["id"]) if place else None
     except Exception:  # noqa: BLE001 - CSDL không có bảng Kho (test cũ): như không có gói 3D
         entry = None
+    out["entry"] = entry
     a = _spot(entry, data) if entry and entry.get("spots") else None
     if a is None:
+        out["why"] = "bối cảnh không có gói 3D / chỗ đứng có độ cao"
+        return out
+    out["here"] = a
+    b = _next_spot(conn, pid, scene_id, data, entry, a.get("name"))
+    if b is None:                                    # chặng cuối: đi từ chỗ đứng của shot trước tới chỗ đứng của shot này
+        prev = _prev_spot(conn, pid, scene_id, data, entry, a.get("name"))
+        if prev is not None:
+            out.update(a=prev, b=a, arriving=True)
+            return out
+        out["why"] = (f"không biết điểm đến từ chỗ đứng '{a.get('name')}' (shot kế cùng cảnh không nối liền / cùng chỗ đứng, shot "
+                      "trước không nối tới)")
+        return out
+    out.update(a=a, b=b)
+    return out
+
+
+# ---- (b) chỗ đặt máy theo đường chạy (14/10 #30, người dùng: "máy đi theo nhân vật còn nhân vật chạy lên, hoặc máy ở trên cao lùi,
+# nhân vật chạy lên theo máy") — trước đây máy 3D LUÔN đứng tại chỗ đứng của shot, nhìn theo plate_view ----
+LEAD_MOVES = ("pull_out",)                     # shots.MOVES (dolly_out / pull đã quy về pull_out ở shot_normalize): máy LÙI trước mặt
+NO_LEAD_MOVES = ("orbit", "crane", "whip", "pan", "tilt")   # máy vòng / cẩu / lia: khung đầu không chắc ở trước mặt → không đặt theo đường
+# máy lùi / bám sau: chữ MÁY của shot (`shot`, `camera_setup`) — "pulls out" trong chữ hành động là rút súng, không phải máy lùi;
+# trong chữ hành động chỉ nhận câu có chủ ngữ là máy ("camera pulls back", "máy lùi", "máy bám sau")
+_LEAD_CAM = re.compile(r"(?<!\w)(?:pull(?:s|ing)?[ -](?:out|back)|dolly(?:ing)?[ -](?:out|back)|truck(?:s|ing)?[ -]back|leading shot)(?!\w)", re.I)
+_LEAD_WORDS = re.compile(r"(?<!\w)(?:camera (?:pulls|pulling|dollies|dollying|backs|backing|retreats|retreating|moves back|leads|leading)|"
+                         r"máy (?:quay )?lùi|lùi máy)(?!\w)", re.I)
+_FOLLOW_CAM = re.compile(r"(?<!\w)(?:(?:track|follow)(?:s|ing)?(?: shot)? behind|chase cam)(?!\w)", re.I)
+_FOLLOW_WORDS = re.compile(r"(?<!\w)(?:camera (?:follows|following|tracks|tracking) (?:behind|from behind)|camera follows|"
+                           r"(?:máy|camera) (?:quay )?(?:đi |chạy )?(?:bám|theo) sau)(?!\w)", re.I)
+
+
+def camera_mode(data: Dict) -> Dict:
+    """Máy đứng đâu so với đường chạy: {"mode": "lead" | "follow" | None, "why", "problem"}.
+    lead = máy TRƯỚC mặt trên đường A→B, nhìn về A (camera_move pull_out / chữ máy lùi / chữ nhân vật chạy VỀ PHÍA máy, trừ máy vòng/cẩu/lia);
+    follow = máy SAU LƯNG, nhìn về B (chữ bám sau / follow, hoặc track + máy sau lưng). Cả hai nghĩa → None + problem (không đoán)."""
+    from .plate_choice import is_behind
+    words = _words(data)
+    cam_words = " ".join(str(data.get(k) or "") for k in ("shot", "camera_setup"))
+    move = str(data.get("camera_move") or "").strip().lower()
+    toward, away = _said(_TOWARD, words), _said(_AWAY, words)
+    behind = is_behind(data)
+    lead = move in LEAD_MOVES or (move not in NO_LEAD_MOVES and (
+        _said(_LEAD_CAM, cam_words) or _said(_LEAD_WORDS, words + " " + cam_words) or (toward and not away)))
+    follow = (_said(_FOLLOW_CAM, cam_words) or _said(_FOLLOW_WORDS, words + " " + cam_words)
+              or (move == "track" and (behind or (away and not toward))))
+    if lead and (follow or behind):
+        return {"mode": None, "why": None,
+                "problem": ("chữ shot vừa nói máy LÙI trước mặt / nhân vật chạy về phía máy, vừa nói máy bám sau lưng — không đặt máy "
+                            "theo đường chạy (không đoán); sửa camera_move / chữ shot")}
+    if lead:
+        return {"mode": "lead", "why": f"camera_move '{move or '-'}'" + (" + chữ chạy về phía máy" if toward else ""), "problem": None}
+    if follow:
+        return {"mode": "follow", "why": f"camera_move '{move or '-'}' + chữ máy bám sau", "problem": None}
+    return {"mode": None, "why": None, "problem": None}
+
+
+def camera_route(conn, pid: int, scene_id: int, data: Dict) -> Optional[Dict]:
+    """location_pack.plan (cờ travel_truth): {"mode", "here", "a", "b", "arriving", "why"} khi shot DI CHUYỂN A→B và chữ nói máy lùi
+    trước mặt / bám sau; {"problem"} khi chữ nói vậy mà không có đường (không gói 3D / không điểm đến / hai nghĩa); None = không liên
+    quan (máy như cũ, không nói gì)."""
+    if not _said(_MOVE, _words(data)):
+        return None
+    m = camera_mode(data)
+    if m["problem"]:
+        return {"problem": m["problem"]}
+    if not m["mode"]:
+        return None
+    r = route(conn, pid, scene_id, data)
+    if r["a"] is None or r["b"] is None:
+        return {"problem": f"shot di chuyển, máy {'lùi trước mặt' if m['mode'] == 'lead' else 'bám sau'} nhưng {r['why']} — máy 3D "
+                           "giữ chỗ cũ (tại chỗ đứng của shot), không đặt theo đường chạy (không đoán)"}
+    return {"mode": m["mode"], "here": r["here"], "a": r["a"], "b": r["b"], "arriving": r["arriving"], "why": m["why"]}
+
+
+def for_shot(conn, pid: int, scene_id: int, data: Dict, rec: Optional[Dict] = None) -> Dict:
+    out = {"sentence": "", "warn": [], "facts": None, "needs": None}
+    words = _words(data)
+    if not _said(_MOVE, words):
+        return out                                   # shot không di chuyển: không có hướng chạy để nói
+    # VÀNG "không đủ dữ liệu" chỉ khi chữ shot thật sự nói đi LÊN / XUỐNG cầu thang / dốc (shot đứng trên bậc mà chạy ngang thì không)
+    slope_said = _said(_UPDOWN, words)
+    r = route(conn, pid, scene_id, data)
+    a, b, arriving = r["a"] or r["here"], r["b"], r["arriving"]
+    if r["here"] is None:
         if slope_said:
             out["warn"].append("shot di chuyển trên cầu thang/dốc mà bối cảnh không có gói 3D / chỗ đứng có độ cao — không viết câu "
                                "hướng lên/xuống (không đoán)")
         return out
-    b = _next_spot(conn, pid, scene_id, data, entry, a.get("name"))
-    arriving = False
-    if b is None:                                    # chặng cuối: đi từ chỗ đứng của shot trước tới chỗ đứng của shot này
-        prev = _prev_spot(conn, pid, scene_id, data, entry, a.get("name"))
-        if prev is not None:
-            a, b, arriving = prev, a, True
     if b is None:
         if slope_said:
             out["warn"].append(f"shot di chuyển trên cầu thang/dốc từ chỗ đứng '{a.get('name')}' mà không biết điểm đến (shot kế cùng "
@@ -180,7 +268,8 @@ def for_shot(conn, pid: int, scene_id: int, data: Dict, rec: Optional[Dict] = No
         "right": f"{who} moves across the frame toward FRAME-RIGHT while going {'up' if up else 'down'}",
         "left": f"{who} moves across the frame toward FRAME-LEFT while going {'up' if up else 'down'}",
     }
-    bits = [f"{MARK} {who} goes {way} — from {_label(a)} (ground {za:.1f} m) to {_label(b)} ({zb:.1f} m), "
+    bits = [f"{MARK} {who} goes {way} — from {_label_en(a, up, stairs)} (ground {za:.1f} m) to {_label_en(b, not up, stairs)} "
+            f"({zb:.1f} m), "
             f"{abs(dz):.1f} m {'higher' if up else 'lower'}" + (f" (this shot is the end of that run: {who} is arriving at the "
                                                                  f"{'top' if up else 'bottom'})" if arriving else "")]
     conflict = False
@@ -199,7 +288,11 @@ def for_shot(conn, pid: int, scene_id: int, data: Dict, rec: Optional[Dict] = No
                 f"chữ shot nói {who} chạy {'VỀ PHÍA máy' if rel == 'away' else 'RA XA máy / quay lưng'} nhưng máy của nền 3D "
                 f"{'đứng sau lưng hướng chạy' if rel == 'away' else 'đứng trước hướng chạy'} ({_label(a)} → {_label(b)}, "
                 f"{'lên' if up else 'xuống'} {abs(dz):.1f} m) — KHÔNG viết câu chiều chạy so với máy (chỉ lên/xuống); muốn {'chạy về phía máy' if rel == 'away' else 'máy sau lưng'}"
-                f" thì đặt plate_view background ≈ {fix:g}° rồi render lại nền (0 USD)")
+                f" thì đặt plate_view background ≈ {fix:g}° (hoặc camera_move "
+                f"{'pull_out — máy lùi trước mặt trên đường chạy' if rel == 'away' else 'track + chữ máy bám sau'}) rồi render lại nền (0 USD)")
+            # (c) 14/10 #30: chữ ↔ nền 3D trái nhau CHẮC CHẮN (chữ nói một chiều, không nói chiều kia; máy render đo ra chiều kia) →
+            # CHẶN trước gen (location_pack.plan → index `needs` → ảnh chờ, như plate_choice.view_of), không chỉ VÀNG
+            out["needs"] = "hướng chạy trái nền 3D: " + out["warn"][-1] + " — ảnh chờ tới khi chữ shot / hướng nền khớp nhau"
     return out
 
 

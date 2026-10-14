@@ -102,6 +102,7 @@ STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
     "director_rewrite": {"effort": "low", "max_tokens": 6000,   # S14.17 Đạo diễn viết lại prompt MỘT shot trước khi gen lại: JSON ngắn.
                          "timeout": 90, "retries": 1},          # The person waits on the button: 90 s, one retry, then the old "Fix:" way
     "director_camera_plan": {"effort": "low", "max_tokens": 16000},   # G0: sơ đồ cảnh + 3–4 góc máy của MỘT cảnh: JSON ≈ 2–3k; 09/10 #24 effort medium + 8000 → suy nghĩ ăn hết, câu trả lời bị cắt
+    "chat_prompt": {"max_tokens": 12000},                       # D6 viết prompt gen: thường 1,3–4,5k; 14/10 một lượt #28–#30 bị cắt đúng 8000 (mặc định)
     "change_review": {"effort": "low", "max_tokens": 6000},   # 10/10 Tổ rà soát tác động: một thay đổi → JSON ngắn các mục lệch
     "director_byd": {"effort": "low", "max_tokens": 16000},    # K1a: sửa BYĐ các shot hỏng (JSON ≈ 0,3k / shot, cả phim hỏng ≈ 10k)
     "director_stage_specs": {"effort": "medium", "max_tokens": 24000},  # Sân khấu 3D V3: dàn cảnh + yêu cầu khung MỘT cảnh (JSON ≈ 4–6k + suy nghĩ);

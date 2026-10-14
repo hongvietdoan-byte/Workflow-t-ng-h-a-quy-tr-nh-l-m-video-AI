@@ -144,17 +144,19 @@ def _unit(v: Sequence[float]) -> Tuple[float, float, float]:
 
 
 def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: float = 1.75, aspect: float = 9 / 16,
-               name: str = "shot") -> Dict:
+               name: str = "shot", behind: Optional[bool] = None, rise_at=None) -> Dict:
     """Camera for one shot. spot = where the character's feet are (scene metres); facing_deg = the direction the character faces,
     degrees clockwise from +y (0 = +y, 90 = +x). The camera stands in front of the character (they face it, as the start frames of
     FF shots do) unless the shot says over-the-shoulder / from behind.
+    behind: None = read from the shot (plate_choice.is_behind); travel_camera sets it (camera following the run).
+    rise_at(x, y) -> metres the ground under the camera is above the spot (travel_camera: a camera on the stairs of the run); None = 0.
     Returns {"camera": {name, location, look_at, lens, angle}, "subject_box": [x0, y0, x1, y1], "feet_y", "distance_m"}."""
     size = size_of(data)
     body_share, fill, lens = FRAMING[size]
     lens = lens_of(data, lens)
     angle = str(data.get("angle") or "eye").lower()
     from .plate_choice import is_behind
-    behind = is_behind(data)                                  # one test, shared with the script's camera direction (S5.7)
+    behind = is_behind(data) if behind is None else bool(behind)   # one test, shared with the script's camera direction (S5.7)
     fov = vfov(lens, aspect)
     visible = height_m * body_share                          # metres of the body inside the frame (top of the head down)
     frame_h = visible / fill                                  # metres the frame spans at the character's distance
@@ -237,6 +239,9 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
         reach = max(cam_z / math.tan(math.radians(LOOK_DOWN_PITCH_DEG)), dist + 0.5)
         cam = (cam[0], cam[1], spot[2] + cam_z)
         aim = (cam[0] - fwd[0] * reach, cam[1] - fwd[1] * reach, spot[2])
+    lift = float(rise_at(cam[0], cam[1])) if rise_at is not None else 0.0
+    if abs(lift) > 1e-6:                                      # 14/10 #30: the camera stands on the run (stairs) — its own ground
+        cam = (cam[0], cam[1], cam[2] + lift)
     box = subject_box(cam, aim, lens, aspect, spot, height_m)
     hz = horizon_y(cam, aim, lens, aspect)
     d = [a - c for a, c in zip(aim, cam)]
@@ -266,6 +271,40 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
             "subject_box": box, "feet_y": box[3], "distance_m": round(dist, 2), "size": size, "side": side, "behind": behind,
             "frame_h_m": round(frame_h, 3), "horizon_y": hz, "pitch_deg": round(pitch, 1), "fixes": fixes, "problem": problem,
             "why": why}
+
+
+def travel_camera(data: Dict, here: Sequence[float], a: Sequence[float], b: Sequence[float], mode: str, height_m: float = 1.75,
+                  aspect: float = 9 / 16, name: str = "shot") -> Optional[Dict]:
+    """14/10 #30 shot 1 (người dùng: "máy đi theo nhân vật còn nhân vật chạy lên, hoặc máy ở trên cao lùi, nhân vật chạy lên theo
+    máy"): the camera of a shot whose character RUNS A→B (core/travel_truth.camera_route — the one source of A, B and the mode).
+    here = the character's spot in this frame (A, or B for the end of the run). The character faces the run (bearing A→B):
+      lead   = the camera ON the run, ahead of the character (B side), looking back at them (towards A) — a pull-out / "runs toward camera";
+      follow = the camera behind them on the run's line (A side), looking where they run (towards B).
+    Distance / height / lens as camera_for for the shot's size; the camera's ground is the run's height at its point (A→B
+    interpolated, clamped to the ends: never a guessed ground past A or B), so up a staircase the leading camera stands higher.
+    None when A and B are the same point on the ground (no direction: the caller keeps the old camera and says so)."""
+    from .plate_choice import bearing
+    facing = bearing(a, b)
+    if facing is None:
+        return None
+    ax, ay, az = (float(v) for v in a[:3])
+    bx, by, bz = (float(v) for v in b[:3])
+    run2 = (bx - ax) ** 2 + (by - ay) ** 2
+    hz = float(here[2])
+
+    def rise_at(x: float, y: float) -> float:
+        t = max(0.0, min(1.0, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / run2))
+        return az + t * (bz - az) - hz
+
+    cam = camera_for(data, here, facing, height_m, aspect, name=name, behind=(mode == "follow"), rise_at=rise_at)
+    loc = cam["camera"]["location"]
+    lift = rise_at(loc[0], loc[1])
+    cam["travel"] = {"mode": mode, "facing_deg": facing, "lift_m": round(lift, 2)}
+    cam["why"]["travel"] = (f"nhân vật chạy theo hướng {facing:g}° (A→B, travel_truth): máy "
+                            + ("LÙI trước mặt trên đường chạy, nhìn về A" if mode == "lead" else "BÁM SAU lưng trên đường chạy, nhìn về B")
+                            + f", cách {cam['distance_m']:g} m, mặt đất dưới máy {'cao' if lift >= 0 else 'thấp'} hơn chỗ đứng "
+                              f"{abs(lift):.2f} m (nội suy độ cao A/B)")
+    return cam
 
 
 def clearance_fix(location: Sequence[float], look_at: Sequence[float], feet: Sequence[float], height_m: float,
@@ -426,7 +465,7 @@ def from_stage(sc: Dict, spot: Sequence[float], height_m: float, aspect: float =
 
 
 def plan_cameras(shots: List[Dict], spot_of, height_of, aspect: float = 9 / 16, setup_field: Optional[str] = None,
-                 stage_field: Optional[str] = None) -> Dict[int, Dict]:
+                 stage_field: Optional[str] = None, travel_of=None) -> Dict[int, Dict]:
     """scene id -> camera_for(...) for shots at a 3D place. Shots of one camera_setup with the same size share the first one's camera
     (the DP's coverage: one position, several shots). spot_of(shot) -> (xyz, facing_deg) or None; height_of(shot) -> metres.
     G0 (flag director_camera_plan): `setup_field` = the shot field holding the Director's camera set-up of the scene (core/camera_plan
@@ -442,6 +481,12 @@ def plan_cameras(shots: List[Dict], spot_of, height_of, aspect: float = 9 / 16, 
         if stage_field and data.get(stage_field):       # Sân khấu 3D v2: máy đã giải + duyệt — một shot một máy, không gom
             out[s["id"]] = from_stage(data[stage_field], spot[0], height_of(s), aspect, name=f"shot_{s['id']}")
             continue
+        tr = travel_of(s) if travel_of else None
+        if tr:                                          # 14/10 #30 (cờ travel_truth): máy đặt theo đường chạy A→B — một shot một máy
+            cam = travel_camera(data, spot[0], tr["a"], tr["b"], tr["mode"], height_of(s), aspect, name=f"shot_{s['id']}")
+            if cam is not None:
+                out[s["id"]] = cam
+                continue
         if setup_field and data.get(setup_field):
             # rà G0: the set-up's plan (scene field; an old shot: its story_scene, none = the shot alone) + everything camera_for
             # reads from the shot besides the spot/facing — a look-down / other lens / other angle / sky shot is never merged

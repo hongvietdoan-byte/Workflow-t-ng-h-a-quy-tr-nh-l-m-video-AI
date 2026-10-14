@@ -158,9 +158,13 @@ def variant_source(conn, project_id: Optional[int], data: Dict, asset: Dict, tex
 def usable_images(asset: Dict, text: str, variant: Optional[str] = "") -> List[Dict]:
     """Only the pictures of the form the shot speaks of: a picture with a `variant` goes only when the text names that variant;
     otherwise only the plain pictures (none → no picture: the form is said in words). `variant` given (variant_source — the scene's
-    form carried down) wins over reading `text`; "" = read the text as before."""
+    form carried down) wins over reading `text`; "" = read the text as before.
+    14/10 #30: a Kho picture with a size-guide MANNEQUIN (#367 3.png, sort −1 — it came first) is never the object's picture: it went
+    to shot 1 (only running, no wall) as "the object Bom keo: draw it exactly like this" + the mannequin sentence. It goes only as the
+    DEPLOYED picture of a shot where the object appears (skill_objects.deployed_pictures reads the Kho pictures itself)."""
+    from .skill_objects import is_mannequin_image
     v = chosen_variant(asset, text) if variant == "" else variant
-    imgs = asset.get("images") or []
+    imgs = [i for i in asset.get("images") or [] if not is_mannequin_image(i)]
     if v is not None:
         return [i for i in imgs if str(i.get("variant") or "").strip() == v]
     return [i for i in imgs if not str(i.get("variant") or "").strip()]
