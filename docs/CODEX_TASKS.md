@@ -1241,12 +1241,16 @@ trạng thái (đã duyệt / chờ duyệt / chưa có ảnh — VÀNG như run
 change_review) — kiểm quyền sửa như các ô khác. Ảnh chụp 1440 + 1280.
 
 ## Việc 4 — (SAU khi người dùng duyệt việc 1) build phương án được chọn, sau cờ TẮT
-Đề bài chi tiết sẽ viết sau khi người dùng chốt. Không bắt đầu trước.
+Đề bài chi tiết: [`DE_BAI_D18_VIEC4_REGISTRY_A_2026-10-14.md`](DE_BAI_D18_VIEC4_REGISTRY_A_2026-10-14.md), **CHỜ người dùng duyệt trước build**. A đã được chọn 13/10; registry A chưa triển khai, Đ18v1–3 lên main không đồng nghĩa nguồn A đã có. Các lựa chọn storage/schema/API trong đề là đề xuất chờ duyệt.
 **[14/10 18:09, người dùng giao qua phiên cloud]:** người dùng đã chọn phương án A (13/10). Codex **VIẾT ĐỀ BÀI CHI TIẾT trước** (yêu cầu ở hộp
 thư `TODO.md` dòng [14/10 18:09]) → người dùng duyệt → mới build. Đây là chỗ nghẽn của Đ11 việc 3 (Trình sửa sân khấu + màn Camera trên Dashboard) và
 Đ11 việc 5. `anchor_by_spot` giữ TẮT (người dùng 14/10) — không thiết kế phụ thuộc vào nó.
 
+Chia việc đề xuất theo mục 8 của đề: **4a** schema/validator/resolver → **4b** canonical store/transaction/CAS/ACL/audit/undo → **4c** dry-run migration idempotent, giữ legacy #24/#27 → **4d** adapters solver/grid/facts/blockout/Camera/CLI → **4e** Director/runner/proposal/drift/OFF → **4f + Đ11v3** Editor/Camera/Tiểu Nhị cùng A, sau dependency render queue. Đ11v5 animatic/bộ góc/gói và B mở rộng cùng A sau nghiệm thu riêng; không editor 2D/registry thứ hai. `own_camera` không nhận neo; cảnh đã duyệt chỉ `layout_drift`, không tự regen. Tự rà RÀ NHẸ tài liệu: [`RA_D18_VIEC4_DE_BAI_CODEX_2026-10-14.md`](RA_D18_VIEC4_DE_BAI_CODEX_2026-10-14.md).
+
 ## Kết quả Codex — đợt 18
+
+- 🟡 Việc 4 · nhánh `codex/d18-viec4-de-bai`: XONG viết đề chi tiết registry A, **CHỜ DUYỆT trước build**. Schema stage/segment/state/camera + kho SQLite đề xuất, CAS nhiều aggregate/ACL/audit/snapshot nhất quán, dry-run migration giữ raw legacy, locks/proposals/drift/OFF, 4a–4f, dependency render queue và UI1440/1280. RÀ NHẸ tự kiểm2b.5 + root đọc toàn đề và diff; `git diff --check` sạch. Ghi hòm thư TODO trên nhánh, chưa đưa main; docs-only, không pytest/test đỏ giả/code/API/data thật/live.
 
 - ✅ Việc 1 · nhánh `codex/d18-viec1-ke-hoach-san-khau` · tài liệu `c460d6cd`: `docs/KE_HOACH_SAN_KHAU_DOAN_2026-10-12.md` đối chiếu code/callers/flags, phân biệt stage–segment–state, snapshot/transform/provenance/dependency và quyền dự án/Owner publish; bảng A/B/C ghi đúng giới hạn dữ liệu/proxy/model, chi phí API bổ sung và công/bấm chưa đo, lộ trình không cần Blender. Khuyến nghị A trước→B cùng dữ liệu, C gỡ trước mắt; **chờ người dùng chọn trước Đ18v4**. Root RÀ NHẸ + kiểm nguồn/dòng/link, RA `docs/RA_D18_VIEC1_CODEX_2026-10-12.md`; docs-only không tạo test đỏ giả, không đổi code/cờ/areas/TODO/PLAN/API/data. Chưa xác minh runtime #27/QA chất lượng. Đ18v2/v3 độc lập có thể tiếp; v3 đề ghi chỉ shot trước nhưng main đã cho shot sau, phải đối chiếu trước build.
 
