@@ -273,13 +273,19 @@ def previews_dir(data_dir: str, project_id: int) -> str:
     return os.path.join(data_dir, str(project_id), "voice_previews")
 
 
-def preview(provider, data_dir: str, project_id: int, voice_id: int, voice_name: str, character: str, ledger=None) -> Dict:
-    """Voice one Vietnamese sample sentence with this voice (kept apart from the dialogue lines and the mix)."""
+def preview(provider, data_dir: str, project_id: int, voice_id: int, voice_name: str, character: str, ledger=None,
+            speed: Optional[float] = None) -> Dict:
+    """Voice one Vietnamese sample sentence with this voice (kept apart from the dialogue lines and the mix). speed (14/10): the
+    profile's reading speed, so the sample is heard as the lines will be (None = as before, no params)."""
     directory = previews_dir(data_dir, project_id)
     os.makedirs(directory, exist_ok=True)
     text = speakable(SAMPLE_VI.format(name=character.title()))
+    speed = clamp_speed(speed)[0]
+    extra = {"preview_for": character, "voice_id": voice_id}
+    if speed is not None:
+        extra["speed"] = speed
     return audio_lib.submit_tts(provider, directory, text, voice_id, voice_name, DEFAULT_MODEL, None, ledger=ledger,
-                                extra={"preview_for": character, "voice_id": voice_id})
+                                extra=extra, params={"speed": speed} if speed is not None else None)
 
 
 def _line_items(directory: str) -> List[tuple]:

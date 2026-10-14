@@ -145,6 +145,14 @@ class TtsTests(Base):
         self.assertEqual(self.gen(prov)["sent"], 1)
         self.assertIsNone(prov.sent[-1]["params"])
 
+    def test_preview_uses_the_profile_speed_and_none_keeps_the_old_call(self):
+        prov = Prov()
+        voice.preview(prov, self.d, self.pid, 30169, "dẫn", "LỜI DẪN", speed=1.2)
+        voice.preview(prov, self.d, self.pid, 30169, "dẫn", "LỜI DẪN")
+        self.assertEqual([s["params"] for s in prov.sent], [{"speed": 1.2}, None])
+        items = audio_lib.load(voice.previews_dir(self.d, self.pid))
+        self.assertEqual([e.get("speed") for e in items], [1.2, None])
+
 
 class ScreenTests(unittest.TestCase):
     """Character Bible (step1_characters.character_detail_panel): ô 'Tốc độ đọc' 0,7–1,2 bước 0,05 ghi vào hồ sơ."""
