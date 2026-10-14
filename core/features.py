@@ -72,6 +72,20 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Người dùng 14/10 (docs/DANH_GIA_VAI_DAO_DIEN_2026-10-14.md mục 3b–3c): chưa thí điểm — chạy tools/d6_pilot.py trên 3–5 shot #27 trước",
     },
+    "side_truth": {
+        "label": "Trái/phải: kịch bản ghi 'bên trái/phải' (của nhân vật) + shot ghi rõ máy sau lưng / trước mặt → code quy đổi sang "
+                 "FRAME-LEFT / FRAME-RIGHT và chèn một câu vào prompt ảnh + video; không chắc hướng máy / nhiều nhân vật → VÀNG, "
+                 "không đoán (0 USD)",
+        "verified": False,
+        "why": "Thử D6 #28/#29 (14/10): kịch bản 'núp bên TRÁI tường keo' → Kelly núp sai bên; trước chỉ là luật chữ ở "
+               "knowledge/model_guides. Chưa gen thật với câu mới",
+    },
+    "script_pose_fix": {
+        "label": "Tư thế theo kịch bản: vế kịch bản chỉ ghi 'đứng' mà BYĐ (một người) toàn quỳ/ngồi → code sửa BYĐ thành đứng sau "
+                 "lượt Đạo diễn + ghi lý do; ca mơ hồ giữ VÀNG; không đụng BYĐ người dùng khóa tay (0 USD)",
+        "verified": False,
+        "why": "Thử D6 #28 shot 3 (14/10): 'Kelly đứng sát, núp…' → BYĐ quỳ → ảnh + clip ngồi xổm. Mới kiểm bằng test + dữ liệu #27/#28",
+    },
     "mix_bus": {
         "label": "Nhạc nén riêng dưới bus hiệu ứng (SFX) 8–12 dB (ffmpeg, 0 USD)",
         "verified": False,

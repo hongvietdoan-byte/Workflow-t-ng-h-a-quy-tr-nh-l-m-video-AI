@@ -8,7 +8,8 @@ núp sát bên trái…") và ghi BYĐ `quy` → ảnh + clip cả hai bản ng�
 
 Cách so: tách kịch bản thành câu → vế (dấu phẩy / gạch / chấm phẩy); mỗi shot lấy vế khớp chữ nhất với `action`/`text` của shot (≥ 3 chữ
 chung) cộng vế NGAY TRƯỚC nó trong cùng câu (tư thế hay nói trước: "đứng sát, núp…"). Vế đó ghi tư thế (đứng / ngồi / quỳ / nằm / bò) mà
-không nhịp BYĐ nào có tư thế ấy → một câu cảnh báo. Chỉ báo (VÀNG), người duyệt / Đạo diễn sửa.
+không nhịp BYĐ nào có tư thế ấy → một câu cảnh báo (VÀNG). Ca chắc chắn (kịch bản chỉ "đứng", BYĐ một người toàn quỳ/ngồi, chưa khóa
+tay) → fix_standing() sửa BYĐ trước khi gen (cờ script_pose_fix, core/llm_io._script_pose_fix); còn lại người duyệt / Đạo diễn sửa.
 """
 import re
 import unicodedata
@@ -82,4 +83,53 @@ def mismatches(script: str, shots: Sequence[Tuple[int, Dict]]) -> List[str]:
         if said and not set(said) & set(have):
             out.append(f"shot {no}: kịch bản ghi '{POSE_VI[said[0]]}' (\"{words[:90]}\") mà BYĐ ghi "
                        f"{' → '.join(dict.fromkeys(POSE_VI.get(p, p) for p in have))} — sửa tư thế theo kịch bản trước khi gen ảnh")
+    return out
+
+
+# ---- 14/10 (người dùng: "tư thế đúng kịch bản rất quan trọng"): ca CHẮC CHẮN thì code sửa BYĐ trước khi gen, không chỉ báo VÀNG ----
+# Chắc chắn = vế kịch bản chỉ ghi "đứng" (không chữ chuyển tư thế: "đứng dậy", "ngồi xuống"…, không phủ định), BYĐ của shot có ĐÚNG MỘT
+# người ghi tư thế, mọi nhịp của người đó là quỳ / ngồi (ngã / nằm / bò có thể là cố ý → giữ VÀNG), và người dùng chưa khóa tay `byd`.
+FIX_FLAG = "script_pose_fix"
+_FIX_FROM = {"quy", "ngoi"}
+_SHIFT = re.compile(r"(?<!\w)(?:đứng\s+(?:dậy|lên)|(?:ngồi|quỳ|nằm|ngã|cúi|khom)\s+(?:xuống|thấp|người)|(?:không|chưa|chẳng)\s+đứng)(?!\w)",
+                    re.I)
+_LOW_EN = re.compile(r"\b(?:crouch\w*|kneel\w*|knelt|squat\w*|sitting|sits?|seated|sat|hunch\w*)\b", re.I)
+_LOW_CONTACT = {"dau_goi", "mong"}
+
+
+def fix_enabled() -> bool:
+    from . import features
+    return features.on(FIX_FLAG)
+
+
+def fix_standing(script: str, shots: Sequence[Tuple[int, Dict]]) -> List[str]:
+    """Sửa tại chỗ `byd.hanh_dong[].<nhịp>.tu_the` quỳ/ngồi → đứng ở ca chắc chắn (xem trên); trả câu tiếng Việt cho mỗi shot đã sửa.
+    Shot mơ hồ không đụng — mismatches() vẫn báo VÀNG."""
+    out, idx = [], _index(script)
+    for no, data in shots:
+        if not isinstance(data, dict) or "byd" in set(data.get("_user_locked") or []):
+            continue
+        have = byd_poses(data)
+        if not have or not set(have) <= _FIX_FROM:
+            continue
+        said, words = script_poses(idx, " ".join(str(data.get(k) or "") for k in ("action", "text")))
+        if said != ["dung"] or _SHIFT.search(words):
+            continue
+        people = [h for h in data["byd"].get("hanh_dong") or [] if isinstance(h, dict)
+                  and any(isinstance(h.get(n), dict) and h[n].get("tu_the") for n in ("bat_dau", "dinh", "ket_thuc"))]
+        if len({h.get("ai") for h in people}) != 1:
+            continue
+        old = " → ".join(dict.fromkeys(POSE_VI.get(p, p) for p in have))
+        why = f"code sửa tư thế theo kịch bản: \"{words[:90]}\" ghi 'đứng', BYĐ cũ {old}"
+        for h in people:
+            for nhip in ("bat_dau", "dinh", "ket_thuc"):
+                st = h.get(nhip)
+                if isinstance(st, dict) and st.get("tu_the") in _FIX_FROM:
+                    st["tu_the"] = "dung"
+                    if isinstance(st.get("cham_dat"), list) and set(st["cham_dat"]) & _LOW_CONTACT:
+                        st["cham_dat"] = ["ban_chan"]
+            h["sua_tu_the"] = why
+        low = sorted({m.group(0).lower() for m in _LOW_EN.finditer(str(data.get("image_prompt") or ""))})
+        out.append(f"shot {no}: kịch bản ghi 'đứng' (\"{words[:90]}\") mà BYĐ ghi {old} — code đổi BYĐ thành đứng"
+                   + (f"; prompt ảnh của Đạo diễn còn chữ {', '.join(low)} — sửa prompt theo tư thế đứng trước khi gen" if low else ""))
     return out

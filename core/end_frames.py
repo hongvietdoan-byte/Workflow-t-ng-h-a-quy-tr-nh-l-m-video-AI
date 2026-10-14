@@ -351,6 +351,21 @@ def _usage_model(provider) -> Optional[str]:
         return None
 
 
+def _side_guard(p: Pipeline, row, prompt: str) -> str:
+    """14/10 (cờ side_truth): the end frame gets THE left/right sentence of the start picture and the clip (core/runner._side_truth)
+    — a layer added later inherits the measure; otherwise the character may change sides inside one shot."""
+    from . import side_truth
+    from .runner import _side_truth
+
+    class _Say:
+        def __init__(self):
+            self.p = p
+
+        def _diag(self, job, sev, code, msg):
+            _diag(p, row, sev, code, "khung cuối: " + msg)
+    return side_truth.append(prompt, _side_truth(_Say(), {"scene_id": row["scene_id"], "project_id": row["project_id"]}))
+
+
 def _diag(p: Pipeline, row, severity: str, code: str, message: str) -> None:
     from . import diag
     diag.record(p.conn, "image", severity, message, code, row["project_id"], row["scene_id"])
@@ -425,6 +440,7 @@ def _tick(p: Pipeline, project_id: int, provider, data_dir: str, only_ids=None) 
                 continue
             prompt = prompt_for(p, project_id, row["scene_id"], fix=row["fix"] if "fix" in row.keys() else None)
             prompt = _skill_guard(p, row, prompt)
+            prompt = _side_guard(p, row, prompt)
             kwargs = {}
             aspect = formats.project_aspect(proj)
             from . import quality_tier                # N1: flag two_tier_quality on → "Thử rẻ" ignored

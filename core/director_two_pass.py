@@ -696,6 +696,9 @@ def replan_scene(p: Pipeline, project_id: int, scene_idx: int, client, note: str
     with director_lease.writing():
         n = shots.replace_from(p, project_id, obj["scenes"], scene_idx)
         p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))
+        llm_io._script_pose_fix(p.conn, project_id)    # 14/10: the re-planned scene's BYĐ against the script too (never raises)
+        llm_io._script_pose_diag(p.conn, project_id)
+        llm_io._side_truth_diag(p.conn, project_id)
     raw.setdefault("parts", {})[str(scene_idx)] = new[scene_idx]
     _save_raw(p, project_id, raw)
     return {"scene": scene_idx, "rows": n, "input_tokens": tin, "output_tokens": tout, "normalized": obj.get("normalized") or [],

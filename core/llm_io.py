@@ -290,7 +290,9 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
     if cast is not None:
         obj["voice_cast"] = cast
     _plate_view_diag(conn, project_id, obj)
+    _script_pose_fix(conn, project_id)           # 14/10: a sure pose contradiction is fixed in the saved BYĐ (flag script_pose_fix)
     _script_pose_diag(conn, project_id)
+    _side_truth_diag(conn, project_id)
     prompt_formula.after_director(conn, project_id, before)   # F1-A: formula_check per shot + diag 'prompt_formula'; never raises
     _end_popup_from_plan(pipeline, project_id, obj)
     return obj
@@ -367,6 +369,62 @@ def _plate_view_fix(conn, project_id: int, obj: Dict) -> None:
         diag.record(conn, "director", "info", "Hướng nền: " + w, "plate_view_fix", project_id)
     for w in kept:
         diag.record(conn, "director", "warn", "Hướng nền: " + w, "plate_view_fix", project_id)
+
+
+def _saved_shots(conn, project_id: int):
+    row = conn.execute("SELECT script_text FROM projects WHERE id=?", (project_id,)).fetchone()
+    rows = conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall()
+    return (row["script_text"] if row else "") or "", rows
+
+
+def _script_pose_fix(conn, project_id: int) -> None:
+    """14/10 (người dùng: tư thế đúng kịch bản rất quan trọng): the SURE case of core/script_pose (script says only 'đứng', the BYĐ of
+    one person is all quỳ/ngồi, `byd` not locked by hand) is fixed in the saved shot, reason in BYĐ `sua_tu_the` + ⚙ Chẩn đoán.
+    Flag script_pose_fix off → nothing changes (the VÀNG of _script_pose_diag stays)."""
+    from . import diag, script_pose
+    if not script_pose.fix_enabled():
+        return
+    try:
+        script, rows = _saved_shots(conn, project_id)
+        said = []
+        for r in rows:
+            data = json.loads(r["data"] or "{}")
+            got = script_pose.fix_standing(script, [(r["idx"], data)])
+            if got:
+                conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), r["id"]))
+                said += got
+        if said:
+            conn.commit()
+    except Exception as e:  # noqa: BLE001 - a fix, never a reason to lose the paid answer; said
+        conn.rollback()                          # rà 14/10: all or nothing — never half the shots fixed under a "không sửa được"
+        said = [f"không sửa được tư thế theo kịch bản: {type(e).__name__}: {e}"]
+    for w in said:
+        diag.record(conn, "director", "warn" if "còn chữ" in w or w.startswith("không sửa") else "info",
+                    "Tư thế ↔ kịch bản: " + w, "script_pose_fix", project_id)
+
+
+def _side_truth_diag(conn, project_id: int) -> None:
+    """14/10 (#28/#29: Kelly núp sai bên): a shot whose script / action names the character's left / right — said in ⚙ Chẩn đoán:
+    converted to frame-left / frame-right (info, the sentence core/runner._side_truth adds to the image + video prompts) or NOT
+    convertible and why (warn). Flag side_truth off → nothing."""
+    from . import diag, script_pose, side_truth
+    if not side_truth.enabled():
+        return
+    found = []
+    try:
+        script, rows = _saved_shots(conn, project_id)
+        idx = script_pose._index(script)
+        for r in rows:
+            got = side_truth.for_shot(idx, json.loads(r["data"] or "{}"))
+            if got["warn"]:
+                found.append(("warn", f"shot {r['idx']}: {got['warn']}"))
+            elif got["sentence"]:
+                found.append(("info", f"shot {r['idx']}: code quy đổi sang khung ({got['camera']}) — prompt ảnh + video thêm: "
+                                      + got["sentence"]))
+    except Exception as e:  # noqa: BLE001 - a check, never a reason to lose the paid answer
+        found = [("warn", f"không kiểm được trái/phải: {type(e).__name__}: {e}")]
+    for sev, w in found:
+        diag.record(conn, "director", sev, "Trái/phải: " + w, "side_truth", project_id)
 
 
 def _script_pose_diag(conn, project_id: int) -> None:
