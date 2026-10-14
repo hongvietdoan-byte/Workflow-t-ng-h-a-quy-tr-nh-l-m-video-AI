@@ -1,4 +1,12 @@
 # Bàn giao điều phối Bàn đạo diễn — 14/10/2026
+## Cập nhật mới nhất — người dùng đã duyệt cả hai đề xuất
+- Người dùng chốt Blender portable riêng cho worker; giữ bản Store hiện có. Chưa tải/cài portable, chưa đổi cấu hình live. Tiếp theo chọn bản tương thích, xác minh checksum chính thức, test lựa chọn runtime và timeout/process ownership trước phép thử Blender thật 5 dự án.
+- Người dùng chốt Đ12v3 metadata ref: file gốc, giây đầu/cuối, tỉ lệ tốc độ; ref cũ thiếu báo VÀNG, không đoán. Làm phần ref_audio độc lập trên nhánh riêng; mix_bus vẫn chờ owner giải phóng delivery/ffmpeg_studio/step5.
+- Nhánh hiệu năng đã push: code 8967fcc4, QA d6797503, benchmark d745549e. ĐỎ→XANH 113 passed/1 skip; regression OFF 1 passed. Chưa cả bộ, chưa gộp main, chưa chạy Blender thật.
+- Benchmark 2D 1/5/10/20/30 dự án đã ghi docs/BENCH_BAN_DAO_DIEN_2026-10-14.md: đề xuất tạm 5 dự án hoạt động, một worker nặng; không coi giới hạn hàng đợi là giới hạn phần cứng/full pipeline.
+- Hạn mức 5h đã dùng 82%, còn 18%; reset 14/10/2026 10:25:37 Asia/Saigon. Lịch hiện có tiếp tục 10:30, không tạo lịch trùng.
+- Các dòng bàn giao cũ dưới đây là lịch sử; quyết định mới trên thay thế trạng thái chờ duyệt runtime. .review_test_tmp/ còn untracked do thao tác xóa bị policy chặn; không commit/xóa bằng cách khác.
+
 - DONE BUILD nhánh codex/ban-dao-dien-hieu-nang từ c18b5e6f; chưa commit/push, cờ TẮT.
 - Queue RAM:1worker/RRproject/priorityburst3; pending24/perproject4; scopes64/perproject12; records160.
 - Coalesce latest projectscene revision; reject older/conflict; running old không publish latest; status/export scopedproject.
