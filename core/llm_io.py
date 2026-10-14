@@ -320,11 +320,29 @@ def _end_popup_from_plan(pipeline: Pipeline, project_id: int, obj: Dict) -> None
         diag.record(pipeline.conn, "director", "warn", f"không đặt được popup cuối phim: {type(e).__name__}: {e}", "end_popup", project_id)
 
 
+def _locked_plate_views(conn, project_id: int) -> Dict:
+    """{(cảnh kịch bản, số shot): plate_view} the person LOCKED by hand (`_user_locked` on the current shot rows). store_plan keeps
+    these values over the Director's (core/shots.py `kept`), so what the code checks / says before saving must use them too."""
+    out = {}
+    for r in conn.execute("SELECT data FROM scenes WHERE project_id=?", (project_id,)).fetchall():
+        try:
+            d = json.loads(r["data"] or "{}")
+        except (TypeError, ValueError):
+            continue
+        if isinstance(d, dict) and "plate_view" in (d.get("_user_locked") or []) and "plate_view" in d and d.get("shot_no"):
+            out[(d.get("story_scene"), d["shot_no"])] = d["plate_view"]
+    return out
+
+
 def _plate_view_fix(conn, project_id: int, obj: Dict) -> None:
-    """Thử D6 14/10 (#28/#29 shot 1): a face-on shot with a 'landmark' background is set to 'away' (core/plate_view_check), said."""
+    """Thử D6 14/10 (#28/#29 shot 1): a face-on shot with a 'landmark' background is set to 'away' (core/plate_view_check), said.
+    Thử thật 14/10: the diag said 'đổi' also for a shot whose plate_view the person LOCKED (the saved row kept the lock). A locked shot
+    is never changed: the plan carries the locked value (what the database will hold — later checks read the same), and if the
+    geometry still looks wrong it is a warning "giữ theo người", never 'đổi'."""
     from . import diag, plate_view_check
+    fixed, kept = [], []
     try:
-        fixed = []
+        locked = _locked_plate_views(conn, project_id)
         for sc in obj.get("scenes") or []:
             if not isinstance(sc, dict):
                 continue
@@ -333,6 +351,12 @@ def _plate_view_fix(conn, project_id: int, obj: Dict) -> None:
                     continue
                 # rà 14/10: a shot inherits plate_spot / plate_view from its scene (core/shots.py) — check what it will really use
                 view = {**{x: sc[x] for x in ("plate_spot", "plate_view") if sc.get(x)}, **{x: v for x, v in s.items() if v}}
+                if (sc.get("idx"), k) in locked:
+                    s["plate_view"] = view["plate_view"] = locked[(sc.get("idx"), k)]
+                    if plate_view_check.reverse_landmark(view):
+                        kept.append(f"shot {sc.get('idx')}·{k}: người đã khóa hướng nền '{plate_view_check._view(view)}', code thấy nên "
+                                    "là 'away' (góc nhìn thẳng mặt nhân vật, mốc nằm sau lưng máy) — giữ theo người, không đổi")
+                    continue
                 said = plate_view_check.fix_reverse_landmark([(int(sc.get("idx") or 0), k, view)])
                 if said:
                     s["plate_view"] = view["plate_view"]
@@ -341,6 +365,8 @@ def _plate_view_fix(conn, project_id: int, obj: Dict) -> None:
         fixed = [f"không sửa được hướng nền: {type(e).__name__}: {e}"]
     for w in fixed:
         diag.record(conn, "director", "info", "Hướng nền: " + w, "plate_view_fix", project_id)
+    for w in kept:
+        diag.record(conn, "director", "warn", "Hướng nền: " + w, "plate_view_fix", project_id)
 
 
 def _script_pose_diag(conn, project_id: int) -> None:
