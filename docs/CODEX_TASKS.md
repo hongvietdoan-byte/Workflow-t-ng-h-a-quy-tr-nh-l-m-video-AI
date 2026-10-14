@@ -1,5 +1,9 @@
 # Việc giao Codex (nhánh riêng) — 10/10/2026
 
+## Kết quả bổ sung — hiệu năng Bàn đạo diễn (người dùng giao 14/10)
+
+- Nhánh `codex/ban-dao-dien-hieu-nang`, code `8967fcc4`: hàng đợi nền công bằng 5 dự án giả, gộp revision, ưu tiên interactive/batch, giới hạn CPU/RAM/queue/cache, submit/poll tại công cụ 3D admin; cờ `clay_background_queue` OFF/opt-in. Rà độc lập 5 findings: 45 đỏ → 113 xanh/1 skip (9,61 s), thêm hồi quy runner legacy 1 đỏ→1 xanh. Root đọc diff vòng hai. UI fixture 1440/1280 có 6 PNG, 0 lỗi console/tràn ngang. Không actual Blender/fullpipeline/cả bộ Windows/main/live. **Còn chặn runtime Store** (timeout có thể để Blender tiếp tục chạy), chờ chốt portable hoặc supervisor; chưa bật production. Báo cáo `docs/BAN_DAO_DIEN_HIEU_NANG_2026-10-14.md`, RA và UI_QA cùng ngày; areas giữ 74.
+
 5 việc **thuần code + test**: không cần `data/`, khóa API, Blender hay máy chính. Làm theo thứ tự; làm được tới đâu thì
 dừng ở đó, mỗi việc **một nhánh riêng** (hoặc một commit riêng nếu chung nhánh) để gộp từng phần. Phiên Claude điều phối sẽ rà theo quy ước 7
 (`CLAUDE.md`), chạy cả bộ test rồi mới gộp vào `main`.

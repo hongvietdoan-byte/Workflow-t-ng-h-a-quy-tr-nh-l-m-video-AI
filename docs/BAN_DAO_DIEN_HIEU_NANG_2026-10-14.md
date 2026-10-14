@@ -73,3 +73,8 @@ Không benchmark Blender thật trong phiên này. Số Store 8,29/7,41/7,40 s t
 không dùng làm số đo scheduler mới. Chưa chứng minh 4–5 pipeline/autopilot sản xuất, paid API hay dựng video cùng lúc;
 không tăng `core/capacity`/remote concurrency. Đã rà độc lập và sửa 5 findings, root đọc diff vòng hai; vẫn cần QA tải thực,
 chốt runtime worker và owner C5 ngân sách chung trước bật cờ.
+
+
+UI QA fixture riêng: xem `UI_QA_BAN_DAO_DIEN_2026-10-14.md`, 6 PNG ở `docs/images/bdd_performance/`.
+Ảnh pending cuối có worker được giữ bằng tín hiệu, DOM pending/running có mặt và result chưa có;
+ảnh DONE/OFF có result. Đây là kiểm giao diện fake executor, không thay native lifecycle QA hoặc benchmark thật.

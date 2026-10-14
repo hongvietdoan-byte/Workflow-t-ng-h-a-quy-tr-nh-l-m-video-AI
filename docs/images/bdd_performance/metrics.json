@@ -1,0 +1,60 @@
+{
+  "checks": [
+    {
+      "name": "pending_1440.png",
+      "viewport": 1440,
+      "scroll": 1440,
+      "overflow": false,
+      "pendingVisible": true,
+      "resultVisible": false
+    },
+    {
+      "name": "pending_1280.png",
+      "viewport": 1280,
+      "scroll": 1280,
+      "overflow": false,
+      "pendingVisible": true,
+      "resultVisible": false
+    },
+    {
+      "name": "done_1440.png",
+      "viewport": 1440,
+      "scroll": 1440,
+      "overflow": false,
+      "pendingVisible": false,
+      "resultVisible": true
+    },
+    {
+      "name": "done_1280.png",
+      "viewport": 1280,
+      "scroll": 1280,
+      "overflow": false,
+      "pendingVisible": false,
+      "resultVisible": true
+    },
+    {
+      "name": "revision2_pending_1280.png",
+      "viewport": 1280,
+      "scroll": 1280,
+      "overflow": false,
+      "pendingVisible": true,
+      "resultVisible": false
+    },
+    {
+      "name": "off_1280.png",
+      "viewport": 1280,
+      "scroll": 1280,
+      "overflow": false,
+      "pendingVisible": false,
+      "resultVisible": true
+    }
+  ],
+  "consoleErrors": 0,
+  "renderButton": {
+    "x": 97,
+    "y": 1045.75,
+    "width": 263.25,
+    "height": 40
+  },
+  "pendingCapturedWithWorkerHeld": true
+}
