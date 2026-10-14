@@ -338,10 +338,17 @@ def log_ui(p, action: str, *, page: str = "", project_id=None, scene_id=None, jo
         from core import ui_log
         res = ("ok" if result else "error") if isinstance(result, bool) else result
         ms = int((time.monotonic() - t0) * 1000) if t0 is not None else None
-        ui_log.record(p.conn, action, email=me().get("email"), source=op_source(), page=page, project_id=project_id,
-                      scene_id=scene_id, job_id=job_id, result=res, detail=detail, ms=ms)
-    except Exception:  # noqa: BLE001 - nhật ký không được chặn thao tác
-        pass
+        # kiểm thật 14/10: ghi qua p.conn của trang không ra dòng nào (0 dòng sau khi bật cờ) → kết nối riêng mỗi lần ghi
+        conn = connect(DB)
+        try:
+            ok = ui_log.record(conn, action, email=me().get("email"), source=op_source(), page=page, project_id=project_id,
+                               scene_id=scene_id, job_id=job_id, result=res, detail=detail, ms=ms)
+        finally:
+            conn.close()
+        if not ok:
+            print(f"[ui_log] không ghi được thao tác {action}", file=sys.stderr)
+    except Exception as e:  # noqa: BLE001 - nhật ký không được chặn thao tác; nói ra log, không nuốt im lặng
+        print(f"[ui_log] lỗi ghi thao tác {action}: {type(e).__name__}: {e}", file=sys.stderr)
 
 def allowed(permission: str) -> bool:
     return auth.can(me(), permission)
