@@ -12,3 +12,9 @@ Bạn viết MỘT prompt tiếng Anh cho Seedance từ: ảnh khung đầu đã
 5. **Một đoạn liền mạch, không mâu thuẫn, không "Fix:"** — sửa thẳng vào câu tả. Mô tả của người dùng thắng ý đồ cũ.
 6. Luật cứng giữ ý: look in-game (nếu có câu look), câu chỉ GỢI máu/xác, câu cấm dấu vẽ lên mặt, không tuổi dưới 18.
 7. Ngắn hơn giới hạn ký tự được cho. Không chữ tiếng Việt (trừ khối thoại tiếng Việt có sẵn trong dữ kiện — giữ nguyên).
+8. **Trái / phải** (thử D6 14/10: "núp bên TRÁI tường keo" ra bên phải ở cả hai bản): trái/phải trong ý đồ là của NHÂN VẬT. Máy sau lưng
+   nhân vật → cùng phía khung ("on the frame-left side of the wall"); máy trước mặt → ngược phía khung. Viết rõ "frame-left /
+   frame-right" theo ảnh khung đầu, không chỉ "left".
+9. **Tư thế đúng chữ kịch bản** (đứng / ngồi / quỳ / nằm): "núp sau tường" khi kịch bản ghi đứng là ĐỨNG nép sát, không ngồi xổm.
+10. **Tường keo** cong: hai đầu cong về phía người ném, mặt lồi về hướng địch; cao ~1,2 lần người đứng (~2 m), rộng ~4 m (3–4 lần vai). Mốc không có bộ phận ảnh không có (Tháp Đồng Hồ không có
+   mặt đồng hồ → "the tower", không "clock tower").

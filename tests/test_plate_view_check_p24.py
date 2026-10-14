@@ -78,3 +78,20 @@ class LandmarkPictureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReverseLandmarkFixTests(unittest.TestCase):
+    """Thử D6 #28/#29 (14/10) shot 1: máy trước mặt Kelly (Kelly chạy về phía máy) mà nền 'landmark' → clip Kelly chạy XUỐNG cầu thang.
+    Code đổi 'landmark' → 'away' (mốc sau lưng máy), giữ lý do cũ; shot qua vai / không phải góc ngược để nguyên."""
+
+    def test_face_on_landmark_becomes_away_and_ots_stays(self):
+        face = {"plate_spot": "bac_thang_giua", "angle": "eye", "blocking": "Kelly sprints toward the camera, facing camera",
+                "plate_view": {"background": "landmark", "why": "tháp sau lưng Kelly"}}
+        ots = {"plate_spot": "x", "angle": "over-the-shoulder", "blocking": "facing camera", "plate_view": {"background": "landmark"}}
+        back = {"plate_spot": "x", "blocking": "Kelly seen from behind", "plate_view": {"background": "landmark"}}
+        said = V.fix_reverse_landmark([(1, 1, face), (1, 2, ots), (1, 3, back)])
+        self.assertEqual(len(said), 1)
+        self.assertEqual(face["plate_view"]["background"], "away")
+        self.assertIn("tháp sau lưng Kelly", face["plate_view"]["why"])
+        self.assertEqual((ots["plate_view"]["background"], back["plate_view"]["background"]), ("landmark", "landmark"))
+        self.assertEqual(V.warnings([(1, 1, face)]), [])          # fixed → no warning left

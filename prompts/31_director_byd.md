@@ -33,6 +33,10 @@ trường tùy chọn, KHÔNG đoán; trường bắt buộc mà không biết �
 - `hanh_dong` (tùy chọn): mỗi người một mục; `ai` phải có trong `thanh_phan`; `bat_dau` bắt buộc, `dinh` / `ket_thuc` tùy chọn; mỗi
   nhịp `tu_the` ∈ `dung` | `ngoi` | `quy` | `bo` | `nga_ngua` | `nam`; `cham_dat` ⊂ `ban_chan` | `dau_goi` | `mong` | `ban_tay` |
   `lung` | `hong` | `bung`; `che` ⊂ `mat` | `toc` | `co` | `than` | `eo` | `tay` | `chan` | `ban_chan`.
+  **Tư thế theo ĐÚNG chữ kịch bản** (người dùng 14/10: tư thế trong kịch bản đôi khi rất quan trọng): kịch bản ghi "đứng" / "ngồi" /
+  "quỳ" / "nằm" / "bò" thì `tu_the` là đúng tư thế đó và chữ `action` của shot giữ lại chữ ấy. "núp", "nấp", "ẩn" KHÔNG có nghĩa ngồi
+  hay quỳ — "đứng sát, núp bên trái tường" là `dung` (#28 shot 3 ghi `quy` → ảnh và clip đều ngồi xổm, sai). Code so `tu_the` với câu
+  kịch bản gốc và báo khi lệch.
 - `may` (bắt buộc): `co` ∈ `EWS` | `WS` | `GAME_TPS` | `MLS` | `MS` | `MCU` | `CU` | `ECU`; `do_cao` ∈ `ngang` | `thap` | `cao` |
   `tren_dau`; `goc` ∈ `ngang` | `cui` | `ngua`; `chuyen_dong` ∈ `dung_yen` | `lui` | `tien`.
 - `noi_chon` (bắt buộc): `kho_id` = mã Kho của bối cảnh (số trong danh sách tài nguyên của dự án); `thoi_gian` ∈ `dawn` | `day` |

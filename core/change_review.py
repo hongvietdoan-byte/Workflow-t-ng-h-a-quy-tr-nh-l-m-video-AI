@@ -410,6 +410,16 @@ def _group_by_scene(conn, rows, states) -> List[Tuple[Dict, List[int]]]:
     return out
 
 
+PLAN_KEYS = ("image_prompt", "size", "shot_no", "byd", "motion_en", "plate_spot")
+
+
+def _before_director(conn, ev) -> bool:
+    """Neither side of the change has any field of the Director's plan: the shot is still the script split (Director not run yet) —
+    nothing to review against."""
+    before, after = _loads(ev["before"]), _loads(ev["after"])
+    return not any(before.get(k) or after.get(k) for k in PLAN_KEYS)
+
+
 def _review_group(conn, data_dir: str, ev, ids: List[int], client, res: Dict) -> None:
     """Rà MỘT nhóm thay đổi (một shot, hoặc một thay đổi Kho): lọc → luật code → agent Claude (nếu có client). Không ném lỗi.
     Dùng chung cho vòng nền (process_pending) và rà ngay tại chỗ (review_scene_now — C1 rà soát 14/10)."""
@@ -422,6 +432,8 @@ def _review_group(conn, data_dir: str, ev, ids: List[int], client, res: Dict) ->
             keys = changed_keys(before, after, ASSET_WATCH)
         else:
             keys = ["anh_kho"]
+        if keys and ev["kind"] == "scene" and _before_director(conn, ev):
+            keys = []                     # thử D6 #28 14/10: tách cảnh → 'characters rỗng' ĐỎ trước khi Đạo diễn chạy (chưa có kế hoạch)
         if not keys:
             if ev["kind"] in SHOT_KINDS and ev.get("had_code_only"):    # đổi rồi hoàn tác: mục code cũ của shot kề tự đóng
                 code_rules(conn, data_dir, ev["id"], affected_scenes(conn, ev))

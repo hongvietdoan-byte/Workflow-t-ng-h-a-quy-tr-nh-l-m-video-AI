@@ -430,3 +430,13 @@ class ChangeReview(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BeforeDirectorTests(unittest.TestCase):
+    """Thử D6 #28 (14/10): tách cảnh ghi characters null → [] → Tổ rà soát báo ĐỎ 'chữ có Kelly mà mảng rỗng' trước khi Đạo diễn chạy."""
+
+    def test_split_change_without_plan_fields_is_not_reviewed(self):
+        split = {"before": json.dumps({"text": "Kelly chạy", "characters": None}), "after": json.dumps({"text": "Kelly chạy", "characters": []})}
+        plan = {"before": json.dumps({"image_prompt": "x", "characters": ["KELLY"]}), "after": json.dumps({"image_prompt": "x", "characters": []})}
+        self.assertTrue(CR._before_director(None, split))
+        self.assertFalse(CR._before_director(None, plan))

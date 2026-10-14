@@ -113,7 +113,7 @@ Nhật ký đầy đủ: `docs/handoff/THU_D6_NHAT_KY_2026-10-14.md`. Bộ so m�
 Tiền thật (sổ chi): A 3,28 USD · B 3,21 USD (ảnh 5 + clip nháp 5 + Đạo diễn + rà soát + D6 ≈ 0,04 USD/lượt) — tổng ≈ 6,5 USD < trần 15.
 
 **Kết luận theo luật quyết định:** D6 thắng ≥ 2/3 (ảnh) và thắng video, NHƯNG thêm một loại lỗi mới + 2/5 prompt ảnh, 2/3 lượt video bị
-chính code chặn. Đã sửa cả hai nhóm lỗi (dưới) → **đề xuất BẬT `chat_prompts` cho tập 2 #27 — người dùng quyết.**
+chính code chặn. Đã sửa cả hai nhóm lỗi (dưới) → **người dùng 14/10 chiều: BẬT `chat_prompts` cho tập 2 #27** (đã bật ở 🧪, sao lưu `data/feature_settings.backup_20261014_truoc_bat_chat_prompts_tap2.json`).
 
 **Lỗi lọc được và cách xử lý (✅ đã sửa 14/10 · ⏳ còn mở):**
 1. ✅ `video_pregen` chặn nhầm "thiếu nhịp đỉnh" khi đầu/cuối cùng tư thế; đổi tư thế mà thiếu nhịp → VÀNG (người dùng: tư thế đúng kịch
@@ -125,12 +125,11 @@ chính code chặn. Đã sửa cả hai nhóm lỗi (dưới) → **đề xuất
    thang máy → model vẽ khối tuyết trắng; đã gắn dạng `skin Gloowall OB55 thang máy` cho #1149/#1166 (kịch bản ghi "skin thang máy" giờ khớp
    dạng); mô tả Kho #367 thêm cách kịch bản gọi dạng skin + HÌNH DẠNG cong. (b) mọi prompt có tường keo thêm câu: tường CONG, hai đầu cong
    về phía người ném, mặt lồi về hướng địch (`skill_objects.SHAPE`, người dùng chọn sơ đồ "Ảnh 1").
-5. ⏳ Đạo diễn: shot 3 BYĐ `quy` trái kịch bản "đứng sát" (ảnh/clip hai bản đều ngồi xổm) — code chưa so tư thế BYĐ ↔ chữ kịch bản.
-6. ⏳ Đạo diễn: shot 1 máy phía trước Kelly mà nền `landmark` (code đã báo VÀNG `plate_view_check` nhưng không sửa) → clip Kelly chạy
-   XUỐNG cầu thang (hướng ngược kịch bản) ở cả hai bản.
-7. ⏳ Kelly núp bên PHẢI tường (kịch bản: bên TRÁI) shot 3 cả hai bản.
-8. ⏳ `framing_guard` ĐỎ 4/10 clip (Seedance lùi máy / vẽ lại bố cục) — job 929, 930, 931, 935.
-9. ⏳ Bản dựng nháp không có tiếng (dự án chưa chọn nhạc; kịch bản không thoại) — kiểm lại bước nhạc trước tập 2.
-10. ⏳ Thao tác Dashboard: nút "▶ Gen video" phải bấm 2 lần (lần 1 chỉ xếp hàng); thẻ ảnh không tự tải lại sau khi gen ("Chờ gen" tới khi F5);
+5. ✅ Đạo diễn: shot 3 BYĐ `quy` trái kịch bản "đứng sát" → `core/script_pose.py` so tư thế BYĐ ↔ vế câu kịch bản gốc (diag VÀNG `script_pose` sau lượt Đạo diễn; bắt đúng #28 shot 3, #27/#22 không báo nhầm, #24 báo shot 6 'ngồi bệt' ↔ bò) + luật trong `prompts/31_director_byd.md` ("núp" không phải ngồi/quỳ).
+6. ✅ Shot 1 máy trước mặt Kelly mà nền `landmark` → `plate_view_check.fix_reverse_landmark` (gọi trước khi lưu kế hoạch) đổi thành `away` + ghi lý do, diag `plate_view_fix` (trước chỉ cảnh báo → clip Kelly chạy XUỐNG cầu thang).
+7. ✅ (hướng dẫn) Núp sai bên → `knowledge/model_guides/*.md` (D6 đọc): trái/phải là của NHÂN VẬT, máy sau lưng = cùng phía khung, viết rõ frame-left/right; + tư thế, tường keo cong + KÍCH CỠ (~1,2 lần người đứng, rộng ~4 m — ảnh in-game người dùng là luật, cũng ở `skill_objects.SHAPE` + Kho #367).
+8. ⏳ (để lại) `framing_guard` ĐỎ 4/10 clip (Seedance lùi máy / vẽ lại bố cục) — tính chất model; lớp đo đã bắt + không tự duyệt; chưa có cách prompt chắc chắn (gợi ý sẵn: Kling / ghép code).
+9. ✅ (không phải lỗi) Bản ghép xem nháp cố ý không nhạc (`core/final_cut.py:171`); nhạc / phụ đề / chuyển cảnh ở Bước 5 Bản giao (cần clip duyệt) — chưa thử trong đợt này.
+10. ⏳/✅ Thao tác Dashboard (nút gen bấm 2 lần = do lớp kiểm trước gen giữ job + đổi model giữa chừng, đã sửa gốc; đăng nhập/thẻ ảnh cũ = thao tác tự động bằng trình duyệt, người bấm không gặp): nút "▶ Gen video" phải bấm 2 lần (lần 1 chỉ xếp hàng); thẻ ảnh không tự tải lại sau khi gen ("Chờ gen" tới khi F5);
     đăng nhập lần đầu sau khởi động lại báo "E-mail không hợp lệ" dù đúng; S05 chỉ có lựa chọn 720p (không nháp 480p cho shot lẻ).
-11. ⏳ Tổ rà soát báo ĐỎ ngay sau tách cảnh (characters rỗng trước khi Đạo diễn chạy) — báo động sớm.
+11. ✅ Tổ rà soát báo ĐỎ ngay sau tách cảnh → `change_review._before_director`: thay đổi shot chưa có trường kế hoạch nào (image_prompt / size / shot_no / byd / motion_en / plate_spot) thì bỏ qua (0 USD).

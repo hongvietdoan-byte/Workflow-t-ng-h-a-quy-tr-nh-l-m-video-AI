@@ -7,7 +7,8 @@ Kelly quay lưng về giếng (blocking chỉ ghi "seated watching in fear", kh�
 
     warnings(shots) -> [câu tiếng Việt]       shots = [(cảnh, số shot, dict shot)] theo thứ tự phim
 
-Chỉ CẢNH BÁO (báo cáo Director + diag), không sửa câu trả lời: người duyệt quyết. Shot "ở nơi có mô hình 3D" = shot có `plate_spot`.
+CẢNH BÁO (báo cáo Director + diag); riêng góc nhìn thẳng mặt + nền 'landmark' thì code SỬA (fix_reverse_landmark, 14/10) vì đó là sự thật
+hình học. Shot "ở nơi có mô hình 3D" = shot có `plate_spot`.
 """
 import re
 from collections import Counter
@@ -47,6 +48,27 @@ def _text(s: Dict, *keys) -> str:
     return " ".join(str(s.get(k) or "") for k in keys)
 
 
+def reverse_landmark(s: Dict) -> bool:
+    """A face-on / reverse angle with a 'landmark' background (the landmark is behind the CAMERA) — not an over-the-shoulder shot."""
+    words = _text(s, "angle", "blocking", "start_frame", "why")
+    return bool(s.get("plate_spot")) and _view(s) == "landmark" and bool(_REVERSE.search(words)) \
+        and not _OTS.search(_text(s, "angle", "blocking"))
+
+
+def fix_reverse_landmark(shots: List[Tuple[int, int, Dict]]) -> List[str]:
+    """Thử D6 #28/#29 (14/10): cảnh báo trên vẫn để nguyên → máy trước mặt Kelly nhìn về tháp → clip Kelly chạy XUỐNG cầu thang ở cả hai
+    bản. Sự thật hình học là của code: đổi 'landmark' → 'away' (mốc sau lưng máy), ghi lý do vào plate_view.why; trả câu đã sửa."""
+    out = []
+    for sc, k, s in shots:
+        if isinstance(s, dict) and reverse_landmark(s):
+            v = s["plate_view"] if isinstance(s.get("plate_view"), dict) else {}
+            s["plate_view"] = {**v, "background": "away",
+                               "why": ((v.get("why") or "").strip() + " · code đổi landmark→away: máy nhìn thẳng mặt nhân vật, mốc nằm sau lưng máy")
+                               .lstrip(" ·")}
+            out.append(f"shot {sc}·{k}: góc nhìn thẳng mặt nhân vật mà nền 'landmark' — code đổi nền thành 'away' (mốc sau lưng máy)")
+    return out
+
+
 def warnings(shots: List[Tuple[int, int, Dict]]) -> List[str]:
     out: List[str] = []
     at3d = [(sc, k, s) for sc, k, s in shots if isinstance(s, dict) and s.get("plate_spot")]
@@ -69,8 +91,7 @@ def warnings(shots: List[Tuple[int, int, Dict]]) -> List[str]:
             out.append(f"cảnh {sc}: góc ngang ở CẢ hai bên trục (left: shot {', '.join(map(str, side['left']))}; right: shot "
                        f"{', '.join(map(str, side['right']))}) mà không ghi lý do — vượt trục 180°? chọn một bên cho mọi góc ngang")
     for sc, k, s in at3d:
-        words = _text(s, "angle", "blocking", "start_frame", "why")
-        if _view(s) == "landmark" and _REVERSE.search(words) and not _OTS.search(_text(s, "angle", "blocking")):
+        if reverse_landmark(s):
             out.append(f"shot {sc}·{k}: góc ngược / nhìn thẳng mặt nhân vật mà hướng nền 'landmark' — mốc nằm sau lưng MÁY, nền phải là "
                        "'away' (hoặc một bên trục)")
     for sc, k, s in shots:

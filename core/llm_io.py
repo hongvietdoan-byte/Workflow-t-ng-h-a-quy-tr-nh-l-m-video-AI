@@ -279,6 +279,7 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
     conn = pipeline.conn
     from . import prompt_formula                 # F1-A: the prompts before this Director run, to see 'trồng thêm' (F0 mục 4b)
     before = prompt_formula.snapshot(conn, project_id)
+    _plate_view_fix(conn, project_id, obj)       # 14/10: geometry the code knows is fixed before saving, not only warned about
     try:
         _store(pipeline, project_id, obj)
     except Exception:
@@ -289,6 +290,7 @@ def store_scene_analysis(pipeline: Pipeline, project_id: int, data: Any) -> Dict
     if cast is not None:
         obj["voice_cast"] = cast
     _plate_view_diag(conn, project_id, obj)
+    _script_pose_diag(conn, project_id)
     prompt_formula.after_director(conn, project_id, before)   # F1-A: formula_check per shot + diag 'prompt_formula'; never raises
     _end_popup_from_plan(pipeline, project_id, obj)
     return obj
@@ -316,6 +318,44 @@ def _end_popup_from_plan(pipeline: Pipeline, project_id: int, obj: Dict) -> None
                     "end_popup", project_id)
     except Exception as e:  # noqa: BLE001 - never a reason to lose the paid plan; said
         diag.record(pipeline.conn, "director", "warn", f"không đặt được popup cuối phim: {type(e).__name__}: {e}", "end_popup", project_id)
+
+
+def _plate_view_fix(conn, project_id: int, obj: Dict) -> None:
+    """Thử D6 14/10 (#28/#29 shot 1): a face-on shot with a 'landmark' background is set to 'away' (core/plate_view_check), said."""
+    from . import diag, plate_view_check
+    try:
+        fixed = []
+        for sc in obj.get("scenes") or []:
+            if not isinstance(sc, dict):
+                continue
+            for k, s in enumerate(sc.get("shots") or [], 1):
+                if not isinstance(s, dict):
+                    continue
+                # rà 14/10: a shot inherits plate_spot / plate_view from its scene (core/shots.py) — check what it will really use
+                view = {**{x: sc[x] for x in ("plate_spot", "plate_view") if sc.get(x)}, **{x: v for x, v in s.items() if v}}
+                said = plate_view_check.fix_reverse_landmark([(int(sc.get("idx") or 0), k, view)])
+                if said:
+                    s["plate_view"] = view["plate_view"]
+                    fixed += said
+    except Exception as e:  # noqa: BLE001 - a fix, never a reason to lose the paid answer
+        fixed = [f"không sửa được hướng nền: {type(e).__name__}: {e}"]
+    for w in fixed:
+        diag.record(conn, "director", "info", "Hướng nền: " + w, "plate_view_fix", project_id)
+
+
+def _script_pose_diag(conn, project_id: int) -> None:
+    """14/10 (người dùng: tư thế theo kịch bản rất quan trọng; #28 shot 3 'đứng sát, núp' → BYĐ quỳ): BYĐ tu_the ↔ câu kịch bản gốc
+    (core/script_pose), said in ⚙ Chẩn đoán (warn) — read from the saved shots, so the BYĐ the code filled counts too."""
+    from . import diag, script_pose
+    try:
+        row = conn.execute("SELECT script_text FROM projects WHERE id=?", (project_id,)).fetchone()
+        shots = [(r["idx"], json.loads(r["data"] or "{}")) for r in
+                 conn.execute("SELECT idx, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,))]
+        found = script_pose.mismatches((row["script_text"] if row else "") or "", shots)
+    except Exception as e:  # noqa: BLE001 - a check, never a reason to lose the paid answer
+        found = [f"không kiểm được tư thế theo kịch bản: {type(e).__name__}: {e}"]
+    for w in found:
+        diag.record(conn, "director", "warn", "Tư thế ↔ kịch bản: " + w, "script_pose", project_id)
 
 
 def _plate_view_diag(conn, project_id: int, obj: Dict) -> None:

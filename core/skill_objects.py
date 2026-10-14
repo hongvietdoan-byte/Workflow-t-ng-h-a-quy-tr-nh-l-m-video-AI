@@ -64,8 +64,12 @@ FORBID = ("{names} is a solid skill object standing on the ground, not part of a
 
 # Người dùng 14/10 (thử D6 #28/#29, chọn trên sơ đồ): tường keo FF CONG — hai đầu cong về phía người ném (ôm lấy người ném), mặt lồi
 # quay về phía trước / hướng địch. Ảnh + clip hai bản đều vẽ khối thẳng / sai hướng khi prompt không nói.
+# Kích cỡ (người dùng 14/10, ảnh in-game làm luật): cao hơn đầu người đứng một chút (~1,2 lần chiều cao nhân vật, ~2 m), rộng ~4 m (gấp
+# 3–4 lần bề ngang vai — người đứng giữa lòng cong vẫn còn chỗ hai bên), dày như một khối tường đặc.
 SHAPE = {"glue": ("The glue wall is a curved arc, not a flat slab: its two ends bend back toward the person who threw it, wrapping around "
-                  "them, and its outer convex face points forward, toward the enemy.")}
+                  "them, and its outer convex face points forward, toward the enemy. Size: a little taller than a standing person (about "
+                  "1.2 times their height, about 2 m) and about 4 m wide — three to four times their shoulder width, so a person standing "
+                  "in the middle of its curve has free space on both sides; thick like a solid wall block.")}
 
 # rà S2 13/10 mục 2 (người dùng 21:31: tường keo XUẤT HIỆN LUÔN): the words that describe the object GROWING, in a sentence about it.
 # pop / shoot / spring need "up" (a gun shoots); rise / grow / emerge / erupt do not.
