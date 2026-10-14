@@ -99,7 +99,17 @@ def chosen_variant(asset: Dict, text: str) -> Optional[str]:
     """The picture variant of this asset the shot names ("skin Gloowall OB55" ← "Gloowall OB55" / "skin Gloowall"), else None
     (the default form)."""
     said = assets.fold(text).split()
-    return next((v for v in _variants(asset) if _says_variant(asset, v, said)), None)
+    hits = [v for v in _variants(asset) if _says_variant(asset, v, said)]
+    if len(hits) > 1:      # rà 14/10: "skin Gloowall OB56" also fits "skin Gloowall OB55" by the 'skin + a shared word' rule — the
+        full = [v for v in hits if _says_full(asset, v, said)]   # variant whose whole phrase is said wins (not the first in the Kho)
+        hits = full or hits
+    return hits[0] if hits else None
+
+
+def _says_full(asset: Dict, variant: str, said: List[str]) -> bool:
+    toks = _variant_tokens(variant)
+    own = [t for t in toks if t not in _name_tokens(asset)]
+    return bool(own) and any(said[i:i + len(toks)] == toks for i in range(len(said) - len(toks) + 1))
 
 
 _SENT_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")

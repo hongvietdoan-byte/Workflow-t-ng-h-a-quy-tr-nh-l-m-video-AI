@@ -134,6 +134,33 @@ class NewPropVariant(Base):
         with mock.patch.dict(os.environ, {"FEATURE_PROJECT_PROP_LOCK": "1"}):
             self.assertIn("OB56", prompt_rewrite.propose_rewrite(self.p, job, client=client).new_prompt)
 
+    def _scene_skin(self, scene_text):
+        pid, sid, jid = self.make()
+        c = self.p.conn
+        aid = c.execute("INSERT INTO assets(game,kind,name,aliases,description) VALUES ('FF','prop','Bom keo','Gloowall','wall')").lastrowid
+        c.execute("INSERT INTO project_assets(project_id,asset_id) VALUES (?,?)", (pid, aid))
+        for variant in ("skin Gloowall OB55", "skin Gloowall OB56"):
+            c.execute("INSERT INTO asset_images(asset_id,path,variant,status) VALUES (?,?,?,'approved')", (aid, "missing.png", variant))
+        c.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"image_prompt": NEW + "; Kelly throws a bom keo",
+                                                                      "story_scene": 1}), sid))
+        c.execute("INSERT INTO story_scenes(project_id, idx, text) VALUES (?,1,?)", (pid, scene_text))
+        c.commit()
+        return c.execute("SELECT * FROM jobs WHERE id=?", (jid,)).fetchone()
+
+    def test_scene_script_form_is_its_own_source(self):
+        """Rà 14/10 (#30): the scene script's ONE form of the prop (variant_source) allows that skin — and only that one: a spoken
+        line / another sentence of the scene never authorizes a skin (before: the whole scene text was glued to the shot's words)."""
+        client = FakeClient({"new_prompt": NEW + "; bom keo skin Gloowall OB56", "changed": ["wall"], "why": "wall"})
+        with mock.patch.dict(os.environ, {"FEATURE_PROJECT_PROP_LOCK": "1"}):
+            job = self._scene_skin("Kelly đặt bom keo: tường keo (skin Gloowall OB56) xuất hiện.")
+            self.assertIn("OB56", prompt_rewrite.propose_rewrite(self.p, job, client=client).new_prompt)
+            job = self._scene_skin("Kelly đặt bom keo.\nKELLY: skin Gloowall OB56 đẹp quá")
+            with self.assertRaisesRegex(prompt_rewrite.RewriteRefused, "biến thể"):
+                prompt_rewrite.propose_rewrite(self.p, job, client=client)
+            job = self._scene_skin("Kelly đặt bom keo skin Gloowall OB55. Rồi đặt bom keo skin Gloowall OB56.")   # two forms: no guess
+            with self.assertRaisesRegex(prompt_rewrite.RewriteRefused, "biến thể"):
+                prompt_rewrite.propose_rewrite(self.p, job, client=client)
+
     def test_rewrite_rejects_new_variant_unless_old_or_note_authorizes(self):
         pid, sid, jid = self.make()
         c = self.p.conn

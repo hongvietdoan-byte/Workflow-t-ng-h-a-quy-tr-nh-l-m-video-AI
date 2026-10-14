@@ -8,8 +8,9 @@ XUỐNG. Lớp sửa trước (plate_view_fix) chỉ sửa hướng NỀN, khôn
 
     for_shot(conn, pid, scene_id, data, rec) -> {"sentence": str, "warn": [str], "facts": {...} | None}
 
-- Điểm đi A = chỗ đứng của shot (location_pack.spot_for); điểm đến B = chỗ đứng KHÁC của shot kế tiếp cùng cảnh kịch bản (cùng
+- Điểm đi A = chỗ đứng của shot (location_pack.spot_for); điểm đến B = chỗ đứng KHÁC của shot KẾ NGAY cùng cảnh kịch bản (cùng
   `story_scene`, cùng `sequence` nếu có) khi shot này nối liền shot sau (`continuous_with_next`) và chữ shot có động từ di chuyển.
+  Không có điểm đến mà shot TRƯỚC NGAY (nối liền) đứng chỗ khác → shot này là chặng cuối (đi từ chỗ đó tới đây, "arriving").
 - Chỉ viết khi chênh độ cao RÕ: |Δz| ≥ MIN_RISE_M (1,5 m ≈ nửa tầng nhà — dưới mức đó là gồ ghề mặt đất / hai bậc quảng trường, nói
   "lên/xuống" dễ sai) VÀ độ dốc |Δz| / quãng ngang ≥ MIN_GRADE (0,12 ≈ 7° — dốc thoải hơn nhìn như mặt phẳng).
 - Chiều so với máy: từ máy của render (rec.camera_plan location → look_at, cùng hệ toạ độ mô hình với chỗ đứng): đi theo hướng máy nhìn
@@ -30,8 +31,9 @@ MARK = "Direction of travel (measured on the 3D map):"
 _MOVE = re.compile(r"(?<!\w)(?:run(?:s|ning)?|ran|sprint(?:s|ing)?|dash(?:es|ing)?|jog(?:s|ging)?|walk(?:s|ing)?|climb(?:s|ing)?|"
                    r"rush(?:es|ing)?|hurr(?:y|ies|ying)|charg(?:e|es|ing)|ascend(?:s|ing)?|descend(?:s|ing)?|"
                    r"chạy|đi lên|đi xuống|leo|trèo|lao|bước)(?!\w)", re.I)
-_SLOPE_WORDS = re.compile(r"(?<!\w)(?:stair(?:s|case|way)?|steps|slope|ramp|hill|cầu thang|bậc thang|bậc|dốc)(?!\w)", re.I)
-_UPDOWN = re.compile(r"(?<!\w)(?:up|down|upward|downward|uphill|downhill|ascend\w*|descend\w*|climb\w*|lên|xuống|leo|trèo)(?!\w)", re.I)
+# "up the stairs", "lên cầu thang", "climbs the steps", "uphill" — hướng lên/xuống GẮN với cầu thang / dốc (không lấy "dựng lên", "looking down")
+_UPDOWN = re.compile(r"(?<!\w)(?:(?:up|down|climb\w*|ascend\w*|descend\w*|lên|xuống|leo|trèo)\s+(?:\w+\s+){0,3}?"
+                     r"(?:stair(?:s|case|way)?|steps|slope|ramp|hill|cầu thang|bậc thang|bậc|dốc)|uphill|downhill)(?!\w)", re.I)
 _STAIR_WORDS = re.compile(r"(?<!\w)(?:stair(?:s|case|way)?|steps|cầu thang|bậc thang|bậc)(?!\w)", re.I)
 _TOWARD = re.compile(r"toward(?:s)? (?:the )?(?:camera|lens|viewer)|(?:at|into) the camera|về phía (?:máy|camera)|lao về phía máy", re.I)
 _AWAY = re.compile(r"away from (?:the )?camera|back to (?:the )?camera|from behind|seen from behind|quay lưng|xa (?:dần )?máy", re.I)
@@ -70,17 +72,17 @@ def _next_spot(conn, pid: int, scene_id: int, data: Dict, entry: Dict, here: str
         return None
     if not data.get("continuous_with_next"):
         return None
-    rows = conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? AND idx>? ORDER BY idx", (pid, row["idx"])).fetchall()
-    for r in rows:
-        d = json.loads(r["data"] or "{}")
-        if d.get("story_scene") != data.get("story_scene"):
-            return None
-        if data.get("sequence") is not None and d.get("sequence") != data.get("sequence"):
-            return None
-        sp = _spot(entry, d)
-        # chỉ shot KẾ NGAY: shot sau cùng chỗ đứng = đường chạy chưa rời chỗ này trong shot này (không nối qua nhiều shot)
-        return sp if sp is not None and sp.get("name") != here else None
-    return None
+    r = conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx>? ORDER BY idx LIMIT 1", (pid, row["idx"])).fetchone()
+    if r is None:
+        return None
+    d = json.loads(r["data"] or "{}")
+    if d.get("story_scene") != data.get("story_scene"):
+        return None
+    if data.get("sequence") is not None and d.get("sequence") != data.get("sequence"):
+        return None
+    sp = _spot(entry, d)
+    # chỉ shot KẾ NGAY: shot sau cùng chỗ đứng = đường chạy chưa rời chỗ này trong shot này (không nối qua nhiều shot)
+    return sp if sp is not None and sp.get("name") != here else None
 
 
 def _prev_spot(conn, pid: int, scene_id: int, data: Dict, entry: Dict, here: str) -> Optional[Dict]:
@@ -90,16 +92,16 @@ def _prev_spot(conn, pid: int, scene_id: int, data: Dict, entry: Dict, here: str
     row = conn.execute("SELECT idx FROM scenes WHERE id=?", (scene_id,)).fetchone()
     if row is None:
         return None
-    rows = conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? AND idx<? ORDER BY idx DESC", (pid, row["idx"])).fetchall()
-    for r in rows:
-        d = json.loads(r["data"] or "{}")
-        if d.get("story_scene") != data.get("story_scene") or not d.get("continuous_with_next"):
-            return None
-        if data.get("sequence") is not None and d.get("sequence") != data.get("sequence"):
-            return None
-        sp = _spot(entry, d)
-        return sp if sp is not None and sp.get("name") != here else None   # chỉ shot TRƯỚC NGAY (như _next_spot)
-    return None
+    r = conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx<? ORDER BY idx DESC LIMIT 1", (pid, row["idx"])).fetchone()
+    if r is None:
+        return None
+    d = json.loads(r["data"] or "{}")
+    if d.get("story_scene") != data.get("story_scene") or not d.get("continuous_with_next"):
+        return None
+    if data.get("sequence") is not None and d.get("sequence") != data.get("sequence"):
+        return None
+    sp = _spot(entry, d)
+    return sp if sp is not None and sp.get("name") != here else None   # chỉ shot TRƯỚC NGAY (như _next_spot)
 
 
 def _relation(rec: Optional[Dict], a, b) -> Optional[str]:
@@ -132,7 +134,7 @@ def for_shot(conn, pid: int, scene_id: int, data: Dict, rec: Optional[Dict] = No
     if not _said(_MOVE, words):
         return out                                   # shot không di chuyển: không có hướng chạy để nói
     # VÀNG "không đủ dữ liệu" chỉ khi chữ shot thật sự nói đi LÊN / XUỐNG cầu thang / dốc (shot đứng trên bậc mà chạy ngang thì không)
-    slope_said = _said(_SLOPE_WORDS, words) and _said(_UPDOWN, words)
+    slope_said = _said(_UPDOWN, words)
     from . import assets, location_pack
     try:
         place = assets.scene_location(conn, pid, data)
@@ -165,7 +167,9 @@ def for_shot(conn, pid: int, scene_id: int, data: Dict, rec: Optional[Dict] = No
     if abs(dz) < MIN_RISE_M or (run > 0 and abs(dz) / run < MIN_GRADE):
         return out                                   # gần như phẳng: "lên/xuống" dễ sai, không viết
     up = dz > 0
-    stairs = bool(_STAIR_WORDS.search(f"{a.get('label') or ''} {b.get('label') or ''} {words}"))
+    # cầu thang: nhãn chỗ đứng 3D, hoặc chữ shot nói đi lên/xuống CẦU THANG (không lấy "steps" lẻ: "takes two steps" trên dốc ≠ cầu thang)
+    stairs = bool(_STAIR_WORDS.search(f"{a.get('label') or ''} {b.get('label') or ''}")) or any(
+        _STAIR_WORDS.search(m.group(0)) for m in _UPDOWN.finditer(words))
     who = next((str(n) for n in data.get("characters") or [] if str(n).strip()), "the character")
     way = ("UP the stairs" if up else "DOWN the stairs") if stairs else ("UPHILL" if up else "DOWNHILL")
     rel_words = {

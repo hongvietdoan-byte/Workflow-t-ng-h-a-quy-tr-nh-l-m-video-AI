@@ -1,0 +1,77 @@
+=== shot 1 (scene 302, job 936) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 5: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 6: storyboard (storyboard) sb_356dcc3ce36f
+  so job thật: GIỐNG nhãn
+  so sent_package thật: ảnh GIỐNG · câu HÌNH GIỐNG · câu khóa GIỐNG · câu hướng chạy thật=False giờ=False
+  prompt: I …
+=== shot 2 (scene 303, job 937) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 5: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 6: storyboard (storyboard) sb_49f9ca76775f
+  so job thật: GIỐNG nhãn
+  so sent_package thật: ảnh GIỐNG · câu HÌNH GIỐNG · câu khóa GIỐNG · câu hướng chạy thật=False giờ=False
+  prompt: I …
+=== shot 3 (scene 304, job 938) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 5: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 6: frame 1 (scene anchor) (previous_scene) job_937.png
+  Image 7: storyboard (storyboard) sb_49f9ca76775f
+  so job thật: GIỐNG nhãn
+  so sent_package thật: ảnh GIỐNG · câu HÌNH GIỐNG · câu khóa GIỐNG · câu hướng chạy thật=False giờ=False
+  prompt: I …
+=== shot 4 (scene 305, job 939) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 5: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 6: frame 1 (scene anchor) (previous_scene) job_937.png
+  Image 7: storyboard (storyboard) sb_49f9ca76775f
+  so job thật: GIỐNG nhãn
+  so sent_package thật: ảnh GIỐNG · câu HÌNH GIỐNG · câu khóa GIỐNG · câu hướng chạy thật=False giờ=False
+  diag warn side_truth: Trái/phải: kịch bản/shot ghi 'bên trái' — không quy đổi được trái/phải sang khung: shot không ghi máy sau lưng hay trước mặt nhân vật (angle / blocking / start_frame); ghi rõ máy sau lưng / trước mặt 
+  prompt: I …
+=== shot 5 (scene 306, job 940) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 5: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 6: frame 1 (scene anchor) (previous_scene) job_937.png
+  Image 7: storyboard (storyboard) sb_49f9ca76775f
+  so job thật: GIỐNG nhãn
+  so sent_package thật: ảnh GIỐNG · câu HÌNH GIỐNG · câu khóa GIỐNG · câu hướng chạy thật=False giờ=False
+  prompt: I …
+=== shot 6 (scene 307, job 941) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 5: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 6: frame 1 (scene anchor) (previous_scene) job_937.png
+  Image 7: storyboard (storyboard) sb_49f9ca76775f
+  so job thật: GIỐNG nhãn
+  so sent_package thật: ảnh GIỐNG · câu HÌNH GIỐNG · câu khóa GIỐNG · câu hướng chạy thật=False giờ=False
+  prompt: I …
+=== shot 7 (scene 308, job 942) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 5: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 6: frame 1 (scene anchor) (previous_scene) job_937.png
+  Image 7: storyboard (storyboard) sb_49f9ca76775f
+  so job thật: GIỐNG nhãn
+  so sent_package thật: ảnh GIỐNG · câu HÌNH GIỐNG · câu khóa GIỐNG · câu hướng chạy thật=False giờ=False
+  prompt: I …
+đã ghi C:/Users/HONGVI~1.DOA/AppData/Local/Temp/claude/D--AI-Video-Pipeline--claude-worktrees-thu-d6-oneshot-thap-dong-ho-050ff9/9d2dcbc4-b2e7-4b28-807a-866ea9d27604/scratchpad/r30_before.json

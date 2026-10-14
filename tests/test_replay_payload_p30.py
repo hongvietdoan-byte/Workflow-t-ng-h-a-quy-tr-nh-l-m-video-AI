@@ -172,6 +172,123 @@ class TravelTruthTest(P30Base):
         self.assertIn(got, travel_truth.kept_after_rewrite(assembled, "Kelly runs down the steps."))
 
 
+class ReviewFixesTest(P30Base):
+    """Rà 14/10 (agent rà khâu liên quan) — các lỗi tìm được sau bản sửa đầu."""
+
+    def glue(self):
+        return next(a for a in assets.project_assets(self.p.conn, self.pid) if a["id"] == self.fx["glue"]["id"])
+
+    def test_full_variant_phrase_wins_over_the_first_listed(self):
+        """'skin Gloowall OB56' also fits 'skin Gloowall OB55' by the 'skin + shared word' rule — the whole phrase wins."""
+        a = {"kind": "prop", "name": "Bom keo", "aliases": "Gloowall",
+             "images": [{"variant": "skin Gloowall OB55"}, {"variant": "skin Gloowall OB56"}]}
+        self.assertEqual(prop_lock.chosen_variant(a, "Kelly đặt tường keo skin Gloowall OB56"), "skin Gloowall OB56")
+        self.assertEqual(prop_lock.chosen_variant(a, "Kelly đặt tường keo skin Gloowall OB55"), "skin Gloowall OB55")
+
+    def test_image_fingerprint_carries_the_scene_form_only_when_there_is_one(self):
+        from core import lineage
+        c = self.p.conn
+        with mock.patch.dict(os.environ, {"FEATURE_PROJECT_PROP_LOCK": "1"}):
+            self.assertIsNotNone(lineage.forms_key(c, self.pid, self.shot(3)))          # glue shot: form from the scene script
+            self.assertNotEqual(lineage.image_key(c, self.pid, self.shot(3)), lineage.place_key(c, self.pid, self.shot(3)))
+            self.assertIsNone(lineage.forms_key(c, self.pid, self.shot(1)))              # no glue in the shot: unchanged
+            self.assertEqual(lineage.image_key(c, self.pid, self.shot(1)), lineage.place_key(c, self.pid, self.shot(1)))
+            c.execute("UPDATE story_scenes SET text='Kelly đặt bom keo, tường keo xuất hiện.' WHERE project_id=?", (self.pid,))
+            self.assertEqual(lineage.image_key(c, self.pid, self.shot(3)), lineage.place_key(c, self.pid, self.shot(3)))
+        c.execute("UPDATE story_scenes SET text=? WHERE project_id=?", (self.fx["story_scene"]["text"], self.pid))
+        with mock.patch.dict(os.environ, {"FEATURE_PROJECT_PROP_LOCK": "0"}):                # flag off: every hash as before
+            self.assertEqual(lineage.image_key(c, self.pid, self.shot(3)), lineage.place_key(c, self.pid, self.shot(3)))
+
+    def test_deployed_picture_follows_the_scene_form(self):
+        from core import skill_objects
+        a = self.glue()
+        pics = [{"path": "plain.png", "variant": None, "label": "triển khai"}, {"path": "skin.png", "variant": SKIN, "label": "triển khai"}]
+        rows = [{"id": self.ids[3], "data": self.shot(3)}]
+        with mock.patch.dict(os.environ, {"FEATURE_PROJECT_PROP_LOCK": "1"}):
+            got = skill_objects._by_form(self.p.conn, self.pid, rows, a, prop_lock.shot_text(self.shot(3)), pics)
+        self.assertEqual(got[0]["path"], "skin.png")
+        with mock.patch.dict(os.environ, {"FEATURE_PROJECT_PROP_LOCK": "0"}):            # no form known: order as before
+            got = skill_objects._by_form(self.p.conn, self.pid, rows, a, prop_lock.shot_text(self.shot(3)), pics)
+        self.assertEqual(got[0]["path"], "plain.png")
+
+    def test_hill_run_with_steps_word_is_uphill_not_stairs(self):
+        from core import travel_truth
+        spots = self.fx["model3d"]["spots"]
+        hill = dict(self.fx["model3d"], spots=dict(spots, bac_thang_giua=dict(spots["bac_thang_giua"], label="chân đồi"),
+                                                   dinh_bac_thang_giua=dict(spots["dinh_bac_thang_giua"], label="đỉnh đồi")))
+        self.p.conn.execute("UPDATE assets SET profile=? WHERE id=263", (json.dumps({"model3d": hill}),))
+        data = dict(self.shot(1), action="Kelly runs, takes a few quick steps", text="Kelly chạy nhanh", image_prompt="Kelly runs",
+                    blocking="")
+        got = travel_truth.for_shot(self.p.conn, self.pid, self.ids[1], data, self.rec(1))
+        self.assertIn("UPHILL", got["sentence"])
+        self.assertNotIn("stairs", got["sentence"])
+
+    def rec(self, idx):
+        return self.fx["plates"][str(self.fx["shots"][idx - 1]["scene_id"])]
+
+    def test_end_frame_gets_the_travel_sentence(self):
+        from core import end_frames
+        row = {"scene_id": self.ids[1], "project_id": self.pid}
+        with mock.patch("core.runner._travel_truth", return_value="Direction of travel (measured on the 3D map): X."), \
+                mock.patch("core.runner._side_truth", return_value=""):
+            self.assertIn("Direction of travel", end_frames._side_guard(self.p, row, "Kelly at the top.", self.data_dir))
+            self.assertEqual(end_frames._side_guard(self.p, row, "Kelly at the top."), "Kelly at the top.")
+
+
+class MannequinTest(P30Base):
+    """14/10 (người dùng duyệt): Kho #367 3.png = tường keo skin thang máy + hình nộm xám so cỡ — hình nộm chỉ là thước đo."""
+
+    def test_mannequin_picture_gets_its_size_guide_sentence(self):
+        from core import skill_objects
+        path = self._png("3.png")
+        self.p.conn.execute("INSERT INTO asset_images (asset_id, path, label, sort, status, variant) VALUES (?,?,?,?,?,?)",
+                            (self.fx["glue"]["id"], path, "triển khai có hình nộm so cỡ", -1, "approved", SKIN))
+        refs = [{"path": self._png("plate.png")}, {"path": self.glue_paths[0]}, {"path": path}]
+        with mock.patch.dict(os.environ, {"FEATURE_SKILL_OBJECT_GUARD": "1"}):
+            out = skill_objects.mannequin_note(self.p.conn, self.pid, "Scene: Kelly.", refs)
+        self.assertIn("The grey mannequin in Image 3 is only a size guide (an adult of about 1.75 m)", out)
+        self.assertIn("never draw the mannequin", out)
+        self.assertNotIn("Image 2 is only", out)                           # the plain deployed picture: no mannequin sentence
+        with mock.patch.dict(os.environ, {"FEATURE_SKILL_OBJECT_GUARD": "0"}):
+            self.assertEqual(skill_objects.mannequin_note(self.p.conn, self.pid, "Scene: Kelly.", refs), "Scene: Kelly.")
+        self.assertIn("mannequin in Image 5", skill_objects.deployed_line(5, "Bom keo", mannequin=True))
+        self.assertNotIn("mannequin", skill_objects.deployed_line(5, "Bom keo"))
+        self.assertFalse(skill_objects.is_mannequin_image({"label": "triển khai", "path": "x/hinh.png"}))   # whole words only
+
+    def test_glue_shape_size_matches_the_sample(self):
+        from core import skill_objects
+        shape = skill_objects.SHAPE["glue"]
+        self.assertIn("about 1.3 times their height, about 2.3 m", shape)
+        self.assertIn("about 4 m wide — about 2.3 times their height", shape)
+        self.assertIn("two ends bend back toward the person who threw it", shape)
+
+
+class ReplayCompareTest(unittest.TestCase):
+    def test_env_flags_reads_only_feature_lines(self):
+        from tools.replay_payload import env_flags
+        tmp = tempfile.mkdtemp()
+        try:
+            path = os.path.join(tmp, "dashboard.env")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("ANTHROPIC_API_KEY=sk-secret\nFEATURE_SKILL_OBJECT_GUARD=1  # bật\n# FEATURE_X=1\nCLIPAI_TOKEN=t\nFEATURE_A=0\n")
+            self.assertEqual(env_flags(path), {"FEATURE_SKILL_OBJECT_GUARD": "1", "FEATURE_A": "0"})
+            self.assertEqual(env_flags(os.path.join(tmp, "none.env")), {})
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_compare_with_the_real_package(self):
+        from core import skill_objects
+        from tools.replay_payload import compare
+        shape = skill_objects.SHAPE["glue"]
+        real = {"prompt": "Scene: x. Prop lock: Bom keo in this shot — tường keo màu TRẮNG; keep. " + shape,
+                "refs": [{"file": "plate.png"}, {"file": "10.png"}]}
+        same = compare(json.dumps(real), real["prompt"], [{"file": "plate.png"}, {"file": "10.png"}, {"file": "sb", "role": "storyboard"}])
+        self.assertTrue(same["shape_same"] and same["prop_lock_same"] and same["refs_same"])
+        diff = compare(real, "Scene: x. Prop lock: Bom keo in this shot — skin Gloowall; keep.", [{"file": "plate.png"}])
+        self.assertFalse(diff["shape_same"] or diff["prop_lock_same"] or diff["refs_same"])
+        self.assertIsNone(compare(None, "x", []))
+
+
 class ReplayGuardTest(unittest.TestCase):
     def test_writes_under_real_data_are_blocked(self):
         from tools.replay_payload import WriteGuard

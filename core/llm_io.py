@@ -933,7 +933,7 @@ def insert_scene_after(pipeline: Pipeline, project_id: int, after_idx: int, fiel
                 new["formula_check"] = fc
             if new == d and title == r["title"] and mp_new == mp_old:
                 continue
-            place = lineage.place_key(conn, project_id, d)
+            place = lineage.image_key(conn, project_id, d)       # rà 14/10: + prop forms from the scene script (when any)
             olds = {lineage._image_hash(d, cast_rows, aspect, proj): lineage._image_hash(new, cast_rows, aspect, proj),
                     lineage._image_hash(d, cast_rows, aspect, proj, place): lineage._image_hash(new, cast_rows, aspect, proj, place)}
             for j in conn.execute("SELECT id, input_hash FROM jobs WHERE scene_id=? AND type='image_gen' AND input_hash IS NOT NULL",

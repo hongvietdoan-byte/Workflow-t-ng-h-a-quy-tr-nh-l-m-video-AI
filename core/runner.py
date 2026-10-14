@@ -1886,6 +1886,7 @@ class VideoRunner(_Runner):
         # 14/10: trái/phải nhân vật → khung (cờ side_truth; tắt → ""). Kling multishot sends each shot's own prompt, not `motion`
         multishot = bool(group) and shots.mode(proj) == "multishot" and not self._refs(job)
         side = "" if multishot else _side_truth(self, job, group, quiet=True)
+        travel = "" if multishot else _travel_truth(self, job, group, quiet=True)   # 14/10 #30: hướng chạy theo độ cao 3D (tắt → "")
         if secs and not setup and self._refs(job):
             from . import seedance_refs
             rows = self._ref_rows(job, group)
@@ -1904,6 +1905,7 @@ class VideoRunner(_Runner):
             motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model, places=places,
                                                        scales=_object_scales(conn, job["project_id"], rows),
                                                        reserve=(len(block) + 1 if block else 0) + (len(side) + 1 if side else 0)
+                                                       + (len(travel) + 1 if travel else 0)
                                                        + len(self._ref_end_sentence(job, group, len(rows) + len(ids) + len(places))) + 1
                                                        + _skill_reserve(conn, job["project_id"],
                                                                         _reserve_text(parts, ids, places, model_fix(job["retry_reason"])))))
@@ -1937,7 +1939,6 @@ class VideoRunner(_Runner):
             else:                                       # never a prompt_too_long failure for it — said, not silent
                 say_side(job, "warn", "side_truth", f"Trái/phải: KHÔNG thêm câu quy đổi vào prompt video (prompt {len(motion)} + câu "
                                                     f"{len(side)} > trần {cap} ký tự) — " + side)
-        travel = "" if multishot else _travel_truth(self, job, group, quiet=True)   # 14/10 #30: hướng chạy theo độ cao 3D
         if travel:
             from .adapters.clipai import PROMPT_LIMITS as _LIMITS
             from . import side_truth
@@ -3494,6 +3495,8 @@ class ImageRunner(_Runner):
                     + " — sửa gói tham chiếu trước gen; model chỉ nhận mô tả chữ" if missing else f"job {job['id']}: gói gửi cuối không thiếu ảnh khóa")
         prompt = prop_lock.match_refs(prompt, refs)
         prompt = _skill_object_guard(self, job, prompt, "ảnh")          # lỗi hệ thống 3 (cờ skill_object_guard)
+        from . import skill_objects                    # 14/10: a Kho picture with a size-guide mannequin → "never draw the mannequin"
+        prompt = skill_objects.mannequin_note(self.p.conn, job["project_id"], prompt, refs)
         from . import side_truth
         prompt = side_truth.append(prompt, _side_truth(self, job))       # 14/10: trái/phải nhân vật → khung (cờ side_truth)
         if lost and hasattr(self, "_diag"):

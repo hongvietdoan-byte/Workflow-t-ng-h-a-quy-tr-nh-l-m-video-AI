@@ -68,7 +68,7 @@ FORBID = ("{names} is a solid skill object standing on the ground, not part of a
 # 3–4 lần bề ngang vai — người đứng giữa lòng cong vẫn còn chỗ hai bên), dày như một khối tường đặc.
 SHAPE = {"glue": ("The glue wall is a curved arc, not a flat slab: its two ends bend back toward the person who threw it, wrapping around "
                   "them, and its outer convex face points forward, toward the enemy. Size: a little taller than a standing person (about "
-                  "1.2 times their height, about 2 m) and about 4 m wide — three to four times their shoulder width, so a person standing "
+                  "1.3 times their height, about 2.3 m) and about 4 m wide — about 2.3 times their height, so a person standing "
                   "in the middle of its curve has free space on both sides; thick like a solid wall block.")}
 
 # rà S2 13/10 mục 2 (người dùng 21:31: tường keo XUẤT HIỆN LUÔN): the words that describe the object GROWING, in a sentence about it.
@@ -322,9 +322,52 @@ def deployed_marker(text: str) -> Optional[int]:
     return int(m.group(1)) if m else None
 
 
-def deployed_line(number: int, name: str) -> str:
-    return (f"Image {number} is the DEPLOYED {name} as it stands once it has appeared: copy its shape, height and skin; the surface "
-            f"pattern of Image {number} is printed decoration on one solid block.")
+def deployed_line(number: int, name: str, mannequin: bool = False) -> str:
+    out = (f"Image {number} is the DEPLOYED {name} as it stands once it has appeared: copy its shape, height and skin; the surface "
+           f"pattern of Image {number} is printed decoration on one solid block.")
+    return out + " " + mannequin_line(number) if mannequin else out
+
+
+# 14/10 (người dùng duyệt): ảnh triển khai có HÌNH NỘM xám đứng trước để so cỡ (Kho #367 3.png) — hình nộm chỉ là thước đo, không vẽ
+_MANNEQUIN = ("hinh nom", "mannequin", "manequin")
+_MANNEQUIN_PATHS: Dict[str, bool] = {}       # deployed_pictures: path → its Kho picture says mannequin (label / variant / file name)
+
+
+def mannequin_line(number: int) -> str:
+    return (f"The grey mannequin in Image {number} is only a size guide (an adult of about 1.75 m): copy the wall's size relative "
+            "to it, never draw the mannequin.")
+
+
+def is_mannequin_image(img: Dict) -> bool:
+    """The Kho picture's label / variant / file name says 'hình nộm' / 'mannequin' (accents ignored, whole words)."""
+    from . import assets
+    words = " " + assets.fold(" ".join(str(img.get(k) or "") for k in ("label", "variant")) + " "
+                              + os.path.splitext(os.path.basename(str(img.get("path") or "")))[0].replace("_", " ")) + " "
+    return any(" " + w + " " in words for w in _MANNEQUIN)
+
+
+def _norm_path(path) -> str:
+    from . import assets
+    try:
+        return os.path.normcase(os.path.abspath(assets.resolve(str(path)) or str(path)))
+    except Exception:  # noqa: BLE001 - an odd path is just not a mannequin picture
+        return str(path)
+
+
+def mannequin_note(conn, project_id: Optional[int], text: str, refs: Sequence[Dict]) -> str:
+    """Prompt ảnh (flag skill_object_guard): each sent picture (refs, numbered from 1) that is a Kho picture of a skill object with a
+    size-guide mannequin → its mannequin sentence. Unchanged when off / none."""
+    if not enabled() or not refs:
+        return text
+    pics = {_norm_path(i.get("path")): i for a in skill_assets(conn, project_id) for i in a.get("images") or [] if is_mannequin_image(i)}
+    if not pics:
+        return text
+    for n, r in enumerate(refs, 1):
+        if _norm_path(r.get("path")) in pics:
+            line = mannequin_line(n)
+            if line not in (text or ""):
+                text = (text or "").rstrip() + " " + line
+    return text
 
 
 def deployed_images(asset: Dict) -> List[Dict]:
@@ -349,9 +392,27 @@ def deployed_pictures(conn, project_id: Optional[int], rows: Sequence[Dict]) -> 
     out = []
     for a in skill_assets(conn, project_id):
         pics = deployed_images(a) if a["name"] in named else []
+        if len(pics) > 1:          # rà 14/10: the skin the shot / its scene script gives (prop_lock.variant_source) goes first
+            pics = _by_form(conn, project_id, rows, a, text, pics)
         if pics and os.path.exists(pics[0]["path"]):
             out.append((a["name"], pics[0]["path"]))
+            _MANNEQUIN_PATHS[_norm_path(pics[0]["path"])] = is_mannequin_image(pics[0])
     return out
+
+
+def _by_form(conn, project_id: Optional[int], rows: Sequence[Dict], asset: Dict, text: str, pics: List[Dict]) -> List[Dict]:
+    """The DEPLOYED pictures ordered by the form of the shot (variant_source: shot words, else the scene script's one form): that
+    variant first; no form said → the order as before (unchanged behaviour). Never drops a picture (an object with only skin
+    pictures still sends one, as before)."""
+    from . import prop_lock
+    if not prop_lock.enabled():        # the form lock is off: as before (the first DEPLOYED picture)
+        return pics
+    v = None
+    for r in rows or [{}]:
+        v = prop_lock.variant_source(conn, project_id, r.get("data") or {}, asset, text)[0]
+        if v:
+            break
+    return sorted(pics, key=lambda i: str(i.get("variant") or "").strip() != v) if v else pics
 
 
 def skin_sentence(items: Sequence[Dict], text: str, removed: Sequence[str], shown: Optional[int]) -> str:

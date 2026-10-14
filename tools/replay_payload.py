@@ -8,6 +8,8 @@ logic song song. Cách chạy an toàn trên dữ liệu thật (CSDL lưu đư�
   - thư mục thử tạm (scratch): data/manifest.sqlite = BẢN SAO (sqlite backup từ kết nối chỉ đọc), data/feature_settings.json = bản sao
     (D6 `chat_prompts` luôn TẮT → chỉ bản code ghép, không gọi Claude), data/projects/<pid> = bản sao thư mục dự án;
   - junction data/assets, data/_plates3d → bản chính (chỉ đọc); cwd = thư mục thử; PIPELINE_DB / FEATURE_SETTINGS_FILE trỏ bản sao;
+  - cờ FEATURE_ của <main>/dashboard.env chép vào env (chỉ dòng FEATURE_, như Dashboard chạy; --no-env bỏ) — --flag thắng;
+  - so với jobs.sent_package thật: ảnh (nhãn, file), câu khóa đạo cụ, câu HÌNH vật kỹ năng, câu hướng chạy;
   - provider giả (không có hàm gửi); mọi lệnh MỞ GHI / tạo / xóa / đổi tên dưới `<main>/data` bị CHẶN (PermissionError);
   - xong: gỡ junction bằng os.rmdir (không theo link) rồi mới xóa thư mục thử.
 In ra từng shot: ảnh gửi (Image N, nhãn, vai, file, mã mục Kho), so với `jobs.sent_refs` thật của job gần nhất, các diag, prompt.
@@ -113,6 +115,56 @@ def _unlink_dir(link: str) -> None:
             os.unlink(link)
 
 
+def env_flags(path: str) -> dict:
+    """{FEATURE_X: giá trị} — CHỈ các dòng FEATURE_ của dashboard.env máy chính (cờ bật bằng env, vd skill_object_guard trên máy
+    khác); không đọc dòng nào khác (khóa API ở cùng file không bao giờ được lấy)."""
+    out = {}
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            for line in f:
+                line = line.strip()
+                if not line.startswith("FEATURE_") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                k = k.strip()
+                if k.replace("_", "").isalnum():
+                    out[k] = v.split("#", 1)[0].strip().strip('"').strip("'")
+    except OSError:
+        return {}
+    return out
+
+
+_PROP_LOCK_RX = None
+
+
+def _key_sentences(prompt: str) -> dict:
+    """Các câu chính để so gói dựng lại với gói gửi thật: câu khóa đạo cụ (Prop lock), câu HÌNH vật kỹ năng (skill_objects.SHAPE),
+    câu hướng chạy (travel_truth)."""
+    import re
+    global _PROP_LOCK_RX
+    if _PROP_LOCK_RX is None:
+        _PROP_LOCK_RX = re.compile(r"Prop lock: [^;]*")
+    from core import skill_objects
+    shapes = [k for k, v in getattr(skill_objects, "SHAPE", {}).items() if v[:60] in (prompt or "")]
+    return {"prop_lock": _PROP_LOCK_RX.findall(prompt or ""), "shape": shapes,
+            "travel": "Direction of travel (measured on the 3D map):" in (prompt or "")}
+
+
+def compare(real_pkg, prompt: str, refs: list) -> dict:
+    """So gói dựng lại với jobs.sent_package thật (một job): câu chính + danh sách ảnh (nhãn, tên file). None khi job không có gói."""
+    if not real_pkg:
+        return None
+    pkg = json.loads(real_pkg) if isinstance(real_pkg, str) else real_pkg
+    real_k, now_k = _key_sentences(pkg.get("prompt") or ""), _key_sentences(prompt)
+    # theo tên file theo thứ tự (nhãn trong gói ghi khác: ảnh rộng mang tên nơi chốn); storyboard Deepix đi tham số riêng, không ở refs
+    real_refs = [r.get("file") for r in pkg.get("refs") or []]
+    now_refs = [r.get("file") for r in refs or [] if r.get("role") != "storyboard"]
+    return {"shape_same": real_k["shape"] == now_k["shape"], "shape_real": real_k["shape"], "shape_now": now_k["shape"],
+            "prop_lock_same": real_k["prop_lock"] == now_k["prop_lock"], "prop_lock_real": real_k["prop_lock"],
+            "prop_lock_now": now_k["prop_lock"], "travel_real": real_k["travel"], "travel_now": now_k["travel"],
+            "refs_same": real_refs == now_refs, "refs_real": real_refs, "refs_now": now_refs}
+
+
 def build_sandbox(main: str, pid: int, work: str, flags: dict) -> dict:
     """Thư mục thử: bản sao CSDL + cài đặt cờ + thư mục dự án; junction assets/_plates3d. Trả {db, settings, data_dir, links}."""
     real = os.path.join(main, "data")
@@ -199,6 +251,7 @@ def replay(conn, pid: int, data_dir: str, shot=None) -> list:
         getattr(runner, "_storyboard", {}).pop(job["id"], None)
         out.append({"idx": r["idx"], "scene_id": r["id"], "job_id": job["id"], "refs": refs,
                     "real_sent": json.loads(real["sent_refs"] or "[]") if real and real["sent_refs"] else None,
+                    "vs_package": compare(real["sent_package"] if real and "sent_package" in real.keys() else None, prompt, refs),
                     "prompt": prompt, "diags": [n[1:] for n in notes[before:]]})
     return out
 
@@ -217,6 +270,14 @@ def _print(results: list, width: int) -> None:
             now = [r["label"] for r in s["refs"]]
             was = [r.get("label") for r in s["real_sent"]]
             print("  so job thật:", "GIỐNG nhãn" if now == was else f"KHÁC — thật {was}")
+        v = s.get("vs_package")
+        if v is not None:
+            print("  so sent_package thật:", "ảnh " + ("GIỐNG" if v["refs_same"] else "KHÁC"),
+                  "· câu HÌNH " + ("GIỐNG" if v["shape_same"] else f"KHÁC (thật {v['shape_real']}, giờ {v['shape_now']})"),
+                  "· câu khóa " + ("GIỐNG" if v["prop_lock_same"] else "KHÁC"),
+                  "· câu hướng chạy " + f"thật={v['travel_real']} giờ={v['travel_now']}")
+            if not v["prop_lock_same"]:
+                print("    khóa thật:", v["prop_lock_real"], "\n    khóa giờ:", v["prop_lock_now"])
         for sev, code, msg in s["diags"]:
             if sev != "info":
                 print(f"  diag {sev} {code}: {msg[:200]}")
@@ -232,6 +293,7 @@ def main(argv=None) -> int:
     ap.add_argument("--json", help="ghi kết quả đầy đủ ra file JSON (ngoài data/ thật)")
     ap.add_argument("--width", type=int, default=0, help="cắt prompt in ra màn hình (0 = in đủ)")
     ap.add_argument("--keep", action="store_true", help="giữ thư mục thử (junction vẫn được gỡ)")
+    ap.add_argument("--no-env", dest="no_env", action="store_true", help="không chép cờ FEATURE_ từ <main>/dashboard.env")
     a = ap.parse_args(argv)
     flags = {}
     for f in a.flag:
@@ -239,12 +301,17 @@ def main(argv=None) -> int:
         flags[k.strip()] = v.strip().lower() in ("1", "on", "true", "yes")
     main_dir = os.path.abspath(a.main)
     work = tempfile.mkdtemp(prefix=f"replay_p{a.project}_")
-    old_cwd, old_env = os.getcwd(), {k: os.environ.get(k) for k in ("PIPELINE_DB", "FEATURE_SETTINGS_FILE")}
+    envf = {} if a.no_env else env_flags(os.path.join(main_dir, "dashboard.env"))   # cờ FEATURE_ máy chính, như Dashboard chạy
+    for k, v in flags.items():                       # --flag thắng dashboard.env (ghi cả hai nơi)
+        envf["FEATURE_" + k.upper()] = "1" if v else "0"
+    old_cwd = os.getcwd()
+    old_env = {k: os.environ.get(k) for k in ("PIPELINE_DB", "FEATURE_SETTINGS_FILE", *envf)}
     box = None
     try:
         box = build_sandbox(main_dir, a.project, work, flags)
         os.environ["PIPELINE_DB"] = box["db"]
         os.environ["FEATURE_SETTINGS_FILE"] = box["settings"]
+        os.environ.update(envf)
         os.chdir(work)
         conn = sqlite3.connect(box["db"])
         conn.row_factory = sqlite3.Row
