@@ -55,6 +55,8 @@ class StoryBriefTests(unittest.TestCase):
 
     def test_after_a_render_the_score_follows_the_render(self):
         from core import delivery
+        from tests._flags import flags_off
+        flags_off(self, "music_story_arc")          # 14/10: ON by default now — this is the per-scene brief (arc off: one turn per scene)
         p, pid, ids = project()
         planned = music_timing.timed_brief(p, pid)
         self.assertEqual(planned["film_s"], 24.0)
