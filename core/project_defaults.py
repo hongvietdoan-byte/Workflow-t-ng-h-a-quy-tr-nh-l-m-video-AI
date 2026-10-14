@@ -10,6 +10,7 @@ import json
 from typing import Dict, List
 
 INHERIT = ("shot_mode", "look", "style_profile", "image_model", "render_settings", "qc_policy")
+# 14/10: `pacing` (nhịp nhanh, core/pacing.py) is a trial of ONE project — deliberately not here: a new project starts normal
 # 14/10 tập 2 (#31): render_settings also hold one story's own marks (music_start / music2_start, end_popup, end_card, exports) —
 # a new story takes only the way of cutting; its marks are set again for its own film
 RENDER_WAY = ("transition", "fade", "music_volume", "beat_pulse", "keep_audio", "exports")

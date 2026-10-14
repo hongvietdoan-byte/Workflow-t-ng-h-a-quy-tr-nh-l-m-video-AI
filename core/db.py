@@ -846,7 +846,8 @@ V2_COLUMNS = {
                  ("director_intent_raw", "TEXT"),     # GĐ5 two-pass Director: Tầng A answer + every Tầng B scene answer (paid, kept)
                  ("look", "TEXT"),                    # ANIME | FF_INGAME (core/looks.py): the picture look, apart from the editing style
                  ("image_model", "TEXT"),             # Deepix picture model of the project (core/image_models.py); NULL = default
-                 ("dialogue_trim", "INTEGER NOT NULL DEFAULT 0")),   # 1 = the Director may drop lines (never add / reword)
+                 ("dialogue_trim", "INTEGER NOT NULL DEFAULT 0"),    # 1 = the Director may drop lines (never add / reword)
+                 ("pacing", "TEXT")),                 # 14/10: NULL / 'normal' = y cũ; 'fast' = nhịp nhanh ít khoảng lặng (core/pacing.py)
     "characters": (("lock_rules", "TEXT"), ("voice_profile", "TEXT"), ("anchor_approved", "INTEGER NOT NULL DEFAULT 0"),
                    ("user_edited", "TEXT"),
                    ("bible_check", "TEXT"),

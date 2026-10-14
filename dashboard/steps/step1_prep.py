@@ -220,7 +220,24 @@ def project_format_panel(p: Pipeline, pid: int) -> None:
         elif new_prio != prio:
             p.set_project_field(pid, "model_priority", new_prio)
             st.rerun()
+        pacing_control(p, pid, proj)
         shot_format_controls(p, pid, proj)
+
+
+def pacing_control(p: Pipeline, pid: int, proj) -> None:
+    """14/10: nhịp phim của dự án (core/pacing.py) — chỉ dự án này, dự án mới không kế thừa."""
+    from core import pacing
+    modes = list(pacing.MODES)
+    cur = pacing.of(proj)
+    new = st.radio("⏱ Nhịp phim", modes, index=modes.index(cur), horizontal=True, key=f"fmt_pacing_{pid}",
+                   format_func=lambda m: pacing.MODES[m],
+                   help="Nhanh: Đạo diễn + Biên kịch được hướng dẫn cho shot bám lời dẫn (≈ thời gian đọc + ≤ 0,3 s), shot trung vị "
+                        "1,5–3 s, chuyển cảnh ở cuối câu / gối tiếng; sau Đạo diễn code báo vàng chỗ không lời > 1 s; khi dựng câu sau "
+                        "cách câu trước ≤ 0,25 s và lặng cuối shot có lời > 0,5 s bị cắt. Chỉ áp cho dự án này (dự án mới về Bình thường). "
+                        "Đổi sau khi đã chia shot: chạy lại Đạo diễn mới đổi kế hoạch shot; phần dựng áp ngay lần ghép tới.")
+    if new != cur:
+        p.set_project_field(pid, "pacing", None if new == pacing.DEFAULT else new)
+        st.rerun()
 
 
 def image_model_control(p: Pipeline, pid: int, proj) -> None:
