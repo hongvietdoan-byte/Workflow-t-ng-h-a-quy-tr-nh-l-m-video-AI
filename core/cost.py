@@ -170,14 +170,16 @@ def estimate_images(pipeline: Pipeline, project_id: int, pricing: Dict, model: s
     ends = pending_end_frames(pipeline, project_id)
     from . import scene_establish
     wide = scene_establish.pending(pipeline.conn, project_id, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "projects"))
-    n = pending_image_units(pipeline, project_id) + ends + wide
+    shots = pending_image_units(pipeline, project_id)
+    n = shots + ends + wide
     price = _number(pricing["per_image"].get(model))
+    d6 = chat_prompt_estimate(pipeline.conn, shots, pricing)   # 14/10: D6 rewrites each shot picture's prompt before sending (flag)
     max_retry = pipeline.project(project_id)["max_retry_count"]
     from . import money_policy                  # S14.16: a missing price is shown as a high estimate (never left out)
     over = price if price is not None else money_policy.estimate("image", model, None, 1, pricing)["usd"]
     result = {"kind": "image", "items": n, "seconds": 0, "unit_price": price, "known": price is not None, "unit_over": over,
-              "currency": pricing["currency"], "max_retry": max_retry, "end_frames": ends, "establishing": wide}
-    result.update(_range(None if price is None else price * n, max_retry))
+              "currency": pricing["currency"], "max_retry": max_retry, "end_frames": ends, "establishing": wide, "chat_prompt": d6}
+    result.update(_range(None if price is None else price * n + d6, max_retry))
     return result
 
 
@@ -204,10 +206,11 @@ def estimate_videos(pipeline: Pipeline, project_id: int, pricing: Dict, model: s
     price = video_unit_price(pricing, model, tier)
     max_retry = pipeline.project(project_id)["max_retry_count"]
     prices = [clip_price(pricing, model, tier, d) for d in pending["durations"]]
-    base = None if any(x is None for x in prices) else sum(prices)
+    d6 = chat_prompt_estimate(pipeline.conn, pending["clips"], pricing)       # 14/10: D6 before each clip sent (flag chat_prompts)
+    base = None if any(x is None for x in prices) else sum(prices) + d6
     result = {"kind": "video", "items": pending["clips"], "seconds": pending["seconds"], "model": model, "tier": tier,
               "unit_price": price, "known": base is not None or pending["clips"] == 0,
-              "currency": pricing["currency"], "max_retry": max_retry}
+              "currency": pricing["currency"], "max_retry": max_retry, "chat_prompt": d6}
     result.update(_range(base if base is not None else (0.0 if pending["clips"] == 0 else None), max_retry))
     return result
 
@@ -245,9 +248,11 @@ def estimate_videos_by_scene(pipeline: Pipeline, project_id: int, pricing: Dict)
         models[choice["model"]] = models.get(choice["model"], 0) + n
         base = None if base is None or price is None else base + price * n
     max_retry = pipeline.project(project_id)["max_retry_count"]
+    d6 = chat_prompt_estimate(conn, items, pricing)                          # 14/10: D6 before each clip sent (flag chat_prompts)
+    base = None if base is None else base + d6
     result = {"kind": "video", "items": items, "seconds": seconds, "model": ", ".join(f"{m}×{n}" for m, n in models.items()) or "-",
               "tier": "theo cảnh", "unit_price": None, "known": base is not None or items == 0, "currency": pricing["currency"],
-              "max_retry": max_retry, "hero_takes": len(hero)}
+              "max_retry": max_retry, "hero_takes": len(hero), "chat_prompt": d6}
     result.update(_range(base if base is not None else (0.0 if items == 0 else None), max_retry))
     return result
 
@@ -334,6 +339,26 @@ def rewrite_estimate(conn, n_images: int, n_clips: int, img_cap: int, vid_cap: i
     return one * (n_images + n_clips), one * (n_images * (1 + img_cap) + n_clips * (1 + vid_cap))
 
 
+D6_FIX_SHARE = 1.0        # 14/10 việc 4: tính dư — mỗi lượt D6 có thể cần thêm 1 lượt sửa (core/chat_prompt.MAX_FIX_TURNS = 1)
+
+
+def chat_prompt_estimate(conn, sends: int, pricing: Optional[Dict] = None, unknown: Optional[list] = None) -> float:
+    """D6 (flag chat_prompts): USD of the Claude rewrite made right before each picture / clip is SENT (core/chat_prompt.rewrite) —
+    priced at its real worst: per send = one call (measured average of the chat_prompt ledger, else the table with MAX_IMAGES pictures)
+    × (1 + D6_FIX_SHARE: its possible fix turn) — no extra margin on top (the fix turn already is the high side). 0 when the flag is off
+    (nothing changes). Người dùng 14/10: the gen button said 0,36 USD for 7 pictures while D6 added ≈ 0,36 more."""
+    from . import features
+    if sends <= 0 or not features.on("chat_prompts"):
+        return 0.0
+    from .chat_prompt import MAX_IMAGES, STAGE
+    one = llm_call_usd(conn, STAGE, pricing, images=MAX_IMAGES, ledger_stage=STAGE)
+    if one is None:
+        if unknown is not None:
+            unknown.append(f"Claude {llm_model()} (D6)")
+        return 0.0
+    return one * (1 + D6_FIX_SHARE) * sends
+
+
 def llm_call_usd(conn, stage: str, pricing: Optional[Dict] = None, images: int = 0, ledger_stage: Optional[str] = None) -> Optional[float]:
     """USD of ONE Claude call of this kind: the measured average of that stage's recorded calls (usage_events, kind llm) when there
     are some, else LLM_STAGE_TOKENS + `images` pictures. None when the model has no price in per_million_tokens."""
@@ -415,14 +440,17 @@ def _over_tag(est: Dict, what: str = "", extra: float = 0.0) -> str:
     return f" · {what}≈ {usd:.2f} USD (ước tính)"
 
 
-def image_button_tag(model: Optional[str], count: int = 1, pricing: Optional[Dict] = None, retake_conn=None) -> str:
+def image_button_tag(model: Optional[str], count: int = 1, pricing: Optional[Dict] = None, retake_conn=None, shot: bool = False) -> str:
     """S14.2 A2: price text for a button that sends `count` pictures of `model` — the money gate's high estimate (money_policy).
-    `retake_conn`: a retake — the Director's prompt rewrite before it (S14.17, flag director_rewrite) is added."""
+    `retake_conn`: a retake — the Director's prompt rewrite before it (S14.17, flag director_rewrite) is added.
+    `shot`: a SHOT picture (runner _finish_args) — D6's rewrite before it (flag chat_prompts, chat_prompt_estimate) is added."""
     if count <= 0:
         return ""
     from . import money_policy
     extra = (_memo(retake_conn, ("rewrite", id(retake_conn), count),
                    lambda: rewrite_estimate(retake_conn, count, 0, 0, 0, pricing)[0]) if retake_conn is not None else 0.0)
+    if shot:
+        extra += chat_prompt_estimate(retake_conn, count, pricing)
     return _over_tag(money_policy.estimate("image", model, None, count, pricing), extra=extra)
 
 
@@ -436,7 +464,8 @@ def video_button_tag(conn, scene_ids, pricing: Optional[Dict] = None, seconds: O
     vals = [clip_estimate(conn, sid, pricing, secs) for sid, secs in _group_clips(conn, ids, seconds or {})]
     if any(v is None for v in vals):
         return f" · {len(vals)} clip, chưa có giá"
-    return f" · {len(vals)} clip ≈ {sum(vals):.2f} USD (ước tính)"
+    d6 = chat_prompt_estimate(conn, len(vals), pricing)      # 14/10: D6 before each clip sent (flag chat_prompts; off → 0)
+    return f" · {len(vals)} clip ≈ {sum(vals) + d6:.2f} USD (ước tính" + (f", gồm D6 ≈ {d6:.2f}" if d6 else "") + ")"
 
 
 def _group_clips(conn, ids, seconds: Dict) -> List:
@@ -836,13 +865,19 @@ def _estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] =
     img_cap, vid_cap = min(retry, AUTO_REGEN_LIMIT["image_gen"]), min(retry, AUTO_REGEN_LIMIT["video_gen"])
     rewrite, rewrite_max = rewrite_estimate(conn, img["items"], len(todo), img_cap, vid_cap, pricing, unknown)
     llm_usd += rewrite
+    # 14/10 việc 4: D6 (flag chat_prompts) — one rewrite (+ its possible fix turn) before each shot picture and each clip sent; every
+    # automatic remake is sent again, so the worst case repeats it per take. Off → 0 (nothing changes).
+    d6_img = chat_prompt_estimate(conn, max(0, img["items"] - img.get("end_frames", 0) - img.get("establishing", 0)), pricing, unknown)
+    d6_vid = chat_prompt_estimate(conn, len(todo) + remaining_final["clips"], pricing, unknown)
+    llm_usd += d6_img + d6_vid
     base = (img_usd or 0.0) + vid_usd + llm_usd
-    worst = (img_usd or 0.0) * (1 + img_cap) + vid_usd * (1 + vid_cap) + (llm_usd - rewrite) * (1 + img_cap) + rewrite_max
+    worst = ((img_usd or 0.0) * (1 + img_cap) + vid_usd * (1 + vid_cap) + (llm_usd - rewrite - d6_img - d6_vid) * (1 + img_cap)
+             + rewrite_max + d6_img * (1 + img_cap) + d6_vid * (1 + vid_cap))
     from . import budget
     b = budget.status(conn) if budget.get(conn).get("enabled") else None
     llm_left = b["llm_left"] if b and b["llm_usd"] > 0 else None
     return {"images": img_usd, "videos": round(vid_usd, 2), "llm": round(llm_usd, 2), "total": round(base, 2), "max": round(worst, 2),
-            "rewrite": round(rewrite, 3), "trainee": round(trainee_usd, 2),
+            "rewrite": round(rewrite, 3), "chat_prompt": round(d6_img + d6_vid, 3), "trainee": round(trainee_usd, 2),
             "llm_left": llm_left, "warnings": warnings, "unknown": sorted(set(unknown)),
             "incomplete": bool(unpriced), "unpriced": sorted(set(unpriced)), "counts": {"images": img["items"], "end_frames": img.get("end_frames", 0),
                                                         "clips": len(todo) + remaining_final["clips"], "seconds": sum(r["billed_seconds"] for r in todo) + remaining_final["seconds"],
@@ -879,8 +914,10 @@ def format_estimate(est: Dict) -> str:
         over = est.get("unit_over")
         return head + " — chưa có giá trong data/pricing.json" + (
             f"; ước tính dư ≈ {over * est['items']:.2f} USD (giá cao nhất đã biết × 1,5)" if over is not None else "")
+    d6 = est.get("chat_prompt") or 0.0
     return (f"{head} → ước tính {est['min']:.1f} {est['currency']} "
-            f"(tối đa {est['max']:.1f} nếu mọi mục phải làm lại đủ {est['max_retry']} lần)")
+            f"(tối đa {est['max']:.1f} nếu mọi mục phải làm lại đủ {est['max_retry']} lần)"
+            + (f"; gồm D6 Claude viết lại prompt ≈ {d6:.2f} (mỗi lần gửi 1 lượt + 1 lượt sửa có thể có)" if d6 else ""))
 
 
 def save_pricing(pricing: Dict, path: Optional[str] = None) -> None:
