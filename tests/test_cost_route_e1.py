@@ -70,12 +70,13 @@ class Base(unittest.TestCase):
 
 
 class RouteTests(Base):
-    def test_easy_shot_goes_seedance_2_5_at_720p(self):
+    def test_a_person_chosen_direct_shot_goes_seedance_2_5_at_720p(self):
         self.label("easy")
+        quality_tier.set_path(self.p.conn, self.s1, "direct")   # 13/10: nhãn 'easy' không còn ra gen thẳng — chỉ người chọn
         with ON:
             ch = model_router.scene_choice(self.p.conn, self.s1)
             self.assertEqual((ch["model"], ch["resolution"], ch["e1"]), ("seedance-2.5", "720p", "direct"))   # 13/10: bỏ Seedance 2.0
-            self.assertIn("E1: shot dễ — Seedance 2.5 720p, dựng phóng 1080p", ch["reason"])
+            self.assertIn("gen thẳng Seedance 2.5 720p", ch["reason"])
             jid = self.p.create_job(self.s1, "video_gen")
             self.assertEqual(self.p.job(jid)["quality_tier"], "direct")
             kw = VideoRunner(self.p, _provider(), self.data)._submit_kwargs(self.p.job(jid))
@@ -237,12 +238,14 @@ class FilmEstimateTests(Base):
         self.label("easy", self.sids[0])
         self.label("easy", self.sids[1])
         self.label("complex", self.sids[2])
-        est = quality_tier.e1_estimate(self.p.conn, self.pid)
-        direct = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "720p", "9:16", 4.0)   # 13/10: shot dễ = Seedance 2.5
+        quality_tier.set_path(self.p.conn, self.sids[0], "direct")      # 13/10: gen thẳng chỉ khi NGƯỜI chọn; 'easy' tự động = nháp
+        with ON:
+            est = quality_tier.e1_estimate(self.p.conn, self.pid)
+        direct = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "720p", "9:16", 4.0)   # 13/10: gen thẳng = Seedance 2.5 720p
         draft = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "480p", "9:16", 4.0)
         final = quality_tier.upgrade_price("9:16", 4.0)
-        self.assertAlmostEqual(est["usd"], round(2 * direct + draft + final, 2))
-        self.assertEqual((est["direct"], est["draft_first"], est["film_seconds"], est["target_usd"]), (2, 1, 12.0, 30.0))
+        self.assertAlmostEqual(est["usd"], round(direct + 2 * (draft + final), 2))
+        self.assertEqual((est["direct"], est["draft_first"], est["film_seconds"], est["target_usd"]), (1, 2, 12.0, 30.0))
         self.assertTrue(est["within"])
         self.assertIn("mục tiêu < 30 USD", est["line"])
         self.assertIn("ƯỚC TÍNH", est["line"])

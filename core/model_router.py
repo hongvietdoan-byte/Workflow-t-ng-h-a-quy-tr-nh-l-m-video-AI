@@ -85,6 +85,10 @@ def recommend(scene_data: Dict, priority: str, mp_row=None, video_audio: bool = 
     f = _features(scene_data, mp_row, video_audio)
     multi_dialogue = f["speakers"] >= 2 and f["cast"] >= 2
     crowd = f["cast"] >= 3
+    from . import quality_tier
+    if quality_tier.enabled():
+        return _seedance25_pick(f, look, multi_dialogue, crowd)
+    # ---- cờ two_tier_quality TẮT: thang cũ theo slide ClipAI (2.0 / Fast / Kling) — không ai dùng 2 bậc thì không đổi gì ----
     if look == "FF_INGAME" and not f["ref_video"]:
         # W11: in GĐ6 Seedance blocked in-game-looking people as "real person"/copyright; Kling keeps the Free Fire render and costs least
         return _pick("kling", "look in-game Free Fire — Kling 3.0 Omni giữ đúng kiểu render in-game và ít bị chặn “người thật” hơn Seedance")
@@ -120,6 +124,23 @@ def recommend(scene_data: Dict, priority: str, mp_row=None, video_audio: bool = 
     if f["transition"]:
         return _pick("seedance-fast", "cảnh chuyển tiếp — Seedance 2.0 Fast đủ dùng, rẻ hơn")
     return _pick("seedance-fast", "cảnh thường — Seedance 2.0 Fast (hiệu quả chi phí tốt theo bảng ClipAI)")
+
+
+SEEDANCE25_ALL = ("quyết định 13/10: video hết Seedance 2.5 (2.0 duyệt ≈ 6 %, #24 0/20) — nháp 480p → duyệt → bản cao 1080p "
+                  "nâng từ nháp; Seedance 2.0 / Fast không dùng cho bản giao")
+KLING_FALLBACK = "Kling chỉ là đường lùi: Seedance từ chối (bộ lọc người thật / bản quyền) thì tự chuyển Kling"
+
+
+def _seedance25_pick(f: Dict, look: Optional[str], multi_dialogue: bool, crowd: bool) -> Dict:
+    """Cờ two_tier_quality BẬT: MỌI ưu tiên (chất lượng / cân bằng / tiết kiệm) → Seedance 2.5 (quyết định người dùng 13/10). Kể cả look
+    in-game FF, ≥3 nhân vật, đối thoại nhiều người (trước là Kling vì rẻ / ít bị chặn): Kling chỉ còn là đường lùi khi Seedance thật sự
+    từ chối — VideoRunner._on_refused tự chuyển shot (và nhóm liền mạch) sang Kling, không cần chọn trước."""
+    traits = [t for t, on in (("có video chuyển động tham chiếu", f["ref_video"]), ("cảnh phức tạp", f["complex"]),
+                              ("cảnh quan trọng", f["hero"]), ("cảnh chuyển tiếp", f["transition"]), ("≥3 nhân vật", crowd),
+                              ("đối thoại nhiều nhân vật", multi_dialogue), ("look in-game Free Fire", look == "FF_INGAME")) if on]
+    head = (", ".join(traits) + " — ") if traits else ""
+    tail = f"; {KLING_FALLBACK}" if (look == "FF_INGAME" or crowd or multi_dialogue) else ""
+    return _pick("seedance-2.5", head + SEEDANCE25_ALL + tail)
 
 
 def _pick(alias: str, reason: str, resolution: Optional[str] = None) -> Dict:
@@ -161,7 +182,7 @@ def scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
             choice["reason"] += " (chế độ thử rẻ: vẫn Seedance 2.5 — khớp môi (c) cần mốc giây, bản Fast không đọc mốc giây)"
         elif choice["model"] in ("seedance", "seedance-2.5") and choice.get("source") != "override":   # 08/10: the person's own pick for this scene stays
             choice.update(model="seedance-fast", reason=choice["reason"] + " (chế độ thử rẻ: dùng bản Fast 720p)")
-    if quality_tier.enabled():          # F3 / E1 (09/10): shot dễ → Seedance 2.0 720p; khó / chưa rõ → nháp Seedance 2.5 480p
+    if quality_tier.enabled():          # 13/10: mọi shot Seedance → nháp 2.5 480p (gen thẳng 2.5 720p chỉ khi người chọn / clip đang dùng)
         choice = quality_tier.e1_choice(conn, scene_id, choice)
     return _with_resolution(conn, scene_id, choice, mp_row)
 
@@ -191,8 +212,18 @@ def resolution_options(model: Optional[str]) -> List[tuple]:
         return [(k, t) for k, t in KLING_TIERS if k in (rule.get("modes") or [])]
     out = [(r, RES_LABEL.get(r, r)) for r in (rule.get("resolutions") or [])]
     if out and quality_tier.enabled() and _upgrade_only(model, UPGRADE_1080):
+        # 13/10 (thử D6 S05: chỉ thấy 720p): với 2 bậc, 480p của Seedance 2.5 LÀ nháp (draft=True, duyệt rồi nâng 1080p) — không bao
+        # giờ là bản giao; 720p là gen thẳng một lần
+        labels = {quality_tier.DRAFT_RESOLUTION: "480p nháp → duyệt → nâng 1080p", "720p": "720p gen thẳng (không nâng 1080p)"}
+        out = [(r, labels.get(r, t)) for r, t in out]
         out.append((UPGRADE_1080, "1080p (nháp 480p → nâng)"))
     return out
+
+
+def _draft_pick(model: Optional[str], res: Optional[str]) -> bool:
+    """Mức người chọn = đường nháp trước: Seedance 2.5 @ 1080p (chỉ có qua nâng) hoặc @ 480p (nháp của 2 bậc — 13/10)."""
+    from . import quality_tier
+    return _upgrade_only(model, res) or (res == quality_tier.DRAFT_RESOLUTION and _upgrade_only(model, UPGRADE_1080))
 
 
 def _with_resolution(conn, scene_id: int, choice: Dict, mp_row=None) -> Dict:
@@ -216,7 +247,7 @@ def chosen_resolution(conn, scene_id: int) -> Optional[str]:
 
 def set_resolution(conn, scene_id: int, res: Optional[str], p=None) -> None:
     """Chất lượng người chọn cho một shot (None = về đề xuất). Cờ two_tier_quality bật thì đặt luôn đường chất lượng: Seedance 2.5 @
-    1080p → nháp trước (nâng từ nháp, giữ nội dung); mức khác → gen thẳng một lần ở mức đó; None → tự động (theo Đạo diễn)."""
+    1080p hoặc 480p → nháp trước (nâng từ nháp, giữ nội dung); mức khác → gen thẳng một lần ở mức đó; None → tự động (13/10: nháp trước)."""
     if p is not None:
         access.need_edit_scene(p, scene_id, "đổi chất lượng video của cảnh")
     choice = scene_choice(conn, scene_id)
@@ -227,9 +258,9 @@ def set_resolution(conn, scene_id: int, res: Optional[str], p=None) -> None:
     path = None
     members = group_members(conn, scene_id)
     if quality_tier.enabled() and res:
-        path = "draft_first" if _upgrade_only(model, res) else "direct"
+        path = "draft_first" if _draft_pick(model, res) else "direct"
         if choice.get("e1") and choice.get("source") != "override":
-            # E1 đổi model theo đường (gen thẳng → Seedance 2.0): chất lượng chọn trên model đang hiện → giữ model đó, không tự đổi
+            # e1_choice đổi model theo đường (họ Seedance → 2.5): chất lượng chọn trên model đang hiện → giữ model đó, không tự đổi
             conn.executemany("UPDATE motion_prompts SET video_model=? WHERE scene_id=?", [(model, sid) for sid in members])
     # đợt B 09/10 (#24 chạy thử): một clip nhóm gen chung = một model, một bậc → chất lượng chọn ở một shot áp cho CẢ nhóm (chỉ shot đó
     # đổi thì nhóm vẫn đi nháp, lần gen lại thành 'bản cao' bị chặn và hỏng)
@@ -376,6 +407,9 @@ def plan(conn, project_id: int, pricing: Optional[Dict] = None, priority: Option
             # multi-shot group (always Kling, one request) stay as they are, as they would in the real run
             choice = {**recommend(data, priority, mp, bool(proj["video_audio"]),
                                   look=proj["look"] if "look" in proj.keys() else None), "source": "auto"}
+            from . import quality_tier
+            if quality_tier.enabled():      # 13/10: so sánh ưu tiên cũng theo đường thật (nháp 2.5 480p), không giá 720p của hồ sơ
+                choice = quality_tier.e1_choice(conn, s["id"], choice)
         seconds = float(mp["duration_sec"]) if mp is not None else float(data.get("duration_s") or 5)
         billed = billed_seconds(choice["model"], math.ceil(seconds - 1e-6) if data.get("shot_no") else seconds)
         group = ref_groups.get(s["id"])
@@ -432,6 +466,23 @@ def billed_seconds(alias: str, seconds: float) -> float:
 def total(rows: List[Dict]) -> Optional[float]:
     costs = [r["cost"] for r in rows]
     return None if any(c is None for c in costs) else sum(costs)
+
+
+def compare_total(conn, project_id: int, pricing: Optional[Dict] = None, priority: Optional[str] = None) -> Optional[float]:
+    """Tổng cho dòng "So sánh tổng" (Bước 4, chuyên gia) theo một ưu tiên: các hàng `plan` (cờ two_tier_quality bật = giá nháp 480p)
+    + phần quy trình 2 bậc thêm vào (`quality_tier.run_estimate`: bản cao 1080p nâng từ nháp…). None = có hàng chưa biết giá —
+    không bao giờ báo một tổng thiếu (rà 14/10: tổng cũ chỉ là giá nháp 480p)."""
+    rows = plan(conn, project_id, pricing, priority=priority)
+    base = total(rows)
+    if base is None:
+        return None
+    from . import quality_tier
+    if not quality_tier.enabled():
+        return base
+    extra = quality_tier.run_estimate(conn, project_id, rows, pricing)
+    if extra.get("unknown"):
+        return None
+    return base + extra["usd"]
 
 
 def set_override(conn, scene_id: int, alias: Optional[str], p=None) -> None:

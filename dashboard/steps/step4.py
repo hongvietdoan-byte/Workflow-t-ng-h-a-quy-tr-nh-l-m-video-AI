@@ -371,7 +371,7 @@ def model_plan_panel(p: Pipeline, pid: int, skip=frozenset()) -> None:
             st.markdown(text, unsafe_allow_html=True)
             _model_change(p, pid, r, line, options, two_tier)
         if C.expert():
-            totals = {k: model_router.total(model_router.plan(p.conn, pid, pricing, priority=k)) for k in model_router.PRIORITIES}
+            totals = {k: model_router.compare_total(p.conn, pid, pricing, k) for k in model_router.PRIORITIES}
             st.caption("So sánh tổng (chưa tính gen lại): " + " · ".join(
                 f"{profiles['priorities'][k]['label']} ≈ " + (f"\\${v:.2f}" if v is not None else "?") for k, v in totals.items()))
 
@@ -404,8 +404,8 @@ def _model_change(p: Pipeline, pid: int, r, line, options, two_tier: bool) -> No
     rpick = c_res.selectbox("Chất lượng", [None] + list(names), index=([None] + list(names)).index(rcur),
                             key=f"vres_{r['scene_id']}", disabled=not levels,
                             format_func=lambda k: auto if k is None else names[k],
-                            help=("Chỉ hiện các mức model đang chọn cho phép. Seedance 2.5 · 1080p = nháp 480p → bạn duyệt → nâng 1080p "
-                                  "(giữ nội dung nháp); mức khác gen thẳng một lần." if two_tier else
+                            help=("Chỉ hiện các mức model đang chọn cho phép. Mặc định (13/10) mọi shot: nháp Seedance 2.5 480p → bạn duyệt "
+                                  "→ nâng 1080p (giữ nội dung nháp); chọn 480p / 1080p = cùng đường đó; 720p = gen thẳng một lần." if two_tier else
                                   "Chỉ hiện các mức model đang chọn cho phép.") + _group_note(p, r["scene_id"]),
                             on_change=_save_pick, args=(r["scene_id"], f"vres_{r['scene_id']}", "resolution"))
     if line:

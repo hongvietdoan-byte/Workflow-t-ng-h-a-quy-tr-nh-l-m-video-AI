@@ -5,9 +5,9 @@ Cờ bật:
 - "Thử rẻ" bị bỏ qua hoàn toàn (`cheap_mode` = False).
 - Mỗi job video mang `jobs.quality_tier`: `draft` (nháp bậc thấp nhất: Seedance 2.5 `draft=True` 480p, model khác bậc thấp nhất của
   nó), `final` (bản cao từ một nháp đã duyệt, `jobs.draft_job_id`) hoặc `direct` (gen thẳng bản cao).
-- Đường đi của shot (`path`): người ghi đè ở `motion_prompts.quality_path` (draft_first / direct) thắng; không thì nhãn Đạo diễn
-  `scenes.data["difficulty"]` (HỢP ĐỒNG với nhánh Đạo diễn: "easy" | "complex" | "unknown", kèm `difficulty_why`): easy → direct,
-  complex / unknown / thiếu → draft_first.
+- Đường đi của shot (`path`): người ghi đè ở `motion_prompts.quality_path` (draft_first / direct) thắng; không thì (quyết định
+  13/10, bỏ E1) LUÔN draft_first — nhãn Đạo diễn `scenes.data["difficulty"]` chỉ còn để hiển thị / thống kê, không quyết đường; shot đang
+  có job gen thẳng còn sống / đã duyệt giữ tuyến đó (`on_direct_route`).
 - Trần TỰ gen lại (pipeline.Pipeline.auto_limit): chuỗi nháp 2, bản cao 1. Bấm "Gen bản cao" là việc người dùng (đếm lại từ 0).
 - Trạng thái từng shot TỰ SUY từ jobs + review_log (`state`), không lưu cứng.
 - Mọi lần gen lại phải đổi đầu vào theo lỗi lần trước (`regen_refusal`, CHUAN_XAY_DUNG luật 3)."""
@@ -28,8 +28,9 @@ MAY_DIFFER = "nội dung có thể khác bản nháp"
 # ---- E1 (người dùng chốt 09/10, docs/CONG_THUC_PROMPT_F0_NHAP_2026-10-09.md mục 5–5b; F3) --------------------------------------------
 # Shot dễ (path direct) → gen thẳng 720p, lúc dựng phóng 1080p bằng ffmpeg (không AI — quyết định 07/10). Shot khó /
 # quan trọng / chưa rõ (draft_first) → nháp Seedance 2.5 `draft=True` 480p → người duyệt → nâng 1080p TỪ NHÁP (giữ nội dung).
-# Người dùng 13/10 tối: bỏ Seedance 2.0 — video HẾT Seedance 2.5 (2.0 duyệt ≈ 6 %, #24 0/20); shot dễ = Seedance 2.5 720p (thử D6 #28/#29
-# 14/10: S05 còn bị đề xuất Seedance 2.0).
+# Người dùng 13/10 tối: bỏ Seedance 2.0 — video HẾT Seedance 2.5 (2.0 duyệt ≈ 6 %, #24 0/20) và MỌI shot nháp 480p → bản cao 1080p
+# (bỏ "shot dễ gen thẳng"; thử D6 #28/#29 14/10: S05 còn bị đề xuất 720p gen thẳng). Đường 'direct' giờ chỉ khi NGƯỜI chọn (ô Chất lượng
+# 720p / quality_path) hoặc shot đã có job gen thẳng còn sống — vẫn Seedance 2.5 720p.
 E1_DIRECT_MODEL, E1_DIRECT_RESOLUTION = "seedance-2.5", "720p"
 E1_DRAFT_MODEL, DRAFT_RESOLUTION = "seedance-2.5", "480p"
 SEEDANCE_20 = "dreamina-seedance-2-0-260128"
@@ -126,12 +127,17 @@ def difficulty(conn, scene_id: int) -> Dict:
 
 
 def path(conn, scene_id: int) -> str:
-    """draft_first | direct. Ghi đè của người (motion_prompts.quality_path) thắng nhãn Đạo diễn; easy → direct; complex / unknown → nháp
-    trước; chưa có nhãn → theo kiểm chéo (shot_complexity.score: complex → nháp, còn lại gen thẳng — người dùng 09/10)."""
+    """draft_first | direct. Ghi đè của người (motion_prompts.quality_path) luôn thắng.
+    Cờ two_tier_quality BẬT (quyết định người dùng 13/10 — bỏ E1 "shot dễ gen thẳng"): tự động = LUÔN nháp 480p trước → duyệt → bản cao
+    1080p, bất kể nhãn Đạo diễn; trừ shot mà job video mới nhất là gen thẳng đang chạy / chờ duyệt / đã duyệt (`on_direct_route` — job đó
+    không bị đổi tuyến giữa chừng, clip 720p đã duyệt không bị bắt gen lại).
+    Cờ tắt (đường cũ, không ai dùng tới bậc): easy → direct; complex / unknown → nháp; chưa nhãn → kiểm chéo shot_complexity."""
     row = conn.execute("SELECT quality_path FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
     chosen = row["quality_path"] if row is not None else None
     if chosen in ("draft_first", "direct"):
         return chosen
+    if enabled():
+        return "direct" if on_direct_route(conn, scene_id) else "draft_first"
     if on_draft_route(conn, scene_id):
         # lỗi 8 #27 (13/10, shot 18): shot đã vào tuyến nháp → bản cao (job video mới nhất là draft / final) GIỮ tuyến đó tới khi NGƯỜI
         # chọn khác (quality_path) — nhãn 'easy' + nhóm Seedance tách theo độ dài prompt làm đường tự trôi sang 'direct' → gen lại ra job
@@ -156,6 +162,15 @@ def on_draft_route(conn, scene_id: int) -> bool:
     row = conn.execute("SELECT quality_tier FROM jobs WHERE scene_id=? AND type='video_gen' AND state NOT IN ('cancelled','failed') "
                        "ORDER BY id DESC LIMIT 1", (scene_id,)).fetchone()
     return row is not None and row["quality_tier"] in ("draft", "final")
+
+
+def on_direct_route(conn, scene_id: int) -> bool:
+    """13/10: job video mới nhất của shot (bỏ job đã hủy / hỏng) là gen thẳng (bậc direct, hoặc không bậc — trước N1) và còn sống
+    (đang chờ / chạy / chờ duyệt / đã duyệt): shot giữ tuyến gen thẳng tới khi người loại clip đó hoặc chọn khác. Loại rồi → tự động
+    về nháp trước (quyết định 13/10)."""
+    row = conn.execute("SELECT quality_tier, state FROM jobs WHERE scene_id=? AND type='video_gen' AND state NOT IN ('cancelled','failed') "
+                       "ORDER BY id DESC LIMIT 1", (scene_id,)).fetchone()
+    return row is not None and (row["quality_tier"] or "direct") == "direct" and row["state"] in _ACTIVE + _REVIEW + ("approved",)
 
 
 def set_path(conn, scene_id: int, value: str) -> None:
@@ -223,11 +238,11 @@ def e1_choice(conn, scene_id: int, choice: Dict) -> Dict:
     if way == "direct":
         if choice.get("skill") or choice.get("take"):
             return {**choice, "resolution": E1_DIRECT_RESOLUTION, "e1": "direct",
-                    "reason": choice["reason"] + " — E1: shot dễ — gen thẳng 720p (giữ Seedance 2.5 vì cách này cần 2.5), dựng phóng 1080p"}
+                    "reason": choice["reason"] + " — gen thẳng 720p (bạn chọn / clip gen thẳng đang dùng; giữ Seedance 2.5 vì cách này cần 2.5)"}
         return {**choice, "model": E1_DIRECT_MODEL, "resolution": E1_DIRECT_RESOLUTION, "e1": "direct",
-                "reason": choice["reason"] + " — E1: shot dễ — Seedance 2.5 720p, dựng phóng 1080p"}
+                "reason": choice["reason"] + " — gen thẳng Seedance 2.5 720p (bạn chọn / clip gen thẳng đang dùng)"}
     return {**choice, "model": E1_DRAFT_MODEL, "resolution": DRAFT_RESOLUTION, "e1": "draft_first",
-            "reason": choice["reason"] + " — E1: shot khó / quan trọng / chưa rõ — nháp Seedance 2.5 480p, duyệt rồi nâng 1080p từ nháp"}
+            "reason": choice["reason"] + " — mọi shot (quyết định 13/10): nháp Seedance 2.5 480p, duyệt rồi nâng 1080p từ nháp"}
 
 
 def retry_limit(job) -> Optional[int]:
@@ -783,7 +798,8 @@ def batch_final_price(conn, scene_ids) -> Optional[float]:
 
 
 def e1_estimate(conn, pid: int, pricing: Optional[Dict] = None) -> Dict:
-    """USD dự kiến CẢ PHIM theo E1 (một lượt, chưa tính gen lại): shot dễ (direct) Seedance 2.0 720p; shot nháp-trước nháp 2.5 480p +
+    """USD dự kiến CẢ PHIM (một lượt, chưa tính gen lại; tên cũ E1): shot gen thẳng (chỉ khi người chọn / clip đang dùng — 13/10) Seedance
+    2.5 720p; shot nháp-trước (mặc định mọi shot) nháp 2.5 480p +
     nâng 2.5 1080p (UPGRADE_UNMEASURED); Kling / model khác theo giá hàng model_router.plan. Clip nhóm tính một lần (giây nhóm).
     Để Bước 1 / AI Dev System báo "phim X s ≈ Y USD, mục tiêu < 30 / 60". {"usd", "film_seconds", "target_usd", "within", "direct",
     "draft_first", "other", "unknown", "note", "line"}."""
@@ -821,8 +837,8 @@ def e1_estimate(conn, pid: int, pricing: Optional[Dict] = None) -> Dict:
     out["target_usd"] = next((cap for limit, cap in FILM_TARGETS if out["film_seconds"] < limit), None)
     out["within"] = None if out["target_usd"] is None else out["usd"] < out["target_usd"]
     target = (f", mục tiêu < {out['target_usd']:.0f} USD — " + ("ĐẠT" if out["within"] else "VƯỢT")) if out["target_usd"] else ""
-    out["line"] = (f"Phim {out['film_seconds']:.0f} s ≈ {out['usd']:.2f} USD (E1: {out['direct']} clip 2.0 720p, {out['draft_first']} "
-                   f"nháp 2.5 480p + nâng 1080p, {out['other']} model khác{target}; {UPGRADE_UNMEASURED})")
+    out["line"] = (f"Phim {out['film_seconds']:.0f} s ≈ {out['usd']:.2f} USD ({out['draft_first']} nháp Seedance 2.5 480p + nâng 1080p, "
+                   f"{out['direct']} clip gen thẳng 720p (bạn chọn / đang dùng), {out['other']} model khác{target}; {UPGRADE_UNMEASURED})")
     return out
 
 

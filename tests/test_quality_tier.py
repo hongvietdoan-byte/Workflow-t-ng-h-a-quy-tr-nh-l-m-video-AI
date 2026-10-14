@@ -106,10 +106,12 @@ class PathAndStateTests(Base):
             self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")
             self.set_difficulty("complex")
             self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")
-            self.set_difficulty("easy")
-            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "direct")
+            self.set_difficulty("easy")                                                   # 13/10: easy no longer means direct
+            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")
+            self.assertEqual(self.tier(self.p.create_job(self.s1, "video_gen")), "draft")
+            quality_tier.set_path(self.p.conn, self.s1, "direct")                         # the person wins
             self.assertEqual(self.tier(self.p.create_job(self.s1, "video_gen")), "direct")
-            quality_tier.set_path(self.p.conn, self.s1, "draft_first")                    # the person wins
+            quality_tier.set_path(self.p.conn, self.s1, "draft_first")
             self.assertEqual(self.tier(self.p.create_job(self.s1, "video_gen")), "draft")
 
     def test_eight_states(self):
@@ -138,8 +140,9 @@ class PathAndStateTests(Base):
             with mock.patch('core.ffmpeg_studio.probe_size', return_value=(720, 1280)):
                 self.assertEqual(st(), "final_ok")
             s2 = self.p.create_scene(self.pid, 2, "Shot 2")
-            self.set_difficulty("easy", s2)
             j = self.p.create_job(s2, "video_gen")
+            self.p.conn.execute("UPDATE jobs SET quality_tier='direct' WHERE id=?", (j,))      # a direct job (E1, before 13/10)
+            self.p.conn.commit()
             self.assertEqual(self.tier(j), "direct")
             self.p.start(j)
             self.p.succeed(j)
@@ -823,8 +826,9 @@ class FinalEstimateTests(Base):
             self.p.conn.execute("INSERT INTO motion_prompts (scene_id, motion_prompt, duration_sec, state) VALUES (?,?,?,?)",
                                 (s2, "walks", 4, "approved"))
             self.p.conn.commit()
+            quality_tier.set_path(self.p.conn, s2, "direct")                         # 13/10: direct only when the person picks it
             est = quality_tier.final_estimate(self.p.conn, self.pid)
-            self.assertEqual([s["scene_id"] for s in est["scenes"]], [self.s1])     # the easy shot goes direct: no final to make
+            self.assertEqual([s["scene_id"] for s in est["scenes"]], [self.s1])     # the direct shot: no final to make
             want = quality_tier.upgrade_price("16:9", 4.0)
             self.assertAlmostEqual(est["usd"], round(want, 4))
             f = quality_tier.request_final(self.p, self.s1)

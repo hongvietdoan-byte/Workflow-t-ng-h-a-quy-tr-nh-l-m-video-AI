@@ -39,12 +39,14 @@ class ShotLineTests(unittest.TestCase):
         c.commit()
         model_router.set_override(c, self.sids[2], "seedance")
         model_router.set_override(c, self.sids[3], "kling")
+        from core import quality_tier
+        quality_tier.set_path(c, self.sids[0], "direct")    # 13/10: 'easy' tự động = nháp; gen thẳng chỉ khi người chọn
 
     def test_lines_with_two_tier_on(self):
         with _on():
             lines = model_line.shot_lines(self.p.conn, self.pid)
         easy, hard, mine, kling = (lines[s] for s in self.sids)
-        self.assertEqual(easy["model_text"], "Seedance 2.5 · 720p → phóng 1080p lúc dựng")   # 13/10: bỏ Seedance 2.0
+        self.assertEqual(easy["model_text"], "Seedance 2.5 · 720p gen thẳng → phóng 1080p lúc dựng")   # 13/10: bỏ 2.0, người chọn
         self.assertIsNone(easy["keeps_content"])
         self.assertEqual(easy["source"], "đề xuất")
         self.assertEqual(hard["model_text"], "Seedance 2.5 · nháp 480p → cao 1080p")
@@ -80,7 +82,7 @@ class ShotLineTests(unittest.TestCase):
         with _on():
             film = model_line.film_line(self.p.conn, self.pid)
         self.assertRegex(film["text"], r"^Phim 20 s ≈ \d+\.\d\d USD — mục tiêu < 30 USD \((đạt|VƯỢT)\)$")
-        self.assertIn("E1", film["help"])
+        self.assertIn("nháp Seedance 2.5 480p + nâng 1080p", film["help"])
         self.assertTrue(model_line.film_line(self.p.conn, self.pid)["text"].startswith("Phim 20 s ≈"))   # flag off: plan total
 
 
