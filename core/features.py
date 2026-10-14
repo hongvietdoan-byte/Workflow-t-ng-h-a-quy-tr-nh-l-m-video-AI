@@ -80,6 +80,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "Thử D6 #28/#29 (14/10): kịch bản 'núp bên TRÁI tường keo' → Kelly núp sai bên; trước chỉ là luật chữ ở "
                "knowledge/model_guides. Chưa gen thật với câu mới",
     },
+    "travel_truth": {
+        "label": "Hướng chạy: shot di chuyển từ chỗ đứng 3D này sang chỗ đứng của shot kế (nối liền, cùng cảnh) mà chênh độ cao rõ "
+                 "(≥ 1,5 m, dốc ≥ 0,12) → code chèn MỘT câu lên/xuống + chiều so với máy của nền vào prompt ảnh + video; chữ shot trái "
+                 "nền / thiếu dữ liệu 3D → VÀNG, không đoán (0 USD)",
+        "verified": False,
+        "why": "Kiểm thật #30 shot 1 (14/10): kịch bản A chân cầu thang (z 3,9) → B bậc cao nhất (z 8,5) mà ảnh Kelly chạy XUỐNG; "
+               "trước đó không câu nào nói hướng chạy. Mới kiểm bằng tools/replay_payload.py + test, chưa gen thật",
+    },
     "script_pose_fix": {
         "label": "Tư thế theo kịch bản: vế kịch bản chỉ ghi 'đứng' mà BYĐ (một người) toàn quỳ/ngồi → code sửa BYĐ thành đứng sau "
                  "lượt Đạo diễn + ghi lý do; ca mơ hồ giữ VÀNG; không đụng BYĐ người dùng khóa tay (0 USD)",

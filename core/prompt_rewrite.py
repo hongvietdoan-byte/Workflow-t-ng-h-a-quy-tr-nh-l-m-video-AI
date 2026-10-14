@@ -351,7 +351,10 @@ def propose_rewrite(p, job, note: Optional[str] = None, fix: Optional[str] = Non
     if prop_lock.enabled():
         added = []
         row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()   # rà 12/10: the shot's own words
-        shot_words = prop_lock.shot_text(json.loads(row["data"] or "{}")) if row else ""            # (action / blocking) count too
+        shot_data = json.loads(row["data"] or "{}") if row else {}
+        shot_words = prop_lock.shot_text(shot_data)                                                  # (action / blocking) count too
+        # 14/10 #30: the scene script's own form ("tường keo (skin thang máy)") is the source of truth too (prop_lock.variant_source)
+        shot_words += " " + prop_lock.scene_text(p.conn, job["project_id"], shot_data)
         for a in assets.project_assets(p.conn, job["project_id"]):
             if a.get("kind") not in prop_lock.KINDS:
                 continue

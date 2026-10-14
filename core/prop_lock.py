@@ -102,10 +102,54 @@ def chosen_variant(asset: Dict, text: str) -> Optional[str]:
     return next((v for v in _variants(asset) if _says_variant(asset, v, said)), None)
 
 
-def usable_images(asset: Dict, text: str) -> List[Dict]:
-    """Only the pictures of the form the shot speaks of: a picture with a `variant` goes only when the text names that variant;
-    otherwise only the plain pictures (none → no picture: the form is said in words)."""
+_SENT_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def scene_text(conn, project_id: Optional[int], data: Dict) -> str:
+    """Câu kịch bản của CẢNH chứa shot (story_scenes.text theo `story_scene` của shot) — '' khi không biết cảnh / không có bảng."""
+    n = (data or {}).get("story_scene")
+    if conn is None or project_id is None or n is None:
+        return ""
+    try:
+        row = conn.execute("SELECT text FROM story_scenes WHERE project_id=? AND idx=?", (project_id, int(n))).fetchone()
+    except Exception:  # noqa: BLE001 - CSDL cũ không có bảng / story_scene lạ: không có câu cảnh (không đoán)
+        return ""
+    return str((row["text"] if row else "") or "")
+
+
+def _mentions(asset: Dict, sentence: str) -> bool:
+    """Câu nhắc món này: tên / tên khác của món, hoặc từ chung của loại món (giữ dấu: 'kéo' ≠ 'keo')."""
+    cat = category(asset)
+    return bool((cat and _SHOT_RX[cat].search(sentence)) or _named(asset, assets._said_words(sentence)))
+
+
+def scene_variants(conn, project_id: Optional[int], data: Dict, asset: Dict) -> List[str]:
+    """Các dạng (variant ảnh Kho) của món mà câu kịch bản CẢNH nói, chỉ xét câu có nhắc món ("tường keo (skin thang máy)") —
+    gốc lỗi #30 14/10: kịch bản cảnh ghi dạng, Đạo diễn chia shot bỏ mất chữ, shot rơi về dạng mặc định. Bỏ lời thoại."""
+    if not _variants(asset):
+        return []
+    text = assets._without_spoken_lines(scene_text(conn, project_id, data))
+    found = [chosen_variant(asset, s) for s in _SENT_SPLIT.split(text) if s.strip() and _mentions(asset, s)]
+    return list(dict.fromkeys(v for v in found if v))
+
+
+def variant_source(conn, project_id: Optional[int], data: Dict, asset: Dict, text: str):
+    """(dạng, nguồn) — MỘT nguồn sự thật cho dạng món của shot: chữ shot nói dạng → (dạng, 'shot'); không nói → dạng câu kịch bản cảnh
+    nói (đúng MỘT dạng) → (dạng, 'scene'); cảnh nói nhiều dạng khác nhau → (None, 'ambiguous'), không đoán; không gì → (None, None)."""
     v = chosen_variant(asset, text)
+    if v is not None:
+        return v, "shot"
+    found = scene_variants(conn, project_id, data, asset)
+    if len(found) == 1:
+        return found[0], "scene"
+    return None, ("ambiguous" if found else None)
+
+
+def usable_images(asset: Dict, text: str, variant: Optional[str] = "") -> List[Dict]:
+    """Only the pictures of the form the shot speaks of: a picture with a `variant` goes only when the text names that variant;
+    otherwise only the plain pictures (none → no picture: the form is said in words). `variant` given (variant_source — the scene's
+    form carried down) wins over reading `text`; "" = read the text as before."""
+    v = chosen_variant(asset, text) if variant == "" else variant
     imgs = asset.get("images") or []
     if v is not None:
         return [i for i in imgs if str(i.get("variant") or "").strip() == v]
@@ -335,9 +379,9 @@ def locks(conn, project_id: int, data: Dict) -> List[Dict]:
             # Đ16v3: the guns locked to the characters in this shot, each by name (plus a gun the text names itself)
             chosen = list({a["id"]: a for a in [a for a in mine if a["id"] in holders] + named}.values())
         for a in chosen:
-            v = chosen_variant(a, text)
-            pics = usable_images(a, text)
-            out.append({"asset": a, "category": cat, "named": a in named, "variant": v, "form": form_text(a, v),
+            v, source = variant_source(conn, project_id, data, a, text)
+            pics = usable_images(a, text, variant=v)
+            out.append({"asset": a, "category": cat, "named": a in named, "variant": v, "variant_from": source, "form": form_text(a, v),
                         "has_forms": bool(_forms(a.get("description") or "") or _variants(a)), "image": pics[0] if pics else None,
                         "holders": holders.get(a["id"], []) if cat == "gun" else []})
     return out
@@ -516,6 +560,22 @@ def clean_prompt(conn, project_id: int, data: Dict, text: str):
     return text, removed
 
 
+def variant_notes(conn, project_id: Optional[int], data: Dict) -> List[str]:
+    """Luật 1 (không im lặng): câu kịch bản cảnh nói dạng món mà chữ shot không mang → code mang dạng xuống (nói rõ); cảnh nói nhiều
+    dạng khác nhau → không đoán (nói rõ). [] khi cờ tắt / không có gì."""
+    out = []
+    for lk in locks(conn, project_id, data):
+        name = lk["asset"]["name"]
+        if lk.get("variant_from") == "scene":
+            out.append(f"dạng '{lk['variant']}' của {name} lấy từ câu kịch bản cảnh {data.get('story_scene')} — chữ shot không ghi dạng "
+                       "(Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (ảnh Kho đúng dạng + câu khóa)")
+        elif lk.get("variant_from") == "ambiguous":
+            found = scene_variants(conn, project_id, data, lk["asset"])
+            out.append(f"câu kịch bản cảnh {data.get('story_scene')} nói {name} ở nhiều dạng ({', '.join(found)}) mà chữ shot không ghi "
+                       "dạng nào — không đoán, dùng dạng mặc định; ghi đích danh dạng vào chữ shot")
+    return out
+
+
 def issues(conn, project_id: int, data: Dict) -> List[Dict]:
     """VÀNG (never a stop): the shot says a common word of a kind with several project props of that kind and names none — not
     guessed; a locked prop without any description in the Kho. Lỗi hệ thống 3 (cờ riêng skill_object_guard): + VÀNG vật kỹ năng
@@ -605,6 +665,8 @@ def issues(conn, project_id: int, data: Dict) -> List[Dict]:
             out.append({"level": "warn", "part": "dao_cu",
                         "msg": f"chữ shot nói '{CATEGORIES[cat]['word']}' chung chung mà dự án gắn {len(mine)} món cùng loại ("
                                + ", ".join(a["name"] for a in mine) + ") — không đoán; ghi đích danh tên món trong prompt"})
+    for msg in variant_notes(conn, project_id, data):
+        out.append({"level": "warn", "part": "dao_cu", "msg": msg})
     for lk in locks(conn, project_id, data):
         if lk["category"] == "gun" and not weapon_scale(conn, lk["asset"], lk["variant"]):
             out.append({"level": "warn", "part": "dao_cu",

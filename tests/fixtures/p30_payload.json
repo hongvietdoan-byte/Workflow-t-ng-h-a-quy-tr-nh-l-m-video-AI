@@ -1,0 +1,433 @@
+{
+ "_note": "Trích CSDL thật #30 (14/10, chỉ đọc) cho tests/test_replay_payload_p30.py — rút gọn trường",
+ "story_scene": {
+  "idx": 1,
+  "heading": "Cảnh 1 — Tháp Đồng Hồ, ban ngày (thế giới thực, Free Fire in-game). Một cú máy liền (one-shot), không cắt.",
+  "text": "Kelly đứng ở điểm A — chân cầu thang của Tháp Đồng Hồ. Kelly chạy nhanh lên tới điểm B — bậc cao nhất của cầu thang. Tới nơi, Kelly đặt bom keo: tường keo (skin thang máy) xuất hiện ngay trước mặt. Kelly đứng sát, núp ở bên trái bức tường keo, ló ra ngó xem có địch không. Rồi Kelly chạy tiếp 5 bước về bên trái, đặt bom keo thứ hai, ngồi xuống sau tường, cầm SKORP bằng hai tay, thở ra — tỏ ra an tâm một chút.\nMáy quay: bắt đầu phía trước Kelly (Kelly chạy về phía máy, máy lùi theo); khi Kelly tới điểm B, máy đi vòng ra phía sau Kelly và giữ phía sau tới hết cảnh. Không thoại, không lời dẫn."
+ },
+ "glue": {
+  "id": 367,
+  "kind": "weapon",
+  "name": "Bom keo",
+  "aliases": "Gloowall",
+  "description": "Tường keo FF (bom keo ném ra dựng thành bức tường chắn đạn). 2 DẠNG (người dùng 12/10): (a) MẶC ĐỊNH — tường keo màu TRẮNG trơn, không họa tiết, không hình; (b) skin Gloowall OB55 thang máy (ID 907105556; kịch bản gọi \"skin thang máy\" / \"keo thang máy\" / \"skin Gloowall\" = dạng này, shot phải ghi \"skin Gloowall\") — tường dạng cửa thang máy kim loại xám có khung, đèn và mảnh giấy dán, theo ảnh Kho. Shot không nói dạng nào → dạng mặc định. Giữ một dạng cho cả cảnh. HÌNH DẠNG (người dùng 14/10, cả 2 dạng): tường CONG — hai đầu cong về phía người ném (ôm lấy người ném), mặt lồi quay về phía trước / hướng địch; không phải tấm thẳng. KÍCH CỠ (người dùng 14/10, ảnh in-game là luật): cao hơn đầu người đứng một chút (~1,2 lần chiều cao nhân vật, ~2 m), rộng ~4 m (gấp 3–4 lần bề ngang vai, người đứng giữa lòng cong còn chỗ hai bên), dày như khối tường đặc. Ảnh in-game gốc người dùng gửi: data/assets/367/tham_khao_kich_co_ingame_nguoi_dung_14-10.webp (chỉ để người / QC so kích cỡ — trong ảnh có nhân vật nên KHÔNG đưa vào ảnh Kho gửi model). [ff.garena.com] Vũ khí (Projectiles): Bom keo là vật phẩm tốt để giúp bạn sống sót!. Chỉ số: sát thương 0, tầm bắn 0, tốc độ bắn 0, nạp đạn 0, băng đạn 0, độ chính xác 0, tốc độ di chuyển 90. Đặc điểm: Sát thương diện rộng."
+ },
+ "glue_images": [
+  {
+   "path": "data\\assets\\367\\1.png",
+   "label": "gloowall_ob55_907105556_cua_thang_may",
+   "sort": 1,
+   "status": "claude_ok",
+   "variant": "skin Gloowall OB55 thang máy"
+  },
+  {
+   "path": "data\\assets\\367\\2.png",
+   "label": "triển khai",
+   "sort": 0,
+   "status": "approved",
+   "variant": "skin Gloowall OB55 thang máy"
+  }
+ ],
+ "place": {
+  "id": 263,
+  "kind": "location",
+  "name": "Tháp Đồng Hồ",
+  "aliases": "",
+  "description": "[ff.garena.com] Khu vực trên bản đồ Đảo Quân Sự. Real map: the clock tower stands directly on a wide, flat, open stone plaza; at most two low plaza levels joined by short steps, low chest-high retaining walls; 1-2 storey red-roof houses, grass, palms, sea around. No stacked terraces, no fortress."
+ },
+ "model3d": {
+  "path": "D:\\AI-Video-Pipeline\\model 3D\\Ingame_map_building\\Ingame_map_building\\ClockTower\\T_30_XH_PCMAP_P16\\asset.fbx",
+  "anchor": [
+   -217.07,
+   132.04,
+   30.0
+  ],
+  "default_spot": "plaza_front",
+  "landmark": null,
+  "spots": {
+   "plaza_front": {
+    "at": [
+     -217.07,
+     116.0,
+     9.83
+    ],
+    "facing": 180.0,
+    "label": "quảng trường trước tháp (cách 16 m)"
+   },
+   "bac_thang_giua": {
+    "at": [
+     -253.7,
+     144.1,
+     3.925
+    ],
+    "facing": 298.0,
+    "label": "chân cầu thang nhiều tầng giữa nhà 3 tầng và Tháp Đồng Hồ (người dùng chọn 07/10, vòng xanh)",
+    "group": "nhay"
+   },
+   "dinh_bac_thang_giua": {
+    "at": [
+     -240.0,
+     136.82,
+     8.5
+    ],
+    "facing": 118.0,
+    "label": "đỉnh dải cầu thang dài giữa nhà 3 tầng và Tháp Đồng Hồ (bậc trên cùng, ~15 m từ bac_thang_giua hướng 118°; người dùng duyệt 14/10)",
+    "group": "nhay"
+   }
+  }
+ },
+ "shots": [
+  {
+   "scene_id": 302,
+   "idx": 1,
+   "data": {
+    "story_scene": 1,
+    "sequence": 1,
+    "shot_no": 1,
+    "characters": [
+     "KELLY"
+    ],
+    "image_prompt": "Free Fire in-game 3D render, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus, not a movie still, not photorealistic, not a realistic shooter game. Medium-long shot, eye level, young athletic woman KELLY sprinting straight toward camera up a stone staircase, mid-stride with forward lean, long stairway descending behind her into the distance, bright overhead daylight, neutral natural color, no landmark tower visible in this frame",
+    "blocking": "Kelly center frame, mid-sprint on stone steps, running directly toward camera, long staircase stretching down behind her, no landmark visible yet, clear daylight",
+    "action": "Kelly chạy nhanh lên bậc thang, lao thẳng về phía máy quay, máy lùi dần theo nhịp chạy",
+    "text": "Kelly chạy nhanh lên bậc thang, lao thẳng về phía máy quay, máy lùi dần theo nhịp chạy",
+    "action_peak": "mid-stride, torso leaning forward, right knee driving up, arms pumping hard, left foot planted on a step",
+    "continuous_with_next": true,
+    "plate_spot": "bac_thang_giua",
+    "plate_view": {
+     "background": "scenery",
+     "why": "camera đối mặt Kelly khi cô chạy lên, tháp nằm phía sau máy nên chưa vào khung — giữ cho cú lật trục ở shot sau có tác dụng bất ngờ"
+    },
+    "size": "MLS",
+    "angle": "eye",
+    "shot": "medium long shot, eye angle, pull out",
+    "location": "Tháp Đồng Hồ — chân và đỉnh cầu thang dài",
+    "location_asset": 263
+   }
+  },
+  {
+   "scene_id": 303,
+   "idx": 2,
+   "data": {
+    "story_scene": 1,
+    "sequence": 1,
+    "shot_no": 2,
+    "characters": [
+     "KELLY"
+    ],
+    "image_prompt": "Free Fire in-game 3D render, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus, not a movie still, not photorealistic. Third-person gameplay camera arcing from front to behind KELLY as she reaches the top step of a long stone staircase, camera positioned higher than shoulder height looking slightly down, clock tower landmark emerging into view ahead of her in the far background, bright clear daylight",
+    "blocking": "Kelly center frame near the topmost step, still running, camera beginning to swing from in front of her toward her right side in an arc",
+    "action": "Khi Kelly tới bậc cao nhất, máy vòng cung từ phía trước ra sau lưng cô, giữ cô luôn ở giữa khung",
+    "text": "Khi Kelly tới bậc cao nhất, máy vòng cung từ phía trước ra sau lưng cô, giữ cô luôn ở giữa khung",
+    "action_peak": null,
+    "continuous_with_next": true,
+    "plate_spot": "dinh_bac_thang_giua",
+    "plate_view": {
+     "background": "landmark",
+     "why": "khi máy vòng ra sau lưng, tháp đồng hồ hiện ra ở hướng Kelly đang chạy tới — xác lập bối cảnh mốc cho phần còn lại của cảnh"
+    },
+    "size": "GAME_TPS",
+    "angle": "high",
+    "shot": "third-person game camera behind the character, slightly above the shoulder, high angle, orbit",
+    "location": "Tháp Đồng Hồ — chân và đỉnh cầu thang dài",
+    "location_asset": 263
+   }
+  },
+  {
+   "scene_id": 304,
+   "idx": 3,
+   "data": {
+    "story_scene": 1,
+    "sequence": 1,
+    "shot_no": 3,
+    "characters": [
+     "KELLY"
+    ],
+    "image_prompt": "Free Fire in-game 3D render, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus, not a movie still, not photorealistic. Third-person gameplay camera behind KELLY on an open stone plaza, her arm extended mid-throw releasing a glue wall grenade, a flat metallic Gloowall panel already standing fully upright directly ahead of her, clock tower landmark visible in the far background, bright clear daylight",
+    "blocking": "Kelly standing on the flat plaza at the top of the stairs, seen from behind, right arm mid-throw motion releasing the glue wall grenade forward, clock tower visible ahead in the background",
+    "action": "Kelly ném bom keo xuống đất ngay trước mặt, tường keo dựng lên ngay lập tức, đã đứng thẳng đủ cao",
+    "text": "Kelly ném bom keo xuống đất ngay trước mặt, tường keo dựng lên ngay lập tức, đã đứng thẳng đủ cao",
+    "action_peak": "mid-throw, arm fully extended forward, weight shifted onto the front foot, body leaning into the throw",
+    "continuous_with_next": true,
+    "plate_spot": "dinh_bac_thang_giua",
+    "plate_view": {
+     "background": "landmark",
+     "why": "giữ tháp phía sau Kelly để người xem luôn định vị được vị trí trong bản đồ"
+    },
+    "size": "GAME_TPS",
+    "angle": "high",
+    "shot": "third-person game camera behind the character, slightly above the shoulder, high angle, static",
+    "location": "Tháp Đồng Hồ — chân và đỉnh cầu thang dài",
+    "location_asset": 263
+   }
+  },
+  {
+   "scene_id": 305,
+   "idx": 4,
+   "data": {
+    "story_scene": 1,
+    "sequence": 1,
+    "shot_no": 4,
+    "characters": [
+     "KELLY"
+    ],
+    "image_prompt": "Free Fire in-game 3D render, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus, not a movie still, not photorealistic. Medium shot, eye level, KELLY standing pressed against the left side of a flat upright glue wall panel, leaning her head and shoulder out past its edge to scan the area, clock tower landmark visible in the background beyond the wall, bright clear daylight",
+    "blocking": "Kelly standing pressed against the left side of the upright glue wall, facing right, leaning her head and shoulder out past the wall's edge to look out, clock tower visible past the wall in the background",
+    "action": "Kelly đứng sát, núp bên trái tường keo, ló đầu và vai ra nhìn ngó xem có địch không",
+    "text": "Kelly đứng sát, núp bên trái tường keo, ló đầu và vai ra nhìn ngó xem có địch không",
+    "action_peak": null,
+    "continuous_with_next": true,
+    "plate_spot": "dinh_bac_thang_giua",
+    "plate_view": {
+     "background": "landmark",
+     "why": "tháp phía sau tường giúp người xem vẫn định vị được không gian trong lúc Kelly ngó ra"
+    },
+    "size": "MS",
+    "angle": "eye",
+    "shot": "medium shot, eye angle, static",
+    "location": "Tháp Đồng Hồ — chân và đỉnh cầu thang dài",
+    "location_asset": 263
+   }
+  },
+  {
+   "scene_id": 306,
+   "idx": 5,
+   "data": {
+    "story_scene": 1,
+    "sequence": 1,
+    "shot_no": 5,
+    "characters": [
+     "KELLY"
+    ],
+    "image_prompt": "Free Fire in-game 3D render, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus, not a movie still, not photorealistic. Third-person gameplay camera tracking KELLY as she runs a few quick low crouched steps to the left across an open stone plaza, clock tower landmark visible in the background, bright clear daylight",
+    "blocking": "Kelly mid-stride in a low crouched run, moving frame-left across the plaza, seen from behind, glue wall and clock tower receding behind her",
+    "action": "Kelly chạy nhanh 5 bước ngắn, người hơi cúi thấp, di chuyển sang trái",
+    "text": "Kelly chạy nhanh 5 bước ngắn, người hơi cúi thấp, di chuyển sang trái",
+    "action_peak": "mid-stride, torso bent forward low, knees bent, weight shifting onto the left foot",
+    "continuous_with_next": true,
+    "plate_spot": "dinh_bac_thang_giua",
+    "plate_view": {
+     "background": "landmark",
+     "why": "giữ tháp trong khung khi Kelly di chuyển để không đứt mạch định vị không gian"
+    },
+    "size": "GAME_TPS",
+    "angle": "high",
+    "shot": "third-person game camera behind the character, slightly above the shoulder, high angle, track",
+    "location": "Tháp Đồng Hồ — chân và đỉnh cầu thang dài",
+    "location_asset": 263
+   }
+  },
+  {
+   "scene_id": 307,
+   "idx": 6,
+   "data": {
+    "story_scene": 1,
+    "sequence": 1,
+    "shot_no": 6,
+    "characters": [
+     "KELLY"
+    ],
+    "image_prompt": "Free Fire in-game 3D render, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus, not a movie still, not photorealistic. Medium shot, eye level, KELLY mid-throw releasing a glue wall grenade, a second flat metallic Gloowall panel already standing fully upright directly ahead of her, clock tower landmark visible in the background, bright clear daylight",
+    "blocking": "Kelly standing, right arm mid-throw releasing a second glue wall grenade forward, a few meters to the left of the first wall, clock tower visible in the background",
+    "action": "Kelly ném bom keo thứ hai, tường keo mới dựng lên ngay trước mặt",
+    "text": "Kelly ném bom keo thứ hai, tường keo mới dựng lên ngay trước mặt",
+    "action_peak": "mid-throw, arm extended, weight on the front foot",
+    "continuous_with_next": true,
+    "plate_spot": "dinh_bac_thang_giua",
+    "plate_view": {
+     "background": "landmark",
+     "why": "giữ tháp trong khung để duy trì định vị không gian xuyên suốt cảnh"
+    },
+    "size": "MS",
+    "angle": "eye",
+    "shot": "medium shot, eye angle, static",
+    "location": "Tháp Đồng Hồ — chân và đỉnh cầu thang dài",
+    "location_asset": 263
+   }
+  },
+  {
+   "scene_id": 308,
+   "idx": 7,
+   "data": {
+    "story_scene": 1,
+    "sequence": 1,
+    "shot_no": 7,
+    "characters": [
+     "KELLY"
+    ],
+    "image_prompt": "Free Fire in-game 3D render, stylized proportions, moderate texture detail, clear gameplay lighting, everything in focus, not a movie still, not photorealistic. Medium shot, eye level, KELLY seated on the ground behind a flat upright glue wall panel, gripping the black SKORP submachine gun with both hands close to her chest, stock braced against her shoulder, gun held at roughly three head-heights in scale, clock tower landmark visible in the background, bright clear daylight",
+    "blocking": "Kelly seated on the ground behind the second glue wall, knees bent, both hands gripping the SKORP submachine gun close to her chest with the stock against her shoulder, body partially screened by the wall, facing forward",
+    "action": "Kelly ngồi xuống sau tường keo, hai tay cầm chắc SKORP sát ngực, thở ra nhẹ nhõm",
+    "text": "Kelly ngồi xuống sau tường keo, hai tay cầm chắc SKORP sát ngực, thở ra nhẹ nhõm",
+    "action_peak": null,
+    "continuous_with_next": false,
+    "plate_spot": "dinh_bac_thang_giua",
+    "plate_view": {
+     "background": "landmark",
+     "why": "kết cảnh vẫn giữ tháp trong khung để người xem thấy Kelly tạm an toàn nhưng chưa rời khỏi khu vực nguy hiểm"
+    },
+    "size": "MS",
+    "angle": "eye",
+    "shot": "medium shot, eye angle, static",
+    "location": "Tháp Đồng Hồ — chân và đỉnh cầu thang dài",
+    "location_asset": 263
+   }
+  }
+ ],
+ "plates": {
+  "302": {
+   "camera_plan": {
+    "location": [
+     -254.759,
+     144.663,
+     5.251
+    ],
+    "look_at": [
+     -253.7,
+     144.1,
+     5.051
+    ],
+    "subject": {
+     "location": [
+      -253.7,
+      144.1,
+      3.925
+     ],
+     "height_m": 1.7
+    }
+   }
+  },
+  "303": {
+   "camera_plan": {
+    "location": [
+     -243.524,
+     137.556,
+     11.1
+    ],
+    "look_at": [
+     -235.465,
+     135.873,
+     9.35
+    ],
+    "subject": {
+     "location": [
+      -240.0,
+      136.82,
+      8.5
+     ],
+     "height_m": 1.7
+    }
+   }
+  },
+  "304": {
+   "camera_plan": {
+    "location": [
+     -243.524,
+     137.556,
+     11.1
+    ],
+    "look_at": [
+     -235.465,
+     135.873,
+     9.35
+    ],
+    "subject": {
+     "location": [
+      -240.0,
+      136.82,
+      8.5
+     ],
+     "height_m": 1.7
+    }
+   }
+  },
+  "305": {
+   "camera_plan": {
+    "location": [
+     -241.085,
+     137.047,
+     9.978
+    ],
+    "look_at": [
+     -240.0,
+     136.82,
+     9.778
+    ],
+    "subject": {
+     "location": [
+      -240.0,
+      136.82,
+      8.5
+     ],
+     "height_m": 1.7
+    }
+   }
+  },
+  "306": {
+   "camera_plan": {
+    "location": [
+     -243.589,
+     137.244,
+     11.1
+    ],
+    "look_at": [
+     -235.53,
+     135.561,
+     9.35
+    ],
+    "subject": {
+     "location": [
+      -240.0,
+      136.82,
+      8.5
+     ],
+     "height_m": 1.7
+    }
+   }
+  },
+  "307": {
+   "camera_plan": {
+    "location": [
+     -241.085,
+     137.047,
+     9.978
+    ],
+    "look_at": [
+     -240.0,
+     136.82,
+     9.778
+    ],
+    "subject": {
+     "location": [
+      -240.0,
+      136.82,
+      8.5
+     ],
+     "height_m": 1.7
+    }
+   }
+  },
+  "308": {
+   "camera_plan": {
+    "location": [
+     -241.085,
+     137.047,
+     9.978
+    ],
+    "look_at": [
+     -240.0,
+     136.82,
+     9.778
+    ],
+    "subject": {
+     "location": [
+      -240.0,
+      136.82,
+      8.5
+     ],
+     "height_m": 1.7
+    }
+   }
+  }
+ }
+}

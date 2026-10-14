@@ -1937,6 +1937,18 @@ class VideoRunner(_Runner):
             else:                                       # never a prompt_too_long failure for it — said, not silent
                 say_side(job, "warn", "side_truth", f"Trái/phải: KHÔNG thêm câu quy đổi vào prompt video (prompt {len(motion)} + câu "
                                                     f"{len(side)} > trần {cap} ký tự) — " + side)
+        travel = "" if multishot else _travel_truth(self, job, group, quiet=True)   # 14/10 #30: hướng chạy theo độ cao 3D
+        if travel:
+            from .adapters.clipai import PROMPT_LIMITS as _LIMITS
+            from . import side_truth
+            cap = _LIMITS.get(model or "") or (_LIMITS["kling"] if "kling" in str(model or "").lower() else 4000)
+            say_tr = getattr(self, "_diag_once", None) or self._diag
+            if travel in motion or len(motion) + len(travel) + 1 <= cap:
+                motion = side_truth.append(motion, travel)
+                say_tr(job, "info", "travel_truth", "Hướng chạy: prompt video thêm câu do code tính từ độ cao 3D — " + travel)
+            else:                                       # never a prompt_too_long failure for it — said, not silent
+                say_tr(job, "warn", "travel_truth", f"Hướng chạy: KHÔNG thêm câu vào prompt video (prompt {len(motion)} + câu "
+                                                    f"{len(travel)} > trần {cap} ký tự) — " + travel)
         motion = self._gore_restraint(job, proj, motion, group, model)
         lock = looks.video_sentence(proj)                       # S4.3: the look in every video prompt (#8: an anime close-up)
         if lock and lock not in motion:
@@ -2692,6 +2704,36 @@ def _side_truth(runner, job, rows=None, quiet: bool = False) -> str:
     return " ".join(dict.fromkeys(lines))
 
 
+def _travel_truth(runner, job, rows=None, quiet: bool = False) -> str:
+    """14/10 (#30 shot 1, cờ travel_truth — tắt: ""): hướng CHẠY lên/xuống + chiều so với máy, code viết từ độ cao chỗ đứng 3D A→B
+    (core/travel_truth) — câu cho prompt ảnh / video của shot (hoặc mỗi shot của nhóm). Không đủ dữ liệu / chữ trái nền → VÀNG."""
+    from . import travel_truth, location_pack
+    if not travel_truth.enabled():
+        return ""
+    conn = runner.p.conn
+    say = getattr(runner, "_diag_once", None) or getattr(runner, "_diag", None)
+    lines, warns = [], []
+    try:
+        if not rows:
+            r = conn.execute("SELECT id, data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+            rows = [{"id": r["id"], "data": json.loads(r["data"] or "{}")}] if r else []
+        for r in rows:
+            data = r["data"] if isinstance(r.get("data"), dict) else json.loads(r.get("data") or "{}")
+            rec = location_pack.plate_of(runner.data_dir, job["project_id"], r["id"])
+            got = travel_truth.for_shot(conn, job["project_id"], r["id"], data, rec)
+            if got["sentence"]:
+                lines.append(got["sentence"])
+            warns += got["warn"]
+    except Exception as e:  # noqa: BLE001 - a sentence, never a reason to stop the job; said
+        warns, lines = [f"không tính được hướng chạy: {type(e).__name__}: {e}"], []
+    if say:
+        for w in dict.fromkeys(warns):
+            say(job, "warn", "travel_truth", "Hướng chạy: " + w)
+        if lines and not quiet:
+            say(job, "info", "travel_truth", "Hướng chạy: prompt thêm câu do code tính từ độ cao 3D — " + " ".join(lines))
+    return " ".join(dict.fromkeys(lines))
+
+
 def no_minor_age(text: str) -> str:
     """No age under 18 in a prompt sent to a picture/video model: GPT Image 2.5 refused "KELLY, 17-year-old young woman … in
     darkness, eyes red" (safety system, 2026-09-25, trial 2A) while the same shot family without the age passed. The age adds nothing
@@ -2808,10 +2850,11 @@ def chat_rewrite(runner, job, kind: str, assembled: str, images, model, limit: i
     if not chat_prompt.enabled():
         return assembled
     say = getattr(runner, "_diag_once", None) or getattr(runner, "_diag", None)
-    from . import side_truth
-    return side_truth.kept_after_rewrite(assembled, chat_prompt.rewrite(       # 14/10: the code's left/right sentence survives D6
+    from . import side_truth, travel_truth
+    kept = side_truth.kept_after_rewrite(assembled, chat_prompt.rewrite(       # 14/10: the code's left/right sentence survives D6
         runner.p, job, kind, assembled, images, model=model, limit=limit,
         say=(lambda lv, code, msg: say(job, lv, code, msg)) if say else None), limit)
+    return travel_truth.kept_after_rewrite(assembled, kept, limit)          # 14/10 #30: so does the code's direction of travel
 
 
 def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = None, fix: Optional[str] = None,
@@ -3214,9 +3257,10 @@ class ImageRunner(_Runner):
             scale = place_refs.scale_sentence(render["_rec"], entry, data)   # F2 việc 4: measured prop sizes (empty if none)
         # F1-C: light / spot / geometry go into their parts of the formula (place → light), never glued after the quality close
         words_data, ground = self._plate_anchor_words(job, data, render)   # lỗi 1 #27 (cờ plate_anchored_image); tắt → (data, "")
+        travel = _travel_truth(self, job, [{"id": job["scene_id"], "data": data}])   # 14/10 #30: hướng chạy theo độ cao 3D (tắt → "")
         prompt, _ = build_image_prompt(conn, job["project_id"], words_data, fix=model_fix(job["retry_reason"]),
                                        place_render=render is not None, light=light or "",
-                                       place_extra=([ground] if ground else []) + [chosen or "", geo or "", scale or ""])
+                                       place_extra=([ground] if ground else []) + [chosen or "", geo or "", scale or "", travel])
         if "Geometry of this camera" in prompt:        # luật 1: stage_facts sentences added by code are said
             self._diag(job, "info", "stage_facts", "đã nối câu sự thật hình học của máy Sân khấu 3D (core/stage_facts) vào prompt ảnh")
             for note in geometry_contradiction_notes(conn, job["project_id"], data):   # rà kỹ 10/10: shot cũ, không change_event
@@ -3436,6 +3480,8 @@ class ImageRunner(_Runner):
             pov_issue = prop_lock.pov_gun_issue(self.p.conn, job["project_id"], lock_data)
             if pov_issue:
                 getattr(self, "_diag_once", self._diag)(job, "warn", "prop_pov_gun", pov_issue["msg"])
+            for note in prop_lock.variant_notes(self.p.conn, job["project_id"], lock_data):   # 14/10 #30: form carried from the scene
+                getattr(self, "_diag_once", self._diag)(job, "warn", "prop_variant_scene", note)
         prompt, lost = name_render(prompt, refs, fallback=lambda: _place_words(self, job))
         if anchored:                                   # rà gộp lỗi 1: câu nền "as Image 1 shows it" theo gói THẬT (render rơi → bỏ câu)
             prompt = plate_anchor.fit_ground(prompt, refs)
