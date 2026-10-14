@@ -124,3 +124,10 @@ class D6Price(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class D6TokenCeilingTests(unittest.TestCase):
+    def test_d6_has_its_own_ceiling_above_the_8000_default(self):
+        # 14/10: D6 (stage chat_prompt) had no entry → the 8000 default; one paid D6 of #28–#30 stopped at exactly 8000 (cut answer)
+        from core import llm_runner
+        self.assertGreaterEqual(llm_runner.stage_settings(chat_prompt.STAGE)["max_tokens"], 12000)
