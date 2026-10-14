@@ -1,5 +1,7 @@
 # HANDOFF — Đ18.4b STORE sau RÀ KỸ
 
+- Code đã commit `f18f936f`; root đã đọc diff sửa lần hai và sửa projected metadata bytes trước commit. Target cuối 116 xanh/5,89s. Nhánh được push riêng; chưa gộp main/cả bộ Windows/live. Bước kế: chốt mapping bộ dạng/pin ảnh/hash rồi hoàn thiện domain trước 4c commit-import. Phần ref_audio nhỏ đang rà ở `codex/d12-ref-audio-polish`, worktree cùng tên; không làm lại backend.
+
 - Nhánh codex/d18-viec4b-store, base 2c605888 +4a23b9fa51 cherry-picked50ccc97b; uncommitted, không push/TODO/PLAN/main/live.
 - Builder3 lượt đã ghi Kết quả; root baseline82passed/1.94s. Reviewer độc lập báo trọn findings trướcfix, sửa gom1vòng; reviewer3lượt (collection quote error →20RED/84GREEN →113GREEN/4.44s), targetstore+schema+resolver --tb=no.
 - Fix: exactTruegate, replaycommand stable sauedit, provenance rejectdrop, lock actor/time server+actualpath/indexdiff, canonicalDDL/trigger/headguards, corruptJSON/metadata/SQLsanitize, boundedpreflight + active/candidate/exact historicalpins closure, historical metadata read sauassetdetach, livecandidate freshscope, faultproductionno-op/testmonkeypatch.
