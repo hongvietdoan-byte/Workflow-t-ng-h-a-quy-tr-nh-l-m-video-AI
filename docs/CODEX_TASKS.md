@@ -1248,6 +1248,8 @@ thư `TODO.md` dòng [14/10 18:09]) → người dùng duyệt → mới build. 
 
 ## Kết quả Codex — đợt 18
 
+- **14/10 — Việc4c PARTIAL dry-run:** `codex/d18-viec4c-dry-run`, dependencies4a23b9fa51→554c7fbb và4bf18f936f→2803a133 cherry-pick có chủ ý. Inventory explicit/bounded, raw bytes/SHA256, proposal mappings/metadata và restore payloads kiểm integrity; unresolved/conflict cho dữ kiện thiếu, không chọn latest/đoán Kho/activate. ĐỎ17fail4err→33 xanh1skip; rà độc lập3P2+1P3,22đỏ+12đỏ→**67 xanh1skip/2,17s**. Root đọc sửa lần hai; skip quyền symlink Windows, mock guards xanh. Areas80 giữ; chưa fullsuite/main/live/realdata/API. **Chưa hoàn tất4c**: semantic reconcile/atomic DB apply/activation/production restore còn mở, look domain chờ người dùng. RA `docs/RA_D18_VIEC4C_DRY_RUN_CODEX_2026-10-14.md`, HANDOFF cùng nhánh.
+
 - ✅ Việc 1 · nhánh `codex/d18-viec1-ke-hoach-san-khau` · tài liệu `c460d6cd`: `docs/KE_HOACH_SAN_KHAU_DOAN_2026-10-12.md` đối chiếu code/callers/flags, phân biệt stage–segment–state, snapshot/transform/provenance/dependency và quyền dự án/Owner publish; bảng A/B/C ghi đúng giới hạn dữ liệu/proxy/model, chi phí API bổ sung và công/bấm chưa đo, lộ trình không cần Blender. Khuyến nghị A trước→B cùng dữ liệu, C gỡ trước mắt; **chờ người dùng chọn trước Đ18v4**. Root RÀ NHẸ + kiểm nguồn/dòng/link, RA `docs/RA_D18_VIEC1_CODEX_2026-10-12.md`; docs-only không tạo test đỏ giả, không đổi code/cờ/areas/TODO/PLAN/API/data. Chưa xác minh runtime #27/QA chất lượng. Đ18v2/v3 độc lập có thể tiếp; v3 đề ghi chỉ shot trước nhưng main đã cho shot sau, phải đối chiếu trước build.
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)

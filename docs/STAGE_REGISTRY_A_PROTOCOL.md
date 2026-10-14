@@ -262,3 +262,78 @@ chuỗi/row riêng, không claim toàn bộ DB/index footprint16MB. Ack kiểm S
 look_id None không là wire nullable: optional pair look_id/look_revision vẫn phải
 là số nguyên dương; gate chỉ thêm từ chối mapping chưa chốt cho valid look pin.
 Root cho thêm2lượt cho finding mới: 3 RED/1.39s → **116 GREEN/5.89s**, target3files.
+
+## Đ18.4c PARTIAL — inventory/dry-run offline (chưa gộp)
+
+`core.stage_registry_import` chỉ dùng thư viện chuẩn; không import store,
+validator/provider/credential, không SQLite, UI, network hoặc đọc environment.
+Không có apply/import-commit/activate/approve, không thêm migration startup.
+SourceSpec(kind,legacy_key,relative_path,round_id=None) là nguồn explicit:
+kind stage/grid/blocking/shot_specs/setups/scene_data/approvals/binary.
+Không glob/scan mọi project, không chọn latest stage_v2 hoặc suy approved round.
+Caller phải truyền root tuyệt đối của fixture/bản sao và project ID stable.
+
+`dry_run(root,project_id,sources,migration_version=1,...)` read-only, trả
+DryRunReport immutable gồm raw sources, mappings proposals, diagnostic issues.
+RawSource giữ bytes nguyên bản (UTF-8 BOM/whitespace/unknown fields/binary)
+và SHA256; không diễn giải lại scene approvals hay xóa field legacy.
+Tất cả report có status PARTIAL và ready_for_apply=False, kể cả đủ metadata.
+Mapping theo project + migration version + kind + legacy key + raw hash →
+candidate_id opaque/proposed_revision=1. Đây là **proposal source ID**, chưa
+ID aggregate A stable hoặc Kho ID; nguồn đổi tạo proposal khác, không đè A.
+Inventory hash gồm project/version và danh sách kind/key/relative path/round/
+source_hash canonical sorted; không gồm timestamp/root tuyệt đối/mtime.
+Reorder input không đổi report; bytes nguồn đổi (kể cả whitespace) đổi hash.
+
+Trần hard: 64 tệp, 8 MiB/tệp, 32 MiB toàn inventory, 48 depth, 200000 nodes
+tổng JSON, string/key 65536 ký tự. Caller chỉ được giảm trần. JSON key trùng,
+NaN/Infinity, invalid UTF-8/malformed/deep hoặc source đổi lúc đọc fail closed
+không trả report một phần. Binary phải kind explicit, không cố parse JSON.
+Path relative canonical; từ chối absolute/drive/.. /backslash/ADS colon;
+root và ancestors/source components không symlink/junction. Kiểm resolve scope
+và ancestors ngay sau open và sau read, stat/fstat inode/device/size/mtime.
+Không claim raceproof filesystem tuyệt đối trước tác nhân thay đổi path liên
+ tục; caller dùng fixture/bản sao không có writer đồng thời.
+
+Diagnostic không echo payload/path unknown: thiếu stage/actor ID, units/scale,
+blocking văn bản, state/beat/hidden/at/in/POV/move/locks chưa reconcile được đánh
+unresolved; raw vẫn giữ nguyên người gục/trong giếng, subject.id/end_actor,
+beat/end state, spec overrides, source/approval history. Không chuyển at/in
+hay tạo spawn tường từ mô tả, không tự nhân scale=1, không gán assets ID theo tên.
+Valid look pin cũng look_domain_pending tới khi người dùng chốt bộ dạng/ảnh/hash.
+Approvals source chỉ lấy field approved_round explicit cho diagnostic round;
+không có/khác/nhiều round báo unknown/ambiguous, không làm approved A mới.
+
+`restore_payloads(report)` chỉ trả tuple(relative_path,raw_bytes) đã kiểm
+hash/path/trùng để caller đối chiếu restore trên bản sao; không ghi tệp/DB.
+Test restore tạo thư mục tạm riêng và chứng minh byte-for-byte. Production
+restore/import/write là bước riêng cần quyền, backup và reconcile được duyệt.
+
+Bằng chứng fake #24/#27: lượt 1 ĐỎ 17 failed/4 errors (thiếu module); lượt 2
+20 passed/1 skipped native symlink; lượt 3 27 passed/1 skipped; root quickread
+sau lượt 3 bổ sung malformed kind + ancestor/link race checks; lượt xác nhận 4
+**33 passed/1 skipped (0.90s)**. Skip do Windows thiếu quyền tạo symlink; có
+mocked ancestor/link swap coverage. Không nới test, không QA data sản xuất.
+
+
+### Sau rà độc lập inventory PARTIAL
+
+Explicit specs được kiểm thuần trước root filesystemlookup. Root phải local,
+không UNC/device/networkURL; paths portablecanonical còn reject reservedWindows
+CON/NUL/PRN/AUX/COM/LPT, trailingdot/space/ADS và casefoldalias duplicate. Source
+root/ancestors checks vẫn áp dụng, không claim chặn mọi mappednetworkdrive/race.
+Mỗi read bounded theo remainingtotalbytes, không mở secondfile đã vượt budget.
+
+restore_payloads còn kiểm report shape immutable/bounds/PARTIAL/readyFalse,
+project/version/sortedmetadata, sourcebytes SHA/mapping và inventoryhash, rồi
+trả bytes thuần. Identity digest là integrity **không phải chữ ký hoặc xác thực
+người approve**; ai recompute report+hash cũng không được quyền write/activate.
+Tuplesources/mappings/issues và byte/type/budget malformed fail sanitized trước
+hash; JSON nguồn nonbinary vẫn theo trần depth/nodes chung. Không sourcewrite.
+
+Unknown scaleobject(valueNone/confidenceunknown), invalidfalse/0/negative/empty
+hoặc thiếu measuredsource rõ được missing_scale; malformedstableID cũng
+unresolved, raw giữ nguyên. Numericpositive scale chỉ declaredlegacyvalue,
+không nghiệm thu measured. Các diagnostics không semanticconvert hoặc approve.
+Reviewer 22RED +12REDguards → **67passed/1skip/2.17s**,3targetedlượt1file;
+không broad/fullsuite. PARTIAL vẫn là phạm vi của toàn công việc hiện tại.
