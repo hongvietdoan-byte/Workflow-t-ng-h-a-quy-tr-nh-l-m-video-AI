@@ -263,7 +263,7 @@ def validate_motion_prompts(data: Any) -> Dict:
 # ---- persistence -------------------------------------------------------
 DIRECTOR_KEYS = ("location", "time", "characters", "mood", "lighting", "shot", "image_prompt", "location_asset", "sequence",
                  "blocking", "emotional_intent", "beat", "camera_complexity", "shot_role", "dialogue", "duration_s",
-                 "difficulty", "difficulty_why")      # N2: easy|complex|unknown + one sentence (missing → "unknown")
+                 "difficulty", "difficulty_why", "post_fx")      # N2: easy|complex|unknown + one sentence (missing → "unknown")
 
 
 def _empty(value: Any) -> bool:
@@ -369,6 +369,10 @@ def _store(pipeline: Pipeline, project_id: int, obj: Dict) -> None:
         merged = json.loads(row["data"] or "{}")
         locked = set(merged.get("_user_locked") or [])
         for key in DIRECTOR_KEYS:
+            if key == "post_fx":
+                from . import features
+                if not features.on("p24_lessons"):
+                    continue
             if key not in s or key in locked:
                 continue
             if _empty(s[key]) and not _empty(merged.get(key)):

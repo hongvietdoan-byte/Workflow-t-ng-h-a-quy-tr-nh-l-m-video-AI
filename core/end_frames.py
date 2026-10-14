@@ -97,6 +97,64 @@ CLAIM_STALE_S = 120                 # a claim older than this was left by a cras
 DROP_CODES = ("end_frame_distance", "locomotion_end_frame", "end_frame_skill_object", "end_frame_unsupported")
 
 
+# ---- C3 (người dùng 14/10): gửi clip KHÔNG kèm khung cuối khi chạy tự động đã dừng ---------------------------------------------------
+_OFF_KEY = "end_frame_off:{}"       # app_settings: the person sends this shot's clip WITHOUT its drawn end frame — tied to the end frame row
+OFF_NOTE = "người chọn gửi KHÔNG kèm khung cuối"
+
+
+def held_without_autopilot(conn, scene_id: int) -> bool:
+    """The runner holds this shot's queued clip for an end frame nobody draws now: the row is queued / running, it was not asked by
+    a person (the Bước 4 poll would draw it), and the automatic run is not running."""
+    row = current(conn, scene_id)
+    if row is None or row["state"] not in ("queued", "running") or skip_reason(conn, scene_id):
+        return False
+    pid = conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    if pid is None or _autopilot_running(conn, pid[0]):
+        return False
+    if asked(conn, row["id"]) and not _budget_blocked(row):
+        return False                                       # being drawn for the person now (Bước 4 poll)
+    return conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state='queued' LIMIT 1",
+                        (scene_id,)).fetchone() is not None
+
+
+def send_without(p: Pipeline, scene_id: int, who: Optional[str] = None) -> List[int]:
+    """The "▶ Gửi clip KHÔNG kèm khung cuối" button: the person chooses to send the held clip without the end frame. Recorded per
+    shot for the CURRENT end frame row (a later 🖼 Vẽ khung cuối makes a new row and ends the choice) + a job_events line on each
+    queued clip of the shot with the reason. Returns those job ids (the caller lets them go)."""
+    access.need_edit_scene(p, scene_id, "gửi clip không kèm khung cuối")
+    conn = p.conn
+    why = missing_reason(conn, scene_id) or "chưa có khung cuối"
+    row = current(conn, scene_id)
+    conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                 (_OFF_KEY.format(scene_id), json.dumps({"row": row["id"] if row is not None else None, "by": who or "người bấm",
+                                                         "why": why}, ensure_ascii=False)))
+    if row is not None and row["state"] == "queued":
+        # never paid for later: a resumed automatic run would draw it (queue() keeps a 'failed' row of the same start picture; a
+        # new 🖼 Vẽ makes a new row). A row already 'running' (sent) is only downloaded — the runner does not send it.
+        conn.execute(f"UPDATE end_frames SET state='failed', note=?, updated_at={_now_sql()} WHERE id=?", (OFF_NOTE, row["id"]))
+    from .pipeline import _now
+    jobs = [r[0] for r in conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type='video_gen' AND state='queued' ORDER BY id",
+                                       (scene_id,))]
+    for jid in jobs:
+        conn.execute("INSERT INTO job_events (job_id, from_state, to_state, actor, note, at) VALUES (?,?,?,?,?,?)",
+                     (jid, "queued", "queued", who or "user", f"{OFF_NOTE} (lúc đó: {why})", _now()))
+    conn.commit()
+    return jobs
+
+
+def sent_without(conn, scene_id: int) -> Optional[Dict]:
+    """The person's choice above, while it still applies (the shot's end frame row is the same one); else None."""
+    got = conn.execute("SELECT value FROM app_settings WHERE key=?", (_OFF_KEY.format(scene_id),)).fetchone()
+    if got is None:
+        return None
+    try:
+        data = json.loads(got[0])
+    except ValueError:
+        return None
+    row = current(conn, scene_id)
+    return data if data.get("row") == (row["id"] if row is not None else None) else None
+
+
 def mark_asked(conn, row_id: int, asked_by: Optional[str] = None) -> None:
     conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                  (_ASK_KEY.format(row_id), asked_by or "người bấm"))
@@ -171,6 +229,8 @@ def missing_reason(conn, scene_id: int) -> Optional[str]:
     skip = skip_reason(conn, scene_id, json.loads(row["data"] or "{}"))
     if skip:
         return skip
+    if sent_without(conn, scene_id):
+        return OFF_NOTE
     if usable_path(conn, scene_id):
         return None
     cur = current(conn, scene_id)

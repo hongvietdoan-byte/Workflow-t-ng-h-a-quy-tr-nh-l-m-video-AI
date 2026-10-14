@@ -233,6 +233,64 @@ class ManualSendTests(unittest.TestCase):
         self.assertIn("end_frame_wait", runner.HOLD_CODES)
         self.assertIn("khung cuối", runner.held_reason(self.p.conn, self.job["id"]) or "")
 
+    # ---- C3 (người dùng 14/10): gửi clip KHÔNG kèm khung cuối khi chạy tự động đã dừng --------------------------------------------
+    def _card_click(self, click: bool, read_only: bool = False):
+        from dashboard import end_frame_ui
+        with mock.patch.object(end_frame_ui, "st") as st, mock.patch("dashboard.common.read_only", return_value=read_only), \
+                mock.patch.object(self.vr, "submit_pending") as go:
+            st.button.side_effect = lambda label, key=None, **k: click and key == f"efoff_{self.sid}"
+            end_frame_ui.card_block(self.p, self.pid, self.sid, lambda f: (f(), True)[1], self.vr)
+        labels = [c.args[0] for c in st.button.call_args_list]
+        return labels, go
+
+    def test_stopped_autopilot_clip_can_be_sent_without_its_end_frame(self):
+        from core import autopilot
+        end_frames.queue(self.p, self.pid)                                   # the autopilot's own row
+        autopilot.stop(self.p, self.pid)
+        self.assertTrue(self.vr._wait(self.job))                             # held: nobody draws it now
+        self.assertTrue(end_frames.held_without_autopilot(self.p.conn, self.sid))
+        labels, go = self._card_click(click=False)
+        btn = [x for x in labels if x.startswith("▶ Gửi clip KHÔNG kèm khung cuối")]
+        self.assertEqual(len(btn), 1)
+        self.assertRegex(btn[0], r"\$|USD|giá")                               # the clip's price is on the button
+        go.assert_not_called()
+        labels, go = self._card_click(click=True)
+        go.assert_called_once_with(self.pid, only=[self.job["id"]])          # only this shot's held clip
+        note = self.p.conn.execute("SELECT note FROM job_events WHERE job_id=? ORDER BY id DESC LIMIT 1", (self.job["id"],)).fetchone()[0]
+        self.assertIn(end_frames.OFF_NOTE, note)
+        self.assertIn("chạy tự động", note)                                  # the reason at that time
+        self.assertFalse(self.vr._wait(self.job))
+        self.assertEqual(end_frames.missing_reason(self.p.conn, self.sid), end_frames.OFF_NOTE)
+        self.assertIsNone(self.vr._end_frame(self.job, "kling"))
+        self.assertTrue(any("KHÔNG kèm khung cuối" in m for m in self._said("end_frame_off")))
+        self.assertEqual(end_frames.current(self.p.conn, self.sid)["state"], "failed")   # a resumed run never pays to draw it
+        self.assertEqual(end_frames.queue(self.p, self.pid), [])
+        self.assertEqual(end_frames.drawing(self.p, self.pid), 0)
+
+    def test_a_new_end_frame_request_ends_the_choice(self):
+        from core import autopilot
+        end_frames.queue(self.p, self.pid)
+        autopilot.stop(self.p, self.pid)
+        self._card_click(click=True)
+        self.assertTrue(end_frames.sent_without(self.p.conn, self.sid))
+        end_frames.redo(self.p, self.sid)                                    # the person asks 🖼 Vẽ khung cuối after all
+        self.assertIsNone(end_frames.sent_without(self.p.conn, self.sid))
+        self.assertTrue(self.vr._wait(self.job))                             # waits for the new one again
+        self.assertFalse(end_frames.held_without_autopilot(self.p.conn, self.sid))   # being drawn for the person: no button
+
+    def test_no_send_without_button_while_autopilot_runs_or_for_a_viewer(self):
+        from core import autopilot
+        end_frames.queue(self.p, self.pid)
+        self.p.conn.execute("UPDATE projects SET autopilot_state='running' WHERE id=?", (self.pid,))
+        self.p.conn.commit()
+        labels, _ = self._card_click(click=False)
+        self.assertFalse([x for x in labels if x.startswith("▶ Gửi clip")])
+        autopilot.stop(self.p, self.pid)
+        labels, go = self._card_click(click=True, read_only=True)
+        self.assertFalse([x for x in labels if x.startswith("▶ Gửi clip")])
+        go.assert_not_called()
+        self.assertIsNone(end_frames.sent_without(self.p.conn, self.sid))
+
 
 class ConcurrentPollTests(unittest.TestCase):
     """R2 (rà S3): two Bước 4 tabs (two threads, own connections) polling at once send the same end frame once."""

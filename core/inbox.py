@@ -28,6 +28,14 @@ def _final_hold(conn, job_id: int) -> bool:
     return bool(row) and quality_tier.final_hold_note(row["note"])
 
 
+def _skip(conn, pid: int) -> Dict:
+    from . import inbox_clean
+    try:
+        return inbox_clean.skip_sets(conn, pid)
+    except Exception:  # noqa: BLE001 - a broken leftover check never hides real work: count everything as before
+        return {"jobs": set(), "failed": set(), "findings": set()}
+
+
 def _shots(idx: List[int]) -> str:
     return ", ".join(str(i) for i in idx[:8]) + ("…" if len(idx) > 8 else "")
 
@@ -91,17 +99,26 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
             out.append({"kind": kind, "project_id": pid, "project": name, "text": text, "screen": screen, "level": level,
                         "who": who, "sub": sub})
 
+        # C2 (14/10): leftovers (an older take when the shot already uses another, an old error when the shot has a usable take, a
+        # Tổ rà soát item older than the shot's approved result, anything of a delivered project) are not counted — core/inbox_clean
+        sk = _skip(conn, pid)
         # 10/10 Tổ rà soát tác động: mục còn mở sau một thay đổi (đỏ = gen tốn tiền của shot đang bị giữ)
         try:
-            rv = conn.execute("SELECT level, COUNT(*), GROUP_CONCAT(DISTINCT s.idx) FROM change_findings f LEFT JOIN scenes s ON "
-                              "s.id=f.scene_id WHERE f.project_id=? AND f.status='open' GROUP BY level", (pid,)).fetchall()
+            rv = conn.execute("SELECT f.id, f.level, s.idx FROM change_findings f LEFT JOIN scenes s ON s.id=f.scene_id WHERE "
+                              "f.project_id=? AND f.status='open' ORDER BY s.idx", (pid,)).fetchall()
         except Exception:  # noqa: BLE001 - an old database without the table: nothing to list
             rv = []
-        for lv, n, shots in rv:
-            add("Rà soát", f"{'🔴 Giữ gen — ' if lv == 'do' else ''}{n} mục lệch sau thay đổi" + (f" (shot {shots})" if shots else ""),
-                "storyboard", "wait" if lv == "do" else "todo")
+        by_level: Dict[str, List] = {}
+        for f in rv:
+            if f["id"] not in sk["findings"]:
+                by_level.setdefault(f["level"], []).append(f["idx"])
+        for lv in sorted(by_level):
+            shots = ",".join(str(i) for i in dict.fromkeys(i for i in by_level[lv] if i is not None))
+            add("Rà soát", f"{'🔴 Giữ gen — ' if lv == 'do' else ''}{len(by_level[lv])} mục lệch sau thay đổi"
+                + (f" (shot {shots})" if shots else ""), "storyboard", "wait" if lv == "do" else "todo")
         for kind, typ, screen, label in (("Ảnh", "image_gen", "storyboard", "ảnh"), ("Video", "video_gen", "video", "clip")):
-            n = conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type=? AND state='pending_review'", (pid, typ)).fetchone()[0]
+            n = sum(1 for r in conn.execute("SELECT id FROM jobs WHERE project_id=? AND type=? AND state='pending_review'", (pid, typ))
+                    if r[0] not in sk["jobs"])
             if n:
                 add(kind, f"Duyệt {n} {label} đang chờ", screen, "todo")
         for kind, typ, screen, label in (("Ảnh", "image_gen", "storyboard", "ảnh"), ("Video", "video_gen", "video", "clip")):
@@ -127,6 +144,8 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
             if r["quality_tier"] == "final" and _final_hold(conn, r["id"]):
                 final_hold.append(r["idx"])           # C3/C7: waits for the person's confirmation — not a generation error
                 continue
+            if r["id"] in sk["failed"]:
+                continue                              # C2: the shot already has a usable take / the project was delivered
             failed[r["type"]].append(r["idx"])
         for line in _video_waits(conn, pid, final_hold):
             add("Video", line, "video", "wait")

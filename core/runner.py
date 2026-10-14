@@ -1316,6 +1316,10 @@ class VideoRunner(_Runner):
                 row = end_frames.current(self.p.conn, job["scene_id"])     # R3 (rà S3): never drawn / sent — said once (GHÉP)
                 self._skill_object_appears(job, (row["path"] if row is not None else None) or "")
                 return None
+            if end_frames.sent_without(self.p.conn, job["scene_id"]):       # C3: the person's button — never the drawn one, said once
+                self._diag_once(job, "info", "end_frame_off", f"clip gửi KHÔNG kèm khung cuối: {end_frames.OFF_NOTE} (nút trên thẻ Bước 4) "
+                                "— bấm “🖼 Vẽ khung cuối” rồi gen lại nếu cần cảnh kết đúng end_state")
+                return None
             end = end_frames.usable_path(self.p.conn, job["scene_id"])      # K1: the drawn end state
             if not end:                  # C5 (rà chuỗi 13/10): a shot that needs one goes without it — said once, never silently
                 why = end_frames.missing_reason(self.p.conn, job["scene_id"])
@@ -1767,7 +1771,8 @@ class VideoRunner(_Runner):
             return self._hold(job, "chờ bạn duyệt clip cảnh trước (cảnh này bắt đầu từ khung cuối clip đó) — duyệt xong sẽ tự gửi")
         if end_frames.enabled():
             row = end_frames.current(self.p.conn, job["scene_id"])
-            if row is not None and row["state"] in ("queued", "running") and not end_frames.skip_reason(self.p.conn, job["scene_id"]):
+            if row is not None and row["state"] in ("queued", "running") and not end_frames.skip_reason(self.p.conn, job["scene_id"]) \
+                    and not end_frames.sent_without(self.p.conn, job["scene_id"]):    # C3: the person chose to send it without
                 # C5: held WITH the reason (card / inbox), never silently. R8 (rà S3): also in diag (end_frame_wait ∈ HOLD_CODES) so
                 # held_reason reads it after WAIT_FRESH_SEC / in another process; R1/R7: the real reason (autopilot's row waiting, cap)
                 why = end_frames.missing_reason(self.p.conn, job["scene_id"]) or "đang vẽ khung cuối"

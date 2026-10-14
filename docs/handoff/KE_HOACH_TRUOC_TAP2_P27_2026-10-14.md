@@ -43,7 +43,7 @@ việc — phiên điều phối cập nhật). Mỗi việc thêm cờ mới th
   viết lại 1 lần / không có Claude → VÀNG không chặn); thêm ca lần gen lại không bị giữ qua vòng nền. Claude giả (mock).
 - File: `core/prompt_rewrite.py`, `core/change_review.py`, `core/features.py`, `tests/test_change_review.py`, `tests/test_prompt_rewrite*.py`.
 
-### C2 · Dọn "Chờ bạn" thừa ở dự án đã xong (≈ $8–15) — TODO mục "Dự án xong/gần xong vẫn hiện nhiều việc Chờ bạn"
+### C2 · Dọn "Chờ bạn" thừa ở dự án đã xong (≈ $8–15) — ✅ XONG 14/10 (`core/inbox_clean.py`, xem dòng hộp thư) — TODO mục "Dự án xong/gần xong vẫn hiện nhiều việc Chờ bạn"
 - Số liệu (CSDL thật, chỉ đọc 13/10): #27 = 2 clip lỗi (shot 2, 20), 1 mục rà soát ĐỎ (shot 19) + 7 mục lệch sau thay đổi
   (shot 4,6,10,11,15,19), 9 clip chờ duyệt, chưa khóa ngân sách; #24 = 30 mục lệch, 8 ảnh + 7 clip chờ, chưa khóa ngân sách.
 - Việc: phân loại từng loại đúng/sai (không ẩn bừa); không đếm mục lỗi thời khi shot đã có bản dùng (take đã chọn / clip đã duyệt)
@@ -53,7 +53,7 @@ việc — phiên điều phối cập nhật). Mỗi việc thêm cờ mới th
 - File: `core/inbox.py` (`items` dòng ≈ 70, `_video_waits` ≈ 35), `core/change_review.py`, `core/takes.py`, thẻ dự án
   `dashboard/design/screens/`. Test trên CSDL tạm dựng lại đúng các ca trên.
 
-### C3 · Nút "▶ Gửi clip KHÔNG kèm khung cuối" khi autopilot dừng (≈ $5–8)
+### C3 · Nút "▶ Gửi clip KHÔNG kèm khung cuối" khi autopilot dừng (≈ $5–8) — ✅ XONG 14/10 (`end_frames.send_without`, xem dòng hộp thư)
 - Hiện: S3/S4 không vẽ khung cuối cho shot chắc chắn bỏ + giữ clip thiếu khung cuối kèm lý do; khi autopilot đã dừng thì người dùng
   không có cách gửi clip bỏ khung cuối. Thêm nút trên thẻ Bước 4 (có ước tính giá trên nút, ghi lý do vào `job_events`, chỉ người
   có quyền tiền), đi cùng đường gửi hiện có (`runner._end_frame` cho phép "người chọn bỏ khung cuối").

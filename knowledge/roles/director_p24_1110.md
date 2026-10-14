@@ -23,6 +23,12 @@ luật cấm từ — là cách tính trước khi viết. Code kiểm lại cá
 6. **Hiệu ứng màn hình (nhiễu sóng, glitch toàn khung, sọc, mất tín hiệu) là hậu kỳ.** Không viết vào ảnh khởi đầu video — model video
    coi nhiễu là nội dung và giữ / lan cả clip. Ghi vào `post_fx` của shot để dựng bằng ffmpeg. Nhiễu là một phần thiết kế nhân vật
    (vd vệt glitch quanh cổ tay của bộ đồ) thì vẫn tả như trang phục.
+   Lược đồ tùy chọn của shot: `"post_fx": {"loai": "glitch", "vi_tri": "cuoi", "thoi_luong_s": 0.5, "cuong_do": 0.8}`.
+   `loai` chỉ nhận `nhieu_song` / `glitch` / `nhap_nhay`; `vi_tri` chỉ nhận `dau` / `cuoi` / `ca_shot`.
+   `thoi_luong_s` là số hữu hạn > 0 và ≤ thời lượng clip (giây); `cuong_do` là số hữu hạn trong (0, 1].
+   `ca_shot` áp toàn clip; `thoi_luong_s` vẫn bắt buộc và hợp lệ. Không cần hiệu ứng thì bỏ trường `post_fx`, không ghi object rỗng.
+   Đây là hiệu ứng hậu kỳ có chủ ý, không đưa nó vào image_prompt hoặc motion prompt gửi model.
+
 
 ## Bổ sung từ duyệt ảnh thử #27 "Liệu bạn sẽ Booyah tập 1" (12/10)
 

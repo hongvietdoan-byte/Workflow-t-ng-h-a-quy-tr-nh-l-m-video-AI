@@ -126,6 +126,9 @@ def portfolio_rows(conn, data_dir: str) -> List[Dict]:
         scenes, images, motion, videos = _progress(conn, r["id"])
         active = c("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND state IN ('queued','running','retryable')")
         needs_review = c("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND state='pending_review'")
+        if needs_review:                 # C2 (14/10): an older take of a shot that already uses another / a delivered project's leftovers
+            from . import inbox
+            needs_review -= len(inbox._skip(conn, r["id"])["jobs"])
         final_video = os.path.join(data_dir, str(r["id"]), "output", "FINAL_VIDEO.mp4")
         done = os.path.exists(final_video)
         step = _step(done, scenes, images, motion, videos)

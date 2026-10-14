@@ -152,3 +152,140 @@ def test_tampered_issues_still_need_valid_list():
     packed["issues"] = "hỏng"
     with pytest.raises(ValueError, match="issues"):
         sheet.from_location_pack(packed)
+
+# Đ13v2: hồi quy thuần dữ liệu, không gọi provider/API.
+def _legacy_pack(p, ngay="2026-10-12T08:30:00+07:00"):
+    import hashlib, json
+    return {"kind": "blockout", "schema_version": 1, "phien_ban": 1,
+            "nguoi_duyet": "Việt", "ngay": ngay, "issues": [], "plan": deepcopy(p),
+            "sha256": hashlib.sha256(json.dumps(p, ensure_ascii=False, sort_keys=True,
+                separators=(",", ":"), allow_nan=False).encode()).hexdigest()}
+
+
+def test_d13_old_pillow_fallback_real_png(monkeypatch, tmp_path):
+    default = sheet.ImageFont.load_default()
+    def old_default():
+        return default
+    monkeypatch.setattr(sheet.ImageFont, "truetype", lambda *a, **k: (_ for _ in ()).throw(OSError()))
+    monkeypatch.setattr(sheet.ImageFont, "load_default", old_default)
+    assert sheet._font(10) is default
+    sheet.render_top_view(plan(), [], tmp_path / "old.png")
+    with Image.open(tmp_path / "old.png") as png:
+        assert png.format == "PNG" and png.size == sheet.SIZE
+
+
+def test_d13_numeric_geometry_and_semantics():
+    p = plan(box()); q = deepcopy(p)
+    q["khoi"][0]["tam"] = [3.0, 3.0]
+    assert sheet._sha(p) == sheet._sha(q)
+    for value in [True, "3", 3.0000000000000004, 2**100, 2**100 + 1]:
+        q["khoi"][0]["tam"][0] = value
+        assert sheet._sha(q) != sheet._sha(p)
+    q = deepcopy(p); q["khoi"][0]["mo_ta_ngan"] += "!"
+    assert sheet._sha(q) != sheet._sha(p)
+    assert sheet._sha({"san": {"z": 2**100}}) != sheet._sha({"san": {"z": 2**100 + 1}})
+    assert sheet._sha({"san": {"z": 2**100}}) == sheet._sha({"san": {"z": float(2**100)}})
+    assert sheet._sha({"khoi": [{"id": "a"}, {"id": "b"}]}) != sheet._sha({"khoi": [{"id": "b"}, {"id": "a"}]})
+    assert sheet._sha({"khoi": [{"vat_kho": 3}]}) != sheet._sha({"khoi": [{"vat_kho": 3.0}]})
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+def test_d13_hash_nonfinite_rejected(value):
+    with pytest.raises(ValueError):
+        sheet._sha({"san": {"z": value}})
+
+
+def test_d13_old_raw_hash_strict_and_immutable():
+    packed = _legacy_pack(plan(box())); original = deepcopy(packed)
+    assert sheet.from_location_pack(packed) == packed["plan"]
+    assert packed == original
+    packed["plan"]["khoi"][0]["tam"][0] = 3.0
+    with pytest.raises(ValueError, match="sha"):
+        sheet.read_location_pack(packed)
+
+
+@pytest.mark.parametrize("ngay", ["2026-10-12", "2026-10-12T08:30:00"])
+def test_d13_naive_legacy_warns_new_refuses(ngay):
+    packed = _legacy_pack(plan(box()), ngay); original = deepcopy(packed)
+    info = sheet.read_location_pack(packed)
+    assert info["can_duyet_lai"] and "múi giờ" in info["canh_bao"] and not info["co_do"]
+    with pytest.warns(UserWarning, match="múi giờ"):
+        assert sheet.from_location_pack(packed) == packed["plan"]
+    assert packed == original and info["issues_luc_duyet"] == []
+    new = sheet.to_location_pack(plan(box()), "Việt", 1)
+    assert new["schema_version"] == 2
+    new["ngay"] = ngay
+    with pytest.raises(ValueError, match="múi giờ"):
+        sheet.read_location_pack(new)
+
+
+def test_d13_new_hash_never_legacy_fallback():
+    packed = sheet.to_location_pack(plan(box()), "Việt", 1)
+    packed["sha256"] = _legacy_pack(packed["plan"])["sha256"]
+    with pytest.raises(ValueError, match="sha"):
+        sheet.read_location_pack(packed)
+    packed = sheet.to_location_pack(plan(box()), "Việt", 1)
+    packed["schema_version"] = True
+    with pytest.raises(ValueError, match="schema"):
+        sheet.read_location_pack(packed)
+
+
+def test_d13_all_geometry_numeric_fields_and_serialized_roundtrip():
+    import json
+    p = plan(box())
+    p["loi_mo"] = [{"tam": [0, 0], "kich_thuoc": [1, 1], "huong": 0}]
+    p["khoi"][0]["kich_thuoc_chuan"] = [1, 1, 2]
+    p["khoi"][0]["z"] = 0
+    def floats(item):
+        if type(item) is int:
+            return float(item)
+        if isinstance(item, list):
+            return [floats(v) for v in item]
+        if isinstance(item, dict):
+            return {k: floats(v) for k, v in item.items()}
+        return item
+    q = floats(p)
+    assert sheet._sha(p) == sheet._sha(q)
+    pack = sheet.to_location_pack(p, "Việt", 1)
+    pack["plan"] = q
+    assert sheet.from_location_pack(json.loads(json.dumps(pack))) == q
+    pack["ngay"] = "2026-10-12T08:30:00+07:00"
+    assert not sheet.read_location_pack(pack)["can_duyet_lai"]
+    q["khoi"][0]["tam"][0] = "3"
+    with pytest.raises(ValueError, match="sha"):
+        sheet.read_location_pack(pack)
+
+
+def test_d13_legacy_naive_and_changed_red_rules_preserve_history(monkeypatch):
+    pack = _legacy_pack(plan(box()), "2026-10-12")
+    original = deepcopy(pack)
+    monkeypatch.setattr(bo, "check_geometry", lambda *a, **k: [bo._issue("do", "san", "luật mới đỏ", "new_red")])
+    info = sheet.read_location_pack(pack)
+    assert info["co_do"] and info["can_duyet_lai"]
+    assert "múi giờ" in info["canh_bao"] and "luật kiểm đã đổi" in info["canh_bao"] and "ĐỎ" in info["canh_bao"]
+    assert info["issues_luc_duyet"] == [] and pack == original
+    info["plan"]["san"]["z"] = 100
+    assert pack == original
+
+
+def test_d13_nested_metadata_not_geometry():
+    p = plan(box())
+    p["khoi"][0]["metadata"] = {"z": 3, "tam": [3, 3], "huong": 3}
+    for field in ("z", "tam", "huong"):
+        q = deepcopy(p)
+        q["khoi"][0]["metadata"][field] = [3.0, 3.0] if field == "tam" else 3.0
+        assert sheet._sha(p) != sheet._sha(q)
+        pack = sheet.to_location_pack(p, "Việt", 1)
+        pack["plan"] = q
+        with pytest.raises(ValueError, match="sha"):
+            sheet.read_location_pack(pack)
+
+
+def test_d13_bitmap_font_fails_clearly_before_png(monkeypatch, tmp_path):
+    bitmap = sheet.ImageFont.load_default_imagefont()
+    monkeypatch.setattr(sheet.ImageFont, "truetype", lambda *a, **k: (_ for _ in ()).throw(OSError()))
+    monkeypatch.setattr(sheet.ImageFont, "load_default", lambda: bitmap)
+    output = tmp_path / "missing_unicode.png"
+    with pytest.raises(ValueError, match="font Unicode"):
+        sheet.render_top_view(plan(), [], output)
+    assert not output.exists()
