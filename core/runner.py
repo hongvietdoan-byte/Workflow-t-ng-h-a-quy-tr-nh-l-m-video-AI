@@ -1883,6 +1883,7 @@ class VideoRunner(_Runner):
                 duration = sum(shots.billed_shot_seconds(r["data"]) for r in group)
                 model = "kling"
         motion = no_minor_age(mp["motion_prompt"])
+        side = _side_truth(self, job, group)            # 14/10: trái/phải nhân vật → khung (cờ side_truth; tắt → "")
         if secs and not setup and self._refs(job):
             from . import seedance_refs
             rows = self._ref_rows(job, group)
@@ -1900,7 +1901,7 @@ class VideoRunner(_Runner):
             # F5-A: real sizes of the library objects (the well), short form, once — dropped first when the prompt would pass the limit
             motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model, places=places,
                                                        scales=_object_scales(conn, job["project_id"], rows),
-                                                       reserve=(len(block) + 1 if block else 0)
+                                                       reserve=(len(block) + 1 if block else 0) + (len(side) + 1 if side else 0)
                                                        + len(self._ref_end_sentence(job, group, len(rows) + len(ids) + len(places))) + 1
                                                        + _skill_reserve(conn, job["project_id"],
                                                                         _reserve_text(parts, ids, places, model_fix(job["retry_reason"])))))
@@ -1923,6 +1924,8 @@ class VideoRunner(_Runner):
             self._diag(job, "info", "look_words_removed",
                        "look in-game Free Fire: đã gỡ chữ kéo về tả thực khỏi prompt video — " + ", ".join(removed))
         motion = _skill_object_guard(self, job, motion, "video", group)   # lỗi hệ thống 3 (cờ skill_object_guard)
+        from . import side_truth
+        motion = side_truth.append(motion, side)
         motion = self._gore_restraint(job, proj, motion, group, model)
         lock = looks.video_sentence(proj)                       # S4.3: the look in every video prompt (#8: an anime close-up)
         if lock and lock not in motion:
@@ -2644,6 +2647,40 @@ def _skill_object_guard(runner, job, text: str, what: str, group=None) -> str:
     return new
 
 
+def _side_truth(runner, job, rows=None) -> str:
+    """14/10 (thử D6 #28/#29, cờ side_truth — tắt: ""): the script's 'bên trái / phải' of the character turned into FRAME-LEFT / RIGHT
+    by code (core/side_truth) — the sentence for the image / video prompt of the job's shot (or each shot of its group). Not
+    convertible (camera side unknown, several characters) → nothing added, said VÀNG once with the reason."""
+    from . import side_truth
+    if not side_truth.enabled():
+        return ""
+    conn = runner.p.conn
+    say = getattr(runner, "_diag_once", None) or getattr(runner, "_diag", None)
+    lines, warns = [], []
+    try:
+        if not rows:
+            r = conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+            rows = [{"data": json.loads(r["data"] or "{}")}] if r else []
+        proj = conn.execute("SELECT script_text FROM projects WHERE id=?", (job["project_id"],)).fetchone()
+        from . import script_pose
+        idx = script_pose._index((proj["script_text"] if proj else "") or "")
+        for r in rows:
+            data = r["data"] if isinstance(r.get("data"), dict) else json.loads(r.get("data") or "{}")
+            got = side_truth.for_shot(idx, data)
+            if got["sentence"]:
+                lines.append(got["sentence"])
+            elif got["warn"]:
+                warns.append(got["warn"])
+    except Exception as e:  # noqa: BLE001 - a sentence, never a reason to stop the job; said
+        warns, lines = [f"không quy đổi được trái/phải: {type(e).__name__}: {e}"], []
+    if say:
+        for w in warns:
+            say(job, "warn", "side_truth", "Trái/phải: " + w)
+        if lines:
+            say(job, "info", "side_truth", "Trái/phải: prompt thêm câu quy đổi sang khung — " + " ".join(lines))
+    return " ".join(dict.fromkeys(lines))
+
+
 def no_minor_age(text: str) -> str:
     """No age under 18 in a prompt sent to a picture/video model: GPT Image 2.5 refused "KELLY, 17-year-old young woman … in
     darkness, eyes red" (safety system, 2026-09-25, trial 2A) while the same shot family without the age passed. The age adds nothing
@@ -2760,8 +2797,10 @@ def chat_rewrite(runner, job, kind: str, assembled: str, images, model, limit: i
     if not chat_prompt.enabled():
         return assembled
     say = getattr(runner, "_diag_once", None) or getattr(runner, "_diag", None)
-    return chat_prompt.rewrite(runner.p, job, kind, assembled, images, model=model, limit=limit,
-                               say=(lambda lv, code, msg: say(job, lv, code, msg)) if say else None)
+    from . import side_truth
+    return side_truth.kept_after_rewrite(assembled, chat_prompt.rewrite(       # 14/10: the code's left/right sentence survives D6
+        runner.p, job, kind, assembled, images, model=model, limit=limit,
+        say=(lambda lv, code, msg: say(job, lv, code, msg)) if say else None), limit)
 
 
 def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = None, fix: Optional[str] = None,
@@ -3385,6 +3424,8 @@ class ImageRunner(_Runner):
                     + " — sửa gói tham chiếu trước gen; model chỉ nhận mô tả chữ" if missing else f"job {job['id']}: gói gửi cuối không thiếu ảnh khóa")
         prompt = prop_lock.match_refs(prompt, refs)
         prompt = _skill_object_guard(self, job, prompt, "ảnh")          # lỗi hệ thống 3 (cờ skill_object_guard)
+        from . import side_truth
+        prompt = side_truth.append(prompt, _side_truth(self, job))       # 14/10: trái/phải nhân vật → khung (cờ side_truth)
         if lost and hasattr(self, "_diag"):
             self._diag(job, "warn", "missing_reference", "ảnh render 3D của shot không gửi được — bỏ câu khóa nền theo render, quay về "
                                                          "câu địa điểm bằng chữ")
