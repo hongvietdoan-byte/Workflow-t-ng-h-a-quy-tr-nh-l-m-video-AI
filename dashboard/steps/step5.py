@@ -435,8 +435,11 @@ def subtitle_panel(p: Pipeline, pid: int, out: str = None, auto_ext: bool = None
 
 def sfx_assistant(p: Pipeline, pid: int) -> None:
     """One button: AI reads the scenes and the sound library and proposes effects; the person reviews, edits and adds them."""
+    from core import features
+    from dashboard import motion_sfx_ui
+    motion_on = features.on('motion_sfx')
     n = sound_lib.counts(p.conn)
-    if not n:
+    if not n and not motion_on:
         return
     key = f"sfxplan_{pid}"
     n_ai = sum(1 for e in audio_lib.load(audio_lib.assets_dir(C.DATA, pid)) if e.get("kind") == "sound_effect" and e.get("use"))
@@ -444,30 +447,39 @@ def sfx_assistant(p: Pipeline, pid: int) -> None:
                  f"sfx_{pid}", default_open=False,
                  sub="AI đọc kịch bản + kho của bạn, đề xuất chỗ cần điểm nhấn / chuyển cảnh") as sfx_open:  # S9 E5.4
         if sfx_open:
-            if not n.get("sfx"):
+            if not n.get("sfx") and not motion_on:
                 st.caption("Kho âm thanh chưa có hiệu ứng nào.")
             else:
                 wish = st.text_input("Yêu cầu thêm (không bắt buộc)", key=f"sfx_wish_{pid}",
                                      placeholder="vd: ít thôi, chỉ ở chuyển cảnh · thêm tiếng va chạm ở cảnh 3")
                 transition = st.session_state.get(f"tr_{pid}", "cut")
                 fade = float(st.session_state.get(f"fade_{pid}", 1.0))
+                if motion_on:
+                    motion_sfx_ui.render(p, C.DATA, pid, transition, fade)
                 if st.button("🤖 AI tự đề xuất hiệu ứng" + cost.llm_tag(cost.llm_estimate(p.conn, "sfx", 1)), key=f"sfx_ai_go_{pid}", type="primary"):
-                    client = llm_client()
                     try:
+                        access.need_edit(p, pid, "lập đề xuất hiệu ứng âm thanh")
+                        client = llm_client()
                         with st.spinner("AI đang đọc các cảnh và chọn hiệu ứng…"):
                             st.session_state[key] = sfx_plan.propose(client, p, C.DATA, pid, transition, fade, wish)
-                    except (sfx_plan.SfxPlanError, llm_runner.LlmError) as e:
+                    except (sfx_plan.SfxPlanError, llm_runner.LlmError, access.AccessDenied) as e:
                         st.error(str(e))
                 plan = st.session_state.get(key)
                 if plan is not None:
                     if plan["summary"]:
                         st.info(plan["summary"])
-                    if plan.get("unmet"):
+                    is_motion = "_motion" in plan
+                    stale = is_motion and (not motion_on or not sfx_plan.motion_current(p, C.DATA, pid, plan, transition, fade, strong=False))
+                    if stale:
+                        st.warning("Cảnh/BYĐ/clip hoặc chuyển cảnh đã đổi (hoặc cờ đã tắt); lập lại gợi ý trước khi áp dụng.")
+                    if is_motion:
+                        motion_sfx_ui.show_details(st, plan)
+                    if plan.get("unmet") and not is_motion:
                         st.warning("🔊 Âm Đạo diễn yêu cầu mà chưa có hiệu ứng nào đặt vào: " + " · ".join(
                             f"shot {u['idx']}: {', '.join(u['sfx'])}" for u in plan["unmet"])
                             + " — thêm tay ở mục Hiệu ứng, hoặc bổ sung âm đó vào kho âm thanh.")
                     if not plan["cues"]:
-                        st.caption("AI không thấy chỗ nào cần thêm hiệu ứng.")
+                        st.caption("Chưa có hiệu ứng phù hợp trong gợi ý." if is_motion else "AI không thấy chỗ nào cần thêm hiệu ứng.")
                     else:
                         import pandas as pd
                         frame = pd.DataFrame([{"Dùng": True, "Giây": c["at"], "Cảnh": c["scene"], "Hiệu ứng": c["name"], "Thư mục": c["folder"],
@@ -477,10 +489,20 @@ def sfx_assistant(p: Pipeline, pid: int) -> None:
                                                 column_config={"Giây": st.column_config.NumberColumn(min_value=0.0, step=0.1),
                                                                "Âm lượng": st.column_config.NumberColumn(min_value=0.0, max_value=1.5, step=0.05)})
                         b1, b2 = st.columns([2, 1])
-                        if b1.button("✅ Thêm các hiệu ứng đã chọn vào video", key=f"sfx_apply_{pid}", type="primary"):
-                            chosen = [{"id": plan["cues"][i]["id"], "at": float(row["Giây"]), "volume": float(row["Âm lượng"])}
-                                      for i, row in edited.iterrows() if row["Dùng"]]
-                            added = sfx_plan.apply(p, C.DATA, pid, chosen)
+                        if b1.button("✅ Thêm các hiệu ứng đã chọn vào video", key=f"sfx_apply_{pid}", type="primary",
+                                     disabled=stale or not access.can_edit(p.conn, pid, getattr(p, "user", None))):
+                            try:
+                                if is_motion:
+                                    selected = [{"index": i, "at": row["Giây"], "volume": row["Âm lượng"]}
+                                                for i, row in edited.iterrows() if row["Dùng"]]
+                                    added = sfx_plan.apply_motion(p, C.DATA, pid, plan, selected, transition, fade)
+                                else:
+                                    chosen = [{"id": plan["cues"][i]["id"], "at": float(row["Giây"]), "volume": float(row["Âm lượng"])}
+                                              for i, row in edited.iterrows() if row["Dùng"]]
+                                    added = sfx_plan.apply(p, C.DATA, pid, chosen)
+                            except ERRORS + (sfx_plan.SfxPlanError,) as e:
+                                st.error(str(e))
+                                return
                             st.session_state.pop(key, None)
                             st.toast(f"Đã thêm {added} hiệu ứng (chỉnh tiếp ở mục Hiệu ứng & giọng đọc thêm)")
                             st.rerun()
