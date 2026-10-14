@@ -10,6 +10,22 @@ import json
 from typing import Dict, List
 
 INHERIT = ("shot_mode", "look", "style_profile", "image_model", "render_settings", "qc_policy")
+# 14/10 tập 2 (#31): render_settings also hold one story's own marks (music_start / music2_start, end_popup, end_card, exports) —
+# a new story takes only the way of cutting; its marks are set again for its own film
+RENDER_WAY = ("transition", "fade", "music_volume", "beat_pulse", "keep_audio")
+
+
+def _carried(field: str, value):
+    if field != "render_settings":
+        return value
+    try:
+        rs = json.loads(value)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(rs, dict):
+        return None
+    way = {k: rs[k] for k in RENDER_WAY if k in rs}
+    return json.dumps(way, ensure_ascii=False) if way else None
 
 
 def places_fingerprint(conn, project_id: int) -> Dict[str, str]:
@@ -69,8 +85,9 @@ def inherit(conn, new_pid: int, created_by: str) -> List[str]:
     cur = conn.execute(f"SELECT {', '.join(fields)} FROM projects WHERE id=?", (new_pid,)).fetchone()
     copied = []
     for f in fields:
-        if src[f] not in (None, "") and cur[f] in (None, ""):
-            conn.execute(f"UPDATE projects SET {f}=? WHERE id=?", (src[f], new_pid))
+        value = _carried(f, src[f]) if src[f] not in (None, "") else None
+        if value not in (None, "") and cur[f] in (None, ""):
+            conn.execute(f"UPDATE projects SET {f}=? WHERE id=?", (value, new_pid))
             copied.append(f)
     conn.commit()
     return copied

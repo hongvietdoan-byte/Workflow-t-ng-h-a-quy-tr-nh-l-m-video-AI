@@ -65,6 +65,18 @@ class ProjectDefaultsTests(unittest.TestCase):
         self.assertEqual((row["shot_mode"], row["style_profile"]), ("per_shot", "DRAMA_DOC,MV_NARRATIVE"))
         self.assertEqual(project_defaults.inherit(self.conn, self.p.create_project("first", created_by="c@x.vn"), "c@x.vn"), [])
 
+    def test_render_settings_carry_the_way_of_cutting_not_the_old_storys_marks_and_popup(self):
+        # 14/10 tập 2 (#31): a new project got tập 1's music marks 1.8 / 18.08 s and its end popup "Hành động sắp ra mắt"
+        old = self.p.create_project("tập 1", created_by="a@x.vn")
+        self.p.set_project_field(old, "render_settings", json.dumps({
+            "transition": "cut", "fade": 1.0, "music_volume": 0.6, "music_start": 1.8, "music2_start": 18.08, "beat_pulse": True,
+            "keep_audio": False, "end_card": {"enabled": True, "title": "Tập 1"}, "exports": ["x.mp4"],
+            "end_popup": {"items": [{"asset_id": 421}], "headline": "Hành động sắp ra mắt"}}))
+        new = self.p.create_project("tập 2", created_by="a@x.vn")
+        self.assertIn("render_settings", project_defaults.inherit(self.conn, new, "a@x.vn"))
+        got = json.loads(self.p.project(new)["render_settings"])
+        self.assertEqual(got, {"transition": "cut", "fade": 1.0, "music_volume": 0.6, "beat_pulse": True, "keep_audio": False})
+
 
 class CacheStatsTests(unittest.TestCase):
     """S6.6: the share of each Claude stage's prompt read from the cache, from the real usage rows."""

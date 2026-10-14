@@ -103,6 +103,15 @@ class TableScriptTests(unittest.TestCase):
         self.assertIn("B: Chào lại.", scenes[0].text)
         self.assertIn("LỜI THOẠI: Đi thôi.", scenes[1].text)
 
+    def test_a_voice_over_column_is_narration_not_a_characters_line(self):
+        # 14/10 tập 2 (#31): the 'Voice over' column came in as "LỜI THOẠI: …" (a character speaking); tập 1 dodged it by typing
+        # "LỜI DẪN:" in every cell by hand
+        for header in ("Voice over", "Lời dẫn", "Narration", "VO"):
+            rows = [["Cảnh", "Mô tả", header], ["1", "Kelly quay lại.", "Phía sau lưng bạn thấy bức tường."]]
+            text = scenes_of(from_text("\n".join("\t".join(r) for r in rows)))[0].text
+            self.assertIn("LỜI DẪN: Phía sau lưng bạn thấy bức tường.", text, header)
+            self.assertNotIn("LỜI THOẠI", text, header)
+
     def test_without_a_scene_column_a_new_description_starts_a_scene(self):
         rows = [["Mô tả", "Nhân vật", "Lời thoại"], ["Cửa mở.", "Lyra", "Ai đó?"], ["", "Kael", "Là ta."], ["Trời sáng.", "", ""]]
         scenes = scenes_of(read_script("x.xlsx", xlsx_bytes([("S", rows)])))

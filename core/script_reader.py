@@ -110,6 +110,9 @@ def table_to_paragraphs(rows: List[List[str]], start: int = 1, label: str = "") 
         if extra:
             info.append(f"{label}cột khác giữ làm ghi chú: " + ", ".join(head[j] for j in extra))
         cur: Optional[dict] = None
+        # 14/10 tập 2 (#31): a 'Voice over' / 'Lời dẫn' / 'Narration' column is the narrator, not a character speaking
+        said_by = next(("LỜI DẪN" for j, ro in mapping.items() if ro == "dialogue"
+                        and re.search(r"\b(?:voice|voiceover|vo|loi dan|narration|narrator|thuyet minh)\b", fold(head[j]))), "LỜI THOẠI")
         for r in rows[head_i + 1:]:
             get = lambda role: next((r[j] for j, ro in mapping.items() if ro == role and j < len(r)), "")  # noqa: E731
             scene_label, desc, talk, who = get("scene"), get("description"), get("dialogue"), get("speaker")
@@ -125,7 +128,7 @@ def table_to_paragraphs(rows: List[List[str]], start: int = 1, label: str = "") 
                     if re.match(r"^\s*[^\W\d_][^:\n]{0,28}:\s*\S", line):
                         cur["talk"].append(line)
                     else:
-                        cur["talk"].append(f"{(who or 'LỜI THOẠI').strip().upper()}: {line}")
+                        cur["talk"].append(f"{(who or said_by).strip().upper()}: {line}")
             for j in extra:
                 if j < len(r) and r[j]:
                     cur["notes"].append(f"{head[j].strip()}: {r[j]}")
