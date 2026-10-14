@@ -61,7 +61,7 @@ việc — phiên điều phối cập nhật). Mỗi việc thêm cờ mới th
 
 ### C4 · (BỎ 14/10) — tường keo giữ luật `skill_object_guard` hiện có (TĨNH); không làm chế độ hiệu ứng
 
-### C5 · Lỗi 10 — đưa khâu dựng `tools/experiments/p27_final_mix.py` thành Bước 5 (việc lớn ≈ $15–25, làm SAU C1–C4)
+### C5 · Lỗi 10 — đưa khâu dựng `tools/experiments/p27_final_mix.py` thành Bước 5 — ✅ XONG phần code 14/10 (C5a–d, gộp Đ13v1 mục 2/4 + Đ12v3 mục 2; còn mở: bật `music_story_arc` mặc định cần nghe thật — xem dòng hộp thư) (việc lớn ≈ $15–25, làm SAU C1–C4)
 - Theo `docs/handoff/P27_TAP1_TONG_KET_2026-10-13.md` mục 10: đệm shot, mỗi lớp tiếng 1 WAV, … → khâu Bước 5 thật (nút, ước tính,
   test). Gộp ý người dùng 07/10 (TODO khối "việc để sau KLĐ" mục 12–13): Editor cắt đầu / cuối / đoạn lỗi bất kỳ + nhạc nền theo
   đoạn cảnh là MẶC ĐỊNH. Đọc lại hai chỗ đó trước khi chia nhỏ.
