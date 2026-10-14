@@ -31,15 +31,18 @@ INTENT_KEYS = ("shot", "size", "angle", "camera_move", "action", "action_peak", 
 # code chỉ đọc được "Images 2" → tưởng mất ảnh 3. Danh từ SỐ NHIỀU "Images" + dãy số nối bằng / , and & - – to: mỗi số một ảnh (dải
 # "2-4" = 2, 3, 4). Số ít "Image 2 and 3" KHÔNG tính (có thể là "Image 2 and 3 people").
 _LIST_SEP = r"\s*(?:,\s*and|,|and|&|/|-|–|to)\s*"
-REF_TOKEN = re.compile(r"\bImages \d+(?:" + _LIST_SEP + r"\d+)+\b|\bImages? \d+(?:/\d+)*\b|\bShot \d+\b|\[[A-Z][A-Za-z ]*\]")
+# #29 926/928 (14/10): "mất mã Shot 1, Shot 2" — a code in other capitals ("SHOT 1", "shot 1", "IMAGE 3") is the same code; the
+# number still has to match exactly (\b: "Shot 12" is not "Shot 1"). Block tags [Event] keep their exact spelling.
+REF_TOKEN = re.compile(r"(?i:\bImages \d+(?:" + _LIST_SEP + r"\d+)+\b|\bImages? \d+(?:/\d+)*\b|\bShot \d+\b)|\[[A-Z][A-Za-z ]*\]")
+_CODE_WORD = re.compile(r"^(images|image|shot)\b", re.I)
 MAX_CALLS_PER_JOB = 2                  # inputs that keep changing every poll never pay again and again: the last prompt written is kept
 CALLS_KEY = "chat_prompt_calls:{}"
 MAX_FIX_TURNS = 1                      # việc 5 (14/10): a refused answer gets ONE fix turn told the exact fault, per job, then the old way
 REFUSED_KEY = "chat_prompt_refused:{}"
 # Thử D6 #29 14/10: "Images 2/3" là HAI mã (Image 2, Image 3) — Claude viết "Image 2 and Image 3" không phải mất mã.
 _IMAGES_GROUP = re.compile(r"\bImages? (\d+(?:/\d+)*)\b")
-_IMAGES_LIST = re.compile(r"Images (\d+(?:" + _LIST_SEP + r"\d+)+)")
-_RANGE = re.compile(r"(\d+)\s*(?:-|–|to)\s*(\d+)")
+_IMAGES_LIST = re.compile(r"Images (\d+(?:" + _LIST_SEP + r"\d+)+)", re.I)
+_RANGE = re.compile(r"(\d+)\s*(?:-|–|to)\s*(\d+)", re.I)
 # Thử D6 #29 14/10 shot 5: D6 tự gọi mốc là "clock tower" (dịch tên Kho "Tháp Đồng Hồ") → Seedance vẽ mặt đồng hồ, tháp thật không có.
 # Chữ tả một bộ phận mà bản code ghép không nói thì không được thêm: code đổi về chữ trung tính (không bỏ cả bản D6).
 _ADDED_FEATURE = ((re.compile(r"\bclock[- ]?tower\b", re.I), "stone tower"), (re.compile(r"\bclock[- ]?faces?\b", re.I), "tower top"))
@@ -102,6 +105,35 @@ def fingerprint(kind: str, model: Optional[str], assembled: str, images: Sequenc
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:24]
 
 
+# #29 job 928 (14/10): the cap said "đầu vào vẫn đổi" while the two paid calls had the SAME inputs (both answers refused, not kept by
+# the code of that day). Each paid call now remembers its fingerprint + one short hash per input part, so the cap says the truth:
+# same inputs (answers refused / Claude errors) or exactly which part changed. The fingerprint itself is unchanged (stored prompts stay).
+PART_NAMES = (("assembled", "bản code ghép"), ("images", "ảnh"), ("intent", "ý đồ shot"), ("notes", "ghi chú người dùng"),
+              ("limit", "trần ký tự"), ("model", "model"))
+
+
+def input_parts(kind: str, model: Optional[str], assembled: str, images: Sequence[Tuple[str, str]], intent: Dict, notes: Sequence[str],
+                limit: int) -> Dict[str, str]:
+    """{part: short hash} of what `fingerprint` hashes — only to say WHICH input changed between two paid calls."""
+    vals = {"assembled": assembled, "images": [[lab, _file_mark(p)] for lab, p in images], "intent": intent, "notes": list(notes),
+            "limit": limit, "model": [kind, model, guide_for(kind, model)]}
+    return {k: hashlib.sha256(json.dumps(v, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()[:12]
+            for k, v in vals.items()}
+
+
+def cap_reason(calls: Dict, key: str, parts: Dict[str, str]) -> str:
+    """Why this job reached MAX_CALLS_PER_JOB, from what its paid calls remembered."""
+    keys = calls.get("keys") or []
+    if key in keys:
+        return ("cùng đầu vào (vân tay không đổi) mà chưa có bản dùng được — các lượt trước bị code từ chối hoặc Claude lỗi, "
+                "xem chat_prompt_refused / chat_prompt_fail của job này")
+    before = calls.get("parts") or {}
+    if not before:
+        return "đầu vào khác lần gọi trước (bản ghi cũ không lưu phần nào đổi)"
+    changed = [name for k, name in PART_NAMES if before.get(k) != parts.get(k)]
+    return "đầu vào đổi: " + (", ".join(changed) if changed else "không rõ phần nào")
+
+
 def build_text(kind: str, model: Optional[str], assembled: str, images: Sequence[Tuple[str, str]], intent: Dict, notes: Sequence[str],
                limit: int) -> str:
     what = "ảnh khung đầu" if kind == "image" else f"video ({model or 'seedance'})"
@@ -144,6 +176,7 @@ def _ref_units(text: str) -> set:
     """The picture / shot / block codes of a text, one per picture: "Images 2/3" → {"Image 2", "Image 3"}."""
     out = set()
     for tok in REF_TOKEN.findall(text or ""):
+        tok = _CODE_WORD.sub(lambda w: {"images": "Images", "image": "Image", "shot": "Shot"}[w.group(1).lower()], tok)
         m = _IMAGES_GROUP.fullmatch(tok)
         lst = None if m else _IMAGES_LIST.fullmatch(tok)
         if m:
@@ -286,8 +319,9 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
             return assembled
         calls = conn.execute("SELECT value FROM app_settings WHERE key=?", (CALLS_KEY.format(job["id"]),)).fetchone()
         calls = json.loads(calls[0]) if calls else {"n": 0, "last": None}
+        parts = lambda: input_parts(kind, model, assembled, pics, intent, notes, limit)   # noqa: E731 - only when needed (rereads pictures)
         if calls["n"] >= MAX_CALLS_PER_JOB:
-            say("warn", "chat_prompt_cap", f"D6: job {job['id']} đã gọi Claude {calls['n']} lần mà đầu vào vẫn đổi — "
+            say("warn", "chat_prompt_cap", f"D6 job {job['id']}: đã gọi Claude {calls['n']} lần, {cap_reason(calls, key, parts())} — "
                 + ("dùng bản D6 gần nhất" if calls.get("last") else "gửi bản code ghép như cũ") + " (không gọi thêm)")
             return calls.get("last") or assembled
         if client is None:
@@ -299,6 +333,8 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
         from . import llm_runner
         usd = estimate(conn, len(pics))
         calls["n"] += 1
+        calls["keys"] = ((calls.get("keys") or []) + [key])[-MAX_CALLS_PER_JOB * 2:]   # which inputs were paid for (cap_reason)
+        calls["parts"] = parts()
         conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                      (CALLS_KEY.format(job["id"]), json.dumps(calls, ensure_ascii=False)))
         conn.commit()
@@ -317,7 +353,7 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
         try:
             obj, new = ask(first)
         except Exception as e:  # noqa: BLE001 - Claude down / over the cap / bad answer: the old way, said
-            say("warn", "chat_prompt_fail", f"D6 (đường như chat) không viết được prompt ({str(e)[:200]}) — gửi bản code ghép như cũ")
+            say("warn", "chat_prompt_fail", f"D6 job {job['id']} (đường như chat) không viết được prompt ({str(e)[:200]}) — gửi bản code ghép như cũ")
             return assembled
         problems = check(assembled, new, limit)
         if problems:
@@ -352,7 +388,7 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
         conn.execute("UPDATE app_settings SET value=? WHERE key=?", (json.dumps(calls, ensure_ascii=False), CALLS_KEY.format(job["id"])))
         _store(conn, key, {"prompt": new, "changes": obj.get("changes") or [], "job": job["id"], "kind": kind, "usd_est": usd,
                            "assembled_len": len(assembled)})
-        say("info", "chat_prompt", f"D6 (đường như chat): Claude nhìn {len(pics)} ảnh viết lại prompt {('ảnh' if kind == 'image' else 'video')} "
+        say("info", "chat_prompt", f"D6 job {job['id']} (đường như chat): Claude nhìn {len(pics)} ảnh viết lại prompt {('ảnh' if kind == 'image' else 'video')} "
             f"({len(assembled)} → {len(new)} ký tự)" + (f", ≈ {usd:.3f} USD" if usd is not None else "")
             + ("; đổi: " + "; ".join((obj.get("changes") or [])[:3]) if obj.get("changes") else ""))
         return new
