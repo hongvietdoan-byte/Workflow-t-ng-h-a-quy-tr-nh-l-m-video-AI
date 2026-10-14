@@ -29,6 +29,8 @@ Không sửa câu chữ trên. Để **Đạo diễn tự chia** (có thể là 
 - Gắn Kho: Kelly, SKORP, Bom keo #367, Tháp Đồng Hồ #263. Chỗ đứng 3D: chọn trong gói bối cảnh #263 chỗ khớp **A = chân cầu thang**, **B = đỉnh
   bậc thang** (tên chỗ đứng xem trong gói; KHÔNG dùng `level_9_4` nếu không phải cầu thang). Không có chỗ đứng khớp → báo người dùng.
 - Cờ giữ như máy chính đang bật; **`chat_prompts` TẮT** lúc làm bản A.
+- **`anchor_by_spot` giữ TẮT** cả hai bản (người dùng 14/10: shot dùng máy 3D đã không nhận ảnh neo theo luật `own_camera`; cờ chỉ đổi shot một mình
+  thành ảnh đơn — bật lúc thử sẽ trộn biến với D6).
 
 ## 3. Quy trình so (thao tác trên Dashboard, ghi nhật ký + ảnh chụp màn ở `docs/handoff/THU_D6_NHAT_KY_<ngày>.md`)
 1. **Bước 1 Đạo diễn** trên dự án A (báo giá Claude trước, hỏi người dùng). Duyệt Bible/kế hoạch như bình thường.
