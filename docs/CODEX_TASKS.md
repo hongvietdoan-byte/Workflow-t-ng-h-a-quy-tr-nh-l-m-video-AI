@@ -1011,6 +1011,8 @@ Luật chung GIỐNG đợt 1; nhánh `codex/d13-viec<N>-<tên>`; KHÔNG sửa f
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
+- **14/10 — Việc 2:** `codex/d13-viec2-goi-blockout`, code `bad2a535`. Schema 2 chuẩn hóa số đúng trường hình học; schema 1 giữ SHA raw; ngày mới có múi giờ, ngày cũ thiếu múi giờ cảnh báo duyệt lại. Font Pillow cũ có fallback, thiếu font Unicode báo rõ. Đỏ 5 lỗi → 95 xanh; rà độc lập bắt 2 P2, hồi quy 2 đỏ → **97 xanh / 3,43 s** (5 file). Root đã đọc diff vòng sửa; test môi trường dict giả bằng `patch.object`, không API/dữ liệu thật. RA: `docs/RA_D13_VIEC2_CODEX_2026-10-14.md`. Giữ areas.version 74; chưa cả bộ Windows/gộp/live; chưa cài Pillow cũ để thử thực tế.
+
 ---
 
 # ĐỢT 14 — QC ảnh chấm sai + job tự sửa kẹt hàng đợi (hộp thư 12/10 00:55, #24 shot 11–12)
