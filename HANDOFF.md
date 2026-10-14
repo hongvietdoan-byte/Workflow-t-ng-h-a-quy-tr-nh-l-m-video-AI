@@ -1,5 +1,11 @@
 # HANDOFF — Đ18.4c PARTIAL inventory/dry-run
 
+## Người dùng chốt 14/10 21:54 — thay chỉ dẫn tự tiếp tục phía dưới
+
+- Khi hạn mức tuần gần hết hoặc không đủ cho việc kế tiếp: lưu/commit/push trạng thái và bàn giao cho Claude, KHÔNG tiếp tục công việc ở chat Codex này hoặc chờ reset tuần để tự làm lại.
+- Đã XÓA lịch `ti-p-t-c-c-c-vi-c-codex-c-n-l-i-sau-reset`; lịch 15/10 01:45 bị hủy. Không tạo lịch thay thế.
+- Claude nhận các nhánh đã push và bước còn mở theo bàn giao này: store look/pin nguồn chờ quyết định bộ dạng/ảnh; Đ18.4c mới PARTIAL dry-run, còn semantic/atomic apply; kiểm dependency/main trước sửa. Không coi bàn giao là quyền chạy API trả phí/migration dữ liệu thật.
+
 ## Chốt root 14/10 21:43 — ưu tiên trạng thái này
 
 - Code dry-run `9320b224`; nhánh `codex/d18-viec4c-dry-run` được push riêng, tiếp đúng worktree này khi có quyết định domain. Không lấy dependency commits như nhiệm vụ mới/không làm lại4a4b.
