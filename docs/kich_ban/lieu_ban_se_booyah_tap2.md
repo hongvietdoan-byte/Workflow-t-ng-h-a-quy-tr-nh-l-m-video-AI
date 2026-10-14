@@ -35,7 +35,7 @@ Nguồn: ảnh bảng kịch bản trong chat 14/10 + tư liệu `D:\2026\OB55\H
 2. 'Trang phục Tai họa' = Kho #425 LÍNH ĐỊCH ÁO CHOÀNG — đúng.
 3. Lời dẫn cảnh 5 kết thúc '… Tháp Đồng Hồ ở Thế Giới song song' — đúng.
 
-## NHÁP lời dẫn bổ sung (Claude 14/10, CHỜ người dùng duyệt) — `[+]` = câu thêm, còn lại là chữ gốc
+## Lời dẫn bổ sung (Claude 14/10, NGƯỜI DÙNG ĐÃ DUYỆT 14/10 — đã đưa vào `_nap.tsv`) — `[+]` = câu thêm, còn lại là chữ gốc
 
 Người dùng 14/10: viết thêm cho vừa tiến độ cảnh, nhịp truyện KHÁ NHANH không chậm; **tốc độ đọc TTS 1,2** (gốc 1,0 — trần ClipAI 0,7–1,2). Ước ở 1,2 ≈ 93 s cả 8 cảnh.
 
