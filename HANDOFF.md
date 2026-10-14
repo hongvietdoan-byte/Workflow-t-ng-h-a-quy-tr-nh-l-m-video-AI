@@ -1,6 +1,6 @@
 # Bàn giao Đ12v2 nối caller Bước 5
 
-- Nhánh `codex/d12-viec2-noi-sfx`, base `43205faf`; hoàn tất code/rá/QA, chuẩn bị commit + push nhánh riêng. Không sửa TODO/main/live/tiền.
+- Nhánh `codex/d12-viec2-noi-sfx`, base `43205faf`; code + rà + QA **ffac01b1 đã push** nhánh riêng. Không sửa TODO/main/live/tiền.
 - Xong caller chung bảng duyệt, ACL, OPT_IN_ONLY; sau rà sửa gom strong bounded SHA + cheap UI, full metadata/catalog snapshot, source clip/Kho guards, selection strict, stage+atomic manifest với lock/CAS có giới hạn writer legacy.
 - New stage không gọi ensure_duration/UPDATE Kho; durationNone giữ None. File mới core/motion_sfx_safe.py khai areas version76.
 - GREEN cuối **88 passed /4,28s**, 2 file tests/test_motion_sfx_caller.py + tests/test_motion_sfx.py, --tb=no; diff --check sạch (CRLF warning).
@@ -15,4 +15,5 @@
 - Đ11v2 Dashboard/autopilot, Đ11v3 editor, Đ11v4 snapshot ID/end_actor/approved blocking, Đ11v5 và Đ18v4 dùng registry A duy nhất: tiếp sau dependency gộp. Không tạo registry thứ hai. Nhóm runner và seedance_refs chỉ nhận khi mail chốt rõ; native pet QA thuộc máy chính.
 - Audit độc lập không còn việc code riêng đủ điều kiện ngoài caller vừa hoàn tất. C5 mix_bus/post_fx đã main; performance/portable/BURST/ref_audio/subject warnings đã push, không làm lại. Không dừng do hạn mức: lần đọc trong lượt là 33% ĐÃ DÙNG khung5h, 67% còn; tuần71% ĐÃ DÙNG. Reset5h 14/10 20:35:26 Asia/Saigon.
 - Lượt sau đọc mail/Sổ việc/bảng ưu tiên mới, kiểm branch đã gộp để tránh nhân đôi. Dời cùng lịch sau reset tự nhiên, không tạo lịch trùng. Chưa gửi thư main mới; báo cáo này nằm trên nhánh để phiên rà/gộp nhận.
+- Đã dời chính lịch tiếp tục sang **14/10 20:40 Asia/Saigon** để kiểm mail/dependency sau reset 20:35:26. Nếu chưa có thay đổi, giữ im lặng; không chạy lại code/benchmark đã xong.
 - An toàn test: patch.object thay OBJECT os.environ bằng dict giả trước imports/calls/spawns; mock registry/credentials/provider/model, native env whitelist; pytest --tb=no, không showlocals/log/đọc bí mật. Không main merge/pull/restart live/API/data thật/dashboard.env/admin_auth/maintenance worker.

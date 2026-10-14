@@ -1,6 +1,6 @@
 # Rà Đ12 việc 2 · nối caller Bước 5
 
-Nhánh `codex/d12-viec2-noi-sfx`, nền `43205faf`; chưa commit/push, root rà sửa và QA tiếp.
+Nhánh `codex/d12-viec2-noi-sfx`, nền `43205faf`; code **ffac01b1 đã push**, root đã rà lần hai và QA 1440/1280. Chưa gộp main/chạy cả bộ.
 
 ## Luồng và quyền
 
