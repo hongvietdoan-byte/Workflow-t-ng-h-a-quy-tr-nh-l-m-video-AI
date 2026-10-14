@@ -5,6 +5,8 @@ import os
 from typing import Dict
 
 FEATURES: Dict[str, Dict] = {
+    "motion_sfx": {"label": "SFX theo nhịp BYĐ (code 0 USD)", "verified": False,
+                   "why": "Đ12v2: mốc ước tính, chưa nối caller Bước 5/chưa thử sản xuất"},
     'blockout_clay_sheet': {'label':'Tấm duyệt khối clay (Blender cục bộ, 0 USD)', 'verified':False,
                            'why':'Đ11v2: chưa nghiệm thu ảnh Kho thật'},
     'director_blockout': {'label':'Đạo diễn khai sơ đồ khối (Claude, cần báo giá)', 'verified':False,
