@@ -1,7 +1,39 @@
 # Điều phối render nền Bàn đạo diễn — cấu hình máy chính
 
+## Cập nhật sau portable và phép thử native thật
+Portable5.0.1 riêng đã xác minh checksum và chạy qua guard Job một process; Store giữ nguyên. Root đọc vòng sửa3findings, nhóm129qua/1skip. Native16/16job ở mức1/5/10 dự án hoàn tất7,283/24,801/53,488s, không fallback2D;17ownedroot kết thúc,3queue dừng. Chi tiết và giới hạn trong `BENCH_BLENDER_PORTABLE_2026-10-14.md`. Cờ vẫn OFF, chưa cả bộ Windows/production. Các trạng thái chưa tải/chưa thử native trong phần lịch sử phía dưới được thay bằng cập nhật này. Đề xuất5 active/một heavyrenderer; chưa hardCPU/RSScap/ngân sách chungFFmpeg.
+
+
 Ngày 14/10/2026 · nhánh `codex/ban-dao-dien-hieu-nang` · nền `c18b5e6f`.
 Đây là BUILD backend + điểm nối render 3D admin sau cờ **TẮT**, chưa phải nghiệm thu Bàn đạo diễn production.
+
+## Kết quả Codex — worker portable đã được duyệt
+- Tải bản Windows x64 **Blender 5.0.1** chính thức, cùng phiên bản Store; ZIP và checksum riêng từ
+  https://download.blender.org/release/Blender5.0/ (web fetch 402; HTTP shell official thành công).
+- ZIP: `blender-5.0.1-windows-x64.zip`; checksum: `blender-5.0.1.sha256`; SHA256 đã so khớp
+  `921d77f6c505a35b2c2f6e67d4ad1c10b72418338ba0e0d3ea7f582a5e5fe46e`.
+- Runtime riêng: `D:/AI-Video-Pipeline/.codex-runtime/blender-worker-5.0.1-x64/unpacked/blender-5.0.1-windows-x64/blender.exe`.
+  Tạo thư mục mới, không ghi đè Store/install khác; ZIP/checksum/runtime ngoài Git, không sửa data/env/UserEnv.
+- Native `--version` qua whitelist giả và Job Object trả rc=0: **Blender 5.0.1**, build **a3db93c5b259**.
+- `get_service()` không tham số của admin tự nhận profile private này nếu tệp tồn tại; cả `submit_plates` và
+  `submit_preview` ưu tiên runtime service. Máy khác dùng `get_service(worker_blender=<absolute blender.exe>)`
+  hoặc `configure_worker_runtime()` trước service đầu. Không đổi `plates3d.find_blender`/Store legacy; OFF trả disabled trước lookup.
+- Admin ON chọn runtime service trước caption/nút và submit không truyền locator legacy; Store/None legacy không ghi đè portable.
+  OFF giữ locator/sync cũ. Worker tạo suspended → gán Job không kế thừa handle → resume đúng owned process.
+- Contract supervisor sau rà: **một process Blender, nhiều threads**. Job đặt `JOB_OBJECT_LIMIT_ACTIVE_PROCESS=1`
+  và `KILL_ON_JOB_CLOSE`, không breakaway, trước worker chạy. [Microsoft mô tả guard](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_basic_limit_information).
+  Process mới vượt giới hạn bị terminate và associate thất bại. Không hỗ trợ importer/plugin cần helper process.
+- Timeout/nonzero/success đều terminate Job → đợi handle root đã giữ từ trước resume signaled → xác minh zero-active
+  trước trả/nhả khóa renderer. Bỏ snapshot/OpenProcess/IsProcessInJob để loại khoảng hở child spawn/membership error.
+  Không taskkill, registry, global process scan. Query/terminate/wait lỗi giữ khóa, báo `supervisor_failed` qua status/reason/log.
+- Queue close hiện join 5 s, **không hủy job đang render**; worker/cache root còn giữ tới khi chạy xong. Lỗi OS vĩnh viễn giữ lock,
+  cần người vận hành kiểm supervisor. Chưa kiểm sự cố OS thật/RSS hard cap/benchmark5/full pipeline.
+- Rà độc lập bắt 3 findings (runtime admin, snapshot race, membership query silent); sửa gom theo contract single-process.
+  Native fixture chứng minh child attempt bị từ chối trước chạy, timeout root chết, success root signaled, nonzero/assignfailure/queryretry.
+- ĐỎ vòng sửa: **4 failed/13 deselected/2.57s**. XANH cuối **129 passed, 1 skipped, 13.10s** nhóm 6 file,
+  fake env OBJECT trước imports, native explicit whitelist, --tb=no/no cache. BPY fixture cũ chưa cấu hình.
+  Proof version ở trên thuộc BUILD trước guard; cần root chạy Blender portable thật dưới guard, đọc fixdiff, rồi benchmark/cả bộ.
+  Chưa commit/gộp/bật cờ; quota/revision/cache/export giữ; cache băm thêm binary/service/supervisor.
 
 Máy đã được phiên chính đo: i7-11700 (8 core/16 thread), RAM 63,7 GiB, GTX 1070 Ti 8192 MiB.
 Không suy GPU này chạy được mọi engine/scene. Giữ engine `auto` hiện có (EEVEE nếu có, fallback Cycles hiện có);

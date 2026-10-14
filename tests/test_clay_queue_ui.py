@@ -9,6 +9,7 @@ from tests.test_clay_scheduler import wait
 
 @pytest.fixture
 def ui(tmp_path,monkeypatch):
+    monkeypatch.setattr(clay_preview_service,'_portable_default',lambda:None)
     from dashboard import admin, common
     model=tmp_path/'fixture.fbx';model.write_bytes(b'fake-model')
     monkeypatch.setattr(admin,'_fresh',lambda p:p)
@@ -76,3 +77,23 @@ def test_admin_store_rejection_shown_without_queue_job(ui,tmp_path,monkeypatch):
         assert not at.exception
         assert any('Microsoft Store' in item.value for item in at.warning)
         assert service.snapshot()['pending']==0
+
+
+@pytest.mark.parametrize('legacy',[None,plates3d.STORE+'fake|C:/fake/blender.exe'])
+def test_admin_on_uses_worker_runtime_without_legacy_override(ui,tmp_path,monkeypatch,legacy):
+    monkeypatch.setattr(features,'on',lambda n:n=='clay_background_queue')
+    monkeypatch.setattr(plates3d,'find_blender',lambda:legacy)
+    exe=tmp_path/'blender.exe';exe.write_bytes(b'fixture')
+    calls=[];submit=clay_preview_service.submit_plates
+    def record(*args,**kwargs):
+        calls.append(kwargs)
+        return submit(*args,**kwargs)
+    monkeypatch.setattr(clay_preview_service,'submit_plates',record)
+    with clay_scheduler.RenderQueue(lambda *a:{},root=tmp_path,start=False) as service:
+        service.worker_blender=str(exe)
+        monkeypatch.setattr(clay_preview_service,'get_service',lambda:service)
+        at=app();at.toggle(key='p3d_open').set_value(True).run()
+        assert not at.button(key='p3d_go').disabled
+        at.button(key='p3d_go').click().run()
+        assert not at.exception and service.snapshot()['pending']==1
+        assert calls==[{}]

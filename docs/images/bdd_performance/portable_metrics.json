@@ -1,0 +1,454 @@
+{
+  "profile": "CPU Cycles 6 threads; 640x360; samples8; four cameras; 24 boxes",
+  "cpu_definition": "100%=one core; Python+owned Blender only, 50ms samples; divide16 for full logical machine",
+  "vram_baseline_mib": 2975,
+  "vram_baseline_source": "parent prebenchmark NVIDIA baseline; not measured native GPU load",
+  "scenarios": [
+    {
+      "projects": 1,
+      "jobs_per_project": 1,
+      "ram_free_min_gib": 25.813434600830078,
+      "python_rss_peak_mib": 51.76953125,
+      "blender_rss_peak_mib": 417.265625,
+      "cpu_peak_one_core_percent": 740.5476495538659,
+      "owned_active_peak": 1,
+      "wall_sec": 7.283,
+      "accepted": 1,
+      "terminal": [
+        {
+          "project": "portable1_0",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        }
+      ],
+      "submit_p95_ms": 2.122,
+      "status_p95_ms": 0.086,
+      "queuewait_p95_ms": 118.576,
+      "render_p95_sec": 6.911,
+      "queue_closed": true,
+      "worker_stopped": true,
+      "owned_remaining": 0
+    },
+    {
+      "projects": 5,
+      "jobs_per_project": 1,
+      "ram_free_min_gib": 25.762176513671875,
+      "python_rss_peak_mib": 50.37890625,
+      "blender_rss_peak_mib": 414.2578125,
+      "cpu_peak_one_core_percent": 744.9684837483469,
+      "owned_active_peak": 1,
+      "wall_sec": 24.801,
+      "accepted": 5,
+      "terminal": [
+        {
+          "project": "portable5_3",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        },
+        {
+          "project": "portable5_1",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        },
+        {
+          "project": "portable5_0",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        },
+        {
+          "project": "portable5_2",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        },
+        {
+          "project": "portable5_4",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        }
+      ],
+      "submit_p95_ms": 13.371,
+      "status_p95_ms": 0.066,
+      "queuewait_p95_ms": 20041.697,
+      "render_p95_sec": 4.848,
+      "queue_closed": true,
+      "worker_stopped": true,
+      "owned_remaining": 0
+    },
+    {
+      "projects": 10,
+      "jobs_per_project": 1,
+      "ram_free_min_gib": 25.684947967529297,
+      "python_rss_peak_mib": 53.78515625,
+      "blender_rss_peak_mib": 414.44140625,
+      "cpu_peak_one_core_percent": 773.7477416986853,
+      "owned_active_peak": 1,
+      "wall_sec": 53.488,
+      "accepted": 10,
+      "terminal": [
+        {
+          "project": "portable10_0",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        },
+        {
+          "project": "portable10_4",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        },
+        {
+          "project": "portable10_7",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        },
+        {
+          "project": "portable10_6",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        },
+        {
+          "project": "portable10_5",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        },
+        {
+          "project": "portable10_1",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        },
+        {
+          "project": "portable10_2",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        },
+        {
+          "project": "portable10_9",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        },
+        {
+          "project": "portable10_8",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        },
+        {
+          "project": "portable10_3",
+          "state": "done",
+          "clay": true,
+          "views": [
+            "camera",
+            "clay_1",
+            "clay_2",
+            "clay_3"
+          ]
+        }
+      ],
+      "submit_p95_ms": 19.07,
+      "status_p95_ms": 0.057,
+      "queuewait_p95_ms": 48457.812,
+      "render_p95_sec": 6.861,
+      "queue_closed": true,
+      "worker_stopped": true,
+      "owned_remaining": 0
+    }
+  ],
+  "native_proof": [
+    {
+      "pid": 82424,
+      "assigned": true
+    },
+    {
+      "pid": 82424,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 81344,
+      "assigned": true
+    },
+    {
+      "pid": 81344,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 112096,
+      "assigned": true
+    },
+    {
+      "pid": 112096,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 52596,
+      "assigned": true
+    },
+    {
+      "pid": 52596,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 116196,
+      "assigned": true
+    },
+    {
+      "pid": 116196,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 2920,
+      "assigned": true
+    },
+    {
+      "pid": 2920,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 116456,
+      "assigned": true
+    },
+    {
+      "pid": 116456,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 116556,
+      "assigned": true
+    },
+    {
+      "pid": 116556,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 84420,
+      "assigned": true
+    },
+    {
+      "pid": 84420,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 29460,
+      "assigned": true
+    },
+    {
+      "pid": 29460,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 86028,
+      "assigned": true
+    },
+    {
+      "pid": 86028,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 48812,
+      "assigned": true
+    },
+    {
+      "pid": 48812,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 106040,
+      "assigned": true
+    },
+    {
+      "pid": 106040,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 124200,
+      "assigned": true
+    },
+    {
+      "pid": 124200,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 109064,
+      "assigned": true
+    },
+    {
+      "pid": 109064,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 50408,
+      "assigned": true
+    },
+    {
+      "pid": 50408,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    },
+    {
+      "pid": 6784,
+      "assigned": true
+    },
+    {
+      "pid": 6784,
+      "root_signaled": true,
+      "job_active_zero_verified": true
+    },
+    {
+      "job_closed": true
+    }
+  ],
+  "version": "Blender 5.0.1",
+  "version_returncode": 0,
+  "total_sec": 86.179,
+  "owned_remaining": 0
+}

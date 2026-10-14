@@ -1,4 +1,24 @@
 # Tự rà điều phối Bàn đạo diễn — 14/10/2026
+## Root nghiệm thu vòng sửa và native fixture
+- Root đã đọc admin runtime actualcaller, single-process guard và test rootsignaled trước release; 3 findings đã giải quyết. Mẫu native thật sau guard: version0 và16/16 clay4views,17rootsignaled/active0/Jobclosed. Báo cáo BENCH_BLENDER_PORTABLE cùng ngày; root đã xem sheet5project.
+- Đây là scene giả CPU24khối/640×360/sample8; không fullpipeline/UI/VRAM/cả bộ. NtResumeProcess là API nội bộ ntdll đã thử trên máy này; limit Job dùng API Microsoft documented. CPUthreads6 không hardOSCPUcap, legacyStorecaller khác còn orphanrisk. Chưa bật cờ/main/live.
+
+## Rà độc lập worker portable — một vòng sửa gom
+- 3 findings: P1 admin explicit legacy ghi đè portable, P1 snapshot→terminate bỏ sót child mới, P2 IsProcessInJob lỗi bị coi là không thuộc Job.
+- Admin ON chọn runtime service trước caption/button, submit không truyền legacy override; None/Store legacy không làm portable bị disable/reject. OFF giữ locator/sync cũ.
+- Supervisor đổi contract có chủ đích: **một process Blender, nhiều threads**; Job có ACTIVE_PROCESS_LIMIT=1 + KILL_ON_JOB_CLOSE, không BREAKAWAY.
+- Root tạo suspended, assign Job trước resume; giữ handle root xuyên lifetime. Timeout/success/nonzero terminate → chờ root handle signaled → query active=0 trước trả/nhả renderer lock.
+- Bỏ snapshot PID/OpenProcess/IsProcessInJob; không còn API unlimited tree hoặc khoảng hở query membership. Không global scan/taskkill/registry.
+- [Microsoft ACTIVE_PROCESS limit](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_basic_limit_information): associate vượt giới hạn sẽ terminate process và thất bại; guard được đặt trước root chạy.
+- Native Python childattempt thực bị từ chối hoặc terminate trước chạy; fixture child không ghi marker. Timeout root, success root signaled, nonzero, assign failure, query/terminate retry được kiểm.
+- Tests tree child+grandchild trước đây thuộc contract cũ; thay bằng guard spawn-refused và known-root termination, không tuyên bố portable cho phép process tree tùy ý.
+- Query/terminate/wait lỗi vẫn failclosed, giữ renderer lock và supervisor_failed reason; queueclose không cancel native, giữ worker/root tới deadline.
+- ĐỎ trước sửa: 4 failed/13 deselected/2.57s (UI legacy None/Store, child refusal, root wait-before-release).
+- XANH hẹp: 17 passed/8.74s; cuối 6 nhóm: **129 passed/1 skipped/13.10s**, fake environ OBJECT trước imports, explicit native whitelist, --tb=no/no cache.
+- Giới hạn: importer/format/plugin cần helper process sẽ thất bại; không hạ guard hoặc tự chạy ngoài Job. Cần chứng minh Blender portable render thật với guard trước benchmark.
+- Official runtime 5.0.1 x64 SHA256 921d77f6c505a35b2c2f6e67d4ad1c10b72418338ba0e0d3ea7f582a5e5fe46e đã xác minh ở phiên BUILD; version rc0 build a3db93c5b259 là proof trước vòng guard này.
+- Giữ areas.version74. Chưa Blender thật sau guard, benchmark5/cả bộ/commit/push/live restart/bật cờ; root cần đọc fixdiff vòng2.
+
 - Nhánh codex/ban-dao-dien-hieu-nang từ c18b5e6f; chưa commit/push; DONE BUILD, chưa nghiệm thu production.
 - Read AGENTS/CLAUDE/CHUAN/skill 2b.5 + thiết kế Bàn dựng D11 và global turn/Store adapter hiện có.
 - RenderQueue một worker, RR project trong interactive/batch, burst 3 để batch không starve.

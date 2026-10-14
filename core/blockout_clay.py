@@ -136,13 +136,14 @@ def submit_preview(service,project_id,scene_id,revision,plan,cho_dung,*,priority
     if not features.on('clay_background_queue'):
         return {'state':'disabled','reason':'cờ clay_background_queue đang tắt'}
     clay_enabled=features.on('blockout_clay_sheet')
-    blender=plates3d.find_blender() if clay_enabled else None
+    from .clay_preview_service import worker_blender, worker_sources
+    blender=worker_blender(service) if clay_enabled else None
     if blender and blender.startswith(plates3d.STORE):
         return {'state':'rejected','reason':'Render nền Microsoft Store chưa được hỗ trợ: chưa xác minh dừng đúng process/tree và môi trường package; tắt clay_background_queue để dùng render đồng bộ'}
     from .clay_scheduler import _local
     allowed={'reference','camera','shot','spot','facing','resolution','timeout','people'}
     if set(options)-allowed:raise ValueError('tùy chọn xem trước chưa hỗ trợ')
-    sources=[str(Path(plates3d.SCRIPT).resolve()),str(Path(__file__).resolve()),str(Path(sheet.__file__).resolve())]
+    sources=[str(Path(plates3d.SCRIPT).resolve()),str(Path(__file__).resolve()),str(Path(sheet.__file__).resolve())]+worker_sources(blender)
     if options.get('reference'):
         options['reference']=str(_local(options['reference']));sources.append(options['reference'])
     return service.submit(project_id,scene_id,revision,{'kind':'clay','project_scope':project_id,

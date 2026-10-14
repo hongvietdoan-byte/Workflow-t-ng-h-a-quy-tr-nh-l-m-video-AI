@@ -469,7 +469,11 @@ def plates3d_panel(p: Pipeline, game: str) -> None:
         if not st.toggle("Mở công cụ", key="p3d_open"):
             st.caption("Bật để tìm Blender và liệt kê file 3D.")
             return
-        blender = plates3d.find_blender()
+        if features.on('clay_background_queue'):
+            from core import clay_preview_service
+            blender = clay_preview_service.worker_blender(clay_preview_service.get_service())
+        else:
+            blender = plates3d.find_blender()
         if plates3d.status_text():                       # 08/10: which project holds this computer's Blender, waiting how long
             st.caption(plates3d.status_text())
         st.caption(("Blender: `" + blender + "`") if blender else "⚠ Chưa thấy Blender — cài Blender 5.0 hoặc đặt BLENDER_PATH trong dashboard.env.")
@@ -509,7 +513,7 @@ def plates3d_panel(p: Pipeline, game: str) -> None:
                     scope=st.session_state.setdefault('_p3d_scope',uuid4().hex)
                     revision=st.session_state.get('_p3d_revision',0)+1
                     service=clay_preview_service.get_service()
-                    ticket=clay_preview_service.submit_plates(service,scope,'library-preview',revision,cfg,blender=blender)
+                    ticket=clay_preview_service.submit_plates(service,scope,'library-preview',revision,cfg)
                     if ticket['state']=='rejected':
                         st.warning(ticket['reason'])
                     else:

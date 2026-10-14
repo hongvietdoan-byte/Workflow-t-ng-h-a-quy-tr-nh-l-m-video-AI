@@ -10,6 +10,8 @@ from tests.test_blockout import plan, box
 
 @pytest.fixture(autouse=True)
 def memory_fixture(monkeypatch):
+    from core import clay_preview_service
+    monkeypatch.setattr(clay_preview_service,'_portable_default',lambda:None)
     monkeypatch.setattr(queue,'_memory_available',lambda:64*1024**3)
     monkeypatch.setattr(blockout_clay.plates3d,'find_blender',lambda:'fake-blender')
 
