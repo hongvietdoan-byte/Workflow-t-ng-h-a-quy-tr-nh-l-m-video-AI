@@ -820,10 +820,34 @@ def _render_steps(clips, output, durations, transition, fade, music, music_volum
         current = target
     if extras:
         try:
-            run(build_extras_mix_cmd(current, extras, output, has_audio=music is not None or keep_audio, ffmpeg=ffmpeg,
+            total = probe_duration(current) if len(extras) >= LEAF_FROM else None
+            laid = lay_extras(extras, total, output, ffmpeg, padded) if total else extras     # length unknown: the one graph as before
+            run(build_extras_mix_cmd(current, laid, output, has_audio=music is not None or keep_audio, ffmpeg=ffmpeg,
                                      duck=music is not None and not keep_audio))
         finally:
             os.remove(current)
+
+
+# C5c (lỗi 10 #27, 13/10): ONE ffmpeg graph with 29 inputs + asplit + adelay up to 83 s deadlocked (all CPU, no progress, the cut hung
+# at 10,4 s). From this many extra sounds each one is first written to its own WAV as long as the film with its delay inside, so the
+# final mix only gets inputs that all start at 0 (tools/experiments/p27_final_mix.py `_leaf`). Fewer sounds: the one graph as before.
+LEAF_FROM = 8
+
+
+def lay_extras(extras: Sequence[dict], total: float, output: str, ffmpeg: str, temp: List[str]) -> List[dict]:
+    """Each extra → `<output>.leaf<i>.wav` (resampled 48 kHz stereo, delayed by its start, its volume applied, padded / cut to
+    `total` s); returns the extras pointing at them with start 0 and volume 1 (key / bus kept). The files go into `temp` (removed by
+    the caller with the other temporary files)."""
+    out = []
+    for i, e in enumerate(extras):
+        ms = max(int(round(float(e.get("start", 0)) * 1000)), 0)
+        leaf = f"{output}.leaf{i}.wav"
+        temp.append(leaf)
+        run([ffmpeg, "-y", "-v", "error", "-i", e["path"], "-filter_complex",
+             f"[0:a]aresample=48000,aformat=channel_layouts=stereo,adelay={ms}|{ms},volume={float(e.get('volume', 1.0))},apad,"
+             f"atrim=0:{max(float(total), 0.01):.6f}[o]", "-map", "[o]", "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", leaf])
+        out.append(dict(e, path=leaf, start=0, volume=1.0))
+    return out
 
 
 _SIZE = re.compile(r",\s*(\d{2,5})x(\d{2,5})[\s,\[]")
