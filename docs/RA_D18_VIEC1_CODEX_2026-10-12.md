@@ -1,0 +1,21 @@
+# Rà Đ18 việc 1 — 12/10/2026
+- Root RÀ NHẸ: đã đọc toàn kế hoạch, đối chiếu hàm groups/after_plates/solve_scene/layout_reference/layout_warnings và dòng đề18; sửa hai nhãn dòng/plate_spot, bổ sung quyền ghi/snapshot dự án và Owner publish Kho. Không coi runtime flag/ảnh #27 đã xác minh, giữ cổng duyệt v4. Không có code nên không chạy test đỏ giả/cả bộ.
+
+- Mức RÀ NHẸ: chỉ tài liệu; phiên làm tự kiểm mục 2b.5, root đọc diff trước commit.
+- Bản đối chiếu: `2cbe4058`; không đọc/ghi data, env, API hoặc live.
+- Đã kiểm tên file/số dòng bằng rg và đọc đoạn code liên quan.
+- Không có code/test mới: ngoại lệ docs-only đã giao; không làm RED giả.
+- Tách rõ code có đường chạy, hộp thư báo vá, runtime #27 chưa xác minh.
+- Không coi verified=False là bằng chứng runtime OFF; cờ thực tế chưa đọc.
+- Phân biệt stage vật lý, segment truyện, state và thời gian clip.
+- Không reset người/vật theo sequence; patch có provenance và state DAG.
+- Tái dùng solver/transform; blockout_sheet không giả định đã nối pipeline.
+- Bảng A/B/C phân biệt chặn dữ liệu/proxy với chất lượng model chưa bảo đảm.
+- Không nêu số effort/click/giá mới thiếu nguồn; giá lịch sử #24 ghi rõ.
+- OFF đề xuất giữ caller/prompt/fingerprint cũ; chưa có code để test.
+- Ma trận tay/autopilot/nhóm/clone/replan chỉ rõ điểm nối còn phải xây.
+- Không nới test, không phụ thuộc cwd; đường storage đề xuất từ data_dir.
+- Không có default mới, Unicode matching, sandbox, nhãn hoặc paid-call đổi.
+- Xung đột Đ18v3 “shot trước” với main nhận shot sau được ghi, chưa sửa đề bài.
+- Đ18v4 còn chờ người dùng chọn A/B/C; QA model thật chưa thực hiện.
+- Không commit/push/gộp; root sẽ cập nhật trạng thái theo quy trình tích hợp.
