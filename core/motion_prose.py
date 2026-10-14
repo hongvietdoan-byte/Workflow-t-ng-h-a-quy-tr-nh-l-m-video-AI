@@ -37,9 +37,10 @@ def acting_sentence(who: str, perf: Dict[str, str]) -> str:
     look = (f"the face shows {face}" if face else "") + (", " if face and eyes else "") + (f"eyes {eyes}" if eyes else "")
     if not move and not look:
         return ""
+    verb = "act" if " and " in who else "acts"          # "KELLY and MAXIM act it out"
     if move and look:
-        return f"{who} acts it out — {move}; {look}."
-    return f"{who} acts it out — {move or look}."
+        return f"{who} {verb} it out — {move}; {look}."
+    return f"{who} {verb} it out — {move or look}."
 
 
 def camera_phrase(data: Dict, who: str) -> Optional[str]:
@@ -55,7 +56,7 @@ def camera_phrase(data: Dict, who: str) -> Optional[str]:
     probe = dict(data, text=" ".join(str(x) for x in (data.get("text"), en.get("action")) if x))   # the English action counts too
     mode = travel_truth.camera_mode(probe)
     if mode.get("mode") == "lead":
-        return f"tracks backward ahead of {who}, holding the same distance as {who} comes toward it"
+        return f"tracks backward ahead of {who}, holding the same distance as {who} {'come' if ' and ' in who else 'comes'} toward it"
     if mode.get("mode") == "follow":
         return f"follows behind {who}, moving along with {who} at the same distance"
     return None
