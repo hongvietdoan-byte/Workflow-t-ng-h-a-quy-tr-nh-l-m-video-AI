@@ -9,7 +9,7 @@ which is also where the subtitles take their timing from.
 import json
 import math
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from . import access
 from . import audio_lib, dialogue, ffmpeg_studio, final_cut
@@ -40,18 +40,82 @@ def get_profile(row) -> Dict:
         return {}
 
 
-def set_profile(conn, project_id: int, name: str, profile: Optional[Dict]) -> None:
-    clean = None
+SPEED_RANGE = (0.7, 1.2)     # ClipAI TTS input_params.speed (core/adapters/clipai_audio.py TTS_PARAM_RANGES)
+DEFAULT_SPEED = 1.0
+
+
+def clamp_speed(value) -> Tuple[Optional[float], Optional[str]]:
+    """14/10 (#31 tập 2, lời dẫn 1,2): the reading speed a voice profile keeps -> (speed or None = the voice's default 1,0, warning).
+    Empty / 1,0 -> None (nothing saved: the payload stays exactly as before). Not a number -> None + warning. Outside 0,7–1,2 -> kept at
+    the nearest end + warning (never silently: luật 1)."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None, None
+    try:
+        if isinstance(value, bool):
+            raise ValueError
+        speed = float(str(value).replace(",", ".")) if isinstance(value, str) else float(value)
+        if math.isnan(speed) or math.isinf(speed):
+            raise ValueError
+    except (TypeError, ValueError):
+        return None, f"tốc độ đọc '{value}' không phải số — bỏ, đọc tốc độ mặc định {DEFAULT_SPEED:g}"
+    warn = None
+    low, high = SPEED_RANGE
+    if not low <= speed <= high:
+        kept = min(max(speed, low), high)
+        warn = f"tốc độ đọc {speed:g} ngoài khoảng {low:g}–{high:g} của ClipAI TTS — kẹp về {kept:g}"
+        speed = kept
+    speed = round(speed, 3)
+    return (None if speed == DEFAULT_SPEED else speed), warn
+
+
+def profile_speed(prof: Optional[Dict]) -> Optional[float]:
+    """The profile's own reading speed (None = default), clamped again in case the row was written by hand."""
+    return clamp_speed((prof or {}).get("speed"))[0]
+
+
+def set_profile(conn, project_id: int, name: str, profile: Optional[Dict]) -> List[str]:
+    """Save a character's voice profile. Returns the warnings (also written as diag VÀNG, stage voice).
+    `speed` (14/10): the profile's reading speed 0,7–1,2, kept without a pitch variant. A profile with NO "speed" key keeps the speed
+    already saved for this character (the casting rule / Claude casting / a re-save never drop the person's speed); a "speed" key of
+    None / 1,0 removes it. The variant is kept when it has a pitch OR a speed (before: only with a pitch — a speed-only variant was lost)."""
+    clean, warns = None, []
     if profile and profile.get("voice_id"):
         keep = {"voice_id": int(profile["voice_id"]), "voice_name": str(profile.get("voice_name") or ""),
                 "model": profile.get("model") or DEFAULT_MODEL, "persona": str(profile.get("persona") or "")}
         if profile.get("auto"):                 # S14.26: cast by rule (core/voice_casting.py) — a choice saved by the person has no "auto"
             keep["auto"] = True
-        if isinstance(profile.get("variant"), dict) and profile["variant"].get("pitch"):
+        if isinstance(profile.get("variant"), dict) and (profile["variant"].get("pitch") or profile["variant"].get("speed")):
             keep["variant"] = {k: float(v) for k, v in profile["variant"].items() if k in ("pitch", "speed") and v}
+        if "speed" in profile:
+            speed, warn = clamp_speed(profile.get("speed"))
+        else:
+            row = conn.execute("SELECT voice_profile FROM characters WHERE project_id=? AND name=?", (project_id, name)).fetchone()
+            speed, warn = clamp_speed(get_profile(row).get("speed")) if row else (None, None)
+        if warn:
+            warns.append(f"{name}: {warn}")
+        if speed is not None:
+            keep["speed"] = speed
         clean = json.dumps(keep, ensure_ascii=False)
     conn.execute("UPDATE characters SET voice_profile=? WHERE project_id=? AND name=?", (clean, project_id, name))
     conn.commit()
+    if warns:
+        from . import diag
+        for w in warns:
+            diag.record(conn, "voice", "warn", w, code="voice_speed_clamped", project_id=project_id)
+    return warns
+
+
+def line_params(how: Optional[Dict], model: str, prof: Dict) -> Dict:
+    """ClipAI TTS input_params of one line. Speed rule (14/10): speed = pace of the line (cờ voice_direction, slow 0,9 / fast 1,1;
+    else 1) × the variant's speed (S14.26, a voice shared by two roles) × the profile's own speed, then kept inside 0,7–1,2.
+    A profile without speed gives exactly the params of before (same payload)."""
+    from . import voice_casting, voice_direction
+    out = voice_casting.tts_params(voice_direction.params(how, model), prof.get("variant") or None)
+    own = profile_speed(prof)
+    if own is None:
+        return out
+    speed = float(out.get("speed") or DEFAULT_SPEED) * own
+    return {**out, "speed": round(min(max(speed, SPEED_RANGE[0]), SPEED_RANGE[1]), 3)}
 
 
 def _norm(name: str) -> str:
@@ -274,12 +338,14 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
         how = ln.get("delivery") if features.on("voice_direction") else None   # GĐ4: the Director's direction of the line
         variant = ln["voice"].get("variant") or None           # S14.26: a voice shared by two roles (core/voice_casting.py)
         pitch = (variant or {}).get("pitch")
+        own_speed = profile_speed(ln["voice"])             # 14/10: the profile's reading speed (None = default, as before)
         old = have.get((ln["scene_id"], ln["line"]))
         resends = 0
         if old is not None:
             i, e = old
             same = (e.get("text") == ln["text"] and e.get("voice_id") == ln["voice"]["voice_id"]
-                    and (how is None or e.get("delivery") == how))      # feature off: a line made with direction is kept, not re-paid
+                    and (how is None or e.get("delivery") == how)       # feature off: a line made with direction is kept, not re-paid
+                    and (e.get("profile_speed") or None) == own_speed)   # 14/10: the profile's speed changed -> the old voice is stale
             if same and e["state"] in ("running", "succeeded") and (e.get("pitch_semitones") or None) != (pitch or None):
                 # S14.26: only the variant's pitch changed (or was lost) — ffmpeg from the kept original, 0 USD, never a new TTS
                 e["pitch_semitones"] = pitch or None
@@ -302,6 +368,8 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
             have = {(e2["scene_id"], e2.get("line")): (j, e2) for j, e2 in _line_items(directory)}
         extra = {"scene_id": ln["scene_id"], "scene_idx": ln["idx"], "line": ln["line"], "speaker": ln["speaker"],
                  "text": ln["text"], "voice_id": ln["voice"]["voice_id"], "dialogue": True, "resends": resends}
+        if own_speed is not None:
+            extra["profile_speed"] = own_speed               # cache key of the line: a new speed makes this voice stale
         if pitch:
             extra["pitch_semitones"] = pitch                 # pitched after download (audio_lib.refresh → voice_casting.render_pitch)
         from . import tts_caps                                 # lỗi 9 (cờ tts_lowercase_caps): chữ IN HOA tiếng Việt sai thanh
@@ -317,7 +385,7 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
             said = voice_direction.spoken_text(said, how, model)
         audio_lib.submit_tts(provider, directory, said, ln["voice"]["voice_id"], ln["voice"].get("voice_name", ""),
                              model, None, ledger=(conn, project_id) if ledger else None,
-                             extra=extra, params=voice_casting.tts_params(voice_direction.params(how, model), variant))
+                             extra=extra, params=line_params(how, model, ln["voice"]))
         sent += 1
     return {"sent": sent, "skipped": skipped, "no_voice": sorted(no_voice), "held": held}
 
@@ -447,13 +515,15 @@ def status(conn, project_id: int, data_dir: str) -> Dict:
     directory = audio_lib.assets_dir(data_dir, project_id)
     planned = planned_lines(conn, project_id)
     made = {(e["scene_id"], e.get("line")): e for _, e in _line_items(directory)}
-    counts = {"total": len(planned), "succeeded": 0, "running": 0, "failed": 0, "missing": 0}
+    counts = {"total": len(planned), "succeeded": 0, "running": 0, "failed": 0, "missing": 0, "speed_changed": 0}
     for ln in planned:
         e = made.get((ln["scene_id"], ln["line"]))
         if e is None or e.get("text") != ln["text"]:
             counts["missing"] += 1
         else:
             counts[e["state"]] = counts.get(e["state"], 0) + 1
+            if e["state"] in ("running", "succeeded") and ln["voice"] and (e.get("profile_speed") or None) != profile_speed(ln["voice"]):
+                counts["speed_changed"] += 1         # shown only: never "missing" (the automatic run must not re-pay it by itself)
     counts["no_voice"] = sorted({ln["speaker"] or "(không tên)" for ln in planned if not ln["voice"]})
     return counts
 

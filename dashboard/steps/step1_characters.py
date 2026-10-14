@@ -283,13 +283,20 @@ def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: boo
             names = {v.get("id"): label(v) for v in ordered}
             names.update({v.get("id"): label(v) for v in voices if v.get("id") not in names})
             cur = prof.get("voice_id") if prof.get("voice_id") in ids else None
-            v1, v2 = st.columns([2, 3])
+            v1, v2, v3 = st.columns([2, 3, 1])
             pick = v1.selectbox("Giọng", ids, index=ids.index(cur), key=f"voice_{pid}_{c['name']}",
                                 format_func=lambda i: "— chưa chọn —" if i is None else f"{names.get(i)} (#{i})")
             persona = v2.text_input("Cách nói (persona)", prof.get("persona", ""), key=f"persona_{pid}_{c['name']}",
                                     placeholder="câu ngắn, hay cà khịa, nói 'nha'…")
-            if (pick, persona) != (cur, prof.get("persona", "")) and st.button("💾 Lưu giọng", key=f"voice_save_{pid}_{c['name']}"):
-                voice.set_profile(p.conn, pid, c["name"], voice_casting.saved_profile(prof, pick, names.get(pick), persona))   # S14.26: same voice keeps its variant
+            cur_speed = voice.profile_speed(prof) or voice.DEFAULT_SPEED      # 14/10: tốc độ đọc riêng của giọng (lời dẫn 1,2)
+            speed = v3.number_input("Tốc độ đọc", min_value=voice.SPEED_RANGE[0], max_value=voice.SPEED_RANGE[1],
+                                    value=float(cur_speed), step=0.05, format="%.2f", key=f"voice_speed_{pid}_{c['name']}",
+                                    help="ClipAI TTS nhận 0,7–1,2 (1,0 = mặc định của giọng). Đổi tốc độ → các câu đã đọc thành CŨ, "
+                                         "bấm 🎙 Tạo giọng ở Bước 3 để đọc lại (tốn credit âm thanh).")
+            if (pick, persona, round(speed, 3)) != (cur, prof.get("persona", ""), round(cur_speed, 3))                     and st.button("💾 Lưu giọng", key=f"voice_save_{pid}_{c['name']}"):
+                for w in voice.set_profile(p.conn, pid, c["name"], voice_casting.saved_profile(prof, pick, names.get(pick), persona,   # S14.26: same voice keeps its variant
+                                                                                               speed=round(speed, 3))):
+                    st.warning(w)
                 st.rerun()
             voice_preview_row(p, pid, c["name"], cur, names.get(cur))
         else:

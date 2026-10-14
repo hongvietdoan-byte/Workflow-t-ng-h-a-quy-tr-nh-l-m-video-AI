@@ -259,8 +259,10 @@ def voice_panel(p: Pipeline, pid: int) -> None:
             st.caption(_about)
         if stat["no_voice"]:
             st.warning("Chưa có giọng cho: " + ", ".join(stat["no_voice"]) + " → chọn ở màn Kịch bản (Character Bible → 🎙 Giọng).")
+        if stat.get("speed_changed"):
+            st.warning(f"{stat['speed_changed']} câu đã đọc với tốc độ cũ (tốc độ đọc của giọng vừa đổi) — bấm 🎙 Tạo giọng để đọc lại.")
         c1, c2, c3 = st.columns(3)
-        todo = stat["missing"] + stat.get("failed", 0)
+        todo = stat["missing"] + stat.get("failed", 0) + stat.get("speed_changed", 0)
         if c1.button(f"🎙 Tạo giọng cho {todo} câu" + budget.audio_tag(p.conn, todo, "eleven_v3"), key=f"tts_gen_{pid}", type="primary", disabled=provider is None or not todo,
                      help="Mỗi câu một lần gọi TTS (tốn credit âm thanh; âm thanh chưa có giá nên trần đợt thử tính theo số lượt). "
                           "Câu đã có giọng và không đổi thì bỏ qua. Câu LỖI được gửi lại y nguyên — chỉ có ích khi lỗi do nhà cung cấp; "

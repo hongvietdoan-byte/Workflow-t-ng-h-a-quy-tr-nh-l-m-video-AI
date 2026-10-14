@@ -255,12 +255,15 @@ def build_pitch_cmd(src: str, dst: str, semitones: float, ffmpeg: str = "ffmpeg"
     return [ffmpeg, "-y", "-hide_banner", "-i", src, "-af", pitch_filter(semitones), dst]
 
 
-def saved_profile(prof: Dict, pick, voice_name: Optional[str], persona: str) -> Optional[Dict]:
+def saved_profile(prof: Dict, pick, voice_name: Optional[str], persona: str, speed=None) -> Optional[Dict]:
     """The profile the screen's 💾 Lưu writes: the person's choice (no "auto"), keeping the variant when the voice is the same one —
-    dropping it would send the paid lines to the TTS again and make the two roles on that voice sound alike."""
+    dropping it would send the paid lines to the TTS again and make the two roles on that voice sound alike.
+    speed (14/10): the reading speed box (0,7–1,2); None = keep the speed already saved (core/voice.set_profile), 1,0 = default."""
     if not pick:
         return None
     out = {"voice_id": pick, "voice_name": voice_name or "", "persona": persona or ""}
+    if speed is not None:
+        out["speed"] = speed
     if pick == prof.get("voice_id") and prof.get("variant"):
         out["variant"] = dict(prof["variant"])
     return out
