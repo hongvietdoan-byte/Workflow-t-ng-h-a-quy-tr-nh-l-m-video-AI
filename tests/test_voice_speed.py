@@ -43,8 +43,8 @@ class Base(unittest.TestCase):
         return voice.get_profile(self.p.conn.execute("SELECT voice_profile FROM characters WHERE project_id=? AND name=?",
                                                      (self.pid, name)).fetchone())
 
-    def gen(self, prov):
-        return voice.generate(self.p.conn, self.pid, prov, self.d, ledger=False, settle=False)
+    def gen(self, prov, by_person=False):
+        return voice.generate(self.p.conn, self.pid, prov, self.d, ledger=False, settle=False, by_person=by_person)
 
     def by(self, prov, voice_id):
         return [s for s in prov.sent if s["voice_id"] == voice_id]
@@ -134,7 +134,8 @@ class TtsTests(Base):
         stat = voice.status(self.p.conn, self.pid, self.d)
         self.assertEqual(stat["speed_changed"], 1)
         self.assertEqual(stat["missing"], 0)                               # shown, never 'missing' (no automatic re-pay)
-        out = self.gen(prov)
+        self.assertEqual(self.gen(prov)["sent"], 0)                        # the automatic run keeps the old voice (no re-pay)
+        out = self.gen(prov, by_person=True)
         self.assertEqual(out["sent"], 1)
         self.assertEqual(prov.sent[-1]["params"], {"speed": 1.2})
         items = [e for e in audio_lib.load(audio_lib.assets_dir(self.d, self.pid)) if e.get("speaker") == "LỜI DẪN"]
@@ -142,8 +143,44 @@ class TtsTests(Base):
         self.gen(prov)
         self.assertEqual(len(prov.sent), 3)
         voice.set_profile(self.p.conn, self.pid, "LỜI DẪN", {"voice_id": 30169, "speed": 1.0})          # back to default: stale again
-        self.assertEqual(self.gen(prov)["sent"], 1)
+        self.assertEqual(self.gen(prov, by_person=True)["sent"], 1)
         self.assertIsNone(prov.sent[-1]["params"])
+
+    def test_automatic_run_for_another_missing_line_does_not_re_pay_a_speed_change(self):
+        """Rà 14/10 (1): autopilot / pilot_run call generate when ANOTHER line is missing — the line whose only change is the profile's
+        speed must stay as it is (re-read only on the person's 🎙 click), else a speed change is paid without anyone pressing."""
+        voice.set_profile(self.p.conn, self.pid, "LỜI DẪN", {"voice_id": 30169})
+        voice.set_profile(self.p.conn, self.pid, "KELLY", {"voice_id": 70})
+        prov = Prov()
+        self.gen(prov)
+        directory = audio_lib.assets_dir(self.d, self.pid)
+        kelly = [i for i, e in enumerate(audio_lib.load(directory)) if e.get("speaker") == "KELLY"][0]
+        audio_lib.remove(directory, kelly)                                 # KELLY's line now missing
+        voice.set_profile(self.p.conn, self.pid, "LỜI DẪN", {"voice_id": 30169, "speed": 1.2})
+        out = self.gen(prov)
+        self.assertEqual([s["voice_id"] for s in prov.sent[2:]], [70])   # only the missing line
+        self.assertEqual(out["sent"], 1)
+        stat = voice.status(self.p.conn, self.pid, self.d)
+        self.assertEqual(stat["speed_changed"], 1)                         # still shown to the person
+        self.assertEqual(len(stat["speed_changed_scenes"]), 1)
+
+    def test_clips_made_on_the_old_speed_are_named(self):
+        """Rà 14/10 (2): a scene with a clip (lip sync follows the old timing) is named beside the speed warning, not silent."""
+        voice.set_profile(self.p.conn, self.pid, "LỜI DẪN", {"voice_id": 30169})
+        voice.set_profile(self.p.conn, self.pid, "KELLY", {"voice_id": 70})
+        self.gen(Prov())
+        sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=?", (self.pid,)).fetchone()["id"]
+        voice.set_profile(self.p.conn, self.pid, "LỜI DẪN", {"voice_id": 30169, "speed": 1.2})
+        self.assertEqual(voice.speed_changed_clips(self.p.conn, self.pid, self.d), [])
+        self.p.conn.execute("INSERT INTO jobs (project_id, scene_id, type, state, created_at, updated_at) "
+                            "VALUES (?, ?, 'video_gen', 'succeeded', 'x', 'x')", (self.pid, sid))
+        self.p.conn.commit()
+        self.assertEqual(voice.speed_changed_clips(self.p.conn, self.pid, self.d), ["S01"])
+
+    def test_pace_variant_and_profile_are_multiplied_then_clamped_once(self):
+        """Rà 14/10 (5): 1,1 (fast) × 1,2 (variant) × 0,7 (profile) = 0,924 — not 1,2 (clamped first) × 0,7 = 0,84."""
+        prof = {"voice_id": 70, "speed": 0.7, "variant": {"pitch": 2.0, "speed": 1.2}}
+        self.assertEqual(voice.line_params({"pace": "fast"}, "eleven_v3", prof)["speed"], 0.924)
 
     def test_preview_uses_the_profile_speed_and_none_keeps_the_old_call(self):
         prov = Prov()

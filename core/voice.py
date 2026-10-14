@@ -110,12 +110,13 @@ def line_params(how: Optional[Dict], model: str, prof: Dict) -> Dict:
     else 1) × the variant's speed (S14.26, a voice shared by two roles) × the profile's own speed, then kept inside 0,7–1,2.
     A profile without speed gives exactly the params of before (same payload)."""
     from . import voice_casting, voice_direction
-    out = voice_casting.tts_params(voice_direction.params(how, model), prof.get("variant") or None)
+    variant = prof.get("variant") or None
     own = profile_speed(prof)
     if own is None:
-        return out
-    speed = float(out.get("speed") or DEFAULT_SPEED) * own
-    return {**out, "speed": round(min(max(speed, SPEED_RANGE[0]), SPEED_RANGE[1]), 3)}
+        return voice_casting.tts_params(voice_direction.params(how, model), variant)     # exactly the call of before
+    out = voice_direction.params(how, model)
+    speed = float(out.get("speed") or DEFAULT_SPEED) * float((variant or {}).get("speed") or DEFAULT_SPEED) * own
+    return {**out, "speed": round(min(max(speed, SPEED_RANGE[0]), SPEED_RANGE[1]), 3)}   # rà 14/10: one clamp of the whole product
 
 
 def _norm(name: str) -> str:
@@ -350,8 +351,10 @@ def generate(conn, project_id: int, provider, data_dir: str, scene_ids=None, led
         if old is not None:
             i, e = old
             same = (e.get("text") == ln["text"] and e.get("voice_id") == ln["voice"]["voice_id"]
-                    and (how is None or e.get("delivery") == how)       # feature off: a line made with direction is kept, not re-paid
-                    and (e.get("profile_speed") or None) == own_speed)   # 14/10: the profile's speed changed -> the old voice is stale
+                    and (how is None or e.get("delivery") == how))      # feature off: a line made with direction is kept, not re-paid
+            if (e.get("profile_speed") or None) != own_speed:  # 14/10: the profile's speed changed -> the old voice is stale, but
+                # rà 14/10: only the person's 🎙 click re-reads it (autopilot / pilot_run call here for OTHER missing lines: no re-pay)
+                same = same and not by_person and e["state"] in ("running", "succeeded")
             if same and e["state"] in ("running", "succeeded") and (e.get("pitch_semitones") or None) != (pitch or None):
                 # S14.26: only the variant's pitch changed (or was lost) — ffmpeg from the kept original, 0 USD, never a new TTS
                 e["pitch_semitones"] = pitch or None
@@ -447,6 +450,18 @@ def _lead(conn, scene_id: int) -> float:
     return LIP_LEAD if lipsync.enabled() and lipsync.voiced(lipsync.method_for(data)) else LEAD
 
 
+def speed_changed_clips(conn, project_id: int, data_dir: str, stat: Optional[Dict] = None) -> List[str]:
+    """Rà 14/10: "S03"… of the scenes with a line read at the OLD profile speed that already have a clip (made on that voice; a lip-synced
+    shot's mouth follows the old timing) — step3 says it beside the speed warning instead of letting the re-read go out silently."""
+    stat = stat if stat is not None else status(conn, project_id, data_dir)
+    out = []
+    for sid in stat.get("speed_changed_scenes") or []:
+        if has_clip(conn, sid):
+            row = conn.execute("SELECT idx FROM scenes WHERE id=?", (sid,)).fetchone()
+            out.append(f"S{int(row['idx']):02d}" if row else f"#{sid}")
+    return out
+
+
 def pending_fits(conn, project_id: int, data_dir: str) -> List[Dict]:
     """Scenes that already have a clip SHORTER than their real voice needs — the person decides: remake those clips (cost) or keep them
     and let the edit hold the picture under the longer line."""
@@ -521,7 +536,8 @@ def status(conn, project_id: int, data_dir: str) -> Dict:
     directory = audio_lib.assets_dir(data_dir, project_id)
     planned = planned_lines(conn, project_id)
     made = {(e["scene_id"], e.get("line")): e for _, e in _line_items(directory)}
-    counts = {"total": len(planned), "succeeded": 0, "running": 0, "failed": 0, "missing": 0, "speed_changed": 0}
+    counts = {"total": len(planned), "succeeded": 0, "running": 0, "failed": 0, "missing": 0, "speed_changed": 0,
+              "speed_changed_scenes": []}
     for ln in planned:
         e = made.get((ln["scene_id"], ln["line"]))
         if e is None or e.get("text") != ln["text"]:
@@ -530,6 +546,8 @@ def status(conn, project_id: int, data_dir: str) -> Dict:
             counts[e["state"]] = counts.get(e["state"], 0) + 1
             if e["state"] in ("running", "succeeded") and ln["voice"] and (e.get("profile_speed") or None) != profile_speed(ln["voice"]):
                 counts["speed_changed"] += 1         # shown only: never "missing" (the automatic run must not re-pay it by itself)
+                if ln["scene_id"] not in counts["speed_changed_scenes"]:
+                    counts["speed_changed_scenes"].append(ln["scene_id"])   # step3: clips (lip sync) made on the old voice
     counts["no_voice"] = sorted({ln["speaker"] or "(không tên)" for ln in planned if not ln["voice"]})
     return counts
 
