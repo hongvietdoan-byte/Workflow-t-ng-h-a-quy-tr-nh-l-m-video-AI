@@ -155,7 +155,7 @@ def variant_source(conn, project_id: Optional[int], data: Dict, asset: Dict, tex
     return None, ("ambiguous" if found else None)
 
 
-def usable_images(asset: Dict, text: str, variant: Optional[str] = "") -> List[Dict]:
+def usable_images(asset: Dict, text: str, variant: Optional[str] = "", keep_mannequin: bool = False) -> List[Dict]:
     """Only the pictures of the form the shot speaks of: a picture with a `variant` goes only when the text names that variant;
     otherwise only the plain pictures (none → no picture: the form is said in words). `variant` given (variant_source — the scene's
     form carried down) wins over reading `text`; "" = read the text as before.
@@ -164,7 +164,7 @@ def usable_images(asset: Dict, text: str, variant: Optional[str] = "") -> List[D
     DEPLOYED picture of a shot where the object appears (skill_objects.deployed_pictures reads the Kho pictures itself)."""
     from .skill_objects import is_mannequin_image
     v = chosen_variant(asset, text) if variant == "" else variant
-    imgs = [i for i in asset.get("images") or [] if not is_mannequin_image(i)]
+    imgs = [i for i in asset.get("images") or [] if keep_mannequin or not is_mannequin_image(i)]
     if v is not None:
         return [i for i in imgs if str(i.get("variant") or "").strip() == v]
     return [i for i in imgs if not str(i.get("variant") or "").strip()]
@@ -397,6 +397,7 @@ def locks(conn, project_id: int, data: Dict) -> List[Dict]:
             pics = usable_images(a, text, variant=v)
             out.append({"asset": a, "category": cat, "named": a in named, "variant": v, "variant_from": source, "form": form_text(a, v),
                         "has_forms": bool(_forms(a.get("description") or "") or _variants(a)), "image": pics[0] if pics else None,
+                        "mannequin_dropped": not pics and bool(usable_images(a, text, variant=v, keep_mannequin=True)),
                         "holders": holders.get(a["id"], []) if cat == "gun" else []})
     return out
 
@@ -682,6 +683,10 @@ def issues(conn, project_id: int, data: Dict) -> List[Dict]:
     for msg in variant_notes(conn, project_id, data):
         out.append({"level": "warn", "part": "dao_cu", "msg": msg})
     for lk in locks(conn, project_id, data):
+        if lk.get("mannequin_dropped"):              # rà 14/10: lọc hình nộm làm hết ảnh — nói, không im lặng
+            out.append({"level": "warn", "part": "dao_cu",
+                        "msg": f"món Kho {lk['asset']['name']}: bỏ ảnh hình nộm khỏi khóa vật — vật chỉ còn tả bằng chữ "
+                               "(thêm ảnh sạch không có hình nộm ở Kho nếu cần giống mẫu)"})
         if lk["category"] == "gun" and not weapon_scale(conn, lk["asset"], lk["variant"]):
             out.append({"level": "warn", "part": "dao_cu",
                         "msg": f"món Kho {lk['asset']['name']} thiếu tỉ lệ — loại súng chưa rõ hoặc mâu thuẫn; thêm 'Tỉ lệ:' vào mô tả/hồ sơ hoặc kích thước ở Kho"})

@@ -210,6 +210,16 @@ class MannequinNotTheObjectPicture(P30Base):
                 refs = assets.scene_references(self.p.conn, self.pid, dict(self.shot(idx)))
                 self.assertNotIn(self.mq, [r["path"] for r in refs], f"shot {idx}")
 
+    def test_only_the_mannequin_picture_left_is_said_yellow(self):
+        """rà 14/10: lọc ảnh hình nộm làm hết ảnh dùng được → VÀNG nói rõ, không im lặng."""
+        self.p.conn.execute("DELETE FROM asset_images WHERE asset_id=? AND path<>?", (self.fx["glue"]["id"], self.mq))
+        self.p.conn.commit()
+        with mock.patch.dict(os.environ, {"FEATURE_PROJECT_PROP_LOCK": "1"}):
+            lk = next(x for x in prop_lock.locks(self.p.conn, self.pid, self.shot(3)) if x["category"] == "glue")
+            self.assertIsNone(lk["image"])
+            msgs = [i["msg"] for i in prop_lock.issues(self.p.conn, self.pid, self.shot(3))]
+        self.assertTrue(any("bỏ ảnh hình nộm khỏi khóa vật — vật chỉ còn tả bằng chữ" in m for m in msgs), msgs)
+
 
 if __name__ == "__main__":
     unittest.main()
