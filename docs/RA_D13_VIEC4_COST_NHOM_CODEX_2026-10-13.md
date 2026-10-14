@@ -1,0 +1,26 @@
+# Bàn giao Đ13 việc 4 mục 4 — chỉ mục nhóm trả tiền
+- Nhánh: codex/d13-viec4-cost-nhom; base 1cb845b2 (đã có budget main 6e987e82).
+- Phạm vi: core/cost.py; tests/test_cost_paid_group_index.py; đăng ký test tại devsys/areas.json (giữ version 72).
+- Gom sent_group running/đã trả tiền theo project một lần trong memo.per_rerun; membership frozenset O(1).
+- Chỉ mục tuple bất biến có __deepcopy__ trả chính nó: không chép/quét cả index mỗi shot.
+- estimate_run mở memo.per_rerun cả ngoài Dashboard; model_router._remake_runs/quality_tier dùng cùng index.
+- Ngoài rerun, video_need độc lập vẫn đọc mới mỗi lần; không có global cache tiền.
+- Invalidation ngoài transaction dùng total_changes + PRAGMA data_version của core/memo.py.
+- Rà kỹ bắt P2: ROLLBACK TO SAVEPOINT không đổi total_changes/data_version/in_transaction, làm cũ cả index lẫn video_need.
+- Sửa: transaction chưa commit đọc mới cả index và video_need, không thay tracing của caller; đổi lại đường này không có bảo đảm O(n). Báo giá ngoài transaction vẫn dùng index O(n), ưu tiên đúng tiền khi chưa commit.
+- Hồi quy SAVEPOINT insert/delete/update: ĐỎ 3 test, rồi XANH; kiểm cả index và kết quả video_need. Fixture đo cache chủ động commit trước đo, không nới assert.
+- Giữ any() cũ với JSON hỏng: nhận tiền tố hợp lệ; bỏ phần sau lỗi thường; trì hoãn OverflowError đến shot chưa khớp.
+- Chỉ chủ động thay hành vi lỗi lọt project: nhóm project khác không miễn báo giá shot project này.
+- ĐỎ đầu: 3 fail/1 pass (scan lặp, project isolation, rollback).
+- ĐỎ bổ sung: 1 fail (Infinity sau thành viên khớp gây lỗi eager khác any() cũ).
+- XANH cuối: 133 test + 6 subtest qua / 52,18 s (7 file related; pytest --tb=no, no showlocals).
+- Bằng chứng tuyến tính: 99 shot/20 nhóm, 1 SELECT nhóm, 20 json.loads, 99 lần thăm thành viên, index trả lại cùng object.
+- Báo giá byte-identical với oracle scan cũ: draft, final_only, follower; mỗi estimate_run ngoài Dashboard 1 query index.
+- Hồi quy: same-connection write/rollback, other-connection commit, paid/member/state transitions, JSON hỏng, ngoài rerun không lưu.
+- Tự rà 2b.5: không nới test, không relative-path mới, không đổi cờ mặc định/gate/trần tiền, không API/network/data thật.
+- Caller đã đọc: model_router._remake_runs; quality_tier.running_draft_final_estimate; estimate_run; behavior covered/QC giữ nguyên.
+- related_areas báo budget + các caller step1/2/3/4/5, autopilot/core_infra, plates3d, diag, knowledge/dashboard_ui.
+- related_areas: Test CHẬM bắt buộc ở bước gộp; phiên làm chỉ chạy nhóm related theo phân công.
+- Chưa thử thật #24/#27; chưa cả bộ Windows; không commit/push/TODO/PLAN/main/live.
+- Bước kế: root mở phiên RÀ KỸ context sạch trước commit; giữ các sửa caller khác ngoài nhánh này.
+- Vòng sửa rà kỹ: nhóm test mới + memo 28 qua / 3,88 s (có kiểm transaction đọc lại 2 query và giữ tracing); chưa chạy lại nhóm 133/cả bộ. Root đọc diff vòng sửa trước commit.

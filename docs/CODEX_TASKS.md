@@ -1001,6 +1001,8 @@ Luật chung GIỐNG đợt 1; nhánh `codex/d13-viec<N>-<tên>`; KHÔNG sửa f
 
 ## Kết quả Codex — đợt 13
 
+- Việc 4 mục 4, tối ưu nhóm đã trả tiền — nhánh `codex/d13-viec4-cost-nhom`, code `a4a9dc83`, nền budget đã main: 99 shot/20 nhóm → 1 query, 20 parse, 99 thành viên; index bất biến lookup/deepcopy O(1). Báo giá draft/final_only/follower byte-identical với oracle. Đỏ 3 + Infinity → **133 test + 6 subtest xanh / 52,18 s**; RÀ KỸ độc lập bắt P2 SAVEPOINT rollback, 3 ca đỏ → sửa, **28 test xanh / 3,88 s**. Transaction đọc mới ưu tiên đúng tiền; ngoài transaction cache theo dự án. Root rà diff vòng hai. RA `docs/RA_D13_VIEC4_COST_NHOM_CODEX_2026-10-13.md`; chưa cả bộ/ca thật, không main/live/API. Những phần Đ13v4 đã push nhánh cũ giữ nguyên, không làm lại.
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
 ---

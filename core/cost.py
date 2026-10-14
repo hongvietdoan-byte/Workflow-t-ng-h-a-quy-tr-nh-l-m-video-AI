@@ -569,6 +569,49 @@ def cache_stats(conn, project_id: Optional[int] = None) -> List[Dict]:
     return out
 
 
+class _PaidGroupMembers(tuple):
+    """Chỉ mục bất biến: memo trả lại chính nó, không chép mọi thành viên mỗi shot."""
+
+    def __new__(cls, members, overflow=None):
+        return tuple.__new__(cls, (frozenset(members), overflow))
+
+    def __contains__(self, scene_id):
+        if scene_id in self[0]:
+            return True
+        if self[1] is not None:
+            raise OverflowError(self[1])
+        return False
+
+    def __deepcopy__(self, memo):
+        return self
+
+
+def _paid_running_groups(conn, project_id: int):
+    from . import memo
+
+    def collect():
+        members = set()
+        for paid in conn.execute(
+                "SELECT sent_group FROM jobs WHERE project_id=? AND type='video_gen' AND state='running'"
+                " AND external_id IS NOT NULL AND external_id!='' AND sent_group IS NOT NULL", (project_id,)):
+            try:
+                # Giữ hành vi any() cũ: thành viên hợp lệ trước phần JSON hỏng vẫn được nhận;
+                # lỗi ở một thành viên dừng nhóm đó, không nhận các thành viên phía sau.
+                for row in json.loads(paid["sent_group"] or "[]"):
+                    members.add(int(row["id"]))
+            except (ValueError, TypeError, KeyError):
+                pass
+            except OverflowError as exc:
+                # any() cũ trả True nếu đã khớp trước số vô hạn; shot chưa khớp vẫn nhận lỗi cũ.
+                return _PaidGroupMembers(members, str(exc))
+        return _PaidGroupMembers(members)
+
+    # ROLLBACK TO không đổi total_changes/data_version/in_transaction: đọc mới khi chưa commit.
+    if conn.in_transaction:
+        return collect()
+    return memo.cached(conn, ("cost.paid_running_groups", project_id, conn.in_transaction), collect)
+
+
 def video_need(conn, scene_id: int) -> Dict:
     """Báo giá chỉ bỏ clip khi có bằng chứng khớp ảnh duyệt và motion hiện tại.
     Stamp runner ghi trước khi bọc prompt; không dựng lại prompt hay gọi provider.
@@ -576,7 +619,10 @@ def video_need(conn, scene_id: int) -> Dict:
     """
     from . import memo
     from . import quality_tier
-    return memo.cached(conn, ("cost.video_need", scene_id, quality_tier.enabled()), lambda: _video_need(conn, scene_id))
+    if conn.in_transaction:
+        return _video_need(conn, scene_id)
+    return memo.cached(conn, ("cost.video_need", scene_id, quality_tier.enabled(), conn.in_transaction),
+                       lambda: _video_need(conn, scene_id))
 
 
 def _video_need(conn, scene_id: int) -> Dict:
@@ -584,13 +630,9 @@ def _video_need(conn, scene_id: int) -> Dict:
     running = conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='video_gen' AND state='running' AND external_id IS NOT NULL AND external_id!='' LIMIT 1", (scene_id,)).fetchone()
     if running:
         return {"needed": False, "reason": "clip đang chạy ở nhà cung cấp, đã gửi tiền"}
-    for paid in conn.execute("SELECT sent_group FROM jobs WHERE type='video_gen' AND state='running' AND external_id IS NOT NULL AND external_id!='' AND sent_group IS NOT NULL"):
-        try:
-            if any(int(r["id"]) == scene_id for r in json.loads(paid["sent_group"] or "[]")):
-                return {"needed": False, "reason": "shot trong clip nhóm đang chạy, đã gửi tiền"}
-        except (ValueError, TypeError, KeyError):
-            pass
     scene = conn.execute("SELECT * FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    if scene_id in _paid_running_groups(conn, scene["project_id"]):
+        return {"needed": False, "reason": "shot trong clip nhóm đang chạy, đã gửi tiền"}
     proj = conn.execute("SELECT * FROM projects WHERE id=?", (scene["project_id"],)).fetchone()
     image = lineage.approved_image_id(conn, shots.image_scene(conn, scene_id))
     mp = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
@@ -690,6 +732,13 @@ def _video_reference_seconds(conn, scene_id: int, choice=None) -> Dict:
 
 
 def estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = None) -> Dict:
+    """Một báo giá dùng chung chỉ mục nhóm cho mọi caller, cả ngoài Dashboard."""
+    from . import memo
+    with memo.per_rerun():
+        return _estimate_run(pipeline, project_id, pricing)
+
+
+def _estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = None) -> Dict:
     """What the automatic run will pay for, before the start button: pictures (+ end frames), clips (each shot's model, lip-sync
     shots on Seedance included), Claude (Director, QC, motion) — base and worst case with the retries. Unknown prices are listed,
     never counted as 0. {"images", "videos", "llm", "total", "max", "unknown": [...], "counts": {...}}"""
