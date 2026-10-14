@@ -242,7 +242,10 @@ def step2(p: Pipeline, pid: int):
                 st.toast(f"Xếp hàng {r['created']} ảnh mới, {r['redo']} ảnh làm lại" + (f" · đã gửi {sent}" if runner else "")
                          + (f" · {left} ảnh chờ điều kiện, sẽ tự gửi (xem lý do bên dưới)" if runner and left else "")
                          + (" · đang gen thử" if r["pilot"] else ""))
-            if act(go):
+            _t0 = time.monotonic()
+            _ok = act(go)
+            C.log_ui(p, "gen_anh", page="storyboard", project_id=pid, result=_ok, t0=_t0)   # 14/10 nhật ký thao tác
+            if _ok:
                 st.rerun()
         pending = [j["id"] for j in p.conn.execute(
             "SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='pending_review' ORDER BY id", (pid,)).fetchall()]
@@ -437,10 +440,13 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
             a, b, c = st.columns(3)
             st.caption("✖ Loại = gen lại 1 ảnh" + retake)
             if a.button("✔ Duyệt", key=f"a_{jid}"):
-                act(lambda: p.approve(jid, "user"))
+                C.log_ui(p, "duyet_anh", page="storyboard", project_id=pid, job_id=jid, result=act(lambda: p.approve(jid, "user")))
                 st.rerun()
             if b.button("✖ Loại", key=f"r_{jid}", help="Loại và gen lại (ghi chú lý do ở khung chi tiết bên phải)"):
-                act(_spin(lambda: p.reject(jid, "user", st.session_state.get(f"note_{jid}") or None)))
+                _t0 = time.monotonic()
+                _ok = act(_spin(lambda: p.reject(jid, "user", st.session_state.get(f"note_{jid}") or None)))
+                C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, job_id=jid, result=_ok, t0=_t0,
+                         detail="ghi chú: " + ("có" if st.session_state.get(f"note_{jid}") else "không"))
                 st.rerun()
             if c.button("🔍 Xem", key=f"sel_btn_{jid}"):
                 st.session_state[f"sel_{pid}"] = jid
@@ -529,10 +535,13 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
                                                         "yellow jacket”)"), key=f"note_{jid}")
             a, b = st.columns(2)
             if b.button("✖ Loại & gen lại" + retake, key=f"dr_{jid}"):
-                act(_spin(lambda: p.reject(jid, "user", note or None)))
+                _t0 = time.monotonic()
+                _ok = act(_spin(lambda: p.reject(jid, "user", note or None)))
+                C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, job_id=jid, result=_ok, t0=_t0,
+                         detail="ghi chú: " + ("có" if note else "không"))
                 st.rerun()
             if a.button("✔ Duyệt", key=f"da_{jid}", type="primary"):
-                act(lambda: p.approve(jid, "user"))
+                C.log_ui(p, "duyet_anh", page="storyboard", project_id=pid, job_id=jid, result=act(lambda: p.approve(jid, "user")))
                 st.rerun()
             if st.button("🗑 Xóa (vào thùng rác, không gen lại)", key=f"dd_{jid}"):
                 act(lambda: p.reject(jid, "user", note or "đã xóa", respawn=False))
@@ -541,7 +550,9 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
             fix = st.text_input("Câu sửa cho model (tiếng Anh) — để trống = gửi lại y nguyên (chỉ khi lỗi do nhà cung cấp)",
                                 key=f"dfix_{jid}")
             if st.button(("↻ Gen lại với câu sửa" if fix.strip() else "↻ Gửi lại (lỗi nhà cung cấp)") + retake, key=f"dretry_{jid}"):
-                act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix, by_user=True))
+                _ok = act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix, by_user=True))
+                C.log_ui(p, "gen_lai_anh", page="storyboard", project_id=pid, job_id=jid, result=_ok,
+                         detail="câu sửa: " + ("có" if fix.strip() else "không"))
                 st.rerun()
         if j["escalated"] and st.button("↺ Làm lại từ đầu" + retake, key=f"drs_{jid}", type="primary"):
             if act(lambda: p.restart_job(jid), "Đã xếp hàng job mới cho cảnh"):
@@ -550,7 +561,10 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
             r_note = st.text_input("Lý do bỏ duyệt (đưa vào prompt gen lại)", key=f"rn_{jid}")
             st.caption("Bỏ duyệt: motion prompt và video làm từ ảnh này sẽ hiện ⚠ cũ để làm lại.")
             if st.button("↩ Bỏ duyệt & gen lại ảnh" + retake, key=f"reopen_{jid}"):
-                if act(_spin(lambda: p.reopen_approved(jid, r_note or None)), "Đã bỏ duyệt, xếp hàng gen lại"):
+                _ok = act(_spin(lambda: p.reopen_approved(jid, r_note or None)), "Đã bỏ duyệt, xếp hàng gen lại")
+                C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, job_id=jid, result=_ok,
+                         detail="bỏ duyệt ảnh đã duyệt · lý do: " + ("có" if r_note else "không"))
+                if _ok:
                     st.rerun()
 
 
@@ -753,6 +767,7 @@ def shot_storyboard_panel(p: Pipeline, pid: int, gate_button: bool = True) -> No
             elif c2.button("✔ Duyệt storyboard — gen video" + cost.video_batch_tag(p, pid), key=f"board_ok_{pid}", type="primary"):
                 autopilot.resume(p, pid, p.actor)
                 autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())
+                C.log_ui(p, "gen_video", page="storyboard", project_id=pid, detail="duyệt storyboard → gen video (tự chạy)")
                 st.rerun()
         per_row = 6
         for k in range(0, len(rows), per_row):

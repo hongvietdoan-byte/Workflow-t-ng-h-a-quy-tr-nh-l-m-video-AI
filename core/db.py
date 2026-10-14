@@ -578,6 +578,22 @@ CREATE TABLE IF NOT EXISTS video_gate_skips (
     at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_video_gate_skips_job ON video_gate_skips(image_job_id);
+-- 14/10 tập 2 #27 (core/ui_log.py): nhật ký THAO TÁC trên Dashboard (ai bấm gì, nguồn người / Claude, kết quả, thời gian xử lý)
+CREATE TABLE IF NOT EXISTS ui_actions (
+    id INTEGER PRIMARY KEY,
+    at REAL NOT NULL,
+    email TEXT,
+    source TEXT NOT NULL DEFAULT 'nguoi',     -- nguoi / claude (?op=claude khi mở Dashboard)
+    page TEXT,
+    action TEXT NOT NULL,
+    project_id INTEGER,
+    scene_id INTEGER,
+    job_id INTEGER,
+    result TEXT NOT NULL DEFAULT 'ok',        -- ok / error / noop
+    detail TEXT,
+    ms INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_ui_actions_project ON ui_actions(project_id, at);
 """
 
 

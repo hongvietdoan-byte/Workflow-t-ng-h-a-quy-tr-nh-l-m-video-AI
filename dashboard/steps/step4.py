@@ -207,7 +207,11 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
             r = batch.queue_videos(p, pid, C.DATA, only={x["scene_id"] for x in send})
             sent = runner.submit_pending(pid)
             st.toast(f"Xếp hàng {r['created']} clip mới, {r['redo']} clip làm lại · đã gửi {sent}")
-        if act(go):
+        _t0 = time.monotonic()
+        _ok = act(go)
+        C.log_ui(p, "gen_video", page="video", project_id=pid, result=_ok, t0=_t0,   # 14/10 nhật ký thao tác
+                 detail=f"{len(send)} cảnh chọn, {queued} clip đang chờ")
+        if _ok:
             st.rerun()
     # KLD-1 (08/10): job 559 của #22 hỏng vì đầu vào đã cũ nằm trong nút này → gửi lại y nguyên thành 566. Nút chỉ còn lỗi nhà cung cấp.
     failed = batch.provider_failures(p, pid)
@@ -561,18 +565,23 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
         r1, r2 = st.columns(2)
         if r1.button("✔ Duyệt clip", key=f"va_{jid}", type="primary", disabled=not reviewable, width="stretch"):
             from dashboard import quality_ui
-            act(lambda: quality_ui.approve_clip(p, jid))      # 13/10: a final of an older draft is retired, said in a toast
+            C.log_ui(p, "duyet_video", page="video", project_id=j["project_id"], scene_id=j["scene_id"], job_id=jid,
+                     result=act(lambda: quality_ui.approve_clip(p, jid)))      # 13/10: a final of an older draft is retired, said in a toast
             st.rerun()
         if can_resend:
             if r2.button(("↻ Gen lại với câu sửa" if vfix.strip() else "↻ Gửi lại") + tag, key=f"vr_{jid}", width="stretch",
                          help="Lỗi do nhà cung cấp: gửi lại, có thể kèm câu sửa."):
-                act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if vfix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=vfix, by_user=True))
+                _ok = act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if vfix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=vfix, by_user=True))
+                C.log_ui(p, "gen_lai_video", page="video", project_id=j["project_id"], scene_id=j["scene_id"], job_id=jid, result=_ok,
+                         detail="câu sửa: " + ("có" if vfix.strip() else "không"))
                 st.rerun()
         elif clip and state in ("succeeded", "pending_review", "approved"):
             if r2.button(("↻ Gen lại theo ảnh/prompt mới" if stale_reason else "↻ Gen lại video") + tag, key=f"vregen_{jid}", width="stretch",
                          help="Clip này vào thùng rác (giữ 30 ngày) và xếp hàng video mới. Muốn đổi cách quay thì sửa motion prompt trước."):
-                if act(lambda: regen.regenerate_video(p, C.DATA, jid, f"làm lại vì {stale_reason}" if stale_reason else None),
-                       "Đã xếp hàng gen lại video"):
+                _ok = act(lambda: regen.regenerate_video(p, C.DATA, jid, f"làm lại vì {stale_reason}" if stale_reason else None),
+                          "Đã xếp hàng gen lại video")
+                C.log_ui(p, "gen_lai_video", page="video", project_id=j["project_id"], scene_id=j["scene_id"], job_id=jid, result=_ok, detail="đầu vào cũ" if stale_reason else "")
+                if _ok:
                     st.rerun()
         elif not stale_input:
             r2.button("↻ Gen lại", key=f"vr_{jid}", disabled=True, width="stretch",
@@ -583,7 +592,10 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
                   help="Mở tab Motion của Storyboard (tab Motion).")
         if r4.button("✖ Loại & gen lại" + tag, key=f"vr_rej_{jid}", disabled=not reviewable, width="stretch",
                      help="Loại clip này và xếp hàng gen lại (kèm câu sửa nếu bạn nhập)."):
-            act(_spin(lambda: p.reject(jid, "user", st.session_state.get(f"vnote_{jid}") or None)))
+            _t0 = time.monotonic()
+            _ok = act(_spin(lambda: p.reject(jid, "user", st.session_state.get(f"vnote_{jid}") or None)))
+            C.log_ui(p, "loai_video", page="video", project_id=j["project_id"], scene_id=j["scene_id"], job_id=jid, result=_ok, t0=_t0,
+                     detail="ghi chú: " + ("có" if st.session_state.get(f"vnote_{jid}") else "không"))
             if runner is not None:
                 act(lambda: runner.submit_pending(j["project_id"]))   # 07/10: the redo only waited in the queue
             st.rerun()
@@ -594,7 +606,8 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
         if can_cancel or can_relink or can_restart:
             with st.popover("⋯ Thêm", width="stretch"):
                 if can_cancel and st.button("■ Hủy", key=f"vc_{jid}"):
-                    act(lambda: runner.cancel_job(jid) if runner else p.cancel(jid))
+                    C.log_ui(p, "huy_job", page="video", project_id=j["project_id"], scene_id=j["scene_id"], job_id=jid, detail="video",
+                             result=act(lambda: runner.cancel_job(jid) if runner else p.cancel(jid)))
                     st.rerun()
                 if can_relink and st.button("🔎 Tìm task thật (không gửi lại)", key=f"vrl_{jid}",
                                             help="ClipAI đôi khi tạo task với mã khác mã đã trả về (W12b). Tìm theo prompt đã gửi; thấy thì nối lại "

@@ -14,8 +14,11 @@ def _director_summary(p: Pipeline, pid: int, chars) -> str:
 
 def run_director_now(p: Pipeline, pid: int, client, resume: bool = False) -> None:
     """Run the Director (spinner, toast, rerun). Shared by the 1d button and the hero button of the v2 screen."""
+    _t0 = time.monotonic()
     with st.spinner("Claude đang phân tích kịch bản…"):
         ok = act(lambda: st.session_state.__setitem__("llm_res", llm_runner.run_director(p, pid, client, resume=resume)))
+    C.log_ui(p, "chay_dao_dien", page="kich_ban", project_id=pid, result=ok, t0=_t0,   # 14/10 nhật ký thao tác
+             detail="chạy tiếp" if resume else "cả kịch bản")
     if ok:
         r = st.session_state.pop("llm_res")
         st.toast(f"Đã lưu {r['characters']} nhân vật, {r['scenes']} cảnh ({tokens_text(r)})"
@@ -172,8 +175,10 @@ def _replan_button(p: Pipeline, pid: int, scene_idx: int, col) -> None:
                   help="Một lượt Claude chỉ cho cảnh này (phần luật chung được cache) — vài cent thay vì ~$0,3 của cả kịch bản. "
                        "Cảnh sau được ghi lại theo thứ tự phim, không đổi nội dung. Director hai lượt: Quay phim chia lại theo ý đồ "
                        "Tầng A đã lưu (không hỏi lại Đạo diễn)."):
+        _t0 = time.monotonic()
         with st.spinner(f"Claude đang chia shot lại cảnh {scene_idx}…"):
             ok = act(lambda: st.session_state.__setitem__("replan_res", llm_runner.run_director_scene(p, pid, scene_idx, client)))
+        C.log_ui(p, "chay_dao_dien", page="kich_ban", project_id=pid, result=ok, t0=_t0, detail=f"chia shot lại cảnh {scene_idx}")
         if ok:
             r = st.session_state.pop("replan_res")
             st.toast(f"Cảnh {scene_idx}: {r['rows']} shot ({tokens_text(r)})")

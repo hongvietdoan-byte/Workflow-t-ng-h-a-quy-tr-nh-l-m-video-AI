@@ -316,6 +316,33 @@ def me() -> dict:
     """The signed-in person of THIS browser session ({'email','name','role','perms'})."""
     return st.session_state.get("identity") or {}
 
+def capture_op_source() -> str:
+    """14/10 nhật ký thao tác: `?op=claude` khi mở Dashboard → nguồn 'claude' dính suốt phiên trình duyệt (kể cả sau đăng nhập);
+    mặc định 'nguoi'. Chỉ để GHI nhật ký — không đổi quyền gì theo nguồn."""
+    from core import ui_log
+    try:
+        src = ui_log.source_from(st.query_params.get("op"), st.session_state.get("op_source"))
+        st.session_state["op_source"] = src
+        return src
+    except Exception:  # noqa: BLE001 - nguồn chỉ để ghi nhật ký, không được làm hỏng trang
+        return "nguoi"
+
+def op_source() -> str:
+    return st.session_state.get("op_source") or "nguoi"
+
+def log_ui(p, action: str, *, page: str = "", project_id=None, scene_id=None, job_id=None, result="ok", detail=None,
+           t0: float = None) -> None:
+    """Ghi một thao tác vào `ui_actions` (core/ui_log.py): email người đăng nhập + nguồn người/Claude. `result` True/False được
+    hiểu là ok/error (giá trị trả về của act()). `t0` = time.monotonic() lúc bấm → ms xử lý. Không bao giờ ném lỗi."""
+    try:
+        from core import ui_log
+        res = ("ok" if result else "error") if isinstance(result, bool) else result
+        ms = int((time.monotonic() - t0) * 1000) if t0 is not None else None
+        ui_log.record(p.conn, action, email=me().get("email"), source=op_source(), page=page, project_id=project_id,
+                      scene_id=scene_id, job_id=job_id, result=res, detail=detail, ms=ms)
+    except Exception:  # noqa: BLE001 - nhật ký không được chặn thao tác
+        pass
+
 def allowed(permission: str) -> bool:
     return auth.can(me(), permission)
 

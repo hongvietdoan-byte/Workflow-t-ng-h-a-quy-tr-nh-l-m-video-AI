@@ -132,6 +132,7 @@ def main():
     ui.inject_css()
     os.makedirs(os.path.dirname(DB) or ".", exist_ok=True)
     p = Pipeline(connect(DB))
+    C.capture_op_source()                                # 14/10: ?op=claude → nhật ký thao tác ghi nguồn Claude (trước đăng nhập, dính cả phiên)
     require_login(p.conn)
     p.actor = me()["email"] if auth_on() else (user_name() or None)     # the account / name box is in ⚙ (one-line top bar)
     C.scoped(p)                                          # đợt F: core writes are checked against this person's rights per project (core/access.py)
