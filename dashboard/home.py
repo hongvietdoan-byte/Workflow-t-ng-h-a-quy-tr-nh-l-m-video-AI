@@ -128,13 +128,42 @@ def pill_of(r: dict):
     return PILL[r["status"]]
 
 
-def _card(r: dict) -> None:
+def _clean_box(p: Pipeline, r: dict) -> None:
+    """C2 (14/10): "🧹 Dọn việc thừa của dự án" in the card's details — the list first (what each item is and why it is a leftover),
+    then one confirmation. Nothing is deleted (core/inbox_clean.clean); hidden when there is nothing or the person cannot edit."""
+    from core import inbox_clean
+    if r.get("access") == "view":
+        return
+    try:
+        lines = inbox_clean.preview(p.conn, r["id"])
+        ids = inbox_clean.action_ids(p.conn, r["id"])
+    except Exception:  # noqa: BLE001 - the card must never break on the leftover check
+        return
+    if not lines:
+        return
+    st.markdown(f"**🧹 Việc thừa (không đếm vào “chờ bạn”): {len(lines)}**")
+    st.markdown("\n".join(f"- {escape(x)}" for x in lines[:30]) + (f"\n- … (+{len(lines) - 30})" if len(lines) > 30 else ""),
+                unsafe_allow_html=True)
+    if not ids:
+        st.caption("Không có gì để đổi — các mục trên chỉ không còn được đếm, dữ liệu giữ nguyên.")
+        return
+    if C.confirm_all(f"home_clean_{r['id']}", ids, f"🧹 Dọn việc thừa của dự án ({len(ids)})",
+                     f"Đánh dấu loại / đóng {len(ids)} mục trên? Không xóa dữ liệu — ghi lịch sử job; bản bị loại vẫn “Vẫn dùng bản này” được.",
+                     yes_label="Có, dọn"):
+        who = (me().get("email") or "") if auth_on() else ""
+        if C.act(lambda: inbox_clean.clean(p, r["id"], who or None), "Đã dọn việc thừa của dự án"):
+            st.rerun()
+
+
+def _card(r: dict, p: Pipeline = None) -> None:
     """v2: one project = one glass card: P1 (name, state pill, progress bar, open button) + ONE summary line; the rest is in its ⓘ."""
     label, kind = pill_of(r)
     with D.card(f"home-{r['id']}"):
         with D.info(f"home-{r['id']}", anchor=f'<div class="home-name">#{r["id"]} {escape(r["name"])}</div>',
                     help_text="Người tạo, tiến độ, tiền, việc chờ bạn — bấm để xem"):
             st.markdown(_details_html(r), unsafe_allow_html=True)
+            if p is not None:
+                _clean_box(p, r)
         st.markdown(D.pill(label, kind, running=r["status"] == "run"), unsafe_allow_html=True)
         st.markdown(D.meter(progress_of(r)), unsafe_allow_html=True)
         summary = " · ".join([r["step_label"], _money_text(r)] + ([f"{r['needs_review']} chờ bạn"] if r["needs_review"] else []))
@@ -143,10 +172,10 @@ def _card(r: dict) -> None:
                   type="primary" if r["status"] == "wait" and r["mine"] else "secondary")
 
 
-def _grid(shown: list) -> None:
+def _grid(shown: list, p: Pipeline = None) -> None:
     for col, r in zip(D.grid(len(shown), GRID_COLS), shown):       # 02/10: shared n-column card grid (components.grid)
         with col:
-            _card(r)
+            _card(r, p)
 
 
 def _hero(slot, shown: list, allrows: list) -> None:
@@ -209,7 +238,7 @@ def home(p: Pipeline, pid: int):
         return
     if v2:
         _hero(hero_slot, shown, allrows)
-        _grid(shown)
+        _grid(shown, p)
     else:
         _rows(shown)
     _finished(shown)
