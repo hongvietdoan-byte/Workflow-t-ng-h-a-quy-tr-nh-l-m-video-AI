@@ -108,7 +108,7 @@ def claude_stage(tag: Optional[str]) -> str:
     t = str(tag or "")
     if t == "script_chat":
         return "claude_chat"
-    if t.startswith("director") or t in ("screenwriter", "asset_checklist", "script_ocr"):   # S11.1 Biên kịch / S14.23 bảng kê: before the Director, same line
+    if t.startswith("director") or t in ("screenwriter", "asset_checklist", "script_ocr", "chat_prompt"):   # 14/10 D6 viết prompt: như director_rewrite, không vào 'khác' (trần 0,20)   # S11.1 Biên kịch / S14.23 bảng kê: before the Director, same line
         return "claude_director"
     if t in ("qc", "qc_agent", "video", "video_qc", "video_analysis", "storyboard_review", "check", "scene_qc", "editor") or t.startswith("qc") \
             or t.startswith("trainee_qc"):     # 🎓 Tổ QC học việc (B5 08/10): same QC line, its own tag in the ledger
@@ -199,7 +199,9 @@ def remaining(p, pid: int, shares: Optional[Dict] = None, *, _estimate: Optional
             "videos": round(vid * (1 + rv), 2),
             "claude_director": round((0.0 if director_done else ((cost.llm_estimate(conn, "director", 1, pricing) or 0.0)
                                                                  + _byd_repairs(conn, pricing)) * LLM_MARGIN)
-                                     + (est.get("rewrite") or 0.0), 2),     # S14.17: the Director's rewrites before retakes (flag on)
+                                     + (est.get("rewrite") or 0.0)            # S14.17: the Director's rewrites before retakes (flag on)
+                                     + (est.get("chat_prompt_img") or 0.0) * (1 + ri)      # 14/10 D6 before every picture / clip sent,
+                                     + (est.get("chat_prompt_vid") or 0.0) * (1 + rv), 2),  # retakes included (flag chat_prompts; off → 0)
             "claude_qc": round(qc * LLM_MARGIN, 2),
             "claude_motion": round(((cost.llm_estimate(conn, "motion", 1 if n_clips else 0, pricing) or 0.0)
                                     + (_translate_worst(conn, pid) if n_clips else 0.0)) * LLM_MARGIN, 2),

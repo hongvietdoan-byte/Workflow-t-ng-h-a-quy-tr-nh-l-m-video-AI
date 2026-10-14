@@ -351,7 +351,8 @@ def chat_prompt_estimate(conn, sends: int, pricing: Optional[Dict] = None, unkno
     if sends <= 0 or not features.on("chat_prompts"):
         return 0.0
     from .chat_prompt import MAX_IMAGES, STAGE
-    one = llm_call_usd(conn, STAGE, pricing, images=MAX_IMAGES, ledger_stage=STAGE)
+    one = _memo(conn, ("d6_one", id(conn), id(pricing)),                       # once per draw (each card's button asks)
+                lambda: llm_call_usd(conn, STAGE, pricing, images=MAX_IMAGES, ledger_stage=STAGE))
     if one is None:
         if unknown is not None:
             unknown.append(f"Claude {llm_model()} (D6)")
@@ -877,7 +878,8 @@ def _estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] =
     b = budget.status(conn) if budget.get(conn).get("enabled") else None
     llm_left = b["llm_left"] if b and b["llm_usd"] > 0 else None
     return {"images": img_usd, "videos": round(vid_usd, 2), "llm": round(llm_usd, 2), "total": round(base, 2), "max": round(worst, 2),
-            "rewrite": round(rewrite, 3), "chat_prompt": round(d6_img + d6_vid, 3), "trainee": round(trainee_usd, 2),
+            "rewrite": round(rewrite, 3), "chat_prompt": round(d6_img + d6_vid, 3), "chat_prompt_img": round(d6_img, 3),
+            "chat_prompt_vid": round(d6_vid, 3),"trainee": round(trainee_usd, 2),
             "llm_left": llm_left, "warnings": warnings, "unknown": sorted(set(unknown)),
             "incomplete": bool(unpriced), "unpriced": sorted(set(unpriced)), "counts": {"images": img["items"], "end_frames": img.get("end_frames", 0),
                                                         "clips": len(todo) + remaining_final["clips"], "seconds": sum(r["billed_seconds"] for r in todo) + remaining_final["seconds"],
@@ -913,7 +915,8 @@ def format_estimate(est: Dict) -> str:
     if not est["known"]:
         over = est.get("unit_over")
         return head + " — chưa có giá trong data/pricing.json" + (
-            f"; ước tính dư ≈ {over * est['items']:.2f} USD (giá cao nhất đã biết × 1,5)" if over is not None else "")
+            f"; ước tính dư ≈ {over * est['items'] + (est.get('chat_prompt') or 0.0):.2f} USD (giá cao nhất đã biết × 1,5"
+            + (", gồm D6" if est.get("chat_prompt") else "") + ")" if over is not None else "")
     d6 = est.get("chat_prompt") or 0.0
     return (f"{head} → ước tính {est['min']:.1f} {est['currency']} "
             f"(tối đa {est['max']:.1f} nếu mọi mục phải làm lại đủ {est['max_retry']} lần)"

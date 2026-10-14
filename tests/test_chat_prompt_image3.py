@@ -88,12 +88,21 @@ class FixTurn(ChatPromptTests):
         self.assertEqual(self._rewrite(again, assembled=ASSEMBLED + " changed"), ASSEMBLED + " changed")
         self.assertEqual(len(again.calls), 1)
 
+    def test_kept_refused_answer_is_used_when_the_check_now_accepts_it(self):
+        self._rewrite(FakeClaude([{"prompt": self.BAD}, {"prompt": self.BAD}]))
+        with mock.patch.object(chat_prompt, "check", return_value=[]):             # e.g. a corrected reading of the codes
+            self.assertEqual(self._rewrite(FakeClaude([])), self.BAD)             # 0 USD: no call
+
     def _assembled(self):
         from tests.test_chat_prompt import ASSEMBLED
         return ASSEMBLED
 
 
 class D6Price(unittest.TestCase):
+    def test_d6_money_goes_to_the_director_line_not_other(self):
+        from core import project_budget
+        self.assertEqual(project_budget.claude_stage(chat_prompt.STAGE), "claude_director")   # was claude_other (cap 0,20)
+
     def test_off_changes_nothing(self):
         with mock.patch("core.features.on", return_value=False):
             self.assertEqual(cost.chat_prompt_estimate(None, 7), 0.0)

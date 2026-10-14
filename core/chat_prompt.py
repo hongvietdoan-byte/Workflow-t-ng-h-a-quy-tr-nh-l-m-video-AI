@@ -278,6 +278,8 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
     try:
         if hit and hit.get("prompt"):
             return hit["prompt"]
+        if hit and hit.get("refused") and hit.get("prompt_refused") and not check(assembled, hit["prompt_refused"], limit):
+            return hit["prompt_refused"]                                # a later, corrected check accepts the kept answer (0 USD)
         if hit and hit.get("refused"):                                  # same inputs already refused after the fix turn: not paid again
             say("warn", "chat_prompt_refused", f"D6 job {job['id']}: đầu vào này đã bị từ chối sau lượt sửa (" + "; ".join(hit["refused"])
                 + ") — gửi bản code ghép như cũ (không gọi lại)")
@@ -323,7 +325,7 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
             if calls.get("fix", 0) >= MAX_FIX_TURNS:
                 say("warn", "chat_prompt_refused", f"D6 job {job['id']}: bản Claude viết không gửi được (" + "; ".join(problems)
                     + ") — đã dùng lượt sửa của job này, gửi bản code ghép như cũ")
-                _store(conn, key, {"prompt": None, "refused": problems, "job": job["id"], "kind": kind})
+                _store(conn, key, {"prompt": None, "refused": problems, "prompt_refused": new, "job": job["id"], "kind": kind})
                 return assembled
             usd_fix = estimate(conn, len(pics))                        # the fix turn: priced + recorded like the first one
             calls["fix"] = calls.get("fix", 0) + 1
@@ -340,7 +342,7 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
             again = check(assembled, new, limit)
             if again:
                 _keep_refused(conn, job["id"], 2, new, again)
-                _store(conn, key, {"prompt": None, "refused": again, "job": job["id"], "kind": kind})
+                _store(conn, key, {"prompt": None, "refused": again, "prompt_refused": new, "job": job["id"], "kind": kind})
                 say("warn", "chat_prompt_refused", f"D6 job {job['id']}: bản Claude viết không gửi được cả sau 1 lượt sửa (" + "; ".join(again)
                     + ") — gửi bản code ghép như cũ")
                 return assembled
