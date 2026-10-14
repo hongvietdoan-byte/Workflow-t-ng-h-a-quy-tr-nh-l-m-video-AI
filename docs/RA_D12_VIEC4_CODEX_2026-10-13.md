@@ -1,0 +1,17 @@
+# Tự rà Đ12 việc 4 — 13/10/2026 (RÀ NHẸ)
+- Nhánh `codex/d12-viec4-kho-am-thanh`, base `1cb845b2`, areas.version giữ 72.
+- Phạm vi: báo cáo nguồn + công cụ offline + test; không sửa runtime.
+- Đỏ: thiếu module, 26 errors/0,74 s. Xanh cuối: 26 passed/0,33 s.
+- JSON giả/CSV tạm: đủ labels, score 0, missing/mismatch, top-k thiếu, candidate, CLI lỗi.
+- Env dict giả có/thiếu khóa trước import/call, tự khôi phục; chặn socket/model/core registry credential modules.
+- Không đọc môi trường thật/home/data/DB; không assert hay log bí mật/payload/header.
+- Tự rà 2b.5: không default data path; explicit input; output đếm/canonical mood, lỗi không in path/raw.
+- Không nới test, không bật cờ, không phụ thuộc CWD để tìm data, không thu phí/tải model.
+- `related_areas.py`: step5 chứa tool/test; không importer; step3 liên quan cờ khu vực nhưng tool không dùng cờ.
+- Test chậm step5 bắt buộc bước gộp do metadata vùng; chưa chạy cả bộ.
+- Nguồn primary: config MIT revision f32fcdf có 7 mood; Freesound FAQ, CC0/CC BY, Pixabay license/FAQ.
+- Phân biệt AST 2 s/top40/ngưỡng 0,05 với YAMNet type/voice/accent và folder/loudness của sound_lib.
+- Chưa nghe #24/đo Kho thật: chưa biết nguyên nhân mood≈0; list nguồn chỉ link/keyword, cần người duyệt tệp.
+- Root đọc diff/test để RÀ NHẸ trước push/gộp; không có agent rà độc lập theo scope được giao.
+- Root bắt URL/UNC có thể mở network FS: đỏ 6 failed/28 passed → chặn trước open → 34 xanh/0,31 s.
+- Root yêu cầu ca score int lớn: range đã kiểm trước isfinite ở tự rà; test mới xác nhận ValueError.
