@@ -115,7 +115,7 @@ class TableScriptTests(unittest.TestCase):
     def test_a_colon_inside_narration_is_not_a_speaker(self):
         # 14/10 tập 2 cảnh 4: "Bốn đối thủ ập tới: Tai Họa, …" became a character called "Bốn đối thủ ập tới"
         rows = [["Cảnh", "Mô tả", "Voice over"],
-                ["1", "Địch lao tới.", "Bốn đối thủ ập tới: Tai Họa, Xúc Tu Đỏ.\nKELLY: Tới đây!"]]
+                ["1", "Địch lao tới.", "Bốn đối thủ ập tới: Tai Họa, Xúc Tu Đỏ."], ["1", "", "KELLY: Tới đây!"]]
         text = scenes_of(from_text("\n".join("\t".join(r) for r in rows)))[0].text
         self.assertIn("LỜI DẪN: Bốn đối thủ ập tới: Tai Họa, Xúc Tu Đỏ.", text)
         self.assertIn("KELLY: Tới đây!", text)
