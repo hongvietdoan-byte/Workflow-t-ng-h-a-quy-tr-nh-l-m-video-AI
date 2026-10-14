@@ -210,13 +210,11 @@ def price_tag(conn, ai_tracks: int = 1) -> str:
 
 
 # ---- one music bed --------------------------------------------------------------------------------------------------------------
-def bed_cmd(tracks: Sequence[Dict], total: float, out: str, ffmpeg: str = "ffmpeg") -> List[str]:
-    """tracks = [{"path", "start" (film s), "join"}], the first is the main music. The bed starts at the first track's start; each
-    track plays to the next one's change: crossfade = XFADE s across the change, breath = the old one fades out BREATH s before and the
-    new one comes in on the change, cut = straight on the change."""
+def _spans(tracks: Sequence[Dict], total: float) -> List[Dict]:
+    """Where each track of the bed plays: {"pos" (s in the bed), "dur", "fin", "fout"} — one rule for bed_cmd and the extension."""
     t0 = float(tracks[0]["start"])
     length = max(float(total) - t0, 0.5)
-    cmd, parts, labels = [ffmpeg, "-y", "-loglevel", "error"], [], []
+    out = []
     for i, t in enumerate(tracks):
         s = float(t["start"]) - t0
         join = t.get("join") if i else "enter"
@@ -228,7 +226,19 @@ def bed_cmd(tracks: Sequence[Dict], total: float, out: str, ffmpeg: str = "ffmpe
         else:
             ns, nj = float(nxt["start"]) - t0, nxt.get("join") or "crossfade"
             end, fout = ((ns + XFADE / 2, XFADE) if nj == "crossfade" else (ns - BREATH, END_FADE) if nj == "breath" else (ns, 0.05))
-        dur = max(end - pos, 0.1)
+        out.append({"pos": pos, "dur": max(end - pos, 0.1), "fin": fin, "fout": fout})
+    return out
+
+
+def bed_cmd(tracks: Sequence[Dict], total: float, out: str, ffmpeg: str = "ffmpeg") -> List[str]:
+    """tracks = [{"path", "start" (film s), "join"}], the first is the main music. The bed starts at the first track's start; each
+    track plays to the next one's change: crossfade = XFADE s across the change, breath = the old one fades out BREATH s before and the
+    new one comes in on the change, cut = straight on the change."""
+    t0 = float(tracks[0]["start"])
+    length = max(float(total) - t0, 0.5)
+    cmd, parts, labels = [ffmpeg, "-y", "-loglevel", "error"], [], []
+    for i, (t, sp) in enumerate(zip(tracks, _spans(tracks, total))):
+        pos, dur, fin, fout = sp["pos"], sp["dur"], sp["fin"], sp["fout"]
         chain = f"[{i}:a]aformat=sample_rates=44100:channel_layouts=stereo,atrim=0:{dur:.3f},asetpts=PTS-STARTPTS,afade=t=in:d={fin:.3f}"
         if fout:
             chain += f",afade=t=out:st={max(dur - fout, 0):.3f}:d={fout:.3f}"
@@ -242,9 +252,63 @@ def bed_cmd(tracks: Sequence[Dict], total: float, out: str, ffmpeg: str = "ffmpe
     return cmd + ["-filter_complex", ";".join(parts), "-map", "[a]", "-t", f"{length:.3f}", "-c:a", "pcm_s16le", out]
 
 
-def assemble(tracks: Sequence[Dict], total: float, out: str) -> str:
+EXTEND_TAIL = 4.0     # C5d (#27 13/10, người dùng "kéo dài thêm nhạc"): the head of a short track ends this far before its own end…
+EXTEND_XFADE = 3.0    # …and goes softly over this long into a copy from the middle that keeps the ORIGINAL ending (no restart from 0 s)
+
+
+def extend_cmd(path: str, length: float, need: float, out: str, ffmpeg: str = "ffmpeg") -> Optional[List[str]]:
+    """A track of `length` s made `need` s long: its head (all but EXTEND_TAIL s), then as many copies of its middle as needed, then its
+    original ending — each joined by an EXTEND_XFADE s crossfade (tools/experiments/p27_final_mix.py `_extend_music`, which joined only
+    once). None when it is long enough or too short to join (the bed then plays it as it is; assemble says so)."""
+    head = length - EXTEND_TAIL
+    body = head * 0.3                          # the copies start a third into the piece: past its intro, before its ending
+    if length >= need - 0.05 or head - body <= EXTEND_XFADE + 0.5:
+        return None
+    want = need + 0.2
+    pieces, cur = [(0.0, head)], head
+    while cur + (length - body) - EXTEND_XFADE < want:
+        pieces.append((body, head))
+        cur += (head - body) - EXTEND_XFADE
+    pieces.append((max(body, length - (want - cur + EXTEND_XFADE)), length))     # the ending lands on `need` (+0,2 s)
+    cmd = [ffmpeg, "-y", "-loglevel", "error"]
+    parts = []
+    for k, (a, b) in enumerate(pieces):
+        cmd += ["-i", path]
+        parts.append(f"[{k}:a]atrim={a:.6f}:{b:.6f},asetpts=PTS-STARTPTS[p{k}]")
+    joined = "[p0]"
+    for k in range(1, len(pieces)):
+        parts.append(f"{joined}[p{k}]acrossfade=d={EXTEND_XFADE}:c1=tri:c2=tri[j{k}]")
+        joined = f"[j{k}]"
+    return cmd + ["-filter_complex", ";".join(parts), "-map", joined, "-c:a", "pcm_s16le", out]
+
+
+def assemble(tracks: Sequence[Dict], total: float, out: str, notes: Optional[List[str]] = None) -> str:
+    """The bed (bed_cmd); a track shorter than its chapter is first extended (extend_cmd) instead of leaving its chapter silent.
+    `notes` (Vietnamese) gets one line per track extended, and per track too short to extend (its chapter ends silent)."""
     from . import ffmpeg_studio
-    ffmpeg_studio.run(bed_cmd(tracks, total, out, ffmpeg_studio.find_ffmpeg()))
+    ff = ffmpeg_studio.find_ffmpeg()
+    tracks = [dict(t) for t in tracks]
+    made = []
+    try:
+        for i, (t, sp) in enumerate(zip(tracks, _spans(tracks, total))):
+            length = ffmpeg_studio.probe_duration(t["path"])
+            cmd = extend_cmd(t["path"], length, sp["dur"], f"{out}.ext{i}.wav", ff) if length else None
+            if cmd:
+                ffmpeg_studio.run(cmd)
+                made.append(cmd[-1])
+                t["path"] = cmd[-1]
+                t["extended"] = [round(length, 2), round(sp["dur"], 2)]
+                if notes is not None:
+                    notes.append(f"nhạc {os.path.basename(cmd[1 + cmd.index('-i')])} dài {length:.1f} s < chặng {sp['dur']:.1f} s → "
+                                 f"kéo dài (nối mềm {EXTEND_XFADE:g} s, giữ đoạn kết gốc)")
+            elif length and length < sp["dur"] - 0.05 and notes is not None:
+                notes.append(f"nhạc {os.path.basename(t['path'])} dài {length:.1f} s < chặng {sp['dur']:.1f} s, quá ngắn để nối — "
+                             f"im {sp['dur'] - length:.1f} s cuối chặng")
+        ffmpeg_studio.run(bed_cmd(tracks, total, out, ff))
+    finally:
+        for f in made:
+            if os.path.exists(f):
+                os.remove(f)
     return out
 
 
