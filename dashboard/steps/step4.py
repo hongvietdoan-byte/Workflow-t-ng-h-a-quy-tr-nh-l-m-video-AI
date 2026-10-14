@@ -371,7 +371,7 @@ def model_plan_panel(p: Pipeline, pid: int, skip=frozenset()) -> None:
             st.markdown(text, unsafe_allow_html=True)
             _model_change(p, pid, r, line, options, two_tier)
         if C.expert():
-            totals = {k: model_router.total(model_router.plan(p.conn, pid, pricing, priority=k)) for k in model_router.PRIORITIES}
+            totals = {k: model_router.compare_total(p.conn, pid, pricing, k) for k in model_router.PRIORITIES}
             st.caption("So sánh tổng (chưa tính gen lại): " + " · ".join(
                 f"{profiles['priorities'][k]['label']} ≈ " + (f"\\${v:.2f}" if v is not None else "?") for k, v in totals.items()))
 

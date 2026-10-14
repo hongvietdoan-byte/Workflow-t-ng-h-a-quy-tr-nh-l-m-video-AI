@@ -468,6 +468,23 @@ def total(rows: List[Dict]) -> Optional[float]:
     return None if any(c is None for c in costs) else sum(costs)
 
 
+def compare_total(conn, project_id: int, pricing: Optional[Dict] = None, priority: Optional[str] = None) -> Optional[float]:
+    """Tổng cho dòng "So sánh tổng" (Bước 4, chuyên gia) theo một ưu tiên: các hàng `plan` (cờ two_tier_quality bật = giá nháp 480p)
+    + phần quy trình 2 bậc thêm vào (`quality_tier.run_estimate`: bản cao 1080p nâng từ nháp…). None = có hàng chưa biết giá —
+    không bao giờ báo một tổng thiếu (rà 14/10: tổng cũ chỉ là giá nháp 480p)."""
+    rows = plan(conn, project_id, pricing, priority=priority)
+    base = total(rows)
+    if base is None:
+        return None
+    from . import quality_tier
+    if not quality_tier.enabled():
+        return base
+    extra = quality_tier.run_estimate(conn, project_id, rows, pricing)
+    if extra.get("unknown"):
+        return None
+    return base + extra["usd"]
+
+
 def set_override(conn, scene_id: int, alias: Optional[str], p=None) -> None:
     """The person's own model for one scene (None = back to the recommendation)."""
     if p is not None:

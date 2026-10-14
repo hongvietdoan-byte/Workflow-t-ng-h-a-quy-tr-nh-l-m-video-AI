@@ -108,5 +108,73 @@ class ComparePrioritiesUse25(Base):
                 self.assertEqual({(r["model"], r.get("resolution")) for r in rows}, {("seedance-2.5", "480p")}, prio)
 
 
+    def test_compare_total_pays_the_draft_and_the_1080p_upgrade(self):
+        # rà nhánh 14/10: dòng "So sánh tổng" (Bước 4, chuyên gia) cộng plan() = chỉ giá nháp 480p, thiếu bản cao 1080p nâng từ nháp
+        draft = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "480p", "9:16", 4.0)
+        final = quality_tier.upgrade_price("9:16", 4.0)
+        with ON:
+            for prio in model_router.PRIORITIES:
+                got = model_router.compare_total(self.p.conn, self.pid, cost.load_pricing(), prio)
+                self.assertAlmostEqual(got, len(self.sids) * (draft + final), places=3, msg=prio)
+        with OFF:                                  # cờ tắt: như cũ, tổng các hàng plan
+            rows = model_router.plan(self.p.conn, self.pid, cost.load_pricing(), priority="balanced")
+            self.assertEqual(model_router.compare_total(self.p.conn, self.pid, cost.load_pricing(), "balanced"),
+                             model_router.total(rows))
+
+
+class QueuedDirectJobSentAsDraft(Base):
+    """Lớp chặn 896/901 (runner._submit_kwargs): job gen thẳng đã vào hàng, sau đó người đặt quality_path='draft_first' → lúc gửi
+    đường của shot là nháp 2.5 480p → gửi như NHÁP (draft=True, nâng 1080p được), ghi lại bậc 'draft' — không gửi 480p gen thẳng."""
+
+    def test_person_switches_to_draft_first_after_a_direct_job_is_queued(self):
+        from core.runner import VideoRunner
+        from tests.test_cost_route_e1 import _provider
+        quality_tier.set_path(self.p.conn, self.s1, "direct")
+        with ON:
+            jid = self.p.create_job(self.s1, "video_gen")
+            self.assertEqual(self.p.job(jid)["quality_tier"], "direct")
+            quality_tier.set_path(self.p.conn, self.s1, "draft_first")
+            self.p.conn.commit()
+            kw = VideoRunner(self.p, _provider(), self.data)._submit_kwargs(self.p.job(jid))
+        self.assertEqual((kw.get("draft"), kw.get("resolution")), (True, "480p"))
+        self.assertEqual(self.p.job(jid)["quality_tier"], "draft")
+
+
+class DraftsNeverDelivered(unittest.TestCase):
+    """Mục 4 rà 14/10: nháp 2.5 480p ĐÃ DUYỆT là clip "dùng được" (final_cut.collect_clips usable — cho bản XEM NHÁP), nhưng BẢN GIAO đo
+    clip gốc (final_cut.require_delivery_resolution ở render / deliver / export / editor_apply / autopilot) → chặn, nêu tên shot."""
+
+    def setUp(self):
+        from tests.test_delivery_resolution import DeliveryEntryTests
+        DeliveryEntryTests.setUp(self)
+        self.p.conn.execute("UPDATE jobs SET quality_tier='draft' WHERE type='video_gen'")
+        self.p.conn.commit()
+
+    def test_approved_480p_drafts_are_usable_but_never_delivered(self):
+        from unittest import mock
+        from core import delivery, final_cut
+        self.assertEqual(len(final_cut.collect_clips_for_render(self.p.conn, self.data, self.pid)), 3)   # dùng được cho bản xem
+        with mock.patch("core.ffmpeg_studio.probe_size", return_value=(480, 854)),                 mock.patch("core.ffmpeg_studio.render_final") as render:
+            with self.assertRaisesRegex(ValueError, "shot 2: Kelly 02.*nâng 1080p.*shot 9: Kelly 09"):
+                delivery.render(self.p, self.pid, self.data, None)
+            render.assert_not_called()
+
+
+class DirectorPromptsNoLongerRouteEasyDirect(unittest.TestCase):
+    """13/10: nhãn easy / complex chỉ là thông tin — prompt Đạo diễn / Quay phim không được nói 'easy → gen thẳng bản cao'."""
+    FILES = ("01_director_scene_analysis.md", "17_director_shots.md", "20_dp_scene_shots.md")
+
+    def test_prompts_say_every_shot_drafts_first(self):
+        import os
+        import re
+        root = os.path.join(os.path.dirname(__file__), "..", "prompts")
+        for name in self.FILES:
+            text = open(os.path.join(root, name), encoding="utf-8").read()
+            self.assertIsNone(re.search(r"gen thẳng bản (chất lượng )?cao", text), name)
+            self.assertNotIn("quyết định đường làm clip", text, name)
+            self.assertNotIn("còn lại gen thẳng", text, name)
+            self.assertIn("mọi shot", text, name)
+
+
 if __name__ == "__main__":
     unittest.main()
