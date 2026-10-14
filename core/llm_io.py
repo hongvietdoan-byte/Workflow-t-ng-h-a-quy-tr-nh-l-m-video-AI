@@ -370,6 +370,7 @@ def _script_pose_fix(conn, project_id: int) -> None:
         if said:
             conn.commit()
     except Exception as e:  # noqa: BLE001 - a fix, never a reason to lose the paid answer; said
+        conn.rollback()                          # rà 14/10: all or nothing — never half the shots fixed under a "không sửa được"
         said = [f"không sửa được tư thế theo kịch bản: {type(e).__name__}: {e}"]
     for w in said:
         diag.record(conn, "director", "warn" if "còn chữ" in w or w.startswith("không sửa") else "info",

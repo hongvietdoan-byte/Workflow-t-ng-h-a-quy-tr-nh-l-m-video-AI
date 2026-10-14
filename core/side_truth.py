@@ -122,6 +122,11 @@ def for_shot(script, data: Dict) -> Dict:
         out["warn"] = f"kịch bản/shot ghi {said} — không quy đổi được trái/phải sang khung: {why_who}"
         return out
     camera, why = camera_relation(data)
+    cast = [c for c in (data.get("characters") or []) if isinstance(c, str) and c.strip()]
+    cam_words = _nfc(" ".join(str(data.get(k) or "") for k in ("shot", "blocking", "start_frame")))
+    if camera and len(cast) > 1 and not re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", cam_words, re.I):
+        # rà 14/10: 'ots' / 'from behind' may be over ANOTHER person's shoulder — then the camera faces the named one
+        camera, why = None, f"shot có {len(cast)} nhân vật, chữ máy (sau lưng / trước mặt) không nêu tên {name}"
     out["camera"] = camera
     if camera is None:
         out["warn"] = (f"kịch bản/shot ghi {said} — không quy đổi được trái/phải sang khung: {why}; ghi rõ máy sau lưng / trước mặt "
@@ -135,17 +140,15 @@ _SENTENCE = re.compile(r"Sides: left/right in the script are [^\n]*?FRAME-(?:LEF
 
 
 def kept_after_rewrite(assembled: str, prompt: str, limit: Optional[int] = None) -> str:
-    """D6 (core/chat_prompt) rewrites the assembled prompt: the code's side sentence must survive — every FRAME-LEFT / FRAME-RIGHT it
-    names still in the new prompt, else the sentence is added back word for word (code measures, the rewrite never decides sides).
-    Added back past `limit` → the assembled prompt (it has the sentence and fits)."""
-    m = _SENTENCE.search(assembled or "")
-    if not m or prompt == assembled:
+    """D6 (core/chat_prompt) rewrites the assembled prompt: the code's side sentences must survive — each
+    sentence (one per shot of a group) still there word for word, else added back (code measures, the rewrite never decides sides).
+    Added back past `limit` → the assembled prompt (it has the sentences and fits)."""
+    lines = list(dict.fromkeys(m.group(0) for m in _SENTENCE.finditer(assembled or "")))
+    if not lines or prompt == assembled:
         return prompt
-    need = {w.lower() for w in re.findall(r"=\s*(FRAME-(?:LEFT|RIGHT))", m.group(0))}
-    have = {w.lower().replace(" ", "-") for w in re.findall(r"frame[- ](?:left|right)", prompt or "", re.I)}
-    if need <= have:
-        return prompt
-    out = append(prompt, m.group(0))
+    out = prompt
+    for line in lines:                          # word for word: a reworded sentence may have flipped the mapping (rà 14/10)
+        out = append(out, line)
     return assembled if limit and len(out) > limit else out
 
 

@@ -63,8 +63,11 @@ class ConvertTests(unittest.TestCase):
                                                                           angle="ots"))
         self.assertEqual(got["sentence"], "")
         self.assertIn("2 nhân vật", got["warn"])
-        got = T.for_shot(SCRIPT, shot(characters=two, angle="ots"))     # "Kelly đứng sát, núp ở bên trái…" names Kelly only
+        got = T.for_shot(SCRIPT, shot(characters=two, angle="ots", blocking="camera behind Kelly"))   # the script names Kelly only
         self.assertIn("KELLY's left", got["sentence"])
+        got = T.for_shot(SCRIPT, shot(characters=two, angle="ots", blocking="over Maxim's shoulder"))  # behind MAXIM, not Kelly
+        self.assertEqual(got["sentence"], "")
+        self.assertIn("không nêu tên KELLY", got["warn"])
         got = T.for_shot("Maxim đứng bên trái Kelly ở bức tường.", shot(action="Maxim đứng bên trái Kelly ở bức tường", characters=two,
                                                                          angle="ots"))
         self.assertIn("2 nhân vật", got["warn"])
@@ -90,9 +93,17 @@ class RewriteKeepsTests(unittest.TestCase):
         out = T.kept_after_rewrite(self.assembled, "Kelly hides at the left of the glue wall.")
         self.assertTrue(out.endswith(self.line))
 
-    def test_rewrite_that_kept_frame_words_is_untouched(self):
-        new = "Kelly hides on frame-right of the glue wall."
+    def test_rewrite_that_kept_the_sentence_is_untouched_reworded_gets_it_back(self):
+        new = "Kelly hides at the glue wall. " + self.line
         self.assertEqual(T.kept_after_rewrite(self.assembled, new), new)
+        flipped = "Kelly hides on frame-left of the glue wall, frame-right is empty."     # reworded: the mapping may be flipped
+        self.assertTrue(T.kept_after_rewrite(self.assembled, flipped).endswith(self.line))
+
+    def test_every_shot_sentence_of_a_group_survives(self):
+        other = T.sentence("KELLY", "behind", [("sang trái", "left")])
+        out = T.kept_after_rewrite(self.assembled + " " + other, "Kelly runs. " + self.line)
+        self.assertIn(self.line, out)
+        self.assertIn(other, out)
 
     def test_past_the_limit_falls_back_to_the_assembled_prompt(self):
         self.assertEqual(T.kept_after_rewrite(self.assembled, "x" * 90, limit=100), self.assembled)

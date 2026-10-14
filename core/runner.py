@@ -1883,7 +1883,9 @@ class VideoRunner(_Runner):
                 duration = sum(shots.billed_shot_seconds(r["data"]) for r in group)
                 model = "kling"
         motion = no_minor_age(mp["motion_prompt"])
-        side = _side_truth(self, job, group)            # 14/10: trái/phải nhân vật → khung (cờ side_truth; tắt → "")
+        # 14/10: trái/phải nhân vật → khung (cờ side_truth; tắt → ""). Kling multishot sends each shot's own prompt, not `motion`
+        multishot = bool(group) and shots.mode(proj) == "multishot" and not self._refs(job)
+        side = "" if multishot else _side_truth(self, job, group, quiet=True)
         if secs and not setup and self._refs(job):
             from . import seedance_refs
             rows = self._ref_rows(job, group)
@@ -1924,8 +1926,17 @@ class VideoRunner(_Runner):
             self._diag(job, "info", "look_words_removed",
                        "look in-game Free Fire: đã gỡ chữ kéo về tả thực khỏi prompt video — " + ", ".join(removed))
         motion = _skill_object_guard(self, job, motion, "video", group)   # lỗi hệ thống 3 (cờ skill_object_guard)
-        from . import side_truth
-        motion = side_truth.append(motion, side)
+        if side:
+            from .adapters.clipai import PROMPT_LIMITS as _LIMITS
+            cap = _LIMITS.get(model or "") or (_LIMITS["kling"] if "kling" in str(model or "").lower() else 4000)
+            say_side = getattr(self, "_diag_once", None) or self._diag
+            if side in motion or len(motion) + len(side) + 1 <= cap:
+                from . import side_truth
+                motion = side_truth.append(motion, side)
+                say_side(job, "info", "side_truth", "Trái/phải: prompt video thêm câu quy đổi sang khung — " + side)
+            else:                                       # never a prompt_too_long failure for it — said, not silent
+                say_side(job, "warn", "side_truth", f"Trái/phải: KHÔNG thêm câu quy đổi vào prompt video (prompt {len(motion)} + câu "
+                                                    f"{len(side)} > trần {cap} ký tự) — " + side)
         motion = self._gore_restraint(job, proj, motion, group, model)
         lock = looks.video_sentence(proj)                       # S4.3: the look in every video prompt (#8: an anime close-up)
         if lock and lock not in motion:
@@ -2647,7 +2658,7 @@ def _skill_object_guard(runner, job, text: str, what: str, group=None) -> str:
     return new
 
 
-def _side_truth(runner, job, rows=None) -> str:
+def _side_truth(runner, job, rows=None, quiet: bool = False) -> str:
     """14/10 (thử D6 #28/#29, cờ side_truth — tắt: ""): the script's 'bên trái / phải' of the character turned into FRAME-LEFT / RIGHT
     by code (core/side_truth) — the sentence for the image / video prompt of the job's shot (or each shot of its group). Not
     convertible (camera side unknown, several characters) → nothing added, said VÀNG once with the reason."""
@@ -2676,7 +2687,7 @@ def _side_truth(runner, job, rows=None) -> str:
     if say:
         for w in warns:
             say(job, "warn", "side_truth", "Trái/phải: " + w)
-        if lines:
+        if lines and not quiet:                     # quiet: the caller says it once it knows the sentence really went in
             say(job, "info", "side_truth", "Trái/phải: prompt thêm câu quy đổi sang khung — " + " ".join(lines))
     return " ".join(dict.fromkeys(lines))
 
