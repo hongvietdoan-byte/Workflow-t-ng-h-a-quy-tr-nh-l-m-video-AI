@@ -798,6 +798,9 @@ def insert_scene_after(pipeline: Pipeline, project_id: int, after_idx: int, fiel
     prev_data = json.loads(prev["data"] or "{}")
     story, no = prev_data.get("story_scene"), prev_data.get("shot_no")
     old_anchor = scene_storyboard.anchor_of(scene_storyboard.scene_shots(conn, project_id, story)) if story and no else None
+    prev_group = scene_storyboard.group_of(conn, project_id, prev["id"]) if story and no else None
+    if prev_group:                                      # anchor_by_spot: shot neo cũ là neo của nhóm theo chỗ, không phải cả cảnh
+        old_anchor = prev_group["anchor"]
 
     # ---- one transaction, write lock taken first: move, renumber, insert, then update_scene commits it all (error → rollback)
     if not conn.in_transaction:

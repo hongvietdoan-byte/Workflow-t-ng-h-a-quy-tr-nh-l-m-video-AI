@@ -79,6 +79,11 @@ def affected_scenes(conn, ev) -> List[int]:
             g = scene_storyboard.group_of(conn, row[0], ev["scene_id"]) if scene_storyboard.enabled() else None
             if g and g["anchor"]["id"] == ev["scene_id"]:
                 ids += [s["id"] for s in g["shots"]]
+                # anchor_by_spot: shot KHÔNG khai chỗ của cùng cảnh vẫn theo nhóm cũ (không theo chỗ) và có thể neo vào shot này
+                for s in scene_storyboard.scene_shots(conn, row[0], g["story_scene"]):
+                    other = scene_storyboard.group_of(conn, row[0], s["id"])
+                    if other and other["anchor"]["id"] == ev["scene_id"]:
+                        ids.append(s["id"])
         except Exception:  # noqa: BLE001 - storyboard grouping problem: the neighbours are still checked
             pass
         from . import layout_follow                      # hộp thư 12/10 19:17: the shots that keep this shot's layout (continuity_from)

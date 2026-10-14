@@ -20,7 +20,15 @@ def project():
 def test_same_place_previous_first_future_current_preserved(project):
     p,pid=project
     assert [r['idx'] for r in ui.options(p,pid,3)] == [2,1,4]
-    assert [r['idx'] for r in ui.options(p,pid,2)] == [1]
+    assert [r['idx'] for r in ui.options(p,pid,2)] == [1,3,4]   # shot đứng sau cũng chọn được (như llm_io.update_scene)
+
+
+def test_pick_and_save_a_later_shot_never_chosen_before(project):
+    p,pid=project
+    assert 4 in [r['idx'] for r in ui.options(p,pid,1)]
+    ui.save(p,pid,1,4)
+    d=json.loads(p.conn.execute('SELECT data FROM scenes WHERE project_id=? AND idx=1',(pid,)).fetchone()[0])
+    assert d['continuity_from']==4
 
 def test_save_through_backend_keeps_lock_and_rejects_cycle(project):
     p,pid=project

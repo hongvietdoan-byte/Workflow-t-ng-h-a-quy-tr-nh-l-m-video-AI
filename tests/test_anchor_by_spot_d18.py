@@ -74,7 +74,7 @@ def test_runner_payload_warning_and_solo(setup):
     d={'story_scene':1,'shot_no':5,'plate_spot':'solo','image_prompt':'x'}
     sid=p.create_scene(pid,5,'solo');p.conn.execute('UPDATE scenes SET data=? WHERE id=?',(json.dumps(d),sid));p.conn.commit()
     assert sb.group_of(p.conn,pid,sid) is None
-    assert sb.anchor_warning(p.conn,str(path),pid,sid)
+    assert sb.anchor_warning(p.conn,str(path),pid,sid) is None      # shot một mình ở chỗ: không có ảnh neo nào để chờ duyệt
     job=dict(p.job(p.create_job(sid,'image_gen')))
     runner._storyboard[job["id"]]={"storyboard_id":"stale"}
     assert runner._finish_args(job,'solo',[])==('solo',)
@@ -162,3 +162,26 @@ def test_runner_off_preserves_legacy_cache_but_clears_after_on(setup,monkeypatch
     runner._storyboard[job['id']]=cached
     runner._finish_args(job,'solo',[])
     assert runner._submit_kwargs(job)['storyboard']==cached
+
+
+def test_no_warning_while_drawing_the_anchor_itself(setup):
+    p,pid,ids,path=setup
+    assert sb.anchor_warning(p.conn,str(path),pid,ids[0]) is None   # shot neo chưa có ảnh: không tự cảnh báo chính nó
+    assert sb.anchor_warning(p.conn,str(path),pid,ids[2])            # shot dùng neo chưa duyệt: vẫn VÀNG
+
+
+def test_change_review_reaches_no_spot_shot_anchored_on_the_changed_shot(tmp_path, monkeypatch):
+    from core import change_review
+    monkeypatch.setenv('FEATURE_STORYBOARD_API','1')
+    monkeypatch.setenv('FEATURE_ANCHOR_BY_SPOT','1')
+    p=Pipeline(connect(':memory:')); pid=p.create_project('spots'); ids=[]
+    for i,(spot,size) in enumerate([('a','WS'),('a','CU'),(None,'MS'),(None,'CU')],1):
+        sid=p.create_scene(pid,i*10,'shot'); ids.append(sid)
+        d={'story_scene':1,'shot_no':i,'size':size,'image_prompt':'x'}
+        if spot: d['plate_spot']=spot
+        p.conn.execute('UPDATE scenes SET data=? WHERE id=?',(json.dumps(d),sid))
+    p.conn.commit()
+    assert sb.group_of(p.conn,pid,ids[3])['anchor']['id']==ids[0]
+    kind=next(iter(change_review.SHOT_KINDS))
+    got=change_review.affected_scenes(p.conn,{'kind':kind,'scene_id':ids[0],'asset_id':None})
+    assert ids[3] in got and ids[2] in got

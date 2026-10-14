@@ -14,6 +14,7 @@ MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_BYTES = 2 * 1024 * 1024 * 1024
 MAX_READ_SECONDS = 20
 MAX_MANIFEST_BYTES = 4 * 1024 * 1024
+LOCK_STALE_SECONDS = 30 * 60   # khóa .motion_sfx.lock cũ hơn mức này = lượt áp trước đã chết (kill/mất điện) → gỡ
 
 
 def local_file(value, *, scope=None):
@@ -159,7 +160,16 @@ def atomic_apply(module, p, data_dir, pid, chosen, scenes, *, verify=None):
     lock = directory / '.motion_sfx.lock'
     locked = False
     try:
-        fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        try:
+            if time.time() - lock.stat().st_mtime > LOCK_STALE_SECONDS:
+                lock.unlink(missing_ok=True)     # tiến trình áp trước đã chết giữa chừng: khóa bỏ lại không chặn mãi
+        except FileNotFoundError:
+            pass
+        try:
+            fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            raise module.SfxPlanError('Đang có một lượt khác áp SFX theo nhịp cho dự án này; chờ xong rồi bấm lại '
+                                      f'(khóa tự hết hạn sau {LOCK_STALE_SECONDS // 60} phút).') from None
         os.close(fd)
         locked = True
         original = manifest_bytes(manifest)
@@ -224,6 +234,8 @@ def atomic_apply(module, p, data_dir, pid, chosen, scenes, *, verify=None):
             os.replace(str(candidate), str(manifest))
             installed.clear()
             return added
+    except module.SfxPlanError:
+        raise
     except (OSError, ValueError, KeyError, TypeError):
         raise module.SfxPlanError('Không thể áp SFX theo nhịp an toàn; mix cũ được giữ. Hãy kiểm nguồn âm và lập lại gợi ý.') from None
     finally:

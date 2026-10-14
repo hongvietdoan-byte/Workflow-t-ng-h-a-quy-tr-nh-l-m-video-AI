@@ -79,8 +79,10 @@ def anchor_warning(conn, data_dir: str, pid: int, scene_id: int) -> Optional[str
         return None                          # không khai spot: giữ nhóm cũ
     if not isinstance(spot, str) or not spot.strip() or not d.get("story_scene") or not d.get("shot_no"):
         return "Ảnh neo theo chỗ: dữ liệu plate_spot / story_scene / shot_no không hợp lệ; chưa xác định được nhóm."
-    shots = [s for s in scene_shots(conn, pid, d["story_scene"]) if s["data"].get("plate_spot") == spot]
-    anchor = shots[0]
+    g = group_of(conn, pid, scene_id)
+    if not uses_anchor(g, scene_id):
+        return None                          # chính shot neo / shot một mình ở chỗ / shot không dùng ảnh neo: không có gì để chờ duyệt
+    anchor = g["anchor"]
     # Cùng lựa chọn với anchor_picture: ảnh duyệt cũ không che tệp mới bị mất.
     job = conn.execute("SELECT id, state FROM jobs WHERE scene_id=? AND type='image_gen' "
                        "AND state IN ('succeeded','pending_review','approved') "

@@ -487,7 +487,7 @@ def sfx_assistant(p: Pipeline, pid: int) -> None:
                         edited = st.data_editor(frame, key=f"sfx_table_{pid}", hide_index=True, width="stretch",
                                                 disabled=["Cảnh", "Hiệu ứng", "Thư mục", "Vì sao"],
                                                 column_config={"Giây": st.column_config.NumberColumn(min_value=0.0, step=0.1),
-                                                               "Âm lượng": st.column_config.NumberColumn(min_value=0.0, max_value=1.5, step=0.05)})
+                                                               "Âm lượng": st.column_config.NumberColumn(min_value=0.1 if is_motion else 0.0, max_value=1.5, step=0.05)})
                         b1, b2 = st.columns([2, 1])
                         if b1.button("✅ Thêm các hiệu ứng đã chọn vào video", key=f"sfx_apply_{pid}", type="primary",
                                      disabled=stale or not access.can_edit(p.conn, pid, getattr(p, "user", None))):
@@ -501,11 +501,11 @@ def sfx_assistant(p: Pipeline, pid: int) -> None:
                                               for i, row in edited.iterrows() if row["Dùng"]]
                                     added = sfx_plan.apply(p, C.DATA, pid, chosen)
                             except ERRORS + (sfx_plan.SfxPlanError,) as e:
-                                st.error(str(e))
-                                return
-                            st.session_state.pop(key, None)
-                            st.toast(f"Đã thêm {added} hiệu ứng (chỉnh tiếp ở mục Hiệu ứng & giọng đọc thêm)")
-                            st.rerun()
+                                st.error(str(e))     # không return: phần nhạc nền bên dưới vẫn hiện
+                            else:
+                                st.session_state.pop(key, None)
+                                st.toast(f"Đã thêm {added} hiệu ứng (chỉnh tiếp ở mục Hiệu ứng & giọng đọc thêm)")
+                                st.rerun()
                         if b2.button("Bỏ đề xuất", key=f"sfx_drop_{pid}"):
                             st.session_state.pop(key, None)
                             st.rerun()

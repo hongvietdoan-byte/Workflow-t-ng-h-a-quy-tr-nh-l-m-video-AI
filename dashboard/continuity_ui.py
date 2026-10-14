@@ -10,12 +10,11 @@ def options(p, pid, idx):
     access.need_view(p, pid, 'xem bố cục')
     rows = [dict(r) for r in p.conn.execute('SELECT idx,data FROM scenes WHERE project_id=? ORDER BY idx',(pid,))]
     current = next((json.loads(r['data'] or '{}') for r in rows if r['idx']==idx), {})
-    source = current.get('continuity_from')
     place = current.get('location_asset') or current.get('location')
     previous = [r for r in rows if r['idx'] < idx]
     previous.sort(key=lambda r: (not bool(place and (json.loads(r['data'] or '{}').get('location_asset') or json.loads(r['data'] or '{}').get('location'))==place),r['idx']))
-    # Main nhận nguồn tương lai: giữ lựa chọn có sẵn, không mở thêm policy chọn nguồn mới.
-    return previous + [r for r in rows if r['idx'] > idx and r['idx']==source]
+    # llm_io.update_scene nhận cả shot ĐỨNG SAU (#27: shot 15/17 giữ bố cục theo shot 18) → các shot sau xếp cuối danh sách.
+    return previous + [r for r in rows if r['idx'] > idx]
 
 
 def preview(p, pid, idx, data_dir):
@@ -37,6 +36,9 @@ def render(p,pid,idx,scope,read_only=False):
     row=p.conn.execute('SELECT data FROM scenes WHERE project_id=? AND idx=?',(pid,idx)).fetchone()
     if row is None: return
     current=json.loads(row['data'] or '{}').get('continuity_from')
+    if not (current is None or (isinstance(current,int) and not isinstance(current,bool))):
+        try: current=int(current)   # dữ liệu viết tay/Đạo diễn lỡ để chuỗi: so số không vỡ thẻ
+        except (TypeError,ValueError): current=None
     rows=options(p,pid,idx)
     choices=[None]+[r['idx'] for r in rows]
     if current is not None and current not in choices:
@@ -45,8 +47,8 @@ def render(p,pid,idx,scope,read_only=False):
     key=f'continuity_{scope}_{pid}_{idx}'
     a,b=st.columns([5,1],vertical_alignment='bottom')
     picked=a.selectbox('Giữ bố cục theo shot …',choices,index=choices.index(current),
-        format_func=lambda v: 'Không giữ theo shot khác' if v is None else f'Shot {v}'+(' · nguồn hiện tại ở phía sau' if v>idx else ''),
-        key=key,disabled=disabled,help='Shot trước cùng địa điểm lên đầu. Đổi lựa chọn rồi bấm Lưu bố cục; không tự gen ảnh.')
+        format_func=lambda v: 'Không giữ theo shot khác' if v is None else f'Shot {v}'+(' · ở phía sau' if v>idx else ''),
+        key=key,disabled=disabled,help='Shot trước cùng địa điểm lên đầu, shot đứng sau ở cuối. Đổi lựa chọn rồi bấm Lưu bố cục; không tự gen ảnh.')
     if b.button('Bỏ',key=key+'_remove',disabled=disabled or current is None):
         if C.act(lambda: save(p,pid,idx,None),'Đã bỏ giữ bố cục'):
             del st.session_state[key]

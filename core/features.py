@@ -841,7 +841,8 @@ def active(name: str) -> bool:
 # S14.4 C1b (04/10): a flag that only works together with another one (dialogue_take: the runner asks lipsync.enabled() = lip_sync
 # first). Shown in 🧪 instead of a flag that looks ON and does nothing. B1 học việc: qc_team only runs inside scene_qc (by active()).
 REQUIRES = {"dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_review_frames": ("change_review",), "change_review_motion": ("change_review",),
-            "ambient_motion": ("prompt_formula",), "plate_anchored_image": ("place_render_refs",)}
+            "ambient_motion": ("prompt_formula",), "plate_anchored_image": ("place_render_refs",),
+            "anchor_by_spot": ("storyboard_api",)}
 
 
 def unmet(name: str) -> list:

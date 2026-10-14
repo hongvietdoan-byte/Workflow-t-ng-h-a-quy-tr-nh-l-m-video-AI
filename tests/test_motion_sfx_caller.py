@@ -360,3 +360,31 @@ def test_atomic_source_requires_registered_trusted_library(mod, tmp_path, case):
         with pytest.raises(mod.SfxPlanError): safe.atomic_apply(mod,SimpleNamespace(conn=conn),str(tmp_path),7,[dict(id=4)],[])
         apply.assert_not_called()
     assert manifest.read_bytes() == b'[]'
+
+
+@pytest.mark.parametrize('stale', [False, True])
+def test_leftover_lock_busy_message_or_cleared_when_stale(mod, tmp_path, stale):
+    # Rà gộp 14/10: khóa .motion_sfx.lock của lượt áp đã chết giữa chừng không được chặn mãi với câu sai nguyên nhân.
+    from pathlib import Path
+    from core import motion_sfx_safe as safe
+    from types import SimpleNamespace
+    import json, time
+    root = tmp_path / '7' / 'audio_assets'; root.mkdir(parents=True)
+    manifest = root / 'assets.json'; manifest.write_text('[]')
+    lock = root / '.motion_sfx.lock'; lock.write_bytes(b'')
+    if stale:
+        old = time.time() - safe.LOCK_STALE_SECONDS - 60; os.utime(lock, (old, old))
+    source = tmp_path / 'new.wav'; source.write_bytes(b'new')
+    def staged_apply(*args, **kwargs):
+        stage = Path(kwargs['_directory']); (stage / 'new.wav').write_bytes(b'new')
+        (stage / 'assets.json').write_text(json.dumps([dict(label='AI: new',file='new.wav')]))
+        return 1
+    p = SimpleNamespace(conn=SimpleNamespace(execute=lambda *a: SimpleNamespace(fetchone=lambda: dict(path=str(tmp_path)))))
+    with patch.object(mod, 'apply', side_effect=staged_apply), patch.object(mod.sound_lib, 'get', return_value=dict(path=str(source),source_id=1)):
+        if stale:
+            assert safe.atomic_apply(mod, p, str(tmp_path), 7, [dict(id=4)], []) == 1
+            assert not lock.exists()
+        else:
+            with pytest.raises(mod.SfxPlanError, match='lượt khác'):
+                safe.atomic_apply(mod, p, str(tmp_path), 7, [dict(id=4)], [])
+            assert lock.exists() and json.loads(manifest.read_text()) == []
