@@ -1,0 +1,68 @@
+=== shot 1 (scene 292, job 916) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 5: Bom keo (object) 3.png [Kho #367 Bom keo · dạng 'skin Gloowall OB55 thang máy']
+  Image 6: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 7: storyboard (storyboard) sb_caf00743ba51
+  so job thật: GIỐNG nhãn
+  so sent_package thật: ảnh KHÁC · câu HÌNH GIỐNG · câu khóa GIỐNG · câu hướng chạy thật=False giờ=False
+  prompt: Image 1 is this shot's 3D render: keep exactly the background, architecture and layout of Image 1 — the same camera position, height and direction, the same horizon line, the same buildings, walls, la …
+=== shot 2 (scene 293, job 917) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: Bom keo (object) 3.png [Kho #367 Bom keo · dạng 'skin Gloowall OB55 thang máy']
+  Image 5: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 6: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 7: storyboard (storyboard) sb_8b16b256fa77
+  so job thật: GIỐNG nhãn
+  so sent_package thật: ảnh KHÁC · câu HÌNH KHÁC (thật [], giờ ['glue']) · câu khóa KHÁC · câu hướng chạy thật=False giờ=False
+    khóa thật: ['Prop lock: Bom keo in this shot — tường keo màu TRẮNG trơn, không họa tiết, không hình'] 
+    khóa giờ: ['Prop lock: Bom keo in this shot — skin Gloowall OB55 tấm kim loại (ID 907105556']
+  diag warn prop_variant_scene: dạng 'skin Gloowall OB55 thang máy' của Bom keo lấy từ câu kịch bản cảnh 1 — chữ shot không ghi dạng (Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (ảnh Kho đúng dạng + câu khóa)
+  prompt: Image 1 is this shot's 3D render: keep exactly the background, architecture and layout of Image 1 — the same camera position, height and direction, the same horizon line, the same buildings, walls, la …
+=== shot 3 (scene 294, job 918) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: Bom keo (object) 3.png [Kho #367 Bom keo · dạng 'skin Gloowall OB55 thang máy']
+  Image 5: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 6: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 7: storyboard (storyboard) sb_e5b55b6b43a0
+  so job thật: GIỐNG nhãn
+  so sent_package thật: ảnh KHÁC · câu HÌNH KHÁC (thật [], giờ ['glue']) · câu khóa KHÁC · câu hướng chạy thật=False giờ=False
+    khóa thật: ['Prop lock: the glue wall in this shot is Bom keo from the project library — tường keo màu TRẮNG trơn, không họa tiết, không hình'] 
+    khóa giờ: ['Prop lock: the glue wall in this shot is Bom keo from the project library — skin Gloowall OB55 tấm kim loại (ID 907105556']
+  diag warn prop_variant_scene: dạng 'skin Gloowall OB55 thang máy' của Bom keo lấy từ câu kịch bản cảnh 1 — chữ shot không ghi dạng (Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (ảnh Kho đúng dạng + câu khóa)
+  prompt: Image 1 is this shot's 3D render: keep exactly the background, architecture and layout of Image 1 — the same camera position, height and direction, the same horizon line, the same buildings, walls, la …
+=== shot 4 (scene 295, job 919) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 15.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: Bom keo (object) 3.png [Kho #367 Bom keo · dạng 'skin Gloowall OB55 thang máy']
+  Image 5: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 6: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 7: storyboard (storyboard) sb_a9a98e40cbb1
+  so job thật: GIỐNG nhãn
+  so sent_package thật: ảnh KHÁC · câu HÌNH KHÁC (thật [], giờ ['glue']) · câu khóa KHÁC · câu hướng chạy thật=False giờ=False
+    khóa thật: ['Prop lock: Bom keo in this shot — tường keo màu TRẮNG trơn, không họa tiết, không hình'] 
+    khóa giờ: ['Prop lock: Bom keo in this shot — skin Gloowall OB55 tấm kim loại (ID 907105556']
+  diag warn prop_variant_scene: dạng 'skin Gloowall OB55 thang máy' của Bom keo lấy từ câu kịch bản cảnh 1 — chữ shot không ghi dạng (Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (ảnh Kho đúng dạng + câu khóa)
+  prompt: Image 1 is this shot's 3D render: keep exactly the background, architecture and layout of Image 1 — the same camera position, height and direction, the same horizon line, the same buildings, walls, la …
+=== shot 5 (scene 296, job 920) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 15.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: Bom keo (object) 3.png [Kho #367 Bom keo · dạng 'skin Gloowall OB55 thang máy']
+  Image 5: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 6: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 7: storyboard (storyboard) sb_a624793da36e
+  so job thật: GIỐNG nhãn
+  so sent_package thật: ảnh KHÁC · câu HÌNH KHÁC (thật [], giờ ['glue']) · câu khóa KHÁC · câu hướng chạy thật=False giờ=False
+    khóa thật: ['Prop lock: the glue wall in this shot is Bom keo from the project library — tường keo màu TRẮNG trơn, không họa tiết, không hình'] 
+    khóa giờ: ['Prop lock: the glue wall in this shot is Bom keo from the project library — skin Gloowall OB55 tấm kim loại (ID 907105556']
+  diag warn prop_variant_scene: dạng 'skin Gloowall OB55 thang máy' của Bom keo lấy từ câu kịch bản cảnh 1 — chữ shot không ghi dạng (Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (ảnh Kho đúng dạng + câu khóa)
+  prompt: Image 1 is this shot's 3D render: keep exactly the background, architecture and layout of Image 1 — the same camera position, height and direction, the same horizon line, the same buildings, walls, la …
+đã ghi C:/Users/HONGVI~1.DOA/AppData/Local/Temp/claude/D--AI-Video-Pipeline--claude-worktrees-thu-d6-oneshot-thap-dong-ho-050ff9/9d2dcbc4-b2e7-4b28-807a-866ea9d27604/scratchpad/r28.json

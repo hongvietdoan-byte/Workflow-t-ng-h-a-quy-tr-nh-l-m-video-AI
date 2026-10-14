@@ -123,11 +123,30 @@ def place_key(conn, project_id: int, data: Dict) -> Optional[str]:
     return _hash({"id": a["id"], "description": a.get("description"), "images": [i.get("path") for i in a.get("images") or []]})
 
 
+def forms_key(conn, project_id: int, data: Dict) -> Optional[str]:
+    """Rà 14/10 (#30): the prop forms the picture takes from the SCENE script (prop_lock.variant_source 'scene' — not in the shot's
+    own data, so image_spec_hash cannot see them): [(asset id, variant)]. None when there is none (flag project_prop_lock off, no
+    prop, the shot says the form itself) — so every other picture keeps the fingerprint it had."""
+    from . import prop_lock
+    try:
+        got = sorted((lk["asset"]["id"], lk["variant"]) for lk in prop_lock.locks(conn, project_id, data)
+                     if lk.get("variant_from") == "scene" and lk.get("variant"))
+    except Exception:  # noqa: BLE001 - no library tables (old test data): no forms in the fingerprint
+        return None
+    return _hash({"forms": got}) if got else None
+
+
+def image_key(conn, project_id: int, data: Dict) -> Optional[str]:
+    """The `place` part of _image_hash: place_key, plus forms_key only when there is one (unchanged otherwise)."""
+    place, forms = place_key(conn, project_id, data), forms_key(conn, project_id, data)
+    return _hash({"place": place, "forms": forms}) if forms else place
+
+
 def current_image_hash(conn, project_id: int, scene_id: int) -> str:
     data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()["data"] or "{}")
     cast_rows = conn.execute("SELECT * FROM characters WHERE project_id=?", (project_id,)).fetchall()
     proj = conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
-    return _image_hash(data, cast_rows, _aspect(conn, project_id), proj, place_key(conn, project_id, data))
+    return _image_hash(data, cast_rows, _aspect(conn, project_id), proj, image_key(conn, project_id, data))
 
 
 def approved_image_id(conn, scene_id: int) -> Optional[int]:
@@ -218,7 +237,7 @@ def _scan(conn, project_id: int) -> Dict[int, Dict]:
         if img is not None and img["input_hash"]:
             d = json.loads(s["data"] or "{}")
             legacy = _image_hash(d, cast_rows, aspect, proj)              # a picture made before S5.3 carries no place in its stamp
-            if img["input_hash"] not in (legacy, _image_hash(d, cast_rows, aspect, proj, place_key(conn, project_id, d))):
+            if img["input_hash"] not in (legacy, _image_hash(d, cast_rows, aspect, proj, image_key(conn, project_id, d))):
                 image_stale_of[s["id"]] = "nội dung cảnh / nhân vật / tỉ lệ khung / bối cảnh (mô tả, ảnh) đã đổi"
             else:
                 from . import layout_follow                   # hộp thư 12/10 19:17 (cờ layout_from_follow): the shot it keeps the layout of

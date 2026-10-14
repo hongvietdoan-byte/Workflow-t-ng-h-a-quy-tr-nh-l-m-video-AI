@@ -1755,7 +1755,8 @@ def _named_extras(conn, scene: Dict, chosen: List[Dict], names: List[str], proje
         keys = [fold(n) for n in names_of(a) if len(fold(n)) >= 3 and fold(n) not in cast]
         if any(" " + k + " " in blob for k in keys):
             if lock_on and a["kind"] in prop_lock.KINDS:    # a picture with a variant (skin) only when the shot names it
-                pics = prop_lock.usable_images(a, prop_lock.shot_text(scene) + " " + blob)
+                said = prop_lock.shot_text(scene) + " " + blob   # 14/10 #30: the scene script's form when the shot lost it
+                pics = prop_lock.usable_images(a, said, variant=prop_lock.variant_source(conn, project_id, scene, a, said)[0])
                 pic = pics[0] if pics else None
             else:
                 pic = location_plate(conn, a, scene) if a["kind"] == "location" else best_reference(a)

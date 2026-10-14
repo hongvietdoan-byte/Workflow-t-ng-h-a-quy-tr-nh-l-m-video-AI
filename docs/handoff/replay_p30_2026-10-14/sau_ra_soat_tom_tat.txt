@@ -1,0 +1,17 @@
+Replay sau rà soát (14/10, 0 USD, tools/replay_payload.py — bản sao CSDL, cờ FEATURE_ từ dashboard.env máy chính, D6 tắt)
+
+1. KIỂM CÔNG CỤ — code gốc 92b40562 (git archive) dựng lại #30, so jobs.sent_package thật (truoc_sua_so_sent_package.txt):
+   job 936, 938, 939, 940, 941, 942: prompt Y HỆT từng ký tự + ảnh (file, thứ tự) GIỐNG + câu HÌNH tường keo (SHAPE) có ở cả hai
+   + câu khóa "tường keo màu TRẮNG" GIỐNG. Job 937: ảnh/khóa/SHAPE giống, prompt khác vì gói thật là bản D6 viết lại (chat_prompts).
+   → replay tái hiện đúng gói gửi thật.
+
+2. SAU SỬA, #30 bật travel_truth (sau_ra_soat_p30_travel_on.txt):
+   - shot 3–7 (job 938–942): gói có ảnh Kho #367 3.png (triển khai có hình nộm so cỡ, dạng skin Gloowall OB55 thang máy); câu khóa
+     "Prop lock: Bom keo in this shot — skin Gloowall OB55 tấm kim loại …" (không còn TRẮNG); câu "The grey mannequin in Image N is
+     only a size guide (an adult of about 1.75 m) … never draw the mannequin."; SHAPE mới (~1,3 lần chiều cao ≈ 2,3 m, rộng ~4 m).
+   - shot 1: "Direction of travel (measured on the 3D map): KELLY goes UP the stairs — from chân cầu thang … (ground 3.9 m) to đỉnh
+     dải cầu thang … (8.5 m), 4.6 m higher; KELLY moves AWAY from the camera … never going down." + VÀNG chữ shot "về phía máy" trái
+     nền (đề xuất plate_view ≈ 298° rồi render lại nền). Shot 2: cùng câu, "end of that run".
+   - shot 1–2 cũng nhận ảnh #367 qua storyboard chia ảnh cả cảnh (thiết kế cũ, đã ghi ở HANDOFF).
+
+3. #28 không cờ travel_truth (p28_khong_co.txt): 5 shot dựng xong, không lỗi; không câu hướng chạy; shot có tường keo nhận #367 3.png.

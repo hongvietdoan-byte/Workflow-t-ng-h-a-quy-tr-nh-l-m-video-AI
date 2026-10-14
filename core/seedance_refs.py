@@ -665,7 +665,9 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
     if objects:                          # V4: the DEPLOYED skill-object pictures (skill_objects.deployed_pictures), after the renders
         from . import skill_objects
         first = n + len(identities) + len(places or []) + 1
-        place_text += "".join(" " + skill_objects.deployed_line(first + k, ascii_name(name)) for k, (name, _) in enumerate(objects))
+        place_text += "".join(" " + skill_objects.deployed_line(first + k, ascii_name(name),
+                                                                   skill_objects._MANNEQUIN_PATHS.get(skill_objects._norm_path(path), False))
+                             for k, (name, path) in enumerate(objects))
     # 6. rules
     rules = ("Any white banner or red mark on a reference picture is an annotation, never part of the video."
              if features.on("seedance_subjects") else

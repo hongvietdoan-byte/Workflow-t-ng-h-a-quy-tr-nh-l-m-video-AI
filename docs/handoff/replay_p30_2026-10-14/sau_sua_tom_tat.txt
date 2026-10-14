@@ -1,0 +1,16 @@
+1 kho [23, 23, 367, 433] - 
+    Direction of travel (measured on the 3D map): KELLY goes UP the stairs — from chân cầu thang nhiều tầng giữa nhà 3 tầng và Tháp Đồng Hồ (ground 3.9 m) to đỉnh dải cầu thang dài giữa nhà 3 tầng và Tháp Đồng Hồ (8.5 m), 4.6 m higher; KELLY moves AWAY from the camera, into the depth of the frame, toward the higher ground in the background — seen from behind; never going down.
+    W travel_truth Hướng chạy: chữ shot nói KELLY chạy VỀ PHÍA máy nhưng máy của nền 3D đứng sau lưng hướng chạy (chân cầu thang nhiều tầng giữa nhà 3 tầng và Tháp Đồng Hồ → đỉnh 
+2 kho [23, 23, 367, 433] - 
+    Direction of travel (measured on the 3D map): KELLY goes UP the stairs — from chân cầu thang nhiều tầng giữa nhà 3 tầng và Tháp Đồng Hồ (ground 3.9 m) to đỉnh dải cầu thang dài giữa nhà 3 tầng và Tháp Đồng Hồ (8.5 m), 4.6 m higher (this shot is the end of that run: KELLY is arriving at the top); KELLY moves AWAY from the camera, into the depth of the frame, toward the higher ground in the background — seen from behind; never going down.
+3 kho [23, 23, 367, 433] skinGloowall 
+    W prop_variant_scene dạng 'skin Gloowall OB55 thang máy' của Bom keo lấy từ câu kịch bản cảnh 1 — chữ shot không ghi dạng (Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (
+4 kho [23, 23, 367, 433] skinGloowall 
+    W prop_variant_scene dạng 'skin Gloowall OB55 thang máy' của Bom keo lấy từ câu kịch bản cảnh 1 — chữ shot không ghi dạng (Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (
+5 kho [23, 23, 367, 433] skinGloowall 
+    Direction of travel (measured on the 3D map): KELLY goes UP the stairs — from chân cầu thang nhiều tầng giữa nhà 3 tầng và Tháp Đồng Hồ (ground 3.9 m) to đỉnh dải cầu thang dài giữa nhà 3 tầng và Tháp Đồng Hồ (8.5 m), 4.6 m higher (this shot is the end of that run: KELLY is arriving at the top); KELLY moves AWAY from the camera, into the depth of the frame, toward the higher ground in the background — seen from behind; never going down.
+    W prop_variant_scene dạng 'skin Gloowall OB55 thang máy' của Bom keo lấy từ câu kịch bản cảnh 1 — chữ shot không ghi dạng (Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (
+6 kho [23, 23, 367, 433] skinGloowall 
+    W prop_variant_scene dạng 'skin Gloowall OB55 thang máy' của Bom keo lấy từ câu kịch bản cảnh 1 — chữ shot không ghi dạng (Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (
+7 kho [23, 23, 367, 433] skinGloowall 
+    W prop_variant_scene dạng 'skin Gloowall OB55 thang máy' của Bom keo lấy từ câu kịch bản cảnh 1 — chữ shot không ghi dạng (Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (

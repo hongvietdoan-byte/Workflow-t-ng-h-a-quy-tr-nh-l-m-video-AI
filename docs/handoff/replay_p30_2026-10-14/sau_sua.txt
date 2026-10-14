@@ -1,0 +1,83 @@
+=== shot 1 (scene 302, job 936) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: Bom keo (object) 2.png [Kho #367 Bom keo · dạng 'skin Gloowall OB55 thang máy']
+  Image 5: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 6: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 7: storyboard (storyboard) sb_356dcc3ce36f
+  so job thật: KHÁC — thật ['Tháp Đồng Hồ', 'KELLY', 'KELLY', 'SKORP', 'WIDE same-axis view of this place (Tháp Đồng Hồ)', 'storyboard']
+  diag warn travel_truth: Hướng chạy: chữ shot nói KELLY chạy VỀ PHÍA máy nhưng máy của nền 3D đứng sau lưng hướng chạy (chân cầu thang nhiều tầng giữa nhà 3 tầng và Tháp Đồng Hồ → đỉnh dải cầu thang dài giữa nhà 3 tầng và Thá
+  prompt: Image 1 is this shot's 3D render: keep exactly the background, architecture and layout of Image 1 —  …
+=== shot 2 (scene 303, job 937) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: Bom keo (object) 2.png [Kho #367 Bom keo · dạng 'skin Gloowall OB55 thang máy']
+  Image 5: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 6: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 7: storyboard (storyboard) sb_49f9ca76775f
+  so job thật: KHÁC — thật ['Tháp Đồng Hồ', 'KELLY', 'KELLY', 'SKORP', 'WIDE same-axis view of this place (Tháp Đồng Hồ)', 'storyboard']
+  prompt: Image 1 is this shot's 3D render: keep exactly the background, architecture and layout of Image 1 —  …
+=== shot 3 (scene 304, job 938) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: Bom keo (object) 2.png [Kho #367 Bom keo · dạng 'skin Gloowall OB55 thang máy']
+  Image 5: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 6: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 7: frame 1 (scene anchor) (previous_scene) job_937.png
+  Image 8: storyboard (storyboard) sb_49f9ca76775f
+  so job thật: KHÁC — thật ['Tháp Đồng Hồ', 'KELLY', 'KELLY', 'SKORP', 'WIDE same-axis view of this place (Tháp Đồng Hồ)', 'frame 1 (scene anchor)', 'storyboard']
+  diag warn prop_variant_scene: dạng 'skin Gloowall OB55 thang máy' của Bom keo lấy từ câu kịch bản cảnh 1 — chữ shot không ghi dạng (Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (ảnh Kho đúng dạng + câu khóa)
+  prompt: Image 1 is this shot's 3D render: keep exactly the background, architecture and layout of Image 1 —  …
+=== shot 4 (scene 305, job 939) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: Bom keo (object) 2.png [Kho #367 Bom keo · dạng 'skin Gloowall OB55 thang máy']
+  Image 5: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 6: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 7: frame 1 (scene anchor) (previous_scene) job_937.png
+  Image 8: storyboard (storyboard) sb_49f9ca76775f
+  so job thật: KHÁC — thật ['Tháp Đồng Hồ', 'KELLY', 'KELLY', 'SKORP', 'WIDE same-axis view of this place (Tháp Đồng Hồ)', 'frame 1 (scene anchor)', 'storyboard']
+  diag warn prop_variant_scene: dạng 'skin Gloowall OB55 thang máy' của Bom keo lấy từ câu kịch bản cảnh 1 — chữ shot không ghi dạng (Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (ảnh Kho đúng dạng + câu khóa)
+  diag warn side_truth: Trái/phải: kịch bản/shot ghi 'bên trái' — không quy đổi được trái/phải sang khung: shot không ghi máy sau lưng hay trước mặt nhân vật (angle / blocking / start_frame); ghi rõ máy sau lưng / trước mặt 
+  prompt: Image 1 is this shot's 3D render: keep exactly the background, architecture and layout of Image 1 —  …
+=== shot 5 (scene 306, job 940) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: Bom keo (object) 2.png [Kho #367 Bom keo · dạng 'skin Gloowall OB55 thang máy']
+  Image 5: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 6: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 7: frame 1 (scene anchor) (previous_scene) job_937.png
+  Image 8: storyboard (storyboard) sb_49f9ca76775f
+  so job thật: KHÁC — thật ['Tháp Đồng Hồ', 'KELLY', 'KELLY', 'SKORP', 'WIDE same-axis view of this place (Tháp Đồng Hồ)', 'frame 1 (scene anchor)', 'storyboard']
+  diag warn prop_variant_scene: dạng 'skin Gloowall OB55 thang máy' của Bom keo lấy từ câu kịch bản cảnh 1 — chữ shot không ghi dạng (Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (ảnh Kho đúng dạng + câu khóa)
+  prompt: Image 1 is this shot's 3D render: keep exactly the background, architecture and layout of Image 1 —  …
+=== shot 6 (scene 307, job 941) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: Bom keo (object) 2.png [Kho #367 Bom keo · dạng 'skin Gloowall OB55 thang máy']
+  Image 5: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 6: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 7: frame 1 (scene anchor) (previous_scene) job_937.png
+  Image 8: storyboard (storyboard) sb_49f9ca76775f
+  so job thật: KHÁC — thật ['Tháp Đồng Hồ', 'KELLY', 'KELLY', 'SKORP', 'WIDE same-axis view of this place (Tháp Đồng Hồ)', 'frame 1 (scene anchor)', 'storyboard']
+  diag warn prop_variant_scene: dạng 'skin Gloowall OB55 thang máy' của Bom keo lấy từ câu kịch bản cảnh 1 — chữ shot không ghi dạng (Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (ảnh Kho đúng dạng + câu khóa)
+  prompt: Image 1 is this shot's 3D render: keep exactly the background, architecture and layout of Image 1 —  …
+=== shot 7 (scene 308, job 942) ===
+  Image 1: Tháp Đồng Hồ (place_render) plate.png
+  Image 2: KELLY (character) 10.png [Kho #23 KELLY · dạng 'bộ chuẩn 1 · nền xám · không súng (Sunburst sửa từ ảnh in-game, người dùng duyệt)']
+  Image 3: KELLY (character) 12.png [Kho #23 KELLY · dạng '3D render (Meshy)']
+  Image 4: Bom keo (object) 2.png [Kho #367 Bom keo · dạng 'skin Gloowall OB55 thang máy']
+  Image 5: SKORP (object) 2.png [Kho #433 SKORP]
+  Image 6: WIDE same-axis view of this place (Tháp Đồng Hồ) (place_wide) plate.png
+  Image 7: frame 1 (scene anchor) (previous_scene) job_937.png
+  Image 8: storyboard (storyboard) sb_49f9ca76775f
+  so job thật: KHÁC — thật ['Tháp Đồng Hồ', 'KELLY', 'KELLY', 'SKORP', 'WIDE same-axis view of this place (Tháp Đồng Hồ)', 'frame 1 (scene anchor)', 'storyboard']
+  diag warn prop_variant_scene: dạng 'skin Gloowall OB55 thang máy' của Bom keo lấy từ câu kịch bản cảnh 1 — chữ shot không ghi dạng (Đạo diễn chia shot bỏ mất); code đã mang dạng xuống shot (ảnh Kho đúng dạng + câu khóa)
+  prompt: Image 1 is this shot's 3D render: keep exactly the background, architecture and layout of Image 1 —  …
+đã ghi <scratch>

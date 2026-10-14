@@ -351,7 +351,8 @@ def propose_rewrite(p, job, note: Optional[str] = None, fix: Optional[str] = Non
     if prop_lock.enabled():
         added = []
         row = p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()   # rà 12/10: the shot's own words
-        shot_words = prop_lock.shot_text(json.loads(row["data"] or "{}")) if row else ""            # (action / blocking) count too
+        shot_data = json.loads(row["data"] or "{}") if row else {}
+        shot_words = prop_lock.shot_text(shot_data)                                                  # (action / blocking) count too
         for a in assets.project_assets(p.conn, job["project_id"]):
             if a.get("kind") not in prop_lock.KINDS:
                 continue
@@ -360,7 +361,14 @@ def propose_rewrite(p, job, note: Optional[str] = None, fix: Optional[str] = Non
                 [f.split("—", 1)[0].split("–", 1)[0].strip() for f in prop_lock._forms(a.get("description") or "")
                  if f.lower().startswith("skin ")]))
             allowed = (old, shot_words, _variant_instruction(note), _variant_instruction(fix))
-            added.extend(v for v in variants if _variant_mentions(a, v, variants, new)
+            # 14/10 #30: the form the scene script gives this prop (prop_lock.variant_source — only sentences naming it, no spoken
+            # lines, exactly one form) is allowed too — a SEPARATE source, never the scene text glued to the shot's words (rà: a scene
+            # naming another skin in full would block this one by _variant_mentions' "full name of another skin" rule)
+            # (the forms known here: the Kho rows + description forms, as the guard sees them — a missing picture file still names one)
+            from_scene = prop_lock.variant_source(p.conn, job["project_id"], shot_data,
+                                                  dict(a, images=[{"variant": v} for v in variants]), shot_words)
+            from_scene = from_scene[0] if from_scene[1] == "scene" else None
+            added.extend(v for v in variants if _variant_mentions(a, v, variants, new) and v != from_scene
                          and not any(_variant_mentions(a, v, variants, source) for source in allowed))
         if added:
             raise RewriteRefused("prompt mới tự thêm biến thể đạo cụ ngoài prompt cũ + ghi chú: " + ", ".join(added))
