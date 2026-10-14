@@ -211,7 +211,7 @@ def _match(pool: List[Dict], name: str) -> Optional[Dict]:
 
 
 def _input_items(conn, pid: int, scenes: List[Dict]) -> List[Dict]:
-    from . import assets, location_pack
+    from . import assets, location_pack, speaker_lint
     rows = [dict(r) for r in conn.execute("SELECT a.id, a.kind, a.name, a.aliases, a.profile FROM assets a JOIN project_assets pa "
                                           "ON pa.asset_id=a.id WHERE pa.project_id=?", (pid,))]
     by_id = {r["id"]: r for r in rows}
@@ -222,7 +222,7 @@ def _input_items(conn, pid: int, scenes: List[Dict]) -> List[Dict]:
     for s in scenes:
         d = s["data"]
         for n in d.get("characters") or []:
-            if not isinstance(n, str) or not n.strip():
+            if not isinstance(n, str) or not n.strip() or speaker_lint.is_narrator(n):   # 14/10 #31: giọng dẫn không phải người trong Kho
                 continue
             a = _match(people, n)
             if a:

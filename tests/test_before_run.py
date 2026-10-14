@@ -74,6 +74,14 @@ class BeforeRun(unittest.TestCase):
         text = " ".join(_texts(self.collect(), "inputs"))
         self.assertIn("'Ghost' không có trong Kho của dự án", text)
 
+    def test_narrator_is_not_a_missing_character(self):
+        # 14/10 #31: trước Bước 1 'characters' = người nói; 'LỜI DẪN' là giọng dẫn ngoài khung, không phải nhân vật thiếu trong Kho
+        self.c.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"characters": ["LỜI DẪN", "Ghost"]}), self.sid))
+        self.c.commit()
+        text = " ".join(_texts(self.collect(), "inputs"))
+        self.assertNotIn("LỜI DẪN", text)
+        self.assertIn("'Ghost' không có trong Kho của dự án", text)
+
     def test_red_finding_without_shot_is_not_held(self):
         self.c.execute("INSERT INTO change_findings(event_id, project_id, scene_id, source, level, khau, msg, at) "
                        "VALUES (1, ?, NULL, 'claude', 'do', 'anh', 'x', '2026-10-10')", (self.pid,))
