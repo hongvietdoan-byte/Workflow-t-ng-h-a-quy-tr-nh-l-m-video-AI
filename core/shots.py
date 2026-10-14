@@ -7,6 +7,7 @@ the running shot number of the whole film — rows are only ever appended (file 
 
 A project with `shot_mode` NULL keeps the v2 behaviour (one script scene = one row = one clip).
 """
+import copy
 import json
 from typing import Any, Dict, List, Optional
 
@@ -206,6 +207,11 @@ def shot_data(scene: Dict, s: Dict, k: int) -> Dict:
         "shot_role": "hero" if s.get("hero") else ("transition" if s["role"] == "transition" else "normal"),
         "text": _shot_text(s),      # the shot's own action + lines; the script scene's text stays in story_scenes (never copied)
     })
+    # Đ13v1: knowledge p24 cho phép ghi ý đồ hậu kỳ; render còn cổng riêng.
+    # Giữ cả dữ liệu sai để post_fx.apply báo VÀNG, không trả tiền hỏi lại Đạo diễn.
+    from . import features
+    if features.on("p24_lessons") and "post_fx" in s:
+        data["post_fx"] = copy.deepcopy(s["post_fx"])
     # V4 fields the Director may write (dropped before — only the listed keys were kept): lip sync of a key close-up (GĐ3), the
     # weather of the shot / its scene and the spot / mode on a location pack (GĐ2)
     if isinstance(s.get("lip_sync"), bool):

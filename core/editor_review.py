@@ -323,8 +323,18 @@ def editor_prompt(res: Dict) -> Tuple[str, List[Tuple[str, str]]]:
              claude_tasks._block("Cảnh báo của code", [f["text"] for f in res.get("flags") or []]),
              f"# Ảnh\nBạn thấy {cov.get('moments_seen', 0)}/{cov.get('moments_total', 0)} khoảnh khắc trong {len(res.get('sheets') or [])} tấm ảnh "
              "(đúng thứ tự thời gian, tấm 1 trước)." + (f" Không thấy: {', '.join(cov.get('dropped') or [])}." if cov.get("dropped") else "")]
+    parts += _post_fx_context(res)
     images = [(f"Tấm {i}", p) for i, p in enumerate(res.get("sheets") or [], 1)]
     return "\n\n---\n\n".join(parts), images
+
+
+def _post_fx_context(res):
+    if not features.on("post_fx_render"):
+        return []
+    return ["# post_fx hậu kỳ trong bản dựng\nCác mục XANH đã áp là hiệu ứng có chủ ý; không mặc định coi glitch/nhiễu/nhấp nháy là lỗi clip. "
+            "Mục VÀNG chưa áp được hoặc không hợp lệ, không được coi là hiệu ứng đã có. "
+            "Đối chiếu spec/scene_id với đồng hồ shot và ảnh; vẫn báo lỗi nằm ngoài vùng hiệu ứng có chủ ý.",
+            claude_tasks._block("manifest.post_fx", res.get("post_fx") or [])]
 
 
 def director_prompt(p, project_id: int, res: Dict, accepted: List[Dict]) -> str:
@@ -335,7 +345,7 @@ def director_prompt(p, project_id: int, res: Dict, accepted: List[Dict]) -> str:
                               claude_tasks._block("Ý đồ của bạn (theo cảnh)", [{"scene": i, **s} for i, s in sorted(intent["scenes"].items())]),
                               claude_tasks._block("Đồng hồ shot", _clock(res)),
                               claude_tasks._block("Số đo âm", {k: (res.get("sound") or {}).get(k) for k in ("silent_spans", "loudness", "music_breaths")}),
-                              claude_tasks._block("Đề xuất của Biên tập viên", shown)])
+                              claude_tasks._block("Đề xuất của Biên tập viên", shown)] + _post_fx_context(res))
 
 
 # ---- run ----------------------------------------------------------------------------------------------------------------------------
@@ -347,7 +357,10 @@ def estimate(conn, images: int = 0) -> Optional[float]:
 
 
 def fingerprint(res: Dict) -> str:
-    return hashlib.sha1(json.dumps([res.get("fingerprint"), PROMPT_VERSION], sort_keys=True).encode("utf-8")).hexdigest()[:16]
+    inputs = [res.get("fingerprint"), PROMPT_VERSION]
+    if features.on("post_fx_render"):
+        inputs.append({"post_fx_context_version": 1, "post_fx": res.get("post_fx") or []})
+    return hashlib.sha1(json.dumps(inputs, sort_keys=True).encode("utf-8")).hexdigest()[:16]
 
 
 def run(p, project_id: int, client, data_dir: str, force: bool = False) -> Dict:

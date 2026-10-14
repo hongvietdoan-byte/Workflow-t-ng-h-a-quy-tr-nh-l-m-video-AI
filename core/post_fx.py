@@ -2,7 +2,7 @@
 import json
 import math
 import os
-import uuid
+import hashlib
 
 from . import features, ffmpeg_studio as f
 
@@ -47,6 +47,24 @@ def filter_for(spec, seconds):
     return f"eq=brightness='{strength:.6f}*if(lt(mod(t*8,1),0.5),0.6,-0.6)':eval=frame:enable='{enabled}'"
 
 
+
+def _output_path(work_dir, sid, source, spec, seconds):
+    """Tên ổn định theo shot + toàn bộ đầu vào; không tái dùng cache, luôn ghi atomic.
+
+    SHA nội dung nguồn tránh nhầm khi thay clip cùng tên/kích thước/mtime.
+    Khóa gồm độ dài, filter và encode để thay công thức không đè kết quả khác.
+    """
+    content = hashlib.sha256()
+    with open(source, 'rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            content.update(chunk)
+    blob = {'version': 1, 'sha256': content.hexdigest(),
+            'spec': spec, 'seconds': seconds, 'filter': filter_for(spec, seconds), 'encode': f._ENCODE}
+    key = hashlib.sha256(json.dumps(blob, sort_keys=True, ensure_ascii=False,
+                                   separators=(',', ':'), allow_nan=False).encode('utf-8')).hexdigest()
+    return os.path.abspath(os.path.join(work_dir, f'post_fx_{int(sid)}_{key}.mp4'))
+
+
 def apply(p, rows, paths, durations, work_dir):
     """Đổi paths tại chỗ, không ghi đè clip gốc. Kết quả cho manifest/diag."""
     if not features.on('post_fx_render'):
@@ -73,7 +91,7 @@ def apply(p, rows, paths, durations, work_dir):
                 result.append(entry)
                 continue
             os.makedirs(work_dir, exist_ok=True)
-            dst = os.path.abspath(os.path.join(work_dir, f'post_fx_{sid}_{uuid.uuid4().hex[:8]}.mp4'))
+            dst = _output_path(work_dir, sid, paths[i], spec, seconds)
             with f.atomic_output(dst) as staged:
                 f.run([f.find_ffmpeg(), '-y', '-i', os.path.abspath(paths[i]), '-t', str(seconds), '-map', '0:v:0', '-map', '0:a?',
                        '-vf', filter_for(spec, seconds), *f._ENCODE, '-c:a', 'copy', staged])
