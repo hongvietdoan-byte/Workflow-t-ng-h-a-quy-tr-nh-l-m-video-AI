@@ -82,6 +82,12 @@ cụ chưa làm đúng việc; giao diện nên nhận MÔ TẢ, không nhận p
   (0 USD video) → gen nháp 480p 3 shot (báo giá trước) → so với clip cũ bằng D1. Đạt thì bật cho tập 2. Chi phí Claude: 1 lượt có ảnh / shot
   (ước tính qua sổ chi trước khi chạy).
 
+## 3c. Chốt gọn (14/10, người dùng hỏi "còn D1–D6 hay chỉ D6?")
+Chỉ còn **D6 + một phép đo nhỏ**: D2 (dữ kiện code biết) và D3 (luật gọn — một trang hướng dẫn theo model) và D4 (ô mô tả thay sửa tay) **nhập
+vào D6**; **D5 bỏ** (D6 trả prompt chữ, không có JSON để hỏng; lỗi khóa nhân vật #27 đã sửa 12/10); **D1 thu gọn** thành so trước/sau trên 3–5 shot
+thí điểm (tỉ lệ người dùng duyệt ngay lần đầu + tiền) — vẫn cần vì CHUẨN XÂY DỰNG đòi bằng chứng chạy thật. D6 làm cho prompt VIDEO trước; đạt
+thì áp cùng cách cho prompt ẢNH khung đầu (hiện cũng viết mù trước khi có ảnh).
+
 ## 4. Việc giao (ghi hộp thư TODO)
 - **Cloud:** D1 phần code (bảng điểm đọc CSDL, test trên CSDL tạm dựng lại ca #22/#24/#27) · D3 bản tách đề xuất (người dùng duyệt) · D5.
 - **Máy chính:** chạy D1 trên CSDL thật #22/#24/#27 (0 USD) → gửi số; bật cờ D2 ở 🧪 trước tập 2 (sao lưu `data/feature_settings.json`).
