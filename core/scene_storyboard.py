@@ -42,20 +42,28 @@ def anchor_of(shots: List[Dict]) -> Optional[Dict]:
 
 
 def group_of(conn, pid: int, scene_id: int) -> Optional[Dict]:
-    """{"shots", "anchor", "index" (0-based position of this shot in the scene), "story_scene"} for a shot of a scene with 2+ shots."""
+    """{"shots", "anchor", "index" (0-based position of this shot in the scene), "story_scene"} for a shot of a scene with 2+ shots.
+
+    Cờ anchor_by_spot (người dùng 14/10, thử D6 #28/#29): shot đứng ở chỗ KHÁC chỗ của ảnh neo cả cảnh (cả hai đều khai plate_spot) mà
+    chỗ đó có 2+ shot → nhóm theo chỗ, neo = shot RỘNG nhất tại chỗ đó (anchor_of, như luật cả cảnh). Trước đây các shot ấy bị coi là
+    "máy riêng" (other_spot) và KHÔNG nhận ảnh nào nối với nhau: #28 shot 2–5 cùng đứng ở đỉnh bậc thang, mỗi ảnh vẽ tường keo / Kelly
+    một chỗ. Shot ở chỗ của neo cả cảnh, shot không khai chỗ và shot đứng MỘT MÌNH ở một chỗ giữ nhóm cả cảnh như cũ (shot một mình: máy
+    riêng, phiên riêng)."""
     row = conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
     d = json.loads(row["data"] or "{}") if row else {}
     if not d.get("story_scene") or not d.get("shot_no"):
         return None
     shots = scene_shots(conn, pid, d["story_scene"])
-    spot = d.get("plate_spot")
-    by_spot = features.on("anchor_by_spot") and isinstance(spot, str) and bool(spot.strip())
-    if by_spot:
-        shots = [shot for shot in shots if shot["data"].get("plate_spot") == spot]
     if len(shots) < 2:
         return None
-    return {**({"plate_spot": spot} if by_spot else {}), "shots": shots, "anchor": shots[0] if by_spot else anchor_of(shots), "index": next(i for i, s in enumerate(shots) if s["id"] == scene_id),
-            "story_scene": d["story_scene"]}
+    base = {"shots": shots, "anchor": anchor_of(shots), "story_scene": d["story_scene"]}
+    spot = d.get("plate_spot")
+    if features.on("anchor_by_spot") and isinstance(spot, str) and spot.strip():
+        theirs = (base["anchor"].get("data") or {}).get("plate_spot")
+        mine = [s for s in shots if s["data"].get("plate_spot") == spot]
+        if theirs and theirs != spot and len(mine) >= 2:
+            base = {"plate_spot": spot, "shots": mine, "anchor": anchor_of(mine), "story_scene": d["story_scene"]}
+    return dict(base, index=next(i for i, s in enumerate(base["shots"]) if s["id"] == scene_id))
 
 
 def anchor_picture(conn, data_dir: str, pid: int, anchor_id: int) -> Optional[str]:
@@ -89,7 +97,8 @@ def anchor_warning(conn, data_dir: str, pid: int, scene_id: int) -> Optional[str
                        "ORDER BY (state='approved') DESC, id DESC LIMIT 1", (anchor["id"],)).fetchone()
     if job and job["state"] == "approved" and anchor_picture(conn, data_dir, pid, anchor["id"]) is not None:
         return None
-    return (f"Nhóm cảnh {d['story_scene']}, chỗ {spot}: ảnh neo shot đầu nhóm {anchor['idx']} CHƯA được duyệt "
+    where = f"chỗ {spot}" if "plate_spot" in g else "cả cảnh"
+    return (f"Nhóm cảnh {d['story_scene']}, {where}: ảnh neo (shot rộng nhất, shot {anchor['idx']}) CHƯA được duyệt "
             "hoặc tệp ảnh không có; ảnh sẵn có vẫn theo cổng storyboard hiện tại, hãy xem và duyệt ảnh neo.")
 
 
@@ -131,6 +140,12 @@ def other_spot(g: Dict, scene_id: int) -> bool:
     return bool(mine and theirs and mine != theirs)
 
 
+def spot_mates(g: Dict, scene_id: int) -> List[Dict]:
+    """Các shot KHÁC của nhóm đứng cùng plate_spot với shot này (rỗng khi shot không khai chỗ)."""
+    mine = (_shot_data(g, scene_id) or {}).get("plate_spot")
+    return [s for s in g["shots"] if mine and s["id"] != scene_id and s["data"].get("plate_spot") == mine]
+
+
 OWN_CAMERA_NOTE = (" This frame has its OWN camera on the stage (another position, height, direction and tilt than frame 1): its "
                    "background is ONLY the 3D render of this frame's camera sent with it — the same buildings, walls, landmark (or none), "
                    "horizon line and tilt as that render; never the view of frame 1 or of another frame.")
@@ -161,7 +176,7 @@ def wait_reason(conn, data_dir: str, pid: int, scene_id: int) -> Optional[Dict]:
     live = conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state IN (" + ",".join("?" * len(ON_ITS_WAY)) + ")",
                         (anchor["id"], *ON_ITS_WAY)).fetchone()
     shot = next((s for s in g["shots"] if s["id"] == scene_id), {"idx": "?"})
-    anchor_kind = f"đầu nhóm chỗ {g['plate_spot']}" if "plate_spot" in g else "khung rộng nhất"
+    anchor_kind = f"khung rộng nhất tại chỗ {g['plate_spot']}" if "plate_spot" in g else "khung rộng nhất"
     text = (f"Shot {shot['idx']} chờ ảnh neo của cảnh (shot {anchor['idx']}, {anchor_kind} — chế độ storyboard)"
             + ("" if live else f" — shot {anchor['idx']} CHƯA được xếp hàng: gen ảnh shot {anchor['idx']} trước (thêm vào gen thử / "
                                 "▶ Gen ảnh), không thì ảnh này chờ mãi"))

@@ -3403,9 +3403,14 @@ class ImageRunner(_Runner):
                         why = (f"shot đứng chỗ khác shot neo (plate_spot {own.get('plate_spot')} ≠ "
                                f"{g['anchor']['data'].get('plate_spot')})")
                         extra = ", thêm câu 'máy riêng'"
+                        mates = scene_storyboard.spot_mates(g, job["scene_id"])
+                        if mates:                      # 14/10 thử D6 #28: shot 2–5 cùng chỗ B không ảnh nào nối nhau
+                            extra += (f" — CẢNH BÁO: shot {', '.join(str(m['idx']) for m in mates)} cùng chỗ này cũng không nối "
+                                      "với shot này (bố cục tường/người/mốc có thể lệch giữa các shot); bật cờ anchor_by_spot để "
+                                      "neo theo shot rộng nhất tại chỗ")
                     else:
                         why, extra = "shot có máy Sân khấu 3D riêng", ", thêm câu 'máy riêng'"
-                    self._diag(job, "info", "storyboard_anchor_skipped",
+                    self._diag(job, "warn" if "CẢNH BÁO" in extra else "info", "storyboard_anchor_skipped",
                                f"{why}: KHÔNG gửi ảnh neo khung 1 (shot {g['anchor']['idx']}, có {mark or 'mốc'}) — chỉ ảnh nhân "
                                f"vật/trang phục + render 3D của shot, phiên storyboard riêng{extra}")
                 if fields is not None:

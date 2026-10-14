@@ -150,21 +150,27 @@ def _save_plans(data_dir: str, pid: int, plans: Dict[str, Dict]) -> None:
 
 # ---- inputs ---------------------------------------------------------------------------------------------------------------------
 def groups(conn, pid: int) -> List[Dict]:
-    """[{key, place, entry, spot, shots}] — one per continuous scene (story_scene) and 3D place; shots in film order."""
+    """[{key, place, entry, spot, shots}] — one per continuous scene (story_scene), 3D place and spot; shots in film order.
+    14/10 (thử D6 #28, Kelly chạy A chân cầu thang → B đỉnh bậc thang): một cảnh qua HAI chỗ đứng từng thành một nhóm, sơ đồ tính
+    mốc / trục 180° / chiều cao từ chỗ của shot ĐẦU (A) cho cả các shot ở B. Nay mỗi chỗ một sơ đồ (khóa `<cảnh>@<chỗ>`); cảnh chỉ
+    một chỗ giữ khóa cũ (sơ đồ đã lập vẫn dùng được)."""
     from . import location_pack
     out: Dict[tuple, Dict] = {}
     for s in location_pack.shots_at_3d_places(conn, pid):
         scene = s["data"].get("story_scene")
         key = str(scene) if scene not in (None, "") else f"shot{s['idx']}"
-        g = out.setdefault((key, s["place"]["id"]), {"key": key, "place": s["place"], "entry": s["entry"], "shots": []})
+        spot = location_pack.spot_for(s["entry"], s["data"])
+        g = out.setdefault((key, s["place"]["id"], spot.get("name")),
+                           {"key": key, "place": s["place"], "entry": s["entry"], "spot": spot, "shots": []})
         g["shots"].append(s)
     res = []
-    keys = [k for k, _ in out]
-    for (key, place_id), g in out.items():
-        if keys.count(key) > 1:                       # one scene over two places: one plan per place
+    places = {(k, pl) for k, pl, _ in out}
+    for (key, place_id, spot_name), g in out.items():
+        if sum(1 for k, _ in places if k == key) > 1:  # one scene over two places: one plan per place
             g["key"] = f"{key}·{place_id}"
+        if sum(1 for k, pl, _ in out if (k, pl) == (key, place_id)) > 1:   # one scene over two spots of a place: one plan per spot
+            g["key"] = f"{g['key']}@{spot_name}"
         g["shots"].sort(key=lambda s: s["idx"])
-        g["spot"] = location_pack.spot_for(g["entry"], g["shots"][0]["data"])
         res.append(g)
     return res
 
@@ -228,7 +234,7 @@ def _shot_rows(group: Dict) -> List[Dict]:
 
 def _story_scene(conn, pid: int, key: str) -> Optional[Dict]:
     try:
-        idx = int(str(key).split("·")[0])
+        idx = int(str(key).split("·")[0].split("@")[0])     # "<cảnh>", "<cảnh>·<nơi>", "<cảnh>@<chỗ>" (một sơ đồ mỗi chỗ đứng)
     except ValueError:
         return None
     row = conn.execute("SELECT heading, text, data FROM story_scenes WHERE project_id=? AND idx=?", (pid, idx)).fetchone()
@@ -696,7 +702,9 @@ def after_plates(conn, pid: int, data_dir: str, data_root: str, client=None, ren
     from . import llm_runner, location_pack
     res: Dict = {"setups": {}, "needs_person": []}
     plans = load_plans(data_dir, pid)
-    todo = [(k, st) for k, plan in plans.items() if not plan.get("failed")
+    by_key = {g["key"]: g for g in groups(conn, pid)}
+    # 14/10: một sơ đồ cũ không còn nhóm (cảnh nay tách theo chỗ đứng: "1" → "1@A", "1@B") không được đếm vào lượt xem / ước tính
+    todo = [(k, st) for k, plan in plans.items() if not plan.get("failed") and k in by_key
             for st in plan.get("setups") or [] if not (st.get("review") or {}).get("done")]
     if not todo:
         return res
@@ -708,7 +716,6 @@ def after_plates(conn, pid: int, data_dir: str, data_root: str, client=None, ren
     _say_new(conn, pid, "info", f"Đạo diễn xem render nền {len(todo)} góc máy — ước tính {_estimate(conn, REVIEW_STAGE, len(todo), 2)} "
                             f"(tối đa {_estimate(conn, REVIEW_STAGE, len(todo) * (1 + MAX_REVIEW_ROUNDS), 2)} nếu phải sửa)",
          REVIEW_CODE, log)
-    by_key = {g["key"]: g for g in groups(conn, pid)}
     rerender = {"render": render} if render is not None else {}
     for key, plan in plans.items():
         g = by_key.get(key)
