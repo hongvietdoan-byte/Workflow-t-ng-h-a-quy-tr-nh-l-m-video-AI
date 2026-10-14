@@ -152,6 +152,34 @@ class PlanTests(G0Base):
         self.assertTrue(any("topview" in n or "sơ đồ nhìn từ trên" in n for n in notes))
         self.assertIn("không có ảnh sơ đồ nhìn từ trên", text)
 
+    def test_one_scene_over_two_spots_gets_one_plan_per_spot(self):
+        # 14/10 thử D6 #28: Kelly chạy A → B — sơ đồ từng tính cả cảnh từ chỗ của shot ĐẦU (A), kể cả các shot đứng ở B
+        with mock.patch.dict(os.environ, ON):
+            pid = self.scene(extra={3: {"plate_spot": "houses"}, 4: {"plate_spot": "houses"}})
+            self.p.conn.execute("INSERT INTO story_scenes (project_id, idx, heading, text) VALUES (?, 1, 'Tháp', 'Kelly chạy A tới B')",
+                                (pid,))
+            self.p.conn.commit()
+            groups = camera_plan.groups(self.p.conn, pid)
+            self.assertEqual([(g["key"], g["spot"]["name"], [s["idx"] for s in g["shots"]]) for g in groups],
+                             [("1@plaza_front", "plaza_front", [1, 2]), ("1@houses", "houses", [3, 4])])
+            text, _, _ = camera_plan.build_prompt(self.p.conn, pid, groups[1], self.data)
+        self.assertIn("chỗ đứng `houses`", text)
+        self.assertIn("Kelly chạy A tới B", text)          # khóa "<cảnh>@<chỗ>" vẫn tìm được kịch bản cảnh
+        with mock.patch.dict(os.environ, ON):
+            one = self.scene()
+            self.assertEqual([g["key"] for g in camera_plan.groups(self.p.conn, one)], ["1"])   # một chỗ: khóa cũ giữ nguyên
+
+    def test_an_old_whole_scene_plan_of_a_two_spot_scene_is_not_reviewed(self):
+        # sơ đồ "1" lập trước 14/10 cho cảnh qua hai chỗ: không còn nhóm nào mang khóa đó → không xem, không ước tính, không gọi Claude
+        with mock.patch.dict(os.environ, ON):
+            pid = self.scene(extra={3: {"plate_spot": "houses"}, 4: {"plate_spot": "houses"}})
+            camera_plan._save_plans(self.data, pid, {"1": {"setups": [{"id": "A", "azimuth_deg": 180}], "shots": []}})
+            look = FakeClaude({"observations": []})
+            res = camera_plan.after_plates(self.p.conn, pid, self.data, self.tmp, client=look, render=self.fake_render, blender="x")
+        self.assertEqual(look.prompts, [])
+        self.assertEqual(self.diags(pid, camera_plan.REVIEW_CODE), [])
+        self.assertIsNotNone(res)
+
     def test_topview_is_sent_when_it_exists(self):
         with mock.patch.dict(os.environ, ON):
             pid = self.scene()
