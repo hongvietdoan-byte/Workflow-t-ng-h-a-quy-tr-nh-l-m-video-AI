@@ -166,6 +166,23 @@ def test_extract_uses_original_segment_and_speed(isolated, tmp_path):
     assert args[args.index('-i') + 1] == meta['source_path']
     assert 'atrim=start=1.0:end=3.0,asetpts=PTS-STARTPTS,atempo=0.5' == args[args.index('-af') + 1]
 
+
+@pytest.mark.parametrize('operation', ['probe', 'extract'])
+def test_source_input_only_native_demuxers_and_local_protocols(isolated, tmp_path, operation):
+    from core import ref_audio
+    source = tmp_path / 'playlist-disguised.mp4'
+    source.write_text('#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\nhttps://invalid.example/segment.ts\n#EXT-X-ENDLIST\n')
+    with mock.patch.object(ref_audio.ffmpeg_studio,'find_ffmpeg',return_value='ffmpeg'), mock.patch.object(ref_audio.subprocess,'run') as run:
+        if operation == 'probe':
+            ref_audio._source_probe(str(source))
+        else:
+            ref_audio._extract_segment(dict(source_path=str(source),start=0,end=1,speed=1),str(tmp_path/'out.wav'),'ffmpeg')
+    args = run.call_args.args[0]
+    assert args[args.index('-protocol_whitelist')+1] == 'file,pipe'
+    assert args[args.index('-format_whitelist')+1] == 'mov,matroska,webm,wav'
+    assert args.index('-protocol_whitelist') < args.index('-i')
+    assert args.index('-format_whitelist') < args.index('-i')
+
 def test_propose_sync_legacy_yellow_and_off_unchanged(isolated, tmp_path):
     import sqlite3
     from types import SimpleNamespace
@@ -215,6 +232,7 @@ def test_ffmpeg_real_original_segment_speed_and_shot_fit(isolated, tmp_path):
     meta = dict(source_path=str(original), start=1., end=2., speed=.5)
     conn.execute('INSERT INTO motion_prompts VALUES(?,?,?)', (1,str(cut),json.dumps(meta)))
     with mock.patch.object(features, 'on', return_value=True), mock.patch.object(ref_audio.ffmpeg_studio, 'find_ffmpeg', return_value=str(ff)):
+        assert ref_audio._source_duration(str(cut)) >= 1.9  # native MP4 vẫn probe qua whitelist
         result = ref_audio.propose(SimpleNamespace(conn=conn), str(tmp_path), 1)
         assert result['added'] == [1]
         directory = audio_lib.assets_dir(str(tmp_path), 1)

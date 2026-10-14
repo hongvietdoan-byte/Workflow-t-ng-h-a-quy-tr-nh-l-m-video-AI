@@ -23,6 +23,7 @@ LABEL = "Tiếng video ref shot {n}"
 MAX_STRETCH = 0.40          # người dùng 08/10: nén/giãn khi chênh ≤ 40 %; hơn thì méo tiếng — giữ nguyên
 MIN_STRETCH = 0.02          # chênh dưới 2 % không đáng một lượt ffmpeg
 MAX_SOURCE_BYTES = 512 * 1024 * 1024  # hash hữu hạn, không đọc vô hạn tệp người dùng
+SOURCE_INPUT_GUARDS = ["-protocol_whitelist", "file,pipe", "-format_whitelist", "mov,matroska,webm,wav"]
 
 
 def validate_metadata(value, allowed_root=None):
@@ -79,7 +80,7 @@ def _source_fingerprint(path):
 
 def _source_probe(path):
     try:
-        result = subprocess.run([ffmpeg_studio.find_ffmpeg(), "-hide_banner", "-i", path], capture_output=True,
+        result = subprocess.run([ffmpeg_studio.find_ffmpeg(), "-hide_banner", *SOURCE_INPUT_GUARDS, "-i", path], capture_output=True,
                                 text=True, encoding="utf-8", errors="replace", env=_native_env(), timeout=15)
         return result.stderr or ""
     except (OSError, subprocess.TimeoutExpired, ffmpeg_studio.FFmpegNotFound):
@@ -108,7 +109,7 @@ def _native_env():
 
 def _extract_segment(meta, dst, ffmpeg):
     spec = f"atrim=start={meta['start']}:end={meta['end']},asetpts=PTS-STARTPTS," + _tempo_chain(meta['speed'])
-    subprocess.run([ffmpeg, "-y", "-v", "error", "-i", meta["source_path"], "-vn", "-af", spec,
+    subprocess.run([ffmpeg, "-y", "-v", "error", *SOURCE_INPUT_GUARDS, "-i", meta["source_path"], "-vn", "-af", spec,
                     "-ac", "2", "-ar", "48000", "-c:a", "pcm_s16le", dst], check=True, capture_output=True, env=_native_env(), timeout=60)
 
 
