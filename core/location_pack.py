@@ -396,7 +396,7 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
             if first is not None and first["background_deg"] != view["background_deg"]:
                 view = dict(first, problem=(f"shot cùng camera_setup với {cam['shared_with']} nên dùng hướng máy của shot đó "
                                             f"({first['background_deg']:g}°), không phải hướng shot này ghi ({view['background_deg']:g}°)"),
-                            needs=first["needs"])
+                            needs=view["needs"] or first["needs"])
         lit = plate_choice.lights_of(s["data"], env)
         camera = dict(cam["camera"], model_coords=True, subject={"location": sp["at"], "height_m": height})
         if lit["lights"]:
@@ -854,6 +854,8 @@ def script_sentence(conn, pid: int, data: Dict) -> str:
         return ""
     bits = []
     view = plate_choice.view_of(entry, spot_for(entry, data), data)
+    if view["needs"]:                       # hướng trái lý do Quay phim (14/10 #30): không nói câu hướng sai vào prompt
+        return ""
     if view["source"] == "script" and view["words_en"]:
         bits.append(f"Camera direction chosen for this shot: {view['words_en']}.")
     env = plate_env.env_of(data)

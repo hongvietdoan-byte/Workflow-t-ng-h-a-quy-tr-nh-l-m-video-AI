@@ -183,19 +183,22 @@ def for_shot(conn, pid: int, scene_id: int, data: Dict, rec: Optional[Dict] = No
     bits = [f"{MARK} {who} goes {way} — from {_label(a)} (ground {za:.1f} m) to {_label(b)} ({zb:.1f} m), "
             f"{abs(dz):.1f} m {'higher' if up else 'lower'}" + (f" (this shot is the end of that run: {who} is arriving at the "
                                                                  f"{'top' if up else 'bottom'})" if arriving else "")]
-    if rel:
+    conflict = False
+    if rel in ("away", "toward"):
+        claims_toward, claims_away = _said(_TOWARD, words), _said(_AWAY, words)
+        conflict = (rel == "away" and claims_toward and not claims_away) or (rel == "toward" and claims_away and not claims_toward)
+    if rel and not conflict:       # 14/10 #30: chữ ↔ nền mâu thuẫn → KHÔNG viết câu quan hệ với máy theo nền sai (chỉ lên/xuống)
         bits.append(rel_words[rel])
     bits.append(f"never going {'down' if up else 'up'}")
     out["sentence"] = "; ".join(bits) + "."
     if rel in ("away", "toward"):
-        claims_toward, claims_away = _said(_TOWARD, words), _said(_AWAY, words)
-        if (rel == "away" and claims_toward and not claims_away) or (rel == "toward" and claims_away and not claims_toward):
+        if conflict:
             from .plate_choice import bearing
             fix = bearing(b["at"], a["at"]) if rel == "away" else bearing(a["at"], b["at"])
             out["warn"].append(
                 f"chữ shot nói {who} chạy {'VỀ PHÍA máy' if rel == 'away' else 'RA XA máy / quay lưng'} nhưng máy của nền 3D "
                 f"{'đứng sau lưng hướng chạy' if rel == 'away' else 'đứng trước hướng chạy'} ({_label(a)} → {_label(b)}, "
-                f"{'lên' if up else 'xuống'} {abs(dz):.1f} m) — câu hướng chạy theo nền; muốn {'chạy về phía máy' if rel == 'away' else 'máy sau lưng'}"
+                f"{'lên' if up else 'xuống'} {abs(dz):.1f} m) — KHÔNG viết câu chiều chạy so với máy (chỉ lên/xuống); muốn {'chạy về phía máy' if rel == 'away' else 'máy sau lưng'}"
                 f" thì đặt plate_view background ≈ {fix:g}° rồi render lại nền (0 USD)")
     return out
 

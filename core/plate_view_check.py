@@ -21,6 +21,19 @@ _CROSS_OK = re.compile(r"vượt trục|cố ý|cross(?:es|ing)? the (?:line|axi
 # a reverse / face-on angle: the camera looks at the character's face from where they are looking — the landmark they face is BEHIND
 # the camera, so a "landmark" background contradicts it (#24 shot 4). The script's own words ("ngược", "đối diện") count too.
 _REVERSE = re.compile(r"\breverse\b|góc ngược|ngược lại|đối diện|facing (?:the )?camera|face[- ]on|nhìn thẳng (?:vào )?(?:mặt|máy)", re.I)
+# the DP's own reason says the landmark is BEHIND THE CAMERA / not yet in the frame (#30 shot 1: "tháp nằm phía sau máy nên chưa vào khung")
+_BEHIND_CAMERA = re.compile(r"\b(?:tháp|mốc|landmark|tower)\b[^.;,]{0,40}?(?:(?:phía )?sau (?:lưng )?(?:máy|camera)|behind the camera)", re.I)
+_NEGATED = re.compile(r"\b(?:không|chưa phải|not|never|isn't)\b", re.I)
+
+
+class _Behind:
+    @staticmethod
+    def search(why: str):
+        m = _BEHIND_CAMERA.search(why or "")
+        return None if m is None or _NEGATED.search(why[max(0, m.start() - 12):m.end()]) else m
+
+
+LANDMARK_BEHIND_CAMERA = _Behind()
 _OTS = re.compile(r"\bots\b|over[- ]the[- ]shoulder|qua vai|sau vai", re.I)
 # a reflex move (falls back, steps back, recoils) is read against what scares the character: the blocking must say where they face
 _REFLEX = re.compile(r"ngã (?:ra )?(?:sau|ngửa)|ngã bệt|lùi lại|lùi về|giật lùi|fall(?:s|ing)? back(?:ward)?|stumbl\w* back|recoil|"
@@ -51,6 +64,8 @@ def _text(s: Dict, *keys) -> str:
 def reverse_landmark(s: Dict) -> bool:
     """A face-on / reverse angle with a 'landmark' background (the landmark is behind the CAMERA) — not an over-the-shoulder shot."""
     words = _text(s, "angle", "blocking", "start_frame", "why")
+    if bool(s.get("plate_spot")) and _view(s) in ("landmark", "scenery") and LANDMARK_BEHIND_CAMERA.search(_why(s)):
+        return True                                           # 14/10 #30: 'scenery' = the spot's registered view = towards the tower
     return bool(s.get("plate_spot")) and _view(s) == "landmark" and bool(_REVERSE.search(words)) \
         and not _OTS.search(_text(s, "angle", "blocking"))
 
@@ -62,10 +77,11 @@ def fix_reverse_landmark(shots: List[Tuple[int, int, Dict]]) -> List[str]:
     for sc, k, s in shots:
         if isinstance(s, dict) and reverse_landmark(s):
             v = s["plate_view"] if isinstance(s.get("plate_view"), dict) else {}
+            old = _view(s)
             s["plate_view"] = {**v, "background": "away",
-                               "why": ((v.get("why") or "").strip() + " · code đổi landmark→away: máy nhìn thẳng mặt nhân vật, mốc nằm sau lưng máy")
+                               "why": ((v.get("why") or "").strip() + f" · code đổi {old}→away: mốc nằm sau lưng máy")
                                .lstrip(" ·")}
-            out.append(f"shot {sc}·{k}: góc nhìn thẳng mặt nhân vật mà nền 'landmark' — code đổi nền thành 'away' (mốc sau lưng máy)")
+            out.append(f"shot {sc}·{k}: mốc nằm sau lưng máy (góc nhìn thẳng mặt / lý do Quay phim) mà nền '{old}' — code đổi nền thành 'away'")
     return out
 
 

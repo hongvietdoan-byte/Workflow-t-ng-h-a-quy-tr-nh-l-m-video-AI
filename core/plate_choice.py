@@ -110,6 +110,12 @@ def _landmark_word(entry: Dict) -> str:
     return str(entry.get("landmark") or "the landmark")
 
 
+def _contradicts_why(why: str, bg: float, to_mark: float) -> bool:
+    """The reason says the landmark is behind the camera / not yet in the frame, but the background computed points at it (|Δ| < 60°)."""
+    from .plate_view_check import LANDMARK_BEHIND_CAMERA
+    return bool(LANDMARK_BEHIND_CAMERA.search(why)) and abs((bg - to_mark + 180) % 360 - 180) < 60
+
+
 def view_of(entry: Dict, spot: Dict, data: Dict) -> Dict:
     """The camera direction of a shot at `spot` (a spot dict with name/at/facing of `entry`).
     Returns {"background_deg", "facing_deg" (for plate_camera.camera_for), "view" (the value used), "source" ("script" | "spot_default"),
@@ -194,6 +200,10 @@ def view_of(entry: Dict, spot: Dict, data: Dict) -> Dict:
         facing = float(spot.get("facing", 0.0))
         bg = (facing + (0 if is_behind(data) else 180)) % 360
         words_vi = "hướng mặc định của chỗ đứng (kịch bản chưa chọn)"
+    elif source == "script" and why and to_mark is not None and _contradicts_why(why, bg, to_mark):
+        # 14/10 #30 shot 1: lý do nói tháp nằm sau lưng MÁY nhưng hướng nền tính ra nhìn VỀ tháp (±60°) → ảnh nền ngược với ý Quay phim
+        needs = (f"hướng máy '{view}' (nền {bg:g}°, nhìn về {mark}) trái lý do Quay phim ghi ('{why[:90]}') — {mark} phải ở SAU LƯNG MÁY, "
+                 "tức nền là 'away' (ngược mốc); sửa `plate_view.background` rồi chạy lại; nền chưa render")
     elif why is None:
         problem = "hướng máy chưa ghi lý do (`plate_view.why`) — người duyệt không biết vì sao chọn hướng này"
     facing = (bg + (0 if is_behind(data) else 180)) % 360          # camera_for: the camera stands in front, the character faces it
