@@ -716,6 +716,7 @@ def _dialog_features(p: Pipeline) -> None:
         new = c2.toggle("Bật", on, key=f"feat_{name}")
         if new != on:
             features.save_settings(flags={name: new})
+            C.log_ui(p, "bat_co" if new else "tat_co", page="tinh_nang", detail=name)   # 14/10 nhật ký thao tác
             st.rerun()
     if len(rows) > 60:
         st.caption(f"… còn {len(rows) - 60} tính năng: lọc bằng ô Tìm.")

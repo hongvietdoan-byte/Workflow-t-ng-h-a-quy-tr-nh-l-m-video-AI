@@ -184,6 +184,7 @@ def motion_box(p: Pipeline, pid: int, scene, k: str) -> None:
                                                                        "duration_sec": row["duration_sec"],
                                                                        "negative_prompt": row["negative_prompt"]}]}),
                "Đã lưu motion prompt — duyệt lại ở Storyboard › Motion"):
+            C.log_ui(p, "sua_prompt", page="kich_ban", project_id=pid, scene_id=row["scene_id"], detail="motion prompt")   # 14/10 nhật ký
             st.rerun()
 
 
@@ -325,7 +326,10 @@ def scene_editor(p: Pipeline, pid: int, scene, char_names) -> None:
             fields["end_state"] = end_state          # only a real edit: an untouched box never writes "" / locks end_state
         if char_names:
             fields["characters"] = cast
-        if act(lambda: llm_io.update_scene(p, pid, idx, fields, text=text), f"Đã lưu cảnh {idx}"):
+        _ok = act(lambda: llm_io.update_scene(p, pid, idx, fields, text=text), f"Đã lưu cảnh {idx}")
+        C.log_ui(p, "sua_prompt", page="kich_ban", project_id=pid, result=_ok,   # 14/10 nhật ký thao tác
+                 detail=f"lưu cảnh {idx} · prompt ảnh " + ("đổi" if image_prompt != d.get("image_prompt", "") else "giữ"))
+        if _ok:
             st.rerun()
     with b2:
         if confirm_all(f"scene_del_{pid}_{idx}", [idx], "🗑 Xóa cảnh này", f"Xóa cảnh {idx}?", st, "Có, xóa cảnh"):

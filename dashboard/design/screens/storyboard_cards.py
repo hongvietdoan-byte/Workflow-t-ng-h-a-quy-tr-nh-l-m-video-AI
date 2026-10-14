@@ -272,13 +272,19 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
             b1, b2, b3, b4 = pair()
             st.caption("↻ Vẽ lại 1 ảnh" + retake)
             if b1.button("✔ Duyệt", key=f"a_{jid}", type="primary", width="stretch"):
-                act(lambda: p.approve(jid, "user"))
+                C.log_ui(p, "duyet_anh", page="storyboard", project_id=pid, scene_id=sid, job_id=jid,   # 14/10 nhật ký thao tác
+                         result=act(lambda: p.approve(jid, "user")))
                 st.rerun()
             if b2.button("✖ Loại", key=f"dd_{jid}", width="stretch"):
-                act(lambda: p.reject(jid, "user", note or "đã xóa", respawn=False))
+                C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, scene_id=sid, job_id=jid,
+                         result=act(lambda: p.reject(jid, "user", note or "đã xóa", respawn=False)),
+                         detail="loại không vẽ lại · ghi chú: " + ("có" if note else "không"))
                 st.rerun()
             if b3.button("↻ Vẽ lại", key=f"r_{jid}", width="stretch"):
-                act(_spin(lambda: p.reject(jid, "user", note or None)))
+                _t0 = time.monotonic()
+                _ok = act(_spin(lambda: p.reject(jid, "user", note or None)))
+                C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, scene_id=sid, job_id=jid, result=_ok, t0=_t0,
+                         detail="vẽ lại · ghi chú: " + ("có" if note else "không"))
                 _send_queued(p, pid)
                 st.rerun()
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
@@ -287,7 +293,8 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
             b1, b2, b3, b4 = pair()
             b1.button("✔ Duyệt", key=f"a_{jid}", disabled=True, width="stretch")
             if state != "retryable" and b2.button("■ Hủy", key=f"c_{jid}", width="stretch"):
-                act(lambda: p.cancel(jid))
+                C.log_ui(p, "huy_job", page="storyboard", project_id=pid, scene_id=sid, job_id=jid, result=act(lambda: p.cancel(jid)),
+                         detail="ảnh")
                 st.rerun()
             b3.button("↻ Vẽ lại", key=f"r_{jid}", disabled=True, width="stretch")
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
@@ -301,7 +308,9 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
             st.caption("↻ Vẽ lại 1 ảnh" + retake)
             if b3.button("↻ Vẽ lại", key=f"dretry_{jid}", width="stretch",
                          help="Gen lại với câu sửa" if fix.strip() else "Gửi lại y nguyên — chỉ khi lỗi do nhà cung cấp"):
-                act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix, by_user=True))
+                _ok = act(lambda: p.retry(jid, "người dùng gen lại với câu sửa" if fix.strip() else "gửi lại (lỗi nhà cung cấp)", fix=fix, by_user=True))
+                C.log_ui(p, "gen_lai_anh", page="storyboard", project_id=pid, scene_id=sid, job_id=jid, result=_ok,
+                         detail="câu sửa: " + ("có" if fix.strip() else "không"))
                 _send_queued(p, pid)
                 st.rerun()
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
@@ -328,7 +337,10 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
             st.caption("↻ Vẽ lại 1 ảnh" + retake)
             if b3.button("↻ Vẽ lại", key=f"reopen_{jid}", width="stretch",
                          help="Bỏ duyệt và gen lại ảnh (motion/video làm từ ảnh này sẽ hiện ⚠ cũ)"):
-                if act(_spin(lambda: p.reopen_approved(jid, r_note or None)), "Đã bỏ duyệt, xếp hàng gen lại"):
+                _ok = act(_spin(lambda: p.reopen_approved(jid, r_note or None)), "Đã bỏ duyệt, xếp hàng gen lại")
+                C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, scene_id=sid, job_id=jid, result=_ok,
+                         detail="bỏ duyệt ảnh đã duyệt · lý do: " + ("có" if r_note else "không"))
+                if _ok:
                     _send_queued(p, pid)
                     st.rerun()
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):
@@ -420,6 +432,7 @@ def action_bar(p, pid: int) -> None:
                     if st.button("✔ Duyệt storyboard → gửi video" + board_tag, key=f"board_ok_{pid}", type="secondary" if pending else "primary", width="stretch"):
                         autopilot.resume(p, pid, p.actor)
                         autopilot_manager(C.DB, C.DATA).start(pid, user=C.access_user())
+                        C.log_ui(p, "gen_video", page="storyboard", project_id=pid, detail="duyệt storyboard → gửi video (tự chạy)")
                         st.rerun()
             with right:
                 if _confirm_all_primary("approve_all", pending, f"✔ Duyệt tất cả ({len(pending)} ảnh)", f"Duyệt tất cả {len(pending)} ảnh đang chờ duyệt?",

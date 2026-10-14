@@ -782,8 +782,10 @@ def render_panel(p: Pipeline, pid: int, chosen, durations) -> None:
         if draft_note:
             st.info(f"🟡 {draft_note} — bản dựng là bản DRAFT để xem trọn bộ; gen bản cao ở màn Video rồi dựng lại.")
         if st.button("▶ Dựng video cuối", disabled=bool(problems), type="primary", key=f"render_{pid}", width="stretch"):
+            _t0 = time.monotonic()
             with st.spinner("Đang dựng…"):
                 ok = act(lambda: delivery.render(p, pid, C.DATA, "auto", chosen, durations), "Dựng xong")
+            C.log_ui(p, "dung_video_cuoi", page="ban_giao", project_id=pid, result=ok, t0=_t0)   # 14/10 nhật ký thao tác
             if ok:
                 st.rerun()
         loudness_line(p, pid)
@@ -1135,9 +1137,11 @@ def _deliver_button(p: Pipeline, pid: int, chosen, durations, label: str = "📦
     label += (cost.llm_button_tag(p.conn, "subtitles", 1) + " (dịch phụ đề)" if sub["enabled"] and sub["lang"] != "src"
               else " · ≈ 0.00 USD (ước tính)")
     if st.button(label, type="primary", key=f"deliver_{pid}", disabled=not chosen, width="stretch"):
+        _t0 = time.monotonic()
         with st.spinner("Đang xuất bản…"):
             ok = act(lambda: st.session_state.__setitem__(f"deliver_res_{pid}", delivery.deliver(p, pid, C.DATA, llm_client(),
                                                                                                 clips=chosen, durations=durations)))
+        C.log_ui(p, "ban_giao", page="ban_giao", project_id=pid, result=ok, t0=_t0, detail=f"{len(chosen)} clip")   # 14/10 nhật ký
         if ok:
             res = st.session_state.pop(f"deliver_res_{pid}")
             for w in res["warnings"]:
