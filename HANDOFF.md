@@ -2,6 +2,8 @@
 
 ## Chốt root 14/10 21:43 — ưu tiên trạng thái này
 
+- Code dry-run `9320b224`; nhánh `codex/d18-viec4c-dry-run` được push riêng, tiếp đúng worktree này khi có quyết định domain. Không lấy dependency commits như nhiệm vụ mới/không làm lại4a4b.
+
 - Root đã đọc toàn bộ fix lần hai; 67 xanh/1skip2,17s, diff-check sạch. Chốt phạm vi inventory offline + raw/hash/mapping + restore_payloads, luôn PARTIAL/ready=False; chưa DB apply/semantic reconcile/activate/production restore.
 - Đã push 4b codef18f936f/HEAD66234479 (116test) và ref_audio code1d46d091/HEADe9eb1b54 (22test/2JPEG actualcomponent1440/1280). Ref QAowned launcher118464 đã dừng; 18636 đóng, không live8501/8502.
 - Câu hỏi bộ dạng/pin ảnh/hash Kho còn chờ; không mặc định look=1ảnh. Chốt câu trả lời trước hoàn thiện look/pins backingphysicalversion và semantic/atomic4c. Phần dry-run này không bị coi là nghiệm thu toàn4c.
