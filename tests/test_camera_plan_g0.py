@@ -402,6 +402,27 @@ class ReviewTests(G0Base):
         self.assertEqual(res["needs_person"], ["1·B"])
         self.assertTrue(any("2 vòng" in m for m in self.diags(pid, "director_plate_review")))
 
+    def test_a_travel_camera_setup_is_not_looked_at_nor_fixed(self):
+        """rà 14/10 (#30): máy đặt theo đường chạy (cờ travel_truth) — Đạo diễn không xem/sửa plate_view của góc đó."""
+        real = location_pack.plan
+
+        def plan(conn, pid, *a, **k):
+            out = real(conn, pid, *a, **k)
+            for it in out:
+                if it["idx"] == 3:
+                    it["camera_why"] = dict(it["camera_why"], travel="máy lùi trước mặt theo đường chạy")
+            return out
+        with mock.patch.object(location_pack, "plan", side_effect=plan):
+            pid, look, res = self.review(self.obs("A", self.GOOD["A"]), self.obs("B", self.GOOD["B"]),
+                                         self.obs("C", ["camera_level", "landmark_visible"]))
+        self.assertEqual(len(look.prompts), 2)                                    # C không gửi xem (không tốn tiền)
+        c = next(s for s in camera_plan.load_plans(self.data, pid)["1"]["setups"] if s["id"] == "C")
+        self.assertTrue(c["review"]["done"])
+        self.assertEqual(c["review"]["rounds"], 0)
+        self.assertIn("máy theo đường chạy, không sửa plate_view", c["review"]["note"])
+        self.assertEqual(res["needs_person"], [])
+        self.assertNotEqual(self.shot(pid, 3).get("angle"), "high")
+
 
 # ---- 5: QC bố cục bằng code sau khi vẽ ảnh ---------------------------------------------------------------------------------------
 def picture(path, horizon=0.45, wall=False, stripes=True):

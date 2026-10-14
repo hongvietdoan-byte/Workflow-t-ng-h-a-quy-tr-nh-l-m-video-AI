@@ -47,6 +47,7 @@ ON_AXIS_DEG = 30.0                 # máy cách đường trục ≤ 30° (nhìn
 FAMILY_DEG = 40.0                  # nền "cùng gia đình" shot mở (hoặc hướng ngược) khi lệch ≤ 40°
 LANDMARK_OFF_DEG = 60.0            # muốn thấy mốc mà nhìn lệch mốc quá 60° → báo
 MAX_REVIEW_ROUNDS = 2
+TRAVEL_NOTE = "máy theo đường chạy, không sửa plate_view — Đạo diễn không xem/sửa góc này (hướng do đường chạy A→B quyết)"
 MAX_TRIES = 2                      # a Claude failure (plan or look) is tried again by the autopilot at most this many times in all
 ROTATE_STEPS = (25.0, -25.0)       # vòng sửa 1 / 2: xoay phương vị so với phương vị gốc của setup
 LOOK_DOWN_ANGLES = ("high", "ots", "overhead")
@@ -742,7 +743,15 @@ def after_plates(conn, pid: int, data_dir: str, data_root: str, client=None, ren
             rounds, fixes = int(prev.get("rounds") or 0), list(prev.get("fixes") or [])
             while True:
                 rec = location_pack.plate_of(data_dir, pid, sid)
-                want_key = next((it["key"] for it in location_pack.plan(conn, pid, resolution) if it["scene_id"] == sid), None)
+                item = next((it for it in location_pack.plan(conn, pid, resolution) if it["scene_id"] == sid), None)
+                if item is not None and "travel" in (item.get("camera_why") or {}):
+                    # rà 14/10 (#30): máy đặt theo đường chạy A→B (cờ travel_truth) — hướng do đường chạy quyết, sửa plate_view/cỡ/góc ở
+                    # đây không đổi được máy (và tốn một lượt xem) → không xem, không sửa; nói một lần
+                    if (prev.get("note") or "") != TRAVEL_NOTE:
+                        _say(conn, pid, "info", f"Cảnh {key} · góc {st['id']}: {TRAVEL_NOTE}", REVIEW_CODE, log)
+                    st["review"] = {"ok": True, "done": True, "rounds": rounds, "fixes": fixes, "note": TRAVEL_NOTE, "travel": True}
+                    break
+                want_key = item["key"] if item is not None else None
                 stale = rec is not None and want_key is not None and rec.get("key") not in (None, want_key)
                 if stale:
                     rec = None                                # rà G0: the index still holds the OLD camera's render — not looked at
