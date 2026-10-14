@@ -354,6 +354,34 @@ def _norm_path(path) -> str:
         return str(path)
 
 
+_CODE_LINES = re.compile("|".join([
+    # the Kho name may carry "–", "(", "," … (rà 14/10); it starts a sentence, so a capital word of the line before is never taken in
+    r"(?:^|(?<=[.!?:] )|(?<=\n))" + re.escape(FORBID).replace(re.escape("{names}"), r"[^\n.!?:]{1,80}?"),
+    r"The glue wall skin is [^\n]{0,120}?never separate metal plates\.",
+    re.escape(mannequin_line(0)).replace(r"Image\ 0", r"Image\ \d+").replace("Image 0", r"Image \d+"),
+]))
+
+
+def kept_lines(assembled: str) -> List[str]:
+    """The code's glue wall sentences in the assembled prompt (ban, skin, mannequin, shape-and-size), each once."""
+    return list(dict.fromkeys([m.group(0) for m in _CODE_LINES.finditer(assembled or "")]
+                              + [s for s in SHAPE.values() if s in (assembled or "")]))
+
+
+def kept_after_rewrite(assembled: str, prompt: str, limit: Optional[int] = None) -> str:
+    """D6 (core/chat_prompt) rewrites the assembled prompt AFTER guard_prompt / mannequin_note added their sentences (14/10 #30): the
+    ban, shape-and-size, skin and mannequin sentences come back word for word when the rewrite dropped them (as side_truth); added back
+    past `limit` → the assembled prompt (it has them and fits)."""
+    lines = kept_lines(assembled)
+    if not lines or prompt == assembled:
+        return prompt
+    from .side_truth import append
+    out = prompt
+    for line in lines:
+        out = append(out, line)
+    return assembled if limit and len(out) > limit else out
+
+
 def mannequin_note(conn, project_id: Optional[int], text: str, refs: Sequence[Dict]) -> str:
     """Prompt ảnh (flag skill_object_guard): each sent picture (refs, numbered from 1) that is a Kho picture of a skill object with a
     size-guide mannequin → its mannequin sentence. Unchanged when off / none."""

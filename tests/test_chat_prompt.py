@@ -122,6 +122,54 @@ class RunnerHookTests(unittest.TestCase):
             self.assertEqual(chat_rewrite(r, job, "image", "old", [("a", "b")], "m", limit=99), "new")
             self.assertEqual(rw.call_args.kwargs["limit"], 99)
 
+    def test_glue_wall_code_sentences_survive_the_rewrite(self):
+        """14/10 #30: the ban / shape-size / skin / mannequin sentences were added BEFORE D6 — a rewrite dropping them sent a wall
+        with no size and no 'never draw the mannequin'. They come back word for word (as side_truth / travel_truth)."""
+        from types import SimpleNamespace
+        from core import skill_objects
+        from core.runner import chat_rewrite
+        ban = skill_objects.forbid_sentence(["the glue wall"])
+        shape = skill_objects.SHAPE["glue"]
+        skin = "The glue wall skin is the pattern shown in Image 3: printed on one solid block, never separate metal plates."
+        dummy = skill_objects.mannequin_line(3)
+        old = f"Scene: Kelly behind a glue wall (Image 3). {ban} {shape} {skin} {dummy}"
+        r = SimpleNamespace(p=mock.Mock())
+        with mock.patch("core.chat_prompt.enabled", return_value=True), \
+                mock.patch("core.chat_prompt.rewrite", return_value="Kelly crouches behind the glue wall from Image 3."):
+            out = chat_rewrite(r, {"id": 1}, "image", old, [("a", "b")], "m")
+        for line in (ban, shape, skin, dummy):
+            self.assertIn(line, out)
+        self.assertTrue(out.startswith("Kelly crouches"))
+        with mock.patch("core.chat_prompt.enabled", return_value=True), \
+                mock.patch("core.chat_prompt.rewrite", return_value="Kelly crouches behind the glue wall from Image 3."):
+            self.assertEqual(chat_rewrite(r, {"id": 1}, "image", old, [("a", "b")], "m", limit=60), old)   # no room → the assembled one
+
+    def test_kept_glue_lines_take_odd_names_whole_and_d6_writes_within_the_room_left(self):
+        """rà 14/10: a Kho name with '–' / brackets kept whole, the capital word before it never swallowed; D6 gets limit − kept lines
+        (else every rewrite overflowed and fell back silently), and a fall-back is said."""
+        from types import SimpleNamespace
+        from core import skill_objects
+        from core.runner import chat_rewrite
+        odd = skill_objects.FORBID.format(names="Bom keo – skin (OB55), v2")
+        self.assertEqual(skill_objects.kept_lines(f"Kelly runs. {odd}"), [odd])
+        glue = skill_objects.forbid_sentence(["the glue wall"])
+        self.assertEqual(skill_objects.kept_lines(f"Kelly runs left. Then Kelly turns: {glue}"), [glue])   # starts at the sentence
+        run_on = f"Kelly runs Left {glue}"             # no sentence end before it: the assembled sentence word for word, never cut
+        self.assertEqual(skill_objects.kept_lines("Scene. " + run_on), [run_on])
+        ban = skill_objects.forbid_sentence(["the glue wall"])
+        old = "Scene: Kelly behind a glue wall. " + ban + " " + skill_objects.SHAPE["glue"]
+        room = len(ban) + 1 + len(skill_objects.SHAPE["glue"]) + 1
+        r = SimpleNamespace(p=mock.Mock(), _diag=mock.Mock())
+        with mock.patch("core.chat_prompt.enabled", return_value=True), \
+                mock.patch("core.chat_prompt.rewrite", return_value="Kelly crouches behind the glue wall.") as rw:
+            out = chat_rewrite(r, {"id": 1}, "image", old, [("a", "b")], "m", limit=4000)
+        self.assertEqual(rw.call_args.kwargs["limit"], 4000 - room)
+        self.assertTrue(out.startswith("Kelly crouches") and ban in out)
+        with mock.patch("core.chat_prompt.enabled", return_value=True), \
+                mock.patch("core.chat_prompt.rewrite", return_value="K" * (len(old) - 20)):
+            self.assertEqual(chat_rewrite(r, {"id": 1}, "image", old, [("a", "b")], "m", limit=len(old) + 5), old)
+        self.assertIn("d6_kept_overflow", [c.args[2] for c in r._diag.call_args_list])
+
 
 if __name__ == "__main__":
     unittest.main()

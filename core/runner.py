@@ -2851,11 +2851,20 @@ def chat_rewrite(runner, job, kind: str, assembled: str, images, model, limit: i
     if not chat_prompt.enabled():
         return assembled
     say = getattr(runner, "_diag_once", None) or getattr(runner, "_diag", None)
-    from . import side_truth, travel_truth
-    kept = side_truth.kept_after_rewrite(assembled, chat_prompt.rewrite(       # 14/10: the code's left/right sentence survives D6
-        runner.p, job, kind, assembled, images, model=model, limit=limit,
-        say=(lambda lv, code, msg: say(job, lv, code, msg)) if say else None), limit)
-    return travel_truth.kept_after_rewrite(assembled, kept, limit)          # 14/10 #30: so does the code's direction of travel
+    from . import side_truth, skill_objects, travel_truth
+    # rà 14/10: the glue wall sentences put back after D6 are ~1000 characters — D6 writes within what is left, or every rewrite
+    # would overflow and silently fall back to the assembled prompt
+    room = sum(len(x) + 1 for x in skill_objects.kept_lines(assembled))
+    d6_limit = limit - room if room and limit - room >= limit // 2 else limit
+    new = chat_prompt.rewrite(runner.p, job, kind, assembled, images, model=model, limit=d6_limit,
+                              say=(lambda lv, code, msg: say(job, lv, code, msg)) if say else None)
+    kept = side_truth.kept_after_rewrite(assembled, new, limit)              # 14/10: the code's left/right sentence survives D6
+    kept = skill_objects.kept_after_rewrite(assembled, kept, limit)          # 14/10 #30: so do the glue wall's ban / size / skin / mannequin
+    kept = travel_truth.kept_after_rewrite(assembled, kept, limit)           # 14/10 #30: so does the code's direction of travel
+    if kept == assembled and new != assembled and say:
+        say(job, "info", "d6_kept_overflow", f"D6 job {job['id']}: bản viết lại + các câu code phải giữ vượt trần {limit} ký tự "
+            "— gửi bản code ghép (đủ câu)")
+    return kept          # 14/10 #30: so does the code's direction of travel
 
 
 def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = None, fix: Optional[str] = None,
