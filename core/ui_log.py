@@ -79,7 +79,7 @@ def record(conn, action: str, *, email: Optional[str] = None, source: str = "ngu
             _warned.append(True)
             try:
                 from . import diag
-                diag.record(conn, "dashboard", "warning", f"ui_log: không ghi được nhật ký thao tác ({type(e).__name__}: {e})",
+                diag.record(conn, "system", "warn", f"ui_log: không ghi được nhật ký thao tác ({type(e).__name__}: {e})",
                             code="ui_log_write")
             except Exception:  # noqa: BLE001
                 pass
