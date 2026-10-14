@@ -1249,6 +1249,8 @@ change_review) — kiểm quyền sửa như các ô khác. Ảnh chụp 1440 + 
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
+- ✅ Việc 2 · nhánh `codex/d18-viec2-anh-neo-theo-spot` · code `f89cbad6`: nhóm neo theo story_scene/plate_spot, shot đầu nhóm, singleton ảnh đơn; cờ anchor_by_spot OFF/OPT_IN_ONLY. ĐỎ→XANH 50 test /7 file /5,61s; rà độc lập và root sửa 3 P2 về đếm phụ thuộc, ảnh neo thiếu và cache OFF. Không đổi UI/keys, areas giữ version65. Chưa thử model thật/cả bộ Windows/bật sản xuất; không API/dữ liệu thật/gộp main. RA và HANDOFF Đ18 việc2 kèm nhánh.
+
 ## Bổ sung Kết quả Codex — đợt 10
 
 - ✅ Việc 3b · nhánh `codex/d10-viec3b-project-budget` · code `27c2e9f3`: remaining dùng chung quote có stamp/group/nháp/bản cao; nháp duyệt ON chỉ cộng nâng, giữ guard bản giao; QC enum không cộng agent/team hai lần. Rà 3 P2 sửa: giá chưa xác minh ×1,25, QC bản cao, thiếu toàn bộ giá báo subtotal/incomplete thay 0 đủ giá. ĐỎ→XANH 124 test +6 subtest và 32 test +6 subtest, tổng146 test riêng biệt; không nới test. QA money_card thật DB/giá giả known/missing 1440/1280:0JS/exception/overflow,4PNG. Root đọc fix/xem ảnh; keys/areas.version66 giữ. Chưa production/cả bộ Windows; không API/data thật/runner/main. RA/HANDOFF13/10 kèm nhánh.

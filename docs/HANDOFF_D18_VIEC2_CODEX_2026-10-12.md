@@ -1,0 +1,17 @@
+# Bàn giao Đ18 việc 2
+- Worktree: `D:/AI-Video-Pipeline/.codex-wt/d18-viec2-anh-neo-theo-spot`.
+- Nhánh: `codex/d18-viec2-anh-neo-theo-spot`; base `2cbe4058`; CHƯA COMMIT/PUSH.
+- Đổi: core/scene_storyboard.py, core/runner.py, core/features.py, core/before_run.py, devsys/areas.json.
+- Mới: tests/test_anchor_by_spot_d18.py và RA riêng.
+- ON: mỗi story_scene + plate_spot có neo shot đầu, index/group_size/refs/storyboard_id riêng.
+- OFF/no plate_spot: cách nhóm và payload cũ; OPT_IN_ONLY chống experimental tự bật.
+- Cảnh báo neo đầu chưa duyệt/tệp mất trước gửi; succeeded/pending_review vẫn được dùng như cũ.
+- Singleton gửi ảnh đơn; bỏ kwargs storyboard cache cũ; không tăng số lời gọi provider.
+- Pilot kéo đúng hai neo, before_run báo đúng các nhóm; guard camera/away/redo giữ nguyên.
+- Test đỏ ban đầu 3; xanh cuối 47 test liên quan (3,94 s). Fakeprovider capture submit payload sau runner preparation.
+- Lệnh: py -m pytest -q -p no:cacheprovider tests/test_anchor_by_spot_d18.py tests/test_before_run.py tests/test_storyboard_frames.py tests/test_storyboard_away_anchor_p24.py tests/test_pilot_storyboard_anchor_p24.py tests/test_storyboard_cast_refs_p24.py tests/test_layout_from_p27.py
+- Chưa thử thật, chưa GUI, chưa cả bộ. Không khẳng định chất lượng ảnh/đã áp dụng sản xuất.
+- Bước kế: root rà độc lập theo related_areas; nếu ổn commit nhánh và tích hợp theo quy trình.
+- Sau rà độc lập: đã sửa 2 P2 (mixed spot thiếu spot đếm trùng; ảnh approved cũ che missing latest). Hai regression ĐỎ trước → 49 passed / 7 file / 4,81 s; root cần đọc fix diff trước chốt.
+- Root rà thêm cache OFF: đã gate bằng marker private từng job; OFF chưa ON giữ cache legacy, OFF sau ON dọn một lần. Regression ĐỎ trước; 50 passed / 7 file / 5,61 s sau đổi code runner; diff-check sạch.
+- Chốt root: code f89cbad6; 50 test liên quan xanh. Commit kết quả và push nhánh riêng; không tích hợp main. Việc kế Đ18 việc3, việc4 vẫn chờ người dùng duyệt kế hoạch.

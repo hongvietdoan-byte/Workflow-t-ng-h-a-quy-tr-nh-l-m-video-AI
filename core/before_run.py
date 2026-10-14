@@ -150,23 +150,31 @@ LIVE_JOB = ("queued", "running", "retryable")                         # job gen 
 
 def _storyboard_items(conn, data_dir: str, pid: int, scenes: List[Dict]) -> List[Dict]:
     """Chế độ storyboard (cờ storyboard_api): shot không phải neo chờ ảnh neo của cảnh; neo chưa có việc gen nào → chờ mãi."""
-    from . import scene_storyboard
+    from . import features, scene_storyboard
     if not scene_storyboard.enabled():
         return []
     groups: Dict = {}
-    for s in scenes:
-        d = s["data"]
-        if d.get("story_scene") and d.get("shot_no"):
-            groups.setdefault(d["story_scene"], []).append(s)
+    if features.on("anchor_by_spot"):
+        for shot in scenes:
+            g = scene_storyboard.group_of(conn, pid, shot["id"])
+            if scene_storyboard.uses_anchor(g, shot["id"]):
+                # Nhóm legacy thiếu spot chồng nhóm mới: mỗi shot chỉ theo neo của chính nó.
+                entry = groups.setdefault(g["anchor"]["id"], {"anchor": g["anchor"], "users": {}})
+                entry["users"][shot["id"]] = shot
+    else:
+        for shot in scenes:
+            d = shot["data"]
+            if d.get("story_scene") and d.get("shot_no"):
+                groups.setdefault(d["story_scene"], []).append(shot)
+        groups = {key: {"shots": shots, "anchor": scene_storyboard.anchor_of(shots), "story_scene": key}
+                  for key, shots in groups.items() if len(shots) >= 2}
     stuck, waiting = [], 0
-    for key, shots in groups.items():
-        if len(shots) < 2:
-            continue
-        anchor = scene_storyboard.anchor_of(shots)
+    for g in groups.values():
+        anchor = g["anchor"]
         if scene_storyboard.anchor_picture(conn, data_dir, pid, anchor["id"]) is not None:
             continue
-        g = {"shots": shots, "anchor": anchor, "story_scene": key}
-        users = [s for s in shots if scene_storyboard.uses_anchor(g, s["id"])]
+        users = (list(g["users"].values()) if "users" in g else
+                 [s for s in g["shots"] if scene_storyboard.uses_anchor(g, s["id"])])
         if not users:
             continue
         live = conn.execute("SELECT 1 FROM jobs WHERE scene_id=? AND type='image_gen' AND state IN (" + ",".join("?" * len(LIVE_JOB))

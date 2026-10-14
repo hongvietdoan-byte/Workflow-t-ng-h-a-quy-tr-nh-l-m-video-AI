@@ -1,0 +1,30 @@
+# Rà đề xuất Đ18 việc 2 — 12/10/2026
+- Nhánh: `codex/d18-viec2-anh-neo-theo-spot`; base `2cbe4058`.
+- Tần suất: ảnh nhiều shot cùng cảnh nhưng đổi plate_spot (#27); bật riêng khi cần.
+- Lợi ích: cùng chỗ giữ neo đầu nhóm; khác chỗ không nhận neo/canvas của nhau.
+- Chi phí: không thêm lời gọi API/job; pilot có thể kéo thêm neo đầu từng nhóm (ước tính tiền giữ luồng cũ).
+- Rủi ro: shot đầu nhóm chưa duyệt; báo VÀNG, không tự đổi neo sang shot sau, không tạo cổng duyệt mới.
+- Quyết định: triển khai tối thiểu sau cờ TẮT `anchor_by_spot`, OPT_IN_ONLY; A/B/C chỉ chặn việc 4.
+- Gốc: `scene_storyboard.group_of`; dùng lại runner, pilot, mapping/cast/story_text và các guard hiện có.
+- `before_run._storyboard_items` dựng neo riêng bằng anchor_of: đổi theo nhóm khi ON, OFF giữ thuật toán cũ.
+- `runner._finish_args`: diag warn trước provider; bỏ cache kwargs cũ mỗi lần chuẩn bị gói.
+- Singleton: ảnh đơn không thêm storyboard/session/API; vẫn cảnh báo neo đầu nhóm chưa duyệt.
+- story_text giữ heading của cảnh, beats/cast chỉ từ shots đã lọc; không hứa cô lập mọi từ trong heading.
+- Giữ nguyên turned_away, own_camera, other_spot, fresh_session, holds và trạng thái ảnh sẵn có.
+- Không bịa binding/location: nhóm chính xác story_scene + chuỗi plate_spot; trường malformed báo warn.
+- Tự kiểm 2b.5: không đổi test cũ; đường ảnh tuyệt đối từ data_dir; không thêm đường gọi trả tiền.
+- Không widget mới; tự động/batch/pilot dùng group_of; không bật mặc định hoặc bật qua experimental.
+- areas giữ version 65, khai test và flag ở step2; related_areas đã chạy, cần rà độc lập trước commit.
+- Bằng chứng: lần đầu 3 test ĐỎ; cuối 47 test liên quan XANH (3,94 s).
+- Vượt mục tiêu tối đa 3 lượt: 6 lượt do bổ sung payload/singleton/before_run và sửa lỗi import; không chạy cả bộ.
+- Chưa thử thật/chất lượng ảnh; không đọc dữ liệu thật, gọi API, commit/push/main/restart.
+- RÀ KỸ độc lập (agent, 12/10): đã đọc diff base 2cbe4058, related_areas và luồng runner/pilot/before_run; chưa đủ điều kiện chốt.
+- [P2] core/before_run.py:160,173: nhóm legacy thiếu spot bao trùm nhóm spot; users tính lại cả nhóm làm đếm/lặp sai. Repro cảnh [a,a,None], neo WS shot1: thực 2 phụ thuộc; báo 1+2=3 shot chờ neo1.
+- Sửa P2 trên: ON tính phụ thuộc từng shot theo group_of của chính shot, gộp/dedup theo anchor_id; OFF giữ nhánh cũ. Test đỏ mixed missing spot cho queued và no-job; không đếm sai hoặc gán neo khác.
+- [P2] core/scene_storyboard.py:84–85: any approved-file cũ không phản ánh ảnh neo thực chọn. Repro neo có approved job cũ/file + approved job mới/mất file: anchor_picture=None nhưng anchor_warning=None.
+- Sửa P2 trên: cảnh báo theo đúng job được anchor_picture lựa chọn (không đổi lựa chọn/gate cũ), chỉ im khi job chọn approved và file có; test đỏ missing latest approved, older approved still present.
+- Kiểm độc lập latest tests/test_anchor_by_spot_d18.py: 7 passed (0,82 s); không sửa assertion test cũ, không chạy API/dữ liệu thật/cả bộ, không commit/push.
+- Phần đạt qua code/capture: first-anchor không chọn alternate, group index/id/beats/cast lọc shots, singleton cache clear, opt-in experimental OFF, pilot kéo đúng neo. Không xác nhận GUI/chất lượng ảnh.
+- Chốt sửa 2 P2: before_run ON gom neo theo phụ thuộc từng shot + dedup; warning theo selected job/path. Hai test mới ĐỎ (2 failed, 7 passed; 0,87 s) → cả nhóm 7 file XANH (49 passed; 4,81 s). Không đổi assertion test cũ.
+- Root bắt P2 cache OFF: pop vô điều kiện đổi legacy. Regression OFF chưa ON ĐỎ (1 failed, 9 passed; 0,96 s) → sửa marker private trong runner: ON dọn, OFF sau ON dọn một lần, OFF chưa ON giữ byte cache. Nhóm 7 file XANH cuối: 50 passed / 5,61 s; diff-check sạch.
+- Root đã đọc lại toàn bộ diff sửa cuối: cache OFF giữ legacy; runner/scene_storyboard chỉ sửa tại gốc nhóm neo và chuẩn bị payload. Chốt RÀ KỸ, 50 test liên quan xanh; không có thay đổi UI, không nghiệm thu chất lượng sản xuất.

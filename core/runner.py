@@ -3249,6 +3249,16 @@ class ImageRunner(_Runner):
         frames): the scene's shared references + the anchor frame replace the shot's own, and the storyboard fields go with the job
         (core/scene_storyboard.py, the web Weave Canvas way). Only the pictures that will really be sent are numbered in the note
         (a dropped picture used to shift "Image 2 is KELLY" onto the wrong person) — every dropped one is reported."""
+        from . import features
+        by_spot = features.on("anchor_by_spot")
+        spot_jobs = getattr(self, "_storyboard_by_spot_jobs", set())
+        if by_spot or job["id"] in spot_jobs:
+            getattr(self, "_storyboard", {}).pop(job["id"], None)  # đổi nhóm/cờ; OFF chưa từng ON giữ cache cũ
+        if by_spot:
+            spot_jobs.add(job["id"])
+            self._storyboard_by_spot_jobs = spot_jobs
+        else:
+            spot_jobs.discard(job["id"])  # OFF sau ON chỉ dọn một lần
         from . import image_models
         proj = self.p.project(job["project_id"])
         model = image_models.of_project(proj) if getattr(self.provider, "supports_model", False) else None
@@ -3272,6 +3282,9 @@ class ImageRunner(_Runner):
                                   **({"plate_key": r["plate_key"]} if r.get("plate_key") else {})} for r in refs]   # KLD-6
         from . import scene_storyboard
         if scene_storyboard.enabled() and getattr(self.provider, "supports_storyboard", False):
+            warning = scene_storyboard.anchor_warning(self.p.conn, self.data_dir, job["project_id"], job["scene_id"])
+            if warning:
+                getattr(self, "_diag_once", self._diag)(job, "warn", "storyboard_anchor_unapproved", warning)
             g = scene_storyboard.group_of(self.p.conn, job["project_id"], job["scene_id"])
             if g is not None:
                 shared = scene_storyboard.shared_references(      # only this shot's people (S4.6 #10)
