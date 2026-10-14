@@ -210,9 +210,15 @@ def _locked(fn):
 
 
 def _render_hash(p, project_id, settings):
-    from . import shot_popup
+    from . import post_fx, shot_popup
+    extra = {}
     fingerprint = shot_popup.fingerprint(p, project_id)
-    return lineage.settings_hash({'render': render_hash(settings), 'shot_popup': fingerprint}) if fingerprint else render_hash(settings)
+    if fingerprint:
+        extra['shot_popup'] = fingerprint
+    effects = post_fx.fingerprint(p, project_id)      # Đ13v1 mục 4: post_fx / cờ post_fx_render đổi → bản dựng cũ (cờ TẮT: hash như trước)
+    if effects:
+        extra['post_fx'] = effects
+    return lineage.settings_hash({'render': render_hash(settings), **extra}) if extra else render_hash(settings)
 
 
 def final_manifest(p: Pipeline, project_id: int, data_dir: str, clip_paths: List[str], settings: Dict) -> Dict:
@@ -644,9 +650,10 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     flashbacks = _flashbacks(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))
     edges = _edge_transitions(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_edges"), edits)
     durations = list(durations)
-    held = _hold_end(paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))   # after the voices are placed
+    # Đ13v1 mục 2: post_fx on the clip's OWN length, before the end hold — `vi_tri: cuoi` must not land on the held still frame
     from . import post_fx
     post_effects = post_fx.apply(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_post_fx"))
+    held = _hold_end(paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))   # after the voices are placed
     for effect in post_effects:
         if effect["muc"] == "vang":
             diag.record(p.conn, "render", "warn", f"Shot {effect.get('idx')}: " + "; ".join(effect["reasons"]),
