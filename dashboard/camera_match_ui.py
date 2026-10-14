@@ -40,7 +40,7 @@ def render(p, pid, scene_id, path, kind="image"):
                 st.caption("Các số đo local trong ngưỡng tạm; cần duyệt hình ảnh.")
             if issues:
                 try:
-                    tag = cost.video_button_tag(p.conn, [scene_id]) if kind == "video" else cost.image_button_tag(image_models.of_project(p.project(pid)), 1, retake_conn=p.conn)
+                    tag = cost.video_button_tag(p.conn, [scene_id]) if kind == "video" else cost.image_button_tag(image_models.of_project(p.project(pid)), 1, retake_conn=p.conn, shot=True)
                 except Exception:
                     tag = " — chưa có giá"
                 st.caption("Gợi ý: đổi máy/ảnh bố cục/prompt trước khi dùng nút gen lại" + tag)

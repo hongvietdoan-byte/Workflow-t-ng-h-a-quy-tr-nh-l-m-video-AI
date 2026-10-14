@@ -431,7 +431,7 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
         if scores:
             mean = sum(s["score"] for s in scores) / len(scores)
             ui.html(ui.qc_bar(mean, proj["qc_auto_pass_threshold"]))
-        retake = "" if read_only else cost.image_button_tag(image_models.of_project(proj), 1, retake_conn=p.conn)   # S14.2 A2
+        retake = "" if read_only else cost.image_button_tag(image_models.of_project(proj), 1, retake_conn=p.conn, shot=True)   # S14.2 A2
         if read_only:
             if j["retry_reason"]:
                 st.caption(f"Lý do gen lại lúc đó: {j['retry_reason'][:160]}")
@@ -486,7 +486,7 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
 def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
     """`on_card` (UI v2): the review buttons and the reason inputs live on the picture's card, so this panel is the look-closer view."""
     jid, state = j["id"], j["state"]
-    retake = cost.image_button_tag(image_models.of_project(proj), 1, retake_conn=p.conn)   # S14.2 A2: one picture again
+    retake = cost.image_button_tag(image_models.of_project(proj), 1, retake_conn=p.conn, shot=True)   # S14.2 A2: one picture again
     with st.container(border=True):
         ui.html(ui.card_title(f"Chi tiết ảnh — {C.unit_label(p, j['project_id'], j['idx'])}", f"lần gen #{jid} · đã gen lại {j['retry_count']} lần"))
         ui.html(ui.state_badge(state))

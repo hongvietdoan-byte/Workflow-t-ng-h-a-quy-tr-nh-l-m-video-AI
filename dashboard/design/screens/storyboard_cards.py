@@ -225,7 +225,7 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
     jid, state = j["id"], j["state"]
     busy = state in ("queued", "running", "retryable")
     from core import image_models
-    retake = cost.image_button_tag(image_models.of_project(proj), 1, retake_conn=p.conn) if is_latest else ""   # S14.2 A2
+    retake = cost.image_button_tag(image_models.of_project(proj), 1, retake_conn=p.conn, shot=True) if is_latest else ""   # S14.2 A2
     with D.card(f"sb-{sid}"):
         img = C.job_image(pid, jid)
         if img and not busy:

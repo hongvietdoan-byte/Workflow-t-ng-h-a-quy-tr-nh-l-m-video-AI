@@ -92,7 +92,8 @@ def main(argv=None) -> int:
                 if not got:
                     rows.append({"shot": idx, "kind": kind, "skip": "runner không dựng prompt (thiếu ảnh duyệt / motion?)"})
                     continue
-                est = chat_prompt.estimate(p.conn, min(len(got["images"]), chat_prompt.MAX_IMAGES)) or 0.0
+                est = (chat_prompt.estimate(p.conn, min(len(got["images"]), chat_prompt.MAX_IMAGES)) or 0.0) \
+                    * (1 + chat_prompt.MAX_FIX_TURNS)          # 14/10: + the possible fix turn (high side)
                 total_est += est
                 row = {"shot": idx, "kind": kind, "job": job["id"], "old": got["assembled"], "images": [lab for lab, _ in got["images"]],
                        "est": est}
