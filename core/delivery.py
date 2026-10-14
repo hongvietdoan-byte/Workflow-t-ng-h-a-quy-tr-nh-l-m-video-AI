@@ -16,7 +16,7 @@ import threading
 import time
 from dataclasses import asdict
 from datetime import datetime, timezone
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 from . import audio_lib, diag, ffmpeg_studio, final_cut, formats, lineage, music, subtitles, text_placement, voice
 from .pipeline import Pipeline
@@ -408,6 +408,30 @@ def sound_plan(p: Pipeline, rows: List[Dict], durations: List[float], transition
 END_HOLD_S = 2.5
 
 
+def fit_music_to_film(track: str, need: float, work_dir: str) -> Tuple[str, Optional[Dict]]:
+    """14/10 (người dùng: nhạc "phải fit khớp với cả phim"): a single music shorter than the time it plays is made that long — its head,
+    copies of its middle, then its ORIGINAL ending (core/music_cues.extend_cmd, nối mềm) — instead of starting again from 0 s
+    (ffmpeg_studio.music_loops). Long enough → as it is (the render trims and fades it). Too short to join → the old loop, said.
+    Returns (path to use, {"level", "note", …} or None)."""
+    from . import music_cues
+    length = ffmpeg_studio.probe_duration(track)
+    if not length or length >= need - 0.5:
+        return track, None
+    os.makedirs(work_dir, exist_ok=True)
+    out = os.path.join(work_dir, "music_fit_film.wav")
+    cmd = music_cues.extend_cmd(track, length, need, out, ffmpeg_studio.find_ffmpeg())
+    if cmd is None:
+        return track, {"level": "warn", "extended": False, "from_s": round(length, 2), "need_s": round(need, 2),
+                       "note": f"nhạc {os.path.basename(track)} dài {length:.1f} s < phim {need:.1f} s, quá ngắn để kéo dài — lặp lại từ đầu như cũ"}
+    try:
+        ffmpeg_studio.run(cmd)
+    except Exception as e:  # noqa: BLE001 - the old loop beats no render; said
+        return track, {"level": "warn", "extended": False, "note": f"không kéo dài được nhạc ({str(e)[:150]}) — lặp lại từ đầu như cũ"}
+    return out, {"level": "info", "extended": True, "from_s": round(length, 2), "need_s": round(need, 2),
+                 "note": f"nhạc {os.path.basename(track)} dài {length:.1f} s → kéo dài vừa phim {need:.1f} s (giữ đoạn kết gốc, nối mềm "
+                         f"{music_cues.EXTEND_XFADE:g} s)"}
+
+
 def _hold_end(paths: List[str], durations: List[float], work_dir: str) -> Optional[Dict]:
     """Trial #8 (2026-09-28): the two closing shots were 1 s each, the ending flew by. With `end_hold` on, a last shot shorter than
     END_HOLD_S goes into the cut with its last frame held (copy; the original clip untouched). `paths` / `durations` change in place."""
@@ -731,6 +755,11 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         arc_info = {**(arc_info or {}), "enter": music_start, "tracks": [{"file": os.path.basename(t["path"]), "start": t["start"],
                                                                           "join": t["join"]} for t in later],
                     **({"bed_notes": bed_notes} if bed_notes else {})}
+    music_fill = None
+    if track and not track2 and not later:     # 14/10 người dùng: MỘT bài ngắn hơn phim → kéo dài vừa khít cả phim, không lặp từ 0 s
+        track, music_fill = fit_music_to_film(track, film_s - music_start, output_dir(data_dir, project_id))
+        if music_fill:
+            diag.record(p.conn, "music", music_fill["level"], music_fill["note"], "music_fill", project_id)
     # F3 / E1 (09/10): a clip smaller than the project frame (Seedance 2.0 720p → 1080×1920) is scaled up in the same ffmpeg pass
     # (lanczos + light unsharp, ffmpeg_studio.UPSCALE_FLAGS) — no AI step; a clip already at the frame size stays as it is
     upscale = {i for i, c in enumerate(paths) if frame and ffmpeg_studio.needs_upscale(c, frame)}
@@ -805,6 +834,8 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         manifest["sfx_placed"] = sfx_moved
     if breaths:
         manifest["music_breaths"] = breaths
+    if music_fill:
+        manifest["music_fill"] = music_fill
     if arc_info is not None:
         manifest["music_story_arc"] = arc_info
     elif later and not track and not track2:   # CHUAN luật 1: chosen tracks that could not be laid are said, not dropped in silence

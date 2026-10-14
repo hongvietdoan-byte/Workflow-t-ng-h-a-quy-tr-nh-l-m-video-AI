@@ -151,7 +151,8 @@ class TracksTests(unittest.TestCase):
             tr = delivery.music_tracks(p, self.dir, pid, dict(delivery.DEFAULTS), rows, [s[1] for s in shots])
             h = delivery.audio_hash(self.dir, pid)
         self.assertEqual(tr, [{"path": os.path.join(d, "dance.wav"), "start": 21.0, "join": "breath"}])   # not set by hand
-        self.assertNotEqual(h, delivery.audio_hash(self.dir, pid))      # the cues are in the hash only when they are used
+        with mock.patch.dict(os.environ, {"FEATURE_MUSIC_STORY_ARC": "0"}):   # 14/10: ON by default now — the OFF side said explicitly
+            self.assertNotEqual(h, delivery.audio_hash(self.dir, pid))  # the cues are in the hash only when they are used
 
 
 @unittest.skipUnless(shutil.which("ffmpeg") or os.environ.get("FFMPEG_PATH"), "cần ffmpeg")

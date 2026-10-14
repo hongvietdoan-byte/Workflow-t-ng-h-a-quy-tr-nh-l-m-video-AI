@@ -161,9 +161,9 @@ FEATURES: Dict[str, Dict] = {
         "label": "Nhạc nền theo đường cảm xúc cả truyện (N3): chặng mở đầu → căng → ngoặt → cao trào → kết, MỘT bản nhạc AI liền mạch "
                  "đổi chặng đúng giây bước ngoặt trên bản dựng; tách bài chỉ khi đổi chất liệu (bài gốc), nối mượt; điểm vào bài tự động; "
                  "ducking đều 8–12 dB",
-        "verified": False,
-        "why": "Người dùng chốt 08/10 (docs/THIET_KE_2_BAC_CHAT_LUONG_VA_NHAC_2026-10-08.md mục 3). Mới thử bằng tín hiệu tổng hợp "
-               "(ducking 8,3–11,7 dB với giọng −26…−14 dBFS); chưa gen nhạc thật theo brief chặng, chưa nghe bản dựng nhiều bài",
+        "verified": True,        # 14/10 người dùng: BẬT mặc định ("nhạc nền theo đoạn cảnh là MẶC ĐỊNH", TODO việc 13 ngày 07/10)
+        "why": "Người dùng chốt 08/10 (docs/THIET_KE_2_BAC_CHAT_LUONG_VA_NHAC_2026-10-08.md mục 3) và 14/10 cho bật mặc định. Mới thử bằng tín "
+               "hiệu tổng hợp (ducking 8,3–11,7 dB với giọng −26…−14 dBFS); nghe bản dựng nhiều bài thật lần đầu ở tập 2 #27",
     },
     "sound_intent": {
         "label": "Nhạc theo ý đồ âm thanh của Đạo diễn từng shot: tắt hẳn từ shot 'cut' tới shot 'in', lặng 0,6 s trước shot 'breath'",
