@@ -218,12 +218,14 @@ def _voices(pid: int):
     return st.session_state[key]
 
 
-def voice_preview_row(p: Pipeline, pid: int, name: str, voice_id, voice_name) -> None:
-    """🔈 Vietnamese sample sentence in the chosen voice (one short TTS — a little audio credit), to hear accent and tones."""
+def voice_preview_row(p: Pipeline, pid: int, name: str, voice_id, voice_name, speed=None) -> None:
+    """🔈 Vietnamese sample sentence in the chosen voice (one short TTS — a little audio credit), to hear accent and tones.
+    speed (14/10): the saved reading speed — a sample made at another speed is not shown as this one."""
     if not voice_id:
         return
     directory = voice.previews_dir(C.DATA, pid)
-    mine = [e for e in audio_lib.load(directory) if e.get("preview_for") == name and e.get("voice_id") == voice_id]
+    mine = [e for e in audio_lib.load(directory) if e.get("preview_for") == name and e.get("voice_id") == voice_id
+            and (e.get("speed") or None) == (speed or None)]
     b1, b2 = st.columns([1.4, 3], vertical_alignment="center")
     if b1.button("🔈 Nghe thử câu mẫu tiếng Việt" + budget.audio_tag(p.conn, 1, "eleven_v3"), key=f"vprev_{pid}_{name}", help="Tạo 1 câu mẫu bằng giọng này (tốn một chút credit âm thanh)."):
         try:
@@ -232,7 +234,7 @@ def voice_preview_row(p: Pipeline, pid: int, name: str, voice_id, voice_name) ->
             st.error(str(e))
             provider = None
         if provider is not None:
-            voice.preview(provider, C.DATA, pid, voice_id, voice_name or "", name, ledger=(p.conn, pid))
+            voice.preview(provider, C.DATA, pid, voice_id, voice_name or "", name, ledger=(p.conn, pid), speed=speed)
             st.rerun()
     if mine:
         e = mine[-1]
@@ -241,7 +243,8 @@ def voice_preview_row(p: Pipeline, pid: int, name: str, voice_id, voice_name) ->
                 provider = music.audio_provider()
                 if provider is not None:
                     audio_lib.refresh(provider, directory)
-                    e = [x for x in audio_lib.load(directory) if x.get("preview_for") == name and x.get("voice_id") == voice_id][-1]
+                    e = [x for x in audio_lib.load(directory) if x.get("preview_for") == name and x.get("voice_id") == voice_id
+                         and (x.get("speed") or None) == (speed or None)][-1]
             except ProviderError:
                 pass
         if e["state"] == "succeeded" and e.get("file"):
@@ -283,15 +286,25 @@ def character_detail_panel(p: Pipeline, pid: int, c, voices, client, locked: boo
             names = {v.get("id"): label(v) for v in ordered}
             names.update({v.get("id"): label(v) for v in voices if v.get("id") not in names})
             cur = prof.get("voice_id") if prof.get("voice_id") in ids else None
-            v1, v2 = st.columns([2, 3])
+            v1, v2, v3 = st.columns([2, 3, 1])
             pick = v1.selectbox("Giọng", ids, index=ids.index(cur), key=f"voice_{pid}_{c['name']}",
                                 format_func=lambda i: "— chưa chọn —" if i is None else f"{names.get(i)} (#{i})")
             persona = v2.text_input("Cách nói (persona)", prof.get("persona", ""), key=f"persona_{pid}_{c['name']}",
                                     placeholder="câu ngắn, hay cà khịa, nói 'nha'…")
-            if (pick, persona) != (cur, prof.get("persona", "")) and st.button("💾 Lưu giọng", key=f"voice_save_{pid}_{c['name']}"):
-                voice.set_profile(p.conn, pid, c["name"], voice_casting.saved_profile(prof, pick, names.get(pick), persona))   # S14.26: same voice keeps its variant
-                st.rerun()
-            voice_preview_row(p, pid, c["name"], cur, names.get(cur))
+            cur_speed = voice.profile_speed(prof) or voice.DEFAULT_SPEED      # 14/10: tốc độ đọc riêng của giọng (lời dẫn 1,2)
+            speed = v3.number_input("Tốc độ đọc", min_value=voice.SPEED_RANGE[0], max_value=voice.SPEED_RANGE[1],
+                                    value=float(cur_speed), step=0.05, format="%.2f", key=f"voice_speed_{pid}_{c['name']}",
+                                    help="ClipAI TTS nhận 0,7–1,2 (1,0 = mặc định của giọng). Đổi tốc độ → các câu đã đọc thành CŨ, "
+                                         "bấm 🎙 Tạo giọng ở Bước 3 để đọc lại (tốn credit âm thanh).")
+            changed = (pick, persona, round(speed, 3)) != (cur, prof.get("persona", ""), round(cur_speed, 3))
+            if changed and st.button("💾 Lưu giọng", key=f"voice_save_{pid}_{c['name']}"):
+                warns = voice.set_profile(p.conn, pid, c["name"], voice_casting.saved_profile(   # S14.26: same voice keeps its variant
+                    prof, pick, names.get(pick), persona, speed=round(speed, 3)))
+                for w in warns:                     # kẹp tốc độ: nói rõ (đã ghi diag VÀNG), không rerun để người dùng thấy
+                    st.warning(w)
+                if not warns:
+                    st.rerun()
+            voice_preview_row(p, pid, c["name"], cur, names.get(cur), speed=voice.profile_speed(prof))
         else:
             cap("Chưa có danh sách giọng (cần AUDIO_PROVIDER / Clip AI). Voice Design / Voice Clone chỉ có trên web ClipAI: tạo ở đó rồi chọn ở đây.")
         st.markdown("**🖼 Ảnh mốc** — ảnh tham chiếu bạn xác nhận là ĐÚNG nhân vật trước khi gen cả loạt")
