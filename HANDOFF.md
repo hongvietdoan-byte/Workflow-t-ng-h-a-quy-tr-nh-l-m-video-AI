@@ -1,0 +1,12 @@
+# Bàn giao Đ18.4a — 14/10/2026
+
+- Nhánh `codex/d18-viec4a-schema`, base `000c9e1f`; người dùng đã duyệt đề `64452104`, không hỏi lại.
+- Schema `core/stage_registry_schema.py`, resolver `core/stage_registry_resolver.py`, protocol `docs/STAGE_REGISTRY_A_PROTOCOL.md`; tất cả thuần, không I/O/caller/flags/store.
+- RÀ KỸ độc lập 7 nhóm sửa; root đọc sửa lần hai. RED module →29 xanh; reviewer RED10 →49 xanh; root malformed request RED2 và ID tràn SQLite RED1 → **53 passed/0,49s**. Lệnh hai file target với PYTHONUTF8=1, --tb=no, no cache. Tổng builder4 + reviewer3 + root4 lượt hẹp đã ghi RA, không nới/chạy rộng.
+- Snapshot pin lịch sử, scope/DAG/root/shot lineage, unknown/provenance/locks, canonical warnings đúng dependency, deepcopy, cache và work budget. `validate_registry` là cổng semantic bắt buộc cho 4b, không chỉ validate_bundle cấu trúc.
+- Code/test đăng ký areas, giữ version78. TODO ghi người dùng duyệt và kết quả trên nhánh; chưa gửi lên hòm thư main. Không gộp/pull/restart live/API/data thật.
+- Còn cả bộ Windows ở integration; chưa storage/ACL enforcement/migration/adapters/Editor/Camera/Blender/mesh/quality thật. Module chưa nối production, OFF không đổi caller cũ.
+- Bước kế **4b store transaction/CAS nhiều aggregate/ACL/audit/undo/outbox**, dùng schema A duy nhất; từ origin/main mới nhất, kiểm 4a đã main chưa. Nếu chưa, khai dependency commit/cherry-pick có chủ ý, tránh nhân đôi code; không tạo validator/registry khác. Mọi read snapshot trong read transaction/pinned revisions; mọi apply cần validate_registry + quyền/locks phía server. Không auto bootstrap khi OFF hoặc mở Dashboard.
+- Hạn mức lần đọc trước chốt: 81% ĐÃ DÙNG/19% còn khung5h, tuần78% đã dùng. 4b là việc lớn, không mở khi ngưỡng70–90% chỉ cho việc nhỏ; giữ lịch sau reset tự nhiên20:35:25, tiếp20:40 Asia/Saigon.
+- Worker portable/queue ngoài main là dependency4f, không benchmark lại. Anchor_by_spot GIỮ OFF, own_camera không neo; source A chưa hoàn chỉnh đến khi store/adapters được nghiệm thu.
+- An toàn mọi prompt/test: patch.object thay OBJECT os.environ bằng dict giả trước imports/calls/spawns, không patch.dict(clear=True); mock registry/credential/provider/model; native env whitelist, teardown thiếu/có; không đọc/in/assert/repr env/header/token/credential/payload bí mật. Pytest --tb=no, không showlocals/dump env; fake DB/DATA/assets/flags/credentials. Không API trả phí/data thật/dashboard.env/admin_auth/maintenance worker/main merge/live pull/restart.

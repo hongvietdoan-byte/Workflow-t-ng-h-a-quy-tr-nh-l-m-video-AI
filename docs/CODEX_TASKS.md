@@ -1241,7 +1241,7 @@ trạng thái (đã duyệt / chờ duyệt / chưa có ảnh — VÀNG như run
 change_review) — kiểm quyền sửa như các ô khác. Ảnh chụp 1440 + 1280.
 
 ## Việc 4 — (SAU khi người dùng duyệt việc 1) build phương án được chọn, sau cờ TẮT
-Đề bài chi tiết sẽ viết sau khi người dùng chốt. Không bắt đầu trước.
+Đề chi tiết [`DE_BAI_D18_VIEC4_REGISTRY_A_2026-10-14.md`](DE_BAI_D18_VIEC4_REGISTRY_A_2026-10-14.md), commit đề `64452104`, **đã được người dùng DUYỆT trong chat 14/10**. Bắt đầu 4a schema/validator/resolver; tiếp 4b store/CAS/ACL → 4c dry-run migration → 4d adapters → 4e callers/proposals → 4f Editor/Camera cùng A. Duyệt đề không cho phép API trả phí/migration dữ liệu thật; anchor_by_spot giữ TẮT.
 **[14/10 18:09, người dùng giao qua phiên cloud]:** người dùng đã chọn phương án A (13/10). Codex **VIẾT ĐỀ BÀI CHI TIẾT trước** (yêu cầu ở hộp
 thư `TODO.md` dòng [14/10 18:09]) → người dùng duyệt → mới build. Đây là chỗ nghẽn của Đ11 việc 3 (Trình sửa sân khấu + màn Camera trên Dashboard) và
 Đ11 việc 5. `anchor_by_spot` giữ TẮT (người dùng 14/10) — không thiết kế phụ thuộc vào nó.
@@ -1262,3 +1262,5 @@ thư `TODO.md` dòng [14/10 18:09]) → người dùng duyệt → mới build. 
 ## Bổ sung Kết quả Codex — đợt 11
 
 - 🟡 Việc1b · nhánh codex/d11-viec1b-doi-chieu · tài liệu63fb5000: mục9 đánhgiá đủ20dòng ClipAI + stage/segment/state và điểm nối code, khuyếnnghị mockupgọn9c. Root RÀNHẸ/đốichiếu sốdòng; docs-only khôngpytest/fakered. CHỜ người dùng chốt trước HTML/test/ảnh, chưa hoàn tất toàn việc. Không API/data/backend/TODO/PLAN/areas/main.
+
+- ✅ Việc 4a · nhánh `codex/d18-viec4a-schema`: schema/validator/resolver thuần + `docs/STAGE_REGISTRY_A_PROTOCOL.md`; người dùng đã duyệt đề `64452104`. ĐỎ module →29 xanh; RÀ KỸ độc lập 7 nhóm, RED10 →49 xanh; root rà lần hai, malformed request RED2 và ID tràn SQLite RED1 → **53 test xanh /0,49s**. Pin lịch sử exact, scope/DAG/lineage, semantic validate_registry, snapshot deepcopy/canonical dependency warnings/cache+work budget, unknown không measured. Hai module/test khai areas, version78 giữ. RA `docs/RA_D18_VIEC4A_CODEX_2026-10-14.md`. Chưa storage/ACL/migration/callers/UI/cờ, chưa data thật/model/API/cả bộ Windows/main/live. Kế:4b store/CAS/ACL theo đề đã duyệt, dependency4a đúng commit.
