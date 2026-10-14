@@ -132,11 +132,14 @@ def audio_hash(data_dir: str, project_id: int) -> str:
     """Music + every sound effect / voice line switched on for the mix, with their times and file dates."""
     track = selected_music(data_dir, project_id)
     extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))
+    from . import features as _features
+    bus = _features.on("mix_bus") and any(e.get("kind") == "sound_effect" for e in extras)   # C5b: on/off changes the mix
     stamp = lambda path: round(os.path.getmtime(path), 2) if path and os.path.exists(path) else None  # noqa: E731
     track2 = second_music(data_dir, project_id)
     return lineage.settings_hash({"music": [os.path.basename(track) if track else None, stamp(track)],
                                   "extras": [[os.path.basename(e["path"]), e["start"], e["volume"], stamp(e["path"])] for e in extras],
                                   **({"music2": [os.path.basename(track2), stamp(track2)]} if track2 else {}),
+                                  **({"mix_bus": 1} if bus else {}),
                                   **({"cues": [[c["file"], c.get("start"), c.get("join"), stamp(c["path"])] for c in cues]}
                                      if (cues := _arc_cues(data_dir, project_id)) else {})})   # N3: old hashes stay
 
@@ -210,9 +213,15 @@ def _locked(fn):
 
 
 def _render_hash(p, project_id, settings):
-    from . import shot_popup
+    from . import post_fx, shot_popup
+    extra = {}
     fingerprint = shot_popup.fingerprint(p, project_id)
-    return lineage.settings_hash({'render': render_hash(settings), 'shot_popup': fingerprint}) if fingerprint else render_hash(settings)
+    if fingerprint:
+        extra['shot_popup'] = fingerprint
+    effects = post_fx.fingerprint(p, project_id)      # Đ13v1 mục 4: post_fx / cờ post_fx_render đổi → bản dựng cũ (cờ TẮT: hash như trước)
+    if effects:
+        extra['post_fx'] = effects
+    return lineage.settings_hash({'render': render_hash(settings), **extra}) if extra else render_hash(settings)
 
 
 def final_manifest(p: Pipeline, project_id: int, data_dir: str, clip_paths: List[str], settings: Dict) -> Dict:
@@ -632,6 +641,9 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         diag.record(p.conn, "render", "info", "đã có giọng thoại TTS: tắt tiếng gốc của clip trong bản ghép (tránh 2 giọng chồng nhau)",
                     "clip_audio_muted", project_id)
     extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))
+    from . import features as _features
+    if _features.on("mix_bus"):               # C5b / Đ12v3 mục 2: the effects press the music on their own bus (ffmpeg_studio.DUCK_SFX)
+        extras = [dict(e, bus="sfx") if e.get("kind") == "sound_effect" else e for e in extras]
     lost_sounds = audio_lib.missing_in_mix(audio_lib.assets_dir(data_dir, project_id))
     if lost_sounds:                           # S14.4 C1b: never a video without a chosen sound and no word about it
         diag.record(p.conn, "render", "warn", f"bỏ {len(lost_sounds)} âm thanh đã bật nhưng mất file: {', '.join(lost_sounds[:5])}. "
@@ -644,9 +656,10 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     flashbacks = _flashbacks(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))
     edges = _edge_transitions(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_edges"), edits)
     durations = list(durations)
-    held = _hold_end(paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))   # after the voices are placed
+    # Đ13v1 mục 2: post_fx on the clip's OWN length, before the end hold — `vi_tri: cuoi` must not land on the held still frame
     from . import post_fx
     post_effects = post_fx.apply(p, rows, paths, durations, os.path.join(output_dir(data_dir, project_id), "_post_fx"))
+    held = _hold_end(paths, durations, os.path.join(output_dir(data_dir, project_id), "_flashback"))   # after the voices are placed
     for effect in post_effects:
         if effect["muc"] == "vang":
             diag.record(p.conn, "render", "warn", f"Shot {effect.get('idx')}: " + "; ".join(effect["reasons"]),
@@ -710,10 +723,14 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     elif later and track:                      # N3: N tracks laid into ONE bed — ducked, breathed and faded like a single music
         from . import music_cues
         bed = os.path.join(output_dir(data_dir, project_id), "_music_bed.wav")
-        music_cues.assemble([{"path": track, "start": music_start, "join": "enter"}] + later, film_s, bed)
+        bed_notes: List[str] = []
+        music_cues.assemble([{"path": track, "start": music_start, "join": "enter"}] + later, film_s, bed, bed_notes)
         track = bed
+        for note in bed_notes:                 # C5d: a short track is extended / a too-short one leaves silence — said, never quiet
+            diag.record(p.conn, "music", "info" if "kéo dài" in note else "warn", note, "music_bed_fill", project_id)
         arc_info = {**(arc_info or {}), "enter": music_start, "tracks": [{"file": os.path.basename(t["path"]), "start": t["start"],
-                                                                          "join": t["join"]} for t in later]}
+                                                                          "join": t["join"]} for t in later],
+                    **({"bed_notes": bed_notes} if bed_notes else {})}
     # F3 / E1 (09/10): a clip smaller than the project frame (Seedance 2.0 720p → 1080×1920) is scaled up in the same ffmpeg pass
     # (lanczos + light unsharp, ffmpeg_studio.UPSCALE_FLAGS) — no AI step; a clip already at the frame size stays as it is
     upscale = {i for i, c in enumerate(paths) if frame and ffmpeg_studio.needs_upscale(c, frame)}

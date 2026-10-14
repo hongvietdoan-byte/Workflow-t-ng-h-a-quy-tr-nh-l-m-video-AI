@@ -65,6 +65,25 @@ def _output_path(work_dir, sid, source, spec, seconds):
     return os.path.abspath(os.path.join(work_dir, f'post_fx_{int(sid)}_{key}.mp4'))
 
 
+def fingerprint(p, project_id):
+    """Đ13v1 mục 4: what the cut's post effects depend on — None when the flag is off or no shot asks for one (the render key stays
+    the old one); else the hash of every shot's `post_fx` (by shot number) + the filter version."""
+    if not features.on('post_fx_render'):
+        return None
+    items = []
+    for row in p.conn.execute('SELECT idx, data FROM scenes WHERE project_id=? ORDER BY idx', (project_id,)):
+        try:
+            data = json.loads(row['data'] or '{}')
+        except ValueError:
+            continue
+        if isinstance(data, dict) and 'post_fx' in data:
+            items.append([row['idx'], data['post_fx']])
+    if not items:
+        return None
+    blob = json.dumps({'version': 1, 'items': items}, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(blob.encode('utf-8')).hexdigest()[:16]
+
+
 def apply(p, rows, paths, durations, work_dir):
     """Đổi paths tại chỗ, không ghi đè clip gốc. Kết quả cho manifest/diag."""
     if not features.on('post_fx_render'):

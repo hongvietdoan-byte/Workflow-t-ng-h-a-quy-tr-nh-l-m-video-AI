@@ -185,7 +185,7 @@ def mix_list(directory: str) -> List[Dict]:
         name = e["file"]                       # F5-B: a ref-video sound stretched to its clip (core/ref_audio.fit) plays its fitted copy
         if e.get("fit_file") and os.path.exists(os.path.join(directory, e["fit_file"])):
             name = e["fit_file"]
-        out.append({"path": os.path.join(directory, name), "start": e["start"], "volume": volume})
+        out.append({"path": os.path.join(directory, name), "start": e["start"], "volume": volume, "kind": e["kind"]})
     return out
 
 

@@ -460,8 +460,20 @@ DUCK = "sidechaincompress=threshold=0.05:ratio=3:attack=20:release=400"
 DUCK_EVEN = "sidechaincompress=threshold=0.0034:ratio=1.4:attack=20:release=400"
 
 
+# C5b / Đ12v3 mục 2 (cờ mix_bus, 14/10) — the music under the SOUND EFFECTS bus: hits are short, so a faster attack / shorter release and
+# its own curve. Measured (music_cues.sfx_duck_depth: 0,2 s decaying white-noise hits every 0,5 s under the same two-tone pad): this
+# dips 8,5 / 9,5 / 10,6 / 11,5 / 11,9 dB for effects at −28 / −24 / −20 / −16 / −14 dBFS RMS; DUCK_EVEN (the voice curve) used on the
+# same hits only 6,3 / 7,4 / 8,6 / 9,7 / 10,7 dB at −30 / −26 / −22 / −18 / −14 — under 8 dB for every effect quieter than about −23.
+DUCK_SFX = "sidechaincompress=threshold=0.001:ratio=1.35:attack=5:release=300"
+
+
 def duck_filter() -> str:
     return DUCK_EVEN
+
+
+def e_bus(extra: dict) -> Optional[str]:
+    """The bus of one extra sound: "sfx" only when the caller marked it (core/delivery under the flag mix_bus); None = the voice bus."""
+    return extra.get("bus")
 
 
 def build_extras_mix_cmd(video: str, extras: Sequence[dict], output: str, has_audio: bool,
@@ -479,7 +491,22 @@ def build_extras_mix_cmd(video: str, extras: Sequence[dict], output: str, has_au
         parts.append(f"[{i + 1}:a]adelay={ms}|{ms},volume={float(e.get('volume', 1.0))}[e{i}]")
         labels.append(f"[e{i}]")
     keys = [i for i, e in enumerate(extras) if e.get("key", True)]
-    if duck and has_audio and keys:
+    hits = [i for i in keys if e_bus(extras[i]) == "sfx"]
+    if duck and has_audio and hits:
+        # C5b (cờ mix_bus): two buses press the music in series — the voices with the voice curve, the effects with DUCK_SFX; every
+        # key still plays at its own level in the mix
+        others = [i for i in range(len(extras)) if i not in keys]
+        voices = [i for i in keys if i not in hits]
+        src = "[0:a]"
+        if voices:
+            parts.append("".join(f"[e{i}]" for i in voices) + f"amix=inputs={len(voices)}:normalize=0:duration=longest,asplit=2[vk][vm]")
+            parts.append(f"[vk]apad[vkp];[0:a][vkp]{duck_filter()}[bv]")
+            src = "[bv]"
+        parts.append("".join(f"[e{i}]" for i in hits) + f"amix=inputs={len(hits)}:normalize=0:duration=longest,asplit=2[sk][sm]")
+        parts.append(f"[sk]apad[skp];{src}[skp]{DUCK_SFX}[bed]")
+        rest = ("[vm]" if voices else "") + "[sm]" + "".join(f"[e{i}]" for i in others)
+        parts.append(f"[bed]{rest}amix=inputs={1 + bool(voices) + 1 + len(others)}:normalize=0:duration=longest,{PEAK_LIMIT},apad[a]")
+    elif duck and has_audio and keys:
         # the user (2026-09-25) asked for music that follows the cut: the voices press the music bed ([0:a]) down while they speak.
         # An ambience bed (key False, GĐ4 D5) plays all the time — it must not hold the music down for the whole scene
         others = [i for i in range(len(extras)) if i not in keys]
@@ -793,10 +820,34 @@ def _render_steps(clips, output, durations, transition, fade, music, music_volum
         current = target
     if extras:
         try:
-            run(build_extras_mix_cmd(current, extras, output, has_audio=music is not None or keep_audio, ffmpeg=ffmpeg,
+            total = probe_duration(current) if len(extras) >= LEAF_FROM else None
+            laid = lay_extras(extras, total, output, ffmpeg, padded) if total else extras     # length unknown: the one graph as before
+            run(build_extras_mix_cmd(current, laid, output, has_audio=music is not None or keep_audio, ffmpeg=ffmpeg,
                                      duck=music is not None and not keep_audio))
         finally:
             os.remove(current)
+
+
+# C5c (lỗi 10 #27, 13/10): ONE ffmpeg graph with 29 inputs + asplit + adelay up to 83 s deadlocked (all CPU, no progress, the cut hung
+# at 10,4 s). From this many extra sounds each one is first written to its own WAV as long as the film with its delay inside, so the
+# final mix only gets inputs that all start at 0 (tools/experiments/p27_final_mix.py `_leaf`). Fewer sounds: the one graph as before.
+LEAF_FROM = 8
+
+
+def lay_extras(extras: Sequence[dict], total: float, output: str, ffmpeg: str, temp: List[str]) -> List[dict]:
+    """Each extra → `<output>.leaf<i>.wav` (resampled 48 kHz stereo, delayed by its start, its volume applied, padded / cut to
+    `total` s); returns the extras pointing at them with start 0 and volume 1 (key / bus kept). The files go into `temp` (removed by
+    the caller with the other temporary files)."""
+    out = []
+    for i, e in enumerate(extras):
+        ms = max(int(round(float(e.get("start", 0)) * 1000)), 0)
+        leaf = f"{output}.leaf{i}.wav"
+        temp.append(leaf)
+        run([ffmpeg, "-y", "-v", "error", "-i", e["path"], "-filter_complex",
+             f"[0:a]aresample=48000,aformat=channel_layouts=stereo,adelay={ms}|{ms},volume={float(e.get('volume', 1.0))},apad,"
+             f"atrim=0:{max(float(total), 0.01):.6f}[o]", "-map", "[o]", "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", leaf])
+        out.append(dict(e, path=leaf, start=0, volume=1.0))
+    return out
 
 
 _SIZE = re.compile(r",\s*(\d{2,5})x(\d{2,5})[\s,\[]")

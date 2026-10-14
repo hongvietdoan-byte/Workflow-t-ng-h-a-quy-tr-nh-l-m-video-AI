@@ -65,6 +65,11 @@ FEATURES: Dict[str, Dict] = {
     },
     "support_tickets": {"label": "Kho phiếu Tiểu Nhị / Lão Đại", "verified": False,
                         "why": "Đợt 9: chỉ thử CSDL tạm, chưa bật sản xuất"},
+    "mix_bus": {
+        "label": "Nhạc nén riêng dưới bus hiệu ứng (SFX) 8–12 dB (ffmpeg, 0 USD)",
+        "verified": False,
+        "why": "C5b / Đ12v3 mục 2 (14/10): đo trên tín hiệu tổng hợp; chưa nghe bản dựng thật.",
+    },
     "post_fx_render": {
         "label": "Hậu kỳ nhiễu sóng/glitch/nhấp nháy theo post_fx (ffmpeg, 0 USD)",
         "verified": False,
