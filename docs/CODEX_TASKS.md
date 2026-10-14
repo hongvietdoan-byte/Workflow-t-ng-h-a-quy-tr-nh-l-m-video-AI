@@ -1261,6 +1261,10 @@ thư `TODO.md` dòng [14/10 18:09]) → người dùng duyệt → mới build. 
 
 ## Bổ sung Kết quả Codex — đợt 11
 
+## Kết quả Codex — đợt 18, bổ sung 4b (14/10, nhánh riêng)
+
+`codex/d18-viec4b-store`, dependency 4a `23b9fa51` cherry-picked `50ccc97b`. Store explicit bootstrap, multihead CAS/transaction, ACL/scoping, append-only revision/audit, request replay, undo/unlock và outbox metadata. RÀ KỸ độc lập sửa gom; root đọc diff lần hai và bắt projected metadata bytes: **20 đỏ →113 xanh; 3 đỏ bổ sung →116 xanh/5,89s** (store/schema/resolver). Giữ areas version80, cờ OFF/OPT_IN_ONLY, chưa caller/migration/cả bộ Windows/main/live/API/dữ liệu thật. CHỜ mapping bộ dạng/pin ảnh/hash người dùng; look writes fail closed, asset_revision chưa backing physical version. RA `docs/RA_D18_VIEC4B_STORE_CODEX_2026-10-14.md`; kết quả chi tiết `docs/KET_QUA_CODEX_D18_VIEC4B_2026-10-14.md`.
+
 - 🟡 Việc1b · nhánh codex/d11-viec1b-doi-chieu · tài liệu63fb5000: mục9 đánhgiá đủ20dòng ClipAI + stage/segment/state và điểm nối code, khuyếnnghị mockupgọn9c. Root RÀNHẸ/đốichiếu sốdòng; docs-only khôngpytest/fakered. CHỜ người dùng chốt trước HTML/test/ảnh, chưa hoàn tất toàn việc. Không API/data/backend/TODO/PLAN/areas/main.
 
 - ✅ Việc 4a · nhánh `codex/d18-viec4a-schema`: schema/validator/resolver thuần + `docs/STAGE_REGISTRY_A_PROTOCOL.md`; người dùng đã duyệt đề `64452104`. ĐỎ module →29 xanh; RÀ KỸ độc lập 7 nhóm, RED10 →49 xanh; root rà lần hai, malformed request RED2 và ID tràn SQLite RED1 → **53 test xanh /0,49s**. Pin lịch sử exact, scope/DAG/lineage, semantic validate_registry, snapshot deepcopy/canonical dependency warnings/cache+work budget, unknown không measured. Hai module/test khai areas, version78 giữ. RA `docs/RA_D18_VIEC4A_CODEX_2026-10-14.md`. Chưa storage/ACL/migration/callers/UI/cờ, chưa data thật/model/API/cả bộ Windows/main/live. Kế:4b store/CAS/ACL theo đề đã duyệt, dependency4a đúng commit.

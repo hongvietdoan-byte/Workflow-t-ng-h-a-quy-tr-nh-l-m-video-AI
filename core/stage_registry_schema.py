@@ -107,7 +107,19 @@ def _validate_bundle(bundle, *, max_nodes, max_depth, max_string):
                 if not isinstance(row[key], dict): bad(p + "." + key, "type")
             if isinstance(row["_user_locked"], dict):
                 for j, (lock_path, lock) in enumerate(row["_user_locked"].items()):
-                    if not isinstance(lock_path, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[[0-9]{1,6}\])*", lock_path) or lock_path.split(".")[0] not in FIELDS[kind]: bad(p + "._user_locked", "field")
+                    if not isinstance(lock_path, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[[0-9]{1,6}\])*", lock_path) or re.split(r"[.\[]", lock_path)[0] not in FIELDS[kind]: bad(p + "._user_locked", "field")
+                    cursor=row
+                    valid_path=True
+                    if isinstance(lock_path,str):
+                        for field,index in re.findall(r"([A-Za-z_][A-Za-z0-9_]*)|\[([0-9]+)\]",lock_path):
+                            if field:
+                                if not isinstance(cursor,dict) or field not in cursor: valid_path=False; break
+                                cursor=cursor[field]
+                            else:
+                                if not isinstance(cursor,list) or int(index)>=len(cursor): valid_path=False; break
+                                cursor=cursor[int(index)]
+                    else: valid_path=False
+                    if not valid_path: bad(p + "._user_locked", "field")
                     lp = p + f"._user_locked[{j}]"
                     if shape(lock, {"author_id", "created_at_utc", "reason"}, set(), lp):
                         author(lock["author_id"], lp); utc(lock["created_at_utc"], lp)

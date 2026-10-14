@@ -151,3 +151,114 @@ Bằng chứng review target: 10 failed/29 passed (ĐỎ, 0,69s), sau sửa 39 p
 Một guard request-pin malformed được chuyển trước cache lookup sau lượt cuối;
 root cần xác nhận lại trong lượt kiểm phần sửa/integration. Chưa fullsuite,
 chưa dữ liệu thật, chưa chất lượng ảnh/video, chưa #24/#27 nghiệm thu.
+
+## Store transaction opt-in v1 (Đ18.4b, chưa gộp)
+
+`core.stage_registry_store.StageRegistryStore(p, opt_in=True)` mượn chính
+`p.conn` manifest server; danh tính lấy `p.user`, không nhận actor từ payload.
+Mỗi thao tác đọc lại `features.on("stage_registry_a")` và `opt_in is True`; mặc định OFF,
+OPT_IN_ONLY. Import/constructor/OFF không tạo bảng, không sửa PRAGMA/env/path.
+Không nối Pipeline.init/db.py/startup/UI/runner hoặc adapter/importer.
+
+`bootstrap(project_id)` là lệnh DDL rõ, cần cờ ON + opt-in + quyền edit dự án.
+Bảng prefix stage_registry_: schema v1, revisions, heads, requests, audit,
+outbox. DDL từng execute trong BEGIN IMMEDIATE, không executescript.
+Revisions PK(project_id,kind,id,revision); heads PK(project_id,kind,id).
+Triggers cấm UPDATE/DELETE revisions/audit/requests; không delete lịch sử.
+Schema khác phiên bản/cột/constraints hoặc missing/replaced/extra triggers trả lỗi rõ, không tự migration; chỉ nhận đúng DDL v1 đã bootstrap.
+Đây là guard service; không đổi chính sách SQLite toàn connection của caller.
+
+`apply(pid, [(kind,row),...], expected_revisions, request_id=..., reason=...)`:
+kind là tên collection số nhiều; expected map `(kind,id) -> revision|None`
+phải đúng toàn bộ head bị chạm. None dành aggregate mới revision 1.
+Server cấp revision N+1, parent N, author/time/reason; IDs caller cung cấp phải
+opaque hợp protocol. Không cấp lại ID theo idx/nhãn. BEGIN IMMEDIATE khóa ghi,
+kiểm ACL trong transaction rồi CAS toàn bộ, semantic validate_registry closure
+active heads + proposed rows + exact historical pins. Scene và asset dependencies
+của candidate live phải thuộc dự án/project_assets; asset private không khác dự án.
+Read lịch sử chỉ metadata, không đòi asset còn gắn với dự án hiện tại. Không fallback latest ref.
+Không sửa assets, không publish Kho, không actual submit/worker.
+
+Revision/head/audit/request/outbox cùng transaction; exception rollback toàn
+bộ. `_point(name)` là điểm monkeypatch test ở revision/head/audit/outbox/request, không payload; production không nhận runtime callback fault.
+Request unique(project,operation,request_id), hash JSON canonical bounded;
+exclude envelope actor/time/revision/parent/reason server từ hash, vẫn hash
+lý do command. Apply hash body caller đầy đủ; undo/unlock hash command keys,
+expected CAS, target/path và lý do, không hash body head được đọc lại. Retry recheck edit ACL; cùng actor/hash trả result lưu, khác
+actor/hash conflict. Operation apply/undo/unlock là namespace riêng.
+
+Connection đang có transaction ngoài: **write/bootstrap/ack từ chối rõ**,
+không commit/rollback pending writes caller. Reads dùng transaction đọc hiện
+có; nếu không có thì tạo transaction đọc cho cả lịch sử và resolve snapshot.
+Caller có trách nhiệm kết thúc transaction ngoài trước write và giữ connection
+chỉ cho một thread. Nhiều writer dùng connection riêng cùng SQLite file.
+
+`head/history/snapshot/request/audit/outbox` đều need_view và scope project.
+Snapshot nhận shot/state pin chính xác, mọi history pin giữ độc lập head mới.
+`ack(pid,event_id)` need_edit, event phải cùng project; ack lại idempotent.
+Outbox chỉ metadata invalidation cho future consumers, không gen/submit.
+
+Khóa workflow: apply giữ metadata lock và provenance hiện tại, cấm đổi map
+lock âm thầm; actual diff paths so cả ancestor/index với paths đã bảo vệ.
+`unlock(pid,kind,id,paths,expected_revision,request_id,reason)` cần edit dự án,
+phải chỉ rõ các path có khóa + lý do; tạo revision/audit. Watcher edit được
+mở khóa workflow; không được quản trị tài nguyên toàn Kho. Trusted-system
+`p.user=None` kế thừa access hiện có, **vẫn phải mở khóa rõ** khi muốn đổi field.
+`undo(...,target_revision,expected_revision,...)` tạo revision mới từ target,
+giữ khóa/provenance head hiện tại, actor/time server hiện tại; CAS và cùng
+cổng semantic/diff/ACL, không khôi phục author/time cũ hay xóa lịch sử.
+
+Giới hạn: preflight SQL COUNT/tổng bytes trước JSON decode; trần 5000 revision
+và 16 MB mỗi project, JSON 2 MB/payload, metadata 10000 dòng/16 MB. Store
+từ chối cả write nếu revision mới sẽ vượt trần đọc, không tạo head không đọc được.
+Chỉ materialize exact dependency closure, theo node/work budget 4a; chưa benchmark
+nhiều project. History/audit append-only không bị xóa để vượt giới hạn. Chưa migration/restore thật,
+chưa caller/provider thật, chưa fullsuite Windows, chưa chất lượng ảnh/video.
+
+
+## Sau RÀ KỸ store và sửa gom (14/10, chưa gộp)
+
+Lock path phải trỏ tới field/index thực sự có trong row; indexed lock chỉ chặn
+thay đổi tại index/ancestor liên quan, không chặn append sibling ngoài khóa.
+Lock mới được stamp author/time server; existing lock metadata giữ nguyên.
+Thêm/sửa khóa trên existing aggregate không có API ngầm; policy v1 chỉ unlock
+rõ bởi edit/owner/system được ACL hiện có cho phép, tạo revision/audit. Provenance
+existing giữ bất biến: payload khác bị từ chối, không silently drop.
+
+Head map phải phủ mọi aggregate, luôn ở revision lớn nhất; số revision liên tục
+1..N, body/PK/project/parent metadata phải khớp. Schema/triggers được so với DDL
+v1 canonical; không repair tự động trên read. JSON lưu từ chối duplicate keys,
+NaN/Infinity/Unicode lỗi. Request/audit/outbox kiểm result shape + project/operation
+và revision tồn tại, có budget trước decode; lỗi SQLite sanitize, rollback owned
+transaction, không rollback borrowed pending caller.
+
+Read head/snapshot/history chỉ tải closure được hỏi với exact pins và semantic
+validate; apply kiểm projected active-head closure và riêng candidate dependency
+closure cho live scene/assets. Asset từng gắn rồi detached không phá snapshot
+metadata cũ; candidate mới dùng source detached vẫn bị từ chối. Preflight và kiểm
+head integrity vẫn quét metadata lịch sử bounded; không hứa latency production
+vô hạn hoặc phân trang/archive tự động (giao thức tương lai riêng).
+
+**Domain Kho còn CHỜ:** repo assets chưa có backing revision store để chứng minh
+asset_revision là version bytes bất biến; service hiện chỉ kiểm asset identity,
+project ownership/attachment và pin metadata được khai báo. look_id không tự
+coi là assets.id hay asset_images.id: adapter bộ dạng/ảnh và pin/hash cần người
+dùng chốt. Đường write candidate có look_id explicit fail closed; pure 4a/history
+metadata vẫn giữ pin, không sinh entity Kho/migration. Không claim domain đã nghiệm
+thu hoặc đã khóa immutable source file từ bộ test fake.
+
+Bằng chứng reviewer: 1 collection error quote trong test đã sửa parameter SQL;
+**20 failed/84 passed (RED,4.13s) →113 passed (GREEN,4.44s)**, đúng 3 lượt target
+store+schema+resolver, --tb=no. Root đã xác nhận builder baseline 82 passed/1.94s.
+Không nới test: fault vẫn inject đủ 5 phase, đổi từ runtime callback sang monkeypatch.
+Cờ OFF/OPT_IN_ONLY; chưa caller/live/API/data thật/fullsuite. areas version 80 giữ.
+
+
+Root đọc fix lần2: projected metadata phải cộng cả result JSON mới và +1 count
+trong mỗi requests/audit/outbox **trước** INSERTrevision. Cùng transaction,
+fail closed nếu result sẽ vượt cap, không tạo revision khiến retry/read hỏng.
+Trần16MB metadata áp vào JSON result/payload; actor/time/reason còn có giới hạn
+chuỗi/row riêng, không claim toàn bộ DB/index footprint16MB. Ack kiểm SQLite int0/1.
+look_id None không là wire nullable: optional pair look_id/look_revision vẫn phải
+là số nguyên dương; gate chỉ thêm từ chối mapping chưa chốt cho valid look pin.
+Root cho thêm2lượt cho finding mới: 3 RED/1.39s → **116 GREEN/5.89s**, target3files.
