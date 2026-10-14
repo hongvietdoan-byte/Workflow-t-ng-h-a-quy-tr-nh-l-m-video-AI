@@ -806,6 +806,16 @@ def _director_references(conn, project_id: int) -> List[Tuple[str, str]]:
     return out
 
 
+def _pacing_check(p: Pipeline, project_id: int) -> None:
+    """14/10 nhịp nhanh: lời vs giây shot sau Đạo diễn (0 USD, diag vàng, không chặn). normal → không làm gì. A meter that fails is
+    said (CHUAN luật 1), never breaks the paid plan."""
+    from . import pacing
+    try:
+        pacing.check_plan(p, project_id)
+    except Exception as e:  # noqa: BLE001
+        diag.record(p.conn, "director", "warn", f"Kiểm nhịp nhanh không chạy được: {str(e)[:200]}", "pacing_check_error", project_id)
+
+
 @_diagnosed("director", lambda p, i: i)
 @_director_exclusive
 def run_director(p: Pipeline, project_id: int, client, resume: bool = False) -> Dict:
@@ -822,7 +832,9 @@ def run_director(p: Pipeline, project_id: int, client, resume: bool = False) -> 
                     + (" · Tên khớp nhiều tài nguyên hoặc là danh từ chung một chữ (vd \"mũ\"), cần chọn tay ở Bước 1 🧰: " + ", ".join(auto["ambiguous"]) if auto["ambiguous"] else ""),
                     "auto_attach", project_id)
     if director_two_pass.enabled(p.project(project_id)):
-        return director_two_pass.run(p, project_id, client, resume=resume)
+        res = director_two_pass.run(p, project_id, client, resume=resume)
+        _pacing_check(p, project_id)
+        return res
     refs = _director_references(p.conn, project_id)
     diag.record(p.conn, "director", "info", f"Director xem {len(refs)} ảnh nhân vật/thú cưng: "
                 + (", ".join(label.split("—", 1)[-1].strip(" :") for label, _ in refs) or "không có (nhân vật không gắn tài nguyên)"),
@@ -841,6 +853,7 @@ def run_director(p: Pipeline, project_id: int, client, resume: bool = False) -> 
         p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))   # paid for: kept even if saving fails
         llm_io.store_scene_analysis(p, project_id, obj)
     director_two_pass.forget(p, project_id)       # a stored two-pass intent no longer matches this plan ("↻ Chia shot lại" must not use it)
+    _pacing_check(p, project_id)
     return {"characters": len(obj["characters"]), "scenes": len(obj["scenes"]), "input_tokens": tin,
             "output_tokens": tout, "ip_risk_notes": obj.get("ip_risk_notes") or []}
 
@@ -854,7 +867,9 @@ def run_director_scene(p: Pipeline, project_id: int, scene_idx: int, client, not
     access.need_edit(p, project_id, "chia shot lại")
     from . import director_two_pass, shots
     if director_two_pass.enabled(p.project(project_id)) and director_two_pass.load_raw(p, project_id).get("done"):
-        return director_two_pass.replan_scene(p, project_id, scene_idx, client, note)   # GĐ5: the DP re-splits from the stored intent
+        res = director_two_pass.replan_scene(p, project_id, scene_idx, client, note)   # GĐ5: the DP re-splits from the stored intent
+        _pacing_check(p, project_id)
+        return res
     raw = json.loads(p.project(project_id)["director_raw"] or "{}")
     if not raw.get("scenes") or raw.get("truncated"):
         raise LlmError("chưa có kế hoạch Director đầy đủ để chia lại một cảnh — chạy Director cho cả kịch bản trước", code="config")
@@ -881,6 +896,7 @@ def run_director_scene(p: Pipeline, project_id: int, scene_idx: int, client, not
     with director_lease.writing():
         n = shots.replace_from(p, project_id, obj["scenes"], scene_idx)
         p.set_project_field(project_id, "director_raw", json.dumps(obj, ensure_ascii=False))
+    _pacing_check(p, project_id)
     return {"scene": scene_idx, "rows": n, "input_tokens": tin, "output_tokens": tout, "normalized": obj.get("normalized") or []}
 
 

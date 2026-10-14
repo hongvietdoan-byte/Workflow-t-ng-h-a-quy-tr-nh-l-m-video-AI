@@ -203,6 +203,9 @@ def build_prompt(conn, pid: int, state: Dict, turn: int, wish: str = "") -> str:
     tb = trend_block(conn, inp.get("trend", "off"))
     if tb:
         parts.append(tb)
+    from . import pacing
+    if pacing.project_fast(conn, pid):                  # 14/10 nhịp nhanh (projects.pacing='fast'); normal → không thêm gì (prompt y cũ)
+        parts.append(pacing.screenwriter_block({"pacing": "fast"}))
     from . import knowledge
     kelly = knowledge.kelly_blocks("screenwriter")      # S14.34 (flag kelly_knowledge): suggestions only; off → [] → prompt byte-identical
     if kelly:

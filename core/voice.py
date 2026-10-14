@@ -407,8 +407,9 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
     shifts = {int(k): float(v.get("shift") or 0) for k, v in lipsync.index(data_dir, project_id).items() if v.get("state") == "done"}
     leads = {int(k): float((v.get("offsets") or [LEAD])[0]) for k, v in lipsync.index(data_dir, project_id).items()   # where the line
              if v.get("state") == "done"}                                                                   # really is in the clip
-    from . import features
+    from . import features, pacing
     j_cut = features.on("j_cut")
+    fast = pacing.project_fast(conn, project_id)       # 14/10 nhịp nhanh: câu sau ngay sau câu trước (≤ 0,25 s), gối qua cú cắt
     t, placed, prev_end, prev_speaker = 0.0, 0, -1.0, None
     for clip in clips:
         length = clip.get("_seconds") or final_cut.clip_seconds(clip["path"], clip["requested_sec"])
@@ -420,6 +421,8 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
         if (j_cut and lines and t > 0 and clip.get("scene_id") not in synced and prev_speaker
                 and (lines[0].get("speaker") or "") != prev_speaker):
             cursor = max(t - J_LEAD, prev_end + GAP)          # never over the previous line's real audio
+        if fast and lines and clip.get("scene_id") not in synced:
+            cursor = pacing.line_start(t, prev_end, cursor)
         for e in lines:
             e.update(start=round(cursor, 2), use=True)
             cursor += (e.get("duration_ms") or 0) / 1000.0 + GAP
@@ -468,8 +471,12 @@ def timeline_extras(conn, project_id: int, data_dir: str, scene_seconds_list) ->
     directory = audio_lib.assets_dir(data_dir, project_id)
     items = [e for _, e in _line_items(directory) if e["state"] == "succeeded" and e.get("file")]
     out, t, prev_end = [], 0.0, -1.0
+    from . import pacing
+    fast = pacing.project_fast(conn, project_id)       # 14/10: the same lines as the final render (place_on_timeline)
     for sid, seconds in scene_seconds_list:
         cursor = max(t + LEAD, prev_end + GAP)
+        if fast and any(e.get("scene_id") == sid for e in items):
+            cursor = pacing.line_start(t, prev_end, cursor)
         for e in sorted([e for e in items if e.get("scene_id") == sid], key=lambda e: e.get("line") or 0):
             path = os.path.join(directory, e["file"])
             if os.path.exists(path):

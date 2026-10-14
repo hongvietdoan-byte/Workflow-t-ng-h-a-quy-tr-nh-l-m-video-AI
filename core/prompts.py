@@ -4,7 +4,7 @@ import os
 import re
 from typing import List, Optional
 
-from . import assets, dialogue, knowledge, looks, prompt_formula
+from . import assets, dialogue, knowledge, looks, pacing, prompt_formula
 from .evalset import few_shot_text
 from .pipeline import Pipeline
 
@@ -277,6 +277,7 @@ def build_director_bundle(pipeline: Pipeline, project_id: int, only_scene: Optio
         knowledge.genre_text(proj["genre"] if "genre" in proj.keys() else None),
         shot_style_block(proj) if shots.mode(proj) else "",
         duration_block(pipeline, project_id) if shots.mode(proj) else "",
+        pacing.director_block(proj),              # 14/10 nhịp nhanh (projects.pacing='fast'); normal → "" (prompt y cũ)
         *crew,
         *knowledge.murch_blocks("director"),      # S14.20: Murch scale + sound method (flag murch_knowledge, off → nothing)
         *knowledge.kelly_blocks("director"),      # S14.34: Kelly suggestions (flag kelly_knowledge, off → nothing)
@@ -369,6 +370,7 @@ def build_intent_bundle(pipeline: Pipeline, project_id: int) -> str:
         keep("genre_guides.md"),
         knowledge.genre_text(proj["genre"] if "genre" in proj.keys() else None),
         intent_frame_block(pipeline, project_id),
+        pacing.director_block(proj),              # 14/10 nhịp nhanh; normal → ""
         *method,
         *knowledge.murch_blocks("director"),      # S14.20 (flag murch_knowledge): the Director writes intent + sound here
         *knowledge.kelly_blocks("director"),      # S14.34 (flag kelly_knowledge)
@@ -417,6 +419,7 @@ def dp_common(pipeline: Pipeline, project_id: int, intent: dict) -> str:
         *knowledge.kelly_blocks("dp"),             # S14.34 (flag kelly_knowledge, off → nothing)
         *knowledge.kld_blocks("dp"),               # KLD-14 (flag kld_lessons_prompts, off → nothing)
         duration_block(pipeline, project_id, for_dp=True),
+        pacing.director_block(proj),              # 14/10 nhịp nhanh; normal → ""
         _location_block(pipeline, project_id),
         _read("knowledge", "reference_assets_prompting.md"),   # 30/09: model per reference job, limits, 3 people in one shot
         ff,

@@ -656,6 +656,13 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
     problems = final_cut.render_problems(durations, settings["transition"], settings["fade"])
     if problems:
         raise ValueError("; ".join(problems))
+    from . import pacing                 # 14/10 nhịp nhanh: lặng cuối shot có lời > 0,5 s bị cắt (bản sao qua _fit_edits); normal → y cũ
+    mine = set((edits or {}).get("fit") or []) | set((edits or {}).get("head") or {}) | set((edits or {}).get("cut") or {})
+    durations, paced = pacing.tighten(p.conn, project_id, data_dir, rows, durations, keep=mine)
+    if paced:
+        edits = dict(edits or {}, fit=sorted(set((edits or {}).get("fit") or []) | {c["scene_id"] for c in paced}))
+        diag.record(p.conn, "render", "info", f"Nhịp nhanh: cắt lặng cuối {len(paced)} shot có lời (≤ {pacing.FAST_TAIL_MAX:g} s sau câu cuối): "
+                    + ", ".join(f"#{c['idx']} {c['from_s']:g}→{c['to_s']:g} s" for c in paced[:8]), "pacing_tail_cut", project_id)
     placed = voice.place_on_timeline(p.conn, project_id, data_dir, settings["transition"], settings["fade"], paths, durations)
     from . import sfx_plan               # AI effects follow their shot (trial #8: a gunshot 20 s early after clips were remade)
     sfx_moved = sfx_plan.place_on_timeline(data_dir, project_id, rows, durations, settings["transition"], settings["fade"])
@@ -820,6 +827,8 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         manifest["upscale"] = {"to": list(frame), "how": f"ffmpeg {ffmpeg_studio.UPSCALE_FLAGS} + unsharp "
                                                          f"{ffmpeg_studio.UNSHARP_SIZE}x{ffmpeg_studio.UNSHARP_SIZE}:{ffmpeg_studio.UNSHARP_AMOUNT}"}
     manifest["color_match"] = colour
+    if paced:
+        manifest["pacing_fast"] = {"tail_cut": paced, "line_gap_s": pacing.FAST_LINE_GAP, "j_max_s": pacing.FAST_J_MAX}
     if post_effects:
         manifest["post_fx"] = post_effects
     if flashbacks:
