@@ -177,7 +177,7 @@ def main():
         for it in location_pack.plan(conn, a.project):
             print(f"shot {it['idx']:>3} · {it['place']} · {location_pack.layout_words(it)} · "
                   f"cách {it['distance_m']} m · ống {it['camera']['lens']} mm · ô nhân vật {it['subject_box']}"
-                  + "".join(f" · ⚠ {it[k]}" for k in ("weather_problem", "spot_problem", "view_problem", "light_problem") if it.get(k))
+                  + "".join(f" · ⚠ {it[k]}" for k in ("weather_problem", "spot_problem", "view_problem", "light_problem", "travel_problem") if it.get(k))
                   + (f" · ⛔ {it['needs']}" if it.get("needs") else ""))
         return
     if a.cmd == "camera-plan":

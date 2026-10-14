@@ -375,10 +375,25 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
     aspect = resolution[0] / resolution[1]
     views = {s["id"]: plate_choice.view_of(s["entry"], spot_for(s["entry"], s["data"]), s["data"]) for s in shots}
     by_setup = camera_plan.enabled()                    # G0: the Director's set-ups share one camera (flag off: the old grouping)
+    # 14/10 #30 (cờ travel_truth): a shot whose character runs A→B with a leading / following camera gets its camera ON the run
+    # (core/travel_truth.camera_route = the one source of A, B; plate_camera.travel_camera); no route / not said → as before
+    from . import travel_truth
+    travel_on = travel_truth.enabled()
+    routes: Dict[int, Optional[Dict]] = {}
+    for s in shots if travel_on else []:
+        try:
+            routes[s["id"]] = travel_truth.camera_route(conn, pid, s["id"], s["data"])
+        except Exception as e:  # noqa: BLE001 - said (travel_problem), the camera stays as before
+            routes[s["id"]] = {"problem": f"không tính được đường chạy: {type(e).__name__}: {e} — máy 3D giữ chỗ cũ"}
+
+    def travel_of(s):
+        r = routes.get(s["id"])
+        return {"mode": r["mode"], "a": r["a"]["at"], "b": r["b"]["at"]} if r and r.get("mode") else None
+
     cams = plate_camera.plan_cameras(
         shots, lambda s: ((spot_for(s["entry"], s["data"])["at"]), views[s["id"]]["facing_deg"]),
         lambda s: _height(conn, pid, s["data"]), aspect, setup_field=camera_plan.SETUP_FIELD if by_setup else None,
-        stage_field=plate_camera.STAGE_FIELD if features.on("stage_camera") else None)
+        stage_field=plate_camera.STAGE_FIELD if features.on("stage_camera") else None, travel_of=travel_of if travel_on else None)
     first_of = {f"shot_{s['id']}": s for s in shots}
     out = []
     for s in shots:
@@ -406,16 +421,45 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
         wide_cam = plate_camera.wide_for(camera, height, aspect, cam.get("frame_h_m"))
         wide = {"camera": wide_cam, "key": cache_key(s["entry"], wide_cam, env, resolution),
                 "why": {"wide": f"cùng hướng + độ nghiêng với máy shot, lùi dọc trục, ống {wide_cam['lens']:g} mm (F2)"}}
-        out.append({"camera_fixes": list(cam.get("fixes") or []), "camera_problem": cam.get("problem"), "wide": wide,
+        needs, travel_problem = view["needs"], None
+        if travel_on:
+            needs, travel_problem = _travel_checks(conn, pid, s, cam, camera, view, routes.get(s["id"]), needs)
+        out.append({"travel_problem": travel_problem,"camera_fixes": list(cam.get("fixes") or []), "camera_problem": cam.get("problem"), "wide": wide,
                     "camera_why": dict(cam.get("why") or {}, **({"shared_with": cam["shared_with"]} if cam.get("shared_with") else {})),
                     "horizon_y": cam.get("horizon_y"),
                     "scene_id": s["id"], "idx": s["idx"], "place": s["place"]["name"], "entry": s["entry"], "camera": camera, "env": env,
                     "subject_box": cam["subject_box"], "distance_m": cam["distance_m"], "spot": sp["name"],
                     "key": cache_key(s["entry"], camera, env, resolution), "weather_problem": plate_env.weather_of(s["data"])[1],
                     "spot_problem": spot_problem(s["entry"], s["data"]), "view": view, "view_problem": view["problem"],
-                    "needs": view["needs"], "lights": lit["lights"], "lights_decided": lit["decided"],
+                    "needs": needs, "lights": lit["lights"], "lights_decided": lit["decided"],
                     "light_problem": lit["problem"]})
     return out
+
+
+TRAVEL_VIEW_MAX_DEG = 60.0     # plate_view ↔ máy đặt theo đường chạy lệch hơn mức này = trái nhau (như plate_choice._contradicts_why)
+
+
+def _travel_checks(conn, pid: int, s: Dict, cam: Dict, camera: Dict, view: Dict, route: Optional[Dict], needs: Optional[str]):
+    """(needs, travel_problem) of a shot when the flag travel_truth is on (14/10 #30):
+    - the camera placed on the run must agree with the shot's `plate_view` (both say what is behind the character): off by more than
+      TRAVEL_VIEW_MAX_DEG → `needs` (the plate waits; plate_choice.view_of blocks a contradicting reason the same way);
+    - (c) the shot's words vs the planned camera (travel_truth.for_shot on THIS camera): a sure contradiction → `needs`;
+    - a run said with no usable route / two meanings → travel_problem (VÀNG, the camera as before)."""
+    from . import plate_choice, travel_truth
+    problem = (route or {}).get("problem")
+    if route and route.get("mode") and not cam.get("travel"):
+        problem = "điểm đi và điểm đến trùng nhau trên mặt đất — máy 3D giữ chỗ cũ, không đặt theo đường chạy"
+    if cam.get("travel") and view.get("source") == "script" and not needs:
+        look = plate_choice.bearing(camera["location"], camera["look_at"])
+        off = abs((float(view["background_deg"]) - look + 180) % 360 - 180) if look is not None else 0.0
+        if off > TRAVEL_VIEW_MAX_DEG:
+            mode = "lùi trước mặt nhân vật, nhìn về điểm đi" if cam["travel"]["mode"] == "lead" else "bám sau lưng, nhìn về điểm đến"
+            needs = (f"hướng nền `plate_view` '{view['view']}' ({view['background_deg']:g}°) trái máy đặt theo đường chạy (máy {mode}: nền "
+                     f"{look:g}°, lệch {off:.0f}°) — sửa `plate_view.background` cho khớp hướng chạy (hoặc camera_move) rồi chạy lại; nền chưa render")
+    if not needs:
+        got = travel_truth.for_shot(conn, pid, s["id"], s["data"], {"camera_plan": camera})
+        needs = got.get("needs")
+    return needs, problem
 
 
 def layout_words(it: Dict) -> str:

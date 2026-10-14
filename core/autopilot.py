@@ -646,6 +646,8 @@ def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             _d(p, pid, "image", "warn", f"shot {it['idx']}: {it['view_problem']}", "plate_view")
         if it.get("light_problem"):
             _d(p, pid, "image", "warn", f"shot {it['idx']}: {it['light_problem']}", "practical_lights")
+        if it.get("travel_problem"):                      # 14/10 #30: máy theo đường chạy không đặt được — máy như cũ, nói rõ
+            _d(p, pid, "image", "warn", f"shot {it['idx']}: {it['travel_problem']}", "travel_truth")
     idx = location_pack.index(ctx.data_dir, pid)
     if not all(str(it["scene_id"]) in idx and idx[str(it["scene_id"])].get("key") == it["key"] for it in items):   # failed ones included
         for sid, item in place_refs.stale(p.conn, ctx.data_dir, pid, (w, h)).items():   # KLD-6: said before the old record goes
