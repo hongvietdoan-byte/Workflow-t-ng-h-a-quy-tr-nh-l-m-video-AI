@@ -1,6 +1,7 @@
 # Việc giao Codex (nhánh riêng) — 10/10/2026
 
 ## Kết quả bổ sung — hiệu năng Bàn đạo diễn (người dùng giao 14/10)
+- Bổ sung BURSTnative20/30:20jobdone130,104s;30producer nhận25/từchối5/done25 trong159,766s,queue24pending+1running.45clay4views/46ownedrootkếtthúc/2queueclosed;waitp95 115,578/148,402s. Artifacts/docs `BENCH_BLENDER_BURST_2026-10-14.md`, khôngproduction/codebehaviorchange; RÀNHẸ vàregisterprobeassetsversion74. Chưafullpipeline/maxhardware/đaUI/cảbộ. Đ11v4chủthể/cuốiđãpushriêng972c6744,87qua/2PNG,adapterA cònchờ.
 - Commit portable và native benchmark: `149d65f6` đã push codex/ban-dao-dien-hieu-nang. Đ12v3 nguồn/đoạn/tốc độ đã push riêng codex/d12-viec3-ref-audio: `4a52a772` + fix giao thức `2808cfe0`. Cả hai chưa gộp main/cả bộ Windows/bật sản xuất.
 
 - Cập nhật portable: người dùng duyệt Blender5.0.1 private; SHA256/version verified, worker ON ưu tiên portable tại admin/plates/clay, OFF legacy giữ. Rà3finding sửa gom; ĐỎ4→XANH129qua/1skip. Native thật1/5/10 dự án,16/16job clay4views,7,283/24,801/53,488s;17ownedroot dừng và3queueclosed. Đề xuất ban đầu5active/một renderer,10cóqueuewaitp95 48,458s; chưa giới hạn fullpipeline/cả bộWindows/production. Báo cáo `docs/BENCH_BLENDER_PORTABLE_2026-10-14.md`; nhánh codex/ban-dao-dien-hieu-nang, cờOFF, areas74 giữ.
