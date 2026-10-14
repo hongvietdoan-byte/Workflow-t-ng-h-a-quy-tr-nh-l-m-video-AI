@@ -429,7 +429,9 @@ FEATURES: Dict[str, Dict] = {
     },
     "change_review_motion": {
         "label": "Tổ rà soát rà cả lần SỬA MOTION PROMPT (Bước 3 / viết lại): mục Claude cũ của shot được rà lại theo bản mới (đúng → tự "
-                 "đóng, hết giữ gen); mỗi lần sửa một lời gọi Claude qua sổ chi như thay đổi shot",
+                 "đóng, hết giữ gen); mỗi lần sửa một lời gọi Claude qua sổ chi như thay đổi shot. C1 (14/10): cả bản motion Đạo diễn TỰ viết "
+                 "lại trước lần gen lại cũng được rà NGAY tại chỗ — xanh gửi luôn (không chờ vòng nền), ĐỎ khâu motion/video → viết lại "
+                 "thêm một lần rồi mới giữ; không có Claude → chỉ luật code, không giữ",
         "verified": False,
         "why": "Rà chuỗi 13/10 C4 (#27 shot 16): sửa motion prompt không sinh thay đổi → mục đỏ khâu motion cũ giữ gen mãi tới khi bấm tay. "
                "TỐN TIỀN khi bật: thêm lời gọi Claude mỗi lần prompt đổi; thử CSDL tạm + Claude giả, chưa chạy thật",

@@ -410,6 +410,51 @@ def _group_by_scene(conn, rows, states) -> List[Tuple[Dict, List[int]]]:
     return out
 
 
+def _review_group(conn, data_dir: str, ev, ids: List[int], client, res: Dict) -> None:
+    """Rà MỘT nhóm thay đổi (một shot, hoặc một thay đổi Kho): lọc → luật code → agent Claude (nếu có client). Không ném lỗi.
+    Dùng chung cho vòng nền (process_pending) và rà ngay tại chỗ (review_scene_now — C1 rà soát 14/10)."""
+    mark = f"id IN ({','.join('?' * len(ids))})"
+    try:
+        before, after = _loads(ev["before"]), _loads(ev["after"])
+        if ev["kind"] in SHOT_KINDS:
+            keys = changed_keys(before, after, list(WATCH))
+        elif ev["kind"] == "asset":
+            keys = changed_keys(before, after, ASSET_WATCH)
+        else:
+            keys = ["anh_kho"]
+        if not keys:
+            if ev["kind"] in SHOT_KINDS and ev.get("had_code_only"):    # đổi rồi hoàn tác: mục code cũ của shot kề tự đóng
+                code_rules(conn, data_dir, ev["id"], affected_scenes(conn, ev))
+            conn.execute(f"UPDATE change_events SET state='skipped', reviewed_at=? WHERE {mark}", (_now(), *ids))
+            res["skipped"] += len(ids)
+            conn.commit()
+            return
+        scene_ids = affected_scenes(conn, ev)
+        if ev["state"] == "pending":
+            code_rules(conn, data_dir, ev["id"], scene_ids)
+        from . import change_audit
+        usd = 0.0
+        if client is not None and scene_ids:
+            by_pid: Dict[int, List[int]] = {}
+            for sid in scene_ids:
+                by_pid.setdefault(_project_of(conn, sid) or 0, []).append(sid)
+            for pid_, sids in by_pid.items():             # mỗi dự án một lời gọi (idx shot chỉ có nghĩa trong một dự án)
+                code_found = [f for sid in sids[:12] for f in change_audit.audit_shot(conn, data_dir, pid_, sid)]
+                usd += claude_review(conn, ev, keys, sids, code_found, client)
+        conn.execute(f"UPDATE change_events SET state=?, keys=?, reviewed_at=? WHERE {mark}",
+                     ("reviewed" if client is not None or not scene_ids else "code_only", json.dumps(keys), _now(), *ids))
+        conn.execute("UPDATE change_events SET cost_usd=cost_usd+? WHERE id=?", (usd, ev["id"]))   # tiền vào lần ghi cuối
+        res["reviewed"] += len(ids)
+        res["usd"] += usd
+    except Exception as e:  # noqa: BLE001 - one change's problem never stops the others (said)
+        conn.execute(f"UPDATE change_events SET state='failed', note=?, reviewed_at=? WHERE {mark}",
+                     (f"{type(e).__name__}: {e}"[:400], _now(), *ids))
+        diag.record(conn, "system", "warn", f"Rà soát thay đổi #{ev['id']} lỗi: {type(e).__name__}: {e}", "change_review_fail",
+                    ev["project_id"])
+        res["failed"] += len(ids)
+    conn.commit()
+
+
 def process_pending(conn, data_dir: str, client=None, limit: int = ROUND_LIMIT, log: Callable[[str], None] = lambda m: None,
                     budget_s: float = ROUND_SECONDS) -> Dict:
     """Một lượt worker: mỗi thay đổi đang chờ → lọc → luật code → agent Claude (nếu bật + có client). Không bao giờ ném lỗi.
@@ -429,49 +474,25 @@ def process_pending(conn, data_dir: str, client=None, limit: int = ROUND_LIMIT, 
     for ev, ids in _group_by_scene(conn, rows, states):
         if time.time() - t0 > budget_s:
             break
-        mark = f"id IN ({','.join('?' * len(ids))})"
-        try:
-            before, after = _loads(ev["before"]), _loads(ev["after"])
-            if ev["kind"] in SHOT_KINDS:
-                keys = changed_keys(before, after, list(WATCH))
-            elif ev["kind"] == "asset":
-                keys = changed_keys(before, after, ASSET_WATCH)
-            else:
-                keys = ["anh_kho"]
-            if not keys:
-                if ev["kind"] in SHOT_KINDS and ev.get("had_code_only"):    # đổi rồi hoàn tác: mục code cũ của shot kề tự đóng
-                    code_rules(conn, data_dir, ev["id"], affected_scenes(conn, ev))
-                conn.execute(f"UPDATE change_events SET state='skipped', reviewed_at=? WHERE {mark}", (_now(), *ids))
-                res["skipped"] += len(ids)
-                conn.commit()
-                continue
-            scene_ids = affected_scenes(conn, ev)
-            if ev["state"] == "pending":
-                code_rules(conn, data_dir, ev["id"], scene_ids)
-            from . import change_audit
-            usd = 0.0
-            if client is not None and scene_ids:
-                by_pid: Dict[int, List[int]] = {}
-                for sid in scene_ids:
-                    by_pid.setdefault(_project_of(conn, sid) or 0, []).append(sid)
-                for pid_, sids in by_pid.items():             # mỗi dự án một lời gọi (idx shot chỉ có nghĩa trong một dự án)
-                    code_found = [f for sid in sids[:12] for f in change_audit.audit_shot(conn, data_dir, pid_, sid)]
-                    usd += claude_review(conn, ev, keys, sids, code_found, client)
-            conn.execute(f"UPDATE change_events SET state=?, keys=?, reviewed_at=? WHERE {mark}",
-                         ("reviewed" if client is not None or not scene_ids else "code_only", json.dumps(keys), _now(), *ids))
-            conn.execute("UPDATE change_events SET cost_usd=cost_usd+? WHERE id=?", (usd, ev["id"]))   # tiền vào lần ghi cuối
-            res["reviewed"] += len(ids)
-            res["usd"] += usd
-        except Exception as e:  # noqa: BLE001 - one change's problem never stops the others (said)
-            conn.execute(f"UPDATE change_events SET state='failed', note=?, reviewed_at=? WHERE {mark}",
-                         (f"{type(e).__name__}: {e}"[:400], _now(), *ids))
-            diag.record(conn, "system", "warn", f"Rà soát thay đổi #{ev['id']} lỗi: {type(e).__name__}: {e}", "change_review_fail",
-                        ev["project_id"])
-            res["failed"] += len(ids)
-        conn.commit()
+        _review_group(conn, data_dir, ev, ids, client, res)
     conn.execute("DELETE FROM change_events WHERE state<>'pending' AND reviewed_at < ?",
                  (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - KEEP_DAYS * 86400)),))
     conn.commit()
+    return res
+
+
+def review_scene_now(conn, data_dir: str, scene_id: int, client=None) -> Dict:
+    """C1 (rà soát R14, người dùng 14/10): rà NGAY TẠI CHỖ mọi thay đổi đang chờ của MỘT shot (bản motion máy tự viết lại trước lần gen
+    lại) thay vì để vòng nền rà sau — lần gen lại không bị `blocking()` giữ một vòng nền. Cùng đường rà với vòng nền (_review_group:
+    lọc → luật code → Claude qua sổ chi). client None → chỉ luật code, thay đổi thành 'code_only' (không giữ gen; vòng nền có Claude
+    rà sau). Không bao giờ ném lỗi."""
+    res = {"skipped": 0, "reviewed": 0, "failed": 0, "usd": 0.0}
+    states = ("pending", "code_only") if client is not None else ("pending",)
+    q = ','.join('?' * len(states))
+    rows = conn.execute(f"SELECT * FROM change_events WHERE kind IN ('scene', 'motion') AND scene_id=? AND state IN ({q}) "
+                        f"ORDER BY id LIMIT 1", (scene_id, *states)).fetchall()
+    for ev, ids in _group_by_scene(conn, rows, states):
+        _review_group(conn, data_dir, ev, ids, client, res)
     return res
 
 

@@ -22,7 +22,7 @@
 Luật: `docs/CLOUD_TASKS.md` (hỏi credit trước mỗi việc, dừng cứng $90, không Agent con, test đỏ→xanh, không sửa TODO trong nhánh
 việc — phiên điều phối cập nhật). Mỗi việc thêm cờ mới thì TẮT mặc định trừ khi ghi rõ dưới.
 
-### C1 · R14 tối ưu + bật `change_review_motion` (≈ $8–15)
+### C1 · R14 tối ưu + bật `change_review_motion` (≈ $8–15) — ✅ XONG 14/10 04:23 (xem dòng hộp thư)
 - **Hiện trạng:** `core/prompt_rewrite.py::save_rewrite` (≈ dòng 366–390) đánh `skipped` mọi sự kiện `change_events` kind `motion`
   vừa sinh khi Đạo diễn tự viết lại motion trước lần gen lại (R14 mặc định "không rà"). Nếu cho rà theo đường thường, sự kiện đi
   vào hàng chờ `core/change_review.py::process_pending` (vòng nền) → `blocking()` giữ CHÍNH lần gen lại tới vòng nền sau (chậm,
