@@ -522,7 +522,7 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
         if quality_ui.enabled():
             quality_ui.card_block(p, pid, j["scene_id"], runner, line=line)
         from dashboard import end_frame_ui                # C5 (13/10): khung cuối — xem, lý do gửi thiếu, vẽ / vẽ lại có giá
-        end_frame_ui.card_block(p, pid, j["scene_id"], act)
+        end_frame_ui.card_block(p, pid, j["scene_id"], act, runner)
         _clip_view(p, pid, j, clip)           # 09/10: khung phát + chip v1 v2 — một fragment (bấm chip không chạy lại cả trang)
         mp = p.conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (j["scene_id"],)).fetchone()
         st.markdown(V.meta_line(model_router.job_label(p.conn, jid, j["model"]) if j["model"] else None, mp["duration_sec"] if mp else None, price, j["retry_count"], current=bool(j["model"])), unsafe_allow_html=True)

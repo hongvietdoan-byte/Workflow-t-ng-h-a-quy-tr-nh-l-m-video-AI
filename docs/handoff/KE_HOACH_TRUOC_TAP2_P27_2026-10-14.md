@@ -53,7 +53,7 @@ việc — phiên điều phối cập nhật). Mỗi việc thêm cờ mới th
 - File: `core/inbox.py` (`items` dòng ≈ 70, `_video_waits` ≈ 35), `core/change_review.py`, `core/takes.py`, thẻ dự án
   `dashboard/design/screens/`. Test trên CSDL tạm dựng lại đúng các ca trên.
 
-### C3 · Nút "▶ Gửi clip KHÔNG kèm khung cuối" khi autopilot dừng (≈ $5–8)
+### C3 · Nút "▶ Gửi clip KHÔNG kèm khung cuối" khi autopilot dừng (≈ $5–8) — ✅ XONG 14/10 (`end_frames.send_without`, xem dòng hộp thư)
 - Hiện: S3/S4 không vẽ khung cuối cho shot chắc chắn bỏ + giữ clip thiếu khung cuối kèm lý do; khi autopilot đã dừng thì người dùng
   không có cách gửi clip bỏ khung cuối. Thêm nút trên thẻ Bước 4 (có ước tính giá trên nút, ghi lý do vào `job_events`, chỉ người
   có quyền tiền), đi cùng đường gửi hiện có (`runner._end_frame` cho phép "người chọn bỏ khung cuối").

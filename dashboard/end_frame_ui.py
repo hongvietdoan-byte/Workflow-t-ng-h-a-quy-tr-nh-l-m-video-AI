@@ -16,7 +16,7 @@ NO_START = "chưa có ảnh khung đầu đã duyệt"
 NO_BUTTON = (DRAWING, NO_START, end_frames.SKILL_SKIP)
 
 
-def card_block(p, pid: int, scene_id: int, act) -> None:
+def card_block(p, pid: int, scene_id: int, act, runner=None) -> None:
     """Nothing when the feature is off or the shot needs no end frame."""
     if not end_frames.enabled():
         return
@@ -33,6 +33,7 @@ def card_block(p, pid: int, scene_id: int, act) -> None:
             st.image(path, caption="🏁 Khung cuối gửi kèm clip", width=180)
     if why:
         st.caption(f"🏁 Khung cuối: {why}" + ("" if why == DRAWING else " — clip gửi KHÔNG kèm khung cuối"))
+    _send_without(p, pid, scene_id, act, runner)
     if why in NO_BUTTON:
         return
     try:
@@ -42,6 +43,26 @@ def card_block(p, pid: int, scene_id: int, act) -> None:
     label = ("🔁 Vẽ lại khung cuối" if path else "🖼 Vẽ khung cuối") + tag
     if st.button(label, key=f"efr_{scene_id}", help="Vẽ 1 ảnh khung cuối cùng khung / ánh sáng với ảnh đầu, đúng end_state của shot"):
         act(lambda: end_frames.redo(p, scene_id))
+        st.rerun()
+
+
+def _send_without(p, pid: int, scene_id: int, act, runner) -> None:
+    """C3 (người dùng 14/10): the clip waits for an end frame nobody draws now (the automatic run stopped) — the person may send it
+    without one. Price of the clip on the button; the reason goes to the clip's history (core/end_frames.send_without)."""
+    from dashboard import common as C
+    if C.read_only(p, pid) or not end_frames.held_without_autopilot(p.conn, scene_id):
+        return
+    try:
+        tag = cost.price_tag(cost.clip_estimate(p.conn, scene_id))
+    except Exception:  # noqa: BLE001 - an estimate never hides the button; the money gate still checks at sending
+        tag = " · chưa ước được giá"
+    if st.button("▶ Gửi clip KHÔNG kèm khung cuối" + tag, key=f"efoff_{scene_id}",
+                 help="Chạy tự động đã dừng nên không ai vẽ khung cuối: gửi clip ngay, cảnh kết theo prompt (không theo end_state vẽ). "
+                      "Muốn có khung cuối thì bấm “🖼 Vẽ khung cuối” thay vì nút này."):
+        who = (C.me().get("email") or None) if C.auth_on() else None
+        done = {}
+        if act(lambda: done.setdefault("jobs", end_frames.send_without(p, scene_id, who))) and done.get("jobs") and runner is not None:
+            act(lambda: runner.submit_pending(pid, only=done["jobs"]))
         st.rerun()
 
 
