@@ -125,7 +125,9 @@ def table_to_paragraphs(rows: List[List[str]], start: int = 1, label: str = "") 
                 cur["desc"].extend(_lines(desc))
             if talk:
                 for line in _lines(talk):
-                    if re.match(r"^\s*[^\W\d_][^:\n]{0,28}:\s*\S", line):
+                    tag = re.match(r"^\s*([^\W\d_][^:\n]{0,28}):\s*\S", line)
+                    # a narration column: only a CAPITALS tag ("KELLY:", "LỜI DẪN:") names a speaker — "Bốn đối thủ ập tới: …" is narration
+                    if tag and (said_by != "LỜI DẪN" or tag.group(1).strip() == tag.group(1).strip().upper()):
                         cur["talk"].append(line)
                     else:
                         cur["talk"].append(f"{(who or said_by).strip().upper()}: {line}")
