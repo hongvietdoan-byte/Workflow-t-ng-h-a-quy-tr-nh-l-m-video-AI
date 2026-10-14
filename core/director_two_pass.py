@@ -100,6 +100,8 @@ def validate_intent(pipeline: Pipeline, project_id: int) -> Callable[[Any], Dict
                 for key in INTENT_KEYS + ("duration_s",):     # a scene's seconds are `target_s` here (may pass 30 s)
                     sc.pop(key, None)
         llm_io.validate_scene_analysis(probe)
+        for sc, cleaned in zip(obj["scenes"], probe["scenes"]):          # the cast as code wrote it (Bible spelling)
+            sc["characters"] = cleaned["characters"]
         for c, cleaned in zip(obj["characters"], probe["characters"]):   # the lock as code cleaned it (list -> text)
             if "lock" in cleaned:
                 c["lock"] = cleaned["lock"]
@@ -124,6 +126,7 @@ def validate_intent(pipeline: Pipeline, project_id: int) -> Callable[[Any], Dict
                 raise SchemaError(f"{w}.target_s: số giây của cảnh (1–{TARGET_MAX}), bắt buộc")
             focus = sc.get("focus")
             if focus not in (None, ""):
+                focus = sc["focus"] = llm_io.bible_name(focus, names)
                 if not isinstance(focus, str) or focus not in names:
                     raise SchemaError(f"{w}.focus: '{focus}' không có trong Character Bible")
             peak = sc.get("peak")

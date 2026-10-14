@@ -34,6 +34,15 @@ def _load(data: Any) -> Dict:
     return obj
 
 
+def bible_name(name: Any, names) -> Any:
+    """The Character Bible's spelling of a model-written name that differs only in case / spaces ('Kelly' → 'KELLY'); anything else
+    as given (still checked against the Bible by the caller). #30 14/10: a case-only miss sent the whole Director answer back (~0,3 USD)."""
+    if not isinstance(name, str) or name in names:
+        return name
+    hits = [n for n in names if n.strip().casefold() == name.strip().casefold()]
+    return hits[0] if len(hits) == 1 else name
+
+
 GENRES = {"SHORT_FORM": "Video ngắn mạng xã hội", "COMMERCIAL": "Quảng cáo / trailer", "CINEMA_DRAMA": "Phim / kịch tính",
           "MUSIC_VIDEO": "Music video", "ANIMATION": "Hoạt hình"}
 SHOT_ROLES = ("hero", "normal", "transition")
@@ -78,7 +87,8 @@ def validate_scene_analysis(data: Any) -> Dict:
         if "difficulty" in s:                            # N2: never refused — a misspelt / wrong-typed label is read as "unknown"
             from .shot_complexity import clean_label
             s["difficulty"] = clean_label(s["difficulty"])
-        for name in _req(s, "characters", list, w):
+        s["characters"] = [bible_name(n, names) for n in _req(s, "characters", list, w)]
+        for name in s["characters"]:
             if name not in names:
                 raise SchemaError(f"{w}.characters: '{name}' không có trong Character Bible")
         if s.get("shots") is not None:                  # v3: the scene split into shots (core.shots)

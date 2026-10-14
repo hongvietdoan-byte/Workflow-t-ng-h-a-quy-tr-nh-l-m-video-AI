@@ -127,6 +127,9 @@ def validate(shots: Any, where: str, names) -> None:
         if setup is not None and (not isinstance(setup, str) or not 1 <= len(setup.strip()) <= 3):
             raise ShotError(f"{w}.camera_setup: chữ cái ngắn (A, B, C…)")
         chars = s.get("characters") or []
+        if isinstance(chars, list) and chars:
+            from .llm_io import bible_name
+            chars = s["characters"] = [bible_name(c, names) for c in chars]
         if not isinstance(chars, list) or any(c not in names for c in chars):
             raise ShotError(f"{w}.characters: chỉ dùng tên trong Character Bible")
         lines = s.get("dialogue") or []

@@ -283,6 +283,16 @@ class SafeguardTests(unittest.TestCase):
         with self.assertRaises(SchemaError):                              # the single call's cast check, reused
             self.check(stray)
 
+    def test_a_name_differing_only_in_case_is_the_bible_name_not_a_retry(self):
+        """#30 14/10: focus 'Kelly' vs Bible 'KELLY' made Claude answer the whole intent again (~0,3 USD) — code writes the Bible name."""
+        name = self.intent["characters"][0]["name"]
+        ok = copy.deepcopy(self.intent)
+        ok["scenes"][0]["focus"] = " " + name.lower()
+        ok["scenes"][0]["characters"] = [name.lower()]
+        got = self.check(ok)["scenes"][0]
+        self.assertEqual(got["focus"], name)
+        self.assertEqual(got["characters"], [name])
+
     def test_tier_b_lines_must_be_exactly_the_kept_lines_and_enums_are_normalised(self):
         sc = self.check(self.intent)["scenes"][0]
         names = {c["name"] for c in self.intent["characters"]}
