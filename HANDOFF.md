@@ -15,3 +15,10 @@ Bước kế: bên tích hợp rà/chạy cả bộ -n8 trước gộp; không c
 - Không đổi picker/SFX/TTS/mix/runtime; chưa thử Kho #24, chưa nguyên nhân thực hay nguồn tệp đã duyệt.
 - Bước kế root RÀ NHẸ + push nhánh; trước gộp chạy cả bộ Windows theo related_areas.
 - Không push/main/TODO/PLAN/live trong phiên con; người dùng duyệt trước tải.
+# Bàn giao Đ13 việc 3
+
+- DONE ba mục mockup, nhánh `codex/d13-viec3-mockup-pet`, base `1cb845b2`.
+- Chi tiết đỏ/xanh và tự rà: `docs/RA_D13_VIEC3_CODEX_2026-10-13.md`.
+- Nhóm liên quan: 7 passed /9,75s; browser 1440/1280 offline, slow.
+- Không API/dữ liệu thật/backend/tickets/TODO/PLAN/main/push; areas giữ version72, test nằm sẵn dashboard_ui.
+- Bước kế root: rà nhẹ diff/test/PNG; cả bộ Windows trước gộp, test slow theo related_areas.
