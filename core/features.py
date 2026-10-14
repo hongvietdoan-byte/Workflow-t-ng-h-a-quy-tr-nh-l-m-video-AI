@@ -72,6 +72,14 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Người dùng 14/10 (docs/DANH_GIA_VAI_DAO_DIEN_2026-10-14.md mục 3b–3c): chưa thí điểm — chạy tools/d6_pilot.py trên 3–5 shot #27 trước",
     },
+    "motion_prose": {
+        "label": "Prompt video viết bằng code (khi D6 tắt / vượt trần / bị chặn): diễn xuất thành câu kể thay vì nhãn rời "
+                 "'Acting — face: …', máy 'track' nói rõ chiều (lùi trước mặt / bám sau lưng) khi chữ shot cho biết (0 USD)",
+        "verified": False,
+        "why": "Thử D6 14/10 #28 (code ghép) vs #29 (Claude viết): shot 1 chạy cầu thang flow 5,8 vs 13,0; B viết máy 'tracks backward "
+               "holding the same distance' + diễn xuất liền câu. #29 shot 3–4 rơi về code ghép (chat_prompt_cap) cũng gần đứng hình. "
+               "Mới kiểm bằng test + dựng lại chữ từ scenes.data thật, chưa gen thật",
+    },
     "side_truth": {
         "label": "Trái/phải: kịch bản ghi 'bên trái/phải' (của nhân vật) + shot ghi rõ máy sau lưng / trước mặt → code quy đổi sang "
                  "FRAME-LEFT / FRAME-RIGHT và chèn một câu vào prompt ảnh + video; không chắc hướng máy / nhiều nhân vật → VÀNG, "

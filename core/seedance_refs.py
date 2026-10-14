@@ -1144,6 +1144,14 @@ def shot_motion(data: Dict, voice: bool = False, humans: Optional[Dict[str, bool
         acting = soften(acting)            # Seedance 2.5 guide: over-strong emotion words make eyes glow — milder word, plain eyes
     guard = eyes_guard(data, humans) if acting and (perf.get("intensity", 0) >= 4) else ""
     move = str(data.get("camera_move") or "static").replace("_", " ")
+    from . import motion_prose
+    prose = motion_prose.enabled()       # thử D6 14/10: diễn xuất thành câu kể + máy track nói chiều (cờ tắt: chữ cũ từng byte)
+    if prose:
+        who = motion_prose.who_of([ascii_name(str(n)) for n in data.get("characters") or []])
+        keys = ("body", "timing") if all_back else ("face", "eyes", "body", "timing")
+        soft = perf.get("intensity", 0) >= 4 or data.get("size") in ("CU", "ECU")
+        told = motion_prose.acting_sentence(who, {k: (soften(str(perf[k])) if soft else str(perf[k])) for k in keys if perf.get(k)})
+        move = motion_prose.camera_phrase(data, who) or move
     framing = _framing(data)
     action = str(_en(data, "action") or "").strip().rstrip(".")
     end = str(_en(data, "end_state") or "").strip().rstrip(".")
@@ -1160,7 +1168,7 @@ def shot_motion(data: Dict, voice: bool = False, humans: Optional[Dict[str, bool
                  if back else "")
     keep_state = state_sentences(data) if state_lock_on() else ""   # V10: the state written in words wins over the identity picture
     return (start + (f"{action}. " if action else "") + (f"It ends with {end}. " if end else "")
-            + (f"Acting — {acting}.{guard} " if acting else "") + keep_back + (f"{keep_state} " if keep_state else "")
+            + ((f"{told}{guard} " if told else "") if prose else (f"Acting — {acting}.{guard} " if acting else "")) + keep_back + (f"{keep_state} " if keep_state else "")
             + (f"{talk} " if talk else "") + (f"{ambient} " if ambient else "") + f"{camera} " + (body or "")).strip()
 
 

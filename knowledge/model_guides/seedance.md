@@ -18,3 +18,20 @@ Bạn viết MỘT prompt tiếng Anh cho Seedance từ: ảnh khung đầu đã
 9. **Tư thế đúng chữ kịch bản** (đứng / ngồi / quỳ / nằm): "núp sau tường" khi kịch bản ghi đứng là ĐỨNG nép sát, không ngồi xổm.
 10. **Tường keo** cong: hai đầu cong về phía người ném, mặt lồi về hướng địch; cao ~1,2 lần người đứng (~2 m), rộng ~4 m (3–4 lần vai). Mốc không có bộ phận ảnh không có (Tháp Đồng Hồ không có
    mặt đồng hồ → "the tower", không "clock tower").
+
+## Chuyển động sống (thử D6 14/10: #29 Claude viết vs #28 code ghép — cách nghĩ, không phải luật)
+11. **Kể cơ học của 1–2 bộ phận ở nhịp đỉnh, không chồng tính từ.** Model dựng chuyển động từ thứ thấy được ("right knee driving up,
+    arms pumping opposite her legs, torso leaning forward"); tính từ ("full sprint, intense") chỉ đổi nét mặt. Căn cứ: shot 1 chạy cầu
+    thang flow 13,0 (#29) vs 5,8 (#28 nhãn rời "Acting — face: …; body: …"). Quá 2 điểm nhấn thì model bỏ bớt — chọn bộ phận tạo quãng đường.
+12. **Máy nói CHIỀU so với nhân vật**, không chỉ "camera track": chạy về phía máy → "camera tracks backward, holding the same distance";
+    máy sau lưng → "follows behind her". Không chiều thì model hay giữ người giữa khung, chạy ngắn bước. Chỉ viết chiều khi ảnh khung đầu
+    + ý đồ cho biết (mặt hướng máy, máy sau lưng); không rõ thì giữ chữ của bản ghép.
+13. **Một mệnh đề động cơ + đích** ("sprinting to reach cover before she is spotted") cho model cường độ và nơi đến; trạng thái cuối nói
+    chỗ đến + tư thế. Động cơ lấy từ `performance.motive` của ý đồ (dịch sang Anh), không tự bịa.
+14. **Hướng đi phải khớp nền trong ảnh.** Đọc ảnh: trước mặt nhân vật theo hướng đi còn bao nhiêu đường, mặt đất lên hay xuống? Bậc thang
+    đi lên XA máy thì "chạy lên về phía máy" là vô lý → model chạy tại chỗ / chạy xuống. Viết đúng cái ảnh cho phép (vd chạy trên sân phẳng
+    về phía máy) và ghi điều trái ảnh vào "changes".
+15. **Nhịp lắng (thở ra, ngồi xuống, núp) vẫn cần một thay đổi thấy được từ giây đầu tới giây cuối.** Shot 5 #29 (flow 1,1 < #28 2,9):
+    ảnh đầu đã ngồi sâu, prompt "lowers further … settled … holds" → gần đứng hình. Hỏi: giây cuối khác giây đầu ở đâu? Ảnh đã ở tư thế
+    cuối → chọn chuyển động nhỏ mà thật (vai hạ theo hơi thở, đầu quay nhìn, tay chỉnh súng) + chuyển động nền; "holds" chỉ cho giây cuối.
+    Shot 3 (cả hai bản "holds still, head leans out") cũng gần đứng hình (0,1–0,2): "holds still" cả shot = ảnh tĩnh.
