@@ -11,6 +11,7 @@ FEATURES: Dict[str, Dict] = {
                            'why':'Đ11v2: chưa nghiệm thu ảnh Kho thật'},
     'director_blockout': {'label':'Đạo diễn khai sơ đồ khối (Claude, cần báo giá)', 'verified':False,
                          'why':'Đ11v2: dữ liệu giả, tối đa hai lượt sửa; chưa thử sản xuất'},
+    "continuity_from_ui": {"label": "Ô giữ bố cục theo shot (0 USD)", "verified": False, "why": "Đ18 việc 3: kiểm dữ liệu giả, chưa thử sản xuất"},
     'shot_popup': {'label': 'Popup icon cuối từng shot (0 USD)', 'verified': False,
                    'why': 'Đ17 việc 2: clip/ảnh/âm thanh cục bộ, chưa thử sản xuất'},
     "package_overrides": {
@@ -684,7 +685,7 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
 HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
-OPT_IN_ONLY: tuple = ("motion_sfx", "anchor_by_spot", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc")
+OPT_IN_ONLY: tuple = ("motion_sfx", "anchor_by_spot", "continuity_from_ui", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc")
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.

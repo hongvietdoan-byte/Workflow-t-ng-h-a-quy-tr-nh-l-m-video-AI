@@ -423,6 +423,8 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
         flag = " " + ui.badge("⚠ cần xem", "b-warn") if j["escalated"] else ""
         old = " " + ui.stale_badge(stale_reason) if stale_reason and state == "approved" else ""
         ui.html(f'<div class="cardhead"><b>{C.unit_label(p, j["project_id"], j["idx"])}</b><span class="grow"></span>{ui.state_badge(state)}{flag}{old}</div>')
+        from dashboard import continuity_ui
+        continuity_ui.render(p, pid, j["idx"], "step2", read_only=read_only)
         if scores:
             mean = sum(s["score"] for s in scores) / len(scores)
             ui.html(ui.qc_bar(mean, proj["qc_auto_pass_threshold"]))
