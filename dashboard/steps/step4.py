@@ -542,7 +542,8 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
                    "Bị bộ lọc nội dung chặn: gen lại nguyên prompt sẽ lại bị chặn và tốn credit — sửa motion prompt trước.\n\n"
                    + str(blocked["error_message"] or ""), f"vid-{jid}-blk")
         if state == "pending_review":
-            st.text_input("Câu sửa cho lần gen lại (nên viết tiếng Anh)", key=f"vnote_{jid}")
+            from core import chat_prompt                 # D6: người dùng chỉ mô tả (cờ chat_prompts)
+            st.text_input(chat_prompt.note_label("Câu sửa cho lần gen lại (nên viết tiếng Anh)"), key=f"vnote_{jid}")
         vfix = ""
         input_note = p.failure_note(jid) if state == "failed" else None
         from core import quality_tier as _qt

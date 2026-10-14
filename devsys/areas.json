@@ -1,5 +1,5 @@
 {
-  "version": 75,
+  "version": 76,
   "updated": "2026-10-14",
   "_note": "Bản đồ hệ thống của AI Development System. Mỗi file .py dưới core/ và dashboard/ phải thuộc ít nhất một khu vực (thiếu = cảnh báo). 'code' / 'assets' / 'docs' là mẫu đường dẫn (fnmatch, '*' khớp cả '/'). 'tests' thêm tay ngoài các test tự dò theo import. 'flags' = tên trong core/features.py. 'diag_stages' = stage của bảng diag_events. 'ops_stages' (S14.10 Đợt 6b) = khâu của góp ý người dùng / số đo hiệu quả vận hành (core/feedback.STAGES: director, image, motion, audio, render, ui). 'keywords' dùng để gán dòng TODO.md vào khu vực (không phân biệt hoa thường). Sửa file này khi thêm module mới rồi tăng 'version'.",
   "scan_roots": ["core", "dashboard"],
@@ -176,11 +176,11 @@
       "name": "Lõi pipeline & nhà cung cấp",
       "weight": 1.0,
       "description": "CSDL, trạng thái job, vòng gửi/nhận job, giới hạn đồng thời, adapter nhà cung cấp, dấu vân tay ⚠ cũ, thùng rác, khung hình, cờ tính năng.",
-      "code": ["core/send_claim.py", "core/__init__.py", "core/db.py", "core/pipeline.py", "core/states.py", "core/providers.py", "core/runner.py", "core/bg_poll.py", "core/batch.py", "core/throttle.py", "core/lineage.py", "core/trash.py", "core/formats.py", "core/features.py", "core/trainee.py", "core/trainee_plans.py", "core/adapters/__init__.py", "core/adapters/http.py", "core/adapters/factory.py", "core/adapters/check.py", "core/adapters/inspect_api.py", "core/adapters/trial.py", "core/change_review.py", "core/package_overrides.py", "core/sent_package.py", "dashboard/serve.py"],
-      "assets": ["mcp_servers/*", "tools/h5_setup_test.py", "prompts/30_change_review_frames.md", "tests/fixtures/change_review_frames_off.txt"],
+      "code": ["core/send_claim.py", "core/__init__.py", "core/db.py", "core/pipeline.py", "core/states.py", "core/providers.py", "core/runner.py", "core/bg_poll.py", "core/batch.py", "core/throttle.py", "core/lineage.py", "core/trash.py", "core/formats.py", "core/features.py", "core/trainee.py", "core/trainee_plans.py", "core/adapters/__init__.py", "core/adapters/http.py", "core/adapters/factory.py", "core/adapters/check.py", "core/adapters/inspect_api.py", "core/adapters/trial.py", "core/change_review.py", "core/package_overrides.py", "core/sent_package.py", "dashboard/serve.py", "core/chat_prompt.py"],
+      "assets": ["mcp_servers/*", "tools/h5_setup_test.py", "prompts/30_change_review_frames.md", "tests/fixtures/change_review_frames_off.txt", "tools/d6_pilot.py", "knowledge/model_guides/*"],
       "docs": ["docs/V0_SETUP.md", "docs/WORKFLOW_REVIEW.md", "knowledge/checks/ca_vang/change_review_frames_d10.md"],
-      "tests": ["tests/test_layout_follow.py", "tests/test_xdist_isolation.py", "tests/test_send_claim.py", "tests/test_bg_autoqc.py", "tests/test_mcp_servers.py", "tests/test_trainee.py", "tests/test_trainee_plans.py", "tests/test_change_review.py", "tests/test_change_review_frames.py", "tests/test_package_overrides.py", "tests/test_sent_package.py", "tests/test_p24_lessons_1110.py", "tests/test_bg_poll_single_process.py", "tests/test_auto_send_queued.py"],
-      "flags": ["change_review_motion", "layout_from_follow", "send_claim", "bg_autoqc", "change_review", "change_review_frames", "layout_drift_review", "auto_send_self_fix"],
+      "tests": ["tests/test_layout_follow.py", "tests/test_xdist_isolation.py", "tests/test_send_claim.py", "tests/test_bg_autoqc.py", "tests/test_mcp_servers.py", "tests/test_trainee.py", "tests/test_trainee_plans.py", "tests/test_change_review.py", "tests/test_change_review_frames.py", "tests/test_package_overrides.py", "tests/test_sent_package.py", "tests/test_p24_lessons_1110.py", "tests/test_bg_poll_single_process.py", "tests/test_auto_send_queued.py", "tests/test_chat_prompt.py"],
+      "flags": ["change_review_motion", "layout_from_follow", "send_claim", "bg_autoqc", "change_review", "change_review_frames", "layout_drift_review", "auto_send_self_fix", "chat_prompts"],
       "diag_stages": ["system"],
       "keywords": ["runner", "job", "throttle", "lineage", "⚠ cũ", "features.py", "cờ", "adapter"]
     },

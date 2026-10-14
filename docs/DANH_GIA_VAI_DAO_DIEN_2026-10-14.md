@@ -51,8 +51,47 @@ Không thêm luật chữ mới. Chuyển phần Đạo diễn làm kém sang co
 | **D4** | **Vòng học từ sửa tay**: mỗi lần người sửa `image_prompt` / `motion_prompt` hoặc loại kèm ghi chú → lưu cặp (bản Đạo diễn ↔ bản người sửa) → đề xuất bài học ở trạng thái `proposed` (đã có `lessons` + `lesson_judge` + `feedback_to_mistakes`, cờ TẮT) → người duyệt mới vào knowledge | Chặn gốc 4; bài học có bằng chứng + có người duyệt, không tự phình | nhỏ (lesson_judge gọi Claude) | cloud nối code; máy chính bật |
 | **D5** | **JSON có lược đồ**: lượt Đạo diễn trả qua tool use có `input_schema` (Claude API) thay vì "chỉ trả JSON" + sửa tay | Hết `bad_json_retry` và lỗi định dạng khóa nhân vật (0,93 USD #27) | giảm | cloud |
 
-**Thứ tự đề xuất:** D1 trước (để có mốc) → D2 trên tập 2 (rẻ nhất, chặn gốc lớn nhất) → D3 → D4 → D5. Không làm D2–D5 "mù" khi chưa có D1:
+**Thứ tự đề xuất (cập nhật 14/10, xem mục 3b):** D1 (mốc) + D6 (đường như chat, thí điểm 3–5 shot) trước → D2 → D3 → D4 (học từ MÔ TẢ, không từ sửa tay) → D5. Không làm D2–D5 "mù" khi chưa có D1:
 CHUẨN XÂY DỰNG yêu cầu "đã sửa" kèm bằng chứng chạy thật.
+
+## 3b. Bổ sung 14/10 (người dùng): vì sao chat thì tốt mà vai Director thì kém — và người dùng KHÔNG nên sửa tay prompt
+
+Người dùng: "đưa ảnh + nội dung cho Claude, bảo viết prompt Seedance thì hầu như đều tốt; người dùng chỉ diễn đạt ý bằng mô tả, chuyển
+thành prompt là việc của công cụ và model → người dùng sửa tay prompt là không đúng." Đối chiếu code, hai đường KHÁC NHAU ở 4 chỗ:
+
+| | Chat (tốt) | Pipeline hiện tại |
+|---|---|---|
+| **Ai viết prompt Seedance** | Claude | Shot Seedance dùng ảnh tham chiếu: **CODE ghép** từ các trường chữ của Đạo diễn (dịch sang tiếng Anh) — `core/seedance_refs.py::code_motion` / `shot_motion`, quyết định "no Claude motion call for Seedance groups". Không có Claude nào nhìn ảnh rồi viết |
+| **Có nhìn ảnh không** | Có — đúng ảnh sẽ gửi | `image_prompt` / `blocking` / `action` do Đạo diễn viết **TRƯỚC khi có ảnh** (viết mù, cả phim một lượt). Motion Claude (shot không phải Seedance ref) có nhìn ảnh nhưng gộp tới 12 shot một lượt (`llm_runner.run_motion`, `MAX_IMAGES`) |
+| **Một tác giả hay nhiều lớp** | Một đoạn văn liền mạch, một người viết | Prompt cuối = chữ Đạo diễn + nhiều lớp code nối thêm (khóa đạo cụ, câu nền plate, START LOCK, câu cấm dấu "+", vật kỹ năng, khóa trạng thái nhân vật, câu "Fix:" của QC…) — #22 đã ghi "khung shot và câu bối cảnh ghép từ nhiều nguồn mâu thuẫn" |
+| **Mô tả của người dùng đi đâu** | Claude đọc mô tả, tự chuyển thành prompt | Ghi chú khi loại → câu "Fix:" nối cuối, hoặc người / phiên Claude **sửa tay prompt trên CSDL**; `director_rewrite` (Claude viết lại theo ghi chú) còn `verified: False` |
+
+**Kết luận:** pipeline tốt ở phần "nghĩ" (ý đồ), nhưng phần "viết prompt" đã bị chia cho code và cho các lớp nối chữ — đúng chỗ chat làm
+tốt nhất (một Claude NHÌN ảnh + đọc mô tả + viết một prompt liền mạch) thì pipeline không làm. Người dùng đúng: sửa tay prompt là dấu hiệu công
+cụ chưa làm đúng việc; giao diện nên nhận MÔ TẢ, không nhận prompt.
+
+**Đổi đề xuất:**
+- **D4 (sửa):** KHÔNG học từ sửa tay prompt. Nút "✏ Sửa motion prompt" ở Bước 4 → thay bằng ô "Mô tả điều muốn đổi" (tiếng Việt) → Claude
+  viết lại (đường D6). Bài học rút từ MÔ TẢ của người dùng + kết quả duyệt, người duyệt mới vào knowledge.
+- **D6 (mới, ưu tiên cao nhất cùng D1) — "đường như chat" cho prompt video:** mỗi shot MỘT lượt Claude, đầu vào giống hệt cách người dùng làm
+  trong chat: (1) ảnh khung đầu đã duyệt (+ khung cuối nếu có, + đúng các ảnh tham chiếu sẽ gửi), (2) ý đồ shot của Đạo diễn + mô tả / ghi chú
+  của người dùng bằng tiếng Việt, (3) MỘT trang hướng dẫn ngắn riêng cho model đích (Seedance / Kling: giới hạn, cú pháp ref) thay cho 165 KB
+  luật, (4) các sự thật code biết (nền plate, tên đạo cụ Kho, cỡ, hướng máy) đưa vào làm DỮ KIỆN để Claude viết, không nối sau. Đầu ra: một prompt
+  liền mạch. Code chỉ KIỂM (luật cứng nhà cung cấp, cấm từ, độ dài) và báo — không nối câu. Giữ đường cũ sau cờ để so.
+- **Cách chứng minh (CHUẨN XÂY DỰNG):** thí điểm 3–5 shot của #27 (đã có ảnh duyệt + clip cũ để so): sinh prompt bằng D6, người dùng xem prompt
+  (0 USD video) → gen nháp 480p 3 shot (báo giá trước) → so với clip cũ bằng D1. Đạt thì bật cho tập 2. Chi phí Claude: 1 lượt có ảnh / shot
+  (ước tính qua sổ chi trước khi chạy).
+
+## 3c. Chốt gọn (14/10, người dùng hỏi "còn D1–D6 hay chỉ D6?")
+Chỉ còn **D6 + một phép đo nhỏ**: D2 (dữ kiện code biết) và D3 (luật gọn — một trang hướng dẫn theo model) và D4 (ô mô tả thay sửa tay) **nhập
+vào D6**; **D5 bỏ** (D6 trả prompt chữ, không có JSON để hỏng; lỗi khóa nhân vật #27 đã sửa 12/10); **D1 thu gọn** thành so trước/sau trên 3–5 shot
+thí điểm (tỉ lệ người dùng duyệt ngay lần đầu + tiền) — vẫn cần vì CHUẨN XÂY DỰNG đòi bằng chứng chạy thật. D6 làm cho prompt VIDEO trước; đạt
+thì áp cùng cách cho prompt ẢNH khung đầu (hiện cũng viết mù trước khi có ảnh).
+
+## 3d. D6 đã code (14/10 09:39, người dùng đồng ý; khâu ảnh cũng kém → làm cả ảnh + video)
+`core/chat_prompt.py` (cờ `chat_prompts`, TẮT) · nối `core/runner.py::chat_rewrite` ở cuối `ImageRunner._finish_args` và `VideoRunner._submit_args`
+· hướng dẫn `knowledge/model_guides/image.md | seedance.md | kling.md` · công cụ thí điểm `tools/d6_pilot.py` (bản sao CSDL, mặc định chỉ báo giá)
+· ô ghi chú khi loại → "Mô tả điều muốn đổi". Test `tests/test_chat_prompt.py`. Thí điểm: xem hộp thư TODO.
 
 ## 4. Việc giao (ghi hộp thư TODO)
 - **Cloud:** D1 phần code (bảng điểm đọc CSDL, test trên CSDL tạm dựng lại ca #22/#24/#27) · D3 bản tách đề xuất (người dùng duyệt) · D5.

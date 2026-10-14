@@ -1939,6 +1939,14 @@ class VideoRunner(_Runner):
             if hit and hit["phase"]["video_en"] not in motion:
                 motion = motion.rstrip() + skill_dossier.video_sentence(hit)
             negative = skill_dossier.video_negative(hit, negative)
+        from .adapters.clipai import PROMPT_LIMITS
+        shown = [("Ảnh khung đầu (clip bắt đầu từ đúng ảnh này)", path)]
+        if "seedance" in (model or ""):
+            shown += [(f"Ảnh tham chiếu: {r['label']}", r["path"]) for r in assets.scene_references(
+                conn, job["project_id"], json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"]
+                                                    or "{}"))]
+        motion = chat_rewrite(self, job, "video", motion, shown, model,
+                                   limit=PROMPT_LIMITS.get(model or "") or (PROMPT_LIMITS["kling"] if "kling" in str(model or "").lower() else 4000))
         args = (path, motion, looks.video_negative(proj, negative), duration, model)
         subj_refs = []
         if proj["use_subjects"] and "seedance" in (model or ""):
@@ -2745,6 +2753,17 @@ def view_notes(conn, project_id: int, data: Dict) -> str:
     return (" " + " ".join(p.rstrip(".") + "." for p in parts)) if parts else ""
 
 
+def chat_rewrite(runner, job, kind: str, assembled: str, images, model, limit: int = 4000) -> str:
+    """D6 (cờ chat_prompts, TẮT): Claude nhìn đúng các ảnh sẽ gửi viết lại bản code ghép thành một prompt liền mạch (core/chat_prompt);
+    tắt / không dùng được → bản code ghép như cũ (lý do vào diag). Module-level: works with any runner-like object (p + _diag)."""
+    from . import chat_prompt
+    if not chat_prompt.enabled():
+        return assembled
+    say = getattr(runner, "_diag_once", None) or getattr(runner, "_diag", None)
+    return chat_prompt.rewrite(runner.p, job, kind, assembled, images, model=model, limit=limit,
+                               say=(lambda lv, code, msg: say(job, lv, code, msg)) if say else None)
+
+
 def build_image_prompt(conn, project_id: int, data: Dict, core: Optional[str] = None, fix: Optional[str] = None,
                        blocking_label: str = "Blocking", place_render: bool = False, light: str = "",
                        place_extra: Optional[List[str]] = None, camera_end: bool = False) -> Tuple[str, list]:
@@ -3373,8 +3392,10 @@ class ImageRunner(_Runner):
             text = assets.reference_note(refs) + "Scene: " + prompt
             if anchored:                               # lỗi 1 #27: "giữ đúng nền / kiến trúc / bố cục của ảnh 1" đứng đầu
                 text = plate_anchor.with_keep(text, refs)
+            text = chat_rewrite(self, job, "image", text, [(f"Image {i}: {r['label']} ({r['role']})", r["path"])
+                                                          for i, r in enumerate(refs, 1)], model)
             return (text, [r["path"] for r in refs])
-        return (prompt,)
+        return (chat_rewrite(self, job, "image", prompt, [], model),)
 
     def _after_download(self, job, path: str) -> str:
         """After the picture arrives: how well it kept the 3D render of the place (place_render_refs) and QC layer 0. S14.9: the
