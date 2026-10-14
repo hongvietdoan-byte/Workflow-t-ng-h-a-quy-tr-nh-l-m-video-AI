@@ -44,9 +44,10 @@ class TwoTierEstimateTests(unittest.TestCase):
             self.assertEqual(quality_tier.run_estimate(self.p.conn, self.pid, self.rows)["usd"], 0.0)
 
     def test_draft_first_shot_pays_a_draft_and_the_1080p_final(self):
+        quality_tier.set_path(self.p.conn, self.easy, "direct")   # 13/10: 'easy' auto = draft too; direct only when the person picks it
         with mock.patch.object(quality_tier, "enabled", return_value=True):
             got = quality_tier.run_estimate(self.p.conn, self.pid, self.rows, cost.load_pricing())
-        self.assertEqual(got["drafts"], 1)                      # the easy shot goes straight to the high tier: no draft
+        self.assertEqual(got["drafts"], 1)                      # the person's direct shot goes straight to the high tier: no draft
         self.assertGreater(got["usd"], 0.0)
         self.assertEqual(got["finals_1080"], 1)
         text = cost.format_run_estimate({"images": 0, "videos": 1.0, "llm": 0.1, "total": 1.1, "max": 2.0, "unknown": [],

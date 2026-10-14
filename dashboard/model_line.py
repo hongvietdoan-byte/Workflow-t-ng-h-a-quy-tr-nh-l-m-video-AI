@@ -84,7 +84,9 @@ def shot_line(conn, pid: int, scene_id: int, row: Optional[Dict] = None, ratio: 
                 usd = None if any(v is None for v in parts) else sum(parts)
         else:
             res = res or qt.E1_DIRECT_RESOLUTION
-            model_text = f"{base} · {res}" + (f" → phóng {UPSCALE_AT_EDIT} lúc dựng" if res in ("480p", "720p") else "")
+            # 13/10: chỉ khi người chọn gen thẳng / clip gen thẳng đang dùng; 480p không bao giờ là bản giao (không phóng 480p)
+            model_text = f"{base} · {res} gen thẳng" + (f" → phóng {UPSCALE_AT_EDIT} lúc dựng" if res == "720p" else
+                                                        " — chỉ xem nháp, bản giao cần ≥ 720p" if res == "480p" else "")
             if not in_group and billed is not None:
                 usd = cost.seedance_estimate(canonical, res, ratio, sec, row.get("input_video_s") or 0)
     else:
