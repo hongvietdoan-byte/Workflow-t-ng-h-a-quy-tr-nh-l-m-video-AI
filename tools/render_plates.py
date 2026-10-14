@@ -986,6 +986,11 @@ def main():
     res = cfg.get("resolution") or [1280, 720]
     scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = int(res[0]), int(res[1]), 100
     engine = pick_engine((cfg.get("engine") or "auto").lower(), warnings)
+    if cfg.get("cpu_threads"):
+        scene.render.threads_mode='FIXED'
+        scene.render.threads=int(cfg["cpu_threads"])
+    if cfg.get("cpu_only") and engine=="CYCLES" and hasattr(scene,"cycles"):
+        scene.cycles.device='CPU'
     samples = int(cfg.get("samples", 16))
     for owner, attr in ((getattr(scene, "eevee", None), "taa_render_samples"), (getattr(scene, "cycles", None), "samples")):
         if owner is not None and hasattr(owner, attr):

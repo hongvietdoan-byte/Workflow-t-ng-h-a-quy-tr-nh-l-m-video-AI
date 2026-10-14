@@ -432,6 +432,32 @@ def profile_form(p: Pipeline, a: dict) -> None:
         st.rerun()
 
 
+
+@st.fragment(run_every=1)
+def _plates_queue_status():
+    """Polling UI only; worker không giữ Pipeline/SQLite/Streamlit."""
+    entry=st.session_state.get('_p3d_queue')
+    if not entry or entry.get('exported'):return
+    from core import clay_preview_service
+    service=clay_preview_service.get_service()
+    info=clay_preview_service.status(service,entry['scope'],entry['ticket'])
+    state=info['state']
+    if state in ('pending','running','waiting_resources'):
+        st.info('Render nền: '+info['reason']+' · bạn có thể làm dự án khác.')
+    elif state=='done':
+        try:
+            manifest=service.export(entry['scope'],entry['ticket']['job_id'],entry['out_dir'])
+        except (ValueError,OSError):
+            st.warning('Ảnh xem trước hết hạn hoặc không sao chép được; bấm Render để gửi lại.')
+            return
+        st.session_state['p3d_manifest']=manifest
+        st.session_state['_p3d_manifest_meta']={k:entry[k] for k in ('game','place','look')}
+        entry['exported']=True
+        st.rerun()
+    else:
+        st.warning(info['reason']+' · Hàng đợi RAM không giữ ticket qua khởi động lại; bấm Render để gửi lại.')
+
+
 @st.fragment
 def plates3d_panel(p: Pipeline, game: str) -> None:
     """🏗 3D place -> empty eye-level / low / high backgrounds rendered by Blender on this computer (no AI, no credit), into the review
@@ -477,10 +503,31 @@ def plates3d_panel(p: Pipeline, game: str) -> None:
                 cfg = plates3d.plan(model, plates3d.out_dir(C.DATA, place), sky=sky, sun_elevation=elev, sun_azimuth=azim,
                                     hdri=hdri or None, presets=presets, real_height_m=height or None, decimate=dec / 100,
                                     resolution=tuple(int(x) for x in res.split("x")))
-                with st.spinner("Blender đang render (map nặng có thể mất vài phút)…"):
-                    st.session_state["p3d_manifest"] = plates3d.render(cfg)
+                if features.on('clay_background_queue'):
+                    from core import clay_preview_service
+                    from uuid import uuid4
+                    scope=st.session_state.setdefault('_p3d_scope',uuid4().hex)
+                    revision=st.session_state.get('_p3d_revision',0)+1
+                    service=clay_preview_service.get_service()
+                    ticket=clay_preview_service.submit_plates(service,scope,'library-preview',revision,cfg,blender=blender)
+                    if ticket['state']=='rejected':
+                        st.warning(ticket['reason'])
+                    else:
+                        st.session_state['_p3d_revision']=revision
+                        st.session_state['_p3d_queue']={'scope':scope,'ticket':ticket,'out_dir':cfg['out_dir'],
+                                                      'game':game,'place':place,'look':look}
+                        st.session_state.pop('p3d_manifest',None)
+                        st.session_state.pop('_p3d_manifest_meta',None)
+                        st.info('Đã gửi render nền; một Blender dùng khóa chung, bạn có thể chuyển dự án.')
+                else:
+                    with st.spinner("Blender đang render (map nặng có thể mất vài phút)…"):
+                        st.session_state["p3d_manifest"] = plates3d.render(cfg)
+                    st.session_state.pop('_p3d_manifest_meta',None)
             except plates3d.Plates3DError as e:
                 st.error(str(e))
+        if features.on('clay_background_queue'):
+            st.caption('Render nền giữ engine auto hiện có; tối đa 6 luồng CPU, kiểm RAM dự phòng; chưa đo tải 4–5 dự án sản xuất.')
+            _plates_queue_status()
         m = st.session_state.get("p3d_manifest")
         if m:
             st.success(plates3d.summary(m))
@@ -495,7 +542,8 @@ def plates3d_panel(p: Pipeline, game: str) -> None:
                     sky_path = os.path.join(m["out_dir"], "sky_ingame" + os.path.splitext(sky_pic.name)[1].lower())
                     with open(sky_path, "wb") as f:
                         f.write(sky_pic.getvalue())
-                r = plates3d.to_library(p.conn, m, game, place, sky_picture=sky_path, look=look)
+                meta=st.session_state.get('_p3d_manifest_meta') or {'game':game,'place':place,'look':look}
+                r = plates3d.to_library(p.conn, m, meta['game'], meta['place'], sky_picture=sky_path, look=meta['look'])
                 st.success(f"Đã thêm {len(r['added'])} ảnh nền vào “{place}” (chờ duyệt ở 📥 phía trên)."
                            + (f" Bỏ qua: {'; '.join(r['skipped'])}" if r["skipped"] else ""))
                 st.session_state.pop("p3d_manifest", None)

@@ -5,6 +5,8 @@ import os
 from typing import Dict
 
 FEATURES: Dict[str, Dict] = {
+    'clay_background_queue': {'label':'Render 3D/clay nền công bằng giữa dự án (0 USD)', 'verified':False,
+                             'why':'Hàng đợi RAM, chưa nghiệm thu tải 4–5 dự án sản xuất; restart phải gửi lại'},
     'blockout_clay_sheet': {'label':'Tấm duyệt khối clay (Blender cục bộ, 0 USD)', 'verified':False,
                            'why':'Đ11v2: chưa nghiệm thu ảnh Kho thật'},
     'director_blockout': {'label':'Đạo diễn khai sơ đồ khối (Claude, cần báo giá)', 'verified':False,
@@ -666,7 +668,7 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
 HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
-OPT_IN_ONLY: tuple = ("blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc")
+OPT_IN_ONLY: tuple = ("clay_background_queue", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc")
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.

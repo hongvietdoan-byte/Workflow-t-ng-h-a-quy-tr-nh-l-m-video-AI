@@ -119,7 +119,7 @@ class _Done:
         self.returncode, self.stdout, self.stderr = returncode, stdout, ""
 
 
-def _run_in_store(blender: str, args: List[str], work: str, timeout: int):
+def _run_in_store(blender: str, args: List[str], work: str, timeout: int, run: Optional[Callable] = None):
     """Run Store Blender headless: a .cmd file (Blender + args, output to render.log, exit code to rc.txt) started inside the package
     context, then wait for rc.txt."""
     family, exe = blender[len(STORE):].split("|", 1)
@@ -128,7 +128,8 @@ def _run_in_store(blender: str, args: List[str], work: str, timeout: int):
     quoted = " ".join(f'"{a}"' for a in args)
     with open(bat, "w", encoding="ascii", errors="replace") as f:
         f.write(f'@echo off\r\n"{exe}" {quoted} > "{log}" 2>&1\r\necho %errorlevel% > "{rc}"\r\n')
-    subprocess.run(["powershell", "-NoProfile", "-Command",
+    run = run or subprocess.run
+    run(["powershell", "-NoProfile", "-Command",
                     f"Invoke-CommandInDesktopPackage -PackageFamilyName '{family}' -AppId 'BLENDER' "
                     f"-Command 'C:\\Windows\\System32\\cmd.exe' -Args '/c \"{bat}\"' -PreventBreakaway"],
                    capture_output=True, text=True, timeout=120)
@@ -376,6 +377,8 @@ def render(cfg: Dict, blender: Optional[str] = None, run: Callable = subprocess.
 
 def _render(cfg: Dict, blender: Optional[str], run: Callable, timeout: int) -> Dict:
     blender = blender or find_blender()
+    if blender and blender.startswith(STORE) and cfg.get('sanitized_child'):
+        raise Plates3DError('Render nền Microsoft Store chưa được hỗ trợ: chưa xác minh dừng đúng process/tree và môi trường package; dùng nhánh đồng bộ khi cờ nền TẮT')
     if not blender:
         raise Plates3DError("không tìm thấy Blender — cài Blender 5.0 hoặc đặt BLENDER_PATH trong dashboard.env")
     os.makedirs(cfg["out_dir"], exist_ok=True)
@@ -386,10 +389,19 @@ def _render(cfg: Dict, blender: Optional[str], run: Callable, timeout: int) -> D
         cmd = [sys.executable if blender == "python" else blender, os.path.abspath(SCRIPT), "--config", plan_path]
     else:
         cmd = [blender, "-b", "--factory-startup", "-P", os.path.abspath(SCRIPT), "--", "--config", plan_path]
+    if 'cpu_threads' in cfg:
+        threads=cfg['cpu_threads']
+        if type(threads) is not int or not 1<=threads<=6:
+            raise Plates3DError('cpu_threads phải trong 1–6 để chừa CPU cho Dashboard')
+        if not os.path.basename(blender).lower().startswith('python'):
+            cmd[3:3]=['--threads',str(threads)]
     t0 = time.time()
     try:
         if blender.startswith(STORE):
-            proc = _run_in_store(blender, cmd[1:], cfg["out_dir"], timeout)
+            if cfg.get('sanitized_child'):
+                proc = _run_in_store(blender, cmd[1:], cfg["out_dir"], timeout, run=run)
+            else:
+                proc = _run_in_store(blender, cmd[1:], cfg["out_dir"], timeout)
         else:
             proc = run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired:

@@ -57,14 +57,14 @@ def projection(plan, camera, out_png, resolution=(640,360)):
     return {'blocks':rows,'out_png':str(out_png)}
 
 def render_sheet(plan, cho_dung, out_png, *, reference=None, renderer=None, camera=None, shot=None,
-                 spot=(0,0,0), facing=0, resolution=(640,360), timeout=110, people=()):
+                 spot=(0,0,0), facing=0, resolution=(640,360), timeout=110, people=(), _clay_enabled=None):
     """OFF chỉ topview. ON render trong thư mục riêng, không dùng kết quả/lỗi cũ."""
     # Không stat/open UNC/URL: tránh vô tình đọc ảnh qua mạng Windows.
     for candidate in (out_png, reference):
         if candidate is not None and (str(candidate).startswith(('\\\\','//')) or '://' in str(candidate)):
             raise ValueError('tấm duyệt chỉ nhận đường dẫn cục bộ')
     target=Path(out_png); target.parent.mkdir(parents=True,exist_ok=True)
-    if not features.on('blockout_clay_sheet'):
+    if not (features.on('blockout_clay_sheet') if _clay_enabled is None else _clay_enabled):
         result=sheet.render_top_view(plan,cho_dung,target)
         return dict(result,clay=False,enabled=False,reason='cờ blockout_clay_sheet đang tắt')
     with tempfile.TemporaryDirectory(prefix='d11_clay_',dir=target.parent) as tmp:
@@ -124,3 +124,27 @@ def render_sheet(plan, cho_dung, out_png, *, reference=None, renderer=None, came
                 'camera_png':str(camera_png),'camera_kind':'clay' if views else 'projection_2d',
                 'label_mode':'legend_only','legend':legend,
                 'limitations':limitations}
+
+
+
+def submit_preview(service,project_id,scene_id,revision,plan,cho_dung,*,priority='interactive',**options):
+    """Submit snapshot JSON, trả ticket ngay; render/status do cùng dịch vụ nền quản lý.
+
+    API xem trước, không ghi scene/ảnh duyệt/Kho. OFF không gọi render hay tạo worker.
+    Caller phải poll với project_id và chỉ nhận revision mới nhất.
+    """
+    if not features.on('clay_background_queue'):
+        return {'state':'disabled','reason':'cờ clay_background_queue đang tắt'}
+    clay_enabled=features.on('blockout_clay_sheet')
+    blender=plates3d.find_blender() if clay_enabled else None
+    if blender and blender.startswith(plates3d.STORE):
+        return {'state':'rejected','reason':'Render nền Microsoft Store chưa được hỗ trợ: chưa xác minh dừng đúng process/tree và môi trường package; tắt clay_background_queue để dùng render đồng bộ'}
+    from .clay_scheduler import _local
+    allowed={'reference','camera','shot','spot','facing','resolution','timeout','people'}
+    if set(options)-allowed:raise ValueError('tùy chọn xem trước chưa hỗ trợ')
+    sources=[str(Path(plates3d.SCRIPT).resolve()),str(Path(__file__).resolve()),str(Path(sheet.__file__).resolve())]
+    if options.get('reference'):
+        options['reference']=str(_local(options['reference']));sources.append(options['reference'])
+    return service.submit(project_id,scene_id,revision,{'kind':'clay','project_scope':project_id,
+                'plan':plan,'cho_dung':cho_dung,'options':options,'source_files':sources,
+                'priority':priority,'blender':blender,'clay_enabled':clay_enabled},priority=priority)
