@@ -1,5 +1,7 @@
 # Bàn giao điều phối Bàn đạo diễn — 14/10/2026
 ## Kết quả cuối lượt 10:30 — ưu tiên hơn mọi trạng thái lịch sử bên dưới
+- Đã commit/push code+nativeproof149d65f6 trên codex/ban-dao-dien-hieu-nang; Đ12v3 code4a52a772/fix2808cfe0 đã push riêng. Không gộp main. Bên rà/gộp cần cả bộ Windows gồm slow trước tích hợp/bật cờ; areas version tăng một lần tại tích hợp.
+- Điểm bàn giao sau một lượt tự động: hạn mức5h đã dùng53%, còn47%; tuần61% đã dùng. Reset5h14/10 15:30:13 Asia/Saigon. Lịch hiện có kiểm hộp thư/việc còn lại lúc15:35; không tạo trùng, không mua/resetcredit. Lượt sau tránh redo hai nhánh trên và kiểm dependency/sourceA mới nhất.
 - Root đã đọc diff vòng sửa portable. XANH129 qua/1 bỏ qua; Blender portable5.0.1 đã kiểm phiên bản và render thật sau guard một process.
 - Native benchmark16/16 job clay thật ở mức1/5/10 dự án:7,283/24,801/53,488s; mức10 chờp95 48,458s. 17 ownedroot đều signaled/active0/Jobclosed, cả3 queue worker dừng. RAM khả dụng thấp nhất25,685GiB. Báo cáo docs/BENCH_BLENDER_PORTABLE_2026-10-14.md.
 - Giữ đề xuất ban đầu5 dự án hoạt động/một renderer nặng; scene giả24khối/640×360/sample8/CPU, chưa xác định tối đa production/đa phiên Dashboard/FFmpeg/provider. CPUthreads6 là cấu hình, không hard OSCPUcap. Cờ queue vẫn OFF.
