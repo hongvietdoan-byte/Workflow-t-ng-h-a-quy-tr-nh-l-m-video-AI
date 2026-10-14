@@ -64,8 +64,40 @@ class MotionProseOn(_Flag):
         self.assertNotIn("camera track;", text)
 
     def test_track_behind_says_the_camera_follows(self):
+        d = dict(RUN_BEHIND, action="Kelly chạy thẳng về phía trước tới cổng.",
+                 motion_en={"action": "KELLY runs straight ahead toward the gate."},
+                 blocking="Kelly center-frame, camera behind her, running forward into the distance.")
+        self.assertIn("camera follows behind KELLY, moving along with KELLY at the same distance", sr.shot_motion(d))
+
+    def test_track_behind_running_sideways_keeps_track(self):
+        # rà 14/10: #28 shot 4 chạy SANG TRÁI, máy sau lưng — "follows behind" có thể khiến model xoay Kelly chạy vào sâu khung;
+        # chữ chỉ nói trái/phải, không nói đi xa / về phía trước → không đoán chiều máy
         text = sr.shot_motion(RUN_BEHIND)
-        self.assertIn("camera follows behind KELLY, moving along with KELLY at the same distance", text)
+        self.assertIn("camera track;", text)
+        self.assertNotIn("follows behind", text)
+
+    def test_glance_at_the_camera_is_not_running_toward_it(self):
+        # rà 14/10: "(at|into) the camera" của travel_truth khớp cả cái liếc mắt — chạy ngang khung không phải máy lùi trước mặt
+        d = dict(RUN_TOWARD, action="Kelly chạy ngang khung từ trái sang phải.",
+                 motion_en={"action": "KELLY runs from frame-left to frame-right, glancing at the camera."},
+                 blocking="Kelly frame-left on the plaza, crossing the frame.")
+        text = sr.shot_motion(d)
+        self.assertIn("camera track;", text)
+        self.assertNotIn("tracks backward", text)
+
+    def test_two_characters_one_runs_keeps_track(self):
+        # rà 14/10: chủ ngữ từng là MỌI nhân vật ("ahead of KELLY and ENEMY") dù chỉ một người chạy → ≥ 2 nhân vật: không đoán
+        d = dict(RUN_TOWARD, characters=["KELLY", "ENEMY"],
+                 action="Kelly núp sau tường trong khi địch chạy về phía máy.",
+                 motion_en={"action": "KELLY crouches behind the wall while the ENEMY runs toward the camera."},
+                 blocking="Kelly frame-left behind the wall, the enemy in the distance running toward the camera.")
+        text = sr.shot_motion(d)
+        self.assertIn("camera track;", text)
+        self.assertNotIn("tracks backward", text)
+
+    def test_truck_is_sideways_never_backward(self):
+        from core import motion_prose
+        self.assertIsNone(motion_prose.camera_phrase(dict(RUN_TOWARD, camera_move="truck"), "KELLY"))
 
     def test_back_view_keeps_face_out(self):
         self.flag(True, "BACK_VIEW_GUARD")              # bật ở máy chính (#28 job 933 có câu 'stays with the back to the camera')
@@ -85,12 +117,38 @@ class MotionProseOn(_Flag):
         self.assertIn("camera track;", sr.shot_motion(d))   # nobody runs or walks: "track" is not a follow of a runner
 
 
+# Chụp bằng core/seedance_refs.py của origin/main (39625903) với đúng các cờ dưới — cờ tắt phải ra y TỪNG BYTE
+OFF_RUN_TOWARD = (
+    "KELLY sprints from the foot of the stairs toward the camera, arms pumping hard, eyes locked straight ahead, alert. Acting — face: "
+    "tense focus, jaw set; eyes: fixed forward, scanning ahead; body: full sprint, arms pumping, weight driving forward; timing: constant "
+    "sprint throughout the shot. Wide shot, eye angle, camera track; framing Kelly center-frame, small in the distance at the bottom of a "
+    "stone outdoor stairway, facing the camera, already mid-sprint. Each foot lands under the body with no sliding, the arms swing "
+    "opposite the legs, the body leans forward, and hair and loose clothes trail behind.")
+OFF_HIDE_BACK = (
+    "KELLY crouches tight against the left side of the first glue wall, peeking out to scan the surroundings for enemies. Acting — body: "
+    "crouched low, one hand braced on the wall; timing: holds still, head leans out then pulls back slightly. KELLY stays with the back to "
+    "the camera for the whole shot — the face is never seen, no turning around. Third-person game camera behind the character, slightly "
+    "above the shoulder, high angle, camera static; framing Kelly crouched at the left edge of the white glue wall, seen from behind and "
+    "above over her shoulder.")
+
+
 class MotionProseOff(_Flag):
-    def test_off_is_the_old_text(self):
+    def setUp(self):
         self.flag(False)
-        text = sr.shot_motion(RUN_TOWARD)
-        self.assertIn("Acting — face: tense focus, jaw set; eyes: fixed forward, scanning ahead;", text)
-        self.assertIn("camera track;", text)
+        for name in ("PROMPT_FORMULA", "AMBIENT_MOTION", "CHARACTER_STATE_LOCK", "LOCOMOTION_END_FRAME", "END_STATE_FRESH",
+                     "QC_FRAMING_CAP"):
+            self.flag(False, name)
+        self.flag(True, "BACK_VIEW_GUARD")
+
+    def test_off_is_the_old_text(self):
+        self.assertEqual(sr.shot_motion(RUN_TOWARD), OFF_RUN_TOWARD)
+
+    def test_off_back_view_is_the_old_text(self):
+        self.assertEqual(sr.shot_motion(HIDE_BACK), OFF_HIDE_BACK)
+
+    def test_off_new_cases_are_the_old_text(self):
+        d = dict(RUN_BEHIND, camera_move="truck")
+        self.assertIn("camera truck;", sr.shot_motion(d))
 
 
 if __name__ == "__main__":

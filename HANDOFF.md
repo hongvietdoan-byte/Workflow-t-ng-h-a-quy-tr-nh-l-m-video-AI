@@ -15,6 +15,15 @@
   (`tools/replay_payload.py` chỉ dựng gói ẢNH, không dựng prompt video.)
 - `devsys/areas.json`: thêm `core/motion_prose.py` + cờ `motion_prose` vào khu step4 (không tăng version).
 
+## Vòng sửa sau rà độc lập (14/10)
+- `camera_phrase`: "lead" chỉ khi động từ di chuyển + "toward the camera" hoặc chữ máy lùi ("glancing at the camera" không tính);
+  ≥ 2 nhân vật → None; máy sau lưng + chữ chỉ nói chạy trái/phải (không đi xa / về phía trước) → None (#28 shot 4 giờ giữ "camera track");
+  bỏ "truck" khỏi `_TRACKING`.
+- Test: 4 đỏ → xanh (liếc máy, 2 nhân vật, truck, chạy ngang máy sau lưng); test cờ TẮT so `==` cả chuỗi RUN_TOWARD + HIDE_BACK
+  (chụp bằng seedance_refs của origin/main 39625903, khớp từng byte).
+- Hướng dẫn D6 (seedance 11–15, image 11) + why của cờ: ghi rõ căn cứ = 1 cặp #28/#29, nhiều biến cùng đổi, chưa tách; "quá 2 điểm
+  nhấn" hạ thành giả thuyết; bỏ "model hay giữ người giữa khung".
+
 ## related_areas (`py tools/related_areas.py core/motion_prose.py core/seedance_refs.py core/features.py`)
 - Khu chứa file đổi: step4 (motion_prose, seedance_refs), core_infra (features).
 - Khu gọi tới: autopilot, step1, step3 (claude_tasks → shot_motion lưu motion_prompt), budget (cost ước tính độ dài nhóm bằng shot_motion),

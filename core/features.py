@@ -77,7 +77,7 @@ FEATURES: Dict[str, Dict] = {
                  "'Acting — face: …', máy 'track' nói rõ chiều (lùi trước mặt / bám sau lưng) khi chữ shot cho biết (0 USD)",
         "verified": False,
         "why": "Thử D6 14/10 #28 (code ghép) vs #29 (Claude viết): shot 1 chạy cầu thang flow 5,8 vs 13,0; B viết máy 'tracks backward "
-               "holding the same distance' + diễn xuất liền câu. #29 shot 3–4 rơi về code ghép (chat_prompt_cap) cũng gần đứng hình. "
+               "holding the same distance' + diễn xuất liền câu. Căn cứ là 1 cặp, nhiều biến cùng đổi (ảnh khung đầu khác), chưa tách. #29 shot 3–4 rơi về code ghép (chat_prompt_cap) cũng gần đứng hình. "
                "Mới kiểm bằng test + dựng lại chữ từ scenes.data thật, chưa gen thật",
     },
     "side_truth": {

@@ -23,7 +23,8 @@ diễn, mô tả của người dùng, và "bản code ghép" (dữ kiện).
 
 ## Khung đầu của shot DI CHUYỂN (thử D6 14/10 #28/#29 shot 1 — cách nghĩ)
 11. **Khung đầu = điểm XUẤT PHÁT của đường đi, có quãng trống theo hướng đi.** Nhân vật sắp đi A→B phải đứng ở đầu đường; phía trước theo
-    hướng đi (về phía máy / sang mép khung) là mặt đất trống, đúng chiều dốc. Căn cứ: cùng cỡ người (đo 3D ~56 % khung), #28 vẽ Kelly đã
+    hướng đi (về phía máy / sang mép khung) là mặt đất trống, đúng chiều dốc. Căn cứ (1 cặp #28/#29, chữ prompt video cũng khác — chưa
+    tách, đọc như lý lẽ có căn cứ chứ không phải số đo nhân quả): cùng cỡ người (đo 3D ~56 % khung), #28 vẽ Kelly đã
     đứng TRÊN bậc thang (bậc đi lên xa máy) → "chạy về phía máy" thành chạy tại chỗ (flow 5,8); #29 vẽ ở chân cầu thang, trước mặt là
     sân phẳng trống → chạy thật (13,0). Viết rõ "at the start of her path, open ground ahead of her toward the camera".
 12. **Cỡ người đo trên sân khấu 3D thắng chữ "small in the distance"** — đừng viết cả hai (mâu thuẫn). Quãng để chạy tạo bằng CHỖ đứng trên
