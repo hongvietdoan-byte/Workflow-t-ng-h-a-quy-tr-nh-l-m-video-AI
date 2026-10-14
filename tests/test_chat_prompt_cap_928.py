@@ -88,3 +88,55 @@ class GroupClipFingerprint(ChatPromptTests):
         with mock.patch.object(chat_prompt, "guide_for", return_value="G"):
             self.assertEqual(chat_prompt.fingerprint("video", "seedance-2.5", "Shot 1: a. Shot 2: b.", [], {"action": "x"}, ["n"], 4000),
                              "2f5c9ee5523d74345782e265")
+
+
+class CodesAnyCase(ChatPromptTests):
+    """#29 926/928: 'mất mã Shot 1, Shot 2' — a code written in other capitals is the same code; another number is not."""
+
+    def test_codes_in_other_capitals_are_kept(self):
+        old = "Image 1 is Shot 1. Images 2/3 are KELLY. Shot 2 throws."
+        self.assertEqual(chat_prompt.check(old, "IMAGE 1 is SHOT 1; images 2 AND 3 show KELLY; shot 2 throws.", 999), [])
+
+    def test_another_number_is_still_a_lost_code(self):
+        problems = chat_prompt.check("Shot 1 runs. Shot 2 throws. Image 3 KELLY.", "SHOT 1 runs. SHOT 12 throws. IMAGE 30 KELLY.", 999)
+        self.assertTrue(problems)
+        self.assertIn("Shot 2", problems[-1])
+        self.assertIn("Image 3", problems[-1])
+
+
+class D6SeesTheSentPictures(GroupClipFingerprint):
+    """#29 job 928: D6 was shown start frame + the scene's Kho pictures; the request sent storyboard Shot 1, storyboard Shot 2, KELLY,
+    place renders (and its prompt's Image N meant those) — one list now for the send and for D6."""
+
+    def _runner(self, sources, end=None):
+        from core.runner import VideoRunner
+        r = VideoRunner.__new__(VideoRunner)
+        r.p, r.data_dir = self.p, tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, r.data_dir, True)
+        r._refs = lambda job: True
+        r._reference_sources = mock.Mock(return_value=sources)
+        r._end_frame = lambda job, model, chain=True: end
+        return r
+
+    def test_group_clip_d6_pictures_are_the_reference_pictures_in_image_order(self):
+        src = [{"host": "P1_S3_frame", "path": "a.png", "say": "storyboard frame of Shot 1 (khung đầu Shot 1)"},
+               {"host": "P1_S4_frame", "path": "b.png", "say": "storyboard frame of Shot 2 (khung đầu Shot 2)"},
+               {"host": "P1_KELLY", "path": "k.png", "say": "nhân vật KELLY"},
+               {"host": "P1_place_1", "path": "p.png", "say": "PLACE render 3D cho Shot 1, Shot 2"}]
+        r = self._runner(src, end="end.png")
+        group = [{"id": 3, "data": {}}, {"id": 4, "data": {}}]
+        pics = r._d6_pictures(self._job(), group, "seedance-2.5", "start.png", None)
+        self.assertEqual([p for _, p in pics], ["a.png", "b.png", "k.png", "p.png"])          # no end frame for a group
+        self.assertTrue(pics[1][0].startswith("Image 2: storyboard frame of Shot 2"))
+        single = r._d6_pictures(self._job(), None, "seedance-2.5", "start.png", None)
+        self.assertEqual(single[-1], ("Image 5: khung cuối (end state của shot)", "end.png"))
+
+    def test_send_uses_the_same_source(self):
+        src = [{"host": "P1_S3_frame", "path": "a.png", "say": "x"}, {"host": "P1_KELLY", "path": "k.png", "say": "y"}]
+        r = self._runner(src)
+        seen = []
+        r._hosted_pictures = lambda job, pictures, clean=False: seen.append(pictures) or [{"uri": "asset://1"}, {"uri": "asset://2"}]
+        with mock.patch("core.seedance_refs.note_sent"), mock.patch("core.seedance_refs.mark_style", return_value="none"):
+            out = r._reference_pictures(self._job(), [{"id": 3, "data": {}}])
+        self.assertEqual(seen, [[("P1_S3_frame", "a.png"), ("P1_KELLY", "k.png")]])
+        self.assertEqual(out, [{"uri": "asset://1"}, {"uri": "asset://2"}])

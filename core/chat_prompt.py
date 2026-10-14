@@ -31,15 +31,18 @@ INTENT_KEYS = ("shot", "size", "angle", "camera_move", "action", "action_peak", 
 # code chỉ đọc được "Images 2" → tưởng mất ảnh 3. Danh từ SỐ NHIỀU "Images" + dãy số nối bằng / , and & - – to: mỗi số một ảnh (dải
 # "2-4" = 2, 3, 4). Số ít "Image 2 and 3" KHÔNG tính (có thể là "Image 2 and 3 people").
 _LIST_SEP = r"\s*(?:,\s*and|,|and|&|/|-|–|to)\s*"
-REF_TOKEN = re.compile(r"\bImages \d+(?:" + _LIST_SEP + r"\d+)+\b|\bImages? \d+(?:/\d+)*\b|\bShot \d+\b|\[[A-Z][A-Za-z ]*\]")
+# #29 926/928 (14/10): "mất mã Shot 1, Shot 2" — a code in other capitals ("SHOT 1", "shot 1", "IMAGE 3") is the same code; the
+# number still has to match exactly (\b: "Shot 12" is not "Shot 1"). Block tags [Event] keep their exact spelling.
+REF_TOKEN = re.compile(r"(?i:\bImages \d+(?:" + _LIST_SEP + r"\d+)+\b|\bImages? \d+(?:/\d+)*\b|\bShot \d+\b)|\[[A-Z][A-Za-z ]*\]")
+_CODE_WORD = re.compile(r"^(images|image|shot)\b", re.I)
 MAX_CALLS_PER_JOB = 2                  # inputs that keep changing every poll never pay again and again: the last prompt written is kept
 CALLS_KEY = "chat_prompt_calls:{}"
 MAX_FIX_TURNS = 1                      # việc 5 (14/10): a refused answer gets ONE fix turn told the exact fault, per job, then the old way
 REFUSED_KEY = "chat_prompt_refused:{}"
 # Thử D6 #29 14/10: "Images 2/3" là HAI mã (Image 2, Image 3) — Claude viết "Image 2 and Image 3" không phải mất mã.
 _IMAGES_GROUP = re.compile(r"\bImages? (\d+(?:/\d+)*)\b")
-_IMAGES_LIST = re.compile(r"Images (\d+(?:" + _LIST_SEP + r"\d+)+)")
-_RANGE = re.compile(r"(\d+)\s*(?:-|–|to)\s*(\d+)")
+_IMAGES_LIST = re.compile(r"Images (\d+(?:" + _LIST_SEP + r"\d+)+)", re.I)
+_RANGE = re.compile(r"(\d+)\s*(?:-|–|to)\s*(\d+)", re.I)
 # Thử D6 #29 14/10 shot 5: D6 tự gọi mốc là "clock tower" (dịch tên Kho "Tháp Đồng Hồ") → Seedance vẽ mặt đồng hồ, tháp thật không có.
 # Chữ tả một bộ phận mà bản code ghép không nói thì không được thêm: code đổi về chữ trung tính (không bỏ cả bản D6).
 _ADDED_FEATURE = ((re.compile(r"\bclock[- ]?tower\b", re.I), "stone tower"), (re.compile(r"\bclock[- ]?faces?\b", re.I), "tower top"))
@@ -173,6 +176,7 @@ def _ref_units(text: str) -> set:
     """The picture / shot / block codes of a text, one per picture: "Images 2/3" → {"Image 2", "Image 3"}."""
     out = set()
     for tok in REF_TOKEN.findall(text or ""):
+        tok = _CODE_WORD.sub(lambda w: {"images": "Images", "image": "Image", "shot": "Shot"}[w.group(1).lower()], tok)
         m = _IMAGES_GROUP.fullmatch(tok)
         lst = None if m else _IMAGES_LIST.fullmatch(tok)
         if m:

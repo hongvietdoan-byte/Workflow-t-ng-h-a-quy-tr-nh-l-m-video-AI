@@ -18,9 +18,24 @@
 - core_infra: core/chat_prompt.py · gọi tới: budget (core/cost.py), step2 (core/runner.py, dashboard/steps/step2.py),
   step4 (core/runner.py, dashboard/steps/step4.py) · dùng chung cờ: autopilot, step2 · không có test chậm.
 
+## Đợt 2 (điều phối giao): sửa gốc vì sao 928 bị từ chối
+- GỐC THẬT: đường Seedance refs (clip ghép) D6 nhìn khung đầu + ảnh Kho của scene đầu (job 923, KELLY 10/12, Tháp, Bom keo, SKORP — 6
+  ảnh) trong khi gói gửi thật + "Image N" của bản code ghép = storyboard Shot 1, storyboard Shot 2, KELLY, render nơi chốn Shot 1, Shot 2
+  → Claude viết lệch mã → bị từ chối.
+- Sửa core/runner.py: `_reference_sources` = MỘT nguồn cho ảnh gửi (`_reference_pictures`, thứ tự/nhãn host y cũ) và ảnh D6
+  (`_d6_pictures`: nhãn "Image N: …" đúng mã; đường kỹ năng; shot đơn refs + khung cuối; còn lại như cũ). D6 tắt → không đọc thêm.
+- core/chat_prompt.py: mã Image/Images/Shot so không phân biệt hoa/thường (chuẩn hoá), số vẫn phải đúng (\b).
+- Bằng chứng (bản sao CSDL, Claude giả, 0 USD, trạng thái lúc gửi: shot sau chưa có clip): job 928 + 926 — 5/5 ảnh D6 khớp
+  reference_only thật (tra asset_uri → seedance_subject_pictures, tên bản sạch `<tên>_<sha1 đường dẫn>_marked_none.png` trùng từng
+  file, đúng thứ tự); hai lần dựng cùng vân tay, lượt 2 không gọi.
+- Ảnh hưởng vân tay: máy chính có 9 job video chờ (#2, #3 — dự án cũ), 0 bản D6 video đã lưu cho job chưa gửi → 0 job mất cache,
+  chi phí thêm 0 USD (job mới vẫn ≤ 2 lượt + 1 lượt sửa như cũ).
+- Test (tests/test_chat_prompt_cap_928.py): CodesAnyCase (đỏ→xanh), D6SeesTheSentPictures; lệnh gom 11 file 345 qua.
+- Agent rà: không lỗi chặn; đã sửa "tính ảnh D6 cả khi cờ tắt". Ghi nhận nhỏ: mã chữ thường trong văn xuôi bản ghép ("shot 2") nay thành
+  mã bắt buộc (seedance_refs không sinh dạng này); cảnh refs không có shot_no bị D6 coi là shot đơn (hiếm).
+
 ## Việc mở / bước kế
-- Đường Seedance refs (928 thật): `shown` cho D6 chỉ = khung đầu + ảnh tham chiếu của scene đầu; gói gửi thật có storyboard Shot 1/2 +
-  ảnh nơi chốn → D6 không thấy "đúng các ảnh sẽ gửi" cho clip ghép (core/runner.py ~1971). Nên rà riêng.
-- "mất mã Shot N" còn khả năng tái diễn (REF_TOKEN phân biệt hoa/thường: "SHOT 1"/"shot 1" bị tính mất), nhưng main đã liệt kê mã trong
-  đề bài + 1 lượt sửa chỉ đúng lỗi → khả năng thấp, và không còn trả lại cho cùng đầu vào.
+- jobs.sent_package.refs của đường refs chỉ ghi image_path/image_references (tham số adapter bỏ qua), ảnh thật nằm ở params.reference_only
+  (asset://) — sổ gói gửi nên ghi file local của reference_only (chưa sửa).
 - chat_prompt_calls:928 thật vẫn n=2 (dự án #29 cũ, không ảnh hưởng #31).
+- Chưa chạy lại test sau sửa nhỏ cuối (D6 tắt → shown rỗng); cần chạy ở bước gộp.

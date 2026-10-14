@@ -1533,21 +1533,58 @@ class VideoRunner(_Runner):
         return group or [{"id": job["scene_id"], "data": json.loads(self.p.conn.execute(
             "SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")}]
 
+    def _reference_sources(self, job, group) -> list:
+        """The local pictures of a reference-only send in their Image order — each shot's approved storyboard picture in film order,
+        one identity picture per character, the 3D place renders. ONE list for what is sent (_reference_pictures) and for what D6 sees
+        (_d6_pictures): #29 job 928 D6 was shown the start frame + the scene's Kho pictures while the send (and the prompt's
+        'Image N') was storyboard Shot 1, storyboard Shot 2, KELLY, place renders — both answers dropped codes and were refused.
+        [{"host": Subject Library name, "path", "say": what the picture is, in the prompt's words}]."""
+        from . import seedance_refs
+        conn = self.p.conn
+        pid = job["project_id"]
+        rows = self._ref_rows(job, group)
+        out = []
+        for i, r in enumerate(rows, 1):
+            frame = self._start_frame(pid, r["id"])
+            if frame:
+                out.append({"host": f"P{pid}_S{r['id']}_frame", "path": frame, "say": f"storyboard frame of Shot {i} (khung đầu Shot {i})"})
+        ids = seedance_refs.identity_pictures(conn, pid, rows, seedance_refs.MAX_PICTURES - len(rows))
+        out += [{"host": f"P{pid}_{n}", "path": path, "say": f"nhân vật {n}"} for n, path in ids]
+        for k, ref in enumerate(seedance_refs.place_pictures(self.data_dir, pid, rows), 1):
+            out.append({"host": f"P{pid}_place_{k}", "path": ref["path"],
+                        "say": "PLACE render 3D cho " + ", ".join(f"Shot {i}" for i in ref["shots"])})
+        return out
+
+    def _d6_pictures(self, job, group, model, start, skill) -> list:
+        """(label, path) of the pictures D6 (core/chat_prompt) looks at = the pictures this request really sends, in its order, each
+        label carrying the request's own 'Image N' code. Same sources as _base_submit_kwargs: the skill way, the reference-only way
+        (_reference_sources + the single shot's end frame), else the start frame + the Seedance scene references."""
+        if skill:
+            return ([("Image 1: khung đầu (first frame)", skill["first_frame"])]
+                    + [(f"Image {k}: {p.get('who', '')} ({p.get('kind', '')})", p["path"]) for k, p in enumerate(skill["pictures"], 2)])
+        if self._refs(job):
+            pics = [(f"Image {n}: {s['say']}", s["path"]) for n, s in enumerate(self._reference_sources(job, group or []), 1)]
+            if not group:
+                end = self._end_frame(job, model or "seedance", chain=False)
+                if end:
+                    pics.append((f"Image {len(pics) + 1}: khung cuối (end state của shot)", end))
+            return pics
+        shown = [("Ảnh khung đầu (clip bắt đầu từ đúng ảnh này)", start)]
+        if "seedance" in (model or ""):
+            from . import assets
+            conn = self.p.conn
+            shown += [(f"Ảnh tham chiếu: {r['label']}", r["path"]) for r in assets.scene_references(
+                conn, job["project_id"], json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"]
+                                                    or "{}"))]
+        return shown
+
     def _reference_pictures(self, job, group) -> list:
-        """The marked pictures of a reference-only send: each shot's approved storyboard picture in film order, then one identity
-        picture per character (at most 9 in all)."""
-        from . import seedance_refs, shots
+        """The marked pictures of a reference-only send (_reference_sources, in Image order), hosted or marked."""
+        from . import seedance_refs
         conn = self.p.conn
         rows = self._ref_rows(job, group)
-        frames = [self._start_frame(job["project_id"], r["id"]) for r in rows]
-        labels = [f"P{job['project_id']}_S{r['id']}_frame" for r, f in zip(rows, frames) if f]
-        frames = [f for f in frames if f]
-        ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
-        places = seedance_refs.place_pictures(self.data_dir, job["project_id"], rows)
-        extras = [(f"P{job['project_id']}_{n}", path) for n, path in ids]
-        extras += [(f"P{job['project_id']}_place_{k}", ref["path"]) for k, ref in enumerate(places, 1)]
-        hosted = self._hosted_pictures(job, list(zip(labels, frames))
-                                       + extras, clean=True)
+        src = self._reference_sources(job, group)
+        hosted = self._hosted_pictures(job, [(s["host"], s["path"]) for s in src], clean=True)
         style = seedance_refs.mark_style(conn, [r["id"] for r in rows])   # lỗi hệ thống 4: "eye_plus" unless ref_mark_off_face
         if hosted:
             if self.__dict__.get("_pregen_local"):
@@ -1559,7 +1596,7 @@ class VideoRunner(_Runner):
             return hosted
         seedance_refs.note_sent(conn, [r["id"] for r in rows], style)
         out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
-        return [seedance_refs.mark(p, out_dir, style) for p in frames + [path for _, path in extras]]
+        return [seedance_refs.mark(s["path"], out_dir, style) for s in src]
 
     subject_library = None          # S4.7: the Seedance Subject Library (tests set a double; else core.adapters.factory's)
 
@@ -1967,11 +2004,8 @@ class VideoRunner(_Runner):
                 motion = motion.rstrip() + skill_dossier.video_sentence(hit)
             negative = skill_dossier.video_negative(hit, negative)
         from .adapters.clipai import PROMPT_LIMITS
-        shown = [("Ảnh khung đầu (clip bắt đầu từ đúng ảnh này)", path)]
-        if "seedance" in (model or ""):
-            shown += [(f"Ảnh tham chiếu: {r['label']}", r["path"]) for r in assets.scene_references(
-                conn, job["project_id"], json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"]
-                                                    or "{}"))]
+        from . import chat_prompt as _d6
+        shown = self._d6_pictures(job, group, model, path, skill) if _d6.enabled() else []   # D6 off: nothing extra to read
         motion = chat_rewrite(self, job, "video", motion, shown, model,
                                    limit=PROMPT_LIMITS.get(model or "") or (PROMPT_LIMITS["kling"] if "kling" in str(model or "").lower() else 4000))
         args = (path, motion, looks.video_negative(proj, negative), duration, model)
