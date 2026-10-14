@@ -146,7 +146,9 @@ def test_lines_on_timeline(fast, monkeypatch):
     if not fast:
         assert durations == [3.0, 3.0] and starts == [voice.LEAD, 3.0 + voice.LEAD]      # y cũ
     else:
-        assert durations == [round(voice.LEAD + 1.0 + pacing.FAST_TAIL_MAX, 2)] * 2
+        assert durations[0] == round(voice.LEAD + 1.0 + pacing.FAST_TAIL_MAX, 2)
+        # rà 14/10: shot 2's line came in before the cut → its tail is cut from where the line really ends (not LEAD + line)
+        assert durations[1] == round(max(starts[1] + 1.0 - durations[0] + pacing.FAST_TAIL_MAX, pacing.FAST_MIN_SHOT), 2) == 1.2
         gap = starts[1] - (starts[0] + 1.0)
         assert 0 < gap <= 0.25 + 1e-9
         assert starts[1] >= durations[0] - pacing.FAST_J_MAX - 1e-9                        # gối tiếng tối đa 0,5 s trước cú cắt
@@ -160,7 +162,8 @@ def test_tighten_keeps_silent_lipsynced_and_person_edited_shots():
     out, changes = pacing.tighten(p.conn, pid, data, rows, [3.0, 3.0, 4.0], keep={sids[1]})
     assert out == [1.8, 3.0, 4.0] and [c["scene_id"] for c in changes] == [sids[0]]
     with mock.patch("core.lipsync.synced_scene_ids", return_value={sids[0]}):
-        assert pacing.tighten(p.conn, pid, data, rows, [3.0, 3.0, 4.0])[0] == [3.0, 1.8, 4.0]
+        # shot 2 = same voice after a lip-synced shot: its line starts ON the cut (no J-in) → 1,0 s line + 0,5 s tail
+        assert pacing.tighten(p.conn, pid, data, rows, [3.0, 3.0, 4.0])[0] == [3.0, 1.5, 4.0]
     p.set_project_field(pid, "pacing", None)
     assert pacing.tighten(p.conn, pid, data, rows, [3.0, 3.0, 4.0]) == ([3.0, 3.0, 4.0], [])
 
@@ -172,3 +175,72 @@ def test_missing_knowledge_section_is_an_error(monkeypatch, tmp_path):
     with pytest.raises(ValueError):
         pacing.director_block({"pacing": "fast"})
     assert pacing.director_block({"pacing": "normal"}) == ""
+
+
+# ---- rà 14/10 (claude/pacing-fast-ra) ------------------------------------------------------------------------------------------------
+def test_tighten_reapplied_on_already_short_durations_still_fits_the_clip():
+    """editor_apply dựng lại với giây của bản trước (đã cắt đuôi) → shot vẫn phải vào `fit`, không thì cut ghép nguyên clip 3 s."""
+    p, pid = _project("fast")
+    data, sids, rows = _voiced(p, pid, n=1)
+    out, changes = pacing.tighten(p.conn, pid, data, rows, [1.8])
+    assert out == [1.8] and [c["scene_id"] for c in changes] == [sids[0]] and changes[0]["from_s"] == 3.0
+
+
+def test_tighten_follows_where_the_line_really_starts():
+    """câu shot trước tràn sang → câu shot này vào muộn hơn LEAD; cắt theo chỗ câu thật, không cắt dưới câu."""
+    p, pid = _project("fast")
+    data, sids, rows = _voiced(p, pid, n=2)
+    directory = audio_lib.assets_dir(data, pid)
+    items = audio_lib.load(directory)
+    items[0]["duration_ms"] = 4000                  # 4 s line in a 3 s shot: spills 1,3 s into shot 2
+    audio_lib._save(directory, items)
+    out, _ = pacing.tighten(p.conn, pid, data, rows, [3.0, 3.0])
+    assert out == [3.0, 3.0]                         # shot 2's line ends at 2,5 s of it (+0,5 s tail = 3,0) — nothing to cut
+
+
+def test_tighten_never_below_the_crossfade():
+    p, pid = _project("fast")
+    data, sids, rows = _voiced(p, pid, n=3, ms=200)
+    from core import final_cut
+    out, _ = pacing.tighten(p.conn, pid, data, rows, [3.0, 3.0, 3.0], transition="crossfade", fade=1.0)
+    assert final_cut.render_problems(out, "crossfade", 1.0) == [] and all(d < 3.0 for d in out)
+
+
+def test_no_j_in_over_a_lipsynced_shot_of_the_same_speaker(monkeypatch):
+    monkeypatch.setenv("FEATURE_J_CUT", "0")
+    p, pid = _project("fast")
+    data, sids, rows = _voiced(p, pid, n=2)
+    with mock.patch("core.final_cut.collect_clips_for_render", return_value=rows), \
+            mock.patch("core.lipsync.synced_scene_ids", return_value={sids[0]}):
+        voice.place_on_timeline(p.conn, pid, data, durations=[3.0, 3.0])
+    starts = _starts(data, pid)
+    assert starts[1] >= 3.0                         # the same voice is never heard over the closed mouth of the lip-synced shot
+
+
+def test_old_database_gets_the_column_and_clone_keeps_it():
+    import sqlite3
+    from core import compare, db
+    p, pid = _project("fast")
+    new = compare.clone_project(p, pid, "bản sao")
+    assert pacing.of(p.project(new)) == "fast"
+    conn = sqlite3.connect(":memory:")                      # a database from before the column: the migration adds it, NULL = normal
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT)")
+    conn.execute("INSERT INTO projects (name) VALUES ('cũ')")
+    db._migrate_v2(conn)
+    assert pacing.project_fast(conn, 1) is False and conn.execute("SELECT pacing FROM projects").fetchone()["pacing"] is None
+
+
+def test_voice_speed_is_profile_times_variant_clamped():
+    assert pacing.voice_speed({"speed": 0.8, "variant": {"pitch": 2, "speed": 1.1}}) == pytest.approx(0.88)
+    assert pacing.voice_speed({"speed": 1.2, "variant": {"speed": 1.1}}) == 1.2
+    assert pacing.voice_speed({"speed": 5}) == 1.2
+
+
+def test_syllables_vietnamese_nfd_marks_and_numbers():
+    import unicodedata
+    line = "Bốn đối thủ ập tới — từ bốn phía…"
+    assert pacing.syllables(line) == 8
+    assert pacing.syllables(unicodedata.normalize("NFD", line)) == 8
+    assert pacing.syllables("15 người") == 3 and pacing.syllables("có 100 bạn") == 4 and pacing.syllables("_ … —") == 0
+    assert [pacing.syllables(n) for n in ("5", "10", "25", "105", "2025", "0")] == [1, 1, 3, 4, 7, 1]

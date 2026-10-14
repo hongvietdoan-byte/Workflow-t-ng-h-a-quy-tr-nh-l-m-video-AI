@@ -69,24 +69,78 @@ def screenwriter_block(proj) -> str:
 
 
 # ---- 3. kiểm bằng code sau Đạo diễn ------------------------------------------------------------------------------------------------
+SPEED_RANGE = (0.7, 1.2)   # ClipAI TTS speed (core/adapters/clipai_audio.py) — the same clamp as voice.line_params (claude/voice-speed)
+
+
+def _num(value) -> Optional[float]:
+    try:
+        v = float(str(value).replace(",", ".")) if isinstance(value, str) else float(value)
+    except (TypeError, ValueError):
+        return None
+    return None if isinstance(value, bool) or v != v or v in (float("inf"), float("-inf")) or v <= 0 else v
+
+
 def voice_speed(profile: Optional[Dict]) -> float:
-    """Tốc độ đọc của hồ sơ giọng: `speed` (nhánh thêm tốc độ vào hồ sơ), else biến thể `variant.speed`, else 1,0. Đọc mềm."""
+    """Tốc độ đọc thật của hồ sơ giọng = tốc độ riêng của hồ sơ (`speed`) × tốc độ biến thể (`variant.speed`), kẹp 0,7–1,2 — đúng
+    cách TTS nhận (voice.line_params nhánh claude/voice-speed; có `voice.profile_speed` thì dùng hàm đó). Đọc mềm: thiếu / sai → 1,0."""
+    from . import voice
     prof = profile if isinstance(profile, dict) else {}
-    for value in (prof.get("speed"), (prof.get("variant") or {}).get("speed") if isinstance(prof.get("variant"), dict) else None):
-        try:
-            v = float(value)
-        except (TypeError, ValueError):
+    own = voice.profile_speed(prof) if hasattr(voice, "profile_speed") else _num(prof.get("speed"))
+    variant = prof.get("variant") if isinstance(prof.get("variant"), dict) else {}
+    speed = (own or 1.0) * (_num(variant.get("speed")) or 1.0)
+    return round(min(max(speed, SPEED_RANGE[0]), SPEED_RANGE[1]), 3)
+
+
+def _number_syllables(digits: str) -> int:
+    """Âm tiết khi đọc một số tiếng Việt: 5 = 1 (năm), 10 = 1 (mười), 15 = 2, 25 = 3 (hai mươi lăm), 100 = 2 (một trăm),
+    105 = 4 (một trăm lẻ năm), 2025 = 7 (hai nghìn không trăm hai mươi lăm). Số quá dài (mã, số điện thoại) = đọc từng chữ số."""
+    digits = digits.lstrip("0") or "0"
+    if digits == "0":
+        return 1
+    if len(digits) > 12:
+        return len(digits)
+    groups = []
+    while digits:
+        groups.insert(0, digits[-3:])
+        digits = digits[:-3]
+    total = 0
+    for k, g in enumerate(groups):
+        h, t, u = (int(c) for c in g.rjust(3, "0"))
+        if not (h or t or u):
             continue
-        if 0.3 <= v <= 3.0:
-            return v
-    return 1.0
+        full = k > 0                      # a group after the first is read whole: "không trăm", "lẻ"
+        if h or full:
+            total += 2                    # "x trăm"
+        if t == 1:
+            total += 1                    # "mười"
+        elif t:
+            total += 2                    # "x mươi"
+        elif u and (h or full):
+            total += 1                    # "lẻ"
+        if u:
+            total += 1
+        if k < len(groups) - 1:
+            total += 1                    # nghìn / triệu / tỷ
+    return total
+
+
+def syllables(said: str) -> int:
+    """Âm tiết tiếng Việt của một câu đọc: chữ ghép dấu kiểu NFD được gộp lại (NFC) trước khi đếm — "Bốn" NFD không thành 2 âm; dấu câu
+    '…', '—', '_' không đếm; số đọc thành chữ (15 → mười lăm = 2)."""
+    import unicodedata
+    text = unicodedata.normalize("NFC", str(said or ""))
+    total = 0
+    for word in re.findall(r"[^\W_]+", text, re.UNICODE):
+        for part in re.findall(r"\d+|[^\d]+", word):
+            total += _number_syllables(part) if part.isdigit() else 1
+    return total
 
 
 def _speech_seconds(rows, speeds: Dict[str, float]) -> float:
     from . import dialogue
     total = 0.0
     for who, said in rows:
-        n = dialogue.syllables(said)
+        n = syllables(said)
         if n:
             total += n / (dialogue.RATE * speeds.get(" ".join(str(who or "").upper().split()), 1.0))
     return total
@@ -135,37 +189,47 @@ def check_plan(p, project_id: int, record: bool = True) -> List[Dict]:
 
 
 # ---- 4. khâu dựng ------------------------------------------------------------------------------------------------------------------
-def line_start(t: float, prev_end: float, normal_start: float) -> float:
+def line_start(t: float, prev_end: float, normal_start: float, j_ok: bool = True) -> float:
     """Where a clip's first line starts in a fast project (not lip-synced): right after the previous line (FAST_LINE_GAP), coming in
-    before the cut at most FAST_J_MAX; never before the clip when no line was said yet, never over the previous line."""
+    before the cut at most FAST_J_MAX; never before the clip when no line was said yet, never over the previous line.
+    j_ok False (rà 14/10: the shot before is lip-synced and this is the same voice) → never before the cut."""
     if prev_end < 0:
         return normal_start
-    return max(prev_end + FAST_LINE_GAP, t - FAST_J_MAX)
+    return max(prev_end + FAST_LINE_GAP, t - (FAST_J_MAX if j_ok else 0.0))
 
 
-def tighten(conn, project_id: int, data_dir: str, rows: List[Dict], durations: List[float], keep=()) -> Tuple[List[float], List[Dict]]:
-    """Fast project: a shot with voiced lines keeps at most FAST_TAIL_MAX of silence after its last line (lead + lines + gaps, as
-    voice.place_on_timeline lays them) — never below FAST_MIN_SHOT, never a lip-synced shot, never a shot in `keep` (the person's own
-    edit). Returns (new durations, [{scene_id, idx, from_s, to_s}]). normal → unchanged, []."""
+def tighten(conn, project_id: int, data_dir: str, rows: List[Dict], durations: List[float], keep=(),
+            transition: str = "cut", fade: float = 1.0) -> Tuple[List[float], List[Dict]]:
+    """Fast project: a shot with voiced lines keeps at most FAST_TAIL_MAX of silence after its last line — the line where
+    voice.layout really lays it (spilled over from the shot before, or come in before the cut), shot after shot on the new lengths —
+    never below FAST_MIN_SHOT nor the crossfade, never a lip-synced shot, never a shot in `keep` (the person's own edit).
+    Returns (new durations, [{scene_id, idx, from_s, to_s}]): every shot whose cut length is now shorter than its clip — also one
+    already given a short length (editor_apply renders again on the last render's seconds), so the render fits its file (a cut
+    joins whole files). normal → unchanged, []."""
     if not project_fast(conn, project_id):
         return list(durations), []
-    from . import audio_lib, lipsync, voice
+    from . import audio_lib, ffmpeg_studio, final_cut, lipsync, voice
     items = audio_lib.load(audio_lib.assets_dir(data_dir, project_id))
     synced = set(lipsync.synced_scene_ids(data_dir, project_id) or [])
     usable = [r for r in rows if r.get("path")]
-    out, changes = list(durations), []
-    for i, (r, d) in enumerate(zip(usable, durations)):
+    out, changes = [float(d) for d in durations], []
+    overlap = float(fade) if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
+    floor = max(FAST_MIN_SHOT, overlap + 0.5)          # final_cut.render_problems: a shot must outlast its crossfade
+    for i, r in enumerate(usable[:len(out)]):
         sid = r.get("scene_id")
         if sid is None or sid in keep or sid in synced:
             continue
-        said = [float(e.get("duration_ms") or 0) / 1000.0 for e in items
-                if e.get("kind") == "tts" and e.get("scene_id") == sid and e.get("state") == "succeeded" and e.get("file")]
-        said = [x for x in said if x > 0]
+        clips = [{**c, "_seconds": d} for c, d in zip(usable, out)]
+        here = voice.layout(conn, project_id, data_dir, clips, items, overlap)[i]
+        said = [(start, float(e.get("duration_ms") or 0) / 1000.0) for e, start in here["lines"]]
+        said = [(s, x) for s, x in said if x > 0]
         if not said:
             continue                      # a shot without words is a picture beat — its length is the Director's
-        end = voice.LEAD + sum(said) + voice.GAP * (len(said) - 1)
-        want = round(max(end + FAST_TAIL_MAX, FAST_MIN_SHOT), 2)
-        if float(d) - want > 0.05:
+        end = max(s + x for s, x in said) - here["t"]
+        want = round(max(end + FAST_TAIL_MAX, floor), 2)
+        if out[i] - want > 0.05:
             out[i] = want
-            changes.append({"scene_id": sid, "idx": r.get("idx"), "from_s": round(float(d), 2), "to_s": want})
+        have = final_cut.clip_seconds(r["path"], r.get("requested_sec"))
+        if have - out[i] > 0.05:
+            changes.append({"scene_id": sid, "idx": r.get("idx"), "from_s": round(float(have), 2), "to_s": round(out[i], 2)})
     return out, changes

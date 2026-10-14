@@ -402,6 +402,18 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
         if e["kind"] == "tts" and e.get("dialogue") and e.get("scene_id") not in rendered:
             e["use"] = False
     overlap = fade if transition in ffmpeg_studio.OVERLAP_STYLES else 0.0
+    placed = 0
+    for clip in layout(conn, project_id, data_dir, clips, items, overlap):
+        for e, start in clip["lines"]:
+            e.update(start=start, use=True)
+            placed += 1
+    audio_lib._save(directory, items)
+    return placed
+
+
+def layout(conn, project_id: int, data_dir: str, clips: List[Dict], items: List[Dict], overlap: float = 0.0) -> List[Dict]:
+    """Where every voiced line of `clips` starts on the timeline, WITHOUT saving: [{"scene_id", "t", "length", "lines": [(entry, start)]}]
+    per clip. One rule for place_on_timeline and pacing.tighten (rà 14/10: the tail cut must see the line where it really plays)."""
     from . import lipsync
     synced = lipsync.synced_scene_ids(data_dir, project_id)
     shifts = {int(k): float(v.get("shift") or 0) for k, v in lipsync.index(data_dir, project_id).items() if v.get("state") == "done"}
@@ -410,7 +422,8 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
     from . import features, pacing
     j_cut = features.on("j_cut")
     fast = pacing.project_fast(conn, project_id)       # 14/10 nhịp nhanh: câu sau ngay sau câu trước (≤ 0,25 s), gối qua cú cắt
-    t, placed, prev_end, prev_speaker = 0.0, 0, -1.0, None
+    t, prev_end, prev_speaker, prev_synced = 0.0, -1.0, None, False
+    out = []
     for clip in clips:
         length = clip.get("_seconds") or final_cut.clip_seconds(clip["path"], clip["requested_sec"])
         lines = sorted([e for e in items if e["kind"] == "tts" and e.get("scene_id") == clip.get("scene_id")
@@ -422,16 +435,20 @@ def place_on_timeline(conn, project_id: int, data_dir: str, transition: str = "c
                 and (lines[0].get("speaker") or "") != prev_speaker):
             cursor = max(t - J_LEAD, prev_end + GAP)          # never over the previous line's real audio
         if fast and lines and clip.get("scene_id") not in synced:
-            cursor = pacing.line_start(t, prev_end, cursor)
+            # rà 14/10: the same voice never comes in over the lip-synced shot before (its mouth has stopped) — no J-in there
+            same_mouth = prev_synced and (lines[0].get("speaker") or "") == (prev_speaker or "")
+            cursor = pacing.line_start(t, prev_end, cursor, j_ok=not same_mouth)
+        laid = []
         for e in lines:
-            e.update(start=round(cursor, 2), use=True)
+            laid.append((e, round(cursor, 2)))
             cursor += (e.get("duration_ms") or 0) / 1000.0 + GAP
             prev_end = cursor - GAP
             prev_speaker = e.get("speaker") or prev_speaker
-            placed += 1
+        if lines:
+            prev_synced = clip.get("scene_id") in synced
+        out.append({"scene_id": clip.get("scene_id"), "t": t, "length": float(length), "lines": laid})
         t += length - overlap
-    audio_lib._save(directory, items)
-    return placed
+    return out
 
 
 def cues(conn, project_id: int, data_dir: str) -> List:

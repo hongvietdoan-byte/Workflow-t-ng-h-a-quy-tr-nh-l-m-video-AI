@@ -658,8 +658,12 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         raise ValueError("; ".join(problems))
     from . import pacing                 # 14/10 nhịp nhanh: lặng cuối shot có lời > 0,5 s bị cắt (bản sao qua _fit_edits); normal → y cũ
     mine = set((edits or {}).get("fit") or []) | set((edits or {}).get("head") or {}) | set((edits or {}).get("cut") or {})
-    durations, paced = pacing.tighten(p.conn, project_id, data_dir, rows, durations, keep=mine)
+    durations, paced = pacing.tighten(p.conn, project_id, data_dir, rows, durations, keep=mine,
+                                      transition=settings["transition"], fade=settings["fade"])
     if paced:
+        problems = final_cut.render_problems(durations, settings["transition"], settings["fade"])
+        if problems:
+            raise ValueError("nhịp nhanh: " + "; ".join(problems))
         edits = dict(edits or {}, fit=sorted(set((edits or {}).get("fit") or []) | {c["scene_id"] for c in paced}))
         diag.record(p.conn, "render", "info", f"Nhịp nhanh: cắt lặng cuối {len(paced)} shot có lời (≤ {pacing.FAST_TAIL_MAX:g} s sau câu cuối): "
                     + ", ".join(f"#{c['idx']} {c['from_s']:g}→{c['to_s']:g} s" for c in paced[:8]), "pacing_tail_cut", project_id)
