@@ -178,7 +178,7 @@ def place_on_timeline(data_dir: str, pid: int, rows: List[Dict], durations: List
     return {"moved": moved, "off": off}
 
 
-def apply(p: Pipeline, data_dir: str, pid: int, chosen: List[Dict], scenes: Optional[List[Dict]] = None) -> int:
+def apply(p: Pipeline, data_dir: str, pid: int, chosen: List[Dict], scenes: Optional[List[Dict]] = None, *, _directory=None) -> int:
     """Replace the effects an earlier AI proposal added with `chosen` (rows: id, at, volume, name). Other effects stay. Returns the count.
     Each effect is anchored to the shot its second falls in on `scenes` (the timeline the proposal was made on; read again when not
     given), so a later render with other clip lengths moves it with its shot (place_on_timeline)."""
@@ -210,7 +210,7 @@ def apply(p: Pipeline, data_dir: str, pid: int, chosen: List[Dict], scenes: Opti
                 or not os.path.isfile(path) or not finite(volume, True) or not .1 <= volume <= 1.5):
             raise ValueError('Cue SFX cần âm Kho còn tồn tại ở file cục bộ và âm lượng hữu hạn 0,1–1,5.')
         anchors.append({'anchor_idx': idx, 'offset': round(offset, 2)})
-    directory = audio_lib.assets_dir(data_dir, pid)
+    directory = _directory if _directory is not None else audio_lib.assets_dir(data_dir, pid)
     for i in reversed([i for i, e in enumerate(audio_lib.load(directory)) if str(e.get("label", "")).startswith(LABEL_PREFIX)]):
         audio_lib.remove(directory, i)
     n = 0
@@ -218,7 +218,8 @@ def apply(p: Pipeline, data_dir: str, pid: int, chosen: List[Dict], scenes: Opti
         row = sound_lib.get(p.conn, int(c["id"]))
         if row is None or not os.path.exists(row["path"]):
             continue
-        seconds = sound_lib.ensure_duration(p.conn, row["id"])
+        # Caller theo nhịp stage chỉ đọc Kho: ensure_duration có UPDATE/commit và đổi kind.
+        seconds = (row.get('duration') or None) if _directory is not None else sound_lib.ensure_duration(p.conn, row["id"])
         audio_lib.add_local(directory, row["path"], LABEL_PREFIX + row["name"], float(c["at"]), float(c["volume"]),
                             int(seconds * 1000) if seconds else None, cue_anchor)
         n += 1
@@ -226,17 +227,88 @@ def apply(p: Pipeline, data_dir: str, pid: int, chosen: List[Dict], scenes: Opti
 
 
 def propose_motion(p: Pipeline, data_dir: str, pid: int, transition: str = "cut", fade: float = 1.0, *, opted_in=False):
-    """Adapter code 0 USD, dùng cùng timeline/catalog/apply; caller Bước 5 chưa nối."""
+    """Adapter code 0 USD, dùng cùng timeline/catalog/apply; dùng luồng chọn/duyệt Bước 5."""
     from . import features, motion_sfx
     if not opted_in or not features.on('motion_sfx'):
         return None
     access.need_view(p, pid, 'xem gợi ý SFX theo nhịp')
+    signature = motion_signature(p, data_dir, pid, transition, fade)
+    quick_signature = motion_quick_signature(p, data_dir, pid, transition, fade)
     scenes = timeline(p, data_dir, pid, transition, fade)
     details = {r['idx']: dict(json.loads(r['data'] or '{}'), motion_prompt=r['motion_prompt']) for r in p.conn.execute(
         'SELECT s.idx, s.data, m.motion_prompt FROM scenes s LEFT JOIN motion_prompts m ON m.scene_id=s.id WHERE s.project_id=?', (pid,))}
     paths = {c['idx']: c['path'] for c in final_cut.collect_clips(p, data_dir, pid)}
     enriched = [dict(details.get(s['idx'], {}), **s, clip_path=paths.get(s['idx'])) for s in scenes]
     result = motion_sfx.plan(enriched, catalog(p.conn), opted_in=True)
+    if (signature != motion_signature(p, data_dir, pid, transition, fade)
+            or quick_signature != motion_quick_signature(p, data_dir, pid, transition, fade)):
+        raise SfxPlanError('Đầu vào đổi trong lúc đo clip; hãy lập lại gợi ý.')
     if not scenes:
         result['warnings'].append('VÀNG — chưa có clip; không sinh cue.')
+    result['_motion'] = {'signature': signature, 'quick_signature': quick_signature, 'scenes': scenes}
     return result
+
+
+def _motion_fingerprint(p, data_dir, pid, transition, fade, *, strong):
+    from .motion_sfx_safe import signature_payload
+    try:
+        return signature_payload(p, data_dir, pid, transition, fade, strong=strong)
+    except (OSError, ValueError, TypeError, OverflowError):
+        raise SfxPlanError('Không kiểm được clip trong phạm vi/trần cho phép; hãy kiểm nguồn và lập lại gợi ý.') from None
+
+
+def motion_signature(p, data_dir, pid, transition="cut", fade=1.0):
+    """SHA mạnh có giới hạn; bắt buộc trước khi ghi, không chạy trên rerun UI."""
+    return _motion_fingerprint(p, data_dir, pid, transition, fade, strong=True)
+
+
+def motion_quick_signature(p, data_dir, pid, transition="cut", fade=1.0):
+    """DB/stat để phản hồi UI; không thay SHA khi người dùng áp dụng."""
+    return _motion_fingerprint(p, data_dir, pid, transition, fade, strong=False)
+
+
+def motion_current(p, data_dir, pid, plan, transition='cut', fade=1.0, *, strong=True):
+    meta = plan.get('_motion') or {}
+    fingerprint = motion_signature if strong else motion_quick_signature
+    try:
+        return meta.get('signature' if strong else 'quick_signature') == fingerprint(p, data_dir, pid, transition, fade)
+    except SfxPlanError:
+        return False
+
+
+def apply_motion(p, data_dir, pid, plan, selected, transition='cut', fade=1.0):
+    """Kiểm quyền/snapshot và selection trước stage; giữ neo shot khi sửa giây."""
+    access.need_edit(p, pid, 'áp dụng hiệu ứng âm thanh theo nhịp')
+    from . import features, motion_sfx_safe
+    from .motion_sfx import finite
+    if not features.on('motion_sfx'):
+        raise SfxPlanError('SFX theo nhịp đang tắt; hãy lập lại gợi ý sau khi bật.')
+    def verify():
+        if not motion_current(p, data_dir, pid, plan, transition, fade):
+            raise SfxPlanError('Cảnh/BYĐ/clip hoặc chuyển cảnh đã đổi; hãy lập lại gợi ý trước khi áp dụng.')
+    verify()
+    scenes = plan['_motion']['scenes']
+    chosen, seen = [], set()
+    if not isinstance(selected, list):
+        raise SfxPlanError('Danh sách chọn SFX không hợp lệ.')
+    for row in selected:
+        if not isinstance(row, dict):
+            raise SfxPlanError('Hàng chọn SFX không hợp lệ.')
+        index = row.get('index')
+        if (not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(plan['cues'])
+                or index in seen or not finite(row.get('at')) or not finite(row.get('volume'), True)):
+            raise SfxPlanError('Mã hàng/thời điểm/âm lượng SFX không hợp lệ hoặc hàng lặp.')
+        seen.add(index)
+        cue = dict(plan['cues'][index])
+        shot = next((s for s in scenes if s['idx'] == cue['anchor_idx']), None)
+        if shot is None:
+            raise SfxPlanError('Neo cảnh SFX không tồn tại; hãy lập lại gợi ý.')
+        cue.update(at=float(row['at']), volume=float(row['volume']), offset=round(float(row['at']) - shot['start'], 2))
+        chosen.append(cue)
+    return motion_sfx_safe.atomic_apply(__import__(__name__, fromlist=['']), p, data_dir, pid, chosen, scenes, verify=verify)
+
+
+def propose_motion_review(p, data_dir, pid, transition='cut', fade=1.0):
+    """Caller bảng chọn/duyệt yêu cầu quyền sửa; API đọc propose_motion giữ need_view."""
+    access.need_edit(p, pid, 'lập gợi ý SFX theo nhịp để duyệt')
+    return propose_motion(p, data_dir, pid, transition, fade, opted_in=True)
