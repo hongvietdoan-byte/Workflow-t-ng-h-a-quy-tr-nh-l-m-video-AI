@@ -1,5 +1,7 @@
 # Rà tự kiểm Đ12v3 âm ref — 14/10/2026
 
+- Root chốt polish: đọc diff sửa lần hai, 22 test xanh/3,40s; browser CUA actual component 1440/1280 warning rõ/không overflow/0 console error, readonly nút disabled. 2 JPEG docs/images/d12/ref_audio_polish_*.jpg, root đã xem1280. Owned QA PID118464 đã dừng/cổng18636 đóng; chưa toàn Step5/production/cả bộ Windows.
+
 ## Phạm vi
 Nguồn gốc + đoạn + tốc độ đã duyệt; cờ `ref_audio_sync` TẮT. Không làm lại mix_bus trên main.
 
@@ -40,3 +42,88 @@ Reviewer độc lập + QA giao diện1440/1280; chưa commit/push. Thông số 
 - Đối chiếu nguồn chính thức [FFmpeg Formats](https://ffmpeg.org/ffmpeg-formats.html): format_whitelist là input allowlist demuxer; MOV enable_drefs/use_absolute_path mặc định tắt, giữ mặc định này. [FFmpeg Protocols](https://ffmpeg.org/ffmpeg-protocols.html): protocol_whitelist là input allowlist. Tên native demuxer/option xác nhận bằng proof ffmpeg thật MP4+WAV.
 - RED2 mock args thiếu allowlists → XANH **16qua/1,40s** focused toàn test_ref_audio_sync; có ffmpeg thật nguồn WAV440/880Hz, speed/fit và generated nativeMP4 probe. Playlist giả.mp4 có URL chỉ chạy mock subprocess, không mở mạng; test kiểm cả allowlists và vị trí trước `-i` cho probe/extract. Không khẳng định đây là sandbox decoder tổng quát; phạm vi chặn playlist/protocol ngoài nguồn native.
 - Chưa commit/push bổ sung; root đọc diff rồi quyết. Không API/data/env thật/cả bộ; environ OBJECT giả trước imports/native subprocess env whitelist.
+
+## Bổ sung polish sau thư 14/10 18:26/19:23 (chưa gộp)
+
+Mail origin/main 7340e6b1 xác nhận C5 giải phóng file và Đ12v3 thuộc Codex,
+không làm lại backend. Nhánh mới codex/d12-ref-audio-polish từ main này;
+cherry-pick backend 4a52a772/2808cfe0 thành ff24a25c/b5207db4. Conflict hai
+file FEATURES/areas đã giữ nội dung main mới, thêm ref_audio_sync, version80.
+
+ĐỎ 4 failed/16 passed (1.53s) → XANH 20 passed (1.37s), lệnh chung
+`py -m pytest -q tests/test_ref_audio_polish.py tests/test_ref_audio_sync.py --tb=no -p no:cacheprovider`, PYTHONUTF8=1.
+Các test mới dùng access thật trên SQLite fake kiểm viewer/denied không IO;
+helpers UI được execute cô lập bằng AST để không import credential/provider
+Dashboard, kiểm warning qua rerun/scoped project/reset và help ON/OFF.
+Existing sync tests tiếp tục kiểm nguồn/đoạn/tốc độ bằng fixture giả.
+
+Tự rà 2b.5:
+- Không nới test, không secret env/header/token reads; patch.object object
+  os.environ fake trước import/call. Không provider/network/fallback/API.
+- Không đổi đường dẫn backend hay đọc dữ liệu thật; code need_edit trước
+  tạo thư mục/audio probe/ffmpeg, kế thừa user=None trusted system.
+- Cảnh báo no_audio giữ trong session_state riêng pid qua rerun; không claim
+  tồn tại sau đóng session/restart, không ghi thêm DB manifest. Lần lấy tiếng
+  thành công kế cập nhật/xóa; đổi dự án không hiển thị warning dự án khác.
+- Cờ ref_audio_sync vẫn OFF/OPT_IN_ONLY; ON help đúng atrim+atempo theo
+  metadata và apad/atrim cuối shot, OFF giữ giới hạn ≤40% cũ.
+- Không đổi use=False/consent/checkbox keys/autosend, không paid API.
+- Bắt guard caption fit_tempo: sync fit_file không có fit_tempo nên dùng get
+  thay truy cập trực tiếp để không KeyError, không đổi backend fit.
+- related_areas step5 + core_infra/step3; chưa fullsuite Windows/GUI polish,
+  chưa nghiệm thu nghe bản dựng sản xuất. Root cần rà quyền độc lập/gộp.
+
+
+## RÀ KỸ độc lập polish · sửa gom nhỏ (14/10 tối, chưa commit/gộp)
+
+Phạm vi chỉ uncommitted polish trên baseorigin7340e6b1 + backendcherry-pick
+ff24a25c/b5207db4; không rà/làm lại backend đã có. Đọc CLAUDE7/diff/tests và
+related_areas: Step5, caller pipeline/Step3 chỉ gọi validate_metadata/setter,
+không gọi propose nên server need_edit mới không làm vỡ luồng setter.
+
+Finding P2 tại dashboard/steps/step5.py:297: catch st.error rồi unconditional
+rerun làm lỗi/AccessDenied biến mất ngay. Sửa catch return để giữ error trên lượt
+hiện tại; readonly disable riêng ax_refaudio theo C.read_only, server need_edit
+trong core/ref_audio.py:155 vẫn kiểm trước assets_dir/probe/extract. Không đổi
+widget keys, consent use=False, flags/default hoặc background/paid API.
+
+Tests mới gọi **actual extras_section** (AppTest), fake SQLite/users/session/
+manifest/providerNone: error probe tồn tại, readonly nút disabled; warning pid1
+qua rerun, pid2 không mang warningpid1, quay lại pid1 giữ cảnh báo; ON/OFF và
+sync fit_file thiếu fit_tempo không exception. Helpers AST vẫn có tests cũ;
+đường source test sửa absolute theo __file__, không phụ thuộc cwd.
+
+Bằng chứng reviewer: lượt1 21pass/1fixturefail+warning (thiếu fake USERPROFILE
+trước ScriptRunner config); sửa fakeHOME. Lượt2 **RED actual1fail/1pass** (error
+bị rerun xóa). Lượt3 20pass/2fixturefails do readonly dùng C.access_user global
+nhưng auth.identity đã forbidden; bổ sung fakeC.access_user=p.user nhất quán.
+Root cho thêm1confirm có lý do: **22passed/3.40s**, hai file test_ref_audio_polish
++test_ref_audio_sync, --tb=no, không nới assert. Tổng reviewer4lượt, ghi minh bạch
+vượt3 do fixture isolation; không broad/fullsuite.
+
+Fixture tests/fixtures/ref_audio_polish_qa.py khai areas version80 giữ. os.environ
+OBJECT fake trước imports/calls; winreg/keyring modulefake trước importcommon,
+restore cả missing/present; prepatch providerfactory/model profileloader/voice/
+auth identity/ownercheck trước dashboard import. Static sources cho thấy registry
+fallback ở meshy.api_key là local import trong function, modelprofiles loader
+cũng lazy; fakeguards không đọc registry/credential thật. Fake files=None nên
+không đọc media. Native launcher spawn explicit whitelist dict (không inherit
+credentials), -I -Xutf8; không env/header/token repr/assert/showlocals.
+
+Root QA browser riêng:
+- URL http://127.0.0.1:18636 ; PID118464 ; unifiedexecsession49976.
+- Launcher ngoài repo: D:/AI-Video-Pipeline/.codex-wt/_qa_ref_audio_polish_launch.py;
+  wrapper D:/AI-Video-Pipeline/.codex-wt/_qa_ref_audio_polish.py dùng runpy tới
+  fixturetracked. Root giữ quyền dừng PID sở hữu sau QA.
+- Command launcher: py -I -X utf8 D:/AI-Video-Pipeline/.codex-wt/_qa_ref_audio_polish_launch.py;
+  lần khởi động thực còn có outerPython patch.object envfake + subprocess.Popen
+  env=explicitwhitelist trước childspawn, không nativeenv hostsecret.
+- Click lấy tiếng để có VÀNG, rerun/đổi dự án, hover help, ON/OFF, readonly,
+  lỗi probe giả; actual extras component, **chưa toàn Step5/production**.
+- Root bổ sung ảnh1440/1280/bằng chứng sau; reviewer không claim đã browserQA.
+
+Warning chỉ lưu session riêngpid, không DB/restart; chỉ cập nhật/xóa khi propose
+trả kết quả mới, không tự re-probe khi đổi nguồn/flag. Help row theo cùng điều kiện
+backend metadata+flag; OFF legacy ≤40%, ON source/segment/speed và trim/pad. Lỗi
+manifest fit_tempo kiểu sai không thuộc polish, chưa claim sanitize toàn audio
+manifest. Không sửa backend/C5/mix/delivery, TODO/main/live/API/data thật.

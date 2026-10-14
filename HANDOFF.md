@@ -1,5 +1,11 @@
 # Bàn giao Đ12 việc 3 — metadata âm ref (14/10/2026)
 
+## Chốt polish 14/10 21:33 — ưu tiên trạng thái này
+
+- Root đã đọc diff sửa lần hai; targeted cuối 22 xanh/3,40s. Need_edit trước IO, warning no_audio giữ theo pid qua rerun, help theo cờ, lỗi giữ màn hiện tại và readonly disable nút; giữ consent/use=False/widget keys.
+- Browser CUA fixture actual extras_section: 1440/1280 không cuộn ngang, warning shot 2/5 rõ, 0 console error; readonly nút lấy tiếng disabled. Đã xem ảnh1280, lưu docs/images/d12/ref_audio_polish_1280.jpg và _1440.jpg. QA chỉ component/fakeDB/provider, chưa toàn Step5/bản dựng sản xuất/cả bộ Windows.
+- Đã đóng tab/reset viewport và dừng đúng owned launcher PID118464; cổng18636 không còn nghe. Không động 8501/8502/data thật/API. Backend dependency ff24a25c+b5207db4 giữ C5/main mới; areas80.
+
 ## Trạng thái mới nhất (thay các dòng chờ rà/QA phía dưới)
 - Root đã commit/push code nhánh `4a52a772`; bổ sung sau commit đang workingdiff: nguồnON ffmpeg probe/extract có protocol/demuxer allowlists chặn playlist giả.mp4 mở URL/file khácproject. RED2→XANH16focused/1,40s, WAV+MP4 thật qua, playlist chỉmock khôngmạng. Chưacommit/push fixbổsung, root đọc diff trước quyết; chưacảbộ/gộp/sảnxuất. Dòng này thay trạng thái chưacommit/push cũ phía dưới.
 - Nhánh đã RÀ KỸ, sửa2finding reviewer+3finding root; root đã đọc fixdiff vòng2. Thêm OPT_IN_ONLY ref_audio_sync chặn preset experimental tự bật, RED1→GREEN1/0,16s. Không mở rộng tính năng.
@@ -23,3 +29,21 @@
 - Test cuối vòng sửa: `test_ref_audio_sync.py test_f5b_backlog.py test_chat_intake.py` **47 qua,6 bỏ qua /6,47s**, environ OBJECT giả/native whitelist; RED setter + RED2 mô phỏng fingerprint legacy. Test mới actor/pathB+pathA và source overwrite dùng/chưa dùng, biên hash. Chưa commit/push, root còn đọc diff/QA/cả bộ.
 - Vòng2 root: RED3 → XANH13 focused ref_audio_sync; pre/post fingerprint quanh extraction chặn source đổi/mất/overflow (VÀNG+clean tmp); sync fit trần600s trước spawn; fit WAV tạm+os.replace atomic giữ bản cũ nếu timeout. Root QA1440/1280 0pageerror/overflow, PNG docs/images/d12; còn root ảnh1450 + đọc diff. Chưa xóa fixture/chưa commit/push/chưa cả bộ.
 - QA cuối root1280/1440 height1500 đủ fields component thật, 0pageerror/overflow; root đã view1280, server fake riêng đã stop. Reviewer xóa đúng `_qa_ref_audio_ui.py` sau verify theo root. Focused cuối13qua/1,23s; chưa production/8501/cả bộ/commit/push; còn root đọc diff vòng2.
+
+## Đ12v3 polish sau thư 14/10 18:26/19:23 — chưa commit/gộp
+
+- Worktree D:/AI-Video-Pipeline/.codex-wt/d12-ref-audio-polish, nhánh codex/d12-ref-audio-polish, base origin/main 7340e6b1.
+- Backend có sẵn 4a52a772 + 2808cfe0 chưa main, cherry-pick chủ ý thành ff24a25c + b5207db4. Conflict FEATURES/OPT_IN_ONLY/areas giữ main, bổ sung riêng ref_audio_sync; version 80. Không đổi delivery/ffmpeg_studio/C5.
+- Sửa nhỏ: propose need_edit server trước assets_dir/probe/ffmpeg; no_audio VÀNG theo pid giữ qua rerun, cập nhật/xóa ở lần propose thành công tiếp theo; help ON đoạn nguồn+tốc độ (atrim+atempo), OFF giữ ≤40%; caption sync không KeyError khi fit_file có nhưng thiếu fit_tempo.
+- Không đổi use=False/checkbox consent, widget keys, autosend hoặc backend sync.
+- Test gom 2 file: ĐỎ 4 failed/16 passed (1.53s) → XANH 20 passed (1.37s). Fixture env patch.object fake trước imports/calls; fake DB/files, no paid/provider.
+- related_areas: step5, callers core_infra/step3; test CHẬM editor_apply/editor_review/rough_cut bắt buộc ở bước gộp. Chưa fullsuite/GUI polish/chất lượng sản xuất/data thật.
+- Tự rà 2b.5 ghi tại docs/RA_D12_VIEC3_CODEX_2026-10-14.md. Cần root RÀ KỸ quyền + fullsuite Windows trước gộp; không TODO/push/commit phần sửa nhỏ.
+
+
+## Rà độc lập polish và fixture QA · trạng thái mới nhất
+- Reviewer đọc phạm vi nhỏ,1P2 catcherror bị rerun xóa đã sửa return+readonly disable riêng refbutton; core need_edit authoritative trước IO vẫn giữ. Không đổi keys/useFalse/flags/backend.
+- Actual AppTest extras: RED errorvisibility → **22GREEN/3.40s**, targeted2files. Reviewer4lượt (2lỗi fixture fakeHOME/globalidentity, root cho confirm4th); khôngnới/broad/fullsuite. Cwdtestsource sửa absolute __file__.
+- Fixture tracked tests/fixtures/ref_audio_polish_qa.py areas80; fakeenv+winreg/keyring restoremissingpresent, provider/model/auth loaders mock trước dashboardimports. Không realcredential/media/API.
+- QAserver http://127.0.0.1:18636 PID118464 unifiedsession49976, launcher ngoàiWS D:/AI-Video-Pipeline/.codex-wt/_qa_ref_audio_polish_launch.py, outerchildspawn explicitnativewhitelist -I -Xutf8. RootbrowserQA1440/1280 và dừng đúngPID; chưa production/fullStep5.
+- RA bổ sung docs/RA_D12_VIEC3_CODEX_2026-10-14.md. Còn root đọc fixdiff lần2, chụpQA, cảbộWindowsintegration; khôngcommit/push/TODO/main/live.

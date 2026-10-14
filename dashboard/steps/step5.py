@@ -3,6 +3,30 @@ from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 
 
+def _ref_audio_help(sync: bool) -> str:
+    if sync:
+        return ("Tách tiếng từ nguồn gốc, cắt đúng đoạn và co giãn theo tốc độ tham chiếu đã khai; "
+                "khi dựng giới hạn hoặc bù im lặng tới cuối shot. Thiếu metadata hoặc không có tiếng sẽ báo VÀNG. "
+                "Tích 'Đưa vào bản ghép' để dùng; không tự đưa đề xuất vào bản ghép.")
+    return ("Tách tiếng của video ref đã gắn ở Bước 3 thành SFX neo vào shot; "
+            "tích 'Đưa vào bản ghép' để dùng. Khi dựng nén/giãn khớp độ dài clip nếu chênh ≤ 40 %.")
+
+
+def _ref_audio_no_audio_notice(pid: int, result=None) -> None:
+    """Giữ cảnh báo theo dự án qua các lượt rerun; lần lấy tiếng thành công kế cập nhật/xóa."""
+    key = f"refaudio_no_audio_{pid}"
+    if result is not None:
+        shots = result.get("no_audio") or []
+        if shots:
+            st.session_state[key] = (f"VÀNG: shot {', '.join(map(str, shots))} — video tham chiếu không có tiếng; "
+                                     "bỏ qua tiếng ref của các shot này, không tự đoán âm thanh.")
+        else:
+            st.session_state.pop(key, None)
+    warning = st.session_state.get(key)
+    if warning:
+        st.warning(warning)
+
+
 def _note(text: str) -> None:
     """A caption. UI v2 (docs/QUY_TAC_BO_CUC_UI_V2.md §5): a long explanation is cut to one line and the whole text sits behind a ⓘ."""
     if not ui.v2_on() or len(text) <= 90:
@@ -253,12 +277,14 @@ def extras_section(p: Pipeline, pid: int, provider):
                 st.rerun()
         n_ref = p.conn.execute("SELECT COUNT(*) FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id WHERE s.project_id=? "
                                "AND m.ref_video_path IS NOT NULL AND m.ref_video_path != ''", (pid,)).fetchone()[0]
+        from core import features
+        ref_audio_sync = features.on("ref_audio_sync")
         if n_ref and st.button(f"🎥 Lấy tiếng {n_ref} video tham chiếu làm SFX của shot (0 USD, chỉ đề xuất)", key=f"ax_refaudio_{pid}",
-                               help="Tách tiếng của video ref đã gắn ở Bước 3 thành SFX neo vào shot, KHÔNG tự đưa vào bản ghép — "
-                                    "tích 'Đưa vào bản ghép' để dùng; khi dựng tiếng được nén/giãn khớp độ dài clip nếu chênh ≤ 40 %."):
+                               help=_ref_audio_help(ref_audio_sync), disabled=C.read_only(p, pid)):
             from core import ref_audio
             try:
                 res = ref_audio.propose(p, C.DATA, pid)
+                _ref_audio_no_audio_notice(pid, res)
                 words = [f"thêm {len(res['added'])} đề xuất"] if res["added"] else []
                 words += [f"shot {', '.join(map(str, res['no_audio']))} video ref không có tiếng"] if res["no_audio"] else []
                 words += [f"shot {', '.join(map(str, res['missing']))} không thấy tệp video ref"] if res["missing"] else []
@@ -270,7 +296,9 @@ def extras_section(p: Pipeline, pid: int, provider):
                 st.toast(" · ".join(words) or "Không có gì để tách")
             except Exception as ex:  # noqa: BLE001 - said, not swallowed (CHUAN luật 1)
                 st.error(f"Không tách được tiếng video ref: {ex}")
+                return  # Không rerun xóa lỗi/AccessDenied ngay sau khi vừa hiển thị.
             st.rerun()
+        _ref_audio_no_audio_notice(pid)
         err = st.session_state.pop(f"refaudio_err_{pid}", None)
         if err:
             st.warning("Không tách được tiếng video ref (các shot khác vẫn tách): " + err)
@@ -285,9 +313,9 @@ def extras_section(p: Pipeline, pid: int, provider):
                     st.audio(os.path.join(directory, e["file"]))
                 if e.get("source") == "ref_video":
                     st.caption(("Đề xuất — tích 'Đưa vào bản ghép' nếu dùng. " if not e["use"] else "")
-                               + "Khi dựng: đi theo shot, nén/giãn khớp độ dài clip nếu chênh ≤ 40 %"
+                               + _ref_audio_help(ref_audio_sync and bool(e.get("ref_audio_metadata")))
                                + (f" (lần dựng trước: {e['fit_skipped']})" if e.get("fit_skipped") else
-                                  f" (lần dựng trước: tốc độ ×{e['fit_tempo']:g})" if e.get("fit_file") else "") + ".")
+                                  f" (lần dựng trước: tốc độ ×{e['fit_tempo']:g})" if e.get("fit_tempo") is not None else "") + ".")
                     if e.get("ref_stale"):
                         st.warning("⚠ " + e["ref_stale"] + " — bỏ tích rồi bấm lại nút lấy tiếng video ref để thay")
                 a, b, c, d = st.columns([2, 1.3, 2, 1], vertical_alignment="center")

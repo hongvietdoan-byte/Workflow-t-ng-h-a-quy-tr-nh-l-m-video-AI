@@ -151,6 +151,8 @@ def propose(p, data_dir: str, pid: int) -> Dict:
     """Tách tiếng các video ref có âm thanh thành đề xuất SFX của shot. Returns {"added", "no_audio", "missing", "already", "failed":
     [(idx, lý do)], "removed", "stale_used": [idx]} — mọi shot có video ref đều được kể (không im lặng khi bỏ qua); lỗi ffmpeg một shot
     không dừng các shot khác (rà F5 mục 6); đề xuất của video ref cũ được dọn trước (`_prune`)."""
+    from .access import need_edit
+    need_edit(p, pid, "đề xuất tiếng video tham chiếu")
     directory = audio_lib.assets_dir(data_dir, pid)
     out = {"added": [], "no_audio": [], "missing": [], "already": [], "failed": [], "removed": [], "stale_used": []}
     from . import features
