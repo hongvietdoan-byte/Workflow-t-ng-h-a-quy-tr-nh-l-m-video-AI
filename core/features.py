@@ -65,6 +65,12 @@ FEATURES: Dict[str, Dict] = {
     },
     "support_tickets": {"label": "Kho phiếu Tiểu Nhị / Lão Đại", "verified": False,
                         "why": "Đợt 9: chỉ thử CSDL tạm, chưa bật sản xuất"},
+    "chat_prompts": {
+        "label": "D6 'đường như chat': trước khi gửi, MỘT lượt Claude nhìn đúng các ảnh sẽ gửi + ý đồ + mô tả của bạn viết lại prompt ảnh / "
+                 "video thành một đoạn liền mạch (bản code ghép làm dữ kiện; code chỉ kiểm) — tốn 1 lượt Claude có ảnh / shot",
+        "verified": False,
+        "why": "Người dùng 14/10 (docs/DANH_GIA_VAI_DAO_DIEN_2026-10-14.md mục 3b–3c): chưa thí điểm — chạy tools/d6_pilot.py trên 3–5 shot #27 trước",
+    },
     "mix_bus": {
         "label": "Nhạc nén riêng dưới bus hiệu ứng (SFX) 8–12 dB (ffmpeg, 0 USD)",
         "verified": False,

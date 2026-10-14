@@ -524,8 +524,9 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
             st.caption("Duyệt / Loại / Vẽ lại và ô lý do nằm ngay trên thẻ ảnh.")
             return
         if state in ("succeeded", "pending_review"):
-            note = st.text_input("Câu sửa cho lần gen lại (đưa vào prompt — nên viết tiếng Anh, vd “Kelly wears the yellow jacket”)",
-                                 key=f"note_{jid}")
+            from core import chat_prompt                 # D6: người dùng chỉ mô tả (cờ chat_prompts)
+            note = st.text_input(chat_prompt.note_label("Câu sửa cho lần gen lại (đưa vào prompt — nên viết tiếng Anh, vd “Kelly wears the "
+                                                        "yellow jacket”)"), key=f"note_{jid}")
             a, b = st.columns(2)
             if b.button("✖ Loại & gen lại" + retake, key=f"dr_{jid}"):
                 act(_spin(lambda: p.reject(jid, "user", note or None)))

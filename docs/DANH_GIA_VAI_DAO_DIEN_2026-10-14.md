@@ -88,6 +88,11 @@ vào D6**; **D5 bỏ** (D6 trả prompt chữ, không có JSON để hỏng; l�
 thí điểm (tỉ lệ người dùng duyệt ngay lần đầu + tiền) — vẫn cần vì CHUẨN XÂY DỰNG đòi bằng chứng chạy thật. D6 làm cho prompt VIDEO trước; đạt
 thì áp cùng cách cho prompt ẢNH khung đầu (hiện cũng viết mù trước khi có ảnh).
 
+## 3d. D6 đã code (14/10 09:39, người dùng đồng ý; khâu ảnh cũng kém → làm cả ảnh + video)
+`core/chat_prompt.py` (cờ `chat_prompts`, TẮT) · nối `core/runner.py::chat_rewrite` ở cuối `ImageRunner._finish_args` và `VideoRunner._submit_args`
+· hướng dẫn `knowledge/model_guides/image.md | seedance.md | kling.md` · công cụ thí điểm `tools/d6_pilot.py` (bản sao CSDL, mặc định chỉ báo giá)
+· ô ghi chú khi loại → "Mô tả điều muốn đổi". Test `tests/test_chat_prompt.py`. Thí điểm: xem hộp thư TODO.
+
 ## 4. Việc giao (ghi hộp thư TODO)
 - **Cloud:** D1 phần code (bảng điểm đọc CSDL, test trên CSDL tạm dựng lại ca #22/#24/#27) · D3 bản tách đề xuất (người dùng duyệt) · D5.
 - **Máy chính:** chạy D1 trên CSDL thật #22/#24/#27 (0 USD) → gửi số; bật cờ D2 ở 🧪 trước tập 2 (sao lưu `data/feature_settings.json`).

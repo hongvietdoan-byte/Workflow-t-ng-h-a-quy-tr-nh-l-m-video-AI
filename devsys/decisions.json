@@ -273,6 +273,14 @@
    "stage": "director_rewrite"
   },
   {
+   "id": "d102",
+   "step": "step2",
+   "who": "claude",
+   "what": "D6 'đường như chat': nhìn đúng các ảnh sẽ gửi, viết lại prompt ảnh / video thành một đoạn liền mạch (cờ chat_prompts)",
+   "where": "core/chat_prompt.py:STAGE",
+   "stage": "chat_prompt"
+  },
+  {
    "id": "d80",
    "step": "step2",
    "who": "claude",
