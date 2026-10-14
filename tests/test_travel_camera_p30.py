@@ -148,6 +148,37 @@ class TravelCameraP30(P30Base):
             s = travel_truth.for_shot(self.p.conn, self.pid, self.ids[1], self.data(1), rec)["sentence"]
         self.assertIn("from the foot of the long stone stairs (ground 3.9 m)", s)
 
+    # rà 14/10 (gộp tập 2) ---------------------------------------------------------------------------------------------------------
+    def test_approved_stage_camera_is_yellow_not_blocked_nor_same_point(self):
+        """Máy Sân khấu 3D đã duyệt nhìn DỌC đường chạy (sau lưng, về B) trong khi chữ nói chạy về phía máy → VÀNG, không chặn."""
+        cam = [self.A[0] - 2 * (self.B[0] - self.A[0]) / 10, self.A[1] - 2 * (self.B[1] - self.A[1]) / 10, self.A[2] + 1.5]
+        self.edit(1, stage_camera={"location": cam, "look_at": list(self.B), "lens": 28, "source": "stage_v2"})
+        it = self.plan(dict(ON, FEATURE_STAGE_CAMERA="1"))[self.ids[1]]
+        self.assertTrue(it["camera"].get("locked"))
+        self.assertIsNone(it["needs"])
+        self.assertNotIn("trùng nhau", it["travel_problem"] or "")
+        if it["travel_problem"]:
+            self.assertIn("máy Sân khấu 3D đã duyệt", it["travel_problem"])
+
+    def test_travel_camera_without_plate_view_does_not_wait(self):
+        row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.ids[1],)).fetchone()
+        d = json.loads(row["data"]); d.pop("plate_view", None)
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), self.ids[1]))
+        self.p.conn.commit()
+        it = self.plan(ON)[self.ids[1]]
+        self.assertEqual(it["view"]["source"], "spot_default")
+        self.assertIsNone(it["needs"])
+        self.assertIn("travel", it["camera_why"])
+        self.assertIn("travel_view", it["camera_why"])
+        self.assertTrue(0 < self.t_of(it["camera"]["location"]) < 0.5)      # still on the run
+
+    def test_for_shot_error_is_said_and_plan_keeps_every_shot(self):
+        n = len(self.plan(ON))
+        with mock.patch.object(travel_truth, "for_shot", side_effect=RuntimeError("hỏng")):
+            got = self.plan(ON)
+        self.assertEqual(len(got), n)
+        self.assertIn("không kiểm được hướng chạy", got[self.ids[1]]["travel_problem"] or "")
+
 
 class MannequinNotTheObjectPicture(P30Base):
     """(e) Kho #367 3.png (sort −1, 'triển khai có hình nộm so cỡ') was sent as 'the object Bom keo' — never the object's picture."""

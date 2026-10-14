@@ -421,11 +421,16 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
         wide_cam = plate_camera.wide_for(camera, height, aspect, cam.get("frame_h_m"))
         wide = {"camera": wide_cam, "key": cache_key(s["entry"], wide_cam, env, resolution),
                 "why": {"wide": f"cùng hướng + độ nghiêng với máy shot, lùi dọc trục, ống {wide_cam['lens']:g} mm (F2)"}}
-        needs, travel_problem = view["needs"], None
+        needs, travel_problem, why_extra = view["needs"], None, {}
+        if travel_on and cam.get("travel") and view.get("source") == "spot_default":
+            # rà 14/10: máy đặt theo đường chạy đã có hướng (A→B) — chỗ đứng không có hướng cố định không còn chặn nền
+            needs = None
+            why_extra["travel_view"] = "shot chưa ghi `plate_view` — hướng máy lấy từ đường chạy A→B (camera_move), không chờ Quay phim"
         if travel_on:
             needs, travel_problem = _travel_checks(conn, pid, s, cam, camera, view, routes.get(s["id"]), needs)
         out.append({"travel_problem": travel_problem,"camera_fixes": list(cam.get("fixes") or []), "camera_problem": cam.get("problem"), "wide": wide,
-                    "camera_why": dict(cam.get("why") or {}, **({"shared_with": cam["shared_with"]} if cam.get("shared_with") else {})),
+                    "camera_why": dict(cam.get("why") or {}, **why_extra,
+                                       **({"shared_with": cam["shared_with"]} if cam.get("shared_with") else {})),
                     "horizon_y": cam.get("horizon_y"),
                     "scene_id": s["id"], "idx": s["idx"], "place": s["place"]["name"], "entry": s["entry"], "camera": camera, "env": env,
                     "subject_box": cam["subject_box"], "distance_m": cam["distance_m"], "spot": sp["name"],
@@ -447,7 +452,9 @@ def _travel_checks(conn, pid: int, s: Dict, cam: Dict, camera: Dict, view: Dict,
     - a run said with no usable route / two meanings → travel_problem (VÀNG, the camera as before)."""
     from . import plate_choice, travel_truth
     problem = (route or {}).get("problem")
-    if route and route.get("mode") and not cam.get("travel"):
+    # rà 14/10: máy Sân khấu 3D đã duyệt (from_stage: locked + why "stage") — không dời theo đường chạy, không chặn nền bằng chữ
+    stage = bool(cam["camera"].get("locked") or "stage" in (cam.get("why") or {}))
+    if route and route.get("mode") and not cam.get("travel") and not stage:
         problem = "điểm đi và điểm đến trùng nhau trên mặt đất — máy 3D giữ chỗ cũ, không đặt theo đường chạy"
     if cam.get("travel") and view.get("source") == "script" and not needs:
         look = plate_choice.bearing(camera["location"], camera["look_at"])
@@ -457,8 +464,15 @@ def _travel_checks(conn, pid: int, s: Dict, cam: Dict, camera: Dict, view: Dict,
             needs = (f"hướng nền `plate_view` '{view['view']}' ({view['background_deg']:g}°) trái máy đặt theo đường chạy (máy {mode}: nền "
                      f"{look:g}°, lệch {off:.0f}°) — sửa `plate_view.background` cho khớp hướng chạy (hoặc camera_move) rồi chạy lại; nền chưa render")
     if not needs:
-        got = travel_truth.for_shot(conn, pid, s["id"], s["data"], {"camera_plan": camera})
-        needs = got.get("needs")
+        try:
+            got = travel_truth.for_shot(conn, pid, s["id"], s["data"], {"camera_plan": camera})
+        except Exception as e:  # noqa: BLE001 - said (travel_problem VÀNG), needs as before — one shot never breaks plan()
+            return needs, f"không kiểm được hướng chạy: {type(e).__name__}: {e}"
+        if stage and got.get("needs"):
+            problem = (f"{got['needs']} — máy Sân khấu 3D đã duyệt — sửa chữ shot hoặc giải lại máy Sân khấu 3D"
+                       + (f" · {problem}" if problem else ""))
+        elif not stage:
+            needs = got.get("needs")
     return needs, problem
 
 
