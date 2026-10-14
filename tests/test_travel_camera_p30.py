@@ -124,6 +124,8 @@ class TravelCameraP30(P30Base):
         self.edit(1, plate_view={"background": "landmark", "why": "giữ tháp ở nền"})
         it = self.plan(ON)[self.ids[1]]
         self.assertIn("trái máy đặt theo đường chạy", it["needs"] or "")
+        from core import autopilot
+        self.assertEqual(autopilot.needs_code(it["needs"]), "travel_truth")     # rà 14/10: không phải mã plate_view
 
     # (c) ------------------------------------------------------------------------------------------------------------------------
     def test_words_against_the_render_block_before_generation(self):
@@ -132,6 +134,9 @@ class TravelCameraP30(P30Base):
         on, off = self.plan(ON), self.plan(OFF)
         self.assertIn("hướng chạy trái nền 3D", on[self.ids[1]]["needs"] or "")
         self.assertIsNone(off[self.ids[1]]["needs"])                          # flag off: as before
+        from core import autopilot
+        self.assertEqual(autopilot.needs_code(on[self.ids[1]]["needs"]), "travel_truth")
+        self.assertEqual(autopilot.needs_code("shot chưa ghi hướng máy (`plate_view`)"), "plate_view")
 
     # (d) ------------------------------------------------------------------------------------------------------------------------
     def test_travel_sentence_has_no_vietnamese(self):
@@ -147,6 +152,12 @@ class TravelCameraP30(P30Base):
         with mock.patch.dict(os.environ, ON):
             s = travel_truth.for_shot(self.p.conn, self.pid, self.ids[1], self.data(1), rec)["sentence"]
         self.assertIn("from the foot of the long stone stairs (ground 3.9 m)", s)
+
+    def test_ascii_vietnamese_label_is_not_put_in_the_prompt(self):
+        """rà 14/10: nhãn không dấu 'chan cau thang' vẫn là tiếng Việt — chỉ label_en, còn lại câu trung tính."""
+        self.assertEqual(travel_truth._label_en({"label": "chan cau thang"}, True, True), "the foot of the stairs")
+        self.assertEqual(travel_truth._label_en({"label": "dinh cau thang"}, False, True), "the top of the stairs")
+        self.assertEqual(travel_truth._label_en({"label": "x", "label_en": "the old well"}, True, True), "the old well")
 
     # rà 14/10 (gộp tập 2) ---------------------------------------------------------------------------------------------------------
     def test_approved_stage_camera_is_yellow_not_blocked_nor_same_point(self):

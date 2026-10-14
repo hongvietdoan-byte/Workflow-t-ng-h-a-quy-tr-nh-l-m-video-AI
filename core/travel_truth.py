@@ -131,11 +131,11 @@ def _label(sp: Dict) -> str:
 
 def _label_en(sp: Dict, low: bool, stairs: bool) -> str:
     """Nhãn chỗ đứng cho PROMPT tiếng Anh (14/10 #30: "from chân cầu thang nhiều tầng …" lọt vào prompt ảnh): `label_en` của chỗ
-    đứng nếu có; nhãn đã là chữ ASCII thì dùng nguyên; còn lại mô tả trung tính theo thấp / cao — không để tiếng Việt vào prompt."""
-    for key in ("label_en", "label"):
-        text = str(sp.get(key) or "").split(" (", 1)[0].strip()
-        if text and (key == "label_en" or all(ord(ch) < 128 for ch in text)):
-            return text
+    đứng nếu có; không có thì mô tả trung tính theo thấp / cao — không để tiếng Việt vào prompt (rà 14/10: nhãn không dấu
+    'chan cau thang' vẫn là tiếng Việt, nên `label` không bao giờ được dùng)."""
+    text = str(sp.get("label_en") or "").split(" (", 1)[0].strip()
+    if text:
+        return text
     if stairs:
         return "the foot of the stairs" if low else "the top of the stairs"
     return "the bottom of the slope" if low else "the top of the slope"

@@ -622,6 +622,13 @@ def _storyboard_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
                               + ") — xem “🎞 Storyboard” ở màn Storyboard, sửa/gen lại shot sai, rồi bấm “Duyệt storyboard” để gen video")
 
 
+def needs_code(needs: str) -> str:
+    """Mã chẩn đoán của một shot chờ nền: hướng chạy trái nền / trái máy đặt theo đường chạy (cờ travel_truth) = "travel_truth"
+    (rà 14/10: không xếp vào "plate_view" — người đọc sửa chữ shot / camera_move chứ không chỉ hướng máy); còn lại "plate_view"."""
+    n = str(needs or "")
+    return "travel_truth" if n.startswith("hướng chạy trái nền 3D") or "trái máy đặt theo đường chạy" in n else "plate_view"
+
+
 def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """place_render_refs: every shot set at a place with a registered 3D model gets its render before any picture (one Blender run per
     place + time/weather, shared cache), sent as a reference picture. A place with no 3D model is said once, not skipped silently.
@@ -641,7 +648,7 @@ def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         if it.get("spot_problem"):
             _d(p, pid, "image", "warn", f"shot {it['idx']}: {it['spot_problem']}", "plate_spot")
         if it.get("needs"):                               # S5.7: the shot's picture waits — said, with what to write
-            _d(p, pid, "image", "error", f"shot {it['idx']}: {it['needs']}", "plate_view")
+            _d(p, pid, "image", "error", f"shot {it['idx']}: {it['needs']}", needs_code(it["needs"]))
         elif it.get("view_problem"):
             _d(p, pid, "image", "warn", f"shot {it['idx']}: {it['view_problem']}", "plate_view")
         if it.get("light_problem"):
