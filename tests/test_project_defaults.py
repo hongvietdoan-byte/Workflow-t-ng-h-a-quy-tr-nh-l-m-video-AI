@@ -70,12 +70,17 @@ class ProjectDefaultsTests(unittest.TestCase):
         old = self.p.create_project("tập 1", created_by="a@x.vn")
         self.p.set_project_field(old, "render_settings", json.dumps({
             "transition": "cut", "fade": 1.0, "music_volume": 0.6, "music_start": 1.8, "music2_start": 18.08, "beat_pulse": True,
-            "keep_audio": False, "end_card": {"enabled": True, "title": "Tập 1"}, "exports": ["x.mp4"],
+            "keep_audio": False, "end_card": {"enabled": True, "title": "Tập 1", "subtitle": "Hẹn tập sau", "seconds": 2.5, "bg": "#111111",
+                                              "color": "#FFEE00", "font": "Inter"},
+            "exports": [{"w": 1080, "h": 1920}],
             "end_popup": {"items": [{"asset_id": 421}], "headline": "Hành động sắp ra mắt"}}))
         new = self.p.create_project("tập 2", created_by="a@x.vn")
         self.assertIn("render_settings", project_defaults.inherit(self.conn, new, "a@x.vn"))
         got = json.loads(self.p.project(new)["render_settings"])
-        self.assertEqual(got, {"transition": "cut", "fade": 1.0, "music_volume": 0.6, "beat_pulse": True, "keep_audio": False})
+        # rà 14/10: kiểu card cuối + cỡ xuất là cách làm (mang sang); chữ card (title/subtitle) là của truyện cũ (không mang)
+        self.assertEqual(got, {"transition": "cut", "fade": 1.0, "music_volume": 0.6, "beat_pulse": True, "keep_audio": False,
+                               "exports": [{"w": 1080, "h": 1920}],
+                               "end_card": {"enabled": True, "seconds": 2.5, "bg": "#111111", "color": "#FFEE00", "font": "Inter"}})
 
 
 class CacheStatsTests(unittest.TestCase):

@@ -12,7 +12,8 @@ from typing import Dict, List
 INHERIT = ("shot_mode", "look", "style_profile", "image_model", "render_settings", "qc_policy")
 # 14/10 tập 2 (#31): render_settings also hold one story's own marks (music_start / music2_start, end_popup, end_card, exports) —
 # a new story takes only the way of cutting; its marks are set again for its own film
-RENDER_WAY = ("transition", "fade", "music_volume", "beat_pulse", "keep_audio")
+RENDER_WAY = ("transition", "fade", "music_volume", "beat_pulse", "keep_audio", "exports")
+END_CARD_STYLE = ("enabled", "seconds", "bg", "color", "font")     # rà 14/10: kiểu card cuối mang sang; title/subtitle là chữ truyện cũ
 
 
 def _carried(field: str, value):
@@ -25,6 +26,11 @@ def _carried(field: str, value):
     if not isinstance(rs, dict):
         return None
     way = {k: rs[k] for k in RENDER_WAY if k in rs}
+    card = rs.get("end_card")
+    if isinstance(card, dict):
+        style = {k: card[k] for k in END_CARD_STYLE if k in card}
+        if style:
+            way["end_card"] = style
     return json.dumps(way, ensure_ascii=False) if way else None
 
 
