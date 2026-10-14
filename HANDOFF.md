@@ -1,6 +1,7 @@
 # Bàn giao Đ12 việc 3 — metadata âm ref (14/10/2026)
 
 ## Trạng thái mới nhất (thay các dòng chờ rà/QA phía dưới)
+- Root đã commit/push code nhánh `4a52a772`; bổ sung sau commit đang workingdiff: nguồnON ffmpeg probe/extract có protocol/demuxer allowlists chặn playlist giả.mp4 mở URL/file khácproject. RED2→XANH16focused/1,40s, WAV+MP4 thật qua, playlist chỉmock khôngmạng. Chưacommit/push fixbổsung, root đọc diff trước quyết; chưacảbộ/gộp/sảnxuất. Dòng này thay trạng thái chưacommit/push cũ phía dưới.
 - Nhánh đã RÀ KỸ, sửa2finding reviewer+3finding root; root đã đọc fixdiff vòng2. Thêm OPT_IN_ONLY ref_audio_sync chặn preset experimental tự bật, RED1→GREEN1/0,16s. Không mở rộng tính năng.
 - Nhóm47qua/6bỏqua/6,47s; focused13qua/1,23s + flag1GREEN. QA component thật với fake pipeline1440/1280 height1500 đủfields,0pageerror/overflow,2PNG docs/images/d12; root đã xem1280. Fixture và server QA riêng đã dọn.
 - Sẵn sàng root commit/push NHÁNH sau kiểm diff cuối; chưa commit/push, chưa cả bộ Windows/gộp/sản xuất. Nội dung tiến trình phía dưới là lịch sử, trạng thái mới nhất này được ưu tiên.
