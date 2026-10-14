@@ -113,7 +113,8 @@ class RegenDraftRouteTests(Base):
             self.p.conn.execute("UPDATE jobs SET quality_tier=NULL WHERE id=?", (old,))
             self.p.conn.commit()
             self.assertIsInstance(self.kwargs(old), dict)
-            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")
+            # 13/10: job không bậc còn sống = gen thẳng (như state()) — giữ tuyến tới khi bị loại, không bị gửi 480p thiếu draft
+            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "direct")
             self.made(old)
             self.assertEqual(self.p.reject(old, "user", "Keep the red hood on"), "rejected")
             again = self.p.conn.execute("SELECT MAX(id) FROM jobs").fetchone()[0]
@@ -128,22 +129,22 @@ class RegenDraftRouteTests(Base):
             self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")
             self.p.start(d)
             self.p.fail(d, "provider error")                             # nháp hỏng ở nhà cung cấp: không dính tuyến nháp
-            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "direct")
+            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")   # 13/10: tự động = nháp, kể cả nhãn easy
             old = self.p.create_job(self.s1, "video_gen")
             self.p.conn.execute("UPDATE jobs SET quality_tier='draft' WHERE id=?", (d,))
             self.p.conn.execute("UPDATE jobs SET quality_tier=NULL WHERE id=?", (old,))   # job mới nhất không bậc (cờ tắt lúc tạo)
             self.p.conn.commit()
-            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "direct")
+            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "direct")   # job không bậc còn sống giữ tuyến gen thẳng
 
-    def test_easy_shot_never_drafted_still_goes_direct_720p(self):
+    def test_easy_shot_never_drafted_now_starts_as_a_draft(self):
         with ON:
             self.auto_model()
             self.set_difficulty("easy")
             j = self.p.create_job(self.s1, "video_gen")
-            self.assertEqual(self.tier(j), "direct")
-            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "direct")
+            self.assertEqual(self.tier(j), "draft")                     # 13/10: bỏ E1 — mọi shot nháp 2.5 480p → bản cao 1080p
+            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")
             kw = self.kwargs(j)
-            self.assertEqual((kw.get("resolution"), kw.get("draft")), ("720p", None))   # E1: 2.0 720p gen thẳng, giữ nguyên
+            self.assertEqual((kw.get("resolution"), kw.get("draft")), ("480p", True))
 
 
 if __name__ == "__main__":
