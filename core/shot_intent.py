@@ -149,6 +149,21 @@ def _check_hanh_dong(items, names: set, out: List[Dict]) -> None:
             out.append(_issue("do", f"{t}.bat_dau", "thiếu trạng thái đầu"))
 
 
+def missing_beat(h: Dict) -> Optional[str]:
+    """Nhịp còn thiếu của một hanh_dong có ĐỔI tư thế ("dinh" / "ket_thuc"), None = đủ hoặc không đổi — dùng ở lớp kiểm trước gen video
+    (core/video_pregen.py). Đổi = một nhịp sau có `tu_the` khác nhịp đầu; ghi nhịp sau cùng tư thế (vd đầu 'dung' + cuối 'dung', #28/#29
+    14/10) vẫn là MỘT tư thế, không bắt thêm nhịp đỉnh."""
+    if not isinstance(h, dict) or not isinstance(h.get("bat_dau"), dict):
+        return None
+    later = [n for n in ("dinh", "ket_thuc") if isinstance(h.get(n), dict)]
+    if len(later) != 1:
+        return None
+    start = h["bat_dau"].get("tu_the")
+    if h[later[0]].get("tu_the") == start:
+        return None
+    return "ket_thuc" if later[0] == "dinh" else "dinh"
+
+
 def _check_ngoai_le(items, out: List[Dict]) -> None:
     for i, n in enumerate(items or []):
         t = f"ngoai_le[{i}]"

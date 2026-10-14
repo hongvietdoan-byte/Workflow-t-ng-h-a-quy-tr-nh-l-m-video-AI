@@ -388,11 +388,19 @@ class Motion(Base):                           # (5)
         scene, img = self.shot(data={"byd": byd(may={"co": "MS", "chuyen_dong": "lia_ngang"})})
         self.assertTrue(self.reds(video_pregen.check(self.p.conn, scene, self.plan(scene, img)), "chuyen_dong"))
 
-    def test_block_change_without_peak(self):
+    def test_change_without_peak_is_yellow_not_held(self):
+        """Người dùng 14/10 (#29 shot 5 dung→ngoi): đổi tư thế mà không ghi nhịp đỉnh → VÀNG (vẫn gửi), không ĐỎ."""
         b = byd(hanh_dong=[{"ai": "kelly", "bat_dau": {"tu_the": "dung"}, "ket_thuc": {"tu_the": "nga_ngua"}}])
         scene, img = self.shot(data={"byd": b})
-        got = self.reds(video_pregen.check(self.p.conn, scene, self.plan(scene, img)), "chuyen_dong")
-        self.assertTrue(any("đỉnh" in i["ly_do"] for i in got), got)
+        got = video_pregen.check(self.p.conn, scene, self.plan(scene, img))
+        self.assertEqual(self.reds(got, "chuyen_dong"), [])
+        self.assertTrue(any("đỉnh" in i["ly_do"] and i["muc"] == video_pregen.VANG for i in got), got)
+
+    def test_pass_same_pose_start_and_end_without_peak(self):
+        """#28/#29 14/10: Đạo diễn ghi đầu 'dung' + cuối 'dung' (chạy, không đổi tư thế) — không phải đổi tư thế, không bắt nhịp đỉnh."""
+        b = byd(hanh_dong=[{"ai": "kelly", "bat_dau": {"tu_the": "dung", "cham_dat": ["ban_chan"]}, "ket_thuc": {"tu_the": "dung"}}])
+        scene, img = self.shot(data={"byd": b})
+        self.assertEqual(self.reds(video_pregen.check(self.p.conn, scene, self.plan(scene, img)), "chuyen_dong"), [])
 
     def test_regression_p24_golden_byd_not_flagged(self):
         """Ca hồi quy #24 (tests/golden): BYĐ shot 4 / shot 8 một tư thế, máy đứng yên — lớp (5) không được báo nhầm."""

@@ -498,10 +498,13 @@ def _check_motion(conn, scene_id: int, plan: Dict, out: List[Dict]) -> None:
             if not h.get("bat_dau"):
                 out.append(_issue("chuyen_dong", DO, f"{tag}{who}: thiếu nhịp đầu (bat_dau)"))
                 continue
-            has = [n for n in ("dinh", "ket_thuc") if h.get(n)]
-            if has and len(has) < 2:                 # một tư thế (chỉ bat_dau) = shot đứng yên, đạt; có đổi thì phải đủ ba nhịp
-                lack = "đỉnh (dinh)" if "dinh" not in has else "cuối (ket_thuc)"
-                out.append(_issue("chuyen_dong", DO, f"{tag}{who}: hành động có đổi tư thế nhưng thiếu nhịp {lack} — cần đủ đầu–đỉnh–cuối"))
+            # Một tư thế (cả khi ghi nhịp sau cùng tư thế) = đạt. Đổi tư thế mà thiếu một nhịp → VÀNG, vẫn gửi (người dùng 14/10: điều
+            # phải đúng là TƯ THẾ theo kịch bản, không phải số nhịp; prompts/31_director_byd.md cho `dinh` tùy chọn — #29 shot 5 dung→ngoi).
+            lack = shot_intent.missing_beat(h)
+            if lack:
+                lack = "đỉnh (dinh)" if lack == "dinh" else "cuối (ket_thuc)"
+                out.append(_issue("chuyen_dong", VANG, f"{tag}{who}: hành động đổi tư thế nhưng không ghi nhịp {lack} — model tự nối "
+                                                       "đầu→cuối; kiểm tư thế đầu/cuối đúng kịch bản"))
     if missing:
         out.append(_issue("byd", VANG, "chưa có BYĐ" + (f" ({', '.join(missing)})" if many else "")
                           + " — chưa kiểm được nhịp đầu–đỉnh–cuối, chuyển động máy, khung cuối"))
