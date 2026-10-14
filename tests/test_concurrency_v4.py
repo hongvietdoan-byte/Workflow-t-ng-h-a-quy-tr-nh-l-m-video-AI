@@ -232,3 +232,15 @@ class BlenderQueueTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DbKeyFallbackTest(unittest.TestCase):
+    def test_unreadable_connection_shares_the_turn_never_splits_it(self):
+        # 15/10: không đọc được file của kết nối (luồng khác / đã đóng) → khóa CHUNG như cũ, không tách theo id(conn) (2 luồng cùng poll)
+        from core import runner
+
+        class Broken:
+            def execute(self, *a):
+                raise RuntimeError("other thread")
+        self.assertEqual(runner._db_key(Broken()), "")
+        self.assertIs(runner._turn(7, "video_gen", Broken()), runner._turn(7, "video_gen", Broken()))

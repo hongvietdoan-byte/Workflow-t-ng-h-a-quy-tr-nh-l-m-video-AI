@@ -112,8 +112,9 @@ def _db_key(conn) -> str:
     try:
         row = conn.execute("PRAGMA database_list").fetchone()
         path = row[2] if row else ""
-    except Exception:  # noqa: BLE001 - closed, or read from another thread (sqlite3 same-thread rule): keyed by itself — callers
-        path = ""      # take the turn in the connection's own thread (a test's holder thread gets the lock object first)
+    except Exception:  # noqa: BLE001 - closed, or read from another thread (sqlite3 same-thread rule): which file is unknown, so the
+        return ""      # SHARED key as before (one turn too many is safe; two pollers of the same file is the M3 bug) — callers take
+                       # the turn in the connection's own thread (a test's holder thread gets the lock object first)
     return os.path.normcase(os.path.abspath(path)) if path else f"mem:{id(conn)}"
 
 
