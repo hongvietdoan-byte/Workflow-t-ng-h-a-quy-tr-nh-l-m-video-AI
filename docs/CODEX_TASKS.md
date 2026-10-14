@@ -1242,6 +1242,9 @@ change_review) — kiểm quyền sửa như các ô khác. Ảnh chụp 1440 + 
 
 ## Việc 4 — (SAU khi người dùng duyệt việc 1) build phương án được chọn, sau cờ TẮT
 Đề bài chi tiết sẽ viết sau khi người dùng chốt. Không bắt đầu trước.
+**[14/10 18:09, người dùng giao qua phiên cloud]:** người dùng đã chọn phương án A (13/10). Codex **VIẾT ĐỀ BÀI CHI TIẾT trước** (yêu cầu ở hộp
+thư `TODO.md` dòng [14/10 18:09]) → người dùng duyệt → mới build. Đây là chỗ nghẽn của Đ11 việc 3 (Trình sửa sân khấu + màn Camera trên Dashboard) và
+Đ11 việc 5. `anchor_by_spot` giữ TẮT (người dùng 14/10) — không thiết kế phụ thuộc vào nó.
 
 ## Kết quả Codex — đợt 18
 
