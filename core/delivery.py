@@ -132,11 +132,14 @@ def audio_hash(data_dir: str, project_id: int) -> str:
     """Music + every sound effect / voice line switched on for the mix, with their times and file dates."""
     track = selected_music(data_dir, project_id)
     extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))
+    from . import features as _features
+    bus = _features.on("mix_bus") and any(e.get("kind") == "sound_effect" for e in extras)   # C5b: on/off changes the mix
     stamp = lambda path: round(os.path.getmtime(path), 2) if path and os.path.exists(path) else None  # noqa: E731
     track2 = second_music(data_dir, project_id)
     return lineage.settings_hash({"music": [os.path.basename(track) if track else None, stamp(track)],
                                   "extras": [[os.path.basename(e["path"]), e["start"], e["volume"], stamp(e["path"])] for e in extras],
                                   **({"music2": [os.path.basename(track2), stamp(track2)]} if track2 else {}),
+                                  **({"mix_bus": 1} if bus else {}),
                                   **({"cues": [[c["file"], c.get("start"), c.get("join"), stamp(c["path"])] for c in cues]}
                                      if (cues := _arc_cues(data_dir, project_id)) else {})})   # N3: old hashes stay
 
@@ -638,6 +641,9 @@ def render(p: Pipeline, project_id: int, data_dir: str, music_path: Optional[str
         diag.record(p.conn, "render", "info", "đã có giọng thoại TTS: tắt tiếng gốc của clip trong bản ghép (tránh 2 giọng chồng nhau)",
                     "clip_audio_muted", project_id)
     extras = audio_lib.mix_list(audio_lib.assets_dir(data_dir, project_id))
+    from . import features as _features
+    if _features.on("mix_bus"):               # C5b / Đ12v3 mục 2: the effects press the music on their own bus (ffmpeg_studio.DUCK_SFX)
+        extras = [dict(e, bus="sfx") if e.get("kind") == "sound_effect" else e for e in extras]
     lost_sounds = audio_lib.missing_in_mix(audio_lib.assets_dir(data_dir, project_id))
     if lost_sounds:                           # S14.4 C1b: never a video without a chosen sound and no word about it
         diag.record(p.conn, "render", "warn", f"bỏ {len(lost_sounds)} âm thanh đã bật nhưng mất file: {', '.join(lost_sounds[:5])}. "

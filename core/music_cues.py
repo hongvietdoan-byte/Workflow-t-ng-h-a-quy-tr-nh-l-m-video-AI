@@ -279,3 +279,23 @@ def duck_depth(voice_db: float, duck: Optional[str] = None) -> float:
         ffmpeg_studio.run([ff, "-y", "-loglevel", "error", "-i", m, "-i", v, "-filter_complex", f"[1:a]apad[k];[0:a][k]{duck}[o]",
                            "-map", "[o]", o])
         return round(rms_db(o, 0.5, 2.5) - rms_db(o, 4.0, 8.5), 2)
+
+
+def sfx_duck_depth(sfx_db: float, duck: Optional[str] = None) -> float:
+    """C5b (cờ mix_bus): how many dB the music dips under SOUND EFFECTS of `sfx_db` dBFS RMS with the `duck` sidechain (default
+    ffmpeg_studio.DUCK_SFX). Synthetic: 0,2 s decaying white-noise hits every 0,5 s (3–9 s of 12) under the two-tone pad of duck_depth."""
+    from . import ffmpeg_studio
+    ff = ffmpeg_studio.find_ffmpeg()
+    duck = duck or ffmpeg_studio.DUCK_SFX
+    with tempfile.TemporaryDirectory() as d:
+        raw, v, m, o = (os.path.join(d, n) for n in ("raw.wav", "v.wav", "m.wav", "o.wav"))
+        ffmpeg_studio.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "anoisesrc=c=white:a=1:d=6:r=44100:seed=3",
+                           "-af", "lowpass=f=6000,volume='if(lt(mod(t,0.5),0.2),exp(-12*mod(t,0.5)),0)':eval=frame,adelay=3000|3000,"
+                           "apad=whole_dur=12", "-ac", "2", raw])
+        gain = sfx_db - rms_db(raw, 3.5, 8.5)
+        ffmpeg_studio.run([ff, "-y", "-loglevel", "error", "-i", raw, "-af", f"volume={gain:.3f}dB", v])
+        ffmpeg_studio.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=f=220:d=12:r=44100", "-f", "lavfi", "-i",
+                           "sine=f=330:d=12:r=44100", "-filter_complex", "[0][1]amix=2,volume=0.3", "-ac", "2", m])
+        ffmpeg_studio.run([ff, "-y", "-loglevel", "error", "-i", m, "-i", v, "-filter_complex", f"[1:a]apad[k];[0:a][k]{duck}[o]",
+                           "-map", "[o]", o])
+        return round(rms_db(o, 0.5, 2.5) - rms_db(o, 3.5, 8.5), 2)

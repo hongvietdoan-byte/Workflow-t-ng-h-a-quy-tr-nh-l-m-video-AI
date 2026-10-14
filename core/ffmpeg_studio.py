@@ -460,8 +460,20 @@ DUCK = "sidechaincompress=threshold=0.05:ratio=3:attack=20:release=400"
 DUCK_EVEN = "sidechaincompress=threshold=0.0034:ratio=1.4:attack=20:release=400"
 
 
+# C5b / Đ12v3 mục 2 (cờ mix_bus, 14/10) — the music under the SOUND EFFECTS bus: hits are short, so a faster attack / shorter release and
+# its own curve. Measured (music_cues.sfx_duck_depth: 0,2 s decaying white-noise hits every 0,5 s under the same two-tone pad): this
+# dips 8,5 / 9,5 / 10,6 / 11,5 / 11,9 dB for effects at −28 / −24 / −20 / −16 / −14 dBFS RMS; DUCK_EVEN (the voice curve) used on the
+# same hits only 6,3 / 7,4 / 8,6 / 9,7 / 10,7 dB at −30 / −26 / −22 / −18 / −14 — under 8 dB for every effect quieter than about −23.
+DUCK_SFX = "sidechaincompress=threshold=0.001:ratio=1.35:attack=5:release=300"
+
+
 def duck_filter() -> str:
     return DUCK_EVEN
+
+
+def e_bus(extra: dict) -> Optional[str]:
+    """The bus of one extra sound: "sfx" only when the caller marked it (core/delivery under the flag mix_bus); None = the voice bus."""
+    return extra.get("bus")
 
 
 def build_extras_mix_cmd(video: str, extras: Sequence[dict], output: str, has_audio: bool,
@@ -479,7 +491,22 @@ def build_extras_mix_cmd(video: str, extras: Sequence[dict], output: str, has_au
         parts.append(f"[{i + 1}:a]adelay={ms}|{ms},volume={float(e.get('volume', 1.0))}[e{i}]")
         labels.append(f"[e{i}]")
     keys = [i for i, e in enumerate(extras) if e.get("key", True)]
-    if duck and has_audio and keys:
+    hits = [i for i in keys if e_bus(extras[i]) == "sfx"]
+    if duck and has_audio and hits:
+        # C5b (cờ mix_bus): two buses press the music in series — the voices with the voice curve, the effects with DUCK_SFX; every
+        # key still plays at its own level in the mix
+        others = [i for i in range(len(extras)) if i not in keys]
+        voices = [i for i in keys if i not in hits]
+        src = "[0:a]"
+        if voices:
+            parts.append("".join(f"[e{i}]" for i in voices) + f"amix=inputs={len(voices)}:normalize=0:duration=longest,asplit=2[vk][vm]")
+            parts.append(f"[vk]apad[vkp];[0:a][vkp]{duck_filter()}[bv]")
+            src = "[bv]"
+        parts.append("".join(f"[e{i}]" for i in hits) + f"amix=inputs={len(hits)}:normalize=0:duration=longest,asplit=2[sk][sm]")
+        parts.append(f"[sk]apad[skp];{src}[skp]{DUCK_SFX}[bed]")
+        rest = ("[vm]" if voices else "") + "[sm]" + "".join(f"[e{i}]" for i in others)
+        parts.append(f"[bed]{rest}amix=inputs={1 + bool(voices) + 1 + len(others)}:normalize=0:duration=longest,{PEAK_LIMIT},apad[a]")
+    elif duck and has_audio and keys:
         # the user (2026-09-25) asked for music that follows the cut: the voices press the music bed ([0:a]) down while they speak.
         # An ambience bed (key False, GĐ4 D5) plays all the time — it must not hold the music down for the whole scene
         others = [i for i in range(len(extras)) if i not in keys]
