@@ -2,6 +2,8 @@
 
 ## Chốt polish 14/10 21:33 — ưu tiên trạng thái này
 
+- Code polish `1d46d091`; dependency backend ff24a25c+b5207db4. Chỉ push nhánh `codex/d12-ref-audio-polish`, bên tích hợp chạy cả bộ Windows gồm slow trước gộp. Tiếp Đ18.4c inventory dry-run tại worktree `d18-viec4c-dry-run`, đang RÀ KỸ; look domain vẫn chờ câu trả lời.
+
 - Root đã đọc diff sửa lần hai; targeted cuối 22 xanh/3,40s. Need_edit trước IO, warning no_audio giữ theo pid qua rerun, help theo cờ, lỗi giữ màn hiện tại và readonly disable nút; giữ consent/use=False/widget keys.
 - Browser CUA fixture actual extras_section: 1440/1280 không cuộn ngang, warning shot 2/5 rõ, 0 console error; readonly nút lấy tiếng disabled. Đã xem ảnh1280, lưu docs/images/d12/ref_audio_polish_1280.jpg và _1440.jpg. QA chỉ component/fakeDB/provider, chưa toàn Step5/bản dựng sản xuất/cả bộ Windows.
 - Đã đóng tab/reset viewport và dừng đúng owned launcher PID118464; cổng18636 không còn nghe. Không động 8501/8502/data thật/API. Backend dependency ff24a25c+b5207db4 giữ C5/main mới; areas80.
