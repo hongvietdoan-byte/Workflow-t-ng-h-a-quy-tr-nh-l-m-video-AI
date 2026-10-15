@@ -76,7 +76,8 @@ class SeedanceRefTests(unittest.TestCase):
         plate = os.path.join(self.data, "clock_tower.png")
         real_png(plate)
         ref = {"path": plate, "label": "Clock Tower", "role": "place_render"}
-        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "1"}), \
+        # C1 15/10: plate_view_sentence mặc định BẬT (đổi câu PLACE, kiểm ở test_seedance_send_s2) — ca này ghim câu cũ (cờ TẮT)
+        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "1", "FEATURE_PLATE_VIEW_SENTENCE": "0"}), \
                 mock.patch("core.place_refs.shot_ref", return_value=ref), \
                 mock.patch("core.seedance_refs.mark", side_effect=lambda p, *a, **k: p):
             pictures = vr._submit_kwargs(job)["reference_only"]
@@ -123,7 +124,7 @@ class SeedanceRefTests(unittest.TestCase):
             plates[sid] = {"path": path}
         def hosted(_job, pictures, **kw):
             return [path for _, path in pictures]
-        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "1"}), \
+        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": "1", "FEATURE_PLATE_VIEW_SENTENCE": "0"}), \
                 mock.patch("core.place_refs.shot_ref", side_effect=lambda d, p, sid: plates[sid]), \
                 mock.patch.object(vr, "_hosted_pictures", side_effect=hosted):
             pictures = vr._submit_kwargs(job)["reference_only"]

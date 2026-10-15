@@ -134,7 +134,7 @@ class BeforeRun(unittest.TestCase):
         res = self.collect()
         hold = " ".join(_texts(res, "hold"))
         self.assertIn("chưa có", hold)
-        self.assertEqual({g["key"] for g in res["groups"]}, {"cost", "hold", "ops", "inputs"})
+        self.assertEqual({g["key"] for g in res["groups"]}, {"fixes", "cost", "hold", "ops", "inputs"})
 
     def test_open_red_finding_is_shown(self):
         self.c.execute("INSERT INTO change_findings(event_id, project_id, scene_id, source, level, khau, msg, at) "

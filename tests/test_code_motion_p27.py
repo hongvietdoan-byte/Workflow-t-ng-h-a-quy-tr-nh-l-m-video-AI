@@ -335,7 +335,8 @@ class IdentityPictureFollowsClipaiRules(unittest.TestCase):    # lỗi #4: KAPEL
     def test_no_picture_passing_keeps_the_old_one_and_says_it(self):
         tall = self._pic("1.png", 1)                                # tỉ lệ 0,38 < 0,4 (Lính địch áo choàng 425/1.png)
         self._link(tall)
-        ids = sr.identity_pictures(self.p.conn, self.pid, [{"data": {"characters": ["KAPELLA"]}}], 8)
+        with flags_on_ctx("ref_rule_early", value=False):            # C1 15/10: cờ bật mặc định sẽ đệm ảnh — ca này là đường cờ TẮT
+            ids = sr.identity_pictures(self.p.conn, self.pid, [{"data": {"characters": ["KAPELLA"]}}], 8)
         self.assertEqual(ids, [("KAPELLA", self.img["1.png"])])
         self.assertTrue(self._said() and "0.38" in self._said()[0], self._said())
 

@@ -286,7 +286,7 @@ class ReviewFixTests(unittest.TestCase):
         from tools import effectiveness_baseline
         db, data, _, _ = self.make_db()
         env = os.path.join(self.dir, "dashboard.env")
-        name = next(n for n, f in features.FEATURES.items() if not f["verified"])
+        name = next(n for n, f in features.FEATURES.items() if not f["verified"] and not f.get("default_on"))
         with open(env, "w", encoding="utf-8") as f:
             f.write(f"# thử\nFEATURE_{name.upper()}=1\n")
         with mock.patch.dict(os.environ, {}), mock.patch.object(features, "settings",

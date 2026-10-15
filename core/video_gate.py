@@ -1,4 +1,4 @@
-"""V7 (rà gốc video #27 13/10, G1 — 25 job video bỏ): cổng trước khi GỬI một clip (cờ `video_gate`, mặc định tắt, 0 USD).
+"""V7 (rà gốc video #27 13/10, G1 — 25 job video bỏ): cổng trước khi GỬI một clip (cờ `video_gate`, 0 USD; từ 15/10 mặc định code BẬT theo quyết định người dùng — data/decisions.json p27-fix-flags-on-2026-10-13).
 
 Ảnh khung đầu được duyệt rồi xếp video ngay, sau đó mới thấy nền sai 3D / shot kề đổi nền → bỏ video + bản cao. Cổng giữ job video
 (đang chờ, có lý do — runner.WAIT_REASONS, không hỏng job) tới khi:
@@ -135,8 +135,11 @@ def hold(conn, data_dir: str, job) -> Optional[str]:
     if missing and img is not None and skipped(conn, img, group=True):
         missing = []                                    # người đã Bỏ qua chờ nhóm (có lý do) cho ảnh khung đầu này
     if missing:
+        # rà C1 15/10: shot chưa có ảnh khung đầu duyệt → group_waits không có nút Bỏ qua (không có ảnh để gắn lý do) — nói lối ra thật
+        exit_ = (" — clip gửi khi cả nhóm đã duyệt ảnh, hoặc bấm 'Bỏ qua chờ nhóm' kèm lý do ở Bước 4" if img is not None else
+                 " — clip gửi khi các shot này đã duyệt ảnh ở Bước 2 (hoặc tắt cờ video_gate ở 🧪)")
         why.append("nhóm shot liền mạch chưa đủ ảnh duyệt: " + ", ".join(missing[:6]) + (f" (+{len(missing) - 6})" if len(missing) > 6 else "")
-                   + " — clip gửi khi cả nhóm đã duyệt ảnh, hoặc bấm 'Bỏ qua chờ nhóm' kèm lý do ở Bước 4")
+                   + exit_)
     return ("Cổng ảnh → video: " + "; ".join(why)) if why else None
 
 

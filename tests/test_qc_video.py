@@ -10,7 +10,7 @@ from unittest import mock
 from core import claude_tasks
 from core.db import connect
 from core.pipeline import Pipeline
-from tests._flags import flags_on
+from tests._flags import flags_off, flags_on
 
 # job 912 (#27 shot 17): Seedance lùi máy + vẽ mặt đồng hồ, QC 1,00 — số đo framing_guard ghi trong docs/handoff/RA_GOC_VIDEO_P27
 M912 = {"framing": {"measured": True, "frame0_measured": True, "flag": "framing", "kinds": ["zoom"],
@@ -81,6 +81,7 @@ class FramingCap(unittest.TestCase):
         self.assertIn("chạy tại chỗ", seen["prompt"])
 
     def test_flag_off_prompt_and_scores_unchanged(self):
+        flags_off(self, "qc_framing_cap")                                    # C1 15/10: mặc định code BẬT — ghim đường cờ TẮT
         out, scores, seen = self.run_qc(M912)
         self.assertEqual(scores["motion_match"], 0.97)
         self.assertNotIn("Kiểm bố cục", seen["prompt"])
