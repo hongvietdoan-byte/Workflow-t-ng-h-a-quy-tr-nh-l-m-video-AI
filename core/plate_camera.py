@@ -70,6 +70,12 @@ DOWN_WORDS = ("look down", "looks down", "looking down", "peer down", "peers dow
 CLEAR_GAP_M, BG_NEAR_M, OVER_WALL_M, LOW_WALL_EXTRA_M = 0.3, 2.5, 0.15, 0.3
 # rà P24: a face closer than CLEAR_GAP_M + MIN_CLEAR_M to the character leaves no room for a camera — reported, never moved there
 MIN_CLEAR_M = 0.5                              # an over-the-shoulder camera still fits 0,5 m behind the head; closer = in the face
+# 15/10 (#31 phòng 2 cửa, người dùng: "máy lọt ngoài tường phòng nhỏ"): a camera pulled in front of a wall keeps its FRAMING with a
+# wider lens (lens × new distance / old distance), never under these; the same-axis wide is pulled in too (it used to stay outside the
+# room and render the wall's back + the sky). No room even then → tools/render_plates turns the camera round the character
+# (ORBIT_STEPS_DEG, smallest turn first) before giving up.
+MIN_FIX_LENS_SHOT, MIN_FIX_LENS_WIDE = 14.0, 12.0
+ORBIT_STEPS_DEG = (20, -20, 40, -40, 60, -60, 90, -90, 120, -120)
 # rà P24: "looks down the alley / street…" is a direction along the ground, not a look DOWN (the camera must not tilt 35°)
 AWAY_WORDS = ("alley", "alleyway", "street", "road", "corridor", "hall", "hallway", "path", "lane", "track", "tunnel", "avenue",
               "block", "runway", "row", "aisle", "line", "barrel", "sights", "scope", "length")
@@ -309,7 +315,8 @@ def travel_camera(data: Dict, here: Sequence[float], a: Sequence[float], b: Sequ
 
 def clearance_fix(location: Sequence[float], look_at: Sequence[float], feet: Sequence[float], height_m: float,
                   block_m: Optional[float] = None, bg_m: Optional[float] = None, bg_top_z: Optional[float] = None,
-                  block_from: Optional[Sequence[float]] = None, move: bool = True) -> Dict:
+                  block_from: Optional[Sequence[float]] = None, move: bool = True, lens: Optional[float] = None,
+                  min_lens: float = MIN_FIX_LENS_SHOT) -> Dict:
     """P24: judge what Blender's rays found round a shot camera (pure; tools/render_plates.py measures, scene metres).
     block_m  = distance from block_from (the character's body, default the aim point) towards the camera to the first face (None =
                clear): the camera is inside / behind a wall → it moves along its own sight line until it is CLEAR_GAP_M in front of
@@ -320,26 +327,36 @@ def clearance_fix(location: Sequence[float], look_at: Sequence[float], feet: Seq
                the frame: a low wall (≤ character + LOW_WALL_EXTRA_M) → the camera rises over it (top + OVER_WALL_M, same aim); a
                tall one → reported only (choose another plate_view / spot), never moved silently.
     rà P24: a face closer than CLEAR_GAP_M + MIN_CLEAR_M to the character leaves no room — reported, the camera is not moved (it
-    would stand in the character's face). move=False (the same-axis WIDE view): nothing is moved, everything is reported (a wide
-    pulled in to a wall is no longer a wide).
-    Returns {"location", "look_at", "notes" (what was changed), "warnings" (what is wrong and left)}."""
+    would stand in the character's face) — `no_room` True so the caller can turn the camera round the character (ORBIT_STEPS_DEG).
+    move=False (a locked camera): nothing is moved, everything is reported. 15/10: `lens` given → a camera pulled in keeps its framing
+    with a wider lens (≥ min_lens), returned as "lens" (None = unchanged).
+    Returns {"location", "look_at", "lens", "no_room", "notes" (what was changed), "warnings" (what is wrong and left)}."""
     loc, aim = [float(c) for c in location], [float(c) for c in look_at]
     notes: List[str] = []
     warnings: List[str] = []
+    new_lens = None
+    no_room = False
     sight = math.dist(aim, loc)
     seg = math.dist(block_from, loc) if block_from is not None else sight
     blocked = block_m is not None and 0 <= block_m < seg - 1e-6
     if blocked and (not move or block_m - CLEAR_GAP_M < MIN_CLEAR_M):
+        no_room = bool(move)
         warnings.append(f"vật cản trên đường nhìn cách nhân vật {block_m:.2f} m (máy ở {seg:.2f} m) — "
-                        + ("không dời máy ảnh toàn cùng trục, ảnh toàn có thể chỉ thấy vật cản" if not move else
+                        + ("máy đã khóa, không dời" if not move else
                            f"quá sát nhân vật (< {CLEAR_GAP_M + MIN_CLEAR_M:g} m), không còn chỗ đặt máy")
                         + "; chọn plate_view / chỗ đứng khác")
     elif blocked:
         pull = min(seg - max(block_m - CLEAR_GAP_M, 0.0), sight - 0.3)
         f = _unit([a - c for a, c in zip(aim, loc)])
         loc = [c + fc * pull for c, fc in zip(loc, f)]
+        left = max(seg - pull, 0.1)
+        if lens:
+            new_lens = round(max(float(min_lens), float(lens) * left / seg), 1)
+            if new_lens >= float(lens) - 0.05:
+                new_lens = None
         notes.append(f"máy nằm trong/sau vật cản (mặt vật cản cách nhân vật {block_m:.2f} m, máy ở {seg:.2f} m) → đưa máy tiến "
-                     f"{pull:.2f} m dọc hướng nhìn ra trước mặt đó (cùng hướng nhìn, khung chặt hơn)")
+                     f"{pull:.2f} m dọc hướng nhìn ra trước mặt đó (cùng hướng nhìn"
+                     + (f", ống {float(lens):g} → {new_lens:g} mm giữ khung" if new_lens else ", khung chặt hơn") + ")")
     d = [a - c for a, c in zip(aim, loc)]
     flat = math.hypot(d[0], d[1])
     pitch = math.degrees(math.atan2(d[2], flat or 1e-9))
@@ -361,7 +378,21 @@ def clearance_fix(location: Sequence[float], look_at: Sequence[float], feet: Seq
         else:
             warnings.append(f"nền là vật cao {top:.1f} m {where} (máy cao {loc[2] - float(feet[2]):.2f} m) — ảnh sẽ chỉ thấy tường; "
                             "chọn plate_view / chỗ đứng khác")
-    return {"location": [round(c, 3) for c in loc], "look_at": [round(c, 3) for c in aim], "notes": notes, "warnings": warnings}
+    return {"location": [round(c, 3) for c in loc], "look_at": [round(c, 3) for c in aim], "lens": new_lens, "no_room": no_room,
+            "notes": notes, "warnings": warnings}
+
+
+def orbit(location: Sequence[float], look_at: Sequence[float], feet: Sequence[float], deg: float) -> Tuple[List[float], List[float]]:
+    """15/10: the camera and its aim point turned `deg`° round the character's vertical axis (feet) — same distance, height and
+    framing, another side of the character (used when there is no room for the camera on its own side)."""
+    a = math.radians(deg)
+    ca, sa = math.cos(a), math.sin(a)
+    fx, fy = float(feet[0]), float(feet[1])
+
+    def turn(p):
+        x, y = float(p[0]) - fx, float(p[1]) - fy
+        return [round(fx + x * ca - y * sa, 3), round(fy + x * sa + y * ca, 3), round(float(p[2]), 3)]
+    return turn(location), turn(look_at)
 
 
 def horizon_y(cam: Sequence[float], aim: Sequence[float], lens: float, aspect: float) -> float:

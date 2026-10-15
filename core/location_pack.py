@@ -294,6 +294,8 @@ def plate_failed(data_dir: str, pid: int, scene_id: int) -> Optional[str]:
 # itself: once it is RETRY_AFTER_S old, up to RETRY_TRIES runs; only then is the shot's render "broken" (the picture held for good).
 # Before, failed.json held the picture "until forget_failures" — which nothing but a test called.
 RETRY_AFTER_S, RETRY_TRIES = 600, 2
+# 15/10 (người dùng): every shot goes out WITH its same-axis wide; a broken wide (outside the room, too dark, flat, failed) holds it
+WIDE_HOLDS = True
 
 
 def _now() -> float:
@@ -441,6 +443,27 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
     return out
 
 
+def stage_report(conn, items: List[Dict]) -> List[Dict]:
+    """15/10 (#31, người dùng: "chưa có sự thống nhất giữa các shot có bối cảnh giống nhau — mỗi cảnh một sân khấu chung"): the
+    story scenes whose shots at ONE place stand at more than one spot, or at more than one place. [{"scene", "places": {place:
+    {spot: [shot idx…]}}}] — the run shows them at the 'plates' gate (the person confirms the move inside the scene is meant, e.g.
+    walking from the maze's edge to its centre) before any picture is drawn."""
+    by_scene: Dict[str, Dict[str, Dict[str, List[int]]]] = {}
+    for it in items:
+        row = conn.execute("SELECT data FROM scenes WHERE id=?", (it["scene_id"],)).fetchone()
+        data = json.loads(row["data"] or "{}") if row is not None else {}
+        sc = str(data.get("story_scene") or it["idx"])
+        by_scene.setdefault(sc, {}).setdefault(it["place"], {}).setdefault(it["spot"], []).append(it["idx"])
+    return [{"scene": sc, "places": places} for sc, places in by_scene.items()
+            if len(places) > 1 or any(len(spots) > 1 for spots in places.values())]
+
+
+def stage_words(r: Dict) -> str:
+    return f"cảnh {r['scene']}: " + "; ".join(
+        f"{place} — " + ", ".join(f"chỗ đứng {sp} (shot {', '.join(map(str, idxs))})" for sp, idxs in spots.items())
+        for place, spots in r["places"].items())
+
+
 TRAVEL_VIEW_MAX_DEG = 60.0     # plate_view ↔ máy đặt theo đường chạy lệch hơn mức này = trái nhau (như plate_choice._contradicts_why)
 
 
@@ -514,13 +537,28 @@ def _finish(rec: Dict, dest: str, it: Dict) -> None:
         rec["shadow"] = plate_env.finish_plate(rec["shadow_raw"], os.path.join(dest, "shadow.png"), it["env"], seed=seed,
                                                depth_path=rec.get("depth"), depth_range=rec.get("depth_range_m"),
                                                depth_exposure=rec.get("depth_exposure") or 0.0)
-    rec["problem"] = plate_env.plate_problem(rec["plate"], rec.get("raw"))
+    rec["finish_v"] = plate_env.FINISH_VERSION
+    rec["problem"] = camera_problem(rec) or plate_env.plate_problem(rec["plate"], rec.get("raw"))
+
+
+def camera_problem(rec: Dict) -> Optional[str]:
+    """15/10 (#31, người dùng: luật cho mọi dự án): a plate whose camera Blender found OUTSIDE the room the character stands in, or
+    with no room for a camera on any side, never goes out as "the place" (its shot / wide waits with this reason)."""
+    clr = rec.get("clearance") or {}
+    if clr.get("outside"):
+        return "máy nền 3D nằm NGOÀI phòng của nhân vật (thấy mặt sau tường + trời) — đổi chỗ đứng / hướng nền"
+    if clr.get("unplaceable"):
+        return "không còn chỗ đặt máy quanh nhân vật (vật cản sát mọi phía) — đổi chỗ đứng / cỡ cảnh"
+    return None
 
 
 def _recheck_problem(rec: Dict, dest: str) -> Optional[str]:
     """The flat-plate verdict of a cached plate. A stored "fine" is kept; a stored problem (or none stored) is measured again from the
     files (0 USD) — 08/10: the old whole-frame check rejected good night plates that are mostly sky (#24 shot 4, 53e8431b…), and that
-    verdict sat in meta.json. A changed verdict is written back."""
+    verdict sat in meta.json. A changed verdict is written back. 15/10: the camera rule (camera_problem) is checked every time."""
+    cam_bad = camera_problem(rec)
+    if cam_bad:
+        return cam_bad
     if "problem" in rec and not rec["problem"]:
         return None
     bad = plate_env.plate_problem(rec["plate"], rec.get("raw"))
@@ -677,6 +715,12 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             with open(os.path.join(root, it["key"], "meta.json"), "w", encoding="utf-8") as f:
                 json.dump(rec, f, ensure_ascii=False, indent=1)
             log(f"Shot {it['idx']}: nền 3D làm lại phần sương/màu (đọc độ sâu đúng) — 0 USD")
+        elif rec.get("finish_v") != plate_env.FINISH_VERSION and rec.get("raw") and os.path.exists(rec["raw"]):
+            # 15/10: a plate finished by an older finish (e.g. night too dark) is finished again from the same render (0 USD)
+            _finish(rec, os.path.join(root, it["key"]), it)
+            with open(os.path.join(root, it["key"], "meta.json"), "w", encoding="utf-8") as f:
+                json.dump(rec, f, ensure_ascii=False, indent=1)
+            log(f"Shot {it['idx']}: nền 3D làm lại phần màu/độ sáng (bản hoàn thiện {plate_env.FINISH_VERSION}) — 0 USD")
         bad = _recheck_problem(rec, os.path.join(root, it["key"]))
         if bad:                                          # never sent as "the place" — F2: the shot's picture waits (runner)
             why = (f"Shot {it['idx']} ({it['place']}, {plate_env.key(it['env'])}): {bad} — không gửi nền này; xem {rec['plate']}"
@@ -689,10 +733,21 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             note = f"Shot {it['idx']} ({it['place']}): đặt lại máy nền 3D — " + "; ".join(it["camera_fixes"])
             diag.record(conn, "image", "info", note, "plate_camera_fix", project_id=pid, scene_id=it["scene_id"])
             log(note)
+        wrec = _wide_record(root, it)
+        if wrec.get("wide_failed") and WIDE_HOLDS:
+            # 15/10 (người dùng: "mỗi shot luôn có cảnh toàn góc rộng cùng hướng với ảnh ref của shot"): a broken same-axis wide
+            # holds the shot like a broken plate — the picture is never drawn from a shot plate alone
+            why = f"Shot {it['idx']} ({it['place']}, {plate_env.key(it['env'])}): {wrec['wide_failed']} — giữ ảnh shot tới khi có ảnh toàn"
+            diag.record(conn, "image", "error", why, "plate_wide_missing", project_id=pid, scene_id=it["scene_id"])
+            log(why)
+            at = _retry_at(_failure(root, (it.get("wide") or {}).get("key") or ""))
+            idx[str(it["scene_id"])] = {"key": it["key"], "failed": why, "place": it["place"], "spot": it["spot"],
+                                        **({"retry_at": at} if at else {}), **extra}
+            continue
         idx[str(it["scene_id"])] = dict(rec, key=it["key"], env=it["env"], **frame_fields(it, rec),
                                         spot=it["spot"], place=it["place"], camera_plan=it["camera"], view=it["view"],
                                         lights=it["lights"], lights_decided=it["lights_decided"], layout_vi=layout_words(it),
-                                        camera_fixes=list(it.get("camera_fixes") or []), **_wide_record(root, it), **extra)
+                                        camera_fixes=list(it.get("camera_fixes") or []), **wrec, **extra)
     path = _index_path(data_dir, pid)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -708,7 +763,9 @@ def reframe(camera: Dict, clearance: Dict, aspect: float) -> Optional[Dict]:
     subj = camera.get("subject") or {}
     if not loc or not subj.get("location"):
         return None
-    aim, lens, feet = camera["look_at"], float(camera.get("lens") or 35), subj["location"]
+    # 15/10: the camera may also have turned round the character (look_at_model) and widened its lens to keep the frame
+    aim = (clearance or {}).get("look_at_model") or camera["look_at"]
+    lens, feet = float((clearance or {}).get("lens") or camera.get("lens") or 35), subj["location"]
     h = float(subj.get("height_m") or 1.75)
     box = plate_camera.subject_box(loc, aim, lens, aspect, feet, h)
     return {"location": [round(float(c), 3) for c in loc], "subject_box": box, "feet_y": box[3],
@@ -731,8 +788,15 @@ def _wide_record(root: str, it: Dict) -> Dict:
         return {}
     rec = _cached(root, key)
     if rec is None:
-        why = _failed(root, key, retry=False)            # a missing wide never holds the shot: not retried by time
+        why = _failed(root, key, retry=True)             # 15/10: a wide now holds its shot — a temporary failure is retried by time
         return {"wide_failed": why} if why else {}
+    if rec.get("finish_v") != plate_env.FINISH_VERSION and rec.get("raw") and os.path.exists(rec["raw"]):
+        _finish(rec, os.path.join(root, key), dict(it, key=key))      # 15/10: older finish (night too dark) — again, 0 USD
+        try:
+            with open(os.path.join(root, key, "meta.json"), "w", encoding="utf-8") as f:
+                json.dump(rec, f, ensure_ascii=False, indent=1)
+        except OSError:
+            pass
     bad = _recheck_problem(rec, os.path.join(root, key))
     if bad:
         return {"wide_failed": f"ảnh toàn cùng trục: {bad}"}

@@ -674,7 +674,21 @@ def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
                                     log=lambda m: _log(p, pid, m))
     _camera_plan(p, pid, ctx, "after", (w, h))           # G0: the Director looks at each set-up's render (≤ 2 fix rounds, then you)
     _plate_move_hold(p, pid, ctx, (w, h))
+    _stage_hold(p, pid, items)
     return None
+
+
+def _stage_hold(p: Pipeline, pid: int, items) -> None:
+    """15/10 (#31, người dùng — luật cho mọi dự án): one story scene = one shared 3D stage. A scene whose shots stand at several
+    spots / places holds the run at the 'plates' gate once (the person confirms the move is part of the story, or fixes the spots)."""
+    import hashlib
+    from . import location_pack
+    held = []
+    for r in location_pack.stage_report(p.conn, items):
+        line = location_pack.stage_words(r)
+        _d(p, pid, "image", "warn", "nhiều chỗ đứng trong một cảnh — " + line, "scene_stage")
+        held.append(("stage:" + hashlib.sha1(line.encode("utf-8")).hexdigest()[:12], line))
+    _plate_ack(p, pid, held, "Một cảnh nhưng shot đứng ở nhiều chỗ / bối cảnh 3D (mỗi cảnh nên một sân khấu chung) —")
 
 
 def _camera_plan(p: Pipeline, pid: int, ctx: Context, when: str, res=None) -> None:

@@ -174,9 +174,34 @@ def finish_plate(render_path: str, out_path: str, env: Dict, seed: int = 1, dept
     if fog > 0 and depth_path and depth_range and os.path.exists(depth_path):
         rgb = apply_fog(rgb, distance_map(depth_path, depth_range, (w, h), depth_exposure), env)
     rgb = grade(rgb, env)
+    rgb = lift_dark(rgb, alpha[..., 0], env)
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     Image.fromarray((rgb * 255 + 0.5).astype("uint8")).save(out_path)
     return out_path
+
+
+# 15/10 (#31, người dùng: "phía trên nhìn không rõ" — night plates outdoors came out ~30/255 where the picture model reads nothing):
+# a dark plate (night / dusk / dawn) is lifted so the place's geometry averages at least DARK_TARGET (gain ≤ DARK_MAX_GAIN, the sky
+# lifted with it); one still under DARK_MIN_MEAN is a problem (its shot waits). FINISH_VERSION 2 = plates finished with this lift —
+# older cached plates are finished again from their render (core/location_pack, 0 USD).
+DARK_TARGET, DARK_MAX_GAIN, DARK_MIN_MEAN = 62.0, 2.6, 40.0
+FINISH_VERSION = 2
+
+
+def lift_dark(rgb, alpha, env: Dict):
+    """Night / dusk / dawn: brighten the whole plate so the rendered place (alpha > 0.5; the whole frame when almost none) averages at
+    least DARK_TARGET grey levels — the colour grade (cold, dark) is kept, only its level rises. Day plates are left as they are."""
+    np = _np()
+    if env.get("time") == "day":
+        return rgb
+    grey = rgb.mean(axis=2) * 255.0
+    solid = alpha > 0.5
+    region = grey[solid] if solid.mean() >= GEOMETRY_MIN_SHARE else grey.ravel()
+    mean = float(region.mean()) if region.size else 0.0
+    if mean <= 0 or mean >= DARK_TARGET:
+        return rgb
+    gain = min(DARK_TARGET / mean, DARK_MAX_GAIN)
+    return np.clip(rgb * gain, 0, 1)
 
 
 FLAT_STD = 3.0             # grey levels (0..255): a plate this even shows no place at all
@@ -207,6 +232,10 @@ def plate_problem(plate_path: str, raw_path: Optional[str] = None) -> Optional[s
         solid = rgba[..., 3] > 127
         if solid.mean() >= GEOMETRY_MIN_SHARE:
             region, raw_grey = solid, rgba[..., :3].mean(axis=2)
+    level = float(plate[region].mean()) if region is not None else float(plate.mean())
+    if level < DARK_MIN_MEAN:
+        where = "ở phần có vật thể " if region is not None else ""
+        return f"nền 3D QUÁ TỐI {where}(độ sáng trung bình {level:.0f}/255 < {DARK_MIN_MEAN:g}) — mô hình ảnh không đọc được bối cảnh"
     std = float(plate[region].std()) if region is not None else float(plate.std())
     if std < FLAT_STD:
         where = "ở phần có vật thể " if region is not None else ""
