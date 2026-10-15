@@ -5,9 +5,11 @@ Cờ bật:
 - "Thử rẻ" bị bỏ qua hoàn toàn (`cheap_mode` = False).
 - Mỗi job video mang `jobs.quality_tier`: `draft` (nháp bậc thấp nhất: Seedance 2.5 `draft=True` 480p, model khác bậc thấp nhất của
   nó), `final` (bản cao từ một nháp đã duyệt, `jobs.draft_job_id`) hoặc `direct` (gen thẳng bản cao).
-- Đường đi của shot (`path`): người ghi đè ở `motion_prompts.quality_path` (draft_first / direct) thắng; không thì (quyết định
-  13/10, bỏ E1) LUÔN draft_first — nhãn Đạo diễn `scenes.data["difficulty"]` chỉ còn để hiển thị / thống kê, không quyết đường; shot đang
-  có job gen thẳng còn sống / đã duyệt giữ tuyến đó (`on_direct_route`).
+- Đường đi của shot (`path` / `route`): người ghi đè ở `motion_prompts.quality_path` (draft_first / direct) thắng; không thì (quy ước
+  người dùng 15/10 — sửa chỗ ghi nhầm 13/10 "mọi shot nháp"): shot ĐƠN GIẢN (nhãn Đạo diễn `scenes.data["difficulty"]` = easy, không bị
+  code ép khó — `hard_signs`) → gen thẳng Seedance 2.5 720p, lúc dựng phóng ffmpeg lên 1080p; shot KHÓ / quan trọng / chưa rõ / THIẾU nhãn
+  → nháp Seedance 2.5 480p → người duyệt → nâng 1080p từ nháp. Shot đang có job gen thẳng còn sống / đã duyệt giữ tuyến đó
+  (`on_direct_route`), shot đã có nháp / bản cao giữ tuyến nháp (`on_draft_route`) — không đổi đường giữa chừng.
 - Trần TỰ gen lại (pipeline.Pipeline.auto_limit): chuỗi nháp 2, bản cao 1. Bấm "Gen bản cao" là việc người dùng (đếm lại từ 0).
 - Trạng thái từng shot TỰ SUY từ jobs + review_log (`state`), không lưu cứng.
 - Mọi lần gen lại phải đổi đầu vào theo lỗi lần trước (`regen_refusal`, CHUAN_XAY_DUNG luật 3)."""
@@ -28,9 +30,9 @@ MAY_DIFFER = "nội dung có thể khác bản nháp"
 # ---- E1 (người dùng chốt 09/10, docs/CONG_THUC_PROMPT_F0_NHAP_2026-10-09.md mục 5–5b; F3) --------------------------------------------
 # Shot dễ (path direct) → gen thẳng 720p, lúc dựng phóng 1080p bằng ffmpeg (không AI — quyết định 07/10). Shot khó /
 # quan trọng / chưa rõ (draft_first) → nháp Seedance 2.5 `draft=True` 480p → người duyệt → nâng 1080p TỪ NHÁP (giữ nội dung).
-# Người dùng 13/10 tối: bỏ Seedance 2.0 — video HẾT Seedance 2.5 (2.0 duyệt ≈ 6 %, #24 0/20) và MỌI shot nháp 480p → bản cao 1080p
-# (bỏ "shot dễ gen thẳng"; thử D6 #28/#29 14/10: S05 còn bị đề xuất 720p gen thẳng). Đường 'direct' giờ chỉ khi NGƯỜI chọn (ô Chất lượng
-# 720p / quality_path) hoặc shot đã có job gen thẳng còn sống — vẫn Seedance 2.5 720p.
+# Người dùng 13/10 tối: bỏ Seedance 2.0 — video HẾT Seedance 2.5 (2.0 duyệt ≈ 6 %, #24 0/20): nhánh dễ đổi model 2.0 → 2.5 720p.
+# 15/10 người dùng nhắc lại + sửa chỗ phiên 13/10 ghi nhầm "MỌI shot nháp 480p": shot dễ (nhãn Đạo diễn, không bị code ép khó) vẫn gen thẳng
+# 2.5 720p (+ ffmpeg 1080p lúc dựng; 480p phóng vào bản giao thì CẤM — final_cut.require_delivery_resolution); shot khó → nháp 480p.
 E1_DIRECT_MODEL, E1_DIRECT_RESOLUTION = "seedance-2.5", "720p"
 E1_DRAFT_MODEL, DRAFT_RESOLUTION = "seedance-2.5", "480p"
 SEEDANCE_20 = "dreamina-seedance-2-0-260128"
@@ -126,18 +128,145 @@ def difficulty(conn, scene_id: int) -> Dict:
     return {"level": level if level in DIFFICULTY else None, "why": data.get("difficulty_why")}
 
 
-def path(conn, scene_id: int) -> str:
-    """draft_first | direct. Ghi đè của người (motion_prompts.quality_path) luôn thắng.
-    Cờ two_tier_quality BẬT (quyết định người dùng 13/10 — bỏ E1 "shot dễ gen thẳng"): tự động = LUÔN nháp 480p trước → duyệt → bản cao
-    1080p, bất kể nhãn Đạo diễn; trừ shot mà job video mới nhất là gen thẳng đang chạy / chờ duyệt / đã duyệt (`on_direct_route` — job đó
-    không bị đổi tuyến giữa chừng, clip 720p đã duyệt không bị bắt gen lại).
-    Cờ tắt (đường cũ, không ai dùng tới bậc): easy → direct; complex / unknown → nháp; chưa nhãn → kiểm chéo shot_complexity."""
+def _scene_data(conn, scene_id: int) -> Dict:
+    row = conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    try:
+        data = json.loads((row["data"] if row else None) or "{}")
+    except ValueError:
+        data = {}
+    return data if isinstance(data, dict) else {}
+
+
+def label_from_director(data: Dict) -> Optional[str]:
+    """Nhãn dễ/khó do ĐẠO DIỄN ghi (easy / complex / unknown), None = thiếu. Rà vòng gop-1510 (chặt): CHỈ khi `difficulty_by` ==
+    "director" (shot_complexity.reconcile ghi) — nhãn code tự điền ("check"), dữ liệu trước 15/10 không rõ ai ghi → None (đi KHÓ, có
+    lý do). 'easy' mà `difficulty_why` rỗng → None (mục 4: ví dụ prompt cũ ghi sẵn 'easy' + why rỗng). Kiểm chéo hạ 'dễ' → 'chưa rõ'
+    chỉ để HIỂN THỊ (quyết định 15/10): `difficulty_director` = 'easy' → 'easy'."""
+    if not isinstance(data, dict) or data.get("difficulty_by") != "director":
+        return None
+    level = data.get("difficulty")
+    if level == "unknown" and data.get("difficulty_director") == "easy":
+        level = "easy"
+    if level not in DIFFICULTY:
+        return None
+    if level == "easy" and not str(data.get("difficulty_why") or "").strip():
+        return None
+    return level
+
+
+def hard_signs(conn, scene_id: int, data: Optional[Dict] = None) -> List[str]:
+    """Dấu hiệu KHÓ mà code biết (quy ước 15/10) — có bất kỳ dấu hiệu nào thì shot đi nháp trước, kể cả Đạo diễn ghi 'dễ': video tham
+    chiếu, shot kỹ năng, khớp môi / take thoại (của shot, hoặc của NHÓM gen chung — rà gop-1510 mục 8), ≥ 3 nhân vật, shot quan trọng
+    (hero / money shot). Người dùng 15/10: KHÔNG ép khó chỉ vì 2 nhân vật / thoại + tay — điểm kiểm chéo shot_complexity chỉ để hiển thị."""
+    data = _scene_data(conn, scene_id) if data is None else data
+    signs: List[str] = []
+    mp = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+    ref_video = bool(mp is not None and "ref_video_path" in mp.keys() and mp["ref_video_path"])
+    if ref_video:
+        signs.append("có video tham chiếu")
+    skill = bool(data.get("skill_phase") or data.get("skill_phase_video"))
+    if not skill:
+        try:
+            from . import skill_dossier
+            skill = bool(skill_dossier.route_reason(data))
+        except Exception:  # noqa: BLE001 - hồ sơ kỹ năng đọc lỗi: không có bằng chứng kỹ năng, các dấu hiệu khác vẫn xét
+            skill = False
+    if skill:
+        signs.append("shot kỹ năng")
+    voiced = data.get("lip_sync") is True
+    if not voiced and data.get("shot_no"):
+        try:
+            from . import lipsync
+            voiced = lipsync.enabled() and lipsync.voiced(lipsync.method_for(data))
+        except Exception:  # noqa: BLE001
+            voiced = False
+    if voiced:
+        signs.append("khớp môi / take thoại")
+    else:
+        mate = _group_take(conn, scene_id)
+        if mate is not None:
+            signs.append(f"nhóm gen chung có take thoại (shot #{mate})")
+    cast = [c for c in data.get("characters") or [] if c]
+    if len(cast) >= 3:
+        signs.append(f"{len(cast)} nhân vật")
+    if data.get("shot_role") == "hero" or data.get("money_shot") is True:
+        signs.append("shot quan trọng")
+    return signs
+
+
+def _group_take(conn, scene_id: int) -> Optional[int]:
+    """Rà gop-1510 mục 8: model_router chọn take thoại theo NHÓM gen chung (một shot có thoại thấy mặt → cả clip nhóm là take Seedance
+    2.5 kèm track giọng) → shot góc rộng không thoại trong nhóm đó cũng khó. Trả id shot take khác trong nhóm, None = không có."""
+    try:
+        from . import lipsync, shots
+        if not lipsync.enabled():
+            return None
+        group = shots.group_of(conn, scene_id) or []
+    except Exception:  # noqa: BLE001 - no shot table / lip sync module: only the shot's own signs
+        return None
+    for r in group:
+        if r.get("id") == scene_id:
+            continue
+        d = r.get("data")
+        if not isinstance(d, dict):
+            d = _scene_data(conn, r["id"])
+        try:
+            if lipsync.method_for(d) == "take":
+                return r["id"]
+        except Exception:  # noqa: BLE001
+            continue
+    return None
+
+
+def _direct_rejected(conn, scene_id: int) -> bool:
+    """Job video mới nhất (bỏ hủy / hỏng) là gen thẳng và người đã LOẠI: lần sau nháp trước (13/10, giữ)."""
+    row = conn.execute("SELECT quality_tier, state FROM jobs WHERE scene_id=? AND type='video_gen' AND state NOT IN ('cancelled','failed') "
+                       "ORDER BY id DESC LIMIT 1", (scene_id,)).fetchone()
+    return row is not None and (row["quality_tier"] or "direct") == "direct" and row["state"] == "rejected"
+
+
+def route(conn, scene_id: int) -> Dict:
+    """{"path": draft_first|direct, "why": câu lý do} — đường đi của MỘT shot, luôn có lý do (không im lặng).
+    Thứ tự: người ghi đè (quality_path) > job đang dùng (gen thẳng còn sống / đã duyệt giữ gen thẳng; đã có nháp / bản cao giữ nháp —
+    không đổi đường giữa chừng) > clip gen thẳng bị loại → nháp > dấu hiệu khó code biết (`hard_signs`) → nháp > nhãn Đạo diễn: 'dễ' →
+    gen thẳng Seedance 2.5 720p; 'khó' / 'chưa rõ' → nháp; THIẾU nhãn → coi là khó, nháp (quy ước người dùng 15/10).
+    Cờ two_tier_quality tắt: đường cũ của `path` (không ai dùng tới bậc)."""
     row = conn.execute("SELECT quality_path FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
     chosen = row["quality_path"] if row is not None else None
     if chosen in ("draft_first", "direct"):
-        return chosen
-    if enabled():
-        return "direct" if on_direct_route(conn, scene_id) else "draft_first"
+        return {"path": chosen, "why": "bạn chọn " + ("nháp trước" if chosen == "draft_first" else "gen thẳng")}
+    if not enabled():
+        return {"path": _path_flag_off(conn, scene_id), "why": "cờ two_tier_quality tắt — đường cũ"}
+    if on_direct_route(conn, scene_id):
+        return {"path": "direct", "why": "clip gen thẳng đang chạy / chờ duyệt / đã duyệt — giữ tuyến, không đổi giữa chừng"}
+    if on_draft_route(conn, scene_id):
+        return {"path": "draft_first", "why": "shot đã có nháp / bản cao đang dùng — giữ tuyến nháp → nâng 1080p"}
+    if _direct_rejected(conn, scene_id):
+        return {"path": "draft_first", "why": "clip gen thẳng trước đã bị loại — lần này nháp trước"}
+    data = _scene_data(conn, scene_id)
+    signs = hard_signs(conn, scene_id, data)
+    if signs:
+        return {"path": "draft_first", "why": "shot khó (code ép: " + ", ".join(signs) + ")"}
+    level = label_from_director(data)
+    if level is None:
+        if data.get("difficulty") in DIFFICULTY and not data.get("difficulty_by"):
+            return {"path": "draft_first", "why": "nhãn dễ/khó ghi trước 15/10, không rõ Đạo diễn hay code ghi — coi là khó (chạy lại "
+                                                  "Đạo diễn để có nhãn mới)"}
+        if data.get("difficulty") == "easy" and data.get("difficulty_by") == "director":
+            return {"path": "draft_first", "why": "Đạo diễn ghi 'dễ' nhưng không nêu căn cứ (difficulty_why) — coi là khó"}
+        return {"path": "draft_first", "why": "Đạo diễn chưa gắn nhãn dễ/khó — coi là khó"}
+    if level == "easy":
+        return {"path": "direct", "why": "shot dễ (Đạo diễn gắn 'dễ', code không thấy dấu hiệu khó)"}
+    return {"path": "draft_first", "why": "shot " + ("khó" if level == "complex" else "chưa rõ độ khó") + " (nhãn Đạo diễn)"}
+
+
+def path(conn, scene_id: int) -> str:
+    """draft_first | direct — `route(...)["path"]`."""
+    return route(conn, scene_id)["path"]
+
+
+def _path_flag_off(conn, scene_id: int) -> str:
+    """Cờ tắt (đường cũ, không ai dùng tới bậc): easy → direct; complex / unknown → nháp; chưa nhãn → kiểm chéo shot_complexity."""
     if on_draft_route(conn, scene_id):
         # lỗi 8 #27 (13/10, shot 18): shot đã vào tuyến nháp → bản cao (job video mới nhất là draft / final) GIỮ tuyến đó tới khi NGƯỜI
         # chọn khác (quality_path) — nhãn 'easy' + nhóm Seedance tách theo độ dài prompt làm đường tự trôi sang 'direct' → gen lại ra job
@@ -223,6 +352,24 @@ def group_path(conn, scene_id: int) -> str:
     return "draft_first" if any(path(conn, sid) == "draft_first" for sid in ids) else "direct"
 
 
+def group_route(conn, scene_id: int) -> Dict:
+    """{"path", "why"} của NHÓM gen chung (như group_path): lý do là của shot làm cả nhóm nháp-trước (hoặc của chính shot)."""
+    try:
+        from . import shots
+        group = shots.group_of(conn, scene_id) or []
+    except Exception:  # noqa: BLE001
+        group = []
+    ids = [r["id"] for r in group] or [scene_id]
+    own = route(conn, scene_id)
+    if own["path"] == "draft_first" or len(ids) < 2:
+        return own
+    for sid in ids:
+        other = route(conn, sid)
+        if other["path"] == "draft_first":
+            return {"path": "draft_first", "why": f"nhóm gen chung một clip có shot #{sid} nháp-trước: {other['why']}"}
+    return own
+
+
 def e1_choice(conn, scene_id: int, choice: Dict) -> Dict:
     """E1 (cờ two_tier_quality BẬT — model_router.scene_choice gọi): model + độ phân giải theo đường của shot, chỉ cho họ Seedance
     (Kling / model khác giữ đường cũ). Người chọn tay (`source == "override"`) thắng; shot nháp-trước mà model chọn tay không phải
@@ -230,19 +377,19 @@ def e1_choice(conn, scene_id: int, choice: Dict) -> Dict:
     canonical, family = _canonical(choice.get("model"))
     if family != "seedance":
         return choice
-    way = group_path(conn, scene_id)
+    way = group_route(conn, scene_id)
     if choice.get("source") == "override":
-        if way == "draft_first" and canonical != SAMPLE_MODEL:
+        if way["path"] == "draft_first" and canonical != SAMPLE_MODEL:
             return {**choice, "warning": f"{choice.get('model')} ở shot nháp-trước: {NEW_GEN} (chỉ Seedance 2.5 nâng được từ nháp)"}
         return choice
-    if way == "direct":
+    if way["path"] == "direct":
+        tail = f" — {way['why']}: gen thẳng Seedance 2.5 720p, lúc dựng phóng ffmpeg lên 1080p"
         if choice.get("skill") or choice.get("take"):
             return {**choice, "resolution": E1_DIRECT_RESOLUTION, "e1": "direct",
-                    "reason": choice["reason"] + " — gen thẳng 720p (bạn chọn / clip gen thẳng đang dùng; giữ Seedance 2.5 vì cách này cần 2.5)"}
-        return {**choice, "model": E1_DIRECT_MODEL, "resolution": E1_DIRECT_RESOLUTION, "e1": "direct",
-                "reason": choice["reason"] + " — gen thẳng Seedance 2.5 720p (bạn chọn / clip gen thẳng đang dùng)"}
+                    "reason": choice["reason"] + tail + " (giữ Seedance 2.5 vì cách này cần 2.5)"}
+        return {**choice, "model": E1_DIRECT_MODEL, "resolution": E1_DIRECT_RESOLUTION, "e1": "direct", "reason": choice["reason"] + tail}
     return {**choice, "model": E1_DRAFT_MODEL, "resolution": DRAFT_RESOLUTION, "e1": "draft_first",
-            "reason": choice["reason"] + " — mọi shot (quyết định 13/10): nháp Seedance 2.5 480p, duyệt rồi nâng 1080p từ nháp"}
+            "reason": choice["reason"] + f" — {way['why']}: nháp Seedance 2.5 480p, duyệt rồi nâng 1080p từ nháp"}
 
 
 def retry_limit(job) -> Optional[int]:
@@ -798,8 +945,8 @@ def batch_final_price(conn, scene_ids) -> Optional[float]:
 
 
 def e1_estimate(conn, pid: int, pricing: Optional[Dict] = None) -> Dict:
-    """USD dự kiến CẢ PHIM (một lượt, chưa tính gen lại; tên cũ E1): shot gen thẳng (chỉ khi người chọn / clip đang dùng — 13/10) Seedance
-    2.5 720p; shot nháp-trước (mặc định mọi shot) nháp 2.5 480p +
+    """USD dự kiến CẢ PHIM (một lượt, chưa tính gen lại; tên cũ E1): shot gen thẳng (shot dễ / người chọn / clip đang dùng — quy ước 15/10)
+    Seedance 2.5 720p (phóng ffmpeg 1080p lúc dựng, 0 USD); shot nháp-trước (khó / chưa rõ / thiếu nhãn) nháp 2.5 480p +
     nâng 2.5 1080p (UPGRADE_UNMEASURED); Kling / model khác theo giá hàng model_router.plan. Clip nhóm tính một lần (giây nhóm).
     Để Bước 1 / AI Dev System báo "phim X s ≈ Y USD, mục tiêu < 30 / 60". {"usd", "film_seconds", "target_usd", "within", "direct",
     "draft_first", "other", "unknown", "note", "line"}."""
@@ -838,7 +985,7 @@ def e1_estimate(conn, pid: int, pricing: Optional[Dict] = None) -> Dict:
     out["within"] = None if out["target_usd"] is None else out["usd"] < out["target_usd"]
     target = (f", mục tiêu < {out['target_usd']:.0f} USD — " + ("ĐẠT" if out["within"] else "VƯỢT")) if out["target_usd"] else ""
     out["line"] = (f"Phim {out['film_seconds']:.0f} s ≈ {out['usd']:.2f} USD ({out['draft_first']} nháp Seedance 2.5 480p + nâng 1080p, "
-                   f"{out['direct']} clip gen thẳng 720p (bạn chọn / đang dùng), {out['other']} model khác{target}; {UPGRADE_UNMEASURED})")
+                   f"{out['direct']} shot dễ gen thẳng Seedance 2.5 720p (+ phóng ffmpeg 1080p), {out['other']} model khác{target}; {UPGRADE_UNMEASURED})")
     return out
 
 

@@ -126,8 +126,8 @@ def recommend(scene_data: Dict, priority: str, mp_row=None, video_audio: bool = 
     return _pick("seedance-fast", "cảnh thường — Seedance 2.0 Fast (hiệu quả chi phí tốt theo bảng ClipAI)")
 
 
-SEEDANCE25_ALL = ("quyết định 13/10: video hết Seedance 2.5 (2.0 duyệt ≈ 6 %, #24 0/20) — nháp 480p → duyệt → bản cao 1080p "
-                  "nâng từ nháp; Seedance 2.0 / Fast không dùng cho bản giao")
+SEEDANCE25_ALL = ("video hết Seedance 2.5 (13/10: 2.0 duyệt ≈ 6 %, #24 0/20) — shot dễ gen thẳng 720p + phóng ffmpeg 1080p, shot khó "
+                  "nháp 480p → duyệt → nâng 1080p từ nháp (15/10); Seedance 2.0 / Fast không dùng cho bản giao")
 KLING_FALLBACK = "Kling chỉ là đường lùi: Seedance từ chối (bộ lọc người thật / bản quyền) thì tự chuyển Kling"
 
 
@@ -182,7 +182,7 @@ def scene_choice(conn, scene_id: int, project_row=None, mp_row=None) -> Dict:
             choice["reason"] += " (chế độ thử rẻ: vẫn Seedance 2.5 — khớp môi (c) cần mốc giây, bản Fast không đọc mốc giây)"
         elif choice["model"] in ("seedance", "seedance-2.5") and choice.get("source") != "override":   # 08/10: the person's own pick for this scene stays
             choice.update(model="seedance-fast", reason=choice["reason"] + " (chế độ thử rẻ: dùng bản Fast 720p)")
-    if quality_tier.enabled():          # 13/10: mọi shot Seedance → nháp 2.5 480p (gen thẳng 2.5 720p chỉ khi người chọn / clip đang dùng)
+    if quality_tier.enabled():          # 15/10: shot dễ → gen thẳng 2.5 720p (+ ffmpeg 1080p); khó / thiếu nhãn → nháp 2.5 480p → nâng 1080p
         choice = quality_tier.e1_choice(conn, scene_id, choice)
     return _with_resolution(conn, scene_id, choice, mp_row)
 

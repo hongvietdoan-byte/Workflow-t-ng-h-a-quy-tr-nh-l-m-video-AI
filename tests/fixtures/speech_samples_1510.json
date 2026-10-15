@@ -1,0 +1,518 @@
+[
+{
+"voice_id": "72",
+"syllables": 6,
+"file_s": 1.41,
+"speech_s": 1.41
+},
+{
+"voice_id": null,
+"syllables": 9,
+"file_s": 2.638,
+"speech_s": 2.638
+},
+{
+"voice_id": null,
+"syllables": 12,
+"file_s": 4.414,
+"speech_s": 4.414
+},
+{
+"voice_id": null,
+"syllables": 15,
+"file_s": 5.564,
+"speech_s": 5.564
+},
+{
+"voice_id": null,
+"syllables": 10,
+"file_s": 3.996,
+"speech_s": 3.996
+},
+{
+"voice_id": null,
+"syllables": 6,
+"file_s": 2.324,
+"speech_s": 2.324
+},
+{
+"voice_id": null,
+"syllables": 3,
+"file_s": 1.253,
+"speech_s": 1.253
+},
+{
+"voice_id": null,
+"syllables": 10,
+"file_s": 3.709,
+"speech_s": 3.709
+},
+{
+"voice_id": null,
+"syllables": 19,
+"file_s": 5.982,
+"speech_s": 5.982
+},
+{
+"voice_id": null,
+"syllables": 9,
+"file_s": 3.84,
+"speech_s": 3.84
+},
+{
+"voice_id": null,
+"syllables": 12,
+"file_s": 3.892,
+"speech_s": 3.892
+},
+{
+"voice_id": null,
+"syllables": 7,
+"file_s": 2.925,
+"speech_s": 2.925
+},
+{
+"voice_id": null,
+"syllables": 9,
+"file_s": 2.168,
+"speech_s": 2.168
+},
+{
+"voice_id": null,
+"syllables": 6,
+"file_s": 2.951,
+"speech_s": 2.951
+},
+{
+"voice_id": "72",
+"syllables": 14,
+"file_s": 2.586,
+"speech_s": 2.586
+},
+{
+"voice_id": "70",
+"syllables": 9,
+"file_s": 2.194,
+"speech_s": 2.194
+},
+{
+"voice_id": "70",
+"syllables": 6,
+"file_s": 2.115,
+"speech_s": 2.115
+},
+{
+"voice_id": "70",
+"syllables": 8,
+"file_s": 1.864,
+"speech_s": 1.864
+},
+{
+"voice_id": "71",
+"syllables": 8,
+"file_s": 1.959,
+"speech_s": 1.959
+},
+{
+"voice_id": "70",
+"syllables": 4,
+"file_s": 1.567,
+"speech_s": 1.567
+},
+{
+"voice_id": "72",
+"syllables": 38,
+"file_s": 9.56,
+"speech_s": 9.56
+},
+{
+"voice_id": "72",
+"syllables": 22,
+"file_s": 4.675,
+"speech_s": 4.675
+},
+{
+"voice_id": "72",
+"syllables": 29,
+"file_s": 6.922,
+"speech_s": 6.922
+},
+{
+"voice_id": "72",
+"syllables": 14,
+"file_s": 3.474,
+"speech_s": 3.474
+},
+{
+"voice_id": "72",
+"syllables": 20,
+"file_s": 5.067,
+"speech_s": 5.067
+},
+{
+"voice_id": "72",
+"syllables": 30,
+"file_s": 6.53,
+"speech_s": 6.53
+},
+{
+"voice_id": "72",
+"syllables": 21,
+"file_s": 4.832,
+"speech_s": 4.832
+},
+{
+"voice_id": "72",
+"syllables": 12,
+"file_s": 2.847,
+"speech_s": 2.847
+},
+{
+"voice_id": "72",
+"syllables": 21,
+"file_s": 5.72,
+"speech_s": 5.72
+},
+{
+"voice_id": "30007",
+"syllables": 9,
+"file_s": 3.84,
+"speech_s": 3.84
+},
+{
+"voice_id": "30020",
+"syllables": 12,
+"file_s": 4.31,
+"speech_s": 4.31
+},
+{
+"voice_id": "30007",
+"syllables": 15,
+"file_s": 5.459,
+"speech_s": 5.459
+},
+{
+"voice_id": "30020",
+"syllables": 10,
+"file_s": 3.526,
+"speech_s": 3.526
+},
+{
+"voice_id": "30007",
+"syllables": 6,
+"file_s": 2.089,
+"speech_s": 2.089
+},
+{
+"voice_id": "30003",
+"syllables": 3,
+"file_s": 1.149,
+"speech_s": 1.149
+},
+{
+"voice_id": "30020",
+"syllables": 10,
+"file_s": 3.709,
+"speech_s": 3.709
+},
+{
+"voice_id": "30007",
+"syllables": 19,
+"file_s": 8.855,
+"speech_s": 8.855
+},
+{
+"voice_id": "30020",
+"syllables": 9,
+"file_s": 2.821,
+"speech_s": 2.821
+},
+{
+"voice_id": "30020",
+"syllables": 12,
+"file_s": 3.892,
+"speech_s": 3.892
+},
+{
+"voice_id": "30003",
+"syllables": 7,
+"file_s": 2.638,
+"speech_s": 2.638
+},
+{
+"voice_id": "30007",
+"syllables": 9,
+"file_s": 2.455,
+"speech_s": 2.455
+},
+{
+"voice_id": "30020",
+"syllables": 6,
+"file_s": 2.507,
+"speech_s": 2.507
+},
+{
+"voice_id": "30007",
+"syllables": 9,
+"file_s": 3.474,
+"speech_s": 3.474
+},
+{
+"voice_id": "30020",
+"syllables": 12,
+"file_s": 4.545,
+"speech_s": 4.545
+},
+{
+"voice_id": "30007",
+"syllables": 15,
+"file_s": 5.093,
+"speech_s": 5.093
+},
+{
+"voice_id": "30020",
+"syllables": 10,
+"file_s": 3.16,
+"speech_s": 3.16
+},
+{
+"voice_id": "30007",
+"syllables": 6,
+"file_s": 2.115,
+"speech_s": 2.115
+},
+{
+"voice_id": "30003",
+"syllables": 3,
+"file_s": 1.28,
+"speech_s": 1.28
+},
+{
+"voice_id": "30020",
+"syllables": 10,
+"file_s": 3.526,
+"speech_s": 3.526
+},
+{
+"voice_id": "30007",
+"syllables": 19,
+"file_s": 7.105,
+"speech_s": 7.105
+},
+{
+"voice_id": "30020",
+"syllables": 9,
+"file_s": 2.951,
+"speech_s": 2.951
+},
+{
+"voice_id": "30020",
+"syllables": 12,
+"file_s": 4.075,
+"speech_s": 4.075
+},
+{
+"voice_id": "30003",
+"syllables": 7,
+"file_s": 2.455,
+"speech_s": 2.455
+},
+{
+"voice_id": "30007",
+"syllables": 9,
+"file_s": 2.089,
+"speech_s": 2.089
+},
+{
+"voice_id": "30020",
+"syllables": 6,
+"file_s": 2.768,
+"speech_s": 2.768
+},
+{
+"voice_id": "30007",
+"syllables": 9,
+"file_s": 3.892,
+"speech_s": 3.892
+},
+{
+"voice_id": "30020",
+"syllables": 12,
+"file_s": 3.239,
+"speech_s": 3.239
+},
+{
+"voice_id": "30007",
+"syllables": 15,
+"file_s": 5.25,
+"speech_s": 5.25
+},
+{
+"voice_id": "30020",
+"syllables": 10,
+"file_s": 3.369,
+"speech_s": 3.369
+},
+{
+"voice_id": "30007",
+"syllables": 6,
+"file_s": 2.455,
+"speech_s": 2.455
+},
+{
+"voice_id": "30003",
+"syllables": 3,
+"file_s": 1.384,
+"speech_s": 1.384
+},
+{
+"voice_id": "30020",
+"syllables": 10,
+"file_s": 3.186,
+"speech_s": 3.186
+},
+{
+"voice_id": "30007",
+"syllables": 19,
+"file_s": 7.34,
+"speech_s": 7.34
+},
+{
+"voice_id": "30020",
+"syllables": 9,
+"file_s": 2.873,
+"speech_s": 2.873
+},
+{
+"voice_id": "30020",
+"syllables": 12,
+"file_s": 3.996,
+"speech_s": 3.996
+},
+{
+"voice_id": "30003",
+"syllables": 7,
+"file_s": 2.821,
+"speech_s": 2.821
+},
+{
+"voice_id": "30007",
+"syllables": 9,
+"file_s": 2.455,
+"speech_s": 2.455
+},
+{
+"voice_id": "30020",
+"syllables": 6,
+"file_s": 2.951,
+"speech_s": 2.951
+},
+{
+"voice_id": "70",
+"syllables": 7,
+"file_s": 2.351,
+"speech_s": 2.351
+},
+{
+"voice_id": "70",
+"syllables": 3,
+"file_s": 1.306,
+"speech_s": 1.046
+},
+{
+"voice_id": "72",
+"syllables": 7,
+"file_s": 2.037,
+"speech_s": 2.037
+},
+{
+"voice_id": "69",
+"syllables": 5,
+"file_s": 1.071,
+"speech_s": 1.071
+},
+{
+"voice_id": "72",
+"syllables": 6,
+"file_s": 1.41,
+"speech_s": 1.41
+},
+{
+"voice_id": "70",
+"syllables": 3,
+"file_s": 2.586,
+"speech_s": 2.324
+},
+{
+"voice_id": "69",
+"syllables": 4,
+"file_s": 1.306,
+"speech_s": 1.306
+},
+{
+"voice_id": "72",
+"syllables": 7,
+"file_s": 1.959,
+"speech_s": 1.959
+},
+{
+"voice_id": "69",
+"syllables": 8,
+"file_s": 1.645,
+"speech_s": 1.645
+},
+{
+"voice_id": "70",
+"syllables": 5,
+"file_s": 2.925,
+"speech_s": 2.219
+},
+{
+"voice_id": "70",
+"syllables": 7,
+"file_s": 2.037,
+"speech_s": 2.037
+},
+{
+"voice_id": "69",
+"syllables": 5,
+"file_s": 1.488,
+"speech_s": 1.488
+},
+{
+"voice_id": "72",
+"syllables": 6,
+"file_s": 1.227,
+"speech_s": 1.227
+},
+{
+"voice_id": "69",
+"syllables": 8,
+"file_s": 2.351,
+"speech_s": 2.351
+},
+{
+"voice_id": "69",
+"syllables": 10,
+"file_s": 2.351,
+"speech_s": 2.351
+},
+{
+"voice_id": "72",
+"syllables": 7,
+"file_s": 1.488,
+"speech_s": 1.488
+},
+{
+"voice_id": "69",
+"syllables": 10,
+"file_s": 3.082,
+"speech_s": 3.082
+},
+{
+"voice_id": "70",
+"syllables": 7,
+"file_s": 2.351,
+"speech_s": 2.351
+}
+]

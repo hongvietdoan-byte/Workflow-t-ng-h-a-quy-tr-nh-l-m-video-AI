@@ -87,8 +87,9 @@ cảnh khớp tư thế → nhân vật đúng hồ sơ → nền theo render �
  "transition_in": "cut|match|occlusion|flash|dip|whip|zoom_through|j_cut|l_cut",
  "difficulty": "easy|complex|unknown", "difficulty_why": "tiếng Việt, 1 câu: căn cứ của nhãn độ khó"}
 ```
-- **`difficulty` + `difficulty_why` (mọi shot — độ khó khi gen video):** nhãn **chỉ để thông tin / thống kê** — từ 13/10 mọi shot đều
-  gen nháp 480p trước, duyệt rồi mới nâng 1080p, bất kể nhãn. Nghĩ theo câu hỏi: *model video có làm đúng ngay lần đầu không, căn cứ ở đâu?*
+- **`difficulty` + `difficulty_why` (mọi shot — độ khó khi gen video):** nhãn **quyết định đường làm clip** (15/10) — `easy` → gen thẳng
+  Seedance 2.5 720p (dựng phóng 1080p); `complex` / `unknown` / bỏ trống → nháp 480p, duyệt rồi nâng 1080p. Code ép khó khi có video ref,
+  kỹ năng, khớp môi, ≥3 người, shot hero. Nghĩ theo câu hỏi: *model video có làm đúng ngay lần đầu không, căn cứ ở đâu?*
   - `easy` khi mọi thứ trong khung đều là việc model làm tốt: **một người**, động tác đơn giản (đứng, nhìn, quay đầu, bước chậm), máy tĩnh
     hoặc chuyển động nhẹ (đẩy chậm, lia ngắn), không có câu thoại phải khớp môi, không kỹ năng / hiệu ứng, không nhảy. *Vì sao:* những shot
     này hầu như không phải gen lại.
@@ -98,7 +99,7 @@ cảnh khớp tư thế → nhân vật đúng hồ sơ → nền theo render �
     gen lại 1 lần/shot, #22 shot nhảy / kỹ năng 3 lần/shot.
   - `unknown` khi thiếu căn cứ để chắc (chưa có ảnh tham chiếu kỹ năng, chưa biết model xử lý động tác này ra sao, kịch bản tả mơ hồ).
     Không đoán `easy` cho yên tâm; cũng đừng ghi `unknown` cho shot `easy` rõ ràng (một người đi / đứng / nhìn, máy tĩnh).
-    Bỏ trống nhãn thì code tự chấm theo các trường — luôn ghi nhãn để thống kê là của bạn.
+    Bỏ trống nhãn = coi là khó (nháp trước, tốn hơn) — luôn ghi nhãn.
   - `difficulty_why`: một câu nêu **căn cứ cụ thể** của shot này ("1 người đứng nhìn, máy tĩnh, không thoại" / "2 người nhảy đối mặt,
     máy orbit"). Code kiểm chéo bằng các trường của shot (số người, từ khóa động tác, `camera_move`, `lip_sync`, thoại, kỹ năng, nền 3D):
     shot ghi `easy` mà các trường cho thấy khó sẽ bị hạ thành `unknown`; không bao giờ hạ `complex`.

@@ -455,6 +455,7 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
     height = rows_box_height(len(scenes), editing)
     with (st.container(height=height, key=f"script-rows-{pid}") if height else nullcontext()):
         cur_story = None
+        speech = None
         for s in scenes:
             d = json.loads(s["data"] or "{}")
             st_row = by_idx.get(s["idx"])
@@ -467,7 +468,10 @@ def scene_list(p: Pipeline, pid: int, scenes, char_names) -> None:
                     head_col.markdown(f"**Cảnh {cur_story} — {escape((story.get(cur_story) or {}).get('heading') or '')}** · "
                                       f"{len(group)} shot · {total:.1f}s")
                     _replan_button(p, pid, cur_story, redo_col)
-                    warn = _shots.pacing_warnings(group)
+                    if speech is None:                    # rà gop-1510 mục 7: giây thoại theo giọng dự án (một lần cho cả bảng)
+                        from core import dialogue as _dialogue
+                        speech = _dialogue.speech_ctx(p.conn, pid)
+                    warn = _shots.pacing_warnings(group, speech)
                     if warn:
                         cap("⚠ " + " · ".join(warn))
                 lines = "; ".join(f"{x.get('speaker')}: {x.get('text')}" for x in d.get("dialogue") or [])

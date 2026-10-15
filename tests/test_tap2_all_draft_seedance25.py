@@ -1,5 +1,5 @@
-"""Quyết định người dùng 13/10 (tập 2 #27): video HẾT Seedance 2.5, mọi shot đi nháp 480p → duyệt → bản cao 1080p (bỏ E1 "shot dễ gen
-thẳng"); Seedance 2.0 / 2.0 Fast không còn được đề xuất; Kling chỉ là đường lùi khi Seedance từ chối (bộ lọc người thật — runner tự
+"""Quyết định người dùng 13/10 (tập 2 #27): video HẾT Seedance 2.5. 15/10 sửa chỗ ghi nhầm "mọi shot nháp": shot dễ (nhãn Đạo diễn) gen
+thẳng 2.5 720p, shot khó / thiếu nhãn nháp 480p → duyệt → bản cao 1080p (tests/test_shot_easy_direct_720p.py); Seedance 2.0 / 2.0 Fast không còn được đề xuất; Kling chỉ là đường lùi khi Seedance từ chối (bộ lọc người thật — runner tự
 chuyển, VideoRunner._on_refused). Ghi đè của người (motion_prompts.quality_path / video_model) vẫn thắng. Shot đã có job gen thẳng đang
 chạy / đã duyệt không bị đổi tuyến giữa chừng. Không gọi dịch vụ tốn tiền."""
 import unittest
@@ -8,17 +8,17 @@ from core import cost, model_router, quality_tier
 from tests.test_cost_route_e1 import OFF, ON, Base
 
 
-class AutoPathIsAlwaysDraftFirst(Base):
+class AutoPathByDirectorLabel(Base):
     N = 2
 
-    def test_easy_label_goes_draft_first(self):
+    def test_easy_label_goes_direct_2_5_720p(self):
         self.label("easy")
         with ON:
-            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")
+            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "direct")
             ch = model_router.scene_choice(self.p.conn, self.s1)
-            self.assertEqual((ch["model"], ch["resolution"], ch["e1"]), ("seedance-2.5", "480p", "draft_first"))
+            self.assertEqual((ch["model"], ch["resolution"], ch["e1"]), ("seedance-2.5", "720p", "direct"))
             jid = self.p.create_job(self.s1, "video_gen")
-            self.assertEqual(self.p.job(jid)["quality_tier"], "draft")
+            self.assertEqual(self.p.job(jid)["quality_tier"], "direct")
 
     def test_no_label_and_easy_cross_check_goes_draft_first(self):
         import json
@@ -58,15 +58,14 @@ class AutoPathIsAlwaysDraftFirst(Base):
         with ON:
             self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")
 
-    def test_film_estimate_prices_every_shot_as_2_5_draft_plus_upgrade(self):
+    def test_film_estimate_prices_easy_shots_at_2_5_720p(self):
         for sid in self.sids:
             self.label("easy", sid)
         with ON:
             est = quality_tier.e1_estimate(self.p.conn, self.pid)
-        draft = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "480p", "9:16", 4.0)
-        final = quality_tier.upgrade_price("9:16", 4.0)
-        self.assertEqual((est["direct"], est["draft_first"]), (0, 2))
-        self.assertAlmostEqual(est["usd"], round(2 * (draft + final), 2))
+        direct = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "720p", "9:16", 4.0)
+        self.assertEqual((est["direct"], est["draft_first"]), (2, 0))
+        self.assertAlmostEqual(est["usd"], round(2 * direct, 2))
         self.assertNotIn("2.0", est["line"])
 
 
@@ -160,20 +159,22 @@ class DraftsNeverDelivered(unittest.TestCase):
             render.assert_not_called()
 
 
-class DirectorPromptsNoLongerRouteEasyDirect(unittest.TestCase):
-    """13/10: nhãn easy / complex chỉ là thông tin — prompt Đạo diễn / Quay phim không được nói 'easy → gen thẳng bản cao'."""
+class DirectorPromptsRouteByLabel(unittest.TestCase):
+    """15/10: nhãn Đạo diễn quyết định đường làm clip — prompt Đạo diễn / Quay phim nói 'easy → gen thẳng 2.5 720p', còn lại / bỏ trống
+    → nháp 480p; không còn câu sai 13/10 'mọi shot nháp, nhãn chỉ để thông tin'."""
     FILES = ("01_director_scene_analysis.md", "17_director_shots.md", "20_dp_scene_shots.md")
 
-    def test_prompts_say_every_shot_drafts_first(self):
+    def test_prompts_say_easy_goes_direct_and_the_rest_drafts(self):
         import os
-        import re
         root = os.path.join(os.path.dirname(__file__), "..", "prompts")
         for name in self.FILES:
             text = open(os.path.join(root, name), encoding="utf-8").read()
-            self.assertIsNone(re.search(r"gen thẳng bản (chất lượng )?cao", text), name)
-            self.assertNotIn("quyết định đường làm clip", text, name)
-            self.assertNotIn("còn lại gen thẳng", text, name)
-            self.assertIn("mọi shot", text, name)
+            self.assertIn("quyết định đường làm clip", text, name)
+            self.assertIn("gen thẳng", text, name)
+            self.assertIn("720p", text, name)
+            self.assertIn("bỏ trống", text, name)
+            self.assertNotIn("chỉ để thông tin", text, name)
+            self.assertNotIn("mọi shot đều nháp", text, name)
 
 
 if __name__ == "__main__":

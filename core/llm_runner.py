@@ -1168,7 +1168,10 @@ def _mock_shots(scene: Dict, first: bool, last: bool) -> List[Dict]:
             "action": f"toàn cảnh {scene['location']} (giả lập)", "start_frame": "everyone in frame, wide (mock)",
             "image_prompt": f"wide shot of scene {scene['idx']}, all characters (mock)", "characters": cast}]
     for k, d in enumerate(scene["dialogue"], 1):
-        need = _dlg.needed_seconds([(d["speaker"], d["text"])])
+        # rà gop-1510 mục 7: Director GIẢ LẬP chỉ có chữ prompt, không có CSDL dự án → ctx None (công thức mặc định) có chủ đích; giây
+        # thật theo giọng dự án do llm_io._normalized → shot_normalize.normalize(ctx=speech_ctx) kéo lại khi kiểm câu trả lời (cùng đường
+        # với Director thật)
+        need = _dlg.needed_seconds([(d["speaker"], d["text"])], None)
         out.append({"size": "MCU", "angle": "eye", "camera_move": "push_in" if k % 3 == 0 else "static", "role": "dialogue",
                     "duration_s": round(max(1.0, need + 0.2), 1), "action": f"{d['speaker']} nói (giả lập)",
                     "start_frame": f"{d['speaker']} centre frame (mock)", "image_prompt": f"medium close-up of {d['speaker']} speaking (mock)",

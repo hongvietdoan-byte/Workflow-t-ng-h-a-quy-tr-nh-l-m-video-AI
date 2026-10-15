@@ -1,0 +1,56 @@
+{
+ "_why": "15/10 (#31, rà vòng gop-1510): tốc độ đọc thật theo giọng — tools/measure_speech_rate.py --write, đo trên GIÂY NÓI (basis speech_s: đã cắt lặng đầu/cuối; lặng = BREATH của dialogue.needed_seconds, không đếm hai lần). dialogue.voice_rate dùng max(p50, 0,8 × RATE) khi n ≥ min_n (giọng nhanh được ước ngắn hơn RATE). Kiểm: tests/test_speech_time.py với mẫu thật tests/fixtures/speech_samples_1510.json — mỗi giọng đủ mẫu trung vị (ước − file thật) ≤ +0,5 s. speed_follows: model nào đọc nhanh/chậm theo speed gửi đi — eleven_v3 đo 15/10 trên #8/#24/#27 (speed 0,9/1,0/1,1 theo pace): không thấy nhanh lên theo speed (giọng 72: 0,9 → 4,19; 1,0 → 4,35; 1,1 → 3,85 âm tiết/giây) và trang thử ElevenLabs ghi speed không áp cho v3 → false. Đổi thành true chỉ khi lượt TTS thử cùng câu ở 1,0 và 1,2 cho thấy ngắn lại.",
+ "speed_follows": {
+  "eleven_v3": false,
+  "eleven_multilingual_v2": false,
+  "eleven_flash_v2_5": false,
+  "eleven_turbo_v2_5": false
+ },
+ "min_n": 8,
+ "voices": {
+  "30003": {
+   "n": 6,
+   "p10": 2.26,
+   "p25": 2.38,
+   "p50": 2.55
+  },
+  "30007": {
+   "n": 15,
+   "p10": 2.32,
+   "p25": 2.52,
+   "p50": 2.75
+  },
+  "30020": {
+   "n": 18,
+   "p10": 2.33,
+   "p25": 2.72,
+   "p50": 2.96
+  },
+  "69": {
+   "n": 7,
+   "p10": 3.17,
+   "p25": 3.3,
+   "p50": 3.4
+  },
+  "70": {
+   "n": 10,
+   "p10": 2.16,
+   "p25": 2.62,
+   "p50": 2.92
+  },
+  "71": {
+   "n": 1,
+   "p10": 4.08,
+   "p25": 4.08,
+   "p50": 4.08
+  },
+  "72": {
+   "n": 16,
+   "p10": 3.62,
+   "p25": 3.97,
+   "p50": 4.24
+  }
+ },
+ "measured": "2026-10-15",
+ "basis": "speech_s"
+}

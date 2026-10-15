@@ -408,8 +408,9 @@ def _model_change(p: Pipeline, pid: int, r, line, options, two_tier: bool) -> No
     rpick = c_res.selectbox("Chất lượng", [None] + list(names), index=([None] + list(names)).index(rcur),
                             key=f"vres_{r['scene_id']}", disabled=not levels,
                             format_func=lambda k: auto if k is None else names[k],
-                            help=("Chỉ hiện các mức model đang chọn cho phép. Mặc định (13/10) mọi shot: nháp Seedance 2.5 480p → bạn duyệt "
-                                  "→ nâng 1080p (giữ nội dung nháp); chọn 480p / 1080p = cùng đường đó; 720p = gen thẳng một lần." if two_tier else
+                            help=("Chỉ hiện các mức model đang chọn cho phép. Mặc định (15/10): shot dễ gen thẳng Seedance 2.5 720p (phóng 1080p lúc dựng); "
+                                  "shot khó / thiếu nhãn nháp 480p → bạn duyệt → nâng 1080p (giữ nội dung nháp); chọn 480p / 1080p = đường nháp; "
+                                  "720p = gen thẳng một lần." if two_tier else
                                   "Chỉ hiện các mức model đang chọn cho phép.") + _group_note(p, r["scene_id"]),
                             on_change=_save_pick, args=(r["scene_id"], f"vres_{r['scene_id']}", "resolution"))
     if line:

@@ -311,6 +311,17 @@ def _model(plan: Dict):
         return None, None
 
 
+def _real_voice(conn, scene_id: int, plan: Dict) -> Optional[float]:
+    """15/10: giây clip cần cho giọng THẬT của shot (đầu clip voice._lead + các câu + khoảng giữa, như voice.layout đặt) khi mọi câu
+    của shot đã có giọng; None = chưa đủ giọng (dùng ước tính) / thiếu dự án hay thư mục."""
+    from . import voice
+    pid, data_dir = plan.get("project_id"), plan.get("data_dir")
+    if not pid or not data_dir:
+        return None
+    secs = voice.scene_seconds(conn, int(pid), str(data_dir)).get(scene_id)
+    return None if secs is None else round(voice._lead(conn, scene_id) + float(secs), 2)
+
+
 def _check_duration(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> None:
     from . import dialogue, ffmpeg_studio, video_rules
     from .adapters.clipai import effective_duration
@@ -353,7 +364,13 @@ def _check_duration(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]
         elif got > eff + 0.05:
             out.append(_issue("thoi_luong", DO, f"giọng thoại dài {got:.1f} s, clip chỉ {eff} s — thoại bị cắt: tăng thời lượng / chia shot"))
         return
-    need = dialogue.needed_seconds(lines)
+    real = _real_voice(conn, scene_id, plan)
+    if real is not None:                             # 15/10: giọng thật đã có → so bằng độ dài thật, không bằng ước tính
+        if real > eff + 0.05:
+            out.append(_issue("thoi_luong", DO, f"giọng thật của shot cần {real:.1f} s (đầu clip + các câu), clip chỉ {eff} s — câu "
+                                                "bị cắt: ⏱ Đặt thời lượng clip theo giọng thật (Bước 3) hoặc chia shot"))
+        return
+    need = dialogue.needed_seconds(lines, dialogue.speech_ctx(conn, int(plan.get("project_id") or 0)))
     if need > eff:
         out.append(_issue("thoi_luong", VANG, f"thoại ước cần ~{need:g} s, clip {eff} s (ước theo số âm tiết, chưa có giọng thật)"))
 

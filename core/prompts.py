@@ -177,12 +177,13 @@ def duration_block(pipeline: Pipeline, project_id: int, for_dp: bool = False) ->
     proj = pipeline.project(project_id)
     target = None if for_dp else target_seconds(proj["script_text"] if "script_text" in proj.keys() else "")
     parts, speech = [], 0.0
+    ctx = dialogue.speech_ctx(pipeline.conn, project_id)     # 15/10: giọng/tốc độ của người nói + khoảng thật giữa hai câu
     for s in shots.story_scenes(pipeline, project_id) if shots.mode(proj) else []:
         if for_dp:
-            speech += sum(dialogue.needed_seconds([r]) for r in dialogue.lines(s["text"]))
+            speech += dialogue.scene_seconds(dialogue.lines(s["text"]), ctx)
             continue
         rows = dialogue.lines(s["text"])
-        need = round(sum(dialogue.needed_seconds([r]) for r in rows), 1)   # each line said in its own shot, with its own breath
+        need = dialogue.scene_seconds(rows, ctx)    # one breath per turn of a speaker (15/10: not per sentence of a split narration)
         speech += need
         talk = f"; thoại {len(rows)} câu cần ~{need:g} giây nói" if rows else ""
         m = _SECTION_TIME.search(s["heading"] or "")
@@ -209,7 +210,7 @@ def duration_block(pipeline: Pipeline, project_id: int, for_dp: bool = False) ->
                      "không cần.")
     if speech:     # the 3rd Director run of "ANH CHỌN AI?" gave 11 spoken shots less time than their line needs (6,8 s in all)
         parts.append(f"- Shot có thoại: `duration_s` ≥ (số âm tiết ÷ {dialogue.RATE:g}) + {dialogue.BREATH:g} giây cho câu của nó "
-                     "— không nén câu vào shot ngắn hơn.")
+                     f"(nhiều câu trong một shot: + {dialogue.LINE_GAP:g} giây giữa hai câu) — không nén câu vào shot ngắn hơn.")
     trim = ("\n**Được phép bỏ bớt câu thoại** (người dùng cho phép): bỏ những câu không cần cho cốt truyện để hầu hết shot dài 2–4 giây — sau khi đã gộp shot im lặng ngắn; không bỏ câu mà câu sau đáp lại. "
             "KHÔNG thêm câu mới, KHÔNG sửa chữ câu giữ lại (giữ nguyên văn). " + DROPPED_LINES_FORMAT
             if "dialogue_trim" in proj.keys() and proj["dialogue_trim"] and not for_dp else "")
@@ -326,15 +327,17 @@ def intent_frame_block(pipeline: Pipeline, project_id: int) -> str:
     proj = pipeline.project(project_id)
     target = target_seconds(proj["script_text"] if "script_text" in proj.keys() else "")
     rows = []
+    ctx = dialogue.speech_ctx(pipeline.conn, project_id)
     for s in shots.story_scenes(pipeline, project_id):
         said = dialogue.lines(s["text"])
-        need = round(sum(dialogue.needed_seconds([r]) for r in said), 1)
+        need = dialogue.scene_seconds(said, ctx)
         bits = []
         m = _SECTION_TIME.search(s["heading"] or "")
         if m:
             bits.append(f"kịch bản ghi ≈ {int(m.group(2)) - int(m.group(1))} giây")
         if said:
-            bits.append(f"thoại {len(said)} câu cần ~{need:g} giây nói (mỗi câu một hơi, ≈ số âm tiết ÷ {dialogue.RATE:g} + {dialogue.BREATH:g} s)")
+            bits.append(f"thoại {len(said)} câu cần ~{need:g} giây nói (≈ số âm tiết ÷ {dialogue.RATE:g}; + {dialogue.BREATH:g} s mỗi "
+                        f"lượt lời, + {ctx['gap']:g} s giữa hai câu liền nhau của cùng người nói)")
         rows.append(f"- Cảnh {s['idx']}: " + ("; ".join(bits) or "không ghi giây, không có thoại"))
     head = (f"Tổng `target_s` của mọi cảnh phải nằm trong {target[0]}–{target[1]} giây (kịch bản yêu cầu)." if target
             else "Kịch bản không ghi tổng thời lượng: đặt `target_s` theo nhịp thể loại và thời gian nói.")
@@ -670,13 +673,14 @@ def build_motion_bundle(pipeline: Pipeline, project_id: int, only_missing: bool 
     rows = motion_scene_rows(pipeline, project_id, only_missing, only_idx)
     chars = conn.execute("SELECT name, description, wardrobe FROM characters WHERE project_id=?", (project_id,)).fetchall()
     profiles = model_router.load_profiles()["models"]
+    ctx = dialogue.speech_ctx(conn, project_id)
     all_scenes = {r["idx"]: json.loads(r["data"] or "{}") for r in conn.execute(
         "SELECT idx, data FROM scenes WHERE project_id=?", (project_id,))}
 
     def extra(r) -> dict:
         data = json.loads(r["data"] or "{}")
         out = {}
-        need = dialogue.needed_seconds(dialogue.scene_lines(data))
+        need = dialogue.needed_seconds(dialogue.scene_lines(data), ctx)
         if need:
             out["dialogue_min_sec"] = need
         choice = model_router.scene_choice(conn, r["id"])

@@ -152,7 +152,7 @@ class Pipeline:
         access.need_edit(self, project_id, "đổi cài đặt dự án")
         allowed = {"aspect", "genre", "genre_locked", "model_priority", "qc_video", "render_settings", "qc_policy",
                    "autopilot_gates", "autopilot_saved_cfg", "pilot", "shot_mode", "style_profile", "test_quality", "look",
-                   "director_raw", "director_intent_raw", "image_model", "dialogue_trim", "pacing"}
+                   "director_raw", "director_intent_raw", "image_model", "dialogue_trim", "pacing", "narration_speed"}
         if field not in allowed:
             raise ValueError(f"unknown project setting '{field}'")
         self.conn.execute(f"UPDATE projects SET {field}=? WHERE id=?", (value, project_id))
@@ -567,6 +567,11 @@ class Pipeline:
             self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent",
                             note=f"QC {overall:.2f} (suggestion only){suffix}")
             return "pending_review"
+        if passed and self._direct_needs_person(job):
+            # 15/10: QC đạt không phải người duyệt — clip gen thẳng chờ người (autopilot chờ "drafts" có lý do, không hỏng)
+            self.transition(job_id, JobState.PENDING_REVIEW, actor="ai_agent",
+                            note=f"QC {overall:.2f} >= {threshold} — clip gen thẳng: chỉ người duyệt, chờ bạn{suffix}"[:2000])
+            return "pending_review"
         if passed:
             return "approved" if self.approve(job_id, "ai_agent", f"QC {overall:.2f} >= {threshold}") else "rejected"
         if review_zone:
@@ -611,6 +616,16 @@ class Pipeline:
         """A draft clip under flag two_tier_quality: the machine QC only suggests (người dùng 08/10, #24)."""
         if job["type"] != "video_gen" or "quality_tier" not in job.keys() or job["quality_tier"] != "draft":
             return False
+        from . import quality_tier as _qt
+        return _qt.enabled()
+
+    def _direct_needs_person(self, job) -> bool:
+        """Quyết định người dùng 15/10 (rà vòng gop-1510 mục 6): clip GEN THẲNG (Seedance 2.5 720p, bậc direct không từ nháp) dưới cờ
+        two_tier_quality cũng chỉ NGƯỜI duyệt (qua chat / màn Video) — máy (QC đạt, autopilot, QC cảnh) không duyệt thay. Cờ tắt: như cũ."""
+        if job["type"] != "video_gen" or "quality_tier" not in job.keys() or job["quality_tier"] != "direct":
+            return False
+        if "draft_job_id" in job.keys() and job["draft_job_id"]:
+            return False                          # made from an approved draft: the person already approved its content
         from . import quality_tier as _qt
         return _qt.enabled()
 
@@ -746,7 +761,7 @@ class Pipeline:
         access.need_edit_job(self, job_id, "duyệt")
         self._require_reviewable(job_id)
         job = self.job(job_id)
-        if reviewer_type != "user" and self._draft_suggest_only(job):
+        if reviewer_type != "user" and (self._draft_suggest_only(job) or self._direct_needs_person(job)):
             # C2 (13/10): a two-tier DRAFT is approved by the PERSON only (quality_tier.approved_draft) — a machine approval (autopilot /
             # QC cảnh) left the shot "Nháp · chờ duyệt" with no ✔ button (job already approved) and no way to the final. Kept waiting.
             self._draft_needs_person(job, reviewer_type)
@@ -766,13 +781,19 @@ class Pipeline:
     DRAFT_PERSON_CODE = "draft_needs_person"
 
     def _draft_needs_person(self, job, reviewer_type: str) -> None:
-        """C2: a machine tried to approve a two-tier draft — it stays for the person (pending_review), said once in diag."""
+        """C2: a machine tried to approve a two-tier draft (15/10: or a direct clip) — it stays for the person (pending_review), said
+        once in diag."""
+        direct = job["quality_tier"] == "direct"
         if self.state(job["id"]) == JobState.SUCCEEDED:
-            self.transition(job["id"], JobState.PENDING_REVIEW, actor=reviewer_type, note="nháp: chỉ người duyệt — chờ bạn duyệt")
+            self.transition(job["id"], JobState.PENDING_REVIEW, actor=reviewer_type,
+                            note=("clip gen thẳng" if direct else "nháp") + ": chỉ người duyệt — chờ bạn duyệt")
         try:
             from . import diag
-            diag.record(self.conn, "video", "info", f"Bản NHÁP job {job['id']}: {reviewer_type} không được duyệt nháp (chỉ người duyệt "
-                        "nháp mới gen bản cao) — chờ bạn duyệt ở màn Video", code=self.DRAFT_PERSON_CODE, project_id=job["project_id"],
+            text = (f"Clip GEN THẲNG job {job['id']}: {reviewer_type} không được duyệt (người dùng 15/10: clip 720p gen thẳng cũng do "
+                    "người duyệt) — chờ bạn duyệt ở màn Video" if direct else
+                    f"Bản NHÁP job {job['id']}: {reviewer_type} không được duyệt nháp (chỉ người duyệt nháp mới gen bản cao) — chờ bạn "
+                    "duyệt ở màn Video")
+            diag.record(self.conn, "video", "info", text, code=self.DRAFT_PERSON_CODE, project_id=job["project_id"],
                         scene_id=job["scene_id"], job_id=job["id"])
         except Exception:  # noqa: BLE001 - the note is a convenience; the job keeps waiting for the person either way
             pass

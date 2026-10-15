@@ -43,7 +43,7 @@ class Base(unittest.TestCase):
     def set_difficulty(self, level, sid=None):
         sid = sid or self.s1
         data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()[0] or "{}")
-        data.update(difficulty=level, difficulty_why="test")
+        data.update(difficulty=level, difficulty_why="test", difficulty_by="director")   # vòng gop-1510 mục 5: nhãn Đạo diễn = by director
         self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), sid))
         self.p.conn.commit()
 
@@ -106,8 +106,9 @@ class PathAndStateTests(Base):
             self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")
             self.set_difficulty("complex")
             self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")
-            self.set_difficulty("easy")                                                   # 13/10: easy no longer means direct
-            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")
+            self.set_difficulty("easy")                                                   # 15/10: easy → direct 2.5 720p
+            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "direct")
+            self.set_difficulty("complex")
             self.assertEqual(self.tier(self.p.create_job(self.s1, "video_gen")), "draft")
             quality_tier.set_path(self.p.conn, self.s1, "direct")                         # the person wins
             self.assertEqual(self.tier(self.p.create_job(self.s1, "video_gen")), "direct")
@@ -354,7 +355,7 @@ class SupersededFinalTests(Base):
             vr = VideoRunner(self.p, _provider(), self.data)
             lead = os.path.join(self.data, "01_lead.mp4")
 
-            def split(path, group, dests):
+            def split(path, group, dests, **kw):
                 for d in dests[1:]:
                     with open(d, "wb") as fh:
                         fh.write(b"part")
@@ -592,7 +593,9 @@ class ReviewRoundS1Tests(Base):
             self.p.transition(d, JobState.PENDING_REVIEW)
             s2 = self.p.create_scene(self.pid, 2, "Shot 2")
             g = self.p.create_job(s2, "video_gen")
-            self.p.conn.execute("UPDATE jobs SET quality_tier='direct' WHERE id=?", (g,))
+            # 15/10 (rà gop-1510 mục 6): clip gen thẳng THUẦN cũng chỉ người duyệt (test_shot_easy_direct_720p) — ở đây clip gen thẳng
+            # làm TỪ nháp (draft_job_id) vẫn được "Tiếp tục" coi như đã xem
+            self.p.conn.execute("UPDATE jobs SET quality_tier='direct', draft_job_id=? WHERE id=?", (d, g))
             self.p.conn.commit()
             self.p.start(g)
             self.p.succeed(g)
