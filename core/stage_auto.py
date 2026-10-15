@@ -29,6 +29,7 @@ from . import diag, features
 FLAG = "stage_auto"
 CODE = "stage_auto"
 FIELD = "stage_camera"                 # = plate_camera.STAGE_FIELD
+NEAR_SPOT_M = 25.0                     # chỗ đứng khác (không shot nào của cảnh dùng) chỉ nêu cho Đạo diễn khi trong bán kính này quanh O
 SEG_FIELD = "stage_segment"
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _TOOL = None
@@ -237,6 +238,8 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
         if name != main and sp.get("at"):
             r = _rel(st, sp["at"])
             used = seg["spots"].get(name)
+            if not used and (r[0] ** 2 + r[1] ** 2) ** 0.5 > NEAR_SPOT_M:
+                continue                                  # 16/10 gói thật #31 cảnh 4: 30 chỗ đứng cả bản đồ (tới 200 m) là nhiễu
             notes.append(f"Chỗ đứng khác trên CÙNG sân khấu: `{name}` tại ({r[0]:+.2f} Đ, {r[1]:+.2f} B, cao {r[2]:+.2f} m) so với O"
                          + (f" — shot {', '.join(map(str, used))} của cảnh này đứng ở đó" if used else ""))
     have_keys = {o["key"] for o in fixed}

@@ -61,10 +61,13 @@ nên yêu cầu phải rõ, có lý do, và tự nhất quán.
   "can_hoi": ["điều cần người dùng xác nhận, nếu có"]
 }
 ```
-- `objects`: chép NGUYÊN các vật cố định được cho; nhân vật thì bạn đặt vị trí gốc. Khóa vật chỉ chữ thường + số (không dấu, không `_`).
+- `objects`: nhân vật thì bạn đặt vị trí gốc. Vật cố định ĐÃ CÓ tọa độ (và mốc `moc`) code tự thêm nếu bạn không chép — chỉ cần
+  dùng khóa của chúng trong `thanh_phan`; nếu chép thì giữ nguyên số. Đạo cụ được cho mà CHƯA có `at` thì bạn phải đặt (ghi `at`, giữ
+  `h` / `d` / `kind`). Khóa vật chỉ chữ thường + số (không dấu, không `_`).
   Người trong lòng giếng: `"in": "<khóa giếng>"` (+ `"at"` nếu không ở tâm, vd bám mép gần).
 - `beats[nhip][khoa]`: chỉ ghi phần đổi so với `objects` (`at`, `H`, `facing`, `tu_the`, `in`, `hidden`), kèm `_ly_do`.
 - `co` ∈ EWS, WS, GAME_TPS, MLS, MS, MCU, CU, ECU. `do_cao` ∈ ngang, thap, cao, tren_dau. `goc` ∈ ngang, cui, ngua (bỏ trống nếu
-  không cần). `vai` ∈ chinh, phu, khong_duoc_co. `vung` = "ngang-dọc": ngang ∈ trai/giua/phai (ghép "giua+phai"), dọc ∈ tren/giua/duoi.
+  không cần). `vai` ∈ chinh, phu, khong_duoc_co. `vung` = "NGANG-DỌC", ngang TRƯỚC, dọc SAU: ngang ∈ trai/giua/phai (ghép
+  "giua+phai"), dọc ∈ tren/giua/duoi. Đúng: `"trai-duoi"`, `"phai-tren"`, `"giua"` (chỉ ngang), `"duoi"` (chỉ dọc). Sai: `"duoi-trai"`.
   `thay` ∈ mat / lung / nghieng (ghép bằng "|"), chỉ cho người.
 - Mỗi shot của kịch bản có đúng MỘT mục trong `shot_specs`, cùng số `shot`.

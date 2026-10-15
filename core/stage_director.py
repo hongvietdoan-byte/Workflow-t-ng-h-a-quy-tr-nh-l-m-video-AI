@@ -63,6 +63,14 @@ def validate_answer(obj, inputs: Dict, marks: Optional[Dict] = None) -> Dict:
     if not isinstance(obj, dict) or not isinstance(obj.get("blocking"), dict) or not isinstance(obj.get("shot_specs"), list):
         raise llm_io.SchemaError("cần {blocking: {...}, shot_specs: [...]}")
     bl, specs = obj["blocking"], obj["shot_specs"]
+    # 16/10 chạy thật #31 cảnh 4 (lượt 2 hỏng vì "thiếu vật cố định 'moc'"): vật cố định ĐÃ có tọa độ / mốc từ K1 là dữ kiện của code —
+    # thiếu thì code tự thêm (không bắt Đạo diễn chép lại, không tốn lượt hỏi lại). Đạo cụ chưa có `at` vẫn phải do Đạo diễn đặt.
+    objs_ = bl.setdefault("objects", []) if isinstance(bl.get("objects", []), list) else None
+    if objs_ is not None:
+        keys_ = {o.get("key") for o in objs_ if isinstance(o, dict)}
+        for f in inputs.get("fixed") or []:
+            if f.get("key") not in keys_ and (f.get("kind") == "moc" or f.get("at")):
+                objs_.append({k: v for k, v in f.items() if k != "source"} | {"source": f.get("source") or "code: vật cố định"})
     want = sorted(s["shot"] for s in inputs["shots"])
     got = sorted(s.get("shot") for s in specs if isinstance(s, dict))
     if got != want:

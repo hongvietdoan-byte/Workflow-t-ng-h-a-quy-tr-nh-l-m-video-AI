@@ -559,3 +559,31 @@ class NearLensTests(unittest.TestCase):
         ok = [(0.44, 0.1, "bong_bay_3")] * 3 + [(3.0, 0.0, "wall")] * 141
         self.assertIsNone(pc.near_frame_problem(ok, 1.30))
         self.assertIsNone(pc.near_frame_problem([(0.2, 0.1, "x")] * 5 + [(3.0, 0, "w")] * 139, 1.5))   # 3 % sát mép: bỏ qua
+
+
+class RealRunFixTests(Base):
+    """16/10 chạy thật #31 cảnh 4 (0,31 USD, 0 kết quả): vùng viết dọc-ngang; thiếu mốc 'moc' khi Đạo diễn không chép; 30 chỗ đứng xa."""
+    def test_zone_written_vertical_first_is_read(self):
+        self.assertEqual(sg.parse_zone("duoi-trai"), sg.parse_zone("trai-duoi"))
+        self.assertEqual(sg.parse_zone("tren-giua"), sg.parse_zone("giua-tren"))
+        self.assertEqual(sg.parse_zone("giua-phai"), sg.parse_zone("phai-giua"))
+        self.assertEqual(sg.parse_zone("giua-duoi")["w"], sg.parse_zone("duoi")["w"])        # đúng thứ tự: giữ nguyên
+        with self.assertRaises(ValueError):
+            sg.parse_zone("trai-phai")
+
+    def test_fixed_landmark_inserted_by_code(self):
+        inputs = {"auto": True, "fixed": [{"key": "moc", "kind": "moc", "from_marks": "thap", "label": "mốc"}], "shots": [{"shot": 1}]}
+        marks = {"thap_chan": {"xyz": [0, 20, 0]}, "thap_dinh": {"xyz": [0, 20, 10]}, "thap_object": {"name": "villa"}}
+        obj = answer([1])
+        stage_director.validate_answer(obj, inputs, marks)
+        self.assertIn("moc", [o["key"] for o in obj["blocking"]["objects"]])
+
+    def test_far_spots_not_listed(self):
+        far = dict(SPOTS, xa_lam={"at": [150.0, 2.1, 0.0], "facing": 0, "label": "xa"})
+        location_pack.set_model3d(self.p.conn, self.place, self.model, far, "giua_phong", anchor=[3.4, 9.0, 0.0])
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        k1 = stage_auto.ensure_k1(seg["entry"], seg["main_spot"], stage_auto.base_dir(self.data, pid, seg["stage"]))
+        inputs, _ = stage_auto.inputs_for(self.p.conn, pid, seg, k1)
+        self.assertFalse(any("xa_lam" in n for n in inputs["user_notes"]))
+        self.assertTrue(any("can_cua" in n for n in inputs["user_notes"]))

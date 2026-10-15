@@ -535,6 +535,10 @@ def parse_zone(z) -> Dict:
         raise ValueError(f"vùng '{z}': tối đa 2 phần (ngang-dọc)")
     if len(parts) == 1 and all(q in ("tren", "duoi") for q in parts[0]):
         return {"u": None, "w": _span(parts[0], _W_ZONE, "dọc")}
+    # 16/10 chạy thật #31 cảnh 4 (mất 0,31 USD): Đạo diễn viết DỌC trước ("duoi-trai", "tren-giua") — một chữ chỉ có ở trục dọc
+    # (tren/duoi) ở phần đầu, hoặc chỉ có ở trục ngang (trai/phai) ở phần sau, thì thứ tự là dọc-ngang: đảo lại, không bắt hỏi lại
+    if len(parts) == 2 and (any(q in ("tren", "duoi") for q in parts[0]) or any(q in ("trai", "phai") for q in parts[1]))             and not any(q in ("trai", "phai") for q in parts[0]) and not any(q in ("tren", "duoi") for q in parts[1]):
+        parts = [parts[1], parts[0]]
     return {"u": _span(parts[0], _U_ZONE, "ngang"), "w": _span(parts[1], _W_ZONE, "dọc") if len(parts) > 1 else None}
 
 
