@@ -671,3 +671,73 @@ class PreflightReviewTests(unittest.TestCase):
             director_lease.capture(conn, 7, "stage:4@kho1")(f"sân khấu {i}")
         self.assertEqual([r[0] for r in director_lease.replies(conn, 7)], ["A"])            # Đạo diễn không bị đẩy mất, không lẫn
         self.assertEqual(len(director_lease.replies(conn, 7, stage_auto=True)), 20)
+
+
+class BlenderPathTests(Base):
+    """16/10 #31 cảnh 4: 'data\projects\…' tương đối giao Blender bản Store (chạy thư mục khác) → ảnh clay ghi ra C:\data."""
+    def test_cfg_paths_made_absolute_before_blender(self):
+        tool = stage_auto.tool()
+        seen = {}
+
+        def fake_store(blender, args, out, timeout):
+            with open(args[args.index("--config") + 1], encoding="utf-8") as f:
+                seen.update(json.load(f))
+            return mock.Mock(returncode=0, stdout="[stage] done")
+        cwd = os.getcwd()
+        os.chdir(self.tmp)
+        self.addCleanup(os.chdir, cwd)
+        os.makedirs("rel_out", exist_ok=True)
+        from core import plates3d
+        with mock.patch.object(plates3d, "find_blender", return_value=plates3d.STORE + "fam|blender.exe"), \
+                mock.patch.object(plates3d, "_run_in_store", side_effect=fake_store):
+            tool.run_blender_safe({"out_dir": "rel_out", "model": "m.glb"}, "rel_out")
+        self.assertTrue(os.path.isabs(seen["out_dir"]))
+        self.assertTrue(os.path.isabs(seen["model"]))
+
+    def test_store_batch_starts_in_our_folder(self):
+        from core import plates3d
+
+        def fake_run(cmd, **kw):
+            bat = next(os.path.join(self.tmp, f) for f in os.listdir(self.tmp) if f.endswith(".cmd"))
+            text = open(bat, encoding="ascii").read()
+            self.assertIn('cd /d "' + os.getcwd() + '"', text)
+            base = bat[:-4]
+            open(base + ".rc", "w").write("0")
+            open(base + ".log", "w").write("ok")
+            return mock.Mock(returncode=0)
+        with mock.patch.object(plates3d.subprocess, "run", side_effect=fake_run):
+            done = plates3d._run_in_store(plates3d.STORE + "fam|blender.exe", ["-b"], self.tmp, 30)
+        self.assertEqual(done.returncode, 0)
+
+    def test_missing_guide_is_red_and_not_pointed_to(self):
+        pid = self.project()
+
+        def no_clay(*a, **k):
+            solve, v2 = fake_v2(*a, **k)
+            for s in v2["shots"]:
+                os.remove(os.path.join(a[2], s["best"]["clay"]))
+            return solve, v2
+        with mock.patch.object(stage_auto.tool(), "v2_run", side_effect=no_clay):
+            r = stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+        self.assertNotIn("guide", self.shot(pid, 1)["stage_camera"])
+        self.assertTrue(any("KHÔNG có trên đĩa" in h[1] and "--rerender" in h[1] for h in r["held"]))
+        errs = [x["message"] for x in self.p.conn.execute("SELECT message FROM diag_events WHERE project_id=? AND severity='error'", (pid,))]
+        self.assertTrue(any("người nộm" in m for m in errs))
+
+    def test_rerender_from_saved_answer_without_claude(self):
+        pid = self.project()
+        stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        calls = stage_auto.tool().v2_run.call_count
+        r = stage_auto.rerender(self.p.conn, pid, seg, self.data)
+        self.assertEqual(stage_auto.tool().v2_run.call_count, calls + 1)
+        self.assertEqual(r["missing"], [])
+        self.assertTrue(os.path.exists(self.shot(pid, 1)["stage_camera"]["guide"]))
+        client = FakeClaude(answer([1, 2, 3]))
+        stage_auto.run(self.p.conn, pid, self.data, client=client)                  # vân tay khớp → không gọi Claude lại
+        self.assertEqual(client.prompts, [])
+
+    def test_rerender_without_saved_answer_says_so(self):
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        self.assertIn("chưa có câu trả lời", stage_auto.rerender(self.p.conn, pid, seg, self.data)["missing"][0])

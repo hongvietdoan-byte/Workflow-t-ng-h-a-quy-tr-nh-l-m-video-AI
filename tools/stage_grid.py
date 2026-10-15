@@ -1046,9 +1046,12 @@ def run_blender(cfg, out, timeout=1800):
 
 
 def run_blender_safe(cfg, out, timeout=1800):
-    """Như run_blender nhưng lỗi = BlenderError (core/stage_auto gọi trong autopilot — không SystemExit)."""
+    """Như run_blender nhưng lỗi = BlenderError (core/stage_auto gọi trong autopilot — không SystemExit). 16/10: mọi đường dẫn trong
+    cfg đổi sang TUYỆT ĐỐI trước khi giao Blender (bản Store chạy ở thư mục khác: 'data/…' tương đối bị ghi ra C:/data)."""
     sys.path.insert(0, ROOT)
     from core import plates3d
+    out = os.path.abspath(out)
+    cfg = dict(cfg, out_dir=os.path.abspath(cfg["out_dir"]), model=os.path.abspath(cfg["model"]) if cfg.get("model") else cfg.get("model"))
     cfg_path = os.path.join(out, "cfg.json" if cfg.get("mode") != "floor" else "cfg_floor.json")
     with open(cfg_path, "w", encoding="utf-8") as f:
         json.dump(cfg, f, ensure_ascii=False, indent=1)

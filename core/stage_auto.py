@@ -133,7 +133,8 @@ def segments(conn, pid: int) -> List[Dict]:
 
 
 def base_dir(data_dir: str, pid: int, stage: str) -> str:
-    return os.path.join(data_dir, str(pid), "stage", stage)
+    """Luôn TUYỆT ĐỐI (16/10 #31 cảnh 4: 'data/projects/…' tương đối → Blender bản Store chạy thư mục khác ghi ảnh ra C:/data)."""
+    return os.path.abspath(os.path.join(data_dir, str(pid), "stage", stage))
 
 
 def ensure_k1(entry: Dict, spot: str, base: str, log: Callable[[str], None] = lambda m: None) -> str:
@@ -582,6 +583,7 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
         cams, bad = cameras_from(st, v2 or {}, seg["id"], rd, colours)
         for cam in cams.values():
             cam["inputs_fp"] = fp
+        res["guide_missing"] = guides_missing(cams)
         for s in seg["shots"]:
             if s["idx"] not in cams and s["idx"] not in bad:
                 bad[s["idx"]] = "bộ giải không đặt được máy (lỗi yêu cầu khung)"
@@ -614,6 +616,88 @@ def _keep_reply(conn, pid: int, seg: Dict, out: str, rnd: int):
             pass
         keep(text)
     return save
+
+
+def guides_missing(cams: Dict[int, Dict]) -> List[int]:
+    """Shot có máy sân khấu mà ảnh người nộm (clay K4) KHÔNG có trên đĩa (16/10 #31 cảnh 4: Blender bản Store ghi ra C:/data) —
+    gỡ `guide` khỏi máy đó (không trỏ tệp không có) và trả danh sách để báo ĐỎ."""
+    out = []
+    for idx, cam in cams.items():
+        if cam.get("guide") and not os.path.exists(cam["guide"]):
+            cam.pop("guide", None)
+            cam.pop("guide_people", None)
+            out.append(idx)
+    return sorted(out)
+
+
+def _say_guides(conn, pid: int, seg: Dict, r: Dict, out: Dict, log) -> None:
+    miss = r.get("guide_missing") or []
+    if not miss:
+        return
+    line = (f"sân khấu {seg['id']}: ảnh người nộm (clay) của shot {', '.join(map(str, miss))} KHÔNG có trên đĩa — ảnh vẽ sẽ thiếu chỗ "
+            f"đứng; dựng lại 0 USD: py tools/stage_auto.py --project {pid} --scene {seg['scene']} --rerender")
+    _say(conn, pid, "error", line, log)
+    out["held"].append(("stageauto:" + hashlib.sha1(line.encode("utf-8")).hexdigest()[:12], line))
+
+
+def last_answer(data_dir: str, pid: int, seg: Dict) -> Optional[Tuple[str, Dict]]:
+    """(thư mục lượt, câu trả lời) của lượt Đạo diễn cuối đã lưu cho đoạn này, hoặc None."""
+    out = os.path.join(base_dir(data_dir, pid, seg["stage"]), f"doan_{key_of(seg['scene'])}")
+    rounds = sorted((d for d in (os.listdir(out) if os.path.isdir(out) else []) if re.fullmatch(r"r\d+", d)
+                     and os.path.exists(os.path.join(out, d, "answer.json"))), key=lambda d: int(d[1:]))
+    if not rounds:
+        return None
+    rd = os.path.join(out, rounds[-1])
+    with open(os.path.join(rd, "answer.json"), encoding="utf-8") as f:
+        return rd, json.load(f)
+
+
+def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None] = lambda m: None) -> Dict:
+    """Đo + render lại (K3 + K4 Blender, 0 USD) từ câu trả lời Đạo diễn ĐÃ trả tiền của lượt cuối — không gọi Claude. Dùng khi ảnh
+    clay / số đo hỏng (16/10: Blender ghi sai chỗ). Ghi máy vào shot như run (apply). Trả {"applied", "held", "missing"}."""
+    out: Dict = {"applied": [], "held": [], "missing": []}
+    got = last_answer(data_dir, pid, seg)
+    if got is None:
+        out["missing"].append(f"sân khấu {seg['id']}: chưa có câu trả lời Đạo diễn đã lưu — phải chạy có trả tiền trước")
+        return out
+    rd, obj = got
+    base = base_dir(data_dir, pid, seg["stage"])
+    k1 = ensure_k1(seg["entry"], seg["main_spot"], base, log)
+    inputs, missing = inputs_for(conn, pid, seg, k1, stored_state_before(data_dir, pid, seg, conn))
+    if missing:
+        out["missing"] += missing
+        return out
+    with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
+        st = json.load(f)
+    bl = dict(obj["blocking"], place=inputs["place"], spot=inputs["spot"], aspect=inputs["aspect"])
+    solve, v2 = tool().v2_run(bl, obj["shot_specs"], rd, k1, m3=seg["entry"], reach=True, log=log)
+    try:
+        colours = mannequin_colours(solve["beats"], {p["key"]: p["label"] for p in inputs["people"]})
+    except (ValueError, KeyError, TypeError):
+        colours = {}
+    cams, bad = cameras_from(st, v2 or {}, seg["id"], rd, colours)
+    fp = fingerprint(inputs)
+    for cam in cams.values():
+        cam["inputs_fp"] = fp
+    res = {"cams": cams, "bad": bad, "missing": [], "state": end_state(st, obj, seg["scene"]), "fp": fp,
+           "guide_missing": guides_missing(cams), "rerendered_from": os.path.basename(rd)}
+    _save(os.path.join(os.path.dirname(rd), "result.json"), res)
+    out["applied"] = apply(conn, seg, cams)
+    _say_guides(conn, pid, seg, res, out, log)
+    for idx, why in sorted(bad.items()):
+        out["held"].append(("stageauto:rerender:" + str(idx), f"shot {idx} ({seg['id']}): {why}"))
+    return out
+
+
+def stored_state_before(data_dir: str, pid: int, seg: Dict, conn) -> Optional[Dict]:
+    """Vị trí cuối đã lưu của đoạn TRƯỚC trên cùng sân khấu (để đầu vào dựng lại khớp vân tay của lần chạy trả tiền)."""
+    prev = None
+    for g in segments(conn, pid):
+        if g["id"] == seg["id"]:
+            return prev
+        if g["stage"] == seg["stage"]:
+            prev = stored_state(data_dir, pid, g) or prev
+    return prev
 
 
 def _save(path: str, res: Dict) -> Dict:
@@ -675,6 +759,7 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: 
         if r.get("state"):
             state[seg["stage"]] = r["state"]
         out["applied"] += apply(conn, seg, r["cams"])
+        _say_guides(conn, pid, seg, r, out, log)
         for idx, why in sorted(r["bad"].items()):
             line = (f"shot {idx} ({seg['id']}): sân khấu chưa đặt được máy sau {2} lượt sửa — {why} (sửa yêu cầu khung / chỗ đứng, hoặc "
                     "Tiếp tục = shot dùng máy thường, không theo sân khấu)")

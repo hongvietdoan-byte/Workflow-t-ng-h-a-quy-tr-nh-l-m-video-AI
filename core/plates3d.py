@@ -127,7 +127,9 @@ def _run_in_store(blender: str, args: List[str], work: str, timeout: int):
     log, rc, bat = (os.path.join(work, f"store_{stamp}.{x}") for x in ("log", "rc", "cmd"))
     quoted = " ".join(f'"{a}"' for a in args)
     with open(bat, "w", encoding="ascii", errors="replace") as f:
-        f.write(f'@echo off\r\n"{exe}" {quoted} > "{log}" 2>&1\r\necho %errorlevel% > "{rc}"\r\n')
+        # 16/10 (#31 sân khấu cảnh 4): Store Blender in the package context does not keep our working folder — a relative path in its
+        # arguments / config landed under C:\data; start it in ours (callers also pass absolute paths)
+        f.write(f'@echo off\r\ncd /d "{os.getcwd()}"\r\n"{exe}" {quoted} > "{log}" 2>&1\r\necho %errorlevel% > "{rc}"\r\n')
     subprocess.run(["powershell", "-NoProfile", "-Command",
                     f"Invoke-CommandInDesktopPackage -PackageFamilyName '{family}' -AppId 'BLENDER' "
                     # 15/10 người dùng: no console window popping up during renders — conhost --headless hosts cmd.exe hidden
