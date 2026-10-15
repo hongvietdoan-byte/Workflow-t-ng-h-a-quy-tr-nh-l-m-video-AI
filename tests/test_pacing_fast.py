@@ -66,7 +66,7 @@ def test_normal_prompt_identical_and_fast_only_adds_the_block():
     assert all("NHANH, ít khoảng lặng" not in b for b in unset)
     p.set_project_field(pid, "pacing", "fast")
     block = pacing.director_block(p.project(pid))
-    assert "≤ 0,6 s" in block and "J-cut" in block and "0,3 s" in block and "1,5–3 s" in block
+    assert "≤ 0,6 s" in block and "J-cut" in block and "0,5 s" in block and "giữa một câu" in block and "1,5–3 s" in block
     for before, after in zip(unset, _bundles(p, pid)):
         assert block in after
         assert after.replace(block + prompts._SEP, "", 1) == before or after.replace(prompts._SEP + block, "", 1) == before

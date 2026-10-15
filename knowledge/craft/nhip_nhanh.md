@@ -10,8 +10,8 @@ video ngắn mất người xem khi "5 giây đầu không có gì" hoặc "> 5 
 Phim AI ngắn giữ người xem bằng việc **luôn có chữ hoặc hình mới đang tới**: mỗi khoảng im không có lý do là một chỗ người xem lướt đi.
 Nghĩ theo thứ tự ưu tiên:
 1. **Lời dẫn / thoại là xương sống của thời lượng.** Shot mang câu nào thì dài khoảng bằng thời gian đọc câu đó (≈ số âm tiết ÷ tốc độ
-   đọc của giọng) cộng **tối đa 0,3 s** — vì hình chờ lời xong mới cắt là một khoảng chết. Câu dài hơn ~3 s thì tách thành hai shot
-   (hai góc / hai chi tiết của cùng ý), không giữ một khung chờ hết câu.
+   đọc của giọng) cộng **tối đa 0,5 s** (khâu dựng cắt lặng cuối shot còn ≤ 0,5 s) — vì hình chờ lời xong mới cắt là một khoảng chết. Đoạn lời dài thì
+   chia thành nhiều shot theo CÂU (mỗi shot mang một hay vài câu trọn, hai góc / hai chi tiết của cùng ý) — không cắt giữa một câu.
 2. **Shot trung vị ~1,5–3 s.** Shot không lời (chèn, phản ứng, hành động) ngắn 0,8–2 s: đủ để mắt đọc một ý rồi đi tiếp. Shot dài hơn chỉ
    khi bên trong có chuyển động mới (máy đi, hành động tiếp diễn) — ghi lý do trong shot.
 3. **Chuyển cảnh ở cuối câu hoặc gối tiếng (J-cut / L-cut)** thay vì chờ lặng: câu sau có thể bắt đầu ngay trước khi hình đổi, hoặc câu

@@ -120,6 +120,18 @@ class TableScriptTests(unittest.TestCase):
         self.assertIn("LỜI DẪN: Bốn đối thủ ập tới: Tai Họa, Xúc Tu Đỏ.", text)
         self.assertIn("KELLY: Tới đây!", text)
 
+    def test_a_long_narration_cell_becomes_one_line_per_sentence(self):
+        # 15/10 #31: một ô lời dẫn 16–20 s = một câu thoại > 15 s (trần một shot) → Đạo diễn bị trả lại sau khi đã tính tiền.
+        # Tách theo câu (dấu . ! ? … rồi CHỮ HOA), giữ nguyên chữ; "ngõ cụt… cuối cùng" (chữ thường sau …) không tách
+        rows = [["Cảnh", "Mô tả", "Voice over"],
+                ["1", "Mê cung.", "Cửa số 1 bật mở — chào mừng. Rẽ trái, ngõ cụt… cuối cùng cũng tới! Bạn chạm vào cũi."]]
+        text = scenes_of(from_text("\n".join("\t".join(r) for r in rows)))[0].text
+        self.assertIn("LỜI DẪN: Cửa số 1 bật mở — chào mừng.\n", text)
+        self.assertIn("LỜI DẪN: Rẽ trái, ngõ cụt… cuối cùng cũng tới!\n", text)
+        self.assertIn("LỜI DẪN: Bạn chạm vào cũi.", text)
+        rows = [["Cảnh", "Mô tả", "Voice"], ["1", "Hai người.", "Kelly: Đi thôi. Nhanh lên."]]      # cột thoại: giữ một dòng
+        self.assertIn("Kelly: Đi thôi. Nhanh lên.", scenes_of(from_text("\n".join("\t".join(r) for r in rows)))[0].text)
+
     def test_a_plain_voice_column_is_dialogue_and_a_titled_name_is_a_speaker(self):
         # rà 14/10: header "Voice" = cột thoại như cũ; trong cột lời dẫn "Kelly:" / "Mr. Waggor:" vẫn là người nói
         rows = [["Cảnh", "Mô tả", "Voice"], ["1", "Hai người.", "Kelly: Đi thôi."]]

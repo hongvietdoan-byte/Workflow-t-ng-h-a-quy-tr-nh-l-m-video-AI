@@ -85,6 +85,9 @@ def _find_header(rows: List[List[str]]):
     return None, {}
 
 
+_SENTENCE_END = re.compile(r"(?<=[.!?…])\s+(?=[A-ZÀ-ỸĐ\"“'(])")    # một câu hết ở . ! ? … và câu sau mở bằng chữ hoa / ngoặc
+
+
 def _lines(cell: str) -> List[str]:
     return [x.strip() for x in re.split(r"[\r\n]+", cell or "") if x.strip()]
 
@@ -133,6 +136,10 @@ def table_to_paragraphs(rows: List[List[str]], start: int = 1, label: str = "") 
                     titled = 1 <= len(name.split()) <= 2 and all(w[0].isupper() for w in name.split())
                     if tag and (said_by != "LỜI DẪN" or name == name.upper() or titled):
                         cur["talk"].append(line)
+                    elif said_by == "LỜI DẪN" and not who:
+                        # 15/10 #31: a narration cell of 16–20 s was ONE line > 15 s (a shot's cap) — the Director's answer was refused
+                        # after it was paid. One line per sentence, words kept ("ngõ cụt… cuối cùng": lower case after "…" stays one)
+                        cur["talk"].extend(f"LỜI DẪN: {s}" for s in _SENTENCE_END.split(line) if s.strip())
                     else:
                         cur["talk"].append(f"{(who or said_by).strip().upper()}: {line}")
             for j in extra:
