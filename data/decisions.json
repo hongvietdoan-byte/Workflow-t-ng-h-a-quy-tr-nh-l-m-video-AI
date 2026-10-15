@@ -21,7 +21,7 @@
    "changes": "Model nhánh dễ 2.0 → 2.5; nhánh khó nháp 2.5 480p",
    "replaces": "video-e1-2026-10-09",
    "enforced_by": [
-    {"kind": "code", "check": "check_simple_shot_direct_720p", "pending": "chờ gộp claude/shot-de-720p (core/quality_tier.py còn đưa mọi shot vào nháp 480p)"}
+    {"kind": "code", "check": "check_simple_shot_direct_720p"}
    ],
    "status": "active"
   },

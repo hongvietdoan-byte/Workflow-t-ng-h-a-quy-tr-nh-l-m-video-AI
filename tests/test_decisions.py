@@ -41,7 +41,7 @@ def _only_flag_on(*names):
 def check_simple_shot_direct_720p():
     """Shot đơn giản (Đạo diễn gắn 'easy') ở chế độ 2 bậc → gen thẳng (Seedance 2.5 720p rồi phóng ffmpeg 1080), không vào nháp 480."""
     from core import quality_tier
-    p, _, sid = _pipeline_with_shot({"difficulty": "easy"})
+    p, _, sid = _pipeline_with_shot({"difficulty": "easy", "difficulty_by": "director", "difficulty_why": "1 nhân vật đứng yên, máy tĩnh"})
     with _only_flag_on("two_tier_quality"):
         assert quality_tier.path(p.conn, sid) == "direct", "shot đơn giản vẫn đi nháp 480p"
     p2, _, sid2 = _pipeline_with_shot({"difficulty": "complex"})
