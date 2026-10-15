@@ -61,8 +61,6 @@ class Scenario:
         ("Tạo dự án", [r"new_project_go"]),
         ("Phân tích kịch bản", [r"btn_analyse_\d+"]),
         ("Director (kế hoạch)", [r"script-cta_\d+", r"llm_dir_\d+"]),
-        ("Duyệt ngân sách", [r"script-cta-budget_\d+", r"pb_ok_\d+"]),
-        ("Xác nhận ngân sách", [r"script-cta-budget_\d+_yes", r"pb_ok_\d+_yes"]),
         ("Khóa Bible → Storyboard", [r"script-cta-lock_\d+", r"lock_go_\d+"]),
         ("Gen ảnh", [r"gen_img_\d+"]),
         ("Duyệt tất cả ảnh", [r"approve_all"]),
@@ -73,8 +71,8 @@ class Scenario:
         ("Sang màn Video", ["RADIO:Video"]),
         ("Gen video", [r"gen_vid_\d+"]),
     ]
-    # 08/10: ngân sách chỉ đòi duyệt ở mức "Tự chạy trong trần" — dự án mới ở mức mặc định (Duyệt cổng chính) không có hai bước này
-    OPTIONAL = {"Duyệt ngân sách", "Xác nhận ngân sách"}
+    # 15/10: người dùng bỏ cổng "Tự chạy trong trần" — duyệt & khóa ngân sách không còn là bước (trần cảnh báo đặt tùy ý ở 💵)
+    OPTIONAL: set = set()
 
 
 def measure_clicks(v2: str) -> dict:
@@ -144,6 +142,8 @@ RENAMED = {
     "inbox_kind": "header.inbox_card: bộ lọc loại việc chỉ hiện khi hộp thư > 3 việc (INBOX_SHOWN)",
     "fold_refs_{}_btn": "v2 thay thẻ gập 'Tham chiếu' bằng khối luôn mở (inputs_and_refs_v2)",
     "fold_script_{}_btn": "v2 thay thẻ gập 'Kịch bản' bằng thẻ ① + expander 'Nhập / thay kịch bản'",
+    "script-cta-budget_{}": "15/10 người dùng bỏ cổng 'Tự chạy trong trần': nút chính 'Duyệt & khóa trần' ở Bước 1 bỏ (trần cảnh báo đặt tùy ý ở 💵 pb_ok_{})",
+    "mc_ok_{}": "15/10 bỏ cổng ngân sách: thanh 💵 chỉ hiện dự tính, nút khóa trần trên thanh bỏ (đặt trần cảnh báo ở Bước 1 → 💵, pb_ok_{})",
     "anim_{}": "09/10 người dùng: animatic chỉ còn MỘT nút ở tab Ảnh của Storyboard (animatic_{}) — bỏ ô animatic trùng ở tab Motion",
 }
 

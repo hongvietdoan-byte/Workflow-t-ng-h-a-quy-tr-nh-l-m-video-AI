@@ -16,8 +16,7 @@ def targets(p, pid: int, screen: int) -> list:
         from dashboard.steps import step1_v2 as V
         scenes = p.conn.execute("SELECT idx FROM scenes WHERE project_id=?", (pid,)).fetchall()
         chars = p.conn.execute("SELECT locked FROM characters WHERE project_id=?", (pid,)).fetchall()
-        b_on, b_locked, _, _ = V._budget_state(p, pid)
-        kind = V.next_kind(p, pid, scenes, chars, any(c["locked"] for c in chars), b_locked, b_on)
+        kind = V.next_kind(p, pid, scenes, chars, any(c["locked"] for c in chars))
     return next_glow.target(screen, kind, stage_map.build(p.conn, pid), pid,
                             on_motion_tab=st.session_state.get("sb_tab") == C.SB_TABS[1], final=_final(p, pid) if screen == 4 else "none")
 
