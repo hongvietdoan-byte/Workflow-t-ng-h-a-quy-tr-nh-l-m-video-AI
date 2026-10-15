@@ -68,7 +68,8 @@ def build_repair_prompt(bad: List[Tuple[int, int, Dict, List[Dict]]], round_no: 
         guide = f.read()
     L = [HEADER, "", f"Vòng sửa {round_no}/{MAX_ROUNDS}. Code đã kiểm BYĐ bạn viết; các shot dưới đây CHƯA đạt. Sửa đúng các lỗi, giữ "
          "nguyên phần đúng; không đổi ý đồ shot. Trả về MỘT JSON duy nhất:",
-         '`{"byd": [{"canh": <số cảnh>, "shot": <số shot trong cảnh>, "byd": {…}}]}` — đủ mọi shot liệt kê dưới đây.', "", guide,
+         '`{"byd": [{"canh": <số cảnh>, "shot": <số shot trong cảnh>, "byd": {"shot": <số shot>, …}}]}` — đủ mọi shot liệt kê '
+         "dưới đây; khối `byd` bên trong là BYĐ đầy đủ (cả `shot`).", "", guide,
          "", "## Shot cần sửa"]
     for scene, k, s, errs in bad:
         L += ["", f"### Cảnh {scene} · shot {k}", "Shot (để hiểu ý):", "```json",
@@ -78,6 +79,19 @@ def build_repair_prompt(bad: List[Tuple[int, int, Dict, List[Dict]]], round_no: 
         L.append("Lỗi code:")
         L += [f"- `{e['truong']}`: {e['loi']}" for e in errs]
     return "\n".join(L)
+
+
+def _own_number(shot: Dict, k: int) -> bool:
+    """#31 cảnh 8 (15/10): BYĐ thiếu `shot` → điền số shot đã biết chắc: `shot_no` của hàng shot đã lưu (tools/byd_fill gửi một phần
+    shot của cảnh — vị trí trong danh sách gửi KHÔNG phải số shot), không có thì vị trí shot trong cảnh (= số ở vỏ câu trả lời sửa
+    {"canh", "shot", "byd"}; khuôn cũ đặt số NGOÀI byd nên Đạo diễn bỏ nó bên trong — hai vòng sửa trả tiền không lấp được). Số thứ
+    tự, không phải ý đồ (A14 giữ: không chữ nào của Đạo diễn bị thêm/sửa). True = đã điền (đếm vào byd_kiem)."""
+    byd = shot.get("byd") if isinstance(shot, dict) else None
+    if isinstance(byd, dict) and "shot" not in byd:
+        no = shot.get("shot_no")
+        byd["shot"] = no if isinstance(no, int) and not isinstance(no, bool) and no > 0 else k
+        return True
+    return False
 
 
 def _parse(text: str) -> Dict[Tuple[int, int], Dict]:
@@ -100,6 +114,7 @@ def settle(conn, project_id: int, obj: Dict, client, only_scene: Optional[int] =
         return None
     from .llm_runner import tagged
     rows = _shots(obj, only_scene)
+    numbered = sum(_own_number(s, k) for _, k, s in rows)
     bad = [(sc, k, s, problems(s, conn)[0]) for sc, k, s in rows]
     bad = [b for b in bad if b[3]]
     rounds, tin, tout, call_errors = 0, 0, 0, []
@@ -120,6 +135,7 @@ def settle(conn, project_id: int, obj: Dict, client, only_scene: Optional[int] =
         for sc, k, s, _ in bad:
             if (sc, k) in fixed and fixed[(sc, k)] is not None:
                 s["byd"] = fixed[(sc, k)]
+                numbered += _own_number(s, k)
         bad = [(sc, k, s, problems(s, conn)[0]) for sc, k, s, _ in bad]
         bad = [b for b in bad if b[3]]
     vang = []
@@ -134,14 +150,15 @@ def settle(conn, project_id: int, obj: Dict, client, only_scene: Optional[int] =
             s["byd_kiem"] = {"muc": "vang" if yellow else "ok", "ly_do": "; ".join(e["loi"] for e in yellow), "loi": yellow,
                              "vong": rounds}
     summary = {"shots": len(rows), "vang_do": len(vang), "vong": rounds, "input_tokens": tin, "output_tokens": tout,
-               "loi_goi": call_errors}
+               "loi_goi": call_errors, "so_shot_theo_vi_tri": numbered}
     obj["byd_kiem"] = summary
     if vang or call_errors:
         diag.record(conn, "director", "warn", "BYĐ (cờ shot_intent): " + " | ".join(call_errors + vang[:8])
                     + (f" | … và {len(vang) - 8} shot nữa" if len(vang) > 8 else ""), "director_byd", project_id)
     else:
         diag.record(conn, "director", "info", f"BYĐ (cờ shot_intent): {len(rows)} shot đạt"
-                    + (f" sau {rounds} vòng sửa" if rounds else ""), "director_byd", project_id)
+                    + (f" sau {rounds} vòng sửa" if rounds else "")
+                    + (f" ({numbered} BYĐ thiếu `shot` — lấy số theo vị trí shot)" if numbered else ""), "director_byd", project_id)
     return summary
 
 
