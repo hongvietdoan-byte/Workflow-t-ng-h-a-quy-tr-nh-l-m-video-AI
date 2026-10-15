@@ -1370,10 +1370,12 @@ def scene_location(conn, project_id: int, scene: Dict) -> Optional[Dict]:
         if a is not None and a["kind"] == "location" and a["images"]:
             return a
     place = fold(str(scene.get("location") or ""))
-    if place:
-        for a in project_assets(conn, project_id):
-            if a["kind"] == "location" and a["images"] and fold(a["name"]) and fold(a["name"]) in place:
-                return a
+    if place:   # #31 cảnh 5 (15/10): the heading names the main place first ("…mở cửa 1 … cuối cảnh dùng …mở cả hai") — the
+        hits = [(place.find(fold(a["name"])), -len(fold(a["name"])), i, a)   # earliest name in the text wins (longest on a tie),
+                for i, a in enumerate(project_assets(conn, project_id))   # not the first in the library list
+                if a["kind"] == "location" and a["images"] and fold(a["name"]) and fold(a["name"]) in place]
+        if hits:
+            return min(hits, key=lambda h: h[:3])[3]
     return None
 
 

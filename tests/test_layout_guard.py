@@ -94,3 +94,22 @@ class PlaceStaleTests(LayoutGuardTests):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SceneLocationOrderTests(unittest.TestCase):
+    """#31 cảnh 5 (15/10): heading names 'mở cửa 1' first and 'mở cả hai' at the end — the place named FIRST in the text wins,
+    not the one listed first in the library (was #449 instead of #448)."""
+    def test_the_place_named_first_in_the_heading_wins(self):
+        p = Pipeline(connect())
+        pid = p.create_project("g", game="FF")
+        pic = os.path.join(tempfile.mkdtemp(), "t.png")
+        Image.new("RGB", (8, 8)).save(pic)
+        ids = {}
+        for name in ("PHÒNG HAI CỬA MỞ CẢ HAI", "PHÒNG HAI CỬA MỞ CỬA 1"):     # library order: 'cả hai' first
+            ids[name] = p.conn.execute("INSERT INTO assets (game, kind, name) VALUES ('FF', 'location', ?)", (name,)).lastrowid
+            p.conn.execute("INSERT INTO asset_images (asset_id, path) VALUES (?, ?)", (ids[name], pic))
+            p.conn.execute("INSERT INTO project_assets (project_id, asset_id) VALUES (?, ?)", (pid, ids[name]))
+        p.conn.commit()
+        heading = "CẢNH 5 - trong nhà, Phòng hai cửa mở cửa 1 (Kho) — cửa số 2 đóng; cuối cảnh dùng Phòng hai cửa mở cả hai (Kho)"
+        self.assertEqual(assets.scene_location(p.conn, pid, {"location": heading})["id"], ids["PHÒNG HAI CỬA MỞ CỬA 1"])
+        self.assertEqual(assets.scene_location(p.conn, pid, {"location": "Phòng hai cửa mở cả hai"})["id"], ids["PHÒNG HAI CỬA MỞ CẢ HAI"])

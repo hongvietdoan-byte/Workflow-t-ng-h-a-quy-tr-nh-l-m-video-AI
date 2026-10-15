@@ -28,7 +28,8 @@ OPS_LINES = (
     ("Phải mở và đăng nhập Dashboard thì vòng nền (chạy tự động, Tổ rà soát, gen đang xếp hàng) mới chạy — đóng trình duyệt / tắt "
      "Dashboard là vòng nền dừng.", "Giữ một cửa sổ Dashboard đã đăng nhập trong lúc chạy"),
     ("Sau mỗi lần cập nhật code phải khởi động lại Dashboard — tiến trình cũ vẫn chạy code cũ.", "Tắt rồi mở lại Dashboard"),
-    ("Ngân sách dự án chỉ cảnh báo, không chặn ảnh / clip bạn tự bấm gen (chỉ chạy tự động ở mức 'Tự chạy trong trần' dừng khi chạm trần).",
+    ("Ngân sách dự án chỉ cảnh báo có số liệu, không chặn — cả ảnh / clip bạn tự bấm gen lẫn chạy tự động (15/10 bỏ cổng 'Tự chạy trong "
+     "trần': chạm trần vẫn chạy tiếp, chỉ cảnh báo).",
      "Theo dõi số đã chi ở thẻ ③ Chạy"),
 )
 
