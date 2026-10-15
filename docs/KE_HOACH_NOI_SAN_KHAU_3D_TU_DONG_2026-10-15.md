@@ -227,7 +227,7 @@ Ghi chú:
 7. **Tốn Blender:** K4 ≈ 40 s / 9 shot, chạy nối tiếp (khóa `blender_turn`). Song song theo stage chỉ song song phần Claude.
 
 ## 12. Quyết định người dùng cần chọn
-> **ĐÃ DUYỆT [15/10 11:13] — người dùng (chat phiên máy chính): "Theo khuyến nghị" cho Q1–Q7.** Q1 A · Q2 (a) · Q3 tự qua khi đạt đo số · Q4 bỏ G0 cho shot có sân khấu · Q5 một sân khấu (`stage_family`) · Q6 duyệt ≈ 1,8 USD (tối đa 7,3), thử 1 cảnh trước · Q7 làm SAU khi gộp `claude/p31-plate-rules`. Mục sổ quyết định `data/decisions.json` thêm cùng commit code (khi có cờ `stage_auto` để kiểm).
+> **ĐÃ DUYỆT [15/10 11:13] — người dùng (chat phiên máy chính): "Theo khuyến nghị" cho Q1–Q7.** Q1 A · Q2 (a) · Q3 tự qua khi đạt đo số · Q4 bỏ G0 cho shot có sân khấu · Q5 một sân khấu (`stage_family`) · Q6 duyệt ≈ 1,8 USD (tối đa 7,3), thử 1 cảnh trước · Q7 làm SAU khi gộp `claude/p31-plate-rules`. Người dùng xác nhận lại [15/10 18:46] ở phiên lập kế hoạch. Đã ghi sổ quyết định `data/decisions.json` id `stage-auto-plan-2026-10-15` (`enforced_by` trống); cờ `stage_auto` + check code thêm vào `enforced_by` ở bước S3.
 
 - **Q1 – Chia lượt Đạo diễn:** A. mỗi cảnh truyện 1 lượt *(khuyến nghị)* / B. gộp theo chuỗi bối cảnh.
 - **Q2 – Người nộm:** (a) ảnh hướng dẫn riêng + câu vị trí, nền sạch chỉ có khối vật *(khuyến nghị)* / (b) vẽ người nộm thẳng vào
