@@ -130,7 +130,9 @@ def _run_in_store(blender: str, args: List[str], work: str, timeout: int):
         f.write(f'@echo off\r\n"{exe}" {quoted} > "{log}" 2>&1\r\necho %errorlevel% > "{rc}"\r\n')
     subprocess.run(["powershell", "-NoProfile", "-Command",
                     f"Invoke-CommandInDesktopPackage -PackageFamilyName '{family}' -AppId 'BLENDER' "
-                    f"-Command 'C:\\Windows\\System32\\cmd.exe' -Args '/c \"{bat}\"' -PreventBreakaway"],
+                    # 15/10 người dùng: no console window popping up during renders — conhost --headless hosts cmd.exe hidden
+                    f"-Command 'C:\\Windows\\System32\\conhost.exe' -Args '--headless C:\\Windows\\System32\\cmd.exe /c \"{bat}\"' "
+                    "-PreventBreakaway"],
                    capture_output=True, text=True, timeout=120)
     end = time.time() + timeout
     while time.time() < end and not os.path.exists(rc):
