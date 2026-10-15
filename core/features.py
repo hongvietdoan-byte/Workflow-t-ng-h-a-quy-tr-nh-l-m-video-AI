@@ -515,6 +515,16 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "V4 #24 (09/10): camera 9 shot đã duyệt ở tools/experiments/stage_v2_p24 — chưa render nền thật bằng cờ này",
     },
+    "stage_auto": {"fixes_projects": [31], "costs": True,
+        "label": "Sân khấu 3D tự động (mọi dự án): mỗi cảnh trên một bối cảnh 3D → Đạo diễn (Claude, sổ chi, ước tính trước) khai dàn "
+                 "cảnh người + vật theo tọa độ + yêu cầu khung; code giải máy (chỉ ô đi tới được từ chỗ đứng — không lọt ngoài tường), "
+                 "Blender đo → trường stage_camera; vị trí cuối cảnh trước giữ cho cảnh sau cùng sân khấu; shot không đạt sau 2 lượt "
+                 "giữ ở cổng nền 3D. Bỏ G0 cho shot đã có máy sân khấu",
+        "verified": False,
+        "why": "Kế hoạch docs/KE_HOACH_NOI_SAN_KHAU_3D_TU_DONG_2026-10-15.md (người dùng duyệt 15/10, sổ quyết định "
+               "stage-auto-plan-2026-10-15): #27–#31 0 shot có stage_camera vì Sân khấu v2 chỉ chạy tay ở #24. Chưa thử thật — "
+               "thử 1 cảnh #31 trước (≈ 0,23–0,91 USD Claude)",
+    },
     "director_camera_plan": {
         "label": "G0 Đạo diễn đặt máy 3D: mỗi cảnh liên tục một sơ đồ (đạo cụ, chỗ đứng theo nhịp, trục 180°) + bộ 3–4 góc máy dùng "
                  "lại (shot cùng góc + cùng cỡ = cùng máy, render một lần); Đạo diễn xem render nền từng góc (khai quan sát, code kết "

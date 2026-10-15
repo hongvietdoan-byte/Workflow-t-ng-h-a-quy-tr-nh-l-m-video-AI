@@ -128,6 +128,11 @@ def overlap_errors(objs: Dict[str, Dict]) -> List[str]:
         if o["kind"] != "nguoi":
             continue
         for w in objs.values():
+            if w["kind"] == "dao_cu" and w.get("shape") == "dao_cu" and math.dist(o["xy"], w["xy"]) < w["r"] + 0.15:
+                # 15/10 sân khấu tự động: đạo cụ Kho (khối trụ) — người không đứng trong khối
+                out.append(f"'{k}' đứng chồng lên đạo cụ '{w['key']}' (cách tâm {math.dist(o['xy'], w['xy']):.2f} m < "
+                           f"{w['r'] + 0.15:.2f} m) — đứng ra ngoài khối")
+                continue
             if w["kind"] != "dao_cu" or w.get("shape") != "gieng":
                 continue
             d = math.dist(o["xy"], w["xy"])

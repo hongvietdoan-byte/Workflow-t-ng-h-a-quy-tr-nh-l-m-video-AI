@@ -125,6 +125,19 @@ def check_byd_missing_shot_auto_numbered():
     assert "2 BYĐ thiếu `shot`" in rec.call_args[0][3], "⚙ Chẩn đoán không ghi số shot tự điền"
 
 
+def check_stage_auto_plan():
+    """15/10 kế hoạch sân khấu 3D tự động (Q1/Q4, sân khấu = mô hình): cờ stage_auto có, mặc định TẮT chưa thử thật, tốn tiền khai báo;
+    bước sân khấu chạy trước nền 3D; máy chỉ ở ô đi tới được từ O; cảnh đã có máy sân khấu không lập G0."""
+    import inspect
+    from core import autopilot, camera_plan, features, stage_solver
+    meta = features.FEATURES.get("stage_auto") or {}
+    assert meta and meta.get("costs") is True and not meta.get("verified"), "cờ stage_auto thiếu / sai khai báo"
+    src = inspect.getsource(autopilot)
+    assert src.index('("stage", _stage_phase)') < src.index('("plates", _plates_phase)'), "bước sân khấu phải trước nền 3D"
+    assert "reach" in inspect.signature(stage_solver.solve_scene).parameters, "bộ giải thiếu luật ô đi tới được"
+    assert "stage_auto.FIELD" in inspect.getsource(camera_plan.todo_groups), "G0 không bỏ qua cảnh đã có máy sân khấu"
+
+
 CHECKS = {k: v for k, v in globals().items() if k.startswith("check_") and callable(v)}
 
 

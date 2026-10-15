@@ -114,6 +114,7 @@ def ensure_k1(entry: Dict, spot: str, base: str, log: Callable[[str], None] = la
     out = os.path.join(base, f"k1_{key_of(spot)}")
     want = {"sha256": entry.get("sha256"), "path": entry.get("path"), "at": (entry.get("spots") or {}).get(spot, {}).get("at")}
     mark = os.path.join(out, "k1_key.json")
+    bad = os.path.join(out, "k1_error.json")
     if os.path.exists(os.path.join(out, "stage.json")) and os.path.exists(mark):
         try:
             with open(mark, encoding="utf-8") as f:
@@ -121,8 +122,24 @@ def ensure_k1(entry: Dict, spot: str, base: str, log: Callable[[str], None] = la
                     return out
         except (OSError, ValueError):
             pass
+    if os.path.exists(bad):                               # lỗi lần trước với cùng model + chỗ đứng: nói lại, không chạy Blender mỗi nhịp
+        try:
+            with open(bad, encoding="utf-8") as f:
+                old = json.load(f)
+            if old.get("want") == want:
+                raise ValueError(f"{old.get('error')} (lỗi lần trước — xóa {bad} để đo lại)")
+        except (OSError, TypeError, AttributeError):
+            pass
     log(f"Sân khấu: đo sàn K1 chỗ đứng '{spot}' (Blender, 0 USD)")
-    tool().k1_run(entry, spot, out)
+    try:
+        tool().k1_run(entry, spot, out)
+    except Exception as e:
+        os.makedirs(out, exist_ok=True)
+        with open(bad, "w", encoding="utf-8") as f:
+            json.dump({"want": want, "error": f"{type(e).__name__}: {e}"[:600]}, f, ensure_ascii=False)
+        raise
+    if os.path.exists(bad):
+        os.remove(bad)
     with open(mark, "w", encoding="utf-8") as f:
         json.dump(want, f, ensure_ascii=False)
     return out
@@ -216,7 +233,23 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
 
 
 # ---- kết quả → máy của shot -----------------------------------------------------------------------------------------------
-def cameras_from(stage: Dict, v2: Dict, seg_id: str, rd: str) -> Tuple[Dict[int, Dict], Dict[int, str]]:
+COLOUR_WORDS = {(1.0, 0.45, 0.05): "orange", (0.85, 0.05, 0.1): "red", (0.2, 0.75, 0.3): "green", (0.6, 0.3, 0.9): "purple"}
+
+
+def mannequin_colours(beats: Dict, labels: Dict[str, str]) -> Dict[str, str]:
+    """{màu người nộm: tên nhân vật} — cùng thứ tự gán màu của tools/stage_grid.blender_props (hình clay K4 tô theo đó)."""
+    import copy
+    out = {}
+    for p in tool().blender_props(copy.deepcopy(beats)):
+        if p.get("kind") == "person":
+            word = COLOUR_WORDS.get(tuple(round(c, 2) for c in p["rgb"]))
+            if word and word not in out:
+                out[word] = labels.get(p["key"], p["key"])
+    return out
+
+
+def cameras_from(stage: Dict, v2: Dict, seg_id: str, rd: str, colours: Optional[Dict[str, str]] = None
+                 ) -> Tuple[Dict[int, Dict], Dict[int, str]]:
     """v2.json → ({shot: stage_camera (tọa độ model)}, {shot: lý do hỏng}). Như apply_v4.stage_cameras (#24) + khối đạo cụ chung
     + ảnh hướng dẫn người nộm (clay K4, Q2)."""
     cams, bad = {}, {}
@@ -245,6 +278,8 @@ def cameras_from(stage: Dict, v2: Dict, seg_id: str, rd: str) -> Tuple[Dict[int,
             cam["props"] = props
         if b.get("clay"):
             cam["guide"] = os.path.join(rd, b["clay"])
+            if colours:
+                cam["guide_people"] = colours
         if sp.get("pov"):
             cam["pov"] = sp["pov"]
         if sp.get("may") and b.get("end"):
@@ -315,7 +350,7 @@ def fingerprint(inputs: Dict) -> str:
 
 
 def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Optional[Dict] = None,
-                log: Callable[[str], None] = lambda m: None) -> Dict:
+                log: Callable[[str], None] = lambda m: None, force: bool = False) -> Dict:
     """K1 → đề bài → Đạo diễn (≤ MAX_ROUNDS lượt, sổ chi) → K3 + K4 → máy từng shot. Không ghi CSDL (apply làm việc đó).
     Trả {"cams", "bad" {shot: lý do}, "missing" [..], "state", "reused"}; kết quả lưu <data_dir>/<pid>/stage/<sân khấu>/<đoạn>/
     result.json theo vân tay đầu vào — chạy lại cùng đầu vào không gọi Claude lần nữa."""
@@ -338,7 +373,7 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
     out = os.path.join(base, f"doan_{key_of(seg['scene'])}")
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, "result.json")
-    if os.path.exists(path):
+    if os.path.exists(path) and not force:
         try:
             with open(path, encoding="utf-8") as f:
                 old = json.load(f)
@@ -357,9 +392,15 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
     prev, feedback, obj, v2, rd = None, [], None, None, out
     for rnd in range(1, sd.MAX_ROUNDS + 1):
         text = sd.build_prompt(inputs, prev, feedback)
-        with llm_runner.tagged(sd.STAGE, pid):
-            obj, tin, tout = llm_runner.ask_json(client, text, lambda o: sd.validate_answer(o, inputs, st.get("marks")),
-                                                 note=log)
+        try:
+            with llm_runner.tagged(sd.STAGE, pid):
+                obj, tin, tout = llm_runner.ask_json(client, text, lambda o: sd.validate_answer(o, inputs, st.get("marks")),
+                                                     note=log)
+        except llm_runner.LlmError as e:
+            if getattr(e, "code", None) != "bad_json":
+                raise                                     # đăng nhập / hạn mức / hết tiền / sổ chi: autopilot dừng như khâu Claude khác
+            res["missing"].append(f"Đạo diễn trả lời sai mẫu 2 lần (lượt {rnd}): {str(e)[:200]}")
+            return _save(path, dict(res, fp=fp))
         if obj.get("can_hoi"):
             _say(conn, pid, "warn", f"Sân khấu {seg['id']}: Đạo diễn hỏi — {obj['can_hoi']}", log)
         bl = dict(obj["blocking"], place=inputs["place"], spot=inputs["spot"], aspect=inputs["aspect"])
@@ -372,28 +413,50 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
             solve, v2 = tool().v2_run(bl, obj["shot_specs"], rd, k1, m3=seg["entry"], reach=True, log=log)
         except Exception as e:  # noqa: BLE001 - Blender đo lỗi: nói rõ, không gán máy chưa đo
             res["missing"].append(f"không đo được máy bằng Blender (K4): {type(e).__name__}: {e}")
-            return res
+            return _save(path, dict(res, fp=fp))
         feedback = sd.feedback_from(solve, v2)
         log(f"Sân khấu {seg['id']} lượt {rnd}: vào {tin} / ra {tout} token, {len(feedback)} shot cần sửa")
         if not feedback:
             break
         prev = obj
-    cams, bad = cameras_from(st, v2 or {}, seg["id"], rd)
+    try:
+        colours = mannequin_colours(solve["beats"], {p["key"]: p["label"] for p in inputs["people"]}) if v2 else {}
+    except (ValueError, KeyError, TypeError):
+        colours = {}
+    cams, bad = cameras_from(st, v2 or {}, seg["id"], rd, colours)
     for s in seg["shots"]:
         if s["idx"] not in cams and s["idx"] not in bad:
             bad[s["idx"]] = "bộ giải không đặt được máy (lỗi yêu cầu khung)"
     advice = {int(x.split(":", 1)[0].replace("shot", "").strip()): x for x in feedback if x.startswith("shot ")} if feedback else {}
     res.update(cams=cams, bad={k: advice.get(k, v) for k, v in bad.items()}, state=end_state(st, obj, seg["scene"]), fp=fp)
+    return _save(path, res)
+
+
+def _save(path: str, res: Dict) -> Dict:
+    """Kết quả một đoạn theo vân tay đầu vào — kể cả thất bại đã tốn lượt Claude (sai mẫu 2 lần) / Blender lỗi: lượt autopilot sau
+    KHÔNG gọi lại (không trả tiền lặp mỗi nhịp); đổi đầu vào (kịch bản / Kho) hoặc `force` mới chạy lại."""
     with open(path, "w", encoding="utf-8") as f:
         json.dump({k: v for k, v in res.items() if k != "reused"}, f, ensure_ascii=False, indent=1)
     return res
 
 
 # ---- cả dự án ------------------------------------------------------------------------------------------------------------
-def run(conn, pid: int, data_dir: str, client=None, force: bool = False, log: Callable[[str], None] = lambda m: None) -> Optional[Dict]:
+def stored_state(data_dir: str, pid: int, seg: Dict) -> Optional[Dict]:
+    """Vị trí cuối đã lưu của một đoạn (result.json), không cần chạy lại — đoạn bị bỏ qua vẫn truyền chỗ người/vật cho đoạn sau."""
+    path = os.path.join(base_dir(data_dir, pid, seg["stage"]), f"doan_{key_of(seg['scene'])}", "result.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f).get("state")
+    except (OSError, ValueError):
+        return None
+
+
+def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: bool = False,
+        log: Callable[[str], None] = lambda m: None, scenes: Optional[set] = None) -> Optional[Dict]:
     """Mọi đoạn của dự án, nối tiếp theo sân khấu (vị trí cuối đoạn trước → đầu đoạn sau). None khi cờ TẮT (không làm gì).
     Trả {"applied": [idx], "held": [(vân tay, câu)], "skipped": [đoạn]}: `held` = shot không đạt / đoạn thiếu đầu vào — autopilot
-    giữ ở cổng nền 3D cho người xem (Tiếp tục = các shot đó dùng máy thường, VÀNG)."""
+    giữ ở cổng nền 3D cho người xem (Tiếp tục = các shot đó dùng máy thường, VÀNG). `force` = cả đoạn có shot đã vẽ ảnh (máy mới làm
+    ảnh cũ lệch nền — người chọn); `again` = bỏ kết quả đã lưu, gọi Đạo diễn lại (tốn tiền)."""
     if not enabled():
         return None
     from .camera_plan import drawn_shots
@@ -403,14 +466,18 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, log: Ca
         _say(conn, pid, "warn", h, log)
     state: Dict[str, Dict] = {}
     for seg in segs:
+        if scenes is not None and seg["scene"] not in scenes:
+            state[seg["stage"]] = stored_state(data_dir, pid, seg) or state.get(seg["stage"])
+            continue
         done = drawn_shots(conn, seg)
         if done and not force:
+            state[seg["stage"]] = stored_state(data_dir, pid, seg) or state.get(seg["stage"])
             out["skipped"].append(seg["id"])
             if any(not s["data"].get(FIELD) for s in seg["shots"]):
                 _say(conn, pid, "warn", f"Sân khấu {seg['id']}: shot {', '.join(map(str, done))} đã có ảnh — không đổi máy (ảnh đã vẽ "
                                         f"sẽ lệch nền 3D); muốn dàn lại cả cảnh: py tools/stage_auto.py --project {pid} --force --yes", log)
             continue
-        r = run_segment(conn, pid, seg, data_dir, client, state.get(seg["stage"]), log)
+        r = run_segment(conn, pid, seg, data_dir, client, state.get(seg["stage"]), log, force=again)
         if r["missing"]:
             line = f"sân khấu {seg['id']} chưa chạy — thiếu: " + "; ".join(r["missing"])
             _say(conn, pid, "warn", line, log)

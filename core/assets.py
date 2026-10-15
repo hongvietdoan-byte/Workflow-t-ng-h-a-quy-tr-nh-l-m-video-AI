@@ -1841,6 +1841,11 @@ def reference_note(refs: List[Dict]) -> str:
             bits.append(f"{tag} is the shot RIGHT BEFORE this one: keep exactly its camera position, lens, framing and shot size, the "
                         "character's spot and pose direction, the background and the light — change only what this shot's text says "
                         "(e.g. the clothes)")
+        elif g["role"] == "stage_guide":          # 15/10 Sân khấu 3D tự động: người nộm tại tọa độ dàn cảnh, từ đúng máy của shot
+            bits.append(f"{tag} is the BLOCKING GUIDE of this shot ({g['label']}): a plain grey 3D mock-up seen from this shot's exact "
+                        "camera, where each coloured mannequin marks where a character stands, how tall they appear and which way they "
+                        "face, and plain brown blocks mark props — put every character exactly at their mannequin's place, size and "
+                        "facing, and props at their blocks; never draw the mannequins, the grey surfaces or the blocks themselves")
         elif g["role"] == "layout_from":          # 12/10 #27: another shot at this spot (before or after), from another sequence (continuity_from)
             bits.append(f"{tag} is ANOTHER shot of this film at this same place: every person or object seen in both shots stays exactly where "
                         "it is there — same spot, spacing, order, pose and facing, relative to the landmarks and to each other — now "

@@ -2682,6 +2682,22 @@ def layout_reference(runner, job, data):
     return {"path": path, "label": f"shot {want} (same place)", "role": "layout_from"}
 
 
+def stage_guide_reference(runner, job, data):
+    """15/10 Sân khấu 3D tự động (Q2, cờ stage_camera + stage_auto): hình clay K4 từ ĐÚNG máy của shot, người nộm màu tại tọa độ dàn
+    cảnh + khối đạo cụ — ảnh hướng dẫn chỗ đứng (vai 'stage_guide'), nền sạch vẫn là render 3D. Không có file → VÀNG, không gửi."""
+    from . import features, stage_auto
+    sc = (data or {}).get("stage_camera") or {}
+    if not sc.get("guide") or not features.on("stage_camera") or not stage_auto.enabled():
+        return None
+    path = sc["guide"]
+    if not os.path.exists(path):
+        say = getattr(runner, "_diag_once", None) or getattr(runner, "_diag", None) or (lambda *a: None)
+        say(job, "warn", "stage_guide_missing", f"ảnh hướng dẫn chỗ đứng của sân khấu 3D không còn ({path}) — gửi không kèm")
+        return None
+    who = ", ".join(f"{c} = {n}" for c, n in (sc.get("guide_people") or {}).items())
+    return {"path": path, "label": "blocking guide" + (f" ({who})" if who else ""), "role": "stage_guide"}
+
+
 def chain_previous(proj, scene_data) -> bool:
     """Send the previous approved frame as an extra reference? storyboard_mode 1 = always; 0 (default) / 2 = never. S14.9 (06/10):
     the automatic chaining inside a sequence (flag chain_previous_auto, GĐ6 F8/I2: a close-up dragged in the wide frame's layout)
@@ -3383,6 +3399,9 @@ class ImageRunner(_Runner):
         layout = layout_reference(self, job, data)
         if layout is not None and layout["path"] not in [r["path"] for r in refs]:   # never the same file twice
             refs = refs + [layout]
+        guide = stage_guide_reference(self, job, data)
+        if guide is not None and guide["path"] not in [r["path"] for r in refs]:
+            refs = refs + [guide]
         return self._finish_args(job, prompt, refs)
 
     def _plate_anchor_words(self, job, data: Dict, render) -> Tuple[Dict, str]:

@@ -504,13 +504,19 @@ def stage_report(conn, items: List[Dict]) -> List[Dict]:
     {spot: [shot idx…]}}}] — the run shows them at the 'plates' gate (the person confirms the move inside the scene is meant, e.g.
     walking from the maze's edge to its centre) before any picture is drawn."""
     by_scene: Dict[str, Dict[str, Dict[str, List[int]]]] = {}
+    loose: set = set()
+    staged = features.on("stage_camera")                  # máy sân khấu chỉ được dùng khi cờ stage_camera bật
     for it in items:
         row = conn.execute("SELECT data FROM scenes WHERE id=?", (it["scene_id"],)).fetchone()
         data = json.loads(row["data"] or "{}") if row is not None else {}
         sc = str(data.get("story_scene") or it["idx"])
         by_scene.setdefault(sc, {}).setdefault(it["place"], {}).setdefault(it["spot"], []).append(it["idx"])
+        if not (staged and (data.get("stage_camera") or {}).get("segment")):
+            loose.add(sc)
+    # 15/10 sân khấu tự động: một cảnh ở MỘT bối cảnh mà mọi shot đã có máy của cùng một sân khấu (mọi chỗ đứng của một model chung
+    # tọa độ, người + vật giữ chỗ qua các shot) = đã thống nhất → không giữ; cảnh qua nhiều bối cảnh vẫn giữ
     return [{"scene": sc, "places": places} for sc, places in by_scene.items()
-            if len(places) > 1 or any(len(spots) > 1 for spots in places.values())]
+            if len(places) > 1 or (sc in loose and any(len(spots) > 1 for spots in places.values()))]
 
 
 def stage_words(r: Dict) -> str:

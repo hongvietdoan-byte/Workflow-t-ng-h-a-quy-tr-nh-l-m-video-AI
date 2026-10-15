@@ -105,7 +105,12 @@ def todo_groups(conn, pid: int, data_dir: str, force: bool = False) -> Tuple[Lis
     """(groups to plan, keys kept, {key: drawn shot idx} skipped) — one rule for before_plates and the CLI estimate."""
     plans = load_plans(data_dir, pid)
     todo, kept, drawn = [], [], {}
+    from . import stage_auto
+    staged = stage_auto.enabled()
     for g in groups(conn, pid):
+        if staged and all((s["data"] or {}).get(stage_auto.FIELD) for s in g["shots"]):
+            kept.append(g["key"])                         # 15/10 Q4: máy Sân khấu 3D tự động đã đặt — không lập G0 (hai nguồn máy, trả 2 lần)
+            continue
         if not needs_plan(plans.get(g["key"]), force):
             kept.append(g["key"])                         # a plan, or MAX_TRIES failures (said; `force` = the person asks again)
             continue

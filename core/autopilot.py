@@ -640,6 +640,27 @@ def needs_code(needs: str) -> str:
     return "travel_truth" if n.startswith("hướng chạy trái nền 3D") or "trái máy đặt theo đường chạy" in n else "plate_view"
 
 
+def _stage_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
+    """Sân khấu 3D tự động (cờ stage_auto — TẮT: không làm gì): trước nền 3D + mọi ảnh, mỗi cảnh trên bối cảnh 3D được dàn cảnh
+    (Đạo diễn, sổ chi) và giải máy → `stage_camera`. Kết quả lưu theo vân tay đầu vào: lượt sau không gọi Claude lại. Shot không đạt /
+    đoạn thiếu đầu vào → giữ ở cổng nền 3D (Tiếp tục = các shot đó dùng máy thường, VÀNG)."""
+    from . import stage_auto
+    if not stage_auto.enabled():
+        return None
+    try:
+        r = stage_auto.run(p.conn, pid, ctx.data_dir, client=ctx.llm, log=lambda m: _log(p, pid, m))
+    except llm_runner.LlmError as e:
+        _stop_if_claude_blocked([(None, e)])
+        _d(p, pid, "director", "error", f"sân khấu 3D tự động lỗi Claude: {e}", stage_auto.CODE)
+        raise _Wait("plates", f"Sân khấu 3D tự động chưa chạy được (Claude: {str(e)[:160]}) — xử lý rồi bấm Tiếp tục để thử lại, hoặc tắt "
+                              "cờ stage_auto để nền 3D dùng máy thường")
+    if r and r["applied"]:
+        _log(p, pid, f"Sân khấu 3D: máy đặt theo sân khấu cho shot {', '.join(map(str, r['applied']))}")
+    if r and r["held"]:
+        _plate_ack(p, pid, r["held"], "Sân khấu 3D tự động —")
+    return None
+
+
 def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """place_render_refs: every shot set at a place with a registered 3D model gets its render before any picture (one Blender run per
     place + time/weather, shared cache), sent as a reference picture. A place with no 3D model is said once, not skipped silently.
@@ -1303,7 +1324,7 @@ def tick(p: Pipeline, project_id: int, ctx: Context) -> str:
 def _tick(p: Pipeline, project_id: int, ctx: Context) -> str:
     from . import delivery
     try:
-        phases = [("director", _director_phase), ("storycheck", _story_check_phase), ("voicefirst", _voice_first_phase), ("previz", _previz_phase), ("plates", _plates_phase), ("images", _images_phase), ("setcheck", _setcheck_phase),
+        phases = [("director", _director_phase), ("storycheck", _story_check_phase), ("voicefirst", _voice_first_phase), ("previz", _previz_phase), ("stage", _stage_phase), ("plates", _plates_phase), ("images", _images_phase), ("setcheck", _setcheck_phase),
                   ("endframes", _end_frame_phase), ("storyboard", _storyboard_phase), ("motion", _motion_phase), ("voice", _voice_phase), ("videos", _videos_phase), ("music", _music_phase),
                   ("lipsync", _lipsync_phase), ("sfx", _sfx_phase)]
         for name, fn in phases:
