@@ -10,7 +10,7 @@ from unittest import mock
 from core import autopilot, camera_plan, features, location_pack, stage_auto, stage_director, stage_solver
 from core import stage_grid as sg
 from core.llm_runner import LlmReply
-from tests.test_location_pack import PackTests
+from tests import test_location_pack as _tlp
 
 SETTINGS = os.path.join(os.path.dirname(__file__), "_no_feature_settings.json")
 ON = {"FEATURE_STAGE_AUTO": "1", "FEATURE_STAGE_CAMERA": "1", "FEATURE_DIRECTOR_CAMERA_PLAN": "", "FEATURE_SETTINGS_FILE": SETTINGS}
@@ -77,10 +77,10 @@ def fake_v2(bl, specs, rd, k1, m3=None, reach=False, log=print, fail=()):
 
 
 class Base(unittest.TestCase):
-    tearDown = PackTests.tearDown
+    tearDown = _tlp.PackTests.tearDown
 
     def setUp(self):
-        PackTests.setUp(self)
+        _tlp.PackTests.setUp(self)
         location_pack.set_model3d(self.p.conn, self.place, self.model, SPOTS, "giua_phong", anchor=[3.4, 9.0, 0.0])
         self.data = os.path.join(self.tmp, "projects")
         self.env2 = mock.patch.dict(os.environ, ON)
@@ -416,3 +416,106 @@ class EstimateTests(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---- rà quy ước 7 (15/10) + lỗi shot 17 ---------------------------------------------------------------------------------------
+class ReviewFixTests(Base):
+    def test_needs_stage_camera_and_place_refs(self):
+        self.assertEqual(features.REQUIRES["stage_auto"], ("stage_camera", "place_render_refs"))
+        with mock.patch.dict(os.environ, {"FEATURE_STAGE_CAMERA": ""}):
+            self.assertFalse(stage_auto.enabled())
+
+    def test_weapons_are_not_floor_blocks(self):
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        k1 = stage_auto.ensure_k1(seg["entry"], seg["main_spot"], stage_auto.base_dir(self.data, pid, seg["stage"]))
+        with mock.patch("core.place_refs.shot_objects", return_value=[{"id": 5, "name": "UMP", "kind": "weapon", "size": {}}]):
+            inputs, missing = stage_auto.inputs_for(self.p.conn, pid, seg, k1)
+        self.assertEqual((missing, [o for o in inputs["fixed"] if o["kind"] == "dao_cu"]), ([], []))
+
+    def test_director_may_not_invent_props(self):
+        inputs = {"auto": True, "fixed": [], "shots": [{"shot": 1}]}
+        obj = answer([1])
+        obj["blocking"]["objects"].append({"key": "ghe", "kind": "dao_cu", "at": [2, 2], "h": 0.5, "d": 0.5})
+        from core.llm_io import SchemaError
+        with self.assertRaises(SchemaError):
+            stage_director.validate_answer(obj, inputs)
+
+    def test_unexpected_error_after_paid_call_is_saved(self):
+        pid = self.project()
+        client = FakeClaude(answer([1, 2, 3]))
+        with mock.patch.object(stage_auto, "cameras_from", side_effect=KeyError("why")):
+            r1 = stage_auto.run(self.p.conn, pid, self.data, client=client)
+            stage_auto.run(self.p.conn, pid, self.data, client=client)
+        self.assertEqual(len(client.prompts), 1)
+        self.assertIn("không dựng được máy", r1["held"][0][1])
+
+    def test_old_auto_camera_removed_when_inputs_change_and_missing(self):
+        pid = self.project()
+        stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+        self.assertIn("stage_camera", self.shot(pid, 1))
+        with mock.patch("core.assets.standard_for", return_value={"approved": True}):
+            stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+        self.assertNotIn("stage_camera", self.shot(pid, 1))
+
+    def test_clone_drops_auto_stage_cameras(self):
+        from core import compare
+        pid = self.project()
+        stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+        new = compare.clone_project(self.p, pid, "ban sao")
+        d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE project_id=? AND idx=1", (new,)).fetchone()["data"])
+        self.assertNotIn("stage_camera", d)
+        self.assertNotIn("stage_segment", d)
+
+    def test_log_said_once_per_message(self):
+        pid = self.project()
+        said = []
+        stage_auto.run(self.p.conn, pid, self.data, client=None, log=said.append)
+        n = len(said)
+        stage_auto.run(self.p.conn, pid, self.data, client=None, log=said.append)
+        self.assertEqual(len(said), n)
+
+
+class StoryboardGuideTests(unittest.TestCase):
+    def test_job_fields_sends_guide_with_note(self):
+        from core import scene_storyboard, storyboard_frames
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        guide = os.path.join(tmp, "g.png")
+        open(guide, "wb").close()
+        g = {"anchor": {"id": 1, "data": {}}, "index": 0, "shots": [{"id": 1}]}
+        with mock.patch.object(scene_storyboard, "group_of", return_value=g), \
+                mock.patch.object(scene_storyboard, "turned_away", return_value=False), \
+                mock.patch.object(scene_storyboard, "own_camera", return_value=True), \
+                mock.patch.object(scene_storyboard, "story_text", return_value=""), \
+                mock.patch.object(scene_storyboard, "storyboard_id", return_value="x"), \
+                mock.patch.object(scene_storyboard, "fresh_session", return_value=False), \
+                mock.patch.object(scene_storyboard, "cast_note", return_value=""):
+            f = scene_storyboard.job_fields(None, tmp, 1, 1, [{"path": "a.png", "label": "KELLY", "role": "character"}], 1,
+                                            guide=guide, guide_label="blocking guide (orange = KELLY)")
+        self.assertEqual(f["refs"][-1]["role"], "stage_guide")
+        self.assertIn("BLOCKING GUIDE", f["storyboard"]["image_mapping"])
+        self.assertIn("blocking guide from this frame's camera", storyboard_frames.mapping_text(f["refs"], 1))
+
+
+class NearFrameTests(unittest.TestCase):
+    def test_rays_cover_the_frame(self):
+        from core import plate_camera as pc
+        rays = pc.frame_rays([0, 0, 1.5], [0, 5, 1.5], 32, 9 / 16)
+        self.assertEqual(len(rays), 9 * 16)
+        self.assertTrue(all(d[1] > 0.8 for d in rays))                 # mọi tia nhìn về trước
+
+    def test_balloon_next_to_camera_is_caught_floor_and_far_walls_are_not(self):
+        from core import plate_camera as pc
+        hits = [(0.25, 0.1, "balloon")] * 60 + [(4.0, 0.0, "wall")] * 84          # #31 shot 17: nửa khung là quả bóng sát máy
+        got = pc.near_frame_problem(hits, 1.42)
+        self.assertEqual(got["object"], "balloon")
+        self.assertGreaterEqual(got["share"], 0.4)
+        self.assertIsNone(pc.near_frame_problem([(0.3, 0.95, "floor")] * 144, 1.42))   # sàn dưới máy cúi
+        self.assertIsNone(pc.near_frame_problem([(0.3, 0.1, "PLATES_PROP_0")] * 144, 1.42))
+        self.assertIsNone(pc.near_frame_problem([(0.25, 0.1, "x")] * 10 + [(5.0, 0, "w")] * 134, 1.42))
+
+    def test_camera_problem_holds_near_block(self):
+        rec = {"clearance": {"near_block": True, "near": {"message": "vật 'balloon' sát máy"}}}
+        self.assertIn("balloon", location_pack.camera_problem(rec))
+        self.assertIsNone(location_pack.camera_problem({"clearance": {"near": {"message": "x"}}}))   # máy khóa: chỉ cảnh báo

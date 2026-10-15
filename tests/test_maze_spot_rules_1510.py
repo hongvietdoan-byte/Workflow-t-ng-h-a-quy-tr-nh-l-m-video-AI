@@ -35,9 +35,9 @@ class DirectorBearingsTests(unittest.TestCase):
 
 class NoLandmarkWhyTests(unittest.TestCase):
     def test_patterns(self):
-        for s in ("không có mốc trong khung", "no landmark visible", "biệt thự ngoài khung", "không thấy được biệt thự"):
+        for s in ("không có mốc trong khung", "no landmark visible", "biệt thự ngoài khung", "không thấy được biệt thự trong khung"):
             self.assertTrue(LANDMARK_NOT_IN_FRAME.search(s), s)
-        for s in ("không có cây che mốc", "mốc ở nền sau Kelly", "không có ai"):
+        for s in ("không có cây che mốc", "mốc ở nền sau Kelly", "không có ai", "Kelly không thấy tháp sau lưng"):
             self.assertFalse(LANDMARK_NOT_IN_FRAME.search(s), s)
 
     def test_shot5_background_at_villa_with_no_landmark_reason_waits(self):

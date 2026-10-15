@@ -66,6 +66,7 @@ def clone_project(p: Pipeline, project_id: int, name: str, shot_mode: Optional[s
             if with_rows:
                 conn.execute("INSERT INTO scenes (project_id, idx, title, state, data) SELECT ?, idx, title, 'ready', data"
                              " FROM scenes WHERE project_id=?", (new, project_id))
+                _drop_auto_stage(conn, new)
             else:                                 # one row per script scene, as right after the import: the Director starts again
                 from .shots import story_scenes
                 for s in story_scenes(p, project_id):
@@ -81,6 +82,20 @@ def clone_project(p: Pipeline, project_id: int, name: str, shot_mode: Optional[s
     from .pipeline import cheap_while_testing
     cheap_while_testing(conn, new)          # a copy made during a budget test round is cheap too
     return new
+
+
+def _drop_auto_stage(conn, pid: int) -> None:
+    """Rà 15/10: máy Sân khấu 3D TỰ ĐỘNG (core/stage_auto) trỏ vào tệp sân khấu của dự án nguồn (ảnh người nộm, kết quả đoạn) — bản sao
+    không mang theo; dự án mới dàn cảnh lại khi chạy (máy sân khấu người khóa tay thì giữ)."""
+    for r in conn.execute("SELECT id, data FROM scenes WHERE project_id=?", (pid,)).fetchall():
+        try:
+            d = json.loads(r["data"] or "{}")
+        except ValueError:
+            continue
+        if (d.get("stage_camera") or {}).get("auto") and "stage_camera" not in (d.get("_user_locked") or []):
+            d.pop("stage_camera", None)
+            d.pop("stage_segment", None)
+            conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), r["id"]))
 
 
 def _q(conn, sql: str, args) -> Optional[float]:

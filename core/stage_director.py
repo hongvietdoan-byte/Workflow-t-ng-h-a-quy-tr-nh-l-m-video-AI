@@ -69,6 +69,11 @@ def validate_answer(obj, inputs: Dict, marks: Optional[Dict] = None) -> Dict:
         raise llm_io.SchemaError(f"shot_specs phải có đúng các shot {want}, đang có {got}")
     errs: List[str] = []
     have = {o.get("key"): o for o in bl.get("objects", []) if isinstance(o, dict)}
+    if inputs.get("auto"):                               # sân khấu tự động: đạo cụ chỉ từ Kho (kích thước có nguồn), không tự thêm
+        given = {f["key"] for f in inputs["fixed"]}
+        for k, o in have.items():
+            if o.get("kind") not in ("nguoi", "moc") and k not in given:
+                errs.append(f"vật '{k}' ({o.get('kind')}) không có trong danh sách vật cố định — chỉ dùng đạo cụ được cho, không tự thêm")
     for f in inputs["fixed"]:
         o = have.get(f["key"])
         if o is None:

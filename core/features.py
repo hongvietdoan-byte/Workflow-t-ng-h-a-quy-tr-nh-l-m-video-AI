@@ -959,7 +959,9 @@ def active(name: str) -> bool:
 # first). Shown in 🧪 instead of a flag that looks ON and does nothing. B1 học việc: qc_team only runs inside scene_qc (by active()).
 REQUIRES = {"dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_review_frames": ("change_review",), "change_review_motion": ("change_review",),
             "ambient_motion": ("prompt_formula",), "plate_anchored_image": ("place_render_refs",),
-            "anchor_by_spot": ("storyboard_api",)}
+            "anchor_by_spot": ("storyboard_api",),
+            # rà 15/10: máy sân khấu chỉ được nền 3D dùng khi stage_camera bật; nền 3D cần place_render_refs
+            "stage_auto": ("stage_camera", "place_render_refs")}
 
 
 def unmet(name: str) -> list:

@@ -35,7 +35,9 @@ _TOOL = None
 
 
 def enabled() -> bool:
-    return features.on(FLAG)
+    """Cờ stage_auto VÀ các cờ nó cần (features.REQUIRES: stage_camera — nền 3D mới dùng máy sân khấu; place_render_refs — có nền
+    3D). Thiếu một cờ → không chạy (rà 15/10: trả tiền Đạo diễn mà máy không được dùng, G0 lại bị bỏ)."""
+    return features.on(FLAG) and all(features.on(n) for n in features.REQUIRES.get(FLAG, ()))
 
 
 def tool():
@@ -51,6 +53,14 @@ def tool():
 
 
 def _say(conn, pid: int, sev: str, msg: str, log: Callable[[str], None]) -> None:
+    """Ghi ⚙ Chẩn đoán + nhật ký MỘT lần cho mỗi câu (autopilot gọi run() mỗi nhịp — rà 15/10: không đẩy trôi nhật ký)."""
+    try:
+        seen = conn.execute("SELECT 1 FROM diag_events WHERE project_id=? AND COALESCE(code,'')=? AND message=? LIMIT 1",
+                            (pid, CODE, diag.redact(msg)[:400])).fetchone()
+    except Exception:  # noqa: BLE001 - không có bảng diag: cứ nói
+        seen = None
+    if seen:
+        return
     diag.record(conn, "director", sev, msg, CODE, pid)
     log(msg)
 
@@ -183,6 +193,8 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
     objs: Dict[int, Dict] = {}
     for s in seg["shots"]:
         for a in place_refs.shot_objects(conn, pid, s["data"]):
+            if a.get("kind") == "weapon":                 # rà 15/10: súng / vũ khí cầm tay — không phải khối đứng trên sàn
+                continue
             objs.setdefault(a["id"], a)
     for a in objs.values():
         size = a.get("size") or {}
@@ -227,7 +239,7 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
                       "do_dai": f"{d.get('duration_s')} s" if d.get("duration_s") else ""})
     aspect = formats.project_aspect(conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()) or "9:16"
     inputs = {"pid": pid, "canh": f"cảnh {seg['scene']} — {seg['place'].get('name')} ({len(seg['shots'])} shot)",
-              "place": seg["place"]["id"], "spot": main, "aspect": aspect, "fixed": fixed, "people": people,
+              "auto": True, "place": seg["place"]["id"], "spot": main, "aspect": aspect, "fixed": fixed, "people": people,
               "shots": shots, "floor": tool()._floor_notes(grid), "user_notes": notes}
     return inputs, missing
 
@@ -365,11 +377,13 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
         return res
     inputs, missing = inputs_for(conn, pid, seg, k1, prev_state)
     if missing:
-        res["missing"] = missing
+        res["missing"], res["stale"] = missing, True      # đầu vào đổi/thiếu → máy tự động cũ của đoạn không còn đúng
         return res
     with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
         st = json.load(f)
     fp = fingerprint(inputs)
+    res["stale"] = any((s["data"].get(FIELD) or {}).get("auto") and (s["data"].get(FIELD) or {}).get("inputs_fp") != fp
+                       for s in seg["shots"])
     out = os.path.join(base, f"doan_{key_of(seg['scene'])}")
     os.makedirs(out, exist_ok=True)
     path = os.path.join(out, "result.json")
@@ -419,16 +433,27 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
         if not feedback:
             break
         prev = obj
-    try:
-        colours = mannequin_colours(solve["beats"], {p["key"]: p["label"] for p in inputs["people"]}) if v2 else {}
-    except (ValueError, KeyError, TypeError):
-        colours = {}
-    cams, bad = cameras_from(st, v2 or {}, seg["id"], rd, colours)
-    for s in seg["shots"]:
-        if s["idx"] not in cams and s["idx"] not in bad:
-            bad[s["idx"]] = "bộ giải không đặt được máy (lỗi yêu cầu khung)"
-    advice = {int(x.split(":", 1)[0].replace("shot", "").strip()): x for x in feedback if x.startswith("shot ")} if feedback else {}
-    res.update(cams=cams, bad={k: advice.get(k, v) for k, v in bad.items()}, state=end_state(st, obj, seg["scene"]), fp=fp)
+    try:                                                  # rà 15/10: lỗi lạ sau khi đã trả tiền Claude vẫn được lưu (không hỏi lại)
+        try:
+            colours = mannequin_colours(solve["beats"], {p["key"]: p["label"] for p in inputs["people"]}) if v2 else {}
+        except (ValueError, KeyError, TypeError):
+            colours = {}
+        cams, bad = cameras_from(st, v2 or {}, seg["id"], rd, colours)
+        for cam in cams.values():
+            cam["inputs_fp"] = fp
+        for s in seg["shots"]:
+            if s["idx"] not in cams and s["idx"] not in bad:
+                bad[s["idx"]] = "bộ giải không đặt được máy (lỗi yêu cầu khung)"
+        advice = {}
+        for x in feedback or []:
+            m = re.match(r"shot (\d+)\b", x)
+            if m:
+                advice[int(m.group(1))] = x
+        res.update(cams=cams, bad={k: advice.get(k, v) for k, v in bad.items()}, state=end_state(st, obj, seg["scene"]), fp=fp)
+    except Exception as e:  # noqa: BLE001 - nói rõ, lưu theo vân tay
+        res.update(cams={}, bad={}, state=None)
+        res["missing"].append(f"không dựng được máy từ kết quả đo: {type(e).__name__}: {e}")
+        return _save(path, dict(res, fp=fp))
     return _save(path, res)
 
 
@@ -479,6 +504,11 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: 
             continue
         r = run_segment(conn, pid, seg, data_dir, client, state.get(seg["stage"]), log, force=again)
         if r["missing"]:
+            if r.get("stale"):                            # rà 15/10: máy tự động theo dàn cảnh CŨ không được dùng tiếp
+                gone = apply(conn, seg, {})
+                if gone:
+                    _say(conn, pid, "warn", f"Sân khấu {seg['id']}: gỡ máy sân khấu cũ của shot {', '.join(map(str, gone))} "
+                                            "(đầu vào đã đổi) — nền 3D dùng máy thường tới khi dàn cảnh lại", log)
             line = f"sân khấu {seg['id']} chưa chạy — thiếu: " + "; ".join(r["missing"])
             _say(conn, pid, "warn", line, log)
             out["held"].append(("stageauto:" + hashlib.sha1(line.encode("utf-8")).hexdigest()[:12], line))

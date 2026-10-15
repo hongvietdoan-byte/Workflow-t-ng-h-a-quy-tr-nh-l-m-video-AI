@@ -778,6 +778,22 @@ def _clearance(c, pure):
     if fix.get("lens"):
         out["lens"] = fix["lens"]
         c["lens"] = fix["lens"]
+    # 15/10 (#31 shot 17): a thing right at the lens off the sight line (a balloon next to the camera) fills part of the frame — the
+    # single character→camera ray above misses it; a ray grid through the whole frame of the FINAL camera finds it (warned; an unlocked
+    # camera's plate waits — location_pack.camera_problem)
+    floc, faim = Vector(c["location"]), Vector(c["look_at"])
+    res_ = (scene.render.resolution_x or 9, scene.render.resolution_y or 16)
+    hits = []
+    for d in pure.frame_rays(list(floc), list(faim), float(c.get("lens") or lens), res_[0] / res_[1]):
+        ok, where, nor, _i, obj, _m = scene.ray_cast(dg, floc, Vector(d), distance=50.0)
+        o = (obj.original if hasattr(obj, "original") else obj) if ok and obj is not None else None
+        hits.append(((where - floc).length if ok else None, nor.z if ok else 0.0, o.name if o is not None else ""))
+    near = pure.near_frame_problem(hits, (floc - body).length)
+    if near:
+        out["near"] = near
+        out["warnings"].append(near["message"] + ("" if move else " (máy Sân khấu 3D đã khóa: chỉ cảnh báo)"))
+        if move:
+            out["near_block"] = True
     if c.get("indoor"):                                # 15/10: an indoor camera must stand under the room's ceiling like the character
         up = Vector((0, 0, 1))
         cam_roof = scene.ray_cast(dg, Vector(c["location"]), up, distance=30.0)[0]

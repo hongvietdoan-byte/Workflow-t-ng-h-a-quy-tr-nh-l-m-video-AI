@@ -479,6 +479,10 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
         wide = {"camera": wide_cam, "key": cache_key(s["entry"], wide_cam, env, resolution),
                 "why": {"wide": f"cùng hướng + độ nghiêng với máy shot, lùi dọc trục, ống {wide_cam['lens']:g} mm (F2)"}}
         needs, travel_problem, why_extra = view["needs"], None, {}
+        if needs and cam["camera"].get("locked") and "stage" in (cam.get("why") or {}):
+            # rà 15/10: máy Sân khấu 3D đã giải + đo — hướng nền là của máy đó, chữ plate_view không còn chặn nền (chỉ VÀNG)
+            view = dict(view, problem=f"(máy sân khấu 3D dùng thay) {needs}")
+            needs = None
         if travel_on and cam.get("travel") and view.get("source") == "spot_default":
             # rà 14/10: máy đặt theo đường chạy đã có hướng (A→B) — chỗ đứng không có hướng cố định không còn chặn nền
             needs = None
@@ -618,6 +622,8 @@ def camera_problem(rec: Dict) -> Optional[str]:
         return "máy nền 3D nằm NGOÀI phòng của nhân vật (thấy mặt sau tường + trời) — đổi chỗ đứng / hướng nền"
     if clr.get("unplaceable"):
         return "không còn chỗ đặt máy quanh nhân vật (vật cản sát mọi phía) — đổi chỗ đứng / cỡ cảnh"
+    if clr.get("near_block"):                          # 15/10 (#31 shot 17): vật sát máy che một phần khung
+        return "máy nền 3D: " + ((clr.get("near") or {}).get("message") or "vật sát máy che một phần khung — đổi hướng / chỗ đứng")
     return None
 
 

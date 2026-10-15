@@ -322,6 +322,10 @@ PREVIOUS_NOTE = ("\nImage {n} is the shot right before this one: keep exactly it
                  "and the background — change only what this frame's text says.")
 
 
+GUIDE_NOTE = ("\nImage {n} is the BLOCKING GUIDE of this frame: a plain grey 3D mock-up from this frame's exact camera where each coloured "
+              "mannequin marks where a character stands, how tall they appear and which way they face, and brown blocks mark props — "
+              "put every character exactly at their mannequin's place, size and facing; never draw the mannequins, the grey surfaces "
+              "or the blocks themselves.")
 LAYOUT_NOTE = ("\nImage {n} is ANOTHER shot of this film at this same place: every person or object seen in both shots stays exactly where it is "
                "there — same spot, spacing, order, pose and facing, relative to the landmarks and to each other — now seen from this "
                "shot's own camera; take the camera, framing and the main character's action from this frame's text, never this "
@@ -330,7 +334,7 @@ LAYOUT_NOTE = ("\nImage {n} is ANOTHER shot of this film at this same place: eve
 
 def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], job_id: int = 0,
                previous: Optional[str] = None, landmark: Optional[str] = None, layout: Optional[str] = None,
-               layout_label: Optional[str] = None) -> Optional[Dict]:
+               layout_label: Optional[str] = None, guide: Optional[str] = None, guide_label: Optional[str] = None) -> Optional[Dict]:
     """(storyboard kwargs for the provider, the reference list to send) for this shot's picture job, or None (not in storyboard mode).
     refs = the shared references already chosen for the job; a non-anchor shot adds the anchor picture last.
     previous = the approved picture of the shot right before (project set to "always chain the previous shot"): sent after the anchor —
@@ -355,6 +359,9 @@ def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], j
     if layout and os.path.exists(layout) and layout not in (anchor_pic, previous):
         send.append({"path": layout, "label": layout_label or "another shot (same place)", "role": "layout_from"})
         prev_note += LAYOUT_NOTE.format(n=len(send))
+    if guide and os.path.exists(guide):                 # 15/10 sân khấu 3D tự động: người nộm tại tọa độ dàn cảnh, đúng máy của shot
+        send.append({"path": guide, "label": guide_label or "blocking guide", "role": "stage_guide"})
+        prev_note += GUIDE_NOTE.format(n=len(send))
     mode = "global" if refs else "sequential"
     anchor_job = job_id if is_anchor else int(os.path.basename(anchor_pic)[4:].split(".")[0].split("_")[0]) if anchor_pic else 0
     fresh = 0 if is_anchor or not fresh_session(conn, job_id) else job_id

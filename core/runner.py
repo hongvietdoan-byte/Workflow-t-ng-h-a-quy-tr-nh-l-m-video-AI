@@ -2682,6 +2682,12 @@ def layout_reference(runner, job, data):
     return {"path": path, "label": f"shot {want} (same place)", "role": "layout_from"}
 
 
+def guide_wanted(data) -> bool:
+    """Shot sẽ gửi ảnh hướng dẫn người nộm (giữ chỗ trong trần ảnh tham chiếu — rà 15/10 mục 6)."""
+    from . import features, stage_auto
+    return bool(((data or {}).get("stage_camera") or {}).get("guide")) and features.on("stage_camera") and stage_auto.enabled()
+
+
 def stage_guide_reference(runner, job, data):
     """15/10 Sân khấu 3D tự động (Q2, cờ stage_camera + stage_auto): hình clay K4 từ ĐÚNG máy của shot, người nộm màu tại tọa độ dàn
     cảnh + khối đạo cụ — ảnh hướng dẫn chỗ đứng (vai 'stage_guide'), nền sạch vẫn là render 3D. Không có file → VÀNG, không gửi."""
@@ -3360,7 +3366,8 @@ class ImageRunner(_Runner):
         model = image_models.of_project(proj)
         sheets = image_models.accepts_sheets(model) and getattr(self.provider, "supports_model", False)
         limit = min(image_models.max_refs(model, assets.MAX_REFERENCES), 12) if sheets else assets.MAX_REFERENCES
-        keep = (1 if chain else 0) + (1 if data.get("continuity_from") is not None else 0)   # + the layout_from picture's slot
+        keep = ((1 if chain else 0) + (1 if data.get("continuity_from") is not None else 0)   # + the layout_from picture's slot
+                + (1 if guide_wanted(data) else 0))                                         # + the stage blocking guide's slot
         refs = assets.scene_references(conn, job["project_id"], data,   # the previous frame keeps its slot
                                        limit=limit, reserve=keep, sheets=sheets)
         from . import scene_establish
@@ -3522,10 +3529,13 @@ class ImageRunner(_Runner):
                     except Exception:  # noqa: BLE001 - no library tables (old test data): the generic words stay
                         mark = None
                 layout = layout_reference(self, job, sdata)
+                guide = stage_guide_reference(self, job, sdata)
                 fields = scene_storyboard.job_fields(self.p.conn, self.data_dir, job["project_id"], job["scene_id"], shared, job["id"],
                                                      previous=previous, landmark=mark,
                                                      layout=layout["path"] if layout else None,
-                                                     layout_label=layout["label"] if layout else None)
+                                                     layout_label=layout["label"] if layout else None,
+                                                     guide=guide["path"] if guide else None,
+                                                     guide_label=guide["label"] if guide else None)
                 if fields is not None and fields.get("anchor_skipped"):
                     view = own.get("plate_view")
                     view = view.get("background") if isinstance(view, dict) else view

@@ -34,7 +34,11 @@ def main(argv=None):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     a = ap.parse_args(argv)
     os.environ["FEATURE_STAGE_AUTO"] = "1"               # lệnh tay = người chọn chạy (cờ chỉ điều khiển autopilot)
-    from core import stage_auto
+    from core import features, stage_auto
+    miss = [n for n in features.REQUIRES.get("stage_auto", ()) if not features.on(n)]
+    if miss:
+        print(f"Cờ cần cho sân khấu tự động đang TẮT: {', '.join(miss)} — bật ở 🧪 rồi chạy lại (máy sân khấu sẽ không được nền 3D dùng)")
+        return
     from core.camera_plan import drawn_shots
     from core.db import connect
     conn = connect(os.path.abspath(a.db))
@@ -51,7 +55,10 @@ def main(argv=None):
     picked = [g["id"] for g in segs if a.force or not drawn_shots(conn, g)]
     n = len([x for x in est["segments"] if x in picked])
     one = (est["usd"] or 0) / max(len(est["segments"]), 1)
-    print(f"Claude (ước tính): {n} cảnh × 1 lượt ≈ {one * n:.3f} USD · xấu nhất ≈ {one * n * 4:.3f} USD (2 lượt sửa × hỏi lại sai mẫu)")
+    if est["usd"] is None:
+        print(f"Claude (ước tính): {n} cảnh × 1 lượt — chưa có giá Claude cho model đang dùng (bảng giá)")
+    else:
+        print(f"Claude (ước tính): {n} cảnh × 1 lượt ≈ {one * n:.3f} USD · xấu nhất ≈ {one * n * 4:.3f} USD (2 lượt sửa × hỏi lại sai mẫu)")
     if a.dry:
         for g in segs:
             if not (a.force or not drawn_shots(conn, g)):

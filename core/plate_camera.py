@@ -75,6 +75,9 @@ MIN_CLEAR_M = 0.5                              # an over-the-shoulder camera sti
 # room and render the wall's back + the sky). No room even then → tools/render_plates turns the camera round the character
 # (ORBIT_STEPS_DEG, smallest turn first) before giving up.
 MIN_FIX_LENS_SHOT, MIN_FIX_LENS_WIDE = 14.0, 12.0
+# 15/10 (#31 shot 17 can_cua_2: quả bóng bay sát máy che nửa khung, kiểm đường nhìn nhân vật→máy rỗng vì vật lệch khỏi trục): lưới tia
+# qua CẢ KHUNG — mặt không phải sàn/trần, gần máy hơn NEAR_FRAME_MAX_M (và trước nhân vật) chiếm ≥ NEAR_FRAME_SHARE khung = vật sát máy
+NEAR_FRAME_SHARE, NEAR_FRAME_MAX_M, NEAR_FRAME_RAYS = 0.2, 0.8, (9, 16)
 # rà 15/10: ≤ TRAVEL_VIEW_MAX_DEG (60°) — a bigger turn is another shot (its background contradicts plate_view); none → unplaceable
 ORBIT_STEPS_DEG = (20, -20, 40, -40, 60, -60)
 # rà P24: "looks down the alley / street…" is a direction along the ground, not a look DOWN (the camera must not tilt 35°)
@@ -381,6 +384,44 @@ def clearance_fix(location: Sequence[float], look_at: Sequence[float], feet: Seq
                             "chọn plate_view / chỗ đứng khác")
     return {"location": [round(c, 3) for c in loc], "look_at": [round(c, 3) for c in aim], "lens": new_lens, "no_room": no_room,
             "notes": notes, "warnings": warnings}
+
+
+def frame_rays(location: Sequence[float], look_at: Sequence[float], lens: float, aspect: float,
+               grid: Tuple[int, int] = NEAR_FRAME_RAYS) -> List[Tuple[float, float, float]]:
+    """Hướng (đơn vị) các tia qua tâm từng ô của lưới cols × rows phủ cả khung máy pinhole không nghiêng (như project)."""
+    f = _unit([a - c for a, c in zip(look_at, location)])
+    r = _unit((f[1], -f[0], 0.0)) if abs(f[2]) < 0.999 else (1.0, 0.0, 0.0)
+    u = (r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0])
+    tv = math.tan(vfov(lens, aspect) / 2)
+    th = tv * aspect
+    cols, rows = grid
+    out = []
+    for j in range(rows):
+        for i in range(cols):
+            x, y = (2 * (i + 0.5) / cols - 1) * th, (1 - 2 * (j + 0.5) / rows) * tv
+            out.append(_unit([fc + x * rc + y * uc for fc, rc, uc in zip(f, r, u)]))
+    return out
+
+
+def near_frame_problem(hits: Sequence[Tuple[Optional[float], float, str]], subject_m: float) -> Optional[Dict]:
+    """hits = [(khoảng cách tới mặt đầu tiên | None, pháp tuyến z, tên vật)] của frame_rays. Vật (không phải sàn / trần / khối đạo
+    cụ cố ý PLATES_PROP) gần máy hơn min(NEAR_FRAME_MAX_M, nhân vật − 0,3 m) chiếm ≥ NEAR_FRAME_SHARE khung → {share, nearest_m,
+    object, message}; không thì None. Thuần — tools/render_plates đo tia."""
+    if not hits:
+        return None
+    limit = min(NEAR_FRAME_MAX_M, float(subject_m) - CLEAR_GAP_M)
+    near = [h for h in hits if h[0] is not None and h[0] < limit and abs(float(h[1])) < 0.7 and not str(h[2]).startswith("PLATES_PROP")]
+    share = len(near) / len(hits)
+    if not near or share < NEAR_FRAME_SHARE:
+        return None
+    names: Dict[str, int] = {}
+    for h in near:
+        names[str(h[2])] = names.get(str(h[2]), 0) + 1
+    obj = max(names, key=names.get)
+    d = min(h[0] for h in near)
+    return {"share": round(share, 2), "nearest_m": round(d, 2), "object": obj,
+            "message": f"vật '{obj}' sát máy (cách {d:.2f} m) che {share:.0%} khung, trước nhân vật ({float(subject_m):.2f} m) — đổi "
+                       "hướng nền / chỗ đứng / cỡ cảnh"}
 
 
 def orbit(location: Sequence[float], look_at: Sequence[float], feet: Sequence[float], deg: float) -> Tuple[List[float], List[float]]:

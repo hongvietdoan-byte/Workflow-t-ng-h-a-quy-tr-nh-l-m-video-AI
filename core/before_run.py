@@ -18,9 +18,11 @@ PAID_FLAGS: Dict[str, Dict] = {
     "change_review": {"stage": "change_review", "unit": "thay đổi shot, không trần (mỗi thay đổi một lời gọi Claude)"},
     "director_rewrite": {"stage": "director_rewrite", "images": 1, "unit": "lần gen lại có ghi chú / lỗi QC (Claude viết lại prompt)"},
     "two_tier_quality": {"text": "video nháp 480p rồi bản cao — giá từng clip xem ở ước tính Bước 4; bản cuối chưa chạy thật lần nào"},
-    "stage_camera": {"text": "không thêm lời gọi tốn tiền (render Blender 0 USD) nhưng đổi nền 3D gửi model ảnh — ảnh vẽ trên nền này "
-                             "vẫn tính tiền như thường"},
+    "stage_camera": {"text": "tự nó không thêm lời gọi tốn tiền (render Blender 0 USD) nhưng đổi nền 3D gửi model ảnh — ảnh vẽ trên nền "
+                             "này vẫn tính tiền như thường; máy sân khấu do stage_auto lập thì tốn Claude (xem dòng stage_auto)"},
     "director_camera_plan": {"text": "thêm lời gọi Claude (sơ đồ cảnh + duyệt render từng góc) — chưa có số ước tính sẵn"},
+    # 15/10 sân khấu 3D tự động: một lượt Đạo diễn mỗi cảnh trên bối cảnh 3D (xấu nhất ×4); stage_camera bật cùng thì máy đó vào nền
+    "stage_auto": {"stage": "director_stage_specs", "unit": "cảnh trên bối cảnh 3D (Đạo diễn dàn cảnh + yêu cầu khung; xấu nhất ×4 khi sửa / sai mẫu)"},
     "qc_framing_cap": {"text": "thêm ảnh vào mỗi lượt QC clip; clip đổi bố cục bị hạ điểm → tự sửa khi qc_autofix"},   # rà 15/10
 }
 

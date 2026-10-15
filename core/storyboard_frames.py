@@ -23,6 +23,9 @@ def mapping_text(refs: List[Dict], shared: int) -> str:
         head = f"Image {i + 1} ({r.get('label', '')})" if r.get("label") else f"Image {i + 1}"
         if r.get("role") == "layout_from":          # 12/10 #27: another shot at this spot (before or after) — its people's places, never its framing
             lines.append(f"{head}: another shot of this film at the same place; keep where each person and object is, not its framing.")
+        elif r.get("role") == "stage_guide":        # 15/10 sân khấu 3D tự động: người nộm từ đúng máy của shot
+            lines.append(f"{head}: blocking guide from this frame's camera; put each character at their mannequin, never draw the "
+                         "mannequins.")
         elif i < shared:
             lines.append(f"{head}: user reference image {i + 1}; preserve visible identity, subject details, and style cues.")
         elif i == shared and shared:
