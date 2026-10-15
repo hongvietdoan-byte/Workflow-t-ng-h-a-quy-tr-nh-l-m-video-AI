@@ -94,14 +94,23 @@ def _unify_narrator(obj: Dict, script: Dict[int, List[Tuple[str, str]]]) -> None
 
     def fix(name):
         return label if isinstance(name, str) and _norm(name) in NARRATOR_NAMES and _norm(name) != _norm(label) else name
+    seen, cast = {}, []
     for c in obj.get("characters") or []:
         if isinstance(c, dict):
             c["name"] = fix(c.get("name"))
+            if c["name"] == label and label in seen:          # both labels in the Bible: one narrator, the longer description kept
+                if len(str(c.get("description") or "")) > len(str(seen[label].get("description") or "")):
+                    seen[label].update(c)
+                continue
+            seen.setdefault(c["name"], c)
+        cast.append(c)
+    if isinstance(obj.get("characters"), list):
+        obj["characters"] = cast
     for sc in obj.get("scenes") or []:
         if not isinstance(sc, dict):
             continue
         if isinstance(sc.get("characters"), list):
-            sc["characters"] = [fix(n) for n in sc["characters"]]
+            sc["characters"] = list(dict.fromkeys(fix(n) for n in sc["characters"]))
         if "focus" in sc:
             sc["focus"] = fix(sc["focus"])
         for d in sc.get("dialogue") or []:
@@ -244,6 +253,13 @@ def check_scene(scene: Dict, names, ctx: Optional[Dict] = None) -> Callable[[Any
             _, changes = normalize(probe, "", None, in_place=True, ctx=ctx)
         else:
             changes = []
+        labels = {w for w, _ in kept if _both_narrators(w, w)}
+        if len(labels) == 1:                                   # #31: the DP's other narrator label → the Director's, before the cast check
+            label = next(iter(labels))
+            for sh in probe["scenes"][0]["shots"] if isinstance(probe["scenes"][0]["shots"], list) else []:
+                if isinstance(sh, dict) and isinstance(sh.get("characters"), list):
+                    sh["characters"] = list(dict.fromkeys(label if isinstance(n, str) and _both_narrators(n, label) else n
+                                                          for n in sh["characters"]))
         try:
             shots.validate(probe["scenes"][0]["shots"], f"scenes[idx={idx}].shots", names)
         except shots.ShotError as e:

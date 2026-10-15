@@ -276,6 +276,11 @@ class SafeguardTests(unittest.TestCase):
         self.assertEqual(obj["scenes"][0]["characters"], ["KELLY", "LỜI DẪN"])
         self.assertEqual(obj["scenes"][0]["focus"], "LỜI DẪN")
         self.assertEqual([d["speaker"] for d in obj["scenes"][0]["dialogue"]], ["LỜI DẪN", "KELLY"])
+        both = {"characters": [{"name": "LỜI DẪN", "description": "ngắn"}, {"name": "NGƯỜI DẪN CHUYỆN", "description": "giọng dẫn dài hơn"}],
+                "scenes": [{"idx": 1, "characters": ["LỜI DẪN", "NGƯỜI DẪN CHUYỆN"]}]}
+        dtp._unify_narrator(both, {1: [("LỜI DẪN", "Câu một.")]})
+        self.assertEqual([(c["name"], c["description"]) for c in both["characters"]], [("LỜI DẪN", "giọng dẫn dài hơn")])
+        self.assertEqual(both["scenes"][0]["characters"], ["LỜI DẪN"])
         two = {"characters": [{"name": "NARRATOR"}], "scenes": []}           # the script names its narrator two ways: untouched
         dtp._unify_narrator(two, {1: [("LỜI DẪN", "a")], 2: [("THUYẾT MINH", "b")]})
         self.assertEqual(two["characters"][0]["name"], "NARRATOR")
