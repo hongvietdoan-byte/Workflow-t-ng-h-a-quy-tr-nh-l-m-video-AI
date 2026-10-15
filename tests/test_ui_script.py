@@ -84,7 +84,7 @@ class ScriptScreenV2Tests(unittest.TestCase):
                 continue
             self.assertIn(k.format(p=pid), keys, k)
         self.assertNotIn(f"script-cta_{pid}", keys)                         # nothing to plan before a script exists
-        self.assertEqual(step1_v2.next_kind(self.p, pid, [], [], False, False, False), "analyse")
+        self.assertEqual(step1_v2.next_kind(self.p, pid, [], [], False), "analyse")
 
     def project_with_bible(self, lock: bool = True):
         pid = self.p.create_project("Dự án có kịch bản")

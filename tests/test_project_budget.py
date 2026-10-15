@@ -120,7 +120,7 @@ class BudgetTests(unittest.TestCase):
         self.assertTrue(any(f"${spent:.2f}" in r[0] and "$0.50" in r[0] for r in rows), rows)   # … and in diag (money_warning)
         project_budget.raise_cap(self.p.conn, self.pid, "images", 5.0, "a@x", "cần thêm ảnh")
         self.assertIsNone(project_budget.run_warning(self.p, self.pid, "images"))
-        self.spend("image", "gpt-image-2.5-sunburst", "1152x2048", 600)         # past the TOTAL (30 USD) too
+        self.spend("image", "gpt-image-2.5-sunburst", "1152x2048", 1000)        # past the TOTAL too (caps summed after the raise: 35.50)
         self.assertIn("TỔNG", project_budget.run_warning(self.p, self.pid, "videos"))
 
     @mock.patch.dict(os.environ, ON)
@@ -137,6 +137,7 @@ class BudgetTests(unittest.TestCase):
         automation.apply(self.p, self.pid, "auto")
         project_budget.set_target(self.p.conn, self.pid, 0.01)
         ctx = autopilot.Context(tempfile.mkdtemp(), Images(), None, llm_runner.MockLlm())
+        autopilot.start(self.p, self.pid)                                       # the run is RUNNING (else the phase stops itself)
         try:
             autopilot._images_phase(self.p, self.pid, ctx)
         except autopilot._Wait as w:                                            # another gate may wait — never the budget
@@ -148,9 +149,22 @@ class BudgetTests(unittest.TestCase):
         self.assertIn("Đặt trần cảnh báo ngân sách dự án tự động", log)
         self.assertIn("VƯỢT mục tiêu $0.01", log)                               # over the person's target: said, not waited for
         self.assertIsNone(project_budget.auto_caps(self.p, self.pid))           # set once
+        autopilot.stop(self.p, self.pid)
         automation.apply(self.p, self.pid, "main")
         other = self.p.create_project("khác")
         self.assertIsNone(project_budget.auto_caps(self.p, other))              # other levels: nothing set automatically
+
+    @mock.patch.dict(os.environ, ON)
+    def test_auto_lines_that_cannot_be_set_are_said_and_the_run_still_goes(self):
+        from core import automation
+        automation.apply(self.p, self.pid, "auto")
+        prop = dict(project_budget.propose(self.p, self.pid), incomplete=True, unpriced=["seedance-x"])
+        with mock.patch.object(project_budget, "propose", return_value=prop):
+            note = project_budget.auto_caps(self.p, self.pid)
+            self.assertIn("thiếu giá (seedance-x)", note)
+            self.assertIn("KHÔNG chờ", note)
+            self.assertFalse((project_budget.get(self.p.conn, self.pid) or {}).get("locked"))
+            self.assertIsNone(project_budget.auto_caps(self.p, self.pid))       # said once, not recomputed on every poll
 
     @mock.patch.dict(os.environ, ON)
     def test_the_director_gets_the_target_as_an_input(self):

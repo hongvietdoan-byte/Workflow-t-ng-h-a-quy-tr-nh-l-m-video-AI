@@ -349,6 +349,7 @@ def approve(p, pid: int, who: str, proposal: Optional[Dict] = None) -> Dict:
 
 
 AUTO_WHO = "chạy tự động (15/10: không chờ duyệt)"
+AUTO_RETRY_SEC = 600        # auto_caps: a proposal that cannot be locked (a price missing) is tried again at most every 10 min
 
 
 def _lock(conn, pid: int, prop: Dict, who: str) -> Dict:
@@ -369,11 +370,16 @@ def auto_caps(p, pid: int) -> Optional[str]:
     data = get(p.conn, pid) or {}
     if data.get("locked"):
         return None
+    import time
+    if time.time() - float(data.get("auto_tried_at") or 0) < AUTO_RETRY_SEC:   # lines could not be set a moment ago: said then,
+        return None                                                            # not recomputed on every poll of the run
     try:
         if finished(p.conn, pid):
             return None
         prop = propose(p, pid)
     except Exception as e:  # noqa: BLE001 - said, the run goes on
+        data["auto_tried_at"] = time.time()
+        _save(p.conn, pid, data)
         return (f"⚠ Chưa đặt được trần cảnh báo ngân sách dự án: {str(e)[:160] or type(e).__name__} — chạy tự động KHÔNG chờ; "
                 "kiểm tra bảng giá ở ⚙ Cài đặt rồi đặt trần ở Bước 1 → 💵 Ngân sách dự án")
     over = ""
@@ -387,6 +393,8 @@ def auto_caps(p, pid: int) -> Optional[str]:
                    "bảng giá ở ⚙ Cài đặt rồi tải lại; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán)")
     blocked = lock_blocked(prop)
     if blocked:
+        data["auto_tried_at"] = time.time()
+        _save(p.conn, pid, data)
         return blocked + " Chạy tự động KHÔNG chờ — vẫn gen; chỉ thiếu trần khâu để cảnh báo." + over + summary
     _lock(p.conn, pid, prop, AUTO_WHO)
     return (f"Đặt trần cảnh báo ngân sách dự án tự động ≈ ${prop['total']:.2f} (trần từng khâu = đề xuất; không chờ duyệt — chạm "
