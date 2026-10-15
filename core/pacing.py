@@ -4,7 +4,7 @@ Một LỰA CHỌN của dự án (cột `projects.pacing`, NULL = normal), khô
 `project_defaults.INHERIT`). Bốn chỗ đọc nó, và mọi chỗ trả về y cũ khi normal:
   1. `director_block(proj)` / `screenwriter_block(proj)` — cách nghĩ nhịp nhanh (knowledge/craft/nhip_nhanh.md) cho Đạo diễn (một lượt,
      Tầng A, Tầng B) và Biên kịch; normal → "" (prompt không đổi một byte).
-  2. `check_plan(p, pid)` — sau Đạo diễn, 0 USD: giây đọc lời mỗi cảnh (âm tiết ÷ (dialogue.RATE × tốc độ giọng)) so tổng giây shot →
+  2. `check_plan(p, pid)` — sau Đạo diễn, 0 USD: giây đọc lời mỗi cảnh (dialogue.line_seconds: âm tiết ÷ tốc độ của giọng; speed chỉ tính khi model đã đo là theo speed) so tổng giây shot →
      diag VÀNG có số liệu; không chặn gì.
   3. `line_start(...)` — voice.place_on_timeline: câu sau cách câu trước ≤ FAST_LINE_GAP (gối tiếng qua cú cắt tối đa FAST_J_MAX).
   4. `tighten(...)` — delivery.render: shot có lời mà sau câu cuối còn lặng > FAST_TAIL_MAX thì cắt bớt đuôi (bản sao, clip gốc giữ nguyên).
@@ -136,14 +136,11 @@ def syllables(said: str) -> int:
     return total
 
 
-def _speech_seconds(rows, speeds: Dict[str, float]) -> float:
+def _speech_seconds(rows, ctx: Optional[Dict]) -> float:
+    """Giây đọc các câu (không nghỉ) — dialogue.line_seconds theo giọng/tốc độ người nói (15/10: một hàm cho mọi chỗ ước giây; tốc độ
+    chỉ đổi ước tính khi model đã đo là đọc theo speed)."""
     from . import dialogue
-    total = 0.0
-    for who, said in rows:
-        n = syllables(said)
-        if n:
-            total += n / (dialogue.RATE * speeds.get(" ".join(str(who or "").upper().split()), 1.0))
-    return total
+    return sum(dialogue.line_seconds(said, dialogue.voice_of(ctx, who)) for who, said in rows)
 
 
 def check_plan(p, project_id: int, record: bool = True) -> List[Dict]:
@@ -152,8 +149,8 @@ def check_plan(p, project_id: int, record: bool = True) -> List[Dict]:
     liệu cho mỗi cảnh đó. normal → []. Không chặn, không đổi kế hoạch."""
     if not is_fast(p.project(project_id)):
         return []
-    from . import diag, dialogue, shots, voice
-    speeds = {name: voice_speed(prof) for name, prof in voice.profiles(p.conn, project_id).items()}
+    from . import diag, dialogue, shots
+    ctx = dialogue.speech_ctx(p.conn, project_id)
     by_scene: Dict = {}
     for s in shots.shots_of(p, project_id):
         d = s["data"]
@@ -165,7 +162,7 @@ def check_plan(p, project_id: int, record: bool = True) -> List[Dict]:
         shots_s = sum(float(d.get("duration_s") or 0) for d in rows)
         speech_s, long_shots = 0.0, []
         for d in rows:
-            said = _speech_seconds(dialogue.scene_lines(d), speeds)
+            said = _speech_seconds(dialogue.scene_lines(d), ctx)
             speech_s += said
             if said and float(d.get("duration_s") or 0) - said > GAP_WARN_S:
                 long_shots.append({"shot_no": d.get("shot_no"), "duration_s": float(d.get("duration_s") or 0), "speech_s": round(said, 1)})

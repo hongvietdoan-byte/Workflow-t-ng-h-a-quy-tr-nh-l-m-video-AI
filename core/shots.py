@@ -9,6 +9,7 @@ A project with `shot_mode` NULL keeps the v2 behaviour (one script scene = one r
 """
 import copy
 import json
+import sqlite3
 from typing import Any, Dict, List, Optional
 
 from .pipeline import Pipeline
@@ -691,21 +692,41 @@ def billed_shot_seconds(data: Dict) -> int:
     return max(MULTISHOT_MIN_SHOT, math.ceil(float(data.get("duration_s") or MULTISHOT_MIN_SHOT) - 1e-6))
 
 
-def multishot_groups(conn, project_id: int) -> List[List[Dict]]:
-    """Kling multi-shot: consecutive shots of one continuity group, cut into generations of at most 15 s (each shot >= 3 s).
-    A shot longer than 15 s on its own stays a group of one."""
+def billed_seconds(conn, row: Dict, voice_need: Optional[float] = None) -> int:
+    """15/10 (rà lỗi CAO): MỘT nguồn giây của một shot Kling multishot — giây gửi model / tính tiền / chia nhóm / cắt clip nhóm =
+    max(giây Đạo diễn ≥ 3 s (billed_shot_seconds), giây motion đã kéo theo giọng thật (voice.fit_durations), voice_need nếu truyền).
+    Trước: nhóm chia theo giây Đạo diễn còn runner gửi giây đã kéo → một nhóm 5+5+5 thành 5+7+5 = 17 s > 15."""
+    import math
+    sec = billed_shot_seconds(row["data"])
+    try:
+        mp = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (row["id"],)).fetchone()
+    except sqlite3.Error:  # a database without the table: the Director's seconds
+        mp = None
+    if mp is not None and mp["duration_sec"]:
+        sec = max(sec, int(math.ceil(float(mp["duration_sec"]) - 1e-6)))
+    if voice_need:
+        sec = max(sec, int(math.ceil(float(voice_need) - 1e-6)))
+    return sec
+
+
+def multishot_groups(conn, project_id: int, voice_need: Optional[Dict[int, float]] = None) -> List[List[Dict]]:
+    """Kling multi-shot: consecutive shots of one continuity group, cut into generations of at most 15 s (each shot >= 3 s), the
+    seconds being billed_seconds (the ones the runner sends). A shot longer than 15 s on its own stays a group of one.
+    voice_need {scene_id: s}: the real voice's seconds too (voice.over_model_max asks how the groups WILL be cut)."""
     groups: List[List[Dict]] = []
+    need = voice_need or {}
+    secs: Dict[int, int] = {}
     for r in _rows(conn, project_id):
         if not r["data"].get("shot_no"):
             continue
-        sec = billed_shot_seconds(r["data"])
+        sec = secs[r["id"]] = billed_seconds(conn, r, need.get(r["id"]))
         last = groups[-1] if groups else None
         cast = {str(c) for c in r["data"].get("characters") or []}
         first_cast = {str(c) for c in (last[0]["data"].get("characters") or [])} if last else set()
         # F4 (GĐ6 R4): the whole group is made from its FIRST shot's picture — a later shot with someone not in that picture got an
         # invented person, so such a shot starts a new group (with its own picture)
         if (last and _group_key(last[-1]["data"]) == _group_key(r["data"]) and cast <= first_cast
-                and sum(billed_shot_seconds(x["data"]) for x in last) + sec <= MULTISHOT_MAX):
+                and sum(secs[x["id"]] for x in last) + sec <= MULTISHOT_MAX):
             last.append(r)
         else:
             groups.append([r])

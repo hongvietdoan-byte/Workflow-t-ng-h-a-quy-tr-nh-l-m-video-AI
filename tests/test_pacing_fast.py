@@ -7,7 +7,7 @@ from unittest import mock
 
 import pytest
 
-from core import audio_lib, pacing, project_defaults, prompts, voice
+from core import audio_lib, dialogue, pacing, project_defaults, prompts, voice
 from core.db import connect
 from core.pipeline import Pipeline
 
@@ -69,6 +69,8 @@ def test_normal_prompt_identical_and_fast_only_adds_the_block():
     assert "≤ 0,6 s" in block and "J-cut" in block and "0,5 s" in block and "giữa một câu" in block and "1,5–3 s" in block
     for before, after in zip(unset, _bundles(p, pid)):
         assert block in after
+        # 15/10: the one other change of a fast project — sentences of one turn are FAST_LINE_GAP apart (0,2 s, not 0,15 s)
+        before = before.replace(f"+ {dialogue.LINE_GAP:g} s giữa hai câu liền nhau", f"+ {pacing.FAST_LINE_GAP:g} s giữa hai câu liền nhau")
         assert after.replace(block + prompts._SEP, "", 1) == before or after.replace(prompts._SEP + block, "", 1) == before
 
 
@@ -96,11 +98,13 @@ def test_check_plan_warns_with_numbers_and_reads_voice_speed():
     assert found[0]["long_shots"] == [{"shot_no": 1, "duration_s": 4.5, "speech_s": 2.3}]
     rows = p.conn.execute("SELECT severity, message, code FROM diag_events WHERE project_id=? AND code='pacing_gap'", (pid,)).fetchall()
     assert rows and rows[0]["severity"] == "warn" and "5.5 s" in rows[0]["message"] and "#1 4.5 s" in rows[0]["message"]
-    # the narrator's voice reads at 1,2 → 8 / (3,5 × 1,2) = 1,90 s
+    # 15/10: the narrator's voice set to 1,2 on eleven_v3 — measured on #8/#24/#27: v3 does not read faster with speed, so the estimate
+    # stays 8 / 3,5 = 2,29 s (a shorter estimate would cut the real voice); the speed counts only for a model measured as following it
+    # (tests/test_speech_time.py::test_check_plan_reads_speed_only_when_the_model_follows_it)
     p.conn.execute("INSERT INTO characters (project_id, name, description, voice_profile) VALUES (?,?,?,?)",
                    (pid, "LỜI DẪN", "", json.dumps({"voice_id": 72, "speed": 1.2})))
     p.conn.commit()
-    assert pacing.check_plan(p, pid, record=False)[0]["speech_s"] == 1.9
+    assert pacing.check_plan(p, pid, record=False)[0]["speech_s"] == 2.3
 
 
 def test_check_plan_quiet_when_tight_and_off_when_normal():

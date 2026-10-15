@@ -238,6 +238,28 @@ def pacing_control(p: Pipeline, pid: int, proj) -> None:
     if new != cur:
         p.set_project_field(pid, "pacing", None if new == pacing.DEFAULT else new)
         st.rerun()
+    narration_speed_control(p, pid, proj)
+
+
+def narration_speed_control(p: Pipeline, pid: int, proj) -> None:
+    """15/10: tốc độ đọc lời dẫn đặt TRƯỚC khi có Bible (projects.narration_speed; trống = 1,0 như cũ). Khi Bible lập giọng LỜI DẪN
+    giá trị này vào hồ sơ giọng (voice.set_profile) — TTS đọc đúng tốc độ đó. Ước giây cho Đạo diễn chỉ đổi theo tốc độ khi model đã đo
+    là đọc theo speed (data/speech_rates.json speed_follows) — eleven_v3 đo 15/10: KHÔNG theo, nên ước như 1,0 (không cắt ngắn shot)."""
+    from core import voice
+    options = [None, 0.8, 0.9, 1.1, 1.2]
+    cur = proj["narration_speed"] if "narration_speed" in proj.keys() else None
+    cur = voice.clamp_speed(cur)[0] if cur is not None else None
+    if cur not in options:
+        options.append(cur)
+    pick = st.selectbox("🎙 Tốc độ đọc lời dẫn", options, index=options.index(cur), key=f"fmt_narr_speed_{pid}",
+                        format_func=lambda v: "Mặc định (1,0)" if v is None else f"{v:g}".replace(".", ","),
+                        help="Tốc độ TTS của LỜI DẪN cho dự án này, đặt trước khi có Character Bible; Bible lập giọng lời dẫn sẽ mang "
+                             "giá trị này vào hồ sơ giọng. Số giây Đạo diễn nhận chỉ rút theo tốc độ khi model đã đo là đọc nhanh "
+                             "theo speed — eleven_v3 đo 15/10 không đổi nhịp theo speed, nên giây ước giữ như 1,0 (shot không bị "
+                             "ngắn hơn giọng thật).")
+    if pick != cur:
+        p.set_project_field(pid, "narration_speed", pick)
+        st.rerun()
 
 
 def image_model_control(p: Pipeline, pid: int, proj) -> None:

@@ -152,7 +152,7 @@ class Pipeline:
         access.need_edit(self, project_id, "đổi cài đặt dự án")
         allowed = {"aspect", "genre", "genre_locked", "model_priority", "qc_video", "render_settings", "qc_policy",
                    "autopilot_gates", "autopilot_saved_cfg", "pilot", "shot_mode", "style_profile", "test_quality", "look",
-                   "director_raw", "director_intent_raw", "image_model", "dialogue_trim", "pacing"}
+                   "director_raw", "director_intent_raw", "image_model", "dialogue_trim", "pacing", "narration_speed"}
         if field not in allowed:
             raise ValueError(f"unknown project setting '{field}'")
         self.conn.execute(f"UPDATE projects SET {field}=? WHERE id=?", (value, project_id))

@@ -188,14 +188,15 @@ def _replan_button(p: Pipeline, pid: int, scene_idx: int, col) -> None:
 def _paid_line(p: Pipeline, pid: int):
     """H6: seconds of video that will be billed for this shot plan (Kling, the model's minimum clip), one line per way of making it —
     worked out by code from the stored Director answer, before any picture or clip is paid for."""
-    from core import director_report
+    from core import dialogue, director_report
     proj = p.project(pid)
     try:
         raw = json.loads(proj["director_raw"] or "{}")
         if not raw.get("scenes") or raw.get("truncated"):
             return None
         from core import shots as _shots
-        r = director_report.report(director_report.with_current_shots(raw, _shots.shots_of(p, pid)), proj["script_text"] or "")
+        r = director_report.report(director_report.with_current_shots(raw, _shots.shots_of(p, pid)), proj["script_text"] or "",
+                                   ctx=dialogue.speech_ctx(p.conn, pid))
     except Exception:  # noqa: BLE001 - an old or odd answer must not break Step 1
         return None
     s, u = r["paid_s"], r["paid_usd"]
@@ -209,14 +210,15 @@ def _paid_line(p: Pipeline, pid: int):
 def _crew_notes(p: Pipeline, pid: int) -> None:
     """GĐ4 (knowledge/roles/): what the Director gave up (`tradeoffs`, and a sacrifice it did not write down), the acting checks
     (core/performance.py) and the Director's notes for the script writer — suggestions only, the lines are never changed."""
-    from core import director_report
+    from core import dialogue, director_report
     proj = p.project(pid)
     try:
         raw = json.loads(proj["director_raw"] or "{}")
         if not raw.get("scenes") or raw.get("truncated"):
             return
         from core import shots as _shots
-        r = director_report.report(director_report.with_current_shots(raw, _shots.shots_of(p, pid)), proj["script_text"] or "")
+        r = director_report.report(director_report.with_current_shots(raw, _shots.shots_of(p, pid)), proj["script_text"] or "",
+                                   ctx=dialogue.speech_ctx(p.conn, pid))
         # fields the code dropped when the answer was saved are gone from the rows — said from the answer itself
         r["pacing"] = list(dict.fromkeys((r.get("pacing") or []) + director_report.retime_dropped(raw)))
     except Exception as e:  # noqa: BLE001 - an old or odd answer must not break Step 1, but the checks' absence is said

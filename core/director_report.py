@@ -119,7 +119,8 @@ def _int(value) -> Optional[int]:
         return None
 
 
-def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
+def report(obj: Dict, script_text: str, model: str = "kling", ctx: Optional[Dict] = None) -> Dict:
+    """ctx (15/10): dialogue.speech_ctx of the project — the voice / speed of each speaker; None = the plain estimate."""
     lim = model_limits(model)
     _, story = script_parser.split_end_card(script_parser.split_scenes([r for r in script_text.splitlines() if r.strip()]))
     from .prompts import target_seconds
@@ -133,7 +134,7 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
     for idx, k, s in shots:
         dur = float(s.get("duration_s") or 0)
         lines = _spoken(s)
-        need = dialogue.needed_seconds(lines)
+        need = dialogue.needed_seconds(lines, ctx)
         tag = f"{idx}·{k}"
         under2 += dur < 2
         if need and need > dur + 0.05:
@@ -165,7 +166,7 @@ def report(obj: Dict, script_text: str, model: str = "kling") -> Dict:
         planned = int(m.group(2)) - int(m.group(1)) if m else None
         got = round(sum(float(s.get("duration_s") or 0) for idx, _, s in shots if idx == sc_i), 1)
         sections.append({"scene": sc_i, "heading": sc.heading, "planned": planned, "shots_s": got,
-                         "speech_s": round(sum(dialogue.needed_seconds([r]) for r in dialogue.lines(sc.text)), 1)})
+                         "speech_s": dialogue.scene_seconds(dialogue.lines(sc.text), ctx)})
 
     total = round(sum(float(s.get("duration_s") or 0) for _, _, s in shots), 1)
     per_shot = sum(_paid(float(s.get("duration_s") or 0), lim) for _, _, s in shots)
