@@ -106,8 +106,9 @@ class PathAndStateTests(Base):
             self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")
             self.set_difficulty("complex")
             self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")
-            self.set_difficulty("easy")                                                   # 13/10: easy no longer means direct
-            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "draft_first")
+            self.set_difficulty("easy")                                                   # 15/10: easy → direct 2.5 720p
+            self.assertEqual(quality_tier.path(self.p.conn, self.s1), "direct")
+            self.set_difficulty("complex")
             self.assertEqual(self.tier(self.p.create_job(self.s1, "video_gen")), "draft")
             quality_tier.set_path(self.p.conn, self.s1, "direct")                         # the person wins
             self.assertEqual(self.tier(self.p.create_job(self.s1, "video_gen")), "direct")

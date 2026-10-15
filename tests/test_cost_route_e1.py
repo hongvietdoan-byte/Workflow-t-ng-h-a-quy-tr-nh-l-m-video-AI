@@ -238,14 +238,14 @@ class FilmEstimateTests(Base):
         self.label("easy", self.sids[0])
         self.label("easy", self.sids[1])
         self.label("complex", self.sids[2])
-        quality_tier.set_path(self.p.conn, self.sids[0], "direct")      # 13/10: gen thẳng chỉ khi NGƯỜI chọn; 'easy' tự động = nháp
+        quality_tier.set_path(self.p.conn, self.sids[0], "direct")      # người chọn gen thẳng; sids[1] 'easy' tự động gen thẳng (15/10)
         with ON:
             est = quality_tier.e1_estimate(self.p.conn, self.pid)
         direct = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "720p", "9:16", 4.0)   # 13/10: gen thẳng = Seedance 2.5 720p
         draft = cost.seedance_estimate(quality_tier.SAMPLE_MODEL, "480p", "9:16", 4.0)
         final = quality_tier.upgrade_price("9:16", 4.0)
-        self.assertAlmostEqual(est["usd"], round(direct + 2 * (draft + final), 2))
-        self.assertEqual((est["direct"], est["draft_first"], est["film_seconds"], est["target_usd"]), (1, 2, 12.0, 30.0))
+        self.assertAlmostEqual(est["usd"], round(2 * direct + draft + final, 2))
+        self.assertEqual((est["direct"], est["draft_first"], est["film_seconds"], est["target_usd"]), (2, 1, 12.0, 30.0))
         self.assertTrue(est["within"])
         self.assertIn("mục tiêu < 30 USD", est["line"])
         self.assertIn("ƯỚC TÍNH", est["line"])

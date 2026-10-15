@@ -45,7 +45,8 @@ def enabled() -> bool:
 
 
 TWO_TIER_SHORT = "🪜 2 bậc: nháp 480p → bản cao"
-TWO_TIER_FULL = ("🪜 Video 2 bậc: MỌI shot gen NHÁP Seedance 2.5 480p trước, bạn duyệt rồi ⬆ Gen bản cao 1080p (quyết định 13/10; gen thẳng chỉ khi bạn chọn 720p) "
+TWO_TIER_FULL = ("🪜 Video 2 bậc (Seedance 2.5): shot DỄ gen thẳng 720p (dựng phóng 1080p); shot KHÓ / thiếu nhãn gen NHÁP 480p trước, bạn duyệt "
+                 "rồi ⬆ Gen bản cao 1080p (quy ước 15/10; bạn chọn tay thì theo bạn) "
                  "(cờ two_tier_quality — “🧪 Thử rẻ” của dự án bị bỏ qua)")
 CHEAP_SHORT = "🧪 Thử rẻ"
 CHEAP_FULL = "🧪 Thử rẻ: ảnh cỡ nhỏ nhất · video 720p / Kling std / Seedance Fast"
@@ -219,7 +220,12 @@ def difficulty_md(conn, scene_id: int) -> Tuple[str, str]:
         return "", ""
     name = DIFFICULTY.get(label, str(label))
     why = data.get("difficulty_why") or ""
-    line = f"Độ khó (Đạo diễn): **{name}**" + (f" — {why}" if why else "") + " · chỉ để tham khảo (13/10: mọi shot nháp 480p trước)"
+    who = "kiểm chéo — Đạo diễn chưa gắn" if data.get("difficulty_by") == "check" else "Đạo diễn"
+    line = f"Độ khó ({who}): **{name}**" + (f" — {why}" if why else "")
+    from core import quality_tier
+    if quality_tier.enabled():                       # 15/10: nhãn quyết định đường làm clip — nói đường + lý do
+        r = quality_tier.route(conn, scene_id)
+        line += " · " + ("gen thẳng 2.5 720p" if r["path"] == "direct" else "nháp 480p trước") + f" ({r['why']})"
     check = data.get("difficulty_check") or {}
     detail = []
     if check.get("note"):
