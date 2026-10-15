@@ -228,8 +228,15 @@ class FixRoundTests(Base):
 
         def boom(cfg, blender=None, timeout=0):
             raise plates3d.Plates3DError("x")
-        self.ensure(boom)                                                 # không ném ra
-        self.assertEqual(self.state(), (False, None))                     # shot có nền hợp lệ: không giữ mãi
+        clock = [1000.0]
+        with mock.patch.object(location_pack, "_now", lambda: clock[0]):
+            self.ensure(boom)                                             # không ném ra
+            missing, broken = self.state()
+            # 15/10 (người dùng: mỗi shot phải có ảnh toàn cùng hướng): ảnh toàn lỗi GIỮ shot, có lý do, không lặp mỗi nhịp…
+            self.assertFalse(missing)
+            self.assertIn("giữ ảnh shot tới khi có ảnh toàn", broken)
+            clock[0] += location_pack.RETRY_AFTER_S + 1                  # …và lỗi tạm được render lại sau 10 phút (không giữ mãi)
+            self.assertTrue(self.state()[0])
 
     def test_wide_keeps_the_previous_shot_slot(self):
         refs = [{"path": f"{i}.png", "role": "character"} for i in range(3)] + [{"path": "r.png", "role": place_refs.ROLE}]

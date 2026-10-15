@@ -720,13 +720,51 @@ def _clearance(c, pure):
             top = up[1].z if up[0] else where.z
             if tall[0]:
                 top = max(top, limit)
+    # 15/10 (#31): the same-axis wide is pulled in front of a wall too (with a wider lens) — it used to stay outside a small room
+    lens = float(c.get("lens") or 35)
+    min_lens = pure.MIN_FIX_LENS_WIDE if c.get("wide") else pure.MIN_FIX_LENS_SHOT
+    move = not c.get("locked")                         # máy Sân khấu 3D v2 đã đo bằng tia: không dời
     fix = pure.clearance_fix(list(loc), list(aim), list(feet), h, block_m=block, bg_m=bg, bg_top_z=top, block_from=list(body),
-                             move=not c.get("wide") and not c.get("locked"))   # máy Sân khấu 3D v2 đã đo bằng tia: không dời
+                             move=move, lens=lens, min_lens=min_lens)
+    turned = None
+    if fix.get("no_room"):                             # 15/10: no room on this side — turn round the character, smallest turn first
+        for deg in pure.ORBIT_STEPS_DEG:
+            l2, a2 = pure.orbit(list(loc), list(aim), list(feet), deg)
+            b2 = Vector(l2) - body
+            blk = None
+            if b2.length > 0.05:
+                hit, where, *_ = scene.ray_cast(dg, body, b2.normalized(), distance=b2.length)
+                if hit:
+                    blk = (where - body).length
+            f2 = pure.clearance_fix(l2, a2, list(feet), h, block_m=blk, block_from=list(body), move=True, lens=lens, min_lens=min_lens)
+            if not f2.get("no_room"):
+                turned = deg
+                f2["notes"].insert(0, f"phía sau máy không có chỗ (vật cản cách nhân vật {block:.2f} m) → xoay máy {deg:+g}° quanh nhân "
+                                      "vật (cùng khoảng cách, cùng cỡ cảnh)")
+                fix = f2
+                break
+        else:
+            fix["unplaceable"] = True
     out = {"notes": fix["notes"], "warnings": fix["warnings"], "block_m": None if block is None else round(block, 2),
            "background_m": None if bg is None else round(bg, 2), "background_top_m": None if top is None else round(top - feet.z, 2)}
-    if fix["location"] != [round(v, 3) for v in loc]:
+    if fix.get("unplaceable"):
+        out["unplaceable"] = True
+    if fix["location"] != [round(v, 3) for v in loc] or fix["look_at"] != [round(v, 3) for v in aim]:
         out["moved_from_m"] = [round(v, 3) for v in loc]
         c["location"] = fix["location"]
+        c["look_at"] = fix["look_at"]
+    if turned is not None:
+        out["turned_deg"] = turned
+    if fix.get("lens"):
+        out["lens"] = fix["lens"]
+        c["lens"] = fix["lens"]
+    if c.get("indoor"):                                # 15/10: an indoor camera must stand under the room's ceiling like the character
+        up = Vector((0, 0, 1))
+        cam_roof = scene.ray_cast(dg, Vector(c["location"]), up, distance=30.0)[0]
+        subj_roof = scene.ray_cast(dg, body, up, distance=30.0)[0]
+        if subj_roof and not cam_roof:
+            out["outside"] = True
+            out["warnings"].append("máy nằm NGOÀI phòng (nhân vật có trần phía trên, máy thì không) — nền sẽ thấy mặt sau tường + trời")
     return out
 
 
@@ -1018,9 +1056,13 @@ def main():
         scene.collection.objects.link(cam)
         clr = clearance(c, warnings) if c.get("subject") else None     # P24: before placing — may move c["location"]
         if clr and clr.get("moved_from_m"):                              # rà P24: the caller re-frames the character from this
-            loc = c["location"]
+            loc, aim = c["location"], c["look_at"]
             clr["location_model"] = ([round((loc[0]) / factor, 4), round(loc[1] / factor, 4), round((loc[2] - LIFT_Z) / factor, 4)]
                                      if c.get("model_coords") else list(loc))
+            clr["look_at_model"] = ([round((aim[0]) / factor, 4), round(aim[1] / factor, 4), round((aim[2] - LIFT_Z) / factor, 4)]
+                                    if c.get("model_coords") else list(aim))
+        if clr and clr.get("lens"):                                      # 15/10: pulled in front of a wall — wider lens keeps the frame
+            data.lens = float(clr["lens"])
         cam.location = Vector(c["location"])
         look_at(cam, c["look_at"])
         scene.camera = cam
