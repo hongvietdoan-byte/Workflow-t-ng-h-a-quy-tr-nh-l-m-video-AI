@@ -11,10 +11,7 @@
 .script-h .v2-pill { font-weight: 700; }
 
 /* nút hành động chính trong hero: vùng lớn */
-/* (02/10) vùng nút chính lớn đã chuyển vào lõi: components.cta_box → theme.css [class*="st-key-cta-"]; riêng nút duyệt ngân sách (confirm_all) dùng gradient */
-.st-key-cta-script [class*="st-key-script-cta-budget_"] button:not([class*="_no"]) { background: var(--grad-primary) !important; color: var(--on-primary) !important;
-    border: 0 !important; font-weight: 700; box-shadow: 0 0 22px var(--glow); }
-.st-key-cta-script [class*="st-key-script-cta-budget_"] button p { font-size: 17px; color: var(--on-primary) !important; }
+/* (02/10) vùng nút chính lớn đã chuyển vào lõi: components.cta_box → theme.css [class*="st-key-cta-"] (15/10: nút duyệt ngân sách bỏ) */
 .script-note { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
 
 /* bốn thẻ chế độ đầu vào */

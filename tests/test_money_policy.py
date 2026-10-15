@@ -540,7 +540,7 @@ class BudgetApprovalShowsTheTotal(unittest.TestCase):
         automation.apply(p, pid, "auto")                  # user 08/10: only "Tự chạy trong trần" has the approval gate
         with mock.patch.object(image_models, "of_project", return_value="model-without-price"):
             s = project_budget.cost_summary(p, pid)
-            why = project_budget.gate_reason(p, pid)
+            why = project_budget.auto_caps(p, pid)     # 15/10: the run sets the warning lines and says the estimate
         for k in ("images", "videos", "audio", "claude", "remaining", "spent", "total"):
             self.assertIn(k, s)
         self.assertAlmostEqual(s["remaining"], s["images"] + s["videos"] + (s["audio"] or 0) + s["claude"], delta=0.015)  # parts rounded
@@ -564,7 +564,6 @@ class ServeWaitingIsCheap(unittest.TestCase):
         autopilot._set(p, pid, autopilot.WAITING, "chờ storyboard")
         autopilot.set_gates(p, pid, {"waiting_for": "storyboard"})
         with mock.patch.object(project_budget, "cost_summary", side_effect=AssertionError("tính không cần thiết")):
-            self.assertTrue(project_budget.approval_pending(p, pid) in (True, False))
             autopilot.serve_waiting(p, pid, autopilot.Context(tempfile.mkdtemp(), None, None, None))
 
 

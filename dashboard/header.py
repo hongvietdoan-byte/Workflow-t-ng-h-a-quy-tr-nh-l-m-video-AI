@@ -600,21 +600,13 @@ def money_card(p: Pipeline, pid) -> None:
                 try:
                     prop = project_budget.propose(p, pid)
                     if not v2:
-                        st.markdown(f"**Dự án này:** chưa duyệt · dự tính ≈ {prop['total']:.2f} USD · đã chi {sum(spent.values()):.2f}")
+                        st.markdown(f"**Dự án này:** chưa đặt trần cảnh báo · dự tính ≈ {prop['total']:.2f} USD · đã chi {sum(spent.values()):.2f}")
                         try:                                               # S14.16: the approval shows the TOTAL estimated cost (tính dư)
                             st.markdown("💵 " + project_budget.cost_summary(p, pid)["md"])
                         except Exception as e:  # noqa: BLE001 - the approval still works; the missing estimate is said
                             st.caption(SP.summary_error(e))
-                    if not (project_budget.needs_lock(p, pid) and not project_budget.finished(p.conn, pid)):
-                        pass                             # user 08/10: "Tôi duyệt hết" / "Duyệt cổng chính" only see the estimate
-                    elif project_budget.lock_blocked(prop):
-                        st.warning(project_budget.lock_blocked(prop))
-                    elif confirm_all(f"mc_ok_{pid}", ["go"], f"✔ Duyệt & KHÓA trần ngân sách ≈ {prop['total']:.2f} USD",
-                                     f"Khóa trần dự án ≈ {prop['total']:.2f} USD (trần từng khâu theo bảng ở màn Kịch bản)? Mức Tự chạy trong "
-                                     "trần: chạy tự động DỪNG khi chạm trần khâu hoặc tổng, chờ bạn nâng trần (kèm lý do); ảnh / clip bạn tự "
-                                     "bấm gen chỉ được CẢNH BÁO khi vượt (vẫn gửi).", st, "Có, khóa"):
-                        project_budget.approve(p, pid, p.actor, prop)
-                        st.rerun()
+                    # 15/10 (bỏ cổng "Tự chạy trong trần"): the bar only shows the estimate — the optional warning lines are set
+                    # at Bước 1 → 💵 Ngân sách dự án (or by the automatic run itself); nothing waits for them
                 except Exception as e:  # noqa: BLE001 - the card must never break the bar
                     # J1 (S14.4 C1b): the reason + what to do, not only the class name
                     diag.record(p.conn, "system", "warn", f"thẻ ngân sách dự án: {type(e).__name__}: {e}", "budget_card", pid)

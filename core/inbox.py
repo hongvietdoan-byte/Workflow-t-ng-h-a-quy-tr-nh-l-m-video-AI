@@ -7,7 +7,7 @@ the "settings" permission only.
 """
 from typing import Dict, List, Optional
 
-from . import access, archive, budget, delivered, money_policy, project_budget, team
+from . import access, archive, budget, delivered, money_policy, team
 
 WAITING = ("waiting", "needs_attention")        # autopilot states that wait for a person (dashboard/next_step.py)
 
@@ -185,14 +185,7 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
         if delivered.rendered_not_delivered(conn, pid):  # S14.30: "hoàn thiện" = đã xuất bản giao, bản ghép cuối chưa tính
             add("Bản giao", "Đã có bản cuối nhưng chưa xuất bản giao — bấm “📦 Xuất bản đầy đủ” ở bước Bản giao: "
                 f"{delivered.HINT} (dự án còn tính vào giới hạn dự án dở)", "deliver", "todo")
-        # (kept, S14.30) "finished" here = has a final cut: the budget-lock reminder is pointless once the video is rendered
-        finished = row["autopilot_state"] == "done" or conn.execute(
-            "SELECT 1 FROM outputs WHERE project_id=? AND kind='final' LIMIT 1", (pid,)).fetchone()
-        if project_budget.enabled() and not finished:
-            has_plan = conn.execute("SELECT 1 FROM characters WHERE project_id=? AND TRIM(description)!='' LIMIT 1", (pid,)).fetchone()
-            data = project_budget.get(conn, pid) or {}
-            if has_plan and not data.get("locked"):
-                add("Ngân sách", "Duyệt & khóa ngân sách dự án (💵 trên thanh trên)", "script", "todo")
+        # 15/10 (người dùng bỏ cổng "Tự chạy trong trần"): no "Duyệt & khóa ngân sách" reminder — nothing waits for it any more
     if can_money:
         s = budget.status(conn)
         for service in (s.get("out_of_credit") or {}):

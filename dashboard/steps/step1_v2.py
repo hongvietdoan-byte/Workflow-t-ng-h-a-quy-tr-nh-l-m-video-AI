@@ -83,45 +83,40 @@ _AUTO_BUSY =("queued", "running", "waiting", "needs_attention", "stopped", "erro
 
 
 def _budget_state(p: Pipeline, pid: int):
-    """(asks for the lock, locked, total, spent) of the project budget. The first is True only at "Tự chạy trong trần" on a project
-    not finished yet (core.project_budget.needs_lock / finished, user 08/10): the two other levels only see the estimate."""
+    """(warning lines set, total, spent) of the project budget. 15/10 (người dùng bỏ cổng "Tự chạy trong trần"): nothing asks for an
+    approval & lock any more — the lines only warn."""
     from core import project_budget
     if not project_budget.enabled():
-        return False, False, 0.0, 0.0
+        return False, 0.0, 0.0
     data = project_budget.get(p.conn, pid) or {}
     try:
         spent = sum(project_budget.spent_by_stage(p.conn, pid).values())
     except Exception:  # noqa: BLE001 - a pill only
         spent = 0.0
-    try:
-        need = project_budget.needs_lock(p, pid) and not project_budget.finished(p.conn, pid)
-    except Exception:  # noqa: BLE001 - unreadable: ask for nothing, the estimate box still shows
-        need = False
-    return need, bool(data.get("locked")), float(data.get("total") or 0.0), float(spent)
+    return bool(data.get("locked")), float(data.get("total") or 0.0), float(spent)
 
 
-def next_kind(p: Pipeline, pid: int, scenes, chars, locked: bool, budget_locked: bool, budget_on: bool) -> str:
-    """The one primary action of the moment: analyse | plan | auto | budget | lock | next (same order as next_step.py)."""
+def next_kind(p: Pipeline, pid: int, scenes, chars, locked: bool) -> str:
+    """The one primary action of the moment: analyse | plan | auto | lock | next (same order as next_step.py). 15/10: the budget
+    approval is no step any more (bỏ cổng)."""
     if not scenes:
         return "analyse"
     if autopilot.status(p, pid)["state"] in _AUTO_BUSY:
         return "auto"
     if not chars:
         return "plan"
-    if budget_on and not budget_locked and allowed("autopilot"):
-        return "budget"
     return "next" if locked else "lock"
 
 
 def _hero(p: Pipeline, pid: int, proj, scenes, chars, locked: bool, stale: int, cta: bool = True) -> None:
     from dashboard.steps.step1 import _count_label, _lock_and_go
-    b_on, b_locked, b_total, b_spent = _budget_state(p, pid)
-    kind = next_kind(p, pid, scenes, chars, locked, b_locked, b_on)
+    b_locked, b_total, b_spent = _budget_state(p, pid)
+    kind = next_kind(p, pid, scenes, chars, locked)
     pills = [(_count_label(p, pid, scenes) if scenes else "Chưa có cảnh", "ok" if scenes else "mute"),
              (f"{len(chars)} nhân vật" if chars else "Chưa có nhân vật", "info" if chars else "mute"),
              (("Bible đã khóa", "ok") if locked else ("Bible chưa khóa", "warn")) if chars else ("Chưa có Bible", "mute")]
-    if b_on or b_locked:                                            # only "Tự chạy trong trần" has a budget to approve (user 08/10)
-        pills.append(("Ngân sách đã khóa", "ok") if b_locked else ("Ngân sách chưa duyệt", "warn"))
+    if b_locked:                                                    # 15/10: warning lines only, nothing to approve
+        pills.append(("Trần cảnh báo đã đặt", "ok"))
     if stale:
         pills.append((f"{stale} mục cũ", "warn"))
     with D.hero(f"script-{pid}"):
@@ -172,28 +167,6 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
             run_director_now(p, pid, client)
         D.line('<span class="script-sum">Director chia shot + lập Character Bible</span>',
                "Director chia cảnh thành shot và lập Character Bible. Tùy chọn hai lượt ở thẻ ②.", f"script-plan-note-{pid}")
-    elif kind == "budget":                                     # only at "Tự chạy trong trần" (user 08/10)
-        from core import project_budget
-        try:
-            view = project_budget.estimate_view(p, pid)
-        except Exception as e:  # noqa: BLE001 - say it, never hide the area
-            st.warning(f"Không tính được ngân sách ({type(e).__name__}: {e})")
-            return
-        prop = view["prop"]
-        st.markdown("💵 " + view["md"])
-        if project_budget.lock_blocked(prop):
-            st.warning(project_budget.lock_blocked(prop))
-        elif confirm_all(f"script-cta-budget_{pid}", ["go"], f"✔ Duyệt & khóa trần ngân sách {prop['total']:.2f} USD",
-                       f"Khóa trần dự án ≈ {prop['total']:.2f} USD (trần từng khâu như bảng ở thẻ ③)? Mức Tự chạy trong trần: chạy tự động "
-                       "DỪNG khi chạm trần một khâu hoặc tổng và chờ bạn nâng trần (kèm lý do). Ảnh / clip bạn tự bấm gen chỉ được "
-                       "CẢNH BÁO khi vượt (vẫn gửi).", st, "Có, khóa"):
-            project_budget.approve(p, pid, p.actor, prop)
-            st.rerun()
-        D.line('<span class="script-sum">Trần = số dự tính ở trên (đã cộng gen lại theo tỷ lệ đo thật) · chạm trần thì chạy tự động dừng chờ '
-               'bạn · chạy tự động chờ bước này trước khi gen ảnh</span>',
-               "Trần bằng đúng số dự tính: đã chi + phần còn lại, cộng tỷ lệ tự gen lại đo được từ các dự án trước (không phải trường hợp "
-               "mọi shot gen lại hết lượt). Chạm trần một khâu hoặc tổng: chạy tự động dừng, bạn nâng trần kèm lý do rồi bấm Tiếp tục. "
-               "Chi tiết từng khâu ở thẻ ③.", f"script-budget-note-{pid}")
     elif kind == "lock":
         st.button("✔ Duyệt & khóa → Storyboard", type="primary", key=f"script-cta-lock_{pid}", width="stretch",
                   on_click=lock_and_go, args=(p, pid))
@@ -209,7 +182,7 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
         st.button("Sang Storyboard →", type="primary", key=f"script-cta-next_{pid}", width="stretch", on_click=go)
     if b_total and kind != "analyse":
         st.html(D.meter(b_spent / b_total, f"Ngân sách: đã chi {b_spent:.2f} / {b_total:.2f} USD", invert=True))
-    elif chars and kind not in ("analyse", "plan", "budget"):
+    elif chars and kind not in ("analyse", "plan"):
         _estimate_box(p, pid)
 
 

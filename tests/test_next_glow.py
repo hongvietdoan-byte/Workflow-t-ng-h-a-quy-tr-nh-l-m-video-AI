@@ -16,7 +16,8 @@ class TargetTests(unittest.TestCase):
     def test_script_screen_follows_the_one_primary_action(self):
         self.assertEqual(G.target(1, "analyse", [], 5), [("key", "box_in_5")])
         self.assertEqual(G.target(1, "plan", rows(), 5), [("key", "script-cta_5")])
-        self.assertEqual(G.target(1, "budget", rows(), 5), [("key", "script-cta-budget_5")])
+        self.assertNotIn("budget", G._SCRIPT)                                 # 15/10: budget approval step removed (bỏ cổng)
+        self.assertFalse(any("budget" in k for k in G.MAIN))
         self.assertEqual(G.target(1, "lock", rows(), 5), [("key", "script-cta-lock_5")])
         self.assertEqual(G.target(1, "next", rows(), 5), [("key", "script-cta-next_5")])
         self.assertEqual(G.target(1, "auto", rows(), 5), [])                      # running by itself: nothing to press

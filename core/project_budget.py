@@ -10,10 +10,11 @@ methods dropped half way, QC re-judging).
             (core.money_reset.set_planned); a person may still raise a line, with a reason that is kept
   target    optional: the money the person wants to spend; the Director gets it as an input (fewer lip-sync shots, fewer seconds …)
             and a proposal over it is said before any picture is paid
-  levels    (user 08/10) only "Tự chạy trong trần" (core.automation 'auto' — nobody approves pictures) asks for the approval & lock
-            (`needs_lock`): the run waits for it before the first picture and, once locked, WAITS again when a stage line or the total
-            is reached (`run_over`, a person raises the line with a reason). "Tôi duyệt hết" / "Duyệt cổng chính" only SHOW the
-            estimate (`estimate_view`) — no button, no gate. A finished project asks for nothing (`finished`).
+  levels    15/10 (người dùng bỏ cổng, data/decisions.json "budget-gate-removed-2026-10-15"): NO level waits for an approval & lock
+            any more (`needs_lock` is always False). At "Tự chạy trong trần" (core.automation 'auto') the automatic run sets the
+            warning lines itself before the first picture (`auto_caps` = the proposal, said in the run's log) and goes on; a line or
+            the total reached WARNS with the numbers (`run_warning`) — the run does not wait. A person may still set the lines by
+            hand ("Đặt trần cảnh báo", any level) and raise one with a reason. A finished project asks for nothing (`finished`).
   redo      the redo share of pictures / clips is MEASURED from the machine retries of the other projects (`redo_shares`: jobs with
             retry_count > 0 per approved shot), between the old fixed share and the automatic regeneration limit — enough for the run
             to finish, far below the worst case of every shot redone to its limit.
@@ -44,13 +45,19 @@ def enabled() -> bool:
 
 
 def needs_lock(p, pid: int) -> bool:
-    """Only the level "Tự chạy trong trần" (the person's operating mode is automatic QC) asks for the approval & lock (user 08/10)."""
+    """15/10 (người dùng bỏ cổng "Tự chạy trong trần", data/decisions.json budget-gate-removed-2026-10-15): no level waits for the
+    approval & lock any more — always False. Kept for the callers' API; the budget still WARNS past a line (`warning`, `run_warning`)."""
+    return False
+
+
+def auto_level(p, pid: int) -> bool:
+    """The level "Tự chạy trong trần" (operating mode automatic QC): the automatic run sets the warning lines itself (`auto_caps`)."""
     if not enabled():
         return False
     from . import automation
     try:
         return automation.effective_mode(p, pid) == "auto"
-    except Exception:  # noqa: BLE001 - a project row that cannot be read asks for nothing
+    except Exception:  # noqa: BLE001 - a project row that cannot be read: no automatic lines (the run is not stopped for it)
         return False
 
 
@@ -298,23 +305,26 @@ def estimate_view(p, pid: int) -> Dict:
             "summary": cs, "text": text, "md": md_safe(text), "line": line}
 
 
-def run_over(p, pid: int, stage: str) -> Optional[str]:
-    """At "Tự chạy trong trần" with the budget locked: why the automatic run must WAIT before sending more of `stage` — the stage line
-    or the total is reached (user 08/10: "đúng cơ chế duyệt và khóa trần"). A person raises the line (with a reason) and presses
-    Tiếp tục. Sends a person asks for are not stopped here (they warn, S14.16)."""
-    if not needs_lock(p, pid):
+RAISE_HINT = "nâng trần (kèm lý do) ở Bước 1 → 💵 Ngân sách dự án nếu cần"
+
+
+def run_warning(p, pid: int, stage: str) -> Optional[str]:
+    """15/10 (bỏ cổng — was `run_over`, which made the automatic run WAIT): a warning with the numbers when the project's stage line or
+    its total is reached (đã chi / trần), else None. The automatic run says it and goes on (core.autopilot._cap_warn). Any level, as
+    long as the lines are set (`locked`); the planned total alone (core.money_reset.set_planned) warns too."""
+    if not enabled():
         return None
-    data = get(p.conn, pid)
-    if not data or not data.get("locked"):
-        return None
+    from . import money_policy
+    data = get(p.conn, pid) or {}
     spent = spent_by_stage(p.conn, pid)
-    cap = float((data.get("caps") or {}).get(stage, 0.0))
-    how = " — chạy tự động dừng trước khi gửi thêm. Nâng trần (kèm lý do) ở Bước 1 → 💵 Ngân sách dự án rồi bấm Tiếp tục"
-    if spent.get(stage, 0.0) >= cap:
-        return f"Chạm trần khâu {STAGES.get(stage, stage)}: đã chi ${spent.get(stage, 0.0):.2f} / trần ${cap:.2f}" + how
+    if data.get("locked"):
+        cap = float((data.get("caps") or {}).get(stage, 0.0))
+        if spent.get(stage, 0.0) >= cap:
+            return money_policy.warning_text(f"chạy tự động chạm trần khâu '{STAGES.get(stage, stage)}'", spent.get(stage, 0.0), cap,
+                                             extra=RAISE_HINT)
     total = planned(p.conn, pid)
     if total is not None and sum(spent.values()) >= total:
-        return f"Chạm trần TỔNG dự án: đã chi ${sum(spent.values()):.2f} / trần ${total:.2f}" + how
+        return money_policy.warning_text("chạy tự động chạm trần TỔNG dự án", sum(spent.values()), total, extra=RAISE_HINT)
     return None
 
 
@@ -329,16 +339,90 @@ def lock_blocked(prop: Dict) -> Optional[str]:
 
 
 def approve(p, pid: int, who: str, proposal: Optional[Dict] = None) -> Dict:
-    access.need_edit(p, pid, "duyệt & khóa ngân sách")
+    """Set the warning lines (stage caps + total) — "Đặt trần cảnh báo". Since 15/10 nothing waits for it: past a line only warns."""
+    access.need_edit(p, pid, "đặt trần cảnh báo ngân sách")
     prop = proposal or propose(p, pid)
     blocked = lock_blocked(prop)
     if blocked:
         raise ValueError(blocked)
-    old = get(p.conn, pid) or {}
+    return _lock(p.conn, pid, prop, who)
+
+
+AUTO_WHO = "chạy tự động (15/10: không chờ duyệt)"
+AUTO_RETRY_SEC = 600        # auto_caps: a proposal that cannot be locked (a price missing) is tried again at most every 10 min
+
+
+def _lock(conn, pid: int, prop: Dict, who: str) -> Dict:
+    old = get(conn, pid) or {}
     data = {"caps": {k: v["cap"] for k, v in prop["stages"].items()}, "total": prop["total"], "approved_by": who, "approved_at": _now(),
             "locked": True, "raises": old.get("raises") or [], "target": old.get("target"), "proposal": prop,
             "baseline": old.get("baseline") or {}, "baseline_at": old.get("baseline_at"), "resets": old.get("resets") or []}
-    return _save(p.conn, pid, data)
+    if old.get("planned") not in (None, ""):      # the Owner's planned amount (money_reset.set_planned) stays the TOTAL line
+        data["planned"] = old["planned"]
+    return _save(conn, pid, data)
+
+
+def _auto_key(pid: int) -> str:
+    """auto_caps' last failed try — its OWN key (not 'project_budget:%'): a try that set nothing must not look like a budget
+    (core.budget_rounds.reset_targets / money_reset read project_budget.get)."""
+    return f"project_budget_auto_try:{int(pid)}"
+
+
+def _auto_tried_at(conn, pid: int) -> float:
+    row = conn.execute("SELECT value FROM app_settings WHERE key=?", (_auto_key(pid),)).fetchone()
+    try:
+        return float(row[0]) if row else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _auto_tried(conn, pid: int) -> None:
+    import time
+    conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                 (_auto_key(pid), str(time.time())))
+    conn.commit()
+
+
+def auto_caps(p, pid: int) -> Optional[str]:
+    """15/10 (bỏ cổng "Tự chạy trong trần" — was `gate_reason`, which made the run WAIT for the person's approval): at that level,
+    before the first paid picture, the automatic run sets the warning lines itself (= the proposal) so a line reached still WARNS with
+    numbers. Returns the sentence the run logs (lines set, over the person's target, or why no line could be set — never silent), or
+    None when there is nothing to do (other level, lines already set, project finished). Never raises, never waits."""
+    if not auto_level(p, pid):
+        return None
+    data = get(p.conn, pid) or {}
+    if data.get("locked"):
+        return None
+    import time
+    if time.time() - _auto_tried_at(p.conn, pid) < AUTO_RETRY_SEC:   # lines could not be set a moment ago: said then,
+        return None                                                            # not recomputed on every poll of the run
+    try:
+        if finished(p.conn, pid):
+            return None
+        prop = propose(p, pid)
+    except Exception as e:  # noqa: BLE001 - said, the run goes on
+        _auto_tried(p.conn, pid)
+        return (f"⚠ Chưa đặt được trần cảnh báo ngân sách dự án: {str(e)[:160] or type(e).__name__} — chạy tự động KHÔNG chờ; "
+                "kiểm tra bảng giá ở ⚙ Cài đặt rồi đặt trần ở Bước 1 → 💵 Ngân sách dự án")
+    over = ""
+    if data.get("target") and prop["total"] > float(data["target"]):
+        over = (f" ⚠ Đề xuất ≈ ${prop['total']:.2f} VƯỢT mục tiêu ${float(data['target']):.2f} — bớt shot khớp môi / giây video / shot "
+                "nếu muốn giữ mục tiêu.")
+    try:
+        summary = " " + cost_summary(p, pid)["text"] + "."
+    except Exception as e:  # noqa: BLE001 - the missing estimate is said
+        summary = (f" (chưa tính được đã chi + ước tính phần còn lại: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra "
+                   "bảng giá ở ⚙ Cài đặt rồi tải lại; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán)")
+    blocked = lock_blocked(prop)
+    if blocked:
+        _auto_tried(p.conn, pid)
+        return blocked + " Chạy tự động KHÔNG chờ — vẫn gen; chỉ thiếu trần khâu để cảnh báo." + over + summary
+    saved = _lock(p.conn, pid, prop, AUTO_WHO)
+    head = (f"Đặt trần cảnh báo ngân sách dự án tự động ≈ ${prop['total']:.2f} (trần từng khâu = đề xuất" if saved.get("planned") is None else
+            f"Đặt trần cảnh báo từng khâu tự động (đề xuất ≈ ${prop['total']:.2f}); trần TỔNG giữ mức dự tính "
+            f"${float(saved['planned']):.2f} Owner đã đặt (")
+    return (head + "; không chờ duyệt — chạm trần chỉ CẢNH BÁO có số liệu, sửa / nâng ở Bước 1 → 💵 Ngân sách dự án)."
+            + over + summary)
 
 
 def set_target(conn, pid: int, usd: Optional[float], p=None) -> Dict:
@@ -464,36 +548,6 @@ def cost_summary(p, pid: int) -> Dict:
             "unpriced": unpriced, "incomplete": incomplete, "missing_prices": run.get("unpriced") or [], "text": text, "md": md_safe(text),
             "line": (("⚠ chưa tính được video · tổng phần đã biết " if incomplete else "") +
                      f"Đã chi ${spent:.2f} · còn lại ≈ ${remaining:.2f} · tổng ≈ ${total:.2f}")}
-
-
-def approval_pending(p, pid: int) -> bool:
-    """Only yes / no: the automatic run must wait for the person to approve the project's budget (no estimate computed — cheap,
-    for checks that run every poll, e.g. autopilot.serve_waiting). The sentence with the numbers is gate_reason. Only the level
-    "Tự chạy trong trần" waits for it (needs_lock, user 08/10)."""
-    if not needs_lock(p, pid):
-        return False
-    data = get(p.conn, pid)
-    return not (data and data.get("locked"))
-
-
-def gate_reason(p, pid: int) -> Optional[str]:
-    """Why the automatic run must wait before paying for pictures: the budget is not approved yet, or the proposal is over the
-    person's target. Only at "Tự chạy trong trần" (needs_lock, user 08/10); the other levels never wait for it."""
-    if not needs_lock(p, pid):
-        return None
-    data = get(p.conn, pid)
-    if data and data.get("locked"):
-        return None
-    prop = propose(p, pid)
-    over = ""
-    if data and data.get("target") and prop["total"] > float(data["target"]):
-        over = f" — đề xuất ≈ ${prop['total']:.2f} VƯỢT mục tiêu ${float(data['target']):.2f}: bớt shot khớp môi / giây video / shot, rồi tính lại"
-    try:
-        summary = " " + cost_summary(p, pid)["text"] + "."
-    except Exception as e:  # noqa: BLE001 - the gate still waits; the missing estimate is said
-        summary = (f" (chưa tính được đã chi + ước tính phần còn lại: {str(e)[:160] or type(e).__name__}. Cách xử lý: kiểm tra "
-                   "bảng giá ở ⚙ Cài đặt rồi tải lại; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán)")
-    return f"Chờ duyệt ngân sách dự án (đề xuất ≈ ${prop['total']:.2f}){over}.{summary} — Bước 1 → 💵 Ngân sách dự án"
 
 
 def director_note(conn, pid: int) -> str:

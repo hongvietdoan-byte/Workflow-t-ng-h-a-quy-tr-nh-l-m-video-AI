@@ -42,12 +42,10 @@ def status_pills(p, pid: int, proj) -> List[Tuple[str, str]]:
                 }.get(ap["state"], ("Tự động: không chạy", "mute")))
     try:
         from core import project_budget
-        if project_budget.enabled():                     # user 08/10: only "Tự chạy trong trần" has a budget to lock
+        if project_budget.enabled():                     # 15/10: no gate — the chip only says the warning lines are set
             data = project_budget.get(p.conn, pid) or {}
             if data.get("locked"):
-                out.append(("Ngân sách đã khóa", "ok"))
-            elif project_budget.needs_lock(p, pid) and not project_budget.finished(p.conn, pid):
-                out.append(("Ngân sách chưa khóa", "warn"))
+                out.append(("Trần cảnh báo đã đặt", "ok"))
     except Exception:  # noqa: BLE001 - a status chip only
         pass
     return out

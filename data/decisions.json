@@ -127,7 +127,7 @@
    "changes": "Chạy tự động không chờ 'Duyệt & khóa trần' trước khi gen ảnh",
    "replaces": "budget-lock-gate-2026-10-08",
    "enforced_by": [
-    {"kind": "code", "check": "check_no_budget_lock_gate", "pending": "chờ nhánh A7 (core/project_budget.py còn cổng needs_lock)"}
+    {"kind": "code", "check": "check_no_budget_lock_gate"}
    ],
    "status": "active"
   }

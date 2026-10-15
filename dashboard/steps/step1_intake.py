@@ -138,8 +138,8 @@ def guide_bubble(p: Pipeline, pid: int) -> None:
         return
     chars = p.conn.execute("SELECT * FROM characters WHERE project_id=?", (pid,)).fetchall()
     s = F.state(p, pid)
-    b_on, b_locked, b_total, b_spent = V._budget_state(p, pid)
-    kind = V.next_kind(p, pid, scenes, chars, s["locked"], b_locked, b_on)
+    _, b_total, b_spent = V._budget_state(p, pid)
+    kind = V.next_kind(p, pid, scenes, chars, s["locked"])
     try:
         from core import asset_checklist
         missing = (asset_checklist.get(p, pid) or {}).get("missing") or []
