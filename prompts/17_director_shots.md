@@ -48,7 +48,10 @@ cảnh khớp tư thế → nhân vật đúng hồ sơ → nền theo render �
   ("mask worn up") và điều hồ sơ không có (#22: sừng mũ Maxim white ↔ red, hình in áo Kelly GREEN ↔ blue giữa các shot).
 - **Luật cứng FF — chi tiết ghê chỉ GỢI:** máu, tóc bết, vết thương, xác ở trong tối / ngoài nét / bị che (in shadow, out of focus, partly
   hidden); không "everything in focus" trên nó; **không tự thêm** điều kịch bản không có (#24 shot 2 tự thêm "hair strands and blood
-  stains on the rim … everything in focus").
+  stains on the rim … everything in focus"). Có chữ ghê (blood, corpse, wound…) — kể cả chép từ hồ sơ trang phục ("coat with blood
+  stains") hay vật kịch bản bắt buộc ("cái xác") — thì CÙNG prompt phải có câu gợi, vd "The corpse is only hinted — a featureless dark
+  silhouette, partly hidden in fog, out of focus." + "everything in focus except the hinted corpse"; vết trên áo → "faint dark stains,
+  only hinted". Ánh sáng loang viết "spills", không "bleeds" (code đọc là máu). #31: 5 shot ĐỎ vì thiếu đúng câu này.
 - **Vật / bóng / sinh vật chuyển động gần người:** đường đi điểm đầu → điểm cuối, khoảng cách, "never touches / does not pass through
   <TÊN>" (#24 shot 3 "shadow … right in front of her face" → bóng bay xuyên người).
 - **Nhân vật không phải người** (quái, ma, thú): luật của người (mắt tự nhiên, không mắt phát sáng) không áp; tả đặc điểm thật (#24 shot 5

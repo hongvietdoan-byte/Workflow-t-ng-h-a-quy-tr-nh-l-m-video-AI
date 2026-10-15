@@ -42,3 +42,5 @@ khung giây (`target_s`), nhân vật trọng tâm (`focus`), độ mạnh kho�
 ```
 Các trường của shot và luật chia shot: xem phần "Phân shot" bên dưới; `image_prompt` viết theo mục "Công thức prompt ảnh" ở đó (code
 dò sau lượt của bạn — lỗi đỏ như cỡ cảnh ↔ tư thế, chi tiết ghê không gợi, vật lao sát người không đường đi bị chặn gửi gen).
+Chữ ghê trong `image_prompt` — kể cả chép từ hồ sơ trang phục ("blood stains") hay vật kịch bản bắt buộc ("corpse") — luôn kèm
+câu gợi trong cùng prompt (mẫu ở luật cứng FF phần "Phân shot"); ánh sáng loang viết "spills", không "bleeds" (#31: 5 shot ĐỎ ở lượt đầu).

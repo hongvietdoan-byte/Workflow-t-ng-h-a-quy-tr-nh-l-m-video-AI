@@ -166,17 +166,31 @@ _GORE_TAG = "Gore restraint:"
 GORE_VIDEO_MAX = 200     # the video sentence is never longer (seedance_refs._estimated_len counts it before a group is closed)
 
 
+# #31 cảnh 5·2 (15/10): "Purple-red glow from door 1 bleeds in at the frame-left edge" — light / colour that "bleeds" is a lighting
+# word, not blood. A "bleed" whose own clause (back to the last . , ; : —) names a light / colour before it is not gore; "the wound
+# bleeds under the red glow" still is (the light word comes after it, and "wound" is gore anyway).
+_LIGHT_BEFORE_BLEED = re.compile(r"\b(?:glow\w*|light|lights|lighting|colou?rs?|hues?|tints?|neon|aura|radiance|shine|rays?|beams?"
+                                 r"|reflections?|haze|sunlight|moonlight|lamplight|firelight)\b[^.,;:!?\n—]*$", re.IGNORECASE)
+
+
+def _gore_iter(text: str):
+    import unicodedata
+    text = unicodedata.normalize("NFC", text or "")
+    for m in _GORE.finditer(text):
+        if m.group(0).lower().startswith("bleed") and _LIGHT_BEFORE_BLEED.search(text[:m.start()]):
+            continue
+        yield m
+
+
 def gore_words(text: str):
     """The gore words of a text, lower case, once each, in order."""
-    import unicodedata
-    found = [m.group(0).lower() for m in _GORE.finditer(unicodedata.normalize("NFC", text or ""))]
+    found = [m.group(0).lower() for m in _gore_iter(text)]
     return list(dict.fromkeys(found))
 
 
 def gore_search(text: str):
-    """The first gore word of a text (re.Match) or None — NFC, no accent folding."""
-    import unicodedata
-    return _GORE.search(unicodedata.normalize("NFC", text or ""))
+    """The first gore word of a text (re.Match) or None — NFC, no accent folding; light that 'bleeds' is not gore (#31)."""
+    return next(_gore_iter(text), None)
 
 
 def is_ff(project_row) -> bool:
