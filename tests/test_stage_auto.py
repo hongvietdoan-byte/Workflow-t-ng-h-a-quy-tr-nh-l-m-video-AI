@@ -513,9 +513,49 @@ class NearFrameTests(unittest.TestCase):
         self.assertGreaterEqual(got["share"], 0.4)
         self.assertIsNone(pc.near_frame_problem([(0.3, 0.95, "floor")] * 144, 1.42))   # sàn dưới máy cúi
         self.assertIsNone(pc.near_frame_problem([(0.3, 0.1, "PLATES_PROP_0")] * 144, 1.42))
-        self.assertIsNone(pc.near_frame_problem([(0.25, 0.1, "x")] * 10 + [(5.0, 0, "w")] * 134, 1.42))
+        self.assertIsNone(pc.near_frame_problem([(0.5, 0.1, "x")] * 10 + [(5.0, 0, "w")] * 134, 1.42))
 
     def test_camera_problem_holds_near_block(self):
         rec = {"clearance": {"near_block": True, "near": {"message": "vật 'balloon' sát máy"}}}
         self.assertIn("balloon", location_pack.camera_problem(rec))
         self.assertIsNone(location_pack.camera_problem({"clearance": {"near": {"message": "x"}}}))   # máy khóa: chỉ cảnh báo
+
+
+class FamilyKeepTests(Base):
+    def test_set_family_and_kept_on_reregister(self):
+        stage_auto.set_family(self.p.conn, [self.place], "phong_2_cua")
+        location_pack.set_model3d(self.p.conn, self.place, self.model, SPOTS, "giua_phong", anchor=[3.4, 9.0, 0.0])
+        self.assertEqual(location_pack.model3d(self.p.conn, self.place)["stage_family"], "phong_2_cua")
+        with self.assertRaises(ValueError):
+            stage_auto.set_family(self.p.conn, [self.place], " ")
+
+
+class PrevPropsTests(Base):
+    def test_previous_scene_prop_becomes_fixed_at_its_place(self):
+        pid = self.project(((1, "giua_phong"), (2, "giua_phong")))
+        seg = stage_auto.segments(self.p.conn, pid)[1]
+        k1 = stage_auto.ensure_k1(seg["entry"], seg["main_spot"], stage_auto.base_dir(self.data, pid, seg["stage"]))
+        prev = {"scene": "1", "objects": {"xenoi": {"at_model": [4.4, 2.6, 0.0], "kind": "dao_cu", "h": 1.0, "d": 0.6, "label": "Xe nôi"},
+                                          "kelly": {"at_model": [3.4, 2.1, 0.0], "kind": "nguoi", "facing": 0}}}
+        inputs, _ = stage_auto.inputs_for(self.p.conn, pid, seg, k1, prev)
+        xe = next(o for o in inputs["fixed"] if o["key"] == "xenoi")
+        self.assertEqual((xe["at"], xe["h"], xe["d"]), ([1.0, 0.5], 1.0, 0.6))
+        obj = answer([2])
+        obj["blocking"]["objects"].append({"key": "xenoi", "kind": "dao_cu", "at": [1.0, 0.5], "h": 1.0, "d": 0.6})
+        stage_director.validate_answer(obj, inputs)                        # không bị từ chối "tự thêm"
+        self.assertTrue(any("`kelly` tại (+0.00, +0.00)" in n for n in inputs["user_notes"]))
+
+    def test_plants_are_not_near_blocks(self):
+        from core import plate_camera as pc
+        self.assertIsNone(pc.near_frame_problem([(0.3, 0.1, "Grass_01")] * 144, 1.5))
+
+
+class NearLensTests(unittest.TestCase):
+    def test_real_measure_of_old_shot17(self):
+        """Số đo Blender thật 15/10 (dựng lại #31 shot 17 cũ): 0,21 m / 9 % → giữ; máy lùi 1,30 m: 0,44 m / 2 % → không."""
+        from core import plate_camera as pc
+        old = [(0.21, 0.1, "bong_bay_3")] * 13 + [(3.0, 0.0, "wall")] * 131
+        self.assertEqual(pc.near_frame_problem(old, 1.42)["object"], "bong_bay_3")
+        ok = [(0.44, 0.1, "bong_bay_3")] * 3 + [(3.0, 0.0, "wall")] * 141
+        self.assertIsNone(pc.near_frame_problem(ok, 1.30))
+        self.assertIsNone(pc.near_frame_problem([(0.2, 0.1, "x")] * 5 + [(3.0, 0, "w")] * 139, 1.5))   # 3 % sát mép: bỏ qua

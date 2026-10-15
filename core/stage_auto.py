@@ -59,7 +59,7 @@ def _say(conn, pid: int, sev: str, msg: str, log: Callable[[str], None]) -> None
                             (pid, CODE, diag.redact(msg)[:400])).fetchone()
     except Exception:  # noqa: BLE001 - không có bảng diag: cứ nói
         seen = None
-    if seen:
+    if seen and sev != "info":                            # rà 15/10: câu ước tính trước lời gọi trả tiền luôn được nói lại
         return
     diag.record(conn, "director", sev, msg, CODE, pid)
     log(msg)
@@ -76,6 +76,22 @@ def key_of(name: str) -> str:
 def stage_key(place: Dict, entry: Dict) -> str:
     fam = str(entry.get("stage_family") or "").strip()
     return key_of(fam) if fam else f"kho{place['id']}"
+
+
+def set_family(conn, place_ids: List[int], family: str) -> None:
+    """Khai họ sân khấu cho các bối cảnh Kho (cùng một nơi, khác trạng thái — vd phòng 447 cửa đóng + 448 cửa mở): ghi
+    `profile.model3d.stage_family`. Bối cảnh chưa có model 3D → ValueError (không đoán)."""
+    fam = str(family or "").strip()
+    if not fam:
+        raise ValueError("cần tên họ sân khấu")
+    for pid_ in place_ids:
+        row = conn.execute("SELECT profile FROM assets WHERE id=?", (pid_,)).fetchone()
+        prof = json.loads(row["profile"] or "{}") if row else {}
+        if not prof.get("model3d"):
+            raise ValueError(f"Kho #{pid_} chưa có model 3D")
+        prof["model3d"]["stage_family"] = fam
+        conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(prof, ensure_ascii=False), pid_))
+    conn.commit()
 
 
 def family_hints(segs: List[Dict]) -> List[str]:
@@ -223,8 +239,23 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
             used = seg["spots"].get(name)
             notes.append(f"Chỗ đứng khác trên CÙNG sân khấu: `{name}` tại ({r[0]:+.2f} Đ, {r[1]:+.2f} B, cao {r[2]:+.2f} m) so với O"
                          + (f" — shot {', '.join(map(str, used))} của cảnh này đứng ở đó" if used else ""))
+    have_keys = {o["key"] for o in fixed}
+    by_key = {o["key"]: o for o in fixed}
+    for k, o in (prev_state or {}).get("objects", {}).items():
+        if k in by_key and "at" not in by_key[k] and by_key[k]["kind"] != "moc":     # đạo cụ Kho đã đặt ở cảnh trước: giữ chỗ
+            r = _rel(st, o["at_model"])
+            by_key[k]["at"] = [r[0], r[1]]
+            continue
+        # rà 15/10: đạo cụ của cảnh trước trên cùng sân khấu = vật CỐ ĐỊNH ở đúng chỗ cũ (không thì Đạo diễn bị từ chối vì "tự thêm")
+        if o.get("kind") not in ("nguoi", "moc") and k not in have_keys and o.get("h") and o.get("d"):
+            r = _rel(st, o["at_model"])
+            fixed.append({"key": k, "kind": o["kind"], "at": [r[0], r[1]], "h": o["h"], "d": o["d"], "label": o.get("label") or k,
+                          **({"hollow": True} if o.get("hollow") else {}), "source": f"cảnh {prev_state.get('scene')} (cùng sân khấu)"})
+            have_keys.add(k)
     if prev_state:
         for k, o in prev_state.get("objects", {}).items():
+            if k in have_keys:
+                continue
             r = _rel(st, o["at_model"])
             facing = "" if o.get("facing") is None else f", hướng {o['facing']}°"
             pose = f", {o['tu_the']}" if o.get("tu_the") else ""
@@ -314,6 +345,7 @@ def end_state(stage: Dict, answer: Dict, scene: str) -> Dict:
         if o.get("kind") == "moc" or not o.get("at"):
             continue
         out[k] = {"at_model": _model(stage, [o["at"][0], o["at"][1], o.get("z", 0.0)]), "facing": o.get("facing"),
+                  **{x: o[x] for x in ("h", "d", "label", "hollow") if x in o},
                   "tu_the": o.get("tu_the"), "kind": o.get("kind")}
     return {"scene": scene, "objects": out}
 

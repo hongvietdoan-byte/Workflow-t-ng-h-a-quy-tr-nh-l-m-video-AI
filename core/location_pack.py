@@ -85,6 +85,8 @@ def set_model3d(conn, asset_id: int, path: str, spots: Dict[str, Dict], default_
     old = (json.loads(row["profile"]) if row["profile"] else {}).get("model3d") or {}
     if old.get("landmark"):
         prof["model3d"]["landmark"] = old["landmark"]
+    if old.get("stage_family"):                         # 15/10 sân khấu tự động: họ sân khấu (447 + 448 cùng phòng) giữ khi đăng ký lại
+        prof["model3d"]["stage_family"] = old["stage_family"]
     conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(prof, ensure_ascii=False), asset_id))
     conn.commit()
     return prof["model3d"]

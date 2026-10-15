@@ -28,6 +28,8 @@ def main(argv=None):
     ap.add_argument("--force", action="store_true", help="cả cảnh có shot đã vẽ ảnh")
     ap.add_argument("--again", action="store_true", help="bỏ kết quả đã lưu, gọi Đạo diễn lại (tốn tiền)")
     ap.add_argument("--yes", action="store_true", help="đồng ý chi tiền Claude + ghi stage_camera vào CSDL")
+    ap.add_argument("--set-family", help="khai họ sân khấu (0 USD, ghi Kho) cho các --place, vd --set-family phong_2_cua --place 447 --place 448")
+    ap.add_argument("--place", type=int, action="append", help="id bối cảnh Kho cho --set-family")
     from core import script_cap
     script_cap.add_argument(ap)
     if hasattr(sys.stdout, "reconfigure"):
@@ -42,6 +44,9 @@ def main(argv=None):
     from core.camera_plan import drawn_shots
     from core.db import connect
     conn = connect(os.path.abspath(a.db))
+    if a.set_family:
+        stage_auto.set_family(conn, a.place or [], a.set_family)
+        print(f"Đã khai họ sân khấu '{a.set_family}' cho Kho {a.place}")
     segs = stage_auto.segments(conn, a.project)
     if a.scene:
         segs = [g for g in segs if g["scene"] in a.scene]

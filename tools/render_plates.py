@@ -782,17 +782,21 @@ def _clearance(c, pure):
     # single character→camera ray above misses it; a ray grid through the whole frame of the FINAL camera finds it (warned; an unlocked
     # camera's plate waits — location_pack.camera_problem)
     floc, faim = Vector(c["location"]), Vector(c["look_at"])
-    res_ = (scene.render.resolution_x or 9, scene.render.resolution_y or 16)
+    rnd = getattr(scene, "render", None)
+    res_ = ((getattr(rnd, "resolution_x", 0) or 9), (getattr(rnd, "resolution_y", 0) or 16))
     hits = []
     for d in pure.frame_rays(list(floc), list(faim), float(c.get("lens") or lens), res_[0] / res_[1]):
         ok, where, nor, _i, obj, _m = scene.ray_cast(dg, floc, Vector(d), distance=50.0)
         o = (obj.original if hasattr(obj, "original") else obj) if ok and obj is not None else None
-        hits.append(((where - floc).length if ok else None, nor.z if ok else 0.0, o.name if o is not None else ""))
+        hits.append(((where - floc).length if ok else None, nor.z if ok and nor is not None else 0.0, o.name if o is not None else ""))
+    stats = pure.near_frame_stats(hits, (floc - body).length)
+    if stats:
+        out["near_stats"] = {k: stats[k] for k in ("share", "nearest_m", "object")}
     near = pure.near_frame_problem(hits, (floc - body).length)
     if near:
         out["near"] = near
-        out["warnings"].append(near["message"] + ("" if move else " (máy Sân khấu 3D đã khóa: chỉ cảnh báo)"))
-        if move:
+        out["warnings"].append(near["message"] + ("" if move and not c.get("wide") else " (chỉ cảnh báo)"))
+        if move and not c.get("wide"):                 # rà 15/10: ảnh toàn lùi qua hàng rào / cây — chỉ cảnh báo, không giữ shot
             out["near_block"] = True
     if c.get("indoor"):                                # 15/10: an indoor camera must stand under the room's ceiling like the character
         up = Vector((0, 0, 1))

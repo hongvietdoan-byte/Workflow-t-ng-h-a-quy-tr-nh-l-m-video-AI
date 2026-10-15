@@ -240,3 +240,20 @@ Ghi chú:
   (S6, ≈ 0,23–0,91 USD).
 - **Q7 – Thứ tự:** chờ nhánh `p31-plate-rules` gộp xong rồi mới làm *(khuyến nghị)* / làm song song phần không chung file
   (S1–S2).
+
+## 13. Đã làm (15/10 tối, nhánh `claude/stage-auto` → main) — CHƯA thử thật
+
+- **S1–S4 xong (0 USD):** `core/stage_auto.py`, CLI `tools/stage_auto.py`, cờ `stage_auto` (mặc định TẮT, cần `stage_camera` +
+  `place_render_refs`), phase `stage` trong autopilot (sau previz, trước plates; giữ shot hỏng ở cổng nền 3D), bỏ G0 cho cảnh đã có
+  máy sân khấu, luật máy loang trong phòng (`stage_solver.reachable_cells`), K1 thuần + khối đạo cụ chung (`tools/stage_grid.py`),
+  ảnh hướng dẫn người nộm (vai `stage_guide`, cả đường ảnh lẻ lẫn storyboard), nhân bản bỏ máy tự động, sổ quyết định
+  `check_stage_auto_plan`.
+- **Khác kế hoạch:**
+  - Mục 5 "ảnh toàn cùng trục từ sân khấu" CHƯA làm: main quy định máy sân khấu khóa không gửi ảnh toàn (#24 job 649) — chờ người dùng quyết.
+  - Các sân khấu chạy lần lượt, chưa song song.
+  - Vũ khí không thành khối sàn.
+  - Đạo cụ chỉ lấy từ Kho có `size` (cao + rộng); Đạo diễn không được tự thêm.
+- **Kèm:**
+  - 3 sửa mê cung (mục 5c chẩn đoán #31).
+  - Kiểm vật sát máy che khung bằng lưới tia trên máy cuối (#31 shot 17). Nền đã cache phải "↻ Render lại nền 3D" mới được kiểm.
+- **Thử 1 cảnh #31:** xem mục 10; lệnh ở TODO bàn giao.

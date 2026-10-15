@@ -77,7 +77,12 @@ MIN_CLEAR_M = 0.5                              # an over-the-shoulder camera sti
 MIN_FIX_LENS_SHOT, MIN_FIX_LENS_WIDE = 14.0, 12.0
 # 15/10 (#31 shot 17 can_cua_2: quả bóng bay sát máy che nửa khung, kiểm đường nhìn nhân vật→máy rỗng vì vật lệch khỏi trục): lưới tia
 # qua CẢ KHUNG — mặt không phải sàn/trần, gần máy hơn NEAR_FRAME_MAX_M (và trước nhân vật) chiếm ≥ NEAR_FRAME_SHARE khung = vật sát máy
-NEAR_FRAME_SHARE, NEAR_FRAME_MAX_M, NEAR_FRAME_RAYS = 0.2, 0.8, (9, 16)
+# rà 15/10: ngưỡng 0,3 (không 0,2) + bỏ cây/cỏ (máy thấp trên cỏ, bụi là nền hợp lệ) — tránh giữ oan
+NEAR_FRAME_SHARE, NEAR_FRAME_MAX_M, NEAR_FRAME_RAYS = 0.3, 0.8, (9, 16)
+# đo thật 15/10 (dựng lại #31 shot 17 cũ, máy 1,42 m): quả bóng cách ống kính 0,21 m chỉ chiếm 9 % lưới tia nhưng là khối mờ lớn ở mép
+# khung → vật ≤ NEAR_LENS_M sát ống kính chiếm ≥ NEAR_LENS_SHARE cũng là lỗi (cùng máy lùi 1,30 m: 0,44 m / 2 % — không bắt)
+NEAR_LENS_M, NEAR_LENS_SHARE = 0.35, 0.05
+PLANT_WORDS = ("tree", "greentree", "plant", "bush", "grass", "shrub", "coco", "leaf", "palm")   # = tools/render_plates.PLANT_NAMES
 # rà 15/10: ≤ TRAVEL_VIEW_MAX_DEG (60°) — a bigger turn is another shot (its background contradicts plate_view); none → unplaceable
 ORBIT_STEPS_DEG = (20, -20, 40, -40, 60, -60)
 # rà P24: "looks down the alley / street…" is a direction along the ground, not a look DOWN (the camera must not tilt 35°)
@@ -407,12 +412,24 @@ def near_frame_problem(hits: Sequence[Tuple[Optional[float], float, str]], subje
     """hits = [(khoảng cách tới mặt đầu tiên | None, pháp tuyến z, tên vật)] của frame_rays. Vật (không phải sàn / trần / khối đạo
     cụ cố ý PLATES_PROP) gần máy hơn min(NEAR_FRAME_MAX_M, nhân vật − 0,3 m) chiếm ≥ NEAR_FRAME_SHARE khung → {share, nearest_m,
     object, message}; không thì None. Thuần — tools/render_plates đo tia."""
+    st = near_frame_stats(hits, subject_m)
+    if not st:
+        return None
+    if st["share"] >= NEAR_FRAME_SHARE or (st["nearest_m"] <= NEAR_LENS_M and st["share"] >= NEAR_LENS_SHARE):
+        return st
+    return None
+
+
+def near_frame_stats(hits: Sequence[Tuple[Optional[float], float, str]], subject_m: float) -> Optional[Dict]:
+    """Số đo vật sát máy (chưa áp ngưỡng) — near_frame_problem áp NEAR_FRAME_SHARE; render_plates ghi số này vào manifest làm bằng
+    chứng (rà 15/10: "đã sửa" phải kèm số đo chạy thật). None khi không có vật nào gần."""
     if not hits:
         return None
     limit = min(NEAR_FRAME_MAX_M, float(subject_m) - CLEAR_GAP_M)
-    near = [h for h in hits if h[0] is not None and h[0] < limit and abs(float(h[1])) < 0.7 and not str(h[2]).startswith("PLATES_PROP")]
+    near = [h for h in hits if h[0] is not None and h[0] < limit and abs(float(h[1])) < 0.7 and not str(h[2]).startswith("PLATES_PROP")
+            and not any(w in str(h[2]).lower() for w in PLANT_WORDS)]
     share = len(near) / len(hits)
-    if not near or share < NEAR_FRAME_SHARE:
+    if not near:
         return None
     names: Dict[str, int] = {}
     for h in near:
