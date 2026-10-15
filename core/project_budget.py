@@ -357,7 +357,30 @@ def _lock(conn, pid: int, prop: Dict, who: str) -> Dict:
     data = {"caps": {k: v["cap"] for k, v in prop["stages"].items()}, "total": prop["total"], "approved_by": who, "approved_at": _now(),
             "locked": True, "raises": old.get("raises") or [], "target": old.get("target"), "proposal": prop,
             "baseline": old.get("baseline") or {}, "baseline_at": old.get("baseline_at"), "resets": old.get("resets") or []}
+    if old.get("planned") not in (None, ""):      # the Owner's planned amount (money_reset.set_planned) stays the TOTAL line
+        data["planned"] = old["planned"]
     return _save(conn, pid, data)
+
+
+def _auto_key(pid: int) -> str:
+    """auto_caps' last failed try — its OWN key (not 'project_budget:%'): a try that set nothing must not look like a budget
+    (core.budget_rounds.reset_targets / money_reset read project_budget.get)."""
+    return f"project_budget_auto_try:{int(pid)}"
+
+
+def _auto_tried_at(conn, pid: int) -> float:
+    row = conn.execute("SELECT value FROM app_settings WHERE key=?", (_auto_key(pid),)).fetchone()
+    try:
+        return float(row[0]) if row else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _auto_tried(conn, pid: int) -> None:
+    import time
+    conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                 (_auto_key(pid), str(time.time())))
+    conn.commit()
 
 
 def auto_caps(p, pid: int) -> Optional[str]:
@@ -371,15 +394,14 @@ def auto_caps(p, pid: int) -> Optional[str]:
     if data.get("locked"):
         return None
     import time
-    if time.time() - float(data.get("auto_tried_at") or 0) < AUTO_RETRY_SEC:   # lines could not be set a moment ago: said then,
+    if time.time() - _auto_tried_at(p.conn, pid) < AUTO_RETRY_SEC:   # lines could not be set a moment ago: said then,
         return None                                                            # not recomputed on every poll of the run
     try:
         if finished(p.conn, pid):
             return None
         prop = propose(p, pid)
     except Exception as e:  # noqa: BLE001 - said, the run goes on
-        data["auto_tried_at"] = time.time()
-        _save(p.conn, pid, data)
+        _auto_tried(p.conn, pid)
         return (f"⚠ Chưa đặt được trần cảnh báo ngân sách dự án: {str(e)[:160] or type(e).__name__} — chạy tự động KHÔNG chờ; "
                 "kiểm tra bảng giá ở ⚙ Cài đặt rồi đặt trần ở Bước 1 → 💵 Ngân sách dự án")
     over = ""
@@ -393,12 +415,14 @@ def auto_caps(p, pid: int) -> Optional[str]:
                    "bảng giá ở ⚙ Cài đặt rồi tải lại; vẫn lỗi thì gửi báo cáo ở ⚙ Chẩn đoán)")
     blocked = lock_blocked(prop)
     if blocked:
-        data["auto_tried_at"] = time.time()
-        _save(p.conn, pid, data)
+        _auto_tried(p.conn, pid)
         return blocked + " Chạy tự động KHÔNG chờ — vẫn gen; chỉ thiếu trần khâu để cảnh báo." + over + summary
-    _lock(p.conn, pid, prop, AUTO_WHO)
-    return (f"Đặt trần cảnh báo ngân sách dự án tự động ≈ ${prop['total']:.2f} (trần từng khâu = đề xuất; không chờ duyệt — chạm "
-            f"trần chỉ CẢNH BÁO có số liệu, sửa / nâng ở Bước 1 → 💵 Ngân sách dự án).{over}{summary}")
+    saved = _lock(p.conn, pid, prop, AUTO_WHO)
+    head = (f"Đặt trần cảnh báo ngân sách dự án tự động ≈ ${prop['total']:.2f} (trần từng khâu = đề xuất" if saved.get("planned") is None else
+            f"Đặt trần cảnh báo từng khâu tự động (đề xuất ≈ ${prop['total']:.2f}); trần TỔNG giữ mức dự tính "
+            f"${float(saved['planned']):.2f} Owner đã đặt (")
+    return (head + "; không chờ duyệt — chạm trần chỉ CẢNH BÁO có số liệu, sửa / nâng ở Bước 1 → 💵 Ngân sách dự án)."
+            + over + summary)
 
 
 def set_target(conn, pid: int, usd: Optional[float], p=None) -> Dict:

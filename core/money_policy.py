@@ -151,11 +151,11 @@ def token_price(pricing: Dict, model: str, tier: str, tokens: float) -> Tuple[Op
 
 # ---- ghi lại cảnh báo -------------------------------------------------------------------------------------------------------------------
 def note(conn, text: str, *, stage: str = "system", project_id: Optional[int] = None, scene_id: Optional[int] = None,
-         job_id: Optional[int] = None, key: str = "") -> None:
+         job_id: Optional[int] = None, key: str = "") -> bool:
     """Ghi một cảnh báo tiền vào diag (warn, WARN_CODE). Cùng `key` + dự án đã ghi trong NOTE_EVERY_MIN phút → bỏ qua (một đợt gửi
-    nhiều lượt không làm ngập bảng chẩn đoán; câu đầy đủ vẫn được trả cho nơi gọi). Không bao giờ ném lỗi."""
+    nhiều lượt không làm ngập bảng chẩn đoán; câu đầy đủ vẫn được trả cho nơi gọi). Không bao giờ ném lỗi. True khi đã ghi dòng mới."""
     if not text:
-        return
+        return False
     try:
         from . import diag
         tag = f"[{key}] " if key else ""
@@ -164,10 +164,11 @@ def note(conn, text: str, *, stage: str = "system", project_id: Optional[int] = 
                                " AND (julianday('now') - julianday(last_at)) * 1440 < ? LIMIT 1",
                                (WARN_CODE, project_id or 0, tag.replace("%", "") + "%", NOTE_EVERY_MIN)).fetchone()
             if row is not None:
-                return
+                return False
         diag.record(conn, stage, "warn", tag + text, code=WARN_CODE, project_id=project_id, scene_id=scene_id, job_id=job_id)
+        return True
     except Exception:  # noqa: BLE001 - a warning that cannot be written must not stop the paid send that was allowed
-        pass
+        return False
 
 
 def recent(conn, hours: float = 24, project_ids: Optional[Iterable[int]] = None, limit: int = 20) -> List[Dict]:

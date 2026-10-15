@@ -165,6 +165,36 @@ class BudgetTests(unittest.TestCase):
             self.assertIn("KHÔNG chờ", note)
             self.assertFalse((project_budget.get(self.p.conn, self.pid) or {}).get("locked"))
             self.assertIsNone(project_budget.auto_caps(self.p, self.pid))       # said once, not recomputed on every poll
+        from core import budget_rounds                                          # a try that set nothing is no budget (review 15/10)
+        self.assertIsNone(project_budget.get(self.p.conn, self.pid))
+        self.assertNotIn(self.pid, budget_rounds.reset_targets(self.p.conn)["projects"])
+
+    @mock.patch.dict(os.environ, ON)
+    def test_the_owner_planned_amount_survives_auto_caps_and_approve(self):
+        from core import automation
+        automation.apply(self.p, self.pid, "auto")
+        project_budget.set_planned(self.p.conn, self.pid, 80.0)
+        note = project_budget.auto_caps(self.p, self.pid)
+        self.assertEqual(project_budget.planned(self.p.conn, self.pid), 80.0)
+        self.assertIn("trần TỔNG giữ mức dự tính $80.00", note)
+        project_budget.approve(self.p, self.pid, "a@x")
+        self.assertEqual(project_budget.planned(self.p.conn, self.pid), 80.0)
+
+    @mock.patch.dict(os.environ, ON)
+    def test_a_reached_line_is_logged_once_not_on_every_tick(self):
+        from core import autopilot, automation
+        automation.apply(self.p, self.pid, "auto")
+        project_budget.approve(self.p, self.pid, "a@x", {"stages": {k: {"cap": 0.1} for k in project_budget.STAGES}, "total": 0.7})
+        self.spend("image", "gpt-image-2.5-sunburst", "1152x2048", 12)
+        sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? LIMIT 1", (self.pid,)).fetchone()[0]
+        self.p.create_job(sid, "image_gen")
+        why = project_budget.run_warning(self.p, self.pid, "images")
+        autopilot._log(self.p, self.pid, "dòng khác")
+        autopilot._cap_warn(self.p, self.pid, "image_gen", "images")
+        autopilot._log(self.p, self.pid, "dòng khác 2")
+        autopilot._cap_warn(self.p, self.pid, "image_gen", "images")
+        msgs = [e["msg"] for e in json.loads(self.p.project(self.pid)["autopilot_log"] or "[]")]
+        self.assertEqual(msgs.count(why), 1, msgs)
 
     @mock.patch.dict(os.environ, ON)
     def test_the_director_gets_the_target_as_an_input(self):

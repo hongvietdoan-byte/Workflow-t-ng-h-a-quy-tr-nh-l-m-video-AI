@@ -207,9 +207,8 @@ def _budget_items(conn, pid: int) -> List[Dict]:
     from . import project_budget
     if not project_budget.enabled():
         return []
-    data = project_budget.get(conn, pid) or {}
-    total = float(data.get("total") or 0.0)
-    if data.get("locked") and total:
+    total = float(project_budget.planned(conn, pid) or 0.0)   # the Owner's planned amount, else the lines' total (locked or not)
+    if total:
         try:
             spent = sum(project_budget.spent_by_stage(conn, pid).values())
         except Exception as e:  # noqa: BLE001

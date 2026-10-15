@@ -56,8 +56,6 @@ def guide(kind: str, st_: Dict, missing: List[str] = (), waiting: int = 0) -> st
         if missing:
             line += " Kịch bản còn thiếu ảnh cho: **" + ", ".join(missing[:8]) + "** — thả ảnh vào chat kèm tên trước thì Đạo diễn dùng luôn."
         return head + line
-    if kind == "budget":
-        return head + "Đạo diễn đã lập kế hoạch. Xem ngân sách dự tính rồi duyệt để chạy tiếp."
     if kind == "lock":
         if st_["no_anchor"]:
             return head + ("Còn ảnh mốc chưa duyệt: **" + ", ".join(st_["no_anchor"]) + "** — duyệt ở ⚙ Chi tiết › Nhân vật, hoặc khóa luôn "

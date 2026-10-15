@@ -421,12 +421,8 @@ def _previz_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
 def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Returns None when every scene has an up-to-date approved image, else a progress message. With the pilot checkpoint on, a few
     representative scenes are made first and the run waits for the person."""
-    from . import lineage, pilot, project_budget
-    note = project_budget.auto_caps(p, pid)               # 15/10: no wait for "Duyệt & khóa trần" — the warning lines are set, said
-    if note:
-        _log(p, pid, note)
-        from . import money_policy
-        money_policy.note(p.conn, note, stage="image", project_id=pid, key="budget_auto_caps")
+    from . import lineage, pilot
+    _auto_caps_note(p, pid, "image")                      # 15/10: no wait for "Duyệt & khóa trần" — the warning lines are set, said
     gates = get_gates(p, pid)
     if gates["pilot"] and not gates["pilot_done"] and not pilot.active(p, pid):
         pilot.start(p, pid)
@@ -593,6 +589,16 @@ def _gate_wait(p: Pipeline, pid: int, data_dir: Optional[str]) -> None:
                 + (f" (+{len(held) - 3})" if len(held) > 3 else "") + ". Xử lý ở Bước 4 (🚧 Cổng ảnh → video) rồi bấm Tiếp tục")
 
 
+def _auto_caps_note(p: Pipeline, pid: int, stage: str) -> None:
+    """15/10 (bỏ cổng ngân sách): at "Tự chạy trong trần" the run sets the project's warning lines itself before paying for pictures
+    or clips (core.project_budget.auto_caps) and says it — log + diag money_warning; never waits."""
+    from . import money_policy, project_budget
+    note = project_budget.auto_caps(p, pid)
+    if note:
+        _log(p, pid, note)
+        money_policy.note(p.conn, note, stage=stage, project_id=pid, key="budget_auto_caps")
+
+
 def _cap_warn(p: Pipeline, pid: int, kind: str, stage: str) -> None:
     """15/10 (người dùng bỏ cổng "Tự chạy trong trần" — was _cap_wait, which made the run WAIT): before sending the queued pictures /
     clips, a stage line or the project total reached is SAID with the numbers (run log + diag money_warning, core.money_policy.note
@@ -601,9 +607,9 @@ def _cap_warn(p: Pipeline, pid: int, kind: str, stage: str) -> None:
         return
     from . import money_policy, project_budget
     why = project_budget.run_warning(p, pid, stage)
-    if why:
-        _log(p, pid, why)
-        money_policy.note(p.conn, why, stage="image" if kind == "image_gen" else "video", project_id=pid, key=f"run_cap_{stage}")
+    if why and money_policy.note(p.conn, why, stage="image" if kind == "image_gen" else "video", project_id=pid,
+                                 key=f"run_cap_{stage}"):
+        _log(p, pid, why)                 # said once per 10 min like the diag row — not a log line on every tick of the run
 
 
 def _create_job(p: Pipeline, ctx: Context, scene_id: int, kind: str) -> int:
@@ -1093,7 +1099,8 @@ def _approve_held(p: Pipeline, pid: int, kind: str, note: str) -> int:
 def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Clips for every scene (per-scene model), redo of outdated clips, Claude's video check when switched on."""
     from . import claude_tasks, lineage, regen
-    old_plate = _old_plate_videos(p, pid, ctx)            # KLD-6: a picture on an old 3D background — no clip sent by the run
+    _auto_caps_note(p, pid, "video")                      # 15/10: a run started past the pictures still gets its warning lines
+    old_plate = _old_plate_videos(p, pid, ctx)           # KLD-6: a picture on an old 3D background — no clip sent by the run
     for r in llm_io.ready_for_video(p, pid):
         if r["scene_id"] in old_plate:
             _d(p, pid, "video", "warn", old_plate[r["scene_id"]][1], "plate_old_image")

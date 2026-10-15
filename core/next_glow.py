@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple
 
 Target = Tuple[str, object]
 _SAFE = re.compile(r"^[A-Za-z0-9_\-]+$")
-_SCRIPT = {"analyse": "box_in_{}", "plan": "script-cta_{}", "budget": "script-cta-budget_{}", "lock": "script-cta-lock_{}",
+_SCRIPT = {"analyse": "box_in_{}", "plan": "script-cta_{}", "lock": "script-cta-lock_{}",
            "next": "script-cta-next_{}"}
 
 
@@ -85,7 +85,7 @@ def css(targets: List[Target], steps: List[str]) -> str:
     return out
 
 
-MAIN = ("script-cta_{}", "script-cta-budget_{}", "script-cta-lock_{}", "script-cta-next_{}", "gen_img_{}", "approve_all", "llm_mot_{}",
+MAIN = ("script-cta_{}", "script-cta-lock_{}", "script-cta-next_{}", "gen_img_{}", "approve_all", "llm_mot_{}",
         "btn_ok_all", "gen_vid_{}", "vid_ok_all_{}", "render_{}", "deliver_{}")
 
 

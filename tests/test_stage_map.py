@@ -57,8 +57,9 @@ class OneClickTests(unittest.TestCase):
         from dashboard.design import components as D
         os.environ["FEATURE_CHAT_FIRST"] = "1"
         self.addCleanup(os.environ.pop, "FEATURE_CHAT_FIRST", None)
-        for k in ("approve_all", "btn_ok_all", "script-cta-budget_7"):
+        for k in ("approve_all", "btn_ok_all"):
             self.assertTrue(D.one_click(k), k)
+        self.assertFalse(D.one_click("script-cta-budget_7"))                  # 15/10: the budget approval button is gone
         for k in ("del_all", "trash_empty", "approve_all_yes", "script-cta-lock_7"):
             self.assertFalse(D.one_click(k), k)
         os.environ["FEATURE_CHAT_FIRST"] = "0"

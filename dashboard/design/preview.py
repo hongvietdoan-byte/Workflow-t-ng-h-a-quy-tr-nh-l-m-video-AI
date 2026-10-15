@@ -45,7 +45,7 @@ def render() -> None:
 
     with D.hero("demo"):
         st.markdown(D.hero_html("Thử 02/10 — kịch bản mới", "Kenta + Orion · 60 s · TikTok 9:16 · mức Duyệt cổng chính",
-                                [("Chờ bạn", "warn"), ("12 khung", "info"), ("Ngân sách đã khóa", "ok")]), unsafe_allow_html=True)
+                                [("Chờ bạn", "warn"), ("12 khung", "info"), ("Trần cảnh báo đã đặt", "ok")]), unsafe_allow_html=True)
         c = st.columns(4)
         c[0].markdown(D.stat("Đã duyệt", "4 / 12", "33 %"), unsafe_allow_html=True)
         c[1].markdown(D.stat("Chi / trần", "3,12 / 9,40 USD"), unsafe_allow_html=True)
