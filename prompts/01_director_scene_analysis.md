@@ -24,8 +24,8 @@ Dùng knowledge pack đính kèm (biên kịch/quay phim, phương pháp đạo 
   cái gì / ai gây ra cú xoay và người xem **thấy** nó ở đâu (vd "kẻ bắn nấp sau thùng — shot 3·2"); người xem lần đầu không đoán được
   nguyên nhân thì cú xoay thành khó hiểu (#8: Maxim trúng đạn mà không thấy ai bắn). Cố ý giấu nguyên nhân để hé lộ sau thì ghi "giấu tới …".
 - `camera_complexity`: `"complex"` khi cảnh có đánh nhau/đuổi bắt/va chạm/nhiều người chuyển động cùng lúc/máy di chuyển phức tạp (cần luật cảnh phức tạp và nên dựng layout trước); còn lại `"simple"`.
-- `difficulty` (`"easy"` / `"complex"` / `"unknown"`) + `difficulty_why` (một câu căn cứ) — độ khó khi gen video của cảnh, **chỉ để thông
-  tin / thống kê** (13/10: mọi shot đều nháp 480p → duyệt → nâng 1080p, nhãn không đổi đường làm clip): `easy` (một người, động tác đơn
+- `difficulty` (`"easy"` / `"complex"` / `"unknown"`) + `difficulty_why` (một câu căn cứ) — độ khó khi gen video của cảnh,
+  **quyết định đường làm clip** (15/10): `easy` → gen thẳng Seedance 2.5 720p (dựng phóng 1080p); `complex` / `unknown` / bỏ trống → nháp 480p → duyệt → nâng 1080p: `easy` (một người, động tác đơn
   giản, máy tĩnh/nhẹ, không khớp môi, không kỹ năng/hiệu ứng, không nhảy); `complex` (nhiều người tương tác, nhảy/kỹ năng, khớp môi, tay
   làm việc tỉ mỉ, máy di chuyển lớn, nền 3D khó); `unknown` khi thiếu căn cứ. *Vì sao:* đo thật shot khớp môi / nhảy gen lại 1–3 lần.
   Code kiểm chéo bằng các trường của cảnh: ghi `easy` mà cảnh có dấu hiệu khó sẽ bị hạ thành `unknown`.

@@ -28,7 +28,7 @@ khung giây (`target_s`), nhân vật trọng tâm (`focus`), độ mạnh kho�
    thiếu → giãn shot giữ cảm xúc — **không bao giờ** bằng cách bỏ câu.
 6. Hy sinh điều gì (góc máy kịch bản ghi, khung giây) thì ghi `tradeoffs` cho cảnh này (`kind`, `chose`, `gave_up`, `why`, `scene`; `kind`: `dropped_line` (bỏ câu) · `length` (lệch khung giây) · `speech_time` (shot thiếu thời gian nói) · `script_angle` (bỏ góc máy kịch bản ghi) · `other`).
 7. Ghi **`difficulty`** (`easy` / `complex` / `unknown`) + **`difficulty_why`** (một câu căn cứ) cho từng shot, ngay khi chia shot —
-   nhãn chỉ để thông tin / thống kê (mọi shot đều nháp 480p → duyệt → nâng 1080p): 1 người, động tác đơn giản, máy tĩnh/nhẹ, không khớp
+   nhãn quyết định đường làm clip (`easy` → gen thẳng 2.5 720p; còn lại / bỏ trống → nháp 480p → nâng 1080p): 1 người, động tác đơn giản, máy tĩnh/nhẹ, không khớp
    môi, không kỹ năng, không nhảy → `easy`; nhiều người tương tác, nhảy/kỹ năng, khớp môi, tay, máy di chuyển lớn, nền 3D khó →
    `complex`; thiếu căn cứ → `unknown`. Cách nghĩ chi tiết: mục `difficulty` trong phần "Phân shot".
 
