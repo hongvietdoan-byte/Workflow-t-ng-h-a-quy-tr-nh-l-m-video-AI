@@ -97,14 +97,48 @@ def test_the_real_table_says_v3_does_not_follow_speed():
     assert dialogue._rates()["speed_follows"]["eleven_v3"] is False
 
 
-def test_a_measured_slow_voice_lengthens_a_fast_one_never_shortens(table):
-    table({"min_n": 8, "voices": {"70": {"n": 10, "p10": 2.0}, "72": {"n": 16, "p10": 4.2}, "69": {"n": 3, "p10": 1.0}}})
-    assert dialogue.voice_rate(70) == 2.0
-    assert dialogue.voice_rate(72) == dialogue.RATE              # faster than RATE: estimate unchanged (never shorter)
+def test_a_measured_voice_uses_its_median_speed_with_a_floor(table):
+    """Rà vòng gop-1510 mục 1: tốc độ giọng = p50 đo trên GIÂY NÓI (đã cắt lặng), sàn 0,8 × RATE; giọng nhanh được ước ngắn hơn RATE
+    (trước: p10 + chỉ được dài ra → giọng 72 luôn dư ~1 s, giọng 70 câu 23 âm tiết ước 14,4 s)."""
+    table({"min_n": 8, "voices": {"70": {"n": 10, "p10": 1.6, "p50": 3.0}, "72": {"n": 16, "p10": 3.6, "p50": 4.2},
+                                  "69": {"n": 3, "p50": 1.0}, "71": {"n": 9, "p10": 1.0, "p50": 1.5}}})
+    assert dialogue.voice_rate(70) == 3.0                        # p50, not p10
+    assert dialogue.voice_rate(72) == 4.2                        # faster than RATE: measured, the estimate gets shorter
     assert dialogue.voice_rate(69) == dialogue.RATE              # too few samples
+    assert dialogue.voice_rate(71) == pytest.approx(0.8 * dialogue.RATE)   # floor: one odd slow table never balloons the seconds
     assert dialogue.voice_rate(None) == dialogue.RATE
     ctx = {"voices": {"KELLY": {"voice_id": 70, "model": "eleven_v3"}}, "gap": dialogue.LINE_GAP}
-    assert dialogue.needed_seconds([("KELLY", N1)], ctx) == round(8 / 2.0 + dialogue.BREATH, 1)
+    assert dialogue.needed_seconds([("KELLY", N1)], ctx) == round(8 / 3.0 + dialogue.BREATH, 1)
+
+
+def _samples():
+    with open(os.path.join(os.path.dirname(__file__), "fixtures", "speech_samples_1510.json"), encoding="utf-8") as f:
+        return json.load(f)
+
+
+def test_real_table_is_measured_on_speech_seconds_and_fits_each_voice():
+    """Mục 1 (CAO — tiền): bảng thật data/speech_rates.json (tools/measure_speech_rate.py --write, audio TTS thật của máy chính, 0 USD)
+    đo trên giây nói; với từng giọng đủ mẫu, trung vị (ước − độ dài file thật) ≤ +0,5 s; giọng 70 câu 23 âm tiết ≤ ~8 s."""
+    dialogue._RATES_CACHE.clear()
+    try:
+        real = dialogue._rates()
+        assert real.get("basis") == "speech_s"
+        by_voice = {}
+        for r in _samples():
+            by_voice.setdefault(r["voice_id"], []).append(r)
+        import statistics
+        checked = []
+        for v, rows in by_voice.items():
+            entry = (real.get("voices") or {}).get(str(v)) if v is not None else None
+            if not entry or int(entry.get("n") or 0) < int(real.get("min_n") or 8):
+                continue
+            err = statistics.median(r["syllables"] / dialogue.voice_rate(v) + dialogue.BREATH - r["file_s"] for r in rows)
+            assert err <= 0.5 + 1e-6, (v, round(err, 3))
+            checked.append(v)
+        assert {"70", "72", "30007", "30020"} <= set(checked)
+        assert 23 / dialogue.voice_rate("70") + dialogue.BREATH <= 8.5
+    finally:
+        dialogue._RATES_CACHE.clear()
 
 
 def test_narration_speed_setting_reaches_ctx_and_the_narrator_profile(table):
@@ -137,11 +171,11 @@ def test_director_prompt_uses_one_breath_per_turn():
 
 
 def test_normalize_and_report_use_the_project_voice(table):
-    table({"min_n": 8, "voices": {"70": {"n": 10, "p10": 2.0}}})
+    table({"min_n": 8, "voices": {"70": {"n": 10, "p50": 2.8}}})
     ctx = {"voices": {"KELLY": {"voice_id": 70, "model": "eleven_v3"}}, "gap": dialogue.LINE_GAP}
     obj = {"scenes": [{"idx": 1, "shots": [{"size": "MCU", "duration_s": 3.0, "dialogue": [{"speaker": "KELLY", "text": N1}]}]}]}
     out, _ = shot_normalize.normalize(obj, "", None, ctx=ctx)
-    assert out["scenes"][0]["shots"][0]["duration_s"] == 4.5                 # 8 / 2,0 + 0,5 (3,5 âm/s would give 2,8 → kept 3)
+    assert out["scenes"][0]["shots"][0]["duration_s"] == 3.4                 # 8 / 2,8 + 0,5 (3,5 âm/s would give 2,8 → kept 3)
     plain, _ = shot_normalize.normalize(obj, "")
     assert plain["scenes"][0]["shots"][0]["duration_s"] == 3.0
 
@@ -220,6 +254,39 @@ def test_multishot_groups_use_the_voice_stretched_seconds_never_over_15():
     assert all(sum(shots.billed_seconds(p.conn, r) for r in g) <= shots.MULTISHOT_MAX for g in groups)
     p2, pid2, ids2 = _multishot([5, 5, 5])                               # không ai kéo: nhóm như cũ
     assert [[r["id"] for r in g] for g in shots.multishot_groups(p2.conn, pid2)] == [ids2]
+
+
+def test_group_parts_cut_at_the_seconds_the_runner_sends():
+    """Mục 2: clip nhóm Kling multishot cắt theo billed_seconds (giây runner gửi, đã kéo theo giọng) — nhóm [4 kéo 7, 4] → (0,7),(7,4)."""
+    from core import shots
+    p, pid, ids = _multishot([4, 4], voiced={1: 7})
+    group = shots.multishot_groups(p.conn, pid)[0]
+    assert [r["id"] for r in group] == ids
+    assert shots.group_parts(group, p.conn) == [(0.0, 7), (7.0, 4)]
+    assert shots.group_parts(group) == [(0.0, 4), (4.0, 4)]               # không conn: giây Đạo diễn như cũ (clip dựng máy H5)
+    d = tempfile.mkdtemp()
+    src = os.path.join(d, "g.mp4")
+    with open(src, "wb") as f:
+        f.write(b"x")
+    calls = []
+
+    def run(cmd, **kw):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=1)
+    with mock.patch("core.ffmpeg_studio.find_ffmpeg", return_value="ffmpeg"), mock.patch("core.ffmpeg_studio.has_audio", return_value=False), \
+            mock.patch("subprocess.run", side_effect=run):
+        shots.split_group_clip(src, group, [os.path.join(d, "a.mp4"), os.path.join(d, "b.mp4")], conn=p.conn)
+    assert [(c[c.index("-ss") + 1], c[c.index("-t") + 1]) for c in calls] == [("0.00", "7.00"), ("7.00", "4.00")]
+
+
+def test_pacing_warnings_use_the_project_voice(table):
+    """Mục 7: cảnh báo nhịp ở Bước 1 ước giây theo giọng dự án (ctx) như mọi chỗ khác."""
+    from core import shots
+    table({"min_n": 8, "voices": {"70": {"n": 10, "p50": 2.8}}})
+    ctx = {"voices": {"KELLY": {"voice_id": 70, "model": "eleven_v3"}}, "gap": dialogue.LINE_GAP}
+    shot = [{"size": "MCU", "role": "dialogue", "duration_s": 3.0, "dialogue": [{"speaker": "KELLY", "text": N1}]}]
+    assert shots.pacing_warnings(shot) == []                                  # 8 / 3,5 + 0,5 = 2,8 ≤ 3,0 + 0,3
+    assert any("thoại cần ~3.4s" in w for w in shots.pacing_warnings(shot, ctx))   # 8 / 2,8 + 0,5 = 3,4 > 3,3
 
 
 def test_over_model_max_checks_the_multishot_group_limit():

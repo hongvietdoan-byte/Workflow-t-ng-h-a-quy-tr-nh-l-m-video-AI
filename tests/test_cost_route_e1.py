@@ -54,7 +54,7 @@ class Base(unittest.TestCase):
     def label(self, level, sid=None):
         sid = sid or self.s1
         data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()[0] or "{}")
-        data.update(difficulty=level, difficulty_why="test")
+        data.update(difficulty=level, difficulty_why="test", difficulty_by="director")   # vòng gop-1510 mục 5: nhãn Đạo diễn = by director
         self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), sid))
         self.p.conn.commit()
 
