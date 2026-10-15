@@ -1035,8 +1035,9 @@ def _approve_unflagged(p: Pipeline, pid: int, kind: str) -> List[str]:
     two_tier = kind == "video_gen" and quality_tier.enabled()
     for j in p.conn.execute("SELECT j.*, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type=?"
                             " AND j.state='pending_review'", (pid, kind)).fetchall():
-        if two_tier and j["quality_tier"] == "draft":
-            continue       # C2 (13/10): a draft is approved by the person only — the run waits (_drafts_waiting), never ai_agent
+        if two_tier and _person_only(j):
+            continue       # C2 (13/10): a draft — and (15/10, rà gop-1510 mục 6) a direct 720p clip — is approved by the person only:
+            #                the run waits (_drafts_waiting), never ai_agent
         why = _flag_reasons(p, j)
         if why:
             held.append(f"S{j['idx']:02d}: " + ", ".join(why))
@@ -1045,27 +1046,45 @@ def _approve_unflagged(p: Pipeline, pid: int, kind: str) -> List[str]:
     return held
 
 
+def _person_only(job) -> bool:
+    """A two-tier clip only a PERSON approves: a draft (C2 13/10) or a direct clip not made from a draft (người dùng 15/10: clip 720p
+    gen thẳng cũng người duyệt qua chat — QC đạt không tự duyệt)."""
+    tier = job["quality_tier"] if "quality_tier" in job.keys() else None
+    if tier == "draft":
+        return True
+    return tier == "direct" and not ("draft_job_id" in job.keys() and job["draft_job_id"])
+
+
 def _drafts_waiting(p: Pipeline, pid: int) -> List[str]:
     """C2: 'S03' of the shots whose two-tier draft waits for the person's approval (flag two_tier_quality). Rà 13/10 mục 11: judged per
     SHOT by quality_tier.state() == 'draft_review' — an old draft left 'succeeded' after a newer draft was approved (or a final made)
-    no longer keeps the run waiting forever."""
+    no longer keeps the run waiting forever. 15/10 (rà gop-1510 mục 6): a direct 720p clip waiting for review counts too."""
     from . import quality_tier
     if not quality_tier.enabled():
         return []
     rows = p.conn.execute(
         "SELECT DISTINCT s.id, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type='video_gen'"
         " AND j.quality_tier='draft' AND j.state IN ('succeeded','pending_review') ORDER BY s.idx", (pid,)).fetchall()
-    return [f"S{r['idx']:02d}" for r in rows if quality_tier.state(p.conn, r["id"]) == "draft_review"]
+    out = {r["idx"]: r for r in rows if quality_tier.state(p.conn, r["id"]) == "draft_review"}
+    direct = p.conn.execute(
+        "SELECT DISTINCT s.id, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type='video_gen'"
+        " AND j.quality_tier='direct' AND j.draft_job_id IS NULL AND j.state='pending_review' ORDER BY s.idx", (pid,)).fetchall()
+    for r in direct:
+        if quality_tier.state(p.conn, r["id"]) == "final_review":        # not when the shot already has a clip in use (direct_ok …)
+            out.setdefault(r["idx"], r)
+    return [f"S{i:02d}" for i in sorted(out)]
 
 
 def _approve_held(p: Pipeline, pid: int, kind: str, note: str) -> int:
     """The person looked and went on: what was held for them counts as accepted."""
     from . import quality_tier
     skip_drafts = kind == "video_gen" and quality_tier.enabled()
-    rows = p.conn.execute("SELECT id, quality_tier FROM jobs WHERE project_id=? AND type=? AND state='pending_review'",
+    rows = p.conn.execute("SELECT id, quality_tier, draft_job_id FROM jobs WHERE project_id=? AND type=? AND state='pending_review'",
                           (pid, kind)).fetchall()
     # rà 13/10 mục 10 (C2): "Tiếp tục" is not the person's ✔ on a two-tier DRAFT — a draft is approved on its card (the final follows it)
     rows = [r for r in rows if not (skip_drafts and r["quality_tier"] == "draft")]
+    # 15/10 (rà gop-1510 mục 6): nor on a direct 720p clip — approved on its card / in chat, the run keeps waiting for it
+    rows = [r for r in rows if not (skip_drafts and r["quality_tier"] == "direct" and not r["draft_job_id"])]
     return sum(1 for r in rows if p.approve(r["id"], "user", note))   # 13/10: a final of an older draft is retired, not counted
 
 
@@ -1118,8 +1137,8 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
                              "rồi bấm Tiếp tục (clip còn chờ sẽ được giữ như bạn đã xem)")
     drafts = _drafts_waiting(p, pid)
     if drafts and not _active(p, pid, "video_gen"):
-        raise _Wait("drafts", f"{len(drafts)} nháp chờ bạn duyệt (" + ", ".join(drafts[:6]) + ") — xem ở màn Video: ✔ Duyệt rồi "
-                              "⬆ Gen bản cao (máy không duyệt nháp thay bạn)")
+        raise _Wait("drafts", f"{len(drafts)} nháp / clip gen thẳng chờ bạn duyệt (" + ", ".join(drafts[:6]) + ") — xem ở màn Video: "
+                              "✔ Duyệt (nháp: rồi ⬆ Gen bản cao) — máy không duyệt nháp / clip gen thẳng thay bạn")
     fresh = lineage.summary(p.conn, pid)["videos"][0]
     total = len(_scene_rows(p, pid))
     return None if fresh == total else f"Video: {fresh}/{total} dùng được"

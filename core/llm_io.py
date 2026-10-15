@@ -516,7 +516,8 @@ def _store(pipeline: Pipeline, project_id: int, obj: Dict) -> None:
             merged[key] = s[key]
         if "difficulty" not in locked:                   # N2: Director's label cross-checked from the scene's fields (0 USD)
             if not _empty(s.get("difficulty")):
-                merged.pop("difficulty_by", None)        # 15/10: the Director wrote a label now — no longer the code's stand-in
+                merged.pop("difficulty_director", None)  # 15/10: the Director wrote a label now — no longer the code's stand-in,
+                merged["difficulty_by"] = "director"     # nor an old note's guess (rà gop-1510 mục 3: data without difficulty_by)
             from . import shot_complexity
             shot_complexity.apply(merged)
         conn.execute("UPDATE scenes SET data=? WHERE id=?",

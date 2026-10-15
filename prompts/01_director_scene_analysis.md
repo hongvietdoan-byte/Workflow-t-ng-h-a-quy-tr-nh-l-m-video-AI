@@ -53,7 +53,7 @@ Dùng knowledge pack đính kèm (biên kịch/quay phim, phương pháp đạo 
   "scenes": [{"idx": 1, "location": "", "location_asset": 12, "sequence": 1, "time": "", "characters": [""], "mood": "",
               "lighting": "", "shot": "", "blocking": "", "image_prompt": "",
               "emotional_intent": "", "knowledge_gap": "", "beat": {"want": "", "obstacle": "", "turn": "", "value": "", "plant": "", "payoff": "", "cause": ""},
-              "camera_complexity": "simple", "shot_role": "normal", "difficulty": "easy", "difficulty_why": "",
+              "camera_complexity": "simple", "shot_role": "normal", "difficulty": "unknown", "difficulty_why": "",
               "dialogue": [{"speaker": "", "text": ""}], "duration_s": 5}],
   "ip_risk_notes": [""]
 }

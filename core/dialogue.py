@@ -100,13 +100,16 @@ def syllables(said: str) -> int:
 
 
 # ---- 15/10: giây đọc theo (giọng, tốc độ) — MỘT chỗ cho mọi nơi ước giây (Đạo diễn, chuẩn hoá shot, báo cáo, nhịp nhanh, motion) ----
-# Số đo thật (tools/measure_speech_rate.py --write → data/speech_rates.json): theo giọng = âm tiết/giây ở phân vị THẤP (p10 — câu chậm
-# nhất; dùng p90 âm tiết/giây sẽ ước NGẮN hơn audio). Chỉ một giọng có đủ mẫu và đọc CHẬM hơn RATE mới đổi ước tính (chỉ được dài ra);
+# Số đo thật (tools/measure_speech_rate.py --write → data/speech_rates.json): theo giọng = âm tiết/giây TRUNG VỊ (p50) đo trên GIÂY NÓI
+# (đã cắt lặng đầu/cuối — phần lặng là BREATH, không đếm hai lần), sàn RATE_FLOOR × RATE. Rà vòng gop-1510 (15/10, mục 1 CAO — tiền):
+# trước đây p10 trên độ dài cả FILE + BREATH → giọng 70 câu 23 âm tiết ước 14,4 s (thật ~8 s), shot dài ra = tiền gen. Kiểm bằng mẫu đo
+# thật tests/fixtures/speech_samples_1510.json: mỗi giọng đủ mẫu trung vị (ước − file thật) ≤ +0,5 s;
 # "speed_follows": model nào thật sự đọc nhanh/chậm theo speed gửi đi — chưa đo được thì hệ số tốc độ = 1 (ước như tốc độ 1,0).
 LINE_GAP = 0.15            # giữa hai câu liền nhau trong một shot = voice.GAP (khâu dựng đặt câu y như vậy); nhịp nhanh: pacing.FAST_LINE_GAP
 _RATES_FILE = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "speech_rates.json"))
 _RATES_CACHE: Dict = {}
 RATES_DEFAULT: Dict = {"min_n": 8, "voices": {}, "speed_follows": {}}   # = công thức cũ (RATE, tốc độ không đổi ước tính)
+RATE_FLOOR = 0.8          # tốc độ giọng dùng để ước không chậm hơn 0,8 × RATE (một bảng lệch / ít câu dài không làm phình giây)
 
 
 def _rates() -> Dict:
@@ -138,12 +141,13 @@ def _say_rates_problem(conn, project_id: int) -> None:
 
 
 def voice_rate(voice_id=None) -> float:
-    """Âm tiết/giây dùng để ƯỚC cho giọng này: min(RATE, p10 đo được) khi giọng có ≥ min_n câu đo, else RATE."""
+    """Âm tiết/giây dùng để ƯỚC cho giọng này: max(p50 đo trên giây nói, RATE_FLOOR × RATE) khi giọng có ≥ min_n câu đo, else RATE.
+    Giọng đọc nhanh hơn RATE được ước ngắn hơn (đo thật: trung vị lệch ≤ +0,5 s nhờ BREATH); bảng thiếu p50 → RATE."""
     table = _rates()
     v = (table.get("voices") or {}).get(str(voice_id)) if voice_id is not None else None
     try:
-        if v and int(v.get("n") or 0) >= int(table.get("min_n") or 8) and float(v.get("p10") or 0) > 0:
-            return min(RATE, float(v["p10"]))
+        if v and int(v.get("n") or 0) >= int(table.get("min_n") or 8) and float(v.get("p50") or 0) > 0:
+            return max(float(v["p50"]), RATE_FLOOR * RATE)
     except (TypeError, ValueError):
         pass
     return RATE

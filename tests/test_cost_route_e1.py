@@ -171,7 +171,7 @@ class GroupKeepsDraftsTests(Base):
         vr = VideoRunner(self.p, _provider(), self.data)
         group = [{"id": sid, "idx": i, "refs": False, "data": {"duration_s": 4}} for i, sid in enumerate(self.sids, 1)]
 
-        def split(path, grp, dests):
+        def split(path, grp, dests, **kw):
             for i, dest in enumerate(dests[1:], 2):
                 with open(dest, "wb") as fh:
                     fh.write(f"final-{i}".encode())
@@ -419,7 +419,7 @@ class GroupRawTests(Base):
         vr = VideoRunner(self.p, _provider(), self.data)
         group = [{"id": sid, "idx": i, "refs": False, "data": {"duration_s": 4}} for i, sid in enumerate(self.sids, 1)]
 
-        def split(path, grp, dests):
+        def split(path, grp, dests, **kw):
             with open(dests[1], "wb") as fh:
                 fh.write(b"final-2")
 

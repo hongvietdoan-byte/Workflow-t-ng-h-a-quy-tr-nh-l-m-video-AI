@@ -355,7 +355,7 @@ class SupersededFinalTests(Base):
             vr = VideoRunner(self.p, _provider(), self.data)
             lead = os.path.join(self.data, "01_lead.mp4")
 
-            def split(path, group, dests):
+            def split(path, group, dests, **kw):
                 for d in dests[1:]:
                     with open(d, "wb") as fh:
                         fh.write(b"part")
@@ -593,7 +593,9 @@ class ReviewRoundS1Tests(Base):
             self.p.transition(d, JobState.PENDING_REVIEW)
             s2 = self.p.create_scene(self.pid, 2, "Shot 2")
             g = self.p.create_job(s2, "video_gen")
-            self.p.conn.execute("UPDATE jobs SET quality_tier='direct' WHERE id=?", (g,))
+            # 15/10 (rà gop-1510 mục 6): clip gen thẳng THUẦN cũng chỉ người duyệt (test_shot_easy_direct_720p) — ở đây clip gen thẳng
+            # làm TỪ nháp (draft_job_id) vẫn được "Tiếp tục" coi như đã xem
+            self.p.conn.execute("UPDATE jobs SET quality_tier='direct', draft_job_id=? WHERE id=?", (d, g))
             self.p.conn.commit()
             self.p.start(g)
             self.p.succeed(g)

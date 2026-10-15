@@ -138,21 +138,26 @@ def _scene_data(conn, scene_id: int) -> Dict:
 
 
 def label_from_director(data: Dict) -> Optional[str]:
-    """Nhãn dễ/khó do ĐẠO DIỄN ghi (easy / complex / unknown), None = thiếu. Nhãn code tự điền khi Đạo diễn bỏ trống
-    (shot_complexity.reconcile: `difficulty_by` = "check", dữ liệu cũ: ghi chú "Đạo diễn chưa ghi độ khó") KHÔNG tính là nhãn."""
+    """Nhãn dễ/khó do ĐẠO DIỄN ghi (easy / complex / unknown), None = thiếu. Rà vòng gop-1510 (chặt): CHỈ khi `difficulty_by` ==
+    "director" (shot_complexity.reconcile ghi) — nhãn code tự điền ("check"), dữ liệu trước 15/10 không rõ ai ghi → None (đi KHÓ, có
+    lý do). 'easy' mà `difficulty_why` rỗng → None (mục 4: ví dụ prompt cũ ghi sẵn 'easy' + why rỗng). Kiểm chéo hạ 'dễ' → 'chưa rõ'
+    chỉ để HIỂN THỊ (quyết định 15/10): `difficulty_director` = 'easy' → 'easy'."""
+    if not isinstance(data, dict) or data.get("difficulty_by") != "director":
+        return None
     level = data.get("difficulty")
+    if level == "unknown" and data.get("difficulty_director") == "easy":
+        level = "easy"
     if level not in DIFFICULTY:
         return None
-    note = str((data.get("difficulty_check") or {}).get("note") or "") if isinstance(data.get("difficulty_check"), dict) else ""
-    if data.get("difficulty_by") == "check" or note.startswith("Đạo diễn chưa ghi độ khó"):
+    if level == "easy" and not str(data.get("difficulty_why") or "").strip():
         return None
     return level
 
 
 def hard_signs(conn, scene_id: int, data: Optional[Dict] = None) -> List[str]:
     """Dấu hiệu KHÓ mà code biết (quy ước 15/10) — có bất kỳ dấu hiệu nào thì shot đi nháp trước, kể cả Đạo diễn ghi 'dễ': video tham
-    chiếu, shot kỹ năng, khớp môi / take thoại, ≥ 3 nhân vật, shot quan trọng (hero / money shot), kiểm chéo shot_complexity điểm > EASY_MAX."""
-    from . import shot_complexity
+    chiếu, shot kỹ năng, khớp môi / take thoại (của shot, hoặc của NHÓM gen chung — rà gop-1510 mục 8), ≥ 3 nhân vật, shot quan trọng
+    (hero / money shot). Người dùng 15/10: KHÔNG ép khó chỉ vì 2 nhân vật / thoại + tay — điểm kiểm chéo shot_complexity chỉ để hiển thị."""
     data = _scene_data(conn, scene_id) if data is None else data
     signs: List[str] = []
     mp = conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
@@ -177,15 +182,40 @@ def hard_signs(conn, scene_id: int, data: Optional[Dict] = None) -> List[str]:
             voiced = False
     if voiced:
         signs.append("khớp môi / take thoại")
+    else:
+        mate = _group_take(conn, scene_id)
+        if mate is not None:
+            signs.append(f"nhóm gen chung có take thoại (shot #{mate})")
     cast = [c for c in data.get("characters") or [] if c]
     if len(cast) >= 3:
         signs.append(f"{len(cast)} nhân vật")
     if data.get("shot_role") == "hero" or data.get("money_shot") is True:
         signs.append("shot quan trọng")
-    check = shot_complexity.score(data, ref_video=ref_video)
-    if check["score"] > shot_complexity.EASY_MAX:
-        signs.append(f"kiểm chéo điểm {check['score']} (" + " · ".join(f["label"] for f in check["factors"]) + ")")
     return signs
+
+
+def _group_take(conn, scene_id: int) -> Optional[int]:
+    """Rà gop-1510 mục 8: model_router chọn take thoại theo NHÓM gen chung (một shot có thoại thấy mặt → cả clip nhóm là take Seedance
+    2.5 kèm track giọng) → shot góc rộng không thoại trong nhóm đó cũng khó. Trả id shot take khác trong nhóm, None = không có."""
+    try:
+        from . import lipsync, shots
+        if not lipsync.enabled():
+            return None
+        group = shots.group_of(conn, scene_id) or []
+    except Exception:  # noqa: BLE001 - no shot table / lip sync module: only the shot's own signs
+        return None
+    for r in group:
+        if r.get("id") == scene_id:
+            continue
+        d = r.get("data")
+        if not isinstance(d, dict):
+            d = _scene_data(conn, r["id"])
+        try:
+            if lipsync.method_for(d) == "take":
+                return r["id"]
+        except Exception:  # noqa: BLE001
+            continue
+    return None
 
 
 def _direct_rejected(conn, scene_id: int) -> bool:
@@ -219,6 +249,11 @@ def route(conn, scene_id: int) -> Dict:
         return {"path": "draft_first", "why": "shot khó (code ép: " + ", ".join(signs) + ")"}
     level = label_from_director(data)
     if level is None:
+        if data.get("difficulty") in DIFFICULTY and not data.get("difficulty_by"):
+            return {"path": "draft_first", "why": "nhãn dễ/khó ghi trước 15/10, không rõ Đạo diễn hay code ghi — coi là khó (chạy lại "
+                                                  "Đạo diễn để có nhãn mới)"}
+        if data.get("difficulty") == "easy" and data.get("difficulty_by") == "director":
+            return {"path": "draft_first", "why": "Đạo diễn ghi 'dễ' nhưng không nêu căn cứ (difficulty_why) — coi là khó"}
         return {"path": "draft_first", "why": "Đạo diễn chưa gắn nhãn dễ/khó — coi là khó"}
     if level == "easy":
         return {"path": "direct", "why": "shot dễ (Đạo diễn gắn 'dễ', code không thấy dấu hiệu khó)"}

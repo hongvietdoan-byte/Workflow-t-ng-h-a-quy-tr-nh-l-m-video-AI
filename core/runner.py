@@ -2184,7 +2184,8 @@ class VideoRunner(_Runner):
                 return done
         sent = json.loads(job["sent_group"]) if "sent_group" in job.keys() and job["sent_group"] else None
         group = ([{"id": g["id"], "idx": g["idx"], "refs": bool(g.get("refs")),
-                   "data": {"duration_s": g["duration_s"], "exact": bool(g.get("exact")), "offset": g.get("offset")}} for g in sent]
+                   "data": {"duration_s": g["duration_s"], "exact": bool(g.get("exact")), "offset": g.get("offset"),
+                            "sent": True}} for g in sent]
                  if sent
                  else self._sends_group(job))       # M10: the group as it was sent (a later re-plan must not mis-cut a paid clip)
         part, edges, whole = None, None, None
@@ -2274,8 +2275,8 @@ class VideoRunner(_Runner):
             except (KeyError, TypeError, ValueError):
                 parts = None                      # a split that did not say where it cut: the parts are not known (said on the final)
         else:
-            shots.split_group_clip(path, group, dests)
-            parts = shots.group_parts(group)
+            shots.split_group_clip(path, group, dests, conn=conn)       # rà gop-1510 mục 2: cắt đúng giây đã gửi (billed_seconds)
+            parts = shots.group_parts(group, conn)
         aspect = formats.project_aspect(self.p.project(leader["project_id"]))
         for k, (r, dest) in enumerate(zip(group[1:], dests[1:]), 1):
             follower = conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type='video_gen' AND state='queued' ORDER BY id DESC LIMIT 1",

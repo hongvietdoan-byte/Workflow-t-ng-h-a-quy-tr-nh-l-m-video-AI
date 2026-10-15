@@ -138,13 +138,14 @@ def validate(shots: Any, where: str, names) -> None:
             raise ShotError(f"{w}.dialogue: [{{speaker, text}}]")
 
 
-def pacing_warnings(shots: List[Dict]) -> List[str]:
+def pacing_warnings(shots: List[Dict], ctx: Optional[Dict] = None) -> List[str]:
     """Soft checks only — pacing follows the script (decision 3): a spoken line longer than its shot, a silent shot under 1 s, a wide
-    shot too short to read, the same size many times in a row."""
+    shot too short to read, the same size many times in a row. ctx = dialogue.speech_ctx của dự án (rà gop-1510 mục 7: giây thoại theo
+    giọng như mọi chỗ ước giây khác); None = công thức mặc định."""
     from .dialogue import needed_seconds
     out = []
     for k, s in enumerate(shots, 1):
-        need = needed_seconds([(d.get("speaker", ""), d["text"]) for d in s.get("dialogue") or []])
+        need = needed_seconds([(d.get("speaker", ""), d["text"]) for d in s.get("dialogue") or []], ctx)
         if need and need > float(s["duration_s"]) + 0.3:
             out.append(f"shot {k}: thoại cần ~{need:g}s nhưng shot dài {s['duration_s']:g}s")
         dur = float(s["duration_s"])
@@ -743,9 +744,10 @@ def multishot_group_of(conn, scene_id: int) -> Optional[List[Dict]]:
     return None
 
 
-def split_group_clip(path: str, group: List[Dict], dest_paths: List[str]) -> List[str]:
+def split_group_clip(path: str, group: List[Dict], dest_paths: List[str], conn=None) -> List[str]:
     """Cut a Kling multi-shot clip into one file per shot (each shot's billed length, in order). The whole clip is kept as
-    <name>_group.mp4. Returns the paths written; a shot whose part cannot be cut gets a copy of the whole clip."""
+    <name>_group.mp4. Returns the paths written; a shot whose part cannot be cut gets a copy of the whole clip.
+    conn: the seconds the runner SENT (billed_seconds, voice-stretched) — see group_parts."""
     import os
     import shutil
     import subprocess
@@ -758,7 +760,7 @@ def split_group_clip(path: str, group: List[Dict], dest_paths: List[str]) -> Lis
         audio = ["-c:a", "aac", "-b:a", "256k"] if has_audio(whole) else ["-an"]
     except Exception:  # noqa: BLE001 - no ffmpeg: every shot keeps the whole clip
         ffmpeg = None
-    for (start, sec), dest in zip(group_parts(group), dest_paths):
+    for (start, sec), dest in zip(group_parts(group, conn), dest_paths):
         ok = False
         if ffmpeg:
             proc = subprocess.run([ffmpeg, "-y", "-ss", f"{start:.2f}", "-i", whole, "-t", f"{sec:.2f}", *_encode(), *audio, dest],
@@ -770,13 +772,20 @@ def split_group_clip(path: str, group: List[Dict], dest_paths: List[str]) -> Lis
     return out
 
 
-def group_parts(group: List[Dict]) -> List[tuple]:
+def group_parts(group: List[Dict], conn=None) -> List[tuple]:
     """(start, seconds) of each shot's part in a multi-shot / set-up group clip, as split_group_clip cuts it (one source for the cut
-    and for the record of where each shot's part sits — a final made from the draft's task is cut at the very same place)."""
+    and for the record of where each shot's part sits — a final made from the draft's task is cut at the very same place).
+    conn (rà vòng gop-1510 mục 2): giây của shot = billed_seconds(conn, r) — đúng giây runner GỬI (đã kéo theo giọng thật); không conn
+    (clip dựng máy H5 / gọi cũ) = giây Đạo diễn ≥ 3 s như trước. Trước: runner gửi 7+4 mà cắt 4+4 → shot 2 lấy nhầm đuôi shot 1."""
     start, out = 0.0, []
     for r in group:
         # a multi-shot generation gives each shot its billed length (>= 3 s); an H5 set-up clip is cut at the shots' own seconds
-        sec = float(r["data"]["duration_s"]) if r["data"].get("exact") else billed_shot_seconds(r["data"])
+        if r["data"].get("exact"):
+            sec = float(r["data"]["duration_s"])
+        elif conn is not None and r.get("id") is not None and not r["data"].get("sent"):
+            sec = billed_seconds(conn, r)     # a group read back from the job's sent_group already holds the seconds sent (M10)
+        else:
+            sec = billed_shot_seconds(r["data"])
         if r["data"].get("offset") is not None:        # S3.4: a whole-stretch take — each shot at its own place in the stretch
             start = float(r["data"]["offset"])
         out.append((start, sec))

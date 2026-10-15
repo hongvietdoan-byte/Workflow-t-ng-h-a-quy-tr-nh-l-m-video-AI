@@ -6,8 +6,10 @@ move, lip sync / spoken lines, a skill effect, a reference video, a 3D place. An
 "unknown" with a note (a draft first is cheaper than a wasted high-tier clip); "complex" is never lowered — the Director may see a
 difficulty the fields do not show.
 
-N1 (the two-tier video, quality_tier.route) reads scenes.data["difficulty"]: easy (written by the Director, `difficulty_by` != "check", and no
-hard sign the code knows) → Seedance 2.5 720p straight away; complex / unknown / no Director label → a 480p draft first (người dùng 15/10).
+N1 (the two-tier video, quality_tier.route) reads scenes.data["difficulty"]: easy (written by the Director, `difficulty_by` == "director"
+with a `difficulty_why`, and no hard sign the code knows) → Seedance 2.5 720p straight away; complex / unknown / no Director label → a 480p
+draft first (người dùng 15/10). Người dùng 15/10: điểm kiểm chéo KHÔNG ép đường đi — 'dễ' bị hạ 'chưa rõ' chỉ để hiển thị
+(`difficulty_director` = "easy" giữ nhãn gốc).
 09/10: Đạo diễn KHÔNG ghi nhãn → nhãn THỐNG KÊ theo kiểm chéo (điểm ≥ COMPLEX_MIN → complex, còn lại → easy) + `difficulty_by` = "check";
 15/10 (người dùng): shot thiếu nhãn Đạo diễn đi đường KHÓ (nháp trước) — quality_tier.label_from_director bỏ qua nhãn "check". Kiểm chéo bớt gắt: nền 3D không cộng điểm (render được gửi
 làm tham chiếu — giúp model, không làm khó; #24 shot 1–2 "một người đi, máy tĩnh" bị hạ oan), `camera_complexity` chỉ tính khi shot không
@@ -101,16 +103,25 @@ def score(scene_data: Dict, ref_video: bool = False) -> Dict:
 def reconcile(scene_data: Dict, ref_video: bool = False) -> Dict:
     """The fields to merge into a shot row: `difficulty` (the Director's label, cleaned; an "easy" that the fields contradict → "unknown"),
     `difficulty_why` (when written) and `difficulty_check` {score, factors, suggest, note?}."""
-    # 15/10: nhãn code tự điền lần trước (`difficulty_by` = "check") không phải nhãn Đạo diễn — chấm lại như thiếu nhãn
-    by_check = scene_data.get("difficulty_by") == "check"
+    # 15/10: nhãn code tự điền lần trước (`difficulty_by` = "check") không phải nhãn Đạo diễn — chấm lại như thiếu nhãn. Rà vòng
+    # gop-1510 mục 3: dữ liệu trước 15/10 chưa có `difficulty_by` nhưng ghi chú "Đạo diễn chưa ghi độ khó…" cũng là nhãn code
+    old_check = scene_data.get("difficulty_check")
+    old_note = str(old_check.get("note") or "") if isinstance(old_check, dict) else ""
+    by_check = scene_data.get("difficulty_by") == "check" or (not scene_data.get("difficulty_by")
+                                                              and old_note.startswith("Đạo diễn chưa ghi độ khó"))
     label = clean_label(None if by_check else scene_data.get("difficulty"))
+    if (label == "unknown" and scene_data.get("difficulty_by") == "director" and scene_data.get("difficulty_director") == "easy"):
+        label = "easy"          # chấm lại một nhãn 'dễ' đã hạ hiển thị lần trước: vẫn là nhãn Đạo diễn 'dễ' (không mất khi lưu lại)
     why = clean_why(scene_data.get("difficulty_why"))
     s = score(scene_data, ref_video=ref_video)
     check = {"score": s["score"], "factors": [f["label"] for f in s["factors"]], "suggest": s["suggest"]}
+    director_easy = False
     if label == "easy" and s["score"] > EASY_MAX:
+        # quyết định người dùng 15/10: điểm kiểm chéo KHÔNG ép đường đi (2 người / thoại + tay không làm shot khó) — nhãn hiển thị
+        # 'chưa rõ' + ghi chú giữ để người xem, `difficulty_director` giữ nhãn gốc cho quality_tier.label_from_director
         check["note"] = ("kiểm chéo: Đạo diễn ghi 'dễ' nhưng shot có " + " · ".join(check["factors"])
-                         + f" (điểm {s['score']}) → hạ thành 'chưa rõ', nháp trước")
-        label = "unknown"
+                         + f" (điểm {s['score']}) → hiển thị 'chưa rõ'; đường đi theo nhãn Đạo diễn + dấu hiệu khó code ép")
+        label, director_easy = "unknown", True
     elif by_check or "difficulty" not in scene_data or scene_data.get("difficulty") in (None, ""):
         # nhãn THỐNG KÊ theo kiểm chéo; đường làm clip (quality_tier.route) coi shot thiếu nhãn Đạo diễn là KHÓ → nháp trước (15/10)
         label = "complex" if s["suggest"] == "complex" else "easy"
@@ -121,6 +132,8 @@ def reconcile(scene_data: Dict, ref_video: bool = False) -> Dict:
             out["difficulty_why"] = why
         return out
     out = {"difficulty": label, "difficulty_by": "director", "difficulty_check": check}
+    if director_easy:
+        out["difficulty_director"] = "easy"
     if why:
         out["difficulty_why"] = why
     return out
@@ -131,5 +144,7 @@ def apply(data: Dict, ref_video: bool = False) -> Dict:
     fields = reconcile(data, ref_video=ref_video)
     if "difficulty_why" not in fields:
         data.pop("difficulty_why", None)
+    if "difficulty_director" not in fields:
+        data.pop("difficulty_director", None)
     data.update(fields)
     return data
