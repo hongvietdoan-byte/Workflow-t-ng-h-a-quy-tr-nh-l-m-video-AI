@@ -584,6 +584,7 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
         for cam in cams.values():
             cam["inputs_fp"] = fp
         res["guide_missing"] = guides_missing(cams)
+        res["round"] = os.path.basename(rd)               # rà 16/10: lượt cuối của LẦN chạy này (r* cũ của lần trước còn trên đĩa)
         for s in seg["shots"]:
             if s["idx"] not in cams and s["idx"] not in bad:
                 bad[s["idx"]] = "bộ giải không đặt được máy (lỗi yêu cầu khung)"
@@ -641,8 +642,17 @@ def _say_guides(conn, pid: int, seg: Dict, r: Dict, out: Dict, log) -> None:
 
 
 def last_answer(data_dir: str, pid: int, seg: Dict) -> Optional[Tuple[str, Dict]]:
-    """(thư mục lượt, câu trả lời) của lượt Đạo diễn cuối đã lưu cho đoạn này, hoặc None."""
+    """(thư mục lượt, câu trả lời) của lượt Đạo diễn cuối của LẦN chạy trả tiền gần nhất (result.json "round"; không có thì lượt số
+    lớn nhất), hoặc None."""
     out = os.path.join(base_dir(data_dir, pid, seg["stage"]), f"doan_{key_of(seg['scene'])}")
+    try:
+        with open(os.path.join(out, "result.json"), encoding="utf-8") as f:
+            rnd = json.load(f).get("round")
+        if rnd and os.path.exists(os.path.join(out, rnd, "answer.json")):
+            with open(os.path.join(out, rnd, "answer.json"), encoding="utf-8") as f:
+                return os.path.join(out, rnd), json.load(f)
+    except (OSError, ValueError):
+        pass
     rounds = sorted((d for d in (os.listdir(out) if os.path.isdir(out) else []) if re.fullmatch(r"r\d+", d)
                      and os.path.exists(os.path.join(out, d, "answer.json"))), key=lambda d: int(d[1:]))
     if not rounds:
@@ -667,6 +677,16 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
     if missing:
         out["missing"] += missing
         return out
+    fp = fingerprint(inputs)
+    try:                                                  # rà 16/10: câu trả lời cũ chỉ dùng cho ĐÚNG đầu vào đã gửi Đạo diễn
+        with open(os.path.join(os.path.dirname(rd), "inputs.json"), encoding="utf-8") as f:
+            sent = fingerprint(json.load(f))
+    except (OSError, ValueError):
+        sent = None
+    if sent != fp:
+        out["missing"].append(f"sân khấu {seg['id']}: đầu vào (kịch bản / Kho / cảnh trước) đã đổi so với lần trả tiền — không dựng lại "
+                              "từ câu trả lời cũ; phải chạy có trả tiền")
+        return out
     with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
         st = json.load(f)
     bl = dict(obj["blocking"], place=inputs["place"], spot=inputs["spot"], aspect=inputs["aspect"])
@@ -676,11 +696,13 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
     except (ValueError, KeyError, TypeError):
         colours = {}
     cams, bad = cameras_from(st, v2 or {}, seg["id"], rd, colours)
-    fp = fingerprint(inputs)
     for cam in cams.values():
         cam["inputs_fp"] = fp
+    for s in seg["shots"]:
+        if s["idx"] not in cams and s["idx"] not in bad:
+            bad[s["idx"]] = "bộ giải không đặt được máy (lỗi yêu cầu khung)"
     res = {"cams": cams, "bad": bad, "missing": [], "state": end_state(st, obj, seg["scene"]), "fp": fp,
-           "guide_missing": guides_missing(cams), "rerendered_from": os.path.basename(rd)}
+           "guide_missing": guides_missing(cams), "round": os.path.basename(rd), "rerendered_from": os.path.basename(rd)}
     _save(os.path.join(os.path.dirname(rd), "result.json"), res)
     out["applied"] = apply(conn, seg, cams)
     _say_guides(conn, pid, seg, res, out, log)
@@ -756,6 +778,8 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: 
             _say(conn, pid, "warn", line, log)
             out["held"].append(("stageauto:" + hashlib.sha1(line.encode("utf-8")).hexdigest()[:12], line))
             continue
+        if r.get("reused"):                               # rà 16/10: kết quả lưu trước khi có kiểm tệp ảnh người nộm
+            r["guide_missing"] = guides_missing(r["cams"])
         if r.get("state"):
             state[seg["stage"]] = r["state"]
         out["applied"] += apply(conn, seg, r["cams"])

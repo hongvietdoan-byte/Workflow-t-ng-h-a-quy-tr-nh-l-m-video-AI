@@ -2698,7 +2698,8 @@ def stage_guide_reference(runner, job, data):
     path = sc["guide"]
     if not os.path.exists(path):
         say = getattr(runner, "_diag_once", None) or getattr(runner, "_diag", None) or (lambda *a: None)
-        say(job, "warn", "stage_guide_missing", f"ảnh hướng dẫn chỗ đứng của sân khấu 3D không còn ({path}) — gửi không kèm")
+        say(job, "error", "stage_guide_missing", f"ảnh hướng dẫn chỗ đứng (người nộm) của sân khấu 3D không có ({path}) — ảnh này gửi "
+                                                   "KHÔNG kèm người nộm; dựng lại: py tools/stage_auto.py --project <id> --rerender")
         return None
     who = ", ".join(f"{c} = {n}" for c, n in (sc.get("guide_people") or {}).items())
     return {"path": path, "label": "blocking guide" + (f" ({who})" if who else ""), "role": "stage_guide"}

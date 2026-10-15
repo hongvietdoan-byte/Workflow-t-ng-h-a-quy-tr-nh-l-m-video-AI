@@ -60,6 +60,9 @@ def main(argv=None):
         print("⚠", h)
     if a.rerender:                                       # 16/10: dựng lại ảnh clay / số đo từ câu trả lời đã trả tiền — 0 USD
         for g in segs:
+            if drawn_shots(conn, g) and not a.force:      # rà 16/10: máy mới làm ảnh đã vẽ lệch nền — như luồng thường
+                print(f"## {g['id']}: có shot đã vẽ ảnh — bỏ qua (thêm --force)")
+                continue
             print()
             print(f"## {g['id']} — render lại từ câu trả lời đã lưu")
             print(json.dumps(stage_auto.rerender(conn, a.project, g, a.data_dir, log=print), ensure_ascii=False, indent=1))

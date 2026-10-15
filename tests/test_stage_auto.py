@@ -700,7 +700,7 @@ class BlenderPathTests(Base):
         def fake_run(cmd, **kw):
             bat = next(os.path.join(self.tmp, f) for f in os.listdir(self.tmp) if f.endswith(".cmd"))
             text = open(bat, encoding="ascii").read()
-            self.assertIn('cd /d "' + os.getcwd() + '"', text)
+            self.assertIn('cd /d "' + os.getcwd() + '" || (echo 9 > ', text)
             base = bat[:-4]
             open(base + ".rc", "w").write("0")
             open(base + ".log", "w").write("ok")
@@ -741,3 +741,31 @@ class BlenderPathTests(Base):
         pid = self.project()
         seg = stage_auto.segments(self.p.conn, pid)[0]
         self.assertIn("chưa có câu trả lời", stage_auto.rerender(self.p.conn, pid, seg, self.data)["missing"][0])
+
+
+class RerenderReviewTests(Base):
+    def test_rerender_refuses_when_inputs_changed_since_paid_call(self):
+        pid = self.project()
+        stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        with mock.patch("core.assets.standard_for", return_value={"height_m": 1.6, "approved": True}):
+            r = stage_auto.rerender(self.p.conn, pid, seg, self.data)
+        self.assertIn("đầu vào", r["missing"][0])
+        self.assertEqual(r["applied"], [])
+
+    def test_last_answer_is_the_round_of_the_last_paid_run(self):
+        pid = self.project()
+        stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        d = os.path.join(stage_auto.base_dir(self.data, pid, seg["stage"]), "doan_1")
+        os.makedirs(os.path.join(d, "r2"), exist_ok=True)                  # lượt r2 cũ của một lần chạy trước còn trên đĩa
+        with open(os.path.join(d, "r2", "answer.json"), "w", encoding="utf-8") as f:
+            json.dump({"cu": True}, f)
+        self.assertTrue(stage_auto.last_answer(self.data, pid, seg)[0].endswith("r1"))
+
+    def test_reused_result_with_missing_guide_is_red(self):
+        pid = self.project()
+        stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+        os.remove(self.shot(pid, 1)["stage_camera"]["guide"])
+        r = stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+        self.assertTrue(any("KHÔNG có trên đĩa" in h[1] for h in r["held"]))
