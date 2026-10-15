@@ -39,7 +39,7 @@ Nguồn: ảnh bảng kịch bản trong chat 14/10 + tư liệu `D:\2026\OB55\H
 
 Người dùng 14/10: viết thêm cho vừa tiến độ cảnh, nhịp truyện KHÁ NHANH không chậm; **tốc độ đọc TTS 1,2** (gốc 1,0 — trần ClipAI 0,7–1,2). Ước ở 1,2 ≈ 93 s cả 8 cảnh.
 
-1. [+] Trận mới, vẫn là bạn — Kelly, đứng giữa con đường dài trước Cổng Trời. · (gốc) Phía sau lưng bạn thấy bức tường với 2 cánh cửa… hành trình tiếp theo của bạn!
+1. [+] Trận mới, vẫn là bạn — Kelly, tỉnh dậy trong một căn phòng cũ kỳ lạ. (15/10: thay "đứng giữa con đường dài trước Cổng Trời") · (gốc) Phía sau lưng bạn thấy bức tường với 2 cánh cửa… hành trình tiếp theo của bạn!
 2. [+] Cửa số 1 bật mở — chào mừng tới thế giới song song. · (gốc) Bạn bước vào mê cung tại Cổng Trời. · [+] Rẽ trái, rẽ phải, ngõ cụt… cuối cùng cũng tới trung tâm mê cung. · (gốc) Tại đây bạn thấy một chiếc cũi… thử chạm vào chiếc cũi.
 3. (gốc) Chiếc cũi phát ra ánh sáng rực rỡ… lên kẻ địch. · [+] Vừa cầm lên, hào quang đỏ bùng khắp thân súng. · (gốc) Có lẽ đây chính là vật…
 4. [+] Bốn đối thủ ập tới: Tai Họa, Yêu Nữ Tà Linh, Sứ Giả Bóng Đêm, Xúc Tu Đỏ. · (gốc) Tận dụng lợi thế về vũ khí, bạn chan… giành Booyah. · [+] Quét sạch cả đội — quẩy thôi!
@@ -47,3 +47,10 @@ Người dùng 14/10: viết thêm cho vừa tiến độ cảnh, nhịp truyệ
 6. (gốc, giữ nguyên) Bạn bắt gặp một cái xác… quyết định đi tiếp.
 7. [+] Tháp Đồng Hồ im ắng đến lạ… · (gốc) Đang khám phá thì bạn bất ngờ bị địch bắn và lập tức trở lại thế giới thực tại.
 8. (gốc) Đen đủi thay… đang đứng chờ sẵn. · [+] Ba khẩu súng, ba tràng cười. · (gốc) Kết quả là bạn bị chan không thương tiếc và trận đấu kết thúc. · [+] Hạng 48 trên 50… lần sau nhớ đừng đẻ trứng nhé!
+
+## Quyết định 15/10 — cảnh 1 và 5 chuyển vào căn phòng 2 cánh cửa
+Người dùng duyệt: cảnh 1 + 5 KHÔNG còn ở con đường trước Cổng Trời mà ở **căn phòng cũ ma ám như key visual Playbook OB55** (giấy dán
+tường lục giác, sàn gỗ, dây cờ, ánh sáng tối); **2 lối đi** của phòng (như ảnh) **lắp 2 cánh cửa gỗ** số 1, số 2 (dựng Blender, có bản lề,
+mở được; 0 USD). Cảnh 1: góc nhìn thứ nhất của Kelly quay người lại thấy 2 cửa đóng (số + đồng hồ đếm 3 s ghép hậu kỳ). Cảnh 2: cửa 1 bật
+mở → máy lao vào → mê cung Cổng Trời song song. Cảnh 5: cùng phòng, cùng góc máy; cửa 1 đang mở (ánh tím đỏ), Kelly mở cửa 2 → Tháp Đồng Hồ.
+Bỏ chữ REC/giờ và mặt nạ lơ lửng của key visual. Lời dẫn cảnh 1 sửa: "tỉnh dậy trong một căn phòng cũ kỳ lạ… Phía sau lưng bạn thấy 2 cánh cửa."
