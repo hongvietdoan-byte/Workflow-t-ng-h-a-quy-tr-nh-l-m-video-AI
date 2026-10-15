@@ -75,6 +75,9 @@ def main(argv=None):
                 continue
             inputs, missing = stage_auto.inputs_for(conn, a.project, g, k1)
             print(f"\n## {g['id']}" + (f" — THIẾU: {'; '.join(missing)}" if missing else ""))
+            with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
+                gate = stage_auto.preflight(inputs, json.load(f).get("marks"))
+            print("cổng 0 USD (bộ kiểm thật trên câu trả lời mẫu dựng từ đề bài): " + ("; ".join(gate) if gate else "QUA"))
             print(json.dumps(inputs, ensure_ascii=False, indent=1))
         return
     if not a.yes:

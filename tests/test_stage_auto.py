@@ -587,3 +587,52 @@ class RealRunFixTests(Base):
         inputs, _ = stage_auto.inputs_for(self.p.conn, pid, seg, k1)
         self.assertFalse(any("xa_lam" in n for n in inputs["user_notes"]))
         self.assertTrue(any("can_cua" in n for n in inputs["user_notes"]))
+
+
+class PreflightTests(Base):
+    """16/10 chạy thật #31 cảnh 4 lần 2 (0,37 USD): cờ director_blockout BẬT trên máy chính → đề bài nối 'Sơ đồ khối bắt buộc' (nhánh C)
+    cho bối cảnh CÓ model 3D, bộ kiểm đòi schema khối. Test chạy với cờ như máy chính."""
+    def setUp(self):
+        super().setUp()
+        env = mock.patch.dict(os.environ, {"FEATURE_DIRECTOR_BLOCKOUT": "1", "FEATURE_P24_LESSONS": "1"})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def _inputs(self):
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        k1 = stage_auto.ensure_k1(seg["entry"], seg["main_spot"], stage_auto.base_dir(self.data, pid, seg["stage"]))
+        return pid, seg, stage_auto.inputs_for(self.p.conn, pid, seg, k1)[0]
+
+    def test_model3d_place_never_gets_branch_c_prompt(self):
+        _, _, inputs = self._inputs()
+        self.assertIs(inputs["_blockout_enabled"], False)
+        self.assertNotIn("Sơ đồ khối", stage_director.build_prompt(inputs))
+        self.assertEqual(stage_auto.preflight(inputs, {}), [])
+
+    def test_gate_catches_prompt_validator_mismatch_before_paying(self):
+        pid, seg, inputs = self._inputs()
+        broken = {k: v for k, v in inputs.items() if k != "_blockout_enabled"}
+        self.assertTrue(any("nhánh C" in g for g in stage_auto.preflight(broken, {})))
+        client = FakeClaude(answer([1, 2, 3]))
+        with mock.patch.object(stage_auto, "preflight", return_value=["giả lập không khớp"]):
+            r = stage_auto.run(self.p.conn, pid, self.data, client=client)
+        self.assertEqual(client.prompts, [])                               # cổng chưa qua → không trả tiền
+        self.assertIn("cổng 0 USD chưa qua", r["held"][0][1])
+
+    def test_example_in_prompt_passes_validator(self):
+        _, _, inputs = self._inputs()
+        import copy
+        ex = stage_auto.example_answer(inputs)
+        stage_director.validate_answer(copy.deepcopy(ex), inputs, {})
+        self.assertIn("Ví dụ ĐỊNH DẠNG hợp lệ", stage_auto.format_example(inputs))
+
+    def test_bad_replies_kept_verbatim(self):
+        pid = self.project()
+        client = FakeClaude({"blocking": {}, "shot_specs": []})
+        stage_auto.run(self.p.conn, pid, self.data, client=client)
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        d = os.path.join(stage_auto.base_dir(self.data, pid, seg["stage"]), "doan_1")
+        kept = [f for f in os.listdir(d) if f.startswith("bad_reply_")]
+        self.assertTrue(kept)
+        self.assertTrue(any(f.startswith("prompt_r1") for f in os.listdir(d)))

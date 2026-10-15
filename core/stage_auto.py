@@ -280,9 +280,66 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
                       "do_dai": f"{d.get('duration_s')} s" if d.get("duration_s") else ""})
     aspect = formats.project_aspect(conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()) or "9:16"
     inputs = {"pid": pid, "canh": f"cảnh {seg['scene']} — {seg['place'].get('name')} ({len(seg['shots'])} shot)",
+              # 16/10 gốc lỗi chạy thật #31 cảnh 4 (lần 2, 0,37 USD): cờ director_blockout (nhánh C — bối cảnh KHÔNG có model 3D)
+              # bật trên máy → đề bài nối "Sơ đồ khối bắt buộc" + bộ kiểm đòi schema khối. Quyết định nhánh lấy từ Kho như v3_main.
+              "_blockout_enabled": _branch_c(conn, seg["place"]["id"]),
               "auto": True, "place": seg["place"]["id"], "spot": main, "aspect": aspect, "fixed": fixed, "people": people,
               "shots": shots, "floor": tool()._floor_notes(grid), "user_notes": notes}
     return inputs, missing
+
+
+def _branch_c(conn, place_id) -> bool:
+    """Nhánh C (khai sơ đồ khối) chỉ cho bối cảnh KHÔNG có model 3D — Kho quyết định (director_blockout.scene_uses_blockout)."""
+    from . import director_blockout
+    try:
+        return bool(director_blockout.scene_uses_blockout(conn, {"place": place_id}))
+    except ValueError:
+        return False
+
+
+def example_answer(inputs: Dict) -> Dict:
+    """Câu trả lời MẪU đúng định dạng dựng từ chính đề bài (người đứng vòng tròn 1,5 m quanh O, mỗi shot một yêu cầu khung tối
+    thiểu) — dùng cho cổng 0 USD (preflight) và làm ví dụ định dạng gửi kèm đề bài (16/10: đề bài và bộ kiểm phải khớp từ gốc)."""
+    import math as _m
+    people = inputs.get("people") or []
+    objs = []
+    for i, p in enumerate(people):
+        a = 2 * _m.pi * i / max(len(people), 1)
+        objs.append({"key": p["key"], "kind": "nguoi", "at": [round(1.5 * _m.sin(a), 2), round(1.5 * _m.cos(a), 2)] if i else [0.0, 0.0],
+                     "H": p["H"], "facing": 0, "label": p.get("label", p["key"])})
+    for j, f in enumerate(inputs.get("fixed") or []):
+        if f.get("kind") == "moc" or f.get("at"):
+            continue                                       # code tự chèn
+        objs.append({k: v for k, v in f.items() if k != "source"} | {"at": [round(3.0 + j, 2), -3.0]})
+    first = people[0]["key"] if people else None
+    specs = []
+    for s in inputs.get("shots") or []:
+        spec = {"shot": s["shot"], "muc_dich": "…", "co": "MS", "do_cao": "ngang", "goc": "ngang",
+                "thanh_phan": ([{"vat": first, "vai": "chinh", "vung": "giua-tren", "thay": "mat", "co_pct": [40, 80]}] if first else [])}
+        specs.append(spec)
+    return {"blocking": {"objects": objs}, "shot_specs": specs, "can_hoi": []}
+
+
+def preflight(inputs: Dict, marks: Optional[Dict]) -> List[str]:
+    """Cổng 0 USD BẮT BUỘC trước lời gọi trả tiền: (1) đề bài không đòi phần bộ kiểm không cần / ngược lại (nhánh C cho bối cảnh có
+    model 3D); (2) câu trả lời mẫu dựng từ đề bài qua được bộ kiểm thật (stage_director.validate_answer, đúng cờ máy này). Trả lỗi."""
+    import copy as _c
+    from . import director_blockout, llm_io
+    from . import stage_director as sd
+    out = []
+    if director_blockout.enabled(inputs):
+        out.append("đề bài sân khấu đòi sơ đồ khối nhánh C cho bối cảnh có model 3D (cờ director_blockout) — đề bài/bộ kiểm không khớp")
+    try:
+        sd.validate_answer(_c.deepcopy(example_answer(inputs)), inputs, marks)
+    except (llm_io.SchemaError, ValueError, KeyError, TypeError) as e:
+        out.append(f"câu trả lời mẫu đúng định dạng không qua bộ kiểm: {str(e)[:300]}")
+    return out
+
+
+def format_example(inputs: Dict) -> str:
+    head = ("## Ví dụ ĐỊNH DẠNG hợp lệ (code dựng từ đề bài này và đã cho qua bộ kiểm — vị trí / vùng / cỡ là GIẢ, bạn tự quyết "
+            "theo kịch bản; chỉ theo đúng tên trường, kiểu giá trị, thứ tự vùng)")
+    return "\n\n" + head + "\n```json\n" + json.dumps(example_answer(inputs), ensure_ascii=False) + "\n```"
 
 
 # ---- kết quả → máy của shot -----------------------------------------------------------------------------------------------
@@ -438,6 +495,10 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
                             reused=True)
         except (OSError, ValueError, KeyError):
             pass
+    gate = preflight(inputs, st.get("marks"))
+    if gate:                                              # 16/10: không trả tiền cho đề bài mà chính bộ kiểm không cho qua
+        res["missing"] += [f"cổng 0 USD chưa qua — {g}" for g in gate]
+        return res
     if client is None:
         res["missing"].append("chưa cấu hình Claude (ANTHROPIC_API_KEY / LLM_PROVIDER) — Đạo diễn chưa dàn cảnh")
         return res
@@ -447,11 +508,13 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
         json.dump(inputs, f, ensure_ascii=False, indent=1)
     prev, feedback, obj, v2, rd = None, [], None, None, out
     for rnd in range(1, sd.MAX_ROUNDS + 1):
-        text = sd.build_prompt(inputs, prev, feedback)
+        text = sd.build_prompt(inputs, prev, feedback) + (format_example(inputs) if prev is None else "")
+        with open(os.path.join(out, f"prompt_r{rnd}.md"), "w", encoding="utf-8") as f:
+            f.write(text)
         try:
             with llm_runner.tagged(sd.STAGE, pid):
                 obj, tin, tout = llm_runner.ask_json(client, text, lambda o: sd.validate_answer(o, inputs, st.get("marks")),
-                                                     note=log)
+                                                     note=log, bad_reply=_keep_reply(conn, pid, seg, out, rnd))
         except llm_runner.LlmError as e:
             if getattr(e, "code", None) != "bad_json":
                 raise                                     # đăng nhập / hạn mức / hết tiền / sổ chi: autopilot dừng như khâu Claude khác
@@ -497,6 +560,24 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
         res["missing"].append(f"không dựng được máy từ kết quả đo: {type(e).__name__}: {e}")
         return _save(path, dict(res, fp=fp))
     return _save(path, res)
+
+
+def _keep_reply(conn, pid: int, seg: Dict, out: str, rnd: int):
+    """16/10: câu trả lời SAI MẪU đã trả tiền được giữ NGUYÊN VĂN — tệp trong thư mục đoạn + sổ bad_replies (director_lease) — để đối
+    chiếu đề bài ↔ bộ kiểm (lần chạy thật cảnh 4 mất 4 câu trả lời không lưu)."""
+    from . import director_lease
+    keep = director_lease.capture(conn, pid, f"stage:{seg['id']}")
+    n = [0]
+
+    def save(text):
+        n[0] += 1
+        try:
+            with open(os.path.join(out, f"bad_reply_r{rnd}_{n[0]}.txt"), "w", encoding="utf-8") as f:
+                f.write(text or "")
+        except OSError:
+            pass
+        keep(text)
+    return save
 
 
 def _save(path: str, res: Dict) -> Dict:
