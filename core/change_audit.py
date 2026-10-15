@@ -105,14 +105,18 @@ def audit_shot(conn, data_dir: str, pid: int, scene_id: int) -> List[Dict]:
         say("do", "cau", f"máy chuyển động ({sc['move'].get('kieu')}) nhưng camera_move = {data.get('camera_move')}")
     if data.get("camera_move") == "pull_out" and not ((data.get("motion_en") or {}).get("end_state") or data.get("end_state")):
         say("do", "cau", "pull_out mà chưa tả khung cuối (end_state) — motion_prompt_lint sẽ chặn")
+    from . import before_run, speaker_lint
+    people = [dict(r) for r in conn.execute("SELECT * FROM assets WHERE kind IN ('character', 'pet')")]
     for name in data.get("characters") or []:
-        r = conn.execute("SELECT id, profile FROM assets WHERE kind='character' AND upper(name)=upper(?)", (name,)).fetchone()
+        if not isinstance(name, str) or not name.strip() or speaker_lint.is_narrator(name):   # giọng dẫn không phải người trong Kho
+            continue
+        r = before_run._match(people, name)       # #31 15/10: SQLite upper() chỉ viết hoa ASCII → tên có dấu báo 'không có' oan
         if r is None:
             say("vang", "vai", f"'{name}' không có trong Kho")
             continue
-        prof = json.loads(r[1] or "{}")
+        prof = json.loads(r["profile"] or "{}")
         if not (prof.get("must_keep") or "").strip():
-            say("vang", "vai", f"hồ sơ Kho #{r[0]} '{name}' thiếu must_keep → câu tả trang phục tự chế, dễ lệch")
+            say("vang", "vai", f"hồ sơ Kho #{r['id']} '{name}' thiếu must_keep → câu tả trang phục tự chế, dễ lệch")
     creature = re.search(r"creature|demoness|yêu nữ", text)
     if creature and text and "featureless" not in text and "mask" not in text and "faceless" in text and "skin" in text:
         say("vang", "vai", "tả yêu nữ 'faceless … skin' dễ ra mặt người da sẫm — Kho: mặt đen trơn như mặt nạ, chỉ hai mắt đỏ")

@@ -36,3 +36,14 @@ def test_flag_off_with_stage_camera_is_red(monkeypatch, tmp_path):
     monkeypatch.setattr(features, "on", lambda n: False)
     res = change_audit.audit_shot(db({"stage_camera": SC, "image_prompt": "point-of-view, looking down"}), str(tmp_path), 24, 1)
     assert any(r["muc"] == "do" and "cờ stage_camera TẮT" in r["msg"] for r in res)
+
+
+def test_vietnamese_name_case_matches_kho(monkeypatch, tmp_path):
+    # #31 15/10: SQLite upper() chỉ viết hoa ASCII → 'Lính địch áo choàng' không khớp Kho 'LÍNH ĐỊCH ÁO CHOÀNG' → 21 mục VÀNG oan
+    monkeypatch.setattr(features, "on", lambda n: False)
+    c = db({"image_prompt": "Medium shot", "characters": ["Lính địch áo choàng", "LỜI DẪN", "Không Có Ai"]})
+    c.execute("INSERT INTO assets VALUES (419, 'character', 'LÍNH ĐỊCH ÁO CHOÀNG', '{\"must_keep\": \"áo choàng\"}')")
+    vai = [r["msg"] for r in change_audit.audit_shot(c, str(tmp_path), 24, 1) if r["khau"] == "vai"]
+    assert not any("Lính địch" in m for m in vai), vai
+    assert not any("LỜI DẪN" in m for m in vai), vai                  # giọng dẫn không phải người trong Kho
+    assert any("'Không Có Ai' không có trong Kho" in m for m in vai), vai
