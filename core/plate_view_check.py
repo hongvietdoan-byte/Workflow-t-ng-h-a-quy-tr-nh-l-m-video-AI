@@ -34,6 +34,13 @@ class _Behind:
 
 
 LANDMARK_BEHIND_CAMERA = _Behind()
+# 15/10 (#31 shot 5, chẩn đoán mê cung mục 5c-2): lý do nói KHÔNG có / không thấy mốc trong khung ("không có mốc", "no landmark",
+# "biệt thự ngoài khung") mà hướng nền tính ra nhìn về mốc → cũng trái nhau
+LANDMARK_NOT_IN_FRAME = re.compile(
+    r"\b(?:không|chẳng|chưa) (?:có|thấy|lộ|nhìn thấy) (?:được |cả )?(?:mốc|tháp|biệt thự|landmark)\b"
+    r"|\b(?:no|without(?: the| a)?|not see(?:ing)? the) (?:\w+ )?(?:landmark|tower|villa)\b"
+    r"|\b(?:mốc|tháp|biệt thự|landmark|tower|villa)\b[^.;,]{0,20}?(?:ngoài khung|off[- ]frame|out of (?:the )?frame|not in (?:the )?frame)",
+    re.I)
 _OTS = re.compile(r"\bots\b|over[- ]the[- ]shoulder|qua vai|sau vai", re.I)
 # a reflex move (falls back, steps back, recoils) is read against what scares the character: the blocking must say where they face
 _REFLEX = re.compile(r"ngã (?:ra )?(?:sau|ngửa)|ngã bệt|lùi lại|lùi về|giật lùi|fall(?:s|ing)? back(?:ward)?|stumbl\w* back|recoil|"

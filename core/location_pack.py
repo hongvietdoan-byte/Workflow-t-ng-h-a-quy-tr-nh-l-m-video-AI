@@ -166,7 +166,28 @@ def spot_problem(entry: Dict, data: Dict) -> Optional[str]:
         guess = auto_spot(entry, data)
         return (f"chỗ đứng '{name}' không có ở bối cảnh này ({', '.join(entry.get('spots') or {})}) — dùng "
                 + (f"'{guess}' (khớp chữ mô tả shot)" if guess else f"'{entry.get('default_spot')}'"))
-    return None
+    return group_problem(entry, data)
+
+
+def group_problem(entry: Dict, data: Dict) -> Optional[str]:
+    """15/10 (#31 shot 5/6/13–15, chẩn đoán mê cung mục 5c-3): chữ nơi của cảnh (`location` / `set`) gọi tên một khu vực có trong Kho
+    (spot `group`, vd "mê cung" ↔ `me_cung`) mà chỗ đứng của shot không thuộc khu vực đó → VÀNG (vd đứng bãi cỏ ngoài mê cung). Không
+    có dữ liệu group → không kiểm (không đoán)."""
+    spots = entry.get("spots") or {}
+    groups = {str(sp["group"]) for sp in spots.values() if sp.get("group")}
+    if not groups:
+        return None
+    text = " " + " ".join(re.findall(r"[a-z0-9]+", assets.fold(" ".join(str(data.get(k) or "") for k in ("location", "set"))))) + " "
+    named = {g for g in groups if f" {' '.join(re.findall(r'[a-z0-9]+', assets.fold(g.replace('_', ' '))))} " in text}
+    named = {g for g in named if not any(o != g and g in o and o in named for o in named)}     # "ngoai_me_cung" thắng "me_cung"
+    if not named:
+        return None
+    sp = spot_for(entry, data)
+    have = (spots.get(sp.get("name")) or {}).get("group")
+    if have in named:
+        return None
+    return (f"chỗ đứng '{sp.get('name')}'" + (f" (khu vực `{have}`)" if have else " (chưa gắn khu vực)")
+            + f" nằm ngoài khu vực shot nói ({', '.join(f'`{g}`' for g in sorted(named))}) — chọn chỗ đứng thuộc khu vực đó")
 
 
 SCRIPT_CHOICES = (
@@ -186,6 +207,23 @@ SCRIPT_CHOICES = (
     "`where` nhìn từ máy.")
 
 
+def _spot_bearings(entry: Dict, spot: Dict) -> str:
+    """15/10 (#31 mê cung, chẩn đoán mục 5c-1): từ chỗ đứng này mốc nằm hướng nào (độ, theo chiều kim đồng hồ từ +y — cùng quy ước
+    `plate_view.background`) + hướng nhìn mặc định `view` — Đạo diễn biết nền 270° là biệt thự trước khi chọn hướng máy."""
+    from .plate_choice import bearing
+    at = spot.get("at")
+    if not at:
+        return ""
+    out = ""
+    to_mark = bearing(at, entry["anchor"]) if entry.get("anchor") else None
+    if to_mark is not None:
+        out += f", {entry.get('landmark') or 'mốc'} ở hướng {to_mark:g}° từ đây"
+    to_view = bearing(at, spot["view"]) if spot.get("view") else None
+    if to_view is not None:
+        out += f", hướng nhìn mặc định {to_view:g}°"
+    return out
+
+
 def director_block(conn, pid: int) -> str:
     """V4 GĐ4 (dp.md Q6): what the Director / DP must know to write `plate_spot`, `weather` for a project whose places have a
     registered 3D model (renders as reference pictures, place_render_refs) — the spots by name, the fixed weather / time names. Empty
@@ -200,6 +238,7 @@ def director_block(conn, pid: int) -> str:
         if not entry:
             continue
         spots = "; ".join(f"`{k}` ({v.get('label') or k}{', trong nhà' if v.get('indoor') else ''}"
+                          + (f", khu vực `{v['group']}`" if v.get("group") else "") + _spot_bearings(entry, v)
                           + (", **hướng máy tùy kịch bản — bắt buộc `plate_view`**" if v.get("direction") == "script" else "") + ")"
                           for k, v in (entry.get("spots") or {}).items())
         rows.append(f"- **{a['name']}**: chỗ đứng {spots} — mặc định `{entry.get('default_spot')}`")
