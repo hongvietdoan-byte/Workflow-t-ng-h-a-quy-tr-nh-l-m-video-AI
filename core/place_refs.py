@@ -579,7 +579,8 @@ def background_match(image_path: str, plate_path: str, box: Optional[List[float]
     """Edge agreement (F1 of Canny edges, 2 px tolerance) between the drawn picture and the render, outside the character's box
     (widened 15 %). 1 = the same architecture in the same places; ~0.1 = unrelated. None when a file cannot be read."""
     try:
-        import cv2
+        from .clip_measure import _cv
+        cv2 = _cv()
         import numpy as np
     except ImportError:
         return None

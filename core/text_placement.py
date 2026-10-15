@@ -84,7 +84,8 @@ def face_boxes(image_path: str, model: Optional[str] = None) -> Optional[List[Tu
     if not model:
         return None
     try:
-        import cv2
+        from .clip_measure import _cv
+        cv2 = _cv()
         img = cv2.imread(image_path)
         if img is None:
             return None

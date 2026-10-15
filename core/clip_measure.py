@@ -47,7 +47,15 @@ LIP_SEEN = 0.6             # a face must be measured on this share of a line's f
 
 
 def _cv():
+    """cv2 for every module of core/ — the ONE place it is loaded. OpenCL off (15/10: OpenCV 5.0 on the main machine's GPU driver
+    hangs forever in ORB detectAndCompute on a detailed picture; CPU = 0,012 s). The env var covers a first import; setUseOpenCL
+    covers a cv2 some other code imported earlier."""
+    os.environ.setdefault("OPENCV_OPENCL_RUNTIME", "disabled")
     import cv2
+    try:
+        cv2.ocl.setUseOpenCL(False)
+    except Exception:  # noqa: BLE001 - a build without the ocl module
+        pass
     try:
         cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)   # OpenCV 5 warns on every YuNet load
     except Exception:  # noqa: BLE001 - an older OpenCV
