@@ -229,7 +229,7 @@ class RoundGop1510(Base):
     def _videos_phase(self):
         from core import autopilot
         ctx = mock.Mock(data_dir=self.data)
-        with mock.patch("core.llm_io.ready_for_video", return_value=[]), mock.patch("core.lineage.scan", return_value={}),                 mock.patch.object(autopilot, "_old_plate_videos", return_value={}),                 mock.patch.object(autopilot, "_still_running"), mock.patch.object(autopilot, "_cap_wait"),                 mock.patch.object(autopilot, "_review_wait"), mock.patch.object(autopilot, "_gate_wait"),                 mock.patch.object(autopilot, "_budget_stop"), mock.patch.object(autopilot, "_retry_or_hold"),                 mock.patch("core.claude_tasks.unchecked_videos", return_value=[]), mock.patch("core.hero_takes.step", return_value=[]):
+        with mock.patch("core.llm_io.ready_for_video", return_value=[]), mock.patch("core.lineage.scan", return_value={}),                 mock.patch.object(autopilot, "_old_plate_videos", return_value={}),                 mock.patch.object(autopilot, "_still_running"), mock.patch.object(autopilot, "_cap_warn"),                 mock.patch.object(autopilot, "_review_wait"), mock.patch.object(autopilot, "_gate_wait"),                 mock.patch.object(autopilot, "_budget_stop"), mock.patch.object(autopilot, "_retry_or_hold"),                 mock.patch("core.claude_tasks.unchecked_videos", return_value=[]), mock.patch("core.hero_takes.step", return_value=[]):
             return autopilot._videos_phase(self.p, self.pid, ctx)
 
     def test_r2_direct_clip_left_succeeded_without_qc_still_waits_for_the_person(self):

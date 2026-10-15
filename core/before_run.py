@@ -205,7 +205,6 @@ def _review_items(conn, pid: int) -> List[Dict]:
 
 def _budget_items(conn, pid: int) -> List[Dict]:
     from . import project_budget
-    from .pipeline import Pipeline
     if not project_budget.enabled():
         return []
     data = project_budget.get(conn, pid) or {}
@@ -215,17 +214,9 @@ def _budget_items(conn, pid: int) -> List[Dict]:
             spent = sum(project_budget.spent_by_stage(conn, pid).values())
         except Exception as e:  # noqa: BLE001
             return [_unreadable("số đã chi của dự án", e)]
-        if spent >= total:
-            return [_item("do", f"Đã chạm trần ngân sách dự án ({spent:.2f} / {total:.2f} USD) — chạy tự động dừng chờ bạn nâng trần",
-                          "Thẻ ③ Chạy: nâng trần kèm lý do rồi bấm Tiếp tục")]
-        return []
-    try:
-        need = project_budget.needs_lock(Pipeline(conn), pid) and not project_budget.finished(conn, pid)
-    except Exception as e:  # noqa: BLE001
-        return [_unreadable("trạng thái khóa ngân sách", e)]
-    if need:
-        return [_item("vang", "Ngân sách dự án chưa duyệt & khóa — mức 'Tự chạy trong trần': chạy tự động chờ bước này trước khi gen ảnh",
-                      "Nút chính ở đầu Bước 1 (✔ Duyệt & khóa trần ngân sách)")]
+        if spent >= total:                    # 15/10 (bỏ cổng): a warning with the numbers — the run does not stop for it
+            return [_item("vang", f"Đã chạm trần cảnh báo ngân sách dự án ({spent:.2f} / {total:.2f} USD) — chạy tự động VẪN chạy, "
+                                  "chỉ cảnh báo", "Bước 1 → 💵 Ngân sách dự án: nâng trần kèm lý do nếu cần")]
     return []
 
 
@@ -376,7 +367,7 @@ def _collect(conn, data_dir: str, pid: int) -> Dict:
     for group, what, fn in (("fixes", "cờ sửa lỗi dự án trước", lambda: _fix_flag_items(conn, pid)),
                             ("cost", "cờ tính năng", lambda: _cost_items(conn)),
                             ("hold", "mục Tổ rà soát", lambda: _review_items(conn, pid)),
-                            ("hold", "ngân sách dự án", lambda: _budget_items(conn, pid)),
+                            ("cost", "ngân sách dự án", lambda: _budget_items(conn, pid)),   # 15/10: chỉ cảnh báo, không giữ việc
                             ("hold", "chế độ storyboard", lambda: _storyboard_items(conn, data_dir, pid, scenes)),
                             ("inputs", "hồ sơ Kho của dự án", lambda: _input_items(conn, pid, scenes))):
         try:

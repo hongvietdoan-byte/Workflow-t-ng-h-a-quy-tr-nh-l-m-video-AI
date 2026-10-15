@@ -202,7 +202,7 @@ def resume(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
         ack = sorted(set(gates.get("plate_ack") or []) | set(gates.get("plate_pending") or []))
         set_gates(p, project_id, {"waiting_for": None, "plate_ack": ack, "plate_pending": []})
         _log(p, project_id, "Bạn đã xem cảnh báo nền 3D → chạy tiếp như hiện tại")
-    elif gates.get("waiting_for") == "budget":           # approved in Bước 1 → the images phase checks it again
+    elif gates.get("waiting_for") == "budget":           # a project left waiting here before 15/10 (budget gate removed): just go on
         set_gates(p, project_id, {"waiting_for": None})
     elif gates.get("waiting_for") == "clips":
         n = _approve_held(p, project_id, "video_gen", "giữ sau khi xem")
@@ -422,9 +422,11 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Returns None when every scene has an up-to-date approved image, else a progress message. With the pilot checkpoint on, a few
     representative scenes are made first and the run waits for the person."""
     from . import lineage, pilot, project_budget
-    why = project_budget.gate_reason(p, pid)
-    if why:                                               # the budget is locked before the first paid picture (user 2026-09-28)
-        raise _Wait("budget", why)
+    note = project_budget.auto_caps(p, pid)               # 15/10: no wait for "Duyệt & khóa trần" — the warning lines are set, said
+    if note:
+        _log(p, pid, note)
+        from . import money_policy
+        money_policy.note(p.conn, note, stage="image", project_id=pid, key="budget_auto_caps")
     gates = get_gates(p, pid)
     if gates["pilot"] and not gates["pilot_done"] and not pilot.active(p, pid):
         pilot.start(p, pid)
@@ -452,7 +454,7 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         p.conn.execute("UPDATE scenes SET state='ready' WHERE id=? AND state='needs_attention'", (scene["id"],))
         _create_job(p, ctx, scene["id"], "image_gen")
     _still_running(p, pid)
-    _cap_wait(p, pid, "image_gen", "images")
+    _cap_warn(p, pid, "image_gen", "images")
     ctx.image_runner.submit_pending(pid)
     _review_wait(p, pid, "image_gen", ctx.data_dir if ctx else None)   # gửi xong phần không bị giữ; còn job bị giữ → chờ người
     _budget_stop(p, pid, "image_gen")
@@ -486,18 +488,15 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
 
 
 SERVE_ROUNDS = 400                      # at most this many polls per wake-up (~1,7 h at 15 s): never a thread left spinning
-SERVE_GATES = ("storyboard", "pilot")   # gates reached AFTER the budget was approved: a redraw the person asks for there is sent
+SERVE_GATES = ("storyboard", "pilot")   # gates where a redraw the person asks for is sent
 
 
 def serve_waiting(p: Pipeline, pid: int, ctx: Context) -> bool:
     """S6.4 (PH 25, trial #8): the run waits at the storyboard / pilot gate and the person sends a picture back to be redrawn — the new
     job used to sit queued until someone pressed the Storyboard screen's button. While waiting at such a gate the pictures already asked for are sent
-    and collected (the same caps and budget locks as the images phase; nothing new is created, nothing approved — the person decides).
+    and collected (the same caps and budget warnings as the images phase; nothing new is created, nothing approved — the person decides).
     True while picture jobs are still queued / running."""
-    from . import project_budget
     if status(p, pid)["state"] != WAITING or get_gates(p, pid).get("waiting_for") not in SERVE_GATES:
-        return False
-    if project_budget.approval_pending(p, pid):          # yes / no only: no cost estimate on every poll
         return False
     if not (_count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state IN ('queued','running')", pid)):
         return False
@@ -594,15 +593,17 @@ def _gate_wait(p: Pipeline, pid: int, data_dir: Optional[str]) -> None:
                 + (f" (+{len(held) - 3})" if len(held) > 3 else "") + ". Xử lý ở Bước 4 (🚧 Cổng ảnh → video) rồi bấm Tiếp tục")
 
 
-def _cap_wait(p: Pipeline, pid: int, kind: str, stage: str) -> None:
-    """"Tự chạy trong trần" with the budget locked (user 08/10): before sending the queued pictures / clips, WAIT when the stage line or
-    the project total is reached (core.project_budget.run_over) — they stay queued until a person raises the line and presses Tiếp tục."""
+def _cap_warn(p: Pipeline, pid: int, kind: str, stage: str) -> None:
+    """15/10 (người dùng bỏ cổng "Tự chạy trong trần" — was _cap_wait, which made the run WAIT): before sending the queued pictures /
+    clips, a stage line or the project total reached is SAID with the numbers (run log + diag money_warning, core.money_policy.note
+    keeps it to one row per 10 min) and the jobs are sent (core.project_budget.run_warning)."""
     if not _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type=? AND state='queued'", pid, kind):
         return
-    from . import project_budget
-    why = project_budget.run_over(p, pid, stage)
+    from . import money_policy, project_budget
+    why = project_budget.run_warning(p, pid, stage)
     if why:
-        raise _Wait("budget", why)
+        _log(p, pid, why)
+        money_policy.note(p.conn, why, stage="image" if kind == "image_gen" else "video", project_id=pid, key=f"run_cap_{stage}")
 
 
 def _create_job(p: Pipeline, ctx: Context, scene_id: int, kind: str) -> int:
@@ -1117,7 +1118,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if old_plate and not _active(p, pid, "video_gen"):
         _plate_ack(p, pid, list(old_plate.values()), "Ảnh khung đầu vẽ trên nền 3D cũ — chưa gửi video của:")
     _still_running(p, pid)
-    _cap_wait(p, pid, "video_gen", "videos")
+    _cap_warn(p, pid, "video_gen", "videos")
     ctx.video_runner.submit_pending(pid)
     _review_wait(p, pid, "video_gen", ctx.data_dir if ctx else None)
     _gate_wait(p, pid, ctx.data_dir if ctx else None)

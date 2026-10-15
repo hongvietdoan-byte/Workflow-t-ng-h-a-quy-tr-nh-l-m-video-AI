@@ -6,8 +6,9 @@ changing any of them by hand (⚙ → Dự án → chi tiết, step 1 gates, ste
   main Duyệt cổng chính   : the default of a new project — the run stops at Bible and storyboard; balanced QC.
   auto Tự chạy trong trần : Claude approves pictures by QC; the run does not stop at the Bible; it still stops at the storyboard unless
                             the QC has earned the right to skip it (feature `storyboard_auto_trust`, core/effectiveness.look_trust) —
-                            money gates (locked project budget, trial cap) always apply. ONLY this level asks for the project budget to
-                            be approved & locked (core.project_budget.needs_lock, user 08/10); the two others just show the estimate.
+                            money warnings (project budget lines, trial cap) always apply. 15/10: nothing waits for an approval & lock
+                            of the project budget any more — at this level the run sets the warning lines itself (core.project_budget.
+                            auto_caps) and a line reached only WARNS with the numbers (run_warning); the two others show the estimate.
 """
 import json
 from typing import Dict, Optional
