@@ -1113,7 +1113,7 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
                 _d(p, pid, "video", "warn", f"clip của shot #{sid} đã cũ ({r['video_stale']}) nhưng đã gửi {_shot_cap('video_gen')} lần — "
                    "không tự làm lại, xem ở màn Video", "shot_cap")
                 continue
-            regen.regenerate_video(p, ctx.data_dir, r["video_job_id"], f"làm lại vì {r['video_stale']}")
+            regen.regenerate_video(p, ctx.data_dir, r["video_job_id"], f"làm lại vì {r['video_stale']}", reason="khong_phai_loi")   # C2: input changed
     if old_plate and not _active(p, pid, "video_gen"):
         _plate_ack(p, pid, list(old_plate.values()), "Ảnh khung đầu vẽ trên nền 3D cũ — chưa gửi video của:")
     _still_running(p, pid)

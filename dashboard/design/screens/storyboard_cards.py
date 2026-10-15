@@ -269,22 +269,24 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
             older_take_ui.use_button(p, j, history[-1], pointer + 1)
         elif state in REVIEWABLE:
             note = st.text_input("Câu sửa (tiếng Anh)", key=f"note_{jid}", placeholder="vd: Kelly wears the yellow jacket")
+            from dashboard import reject_reason_ui                 # C2 15/10: Loại / Vẽ lại need a reason of the fixed list
+            rcode, rtext, rerr = reject_reason_ui.pick(f"c{jid}")
             b1, b2, b3, b4 = pair()
             st.caption("↻ Vẽ lại 1 ảnh" + retake)
             if b1.button("✔ Duyệt", key=f"a_{jid}", type="primary", width="stretch"):
                 C.log_ui(p, "duyet_anh", page="storyboard", project_id=pid, scene_id=sid, job_id=jid,   # 14/10 nhật ký thao tác
                          result=act(lambda: p.approve(jid, "user")))
                 st.rerun()
-            if b2.button("✖ Loại", key=f"dd_{jid}", width="stretch"):
+            if b2.button("✖ Loại", key=f"dd_{jid}", width="stretch", disabled=bool(rerr), help=rerr):
                 C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, scene_id=sid, job_id=jid,
-                         result=act(lambda: p.reject(jid, "user", note or "đã xóa", respawn=False)),
-                         detail="loại không vẽ lại · ghi chú: " + ("có" if note else "không"))
+                         result=act(lambda: p.reject(jid, "user", note or "đã xóa", respawn=False, reason=rcode, reason_text=rtext)),
+                         detail="loại không vẽ lại · ghi chú: " + ("có" if note else "không") + " · " + reject_reason_ui.detail(rcode, rtext))
                 st.rerun()
-            if b3.button("↻ Vẽ lại", key=f"r_{jid}", width="stretch"):
+            if b3.button("↻ Vẽ lại", key=f"r_{jid}", width="stretch", disabled=bool(rerr), help=rerr):
                 _t0 = time.monotonic()
-                _ok = act(_spin(lambda: p.reject(jid, "user", note or None)))
+                _ok = act(_spin(lambda: p.reject(jid, "user", note or None, reason=rcode, reason_text=rtext)))
                 C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, scene_id=sid, job_id=jid, result=_ok, t0=_t0,
-                         detail="vẽ lại · ghi chú: " + ("có" if note else "không"))
+                         detail="vẽ lại · ghi chú: " + ("có" if note else "không") + " · " + reject_reason_ui.detail(rcode, rtext))
                 _send_queued(p, pid)
                 st.rerun()
             if b4.button("✎ Sửa", key=f"sel_btn_{jid}", width="stretch"):

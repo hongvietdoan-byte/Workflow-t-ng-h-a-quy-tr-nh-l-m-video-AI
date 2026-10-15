@@ -579,7 +579,8 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
         elif clip and state in ("succeeded", "pending_review", "approved"):
             if r2.button(("↻ Gen lại theo ảnh/prompt mới" if stale_reason else "↻ Gen lại video") + tag, key=f"vregen_{jid}", width="stretch",
                          help="Clip này vào thùng rác (giữ 30 ngày) và xếp hàng video mới. Muốn đổi cách quay thì sửa motion prompt trước."):
-                _ok = act(lambda: regen.regenerate_video(p, C.DATA, jid, f"làm lại vì {stale_reason}" if stale_reason else None),
+                _ok = act(lambda: regen.regenerate_video(p, C.DATA, jid, f"làm lại vì {stale_reason}" if stale_reason else None,
+                                                         reason="khong_phai_loi" if stale_reason else None),   # C2: input changed = no fault
                           "Đã xếp hàng gen lại video")
                 C.log_ui(p, "gen_lai_video", page="video", project_id=j["project_id"], scene_id=j["scene_id"], job_id=jid, result=_ok, detail="đầu vào cũ" if stale_reason else "")
                 if _ok:
@@ -591,12 +592,15 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
         r3, r4 = st.columns(2)
         r3.button("✏ Sửa motion prompt", key=f"vfix_{jid}", on_click=_go_step3, width="stretch",
                   help="Mở tab Motion của Storyboard (tab Motion).")
-        if r4.button("✖ Loại & gen lại" + tag, key=f"vr_rej_{jid}", disabled=not reviewable, width="stretch",
-                     help="Loại clip này và xếp hàng gen lại (kèm câu sửa nếu bạn nhập)."):
+        from dashboard import reject_reason_ui                     # C2 15/10: no reject without a reason of the fixed list
+        rcode, rtext, rerr = reject_reason_ui.pick(f"v{jid}") if reviewable else (None, None, None)
+        if r4.button("✖ Loại & gen lại" + tag, key=f"vr_rej_{jid}", disabled=not reviewable or bool(rerr), width="stretch",
+                     help=rerr or "Loại clip này và xếp hàng gen lại (kèm câu sửa nếu bạn nhập)."):
             _t0 = time.monotonic()
-            _ok = act(_spin(lambda: p.reject(jid, "user", st.session_state.get(f"vnote_{jid}") or None)))
+            _ok = act(_spin(lambda: p.reject(jid, "user", st.session_state.get(f"vnote_{jid}") or None, reason=rcode, reason_text=rtext)))
             C.log_ui(p, "loai_video", page="video", project_id=j["project_id"], scene_id=j["scene_id"], job_id=jid, result=_ok, t0=_t0,
-                     detail="ghi chú: " + ("có" if st.session_state.get(f"vnote_{jid}") else "không"))
+                     detail="ghi chú: " + ("có" if st.session_state.get(f"vnote_{jid}") else "không") + " · "
+                     + reject_reason_ui.detail(rcode, rtext))
             if runner is not None:
                 act(lambda: runner.submit_pending(j["project_id"]))   # 07/10: the redo only waited in the queue
             st.rerun()

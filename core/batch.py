@@ -193,7 +193,7 @@ def queue_videos(p: Pipeline, project_id: int, data_dir: str, only=None) -> Dict
     for r in _stale_redos(p, project_id):        # S14.17 rà #2: a new take already waits → not remade (that would be a 2nd paid job)
         if only is not None and r["scene_id"] not in only:
             continue
-        regen.regenerate_video(p, data_dir, r["job_id"], f"làm lại vì {r['why']}")   # input changed: no fix
+        regen.regenerate_video(p, data_dir, r["job_id"], f"làm lại vì {r['why']}", reason="khong_phai_loi")   # input changed: no fix, no fault (C2)
         redo += 1
     return {"created": created, "redo": redo}
 

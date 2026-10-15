@@ -863,7 +863,8 @@ V2_COLUMNS = {
              ("draft_job_id", "INTEGER"),    # (F3: confirm_new below)
              ("confirm_new", "TEXT"),
              ("clip_span", "TEXT"),    # 12/10: where this take's file sits in its task's whole clip (core.runner) — a final cut there
-             ("sent_package", "TEXT")),   # K1a: what really left for the provider (core/sent_package.py) — a ledger, never a gate       # F3: {by, usd, why, at} — người xác nhận gen MỚI bản cao không nâng được từ nháp; N1: a final take's approved draft (core/quality_tier.py)  # M10: the Kling multi-shot group exactly as sent (split the clip by it, not by today's plan)   # W12: provider list checks     # v3 Kling multi-shot: the job that makes this shot's clip together with its group
+             ("sent_package", "TEXT"),
+             ("reject_reason", "TEXT")),  # C2 15/10: lý do loại (core/lessons.REJECT_REASONS | chua_ghi | khong_phai_loi); K1a: what really left for the provider (core/sent_package.py) — a ledger, never a gate       # F3: {by, usd, why, at} — người xác nhận gen MỚI bản cao không nâng được từ nháp; N1: a final take's approved draft (core/quality_tier.py)  # M10: the Kling multi-shot group exactly as sent (split the clip by it, not by today's plan)   # W12: provider list checks     # v3 Kling multi-shot: the job that makes this shot's clip together with its group
     # G1/G2 (docs/KE_HOACH_TONG_2026-09-24.md): what a library picture shows, for which look, and whether a person approved it
     "assets": (("profile", "TEXT"),),        # T1: the character's standard profile, approved once, inherited by every project
     "asset_images": (("role", "TEXT"), ("look", "TEXT"), ("variant", "TEXT"), ("status", "TEXT NOT NULL DEFAULT 'approved'"),
@@ -878,6 +879,8 @@ V2_COLUMNS = {
     "end_frames": (("sent_refs", "TEXT"),   # which pictures went with the end frame request (like jobs.sent_refs)
                    ("fix", "TEXT"),
                    ("sent_package", "TEXT")),   # K1a: like jobs.sent_package        # the person's English fix of a redo (luật 6: a redo changes the input)
+    "review_log": (("reason", "TEXT"), ("reason_text", "TEXT")),   # C2 15/10: lý do loại có cấu trúc + chữ của 'khac'
+    "mistakes": (("reason", "TEXT"),),                              # C2: the listed reason that decides the kind (NULL = keywords)
     "llm_calls": (("latency_ms", "INTEGER"),          # TODO Tồn đọng P1: time of the call (send → whole answer, one attempt)
                   ("request_id", "TEXT")),            # Anthropic's 'request-id' header (what their support asks for)
 }

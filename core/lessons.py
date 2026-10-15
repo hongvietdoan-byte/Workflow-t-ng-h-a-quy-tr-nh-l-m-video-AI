@@ -34,6 +34,10 @@ TAGS = {
     "mismatch": ("Không khớp kịch bản", ("kịch bản", "sai bối cảnh", "không khớp", "mismatch", "sai địa điểm")),
     "motion": ("Chuyển động giật / biến dạng", ("giật", "morph", "flicker", "jitter", "biến dạng", "artifact")),
     "risk_control": ("Bị risk control chặn", ("risk_control", "risk control", "moderation", "content policy")),
+    # C2 (15/10): the kinds of REJECT_REASONS no tag above covered — keywords kept long (no short word that matches by accident)
+    "background_map3d": ("Nền lệch map 3D", ("lệch map", "nền 3d", "map 3d", "khác map")),
+    "props": ("Đạo cụ / vật Kho sai", ("đạo cụ", "sai vũ khí", "props")),
+    "technical": ("Ảnh xấu / lỗi kỹ thuật", ("vỡ hình", "lỗi kỹ thuật", "blurry")),
 }
 GROUP_OF_STAGE = {"image": "director", "video": "motion",
                   "director": "director", "motion": "motion"}       # the last two: user_feedback stages (S14.25, cờ feedback_to_mistakes)
@@ -88,6 +92,85 @@ RISK_TAGS = {
 UNCLASSIFIED = "unclassified"
 UNCLASSIFIED_LABEL = "Chưa phân loại"
 
+# C2 (15/10, docs/handoff/RA_QUYET_DINH_LOI_LAP_2026-10-15.md mục C.2): #27 had 53/78 rejects without a reason and no `mistakes` row
+# for #24/#27. One fixed list of reject reasons (the Loại buttons offer only these), each pointing at the lesson tag above it feeds —
+# the same catalogue the keyword path (harvest / feedback_to_mistakes) uses, not a second one. code -> (label, tag; None = keywords).
+REJECT_REASONS = {
+    "nen_lech_map3d": ("Nền lệch map 3D", "background_map3d"),
+    "bo_cuc_cho_dung": ("Bố cục / chỗ đứng sai", "composition"),
+    "nhan_vat_sai": ("Nhân vật sai (mặt / trang phục / trạng thái)", "consistency"),
+    "dao_cu_kho_sai": ("Đạo cụ / vật Kho sai", "props"),
+    "chuyen_dong_sai": ("Chuyển động sai", "motion"),
+    "anh_xau_loi_ky_thuat": ("Ảnh xấu / lỗi kỹ thuật", "technical"),
+    "khong_dung_kich_ban": ("Không đúng kịch bản", "mismatch"),
+    "khac": ("Khác (ghi rõ)", None),
+}
+OTHER = "khac"
+NO_REASON = "chua_ghi"            # old code / the machine called reject() without one: kept, said in diag, left to the keywords
+NOT_A_FAULT = "khong_phai_loi"    # a delete / an older version chosen again / input changed: not a quality fault, never a mistake
+SYSTEM_REASONS = {NO_REASON: "Chưa ghi lý do", NOT_A_FAULT: "Không phải lỗi chất lượng (xóa / dùng lại bản cũ / đầu vào đã đổi)"}
+
+
+def reason_label(code: Optional[str]) -> str:
+    code = code or NO_REASON
+    return (REJECT_REASONS.get(code) or (SYSTEM_REASONS.get(code),))[0] or code
+
+
+def reject_reason_error(code: Optional[str], text: Optional[str] = None) -> Optional[str]:
+    """What is missing before a person may press Loại (None = ready): a reason from REJECT_REASONS; 'khac' also needs words."""
+    if not code or code not in REJECT_REASONS:
+        return "Chọn lý do loại trước (danh sách cố định)"
+    if code == OTHER and not (text or "").strip():
+        return "Lý do 'Khác' cần ghi rõ bằng chữ"
+    return None
+
+
+def check_reject_reason(code: Optional[str], text: Optional[str] = None) -> str:
+    """For Pipeline.reject: None → NO_REASON (old callers keep working); a system value is kept; anything else must pass
+    reject_reason_error — raises ValueError before anything is done."""
+    if code is None:
+        return NO_REASON
+    if code in SYSTEM_REASONS:
+        return code
+    err = reject_reason_error(code, text)
+    if err:
+        raise ValueError(f"lý do loại '{code}': {err}")
+    return code
+
+
+def record_reject(conn, review_id: int, job, reason: str, reason_text: Optional[str], note: Optional[str]) -> int:
+    """A reject with a listed reason → one `mistakes` row at once (source 'review', ref_id = review_log.id — the key harvest() uses,
+    so it is never counted twice). The kind comes from the reason, not from keywords. NO_REASON / NOT_A_FAULT → nothing here."""
+    if reason not in REJECT_REASONS or job["type"] not in ("image_gen", "video_gen"):
+        return 0
+    words = (reason_text or "").strip() or _clean(note)
+    text = REJECT_REASONS[reason][0] + (f": {diag.redact(words)[:300]}" if words else "")
+    stage = "image" if job["type"] == "image_gen" else "video"
+    cur = conn.execute("INSERT OR IGNORE INTO mistakes (source, ref_id, at, project_id, stage, group_name, text, reason)"
+                       " VALUES (?,?,?,?,?,?,?,?)", ("review", review_id, _now(), job["project_id"], stage, GROUP_OF_STAGE[stage],
+                                                     text[:400], reason))
+    conn.commit()
+    return cur.rowcount
+
+
+def reject_rates(conn, project_id: Optional[int] = None) -> List[Dict]:
+    """C2 chỉ số: rejects per (project, image|video, reason) with the share of that project's rejects of that kind. Rejects from
+    before C2 (no reason) count as NO_REASON; NOT_A_FAULT rows are left out (a delete is not a quality reject)."""
+    q = ("SELECT j.project_id, j.type, COALESCE(r.reason, ?) AS reason, COUNT(*) AS n FROM review_log r JOIN jobs j ON j.id=r.job_id"
+         " WHERE r.decision='reject' AND j.type IN ('image_gen','video_gen') AND COALESCE(r.reason, '') != ?")
+    args: list = [NO_REASON, NOT_A_FAULT]
+    if project_id is not None:
+        q += " AND j.project_id=?"
+        args.append(project_id)
+    rows = conn.execute(q + " GROUP BY j.project_id, j.type, COALESCE(r.reason, ?)", (*args, NO_REASON)).fetchall()
+    totals: Dict[tuple, int] = {}
+    for r in rows:
+        totals[(r["project_id"], r["type"])] = totals.get((r["project_id"], r["type"]), 0) + r["n"]
+    out = [{"project_id": r["project_id"], "kind": "image" if r["type"] == "image_gen" else "video", "reason": r["reason"],
+            "label": reason_label(r["reason"]), "n": r["n"], "total": totals[(r["project_id"], r["type"])],
+            "share": r["n"] / totals[(r["project_id"], r["type"])]} for r in rows]
+    return sorted(out, key=lambda x: (x["project_id"] or 0, x["kind"], -x["n"], x["reason"]))
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -129,7 +212,8 @@ def harvest(conn) -> int:
     added = 0
     rows = conn.execute(
         "SELECT r.id, r.note, r.decided_at, j.type, j.project_id FROM review_log r JOIN jobs j ON j.id=r.job_id"
-        " WHERE r.decision='reject' AND j.type IN ('image_gen','video_gen')").fetchall()
+        " WHERE r.decision='reject' AND j.type IN ('image_gen','video_gen') AND COALESCE(r.reason, '') != ?",   # C2: a delete is no fault
+        (NOT_A_FAULT,)).fetchall()
     for r in rows:
         stage = "image" if r["type"] == "image_gen" else "video"
         added += _add(conn, "review", r["id"], r["decided_at"], r["project_id"], stage, _clean(r["note"]))
@@ -205,7 +289,8 @@ def clusters(conn, min_events: int = MIN_EVENTS, min_projects: int = MIN_PROJECT
     rows, n_drop, dropped = retired_topics.split(rows, lambda m: m["text"])
     retired_topics.report(conn, "system", "lỗi đã ghi (mistakes)", n_drop, dropped)
     for m in rows:
-        tags = tags_of(m["text"])
+        fixed = REJECT_REASONS.get(m.get("reason") or "", (None, None))[1]       # C2: a listed reason decides the kind, not keywords
+        tags = [fixed] if fixed else tags_of(m["text"])
         if not tags and risk:                 # S14.20: a mistake no tag matches is kept and shown, not dropped (CHUAN luật 1)
             buckets.setdefault((m["group_name"], UNCLASSIFIED), []).append(m)
         for tag in tags:
@@ -216,7 +301,7 @@ def clusters(conn, min_events: int = MIN_EVENTS, min_projects: int = MIN_PROJECT
         projects = {m["project_id"] for m in items}
         unclassified = tag == UNCLASSIFIED
         lost += len(items) if unclassified else 0
-        out.append({"group": group, "tag": tag, "label": UNCLASSIFIED_LABEL if unclassified else table[tag][0], "events": len(items),
+        out.append({"group": group, "tag": tag, "label": UNCLASSIFIED_LABEL if unclassified else (table.get(tag) or TAGS[tag])[0], "events": len(items),
                     "projects": len(projects), "examples": list(dict.fromkeys(m["text"] for m in items))[:4],
                     "ready": (not unclassified) and len(items) >= min_events and len(projects) >= min_projects})
     if lost:
