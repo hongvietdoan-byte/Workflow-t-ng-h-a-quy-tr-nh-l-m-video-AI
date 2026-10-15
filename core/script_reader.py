@@ -85,7 +85,22 @@ def _find_header(rows: List[List[str]]):
     return None, {}
 
 
-_SENTENCE_END = re.compile(r"(?<=[.!?…])\s+(?=[A-ZÀ-ỸĐ\"“'(])")    # một câu hết ở . ! ? … và câu sau mở bằng chữ hoa / ngoặc
+# một câu hết ở . ! ? … (có thể kèm ngoặc đóng) và câu sau mở bằng chữ hoa / số / ngoặc
+_SENTENCE_END = re.compile(r"(?:(?<=[.!?…][\"”'»)])|(?<=[.!?…]))\s+(?=[A-ZÀ-ỸĐ0-9\"“'(«])")
+# rà 15/10: "Mr. Waggor", "T.P. Hồ Chí Minh", "A. Nguyễn" — mẩu kết bằng chữ viết tắt nối vào mẩu sau
+_ABBR_END = re.compile(r"(?:\b(?:Mr|Mrs|Ms|Dr|St|Jr|Sr|TP|Tp|TS|ThS|PGS|GS)\.|(?:^|[\s.])[A-ZĐ]\.)$")
+
+
+def _sentences(line: str) -> List[str]:
+    out: List[str] = []
+    for s in _SENTENCE_END.split(line):
+        if not s.strip():
+            continue
+        if out and _ABBR_END.search(out[-1]):
+            out[-1] += " " + s
+        else:
+            out.append(s)
+    return out
 
 
 def _lines(cell: str) -> List[str]:
@@ -139,7 +154,7 @@ def table_to_paragraphs(rows: List[List[str]], start: int = 1, label: str = "") 
                     elif said_by == "LỜI DẪN" and not who:
                         # 15/10 #31: a narration cell of 16–20 s was ONE line > 15 s (a shot's cap) — the Director's answer was refused
                         # after it was paid. One line per sentence, words kept ("ngõ cụt… cuối cùng": lower case after "…" stays one)
-                        cur["talk"].extend(f"LỜI DẪN: {s}" for s in _SENTENCE_END.split(line) if s.strip())
+                        cur["talk"].extend(f"LỜI DẪN: {s}" for s in _sentences(line))
                     else:
                         cur["talk"].append(f"{(who or said_by).strip().upper()}: {line}")
             for j in extra:

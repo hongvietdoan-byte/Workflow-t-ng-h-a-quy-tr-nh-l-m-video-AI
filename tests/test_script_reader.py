@@ -129,6 +129,12 @@ class TableScriptTests(unittest.TestCase):
         self.assertIn("LỜI DẪN: Cửa số 1 bật mở — chào mừng.\n", text)
         self.assertIn("LỜI DẪN: Rẽ trái, ngõ cụt… cuối cùng cũng tới!\n", text)
         self.assertIn("LỜI DẪN: Bạn chạm vào cũi.", text)
+        # rà 15/10: chữ viết tắt không phải hết câu; ngoặc kép sau dấu câu và câu mở bằng số vẫn tách
+        rows = [["Cảnh", "Mô tả", "Voice over"],
+                ["1", "Cửa.", "Bạn gặp Mr. Waggor ở cửa. Tới T.P. Hồ Chí Minh. Kelly hét \"Đi!\" Rồi chạy. Hết giờ. 3 giây nữa."]]
+        text = scenes_of(from_text("\n".join("\t".join(r) for r in rows)))[0].text
+        for line in ("Bạn gặp Mr. Waggor ở cửa.", "Tới T.P. Hồ Chí Minh.", "Kelly hét \"Đi!\"", "Rồi chạy.", "Hết giờ.", "3 giây nữa."):
+            self.assertIn(f"LỜI DẪN: {line}\n" if line != "3 giây nữa." else f"LỜI DẪN: {line}", text)
         rows = [["Cảnh", "Mô tả", "Voice"], ["1", "Hai người.", "Kelly: Đi thôi. Nhanh lên."]]      # cột thoại: giữ một dòng
         self.assertIn("Kelly: Đi thôi. Nhanh lên.", scenes_of(from_text("\n".join("\t".join(r) for r in rows)))[0].text)
 
