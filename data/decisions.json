@@ -168,6 +168,17 @@
     }
    ],
    "status": "active"
+  },
+  {
+   "id": "stage-auto-plan-2026-10-15",
+   "date": "2026-10-15",
+   "by": "người dùng",
+   "text": "Duyệt kế hoạch nối Sân khấu 3D v2 vào chạy tự động (docs/KE_HOACH_NOI_SAN_KHAU_3D_TU_DONG_2026-10-15.md mục 12) theo khuyến nghị: Q1 mỗi cảnh truyện 1 lượt Đạo diễn; Q2 người nộm = ảnh hướng dẫn riêng + câu vị trí, nền sạch chỉ khối vật; Q3 shot đạt đo số tự qua, chỉ dừng shot hỏng (Claude xem tấm ghép); Q4 bỏ G0 director_camera_plan cho shot đã có sân khấu; Q5 phòng Kho 447 + 448 một sân khấu (stage_family); Q6 báo giá Claude #31 ≈ 1,8 USD thường / ≤ 7,3 USD, mức dự tính cảnh báo 3 USD, thử 1 cảnh trước; Q7 làm SAU khi gộp nhánh claude/p31-plate-rules.",
+   "keeps": "Cờ stage_camera, cổng không im lặng, ≤ 2 lượt sửa Claude, chính sách tiền 04/10 (trần chỉ cảnh báo).",
+   "changes": "Chưa có code: khi làm S3 thêm enforced_by = cờ stage_auto + check code (G0 bỏ qua shot có stage_camera; stage_family 447/448; cổng stage giữ shot hỏng).",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
   }
  ]
 }
