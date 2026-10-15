@@ -442,7 +442,8 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
                 _d(p, pid, "image", "warn", f"S{scene['idx']:02d}: ảnh đã cũ nhưng shot đã gửi {_shot_cap('image_gen')} lần — không tự "
                    "làm lại", "shot_cap")
                 continue
-            p.reopen_approved(stale[scene["id"]]["image_job_id"], f"Nội dung cảnh đã đổi: {stale[scene['id']]['image_stale']}", fix="")
+            p.reopen_approved(stale[scene["id"]]["image_job_id"], f"Nội dung cảnh đã đổi: {stale[scene['id']]['image_stale']}", fix="",
+                              reason="khong_phai_loi")   # C2: input changed, no fault
             continue
         if _has(p, scene["id"], "image_gen", "'approved','queued','running','succeeded','pending_review','retryable','failed'"):
             continue

@@ -2,6 +2,7 @@
 for #24/#27 — the lesson loop was dead. A reject now carries a reason from one fixed list (core/lessons.REJECT_REASONS); the Dashboard
 buttons cannot be pressed without one; old code / the machine without one still works and is recorded as 'chua_ghi' + diag."""
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -21,6 +22,15 @@ def _job(p, pid, kind="image_gen"):
     p.conn.execute("UPDATE jobs SET state='pending_review' WHERE id=?", (jid,))
     p.conn.commit()
     return jid
+
+
+def _call_end(src, i):
+    """Index just after the parenthesis closing the call whose '(' ends at i."""
+    depth = 1
+    while depth and i < len(src):
+        depth += {"(": 1, ")": -1}.get(src[i], 0)
+        i += 1
+    return i
 
 
 class RejectReasonTests(unittest.TestCase):
@@ -56,8 +66,10 @@ class RejectReasonTests(unittest.TestCase):
         for rel in ("dashboard/steps/step2.py", "dashboard/steps/step4.py", "dashboard/design/screens/storyboard_cards.py"):
             with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
                 src = f.read()
-            for line in [ln for ln in src.splitlines() if "p.reject(" in ln]:
-                self.assertIn("reason=", line, f"{rel}: {line.strip()}")
+            for call in ("p.reject(", "regenerate_video(", "reopen_approved("):      # vòng rà 15/10: bỏ duyệt + gen lại video too
+                for m in re.finditer(re.escape(call), src):
+                    end = _call_end(src, m.end())
+                    self.assertIn("reason=", src[m.start():end], f"{rel}: {src[m.start():end][:120]}")
             self.assertIn("reject_reason_ui.pick(", src, rel)
             self.assertIn("disabled=", src, rel)
 
@@ -125,6 +137,64 @@ class RejectReasonTests(unittest.TestCase):
         self.assertEqual(get[(self.pid, "video", "chuyen_dong_sai")]["share"], 1.0)
         self.assertEqual(get[(other, "image", "dao_cu_kho_sai")]["total"], 1)
         self.assertEqual({r["project_id"] for r in lessons.reject_rates(self.conn, project_id=other)}, {other})
+
+
+    # ---- vòng rà độc lập 15/10 (c2t/test_c2_review_probe.py) ----------------------------------------------------------------------
+    def test_reopen_keeps_the_reason_and_input_changed_is_no_mistake(self):
+        jid = _job(self.p, self.pid)
+        self.p.approve(jid, "user")
+        self.p.reopen_approved(jid, "Nội dung cảnh đã đổi: ảnh khung đầu vẽ trên nền 3D cũ", fix="", reason=lessons.NOT_A_FAULT)
+        r = self.conn.execute("SELECT reason FROM review_log WHERE job_id=? AND decision='reject'", (jid,)).fetchone()
+        self.assertEqual((r["reason"], self.p.job(jid)["reject_reason"]), (lessons.NOT_A_FAULT, lessons.NOT_A_FAULT))
+        lessons.harvest(self.conn)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM mistakes").fetchone()[0], 0)
+        self.assertEqual(lessons.reject_rates(self.conn, self.pid), [])
+
+    def test_reopen_without_a_reason_is_chua_ghi_and_said(self):
+        jid = _job(self.p, self.pid)
+        self.p.approve(jid, "user")
+        self.p.reopen_approved(jid, "đổi ý", respawn=False)
+        self.assertEqual(self.p.job(jid)["reject_reason"], lessons.NO_REASON)
+        self.assertTrue(self.conn.execute("SELECT 1 FROM diag_events WHERE code='reject_no_reason'").fetchone())
+        jid2 = _job(self.p, self.pid)
+        self.p.approve(jid2, "user")
+        self.p.reopen_approved(jid2, "x", respawn=False, reason="nhan_vat_sai")
+        self.assertEqual(self.conn.execute("SELECT reason FROM mistakes").fetchone()[0], "nhan_vat_sai")
+
+    def test_a_delete_is_no_trainee_truth(self):
+        from core import trainee
+        jid = _job(self.p, self.pid)
+        trainee.record(self.conn, "scene_qc_trusted", self.pid, f"job:{jid}", "pass", job_id=jid, at="2026-01-01T00:00:00+00:00")
+        self.p.reject(jid, "user", "đã xóa", respawn=False, reason=lessons.NOT_A_FAULT)
+        trainee.score_project(self.conn, self.pid)
+        self.assertIsNone(self.conn.execute("SELECT truth FROM trainee_log").fetchone()["truth"])
+
+    def test_a_delete_is_no_failure_experience(self):
+        from core import experience
+        jid = _job(self.p, self.pid)
+        self.p.reject(jid, "user", "đã xóa", respawn=False, reason=lessons.NOT_A_FAULT)
+        self.assertEqual(experience.import_review_log(self.conn, self.dir), 0)
+
+    def test_harvest_finds_map_3d_after_digits_become_hash(self):
+        jid = _job(self.p, self.pid)
+        self.conn.execute("INSERT INTO review_log (job_id, reviewer_type, decision, note, decided_at) VALUES (?,?,?,?,?)",
+                          (jid, "user", "reject", "nền 3D lệch so với cảnh", "2026-10-01T00:00:00+00:00"))   # an old row: no reason
+        self.conn.commit()
+        lessons.harvest(self.conn)
+        self.assertIn("background_map3d", lessons.tags_of(self.conn.execute("SELECT text FROM mistakes").fetchone()[0]))
+
+    def test_motion_reason_lands_on_a_risk_axis_when_risk_tags_on(self):
+        from unittest import mock
+        self.p.reject(_job(self.p, self.pid, "video_gen"), "user", None, respawn=False, reason="chuyen_dong_sai")
+        with mock.patch.object(lessons, "_risk_on", return_value=True):
+            tags = {c["tag"] for c in lessons.clusters(self.conn)}
+        self.assertEqual(tags, {"motion_overload"})
+
+    def test_the_machine_without_a_reason_is_quiet_but_kept(self):
+        jid = _job(self.p, self.pid)
+        self.p.reject(jid, "ai_agent", "QC 0.4 < 0.7", respawn=False)
+        self.assertEqual(self.p.job(jid)["reject_reason"], lessons.NO_REASON)
+        self.assertIsNone(self.conn.execute("SELECT 1 FROM diag_events WHERE code='reject_no_reason'").fetchone())
 
 
 if __name__ == "__main__":

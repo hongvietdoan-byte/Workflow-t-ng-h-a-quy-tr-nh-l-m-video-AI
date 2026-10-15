@@ -122,8 +122,9 @@ def drop(p, job_id: int, note: str) -> None:
     """Take the losing take out of use: rejected, never respawned (it was an extra candidate, not a failed clip)."""
     st = _state(p.conn, job_id)
     if st in ("succeeded", "pending_review", "approved"):
-        p._log_review(job_id, "ai_agent", "reject", note, reason="khong_phai_loi")   # C2: a losing extra take, not a fault
+        rid = p._log_review(job_id, "ai_agent", "reject", note, reason="khong_phai_loi")   # C2: a losing extra take, not a fault
         p.transition(job_id, JobState.REJECTED, actor="ai_agent", note=note)
+        p._keep_reject_reason(job_id, rid, "khong_phai_loi", None, note)
     elif st in ("queued",):
         p.cancel(job_id, actor="ai_agent")
 

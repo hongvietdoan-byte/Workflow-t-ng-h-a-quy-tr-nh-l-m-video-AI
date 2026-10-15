@@ -44,7 +44,7 @@ def regenerate_video(pipeline: Pipeline, data_dir: str, job_id: int, note: Optio
         from .states import JobState
         rid = pipeline._log_review(job_id, actor, "reject", note or "gen lại video", reason=reason, reason_text=reason_text)
         pipeline.transition(job_id, JobState.REJECTED, actor=actor, note=note or "gen lại video")
-        pipeline._keep_reject_reason(job_id, rid, reason, reason_text, note)
+        pipeline._keep_reject_reason(job_id, rid, reason, reason_text, note, quiet=auto)
     else:
         pipeline.reject(job_id, actor, note or "gen lại video", respawn=False, reason=reason,   # raises unless the job is reviewable
                         reason_text=reason_text)

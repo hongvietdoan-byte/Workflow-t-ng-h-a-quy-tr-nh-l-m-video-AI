@@ -147,18 +147,19 @@ def main(argv=None) -> int:
             return 1
         if job["type"] == "video_gen":
             from core import regen
-            new = regen.regenerate_video(p, data_dir, jid, "gen lại có chủ đích (phiên vận hành)", fix=fix)
+            new = regen.regenerate_video(p, data_dir, jid, "gen lại có chủ đích (phiên vận hành)", fix=fix, reason="khac",
+                                         reason_text=f"phiên vận hành: {fix}")
         elif job["state"] == "failed":
             new = p.resend(jid, fix)                     # the provider refused: same attempt again with the changed input
         else:
-            p.reject(jid, "user", "gen lại có chủ đích (phiên vận hành)", fix=fix)
+            p.reject(jid, "user", "gen lại có chủ đích (phiên vận hành)", fix=fix, reason="khac", reason_text=f"phiên vận hành: {fix}")
             new = p.conn.execute("SELECT MAX(id) FROM jobs WHERE scene_id=? AND type=?", (job["scene_id"], job["type"])).fetchone()[0]
         print("job mới", new)
     elif a.cmd == "regenvideo":                            # a clip remade because its first frame / spec changed (not a QC retry)
         from core import regen
         note = a.args[-1]
         for jid in map(int, a.args[:-1]):
-            print(jid, "→ job mới", regen.regenerate_video(p, data_dir, jid, note))
+            print(jid, "→ job mới", regen.regenerate_video(p, data_dir, jid, note, reason="khong_phai_loi"))   # input changed (C2)
     elif a.cmd == "voiceredo":                             # lines flagged by the voice check are made again with a trailing "…"
         from core import audio_lib, music, voice, voice_check
         prov = music.audio_provider()

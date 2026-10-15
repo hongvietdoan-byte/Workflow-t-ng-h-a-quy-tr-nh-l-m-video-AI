@@ -62,7 +62,8 @@ def queue_images(p: Pipeline, project_id: int, confirmed: bool = False) -> Dict:
     for sid in fresh:
         p.create_job(sid, "image_gen")
     for sid in redo_ids:                              # the scene changed: the new input is the scene itself (no Vietnamese note to the model)
-        p.reopen_approved(stale[sid]["image_job_id"], f"Nội dung cảnh đã đổi: {stale[sid]['image_stale']}", fix="")
+        p.reopen_approved(stale[sid]["image_job_id"], f"Nội dung cảnh đã đổi: {stale[sid]['image_stale']}", fix="",
+                          reason="khong_phai_loi")   # C2: input changed, no fault
     return {"created": len(fresh), "redo": len(redo_ids), "pilot": pilot.active(p, project_id)}
 
 

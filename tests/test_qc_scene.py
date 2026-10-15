@@ -179,7 +179,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM trainee_log WHERE feature='scene_qc_trusted'").fetchone()[0], 0)
         old = self.p.conn.execute("SELECT reject_reason FROM jobs WHERE scene_id=? AND type='image_gen' AND state='rejected'",
                                   (self.rows[1]["id"],)).fetchone()
-        self.assertEqual(old["reject_reason"], "chua_ghi")                   # C2: a machine reject without a reason is said, not lost
+        self.assertEqual(old["reject_reason"], "anh_xau_loi_ky_thuat")       # C2: the failed check 'artifacts' names the reason
 
     def test_trusted_trainee_acts_like_off_and_writes_what_it_would_do(self):
         """15/10 (C2 phần 2): scene_qc_trusted 🎓 — every frame still waits for a person; trainee_log says 'sẽ tự duyệt' / 'sẽ vẽ lại'."""

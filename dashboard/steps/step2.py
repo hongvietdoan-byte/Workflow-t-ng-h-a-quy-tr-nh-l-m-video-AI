@@ -476,7 +476,8 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
                 st.rerun()
         else:
             if stale_reason and state == "approved" and st.button("↻ Gen lại theo nội dung mới" + retake, key=f"stale_{jid}", type="primary"):
-                if act(lambda: p.reopen_approved(jid, f"Nội dung cảnh đã đổi: {stale_reason}", fix=""), "Đã xếp hàng gen lại"):
+                if act(lambda: p.reopen_approved(jid, f"Nội dung cảnh đã đổi: {stale_reason}", fix="", reason="khong_phai_loi"),
+                       "Đã xếp hàng gen lại"):
                     st.rerun()
             if j["escalated"] and st.button("↺ Làm lại từ đầu" + retake, key=f"rs_{jid}", help="Đã hết số lần thử: bắt đầu lại cảnh này"):
                 if act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh"):
@@ -568,10 +569,12 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
         if state == "approved":
             r_note = st.text_input("Lý do bỏ duyệt (đưa vào prompt gen lại)", key=f"rn_{jid}")
             st.caption("Bỏ duyệt: motion prompt và video làm từ ảnh này sẽ hiện ⚠ cũ để làm lại.")
-            if st.button("↩ Bỏ duyệt & gen lại ảnh" + retake, key=f"reopen_{jid}"):
-                _ok = act(_spin(lambda: p.reopen_approved(jid, r_note or None)), "Đã bỏ duyệt, xếp hàng gen lại")
+            from dashboard import reject_reason_ui                 # C2: bỏ duyệt = a reject, needs a reason too
+            ocode, otext, oerr = reject_reason_ui.pick(f"o{jid}")
+            if st.button("↩ Bỏ duyệt & gen lại ảnh" + retake, key=f"reopen_{jid}", disabled=bool(oerr), help=oerr):
+                _ok = act(_spin(lambda: p.reopen_approved(jid, r_note or None, reason=ocode, reason_text=otext)), "Đã bỏ duyệt, xếp hàng gen lại")
                 C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, job_id=jid, result=_ok,
-                         detail="bỏ duyệt ảnh đã duyệt · lý do: " + ("có" if r_note else "không"))
+                         detail="bỏ duyệt ảnh đã duyệt · ghi chú: " + ("có" if r_note else "không") + " · " + reject_reason_ui.detail(ocode, otext))
                 if _ok:
                     st.rerun()
 

@@ -35,7 +35,7 @@ TAGS = {
     "motion": ("Chuyển động giật / biến dạng", ("giật", "morph", "flicker", "jitter", "biến dạng", "artifact")),
     "risk_control": ("Bị risk control chặn", ("risk_control", "risk control", "moderation", "content policy")),
     # C2 (15/10): the kinds of REJECT_REASONS no tag above covered — keywords kept long (no short word that matches by accident)
-    "background_map3d": ("Nền lệch map 3D", ("lệch map", "nền 3d", "map 3d", "khác map")),
+    "background_map3d": ("Nền lệch map 3D", ("lệch map", "nền 3d", "map 3d", "nền #d", "map #d", "khác map")),   # _clean: 3 → #
     "props": ("Đạo cụ / vật Kho sai", ("đạo cụ", "sai vũ khí", "props")),
     "technical": ("Ảnh xấu / lỗi kỹ thuật", ("vỡ hình", "lỗi kỹ thuật", "blurry")),
 }
@@ -108,6 +108,10 @@ REJECT_REASONS = {
 OTHER = "khac"
 NO_REASON = "chua_ghi"            # old code / the machine called reject() without one: kept, said in diag, left to the keywords
 NOT_A_FAULT = "khong_phai_loi"    # a delete / an older version chosen again / input changed: not a quality fault, never a mistake
+# C2: QC cảnh lớp 1 (core/qc_scene.CHECKS) — the first failed check names the machine's reject reason ('continuity' has none)
+QC_CHECK_REASON = {"identity": "nhan_vat_sai", "place": "nen_lech_map3d", "framing": "bo_cuc_cho_dung", "artifacts": "anh_xau_loi_ky_thuat",
+                   "action": "khong_dung_kich_ban"}
+_RISK_FALLBACK = {"motion": "motion_overload"}      # risk_tags on: the one 'motion' tag is split, a listed reason lands on this axis
 SYSTEM_REASONS = {NO_REASON: "Chưa ghi lý do", NOT_A_FAULT: "Không phải lỗi chất lượng (xóa / dùng lại bản cũ / đầu vào đã đổi)"}
 
 
@@ -290,6 +294,8 @@ def clusters(conn, min_events: int = MIN_EVENTS, min_projects: int = MIN_PROJECT
     retired_topics.report(conn, "system", "lỗi đã ghi (mistakes)", n_drop, dropped)
     for m in rows:
         fixed = REJECT_REASONS.get(m.get("reason") or "", (None, None))[1]       # C2: a listed reason decides the kind, not keywords
+        if fixed and fixed not in table:
+            fixed = _RISK_FALLBACK.get(fixed)
         tags = [fixed] if fixed else tags_of(m["text"])
         if not tags and risk:                 # S14.20: a mistake no tag matches is kept and shown, not dropped (CHUAN luật 1)
             buckets.setdefault((m["group_name"], UNCLASSIFIED), []).append(m)

@@ -454,8 +454,8 @@ def _hold(p, job_id: int, note: str) -> None:
 
 
 def trusted() -> bool:
-    """Layer 1 may approve / redraw on its own only once it has passed its acceptance test (FEATURE_SCENE_QC_TRUSTED=1 is set by
-    hand after that). Regression 2026-09-27 on the labelled composites of #8: it caught 6/12 obvious faults but never for the right
+    """Layer 1 may approve / redraw on its own only once it has passed its acceptance test (switched ON on the 🧪 screen after that;
+    15/10: FEATURE_SCENE_QC_TRUSTED=1 = 🎓 học việc, never ON — see _trainee_trusted). Regression 2026-09-27 on the labelled composites of #8: it caught 6/12 obvious faults but never for the right
     reason (passed 6 pasted rectangles + a Big-Ben tower) and flagged 12/21 good frames for trivia — so until then its verdicts are
     notes for the person: every frame waits at the storyboard gate."""
     return features.on("scene_qc_trusted")
@@ -505,8 +505,12 @@ def apply(p, pid: int, frames: List[Dict], obj: Dict, data_dir: str) -> Dict[str
         elif f["verdict"] == "fix" and f["root_cause"] != "plan":
             if job["state"] == "succeeded":
                 p.transition(r["job_id"], JobState.PENDING_REVIEW, actor="ai_agent", note="QC cảnh")
+            from . import lessons                       # C2: the first failed check names the reason (none mapped → chua_ghi, quiet)
+            failed = [c for c in CHECKS if not f["checks"][c]["ok"]]
+            code = next((lessons.QC_CHECK_REASON[c] for c in failed if c in lessons.QC_CHECK_REASON), None)
             res = p.reject(r["job_id"], "ai_agent", f"QC cảnh [{f['root_cause']}]: {f['problem']} — {evidence}"[:600], fix=f["fix"],
-                           qc={"root_cause": f.get("root_cause"), "problem": f.get("problem"), "fix": f.get("fix")})   # S14.17 Đạo diễn đọc lỗi
+                           qc={"root_cause": f.get("root_cause"), "problem": f.get("problem"), "fix": f.get("fix")},   # S14.17 Đạo diễn đọc lỗi
+                           reason=code)
             out[f"K{k}"] = (f"giữ cho người (không tự gen lại: {f['root_cause']})" if res == "needs_review"
                             else f"vẽ lại ({f['root_cause']}) → {res}")
         else:

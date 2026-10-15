@@ -112,7 +112,8 @@ def score_project(conn, project_id: int, features: Optional[Iterable[str]] = Non
                             (feat, project_id)).fetchall()
         for r in rows:
             at = _t(r["at"])
-            revs = conn.execute("SELECT id, decision, decided_at FROM review_log WHERE job_id=? AND reviewer_type='user' ORDER BY decided_at, id",
+            revs = conn.execute("SELECT id, decision, decided_at FROM review_log WHERE job_id=? AND reviewer_type='user'"
+                                " AND COALESCE(reason, '') != 'khong_phai_loi' ORDER BY decided_at, id",   # C2: a delete is no verdict
                                 (r["job_id"],)).fetchall()
             after = [v for v in revs if at is not None and _t(v["decided_at"]) is not None and _t(v["decided_at"]) > at]
             if after:

@@ -836,6 +836,8 @@ class DashboardSmokeTests(unittest.TestCase):
         at.radio(key="step").set_value(at.radio(key="step").options[2]).run()
         next(b for b in at.button if b.key == f"sel_btn_{new}").click().run()  # open its detail panel
         at.text_input(key=f"rn_{new}").set_value("đổi màu áo").run()
+        self.assertTrue(next(b for b in at.button if b.key == f"reopen_{new}").disabled)   # C2: bỏ duyệt needs a reason
+        at.selectbox(key=f"rreason_o{new}").set_value("nhan_vat_sai").run()
         next(b for b in at.button if b.key == f"reopen_{new}").click().run()
         self.assertFalse(at.exception)
         states = [r["state"] for r in Pipeline(connect(self.db)).conn.execute("SELECT state FROM jobs ORDER BY id")]
