@@ -185,13 +185,24 @@ def hard_signs(conn, scene_id: int, data: Optional[Dict] = None) -> List[str]:
     else:
         mate = _group_take(conn, scene_id)
         if mate is not None:
-            signs.append(f"nhóm gen chung có take thoại (shot #{mate})")
+            signs.append(f"nhóm gen chung có take thoại (shot {shot_label(conn, mate)})")
     cast = [c for c in data.get("characters") or [] if c]
     if len(cast) >= 3:
         signs.append(f"{len(cast)} nhân vật")
     if data.get("shot_role") == "hero" or data.get("money_shot") is True:
         signs.append("shot quan trọng")
     return signs
+
+
+def shot_label(conn, scene_id: int) -> str:
+    """Số shot người đọc thấy ('S03' = scenes.idx) cho lý do hiển thị — không phải id CSDL (rà gop-1510 r2); không đọc được → '#id'."""
+    try:
+        row = conn.execute("SELECT idx FROM scenes WHERE id=?", (scene_id,)).fetchone()
+        if row is not None and row["idx"] is not None:
+            return f"S{int(row['idx']):02d}"
+    except Exception:  # noqa: BLE001
+        pass
+    return f"#{scene_id}"
 
 
 def _group_take(conn, scene_id: int) -> Optional[int]:
@@ -366,7 +377,7 @@ def group_route(conn, scene_id: int) -> Dict:
     for sid in ids:
         other = route(conn, sid)
         if other["path"] == "draft_first":
-            return {"path": "draft_first", "why": f"nhóm gen chung một clip có shot #{sid} nháp-trước: {other['why']}"}
+            return {"path": "draft_first", "why": f"nhóm gen chung một clip có shot {shot_label(conn, sid)} nháp-trước: {other['why']}"}
     return own
 
 

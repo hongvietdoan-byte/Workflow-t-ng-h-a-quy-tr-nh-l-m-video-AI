@@ -25,10 +25,10 @@ def vi_model(model: Optional[str]) -> str:
     return model if model in VI_MODELS else DEFAULT_MODEL
 _PRON = os.path.join(os.path.dirname(__file__), "..", "data", "pronunciation_vi.json")
 SAMPLE_VI = "Xin chào, tôi là {name}. Trận này mình đi loot trước rồi leo rank nhé, Booyah!"
-LEAD = 0.3          # seconds of picture before the first line of a clip
+LEAD = dialogue.LEAD    # seconds of picture before the first line of a clip (hằng chung core/dialogue — ước giây trước TTS dùng cùng số)
 LIP_LEAD = 1.0      # 07/10 Khủng Long Đỏ: a lip-synced line starts ON a whole second — Seedance 2.5 reads whole seconds, the 0.3 s start
                     # was written [00:00 - 00:03] for a voice at 0.3–2.26 s and the mouth ran late (measured 0.14)
-TAIL = 0.4          # seconds after the last line
+TAIL = dialogue.TAIL    # seconds after the last line (hằng chung core/dialogue)
 GAP = 0.15          # between two lines
 J_LEAD = 0.25       # D1 (editing.md E1): a new speaker is heard this long before the cut to their shot (J-cut, ~6 frames at 24 fps)
 

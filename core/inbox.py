@@ -40,6 +40,25 @@ def _shots(idx: List[int]) -> str:
     return ", ".join(str(i) for i in idx[:8]) + ("…" if len(idx) > 8 else "")
 
 
+def _direct_waiting(conn, pid: int, skip) -> int:
+    """Rà gop-1510 r2 (người dùng 15/10): clip gen thẳng 720p (cờ two_tier_quality, không làm từ nháp) mà QC không đưa vào
+    'pending_review' (qc_video TẮT / QC lỗi riêng clip) nằm 'succeeded' — vẫn chờ NGƯỜI duyệt (autopilot._drafts_waiting đợi nó)."""
+    from . import quality_tier
+    if not quality_tier.enabled():
+        return 0
+    n = 0
+    for r in conn.execute("SELECT j.id, j.scene_id FROM jobs j WHERE j.project_id=? AND j.type='video_gen' AND j.quality_tier='direct'"
+                          " AND j.draft_job_id IS NULL AND j.state='succeeded'", (pid,)).fetchall():
+        if r["id"] in skip:
+            continue
+        try:
+            if quality_tier.state(conn, r["scene_id"]) == "final_review":   # shot đã có clip dùng (direct_ok …) → bản thừa, không đếm
+                n += 1
+        except Exception:  # noqa: BLE001 - one unreadable shot never hides the list
+            continue
+    return n
+
+
 def _video_waits(conn, pid: int, final_hold: List[int]) -> List[str]:
     """C7 (13/10, U2): clips that wait for the PERSON with no other line in 📥 — queued clips the runner keeps (kiểm trước gen ĐỎ / bản
     cao chờ — Tổ rà soát has its own line), finals waiting for a confirmation, drafts the person approved still without their final
@@ -119,6 +138,8 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
         for kind, typ, screen, label in (("Ảnh", "image_gen", "storyboard", "ảnh"), ("Video", "video_gen", "video", "clip")):
             n = sum(1 for r in conn.execute("SELECT id FROM jobs WHERE project_id=? AND type=? AND state='pending_review'", (pid, typ))
                     if r[0] not in sk["jobs"])
+            if typ == "video_gen":
+                n += _direct_waiting(conn, pid, sk["jobs"])
             if n:
                 add(kind, f"Duyệt {n} {label} đang chờ", screen, "todo")
         for kind, typ, screen, label in (("Ảnh", "image_gen", "storyboard", "ảnh"), ("Video", "video_gen", "video", "clip")):

@@ -4,7 +4,7 @@ import unittest
 from core import autopilot, dialogue, prompts
 from tests.test_autopilot import Setup
 
-LONG = " ".join(["lời"] * 39)          # 39 syllables -> 39/3.5 + 0.5 = 11.6 s
+LONG = " ".join(["lời"] * 39)          # 39 syllables -> 39/3.5 + BREATH (0.7) = 11.8 s
 TOO_LONG = " ".join(["lời"] * 70)      # 20.5 s: longer than any clip the models can make
 
 
@@ -59,7 +59,7 @@ class CheckTests(Setup):
         self.assertEqual(dialogue.extend(p, entries), 1)
         after = {e["idx"]: e for e in dialogue.check(p, pid)}
         self.assertEqual(after[1]["planned"], 12.0)
-        self.assertIn(after[1]["status"], ("ok", "tight"))                  # now fits (11.6 s in a 12 s clip)
+        self.assertIn(after[1]["status"], ("ok", "tight"))                  # now fits (11.8 s in a 12 s clip)
         self.assertEqual(after[2]["status"], "split")                      # cannot be fixed by lengthening
 
 
@@ -75,7 +75,7 @@ class MotionBundleTests(Setup):
             self.p.conn.execute("UPDATE jobs SET state='approved' WHERE id=?", (job,))
         self.p.conn.commit()
         bundle = prompts.build_motion_bundle(self.p, self.pid)
-        self.assertIn('"dialogue_min_sec": 11.6', bundle)
+        self.assertIn(f'"dialogue_min_sec": {round(39 / dialogue.RATE + dialogue.BREATH, 1):g}', bundle)   # 39/3,5 + 0,7 = 11,8
 
 
 class AutopilotGateTests(Setup):

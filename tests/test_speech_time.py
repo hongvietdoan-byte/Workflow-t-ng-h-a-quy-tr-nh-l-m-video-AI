@@ -51,6 +51,12 @@ def test_one_line_is_exactly_the_old_formula():
     assert dialogue.line_seconds(N1) == pytest.approx(8 / dialogue.RATE)
 
 
+def test_breath_is_the_edit_lead_and_tail():
+    """Rà gop-1510 r2: phần đệm mỗi lượt lời khi ước giây = đúng LEAD + TAIL khâu dựng đặt (trước: 0,5 < 0,7 → ước hụt)."""
+    assert dialogue.BREATH == pytest.approx(voice.LEAD + voice.TAIL) == pytest.approx(0.7)
+    assert voice.LEAD is dialogue.LEAD and voice.TAIL is dialogue.TAIL
+
+
 def test_gaps_are_the_edit_gaps():
     assert dialogue.LINE_GAP == voice.GAP                       # one clip: the next line comes GAP after the last (voice.layout)
     p, pid = _project("fast")
@@ -132,11 +138,18 @@ def test_real_table_is_measured_on_speech_seconds_and_fits_each_voice():
             entry = (real.get("voices") or {}).get(str(v)) if v is not None else None
             if not entry or int(entry.get("n") or 0) < int(real.get("min_n") or 8):
                 continue
-            err = statistics.median(r["syllables"] / dialogue.voice_rate(v) + dialogue.BREATH - r["file_s"] for r in rows)
+            # rà gop-1510 r2: so với cái khâu dựng thật đặt — LEAD + giây nói + TAIL (voice.layout), không phải độ dài file
+            err = statistics.median(r["syllables"] / dialogue.voice_rate(v) + dialogue.BREATH - (voice.LEAD + r["speech_s"] + voice.TAIL)
+                                    for r in rows)
             assert err <= 0.5 + 1e-6, (v, round(err, 3))
             checked.append(v)
         assert {"70", "72", "30007", "30020"} <= set(checked)
-        assert 23 / dialogue.voice_rate("70") + dialogue.BREATH <= 8.5
+        assert 23 / dialogue.voice_rate("70") + dialogue.BREATH <= 8.0 + dialogue.BREATH    # giây nói ~8 s + đệm dựng (LEAD + TAIL)
+        # số câu ước THIẾU > 0,5 s so với LEAD + giây nói + TAIL: BREATH 0,5 cũ → 34/86 câu; BREATH = LEAD + TAIL (0,7) → 22/86
+        def under(breath):
+            return sum(1 for r in _samples() if r["syllables"] / dialogue.voice_rate(r["voice_id"]) + breath
+                       < voice.LEAD + r["speech_s"] + voice.TAIL - 0.5)
+        assert under(dialogue.BREATH) <= 22 < under(0.5) == 34
     finally:
         dialogue._RATES_CACHE.clear()
 
@@ -167,7 +180,7 @@ def test_director_prompt_uses_one_breath_per_turn():
     want = dialogue.scene_seconds([("LỜI DẪN", N1), ("LỜI DẪN", N2), ("LỜI DẪN", N3)])
     block = prompts.duration_block(p, pid)
     assert f"thoại 3 câu cần ~{want:g} giây nói" in block and f"+ {dialogue.LINE_GAP:g} giây giữa hai câu" in block
-    assert f"thoại 3 câu cần ~{want:g} giây nói (≈ số âm tiết ÷ 3.5; + 0.5 s mỗi lượt lời" in prompts.intent_frame_block(p, pid)
+    assert f"thoại 3 câu cần ~{want:g} giây nói (≈ số âm tiết ÷ 3.5; + {dialogue.BREATH:g} s mỗi lượt lời" in prompts.intent_frame_block(p, pid)
 
 
 def test_normalize_and_report_use_the_project_voice(table):
@@ -175,7 +188,7 @@ def test_normalize_and_report_use_the_project_voice(table):
     ctx = {"voices": {"KELLY": {"voice_id": 70, "model": "eleven_v3"}}, "gap": dialogue.LINE_GAP}
     obj = {"scenes": [{"idx": 1, "shots": [{"size": "MCU", "duration_s": 3.0, "dialogue": [{"speaker": "KELLY", "text": N1}]}]}]}
     out, _ = shot_normalize.normalize(obj, "", None, ctx=ctx)
-    assert out["scenes"][0]["shots"][0]["duration_s"] == 3.4                 # 8 / 2,8 + 0,5 (3,5 âm/s would give 2,8 → kept 3)
+    assert out["scenes"][0]["shots"][0]["duration_s"] == round(8 / 2.8 + dialogue.BREATH, 1)   # 8 / 2,8 + 0,7 = 3,6 (3,5 âm/s → kept 3)
     plain, _ = shot_normalize.normalize(obj, "")
     assert plain["scenes"][0]["shots"][0]["duration_s"] == 3.0
 
@@ -279,14 +292,26 @@ def test_group_parts_cut_at_the_seconds_the_runner_sends():
     assert [(c[c.index("-ss") + 1], c[c.index("-t") + 1]) for c in calls] == [("0.00", "7.00"), ("7.00", "4.00")]
 
 
+def test_group_parts_of_a_sent_group_keep_the_seconds_sent():
+    """Rà gop-1510 r2: nhóm đọc lại từ sent_group (data.sent) đã mang đúng giây đã gửi — motion/giọng đổi SAU khi gửi không làm cắt
+    lệch clip đã gen (cắt theo giây đã gửi, không theo billed_seconds mới)."""
+    from core import shots
+    p, pid, ids = _multishot([4, 4], voiced={1: 7})
+    group = [dict(r, data=dict(r["data"], sent=True)) for r in shots.multishot_groups(p.conn, pid)[0]]
+    assert shots.group_parts(group, p.conn) == [(0.0, 4), (4.0, 4)]          # giây đã gửi (4 + 4), không 7 của motion mới
+    group[0]["data"]["duration_s"] = 7
+    assert shots.group_parts(group, p.conn) == [(0.0, 7), (7.0, 4)]
+
+
 def test_pacing_warnings_use_the_project_voice(table):
     """Mục 7: cảnh báo nhịp ở Bước 1 ước giây theo giọng dự án (ctx) như mọi chỗ khác."""
     from core import shots
     table({"min_n": 8, "voices": {"70": {"n": 10, "p50": 2.8}}})
     ctx = {"voices": {"KELLY": {"voice_id": 70, "model": "eleven_v3"}}, "gap": dialogue.LINE_GAP}
     shot = [{"size": "MCU", "role": "dialogue", "duration_s": 3.0, "dialogue": [{"speaker": "KELLY", "text": N1}]}]
-    assert shots.pacing_warnings(shot) == []                                  # 8 / 3,5 + 0,5 = 2,8 ≤ 3,0 + 0,3
-    assert any("thoại cần ~3.4s" in w for w in shots.pacing_warnings(shot, ctx))   # 8 / 2,8 + 0,5 = 3,4 > 3,3
+    assert shots.pacing_warnings(shot) == []                                  # 8 / 3,5 + 0,7 = 3,0 ≤ 3,0 + 0,3
+    need = round(8 / 2.8 + dialogue.BREATH, 1)                                # 8 / 2,8 + 0,7 = 3,6 > 3,3
+    assert any(f"thoại cần ~{need:g}s" in w for w in shots.pacing_warnings(shot, ctx))
 
 
 def test_over_model_max_checks_the_multishot_group_limit():

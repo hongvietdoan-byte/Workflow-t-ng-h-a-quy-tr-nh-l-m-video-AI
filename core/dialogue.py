@@ -16,7 +16,11 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 RATE = float(os.environ.get("DIALOGUE_SYLLABLES_PER_SEC", "3.5"))     # comfortable speaking speed
-BREATH = 0.5                                                          # seconds of room around the lines
+# rà gop-1510 r2 (15/10): khâu dựng (voice.layout / fit_durations) đặt LEAD trước câu đầu + TAIL sau câu cuối mỗi lượt lời — ước giây
+# trước TTS phải cộng đúng phần đó (trước: BREATH 0,5 < 0,7 → ước hụt). Hằng chung ở đây, core/voice đọc lại (voice import dialogue).
+LEAD = 0.3                                                            # seconds of picture before the first line of a clip
+TAIL = 0.4                                                            # seconds after the last line
+BREATH = round(LEAD + TAIL, 3)                                            # seconds of room around the lines (= voice.LEAD + voice.TAIL)
 DEFAULT_PLANNED = 5.0
 _LINE = re.compile(r"^\s*([^:\n]{1,30}?)\s*:\s*(.+?)\s*$")
 

@@ -226,6 +226,37 @@ class RoundGop1510(Base):
             self.p.succeed(jid2)
             self.assertEqual(self.p.apply_qc(jid2, {"motion": 0.99}), "approved")
 
+    def _videos_phase(self):
+        from core import autopilot
+        ctx = mock.Mock(data_dir=self.data)
+        with mock.patch("core.llm_io.ready_for_video", return_value=[]), mock.patch("core.lineage.scan", return_value={}),                 mock.patch.object(autopilot, "_old_plate_videos", return_value={}),                 mock.patch.object(autopilot, "_still_running"), mock.patch.object(autopilot, "_cap_wait"),                 mock.patch.object(autopilot, "_review_wait"), mock.patch.object(autopilot, "_gate_wait"),                 mock.patch.object(autopilot, "_budget_stop"), mock.patch.object(autopilot, "_retry_or_hold"),                 mock.patch("core.claude_tasks.unchecked_videos", return_value=[]), mock.patch("core.hero_takes.step", return_value=[]):
+            return autopilot._videos_phase(self.p, self.pid, ctx)
+
+    def test_r2_direct_clip_left_succeeded_without_qc_still_waits_for_the_person(self):
+        """Rà gop-1510 r2: qc_video TẮT (hoặc QC lỗi riêng clip) → clip gen thẳng 720p nằm 'succeeded' (lineage.USABLE_VIDEO) — chạy
+        tự động vẫn CHỜ người duyệt (_Wait 'drafts'), 📥 liệt kê nó; không đi tiếp sang nhạc/dựng bằng clip chưa ai duyệt."""
+        from core import autopilot, inbox
+        jid, _ = self._direct_clip()
+        self.assertEqual(self.p.job(jid)["state"], "succeeded")
+        with ON:
+            self.assertEqual(autopilot._drafts_waiting(self.p, self.pid), ["S01"])
+            with self.assertRaises(autopilot._Wait) as w:
+                self._videos_phase()
+            self.assertEqual(w.exception.gate, "drafts")
+            self.assertEqual(self.p.job(jid)["state"], "succeeded")                      # never approved by the machine
+            self.assertIn("Duyệt 1 clip đang chờ", [i["text"] for i in inbox.items(self.p.conn, "")])
+            self.assertTrue(self.p.approve(jid, "user"))
+            self.assertEqual(autopilot._drafts_waiting(self.p, self.pid), [])
+            self.assertNotIn("Duyệt 1 clip đang chờ", [i["text"] for i in inbox.items(self.p.conn, "")])
+
+    def test_r2_flag_off_a_succeeded_clip_is_as_before(self):
+        from core import autopilot, inbox
+        jid, _ = self._direct_clip()
+        with mock.patch("core.quality_tier.enabled", return_value=False):
+            self.assertEqual(autopilot._drafts_waiting(self.p, self.pid), [])
+            self.assertEqual(inbox._direct_waiting(self.p.conn, self.pid, set()), 0)
+            self.assertFalse(any("clip đang chờ" in i["text"] for i in inbox.items(self.p.conn, "")))
+
     def test_item8_a_take_group_makes_every_shot_hard(self):
         self.label("easy", self.sids[0])
         self.label("easy", self.sids[1])
@@ -238,6 +269,67 @@ class RoundGop1510(Base):
             r = quality_tier.route(self.p.conn, self.sids[1])                 # the wide shot itself has no line
             self.assertEqual(r["path"], "draft_first")
             self.assertIn("take", r["why"])
+
+
+class RoundGop1510R2(Base):
+    """Rà gop-1510 vòng 2: nhãn cũ hiển thị đúng, lý do ghi số shot (S05) chứ không id CSDL, test thiếu cho reconcile / _store."""
+    N = 2
+
+    def _data(self, sid):
+        return json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()[0] or "{}")
+
+    def _put(self, sid, data):
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), sid))
+        self.p.conn.commit()
+
+    def test_old_label_without_by_is_not_shown_as_the_directors(self):
+        from dashboard import quality_ui
+        self._put(self.s1, {"characters": ["A"], "difficulty": "easy", "difficulty_why": "một người đứng"})
+        line, _ = quality_ui.difficulty_md(self.p.conn, self.s1)
+        self.assertIn("nhãn cũ — chạy lại Đạo diễn", line)
+        self.assertNotIn("(Đạo diễn)", line)
+        self.label("easy")
+        line, _ = quality_ui.difficulty_md(self.p.conn, self.s1)
+        self.assertIn("Độ khó (Đạo diễn)", line)
+
+    def test_group_reason_names_the_shot_number_not_the_database_id(self):
+        self.p.conn.execute("UPDATE scenes SET idx=5 WHERE id=?", (self.sids[1],))
+        self.p.conn.commit()
+        self.assertNotEqual(self.sids[1], 5)
+        self.label("easy", self.sids[0])
+        self.label("complex", self.sids[1])
+        group = [{"id": sid} for sid in self.sids]
+        with ON, mock.patch("core.shots.group_of", return_value=group):
+            r = quality_tier.group_route(self.p.conn, self.sids[0])
+        self.assertEqual(r["path"], "draft_first")
+        self.assertIn("shot S05 nháp-trước", r["why"])
+        self.assertNotIn("#", r["why"])
+        self.assertEqual(quality_tier.shot_label(self.p.conn, 99999), "#99999")
+
+    def test_reconcile_twice_keeps_the_directors_easy(self):
+        data = {"characters": ["A", "B"], "dialogue": [{"speaker": "A", "text": "x"}], "camera_complexity": "complex",
+                "difficulty": "easy", "difficulty_why": "hai người nói", "difficulty_by": "director"}
+        first = shot_complexity.apply(dict(data))
+        if first["difficulty"] != "unknown":
+            self.skipTest("kiểm chéo không hạ nhãn với dữ liệu này")
+        self.assertEqual(first.get("difficulty_director"), "easy")
+        second = shot_complexity.apply(dict(first))                       # chấm lại (lưu lại / chạy lại kiểm chéo)
+        self.assertEqual(second["difficulty"], "unknown")
+        self.assertEqual(second.get("difficulty_director"), "easy")
+        self.assertEqual(second["difficulty_by"], "director")
+        self.assertEqual(quality_tier.label_from_director(second), "easy")
+
+    def test_store_of_a_project_without_shots_marks_the_label_as_the_directors(self):
+        from core import llm_io, shots
+        self.assertFalse(shots.active(self.p, self.pid))
+        self._put(self.s1, {"difficulty": "easy", "difficulty_by": "check",
+                            "difficulty_check": {"note": "Đạo diễn chưa ghi độ khó → theo kiểm chéo"}})
+        llm_io._store(self.p, self.pid, {"characters": [], "scenes": [{"idx": 1, "difficulty": "complex",
+                                                                         "difficulty_why": "đánh nhau"}]})
+        d = self._data(self.s1)
+        self.assertEqual(d["difficulty_by"], "director")
+        self.assertEqual(d["difficulty"], "complex")
+        self.assertNotIn("difficulty_director", d)
 
 
 class DeliveryUpscalesOnly720(unittest.TestCase):

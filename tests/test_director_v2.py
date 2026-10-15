@@ -31,14 +31,26 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(r["shots"], 35)
         self.assertEqual(r["total_s"], 58.5)
         self.assertFalse(r["in_target"])                      # 55–58 s
-        self.assertEqual(len(r["short_speech"]), 11)          # the 6,8 s squeeze found by hand
+        # the 6,8 s squeeze found by hand — measured with the rule of that time (BREATH 0,5); rà gop-1510 r2: the estimate now pads each
+        # turn with the edit's LEAD + TAIL (0,7), so more of run 3's tight shots count as short
+        from unittest import mock
+        from core import dialogue
+        with mock.patch.object(dialogue, "BREATH", 0.5):
+            self.assertEqual(len(director_report.report(RUN3, SCRIPT)["short_speech"]), 11)
+        self.assertEqual(len(r["short_speech"]), 17)
         self.assertEqual(r["dropped"], [])
         self.assertEqual(r["invented"], [])
 
     def test_run4_faults_are_measured(self):
         r = director_report.report(RUN4, SCRIPT)
         self.assertEqual((r["shots"], r["total_s"], r["in_target"]), (33, 57.3, True))
-        self.assertEqual(r["short_speech"], [])
+        from unittest import mock
+        from core import dialogue
+        with mock.patch.object(dialogue, "BREATH", 0.5):                  # run 4 was planned with BREATH 0,5: it fitted that rule
+            self.assertEqual(director_report.report(RUN4, SCRIPT)["short_speech"], [])
+        # rà gop-1510 r2: with the edit's real LEAD + TAIL (0,7) 9 shots are 0,1 s short — voice.fit_durations stretches them after TTS
+        self.assertEqual(len(r["short_speech"]), 9)
+        self.assertTrue(all(round(x["need"] - x["dur"], 2) <= 0.2 for x in r["short_speech"]))
         self.assertEqual(len(r["silent_micro"]), 7)
         self.assertEqual(r["dropped_answered"], 2)            # both dropped lines had a reply right after them
         self.assertEqual(r["paid_s"]["per_shot"], 101.0)      # ~101 s billed for 57 s of film (Kling, 3 s minimum)

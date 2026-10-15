@@ -220,7 +220,10 @@ def difficulty_md(conn, scene_id: int) -> Tuple[str, str]:
         return "", ""
     name = DIFFICULTY.get(label, str(label))
     why = data.get("difficulty_why") or ""
-    who = "kiểm chéo — Đạo diễn chưa gắn" if data.get("difficulty_by") == "check" else "Đạo diễn"
+    by = data.get("difficulty_by")
+    # rà gop-1510 r2: dữ liệu trước 15/10 không có `difficulty_by` — quality_tier.route coi là không rõ ai ghi (khó), không nói "Đạo diễn"
+    who = ("kiểm chéo — Đạo diễn chưa gắn" if by == "check" else "Đạo diễn" if by == "director"
+           else "nhãn cũ — chạy lại Đạo diễn")
     line = f"Độ khó ({who}): **{name}**" + (f" — {why}" if why else "")
     from core import quality_tier
     if quality_tier.enabled():                       # 15/10: nhãn quyết định đường làm clip — nói đường + lý do

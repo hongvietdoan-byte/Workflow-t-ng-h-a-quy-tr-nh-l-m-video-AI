@@ -1068,7 +1068,8 @@ def _drafts_waiting(p: Pipeline, pid: int) -> List[str]:
     out = {r["idx"]: r for r in rows if quality_tier.state(p.conn, r["id"]) == "draft_review"}
     direct = p.conn.execute(
         "SELECT DISTINCT s.id, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type='video_gen'"
-        " AND j.quality_tier='direct' AND j.draft_job_id IS NULL AND j.state='pending_review' ORDER BY s.idx", (pid,)).fetchall()
+        " AND j.quality_tier='direct' AND j.draft_job_id IS NULL AND j.state IN ('succeeded','pending_review') ORDER BY s.idx",
+        (pid,)).fetchall()   # rà gop-1510 r2: qc_video TẮT / QC lỗi riêng clip → clip nằm 'succeeded' (lineage.USABLE_VIDEO) — vẫn chờ người
     for r in direct:
         if quality_tier.state(p.conn, r["id"]) == "final_review":        # not when the shot already has a clip in use (direct_ok …)
             out.setdefault(r["idx"], r)
