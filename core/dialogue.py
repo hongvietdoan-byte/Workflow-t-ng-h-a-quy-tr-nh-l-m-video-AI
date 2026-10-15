@@ -104,19 +104,37 @@ def syllables(said: str) -> int:
 # nhất; dùng p90 âm tiết/giây sẽ ước NGẮN hơn audio). Chỉ một giọng có đủ mẫu và đọc CHẬM hơn RATE mới đổi ước tính (chỉ được dài ra);
 # "speed_follows": model nào thật sự đọc nhanh/chậm theo speed gửi đi — chưa đo được thì hệ số tốc độ = 1 (ước như tốc độ 1,0).
 LINE_GAP = 0.15            # giữa hai câu liền nhau trong một shot = voice.GAP (khâu dựng đặt câu y như vậy); nhịp nhanh: pacing.FAST_LINE_GAP
-_RATES_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "speech_rates.json")
+_RATES_FILE = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "speech_rates.json"))
 _RATES_CACHE: Dict = {}
+RATES_DEFAULT: Dict = {"min_n": 8, "voices": {}, "speed_follows": {}}   # = công thức cũ (RATE, tốc độ không đổi ước tính)
 
 
 def _rates() -> Dict:
-    """data/speech_rates.json (đọc một lần). Thiếu / hỏng → {} = công thức cũ (RATE, tốc độ không đổi ước tính)."""
+    """data/speech_rates.json (đọc một lần, theo gốc dự án — không theo thư mục đang chạy). Thiếu / hỏng → RATES_DEFAULT và lý do
+    nằm ở _RATES_CACHE["problem"] — speech_ctx ghi diag VÀNG (luật 1: không im lặng khi thiếu đầu vào)."""
     if "v" not in _RATES_CACHE:
         try:
             with open(_RATES_FILE, encoding="utf-8") as f:
-                _RATES_CACHE["v"] = json.load(f)
-        except (OSError, ValueError):
-            _RATES_CACHE["v"] = {}
-    return _RATES_CACHE["v"] if isinstance(_RATES_CACHE["v"], dict) else {}
+                data = json.load(f)
+            if not isinstance(data, dict):
+                raise ValueError("không phải bảng JSON")
+            _RATES_CACHE["v"] = data
+        except OSError as e:
+            _RATES_CACHE["v"], _RATES_CACHE["problem"] = dict(RATES_DEFAULT), f"thiếu {_RATES_FILE} ({e.__class__.__name__})"
+        except ValueError as e:
+            _RATES_CACHE["v"], _RATES_CACHE["problem"] = dict(RATES_DEFAULT), f"{_RATES_FILE} hỏng ({e})"
+    return _RATES_CACHE["v"]
+
+
+def _say_rates_problem(conn, project_id: int) -> None:
+    """Bảng tốc độ giọng thiếu / hỏng → diag VÀNG cho dự án đang ước giây (diag gộp lặp trong 10 phút)."""
+    _rates()
+    why = _RATES_CACHE.get("problem")
+    if why:
+        from . import diag
+        diag.record(conn, "director", "warn", f"bảng tốc độ giọng: {why} — ước giây đọc theo công thức mặc định (÷ {RATE:g} âm "
+                    "tiết/giây, tốc độ không đổi ước tính); chạy tools/measure_speech_rate.py --write data/speech_rates.json",
+                    code="speech_rates_missing", project_id=project_id)
 
 
 def voice_rate(voice_id=None) -> float:
@@ -192,6 +210,7 @@ def speech_ctx(conn, project_id: int) -> Dict:
     except Exception:  # noqa: BLE001 - before the column
         narration = None
     fast = pacing.project_fast(conn, project_id)
+    _say_rates_problem(conn, project_id)
     return {"voices": voices, "narration_speed": narration, "gap": pacing.FAST_LINE_GAP if fast else LINE_GAP}
 
 

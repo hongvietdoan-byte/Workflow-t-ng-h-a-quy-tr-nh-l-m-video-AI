@@ -183,10 +183,100 @@ def test_over_model_max_names_the_shot_whose_voice_no_clip_can_hold():
     assert got == [{"scene_id": sid, "idx": 1, "need": round(voice.LEAD + 9.0, 2), "max": 8}]
 
 
+def _multishot(secs, voiced=None):
+    """A Kling multi-shot project: one continuity group of shots with these Director seconds; voiced = {shot index: motion seconds
+    already stretched to the real voice (voice.fit_durations)}."""
+    p, pid = _project()
+    p.conn.execute("UPDATE projects SET shot_mode='multishot' WHERE id=?", (pid,))
+    ids = []
+    for i, sec in enumerate(secs, 1):
+        sid = p.create_scene(pid, i, f"S{i}")
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"shot_no": i, "story_scene": 1, "sequence": 1,
+                                                                          "duration_s": sec}), sid))
+        if voiced and i in voiced:
+            p.conn.execute("INSERT INTO motion_prompts (scene_id, motion_prompt, duration_sec) VALUES (?,?,?)", (sid, "m", voiced[i]))
+        ids.append(sid)
+    p.conn.commit()
+    return p, pid, ids
+
+
 def test_multishot_shot_gets_its_voice_stretched_seconds():
+    from core import shots
     from core.runner import VideoRunner
-    row = {"id": 1, "data": {"duration_s": 3.2}}
-    fake = SimpleNamespace(_cut_seconds=lambda r: 6.3)
-    assert VideoRunner._billed_seconds(fake, row) == 7                    # before: shots.billed_shot_seconds = 4
-    fake = SimpleNamespace(_cut_seconds=lambda r: 2.0)
-    assert VideoRunner._billed_seconds(fake, row) == 4
+    p, pid, ids = _multishot([3.2, 3.2], voiced={1: 6.3, 2: 2.0})
+    rows = {r["id"]: r for r in shots._rows(p.conn, pid)}
+    fake = SimpleNamespace(p=p)
+    assert shots.billed_seconds(p.conn, rows[ids[0]]) == VideoRunner._billed_seconds(fake, rows[ids[0]]) == 7   # Đạo diễn: 4
+    assert shots.billed_seconds(p.conn, rows[ids[1]]) == VideoRunner._billed_seconds(fake, rows[ids[1]]) == 4
+
+
+def test_multishot_groups_use_the_voice_stretched_seconds_never_over_15():
+    """Lỗi CAO (rà 15/10): nhóm chia theo giây Đạo diễn 5+5+5 = 15, runner gửi giây đã kéo theo giọng 5+7+5 = 17 > 15 (Kling từ chối /
+    tốn thêm). Một hàm giây chung: nhóm tách."""
+    from core import shots
+    p, pid, ids = _multishot([5, 5, 5], voiced={2: 7})
+    groups = shots.multishot_groups(p.conn, pid)
+    assert [[r["id"] for r in g] for g in groups] == [ids[:2], ids[2:]]
+    assert all(sum(shots.billed_seconds(p.conn, r) for r in g) <= shots.MULTISHOT_MAX for g in groups)
+    p2, pid2, ids2 = _multishot([5, 5, 5])                               # không ai kéo: nhóm như cũ
+    assert [[r["id"] for r in g] for g in shots.multishot_groups(p2.conn, pid2)] == [ids2]
+
+
+def test_over_model_max_checks_the_multishot_group_limit():
+    """Một shot Kling multishot không dài hơn 15 s (cả nhóm ≤ 15) dù model đơn làm được dài hơn."""
+    p, pid, ids = _multishot([5, 5])
+    d = tempfile.mkdtemp()
+    _voiced(p, pid, d, ids[1], 16000)
+    with mock.patch("core.dialogue.max_clip_seconds", return_value=20):
+        got = voice.over_model_max(p.conn, pid, d)
+    assert [(c["scene_id"], c["max"]) for c in got] == [(ids[1], 15)]
+    _voiced(p, pid, d, ids[1], 8000)                                      # nhóm 5 + 9 ≤ 15: không chặn oan
+    with mock.patch("core.dialogue.max_clip_seconds", return_value=20):
+        assert voice.over_model_max(p.conn, pid, d) == []
+
+
+def test_voice_over_max_waits_again_when_the_cut_lines_change():
+    from core import autopilot
+    p, pid = _project()
+    ctx = autopilot.Context(tempfile.mkdtemp(), None, None, None, audio=object())
+    over = [{"scene_id": 1, "idx": 1, "need": 17.2, "max": 15}]
+
+    def run():
+        with mock.patch("core.voice.status", return_value={"total": 1, "missing": 0}),              mock.patch("core.voice.fit_durations", return_value=[]),              mock.patch("core.voice.over_model_max", return_value=list(over)),              mock.patch("core.voice.pending_fits", return_value=[]),              mock.patch.object(autopilot, "_check_voices"):
+            return autopilot._voice_phase(p, pid, ctx)
+
+    with pytest.raises(autopilot._Wait):
+        run()
+    autopilot.set_gates(p, pid, {"waiting_for": "voice_over_max"})
+    autopilot.resume(p, pid)
+    assert run() is None                                                   # người dùng cho qua đúng danh sách này
+    over.append({"scene_id": 2, "idx": 2, "need": 16.0, "max": 15})
+    with pytest.raises(autopilot._Wait):                                   # giọng đổi → danh sách khác → chờ lại
+        run()
+
+
+# ---- 5. bảng tốc độ thiếu / hỏng; tốc độ lời dẫn không đè hồ sơ ---------------------------------------------------------------------
+def test_missing_speech_rates_file_is_said_and_gives_the_defaults():
+    p, pid = _project()
+    dialogue._RATES_CACHE.clear()
+    try:
+        with mock.patch.object(dialogue, "_RATES_FILE", os.path.join(tempfile.mkdtemp(), "none.json")):
+            assert dialogue._rates() == dialogue.RATES_DEFAULT
+            dialogue.speech_ctx(p.conn, pid)
+        rows = p.conn.execute("SELECT severity FROM diag_events WHERE code='speech_rates_missing'").fetchall()
+        assert [r["severity"] for r in rows] == ["warn"]
+    finally:
+        dialogue._RATES_CACHE.clear()
+    assert os.path.isabs(dialogue._RATES_FILE) and os.path.exists(dialogue._RATES_FILE)   # theo gốc dự án, không theo cwd
+
+
+def test_narration_speed_never_overrides_a_saved_voice_profile():
+    p, pid = _project()
+    p.set_project_field(pid, "narration_speed", 1.2)
+    p.conn.execute("INSERT INTO characters (project_id, name, description) VALUES (?,?,?)", (pid, "LỜI DẪN", "x"))
+    voice.set_profile(p.conn, pid, "LỜI DẪN", {"voice_id": 72, "voice_name": "boy", "model": "eleven_v3", "speed": None})
+    voice.set_profile(p.conn, pid, "LỜI DẪN", {"voice_id": 72, "voice_name": "boy", "model": "eleven_v3"})   # lưu lại (không key speed)
+    assert "speed" not in voice.profiles(p.conn, pid)["LỜI DẪN"]          # hồ sơ đã có (1,0 người chọn) giữ nguyên
+    voice.set_profile(p.conn, pid, "LỜI DẪN", {"voice_id": 72, "voice_name": "boy", "model": "eleven_v3", "speed": 0.9})
+    voice.set_profile(p.conn, pid, "LỜI DẪN", {"voice_id": 72, "voice_name": "boy", "model": "eleven_v3"})
+    assert voice.profiles(p.conn, pid)["LỜI DẪN"]["speed"] == 0.9

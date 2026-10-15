@@ -103,9 +103,10 @@ def set_profile(conn, project_id: int, name: str, profile: Optional[Dict]) -> Li
             speed, warn = clamp_speed(profile.get("speed"))
         else:
             row = conn.execute("SELECT voice_profile FROM characters WHERE project_id=? AND name=?", (project_id, name)).fetchone()
-            speed, warn = clamp_speed(get_profile(row).get("speed")) if row else (None, None)
-            if speed is None and not warn:
-                speed, warn = narration_speed(conn, project_id, name)   # 15/10: lời dẫn lấy tốc độ đặt ở Bước 1 (hai nơi khớp)
+            saved = get_profile(row) if row else {}
+            speed, warn = clamp_speed(saved.get("speed"))
+            if not saved.get("voice_id") and speed is None and not warn:   # 15/10: lời dẫn CHƯA có hồ sơ giọng lấy tốc độ đặt ở Bước 1;
+                speed, warn = narration_speed(conn, project_id, name)   # hồ sơ đã có (kể cả 1,0 người chọn) không bị ô Bước 1 đè
         if warn:
             warns.append(f"{name}: {warn}")
         if speed is not None:
@@ -459,17 +460,34 @@ def fit_durations(conn, project_id: int, data_dir: str, with_clips: bool = False
 
 def over_model_max(conn, project_id: int, data_dir: str) -> List[Dict]:
     """15/10: shots whose REAL voice (lead + lines + gaps, no tail) is longer than the longest clip their video model can make — no
-    duration fixes that, the line would be cut (fit_durations only caps it, said nowhere before). [{scene_id, idx, need, max}]."""
+    duration fixes that, the line would be cut (fit_durations only caps it, said nowhere before). [{scene_id, idx, need, max}].
+    Kling multishot (rà 15/10): the limit is the GROUP's — the groups are cut as the runner will cut them (shots.billed_seconds with
+    the real voice), and a group still over shots.MULTISHOT_MAX (one shot alone longer than that) names its voiced shots."""
+    from . import shots
     from .dialogue import max_clip_seconds
     from .pipeline import Pipeline
     p, out = Pipeline(conn), []
-    for sid, secs in scene_seconds(conn, project_id, data_dir).items():
-        need = round(_lead(conn, sid) + secs, 2)
+    needs = {sid: round(_lead(conn, sid) + secs, 2) for sid, secs in scene_seconds(conn, project_id, data_dir).items()}
+    for sid, need in needs.items():
         top = max_clip_seconds(p, project_id, sid)
         if need > top + 0.05:
-            row = conn.execute("SELECT idx FROM scenes WHERE id=?", (sid,)).fetchone()
-            out.append({"scene_id": sid, "idx": row["idx"] if row else None, "need": need, "max": top})
-    return out
+            out.append({"scene_id": sid, "need": need, "max": top})
+    mode = conn.execute("SELECT shot_mode FROM projects WHERE id=?", (project_id,)).fetchone()
+    if mode is not None and mode["shot_mode"] == "multishot" and needs:
+        named = {c["scene_id"] for c in out}
+        for g in shots.multishot_groups(conn, project_id, voice_need=needs):
+            total = sum(shots.billed_seconds(conn, r, needs.get(r["id"])) for r in g)
+            if total <= shots.MULTISHOT_MAX:
+                continue
+            for r in g:
+                if r["id"] in needs and r["id"] not in named:
+                    out.append({"scene_id": r["id"], "need": round(total if len(g) > 1 else needs[r["id"]], 2),
+                                "max": shots.MULTISHOT_MAX})
+    for c in out:
+        row = conn.execute("SELECT idx FROM scenes WHERE id=?", (c["scene_id"],)).fetchone()
+        c["idx"] = row["idx"] if row else None
+    return sorted(({"scene_id": c["scene_id"], "idx": c["idx"], "need": c["need"], "max": c["max"]} for c in out),
+                  key=lambda c: (c["idx"] or 0, c["scene_id"]))
 
 
 def _lead(conn, scene_id: int) -> float:

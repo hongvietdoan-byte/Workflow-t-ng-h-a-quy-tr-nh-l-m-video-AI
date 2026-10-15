@@ -73,3 +73,13 @@ test_rough_cut, test_ui_v2_acceptance. → Cần agent rà (quy ước 7) trư�
 - Bật mặc định đổi hành vi người không dùng: BREATH/khoảng giữa câu + đếm số áp cho mọi dự án (chủ đích); autopilot dừng mới khi giọng thật
   dài hơn clip tối đa model (trước: cắt im lặng); multishot gửi giây đã kéo (có thể đắt hơn vài giây).
 - Đường dẫn tương đối: `data/speech_rates.json` theo `__file__`. Lời gọi tốn tiền: không.
+
+## Vòng sửa sau rà (15/10) — XONG
+1. CAO: `shots.billed_seconds(conn,row,voice_need)` = max(giây Đạo diễn ≥3, giây motion đã kéo theo giọng, giọng thật) — dùng cho
+   `multishot_groups` + `runner._billed_seconds` (gọi lại) → nhóm không vượt 15 s.
+2. autopilot `voice_over_max_ok` = dấu danh sách [scene_id, need, max] lúc cho qua (`voice_over_max_seen`); danh sách khác → chờ lại.
+3. `voice.over_model_max` xét trần nhóm multishot (nhóm chia lại theo giọng thật, nhóm > 15 → nêu shot có giọng, max 15).
+4. `dialogue._rates()` thiếu/hỏng → `RATES_DEFAULT` + diag VÀNG `speech_rates_missing` (speech_ctx ghi); đường dẫn abspath theo gốc.
+   `voice.set_profile`: tốc độ Bước 1 chỉ vào hồ sơ lời dẫn CHƯA có voice_id (không đè hồ sơ đã lưu, kể cả 1,0).
+Còn mở: `shots.group_parts` (job cũ không có sent_group) vẫn cắt theo giây Đạo diễn; nhóm chia lại sau khi đã duyệt ảnh có thể làm
+một shot thành đầu nhóm mới cần ảnh riêng.

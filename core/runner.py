@@ -1898,11 +1898,10 @@ class VideoRunner(_Runner):
         return any(seedance_refs.uses_refs(self.p.conn, r["id"]) for r in group)
 
     def _billed_seconds(self, row) -> int:
-        """15/10: a Kling multi-shot shot's seconds — the Director's (≥ 3 s, shots.billed_shot_seconds) or, when longer, its motion
-        seconds stretched to the REAL voice (voice.fit_durations). Before: the Director's only — a shot whose voice came out longer
-        was generated shorter than its line."""
+        """15/10: a Kling multi-shot shot's seconds = shots.billed_seconds — the SAME function cuts the groups (shots.multishot_groups),
+        so a group sent never adds up past 15 s (rà 15/10: groups were cut on the Director's seconds, the voice-stretched ones sent)."""
         from . import shots
-        return max(shots.billed_shot_seconds(row["data"]), int(math.ceil(self._cut_seconds(row) - 1e-6)))
+        return shots.billed_seconds(self.p.conn, row)
 
     def _cut_seconds(self, row) -> float:
         """A shot's length in the film: its motion prompt's seconds (stretched to the real voice), else the Director's."""
