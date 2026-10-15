@@ -256,6 +256,30 @@ class SafeguardTests(unittest.TestCase):
         with self.assertRaisesRegex(SchemaError, "không phải KENTA"):
             self.check(who)
 
+    def test_two_labels_of_the_narrator_are_one_speaker(self):
+        """#31 15/10: script 'LỜI DẪN', Director 'NGƯỜI DẪN CHUYỆN' failed Tầng A twice (≈ 0,76 USD) — same narrator; the script's
+        label goes on. Two different people (or 'KELLY (V.O.)' vs the narrator) are still a wrong speaker."""
+        sc = {"dialogue": [{"speaker": "NGƯỜI DẪN CHUYỆN", "text": "Trận mới, vẫn là bạn."}]}
+        dtp._check_kept(sc, [("LỜI DẪN", "Trận mới, vẫn là bạn.")], False, "scenes[idx=1]")
+        self.assertEqual(sc["dialogue"][0]["speaker"], "LỜI DẪN")
+        for wrong in ("KELLY", "KELLY (V.O.)"):
+            with self.assertRaisesRegex(SchemaError, "là câu của LỜI DẪN"):
+                dtp._check_kept({"dialogue": [{"speaker": wrong, "text": "Trận mới, vẫn là bạn."}]},
+                                [("LỜI DẪN", "Trận mới, vẫn là bạn.")], False, "scenes[idx=1]")
+
+    def test_the_bible_narrator_takes_the_script_label(self):
+        obj = {"characters": [{"name": "KELLY"}, {"name": "NGƯỜI DẪN CHUYỆN"}],
+               "scenes": [{"idx": 1, "characters": ["KELLY", "NGƯỜI DẪN CHUYỆN"], "focus": "NGƯỜI DẪN CHUYỆN",
+                           "dialogue": [{"speaker": "NGƯỜI DẪN CHUYỆN", "text": "Câu một."}, {"speaker": "KELLY", "text": "Câu hai."}]}]}
+        dtp._unify_narrator(obj, {1: [("LỜI DẪN", "Câu một."), ("KELLY", "Câu hai.")]})
+        self.assertEqual([c["name"] for c in obj["characters"]], ["KELLY", "LỜI DẪN"])
+        self.assertEqual(obj["scenes"][0]["characters"], ["KELLY", "LỜI DẪN"])
+        self.assertEqual(obj["scenes"][0]["focus"], "LỜI DẪN")
+        self.assertEqual([d["speaker"] for d in obj["scenes"][0]["dialogue"]], ["LỜI DẪN", "KELLY"])
+        two = {"characters": [{"name": "NARRATOR"}], "scenes": []}           # the script names its narrator two ways: untouched
+        dtp._unify_narrator(two, {1: [("LỜI DẪN", "a")], 2: [("THUYẾT MINH", "b")]})
+        self.assertEqual(two["characters"][0]["name"], "NARRATOR")
+
     def test_dropping_a_line_needs_the_trim_permission(self):
         cut = copy.deepcopy(self.intent)
         del cut["scenes"][1]["dialogue"][1]
@@ -310,6 +334,14 @@ class SafeguardTests(unittest.TestCase):
         stranger["shots"][0]["characters"] = ["NGƯỜI LẠ"]
         with self.assertRaises(SchemaError):
             dtp.check_scene(sc, names)(stranger)
+        sc_n = copy.deepcopy(sc)                                   # #31: the DP's narrator label → the Director's
+        first = next(d for d in sc_n["dialogue"] if isinstance(d, dict) and str(d.get("text") or "").strip())
+        first["speaker"] = "LỜI DẪN"
+        narr = copy.deepcopy(answer)
+        line = next(d for sh in narr["shots"] for d in sh.get("dialogue") or [] if str(d.get("text") or "").strip())
+        line["speaker"] = "NGƯỜI DẪN CHUYỆN"
+        got = dtp.check_scene(sc_n, names)(narr)
+        self.assertEqual(dtp.shot_lines(got["shots"])[0][0], "LỜI DẪN")
         other = dict(copy.deepcopy(answer), idx=2)
         with self.assertRaisesRegex(SchemaError, "idx"):
             dtp.check_scene(sc, names)(other)

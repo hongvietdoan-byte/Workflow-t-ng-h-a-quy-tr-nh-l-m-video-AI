@@ -68,6 +68,47 @@ def _spoken(lines) -> List[Tuple[str, str]]:
             and not dialogue.is_non_speaker(str(d.get("speaker") or ""))]
 
 
+def _both_narrators(a: str, b: str) -> bool:
+    """#31 (15/10): the script says "LỜI DẪN", the Director wrote "NGƯỜI DẪN CHUYỆN" — two labels of the one narrator, not a wrong
+    speaker (it failed Tầng A twice, ≈ 0,76 USD). Whole narrator labels only (speaker_lint.NARRATOR_NAMES; "KELLY (V.O.)" is Kelly)."""
+    from .speaker_lint import NARRATOR_NAMES, _norm
+    return _norm(a) in NARRATOR_NAMES and _norm(b) in NARRATOR_NAMES
+
+
+def _rename_narrator(lines, k: int, name: str) -> None:
+    """The k-th spoken line of `lines` (dialogue dicts, on-screen text rows skipped as in _spoken) takes the script's narrator label."""
+    spoken = [d for d in lines or [] if isinstance(d, dict) and str(d.get("text") or "").strip()
+              and not dialogue.is_non_speaker(str(d.get("speaker") or ""))]
+    if k < len(spoken):
+        spoken[k]["speaker"] = name
+
+
+def _unify_narrator(obj: Dict, script: Dict[int, List[Tuple[str, str]]]) -> None:
+    """#31: the script names its narrator ONE way ("LỜI DẪN"); another narrator label the Director used ("NGƯỜI DẪN CHUYỆN") is put
+    back to it everywhere — Bible name, scene cast, focus, kept lines — so the voice profile (characters.name) and the lines agree."""
+    from .speaker_lint import NARRATOR_NAMES, _norm
+    labels = {who for lines in script.values() for who, _ in lines if _norm(who) in NARRATOR_NAMES}
+    if len(labels) != 1:
+        return
+    label = labels.pop()
+
+    def fix(name):
+        return label if isinstance(name, str) and _norm(name) in NARRATOR_NAMES and _norm(name) != _norm(label) else name
+    for c in obj.get("characters") or []:
+        if isinstance(c, dict):
+            c["name"] = fix(c.get("name"))
+    for sc in obj.get("scenes") or []:
+        if not isinstance(sc, dict):
+            continue
+        if isinstance(sc.get("characters"), list):
+            sc["characters"] = [fix(n) for n in sc["characters"]]
+        if "focus" in sc:
+            sc["focus"] = fix(sc["focus"])
+        for d in sc.get("dialogue") or []:
+            if isinstance(d, dict) and "speaker" in d:
+                d["speaker"] = fix(d["speaker"])
+
+
 def kept_lines(scene: Dict) -> List[Tuple[str, str]]:
     """(SPEAKER, line) the Director kept for this scene, in order (on-screen text rows excluded — they are never voiced)."""
     return _spoken(scene.get("dialogue"))
@@ -92,6 +133,7 @@ def validate_intent(pipeline: Pipeline, project_id: int) -> Callable[[Any], Dict
         for sc in obj.get("scenes") or []:
             if isinstance(sc, dict):
                 sc.pop("shots", None)                  # the Director does not split shots in this pass (the DP does)
+        _unify_narrator(obj, script)
         probe = copy.deepcopy(obj)
         for sc in probe.get("scenes") or []:
             if isinstance(sc, dict):
@@ -164,14 +206,16 @@ def _check_kept(sc: Dict, script_lines: List[Tuple[str, str]], trim: bool, where
     kept = kept_lines(sc)
     pos = 0
     norm_script = [(who.upper(), dialogue.norm(said)) for who, said in script_lines]
-    for who, said in kept:
+    for i, (who, said) in enumerate(kept):
         n = dialogue.norm(said)
         at = next((k for k in range(pos, len(norm_script)) if norm_script[k][1] == n), None)
         if at is None:
             anywhere = any(t == n for _, t in norm_script)
             raise SchemaError(f"{where}.dialogue: " + (f"câu sai thứ tự so với kịch bản: “{said}”" if anywhere else
                                                        f"câu không có nguyên văn trong cảnh này của kịch bản (không thêm, không sửa chữ): “{said}”"))
-        if norm_script[at][0] != who:
+        if norm_script[at][0] != who and _both_narrators(norm_script[at][0], who):
+            _rename_narrator(sc.get("dialogue"), i, script_lines[at][0])     # the script's own label goes on (Bible, TTS, Tầng B)
+        elif norm_script[at][0] != who:
             raise SchemaError(f"{where}.dialogue: “{said}” là câu của {norm_script[at][0]}, không phải {who}")
         pos = at + 1
     if not trim and len(kept) != len(norm_script):
@@ -204,6 +248,11 @@ def check_scene(scene: Dict, names, ctx: Optional[Dict] = None) -> Callable[[Any
             shots.validate(probe["scenes"][0]["shots"], f"scenes[idx={idx}].shots", names)
         except shots.ShotError as e:
             raise SchemaError(str(e)) from e
+        got = shot_lines(probe["scenes"][0]["shots"])
+        all_lines = [d for sh in probe["scenes"][0]["shots"] or [] if isinstance(sh, dict) for d in sh.get("dialogue") or []]
+        for k, (w, _) in enumerate(got):
+            if k < len(kept) and w != kept[k][0] and _both_narrators(w, kept[k][0]):
+                _rename_narrator(all_lines, k, kept[k][0])                    # same narrator, the Director's label (#31)
         got = shot_lines(probe["scenes"][0]["shots"])
         if [(w, dialogue.norm(t)) for w, t in got] != [(w, dialogue.norm(t)) for w, t in kept]:
             raise SchemaError(f"Cảnh {idx}: thoại trong shot phải đúng {len(kept)} câu Đạo diễn giữ, nguyên văn, đúng người nói, đúng thứ tự"
