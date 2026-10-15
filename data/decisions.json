@@ -152,6 +152,22 @@
    "replaces": null,
    "enforced_by": [],
    "status": "active"
+  },
+  {
+   "id": "byd-auto-shot-number-2026-10-15",
+   "date": "2026-10-15",
+   "by": "người dùng",
+   "text": "BYĐ thiếu số shot thì hệ thống tự điền số thứ tự (shot_no / vị trí), có ghi Chẩn đoán.",
+   "keeps": "",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_byd_missing_shot_auto_numbered"
+    }
+   ],
+   "status": "active"
   }
  ]
 }

@@ -167,17 +167,29 @@ GORE_VIDEO_MAX = 200     # the video sentence is never longer (seedance_refs._es
 
 
 # #31 cảnh 5·2 (15/10): "Purple-red glow from door 1 bleeds in at the frame-left edge" — light / colour that "bleeds" is a lighting
-# word, not blood. A "bleed" whose own clause (back to the last . , ; : —) names a light / colour before it is not gore; "the wound
-# bleeds under the red glow" still is (the light word comes after it, and "wound" is gore anyway).
-_LIGHT_BEFORE_BLEED = re.compile(r"\b(?:glow\w*|light|lights|lighting|colou?rs?|hues?|tints?|neon|aura|radiance|shine|rays?|beams?"
-                                 r"|reflections?|haze|sunlight|moonlight|lamplight|firelight)\b[^.,;:!?\n—]*$", re.IGNORECASE)
+# word, not blood. Rà 15/10: only when BOTH hold — (a) a light / colour word is the subject right before it (≤ 3 words between, no
+# comma, no and/while; "neon-lit soldier" is a person, not light) and (b) "bleed" is followed at once by in/into/through/over/across/
+# out/onto. "Kelly stands in the moonlight and her arm bleeds", "In the glow of the fire the man bleeds heavily" stay gore.
+_LIGHT_SUBJECT_BEFORE_BLEED = re.compile(
+    r"\b(?:glow\w*|light|lights|lighting|colou?rs?|hues?|tints?|neon|aura|radiance|shine|rays?|beams?"
+    r"|reflections?|haze|sunlight|moonlight|lamplight|firelight)\b(?!-)((?:\s+[\w'-]+){0,3}?)\s+$", re.IGNORECASE)
+_LIGHT_BLEED_AFTER = re.compile(r"\s+(?:in|into|through|over|across|out|onto)\b", re.IGNORECASE)
+
+
+def _is_light_bleed(text: str, m) -> bool:
+    if not m.group(0).lower().startswith("bleed"):
+        return False
+    before = _LIGHT_SUBJECT_BEFORE_BLEED.search(text[:m.start()])
+    if not before or re.search(r"\b(?:and|while)\b", before.group(1), re.IGNORECASE):
+        return False
+    return bool(_LIGHT_BLEED_AFTER.match(text, m.end()))
 
 
 def _gore_iter(text: str):
     import unicodedata
     text = unicodedata.normalize("NFC", text or "")
     for m in _GORE.finditer(text):
-        if m.group(0).lower().startswith("bleed") and _LIGHT_BEFORE_BLEED.search(text[:m.start()]):
+        if _is_light_bleed(text, m):
             continue
         yield m
 

@@ -104,6 +104,31 @@ class BydFillTests(unittest.TestCase):
         self.assertEqual(_rows(p, pid)[first], rows[first])          # giữ nguyên, kể cả không thêm byd_kiem
         self.assertIn("1 shot đã có BYĐ hợp lệ", out)
 
+    def test_byd_missing_only_shot_number_is_free(self):
+        # rà 15/10: BYĐ chỉ thiếu `shot` → điền shot_no, không gửi Claude, không tính vào ước tiền
+        p, pid = _shot_project()
+        rows = _rows(p, pid)
+        first = min(rows)
+        b = _valid(1, rows[first]["shot_no"])
+        b.pop("shot", None)
+        rows[first]["byd"] = b
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(rows[first], ensure_ascii=False), first))
+        p.conn.commit()
+        plan = byd_fill.plan(p.conn, pid)
+        self.assertEqual([r["id"] for r in plan["number_only"]], [first])
+        self.assertNotIn(first, [r["id"] for r in plan["fill"]])
+        self.assertNotIn("shot", _rows(p, pid)[first]["byd"])           # plan chỉ thử trên bản sao
+        out = _run(["--project", str(pid)], p, FakeClaude(_valid))
+        self.assertIn(f"{len(rows) - 1} shot sẽ điền BYĐ", out)
+        self.assertIn("1 shot chỉ thiếu số shot (miễn phí)", out)
+        self.assertIn("MIỄN PHÍ", out)
+        client = FakeClaude(_valid)
+        _run(["--project", str(pid), "--yes", "--max-usd", "5"], p, client)
+        self.assertEqual(len(SECTION.findall(client.prompts[0])), len(rows) - 1)
+        after = _rows(p, pid)[first]
+        self.assertEqual(after["byd"]["shot"], rows[first]["shot_no"])
+        self.assertEqual({k: v for k, v in after.items() if k != "byd"}, {k: v for k, v in rows[first].items() if k != "byd"})
+
     def test_a_row_without_shot_input_is_said_yellow(self):
         p, pid = _shot_project()
         p.conn.execute("INSERT INTO scenes (project_id, idx, title, data) VALUES (?, 999, 'x', '{\"location\": \"tháp\"}')", (pid,))

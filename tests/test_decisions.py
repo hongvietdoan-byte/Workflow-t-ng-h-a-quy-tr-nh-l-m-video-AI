@@ -100,6 +100,31 @@ def check_no_budget_lock_gate():
     assert not hasattr(autopilot, "_cap_wait"), "autopilot._cap_wait (chờ khi chạm trần) vẫn còn"
 
 
+def check_byd_missing_shot_auto_numbered():
+    """15/10: BYĐ thiếu số shot → hệ thống tự điền số thứ tự (shot_no / vị trí), không gọi lượt sửa trả tiền, có ghi ⚙ Chẩn đoán."""
+    from core import director_byd, llm_runner
+    from tests.test_director_byd import KHO, _project
+
+    class _NoCall:
+        calls = 0
+
+        def complete(self, prompt, images=()):
+            _NoCall.calls += 1
+            return llm_runner.LlmReply('{"byd": []}', 1, 1)
+    byd = {"thanh_phan": [{"vat": "KELLY", "vai": "chinh"}],
+           "may": {"co": "MS", "do_cao": "ngang", "goc": "ngang", "chuyen_dong": "dung_yen"},
+           "noi_chon": {"kho_id": KHO, "thoi_gian": "day", "thoi_tiet": "clear"}}
+    with mock.patch.dict(os.environ, {"FEATURE_SHOT_INTENT": "1"}):
+        p, pid = _project()
+        obj = {"scenes": [{"idx": 8, "shots": [{"characters": ["KELLY"], "byd": dict(byd)},
+                                               {"characters": ["KELLY"], "byd": dict(byd)}]}]}
+        with mock.patch.object(director_byd.diag, "record") as rec:
+            director_byd.settle(p.conn, pid, obj, _NoCall())
+    assert _NoCall.calls == 0, "BYĐ chỉ thiếu số shot mà vẫn gọi lượt sửa trả tiền"
+    assert [s["byd"]["shot"] for s in obj["scenes"][0]["shots"]] == [1, 2]
+    assert "2 BYĐ thiếu `shot`" in rec.call_args[0][3], "⚙ Chẩn đoán không ghi số shot tự điền"
+
+
 CHECKS = {k: v for k, v in globals().items() if k.startswith("check_") and callable(v)}
 
 

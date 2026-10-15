@@ -31,3 +31,14 @@ Kiểm 0 USD trên #31: 4 shot cảnh 8 → hết ĐỎ, 0 VÀNG; 24 shot khác 
 
 ## Test
 `tests/test_p31_gore_byd_formula.py` (mới, khai vào devsys/areas.json khu step1): đỏ 7/9 trước sửa → xanh; bộ liên quan 213 qua.
+
+## Rà soát 15/10 — sửa theo phiên rà (nhánh agent-a51cc55cbbb5c9191, từ dddee597)
+- `core/looks.py`: 'bleed' chỉ bỏ qua khi CẢ HAI: từ ánh sáng là chủ ngữ sát trước (≤ 3 chữ, không phẩy/and/while, không '-lit')
+  VÀ ngay sau là in/into/through/over/across/out/onto. "neon-lit soldier bleeds", "moonlight and her arm bleeds",
+  "the man bleeds heavily" vẫn ĐỎ; "glow from door 1 bleeds in" xanh.
+- `core/director_byd.py`: đề bài sửa ghi số shot thật (`shot_no`, không có thì vị trí) ở tiêu đề + trường "shot"; câu trả lời khóa
+  theo số đó; ⚙ Chẩn đoán nhánh warn ghi thêm "N BYĐ thiếu `shot` — lấy số theo vị trí".
+- `tools/byd_fill.py`: BYĐ chỉ thiếu `shot` (thử trên bản sao hết ĐỎ) → nhóm `number_only` miễn phí (không gửi Claude, không tính ước
+  tiền), `--yes` ghi `byd.shot = shot_no`.
+- Sổ quyết định: `byd-auto-shot-number-2026-10-15` (người dùng duyệt 15/10) + `check_byd_missing_shot_auto_numbered`.
+- Test: 5 test mới đỏ trên code cũ → 148 qua (bộ gom 7 file); `py -m core.decisions check` xanh.

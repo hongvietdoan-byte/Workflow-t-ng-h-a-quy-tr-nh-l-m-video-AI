@@ -57,9 +57,15 @@ def problems(shot: Dict, conn=None) -> Tuple[List[Dict], List[Dict]]:
     return [i for i in found if i["muc"] == "do"], [i for i in found if i["muc"] != "do"]
 
 
+def _shot_no(s: Dict, k: int) -> int:
+    """Số shot thật: `shot_no` của hàng shot đã lưu (tools/byd_fill gửi một phần shot của cảnh), không có thì vị trí trong cảnh."""
+    no = s.get("shot_no")
+    return no if isinstance(no, int) and not isinstance(no, bool) and no > 0 else k
+
+
 def _shot_brief(scene: int, k: int, s: Dict) -> Dict:
     keys = ("size", "angle", "camera_move", "characters", "action", "location_asset", "plate_spot", "weather")
-    return dict({"canh": scene, "shot": k}, **{key: s[key] for key in keys if s.get(key) not in (None, "", [])})
+    return dict({"canh": scene, "shot": _shot_no(s, k)},**{key: s[key] for key in keys if s.get(key) not in (None, "", [])})
 
 
 def build_repair_prompt(bad: List[Tuple[int, int, Dict, List[Dict]]], round_no: int) -> str:
@@ -72,7 +78,7 @@ def build_repair_prompt(bad: List[Tuple[int, int, Dict, List[Dict]]], round_no: 
          "dưới đây; khối `byd` bên trong là BYĐ đầy đủ (cả `shot`).", "", guide,
          "", "## Shot cần sửa"]
     for scene, k, s, errs in bad:
-        L += ["", f"### Cảnh {scene} · shot {k}", "Shot (để hiểu ý):", "```json",
+        L += ["", f"### Cảnh {scene} · shot {_shot_no(s, k)}", "Shot (để hiểu ý):", "```json",
               json.dumps(_shot_brief(scene, k, s), ensure_ascii=False), "```"]
         L += (["BYĐ trước:", "```json", json.dumps(s["byd"], ensure_ascii=False), "```"] if s.get("byd") is not None
               else ["BYĐ trước: (không có)"])
@@ -133,8 +139,9 @@ def settle(conn, project_id: int, obj: Dict, client, only_scene: Optional[int] =
             call_errors.append(f"vòng {rounds}: câu trả lời không đọc được ({str(e)[:120]})")
             fixed = {}
         for sc, k, s, _ in bad:
-            if (sc, k) in fixed and fixed[(sc, k)] is not None:
-                s["byd"] = fixed[(sc, k)]
+            no = _shot_no(s, k)                       # đề bài sửa ghi số shot thật → câu trả lời khóa theo số đó
+            if fixed.get((sc, no)) is not None:
+                s["byd"] = fixed[(sc, no)]
                 numbered += _own_number(s, k)
         bad = [(sc, k, s, problems(s, conn)[0]) for sc, k, s, _ in bad]
         bad = [b for b in bad if b[3]]
@@ -154,7 +161,8 @@ def settle(conn, project_id: int, obj: Dict, client, only_scene: Optional[int] =
     obj["byd_kiem"] = summary
     if vang or call_errors:
         diag.record(conn, "director", "warn", "BYĐ (cờ shot_intent): " + " | ".join(call_errors + vang[:8])
-                    + (f" | … và {len(vang) - 8} shot nữa" if len(vang) > 8 else ""), "director_byd", project_id)
+                    + (f" | … và {len(vang) - 8} shot nữa" if len(vang) > 8 else "")
+                    + (f" | {numbered} BYĐ thiếu `shot` — lấy số theo vị trí" if numbered else ""), "director_byd", project_id)
     else:
         diag.record(conn, "director", "info", f"BYĐ (cờ shot_intent): {len(rows)} shot đạt"
                     + (f" sau {rounds} vòng sửa" if rounds else "")

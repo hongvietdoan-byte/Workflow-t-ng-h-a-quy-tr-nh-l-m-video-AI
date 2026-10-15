@@ -41,6 +41,13 @@ class GoreWordsTest(unittest.TestCase):
     def test_body_bleed_and_real_gore_still_red(self):
         self.assertEqual(looks.gore_words("the wound bleeds under the red glow"), ["wound", "bleeds"])
         self.assertEqual(looks.gore_words("his arm bleeds"), ["bleeds"])
+        # rà 15/10: chỉ bỏ qua khi từ ánh sáng là chủ ngữ sát trước VÀ ngay sau là in/into/through/…
+        self.assertEqual(looks.gore_words("The neon-lit soldier bleeds from his arm"), ["bleeds"])
+        self.assertEqual(looks.gore_words("Kelly stands in the moonlight and her arm bleeds"), ["bleeds"])
+        self.assertEqual(looks.gore_words("In the glow of the fire the man bleeds heavily"), ["bleeds"])
+        hits = [m.start() for m in looks._gore_iter("glow bleeding into the bleeding man")]
+        self.assertEqual(hits, ["glow bleeding into the bleeding man".rindex("bleeding")])   # chữ thứ 2
+        self.assertEqual(looks.gore_words("glow from door 1 bleeds in"), [])
         self.assertTrue(_red_ff(P31_6_1))              # ngưỡng không đổi: xác không câu gợi vẫn ĐỎ
         self.assertTrue(_red_ff(P31_8_2))              # vết máu trên áo hồ sơ cũng ĐỎ
 
@@ -141,6 +148,33 @@ class BydShotNumberTest(unittest.TestCase):
     def test_repair_prompt_shows_number_inside_byd(self):
         text = director_byd.build_repair_prompt([(8, 1, {"byd": _byd()}, [{"truong": "may.co", "loi": "x"}])], 1)
         self.assertIn('"byd": {"shot": <số shot>', text)
+
+    def test_repair_prompt_uses_saved_shot_no(self):
+        # rà 15/10: byd_fill gửi một phần cảnh — tiêu đề + trường "shot" phải là shot_no thật, không phải vị trí k
+        text = director_byd.build_repair_prompt([(8, 1, {"shot_no": 3, "byd": _byd()}, [{"truong": "may.co", "loi": "x"}])], 1)
+        self.assertIn("### Cảnh 8 · shot 3", text)
+        self.assertIn('"shot": 3', text)
+        self.assertNotIn("### Cảnh 8 · shot 1", text)
+
+    def test_repair_answer_keyed_by_shot_no(self):
+        obj = self._obj([_byd(shot=3, co="NOPE")])
+        obj["scenes"][0]["shots"][0]["shot_no"] = 3
+
+        def answer(prompt):
+            good = _byd()
+            good["noi_chon"]["kho_id"] = self.kho
+            return {"byd": [{"canh": 8, "shot": 3, "byd": good}]}
+        summary = director_byd.settle(self.p.conn, self.pid, obj, _Fake(answer))
+        self.assertEqual(summary["vang_do"], 0)
+        self.assertEqual(obj["scenes"][0]["shots"][0]["byd"]["shot"], 3)
+
+    def test_warn_diag_names_auto_numbered(self):
+        obj = self._obj([_byd(), _byd(co="NOPE")])
+        with mock.patch.object(director_byd.diag, "record") as rec:
+            director_byd.settle(self.p.conn, self.pid, obj, _Fake(lambda p: {"byd": []}))
+        msg = rec.call_args[0][3]
+        self.assertEqual(rec.call_args[0][2], "warn")
+        self.assertIn("2 BYĐ thiếu `shot` — lấy số theo vị trí", msg)
 
 
 if __name__ == "__main__":
