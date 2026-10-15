@@ -697,8 +697,8 @@ def flags_state(root: str, cfg: Dict, files: Optional[Sequence[str]] = None) -> 
         if on is None:                           # fallback: the ast reading (FEATURE_<NAME>, else `verified`) — and say why
             trainee = bool(meta.get("trainee"))
             yes = env in ("1", "true", "on", "yes")
-            on = False if trainee and (yes or env == "trainee") else True if yes else False if env in ("0", "false", "off", "no") \
-                else bool(meta.get("verified"))
+            on = True if meta.get("verified") is True else False if trainee and (yes or env == "trainee") else True if yes \
+                else False if env in ("0", "false", "off", "no") else False   # 15/10: verified = 🔒 khóa bật
             mode = "trainee" if trainee and (yes or env == "trainee") else ("on" if on else "off")
             on_why = f"đọc bằng ast (không nạp được luật core.features.on: {on_why or rule_note})"
         out.append({"name": name, "label": meta.get("label", ""), "why": meta.get("why", ""), "verified": bool(meta.get("verified")),

@@ -714,9 +714,13 @@ FEATURES: Dict[str, Dict] = {
 
 
 # ---- 🧪 Tính năng thử (rà soát 01/10, đợt 2): the person picks a preset / flips one flag on screen instead of editing dashboard.env ----
-# preset "custom" (default, nothing saved) = the old rule: FEATURE_<NAME> env, else `verified`.
+# preset "custom" (default, nothing saved) = the old rule: FEATURE_<NAME> env, else `verified` / `default_on`.
 # "stable" = only the flags that passed a real test (`verified`); "experimental" = every flag but the ones that did harm.
-# A per-flag choice made on screen wins over everything. Stored in data/feature_settings.json (this computer, not in git).
+# A per-flag choice made on screen wins over the preset and the env. Stored in data/feature_settings.json (this computer, not in git).
+# 🔒 15/10 (người dùng: "những cờ nào đã được kiểm chứng thì mặc định bật, không để bị tắt nữa"): `verified: True` = KHÓA BẬT — on in
+# every preset, whatever the 🧪 choice or FEATURE_<NAME>=0 says (an old OFF there is ignored and SAID by `locked_off_ignored()`);
+# save_settings refuses to set it off / học việc. The only way to turn a verified flag off is the code: drop `verified` or move it
+# into REMOVED. A locked flag that needs another (REQUIRES) does nothing while that one is off — tests/test_feature_settings names it.
 PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn định — chỉ tính năng đã thử thật",
            "experimental": "Thử nghiệm — bật hết các tính năng chưa thử thật"}
 # GĐ6 / rà soát 01/10 mục 3.2 named 3 harmful flags; S14.9 (Gói L, 06/10) removed them from the code — nothing left to keep off here.
@@ -780,13 +784,21 @@ def settings() -> Dict:
 
 def save_settings(preset: str = None, flags: Dict = None, modes: Dict = None) -> Dict:
     """Write the choice (flags: {name: True|False|None}; None removes the single choice; modes: {name: "on"|"trainee"|"off"|None} —
-    "on"/"off" are stored in "flags" as before, "trainee" only in "modes" and only for a flag that has that mode). Atomic."""
+    "on"/"off" are stored in "flags" as before, "trainee" only in "modes" and only for a flag that has that mode). Atomic.
+    🔒 15/10: OFF / học việc for a `verified` flag raises ValueError (nothing is written); True / None for it is harmless. Callers that
+    save many flags at once leave locked flags out (dashboard/header.py, core/before_run.enable_fix_flags only saves True)."""
     import json
     cur = {"preset": settings()["preset"], "flags": dict(settings()["flags"]), "modes": dict(settings().get("modes") or {})}
     if preset is not None:
         if preset not in PRESETS:
             raise ValueError(f"preset không có: {preset}")
         cur["preset"] = preset
+    for k, v in (flags or {}).items():   # 🔒 checked for every name before anything is written (nothing half-saved)
+        if k in FEATURES and v is not None and not v and locked(k):
+            raise _locked_error(k)
+    for k, v in (modes or {}).items():
+        if k in FEATURES and v in ("off", "trainee") and locked(k):
+            raise _locked_error(k)
     for k, v in (flags or {}).items():
         if k in REMOVED:                  # S14.9: an old page / script still naming a removed flag — nothing to set
             continue
@@ -828,13 +840,58 @@ def _env(name: str) -> str:
     return os.environ.get("FEATURE_" + name.upper(), "").strip().lower()
 
 
+LOCKED_TEXT = "🔒 đã kiểm chứng — khóa bật (chỉ sửa code mới tắt)"
+
+
+# Set to True ONLY by tests/__init__.py (the older tests that describe the code path with a verified flag OFF through
+# FEATURE_<NAME>=0 / flags_off) — a module attribute, so no dashboard.env line or environment variable can unlock a real run.
+_TEST_BYPASS = False
+
+
+def _lock_bypassed() -> bool:
+    return _TEST_BYPASS is True
+
+
+def locked(name: str) -> bool:
+    """🔒 15/10: a `verified` flag (not removed) is always ON — no 🧪 choice, preset or FEATURE_<NAME> turns it off."""
+    return name not in REMOVED and name in FEATURES and bool(FEATURES[name]["verified"]) and not _lock_bypassed()
+
+
+def _locked_error(name: str) -> ValueError:
+    return ValueError(f"'{name}' đã kiểm chứng — khóa BẬT; muốn tắt phải sửa code: bỏ verified hoặc đưa vào REMOVED "
+                      f"(core/features.py)")
+
+
+def locked_off_ignored() -> Dict[str, str]:
+    """{locked flag: Vietnamese note} for every 🔒 flag an old choice still tries to turn off — a "flags": false / "modes" entry in
+    data/feature_settings.json or a FEATURE_<NAME>=0 (or =trainee) line. Ignored (the flag stays on), said in 🧪 and --report."""
+    out = {}
+    s = settings()
+    for k in FEATURES:
+        if not locked(k):
+            continue
+        why = []
+        if s["flags"].get(k) is False:
+            why.append("lựa chọn TẮT cũ trong data/feature_settings.json")
+        if k in (s.get("modes") or {}):
+            why.append("chế độ học việc cũ trong data/feature_settings.json")
+        env = _env(k)
+        if env in _NO or env == "trainee":
+            why.append(f"dòng FEATURE_{k.upper()}={env} (dashboard.env / môi trường)")
+        if why:
+            out[k] = f"'{k}' {LOCKED_TEXT} — bỏ qua " + " và ".join(why) + "; cờ vẫn BẬT"
+    return out
+
+
 def state(name: str) -> str:
     """"on" / "trainee" (🎓 học việc: runs and records its decision, never acts) / "off". Order (KE_HOACH_HOC_VIEC_2026-10-08 mục 1):
-    removed flag → choice on the 🧪 screen (modes / flags) → preset (stable: only verified; experimental: a học-việc flag is trainee,
-    never on) → FEATURE_<NAME> (=trainee, or =1 for a học-việc flag → trainee; real ON only from 🧪; =0 off) → default_state() (`verified` or
-    `default_on`)."""
+    removed flag → 🔒 verified flag (15/10: always on) → choice on the 🧪 screen (modes / flags) → preset (stable: only verified;
+    experimental: a học-việc flag is trainee, never on) → FEATURE_<NAME> (=trainee, or =1 for a học-việc flag → trainee; real ON only
+    from 🧪; =0 off) → default_state() (`verified` or `default_on`)."""
     if name in REMOVED:
         return "off"
+    if locked(name):
+        return "on"
     meta = FEATURES[name]
     trainee = bool(meta.get("trainee"))
     s = settings()
@@ -916,6 +973,8 @@ def why_state(name: str) -> str:
 
 
 def _why_state(name: str) -> str:
+    if locked(name):
+        return LOCKED_TEXT
     s = settings()
     if name in s["flags"] or name in (s.get("modes") or {}):
         return "bạn chọn trên màn này"
@@ -977,14 +1036,16 @@ def fix_flags_off(project_id: Optional[int]) -> List[Dict]:
     return out
 
 
-SOURCES = {"removed": "đã bỏ khỏi code", "settings": "màn 🧪 (data/feature_settings.json)", "preset": "preset",
+SOURCES = {"removed": "đã bỏ khỏi code", "locked": LOCKED_TEXT, "settings": "màn 🧪 (data/feature_settings.json)", "preset": "preset",
            "env": "dashboard.env / môi trường (FEATURE_<NAME>)", "default": "mặc định code"}
 
 
 def source(name: str) -> str:
-    """Where state(name) comes from — the same order as state(): removed / settings / preset / env / default."""
+    """Where state(name) comes from — the same order as state(): removed / locked / settings / preset / env / default."""
     if name in REMOVED:
         return "removed"
+    if locked(name):
+        return "locked"
     s = settings()
     if name in s["flags"] or name in (s.get("modes") or {}):
         return "settings"
@@ -1001,7 +1062,8 @@ def report() -> List[Dict]:
         src = source(name)
         rows.append({"name": name, "state": state(name), "on": on(name), "source": src,
                      "source_text": SOURCES[src] + (f" {preset}" if src == "preset" else ""),
-                     "default": default_state(name), "verified": bool(meta["verified"]), "default_on": bool(meta.get("default_on")),
+                     "default": default_state(name), "verified": bool(meta["verified"]), "locked": locked(name),
+                     "default_on": bool(meta.get("default_on")),
                      "fixes_projects": list(meta.get("fixes_projects") or []), "label": meta.get("label", "")})
     return rows
 
@@ -1015,6 +1077,9 @@ def report_md(rows: Optional[List[Dict]] = None) -> str:
         out.append(f"| {r['name']} | {icon.get(r['state'], r['state'])} | {r['source_text']} | {r['default']}"
                    f"{' (người dùng quyết)' if r['default_on'] else ''} | {'có' if r['verified'] else 'chưa'} | "
                    + (", ".join(f"#{n}" for n in r["fixes_projects"]) or "—") + " |")
+    notes = list(locked_off_ignored().values()) + list(removed_in_use().values())    # ignored old choices: said, never silent
+    if notes:
+        out += ["", "Lựa chọn cũ bị bỏ qua:"] + [f"- {n}" for n in notes]
     return "\n".join(out)
 
 
