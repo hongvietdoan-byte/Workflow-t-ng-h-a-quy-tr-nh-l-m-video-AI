@@ -130,6 +130,28 @@
     {"kind": "code", "check": "check_no_budget_lock_gate"}
    ],
    "status": "active"
+  },
+  {
+   "id": "lip-sync-lock-after-real-run-2026-10-15",
+   "date": "2026-10-15",
+   "by": "người dùng",
+   "text": "Khóa bật (verified) cờ lip_sync sau 1 lần chạy thật kiểm chứng (shot cận khớp môi đầu tiên của #31, môi khớp giọng Việt, người dùng xác nhận); giữ dialogue_take khóa.",
+   "keeps": "dialogue_take verified",
+   "changes": "lip_sync chưa verified tới khi có job bằng chứng #31",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "flag-lock-list-after-p31-2026-10-15",
+   "date": "2026-10-15",
+   "by": "người dùng",
+   "text": "Danh sách khóa thêm cờ (docs/handoff/DE_XUAT_KHOA_CO_2026-10-15.md) đợi sau #31 (tập 2) kiểm chứng thêm rồi mới khóa; không đặt verified cờ nào trong danh sách trước khi #31 xong.",
+   "keeps": "",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
   }
  ]
 }
