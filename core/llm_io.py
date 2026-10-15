@@ -128,7 +128,9 @@ def _normalized(pipeline: Pipeline, project_id: int, obj: Dict) -> Dict:
     if isinstance(obj.get("scenes"), list) and _shots.active(pipeline, project_id):
         from .shot_normalize import normalize
         proj = pipeline.project(project_id)
-        normalize(obj, (proj["script_text"] if "script_text" in proj.keys() else None) or "", in_place=True)
+        from . import dialogue
+        normalize(obj, (proj["script_text"] if "script_text" in proj.keys() else None) or "", in_place=True,
+                  ctx=dialogue.speech_ctx(pipeline.conn, project_id))
     return obj
 
 

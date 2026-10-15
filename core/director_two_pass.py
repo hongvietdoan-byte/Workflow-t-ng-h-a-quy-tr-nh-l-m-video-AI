@@ -181,7 +181,7 @@ def _check_kept(sc: Dict, script_lines: List[Tuple[str, str]], trim: bool, where
 
 
 # ---- Tầng B: validation of one scene ---------------------------------------------------------------------------------------------
-def check_scene(scene: Dict, names) -> Callable[[Any], Dict]:
+def check_scene(scene: Dict, names, ctx: Optional[Dict] = None) -> Callable[[Any], Dict]:
     """One scene's shots from the DP: the per-scene part of the normaliser (enum spellings, a spoken shot shorter than its line, 0,5 s
     silent shots, short wide shots — the film total is fitted later on the whole plan), the shot schema, and the lines: exactly the
     Director's kept lines, verbatim, same speaker, same order."""
@@ -197,7 +197,7 @@ def check_scene(scene: Dict, names) -> Callable[[Any], Dict]:
         from .shot_normalize import normalize
         probe = {"scenes": [{"idx": idx, "shots": part.get("shots")}]}
         if isinstance(part.get("shots"), list):
-            _, changes = normalize(probe, "", None, in_place=True)
+            _, changes = normalize(probe, "", None, in_place=True, ctx=ctx)
         else:
             changes = []
         try:
@@ -532,6 +532,7 @@ def _ask_scenes(p: Pipeline, project_id: int, client, intent: Dict, todo: List[i
     from .llm_runner import LlmError, ask_json, tagged
     names = {c["name"] for c in intent["characters"]}
     by_idx = {sc["idx"]: sc for sc in intent["scenes"]}
+    ctx = dialogue.speech_ctx(p.conn, project_id)          # 15/10: read here, the threads only run pure checks
     parts: Dict[int, Dict] = {}
     errors: Dict[int, str] = {}
     retried: List[Tuple[int, str]] = []
@@ -546,7 +547,7 @@ def _ask_scenes(p: Pipeline, project_id: int, client, intent: Dict, todo: List[i
         box: List[str] = []
         with tagged("director", project_id):
             try:
-                part, tin, tout = ask_json(client, prompt, check_scene(by_idx[idx], names), note=box.append, bad_reply=captures[idx])
+                part, tin, tout = ask_json(client, prompt, check_scene(by_idx[idx], names, ctx), note=box.append, bad_reply=captures[idx])
             except LlmError as e:
                 return idx, None, str(e), box, e
         return idx, (part, tin, tout), None, box, None

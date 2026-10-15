@@ -847,7 +847,8 @@ V2_COLUMNS = {
                  ("look", "TEXT"),                    # ANIME | FF_INGAME (core/looks.py): the picture look, apart from the editing style
                  ("image_model", "TEXT"),             # Deepix picture model of the project (core/image_models.py); NULL = default
                  ("dialogue_trim", "INTEGER NOT NULL DEFAULT 0"),    # 1 = the Director may drop lines (never add / reword)
-                 ("pacing", "TEXT")),                 # 14/10: NULL / 'normal' = y cũ; 'fast' = nhịp nhanh ít khoảng lặng (core/pacing.py)
+                 ("pacing", "TEXT"),                  # 14/10: NULL / 'normal' = y cũ; 'fast' = nhịp nhanh ít khoảng lặng (core/pacing.py)
+                 ("narration_speed", "REAL")),        # 15/10: tốc độ đọc lời dẫn trước khi có Bible (NULL = 1,0); Bible mang vào hồ sơ LỜI DẪN
     "characters": (("lock_rules", "TEXT"), ("voice_profile", "TEXT"), ("anchor_approved", "INTEGER NOT NULL DEFAULT 0"),
                    ("user_edited", "TEXT"),
                    ("bible_check", "TEXT"),

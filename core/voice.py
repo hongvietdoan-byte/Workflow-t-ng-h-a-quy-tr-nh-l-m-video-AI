@@ -73,6 +73,19 @@ def profile_speed(prof: Optional[Dict]) -> Optional[float]:
     return clamp_speed((prof or {}).get("speed"))[0]
 
 
+def narration_speed(conn, project_id: int, name: str) -> Tuple[Optional[float], Optional[str]]:
+    """15/10: tốc độ đọc lời dẫn của dự án (projects.narration_speed, đặt ở Bước 1 trước khi có Bible) cho một người dẫn chuyện
+    (speaker_lint.is_narrator); người khác / chưa đặt / cột chưa có → (None, None)."""
+    from .speaker_lint import is_narrator
+    if not is_narrator(name):
+        return None, None
+    try:
+        row = conn.execute("SELECT narration_speed FROM projects WHERE id=?", (project_id,)).fetchone()
+    except Exception:  # noqa: BLE001 - a database before the column
+        return None, None
+    return clamp_speed(row["narration_speed"]) if row is not None and row["narration_speed"] is not None else (None, None)
+
+
 def set_profile(conn, project_id: int, name: str, profile: Optional[Dict]) -> List[str]:
     """Save a character's voice profile. Returns the warnings (also written as diag VÀNG, stage voice).
     `speed` (14/10): the profile's reading speed 0,7–1,2, kept without a pitch variant. A profile with NO "speed" key keeps the speed
@@ -91,6 +104,8 @@ def set_profile(conn, project_id: int, name: str, profile: Optional[Dict]) -> Li
         else:
             row = conn.execute("SELECT voice_profile FROM characters WHERE project_id=? AND name=?", (project_id, name)).fetchone()
             speed, warn = clamp_speed(get_profile(row).get("speed")) if row else (None, None)
+            if speed is None and not warn:
+                speed, warn = narration_speed(conn, project_id, name)   # 15/10: lời dẫn lấy tốc độ đặt ở Bước 1 (hai nơi khớp)
         if warn:
             warns.append(f"{name}: {warn}")
         if speed is not None:
@@ -440,6 +455,21 @@ def fit_durations(conn, project_id: int, data_dir: str, with_clips: bool = False
             changes.append({"scene_id": sid, "from": row["duration_sec"], "to": target, "short": need > target})
     conn.commit()
     return changes
+
+
+def over_model_max(conn, project_id: int, data_dir: str) -> List[Dict]:
+    """15/10: shots whose REAL voice (lead + lines + gaps, no tail) is longer than the longest clip their video model can make — no
+    duration fixes that, the line would be cut (fit_durations only caps it, said nowhere before). [{scene_id, idx, need, max}]."""
+    from .dialogue import max_clip_seconds
+    from .pipeline import Pipeline
+    p, out = Pipeline(conn), []
+    for sid, secs in scene_seconds(conn, project_id, data_dir).items():
+        need = round(_lead(conn, sid) + secs, 2)
+        top = max_clip_seconds(p, project_id, sid)
+        if need > top + 0.05:
+            row = conn.execute("SELECT idx FROM scenes WHERE id=?", (sid,)).fetchone()
+            out.append({"scene_id": sid, "idx": row["idx"] if row else None, "need": need, "max": top})
+    return out
 
 
 def _lead(conn, scene_id: int) -> float:

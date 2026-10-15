@@ -192,6 +192,8 @@ def resume(p: Pipeline, project_id: int, user: Optional[str] = None) -> None:
         _log(p, project_id, "Bạn đã duyệt storyboard → viết motion prompt và gen video")
     elif gates.get("waiting_for") == "voice_fit":        # "Tiếp tục" = keep the clips (remaking them is its own button)
         set_gates(p, project_id, {"waiting_for": None, "voice_fit_decided": "keep"})
+    elif gates.get("waiting_for") == "voice_over_max":   # 15/10: "Tiếp tục" = the person accepts these lines cut by the clip
+        set_gates(p, project_id, {"waiting_for": None, "voice_over_max_ok": True})
     elif gates.get("waiting_for") == "length":           # S2.3: "Tiếp tục" = the voiced length is accepted (or the plan was edited:
         set_gates(p, project_id, {"waiting_for": None, "length_decided": True})   # the phase measures again and locks)
         _log(p, project_id, "Bạn đã xem độ dài theo giọng thật → khóa timeline và tiếp tục")
@@ -1684,6 +1686,13 @@ def _voice_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     changes = voice.fit_durations(p.conn, pid, ctx.data_dir)       # scenes without a clip yet only
     if changes:
         _log(p, pid, f"Kéo dài {len(changes)} clip cho vừa giọng thật")
+    over = voice.over_model_max(p.conn, pid, ctx.data_dir)        # 15/10: no duration fits the real voice — the line would be cut
+    if over and not get_gates(p, pid).get("voice_over_max_ok"):   # "Tiếp tục" (resume) = the person accepts the cut lines
+        for c in over:
+            _d(p, pid, "voice", "error", f"S{c['idx'] or 0:02d}: giọng thật cần {c['need']:g} s nhưng model chỉ làm tối đa {c['max']} s — "
+                                         "câu sẽ bị cắt: chia shot / rút câu / đổi model dài hơn ở Bước 4", "voice_longer_than_model")
+        raise _Wait("voice_over_max", f"{len(over)} shot có giọng thật dài hơn clip dài nhất model làm được (câu sẽ bị cắt) — chia shot, "
+                                      "rút câu hoặc đổi model ở Bước 4 rồi chạy tiếp")
     late = voice.pending_fits(p.conn, pid, ctx.data_dir)
     if late and not get_gates(p, pid).get("voice_fit_decided"):
         _d(p, pid, "voice", "warn", f"{len(late)} clip đã có ngắn hơn giọng thật — chờ người quyết: làm lại các clip đó (tốn tiền video) "

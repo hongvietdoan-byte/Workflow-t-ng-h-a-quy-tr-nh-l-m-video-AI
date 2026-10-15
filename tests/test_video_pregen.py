@@ -298,6 +298,23 @@ class Duration(Base):                         # (3)
         with mock.patch("core.ffmpeg_studio.probe_duration", return_value=4.8):
             self.assertEqual(self.reds(video_pregen.check(self.p.conn, scene, plan), "thoi_luong"), [])
 
+    def test_block_real_voice_longer_than_clip_without_reference_audio(self):
+        """15/10: the voice is made but not sent with the clip (no lip sync) — the real length is checked, not the estimate."""
+        from core import audio_lib
+        scene, img = self.shot(data={"byd": byd(), "dialogue": [{"speaker": "Kelly", "text": "đi thôi"}]})
+        plan = self.plan(scene, img, duration=5)
+        self.assertEqual(self.reds(video_pregen.check(self.p.conn, scene, plan), "thoi_luong"), [])   # estimate ~1,1 s: fits
+        d = audio_lib.assets_dir(self.dir, self.pid)
+        with open(os.path.join(d, "assets.json"), "w", encoding="utf-8") as f:
+            json.dump([{"kind": "tts", "state": "succeeded", "scene_id": scene, "line": 1, "duration_ms": 6200, "file": "a.mp3",
+                        "dialogue": True, "text": "đi thôi"}], f)
+        got = self.reds(video_pregen.check(self.p.conn, scene, plan), "thoi_luong")
+        self.assertTrue(got and "giọng thật" in got[0]["ly_do"], got)
+        with open(os.path.join(d, "assets.json"), "w", encoding="utf-8") as f:
+            json.dump([{"kind": "tts", "state": "succeeded", "scene_id": scene, "line": 1, "duration_ms": 4000, "file": "a.mp3",
+                        "dialogue": True, "text": "đi thôi"}], f)
+        self.assertEqual(self.reds(video_pregen.check(self.p.conn, scene, plan), "thoi_luong"), [])
+
 
 class References(Base):                       # (4)
     def video(self, info):

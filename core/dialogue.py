@@ -13,7 +13,7 @@ import json
 import math
 import os
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 RATE = float(os.environ.get("DIALOGUE_SYLLABLES_PER_SEC", "3.5"))     # comfortable speaking speed
 BREATH = 0.5                                                          # seconds of room around the lines
@@ -99,9 +99,138 @@ def syllables(said: str) -> int:
     return len(re.findall(r"\w+", said, re.UNICODE))
 
 
-def needed_seconds(rows: List[Tuple[str, str]]) -> float:
-    total = sum(syllables(said) for _, said in rows)
-    return round(total / RATE + BREATH, 1) if total else 0.0
+# ---- 15/10: giây đọc theo (giọng, tốc độ) — MỘT chỗ cho mọi nơi ước giây (Đạo diễn, chuẩn hoá shot, báo cáo, nhịp nhanh, motion) ----
+# Số đo thật (tools/measure_speech_rate.py --write → data/speech_rates.json): theo giọng = âm tiết/giây ở phân vị THẤP (p10 — câu chậm
+# nhất; dùng p90 âm tiết/giây sẽ ước NGẮN hơn audio). Chỉ một giọng có đủ mẫu và đọc CHẬM hơn RATE mới đổi ước tính (chỉ được dài ra);
+# "speed_follows": model nào thật sự đọc nhanh/chậm theo speed gửi đi — chưa đo được thì hệ số tốc độ = 1 (ước như tốc độ 1,0).
+LINE_GAP = 0.15            # giữa hai câu liền nhau trong một shot = voice.GAP (khâu dựng đặt câu y như vậy); nhịp nhanh: pacing.FAST_LINE_GAP
+_RATES_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "speech_rates.json")
+_RATES_CACHE: Dict = {}
+
+
+def _rates() -> Dict:
+    """data/speech_rates.json (đọc một lần). Thiếu / hỏng → {} = công thức cũ (RATE, tốc độ không đổi ước tính)."""
+    if "v" not in _RATES_CACHE:
+        try:
+            with open(_RATES_FILE, encoding="utf-8") as f:
+                _RATES_CACHE["v"] = json.load(f)
+        except (OSError, ValueError):
+            _RATES_CACHE["v"] = {}
+    return _RATES_CACHE["v"] if isinstance(_RATES_CACHE["v"], dict) else {}
+
+
+def voice_rate(voice_id=None) -> float:
+    """Âm tiết/giây dùng để ƯỚC cho giọng này: min(RATE, p10 đo được) khi giọng có ≥ min_n câu đo, else RATE."""
+    table = _rates()
+    v = (table.get("voices") or {}).get(str(voice_id)) if voice_id is not None else None
+    try:
+        if v and int(v.get("n") or 0) >= int(table.get("min_n") or 8) and float(v.get("p10") or 0) > 0:
+            return min(RATE, float(v["p10"]))
+    except (TypeError, ValueError):
+        pass
+    return RATE
+
+
+def speed_factor(model: Optional[str], speed) -> float:
+    """Hệ số tốc độ của ước tính: = speed chỉ khi model ĐÃ ĐO là đọc theo speed (data/speech_rates.json speed_follows), else 1,0.
+    Model trống = model mặc định của voice (eleven_v3)."""
+    try:
+        sp = float(speed) if speed not in (None, "") else 1.0
+    except (TypeError, ValueError):
+        return 1.0
+    if sp <= 0 or sp == 1.0:
+        return 1.0
+    follows = (_rates().get("speed_follows") or {}).get(model or "eleven_v3")
+    return sp if follows is True else 1.0
+
+
+def line_seconds(said: str, voice: Optional[Dict] = None) -> float:
+    """Giây ĐỌC một câu (không gồm nghỉ): âm tiết (pacing.syllables — số đọc thành chữ) ÷ (tốc độ của giọng × hệ số tốc độ).
+    voice = {voice_id, model, speed} (hồ sơ giọng / speech_ctx); None = RATE, tốc độ 1,0."""
+    from .pacing import syllables as _syl
+    n = _syl(said)
+    if not n:
+        return 0.0
+    v = voice or {}
+    return n / (voice_rate(v.get("voice_id")) * speed_factor(v.get("model"), v.get("speed")))
+
+
+def _key(name) -> str:
+    return " ".join(str(name or "").upper().split())
+
+
+def voice_of(ctx: Optional[Dict], speaker) -> Optional[Dict]:
+    """Giọng của người nói trong ctx (speech_ctx): hồ sơ giọng của nhân vật; người dẫn chưa có hồ sơ → tốc độ lời dẫn của dự án."""
+    if not ctx:
+        return None
+    hit = (ctx.get("voices") or {}).get(_key(speaker))
+    if hit is not None:
+        return hit
+    if ctx.get("narration_speed"):
+        from .speaker_lint import is_narrator
+        if is_narrator(str(speaker or "")):
+            return {"speed": ctx["narration_speed"]}
+    return None
+
+
+def speech_ctx(conn, project_id: int) -> Dict:
+    """Những gì ước giây cần biết về dự án: giọng từng người nói (hồ sơ Bible: voice_id, model, tốc độ = riêng × biến thể), tốc độ lời
+    dẫn của dự án (projects.narration_speed, khi Bible chưa có) và khoảng giữa hai câu (nhịp nhanh 0,2 s, thường 0,15 s)."""
+    from . import pacing, voice
+    voices = {}
+    try:
+        for name, prof in voice.profiles(conn, project_id).items():
+            sp = pacing.voice_speed(prof)
+            voices[_key(name)] = {"voice_id": prof.get("voice_id"), "model": voice.vi_model(prof.get("model")),
+                                  "speed": None if sp == 1.0 else sp}
+    except Exception:  # noqa: BLE001 - an old database without characters / profiles: no voices, the old estimate
+        voices = {}
+    narration = None
+    try:
+        row = conn.execute("SELECT narration_speed FROM projects WHERE id=?", (project_id,)).fetchone()
+        narration = voice.clamp_speed(row["narration_speed"])[0] if row is not None and row["narration_speed"] is not None else None
+    except Exception:  # noqa: BLE001 - before the column
+        narration = None
+    fast = pacing.project_fast(conn, project_id)
+    return {"voices": voices, "narration_speed": narration, "gap": pacing.FAST_LINE_GAP if fast else LINE_GAP}
+
+
+def needed_seconds(rows: List[Tuple[str, str]], ctx: Optional[Dict] = None, gap: Optional[float] = None) -> float:
+    """Giây một shot cần cho các câu của nó: giây đọc từng câu (line_seconds theo giọng/tốc độ) + BREATH một lần cho shot + khoảng
+    thật giữa hai câu liền nhau — trong MỘT clip khâu dựng đặt câu sau cách câu trước voice.GAP (= LINE_GAP, cả nhịp nhanh:
+    voice.layout `cursor += dài + GAP`). gap: scene_seconds truyền khoảng của dự án (câu của một lượt có thể sang shot sau)."""
+    by_rate: Dict[float, int] = {}
+    said = 0
+    from .pacing import syllables as _syl
+    for who, text in rows:
+        n = _syl(text)
+        if not n:
+            continue
+        said += 1
+        v = voice_of(ctx, who) or {}
+        r = voice_rate(v.get("voice_id")) * speed_factor(v.get("model"), v.get("speed"))
+        by_rate[r] = by_rate.get(r, 0) + n           # same rate summed first: one line = exactly the old n / RATE + BREATH
+    if not said:
+        return 0.0
+    gap = LINE_GAP if gap is None else float(gap)
+    return round(sum(n / r for r, n in by_rate.items()) + BREATH + gap * (said - 1), 1)
+
+
+def scene_seconds(rows: List[Tuple[str, str]], ctx: Optional[Dict] = None) -> float:
+    """Giây nói của các câu một cảnh kịch bản (chưa chia shot): mỗi LƯỢT LỜI (các câu liền nhau của cùng một người nói — vd lời dẫn đã
+    tách theo câu) một BREATH + khoảng thật giữa các câu; người nói đổi = lượt mới. Trước 15/10: mỗi câu một BREATH (lời dẫn 28 câu
+    #31 bị cộng ~10 s nghỉ không có thật). Hai câu của một lượt có thể sang shot sau: khoảng = của dự án (nhịp nhanh
+    pacing.FAST_LINE_GAP 0,2 s qua cú cắt, thường LINE_GAP)."""
+    gap = float((ctx or {}).get("gap") or LINE_GAP)
+    total, run = 0.0, []
+    for who, text in rows:
+        if run and _key(run[-1][0]) != _key(who):
+            total += needed_seconds(run, ctx, gap)
+            run = []
+        run.append((who, text))
+    if run:
+        total += needed_seconds(run, ctx, gap)
+    return round(total, 1)
 
 
 def max_clip_seconds(pipeline, project_id: int, scene_id=None) -> int:
@@ -128,6 +257,7 @@ def check(pipeline, project_id: int, voice: Dict[int, float] = None) -> List[Dic
     """One entry per scene that has dialogue. `voice` = {scene_id: seconds of the real generated voice lines}: when known it
     replaces the syllable estimate (the clip is then sized to the actual voice)."""
     voice = voice or {}
+    ctx = speech_ctx(pipeline.conn, project_id)
     out = []
     for r in pipeline.conn.execute(
             "SELECT s.id, s.idx, s.data, m.duration_sec FROM scenes s LEFT JOIN motion_prompts m ON m.scene_id=s.id"
@@ -138,7 +268,7 @@ def check(pipeline, project_id: int, voice: Dict[int, float] = None) -> List[Dic
             continue
         longest = max_clip_seconds(pipeline, project_id, r["id"])
         real = voiced_seconds(voice, r["id"])
-        need = round(real + BREATH, 1) if real else needed_seconds(rows)
+        need = round(real + BREATH, 1) if real else needed_seconds(rows, ctx)
         planned = float(r["duration_sec"] or data.get("duration_s") or DEFAULT_PLANNED)
         if need > longest:
             status, advice = "split", f"Thoại cần ~{need:g}s nhưng model chỉ làm clip tối đa {longest}s: rút gọn thoại hoặc tách cảnh" \

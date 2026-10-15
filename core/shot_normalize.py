@@ -86,9 +86,9 @@ def _fix_enums(sc: Dict, changes: List[str]) -> None:
                 changes.append(f"{_label(sc, k)}: góc “{v}” → “{new}”" + (" (camera game sau lưng)" if s.get("size") == "GAME_TPS" else ""))
 
 
-def _fit_speech(sc: Dict, changes: List[str]) -> None:
+def _fit_speech(sc: Dict, changes: List[str], ctx: Optional[Dict] = None) -> None:
     for k, s in enumerate(sc.get("shots") or [], 1):
-        need = dialogue.needed_seconds(_spoken(s))
+        need = dialogue.needed_seconds(_spoken(s), ctx)
         if need and _dur(s) + 1e-6 < need:
             changes.append(f"{_label(sc, k)}: {_dur(s):g}s → {need:g}s (đủ thời gian nói câu thoại)")
             s["duration_s"] = need
@@ -230,8 +230,10 @@ def section_seconds(script_text: str) -> Dict[int, float]:
     return out
 
 
-def normalize(obj: Dict, script_text: str = "", target: Optional[Tuple[int, int]] = None, in_place: bool = False) -> Tuple[Dict, List[str]]:
-    """(fixed answer, changes). `target` = (low, high) seconds; read from the script when not given."""
+def normalize(obj: Dict, script_text: str = "", target: Optional[Tuple[int, int]] = None, in_place: bool = False,
+              ctx: Optional[Dict] = None) -> Tuple[Dict, List[str]]:
+    """(fixed answer, changes). `target` = (low, high) seconds; read from the script when not given. ctx (15/10): dialogue.speech_ctx
+    of the project (voice / speed of each speaker, the gap between two lines); None = the plain estimate."""
     if target is None and script_text:
         from .prompts import target_seconds
         target = target_seconds(script_text)
@@ -242,7 +244,7 @@ def normalize(obj: Dict, script_text: str = "", target: Optional[Tuple[int, int]
     fold_post_only(out, scenes, changes)
     for sc in scenes:
         _fix_enums(sc, changes)
-        _fit_speech(sc, changes)
+        _fit_speech(sc, changes, ctx)
         _merge_micro(sc, changes)
         for k, s in enumerate(sc["shots"], 1):
             if s.get("size") in _WIDE and not _spoken(s) and _dur(s) < WIDE_MIN:

@@ -1069,7 +1069,7 @@ class VideoRunner(_Runner):
         from .adapters.clipai import KLING_SHOT_PROMPT_LIMIT
         entries, hinted = [], {}
         for r in group:
-            m = {"prompt": self._motion(r["id"])["motion_prompt"], "duration": shots.billed_shot_seconds(r["data"])}
+            m = {"prompt": self._motion(r["id"])["motion_prompt"], "duration": self._billed_seconds(r)}
             res = speaker_lint.apply(m["prompt"], [r["data"]], KLING_SHOT_PROMPT_LIMIT)
             if res["missing"]:
                 m["prompt"] = res["prompt"]
@@ -1874,7 +1874,7 @@ class VideoRunner(_Runner):
         sent = ([{"id": r["id"], "idx": r["idx"], "exact": True, "refs": refs,
                   "duration_s": seedance_refs.floored(r["data"], self._cut_seconds(r)) if refs else self._cut_seconds(r)} for r in group]
                 if group and exact
-                else [{"id": r["id"], "idx": r["idx"], "duration_s": shots.billed_shot_seconds(r["data"])} for r in group] if group else None)
+                else [{"id": r["id"], "idx": r["idx"], "duration_s": self._billed_seconds(r)} for r in group] if group else None)
         stretch = self._stretch(group) if group and exact and not refs else None
         if stretch and sent:                   # S3.4: where each shot sits in the whole-stretch take (the cut is made there)
             for g in sent:
@@ -1896,6 +1896,13 @@ class VideoRunner(_Runner):
     def _refs_group(self, group) -> bool:
         from . import seedance_refs
         return any(seedance_refs.uses_refs(self.p.conn, r["id"]) for r in group)
+
+    def _billed_seconds(self, row) -> int:
+        """15/10: a Kling multi-shot shot's seconds — the Director's (≥ 3 s, shots.billed_shot_seconds) or, when longer, its motion
+        seconds stretched to the REAL voice (voice.fit_durations). Before: the Director's only — a shot whose voice came out longer
+        was generated shorter than its line."""
+        from . import shots
+        return max(shots.billed_shot_seconds(row["data"]), int(math.ceil(self._cut_seconds(row) - 1e-6)))
 
     def _cut_seconds(self, row) -> float:
         """A shot's length in the film: its motion prompt's seconds (stretched to the real voice), else the Director's."""
@@ -1934,7 +1941,7 @@ class VideoRunner(_Runner):
                 if stretch:                                         # S3.4: this camera films the whole stretch of acting
                     duration = max(math.ceil(sum(stretch["seconds"]) - 1e-6), 3)
             elif group:                                           # the whole group's length, one Kling generation
-                duration = sum(shots.billed_shot_seconds(r["data"]) for r in group)
+                duration = sum(self._billed_seconds(r) for r in group)
                 model = "kling"
         motion = no_minor_age(mp["motion_prompt"])
         # 14/10: trái/phải nhân vật → khung (cờ side_truth; tắt → ""). Kling multishot sends each shot's own prompt, not `motion`
