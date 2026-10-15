@@ -43,7 +43,7 @@ STAGES: Dict[str, Dict] = {
     },
     "scene_qc_layer1": {
         "label": "QC theo cảnh lớp 1 (Claude, tấm ghép cả cảnh)",
-        "status": "chưa qua nghiệm thu — chỉ ghi chú, mọi khung chờ người (cờ scene_qc_trusted tắt)",
+        "status": "chưa qua nghiệm thu — chỉ ghi chú, mọi khung chờ người (cờ scene_qc_trusted tắt hoặc 🎓 học việc — chỉ ghi trainee_log)",
         "used_when": lambda conn, pid: features.active("scene_qc"),
         "open": [
             ("Không thấy lỗi kỹ thuật nhìn là thấy: cho qua 6 khung chữ nhật dán + tháp Big Ben trên tấm ghép (ô 384×683)",

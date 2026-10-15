@@ -16,6 +16,9 @@ RULES: Dict[str, Dict] = {
                 "min_per_project": 15, "min_pos": 5, "min_neg": 5, "unit": "khung"},
     "scene_qc": {"pos": "reject", "neg": "approve", "pred": {"redraw": "reject", "flag": "reject", "pass": "approve"}, "truth": "review",
                  "min_per_project": 15, "min_pos": 5, "min_neg": 5, "min_decision": {"redraw": 8}, "unit": "khung"},
+    # 15/10: QC cảnh lớp 1 would approve ('pass' = sẽ tự duyệt) / redraw ('redraw' = sẽ vẽ lại) on its own — vs the person's review
+    "scene_qc_trusted": {"pos": "reject", "neg": "approve", "pred": {"redraw": "reject", "pass": "approve"}, "truth": "review",
+                         "min_per_project": 15, "min_pos": 5, "min_neg": 5, "unit": "khung"},
     "scene_establishing": {"pos": "establish", "neg": "skip", "pred": {"establish": "establish", "skip": "skip"}, "truth": "card",
                            "min_per_project": 3, "unit": "cảnh"},
     "camera_setups": {"pos": "group", "neg": "single", "pred": {"group": "group", "skip": "single"}, "truth": "card",

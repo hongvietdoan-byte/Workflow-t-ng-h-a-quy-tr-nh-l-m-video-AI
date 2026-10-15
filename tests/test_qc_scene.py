@@ -8,7 +8,7 @@ from unittest import mock
 
 from core import llm_runner, qc_scene, shots
 from tests.test_v3 import _approve_all_images, kenta_project
-from tests._flags import flags_clear, flags_on, flags_on_ctx, flags_on_deco  # noqa: F401
+from tests._flags import flags_clear, flags_on, flags_on_ctx, flags_on_deco, flags_trainee  # noqa: F401
 
 
 def picture(path, light=0.6):
@@ -153,8 +153,7 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(states, {"pending_review"})                          # nothing approved, nothing redrawn by an untrusted QC
 
     def test_one_call_per_scene_and_each_verdict_does_the_right_thing(self):
-        os.environ["FEATURE_SCENE_QC_TRUSTED"] = "1"
-        self.addCleanup(os.environ.pop, "FEATURE_SCENE_QC_TRUSTED", None)
+        flags_on(self, "scene_qc_trusted")        # 15/10: a 🎓 flag is really ON only from 🧪 (FEATURE_…=1 = học việc)
         n = len(self.rows)
         frames = [frame(1), frame(2, "fix", "model", ("artifacts",), "Kelly's left hand has exactly five fingers."),
                   frame(3, "fix", "plan", ("action",))] + [frame(k, "doubt", "none", ("identity",)) for k in range(4, n + 1)]
@@ -177,6 +176,37 @@ class ReviewTests(unittest.TestCase):
         held = autopilot._flag_reasons(self.p, self.p.job(self.p.conn.execute(
             "SELECT id FROM jobs WHERE scene_id=? AND type='image_gen' ORDER BY id DESC LIMIT 1", (self.rows[2]["id"],)).fetchone()["id"]))
         self.assertIn("QC cảnh giữ cho người xem", held)
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM trainee_log WHERE feature='scene_qc_trusted'").fetchone()[0], 0)
+        old = self.p.conn.execute("SELECT reject_reason FROM jobs WHERE scene_id=? AND type='image_gen' AND state='rejected'",
+                                  (self.rows[1]["id"],)).fetchone()
+        self.assertEqual(old["reject_reason"], "chua_ghi")                   # C2: a machine reject without a reason is said, not lost
+
+    def test_trusted_trainee_acts_like_off_and_writes_what_it_would_do(self):
+        """15/10 (C2 phần 2): scene_qc_trusted 🎓 — every frame still waits for a person; trainee_log says 'sẽ tự duyệt' / 'sẽ vẽ lại'."""
+        from core import features
+        flags_trainee(self, "scene_qc_trusted")
+        self.assertFalse(features.on("scene_qc_trusted"))
+        self.assertFalse(qc_scene.trusted())
+        frames = [frame(1), frame(2, "fix", "model", ("artifacts",), "Kelly's left hand has exactly five fingers.")] + [
+            frame(k, "doubt", "none", ("identity",)) for k in range(3, len(self.rows) + 1)]
+        res = qc_scene.review_scene(self.p, self.pid, self.scene, self.client(frames), self.data)
+        self.assertTrue(all(v.startswith("giữ cho người") for v in res["applied"].values()))
+        states = {self.p.conn.execute("SELECT state FROM jobs WHERE scene_id=? AND type='image_gen' ORDER BY id DESC LIMIT 1",
+                                      (r["id"],)).fetchone()["state"] for r in self.rows}
+        self.assertEqual(states, {"pending_review"})                          # nothing approved, nothing redrawn
+        logs = self.p.conn.execute("SELECT decision, job_id, would_do FROM trainee_log WHERE feature='scene_qc_trusted' ORDER BY id"
+                                   ).fetchall()
+        self.assertEqual([r["decision"] for r in logs], ["pass", "redraw"])  # the doubts would be held anyway: not a decision
+        self.assertIn("sẽ tự duyệt", logs[0]["would_do"])
+        self.assertIn("sẽ vẽ lại", logs[1]["would_do"])
+        self.assertIn("five fingers", logs[1]["would_do"])
+        self.assertTrue(all(r["job_id"] for r in logs))
+
+    def test_trusted_off_writes_no_trainee_row(self):
+        flags_on(self, "scene_qc_trusted", value=False)
+        frames = [frame(k) for k in range(1, len(self.rows) + 1)]
+        qc_scene.review_scene(self.p, self.pid, self.scene, self.client(frames), self.data)
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM trainee_log WHERE feature='scene_qc_trusted'").fetchone()[0], 0)
 
     def layer_one_on(self):
         os.environ["FEATURE_SCENE_QC_CLAUDE"] = "1"

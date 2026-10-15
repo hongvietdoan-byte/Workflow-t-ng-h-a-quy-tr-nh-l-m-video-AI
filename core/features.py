@@ -360,7 +360,9 @@ FEATURES: Dict[str, Dict] = {
     "scene_qc_trusted": {
         "label": "Cho QC theo cảnh (lớp 1, Claude) TỰ duyệt / tự vẽ lại — chỉ bật khi đã qua nghiệm thu (bắt đủ lỗi nhìn thấy rõ, báo nhầm ≤ 10 %)",
         "verified": False,
-        "why": "Nghiệm thu 2026-09-27 trên 33 ảnh ghép có nhãn của #8 (tools/experiments/qc_regression.py): bắt 6/12 lỗi rõ nhưng không lần "
+        "trainee": True,       # 15/10 người dùng (#31 đợt thử cờ): học việc — mọi khung vẫn chờ người, chỉ ghi 'sẽ tự duyệt' / 'sẽ vẽ lại' (docs/KE_HOACH_HOC_VIEC_2026-10-08.md)
+        "why": "🎓 Học việc từ 15/10: khung vẫn chờ người như khi tắt; trainee_log ghi 'sẽ tự duyệt' / 'sẽ vẽ lại' + lý do để so với "
+               "người (core/trainee.py RULES scene_qc_trusted); bật thật chỉ khi đủ chuẩn và bạn duyệt. Nghiệm thu 2026-09-27 trên 33 ảnh ghép có nhãn của #8 (tools/experiments/qc_regression.py): bắt 6/12 lỗi rõ nhưng không lần "
                "nào vì đúng lỗi, cho qua 6 khung chữ nhật dán + tháp Big Ben, báo nhầm 12/21 ảnh tốt → khi tắt: mọi khung chờ người, "
                "nhận xét của QC chỉ là ghi chú",
     },
