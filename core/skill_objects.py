@@ -633,7 +633,8 @@ def compose(clip: str, end_frame: str, out: str, cut_s: float, rise: int = 0, sh
             top: Optional[int] = None, ffmpeg: Optional[str] = None) -> Dict:
     """Write the composite mp4 (same size / fps / length as the clip, no sound). Returns the numbers used (said by the CLI)."""
     import subprocess
-    import cv2
+    from .clip_measure import _cv
+    cv2 = _cv()
     import numpy as np
     from PIL import Image
     cap = cv2.VideoCapture(clip)
