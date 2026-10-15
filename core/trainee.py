@@ -16,6 +16,9 @@ RULES: Dict[str, Dict] = {
                 "min_per_project": 15, "min_pos": 5, "min_neg": 5, "unit": "khung"},
     "scene_qc": {"pos": "reject", "neg": "approve", "pred": {"redraw": "reject", "flag": "reject", "pass": "approve"}, "truth": "review",
                  "min_per_project": 15, "min_pos": 5, "min_neg": 5, "min_decision": {"redraw": 8}, "unit": "khung"},
+    # 15/10: QC cảnh lớp 1 would approve ('pass' = sẽ tự duyệt) / redraw ('redraw' = sẽ vẽ lại) on its own — vs the person's review
+    "scene_qc_trusted": {"pos": "reject", "neg": "approve", "pred": {"redraw": "reject", "pass": "approve"}, "truth": "review",
+                         "min_per_project": 15, "min_pos": 5, "min_neg": 5, "unit": "khung"},
     "scene_establishing": {"pos": "establish", "neg": "skip", "pred": {"establish": "establish", "skip": "skip"}, "truth": "card",
                            "min_per_project": 3, "unit": "cảnh"},
     "camera_setups": {"pos": "group", "neg": "single", "pred": {"group": "group", "skip": "single"}, "truth": "card",
@@ -109,7 +112,8 @@ def score_project(conn, project_id: int, features: Optional[Iterable[str]] = Non
                             (feat, project_id)).fetchall()
         for r in rows:
             at = _t(r["at"])
-            revs = conn.execute("SELECT id, decision, decided_at FROM review_log WHERE job_id=? AND reviewer_type='user' ORDER BY decided_at, id",
+            revs = conn.execute("SELECT id, decision, decided_at FROM review_log WHERE job_id=? AND reviewer_type='user'"
+                                " AND COALESCE(reason, '') != 'khong_phai_loi' ORDER BY decided_at, id",   # C2: a delete is no verdict
                                 (r["job_id"],)).fetchall()
             after = [v for v in revs if at is not None and _t(v["decided_at"]) is not None and _t(v["decided_at"]) > at]
             if after:

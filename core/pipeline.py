@@ -271,12 +271,14 @@ class Pipeline:
         self.conn.commit()
 
     def reopen_approved(self, job_id: int, note: Optional[str] = None, respawn: bool = True, fix: Optional[str] = None,
-                        auto: bool = False) -> str:
+                        auto: bool = False, reason: Optional[str] = None, reason_text: Optional[str] = None) -> str:
         """The user changed their mind about an approved IMAGE: reject it and (by default) queue a new one.
         Videos already made from it are not touched. `fix`: the words the model gets (English); None = the person's `note` itself,
         "" = nothing (the input already changed — e.g. the scene was edited — so a Vietnamese system note must not reach the model).
         `auto`: the run redoes it by itself (set-check autofix) — counted on AUTO_REGEN_LIMIT; at the limit nothing is reopened, the
-        shot waits for the person ('escalated')."""
+        shot waits for the person ('escalated'). C2: `reason` / `reason_text` as reject() (None → 'chua_ghi' + diag)."""
+        from . import lessons
+        why_code = lessons.check_reject_reason(reason, reason_text)
         access.need_edit_job(self, job_id, "bỏ duyệt ảnh")
         job = self.job(job_id)
         if job["type"] != "image_gen":
@@ -288,8 +290,10 @@ class Pipeline:
             return "escalated"
         reason = note if fix is None else (fix.strip() or None)
         plan = self._rewrite_before_retry(job, reason, note=note, by="qc" if auto else "user") if respawn else _KeepReason(reason)
-        self._log_review(job_id, "user", "reject", note or "bỏ duyệt")      # S14.17: rejected only after Claude answered (review #1)
+        review_id = self._log_review(job_id, "user", "reject", note or "bỏ duyệt", reason=why_code,   # S14.17: after Claude answered
+                                     reason_text=reason_text)
         self.transition(job_id, JobState.REJECTED, actor="user", note=note or "bỏ duyệt")
+        self._keep_reject_reason(job_id, review_id, why_code, reason_text, note, quiet=auto)
         if respawn:  # a person asking for another take: never capped, the automatic count starts again (S14.16)
             self._insert_job(job["project_id"], job["scene_id"], "image_gen", parent_job_id=job_id,
                              retry_count=job["retry_count"] + 1 if auto else 0, retry_reason=plan.apply(),
@@ -846,10 +850,16 @@ class Pipeline:
         return reason
 
     def reject(self, job_id: int, reviewer_type: str = "user", note: Optional[str] = None,
-               respawn: bool = True, fix: Optional[str] = None, qc: Optional[dict] = None) -> str:
+               respawn: bool = True, fix: Optional[str] = None, qc: Optional[dict] = None, reason: Optional[str] = None,
+               reason_text: Optional[str] = None) -> str:
         """Reject and spawn a retry job (unless respawn=False = plain delete). By the QC ('ai_agent'): an automatic try, escalated at
         AUTO_REGEN_LIMIT. By a person: never capped, the automatic count starts again (S14.16). `qc` ({root_cause, problem, fix},
-        optional): the QC's finding, for the Director's rewrite of the shot prompt (S14.17, flag director_rewrite)."""
+        optional): the QC's finding, for the Director's rewrite of the shot prompt (S14.17, flag director_rewrite).
+        C2 (15/10): `reason` = a code of core/lessons.REJECT_REASONS ('khac' needs `reason_text`) → kept on the job + review_log and
+        written as a `mistakes` row at once; lessons.NOT_A_FAULT for a delete; None (old code, the machine) → 'chua_ghi' + diag, the
+        reject still happens. An unknown code raises ValueError before anything is done."""
+        from . import lessons
+        why_code = lessons.check_reject_reason(reason, reason_text)   # C2 (`reason` below is the old name of the model's fix)
         access.need_edit_job(self, job_id, "loại")
         self._require_reviewable(job_id)
         # W4: the model gets only the fix sentences (the person's note, or the QC's issues added to the earlier fixes) — never the
@@ -874,8 +884,9 @@ class Pipeline:
         if respawn and not (auto and self._retries_exhausted(self.job(job_id))):    # at the limit no take is made: no paid rewrite
             # S14.17 review #1: Claude is asked while the take is STILL ALIVE — the run never sees the shot without a live job
             plan = self._rewrite_before_retry(self.job(job_id), reason, note=note, qc=qc, by="qc" if auto else "user")
-        self._log_review(job_id, reviewer_type, "reject", note)
+        review_id = self._log_review(job_id, reviewer_type, "reject", note, reason=why_code, reason_text=reason_text)
         self.transition(job_id, JobState.REJECTED, actor=reviewer_type, note=note)
+        self._keep_reject_reason(job_id, review_id, why_code, reason_text, note, quiet=auto)
         if not respawn:
             return "rejected"
         new_id = self._spawn_retry(job_id, plan.apply(), auto=auto)
@@ -1006,13 +1017,14 @@ class Pipeline:
         for r in newer:
             state = JobState(r["state"])
             if state in (JobState.SUCCEEDED, JobState.PENDING_REVIEW):
-                self.reject(r["id"], "user", why, respawn=False)
+                self.reject(r["id"], "user", why, respawn=False, reason="khong_phai_loi")   # C2: an older version chosen again
             elif state == JobState.APPROVED:
                 if kind == "image_gen":
-                    self.reopen_approved(r["id"], why, respawn=False)
+                    self.reopen_approved(r["id"], why, respawn=False, reason="khong_phai_loi")
                 else:
-                    self._log_review(r["id"], "user", "reject", why)
+                    rid = self._log_review(r["id"], "user", "reject", why, reason="khong_phai_loi")
                     self.transition(r["id"], JobState.REJECTED, actor="user", note=why)
+                    self._keep_reject_reason(r["id"], rid, "khong_phai_loi", None, why)
             elif state == JobState.FAILED:
                 self.transition(r["id"], JobState.RETRYABLE, note=why)
                 self.transition(r["id"], JobState.CANCELLED, actor="user", note=why)
@@ -1040,11 +1052,30 @@ class Pipeline:
         if self.state(job_id) not in REVIEWABLE:
             raise InvalidTransition(f"job {job_id} is {self.state(job_id).value}, not reviewable")
 
-    def _log_review(self, job_id: int, reviewer_type: str, decision: str, note: Optional[str]) -> None:
-        self.conn.execute(
-            "INSERT INTO review_log (job_id, reviewer_type, decision, note, decided_at) VALUES (?,?,?,?,?)",
-            (job_id, reviewer_type, decision, note, _now()))
+    def _log_review(self, job_id: int, reviewer_type: str, decision: str, note: Optional[str], reason: Optional[str] = None,
+                    reason_text: Optional[str] = None) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO review_log (job_id, reviewer_type, decision, note, decided_at, reason, reason_text) VALUES (?,?,?,?,?,?,?)",
+            (job_id, reviewer_type, decision, note, _now(), reason, (reason_text or "").strip()[:500] or None))
         self.conn.commit()
+        return cur.lastrowid
+
+    def _keep_reject_reason(self, job_id: int, review_id: int, reason: str, reason_text: Optional[str], note: Optional[str],
+                            quiet: bool = False) -> None:
+        """C2: the reason on the job; a listed one → a `mistakes` row now; none given → said in diag (never blocks the reject).
+        `quiet` (the machine — QC / autofix): 'chua_ghi' is kept without a warning on every automatic reject."""
+        from . import diag, lessons
+        self.conn.execute("UPDATE jobs SET reject_reason=? WHERE id=?", (reason, job_id))
+        self.conn.commit()
+        job = self.job(job_id)
+        if reason == lessons.NO_REASON:
+            if quiet:
+                return
+            diag.record(self.conn, "system", "warn", "Loại ảnh/video không kèm lý do (danh sách cố định) — ghi 'chua_ghi', bài học chỉ "
+                        "đoán theo từ khóa; nơi gọi cần truyền reason=", code="reject_no_reason", project_id=job["project_id"],
+                        job_id=job_id)
+            return
+        lessons.record_reject(self.conn, review_id, job, reason, reason_text, note)
 
     def _spawn_retry(self, job_id: int, reason: Optional[str],
                      close_old: Optional[JobState] = None, auto: bool = False) -> Optional[int]:

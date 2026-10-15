@@ -1366,6 +1366,15 @@ def lessons_tab(p: Pipeline, pid: int) -> None:
         else:
             st.caption("Chưa có lỗi nào được ghi nhận (lấy từ ảnh/video bị loại kèm lý do và các lần bị risk control chặn).")
         st.caption(f"Ngưỡng đề xuất: ≥{lessons.MIN_EVENTS} lần và ≥{lessons.MIN_PROJECTS} dự án.")
+    rates = lessons.reject_rates(conn)                  # C2 15/10: lý do loại × dự án (ảnh / video)
+    with st.expander(f"Tỷ lệ loại theo lý do × dự án ({len(rates)})"):
+        if rates:
+            data_table([{"Dự án": f"#{r['project_id']}", "Loại": "Ảnh" if r["kind"] == "image" else "Video", "Lý do": r["label"],
+                         "Số lần": r["n"], "Tỷ lệ": f"{r['share']:.0%} / {r['total']}"} for r in rates], hide_index=True,
+                       use_container_width=True)
+            st.caption("'Chưa ghi lý do' = loại từ trước 15/10 hoặc do máy/mã cũ không truyền lý do (xem chẩn đoán reject_no_reason).")
+        else:
+            st.caption("Chưa có lần loại nào.")
 
 
 def history(p: Pipeline, pid: int):

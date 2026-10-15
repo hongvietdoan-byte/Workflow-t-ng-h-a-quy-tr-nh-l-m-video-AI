@@ -165,6 +165,7 @@ class StoryboardV2Tests(unittest.TestCase):
         sent = []
         with mock.patch.dict(os.environ, {"IMAGE_PROVIDER": "mock"}),                 mock.patch("core.runner.ImageRunner.submit_pending", lambda self_, pid_, **kw: sent.append(pid_) or 1):
             at = self.board()
+            at.selectbox(key=f"rreason_c{a}").set_value("nhan_vat_sai").run()             # C2: a reason first
             next(x for x in at.button if x.key == f"r_{a}").click().run()
         self.assertEqual(sent, [pid])
 
@@ -174,10 +175,19 @@ class StoryboardV2Tests(unittest.TestCase):
         at = self.board()
         next(x for x in at.button if x.key == f"a_{a}").click().run()                       # ✔ Duyệt
         at.text_input(key=f"note_{c}").set_value("Kelly wears the yellow jacket").run()
+        self.assertTrue(next(x for x in at.button if x.key == f"r_{c}").disabled)          # C2: no reason → cannot be pressed
+        self.assertTrue(next(x for x in at.button if x.key == f"dd_{c}").disabled)
+        at.selectbox(key=f"rreason_c{c}").set_value("khac").run()
+        self.assertTrue(next(x for x in at.button if x.key == f"r_{c}").disabled)          # 'Khác' still needs words
+        at.text_input(key=f"rreason_txt_c{c}").set_value("áo sai màu").run()
+        self.assertFalse(next(x for x in at.button if x.key == f"r_{c}").disabled)
         next(x for x in at.button if x.key == f"r_{c}").click().run()                       # ↻ Vẽ lại = reject + a new job with the reason
         at = self.board()
+        at.selectbox(key=f"rreason_c{b}").set_value("nen_lech_map3d").run()
         next(x for x in at.button if x.key == f"dd_{b}").click().run()                      # ✖ Loại = reject, no new job
         rows = dict(self.states(self.db))
+        got = {r["id"]: (r["reject_reason"]) for r in Pipeline(connect(self.db)).conn.execute("SELECT id, reject_reason FROM jobs")}
+        self.assertEqual((got[b], got[c]), ("nen_lech_map3d", "khac"))
         self.assertEqual((rows[a], rows[b], rows[c]), ("approved", "rejected", "rejected"))
         new = [i for i, s in rows.items() if i not in (a, b, c)]
         self.assertEqual(len(new), 1)                                                        # only the redraw spawned a job

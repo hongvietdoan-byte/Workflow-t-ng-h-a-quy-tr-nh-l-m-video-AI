@@ -96,7 +96,8 @@ def import_review_log(conn, data_dir: str) -> int:
     added = 0
     rows = conn.execute("SELECT r.id, r.job_id, r.decision, r.note, j.type FROM review_log r JOIN jobs j ON j.id=r.job_id "
                         "WHERE r.reviewer_type='user' AND (r.decision='approve' OR (r.note IS NOT NULL AND trim(r.note)!=''))"
-                        " AND coalesce(r.note, '') NOT LIKE ?", (SCRIPT_MARK + "%",)).fetchall()
+                        " AND coalesce(r.note, '') NOT LIKE ? AND COALESCE(r.reason, '') != 'khong_phai_loi'",   # C2: no fault
+                        (SCRIPT_MARK + "%",)).fetchall()
     for r in rows:
         ctx = job_context(conn, r["job_id"])
         stage = "video" if r["type"] == "video_gen" else "image"

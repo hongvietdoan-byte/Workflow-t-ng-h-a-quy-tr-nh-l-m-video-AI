@@ -62,7 +62,8 @@ def queue_images(p: Pipeline, project_id: int, confirmed: bool = False) -> Dict:
     for sid in fresh:
         p.create_job(sid, "image_gen")
     for sid in redo_ids:                              # the scene changed: the new input is the scene itself (no Vietnamese note to the model)
-        p.reopen_approved(stale[sid]["image_job_id"], f"Nội dung cảnh đã đổi: {stale[sid]['image_stale']}", fix="")
+        p.reopen_approved(stale[sid]["image_job_id"], f"Nội dung cảnh đã đổi: {stale[sid]['image_stale']}", fix="",
+                          reason="khong_phai_loi")   # C2: input changed, no fault
     return {"created": len(fresh), "redo": len(redo_ids), "pilot": pilot.active(p, project_id)}
 
 
@@ -193,7 +194,7 @@ def queue_videos(p: Pipeline, project_id: int, data_dir: str, only=None) -> Dict
     for r in _stale_redos(p, project_id):        # S14.17 rà #2: a new take already waits → not remade (that would be a 2nd paid job)
         if only is not None and r["scene_id"] not in only:
             continue
-        regen.regenerate_video(p, data_dir, r["job_id"], f"làm lại vì {r['why']}")   # input changed: no fix
+        regen.regenerate_video(p, data_dir, r["job_id"], f"làm lại vì {r['why']}", reason="khong_phai_loi")   # input changed: no fix, no fault (C2)
         redo += 1
     return {"created": created, "redo": redo}
 

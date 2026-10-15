@@ -144,8 +144,9 @@ def choose(p, data_dir: str, job_id: int, note: Optional[str] = None) -> None:
     for other in conn.execute("SELECT id, state FROM jobs WHERE scene_id=? AND type='video_gen' AND id!=?", (sid, job_id)).fetchall():
         state = JobState(other["state"])
         if state in (JobState.SUCCEEDED, JobState.PENDING_REVIEW, JobState.APPROVED):
-            p._log_review(other["id"], "user", "reject", f"người chọn bản job {job_id}")
+            rid = p._log_review(other["id"], "user", "reject", f"người chọn bản job {job_id}", reason="khong_phai_loi")   # C2
             p.transition(other["id"], JobState.REJECTED, actor="user", note=f"người chọn bản job {job_id}")
+            p._keep_reject_reason(other["id"], rid, "khong_phai_loi", None, None)
         elif state == JobState.FAILED:
             p.transition(other["id"], JobState.RETRYABLE, note=f"người chọn bản job {job_id}")
             p.transition(other["id"], JobState.CANCELLED, actor="user", note=f"người chọn bản job {job_id}")

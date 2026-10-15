@@ -439,16 +439,20 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
                 st.session_state[f"sel_{pid}"] = jid
                 st.rerun()
         elif state in ("succeeded", "pending_review"):
+            from dashboard import reject_reason_ui                 # C2 15/10: no reject without a reason of the fixed list
+            rcode, rtext, rerr = reject_reason_ui.pick(f"g{jid}")
             a, b, c = st.columns(3)
             st.caption("✖ Loại = gen lại 1 ảnh" + retake)
             if a.button("✔ Duyệt", key=f"a_{jid}"):
                 C.log_ui(p, "duyet_anh", page="storyboard", project_id=pid, job_id=jid, result=act(lambda: p.approve(jid, "user")))
                 st.rerun()
-            if b.button("✖ Loại", key=f"r_{jid}", help="Loại và gen lại (ghi chú lý do ở khung chi tiết bên phải)"):
+            if b.button("✖ Loại", key=f"r_{jid}", disabled=bool(rerr),
+                        help=rerr or "Loại và gen lại (câu sửa cho model ở khung chi tiết bên phải)"):
                 _t0 = time.monotonic()
-                _ok = act(_spin(lambda: p.reject(jid, "user", st.session_state.get(f"note_{jid}") or None)))
+                _ok = act(_spin(lambda: p.reject(jid, "user", st.session_state.get(f"note_{jid}") or None, reason=rcode, reason_text=rtext)))
                 C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, job_id=jid, result=_ok, t0=_t0,
-                         detail="ghi chú: " + ("có" if st.session_state.get(f"note_{jid}") else "không"))
+                         detail="ghi chú: " + ("có" if st.session_state.get(f"note_{jid}") else "không") + " · "
+                         + reject_reason_ui.detail(rcode, rtext))
                 st.rerun()
             if c.button("🔍 Xem", key=f"sel_btn_{jid}"):
                 st.session_state[f"sel_{pid}"] = jid
@@ -472,7 +476,8 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
                 st.rerun()
         else:
             if stale_reason and state == "approved" and st.button("↻ Gen lại theo nội dung mới" + retake, key=f"stale_{jid}", type="primary"):
-                if act(lambda: p.reopen_approved(jid, f"Nội dung cảnh đã đổi: {stale_reason}", fix=""), "Đã xếp hàng gen lại"):
+                if act(lambda: p.reopen_approved(jid, f"Nội dung cảnh đã đổi: {stale_reason}", fix="", reason="khong_phai_loi"),
+                       "Đã xếp hàng gen lại"):
                     st.rerun()
             if j["escalated"] and st.button("↺ Làm lại từ đầu" + retake, key=f"rs_{jid}", help="Đã hết số lần thử: bắt đầu lại cảnh này"):
                 if act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh"):
@@ -535,18 +540,20 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
             from core import chat_prompt                 # D6: người dùng chỉ mô tả (cờ chat_prompts)
             note = st.text_input(chat_prompt.note_label("Câu sửa cho lần gen lại (đưa vào prompt — nên viết tiếng Anh, vd “Kelly wears the "
                                                         "yellow jacket”)"), key=f"note_{jid}")
+            from dashboard import reject_reason_ui                 # C2 15/10
+            rcode, rtext, rerr = reject_reason_ui.pick(f"d{jid}")
             a, b = st.columns(2)
-            if b.button("✖ Loại & gen lại" + retake, key=f"dr_{jid}"):
+            if b.button("✖ Loại & gen lại" + retake, key=f"dr_{jid}", disabled=bool(rerr), help=rerr):
                 _t0 = time.monotonic()
-                _ok = act(_spin(lambda: p.reject(jid, "user", note or None)))
+                _ok = act(_spin(lambda: p.reject(jid, "user", note or None, reason=rcode, reason_text=rtext)))
                 C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, job_id=jid, result=_ok, t0=_t0,
-                         detail="ghi chú: " + ("có" if note else "không"))
+                         detail="ghi chú: " + ("có" if note else "không") + " · " + reject_reason_ui.detail(rcode, rtext))
                 st.rerun()
             if a.button("✔ Duyệt", key=f"da_{jid}", type="primary"):
                 C.log_ui(p, "duyet_anh", page="storyboard", project_id=pid, job_id=jid, result=act(lambda: p.approve(jid, "user")))
                 st.rerun()
             if st.button("🗑 Xóa (vào thùng rác, không gen lại)", key=f"dd_{jid}"):
-                act(lambda: p.reject(jid, "user", note or "đã xóa", respawn=False))
+                act(lambda: p.reject(jid, "user", note or "đã xóa", respawn=False, reason="khong_phai_loi"))   # C2: a delete, no fault
                 st.rerun()
         if state == "failed" and not j["escalated"]:
             fix = st.text_input("Câu sửa cho model (tiếng Anh) — để trống = gửi lại y nguyên (chỉ khi lỗi do nhà cung cấp)",
@@ -562,10 +569,12 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
         if state == "approved":
             r_note = st.text_input("Lý do bỏ duyệt (đưa vào prompt gen lại)", key=f"rn_{jid}")
             st.caption("Bỏ duyệt: motion prompt và video làm từ ảnh này sẽ hiện ⚠ cũ để làm lại.")
-            if st.button("↩ Bỏ duyệt & gen lại ảnh" + retake, key=f"reopen_{jid}"):
-                _ok = act(_spin(lambda: p.reopen_approved(jid, r_note or None)), "Đã bỏ duyệt, xếp hàng gen lại")
+            from dashboard import reject_reason_ui                 # C2: bỏ duyệt = a reject, needs a reason too
+            ocode, otext, oerr = reject_reason_ui.pick(f"o{jid}")
+            if st.button("↩ Bỏ duyệt & gen lại ảnh" + retake, key=f"reopen_{jid}", disabled=bool(oerr), help=oerr):
+                _ok = act(_spin(lambda: p.reopen_approved(jid, r_note or None, reason=ocode, reason_text=otext)), "Đã bỏ duyệt, xếp hàng gen lại")
                 C.log_ui(p, "loai_anh", page="storyboard", project_id=pid, job_id=jid, result=_ok,
-                         detail="bỏ duyệt ảnh đã duyệt · lý do: " + ("có" if r_note else "không"))
+                         detail="bỏ duyệt ảnh đã duyệt · ghi chú: " + ("có" if r_note else "không") + " · " + reject_reason_ui.detail(ocode, otext))
                 if _ok:
                     st.rerun()
 

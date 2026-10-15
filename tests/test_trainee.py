@@ -44,7 +44,7 @@ class TraineeTests(unittest.TestCase):
         idx = {r[1] for r in self.conn.execute("PRAGMA index_list(trainee_log)")}
         self.assertIn("idx_trainee_log", idx)
         self.assertEqual(set(trainee.RULES), {"qc_team", "scene_qc", "scene_establishing", "camera_setups", "continuous_takes",
-                                              "end_frames", "storyboard_auto_trust"})
+                                              "end_frames", "storyboard_auto_trust", "scene_qc_trusted"})
 
     def test_record_rejects_unknown(self):
         pid, _ = self._project()

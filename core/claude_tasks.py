@@ -520,7 +520,8 @@ def redo_from_set_check(p: Pipeline, project_id: int, idx: int, fix: str, auto: 
                          " AND j.type='image_gen' AND j.state='approved' ORDER BY j.id DESC LIMIT 1", (project_id, idx)).fetchone()
     if row is None:
         raise ValueError(f"cảnh {idx} không có ảnh đã duyệt")
-    return p.reopen_approved(row["id"], f"Đồng bộ cả bộ: {fix}", fix=fix.strip(), auto=auto)
+    return p.reopen_approved(row["id"], f"Đồng bộ cả bộ: {fix}", fix=fix.strip(), auto=auto,
+                             reason="khac", reason_text=f"QC đồng bộ cả bộ: {fix}")   # C2: the QC's words decide the kind (keywords)
 
 
 # ---- 5. Character Lock from pictures -----------------------------------------------------------------------------------------

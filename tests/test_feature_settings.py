@@ -216,7 +216,8 @@ class LockedVerifiedTests(unittest.TestCase):
 
 class TraineeModeTests(unittest.TestCase):
     """B1 học việc (08/10, docs/KE_HOACH_HOC_VIEC_2026-10-08.md mục 1): on / trainee / off, thứ tự ưu tiên, `1` → học việc."""
-    SEVEN = ("qc_team", "scene_qc", "scene_establishing", "camera_setups", "continuous_takes", "end_frames", "storyboard_auto_trust")
+    SEVEN = ("qc_team", "scene_qc", "scene_establishing", "camera_setups", "continuous_takes", "end_frames", "storyboard_auto_trust",
+             "scene_qc_trusted")   # 15/10: + scene_qc_trusted (8 cờ học việc; tên SEVEN giữ cho lịch sử)
 
     def setUp(self):
         self.path = os.path.join(tempfile.mkdtemp(), "fs.json")
