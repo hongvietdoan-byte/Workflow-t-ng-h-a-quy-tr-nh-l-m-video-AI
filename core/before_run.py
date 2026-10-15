@@ -21,6 +21,7 @@ PAID_FLAGS: Dict[str, Dict] = {
     "stage_camera": {"text": "không thêm lời gọi tốn tiền (render Blender 0 USD) nhưng đổi nền 3D gửi model ảnh — ảnh vẽ trên nền này "
                              "vẫn tính tiền như thường"},
     "director_camera_plan": {"text": "thêm lời gọi Claude (sơ đồ cảnh + duyệt render từng góc) — chưa có số ước tính sẵn"},
+    "qc_framing_cap": {"text": "thêm ảnh vào mỗi lượt QC clip; clip đổi bố cục bị hạ điểm → tự sửa khi qc_autofix"},   # rà 15/10
 }
 
 OPS_LINES = (
@@ -126,11 +127,12 @@ def fix_flags_pending(conn, pid: int) -> List[str]:
 
 
 def costly_fix_flag(name: str) -> bool:
-    """Cờ bật lên là thêm lời gọi tốn tiền (PAID_FLAGS của khung này, hoặc nhãn / lý do ghi 'TỐN TIỀN') — không bật hàng loạt
-    (CLAUDE.md quy ước 6: ước tính trước): bật riêng ở 🧪 sau khi xem giá."""
+    """Cờ bật lên là thêm lời gọi tốn tiền (khai `costs: True` trong core/features.FEATURES, hoặc PAID_FLAGS của khung này) — không
+    bật hàng loạt (CLAUDE.md quy ước 6: ước tính trước): bật riêng ở 🧪 sau khi xem giá. Rà 15/10: bỏ dò chữ 'TỐN TIỀN' (sót
+    end_state_fresh / p24_lessons / kld_lessons_prompts / change_review_frames); tests/test_fix_flags giữ trường này đủ."""
     from . import features
     meta = features.FEATURES.get(name) or {}
-    return name in PAID_FLAGS or "TỐN TIỀN" in (meta.get("label", "") + " " + meta.get("why", ""))
+    return meta.get("costs") is True or name in PAID_FLAGS
 
 
 def enable_fix_flags(names: List[str]) -> List[str]:

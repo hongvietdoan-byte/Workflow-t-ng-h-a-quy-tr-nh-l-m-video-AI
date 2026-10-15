@@ -116,6 +116,16 @@ class BeforeRun(unittest.TestCase):
         self.assertTrue(any("chưa có job gen đang chạy" in t for t in red))
         self.assertEqual(BR.LIVE_JOB, ("queued", "running", "retryable"))
 
+    def test_qc_framing_cap_listed_as_paid_when_on(self):
+        """Rà 15/10: qc_framing_cap thêm ảnh vào mỗi lượt QC clip + hạ điểm → tự sửa khi qc_autofix — mục VÀNG, không chỉ dòng info."""
+        with mock.patch.dict(os.environ, {"FEATURE_QC_FRAMING_CAP": "1"}):
+            hit = [i for i in BR._cost_items(self.c) if "`qc_framing_cap`" in i["text"]]
+        self.assertEqual(len(hit), 1)
+        self.assertEqual(hit[0]["level"], "vang")
+        self.assertIn("qc_autofix", hit[0]["text"])
+        with mock.patch.dict(os.environ, {"FEATURE_QC_FRAMING_CAP": "0"}):
+            self.assertFalse([i for i in BR._cost_items(self.c) if "qc_framing_cap" in i["text"]])
+
     def test_stage_camera_text_has_no_stale_note(self):
         self.assertNotIn("chưa render nền thật", BR.PAID_FLAGS["stage_camera"]["text"])
 

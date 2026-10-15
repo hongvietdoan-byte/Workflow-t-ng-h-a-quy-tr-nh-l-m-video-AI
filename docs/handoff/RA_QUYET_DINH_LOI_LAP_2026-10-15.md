@@ -58,3 +58,5 @@ Số liệu CSDL: ảnh bị loại #22 56 %, #24 44 %, #27 64 %; video bị lo�
    trạng thái, hướng lên/xuống xuống từng shot; gọn 165 KB luật.
 
 Chưa chắc (cần chạy thật / người dùng): A7, A8, hiệu quả `travel_truth` / `ambient_motion` / `chat_prompts` trên #31.
+
+Lưu ý vận hành (rà C1 15/10): video_gate bật mặc định: dự án đang dở có clip xếp hàng mà ảnh plate_layout ĐỎ / nhóm sequence chưa đủ ảnh duyệt sẽ CHỜ người — xem Bước 4 🚧 Cổng ảnh → video.

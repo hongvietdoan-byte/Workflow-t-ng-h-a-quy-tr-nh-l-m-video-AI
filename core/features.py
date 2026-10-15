@@ -5,6 +5,8 @@ When a real test passes, set `verified` to True here with the date and the repor
 C1 (người dùng duyệt 15/10, docs/handoff/RA_QUYET_DINH_LOI_LAP_2026-10-15.md): `fixes_projects: [id dự án]` = cờ sửa lỗi gốc của dự án
 đó — còn TẮT ở dự án mới hơn → ĐỎ ở 🧭 Trước khi chạy (core/before_run.py). `default_on: True` = người dùng QUYẾT bật (sổ quyết định
 data/decisions.json) dù chưa thử thật: mặc định code bật, `verified` vẫn False (preset Ổn định vẫn chỉ bật cờ đã thử thật).
+`costs: True` (rà 15/10) = bật lên là thêm lời gọi tốn tiền (Claude / gen / thêm ảnh hay lượt gọi) — nút bật hàng loạt cờ sửa lỗi
+'(0 USD)' bỏ qua (before_run.costly_fix_flag đọc trường này, không dò chữ).
 `report()` / `py -m core.features --report` = bảng trạng thái cờ thật (bật/tắt + nguồn) cho báo cáo kết thúc dự án."""
 import os
 from typing import Dict, List, Optional
@@ -37,9 +39,9 @@ FEATURES: Dict[str, Dict] = {
     "tickets_admin_ui": {"label": "Trang Phiếu 8502 (Owner đăng nhập mới duyệt được; còn lại chỉ đọc)", "verified": False, "why": "Đợt 9 + đăng nhập 8502 (12/10): thử CSDL tạm, chưa dùng thật"},
     "lao_dai_pet": {"label": "Pet Lão Đại chỉ đọc", "verified": False,
                      "why": "Đợt 9: backend thử CSDL tạm; chưa kiểm GUI Windows"},
-    "bg_autoqc": {"fixes_projects": [27], "label": "Vòng nền tự bắt đầu kiểm tra ảnh/clip vừa xong (không cần mở trang dự án)", "verified": False,
+    "bg_autoqc": {"fixes_projects": [27], "costs": True, "label": "Vòng nền tự bắt đầu kiểm tra ảnh/clip vừa xong (không cần mở trang dự án)", "verified": False,
         "why": "Hộp thư 12/10 17:58: #27 ảnh xong kẹt 'succeeded' ~1 giờ khi không ai mở trang; gọi Claude QC qua sổ chi + trần như khi mở trang"},
-    "layout_from_follow": {"fixes_projects": [27], "label": "Shot giữ bố cục (continuity_from): chờ ảnh shot nguồn, thử mẫu kéo shot nguồn, ảnh nguồn vẽ lại → ⚠ cũ", "verified": False,
+    "layout_from_follow": {"fixes_projects": [27], "costs": True, "label": "Shot giữ bố cục (continuity_from): chờ ảnh shot nguồn, thử mẫu kéo shot nguồn, ảnh nguồn vẽ lại → ⚠ cũ", "verified": False,
         "why": "Hộp thư 12/10 19:17: #27 shot 15/17 giữ bố cục theo shot 18 — gửi trước ảnh nguồn thì thiếu ảnh bố cục; nguồn vẽ lại không báo cũ. "
                "TỐN TIỀN khi bật: ảnh ⚠ cũ được chạy tự động / ▶ Gen ảnh vẽ lại (ảnh + motion + clip mỗi shot giữ bố cục)"},
     "subject_auto_cleanup": {"fixes_projects": [27], "label": "Giao bản cuối / cất dự án → tự xóa khỏi Kho chủ thể ClipAI các khung ảnh ĐÃ BỊ LOẠI của dự án đó "
@@ -52,7 +54,7 @@ FEATURES: Dict[str, Dict] = {
                "nhảy cóc; ngưỡng đặt trên clip thật #27, chưa chạy trong sản xuất (core/framing_guard.py)"},
     "back_view_guard": {"fixes_projects": [27], "label": "Shot quay lưng: motion bỏ tả mặt/mắt + câu 'giữ lưng về máy cả shot' (0 USD)", "verified": False,
         "why": "13/10 #27 shot 4: motion tả 'lips pressed / slow blink' cho Kelly quay lưng → Seedance quay mặt cô ra máy giữa shot"},
-    "end_state_fresh": {"fixes_projects": [27], "label": "Sửa end_state: ô sửa ở Bước 1/3 + bản dịch motion_en cũ của trường đã sửa không gửi im lặng (dịch lại qua sổ chi)",
+    "end_state_fresh": {"fixes_projects": [27], "costs": True, "label": "Sửa end_state: ô sửa ở Bước 1/3 + bản dịch motion_en cũ của trường đã sửa không gửi im lặng (dịch lại qua sổ chi)",
         "verified": False,
         "why": "13/10 #27 lỗi 6: end_state sửa mà motion_en.end_state vẫn là bản dịch cũ → prompt code viết gửi trạng thái cuối cũ, tự duyệt"},
     "tts_lowercase_caps": {"fixes_projects": [27], "label": "TTS: hạ chữ thường từ tiếng Việt viết IN HOA trước khi gửi (giữ tên/từ game; phụ đề giữ chữ gốc, 0 USD)",
@@ -64,7 +66,7 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Hộp thư 12/10 18:13: #27 shot 3 job 782 (shot 1–2 s, Kling sinh 3 s, khung cuối 'vài bước' ở giây 3 + máy bám sau) chạy tại chỗ; "
                "job 783 bỏ khung cuối + câu mốc cảnh vật chạy thật — mới 1 lần thử"},
-    "auto_send_self_fix": {"fixes_projects": [24], 
+    "auto_send_self_fix": {"fixes_projects": [24], "costs": True, 
         "label": "Vòng nền tự gửi job tự sửa (QC gen lại) khi không có chạy tự động",
         "verified": False,
         "why": "Hộp thư 12/10 00:55: #24 job 679/680 kẹt queued, phải gửi tay; qua đúng cổng tiền/trần của nút bấm",
@@ -470,19 +472,19 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "S14.17 người dùng duyệt 04/10, chưa chạy thật Claude (core/prompt_rewrite.py; Claude lỗi → quay về 'Fix: …' + diag)",
     },
-    "change_review_frames": {"fixes_projects": [24], 
+    "change_review_frames": {"fixes_projects": [24], "costs": True, 
         "label": "Tổ rà soát phân biệt khung đầu, quá trình và khung cuối; đếm nhịp chuyển động thay vì câu",
         "verified": False,
         "why": "Đ10.5: ca #24 dựng lại ngoại tuyến, chưa thử thật Claude; mặc định tắt",
     },
-    "change_review": {"fixes_projects": [24], 
+    "change_review": {"fixes_projects": [24], "costs": True, 
         "label": "Tổ rà soát tác động: MỌI thay đổi (kịch bản / shot / hồ sơ + ảnh Kho) được bắt bằng trigger; luật code rà các khâu liên "
                  "quan (nền 3D, ảnh neo, câu tả, motion, khung cuối, video, shot kề) + agent Claude rà lệch nghĩa — mỗi thay đổi một lần, "
                  "không trần (người dùng chốt 10/10); mục đỏ chặn gen tốn tiền của shot tới khi sửa / bỏ qua",
         "verified": False,
         "why": "10/10 sau QC #24 (đổi máy mà ảnh neo / storyboard / câu tả cũ vẫn dùng): người dùng yêu cầu, chưa chạy thật",
     },
-    "change_review_motion": {"fixes_projects": [27], 
+    "change_review_motion": {"fixes_projects": [27], "costs": True, 
         "label": "Tổ rà soát rà cả lần SỬA MOTION PROMPT (Bước 3 / viết lại): mục Claude cũ của shot được rà lại theo bản mới (đúng → tự "
                  "đóng, hết giữ gen); mỗi lần sửa một lời gọi Claude qua sổ chi như thay đổi shot. C1 (14/10): cả bản motion Đạo diễn TỰ viết "
                  "lại trước lần gen lại cũng được rà NGAY tại chỗ — xanh gửi luôn (không chờ vòng nền), ĐỎ khâu motion/video → viết lại "
@@ -498,7 +500,7 @@ FEATURES: Dict[str, Dict] = {
         "why": "Rà gốc video #27 V7 (13/10): 25 job video bỏ vì ảnh duyệt rồi mới thấy nền sai 3D / shot kề đổi nền sau khi gen; thử "
                "CSDL tạm, chưa chạy thật",
     },
-    "qc_framing_cap": {"fixes_projects": [27], "default_on": True, 
+    "qc_framing_cap": {"fixes_projects": [27], "costs": True, "default_on": True, 
         "label": "QC video: so bố cục ảnh khung đầu ↔ khung CUỐI clip (+ render 3D, khung cuối dự kiến); đo máy thấy đổi bố cục → hạ "
                  "trần điểm motion_match / artifacts",
         "verified": False,
@@ -565,14 +567,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.34 (05/10): mẫu MỘT kênh, 40 clip (độ tin tối đa 'có thể'); chỉ thêm ≈ 3,5 nghìn ký tự mỗi vai; chưa so kịch bản/shot "
                "thật khi bật (cần bản ghi Claude thật S14.34 bước 3)",
     },
-    "kld_lessons_prompts": {"fixes_projects": [22], 
+    "kld_lessons_prompts": {"fixes_projects": [22], "costs": True, 
         "label": "Bài học #22 Khủng Long Đỏ vào prompt: Đạo diễn (phụ kiện trang phục giữ trạng thái, chữ nhiều nghĩa tra ảnh Kho, động tác "
                  "theo video mẫu, soát thoại kịch bản dán tay, dữ liệu khớp môi), Quay phim (dữ liệu chuyển động #22), Motion (ngoại lệ "
                  "ref-only, shot có người cần hành động thấy được), QC clip (issues tả trạng thái đúng, look_drift ref-only = đặc tính model)",
         "verified": False,
         "why": "KLD-8/9/12/14/15/25 08/10, chờ dự án mới đo (độ tin 1 dự án #22; docs/TONG_HOP_3_LUOT_KHUNG_LONG_DO.md mục 4)",
     },
-    "p24_lessons": {"fixes_projects": [24], 
+    "p24_lessons": {"fixes_projects": [24], "costs": True, 
         "label": "Bài học duyệt ảnh #24 (11/10) vào Đạo diễn / Quay phim (prompt 17, 20, 29): thấy-được theo độ cao máy, vị trí sau "
                  "động tác di chuyển (điểm cuối `den`), giữ bố cục shot đã duyệt, phủ đủ nhịp + chi tiết của ref emote, cỡ khung chứa "
                  "biên độ, hiệu ứng màn hình để hậu kỳ; Sân khấu 3D v3 gửi lại Đạo diễn cả mục VÀNG 'nhịp di chuyển' (trong 2 lượt đã ước tính)",
@@ -626,7 +628,7 @@ FEATURES: Dict[str, Dict] = {
         "why": "Đ11v4: cỡ mặt/mắt/chân trời, ngưỡng chưa hiệu chỉnh; không model local thì VÀNG; bật riêng"},
     "continuity_layout": {"fixes_projects": [27], "label": "Kiểm nhất quán hướng đi + bố cục giữa shot (VÀNG, báo cáo Đạo diễn)", "verified": False,
         "why": "Hộp thư 12/10 15:51 (#27): hướng đi ghi trong image_prompt/blocking không được kiểm; đi ngược chiều vào cổng, cổng/tường đổi bên, đồng đội nằm biến mất"},
-    "ambient_motion": {"fixes_projects": [24], 
+    "ambient_motion": {"fixes_projects": [24], "costs": True, 
         "label": "Lớp chuyển động nền nhẹ theo bối cảnh, thời tiết và giờ; thiếu thì VÀNG",
         "verified": False,
         "why": "Đ10.6 ca #24 shot 9 dựng lại ngoại tuyến; chưa thử thật, mặc định tắt",
