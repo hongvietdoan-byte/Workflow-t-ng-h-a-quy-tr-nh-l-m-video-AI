@@ -682,8 +682,10 @@ def clearance(c, warnings):
     and is a wall right behind the character filling a level / upward view? core/plate_camera.clearance_fix decides (step in front,
     rise over a low wall, or report a tall one). Returns the decision (notes / warnings) and moves c's location in place.
     rà P24: any error (module load, ray_cast, the decision) → the plate is rendered without the check and the manifest says so;
-    the same-axis WIDE view (c["wide"]) is never moved, only warned; an indoor camera skips the wall-behind test (a room's back
-    wall is the background there, and the downward ray would read the ceiling)."""
+    15/10: the same-axis WIDE view (c["wide"]) is pulled in front of a wall like the shot (wider lens, ≥ MIN_FIX_LENS_WIDE); only a
+    locked stage camera is never moved (warned). No room on its own side → turned round the character (ORBIT_STEPS_DEG, ≤ 60°, never a
+    camera on the run / a TPS rig: their side is the story's). An indoor camera skips the wall-behind test (a room's back wall is the
+    background there, and the downward ray would read the ceiling) and must stand under a ceiling like the character ("outside")."""
     try:
         return _clearance(c, _plate_camera())
     except Exception as e:  # noqa: BLE001 - never silent: the plate is rendered without the check, and the manifest says so
@@ -693,7 +695,14 @@ def clearance(c, warnings):
 
 def _clearance(c, pure):
     scene, dg = bpy.context.scene, bpy.context.evaluated_depsgraph_get()
-    loc, aim, feet = Vector(c["location"]), Vector(c["look_at"]), Vector(c["subject"]["location"])
+    orig_loc, orig_aim = [round(float(v), 3) for v in c["location"]], [round(float(v), 3) for v in c["look_at"]]
+    feet = Vector(c["subject"]["location"])
+    pre_notes = []
+    if c.get("pre_turn_deg"):                          # rà 15/10: the same-axis wide follows its shot camera's turn (same side)
+        l0, a0 = pure.orbit(orig_loc, orig_aim, list(feet), float(c["pre_turn_deg"]))
+        c["location"], c["look_at"] = l0, a0
+        pre_notes.append(f"máy shot đã xoay {float(c['pre_turn_deg']):+g}° quanh nhân vật → ảnh toàn xoay theo (giữ cùng trục)")
+    loc, aim = Vector(c["location"]), Vector(c["look_at"])
     h = float(c["subject"].get("height_m") or 1.7)
     # from the character's body (at the camera's height, inside their own height) to the camera — not from the aim point: a look-down
     # shot aims at the ground beyond them (inside the well) and the rim is not a wall round the camera
@@ -704,22 +713,26 @@ def _clearance(c, pure):
         hit, where, *_ = scene.ray_cast(dg, body, back.normalized(), distance=back.length)
         if hit:
             block = (where - body).length
-    bg = top = None
-    flat = Vector((aim.x - loc.x, aim.y - loc.y, 0))
-    if flat.length > 0.05 and not c.get("indoor"):
-        hit, where, *_ = scene.ray_cast(dg, loc, flat.normalized(), distance=60.0)
-        if hit:
-            bg = (Vector((where.x, where.y, 0)) - Vector((loc.x, loc.y, 0))).length
-            past = where + flat.normalized() * 0.05
-            # taller than a "low wall"? a level ray just above that limit, along the same view — never a ray started inside a tall
-            # wall (it would read the wall's bottom as its top)
-            limit = feet.z + h + pure.LOW_WALL_EXTRA_M + 0.05
-            tall = scene.ray_cast(dg, Vector((loc.x, loc.y, limit)), flat.normalized(), distance=bg + 0.3)
-            # the top just past the face, from 3 m above the hit (not 40 m above the camera: a roof / canopy overhead is not the wall)
-            up = scene.ray_cast(dg, Vector((past.x, past.y, where.z + 3.0)), Vector((0, 0, -1)), distance=6.0)
-            top = up[1].z if up[0] else where.z
-            if tall[0]:
-                top = max(top, limit)
+    def background(loc, aim):
+        bg = top = None
+        flat = Vector((aim.x - loc.x, aim.y - loc.y, 0))
+        if flat.length > 0.05 and not c.get("indoor"):
+            hit, where, *_ = scene.ray_cast(dg, loc, flat.normalized(), distance=60.0)
+            if hit:
+                bg = (Vector((where.x, where.y, 0)) - Vector((loc.x, loc.y, 0))).length
+                past = where + flat.normalized() * 0.05
+                # taller than a "low wall"? a level ray just above that limit, along the same view — never a ray started inside a
+                # tall wall (it would read the wall's bottom as its top)
+                limit = feet.z + h + pure.LOW_WALL_EXTRA_M + 0.05
+                tall = scene.ray_cast(dg, Vector((loc.x, loc.y, limit)), flat.normalized(), distance=bg + 0.3)
+                # the top just past the face, from 3 m above the hit (not 40 m above the camera: a roof / canopy overhead is not the wall)
+                up = scene.ray_cast(dg, Vector((past.x, past.y, where.z + 3.0)), Vector((0, 0, -1)), distance=6.0)
+                top = up[1].z if up[0] else where.z
+                if tall[0]:
+                    top = max(top, limit)
+        return bg, top
+
+    bg, top = background(loc, aim)
     # 15/10 (#31): the same-axis wide is pulled in front of a wall too (with a wider lens) — it used to stay outside a small room
     lens = float(c.get("lens") or 35)
     min_lens = pure.MIN_FIX_LENS_WIDE if c.get("wide") else pure.MIN_FIX_LENS_SHOT
@@ -727,7 +740,12 @@ def _clearance(c, pure):
     fix = pure.clearance_fix(list(loc), list(aim), list(feet), h, block_m=block, bg_m=bg, bg_top_z=top, block_from=list(body),
                              move=move, lens=lens, min_lens=min_lens)
     turned = None
-    if fix.get("no_room"):                             # 15/10: no room on this side — turn round the character, smallest turn first
+    # rà 15/10: a camera on the run (travel) / a TPS rig keeps its side (the story's), a wide follows its shot (pre_turn_deg) — none of
+    # them looks for its own turn: no room → unplaceable (said)
+    may_turn = move and not c.get("wide") and not c.get("travel") and c.get("rig") != "tps"
+    if fix.get("no_room") and not may_turn:
+        fix["unplaceable"] = True
+    elif fix.get("no_room"):                           # 15/10: no room on this side — turn round the character, smallest turn first
         for deg in pure.ORBIT_STEPS_DEG:
             l2, a2 = pure.orbit(list(loc), list(aim), list(feet), deg)
             b2 = Vector(l2) - body
@@ -736,7 +754,9 @@ def _clearance(c, pure):
                 hit, where, *_ = scene.ray_cast(dg, body, b2.normalized(), distance=b2.length)
                 if hit:
                     blk = (where - body).length
-            f2 = pure.clearance_fix(l2, a2, list(feet), h, block_m=blk, block_from=list(body), move=True, lens=lens, min_lens=min_lens)
+            bg2, top2 = background(Vector(l2), Vector(a2))     # rà 15/10: the turned side's background is measured too
+            f2 = pure.clearance_fix(l2, a2, list(feet), h, block_m=blk, bg_m=bg2, bg_top_z=top2, block_from=list(body), move=True,
+                                    lens=lens, min_lens=min_lens)
             if not f2.get("no_room"):
                 turned = deg
                 f2["notes"].insert(0, f"phía sau máy không có chỗ (vật cản cách nhân vật {block:.2f} m) → xoay máy {deg:+g}° quanh nhân "
@@ -745,16 +765,16 @@ def _clearance(c, pure):
                 break
         else:
             fix["unplaceable"] = True
-    out = {"notes": fix["notes"], "warnings": fix["warnings"], "block_m": None if block is None else round(block, 2),
+    out = {"notes": pre_notes + fix["notes"], "warnings": fix["warnings"], "block_m": None if block is None else round(block, 2),
            "background_m": None if bg is None else round(bg, 2), "background_top_m": None if top is None else round(top - feet.z, 2)}
     if fix.get("unplaceable"):
         out["unplaceable"] = True
-    if fix["location"] != [round(v, 3) for v in loc] or fix["look_at"] != [round(v, 3) for v in aim]:
-        out["moved_from_m"] = [round(v, 3) for v in loc]
+    if fix["location"] != orig_loc or fix["look_at"] != orig_aim:
+        out["moved_from_m"] = orig_loc
         c["location"] = fix["location"]
         c["look_at"] = fix["look_at"]
-    if turned is not None:
-        out["turned_deg"] = turned
+    if turned is not None or c.get("pre_turn_deg"):
+        out["turned_deg"] = turned if turned is not None else float(c["pre_turn_deg"])
     if fix.get("lens"):
         out["lens"] = fix["lens"]
         c["lens"] = fix["lens"]
@@ -763,8 +783,11 @@ def _clearance(c, pure):
         cam_roof = scene.ray_cast(dg, Vector(c["location"]), up, distance=30.0)[0]
         subj_roof = scene.ray_cast(dg, body, up, distance=30.0)[0]
         if subj_roof and not cam_roof:
-            out["outside"] = True
-            out["warnings"].append("máy nằm NGOÀI phòng (nhân vật có trần phía trên, máy thì không) — nền sẽ thấy mặt sau tường + trời")
+            if move:
+                out["outside"] = True
+            # rà 15/10 (VỪA-8): a locked Sân khấu 3D camera (the person approved its frame) is only warned, never turned "broken"
+            out["warnings"].append("máy nằm NGOÀI phòng (nhân vật có trần phía trên, máy thì không) — nền sẽ thấy mặt sau tường + trời"
+                                   + ("" if move else " (máy Sân khấu 3D đã khóa: chỉ cảnh báo, kiểm lại khung đã duyệt)"))
     return out
 
 
@@ -1048,7 +1071,12 @@ def main():
         cams.append(dict(c, angle=c.get("angle") or "eye_level"))
     manifest["lift_z"] = round(LIFT_Z, 3)
     span = max(hi.x - lo.x, hi.y - lo.y, hi.z - lo.z)
+    turned_by = {}                                                       # rà 15/10: shot camera name -> its turn round the character
     for c in cams:
+        if c.get("follow") and c.get("subject"):                         # a same-axis wide turns with its shot (this run, else cached)
+            deg = turned_by.get(c["follow"], c.get("turn_deg"))
+            if deg:
+                c["pre_turn_deg"] = float(deg)
         data = bpy.data.cameras.new(c["name"])
         data.lens = float(c.get("lens") or cfg.get("lens_mm", 35))
         data.clip_end = max(1000.0, span * 20)
@@ -1061,6 +1089,8 @@ def main():
                                      if c.get("model_coords") else list(loc))
             clr["look_at_model"] = ([round((aim[0]) / factor, 4), round(aim[1] / factor, 4), round((aim[2] - LIFT_Z) / factor, 4)]
                                     if c.get("model_coords") else list(aim))
+        if clr is not None and not c.get("wide"):                       # rendered now: its turn (0 = none) beats the cached one
+            turned_by[c["name"]] = clr.get("turned_deg") or 0
         if clr and clr.get("lens"):                                      # 15/10: pulled in front of a wall — wider lens keeps the frame
             data.lens = float(clr["lens"])
         cam.location = Vector(c["location"])

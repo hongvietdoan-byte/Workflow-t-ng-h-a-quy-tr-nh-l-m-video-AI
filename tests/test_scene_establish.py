@@ -86,7 +86,7 @@ class EstablishTraineeTests(EstablishTests):
         r = self.runner()
         job = self.p.job(self.p.create_job(self.first["id"], "image_gen"))
         scene = self.first["data"]["story_scene"]
-        self.assertFalse(r._wait(job))                                      # never holds the shot
+        self.assertFalse(r._wait(job))                                      # the scene's establishing picture (trainee) never holds the shot
         self._drive(r, job)
         self.assertIsNone(scene_establish.picture(self.data, self.pid, scene))   # the real index never sees it
         self.assertIsNone(scene_establish.reference(self.data, self.pid, scene))

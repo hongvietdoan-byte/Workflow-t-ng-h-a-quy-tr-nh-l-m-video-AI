@@ -667,7 +667,10 @@ def _plates_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
         if it.get("travel_problem"):                      # 14/10 #30: máy theo đường chạy không đặt được — máy như cũ, nói rõ
             _d(p, pid, "image", "warn", f"shot {it['idx']}: {it['travel_problem']}", "travel_truth")
     idx = location_pack.index(ctx.data_dir, pid)
-    if not all(str(it["scene_id"]) in idx and idx[str(it["scene_id"])].get("key") == it["key"] for it in items):   # failed ones included
+    # rà 15/10 (CAO-3): also when a cached record predates the current finish / camera rules (refresh_due) — else the new rules never
+    # reach a project whose keys did not change (#31's night plates stayed too dark)
+    if (not all(str(it["scene_id"]) in idx and idx[str(it["scene_id"])].get("key") == it["key"] for it in items)   # failed ones included
+            or location_pack.refresh_due(ctx.data_dir, pid)):
         for sid, item in place_refs.stale(p.conn, ctx.data_dir, pid, (w, h)).items():   # KLD-6: said before the old record goes
             _d(p, pid, "image", "warn", place_refs.stale_note(p.conn, ctx.data_dir, pid, (w, h), sid, item), "plate_stale")
         location_pack.ensure_plates(p.conn, pid, ctx.data_dir, os.path.dirname(os.path.abspath(ctx.data_dir)), (w, h),

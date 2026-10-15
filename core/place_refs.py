@@ -171,8 +171,8 @@ def missing(conn, data_dir: str, pid: int, scene_id: int, data: Dict) -> bool:
         return False
     rec = location_pack.plate_of(data_dir, pid, scene_id)
     if rec is not None:
-        if stage_locked(rec):
-            return False                             # #24 job 649: a locked stage camera never sends a wide — never waits for it
+        if stage_locked(rec) or not location_pack.wide_sent(rec.get("camera_plan") or {}):
+            return False                             # #24 job 649 / rà 15/10: a locked stage camera / a room never sends a wide — never waits
         wide = rec.get("wide") or {}
         return not rec.get("wide_failed") and not (wide.get("plate") and os.path.exists(wide["plate"]))
     if location_pack.plate_retry_due(data_dir, pid, scene_id):
@@ -508,7 +508,8 @@ def old_plate_images(conn, data_dir: str, pid: int, resolution) -> Dict[int, str
         it = plans[res].get(sid)
         if it is not None and it["key"] == key:
             continue
-        where = (f"chỗ đứng / hướng máy hiện tại: {it['spot']}" if it is not None else _why_no_place(conn, sid))
+        where = (f"nền 3D của shot đã đổi (chỗ đứng / hướng máy / ánh sáng / luật đặt máy; chỗ đứng hiện tại: {it['spot']})"
+                 if it is not None else _why_no_place(conn, sid))
         out[sid] = (f"ảnh khung đầu (job {jid}) vẽ trên nền 3D cũ — {where}. Vẽ lại ảnh (nền mới tự dựng 0 USD) trước khi gen "
                     "video; chế độ tự chạy không tự gửi clip này, bạn bấm gửi tay vẫn được")
     return out

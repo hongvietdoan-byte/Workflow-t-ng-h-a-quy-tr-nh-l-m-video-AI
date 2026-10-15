@@ -39,7 +39,9 @@ class MostlySkyPlateTests(unittest.TestCase):
     Cả khung lệch 2.3 (< FLAT_STD) nhưng phần mái/cửa sổ còn rõ → nền TỐT, không được báo phẳng."""
 
     def test_good_mostly_sky_plate_is_not_flat(self):
-        self.assertIsNone(E.plate_problem(ROOF_PLATE, ROOF_RAW))
+        # 15/10: the old finish of this plate (roof ~31/255) is now "QUÁ TỐI"; not flat — and the new finish lifts it to pass
+        self.assertIn("QUÁ TỐI", E.plate_problem(ROOF_PLATE, ROOF_RAW))
+        self.assertIsNone(E.plate_problem(ROOF_PLATE, ROOF_RAW, dark_check=False))
         out = tempfile.mkdtemp()
         again = E.finish_plate(ROOF_RAW, os.path.join(out, "p.png"), ENV, depth_path=ROOF_DEPTH, depth_range=ROOF_RANGE)
         self.assertIsNone(E.plate_problem(again, ROOF_RAW))
@@ -57,9 +59,12 @@ class MostlySkyPlateTests(unittest.TestCase):
         dest = tempfile.mkdtemp()
         rec = {"plate": shutil.copy(ROOF_PLATE, dest), "raw": shutil.copy(ROOF_RAW, dest),
                "problem": "nền 3D sau khi phủ sương/màu gần như MỘT MÀU (độ lệch 2.3) — không còn thấy bối cảnh"}
+        rec["time"] = "day"                             # the flat verdict alone (15/10: a night one is judged "QUÁ TỐI" too)
         self.assertIsNone(L._recheck_problem(rec, dest))
         self.assertIsNone(json.load(open(os.path.join(dest, "meta.json"), encoding="utf-8"))["problem"])
         self.assertEqual(L._recheck_problem({"plate": rec["plate"], "raw": rec["raw"], "problem": None}, dest), None)
+        night = dict(rec, time="night", problem="x")    # the same old night finish, re-measured: too dark (FINISH_VERSION redoes it)
+        self.assertIn("QUÁ TỐI", L._recheck_problem(night, dest))
 
 
 class LocationPackFinishTests(unittest.TestCase):

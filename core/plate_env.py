@@ -158,9 +158,11 @@ def fog_amount(env: Dict) -> float:
 
 
 def finish_plate(render_path: str, out_path: str, env: Dict, seed: int = 1, depth_path: Optional[str] = None,
-                 depth_range=None, depth_exposure: float = 0.0) -> str:
+                 depth_range=None, depth_exposure: float = 0.0, lift: Optional[Dict] = None) -> str:
     """A rendered plate -> the background of the shot: painted sky behind a transparent sky, fog laid by distance (depth picture),
-    then the colour grade of the time and weather (the green-screen composite that graded the character the same way was removed in S14.9)."""
+    then the colour grade of the time and weather (the green-screen composite that graded the character the same way was removed in S14.9).
+    lift (rà 15/10): a dict shared by the plate and its shadow pass — the first call writes the night lift's gain into it ("gain"),
+    the next one uses that same gain (the shadow pass is never lifted by its own, different level)."""
     np = _np()
     from PIL import Image
     with Image.open(render_path) as im:
@@ -174,7 +176,14 @@ def finish_plate(render_path: str, out_path: str, env: Dict, seed: int = 1, dept
     if fog > 0 and depth_path and depth_range and os.path.exists(depth_path):
         rgb = apply_fog(rgb, distance_map(depth_path, depth_range, (w, h), depth_exposure), env)
     rgb = grade(rgb, env)
-    rgb = lift_dark(rgb, alpha[..., 0], env)
+    if lift is not None and "gain" in lift:
+        gain = float(lift["gain"])
+    else:
+        gain = dark_gain(rgb, alpha[..., 0], env)
+        if lift is not None:
+            lift["gain"] = gain
+    if gain != 1.0:
+        rgb = np.clip(rgb * gain, 0, 1)
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     Image.fromarray((rgb * 255 + 0.5).astype("uint8")).save(out_path)
     return out_path
@@ -184,24 +193,32 @@ def finish_plate(render_path: str, out_path: str, env: Dict, seed: int = 1, dept
 # a dark plate (night / dusk / dawn) is lifted so the place's geometry averages at least DARK_TARGET (gain ≤ DARK_MAX_GAIN, the sky
 # lifted with it); one still under DARK_MIN_MEAN is a problem (its shot waits). FINISH_VERSION 2 = plates finished with this lift —
 # older cached plates are finished again from their render (core/location_pack, 0 USD).
+# rà 15/10: FINISH_VERSION 3 — the shadow pass shares the plate's gain, a plate with practical lamps (env "practical") is not lifted
+# (its lamps would burn), and "QUÁ TỐI" is judged only off day (the record's `time`, plate_problem dark_check).
 DARK_TARGET, DARK_MAX_GAIN, DARK_MIN_MEAN = 62.0, 2.6, 40.0
-FINISH_VERSION = 2
+FINISH_VERSION = 3
 
 
-def lift_dark(rgb, alpha, env: Dict):
-    """Night / dusk / dawn: brighten the whole plate so the rendered place (alpha > 0.5; the whole frame when almost none) averages at
-    least DARK_TARGET grey levels — the colour grade (cold, dark) is kept, only its level rises. Day plates are left as they are."""
-    np = _np()
-    if env.get("time") == "day":
-        return rgb
+def dark_gain(rgb, alpha, env: Dict) -> float:
+    """Night / dusk / dawn: the gain that brightens the whole plate so the rendered place (alpha > 0.5; the whole frame when almost
+    none) averages at least DARK_TARGET grey levels — the colour grade (cold, dark) is kept, only its level rises. 1.0 for day plates
+    and for plates lit by practical lamps (env "practical": the lamps would burn)."""
+    if env.get("time") == "day" or env.get("practical"):
+        return 1.0
     grey = rgb.mean(axis=2) * 255.0
     solid = alpha > 0.5
     region = grey[solid] if solid.mean() >= GEOMETRY_MIN_SHARE else grey.ravel()
     mean = float(region.mean()) if region.size else 0.0
     if mean <= 0 or mean >= DARK_TARGET:
-        return rgb
-    gain = min(DARK_TARGET / mean, DARK_MAX_GAIN)
-    return np.clip(rgb * gain, 0, 1)
+        return 1.0
+    return min(DARK_TARGET / mean, DARK_MAX_GAIN)
+
+
+def lift_dark(rgb, alpha, env: Dict):
+    """The plate brightened by dark_gain (kept for callers / tests that lift one picture alone)."""
+    np = _np()
+    gain = dark_gain(rgb, alpha, env)
+    return rgb if gain == 1.0 else np.clip(rgb * gain, 0, 1)
 
 
 FLAT_STD = 3.0             # grey levels (0..255): a plate this even shows no place at all
@@ -209,9 +226,10 @@ KEEP_SHARE = 0.12          # a plate that kept less than this share of the rende
 GEOMETRY_MIN_SHARE = 0.02  # below this share of rendered (non-sky) pixels the plate is judged on the whole frame
 
 
-def plate_problem(plate_path: str, raw_path: Optional[str] = None) -> Optional[str]:
+def plate_problem(plate_path: str, raw_path: Optional[str] = None, dark_check: bool = True) -> Optional[str]:
     """Lỗi 14 (08/10, #24): the finished plate is (nearly) one colour, or lost almost all of the render's detail — the picture model
-    would get an empty background as "the place". A Vietnamese reason, None when the plate looks fine (or cannot be read)."""
+    would get an empty background as "the place". A Vietnamese reason, None when the plate looks fine (or cannot be read).
+    dark_check (15/10): a plate under DARK_MIN_MEAN is "QUÁ TỐI" — False for a day plate (never lifted, its level is the render's)."""
     np = _np()
     from PIL import Image
     try:
@@ -233,7 +251,7 @@ def plate_problem(plate_path: str, raw_path: Optional[str] = None) -> Optional[s
         if solid.mean() >= GEOMETRY_MIN_SHARE:
             region, raw_grey = solid, rgba[..., :3].mean(axis=2)
     level = float(plate[region].mean()) if region is not None else float(plate.mean())
-    if level < DARK_MIN_MEAN:
+    if dark_check and level < DARK_MIN_MEAN:
         where = "ở phần có vật thể " if region is not None else ""
         return f"nền 3D QUÁ TỐI {where}(độ sáng trung bình {level:.0f}/255 < {DARK_MIN_MEAN:g}) — mô hình ảnh không đọc được bối cảnh"
     std = float(plate[region].std()) if region is not None else float(plate.std())

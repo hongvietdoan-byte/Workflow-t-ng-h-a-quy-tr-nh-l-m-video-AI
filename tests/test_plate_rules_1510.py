@@ -78,15 +78,44 @@ class SmallRoomBlenderTests(unittest.TestCase):
         return {"name": "k", "location": list(loc), "look_at": [4.6, 0.45, 0.9], "lens": 24.0, "indoor": {"exposure": 0.2},
                 "subject": {"location": [4.6, 0.45, 0.0], "height_m": 1.7}, **({"wide": True} if wide else {})}
 
-    def test_camera_with_no_room_behind_turns_round_the_character_into_the_room(self):
+    def test_corner_needing_a_big_turn_is_unplaceable_not_turned_past_60(self):
+        # rà 15/10 (VỪA-6): #31 shot 2 needs a turn > 60° to get inside — that is another shot (plate_view), so it is said, not turned
         c = self.cam([6.4, -0.55, 0.91])
         out = self.rp.clearance(c, [])
-        self.assertIn("turned_deg", out)
+        self.assertNotIn("turned_deg", out)
+        self.assertTrue(out.get("unplaceable"))
+        self.assertTrue(location_pack.camera_problem({"clearance": out}))         # the shot waits with the reason (outside the room)
+
+    def side(self, deg, **kw):
+        a = math.radians(deg)
+        return dict(self.cam([4.6 + 1.9 * math.cos(a), 2.25 + 1.9 * math.sin(a), 0.91]), look_at=[4.6, 2.25, 0.9],
+                    subject={"location": [4.6, 2.25, 0.0], "height_m": 1.7}, **kw)
+
+    def test_camera_with_no_room_behind_turns_round_the_character_into_the_room(self):
+        c = self.side(-40)                                                         # behind her, through the east wall
+        out = self.rp.clearance(c, [])
+        self.assertEqual(out.get("turned_deg"), -40)
+        self.assertLessEqual(max(abs(d) for d in pc.ORBIT_STEPS_DEG), 60)
         x0, x1, y0, y1, _ = ROOM
         self.assertTrue(x0 < c["location"][0] < x1 and y0 < c["location"][1] < y1, c["location"])
         self.assertFalse(out.get("outside"))
         self.assertFalse(out.get("unplaceable"))
-        self.assertIn("look_at_model", {**out, "look_at_model": 1})              # set by the caller after the move
+
+    def test_travel_and_tps_cameras_never_turn(self):
+        for kw in ({"travel": "lead"}, {"rig": "tps"}):
+            out = self.rp.clearance(self.side(-40, **kw), [])
+            self.assertNotIn("turned_deg", out, kw)
+            self.assertTrue(out.get("unplaceable"), kw)
+
+    def test_wide_follows_its_shot_turn(self):
+        out = self.rp.clearance(self.side(-40, wide=True), [])
+        self.assertTrue(out.get("unplaceable"))                                    # a wide never looks for its own turn
+        w = self.side(-40, wide=True, pre_turn_deg=-40.0)
+        out = self.rp.clearance(w, [])
+        self.assertEqual(out.get("turned_deg"), -40.0)
+        self.assertFalse(out.get("unplaceable"))
+        self.assertTrue(out.get("moved_from_m"))
+        self.assertIn("ảnh toàn xoay theo", out["notes"][0])
 
     def test_wide_is_pulled_inside_with_a_wider_lens(self):
         c = self.cam([2.6, 2.45, 1.0], wide=True)                                  # 2,8 m from her, inside the room
@@ -101,11 +130,14 @@ class SmallRoomBlenderTests(unittest.TestCase):
         self.assertLess(far["lens"], 18.0)
         self.assertGreaterEqual(far["lens"], pc.MIN_FIX_LENS_WIDE)
 
-    def test_locked_camera_outside_the_room_is_reported_outside(self):
+    def test_locked_camera_outside_the_room_is_only_warned(self):
+        # rà 15/10 (VỪA-8): the person approved a locked stage camera's frame — warned, never turned into a broken plate
         c = dict(self.cam([6.4, -0.55, 0.91]), locked=True)
         out = self.rp.clearance(c, [])
-        self.assertTrue(out.get("outside"))
-        self.assertTrue(location_pack.camera_problem({"clearance": out}))
+        self.assertFalse(out.get("outside"))
+        self.assertTrue(any("NGOÀI phòng" in w and "đã khóa" in w for w in out["warnings"]))
+        self.assertIsNone(location_pack.camera_problem({"clearance": out}))
+        self.assertTrue(self.rp.clearance(self.cam([6.4, -0.55, 0.91]), []).get("outside"))
 
 
 class DarkPlateTests(unittest.TestCase):
@@ -131,7 +163,7 @@ class DarkPlateTests(unittest.TestCase):
             self.assertIsNone(plate_env.plate_problem(p))
 
     def test_old_finish_is_redone_and_camera_rule_beats_a_cached_fine(self):
-        self.assertEqual(plate_env.FINISH_VERSION, 2)
+        self.assertEqual(plate_env.FINISH_VERSION, 3)
         rec = {"problem": None, "clearance": {"outside": True}}
         self.assertIn("NGOÀI phòng", location_pack._recheck_problem(rec, tempfile.gettempdir()))
         self.assertIsNone(location_pack.camera_problem({"clearance": {"warnings": ["x"]}}))

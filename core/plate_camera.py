@@ -75,7 +75,8 @@ MIN_CLEAR_M = 0.5                              # an over-the-shoulder camera sti
 # room and render the wall's back + the sky). No room even then → tools/render_plates turns the camera round the character
 # (ORBIT_STEPS_DEG, smallest turn first) before giving up.
 MIN_FIX_LENS_SHOT, MIN_FIX_LENS_WIDE = 14.0, 12.0
-ORBIT_STEPS_DEG = (20, -20, 40, -40, 60, -60, 90, -90, 120, -120)
+# rà 15/10: ≤ TRAVEL_VIEW_MAX_DEG (60°) — a bigger turn is another shot (its background contradicts plate_view); none → unplaceable
+ORBIT_STEPS_DEG = (20, -20, 40, -40, 60, -60)
 # rà P24: "looks down the alley / street…" is a direction along the ground, not a look DOWN (the camera must not tilt 35°)
 AWAY_WORDS = ("alley", "alleyway", "street", "road", "corridor", "hall", "hallway", "path", "lane", "track", "tunnel", "avenue",
               "block", "runway", "row", "aisle", "line", "barrel", "sights", "scope", "length")

@@ -130,8 +130,10 @@ def _plate(conn, ctx: Dict, sid: int, data: Dict) -> Optional[Dict]:
         import os
         if wide.get("plate") and os.path.exists(wide["plate"]):
             return _item(label, "ok", "có render góc máy của shot + góc rộng cùng trục")
-        if rec.get("wide_failed"):
-            return _item(label, "warn", "có render của shot, góc rộng cùng trục không render được — gửi không kèm góc rộng", WHERE_PLATE)
+        if not location_pack.wide_sent(rec.get("camera_plan") or {}):   # rà 15/10: a room's shot never sends a wide (place_refs)
+            return _item(label, "ok", "có render góc máy của shot — shot trong nhà chỉ gửi nền của chính máy (không góc rộng)")
+        if rec.get("wide_failed"):                           # 15/10: a broken wide holds its shot (ensure_plates) — an old record
+            return _item(label, "warn", "có render của shot, góc rộng cùng trục không render được — ảnh shot chờ góc rộng", WHERE_PLATE)
         return _item(label, "warn", "có render của shot, chưa có góc rộng cùng trục — tự render (Blender, 0 USD) trước khi gửi ảnh")
     need = location_pack.plate_needs(d, pid, sid)
     if need:

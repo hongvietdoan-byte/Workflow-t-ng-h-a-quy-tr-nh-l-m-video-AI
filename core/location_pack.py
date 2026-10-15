@@ -25,6 +25,9 @@ from typing import Callable, Dict, List, Optional, Sequence
 from . import assets, features, plate_camera, plate_env, plates3d
 
 SCRIPT_VERSION = "v4-1"          # bump when tools/render_plates.py changes what a plate looks like (old cache entries are not reused)
+# rà 15/10: NOT bumped for the 15/10 camera rules (pull-in + wider lens, turn ≤ 60°, indoor ceiling) — a bump makes every approved
+# picture "drawn on an old background" (place_refs.old_plate_images holds its clip). Shots whose plate must be placed again are
+# rendered with `tools/location_pack.py render --project N --fresh-shot IDX` (Blender, 0 USD); indoor / travel shots get new keys.
 
 
 class LocationPackError(ValueError):
@@ -295,7 +298,14 @@ def plate_failed(data_dir: str, pid: int, scene_id: int) -> Optional[str]:
 # Before, failed.json held the picture "until forget_failures" — which nothing but a test called.
 RETRY_AFTER_S, RETRY_TRIES = 600, 2
 # 15/10 (người dùng): every shot goes out WITH its same-axis wide; a broken wide (outside the room, too dark, flat, failed) holds it
+# — rà 15/10: only a shot that really sends its wide (wide_sent); an indoor shot / a locked stage camera never sends one
 WIDE_HOLDS = True
+
+
+def wide_sent(camera: Dict) -> bool:
+    """The shot's same-axis wide goes out with its picture (place_refs.wide_for / wide_ref): never for an indoor spot (the wide of a
+    room is pulled back behind a wall) nor for a locked Sân khấu 3D camera (#24 job 649: the approved frame is the one truth)."""
+    return not ((camera or {}).get("locked") or (camera or {}).get("indoor"))
 
 
 def _now() -> float:
@@ -416,6 +426,12 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
                             needs=view["needs"] or first["needs"])
         lit = plate_choice.lights_of(s["data"], env)
         camera = dict(cam["camera"], model_coords=True, subject={"location": sp["at"], "height_m": height})
+        if sp.get("indoor"):
+            # rà 15/10: the spot's room lighting + "the camera must stand under the room's ceiling" (tools/render_plates) — the spot's
+            # `indoor` never reached the camera before, so a camera pulled outside a room was never caught (#31 phòng 2 cửa)
+            camera["indoor"] = dict(sp["indoor"])
+        if cam.get("travel"):
+            camera["travel"] = cam["travel"]["mode"]    # rà 15/10: a camera on the run is never turned round the character
         if lit["lights"]:
             camera["lights"] = plate_choice.light_rigs(lit["lights"], sp["at"], camera["location"], height)
             env = dict(env, practical=True)             # plate_env.grade: a lit night keeps its lamps (the character gets the same)
@@ -530,15 +546,23 @@ def _legacy_depth_exposure(benv: Dict, it: Dict) -> float:
 def _finish(rec: Dict, dest: str, it: Dict) -> None:
     """Sky, fog by distance, grade -> plate.png (+ shadow.png); then the flat-plate check (`problem`, lỗi 14)."""
     seed = int(it["key"][:6], 16)
+    lift: Dict = {}                                       # rà 15/10: the shadow pass takes the plate's own night gain
     rec["plate"] = plate_env.finish_plate(rec["raw"], os.path.join(dest, "plate.png"), it["env"], seed=seed,
                                           depth_path=rec.get("depth"), depth_range=rec.get("depth_range_m"),
-                                          depth_exposure=rec.get("depth_exposure") or 0.0)
+                                          depth_exposure=rec.get("depth_exposure") or 0.0, lift=lift)
     if rec.get("shadow_raw"):
         rec["shadow"] = plate_env.finish_plate(rec["shadow_raw"], os.path.join(dest, "shadow.png"), it["env"], seed=seed,
                                                depth_path=rec.get("depth"), depth_range=rec.get("depth_range_m"),
-                                               depth_exposure=rec.get("depth_exposure") or 0.0)
+                                               depth_exposure=rec.get("depth_exposure") or 0.0, lift=lift)
     rec["finish_v"] = plate_env.FINISH_VERSION
-    rec["problem"] = camera_problem(rec) or plate_env.plate_problem(rec["plate"], rec.get("raw"))
+    rec["time"] = it["env"].get("time")                   # rà 15/10: "QUÁ TỐI" is judged off day only (also on a cached re-check)
+    rec["practical"] = bool(it["env"].get("practical"))   # …and never on a plate lit by practical lamps (not lifted: it is the lamps' look)
+    rec["problem"] = camera_problem(rec) or plate_env.plate_problem(rec["plate"], rec.get("raw"), dark_check=dark_judged(rec))
+
+
+def dark_judged(rec: Dict) -> bool:
+    """rà 15/10: "QUÁ TỐI" applies to a lifted plate only — night / dusk / dawn without practical lamps (plate_env.dark_gain)."""
+    return rec.get("time") != "day" and not rec.get("practical")
 
 
 def camera_problem(rec: Dict) -> Optional[str]:
@@ -561,7 +585,7 @@ def _recheck_problem(rec: Dict, dest: str) -> Optional[str]:
         return cam_bad
     if "problem" in rec and not rec["problem"]:
         return None
-    bad = plate_env.plate_problem(rec["plate"], rec.get("raw"))
+    bad = plate_env.plate_problem(rec["plate"], rec.get("raw"), dark_check=dark_judged(rec))
     if rec.get("problem") != bad:
         rec["problem"] = bad
         try:
@@ -578,7 +602,8 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
     """Every shot at a 3D place gets its plate (from the cache, else rendered — one Blender run per model + time/weather, cameras
     together), finished (sky, fog, grade) and written to the project's index. Returns the index.
     F2 (09/10): each shot also gets its same-axis WIDE view (plan()["wide"], same run, same cache) — index record `wide` {plate, key,
-    camera, camera_plan} or `wide_failed`; a missing wide never holds the shot (it then goes with the scene's old place pictures).
+    camera, camera_plan, finish_v} or `wide_failed`. 15/10: a broken wide HOLDS the shot that sends it (wide_sent; a temporary failure
+    is rendered again by time like the shot's own); an indoor / locked shot keeps `wide_failed` only as a note.
     A camera Blender does not return is marked failed (failed.json + diag + log) and NOT rendered again at every autopilot tick; the
     index says so and (F2) the shot's picture WAITS with the reason on Step 2 — never sent without its 3D background
     (a temporary failure is rendered again after RETRY_AFTER_S, ≤ RETRY_TRIES runs; Step 2 button = forget_shot). A camera the geometry check cannot place (`camera_problem`) is not rendered: failed, said the same way."""
@@ -595,7 +620,7 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
         wide = it.get("wide") or {}
         for kind, key, camera in (("shot", it["key"], it["camera"]), ("wide", wide.get("key"), wide.get("camera"))):
             again = it["idx"] in fresh                    # P24: render these shots again although cached (new Blender checks)
-            if key and (again or _cached(root, key) is None) and (again or _failed(root, key, retry=kind == "shot") is None):
+            if key and (again or _cached(root, key) is None) and (again or _failed(root, key) is None):
                 missing.setdefault((it["entry"]["sha256"], plate_env.key(it["env"])), []).append((it, kind, key, camera))
     rendered = set()
     for group in missing.values():
@@ -605,9 +630,17 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
         seen = set()
         for it, kind, key, camera in group:
             cam = dict(camera, name=f"k{key}")
+            if kind == "wide":
+                # rà 15/10: the wide turns with its shot when Blender turned the shot round the character (same side, same axis) —
+                # the shot of this run (render_plates `follow`), else the cached shot's turn. Not part of the cache key.
+                cam["follow"] = f"k{it['key']}"
+                turn = ((_cached(root, it["key"]) or {}).get("clearance") or {}).get("turned_deg")
+                if turn:
+                    cam["turn_deg"] = turn
             if cam["name"] not in seen:
                 seen.add(cam["name"])
                 cams.append(cam)
+        cams.sort(key=lambda c: bool(c.get("wide")))     # shots first: a wide reads its shot's turn
         out = plates3d.out_dir(data_root, first["place"])
         cfg = plates3d.plan(first["entry"]["path"], out, sky=benv["sky"], sun_elevation=benv["sun_elevation"],
                             sun_azimuth=benv["sun_azimuth"], resolution=resolution, samples=32, cameras=cams, only_cameras=True,
@@ -634,14 +667,15 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
                 transient = bool(manifest.get("error"))
                 prev = _failure(root, key) or {}
                 tries = int(prev.get("tries") or 1) + 1 if transient and prev.get("transient") else 1
-                again = transient and tries < RETRY_TRIES and kind == "shot"
+                again = transient and tries < RETRY_TRIES        # rà 15/10: a wide that holds its shot is rendered again too
                 head = f"Blender không trả về {what}" + (f" (lỗi tạm: {str(manifest.get('error'))[:120]})" if transient else "")
-                why = (f"{head} của shot {it['idx']} ({first['place']}, {plate_env.key(first['env'])})"
-                       + ((" — ảnh của shot này GIỮ CHỜ (không gửi thiếu nền 3D); "
-                           + (f"tự render lại sau {RETRY_AFTER_S // 60} phút (lần {tries}/{RETRY_TRIES}), hoặc bấm “↻ Render lại nền 3D” "
-                              "ở Bước 2 (0 USD)" if again else
-                              "chọn lại góc / sửa chỗ đứng, hoặc sửa mô hình/Blender rồi bấm “↻ Render lại nền 3D” ở Bước 2 (0 USD)"))
-                          if kind == "shot" else " — shot gửi không kèm ảnh toàn cùng trục"))
+                hold = (" — ảnh của shot này GIỮ CHỜ (không gửi thiếu nền 3D); " if kind == "shot" else
+                        (" — ảnh của shot này GIỮ CHỜ tới khi có ảnh toàn (mỗi shot gửi kèm ảnh toàn cùng hướng); " if wide_sent(it["camera"])
+                         else " — shot trong nhà / máy Sân khấu 3D không gửi ảnh toàn nên không bị giữ; "))
+                why = (f"{head} của shot {it['idx']} ({first['place']}, {plate_env.key(first['env'])})" + hold
+                       + (f"tự render lại sau {RETRY_AFTER_S // 60} phút (lần {tries}/{RETRY_TRIES}), hoặc bấm “↻ Render lại nền 3D” "
+                          "ở Bước 2 (0 USD)" if again else
+                          "chọn lại góc / sửa chỗ đứng, hoặc sửa mô hình/Blender rồi bấm “↻ Render lại nền 3D” ở Bước 2 (0 USD)"))
                 with open(os.path.join(dest, "failed.json"), "w", encoding="utf-8") as f:
                     json.dump({"reason": why, "manifest_error": manifest.get("error"), "transient": transient, "at": _now(),
                                "tries": tries}, f, ensure_ascii=False)
@@ -717,10 +751,18 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             log(f"Shot {it['idx']}: nền 3D làm lại phần sương/màu (đọc độ sâu đúng) — 0 USD")
         elif rec.get("finish_v") != plate_env.FINISH_VERSION and rec.get("raw") and os.path.exists(rec["raw"]):
             # 15/10: a plate finished by an older finish (e.g. night too dark) is finished again from the same render (0 USD)
-            _finish(rec, os.path.join(root, it["key"]), it)
-            with open(os.path.join(root, it["key"], "meta.json"), "w", encoding="utf-8") as f:
-                json.dump(rec, f, ensure_ascii=False, indent=1)
-            log(f"Shot {it['idx']}: nền 3D làm lại phần màu/độ sáng (bản hoàn thiện {plate_env.FINISH_VERSION}) — 0 USD")
+            try:
+                _finish(rec, os.path.join(root, it["key"]), it)
+                with open(os.path.join(root, it["key"], "meta.json"), "w", encoding="utf-8") as f:
+                    json.dump(rec, f, ensure_ascii=False, indent=1)
+                log(f"Shot {it['idx']}: nền 3D làm lại phần màu/độ sáng (bản hoàn thiện {plate_env.FINISH_VERSION}) — 0 USD")
+            except Exception as e:  # noqa: BLE001 - rà 15/10: said + held, never an exception at every autopilot tick
+                why = (f"Shot {it['idx']} ({it['place']}): không hoàn thiện lại được nền 3D ({type(e).__name__}: {e}) — "
+                       "bấm “↻ Render lại nền 3D” ở Bước 2 (0 USD)")
+                diag.record(conn, "image", "error", why, "plate_flat", project_id=pid, scene_id=it["scene_id"])
+                log(why)
+                idx[str(it["scene_id"])] = {"key": it["key"], "failed": why, "place": it["place"], "spot": it["spot"], **extra}
+                continue
         bad = _recheck_problem(rec, os.path.join(root, it["key"]))
         if bad:                                          # never sent as "the place" — F2: the shot's picture waits (runner)
             why = (f"Shot {it['idx']} ({it['place']}, {plate_env.key(it['env'])}): {bad} — không gửi nền này; xem {rec['plate']}"
@@ -734,7 +776,11 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             diag.record(conn, "image", "info", note, "plate_camera_fix", project_id=pid, scene_id=it["scene_id"])
             log(note)
         wrec = _wide_record(root, it)
-        if wrec.get("wide_failed") and WIDE_HOLDS:
+        if wrec.get("wide_note") and wide_sent(it["camera"]):            # rà 15/10: said, not held
+            note = f"Shot {it['idx']} ({it['place']}): {wrec['wide_note']}"
+            diag.record(conn, "image", "warn", note, "plate_wide_missing", project_id=pid, scene_id=it["scene_id"])
+            log(note)
+        if wrec.get("wide_failed") and WIDE_HOLDS and wide_sent(it["camera"]):
             # 15/10 (người dùng: "mỗi shot luôn có cảnh toàn góc rộng cùng hướng với ảnh ref của shot"): a broken same-axis wide
             # holds the shot like a broken plate — the picture is never drawn from a shot plate alone
             why = f"Shot {it['idx']} ({it['place']}, {plate_env.key(it['env'])}): {wrec['wide_failed']} — giữ ảnh shot tới khi có ảnh toàn"
@@ -744,8 +790,10 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             idx[str(it["scene_id"])] = {"key": it["key"], "failed": why, "place": it["place"], "spot": it["spot"],
                                         **({"retry_at": at} if at else {}), **extra}
             continue
+        real = effective_camera(it["camera"], rec)
         idx[str(it["scene_id"])] = dict(rec, key=it["key"], env=it["env"], **frame_fields(it, rec),
-                                        spot=it["spot"], place=it["place"], camera_plan=it["camera"], view=it["view"],
+                                        spot=it["spot"], place=it["place"], camera_plan=real, view=it["view"],
+                                        **({"camera_planned": it["camera"]} if real is not it["camera"] else {}),
                                         lights=it["lights"], lights_decided=it["lights_decided"], layout_vi=layout_words(it),
                                         camera_fixes=list(it.get("camera_fixes") or []), **wrec, **extra)
     path = _index_path(data_dir, pid)
@@ -773,6 +821,24 @@ def reframe(camera: Dict, clearance: Dict, aspect: float) -> Optional[Dict]:
             "horizon_y": plate_camera.horizon_y(loc, aim, lens, aspect)}
 
 
+def effective_camera(camera: Dict, rec: Dict) -> Dict:
+    """rà 15/10 (agent CAO-2): the camera the plate was really rendered from — the plan's, or (Blender moved it: pulled in front of a
+    wall with a wider lens, turned round the character) the moved one, in model coordinates. The index's `camera_plan` holds it so
+    the prompt's lens words, the light's left/right, the landmark facts and the run's direction read the plate that is sent."""
+    clr = (rec or {}).get("clearance") or {}
+    if not clr.get("location_model") and not clr.get("lens"):
+        return camera
+    out = dict(camera)
+    if clr.get("location_model"):
+        out["location"] = list(clr["location_model"])
+        out["look_at"] = list(clr.get("look_at_model") or camera["look_at"])
+    if clr.get("lens"):
+        out["lens"] = float(clr["lens"])
+    if clr.get("turned_deg"):
+        out["turned_deg"] = clr["turned_deg"]
+    return out
+
+
 def frame_fields(it: Dict, rec: Dict) -> Dict:
     """The index record's subject_box / distance_m: the plan's, or the re-framed ones when Blender moved the camera (rà P24)."""
     rf = rec.get("reframed") or {}
@@ -791,16 +857,38 @@ def _wide_record(root: str, it: Dict) -> Dict:
         why = _failed(root, key, retry=True)             # 15/10: a wide now holds its shot — a temporary failure is retried by time
         return {"wide_failed": why} if why else {}
     if rec.get("finish_v") != plate_env.FINISH_VERSION and rec.get("raw") and os.path.exists(rec["raw"]):
-        _finish(rec, os.path.join(root, key), dict(it, key=key))      # 15/10: older finish (night too dark) — again, 0 USD
         try:
+            _finish(rec, os.path.join(root, key), dict(it, key=key))  # 15/10: older finish (night too dark) — again, 0 USD
             with open(os.path.join(root, key, "meta.json"), "w", encoding="utf-8") as f:
                 json.dump(rec, f, ensure_ascii=False, indent=1)
-        except OSError:
-            pass
+        except Exception as e:  # noqa: BLE001 - rà 15/10: said (holds the shot), never an exception at every tick
+            return {"wide_failed": f"ảnh toàn cùng trục: không hoàn thiện lại được ({type(e).__name__}: {e})"}
     bad = _recheck_problem(rec, os.path.join(root, key))
+    if bad and "QUÁ TỐI" in bad and not camera_problem(rec):
+        # rà 15/10 (agent VỪA-4): a wide is mostly sky / far — still dark after the lift it goes out as it is (said), never a
+        # hold nothing can lift (the retry button re-renders the same picture)
+        return {"wide": {"plate": rec["plate"], "key": key, "camera": rec.get("camera"), "camera_plan": wide.get("camera"),
+                         "finish_v": rec.get("finish_v")}, "wide_note": f"ảnh toàn cùng trục: {bad} — vẫn gửi (ảnh toàn chỉ để định hướng)"}
     if bad:
         return {"wide_failed": f"ảnh toàn cùng trục: {bad}"}
-    return {"wide": {"plate": rec["plate"], "key": key, "camera": rec.get("camera"), "camera_plan": wide.get("camera")}}
+    return {"wide": {"plate": rec["plate"], "key": key, "camera": rec.get("camera"), "camera_plan": wide.get("camera"),
+                     "finish_v": rec.get("finish_v")}}
+
+
+def refresh_due(data_dir: str, pid: int) -> bool:
+    """rà 15/10 (CAO-3): an index record made before the current finish / camera rules — its plate or its wide finished by an older
+    FINISH_VERSION (night too dark, shadow lifted apart), or its camera now judged outside / unplaceable. The autopilot then runs
+    ensure_plates although every key matches (it finishes the cached render again, 0 USD, and re-judges it). Held / waiting records
+    are left to their own retry (place_refs.missing)."""
+    for rec in index(data_dir, pid).values():
+        if rec.get("failed") or rec.get("needs") or not rec.get("plate"):
+            continue
+        if rec.get("finish_v") != plate_env.FINISH_VERSION or camera_problem(rec):
+            return True
+        wide = rec.get("wide") or {}
+        if wide.get("plate") and wide.get("finish_v") != plate_env.FINISH_VERSION:
+            return True
+    return False
 
 
 # ---- KLD-6 (người dùng duyệt 08/10): the background in plates/index.json against the plan, on EVERY path ----

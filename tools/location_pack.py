@@ -67,6 +67,8 @@ def run_preview(a) -> dict:
     res = (720, 1280)
     cam = plate_camera.camera_for(data, sp["at"], view["facing_deg"], 1.75, res[0] / res[1], name="preview")
     camera = dict(cam["camera"], model_coords=True, subject={"location": sp["at"], "height_m": 1.75})
+    if sp.get("indoor"):                                 # rà 15/10: like core/location_pack.plan (room light + ceiling rule)
+        camera["indoor"] = dict(sp["indoor"])
     if lit["lights"]:
         camera["lights"] = plate_choice.light_rigs(lit["lights"], sp["at"], camera["location"], 1.75)
         env = dict(env, practical=True)
