@@ -143,6 +143,9 @@ class ShotLayerTests(unittest.TestCase):
         from core import batch, llm_io
         from core.providers import MockImageProvider, MockVideoProvider
         from core.runner import ImageRunner, VideoRunner
+        from tests._flags import flags_off
+        # C1 15/10: video_gate mặc định BẬT giữ clip của nhóm liền mạch chưa duyệt đủ ảnh (S05–S07 còn xếp hàng) — ca này đo giây gửi
+        flags_off(self, "video_gate")
         p, pid = kenta_project()
         data = tempfile.mkdtemp()
         llm_runner.run_director(p, pid, llm_runner.MockLlm())

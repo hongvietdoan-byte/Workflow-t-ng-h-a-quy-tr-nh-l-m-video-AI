@@ -135,7 +135,8 @@ class QualitySamplesTests(unittest.TestCase):
         image = shots.approved_image_path(self.p.conn, self.data, self.pid, sid)
         Image.new("RGB", (360,640)).save(image)
         plate = str(Path(self.data)/"place.png"); Image.new("RGB", (360,640)).save(plate)
-        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS":"1"}), \
+        # C1 15/10: plate_view_sentence mặc định BẬT — ca này ghim câu PLACE cũ (cờ TẮT)
+        with mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS":"1", "FEATURE_PLATE_VIEW_SENTENCE":"0"}), \
                 mock.patch("core.seedance_refs.uses_refs", return_value=True), \
                 mock.patch("core.place_refs.shot_ref", return_value={"path":plate}), \
                 mock.patch("core.seedance_refs.identity_pictures", return_value=[]):

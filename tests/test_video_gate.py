@@ -14,7 +14,7 @@ from core.db import connect
 from core.pipeline import Pipeline
 from core.providers import MockVideoProvider
 from core.runner import VideoRunner
-from tests._flags import flags_on
+from tests._flags import flags_off, flags_on
 
 RENDER = {"path": "render.png", "_rec": {}}
 
@@ -189,7 +189,22 @@ class VideoGate(Base):
             self.assertEqual(video_gate.group_waits(self.p.conn, self.pid), [])
             self.assertIsNone(video_gate.skipped(self.p.conn, img1))               # bỏ qua chờ nhóm ≠ bỏ qua kiểm nền
 
+    def test_shot_without_approved_image_is_not_promised_a_skip_button(self):
+        # rà C1 15/10: shot chưa có ảnh khung đầu duyệt → group_waits không có nút Bỏ qua → lý do giữ chỉ nói lối ra thật
+        flags_on(self, "video_gate")
+        g = {"shot_no": 1, "story_scene": 3, "sequence": 2}
+        s1, _ = self.shot(dict(g), image=False)
+        self.shot(dict(g, shot_no=2), image=False)
+        job = self.p.create_job(s1, "video_gen")
+        with mock.patch("core.place_refs.shot_ref", return_value=None):
+            why = video_gate.hold(self.p.conn, self.dir, self.p.job(job))
+            self.assertIn("S02 chưa duyệt ảnh", why)
+            self.assertNotIn("Bỏ qua chờ nhóm", why)
+            self.assertIn("Bước 2", why)
+            self.assertEqual(video_gate.group_waits(self.p.conn, self.pid), [])
+
     def test_flag_off_never_holds(self):
+        flags_off(self, "video_gate")                                        # C1 15/10: mặc định code BẬT — ghim đường cờ TẮT
         scene, img = self.shot()
         self.plate(img, "error")
         job = self.p.create_job(scene, "video_gen")

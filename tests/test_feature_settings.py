@@ -17,7 +17,7 @@ class FeatureSettingsTests(unittest.TestCase):
             if k.startswith("FEATURE_") and k != "FEATURE_SETTINGS_FILE":
                 self.p.new.pop(k, None) if False else None
         self.verified = next(k for k, v in features.FEATURES.items() if v["verified"])
-        self.unverified = next(k for k, v in features.FEATURES.items() if not v["verified"] and k not in features.HARMFUL
+        self.unverified = next(k for k, v in features.FEATURES.items() if not v["verified"] and not v.get("default_on") and k not in features.HARMFUL
                                and k not in features.OPT_IN_ONLY)
 
     def tearDown(self):

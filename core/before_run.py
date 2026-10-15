@@ -8,7 +8,7 @@ import json
 import unicodedata
 from typing import Dict, List, Optional
 
-GROUPS = (("cost", "💵 Cờ tốn tiền đang bật"), ("hold", "⛔ Thứ có thể giữ việc"), ("ops", "⚙ Điều kiện vận hành"),
+GROUPS = (("fixes", "🩹 Cờ sửa lỗi dự án trước còn TẮT"), ("cost", "💵 Cờ tốn tiền đang bật"), ("hold", "⛔ Thứ có thể giữ việc"), ("ops", "⚙ Điều kiện vận hành"),
           ("inputs", "📥 Đầu vào còn thiếu"))
 WHERE_FLAGS = "🧪 Tính năng thử (⚙ Cài đặt) — tắt cờ nếu không muốn trả"
 WHERE_KHO = "📚 Kho → mở vật → hồ sơ chuẩn"
@@ -21,6 +21,7 @@ PAID_FLAGS: Dict[str, Dict] = {
     "stage_camera": {"text": "không thêm lời gọi tốn tiền (render Blender 0 USD) nhưng đổi nền 3D gửi model ảnh — ảnh vẽ trên nền này "
                              "vẫn tính tiền như thường"},
     "director_camera_plan": {"text": "thêm lời gọi Claude (sơ đồ cảnh + duyệt render từng góc) — chưa có số ước tính sẵn"},
+    "qc_framing_cap": {"text": "thêm ảnh vào mỗi lượt QC clip; clip đổi bố cục bị hạ điểm → tự sửa khi qc_autofix"},   # rà 15/10
 }
 
 OPS_LINES = (
@@ -79,6 +80,89 @@ def _cost_items(conn) -> List[Dict]:
     if others:
         out.append(_item("info", f"{len(others)} cờ chưa thử thật khác đang bật: " + ", ".join(others[:12])
                          + (f" (+{len(others) - 12})" if len(others) > 12 else ""), WHERE_FLAGS))
+    return out
+
+
+# ---- 0. cờ sửa lỗi dự án trước còn TẮT (C1, người dùng duyệt 15/10) -------------------------------------------------------------
+# #24 → #27 6/16 và #27 → #31 7/7 cờ sửa lỗi bị TẮT trong khi ghi chú nói "đã bật" (docs/handoff/RA_QUYET_DINH_LOI_LAP_2026-10-15.md).
+# ĐỎ để thấy trước Bước 1; lối thoát: bật (nút "Bật các cờ sửa lỗi" ở khung này = features.save_settings như màn 🧪) hoặc bỏ qua CÓ LÝ
+# DO cho dự án này (app_settings 'fix_flag_skips:<pid>'). Chỉ báo — không giữ gen, không chặn chạy tự động (autopilot không đọc khung này).
+FIX_WHERE = "Nút 'Bật các cờ sửa lỗi' ở khung này / 🧪 Tính năng thử — hoặc 'Bỏ qua có lý do' cho dự án này"
+
+
+def _skip_key(pid: int) -> str:
+    return f"fix_flag_skips:{int(pid)}"
+
+
+def fix_flag_skips(conn, pid: int) -> Dict[str, Dict]:
+    """{flag: {"reason", "who", "at"}} — lần bỏ qua cờ sửa lỗi của dự án này (không có bảng / hỏng → {})."""
+    try:
+        row = conn.execute("SELECT value FROM app_settings WHERE key=?", (_skip_key(pid),)).fetchone()
+    except Exception:  # noqa: BLE001 - old database without app_settings
+        return {}
+    return _loads(row[0] if row else None)
+
+
+def skip_fix_flag(conn, pid: int, name: str, reason: str, who: Optional[str] = None) -> None:
+    """Bỏ qua ĐỎ 'cờ sửa lỗi còn TẮT' của MỘT cờ cho MỘT dự án — bắt buộc lý do (không bỏ qua im lặng)."""
+    import time
+    from . import features
+    reason = (reason or "").strip()
+    if len(reason) < 3:
+        raise ValueError("Cần ghi lý do bỏ qua cờ sửa lỗi (ít nhất vài chữ)")
+    if name not in features.FEATURES:
+        raise ValueError(f"không có tính năng {name}")
+    cur = fix_flag_skips(conn, pid)
+    cur[name] = {"reason": reason, "who": who, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                 (_skip_key(pid), json.dumps(cur, ensure_ascii=False)))
+    conn.commit()
+
+
+def fix_flags_pending(conn, pid: int) -> List[str]:
+    """Tên cờ sửa lỗi dự án trước còn TẮT với dự án này và CHƯA bỏ qua (nút 'Bật các cờ sửa lỗi' bật đúng các cờ này)."""
+    from . import features
+    skips = fix_flag_skips(conn, pid)
+    return [r["name"] for r in features.fix_flags_off(pid) if r["name"] not in skips]
+
+
+def costly_fix_flag(name: str) -> bool:
+    """Cờ bật lên là thêm lời gọi tốn tiền (khai `costs: True` trong core/features.FEATURES, hoặc PAID_FLAGS của khung này) — không
+    bật hàng loạt (CLAUDE.md quy ước 6: ước tính trước): bật riêng ở 🧪 sau khi xem giá. Rà 15/10: bỏ dò chữ 'TỐN TIỀN' (sót
+    end_state_fresh / p24_lessons / kld_lessons_prompts / change_review_frames); tests/test_fix_flags giữ trường này đủ."""
+    from . import features
+    meta = features.FEATURES.get(name) or {}
+    return meta.get("costs") is True or name in PAID_FLAGS
+
+
+def enable_fix_flags(names: List[str]) -> List[str]:
+    """Bật thật các cờ 0 USD trong `names` (ghi data/feature_settings.json qua features.save_settings — đúng đường của màn 🧪);
+    trả về các cờ KHÔNG bật vì tốn tiền (costly_fix_flag)."""
+    from . import features
+    free = [n for n in names if not costly_fix_flag(n)]
+    if free:
+        features.save_settings(flags={n: True for n in free})
+    return [n for n in names if n not in free]
+
+
+def _fix_flag_items(conn, pid: int) -> List[Dict]:
+    from . import features
+    skips = fix_flag_skips(conn, pid)
+    out = []
+    for r in features.fix_flags_off(pid):
+        projects = ", ".join(f"#{n}" for n in r["projects"])
+        why = r["why"] if len(r["why"]) <= 200 else r["why"][:199].rstrip() + "…"
+        skip = skips.get(r["name"])
+        if skip:
+            it = _item("info", f"`{r['name']}` (sửa lỗi {projects}) đang TẮT — đã bỏ qua cho dự án này: {skip.get('reason')}", "")
+        else:
+            it = _item("do", f"`{r['name']}` sửa lỗi gốc của dự án {projects} nhưng đang TẮT ở dự án #{pid} — "
+                             f"{_short_label(r['label'])}. Lý do có cờ: {why}"
+                       + (" — cờ này TỐN TIỀN khi bật: nút bật hàng loạt bỏ qua nó" if costly_fix_flag(r["name"]) else ""),
+                       ("🧪 Tính năng thử: bật riêng sau khi xem giá — hoặc 'Bỏ qua có lý do' cho dự án này"
+                        if costly_fix_flag(r["name"]) else FIX_WHERE))
+        it["flag"] = r["name"]
+        out.append(it)
     return out
 
 
@@ -289,7 +373,8 @@ def _collect(conn, data_dir: str, pid: int) -> Dict:
     except Exception as e:  # noqa: BLE001
         scenes = []
         items["inputs"].append(_unreadable("danh sách shot", e))
-    for group, what, fn in (("cost", "cờ tính năng", lambda: _cost_items(conn)),
+    for group, what, fn in (("fixes", "cờ sửa lỗi dự án trước", lambda: _fix_flag_items(conn, pid)),
+                            ("cost", "cờ tính năng", lambda: _cost_items(conn)),
                             ("hold", "mục Tổ rà soát", lambda: _review_items(conn, pid)),
                             ("hold", "ngân sách dự án", lambda: _budget_items(conn, pid)),
                             ("hold", "chế độ storyboard", lambda: _storyboard_items(conn, data_dir, pid, scenes)),

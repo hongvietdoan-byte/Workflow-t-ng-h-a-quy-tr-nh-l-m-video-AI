@@ -1,0 +1,135 @@
+{
+ "_note": "Sổ quyết định người dùng MỘT nguồn (C3, người dùng duyệt 15/10 — docs/handoff/RA_QUYET_DINH_LOI_LAP_2026-10-15.md). Quyết định kiểm được bằng cờ / code ghi ở đây + enforced_by; tests/test_decisions.py đối chiếu với MẶC ĐỊNH CODE, `py -m core.decisions check` đối chiếu thêm máy này. Memory / TODO chỉ trỏ id. Quyết định mới thay quyết định cũ: mục mới `replaces` id cũ, mục cũ status 'replaced' (không sửa chữ mục cũ). enforced_by: {kind: flag, name, on} (on=false: cờ không được BẬT thật — học việc vẫn tính là không bật) | {kind: code, check: <hàm check_* trong tests/test_decisions.py>, pending: <lý do chờ, nếu code chưa làm>}. Khác devsys/decisions.json (bản đồ AI quyết từng khâu).",
+ "items": [
+  {
+   "id": "video-e1-2026-10-09",
+   "date": "2026-10-09",
+   "by": "người dùng",
+   "text": "E1: shot dễ gen Seedance 2.0 720p + phóng ffmpeg 1080p; shot khó nháp → duyệt → bản cao.",
+   "keeps": "",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "replaced"
+  },
+  {
+   "id": "video-route-2026-10-13",
+   "date": "2026-10-13",
+   "by": "người dùng",
+   "text": "Video hết Seedance 2.5 (bỏ 2.0 / 2.0 Fast). Shot ĐƠN GIẢN → gen thẳng Seedance 2.5 720p + phóng ffmpeg lên 1080; shot KHÓ / quan trọng → nháp Seedance 2.5 480p → người duyệt → nâng 1080p từ nháp. Đạo diễn gắn nhãn dễ/khó. (Người dùng nhắc lại 15/10: bản ghi 13/10 'MỌI shot nháp 480 → 1080' là SAI.)",
+   "keeps": "Hai nhánh dễ/khó của E1; phóng ffmpeg chỉ từ 720p",
+   "changes": "Model nhánh dễ 2.0 → 2.5; nhánh khó nháp 2.5 480p",
+   "replaces": "video-e1-2026-10-09",
+   "enforced_by": [
+    {"kind": "code", "check": "check_simple_shot_direct_720p", "pending": "chờ gộp claude/shot-de-720p (core/quality_tier.py còn đưa mọi shot vào nháp 480p)"}
+   ],
+   "status": "active"
+  },
+  {
+   "id": "no-480p-upscale-2026-10-12",
+   "date": "2026-10-12",
+   "by": "người dùng",
+   "text": "Không bao giờ dùng 480p phóng ffmpeg làm bản giao; 480p chỉ là nháp.",
+   "keeps": "",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [
+    {"kind": "code", "check": "check_no_480p_in_delivery"}
+   ],
+   "status": "active"
+  },
+  {
+   "id": "qc-autonomous-2026-10-13",
+   "date": "2026-10-13",
+   "by": "người dùng",
+   "text": "#27: QC tự chấm (thôi học việc) + Dashboard chạy tự động.",
+   "keeps": "",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "replaced"
+  },
+  {
+   "id": "qc-team-off-2026-10-14",
+   "date": "2026-10-14",
+   "by": "người dùng",
+   "text": "Tổ QC học việc khớp 49 % → tắt qc_team; bật lại khi checklist có lỗi bố cục / chỗ đứng và đo ≥ 75 %.",
+   "keeps": "scene_qc học việc vẫn chạy để đo",
+   "changes": "qc_team không tự chấm",
+   "replaces": "qc-autonomous-2026-10-13",
+   "enforced_by": [
+    {"kind": "flag", "name": "qc_team", "on": false}
+   ],
+   "status": "active"
+  },
+  {
+   "id": "drafts-approved-in-chat-2026-10-14",
+   "date": "2026-10-14",
+   "by": "người dùng",
+   "text": "Nháp video do người duyệt qua chat; QC hệ thống vẫn chấm; không cờ tự duyệt nháp.",
+   "keeps": "QC hệ thống chấm nháp",
+   "changes": "Chạy tự động không tự duyệt nháp",
+   "replaces": null,
+   "enforced_by": [
+    {"kind": "code", "check": "check_draft_never_auto_approved"}
+   ],
+   "status": "active"
+  },
+  {
+   "id": "p27-fix-flags-on-2026-10-13",
+   "date": "2026-10-13",
+   "by": "người dùng",
+   "text": "Bật 7 cờ sửa lỗi tập 1 #27 để kiểm thật ở tập 2 (rà 15/10: cả 7 đều TẮT dù ghi chú nói đã bật — nay mặc định code BẬT).",
+   "keeps": "",
+   "changes": "Mặc định code của 7 cờ: tắt → bật (default_on, verified vẫn False)",
+   "replaces": null,
+   "enforced_by": [
+    {"kind": "flag", "name": "video_gate", "on": true},
+    {"kind": "flag", "name": "qc_framing_cap", "on": true},
+    {"kind": "flag", "name": "plate_view_sentence", "on": true},
+    {"kind": "flag", "name": "character_state_lock", "on": true},
+    {"kind": "flag", "name": "ref_rule_early", "on": true},
+    {"kind": "flag", "name": "motion_consistency_lint", "on": true},
+    {"kind": "flag", "name": "group_keep_approved", "on": true}
+   ],
+   "status": "active"
+  },
+  {
+   "id": "image-gpt25-2026-10-13",
+   "date": "2026-10-13",
+   "by": "người dùng",
+   "text": "Ảnh mặc định GPT Image 2.5 (DEEPIX_MODEL=gpt-image-2.5-sunburst).",
+   "keeps": "Dự án vẫn chọn riêng model ảnh được (Bước 1)",
+   "changes": "dashboard.env.example đặt DEEPIX_MODEL; mặc định trong code (core/image_models.DEFAULT) vẫn là Seedream 5.0 Pro khi thiếu dòng này",
+   "replaces": null,
+   "enforced_by": [
+    {"kind": "code", "check": "check_image_default_gpt25"}
+   ],
+   "status": "active"
+  },
+  {
+   "id": "budget-lock-gate-2026-10-08",
+   "date": "2026-10-08",
+   "by": "người dùng",
+   "text": "Mức 'Tự chạy trong trần': chạy tự động chờ duyệt & khóa trần ngân sách dự án trước khi gen ảnh (core/project_budget.needs_lock ghi 'user 08/10').",
+   "keeps": "",
+   "changes": "",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "replaced"
+  },
+  {
+   "id": "budget-gate-removed-2026-10-15",
+   "date": "2026-10-15",
+   "by": "người dùng",
+   "text": "Bỏ cổng khóa ngân sách 'Tự chạy trong trần' (người dùng chọn bỏ 15/10; memory 06/10 đã ghi bỏ mà code còn).",
+   "keeps": "Ngân sách dự án vẫn cảnh báo khi vượt",
+   "changes": "Chạy tự động không chờ 'Duyệt & khóa trần' trước khi gen ảnh",
+   "replaces": "budget-lock-gate-2026-10-08",
+   "enforced_by": [
+    {"kind": "code", "check": "check_no_budget_lock_gate", "pending": "chờ nhánh A7 (core/project_budget.py còn cổng needs_lock)"}
+   ],
+   "status": "active"
+  }
+ ]
+}

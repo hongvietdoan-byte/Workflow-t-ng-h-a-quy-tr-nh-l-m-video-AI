@@ -1273,7 +1273,10 @@ def _clip_send_reds(conn, scene_id: int, project_id: int, data: Dict) -> List[st
         out.append(f"Đạo cụ dự án: không kiểm được vật kỹ năng ({type(e).__name__}: {e}) — xem ⚙ Chẩn đoán")
     try:
         from . import seedance_refs
-        if seedance_refs.rule_early_on() and seedance_refs.uses_refs(conn, scene_id):
+        # C1 15/10 (cờ bật mặc định): = uses_refs(conn, scene_id) không đọc lại dòng shot đã có; shot không nhân vật → không ảnh
+        # nhận diện nào để kiểm, không truy vấn (readiness cả dự án không thêm 2 truy vấn / shot)
+        if seedance_refs.rule_early_on() and data.get("characters") and seedance_refs.eligible(data) \
+                and seedance_refs.enabled(conn, project_id):
             out += [f"{PART_LABELS['anh_ref']}: {x}" for x in seedance_refs.reference_rule_issues(conn, project_id, [
                 {"id": scene_id, "data": data}])]
     except Exception as e:  # noqa: BLE001

@@ -457,8 +457,15 @@ def reference_rule_issues(conn, project_id: int, rows: List[Dict]) -> List[str]:
         return []
     from .adapters import clipai
     from .assets import _shape
+    from .memo import cached
+    names = tuple(dict.fromkeys(str(n) for r in rows for n in (r["data"].get("characters") or [])))
+    if not names:                     # C1 15/10 (cờ bật mặc định): shot không nhân vật → không ảnh nhận diện, không truy vấn
+        return []
     out = []
-    for name, path in identity_pictures(conn, project_id, rows, MAX_PICTURES):
+    # một lượt vẽ Dashboard (memo.per_rerun): cùng bộ nhân vật của nhiều shot → tra Kho một lần (readiness cả dự án không N+1)
+    pictures = cached(conn, ("ref_rule_pictures", project_id, names),
+                      lambda: identity_pictures(conn, project_id, rows, MAX_PICTURES))
+    for name, path in pictures:
         size = _shape(path) if path and os.path.exists(path) else None
         bad = clipai.reference_image_problems("seedance", [size]) if size else []
         if bad:
