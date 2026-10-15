@@ -8,6 +8,12 @@ os.environ.setdefault("BG_POLL", "0")                        # 08/10: no backgro
 os.environ.setdefault("DASHBOARD_SYNC_BACKGROUND", "0")      # folder auto-sync runs inline so tests are deterministic
 # S6.5 (2026-09-29): these two became verified (on by default); the older end-to-end tests describe the run without the budget gate and
 # with the one-pass Director — each feature's own tests switch it on explicitly (tests/test_project_budget.py, test_director_two_pass.py)
+# 15/10: `verified` = 🔒 khóa bật (core/features.locked). The older tests below (and many FEATURE_<VERIFIED>=0 / flags_off cases) describe
+# the code path with a verified flag OFF — they keep working through this module switch (set only here, under pytest or unittest; no env
+# variable can unlock a real run). The lock itself: tests/test_feature_settings.LockedVerifiedTests (they patch it back to False).
+import core.features as _features  # noqa: E402
+
+_features._TEST_BYPASS = True
 os.environ.setdefault("FEATURE_PROJECT_BUDGET", "0")
 os.environ.setdefault("FEATURE_DIRECTOR_TWO_PASS", "0")
 os.environ.setdefault("FEATURE_DIALOGUE_TAKE", "0")

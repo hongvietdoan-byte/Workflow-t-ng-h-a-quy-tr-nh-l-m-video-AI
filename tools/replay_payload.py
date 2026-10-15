@@ -299,6 +299,10 @@ def main(argv=None) -> int:
     for f in a.flag:
         k, _, v = f.partition("=")
         flags[k.strip()] = v.strip().lower() in ("1", "on", "true", "yes")
+    from core import features as _features
+    stuck = [k for k, v in flags.items() if not v and _features.locked(k)]
+    if stuck:                                        # 15/10: verified = 🔒 khóa bật — '--flag x=off' would be silently ignored
+        print("Lưu ý: cờ đã kiểm chứng bị khóa BẬT, '--flag …=off' không có tác dụng (muốn tắt phải sửa code): " + ", ".join(stuck))
     main_dir = os.path.abspath(a.main)
     work = tempfile.mkdtemp(prefix=f"replay_p{a.project}_")
     envf = {} if a.no_env else env_flags(os.path.join(main_dir, "dashboard.env"))   # cờ FEATURE_ máy chính, như Dashboard chạy

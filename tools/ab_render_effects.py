@@ -70,10 +70,13 @@ def main() -> int:
         if k.startswith("FEATURE_") and k[8:].lower() not in FLAGS:
             os.environ.setdefault(k, v)
     os.environ["PIPELINE_DATA"] = data_copy
-    from core import delivery
+    from core import delivery, features
     from core.db import connect
     from core.pipeline import Pipeline
 
+    stuck = [f for f in FLAGS if features.locked(f)]   # 15/10: verified = 🔒 khóa bật — FEATURE_X=0 no longer turns it off
+    if stuck:
+        print("Lưu ý: các cờ đã kiểm chứng bị khóa BẬT, bản '1_KHONG_hieu_ung' vẫn có chúng (muốn tắt phải sửa code): " + ", ".join(stuck))
     report = {}
     for name, value in (("1_KHONG_hieu_ung", "0"), ("2_CO_hieu_ung", "1")):
         for f in FLAGS:

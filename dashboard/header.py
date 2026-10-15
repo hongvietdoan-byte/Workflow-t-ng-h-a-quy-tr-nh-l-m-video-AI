@@ -684,6 +684,8 @@ def _dialog_features(p: Pipeline) -> None:
                    " Có thể tốn tiền và đổi kết quả — dùng cho dự án thử có trần.")
     for note in features.removed_in_use().values():          # S14.9: an old choice naming a removed flag is ignored — said
         st.info(note)
+    for note in features.locked_off_ignored().values():      # 15/10: an old OFF of a 🔒 verified flag is ignored — said
+        st.info(note)
     q = st.text_input("Tìm", key="feat_q", placeholder="tên hoặc lý do…").strip().lower()
     only_unv = st.checkbox("Chỉ tính năng chưa thử thật", False, key="feat_unv")
     rows = []
@@ -700,7 +702,7 @@ def _dialog_features(p: Pipeline) -> None:
     for name, meta in rows[:60]:
         c1, c2 = st.columns([5, 1.3], vertical_alignment="center")
         on = features.on(name)
-        badge = "✅ đã thử thật" if meta["verified"] else "⚠ chưa thử thật"
+        badge = ("🔒 đã kiểm chứng — khóa bật" if features.locked(name) else "✅ đã thử thật") if meta["verified"] else "⚠ chưa thử thật"
         harmful = " · ⛔ từng gây hại" if name in features.HARMFUL else ""
         c1.markdown(f"**{escape(name)}** — {badge}{harmful}  \n{escape(meta.get('label', ''))}")
         if meta.get("trainee"):                       # B7 học việc (08/10): 3 buttons Tắt / 🎓 Học việc / Bật
@@ -709,6 +711,9 @@ def _dialog_features(p: Pipeline) -> None:
         warn = trainee_ui.no_effect_note(name) if meta.get("trainee") else ""
         if warn:
             c1.warning(warn)
+        if features.locked(name):                     # 15/10: verified = khóa bật — only the code turns it off (before the học-việc control)
+            c2.toggle("🔒 Bật", True, key=f"feat_{name}", disabled=True, help=features.LOCKED_TEXT)
+            continue
         if meta.get("trainee"):
             with c2:
                 trainee_ui.mode_control(name)

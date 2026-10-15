@@ -13,6 +13,9 @@ class FeatureSettingsTests(unittest.TestCase):
         self.path = os.path.join(tempfile.mkdtemp(), "fs.json")
         self.p = mock.patch.dict(os.environ, {"FEATURE_SETTINGS_FILE": self.path})
         self.p.start()
+        self._bp = mock.patch.object(features, "_TEST_BYPASS", False)      # 15/10: the real rule (verified = khóa bật)
+        self._bp.start()
+        self.addCleanup(self._bp.stop)
         for k in list(os.environ):
             if k.startswith("FEATURE_") and k != "FEATURE_SETTINGS_FILE":
                 self.p.new.pop(k, None) if False else None
@@ -64,9 +67,12 @@ class FeatureSettingsTests(unittest.TestCase):
 
     def test_a_single_choice_wins_and_can_be_removed(self):
         with self._clean_env():
-            features.save_settings(preset="stable", flags={self.unverified: True, self.verified: False})
+            # 15/10 (người dùng: cờ đã kiểm chứng không để bị tắt nữa): a verified flag can no longer be chosen OFF — see LockedVerifiedTests
+            with self.assertRaises(ValueError):
+                features.save_settings(preset="stable", flags={self.unverified: True, self.verified: False})
+            features.save_settings(preset="stable", flags={self.unverified: True})
             self.assertTrue(features.on(self.unverified))
-            self.assertFalse(features.on(self.verified))
+            self.assertTrue(features.on(self.verified))
             self.assertEqual(features.why_state(self.unverified), "bạn chọn trên màn này")
             features.save_settings(flags={self.unverified: None, self.verified: None})
             self.assertFalse(features.on(self.unverified))
@@ -98,6 +104,114 @@ class FeatureSettingsTests(unittest.TestCase):
         for name, needs in features.REQUIRES.items():                      # every name is a real flag
             self.assertIn(name, features.FEATURES)
             self.assertTrue(all(n in features.FEATURES for n in needs))
+
+
+class LockedVerifiedTests(unittest.TestCase):
+    """15/10 (người dùng: "những cờ nào đã được kiểm chứng thì mặc định bật, không để bị tắt nữa"): `verified: True` = KHÓA BẬT —
+    no 🧪 choice, preset or FEATURE_<NAME>=0 turns it off; an old OFF is ignored but SAID (locked_off_ignored); only code turns it off."""
+
+    def setUp(self):
+        self.path = os.path.join(tempfile.mkdtemp(), "fs.json")
+        clean = {"FEATURE_" + k.upper(): "" for k in features.FEATURES}
+        self.p = mock.patch.dict(os.environ, {**clean, "FEATURE_SETTINGS_FILE": self.path})
+        self.p.start()
+        self.addCleanup(self.p.stop)
+        self._bp = mock.patch.object(features, "_TEST_BYPASS", False)
+        self._bp.start()
+        self.addCleanup(self._bp.stop)
+        self.verified = next(k for k, v in features.FEATURES.items() if v["verified"])
+        self.unverified = next(k for k, v in features.FEATURES.items() if not v["verified"] and not v.get("trainee")
+                               and k not in features.OPT_IN_ONLY)
+
+    def _write(self, raw):
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump(raw, f)
+        features._SETTINGS["stamp"] = object()
+
+    def test_old_screen_off_is_ignored_and_said(self):
+        self._write({"preset": "custom", "flags": {self.verified: False, self.unverified: False}})
+        self.assertEqual(features.state(self.verified), "on")
+        self.assertTrue(features.on(self.verified))
+        self.assertFalse(features.on(self.unverified))                       # an unverified flag still switches off
+        notes = features.locked_off_ignored()
+        self.assertIn(self.verified, notes)
+        self.assertNotIn(self.unverified, notes)
+        self.assertIn("data/feature_settings.json", notes[self.verified])
+        self.assertEqual(features.source(self.verified), "locked")
+        self.assertIn("🔒", features.why_state(self.verified))
+
+    def test_presets_keep_it_on(self):
+        for preset in ("stable", "experimental", "custom"):
+            features.save_settings(preset=preset)
+            self.assertEqual(features.state(self.verified), "on", preset)
+            with mock.patch.dict(os.environ, {"FEATURE_" + self.verified.upper(): "0"}):
+                self.assertEqual(features.state(self.verified), "on", preset)
+
+    def test_env_zero_is_ignored_and_said(self):
+        with mock.patch.dict(os.environ, {"FEATURE_" + self.verified.upper(): "0"}):
+            self.assertTrue(features.on(self.verified))
+            self.assertIn(self.verified, features.locked_off_ignored())
+            self.assertIn("FEATURE_" + self.verified.upper(), features.locked_off_ignored()[self.verified])
+        self.assertNotIn(self.verified, features.locked_off_ignored())
+        with mock.patch.dict(os.environ, {"FEATURE_" + self.unverified.upper(): "0"}):
+            self.assertNotIn(self.unverified, features.locked_off_ignored())
+
+    def test_save_off_or_trainee_raises_and_writes_nothing(self):
+        for kw in ({"flags": {self.verified: False}}, {"modes": {self.verified: "off"}}, {"modes": {self.verified: "trainee"}}):
+            with self.assertRaises(ValueError) as cm:
+                features.save_settings(**kw)
+            self.assertIn("đã kiểm chứng", str(cm.exception))
+            self.assertIn("REMOVED", str(cm.exception))
+        self.assertFalse(os.path.exists(self.path))
+        features.save_settings(flags={self.verified: True})                 # harmless
+        features.save_settings(flags={self.verified: None}, modes={self.verified: None})
+        features.save_settings(modes={self.verified: "on"})
+        self.assertTrue(features.on(self.verified))
+
+    def test_unverified_flag_still_switches_off(self):
+        features.save_settings(flags={self.unverified: True})
+        self.assertTrue(features.on(self.unverified))
+        features.save_settings(flags={self.unverified: False})
+        self.assertFalse(features.on(self.unverified))
+        self.assertNotEqual(features.source(self.unverified), "locked")
+
+    def test_bulk_saves_never_break(self):
+        from core import before_run as BR
+        self.assertEqual(BR.enable_fix_flags([self.verified]), [])          # True on a locked flag: harmless
+        self._write({"preset": "custom", "flags": {self.verified: False}})
+        cur = features.settings()
+        features.save_settings(flags={k: None for k in list(cur["flags"])})  # the 🧪 "bỏ mọi lựa chọn riêng" button
+        self.assertNotIn(self.verified, features.locked_off_ignored())
+        features.save_settings(preset="experimental")
+        self.assertTrue(features.on(self.verified))
+
+    def test_report_and_cli_say_locked(self):
+        self._write({"preset": "custom", "flags": {self.verified: False}})
+        rows = {r["name"]: r for r in features.report()}
+        self.assertTrue(rows[self.verified]["locked"])
+        self.assertEqual(rows[self.verified]["source"], "locked")
+        self.assertIn("khóa bật", rows[self.verified]["source_text"])
+        self.assertFalse(rows[self.unverified]["locked"])
+        md = features.report_md()
+        self.assertIn("🔒", md)
+        self.assertIn(features.locked_off_ignored()[self.verified], md)
+
+    def test_no_environment_variable_unlocks(self):
+        with mock.patch.dict(os.environ, {"FEATURE_LOCK_TEST_BYPASS": "1", "FEATURE_" + self.verified.upper(): "0"}):
+            self.assertTrue(features.on(self.verified))
+
+    def test_removed_beats_lock(self):
+        for k in features.REMOVED:
+            self.assertNotIn(k, features.FEATURES)
+            self.assertEqual(features.state(k), "off")
+
+    def test_requires_of_a_locked_flag_named(self):
+        """A locked flag that needs an UNLOCKED one can still do nothing — the gap is listed here, never hidden. Known 15/10:
+        dialogue_take (verified) needs lip_sync (not verified: no real proof yet) — the person decides; nobody marks lip_sync verified."""
+        gaps = {k: [n for n in need if not features.FEATURES[n]["verified"]] for k, need in features.REQUIRES.items()
+                if features.FEATURES[k]["verified"]}
+        gaps = {k: v for k, v in gaps.items() if v}
+        self.assertEqual(gaps, {"dialogue_take": ["lip_sync"]})
 
 
 class TraineeModeTests(unittest.TestCase):
@@ -213,6 +327,11 @@ class FeatureScreenTests(unittest.TestCase):
         self.env = mock.patch.dict(os.environ, {"PIPELINE_DB": self.db, "PIPELINE_DATA": tempfile.mkdtemp(),
                                                 "FEATURE_SETTINGS_FILE": os.path.join(tempfile.mkdtemp(), "fs.json")})
         self.env.start()
+        self._bp = mock.patch.object(features, "_TEST_BYPASS", False)
+        self._bp.start()
+        self.addCleanup(self._bp.stop)
+        for k in features.FEATURES:                                          # 🔒 toggle of every verified flag: no env override
+            os.environ.pop("FEATURE_" + k.upper(), None)
         from core.pipeline import Pipeline
         self.p = Pipeline(_c(self.db))
         self.pid = self.p.create_project("Dự án thử giao diện")
@@ -233,6 +352,10 @@ class FeatureScreenTests(unittest.TestCase):
         at.button(key="settings_features").click().run()
         self.assertFalse(at.exception, at.exception)
         self.assertTrue(any(k.startswith("feat_") for k in (t.key for t in at.toggle)))
+        from core import features as F
+        locked = next(k for k, v in F.FEATURES.items() if v["verified"])
+        self.assertTrue(at.toggle(key=f"feat_{locked}").disabled)            # 15/10: 🔒 verified = khóa bật, không tắt được
+        self.assertTrue(at.toggle(key=f"feat_{locked}").value)
         at.radio(key="feat_preset").set_value("stable").run()
         self.assertFalse(at.exception, at.exception)
         from core import features
