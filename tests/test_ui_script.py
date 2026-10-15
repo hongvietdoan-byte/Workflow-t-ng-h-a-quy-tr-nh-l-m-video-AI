@@ -126,13 +126,9 @@ class ScriptScreenV2Tests(unittest.TestCase):
         paragraphs = script_parser.read_docx_paragraphs(SAMPLE)
         script_parser.import_scenes(self.p, pid2, script_parser.split_scenes(paragraphs), full_text="\n".join(paragraphs))
         scenes = self.p.conn.execute("SELECT * FROM scenes WHERE project_id=?", (pid2,)).fetchall()
-        self.assertEqual(step1_v2.next_kind(self.p, pid2, scenes, [], False, False, False), "plan")
-        self.assertEqual(step1_v2.next_kind(self.p, pid, scenes, [1], False, False, False), "lock")
-        with mock.patch.object(step1_v2, "allowed", return_value=True):
-            self.assertEqual(step1_v2.next_kind(self.p, pid, scenes, [1], False, False, True), "budget")     # budget not locked yet
-            self.assertEqual(step1_v2.next_kind(self.p, pid, scenes, [1], True, True, True), "next")
-        with mock.patch.object(step1_v2, "allowed", return_value=False):                                     # no autopilot right → skip it
-            self.assertEqual(step1_v2.next_kind(self.p, pid, scenes, [1], False, False, True), "lock")
+        self.assertEqual(step1_v2.next_kind(self.p, pid2, scenes, [], False), "plan")
+        self.assertEqual(step1_v2.next_kind(self.p, pid, scenes, [1], False), "lock")      # 15/10: no "budget" step (bỏ cổng)
+        self.assertEqual(step1_v2.next_kind(self.p, pid, scenes, [1], True), "next")
 
     # ---- slim pass (01/10): details in ⓘ, panels closed by default, only the next job open --------------------------------------------
     def test_next_panel_is_the_one_open_job(self):

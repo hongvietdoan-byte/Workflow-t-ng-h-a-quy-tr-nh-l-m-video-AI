@@ -25,7 +25,8 @@ LEVELS: Dict[str, Dict] = {
     "auto": {"label": "Tự chạy trong trần", "mode": "auto", "policy": "balanced",
              "gates": {"bible": False, "pilot": False, "storyboard": True},
              "desc": "Claude tự duyệt ảnh theo QC; không dừng ở Bible; vẫn dừng ở storyboard trừ khi QC đã đo đủ tin cậy để bỏ qua; "
-                     "phải duyệt & khóa trần ngân sách dự án trước ảnh đầu tiên; chạm trần khâu / tổng thì dừng chờ bạn nâng trần."},
+                     "không chờ duyệt ngân sách — tự đặt trần cảnh báo = dự tính trước ảnh đầu tiên; chạm trần khâu / tổng chỉ CẢNH BÁO "
+                     "kèm số liệu (vẫn chạy)."},
 }
 
 

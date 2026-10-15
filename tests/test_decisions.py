@@ -94,6 +94,10 @@ def check_no_budget_lock_gate():
     with mock.patch.object(project_budget, "enabled", return_value=True), \
             mock.patch.object(automation, "effective_mode", return_value="auto"):
         assert project_budget.needs_lock(None, 1) is False, "cổng khóa ngân sách 'Tự chạy trong trần' vẫn còn"
+    for gone in ("gate_reason", "approval_pending", "run_over"):           # the run's waits on the budget are gone too
+        assert not hasattr(project_budget, gone), f"project_budget.{gone} (cổng chờ ngân sách) vẫn còn"
+    from core import autopilot
+    assert not hasattr(autopilot, "_cap_wait"), "autopilot._cap_wait (chờ khi chạm trần) vẫn còn"
 
 
 CHECKS = {k: v for k, v in globals().items() if k.startswith("check_") and callable(v)}

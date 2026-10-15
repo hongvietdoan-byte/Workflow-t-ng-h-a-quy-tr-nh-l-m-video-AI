@@ -62,16 +62,14 @@ class BudgetTests(unittest.TestCase):
             self.assertIsNone(project_budget.check(self.p.conn, self.pid, "images", 99.0))
 
     @mock.patch.dict(os.environ, ON)
-    def test_only_the_auto_level_asks_for_the_lock(self):
-        # user 08/10: "Tôi duyệt hết" / "Duyệt cổng chính" only show the estimate — no gate, no approval pending
+    def test_no_level_asks_for_the_lock(self):
+        # 15/10 người dùng bỏ cổng "Tự chạy trong trần" (data/decisions.json budget-gate-removed-2026-10-15): no level waits for it
         from core import automation
-        automation.apply(self.p, self.pid, "main")
-        self.assertFalse(project_budget.needs_lock(self.p, self.pid))
-        self.assertIsNone(project_budget.gate_reason(self.p, self.pid))
-        self.assertFalse(project_budget.approval_pending(self.p, self.pid))
-        automation.apply(self.p, self.pid, "auto")
-        self.assertTrue(project_budget.needs_lock(self.p, self.pid))
-        self.assertTrue(project_budget.approval_pending(self.p, self.pid))
+        for level in ("all", "main", "auto"):
+            automation.apply(self.p, self.pid, level)
+            self.assertFalse(project_budget.needs_lock(self.p, self.pid), level)
+        for gone in ("gate_reason", "approval_pending", "run_over"):
+            self.assertFalse(hasattr(project_budget, gone), gone)
         view = project_budget.estimate_view(self.p, self.pid)
         self.assertEqual(view["total"], view["prop"]["total"])          # the estimate shown IS the cap proposed
         self.assertIn("Nếu mọi ảnh / clip đạt ngay lần đầu", view["text"])
@@ -98,31 +96,61 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(project_budget.redo_shares(conn, self.pid)["images"], 3.0)   # never past AUTO_REGEN_LIMIT
 
     @mock.patch.dict(os.environ, ON)
-    def test_at_the_auto_level_the_run_waits_when_a_locked_line_is_reached(self):
-        from core import automation
+    def test_at_the_auto_level_a_reached_line_warns_with_numbers_and_the_run_goes_on(self):
+        # 15/10 (bỏ cổng): was "the run WAITS when a locked line is reached" — now the run says it with the numbers and sends
+        from core import autopilot, automation, money_policy
         automation.apply(self.p, self.pid, "auto")
         project_budget.approve(self.p, self.pid, "a@x", {"stages": {k: {"cap": 0.5 if k == "images" else 5.0} for k in project_budget.STAGES},
                                                           "total": 30.0})
-        self.assertIsNone(project_budget.run_over(self.p, self.pid, "images"))
+        self.assertIsNone(project_budget.run_warning(self.p, self.pid, "images"))
         self.spend("image", "gpt-image-2.5-sunburst", "1152x2048", 12)
-        self.assertIn("Chạm trần khâu Ảnh", project_budget.run_over(self.p, self.pid, "images"))
+        spent = project_budget.spent_by_stage(self.p.conn, self.pid)["images"]
+        why = project_budget.run_warning(self.p, self.pid, "images")
+        self.assertIn("khâu 'Ảnh'", why)
+        self.assertIn(f"đã chi ≈ ${spent:.2f}", why)                            # the numbers: spent / line
+        self.assertIn("mức dự tính $0.50", why)
+        self.assertIn("VẪN GỬI", why)
+        sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? LIMIT 1", (self.pid,)).fetchone()[0]
+        self.p.create_job(sid, "image_gen")                                     # a queued picture waits to be sent
+        autopilot._cap_warn(self.p, self.pid, "image_gen", "images")            # no _Wait raised: the run goes on
+        log = json.loads(self.p.project(self.pid)["autopilot_log"] or "[]")
+        self.assertIn(why, [e["msg"] for e in log])                             # said in the run's log …
+        rows = self.p.conn.execute("SELECT message FROM diag_events WHERE project_id=? AND code=?",
+                                   (self.pid, money_policy.WARN_CODE)).fetchall()
+        self.assertTrue(any(f"${spent:.2f}" in r[0] and "$0.50" in r[0] for r in rows), rows)   # … and in diag (money_warning)
         project_budget.raise_cap(self.p.conn, self.pid, "images", 5.0, "a@x", "cần thêm ảnh")
-        self.assertIsNone(project_budget.run_over(self.p, self.pid, "images"))
-        automation.apply(self.p, self.pid, "main")                               # other levels: a warning only, the run goes on
-        project_budget.raise_cap(self.p.conn, self.pid, "images", -5.0, "a@x", "thử")
-        self.assertIsNone(project_budget.run_over(self.p, self.pid, "images"))
+        self.assertIsNone(project_budget.run_warning(self.p, self.pid, "images"))
+        self.spend("image", "gpt-image-2.5-sunburst", "1152x2048", 600)         # past the TOTAL (30 USD) too
+        self.assertIn("TỔNG", project_budget.run_warning(self.p, self.pid, "videos"))
 
     @mock.patch.dict(os.environ, ON)
-    def test_the_automatic_run_waits_for_the_approved_budget_before_paying_for_pictures(self):
+    def test_the_automatic_run_does_not_wait_for_an_approval_and_sets_the_warning_lines(self):
+        # 15/10 (bỏ cổng): was "the run waits for the approved budget before paying for pictures"
         from core import autopilot, automation
-        automation.apply(self.p, self.pid, "auto")            # user 08/10: only "Tự chạy trong trần" waits for it
-        with self.assertRaises(autopilot._Wait) as w:
-            autopilot._images_phase(self.p, self.pid, autopilot.Context(tempfile.mkdtemp(), None, None, llm_runner.MockLlm()))
-        self.assertEqual(w.exception.gate, "budget")
+
+        class Images:
+            def submit_pending(self, pid):
+                return 0
+
+            def poll_once(self, pid):
+                return None
+        automation.apply(self.p, self.pid, "auto")
         project_budget.set_target(self.p.conn, self.pid, 0.01)
-        self.assertIn("VƯỢT mục tiêu", project_budget.gate_reason(self.p, self.pid))
-        project_budget.approve(self.p, self.pid, "a@x")
-        self.assertIsNone(project_budget.gate_reason(self.p, self.pid))
+        ctx = autopilot.Context(tempfile.mkdtemp(), Images(), None, llm_runner.MockLlm())
+        try:
+            autopilot._images_phase(self.p, self.pid, ctx)
+        except autopilot._Wait as w:                                            # another gate may wait — never the budget
+            self.assertNotEqual(w.gate, "budget", str(w))
+        data = project_budget.get(self.p.conn, self.pid)
+        self.assertTrue(data["locked"])                                         # the warning lines are set by the run itself
+        self.assertEqual(data["approved_by"], project_budget.AUTO_WHO)
+        log = " ".join(e["msg"] for e in json.loads(self.p.project(self.pid)["autopilot_log"] or "[]"))
+        self.assertIn("Đặt trần cảnh báo ngân sách dự án tự động", log)
+        self.assertIn("VƯỢT mục tiêu $0.01", log)                               # over the person's target: said, not waited for
+        self.assertIsNone(project_budget.auto_caps(self.p, self.pid))           # set once
+        automation.apply(self.p, self.pid, "main")
+        other = self.p.create_project("khác")
+        self.assertIsNone(project_budget.auto_caps(self.p, other))              # other levels: nothing set automatically
 
     @mock.patch.dict(os.environ, ON)
     def test_the_director_gets_the_target_as_an_input(self):
