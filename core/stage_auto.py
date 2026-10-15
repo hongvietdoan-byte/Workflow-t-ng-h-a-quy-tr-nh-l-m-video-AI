@@ -297,27 +297,57 @@ def _branch_c(conn, place_id) -> bool:
         return False
 
 
-def example_answer(inputs: Dict) -> Dict:
-    """Câu trả lời MẪU đúng định dạng dựng từ chính đề bài (người đứng vòng tròn 1,5 m quanh O, mỗi shot một yêu cầu khung tối
-    thiểu) — dùng cho cổng 0 USD (preflight) và làm ví dụ định dạng gửi kèm đề bài (16/10: đề bài và bộ kiểm phải khớp từ gốc)."""
+def _free_spots(fixed: List[Dict], n: int) -> List[List[float]]:
+    """n điểm đứng cho câu trả lời mẫu: O rồi các vòng 1,5 / 2,5 / 3,5 / 5 m × 8 hướng, cách mọi vật cố định có `at` ít nhất
+    bán kính + 0,5 m (rà 16/10: người mẫu đứng chồng giếng ở O → cổng chặn mãi)."""
     import math as _m
+    taken = [(f["at"][0], f["at"][1], float(f.get("d") or 1.0) / 2 + 0.5) for f in fixed if f.get("at") and f.get("kind") != "moc"]
+    out = []
+    for r in (0.0, 1.5, 2.5, 3.5, 5.0, 7.0):
+        for k in (range(8) if r else [0]):
+            x, y = round(r * _m.sin(k * _m.pi / 4), 2), round(r * _m.cos(k * _m.pi / 4), 2)
+            if all(_m.hypot(x - a, y - b) >= rad for a, b, rad in taken) and all(_m.hypot(x - a, y - b) >= 0.8 for a, b in out):
+                out.append([x, y])
+                if len(out) >= n:
+                    return out
+    return out
+
+
+def example_answer(inputs: Dict) -> Dict:
+    """Câu trả lời MẪU đúng định dạng dựng từ chính đề bài — cho cổng 0 USD (preflight). Người đứng ở chỗ trống (_free_spots), đạo
+    cụ chưa có `at` cũng vậy; shot nào cũng một thứ `chinh` (người đầu, không có người thì vật cố định đầu tiên)."""
     people = inputs.get("people") or []
+    fixed = inputs.get("fixed") or []
+    loose = [f for f in fixed if f.get("kind") != "moc" and not f.get("at")]
+    spots = _free_spots(fixed, len(people) + len(loose))
     objs = []
-    for i, p in enumerate(people):
-        a = 2 * _m.pi * i / max(len(people), 1)
-        objs.append({"key": p["key"], "kind": "nguoi", "at": [round(1.5 * _m.sin(a), 2), round(1.5 * _m.cos(a), 2)] if i else [0.0, 0.0],
-                     "H": p["H"], "facing": 0, "label": p.get("label", p["key"])})
-    for j, f in enumerate(inputs.get("fixed") or []):
-        if f.get("kind") == "moc" or f.get("at"):
-            continue                                       # code tự chèn
-        objs.append({k: v for k, v in f.items() if k != "source"} | {"at": [round(3.0 + j, 2), -3.0]})
-    first = people[0]["key"] if people else None
-    specs = []
-    for s in inputs.get("shots") or []:
-        spec = {"shot": s["shot"], "muc_dich": "…", "co": "MS", "do_cao": "ngang", "goc": "ngang",
-                "thanh_phan": ([{"vat": first, "vai": "chinh", "vung": "giua-tren", "thay": "mat", "co_pct": [40, 80]}] if first else [])}
-        specs.append(spec)
+    for p, at in zip(people, spots):
+        objs.append({"key": p["key"], "kind": "nguoi", "at": at, "H": p["H"], "facing": 0, "label": p.get("label", p["key"])})
+    for f, at in zip(loose, spots[len(people):]):
+        objs.append({k: v for k, v in f.items() if k != "source"} | {"at": at})
+    if people:
+        main = {"vat": people[0]["key"], "vai": "chinh", "vung": "giua-tren", "thay": "mat", "co_pct": [40, 80]}
+    elif fixed:
+        main = {"vat": fixed[0]["key"], "vai": "chinh", "vung": "giua"}
+    else:
+        main = None
+    specs = [{"shot": s["shot"], "muc_dich": "…", "co": "MS", "do_cao": "ngang", "goc": "ngang", "thanh_phan": [main] if main else []}
+             for s in inputs.get("shots") or []]
     return {"blocking": {"objects": objs}, "shot_specs": specs, "can_hoi": []}
+
+
+PLACEHOLDER = {"at": "<[x, y] mét so với O>", "facing": "<độ từ Bắc>", "co": "<EWS|WS|GAME_TPS|MLS|MS|MCU|CU|ECU>",
+               "do_cao": "<ngang|thap|cao|tren_dau>", "goc": "<ngang|cui|ngua>", "vung": "<NGANG-DỌC, vd trai-duoi>",
+               "co_pct": "<[min, max] % khung>", "thay": "<mat|lung|nghieng>", "muc_dich": "<người xem cần thấy gì>",
+               "vai": "<chinh|phu|khong_duoc_co>"}
+
+
+def _placeholders(v):
+    if isinstance(v, dict):
+        return {k: (PLACEHOLDER[k] if k in PLACEHOLDER else _placeholders(x)) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_placeholders(x) for x in v]
+    return v
 
 
 def preflight(inputs: Dict, marks: Optional[Dict]) -> List[str]:
@@ -337,9 +367,15 @@ def preflight(inputs: Dict, marks: Optional[Dict]) -> List[str]:
 
 
 def format_example(inputs: Dict) -> str:
-    head = ("## Ví dụ ĐỊNH DẠNG hợp lệ (code dựng từ đề bài này và đã cho qua bộ kiểm — vị trí / vùng / cỡ là GIẢ, bạn tự quyết "
-            "theo kịch bản; chỉ theo đúng tên trường, kiểu giá trị, thứ tự vùng)")
-    return "\n\n" + head + "\n```json\n" + json.dumps(example_answer(inputs), ensure_ascii=False) + "\n```"
+    """Khuôn ĐỊNH DẠNG gửi kèm đề bài (rà 16/10: ví dụ có số thì Claude dễ chép vị trí giả) — cùng cấu trúc với câu trả lời mẫu đã qua
+    bộ kiểm, giá trị thay bằng chữ giữ chỗ; một người (+ một đạo cụ cần đặt) + một shot."""
+    ex = example_answer(inputs)
+    objs = ex["blocking"]["objects"]
+    keep = objs[:1] + [o for o in objs if o.get("kind") != "nguoi"][:1]
+    shape = _placeholders({"blocking": {"objects": keep}, "shot_specs": ex["shot_specs"][:1], "can_hoi": []})
+    head = ("## Khuôn ĐỊNH DẠNG (code dựng từ đề bài này, cùng cấu trúc với câu trả lời đã cho qua bộ kiểm) — KHÔNG chép giá trị: "
+            "mọi chữ <…> là chỗ bạn điền theo kịch bản; trả đủ mọi người, mọi shot")
+    return "\n\n" + head + "\n```json\n" + json.dumps(shape, ensure_ascii=False) + "\n```"
 
 
 # ---- kết quả → máy của shot -----------------------------------------------------------------------------------------------

@@ -625,7 +625,7 @@ class PreflightTests(Base):
         import copy
         ex = stage_auto.example_answer(inputs)
         stage_director.validate_answer(copy.deepcopy(ex), inputs, {})
-        self.assertIn("Ví dụ ĐỊNH DẠNG hợp lệ", stage_auto.format_example(inputs))
+        self.assertIn("Khuôn ĐỊNH DẠNG", stage_auto.format_example(inputs))
 
     def test_bad_replies_kept_verbatim(self):
         pid = self.project()
@@ -636,3 +636,38 @@ class PreflightTests(Base):
         kept = [f for f in os.listdir(d) if f.startswith("bad_reply_")]
         self.assertTrue(kept)
         self.assertTrue(any(f.startswith("prompt_r1") for f in os.listdir(d)))
+
+
+class PreflightReviewTests(unittest.TestCase):
+    """Rà 16/10 cổng 0 USD: cảnh không người, giếng ở O, khuôn không số, sổ câu trả lời sai mẫu tách khâu."""
+    def test_no_people_uses_a_fixed_thing_as_main(self):
+        inp = {"auto": True, "_blockout_enabled": False, "people": [], "shots": [{"shot": 1}],
+               "fixed": [{"key": "xenoi", "kind": "dao_cu", "h": 1.0, "d": 0.6}]}
+        self.assertEqual(stage_auto.preflight(inp, {}), [])
+
+    def test_people_never_placed_on_a_well_at_o(self):
+        inp = {"auto": True, "_blockout_enabled": False, "shots": [{"shot": 1}],
+               "people": [{"key": "kelly", "H": 1.7}, {"key": "yeunu", "H": 1.7}],
+               "fixed": [{"key": "gieng", "kind": "gieng", "at": [0.0, 0.0], "h": 0.9, "d": 1.5}]}
+        self.assertEqual(stage_auto.preflight(inp, {}), [])
+
+    def test_format_example_has_no_numbers_to_copy(self):
+        inp = {"auto": True, "_blockout_enabled": False, "shots": [{"shot": 1}, {"shot": 2}],
+               "people": [{"key": "kelly", "H": 1.7}, {"key": "x", "H": 1.8}], "fixed": []}
+        text = stage_auto.format_example(inp)
+        self.assertIn("<[x, y] mét so với O>", text)
+        self.assertIn("KHÔNG chép giá trị", text)
+        self.assertNotIn("giua-tren", text)
+        self.assertEqual(text.count('"shot":'), 1)
+
+    def test_bad_replies_capped_per_group_and_split_on_display(self):
+        from core import director_lease
+        from core.db import connect
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        conn = connect(os.path.join(tmp, "m.sqlite"))
+        director_lease.capture(conn, 7, "A")("đạo diễn")
+        for i in range(25):
+            director_lease.capture(conn, 7, "stage:4@kho1")(f"sân khấu {i}")
+        self.assertEqual([r[0] for r in director_lease.replies(conn, 7)], ["A"])            # Đạo diễn không bị đẩy mất, không lẫn
+        self.assertEqual(len(director_lease.replies(conn, 7, stage_auto=True)), 20)

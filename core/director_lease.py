@@ -272,13 +272,24 @@ def capture(conn, project, stage):
         try:
             with contextlib.closing(_open(path)) as db:
                 db.execute('INSERT INTO bad_replies(project,stage,at,text) VALUES (?,?,?,?)', (project, stage, time.time(), safe_reply(text)))
-                db.execute('DELETE FROM bad_replies WHERE project=? AND id NOT IN (SELECT id FROM bad_replies WHERE project=? ORDER BY id DESC LIMIT 20)', (project, project))
+                # rà 16/10: 20 dòng cho mỗi NHÓM khâu (sân khấu 'stage:*' riêng, Đạo diễn riêng) — sân khấu sai mẫu nhiều lượt không đẩy mất
+                # câu trả lời của Đạo diễn A/B
+                grp = 'stage:%' if str(stage).startswith('stage:') else None
+                if grp:
+                    db.execute("DELETE FROM bad_replies WHERE project=? AND stage LIKE ? AND id NOT IN (SELECT id FROM bad_replies WHERE "
+                               "project=? AND stage LIKE ? ORDER BY id DESC LIMIT 20)", (project, grp, project, grp))
+                else:
+                    db.execute("DELETE FROM bad_replies WHERE project=? AND stage NOT LIKE 'stage:%' AND id NOT IN (SELECT id FROM "
+                               "bad_replies WHERE project=? AND stage NOT LIKE 'stage:%' ORDER BY id DESC LIMIT 20)", (project, project))
                 db.commit()
         except Exception:
             _warning(path, project, 'lưu câu trả lời sai định dạng')
     return save
 
 
-def replies(conn, project):
+def replies(conn, project, stage_auto: bool = False):
+    """Câu trả lời sai mẫu đã lưu: của Đạo diễn (mặc định) hoặc của sân khấu 3D tự động (stage_auto=True, khâu 'stage:*')."""
     with contextlib.closing(_open(_path(conn))) as db:
-        return db.execute('SELECT stage,at,text FROM bad_replies WHERE project=? ORDER BY id DESC', (project,)).fetchall()
+        op = "LIKE" if stage_auto else "NOT LIKE"
+        return db.execute(f"SELECT stage,at,text FROM bad_replies WHERE project=? AND stage {op} 'stage:%' ORDER BY id DESC",
+                          (project,)).fetchall()
