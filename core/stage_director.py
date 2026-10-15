@@ -4,6 +4,7 @@ Director đúng lời khuyên của bộ giải / số đo Blender, tối đa 2 
 
 Mọi lời gọi qua sổ chi (llm_runner.tagged), có ước tính trước (cost.llm_estimate). Prompt: prompts/29_director_stage_specs.md.
 """
+import copy
 import json
 import math
 import os
@@ -70,7 +71,7 @@ def validate_answer(obj, inputs: Dict, marks: Optional[Dict] = None) -> Dict:
         keys_ = {o.get("key") for o in objs_ if isinstance(o, dict)}
         for f in inputs.get("fixed") or []:
             if f.get("key") not in keys_ and (f.get("kind") == "moc" or f.get("at")):
-                objs_.append({k: v for k, v in f.items() if k != "source"} | {"source": f.get("source") or "code: vật cố định"})
+                objs_.append(copy.deepcopy({k: v for k, v in f.items() if k != "source"}) | {"source": f.get("source") or "code: vật cố định"})
     want = sorted(s["shot"] for s in inputs["shots"])
     got = sorted(s.get("shot") for s in specs if isinstance(s, dict))
     if got != want:

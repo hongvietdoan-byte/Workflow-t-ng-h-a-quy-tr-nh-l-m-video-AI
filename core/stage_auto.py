@@ -234,14 +234,21 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
     if any(o["kind"] == "dao_cu" for o in fixed):
         notes.append("Đạo cụ không ghi `at`: bạn đặt vị trí theo kịch bản, GIỮ nguyên h / d / kind.")
     main = seg["main_spot"]
+    far = 0
+    from .assets import fold
+    fold_all = fold(" ".join(str(s["data"].get(k) or "") for s in seg["shots"] for k in ("action", "blocking", "location"))).lower()
     for name, sp in (seg["entry"].get("spots") or {}).items():
         if name != main and sp.get("at"):
             r = _rel(st, sp["at"])
             used = seg["spots"].get(name)
-            if not used and (r[0] ** 2 + r[1] ** 2) ** 0.5 > NEAR_SPOT_M:
-                continue                                  # 16/10 gói thật #31 cảnh 4: 30 chỗ đứng cả bản đồ (tới 200 m) là nhiễu
+            said = name.replace("_", " ") in fold_all or bool(sp.get("label") and fold(str(sp["label"])).lower() in fold_all)
+            if not used and not said and (r[0] ** 2 + r[1] ** 2) ** 0.5 > NEAR_SPOT_M:
+                far += 1                                  # 16/10 gói thật #31 cảnh 4: 30 chỗ đứng cả bản đồ (tới 200 m) là nhiễu
+                continue
             notes.append(f"Chỗ đứng khác trên CÙNG sân khấu: `{name}` tại ({r[0]:+.2f} Đ, {r[1]:+.2f} B, cao {r[2]:+.2f} m) so với O"
                          + (f" — shot {', '.join(map(str, used))} của cảnh này đứng ở đó" if used else ""))
+    if far:
+        notes.append(f"(code bỏ {far} chỗ đứng khác cách O hơn {NEAR_SPOT_M:g} m mà kịch bản cảnh này không nhắc)")
     have_keys = {o["key"] for o in fixed}
     by_key = {o["key"]: o for o in fixed}
     for k, o in (prev_state or {}).get("objects", {}).items():

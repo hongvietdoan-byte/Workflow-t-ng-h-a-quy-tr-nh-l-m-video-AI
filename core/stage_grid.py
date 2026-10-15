@@ -519,6 +519,7 @@ def _span(parts, table, what):
 def parse_zone(z) -> Dict:
     """Vùng đích trên lưới một phần ba (mục 3.2): "ngang-dọc", vd "phai-giua", "giua+phai-duoi", "trai" (chỉ ngang), "*-tren" (chỉ dọc).
     Nhận cả chữ có dấu / cách viết của Director: "1/3 phải, 1/3 giữa", "giữa dưới". Một chữ "tren"/"duoi" đứng riêng = chỉ dọc.
+    Viết DỌC trước ("duoi-trai", "tren-giua") được đảo lại khi thứ tự rõ (16/10 chạy thật #31 cảnh 4).
     Trả {"u": (lo, hi) | None, "w": (lo, hi) | None} (u trái→phải, w trên→dưới, 0..1)."""
     if z in (None, "", "*"):
         return {"u": None, "w": None}
@@ -537,7 +538,10 @@ def parse_zone(z) -> Dict:
         return {"u": None, "w": _span(parts[0], _W_ZONE, "dọc")}
     # 16/10 chạy thật #31 cảnh 4 (mất 0,31 USD): Đạo diễn viết DỌC trước ("duoi-trai", "tren-giua") — một chữ chỉ có ở trục dọc
     # (tren/duoi) ở phần đầu, hoặc chỉ có ở trục ngang (trai/phai) ở phần sau, thì thứ tự là dọc-ngang: đảo lại, không bắt hỏi lại
-    if len(parts) == 2 and (any(q in ("tren", "duoi") for q in parts[0]) or any(q in ("trai", "phai") for q in parts[1]))             and not any(q in ("trai", "phai") for q in parts[0]) and not any(q in ("tren", "duoi") for q in parts[1]):
+    second = parts[1] if len(parts) == 2 else []
+    vertical_first = any(q in ("tren", "duoi") for q in parts[0]) or any(q in ("trai", "phai") for q in second)
+    mixed = any(q in ("trai", "phai") for q in parts[0]) or any(q in ("tren", "duoi") for q in second)
+    if len(parts) == 2 and vertical_first and not mixed:
         parts = [parts[1], parts[0]]
     return {"u": _span(parts[0], _U_ZONE, "ngang"), "w": _span(parts[1], _W_ZONE, "dọc") if len(parts) > 1 else None}
 

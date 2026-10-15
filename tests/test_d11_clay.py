@@ -105,7 +105,7 @@ def test_off_prompt_matches_base_bytes(monkeypatch):
     from core import stage_director
     from tests.test_stage_director import inputs
     monkeypatch.setattr(features,'on',lambda name:False)
-    assert hashlib.sha256(stage_director.build_prompt(inputs()).encode()).hexdigest() == 'b44d4c04d5350e4c815e91e2df2885223054f096f1e82be916c8abb762e795ef'
+    assert hashlib.sha256(stage_director.build_prompt(inputs()).encode()).hexdigest() == '15c686d81f2c44adaa06ae1a696584d7b1a1c6540e9ad70b704c1db830522d65'   # 16/10: prompt 29 nói rõ thứ tự vùng ngang-dọc + vật cố định code tự thêm
 
 @pytest.mark.parametrize('enabled',[False,True])
 def test_v3_caller_fake_saves_blockout_and_people(tmp_path,monkeypatch,enabled):
