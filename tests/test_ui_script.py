@@ -171,6 +171,14 @@ class ScriptScreenV2Tests(unittest.TestCase):
         self.assertFalse(at.session_state[f"fold_director_{pid}"])
         self.assertEqual([e.label for e in at.expander if e.proto.expanded], [])
 
+    def test_chat_first_draws_the_estimate_once(self):
+        # #31 15/10: hero AND the chat guide bubble both drew 💵 Dự tính dự án → StreamlitDuplicateElementKey 'infoa-script-estimate-<pid>',
+        # the page stopped and ⚙ Chi tiết › Nhân vật never showed
+        pid = self.prepared(lock=False)
+        with mock.patch.dict(os.environ, {"FEATURE_CHAT_FIRST": "1", "FEATURE_PROJECT_BUDGET": "1", "FEATURE_IDEA_TO_SCRIPT": "1"}):
+            at = self.run_app()
+        self.assertEqual(sum(1 for k in tree_keys(at) if k == f"infoa-script-estimate-{pid}"), 1)
+
     def test_notes_become_one_line_plus_info_even_with_flag_off(self):
         def app():
             import streamlit as st

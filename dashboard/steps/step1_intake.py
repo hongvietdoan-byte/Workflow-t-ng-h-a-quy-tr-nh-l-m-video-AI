@@ -149,4 +149,4 @@ def guide_bubble(p: Pipeline, pid: int) -> None:
         line = F.guide(kind, s, missing, len(I.pending(C.DATA, pid)))
         if line:
             st.markdown(line)
-        V._primary_action(p, pid, kind, scenes, chars, b_total, b_spent, _lock_and_go)
+        V._primary_action(p, pid, kind, scenes, chars, b_total, b_spent, _lock_and_go, estimate=False)

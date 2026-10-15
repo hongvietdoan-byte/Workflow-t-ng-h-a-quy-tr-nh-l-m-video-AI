@@ -135,7 +135,9 @@ def _hero(p: Pipeline, pid: int, proj, scenes, chars, locked: bool, stale: int, 
             _primary_action(p, pid, kind, scenes, chars, b_total, b_spent, _lock_and_go)
 
 
-def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: float, b_spent: float, lock_and_go) -> None:
+def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: float, b_spent: float, lock_and_go,
+                    estimate: bool = True) -> None:
+    """estimate=False: the chat guide bubble (cờ chat_first) — the hero already drew 💵 Dự tính dự án (drawing it twice = duplicate key, #31 15/10)."""
     if kind == "analyse":
         st.html(D.empty_state("Bắt đầu từ kịch bản", "Dán hoặc tải kịch bản ở thẻ ① rồi bấm ▶ Phân tích"))
     elif kind == "auto":
@@ -182,7 +184,7 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
         st.button("Sang Storyboard →", type="primary", key=f"script-cta-next_{pid}", width="stretch", on_click=go)
     if b_total and kind != "analyse":
         st.html(D.meter(b_spent / b_total, f"Ngân sách: đã chi {b_spent:.2f} / {b_total:.2f} USD", invert=True))
-    elif chars and kind not in ("analyse", "plan"):
+    elif estimate and chars and kind not in ("analyse", "plan"):
         _estimate_box(p, pid)
 
 
