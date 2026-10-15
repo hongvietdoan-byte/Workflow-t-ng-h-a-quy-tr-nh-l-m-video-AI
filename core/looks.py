@@ -166,17 +166,43 @@ _GORE_TAG = "Gore restraint:"
 GORE_VIDEO_MAX = 200     # the video sentence is never longer (seedance_refs._estimated_len counts it before a group is closed)
 
 
+# #31 cảnh 5·2 (15/10): "Purple-red glow from door 1 bleeds in at the frame-left edge" — light / colour that "bleeds" is a lighting
+# word, not blood. Rà 15/10: only when BOTH hold — (a) a light / colour word is the subject right before it (≤ 3 words between, no
+# comma, no and/while; "neon-lit soldier" is a person, not light) and (b) "bleed" is followed at once by in/into/through/over/across/
+# out/onto. "Kelly stands in the moonlight and her arm bleeds", "In the glow of the fire the man bleeds heavily" stay gore.
+_LIGHT_SUBJECT_BEFORE_BLEED = re.compile(
+    r"\b(?:glow\w*|light|lights|lighting|colou?rs?|hues?|tints?|neon|aura|radiance|shine|rays?|beams?"
+    r"|reflections?|haze|sunlight|moonlight|lamplight|firelight)\b(?!-)((?:\s+[\w'-]+){0,3}?)\s+$", re.IGNORECASE)
+_LIGHT_BLEED_AFTER = re.compile(r"\s+(?:in|into|through|over|across|out|onto)\b", re.IGNORECASE)
+
+
+def _is_light_bleed(text: str, m) -> bool:
+    if not m.group(0).lower().startswith("bleed"):
+        return False
+    before = _LIGHT_SUBJECT_BEFORE_BLEED.search(text[:m.start()])
+    if not before or re.search(r"\b(?:and|while)\b", before.group(1), re.IGNORECASE):
+        return False
+    return bool(_LIGHT_BLEED_AFTER.match(text, m.end()))
+
+
+def _gore_iter(text: str):
+    import unicodedata
+    text = unicodedata.normalize("NFC", text or "")
+    for m in _GORE.finditer(text):
+        if _is_light_bleed(text, m):
+            continue
+        yield m
+
+
 def gore_words(text: str):
     """The gore words of a text, lower case, once each, in order."""
-    import unicodedata
-    found = [m.group(0).lower() for m in _GORE.finditer(unicodedata.normalize("NFC", text or ""))]
+    found = [m.group(0).lower() for m in _gore_iter(text)]
     return list(dict.fromkeys(found))
 
 
 def gore_search(text: str):
-    """The first gore word of a text (re.Match) or None — NFC, no accent folding."""
-    import unicodedata
-    return _GORE.search(unicodedata.normalize("NFC", text or ""))
+    """The first gore word of a text (re.Match) or None — NFC, no accent folding; light that 'bleeds' is not gore (#31)."""
+    return next(_gore_iter(text), None)
 
 
 def is_ff(project_row) -> bool:

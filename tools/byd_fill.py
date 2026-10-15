@@ -32,8 +32,9 @@ from core import cost, director_byd  # noqa: E402
 
 
 def plan(conn, pid: int) -> Dict:
-    """Chia các hàng scenes của dự án: `fill` (gửi sửa), `keep` (đã có BYĐ hợp lệ), `bad_input` (không dựng được đầu vào, kèm lý do)."""
-    fill, keep, bad_input = [], [], []
+    """Chia các hàng scenes của dự án: `fill` (gửi sửa), `keep` (đã có BYĐ hợp lệ), `number_only` (BYĐ chỉ thiếu `shot` — điền
+    shot_no, 0 USD, không tính vào việc sửa trả tiền / ước tiền), `bad_input` (không dựng được đầu vào, kèm lý do)."""
+    fill, keep, number_only, bad_input = [], [], [], []
     for r in conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)):
         rid, idx = r[0], r[1]
         try:
@@ -49,11 +50,27 @@ def plan(conn, pid: int) -> Dict:
             bad_input.append({"id": rid, "idx": idx, "why": "không phải hàng shot của Đạo diễn (thiếu " + ", ".join(missing) + ")"})
             continue
         row = {"id": rid, "idx": idx, "data": data}
+        byd = data.get("byd")
+        if isinstance(byd, dict) and "shot" not in byd and isinstance(data.get("shot_no"), int) and data["shot_no"] > 0:
+            trial = dict(data, byd=dict(byd, shot=data["shot_no"]))   # bản sao: chưa ghi gì
+            if not director_byd.problems(trial, conn)[0]:
+                number_only.append(dict(row, note=f"BYĐ thiếu `shot` — tự điền số {data['shot_no']} (0 USD, không gọi Claude)"))
+                continue
         if data.get("byd") is not None and not director_byd.problems(data, conn)[0]:
             keep.append(row)
         else:
             fill.append(row)
-    return {"fill": fill, "keep": keep, "bad_input": bad_input}
+    return {"fill": fill, "keep": keep, "number_only": number_only, "bad_input": bad_input}
+
+
+def fill_numbers(conn, rows: List[Dict]) -> None:
+    """Nhóm miễn phí: ghi `byd.shot` = shot_no vào hàng (mọi trường khác giữ nguyên)."""
+    for row in rows:
+        cur = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (row["id"],)).fetchone()[0] or "{}")
+        if isinstance(cur.get("byd"), dict) and "shot" not in cur["byd"]:
+            cur["byd"]["shot"] = cur["shot_no"]
+            conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(cur, ensure_ascii=False), row["id"]))
+    conn.commit()
 
 
 def estimate_usd(conn, n_shots: int) -> Dict:
@@ -127,7 +144,11 @@ def main(argv=None, conn=None, client=None) -> int:
         print(f"  VÀNG hàng #{b['idx']} (id {b['id']}): không dựng được đầu vào — {b['why']}")
     n = len(pl["fill"])
     print(f"dự án #{pid}: {n} shot sẽ điền BYĐ · {len(pl['keep'])} shot đã có BYĐ hợp lệ (giữ nguyên, không gửi) · "
-          f"{len(pl['bad_input'])} hàng bỏ qua (VÀNG)")
+          f"{len(pl['number_only'])} shot chỉ thiếu số shot (miễn phí) · {len(pl['bad_input'])} hàng bỏ qua (VÀNG)")
+    for r in pl["number_only"]:
+        print(f"  MIỄN PHÍ hàng #{r['idx']} (id {r['id']}): {r['note']}")
+    if paid and pl["number_only"]:
+        fill_numbers(conn, pl["number_only"])
     if not n:
         print("không có shot nào cần điền — không gọi Claude")
         return 0

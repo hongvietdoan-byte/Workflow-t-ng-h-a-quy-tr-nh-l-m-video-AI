@@ -314,9 +314,14 @@ def _common(prompt: str, data: Dict, chars: Optional[List[Dict]], kind_word: str
     out = []
     gore = looks.gore_search(prompt)
     if gore and not _RESTRAINT.search(prompt):      # ff False (another game): the FF rule is only a warning (F1 sửa #6)
-        out.append(_issue("warn" if ff is False else "red", "luat_ff", f"Chi tiết ghê “{_snip(gore)}” không có câu tiết chế — luật mọi dự án Free Fire: chỉ gợi "
+        w = _snip(gore)
+        en = w.lower() if w.isascii() else "dark detail"     # câu gợi gửi model là tiếng Anh (chữ Việt chặn gửi Seedance)
+        out.append(_issue("warn" if ff is False else "red", "luat_ff", f"Chi tiết ghê “{w}” không có câu tiết chế — luật mọi dự án Free Fire: chỉ gợi "
                                             "(only hinted / in shadow / out of focus / partly hidden), không 'everything in focus' trên nó; "
-                                            "hoặc bỏ hẳn chi tiết đó."))
+                                            "hoặc bỏ hẳn chi tiết đó. Cách sửa (#31): thêm một câu như 'The " + en + " is only hinted — "
+                                            "in deep shadow, partly hidden, out of focus.' và đổi 'everything in focus' thành 'everything in "
+                                            "focus except the hinted " + en + "'; chữ chép từ hồ sơ trang phục (vd 'blood stains' trên áo) "
+                                            "cũng phải gợi ('faint dark stains, only hinted'); ánh sáng loang viết 'spills', không 'bleeds'."))
     for s in _sentences(prompt):
         rush, near = _RUSH.search(s), _NEAR.search(s)
         if rush and near:
