@@ -329,6 +329,12 @@ def blender_main(cfg):
             h.data.materials.append(mk_mat("STAGE_WELL_dark", (0.02, 0.02, 0.03)))
             info.update(radius_m=p["radius"], height_m=p["height"], top_z=round(frel + p["height"], 2), source=p.get("source"),
                         hollow=bool(p.get("hollow")))
+        elif p["kind"] == "block":                       # 15/10: đạo cụ không có trong model 3D = khối trụ xám đúng chỗ + đúng cỡ
+            bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=p["radius"], depth=p["height"], location=(s.x, s.y, fz + p["height"] / 2))
+            o = bpy.context.active_object
+            o.name = f"STAGE_{p['name']}_body"
+            o.data.materials.append(mk_mat(f"STAGE_{p['name']}_mat", (0.5, 0.42, 0.33)))
+            info.update(radius_m=p["radius"], height_m=p["height"], top_z=round(frel + p["height"], 2), source=p.get("source"))
         else:
             hgt = p["height"]
             if p.get("in_well") is not None:
@@ -589,6 +595,8 @@ def s1_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
         o = obj.original if hasattr(obj, "original") else obj
         if o.name.startswith("STAGE_WELL"):
             return o, "gieng"
+        if o.name.startswith("STAGE_PROP_"):
+            return o, "vat_" + o.name.split("_")[2].lower()
         if o.name.startswith("STAGE_"):
             return o, "nguoi_" + o.name.split("_")[1].lower()
         return o, sg.group_by_hit(classify(o, mat_of(obj, idx)), rel((0, 0, loc.z))[2], nor.z)
@@ -844,6 +852,8 @@ def v2_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
         o = obj.original if hasattr(obj, "original") else obj
         if o.name.startswith("STAGE_WELL"):
             return o, "gieng"
+        if o.name.startswith("STAGE_PROP_"):
+            return o, "vat_" + o.name.split("_")[2].lower()
         if o.name.startswith("STAGE_"):
             return o, "nguoi_" + o.name.split("_")[1].lower()
         return o, sg.group_by_hit(classify(o, mat_of(obj, idx)), rel((0, 0, loc.z))[2], nor.z)
@@ -936,6 +946,8 @@ def v2_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
             ob.color = (0.72, 0.72, 0.72, 1)
             if ob.name.startswith("STAGE_WELL"):
                 ob.color = (0.35, 0.55, 0.95, 1) if ob.name == "STAGE_WELL" else (0.1, 0.1, 0.15, 1)
+            elif ob.name.startswith("STAGE_PROP_"):
+                ob.color = (0.55, 0.45, 0.3, 1)
             elif ob.name.startswith("STAGE_"):
                 ob.color = (*cols.get(ob.name.split("_")[1], (1.0, 0.45, 0.05)), 1)
         try:
@@ -1021,8 +1033,20 @@ def _place_model3d(db, place):
         conn.close()
 
 
+class BlenderError(RuntimeError):
+    """Blender không có / chạy lỗi (luồng tự động bắt lỗi này và nói rõ; CLI thoát như cũ)."""
+
+
 def run_blender(cfg, out, timeout=1800):
     """Ghi cfg.json, chạy Blender nền (lượt Blender chung của plates3d), lưu blender.log; lỗi thì thoát kèm 15 dòng cuối."""
+    try:
+        run_blender_safe(cfg, out, timeout)
+    except BlenderError as e:
+        sys.exit(str(e))
+
+
+def run_blender_safe(cfg, out, timeout=1800):
+    """Như run_blender nhưng lỗi = BlenderError (core/stage_auto gọi trong autopilot — không SystemExit)."""
     sys.path.insert(0, ROOT)
     from core import plates3d
     cfg_path = os.path.join(out, "cfg.json" if cfg.get("mode") != "floor" else "cfg_floor.json")
@@ -1030,7 +1054,7 @@ def run_blender(cfg, out, timeout=1800):
         json.dump(cfg, f, ensure_ascii=False, indent=1)
     blender = plates3d.find_blender()
     if not blender:
-        sys.exit("không tìm thấy Blender")
+        raise BlenderError("không tìm thấy Blender")
     args = ["-b", "--factory-startup", "-P", os.path.abspath(__file__), "--", "--config", cfg_path]
     with plates3d.blender_turn(owner="stage_grid"):
         if blender.startswith(plates3d.STORE):
@@ -1041,7 +1065,7 @@ def run_blender(cfg, out, timeout=1800):
     with open(os.path.join(out, "blender.log"), "w", encoding="utf-8") as f:
         f.write(proc.stdout or "")
     if proc.returncode != 0 or "[stage]" not in (proc.stdout or ""):
-        sys.exit("Blender lỗi:\n" + "\n".join((proc.stdout or "").splitlines()[-15:]))
+        raise BlenderError("Blender lỗi:\n" + "\n".join((proc.stdout or "").splitlines()[-15:]))
 
 
 def fix_spot_main(argv):
@@ -1269,17 +1293,24 @@ def blender_props(beats):
     mỗi tư thế khác nhau của một người = một người nộm riêng `STAGE_<KHÓA>_V<n>_…` (ẩn/hiện theo shot ở v2_block). Ghi `own`/`prop` vào vật."""
     if isinstance(next(iter(beats.values()), {}).get("kind"), str):          # một dàn cảnh không nhịp
         beats = {"": beats}
-    wells = {}
+    wells, blocks = {}, {}
     for objs in beats.values():
         for o in objs.values():
             if o["kind"] == "dao_cu" and o.get("shape") == "gieng":
                 wells[o["key"]] = o
-            elif o["kind"] == "dao_cu":
-                raise SystemExit(f"v2: chưa dựng được khối thay thế cho '{o['key']}' (mới có giếng + người nộm)")
+            elif o["kind"] == "dao_cu":                  # 15/10 sân khấu tự động: mọi đạo cụ khác = khối trụ đúng chỗ + đúng cỡ
+                blocks.setdefault(o["key"], o)
     if len(wells) > 1:
-        raise SystemExit("v2: dàn cảnh có > 1 giếng — Blender chỉ dựng một STAGE_WELL")
+        raise ValueError("v2: dàn cảnh có > 1 giếng — Blender chỉ dựng một STAGE_WELL")
     props = [{"name": "WELL", "kind": "well", "at": list(o["xy"]), "radius": o["r"], "height": o["h"], "sides": 8,
               "source": o.get("source") or WELL_SRC, "hollow": bool(o.get("hollow"))} for o in wells.values()]
+    for k, o in blocks.items():
+        name = f"PROP_{k.upper()}"
+        props.append({"name": name, "key": k, "kind": "block", "at": list(o["xy"]), "radius": o["r"], "height": o["h"],
+                      "source": o.get("source") or "blocking.json"})
+        for objs in beats.values():
+            if k in objs:
+                objs[k]["prop"], objs[k]["own"] = name, f"STAGE_{name}_"
     pal, variants = {}, {}
     colours = [[1.0, 0.45, 0.05], [0.85, 0.05, 0.1], [0.2, 0.75, 0.3], [0.6, 0.3, 0.9]]
     for objs in beats.values():
@@ -1326,53 +1357,69 @@ def v2_main(argv):
     blocking = json.load(open(a.blocking, encoding="utf-8"))
     specs = json.load(open(a.specs, encoding="utf-8"))
     specs = specs.get("shots", specs) if isinstance(specs, dict) else specs
-    aspect, res = _aspect(blocking)
     if not a.draw_only:
-        src = os.path.abspath(a.stage_from or out)
-        st = json.load(open(os.path.join(src, "stage.json"), encoding="utf-8"))
-        grid = json.load(open(os.path.join(src, "grid.json"), encoding="utf-8"))["cells"]
-        t0 = time.time()
-        sol = ss.solve_scene(specs, blocking, aspect, marks=st.get("marks"), grid_cells=grid, stage=st)
-        solve_ms = round(1000 * (time.time() - t0), 1)
-        sol["solve_ms"] = solve_ms
-        with open(os.path.join(out, "setups.json"), "w", encoding="utf-8") as f:
-            json.dump(sol, f, ensure_ascii=False, indent=1)
-        print(f"K3 giải {len(specs)} shot trong {solve_ms} ms; trục {blocking.get('axis')} s₀ = {sol['s0']}")
-        for s in sol["shots"]:
-            n_ok = sum(1 for c in s["cams"] if c["check"]["ok"] and c["c1_ok"])
-            print(f"  shot {s['shot']}: {len(s['cams'])} phương án, {n_ok} đạt giai đoạn (a)" + "".join(f"\n    ! {e}" for e in s["errors"])
-                  + "".join(f"\n    · {e}" for e in s["notes"] + s.get("advice", [])))
-        for w in sol.get("continuity") or []:                 # 11/10 (#24): vị trí sau động tác di chuyển (core/shot_lessons)
-            print(f"  [VÀNG] {w['msg']}")
-        if a.solve_only:
+        try:
+            _, v2 = v2_run(blocking, specs, out, a.stage_from, db=a.db, max_cands=a.max_cands, solve_only=a.solve_only)
+        except BlenderError as e:
+            sys.exit(str(e))
+        if v2 is None:
             return
-        m3 = _place_model3d(a.db, blocking["place"])
-        spot = m3["spots"][blocking["spot"]]
-        beats = sol["beats"]
-        props = blender_props(beats)
-        setups = []
-        for s in sol["shots"]:
-            if s["errors"] or not s["cams"]:
-                continue
-            spec = next(p for p in specs if p.get("shot") == s["shot"])
-            bo = {k: v for k, v in beats[spec.get("nhip") or ""].items() if k in (s.get("objs_used") or beats[spec.get("nhip") or ""])}
-            cands = [{k: c.get(k) for k in ("tag", "at", "aim", "lens", "fallback", "c1_ok", "end")} for c in s["cams"][:a.max_cands]]
-            for c in cands:
-                if c["end"]:
-                    c["end"] = {"at": c["end"]["at"], "aim": c["end"]["aim"]}
-            setups.append({"shot": s["shot"], "spec": spec, "cands": cands, "objs": bo,
-                           "show": [o["prop"] for o in bo.values() if o.get("prop")],
-                           "axis": None if not blocking.get("axis") else
-                           [list(beats[spec.get("nhip") or ""][k]["xy"]) + [0.0] for k in blocking["axis"]]})   # trục theo nhịp đầy đủ (POV bỏ người cầm máy khỏi vật)
-        extra = [[o["xy"][0], o["xy"][1], 2.0] for bo in beats.values() for o in bo.values() if o["kind"] != "moc"]
-        cfg = {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spot["at"],
-               "anchor_model": m3["anchor"], "cell_m": 1.0, "cols": 20, "rows": 20, "acting_area": {"half_m": 3.0, "extra": extra},
-               "engine": "auto", "samples": 16, "top_view": {"centre": [0.0, 5.5], "size_m": 42.0, "px": 1260}, "props": props,
-               "axis": sol["axis"], "targets": {}, "cameras": [],
-               "v2": {"setups": setups, "res": res, "coarse": [18, 32], "fine": [36, 64]}}
-        run_blender(cfg, out, timeout=3600)
     draw_v2(out)
     report_v2(out)
+
+
+def v2_run(blocking, specs, out, stage_from=None, *, db=DEFAULT_DB, m3=None, max_cands=31, solve_only=False, reach=False, log=print):
+    """K3 giải máy + K4 Blender đo (một lượt) → (setups, v2) — v2 None khi solve_only. Lõi chung của CLI `v2` và core/stage_auto
+    (luồng tự động: reach=True = máy chỉ ở ô đi tới được từ O; lỗi Blender = BlenderError, không SystemExit). 0 USD."""
+    if ROOT not in sys.path:
+        sys.path.insert(0, ROOT)
+    from core import stage_solver as ss
+    aspect, res = _aspect(blocking)
+    src = os.path.abspath(stage_from or out)
+    st = json.load(open(os.path.join(src, "stage.json"), encoding="utf-8"))
+    grid = json.load(open(os.path.join(src, "grid.json"), encoding="utf-8"))["cells"]
+    t0 = time.time()
+    sol = ss.solve_scene(specs, blocking, aspect, marks=st.get("marks"), grid_cells=grid, stage=st, reach=reach)
+    solve_ms = round(1000 * (time.time() - t0), 1)
+    sol["solve_ms"] = solve_ms
+    with open(os.path.join(out, "setups.json"), "w", encoding="utf-8") as f:
+        json.dump(sol, f, ensure_ascii=False, indent=1)
+    log(f"K3 giải {len(specs)} shot trong {solve_ms} ms; trục {blocking.get('axis')} s₀ = {sol['s0']}")
+    for s in sol["shots"]:
+        n_ok = sum(1 for c in s["cams"] if c["check"]["ok"] and c["c1_ok"])
+        log(f"  shot {s['shot']}: {len(s['cams'])} phương án, {n_ok} đạt giai đoạn (a)" + "".join(f"\n    ! {e}" for e in s["errors"])
+              + "".join(f"\n    · {e}" for e in s["notes"] + s.get("advice", [])))
+    for w in sol.get("continuity") or []:                 # 11/10 (#24): vị trí sau động tác di chuyển (core/shot_lessons)
+        log(f"  [VÀNG] {w['msg']}")
+    if solve_only:
+        return sol, None
+    m3 = m3 or _place_model3d(db, blocking["place"])
+    spot = m3["spots"][blocking["spot"]]
+    beats = sol["beats"]
+    props = blender_props(beats)
+    setups = []
+    for s in sol["shots"]:
+        if s["errors"] or not s["cams"]:
+            continue
+        spec = next(p for p in specs if p.get("shot") == s["shot"])
+        bo = {k: v for k, v in beats[spec.get("nhip") or ""].items() if k in (s.get("objs_used") or beats[spec.get("nhip") or ""])}
+        cands = [{k: c.get(k) for k in ("tag", "at", "aim", "lens", "fallback", "c1_ok", "end")} for c in s["cams"][:max_cands]]
+        for c in cands:
+            if c["end"]:
+                c["end"] = {"at": c["end"]["at"], "aim": c["end"]["aim"]}
+        setups.append({"shot": s["shot"], "spec": spec, "cands": cands, "objs": bo,
+                       "show": [o["prop"] for o in bo.values() if o.get("prop")],
+                       "axis": None if not blocking.get("axis") else
+                       [list(beats[spec.get("nhip") or ""][k]["xy"]) + [0.0] for k in blocking["axis"]]})   # trục theo nhịp đầy đủ (POV bỏ người cầm máy khỏi vật)
+    extra = [[o["xy"][0], o["xy"][1], 2.0] for bo in beats.values() for o in bo.values() if o["kind"] != "moc"]
+    cfg = {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spot["at"],
+           "anchor_model": m3["anchor"], "cell_m": 1.0, "cols": 20, "rows": 20, "acting_area": {"half_m": 3.0, "extra": extra},
+           "engine": "auto", "samples": 16, "top_view": {"centre": [0.0, 5.5], "size_m": 42.0, "px": 1260}, "props": props,
+           "axis": sol["axis"], "targets": {}, "cameras": [],
+           "v2": {"setups": setups, "res": res, "coarse": [18, 32], "fine": [36, 64]}}
+    run_blender_safe(cfg, out, timeout=3600)
+    with open(os.path.join(out, "v2.json"), encoding="utf-8") as f:
+        return sol, json.load(f)
 
 
 def _overlay_v2(out, best, spec, objs, footer):
@@ -1750,6 +1797,31 @@ YEUNU_H = 1.7          # nhân vật #24 30/31 không ghi chiều cao → mặc 
 WELL_H = round(sg.HIP * YEUNU_H, 2)   # Kho 420 "GIẾNG ĐÁ CỔ": "cao ngang hông" → 0,53 × 1,7 = 0,90 m
 WELL_D = 1.5           # ảnh Kho 1127 (gieng_da_sach): bề ngang / chiều cao thành ≈ 1,7 → 1,7 × 0,9 ≈ 1,5 m; tám cạnh
 WELL_SRC = "Kho 420 + ảnh 1127: cao ngang hông (0,53·1,7 = 0,90 m), rộng ≈ 1,7 × cao ≈ 1,5 m, tám cạnh"
+
+
+def k1_cfg(m3, spot_name, out, extra=None):
+    """15/10 K1 THUẦN sân khấu cho mọi dự án (thay build_cfg #24 trong luồng tự động): chỉ đo sàn / ô cấm / mốc quanh một chỗ đứng —
+    không người nộm, không đạo cụ (người + vật thuộc về dàn cảnh từng cảnh, dựng ở K4). Thiếu chỗ đứng / mốc → ValueError (không đoán)."""
+    spots = m3.get("spots") or {}
+    if spot_name not in spots:
+        raise ValueError(f"chỗ đứng '{spot_name}' không có trong model 3D ({', '.join(spots) or 'không có chỗ đứng nào'})")
+    if not m3.get("anchor"):
+        raise ValueError("model 3D chưa có `anchor` (mốc) — đăng ký lại bối cảnh ở Kho")
+    return {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spots[spot_name]["at"],
+            "anchor_model": m3["anchor"], "cell_m": 1.0, "cols": 20, "rows": 20, "acting_area": {"half_m": 3.0, "extra": list(extra or [])},
+            "engine": "auto", "samples": 16, "top_view": {"centre": [0.0, 0.0], "size_m": 24.0, "px": 960}, "props": [], "targets": {},
+            "cameras": []}
+
+
+def k1_run(m3, spot_name, out, timeout=1800):
+    """K1 (0 USD, Blender ≈ 20 s): stage.json + grid.json + topgrid.png của một chỗ đứng. Lỗi = BlenderError / ValueError."""
+    os.makedirs(out, exist_ok=True)
+    run_blender_safe(k1_cfg(m3, spot_name, out), out, timeout)
+    try:
+        draw_top(out)
+    except Exception as e:  # noqa: BLE001 - ảnh xem lưới là phụ; số đo (stage/grid.json) mới là đầu vào
+        with open(os.path.join(out, "draw_error.txt"), "w", encoding="utf-8") as f:
+            f.write(f"{type(e).__name__}: {e}")
 
 
 def build_cfg(m3, spot, out, facing, well_dist, yeunu_in_well=False):

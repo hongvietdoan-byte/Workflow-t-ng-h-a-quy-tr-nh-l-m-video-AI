@@ -511,7 +511,29 @@ def _p1_grid(C, grid, stage):
     g = grid.get(cell) if cell else None
     if g is None or g.get("status") != "same" or g.get("obstacle"):
         return f"ô {cell}: {'ngoài lưới' if g is None else g.get('status')}{', vật chắn' if g and g.get('obstacle') else ''}"
+    if g.get("unreachable"):
+        return f"ô {cell}: cùng mặt sàn nhưng không đi tới được từ gốc O (sau tường / ngoài phòng)"
     return None
+
+
+def reachable_cells(grid: Dict[str, Dict], stage: Dict) -> set:
+    """15/10 (#31 phòng hai cửa: máy lọt ngoài tường): các ô đi tới được từ ô gốc O theo 4 hướng, chỉ qua ô cùng mặt sàn không vật
+    chắn (grid K1). Ô cùng sàn mà không nối được với O = sau tường / ngoài phòng — máy không được đứng ở đó."""
+    start = sg.cell_name(stage, 0.0, 0.0)
+    ok = {n for n, g in grid.items() if g.get("status") == "same" and not g.get("obstacle")}
+    if start not in ok:
+        return set()
+    seen, todo = {start}, [start]
+    while todo:
+        i, j = sg.parse_cell(stage, todo.pop())
+        for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            ni, nj = i + di, j + dj
+            if 0 <= ni < stage["cols"] and 0 <= nj < stage["rows"]:
+                n = f"{sg.col_label(ni)}{nj + 1}"
+                if n in ok and n not in seen:
+                    seen.add(n)
+                    todo.append(n)
+    return seen
 
 
 def _judge(sh: Shot, sol: Dict, tag: str, axis, s0, grid, stage, fallback=False) -> Dict:
@@ -553,10 +575,16 @@ def _rank(c: Dict):
 
 
 def solve_scene(specs: List[Dict], blocking: Dict, aspect: float, marks: Optional[Dict] = None, grid_cells: Optional[List[Dict]] = None,
-                stage: Optional[Dict] = None) -> Dict:
-    """K3 cho cả cảnh: trục (blocking.axis = [key, key]) + phía máy s₀ (blocking.s0, hoặc lấy từ lời giải tốt nhất của shot đầu)."""
+                stage: Optional[Dict] = None, reach: bool = False) -> Dict:
+    """K3 cho cả cảnh: trục (blocking.axis = [key, key]) + phía máy s₀ (blocking.s0, hoặc lấy từ lời giải tốt nhất của shot đầu).
+    reach (sân khấu tự động, cờ stage_auto): máy chỉ đứng ở ô đi tới được từ O (reachable_cells) — TẮT thì như cũ."""
     objs = objects_from_blocking(blocking, marks)
-    grid = {c["cell"]: c for c in grid_cells} if grid_cells else None
+    grid = {c["cell"]: dict(c) for c in grid_cells} if grid_cells else None
+    if reach and grid and stage:
+        got = reachable_cells(grid, stage)
+        for n, g in grid.items():
+            if g.get("status") == "same" and not g.get("obstacle") and n not in got:
+                g["unreachable"] = True
     s0 = blocking.get("s0")
     shots, beats = [], {}
 
