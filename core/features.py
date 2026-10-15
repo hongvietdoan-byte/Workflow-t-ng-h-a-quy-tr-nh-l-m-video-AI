@@ -76,7 +76,7 @@ FEATURES: Dict[str, Dict] = {
     "chat_prompts": {
         "label": "D6 'đường như chat': trước khi gửi, MỘT lượt Claude nhìn đúng các ảnh sẽ gửi + ý đồ + mô tả của bạn viết lại prompt ảnh / "
                  "video thành một đoạn liền mạch (bản code ghép làm dữ kiện; code chỉ kiểm) — tốn 1 lượt Claude có ảnh / shot",
-        "verified": False,
+        "verified": False, "costs": True,
         "why": "Người dùng 14/10 (docs/DANH_GIA_VAI_DAO_DIEN_2026-10-14.md mục 3b–3c): chưa thí điểm — chạy tools/d6_pilot.py trên 3–5 shot #27 trước",
     },
     "motion_prose": {"fixes_projects": [28], 
