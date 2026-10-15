@@ -99,12 +99,17 @@ def test_check_plan_warns_with_numbers_and_reads_voice_speed():
     rows = p.conn.execute("SELECT severity, message, code FROM diag_events WHERE project_id=? AND code='pacing_gap'", (pid,)).fetchall()
     assert rows and rows[0]["severity"] == "warn" and "5.5 s" in rows[0]["message"] and "#1 4.5 s" in rows[0]["message"]
     # 15/10: the narrator's voice set to 1,2 on eleven_v3 — measured on #8/#24/#27: v3 does not read faster with speed, so the estimate
-    # stays 8 / 3,5 = 2,29 s (a shorter estimate would cut the real voice); the speed counts only for a model measured as following it
-    # (tests/test_speech_time.py::test_check_plan_reads_speed_only_when_the_model_follows_it)
+    # stays 8 / 3,5 = 2,29 s; the speed counts only for a model measured as following it
+    # (tests/test_speech_time.py::test_check_plan_reads_speed_only_when_the_model_follows_it). A fixed table (no measured row for voice
+    # 72): the real data/speech_rates.json is re-measured over time (vòng gop-1510: p50 on speech seconds) and must not move this check.
+    dialogue._RATES_CACHE["v"] = {"min_n": 8, "voices": {}, "speed_follows": {"eleven_v3": False}}
     p.conn.execute("INSERT INTO characters (project_id, name, description, voice_profile) VALUES (?,?,?,?)",
                    (pid, "LỜI DẪN", "", json.dumps({"voice_id": 72, "speed": 1.2})))
     p.conn.commit()
-    assert pacing.check_plan(p, pid, record=False)[0]["speech_s"] == 2.3
+    try:
+        assert pacing.check_plan(p, pid, record=False)[0]["speech_s"] == 2.3
+    finally:
+        dialogue._RATES_CACHE.clear()
 
 
 def test_check_plan_quiet_when_tight_and_off_when_normal():
