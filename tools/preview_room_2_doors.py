@@ -4,7 +4,7 @@
 
 1) Blender chạy build_room_2_doors.py -> <ra>/glb/phong_2_cua_{A,B,C}.glb (giữ lượt Blender chung: plates3d.blender_turn).
 2) Render 9:16 qua ĐÚNG tools/render_plates.py của dây chuyền (đêm, máy trong nhà = INDOOR của chỗ đứng): A từ mọi chỗ đứng,
-   B và C từ `goc_nhin_kelly_2_cua`; máy POV = 'at' cao mắt 1,55 m nhìn 'view' ống 16 mm; các chỗ khác = plate_camera.camera_for (MS).
+   B và C từ `goc_nhin_kelly_2_cua` + `can_cua_1`; máy POV = 'at' cao mắt 1,55 m nhìn 'view' ống 16 mm; các chỗ khác = plate_camera.camera_for (MS).
 3) plate_env.finish_plate (lớp màu đêm có đèn thật) -> <ra>/<trạng thái>_<chỗ>.png + ảnh tổng hợp <ra>/tong_hop.png.
 """
 import importlib.util
@@ -115,7 +115,7 @@ def main(argv):
     if "--skip-build" not in argv:
         build(glb_dir)
     all_spots = list(room.SPOTS)
-    plan = {"A": all_spots, "B": [room.DEFAULT_SPOT], "C": [room.DEFAULT_SPOT]}
+    plan = {"A": all_spots, "B": [room.DEFAULT_SPOT, "can_cua_1"], "C": [room.DEFAULT_SPOT, "can_cua_1"]}
     tiles = []
     for key, spots in plan.items():
         made, man = render_state(key, glb_dir, out, spots, engine)

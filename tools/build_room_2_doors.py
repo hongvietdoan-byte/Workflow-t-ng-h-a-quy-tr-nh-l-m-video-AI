@@ -28,8 +28,11 @@ DOORS = {
     "cua_1": {"wall": "west", "lo": 3.3, "hi": 3.3 + DOOR_W, "hinge": "lo"},
     "cua_2": {"wall": "north", "lo": 2.5, "hi": 2.5 + DOOR_W, "hinge": "hi"},
 }
-# góc mở (ra phía hành lang). Cửa 1 mở 45°: từ góc POV thấy cánh hé chéo trong lối — đọc ra "cửa đã mở"
-OPEN_DEG = {"cua_1": 45.0, "cua_2": 80.0}
+# góc mở (ra phía hành lang). Máy POV nhìn tường tây rất xiên (~58° so với pháp tuyến): cánh mở 45–75° thì gần như trùng tia
+# nhìn → chỉ còn một vạch tối, lối thành mảng tím phẳng (người dùng chê 15/10). Cửa 1 hé 30°: từ POV thấy MẶT gỗ cánh (nghiêng
+# ~65° so với tia nhìn) che ~40 % lối phía bản lề, khe hở ~60 % còn lại nhìn sâu vào hành lang có ánh tím–đỏ.
+OPEN_DEG = {"cua_1": 30.0, "cua_2": 80.0}
+HALL1_EXTRA_N = 1.3          # hành lang sau cửa 1 nới về phía bắc: tia nhìn qua khe đi sâu (~1,6–2,5 m) thay vì đập vách sát khung
 STATES = {
     "A": {"file": "phong_2_cua_A_dong.glb", "open": {"cua_1": 0.0, "cua_2": 0.0}, "glow": False},
     "B": {"file": "phong_2_cua_B_cua1_mo.glb", "open": {"cua_1": OPEN_DEG["cua_1"], "cua_2": 0.0}, "glow": True},
@@ -383,12 +386,14 @@ def main(out_dir):
             box(f"{name}_long_b", -T, 0, hi - 0.02, hi, 0, DOOR_H, trim)
             box(f"{name}_long_tren", -T, 0, lo, hi, DOOR_H - 0.02, DOOR_H, trim)
             L = 4.0                                         # hành lang chạy về -x
-            box(f"{name}_hl_san", -T - L, -T, lo - 0.2, hi + 0.2, -T, 0, floor, (1.2, 1.2))
-            box(f"{name}_hl_tran", -T - L, -T, lo - 0.2, hi + 0.2, 2.35, 2.45, ceil)
+            hn = hi + HALL1_EXTRA_N                         # vách bắc hành lang (nới xa khung để khe cửa nhìn được sâu)
+            box(f"{name}_hl_san", -T - L, -T, lo - 0.2, hn, -T, 0, floor, (1.2, 1.2))
+            box(f"{name}_hl_tran", -T - L, -T, lo - 0.2, hn, 2.35, 2.45, ceil)
             box(f"{name}_hl_tuong_a", -T - L, -T, lo - 0.3, lo - 0.2, 0, 2.45, hall_wall)
-            box(f"{name}_hl_tuong_b", -T - L, -T, hi + 0.2, hi + 0.3, 0, 2.45, hall_wall)
-            box(f"{name}_hl_cuoi", -T - L - 0.1, -T - L, lo - 0.3, hi + 0.3, 0, 2.45, hall_wall)
-            box(f"{name}_hl_noi_tren", -T - 0.02, -T, lo - 0.2, hi + 0.2, DOOR_H, 2.45, hall_wall)
+            box(f"{name}_hl_tuong_b", -T - L, -T, hn, hn + 0.1, 0, 2.45, hall_wall)
+            box(f"{name}_hl_cuoi", -T - L - 0.1, -T - L, lo - 0.3, hn + 0.1, 0, 2.45, hall_wall)
+            box(f"{name}_hl_noi_tren", -T - 0.02, -T, lo - 0.2, hn, DOOR_H, 2.45, hall_wall)
+            box(f"{name}_hl_noi_duoi", -T - 0.02, -T, hi, hn, 0, DOOR_H, hall_wall)   # mặt sau tường tây phía bắc lối
         else:
             box(f"{name}_nep_a", lo - C, lo, D - P, D, 0, DOOR_H + C, trim)
             box(f"{name}_nep_b", hi, hi + C, D - P, D, 0, DOOR_H + C, trim)
@@ -543,25 +548,36 @@ def main(out_dir):
 
     # ánh tím–đỏ của thế giới song song sau cửa 1 (chỉ B/C)
     def glow():
-        lo, hi = DOORS["cua_1"]["lo"], DOORS["cua_1"]["hi"]
-        g = mat("anh_tim_do", (0.62, 0.08, 0.40), 1.0, emit=1.4)
-        box("anh_tim_do_cuoi", -T - 3.95, -T - 3.9, lo - 0.2, hi + 0.2, 0, 2.35, g)
-        g2 = mat("anh_tim_do_mo", (0.40, 0.04, 0.25), 1.0, emit=0.25)
-        box("anh_tim_do_tran", -T - 3.9, -T - 0.3, lo - 0.18, hi + 0.18, 2.33, 2.35, g2)
-        # tường bắc hành lang (máy POV nhìn xiên vào lối thấy mặt này): ánh mờ loang — sáng ở xa + sát sàn, tối dần ra phía phòng
-        # và lên trần; ô nhỏ 0,5 m × 0,33 m, cường độ giảm mượt + nhiễu nhẹ để không thành tấm hồng phẳng
+        """Ánh tím–đỏ nằm SÂU trong lối sau cửa 1: vách cuối sáng nhất, hai vách bên + sàn loang sáng dần theo độ sâu, 0 m–0,9 m
+        sát khung để TỐI (không phát sáng gì gần cánh cửa — mặt gỗ cánh giữ màu gỗ như trạng thái A)."""
         import random
+        lo, hi = DOORS["cua_1"]["lo"], DOORS["cua_1"]["hi"]
+        hn = hi + HALL1_EXTRA_N
+        x_far, x_near = -T - 3.95, -T - 0.9                 # vùng phát sáng: từ vách cuối tới cách khung 0,9 m
         rnd = random.Random(5)
-        nx, nz = 8, 7
-        for k in range(nx):
-            a0 = -T - 3.9 + k * (3.75 / nx)
+        nx, nz = 10, 7
+        for j in range(nz):                                 # vách cuối: sáng nhất, sát sàn rực, lên trần dịu
+            z0 = j * 2.33 / nz
+            ge = mat(f"anh_tim_do_cuoi_{j}", (0.62, 0.08, 0.40), 1.0, emit=round(0.5 + 1.4 * (1 - j / nz) ** 1.5, 3))
+            box(f"anh_tim_do_cuoi_{j}", x_far, x_far + 0.03, lo - 0.18, hn - 0.02, z0, z0 + 2.33 / nz, ge)
+        step = (x_near - x_far - 0.03) / nx
+
+        def ramp(k, j):
+            fx = (1 - k / nx) ** 2.0                        # xa sáng, gần khung tắt hẳn
+            fz = (1 - j / nz) ** 2.2                        # sát sàn sáng, lên trần tối hẳn (không thành tấm tím phẳng)
+            return round((0.02 + 0.85 * fx * fz) * rnd.uniform(0.8, 1.15), 3)
+
+        for k in range(nx):                                 # k = 0 ở vách cuối
+            a0 = x_far + 0.03 + k * step
             for j in range(nz):
                 z0 = j * 2.33 / nz
-                fx = (1 - k / nx) ** 1.6                    # xa sáng, gần tối
-                fz = (1 - j / nz) ** 1.3                    # sàn sáng, trần tối
-                e = round((0.03 + 0.45 * fx * fz) * rnd.uniform(0.75, 1.15), 3)
-                gk = mat(f"anh_tim_do_tuong_{k}_{j}", (0.48, 0.05, 0.30), 1.0, emit=e)
-                box(f"anh_tim_do_tuong_{k}_{j}", a0, a0 + 3.75 / nx, hi + 0.18, hi + 0.2, z0, z0 + 2.33 / nz, gk)
+                for side, (b0, b1) in (("b", (hn - 0.02, hn)), ("a", (lo - 0.2, lo - 0.18))):
+                    e = ramp(k, j) * (1.0 if side == "b" else 0.7)
+                    gk = mat(f"anh_tim_do_{side}_{k}_{j}", (0.50, 0.05, 0.30), 1.0, emit=round(e, 3))
+                    box(f"anh_tim_do_{side}_{k}_{j}", a0, a0 + step, b0, b1, z0, z0 + 2.33 / nz, gk)
+            ef = round(0.6 * (1 - k / nx) ** 2.0 + 0.02, 3)  # vệt sáng trên sàn hành lang
+            gf = mat(f"anh_tim_do_san_{k}", (0.45, 0.04, 0.26), 1.0, emit=ef)
+            box(f"anh_tim_do_san_{k}", a0, a0 + step, lo - 0.18, hn - 0.02, 0.0, 0.004, gf)
 
     made = []
     glow_on = False

@@ -26,3 +26,11 @@ notes=NOTES)` — SPOTS/INDOOR/NOTES/DEFAULT_SPOT lấy từ tools/build_room_2_
   cách đặt máy riêng của pipeline).
 - Đèn trong .glb bị render_plates bỏ → ấm của đèn bàn phải đến từ practical_lights (lamp warm, phía trái/sau) của shot.
 - Ảnh: renders/phong_2_cua/tong_hop.png (commit); ảnh lẻ + .glb không commit (dựng lại: `py tools/preview_room_2_doors.py renders/phong_2_cua`).
+
+## Sửa 15/10 (sau góp ý "cửa 1 thành mảng tím phẳng")
+- Máy POV nhìn tường tây rất xiên (~58° so với pháp tuyến) → cánh mở 45–75° gần trùng tia nhìn, chỉ còn vạch tối. Đổi cửa 1 hé **30°**
+  (bản lề phía nam, vẫn mở ra hành lang): từ POV thấy MẶT gỗ cánh (ô panel + tay nắm) che ~40 % lối, khe ~60 % nhìn vào hành lang.
+  (Góc 60–75° như gợi ý: đã tính, mặt cánh gần như song song tia nhìn POV — không đọc được; bản lề bắc thì cánh che kín lối.)
+- Hành lang sau cửa 1 nới về bắc thêm 1,3 m (`HALL1_EXTRA_N`) để tia qua khe đi sâu 1,6–2,5 m; ánh tím–đỏ chỉ phát từ ≥ 0,9 m sau khung
+  (vách cuối sáng nhất, hai vách bên + vệt sàn loang theo độ sâu, tối dần lên trần) — không vật phát sáng nào gần cánh cửa.
+- Preview B/C render thêm `can_cua_1`. Mép dày cánh không thấy từ POV (mép tự do quay ra xa máy) — chấp nhận.
