@@ -92,9 +92,6 @@ class PlaceStaleTests(LayoutGuardTests):
         self.assertIsNone(lineage._scan(self.p.conn, self.pid)[sid]["image_stale"])     # made before S5.3: no false alarm
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class SceneLocationOrderTests(unittest.TestCase):
     """#31 cảnh 5 (15/10): heading names 'mở cửa 1' first and 'mở cả hai' at the end — the place named FIRST in the text wins,
@@ -113,3 +110,7 @@ class SceneLocationOrderTests(unittest.TestCase):
         heading = "CẢNH 5 - trong nhà, Phòng hai cửa mở cửa 1 (Kho) — cửa số 2 đóng; cuối cảnh dùng Phòng hai cửa mở cả hai (Kho)"
         self.assertEqual(assets.scene_location(p.conn, pid, {"location": heading})["id"], ids["PHÒNG HAI CỬA MỞ CỬA 1"])
         self.assertEqual(assets.scene_location(p.conn, pid, {"location": "Phòng hai cửa mở cả hai"})["id"], ids["PHÒNG HAI CỬA MỞ CẢ HAI"])
+
+
+if __name__ == "__main__":
+    unittest.main()
