@@ -37,6 +37,13 @@ RUN_MIN_M = 2.0              # đoạn đi dài hơn bấy nhiêu = chạy (ch�
 LOS_CLEAR_M = 0.2            # đường nhìn tới nhân vật phải cao hơn ngọn rào bấy nhiêu
 FOCUS_Z_M = 1.2              # điểm nhìn khi nhân vật chạy: ngực (≈ 0,7 × 1,7 m)
 TURN_FRAC = 0.2              # phần cuối đoạn di chuyển: người nộm xoay dần về hướng đứng của shot sau
+# kiểu giàn máy bám nhân vật theo hướng chạy (--rig SHOT:KIEU): mét so với nhân vật — sau lưng, sang trái, cao (so với sàn của nhân
+# vật), điểm nhìn phía trước, cao điểm nhìn, tiêu cự
+RIG_PRESETS = {
+    "sau_trai": {"back": 1.7, "left": 0.45, "z": 1.55, "ahead": 2.5, "aim_z": 1.3, "lens": 28.0},   # qua vai trái, thấy lối phía trước
+    "sau_phai": {"back": 1.7, "left": -0.45, "z": 1.55, "ahead": 2.5, "aim_z": 1.3, "lens": 28.0},
+    "sau_thap": {"back": 1.5, "left": 0.0, "z": 0.9, "ahead": 2.0, "aim_z": 1.4, "lens": 24.0},
+}
 HEDGE_CLEAR_M = 0.4          # máy rơi vào ô hàng rào → cao hơn ngọn rào bấy nhiêu
 
 
@@ -77,7 +84,7 @@ def _unwrap(prev, f):
 
 
 def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280), lens_range=None, depth_far=DEPTH_FAR_M,
-         uniform_run=False, orbit=0.0, extra=None):
+         uniform_run=False, orbit=0.0, extra=None, rig=None):
     """Kế hoạch previs (thuần, 0 USD) từ thư mục lượt K4 `rd`: {"previs": cấu hình Blender, "summary": số liệu cho người đọc}."""
     import stage_grid as sgt
     from core import stage_solver as ss
@@ -239,23 +246,58 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
         st_ = off(b["m"], starts[i])
         en_ = off(b["end"]["m"], starts[i] + T[i] * MOVE_FRAC) if b.get("end") and (b["end"].get("m") or {}).get("at") else st_
         leg = (legs.get(subj) or [None] * len(vs))[i] if subj else None
-        rigs.append({"subj": subj, "start": st_, "end": en_, "run": bool(leg and leg["len"] > RUN_MIN_M)})
+        preset = RIG_PRESETS.get((rig or {}).get(s["shot"]))
+        if preset and subj:
+            # người dùng 16/10 (shot 7 #31): máy cao nhìn xuống không cho cảm giác lạc / mò đường trong mê cung → giàn đặt theo HƯỚNG CHẠY
+            # của nhân vật ở đầu shot (sau lưng / chếch vai / ngang mắt), điểm nhìn phía trước nhân vật; xoay theo hướng chạy, không vòng
+            h = math.radians(heading(subj, starts[i]))
+            fwd, left = (math.sin(h), math.cos(h)), (-math.cos(h), math.sin(h))
+            ref = where(subj, starts[i])
+            c_ = [-preset["back"] * fwd[0] + preset["left"] * left[0], -preset["back"] * fwd[1] + preset["left"] * left[1], ref[2] + preset["z"]]
+            a_ = [preset["ahead"] * fwd[0], preset["ahead"] * fwd[1], ref[2] + preset["aim_z"]]
+            st_ = en_ = (c_, a_, preset["lens"])
+        rigs.append({"subj": subj, "start": st_, "end": en_, "run": bool(leg and leg["len"] > RUN_MIN_M), "preset": bool(preset and subj)})
     runs = [i for i, r in enumerate(rigs) if r["run"]]
+
+    def path_back(k, t, dist):
+        """Điểm trên ĐƯỜNG ĐÃ ĐI của nhân vật, lùi `dist` mét theo đường tính từ vị trí lúc t (luôn là lối trống)."""
+        ks = [x for x in pos.get(k) or [] if x[0] <= t] + [[t, *where(k, t), 0.0]]
+        need, cur = dist, ks[-1]
+        for prev in reversed(ks[:-1]):
+            seg = math.dist(prev[1:3], cur[1:3])
+            if seg >= need and seg > 1e-6:
+                u = need / seg
+                return [cur[1] + (prev[1] - cur[1]) * u, cur[2] + (prev[2] - cur[2]) * u, cur[3] + (prev[3] - cur[3]) * u]
+            need -= seg
+            cur = prev
+        return [cur[1], cur[2], cur[3]]
 
     def rig_at(i, t):
         """(máy, điểm nhìn, ống) tuyệt đối của giàn shot i tại thời điểm t (t có thể trước đầu shot — lúc trộn)."""
         r = rigs[i]
+        if r["preset"] and r["run"]:
+            # giàn sau lưng khi chạy = FOLLOW PATH (tài liệu one-shot): máy trên đường nhân vật vừa đi qua, lùi `back` m, lệch trái
+            # `left` m, nhìn trước nhân vật `ahead` m theo hướng chạy (bản xoay độ lệch lọt vào hàng rào ở khúc rẽ → bị nâng cao)
+            pr = RIG_PRESETS[rig[vs[i]["shot"]]]
+            k = r["subj"]
+            body = where(k, t)
+            back = path_back(k, t, pr["back"])
+            h = math.radians(head_cam(k, t))
+            fwd, left = (math.sin(h), math.cos(h)), (-math.cos(h), math.sin(h))
+            at = [back[0] + pr["left"] * left[0], back[1] + pr["left"] * left[1], body[2] + pr["z"]]
+            aim = [body[0] + pr["ahead"] * fwd[0], body[1] + pr["ahead"] * fwd[1], body[2] + pr["aim_z"]]
+            return at, aim, pr["lens"]
         u = min(max((t - starts[i]) / T[i], 0.0), 1.0)
         w = _smooth(u / MOVE_FRAC)
         c_off, a_off = _lerp(r["start"][0], r["end"][0], w), _lerp(r["start"][1], r["end"][1], w)
         lens = r["start"][2] + (r["end"][2] - r["start"][2]) * w
         if r["run"]:
-            spin = (orbit or 0.0) * _smooth(u) * (1 if runs.index(i) % 2 == 0 else -1)
+            spin = 0.0 if r["preset"] else (orbit or 0.0) * _smooth(u) * (1 if runs.index(i) % 2 == 0 else -1)
             d = math.radians(head_cam(r["subj"], max(t, starts[i])) - head_cam(r["subj"], starts[i]) + spin)
             rot = lambda v: [v[0] * math.cos(d) + v[1] * math.sin(d), -v[0] * math.sin(d) + v[1] * math.cos(d), v[2]]
             # người dùng 16/10 "miễn là máy vẫn focus theo Kelly": khi chạy, điểm nhìn KHÓA vào ngực nhân vật (bản nháp: điểm nhìn đo của
             # shot 7 nhắm khoảng trống phía trước → xoay theo → Kelly trôi ra khỏi khung)
-            c_off, a_off = rot(c_off), [0.0, 0.0, FOCUS_Z_M]
+            c_off, a_off = rot(c_off), (rot(a_off) if r["preset"] else [0.0, 0.0, FOCUS_Z_M])
         anchor = where(r["subj"], t) if r["subj"] else [0.0, 0.0, 0.0]
         return [a + o for a, o in zip(anchor, c_off)], [a + o for a, o in zip(anchor, a_off)], lens
 
@@ -370,6 +412,8 @@ def main(argv=None):
     ap.add_argument("--speed", type=float, help="m/s tối thiểu cho mỗi đoạn (cú máy có thể dài hơn kịch bản)")
     ap.add_argument("--uniform-run", action="store_true", help="chạy đều trên đoạn đường dài, giữ tổng thời lượng kịch bản")
     ap.add_argument("--extra", action="append", default=[], metavar="SHOT:GIAY", help="cộng thêm giây vào một shot (vd 7:3), lặp được")
+    ap.add_argument("--rig", action="append", default=[], metavar="SHOT:KIEU",
+                    help="giàn máy bám theo hướng chạy cho một shot: " + " / ".join(RIG_PRESETS) + " (vd 7:sau_trai)")
     ap.add_argument("--orbit", type=float, default=0.0, help="độ máy vòng quanh nhân vật trong mỗi đoạn chạy (vd 160: sau lưng → trước mặt)")
     ap.add_argument("--lens-range", type=float, nargs=2, metavar=("MIN", "MAX"), help="kẹp tiêu cự (tài liệu: 24–35 mm)")
     ap.add_argument("--fps", type=int, default=24)
@@ -395,7 +439,8 @@ def main(argv=None):
         lo_, _, hi_ = a.shots.partition("-")
         shots = set(range(int(lo_), int(hi_ or lo_) + 1))
     p = plan(rd, shots, a.duration, a.speed, a.fps, lens_range=a.lens_range, uniform_run=a.uniform_run, orbit=a.orbit,
-             extra={int(x.split(":")[0]): float(x.split(":")[1]) for x in a.extra})
+             extra={int(x.split(":")[0]): float(x.split(":")[1]) for x in a.extra},
+             rig={int(x.split(":")[0]): x.split(":")[1] for x in a.rig})
     problems = ref_problems(p)
     if p["summary"]["unrouted"] and not a.allow_straight:
         problems.append("không tìm được lối trên lưới sàn (người nộm sẽ đi thẳng xuyên vật): " + ", ".join(p["summary"]["unrouted"])
@@ -404,7 +449,7 @@ def main(argv=None):
         print(json.dumps(p["summary"], ensure_ascii=False, indent=1))
         sys.exit("DỪNG — " + "; ".join(problems))
     os.makedirs(a.out, exist_ok=True)
-    name = f"previs_canh{a.scene}" + (f"_shot{a.shots}" if a.shots else "") + (f"_xoay{a.orbit:g}" if a.orbit else "")         + "".join(f"_them{x.replace(':', 's')}" for x in a.extra)
+    name = f"previs_canh{a.scene}" + (f"_shot{a.shots}" if a.shots else "") + (f"_xoay{a.orbit:g}" if a.orbit else "")         + "".join(f"_them{x.replace(':', 's')}" for x in a.extra) + "".join(f"_{x.replace(':', '')}" for x in a.rig)
     with open(os.path.join(a.out, name + "_plan.json"), "w", encoding="utf-8") as f:
         json.dump(p, f, ensure_ascii=False, indent=1)
     print(json.dumps(p["summary"], ensure_ascii=False, indent=1))

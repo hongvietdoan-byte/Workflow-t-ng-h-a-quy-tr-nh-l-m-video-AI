@@ -158,6 +158,19 @@ class PlanTests(unittest.TestCase):
         v_subj = max(math.dist(a[1:3], b[1:3]) / max(b[0] - a[0], 1e-6) for a, b in zip(keys, keys[1:]))
         self.assertLess(max(steps), v_subj + 12.0)                        # không có cú nhảy vượt xa tốc độ nhân vật
 
+    def test_rig_behind_left_follows_path_low(self):
+        # người dùng 16/10: shot chạy trong mê cung → máy thấp sau lưng chếch trái (cảm giác lạc / mò đường), không bay cao
+        p = sp.plan(self.rd, uniform_run=True, rig={1: "sau_trai"})
+        keys = p["previs"]["people"][0]["keys"]
+        T0 = p["summary"]["segment_s"][0]
+        for t, at, aim, _ in p["previs"]["camera"]:
+            if 0.2 * T0 < t < 0.45 * T0:
+                k = min(keys, key=lambda x: abs(x[0] - t))
+                self.assertLess(at[2] - k[3], 2.0)                           # ngang vai, không cần nâng qua rào
+                self.assertLess(math.dist(at[:2], k[1:3]), 2.6)
+                cell = (math.floor(at[0]), math.floor(at[1]))
+                self.assertFalse(cell[0] == 0 and cell[1] != -10)            # máy không nằm trong ô hàng rào
+
     def test_variants_switch_by_shot(self):
         p = sp.plan(self.rd)
         names = [(v["name"], v["from"]) for v in p["previs"]["people"][0]["variants"]]

@@ -76,12 +76,33 @@ Số đo 05–06/10 (5 nhánh rà kỹ): rà chỉ còn ≈ 20 % tổng và bắ
 **Hai loại dừng, đừng lẫn:**
 - **Dừng vì hạn mức gói** (5 giờ 90–95 % / tuần ≥ 95 %; tránh vượt 95 %), context còn thấp → KHÔNG cần `/clear`. Làm bước 1–4 bên dưới, rồi đặt lịch `CronCreate` một lần (vài phút sau giờ hạn mức đặt lại, lấy từ `resetsAt`) để tự làm tiếp TRONG CÙNG phiên, và báo người dùng giờ chạy lại.
 - **Dừng vì context** (65–75 %) → làm bước 1–5: người dùng `/clear` rồi gõ "tiếp tục".
+- **Tự chuyển phiên khi context chạm ~70 % (người dùng 16/10: "không để context vượt quá 70 %, tự commit và bắt đầu phiên mới, tiếp tục
+  làm theo thông tin đã commit")**: làm bước 1–3, rồi mở phiên mới bằng `mcp__ccd_session__start_session` (`initiation: "user_asked"`,
+  `context: "fresh"`) với đề bài: đọc mục 📨 BÀN GIAO đầu `TODO.md` (dòng mới nhất của phiên này) + file kế hoạch / đánh giá được trỏ
+  tới, làm tiếp đúng các việc ghi "phiên kế làm" theo thứ tự, giữ mọi quy ước CLAUDE.md. Đề bài phải tự đủ (đường dẫn, lệnh, trạng thái
+  chờ duyệt, việc KHÔNG được tự làm). Báo người dùng một dòng kèm link phiên mới; phiên cũ dừng việc.
 
 1. Chờ mọi phiên con xong (không bỏ dở giữa chừng).
 2. Gộp các nhánh đã xanh và đã rà. Nhánh dở thì để nguyên trên nhánh, kèm `HANDOFF.md`.
 3. Cập nhật kế hoạch + `plan_progress --write` + `TODO.md`, ghi rõ **bước kế + file nguồn + nhánh dở (tên, commit cuối)**. Commit, push, pull ở `D:\AI-Video-Pipeline`.
 4. Báo người dùng: đã xong gì (mã commit), còn gì, các chỉ số hiện tại, câu để gõ tiếp ("tiếp tục Sxx").
 5. **Không tự xóa phiên.** Remote Control đang bật thì ứng dụng từ chối `clear_session`. Người dùng gõ `/clear` rồi "tiếp tục". Chỉ dùng `clear_session("self")` khi người dùng yêu cầu rõ trong chính lượt đó.
+
+## 4b. Quy trình một tính năng / sửa gốc (đã dùng 16/10 — chia vai sân khấu, previs)
+1. Người dùng nêu vấn đề → đo số thật 0 USD trước khi kết luận (vd bảng số đo Blender shot 10) → nêu gốc, KHÔNG đặt luật cấm cứng
+   (che / lệch có chủ ý là ý đồ hợp lệ: khai ý đồ → code so số đo với ý đồ → vai tự kết luận).
+2. Thay đổi lớn → viết kế hoạch `docs/KE_HOACH_*.md` (vì sao, luồng, phân vai, file đổi, chi phí, ca thử, câu hỏi) → người dùng duyệt
+   → quyết định kiểm được bằng code/cờ ghi `data/decisions.json` + `check_*` (quy ước 8); cờ mới TẮT (costs) tới khi đo chi phí thật.
+3. Code + test → `py tools/related_areas.py` → MỘT agent rà quy ước 7 (đề bài: thay đổi + điểm cần kiểm + bối cảnh quyết định) → gom
+   lỗi theo gốc, sửa một vòng, thêm test cho từng lỗi → cả bộ test (`-n 8`) → commit + push main → pull ở máy chính.
+4. Ca thử NGOẠI TUYẾN 0 USD trên dữ liệu thật (phiên Claude Code đóng vai, Blender cục bộ), KHÔNG ghi CSDL tới khi người dùng duyệt ảnh
+   ghép → ghi số liệu trước/sau vào bản đánh giá `docs/DANH_GIA_*.md` (đã tối ưu chưa + đề xuất theo lợi ích).
+5. Lỗi ca thử lôi ra (kể cả lỗi code cũ) → sửa gốc + test ngay, ghi vào đánh giá.
+- Sân khấu chia vai: `py tools/stage_auto.py --project N --scene S --crew --prompt-out F` / `--answer F.json` / `--crew-approve` (chỉ
+  khi người dùng duyệt trong chat) / `--crew-tra-lai F` / `--crew-reset`; ảnh `--beats <thư mục>`.
+- Previs one-shot (ref V2V, 0 USD): `py tools/stage_previs.py --project N --scene S --shots a-b --uniform-run --lens-range 24 35
+  [--orbit 60] [--extra SHOT:GIÂY] [--rig SHOT:sau_trai] --out <thư mục>`; dừng tác vụ nền KHÔNG dừng Blender bản Store → `Stop-Process`.
+  Kiểm khung bằng ảnh ghép nhiều mốc giây + chỉ số `max_cam_turn_deg_s` trước khi gửi.
 
 ## 5. Luôn nhớ
 - **Báo về điện thoại khi cần người dùng quyết** (người dùng yêu cầu 04/10): gọi `PushNotification` (nạp bằng `ToolSearch select:PushNotification`, `status: "proactive"`) khi phải chờ người dùng — câu hỏi chặn việc, duyệt việc tốn tiền, đến điểm nghỉ, lỗi không tự xử lý được. Một dòng < 200 ký tự, mở đầu bằng việc cần làm. KHÔNG gửi cho tiến độ thường.
