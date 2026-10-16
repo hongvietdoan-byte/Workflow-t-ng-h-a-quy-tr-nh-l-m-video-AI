@@ -1,5 +1,6 @@
 """Sân khấu 3D tự động (cờ stage_auto, kế hoạch docs/KE_HOACH_NOI_SAN_KHAU_3D_TU_DONG_2026-10-15.md mục 8). Không gọi API thật, không
 chạy Blender: Claude giả (client .complete), K1 / K3+K4 giả (tools/stage_grid k1_run / v2_run thay bằng hàm dựng tệp)."""
+import copy
 import json
 import os
 import shutil
@@ -832,3 +833,34 @@ class ScriptRulesTests(Base):
     def test_gate_example_obeys_script_rules(self):
         _, _, inputs = self._inputs()
         self.assertEqual(stage_auto.preflight(inputs, {}), [])
+
+
+class ScriptRulesEscapeTests(ScriptRulesTests):
+    """Rà 16/10: luật không được bế tắc (người ngoài hình / cắt tại chỗ) và cỡ kịch bản viết lạ vẫn được hiểu."""
+    def test_off_frame_with_reason_and_same_frame_are_allowed(self):
+        _, _, inputs = self._inputs()
+        inputs["shots"][0]["nhan_vat"] = ["kelly", "dich"]
+        inputs["people"].append({"key": "dich", "label": "DICH", "H": 1.8})
+        obj = answer([1, 2, 3])
+        obj["shot_specs"][0]["ngoai_khung"] = [{"vat": "dich", "_ly_do": "kịch bản: địch nói ngoài hình"}]
+        stage_director.validate_answer(copy.deepcopy(obj), inputs, {})
+        obj["shot_specs"][0]["ngoai_khung"] = [{"vat": "dich"}]                       # không lý do → không miễn
+        with self.assertRaises(Exception):
+            stage_director.validate_answer(copy.deepcopy(obj), inputs, {})
+        inputs["shots"][0]["nhan_vat"] = ["kelly"]
+        obj = answer([1, 2, 3])
+        obj["shot_specs"][1]["do_cao"] = obj["shot_specs"][0]["do_cao"]
+        obj["shot_specs"][1]["cung_khung"] = True
+        stage_director.validate_answer(obj, inputs, {})
+
+    def test_script_size_written_loosely_still_enforced(self):
+        _, _, inputs = self._inputs()
+        inputs["shots"][0]["co_kich_ban"] = "ms (medium)"
+        obj = answer([1, 2, 3])
+        obj["shot_specs"][0]["co"] = "WS"
+        with self.assertRaises(Exception):
+            stage_director.validate_answer(obj, inputs, {})
+
+    def test_rules_are_told_in_the_prompt(self):
+        _, _, inputs = self._inputs()
+        self.assertIn("ngoai_khung", stage_director.build_prompt(inputs))

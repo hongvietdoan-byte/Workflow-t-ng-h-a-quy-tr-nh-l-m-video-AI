@@ -655,10 +655,13 @@ def post_checks(inputs: Dict, v2: Dict) -> Dict[int, str]:
         b = s.get("best") or {}
         m = b.get("m") or {}
         sh = info.get(s["shot"]) or {}
-        pov = (s.get("spec") or {}).get("pov")
+        spec = s.get("spec") or {}
+        pov = spec.get("pov")
+        from .stage_director import off_frame
+        ngoai = off_frame(spec)
         lost = []
         for k in sh.get("nhan_vat") or []:
-            if k == pov:
+            if k == pov or k in ngoai:
                 continue
             seen = [((m.get("obj") or {}).get(k) or {}).get("seen_pct") or 0.0]
             if b.get("end"):
@@ -673,11 +676,11 @@ def post_checks(inputs: Dict, v2: Dict) -> Dict[int, str]:
             d = _m.dist(m["at"], prev[1]["at"])
             yaw = lambda q: _m.degrees(_m.atan2(q["aim"][0] - q["at"][0], q["aim"][1] - q["at"][1]))
             dy = abs((yaw(m) - yaw(prev[1]) + 180) % 360 - 180) if m.get("aim") and prev[1].get("aim") else 999
-            if same_spot and d < SAME_CAM_M and dy < SAME_CAM_DEG and m.get("lens") == prev[1].get("lens"):
+            if same_spot and d < SAME_CAM_M and dy < SAME_CAM_DEG and m.get("lens") == prev[1].get("lens") and not spec.get("cung_khung"):
                 out[s["shot"]] = (out.get(s["shot"], "") + ("; " if s["shot"] in out else "")
                                   + f"máy trùng shot {prev[0]} (cách {d:.2f} m, lệch {dy:.0f}°, cùng ống {m.get('lens')} mm) — đổi góc / "
                                     "độ cao / cỡ")
-        prev = (s["shot"], m) if m else prev
+        prev = (s["shot"], m) if m else None              # rà 16/10: shot không có số đo → shot sau không so với shot cách một
     return out
 
 

@@ -53,6 +53,8 @@ def build_prompt(inputs: Dict, prev: Optional[Dict] = None, feedback: Sequence[s
                      + (f" · cỡ kịch bản `{s['co_kich_ban']}`" if s.get("co_kich_ban") else "")
                      + (f" · góc `{s['goc_kich_ban']}`" if s.get("goc_kich_ban") else "")
                      + (f" · máy `{s['may_kich_ban']}`" if s.get("may_kich_ban") else ""))
+    if inputs.get("auto"):
+        L += ["", AUTO_RULES]
     if inputs.get("user_notes"):
         L += ["", "### Lời người dùng (ưu tiên cao nhất)"] + [f"- {x}" for x in inputs["user_notes"]]
     if inputs.get("refs"):
@@ -150,6 +152,23 @@ def _sig(spec: Dict):
             str(main.get("vung") or ""), str(main.get("thay") or ""), bool(spec.get("may")), spec.get("pov"))
 
 
+def off_frame(spec: Dict) -> set:
+    """Nhân vật Đạo diễn khai NGOÀI khung có lý do (kịch bản: người nói ngoài hình, người nghe ở CU…): `ngoai_khung: [{vat, _ly_do}]`."""
+    return {e.get("vat") for e in spec.get("ngoai_khung") or [] if isinstance(e, dict) and str(e.get("_ly_do") or "").strip()}
+
+
+AUTO_RULES = chr(10).join([
+    "### Luật code kiểm (sân khấu tự động — sai thì bị trả lại)",
+    "- Mọi nhân vật ở dòng 'nhân vật PHẢI có trong khung' của shot: ghi vào `thanh_phan` (`chinh` hoặc `phu`), có mặt ở nhịp của "
+    "shot, và code ĐO thấy ≥ 15 % thân trong khung (đầu hoặc cuối khi máy chạy). Kịch bản cho phép một người ở ngoài khung (người "
+    'nói ngoài hình, người nghe ở cận) → khai `"ngoai_khung": [{"vat": "<khóa>", "_ly_do": "…"}]` trong shot đó. '
+    'Shot POV: `"pov": "<người cầm máy>"` (được miễn).',
+    "- `co` = cỡ kịch bản.",
+    "- Hai shot liền nhau cùng chỗ đứng phải là hai máy khác nhau (đổi độ cao / góc / vùng / hướng thấy); cố ý giữ ĐÚNG khung shot "
+    'trước (cắt tại chỗ) → ghi `"cung_khung": true` + lý do trong `muc_dich`.',
+])
+
+
 def script_rules(bl: Dict, specs: List[Dict], inputs: Dict) -> List[str]:
     """16/10 (#31 cảnh 4, người dùng 'chưa được'): luật theo KỊCH BẢN của từng shot (sân khấu tự động, inputs.auto):
     (1) mọi nhân vật của shot (`nhan_vat`) có trong `thanh_phan` (chinh / phu) và có mặt ở nhịp của shot — Đạo diễn không được bỏ
@@ -168,19 +187,20 @@ def script_rules(bl: Dict, specs: List[Dict], inputs: Dict) -> List[str]:
             present = set(ss.beat_raw(bl, s.get("nhip"))) if s.get("nhip") else set(ss.beat_raw(bl))
         except (ValueError, KeyError, TypeError):
             present = set()
+        ngoai = off_frame(s)
         for k in want:
-            if k == s.get("pov"):
+            if k == s.get("pov") or k in ngoai:
                 continue
             if roles.get(k) not in ("chinh", "phu"):
                 out.append(f"shot {s['shot']}: nhân vật `{k}` của kịch bản phải có trong thanh_phan (chinh/phu) — không bỏ người")
             elif k not in present:
                 out.append(f"shot {s['shot']}: nhân vật `{k}` bị ẩn / không có ở nhịp `{s.get('nhip')}` mà kịch bản có")
-        co = sh.get("co_kich_ban")
+        co = str(sh.get("co_kich_ban") or "").upper().split(" ")[0].split("(")[0].strip()
         if co in sg.FRAMING and s.get("co") != co:
             out.append(f"shot {s['shot']}: cỡ `{s.get('co')}` khác cỡ kịch bản `{co}` — giữ cỡ kịch bản")
         if prev is not None:
             same_spot = (info[prev["shot"]].get("cho_dung") or {}).get("ten") == (sh.get("cho_dung") or {}).get("ten")
-            if same_spot and _sig(prev) == _sig(s):
+            if same_spot and _sig(prev) == _sig(s) and not s.get("cung_khung"):
                 out.append(f"shot {s['shot']}: trùng cỡ + độ cao + góc + bố cục với shot {prev['shot']} cùng chỗ đứng — đổi độ cao / "
                            "góc / vùng / hướng thấy để hai shot là hai máy khác nhau")
         prev = s
