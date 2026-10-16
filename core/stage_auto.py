@@ -275,6 +275,8 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
                          f"{r[1]:+.2f}){facing}{pose} — GIỮ chỗ này trừ khi kịch bản cho di chuyển (ghi beat + _ly_do)")
     shots = []
     key_by_name = {p["label"]: p["key"] for p in people}
+    from .assets import fold
+    key_by_fold = {fold(p["label"]).lower(): p["key"] for p in people}
     from .location_pack import spot_for
     for s in seg["shots"]:
         d = s["data"]
@@ -291,8 +293,10 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
                       "co_kich_ban": d.get("size"), "goc_kich_ban": d.get("angle"), "may_kich_ban": d.get("camera_move"),
                       # 16/10 lần 4: luật 'trong khung' theo VAI shot (dữ kiện kịch bản, không đoán chữ) — xem stage_director.must_see
                       "vai_shot": d.get("role"),
-                      "nguoi_noi": [key_by_name[x.get("speaker")] for x in (d.get("dialogue") or [])
-                                    if isinstance(x, dict) and x.get("speaker") in key_by_name]})
+                      # rà 16/10: speaker 'KELLY' ≠ characters 'Kelly' — so khớp sau khi bỏ dấu + chữ hoa
+                      "nguoi_noi": [key_by_fold[fold(x.get("speaker") or "").lower()] for x in (d.get("dialogue") or [])
+                                    if isinstance(x, dict) and fold(x.get("speaker") or "").lower() in key_by_fold],
+                      "ten": {key_by_name[n]: n for n in (d.get("characters") or []) if n in key_by_name}})
     aspect = formats.project_aspect(conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()) or "9:16"
     inputs = {"pid": pid, "canh": f"cảnh {seg['scene']} — {seg['place'].get('name')} ({len(seg['shots'])} shot)",
               # 16/10 gốc lỗi chạy thật #31 cảnh 4 (lần 2, 0,37 USD): cờ director_blockout (nhánh C — bối cảnh KHÔNG có model 3D)
@@ -700,10 +704,12 @@ def soft_checks(inputs: Dict, v2: Dict) -> Dict[int, str]:
     out = {}
     for s in v2.get("shots") or []:
         sh, spec = info.get(s["shot"]) or {}, s.get("spec") or {}
-        m = ((s.get("best") or {}).get("m") or {}).get("obj") or {}
+        b = s.get("best") or {}
+        m = (b.get("m") or {}).get("obj") or {}
+        e = (((b.get("end") or {}).get("m") or {}).get("obj")) or {}          # rà 16/10: cả khung cuối khi máy chạy (như post_checks)
         need = set(must_see(sh, spec))
         low = [k for k in sh.get("nhan_vat") or [] if k not in need and k != spec.get("pov")
-               and ((m.get(k) or {}).get("seen_pct") or 0.0) < SEEN_MIN_PCT]
+               and max(((m.get(k) or {}).get("seen_pct") or 0.0), ((e.get(k) or {}).get("seen_pct") or 0.0)) < SEEN_MIN_PCT]
         if low:
             out[s["shot"]] = (f"vai shot `{sh.get('vai_shot')}`: {', '.join(f'`{k}`' for k in low)} ở xa / ngoài khung (< {SEEN_MIN_PCT:g} %) — "
                               "cho phép, chỉ báo để người xem kiểm")
@@ -797,7 +803,8 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
         if s["idx"] not in cams and s["idx"] not in bad:
             bad[s["idx"]] = "bộ giải không đặt được máy (lỗi yêu cầu khung)"
     res = {"cams": cams, "bad": bad, "missing": [], "state": end_state(st, obj, seg["scene"]), "fp": fp,
-           "guide_missing": guides_missing(cams), "round": os.path.basename(rd), "rerendered_from": os.path.basename(rd)}
+           "guide_missing": guides_missing(cams), "round": os.path.basename(rd), "rerendered_from": os.path.basename(rd),
+           "soft": soft_checks(inputs, v2 or {})}
     _save(os.path.join(os.path.dirname(rd), "result.json"), res)
     out["applied"] = apply(conn, seg, cams)
     _say_guides(conn, pid, seg, res, out, log)
@@ -817,6 +824,82 @@ def _archive_rounds(out: str, only=None) -> None:
     os.makedirs(dest, exist_ok=True)
     for x in olds:
         shutil.move(os.path.join(out, x), os.path.join(dest, x))
+
+
+# ---- chế độ NGOẠI TUYẾN (16/10 người dùng: bàn đạo diễn chạy nền, không gọi API trả tiền) -----------------------------------
+def offline_prompt(conn, pid: int, seg: Dict, data_dir: str) -> Tuple[str, List[str]]:
+    """(đề bài đầy đủ gửi Đạo diễn = build_prompt + khuôn định dạng, lỗi cổng 0 USD / thiếu đầu vào) — KHÔNG gọi API. Người hoặc một
+    phiên Claude Code đọc đề bài này, viết câu trả lời JSON rồi đưa vào offline_answer."""
+    from . import stage_director as sd
+    base = base_dir(data_dir, pid, seg["stage"])
+    k1 = ensure_k1(seg["entry"], seg["main_spot"], base)
+    inputs, missing = inputs_for(conn, pid, seg, k1, stored_state_before(data_dir, pid, seg, conn))
+    with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
+        marks = json.load(f).get("marks")
+    return sd.build_prompt(inputs) + format_example(inputs), missing + preflight(inputs, marks)
+
+
+def offline_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: str = "claude_code",
+                   log: Callable[[str], None] = lambda m: None) -> Dict:
+    """Câu trả lời Đạo diễn VIẾT NGOÀI (người / phiên Claude Code) thay cho lời gọi Claude — 0 USD. Chạy đúng các bước của run_segment:
+    bộ kiểm (luật kịch bản + K3) → K3 + K4 Blender → số đo (post_checks). Lỗi → {"ok": False, "errors": [...]} (người viết sửa rồi
+    chạy lại, không ghi máy); đạt → ghi stage_camera như đường thường, result.json ghi nguồn `source` + 0 USD."""
+    import copy as _c
+    from . import llm_io
+    from . import stage_director as sd
+    out_res: Dict = {"ok": False, "errors": [], "applied": [], "removed": [], "soft": {}}
+    base = base_dir(data_dir, pid, seg["stage"])
+    k1 = ensure_k1(seg["entry"], seg["main_spot"], base, log)
+    inputs, missing = inputs_for(conn, pid, seg, k1, stored_state_before(data_dir, pid, seg, conn))
+    with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
+        st = json.load(f)
+    gate = preflight(inputs, st.get("marks"))
+    if missing or gate:
+        out_res["errors"] = missing + [f"cổng 0 USD chưa qua — {g}" for g in gate]
+        return out_res
+    obj = _c.deepcopy(obj)
+    try:
+        sd.validate_answer(obj, inputs, st.get("marks"))
+    except (llm_io.SchemaError, ValueError, KeyError, TypeError) as e:
+        out_res["errors"] = [x for x in str(e).split("; ") if x]
+        return out_res
+    out = os.path.join(base, f"doan_{key_of(seg['scene'])}")
+    os.makedirs(out, exist_ok=True)
+    rd = os.path.join(out, "cc_" + time.strftime("%Y%m%d_%H%M%S"))
+    os.makedirs(rd, exist_ok=True)
+    bl = dict(obj["blocking"], place=inputs["place"], spot=inputs["spot"], aspect=inputs["aspect"])
+    for fn, data in (("answer.json", obj), ("blocking.json", bl), ("shot_specs.json", {"shots": obj["shot_specs"]}),
+                     ("inputs.json", inputs)):
+        with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+    solve, v2 = tool().v2_run(bl, obj["shot_specs"], rd, k1, m3=seg["entry"], reach=True, log=log)
+    errors = sd.feedback_from(solve, v2) + [f"shot {k}: {v}" for k, v in sorted(post_checks(inputs, v2).items())]
+    out_res["soft"] = soft_checks(inputs, v2)
+    out_res["dir"] = rd
+    if errors:
+        out_res["errors"] = errors
+        return out_res
+    try:
+        colours = mannequin_colours(solve["beats"], {p["key"]: p["label"] for p in inputs["people"]})
+    except (ValueError, KeyError, TypeError):
+        colours = {}
+    cams, bad = cameras_from(st, v2, seg["id"], rd, colours)
+    fp = fingerprint(inputs)
+    for cam in cams.values():
+        cam["inputs_fp"] = fp
+        cam["source"] = cam["source"] + f" · Đạo diễn ngoại tuyến ({source}, 0 USD)"
+    missing_guides = guides_missing(cams)
+    res = {"cams": cams, "bad": bad, "missing": [], "state": end_state(st, obj, seg["scene"]), "fp": fp, "guide_missing": missing_guides,
+           "round": os.path.relpath(rd, out), "nguon": source, "usd": 0.0, "soft": out_res["soft"]}
+    with open(os.path.join(out, "inputs.json"), "w", encoding="utf-8") as f:
+        json.dump(inputs, f, ensure_ascii=False, indent=1)
+    _save(os.path.join(out, "result.json"), res)
+    changed = apply(conn, seg, cams)
+    out_res.update(ok=not bad and not missing_guides, applied=[i for i in changed if i in cams],
+                   removed=[i for i in changed if i not in cams], bad=bad, guide_missing=missing_guides)
+    _say(conn, pid, "info", f"Sân khấu {seg['id']}: máy đặt từ câu trả lời Đạo diễn NGOẠI TUYẾN ({source}, 0 USD) — shot "
+                            + ", ".join(map(str, sorted(cams))), log)
+    return out_res
 
 
 def score_saved(conn, pid: int, seg: Dict, data_dir: str) -> Dict:

@@ -951,10 +951,12 @@ class RoleRuleTests(unittest.TestCase):
     def test_must_see_by_role(self):
         ms = stage_director.must_see
         base = {"nhan_vat": ["kelly", "a", "b"], "action": "Kelly núp quan sát bốn kẻ địch"}
-        self.assertEqual(ms(dict(base, vai_shot="setup")), [])                            # quan sát: không bắt buộc
+        self.assertEqual(ms(dict(base, vai_shot="setup")), ["kelly"])                     # quan sát: chỉ chủ thể
+        self.assertEqual(ms(dict(base, vai_shot="insert")), [])
+        self.assertEqual(ms(dict(base, vai_shot="action", action="Kelly hạ gục A", ten={"kelly": "Kelly", "a": "A", "b": "B"})), ["kelly", "a"])
         self.assertEqual(ms(dict(base, vai_shot="action")), ["kelly", "a", "b"])
         self.assertEqual(ms(dict(base, vai_shot="reaction", action="Kelly thở gấp sau khi vừa hạ gục A")), ["kelly", "a", "b"])
-        self.assertEqual(ms(dict(base, vai_shot="dialogue", nguoi_noi=["a"])), ["a"])
+        self.assertEqual(ms(dict(base, vai_shot="dialogue", nguoi_noi=["a"])), ["kelly", "a"])
         self.assertEqual(ms(dict(base, vai_shot=None)), ["kelly", "a", "b"])              # không ghi vai: như trước
         self.assertEqual(ms(dict(base, vai_shot="action"), {"pov": "kelly"}), ["a", "b"])
 

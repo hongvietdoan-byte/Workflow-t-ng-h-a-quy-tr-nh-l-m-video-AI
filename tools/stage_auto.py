@@ -28,6 +28,10 @@ def main(argv=None):
     ap.add_argument("--force", action="store_true", help="cả cảnh có shot đã vẽ ảnh")
     ap.add_argument("--again", action="store_true", help="bỏ kết quả đã lưu, gọi Đạo diễn lại (tốn tiền)")
     ap.add_argument("--yes", action="store_true", help="đồng ý chi tiền Claude + ghi stage_camera vào CSDL")
+    ap.add_argument("--prompt-out", help="NGOẠI TUYẾN 0 USD: ghi đề bài + khuôn định dạng của cảnh (--scene, một cảnh) ra tệp này")
+    ap.add_argument("--answer", help="NGOẠI TUYẾN 0 USD: đọc câu trả lời JSON (người / phiên Claude Code viết) thay lời gọi Claude; lỗi "
+                                     "ghi <tệp>.loi.txt để sửa rồi chạy lại; đạt → Blender + ghi stage_camera")
+    ap.add_argument("--source", default="claude_code", help="nguồn câu trả lời ngoại tuyến (ghi vào result.json / báo cáo)")
     ap.add_argument("--score", action="store_true", help="0 USD: chấm các lượt Đạo diễn đã lưu bằng bộ kiểm hiện tại (luật kịch bản + "
                                                          "K3 khung) + cổng 0 USD của đề bài hiện tại — chạy TRƯỚC khi trả tiền chạy lại")
     ap.add_argument("--rerender", action="store_true", help="đo + render lại (Blender, 0 USD) từ câu trả lời Đạo diễn đã trả tiền, "
@@ -60,6 +64,30 @@ def main(argv=None):
               + (f" · ĐÃ có ảnh shot {drawn}" + ("" if a.force else " → bỏ qua (thêm --force)") if drawn else ""))
     for h in stage_auto.family_hints(segs):
         print("⚠", h)
+    if a.prompt_out or a.answer:
+        if len(segs) != 1:
+            print("Chế độ ngoại tuyến cần đúng MỘT cảnh (--scene)")
+            return
+        g = segs[0]
+        if a.prompt_out:
+            text, problems = stage_auto.offline_prompt(conn, a.project, g, a.data_dir)
+            with open(a.prompt_out, "w", encoding="utf-8") as f:
+                f.write(text)
+            print(f"Đã ghi đề bài {g['id']} → {a.prompt_out} ({len(text)} ký tự)" + (f" — CHÚ Ý: {'; '.join(problems)}" if problems else ""))
+        if a.answer:
+            if drawn_shots(conn, g) and not a.force:
+                print(f"{g['id']}: có shot đã vẽ ảnh — thêm --force để đổi máy")
+                return
+            from core.llm_runner import extract_json
+            with open(a.answer, encoding="utf-8") as f:
+                obj = extract_json(f.read())
+            r = stage_auto.offline_answer(conn, a.project, g, a.data_dir, obj, source=a.source, log=print)
+            loi = a.answer + ".loi.txt"
+            with open(loi, "w", encoding="utf-8") as f:
+                f.write(chr(10).join(r["errors"]) if r["errors"] else "ĐẠT")
+            print(json.dumps({k: v for k, v in r.items() if k != "errors"}, ensure_ascii=False, indent=1))
+            print(("LỖI (" + str(len(r["errors"])) + ") → " + loi) if r["errors"] else "ĐẠT — đã ghi stage_camera")
+        return
     if a.score:
         for g in segs:
             print(f"## {g['id']}")

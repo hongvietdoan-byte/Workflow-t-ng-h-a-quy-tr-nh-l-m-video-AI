@@ -207,11 +207,17 @@ def must_see(sh: Dict, spec: Optional[Dict] = None) -> List[str]:
     cast = [k for k in sh.get("nhan_vat") or [] if k != pov]
     if sh.get("vai_shot") is None:                                    # kịch bản không ghi vai / đề bài cũ: như trước — mọi nhân vật
         return cast
+    if sh.get("vai_shot") == "insert" or not cast:                    # cận đồ vật: không bắt buộc người
+        return []
+    subject = cast[:1] if (sh.get("nhan_vat") or [None])[0] != pov else []   # rà 16/10: chủ thể của shot luôn phải thấy
+    action = sg.fold(str(sh.get("action") or "")).lower()
+    named = [k for k in cast if (sh.get("ten") or {}).get(k) and sg.fold(sh["ten"][k]).lower() in action]
     if sh.get("vai_shot") in STRICT_ROLES or KILL_WORDS.search(str(sh.get("action") or "")):
-        return cast
+        # rà 16/10: chỉ người CÓ TÊN trong câu hành động (người bắn tỉa ở xa không tên trong câu → VÀNG); không có tên → mọi người
+        return list(dict.fromkeys(subject + named)) if (named and sh.get("ten")) else cast
     if sh.get("vai_shot") == "dialogue":
-        return [k for k in sh.get("nguoi_noi") or [] if k in cast]
-    return []
+        return list(dict.fromkeys(subject + [k for k in sh.get("nguoi_noi") or [] if k in cast]))
+    return subject
 
 
 def script_rules(bl: Dict, specs: List[Dict], inputs: Dict, marks: Optional[Dict] = None) -> List[str]:
