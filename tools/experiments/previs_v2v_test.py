@@ -19,10 +19,13 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.getcwd())
 
 NAME = "Thử V2V previs one-shot #31 shot 7–8 (16/10)"
-CAP_USD = 2.0                    # trần cứng của bài (1 clip 5 s + 5 s ref; in giá thật ở bước plan)
+CAP_USD = 3.5                    # trần cứng của dự án thử: 2 lượt (clay + depth) × 1 clip 5 s + 5 s ref ≈ 1,38 USD / lượt
 MODEL, CANONICAL, TIER, SECS, ASPECT = "seedance-2.5", "dreamina-seedance-2-5-260628", "720p", 5, "9:16"
-SOURCE = os.path.join("D:" + os.sep, "AI-Video-Output", "2026-10-15_du-an-31", "previs",
-                      "previs_canh2_shot6-9_xoay60_them7s3_7sau_trai_clay.mp4")   # 720×1280, 24 fps, SAR 1:1 (người dùng duyệt 16/10)
+SOURCES = {r: os.path.join("D:" + os.sep, "AI-Video-Output", "2026-10-15_du-an-31", "previs",
+                           f"previs_canh2_shot6-9_xoay60_them7s3_7sau_trai_{r}.mp4")
+           for r in ("clay", "depth")}   # 720×1280, 24 fps, SAR 1:1 (người dùng duyệt 16/10)
+REF = "clay"                     # --ref (người dùng 16/10 lượt 2: depth thay clay — lượt clay theo động tác, KHÔNG theo đường máy)
+METHOD = {"clay": "PREVIS_V2V", "depth": "PREVIS_V2V_DEPTH"}
 CUT = (10.0, 15.0)               # cuối shot 7 (chạy ra khoảng trống) → shot 8 (khựng lại trước xe nôi), máy bám sau lưng chếch trái
 ASSETS = [os.path.join("data", "_plates3d", "cache", "2764ab272dd78733cfe6", "plate.png"),   # nền: trung tâm mê cung Cổng Trời, đêm
           os.path.join("data", "assets", "23", "10.png"),       # KELLY (bộ chuẩn 1, không súng, người dùng duyệt)
@@ -46,6 +49,16 @@ PROMPT = (
     "framing of @Video 1. Do not take the clay bodies, colours or materials, or the grey sky of @Video 1.\n"
     "[Keep] Only Kelly and the carriage, Kelly's identity and clothes inside the ghost glow, the Free Fire in-game 3D render style, "
     "dark night mood. No game HUD, no subtitles, no on-screen text, no watermark.")
+CLAY_ROLE = PROMPT[PROMPT.index("@Video 1 is"):PROMPT.index("[Keep]")]
+DEPTH_ROLE = (
+    "@Video 1 is a depth map used only for scene structure, motion and camera: brighter is nearer the camera, darker is farther, black "
+    "is the sky. The tall shape just in front of the camera is Kelly, the short round shape is the baby carriage, the walls are the "
+    "hedges. Follow EXACTLY the camera position, height, path, turns and framing of @Video 1 frame by frame, and Kelly's running path, "
+    "speed, stop and timing. Do not take its black-and-white look.\n")
+
+
+def prompt() -> str:
+    return PROMPT if REF == "clay" else PROMPT.replace(CLAY_ROLE, DEPTH_ROLE)
 
 
 def spent(p, pid: int) -> float:
@@ -59,7 +72,7 @@ def estimate() -> float:
 
 
 def ref_path(data_dir: str, pid: int) -> str:
-    return os.path.join(data_dir, str(pid), "experiments", "previs_clay_10-15s.mp4")
+    return os.path.join(data_dir, str(pid), "experiments", f"previs_{REF}_10-15s.mp4")
 
 
 def cut_ref(data_dir: str, pid: int) -> str:
@@ -67,7 +80,7 @@ def cut_ref(data_dir: str, pid: int) -> str:
     out = ref_path(data_dir, pid)
     if not os.path.exists(out):
         os.makedirs(os.path.dirname(out), exist_ok=True)
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(CUT[0]), "-i", SOURCE, "-t", str(CUT[1] - CUT[0]), "-an",
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(CUT[0]), "-i", SOURCES[REF], "-t", str(CUT[1] - CUT[0]), "-an",
                         "-vf", "setsar=1", "-c:v", "libx264", "-crf", "16", "-pix_fmt", "yuv420p", out], check=True)
     return out
 
@@ -87,11 +100,11 @@ def setup(p):
 
 
 def cmd_plan(p, data_dir: str, pid: int) -> str:
-    for f in ASSETS + [SOURCE]:
+    for f in ASSETS + [SOURCES[REF]]:
         if not os.path.exists(f):
             raise SystemExit("thiếu tài sản: " + f)
     ref = cut_ref(data_dir, pid)
-    print(PROMPT, f"\n{len(PROMPT)} ký tự · ref {ref}")
+    print(prompt(), f"\n{len(prompt())} ký tự · ref {ref}")
     print(f"ước tính ${estimate():.3f} (×1,25 dự phòng = ${estimate() * 1.25:.3f}); đã chi ${spent(p, pid):.2f} / trần ${CAP_USD:.2f}")
     return ref
 
@@ -101,7 +114,7 @@ def cmd_submit(p, data_dir: str, pid: int) -> None:
     from core.adapters import factory
     from core.providers import ProviderError
     items = experiments.load(data_dir, pid)
-    if any(e.get("method") == "PREVIS_V2V" and e.get("state") != "failed" for e in items):
+    if any(e.get("method") == METHOD[REF] and e.get("state") != "failed" for e in items):
         print("đã gửi trước đó")
         return
     ref = cmd_plan(p, data_dir, pid)
@@ -112,8 +125,8 @@ def cmd_submit(p, data_dir: str, pid: int) -> None:
     # sổ chi tính Seedance theo giây ra (giá / giây); giá web cộng giây video tham chiếu → ghi số giây tương đương (như mannequin_ref_test)
     booked_s = round(estimate() / cost.clip_price(cost.load_pricing(), CANONICAL, TIER, 1), 2)
     provider = factory.video_provider()
-    entry = {"kind": "group_test", "scene": 1, "method": "PREVIS_V2V", "group": 1, "shots": [1], "seconds": SECS, "film_s": SECS,
-             "model": CANONICAL, "tier": TIER, "usd": round(estimate(), 3), "prompt": PROMPT, "external_id": None,
+    entry = {"kind": "group_test", "scene": 1, "method": METHOD[REF], "group": 1, "shots": [1], "seconds": SECS, "film_s": SECS,
+             "model": CANONICAL, "tier": TIER, "usd": round(estimate(), 3), "prompt": prompt(), "external_id": None,
              "state": "running", "file": None, "sequence": 1, "scenes": [1],
              "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     with budget.SPEND_LOCK:
@@ -121,24 +134,27 @@ def cmd_submit(p, data_dir: str, pid: int) -> None:
         if over:
             raise SystemExit("TRẦN CHUNG CHẶN: " + over)
         try:
-            entry["external_id"] = provider.submit(ASSETS[0], PROMPT, None, SECS, MODEL, aspect_ratio=ASPECT, resolution=TIER,
+            entry["external_id"] = provider.submit(ASSETS[0], prompt(), None, SECS, MODEL, aspect_ratio=ASPECT, resolution=TIER,
                                                    reference_only=ASSETS, reference_video={"path": ref, "refer_type": "feature"})
             cost.record_usage(p.conn, None, "video", provider.name, CANONICAL, TIER, booked_s, "second", pid)
         except ProviderError as e:
             entry.update(state="failed", message=f"[{e.code}] {e}"[:400], usd=0.0)
     items.append(entry)
     experiments._save(data_dir, pid, items)
-    print("PREVIS_V2V", entry["state"], entry["external_id"] or entry.get("message"), "· đã chi:", spent(p, pid))
+    print(METHOD[REF], entry["state"], entry["external_id"] or entry.get("message"), "· đã chi:", spent(p, pid))
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", type=int)
     ap.add_argument("step", choices=("setup", "plan", "submit", "poll"))
+    ap.add_argument("--ref", choices=("clay", "depth"), default="clay", help="video tham chiếu: previs clay hoặc depth")
     from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
     script_cap.add_argument(ap)
     a = ap.parse_args()
     script_cap.require(a, "previs_v2v_test").start()
+    global REF
+    REF = a.ref
     from tools.experiments.group_test import cmd_poll, load_env
     load_env(os.getcwd())
     data_dir = os.environ.get("PIPELINE_DATA") or os.path.join("data", "projects")
