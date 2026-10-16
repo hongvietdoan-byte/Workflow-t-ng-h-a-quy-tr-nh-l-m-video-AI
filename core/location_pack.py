@@ -517,7 +517,8 @@ def stage_report(conn, items: List[Dict]) -> List[Dict]:
         data = json.loads(row["data"] or "{}") if row is not None else {}
         sc = str(data.get("story_scene") or it["idx"])
         by_scene.setdefault(sc, {}).setdefault(it["place"], {}).setdefault(it["spot"], []).append(it["idx"])
-        if not (staged and (data.get("stage_camera") or {}).get("segment")):
+        # rà 16/10: shot sân khấu tự động bỏ qua (không người / đạo cụ, vd POV nhìn cửa) chỉ có `stage_segment` — cũng đã xét chung
+        if not (staged and ((data.get("stage_camera") or {}).get("segment") or data.get("stage_segment"))):
             loose.add(sc)
     # 15/10 sân khấu tự động: một cảnh ở MỘT bối cảnh mà mọi shot đã có máy của cùng một sân khấu (mọi chỗ đứng của một model chung
     # tọa độ, người + vật giữ chỗ qua các shot) = đã thống nhất → không giữ; cảnh qua nhiều bối cảnh vẫn giữ

@@ -285,6 +285,38 @@ class RunTests(Base):
         self.assertEqual(len(client.prompts), 2)
         self.assertIn("Vị trí CUỐI ở cảnh trước trên cùng sân khấu (cảnh 1): `kelly` tại (+1.00, +0.50)", client.prompts[1])
 
+    def test_segment_with_nothing_to_stage_does_not_call_director(self):
+        # rà 16/10: mọi shot không người / đạo cụ → không gọi Đạo diễn (không tốn tiền), không giữ shot
+        pid = self.project()
+        for i in (1, 2, 3):
+            sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?", (pid, i)).fetchone()["id"]
+            d = self.shot(pid, i)
+            d["characters"] = []
+            self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d), sid))
+        self.p.conn.commit()
+        client = FakeClaude(answer([1, 2, 3]))
+        r = stage_auto.run(self.p.conn, pid, self.data, client=client)
+        self.assertEqual(client.prompts, [])
+        self.assertEqual(r["held"], [])
+        self.assertEqual(r["applied"], [])
+
+    def test_skipped_shot_marked_same_stage_not_held_at_plates_gate(self):
+        # rà 16/10: #31 cảnh 2 shot 5 (POV, bị bỏ) ở chỗ đứng khác → stage_report không được giữ cả cảnh vì shot đó thiếu máy sân khấu
+        pid = self.project()
+        sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=3", (pid,)).fetchone()["id"]
+        d = self.shot(pid, 3)
+        d["characters"] = []
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d), sid))
+        self.p.conn.commit()
+        r = stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2])))
+        self.assertEqual(r["applied"], [1, 2])
+        self.assertNotIn("stage_camera", self.shot(pid, 3))
+        self.assertTrue(self.shot(pid, 3).get("stage_segment"))
+        items = [{"scene_id": s["id"], "idx": s["idx"], "place": "P", "spot": location_pack.spot_for(s["entry"], s["data"])["name"]}
+                 for s in stage_auto.segments(self.p.conn, pid)[0]["shots"]]
+        with mock.patch.object(location_pack.features, "on", return_value=True):
+            self.assertEqual(location_pack.stage_report(self.p.conn, items), [])
+
     def test_end_state_uses_den_of_last_move(self):
         # 16/10 #31 cảnh 6→7: nhịp cuối Kelly bước đi (at → den) — cảnh sau phải nhận điểm CUỐI, không phải điểm đầu
         st = sg.make_stage([10.0, 20.0, 0.0])

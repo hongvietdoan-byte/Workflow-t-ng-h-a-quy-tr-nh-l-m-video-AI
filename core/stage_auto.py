@@ -515,13 +515,21 @@ def end_state(stage: Dict, answer: Dict, scene: str) -> Dict:
     return {"scene": scene, "objects": out}
 
 
-def apply(conn, seg: Dict, cams: Dict[int, Dict]) -> List[int]:
+def apply(conn, seg: Dict, cams: Dict[int, Dict], skipped=()) -> List[int]:
     """Ghi `stage_camera` vào shot (máy hệ thống, không khóa tay). Shot người dùng khóa `stage_camera` → giữ. Máy tự động cũ của shot
-    nay không đạt → gỡ (máy cũ của nó lệch đầu vào mới — nền 3D về máy thường, có VÀNG)."""
+    nay không đạt → gỡ (máy cũ của nó lệch đầu vào mới — nền 3D về máy thường, có VÀNG). Shot `skipped` (không người / đạo cụ để
+    dàn) chỉ ghi `stage_segment` = đã xét cùng sân khấu (location_pack.stage_report không giữ cảnh oan), máy nền thường."""
     changed = []
     for s in seg["shots"]:
         row = conn.execute("SELECT data FROM scenes WHERE id=?", (s["id"],)).fetchone()
         data = json.loads(row["data"] or "{}")
+        if s["idx"] in skipped and s["idx"] not in cams and not data.get(FIELD):
+            if data.get(SEG_FIELD) != seg["id"]:
+                data[SEG_FIELD] = seg["id"]
+                conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), s["id"]))
+                conn.commit()
+                s["data"] = data
+            continue
         if FIELD in (data.get("_user_locked") or []):
             continue
         new = cams.get(s["idx"])
@@ -575,6 +583,12 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
     inputs, missing = inputs_for(conn, pid, seg, k1, prev_state)
     if missing:
         res["missing"], res["stale"] = missing, True      # đầu vào đổi/thiếu → máy tự động cũ của đoạn không còn đúng
+        return res
+    res["bo_qua"] = inputs["bo_qua"]
+    if not inputs["shots"]:
+        # rà 16/10: mọi shot của đoạn không người / đạo cụ (vd cảnh chỉ có POV nhìn cửa) → không có gì để dàn, KHÔNG gọi Đạo diễn
+        log(f"Sân khấu {seg['id']}: shot {', '.join(map(str, inputs['bo_qua']))} không người / đạo cụ — không dàn, dùng máy nền thường")
+        res["skipped_all"] = True
         return res
     with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
         st = json.load(f)
@@ -843,7 +857,7 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
            "guide_missing": guides_missing(cams), "round": os.path.basename(rd), "rerendered_from": os.path.basename(rd),
            "soft": soft_checks(inputs, v2 or {})}
     _save(os.path.join(os.path.dirname(rd), "result.json"), res)
-    out["applied"] = apply(conn, seg, cams)
+    out["applied"] = apply(conn, seg, cams, inputs.get("bo_qua") or [])
     _say_guides(conn, pid, seg, res, out, log)
     for idx, why in sorted(bad.items()):
         out["held"].append(("stageauto:rerender:" + str(idx), f"shot {idx} ({seg['id']}): {why}"))
@@ -938,7 +952,7 @@ def offline_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: 
     with open(os.path.join(out, "inputs.json"), "w", encoding="utf-8") as f:
         json.dump(inputs, f, ensure_ascii=False, indent=1)
     _save(os.path.join(out, "result.json"), res)
-    changed = apply(conn, seg, cams)
+    changed = apply(conn, seg, cams, inputs.get("bo_qua") or [])
     out_res.update(ok=not bad and not missing_guides, applied=[i for i in changed if i in cams],
                    removed=[i for i in changed if i not in cams], bad=bad, guide_missing=missing_guides)
     _say(conn, pid, "info", f"Sân khấu {seg['id']}: máy đặt từ câu trả lời Đạo diễn NGOẠI TUYẾN ({source}, 0 USD) — shot "
@@ -1061,7 +1075,7 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: 
             r["guide_missing"] = guides_missing(r["cams"])
         if r.get("state"):
             state[seg["stage"]] = r["state"]
-        changed = apply(conn, seg, r["cams"])
+        changed = apply(conn, seg, r["cams"], r.get("bo_qua") or [])
         out["applied"] += [i for i in changed if i in r["cams"]]
         out["removed"] += [i for i in changed if i not in r["cams"]]    # 16/10: máy tự động cũ bị GỠ ≠ đã gán máy
         _say_guides(conn, pid, seg, r, out, log)
