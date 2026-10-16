@@ -30,6 +30,7 @@ from . import diag, features
 FLAG = "stage_auto"
 CODE = "stage_auto"
 FIELD = "stage_camera"                 # = plate_camera.STAGE_FIELD
+K1_VERSION = 2                         # 2 = sàn trong nhà chọn mặt hướng lên gần cao độ chỗ đứng (không lấy trần)
 MAX_GRID_CELLS = 64                    # cạnh lưới K1 tối đa (64 m) — chỗ đứng xa hơn: ô 'ngoài lưới' như cũ (bộ giải chỉ xếp hạng)
 NEAR_SPOT_M = 25.0                     # chỗ đứng khác (không shot nào của cảnh dùng) chỉ nêu cho Đạo diễn khi trong bán kính này quanh O
 SEG_FIELD = "stage_segment"
@@ -160,6 +161,7 @@ def ensure_k1(entry: Dict, spot: str, base: str, log: Callable[[str], None] = la
     want = {"sha256": entry.get("sha256"), "path": entry.get("path"), "at": (entry.get("spots") or {}).get(spot, {}).get("at")}
     if cells != 20:
         want["cells"] = int(cells)                        # lưới lớn hơn = K1 khác (cache riêng)
+    want["k1_version"] = K1_VERSION                       # đổi cách đo (16/10: sàn dưới trần) → đo lại
     mark = os.path.join(out, "k1_key.json")
     bad = os.path.join(out, "k1_error.json")
     if os.path.exists(os.path.join(out, "stage.json")) and os.path.exists(mark):
@@ -228,8 +230,11 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
             continue
         people.append({"key": k, "label": n, "H": float(prof["height_m"])})
     objs: Dict[int, Dict] = {}
+    props_of: Dict[int, List[int]] = {}
     for s in seg["shots"]:
         for a in place_refs.shot_objects(conn, pid, s["data"]):
+            if a.get("kind") != "weapon":
+                props_of.setdefault(s["idx"], []).append(a["id"])
             if a.get("kind") == "weapon":                 # rà 15/10: súng / vũ khí cầm tay — không phải khối đứng trên sàn
                 continue
             objs.setdefault(a["id"], a)
@@ -292,6 +297,7 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
             notes.append(f"Vị trí CUỐI ở cảnh trước trên cùng sân khấu (cảnh {prev_state.get('scene')}): `{k}` tại ({r[0]:+.2f}, "
                          f"{r[1]:+.2f}){facing}{pose} — GIỮ chỗ này trừ khi kịch bản cho di chuyển (ghi beat + _ly_do)")
     shots = []
+    skipped = []
     key_by_name = {p["label"]: p["key"] for p in people}
     from .assets import fold
     key_by_fold = {fold(p["label"]).lower(): p["key"] for p in people}
@@ -302,6 +308,12 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
                                     d.get("end_state")) if x)
         sp = spot_for(seg["entry"], d)
         r = _rel(st, sp["at"]) if sp.get("at") else None
+        if not [n for n in (d.get("characters") or []) if n in key_by_name] and not props_of.get(s["idx"]):
+            # 16/10 (#31 cảnh 1 shot 1–3, cảnh 2 shot 5: POV nhìn cửa / lối vào — thuộc model 3D, không phải vật dàn cảnh): shot không
+            # người, không nhắc đạo cụ nào →
+            # sân khấu không có gì để dàn; shot dùng máy nền thường (plate_view), nói rõ — không bắt Đạo diễn bịa thứ chính
+            skipped.append(s["idx"])
+            continue
         # 16/10 (#31 cảnh 4 người dùng "chưa được": địch không vào khung, shot 16–18 giống nhau, Kelly 17–18 sai chỗ): đề bài trước
         # KHÔNG có nhân vật / chỗ đứng / cỡ / góc của từng shot — nay có, và bộ kiểm + số đo bắt theo đúng các trường này
         shots.append({"shot": s["idx"], "action": d.get("action") or d.get("text") or "", "ghi_chu_khung_cu": old,
@@ -316,7 +328,10 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
                                     if isinstance(x, dict) and fold(x.get("speaker") or "").lower() in key_by_fold],
                       "ten": {key_by_name[n]: n for n in (d.get("characters") or []) if n in key_by_name}})
     aspect = formats.project_aspect(conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()) or "9:16"
+    if skipped:
+        notes.append(f"(shot {', '.join(map(str, skipped))} không có người / đạo cụ để dàn — không cần yêu cầu khung, dùng máy nền thường)")
     inputs = {"pid": pid, "canh": f"cảnh {seg['scene']} — {seg['place'].get('name')} ({len(seg['shots'])} shot)",
+              "bo_qua": skipped,
               # 16/10 gốc lỗi chạy thật #31 cảnh 4 (lần 2, 0,37 USD): cờ director_blockout (nhánh C — bối cảnh KHÔNG có model 3D)
               # bật trên máy → đề bài nối "Sơ đồ khối bắt buộc" + bộ kiểm đòi schema khối. Quyết định nhánh lấy từ Kho như v3_main.
               "_blockout_enabled": _branch_c(conn, seg["place"]["id"]),
@@ -490,7 +505,11 @@ def end_state(stage: Dict, answer: Dict, scene: str) -> Dict:
     for k, o in raw.items():
         if o.get("kind") == "moc" or not o.get("at"):
             continue
-        out[k] = {"at_model": _model(stage, [o["at"][0], o["at"][1], o.get("z", 0.0)]), "facing": o.get("facing"),
+        # 16/10 (#31 cảnh 6→7): nhịp cuối có di chuyển → vị trí cuối là `den`, không phải `at`; nhịp ghi `at` mới mà không `den` thì
+        # `den` của objects gốc (beat_raw gộp dict) không còn đúng
+        ov = ((bl.get("beats") or {}).get(last.get("nhip")) or {}).get(k) or {}
+        end = ov.get("den") or (o["at"] if "at" in ov else o.get("den")) or o["at"]
+        out[k] = {"at_model": _model(stage, [end[0], end[1], o.get("z", 0.0)]), "facing": o.get("facing"),
                   **{x: o[x] for x in ("h", "d", "label", "hollow") if x in o},
                   "tu_the": o.get("tu_the"), "kind": o.get("kind")}
     return {"scene": scene, "objects": out}
@@ -638,7 +657,7 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
         res["soft"] = soft_checks(inputs, v2 or {})
         res["round"] = os.path.basename(rd)               # rà 16/10: lượt cuối của LẦN chạy này (r* cũ của lần trước còn trên đĩa)
         for s in seg["shots"]:
-            if s["idx"] not in cams and s["idx"] not in bad:
+            if s["idx"] not in cams and s["idx"] not in bad and s["idx"] not in (inputs.get("bo_qua") or []):
                 bad[s["idx"]] = "bộ giải không đặt được máy (lỗi yêu cầu khung)"
         advice = {}
         for x in feedback or []:
@@ -818,7 +837,7 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
     for cam in cams.values():
         cam["inputs_fp"] = fp
     for s in seg["shots"]:
-        if s["idx"] not in cams and s["idx"] not in bad:
+        if s["idx"] not in cams and s["idx"] not in bad and s["idx"] not in (inputs.get("bo_qua") or []):
             bad[s["idx"]] = "bộ giải không đặt được máy (lỗi yêu cầu khung)"
     res = {"cams": cams, "bad": bad, "missing": [], "state": end_state(st, obj, seg["scene"]), "fp": fp,
            "guide_missing": guides_missing(cams), "round": os.path.basename(rd), "rerendered_from": os.path.basename(rd),
@@ -907,7 +926,7 @@ def offline_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: 
         colours = {}
     cams, bad = cameras_from(st, v2, seg["id"], rd, colours)
     for s in seg["shots"]:
-        if s["idx"] not in cams and s["idx"] not in bad:
+        if s["idx"] not in cams and s["idx"] not in bad and s["idx"] not in (inputs.get("bo_qua") or []):
             bad[s["idx"]] = "bộ giải không đặt được máy (lỗi yêu cầu khung)"
     fp = fingerprint(inputs)
     for cam in cams.values():

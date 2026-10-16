@@ -137,14 +137,22 @@ def blender_main(cfg):
             origin = loc - Vector((0, 0, 0.03))
         return res
 
+    # 16/10 (#31 phòng hai cửa): trong nhà tia từ trên xuống chạm TRẦN trước — sàn = mặt hướng lên GẦN cao độ chỗ đứng nhất
+    # (không phải mặt đầu tiên); ngoài trời / không có mặt hướng lên gần đó thì như cũ (mặt đầu tiên)
+    ref_z = float(cfg["origin_model"][2]) * factor + lift
+
+    def pick_floor(layers):
+        cand = [(z, o, m, nz) for z, o, m, nz in layers if o.name != "PLATES_GROUND" and not o.name.startswith("STAGE_")
+                and not any(w in o.name.lower() for w in rp.PLANT_NAMES)]
+        if not cand:
+            return None
+        ups = [c for c in cand if c[3] >= 0.7 and abs(c[0] - ref_z) <= 1.5 * factor]
+        if ups and cand[0][0] > ref_z + 1.5 * factor:     # có mặt ở trên cao (trần / mái) trước sàn gần chỗ đứng
+            return min(ups, key=lambda c: abs(c[0] - ref_z))
+        return cand[0]
+
     def floor_hit(x, y):
-        for z, obj, mat, nz in down_layers(x, y, 8):
-            if obj.name == "PLATES_GROUND" or obj.name.startswith("STAGE_"):
-                continue
-            if any(k in obj.name.lower() for k in rp.PLANT_NAMES):
-                continue
-            return z, obj, mat, nz
-        return None
+        return pick_floor(down_layers(x, y, 8))
 
     # ---- gốc O: tia xuống tại chỗ đứng chính ----
     ox, oy, _oz = cfg["origin_model"]
@@ -207,8 +215,7 @@ def blender_main(cfg):
             for py in offsets(k):
                 s = scn((cx + px, cy + py, 0))
                 layers = down_layers(s.x, s.y, 8)
-                fh = next(((z, o, m, nz) for z, o, m, nz in layers if o.name != "PLATES_GROUND" and not o.name.startswith("STAGE_")
-                           and not any(w in o.name.lower() for w in rp.PLANT_NAMES)), None)
+                fh = pick_floor(layers)
                 out_.append((layers[0] if layers else None, fh))
         return out_
 

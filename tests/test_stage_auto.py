@@ -164,6 +164,35 @@ class InputsTests(Base):
         self.assertEqual(missing, [])
         self.assertIn({"key": "xenoi", "kind": "dao_cu", "label": "Xe nôi", "h": 1.0, "d": 0.6, "source": "Kho #9 size"}, inputs["fixed"])
 
+    def test_shot_without_people_or_props_skipped_not_held(self):
+        # 16/10 #31 cảnh 1 shot 1–3 (POV nhìn cửa): không người, không đạo cụ → không có gì để dàn, dùng máy nền thường
+        pid = self.project()
+        sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=1", (pid,)).fetchone()["id"]
+        d = self.shot(pid, 1)
+        d["characters"] = []
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d), sid))
+        self.p.conn.commit()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        k1 = stage_auto.ensure_k1(seg["entry"], seg["main_spot"], stage_auto.base_dir(self.data, pid, seg["stage"]))
+        inputs, missing = stage_auto.inputs_for(self.p.conn, pid, seg, k1)
+        self.assertEqual(missing, [])
+        self.assertEqual(inputs["bo_qua"], [1])
+        self.assertEqual([s["shot"] for s in inputs["shots"]], [2, 3])
+        self.assertTrue(any("shot 1 không có người / đạo cụ" in n for n in inputs["user_notes"]))
+        with mock.patch("core.place_refs.shot_objects",
+                        return_value=[{"id": 9, "name": "Xe nôi", "size": {"height_m": 1.0, "width_m": 0.6}}]):
+            inputs, _ = stage_auto.inputs_for(self.p.conn, pid, seg, k1)
+        self.assertEqual(inputs["bo_qua"], [])          # có đạo cụ trong shot → vẫn dàn
+
+    def test_k1_remeasured_when_method_version_changes(self):
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        base = stage_auto.base_dir(self.data, pid, seg["stage"])
+        stage_auto.ensure_k1(seg["entry"], "giua_phong", base)
+        with mock.patch.object(stage_auto, "K1_VERSION", stage_auto.K1_VERSION + 1):
+            stage_auto.ensure_k1(seg["entry"], "giua_phong", base)
+        self.assertEqual(stage_auto.tool().k1_run.call_count, 2)
+
     def test_k1_cached_by_model_and_spot(self):
         pid = self.project()
         seg = stage_auto.segments(self.p.conn, pid)[0]
@@ -255,6 +284,15 @@ class RunTests(Base):
         stage_auto.run(self.p.conn, pid, self.data, client=client)
         self.assertEqual(len(client.prompts), 2)
         self.assertIn("Vị trí CUỐI ở cảnh trước trên cùng sân khấu (cảnh 1): `kelly` tại (+1.00, +0.50)", client.prompts[1])
+
+    def test_end_state_uses_den_of_last_move(self):
+        # 16/10 #31 cảnh 6→7: nhịp cuối Kelly bước đi (at → den) — cảnh sau phải nhận điểm CUỐI, không phải điểm đầu
+        st = sg.make_stage([10.0, 20.0, 0.0])
+        obj = answer([1])
+        obj["blocking"]["beats"] = {"cuoi": {"kelly": {"at": [0.0, 0.0], "den": [0.8, -0.6], "_ly_do": "bước đi"}}}
+        obj["shot_specs"][0]["nhip"] = "cuoi"
+        got = stage_auto.end_state(st, obj, "6")["objects"]["kelly"]["at_model"]
+        self.assertEqual(got, stage_auto._model(st, [0.8, -0.6, 0.0]))
 
     def test_drawn_shots_not_moved_unless_force(self):
         pid = self.project()
@@ -676,7 +714,7 @@ class PreflightReviewTests(unittest.TestCase):
 
 
 class BlenderPathTests(Base):
-    """16/10 #31 cảnh 4: 'data\projects\…' tương đối giao Blender bản Store (chạy thư mục khác) → ảnh clay ghi ra C:\data."""
+    r"""16/10 #31 cảnh 4: 'data\projects\…' tương đối giao Blender bản Store (chạy thư mục khác) → ảnh clay ghi ra C:\data."""
     def test_cfg_paths_made_absolute_before_blender(self):
         tool = stage_auto.tool()
         seen = {}
