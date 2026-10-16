@@ -812,7 +812,7 @@ class ScriptRulesTests(Base):
         obj["shot_specs"][1]["do_cao"] = obj["shot_specs"][0]["do_cao"]
         with self.assertRaises(SchemaError) as e:
             stage_director.validate_answer(obj, inputs, {})
-        self.assertIn("trùng cỡ", str(e.exception))
+        self.assertIn("cùng cỡ + độ cao + góc", str(e.exception))
 
     def test_measured_absence_and_same_camera_are_not_applied(self):
         pid, seg, inputs = self._inputs()
@@ -836,22 +836,66 @@ class ScriptRulesTests(Base):
 
 
 class ScriptRulesEscapeTests(ScriptRulesTests):
-    """Rà 16/10: luật không được bế tắc (người ngoài hình / cắt tại chỗ) và cỡ kịch bản viết lạ vẫn được hiểu."""
-    def test_off_frame_with_reason_and_same_frame_are_allowed(self):
+    """16/10 lần 2 (#31 cảnh 4): Đạo diễn lách luật bằng ngoai_khung (bỏ Xúc tu đỏ) và cung_khung (shot 18 = shot 17) — không còn
+    lối miễn; nhịp = khung ĐẦU (địch bị hạ trong shot phải còn đứng); K3 bắt khung không chứa nổi người trước Blender."""
+    def test_off_frame_and_same_frame_no_longer_escape(self):
         _, _, inputs = self._inputs()
         inputs["shots"][0]["nhan_vat"] = ["kelly", "dich"]
         inputs["people"].append({"key": "dich", "label": "DICH", "H": 1.8})
         obj = answer([1, 2, 3])
-        obj["shot_specs"][0]["ngoai_khung"] = [{"vat": "dich", "_ly_do": "kịch bản: địch nói ngoài hình"}]
-        stage_director.validate_answer(copy.deepcopy(obj), inputs, {})
-        obj["shot_specs"][0]["ngoai_khung"] = [{"vat": "dich"}]                       # không lý do → không miễn
+        obj["shot_specs"][0]["ngoai_khung"] = [{"vat": "dich", "_ly_do": "nói ngoài hình"}]
         with self.assertRaises(Exception):
             stage_director.validate_answer(copy.deepcopy(obj), inputs, {})
         inputs["shots"][0]["nhan_vat"] = ["kelly"]
         obj = answer([1, 2, 3])
         obj["shot_specs"][1]["do_cao"] = obj["shot_specs"][0]["do_cao"]
         obj["shot_specs"][1]["cung_khung"] = True
-        stage_director.validate_answer(obj, inputs, {})
+        with self.assertRaises(Exception):
+            stage_director.validate_answer(obj, inputs, {})
+
+    def test_victims_stand_at_the_start_of_the_kill_shot(self):
+        _, _, inputs = self._inputs()
+        inputs["shots"][1]["action"] = "Kelly áp sát và hạ gục tên địch"
+        inputs["shots"][1]["nhan_vat"] = ["kelly", "dich"]
+        inputs["people"].append({"key": "dich", "label": "DICH", "H": 1.8})
+        obj = answer([1, 2, 3])
+        obj["blocking"]["objects"].append({"key": "dich", "kind": "nguoi", "at": [0.6, 1.2], "H": 1.8, "facing": 180})
+        obj["blocking"]["beats"] = {"n2": {"dich": {"tu_the": "nam", "facing": 90, "_ly_do": "gục"}}}
+        obj["shot_specs"][1]["nhip"] = "n2"
+        obj["shot_specs"][1]["thanh_phan"].append({"vat": "dich", "vai": "phu", "vung": "phai"})
+        with self.assertRaises(Exception) as e:
+            stage_director.validate_answer(copy.deepcopy(obj), inputs, {})
+        self.assertIn("còn đứng", str(e.exception))
+        inputs["shots"][1]["action"] = "Kelly thở gấp sau khi vừa hạ gục tên địch"              # hạ TRƯỚC shot → nằm được
+        try:
+            stage_director.validate_answer(copy.deepcopy(obj), inputs, {})
+        except Exception as e2:  # noqa: BLE001
+            self.assertNotIn("còn đứng", str(e2))
+
+    def test_k3_catches_people_no_frame_can_hold(self):
+        _, _, inputs = self._inputs()
+        inputs["shots"][0]["nhan_vat"] = ["kelly", "a", "b"]
+        inputs["people"] += [{"key": "a", "label": "A", "H": 1.8}, {"key": "b", "label": "B", "H": 1.8}]
+        obj = answer([1, 2, 3])
+        obj["blocking"]["objects"] += [{"key": "a", "kind": "nguoi", "at": [0.0, 14.0], "H": 1.8, "facing": 180},
+                                       {"key": "b", "kind": "nguoi", "at": [0.0, -14.0], "H": 1.8, "facing": 0}]
+        obj["shot_specs"][0]["thanh_phan"] += [{"vat": "a", "vai": "phu", "vung": "trai"}, {"vat": "b", "vai": "phu", "vung": "phai"}]
+        with self.assertRaises(Exception) as e:
+            stage_director.validate_answer(obj, inputs, {})
+        self.assertIn("K3", str(e.exception))
+
+    def test_removed_is_not_reported_as_applied(self):
+        pid = self.project()
+        stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+
+        def lost(*a, **k):
+            solve, v2 = fake_v2(*a, **k)
+            v2["shots"][0]["best"]["m"]["obj"]["kelly"]["seen_pct"] = 0.0
+            return solve, v2
+        with mock.patch.object(stage_auto.tool(), "v2_run", side_effect=lost):
+            r = stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])), again=True)
+        self.assertNotIn(1, r["applied"])
+        self.assertIn(1, r["removed"])
 
     def test_script_size_written_loosely_still_enforced(self):
         _, _, inputs = self._inputs()
@@ -863,4 +907,18 @@ class ScriptRulesEscapeTests(ScriptRulesTests):
 
     def test_rules_are_told_in_the_prompt(self):
         _, _, inputs = self._inputs()
-        self.assertIn("ngoai_khung", stage_director.build_prompt(inputs))
+        self.assertIn("khung đầu của ảnh", stage_director.build_prompt(inputs))
+
+
+class ScoreSavedTests(Base):
+    def test_old_rounds_archived_and_scored_with_current_rules(self):
+        pid = self.project()
+        stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+        stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])), again=True)
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        d = os.path.join(stage_auto.base_dir(self.data, pid, seg["stage"]), "doan_1")
+        self.assertTrue([x for x in os.listdir(d) if x.startswith("cu_")])          # lần trước không bị ghi đè
+        r = stage_auto.score_saved(self.p.conn, pid, seg, self.data)
+        self.assertEqual(r["gate"], [])
+        self.assertEqual(len(r["rounds"]), 2)
+        self.assertTrue(all(v == [] for v in r["rounds"].values()))

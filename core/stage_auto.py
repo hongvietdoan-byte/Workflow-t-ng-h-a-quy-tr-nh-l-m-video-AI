@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 import re
+import time
 from typing import Callable, Dict, List, Optional, Tuple
 
 from . import diag, features
@@ -376,7 +377,7 @@ def preflight(inputs: Dict, marks: Optional[Dict]) -> List[str]:
     if director_blockout.enabled(inputs):
         out.append("đề bài sân khấu đòi sơ đồ khối nhánh C cho bối cảnh có model 3D (cờ director_blockout) — đề bài/bộ kiểm không khớp")
     try:
-        sd.validate_answer(_c.deepcopy(example_answer(inputs)), inputs, marks)
+        sd.validate_answer(_c.deepcopy(example_answer(inputs)), dict(inputs, _skip_k3=True), marks)
     except (llm_io.SchemaError, ValueError, KeyError, TypeError) as e:
         out.append(f"câu trả lời mẫu đúng định dạng không qua bộ kiểm: {str(e)[:300]}")
     return out
@@ -558,6 +559,7 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
                             f"{_estimate(conn, 1)} (tối đa {2 * sd.MAX_ROUNDS} lời gọi {_estimate(conn, 2 * sd.MAX_ROUNDS)})", log)
     with open(os.path.join(out, "inputs.json"), "w", encoding="utf-8") as f:
         json.dump(inputs, f, ensure_ascii=False, indent=1)
+    _archive_rounds(out)                                  # 16/10: lượt của các lần trả tiền trước giữ lại (chấm lại bằng --score)
     prev, feedback, obj, v2, rd = None, [], None, None, out
     for rnd in range(1, sd.MAX_ROUNDS + 1):
         text = sd.build_prompt(inputs, prev, feedback) + (format_example(inputs) if prev is None else "")
@@ -657,11 +659,9 @@ def post_checks(inputs: Dict, v2: Dict) -> Dict[int, str]:
         sh = info.get(s["shot"]) or {}
         spec = s.get("spec") or {}
         pov = spec.get("pov")
-        from .stage_director import off_frame
-        ngoai = off_frame(spec)
         lost = []
         for k in sh.get("nhan_vat") or []:
-            if k == pov or k in ngoai:
+            if k == pov:
                 continue
             seen = [((m.get("obj") or {}).get(k) or {}).get("seen_pct") or 0.0]
             if b.get("end"):
@@ -676,7 +676,7 @@ def post_checks(inputs: Dict, v2: Dict) -> Dict[int, str]:
             d = _m.dist(m["at"], prev[1]["at"])
             yaw = lambda q: _m.degrees(_m.atan2(q["aim"][0] - q["at"][0], q["aim"][1] - q["at"][1]))
             dy = abs((yaw(m) - yaw(prev[1]) + 180) % 360 - 180) if m.get("aim") and prev[1].get("aim") else 999
-            if same_spot and d < SAME_CAM_M and dy < SAME_CAM_DEG and m.get("lens") == prev[1].get("lens") and not spec.get("cung_khung"):
+            if same_spot and d < SAME_CAM_M and dy < SAME_CAM_DEG:      # 16/10 lần 2: ống khác 1–2 mm vẫn là cùng một máy
                 out[s["shot"]] = (out.get(s["shot"], "") + ("; " if s["shot"] in out else "")
                                   + f"máy trùng shot {prev[0]} (cách {d:.2f} m, lệch {dy:.0f}°, cùng ống {m.get('lens')} mm) — đổi góc / "
                                     "độ cao / cỡ")
@@ -780,6 +780,50 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
     return out
 
 
+def _archive_rounds(out: str) -> None:
+    """Dời r*/ + prompt_r*.md + bad_reply_* của lần chạy trước vào cu_<giờ>/ — lần mới không ghi đè câu trả lời đã trả tiền."""
+    import shutil
+    olds = [x for x in os.listdir(out) if re.fullmatch(r"r[0-9]+", x) or x.startswith(("prompt_r", "bad_reply_r"))]
+    if not olds:
+        return
+    dest = os.path.join(out, "cu_" + time.strftime("%Y%m%d_%H%M%S"))
+    os.makedirs(dest, exist_ok=True)
+    for x in olds:
+        shutil.move(os.path.join(out, x), os.path.join(dest, x))
+
+
+def score_saved(conn, pid: int, seg: Dict, data_dir: str) -> Dict:
+    """0 USD: chấm MỌI lượt Đạo diễn đã lưu của đoạn (r*/answer.json) bằng bộ kiểm HIỆN TẠI (luật kịch bản + K3 khung) trên đề bài hiện
+    tại — {lượt: [lỗi]} (rỗng = qua). Dùng trước khi trả tiền chạy lại: lỗi cũ phải bị bắt bằng code, không phải bằng mắt người."""
+    from . import llm_io
+    from . import stage_director as sd
+    import copy as _c
+    out_dir = os.path.join(base_dir(data_dir, pid, seg["stage"]), f"doan_{key_of(seg['scene'])}")
+    k1 = ensure_k1(seg["entry"], seg["main_spot"], base_dir(data_dir, pid, seg["stage"]))
+    inputs, missing = inputs_for(conn, pid, seg, k1, stored_state_before(data_dir, pid, seg, conn))
+    with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
+        marks = json.load(f).get("marks")
+    res: Dict = {"missing": missing, "gate": preflight(inputs, marks), "rounds": {}}
+    found = []
+    for x in sorted(os.listdir(out_dir) if os.path.isdir(out_dir) else []):
+        if re.fullmatch(r"r[0-9]+", x):
+            found.append(x)
+        elif x.startswith("cu_") and os.path.isdir(os.path.join(out_dir, x)):
+            found += [f"{x}/{y}" for y in sorted(os.listdir(os.path.join(out_dir, x))) if re.fullmatch(r"r[0-9]+", y)]
+    for d in found:
+        path = os.path.join(out_dir, d, "answer.json")
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8") as f:
+            obj = json.load(f)
+        try:
+            sd.validate_answer(_c.deepcopy(obj), inputs, marks)
+            res["rounds"][d] = []
+        except (llm_io.SchemaError, ValueError, KeyError, TypeError) as e:
+            res["rounds"][d] = [x for x in str(e).split("; ") if x]
+    return res
+
+
 def stored_state_before(data_dir: str, pid: int, seg: Dict, conn) -> Optional[Dict]:
     """Vị trí cuối đã lưu của đoạn TRƯỚC trên cùng sân khấu (để đầu vào dựng lại khớp vân tay của lần chạy trả tiền)."""
     prev = None
@@ -820,7 +864,7 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: 
         return None
     from .camera_plan import drawn_shots
     segs = segments(conn, pid)
-    out: Dict = {"applied": [], "held": [], "skipped": []}
+    out: Dict = {"applied": [], "removed": [], "held": [], "skipped": []}
     for h in family_hints(segs):
         _say(conn, pid, "warn", h, log)
     state: Dict[str, Dict] = {}
@@ -851,7 +895,9 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: 
             r["guide_missing"] = guides_missing(r["cams"])
         if r.get("state"):
             state[seg["stage"]] = r["state"]
-        out["applied"] += apply(conn, seg, r["cams"])
+        changed = apply(conn, seg, r["cams"])
+        out["applied"] += [i for i in changed if i in r["cams"]]
+        out["removed"] += [i for i in changed if i not in r["cams"]]    # 16/10: máy tự động cũ bị GỠ ≠ đã gán máy
         _say_guides(conn, pid, seg, r, out, log)
         for idx, why in sorted(r["bad"].items()):
             line = (f"shot {idx} ({seg['id']}): sân khấu chưa đặt được máy sau {2} lượt sửa — {why} (sửa yêu cầu khung / chỗ đứng, hoặc "

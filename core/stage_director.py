@@ -8,6 +8,7 @@ import copy
 import json
 import math
 import os
+import re
 from typing import Dict, List, Optional, Sequence
 
 from . import llm_io
@@ -134,7 +135,7 @@ def validate_answer(obj, inputs: Dict, marks: Optional[Dict] = None) -> Dict:
             errs += [f"shot {s.get('shot')}: {e}" for e in ss.move_errors(s["may"])]
         errs += [f"shot {s.get('shot')}: {e}" for e in overlap_errors(o)]
     if inputs.get("auto"):
-        errs += script_rules(bl, specs, inputs)
+        errs += script_rules(bl, specs, inputs, marks)
     if errs:
         raise llm_io.SchemaError("; ".join(dict.fromkeys(errs[:8])))
     from .director_blockout import enabled, issues_for
@@ -152,58 +153,107 @@ def _sig(spec: Dict):
             str(main.get("vung") or ""), str(main.get("thay") or ""), bool(spec.get("may")), spec.get("pov"))
 
 
-def off_frame(spec: Dict) -> set:
-    """Nhân vật Đạo diễn khai NGOÀI khung có lý do (kịch bản: người nói ngoài hình, người nghe ở CU…): `ngoai_khung: [{vat, _ly_do}]`."""
-    return {e.get("vat") for e in spec.get("ngoai_khung") or [] if isinstance(e, dict) and str(e.get("_ly_do") or "").strip()}
-
-
 AUTO_RULES = chr(10).join([
     "### Luật code kiểm (sân khấu tự động — sai thì bị trả lại)",
     "- Mọi nhân vật ở dòng 'nhân vật PHẢI có trong khung' của shot: ghi vào `thanh_phan` (`chinh` hoặc `phu`), có mặt ở nhịp của "
-    "shot, và code ĐO thấy ≥ 15 % thân trong khung (đầu hoặc cuối khi máy chạy). Kịch bản cho phép một người ở ngoài khung (người "
-    'nói ngoài hình, người nghe ở cận) → khai `"ngoai_khung": [{"vat": "<khóa>", "_ly_do": "…"}]` trong shot đó. '
-    'Shot POV: `"pov": "<người cầm máy>"` (được miễn).',
+    "shot, và code ĐO thấy ≥ 15 % thân trong khung (đầu hoặc cuối khi máy chạy) — đặt họ đủ gần nhau để MỘT máy chứa được. Không "
+    'có lối "ngoài khung". Shot POV: `"pov": "<người cầm máy>"` (chỉ người đó được miễn).',
     "- `co` = cỡ kịch bản.",
-    "- Hai shot liền nhau cùng chỗ đứng phải là hai máy khác nhau (đổi độ cao / góc / vùng / hướng thấy); cố ý giữ ĐÚNG khung shot "
-    'trước (cắt tại chỗ) → ghi `"cung_khung": true` + lý do trong `muc_dich`.',
+    "- Nhịp của shot = trạng thái ở ĐẦU shot (khung đầu của ảnh): người bị hạ TRONG shot còn ĐỨNG ở nhịp của shot đó; ngã / nằm "
+    "ở nhịp của shot sau.",
+    "- Hai shot liền nhau cùng chỗ đứng phải khác cỡ, độ cao (`do_cao`) hoặc góc (`goc`) — không có hai máy giống nhau.",
 ])
 
 
-def script_rules(bl: Dict, specs: List[Dict], inputs: Dict) -> List[str]:
-    """16/10 (#31 cảnh 4, người dùng 'chưa được'): luật theo KỊCH BẢN của từng shot (sân khấu tự động, inputs.auto):
-    (1) mọi nhân vật của shot (`nhan_vat`) có trong `thanh_phan` (chinh / phu) và có mặt ở nhịp của shot — Đạo diễn không được bỏ
-        người cho máy dễ đạt (lượt sửa r2 đã bỏ 3 địch ở shot 15);
-    (2) `co` = cỡ của kịch bản khi kịch bản ghi cỡ hợp lệ;
-    (3) hai shot liền nhau cùng chỗ đứng không được cùng cỡ + độ cao + góc + bố cục thứ chính (shot 17 / 18 ra cùng một máy)."""
+KILL_WORDS = re.compile(r"hạ gục|bắn hạ|giết|tiêu diệt|hạ (?:lần lượt|từng|cả|ba|hai|bốn)|knock(?:s|ed)? (?:out|down)|takes? down|kills?", re.I)
+LYING = ("nam", "nga_ngua")
+SEEN_K3_PCT = 15.0                     # = stage_auto.SEEN_MIN_PCT — người kịch bản phải lọt khung ≥ bấy nhiêu % ngay ở bộ giải (K3)
+
+
+def _state(bl: Dict, nhip: Optional[str]) -> Dict[str, Dict]:
+    try:
+        return ss.beat_raw(bl, nhip) if nhip else ss.beat_raw(bl)
+    except (ValueError, KeyError, TypeError):
+        return {}
+
+
+def kill_in_shot(action: str) -> bool:
+    """Hành động của shot có hạ gục NGAY TRONG shot (không phải 'sau khi vừa hạ gục' / 'đã hạ' — #31 shot 16 bắt oan lần đầu)."""
+    for m in KILL_WORDS.finditer(action or ""):
+        if not re.search(r"(?:sau khi|vừa|đã|after|having)\s*(?:\S+\s+){0,2}$", action[max(0, m.start() - 25):m.start()], re.I):
+            return True
+    return False
+
+
+def script_rules(bl: Dict, specs: List[Dict], inputs: Dict, marks: Optional[Dict] = None) -> List[str]:
+    """16/10 (#31 cảnh 4, người dùng 'chưa được' — 2 lần): luật theo KỊCH BẢN của từng shot (sân khấu tự động, inputs.auto):
+    (1) mọi nhân vật của shot (`nhan_vat`, trừ người cầm máy `pov`) có trong `thanh_phan` (chinh / phu) và có mặt ở nhịp của shot —
+        không bỏ người, không khai "ngoài khung" (lần 2 Đạo diễn khai ngoai_khung bỏ Xúc tu đỏ ở shot 16);
+    (2) `co` = cỡ kịch bản;
+    (3) hai shot liền nhau cùng chỗ đứng phải KHÁC cỡ / độ cao / góc (lần 2 shot 18 khai cung_khung để giữ y máy shot 17);
+    (4) nhịp = trạng thái ĐẦU shot: người bị hạ TRONG shot (hành động có "hạ gục / giết / bắn hạ…") còn đứng ở nhịp của shot đó
+        (lần 2: 3 địch đã nằm ngay đầu shot 15);
+    (5) K3 (0 USD, hình học thuần): bộ giải phải có ít nhất một máy đưa MỌI nhân vật kịch bản vào khung ≥ SEEN_K3_PCT %."""
     out: List[str] = []
     info = {s["shot"]: s for s in inputs.get("shots") or []}
     ordered = sorted((s for s in specs if isinstance(s, dict) and s.get("shot") in info), key=lambda s: s["shot"])
     prev = None
     for s in ordered:
         sh = info[s["shot"]]
-        want = sh.get("nhan_vat") or []
+        want = [k for k in sh.get("nhan_vat") or [] if k != s.get("pov")]
         roles = {c.get("vat"): c.get("vai") for c in s.get("thanh_phan") or [] if isinstance(c, dict)}
-        try:
-            present = set(ss.beat_raw(bl, s.get("nhip"))) if s.get("nhip") else set(ss.beat_raw(bl))
-        except (ValueError, KeyError, TypeError):
-            present = set()
-        ngoai = off_frame(s)
+        now = _state(bl, s.get("nhip"))
         for k in want:
-            if k == s.get("pov") or k in ngoai:
-                continue
             if roles.get(k) not in ("chinh", "phu"):
-                out.append(f"shot {s['shot']}: nhân vật `{k}` của kịch bản phải có trong thanh_phan (chinh/phu) — không bỏ người")
-            elif k not in present:
+                out.append(f"shot {s['shot']}: nhân vật `{k}` của kịch bản phải có trong thanh_phan (chinh/phu) và trong khung — không bỏ "
+                           "người, không để ngoài khung")
+            elif k not in now:
                 out.append(f"shot {s['shot']}: nhân vật `{k}` bị ẩn / không có ở nhịp `{s.get('nhip')}` mà kịch bản có")
         co = str(sh.get("co_kich_ban") or "").upper().split(" ")[0].split("(")[0].strip()
         if co in sg.FRAMING and s.get("co") != co:
             out.append(f"shot {s['shot']}: cỡ `{s.get('co')}` khác cỡ kịch bản `{co}` — giữ cỡ kịch bản")
+        if kill_in_shot(str(sh.get("action") or "")):
+            before = _state(bl, prev.get("nhip")) if prev is not None else _state(bl, None)
+            for k in want:
+                if (now.get(k) or {}).get("tu_the") in LYING and (before.get(k) or {}).get("tu_the") not in LYING:
+                    out.append(f"shot {s['shot']}: `{k}` bị hạ TRONG shot này nên ở nhịp `{s.get('nhip')}` (khung ĐẦU) phải còn đứng — "
+                               "ngã / nằm ở nhịp của shot sau")
         if prev is not None:
             same_spot = (info[prev["shot"]].get("cho_dung") or {}).get("ten") == (sh.get("cho_dung") or {}).get("ten")
-            if same_spot and _sig(prev) == _sig(s) and not s.get("cung_khung"):
-                out.append(f"shot {s['shot']}: trùng cỡ + độ cao + góc + bố cục với shot {prev['shot']} cùng chỗ đứng — đổi độ cao / "
-                           "góc / vùng / hướng thấy để hai shot là hai máy khác nhau")
+            if same_spot and _sig(prev)[:3] == _sig(s)[:3]:
+                out.append(f"shot {s['shot']}: cùng cỡ + độ cao + góc với shot {prev['shot']} cùng chỗ đứng — hai shot liền nhau phải "
+                           "khác cỡ, độ cao hoặc góc")
         prev = s
+    if not out and not inputs.get("_skip_k3"):        # câu trả lời MẪU của cổng 0 USD chỉ kiểm định dạng, không kiểm khung
+        out += k3_frame_errors(bl, ordered, info, marks)
+    return out
+
+
+def k3_frame_errors(bl: Dict, specs: List[Dict], info: Dict, marks: Optional[Dict] = None) -> List[str]:
+    """(5) Bộ giải K3 (không Blender, 0 USD): shot nào KHÔNG có phương án máy đưa mọi nhân vật kịch bản vào khung ≥ SEEN_K3_PCT %
+    (chưa tính bị che) thì báo ngay — trước Blender, trước lượt sửa trả tiền (lần 2: 4 địch cách 14 m ở 4 ngả, 0 % mọi shot)."""
+    out = []
+    try:
+        sol = ss.solve_scene(specs, bl, 9 / 16, marks=marks)
+    except (ValueError, KeyError, TypeError, ZeroDivisionError) as e:
+        return [f"bộ giải không chạy được trên dàn cảnh: {e}"]
+    for r in sol.get("shots") or []:
+        spec = next((s for s in specs if s.get("shot") == r["shot"]), {})
+        want = [k for k in (info.get(r["shot"]) or {}).get("nhan_vat") or [] if k != spec.get("pov")]
+        if r.get("errors"):
+            out.append(f"shot {r['shot']}: bộ giải: " + "; ".join(r["errors"][:2]))
+            continue
+        best = None
+        for c in r.get("cams") or []:
+            objs = (c.get("eval") or {}).get("obj") or {}
+            lows = [k for k in want if ((objs.get(k) or {}).get("in_pct") or 0.0) < SEEN_K3_PCT]
+            if not lows:
+                best = None
+                break
+            best = lows if best is None or len(lows) < len(best) else best
+        if best:
+            out.append(f"shot {r['shot']}: không phương án máy nào (K3, {len(r.get('cams') or [])} phương án) đưa được "
+                       + ", ".join(f"`{k}`" for k in best) + f" vào khung ≥ {SEEN_K3_PCT:g} % — đặt họ gần nhau hơn trong nhịp / đổi độ cao")
     return out
 
 
