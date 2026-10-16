@@ -41,10 +41,18 @@ def handoff_lines(todo: str) -> list:
     return out
 
 
+def _bold_head(line: str) -> str:
+    """Cụm in đậm đầu tiên của dòng (`**…**`) — nơi gói ghi ĐỌC ĐẦU TIÊN; dòng khác chỉ NHẮC tới cụm này (vd 16:08) không tính."""
+    a = line.find("**")
+    b = line.find("**", a + 2) if a >= 0 else -1
+    return line[a + 2:b] if b > a else ""
+
+
 def latest_pack(lines: list):
-    """Gói bàn giao mới nhất (dòng có ĐỌC ĐẦU TIÊN hoặc ĐÃ NHẬN thay chỗ nó); None nếu không có."""
+    """Gói bàn giao mới nhất (cụm in đậm đầu dòng có ĐỌC ĐẦU TIÊN hoặc ĐÃ NHẬN thay chỗ nó); None nếu không có."""
     for ln in lines:
-        if MARK in ln or TAKEN in ln:
+        head = _bold_head(ln)
+        if MARK in head or TAKEN in head:
             return ln
     return None
 

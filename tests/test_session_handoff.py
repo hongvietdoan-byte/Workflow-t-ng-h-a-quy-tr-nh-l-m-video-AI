@@ -31,6 +31,15 @@ def test_claimed_pack_is_reference_only():
     assert "gói cũ" not in out  # gói cũ hơn không được thúc làm lại
 
 
+def test_line_merely_mentioning_mark_is_not_a_pack():
+    # lỗi 16/10: dòng báo XONG nhắc cụm "ĐỌC ĐẦU TIÊN" trong ngoặc bị nhận nhầm là gói chưa ai nhận
+    todo = TODO.replace(
+        "ĐỌC ĐẦU TIÊN.** (1)", "ĐÃ NHẬN 16:14 (phiên C).** (1)").replace(
+        "  - [16/10 16:00]", '  - [16/10 16:08] phiên D → **XONG hook** in gói "ĐỌC ĐẦU TIÊN" mới nhất\n  - [16/10 16:00]')
+    out = sh.render(todo, "origin/main")
+    assert "CHƯA AI NHẬN" not in out and "ĐÃ NHẬN 16:14" in out
+
+
 def test_behind_main_warns_and_no_section():
     assert "chậm 3 commit" in sh.render(TODO, "origin/main", behind=3)
     assert "Không thấy mục" in sh.render("# TODO\n", "x")

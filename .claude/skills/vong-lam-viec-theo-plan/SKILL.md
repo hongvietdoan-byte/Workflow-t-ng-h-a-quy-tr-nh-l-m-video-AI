@@ -17,7 +17,8 @@ Mục tiêu: làm hết một đợt dài mà không để phiên chính đầy 
    **Hook SessionStart (`.claude/settings.json` → `tools/session_handoff.py`)** tự in gói mới nhất từ `origin/main` vào đầu MỌI phiên
    mới / sau `/clear` (skill này không tự nạp khi người dùng chưa gõ "tiếp tục" — lỗi 16/10). Nhận gói thì sửa "ĐỌC ĐẦU TIÊN" thành
    "ĐÃ NHẬN <giờ thật> (<tên phiên>)" + commit + push NGAY, để hook không thúc phiên sau làm lại. Khi đóng gói cho phiên kế phải giữ
-   đúng cụm "ĐỌC ĐẦU TIÊN" trong dòng (hook tìm theo cụm này).
+   đúng cụm "ĐỌC ĐẦU TIÊN" trong cụm IN ĐẬM ĐẦU TIÊN của dòng (`**PHIÊN KẾ … — ĐỌC ĐẦU TIÊN.**`); hook chỉ xét cụm đó, dòng khác
+   chỉ nhắc tới cụm này thì không tính.
 3. Đọc câu trả lời người dùng cho việc ⏸: `PYTHONUTF8=1 py -m devsys.answers list --pending` (người dùng trả lời trên web 8502 trang 📋, lưu ở `devsys/data/user_answers.json` của bản chính, không vào git). Mỗi câu: áp dụng (đổi trạng thái việc trong kế hoạch, ghi chú/commit) rồi `py -m devsys.answers applied <mã> "ghi chú · mã commit"`; câu chưa rõ thì hỏi lại người dùng. File hỏng → lệnh báo lỗi, báo người dùng, không tự xóa.
 4. Tìm đợt đang làm: dòng `> Đợt ưu tiên: Sxx` trong `docs/KE_HOACH_SUA_SAU_DU_AN_8.md`, hoặc chạy `PYTHONUTF8=1 py tools/plan_progress.py`. Việc kế là việc ⬜ đầu tiên. Bỏ qua việc ⏸ chưa có câu trả lời.
 5. Đọc file kế hoạch chi tiết của đợt mà tiêu đề đợt trỏ tới. Chỉ đọc đoạn liên quan (`grep` hoặc đọc theo khoảng dòng), không đọc cả file lớn. **Mở lại code và đối chiếu số dòng** trước khi sửa, vì số dòng ghi trong kế hoạch có thể đã lệch.
