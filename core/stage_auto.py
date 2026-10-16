@@ -138,10 +138,27 @@ def base_dir(data_dir: str, pid: int, stage: str) -> str:
     return os.path.abspath(os.path.join(data_dir, str(pid), "stage", stage))
 
 
-def ensure_k1(entry: Dict, spot: str, base: str, log: Callable[[str], None] = lambda m: None) -> str:
+def grid_cells(seg: Dict) -> int:
+    """Số ô (cạnh lưới K1, 1 m/ô) đủ phủ MỌI chỗ đứng shot của đoạn quanh gốc O + 6 m (16/10 #31 cảnh 4: khe tây / ngã rẽ bắc cách O
+    14 m nằm ngoài lưới 20 × 20 → mọi phương án máy 'ngoài lưới')."""
+    import math as _m
+    spots = seg["entry"].get("spots") or {}
+    o = (spots.get(seg["main_spot"]) or {}).get("at") or [0, 0, 0]
+    far = max([0.0] + [max(abs(spots[n]["at"][0] - o[0]), abs(spots[n]["at"][1] - o[1])) for n in seg.get("spots") or {}
+                       if n in spots and spots[n].get("at")])
+    return max(20, 2 * int(_m.ceil(far + 6.0)))
+
+
+def ensure_k1_seg(seg: Dict, base: str, log: Callable[[str], None] = lambda m: None) -> str:
+    return ensure_k1(seg["entry"], seg["main_spot"], base, log, cells=grid_cells(seg))
+
+
+def ensure_k1(entry: Dict, spot: str, base: str, log: Callable[[str], None] = lambda m: None, cells: int = 20) -> str:
     """K1 của chỗ đứng (0 USD, Blender ≈ 20 s), cache theo sha model + tọa độ chỗ đứng. Lỗi = ValueError / BlenderError."""
-    out = os.path.join(base, f"k1_{key_of(spot)}")
+    out = os.path.join(base, f"k1_{key_of(spot)}" + (f"_{int(cells)}" if cells != 20 else ""))
     want = {"sha256": entry.get("sha256"), "path": entry.get("path"), "at": (entry.get("spots") or {}).get(spot, {}).get("at")}
+    if cells != 20:
+        want["cells"] = int(cells)                        # lưới lớn hơn = K1 khác (cache riêng)
     mark = os.path.join(out, "k1_key.json")
     bad = os.path.join(out, "k1_error.json")
     if os.path.exists(os.path.join(out, "stage.json")) and os.path.exists(mark):
@@ -161,7 +178,7 @@ def ensure_k1(entry: Dict, spot: str, base: str, log: Callable[[str], None] = la
             pass
     log(f"Sân khấu: đo sàn K1 chỗ đứng '{spot}' (Blender, 0 USD)")
     try:
-        tool().k1_run(entry, spot, out)
+        tool().k1_run(entry, spot, out, cells=cells)
     except Exception as e:
         os.makedirs(out, exist_ok=True)
         with open(bad, "w", encoding="utf-8") as f:
@@ -531,7 +548,7 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
     base = base_dir(data_dir, pid, seg["stage"])
     res: Dict = {"cams": {}, "bad": {}, "missing": [], "state": None, "reused": False}
     try:
-        k1 = ensure_k1(seg["entry"], seg["main_spot"], base, log)
+        k1 = ensure_k1_seg(seg, base, log)
     except Exception as e:  # noqa: BLE001 - Blender / model 3D: nói rõ, đoạn không chạy
         res["missing"].append(f"không đo được sân khấu K1 chỗ đứng '{seg['main_spot']}': {type(e).__name__}: {e}")
         return res
@@ -769,7 +786,7 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
         return out
     rd, obj = got
     base = base_dir(data_dir, pid, seg["stage"])
-    k1 = ensure_k1(seg["entry"], seg["main_spot"], base, log)
+    k1 = ensure_k1_seg(seg, base, log)
     inputs, missing = inputs_for(conn, pid, seg, k1, stored_state_before(data_dir, pid, seg, conn))
     if missing:
         out["missing"] += missing
@@ -832,7 +849,7 @@ def offline_prompt(conn, pid: int, seg: Dict, data_dir: str) -> Tuple[str, List[
     phiên Claude Code đọc đề bài này, viết câu trả lời JSON rồi đưa vào offline_answer."""
     from . import stage_director as sd
     base = base_dir(data_dir, pid, seg["stage"])
-    k1 = ensure_k1(seg["entry"], seg["main_spot"], base)
+    k1 = ensure_k1_seg(seg, base)
     inputs, missing = inputs_for(conn, pid, seg, k1, stored_state_before(data_dir, pid, seg, conn))
     with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
         marks = json.load(f).get("marks")
@@ -849,7 +866,7 @@ def offline_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: 
     from . import stage_director as sd
     out_res: Dict = {"ok": False, "errors": [], "applied": [], "removed": [], "soft": {}}
     base = base_dir(data_dir, pid, seg["stage"])
-    k1 = ensure_k1(seg["entry"], seg["main_spot"], base, log)
+    k1 = ensure_k1_seg(seg, base, log)
     inputs, missing = inputs_for(conn, pid, seg, k1, stored_state_before(data_dir, pid, seg, conn))
     with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
         st = json.load(f)
@@ -909,7 +926,7 @@ def score_saved(conn, pid: int, seg: Dict, data_dir: str) -> Dict:
     from . import stage_director as sd
     import copy as _c
     out_dir = os.path.join(base_dir(data_dir, pid, seg["stage"]), f"doan_{key_of(seg['scene'])}")
-    k1 = ensure_k1(seg["entry"], seg["main_spot"], base_dir(data_dir, pid, seg["stage"]))
+    k1 = ensure_k1_seg(seg, base_dir(data_dir, pid, seg["stage"]))
     inputs, missing = inputs_for(conn, pid, seg, k1, stored_state_before(data_dir, pid, seg, conn))
     with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
         marks = json.load(f).get("marks")

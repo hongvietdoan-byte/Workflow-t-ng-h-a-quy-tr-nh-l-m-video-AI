@@ -1416,7 +1416,8 @@ def v2_run(blocking, specs, out, stage_from=None, *, db=DEFAULT_DB, m3=None, max
                        [list(beats[spec.get("nhip") or ""][k]["xy"]) + [0.0] for k in blocking["axis"]]})   # trục theo nhịp đầy đủ (POV bỏ người cầm máy khỏi vật)
     extra = [[o["xy"][0], o["xy"][1], 2.0] for bo in beats.values() for o in bo.values() if o["kind"] != "moc"]
     cfg = {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spot["at"],
-           "anchor_model": m3["anchor"], "cell_m": 1.0, "cols": 20, "rows": 20, "acting_area": {"half_m": 3.0, "extra": extra},
+           "anchor_model": m3["anchor"], "cell_m": 1.0, "cols": int(st.get("cols") or 20), "rows": int(st.get("rows") or 20),
+           "acting_area": {"half_m": 3.0, "extra": extra},
            "engine": "auto", "samples": 16, "top_view": {"centre": [0.0, 5.5], "size_m": 42.0, "px": 1260}, "props": props,
            "axis": sol["axis"], "targets": {}, "cameras": [],
            "v2": {"setups": setups, "res": res, "coarse": [18, 32], "fine": [36, 64]}}
@@ -1802,7 +1803,7 @@ WELL_D = 1.5           # ảnh Kho 1127 (gieng_da_sach): bề ngang / chiều ca
 WELL_SRC = "Kho 420 + ảnh 1127: cao ngang hông (0,53·1,7 = 0,90 m), rộng ≈ 1,7 × cao ≈ 1,5 m, tám cạnh"
 
 
-def k1_cfg(m3, spot_name, out, extra=None):
+def k1_cfg(m3, spot_name, out, extra=None, cells=20):
     """15/10 K1 THUẦN sân khấu cho mọi dự án (thay build_cfg #24 trong luồng tự động): chỉ đo sàn / ô cấm / mốc quanh một chỗ đứng —
     không người nộm, không đạo cụ (người + vật thuộc về dàn cảnh từng cảnh, dựng ở K4). Thiếu chỗ đứng / mốc → ValueError (không đoán)."""
     spots = m3.get("spots") or {}
@@ -1811,15 +1812,17 @@ def k1_cfg(m3, spot_name, out, extra=None):
     if not m3.get("anchor"):
         raise ValueError("model 3D chưa có `anchor` (mốc) — đăng ký lại bối cảnh ở Kho")
     return {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spots[spot_name]["at"],
-            "anchor_model": m3["anchor"], "cell_m": 1.0, "cols": 20, "rows": 20, "acting_area": {"half_m": 3.0, "extra": list(extra or [])},
-            "engine": "auto", "samples": 16, "top_view": {"centre": [0.0, 0.0], "size_m": 24.0, "px": 960}, "props": [], "targets": {},
+            "anchor_model": m3["anchor"], "cell_m": 1.0, "cols": int(cells), "rows": int(cells),
+            "acting_area": {"half_m": 3.0, "extra": list(extra or [])},
+            "engine": "auto", "samples": 16, "top_view": {"centre": [0.0, 0.0], "size_m": float(cells) + 4.0, "px": 960}, "props": [],
+            "targets": {},
             "cameras": []}
 
 
-def k1_run(m3, spot_name, out, timeout=1800):
+def k1_run(m3, spot_name, out, timeout=1800, cells=20):
     """K1 (0 USD, Blender ≈ 20 s): stage.json + grid.json + topgrid.png của một chỗ đứng. Lỗi = BlenderError / ValueError."""
     os.makedirs(out, exist_ok=True)
-    run_blender_safe(k1_cfg(m3, spot_name, out), out, timeout)
+    run_blender_safe(k1_cfg(m3, spot_name, out, cells=cells), out, timeout)
     try:
         draw_top(out)
     except Exception as e:  # noqa: BLE001 - ảnh xem lưới là phụ; số đo (stage/grid.json) mới là đầu vào

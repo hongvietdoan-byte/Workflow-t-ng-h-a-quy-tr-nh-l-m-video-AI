@@ -43,7 +43,7 @@ class FakeClaude:
         return LlmReply("```json\n" + json.dumps(obj, ensure_ascii=False) + "\n```", 1000, 200)
 
 
-def fake_k1(entry, spot, out):
+def fake_k1(entry, spot, out, **kw):
     """K1 giả: sân khấu 20×20 ô quanh chỗ đứng, sàn phẳng, một vòng tường quanh phòng 7×7 m (ô ngoài tường cùng sàn = ngoài phòng)."""
     os.makedirs(out, exist_ok=True)
     st = sg.make_stage(entry["spots"][spot]["at"])
@@ -968,3 +968,44 @@ class RoleRuleTests(unittest.TestCase):
         self.assertIn("`a`", stage_auto.soft_checks(inputs, v2)[14])
         inputs["shots"][0]["vai_shot"] = "action"
         self.assertIn(14, stage_auto.post_checks(inputs, v2))
+
+
+class OfflineModeTests(Base):
+    """16/10 người dùng: bàn đạo diễn chạy nền, không gọi API — đề bài ra tệp, câu trả lời viết ngoài vào (0 USD)."""
+    def test_prompt_out_then_answer_applies_without_claude(self):
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        text, problems = stage_auto.offline_prompt(self.p.conn, pid, seg, self.data)
+        self.assertIn("Khuôn ĐỊNH DẠNG", text)
+        self.assertEqual(problems, [])
+        r = stage_auto.offline_answer(self.p.conn, pid, seg, self.data, answer([1, 2, 3]))
+        self.assertTrue(r["ok"], r["errors"])
+        self.assertEqual(r["applied"], [1, 2, 3])
+        cam = self.shot(pid, 1)["stage_camera"]
+        self.assertIn("claude_code", cam["source"])
+        res = json.load(open(os.path.join(stage_auto.base_dir(self.data, pid, seg["stage"]), "doan_1", "result.json"), encoding="utf-8"))
+        self.assertEqual((res["nguon"], res["usd"]), ("claude_code", 0.0))
+        self.assertTrue(stage_auto.last_answer(self.data, pid, seg))                         # --rerender dùng được sau đó
+
+    def test_bad_answer_returns_errors_and_writes_nothing(self):
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        obj = answer([1, 2, 3])
+        obj["shot_specs"][1]["do_cao"] = obj["shot_specs"][0]["do_cao"]
+        r = stage_auto.offline_answer(self.p.conn, pid, seg, self.data, obj)
+        self.assertFalse(r["ok"])
+        self.assertTrue(any("cùng cỡ" in e for e in r["errors"]))
+        self.assertNotIn("stage_camera", self.shot(pid, 1))
+
+    def test_grid_covers_every_spot_of_the_segment(self):
+        far = dict(SPOTS, khe_tay={"at": [3.4 - 14.3, 2.1, 0.0], "facing": 0, "label": "khe tây"})
+        location_pack.set_model3d(self.p.conn, self.place, self.model, far, "giua_phong", anchor=[3.4, 9.0, 0.0])
+        pid = self.project(((1, "giua_phong"), (1, "giua_phong"), (1, "khe_tay")))
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        self.assertGreaterEqual(stage_auto.grid_cells(seg), 2 * (14.3 + 6))
+        cfg = stage_auto.tool().k1_cfg(far and {"path": "m", "anchor": [0, 9, 0], "spots": far}, "giua_phong", "out", cells=42)
+        self.assertEqual((cfg["cols"], cfg["rows"]), (42, 42))
+
+    def test_axis_only_failure_has_a_reason(self):
+        v2 = {"shots": [{"shot": 3, "best": {"ok": False, "c1_ok": False, "tag": "x", "check": {"why": {}, "ok": True}}}]}
+        self.assertIn("C1", stage_director.feedback_from(None, v2)[0])

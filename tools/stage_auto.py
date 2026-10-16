@@ -115,7 +115,7 @@ def main(argv=None):
             if not (a.force or not drawn_shots(conn, g)):
                 continue
             try:
-                k1 = stage_auto.ensure_k1(g["entry"], g["main_spot"], stage_auto.base_dir(a.data_dir, a.project, g["stage"]), log=print)
+                k1 = stage_auto.ensure_k1_seg(g, stage_auto.base_dir(a.data_dir, a.project, g["stage"]), log=print)
             except Exception as e:  # noqa: BLE001
                 print(f"  {g['id']}: K1 lỗi — {type(e).__name__}: {e}")
                 continue

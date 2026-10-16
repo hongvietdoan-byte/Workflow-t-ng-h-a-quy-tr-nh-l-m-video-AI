@@ -329,6 +329,9 @@ def feedback_from(solve: Optional[Dict], v2: Optional[Dict]) -> List[str]:
         b = s.get("best")
         if b and not b["ok"]:
             why = "; ".join(f"{k}: {v}" for k, v in b["check"]["why"].items())
+            if not b.get("c1_ok", True):                  # 16/10: hỏng chỉ vì vượt trục thì câu sửa trước đây TRỐNG
+                why = (why + "; " if why else "") + ("C1: máy ở phía khác trục 180° so với s0 của cảnh — đảo vùng trái/phải, đổi "
+                                                     "phía máy, hoặc ghi `cross_ok: true` + lý do nếu cố ý")
             if b.get("end") and not b["end"]["check"]["ok"]:
                 why += " | khung cuối: " + "; ".join(f"{k}: {v}" for k, v in b["end"]["check"]["why"].items())
             out.append(f"shot {s['shot']}: phương án tốt nhất ({b['tag']}) vẫn hỏng — {why}")
