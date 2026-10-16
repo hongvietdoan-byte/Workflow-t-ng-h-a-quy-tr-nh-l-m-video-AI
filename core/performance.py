@@ -79,9 +79,21 @@ def image_sentence(data: Dict) -> str:
     p = data.get("performance") if isinstance(data.get("performance"), dict) else None
     if not p:
         return ""
-    bits = [f"{k}: {p[k]}" for k in ("face", "eyes", "body") if p.get(k)]
-    if p.get("listener") and len(data.get("characters") or []) > 1:
-        bits.append(f"listener: {p['listener']}")
+    # 16/10 #31: "listener: không áp dụng." reached the paid picture prompt. The English translation (motion_en, made once for the
+    # video) wins; a field still Vietnamese once the cast names are set aside is a note for people, not acting for the image model.
+    from .seedance_refs import _en, ascii_name, has_vietnamese
+    en = _en(data, "performance")
+    p = {**p, **(en if isinstance(en, dict) else {})}
+    names = sorted((str(n) for n in data.get("characters") or [] if n), key=len, reverse=True)
+
+    def clean(v) -> str:
+        text = str(v or "")
+        for n in names:
+            text = text.replace(n, ascii_name(n))
+        return "" if has_vietnamese(text) else text
+    bits = [f"{k}: {clean(p[k])}" for k in ("face", "eyes", "body") if clean(p.get(k))]
+    if clean(p.get("listener")) and len(data.get("characters") or []) > 1:
+        bits.append(f"listener: {clean(p['listener'])}")
     if not bits:
         return ""
     level = shown_intensity(data)
