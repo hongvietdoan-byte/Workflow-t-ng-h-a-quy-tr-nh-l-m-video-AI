@@ -33,7 +33,7 @@ K1 sàn (như cũ)
  → [C] QUAY PHIM tự duyệt (≤ 2 lượt): mỗi shot `khop` / `sua_may` (đổi shot_specs) / `de_nghi_doi_cho` (gửi Đạo diễn) /
        `giu_lech` (+ lý do)
  → (có đề nghị) [A'] ĐẠO DIỄN trả lời đề nghị: dời người (sửa beats) hoặc giữ (+ lý do) → về K3/K4 cho shot liên quan
- → [D] ĐẠO DIỄN duyệt chốt: xem top_beats + clay + bảng đối chiếu + các `giu_lech` → `duyet` / `tra_lai` (≤ 1 lần)
+ → [D] ĐẠO DIỄN duyệt chốt: xem top_beats + clay + bảng đối chiếu + các `giu_lech` → `duyet` / `tra_lai` (≤ 1 lần với Đạo diễn API; NGƯỜI DÙNG trả lại không giới hạn — sửa 16/10)
  → ghi stage_camera (apply như cũ)
 ```
 
@@ -78,7 +78,7 @@ Shot 10 cũ sẽ ra: "Kelly (phu) 237 % khung, chắn xe nôi; khai `goc` trốn
 ### 2.4 Đạo diễn duyệt chốt (D)
 
 - Xem: `top_beats.png` + clay từng shot + bảng đối chiếu + danh sách `giu_lech` / đề nghị đã từ chối.
-- `duyet` → ghi máy. `tra_lai` (một lần) kèm ý đồ cần đổi → quay lại A' hoặc B cho đúng shot đó.
+- `duyet` → ghi máy. `tra_lai` (Đạo diễn: một lần; người dùng: bao nhiêu lần cũng được, chưa ghi/gỡ máy CSDL tới khi `--crew-approve`) kèm ý đồ cần đổi → quay lại A' hoặc B cho đúng shot đó.
 - Ở chế độ người dùng duyệt qua chat (`decision_tap2_drafts_approved_in_chat`), bước D có thể nhường cho người dùng xem ảnh ghép `--beats`. Cờ con `stage_crew_user_approve`.
 
 ## 3. Thay đổi code (dự kiến)

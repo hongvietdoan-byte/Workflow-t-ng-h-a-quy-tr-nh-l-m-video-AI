@@ -1287,7 +1287,7 @@ def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: st
            "fp": ctx["fp"], "guide_missing": guides_missing(cams), "round": f"{CREW_DIR}/final", "nguon": source,
            "soft": soft_checks(inputs, v2),
            "crew": {k: state.get(k) for k in ("verdicts", "keep", "replies", "unresolved", "approved_by", "reviews", "n_measure",
-                                                 "accepted", "s0")} | {"picked": {str(e["shot"]): e["_rel"] for e in v2["shots"]}}}
+                                                 "accepted", "s0", "n_returns")} | {"picked": {str(e["shot"]): e["_rel"] for e in v2["shots"]}}}
     if source != "claude_api":
         res["usd"] = 0.0
     with open(os.path.join(ctx["out"], "inputs.json"), "w", encoding="utf-8") as f:
@@ -1407,6 +1407,7 @@ def run_segment_crew(conn, pid: int, seg: Dict, data_dir: str, client, prev_stat
     return dict(fin, bo_qua=inputs["bo_qua"], stale=res["stale"], reused=False)
 
 
+# dp_stage_review: mỗi lần NGƯỜI DÙNG trả lại thêm ≤ 1 lượt (không giới hạn số lần trả lại — sổ chi ghi thật, ước tính không tính)
 CREW_CALLS = {"director_stage_blocking": (1, 2), "dp_stage_specs": (1, 1), "dp_stage_review": (1, 3), "director_stage_approve": (1, 2)}
 
 

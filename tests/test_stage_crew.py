@@ -101,8 +101,32 @@ class PureTests(unittest.TestCase):
         self.assertEqual(st["phase"], "quay_phim_duyet")
         sc.ingest(st, review(*ok), None)
         sc.ingest(st, {"duyet": False, "tra_lai": [{"shot": 2, "y_do": "vẫn chưa"}]}, None)
-        self.assertEqual(st["phase"], "xong")
+        self.assertEqual(st["phase"], "xong")                          # Đạo diễn (API): trần 1 lần trả lại — chặn vòng gọi trả tiền
         self.assertIn("2", st["unresolved"])
+
+    def test_user_returns_unlimited(self):
+        # 16/10 #31 cảnh 3: người dùng trả lại lần 2 bị coi là chốt (ghi máy shot 10, gỡ 11–13) — người dùng trả lại bao nhiêu lần cũng được
+        ok = [{"shot": n, "ket_luan": "khop"} for n in (1, 2, 3)]
+        st, _ = self.run_machine(blocking(), specs(), review(*ok))
+        for i in range(3):
+            sc.ingest(st, {"duyet": False, "tra_lai": [{"shot": 2, "y_do": f"lần {i + 1}"}]}, None, "nguoi_dung")
+            self.assertEqual(st["phase"], "quay_phim_duyet")
+            self.assertEqual(st["unresolved"], {})
+            self.assertEqual(st["n_returns"], i + 1)
+            sc.ingest(st, review(*ok), None)
+            self.assertEqual(st["phase"], "duyet")
+        sc.ingest(st, {"duyet": True}, None, "nguoi_dung")
+        self.assertEqual(st["phase"], "xong")
+
+    def test_user_return_after_director_return(self):
+        ok = [{"shot": n, "ket_luan": "khop"} for n in (1, 2, 3)]
+        st, _ = self.run_machine(blocking(), specs(), review(*ok))
+        st.pop("n_returns", None)                                        # state cũ chưa có khóa
+        sc.ingest(st, {"duyet": False, "tra_lai": [{"shot": 2, "y_do": "Đạo diễn"}]}, None, "claude_api")
+        sc.ingest(st, review(*ok), None)
+        sc.ingest(st, {"duyet": False, "tra_lai": [{"shot": 3, "y_do": "người dùng"}]}, None, "nguoi_dung")
+        self.assertEqual((st["phase"], st["unresolved"], st["n_returns"]), ("quay_phim_duyet", {}, 2))
+        self.assertEqual(st["notes"], [{"shot": 3, "y_do": "người dùng"}])          # ý đồ lần này, không lẫn lần trước
 
 
 class CrewDbTests(Base):
@@ -178,6 +202,24 @@ class CrewDbTests(Base):
         res = json.load(open(os.path.join(stage_auto.base_dir(self.data, pid, seg["stage"]), "doan_1", "result.json"), encoding="utf-8"))
         self.assertEqual(res["round"], "crew/final")
         self.assertTrue(stage_auto.result_round(self.data, pid, seg).replace(os.sep, "/").endswith("crew/final"))
+
+    def test_user_returns_twice_db_untouched(self):
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        ok = review(*[{"shot": n, "ket_luan": "khop"} for n in (1, 2, 3)])
+        for obj in (blocking(), specs(), ok):
+            stage_auto.crew_answer(self.p.conn, pid, seg, self.data, obj)
+        before = [self.shot(pid, n) for n in (1, 2, 3)]
+        for i in range(2):
+            r = stage_auto.crew_user_verdict(self.p.conn, pid, seg, self.data, approve=False,
+                                             tra_lai=[{"shot": 2, "y_do": f"lần {i + 1}"}])
+            self.assertEqual((r["ok"], r["phase"]), (True, "quay_phim_duyet"))
+            self.assertNotIn("applied", r)
+            self.assertEqual([self.shot(pid, n) for n in (1, 2, 3)], before)       # chưa duyệt → CSDL không đổi
+            r = stage_auto.crew_answer(self.p.conn, pid, seg, self.data, ok)
+            self.assertEqual(r["phase"], "duyet")
+        r = stage_auto.crew_user_verdict(self.p.conn, pid, seg, self.data, approve=True)
+        self.assertEqual(r["applied"], [1, 2, 3])
 
     def test_bad_answer_keeps_state(self):
         pid = self.project()

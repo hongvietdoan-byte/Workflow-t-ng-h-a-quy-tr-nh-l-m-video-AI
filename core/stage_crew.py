@@ -8,7 +8,8 @@ kết luận.
 Luồng (máy trạng thái `state`, dùng chung cho API và ngoại tuyến):
   dao_dien (dàn cảnh + ý đồ nhịp + shot_nhip) → quay_phim (đặt máy) → [đo K3 + K4] → quay_phim_duyet (khop / sua_may /
   de_nghi_doi_cho / giu_lech, ≤ MAX_REVIEWS lượt) → (có đề nghị, một lần) dao_dien_tra_loi (Đạo diễn thắng) → duyet (Đạo diễn, hoặc
-  NGƯỜI DÙNG khi cờ stage_crew_user_approve — #31) → xong.
+  NGƯỜI DÙNG khi cờ stage_crew_user_approve — #31) → xong. Trả lại ở duyet → quay_phim_duyet: Đạo diễn một lần (lần 2 = unresolved +
+  xong), người dùng không giới hạn — chỉ `duyet: true` của người dùng mới ghi máy.
 Module này không gọi Blender / API: `measure(bl, specs)` do core/stage_auto đưa vào.
 """
 import copy
@@ -557,8 +558,11 @@ def _ingest(state: Dict, obj: Dict, measure: MeasureFn, source: str) -> None:
         if obj.get("duyet"):
             state["phase"] = "xong"
             state["approved_by"] = source or "dao_dien"
-        elif not state["returned"]:
+        elif not state["returned"] or source == "nguoi_dung":
+            # 16/10 #31 cảnh 3: NGƯỜI DÙNG trả lại bao nhiêu lần cũng được (lần 2 từng bị coi là chốt → ghi / gỡ máy CSDL khi chưa
+            # duyệt); trần 1 lần chỉ còn cho Đạo diễn (đường API trả tiền, cờ stage_crew_user_approve TẮT)
             state["returned"] = True
+            state["n_returns"] = state.get("n_returns", 0) + 1
             state["notes"] = obj["tra_lai"]
             for r in obj["tra_lai"]:                             # rà 16/10: shot bị trả lại không còn khóa lần đo cũ
                 (state.get("accepted") or {}).pop(str(r["shot"]), None)
@@ -566,7 +570,7 @@ def _ingest(state: Dict, obj: Dict, measure: MeasureFn, source: str) -> None:
             state["phase"] = "quay_phim_duyet"
         else:
             for r in obj["tra_lai"]:
-                state["unresolved"][str(r["shot"])] = f"duyệt chốt trả lại lần 2: {r['y_do']}"
+                state["unresolved"][str(r["shot"])] = f"Đạo diễn duyệt chốt trả lại lần 2: {r['y_do']}"
             state["phase"] = "xong"
             state["approved_by"] = source or "dao_dien"
     else:
