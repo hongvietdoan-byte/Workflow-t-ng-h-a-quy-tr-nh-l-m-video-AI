@@ -36,7 +36,10 @@ def main(argv=None):
                                                          "K3 khung) + cổng 0 USD của đề bài hiện tại — chạy TRƯỚC khi trả tiền chạy lại")
     ap.add_argument("--rerender", action="store_true", help="đo + render lại (Blender, 0 USD) từ câu trả lời Đạo diễn đã trả tiền, "
                                                             "không gọi Claude; ghi stage_camera")
-    ap.add_argument("--set-family", help="khai họ sân khấu (0 USD, ghi Kho) cho các --place, vd --set-family phong_2_cua --place 447 --place 448")
+    ap.add_argument("--beats", metavar="THU_MUC", help="0 USD: lượt đã lưu của từng cảnh → mặt cắt bỏ mái (Blender, nếu chưa có) + "
+                                                       "top_beats.png (đánh số / làm mờ theo nhịp) + ảnh ghép san_khau_canh<N>.png "
+                                                       "vào THU_MUC; không ghi CSDL")
+    ap.add_argument("--set-family",help="khai họ sân khấu (0 USD, ghi Kho) cho các --place, vd --set-family phong_2_cua --place 447 --place 448")
     ap.add_argument("--place", type=int, action="append", help="id bối cảnh Kho cho --set-family")
     from core import script_cap
     script_cap.add_argument(ap)
@@ -46,7 +49,7 @@ def main(argv=None):
     os.environ["FEATURE_STAGE_AUTO"] = "1"               # lệnh tay = người chọn chạy (cờ chỉ điều khiển autopilot)
     from core import features, stage_auto
     miss = [n for n in features.REQUIRES.get("stage_auto", ()) if not features.on(n)]
-    if miss:
+    if miss and not a.beats:                             # --beats chỉ vẽ ảnh từ lượt đã lưu (0 USD, không ghi CSDL)
         print(f"Cờ cần cho sân khấu tự động đang TẮT: {', '.join(miss)} — bật ở 🧪 rồi chạy lại (máy sân khấu sẽ không được nền 3D dùng)")
         return
     from core.camera_plan import drawn_shots
@@ -90,6 +93,26 @@ def main(argv=None):
                 f.write(chr(10).join(r["errors"]) if r["errors"] else "ĐẠT")
             print(json.dumps({k: v for k, v in r.items() if k != "errors"}, ensure_ascii=False, indent=1))
             print(("LỖI (" + str(len(r["errors"])) + ") → " + loi) if r["errors"] else "ĐẠT — đã ghi stage_camera")
+        return
+    if a.beats:                                          # 16/10: ảnh nhìn từ trên theo nhịp cho người duyệt — 0 USD, không ghi CSDL
+        os.makedirs(a.beats, exist_ok=True)
+        t = stage_auto.tool()
+        for g in segs:
+            got = stage_auto.result_round(a.data_dir, a.project, g)
+            if got is None:
+                print(f"## {g['id']}: chưa có lượt đã lưu — bỏ qua")
+                continue
+            if not os.path.exists(os.path.join(got, "top_cut.png")):
+                try:
+                    t.top_cut(got, log=print)
+                except Exception as e:  # noqa: BLE001 - vẫn vẽ trên ảnh chưa cắt
+                    print(f"  {g['id']}: không cắt được mái ({type(e).__name__}: {e}) — vẽ trên ảnh từ trên thường")
+            title = f"#{a.project} cảnh {g['scene']} — {g['id']} (shot {g['shots'][0]['idx']}–{g['shots'][-1]['idx']})"
+            try:                                         # rà 16/10: một cảnh hỏng không dừng cả vòng
+                t.draw_beats(got)
+                print(t.stage_sheet(got, title, os.path.join(a.beats, f"san_khau_canh{g['scene']}.png")))
+            except Exception as e:  # noqa: BLE001
+                print(f"  {g['id']}: không vẽ được ({type(e).__name__}: {e})")
         return
     if a.score:
         for g in segs:

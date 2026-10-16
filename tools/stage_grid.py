@@ -407,6 +407,28 @@ def blender_main(cfg):
     cam.rotation_euler = (0, 0, 0)
     scene.camera = cam
     top_sec = render(os.path.join(out, "top_raw.png"), (tv["px"], tv["px"]))
+    if tv.get("cut_m") is not None:
+        # 16/10 người dùng: phòng kín bị mái che → mặt bằng CẮT ở cut_m trên sàn O (bỏ mái / tầng trên như bản vẽ nội thất) + ẩn người
+        # nộm (mọi nhịp chồng lên nhau) — draw_beats vẽ ký hiệu từng nhịp lên top_cut.png
+        persons = [f"STAGE_{p['name']}_" for p in cfg.get("props", []) if p.get("kind") == "person"]
+        hidden = [o for o in bpy.data.objects if o.name.startswith(tuple(persons))] if persons else []
+        for o in hidden:
+            o.hide_render = True
+        cv = tv.get("cut_view") or tv                      # khung thu quanh vùng diễn (cut_view_for) — phòng nhỏ không lọt thỏm
+        cc = scn((cv["centre"][0], cv["centre"][1], 0))
+        cam.location = (cc.x, cc.y, hi.z + 20)
+        cd.ortho_scale = cv["size_m"]
+        cd.clip_start = max(0.01, cam.location.z - scn((cv["centre"][0], cv["centre"][1], float(tv["cut_m"]))).z)
+        try:
+            render(os.path.join(out, "top_cut.png"), (tv["px"], tv["px"]))
+            with open(os.path.join(out, "top_cut.json"), "w", encoding="utf-8") as f:     # phép chiếu của ảnh cắt (draw_beats)
+                json.dump({"centre": cv["centre"], "size_m": cv["size_m"], "px": tv["px"], "cut_m": tv["cut_m"]}, f)
+        except Exception as e:  # noqa: BLE001 - ảnh phụ: lỗi chỉ ghi cảnh báo
+            warnings.append(f"top_cut: {e}")
+        finally:
+            for o in hidden:
+                o.hide_render = False
+            cd.clip_start, cd.ortho_scale, cam.location = 0.1, tv["size_m"], (c.x, c.y, hi.z + 20)
 
     # ---- máy thử + lưới tia ----
     frames = {}
@@ -1324,7 +1346,9 @@ def blender_props(beats):
             if k in objs:
                 objs[k]["prop"], objs[k]["own"] = name, f"STAGE_{name}_"
     pal, variants = {}, {}
-    colours = [[1.0, 0.45, 0.05], [0.85, 0.05, 0.1], [0.2, 0.75, 0.3], [0.6, 0.3, 0.9]]
+    # 16/10 (#31 cảnh 4: 5 người → người thứ 5 trùng cam với Kelly, mất khỏi guide_people): 7 màu; tên màu ở core/stage_auto.COLOUR_WORDS
+    colours = [[1.0, 0.45, 0.05], [0.85, 0.05, 0.1], [0.2, 0.75, 0.3], [0.6, 0.3, 0.9], [0.1, 0.4, 1.0], [0.95, 0.85, 0.05],
+               [1.0, 0.4, 0.75]]
     for objs in beats.values():
         for o in objs.values():
             if o["kind"] != "nguoi":
@@ -1427,8 +1451,9 @@ def v2_run(blocking, specs, out, stage_from=None, *, db=DEFAULT_DB, m3=None, max
     cfg = {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spot["at"],
            "anchor_model": m3.get("anchor"), "cell_m": 1.0, "cols": int(st.get("cols") or 20), "rows": int(st.get("rows") or 20),
            "acting_area": {"half_m": 3.0, "extra": extra},
-           "engine": "auto", "samples": 16, "top_view": {"centre": [0.0, 5.5], "size_m": 42.0, "px": 1260}, "props": props,
-           "axis": sol["axis"], "targets": {}, "cameras": [],
+           "engine": "auto", "samples": 16, "top_view": {"centre": [0.0, 5.5], "size_m": 42.0, "px": 1260, "cut_m": TOP_CUT_M,
+                                                         "cut_view": cut_view_for(beats)},
+           "props": props, "axis": sol["axis"], "targets": {}, "cameras": [],
            "v2": {"setups": setups, "res": res, "coarse": [18, 32], "fine": [36, 64]}, "skip_grid": True}
     run_blender_safe(cfg, out, timeout=3600)
     if os.path.abspath(src) != os.path.abspath(out):     # lượt K4 không đo lưới (skip_grid) — hình phác dùng lưới của K1
@@ -1967,6 +1992,339 @@ def draw_top(out, cams=None, fn="topgrid.png"):
     d.text((10, px - 26), "Cột A→T: Tây→Đông · Hàng 1→20: Nam→Bắc · ô 1 m (phụ 0,25 m) · vàng = bậc, đỏ = tầng khác, cam = vật chắn, tím = có mái che",
            fill=(255, 255, 255, 255), font=font)
     Image.alpha_composite(img, ov).convert("RGB").save(os.path.join(out, fn))
+
+
+TOP_CUT_M = 2.2        # mặt cắt ảnh nhìn từ trên (m trên sàn O): dưới trần phòng, trên đầu người
+CUT_MARGIN_M, CUT_MIN_M = 4.0, 14.0
+LYING = ("nam", "nga_ngua")
+
+
+def cut_view_for(beats):
+    """Khung vuông của top_cut.png: bao mọi chỗ đứng người / đạo cụ ở mọi nhịp + lề CUT_MARGIN_M, cạnh ≥ CUT_MIN_M (so với O)."""
+    pts = [o["xy"] for objs in (beats or {}).values() for o in objs.values() if o.get("kind") != "moc" and o.get("xy")]
+    if not pts:
+        return {"centre": [0.0, 0.0], "size_m": CUT_MIN_M}
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    size = max(CUT_MIN_M, max(xs) - min(xs) + 2 * CUT_MARGIN_M, max(ys) - min(ys) + 2 * CUT_MARGIN_M)
+    return {"centre": [round((max(xs) + min(xs)) / 2, 3), round((max(ys) + min(ys)) / 2, 3)], "size_m": round(size, 3)}
+
+
+def beat_stations(answer, beats):
+    """Chuỗi chỗ đứng theo thứ tự shot của từng vật (người + đạo cụ), từ câu trả lời Đạo diễn + `beats` của bộ giải (setups.json):
+    {key: [{"xy", "den", "facing", "tu_the", "shots": [..]}]}. Nhịp liền nhau đứng yên cùng tư thế gộp một chỗ (nhãn "16–18")."""
+    if ROOT not in sys.path:
+        sys.path.insert(0, ROOT)
+    from core import stage_solver as ss
+    bl = answer["blocking"]
+    out = {}
+    for sp in sorted(answer.get("shot_specs") or [], key=lambda s: s["shot"]):
+        nhip = sp.get("nhip") or ""
+        objs = beats.get(nhip) or {}
+        raw = ss.beat_raw(bl, nhip or None)
+        for k, o in objs.items():
+            if o.get("kind") == "moc":
+                continue
+            den = (raw.get(k) or {}).get("den")
+            st = {"xy": list(o["xy"]), "den": list(den[:2]) if den else None, "facing": o.get("facing"), "tu_the": o.get("tu_the"),
+                  "kind": o["kind"], "label": o.get("label", k), "r": o.get("r"), "shots": [sp["shot"]], "nhip": nhip}
+            if st["den"] and math.dist(st["den"], st["xy"]) < 0.15:
+                st["den"] = None
+            seq = out.setdefault(k, [])
+            last = seq[-1] if seq else None
+            if (last and last["nhip"] == nhip) or (last and not st["den"] and not last["den"] and math.dist(last["xy"], st["xy"]) < 0.15
+                                                    and last["tu_the"] == st["tu_the"] and last["facing"] == st["facing"]):
+                if sp["shot"] not in last["shots"]:
+                    last["shots"].append(sp["shot"])
+                continue
+            seq.append(st)
+    return out
+
+
+LOW_COVER_M = 2.5      # tán CÂY thấp hơn bấy nhiêu trên sàn ô = hàng rào / bụi (mê cung #31 đo 2,1–2,36 m), không phải tán cây cao
+HEDGE_GROUPS = ("cay",)
+
+
+def walk_grid(cells):
+    """{(i, j): chi phí} các ô ĐI ĐƯỢC của grid.json (ô 1 m): bỏ ô vật chắn + ô có tán CÂY thấp (< LOW_COVER_M — hàng rào, bụi).
+    Mái thấp không phải cây vẫn đi được (rà 16/10: trần hành lang phòng hai cửa #31 đo 2,45 m nhóm 'tuong' — cùng khoảng độ cao hàng
+    rào, chỉ nhóm vật tách được); tường mỏng trong nhà lưới 1 m không bắt được → mũi tên có thể xuyên tường, xem nền mặt cắt. Ô khác
+    tầng (level) đi được nhưng đắt (cầu thang / cổng vòm)."""
+    out = {}
+    for c in cells or []:
+        h = (c.get("top_z") or 0.0) - (c.get("floor_z") or 0.0)
+        hedge = c.get("covered") and h < LOW_COVER_M and c.get("top_group") in HEDGE_GROUPS
+        if c.get("obstacle") or hedge or c.get("status") == "none":
+            continue
+        out[(math.floor(c["x"]), math.floor(c["y"]))] = 3.0 if c.get("status") == "level" else 1.0
+    return out
+
+
+def walk_path(walk, a, b):
+    """Đường đi ngắn nhất A* (8 hướng, không cắt góc ô chặn) từ a tới b (m, so với O) trên lưới walk_grid → [điểm] gồm a … b, hoặc
+    None khi không có lối (ô đầu / cuối luôn coi là đi được — người đứng sát hàng rào). Ngoài lưới → None."""
+    import heapq
+    s, t = (math.floor(a[0]), math.floor(a[1])), (math.floor(b[0]), math.floor(b[1]))
+    if not walk:
+        return None
+    ok = lambda c: c in walk or c in (s, t)
+    if s == t:
+        return [list(a), list(b)]
+    best, came = {s: 0.0}, {}
+    q = [(math.dist(s, t), s)]
+    while q:
+        _, cur = heapq.heappop(q)
+        if cur == t:
+            break
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                nb = (cur[0] + dx, cur[1] + dy)
+                if (dx, dy) == (0, 0) or not ok(nb) or (dx and dy and not (ok((cur[0] + dx, cur[1])) and ok((cur[0], cur[1] + dy)))):
+                    continue
+                g = best[cur] + math.hypot(dx, dy) * walk.get(nb, 1.0)
+                if g < best.get(nb, 1e18):
+                    best[nb], came[nb] = g, cur
+                    heapq.heappush(q, (g + math.dist(nb, t), nb))
+    if t not in came:
+        return None
+    cells = [t]
+    while cells[-1] != s:
+        cells.append(came[cells[-1]])
+    cells.reverse()
+    pts = [list(a)] + [[c[0] + 0.5, c[1] + 0.5] for c in cells[1:-1]] + [list(b)]
+    out = [pts[0]]                                            # bỏ điểm giữa thẳng hàng
+    for i in range(1, len(pts) - 1):
+        (x0, y0), (x1, y1), (x2, y2) = out[-1], pts[i], pts[i + 1]
+        if abs((x1 - x0) * (y2 - y1) - (y1 - y0) * (x2 - x1)) > 1e-6:
+            out.append(pts[i])
+    out.append(pts[-1])
+    return out
+
+
+def shots_label(shots):
+    shots = sorted(shots)
+    if len(shots) > 1 and shots[-1] - shots[0] == len(shots) - 1:
+        return f"{shots[0]}–{shots[-1]}"
+    return ",".join(map(str, shots))
+
+
+def draw_beats(rd, fn="top_beats.png"):
+    """top_beats.png (16/10 người dùng: ảnh nhìn từ trên vẽ chồng mọi nhịp → khó đọc): nền = mặt bằng CẮT top_cut.png (bỏ mái, ẩn người
+    nộm; không có thì top_raw.png); mỗi nhân vật đúng MÀU người nộm (blender_props), mỗi chỗ đứng một chấm có số shot, chỗ trước mờ →
+    chỗ cuối đậm; mũi tên mảnh mờ = đi giữa hai nhịp, mũi tên đậm = đi trong shot (at→den); vạch = hướng mặt; người nằm = thanh theo
+    facing; tam giác "c<shot>" = máy của shot (v2.json). Ký hiệu vẽ đè lên ảnh nên thấy cả khi bị tường / mái che (nhìn xuyên).
+    Trả đường dẫn ảnh, hoặc None khi thiếu tệp."""
+    import copy
+    from PIL import Image, ImageDraw, ImageFont
+    need = [os.path.join(rd, f) for f in ("stage.json", "answer.json", "setups.json")]
+    if not all(os.path.exists(p) for p in need):
+        return None
+    st, answer, setups = (json.load(open(p, encoding="utf-8")) for p in need)
+    beats = setups.get("beats") or {}
+    tv = st["top_view"]
+    cut = os.path.join(rd, "top_cut.png")
+    if os.path.exists(cut) and os.path.exists(os.path.join(rd, "top_cut.json")):
+        tv = json.load(open(os.path.join(rd, "top_cut.json"), encoding="utf-8"))
+        raw = cut
+    else:
+        raw = os.path.join(rd, "top_raw.png")
+    px, size, cx, cy = tv["px"], tv["size_m"], tv["centre"][0], tv["centre"][1]
+    s = px / size
+    img = Image.open(raw).convert("RGBA") if os.path.exists(raw) else Image.new("RGBA", (px, px), (40, 40, 40, 255))
+    img = Image.alpha_composite(img, Image.new("RGBA", img.size, (0, 0, 0, 70)))       # nền tối bớt để ký hiệu nổi
+
+    def P(x, y):
+        return (x - cx) * s + px / 2, px / 2 - (y - cy) * s
+    ov = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(ov)
+    try:
+        font, big = ImageFont.truetype("arial.ttf", 14), ImageFont.truetype("arialbd.ttf", 16)
+    except OSError:
+        font = big = ImageFont.load_default()
+
+    def arrow(a, b, col, width, head=10):
+        if width > 0:                                     # width 0 = chỉ đầu mũi tên (PIL vẽ nét 1 px kể cả width 0)
+            d.line([a, b], fill=col, width=width)
+        ang = math.atan2(b[1] - a[1], b[0] - a[0])
+        d.polygon([b, (b[0] - head * math.cos(ang - 0.45), b[1] - head * math.sin(ang - 0.45)),
+                   (b[0] - head * math.cos(ang + 0.45), b[1] - head * math.sin(ang + 0.45))], fill=col)
+
+    def text(xy, t, col, f=font):
+        d.text((xy[0] + 1, xy[1] + 1), t, fill=(0, 0, 0, col[3]), font=f)
+        d.text(xy, t, fill=col, font=f)
+    gp = os.path.join(rd, "grid.json")
+    cells = (json.load(open(gp, encoding="utf-8")).get("cells") or []) if os.path.exists(gp) else []
+    walk = walk_grid(cells)
+    on_grid = {(math.floor(c["x"]), math.floor(c["y"])) for c in cells}
+
+    def route(a, b, col, width, head):
+        """16/10 người dùng: mũi tên nối thẳng xuyên hàng rào mê cung làm hiểu sai hướng đi → đi theo lối trên lưới sàn K1 (A*);
+        không có lối = nét đứt + 'không có lối?' (chỗ đứng của Đạo diễn cần kiểm)."""
+        pts = walk_path(walk, a, b) if walk else None
+        if pts is None:
+            p0, p1 = P(*a), P(*b)
+            n = max(int(math.dist(p0, p1) // 12), 1)
+            for i in range(0, n, 2):
+                d.line([(p0[0] + (p1[0] - p0[0]) * i / n, p0[1] + (p1[1] - p0[1]) * i / n),
+                        (p0[0] + (p1[0] - p0[0]) * (i + 1) / n, p0[1] + (p1[1] - p0[1]) * (i + 1) / n)], fill=col, width=width)
+            arrow(p0, p1, col, 0, head)
+            if walk:
+                off = any((math.floor(p[0]), math.floor(p[1])) not in on_grid for p in (a, b))
+                text(((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2), "ngoài lưới sàn" if off else "không có lối?",
+                     (255, 220, 120, col[3]) if off else (255, 120, 120, col[3]))
+            return
+        xy = [P(*p) for p in pts]
+        d.line(xy, fill=col, width=width, joint="curve")
+        arrow(xy[-2], xy[-1], col, width, head)
+    rgb = {p["key"]: tuple(int(255 * c) for c in p["rgb"]) for p in blender_props(copy.deepcopy(beats))
+           if p.get("kind") == "person"} if beats else {}
+    stations = beat_stations(answer, beats)
+    for k, seq in stations.items():
+        base = rgb.get(k, (190, 190, 190))
+        prev = None
+        for i, stn in enumerate(seq):
+            last = i == len(seq) - 1
+            a = 255 if last else 120
+            col = (*base, a)
+            x, y = P(*stn["xy"])
+            if prev is not None:
+                a0 = prev["den"] or prev["xy"]
+                if math.dist(P(*a0), (x, y)) > 14:
+                    route(a0, stn["xy"], (*base, 110), 2, 10)
+            if stn["kind"] != "nguoi":
+                r = max((stn.get("r") or 0.3) * s, 6)
+                d.rectangle([x - r, y - r, x + r, y + r], outline=col, width=3)
+            elif stn["tu_the"] in LYING and stn["facing"] is not None:
+                fa = math.radians(stn["facing"])
+                half = 0.85 * s
+                hx, hy = x + math.sin(fa) * half, y - math.cos(fa) * half
+                d.line([(x - math.sin(fa) * half, y + math.cos(fa) * half), (hx, hy)], fill=col, width=9)
+                d.ellipse([hx - 6, hy - 6, hx + 6, hy + 6], fill=col, outline=(0, 0, 0, a))
+            else:
+                rr = 7 if stn["tu_the"] == "quy" else 10
+                d.ellipse([x - rr, y - rr, x + rr, y + rr], fill=col, outline=(0, 0, 0, a), width=2)
+                if stn["facing"] is not None:
+                    fa = math.radians(stn["facing"])
+                    d.line([(x, y), (x + math.sin(fa) * 24, y - math.cos(fa) * 24)], fill=col, width=3)
+            if stn["den"]:
+                route(stn["xy"], stn["den"], col, 4, 14)
+            tag = shots_label(stn["shots"]) + (" quỳ" if stn["tu_the"] == "quy" else " nằm" if stn["tu_the"] in LYING else "")
+            text((x + 12, y - 8 + 14 * (i % 2)), tag, (255, 255, 255, a), big if last else font)
+            prev = stn
+    v2p = os.path.join(rd, "v2.json")
+    v2 = json.load(open(v2p, encoding="utf-8")) if os.path.exists(v2p) else {}
+    for sh in v2.get("shots") or []:
+        m = (sh.get("best") or {}).get("m") or {}
+        if not m.get("at") or m.get("yaw") is None:
+            continue
+        x, y = P(*m["at"][:2])
+        out_of_view = not (0 <= x <= px and 0 <= y <= px)
+        x, y = min(max(x, 16), px - 16), min(max(y, 16), px - 16)    # máy ngoài khung thu: kẹp ở mép, nhãn có "(ngoài)"
+        fa = math.radians(m["yaw"])
+        tri = [(x + math.sin(fa) * 14, y - math.cos(fa) * 14), (x + math.sin(fa + 2.5) * 9, y - math.cos(fa + 2.5) * 9),
+               (x + math.sin(fa - 2.5) * 9, y - math.cos(fa - 2.5) * 9)]
+        d.polygon(tri, fill=(0, 230, 255, 230), outline=(0, 0, 0, 255))
+        text((x - 10, y + 9), f"c{sh['shot']}" + (" (ngoài)" if out_of_view else ""), (0, 230, 255, 255))
+        e = ((sh["best"].get("end") or {}).get("m") or {}).get("at")
+        if e and not out_of_view:
+            d.line([(x, y), P(*e[:2])], fill=(0, 230, 255, 160), width=2)
+    rows = [(rgb.get(k, (190, 190, 190)), seq[0]["label"]) for k, seq in stations.items() if seq and seq[0]["kind"] == "nguoi"]
+    notes = ["số = shot · mờ = chỗ ở nhịp trước, đậm = chỗ cuối", "mũi tên mảnh = đi giữa hai nhịp · mũi tên đậm = đi trong shot",
+             "mũi tên đi theo lối trên sàn (tránh hàng rào / bụi; tường mỏng trong nhà chưa tính) · nét đứt = không tìm được lối",
+             "vạch = hướng mặt · thanh = người nằm · ô vuông = đạo cụ · ▲ c<số> = máy của shot",
+             f"nền: mặt cắt {tv.get('cut_m', TOP_CUT_M):g} m trên sàn (bỏ mái), người nộm ẩn" if raw == cut else
+             "nền: ảnh từ trên chưa cắt mái (ký hiệu vẽ đè — thấy cả khi bị che)"]
+    hgt = 22 * (len(rows) + len(notes)) + 12
+    d.rectangle([6, 6, 600, 6 + hgt], fill=(0, 0, 0, 170))
+    yy = 12
+    for c, lab in rows:
+        d.ellipse([14, yy + 2, 28, yy + 16], fill=(*c, 255))
+        text((36, yy), lab, (255, 255, 255, 255), big)
+        yy += 22
+    for n in notes:
+        text((14, yy), n, (230, 230, 230, 255))
+        yy += 22
+    d.polygon([(px - 40, 20), (px - 50, 50), (px - 30, 50)], fill=(255, 255, 255, 255))
+    text((px - 46, 52), "B", (255, 255, 255, 255), big)
+    path = os.path.join(rd, fn)
+    Image.alpha_composite(img, ov).convert("RGB").save(path)
+    return path
+
+
+def stage_sheet(rd, title, path, tile_h=1000):
+    """Ảnh ghép xem duyệt một cảnh: ô đầu top_beats.png (vẽ nếu chưa có) + ảnh clay từng shot (v2.json) kèm cỡ / máy / % thấy / ĐẠT."""
+    from PIL import Image, ImageDraw, ImageFont
+    beats = os.path.join(rd, "top_beats.png")
+    if not os.path.exists(beats):
+        beats = draw_beats(rd)
+    v2 = json.load(open(os.path.join(rd, "v2.json"), encoding="utf-8"))
+    try:
+        font, big = ImageFont.truetype("arial.ttf", 22), ImageFont.truetype("arialbd.ttf", 30)
+    except OSError:
+        font = big = ImageFont.load_default()
+    tiles = []
+    if beats:
+        tiles.append((Image.open(beats).convert("RGB"), ["nhìn từ trên — số = shot, mờ → đậm = nhịp trước → nhịp cuối"]))
+    for sh in sorted(v2.get("shots") or [], key=lambda x: x["shot"]):
+        b = sh.get("best") or {}
+        clay = b.get("clay") and os.path.join(rd, b["clay"])
+        if clay and os.path.exists(clay.replace("_clay_raw.png", "_clay.png")):
+            clay = clay.replace("_clay_raw.png", "_clay.png")          # bản có nhãn (draw_v2) nếu đã vẽ
+        if not clay or not os.path.exists(clay):
+            continue
+        m, sp = b["m"], sh.get("spec") or {}
+        seen = ", ".join(f"{(sh['objs'].get(k) or {}).get('label', k)} {v.get('seen_pct', 0):g}%"
+                         for k, v in (m.get("obj") or {}).items() if (sh["objs"].get(k) or {}).get("kind") == "nguoi")
+        tiles.append((Image.open(clay).convert("RGB"), [f"shot {sh['shot']} · {sp.get('co')} · cao {sp.get('do_cao')} · góc {sp.get('goc') or '-'} · "
+                                                        f"ống {m.get('lens'):g} mm", f"thấy: {seen}",
+                                                        "ĐẠT" if b.get("ok") else "HỎNG"]))
+    if not tiles:
+        return None
+    ims = [im.resize((round(im.width * tile_h / im.height), tile_h)) for im, _ in tiles]
+
+    def wrap(t, w):
+        out, cur = [], ""
+        for word in t.split(" "):
+            if cur and font.getlength(cur + " " + word) > w - 12:
+                out.append(cur)
+                cur = word
+            else:
+                cur = (cur + " " + word).strip()
+        return out + [cur]
+    tiles = [(t, [x for ln in lines for x in wrap(ln, im.width)]) for (t, lines), im in zip(tiles, ims)]
+    cap = 30 * max(len(lines) for _, lines in tiles) + 16
+    W = sum(im.width for im in ims) + 10 * (len(ims) - 1)
+    sheet = Image.new("RGB", (W, 50 + tile_h + cap), (255, 255, 255))
+    d = ImageDraw.Draw(sheet)
+    d.text((10, 8), title, fill=(0, 0, 0), font=big)
+    x = 0
+    for im, (_, lines) in zip(ims, tiles):
+        sheet.paste(im, (x, 50))
+        for i, ln in enumerate(lines):
+            d.text((x + 6, 50 + tile_h + 6 + 30 * i), ln, fill=(0, 0, 0), font=font)
+        x += im.width + 10
+    sheet.save(path)
+    return path
+
+
+def top_cut(rd, log=print):
+    """Dựng top_cut.png cho thư mục lượt K4 ĐÃ có (cfg.json): chạy lại Blender chỉ ảnh từ trên (không máy, không đo), 0 USD."""
+    import shutil
+    with open(os.path.join(rd, "cfg.json"), encoding="utf-8") as f:
+        cfg = json.load(f)
+    with open(os.path.join(rd, "setups.json"), encoding="utf-8") as f:
+        beats = json.load(f).get("beats") or {}
+    tmp = os.path.join(rd, "_top_cut")
+    os.makedirs(tmp, exist_ok=True)
+    cfg = dict(cfg, out_dir=tmp, cameras=[], v2=None, skip_grid=True,
+               top_view=dict(cfg["top_view"], cut_m=TOP_CUT_M, cut_view=cut_view_for(beats)))
+    try:
+        run_blender_safe(cfg, tmp, timeout=900)
+        for fn in ("top_cut.png", "top_cut.json"):
+            shutil.copyfile(os.path.join(tmp, fn), os.path.join(rd, fn))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    log(f"top_cut.png: {rd}")
+    return os.path.join(rd, "top_cut.png")
 
 
 def draw_clay(out, name, letter):

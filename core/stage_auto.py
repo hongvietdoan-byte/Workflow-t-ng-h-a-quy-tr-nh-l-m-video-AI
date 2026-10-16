@@ -437,18 +437,22 @@ def format_example(inputs: Dict) -> str:
 
 
 # ---- kết quả → máy của shot -----------------------------------------------------------------------------------------------
-COLOUR_WORDS = {(1.0, 0.45, 0.05): "orange", (0.85, 0.05, 0.1): "red", (0.2, 0.75, 0.3): "green", (0.6, 0.3, 0.9): "purple"}
+COLOUR_WORDS = {(1.0, 0.45, 0.05): "orange", (0.85, 0.05, 0.1): "red", (0.2, 0.75, 0.3): "green", (0.6, 0.3, 0.9): "purple",
+                (0.1, 0.4, 1.0): "blue", (0.95, 0.85, 0.05): "yellow", (1.0, 0.4, 0.75): "pink"}
 
 
 def mannequin_colours(beats: Dict, labels: Dict[str, str]) -> Dict[str, str]:
     """{màu người nộm: tên nhân vật} — cùng thứ tự gán màu của tools/stage_grid.blender_props (hình clay K4 tô theo đó)."""
     import copy
-    out = {}
+    out: Dict[str, str] = {}
+    seen = set()
     for p in tool().blender_props(copy.deepcopy(beats)):
-        if p.get("kind") == "person":
+        if p.get("kind") == "person" and p["key"] not in seen:
+            seen.add(p["key"])
             word = COLOUR_WORDS.get(tuple(round(c, 2) for c in p["rgb"]))
-            if word and word not in out:
-                out[word] = labels.get(p["key"], p["key"])
+            if word:                                      # rà 16/10: > 7 người → màu quay vòng; ghi cả hai tên, không bỏ im lặng
+                name = labels.get(p["key"], p["key"])
+                out[word] = f"{out[word]} / {name}" if word in out else name
     return out
 
 
@@ -513,6 +517,17 @@ def end_state(stage: Dict, answer: Dict, scene: str) -> Dict:
                   **{x: o[x] for x in ("h", "d", "label", "hollow") if x in o},
                   "tu_the": o.get("tu_the"), "kind": o.get("kind")}
     return {"scene": scene, "objects": out}
+
+
+def draw_beats(rd: str, log: Callable[[str], None] = lambda m: None) -> Optional[str]:
+    """top_beats.png của lượt K4 (16/10 người dùng: ảnh nhìn từ trên đánh số / làm mờ theo nhịp, mặt cắt bỏ mái). Ảnh phụ cho người
+    xem — lỗi chỉ ghi log, không làm hỏng lượt đã trả tiền."""
+    try:
+        p = tool().draw_beats(rd)
+        return p if isinstance(p, str) else None
+    except Exception as e:  # noqa: BLE001 - ảnh phụ
+        log(f"không vẽ được top_beats.png ({rd}): {type(e).__name__}: {e}")
+        return None
 
 
 def apply(conn, seg: Dict, cams: Dict[int, Dict], skipped=()) -> List[int]:
@@ -648,6 +663,7 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
         except Exception as e:  # noqa: BLE001 - Blender đo lỗi: nói rõ, không gán máy chưa đo
             res["missing"].append(f"không đo được máy bằng Blender (K4): {type(e).__name__}: {e}")
             return _save(path, dict(res, fp=fp))
+        draw_beats(rd, log)
         feedback = sd.feedback_from(solve, v2)
         post = post_checks(inputs, v2)                    # 16/10: nhân vật kịch bản phải THẤY trong khung đo được; shot liền nhau khác máy
         feedback += [f"shot {k}: {v}" for k, v in sorted(post.items())]
@@ -789,6 +805,12 @@ def _say_guides(conn, pid: int, seg: Dict, r: Dict, out: Dict, log) -> None:
     out["held"].append(("stageauto:" + hashlib.sha1(line.encode("utf-8")).hexdigest()[:12], line))
 
 
+def result_round(data_dir: str, pid: int, seg: Dict) -> Optional[str]:
+    """Thư mục lượt K4 mà result.json của đoạn đang dùng (r<n> hoặc cc_<giờ> ngoại tuyến), hoặc None."""
+    got = last_answer(data_dir, pid, seg)
+    return got[0] if got else None
+
+
 def last_answer(data_dir: str, pid: int, seg: Dict) -> Optional[Tuple[str, Dict]]:
     """(thư mục lượt, câu trả lời) của lượt Đạo diễn cuối của LẦN chạy trả tiền gần nhất (result.json "round"; không có thì lượt số
     lớn nhất), hoặc None."""
@@ -839,6 +861,7 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
         st = json.load(f)
     bl = dict(obj["blocking"], place=inputs["place"], spot=inputs["spot"], aspect=inputs["aspect"])
     solve, v2 = tool().v2_run(bl, obj["shot_specs"], rd, k1, m3=seg["entry"], reach=True, log=log)
+    draw_beats(rd, log)
     try:
         colours = mannequin_colours(solve["beats"], {p["key"]: p["label"] for p in inputs["people"]})
     except (ValueError, KeyError, TypeError):
@@ -928,6 +951,7 @@ def offline_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: 
     except Exception as e:  # noqa: BLE001 - rà 16/10: lỗi Blender ghi vào errors (người viết thấy trong .loi.txt)
         out_res["errors"] = [f"không đo được máy bằng Blender (K4): {type(e).__name__}: {e}"]
         return out_res
+    out_res["top_beats"] = draw_beats(rd, log)            # cả khi lỗi: người viết câu trả lời xem nhịp để sửa
     errors = sd.feedback_from(solve, v2) + [f"shot {k}: {v}" for k, v in sorted(post_checks(inputs, v2).items())]
     out_res["soft"] = soft_checks(inputs, v2)
     out_res["dir"] = rd
