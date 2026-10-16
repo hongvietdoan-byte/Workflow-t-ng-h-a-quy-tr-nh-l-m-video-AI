@@ -13,6 +13,8 @@ Kế hoạch chính nằm ở `PLAN.md` (nguồn tài liệu gốc: `Quy_Trinh_A
 3. Sửa nội dung kế hoạch trong `PLAN.md` (nguồn duy nhất); không sửa tay `PLAN.docx`/`PLAN.pdf`.
 4. Khi bắt đầu session mới: `git pull` trước, đọc `PLAN.md` (Mục 5 = quyết định đã chốt/còn mở, Mục 7 = lộ trình).
 4b. **Bàn giao giữa các phiên** (kể cả khác tài khoản/cloud): sau mỗi `git pull` đọc mục "📨 BÀN GIAO GIỮA CÁC PHIÊN" đầu `TODO.md`; việc cần phiên khác làm thì ghi dòng ở đó (CHỜ → ĐANG LÀM → XONG + commit), không nhờ người dùng chuyển lời.
+   Hook SessionStart (`tools/session_handoff.py`) in gói "PHIÊN KẾ … ĐỌC ĐẦU TIÊN" mới nhất vào đầu phiên: chưa ai nhận → nạp skill
+   `vong-lam-viec-theo-plan` và làm tiếp ngay, đổi cụm thành "ĐÃ NHẬN <giờ> (<phiên>)" + commit + push.
 5. Commit message có dòng `Co-Authored-By` theo cấu hình session; không commit secrets/API key.
 6. **Mọi thay đổi pipeline theo `docs/CHUAN_XAY_DUNG.md`** (không im lặng khi thiếu đầu vào, lớp mới kế thừa biện pháp cũ, gen lại phải đổi đầu vào ≤ 2 lần, "đã sửa" kèm bằng chứng chạy thật, mọi lời gọi tốn tiền qua sổ chi + ước tính trước).
 7. **Mỗi lần sửa code pipeline: một agent rà các khâu liên quan TRƯỚC khi commit** (người dùng 10/10). Chạy

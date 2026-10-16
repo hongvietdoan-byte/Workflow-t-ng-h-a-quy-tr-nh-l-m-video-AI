@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "py -X utf8 tools/session_handoff.py",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
