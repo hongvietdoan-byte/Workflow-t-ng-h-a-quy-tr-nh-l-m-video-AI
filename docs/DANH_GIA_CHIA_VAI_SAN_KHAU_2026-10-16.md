@@ -87,6 +87,20 @@ Quay phim chọn sửa máy; ca sau nên ưu tiên đề nghị dời người k
   cắt 2 đoạn liền nhau (nối ở khung cuối).
 - **Đề xuất thử nhỏ (cần người dùng duyệt chi tiền)**: một đoạn 5 s của previs (shot 8–9, Kelly bước tới xe nôi) + ảnh Kho Kelly + ảnh
   nền → Seedance 2.5 720p, so khung máy kết quả với previs (đo bằng code như QC khung). Đạt thì mới làm cả đoạn.
+- **Kết quả thử nhỏ (16/10 22:02, người dùng duyệt giá $1,38; sổ chi $1,38)** — `tools/experiments/previs_v2v_test.py`, dự án thử #32,
+  task `cgt-20261016225620-vfe36`. Ref = previs clay đã duyệt 10–15 s (cuối shot 7 → shot 8, máy sau lưng chếch trái, vòng sang phải
+  lúc chuyển shot) + plate đêm shot 8 + Kelly 23/10 + bóng mờ 427/1 + xe nôi 442/2, prompt yêu cầu "EXACTLY the camera … of @Video 1".
+  Bản giao: `D:\AI-Video-Output\2026-10-15_du-an-31\previs\v2v_thu_16-10\` (clip, ref, ảnh ghép previs trên / kết quả dưới).
+  - THEO được: góc nhìn sau lưng, Kelly chạy ra rồi khựng lại trước xe nôi đúng nhịp; dạng bóng mờ, mê cung đêm, xe nôi đúng ảnh Kho;
+    không HUD.
+  - KHÔNG theo đường máy: đo chuyển động máy từng khung (ORB + affine, 120 khung): previs quét ngang tổng ≈ +840 px (máy vòng phải ở
+    2,8–4,6 s), kết quả ≈ −69 px (gần như đứng, chỉ trôi nhẹ); tương quan pan x −0,11, pan y −0,48, zoom −0,38. Cỡ khung cũng khác:
+    previs bám sát (Kelly chiếm gần hết khung), kết quả lùi xa (toàn thân + xe nôi). Cuối clip lưng Kelly che xe nôi — cùng lỗi khung
+    của previs shot 8–9 (mục 4 "Còn thấy").
+  - Kết luận: Seedance 2.5 qua API dùng video tham chiếu như ref ĐỘNG TÁC / bố cục chung (giống 01/10), chưa sao chép đường máy one-shot
+    → chưa dùng previs one-shot làm "đường ray máy" cho cả đoạn 17,7 s. Hướng tiếp (chưa làm, cần người dùng chọn): (a) thử ref DEPTH
+    thay clay (cấu trúc + máy rõ hơn); (b) Kling (refer_type "base" — sửa lại video gốc, giữ máy) với ref previs; (c) bỏ one-shot, giữ
+    luồng từng shot + khung đầu/cuối từ previs.
 
 ## 5. Khuyến nghị dùng
 
