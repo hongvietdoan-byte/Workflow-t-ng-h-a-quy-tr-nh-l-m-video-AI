@@ -125,6 +125,21 @@ class PlanTests(unittest.TestCase):
             k = min(keys, key=lambda x: abs(x[0] - t))
             self.assertGreater(math.dist(at[:2], k[1:3]), 0.8)          # máy không lao qua đầu nhân vật lúc chuyển shot
 
+    def test_line_of_sight_clears_hedge(self):
+        p = sp.plan(self.rd, uniform_run=True, orbit=160)
+        keys = p["previs"]["people"][0]["keys"]
+        for t, at, _, _ in p["previs"]["camera"]:
+            k = min(keys, key=lambda x: abs(x[0] - t))
+            tz = k[3] + sp.FOCUS_Z_M
+            d = math.dist(at[:2], k[1:3])
+            for q in range(1, int(d / 0.25)):
+                s_ = q * 0.25 / d
+                if s_ >= 0.95:
+                    break
+                x, y = at[0] + (k[1] - at[0]) * s_, at[1] + (k[2] - at[1]) * s_
+                if math.floor(x) == 0 and math.floor(y) != -10:          # ô rào (ngọn 2,1 m)
+                    self.assertGreaterEqual(at[2] + (tz - at[2]) * s_, 2.1 - 0.35)
+
     def test_variants_switch_by_shot(self):
         p = sp.plan(self.rd)
         names = [(v["name"], v["from"]) for v in p["previs"]["people"][0]["variants"]]

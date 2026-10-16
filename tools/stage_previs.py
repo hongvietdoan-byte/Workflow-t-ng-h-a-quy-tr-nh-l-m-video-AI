@@ -31,6 +31,7 @@ BLEND_FRAC = 0.4             # phần cuối mỗi đoạn máy chuyển sang đ
 MOVE_FRAC = 0.6              # máy chạy trong shot (tiến / lùi): đi hết trong phần đầu này của shot
 DEPTH_FAR_M = 20.0           # tài liệu: From Max 15–20 m
 RUN_MIN_M = 2.0              # đoạn đi dài hơn bấy nhiêu = chạy (chế độ uniform_run; máy xoay theo hướng chạy)
+LOS_CLEAR_M = 0.2            # đường nhìn tới nhân vật phải cao hơn ngọn rào bấy nhiêu
 FOCUS_Z_M = 1.2              # điểm nhìn khi nhân vật chạy: ngực (≈ 0,7 × 1,7 m)
 TURN_FRAC = 0.2              # phần cuối đoạn di chuyển: người nộm xoay dần về hướng đứng của shot sau
 HEDGE_CLEAR_M = 0.4          # máy rơi vào ô hàng rào → cao hơn ngọn rào bấy nhiêu
@@ -253,6 +254,22 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
         top = hedge_top.get((math.floor(at[0]), math.floor(at[1])))
         if top is not None and at[2] < top + HEDGE_CLEAR_M:  # máy trong ô hàng rào → nâng qua ngọn rào
             at[2] = top + HEDGE_CLEAR_M
+        subj = rigs[i + 1]["subj"] if i + 1 < len(vs) and u > 1 - BLEND_FRAC / 2 else rigs[i]["subj"]
+        if subj:
+            # nháp 4 (16/10): lúc chuyển shot máy vòng ra sau một bức rào → rào che mất Kelly. Đường nhìn máy → ngực nhân vật đi qua ô rào
+            # thì NÂNG máy vừa đủ nhìn qua ngọn rào (như cần cẩu), người dùng: "miễn là máy vẫn focus theo Kelly"
+            tgt = where(subj, t)
+            tz = tgt[2] + FOCUS_Z_M
+            dist = math.dist(at[:2], tgt[:2])
+            need = at[2]
+            for q in range(1, int(dist / 0.25)):
+                s_ = q * 0.25 / dist
+                if s_ >= 0.95:
+                    break
+                ht = hedge_top.get((math.floor(at[0] + (tgt[0] - at[0]) * s_), math.floor(at[1] + (tgt[1] - at[1]) * s_)))
+                if ht is not None:
+                    need = max(need, (ht + LOS_CLEAR_M - tz * s_) / (1 - s_))
+            at[2] = need
         lens = lens if lo is None else min(max(lens, lo), hi)
         cam.append([round(t, 3), [round(v, 3) for v in at], [round(v, 3) for v in aim], round(lens, 2)])
     unrouted = [f"{k} shot {vs[i]['shot']}" for k in people for i, leg in enumerate(legs[k]) if leg and not leg["routed"]]
