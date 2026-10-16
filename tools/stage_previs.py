@@ -325,8 +325,11 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
         rigs.append({"subj": subj, "start": st_, "end": en_, "run": bool(leg and leg["len"] > RUN_MIN_M), "preset": bool(preset and subj)})
     runs = [i for i, r in enumerate(rigs) if r["run"]]
 
+    grid_cells = {(math.floor(c["x"]), math.floor(c["y"])) for c in cells}
+
     def path_back(k, t, dist):
-        """Điểm trên ĐƯỜNG ĐÃ ĐI của nhân vật, lùi `dist` mét theo đường tính từ vị trí lúc t (luôn là lối trống)."""
+        """Điểm trên ĐƯỜNG ĐÃ ĐI của nhân vật, lùi `dist` mét theo đường tính từ vị trí lúc t (lối trống); thiếu đường cũ thì lùi
+        tiếp theo hướng ngược hướng đứng ban đầu tới ô trống cuối cùng."""
         ks = [x for x in pos.get(k) or [] if x[0] <= t] + [[t, *where(k, t), 0.0]]
         need, cur = dist, ks[-1]
         for prev in reversed(ks[:-1]):
@@ -336,7 +339,18 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
                 return [cur[1] + (prev[1] - cur[1]) * u, cur[2] + (prev[2] - cur[2]) * u, cur[3] + (prev[3] - cur[3]) * u]
             need -= seg
             cur = prev
-        return [cur[1], cur[2], cur[3]]
+        # 16/10 (--rig 6:sau_trai): đầu cú máy chưa có đường đã đi → máy dính vào người (cách 0,45 m) → lùi tiếp phần còn thiếu theo
+        # hướng NGƯỢC hướng đứng / chạy ban đầu (như máy đã đứng sẵn sau lưng)
+        # rà 16/10: điểm ngoại suy có thể rơi vào ô rào / ngoài lưới (lối vào là khe rào) → lùi từng 0,1 m, dừng ở ô trống cuối cùng
+        h = math.radians(heading(k, cur[0]))
+        got = 0.0
+        while got + 0.1 <= need + 1e-9:
+            x, y = cur[1] - (got + 0.1) * math.sin(h), cur[2] - (got + 0.1) * math.cos(h)
+            cell = (math.floor(x), math.floor(y))
+            if cell in hedge_top or (grid_cells and cell not in grid_cells):
+                break
+            got += 0.1
+        return [cur[1] - got * math.sin(h), cur[2] - got * math.cos(h), cur[3]]
 
     def rig_at(i, t):
         """(máy, điểm nhìn, ống) tuyệt đối của giàn shot i tại thời điểm t (t có thể trước đầu shot — lúc trộn)."""

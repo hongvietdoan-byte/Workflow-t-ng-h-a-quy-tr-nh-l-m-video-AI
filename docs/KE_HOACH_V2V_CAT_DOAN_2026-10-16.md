@@ -62,3 +62,22 @@ khuôn prompt depth của lượt 2 (tả hướng máy riêng từng đoạn).
    orbit (máy sau lưng ngay từ đầu, render lại 0 USD) rồi mới gen; (c) bỏ Đ1, gen từ 4,0 s.
 2. V2: bỏ (Đ3 15,4–20,4, phim 18 s) hay giữ (Đ3 13,0–20,7, 8 s, rủi ro như V1)?
 3. Cách A (720p thẳng, ≈ $4,98) hay cách B (nháp 480p ≈ $2,21 rồi 720p đoạn đạt)?
+
+## 7. Người dùng duyệt + kết quả nháp 480p (16–17/10)
+
+Duyệt 16/10: (1) sửa previs shot 6 máy sau lưng; (2) bỏ V2, cắt cứng; (3) nháp 480p trước.
+- Previs mới `--rig 6:sau_trai --rig 7:sau_trai` (không orbit; `…_them7s3_6sau_trai_7sau_trai_{clay,depth}.mp4`): hết V1, máy sau lưng
+  ổn định 0,5–13,1 s → **0–13 s thành MỘT đoạn** (trước đây cắt ở 4 s chỉ vì V1; giá không đổi). Sửa kèm: khung 0 máy cách Kelly
+  0,45 m (giàn sau lưng chưa có đường đã đi) → lùi tiếp theo hướng ngược hướng đứng, dừng trước ô rào / mép lưới; test.
+- Đoạn gen: Đ1 0–13 s (13 s, ảnh nền shot 6/7/8) + Đ2 15,6–20,6 s (5 s, ảnh nền shot 9); ref depth; Seedance 2.5 480p.
+  Sổ chi $1,60 + $0,62 = **$2,21** (dự án thử #32 tổng $4,98). Task `cgt-20261017004442-blw9u`, `cgt-20261017004449-55ooc`.
+- **Đ1 ĐẠT bám máy**: suốt 13 s máy thấp sau lưng Kelly như previs; rào lướt qua sát máy ở 1/2/8 s trùng tường previs; xe nôi hiện
+  bên trái ở 10–12 s đúng chỗ khối trụ; Kelly giữ cỡ khung. ORB: zoom +0,47, pan dọc +0,44, pan ngang −0,15 (nhân vật trong suốt làm
+  nhiễu điểm đặc trưng — ảnh ghép khớp rõ hơn số).
+- **Đ2 nội dung đúng, máy KHÔNG đứng yên**: Kelly bước tới, đưa tay chạm xe nôi; máy lùi ra. Gốc: khung previs shot 9 máy cách Kelly
+  0,94 m, thân Kelly che kín khung, không thấy xe nôi (lỗi khung đã ghi ở bản đánh giá mục 4 "Còn thấy") → model tự lùi để thấy hành
+  động. Muốn giữ máy đứng: sửa khung shot 9 trước (chạy cảnh 2 qua luồng chia vai / đặt lại máy shot 9), rồi gen lại.
+- Bản giao `D:\AI-Video-Output\2026-10-15_du-an-31\previs\v2v_thu_16-10\`: `nhap480_D1_0-13s.mp4`, `nhap480_D2_15.6-20.6s.mp4`,
+  `nhap480_noi_D1-D2_18s.mp4` (nối cắt cứng), ảnh ghép `so_sanh_D1/D2_previs_tren_nhap_duoi.png`.
+- Bước kế (CHỜ người dùng duyệt): 720p Đ1 ≈ $3,59 (×1,25 = $4,49); Đ2 720p ≈ $1,38 — nên sửa khung shot 9 trước. Trần dự án thử #32
+  hiện $6,5 (đã chi $4,98) → cần nâng khi duyệt 720p.

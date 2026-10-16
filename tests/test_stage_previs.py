@@ -241,6 +241,24 @@ class PlanTests(unittest.TestCase):
         self.rewrite("v2.json", two)
         self.assertLess(max(self.cam_steps(sp.plan(self.rd, uniform_run=True))), no_hold() * 1.15 + 1.0)
 
+    def test_rig_behind_at_start_not_inside_subject(self):
+        # 16/10 (--rig 6:sau_trai): đầu cú máy chưa có đường đã đi → máy từng đặt cách nhân vật 0,45 m (dính vào người)
+        p = sp.plan(self.rd, uniform_run=True, rig={1: "sau_trai"})
+        c0, k0 = p["previs"]["camera"][0], p["previs"]["people"][0]["keys"][0]
+        self.assertGreater(math.dist(c0[1][:2], k0[1:3]), 1.2)                 # bản cũ 0,45 m
+
+    def test_rig_behind_start_stops_before_hedge(self):
+        # rà 16/10: lối vào là khe rào → điểm lùi ngoại suy sau lưng có thể rơi vào ô rào → máy bị nâng vọt ở khung 0
+        def wall(g):
+            for c in g["cells"]:
+                if c["cell"].split(",")[1] in ("7", "8", "9"):                # hàng rào sau lưng (Kelly chạy về nam)
+                    c.update(covered=True, top_z=2.1, top_group="cay")
+        self.rewrite("grid.json", wall)
+        p = sp.plan(self.rd, uniform_run=True, rig={1: "sau_trai"})
+        c0 = p["previs"]["camera"][0]
+        self.assertLess(math.floor(c0[1][1]), 7)                              # dừng trước hàng rào y = 7
+        self.assertLess(c0[1][2], 2.0)                                        # không bị nâng qua ngọn rào
+
     def test_variants_switch_by_shot(self):
         p = sp.plan(self.rd)
         names = [(v["name"], v["from"]) for v in p["previs"]["people"][0]["variants"]]
