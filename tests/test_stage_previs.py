@@ -146,6 +146,18 @@ class PlanTests(unittest.TestCase):
         self.assertLessEqual(max(calm, fast), sp.CAM_YAW_MAX_DEG_S + 1)  # người dùng 16/10: không quay gấp ở bất kỳ khung nào
         self.assertGreater(sp.plan(self.rd, extra={1: 3.0})["summary"]["total_s"], 9.9)
 
+    def test_arc_blend_no_flip_when_opposite(self):
+        # người dùng 16/10 "giây 9→10 máy văng tâm": hai đầu cung đối diện (~180°) quanh nhân vật → chiều cung không được đổi giữa khung
+        def opposite(v2):
+            v2["shots"][1]["best"]["m"] = {"at": [3.0, 5.5, 1.6], "aim": [5.5, 5.5, 1.4], "lens": 32.0}    # máy shot 2 ở phía TÂY
+            v2["shots"][1]["objs"]["kelly"]["xy"] = [5.5, 5.5]
+        self.rewrite("v2.json", opposite)
+        cam = sp.plan(self.rd, uniform_run=True)["previs"]["camera"]
+        steps = [math.dist(a[1][:2], b[1][:2]) / (b[0] - a[0]) for a, b in zip(cam, cam[1:])]
+        keys = sp.plan(self.rd, uniform_run=True)["previs"]["people"][0]["keys"]
+        v_subj = max(math.dist(a[1:3], b[1:3]) / max(b[0] - a[0], 1e-6) for a, b in zip(keys, keys[1:]))
+        self.assertLess(max(steps), v_subj + 12.0)                        # không có cú nhảy vượt xa tốc độ nhân vật
+
     def test_variants_switch_by_shot(self):
         p = sp.plan(self.rd)
         names = [(v["name"], v["from"]) for v in p["previs"]["people"][0]["variants"]]

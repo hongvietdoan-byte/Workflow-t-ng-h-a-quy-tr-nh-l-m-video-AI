@@ -260,6 +260,7 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
         return [a + o for a, o in zip(anchor, c_off)], [a + o for a, o in zip(anchor, a_off)], lens
 
     cam = []
+    arc_da: Dict[int, float] = {}                         # chiều cung đã chọn cho mỗi lần chuyển shot
     n = max(2, int(total / CAM_SAMPLE_S) + 1)
     lo, hi = (lens_range or (None, None))
     for j in range(n):
@@ -277,6 +278,14 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
                 pol = lambda p: (math.dist(p[:2], c[:2]), math.atan2(p[0] - c[0], p[1] - c[1]), p[2])
                 (r1, a1, z1), (r2, a2, z2) = pol(at), pol(at2)
                 da = (a2 - a1 + math.pi) % (2 * math.pi) - math.pi
+                # người dùng 16/10 "giây 9→10 máy văng tâm": hai đầu cung gần đối diện (~180°) thì chiều cung ngắn nhất đổi qua lại giữa
+                # hai khung → máy giật sang phía kia. Chọn chiều MỘT lần cho mỗi lần chuyển, sau đó giữ liên tục (unwrap theo khung trước)
+                if i in arc_da:
+                    while da - arc_da[i] > math.pi:
+                        da -= 2 * math.pi
+                    while da - arc_da[i] < -math.pi:
+                        da += 2 * math.pi
+                arc_da[i] = da
                 r_, a_, z_ = r1 + (r2 - r1) * w, a1 + da * w, z1 + (z2 - z1) * w
                 at = [c[0] + r_ * math.sin(a_), c[1] + r_ * math.cos(a_), z_]
             else:
