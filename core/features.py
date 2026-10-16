@@ -525,6 +525,21 @@ FEATURES: Dict[str, Dict] = {
                "stage-auto-plan-2026-10-15): #27–#31 0 shot có stage_camera vì Sân khấu v2 chỉ chạy tay ở #24. Chưa thử thật — "
                "thử 1 cảnh #31 trước (≈ 0,23–0,91 USD Claude)",
     },
+    "stage_crew": {"costs": True,
+        "label": "Sân khấu 3D CHIA VAI: Đạo diễn dàn cảnh (chỗ đứng theo nhịp + ý đồ) → Quay phim đặt máy (sách dp.md, khai ý đồ / "
+                 "che có chủ ý) → Blender đo → bảng đối chiếu 'đã khai ↔ đo được' → Quay phim tự sửa máy / đề nghị dời người (Đạo "
+                 "diễn thắng) / giữ lệch có lý do → duyệt chốt. Thay một vai 'Đạo diễn kiêm Quay phim' của stage_auto",
+        "verified": False,
+        "why": "Kế hoạch docs/KE_HOACH_CHIA_VAI_SAN_KHAU_2026-10-16.md (người dùng duyệt 16/10): #31 shot 10 Kelly chắn xe nôi 237 % "
+               "khung, máy chúc trái ý 'nhìn lên' mà bộ kiểm vẫn ĐẠT. Chưa thử — ca thử shot 10 cảnh 3 #31 ngoại tuyến 0 USD; "
+               "API: đo chi phí xong người dùng mới quyết bật",
+    },
+    "stage_crew_user_approve": {"default_on": True,
+        "label": "Sân khấu chia vai: bước DUYỆT CHỐT do người dùng (xem ảnh ghép nhìn từ trên theo nhịp + clay) thay vai Đạo diễn — "
+                 "shot giữ ở cổng tới khi duyệt",
+        "verified": False,
+        "why": "Người dùng 16/10: bước D cho #31 tôi tự duyệt qua ảnh ghép",
+    },
     "director_camera_plan": {
         "label": "G0 Đạo diễn đặt máy 3D: mỗi cảnh liên tục một sơ đồ (đạo cụ, chỗ đứng theo nhịp, trục 180°) + bộ 3–4 góc máy dùng "
                  "lại (shot cùng góc + cùng cỡ = cùng máy, render một lần); Đạo diễn xem render nền từng góc (khai quan sát, code kết "
@@ -739,7 +754,7 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
 HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
-OPT_IN_ONLY: tuple = ("motion_sfx", "anchor_by_spot", "continuity_from_ui", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc")
+OPT_IN_ONLY: tuple = ("motion_sfx", "anchor_by_spot", "continuity_from_ui", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc", "stage_crew")
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.
@@ -961,7 +976,8 @@ REQUIRES = {"dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_re
             "ambient_motion": ("prompt_formula",), "plate_anchored_image": ("place_render_refs",),
             "anchor_by_spot": ("storyboard_api",),
             # rà 15/10: máy sân khấu chỉ được nền 3D dùng khi stage_camera bật; nền 3D cần place_render_refs
-            "stage_auto": ("stage_camera", "place_render_refs")}
+            "stage_auto": ("stage_camera", "place_render_refs"),
+            "stage_crew": ("stage_auto",), "stage_crew_user_approve": ("stage_crew",)}
 
 
 def unmet(name: str) -> list:

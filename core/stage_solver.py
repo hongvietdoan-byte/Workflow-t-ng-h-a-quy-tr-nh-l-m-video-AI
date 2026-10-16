@@ -562,7 +562,9 @@ def _judge(sh: Shot, sol: Dict, tag: str, axis, s0, grid, stage, fallback=False)
             chk["fail"] = chk["fail"] + [f"cuoi:{f}" for f in ce["fail"]]
             chk["why"].update({f"cuoi:{k}": v for k, v in ce["why"].items()})
     side = None if not axis else sg.axis_side(axis[0], axis[1], C)
-    c1 = not (s0 and side not in (s0, "on") and not sh.spec.get("cross_ok"))
+    # 16/10 (#31 cảnh 3 chia vai): nhịp không có trục (vật trục ẩn — xe nôi biến mất) → không xét C1; trước đây side None bị coi là
+    # "phía khác s0" → mọi phương án hỏng C1
+    c1 = not (s0 and side is not None and side not in (s0, "on") and not sh.spec.get("cross_ok"))
     return {"tag": tag, "fallback": fallback, "at": C, "aim": aim, "lens": sh.lens, "yaw": round(sol["yaw"], 2),
             "pitch": round(sol["pitch"], 2), "theta": round(sol["theta"], 2), "d": round(sol["d"], 3), "cz": round(sol["cz"], 3),
             "resid": sol["resid"], "cell": None if stage is None else sg.cell_name(stage, C[0], C[1]), "side": side, "c1_ok": c1,

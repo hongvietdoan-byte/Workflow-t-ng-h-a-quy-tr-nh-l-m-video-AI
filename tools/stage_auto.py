@@ -36,6 +36,12 @@ def main(argv=None):
                                                          "K3 khung) + cổng 0 USD của đề bài hiện tại — chạy TRƯỚC khi trả tiền chạy lại")
     ap.add_argument("--rerender", action="store_true", help="đo + render lại (Blender, 0 USD) từ câu trả lời Đạo diễn đã trả tiền, "
                                                             "không gọi Claude; ghi stage_camera")
+    ap.add_argument("--crew", action="store_true", help="NGOẠI TUYẾN 0 USD, CHIA VAI (Đạo diễn → Quay phim → Quay phim duyệt → duyệt "
+                                                        "chốt): --prompt-out ghi đề bài của vai đang tới lượt, --answer đưa câu trả lời "
+                                                        "của vai đó (đo K3 + K4 khi cần)")
+    ap.add_argument("--crew-reset", action="store_true", help="cất lượt chia vai đang dở, bắt đầu lại từ Đạo diễn")
+    ap.add_argument("--crew-approve", action="store_true", help="NGƯỜI DÙNG đã duyệt ảnh ghép (nói trong chat) → ghi stage_camera")
+    ap.add_argument("--crew-tra-lai", metavar="JSON", help="NGƯỜI DÙNG trả lại: tệp [{\"shot\": 10, \"y_do\": \"…\"}] → Quay phim duyệt lại")
     ap.add_argument("--beats", metavar="THU_MUC", help="0 USD: lượt đã lưu của từng cảnh → mặt cắt bỏ mái (Blender, nếu chưa có) + "
                                                        "top_beats.png (đánh số / làm mờ theo nhịp) + ảnh ghép san_khau_canh<N>.png "
                                                        "vào THU_MUC; không ghi CSDL")
@@ -67,6 +73,43 @@ def main(argv=None):
               + (f" · ĐÃ có ảnh shot {drawn}" + ("" if a.force else " → bỏ qua (thêm --force)") if drawn else ""))
     for h in stage_auto.family_hints(segs):
         print("⚠", h)
+    if a.crew or a.crew_approve or a.crew_tra_lai:     # 16/10 chia vai (kế hoạch docs/KE_HOACH_CHIA_VAI_SAN_KHAU_2026-10-16.md)
+        if len(segs) != 1:
+            print("Chế độ chia vai cần đúng MỘT cảnh (--scene)")
+            return
+        g = segs[0]
+        if (a.answer or a.crew_approve or a.crew_tra_lai) and drawn_shots(conn, g) and not a.force:
+            print(f"{g['id']}: có shot đã vẽ ảnh — thêm --force để đổi máy")
+            return
+        if a.crew_approve or a.crew_tra_lai:
+            tra = []
+            if a.crew_tra_lai:
+                with open(a.crew_tra_lai, encoding="utf-8") as f:
+                    tra = json.load(f)
+            r = stage_auto.crew_user_verdict(conn, a.project, g, a.data_dir, bool(a.crew_approve), tra, log=print)
+            print(json.dumps({k: v for k, v in r.items() if k != "result"}, ensure_ascii=False, indent=1, default=str))
+            return
+        if a.prompt_out:
+            text, problems, st = stage_auto.crew_prompt(conn, a.project, g, a.data_dir, reset=a.crew_reset)
+            if text:
+                with open(a.prompt_out, "w", encoding="utf-8") as f:
+                    f.write(text)
+            print(f"{g['id']} — bước '{st['phase']}'" + (f": đề bài → {a.prompt_out} ({len(text)} ký tự)" if text else "")
+                  + (f" — CHÚ Ý: {'; '.join(problems)}" if problems else ""))
+        if a.answer:
+            from core.llm_runner import extract_json
+            try:
+                with open(a.answer, encoding="utf-8") as f:
+                    obj = extract_json(f.read())
+                r = stage_auto.crew_answer(conn, a.project, g, a.data_dir, obj, source=a.source, log=print)
+            except (OSError, ValueError, TypeError) as e:
+                r = {"ok": False, "errors": [f"không đọc được câu trả lời: {type(e).__name__}: {e}"]}
+            loi = a.answer + ".loi.txt"
+            with open(loi, "w", encoding="utf-8") as f:
+                f.write(chr(10).join(r["errors"]) if r.get("errors") else "ĐẠT")
+            print(json.dumps({k: v for k, v in r.items() if k not in ("errors", "result")}, ensure_ascii=False, indent=1, default=str))
+            print(("LỖI (" + str(len(r["errors"])) + ") → " + loi) if r.get("errors") else f"ĐẠT — bước kế: {r.get('phase')}")
+        return
     if a.prompt_out or a.answer:
         if len(segs) != 1:
             print("Chế độ ngoại tuyến cần đúng MỘT cảnh (--scene)")

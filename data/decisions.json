@@ -184,6 +184,32 @@
     }
    ],
    "status": "active"
+  },
+  {
+   "id": "stage-crew-plan-2026-10-16",
+   "date": "2026-10-16",
+   "by": "người dùng",
+   "text": "Duyệt kế hoạch chia vai khâu sân khấu (docs/KE_HOACH_CHIA_VAI_SAN_KHAU_2026-10-16.md): Đạo diễn dàn cảnh, Quay phim đặt máy + tự sửa theo bảng đối chiếu số đo, không luật cấm cứng (khai ý đồ / che có lý do). (1) Bước duyệt chốt: NGƯỜI DÙNG duyệt qua ảnh ghép (cho #31; cờ stage_crew_user_approve bật mặc định); (2) Quay phim đề nghị dời người, Đạo diễn từ chối thì Đạo diễn thắng (Quay phim làm với chỗ đứng đó / giữ lệch); (3) chế độ API: đo chi phí thật xong người dùng mới quyết bật (cờ stage_crew TẮT).",
+   "keeps": "Luồng một vai stage_auto khi cờ TẮT; K1/K3/K4, luật kịch bản post_checks, chính sách tiền 04/10.",
+   "changes": "16/10 code: core/stage_crew.py, prompts 29a–29d, stage_auto crew_* + run_segment_crew, CLI --crew; check_stage_crew_plan.",
+   "replaces": null,
+   "enforced_by": [
+    {
+     "kind": "flag",
+     "name": "stage_crew",
+     "on": false
+    },
+    {
+     "kind": "flag",
+     "name": "stage_crew_user_approve",
+     "on": true
+    },
+    {
+     "kind": "code",
+     "check": "check_stage_crew_plan"
+    }
+   ],
+   "status": "active"
   }
  ]
 }

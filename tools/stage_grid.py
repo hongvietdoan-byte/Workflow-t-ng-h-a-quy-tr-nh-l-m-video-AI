@@ -394,6 +394,11 @@ def blender_main(cfg):
             engine = rp.pick_engine("cycles", warnings)
             return rp.render_to(path, False)
 
+    if cfg.get("previs"):                                 # 16/10 previs one-shot (tools/stage_previs.py): hoạt cảnh rồi dừng
+        previs_block(cfg, scene, scn, placed, bpy, rp, out, warnings)
+        print(f"[stage] previs xong {json.dumps(warnings, ensure_ascii=False)}", flush=True)
+        return
+
     # ---- ảnh trực giao từ trên ----
     tv = cfg["top_view"]
     cd = bpy.data.cameras.new("STAGE_TOP")
@@ -849,6 +854,138 @@ def ss_end_spec(spec):
     e = dict(spec, co=None)
     e["thanh_phan"] = [{k: v for k, v in c.items() if k not in ("co_pct", "vung")} for c in spec["thanh_phan"]]
     return e
+
+
+def previs_block(cfg, scene, scn, placed, bpy, rp, out, warnings):
+    """Previs one-shot (người dùng 16/10 — video tham chiếu cho V2V): người nộm đi theo khóa [t, x, y, z sàn, facing] (mét so với O,
+    máy chủ tính đường A* trên lưới sàn), máy + điểm nhìn theo khóa [t, at, aim, lens], render Workbench (hình khối như clay) thành
+    chuỗi PNG <out>/frames/f_####.png. Mỗi biến thể người nộm (tư thế theo nhịp) hiện trong [from, to) của nó, cùng một đường đi."""
+    import math as _m
+    pv = cfg["previs"]
+    fps = int(pv.get("fps", 24))
+    scene.render.fps = fps
+    scene.frame_start, scene.frame_end = 1, max(2, int(round(pv["duration"] * fps)))
+    fr = lambda t: 1 + t * fps
+    # hình khối như clay K4 (Workbench, màu theo vật)
+    scene.render.engine = "BLENDER_WORKBENCH"
+    shd = scene.display.shading
+    shd.light, shd.color_type = "STUDIO", "OBJECT"
+    try:
+        shd.show_cavity = True
+    except AttributeError:
+        pass
+    if scene.world is not None:
+        scene.world.color = (0.82, 0.86, 0.92)
+    cols = {p["name"]: tuple(p.get("rgb", (1.0, 0.45, 0.05))) for p in cfg.get("props", []) if p.get("kind") == "person"}
+    for ob in scene.objects:
+        if ob.type != "MESH":
+            continue
+        ob.color = (0.72, 0.72, 0.72, 1)
+        if ob.name.startswith("STAGE_PROP_") or ob.name.startswith("STAGE_WELL"):
+            ob.color = (0.55, 0.45, 0.3, 1)
+    for person in pv.get("people") or []:
+        by_name = {}
+        for var in person["variants"]:                    # rà 16/10: MỘT trục xoay cho mỗi người nộm (V0 → V1 → V0 dùng lại V0)
+            by_name.setdefault(var["name"], []).append(var)
+        for name, wins in by_name.items():
+            objs = [ob for ob in scene.objects if ob.name.startswith(f"STAGE_{name}_")]
+            if not objs:
+                warnings.append(f"previs: không thấy người nộm {name}")
+                continue
+            first = wins[0]
+            base = placed.get(name, {}).get("xyz") or [first["at"][0], first["at"][1], first.get("z0", 0.0)]
+            piv = bpy.data.objects.new(f"PREVIS_{name}", None)
+            scene.collection.objects.link(piv)
+            piv.location = scn(base)
+            bpy.context.view_layer.update()
+            for ob in objs:
+                ob.color = (*cols.get(name, (1.0, 0.45, 0.05)), 1)
+                mw = ob.matrix_world.copy()
+                ob.parent = piv
+                ob.matrix_world = mw
+                marks = [(0.0, False)] + [x for w in wins for x in ((w["from"], True), (w["to"], False))]
+                for t, vis in marks:                      # chỉ hide_render (render) — khóa hide_viewport từng gây lỗi depsgraph
+                    ob.hide_render = not vis
+                    ob.keyframe_insert("hide_render", frame=fr(t))
+            f0, z0 = float(first.get("facing") or 0.0), float(first.get("z0") or 0.0)
+            for t, x, y, z, f in person["keys"]:
+                # độ cao = chỗ đặt đo bằng tia (base, kể cả trong giếng) + chênh sàn lưới so với đầu biến thể (rà 16/10: không bật lên mặt sàn)
+                piv.location = scn((x, y, base[2] + (z - z0)))
+                piv.rotation_euler = (0.0, 0.0, -_m.radians(f - f0))
+                piv.keyframe_insert("location", frame=fr(t))
+                piv.keyframe_insert("rotation_euler", frame=fr(t))
+    def fcurves(ob):
+        ad = ob.animation_data
+        act = ad.action if ad else None
+        if act is None:
+            return []
+        if hasattr(act, "fcurves"):                       # Blender ≤ 4.3
+            return list(act.fcurves)
+        out_ = []                                         # Blender 4.4+ / 5: action nhiều lớp (layers → strips → channelbags)
+        for layer in getattr(act, "layers", []):
+            for strip in layer.strips:
+                for bag in getattr(strip, "channelbags", []):
+                    out_ += list(bag.fcurves)
+        return out_
+
+    for ob in scene.objects:                              # nhịp tư thế: bật / tắt tức thì, không mờ dần
+        for fc in fcurves(ob):
+            if fc.data_path.startswith("hide_"):
+                for kp in fc.keyframe_points:
+                    kp.interpolation = "CONSTANT"
+    cd = bpy.data.cameras.new("PREVIS_CAM")
+    cd.clip_end = 2000
+    cam = bpy.data.objects.new("PREVIS_CAM", cd)
+    scene.collection.objects.link(cam)
+    tgt = bpy.data.objects.new("PREVIS_AIM", None)
+    scene.collection.objects.link(tgt)
+    con = cam.constraints.new("TRACK_TO")
+    con.target, con.track_axis, con.up_axis = tgt, "TRACK_NEGATIVE_Z", "UP_Y"
+    for t, at, aim, lens in pv["camera"]:
+        cam.location, tgt.location, cd.lens = scn(at), scn(aim), lens
+        cam.keyframe_insert("location", frame=fr(t))
+        tgt.keyframe_insert("location", frame=fr(t))
+        cd.keyframe_insert("lens", frame=fr(t))
+    scene.camera = cam
+    scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = pv["res"][0], pv["res"][1], 100
+    scene.render.image_settings.file_format = "PNG"
+    scene.render.image_settings.color_mode = "RGB"
+    os.makedirs(os.path.join(out, "frames"), exist_ok=True)
+    scene.render.filepath = os.path.join(out, "frames", "f_")
+    t0 = time.time()
+    bpy.ops.render.render(animation=True)
+    warnings.append(f"previs: {scene.frame_end} khung trong {time.time() - t0:.0f} s")
+    if pv.get("depth_far"):
+        # video DEPTH (tài liệu quy trình one-shot 16/10: Z → Map Range gần–xa → đảo, đen trắng; Seedance 2.5 nhận ref depth): gần trắng,
+        # xa đen, tuyến tính 0,1 m → depth_far; exposure 0 / gamma 1 / không look (bài học #24 lỗi 14: depth bị phơi sáng đêm → xám đều)
+        rp.pick_engine("eevee", warnings)
+        layer, vs = bpy.context.view_layer, scene.view_settings
+        layer.material_override = rp.depth_material(float(pv["depth_far"]))
+        vs.view_transform, vs.exposure, vs.gamma = "Standard", 0.0, 1.0
+        try:
+            vs.look = "None"
+        except (TypeError, ValueError):
+            pass
+        if hasattr(vs, "use_white_balance"):
+            vs.use_white_balance = False
+        scene.render.film_transparent = False
+        if scene.world is not None:                       # trời = xa nhất = đen. Blender 5 luôn vẽ nền bằng node (world.color không có
+            scene.world.color = (0.0, 0.0, 0.0)              # tác dụng — bản nháp 16/10 trời ra TRẮNG): node Background đen, cường độ 0
+            for node in (scene.world.node_tree.nodes if scene.world.node_tree else []):
+                if node.type == "BACKGROUND":
+                    node.inputs["Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+                    node.inputs["Strength"].default_value = 0.0
+                elif node.type == "OUTPUT_WORLD":
+                    continue
+                else:
+                    for inp in node.inputs:              # bầu trời / sương nối vào Background: cắt bằng cách đưa về đen nếu có ô màu
+                        if inp.type == "RGBA" and not inp.is_linked:
+                            inp.default_value = (0.0, 0.0, 0.0, 1.0)
+        os.makedirs(os.path.join(out, "frames_depth"), exist_ok=True)
+        scene.render.filepath = os.path.join(out, "frames_depth", "d_")
+        t0 = time.time()
+        bpy.ops.render.render(animation=True)
+        warnings.append(f"previs depth: {scene.frame_end} khung trong {time.time() - t0:.0f} s")
 
 
 def v2_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, Vector, bpy, rp, out, warnings):
@@ -1445,8 +1582,10 @@ def v2_run(blocking, specs, out, stage_from=None, *, db=DEFAULT_DB, m3=None, max
                 c["end"] = {"at": c["end"]["at"], "aim": c["end"]["aim"]}
         setups.append({"shot": s["shot"], "spec": spec, "cands": cands, "objs": bo,
                        "show": [o["prop"] for o in bo.values() if o.get("prop")],
-                       "axis": None if not blocking.get("axis") else
-                       [list(beats[spec.get("nhip") or ""][k]["xy"]) + [0.0] for k in blocking["axis"]]})   # trục theo nhịp đầy đủ (POV bỏ người cầm máy khỏi vật)
+                       # trục theo nhịp đầy đủ (POV bỏ người cầm máy khỏi vật); 16/10: vật trục vắng ở nhịp (ẩn) → không trục, như
+                       # stage_solver.solve_scene.axis_of (trước đây KeyError — #31 cảnh 3 chia vai, xe nôi biến mất từ nhịp 12)
+                       "axis": None if not blocking.get("axis") or not all(k in beats[spec.get("nhip") or ""] for k in blocking["axis"])
+                       else [list(beats[spec.get("nhip") or ""][k]["xy"]) + [0.0] for k in blocking["axis"]]})
     extra = [[o["xy"][0], o["xy"][1], 2.0] for bo in beats.values() for o in bo.values() if o["kind"] != "moc"]
     cfg = {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spot["at"],
            "anchor_model": m3.get("anchor"), "cell_m": 1.0, "cols": int(st.get("cols") or 20), "rows": int(st.get("rows") or 20),
@@ -2219,18 +2358,32 @@ def draw_beats(rd, fn="top_beats.png"):
         x, y = P(*m["at"][:2])
         out_of_view = not (0 <= x <= px and 0 <= y <= px)
         x, y = min(max(x, 16), px - 16), min(max(y, 16), px - 16)    # máy ngoài khung thu: kẹp ở mép, nhãn có "(ngoài)"
-        fa = math.radians(m["yaw"])
-        tri = [(x + math.sin(fa) * 14, y - math.cos(fa) * 14), (x + math.sin(fa + 2.5) * 9, y - math.cos(fa + 2.5) * 9),
-               (x + math.sin(fa - 2.5) * 9, y - math.cos(fa - 2.5) * 9)]
-        d.polygon(tri, fill=(0, 230, 255, 230), outline=(0, 0, 0, 255))
-        text((x - 10, y + 9), f"c{sh['shot']}" + (" (ngoài)" if out_of_view else ""), (0, 230, 255, 255))
-        e = ((sh["best"].get("end") or {}).get("m") or {}).get("at")
-        if e and not out_of_view:
-            d.line([(x, y), P(*e[:2])], fill=(0, 230, 255, 160), width=2)
+        def cam_tri(cx_, cy_, yaw, filled):
+            fa = math.radians(yaw)
+            tri = [(cx_ + math.sin(fa) * 14, cy_ - math.cos(fa) * 14), (cx_ + math.sin(fa + 2.5) * 9, cy_ - math.cos(fa + 2.5) * 9),
+                   (cx_ + math.sin(fa - 2.5) * 9, cy_ - math.cos(fa - 2.5) * 9)]
+            if filled:
+                d.polygon(tri, fill=(0, 230, 255, 230), outline=(0, 0, 0, 255))
+            else:
+                d.polygon(tri, outline=(0, 230, 255, 255))
+        cam_tri(x, y, m["yaw"], True)
+        mv = (sh.get("spec") or {}).get("may") or {}
+        em = ((sh["best"].get("end") or {}).get("m") or {})
+        # 16/10 người dùng: máy CHẠY trong shot → máy đầu (đặc) → mũi tên → máy cuối (rỗng, theo hướng nhìn cuối) + nhãn kiểu máy
+        label = f"c{sh['shot']}" + (f" {mv.get('kieu')} {mv.get('m')} m" if mv and em.get("at") else "") + (" (ngoài)" if out_of_view else "")
+        text((x - 10, y + 9), label, (0, 230, 255, 255))
+        if em.get("at") and not out_of_view:
+            ex, ey = P(*em["at"][:2])
+            if math.dist((x, y), (ex, ey)) > 6:
+                arrow((x, y), (ex, ey), (0, 230, 255, 220), 3, 11)
+            eyaw = em.get("yaw")
+            if eyaw is None and em.get("aim"):
+                eyaw = math.degrees(math.atan2(em["aim"][0] - em["at"][0], em["aim"][1] - em["at"][1]))
+            cam_tri(ex, ey, eyaw if eyaw is not None else m["yaw"], False)
     rows = [(rgb.get(k, (190, 190, 190)), seq[0]["label"]) for k, seq in stations.items() if seq and seq[0]["kind"] == "nguoi"]
     notes = ["số = shot · mờ = chỗ ở nhịp trước, đậm = chỗ cuối", "mũi tên mảnh = đi giữa hai nhịp · mũi tên đậm = đi trong shot",
              "mũi tên đi theo lối trên sàn (tránh hàng rào / bụi; tường mỏng trong nhà chưa tính) · nét đứt = không tìm được lối",
-             "vạch = hướng mặt · thanh = người nằm · ô vuông = đạo cụ · ▲ c<số> = máy của shot",
+             "vạch = hướng mặt · thanh = người nằm · ô vuông = đạo cụ · ▲ c<số> = máy của shot (máy chạy: ▲ đầu → △ cuối)",
              f"nền: mặt cắt {tv.get('cut_m', TOP_CUT_M):g} m trên sàn (bỏ mái), người nộm ẩn" if raw == cut else
              "nền: ảnh từ trên chưa cắt mái (ký hiệu vẽ đè — thấy cả khi bị che)"]
     hgt = 22 * (len(rows) + len(notes)) + 12

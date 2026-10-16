@@ -309,6 +309,10 @@ LLM_STAGE_TOKENS = {"director": (25000, 18000), "motion": (9000, 4000), "qc": (6
                     "director_rewrite": (5000, 900),   # S14.17: one shot's prompt rewritten before a retake (+ the faulty picture)
                     "change_review": (6000, 1500),    # 10/10 Tổ rà soát tác động: một thay đổi + các shot liên quan (chữ), JSON ngắn
                     "director_stage_specs": (9000, 12000),  # Sân khấu 3D V3: đề bài ≈ 8–9k (prompt 29 + kịch bản + căn cứ), ra suy nghĩ + JSON ≈ 6–12k
+                    # 16/10 sân khấu chia vai (stage_crew) — chưa đo thật: Quay phim kèm sách dp.md (≈ 8k) + căn cứ cảnh; lượt duyệt kèm
+                    # bảng đối chiếu + ảnh clay (≈ 1,5k token / ảnh)
+                    "director_stage_blocking": (7000, 8000), "dp_stage_specs": (15000, 8000),
+                    "dp_stage_review": (24000, 6000), "director_stage_approve": (14000, 1500),
                     "director_camera_plan": (10000, 9000),  # 09/10 #24 thật: vào 9,7k, ra (suy nghĩ + JSON) > 8k — G0: one scene's map + camera set-ups (+ the top view picture if any)
                     "director_plate_review": (2500, 400),   # G0: one set-up's render (+ the opening render) → observations (enum)
                     "asset_checklist": (12000, 2500),  # S14.23: script + library names (≈ 30 tokens / entry, a few hundred entries), no picture

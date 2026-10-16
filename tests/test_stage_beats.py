@@ -143,6 +143,20 @@ class DrawTest(unittest.TestCase):
         json.dump({"centre": [0.0, 0.0], "size_m": 8.0, "px": 200, "cut_m": 2.2}, open(os.path.join(self.rd, "top_cut.json"), "w"))
         self.assertEqual(Image.open(tool.draw_beats(self.rd)).size, (200, 200))
 
+    def test_moving_camera_drawn_start_to_end(self):
+        from PIL import Image
+        v2 = {"shots": [{"shot": 1, "spec": {"may": {"kieu": "lui", "m": 1.0}},
+                         "best": {"m": {"at": [-2.0, -2.0, 1.5], "yaw": 45.0},
+                                  "end": {"m": {"at": [-2.7, -2.7, 1.5], "aim": [0.0, 0.0, 1.2]}}}}]}
+        json.dump(v2, open(os.path.join(self.rd, "v2.json"), "w", encoding="utf-8"))
+        before = Image.open(tool.draw_beats(self.rd)).convert("RGB")
+        v2["shots"][0]["best"].pop("end")
+        json.dump(v2, open(os.path.join(self.rd, "v2.json"), "w", encoding="utf-8"))
+        after = Image.open(tool.draw_beats(self.rd)).convert("RGB")
+        # máy cuối (−2,7; −2,7) → quanh điểm ảnh (69, 231) với khung 10 m / 300 px: chỉ có tam giác máy cuối khi máy chạy
+        box = (55, 217, 84, 246)
+        self.assertNotEqual(list(before.crop(box).getdata()), list(after.crop(box).getdata()))
+
     def test_missing_files_none(self):
         os.remove(os.path.join(self.rd, "setups.json"))
         self.assertIsNone(tool.draw_beats(self.rd))

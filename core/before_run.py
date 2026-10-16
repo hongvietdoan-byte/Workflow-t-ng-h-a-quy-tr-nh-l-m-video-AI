@@ -23,6 +23,8 @@ PAID_FLAGS: Dict[str, Dict] = {
     "director_camera_plan": {"text": "thêm lời gọi Claude (sơ đồ cảnh + duyệt render từng góc) — chưa có số ước tính sẵn"},
     # 15/10 sân khấu 3D tự động: một lượt Đạo diễn mỗi cảnh trên bối cảnh 3D (xấu nhất ×4); stage_camera bật cùng thì máy đó vào nền
     "stage_auto": {"stage": "director_stage_specs", "unit": "cảnh trên bối cảnh 3D (Đạo diễn dàn cảnh + yêu cầu khung; xấu nhất ×4 khi sửa / sai mẫu)"},
+    "stage_crew": {"text": "thay một lượt Đạo diễn sân khấu bằng 4–6 lượt chia vai mỗi cảnh (Đạo diễn, Quay phim, Quay phim duyệt có ảnh "
+                           "clay, duyệt chốt) — ước tính ở tools/stage_auto.py; ngoại tuyến (--crew) 0 USD"},
     "qc_framing_cap": {"text": "thêm ảnh vào mỗi lượt QC clip; clip đổi bố cục bị hạ điểm → tự sửa khi qc_autofix"},   # rà 15/10
 }
 

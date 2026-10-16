@@ -138,6 +138,21 @@ def check_stage_auto_plan():
     assert "stage_auto.FIELD" in inspect.getsource(camera_plan.todo_groups), "G0 không bỏ qua cảnh đã có máy sân khấu"
 
 
+def check_stage_crew_plan():
+    """16/10 kế hoạch chia vai sân khấu: cờ stage_crew tốn tiền, chưa thử thật, KHÔNG bật mặc định (API đo chi phí rồi mới quyết);
+    duyệt chốt do người dùng mặc định; luồng tự động dùng chia vai khi cờ bật; đề nghị dời người chỉ hỏi Đạo diễn MỘT lần (Đạo diễn
+    thắng — hỏi lại thành chưa giải quyết, không vòng)."""
+    import inspect
+    from core import features, stage_auto, stage_crew
+    meta = features.FEATURES.get("stage_crew") or {}
+    assert meta.get("costs") is True and not meta.get("verified") and not meta.get("default_on"), "cờ stage_crew sai khai báo"
+    assert (features.FEATURES.get("stage_crew_user_approve") or {}).get("default_on") is True, "duyệt chốt phải do người dùng"
+    assert "stage_crew" in features.OPT_IN_ONLY, "preset Thử nghiệm không được tự bật chia vai qua API (quyết định 3)"
+    assert "run_segment_crew if stage_crew.enabled()" in inspect.getsource(stage_auto.run), "run() chưa dùng chia vai khi cờ bật"
+    src = inspect.getsource(stage_crew._ingest)
+    assert 'state["asked"]' in src and "unresolved" in src, "đề nghị dời người phải chỉ hỏi Đạo diễn một lần"
+
+
 CHECKS = {k: v for k, v in globals().items() if k.startswith("check_") and callable(v)}
 
 

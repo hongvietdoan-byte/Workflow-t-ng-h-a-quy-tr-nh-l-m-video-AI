@@ -23,7 +23,7 @@ import json
 import os
 import re
 import time
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from . import diag, features
 
@@ -849,7 +849,9 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
         return out
     fp = fingerprint(inputs)
     try:                                                  # rà 16/10: câu trả lời cũ chỉ dùng cho ĐÚNG đầu vào đã gửi Đạo diễn
-        with open(os.path.join(os.path.dirname(rd), "inputs.json"), encoding="utf-8") as f:
+        # rà 16/10: lượt chia vai (crew/m<n>) / ngoại tuyến (cc_*) có inputs.json trong thư mục lượt; lượt API r<n> ở thư mục đoạn
+        src = os.path.join(rd, "inputs.json") if os.path.exists(os.path.join(rd, "inputs.json")) else os.path.join(os.path.dirname(rd), "inputs.json")
+        with open(src, encoding="utf-8") as f:
             sent = fingerprint(json.load(f))
     except (OSError, ValueError):
         sent = None
@@ -876,10 +878,17 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
     for s in seg["shots"]:
         if s["idx"] not in cams and s["idx"] not in bad and s["idx"] not in (inputs.get("bo_qua") or []):
             bad[s["idx"]] = "bộ giải không đặt được máy (lỗi yêu cầu khung)"
+    seg_dir = os.path.join(base_dir(data_dir, pid, seg["stage"]), f"doan_{key_of(seg['scene'])}")
+    rnd = os.path.relpath(rd, seg_dir).replace(os.sep, "/")
     res = {"cams": cams, "bad": bad, "missing": [], "state": end_state(st, obj, seg["scene"]), "fp": fp,
-           "guide_missing": guides_missing(cams), "round": os.path.basename(rd), "rerendered_from": os.path.basename(rd),
-           "soft": soft_checks(inputs, v2 or {})}
-    _save(os.path.join(os.path.dirname(rd), "result.json"), res)
+           "guide_missing": guides_missing(cams), "round": rnd, "rerendered_from": rnd, "soft": soft_checks(inputs, v2 or {})}
+    try:                                                  # rà 16/10: giữ nguồn / khóa chia vai của kết quả cũ
+        with open(os.path.join(seg_dir, "result.json"), encoding="utf-8") as f:
+            old = json.load(f)
+        res.update({k: old[k] for k in ("crew", "nguon", "usd") if k in old})
+    except (OSError, ValueError):
+        pass
+    _save(os.path.join(seg_dir, "result.json"), res)
     out["applied"] = apply(conn, seg, cams, inputs.get("bo_qua") or [])
     _say_guides(conn, pid, seg, res, out, log)
     for idx, why in sorted(bad.items()):
@@ -987,6 +996,355 @@ def offline_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: 
     return out_res
 
 
+# ---- CHIA VAI (cờ stage_crew — docs/KE_HOACH_CHIA_VAI_SAN_KHAU_2026-10-16.md) ----------------------------------------------------
+CREW_DIR = "crew"
+
+
+def _crew_ctx(conn, pid: int, seg: Dict, data_dir: str, prev_state: Optional[Dict] = None, stored: bool = True,
+              log: Callable[[str], None] = lambda m: None) -> Dict:
+    base = base_dir(data_dir, pid, seg["stage"])
+    k1 = ensure_k1_seg(seg, base, log)
+    inputs, missing = inputs_for(conn, pid, seg, k1, stored_state_before(data_dir, pid, seg, conn) if stored else prev_state)
+    with open(os.path.join(k1, "stage.json"), encoding="utf-8") as f:
+        st = json.load(f)
+    out = os.path.join(base, f"doan_{key_of(seg['scene'])}")
+    return {"k1": k1, "inputs": inputs, "missing": missing, "st": st, "out": out, "crew": os.path.join(out, CREW_DIR),
+            "fp": fingerprint(inputs), "seg": seg}
+
+
+def _crew_load(ctx: Dict) -> Optional[Dict]:
+    try:
+        with open(os.path.join(ctx["crew"], "state.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _crew_save(ctx: Dict, state: Dict) -> None:
+    os.makedirs(ctx["crew"], exist_ok=True)
+    with open(os.path.join(ctx["crew"], "state.json"), "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False, indent=1)
+
+
+def _crew_reset(ctx: Dict) -> None:
+    """Cất lượt chia vai cũ (crew/ → crew_cu_<giờ>/) — không ghi đè câu trả lời đã có."""
+    import shutil
+    if os.path.isdir(ctx["crew"]):
+        shutil.move(ctx["crew"], os.path.join(ctx["out"], "crew_cu_" + time.strftime("%Y%m%d_%H%M%S")))
+
+
+def _crew_measure(ctx: Dict, log: Callable[[str], None]):
+    """measure(bl, specs) cho stage_crew.ingest: K3 + K4 Blender (0 USD) vào crew/m<n>/ + top_beats.png → (thư mục tương đối, v2)."""
+    def measure(bl: Dict, specs: List[Dict]):
+        os.makedirs(ctx["crew"], exist_ok=True)
+        n = 1 + sum(1 for d in os.listdir(ctx["crew"]) if re.fullmatch(r"m\d+", d))
+        rd = os.path.join(ctx["crew"], f"m{n}")
+        os.makedirs(rd, exist_ok=True)
+        inputs = ctx["inputs"]
+        full = dict(bl, place=inputs["place"], spot=inputs["spot"], aspect=inputs["aspect"])
+        for fn, data in (("answer.json", {"blocking": bl, "shot_specs": specs}), ("blocking.json", full),
+                         ("shot_specs.json", {"shots": specs}), ("inputs.json", inputs)):
+            with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=1)
+        _solve, v2 = tool().v2_run(full, specs, rd, ctx["k1"], m3=ctx["seg"]["entry"], reach=True, log=log)
+        for fn, data in (("v2.json", v2), ("setups.json", {"beats": (_solve or {}).get("beats") or {}})):
+            if not os.path.exists(os.path.join(rd, fn)):  # v2_run thật đã ghi; giữ chắc cho bảng đối chiếu / màu người nộm đọc lại
+                with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False)
+        draw_beats(rd, log)
+        return os.path.relpath(rd, ctx["out"]).replace(os.sep, "/"), v2
+    return measure
+
+
+def _crew_view(ctx: Dict, state: Dict, limit: Optional[int] = None) -> Tuple[Optional[Dict], List[str], List[Tuple[str, str]]]:
+    """(bảng đối chiếu, dòng thêm: màu người nộm + tệp ảnh, ảnh (nhãn, đường dẫn) cho API) của lần đo cuối. `limit` (API: MAX_IMAGES):
+    ưu tiên top_beats + clay của shot CÓ VẤN ĐỀ (Blender hỏng, vật chắn, kết luận trước chưa khớp); ảnh không gửi được nêu rõ."""
+    from . import stage_crew as sc
+    if not state.get("measure"):
+        return None, [], []
+    rd = os.path.join(ctx["out"], state["measure"])
+    with open(os.path.join(rd, "v2.json"), encoding="utf-8") as f:
+        v2 = json.load(f)
+    table = sc.compare_table(ctx["inputs"], state["specs"], v2, state.get("keep"), post_checks(ctx["inputs"], v2))
+    try:
+        with open(os.path.join(rd, "setups.json"), encoding="utf-8") as f:
+            colours = mannequin_colours(json.load(f).get("beats") or {}, {p["key"]: p["label"] for p in ctx["inputs"]["people"]})
+    except (OSError, ValueError, KeyError, TypeError):
+        colours = {}
+    images, later = [], []
+    if os.path.exists(os.path.join(rd, "top_beats.png")):
+        images.append(("ảnh nhìn từ trên theo nhịp (top_beats)", os.path.join(rd, "top_beats.png")))
+    verdicts = state.get("verdicts") or {}
+    for s in sorted(v2.get("shots") or [], key=lambda x: x["shot"]):
+        clay = (s.get("best") or {}).get("clay")
+        if not (clay and os.path.exists(os.path.join(rd, clay))):
+            continue
+        rows = " ".join((table or {}).get(s["shot"]) or [])
+        issue = "HỎNG" in rows or "GIỮA máy" in rows or (verdicts.get(str(s["shot"])) or {}).get("ket_luan") not in (None, "khop")
+        (images if issue or limit is None else later).append((f"ảnh clay shot {s['shot']}", os.path.join(rd, clay)))
+    cut: List[Tuple[str, str]] = []
+    if limit is not None:
+        images, cut = (images + later)[:limit], (images + later)[limit:]
+    extra = sc.colour_lines(colours) + ["", "## Ảnh của lần đo này (đọc từng ảnh)"] + [f"- {lab}: {p}" for lab, p in images]
+    if cut:
+        extra.append(f"- KHÔNG gửi kèm (vượt trần {limit} ảnh / lời gọi; shot không có vấn đề trước): " + ", ".join(lab for lab, _ in cut))
+    return table, extra, images
+
+
+def crew_prompt(conn, pid: int, seg: Dict, data_dir: str, reset: bool = False) -> Tuple[str, List[str], Dict]:
+    """NGOẠI TUYẾN 0 USD: (đề bài của vai đang tới lượt, vấn đề, state). Người / phiên Claude Code đóng vai đó rồi đưa câu trả lời vào
+    crew_answer. `reset` = cất lượt cũ, bắt đầu lại từ Đạo diễn."""
+    from . import stage_crew as sc
+    ctx = _crew_ctx(conn, pid, seg, data_dir)
+    problems = list(ctx["missing"]) + preflight(ctx["inputs"], ctx["st"].get("marks"))
+    if reset:
+        _crew_reset(ctx)
+    state = _crew_load(ctx)
+    if state is not None and state["fp"] != ctx["fp"]:
+        problems.append("đầu vào (kịch bản / Kho / cảnh trước) đã đổi so với lượt chia vai đang dở — chạy lại với --crew-reset")
+    state = state or sc.new_state(ctx["fp"])
+    _crew_save(ctx, state)
+    if state["phase"] == "xong":
+        return "", problems + ["lượt chia vai đã xong (đã ghi máy) — --crew-reset để làm lại"], state
+    if state["phase"] == "duyet" and sc.user_approves():
+        return "", problems + ["chờ NGƯỜI DÙNG duyệt ảnh ghép (--beats) rồi --crew-approve / --crew-tra-lai"], state
+    table, extra, _ = _crew_view(ctx, state)
+    return sc.prompt_for(state, ctx["inputs"], table, extra), problems, state
+
+
+def crew_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: str = "claude_code",
+                log: Callable[[str], None] = lambda m: None) -> Dict:
+    """NGOẠI TUYẾN 0 USD: câu trả lời của vai đang tới lượt → bộ kiểm của vai → bước sau (đo K3 + K4 khi cần). Xong → ghi stage_camera.
+    Lỗi → {"ok": False, "errors"} (người viết sửa rồi đưa lại, state không đổi)."""
+    import copy as _c
+    from . import llm_io
+    from . import stage_crew as sc
+    ctx = _crew_ctx(conn, pid, seg, data_dir, log=log)
+    res: Dict = {"ok": False, "errors": [], "phase": None}
+    state = _crew_load(ctx)
+    if state is None:
+        state = sc.new_state(ctx["fp"])
+    if ctx["missing"] or state["fp"] != ctx["fp"]:
+        res["errors"] = ctx["missing"] or ["đầu vào đã đổi so với lượt chia vai đang dở — --crew-reset"]
+        return res
+    res["phase"] = state["phase"]
+    if state["phase"] == "xong":
+        res["errors"] = ["lượt chia vai đã xong — --crew-reset để làm lại"]
+        return res
+    if state["phase"] == "duyet" and sc.user_approves() and source != "nguoi_dung":
+        # rà 16/10 (quyết định stage-crew-plan-2026-10-16 (1)): duyệt chốt chỉ do NGƯỜI DÙNG — phiên Claude không tự duyệt
+        res["errors"] = ["bước duyệt chốt chỉ nhận từ người dùng (--crew-approve / --crew-tra-lai sau khi người dùng nói trong chat)"]
+        return res
+    gate = preflight(ctx["inputs"], ctx["st"].get("marks"))
+    if gate:
+        res["errors"] = [f"cổng 0 USD chưa qua — {g}" for g in gate]
+        return res
+    obj = _c.deepcopy(obj)
+    try:
+        sc.validator(state, ctx["inputs"], ctx["st"].get("marks"))(obj)
+    except (llm_io.SchemaError, ValueError, KeyError, TypeError) as e:
+        res["errors"] = [x for x in str(e).split("; ") if x]
+        return res
+    os.makedirs(ctx["crew"], exist_ok=True)
+    with open(os.path.join(ctx["crew"], f"answer_{len(state['history']) + 1:02d}_{state['phase']}.json"), "w", encoding="utf-8") as f:
+        json.dump(obj, f, ensure_ascii=False, indent=1)
+    try:
+        sc.ingest(state, obj, _crew_measure(ctx, log), source)
+    except Exception as e:  # noqa: BLE001 - Blender đo lỗi: state cũ giữ nguyên (không lưu), nói rõ
+        res["errors"] = [f"không đo được (K3 / K4): {type(e).__name__}: {e}"]
+        return res
+    _crew_save(ctx, state)
+    res.update(ok=True, phase=state["phase"], measure=state.get("measure"))
+    if state.get("can_hoi"):
+        res["can_hoi"] = state["can_hoi"]
+    if state["phase"] == "xong":
+        res.update(_crew_finalize(conn, pid, seg, ctx, state, _worker(state), log, apply_now=True))
+        held: Dict = {"held": []}
+        _say_guides(conn, pid, seg, res["result"], held, log)
+        res["held"] = held["held"]
+    return res
+
+
+def _worker(state: Dict) -> str:
+    """Nguồn của các câu trả lời đã làm việc (không tính lượt duyệt của người dùng) — chi phí / nguồn ghi đúng khi người dùng duyệt
+    sau lượt API."""
+    srcs = [h.get("source") for h in state.get("history") or [] if h.get("source") and h.get("source") != "nguoi_dung"]
+    return srcs[-1] if srcs else "claude_code"
+
+
+def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: str, log: Callable[[str], None],
+                   apply_now: bool) -> Dict:
+    """Máy từ lần đo cuối: shot đạt Blender + luật kịch bản, không còn 'unresolved' → stage_camera; result.json như đường một vai."""
+    rd = os.path.join(ctx["out"], state["measure"])
+    with open(os.path.join(rd, "v2.json"), encoding="utf-8") as f:
+        v2 = json.load(f)
+    inputs, st = ctx["inputs"], ctx["st"]
+    try:
+        with open(os.path.join(rd, "setups.json"), encoding="utf-8") as f:
+            colours = mannequin_colours(json.load(f).get("beats") or {}, {p["key"]: p["label"] for p in inputs["people"]})
+    except (OSError, ValueError, KeyError, TypeError):
+        colours = {}
+    cams, bad = cameras_from(st, v2, seg["id"], rd, colours)
+    for k, why in list(post_checks(inputs, v2).items()) + [(int(k), v) for k, v in (state.get("unresolved") or {}).items()]:
+        if k in cams:
+            cams.pop(k)
+        bad[k] = why
+    for s in seg["shots"]:
+        if s["idx"] not in cams and s["idx"] not in bad and s["idx"] not in (inputs.get("bo_qua") or []):
+            bad[s["idx"]] = "bộ giải không đặt được máy (lỗi yêu cầu khung)"
+    for cam in cams.values():
+        cam["inputs_fp"] = ctx["fp"]
+        cam["source"] += f" · tổ sân khấu (Đạo diễn + Quay phim, {source}; duyệt: {state.get('approved_by')})"
+    res = {"cams": cams, "bad": bad, "missing": [], "state": end_state(st, {"blocking": state["blocking"], "shot_specs": state["specs"]},
+                                                                      seg["scene"]),
+           "fp": ctx["fp"], "guide_missing": guides_missing(cams), "round": state["measure"], "nguon": source,
+           "soft": soft_checks(inputs, v2),
+           "crew": {k: state.get(k) for k in ("verdicts", "keep", "replies", "unresolved", "approved_by", "reviews", "n_measure")}}
+    if source != "claude_api":
+        res["usd"] = 0.0
+    with open(os.path.join(ctx["out"], "inputs.json"), "w", encoding="utf-8") as f:
+        json.dump(inputs, f, ensure_ascii=False, indent=1)
+    _save(os.path.join(ctx["out"], "result.json"), res)
+    out = {"result": res}
+    if apply_now:
+        changed = apply(conn, seg, cams, inputs.get("bo_qua") or [])
+        out.update(applied=[i for i in changed if i in cams], removed=[i for i in changed if i not in cams], bad=bad)
+        _say(conn, pid, "info", f"Sân khấu {seg['id']}: máy đặt bởi tổ sân khấu (Đạo diễn + Quay phim, {source}) — shot "
+                                + ", ".join(map(str, sorted(cams))), log)
+    return out
+
+
+def crew_user_verdict(conn, pid: int, seg: Dict, data_dir: str, approve: bool, tra_lai: Sequence[Dict] = (),
+                      log: Callable[[str], None] = lambda m: None) -> Dict:
+    """Bước duyệt chốt do NGƯỜI DÙNG (cờ stage_crew_user_approve; #31 — người dùng 16/10): Claude chỉ gọi khi người dùng đã nói duyệt /
+    trả lại trong chat."""
+    obj = {"duyet": True} if approve else {"duyet": False, "tra_lai": list(tra_lai)}
+    return crew_answer(conn, pid, seg, data_dir, obj, source="nguoi_dung", log=log)
+
+
+def run_segment_crew(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Optional[Dict] = None,
+                     log: Callable[[str], None] = lambda m: None, force: bool = False) -> Dict:
+    """Như run_segment nhưng CHIA VAI qua API (sổ chi theo từng vai). Bước duyệt chốt chờ người dùng (cờ stage_crew_user_approve) →
+    shot giữ ở cổng, state lưu để làm tiếp."""
+    from . import llm_runner
+    from . import stage_crew as sc
+    res: Dict = {"cams": {}, "bad": {}, "missing": [], "state": None, "reused": False}
+    try:
+        ensure_k1_seg(seg, base_dir(data_dir, pid, seg["stage"]), log)
+    except Exception as e:  # noqa: BLE001 - Blender / model 3D: nói rõ, đoạn không chạy
+        res["missing"].append(f"không đo được sân khấu K1 chỗ đứng '{seg['main_spot']}': {type(e).__name__}: {e}")
+        return res
+    ctx = _crew_ctx(conn, pid, seg, data_dir, prev_state, stored=False, log=log)
+    inputs = ctx["inputs"]
+    if ctx["missing"]:
+        res["missing"], res["stale"] = ctx["missing"], True
+        return res
+    res["bo_qua"] = inputs["bo_qua"]
+    if not inputs["shots"]:
+        log(f"Sân khấu {seg['id']}: shot {', '.join(map(str, inputs['bo_qua']))} không người / đạo cụ — không dàn, dùng máy nền thường")
+        res["skipped_all"] = True
+        return res
+    fp = ctx["fp"]
+    res["stale"] = any((s["data"].get(FIELD) or {}).get("auto") and (s["data"].get(FIELD) or {}).get("inputs_fp") != fp
+                       for s in seg["shots"])
+    path = os.path.join(ctx["out"], "result.json")
+    if os.path.exists(path) and not force:
+        try:
+            with open(path, encoding="utf-8") as f:
+                old = json.load(f)
+            if old.get("fp") == fp and "crew" in old:
+                return dict(old, cams={int(k): v for k, v in old["cams"].items()}, bad={int(k): v for k, v in old["bad"].items()},
+                            reused=True)
+        except (OSError, ValueError, KeyError):
+            pass
+    gate = preflight(inputs, ctx["st"].get("marks"))
+    if gate:
+        res["missing"] += [f"cổng 0 USD chưa qua — {g}" for g in gate]
+        return res
+    if client is None:
+        res["missing"].append("chưa cấu hình Claude (ANTHROPIC_API_KEY / LLM_PROVIDER) — tổ sân khấu chưa dàn cảnh")
+        return res
+    state = _crew_load(ctx)
+    if state is None or state["fp"] != fp or force or state["phase"] == "xong":
+        if state is not None:
+            _crew_reset(ctx)
+        state = sc.new_state(fp)
+    os.makedirs(ctx["crew"], exist_ok=True)
+    _say(conn, pid, "info", f"Sân khấu {seg['id']} (chia vai): Đạo diễn + Quay phim — ước tính {_crew_estimate(conn)} / cảnh", log)
+    measure = _crew_measure(ctx, log)
+    for step in range(12):                                # chặn vòng: 1 + 1 + ≤ 2 duyệt + 1 trả lời + ≤ 2 duyệt chốt + dư
+        if state["phase"] == "xong":
+            break
+        if state["phase"] == "duyet" and sc.user_approves():
+            _crew_save(ctx, state)
+            why = (f"chờ người dùng duyệt sân khấu (ảnh ghép: py tools/stage_auto.py --project {pid} --scene {seg['scene']} --beats "
+                   f"<thư mục>) rồi --crew-approve / --crew-tra-lai")
+            res["bad"] = {s["idx"]: why for s in seg["shots"] if s["idx"] not in (inputs.get("bo_qua") or [])}
+            res["waiting"] = why
+            return res
+        stage = sc.ROLES[state["phase"]][0]
+        review = state["phase"] in ("quay_phim_duyet", "duyet")
+        table, extra, images = _crew_view(ctx, state, limit=llm_runner.MAX_IMAGES if review else None)
+        text = sc.prompt_for(state, inputs, table, extra if review else [], cache_break=llm_runner.CACHE_BREAK)
+        n = len(state["history"]) + 1
+        with open(os.path.join(ctx["crew"], f"prompt_{n:02d}_{state['phase']}.md"), "w", encoding="utf-8") as f:
+            f.write(text)
+        imgs = images if review else []
+        try:
+            with llm_runner.tagged(stage, pid):
+                obj, tin, tout = llm_runner.ask_json(client, text, sc.validator(state, inputs, ctx["st"].get("marks")), images=imgs,
+                                                     note=log, bad_reply=_keep_reply(conn, pid, seg, ctx["crew"], n))
+        except llm_runner.LlmError as e:
+            _crew_save(ctx, state)
+            if getattr(e, "code", None) != "bad_json":
+                raise
+            res["missing"].append(f"tổ sân khấu ({state['phase']}) trả lời sai mẫu 2 lần: {str(e)[:200]}")
+            return _save(path, dict(res, fp=fp, crew={"failed": state["phase"]}))     # rà 16/10: lượt sau KHÔNG gọi lại (trả tiền lặp)
+        with open(os.path.join(ctx["crew"], f"answer_{n:02d}_{state['phase']}.json"), "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=1)
+        log(f"Sân khấu {seg['id']} · {state['phase']}: vào {tin} / ra {tout} token")
+        try:
+            sc.ingest(state, obj, measure, "claude_api")
+        except Exception as e:  # noqa: BLE001 - Blender đo lỗi: nói rõ, không gán máy chưa đo
+            _crew_save(ctx, state)
+            res["missing"].append(f"không đo được máy bằng Blender (K4): {type(e).__name__}: {e}")
+            return _save(path, dict(res, fp=fp, crew={"failed": state["phase"]}))
+        if state.get("can_hoi"):
+            _say(conn, pid, "warn", f"Sân khấu {seg['id']}: Đạo diễn hỏi — {state.pop('can_hoi')}", log)
+        _crew_save(ctx, state)
+    if state["phase"] != "xong":
+        res["missing"].append(f"tổ sân khấu chưa xong sau 12 bước (đang ở '{state['phase']}')")
+        return res
+    fin = _crew_finalize(conn, pid, seg, ctx, state, "claude_api", log, apply_now=False)["result"]
+    return dict(fin, bo_qua=inputs["bo_qua"], stale=res["stale"], reused=False)
+
+
+CREW_CALLS = {"director_stage_blocking": (1, 2), "dp_stage_specs": (1, 1), "dp_stage_review": (1, 3), "director_stage_approve": (1, 2)}
+
+
+def _crew_estimate(conn, worst: bool = False) -> str:
+    usd = crew_usd(conn, worst)
+    return f"≈ {usd:.3f} USD" if usd is not None else "chưa có giá Claude"
+
+
+def crew_usd(conn, worst: bool = False) -> Optional[float]:
+    """Ước tính một cảnh chia vai: thường = 1 lượt mỗi vai; xấu nhất = số lượt tối đa của máy trạng thái (× 2 khi sai mẫu)."""
+    from . import cost
+    from . import stage_crew as sc
+    total = 0.0
+    for stage, (one, most) in CREW_CALLS.items():
+        if stage == "director_stage_approve" and sc.user_approves():
+            continue
+        try:
+            u = cost.llm_estimate(conn, stage, most * 2 if worst else one)
+        except Exception:  # noqa: BLE001 - bảng giá lỗi
+            return None
+        if u is None:
+            return None
+        total += u
+    return total * cost.LLM_MARGIN
+
+
 def score_saved(conn, pid: int, seg: Dict, data_dir: str) -> Dict:
     """0 USD: chấm MỌI lượt Đạo diễn đã lưu của đoạn (r*/answer.json) bằng bộ kiểm HIỆN TẠI (luật kịch bản + K3 khung) trên đề bài hiện
     tại — {lượt: [lỗi]} (rỗng = qua). Dùng trước khi trả tiền chạy lại: lỗi cũ phải bị bắt bằng code, không phải bằng mắt người."""
@@ -1072,6 +1430,7 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: 
     for h in family_hints(segs):
         _say(conn, pid, "warn", h, log)
     state: Dict[str, Dict] = {}
+    waiting: Dict[str, str] = {}
     for seg in segs:
         if scenes is not None and seg["scene"] not in scenes:
             state[seg["stage"]] = stored_state(data_dir, pid, seg) or state.get(seg["stage"])
@@ -1084,7 +1443,21 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: 
                 _say(conn, pid, "warn", f"Sân khấu {seg['id']}: shot {', '.join(map(str, done))} đã có ảnh — không đổi máy (ảnh đã vẽ "
                                         f"sẽ lệch nền 3D); muốn dàn lại cả cảnh: py tools/stage_auto.py --project {pid} --force --yes", log)
             continue
-        r = run_segment(conn, pid, seg, data_dir, client, state.get(seg["stage"]), log, force=again)
+        from . import stage_crew                          # 16/10 chia vai (cờ stage_crew, TẮT mặc định): Đạo diễn + Quay phim
+        seg_run = run_segment_crew if stage_crew.enabled() else run_segment
+        if seg["stage"] in waiting:                       # rà 16/10: đoạn trước cùng sân khấu chờ người dùng duyệt → vị trí cuối chưa chốt
+            line = f"sân khấu {seg['id']}: chờ người dùng duyệt đoạn trước cùng sân khấu ({waiting[seg['stage']]}) — chưa dàn cảnh"
+            _say(conn, pid, "warn", line, log)
+            out["held"].append(("stageauto:" + hashlib.sha1(line.encode("utf-8")).hexdigest()[:12], line))
+            continue
+        r = seg_run(conn, pid, seg, data_dir, client, state.get(seg["stage"]), log, force=again)
+        if r.get("waiting"):
+            waiting[seg["stage"]] = seg["id"]
+            apply(conn, seg, {})                          # máy tự động cũ theo dàn cảnh chưa duyệt không dùng tiếp
+            line = f"sân khấu {seg['id']}: {r['waiting']}"
+            _say(conn, pid, "warn", line, log)
+            out["held"].append(("stageauto:" + hashlib.sha1(line.encode("utf-8")).hexdigest()[:12], line))
+            continue
         if r["missing"]:
             if r.get("stale"):                            # rà 15/10: máy tự động theo dàn cảnh CŨ không được dùng tiếp
                 gone = apply(conn, seg, {})
@@ -1119,8 +1492,13 @@ def estimate(conn, pid: int, data_dir: str, force: bool = False) -> Dict:
     from .camera_plan import drawn_shots
     from .stage_director import MAX_ROUNDS, STAGE
     segs = [g for g in segments(conn, pid) if force or not drawn_shots(conn, g)]
-    one = cost.llm_estimate(conn, STAGE, 1)
+    from . import stage_crew
     n = len(segs)
+    if stage_crew.enabled():                              # 16/10 chia vai: một lượt mỗi vai; xấu nhất = số lượt tối đa × 2 (sai mẫu)
+        one, worst = crew_usd(conn), crew_usd(conn, worst=True)
+        return {"segments": [g["id"] for g in segs], "shots": sum(len(g["shots"]) for g in segs), "crew": True,
+                "usd": None if one is None else round(one * n, 3), "usd_max": None if worst is None else round(worst * n, 3)}
+    one = cost.llm_estimate(conn, STAGE, 1)
     return {"segments": [g["id"] for g in segs], "shots": sum(len(g["shots"]) for g in segs),
             "usd": None if one is None else round(one * cost.LLM_MARGIN * n, 3),
             "usd_max": None if one is None else round(one * cost.LLM_MARGIN * n * 2 * MAX_ROUNDS, 3)}

@@ -107,6 +107,11 @@ STAGE_SETTINGS: Dict[str, Dict[str, Any]] = {
     "director_byd": {"effort": "low", "max_tokens": 16000},    # K1a: sửa BYĐ các shot hỏng (JSON ≈ 0,3k / shot, cả phim hỏng ≈ 10k)
     "director_stage_specs": {"effort": "medium", "max_tokens": 24000},  # Sân khấu 3D V3: dàn cảnh + yêu cầu khung MỘT cảnh (JSON ≈ 4–6k + suy nghĩ);
                                                               # G0 09/10: medium + 8000 bị cắt → trần rộng
+    # 16/10 sân khấu chia vai (stage_crew): dàn cảnh / đặt máy ≈ nửa câu trả lời một vai; duyệt = kết luận từng shot (+ đặc tả sửa)
+    "director_stage_blocking": {"effort": "medium", "max_tokens": 16000},
+    "dp_stage_specs": {"effort": "medium", "max_tokens": 16000},
+    "dp_stage_review": {"effort": "medium", "max_tokens": 12000},
+    "director_stage_approve": {"effort": "low", "max_tokens": 4000},
     "director_plate_review": {"effort": "low", "max_tokens": 1500},     # G0: quan sát enum trên MỘT render nền — JSON rất ngắn
     "lesson_judge": {"effort": "low", "max_tokens": 4000},      # S14.24 agent chấm bài học (bóng): JSON khoản trừ ngắn của 5 tiêu chí
     "asset_checklist": {"effort": "low", "max_tokens": 6000},   # S14.23 bảng kê tài nguyên trước Director: JSON ngắn (≈ 1 dòng / thứ cần);

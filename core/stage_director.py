@@ -31,7 +31,24 @@ def build_prompt(inputs: Dict, prev: Optional[Dict] = None, feedback: Sequence[s
         head = f.read()
     from . import knowledge
     L = [head] + [x for b in knowledge.p24_blocks() for x in ("", b)]     # 11/10 cờ p24_lessons (TẮT → prompt y cũ)
-    L += ["", "---", "", f"## Cảnh: {inputs.get('canh', '')}", ""]
+    L += scene_facts(inputs)
+    if prev is not None:
+        L += ["", "---", "", "## Lượt sửa: câu trả lời trước của bạn", "```json", json.dumps(prev, ensure_ascii=False), "```", "",
+              "### Code đã giải máy + đo trên sân khấu 3D — các shot CHƯA đạt (sửa dàn cảnh / yêu cầu của đúng các shot này; shot đã "
+              "đạt giữ nguyên; không nới yêu cầu mà người dùng đã nói rõ)"] + [f"- {x}" for x in feedback]
+        L.append("\nTrả lại TOÀN BỘ JSON (cả shot đã đạt), cùng định dạng.")
+    from .director_blockout import append_prompt
+    return append_prompt("\n".join(L), inputs)
+
+
+NOTE_LABEL = "ghi chú khung cũ (chỉ để hiểu ý, KHÔNG phải luật)"
+
+
+def scene_facts(inputs: Dict, auto_rules: Optional[str] = None, note_label: str = NOTE_LABEL) -> List[str]:
+    """Căn cứ của cảnh (dùng chung cho đề bài một vai và các vai của stage_crew): cảnh, khung, vật cố định, nhân vật, sàn, kịch bản
+    từng shot (dữ kiện code kiểm), luật code kiểm, lời người dùng, tham chiếu. `auto_rules` thay khối AUTO_RULES (vai Đạo diễn dàn
+    cảnh không cần luật khung); `note_label` = cách gọi ghi chú khung Tầng B (vai Quay phim: ý đồ của chính mình)."""
+    L = ["", "---", "", f"## Cảnh: {inputs.get('canh', '')}", ""]
     L.append(f"Khung hình dự án: {inputs.get('aspect', '9:16')}. Chỗ đứng chính (gốc O): {inputs.get('spot', '')}.")
     L += ["", "### Vật đã cố định (GIỮ NGUYÊN số)"]
     for o in inputs["fixed"]:
@@ -45,7 +62,7 @@ def build_prompt(inputs: Dict, prev: Optional[Dict] = None, feedback: Sequence[s
     for s in inputs["shots"]:
         L.append(f"- **shot {s['shot']}** ({s.get('do_dai', '')}): {s.get('action', '')}")
         if s.get("ghi_chu_khung_cu"):
-            L.append(f"  - ghi chú khung cũ (chỉ để hiểu ý, KHÔNG phải luật): {s['ghi_chu_khung_cu']}")
+            L.append(f"  - {note_label}: {s['ghi_chu_khung_cu']}")
         if s.get("nhan_vat") is not None:                 # 16/10 sân khấu tự động: dữ kiện shot của kịch bản — code kiểm theo
             cd = s.get("cho_dung") or {}
             need = must_see(s)
@@ -58,18 +75,12 @@ def build_prompt(inputs: Dict, prev: Optional[Dict] = None, feedback: Sequence[s
                      + (f" · góc `{s['goc_kich_ban']}`" if s.get("goc_kich_ban") else "")
                      + (f" · máy `{s['may_kich_ban']}`" if s.get("may_kich_ban") else ""))
     if inputs.get("auto"):
-        L += ["", AUTO_RULES]
+        L += ["", auto_rules if auto_rules is not None else AUTO_RULES]
     if inputs.get("user_notes"):
         L += ["", "### Lời người dùng (ưu tiên cao nhất)"] + [f"- {x}" for x in inputs["user_notes"]]
     if inputs.get("refs"):
         L += ["", "### Tham chiếu"] + [f"- {x}" for x in inputs["refs"]]
-    if prev is not None:
-        L += ["", "---", "", "## Lượt sửa: câu trả lời trước của bạn", "```json", json.dumps(prev, ensure_ascii=False), "```", "",
-              "### Code đã giải máy + đo trên sân khấu 3D — các shot CHƯA đạt (sửa dàn cảnh / yêu cầu của đúng các shot này; shot đã "
-              "đạt giữ nguyên; không nới yêu cầu mà người dùng đã nói rõ)"] + [f"- {x}" for x in feedback]
-        L.append("\nTrả lại TOÀN BỘ JSON (cả shot đã đạt), cùng định dạng.")
-    from .director_blockout import append_prompt
-    return append_prompt("\n".join(L), inputs)
+    return L
 
 
 def validate_answer(obj, inputs: Dict, marks: Optional[Dict] = None) -> Dict:
@@ -78,44 +89,11 @@ def validate_answer(obj, inputs: Dict, marks: Optional[Dict] = None) -> Dict:
     if not isinstance(obj, dict) or not isinstance(obj.get("blocking"), dict) or not isinstance(obj.get("shot_specs"), list):
         raise llm_io.SchemaError("cần {blocking: {...}, shot_specs: [...]}")
     bl, specs = obj["blocking"], obj["shot_specs"]
-    # 16/10 chạy thật #31 cảnh 4 (lượt 2 hỏng vì "thiếu vật cố định 'moc'"): vật cố định ĐÃ có tọa độ / mốc từ K1 là dữ kiện của code —
-    # thiếu thì code tự thêm (không bắt Đạo diễn chép lại, không tốn lượt hỏi lại). Đạo cụ chưa có `at` vẫn phải do Đạo diễn đặt.
-    objs_ = bl.setdefault("objects", []) if isinstance(bl.get("objects", []), list) else None
-    if objs_ is not None:
-        keys_ = {o.get("key") for o in objs_ if isinstance(o, dict)}
-        for f in inputs.get("fixed") or []:
-            if f.get("key") not in keys_ and (f.get("kind") == "moc" or f.get("at")):
-                objs_.append(copy.deepcopy({k: v for k, v in f.items() if k != "source"}) | {"source": f.get("source") or "code: vật cố định"})
     want = sorted(s["shot"] for s in inputs["shots"])
     got = sorted(s.get("shot") for s in specs if isinstance(s, dict))
     if got != want:
         raise llm_io.SchemaError(f"shot_specs phải có đúng các shot {want}, đang có {got}")
-    errs: List[str] = []
-    have = {o.get("key"): o for o in bl.get("objects", []) if isinstance(o, dict)}
-    if inputs.get("auto"):                               # sân khấu tự động: đạo cụ chỉ từ Kho (kích thước có nguồn), không tự thêm
-        given = {f["key"] for f in inputs["fixed"]}
-        for k, o in have.items():
-            if o.get("kind") not in ("nguoi", "moc") and k not in given:
-                errs.append(f"vật '{k}' ({o.get('kind')}) không có trong danh sách vật cố định — chỉ dùng đạo cụ được cho, không tự thêm")
-    for f in inputs["fixed"]:
-        o = have.get(f["key"])
-        if o is None:
-            errs.append(f"thiếu vật cố định '{f['key']}' trong blocking.objects")
-            continue
-        if f.get("at") and (not o.get("at") or math.dist(o["at"][:2], f["at"][:2]) > 0.01):
-            errs.append(f"vật cố định '{f['key']}' bị đổi vị trí {o.get('at')} ≠ {f['at']}")
-        for k in ("h", "d", "kind"):
-            if k in f and o.get(k) != f[k]:
-                errs.append(f"vật cố định '{f['key']}' bị đổi {k}: {o.get(k)} ≠ {f[k]}")
-    # tư thế ngoài enum (vd 'nga', 'lying') trước đây bị giải im lặng như người đứng — rà Đợt 2 khi prompt 29 mở nga_ngua/nam.
-    # Chỉ kiểm câu trả lời mới của Đạo diễn (blocking cũ đã lưu không bị chặn ở đây).
-    from .shot_intent import TU_THE
-    rows = [("objects", o) for o in bl.get("objects", []) if isinstance(o, dict)]
-    rows += [(f"beats.{n}", ov) for n, b in (bl.get("beats") or {}).items() if isinstance(b, dict)
-             for ov in b.values() if isinstance(ov, dict)]
-    for where, o in rows:
-        if o.get("tu_the") is not None and o["tu_the"] not in TU_THE:
-            errs.append(f"{where}: tu_the '{o['tu_the']}' không thuộc {', '.join(TU_THE)}")
+    errs = blocking_errors(bl, inputs)
     if errs:
         raise llm_io.SchemaError("; ".join(errs[:6]))
     try:
@@ -148,6 +126,46 @@ def validate_answer(obj, inputs: Dict, marks: Optional[Dict] = None) -> Dict:
         if red:
             raise llm_io.SchemaError('; '.join(f"{i['path']}: {i['loi']}" for i in red))
     return obj
+
+
+def blocking_errors(bl: Dict, inputs: Dict) -> List[str]:
+    """Phần DÀN CẢNH của bộ kiểm (dùng chung: câu trả lời một vai + vai Đạo diễn của stage_crew): vật cố định code tự thêm / không bị
+    đổi số, đạo cụ chỉ từ Kho (sân khấu tự động), tư thế trong enum. Sửa `bl` tại chỗ (thêm vật cố định thiếu)."""
+    # 16/10 chạy thật #31 cảnh 4 (lượt 2 hỏng vì "thiếu vật cố định 'moc'"): vật cố định ĐÃ có tọa độ / mốc từ K1 là dữ kiện của code —
+    # thiếu thì code tự thêm (không bắt Đạo diễn chép lại, không tốn lượt hỏi lại). Đạo cụ chưa có `at` vẫn phải do Đạo diễn đặt.
+    objs_ = bl.setdefault("objects", []) if isinstance(bl.get("objects", []), list) else None
+    if objs_ is not None:
+        keys_ = {o.get("key") for o in objs_ if isinstance(o, dict)}
+        for f in inputs.get("fixed") or []:
+            if f.get("key") not in keys_ and (f.get("kind") == "moc" or f.get("at")):
+                objs_.append(copy.deepcopy({k: v for k, v in f.items() if k != "source"}) | {"source": f.get("source") or "code: vật cố định"})
+    errs: List[str] = []
+    have = {o.get("key"): o for o in bl.get("objects", []) if isinstance(o, dict)}
+    if inputs.get("auto"):                               # sân khấu tự động: đạo cụ chỉ từ Kho (kích thước có nguồn), không tự thêm
+        given = {f["key"] for f in inputs["fixed"]}
+        for k, o in have.items():
+            if o.get("kind") not in ("nguoi", "moc") and k not in given:
+                errs.append(f"vật '{k}' ({o.get('kind')}) không có trong danh sách vật cố định — chỉ dùng đạo cụ được cho, không tự thêm")
+    for f in inputs["fixed"]:
+        o = have.get(f["key"])
+        if o is None:
+            errs.append(f"thiếu vật cố định '{f['key']}' trong blocking.objects")
+            continue
+        if f.get("at") and (not o.get("at") or math.dist(o["at"][:2], f["at"][:2]) > 0.01):
+            errs.append(f"vật cố định '{f['key']}' bị đổi vị trí {o.get('at')} ≠ {f['at']}")
+        for k in ("h", "d", "kind"):
+            if k in f and o.get(k) != f[k]:
+                errs.append(f"vật cố định '{f['key']}' bị đổi {k}: {o.get(k)} ≠ {f[k]}")
+    # tư thế ngoài enum (vd 'nga', 'lying') trước đây bị giải im lặng như người đứng — rà Đợt 2 khi prompt 29 mở nga_ngua/nam.
+    # Chỉ kiểm câu trả lời mới của Đạo diễn (blocking cũ đã lưu không bị chặn ở đây).
+    from .shot_intent import TU_THE
+    rows = [("objects", o) for o in bl.get("objects", []) if isinstance(o, dict)]
+    rows += [(f"beats.{n}", ov) for n, b in (bl.get("beats") or {}).items() if isinstance(b, dict)
+             for ov in b.values() if isinstance(ov, dict)]
+    for where, o in rows:
+        if o.get("tu_the") is not None and o["tu_the"] not in TU_THE:
+            errs.append(f"{where}: tu_the '{o['tu_the']}' không thuộc {', '.join(TU_THE)}")
+    return errs
 
 
 def _sig(spec: Dict):

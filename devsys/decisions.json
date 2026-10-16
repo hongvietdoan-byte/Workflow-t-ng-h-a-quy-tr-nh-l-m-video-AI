@@ -305,6 +305,38 @@
    "stage": "director_stage_specs"
   },
   {
+   "id": "d103",
+   "step": "step2",
+   "who": "claude",
+   "what": "Sân khấu chia vai (cờ stage_crew): Đạo diễn dàn cảnh theo nhịp + ý đồ; trả lời đề nghị dời người của Quay phim (Đạo diễn thắng)",
+   "where": "core/stage_crew.py:ROLES",
+   "stage": "director_stage_blocking"
+  },
+  {
+   "id": "d104",
+   "step": "step2",
+   "who": "claude",
+   "what": "Sân khấu chia vai: Quay phim đặt máy (yêu cầu khung + ý đồ / che có chủ ý), code giải máy + Blender đo",
+   "where": "core/stage_crew.py:ROLES",
+   "stage": "dp_stage_specs"
+  },
+  {
+   "id": "d105",
+   "step": "step2",
+   "who": "claude",
+   "what": "Sân khấu chia vai: Quay phim tự duyệt bảng đối chiếu 'đã khai ↔ đo được' + ảnh clay → khớp / sửa máy / đề nghị dời người / giữ lệch",
+   "where": "core/stage_crew.py:ROLES",
+   "stage": "dp_stage_review"
+  },
+  {
+   "id": "d106",
+   "step": "step2",
+   "who": "claude",
+   "what": "Sân khấu chia vai: Đạo diễn duyệt chốt (chỉ khi người dùng KHÔNG tự duyệt — cờ stage_crew_user_approve tắt)",
+   "where": "core/stage_crew.py:ROLES",
+   "stage": "director_stage_approve"
+  },
+  {
    "id": "d83",
    "step": "step2",
    "who": "claude",
