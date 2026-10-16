@@ -140,6 +140,30 @@ class InputsTests(Base):
         self.assertIn("UMP", notes)                                           # … nhưng nói rõ không đo được
         self.assertIn("cam_tay", notes)
 
+    def test_size_from_kho_scale_sentence(self):
+        # 16/10 người dùng: Kho có ảnh Kelly cầm SKORP → mô tả "≈ 3 head-heights long" (tập 1 dùng) — không có số đo thì suy từ đó
+        self.WEAPON = [{"id": 7, "name": "SKORP", "kind": "weapon", "size": None,
+                        "description": "Súng tiểu liên. In-game scale: compact SMG ≈ 3 head-heights long (stock to muzzle)."}]
+        inputs, _ = self.inputs(True)                                       # id 7 không có hồ sơ → chỉ đọc mô tả
+        sk = next(o for o in inputs["fixed"] if o["key"] == "skorp")
+        H = next(p["H"] for p in inputs["people"])
+        self.assertAlmostEqual(sk["d"], round(3 * H / 7.5, 3))
+        self.assertAlmostEqual(sk["h"], round(0.3 * sk["d"], 3))
+        self.assertIn("ước tính từ tỉ lệ Kho #7", sk["source"])
+        for text, want in (("In-game scale: 3,5 head-heights long.", 3.5), ("Tỉ lệ: dài 2 đầu người.", 2.0),
+                           ("In-game scale: 2–3 head-heights long.", None), ("Tỉ lệ: 1 đầu đạn đỏ.", None),
+                           ("Súng OB55 heads.", None), ("no scale", None)):
+            r = stage_auto.weapon_size_from_scale(self.p.conn, {"id": 999, "name": "X", "description": text}, 1.5)
+            self.assertEqual(r and round(r[1] / (1.5 / 7.5), 3), want, text)
+
+    def test_size_fills_only_missing_part(self):
+        self.WEAPON = [{"id": 8, "name": "SKORP", "kind": "weapon", "size": {"height_m": 0.25},
+                        "description": "In-game scale: compact SMG ≈ 3 head-heights long.", "characters": [{"x": 1}]}]
+        inputs, _ = self.inputs(True)
+        sk = next(o for o in inputs["fixed"] if o["key"] == "skorp")
+        self.assertEqual(sk["h"], 0.25)                                       # số đo Kho giữ nguyên
+        self.assertIn("Kho #8 size + ước tính", sk["source"])
+
 
 if __name__ == "__main__":
     unittest.main()

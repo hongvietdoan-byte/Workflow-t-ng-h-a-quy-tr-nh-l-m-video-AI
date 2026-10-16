@@ -137,6 +137,10 @@ Gốc: #31 cảnh 3 súng SKORP hiện ra ở xe nôi rồi nằm trong tay Kell
   ra trước 0,3 m, lệch bên 0,2 m. Một nguồn cho bộ giải + Blender K4.
 - Blender: mỗi chỗ một khối `PROP_<KHÓA>_V<n>` ẩn/hiện theo nhịp; luật P2 không tính đồ cầm tay là vật chắn; không vẽ vào ảnh nền
   (`stage_camera.props`), không mang sang cảnh sau.
+- Cỡ súng (người dùng 16/10: Kho đã có ảnh nhân vật cầm súng, tập 1 dùng): Kho chưa có số đo → câu tỉ lệ Kho
+  (`prop_lock.weapon_scale`, vd SKORP "≈ 3 head-heights long") → dài = N × H người cầm / 7,5, cao = 0,3 × dài (đo trên ảnh Kho #433
+  `kelly_cam_skorp_ty_le`: ≈ 3,4 đầu, cao kể cả băng đạn ≈ 0,3 dài) — nguồn ghi ở `source` của vật; không ghi vào Kho.
+- Đồ xuất hiện GIỮA shot (súng hiện ra cuối shot 11) không đo được ở shot đó: nhịp = trạng thái ĐẦU shot; đo ở shot sau.
 - Hạn chế: khối là trụ đứng đường kính = bề rộng Kho (súng: bề dài) → to hơn súng thật, % thấy là ước lượng; súng không bám theo
   người đang di chuyển (`den`) trong shot — khối đứng ở chỗ đầu nhịp.
 - Thử 0 USD (bản sao CSDL, SKORP tạm cao 0,25 / dài 0,55 m chỉ ở bản sao): dàn cảnh đã duyệt cảnh 3 + súng → shot 12 thấy súng 53 %,

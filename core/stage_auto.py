@@ -38,6 +38,31 @@ HANDHELD_NOTE = ("Vũ khí / đồ cầm tay (`cam_duoc`): ghi vào objects như
                  "nằm đâu đó → `at` (+ `z` = cao mặt đặt, m); trong tay → `\"cam_tay\": \"<khóa người>\", \"tay\": \"phai|trai|hai_tay\"` "
                  "(code tính điểm tay theo chỗ đứng + hướng mặt + tư thế; người phải có `facing`). Quay phim ghi vật này vào "
                  "`thanh_phan` khi shot cần thấy nó — Blender đo % thấy.")
+# Vũ khí chưa có số đo Kho: câu tỉ lệ Kho (prop_lock.weapon_scale — tập 1 dùng, lấy từ ảnh nhân vật cầm súng, vd SKORP "≈ 3
+# head-heights long") → dài = N × H người cầm × HEAD_PER_H. ƯỚC TÍNH: HEAD_PER_H = chuẩn người lớn 1/7,5; cao = WEAPON_H_PER_L × dài
+# (đo trên ảnh Kho #433 'kelly_cam_skorp_ty_le': nòng→báng ≈ 470 px ≈ 3,4 đầu, cao kể cả băng đạn ≈ 0,3 dài).
+HEAD_PER_H = 1 / 7.5
+WEAPON_H_PER_L = 0.3
+_HEADS = re.compile(r"(?<![\w.,–-])(\d+(?:[.,]\d+)?)(?!\s*[-–]\s*\d)\s*(?:x|×)?\s*(?:head[- ]?heights?|heads?\b"
+                    r"|đầu\b(?!\s*(?:đạn|nòng|súng|báng|ray)))", re.I)      # rà 16/10: "2–3 đầu" / "đầu đạn" / "OB55" không tính
+
+
+def weapon_size_from_scale(conn, asset: Dict, holder_h: float) -> Optional[Tuple[float, float, str]]:
+    """(cao, dài, nguồn) ước tính từ câu tỉ lệ của Kho, None khi Kho không ghi số đầu."""
+    from . import prop_lock
+    try:
+        text = prop_lock.weapon_scale(conn, asset) or ""
+    except Exception:  # noqa: BLE001 - hồ sơ hỏng: không ước tính (ghi chú 'không đo được')
+        return None
+    m = _HEADS.search(text)
+    if not m:
+        return None
+    n = float(m.group(1).replace(",", "."))
+    d = n * holder_h * HEAD_PER_H
+    return round(WEAPON_H_PER_L * d, 3), round(d, 3), (f"ước tính từ tỉ lệ Kho #{asset.get('id')} ({n:g} đầu × {holder_h:g} m / 7,5; "
+                                                         f"cao = {WEAPON_H_PER_L:g} × dài)")
+
+
 SEG_FIELD = "stage_segment"
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _TOOL = None
@@ -237,6 +262,7 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
     objs: Dict[int, Dict] = {}
     props_of: Dict[int, List[int]] = {}
     handheld: Dict[int, Dict] = {}
+    holders: Dict[int, set] = {}
     hand_on = features.on(HANDHELD_FLAG)
     for s in seg["shots"]:
         for a in place_refs.shot_objects(conn, pid, s["data"]):
@@ -245,6 +271,7 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
             if a.get("kind") == "weapon":                 # rà 15/10: súng / vũ khí cầm tay — không phải khối đứng trên sàn
                 if hand_on:                               # 16/10 cờ stage_handheld_props: vật theo nhịp (chỗ khai / tay nhân vật)
                     handheld.setdefault(a["id"], a)
+                    holders.setdefault(a["id"], set()).update(x for x in s["data"].get("characters") or [] if isinstance(x, str))
                 continue
             objs.setdefault(a["id"], a)
     for a in objs.values():
@@ -265,16 +292,23 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
         size = a.get("size") or {}
         h = size.get("height_m")
         d = max([v for v in (size.get("length_m"), size.get("width_m"), size.get("depth_m")) if v] or [0])   # vũ khí: bề dài
+        src = f"Kho #{a.get('id')} size"
+        if not h or not d:                                # 16/10 người dùng: Kho đã có ảnh nhân vật cầm súng → câu tỉ lệ (tập 1 dùng)
+            hs = [p["H"] for p in people if p["label"] in holders.get(a["id"], ())]
+            est = weapon_size_from_scale(conn, a, max(hs)) if hs else None     # H lớn nhất trong các nhân vật của shot
+            if est:                                       # rà 16/10: chỉ điền phần Kho thiếu, số đo Kho thắng
+                src = est[2] if not (h or d) else f"Kho #{a.get('id')} size + {est[2]}"
+                h, d = h or est[0], d or est[1]
         if not h or not d:                                # không chặn cả cảnh: nói rõ vật này không đo được
-            hand_notes.append(f"(vũ khí {a.get('name')} Kho #{a.get('id')} thiếu kích thước cao + dài → không có trong dàn cảnh, "
-                              "code KHÔNG đo được % thấy)")
+            hand_notes.append(f"(vũ khí {a.get('name')} Kho #{a.get('id')} thiếu kích thước cao + dài và câu tỉ lệ 'N head-heights' → "
+                              "không có trong dàn cảnh, code KHÔNG đo được % thấy)")
             continue
         k = key_of(a.get("name"))
         while k in keys:
             k += "x"
         keys.add(k)
         fixed.append({"key": k, "kind": "dao_cu", "label": a.get("name"), "h": round(float(h), 3), "d": round(float(d), 3),
-                      "cam_duoc": True, "source": f"Kho #{a.get('id')} size"})
+                      "cam_duoc": True, "source": src})
     marks = st.get("marks") or {}
     if "thap_chan" in marks:
         fixed.append({"key": "moc", "kind": "moc", "from_marks": "thap",
