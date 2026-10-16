@@ -210,6 +210,19 @@
     }
    ],
    "status": "active"
+  },
+  {
+   "id": "stage-handheld-new-scenes-2026-10-16",
+   "date": "2026-10-16",
+   "by": "người dùng",
+   "text": "Bật cờ stage_handheld_props (đạo cụ cầm tay theo nhịp — súng đo được % thấy) cho các cảnh MỚI; cảnh đã duyệt giữ nguyên. Cỡ vũ khí khi Kho chưa có số đo: suy từ câu tỉ lệ Kho (ảnh nhân vật cầm súng, tập 1 dùng).",
+   "keeps": "Máy sân khấu + vân tay đầu vào của mọi đoạn đã dàn không có đồ cầm tay (#31 cảnh 1–8); cờ vẫn không bật qua preset (OPT_IN_ONLY).",
+   "changes": "16/10 code: core/stage_auto.placed_without_handheld + weapon_size_from_scale; bật ở data/feature_settings.json máy chính; check_stage_handheld_new_scenes.",
+   "replaces": null,
+   "enforced_by": [
+   {"kind": "code", "check": "check_stage_handheld_new_scenes"}
+  ],
+   "status": "active"
   }
  ]
 }

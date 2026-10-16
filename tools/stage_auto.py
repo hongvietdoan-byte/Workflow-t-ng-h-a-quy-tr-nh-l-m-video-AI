@@ -40,6 +40,8 @@ def main(argv=None):
                                                         "chốt): --prompt-out ghi đề bài của vai đang tới lượt, --answer đưa câu trả lời "
                                                         "của vai đó (đo K3 + K4 khi cần)")
     ap.add_argument("--crew-reset", action="store_true", help="cất lượt chia vai đang dở, bắt đầu lại từ Đạo diễn")
+    ap.add_argument("--cam-tay", action="store_true", help="cờ stage_handheld_props: dàn lại đoạn ĐÃ dàn (không có đồ cầm tay) CÓ súng "
+                                                         "(đầu vào đổi — kèm --crew-reset / --again)")
     ap.add_argument("--crew-approve", action="store_true", help="NGƯỜI DÙNG đã duyệt ảnh ghép (nói trong chat) → ghi stage_camera")
     ap.add_argument("--crew-tra-lai", metavar="JSON", help="NGƯỜI DÙNG trả lại: tệp [{\"shot\": 10, \"y_do\": \"…\"}] → Quay phim duyệt lại")
     ap.add_argument("--beats", metavar="THU_MUC", help="0 USD: lượt đã lưu của từng cảnh → mặt cắt bỏ mái (Blender, nếu chưa có) + "
@@ -73,6 +75,13 @@ def main(argv=None):
               + (f" · ĐÃ có ảnh shot {drawn}" + ("" if a.force else " → bỏ qua (thêm --force)") if drawn else ""))
     for h in stage_auto.family_hints(segs):
         print("⚠", h)
+    from core import features
+    if a.cam_tay:
+        os.environ[stage_auto.HANDHELD_REDO_ENV] = "1"
+    elif features.on(stage_auto.HANDHELD_FLAG):         # 16/10: nói rõ đoạn nào giữ đầu vào cũ (không im lặng)
+        for g in segs:
+            if stage_auto.placed_without_handheld(os.path.join(stage_auto.base_dir(a.data_dir, a.project, g["stage"]), "k1"), g):
+                print(f"ℹ {g['id']}: đã dàn trước cờ đồ cầm tay → giữ đầu vào cũ (không có súng); dàn lại có súng: --crew-reset --cam-tay")
     if a.crew or a.crew_approve or a.crew_tra_lai:     # 16/10 chia vai (kế hoạch docs/KE_HOACH_CHIA_VAI_SAN_KHAU_2026-10-16.md)
         if len(segs) != 1:
             print("Chế độ chia vai cần đúng MỘT cảnh (--scene)")

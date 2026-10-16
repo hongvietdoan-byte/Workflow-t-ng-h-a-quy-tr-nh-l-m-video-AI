@@ -41,10 +41,35 @@ HANDHELD_NOTE = ("Vũ khí / đồ cầm tay (`cam_duoc`): ghi vào objects như
 # Vũ khí chưa có số đo Kho: câu tỉ lệ Kho (prop_lock.weapon_scale — tập 1 dùng, lấy từ ảnh nhân vật cầm súng, vd SKORP "≈ 3
 # head-heights long") → dài = N × H người cầm × HEAD_PER_H. ƯỚC TÍNH: HEAD_PER_H = chuẩn người lớn 1/7,5; cao = WEAPON_H_PER_L × dài
 # (đo trên ảnh Kho #433 'kelly_cam_skorp_ty_le': nòng→báng ≈ 470 px ≈ 3,4 đầu, cao kể cả băng đạn ≈ 0,3 dài).
+HANDHELD_REDO_ENV = "STAGE_HANDHELD_REDO"
 HEAD_PER_H = 1 / 7.5
 WEAPON_H_PER_L = 0.3
 _HEADS = re.compile(r"(?<![\w.,–-])(\d+(?:[.,]\d+)?)(?!\s*[-–]\s*\d)\s*(?:x|×)?\s*(?:head[- ]?heights?|heads?\b"
                     r"|đầu\b(?!\s*(?:đạn|nòng|súng|báng|ray)))", re.I)      # rà 16/10: "2–3 đầu" / "đầu đạn" / "OB55" không tính
+
+
+def placed_without_handheld(k1_dir: str, seg: Dict) -> bool:
+    """Người dùng 16/10 ('bật cho cảnh mới; cảnh đã duyệt giữ nguyên'): đoạn đã có máy sân khấu lưu (result.json có `cams`) dựng KHÔNG
+    có đồ cầm tay → giữ đầu vào cũ (vân tay không đổi: không gỡ máy, không gọi API dàn lại). Lượt đã có đồ cầm tay → giữ bật.
+    Dàn lại đoạn cũ CÓ súng: env HANDHELD_REDO_ENV=1 (CLI `--cam-tay`, chọn có chủ ý)."""
+    if os.environ.get(HANDHELD_REDO_ENV) == "1":
+        return False
+    seg_dir = os.path.join(os.path.dirname(os.path.abspath(k1_dir)), f"doan_{key_of(seg['scene'])}")
+    try:
+        with open(os.path.join(seg_dir, "result.json"), encoding="utf-8") as f:
+            res = json.load(f)
+    except (OSError, ValueError):
+        return False
+    if not res.get("cams"):
+        return False
+    rd = os.path.join(seg_dir, res.get("round") or "")
+    src = os.path.join(rd, "inputs.json") if os.path.exists(os.path.join(rd, "inputs.json")) else os.path.join(seg_dir, "inputs.json")
+    try:                                                  # như result_round: lượt ngoại tuyến / chia vai có inputs.json riêng, API r<n> ở đoạn
+        with open(src, encoding="utf-8") as f:
+            fixed = json.load(f).get("fixed") or []
+    except (OSError, ValueError):
+        fixed = []
+    return not any(o.get("cam_duoc") for o in fixed if isinstance(o, dict))
 
 
 def weapon_size_from_scale(conn, asset: Dict, holder_h: float) -> Optional[Tuple[float, float, str]]:
@@ -263,7 +288,7 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
     props_of: Dict[int, List[int]] = {}
     handheld: Dict[int, Dict] = {}
     holders: Dict[int, set] = {}
-    hand_on = features.on(HANDHELD_FLAG)
+    hand_on = features.on(HANDHELD_FLAG) and not placed_without_handheld(k1_dir, seg)
     for s in seg["shots"]:
         for a in place_refs.shot_objects(conn, pid, s["data"]):
             if a.get("kind") != "weapon":

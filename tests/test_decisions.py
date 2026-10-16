@@ -154,6 +154,15 @@ def check_stage_crew_plan():
     assert 'state["asked"]' in src and "unresolved" in src, "đề nghị dời người phải chỉ hỏi Đạo diễn một lần"
 
 
+
+def check_stage_handheld_new_scenes():
+    """16/10: cờ stage_handheld_props chỉ cho cảnh MỚI — đoạn đã dàn không có đồ cầm tay giữ đầu vào (vân tay) cũ; không bật qua preset."""
+    import inspect
+    from core import features, stage_auto
+    assert "stage_handheld_props" in features.OPT_IN_ONLY, "preset không được tự bật đồ cầm tay"
+    assert "not placed_without_handheld(k1_dir, seg)" in inspect.getsource(stage_auto.inputs_for), "cảnh đã duyệt bị đổi đầu vào"
+    assert "weapon_size_from_scale" in inspect.getsource(stage_auto.inputs_for), "chưa suy cỡ vũ khí từ câu tỉ lệ Kho"
+
 CHECKS = {k: v for k, v in globals().items() if k.startswith("check_") and callable(v)}
 
 

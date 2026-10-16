@@ -164,6 +164,68 @@ class InputsTests(Base):
         self.assertEqual(sk["h"], 0.25)                                       # số đo Kho giữ nguyên
         self.assertIn("Kho #8 size + ước tính", sk["source"])
 
+    def test_scene_placed_before_flag_keeps_old_inputs(self):
+        # người dùng 16/10: bật cờ cho cảnh MỚI, cảnh đã duyệt giữ nguyên (không đổi vân tay → không gỡ máy, không gọi API lại)
+        import json as _j
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        base = stage_auto.base_dir(self.data, pid, seg["stage"])
+        k1 = stage_auto.ensure_k1(seg["entry"], seg["main_spot"], base)
+        seg_dir = os.path.join(base, f"doan_{stage_auto.key_of(seg['scene'])}")
+        os.makedirs(os.path.join(seg_dir, "crew", "final"), exist_ok=True)
+        with open(os.path.join(seg_dir, "crew", "final", "inputs.json"), "w", encoding="utf-8") as f:
+            _j.dump({"fixed": []}, f)
+        with open(os.path.join(seg_dir, "result.json"), "w", encoding="utf-8") as f:
+            _j.dump({"cams": {"1": {}}, "round": "crew/final", "fp": "x"}, f)
+        with mock.patch("core.place_refs.shot_objects", return_value=self.WEAPON), \
+                mock.patch.dict(os.environ, {"FEATURE_STAGE_HANDHELD_PROPS": "1"}):
+            old, _ = stage_auto.inputs_for(self.p.conn, pid, seg, k1)
+            with mock.patch.dict(os.environ, {"FEATURE_STAGE_HANDHELD_PROPS": "0"}):
+                off, _ = stage_auto.inputs_for(self.p.conn, pid, seg, k1)
+            self.assertEqual(stage_auto.fingerprint(old), stage_auto.fingerprint(off))
+            with open(os.path.join(seg_dir, "crew", "final", "inputs.json"), "w", encoding="utf-8") as f:
+                _j.dump({"fixed": [{"key": "skorp", "cam_duoc": True}]}, f)            # lượt đã dựng CÓ đồ cầm tay → giữ bật
+            again, _ = stage_auto.inputs_for(self.p.conn, pid, seg, k1)
+        self.assertTrue(any(o.get("cam_duoc") for o in again["fixed"]))
+
+class PlacedLockTests(unittest.TestCase):
+    """placed_without_handheld: đoạn đã dàn (không đồ cầm tay) giữ đầu vào cũ; cảnh mới / --cam-tay thì bật."""
+
+    def setUp(self):
+        import tempfile
+        self.base = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, self.base, True)
+        self.k1 = os.path.join(self.base, "k1_x")
+        self.seg_dir = os.path.join(self.base, "doan_3")
+        os.makedirs(self.seg_dir)
+
+    def write(self, rel, obj):
+        import json as _j
+        p = os.path.join(self.seg_dir, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as f:
+            _j.dump(obj, f)
+
+    def lock(self):
+        return stage_auto.placed_without_handheld(self.k1, {"scene": "3"})
+
+    def test_new_scene_or_no_cams_not_locked(self):
+        self.assertFalse(self.lock())                                     # chưa có result.json
+        self.write("result.json", {"cams": {}, "round": "r1"})
+        self.assertFalse(self.lock())                                     # chưa gán máy nào
+
+    def test_api_round_falls_back_to_segment_inputs(self):
+        self.write("result.json", {"cams": {"1": {}}, "round": "r2"})       # lượt API: inputs.json ở thư mục đoạn
+        self.write("inputs.json", {"fixed": [{"key": "skorp", "cam_duoc": True}]})
+        self.assertFalse(self.lock())
+        self.write("inputs.json", {"fixed": [{"key": "xenoi"}]})
+        self.assertTrue(self.lock())
+
+    def test_redo_env_unlocks(self):
+        self.write("result.json", {"cams": {"1": {}}, "round": "r1"})
+        self.assertTrue(self.lock())                                      # không có inputs nào → coi là dàn cũ
+        with mock.patch.dict(os.environ, {stage_auto.HANDHELD_REDO_ENV: "1"}):
+            self.assertFalse(self.lock())
 
 if __name__ == "__main__":
     unittest.main()
