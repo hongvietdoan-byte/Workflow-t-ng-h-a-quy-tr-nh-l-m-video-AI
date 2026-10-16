@@ -101,6 +101,17 @@ Quay phim chọn sửa máy; ca sau nên ưu tiên đề nghị dời người k
     → chưa dùng previs one-shot làm "đường ray máy" cho cả đoạn 17,7 s. Hướng tiếp (chưa làm, cần người dùng chọn): (a) thử ref DEPTH
     thay clay (cấu trúc + máy rõ hơn); (b) Kling (refer_type "base" — sửa lại video gốc, giữ máy) với ref previs; (c) bỏ one-shot, giữ
     luồng từng shot + khung đầu/cuối từ previs.
+- **Lượt 2 — ref DEPTH (16/10 23:30, người dùng chọn (a) + duyệt giá $1,38; sổ chi $1,38, dự án thử #32 tổng $2,76)** — `--ref depth`,
+  task `cgt-20261016232924-c29t2`, cùng đoạn 10–15 s + cùng 4 ảnh; prompt tả depth (sáng = gần, đen = trời), "follow EXACTLY … frame
+  by frame". Bản giao cùng thư mục (`v2v_seedance25_720p_ref-depth_10-15s.mp4`, ảnh ghép 4 hàng previs clay / previs depth / V2V clay /
+  V2V depth).
+  - TỐT HƠN lượt clay: CỠ KHUNG + BỐ CỤC khớp previs — máy sát sau vai Kelly, Kelly chiếm phần lớn khung, xe nôi bên trái Kelly đúng
+    chỗ khối trụ ở previs 10–13 s (lượt clay lùi xa thành toàn cảnh). Bóng mờ, mê cung đêm, xe nôi vẫn đúng Kho.
+  - VẪN CHƯA theo cú vòng máy: 2,8–4,6 s previs quét +840 px; lượt depth nhích +90 px ở 2,8 s rồi quét NGƯỢC chiều (≈ −140 px).
+    Tương quan pan x −0,17 · zoom +0,38 · roll +0,57 (clay: −0,11 · −0,38 · −0,11).
+  - Kết luận: ref depth truyền được vị trí máy / cỡ khung / bố cục tĩnh, chưa truyền được chuyển động vòng của máy. Hợp cho shot máy
+    bám ổn định (follow sau lưng), chưa hợp cho đoạn previs có cú vòng / pan lớn → nếu làm tiếp: cắt ranh giới đoạn gen tại các cú vòng
+    (mỗi đoạn máy gần như đứng / bám đều), hoặc thử (b) Kling refer_type "base".
 
 ## 5. Khuyến nghị dùng
 
