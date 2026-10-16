@@ -176,8 +176,8 @@ class CrewDbTests(Base):
         self.assertIn("tổ sân khấu", cam["source"])
         self.assertIn("nguoi_dung", cam["source"])
         res = json.load(open(os.path.join(stage_auto.base_dir(self.data, pid, seg["stage"]), "doan_1", "result.json"), encoding="utf-8"))
-        self.assertEqual(res["round"], "crew/m1")
-        self.assertEqual(stage_auto.result_round(self.data, pid, seg).replace(os.sep, "/")[-7:], "crew/m1")
+        self.assertEqual(res["round"], "crew/final")
+        self.assertTrue(stage_auto.result_round(self.data, pid, seg).replace(os.sep, "/").endswith("crew/final"))
 
     def test_bad_answer_keeps_state(self):
         pid = self.project()
@@ -285,7 +285,7 @@ class ReviewFixTests(Base):
         out = stage_auto.rerender(self.p.conn, pid, seg, self.data)
         self.assertEqual(out["missing"], [])
         res = json.load(open(os.path.join(stage_auto.base_dir(self.data, pid, seg["stage"]), "doan_1", "result.json"), encoding="utf-8"))
-        self.assertEqual(res["round"], "crew/m1")
+        self.assertEqual(res["round"], "crew/final")
         self.assertIn("crew", res)
 
     def test_images_limited_not_silent(self):
@@ -327,6 +327,181 @@ class ReviewFixTests(Base):
                "thanh_phan": [{"vat": "kelly", "vai": "chinh", "vung": "giua", "thay": "mat"}]}]
         sol = ss.solve_scene(sp, bl, 9 / 16)
         self.assertTrue(any(c["c1_ok"] for c in sol["shots"][0]["cams"]))
+
+
+class OptimizeTests(Base):
+    """Tối ưu 16/10 (bản đánh giá mục 3): đo lại chỉ shot đổi, khóa lần đo đã duyệt / chốt lần tốt nhất, s0 của Quay phim, giữ phía máy."""
+
+    def setUp(self):
+        super().setUp()
+        p = mock.patch.dict(os.environ, CREW_ON)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def run_to_review(self, pid, seg, s0=None):
+        stage_auto.crew_answer(self.p.conn, pid, seg, self.data, blocking())
+        sp = specs()
+        if s0:
+            sp["s0"] = s0
+        return stage_auto.crew_answer(self.p.conn, pid, seg, self.data, sp)
+
+    def state(self, pid, seg):
+        return stage_auto._crew_load(stage_auto._crew_ctx(self.p.conn, pid, seg, self.data))
+
+    def test_only_changed_shot_remeasured_with_near(self):
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        self.run_to_review(pid, seg)
+        calls = []
+        real = stage_auto.tool().v2_run.side_effect
+        stage_auto.tool().v2_run.side_effect = lambda bl, sp, *a, **k: (calls.append(copy.deepcopy(sp)), real(bl, sp, *a, **k))[1]
+        fix = dict(specs()["shot_specs"][1], co="MS", do_cao="thap")
+        stage_auto.crew_answer(self.p.conn, pid, seg, self.data, review({"shot": 1, "ket_luan": "khop"},
+                               {"shot": 2, "ket_luan": "sua_may", "ly_do": "x", "shot_spec": fix}, {"shot": 3, "ket_luan": "khop"}))
+        self.assertEqual([s["shot"] for s in calls[0]], [2])            # chỉ đo lại shot 2
+        self.assertIn("_near", calls[0][0])                             # giữ phía máy lần đo trước
+        st = self.state(pid, seg)
+        self.assertEqual(st["shot_measure"], {"1": "crew/m1", "2": "crew/m2", "3": "crew/m1"})
+        self.assertEqual(st["accepted"], {"1": "crew/m1", "3": "crew/m1"})
+        text, _, _ = stage_auto.crew_prompt(self.p.conn, pid, seg, self.data)
+        self.assertIn("số đo giữ từ lần đo crew/m1", text)
+
+    def test_finalize_picks_accepted_not_latest(self):
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        self.run_to_review(pid, seg)
+        ok = [{"shot": 2, "ket_luan": "khop"}, {"shot": 3, "ket_luan": "khop"}]
+        stage_auto.crew_answer(self.p.conn, pid, seg, self.data, review({"shot": 1, "ket_luan": "khop"}, *ok))
+        st = self.state(pid, seg)
+        self.assertEqual(st["phase"], "duyet")
+        r = stage_auto.crew_user_verdict(self.p.conn, pid, seg, self.data, approve=True)
+        self.assertEqual(r["result"]["crew"]["picked"], {"1": "crew/m1", "2": "crew/m1", "3": "crew/m1"})
+        self.assertIn("crew", self.shot(pid, 1)["stage_camera"]["guide"].replace(os.sep, "/"))
+
+    def test_best_measure_when_not_accepted(self):
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        self.run_to_review(pid, seg)
+        ctx = stage_auto._crew_ctx(self.p.conn, pid, seg, self.data)
+        st = self.state(pid, seg)
+        st["shot_hist"] = {"1": ["crew/m1", "crew/m9"]}
+        good, bad = {"best": {"ok": True, "check": {"fail": []}}}, {"best": {"ok": False, "check": {"fail": ["P3"]}}}
+        with mock.patch.object(stage_auto, "_crew_v2", side_effect=lambda c, rel: {1: good if rel == "crew/m1" else bad}):
+            self.assertEqual(stage_auto._crew_pick(ctx, st, "1"), "crew/m1")   # lần sau (m9) xấu hơn → giữ m1
+
+    def test_s0_from_dp_and_director_s0_ignored(self):
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        bl = blocking()
+        bl["blocking"]["s0"] = "left"                                   # Đạo diễn ghi s0 (cũ) → không dùng
+        stage_auto.crew_answer(self.p.conn, pid, seg, self.data, bl)
+        seen = []
+        real = stage_auto.tool().v2_run.side_effect
+        stage_auto.tool().v2_run.side_effect = lambda b, sp, *a, **k: (seen.append(b.get("s0")), real(b, sp, *a, **k))[1]
+        sp = specs()
+        sp["s0"] = "right"
+        stage_auto.crew_answer(self.p.conn, pid, seg, self.data, sp)
+        self.assertEqual(seen, ["right"])
+        bad = specs()
+        bad["s0"] = "trai"
+        with self.assertRaises(llm_io.SchemaError):
+            sc.validate_specs(bad, self.state_inputs(pid, seg), blocking()["blocking"])
+
+    def test_waived_rule_gives_camera(self):
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        self.run_to_review(pid, seg)
+        real = stage_auto._crew_v2
+
+        def p2(ctx, rel):
+            out = real(ctx, rel)
+            out[1]["best"].update(ok=False, check={"ok": False, "fail": ["P2"], "why": {"P2": "mép bậc"}, "phu": {}, "miss": 0.0})
+            return out
+        with mock.patch.object(stage_auto, "_crew_v2", side_effect=p2):
+            stage_auto.crew_answer(self.p.conn, pid, seg, self.data, review(
+                {"shot": 1, "ket_luan": "giu_lech", "ly_do": "mép bậc thấp ở tiền cảnh", "bo_luat": ["P2"]},
+                {"shot": 2, "ket_luan": "khop"}, {"shot": 3, "ket_luan": "khop"}))
+            r = stage_auto.crew_user_verdict(self.p.conn, pid, seg, self.data, approve=True)
+        self.assertIn(1, r["applied"])
+        self.assertIn("miễn P2", self.shot(pid, 1)["stage_camera"]["source"])
+
+    def state_inputs(self, pid, seg):
+        return stage_auto._crew_ctx(self.p.conn, pid, seg, self.data)["inputs"]
+
+
+class OptimizeFixTests(unittest.TestCase):
+    """Rà quy ước 7 của tối ưu 16/10 (máy trạng thái thuần): lịch sử đo xóa khi đổi dàn cảnh / s0, shot không ra phương án không dùng lặng
+    số đo cũ, lần đo bị bác, doi_phia một lần, lan_do / bo_luat."""
+
+    def setUp(self):
+        self.n = 0
+
+    def measure(self, bl, sp, drop=()):
+        self.n += 1
+        return f"crew/m{self.n}", {"s0": "left", "shots": [{"shot": x["shot"], "best": {"m": {"at": [1.0, 2.0, 1.5]}}}
+                                                         for x in sp if x["shot"] not in drop]}
+
+    def to_review(self):
+        st = sc.new_state("fp")
+        sc.ingest(st, blocking(), self.measure)
+        sc.ingest(st, specs(), self.measure)
+        return st
+
+    def test_s0_taken_from_first_full_measure(self):
+        st = self.to_review()
+        self.assertEqual(st["s0"], "left")
+
+    def test_s0_change_resets_history(self):
+        st = self.to_review()
+        ok = [{"shot": n, "ket_luan": "khop"} for n in (1, 2, 3)]
+        sc.ingest(st, dict(review(*ok), s0="right"), self.measure)
+        self.assertEqual(st["shot_hist"], {"1": ["crew/m2"], "2": ["crew/m2"], "3": ["crew/m2"]})
+        self.assertEqual(st["accepted"], {})
+
+    def test_missing_shot_not_silently_old(self):
+        st = self.to_review()
+        fix = dict(specs()["shot_specs"][1], co="MS", do_cao="thap", doi_phia=True)
+        m = lambda bl, sp: self.measure(bl, sp, drop=(2,))
+        sc.ingest(st, review({"shot": 1, "ket_luan": "khop"}, {"shot": 2, "ket_luan": "sua_may", "ly_do": "x", "shot_spec": fix},
+                             {"shot": 3, "ket_luan": "khop"}), m)
+        self.assertNotIn("2", st["shot_measure"])
+        self.assertIn("2", st["measure_errors"])
+        self.assertEqual(st["rejected"], {"2": ["crew/m1"]})
+        self.assertNotIn("doi_phia", st["specs"][1])                         # doi_phia chỉ áp một lần đo
+
+    def test_lan_do_and_bo_luat_validation(self):
+        st = self.to_review()
+        inputs = {"shots": [{"shot": n} for n in (1, 2, 3)]}
+        with self.assertRaises(llm_io.SchemaError):
+            sc.validate_review(review({"shot": 1, "ket_luan": "giu_lech", "ly_do": "x", "bo_luat": ["P1"]},
+                                      {"shot": 2, "ket_luan": "khop"}, {"shot": 3, "ket_luan": "khop"}), st, inputs)
+        with self.assertRaises(llm_io.SchemaError):
+            sc.validate_review(review({"shot": 1, "ket_luan": "khop", "lan_do": "crew/m9"},
+                                      {"shot": 2, "ket_luan": "khop"}, {"shot": 3, "ket_luan": "khop"}), st, inputs)
+        sc.ingest(st, review({"shot": 1, "ket_luan": "giu_lech", "ly_do": "mép bậc thấp tiền cảnh", "bo_luat": ["P2"], "lan_do": "crew/m1"},
+                             {"shot": 2, "ket_luan": "khop"}, {"shot": 3, "ket_luan": "khop"}), self.measure)
+        self.assertEqual((st["accepted"]["1"], st["waive"]["1"]), ("crew/m1", ["P2"]))
+
+
+class SolverNearTests(unittest.TestCase):
+    def test_near_ranks_same_side_first_among_equals(self):
+        from core import stage_solver as ss
+        mk = lambda ok, flip, nfail: {"check": {"ok": ok, "fail": ["P3"] * nfail, "miss": 0.0, "phu": {}}, "c1_ok": True, "flip": flip,
+                                      "fallback": False}
+        far_bad, near_bad, near_worse = mk(False, True, 1), mk(False, False, 1), mk(False, False, 3)
+        self.assertEqual(sorted([far_bad, near_bad], key=ss._rank)[0], near_bad)    # ca thử m4: cùng hỏng → giữ phía cũ
+        self.assertEqual(sorted([far_bad, near_worse], key=ss._rank)[0], near_worse)  # phía cũ trước cả khi ít lỗi hơn ở phía kia
+        far_ok = mk(True, True, 0)
+        self.assertEqual(sorted([near_bad, far_ok], key=ss._rank)[0], far_ok)        # phương án ĐẠT luôn thắng
+
+    def test_flip_flag_computed_from_near(self):
+        from core import stage_solver as ss
+        objs = ss.objects_from_blocking({"objects": [{"key": "kelly", "kind": "nguoi", "at": [0.0, 0.0], "H": 1.7, "facing": 0}]})
+        spec = {"shot": 1, "co": "MS", "do_cao": "ngang", "thanh_phan": [{"vat": "kelly", "vai": "chinh", "vung": "giua", "thay": "mat"}]}
+        cams = ss.solve_shot(dict(spec, _near=[0.0, 5.0]), objs, 9 / 16)["cams"]      # mặt hướng Bắc → máy phía Bắc
+        self.assertTrue(cams and not cams[0]["flip"])
+        cams = ss.solve_shot(dict(spec, _near=[0.0, -5.0]), objs, 9 / 16)["cams"]
+        self.assertTrue(all(c["flip"] for c in cams if c["at"][1] > 0.5))
 
 
 class FlagTests(unittest.TestCase):

@@ -22,12 +22,15 @@ Ghi chú khung trong kịch bản là **ý đồ của chính bạn** (Quay phim
    (máy thấp thôi chưa chắc đã ngửa). Máy thấp hơn miệng vật (giếng, tường) thì không nhìn được vào trong. Cần độ cao cụ thể → `cao_m`.
 7. **POV và máy chạy khi cảm xúc cần.** `"pov": "<khóa người>"`; `"may": {"kieu": "lui"|"tien", "m": 0.5–2, "rung": "nhe"|"vua"|""}`.
 8. **Qua vai là được che một phần** → `"thay_min": 25–35` cho vật bị che.
-9. **Trục 180°** theo `axis` / `s0` của Đạo diễn; shot cố ý vượt ghi `"cross_ok": true` + lý do.
+9. **Trục 180°**: Đạo diễn chọn cặp trục `axis`; BẠN chọn phía máy `"s0": "left" | "right"` một lần cho cả cảnh (bên trái / phải
+   của trục nhìn từ người thứ nhất sang thứ hai) — chọn sao cho khớp vùng khung của bạn (vd người A luôn ở bên phải khung). Shot cố
+   ý vượt trục ghi `"cross_ok": true` + lý do.
 10. **Có tham chiếu (emote, động tác) → bám góc máy của tham chiếu.**
 
 ## Trả lời — MỘT khối JSON duy nhất
 ```json
 {
+  "s0": "right",
   "shot_specs": [
     {"shot": 1, "co": "MS", "do_cao": "thap", "goc": "ngua", "muc_dich": "…", "y_do_khung": "…",
      "thanh_phan": [{"vat": "xenoi", "vai": "chinh", "vung": "giua", "co_pct": [35, 65]},

@@ -1153,8 +1153,8 @@ def v2_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
             chk = sg.check_spec(m, spec, objs)
             c1 = c.get("c1_ok", True)
             rows.append({"tag": c["tag"], "fallback": c.get("fallback", False), "ok": chk["ok"] and c1, "c1_ok": c1, "check": chk, "m": m,
-                         "c": c})
-        rows.sort(key=lambda r: (not r["ok"], not r["c1_ok"], len(r["check"]["fail"]), r["check"]["miss"],
+                         "c": c, "flip": bool(c.get("flip"))})
+        rows.sort(key=lambda r: (not r["ok"], not r["c1_ok"], r["flip"], len(r["check"]["fail"]), r["check"]["miss"],
                                  -sum(r["check"]["phu"].values()), r["fallback"]))
         best = None
         if rows:
@@ -1576,7 +1576,7 @@ def v2_run(blocking, specs, out, stage_from=None, *, db=DEFAULT_DB, m3=None, max
             continue
         spec = next(p for p in specs if p.get("shot") == s["shot"])
         bo = {k: v for k, v in beats[spec.get("nhip") or ""].items() if k in (s.get("objs_used") or beats[spec.get("nhip") or ""])}
-        cands = [{k: c.get(k) for k in ("tag", "at", "aim", "lens", "fallback", "c1_ok", "end")} for c in s["cams"][:max_cands]]
+        cands = [{k: c.get(k) for k in ("tag", "at", "aim", "lens", "fallback", "c1_ok", "end", "flip")} for c in s["cams"][:max_cands]]
         for c in cands:
             if c["end"]:
                 c["end"] = {"at": c["end"]["at"], "aim": c["end"]["aim"]}

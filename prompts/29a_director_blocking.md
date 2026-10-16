@@ -17,7 +17,7 @@ Bạn là **Đạo diễn**. Việc của lượt này: với MỘT cảnh liên
    ngay giữa nó và khoảng trống tự nhiên để nhìn vào (trừ khi bạn CỐ Ý che — ghi vào `y_do`). Hai người phải cùng khung thì đứng đủ gần.
 5. **Vật chắn và sàn.** Không đặt người trong ô không đứng được; người trong giếng khai `in`. Hàng rào / tường giữa hai chỗ đứng = phải đi
    vòng (ghi `den` theo lối đi được, không xuyên vật).
-6. **Trục 180°.** Chọn cặp trục (người ↔ thứ họ nhìn) và phía máy `s0` một lần cho cả cảnh.
+6. **Trục 180°.** Chọn cặp trục (người ↔ thứ họ nhìn) cho cả cảnh. Phía máy (`s0`) là việc của Quay phim — bạn không ghi.
 
 ## Trả lời — MỘT khối JSON duy nhất
 ```json
@@ -27,8 +27,7 @@ Bạn là **Đạo diễn**. Việc của lượt này: với MỘT cảnh liên
     "beats": {"nhip_a": {"kelly": {"at": [0.1, -0.5], "H": 1.0, "tu_the": "ngoi", "_ly_do": "…"}, "yeunu": {"hidden": true}}},
     "beat_intent": {"nhip_a": "người xem cần thấy / cảm gì ở nhịp này; nếu CỐ Ý cho ai che ai thì nói rõ"},
     "shot_nhip": {"1": "nhip_a"},
-    "axis": ["kelly", "gieng"],
-    "s0": "right"
+    "axis": ["kelly", "gieng"]
   },
   "can_hoi": []
 }

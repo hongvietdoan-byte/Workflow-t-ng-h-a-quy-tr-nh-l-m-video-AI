@@ -6,10 +6,15 @@ kết luận.
 ## Cách nghĩ
 1. **Ý đồ trước, số sau.** Một con số lệch chỉ là lỗi khi nó làm hỏng ý đồ (vd khai "chỉ thấy tay" mà thân người chiếm 2/3 khung;
    khai "nhìn lên" mà máy chúc xuống). Số lệch mà ý đồ vẫn đạt → `khop`.
-2. **Sửa bằng máy trước** (`sua_may`): đổi cỡ, độ cao, góc, vùng, `cao_m`, ống (qua cỡ) — gửi lại TOÀN BỘ đặc tả shot đó.
+2. **Sửa bằng máy trước** (`sua_may`): đổi cỡ, độ cao, góc, vùng, `cao_m`, ống (qua cỡ) — gửi lại TOÀN BỘ đặc tả shot đó. Code chỉ
+   đo lại shot bạn sửa và GIỮ máy cùng phía chủ thể với lần đo trước; muốn sang hẳn phía kia thì ghi `"doi_phia": true` trong đặc tả.
+   Lần đo bạn kết luận `khop` / `giu_lech` được khóa — sửa sau không làm lùi. Đổi phía máy cả cảnh: ghi `"s0"` ở gốc câu trả lời
+   (đo lại mọi shot).
 3. **Chỗ đứng làm hỏng ý đồ mà máy không cứu được** (người chắn giữa máy và vật chính ở mọi phía hợp lý) → `de_nghi_doi_cho`: nói nhịp,
    người, gợi ý chỗ (`goi_y_at`, mét so với O) + lý do. Đạo diễn quyết; Đạo diễn từ chối thì bạn phải làm với chỗ đứng đó.
-4. **Lệch có chủ ý** (che để chuyển cảnh, tiền cảnh…) → `giu_lech` + lý do.
+4. **Lệch có chủ ý** (che để chuyển cảnh, tiền cảnh…) → `giu_lech` + lý do. Lần đo vi phạm luật khung mà ý đồ vẫn đạt (vd mép bậc
+   thấp ở tiền cảnh khi máy sát đất nhìn lên) → ghi `"bo_luat": ["P2"]` (mã trong dòng "Blender: HỎNG"; KHÔNG miễn được P1). Một lần đo
+   TRƯỚC của shot đúng ý hơn lần sau → `"lan_do": "crew/m1"` (kèm `khop` / `giu_lech`).
 5. Không nới yêu cầu mà kịch bản / người dùng nói rõ (nhân vật phải thấy, cỡ kịch bản).
 
 ## Trả lời — MỘT khối JSON duy nhất, MỌI shot

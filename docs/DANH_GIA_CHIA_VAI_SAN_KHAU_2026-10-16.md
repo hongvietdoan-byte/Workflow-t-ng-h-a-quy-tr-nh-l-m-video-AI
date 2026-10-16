@@ -44,6 +44,26 @@ lần chạy thật NGOẠI TUYẾN (0 USD, phiên Claude Code đóng các vai, 
 6. **Trần 2 lượt tự duyệt hơi chặt cho cảnh có ràng buộc vật lý khó** (CU thấp sát đất bị mép ô cỏ chắn): với (1) + (2), 2 lượt có thể
    đủ; chưa nên nới trần trước khi làm (1) (2).
 
+## 3b. ĐÃ LÀM tối ưu (người dùng 16/10 chiều) + ca thử lần 2 cảnh 3 (0 USD)
+
+Đã làm: (1) giữ phương án tốt nhất — mỗi shot nhớ mọi lần đo, kết luận khop / giu_lech KHÓA lần đo (chọn được lần đo trước bằng
+`lan_do`), chốt từng shot bằng lần đã duyệt hoặc lần ít lỗi nhất (bỏ lần bị bác), gom vào `crew/final`; (2) `_near` + xếp hạng "cùng
+phía máy lần trước" ở bộ giải + K4 (chỉ đổi phía khi Quay phim ghi `doi_phia`); (3) `s0` thuộc Quay phim; (4) đo lại chỉ shot sửa.
+Thêm từ ca thử: Quay phim `giu_lech` được miễn luật khung đã nêu tên (`bo_luat`, KHÔNG miễn P1). Rà quy ước 7 lần 3: 3 CAO + 5 VỪA
+(xóa lịch sử đo khi đổi dàn cảnh / s0, s0 trống lấy từ lần đo đầy đủ, shot đo lại không ra phương án → không dùng lặng số cũ, …) — đã
+sửa, có test.
+
+| | Lần thử 1 | Lần thử 2 (tối ưu) |
+|---|---|---|
+| Lần đo / lượt duyệt | 4 lần đo cả 4 shot, 2 lượt | 3 lần đo (m2: 2 shot, m3: 1 shot), 2 lượt |
+| C1 (phía máy) shot 10–11 | hỏng (s0 Đạo diễn ngược ghi chú) | không còn (s0 Quay phim) |
+| Shot 10 | m3 đúng ý → m4 LÙI (ra sau lưng Kelly) | m1 đúng ý → khóa; giữ lệch miễn P2 (mép ô cỏ tiền cảnh) → **có máy** |
+| Shot 11 | hỏng khung cuối | vẫn hỏng khung cuối (xe nôi 33 % < 40 % — Kelly qua vai che khi máy đẩy vào) |
+| Shot 12–13 | đạt | đạt (lần đo đầu, không đo lại) |
+
+Còn lại: shot 11 cần Đạo diễn dời Kelly lệch khỏi trục máy→xe nôi hoặc bỏ đẩy máy — luồng đã hỏi được (de_nghi_doi_cho) nhưng ca này
+Quay phim chọn sửa máy; ca sau nên ưu tiên đề nghị dời người khi khung cuối bị người che lặp 2 lần.
+
 ## 4. Previs one-shot (shot 6–9, cảnh 2) — người dùng đề xuất 16/10
 
 - Kelly một mình, bối cảnh đơn giản → một cú máy liền mạch thay cho 4 máy rời: người nộm chạy theo lối thật A* trong mê cung (48,7 m,

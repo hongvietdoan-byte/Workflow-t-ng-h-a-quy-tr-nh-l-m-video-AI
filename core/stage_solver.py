@@ -565,14 +565,23 @@ def _judge(sh: Shot, sol: Dict, tag: str, axis, s0, grid, stage, fallback=False)
     # 16/10 (#31 cảnh 3 chia vai): nhịp không có trục (vật trục ẩn — xe nôi biến mất) → không xét C1; trước đây side None bị coi là
     # "phía khác s0" → mọi phương án hỏng C1
     c1 = not (s0 and side is not None and side not in (s0, "on") and not sh.spec.get("cross_ok"))
+    # 16/10 (chia vai, ca thử #31 shot 10): Quay phim sửa máy một phần (vd chỉ khai cross_ok để qua C1) → bộ giải KHÔNG được tự đổi sang
+    # phía kia của chủ thể (lần đo m4 nhảy ra sau lưng Kelly). `_near` = máy lần đo trước của shot (code gắn): phương án lệch > 90° quanh
+    # chủ thể so với máy đó xếp sau
+    near, a_xy = sh.spec.get("_near"), sh.A.get("xy")
+    flip = False
+    if near and a_xy:
+        b1 = math.atan2(C[0] - a_xy[0], C[1] - a_xy[1])
+        b0 = math.atan2(near[0] - a_xy[0], near[1] - a_xy[1])
+        flip = abs((b1 - b0 + math.pi) % (2 * math.pi) - math.pi) > math.pi / 2
     return {"tag": tag, "fallback": fallback, "at": C, "aim": aim, "lens": sh.lens, "yaw": round(sol["yaw"], 2),
             "pitch": round(sol["pitch"], 2), "theta": round(sol["theta"], 2), "d": round(sol["d"], 3), "cz": round(sol["cz"], 3),
-            "resid": sol["resid"], "cell": None if stage is None else sg.cell_name(stage, C[0], C[1]), "side": side, "c1_ok": c1,
+            "resid": sol["resid"], "cell": None if stage is None else sg.cell_name(stage, C[0], C[1]), "side": side, "c1_ok": c1, "flip": flip,
             "eval": ev, "check": chk, "end": end}
 
 
 def _rank(c: Dict):
-    return (not (c["check"]["ok"] and c["c1_ok"]), not c["c1_ok"], len(c["check"]["fail"]), c["check"]["miss"],
+    return (not (c["check"]["ok"] and c["c1_ok"]), not c["c1_ok"], c.get("flip", False), len(c["check"]["fail"]), c["check"]["miss"],
             -sum(c["check"]["phu"].values()), c["fallback"])
 
 

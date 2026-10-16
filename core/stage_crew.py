@@ -203,7 +203,7 @@ def validate_specs(obj, inputs: Dict, bl: Dict, marks: Optional[Dict] = None) ->
     và có lý do; rồi bộ kiểm đầy đủ của câu trả lời ghép (sd.validate_answer: khung, luật kịch bản, K3)."""
     if not isinstance(obj, dict) or not isinstance(obj.get("shot_specs"), list):
         raise llm_io.SchemaError("cần {shot_specs: [...]}")
-    errs = []
+    errs = [] if obj.get("s0") in (None, "left", "right") else [f"s0 '{obj.get('s0')}' phải là left / right"]
     for s in obj["shot_specs"]:
         for c in (s.get("thanh_phan") or []) if isinstance(s, dict) else []:
             if isinstance(c, dict) and c.get("che") is not None:
@@ -213,7 +213,10 @@ def validate_specs(obj, inputs: Dict, bl: Dict, marks: Optional[Dict] = None) ->
                     errs.append(f"shot {s.get('shot')}: `{c.get('vat')}` khai che mà không có ly_do")
     _schema(errs)
     specs = _with_nhip(obj["shot_specs"], bl)
-    sd.validate_answer({"blocking": copy.deepcopy(bl), "shot_specs": specs}, inputs, marks)
+    blv = {k: v for k, v in bl.items() if k != "s0"}
+    if obj.get("s0"):
+        blv["s0"] = obj["s0"]
+    sd.validate_answer({"blocking": copy.deepcopy(blv), "shot_specs": specs}, inputs, marks)
     obj["shot_specs"] = specs
     return obj
 
@@ -244,6 +247,16 @@ def validate_review(obj, state: Dict, inputs: Dict, marks: Optional[Dict] = None
                 errs.append(f"shot {r['shot']}: sua_may cần shot_spec đầy đủ cùng số shot")
             else:
                 new_specs[r["shot"]] = sp
+        if r.get("lan_do") is not None and r.get("lan_do") not in ((state.get("shot_hist") or {}).get(str(r["shot"])) or []):
+            errs.append(f"shot {r['shot']}: lan_do '{r.get('lan_do')}' không phải một lần đo của shot này "
+                        f"({', '.join((state.get('shot_hist') or {}).get(str(r['shot'])) or [])})")
+        if r.get("lan_do") is not None and k not in ("khop", "giu_lech"):
+            errs.append(f"shot {r['shot']}: lan_do chỉ dùng với khop / giu_lech")
+        if r.get("bo_luat"):
+            if k != "giu_lech" or not isinstance(r["bo_luat"], list):
+                errs.append(f"shot {r['shot']}: bo_luat là danh sách mã luật, chỉ dùng với giu_lech (kèm ly_do)")
+            elif any(str(c).split(":")[-1].startswith("P1") for c in r["bo_luat"]):
+                errs.append(f"shot {r['shot']}: không miễn được P1 (máy trong tường / ngoài vùng đi tới được)")
         if k == "de_nghi_doi_cho":
             if r.get("vat") not in keys:
                 errs.append(f"shot {r['shot']}: chỉ đề nghị dời NGƯỜI có trong dàn cảnh ('{r.get('vat')}' không phải — vật cố định Đạo "
@@ -251,8 +264,11 @@ def validate_review(obj, state: Dict, inputs: Dict, marks: Optional[Dict] = None
             if r.get("goi_y_at") is not None and not (isinstance(r["goi_y_at"], list) and len(r["goi_y_at"]) == 2):
                 errs.append(f"shot {r['shot']}: goi_y_at phải là [x, y]")
     _schema(errs)
-    if any(r["ket_luan"] == "sua_may" for r in obj["shots"]):
-        validate_specs({"shot_specs": [new_specs[s] for s in want]}, inputs, state["blocking"], marks)
+    if obj.get("s0") not in (None, "left", "right"):
+        raise llm_io.SchemaError(f"s0 '{obj.get('s0')}' phải là left / right")
+    if any(r["ket_luan"] == "sua_may" for r in obj["shots"]) or obj.get("s0"):
+        validate_specs({"shot_specs": [new_specs[s] for s in want], "s0": obj.get("s0") or state.get("s0")}, inputs, state["blocking"],
+                       marks)
     return obj
 
 
@@ -268,7 +284,7 @@ def validate_reply(obj, state: Dict, inputs: Dict, marks: Optional[Dict] = None)
     _schema(errs)
     validate_blocking(obj, inputs, marks)
     try:                                                  # rà 16/10: dàn cảnh mới phải còn hợp với đặc tả máy hiện có (Quay phim sửa sau)
-        validate_specs({"shot_specs": copy.deepcopy(state["specs"])}, inputs, obj["blocking"], marks)
+        validate_specs({"shot_specs": copy.deepcopy(state["specs"]), "s0": state.get("s0")}, inputs, obj["blocking"], marks)
     except llm_io.SchemaError as e:
         raise llm_io.SchemaError(f"dàn cảnh mới làm đặc tả máy hiện có không còn hợp lệ — {e}") from e
     return obj
@@ -394,9 +410,59 @@ def compare_table(inputs: Dict, specs: List[Dict], v2: Dict, keep: Optional[Dict
 MeasureFn = Callable[[Dict, List[Dict]], Tuple[str, Dict]]
 
 
-def _measure(state: Dict, measure: MeasureFn) -> None:
-    rel, _v2 = measure(state["blocking"], state["specs"])
+def measure_blocking(state: Dict) -> Dict:
+    """Dàn cảnh gửi đo: của Đạo diễn + phía máy s0 của QUAY PHIM (tối ưu 16/10: s0 thuộc Quay phim — ca thử shot 10–11 Đạo diễn chọn s0
+    ngược ghi chú khung → C1 hỏng cả hai shot)."""
+    bl = {k: v for k, v in state["blocking"].items() if k != "s0"}
+    if state.get("s0"):
+        bl["s0"] = state["s0"]
+    return bl
+
+
+def reset_measures(state: Dict) -> None:
+    """Dàn cảnh hoặc phía máy s0 đổi → mọi số đo cũ (lịch sử, máy lần trước, khóa, lần bị bác) không còn đúng (rà 16/10)."""
+    for k in ("accepted", "shot_hist", "cam_xy", "rejected", "measure_errors", "waive"):
+        state[k] = {}
+
+
+def _measure(state: Dict, measure: MeasureFn, only=None) -> None:
+    """K3 + K4 cho các shot `only` (None = mọi shot). Tối ưu 16/10: (1) chỉ đo lại shot đổi — số đo ghép THEO SHOT (`shot_measure`), mỗi
+    shot nhớ mọi lần đo (`shot_hist`) để chốt lần tốt nhất; (2) shot đo lại được gắn `_near` = máy lần đo trước → bộ giải ưu tiên cùng
+    phía (ca thử m4: khai cross_ok làm máy nhảy ra sau lưng Kelly), trừ khi Quay phim ghi `doi_phia: true`."""
+    specs = []
+    for sp in state["specs"]:
+        if only is not None and sp["shot"] not in only:
+            continue
+        sp = dict(sp)
+        near = (state.get("cam_xy") or {}).get(str(sp["shot"]))
+        if near and not sp.get("doi_phia"):
+            sp["_near"] = near
+        specs.append(sp)
+    rel, v2 = measure(measure_blocking(state), specs)
+    got = set()
+    for sh in (v2 or {}).get("shots") or []:
+        k = str(sh["shot"])
+        got.add(k)
+        state.setdefault("shot_measure", {})[k] = rel
+        state.setdefault("shot_hist", {}).setdefault(k, []).append(rel)
+        at = (((sh.get("best") or {}).get("m") or {}).get("at"))
+        if at:
+            state.setdefault("cam_xy", {})[k] = list(at[:2])
+    for sp in specs:                                     # rà 16/10: shot được đo mà bộ giải không ra phương án → KHÔNG dùng lặng số đo cũ
+        k = str(sp["shot"])
+        if k not in got:
+            (state.get("shot_measure") or {}).pop(k, None)
+            state.setdefault("measure_errors", {})[k] = f"lần đo {rel}: bộ giải không đặt được máy cho đặc tả này"
+        else:
+            (state.get("measure_errors") or {}).pop(k, None)
+    if not state.get("s0") and (v2 or {}).get("s0"):     # rà 16/10: s0 trống → lấy phía bộ giải chọn ở lần đo đầy đủ, đo một phần chấm C1
+        state["s0"] = v2["s0"]                           # cùng phía (không để bộ giải tự chọn lại theo shot đầu của tập con)
+    for sp in state["specs"]:                            # doi_phia chỉ áp một lần đo
+        if (only is None or sp["shot"] in only) and sp.get("doi_phia"):
+            sp.pop("doi_phia", None)
     state["measure"] = rel
+    if only is None:
+        state["full_measure"] = rel
     state["n_measure"] += 1
 
 
@@ -420,20 +486,34 @@ def _ingest(state: Dict, obj: Dict, measure: MeasureFn, source: str) -> None:
         state["phase"] = "quay_phim"
     elif p == "quay_phim":
         state["specs"] = obj["shot_specs"]
+        state["s0"] = obj.get("s0")
         _measure(state, measure)
         state["phase"] = "quay_phim_duyet"
     elif p == "quay_phim_duyet":
         state["reviews"] += 1
         specs = {s["shot"]: s for s in state["specs"]}
-        changed, requests = False, []
+        changed, requests = set(), []
+        acc = state.setdefault("accepted", {})
         for r in obj["shots"]:
             n = r["shot"]
-            state["verdicts"][str(n)] = {k: v for k, v in r.items() if k != "shot_spec"}
+            state["verdicts"][str(n)] = dict({k: v for k, v in r.items() if k != "shot_spec"},
+                                             measure=(state.get("shot_measure") or {}).get(str(n)))
             state["keep"].pop(str(n), None)
             state["unresolved"].pop(str(n), None)
+            if r["ket_luan"] in ("khop", "giu_lech") and (state.get("shot_measure") or {}).get(str(n)):
+                # tối ưu 16/10: khóa lần đo đã duyệt — sửa sau không làm lùi; `lan_do` = chọn một lần đo TRƯỚC của shot (ca thử: m1
+                # đúng ý hơn lần sửa sau)
+                acc[str(n)] = r.get("lan_do") or state["shot_measure"][str(n)]
+            state.setdefault("waive", {}).pop(str(n), None)
+            if r["ket_luan"] == "giu_lech" and r.get("bo_luat"):
+                state["waive"][str(n)] = [str(c) for c in r["bo_luat"]]
             if r["ket_luan"] == "sua_may":
                 specs[n] = _with_nhip([r["shot_spec"]], state["blocking"])[0]
-                changed = True
+                changed.add(n)
+                acc.pop(str(n), None)
+                cur = (state.get("shot_measure") or {}).get(str(n))
+                if cur:                                          # rà 16/10: lần đo bị Quay phim bác không được chốt lại sau
+                    state.setdefault("rejected", {}).setdefault(str(n), []).append(cur)
             elif r["ket_luan"] == "giu_lech":
                 state["keep"][str(n)] = r["ly_do"]
             elif r["ket_luan"] == "de_nghi_doi_cho":
@@ -443,8 +523,13 @@ def _ingest(state: Dict, obj: Dict, measure: MeasureFn, source: str) -> None:
                     requests.append({k: r.get(k) for k in ("shot", "vat", "goi_y_at", "ly_do")})
         state["specs"] = [specs[k] for k in sorted(specs)]
         state["notes"] = []
-        if changed:
+        if obj.get("s0") and obj["s0"] != state.get("s0"):       # Quay phim đổi phía máy cả cảnh → đo lại mọi shot
+            state["s0"] = obj["s0"]
+            reset_measures(state)
+            changed = set(specs)
             _measure(state, measure)
+        elif changed:
+            _measure(state, measure, only=changed)
         if requests:
             state["requests"], state["asked"] = requests, True
             state["phase"] = "dao_dien_tra_loi"
@@ -461,6 +546,7 @@ def _ingest(state: Dict, obj: Dict, measure: MeasureFn, source: str) -> None:
         if json.dumps(obj["blocking"], sort_keys=True) != json.dumps(state["blocking"], sort_keys=True):
             state["blocking"] = obj["blocking"]
             state["specs"] = _with_nhip(state["specs"], state["blocking"])
+            reset_measures(state)                                # chỗ đứng đổi → số đo cũ (và máy lần trước) không còn đúng
             _measure(state, measure)
         state["requests"] = []
         # rà 16/10: sau câu trả lời của Đạo diễn Quay phim LUÔN có một lượt duyệt (dời người → sửa máy theo; từ chối → làm với chỗ
@@ -474,6 +560,8 @@ def _ingest(state: Dict, obj: Dict, measure: MeasureFn, source: str) -> None:
         elif not state["returned"]:
             state["returned"] = True
             state["notes"] = obj["tra_lai"]
+            for r in obj["tra_lai"]:                             # rà 16/10: shot bị trả lại không còn khóa lần đo cũ
+                (state.get("accepted") or {}).pop(str(r["shot"]), None)
             state["reviews"] = min(state["reviews"], MAX_REVIEWS - 1)       # một lượt tự duyệt nữa cho đúng các ý đồ bị trả lại
             state["phase"] = "quay_phim_duyet"
         else:

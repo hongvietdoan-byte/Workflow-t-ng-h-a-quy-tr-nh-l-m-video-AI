@@ -140,6 +140,12 @@ class PlanTests(unittest.TestCase):
                 if math.floor(x) == 0 and math.floor(y) != -10:          # ô rào (ngọn 2,1 m)
                     self.assertGreaterEqual(at[2] + (tz - at[2]) * s_, 2.1 - 0.35)
 
+    def test_camera_turns_gently(self):
+        fast = sp.plan(self.rd, uniform_run=True, orbit=160)["summary"]["max_cam_turn_deg_s"]
+        calm = sp.plan(self.rd, uniform_run=True, orbit=0, extra={1: 3.0})["summary"]["max_cam_turn_deg_s"]
+        self.assertLessEqual(max(calm, fast), sp.CAM_YAW_MAX_DEG_S + 1)  # người dùng 16/10: không quay gấp ở bất kỳ khung nào
+        self.assertGreater(sp.plan(self.rd, extra={1: 3.0})["summary"]["total_s"], 9.9)
+
     def test_variants_switch_by_shot(self):
         p = sp.plan(self.rd)
         names = [(v["name"], v["from"]) for v in p["previs"]["people"][0]["variants"]]

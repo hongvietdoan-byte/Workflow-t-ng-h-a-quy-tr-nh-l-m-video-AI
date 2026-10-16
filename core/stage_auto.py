@@ -886,6 +886,8 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
         with open(os.path.join(seg_dir, "result.json"), encoding="utf-8") as f:
             old = json.load(f)
         res.update({k: old[k] for k in ("crew", "nguon", "usd") if k in old})
+        if isinstance(res.get("crew"), dict) and res["crew"].get("picked"):    # rà 16/10: dựng lại = giải lại, lựa chọn cũ không còn
+            res["crew"] = dict(res["crew"], picked=None, giai_lai=True)
     except (OSError, ValueError):
         pass
     _save(os.path.join(seg_dir, "result.json"), res)
@@ -1047,6 +1049,7 @@ def _crew_measure(ctx: Dict, log: Callable[[str], None]):
             with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=1)
         _solve, v2 = tool().v2_run(full, specs, rd, ctx["k1"], m3=ctx["seg"]["entry"], reach=True, log=log)
+        v2 = dict(v2 or {}, s0=(_solve or {}).get("s0"))
         for fn, data in (("v2.json", v2), ("setups.json", {"beats": (_solve or {}).get("beats") or {}})):
             if not os.path.exists(os.path.join(rd, fn)):  # v2_run thật đã ghi; giữ chắc cho bảng đối chiếu / màu người nộm đọc lại
                 with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
@@ -1056,6 +1059,59 @@ def _crew_measure(ctx: Dict, log: Callable[[str], None]):
     return measure
 
 
+def _crew_v2(ctx: Dict, rel: str) -> Dict[int, Dict]:
+    with open(os.path.join(ctx["out"], rel, "v2.json"), encoding="utf-8") as f:
+        return {s["shot"]: s for s in json.load(f).get("shots") or []}
+
+
+def _crew_score(entry: Optional[Dict]) -> Tuple:
+    """Xếp lần đo của MỘT shot (nhỏ = tốt): đạt luật khung, C1, số luật hỏng (cả khung cuối)."""
+    b = (entry or {}).get("best") or {}
+    if not b:
+        return (1, 1, 99)
+    fails = len((b.get("check") or {}).get("fail") or []) + len((((b.get("end") or {}).get("check") or {}).get("fail")) or [])
+    return (0 if b.get("ok") else 1, 0 if b.get("c1_ok", True) else 1, fails)
+
+
+def _crew_pick(ctx: Dict, state: Dict, k: str) -> str:
+    """Tối ưu 16/10 (ca thử: lần đo m3 tốt hơn m4 mà luồng giữ lần CUỐI): lần đo Quay phim đã duyệt (khop / giu_lech); không có thì
+    lần đo ít lỗi nhất trong mọi lần đo của shot (hòa → lần sau)."""
+    acc = (state.get("accepted") or {}).get(k)
+    if acc:
+        return acc
+    hist = (state.get("shot_hist") or {}).get(k) or [state["shot_measure"][k]]
+    ok_hist = [r for r in hist if r not in ((state.get("rejected") or {}).get(k) or [])] or hist[-1:]   # bỏ lần đo Quay phim đã bác
+    return min(enumerate(ok_hist), key=lambda x: (_crew_score(_crew_v2(ctx, x[1]).get(int(k))), -x[0]))[1]
+
+
+def _crew_merged(ctx: Dict, state: Dict, best: bool = False) -> Dict:
+    """v2 GHÉP theo shot (tối ưu 16/10: chỉ đo lại shot đổi): mỗi shot lấy số đo từ lần đo hiện tại của nó (`best` = lần chốt), ảnh clay
+    thành đường dẫn tuyệt đối, `_rd` = thư mục lần đo. State cũ (trước 16/10 chiều) không có shot_measure → lần đo cuối cho mọi shot."""
+    import copy as _c
+    sm = state.get("shot_measure") or {str(sh): state["measure"] for sh in _crew_v2(ctx, state["measure"])}
+    shots = []
+    for k in sorted(sm, key=int):
+        rel = _crew_pick(ctx, dict(state, shot_measure=sm), k) if best else sm[k]
+        e = _c.deepcopy(_crew_v2(ctx, rel).get(int(k)))
+        if not e:
+            continue
+        rd = os.path.join(ctx["out"], rel)
+        for b in (e.get("best") or {}, ((e.get("best") or {}).get("end") or {})):
+            if b.get("clay"):
+                b["clay"] = os.path.abspath(os.path.join(rd, b["clay"]))
+        e["_rd"], e["_rel"] = os.path.abspath(rd), rel
+        shots.append(e)
+    return {"shots": shots}
+
+
+def _crew_colours(ctx: Dict, rd: str) -> Dict[str, str]:
+    try:
+        with open(os.path.join(rd, "setups.json"), encoding="utf-8") as f:
+            return mannequin_colours(json.load(f).get("beats") or {}, {p["key"]: p["label"] for p in ctx["inputs"]["people"]})
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+
+
 def _crew_view(ctx: Dict, state: Dict, limit: Optional[int] = None) -> Tuple[Optional[Dict], List[str], List[Tuple[str, str]]]:
     """(bảng đối chiếu, dòng thêm: màu người nộm + tệp ảnh, ảnh (nhãn, đường dẫn) cho API) của lần đo cuối. `limit` (API: MAX_IMAGES):
     ưu tiên top_beats + clay của shot CÓ VẤN ĐỀ (Blender hỏng, vật chắn, kết luận trước chưa khớp); ảnh không gửi được nêu rõ."""
@@ -1063,25 +1119,28 @@ def _crew_view(ctx: Dict, state: Dict, limit: Optional[int] = None) -> Tuple[Opt
     if not state.get("measure"):
         return None, [], []
     rd = os.path.join(ctx["out"], state["measure"])
-    with open(os.path.join(rd, "v2.json"), encoding="utf-8") as f:
-        v2 = json.load(f)
+    v2 = _crew_merged(ctx, state)                         # số đo hiện tại của TỪNG shot (shot không sửa giữ lần đo cũ)
     table = sc.compare_table(ctx["inputs"], state["specs"], v2, state.get("keep"), post_checks(ctx["inputs"], v2))
-    try:
-        with open(os.path.join(rd, "setups.json"), encoding="utf-8") as f:
-            colours = mannequin_colours(json.load(f).get("beats") or {}, {p["key"]: p["label"] for p in ctx["inputs"]["people"]})
-    except (OSError, ValueError, KeyError, TypeError):
-        colours = {}
+    for k, why in (state.get("measure_errors") or {}).items():
+        if table is not None:
+            table[int(k)] = [f"KHÔNG CÓ SỐ ĐO — {why}"]
+    for e in v2["shots"]:
+        if e["_rel"] != state["measure"] and e["shot"] in (table or {}):
+            table[e["shot"]].append(f"(số đo giữ từ lần đo {e['_rel']} — shot này không sửa ở lượt trước)")
+    colours = _crew_colours(ctx, rd)
     images, later = [], []
-    if os.path.exists(os.path.join(rd, "top_beats.png")):
-        images.append(("ảnh nhìn từ trên theo nhịp (top_beats)", os.path.join(rd, "top_beats.png")))
+    full = os.path.join(ctx["out"], state.get("full_measure") or state["measure"])
+    if os.path.exists(os.path.join(full, "top_beats.png")):     # rà 16/10: lần đo một phần chỉ có máy của shot vừa sửa
+        images.append(("ảnh nhìn từ trên theo nhịp (top_beats, lần đo đầy đủ " + (state.get("full_measure") or state["measure"])
+                       + " — máy shot sửa sau xem ở ảnh clay)", os.path.join(full, "top_beats.png")))
     verdicts = state.get("verdicts") or {}
     for s in sorted(v2.get("shots") or [], key=lambda x: x["shot"]):
         clay = (s.get("best") or {}).get("clay")
-        if not (clay and os.path.exists(os.path.join(rd, clay))):
+        if not (clay and os.path.exists(clay)):
             continue
         rows = " ".join((table or {}).get(s["shot"]) or [])
         issue = "HỎNG" in rows or "GIỮA máy" in rows or (verdicts.get(str(s["shot"])) or {}).get("ket_luan") not in (None, "khop")
-        (images if issue or limit is None else later).append((f"ảnh clay shot {s['shot']}", os.path.join(rd, clay)))
+        (images if issue or limit is None else later).append((f"ảnh clay shot {s['shot']}", clay))
     cut: List[Tuple[str, str]] = []
     if limit is not None:
         images, cut = (images + later)[:limit], (images + later)[limit:]
@@ -1174,17 +1233,43 @@ def _worker(state: Dict) -> str:
 
 def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: str, log: Callable[[str], None],
                    apply_now: bool) -> Dict:
-    """Máy từ lần đo cuối: shot đạt Blender + luật kịch bản, không còn 'unresolved' → stage_camera; result.json như đường một vai."""
-    rd = os.path.join(ctx["out"], state["measure"])
-    with open(os.path.join(rd, "v2.json"), encoding="utf-8") as f:
-        v2 = json.load(f)
+    """Máy chốt TỪNG SHOT (tối ưu 16/10): lần đo Quay phim đã duyệt, không có thì lần đo ít lỗi nhất của shot; shot đạt Blender + luật
+    kịch bản, không còn 'unresolved' → stage_camera. Gom vào crew/final/ (answer + inputs + v2 ghép + tệp sân khấu) để --beats /
+    rerender dùng như một lượt; result.json như đường một vai."""
+    import shutil
     inputs, st = ctx["inputs"], ctx["st"]
-    try:
-        with open(os.path.join(rd, "setups.json"), encoding="utf-8") as f:
-            colours = mannequin_colours(json.load(f).get("beats") or {}, {p["key"]: p["label"] for p in inputs["people"]})
-    except (OSError, ValueError, KeyError, TypeError):
-        colours = {}
-    cams, bad = cameras_from(st, v2, seg["id"], rd, colours)
+    v2 = _crew_merged(ctx, state, best=True)
+    waived = {}
+    for e in v2["shots"]:
+        # Quay phim GIỮ LỆCH có chủ ý + nêu tên luật khung được miễn (bo_luat, trừ P1): lần đo chỉ hỏng đúng các luật đó → coi như đạt
+        w = set((state.get("waive") or {}).get(str(e["shot"])) or [])
+        b = e.get("best") or {}
+        fails = list((b.get("check") or {}).get("fail") or []) + [f"cuoi:{f}" for f in (((b.get("end") or {}).get("check") or {})
+                                                                                      .get("fail") or [])]
+        if w and b and not b.get("ok") and b.get("c1_ok", True) and fails and all(f in w or f.split(":")[-1] in w for f in fails):
+            b["ok"] = True
+            waived[e["shot"]] = fails
+    cams, bad = {}, {}
+    for e in v2["shots"]:
+        c_, b_ = cameras_from(st, {"shots": [e]}, seg["id"], e["_rd"], _crew_colours(ctx, e["_rd"]))
+        cams.update(c_)
+        bad.update(b_)
+    rd = os.path.join(ctx["crew"], "final")
+    os.makedirs(rd, exist_ok=True)
+    src = os.path.join(ctx["out"], state.get("full_measure") or state["measure"])
+    for fn in ("stage.json", "grid.json", "cfg.json", "setups.json", "top_raw.png", "top_cut.png", "top_cut.json"):
+        if os.path.exists(os.path.join(src, fn)):
+            shutil.copyfile(os.path.join(src, fn), os.path.join(rd, fn))
+    from . import stage_crew as _sc
+    picked_spec = {e["shot"]: e.get("spec") for e in v2["shots"] if e.get("spec")}
+    specs_ = [{k: v for k, v in (picked_spec.get(sp["shot"]) or sp).items() if k not in ("_near", "doi_phia")}
+              for sp in state["specs"]]                   # rà 16/10: đặc tả của LẦN ĐO ĐƯỢC CHỌN (rerender giải lại đúng máy đã chốt)
+    for fn, data in (("answer.json", {"blocking": _sc.measure_blocking(state), "shot_specs": specs_}), ("inputs.json", inputs),
+                     ("v2.json", {"shots": [{k: v for k, v in e.items() if not k.startswith("_")} for e in v2["shots"]],
+                                  "picked": {str(e["shot"]): e["_rel"] for e in v2["shots"]}})):
+        with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+    draw_beats(rd, log)
     for k, why in list(post_checks(inputs, v2).items()) + [(int(k), v) for k, v in (state.get("unresolved") or {}).items()]:
         if k in cams:
             cams.pop(k)
@@ -1192,14 +1277,17 @@ def _crew_finalize(conn, pid: int, seg: Dict, ctx: Dict, state: Dict, source: st
     for s in seg["shots"]:
         if s["idx"] not in cams and s["idx"] not in bad and s["idx"] not in (inputs.get("bo_qua") or []):
             bad[s["idx"]] = "bộ giải không đặt được máy (lỗi yêu cầu khung)"
-    for cam in cams.values():
+    for idx, cam in cams.items():
         cam["inputs_fp"] = ctx["fp"]
         cam["source"] += f" · tổ sân khấu (Đạo diễn + Quay phim, {source}; duyệt: {state.get('approved_by')})"
+        if idx in waived:
+            cam["source"] += f" · Quay phim giữ lệch, miễn {', '.join(waived[idx])}: {(state.get('keep') or {}).get(str(idx))}"
     res = {"cams": cams, "bad": bad, "missing": [], "state": end_state(st, {"blocking": state["blocking"], "shot_specs": state["specs"]},
                                                                       seg["scene"]),
-           "fp": ctx["fp"], "guide_missing": guides_missing(cams), "round": state["measure"], "nguon": source,
+           "fp": ctx["fp"], "guide_missing": guides_missing(cams), "round": f"{CREW_DIR}/final", "nguon": source,
            "soft": soft_checks(inputs, v2),
-           "crew": {k: state.get(k) for k in ("verdicts", "keep", "replies", "unresolved", "approved_by", "reviews", "n_measure")}}
+           "crew": {k: state.get(k) for k in ("verdicts", "keep", "replies", "unresolved", "approved_by", "reviews", "n_measure",
+                                                 "accepted", "s0")} | {"picked": {str(e["shot"]): e["_rel"] for e in v2["shots"]}}}
     if source != "claude_api":
         res["usd"] = 0.0
     with open(os.path.join(ctx["out"], "inputs.json"), "w", encoding="utf-8") as f:

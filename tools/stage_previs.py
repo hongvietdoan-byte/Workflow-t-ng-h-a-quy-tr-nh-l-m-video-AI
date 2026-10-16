@@ -27,7 +27,10 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 CAM_SAMPLE_S = 0.25          # khóa máy mỗi bấy nhiêu giây (nội suy Bezier giữa các khóa)
-BLEND_FRAC = 0.4             # phần cuối mỗi đoạn máy chuyển sang độ lệch của shot sau
+BLEND_FRAC = 0.5             # phần cuối mỗi đoạn máy chuyển sang độ lệch của shot sau (16/10: 0,4 → 0,5 — chuyển chậm hơn)
+CAM_SMOOTH_S = 1.5           # cửa sổ làm mượt hướng chạy cho máy bám theo
+CAM_TURN_DEG_S = 40.0        # trần tốc độ xoay hướng máy bám theo (độ / giây)
+CAM_YAW_MAX_DEG_S = 60.0     # trần tốc độ xoay hướng NHÌN của máy ở mọi khung (lớp chặn cuối)
 MOVE_FRAC = 0.6              # máy chạy trong shot (tiến / lùi): đi hết trong phần đầu này của shot
 DEPTH_FAR_M = 20.0           # tài liệu: From Max 15–20 m
 RUN_MIN_M = 2.0              # đoạn đi dài hơn bấy nhiêu = chạy (chế độ uniform_run; máy xoay theo hướng chạy)
@@ -74,7 +77,7 @@ def _unwrap(prev, f):
 
 
 def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280), lens_range=None, depth_far=DEPTH_FAR_M,
-         uniform_run=False, orbit=0.0):
+         uniform_run=False, orbit=0.0, extra=None):
     """Kế hoạch previs (thuần, 0 USD) từ thư mục lượt K4 `rd`: {"previs": cấu hình Blender, "summary": số liệu cho người đọc}."""
     import stage_grid as sgt
     from core import stage_solver as ss
@@ -129,6 +132,10 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
         T = list(base)
     if duration:
         T = [t * duration / sum(T) for t in T]
+    for shot_, sec in (extra or {}).items():            # người dùng 16/10: "giây 5–7 nhanh quá, kéo dài thêm 3 s" → cộng vào đúng shot đó
+        idx = next((i for i, s in enumerate(vs) if s["shot"] == shot_), None)
+        if idx is not None:
+            T[idx] += float(sec)
     T = [max(t, 1.0 / fps) for t in T]                  # rà 16/10: thời lượng 0 → chia cho 0
     starts = [sum(T[:i]) for i in range(len(vs))]
     total = sum(T)
@@ -185,6 +192,30 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
     where = lambda k, t: _at(k, t, slice(1, 4))
     heading = lambda k, t: _at(k, t, 4) or 0.0
 
+    # hướng MÁY bám theo: hướng chạy làm mượt (trung bình trượt CAM_SMOOTH_S) + trần tốc độ xoay CAM_TURN_DEG_S — người dùng 16/10:
+    # "giây 6–7 máy quay gấp dễ loạn, chuyển chậm hơn" (máy xoay tức thì theo mỗi khúc rẽ mê cung)
+    dt = 0.05
+    grid_t = [q * dt for q in range(int(total / dt) + 2)]
+    cam_head = {}
+    for k in pos:
+        raw = [heading(k, t) for t in grid_t]
+        half = max(1, int(CAM_SMOOTH_S / 2 / dt))
+        sm = [sum(raw[max(0, q - half):q + half + 1]) / len(raw[max(0, q - half):q + half + 1]) for q in range(len(raw))]
+        lim, cur_h = [], sm[0]
+        for v in sm:
+            cur_h += max(-CAM_TURN_DEG_S * dt, min(CAM_TURN_DEG_S * dt, v - cur_h))
+            lim.append(cur_h)
+        cam_head[k] = lim
+
+    def head_cam(k, t):
+        hs = cam_head.get(k)
+        if not hs:
+            return 0.0
+        q = min(max(t / dt, 0.0), len(hs) - 1.0)
+        q0 = int(q)
+        q1 = min(q0 + 1, len(hs) - 1)
+        return hs[q0] + (hs[q1] - hs[q0]) * (q - q0)
+
     hedge_top = {}
     for c in cells:
         h = (c.get("top_z") or 0.0) - (c.get("floor_z") or 0.0)
@@ -220,7 +251,7 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
         lens = r["start"][2] + (r["end"][2] - r["start"][2]) * w
         if r["run"]:
             spin = (orbit or 0.0) * _smooth(u) * (1 if runs.index(i) % 2 == 0 else -1)
-            d = math.radians(heading(r["subj"], max(t, starts[i])) - heading(r["subj"], starts[i]) + spin)
+            d = math.radians(head_cam(r["subj"], max(t, starts[i])) - head_cam(r["subj"], starts[i]) + spin)
             rot = lambda v: [v[0] * math.cos(d) + v[1] * math.sin(d), -v[0] * math.sin(d) + v[1] * math.cos(d), v[2]]
             # người dùng 16/10 "miễn là máy vẫn focus theo Kelly": khi chạy, điểm nhìn KHÓA vào ngực nhân vật (bản nháp: điểm nhìn đo của
             # shot 7 nhắm khoảng trống phía trước → xoay theo → Kelly trôi ra khỏi khung)
@@ -272,6 +303,19 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
             at[2] = need
         lens = lens if lo is None else min(max(lens, lo), hi)
         cam.append([round(t, 3), [round(v, 3) for v in at], [round(v, 3) for v in aim], round(lens, 2)])
+    yaw = lambda c: math.degrees(math.atan2(c[2][0] - c[1][0], c[2][1] - c[1][1]))
+    # lớp chặn cuối (người dùng 16/10 "quay gấp dễ loạn"): hướng nhìn của máy xoay ≤ CAM_YAW_MAX_DEG_S — nhân vật vụt qua sát máy lúc
+    # chuyển shot từng quét 221°/s; điểm nhìn kéo theo trong giới hạn (giữ khoảng cách ngang + độ cao điểm nhìn)
+    for q in range(1, len(cam)):
+        a, b = cam[q - 1], cam[q]
+        want = yaw(b)
+        step = (want - yaw(a) + 180) % 360 - 180
+        cap = CAM_YAW_MAX_DEG_S * max(b[0] - a[0], 1e-6)
+        if abs(step) > cap:
+            y = math.radians(yaw(a) + math.copysign(cap, step))
+            hd = math.dist(b[1][:2], b[2][:2])
+            b[2] = [round(b[1][0] + hd * math.sin(y), 3), round(b[1][1] + hd * math.cos(y), 3), b[2][2]]
+    turn = [abs((yaw(b) - yaw(a) + 180) % 360 - 180) / max(b[0] - a[0], 1e-6) for a, b in zip(cam, cam[1:])]
     unrouted = [f"{k} shot {vs[i]['shot']}" for k in people for i, leg in enumerate(legs[k]) if leg and not leg["routed"]]
     summary = {"shots": [s["shot"] for s in vs], "script_s": [round(b, 2) for b in base], "segment_s": [round(t, 2) for t in T],
                "total_s": round(total, 2), "run_m_per_s": None if run_v is None else round(run_v, 2),
@@ -279,7 +323,8 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
                                                        "m_per_s": round(leg["len"] / T[i], 2)} for i, leg in enumerate(legs[k])]
                          for k in people},
                "lens": [round(r["start"][2], 1) for r in rigs], "orbit_deg": orbit, "orbit_shots": [vs[i]["shot"] for i in runs], "lens_range": lens_range, "subjects": [r["subj"] for r in rigs],
-               "unrouted": unrouted}
+               "unrouted": unrouted,
+               "max_cam_turn_deg_s": round(max(turn), 1) if turn else 0.0}
     return {"previs": {"fps": fps, "res": list(res), "duration": round(total, 3), "people": out_people, "camera": cam,
                        "depth_far": depth_far}, "summary": summary}
 
@@ -315,6 +360,7 @@ def main(argv=None):
     ap.add_argument("--duration", type=float)
     ap.add_argument("--speed", type=float, help="m/s tối thiểu cho mỗi đoạn (cú máy có thể dài hơn kịch bản)")
     ap.add_argument("--uniform-run", action="store_true", help="chạy đều trên đoạn đường dài, giữ tổng thời lượng kịch bản")
+    ap.add_argument("--extra", action="append", default=[], metavar="SHOT:GIAY", help="cộng thêm giây vào một shot (vd 7:3), lặp được")
     ap.add_argument("--orbit", type=float, default=0.0, help="độ máy vòng quanh nhân vật trong mỗi đoạn chạy (vd 160: sau lưng → trước mặt)")
     ap.add_argument("--lens-range", type=float, nargs=2, metavar=("MIN", "MAX"), help="kẹp tiêu cự (tài liệu: 24–35 mm)")
     ap.add_argument("--fps", type=int, default=24)
@@ -339,7 +385,8 @@ def main(argv=None):
     if a.shots:
         lo_, _, hi_ = a.shots.partition("-")
         shots = set(range(int(lo_), int(hi_ or lo_) + 1))
-    p = plan(rd, shots, a.duration, a.speed, a.fps, lens_range=a.lens_range, uniform_run=a.uniform_run, orbit=a.orbit)
+    p = plan(rd, shots, a.duration, a.speed, a.fps, lens_range=a.lens_range, uniform_run=a.uniform_run, orbit=a.orbit,
+             extra={int(x.split(":")[0]): float(x.split(":")[1]) for x in a.extra})
     problems = ref_problems(p)
     if p["summary"]["unrouted"] and not a.allow_straight:
         problems.append("không tìm được lối trên lưới sàn (người nộm sẽ đi thẳng xuyên vật): " + ", ".join(p["summary"]["unrouted"])
@@ -348,7 +395,7 @@ def main(argv=None):
         print(json.dumps(p["summary"], ensure_ascii=False, indent=1))
         sys.exit("DỪNG — " + "; ".join(problems))
     os.makedirs(a.out, exist_ok=True)
-    name = f"previs_canh{a.scene}" + (f"_shot{a.shots}" if a.shots else "") + (f"_xoay{a.orbit:g}" if a.orbit else "")
+    name = f"previs_canh{a.scene}" + (f"_shot{a.shots}" if a.shots else "") + (f"_xoay{a.orbit:g}" if a.orbit else "")         + "".join(f"_them{x.replace(':', 's')}" for x in a.extra)
     with open(os.path.join(a.out, name + "_plan.json"), "w", encoding="utf-8") as f:
         json.dump(p, f, ensure_ascii=False, indent=1)
     print(json.dumps(p["summary"], ensure_ascii=False, indent=1))
