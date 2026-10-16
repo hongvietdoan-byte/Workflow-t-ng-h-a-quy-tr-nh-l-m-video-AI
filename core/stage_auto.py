@@ -33,6 +33,11 @@ FIELD = "stage_camera"                 # = plate_camera.STAGE_FIELD
 K1_VERSION = 2                         # 2 = sàn trong nhà chọn mặt hướng lên gần cao độ chỗ đứng (không lấy trần)
 MAX_GRID_CELLS = 64                    # cạnh lưới K1 tối đa (64 m) — chỗ đứng xa hơn: ô 'ngoài lưới' như cũ (bộ giải chỉ xếp hạng)
 NEAR_SPOT_M = 25.0                     # chỗ đứng khác (không shot nào của cảnh dùng) chỉ nêu cho Đạo diễn khi trong bán kính này quanh O
+HANDHELD_FLAG = "stage_handheld_props"
+HANDHELD_NOTE = ("Vũ khí / đồ cầm tay (`cam_duoc`): ghi vào objects như đạo cụ. Chưa xuất hiện → `{\"hidden\": true}` ở các nhịp trước; "
+                 "nằm đâu đó → `at` (+ `z` = cao mặt đặt, m); trong tay → `\"cam_tay\": \"<khóa người>\", \"tay\": \"phai|trai|hai_tay\"` "
+                 "(code tính điểm tay theo chỗ đứng + hướng mặt + tư thế; người phải có `facing`). Quay phim ghi vật này vào "
+                 "`thanh_phan` khi shot cần thấy nó — Blender đo % thấy.")
 SEG_FIELD = "stage_segment"
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _TOOL = None
@@ -231,11 +236,15 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
         people.append({"key": k, "label": n, "H": float(prof["height_m"])})
     objs: Dict[int, Dict] = {}
     props_of: Dict[int, List[int]] = {}
+    handheld: Dict[int, Dict] = {}
+    hand_on = features.on(HANDHELD_FLAG)
     for s in seg["shots"]:
         for a in place_refs.shot_objects(conn, pid, s["data"]):
             if a.get("kind") != "weapon":
                 props_of.setdefault(s["idx"], []).append(a["id"])
             if a.get("kind") == "weapon":                 # rà 15/10: súng / vũ khí cầm tay — không phải khối đứng trên sàn
+                if hand_on:                               # 16/10 cờ stage_handheld_props: vật theo nhịp (chỗ khai / tay nhân vật)
+                    handheld.setdefault(a["id"], a)
                 continue
             objs.setdefault(a["id"], a)
     for a in objs.values():
@@ -251,6 +260,21 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
         keys.add(k)
         fixed.append({"key": k, "kind": "dao_cu", "label": a.get("name"), "h": round(float(h), 3), "d": round(float(d), 3),
                       "source": f"Kho #{a.get('id')} size"})
+    hand_notes = []
+    for a in handheld.values():
+        size = a.get("size") or {}
+        h = size.get("height_m")
+        d = max([v for v in (size.get("length_m"), size.get("width_m"), size.get("depth_m")) if v] or [0])   # vũ khí: bề dài
+        if not h or not d:                                # không chặn cả cảnh: nói rõ vật này không đo được
+            hand_notes.append(f"(vũ khí {a.get('name')} Kho #{a.get('id')} thiếu kích thước cao + dài → không có trong dàn cảnh, "
+                              "code KHÔNG đo được % thấy)")
+            continue
+        k = key_of(a.get("name"))
+        while k in keys:
+            k += "x"
+        keys.add(k)
+        fixed.append({"key": k, "kind": "dao_cu", "label": a.get("name"), "h": round(float(h), 3), "d": round(float(d), 3),
+                      "cam_duoc": True, "source": f"Kho #{a.get('id')} size"})
     marks = st.get("marks") or {}
     if "thap_chan" in marks:
         fixed.append({"key": "moc", "kind": "moc", "from_marks": "thap",
@@ -258,6 +282,9 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
     notes = []
     if any(o["kind"] == "dao_cu" for o in fixed):
         notes.append("Đạo cụ không ghi `at`: bạn đặt vị trí theo kịch bản, GIỮ nguyên h / d / kind.")
+    if any(o.get("cam_duoc") for o in fixed):
+        notes.append(HANDHELD_NOTE)
+    notes += hand_notes
     main = seg["main_spot"]
     far = 0
     from .assets import fold
@@ -473,7 +500,7 @@ def cameras_from(stage: Dict, v2: Dict, seg_id: str, rd: str, colours: Optional[
                "auto": True, "segment": seg_id}
         props = []
         for o in (s.get("objs") or {}).values():
-            if o.get("kind") != "dao_cu":
+            if o.get("kind") != "dao_cu" or o.get("cam_duoc"):    # 16/10: đồ cầm tay chỉ để đo — không vẽ khối vào ảnh nền
                 continue
             at = _model(stage, [o["xy"][0], o["xy"][1], o.get("z", 0.0)])
             if o.get("shape") == "gieng":
@@ -507,8 +534,8 @@ def end_state(stage: Dict, answer: Dict, scene: str) -> Dict:
     raw = ss.beat_raw(bl, last.get("nhip")) if last.get("nhip") else ss.beat_raw(bl)
     out = {}
     for k, o in raw.items():
-        if o.get("kind") == "moc" or not o.get("at"):
-            continue
+        if o.get("kind") == "moc" or not o.get("at") or o.get("cam_duoc") or o.get("cam_tay"):
+            continue                                      # 16/10: đồ cầm tay không thành vật cố định của cảnh sau (Kho thêm lại)
         # 16/10 (#31 cảnh 6→7): nhịp cuối có di chuyển → vị trí cuối là `den`, không phải `at`; nhịp ghi `at` mới mà không `den` thì
         # `den` của objects gốc (beat_raw gộp dict) không còn đúng
         ov = ((bl.get("beats") or {}).get(last.get("nhip")) or {}).get(k) or {}

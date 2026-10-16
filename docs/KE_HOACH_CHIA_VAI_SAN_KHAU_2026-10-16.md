@@ -127,3 +127,17 @@ Giữ nguyên: K1, K3, K4, `cameras_from`, `apply`, `post_checks` (thành một 
 1. Bước D (Đạo diễn duyệt chốt) cho #31: để vai Đạo diễn (Claude) duyệt, hay **bạn** duyệt qua ảnh ghép như hiện nay?
 2. Quay phim được **đề nghị** dời người. Nếu Đạo diễn từ chối thì Quay phim phải làm với chỗ đứng đó (hoặc `giu_lech`). Đồng ý thứ tự ưu tiên này (Đạo diễn thắng) không?
 3. Chế độ API (sau #31): chấp nhận 4–6 lời gọi/cảnh nếu số đo cho thấy ít phải chạy lại hơn?
+
+## Bổ sung 16/10 — đạo cụ cầm tay theo nhịp (cờ `stage_handheld_props`, mặc định TẮT)
+Gốc: #31 cảnh 3 súng SKORP hiện ra ở xe nôi rồi nằm trong tay Kelly — vũ khí Kho bị bỏ khỏi dàn cảnh nên "thấy rõ súng" không đo được.
+- Cờ bật: vũ khí Kho của shot (có `height_m` + `width_m` ở Kho) vào danh sách vật cố định như đạo cụ `cam_duoc`; thiếu cỡ → ghi chú
+  "không đo được" trong đề bài (không chặn cả cảnh). Đạo diễn: `hidden` ở nhịp chưa xuất hiện, `at` (+ `z`) khi nằm đâu đó,
+  `cam_tay: <người>` + `tay: phai|trai|hai_tay` khi trong tay (người phải có `facing`; nằm / ngã ngửa → đặt bằng `at`).
+- Điểm tay (core/stage_solver.hand_point, ƯỚC TÍNH chưa đo Pose): cao 0,55 / 0,46 / 0,45 / 0,3 × H của nhịp (đứng / quỳ / ngồi / bò),
+  ra trước 0,3 m, lệch bên 0,2 m. Một nguồn cho bộ giải + Blender K4.
+- Blender: mỗi chỗ một khối `PROP_<KHÓA>_V<n>` ẩn/hiện theo nhịp; luật P2 không tính đồ cầm tay là vật chắn; không vẽ vào ảnh nền
+  (`stage_camera.props`), không mang sang cảnh sau.
+- Hạn chế: khối là trụ đứng đường kính = bề rộng Kho (súng: bề dài) → to hơn súng thật, % thấy là ước lượng; súng không bám theo
+  người đang di chuyển (`den`) trong shot — khối đứng ở chỗ đầu nhịp.
+- Thử 0 USD (bản sao CSDL, SKORP tạm cao 0,25 / dài 0,55 m chỉ ở bản sao): dàn cảnh đã duyệt cảnh 3 + súng → shot 12 thấy súng 53 %,
+  shot 13 20 %, shot 11 0 % (đầu shot súng còn trong xe nôi — đúng); P2 shot 12 trước khi sửa coi súng là vật chắn 20,7 % khung.

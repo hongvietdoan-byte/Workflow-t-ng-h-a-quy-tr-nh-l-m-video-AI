@@ -1,0 +1,145 @@
+"""16/10 cờ stage_handheld_props (#31 cảnh 3: súng SKORP hiện ra ở xe nôi rồi nằm trong tay Kelly — không phải vật dàn cảnh nên
+không đo được 'thấy súng'): vũ khí Kho vào dàn cảnh như đạo cụ theo nhịp; `cam_tay` → code tính điểm tay; Blender mỗi chỗ một khối."""
+import os
+import unittest
+from unittest import mock
+
+from core import llm_io, stage_auto, stage_director as sd, stage_solver as ss
+from tests.test_stage_auto import Base
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def blocking():
+    return {"objects": [{"key": "kelly", "kind": "nguoi", "at": [0.0, 0.0], "H": 1.7, "facing": 0, "label": "Kelly"},
+                        {"key": "xenoi", "kind": "dao_cu", "at": [1.0, 0.0], "h": 0.9, "d": 0.6},
+                        {"key": "skorp", "kind": "dao_cu", "at": [1.0, 0.0], "z": 0.9, "h": 0.2, "d": 0.6, "cam_duoc": True}],
+            "beats": {"n1": {"skorp": {"hidden": True}},
+                      "n2": {},
+                      "n3": {"skorp": {"cam_tay": "kelly", "tay": "phai"}},
+                      "n4": {"kelly": {"H": 1.2, "tu_the": "quy"}, "skorp": {"cam_tay": "kelly", "tay": "phai"}},
+                      "n5": {"skorp": {"at": [-1.0, 0.0]}}}}
+
+
+class HandTests(unittest.TestCase):
+    def test_hand_point_follows_facing_side_and_pose(self):
+        x, y, z = ss.hand_point({"key": "k", "xy": [0.0, 0.0], "H": 1.7, "facing": 0})
+        self.assertAlmostEqual((x, y, z), (0.0, ss.HAND_FWD_M, 0.55 * 1.7))
+        x, y, _ = ss.hand_point({"key": "k", "xy": [0.0, 0.0], "H": 1.7, "facing": 0}, "phai")
+        self.assertAlmostEqual((x, y), (ss.HAND_SIDE_M, ss.HAND_FWD_M))      # mặt về Bắc → tay phải ở phía Đông
+        x, y, _ = ss.hand_point({"key": "k", "xy": [0.0, 0.0], "H": 1.7, "facing": 90}, "trai")
+        self.assertAlmostEqual(x, ss.HAND_FWD_M)
+        self.assertAlmostEqual(y, ss.HAND_SIDE_M)                            # mặt về Đông → tay trái ở phía Bắc
+        with self.assertRaisesRegex(ValueError, "facing"):
+            ss.hand_point({"key": "k", "xy": [0, 0], "H": 1.7, "facing": None})
+        with self.assertRaisesRegex(ValueError, "tư thế nam"):
+            ss.hand_point({"key": "k", "xy": [0, 0], "H": 1.7, "facing": 0, "tu_the": "nam"})
+
+    def test_prop_per_beat_hidden_placed_held_put_down(self):
+        bl = blocking()
+        self.assertNotIn("skorp", ss.objects_from_blocking(bl, beat="n1"))   # chưa xuất hiện
+        on_cot = ss.objects_from_blocking(bl, beat="n2")["skorp"]
+        self.assertEqual((on_cot["xy"], on_cot["z"], on_cot.get("cam_duoc")), ([1.0, 0.0], 0.9, True))
+        held = ss.objects_from_blocking(bl, beat="n3")["skorp"]
+        self.assertEqual(held["held_by"], "kelly")
+        self.assertAlmostEqual(held["xy"][0], ss.HAND_SIDE_M)
+        self.assertAlmostEqual(held["z"], round(0.55 * 1.7 - 0.1, 3))        # z = đáy khối, tâm ở tay
+        kneel = ss.objects_from_blocking(bl, beat="n4")["skorp"]
+        self.assertAlmostEqual(kneel["z"], round(0.46 * 1.2 - 0.1, 3))
+        down = ss.objects_from_blocking(bl, beat="n5")["skorp"]
+        self.assertEqual((down["xy"], down.get("held_by")), ([-1.0, 0.0], None))   # `at` không `cam_tay` = đặt xuống
+
+    def test_holder_absent_is_error(self):
+        bl = blocking()
+        bl["beats"]["n3"]["kelly"] = {"hidden": True}
+        with self.assertRaisesRegex(ValueError, "cầm tay 'kelly'"):
+            ss.objects_from_blocking(bl, beat="n3")
+
+    def test_handheld_without_place_is_schema_error(self):
+        from core import stage_crew as sc
+        bl = blocking()
+        bl["objects"][2].pop("at")
+        bl["beats"]["n2"]["skorp"] = {"_ly_do": "quên chỗ"}
+        bl["shot_nhip"] = {"1": "n2"}
+        inputs = {"auto": True, "fixed": [{"key": "xenoi", "kind": "dao_cu", "h": 0.9, "d": 0.6},
+                                          {"key": "skorp", "kind": "dao_cu", "h": 0.2, "d": 0.6, "cam_duoc": True}],
+                  "shots": [{"shot": 1, "nhan_vat": ["kelly"]}]}
+        with self.assertRaisesRegex(llm_io.SchemaError, "'skorp' không có `at`"):
+            sc.validate_blocking({"blocking": bl}, inputs)
+
+    def test_flag_needs_stage_auto_and_is_opt_in(self):
+        from core import features
+        self.assertEqual(features.REQUIRES["stage_handheld_props"], ("stage_auto",))
+        self.assertIn("stage_handheld_props", features.OPT_IN_ONLY)          # bật = đầu vào cảnh có vũ khí đổi → chỉ bật tay
+        self.assertFalse(features.FEATURES["stage_handheld_props"].get("default_on"))
+
+    def test_blocking_errors_cam_tay_only_for_handheld(self):
+        fixed = [{"key": "xenoi", "kind": "dao_cu", "h": 0.9, "d": 0.6},
+                 {"key": "skorp", "kind": "dao_cu", "h": 0.2, "d": 0.6, "cam_duoc": True}]
+        bl = blocking()
+        bl["objects"][2].pop("cam_duoc")
+        self.assertEqual(sd.blocking_errors(bl, {"auto": True, "fixed": fixed}), [])
+        self.assertTrue(bl["objects"][2]["cam_duoc"])                        # code gắn lại dữ kiện của Kho
+        bad = blocking()
+        bad["beats"]["n2"]["xenoi"] = {"cam_tay": "kelly"}
+        bad["beats"]["n3"]["skorp"]["tay"] = "chan"
+        bad["beats"]["n4"]["skorp"]["cam_tay"] = "yeunu"
+        errs = " | ".join(sd.blocking_errors(bad, {"auto": True, "fixed": fixed}))
+        self.assertIn("'xenoi' không phải đồ cầm tay", errs)
+        self.assertIn("tay 'chan'", errs)
+        self.assertIn("cam_tay 'yeunu'", errs)
+
+    def test_held_prop_not_an_overlap(self):
+        objs = ss.objects_from_blocking(blocking(), beat="n3")
+        self.assertEqual(sd.overlap_errors(objs), [])
+
+    def test_blender_one_block_per_place(self):
+        tool = stage_auto.tool()
+        bl = blocking()
+        beats = {n: ss.objects_from_blocking(bl, beat=n) for n in ("n2", "n3", "n5")}
+        props = {p["name"]: p for p in tool.blender_props(beats) if p["kind"] == "block"}
+        self.assertIn("PROP_XENOI", props)                                    # một chỗ: tên cũ
+        sk = sorted(n for n in props if n.startswith("PROP_SKORP"))
+        self.assertEqual(sk, ["PROP_SKORP_V0", "PROP_SKORP_V1", "PROP_SKORP_V2"])
+        self.assertEqual(props["PROP_SKORP_V0"]["z"], 0.9)
+        self.assertNotEqual(beats["n2"]["skorp"]["prop"], beats["n3"]["skorp"]["prop"])
+        self.assertEqual(beats["n3"]["skorp"]["own"], f"STAGE_{beats['n3']['skorp']['prop']}_")
+
+    def test_cameras_skip_handheld_blocks(self):
+        objs = ss.objects_from_blocking(blocking(), beat="n3")
+        v2 = {"shots": [{"shot": 1, "spec": {}, "objs": objs,
+                         "best": {"ok": True, "tag": "t", "m": {"at": [2.0, 0.0, 1.0], "aim": [0.0, 0.0, 1.0], "lens": 35.0}}}]}
+        stage = {"origin_model": [0, 0, 0], "factor": 1.0, "north": "+y", "east": "+x"}
+        with mock.patch.object(stage_auto, "_model", side_effect=lambda st, p: list(p)):
+            cams, _ = stage_auto.cameras_from(stage, v2, "doan_1", "rd")
+        self.assertEqual([p["label"] for p in cams[1]["props"]], ["xenoi"])    # súng chỉ để đo, không vẽ vào ảnh nền
+
+
+class InputsTests(Base):
+    WEAPON = [{"id": 5, "name": "SKORP", "kind": "weapon", "size": {"height_m": 0.25, "length_m": 0.55, "width_m": 0.06}},
+              {"id": 6, "name": "UMP", "kind": "weapon", "size": {}}]
+
+    def inputs(self, on):
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        k1 = stage_auto.ensure_k1(seg["entry"], seg["main_spot"], stage_auto.base_dir(self.data, pid, seg["stage"]))
+        with mock.patch("core.place_refs.shot_objects", return_value=self.WEAPON), \
+                mock.patch.dict(os.environ, {"FEATURE_STAGE_HANDHELD_PROPS": "1" if on else "0"}):
+            return stage_auto.inputs_for(self.p.conn, pid, seg, k1)
+
+    def test_flag_off_unchanged(self):
+        inputs, missing = self.inputs(False)
+        self.assertEqual((missing, [o for o in inputs["fixed"] if o["kind"] == "dao_cu"]), ([], []))
+
+    def test_flag_on_weapon_with_size_is_handheld_without_size_noted(self):
+        inputs, missing = self.inputs(True)
+        self.assertEqual(missing, [])                                         # thiếu cỡ không chặn cả cảnh …
+        self.assertIn({"key": "skorp", "kind": "dao_cu", "label": "SKORP", "h": 0.25, "d": 0.55, "cam_duoc": True,
+                       "source": "Kho #5 size"}, inputs["fixed"])
+        notes = "\n".join(inputs["user_notes"])
+        self.assertIn("UMP", notes)                                           # … nhưng nói rõ không đo được
+        self.assertIn("cam_tay", notes)
+
+
+if __name__ == "__main__":
+    unittest.main()

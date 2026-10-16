@@ -118,6 +118,22 @@ class PureTests(unittest.TestCase):
         sc.ingest(st, {"duyet": True}, None, "nguoi_dung")
         self.assertEqual(st["phase"], "xong")
 
+    def test_return_notes_survive_director_question(self):
+        # rà 16/10: sau trả lại, Quay phim đề nghị dời người (chưa hỏi Đạo diễn) → ý đồ trả lại phải còn tới lượt Đạo diễn + lượt duyệt kế
+        ok = [{"shot": n, "ket_luan": "khop"} for n in (1, 2, 3)]
+        ask = {"shot": 2, "ket_luan": "de_nghi_doi_cho", "vat": "kelly", "goi_y_at": [1.0, 0.0], "ly_do": "chắn vật"}
+        st, _ = self.run_machine(blocking(), specs(), review(*ok))
+        note = [{"shot": 2, "y_do": "thấy rõ súng"}]
+        sc.ingest(st, {"duyet": False, "tra_lai": note}, None, "nguoi_dung")
+        sc.ingest(st, review(ok[0], ask, ok[2]), None)
+        self.assertEqual(st["phase"], "dao_dien_tra_loi")
+        self.assertEqual(st["notes"], note)
+        reply = dict(blocking(), tra_loi=[{"shot": 2, "dong_y": False, "ly_do": "giữ"}])
+        sc.ingest(st, reply, None)
+        self.assertEqual((st["phase"], st["notes"]), ("quay_phim_duyet", note))
+        sc.ingest(st, review(*ok), None)
+        self.assertEqual((st["phase"], st["notes"]), ("duyet", []))
+
     def test_user_return_after_director_return(self):
         ok = [{"shot": n, "ket_luan": "khop"} for n in (1, 2, 3)]
         st, _ = self.run_machine(blocking(), specs(), review(*ok))

@@ -156,6 +156,21 @@ def blocking_errors(bl: Dict, inputs: Dict) -> List[str]:
         for k in ("h", "d", "kind"):
             if k in f and o.get(k) != f[k]:
                 errs.append(f"vật cố định '{f['key']}' bị đổi {k}: {o.get(k)} ≠ {f[k]}")
+        if f.get("cam_duoc"):                             # 16/10 cờ stage_handheld_props: dữ kiện của code, không bắt chép lại
+            o["cam_duoc"] = True
+    people = {k for k, o in have.items() if o.get("kind") == "nguoi"}
+    rows_ = [("objects", o.get("key"), o) for o in bl.get("objects", []) if isinstance(o, dict)]
+    rows_ += [(f"beats.{n}", k, ov) for n, b in (bl.get("beats") or {}).items() if isinstance(b, dict)
+              for k, ov in b.items() if isinstance(ov, dict)]
+    for where, k, ov in rows_:                            # 16/10: chỉ đồ cầm được mới `cam_tay`, tay trong enum, người có thật
+        if not ov.get("cam_tay"):
+            continue
+        if not (have.get(k) or {}).get("cam_duoc"):
+            errs.append(f"{where}: '{k}' không phải đồ cầm tay (chỉ vũ khí / đồ cầm tay trong danh sách vật cố định) — bỏ `cam_tay`")
+        elif ov["cam_tay"] not in people:
+            errs.append(f"{where}: '{k}' cam_tay '{ov['cam_tay']}' không phải người trong objects ({', '.join(sorted(people))})")
+        if ov.get("tay") not in (None, "phai", "trai", "hai_tay"):
+            errs.append(f"{where}: '{k}' tay '{ov['tay']}' không thuộc phai / trai / hai_tay")
     # tư thế ngoài enum (vd 'nga', 'lying') trước đây bị giải im lặng như người đứng — rà Đợt 2 khi prompt 29 mở nga_ngua/nam.
     # Chỉ kiểm câu trả lời mới của Đạo diễn (blocking cũ đã lưu không bị chặn ở đây).
     from .shot_intent import TU_THE
@@ -324,6 +339,8 @@ def overlap_errors(objs: Dict[str, Dict]) -> List[str]:
         if o["kind"] != "nguoi":
             continue
         for w in objs.values():
+            if w.get("cam_duoc"):                        # 16/10: đồ cầm tay (súng) không phải khối đứng chồng được
+                continue
             if w["kind"] == "dao_cu" and w.get("shape") == "dao_cu" and math.dist(o["xy"], w["xy"]) < w["r"] + 0.15:
                 # 15/10 sân khấu tự động: đạo cụ Kho (khối trụ) — người không đứng trong khối
                 out.append(f"'{k}' đứng chồng lên đạo cụ '{w['key']}' (cách tâm {math.dist(o['xy'], w['xy']):.2f} m < "

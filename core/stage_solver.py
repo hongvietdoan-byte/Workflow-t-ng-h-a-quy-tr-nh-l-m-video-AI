@@ -39,10 +39,38 @@ def beat_raw(blocking: Dict, beat: Optional[str] = None) -> Dict[str, Dict]:
                 continue
             if "at" in ov and "in" not in ov:
                 raw[k].pop("in", None)
+            if "at" in ov and "cam_tay" not in ov:       # 16/10: đạo cụ cầm tay được đặt xuống chỗ khai
+                raw[k].pop("cam_tay", None)
             raw[k].update({a: b for a, b in ov.items() if b is not None})
             if ov.get("in") is None and "in" in ov:
                 raw[k].pop("in", None)
     return raw
+
+
+# 16/10 (#31 cảnh 3, súng SKORP): điểm TAY cầm đạo cụ — ƯỚC TÍNH (chưa đo bằng Pose), một nguồn cho bộ giải + Blender K4.
+# Cao tay ÷ H của NHỊP (H = chiều cao người nộm theo tư thế — prompt 29a: quỳ ≈ 0,7·H đứng, ngồi ≈ 0,55–0,6, bò ≈ 0,35); tay lệch ngang
+# HAND_SIDE_M về bên khai, ra trước HAND_FWD_M theo hướng mặt.
+HAND_Z = {"dung": 0.55, "quy": 0.46, "ngoi": 0.45, "bo": 0.3}
+HAND_FWD_M = 0.3
+HAND_SIDE_M = 0.2
+
+
+def hand_point(person: Dict, tay: Optional[str] = None) -> Tuple[float, float, float]:
+    """(x, y, z sàn của TÂM đạo cụ) cho người `person` (vật đã tính của objects_from_blocking). Thiếu hướng mặt / nằm → ValueError."""
+    if person.get("facing") is None:
+        raise ValueError(f"'{person['key']}' cầm đạo cụ cần facing (không đoán phía trước tay)")
+    pose = person.get("tu_the") or "dung"
+    if pose not in HAND_Z:
+        raise ValueError(f"'{person['key']}' tư thế {pose}: chưa có điểm tay — đặt đạo cụ bằng `at` + `z`")
+    side = {"phai": 1.0, "trai": -1.0, None: 0.0, "": 0.0, "hai_tay": 0.0}.get(tay)
+    if side is None:
+        raise ValueError(f"tay '{tay}' không hợp lệ (phai / trai / hai_tay)")
+    a = math.radians(float(person["facing"]))
+    fx, fy = math.sin(a), math.cos(a)                    # facing 0 = +y (Bắc), theo chiều kim đồng hồ
+    rx, ry = fy, -fx                                     # bên phải của người
+    x = person["xy"][0] + fx * HAND_FWD_M + rx * HAND_SIDE_M * side
+    y = person["xy"][1] + fy * HAND_FWD_M + ry * HAND_SIDE_M * side
+    return x, y, float(person.get("z", 0.0)) + HAND_Z[pose] * float(person["H"])
 
 
 def objects_from_blocking(blocking: Dict, marks: Optional[Dict] = None, beat: Optional[str] = None) -> Dict[str, Dict]:
@@ -51,8 +79,12 @@ def objects_from_blocking(blocking: Dict, marks: Optional[Dict] = None, beat: Op
     raw = beat_raw(blocking, beat)
     full = {o["key"]: o for o in blocking.get("objects", [])}
     out: Dict[str, Dict] = {}
+    held = []
     for k, o in raw.items():
         kind = o["kind"]
+        if kind not in ("nguoi", "moc") and o.get("cam_tay"):
+            held.append(k)                                # tính sau khi có người (điểm tay theo chỗ đứng + tư thế của nhịp)
+            continue
         e = {"key": k, "kind": "nguoi" if kind == "nguoi" else ("moc" if kind == "moc" else "dao_cu"), "label": o.get("label", k),
              "source": o.get("source")}
         if kind == "nguoi":
@@ -82,10 +114,25 @@ def objects_from_blocking(blocking: Dict, marks: Optional[Dict] = None, beat: Op
             e.update(xy=[foot[0], foot[1]], z=float(foot[2]), h=float(top[2]) - float(foot[2]),
                      r=float(o.get("r", (ob.get("bbox_size_m") or [2.0])[0] / 2)), group=o.get("group", name), own=ob.get("name", "~"))
         else:
+            if not o.get("at"):                          # rà 16/10: đồ cầm tay quên chỗ ở nhịp này → lỗi nói rõ (Đạo diễn sửa), không KeyError
+                raise ValueError(f"'{k}' không có `at` (hoặc `cam_tay` / `hidden`) ở nhịp này")
             e.update(xy=list(o["at"][:2]), z=float(o.get("z", 0.0)), h=float(o["h"]), r=float(o.get("d", 1.0)) / 2,
                      group=o.get("group", "gieng" if kind == "gieng" else k), own=o.get("own", "STAGE_WELL" if kind == "gieng" else "STAGE_" + k.upper()),
                      hollow=bool(o.get("hollow")), shape=kind)
+            if o.get("cam_duoc"):
+                e["cam_duoc"] = True
         out[k] = e
+    for k in held:
+        o = raw[k]
+        who = out.get(o["cam_tay"])
+        if who is None or who["kind"] != "nguoi":
+            raise ValueError(f"'{k}' cầm tay '{o['cam_tay']}' nhưng người đó không có / bị ẩn ở nhịp này")
+        x, y, zc = hand_point(who, o.get("tay"))
+        h = float(o["h"])
+        out[k] = {"key": k, "kind": "dao_cu", "label": o.get("label", k), "source": f"tay {who['key']} (ước tính, code)",
+                  "xy": [round(x, 3), round(y, 3)], "z": round(max(0.0, zc - h / 2), 3), "h": h, "r": float(o.get("d", 1.0)) / 2,
+                  "group": o.get("group", k), "own": o.get("own", "STAGE_" + k.upper()), "hollow": False, "shape": o["kind"],
+                  "cam_duoc": True, "held_by": who["key"]}
     return out
 
 

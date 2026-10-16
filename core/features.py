@@ -534,6 +534,15 @@ FEATURES: Dict[str, Dict] = {
                "khung, máy chúc trái ý 'nhìn lên' mà bộ kiểm vẫn ĐẠT. Chưa thử — ca thử shot 10 cảnh 3 #31 ngoại tuyến 0 USD; "
                "API: đo chi phí xong người dùng mới quyết bật",
     },
+    "stage_handheld_props": {
+        "label": "Sân khấu 3D: vũ khí / đồ cầm tay (Kho, có kích thước) vào dàn cảnh như đạo cụ theo nhịp — ẩn tới nhịp xuất hiện, "
+                 "nằm chỗ khai hoặc `cam_tay` nhân vật (code tính điểm tay) → Quay phim khai được 'phải thấy súng', Blender đo % thấy. "
+                 "Không vẽ vào ảnh nền",
+        "verified": False,
+        "why": "16/10 #31 cảnh 3: súng SKORP hiện ra ở xe nôi rồi nằm trong tay Kelly — không phải vật dàn cảnh nên shot 11–13 "
+               "'thấy rõ súng' chỉ đo được qua xe nôi / Kelly. Bật → đầu vào sân khấu cảnh có vũ khí đổi (lượt API chạy lại tốn "
+               "tiền) — bật cho cảnh MỚI, thử ngoại tuyến 0 USD trước",
+    },
     "stage_crew_user_approve": {"default_on": True,
         "label": "Sân khấu chia vai: bước DUYỆT CHỐT do người dùng (xem ảnh ghép nhìn từ trên theo nhịp + clay) thay vai Đạo diễn — "
                  "shot giữ ở cổng tới khi duyệt",
@@ -754,7 +763,8 @@ PRESETS = {"custom": "Theo dashboard.env (hiện tại)", "stable": "Ổn địn
 HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
-OPT_IN_ONLY: tuple = ("motion_sfx", "anchor_by_spot", "continuity_from_ui", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc", "stage_crew")
+OPT_IN_ONLY: tuple = ("motion_sfx", "anchor_by_spot", "continuity_from_ui", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc", "stage_crew",
+                      "stage_handheld_props")
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.
@@ -977,7 +987,7 @@ REQUIRES = {"dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_re
             "anchor_by_spot": ("storyboard_api",),
             # rà 15/10: máy sân khấu chỉ được nền 3D dùng khi stage_camera bật; nền 3D cần place_render_refs
             "stage_auto": ("stage_camera", "place_render_refs"),
-            "stage_crew": ("stage_auto",), "stage_crew_user_approve": ("stage_crew",)}
+            "stage_crew": ("stage_auto",), "stage_crew_user_approve": ("stage_crew",), "stage_handheld_props": ("stage_auto",)}
 
 
 def unmet(name: str) -> list:

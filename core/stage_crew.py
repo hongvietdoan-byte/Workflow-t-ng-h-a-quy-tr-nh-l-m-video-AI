@@ -523,7 +523,8 @@ def _ingest(state: Dict, obj: Dict, measure: MeasureFn, source: str) -> None:
                 else:
                     requests.append({k: r.get(k) for k in ("shot", "vat", "goi_y_at", "ly_do")})
         state["specs"] = [specs[k] for k in sorted(specs)]
-        state["notes"] = []
+        if not requests:                                 # rà 16/10: còn hỏi Đạo diễn → giữ ý đồ bị trả lại cho Đạo diễn + lượt duyệt kế
+            state["notes"] = []
         if obj.get("s0") and obj["s0"] != state.get("s0"):       # Quay phim đổi phía máy cả cảnh → đo lại mọi shot
             state["s0"] = obj["s0"]
             reset_measures(state)

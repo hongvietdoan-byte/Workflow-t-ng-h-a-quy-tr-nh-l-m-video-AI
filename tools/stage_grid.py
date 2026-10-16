@@ -339,11 +339,13 @@ def blender_main(cfg):
             info.update(radius_m=p["radius"], height_m=p["height"], top_z=round(frel + p["height"], 2), source=p.get("source"),
                         hollow=bool(p.get("hollow")))
         elif p["kind"] == "block":                       # 15/10: đạo cụ không có trong model 3D = khối trụ xám đúng chỗ + đúng cỡ
-            bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=p["radius"], depth=p["height"], location=(s.x, s.y, fz + p["height"] / 2))
+            bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=p["radius"], depth=p["height"],
+                                                location=(s.x, s.y, fz + float(p.get("z", 0.0)) + p["height"] / 2))
             o = bpy.context.active_object
             o.name = f"STAGE_{p['name']}_body"
             o.data.materials.append(mk_mat(f"STAGE_{p['name']}_mat", (0.5, 0.42, 0.33)))
-            info.update(radius_m=p["radius"], height_m=p["height"], top_z=round(frel + p["height"], 2), source=p.get("source"))
+            info.update(radius_m=p["radius"], height_m=p["height"], top_z=round(frel + float(p.get("z", 0.0)) + p["height"], 2),
+                        source=p.get("source"))
         else:
             hgt = p["height"]
             if p.get("in_well") is not None:
@@ -1040,6 +1042,7 @@ def v2_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
         chinh = [c["vat"] for c in spec["thanh_phan"] if c.get("vai") == "chinh"]
         size_key = chinh[0]
         near_main = min(math.dist(C_r, sg.anchor_point(objs[k])) for k in chinh)
+        held = {"vat_" + k.lower() for k, o in objs.items() if o.get("cam_duoc")}   # 16/10: súng trong tay không phải vật chắn (P2)
         nu, nv = rays
         counts, occ, occ_m = {}, 0, None
         for j in range(nv):
@@ -1051,7 +1054,7 @@ def v2_block(cfg, stage, placed, marks, scene, dgv, scn, rel, mat_of, classify, 
                 else:
                     o, g = group_of(obj, idx, loc, nor)
                     dist = (loc - L).length / f_
-                    if g not in ("san", "gieng", "troi") and not g.startswith("nguoi") and dist < near_main - 0.3:
+                    if g not in ("san", "gieng", "troi") and g not in held and not g.startswith("nguoi") and dist < near_main - 0.3:
                         occ += 1
                         occ_m = dist if occ_m is None else min(occ_m, dist)
                 counts[g] = counts.get(g, 0) + 1
@@ -1470,18 +1473,29 @@ def blender_props(beats):
             if o["kind"] == "dao_cu" and o.get("shape") == "gieng":
                 wells[o["key"]] = o
             elif o["kind"] == "dao_cu":                  # 15/10 sân khấu tự động: mọi đạo cụ khác = khối trụ đúng chỗ + đúng cỡ
-                blocks.setdefault(o["key"], o)
+                # 16/10 (cờ stage_handheld_props): đạo cụ đổi chỗ theo nhịp (súng ở xe nôi → trong tay) = mỗi chỗ một khối
+                # `PROP_<KHÓA>_V<n>` ẩn/hiện theo nhịp như người nộm; một chỗ thì giữ tên cũ `PROP_<KHÓA>`
+                sig = (round(o["xy"][0], 3), round(o["xy"][1], 3), round(float(o.get("z", 0.0)), 3))
+                blocks.setdefault(o["key"], {}).setdefault(sig, o)
     if len(wells) > 1:
         raise ValueError("v2: dàn cảnh có > 1 giếng — Blender chỉ dựng một STAGE_WELL")
     props = [{"name": "WELL", "kind": "well", "at": list(o["xy"]), "radius": o["r"], "height": o["h"], "sides": 8,
               "source": o.get("source") or WELL_SRC, "hollow": bool(o.get("hollow"))} for o in wells.values()]
-    for k, o in blocks.items():
-        name = f"PROP_{k.upper()}"
-        props.append({"name": name, "key": k, "kind": "block", "at": list(o["xy"]), "radius": o["r"], "height": o["h"],
-                      "source": o.get("source") or "blocking.json"})
+    for k, places in blocks.items():
+        names = {}
+        for n, (sig, o) in enumerate(places.items()):
+            name = f"PROP_{k.upper()}" if len(places) == 1 else f"PROP_{k.upper()}_V{n}"
+            names[sig] = name
+            p = {"name": name, "key": k, "kind": "block", "at": list(o["xy"]), "radius": o["r"], "height": o["h"],
+                 "source": o.get("source") or "blocking.json"}
+            if sig[2]:
+                p["z"] = sig[2]                          # cao trên sàn tại chỗ đặt (mặt xe nôi / tay người)
+            props.append(p)
         for objs in beats.values():
             if k in objs:
-                objs[k]["prop"], objs[k]["own"] = name, f"STAGE_{name}_"
+                o = objs[k]
+                name = names[(round(o["xy"][0], 3), round(o["xy"][1], 3), round(float(o.get("z", 0.0)), 3))]
+                o["prop"], o["own"] = name, f"STAGE_{name}_"
     pal, variants = {}, {}
     # 16/10 (#31 cảnh 4: 5 người → người thứ 5 trùng cam với Kelly, mất khỏi guide_people): 7 màu; tên màu ở core/stage_auto.COLOUR_WORDS
     colours = [[1.0, 0.45, 0.05], [0.85, 0.05, 0.1], [0.2, 0.75, 0.3], [0.6, 0.3, 0.9], [0.1, 0.4, 1.0], [0.95, 0.85, 0.05],
