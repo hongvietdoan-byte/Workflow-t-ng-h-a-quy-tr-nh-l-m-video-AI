@@ -559,7 +559,7 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
                             f"{_estimate(conn, 1)} (tối đa {2 * sd.MAX_ROUNDS} lời gọi {_estimate(conn, 2 * sd.MAX_ROUNDS)})", log)
     with open(os.path.join(out, "inputs.json"), "w", encoding="utf-8") as f:
         json.dump(inputs, f, ensure_ascii=False, indent=1)
-    _archive_rounds(out)                                  # 16/10: lượt của các lần trả tiền trước giữ lại (chấm lại bằng --score)
+    before_run = set(os.listdir(out))                     # tệp của LẦN trước (cất sau khi có câu trả lời mới)
     prev, feedback, obj, v2, rd = None, [], None, None, out
     for rnd in range(1, sd.MAX_ROUNDS + 1):
         text = sd.build_prompt(inputs, prev, feedback) + (format_example(inputs) if prev is None else "")
@@ -574,6 +574,8 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
                 raise                                     # đăng nhập / hạn mức / hết tiền / sổ chi: autopilot dừng như khâu Claude khác
             res["missing"].append(f"Đạo diễn trả lời sai mẫu 2 lần (lượt {rnd}): {str(e)[:200]}")
             return _save(path, dict(res, fp=fp))
+        if rnd == 1:                                      # 16/10: chỉ cất lượt của lần trước khi ĐÃ có câu trả lời mới (lỗi Claude → giữ nguyên)
+            _archive_rounds(out, only=before_run - {f"prompt_r{rnd}.md"})
         if obj.get("can_hoi"):
             _say(conn, pid, "warn", f"Sân khấu {seg['id']}: Đạo diễn hỏi — {obj['can_hoi']}", log)
         bl = dict(obj["blocking"], place=inputs["place"], spot=inputs["spot"], aspect=inputs["aspect"])
@@ -676,11 +678,14 @@ def post_checks(inputs: Dict, v2: Dict) -> Dict[int, str]:
             d = _m.dist(m["at"], prev[1]["at"])
             yaw = lambda q: _m.degrees(_m.atan2(q["aim"][0] - q["at"][0], q["aim"][1] - q["at"][1]))
             dy = abs((yaw(m) - yaw(prev[1]) + 180) % 360 - 180) if m.get("aim") and prev[1].get("aim") else 999
-            if same_spot and d < SAME_CAM_M and dy < SAME_CAM_DEG:      # 16/10 lần 2: ống khác 1–2 mm vẫn là cùng một máy
+            lens_ratio = max(float(m.get("lens") or 1), float(prev[1].get("lens") or 1)) / max(min(float(m.get("lens") or 1),
+                                                                                                float(prev[1].get("lens") or 1)), 1e-6)
+            other_size = spec.get("co") != (prev[2].get("co") if len(prev) > 2 else spec.get("co"))
+            if same_spot and d < SAME_CAM_M and dy < SAME_CAM_DEG and lens_ratio < 1.3 and not other_size:
                 out[s["shot"]] = (out.get(s["shot"], "") + ("; " if s["shot"] in out else "")
                                   + f"máy trùng shot {prev[0]} (cách {d:.2f} m, lệch {dy:.0f}°, cùng ống {m.get('lens')} mm) — đổi góc / "
                                     "độ cao / cỡ")
-        prev = (s["shot"], m) if m else None              # rà 16/10: shot không có số đo → shot sau không so với shot cách một
+        prev = (s["shot"], m, spec) if m else None        # rà 16/10: shot không có số đo → shot sau không so với shot cách một
     return out
 
 
@@ -780,10 +785,11 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
     return out
 
 
-def _archive_rounds(out: str) -> None:
+def _archive_rounds(out: str, only=None) -> None:
     """Dời r*/ + prompt_r*.md + bad_reply_* của lần chạy trước vào cu_<giờ>/ — lần mới không ghi đè câu trả lời đã trả tiền."""
     import shutil
-    olds = [x for x in os.listdir(out) if re.fullmatch(r"r[0-9]+", x) or x.startswith(("prompt_r", "bad_reply_r"))]
+    olds = [x for x in os.listdir(out) if (re.fullmatch(r"r[0-9]+", x) or x.startswith(("prompt_r", "bad_reply_r")))
+            and (only is None or x in only)]
     if not olds:
         return
     dest = os.path.join(out, "cu_" + time.strftime("%Y%m%d_%H%M%S"))

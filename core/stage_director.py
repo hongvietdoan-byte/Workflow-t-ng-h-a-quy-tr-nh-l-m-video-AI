@@ -149,7 +149,8 @@ def validate_answer(obj, inputs: Dict, marks: Optional[Dict] = None) -> Dict:
 
 def _sig(spec: Dict):
     main = next((c for c in spec.get("thanh_phan") or [] if c.get("vai") == "chinh"), {}) or {}
-    return (spec.get("co"), sg.fold(spec.get("do_cao") or "ngang"), sg.fold(spec.get("goc") or "ngang"), main.get("vat"),
+    first = lambda v: (sg.fold(str(v or "ngang")).replace("_", " ").split() or ["ngang"])[0]     # "ngang mắt" = "ngang"
+    return (spec.get("co"), first(spec.get("do_cao")), first(spec.get("goc")), main.get("vat"),
             str(main.get("vung") or ""), str(main.get("thay") or ""), bool(spec.get("may")), spec.get("pov"))
 
 
@@ -165,7 +166,8 @@ AUTO_RULES = chr(10).join([
 ])
 
 
-KILL_WORDS = re.compile(r"hạ gục|bắn hạ|giết|tiêu diệt|hạ (?:lần lượt|từng|cả|ba|hai|bốn)|knock(?:s|ed)? (?:out|down)|takes? down|kills?", re.I)
+KILL_WORDS = re.compile(r"hạ gục|đánh gục|bắn hạ|bắn chết|giết|tiêu diệt|hạ (?:lần lượt|từng|cả|nốt|một|ba|hai|bốn|năm)"
+                        r"|knock(?:s|ed)? (?:out|down)|takes? down|shoots? down|eliminat|" + chr(92) + "bkills?" + chr(92) + "b", re.I)
 LYING = ("nam", "nga_ngua")
 SEEN_K3_PCT = 15.0                     # = stage_auto.SEEN_MIN_PCT — người kịch bản phải lọt khung ≥ bấy nhiêu % ngay ở bộ giải (K3)
 
@@ -180,6 +182,8 @@ def _state(bl: Dict, nhip: Optional[str]) -> Dict[str, Dict]:
 def kill_in_shot(action: str) -> bool:
     """Hành động của shot có hạ gục NGAY TRONG shot (không phải 'sau khi vừa hạ gục' / 'đã hạ' — #31 shot 16 bắt oan lần đầu)."""
     for m in KILL_WORDS.finditer(action or ""):
+        if action.lower().count("vừa") >= 2:             # "vừa … vừa …" = hai việc cùng lúc, không phải việc đã xong
+            return True
         if not re.search(r"(?:sau khi|vừa|đã|after|having)\s*(?:\S+\s+){0,2}$", action[max(0, m.start() - 25):m.start()], re.I):
             return True
     return False
@@ -215,6 +219,8 @@ def script_rules(bl: Dict, specs: List[Dict], inputs: Dict, marks: Optional[Dict
         if kill_in_shot(str(sh.get("action") or "")):
             before = _state(bl, prev.get("nhip")) if prev is not None else _state(bl, None)
             for k in want:
+                if k not in before:                       # rà 16/10: người không có ở nhịp trước (bị hạ ngoài màn hình) — không đoán
+                    continue
                 if (now.get(k) or {}).get("tu_the") in LYING and (before.get(k) or {}).get("tu_the") not in LYING:
                     out.append(f"shot {s['shot']}: `{k}` bị hạ TRONG shot này nên ở nhịp `{s.get('nhip')}` (khung ĐẦU) phải còn đứng — "
                                "ngã / nằm ở nhịp của shot sau")
@@ -246,7 +252,9 @@ def k3_frame_errors(bl: Dict, specs: List[Dict], info: Dict, marks: Optional[Dic
         best = None
         for c in r.get("cams") or []:
             objs = (c.get("eval") or {}).get("obj") or {}
-            lows = [k for k in want if ((objs.get(k) or {}).get("in_pct") or 0.0) < SEEN_K3_PCT]
+            ends = (((c.get("end") or {}).get("eval") or {}).get("obj")) or {}     # máy chạy: đầu HOẶC cuối khung (như post_checks)
+            lows = [k for k in want if max(((objs.get(k) or {}).get("in_pct") or 0.0),
+                                           ((ends.get(k) or {}).get("in_pct") or 0.0)) < SEEN_K3_PCT]
             if not lows:
                 best = None
                 break

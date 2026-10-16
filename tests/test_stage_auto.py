@@ -922,3 +922,25 @@ class ScoreSavedTests(Base):
         self.assertEqual(r["gate"], [])
         self.assertEqual(len(r["rounds"]), 2)
         self.assertTrue(all(v == [] for v in r["rounds"].values()))
+
+
+class Review3Tests(Base):
+    def test_kill_words(self):
+        self.assertFalse(stage_director.kill_in_shot("skills check"))
+        self.assertTrue(stage_director.kill_in_shot("Kelly đánh gục tên lính"))
+        self.assertTrue(stage_director.kill_in_shot("Kelly vừa chạy vừa hạ gục địch"))
+        self.assertFalse(stage_director.kill_in_shot("Kelly thở gấp sau khi vừa hạ gục X"))
+
+    def test_claude_error_after_archive_keeps_old_rounds(self):
+        pid = self.project()
+        stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        from core import llm_runner
+
+        class Boom:
+            def complete(self, *a, **k):
+                raise llm_runner.LlmError("hết tiền", code="out_of_credit")
+        with self.assertRaises(llm_runner.LlmError):
+            stage_auto.run(self.p.conn, pid, self.data, client=Boom(), again=True)
+        self.assertTrue(stage_auto.last_answer(self.data, pid, seg))                    # lượt cũ còn nguyên, rerender dùng được
+        self.assertTrue(os.path.exists(self.shot(pid, 1)["stage_camera"]["guide"]))
