@@ -23,8 +23,8 @@ PROFILE = {"height_m": 1.7, "approved": True}
 def answer(shots, at=(0.0, 0.0), moved=None):
     """Câu trả lời Đạo diễn hợp lệ (prompt 29): Kelly ở `at`, mỗi shot một yêu cầu khung MS."""
     bl = {"objects": [{"key": "kelly", "kind": "nguoi", "at": list(at), "H": 1.7, "facing": 0, "label": "Kelly"}]}
-    specs = [{"shot": s, "muc_dich": "thấy Kelly", "co": "MS", "do_cao": "ngang", "thanh_phan": [{"vat": "kelly", "vai": "chinh",
-              "vung": "giua", "thay": "mat"}]} for s in shots]
+    specs = [{"shot": s, "muc_dich": "thấy Kelly", "co": "MS", "do_cao": ("ngang", "cao", "thap")[i % 3],
+              "thanh_phan": [{"vat": "kelly", "vai": "chinh", "vung": "giua", "thay": "mat"}]} for i, s in enumerate(shots)]
     if moved:
         bl["beats"] = {"cuoi": {"kelly": {"at": list(moved), "_ly_do": "kịch bản: Kelly bước tới cửa"}}}
         specs[-1]["nhip"] = "cuoi"
@@ -66,10 +66,11 @@ def fake_v2(bl, specs, rd, k1, m3=None, reach=False, log=print, fail=()):
     shots = []
     for s in specs:
         o = beats[s.get("nhip") or ""]["kelly"]
-        at, aim = [o["xy"][0], o["xy"][1] - 2.4, 1.5], [o["xy"][0], o["xy"][1], 1.2]
+        at, aim = [o["xy"][0] + 0.8 * s["shot"], o["xy"][1] - 2.4, 1.5], [o["xy"][0], o["xy"][1], 1.2]
         ok = s["shot"] not in fail
         best = {"tag": "giai", "ok": ok, "check": {"ok": ok, "why": {} if ok else {"P1": "ô K8: ngoài phòng"}},
-                "m": {"at": at, "aim": aim, "lens": 32, "cell": "K9"}, "clay": f"v2_shot{s['shot']}_clay_raw.png"}
+                "m": {"at": at, "aim": aim, "lens": 32, "cell": "K9",
+                      "obj": {k: {"seen_pct": 80.0} for k in beats[s.get("nhip") or ""]}}, "clay": f"v2_shot{s['shot']}_clay_raw.png"}
         open(os.path.join(rd, best["clay"]), "wb").close()
         shots.append({"shot": s["shot"], "spec": s, "objs": beats[s.get("nhip") or ""], "best": best})
     solve = {"beats": beats, "shots": [{"shot": s["shot"], "errors": [], "advice": [], "cams": []} for s in specs], "continuity": []}
@@ -210,7 +211,7 @@ class RunTests(Base):
         self.assertEqual(r["held"], [])
         cam = self.shot(pid, 1)["stage_camera"]
         self.assertTrue(cam["auto"])
-        self.assertEqual(cam["location"], [3.4, -0.3, 1.5])              # tọa độ model = O (giua_phong) + máy so với O
+        self.assertEqual(cam["location"], [4.2, -0.3, 1.5])              # tọa độ model = O (giua_phong) + máy so với O (máy giả dời 0,8 m × số shot)
         self.assertTrue(cam["guide"].endswith("v2_shot1_clay_raw.png"))
         self.assertEqual(cam["guide_people"], {"orange": "KELLY"})
         self.assertEqual(self.shot(pid, 1)["stage_segment"], "1@kho%d" % self.place)
@@ -769,3 +770,65 @@ class RerenderReviewTests(Base):
         os.remove(self.shot(pid, 1)["stage_camera"]["guide"])
         r = stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
         self.assertTrue(any("KHÔNG có trên đĩa" in h[1] for h in r["held"]))
+
+
+class ScriptRulesTests(Base):
+    """16/10 #31 cảnh 4 'chưa được': địch không vào khung, shot 16–18 giống nhau, Kelly 17–18 sai chỗ — đề bài thiếu dữ kiện shot."""
+    def _inputs(self, scenes=((1, "giua_phong"), (1, "giua_phong"), (1, "can_cua"))):
+        pid = self.project(scenes)
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        k1 = stage_auto.ensure_k1(seg["entry"], seg["main_spot"], stage_auto.base_dir(self.data, pid, seg["stage"]))
+        return pid, seg, stage_auto.inputs_for(self.p.conn, pid, seg, k1)[0]
+
+    def test_prompt_carries_cast_spot_size_of_each_shot(self):
+        _, _, inputs = self._inputs()
+        self.assertEqual(inputs["shots"][2]["nhan_vat"], ["kelly"])
+        self.assertEqual(inputs["shots"][2]["cho_dung"]["ten"], "can_cua")
+        self.assertEqual(inputs["shots"][0]["co_kich_ban"], "MS")
+        text = stage_director.build_prompt(inputs)
+        self.assertIn("nhân vật PHẢI có trong khung", text)
+        self.assertIn("chỗ đứng `can_cua`", text)
+
+    def test_dropping_a_script_character_is_refused(self):
+        _, _, inputs = self._inputs()
+        inputs["shots"][0]["nhan_vat"] = ["kelly", "dich"]
+        inputs["people"].append({"key": "dich", "label": "DICH", "H": 1.8})
+        obj = answer([1, 2, 3])
+        obj["blocking"]["objects"].append({"key": "dich", "kind": "nguoi", "at": [3, 3], "H": 1.8, "facing": 0})
+        from core.llm_io import SchemaError
+        with self.assertRaises(SchemaError) as e:
+            stage_director.validate_answer(obj, inputs, {})
+        self.assertIn("`dich`", str(e.exception))
+
+    def test_size_must_follow_script_and_neighbours_differ(self):
+        _, _, inputs = self._inputs()
+        from core.llm_io import SchemaError
+        obj = answer([1, 2, 3])
+        obj["shot_specs"][0]["co"] = "MCU"
+        with self.assertRaises(SchemaError):
+            stage_director.validate_answer(obj, inputs, {})
+        obj = answer([1, 2, 3])
+        obj["shot_specs"][1]["do_cao"] = obj["shot_specs"][0]["do_cao"]
+        with self.assertRaises(SchemaError) as e:
+            stage_director.validate_answer(obj, inputs, {})
+        self.assertIn("trùng cỡ", str(e.exception))
+
+    def test_measured_absence_and_same_camera_are_not_applied(self):
+        pid, seg, inputs = self._inputs()
+
+        def lost(*a, **k):
+            solve, v2 = fake_v2(*a, **k)
+            v2["shots"][0]["best"]["m"]["obj"]["kelly"]["seen_pct"] = 0.0             # shot 1: Kelly không vào khung
+            v2["shots"][1]["best"]["m"]["at"] = list(v2["shots"][0]["best"]["m"]["at"])  # shot 2: cùng máy shot 1
+            return solve, v2
+        client = FakeClaude(answer([1, 2, 3]))
+        with mock.patch.object(stage_auto.tool(), "v2_run", side_effect=lost):
+            r = stage_auto.run(self.p.conn, pid, self.data, client=client)
+        self.assertEqual(len(client.prompts), stage_director.MAX_ROUNDS)              # lý do đã gửi Đạo diễn sửa
+        self.assertIn("không thấy trong khung", client.prompts[1])
+        self.assertNotIn("stage_camera", self.shot(pid, 1))
+        self.assertTrue(any("shot 1" in h[1] for h in r["held"]))
+
+    def test_gate_example_obeys_script_rules(self):
+        _, _, inputs = self._inputs()
+        self.assertEqual(stage_auto.preflight(inputs, {}), [])

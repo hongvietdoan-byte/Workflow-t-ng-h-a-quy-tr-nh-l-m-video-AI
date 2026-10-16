@@ -45,6 +45,14 @@ def build_prompt(inputs: Dict, prev: Optional[Dict] = None, feedback: Sequence[s
         L.append(f"- **shot {s['shot']}** ({s.get('do_dai', '')}): {s.get('action', '')}")
         if s.get("ghi_chu_khung_cu"):
             L.append(f"  - ghi chú khung cũ (chỉ để hiểu ý, KHÔNG phải luật): {s['ghi_chu_khung_cu']}")
+        if s.get("nhan_vat") is not None:                 # 16/10 sân khấu tự động: dữ kiện shot của kịch bản — code kiểm theo
+            cd = s.get("cho_dung") or {}
+            L.append(f"  - **nhân vật PHẢI có trong khung**: {', '.join(f'`{k}`' for k in s['nhan_vat']) or '(không)'}"
+                     + (f" · chỗ đứng `{cd.get('ten')}`" + (f" tại ({cd['at'][0]:+.2f}, {cd['at'][1]:+.2f}) so với O" if cd.get("at") else "")
+                        if cd.get("ten") else "")
+                     + (f" · cỡ kịch bản `{s['co_kich_ban']}`" if s.get("co_kich_ban") else "")
+                     + (f" · góc `{s['goc_kich_ban']}`" if s.get("goc_kich_ban") else "")
+                     + (f" · máy `{s['may_kich_ban']}`" if s.get("may_kich_ban") else ""))
     if inputs.get("user_notes"):
         L += ["", "### Lời người dùng (ưu tiên cao nhất)"] + [f"- {x}" for x in inputs["user_notes"]]
     if inputs.get("refs"):
@@ -123,6 +131,8 @@ def validate_answer(obj, inputs: Dict, marks: Optional[Dict] = None) -> Dict:
         if s.get("may"):
             errs += [f"shot {s.get('shot')}: {e}" for e in ss.move_errors(s["may"])]
         errs += [f"shot {s.get('shot')}: {e}" for e in overlap_errors(o)]
+    if inputs.get("auto"):
+        errs += script_rules(bl, specs, inputs)
     if errs:
         raise llm_io.SchemaError("; ".join(dict.fromkeys(errs[:8])))
     from .director_blockout import enabled, issues_for
@@ -132,6 +142,49 @@ def validate_answer(obj, inputs: Dict, marks: Optional[Dict] = None) -> Dict:
         if red:
             raise llm_io.SchemaError('; '.join(f"{i['path']}: {i['loi']}" for i in red))
     return obj
+
+
+def _sig(spec: Dict):
+    main = next((c for c in spec.get("thanh_phan") or [] if c.get("vai") == "chinh"), {}) or {}
+    return (spec.get("co"), sg.fold(spec.get("do_cao") or "ngang"), sg.fold(spec.get("goc") or "ngang"), main.get("vat"),
+            str(main.get("vung") or ""), str(main.get("thay") or ""), bool(spec.get("may")), spec.get("pov"))
+
+
+def script_rules(bl: Dict, specs: List[Dict], inputs: Dict) -> List[str]:
+    """16/10 (#31 cảnh 4, người dùng 'chưa được'): luật theo KỊCH BẢN của từng shot (sân khấu tự động, inputs.auto):
+    (1) mọi nhân vật của shot (`nhan_vat`) có trong `thanh_phan` (chinh / phu) và có mặt ở nhịp của shot — Đạo diễn không được bỏ
+        người cho máy dễ đạt (lượt sửa r2 đã bỏ 3 địch ở shot 15);
+    (2) `co` = cỡ của kịch bản khi kịch bản ghi cỡ hợp lệ;
+    (3) hai shot liền nhau cùng chỗ đứng không được cùng cỡ + độ cao + góc + bố cục thứ chính (shot 17 / 18 ra cùng một máy)."""
+    out: List[str] = []
+    info = {s["shot"]: s for s in inputs.get("shots") or []}
+    ordered = sorted((s for s in specs if isinstance(s, dict) and s.get("shot") in info), key=lambda s: s["shot"])
+    prev = None
+    for s in ordered:
+        sh = info[s["shot"]]
+        want = sh.get("nhan_vat") or []
+        roles = {c.get("vat"): c.get("vai") for c in s.get("thanh_phan") or [] if isinstance(c, dict)}
+        try:
+            present = set(ss.beat_raw(bl, s.get("nhip"))) if s.get("nhip") else set(ss.beat_raw(bl))
+        except (ValueError, KeyError, TypeError):
+            present = set()
+        for k in want:
+            if k == s.get("pov"):
+                continue
+            if roles.get(k) not in ("chinh", "phu"):
+                out.append(f"shot {s['shot']}: nhân vật `{k}` của kịch bản phải có trong thanh_phan (chinh/phu) — không bỏ người")
+            elif k not in present:
+                out.append(f"shot {s['shot']}: nhân vật `{k}` bị ẩn / không có ở nhịp `{s.get('nhip')}` mà kịch bản có")
+        co = sh.get("co_kich_ban")
+        if co in sg.FRAMING and s.get("co") != co:
+            out.append(f"shot {s['shot']}: cỡ `{s.get('co')}` khác cỡ kịch bản `{co}` — giữ cỡ kịch bản")
+        if prev is not None:
+            same_spot = (info[prev["shot"]].get("cho_dung") or {}).get("ten") == (sh.get("cho_dung") or {}).get("ten")
+            if same_spot and _sig(prev) == _sig(s):
+                out.append(f"shot {s['shot']}: trùng cỡ + độ cao + góc + bố cục với shot {prev['shot']} cùng chỗ đứng — đổi độ cao / "
+                           "góc / vùng / hướng thấy để hai shot là hai máy khác nhau")
+        prev = s
+    return out
 
 
 def overlap_errors(objs: Dict[str, Dict]) -> List[str]:

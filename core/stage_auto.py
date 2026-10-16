@@ -273,12 +273,21 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
             notes.append(f"Vị trí CUỐI ở cảnh trước trên cùng sân khấu (cảnh {prev_state.get('scene')}): `{k}` tại ({r[0]:+.2f}, "
                          f"{r[1]:+.2f}){facing}{pose} — GIỮ chỗ này trừ khi kịch bản cho di chuyển (ghi beat + _ly_do)")
     shots = []
+    key_by_name = {p["label"]: p["key"] for p in people}
+    from .location_pack import spot_for
     for s in seg["shots"]:
         d = s["data"]
         old = "; ".join(x for x in (d.get("blocking"), " ".join(str(d.get(k) or "") for k in ("size", "angle", "camera_move")).strip(),
                                     d.get("end_state")) if x)
+        sp = spot_for(seg["entry"], d)
+        r = _rel(st, sp["at"]) if sp.get("at") else None
+        # 16/10 (#31 cảnh 4 người dùng "chưa được": địch không vào khung, shot 16–18 giống nhau, Kelly 17–18 sai chỗ): đề bài trước
+        # KHÔNG có nhân vật / chỗ đứng / cỡ / góc của từng shot — nay có, và bộ kiểm + số đo bắt theo đúng các trường này
         shots.append({"shot": s["idx"], "action": d.get("action") or d.get("text") or "", "ghi_chu_khung_cu": old,
-                      "do_dai": f"{d.get('duration_s')} s" if d.get("duration_s") else ""})
+                      "do_dai": f"{d.get('duration_s')} s" if d.get("duration_s") else "",
+                      "nhan_vat": [key_by_name[n] for n in (d.get("characters") or []) if n in key_by_name],
+                      "cho_dung": {"ten": sp.get("name"), "at": [r[0], r[1]] if r else None},
+                      "co_kich_ban": d.get("size"), "goc_kich_ban": d.get("angle"), "may_kich_ban": d.get("camera_move")})
     aspect = formats.project_aspect(conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()) or "9:16"
     inputs = {"pid": pid, "canh": f"cảnh {seg['scene']} — {seg['place'].get('name')} ({len(seg['shots'])} shot)",
               # 16/10 gốc lỗi chạy thật #31 cảnh 4 (lần 2, 0,37 USD): cờ director_blockout (nhánh C — bối cảnh KHÔNG có model 3D)
@@ -326,14 +335,20 @@ def example_answer(inputs: Dict) -> Dict:
         objs.append({"key": p["key"], "kind": "nguoi", "at": at, "H": p["H"], "facing": 0, "label": p.get("label", p["key"])})
     for f, at in zip(loose, spots[len(people):]):
         objs.append({k: v for k, v in f.items() if k != "source"} | {"at": at})
-    if people:
-        main = {"vat": people[0]["key"], "vai": "chinh", "vung": "giua-tren", "thay": "mat", "co_pct": [40, 80]}
-    elif fixed:
-        main = {"vat": fixed[0]["key"], "vai": "chinh", "vung": "giua"}
-    else:
-        main = None
-    specs = [{"shot": s["shot"], "muc_dich": "…", "co": "MS", "do_cao": "ngang", "goc": "ngang", "thanh_phan": [main] if main else []}
-             for s in inputs.get("shots") or []]
+    from .stage_grid import FRAMING
+    specs = []
+    for i, s in enumerate(inputs.get("shots") or []):
+        cast = [k for k in (s.get("nhan_vat") or []) if any(p["key"] == k for p in people)] or ([people[0]["key"]] if people else [])
+        if cast:
+            parts = [{"vat": cast[0], "vai": "chinh", "vung": "giua-tren", "thay": "mat", "co_pct": [40, 80]}]
+            parts += [{"vat": k, "vai": "phu", "vung": "phai" if j % 2 else "trai"} for j, k in enumerate(cast[1:])]
+        elif fixed:
+            parts = [{"vat": fixed[0]["key"], "vai": "chinh", "vung": "giua"}]
+        else:
+            parts = []
+        co = s.get("co_kich_ban") if s.get("co_kich_ban") in FRAMING else "MS"
+        specs.append({"shot": s["shot"], "muc_dich": "…", "co": co, "do_cao": ("ngang", "cao", "thap")[i % 3], "goc": "ngang",
+                      "thanh_phan": parts})
     return {"blocking": {"objects": objs}, "shot_specs": specs, "can_hoi": []}
 
 
@@ -571,6 +586,8 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
             res["missing"].append(f"không đo được máy bằng Blender (K4): {type(e).__name__}: {e}")
             return _save(path, dict(res, fp=fp))
         feedback = sd.feedback_from(solve, v2)
+        post = post_checks(inputs, v2)                    # 16/10: nhân vật kịch bản phải THẤY trong khung đo được; shot liền nhau khác máy
+        feedback += [f"shot {k}: {v}" for k, v in sorted(post.items())]
         log(f"Sân khấu {seg['id']} lượt {rnd}: vào {tin} / ra {tout} token, {len(feedback)} shot cần sửa")
         if not feedback:
             break
@@ -581,6 +598,10 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
         except (ValueError, KeyError, TypeError):
             colours = {}
         cams, bad = cameras_from(st, v2 or {}, seg["id"], rd, colours)
+        for k, why in post_checks(inputs, v2 or {}).items():     # số đo Blender: không đạt luật kịch bản → không gán máy, báo
+            if k in cams:
+                cams.pop(k)
+                bad[k] = why
         for cam in cams.values():
             cam["inputs_fp"] = fp
         res["guide_missing"] = guides_missing(cams)
@@ -617,6 +638,47 @@ def _keep_reply(conn, pid: int, seg: Dict, out: str, rnd: int):
             pass
         keep(text)
     return save
+
+
+SEEN_MIN_PCT = 15.0                    # nhân vật của shot phải thấy ít nhất bấy nhiêu % điểm thân (đầu HOẶC cuối khung khi máy chạy)
+SAME_CAM_M, SAME_CAM_DEG = 0.5, 15.0   # hai shot liền nhau cùng chỗ: máy gần hơn + hướng lệch ít hơn + cùng ống = một máy
+
+
+def post_checks(inputs: Dict, v2: Dict) -> Dict[int, str]:
+    """16/10 (#31 cảnh 4 'chưa được', số đo thật: địch 0 % ở mọi shot, máy shot 17 / 18 cách nhau 0,07 m): luật kịch bản kiểm trên
+    SỐ ĐO Blender (v2.json): {shot: lý do}. Lý do đi vào vòng sửa của Đạo diễn; còn hỏng thì shot không có máy (báo ĐỎ ở cổng)."""
+    import math as _m
+    info = {s["shot"]: s for s in inputs.get("shots") or []}
+    out: Dict[int, str] = {}
+    prev = None
+    for s in sorted(v2.get("shots") or [], key=lambda x: x["shot"]):
+        b = s.get("best") or {}
+        m = b.get("m") or {}
+        sh = info.get(s["shot"]) or {}
+        pov = (s.get("spec") or {}).get("pov")
+        lost = []
+        for k in sh.get("nhan_vat") or []:
+            if k == pov:
+                continue
+            seen = [((m.get("obj") or {}).get(k) or {}).get("seen_pct") or 0.0]
+            if b.get("end"):
+                seen.append((((b["end"].get("m") or {}).get("obj") or {}).get(k) or {}).get("seen_pct") or 0.0)
+            if max(seen) < SEEN_MIN_PCT:
+                lost.append(f"`{k}` {max(seen):.0f} %")
+        if lost:
+            out[s["shot"]] = (f"nhân vật kịch bản không thấy trong khung đo được ({', '.join(lost)} < {SEEN_MIN_PCT:g} %) — đặt họ gần hơn "
+                              "trong nhịp của shot / đổi cỡ, độ cao để khung chứa họ")
+        if prev is not None and m.get("at") and prev[1].get("at"):
+            same_spot = (info.get(prev[0]) or {}).get("cho_dung", {}).get("ten") == (sh.get("cho_dung") or {}).get("ten")
+            d = _m.dist(m["at"], prev[1]["at"])
+            yaw = lambda q: _m.degrees(_m.atan2(q["aim"][0] - q["at"][0], q["aim"][1] - q["at"][1]))
+            dy = abs((yaw(m) - yaw(prev[1]) + 180) % 360 - 180) if m.get("aim") and prev[1].get("aim") else 999
+            if same_spot and d < SAME_CAM_M and dy < SAME_CAM_DEG and m.get("lens") == prev[1].get("lens"):
+                out[s["shot"]] = (out.get(s["shot"], "") + ("; " if s["shot"] in out else "")
+                                  + f"máy trùng shot {prev[0]} (cách {d:.2f} m, lệch {dy:.0f}°, cùng ống {m.get('lens')} mm) — đổi góc / "
+                                    "độ cao / cỡ")
+        prev = (s["shot"], m) if m else prev
+    return out
 
 
 def guides_missing(cams: Dict[int, Dict]) -> List[int]:
@@ -696,6 +758,10 @@ def rerender(conn, pid: int, seg: Dict, data_dir: str, log: Callable[[str], None
     except (ValueError, KeyError, TypeError):
         colours = {}
     cams, bad = cameras_from(st, v2 or {}, seg["id"], rd, colours)
+    for k, why in post_checks(inputs, v2 or {}).items():
+        if k in cams:
+            cams.pop(k)
+            bad[k] = why
     for cam in cams.values():
         cam["inputs_fp"] = fp
     for s in seg["shots"]:
