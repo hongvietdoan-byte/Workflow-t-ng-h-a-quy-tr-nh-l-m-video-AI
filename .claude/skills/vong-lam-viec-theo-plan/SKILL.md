@@ -10,6 +10,10 @@ Mục tiêu: làm hết một đợt dài mà không để phiên chính đầy 
 ## 1. Đầu phiên
 1. `git pull` (worktree: `git fetch origin && git merge --ff-only origin/main`).
 2. Đọc `CLAUDE.md` và `TODO.md`: khối mới nhất ở đầu và mục "Việc phải làm lại MỖI LẦN".
+   **Gói bàn giao (người dùng 16/10):** dòng mới nhất ở mục 📨 BÀN GIAO ghi "→ PHIÊN KẾ … ĐỌC ĐẦU TIÊN" (hoặc đề bài phiên mới trỏ tới
+   nó) là gói của phiên trước — TỰ ĐỘNG đọc gói đó + các file nó trỏ tới (kế hoạch, đánh giá, skill mục 4b) rồi LÀM TIẾP các việc ghi
+   "phiên kế làm" theo thứ tự, không chờ người dùng nhắc. Việc ghi CHỜ người dùng thì chỉ nhắc lại, không tự làm. Nhận việc nào thì đổi
+   dòng đó sang ĐANG LÀM (giờ thật), xong ghi XONG + commit.
 3. Đọc câu trả lời người dùng cho việc ⏸: `PYTHONUTF8=1 py -m devsys.answers list --pending` (người dùng trả lời trên web 8502 trang 📋, lưu ở `devsys/data/user_answers.json` của bản chính, không vào git). Mỗi câu: áp dụng (đổi trạng thái việc trong kế hoạch, ghi chú/commit) rồi `py -m devsys.answers applied <mã> "ghi chú · mã commit"`; câu chưa rõ thì hỏi lại người dùng. File hỏng → lệnh báo lỗi, báo người dùng, không tự xóa.
 4. Tìm đợt đang làm: dòng `> Đợt ưu tiên: Sxx` trong `docs/KE_HOACH_SUA_SAU_DU_AN_8.md`, hoặc chạy `PYTHONUTF8=1 py tools/plan_progress.py`. Việc kế là việc ⬜ đầu tiên. Bỏ qua việc ⏸ chưa có câu trả lời.
 5. Đọc file kế hoạch chi tiết của đợt mà tiêu đề đợt trỏ tới. Chỉ đọc đoạn liên quan (`grep` hoặc đọc theo khoảng dòng), không đọc cả file lớn. **Mở lại code và đối chiếu số dòng** trước khi sửa, vì số dòng ghi trong kế hoạch có thể đã lệch.
@@ -81,12 +85,19 @@ Số đo 05–06/10 (5 nhánh rà kỹ): rà chỉ còn ≈ 20 % tổng và bắ
   `context: "fresh"`) với đề bài: đọc mục 📨 BÀN GIAO đầu `TODO.md` (dòng mới nhất của phiên này) + file kế hoạch / đánh giá được trỏ
   tới, làm tiếp đúng các việc ghi "phiên kế làm" theo thứ tự, giữ mọi quy ước CLAUDE.md. Đề bài phải tự đủ (đường dẫn, lệnh, trạng thái
   chờ duyệt, việc KHÔNG được tự làm). Báo người dùng một dòng kèm link phiên mới; phiên cũ dừng việc.
+  **Sau khi đóng gói xong + phiên mới đã chạy → CLEAR phiên cũ (người dùng 16/10: "sau khi đóng gói thì cho clear session")**: kiểm
+  gói đã lên main (`git log origin/main -1` có commit bàn giao) và phiên mới đã khởi động (kết quả `start_session` có session_id), rồi
+  gọi `mcp__ccd_session_mgmt__clear_session` (nạp bằng `ToolSearch select:mcp__ccd_session_mgmt__clear_session`) cho phiên CŨ
+  (`self`). Ứng dụng từ chối (vd Remote Control đang bật) → báo người dùng gõ `/clear`. Không clear khi còn phiên con đang chạy chưa
+  báo về, hay còn thay đổi chưa commit.
 
 1. Chờ mọi phiên con xong (không bỏ dở giữa chừng).
 2. Gộp các nhánh đã xanh và đã rà. Nhánh dở thì để nguyên trên nhánh, kèm `HANDOFF.md`.
 3. Cập nhật kế hoạch + `plan_progress --write` + `TODO.md`, ghi rõ **bước kế + file nguồn + nhánh dở (tên, commit cuối)**. Commit, push, pull ở `D:\AI-Video-Pipeline`.
 4. Báo người dùng: đã xong gì (mã commit), còn gì, các chỉ số hiện tại, câu để gõ tiếp ("tiếp tục Sxx").
-5. **Không tự xóa phiên.** Remote Control đang bật thì ứng dụng từ chối `clear_session`. Người dùng gõ `/clear` rồi "tiếp tục". Chỉ dùng `clear_session("self")` khi người dùng yêu cầu rõ trong chính lượt đó.
+5. **Xóa phiên:** khi đã mở phiên mới làm tiếp (mục trên, người dùng cho phép thường trực 16/10) thì clear phiên cũ theo đúng điều
+   kiện ở đó. Không mở phiên mới (dừng vì hạn mức, chờ người dùng) thì KHÔNG tự xóa: người dùng gõ `/clear` rồi "tiếp tục".
+   Remote Control đang bật thì ứng dụng từ chối `clear_session` → nhờ người dùng `/clear`.
 
 ## 4b. Quy trình một tính năng / sửa gốc (đã dùng 16/10 — chia vai sân khấu, previs)
 1. Người dùng nêu vấn đề → đo số thật 0 USD trước khi kết luận (vd bảng số đo Blender shot 10) → nêu gốc, KHÔNG đặt luật cấm cứng
