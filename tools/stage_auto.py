@@ -79,9 +79,12 @@ def main(argv=None):
                 print(f"{g['id']}: có shot đã vẽ ảnh — thêm --force để đổi máy")
                 return
             from core.llm_runner import extract_json
-            with open(a.answer, encoding="utf-8") as f:
-                obj = extract_json(f.read())
-            r = stage_auto.offline_answer(conn, a.project, g, a.data_dir, obj, source=a.source, log=print)
+            try:
+                with open(a.answer, encoding="utf-8") as f:
+                    obj = extract_json(f.read())
+                r = stage_auto.offline_answer(conn, a.project, g, a.data_dir, obj, source=a.source, log=print)
+            except (OSError, ValueError, TypeError) as e:
+                r = {"ok": False, "errors": [f"không đọc được câu trả lời: {type(e).__name__}: {e}"]}
             loi = a.answer + ".loi.txt"
             with open(loi, "w", encoding="utf-8") as f:
                 f.write(chr(10).join(r["errors"]) if r["errors"] else "ĐẠT")

@@ -30,6 +30,7 @@ from . import diag, features
 FLAG = "stage_auto"
 CODE = "stage_auto"
 FIELD = "stage_camera"                 # = plate_camera.STAGE_FIELD
+MAX_GRID_CELLS = 64                    # cạnh lưới K1 tối đa (64 m) — chỗ đứng xa hơn: ô 'ngoài lưới' như cũ (bộ giải chỉ xếp hạng)
 NEAR_SPOT_M = 25.0                     # chỗ đứng khác (không shot nào của cảnh dùng) chỉ nêu cho Đạo diễn khi trong bán kính này quanh O
 SEG_FIELD = "stage_segment"
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -146,7 +147,7 @@ def grid_cells(seg: Dict) -> int:
     o = (spots.get(seg["main_spot"]) or {}).get("at") or [0, 0, 0]
     far = max([0.0] + [max(abs(spots[n]["at"][0] - o[0]), abs(spots[n]["at"][1] - o[1])) for n in seg.get("spots") or {}
                        if n in spots and spots[n].get("at")])
-    return max(20, 2 * int(_m.ceil(far + 6.0)))
+    return min(MAX_GRID_CELLS, max(20, 2 * int(_m.ceil(far + 6.0))))      # rà 16/10: trần — K1 tăng theo bình phương cạnh lưới
 
 
 def ensure_k1_seg(seg: Dict, base: str, log: Callable[[str], None] = lambda m: None) -> str:
@@ -889,7 +890,11 @@ def offline_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: 
                      ("inputs.json", inputs)):
         with open(os.path.join(rd, fn), "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=1)
-    solve, v2 = tool().v2_run(bl, obj["shot_specs"], rd, k1, m3=seg["entry"], reach=True, log=log)
+    try:
+        solve, v2 = tool().v2_run(bl, obj["shot_specs"], rd, k1, m3=seg["entry"], reach=True, log=log)
+    except Exception as e:  # noqa: BLE001 - rà 16/10: lỗi Blender ghi vào errors (người viết thấy trong .loi.txt)
+        out_res["errors"] = [f"không đo được máy bằng Blender (K4): {type(e).__name__}: {e}"]
+        return out_res
     errors = sd.feedback_from(solve, v2) + [f"shot {k}: {v}" for k, v in sorted(post_checks(inputs, v2).items())]
     out_res["soft"] = soft_checks(inputs, v2)
     out_res["dir"] = rd
@@ -901,6 +906,9 @@ def offline_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: 
     except (ValueError, KeyError, TypeError):
         colours = {}
     cams, bad = cameras_from(st, v2, seg["id"], rd, colours)
+    for s in seg["shots"]:
+        if s["idx"] not in cams and s["idx"] not in bad:
+            bad[s["idx"]] = "bộ giải không đặt được máy (lỗi yêu cầu khung)"
     fp = fingerprint(inputs)
     for cam in cams.values():
         cam["inputs_fp"] = fp
@@ -916,6 +924,9 @@ def offline_answer(conn, pid: int, seg: Dict, data_dir: str, obj: Dict, source: 
                    removed=[i for i in changed if i not in cams], bad=bad, guide_missing=missing_guides)
     _say(conn, pid, "info", f"Sân khấu {seg['id']}: máy đặt từ câu trả lời Đạo diễn NGOẠI TUYẾN ({source}, 0 USD) — shot "
                             + ", ".join(map(str, sorted(cams))), log)
+    held: Dict = {"held": []}
+    _say_guides(conn, pid, seg, res, held, log)
+    out_res["held"] = held["held"]
     return out_res
 
 

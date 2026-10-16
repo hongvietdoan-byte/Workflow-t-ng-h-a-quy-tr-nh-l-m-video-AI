@@ -211,7 +211,9 @@ def must_see(sh: Dict, spec: Optional[Dict] = None) -> List[str]:
         return []
     subject = cast[:1] if (sh.get("nhan_vat") or [None])[0] != pov else []   # rà 16/10: chủ thể của shot luôn phải thấy
     action = sg.fold(str(sh.get("action") or "")).lower()
-    named = [k for k in cast if (sh.get("ten") or {}).get(k) and sg.fold(sh["ten"][k]).lower() in action]
+    # rà 16/10: so theo RANH GIỚI TỪ — "A" / "An" / "Địch" không được khớp oan trong "thanh", "dịch chuyển"
+    named = [k for k in cast if (sh.get("ten") or {}).get(k)
+             and re.search(r"(?<![a-z0-9])" + re.escape(sg.fold(sh["ten"][k]).lower()) + r"(?![a-z0-9])", action)]
     if sh.get("vai_shot") in STRICT_ROLES or KILL_WORDS.search(str(sh.get("action") or "")):
         # rà 16/10: chỉ người CÓ TÊN trong câu hành động (người bắn tỉa ở xa không tên trong câu → VÀNG); không có tên → mọi người
         return list(dict.fromkeys(subject + named)) if (named and sh.get("ten")) else cast

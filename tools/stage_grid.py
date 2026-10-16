@@ -235,7 +235,7 @@ def blender_main(cfg):
             r_["obstacle"] = (0.3 < hi_over <= 2.0) or (hi_over > 2.0 and not floors)
         return r_
 
-    for name, cx, cy in sg.cells(stage):
+    for name, cx, cy in ([] if cfg.get("skip_grid") else sg.cells(stage)):   # 16/10: lượt K4 (v2) dùng lưới K1 đã có — không đo lại
         in_act = (abs(cx) <= act["half_m"] and abs(cy) <= act["half_m"]) or any(
             abs(cx - e[0]) <= e[2] and abs(cy - e[1]) <= e[2] for e in act.get("extra", []))
         k = 4 if in_act else 3
@@ -259,9 +259,10 @@ def blender_main(cfg):
 
     # ---- mốc: tháp ----
     marks = {}
-    ax, ay = cfg["anchor_model"][0] * factor, cfg["anchor_model"][1] * factor
-    tl = down_layers(ax, ay, 12)
-    tf = floor_hit(ax, ay)
+    has_anchor = bool(cfg.get("anchor_model"))           # 16/10: phòng kín (#31 phòng hai cửa) không có mốc bản đồ — K1 vẫn đo sàn
+    ax, ay = (cfg["anchor_model"][0] * factor, cfg["anchor_model"][1] * factor) if has_anchor else (0.0, 0.0)
+    tl = down_layers(ax, ay, 12) if has_anchor else []
+    tf = floor_hit(ax, ay) if has_anchor else None
     tower_obj = tl[0][1] if tl else None
     if tower_obj is not None:
         lo_b, hi_b = obj_box(tower_obj)
@@ -270,7 +271,8 @@ def blender_main(cfg):
         marks["thap_dinh"] = sg.measure(stage, rel((ax, ay, hi_b[2])))
         marks["thap_object"] = {"name": tower_obj.name, "bbox_size_m": [round(hi_b[k] - lo_b[k], 2) for k in range(3)],
                                 "top_hit_z": round(rel((0, 0, tl[0][0]))[2], 2)}
-    marks["anchor_model"] = sg.measure(stage, sg.rel_from_model(stage, cfg["anchor_model"]))
+    if has_anchor:
+        marks["anchor_model"] = sg.measure(stage, sg.rel_from_model(stage, cfg["anchor_model"]))
 
     # ---- sân khấu: giếng + người nộm ----
     def mk_mat(name, rgb):
@@ -1416,12 +1418,15 @@ def v2_run(blocking, specs, out, stage_from=None, *, db=DEFAULT_DB, m3=None, max
                        [list(beats[spec.get("nhip") or ""][k]["xy"]) + [0.0] for k in blocking["axis"]]})   # trục theo nhịp đầy đủ (POV bỏ người cầm máy khỏi vật)
     extra = [[o["xy"][0], o["xy"][1], 2.0] for bo in beats.values() for o in bo.values() if o["kind"] != "moc"]
     cfg = {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spot["at"],
-           "anchor_model": m3["anchor"], "cell_m": 1.0, "cols": int(st.get("cols") or 20), "rows": int(st.get("rows") or 20),
+           "anchor_model": m3.get("anchor"), "cell_m": 1.0, "cols": int(st.get("cols") or 20), "rows": int(st.get("rows") or 20),
            "acting_area": {"half_m": 3.0, "extra": extra},
            "engine": "auto", "samples": 16, "top_view": {"centre": [0.0, 5.5], "size_m": 42.0, "px": 1260}, "props": props,
            "axis": sol["axis"], "targets": {}, "cameras": [],
-           "v2": {"setups": setups, "res": res, "coarse": [18, 32], "fine": [36, 64]}}
+           "v2": {"setups": setups, "res": res, "coarse": [18, 32], "fine": [36, 64]}, "skip_grid": True}
     run_blender_safe(cfg, out, timeout=3600)
+    if os.path.abspath(src) != os.path.abspath(out):     # lượt K4 không đo lưới (skip_grid) — hình phác dùng lưới của K1
+        import shutil
+        shutil.copyfile(os.path.join(src, "grid.json"), os.path.join(out, "grid.json"))
     with open(os.path.join(out, "v2.json"), encoding="utf-8") as f:
         return sol, json.load(f)
 
@@ -1809,10 +1814,8 @@ def k1_cfg(m3, spot_name, out, extra=None, cells=20):
     spots = m3.get("spots") or {}
     if spot_name not in spots:
         raise ValueError(f"chỗ đứng '{spot_name}' không có trong model 3D ({', '.join(spots) or 'không có chỗ đứng nào'})")
-    if not m3.get("anchor"):
-        raise ValueError("model 3D chưa có `anchor` (mốc) — đăng ký lại bối cảnh ở Kho")
     return {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spots[spot_name]["at"],
-            "anchor_model": m3["anchor"], "cell_m": 1.0, "cols": int(cells), "rows": int(cells),
+            "anchor_model": m3.get("anchor"), "cell_m": 1.0, "cols": int(cells), "rows": int(cells),
             "acting_area": {"half_m": 3.0, "extra": list(extra or [])},
             "engine": "auto", "samples": 16, "top_view": {"centre": [0.0, 0.0], "size_m": float(cells) + 4.0, "px": 960}, "props": [],
             "targets": {},
