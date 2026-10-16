@@ -136,6 +136,7 @@ def check_stage_auto_plan():
     assert src.index('("stage", _stage_phase)') < src.index('("plates", _plates_phase)'), "bước sân khấu phải trước nền 3D"
     assert "reach" in inspect.signature(stage_solver.solve_scene).parameters, "bộ giải thiếu luật ô đi tới được"
     assert "stage_auto.FIELD" in inspect.getsource(camera_plan.todo_groups), "G0 không bỏ qua cảnh đã có máy sân khấu"
+    assert 'features.on("stage_camera")' in inspect.getsource(camera_plan.todo_groups),         "G0 phải bỏ shot đã có máy sân khấu theo cờ stage_camera (nền 3D dùng máy đó), không theo stage_auto (16/10 #31)"
 
 
 def check_stage_crew_plan():

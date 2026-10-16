@@ -249,6 +249,82 @@ class RunTests(Base):
         self.assertEqual(todo, [])                                         # Q4: G0 không lập cho cảnh đã có máy sân khấu
         self.assertTrue(kept)
 
+    def test_g0_only_plans_shots_without_stage_camera(self):
+        # 16/10 (#31 cảnh 1: shot 1–3 bị sân khấu bỏ qua, shot 4 có máy): G0 lập cho cả nhóm = trả tiền cho shot đã có máy sân khấu
+        pid = self.project()
+        stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+        row = self.p.conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=3", (pid,)).fetchone()
+        d = json.loads(row["data"])
+        d.pop("stage_camera")                                              # shot bị bỏ qua: chỉ còn stage_segment (apply skipped)
+        d["plate_spot"] = "giua_phong"                                     # cùng chỗ đứng với shot 1–2 → một nhóm G0
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d), row["id"]))
+        self.p.conn.commit()
+        self.assertIn("stage_segment", self.shot(pid, 3))
+        self.assertNotIn("stage_camera", self.shot(pid, 3))
+        todo, _, _ = camera_plan.todo_groups(self.p.conn, pid, self.data)
+        self.assertEqual([[s["idx"] for s in g["shots"]] for g in todo], [[3]])
+        full = [g for g in camera_plan.groups(self.p.conn, pid) if g["key"] == todo[0]["key"]][0]
+        self.assertEqual([s["idx"] for s in full["shots"]], [1, 2, 3])      # nhóm gốc không bị cắt (groups() vẫn đủ shot)
+
+    def _mixed_group(self):
+        pid = self.project()
+        stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+        row = self.p.conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=3", (pid,)).fetchone()
+        d = json.loads(row["data"])
+        d.pop("stage_camera")
+        d["plate_spot"] = "giua_phong"
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d), row["id"]))
+        self.p.conn.commit()
+        todo, _, _ = camera_plan.todo_groups(self.p.conn, pid, self.data)
+        return pid, todo[0]
+
+    def test_g0_prompt_and_check_see_staged_cameras(self):
+        # rà 16/10: nhóm thu nhỏ — Đạo diễn G0 phải thấy máy sân khấu (chỉ đọc) để không vượt trục; check báo khi vượt
+        pid, g = self._mixed_group()
+        self.assertEqual([s["idx"] for s in g["staged"]], [1, 2])
+        rows = camera_plan.staged_rows(g)
+        self.assertEqual([r["idx"] for r in rows], [1, 2])
+        text, _, _ = camera_plan.build_prompt(self.p.conn, pid, g, self.data)
+        self.assertIn("ĐÃ có máy Sân khấu 3D", text)
+        self.assertIn(f'"azimuth_deg": {rows[0]["azimuth_deg"]}', text)
+        az = rows[0]["azimuth_deg"]
+        side = camera_plan.camera_side(az, (az + 90) % 360)
+        other = {"left": "right", "right": "left"}[side]
+        obj = {"setups": [{"id": "A", "azimuth_deg": az, "angle": "eye", "tilt": "level", "landmark_in_frame": "any",
+                           "intent": "x", "why": "y"}],
+               "shots": [{"idx": 3, "setup": "A", "size": "MS"}], "axis": {"bearing_deg": (az + 90) % 360, "camera_side": other}}
+        plan, notes = camera_plan.check(camera_plan.normalize(camera_plan.validate(obj, [3])), g)
+        self.assertTrue(any("máy sân khấu" in n and "vượt trục" in n for n in notes), notes)
+        self.assertIsNone(plan["opening_setup"])                           # shot mở (1) là shot sân khấu
+        self.assertEqual(plan["opening_stage_shot"], 1)
+
+    def test_g0_replans_when_shot_loses_stage_camera(self):
+        # rà 16/10: sơ đồ đã lập cho [3]; shot 2 mất máy sân khấu → lập lại nhóm, không rơi im lặng về plate_view riêng
+        pid, g = self._mixed_group()
+        plans = {g["key"]: {"setups": [], "shots": [{"idx": 3, "setup": "A"}], "axis": {}}}
+        camera_plan._save_plans(self.data, pid, plans)
+        self.assertEqual(camera_plan.todo_groups(self.p.conn, pid, self.data)[0], [])
+        row = self.p.conn.execute("SELECT id, data FROM scenes WHERE project_id=? AND idx=2", (pid,)).fetchone()
+        d = json.loads(row["data"])
+        d.pop("stage_camera")
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d), row["id"]))
+        self.p.conn.commit()
+        todo, _, _ = camera_plan.todo_groups(self.p.conn, pid, self.data)
+        self.assertEqual([[s["idx"] for s in t["shots"]] for t in todo], [[2, 3]])
+
+    def test_g0_skips_staged_shots_when_stage_auto_off(self):
+        # 16/10 #31: máy sân khấu đặt NGOẠI TUYẾN (stage_auto TẮT) mà stage_camera BẬT → nền 3D dùng máy đó; G0 không được lập lại
+        pid = self.project()
+        stage_auto.run(self.p.conn, pid, self.data, client=FakeClaude(answer([1, 2, 3])))
+        with mock.patch.dict(os.environ, {"FEATURE_STAGE_AUTO": ""}):
+            self.assertFalse(stage_auto.enabled())
+            todo, kept, _ = camera_plan.todo_groups(self.p.conn, pid, self.data)
+        self.assertEqual(todo, [])
+        self.assertTrue(kept)
+        with mock.patch.dict(os.environ, {"FEATURE_STAGE_CAMERA": ""}):   # máy sân khấu không được dùng → G0 như cũ
+            todo, _, _ = camera_plan.todo_groups(self.p.conn, pid, self.data)
+        self.assertEqual(sorted(s["idx"] for g in todo for s in g["shots"]), [1, 2, 3])
+
     def test_rerun_same_inputs_does_not_call_claude_again(self):
         pid = self.project()
         client = FakeClaude(answer([1, 2, 3]))

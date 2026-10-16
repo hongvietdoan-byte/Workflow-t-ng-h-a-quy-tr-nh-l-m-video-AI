@@ -106,12 +106,25 @@ def todo_groups(conn, pid: int, data_dir: str, force: bool = False) -> Tuple[Lis
     plans = load_plans(data_dir, pid)
     todo, kept, drawn = [], [], {}
     from . import stage_auto
-    staged = stage_auto.enabled()
+    # 16/10: theo cờ nền 3D DÙNG máy sân khấu (location_pack.plan_cameras: stage_camera), không theo cờ stage_auto (chỉ là đặt máy tự
+    # động) — #31 đặt máy ngoại tuyến, stage_auto TẮT → G0 lập lại cả 13 nhóm đã có máy (trả 2 lần, cùng gốc với stage_report)
+    staged = features.on("stage_camera")
     for g in groups(conn, pid):
-        if staged and all((s["data"] or {}).get(stage_auto.FIELD) for s in g["shots"]):
-            kept.append(g["key"])                         # 15/10 Q4: máy Sân khấu 3D tự động đã đặt — không lập G0 (hai nguồn máy, trả 2 lần)
-            continue
-        if not needs_plan(plans.get(g["key"]), force):
+        if staged:
+            # 15/10 Q4: máy Sân khấu 3D tự động đã đặt — không lập G0 (hai nguồn máy, trả 2 lần). 16/10 (#31 cảnh 1: shot 1–3 sân khấu
+            # bỏ qua vì không người, shot 4 có máy): G0 chỉ lập cho shot CHƯA có máy sân khấu, không trả cho cả nhóm
+            rest = [s for s in g["shots"] if not (s["data"] or {}).get(stage_auto.FIELD)]
+            if not rest:
+                kept.append(g["key"])
+                continue
+            if len(rest) < len(g["shots"]):
+                g = dict(g, shots=rest, staged=[s for s in g["shots"] if s not in rest])
+        old = plans.get(g["key"])
+        # rà 16/10: sơ đồ lập khi nhóm đã thu nhỏ chỉ có các shot lúc đó; shot về sau MẤT máy sân khấu (stage_auto.apply gỡ máy auto
+        # không đạt) không có trong sơ đồ → lập lại cho nhóm (vẫn qua cổng drawn_shots), không để shot rơi im lặng về plate_view riêng
+        lost = bool(staged and old and not old.get("failed") and isinstance(old.get("shots"), list) and
+                    {s["idx"] for s in g["shots"]} - {sh.get("idx") for sh in old["shots"] if isinstance(sh, dict)})
+        if not lost and not needs_plan(old, force):
             kept.append(g["key"])                         # a plan, or MAX_TRIES failures (said; `force` = the person asks again)
             continue
         done = drawn_shots(conn, g)
@@ -278,7 +291,29 @@ def build_prompt(conn, pid: int, group: Dict, data_dir: str) -> Tuple[str, List[
             parts += ["Ý đồ cảnh (Director):", sdata[:1500]]
     parts += ["", f"# Các shot của cảnh ({len(group['shots'])} shot, theo thứ tự phim)", "```json",
               json.dumps(_shot_rows(group), ensure_ascii=False, indent=1), "```"]
+    staged = staged_rows(group)
+    if staged:
+        parts += ["", f"# Shot cùng cảnh ĐÃ có máy Sân khấu 3D ({len(staged)} shot) — CHỈ ĐỌC, không gán setup cho các shot này",
+                  "Máy của chúng đã đặt và được dùng nguyên (azimuth_deg = hướng máy nhìn, cùng quy ước setup). Chọn trục 180° "
+                  "(`axis`) và phía máy sao cho các setup của bạn CÙNG PHÍA trục với các máy này (không vượt trục khi cắt qua lại); "
+                  "shot đầu cảnh là shot sân khấu thì nền của nó là nền shot mở.", "```json",
+                  json.dumps(staged, ensure_ascii=False, indent=1), "```"]
     return "\n".join(parts), images, notes
+
+
+def staged_rows(group: Dict) -> List[Dict]:
+    """[{idx, azimuth_deg, lens, …}] — shots of the scene that already have a Stage 3D camera (todo_groups keeps them aside)."""
+    from .plate_choice import bearing
+    rows = []
+    for s in group.get("staged") or []:
+        sc = (s["data"] or {}).get("stage_camera") or {}
+        loc, aim = sc.get("location"), sc.get("look_at")
+        az = bearing(loc, aim) if isinstance(loc, (list, tuple)) and isinstance(aim, (list, tuple)) else None
+        if az is None:
+            continue
+        rows.append({"idx": s["idx"], "azimuth_deg": az, "lens": sc.get("lens"),
+                     **{k: s["data"][k] for k in ("size", "action") if s["data"].get(k)}})
+    return sorted(rows, key=lambda r: r["idx"])
 
 
 # ---- the answer -----------------------------------------------------------------------------------------------------------------
@@ -404,6 +439,17 @@ def check(plan: Dict, group: Dict) -> Tuple[Dict, List[str]]:
     plan["opening_setup"] = opening["id"]
     axis = plan["axis"]
     side_vi = {"left": "trái", "right": "phải"}
+    staged = staged_rows(group)
+    if staged and staged[0]["idx"] < first["idx"]:      # rà 16/10: shot mở của cảnh là shot sân khấu → nền mở = máy của nó
+        opening = {"id": f"shot {staged[0]['idx']} (máy sân khấu)", "azimuth_deg": staged[0]["azimuth_deg"]}
+        plan["opening_setup"] = None                      # after_plates: không setup G0 nào là shot mở
+        plan["opening_stage_shot"] = staged[0]["idx"]
+    for r in staged:
+        side = camera_side(r["azimuth_deg"], axis["bearing_deg"])
+        if side is not None and side != axis["camera_side"]:
+            notes.append(f"shot {r['idx']} (máy sân khấu, nhìn {r['azimuth_deg']:g}°) ở phía {side_vi[side]} trục "
+                         f"{axis['bearing_deg']:g}° trong khi sơ đồ chọn phía {side_vi[axis['camera_side']]} — cắt giữa shot này và "
+                         "các setup của sơ đồ là vượt trục 180°")
     for st in plan["setups"]:
         side = camera_side(st["azimuth_deg"], axis["bearing_deg"])
         st["camera_side"] = side
