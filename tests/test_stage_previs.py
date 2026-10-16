@@ -60,7 +60,7 @@ class PlanTests(unittest.TestCase):
     def test_camera_never_low_inside_hedge(self):
         p = sp.plan(self.rd, uniform_run=True)
         for t, at, aim, lens in p["previs"]["camera"]:
-            if math.floor(at[0]) == 0 and math.floor(at[1]) != -10:            # ô hàng rào (ngọn 2,1 m)
+            if math.floor(at[0]) == 0 and -10 < math.floor(at[1]) <= 9:     # ô hàng rào (ngọn 2,1 m); ngoài lưới thử không có rào
                 self.assertGreaterEqual(at[2], 2.1 + sp.HEDGE_CLEAR_M - 1e-6)
 
     def test_orbit_circles_subject_same_distance(self):
@@ -246,6 +246,30 @@ class PlanTests(unittest.TestCase):
         names = [(v["name"], v["from"]) for v in p["previs"]["people"][0]["variants"]]
         self.assertEqual([n for n, _ in names], ["KELLY_V0", "KELLY_V1"])     # shot 1–2 cùng tư thế gộp; quỳ ở shot 3
         self.assertAlmostEqual(names[1][1], 5.0, places=2)
+
+    def test_run_profile_slows_at_corner_keeps_total(self):
+        # người dùng 16/10 "giây 8–9 bị che": smoothstep cả đoạn làm giữa đoạn nhanh 1,5 × trung bình ngay khúc rẽ 90° → máy không kịp
+        # đón, bị kéo ra sau góc rào. Đoạn chạy: tăng / giảm tốc đều hai đầu, chạy đều giữa, chậm lại quanh khúc rẽ gấp
+        pts = [[0.0, 0.0], [0.0, 10.0], [10.0, 10.0]]                         # rẽ 90° ở giữa
+        at = sp._run_profile(pts, 20.0)
+        self.assertAlmostEqual(at(0.0), 0.0, places=6)
+        self.assertAlmostEqual(at(1.0), 20.0, places=3)
+        n = 400
+        v = [(at((k + 1) / n) - at(k / n)) * n / 20.0 for k in range(n)]      # tốc độ tương đối (1 = trung bình)
+        mid = min(range(n), key=lambda k: abs(at(k / n) - 10.0))
+        straight = min(range(n), key=lambda k: abs(at(k / n) - 5.0))
+        self.assertLess(max(v), 1.35)                                         # không vọt 1,5 × như smoothstep
+        self.assertLess(v[mid], 0.8 * v[straight])                            # chậm lại ở khúc rẽ
+        two45 = sp._run_profile([[0.0, 0.0], [0.0, 9.0], [1.0, 10.0], [10.0, 10.0]], 9.0 + math.sqrt(2) + 9.0)
+        L2 = 18.0 + math.sqrt(2)
+        v2 = [(two45((k + 1) / n) - two45(k / n)) * n / L2 for k in range(n)]
+        mid2 = min(range(n), key=lambda k: abs(two45(k / n) - (9.0 + math.sqrt(2) / 2)))
+        self.assertLess(v2[mid2], 0.7 * v2[straight])                          # A* 8 hướng: hai đỉnh 45° = một khúc rẽ 90°
+        p = sp.plan(self.rd, uniform_run=True)
+        self.assertAlmostEqual(p["summary"]["total_s"], 7.0, places=2)       # giữ tổng thời lượng kịch bản
+        keys = p["previs"]["people"][0]["keys"]
+        v_subj = max(math.dist(a[1:3], b[1:3]) / max(b[0] - a[0], 1e-6) for a, b in zip(keys, keys[1:]))
+        self.assertLess(max(self.cam_steps(p)), 1.5 * v_subj + 1.0)            # rà 16/10: né rào không làm máy giật giữa hai phía
 
     def test_polyline_and_unwrap(self):
         pt, h = sp._polyline_at([[0, 0], [0, 2], [2, 2]], 3.0)

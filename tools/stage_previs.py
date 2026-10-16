@@ -36,6 +36,10 @@ BLEND_FRAC_MAX = 0.75         # cửa sổ chuyển shot dài tối đa bấy nh
 MOVE_FRAC = 0.6              # máy chạy trong shot (tiến / lùi): đi hết trong phần đầu này của shot
 DEPTH_FAR_M = 20.0           # tài liệu: From Max 15–20 m
 RUN_MIN_M = 2.0              # đoạn đi dài hơn bấy nhiêu = chạy (chế độ uniform_run; máy xoay theo hướng chạy)
+RUN_ACC_M = 2.0              # đoạn chạy: tăng / giảm tốc đều trên bấy nhiêu mét đầu / cuối
+RUN_CORNER_SLOW = 0.45       # … chậm lại tới (1 − bấy nhiêu) ở khúc rẽ 90°
+RUN_CORNER_M = 1.5           # … trong ± bấy nhiêu mét quanh khúc rẽ
+RUN_V_MIN = 0.05             # … tốc độ tương đối tối thiểu (đầu / cuối đoạn; nhỏ để không có nấc vận tốc ở ranh giới shot)
 LOS_CLEAR_M = 0.2            # đường nhìn tới nhân vật phải cao hơn ngọn rào bấy nhiêu
 FOCUS_Z_M = 1.2              # điểm nhìn khi nhân vật chạy: ngực (≈ 0,7 × 1,7 m)
 TURN_FRAC = 0.2              # phần cuối đoạn di chuyển: người nộm xoay dần về hướng đứng của shot sau
@@ -49,6 +53,14 @@ RIG_PRESETS = {
 RIG_AIM_MAX_OFF_DEG = 10.0   # giàn sau lưng: hướng nhìn ngang lệch ngực nhân vật tối đa bấy nhiêu (khung dọc 24–35 mm rộng ±15–23°)
 FRAME_KEEP_DEG = 12.0        # hướng nhìn bị chặn xoay → máy vòng quanh nhân vật để ngực lệch tâm tối đa bấy nhiêu
 RIG_AIM_SMOOTH_S = 1.0       # cửa sổ làm mượt hướng tới ngực nhân vật cho giàn sau lưng
+LEAD_W = 0.5                 # lớp chặn hai chiều: trọng số chiều chặn NGƯỢC (đón trước khúc rẽ); 0,5 = trễ đều hai phía
+LOS_MARGIN_M = 0.17         # lưới 1 m, 3×3 tia ở 1/6–5/6 ô → mép rào lệch tối đa 1/6 m: kiểm đường nhìn có lề bấy nhiêu quanh ô rào
+BODY_HALF_M = 0.2            # nửa bề ngang thân nhân vật (đường nhìn tới hai mép thân cũng phải thoáng)
+LOS_DOLLY_MIN = 0.6          # … và/hoặc tiến lại gần tới bấy nhiêu phần khoảng cách cũ
+LOS_DOLLY_MIN_M = 0.8        # … nhưng không gần hơn bấy nhiêu mét
+LOS_PREV_W = 1.0             # … chi phí thêm cho mỗi mét lệch vị trí máy khung trước (máy không giật giữa hai phía)
+LOS_SEARCH_DEG = 20.0        # máy dời ngang tối đa bấy nhiêu độ quanh nhân vật để né mép rào
+LOS_KEEP_MAX_DEG = 18.0      # lúc né, ngực được lệch hướng nhìn tới bấy nhiêu độ
 HEDGE_CLEAR_M = 0.4        # máy rơi vào ô hàng rào → cao hơn ngọn rào bấy nhiêu
 
 
@@ -76,6 +88,52 @@ def _polyline_at(pts, d):
             return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u], heading
         d -= seg
     return list(pts[-1]), None
+
+
+def _run_profile(pts, length):
+    """u (phần thời gian 0–1) → quãng đường dọc polyline cho đoạn CHẠY dài: tăng tốc đều từ chỗ đứng (v ∝ √d, RUN_ACC_M), chạy đều,
+    giảm tốc trước chỗ dừng, CHẬM lại quanh khúc rẽ gấp (RUN_CORNER_SLOW × min(1, góc/90°), trong ±RUN_CORNER_M) — người dùng 16/10
+    "giây 8–9 bị che": smoothstep trên cả đoạn làm giữa đoạn nhanh 1,5 × trung bình (≈ 9 m/s) ngay khúc rẽ 90° → máy (≤ 60°/s) không kịp
+    đón, bị kéo ra sau góc rào. Giữ tổng thời lượng (chuẩn hóa)."""
+    pts = [p for k, p in enumerate(pts) if k == 0 or math.dist(p, pts[k - 1]) > 1e-9]   # rà 16/10: điểm trùng làm mất khúc rẽ
+    verts, acc = [], 0.0
+    for a, b, c in zip(pts, pts[1:], pts[2:]):
+        acc += math.dist(a, b)
+        h1, h2 = math.atan2(b[0] - a[0], b[1] - a[1]), math.atan2(c[0] - b[0], c[1] - b[1])
+        verts.append((acc, math.degrees((h2 - h1 + math.pi) % (2 * math.pi) - math.pi)))
+    # rà 16/10: A* 8 hướng không cắt góc → khúc rẽ 90° thành hai đỉnh 45° cách ~1,4 m → cộng dồn đổi hướng (có dấu) trong ±RUN_CORNER_M
+    # gộp các đỉnh liền nhau cách ≤ RUN_CORNER_M thành một khúc rẽ (tâm = trung bình theo độ rẽ)
+    corners, grp = [], []
+    for v in verts + [(float("inf"), 0.0)]:
+        if grp and v[0] - grp[-1][0] > RUN_CORNER_M:
+            turn = abs(sum(t for _, t in grp))
+            wsum = sum(abs(t) for _, t in grp)
+            if turn >= 30.0 and wsum > 0:
+                corners.append((sum(d * abs(t) for d, t in grp) / wsum, min(1.0, turn / 90.0)))
+            grp = []
+        if abs(v[1]) > 1e-6:
+            grp.append(v)
+    step = 0.05
+    m = max(2, int(length / step) + 1)
+    ds = [length * k / (m - 1) for k in range(m)]
+
+    def speed(d):
+        v = min(1.0, math.sqrt(max(d, 0.0) / RUN_ACC_M), math.sqrt(max(length - d, 0.0) / RUN_ACC_M))
+        for dc, w in corners:
+            v = min(v, 1.0 - RUN_CORNER_SLOW * w * max(0.0, 1.0 - abs(d - dc) / RUN_CORNER_M))
+        return max(v, RUN_V_MIN)
+    ts = [0.0]
+    for d0, d1 in zip(ds, ds[1:]):
+        ts.append(ts[-1] + (d1 - d0) * 2 / (speed(d0) + speed(d1)))
+
+    def at(u):
+        tt = min(max(u, 0.0), 1.0) * ts[-1]
+        for k in range(1, m):
+            if ts[k] >= tt:
+                w = 0.0 if ts[k] == ts[k - 1] else (tt - ts[k - 1]) / (ts[k] - ts[k - 1])
+                return ds[k - 1] + (ds[k] - ds[k - 1]) * w
+        return length
+    return at
 
 
 def _unwrap(prev, f):
@@ -164,9 +222,12 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
                 continue
             n = max(2, int(T[i] / CAM_SAMPLE_S) + 1)
             moving = leg["len"] >= 0.05
+            # hồ sơ chạy chỉ khi nhân vật CHẠY (uniform_run / speed); đi bộ giữ smoothstep như cũ
+            prof = (_run_profile(leg["pts"], leg["len"]) if (uniform_run or speed) and leg["len"] > RUN_MIN_M
+                    else (lambda u, L=leg["len"]: L * _smooth(u)))
             for j in range(n):
                 u = j / (n - 1)
-                p, h = _polyline_at(leg["pts"], leg["len"] * _smooth(u))
+                p, h = _polyline_at(leg["pts"], prof(u))
                 if not moving or h is None:
                     h = leg["facing"] if u < 0.5 or leg["end_facing"] is None else leg["end_facing"]
                 elif leg["end_facing"] is not None and u > 1 - TURN_FRAC:   # rà 16/10: xoay dần về hướng đứng của shot sau
@@ -388,6 +449,34 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
                     z = max(z, (ht + LOS_CLEAR_M - tz * s_) / (1 - s_))
         return z
 
+    in_grid = {(math.floor(c["x"]), math.floor(c["y"])) for c in cells}
+
+    def los_clear(at, subj, t):
+        """Đường nhìn máy → ngực + hai mép thân nhân vật không qua ô rào (lề LOS_MARGIN_M quanh ô), máy không trong ô rào."""
+        if (math.floor(at[0]), math.floor(at[1])) in hedge_top or (in_grid and (math.floor(at[0]), math.floor(at[1])) not in in_grid):
+            return False                                  # rà 16/10: ngoài lưới = chưa đo, không coi là thoáng
+        tgt = where(subj, t)
+        ch = [tgt[0], tgt[1], tgt[2] + FOCUS_Z_M]
+        dist = math.dist(at[:2], ch[:2])
+        if dist < 1e-6:
+            return True
+        lat = ((ch[1] - at[1]) / dist, -(ch[0] - at[0]) / dist)
+        for side in (-BODY_HALF_M, 0.0, BODY_HALF_M):
+            p = [ch[0] + side * lat[0], ch[1] + side * lat[1]]
+            d_ = math.dist(at[:2], p)
+            for q_ in range(1, int(d_ / 0.1)):
+                s_ = q_ * 0.1 / d_
+                if s_ >= 0.95:
+                    break
+                x, y = at[0] + (p[0] - at[0]) * s_, at[1] + (p[1] - at[1]) * s_
+                z = at[2] + (ch[2] - at[2]) * s_
+                for dx in (-LOS_MARGIN_M, 0.0, LOS_MARGIN_M):
+                    for dy in (-LOS_MARGIN_M, 0.0, LOS_MARGIN_M):
+                        ht = hedge_top.get((math.floor(x + dx), math.floor(y + dy)))
+                        if ht is not None and ht > z:
+                            return False
+        return True
+
     cam, subjs, hold, z_raw = [], [], [], []
     arc_da: Dict[int, float] = dict(arc0)                 # chiều cung đã chọn cho mỗi lần chuyển shot
     n = max(2, int(total / CAM_SAMPLE_S) + 1)
@@ -460,7 +549,7 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
     bw = _limit(want[::-1], ts_[::-1])[::-1]
     # rà 16/10: trung bình làm khung 0 lệch máy đã đo của shot đầu ~30° (chặn ngược không giữ khung đầu) → ghim khung đầu rồi chặn
     # xuôi, ghim khung cuối rồi chặn ngược (mỗi lượt vẫn ≤ trần)
-    avg = [(a + b) / 2 for a, b in zip(fw, bw)]
+    avg = [a + (b - a) * LEAD_W for a, b in zip(fw, bw)]
     avg[0] = want[0]
     avg = _limit(avg, ts_)
     avg[-1] = want[-1]
@@ -480,10 +569,37 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
             ch = where(subj, c[0])
             dev = (math.atan2(ch[0] - c[1][0], ch[1] - c[1][1]) - y + math.pi) % (2 * math.pi) - math.pi
             keep = math.radians(FRAME_KEEP_DEG + 90.0 * (1 - wh))
-            if abs(dev) > keep:
-                g = y + math.copysign(keep, dev)
-                r_ = math.dist(ch[:2], c[1][:2])
-                at = [ch[0] - r_ * math.sin(g), ch[1] - r_ * math.cos(g), z_raw[q]]
+            r_ = math.dist(ch[:2], c[1][:2])
+            put = lambda g_, r2: [ch[0] - r2 * math.sin(g_), ch[1] - r2 * math.cos(g_), z_raw[q]]
+            g0 = y + dev
+            g = y + max(-keep, min(keep, dev))
+            rr = r_
+            # người dùng 16/10 "sửa chỗ giây 8–9 bị che": lưới 1 m (3×3 tia / ô) lệch mép rào tới ~0,17 m → đường nhìn sượt góc rào sát
+            # máy mà kiểm tâm ô không thấy. Kiểm có lề + bề ngang thân; bị che → tìm chỗ thoáng gần nhất: dời NGANG trong cung vẫn giữ
+            # nhân vật trong khung (≤ LOS_SEARCH_DEG) và/hoặc TIẾN máy lại gần (≥ LOS_DOLLY_MIN × khoảng cách, ≥ LOS_DOLLY_MIN_M — máy
+            # đã qua góc rào cùng nhân vật); không có chỗ thoáng mới để bước nâng máy lo (giữ máy thấp shot 7)
+            if not los_clear(put(g, rr), subj, c[0]):
+                win = max(keep, math.radians(LOS_KEEP_MAX_DEG))  # bị che: cho ngực lệch tới LOS_KEEP_MAX_DEG (khung dọc 28 mm ±20°)
+                span = math.radians(LOS_SEARCH_DEG)
+                best = None
+                for kr in range(0, 9):
+                    r2 = r_ * (1 - (1 - LOS_DOLLY_MIN) * kr / 8)
+                    if (r2 < LOS_DOLLY_MIN_M and kr) or (best and best[0] <= r_ - r2):
+                        break                                 # tiến gần hơn không thể rẻ hơn
+                    for k in range(0, int(math.degrees(2 * span) / 2) + 1):
+                        for sgn in ((1,) if k == 0 else (1, -1)):
+                            g2 = g + sgn * math.radians(2 * k)
+                            if abs(g2 - y) > win + 1e-9 or abs(g2 - g) > span + 1e-9:
+                                continue
+                            cand = put(g2, r2)
+                            # rà 16/10: tìm riêng từng khung → máy nhảy giữa hai phía → cộng khoảng cách tới vị trí khung trước
+                            cost = r2 * abs(g2 - g) + (r_ - r2) + (LOS_PREV_W * math.dist(cand[:2], cam[q - 1][1][:2]) if q else 0.0)
+                            if (best is None or cost < best[0]) and los_clear(cand, subj, c[0]):
+                                best = (cost, g2, r2)
+                if best:
+                    g, rr = best[1], best[2]
+            if abs(g - g0) > 1e-9 or abs(rr - r_) > 1e-9:
+                at = put(g, rr)
                 at[2] = lift(at, subj, c[0])              # rà 16/10: nâng lại từ độ cao GỐC (dời ra khỏi rào thì hạ được)
                 c[1] = [round(v, 3) for v in at]
         c[2] = [round(c[1][0] + hd * math.sin(y), 3), round(c[1][1] + hd * math.cos(y), 3), c[2][2]]
