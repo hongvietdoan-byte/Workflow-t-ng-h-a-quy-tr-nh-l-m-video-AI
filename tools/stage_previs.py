@@ -31,6 +31,8 @@ BLEND_FRAC = 0.5             # phần cuối mỗi đoạn máy chuyển sang đ
 CAM_SMOOTH_S = 1.5           # cửa sổ làm mượt hướng chạy cho máy bám theo
 CAM_TURN_DEG_S = 40.0        # trần tốc độ xoay hướng máy bám theo (độ / giây)
 CAM_YAW_MAX_DEG_S = 60.0     # trần tốc độ xoay hướng NHÌN của máy ở mọi khung (lớp chặn cuối)
+BLEND_YAW_USE = 0.6          # cửa sổ chuyển shot dùng tối đa phần này của trần xoay (phần còn lại cho nhân vật tự rẽ)
+BLEND_FRAC_MAX = 0.75         # cửa sổ chuyển shot dài tối đa bấy nhiêu phần shot trước
 MOVE_FRAC = 0.6              # máy chạy trong shot (tiến / lùi): đi hết trong phần đầu này của shot
 DEPTH_FAR_M = 20.0           # tài liệu: From Max 15–20 m
 RUN_MIN_M = 2.0              # đoạn đi dài hơn bấy nhiêu = chạy (chế độ uniform_run; máy xoay theo hướng chạy)
@@ -44,7 +46,10 @@ RIG_PRESETS = {
     "sau_phai": {"back": 1.7, "left": -0.45, "z": 1.55, "ahead": 2.5, "aim_z": 1.3, "lens": 28.0},
     "sau_thap": {"back": 1.5, "left": 0.0, "z": 0.9, "ahead": 2.0, "aim_z": 1.4, "lens": 24.0},
 }
-HEDGE_CLEAR_M = 0.4          # máy rơi vào ô hàng rào → cao hơn ngọn rào bấy nhiêu
+RIG_AIM_MAX_OFF_DEG = 10.0   # giàn sau lưng: hướng nhìn ngang lệch ngực nhân vật tối đa bấy nhiêu (khung dọc 24–35 mm rộng ±15–23°)
+FRAME_KEEP_DEG = 12.0        # hướng nhìn bị chặn xoay → máy vòng quanh nhân vật để ngực lệch tâm tối đa bấy nhiêu
+RIG_AIM_SMOOTH_S = 1.0       # cửa sổ làm mượt hướng tới ngực nhân vật cho giàn sau lưng
+HEDGE_CLEAR_M = 0.4        # máy rơi vào ô hàng rào → cao hơn ngọn rào bấy nhiêu
 
 
 def _secs(v, default=3.0) -> float:
@@ -280,12 +285,31 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
             # `left` m, nhìn trước nhân vật `ahead` m theo hướng chạy (bản xoay độ lệch lọt vào hàng rào ở khúc rẽ → bị nâng cao)
             pr = RIG_PRESETS[rig[vs[i]["shot"]]]
             k = r["subj"]
+
+            def cam_pos(t_):
+                b_, h_ = path_back(k, t_, pr["back"]), math.radians(head_cam(k, t_))
+                return [b_[0] - pr["left"] * math.cos(h_), b_[1] + pr["left"] * math.sin(h_), where(k, t_)[2] + pr["z"]]
             body = where(k, t)
-            back = path_back(k, t, pr["back"])
+            at = cam_pos(t)
             h = math.radians(head_cam(k, t))
-            fwd, left = (math.sin(h), math.cos(h)), (-math.cos(h), math.sin(h))
-            at = [back[0] + pr["left"] * left[0], back[1] + pr["left"] * left[1], body[2] + pr["z"]]
+            fwd = (math.sin(h), math.cos(h))
             aim = [body[0] + pr["ahead"] * fwd[0], body[1] + pr["ahead"] * fwd[1], body[2] + pr["aim_z"]]
+            # người dùng 16/10 "máy luôn focus Kelly": hướng chạy làm mượt trễ sau khúc rẽ mê cung → điểm nhìn phía trước lệch ngực Kelly
+            # 30–45° (khung dọc 28 mm chỉ rộng ±20°) → kẹp hướng nhìn ngang trong RIG_AIM_MAX_OFF_DEG quanh hướng tới ngực ĐÃ LÀM MƯỢT
+            # (trung bình vòng ±RIG_AIM_SMOOTH_S/2): hướng tức thời giật ±50° mỗi 0,25 s ở khúc zic-zắc vì máy chỉ cách 1,7 m
+            sx = sy = 0.0
+            for q in range(-4, 5):
+                t_ = min(max(t + q * RIG_AIM_SMOOTH_S / 8, starts[i]), total)
+                c_, b_ = cam_pos(t_), where(k, t_)
+                g = math.atan2(b_[0] - c_[0], b_[1] - c_[1])
+                sx, sy = sx + math.sin(g), sy + math.cos(g)
+            yc = math.atan2(sx, sy)
+            ya = math.atan2(aim[0] - at[0], aim[1] - at[1])
+            d_ = (ya - yc + math.pi) % (2 * math.pi) - math.pi
+            lim = math.radians(RIG_AIM_MAX_OFF_DEG)
+            if abs(d_) > lim:
+                y_, hd = yc + math.copysign(lim, d_), math.dist(aim[:2], at[:2])
+                aim = [at[0] + hd * math.sin(y_), at[1] + hd * math.cos(y_), aim[2]]
             return at, aim, pr["lens"]
         u = min(max((t - starts[i]) / T[i], 0.0), 1.0)
         w = _smooth(u / MOVE_FRAC)
@@ -301,8 +325,71 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
         anchor = where(r["subj"], t) if r["subj"] else [0.0, 0.0, 0.0]
         return [a + o for a, o in zip(anchor, c_off)], [a + o for a, o in zip(anchor, a_off)], lens
 
-    cam = []
-    arc_da: Dict[int, float] = {}                         # chiều cung đã chọn cho mỗi lần chuyển shot
+    # cửa sổ chuyển shot dài theo ĐỘ PHẢI XOAY (người dùng 16/10, bản --rig 7:sau_trai: máy vòng ngang hông shot 6 → sau lưng shot 7
+    # phải xoay ~180° trong cửa sổ cố định 0,5 × 4,3 s ≈ 2,1 s ≈ 90°/s > trần CAM_YAW_MAX_DEG_S → lớp chặn cuối giữ tốc độ nhưng hướng
+    # nhìn tụt lại sau Kelly tới 128°, giây 3–7,5 không thấy Kelly). Ước độ xoay ở ranh giới shot (hướng nhìn + góc cung quanh nhân
+    # vật), cửa sổ ≥ độ đó / (BLEND_YAW_USE × trần) — chừa phần trần cho nhân vật tự rẽ — tối đa BLEND_FRAC_MAX của shot
+    # Chiều cung cũng chọn theo TỔNG độ xoay của máy quanh nhân vật trong cả cửa sổ (góc giàn shot trước tự xoay theo hướng chạy +
+    # cung): chọn cung ngắn nhất ở khung đầu cửa sổ từng cộng dồn với khúc rẽ của Kelly thành ~370° trong 5 s
+    def _look(c):
+        return math.degrees(math.atan2(c[1][0] - c[0][0], c[1][1] - c[0][1]))
+
+    def _sweep(i, frac):
+        """(độ xoay máy quanh nhân vật cả cửa sổ — rad, nhánh da ở khung đầu) cho lần chuyển shot i → i+1 cùng nhân vật."""
+        k, ts, tb = rigs[i]["subj"], starts[i + 1] - frac * T[i], starts[i + 1]
+        m = max(2, int((tb - ts) / dt) + 1)
+        a1s, das = [], []
+        for q in range(m):
+            t = ts + (tb - ts) * q / (m - 1)
+            c = where(k, t)
+            ang = lambda p: math.atan2(p[0] - c[0], p[1] - c[1])
+            a1, da = ang(rig_at(i, t)[0]), ang(rig_at(i + 1, t)[0]) - ang(rig_at(i, t)[0])
+            for lst, v in ((a1s, a1), (das, da)):
+                if lst:
+                    v = lst[-1] + (v - lst[-1] + math.pi) % (2 * math.pi) - math.pi
+                lst.append(v)
+        base_ = a1s[-1] - a1s[0] + das[-1]
+        k2 = -round(base_ / (2 * math.pi))
+        return abs(base_ + 2 * math.pi * k2), das[0] + 2 * math.pi * k2
+
+    bf, arc0 = [], {}
+    for i in range(len(vs)):
+        if i + 1 >= len(vs):
+            bf.append(BLEND_FRAC)
+            continue
+        tb = starts[i + 1]
+        c1, c2 = rig_at(i, tb), rig_at(i + 1, tb)
+        need = abs((_look(c2) - _look(c1) + 180) % 360 - 180)
+        same = bool(rigs[i]["subj"] and rigs[i]["subj"] == rigs[i + 1]["subj"])
+        if same:
+            need = max(need, math.degrees(_sweep(i, BLEND_FRAC_MAX)[0]))
+        bf.append(min(max(BLEND_FRAC, need / (BLEND_YAW_USE * CAM_YAW_MAX_DEG_S) / T[i]), BLEND_FRAC_MAX))
+        if same:
+            arc0[i] = _sweep(i, bf[i])[1]
+
+    def lift(at, subj, t):
+        """Độ cao máy sau khi nâng: ô hàng rào → qua ngọn rào; đường nhìn tới ngực nhân vật qua ô rào → nâng vừa đủ."""
+        z = at[2]
+        top = hedge_top.get((math.floor(at[0]), math.floor(at[1])))
+        if top is not None and z < top + HEDGE_CLEAR_M:  # máy trong ô hàng rào → nâng qua ngọn rào
+            z = top + HEDGE_CLEAR_M
+        if subj:
+            # nháp 4 (16/10): lúc chuyển shot máy vòng ra sau một bức rào → rào che mất Kelly. Đường nhìn máy → ngực nhân vật đi qua ô rào
+            # thì NÂNG máy vừa đủ nhìn qua ngọn rào (như cần cẩu), người dùng: "miễn là máy vẫn focus theo Kelly"
+            tgt = where(subj, t)
+            tz = tgt[2] + FOCUS_Z_M
+            dist = math.dist(at[:2], tgt[:2])
+            for q in range(1, int(dist / 0.25)):
+                s_ = q * 0.25 / dist
+                if s_ >= 0.95:
+                    break
+                ht = hedge_top.get((math.floor(at[0] + (tgt[0] - at[0]) * s_), math.floor(at[1] + (tgt[1] - at[1]) * s_)))
+                if ht is not None:
+                    z = max(z, (ht + LOS_CLEAR_M - tz * s_) / (1 - s_))
+        return z
+
+    cam, subjs, hold, z_raw = [], [], [], []
+    arc_da: Dict[int, float] = dict(arc0)                 # chiều cung đã chọn cho mỗi lần chuyển shot
     n = max(2, int(total / CAM_SAMPLE_S) + 1)
     lo, hi = (lens_range or (None, None))
     for j in range(n):
@@ -310,8 +397,8 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
         i = max(x for x in range(len(vs)) if starts[x] <= t + 1e-9)
         at, aim, lens = rig_at(i, t)
         u = (t - starts[i]) / T[i]
-        if i + 1 < len(vs) and u > 1 - BLEND_FRAC:
-            w = _smooth((u - (1 - BLEND_FRAC)) / BLEND_FRAC)
+        if i + 1 < len(vs) and u > 1 - bf[i]:
+            w = _smooth((u - (1 - bf[i])) / bf[i])
             at2, aim2, lens2 = rig_at(i + 1, t)
             if rigs[i]["subj"] and rigs[i]["subj"] == rigs[i + 1]["subj"]:
                 # cùng nhân vật: chuyển theo CUNG TRÒN quanh nhân vật (góc, khoảng cách, độ cao) — nháp 3 (16/10): nội suy thẳng từ máy
@@ -333,39 +420,73 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
             else:
                 at = _lerp(at, at2, w)
             aim, lens = _lerp(aim, aim2, w), lens + (lens2 - lens) * w
-        top = hedge_top.get((math.floor(at[0]), math.floor(at[1])))
-        if top is not None and at[2] < top + HEDGE_CLEAR_M:  # máy trong ô hàng rào → nâng qua ngọn rào
-            at[2] = top + HEDGE_CLEAR_M
-        subj = rigs[i + 1]["subj"] if i + 1 < len(vs) and u > 1 - BLEND_FRAC / 2 else rigs[i]["subj"]
-        if subj:
-            # nháp 4 (16/10): lúc chuyển shot máy vòng ra sau một bức rào → rào che mất Kelly. Đường nhìn máy → ngực nhân vật đi qua ô rào
-            # thì NÂNG máy vừa đủ nhìn qua ngọn rào (như cần cẩu), người dùng: "miễn là máy vẫn focus theo Kelly"
-            tgt = where(subj, t)
-            tz = tgt[2] + FOCUS_Z_M
-            dist = math.dist(at[:2], tgt[:2])
-            need = at[2]
-            for q in range(1, int(dist / 0.25)):
-                s_ = q * 0.25 / dist
-                if s_ >= 0.95:
-                    break
-                ht = hedge_top.get((math.floor(at[0] + (tgt[0] - at[0]) * s_), math.floor(at[1] + (tgt[1] - at[1]) * s_)))
-                if ht is not None:
-                    need = max(need, (ht + LOS_CLEAR_M - tz * s_) / (1 - s_))
-            at[2] = need
+        subj = rigs[i + 1]["subj"] if i + 1 < len(vs) and u > 1 - bf[i] / 2 else rigs[i]["subj"]
+        z_raw.append(at[2])
+        at[2] = lift(at, subj, t)
+        subjs.append(subj)
+        # trọng số "giữ nhân vật trong khung" (lớp chặn cuối): 1 khi máy bám chạy, 0 ở shot đứng yên (giữ bố cục đo, kể cả lệch có chủ
+        # ý), đổi DẦN trong cửa sổ chuyển (rà 16/10: bật đột ngột → máy giật); chuyển giữa hai nhân vật khác nhau: về 0 tại lúc đổi
+        # nhân vật rồi mới tăng lại (không nhảy từ vòng quanh A sang vòng quanh B)
+        run_a = 1.0 if rigs[i]["run"] else 0.0
+        if i + 1 < len(vs) and u > 1 - bf[i]:
+            v = (u - (1 - bf[i])) / bf[i]
+            run_b = 1.0 if rigs[i + 1]["run"] else 0.0
+            if rigs[i]["subj"] == rigs[i + 1]["subj"]:
+                s_ = _smooth(v)
+                hold.append((run_a * (1 - s_) + run_b * s_, False))
+            else:
+                hold.append((run_a * (1 - _smooth(min(1.0, 2 * v))) + run_b * _smooth(max(0.0, 2 * v - 1)), True))
+        else:
+            hold.append((run_a, False))
         lens = lens if lo is None else min(max(lens, lo), hi)
         cam.append([round(t, 3), [round(v, 3) for v in at], [round(v, 3) for v in aim], round(lens, 2)])
     yaw = lambda c: math.degrees(math.atan2(c[2][0] - c[1][0], c[2][1] - c[1][1]))
     # lớp chặn cuối (người dùng 16/10 "quay gấp dễ loạn"): hướng nhìn của máy xoay ≤ CAM_YAW_MAX_DEG_S — nhân vật vụt qua sát máy lúc
     # chuyển shot từng quét 221°/s; điểm nhìn kéo theo trong giới hạn (giữ khoảng cách ngang + độ cao điểm nhìn)
-    for q in range(1, len(cam)):
-        a, b = cam[q - 1], cam[q]
-        want = yaw(b)
-        step = (want - yaw(a) + 180) % 360 - 180
-        cap = CAM_YAW_MAX_DEG_S * max(b[0] - a[0], 1e-6)
-        if abs(step) > cap:
-            y = math.radians(yaw(a) + math.copysign(cap, step))
-            hd = math.dist(b[1][:2], b[2][:2])
-            b[2] = [round(b[1][0] + hd * math.sin(y), 3), round(b[1][1] + hd * math.cos(y), 3), b[2][2]]
+    # 16/10 bản --rig 7:sau_trai: chặn một chiều (xuôi thời gian) = máy ĐUỔI THEO, luôn trễ sau Kelly ở khúc rẽ ~120°/s. Previs biết
+    # trước đường chạy → máy ĐOÁN TRƯỚC như người quay thuộc kịch bản: chặn xuôi + chặn ngược rồi lấy trung bình (vẫn ≤ trần, độ trễ ~½)
+    want = []
+    for c in cam:
+        want.append(yaw(c) if not want else want[-1] + (yaw(c) - want[-1] + 180) % 360 - 180)
+
+    def _limit(seq, ts_):
+        out = [seq[0]]
+        for q in range(1, len(seq)):
+            cap = CAM_YAW_MAX_DEG_S * max(abs(ts_[q] - ts_[q - 1]), 1e-6)
+            out.append(out[-1] + max(-cap, min(cap, seq[q] - out[-1])))
+        return out
+    ts_ = [c[0] for c in cam]
+    fw = _limit(want, ts_)
+    bw = _limit(want[::-1], ts_[::-1])[::-1]
+    # rà 16/10: trung bình làm khung 0 lệch máy đã đo của shot đầu ~30° (chặn ngược không giữ khung đầu) → ghim khung đầu rồi chặn
+    # xuôi, ghim khung cuối rồi chặn ngược (mỗi lượt vẫn ≤ trần)
+    avg = [(a + b) / 2 for a, b in zip(fw, bw)]
+    avg[0] = want[0]
+    avg = _limit(avg, ts_)
+    avg[-1] = want[-1]
+    avg = _limit(avg[::-1], ts_[::-1])[::-1]
+    for q, (c, y_, y_w, subj) in enumerate(zip(cam, avg, want, subjs)):
+        capped = abs(y_ - y_w) > 1e-6
+        wh, other = hold[q]
+        if capped and not other:
+            wh = 1.0                                       # hướng nhìn bị chặn → giữ nhân vật (độ lệch tăng dần nên máy cũng dời dần)
+        y = math.radians(y_)
+        hd = math.dist(c[1][:2], c[2][:2])
+        if subj and wh > 0:
+            # 16/10 (render bản sửa 1): trần xoay giữ hướng nhìn lại thì Kelly vẫn trôi ra mép ở góc rẽ (lệch 28–38°, khung dọc ±20°)
+            # → máy VÒNG quanh nhân vật (giữ khoảng cách ngang) tới chỗ nhìn theo hướng đã chặn mà ngực vẫn lệch ≤ FRAME_KEEP_DEG
+            # (nới dần theo trọng số): hướng nhìn vẫn êm, máy trượt ngang thay vì quay gấp; cũng áp khi nội suy điểm nhìn lúc chuyển
+            # giàn làm ngực lệch
+            ch = where(subj, c[0])
+            dev = (math.atan2(ch[0] - c[1][0], ch[1] - c[1][1]) - y + math.pi) % (2 * math.pi) - math.pi
+            keep = math.radians(FRAME_KEEP_DEG + 90.0 * (1 - wh))
+            if abs(dev) > keep:
+                g = y + math.copysign(keep, dev)
+                r_ = math.dist(ch[:2], c[1][:2])
+                at = [ch[0] - r_ * math.sin(g), ch[1] - r_ * math.cos(g), z_raw[q]]
+                at[2] = lift(at, subj, c[0])              # rà 16/10: nâng lại từ độ cao GỐC (dời ra khỏi rào thì hạ được)
+                c[1] = [round(v, 3) for v in at]
+        c[2] = [round(c[1][0] + hd * math.sin(y), 3), round(c[1][1] + hd * math.cos(y), 3), c[2][2]]
     turn = [abs((yaw(b) - yaw(a) + 180) % 360 - 180) / max(b[0] - a[0], 1e-6) for a, b in zip(cam, cam[1:])]
     unrouted = [f"{k} shot {vs[i]['shot']}" for k in people for i, leg in enumerate(legs[k]) if leg and not leg["routed"]]
     summary = {"shots": [s["shot"] for s in vs], "script_s": [round(b, 2) for b in base], "segment_s": [round(t, 2) for t in T],
@@ -375,7 +496,7 @@ def plan(rd: str, shots=None, duration=None, speed=None, fps=24, res=(720, 1280)
                          for k in people},
                "lens": [round(r["start"][2], 1) for r in rigs], "orbit_deg": orbit, "orbit_shots": [vs[i]["shot"] for i in runs], "lens_range": lens_range, "subjects": [r["subj"] for r in rigs],
                "unrouted": unrouted,
-               "max_cam_turn_deg_s": round(max(turn), 1) if turn else 0.0}
+               "max_cam_turn_deg_s": round(max(turn), 1) if turn else 0.0, "blend_frac": [round(x, 2) for x in bf]}
     return {"previs": {"fps": fps, "res": list(res), "duration": round(total, 3), "people": out_people, "camera": cam,
                        "depth_far": depth_far}, "summary": summary}
 

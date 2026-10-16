@@ -53,6 +53,8 @@ class PlanTests(unittest.TestCase):
         cam0 = p["previs"]["camera"][0]
         self.assertEqual(cam0[0], 0.0)
         self.assertAlmostEqual(cam0[1][0], -8.0, places=2)               # đầu cú máy = máy đo của shot 1
+        yaw0 = math.degrees(math.atan2(cam0[2][0] - cam0[1][0], cam0[2][1] - cam0[1][1]))
+        self.assertAlmostEqual(yaw0, 90.0, delta=1.0)                     # rà 16/10: hướng nhìn khung 0 = máy đo (chặn xoay hai chiều)
         self.assertLess(abs(p["previs"]["camera"][-1][1][0] - 8.0), 0.6)
 
     def test_camera_never_low_inside_hedge(self):
@@ -170,6 +172,74 @@ class PlanTests(unittest.TestCase):
                 self.assertLess(math.dist(at[:2], k[1:3]), 2.6)
                 cell = (math.floor(at[0]), math.floor(at[1]))
                 self.assertFalse(cell[0] == 0 and cell[1] != -10)            # máy không nằm trong ô hàng rào
+
+    def test_rig_change_after_orbit_keeps_subject_in_frame(self):
+        # người dùng 16/10 (#31 --orbit 60 --rig 7:sau_trai): máy vòng ngang hông shot trước → giàn sau lưng shot sau phải xoay ~180°;
+        # trần xoay 60°/s trong cửa sổ chuyển cố định làm hướng nhìn tụt sau Kelly tới 128° (giây 3–7 không thấy Kelly). Ca thử:
+        # orbit 160 đưa máy ra trước mặt → đổi sang giàn sau lưng = xoay ~180° (bản cũ lệch 30°)
+        def run2(v2):
+            v2["shots"][2]["objs"]["kelly"]["xy"] = [8.5, 9.0]                # shot 2 cũng chạy tiếp (5,5;5,5 → 8,5;9)
+            v2["shots"][2]["best"]["m"] = {"at": [8.5, 6.5, 1.6], "aim": [8.5, 9.0, 1.4], "lens": 32.0}
+        self.rewrite("v2.json", run2)
+        p = sp.plan(self.rd, uniform_run=True, lens_range=(24, 35), orbit=160, rig={2: "sau_trai"}, extra={2: 2.0})
+        keys = p["previs"]["people"][0]["keys"]
+
+        def chest(t):
+            for a, b in zip(keys, keys[1:]):
+                if a[0] <= t <= b[0]:
+                    u = (t - a[0]) / max(b[0] - a[0], 1e-9)
+                    return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u, a[3] + (b[3] - a[3]) * u + sp.FOCUS_Z_M]
+            return [keys[-1][1], keys[-1][2], keys[-1][3] + sp.FOCUS_Z_M]
+        offs = []
+        for t, at, aim, _ in p["previs"]["camera"]:
+            v1, v2 = [a - b for a, b in zip(aim, at)], [a - b for a, b in zip(chest(t), at)]
+            c = sum(x * y for x, y in zip(v1, v2)) / (math.hypot(*v1) * math.hypot(*v2) + 1e-9)
+            offs.append(math.degrees(math.acos(max(-1.0, min(1.0, c)))))
+        self.assertLess(max(offs), 20.0)                                    # Kelly luôn trong khung (khung dọc 28 mm ±20° ngang)
+        self.assertLessEqual(p["summary"]["max_cam_turn_deg_s"], sp.CAM_YAW_MAX_DEG_S + 1)   # vẫn không quay gấp
+
+    def test_capped_turn_orbits_camera_keeps_subject(self):
+        # rà 16/10: trần xoay giữ hướng nhìn lại ở đầu shot sau (Kelly chạy 10 m/s qua góc) → Kelly trôi ra mép 44–60° → máy vòng quanh
+        # nhân vật để ngực lệch ≤ FRAME_KEEP_DEG; khung 0 vẫn đúng máy đo (bản cũ lệch tối đa 79–115°)
+        for kw in ({}, {"orbit": 160}):
+            p = sp.plan(self.rd, uniform_run=True, **kw)
+            keys = p["previs"]["people"][0]["keys"]
+            for t, at, aim, _ in p["previs"]["camera"]:
+                k = min(keys, key=lambda x: abs(x[0] - t))
+                if abs(k[0] - t) > 0.02:
+                    continue
+                y_aim = math.atan2(aim[0] - at[0], aim[1] - at[1])
+                y_ch = math.atan2(k[1] - at[0], k[2] - at[1])
+                self.assertLess(abs(math.degrees((y_ch - y_aim + math.pi) % (2 * math.pi) - math.pi)), 20.0)
+            self.assertLessEqual(p["summary"]["max_cam_turn_deg_s"], sp.CAM_YAW_MAX_DEG_S + 1)
+
+    def cam_steps(self, p):
+        cam = p["previs"]["camera"]
+        return [math.dist(a[1], b[1]) / (b[0] - a[0]) for a, b in zip(cam, cam[1:])]
+
+    def test_hold_in_frame_ramps_no_jump(self):
+        # rà 16/10: shot đứng yên có bố cục lệch có chủ ý (25°) → khi vào cửa sổ chuyển, giữ-khung không được bật đột ngột làm máy giật;
+        # chuyển giữa hai nhân vật khác nhau không được nhảy từ vòng quanh A sang vòng quanh B. Mốc so: cùng kế hoạch tắt giữ-khung
+        def no_hold():
+            old = sp.FRAME_KEEP_DEG
+            sp.FRAME_KEEP_DEG = 180.0
+            try:
+                return max(self.cam_steps(sp.plan(self.rd, uniform_run=True)))
+            finally:
+                sp.FRAME_KEEP_DEG = old
+
+        def offset(v2):
+            v2["shots"][1]["best"]["m"] = {"at": [8.0, 5.5, 1.6], "aim": [5.5, 4.33, 1.4], "lens": 32.0}   # lệch ~25° khỏi Kelly
+        self.rewrite("v2.json", offset)
+        p = sp.plan(self.rd, uniform_run=True)
+        self.assertLess(max(self.cam_steps(p)), no_hold() * 1.15 + 1.0)
+
+        def two(v2):
+            v2["shots"][1]["objs"]["dich"] = {"kind": "nguoi", "xy": [-5.5, -5.5], "facing": 0, "prop": "DICH_V0"}
+            v2["shots"][1]["spec"]["thanh_phan"] = [{"vat": "dich", "vai": "chinh"}]
+            v2["shots"][1]["best"]["m"] = {"at": [-5.5, -8.0, 1.6], "aim": [-5.5, -5.5, 1.4], "lens": 32.0}
+        self.rewrite("v2.json", two)
+        self.assertLess(max(self.cam_steps(sp.plan(self.rd, uniform_run=True))), no_hold() * 1.15 + 1.0)
 
     def test_variants_switch_by_shot(self):
         p = sp.plan(self.rd)
