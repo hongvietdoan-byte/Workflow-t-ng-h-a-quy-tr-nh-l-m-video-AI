@@ -1527,7 +1527,10 @@ def location_text(conn, place: Dict, for_llm: bool = False) -> str:
         web_part = external_block("ff.garena.com — mô tả bối cảnh", re.sub(r"\s+", " ", web).strip()[:max(600 - len(desc), 120)])
     bits = [f"Setting: {place['name']}" + (f" — {desc}" if desc else "")]
     if marks:
-        bits.append(_sizes_sentence(marks))
+        bits.append(_sizes_sentence(marks, keep_vi=for_llm))
+    if not for_llm:                                   # 16/10 #31: "Light: ánh sáng ban ngày dịu…" (a library photo's light, in
+        from .seedance_refs import has_vietnamese     # Vietnamese) reached a NIGHT shot's image prompt — never sent to the image model
+        light = "" if has_vietnamese(light) else light
     if light and not light.startswith("3D render"):
         bits.append(f"Light: {light[:120]}")
     return ". ".join(bits) + "." + (f"\n{web_part}" if web_part else "")
@@ -1552,7 +1555,13 @@ def _landmark_heights(conn, place: Dict) -> Tuple[List[Tuple[str, float]], str]:
     return marks, light
 
 
-def _sizes_sentence(marks) -> str:
+def _sizes_sentence(marks, keep_vi: bool = False) -> str:
+    """16/10 #31: set-analysis landmark names are Vietnamese (prompts/07_set_analysis.md asks so, "hàng rào cây bụi"): the image model
+    gets them without accents (the heights stay — B1 people's scale); Claude (keep_vi, the QC agent) reads them as written."""
+    if not marks:
+        return ""
+    if not keep_vi:
+        marks = [(fold(n), h) for n, h in marks]
     return ("Real sizes: " + ", ".join(f"{n} about {h:g} m tall" for n, h in marks[:6])
             + "; an adult is about 1.7 m, keep people in proportion to these")
 

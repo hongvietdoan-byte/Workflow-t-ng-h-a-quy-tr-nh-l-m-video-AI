@@ -3071,7 +3071,9 @@ def _place_part(conn, project_id: int, data: Dict, place, place_render: bool, ex
     room = indoor_spot(conn, project_id, data)
     if room:                                       # 07/10 Khủng Long Đỏ: the place's outdoor words ("plaza, palms, sea") pulled a
         name = f" ({place['name']} map)" if place is not None else ""   # bedroom shot outside onto a balcony — what is RIGHT (L2)
-        head = (f"Setting: INSIDE a room — {room}{name}. An interior with walls, ceiling and floor exactly as in the 3D render; only "
+        from .seedance_refs import has_vietnamese   # 16/10 #31: the spot LABEL is a Vietnamese note for people (with camera notes:
+        label = "" if has_vietnamese(room) else f" — {room}"   # "máy tại 'at' cao mắt 1,55 m…") — never sent to the image model
+        head = (f"Setting: INSIDE a room{label}{name}. An interior with walls, ceiling and floor exactly as in the 3D render; only "
                 "the room itself is visible, and the outside appears only through its windows.")
     elif place is not None and place_render:       # F1-B (#24): "grass, palms, sea" of the general words beat the render → locked to it
         head = assets.render_place_text(conn, place)

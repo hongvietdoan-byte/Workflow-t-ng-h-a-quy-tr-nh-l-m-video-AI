@@ -203,7 +203,8 @@ class SameFrameRedrawTests(Base):
             outside, _ = build_image_prompt(self.p.conn, self.pid, square)
             self.assertEqual(runner.indoor_spot(self.p.conn, self.pid, room), "trong nhà lớn phía đông — tầng 2")
             self.assertIsNone(runner.indoor_spot(self.p.conn, self.pid, square))
-        self.assertIn("INSIDE a room — trong nhà lớn phía đông — tầng 2", inside)
+        self.assertIn("INSIDE a room (Tháp Đồng Hồ map)", inside)        # 16/10 #31: the Vietnamese spot label stays out of the
+        self.assertNotIn("trong nhà lớn", inside)                        # image prompt (it is a note for people, with camera notes)
         self.assertNotIn("stone plaza", inside)
         self.assertIn("stone plaza", outside)
         self.assertTrue(callable(scene_establish.reference))
