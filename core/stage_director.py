@@ -48,7 +48,10 @@ def build_prompt(inputs: Dict, prev: Optional[Dict] = None, feedback: Sequence[s
             L.append(f"  - ghi chú khung cũ (chỉ để hiểu ý, KHÔNG phải luật): {s['ghi_chu_khung_cu']}")
         if s.get("nhan_vat") is not None:                 # 16/10 sân khấu tự động: dữ kiện shot của kịch bản — code kiểm theo
             cd = s.get("cho_dung") or {}
-            L.append(f"  - **nhân vật PHẢI có trong khung**: {', '.join(f'`{k}`' for k in s['nhan_vat']) or '(không)'}"
+            need = must_see(s)
+            L.append(f"  - nhân vật: {', '.join(f'`{k}`' for k in s['nhan_vat']) or '(không)'}"
+                     + (f" · vai shot `{s['vai_shot']}`" if s.get("vai_shot") else "")
+                     + f" · **PHẢI thấy trong khung**: {', '.join(f'`{k}`' for k in need) or '(không bắt buộc — người ở xa / nhỏ được)'}"
                      + (f" · chỗ đứng `{cd.get('ten')}`" + (f" tại ({cd['at'][0]:+.2f}, {cd['at'][1]:+.2f}) so với O" if cd.get("at") else "")
                         if cd.get("ten") else "")
                      + (f" · cỡ kịch bản `{s['co_kich_ban']}`" if s.get("co_kich_ban") else "")
@@ -156,9 +159,10 @@ def _sig(spec: Dict):
 
 AUTO_RULES = chr(10).join([
     "### Luật code kiểm (sân khấu tự động — sai thì bị trả lại)",
-    "- Mọi nhân vật ở dòng 'nhân vật PHẢI có trong khung' của shot: ghi vào `thanh_phan` (`chinh` hoặc `phu`), có mặt ở nhịp của "
-    "shot, và code ĐO thấy ≥ 15 % thân trong khung (đầu hoặc cuối khi máy chạy) — đặt họ đủ gần nhau để MỘT máy chứa được. Không "
-    'có lối "ngoài khung". Shot POV: `"pov": "<người cầm máy>"` (chỉ người đó được miễn).',
+    "- Mọi nhân vật ở dòng 'nhân vật' của shot: ghi vào `thanh_phan` (`chinh` hoặc `phu`) và có mặt ở nhịp của shot.",
+    "- Code ĐO ≥ 15 % thân trong khung (đầu hoặc cuối khi máy chạy) theo VAI shot: shot hành động / có hạ gục (kể cả phản ứng ngay "
+    "sau khi hạ) → MỌI nhân vật, đặt họ đủ gần để MỘT máy chứa được; shot đối thoại → người nói; shot thiết lập / quan sát / chuyển / "
+    'kết → không bắt buộc (người ở xa, nhỏ được). Shot POV: `"pov": "<người cầm máy>"`.',
     "- `co` = cỡ kịch bản.",
     "- Nhịp của shot = trạng thái ở ĐẦU shot (khung đầu của ảnh): người bị hạ TRONG shot còn ĐỨNG ở nhịp của shot đó; ngã / nằm "
     "ở nhịp của shot sau.",
@@ -187,6 +191,27 @@ def kill_in_shot(action: str) -> bool:
         if not re.search(r"(?:sau khi|vừa|đã|after|having)\s*(?:\S+\s+){0,2}$", action[max(0, m.start() - 25):m.start()], re.I):
             return True
     return False
+
+
+STRICT_ROLES = ("action",)             # vai shot (scenes.data.role) mà MỌI nhân vật kịch bản phải thấy trong khung
+
+
+def must_see(sh: Dict, spec: Optional[Dict] = None) -> List[str]:
+    """16/10 lần 4 (#31 shot 14 'Kelly núp quan sát 4 địch ở 4 góc xa' bị đánh trượt 2 lượt, 0,27 USD): nhân vật PHẢI thấy ≥ 15 %
+    khung theo VAI của shot (dữ kiện kịch bản `role`, `dialogue`, `action`), không phải mọi `characters`:
+    - shot hành động (`role` = action) hoặc có hạ gục — kể cả phản ứng "sau khi vừa hạ gục" (nạn nhân phải còn thấy): mọi nhân vật;
+    - shot đối thoại: người NÓI có trong khung;
+    - shot thiết lập / quan sát / chuyển / chèn / kết…: không bắt buộc (nhân vật ở xa, nhỏ hoặc ngoài khung chỉ là VÀNG).
+    Người cầm máy (`pov`) luôn được miễn."""
+    pov = (spec or {}).get("pov")
+    cast = [k for k in sh.get("nhan_vat") or [] if k != pov]
+    if sh.get("vai_shot") is None:                                    # kịch bản không ghi vai / đề bài cũ: như trước — mọi nhân vật
+        return cast
+    if sh.get("vai_shot") in STRICT_ROLES or KILL_WORDS.search(str(sh.get("action") or "")):
+        return cast
+    if sh.get("vai_shot") == "dialogue":
+        return [k for k in sh.get("nguoi_noi") or [] if k in cast]
+    return []
 
 
 def script_rules(bl: Dict, specs: List[Dict], inputs: Dict, marks: Optional[Dict] = None) -> List[str]:
@@ -245,7 +270,7 @@ def k3_frame_errors(bl: Dict, specs: List[Dict], info: Dict, marks: Optional[Dic
         return [f"bộ giải không chạy được trên dàn cảnh: {e}"]
     for r in sol.get("shots") or []:
         spec = next((s for s in specs if s.get("shot") == r["shot"]), {})
-        want = [k for k in (info.get(r["shot"]) or {}).get("nhan_vat") or [] if k != spec.get("pov")]
+        want = must_see(info.get(r["shot"]) or {}, spec)            # 16/10 lần 4: theo vai shot (shot quan sát: không bắt buộc)
         if r.get("errors"):
             out.append(f"shot {r['shot']}: bộ giải: " + "; ".join(r["errors"][:2]))
             continue

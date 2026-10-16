@@ -288,7 +288,11 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
                       "do_dai": f"{d.get('duration_s')} s" if d.get("duration_s") else "",
                       "nhan_vat": [key_by_name[n] for n in (d.get("characters") or []) if n in key_by_name],
                       "cho_dung": {"ten": sp.get("name"), "at": [r[0], r[1]] if r else None},
-                      "co_kich_ban": d.get("size"), "goc_kich_ban": d.get("angle"), "may_kich_ban": d.get("camera_move")})
+                      "co_kich_ban": d.get("size"), "goc_kich_ban": d.get("angle"), "may_kich_ban": d.get("camera_move"),
+                      # 16/10 lần 4: luật 'trong khung' theo VAI shot (dữ kiện kịch bản, không đoán chữ) — xem stage_director.must_see
+                      "vai_shot": d.get("role"),
+                      "nguoi_noi": [key_by_name[x.get("speaker")] for x in (d.get("dialogue") or [])
+                                    if isinstance(x, dict) and x.get("speaker") in key_by_name]})
     aspect = formats.project_aspect(conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()) or "9:16"
     inputs = {"pid": pid, "canh": f"cảnh {seg['scene']} — {seg['place'].get('name')} ({len(seg['shots'])} shot)",
               # 16/10 gốc lỗi chạy thật #31 cảnh 4 (lần 2, 0,37 USD): cờ director_blockout (nhánh C — bối cảnh KHÔNG có model 3D)
@@ -609,6 +613,7 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
         for cam in cams.values():
             cam["inputs_fp"] = fp
         res["guide_missing"] = guides_missing(cams)
+        res["soft"] = soft_checks(inputs, v2 or {})
         res["round"] = os.path.basename(rd)               # rà 16/10: lượt cuối của LẦN chạy này (r* cũ của lần trước còn trên đĩa)
         for s in seg["shots"]:
             if s["idx"] not in cams and s["idx"] not in bad:
@@ -660,11 +665,10 @@ def post_checks(inputs: Dict, v2: Dict) -> Dict[int, str]:
         m = b.get("m") or {}
         sh = info.get(s["shot"]) or {}
         spec = s.get("spec") or {}
-        pov = spec.get("pov")
+        from .stage_director import must_see
+        need = set(must_see(sh, spec)) if sh else set()
         lost = []
-        for k in sh.get("nhan_vat") or []:
-            if k == pov:
-                continue
+        for k in sorted(need):
             seen = [((m.get("obj") or {}).get(k) or {}).get("seen_pct") or 0.0]
             if b.get("end"):
                 seen.append((((b["end"].get("m") or {}).get("obj") or {}).get(k) or {}).get("seen_pct") or 0.0)
@@ -686,6 +690,23 @@ def post_checks(inputs: Dict, v2: Dict) -> Dict[int, str]:
                                   + f"máy trùng shot {prev[0]} (cách {d:.2f} m, lệch {dy:.0f}°, cùng ống {m.get('lens')} mm) — đổi góc / "
                                     "độ cao / cỡ")
         prev = (s["shot"], m, spec) if m else None        # rà 16/10: shot không có số đo → shot sau không so với shot cách một
+    return out
+
+
+def soft_checks(inputs: Dict, v2: Dict) -> Dict[int, str]:
+    """VÀNG (không giữ shot): nhân vật kịch bản KHÔNG bắt buộc theo vai shot (thiết lập / quan sát…) mà thấy < SEEN_MIN_PCT % khung."""
+    from .stage_director import must_see
+    info = {s["shot"]: s for s in inputs.get("shots") or []}
+    out = {}
+    for s in v2.get("shots") or []:
+        sh, spec = info.get(s["shot"]) or {}, s.get("spec") or {}
+        m = ((s.get("best") or {}).get("m") or {}).get("obj") or {}
+        need = set(must_see(sh, spec))
+        low = [k for k in sh.get("nhan_vat") or [] if k not in need and k != spec.get("pov")
+               and ((m.get(k) or {}).get("seen_pct") or 0.0) < SEEN_MIN_PCT]
+        if low:
+            out[s["shot"]] = (f"vai shot `{sh.get('vai_shot')}`: {', '.join(f'`{k}`' for k in low)} ở xa / ngoài khung (< {SEEN_MIN_PCT:g} %) — "
+                              "cho phép, chỉ báo để người xem kiểm")
     return out
 
 
@@ -816,12 +837,21 @@ def score_saved(conn, pid: int, seg: Dict, data_dir: str) -> Dict:
             found.append(x)
         elif x.startswith("cu_") and os.path.isdir(os.path.join(out_dir, x)):
             found += [f"{x}/{y}" for y in sorted(os.listdir(os.path.join(out_dir, x))) if re.fullmatch(r"r[0-9]+", y)]
+    from .llm_runner import extract_json
+    for root, _dirs, files in os.walk(out_dir):          # câu trả lời SAI MẪU đã trả tiền (16/10 lần 4) cũng được chấm lại
+        for fn in sorted(files):
+            if fn.startswith("bad_reply_") and fn.endswith(".txt"):
+                found.append(os.path.relpath(os.path.join(root, fn), out_dir).replace(os.sep, "/"))
     for d in found:
-        path = os.path.join(out_dir, d, "answer.json")
+        path = os.path.join(out_dir, d) if d.endswith(".txt") else os.path.join(out_dir, d, "answer.json")
         if not os.path.exists(path):
             continue
-        with open(path, encoding="utf-8") as f:
-            obj = json.load(f)
+        try:
+            with open(path, encoding="utf-8") as f:
+                obj = extract_json(f.read()) if d.endswith(".txt") else json.load(f)
+        except (ValueError, TypeError) as e:
+            res["rounds"][d] = [f"không đọc được JSON: {e}"]
+            continue
         try:
             sd.validate_answer(_c.deepcopy(obj), inputs, marks)
             res["rounds"][d] = []
@@ -905,6 +935,8 @@ def run(conn, pid: int, data_dir: str, client=None, force: bool = False, again: 
         out["applied"] += [i for i in changed if i in r["cams"]]
         out["removed"] += [i for i in changed if i not in r["cams"]]    # 16/10: máy tự động cũ bị GỠ ≠ đã gán máy
         _say_guides(conn, pid, seg, r, out, log)
+        for idx, why in sorted((r.get("soft") or {}).items()):
+            _say(conn, pid, "warn", f"Sân khấu {seg['id']} shot {idx}: {why}", log)
         for idx, why in sorted(r["bad"].items()):
             line = (f"shot {idx} ({seg['id']}): sân khấu chưa đặt được máy sau {2} lượt sửa — {why} (sửa yêu cầu khung / chỗ đứng, hoặc "
                     "Tiếp tục = shot dùng máy thường, không theo sân khấu)")

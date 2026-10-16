@@ -787,7 +787,7 @@ class ScriptRulesTests(Base):
         self.assertEqual(inputs["shots"][2]["cho_dung"]["ten"], "can_cua")
         self.assertEqual(inputs["shots"][0]["co_kich_ban"], "MS")
         text = stage_director.build_prompt(inputs)
-        self.assertIn("nhân vật PHẢI có trong khung", text)
+        self.assertIn("PHẢI thấy trong khung", text)
         self.assertIn("chỗ đứng `can_cua`", text)
 
     def test_dropping_a_script_character_is_refused(self):
@@ -944,3 +944,25 @@ class Review3Tests(Base):
             stage_auto.run(self.p.conn, pid, self.data, client=Boom(), again=True)
         self.assertTrue(stage_auto.last_answer(self.data, pid, seg))                    # lượt cũ còn nguyên, rerender dùng được
         self.assertTrue(os.path.exists(self.shot(pid, 1)["stage_camera"]["guide"]))
+
+
+class RoleRuleTests(unittest.TestCase):
+    """16/10 lần 4 (#31 shot 14 'Kelly núp quan sát 4 địch ở 4 góc xa' bị đánh trượt, 0,27 USD): 'trong khung' theo VAI shot."""
+    def test_must_see_by_role(self):
+        ms = stage_director.must_see
+        base = {"nhan_vat": ["kelly", "a", "b"], "action": "Kelly núp quan sát bốn kẻ địch"}
+        self.assertEqual(ms(dict(base, vai_shot="setup")), [])                            # quan sát: không bắt buộc
+        self.assertEqual(ms(dict(base, vai_shot="action")), ["kelly", "a", "b"])
+        self.assertEqual(ms(dict(base, vai_shot="reaction", action="Kelly thở gấp sau khi vừa hạ gục A")), ["kelly", "a", "b"])
+        self.assertEqual(ms(dict(base, vai_shot="dialogue", nguoi_noi=["a"])), ["a"])
+        self.assertEqual(ms(dict(base, vai_shot=None)), ["kelly", "a", "b"])              # không ghi vai: như trước
+        self.assertEqual(ms(dict(base, vai_shot="action"), {"pov": "kelly"}), ["a", "b"])
+
+    def test_setup_shot_far_people_only_yellow(self):
+        inputs = {"shots": [{"shot": 14, "nhan_vat": ["kelly", "a"], "vai_shot": "setup", "action": "quan sát"}]}
+        v2 = {"shots": [{"shot": 14, "spec": {}, "best": {"m": {"at": [0, 0, 1], "aim": [0, 1, 1], "lens": 24,
+                                                                 "obj": {"kelly": {"seen_pct": 60}, "a": {"seen_pct": 0}}}}}]}
+        self.assertEqual(stage_auto.post_checks(inputs, v2), {})
+        self.assertIn("`a`", stage_auto.soft_checks(inputs, v2)[14])
+        inputs["shots"][0]["vai_shot"] = "action"
+        self.assertIn(14, stage_auto.post_checks(inputs, v2))
