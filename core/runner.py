@@ -3087,7 +3087,7 @@ def _place_part(conn, project_id: int, data: Dict, place, place_render: bool, ex
     from . import prompt_template as pt
     room = indoor_spot(conn, project_id, data)
     if room:                                       # 07/10 Khủng Long Đỏ: the place's outdoor words ("plaza, palms, sea") pulled a
-        name = f" ({place['name']} map)" if place is not None else ""   # bedroom shot outside onto a balcony — what is RIGHT (L2)
+        name = f" ({assets.model_place_name(place)} map)" if place is not None else ""   # rà 17/10: no Vietnamese name   # bedroom shot outside onto a balcony — what is RIGHT (L2)
         from .seedance_refs import has_vietnamese   # 16/10 #31: the spot LABEL is a Vietnamese note for people (with camera notes:
         label = "" if has_vietnamese(room) else f" — {room}"   # "máy tại 'at' cao mắt 1,55 m…") — never sent to the image model
         head = (f"Setting: INSIDE a room{label}{name}. An interior with walls, ceiling and floor exactly as in the 3D render; only "
