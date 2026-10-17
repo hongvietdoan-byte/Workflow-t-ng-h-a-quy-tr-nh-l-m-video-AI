@@ -885,6 +885,10 @@ def previs_block(cfg, scene, scn, placed, bpy, rp, out, warnings):
         ob.color = (0.72, 0.72, 0.72, 1)
         if ob.name.startswith("STAGE_PROP_") or ob.name.startswith("STAGE_WELL"):
             ob.color = (0.55, 0.45, 0.3, 1)
+        if ob.name.startswith("STAGE_") and ob.name.endswith("_nose"):
+            # người dùng 17/10 (V2V nháp #31): mũi chỉ hướng của người nộm (dấu hướng mặt cho K4) lọt vào video ref → model vẽ
+            # thành "cục" trên đầu nhân vật → previs không render mũi
+            ob.hide_render = True
     for person in pv.get("people") or []:
         by_name = {}
         for var in person["variants"]:                    # rà 16/10: MỘT trục xoay cho mỗi người nộm (V0 → V1 → V0 dùng lại V0)
@@ -906,8 +910,9 @@ def previs_block(cfg, scene, scn, placed, bpy, rp, out, warnings):
                 ob.parent = piv
                 ob.matrix_world = mw
                 marks = [(0.0, False)] + [x for w in wins for x in ((w["from"], True), (w["to"], False))]
+                nose = ob.name.endswith("_nose")          # 17/10: khóa biến thể từng bật lại mũi chỉ hướng → luôn ẩn
                 for t, vis in marks:                      # chỉ hide_render (render) — khóa hide_viewport từng gây lỗi depsgraph
-                    ob.hide_render = not vis
+                    ob.hide_render = nose or not vis
                     ob.keyframe_insert("hide_render", frame=fr(t))
             f0, z0 = float(first.get("facing") or 0.0), float(first.get("z0") or 0.0)
             for t, x, y, z, f in person["keys"]:

@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.getcwd())
 
 NAME = "Thử V2V previs one-shot #31 shot 7–8 (16/10)"
-CAP_USD = 6.5                    # trần cứng của dự án thử: 2 lượt 5 s ($2,76) + nháp 480p 2 đoạn cắt ($2,21 × 1,25)
+CAP_USD = 9.5                    # trần cứng dự án thử: lượt 5 s ($2,76) + nháp 480p lượt 1 ($2,21) + lượt 2 ($2,21 × 1,25)
 MODEL, CANONICAL, TIER, SECS, ASPECT = "seedance-2.5", "dreamina-seedance-2-5-260628", "720p", 5, "9:16"
 SOURCES = {r: os.path.join("D:" + os.sep, "AI-Video-Output", "2026-10-15_du-an-31", "previs",
                            f"previs_canh2_shot6-9_xoay60_them7s3_7sau_trai_{r}.mp4")
@@ -64,14 +64,21 @@ SEG_SOURCE = os.path.join("D:" + os.sep, "AI-Video-Output", "2026-10-15_du-an-31
                           "previs_canh2_shot6-9_them7s3_6sau_trai_7sau_trai_depth.mp4")
 PLATE = {s_: os.path.join("data", "_plates3d", "cache", k, "plate.png") for s_, k in
          ((6, "17eedb1882be7b24ddfe"), (7, "b4701a77bce3940a9b8a"), (8, "2764ab272dd78733cfe6"), (9, "5f594a7db7d5cec3fcd2"))}
-KELLY_REFS = [os.path.join("data", "assets", "23", "10.png"), os.path.join("data", "assets", "427", "1.png"),
+KELLY_REFS = [os.path.join("data", "assets", "23", "10.png"),    # Kelly mặt trước (bộ chuẩn 1)
+              os.path.join("data", "assets", "23", "15.png"),    # Kelly sau lưng (render 3D đã duyệt) — người dùng 17/10: Đ2 sai skin,
+              os.path.join("data", "assets", "23", "16.png"),    # chữ lỗi trên lưng áo (chỉ gửi mặt trước → model bịa) · Kelly bên hông
+              os.path.join("data", "assets", "427", "1.png"),
               os.path.join("data", "assets", "442", "2.png")]
+ROUND = "r2"                     # lượt 2 (17/10): previs không mũi chỉ hướng + dáng chạy + ảnh lưng/hông Kelly
+RUN = ("Kelly SPRINTS the whole way: a fast running cycle with long strides, both feet leaving the ground, knees high, arms pumping "
+       "hard, body leaning forward — never walking or jogging slowly. ")
 SEGMENTS = {
     "D1": {"cut": (0.0, 13.0), "secs": 13, "plates": [6, 7, 8],
-           "goal": "Kelly, in her glowing translucent ghost form, steps through a gap in the hedge into the maze, then runs fast through "
-                   "the narrow maze corridors — turning left, right, past a dead end — and comes out into the open centre, where she "
-                   "slows down and stops, startled, in front of a cursed baby carriage that rocks by itself. The camera follows "
-                   "low and close behind her, slightly over her left shoulder, the whole time, like being lost in the maze with her.",
+           "goal": "Kelly, in her glowing translucent ghost form, slips through a gap in the hedge into the maze, then sprints through "
+                   "the narrow maze corridors — turning left, right, past a dead end — and bursts out into the open centre, where she "
+                   "slows down and stops, startled, in front of a cursed baby carriage that rocks by itself. " + RUN +
+                   "The camera follows low and close behind her, slightly over her left shoulder, the whole time, like being lost in "
+                   "the maze with her.",
            "places": "@Image 1, @Image 2 and @Image 3 are the places along her path (the maze entrance, the maze corridors, the open "
                      "centre): use only the dark hedge walls, the stone floor, the night sky and the cold blue moonlight; not their "
                      "camera."},
@@ -93,19 +100,21 @@ def seg_prompt() -> str:
     n = len(g["plates"])
     return (f"[Goal] One continuous shot of a Free Fire in-game 3D character at night in a hedge maze of the parallel world. {g['goal']}\n"
             "[Asset roles]\n" + g["places"] + "\n"
-            f"@Image {n + 1} is Kelly: use only her face, short black bob with straight bangs, black choker, yellow cropped tracksuit "
-            "jacket, white top, yellow pants with black side stripes and white sneakers; not the grey background.\n"
-            f"@Image {n + 2} is only the ghost look: Kelly's whole body is a glowing translucent blue-red silhouette like this; do not "
-            f"take the game HUD, buttons, map, text, the house or the camera of @Image {n + 2}.\n"
-            f"@Image {n + 3} is the cursed baby carriage: an old black Victorian pram with a torn lace hood, red inside, a stitched "
+            f"@Image {n + 1}, @Image {n + 2} and @Image {n + 3} are Kelly from the front, the back and the side: use only her face, "
+            "short black bob with straight bangs, black choker, yellow cropped tracksuit jacket (plain yellow back, no text, no logo, "
+            "no print), white top, yellow pants with black side stripes and white sneakers; not the grey background.\n"
+            f"@Image {n + 4} is only the ghost look: Kelly's whole body is a glowing translucent blue-red silhouette like this; do not "
+            f"take the game HUD, buttons, map, text, the house or the camera of @Image {n + 4}.\n"
+            f"@Image {n + 5} is the cursed baby carriage: an old black Victorian pram with a torn lace hood, red inside, a stitched "
             "doll and a faint red glow; not the grey background.\n" + DEPTH_ROLE +
-            "[Keep] Only Kelly and the carriage, Kelly's identity and clothes inside the ghost glow, the Free Fire in-game 3D render "
-            "style, dark night mood. No game HUD, no subtitles, no on-screen text, no watermark.")
+            "[Keep] Only Kelly and the carriage, Kelly's identity and clothes inside the ghost glow, nothing on or above her head, "
+            "no letters or symbols on her clothes, the Free Fire in-game 3D render style, dark night mood. No game HUD, no "
+            "subtitles, no on-screen text, no watermark.")
 
 
 def method() -> str:
     if SEG:
-        return f"PREVIS_SEG_{SEG}_{TIER}"
+        return f"PREVIS_SEG_{SEG}_{TIER}" + ("" if ROUND == "r1" else "_" + ROUND)
     return METHOD[REF] + ("" if TIER == "720p" else "_" + TIER)    # rà 16/10: tier khác → method khác (không bị báo đã gửi)
 
 
