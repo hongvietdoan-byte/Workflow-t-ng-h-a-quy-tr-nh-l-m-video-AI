@@ -61,11 +61,42 @@ def fit_ground(prompt: str, refs: List[Dict]) -> str:
     if not m:
         return prompt
     n = next((i for i, r in enumerate(refs or [], 1) if r.get("role") == ROLE), None)
+    if n:
+        prompt = agree_direction(prompt)
+        m = _GROUND.search(prompt)
     if n == 1:
         return prompt
     if n:
         return prompt[:m.start()] + m.group(0).replace("Image 1", f"Image {n}") + prompt[m.end():]
     return (prompt[:m.start()] + prompt[m.end():]).strip()
+
+
+# G6 (17/10, #31 shot 6/11/32): the DP's direction sentence (location_pack.script_sentence, from plate_view) said "the camera looks
+# towards the villa: the villa is behind the character" while the plate's MEASURED sentence said "the villa is outside this frame (not
+# visible)" (hedges / the angle hide it). The measured one is the truth of the render sent: a direction sentence that claims the
+# opposite leaves the prompt (the plate itself was rendered with that direction — nothing else changes).
+_DIRECTION = re.compile(r"\s*Camera direction chosen for this shot: [^.]*\.")
+_CLAIMS_SEEN = re.compile(r"is behind the character|is in the background|edge of the background")
+_CLAIMS_HIDDEN = re.compile(r"is NOT in the frame|is off-frame")
+
+
+def agree_direction(prompt: str) -> str:
+    """The prompt without a 'Camera direction chosen' sentence that contradicts the measured background sentence; unchanged otherwise."""
+    g = _GROUND.search(prompt or "")
+    if not g:
+        return prompt
+    ground = g.group(0)
+    hidden = "is outside this frame (not visible)" in ground
+    seen = bool(re.search(r"\bstands about [\d.]+ m from", ground))
+    if not (hidden or seen):
+        return prompt                                   # landmark unknown: nothing measured to contradict
+
+    def fix(d):
+        text = d.group(0)
+        if (hidden and _CLAIMS_SEEN.search(text)) or (seen and _CLAIMS_HIDDEN.search(text)):
+            return ""
+        return text
+    return _DIRECTION.sub(fix, prompt)
 
 
 # ---- (a) nền sinh từ dữ liệu sân khấu 3D -------------------------------------------------------------------------------------------
@@ -176,6 +207,36 @@ def _keeps(text: str, names: Optional["re.Pattern"]) -> bool:
     return bool(_PERSON.search(text) or _PROP.search(text) or _LIGHT.search(text) or (names and names.search(text)))
 
 
+# G6 (17/10, #31 shot 6/11/13/14): "…, the villa silhouette faint in the far background between hedge tops" / "dark hedge walls and the
+# villa's pale silhouette faint in the background" / "The villa rooftop is faintly visible beyond the hedges under the dark swirling sky"
+# stayed: the clause also had a person / fog / sky word. A comma part about a far landmark (villa, tower, house, silhouette…) placed in
+# the background / beyond / in the distance, with no person, prop or light source in it, goes — the plate's measured sentence decides
+# whether that landmark is in the frame at all.
+_MARK_NOUN = (r"(?:villas?|mansions?|castles?|manors?|palaces?|cathedrals?|churche?s?|clock tower|towers?|houses?|buildings?|roofs?|"
+              r"rooftops?|skyline|cityscape|village|town|hills?|mountains?)")
+# the part is ABOUT the landmark: its silhouette, or the landmark noun heads the part ("the villa …", "and the pale villa's …") — never
+# a place phrase of the people around it ("far distance near the stone plaza of the Clock Tower" stays: test_plate_anchor_loi1)
+_MARK_SEG = re.compile(r"\bsilhouettes?\b|^\s*(?:and\s+)?(?:the\s+|a\s+|an\s+)?(?:[\w'’-]+\s+){0,2}?" + _MARK_NOUN + r"(?:'s|’s)?\b", re.I)
+_AWAY = re.compile(r"\b(?:background|backdrop|beyond|in the distance|far distance|far away|distant|faint(?:ly)? visible)\b", re.I)
+_SOURCE = re.compile(r"\b(?:light|lighting|lit|sunlight|moonlight|glow\w*|lamps?|lanterns?|fire)\b", re.I)
+
+
+def _cut_far_segments(clause: str, who, removed: List[str]) -> str:
+    m = re.search(r"[.;!?]+\s*$", clause)
+    body, tail = (clause[:m.start()], clause[m.start():]) if m else (clause, "")
+    segs = body.split(",")
+    keep = []
+    for seg in segs:
+        if (_MARK_SEG.search(seg) and _AWAY.search(seg) and not _PERSON.search(seg) and not _PROP.search(seg)
+                and not _SOURCE.search(seg) and not (who and who.search(seg))):
+            removed.append(seg.strip())
+            continue
+        keep.append(seg)
+    if len(keep) == len(segs):
+        return clause
+    return ",".join(keep) + tail
+
+
 def strip_scenery(text: str, names: Sequence[str] = ()) -> Tuple[str, List[str]]:
     """(chữ đã bỏ phần tả nền, [đoạn đã bỏ]). Bỏ: (1) câu/vế (tách ở . ; ! ?) có chữ nền mà KHÔNG có người / tên nhân vật / đạo cụ / ánh
     sáng; (2) trong câu còn lại, cụm "in front of / against / beneath / beside / next to … tháp / nhà / mái / đồi / biển". Câu tả người
@@ -197,7 +258,7 @@ def strip_scenery(text: str, names: Sequence[str] = ()) -> Tuple[str, List[str]]
             kept.append(end.group(0) if end else "")      # giữ dấu ngắt câu của vế bỏ ("…her; bright daylight")
             continue
         cut = _PHRASE.sub(lambda x: (removed.append(x.group(0).strip(" ,")) or ""), clause)
-        kept.append(cut)
+        kept.append(_cut_far_segments(cut, who, removed))
     if not removed:
         return src, []
     out = "".join(kept)

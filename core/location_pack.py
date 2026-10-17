@@ -1086,13 +1086,18 @@ def move_words(item: Dict) -> str:
 
 
 # ---- light of a 3D render (place_render_refs prompt sentence) ----
-def light_words(rec: Dict, sun_azimuth: float) -> str:
+def light_words(rec: Dict, sun_azimuth: float, data: Optional[Dict] = None) -> str:
     """Where the sun/moon comes from, seen from this camera (the render's own light: tools/render_plates.py points the sun from
-    azimuth a toward (cos a, sin a) on the ground plane)."""
+    azimuth a toward (cos a, sin a) on the ground plane).
+    G5 (17/10, #31 shot 1/3/19): with the shot's data — nobody in the frame → no "rim light on hair" sentence; a camera INSIDE a room
+    (camera_plan.indoor) → the sun / moon does not light the people: the shot's practical lights (plate_choice.light_sentence) do, so
+    no sun sentence that would contradict the desk lamp on the left."""
     import math
     cam = (rec.get("camera_plan") or {})
     loc, aim = cam.get("location"), cam.get("look_at")
     if not loc or not aim:
+        return ""
+    if data is not None and (not data.get("characters") or cam.get("indoor")):
         return ""
     fx, fy = aim[0] - loc[0], aim[1] - loc[1]
     n = math.hypot(fx, fy) or 1.0
@@ -1124,7 +1129,7 @@ def script_sentence(conn, pid: int, data: Dict) -> str:
         bits.append(f"Camera direction chosen for this shot: {view['words_en']}.")
     env = plate_env.env_of(data)
     lit = plate_choice.lights_of(data, env)
-    light = plate_choice.light_sentence(lit["lights"], lit["decided"], env["time"])
+    light = plate_choice.light_sentence(lit["lights"], lit["decided"], env["time"], data)   # G5: nobody in frame → no "character" light
     if light:
         bits.append(light)
     return " ".join(bits)

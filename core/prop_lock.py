@@ -687,6 +687,13 @@ def issues(conn, project_id: int, data: Dict) -> List[Dict]:
             out.append({"level": "warn", "part": "dao_cu",
                         "msg": f"món Kho {lk['asset']['name']}: bỏ ảnh hình nộm khỏi khóa vật — vật chỉ còn tả bằng chữ "
                                "(thêm ảnh sạch không có hình nộm ở Kho nếu cần giống mẫu)"})
+        from .seedance_refs import has_vietnamese
+        if lk["form"] and has_vietnamese(lk["form"]):    # G4 17/10: luật 1 — the form is not sent word for word, say what goes instead
+            sent = english_form(lk["form"], lk["variant"], lk["has_forms"])
+            out.append({"level": "warn", "part": "dao_cu",
+                        "msg": f"món Kho {lk['asset']['name']}: mô tả dạng viết tiếng Việt — prompt ảnh không gửi chữ Việt, chỉ gửi "
+                               f"'{sent or 'tên món'}'" + (" + ảnh Kho" if lk["image"] else " (KHÔNG có ảnh Kho của dạng này)")
+                               + "; muốn gửi đủ thì viết mô tả dạng bằng tiếng Anh ở Kho"})
         if lk["category"] == "gun" and not weapon_scale(conn, lk["asset"], lk["variant"]):
             out.append({"level": "warn", "part": "dao_cu",
                         "msg": f"món Kho {lk['asset']['name']} thiếu tỉ lệ — loại súng chưa rõ hoặc mâu thuẫn; thêm 'Tỉ lệ:' vào mô tả/hồ sơ hoặc kích thước ở Kho"})
@@ -729,10 +736,48 @@ def issues(conn, project_id: int, data: Dict) -> List[Dict]:
     return out + skill
 
 
+def _english_label(variant: Optional[str]) -> str:
+    """The English-looking words of a variant name ("skin Gloowall OB55 thang máy" → "skin Gloowall OB55"): 'skin' and the words with a
+    capital letter or a digit (names / ids), never a Vietnamese word. '' when nothing but 'skin' is left."""
+    from .seedance_refs import has_vietnamese
+    toks = [t for t in str(variant or "").split()
+            if not has_vietnamese(t) and assets.fold(t) == t.lower() and (t.lower() == "skin" or re.search(r"[A-Z0-9]", t))]
+    return " ".join(toks) if any(t.lower() != "skin" for t in toks) else ""
+
+
+# Vietnamese words of the bilingual table with another everyday meaning: "băng" (đạn / keo / dán), "cam" (cầm typed bare), "bạc" (tiền),
+# "đục" (chisel), "xanh" (blue or green) — never turned into a colour of the form
+_VI_AMBIGUOUS = {"băng", "cam", "bạc", "đục", "xanh"}
+
+
+def english_form(form: str, variant: Optional[str], has_forms: bool) -> str:
+    """G4 (17/10, #31 shot 32/33): the form words SENT to the picture model. A Kho form written in Vietnamese ("skin Gloowall OB55 thang
+    máy (… kịch bản gọi …) — tường dạng cửa thang máy kim loại xám …") went raw into the prompt, and the lift-word fix turned "thang
+    máy" into "tấm kim loại" — Vietnamese the model cannot read, and words that no longer matched the picture sent. An English form is
+    kept as it is; a Vietnamese one becomes its English variant name + the colour/material words read from it (bilingual table); the
+    reference picture shows the rest (issues() says so)."""
+    from .seedance_refs import has_vietnamese
+    if not form or not has_vietnamese(form):
+        return form
+    if not has_forms:
+        return ""            # one look only (a gun): its picture + name say it; "băng đạn" / "ống ngắm đỏ" are not the body's colour
+    attrs = []
+    for m in _ATTRIBUTE_RX.finditer(form):
+        word = m.group().lower()
+        if word in _VI_AMBIGUOUS or re.search(r"(?:not|no|never|không)\s+$", form[:m.start()], re.I):
+            continue
+        attrs.append(_ATTRIBUTE_GROUPS[_ATTRIBUTE_KEY[word]][0])
+    colour = ", ".join(dict.fromkeys(attrs))
+    label = _english_label(variant)
+    head = f"its {label} form" if label else ("its default form" if variant is None else "its chosen form")
+    return head + (f" ({colour})" if colour else "")
+
+
 def prompt_part(conn, project_id: int, data: Dict) -> str:
     """The 'Prop lock' sentences of the picture prompt ('' when off / nothing to lock — the prompt then stays byte for byte)."""
     if not enabled():
         return ""
+    from .seedance_refs import has_vietnamese
     bits = []
     for lk in locks(conn, project_id, data):
         a, form = lk["asset"], lk["form"]
@@ -742,6 +787,7 @@ def prompt_part(conn, project_id: int, data: Dict) -> str:
             if span:
                 form = (form[:span[0]] + form[span[1]:])
             form = re.sub(r"\s{2,}", " ", form).strip(" .;,")
+        form = english_form(form, lk["variant"], lk["has_forms"])   # G4: never Vietnamese words to the picture model
         over = f"; this overrides any other colour or material described above for it" if form and lk["has_forms"] else ""
         if lk.get("holders"):
             # Đ16v3: whose gun it is — each present character gets their own locked gun, never another one
@@ -766,7 +812,7 @@ def prompt_part(conn, project_id: int, data: Dict) -> str:
                         + ("; as its reference picture shows" if lk["image"] else "") + "; keep this one form.")
         if lk["category"] == "gun":
             scale = weapon_scale(conn, a, lk["variant"])
-            if scale:
+            if scale and not has_vietnamese(scale):      # G4: a Vietnamese 'Tỉ lệ:' note is for people (said by issues())
                 bits.append(f"Weapon scale: {a['name']} — {scale}.")
     return " ".join(bits)
 
