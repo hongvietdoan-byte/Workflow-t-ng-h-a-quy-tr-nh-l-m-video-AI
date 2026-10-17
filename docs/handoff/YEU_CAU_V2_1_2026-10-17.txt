@@ -1,0 +1,143 @@
+Tài liệu giao việc cho Claude Code | 17/10/2026 | Chế độ: CHỈ AUDIT VÀ SOẠN KẾ HOẠCH
+
+TRẠNG THÁI: Kế hoạch gốc CHƯA ĐƯỢC DUYỆT, CHƯA TRIỂN KHAI. Không sửa code, không chạy migration, không gen ảnh/video và không gọi API có phí.
+
+1. Bối cảnh và phạm vi
+
+Nguồn gốc: KE_HOACH_TRUONG_CAU_TRUC_VA_HOI_QUY_GOI_2026-10.md. Pipeline hiện tại gen từng shot độc lập rồi ghép bằng FFmpeg/Premiere. Mục tiêu là cập nhật kế hoạch gốc thành một thiết kế V2.1 thống nhất, giữ lại các module đang chạy và chuẩn bị cho Continuity Engine, Automated QC, Selective Repair.
+
+Các thông tin sau là phát hiện được báo cáo trong kế hoạch gốc, KHÔNG phải xác minh độc lập trên repository: 16 khâu L1–L16; BYĐ trong core/shot_intent.py; runner._submit_args là đường gửi payload; replay_payload.py đã có; #31 có BYĐ 36/36 shot; nhiều lỗi 15–17/10 liên quan đến suy luận từ chữ tự do. Phải kiểm chứng trạng thái thực tế trước khi đề xuất sửa.
+
+2. Nguyên tắc bắt buộc
+
+- Audit trước, không triển khai code production trong nhiệm vụ này.
+
+- Không ghi đè kế hoạch 17/10; tạo tài liệu V2.1 mới.
+
+- Tái sử dụng core/continuity, character_forms, prop_lock và QC hiện có nếu phù hợp; không xây trùng.
+
+- Không thay đổi BYĐ v1, public API hoặc hợp đồng payload nếu thiếu migration và rollback plan.
+
+- Không gọi API gen ảnh/video hoặc API tốn phí; mọi test trong giai đoạn này phải offline.
+
+- Phân loại mọi kết luận IMPLEMENTED / PARTIAL / MISSING / UNKNOWN, kèm file, hàm và bằng chứng.
+
+- Không xem golden fixture là bằng chứng chất lượng đúng; phân biệt compatibility và correctness.
+
+3. Phase 0 — Repository audit
+
+Đọc luồng thực tế từ BYĐ → Asset Resolution → runner._submit_args → image/video jobs → QC → FFmpeg/Premiere → export. Kiểm tra core/shot_intent.py, core/continuity*, core/character_forms.py, core/prop_lock.py, core/runner.py, tools/replay_payload.py, devsys/stages.json, jobs/usage_events, dashboard/steps, các module QC và timeline.
+
+Xuất bản đồ module: trách nhiệm, dữ liệu vào/ra, điểm gọi, feature flag, trạng thái kiểm, retry, khả năng resume, dấu vết artifact và phạm vi trùng lặp. Kiểm tra các phiên code khác có đang sửa character_forms/prop_lock không; không tự ý phối hợp sửa chung.
+
+4. Chỉnh phần B — Payload Golden Regression (ưu tiên đầu tiên)
+
+- Giữ B0 → B1 → B2: dò đường mở ảnh, chụp fixture dự án #24/#27/#31, chạy replay offline bằng provider giả.
+
+- Kiểm cờ máy chính và ma trận byd_fields bật/tắt; cờ tắt phải giữ payload tương thích với baseline trong phạm vi xác minh.
+
+- Tách Compatibility Regression (không đổi ngoài ý muốn) khỏi Correctness Regression (các lỗi đã biết phải được sửa).
+
+- Mọi cập nhật fixture cần diff theo shot/trường, lý do, commit, bằng chứng, duyệt rõ ràng; không tự chấp nhận golden mới.
+
+- Trường cần pixel ảnh thật phải gắn needs_pixels và báo rõ giới hạn; test cần data phải skip có lý do.
+
+5. Chỉnh phần A — BYĐ v2 và Structured Fields
+
+- Giữ trường thanh_phan[].dang; vat[] gồm kho_id, nguoi, cach, bien_the; noi_chon.trong_nha; khung.moc_nen.
+
+- Đọc BYĐ theo version; thiếu trường thì fallback đường cũ kèm provenance + cảnh báo, tuyệt đối không fallback âm thầm.
+
+- Regex chỉ cảnh báo text_vs_field; không được âm thầm thay ảnh, khóa hoặc câu gửi model.
+
+- Dạng nhân vật và outfit/hair/face phải có cấu trúc, có quan hệ với form/variant và quy trình duyệt dữ liệu chuyển đổi.
+
+- Giữ nguồn time/weather tại shot như kế hoạch đề xuất, xác minh trước khi chốt; nguồn BYĐ cũ chỉ so lệch.
+
+- Thiết kế BLOCK / REVIEW / WARN theo loại mâu thuẫn; override lưu actor, timestamp, lý do, mã lỗi, snapshot payload.
+
+- Giữ backward compatibility #24/#27; backfill #31 phải hiển thị dữ liệu suy luận để người dùng duyệt trước khi ghi.
+
+6. Phần C — Metrics và Dashboard
+
+Giữ KPI gốc: giảm ≥50% lỗi lọt cổng có nguyên nhân chữ tự do; số shot có payload trái trường tại #31 về 0. Bổ sung phân loại lỗi, false positive, cost per accepted shot, retry cost, QC pass rate và tỷ lệ người dùng override. Màn “Gói sẽ gửi” phải dùng cùng logic với replay và runner, so với jobs.sent_refs khi đã gửi. Dashboard phải hiển thị BYĐ và thay đổi từ CLI/CSDL theo cơ chế hiện có.
+
+7. Phần D mới — Continuity Engine (thiết kế, chưa code)
+
+Trước tiên audit core/continuity hiện có. Thiết kế extension tối thiểu cho Expected State / Observed State / Resolved State; character/form/outfit/prop/location/camera; state_before → action → state_after; dependency graph theo logic câu chuyện, không đơn thuần thứ tự timeline.
+
+Không ép mọi shot dùng frame cuối shot trước làm ref. Giữ khả năng gen song song các shot độc lập; đánh dấu các shot phụ thuộc khi trạng thái thay đổi. Xác định artifact nào bị stale nếu BYĐ, ảnh, motion hay trạng thái cuối shot thay đổi. Dữ liệu quan sát thiếu phải được ghi UNKNOWN, không tự đoán.
+
+8. Phần E mới — Automated QC (thiết kế, chưa code)
+
+  -------------------------------------------------------------------------------------------------------------------
+  Lớp                     Kiểm tra                                                 Đầu ra
+  ----------------------- -------------------------------------------------------- ----------------------------------
+  Preflight               Schema, semantic, kho_id, refs, payload, provenance      BLOCK / REVIEW / WARN
+
+  Image QC                Định dạng, identity, outfit, prop, background            PASS / FAIL / UNKNOWN + evidence
+
+  Video QC                Codec/FPS/duration, action, motion, object persistence   Failure code + timestamps
+
+  Cross-shot QC           State boundary, prop continuity, vị trí                  Conflict report
+
+  Final QC                Timeline, frame đen, âm thanh, chuyển cảnh, export       Final report
+  -------------------------------------------------------------------------------------------------------------------
+
+Không dùng một điểm chất lượng tổng duy nhất để thay thế các điều kiện bắt buộc. VLM có thể sai; lưu evidence, confidence chưa hiệu chuẩn và cho người dùng duyệt các ca bất định. Thiết kế bộ benchmark có shot đạt, shot lỗi thực tế và ca biên.
+
+9. Phần F mới — Selective Repair (thiết kế, chưa code)
+
+- Định nghĩa failure taxonomy: SCHEMA_INVALID, ASSET_ID_MISMATCH, CHARACTER_IDENTITY_DRIFT, PROP_MISSING, ACTION_NOT_COMPLETED, CONTINUITY_CONFLICT, AUDIO_SYNC_ERROR, ENCODE_ERROR.
+
+- Repair router chọn đúng tầng BYĐ/asset/image/video/audio/assembly; không mặc định sửa bằng prompt.
+
+- Lưu artifact ID, parent ID, input fingerprint, revision, provider job ID và trạng thái gửi để tránh retry trùng.
+
+- Giới hạn số lần retry và ngân sách; dừng để người dùng duyệt nếu sửa làm thay đổi ý đồ đạo diễn.
+
+- Chỉ rebuild artifact bị ảnh hưởng; giữ bản cũ để rollback.
+
+10. Quyết định Q1–Q6 cần đưa vào bản V2.1
+
+  ------------------------------------------------------------------------------------------------------
+  Mục                     Phương án đề xuất                        Điều kiện
+  ----------------------- ---------------------------------------- -------------------------------------
+  Q1                      Làm B trước A                            Xác nhận không có phụ thuộc cản trở
+
+  Q2                      Giữ time/weather tại shot                Kiểm các consumer thực tế
+
+  Q3                      Tách outfit/hair/face                    Có duyệt dữ liệu chuyển đổi
+
+  Q4                      Giữ #24/#27 baseline; backfill #24 sau   Không làm đổi baseline
+
+  Q5                      Chờ phiên sửa gốc (1)(2) gộp xong        Kiểm branch/commit thực tế
+
+  Q6                      Siết ba cổng Dashboard                   Có override audit được
+  ------------------------------------------------------------------------------------------------------
+
+11. Roadmap và cổng nghiệm thu
+
+  ----------------------------------------------------------------------------------------------------
+  Phase                   Phạm vi                       Gate
+  ----------------------- ----------------------------- ----------------------------------------------
+  P0                      Audit + gap analysis          Có bằng chứng file/hàm, phân loại trạng thái
+
+  P1                      Golden regression B0–B2       Replay offline, diff rõ ràng
+
+  P2                      BYĐ v2 A0–A3                  Test lỗi thực tế và tương thích v1
+
+  P3                      Dashboard B4/A5 + Metrics C   Hiển thị đúng payload, có audit trail
+
+  P4                      Continuity D + QC E           Đánh giá trên benchmark gắn nhãn
+
+  P5                      Repair F                      Retry có trần, rebuild chọn lọc, rollback
+  ----------------------------------------------------------------------------------------------------
+
+Mỗi phase phải nêu file/module dự kiến, dependency, rủi ro, test, acceptance criteria, rollback, chi phí và điểm dừng cần duyệt. P4–P5 chỉ thiết kế trong nhiệm vụ hiện tại.
+
+12. Đầu ra bắt buộc
+
+Tạo file KE_HOACH_AI_VIDEO_PIPELINE_V2_1_REVIEW.md gồm: Executive Summary; Current Architecture Verification; Gap Analysis; Decisions Q1–Q6; Updated Architecture; A/B/C cập nhật; D/E/F mới; Implementation Roadmap; Risk Register; Acceptance & Rollback; Open Questions; bằng chứng file/function và danh sách khác biệt với kế hoạch gốc.
+
+Không ghi đè tài liệu gốc. DỪNG sau khi hoàn thành audit và tài liệu kế hoạch. Chờ người dùng duyệt trước khi thay đổi code, bật feature flag, migration hoặc gọi dịch vụ có phí.
