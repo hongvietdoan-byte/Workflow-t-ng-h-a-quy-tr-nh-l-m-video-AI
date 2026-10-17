@@ -212,9 +212,17 @@ def shared_references(conn, pid: int, shots: List[Dict], limit: int = 8, cast_of
                 continue
             if cast_of is not None and r.get("role") in PERSON_ROLES:
                 continue                               # people come only from the frame's own pick (above)
+            if cast_of is not None and r.get("role") in OWN_ONLY_ROLES:
+                continue                               # G9 17/10: a prop only ANOTHER shot names is never this frame's prop (below)
             seen.add(r["path"])
             out.append(r)
     return out
+
+
+# G9 (17/10, #31 shot 10): the SKORP picture went with the pram shot (the gun is picked up only in shot 12) because the props of every
+# shot of the scene were shared — the model then draws the gun too early. A prop / weapon / outfit-as-object picture goes only with
+# a frame whose OWN words name it (assets.scene_references of that frame, the part above); the place stays shared.
+OWN_ONLY_ROLES = ("object", "outfit_object")
 
 
 def cast_missing(conn, pid: int, data: Dict, refs: List[Dict]) -> List[str]:

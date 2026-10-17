@@ -228,10 +228,10 @@ class PlanTests(PackTests):
     def test_without_a_plate_the_prompt_still_says_direction_and_light(self):
         pid, _ = self.one_shot({})
         d = {"location_asset": self.place, "plate_spot": "lower_yard", "time": "night",
-             "plate_view": {"background": "away", "why": "x"}, "practical_lights": [{"kind": "lamp", "where": "behind", "why": "x"}]}
+             "plate_view": {"background": "away", "why": "x"}, "practical_lights": [{"kind": "lamp", "where": "behind", "why": "đèn đường"}]}
         text = location_pack.script_sentence(self.p.conn, pid, d)
         self.assertIn("the clock tower is NOT in the frame", text)
-        self.assertIn("street / wall lamp", text)
+        self.assertIn("a street lamp", text)                   # G5 17/10: named by its own words (never "street / wall" by default)
         self.assertEqual(location_pack.script_sentence(self.p.conn, pid, {"location_asset": self.place, "time": "day"}), "")
 
 

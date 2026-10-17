@@ -1006,6 +1006,16 @@ def _prop_issues(conn, project_id, data: Dict) -> List[Dict]:
         return [_issue("warn", "dao_cu", f"không kiểm được đạo cụ dự án: {type(e).__name__}: {e}")]
 
 
+def _text_issues(conn, project_id, data: Dict) -> List[Dict]:
+    """G7/G8 (17/10 #31): người/trang phục ngoài danh sách nhân vật của shot + giờ/thời tiết trong chữ trái trường time/weather
+    (core/shot_text_checks, VÀNG, 0 USD). Không bao giờ ném."""
+    try:
+        from . import shot_text_checks
+        return shot_text_checks.issues(conn, project_id, data)
+    except Exception as e:  # noqa: BLE001 - a check, never a reason to lose the plan
+        return [_issue("warn", "nhan_vat", f"không kiểm được chữ ↔ trường của shot: {type(e).__name__}: {e}")]
+
+
 # ---- lưu vào scenes.data + diag ------------------------------------------------------------------------------------------
 def _sha(text: Optional[str]) -> str:
     return hashlib.sha1((text or "").strip().encode("utf-8")).hexdigest()[:12]
@@ -1134,7 +1144,7 @@ def after_director(conn, project_id: int, before: Optional[Dict] = None) -> None
                 diag.record(conn, "director", "warn", f"không kiểm được công thức prompt {_label(data, r['idx'])}: {type(e).__name__}: {e}",
                             "prompt_formula", project_id, scene_id=r["id"])
                 continue
-            fc["image"] += _prop_issues(conn, project_id, data)
+            fc["image"] += _prop_issues(conn, project_id, data) + _text_issues(conn, project_id, data)
             fc["motion"] += consistency_issues(conn, r["id"], data)        # V9 (cờ motion_consistency_lint): needs the shots around
             if not fc["growth"] and prev and prev.get("image") == image and prev.get("motion") == motion:
                 fc["growth"] = prev.get("growth") or []       # unchanged prompt: the earlier 'trồng thêm' finding still holds
@@ -1184,7 +1194,7 @@ def on_prompt_saved(conn, scene_id: int, kind: str, old: Optional[str], new: Opt
         fc = review_shot(_with_ref(conn, scene_id, data, motion), image, motion, _chars(conn, project_id),
                          previous={kind: old} if old != new else None,
                          style_by_code=_style_by_code(conn, project_id), ff=_is_ff(conn, project_id))
-        fc["image"] += _prop_issues(conn, project_id, data)
+        fc["image"] += _prop_issues(conn, project_id, data) + _text_issues(conn, project_id, data)
         fc["motion"] += consistency_issues(conn, scene_id, data)          # V9 (cờ motion_consistency_lint)
         fc["growth"] = [g for g in old_fc.get("growth") or [] if g.get("kind") != kind] + fc["growth"]
         fc["cross"] = old_fc.get("cross") or []

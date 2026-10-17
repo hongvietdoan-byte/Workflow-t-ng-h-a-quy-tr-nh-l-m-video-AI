@@ -34,7 +34,7 @@ _VIEW_WORDS = {"landmark": ("landmark", "tower", "tháp", "mốc", "toward_landm
                "away": ("away", "reverse", "ngược", "nguoc", "away_from_landmark"),
                "left": ("left", "trái", "trai", "ngang_trai"), "right": ("right", "phải", "phai", "ngang_phai")}
 KINDS = {  # kind -> Blender light type, watts (bright enough to read through the night exposure -1.4 + grade: 400 W lamp = barely visible, 29/09), height above the character's feet (m), default colour, size (m) / cone (°), words
-    "lamp": ("POINT", 1600.0, 2.8, "warm", 0.10, "a street / wall lamp"),
+    "lamp": ("POINT", 1600.0, 2.8, "warm", 0.10, "a lamp"),          # G5 17/10: named by lamp_name (desk / street …), never guessed
     "fire": ("POINT", 2000.0, 0.5, "orange", 0.40, "firelight (flickering flames)"),
     "screen": ("AREA", 150.0, 1.3, "cool", 0.40, "the glow of a screen"),
     "neon": ("AREA", 600.0, 2.4, "pink", 1.00, "a neon sign"),
@@ -58,6 +58,27 @@ _WHERE_WORDS = {"behind": "from behind the character (rim light on hair and shou
                 "background": "in the background (a glow behind, the character mostly in silhouette)"}
 MAX_LIGHTS = 3
 NIGHT_TIMES = ("night",)
+# G5 (17/10, #31 shot 2/4/19): every `lamp` was "a street / wall lamp" — a desk lamp in a bedroom too. The lamp's own words (its `why`,
+# then the shot's `lighting`) name it; nothing said → "a lamp". Matched WITH accents ("đèn bàn" ≠ "đen bán").
+_LAMP_NAMES = ((r"đèn bàn|desk[- ]lamp|table[- ]lamp", "a desk lamp"), (r"đèn ngủ|bedside[- ]lamp", "a bedside lamp"),
+               (r"đèn cây|floor[- ]lamp", "a floor lamp"), (r"đèn chùm|chandelier", "a chandelier"),
+               (r"đèn trần|ceiling[- ](?:lamp|light)", "a ceiling lamp"), (r"đèn tường|wall[- ]lamp|sconce", "a wall lamp"),
+               (r"đèn đường|street[- ]?(?:lamp|light)s?|lamp[- ]?posts?", "a street lamp"), (r"đèn lồng|lanterns?", "a lantern"))
+# where-words for a frame with nobody in it (the light of the place, never "on the face")
+_WHERE_PLACE = {"behind": "deep in the frame, beyond the centre", "behind_left": "deep in the frame on the left",
+                "behind_right": "deep in the frame on the right", "left": "on the left of the frame", "right": "on the right of the frame",
+                "front": "from the camera side", "front_left": "from the camera side, left", "front_right": "from the camera side, right",
+                "above": "from right above", "background": "in the background"}
+
+
+def lamp_name(item: Dict, data: Optional[Dict] = None) -> str:
+    """The words for a `lamp` light: its own `why` first, then the shot's `lighting` — else "a lamp" (G5)."""
+    for text in (item.get("why"), (data or {}).get("lighting")):
+        low = str(text or "").lower()
+        for rx, name in _LAMP_NAMES:
+            if re.search(r"(?<!\w)(?:" + rx + r")(?!\w)", low):
+                return name
+    return KINDS["lamp"][5]
 
 
 def is_behind(data: Dict) -> bool:
@@ -269,7 +290,8 @@ def lights_of(data: Dict, env: Dict) -> Dict:
         why = item.get("why") if isinstance(item.get("why"), str) and item.get("why").strip() else None
         if why is None:
             problems.append(f"đèn {i + 1} ({kind}): chưa ghi lý do (`why`)")
-        out.append({"kind": kind, "where": where, "color_name": cname, "rgb": list(rgb), "why": why})
+        out.append({"kind": kind, "where": where, "color_name": cname, "rgb": list(rgb), "why": why,
+                    "name": lamp_name(item, data) if kind == "lamp" else KINDS[kind][5]})
     if len(out) > MAX_LIGHTS:
         problems.append(f"{len(out)} đèn — chỉ giữ {MAX_LIGHTS} đèn đầu (nhiều đèn làm cảnh đêm mất tối)")
         out = out[:MAX_LIGHTS]
@@ -307,11 +329,20 @@ def light_rigs(lights: List[Dict], subject: Sequence[float], camera: Sequence[fl
     return out
 
 
-def light_sentence(lights: List[Dict], decided: bool, time: str) -> str:
-    """The extra lights in words for the picture prompt (the character must be lit like the plate is)."""
+def light_sentence(lights: List[Dict], decided: bool, time: str, data: Optional[Dict] = None) -> str:
+    """The extra lights in words for the picture prompt (the character must be lit like the plate is).
+    G5 (17/10, #31 shot 1/3): given the shot's data — a frame with NOBODY in it (POV of the ceiling) gets no sentence about lighting
+    "the character", and "only the moonlight" is said only when the DP really wrote `practical_lights: []` (a lamp dropped for a bad
+    `where` is not a choice of moonlight — lights_of reports it)."""
+    people = True if data is None else bool(data.get("characters"))
     if not lights:
-        return ("No extra light source: only the moonlight lights the character." if decided and time in NIGHT_TIMES else "")
-    parts = [f"{KINDS[lt['kind']][5]}, {lt['color_name']} colour, {_WHERE_WORDS[lt['where']]}" for lt in lights]
+        none_said = True if data is None else raw_lights(data) == []
+        return ("No extra light source: only the moonlight lights the character."
+                if decided and none_said and people and time in NIGHT_TIMES else "")
+    if not people:
+        parts = [f"{lt.get('name') or KINDS[lt['kind']][5]}, {lt['color_name']} colour, {_WHERE_PLACE[lt['where']]}" for lt in lights]
+        return "Practical light of this place in this shot: " + "; ".join(parts) + "."
+    parts = [f"{lt.get('name') or KINDS[lt['kind']][5]}, {lt['color_name']} colour, {_WHERE_WORDS[lt['where']]}" for lt in lights]
     return "Practical light chosen for this shot: " + "; ".join(parts) + ". Light the character with it consistently."
 
 

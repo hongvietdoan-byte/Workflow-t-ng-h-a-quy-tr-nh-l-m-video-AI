@@ -365,7 +365,8 @@ class PropLockTest(unittest.TestCase):
     def test_generic_gun_gets_the_project_weapon_and_its_picture(self):
         text = self._prompt(self.RIFLE, FLAG_ON)
         self.assertIn("SKORP", text)
-        self.assertIn("Súng tiểu liên SKORP màu đen", text)       # mô tả đọc từ assets.description, bỏ nhãn nguồn [..]
+        self.assertIn("SKORP from the project library", text)
+        self.assertNotIn("Súng tiểu liên", text)       # G4 17/10: mô tả Kho tiếng Việt không gửi model ảnh (ảnh Kho + tên nói thay)
         self.assertNotIn("[Halloween", text)
         labels = [r["label"] for r in self._refs(self.RIFLE, FLAG_ON)]
         self.assertIn("SKORP", labels)
@@ -374,21 +375,21 @@ class PropLockTest(unittest.TestCase):
     def test_generic_glue_wall_gets_the_default_white_form_and_no_skin_picture(self):
         text = self._prompt(self.WALL, FLAG_ON)
         self.assertIn("Bom keo", text)
-        self.assertIn("TRẮNG trơn", text)
-        self.assertNotIn("cửa thang máy", text)
+        self.assertIn("its default form (white)", text)                  # G4: dạng mặc định nói bằng tiếng Anh
+        self.assertNotIn("skin Gloowall OB55 form", text)
         self.assertNotIn("Bom keo", [r["label"] for r in self._refs(self.WALL, FLAG_ON)])   # ảnh variant OB55 không gửi
 
     def test_named_skin_gets_the_skin_form_and_its_picture(self):
         text = self._prompt(self.SKIN, FLAG_ON)
-        self.assertIn("cửa thang máy", text)
-        self.assertNotIn("TRẮNG trơn", text)
+        self.assertIn("its skin Gloowall OB55 form (metal, grey)", text)   # G4: tên dạng + màu/chất liệu tiếng Anh
+        self.assertNotIn("default form", text)
         refs = self._refs(self.SKIN, FLAG_ON)
         self.assertIn("Bom keo", [r["label"] for r in refs])
 
     def test_variant_picture_never_sent_without_its_variant_named_even_by_name(self):
         shot = {"size": "WS", "image_prompt": "Kelly throws a Bom keo and crouches behind it."}
         self.assertNotIn("Bom keo", [r["label"] for r in self._refs(shot, FLAG_ON)])
-        self.assertIn("TRẮNG trơn", self._prompt(shot, FLAG_ON))
+        self.assertIn("its default form (white)", self._prompt(shot, FLAG_ON))
 
     def test_two_guns_attached_warns_and_does_not_guess(self):
         self._asset("weapon", "M1887", "shotgun M1887", "Súng shotgun M1887 nòng đôi.", "m1887.png", None)
@@ -489,18 +490,23 @@ class PropLockTest(unittest.TestCase):
         from core import prop_lock
         shot = {"size": "WS", "image_prompt": "Kelly crouches behind a translucent amber glue-grenade wall."}
         text = self._prompt(shot, FLAG_ON)
-        self.assertIn("TRẮNG trơn", text)
+        self.assertIn("its default form (white)", text)
         self.assertIn("overrides any other colour", text)
         with mock.patch.dict(os.environ, FLAG_ON):
             warns = prop_lock.issues(self.p.conn, self.pid, dict(shot))
             plain = prop_lock.issues(self.p.conn, self.pid, dict(self.WALL))
         self.assertTrue(any(w["level"] == "warn" and "amber" in w["msg"] for w in warns), warns)
-        self.assertEqual(plain, [])
+        # G4 17/10: the only note of a plain wall is the one saying its Vietnamese Kho form is not sent word for word
+        self.assertEqual([w for w in plain if "mô tả dạng viết tiếng Việt" not in w["msg"]], [])
+        self.assertEqual(len(plain), 1)
 
     def test_description_full_stop_not_glued_to_semicolon(self):
+        # G4 17/10: a Vietnamese description is no longer sent — the joining is checked on an English one
+        self.p.conn.execute("UPDATE assets SET description=? WHERE id=?",
+                            ("[Kho thử] Black SKORP SMG: folding stock, small red scope, short barrel.", self.skorp))
         text = self._prompt(self.RIFLE, FLAG_ON)
         self.assertNotIn(".;", text)
-        self.assertIn("ống nòng ngắn;", text)
+        self.assertIn("short barrel;", text)
 
 
 if __name__ == "__main__":

@@ -134,7 +134,7 @@ def geometry_sentence(rec: Dict, data: Dict, sun_azimuth: float = 250.0) -> str:
         bits.append(where)
     if info.get("horizon_y") is not None and 0.0 <= float(info["horizon_y"]) <= 1.0:
         bits.append(f"the horizon line at {float(info['horizon_y']) * 100:.0f}% from the top")
-    light = location_pack.light_words(rec, sun_azimuth) if rec.get("camera_plan") else ""
+    light = location_pack.light_words(rec, sun_azimuth, data or {}) if rec.get("camera_plan") else ""   # G5: no person / indoor
     if not bits and not light:
         return ""
     head = "Camera and scale, measured on the 3D map of this place: " + "; ".join(bits) + "." if bits else ""
