@@ -1,0 +1,284 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1720 2066" width="1720" height="2066" font-family="Segoe UI, Arial, sans-serif">
+<defs><filter id="glow" x="-10%" y="-30%" width="120%" height="160%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter><marker id="aw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c9d1d9"/></marker></defs>
+<style>.h{font-weight:700;font-size:16px;fill:#e6edf3}.k{font-weight:700;font-size:17px;fill:#ffffff}.ks{font-size:13px;fill:#9aa4ae}.c{font-size:14px;fill:#e6edf3}.id{font-weight:700;font-size:15px;text-anchor:middle}.lg{font-size:14px;fill:#c9d1d9}</style>
+<rect width="1720" height="2066" fill="#12161d"/>
+<text x="860" y="44" text-anchor="middle" font-size="27" font-weight="700" fill="#e6edf3">Hiện trạng các khâu dây chuyền video AI — chỗ nào yếu, thiếu, sai (17/10)</text>
+<text x="860" y="72" text-anchor="middle" font-size="15" fill="#9aa4ae">Nguồn: sổ khâu devsys/stages.json · trạng thái theo cờ máy chính 17/10 (devsys.stages.effective) · lỗi: rà quy ước 7 + commit 15–17/10 (#31)</text>
+<rect x="60" y="96" width="22" height="16" rx="3" fill="#4dff6a"/><text class="lg" x="90" y="109">có kiểm, đang chạy</text>
+<rect x="390" y="96" width="22" height="16" rx="3" fill="#ffb020"/><text class="lg" x="420" y="109">chỉ người / theo nút / chỉ cấu trúc</text>
+<rect x="720" y="96" width="22" height="16" rx="3" fill="#ff5a5a"/><text class="lg" x="750" y="109">KHÔNG CÓ kiểm · đọc chữ tự do</text>
+<rect x="1050" y="96" width="22" height="16" rx="3" fill="#b388ff"/><text class="lg" x="1080" y="109">phần kế hoạch sửa</text>
+<text class="lg" x="1660" y="109" text-anchor="end">$ tốn tiền · →$ dẫn thẳng tới lời gọi tốn tiền</text>
+<text class="h" x="331.0" y="166" text-anchor="middle">KHÂU (theo thứ tự chạy)</text>
+<line x1="96" y1="176" x2="566" y2="176" stroke="#3a4450" stroke-width="2"/>
+<text class="h" x="755.0" y="166" text-anchor="middle">KIỂM TRƯỚC KHI TRẢ TIỀN</text>
+<line x1="590" y1="176" x2="920" y2="176" stroke="#3a4450" stroke-width="2"/>
+<text class="h" x="1090.0" y="166" text-anchor="middle">KIỂM SAU</text>
+<line x1="940" y1="176" x2="1240" y2="176" stroke="#3a4450" stroke-width="2"/>
+<text class="h" x="1317.5" y="166" text-anchor="middle">KẾT LUẬN TỪ</text>
+<line x1="1255" y1="176" x2="1380" y2="176" stroke="#3a4450" stroke-width="2"/>
+<text class="h" x="1545.0" y="166" text-anchor="middle">LỖI 15–17/10 · KẾ HOẠCH</text>
+<line x1="1395" y1="176" x2="1695" y2="176" stroke="#3a4450" stroke-width="2"/>
+<circle cx="56" cy="240.0" r="24" fill="#111a24" stroke="#22e5ff" stroke-width="2.5"/>
+<text class="id" x="56" y="245.0" fill="#22e5ff">L1</text>
+<rect x="96" y="200" width="470" height="80" rx="10" fill="#111a24" stroke="#22e5ff" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="232">Ý tưởng → kịch bản</text>
+<text class="ks" x="112" y="256">Biên kịch Claude · chat</text>
+<text x="552" y="230" text-anchor="end" font-size="16" font-weight="700" fill="#ffe14d">$</text>
+<rect x="590" y="200" width="330" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="602" y="235.0">dựng được (nơi có trong Kho)</text>
+<text class="c" x="602" y="255.0">IP / tên bị chặn</text>
+<rect x="940" y="200" width="300" height="80" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<text class="c" x="952" y="245.0">chỉ người duyệt từng lượt</text>
+<rect x="1255" y="200" width="125" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="1267" y="245.0">kết quả</text>
+<text class="lg" x="1407" y="245.0">—</text>
+<line x1="136" y1="280" x2="136" y2="294" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="336.0" r="24" fill="#111a24" stroke="#22e5ff" stroke-width="2.5"/>
+<text class="id" x="56" y="341.0" fill="#22e5ff">L2</text>
+<rect x="96" y="296" width="470" height="80" rx="10" fill="#111a24" stroke="#22e5ff" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="328">Bảng kê tài nguyên</text>
+<text class="ks" x="112" y="352">asset_checklist</text>
+<text x="552" y="326" text-anchor="end" font-size="16" font-weight="700" fill="#ffe14d">$</text>
+<rect x="590" y="296" width="330" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="602" y="341.0">đối chiếu bảng kê với Kho</text>
+<rect x="940" y="296" width="300" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="952" y="341.0">không có</text>
+<rect x="1255" y="296" width="125" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="1267" y="341.0">kết quả</text>
+<text class="lg" x="1407" y="341.0">—</text>
+<line x1="136" y1="376" x2="136" y2="390" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="432.0" r="24" fill="#111a24" stroke="#ff5a5a" stroke-width="2.5"/>
+<text class="id" x="56" y="437.0" fill="#ff5a5a">L5</text>
+<rect x="96" y="392" width="470" height="80" rx="10" fill="#111a24" stroke="#ff5a5a" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="424">Hồ sơ nhân vật · Bible · ảnh mẫu Kho</text>
+<text class="ks" x="112" y="448">dạng nhân vật khai bằng dòng chữ</text>
+<text x="552" y="422" text-anchor="end" font-size="16" font-weight="700" fill="#ffe14d">$</text>
+<rect x="590" y="392" width="330" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="602" y="437.0">KHÔNG CÓ</text>
+<rect x="940" y="392" width="300" height="80" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<text class="c" x="952" y="437.0">chỉ người duyệt Kho</text>
+<rect x="1255" y="392" width="125" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1267" y="437.0">chữ mô tả Kho</text>
+<rect x="1395" y="392" width="300" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1407" y="427.0">5 — dạng / khóa áo đoán từ chữ</text>
+<text class="c" x="1407" y="447.0">(character_forms: never, tóc, không dấu)</text>
+<rect x="444" y="446" width="112" height="20" rx="10" fill="#b388ff"/><text x="500" y="461" text-anchor="middle" font-size="12" font-weight="700" fill="#12161d">A2a · Q3</text>
+<line x1="136" y1="472" x2="136" y2="486" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="528.0" r="24" fill="#111a24" stroke="#ff5a5a" stroke-width="2.5"/>
+<text class="id" x="56" y="533.0" fill="#ff5a5a">L3</text>
+<rect x="96" y="488" width="470" height="80" rx="10" fill="#111a24" stroke="#ff5a5a" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="520">Đạo diễn: chia shot · prompt · BYĐ</text>
+<text class="ks" x="112" y="544">BYĐ #31 có 36/36 — khâu sau không đọc</text>
+<text x="552" y="518" text-anchor="end" font-size="16" font-weight="700" fill="#ffe14d">$</text>
+<rect x="590" y="488" width="330" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="602" y="523.0">chuẩn hóa shot · cấu trúc prompt</text>
+<text class="c" x="602" y="543.0">câu trái hình học — KHÔNG ai kiểm NGHĨA</text>
+<rect x="940" y="488" width="300" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="952" y="533.0">không có</text>
+<rect x="1255" y="488" width="125" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1267" y="533.0">chữ tự do</text>
+<rect x="1395" y="488" width="300" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1407" y="523.0">2 — _POST_ONLY: 'overlay' chưa bao giờ</text>
+<text class="c" x="1407" y="543.0">khớp (ký tự backspace thay \b)</text>
+<rect x="444" y="542" width="112" height="20" rx="10" fill="#b388ff"/><text x="500" y="557" text-anchor="middle" font-size="12" font-weight="700" fill="#12161d">A1</text>
+<line x1="136" y1="568" x2="136" y2="582" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="624.0" r="24" fill="#111a24" stroke="#ff5a5a" stroke-width="2.5"/>
+<text class="id" x="56" y="629.0" fill="#ff5a5a">L4</text>
+<rect x="96" y="584" width="470" height="80" rx="10" fill="#111a24" stroke="#ff5a5a" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="630">Thoại · chọn giọng</text>
+<text x="552" y="614" text-anchor="end" font-size="16" font-weight="700" fill="#ffe14d">$</text>
+<rect x="590" y="584" width="330" height="80" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<text class="c" x="602" y="629.0">rà thoại TẮT — chỉ theo nút</text>
+<rect x="940" y="584" width="300" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="952" y="629.0">không có</text>
+<rect x="1255" y="584" width="125" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1267" y="629.0">chữ tự do</text>
+<text class="lg" x="1407" y="629.0">—</text>
+<line x1="136" y1="664" x2="136" y2="678" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="720.0" r="24" fill="#111a24" stroke="#22e5ff" stroke-width="2.5"/>
+<text class="id" x="56" y="725.0" fill="#22e5ff">L6</text>
+<rect x="96" y="680" width="470" height="80" rx="10" fill="#111a24" stroke="#22e5ff" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="712">Sân khấu 3D: dàn cảnh · máy · nền</text>
+<text class="ks" x="112" y="736">#31 chạy tay bằng tools/stage_auto</text>
+<text x="552" y="710" text-anchor="end" font-size="16" font-weight="700" fill="#ffe14d">$</text>
+<rect x="590" y="680" width="330" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="602" y="725.0">kiểm dàn cảnh · kiểm yêu cầu khung</text>
+<rect x="940" y="680" width="300" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="952" y="725.0">Đạo diễn duyệt render nền</text>
+<rect x="1255" y="680" width="125" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="1267" y="725.0">BYĐ / shot_specs</text>
+<rect x="1395" y="680" width="300" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1407" y="715.0">1 — POV đặt máy quay ngược 180°</text>
+<text class="c" x="1407" y="735.0">(plate_camera) · mốc nền suy từ chữ 'why'</text>
+<rect x="444" y="734" width="112" height="20" rx="10" fill="#b388ff"/><text x="500" y="749" text-anchor="middle" font-size="12" font-weight="700" fill="#12161d">A2d</text>
+<line x1="136" y1="760" x2="136" y2="774" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="816.0" r="24" fill="#111a24" stroke="#ff5a5a" stroke-width="2.5"/>
+<text class="id" x="56" y="821.0" fill="#ff5a5a">L7</text>
+<rect x="96" y="776" width="470" height="80" rx="10" fill="#111a24" stroke="#ff5a5a" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="808">Storyboard · ảnh neo</text>
+<text class="ks" x="112" y="832">scene_storyboard</text>
+<text x="552" y="806" text-anchor="end" font-size="16" font-weight="700" fill="#ffe14d">$</text>
+<rect x="590" y="776" width="330" height="80" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<text class="c" x="602" y="811.0">cờ rủi ro (môi, cast)</text>
+<text class="c" x="602" y="831.0">— không xem gói</text>
+<rect x="940" y="776" width="300" height="80" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<text class="c" x="952" y="821.0">rà storyboard theo nút + người</text>
+<rect x="1255" y="776" width="125" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1267" y="821.0">chữ tự do</text>
+<rect x="1395" y="776" width="300" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1407" y="811.0">1 — _USES_HELD: shot sau 'fires it'</text>
+<text class="c" x="1407" y="831.0">mất ảnh súng</text>
+<rect x="444" y="830" width="112" height="20" rx="10" fill="#b388ff"/><text x="500" y="845" text-anchor="middle" font-size="12" font-weight="700" fill="#12161d">A2b</text>
+<line x1="136" y1="856" x2="136" y2="870" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="912.0" r="24" fill="#111a24" stroke="#ff5a5a" stroke-width="2.5"/>
+<text class="id" x="56" y="917.0" fill="#ff5a5a">L8</text>
+<rect x="96" y="872" width="470" height="80" rx="10" fill="#111a24" stroke="#ff5a5a" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="904">Lắp GÓI ẢNH: prompt cuối + ảnh ref</text>
+<text class="ks" x="112" y="928">runner._submit_args — dẫn thẳng tới tiền</text>
+<text x="552" y="902" text-anchor="end" font-size="16" font-weight="700" fill="#ffe14d">→$</text>
+<rect x="590" y="872" width="330" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="602" y="907.0">KHÔNG CÓ (17/10 mới thêm VÀNG</text>
+<text class="c" x="602" y="927.0">chữ ↔ cast / giờ)</text>
+<rect x="940" y="872" width="300" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="952" y="917.0">không có</text>
+<rect x="1255" y="872" width="125" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1267" y="917.0">chữ tự do</text>
+<rect x="1395" y="872" width="300" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1407" y="907.0">≈ 12 — tên bối cảnh Việt 4 · trăng trong</text>
+<text class="c" x="1407" y="927.0">nhà 2 · đạo cụ 2 · cúi/cũi 1 · báo nhầm 3</text>
+<rect x="444" y="926" width="112" height="20" rx="10" fill="#b388ff"/><text x="500" y="941" text-anchor="middle" font-size="12" font-weight="700" fill="#12161d">A2c·e·f + B</text>
+<line x1="136" y1="952" x2="136" y2="966" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="1008.0" r="24" fill="#111a24" stroke="#ff5a5a" stroke-width="2.5"/>
+<text class="id" x="56" y="1013.0" fill="#ff5a5a">L9</text>
+<rect x="96" y="968" width="470" height="80" rx="10" fill="#111a24" stroke="#ff5a5a" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="1000">Gen ẢNH khung đầu</text>
+<text class="ks" x="112" y="1024">ClipAI</text>
+<text x="552" y="998" text-anchor="end" font-size="16" font-weight="700" fill="#ffe14d">$</text>
+<rect x="590" y="968" width="330" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="602" y="1013.0">KHÔNG lớp nào xem gói</text>
+<rect x="940" y="968" width="300" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="952" y="1003.0">QC lớp 0 · QC Claude · bố cục/render</text>
+<text class="c" x="952" y="1023.0">Tổ QC học việc · người duyệt</text>
+<rect x="1255" y="968" width="125" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="1267" y="1013.0">kết quả</text>
+<text class="lg" x="1407" y="1013.0">—</text>
+<line x1="136" y1="1048" x2="136" y2="1062" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="1104.0" r="24" fill="#111a24" stroke="#ff5a5a" stroke-width="2.5"/>
+<text class="id" x="56" y="1109.0" fill="#ff5a5a">L10</text>
+<rect x="96" y="1064" width="470" height="80" rx="10" fill="#111a24" stroke="#ff5a5a" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="1096">Gen lại ảnh</text>
+<text class="ks" x="112" y="1120">Đạo diễn viết lại prompt</text>
+<text x="552" y="1094" text-anchor="end" font-size="16" font-weight="700" fill="#ffe14d">$</text>
+<rect x="590" y="1064" width="330" height="80" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<text class="c" x="602" y="1109.0">chỉ kiểm cấu trúc prompt</text>
+<rect x="940" y="1064" width="300" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="952" y="1109.0">không có</text>
+<rect x="1255" y="1064" width="125" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1267" y="1109.0">chữ tự do</text>
+<text class="lg" x="1407" y="1109.0">—</text>
+<line x1="136" y1="1144" x2="136" y2="1158" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="1200.0" r="24" fill="#111a24" stroke="#ff5a5a" stroke-width="2.5"/>
+<text class="id" x="56" y="1205.0" fill="#ff5a5a">L11</text>
+<rect x="96" y="1160" width="470" height="80" rx="10" fill="#111a24" stroke="#ff5a5a" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="1206">Motion prompt + dịch</text>
+<text x="552" y="1190" text-anchor="end" font-size="16" font-weight="700" fill="#ffe14d">$</text>
+<rect x="590" y="1160" width="330" height="80" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<text class="c" x="602" y="1195.0">lint motion · rà motion (nút)</text>
+<text class="c" x="602" y="1215.0">— không thấy khung đầu</text>
+<rect x="940" y="1160" width="300" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="952" y="1205.0">không có</text>
+<rect x="1255" y="1160" width="125" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1267" y="1205.0">chữ tự do</text>
+<text class="lg" x="1407" y="1205.0">—</text>
+<line x1="136" y1="1240" x2="136" y2="1254" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="1296.0" r="24" fill="#111a24" stroke="#ff5a5a" stroke-width="2.5"/>
+<text class="id" x="56" y="1301.0" fill="#ff5a5a">L12</text>
+<rect x="96" y="1256" width="470" height="80" rx="10" fill="#111a24" stroke="#ff5a5a" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="1288">Lắp GÓI VIDEO</text>
+<text class="ks" x="112" y="1312">motion + khung đầu + ref + model</text>
+<text x="552" y="1286" text-anchor="end" font-size="16" font-weight="700" fill="#ffe14d">→$$</text>
+<rect x="590" y="1256" width="330" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="602" y="1291.0">KHÔNG CÓ ở bước lắp</text>
+<text class="c" x="602" y="1311.0">(kiểm thật dồn về L13)</text>
+<rect x="940" y="1256" width="300" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="952" y="1301.0">không có</text>
+<rect x="1255" y="1256" width="125" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1267" y="1301.0">chữ tự do</text>
+<rect x="1395" y="1256" width="300" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1407" y="1291.0">2 — dạng gom cả clip · ảnh OUTFIT vẫn</text>
+<text class="c" x="1407" y="1311.0">gửi khi đổi dạng (seedance_refs)</text>
+<rect x="444" y="1310" width="112" height="20" rx="10" fill="#b388ff"/><text x="500" y="1325" text-anchor="middle" font-size="12" font-weight="700" fill="#12161d">A2a + B</text>
+<line x1="136" y1="1336" x2="136" y2="1350" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="1392.0" r="24" fill="#111a24" stroke="#22e5ff" stroke-width="2.5"/>
+<text class="id" x="56" y="1397.0" fill="#22e5ff">L13</text>
+<rect x="96" y="1352" width="470" height="80" rx="10" fill="#111a24" stroke="#22e5ff" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="1384">Gen VIDEO (nháp → cao)</text>
+<text class="ks" x="112" y="1408">Seedance / Kling</text>
+<text x="552" y="1382" text-anchor="end" font-size="16" font-weight="700" fill="#ffe14d">$$</text>
+<rect x="590" y="1352" width="330" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="602" y="1387.0">K3 kiểm gói trước gen</text>
+<text class="c" x="602" y="1407.0">(video_pregen)</text>
+<rect x="940" y="1352" width="300" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="952" y="1397.0">đo clip · QC clip · chọn ⭐ · người</text>
+<rect x="1255" y="1352" width="125" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="1267" y="1397.0">kết quả</text>
+<text class="lg" x="1407" y="1397.0">—</text>
+<line x1="136" y1="1432" x2="136" y2="1446" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="1488.0" r="24" fill="#111a24" stroke="#ff5a5a" stroke-width="2.5"/>
+<text class="id" x="56" y="1493.0" fill="#ff5a5a">L14</text>
+<rect x="96" y="1448" width="470" height="80" rx="10" fill="#111a24" stroke="#ff5a5a" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="1494">TTS · nhạc · SFX · phụ đề</text>
+<text x="552" y="1478" text-anchor="end" font-size="16" font-weight="700" fill="#ffe14d">$</text>
+<rect x="590" y="1448" width="330" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="602" y="1493.0">không có</text>
+<rect x="940" y="1448" width="300" height="80" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<text class="c" x="952" y="1483.0">chỉ TTS có kiểm code</text>
+<text class="c" x="952" y="1503.0">còn lại chỉ người</text>
+<rect x="1255" y="1448" width="125" height="80" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<text class="c" x="1267" y="1493.0">chữ / kết quả</text>
+<text class="lg" x="1407" y="1493.0">—</text>
+<line x1="136" y1="1528" x2="136" y2="1542" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="1584.0" r="24" fill="#111a24" stroke="#22e5ff" stroke-width="2.5"/>
+<text class="id" x="56" y="1589.0" fill="#22e5ff">L15</text>
+<rect x="96" y="1544" width="470" height="80" rx="10" fill="#111a24" stroke="#22e5ff" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="1576">Dựng · bản thô · popup cuối</text>
+<text class="ks" x="112" y="1600">ffmpeg — 0 USD</text>
+<rect x="590" y="1544" width="330" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="602" y="1589.0">không có</text>
+<rect x="940" y="1544" width="300" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="952" y="1579.0">duyệt bản thô Claude</text>
+<text class="c" x="952" y="1599.0">popup: chỉ người</text>
+<rect x="1255" y="1544" width="125" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="1267" y="1589.0">kết quả</text>
+<text class="lg" x="1407" y="1589.0">—</text>
+<line x1="136" y1="1624" x2="136" y2="1638" stroke="#c9d1d9" stroke-width="2" marker-end="url(#aw)"/>
+<circle cx="56" cy="1680.0" r="24" fill="#111a24" stroke="#ff5a5a" stroke-width="2.5"/>
+<text class="id" x="56" y="1685.0" fill="#ff5a5a">L16</text>
+<rect x="96" y="1640" width="470" height="80" rx="10" fill="#111a24" stroke="#ff5a5a" stroke-width="3" filter="url(#glow)"/>
+<text class="k" x="112" y="1672">Thay đổi giữa chừng</text>
+<text class="ks" x="112" y="1696">sửa shot / Kho</text>
+<rect x="590" y="1640" width="330" height="80" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<text class="c" x="602" y="1675.0">bộ kiểm tác động + Tổ rà soát</text>
+<text class="c" x="602" y="1695.0">— không xem gói, không xem ảnh</text>
+<rect x="940" y="1640" width="300" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="952" y="1685.0">không có</text>
+<rect x="1255" y="1640" width="125" height="80" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<text class="c" x="1267" y="1685.0">chữ tự do</text>
+<text class="lg" x="1407" y="1685.0">—</text>
+<rect x="444" y="1694" width="112" height="20" rx="10" fill="#b388ff"/><text x="500" y="1709" text-anchor="middle" font-size="12" font-weight="700" fill="#12161d">B</text>
+<rect x="30" y="1746" width="1660" height="300" rx="12" fill="#111a24" stroke="#22e5ff" stroke-width="2.5" filter="url(#glow)"/>
+<text x="56" y="1784" font-size="20" font-weight="700" fill="#7af1ff">Đọc sơ đồ: khâu yếu · thiếu · sai</text>
+<rect x="56" y="1805" width="74" height="24" rx="12" fill="#ff5a5a"/><text x="93" y="1822" text-anchor="middle" font-size="13" font-weight="700" fill="#12161d">SAI</text>
+<text class="c" x="146" y="1822" font-size="15">L8 + L12 (lắp gói ảnh / video) là chỗ code ĐOÁN Ý TỪ CHỮ để chọn ảnh, khóa áo, câu nền, câu sáng: ≈ 14/22 lỗi 15–17/10 nằm ở đây.</text>
+<rect x="56" y="1842" width="74" height="24" rx="12" fill="#ff5a5a"/><text x="93" y="1859" text-anchor="middle" font-size="13" font-weight="700" fill="#12161d">THIẾU</text>
+<text class="c" x="146" y="1859" font-size="15">L8 và L12 không có lớp kiểm nào trước tiền và không có test trên gói thật: lỗi chỉ lộ khi chạy replay_payload bằng tay → Phần B.</text>
+<rect x="56" y="1879" width="74" height="24" rx="12" fill="#ffb020"/><text x="93" y="1896" text-anchor="middle" font-size="13" font-weight="700" fill="#12161d">YẾU</text>
+<text class="c" x="146" y="1896" font-size="15">L3 có BYĐ có cấu trúc (36/36 shot #31) nhưng L5 · L7 · L8 · L12 không đọc, mà đọc lại chữ → hai nguồn lệch (dạng: 24 vs 21 shot) → Phần A.</text>
+<rect x="56" y="1916" width="74" height="24" rx="12" fill="#ff5a5a"/><text x="93" y="1933" text-anchor="middle" font-size="13" font-weight="700" fill="#12161d">THIẾU</text>
+<text class="c" x="146" y="1933" font-size="15">L5 Kho (dạng nhân vật, tên bối cảnh Anh) không có kiểm trước: khai dạng bằng dòng chữ, tên Việt lọt prompt (sửa 4 lần).</text>
+<rect x="56" y="1953" width="74" height="24" rx="12" fill="#ffb020"/><text x="93" y="1970" text-anchor="middle" font-size="13" font-weight="700" fill="#12161d">YẾU</text>
+<text class="c" x="146" y="1970" font-size="15">L3 · L10 · L11 chỉ kiểm CẤU TRÚC prompt — không ai kiểm NGHĨA prompt ↔ ý đồ; L4 · L14 · L15 (âm thanh, popup) chỉ có người.</text>
+<rect x="56" y="1990" width="74" height="24" rx="12" fill="#b388ff"/><text x="93" y="2007" text-anchor="middle" font-size="13" font-weight="700" fill="#12161d">ĐO</text>
+<text class="c" x="146" y="2007" font-size="15">Phần C: đếm lỗi lọt cổng mỗi dự án (/10 shot) + số shot có gói trái trường (0 USD) trước/sau khi bật byd_fields.</text>
+</svg>

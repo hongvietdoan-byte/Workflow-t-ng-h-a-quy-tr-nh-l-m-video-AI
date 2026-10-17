@@ -1,0 +1,192 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1740 1636" width="1740" height="1636" font-family="Segoe UI, Arial, sans-serif">
+<defs><filter id="glow" x="-10%" y="-30%" width="120%" height="160%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter><marker id="aw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e6edf3"/></marker></defs>
+<style>.b{font-weight:700;font-size:15px;fill:#ffffff}.e{font-size:13px;fill:#b8c2cc}.lg{font-size:14px;fill:#c9d1d9}.c{font-size:15px;fill:#e6edf3}</style>
+<rect width="1740" height="1636" fill="#12161d"/>
+<text x="870" y="44" text-anchor="middle" font-size="27" font-weight="700" fill="#e6edf3">Làm phim qua Dashboard — bấm nút nào, khâu nào chạy, chỗ nào tiện / lỏng / thiếu (17/10)</text>
+<text x="870" y="72" text-anchor="middle" font-size="15" fill="#9aa4ae">Nguồn: mã dashboard/ (nhãn nút đúng chữ trên màn) · cờ máy chính 17/10 · từ 14/10 Claude thao tác Dashboard thay người dùng</text>
+<rect x="70" y="94" width="22" height="16" rx="3" fill="#4dff6a"/><text class="lg" x="100" y="107">tiện / có kiểm</text>
+<rect x="540" y="94" width="22" height="16" rx="3" fill="#ffb020"/><text class="lg" x="570" y="107">lỏng: bỏ qua được, chỉ theo nút, chỉ người</text>
+<rect x="1010" y="94" width="22" height="16" rx="3" fill="#ff5a5a"/><text class="lg" x="1040" y="107">thiếu: không có nút / màn / kiểm</text>
+<rect x="30" y="128" width="1680" height="80" rx="10" fill="#111a24" stroke="#b388ff" stroke-width="2.5" filter="url(#glow)"/>
+<text x="50" y="160" font-size="18" font-weight="700" fill="#d3bcff">⚙ CHẾ ĐỘ TỰ ĐỘNG (chạy nối các màn)</text>
+<text class="c" x="50" y="188">⏸ Tạm dừng · ■ Dừng hẳn · Nâng trần · ↺ Đặt lại — tự chạy Director → ảnh → video, DỪNG ở cổng gen ảnh và gen video; mọi lần "vẫn gen" ghi vào 📊 Theo dõi</text>
+<rect x="30" y="250" width="405" height="70" rx="10" fill="#111a24" stroke="#ff4fd8" stroke-width="3" filter="url(#glow)"/>
+<text x="232.5" y="282" text-anchor="middle" font-size="21" font-weight="700" fill="#ff4fd8">① KỊCH BẢN</text>
+<text x="232.5" y="306" text-anchor="middle" class="e">dashboard/steps/step1*</text>
+<rect x="30" y="340" width="405" height="74" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<rect x="30" y="340" width="6" height="74" rx="3" fill="#4dff6a"/>
+<text class="b" x="46" y="364">💡 Ý tưởng / 📜 Đây là kịch bản</text>
+<text class="e" x="46" y="386">Biên kịch hỏi 3 hướng — giá ước tính trên nút</text>
+<line x1="232.5" y1="414" x2="232.5" y2="424" stroke="#5a6672" stroke-width="2"/>
+<rect x="30" y="424" width="405" height="74" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<rect x="30" y="424" width="6" height="74" rx="3" fill="#4dff6a"/>
+<text class="b" x="46" y="448">▶ Phân tích (tách cảnh) · 0 USD</text>
+<text class="e" x="46" y="470">tách cảnh; có ↩ Hoàn tác</text>
+<line x1="232.5" y1="498" x2="232.5" y2="508" stroke="#5a6672" stroke-width="2"/>
+<rect x="30" y="508" width="405" height="74" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<rect x="30" y="508" width="6" height="74" rx="3" fill="#4dff6a"/>
+<text class="b" x="46" y="532">🤖 Lập kế hoạch (≈ x USD)</text>
+<text class="e" x="46" y="554">MỘT nút: Director → Bible + shot + BYĐ</text>
+<text class="e" x="46" y="572">+ code kiểm BYĐ, sửa ≤ 2 vòng</text>
+<line x1="232.5" y1="582" x2="232.5" y2="592" stroke="#5a6672" stroke-width="2"/>
+<rect x="30" y="592" width="405" height="74" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<rect x="30" y="592" width="6" height="74" rx="3" fill="#ff5a5a"/>
+<text class="b" x="46" y="616">BYĐ không hiện trên Dashboard</text>
+<text class="e" x="46" y="638">không xem / sửa được ý đồ có cấu trúc</text>
+<line x1="232.5" y1="666" x2="232.5" y2="676" stroke="#5a6672" stroke-width="2"/>
+<rect x="30" y="676" width="405" height="74" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<rect x="30" y="676" width="6" height="74" rx="3" fill="#ffb020"/>
+<text class="b" x="46" y="700">🩹 Bật cờ sửa lỗi · Bỏ qua có lý do</text>
+<text class="e" x="46" y="722">cờ đỏ trước chạy — bỏ qua được</text>
+<line x1="232.5" y1="750" x2="232.5" y2="760" stroke="#5a6672" stroke-width="2"/>
+<rect x="30" y="760" width="405" height="74" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<rect x="30" y="760" width="6" height="74" rx="3" fill="#ffb020"/>
+<text class="b" x="46" y="784">🤖 Rà thoại · ↻ Chia shot lại cảnh</text>
+<text class="e" x="46" y="806">chỉ theo nút, không phải cổng</text>
+<line x1="232.5" y1="834" x2="232.5" y2="844" stroke="#5a6672" stroke-width="2"/>
+<rect x="30" y="844" width="405" height="74" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<rect x="30" y="844" width="6" height="74" rx="3" fill="#ffb020"/>
+<text class="b" x="46" y="868">Nhân vật: duyệt ảnh mốc · Lock · giọng</text>
+<text class="e" x="46" y="890">có nút 'Vẫn vẽ theo mô tả chữ —</text>
+<text class="e" x="46" y="908">bỏ qua ảnh mốc'</text>
+<line x1="232.5" y1="918" x2="232.5" y2="928" stroke="#5a6672" stroke-width="2"/>
+<rect x="30" y="928" width="405" height="74" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<rect x="30" y="928" width="6" height="74" rx="3" fill="#ffb020"/>
+<text class="b" x="46" y="952">✔ Duyệt &amp; khóa → Storyboard</text>
+<text class="e" x="46" y="974">thiếu ảnh mốc chỉ nhắc 1 dòng,</text>
+<text class="e" x="46" y="992">KHÔNG chặn</text>
+<rect x="450" y="250" width="405" height="70" rx="10" fill="#111a24" stroke="#3ca9ff" stroke-width="3" filter="url(#glow)"/>
+<text x="652.5" y="282" text-anchor="middle" font-size="21" font-weight="700" fill="#3ca9ff">② STORYBOARD</text>
+<text x="652.5" y="306" text-anchor="middle" class="e">step2 (ảnh + QC) · step3 (motion, giọng)</text>
+<line x1="433" y1="285" x2="447" y2="285" stroke="#e6edf3" stroke-width="2.5" marker-end="url(#aw)"/>
+<rect x="450" y="340" width="405" height="74" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<rect x="450" y="340" width="6" height="74" rx="3" fill="#ff5a5a"/>
+<text class="b" x="466" y="364">Sân khấu 3D: KHÔNG có nút</text>
+<text class="e" x="466" y="386">dàn cảnh / giải máy chạy CLI</text>
+<text class="e" x="466" y="404">tools/stage_auto (Claude chạy tay)</text>
+<line x1="652.5" y1="414" x2="652.5" y2="424" stroke="#5a6672" stroke-width="2"/>
+<rect x="450" y="424" width="405" height="74" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<rect x="450" y="424" width="6" height="74" rx="3" fill="#4dff6a"/>
+<text class="b" x="466" y="448">↻ Render lại nền 3D shot N · 0 USD</text>
+<text class="e" x="466" y="470">vẽ lại nền từ máy đã lưu</text>
+<line x1="652.5" y1="498" x2="652.5" y2="508" stroke="#5a6672" stroke-width="2"/>
+<rect x="450" y="508" width="405" height="74" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<rect x="450" y="508" width="6" height="74" rx="3" fill="#ff5a5a"/>
+<text class="b" x="466" y="532">Xem GÓI trước khi gửi: KHÔNG có</text>
+<text class="e" x="466" y="554">chỉ hiện câu sẽ bỏ; prompt cuối +</text>
+<text class="e" x="466" y="572">ảnh ref + nhãn chỉ có ở CLI replay</text>
+<line x1="652.5" y1="582" x2="652.5" y2="592" stroke="#5a6672" stroke-width="2"/>
+<rect x="450" y="592" width="405" height="74" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<rect x="450" y="592" width="6" height="74" rx="3" fill="#ffb020"/>
+<text class="b" x="466" y="616">Cổng trước gen: ⚠ lưu ý (ẩn trong ⓘ)</text>
+<text class="e" x="466" y="638">lỗi chặn → ô '☐ Tôi đã xem,</text>
+<text class="e" x="466" y="656">vẫn gen ảnh' (ghi 📊 Theo dõi)</text>
+<line x1="652.5" y1="666" x2="652.5" y2="676" stroke="#5a6672" stroke-width="2"/>
+<rect x="450" y="676" width="405" height="74" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<rect x="450" y="676" width="6" height="74" rx="3" fill="#4dff6a"/>
+<text class="b" x="466" y="700">▶ Gen ảnh các cảnh chưa có / đã cũ · $</text>
+<text class="e" x="466" y="722">một bấm = xếp hàng + gửi;</text>
+<text class="e" x="466" y="740">ảnh chờ điều kiện tự gửi sau</text>
+<line x1="652.5" y1="750" x2="652.5" y2="760" stroke="#5a6672" stroke-width="2"/>
+<rect x="450" y="760" width="405" height="74" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<rect x="450" y="760" width="6" height="74" rx="3" fill="#4dff6a"/>
+<text class="b" x="466" y="784">Thẻ ảnh: ✔ Duyệt · ✖ Loại &amp; gen lại</text>
+<text class="e" x="466" y="806">QC chấm điểm · ↩ Bỏ duyệt · ‹ › bản cũ</text>
+<line x1="652.5" y1="834" x2="652.5" y2="844" stroke="#5a6672" stroke-width="2"/>
+<rect x="450" y="844" width="405" height="74" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<rect x="450" y="844" width="6" height="74" rx="3" fill="#ffb020"/>
+<text class="b" x="466" y="868">🤖 Viết motion · 🔍 Rà motion</text>
+<text class="e" x="466" y="890">rà theo nút, không thấy khung đầu</text>
+<line x1="652.5" y1="918" x2="652.5" y2="928" stroke="#5a6672" stroke-width="2"/>
+<rect x="450" y="928" width="405" height="74" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<rect x="450" y="928" width="6" height="74" rx="3" fill="#4dff6a"/>
+<text class="b" x="466" y="952">🎙 Tạo giọng · 🎧 Kiểm giọng · 0 USD</text>
+<text class="e" x="466" y="974">⏱ thời lượng clip theo giọng thật</text>
+<line x1="652.5" y1="1002" x2="652.5" y2="1012" stroke="#5a6672" stroke-width="2"/>
+<rect x="450" y="1012" width="405" height="74" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<rect x="450" y="1012" width="6" height="74" rx="3" fill="#4dff6a"/>
+<text class="b" x="466" y="1036">✔ Duyệt storyboard → gửi video</text>
+<text class="e" x="466" y="1058">cổng người dùng</text>
+<rect x="870" y="250" width="405" height="70" rx="10" fill="#111a24" stroke="#ff9a3c" stroke-width="3" filter="url(#glow)"/>
+<text x="1072.5" y="282" text-anchor="middle" font-size="21" font-weight="700" fill="#ff9a3c">③ VIDEO</text>
+<text x="1072.5" y="306" text-anchor="middle" class="e">dashboard/steps/step4.py</text>
+<line x1="853" y1="285" x2="867" y2="285" stroke="#e6edf3" stroke-width="2.5" marker-end="url(#aw)"/>
+<rect x="870" y="340" width="405" height="74" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<rect x="870" y="340" width="6" height="74" rx="3" fill="#4dff6a"/>
+<text class="b" x="886" y="364">Dùng đề xuất model theo cảnh</text>
+<text class="e" x="886" y="386">Seedance / Kling theo từng shot</text>
+<line x1="1072.5" y1="414" x2="1072.5" y2="424" stroke="#5a6672" stroke-width="2"/>
+<rect x="870" y="424" width="405" height="74" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<rect x="870" y="424" width="6" height="74" rx="3" fill="#ff5a5a"/>
+<text class="b" x="886" y="448">Xem GÓI video trước khi gửi: KHÔNG</text>
+<text class="e" x="886" y="470">motion + khung đầu + ref + model</text>
+<line x1="1072.5" y1="498" x2="1072.5" y2="508" stroke="#5a6672" stroke-width="2"/>
+<rect x="870" y="508" width="405" height="74" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<rect x="870" y="508" width="6" height="74" rx="3" fill="#ffb020"/>
+<text class="b" x="886" y="532">Cổng K3: 'Bỏ qua kiểm nền'</text>
+<text class="e" x="886" y="554">/ 'Bỏ qua chờ nhóm' — chỉ cần lý do</text>
+<text class="e" x="886" y="572">≥ 3 ký tự</text>
+<line x1="1072.5" y1="582" x2="1072.5" y2="592" stroke="#5a6672" stroke-width="2"/>
+<rect x="870" y="592" width="405" height="74" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<rect x="870" y="592" width="6" height="74" rx="3" fill="#4dff6a"/>
+<text class="b" x="886" y="616">Gen video · ↻ Gửi lại clip lỗi · $$</text>
+<text class="e" x="886" y="638">🔎 Tìm task thật (không trả 2 lần)</text>
+<line x1="1072.5" y1="666" x2="1072.5" y2="676" stroke="#5a6672" stroke-width="2"/>
+<rect x="870" y="676" width="405" height="74" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<rect x="870" y="676" width="6" height="74" rx="3" fill="#4dff6a"/>
+<text class="b" x="886" y="700">🤖 Kiểm tra N clip · ✔ Duyệt clip</text>
+<text class="e" x="886" y="722">↻ Gen lại · ✏ Sửa motion · ⭐ bản tốt</text>
+<line x1="1072.5" y1="750" x2="1072.5" y2="760" stroke="#5a6672" stroke-width="2"/>
+<rect x="870" y="760" width="405" height="74" rx="8" fill="#4dff6a" fill-opacity="0.10" stroke="#4dff6a" stroke-width="2"/>
+<rect x="870" y="760" width="6" height="74" rx="3" fill="#4dff6a"/>
+<text class="b" x="886" y="784">✂ Cắt lại · 🎞 Ghép bản nháp · 0 USD</text>
+<text class="e" x="886" y="806">xem nhanh cả đoạn</text>
+<rect x="1290" y="250" width="405" height="70" rx="10" fill="#111a24" stroke="#ffe14d" stroke-width="3" filter="url(#glow)"/>
+<text x="1492.5" y="282" text-anchor="middle" font-size="21" font-weight="700" fill="#ffe14d">④ BẢN GIAO</text>
+<text x="1492.5" y="306" text-anchor="middle" class="e">dashboard/steps/step5.py</text>
+<line x1="1273" y1="285" x2="1287" y2="285" stroke="#e6edf3" stroke-width="2.5" marker-end="url(#aw)"/>
+<rect x="1290" y="340" width="405" height="74" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<rect x="1290" y="340" width="6" height="74" rx="3" fill="#ffb020"/>
+<text class="b" x="1306" y="364">🤖 Brief nhạc · ✨ Tạo nháp · Chọn</text>
+<text class="e" x="1306" y="386">chỉ người nghe chọn, không kiểm nhịp</text>
+<line x1="1492.5" y1="414" x2="1492.5" y2="424" stroke="#5a6672" stroke-width="2"/>
+<rect x="1290" y="424" width="405" height="74" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<rect x="1290" y="424" width="6" height="74" rx="3" fill="#ffb020"/>
+<text class="b" x="1306" y="448">✨ Tạo SFX · 🎥 Tiếng video ref → SFX</text>
+<text class="e" x="1306" y="470">chỉ người</text>
+<line x1="1492.5" y1="498" x2="1492.5" y2="508" stroke="#5a6672" stroke-width="2"/>
+<rect x="1290" y="508" width="405" height="74" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<rect x="1290" y="508" width="6" height="74" rx="3" fill="#ffb020"/>
+<text class="b" x="1306" y="532">📝 Phụ đề · ⬇ .srt/.xlsx · 🔥 In phụ đề</text>
+<text class="e" x="1306" y="554">chỉ người</text>
+<line x1="1492.5" y1="582" x2="1492.5" y2="592" stroke="#5a6672" stroke-width="2"/>
+<rect x="1290" y="592" width="405" height="74" rx="8" fill="#ffb020" fill-opacity="0.10" stroke="#ffb020" stroke-width="2"/>
+<rect x="1290" y="592" width="6" height="74" rx="3" fill="#ffb020"/>
+<text class="b" x="1306" y="616">🤖 AI đề xuất hiệu ứng · ✅ Thêm</text>
+<text class="e" x="1306" y="638">chỉ người</text>
+<line x1="1492.5" y1="666" x2="1492.5" y2="676" stroke="#5a6672" stroke-width="2"/>
+<rect x="1290" y="676" width="405" height="74" rx="8" fill="#ff5a5a" fill-opacity="0.10" stroke="#ff5a5a" stroke-width="2"/>
+<rect x="1290" y="676" width="6" height="74" rx="3" fill="#ff5a5a"/>
+<text class="b" x="1306" y="700">Popup cuối clip: không có kiểm</text>
+<text class="e" x="1306" y="722">giữ khung cuối — chỉ người nhìn</text>
+<rect x="30" y="1126" width="1680" height="140" rx="10" fill="#111a24" stroke="#ff5a5a" stroke-width="2.5" stroke-dasharray="10 6" filter="url(#glow)"/>
+<text x="50" y="1160" font-size="18" font-weight="700" fill="#ff9a9a">⛔ NGOÀI DASHBOARD — Claude chạy tay (người dùng không thấy, cờ có thể khác Dashboard)</text>
+<text class="c" x="66" y="1198">• tools/stage_auto.py — sân khấu 3D chia vai (Đạo diễn / Quay phim), --crew-approve</text>
+<text class="c" x="896" y="1198">• tools/stage_previs.py — previs Blender làm ref V2V</text>
+<text class="c" x="66" y="1232">• tools/replay_payload.py — dựng lại GÓI gửi model (chỗ DUY NHẤT thấy đủ prompt + ảnh ref)</text>
+<text class="c" x="896" y="1232">• sửa thẳng CSDL (byd, time, máy) · py -m devsys … — không hiện ngược lên Dashboard</text>
+<rect x="30" y="1296" width="1680" height="310" rx="12" fill="#111a24" stroke="#22e5ff" stroke-width="2.5" filter="url(#glow)"/>
+<text x="54" y="1334" font-size="20" font-weight="700" fill="#7af1ff">Đọc sơ đồ: bấm qua Dashboard thì sao?</text>
+<rect x="54" y="1357" width="98" height="24" rx="12" fill="#4dff6a"/><text x="103" y="1374" text-anchor="middle" font-size="13" font-weight="700" fill="#12161d">TIỆN</text>
+<text class="c" x="168" y="1374">Một nút chạy Director có ước tính · một bấm gen = xếp hàng + gửi · mọi nút tốn tiền hiện giá ước tính · cắt / ghép / render</text>
+<text class="c" x="168" y="1402">nền / kiểm giọng 0 USD · 🔎 Tìm task thật tránh trả 2 lần · chế độ tự động dừng ở 2 cổng gen.</text>
+<rect x="54" y="1413" width="98" height="24" rx="12" fill="#ffb020"/><text x="103" y="1430" text-anchor="middle" font-size="13" font-weight="700" fill="#12161d">LỎNG</text>
+<text class="c" x="168" y="1430">Cổng chặn gen ảnh có ô 'vẫn gen' · cổng video bỏ qua bằng lý do 3 ký tự · khóa Bible không chặn thiếu ảnh mốc ·</text>
+<text class="c" x="168" y="1458">cảnh báo dồn vào ⓘ · rà thoại / motion / storyboard chỉ chạy khi bấm · âm thanh, phụ đề, hiệu ứng chỉ người.</text>
+<rect x="54" y="1469" width="98" height="24" rx="12" fill="#ff5a5a"/><text x="103" y="1486" text-anchor="middle" font-size="13" font-weight="700" fill="#12161d">THIẾU</text>
+<text class="c" x="168" y="1486">Không có nút sân khấu 3D · không có màn xem ĐỦ gói ảnh / video trước khi trả tiền · BYĐ không hiện để duyệt ·</text>
+<text class="c" x="168" y="1514">việc Claude làm qua CLI không hiện ngược lên Dashboard → hai đường làm lệch nhau (bài học 16/10: cờ test ≠ cờ máy).</text>
+<rect x="54" y="1525" width="98" height="24" rx="12" fill="#b388ff"/><text x="103" y="1542" text-anchor="middle" font-size="13" font-weight="700" fill="#12161d">KẾ HOẠCH</text>
+<text class="c" x="168" y="1542">Phần A: BYĐ v2 hiện ở màn Kịch bản (xem / sửa trường). Phần B: thẻ 'Gói sẽ gửi' cạnh nút Gen dùng chung</text>
+<text class="c" x="168" y="1570">replay_payload (đủ prompt + ảnh ref + nhãn + VÀNG chữ ↔ trường) → người duyệt nhìn đúng thứ model nhận.</text>
+</svg>

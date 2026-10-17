@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1300" width="1600" height="1300" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <filter id="glow" x="-20%" y="-30%" width="140%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="aw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e6edf3"/></marker>
+    <marker id="ac" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#22e5ff"/></marker>
+    <marker id="acb" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="2.6" markerHeight="2.6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#22e5ff"/></marker>
+    <marker id="ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4dff6a"/></marker>
+    <marker id="aa" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#ffb020"/></marker>
+    <marker id="ap" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#b388ff"/></marker>
+    <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#ff5a5a"/></marker>
+  </defs>
+  <style>
+    .t  { font-weight: 700; font-size: 21px; text-anchor: middle; }
+    .s  { font-size: 15px; fill: #c9d1d9; text-anchor: middle; }
+    .u  { font-size: 15px; fill: #9aa4ae; text-anchor: middle; }
+    .lb { font-size: 15px; fill: #e6edf3; }
+    .f  { font-family: Consolas, 'Courier New', monospace; font-size: 16px; fill: #d6f5dc; }
+    .fv { font-size: 15px; fill: #9fd8aa; }
+    rect.b { fill: #111a24; stroke-width: 3; filter: url(#glow); }
+  </style>
+  <rect width="1600" height="1300" fill="#12161d"/>
+  <text x="800" y="46" text-anchor="middle" font-size="26" font-weight="700" fill="#e6edf3">Dây chuyền video AI — ý quan trọng của shot đi bằng TRƯỜNG JSON (kế hoạch 17/10)</text>
+
+  <!-- Hàng 1 -->
+  <rect class="b" x="60" y="90" width="360" height="90" rx="10" stroke="#ff4fd8"/>
+  <text class="t" x="240" y="128" fill="#ff8be6">BIÊN KỊCH (CLAUDE)</text>
+  <text class="s" x="240" y="158">kịch bản + thoại</text>
+
+  <rect class="b" x="600" y="90" width="400" height="90" rx="10" stroke="#22e5ff"/>
+  <text class="t" x="800" y="128" fill="#7af1ff">ĐẠO DIỄN (CLAUDE API)</text>
+  <text class="s" x="800" y="158">chia shot · viết prompt · khai BYĐ</text>
+
+  <rect class="b" x="1180" y="90" width="360" height="90" rx="10" stroke="#ffe14d"/>
+  <text class="t" x="1360" y="128" fill="#fff08a">KHO TÀI NGUYÊN</text>
+  <text class="s" x="1360" y="158">nhân vật · dạng · đạo cụ · bối cảnh 3D</text>
+
+  <line x1="420" y1="135" x2="592" y2="135" stroke="#e6edf3" stroke-width="2.5" marker-end="url(#aw)"/>
+  <text class="lb" x="450" y="125">kịch bản</text>
+  <line x1="1180" y1="135" x2="1008" y2="135" stroke="#e6edf3" stroke-width="2.5" marker-end="url(#aw)"/>
+  <text class="lb" x="1030" y="125">mã Kho (kho_id)</text>
+
+  <!-- Đạo diễn → BYĐ -->
+  <line x1="800" y1="182" x2="800" y2="236" stroke="#22e5ff" stroke-width="12" marker-end="url(#acb)"/>
+  <text class="lb" x="822" y="220">khai trường JSON</text>
+
+  <!-- Hàng 2: BYĐ + cổng -->
+  <rect class="b" x="330" y="255" width="940" height="170" rx="12" stroke="#4dff6a"/>
+  <text class="t" x="800" y="290" fill="#8dff9f">BẢNG Ý ĐỒ SHOT (BYĐ) — MỘT NGUỒN SỰ THẬT</text>
+  <text class="f" x="355" y="325">thanh_phan[].dang</text><text class="fv" x="640" y="325">dạng nhân vật từng shot (thay dòng "Dạng của nhân vật" ở Kho)</text>
+  <text class="f" x="355" y="352">vat[] {kho_id, nguoi, cach}</text><text class="fv" x="640" y="352">đạo cụ theo người: cầm / đeo / đặt, từ shot nào</text>
+  <text class="f" x="355" y="379">noi_chon {kho_id, spot}</text><text class="fv" x="640" y="379">trong nhà = code suy từ chỗ đứng 3D · giờ/thời tiết MỘT nguồn</text>
+  <text class="f" x="355" y="406">khung.moc_nen</text><text class="fv" x="640" y="406">mốc nền: trong_khung / ngoai_khung / khuat — code so số đo máy</text>
+
+  <rect class="b" x="30" y="275" width="270" height="130" rx="10" stroke="#ff5a5a"/>
+  <text class="t" x="165" y="310" fill="#ff9a9a">CỔNG KIỂM SCHEMA</text>
+  <text class="s" x="165" y="338">shot_intent.validate</text>
+  <text class="s" x="165" y="362">ĐỎ → Đạo diễn sửa ≤ 2 vòng</text>
+  <text class="s" x="165" y="386">còn sai → VÀNG có lý do</text>
+  <line x1="330" y1="340" x2="308" y2="340" stroke="#ff5a5a" stroke-width="2.5" marker-end="url(#ar)"/>
+  <path d="M230,275 C260,220 420,190 592,165" fill="none" stroke="#ff5a5a" stroke-width="2.5" stroke-dasharray="8 6" marker-end="url(#ar)"/>
+  <text class="lb" x="300" y="222" fill="#ff9a9a">trả lỗi đúng trường</text>
+
+  <!-- Bus BYĐ → khâu -->
+  <line x1="800" y1="425" x2="800" y2="458" stroke="#4dff6a" stroke-width="3"/>
+  <line x1="190" y1="458" x2="1410" y2="458" stroke="#4dff6a" stroke-width="3"/>
+  <line x1="190" y1="458" x2="190" y2="484" stroke="#4dff6a" stroke-width="3" marker-end="url(#ag)"/>
+  <line x1="495" y1="458" x2="495" y2="484" stroke="#4dff6a" stroke-width="3" marker-end="url(#ag)"/>
+  <line x1="800" y1="458" x2="800" y2="484" stroke="#4dff6a" stroke-width="3" marker-end="url(#ag)"/>
+  <line x1="1105" y1="458" x2="1105" y2="484" stroke="#4dff6a" stroke-width="3" marker-end="url(#ag)"/>
+  <line x1="1410" y1="458" x2="1410" y2="484" stroke="#4dff6a" stroke-width="3" marker-end="url(#ag)"/>
+  <text class="lb" x="935" y="448" fill="#8dff9f">code đọc TRƯỜNG, không đoán từ chữ</text>
+
+  <!-- Hàng 3: 5 khâu đọc trường -->
+  <rect class="b" x="50" y="490" width="280" height="110" rx="10" stroke="#ff4fd8"/>
+  <text class="t" x="190" y="530" fill="#ff8be6">NHÂN VẬT &amp; DẠNG</text>
+  <text class="s" x="190" y="560">character_forms</text>
+  <text class="s" x="190" y="582">seedance_refs</text>
+  <text class="u" x="190" y="625">ảnh vai dạng, bỏ khóa áo khi đổi dạng</text>
+
+  <rect class="b" x="355" y="490" width="280" height="110" rx="10" stroke="#ff9a3c"/>
+  <text class="t" x="495" y="530" fill="#ffbd80">ĐẠO CỤ CẦM / ĐEO</text>
+  <text class="s" x="495" y="560">prop_lock</text>
+  <text class="s" x="495" y="582">scene_storyboard</text>
+  <text class="u" x="495" y="625">ảnh súng theo người + shot cầm</text>
+
+  <rect class="b" x="660" y="490" width="280" height="110" rx="10" stroke="#3ca9ff"/>
+  <text class="t" x="800" y="530" fill="#8ccbff">BỐI CẢNH &amp; ÁNH SÁNG</text>
+  <text class="s" x="800" y="560">plate_choice</text>
+  <text class="s" x="800" y="582">scene_establish</text>
+  <text class="u" x="800" y="625">trong nhà / giờ / thời tiết</text>
+
+  <rect class="b" x="965" y="490" width="280" height="110" rx="10" stroke="#2fe6c0"/>
+  <text class="t" x="1105" y="530" fill="#86f5dd">NỀN 3D &amp; MỐC</text>
+  <text class="s" x="1105" y="560">stage · plate_anchor</text>
+  <text class="s" x="1105" y="582">landmark_facts (số đo)</text>
+  <text class="u" x="1105" y="625">ý đồ mốc ↔ số đo máy 3D</text>
+
+  <rect class="b" x="1270" y="490" width="280" height="110" rx="10" stroke="#ffe14d"/>
+  <text class="t" x="1410" y="530" fill="#fff08a">CHỌN ẢNH KHO</text>
+  <text class="s" x="1410" y="560">assets.pick_references</text>
+  <text class="s" x="1410" y="582">_named_extras</text>
+  <text class="u" x="1410" y="625">theo kho_id, không khớp tên chữ</text>
+
+  <!-- 5 khâu → gói -->
+  <line x1="190" y1="640" x2="190" y2="662" stroke="#e6edf3" stroke-width="2.5"/>
+  <line x1="495" y1="640" x2="495" y2="662" stroke="#e6edf3" stroke-width="2.5"/>
+  <line x1="800" y1="640" x2="800" y2="662" stroke="#e6edf3" stroke-width="2.5"/>
+  <line x1="1105" y1="640" x2="1105" y2="662" stroke="#e6edf3" stroke-width="2.5"/>
+  <line x1="1410" y1="640" x2="1410" y2="662" stroke="#e6edf3" stroke-width="2.5"/>
+  <line x1="190" y1="662" x2="1410" y2="662" stroke="#e6edf3" stroke-width="2.5"/>
+  <line x1="800" y1="662" x2="800" y2="684" stroke="#e6edf3" stroke-width="2.5" marker-end="url(#aw)"/>
+
+  <!-- Hàng 4: gói + regex + hồi quy -->
+  <rect class="b" x="500" y="690" width="600" height="100" rx="10" stroke="#e6edf3"/>
+  <text class="t" x="800" y="728" fill="#ffffff">GÓI GỬI MODEL</text>
+  <text class="s" x="800" y="756">prompt cuối + ảnh tham chiếu có nhãn</text>
+  <text class="s" x="800" y="778">(runner._submit_args — một đường duy nhất)</text>
+
+  <rect class="b" x="50" y="690" width="380" height="100" rx="10" stroke="#ffb020" stroke-dasharray="10 6"/>
+  <text class="t" x="240" y="726" fill="#ffd27a">LUẬT REGEX TRÊN CHỮ</text>
+  <text class="s" x="240" y="754">shot_text_checks · _MARK_SEG · _CLOTHES …</text>
+  <text class="s" x="240" y="776">chỉ còn cảnh báo VÀNG, không quyết</text>
+  <line x1="500" y1="740" x2="438" y2="740" stroke="#ffb020" stroke-width="2.5" marker-end="url(#aa)"/>
+  <text class="u" x="240" y="815">đọc chữ để nhắc, không đổi ảnh/khóa</text>
+
+  <rect class="b" x="1170" y="690" width="380" height="100" rx="10" stroke="#b388ff"/>
+  <text class="t" x="1360" y="726" fill="#d3bcff">BỘ HỒI QUY GÓI THẬT</text>
+  <text class="s" x="1360" y="754">fixture #24 · #27 · #31 (không ảnh)</text>
+  <text class="s" x="1360" y="776">tools/replay_payload.py --json</text>
+  <line x1="1100" y1="740" x2="1162" y2="740" stroke="#b388ff" stroke-width="2.5" marker-end="url(#ap)"/>
+  <text class="lb" x="1104" y="728" fill="#d3bcff">so</text>
+  <text class="u" x="1360" y="815">gói khác → ĐỎ, cập nhật fixture có chủ ý</text>
+
+  <!-- Gói → gen -->
+  <line x1="800" y1="790" x2="800" y2="822" stroke="#e6edf3" stroke-width="2.5"/>
+  <line x1="540" y1="822" x2="1060" y2="822" stroke="#e6edf3" stroke-width="2.5"/>
+  <line x1="540" y1="822" x2="540" y2="842" stroke="#e6edf3" stroke-width="2.5" marker-end="url(#aw)"/>
+  <line x1="1060" y1="822" x2="1060" y2="842" stroke="#e6edf3" stroke-width="2.5" marker-end="url(#aw)"/>
+
+  <!-- Hàng 5 -->
+  <rect class="b" x="330" y="850" width="420" height="95" rx="10" stroke="#3ca9ff"/>
+  <text class="t" x="540" y="888" fill="#8ccbff">GEN ẢNH (CLIPAI)</text>
+  <text class="s" x="540" y="918">GPT Image / Seedream — cổng: bạn duyệt</text>
+
+  <rect class="b" x="850" y="850" width="420" height="95" rx="10" stroke="#ff9a3c"/>
+  <text class="t" x="1060" y="888" fill="#ffbd80">GEN VIDEO (CLIPAI)</text>
+  <text class="s" x="1060" y="918">Seedance 2.5 / Kling — cổng: bạn duyệt</text>
+  <line x1="750" y1="897" x2="842" y2="897" stroke="#e6edf3" stroke-width="2.5" marker-end="url(#aw)"/>
+  <text class="lb" x="760" y="885">khung đầu</text>
+
+  <line x1="540" y1="945" x2="540" y2="1002" stroke="#e6edf3" stroke-width="2.5" marker-end="url(#aw)"/>
+  <line x1="1060" y1="945" x2="1060" y2="1002" stroke="#e6edf3" stroke-width="2.5" marker-end="url(#aw)"/>
+
+  <!-- Hàng 6 -->
+  <rect class="b" x="330" y="1010" width="420" height="95" rx="10" stroke="#ff4fd8"/>
+  <text class="t" x="540" y="1048" fill="#ff8be6">QC + DUYỆT NGƯỜI DÙNG</text>
+  <text class="s" x="540" y="1078">so với ảnh Kho chuẩn</text>
+
+  <rect class="b" x="850" y="1010" width="420" height="95" rx="10" stroke="#ffe14d"/>
+  <text class="t" x="1060" y="1048" fill="#fff08a">ÂM THANH &amp; DỰNG</text>
+  <text class="s" x="1060" y="1078">TTS · nhạc · ffmpeg · popup</text>
+
+  <!-- Đo -->
+  <path d="M540,1105 L540,1130 L760,1130 L760,1152" fill="none" stroke="#22e5ff" stroke-width="2.5" marker-end="url(#ac)"/>
+  <path d="M1060,1105 L1060,1130 L840,1130 L840,1152" fill="none" stroke="#22e5ff" stroke-width="2.5" marker-end="url(#ac)"/>
+  <text class="lb" x="1080" y="1135" fill="#7af1ff">lỗi bạn bắt sau cổng</text>
+  <rect class="b" x="500" y="1160" width="600" height="95" rx="10" stroke="#22e5ff"/>
+  <text class="t" x="800" y="1198" fill="#7af1ff">ĐO TRƯỚC / SAU</text>
+  <text class="s" x="800" y="1228">lỗi lọt cổng mỗi dự án · shot có gói trái trường (0 USD)</text>
+  <text class="u" x="800" y="1285">Nguồn: TODO · change_findings · devsys · replay_payload</text>
+</svg>
