@@ -90,3 +90,14 @@ gửi ảnh mặt trước → thêm Kho 23/15 lưng + 23/16 hông, áo lưng tr
 `cgt-20261017091956-ajh7s` (Đ2), sổ chi $2,21 (dự án thử #32 tổng $7,19). Bản giao `nhap480_r2_*` cùng thư mục.
 - Nhìn sơ bộ (chờ người dùng kiểm): Đ1 máy vẫn bám sau lưng như previs, không còn cục trên đầu, có khung nhấc cao gối; 10–12 s lưng áo
   còn vệt hoa văn tối. Đ2 máy ĐỨNG YÊN (khác lượt 1) nhưng toàn cảnh xa (previs đặt sát), Kelly bước tới chạm xe nôi; tóc trông mờ.
+
+## 9. Lượt r3 (17/10 08:56, người dùng duyệt $3,50 + trần $12; sổ chi $3,50, dự án thử #32 tổng $10,69) — DỪNG nhánh V2V tới hết tập 2
+
++ Kho trời 428/2 + biệt thự 265/3 + 2 clip in-game người dùng làm video ref 2–3. Task `cgt-20261017094409-4ak0q` (Đ1),
+`cgt-20261017094419-v12c1` (Đ2). Bản giao `nhap480_r3_*`.
+- Đ1: BIỆT THỰ hiện sau rào, trời có mây, cảnh rõ hơn hẳn; Kelly chạy sải bước + vệt sáng đỏ; máy vẫn bám sau lưng như previs.
+  Lỗi: từ ~4 s dạng bóng mờ nhạt dần (Kelly gần như áo vàng đặc).
+- Đ2: HỎNG — model chép clip in-game (dải la bàn HUD trên khung, máy theo clip game, Kelly không bóng mờ, xe nôi quá to). Gốc: đoạn
+  ngắn 5 s trong khi 2 clip game dài 10,4 s → ref game lấn ref depth.
+- Bài học (nếu làm tiếp sau tập 2): clip in-game chỉ dùng khi ngắn hơn ref depth và đã CẮT SẠCH HUD; hoặc chỉ dùng ảnh tĩnh từ clip
+  (trời, biệt thự) + prompt dáng chạy. Người dùng 17/10 bật chế độ siêu nhanh → không thử trả tiền mới, không sửa code nhánh này.
