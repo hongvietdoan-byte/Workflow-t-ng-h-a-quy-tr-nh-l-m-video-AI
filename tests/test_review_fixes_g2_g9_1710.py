@@ -17,7 +17,9 @@ def test_without_clothes_keeps_keep_never_prefix_and_hair():
     assert character_forms.without_clothes("keep yellow jacket, long hair; never red jacket, blonde hair") == \
         "keep long hair; never blonde hair"
     assert character_forms.without_clothes("hair tied on top, black cap") == "hair tied on top"
-    assert character_forms.without_clothes("hair under a cap. White sneakers, slim build") == "hair under a cap; slim build"
+    assert character_forms.without_clothes("hair under a cap. White sneakers, slim build") == "hair under a cap, slim build"
+    assert character_forms.without_clothes("keep slim build; never glasses. Beard") == "keep slim build; never glasses, Beard"
+    assert character_forms.without_clothes("skin-tight black bodysuit, pale skin") == "pale skin"
     body = ("keep the face, hair and body build of the reference pictures; the clothes, cap and accessories come ONLY from the OUTFIT "
             "image, never from the everyday look")
     assert character_forms.without_clothes(body) == "keep the face, hair and body build of the reference pictures"

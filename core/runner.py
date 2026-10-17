@@ -3456,7 +3456,7 @@ class ImageRunner(_Runner):
         entry = location_pack_entry(conn, place)
         from . import place_refs
         w, h = place_refs.resolution_of(self.p.project(job["project_id"]))
-        ground, notes = plate_anchor.background_sentence(render["_rec"], entry, (place or {}).get("name") or render.get("label") or "the place",
+        ground, notes = plate_anchor.background_sentence(render["_rec"], entry, (assets.model_place_name(place) if place else "") or render.get("label") or "the place",
                                                          (entry or {}).get("landmark"), aspect=w / h if h else None)
         if notes:
             say(job, "warn", plate_anchor.CODE_BACKGROUND, "câu nền sinh từ plate thiếu dữ liệu: " + "; ".join(notes))

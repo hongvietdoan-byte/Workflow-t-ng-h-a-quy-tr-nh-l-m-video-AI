@@ -273,13 +273,17 @@ def story_text(conn, pid: int, g: Dict) -> str:
     head = f"{row['heading']}: " if row and row["heading"] else ""
     beats = " ".join(f"Frame {i + 1}{_in_frame(s['data'])}: {(s['data'].get('action') or s['data'].get('image_prompt') or '')[:140]}"
                      for i, s in enumerate(g["shots"]))
-    frame = ("One continuous scene — same place, same light, the same people and outfits wherever they appear; each frame shows only "
-             "the people it names.")
     datas = [s["data"] for s in g.get("shots") or []]
+    from . import character_forms                     # rà 17/10 vòng 2: someone in a form in only some frames — "outfits" is not the same
+    changes = any(not f.get("all") for f in character_forms.for_rows(conn, pid, [{"data": d} for d in datas]).values())
+    frame = ("One continuous scene — same place, same light, the same people" + ("" if changes else " and outfits")
+             + " wherever they appear; each frame shows only the people it names.")
     # the scene's light: a flashback sentence only when EVERY frame is one (a flashback shot gets its own sentence in its prompt)
     if datas and not all(scene_establish.is_flashback(d) for d in datas):
         datas = [d for d in datas if not scene_establish.is_flashback(d)]
-    light = scene_establish.light_sentence(datas[0] if datas else {})
+    from .runner import indoor_spot                    # rà 17/10 vòng 2: a room at night — no street lamps / moonlight
+    light = scene_establish.light_sentence(datas[0] if datas else {},
+                                           indoor=bool(datas and indoor_spot(conn, pid, datas[0])))
     if light:
         frame += " " + light
     return no_minor_age(f"{head}{frame} {beats}")[:3000]

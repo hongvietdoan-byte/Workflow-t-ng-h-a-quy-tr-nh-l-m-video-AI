@@ -24,7 +24,9 @@ from . import dialogue
 # 08/10 (#24, người dùng chốt): a shot with nobody in it whose only content is waiting for a popup / icon / words added after
 # ("nền tối mờ sương, chờ icon hiện ở hậu kỳ") costs a paid picture + clip and adds nothing — the popup goes over the LAST shot
 _POST_ONLY = re.compile(r"chờ (?:icon|popup|pop-up|chữ|logo|biểu tượng)|ở hậu kỳ|hậu kỳ (?:đặt|ghép|chèn)|để hậu kỳ|post[- ]?production|"
-                        r"\boverlay\b|placeholder|(?:icon|popup|logo|text|title)s? (?:will )?(?:to )?(?:appear|be added|pop)", re.I)
+                        # rà 17/10: 'overlay' only as a thing added in post ("red light overlay on the walls" is a light)
+                        r"(?:icon|popup|pop-up|logo|text|title|banner|chữ) overlays?\b|\boverlays? (?:is |are |will be |to be )?"
+                        r"(?:added|placed|put|applied) (?:later|after|in post)|\boverlays? (?:in|at) post|placeholder|(?:icon|popup|logo|text|title)s? (?:will )?(?:to )?(?:appear|be added|pop)", re.I)
 MAX_SHOT_S = 15.0
 
 SILENT_MIN = 1.0

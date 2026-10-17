@@ -550,7 +550,7 @@ def lock_text(conn, project_id: int, names=None, shots=None) -> str:
         if hits and len(hits) == len(inside):
             forms[who] = per_shot[hits[0]][who]
         else:
-            form_notes += [f"Shot {i + 1}: " + character_forms.note_vi(who, per_shot[i][who]).lstrip("- ") for i in hits]
+            form_notes += [(who, f"Shot {i + 1}: " + character_forms.note_vi(who, per_shot[i][who]).lstrip("- ")) for i in hits]
     rows = []
     for r in conn.execute("SELECT name, lock_rules, outfit_image_ids FROM characters WHERE project_id=?", (project_id,)):
         if names is not None and r["name"] not in names:
@@ -581,8 +581,8 @@ def lock_text(conn, project_id: int, names=None, shots=None) -> str:
                     f"cấm lệch: {lock.get('forbidden', '')}{size}")
     if not rows:
         return ""
-    notes = lx.notes_for_shots(shots, names) + [n for n in form_notes if names is None or any(
-        n.split("**")[1].strip().upper() == str(x).strip().upper() for x in names)]
+    wanted = None if names is None else {str(x).strip().upper() for x in names}
+    notes = lx.notes_for_shots(shots, names) + [t for who, t in form_notes if wanted is None or who in wanted]
     return "# Character Lock\n" + "\n".join(rows) + (
         "\n\n## Ngoại lệ chủ ý theo shot (BYĐ — đè lên khóa ở trên, chỉ trong shot đó)\n" + "\n".join(f"- {n}" for n in notes)
         if notes else "")

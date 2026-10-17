@@ -276,4 +276,4 @@ def words_note(removed: List[str]) -> str:
     quoted = "; ".join(f"\"{r[:90]}{'…' if len(r) > 90 else ''}\"" for r in removed[:6])
     more = f" (+{len(removed) - 6} đoạn)" if len(removed) > 6 else ""
     return (f"prompt ảnh: đã BỎ {len(removed)} đoạn chữ tả nền của Đạo diễn (nền do render 3D quyết, câu nền sinh từ plate thay vào): "
-            f"{quoted}{more} — sửa image_prompt nếu đoạn đó là dàn cảnh cần giữ")
+            f"{quoted}{more} — sửa image_prompt / blocking nếu đoạn đó là dàn cảnh cần giữ")

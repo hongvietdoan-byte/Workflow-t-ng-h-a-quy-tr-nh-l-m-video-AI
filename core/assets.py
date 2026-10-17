@@ -1539,9 +1539,8 @@ def location_text(conn, place: Dict, for_llm: bool = False) -> str:
                         if s.strip() and not has_vietnamese(s)).strip()   # rà 17/10: filter the WHOLE text, then cut (was cut first:
         desc = re.sub(r"\s+", " ", desc)[:600]                             # Vietnamese ahead ate the English sentences' room)
     name = place.get("name") or ""
-    if not for_llm and has_vietnamese(name):           # rà 17/10: "Setting: Tháp đồng hồ" — an English alias, else the name unaccented
-        name = next((n.strip() for n in names_of({"name": name, "aliases": place.get("aliases") or ""})
-                     if n.strip() and not has_vietnamese(n)), fold(name).strip())
+    if not for_llm:                                    # rà 17/10: "Setting: Tháp đồng hồ" — an English alias, else the name unaccented
+        name = model_place_name(place)
     bits = [f"Setting: {name}" + (f" — {desc}" if desc else "")]
     if marks:
         bits.append(_sizes_sentence(marks, keep_vi=for_llm))
@@ -1585,13 +1584,24 @@ def _sizes_sentence(marks, keep_vi: bool = False) -> str:
 RENDER_TAG = "{{place_render_image}}"   # replaced by " (Image N)" once the pictures really sent are known (runner._finish_args)
 
 
+def model_place_name(place: Dict) -> str:
+    """The place's name for an image model: the name, or — when it has Vietnamese letters — its first alias without them, else the name
+    unaccented (rà 17/10: "Setting: Tháp Đồng Hồ" reached the image prompt; luật: no Vietnamese words to the image model)."""
+    from .seedance_refs import has_vietnamese
+    name = str(place.get("name") or "")
+    if not has_vietnamese(name):
+        return name
+    return next((n.strip() for n in names_of({"name": name, "aliases": place.get("aliases") or ""})
+                 if n.strip() and not has_vietnamese(n)), fold(name).strip())
+
+
 def render_place_text(conn, place: Dict, tag: str = RENDER_TAG) -> str:
     """F1-B (09/10, #24): the place sentence of a shot that HAS its 3D render attached. The place's general description ("… stone
     plaza; red-roof houses, grass, palms, sea around") pulled the picture away from the render, so the background is locked to the
     render the way #22's approved prompts did — what is right, never a list of what is forbidden (bài học L2). The real landmark heights
     stay (people's size); the library picture's light does not (the render and the scene light decide it)."""
     marks, _light = _landmark_heights(conn, place)
-    bits = [f"Setting: {place['name']}",
+    bits = [f"Setting: {model_place_name(place)}",
             f"Background: exactly the 3D render picture of this place{tag} (same camera and spot) — it decides the architecture, the "
             "landmarks and where they sit in the frame; keep the scale of the objects as in that picture"]
     if marks:
@@ -1830,7 +1840,10 @@ def _named_extras(conn, scene: Dict, chosen: List[Dict], names: List[str], proje
         if away and a["kind"] == "location":
             continue                                          # 08/10: another picture of a place would pull a landmark in too
         keys = [n for n in names_of(a) if len(fold(n)) >= 3 and fold(n) not in cast]
-        if any(name_spans(k, shot_words) for k in keys):
+        # rà 17/10 vòng 2: an entry typed WITHOUT accents ("Xe noi") still matches the accented shot ("xe nôi") — the folded way — unless
+        # the entry also has an accented name (then the accents decide: alias "cũi" never matches "cúi")
+        bare = not any(fold(n) != n.lower() for n in names_of(a))
+        if any(name_spans(k, shot_words) for k in keys) or (bare and any(" " + fold(k) + " " in blob for k in keys)):
             if lock_on and a["kind"] in prop_lock.KINDS:    # a picture with a variant (skin) only when the shot names it
                 said = prop_lock.shot_text(scene) + " " + blob   # 14/10 #30: the scene script's form when the shot lost it
                 pics = prop_lock.usable_images(a, said, variant=prop_lock.variant_source(conn, project_id, scene, a, said)[0])

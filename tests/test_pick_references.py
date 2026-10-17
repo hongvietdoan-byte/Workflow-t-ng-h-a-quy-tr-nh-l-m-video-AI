@@ -83,7 +83,7 @@ class PickTests(unittest.TestCase):
         text = assets.location_text(self.conn, assets.get(self.conn, self.place))
         # G3 17/10 (#31): the Vietnamese description never goes to the image model; Claude (QC, for_llm) still reads it
         self.assertNotIn("Tháp gạch đỏ", text)
-        self.assertIn("Setting: Tháp đồng hồ", text)
+        self.assertIn("Setting: thap dong ho", text)          # rà 17/10: the Vietnamese name goes unaccented (no alias)
         self.assertIn("Tháp gạch đỏ", assets.location_text(self.conn, assets.get(self.conn, self.place), for_llm=True))
         self.assertIn("brick wall about 1.2 m tall", text)
         self.assertIn("1.7 m", text)

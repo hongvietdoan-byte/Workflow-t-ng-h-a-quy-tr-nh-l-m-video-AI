@@ -27,7 +27,7 @@ _CLOTHES = re.compile(
     r"(?<!\w)(track ?suit|track jacket|track pants|jacket|coat|hoodie|sweater|cardigan|blazer|vest|shirt|t-shirt|tee|top|crop top|"
     r"blouse|bra|dress|gown|skirt|pants|trousers|jeans|shorts|leggings|tights|stockings|socks|shoes|sneakers|trainers|boots|heels|"
     r"sandals|zip|zip-up|zipper|sleeves?|collar|hood|stripes?|prints?|outfit|costume|clothes|clothing|garments?|uniform|cape|cloak|"
-    r"scarf|gloves?|belt|choker|necklace|cap|hat|accessories|everyday look|OUTFIT image|áo|quần|giày|váy|trang phục)(?!\w)", re.I)
+    r"scarf|gloves?|belt|choker|necklace|cap|hat|accessories|bodysuit|jumpsuit|overalls|mask|everyday look|OUTFIT image|áo|quần|giày|váy|trang phục)(?!\w)", re.I)
 
 
 def declared(description: str) -> List[str]:
@@ -114,6 +114,7 @@ def for_rows(conn, project_id: int, rows: List[Dict]) -> Dict[str, Dict]:
 
 
 _LEAD = re.compile(r"^\s*(?:keep|never|always|no|not)\b[ \t:]*", re.I)    # tiền tố của CẢ mệnh đề ("never red jacket, blonde hair")
+_CLOTHES_BODY = re.compile(r"(?<!\w)(skin-tight|skintight|face mask|face paint)(?!\w)", re.I)   # garment words that say skin / face
 _BODY = re.compile(r"(?<!\w)(hair|hairstyle|haircut|bangs|fringe|ponytail|bun|braids?|face|eyes?|eyebrows?|skin|tóc|mặt|mắt)(?!\w)", re.I)
 
 
@@ -122,11 +123,12 @@ def without_clothes(body: str) -> str:
     cao. Rà 17/10: tiền tố keep/never của mệnh đề gắn lại vào phần còn lại (bỏ "never blue jacket" không được biến "never" thành mất →
     "short hair" thành yêu cầu ngược); mảnh nói về TÓC/MẶT/MẮT không bao giờ bỏ ("hair tied on top", "hair under a cap")."""
     keep = []
-    for clause in re.split(r";|(?<=[.!?])\s+", str(body or "")):
-        m = _LEAD.match(clause)
-        lead = m.group(0).strip() if m else ""
+    for clause in str(body or "").split(";"):
+        m = _LEAD.match(clause)                         # rà 17/10 vòng 2: the lead of a ';' clause covers EVERY sentence in it
+        lead = m.group(0).strip() if m else ""          # ("never glasses. Beard" → "never glasses, Beard", never a bare "Beard")
         rest = clause[m.end():] if m else clause
-        pieces = [x.strip() for x in rest.split(",") if x.strip() and (_BODY.search(x) or not _CLOTHES.search(x))]
+        pieces = [x.strip().rstrip(".!?").strip() for x in re.split(r",|(?<=[.!?])\s+", rest)
+                  if x.strip() and ((_BODY.search(x) and not _CLOTHES_BODY.search(x)) or not _CLOTHES.search(x))]
         txt = ", ".join(pieces).strip().rstrip(".").strip()
         if txt:
             keep.append(f"{lead} {txt}".strip())

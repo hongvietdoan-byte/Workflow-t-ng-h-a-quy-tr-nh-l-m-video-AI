@@ -467,7 +467,9 @@ def reference_rule_issues(conn, project_id: int, rows: List[Dict]) -> List[str]:
         return []
     out = []
     # một lượt vẽ Dashboard (memo.per_rerun): cùng bộ nhân vật của nhiều shot → tra Kho một lần (readiness cả dự án không N+1)
-    pictures = cached(conn, ("ref_rule_pictures", project_id, names),
+    from . import character_forms        # rà 17/10 vòng 2: the pictures depend on who is in a form all clip (no OUTFIT) — in the key
+    formed = frozenset(w for w, f in character_forms.for_rows(conn, project_id, rows).items() if f.get("all"))
+    pictures = cached(conn, ("ref_rule_pictures", project_id, names, formed),
                       lambda: identity_pictures(conn, project_id, rows, MAX_PICTURES))
     for name, path in pictures:
         size = _shape(path) if path and os.path.exists(path) else None
