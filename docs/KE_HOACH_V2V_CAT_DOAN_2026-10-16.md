@@ -101,3 +101,7 @@ gửi ảnh mặt trước → thêm Kho 23/15 lưng + 23/16 hông, áo lưng tr
   ngắn 5 s trong khi 2 clip game dài 10,4 s → ref game lấn ref depth.
 - Bài học (nếu làm tiếp sau tập 2): clip in-game chỉ dùng khi ngắn hơn ref depth và đã CẮT SẠCH HUD; hoặc chỉ dùng ảnh tĩnh từ clip
   (trời, biệt thự) + prompt dáng chạy. Người dùng 17/10 bật chế độ siêu nhanh → không thử trả tiền mới, không sửa code nhánh này.
+- Người dùng xem r3 (17/10 09:12): "Lỗi hiện HUD, không nhất quán nhân vật trong các cảnh, việc sử dụng nhiều ref khiến cho lỗi nhiều hơn."
+  → Bài học: NHIỀU ref (10 ảnh + 3 video ở Đ1) làm model trộn nguồn — lộ HUD từ clip game, Kelly đổi dạng (bóng mờ ↔ áo vàng đặc)
+  giữa các đoạn. Lần sau: ít ref nhất có thể, mỗi ref một vai rõ, KHÔNG gửi clip / ảnh còn HUD; giữ cùng bộ ref nhân vật cho mọi
+  đoạn để nhất quán.
