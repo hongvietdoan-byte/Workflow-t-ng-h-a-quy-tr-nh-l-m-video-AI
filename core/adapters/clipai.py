@@ -450,7 +450,8 @@ class ClipAIVideoProvider:
                 if not data:
                     continue
                 extra_files.append((_upload_name(ref["path"], data), data))
-                content_refs.append({"kind": "local", "label": ref["label"], "role": ref.get("role", "character")})
+                content_refs.append({"kind": "local", "label": ref["label"], "role": ref.get("role", "character"),
+                                     "form": ref.get("form")})   # G2 17/10: a person in a form the shot names (core/character_forms)
             remaining = cap - len(content_refs)
             for s in (subjects or [])[:max(remaining, 0)]:
                 if not s.get("uri"):
@@ -460,6 +461,10 @@ class ClipAIVideoProvider:
                 people = [r for r in content_refs if r["role"] != "location"]
                 text += "\n" + " ".join(
                     f"@Image {i} is the location {r['label']}: keep the look of this environment" if r["role"] == "location"
+                    else f"@Image {i} shows {r['label']} in the {r.get('form') or 'special form'}: keep this form for {r['label']}"
+                    if r["role"] == "character_form"
+                    else f"@Image {i} is {r['label']}: keep exactly this person's face, hair and body build, NOT the outfit — in this "
+                         f"clip {r['label']} is in the {r['form']}; do not swap or blend with other people in the scene" if r.get("form")
                     else f"@Image {i} is {r['label']}: keep exactly this person's face, hair and outfit; do not swap or blend with other people in the scene"
                     for i, r in enumerate(content_refs, start=2))
                 if len(people) > 1:

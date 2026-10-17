@@ -105,7 +105,35 @@ def swap_in(refs: List[Dict], ref: Optional[Dict], limit: int) -> List[Dict]:
     keep = [r for r in refs if not (r.get("role") == "landmark" or (r.get("role") == "location" and r.get("label") != scene_establish.LABEL))]
     at = next((i for i, r in enumerate(keep) if r.get("role") in ("location", "previous_scene", "layout")), len(keep))
     out = keep[:at] + [{k: v for k, v in ref.items() if not k.startswith("_")}] + keep[at:]
-    return out[:max(limit, 1)]
+    return keep_render(out, limit)
+
+
+_SECOND_PICTURE_ROLES = ("character", "character_form", "front_standard", "design_sheet", "related")
+
+
+def keep_render(refs: List[Dict], limit: int) -> List[Dict]:
+    """Cut `refs` to `limit` pictures, the shot's 3D render (role ROLE) ALWAYS kept — it is the geometric truth of the shot (G3 17/10,
+    #31 shots 14/15/33: 8 pictures of people filled the cap, the render came 9th and was cut, the prompt fell back to the place in
+    Vietnamese words). The render within the cap → the plain cut as before (the last pictures go). Beyond it → the pictures after the
+    render go (as the plain cut would), then a slot is freed from a person's 2nd (3rd…) picture, the person listed LAST first (the
+    people listed first are the main ones), else the last picture before the render."""
+    limit = max(limit, 1)
+    at = next((i for i, r in enumerate(refs) if r.get("role") == ROLE), None)
+    if at is None or at < limit:
+        return list(refs[:limit])
+    out = list(refs[:at + 1])
+    while len(out) > limit:
+        firsts, drop = set(), None
+        for i, r in enumerate(out):              # the 2nd picture of the person listed last
+            who = r.get("label")
+            if r.get("role") in _SECOND_PICTURE_ROLES:
+                if who in firsts:
+                    drop = i
+                firsts.add(who)
+        if drop is None:
+            drop = next(i for i in range(len(out) - 1, -1, -1) if out[i].get("role") != ROLE)
+        out.pop(drop)
+    return out
 
 
 def geometry_sentence(rec: Dict, data: Dict, sun_azimuth: float = 250.0) -> str:

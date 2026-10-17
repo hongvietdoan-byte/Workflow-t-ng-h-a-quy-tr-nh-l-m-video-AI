@@ -263,7 +263,7 @@ def reference(hit: Optional[Dict]) -> Optional[Dict]:
     return {"path": path, "label": hit["dossier"]["character"], "role": ROLE, "phase": hit["phase"]["id"]}
 
 
-_PEOPLE = ("character", "outfit", "sheet")
+_PEOPLE = ("character", "outfit", "sheet", "character_form")   # G2 17/10: + a person's form picture
 
 
 def add_reference(refs: List[Dict], ref: Optional[Dict], limit: int) -> List[Dict]:
@@ -273,7 +273,8 @@ def add_reference(refs: List[Dict], ref: Optional[Dict], limit: int) -> List[Dic
         return refs
     out = [r for r in refs if not (r.get("role") == "related" and r.get("label") == ref["label"]) and r.get("role") != ROLE]
     while len(out) >= limit:
-        drop = next((i for i in range(len(out) - 1, -1, -1) if out[i].get("role") not in _PEOPLE), None)
+        drop = next((i for i in range(len(out) - 1, -1, -1)      # G3 17/10: never the shot's 3D render (geometric truth)
+                     if out[i].get("role") not in _PEOPLE and out[i].get("role") != "place_render"), None)
         if drop is None:
             return out
         out.pop(drop)

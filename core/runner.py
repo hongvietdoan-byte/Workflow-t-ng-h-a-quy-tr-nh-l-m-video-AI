@@ -1962,7 +1962,12 @@ class VideoRunner(_Runner):
                 from . import dialogue_take
                 block = dialogue_take.group_block(segs, [n for n, _ in ids if not n.endswith(seedance_refs.OUTFIT_TAG)])
             # F5-A: real sizes of the library objects (the well), short form, once — dropped first when the prompt would pass the limit
-            motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model, places=places,
+            from . import character_forms           # G2 17/10 (#31): a person in a form the clip's shots name — not the outfit
+            forms = {}
+            for r in rows:
+                for k, v in character_forms.for_shot(conn, job["project_id"], r["data"]).items():
+                    forms.setdefault(k, v)
+            motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model, places=places, forms=forms,
                                                        scales=_object_scales(conn, job["project_id"], rows),
                                                        reserve=(len(block) + 1 if block else 0) + (len(side) + 1 if side else 0)
                                                        + (len(travel) + 1 if travel else 0)
@@ -2876,10 +2881,23 @@ def lock_note(conn, project_id: int, cast, data: Optional[Dict] = None) -> str:
             continue
         body = lx.drop_excepted(body, e["items"])
         parts[i] = (f"{name}: {body}; " if body else f"{name}: ") + lx.note_en(name, e)
+    # G2 17/10 (#31): a person in a FORM the shot names (Kho style "Dạng của nhân vật") — face/hair/build stay locked, the clothes and
+    # their colours leave the lock (the yellow track jacket beat Kelly's ghost form); one source: core/character_forms
+    from . import character_forms
+    forms = character_forms.for_shot(conn, project_id, data) if data else {}
+    for i, part in enumerate(parts):
+        name, _, body = part.partition(": ")
+        f = forms.get(name.strip().upper())
+        if f:
+            body = character_forms.without_clothes(body)
+            parts[i] = (f"{name}: {body}; " if body else f"{name}: ") + character_forms.lock_en(name, f)
+    said = {p.partition(": ")[0].strip().upper() for p in parts}
+    parts += [f"{n}: " + character_forms.lock_en(str(n), forms[str(n).strip().upper()]) for n in (cast or [])
+              if str(n).strip().upper() in forms and str(n).strip().upper() not in said]   # no lock row: the form is still said
     if not parts:
         return ""
     from .prompt_formula import garment_profile
-    held = any(garment_profile(conn, project_id, n) for n in (cast or []))
+    held = any(garment_profile(conn, project_id, n) for n in (cast or []) if str(n).strip().upper() not in forms)
     return (" Identity lock — " + " | ".join(parts) + "."
             + (" The costume follows the profile above" + (" (or the OUTFIT image)" if any("OUTFIT image" in x for x in parts) else "")
                + "; any other colour word for these garments is wrong." if held else ""))
@@ -3115,15 +3133,16 @@ def sendable_references(refs, model: Optional[str], limit: Optional[int] = None)
     from .adapters.deepix import MAX_REFERENCES as DEEPIX_MAX, reference_problem
     cap = image_models.max_refs(model, DEEPIX_MAX) if model else DEEPIX_MAX
     cap = min(cap, limit) if limit else cap
-    kept, dropped = [], []
+    good, dropped = [], []
     for r in refs:
         problem = reference_problem(r["path"])
         if problem:
             dropped.append(f"{r['label']} ({problem})")
-        elif len(kept) >= cap:
-            dropped.append(f"{r['label']} (quá {cap} ảnh model nhận)")
         else:
-            kept.append(r)
+            good.append(r)
+    from .place_refs import keep_render                 # G3 17/10: over the cap the shot's 3D render keeps its slot
+    kept = keep_render(good, cap) if len(good) > cap else good
+    dropped += [f"{r['label']} (quá {cap} ảnh model nhận)" for r in good if not any(r is k for k in kept)]
     return kept, dropped
 
 

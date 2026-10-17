@@ -183,7 +183,7 @@ def wait_reason(conn, data_dir: str, pid: int, scene_id: int) -> Optional[Dict]:
     return {"anchor_idx": anchor["idx"], "anchor_id": anchor["id"], "stuck": not live, "text": text}
 
 
-PERSON_ROLES = ("character", "outfit") + assets.STANDARD_ROLES
+PERSON_ROLES = ("character", "outfit", "character_form") + assets.STANDARD_ROLES   # G2 17/10: + the form picture of a person
 
 
 def shared_references(conn, pid: int, shots: List[Dict], limit: int = 8, cast_of: Optional[Dict] = None) -> List[Dict]:

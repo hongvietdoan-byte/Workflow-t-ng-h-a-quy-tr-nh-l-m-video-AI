@@ -81,7 +81,10 @@ class PickTests(unittest.TestCase):
                                                                               {"name": "clock tower", "height_m": 32}]})))
         self.conn.commit()
         text = assets.location_text(self.conn, assets.get(self.conn, self.place))
-        self.assertIn("Tháp gạch đỏ", text)
+        # G3 17/10 (#31): the Vietnamese description never goes to the image model; Claude (QC, for_llm) still reads it
+        self.assertNotIn("Tháp gạch đỏ", text)
+        self.assertIn("Setting: Tháp đồng hồ", text)
+        self.assertIn("Tháp gạch đỏ", assets.location_text(self.conn, assets.get(self.conn, self.place), for_llm=True))
         self.assertIn("brick wall about 1.2 m tall", text)
         self.assertIn("1.7 m", text)
 
