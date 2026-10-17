@@ -5,14 +5,14 @@
 > cho 3 lỗi cụ thể. Kế hoạch này lo gốc (3) "luật so chữ trên prompt tự do" và (4) "test theo dữ liệu giả".
 
 ## 0. Ba sơ đồ (đọc trước)
-Ba file SVG nằm ở `docs/so_do/`. Hai sơ đồ đầu sinh bằng `py docs/so_do/gen_hien_trang_khau.py <out.svg>` và
+Ba sơ đồ nằm ở `docs/so_do/` (PNG để xem, SVG gốc cạnh bên). Hai sơ đồ đầu sinh bằng `py docs/so_do/gen_hien_trang_khau.py <out.svg>` và
 `py docs/so_do/gen_dashboard.py <out.svg>`; dữ liệu ghi ngay trong script.
 
 **Sơ đồ 1 — Hiện trạng 16 khâu: chỗ yếu, thiếu, sai.** Mỗi khâu (L1…L16 theo sổ khâu `devsys/stages.json`) là một hàng, gồm: kiểm
 trước khi trả tiền, kiểm sau, kết luận từ đâu, lỗi 15–17/10. Trạng thái lấy từ `devsys.stages.effective` với **cờ máy chính** 17/10,
 không lấy cờ mặc định.
 
-![Hiện trạng các khâu](so_do/SO_DO_HIEN_TRANG_KHAU_2026-10-17.svg)
+![Hiện trạng các khâu](so_do/SO_DO_HIEN_TRANG_KHAU_2026-10-17.png)
 
 Đọc sơ đồ 1:
 - **SAI:** L8 + L12 (lắp gói ảnh / video) là chỗ code đoán ý từ chữ. Khoảng 14/22 lỗi 15–17/10 nằm ở đây.
@@ -24,7 +24,7 @@ không lấy cờ mặc định.
 **Sơ đồ 2 — Làm phim qua Dashboard: bấm nút nào, khâu nào chạy, chỗ nào tiện / lỏng / thiếu.** Nhãn nút ghi đúng chữ trên màn
 (`dashboard/steps/step1*…step5.py`).
 
-![Làm phim qua Dashboard](so_do/SO_DO_DASHBOARD_2026-10-17.svg)
+![Làm phim qua Dashboard](so_do/SO_DO_DASHBOARD_2026-10-17.png)
 
 Đọc sơ đồ 2:
 - **Tiện:**
@@ -50,7 +50,7 @@ không lấy cờ mặc định.
 **Sơ đồ 3 — Luồng sau khi đổi (đích của kế hoạch).** Đạo diễn khai bảng ý đồ shot (BYĐ). Code kiểm schema, rồi 5 khâu đọc
 **trường** để dựng gói. Luật regex chỉ còn nhắc VÀNG. Bộ hồi quy so gói thật của #24/#27/#31. Lỗi lọt cổng được đếm trước và sau.
 
-![Luồng sau khi chuyển sang trường có cấu trúc](so_do/SO_DO_TRUONG_CAU_TRUC_2026-10.svg)
+![Luồng sau khi chuyển sang trường có cấu trúc](so_do/SO_DO_TRUONG_CAU_TRUC_2026-10.png)
 
 ---
 
