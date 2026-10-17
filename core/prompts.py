@@ -600,7 +600,7 @@ def qc_references(pipeline: Pipeline, project_id: int, idx: int, scene_data: dic
     character/place/object pictures the image model got."""
     from .layout import layout_reference
     lay = layout_reference(data_dir, project_id, idx, scene_data) if data_dir else None
-    return ([lay] if lay else []) + assets.scene_references(pipeline.conn, project_id, scene_data)
+    return ([lay] if lay else []) + assets.without_atmosphere(assets.scene_references(pipeline.conn, project_id, scene_data))
 
 
 def _reference_block(refs: List[dict]) -> str:

@@ -148,7 +148,7 @@ def _prepare(p, job, path, criteria, data):
         from . import assets
         gaps = [g for g in assets.reference_gaps(p.conn, job['project_id'], data) if not assets.is_name_note(g)]   # rà 12/10: D17 notes never refuse QC
         if gaps: raise ValueError('Thiếu ảnh tham chiếu chuẩn: ' + '; '.join(gaps))
-        refs = assets.scene_references(p.conn, job['project_id'], data)
+        refs = assets.without_atmosphere(assets.scene_references(p.conn, job['project_id'], data))   # 17/10: a sky is no QC standard
         if cast and not any(r['role'] == 'character' for r in refs):
             raise ValueError('Thiếu ảnh tham chiếu chuẩn nhân vật')
         from . import scene_storyboard

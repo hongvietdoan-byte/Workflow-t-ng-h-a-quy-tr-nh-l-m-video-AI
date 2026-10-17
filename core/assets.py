@@ -45,6 +45,12 @@ ROLES = {
                  "interior": "trong nhà (không làm ảnh mốc / nền ngoài trời)"},
 }
 ROLES["pet"] = ROLES["character"]
+# 17/10 (#31, người dùng: "cảnh thế giới song song phải giống ref" + "gen ảnh nền sạch và bầu trời sạch làm tham chiếu"): a style's
+# CLEAN pictures (no game interface) with one job each — sent as pixels to shots that name the style (atmosphere_refs); every other
+# style picture stays words only (a screenshot with HUD pulls the interface into the picture)
+ROLES["style"] = {"atmosphere_sky": "bầu trời sạch (gửi ảnh: chỉ lấy trời / không khí)",
+                  "atmosphere_place": "không khí bối cảnh sạch (gửi ảnh: chỉ lấy màu / ánh sáng / chất liệu)"}
+ATMOSPHERE_ROLES = ("atmosphere_sky", "atmosphere_place")
 LOOKS = {"ingame": "in-game FF", "anime": "anime"}
 STATUSES = {"approved": "đã duyệt", "pending": "chờ duyệt", "redundant": "ảnh thừa (trùng / icon — không dùng)",
             "claude_ok": "Claude duyệt sơ bộ (dùng được, chờ người dùng xác nhận)"}   # S14.42: pending -> claude_ok -> approved
@@ -1600,7 +1606,7 @@ def _named_resource_gaps(conn, project_id: int, scene: Dict) -> List[str]:
         words = list(words) + ["gloowall"]
     out = []
     # Names/descriptions only: no image opens, filesystem probes or library-wide query at every poll.
-    rows = conn.execute("SELECT a.name, a.aliases, a.description, a.kind FROM assets a JOIN project_assets pa ON pa.asset_id=a.id "
+    rows = conn.execute("SELECT a.id, a.name, a.aliases, a.description, a.kind FROM assets a JOIN project_assets pa ON pa.asset_id=a.id "
                         "WHERE pa.project_id=? ORDER BY a.kind, lower(a.name)", (project_id,)).fetchall()
     for row in rows:
         a = dict(row, aliases=row["aliases"] or "", description=row["description"] or "")
@@ -1609,7 +1615,9 @@ def _named_resource_gaps(conn, project_id: int, scene: Dict) -> List[str]:
         named = any(name_spans(n, words) for n in names_of(a))
         anchor = next((w for w in _ENGLISH_ANCHORS if w in words and
                        w in _said_words(a["name"] + " " + a.get("description", ""))), None)
-        if a["kind"] == "style" and (named or anchor):
+        if a["kind"] == "style" and (named or anchor) and not (named and conn.execute(
+                f"SELECT 1 FROM asset_images WHERE asset_id=? AND role IN {tuple(ATMOSPHERE_ROLES)} AND COALESCE(status,'approved') "
+                f"IN {USABLE_SQL} AND removed_at IS NULL LIMIT 1", (a["id"],)).fetchone()):   # 17/10: named → its clean pictures DO go
             out.append(f"kiểu ảnh {a['name']} chỉ dùng bằng chữ — không gửi ảnh ref; ảnh có HUD có thể kéo sai hình. "
                        "Kiểm mô tả Kho trước khi gen.")
         elif not named and anchor:
@@ -1721,7 +1729,37 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
         if any(r["label"] == ref["label"] for r in refs) or (ref["role"] == "outfit_object" and any(r["path"] in ref["_paths"] for r in refs)):
             continue          # already sent as the outfit a person in the shot wears
         refs.append({k: v for k, v in ref.items() if k != "_paths"})
+    for ref in atmosphere_refs(conn, project_id, scene, chosen):   # 17/10: the look of the world — only slots nothing else needs
+        if len(refs) >= limit:                     # (rà: before the extras it took the slot kept for a named prop)
+            break
+        refs.append(ref)
     return refs
+
+
+def without_atmosphere(refs: List[Dict]) -> List[Dict]:
+    """The refs minus the atmosphere pictures — for the video model (the first frame already carries the sky; Seedance would read
+    any non-place picture as a person) and for QC (a sky is not a standard to score the frame against)."""
+    return [r for r in refs if r.get("role") not in ATMOSPHERE_ROLES]
+
+
+def atmosphere_refs(conn, project_id: int, scene: Dict, chosen: Optional[List[Dict]] = None) -> List[Dict]:
+    """17/10 (#31): the clean sky / place-atmosphere pictures (ATMOSPHERE_ROLES) of each style the shot NAMES in its own words (not in a
+    spoken line) — one picture per role, the sky first. [{path, label, role: "atmosphere_sky"|"atmosphere_place"}]"""
+    chosen = project_assets(conn, project_id) if chosen is None else chosen
+    words = _said_words(" ".join([_without_spoken_lines(str(scene.get("text") or ""))]
+                                 + [str(scene.get(k) or "") for k in ("image_prompt", "location")]))
+    out: List[Dict] = []
+    for a in chosen:
+        if a["kind"] != "style":
+            continue
+        # rà: the same accent-aware matching as _named_resource_gaps (a folded alias "Mây" must not match "máy")
+        if not any(len(fold(n)) >= 3 and name_spans(n, words) for n in names_of(a)):
+            continue
+        for role in ATMOSPHERE_ROLES:
+            im = next((i for i in a["images"] if i.get("role") == role), None)
+            if im is not None and not any(r["path"] == im["path"] for r in out):
+                out.append({"path": im["path"], "label": a["name"], "role": role})
+    return out
 
 
 def _without_spoken_lines(text: str) -> str:
@@ -1838,6 +1876,14 @@ def reference_note(refs: List[Dict]) -> str:
                         "every print and its drawing, colours, cap, mask and shoes — only laid out as the scene text says")
         elif g["role"] == "object":
             bits.append(f"{tag} is the object {g['label']}: draw it exactly like this whenever it appears")
+        elif g["role"] == "atmosphere_sky":       # 17/10 #31: the user's clean sky picture of this world
+            bits.append(f"{tag} is the SKY of {g['label']}: wherever the sky shows in this shot, draw it exactly like this — the clouds, "
+                        "their colours and every figure in them — but take NOTHING else from it: not its camera, framing or horizon "
+                        "height, nor the trees or roofs at its bottom edge; if no sky shows in this shot, ignore this picture")
+        elif g["role"] == "atmosphere_place":     # 17/10 #31: the user's clean empty view of this world
+            bits.append(f"{tag} shows the LOOK of {g['label']}: copy only its colours, night light, mood and the materials of hedges, "
+                        "walls, paving and buildings — never its camera, framing or layout, and add nothing from it that the scene "
+                        "text and the 3D background do not have")
         elif g["role"] == "sheet":
             bits.append(f"{tag} is the character design sheet of {g['label']} (front / three-quarter / side / back views and details): use it "
                         f"only to know how {g['label']} looks from every side — do NOT copy its layout, labels, color swatches or its several "

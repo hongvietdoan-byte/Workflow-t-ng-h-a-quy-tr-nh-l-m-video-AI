@@ -168,7 +168,7 @@ def qc_video(p: Pipeline, job_id: int, client, data_dir: str, autofix: Optional[
     data = json.loads(scene["data"] or "{}")
     mp = p.conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (job["scene_id"],)).fetchone()
     first = job["source_job_id"] and os.path.join(data_dir, str(job["project_id"]), "images", f"job_{job['source_job_id']}.png")
-    refs = assets.scene_references(p.conn, job["project_id"], data)[:4]
+    refs = assets.without_atmosphere(assets.scene_references(p.conn, job["project_id"], data))[:4]   # 17/10: no sky as a QC standard
     # M12 (trial 2A): the frames carried no time, so QC invented "at 5–6 s" for a 3,1 s clip — label each frame with its real second
     try:
         dur = float(video_analysis.probe(path)["duration_sec"] or 0.0)

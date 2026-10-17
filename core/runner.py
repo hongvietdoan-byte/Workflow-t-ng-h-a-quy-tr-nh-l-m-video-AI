@@ -2041,7 +2041,7 @@ class VideoRunner(_Runner):
         if "seedance" in (model or ""):
             # the project's own chosen resource pictures (same as Step 2's Deepix references) — automatic, no Subject Library upload needed
             scene_data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
-            image_refs = assets.scene_references(conn, job["project_id"], scene_data)
+            image_refs = assets.without_atmosphere(assets.scene_references(conn, job["project_id"], scene_data))   # 17/10 rà
             missing = [r for r in image_refs if not os.path.exists(r["path"])]
             if missing:  # traceable: shows up in 📊 Theo dõi hiệu suất, points at exactly which picture went missing
                 from . import video_pregen
