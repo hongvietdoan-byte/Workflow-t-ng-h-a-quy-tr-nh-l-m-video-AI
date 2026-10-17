@@ -60,6 +60,8 @@ TPS_DIST_M, TPS_ABOVE_HEAD_M, TPS_PITCH_DEG = 3.6, 0.9, 12.0
 OTS_ABOVE_HEAD_M = 0.15
 LOOK_DOWN_ANGLES = ("high", "ots")
 LOW_CAM_SHARE, LOW_TILT_DEG = 0.5, 8.0
+# 17/10 (#31 shot 1/2/3/5): a POV camera is the eyes — at the spot, POV_EYE_SHARE of the height, aimed POV_AIM_M ahead
+POV_EYE_SHARE, POV_AIM_M = 0.93, 10.0
 DOWN_WORDS = ("look down", "looks down", "looking down", "peer down", "peers down", "peering down", "peer into", "peers into",
               "peering into", "gaze down", "gazes down", "gazing down", "glance down", "glances down", "glancing down", "stare down",
               "stares down", "staring down", "leaning over", "leans over", "lean over", "bends over", "bending over",
@@ -158,6 +160,38 @@ def _unit(v: Sequence[float]) -> Tuple[float, float, float]:
     return tuple(c / n for c in v)
 
 
+def is_pov(data: Dict) -> bool:
+    """The shot's camera is the character's eyes (angle 'pov') — the same test plate_choice.view_of uses."""
+    return str((data or {}).get("angle") or "").strip().lower() == "pov"
+
+
+def _pov_camera(data: Dict, spot: Sequence[float], facing_deg: float, height_m: float, aspect: float, name: str,
+                rise_at=None) -> Dict:
+    """17/10 #31 shot 1/2/3/5: a POV camera stands AT the spot, at the eyes (POV_EYE_SHARE × height), and looks along facing_deg
+    (the direction the eyes look — view_of gives the background direction for a POV, not the opposite). Level, or tilted
+    LOOK_DOWN_PITCH_DEG down when the shot looks down. Nobody stands in the frame: subject_box None (no stand-in, no clearance)."""
+    size = size_of(data)
+    lens = lens_of(data, FRAMING[size][2])
+    fov = vfov(lens, aspect)
+    yaw = math.radians(facing_deg)
+    fwd = (math.sin(yaw), math.cos(yaw), 0.0)
+    lift = float(rise_at(spot[0], spot[1])) if rise_at is not None else 0.0
+    eye_z = spot[2] + height_m * POV_EYE_SHARE
+    down = looks_down(data)
+    drop = POV_AIM_M * math.tan(math.radians(LOOK_DOWN_PITCH_DEG)) if down else 0.0
+    cam = (spot[0], spot[1], eye_z + lift)
+    aim = (spot[0] + fwd[0] * POV_AIM_M, spot[1] + fwd[1] * POV_AIM_M, eye_z + lift - drop)
+    pitch = -LOOK_DOWN_PITCH_DEG if down else 0.0
+    why = {"pov": (f"góc nhìn thứ nhất: máy tại chỗ đứng, cao mắt {height_m * POV_EYE_SHARE:.2f} m, nhìn theo hướng {facing_deg % 360:g}°"
+                   + (f", cúi {LOOK_DOWN_PITCH_DEG:g}° (hành động nhìn xuống)" if down else ", ngang") + f", ống {lens:g} mm"),
+           "direction": f"POV — nền là chỗ mắt nhìn ({facing_deg % 360:g}°), không có người trong khung"}
+    return {"camera": {"name": name, "location": [round(c, 3) for c in cam], "look_at": [round(c, 3) for c in aim], "lens": lens,
+                       "angle": "eye_level", "pov": True},
+            "subject_box": None, "feet_y": None, "distance_m": 0.0, "size": size, "side": "center", "behind": False, "pov": True,
+            "frame_h_m": round(2 * POV_AIM_M * math.tan(fov / 2), 3), "horizon_y": horizon_y(cam, aim, lens, aspect),
+            "pitch_deg": round(pitch, 1), "fixes": [], "problem": None, "why": why}
+
+
 def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: float = 1.75, aspect: float = 9 / 16,
                name: str = "shot", behind: Optional[bool] = None, rise_at=None) -> Dict:
     """Camera for one shot. spot = where the character's feet are (scene metres); facing_deg = the direction the character faces,
@@ -166,6 +200,8 @@ def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: f
     behind: None = read from the shot (plate_choice.is_behind); travel_camera sets it (camera following the run).
     rise_at(x, y) -> metres the ground under the camera is above the spot (travel_camera: a camera on the stairs of the run); None = 0.
     Returns {"camera": {name, location, look_at, lens, angle}, "subject_box": [x0, y0, x1, y1], "feet_y", "distance_m"}."""
+    if is_pov(data):                                          # 17/10: the eyes, not a camera in front of the character
+        return _pov_camera(data, spot, facing_deg, height_m, aspect, name, rise_at)
     size = size_of(data)
     body_share, fill, lens = FRAMING[size]
     lens = lens_of(data, lens)
@@ -469,6 +505,12 @@ def wide_for(camera: Dict, height_m: float, aspect: float = 9 / 16, frame_h: Opt
     WIDE_MIN_CAM_M above the feet is lifted (direction kept). Returns a camera dict (location, look_at, lens, wide=True)."""
     cam, aim = list(camera["location"]), list(camera["look_at"])
     lens = float(camera.get("lens") or 35)
+    if camera.get("pov"):
+        # 17/10: a POV camera stands at the eyes inside the place — pulled back it would be behind the wall at the character's back;
+        # its wide view is the same place seen from the same eyes with a wider lens
+        out = {k: v for k, v in camera.items() if k not in ("location", "look_at", "lens", "name")}
+        return dict(out, location=list(camera["location"]), look_at=list(camera["look_at"]),
+                    lens=round(max(WIDE_MIN_LENS, min(lens, lens * WIDE_LENS_SHARE)), 1), wide=True)
     f = _unit([a - c for a, c in zip(aim, cam)])
     to_aim = math.sqrt(sum((a - c) ** 2 for a, c in zip(aim, cam)))
     if frame_h is None:

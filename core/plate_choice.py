@@ -99,6 +99,12 @@ def is_behind(data: Dict) -> bool:
     return False
 
 
+def _looks_along(data: Dict) -> bool:
+    """The camera looks the way the character looks: from behind (is_behind) or as their eyes (angle 'pov', 17/10 #31 shot 1/2/3/5:
+    the background of a POV was turned round — shot 3 rendered the wall at Kelly's back, not the two doors in front)."""
+    return is_behind(data) or str((data or {}).get("angle") or "").strip().lower() == "pov"
+
+
 def bearing(a: Sequence[float], b: Sequence[float]) -> Optional[float]:
     """Compass bearing from a to b on the ground, degrees clockwise from +y (the convention of spot `facing`)."""
     dx, dy = b[0] - a[0], b[1] - a[1]
@@ -226,7 +232,7 @@ def view_of(entry: Dict, spot: Dict, data: Dict) -> Dict:
         else:
             problem = f"{reason} — dùng hướng mặc định của chỗ đứng ({float(spot.get('facing', 0)):g}°), chưa phải lựa chọn theo kịch bản"
         facing = float(spot.get("facing", 0.0))
-        bg = (facing + (0 if is_behind(data) else 180)) % 360
+        bg = (facing + (0 if _looks_along(data) else 180)) % 360
         words_vi = "hướng mặc định của chỗ đứng (kịch bản chưa chọn)"
     elif source == "script" and why and to_mark is not None and _contradicts_why(why, bg, to_mark):
         # 14/10 #30 shot 1: lý do nói tháp nằm sau lưng MÁY nhưng hướng nền tính ra nhìn VỀ tháp (±60°) → ảnh nền ngược với ý Quay phim
@@ -236,7 +242,8 @@ def view_of(entry: Dict, spot: Dict, data: Dict) -> Dict:
                  "sửa `plate_view.background` rồi chạy lại; nền chưa render")
     elif why is None:
         problem = "hướng máy chưa ghi lý do (`plate_view.why`) — người duyệt không biết vì sao chọn hướng này"
-    facing = (bg + (0 if is_behind(data) else 180)) % 360          # camera_for: the camera stands in front, the character faces it
+    # camera_for: the camera stands in front, the character faces it; behind / POV (17/10) the camera looks the way they look
+    facing = (bg + (0 if _looks_along(data) else 180)) % 360
     return {"background_deg": round(bg, 1), "facing_deg": round(facing, 1), "view": view, "source": source, "why": why,
             "words_vi": words_vi, "words_en": words_en, "problem": problem, "needs": needs}
 

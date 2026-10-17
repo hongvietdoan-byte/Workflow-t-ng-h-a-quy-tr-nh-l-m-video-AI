@@ -467,6 +467,10 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
                             needs=view["needs"] or first["needs"])
         lit = plate_choice.lights_of(s["data"], env)
         camera = dict(cam["camera"], model_coords=True, subject={"location": sp["at"], "height_m": height})
+        if camera.get("pov"):
+            # 17/10 #31: the POV camera stands where the character stands — a stand-in there would fill the lens (and the clearance
+            # rays would judge the camera against its own body); nobody is in a POV frame
+            camera.pop("subject")
         if sp.get("indoor"):
             # rà 15/10: the spot's room lighting + "the camera must stand under the room's ceiling" (tools/render_plates) — the spot's
             # `indoor` never reached the camera before, so a camera pulled outside a room was never caught (#31 phòng 2 cửa)
