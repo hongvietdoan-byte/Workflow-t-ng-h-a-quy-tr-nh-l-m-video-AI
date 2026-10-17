@@ -81,3 +81,12 @@ Duyệt 16/10: (1) sửa previs shot 6 máy sau lưng; (2) bỏ V2, cắt cứng
   `nhap480_noi_D1-D2_18s.mp4` (nối cắt cứng), ảnh ghép `so_sanh_D1/D2_previs_tren_nhap_duoi.png`.
 - Bước kế (CHỜ người dùng duyệt): 720p Đ1 ≈ $3,59 (×1,25 = $4,49); Đ2 720p ≈ $1,38 — nên sửa khung shot 9 trước. Trần dự án thử #32
   hiện $6,5 (đã chi $4,98) → cần nâng khi duyệt 720p.
+
+## 8. Lượt 2 nháp 480p (17/10 08:25, người dùng duyệt gen lại + nâng trần $9,5)
+
+Người dùng xem lượt 1: (1) cục chỉ hướng trên đầu, (2) dáng đi bộ không chạy, (3) Đ2 sai skin + chữ lỗi lưng áo. Gốc + sửa (0 USD,
+commit 7ec95453): mũi người nộm lọt vào ref → previs ẩn mũi (cả khóa biến thể); người nộm không chân → prompt tả chạy nước rút; chỉ
+gửi ảnh mặt trước → thêm Kho 23/15 lưng + 23/16 hông, áo lưng trơn không chữ. Gửi lại: task `cgt-20261017091948-7oa10` (Đ1),
+`cgt-20261017091956-ajh7s` (Đ2), sổ chi $2,21 (dự án thử #32 tổng $7,19). Bản giao `nhap480_r2_*` cùng thư mục.
+- Nhìn sơ bộ (chờ người dùng kiểm): Đ1 máy vẫn bám sau lưng như previs, không còn cục trên đầu, có khung nhấc cao gối; 10–12 s lưng áo
+  còn vệt hoa văn tối. Đ2 máy ĐỨNG YÊN (khác lượt 1) nhưng toàn cảnh xa (previs đặt sát), Kelly bước tới chạm xe nôi; tóc trông mờ.
