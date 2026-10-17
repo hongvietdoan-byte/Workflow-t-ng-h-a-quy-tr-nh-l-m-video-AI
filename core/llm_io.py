@@ -735,6 +735,8 @@ def update_scene(pipeline: Pipeline, project_id: int, idx: int, fields: Mapping[
     changed =[k for k in set(before) | set(data) if k not in ("_user_locked", "text") and blank(before.get(k)) != blank(data.get(k))
                and not (k == "dialogue" and "dialogue" not in fields)]
     data["_user_locked"] = sorted(set(data.get("_user_locked") or []) | set(changed))
+    from .shot_intent import sync_noi_chon             # 17/10: time / weather → byd.noi_chon (one source; DB trigger for the rest)
+    sync_noi_chon(data)
     conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), row["id"]))
     conn.commit()
     if "image_prompt" in changed:                          # F1-A: a hand-edited image prompt is checked against the formula too

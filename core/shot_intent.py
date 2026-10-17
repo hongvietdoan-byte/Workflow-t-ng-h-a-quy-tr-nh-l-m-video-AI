@@ -28,6 +28,27 @@ TU_THE = ("dung", "ngoi", "quy", "bo", "nga_ngua", "nam")   # prompt 29 dòng 11
 CHUYEN_DONG = ("dung_yen",) + tuple(stage_solver.MOVES)   # dung_yen + lui / tien (prompt 29 dòng 31 "may.kieu"); đẩy/kéo/lia: K3
 THOI_GIAN = plate_env.TIMES                     # dawn, day, dusk, night
 THOI_TIET = plate_env.WEATHERS
+
+
+def sync_noi_chon(data: Dict) -> bool:
+    """17/10 (#31 shot 27–30): the shot's `time` / `weather` are the ONE source (data/decisions.json time-weather-single-source-2026-10-17);
+    byd.noi_chon.thoi_gian / thoi_tiet are their copy. Copies them in place (time words normalised by plate_env.time_of, e.g. 'đêm' →
+    night; a weather outside plate_env.WEATHERS is left alone, like the plate does). The database trigger trg_scene_noi_chon does the
+    same for every write of canonical values. True when something changed."""
+    byd = data.get("byd") if isinstance(data, dict) else None
+    nc = byd.get("noi_chon") if isinstance(byd, dict) else None
+    if not isinstance(nc, dict):
+        return False
+    changed = False
+    if str(data.get("time_of_day") or data.get("time") or "").strip():
+        t = plate_env.time_of(data)
+        if nc.get("thoi_gian") != t:
+            nc["thoi_gian"], changed = t, True
+    if str(data.get("weather") or "").strip():
+        w, problem = plate_env.weather_of(data)
+        if problem is None and nc.get("thoi_tiet") != w:
+            nc["thoi_tiet"], changed = w, True
+    return changed
 # ---- enum mới của BYĐ (chưa có ở đâu trong code) ------------------------------------------------------------------------------
 CHAM_DAT = ("ban_chan", "dau_goi", "mong", "ban_tay", "lung", "hong", "bung")   # bộ phận chạm đất
 NGOAI_LE_LY_DO = ("ky_nang", "hieu_ung_game", "phong_cach")                        # mục 3.1 / A8

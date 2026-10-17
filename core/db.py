@@ -655,8 +655,44 @@ def _migrate_outputs(conn: sqlite3.Connection) -> None:
 # 10/10 Tổ rà soát tác động: trigger tạo SAU mọi migration (CSDL cũ: assets.profile / asset_images.status được ALTER thêm sau SCHEMA —
 # tạo trong SCHEMA thì "no such column: new.profile", test_ai_label OutputsMigrationTest)
 CHANGE_TRIGGERS = """
+-- 17/10 (#31 shot 27–30: time/weather đổi night/fog, byd.noi_chon vẫn dawn/clear → Tổ rà soát gọi Claude bắt 13 mục đỏ): time /
+-- weather của shot là NGUỒN DUY NHẤT (data/decisions.json time-weather-single-source-2026-10-17); byd.noi_chon.thoi_gian / thoi_tiet là bản chép,
+-- đồng bộ ở CSDL cho MỌI đường ghi (Dashboard, Đạo diễn, công cụ, SQL tay). Chữ ngoài danh sách plate_env (vd 'đêm') do Python
+-- chuẩn hóa (core/shot_intent.sync_noi_chon); ở đây chỉ chép giá trị chuẩn. Đồng bộ không phải một thay đổi để rà (trg_change_scene).
+CREATE TRIGGER IF NOT EXISTS trg_scene_noi_chon AFTER UPDATE OF data ON scenes
+    WHEN json_valid(new.data) AND json_type(new.data, '$.byd.noi_chon') = 'object' AND (
+        (lower(json_extract(new.data, '$.time')) IN ('dawn', 'day', 'dusk', 'night')
+         AND COALESCE(json_extract(new.data, '$.byd.noi_chon.thoi_gian'), '') <> lower(json_extract(new.data, '$.time')))
+        OR (lower(json_extract(new.data, '$.weather')) IN ('clear', 'cloudy', 'fog', 'rain', 'storm', 'snow', 'snowfall', 'ice', 'sandstorm')
+         AND COALESCE(json_extract(new.data, '$.byd.noi_chon.thoi_tiet'), '') <> lower(json_extract(new.data, '$.weather'))))
+BEGIN
+    UPDATE scenes SET data = json_set(data,
+        '$.byd.noi_chon.thoi_gian', CASE WHEN lower(json_extract(data, '$.time')) IN ('dawn', 'day', 'dusk', 'night') THEN lower(json_extract(data, '$.time'))
+                                         ELSE json_extract(data, '$.byd.noi_chon.thoi_gian') END,
+        '$.byd.noi_chon.thoi_tiet', CASE WHEN lower(json_extract(data, '$.weather')) IN ('clear', 'cloudy', 'fog', 'rain', 'storm', 'snow', 'snowfall', 'ice', 'sandstorm') THEN lower(json_extract(data, '$.weather'))
+                                         ELSE json_extract(data, '$.byd.noi_chon.thoi_tiet') END)
+    WHERE id = new.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_scene_noi_chon_new AFTER INSERT ON scenes
+    WHEN json_valid(new.data) AND json_type(new.data, '$.byd.noi_chon') = 'object' AND (
+        (lower(json_extract(new.data, '$.time')) IN ('dawn', 'day', 'dusk', 'night')
+         AND COALESCE(json_extract(new.data, '$.byd.noi_chon.thoi_gian'), '') <> lower(json_extract(new.data, '$.time')))
+        OR (lower(json_extract(new.data, '$.weather')) IN ('clear', 'cloudy', 'fog', 'rain', 'storm', 'snow', 'snowfall', 'ice', 'sandstorm')
+         AND COALESCE(json_extract(new.data, '$.byd.noi_chon.thoi_tiet'), '') <> lower(json_extract(new.data, '$.weather'))))
+BEGIN
+    UPDATE scenes SET data = json_set(data,
+        '$.byd.noi_chon.thoi_gian', CASE WHEN lower(json_extract(data, '$.time')) IN ('dawn', 'day', 'dusk', 'night') THEN lower(json_extract(data, '$.time'))
+                                         ELSE json_extract(data, '$.byd.noi_chon.thoi_gian') END,
+        '$.byd.noi_chon.thoi_tiet', CASE WHEN lower(json_extract(data, '$.weather')) IN ('clear', 'cloudy', 'fog', 'rain', 'storm', 'snow', 'snowfall', 'ice', 'sandstorm') THEN lower(json_extract(data, '$.weather'))
+                                         ELSE json_extract(data, '$.byd.noi_chon.thoi_tiet') END)
+    WHERE id = new.id;
+END;
+DROP TRIGGER IF EXISTS trg_change_scene;
 CREATE TRIGGER IF NOT EXISTS trg_change_scene AFTER UPDATE OF data ON scenes
-    WHEN COALESCE(old.data, '') <> COALESCE(new.data, '')
+    WHEN COALESCE(CASE WHEN json_valid(old.data) THEN json_remove(old.data, '$.byd.noi_chon.thoi_gian', '$.byd.noi_chon.thoi_tiet')
+                       ELSE old.data END, '')
+      <> COALESCE(CASE WHEN json_valid(new.data) THEN json_remove(new.data, '$.byd.noi_chon.thoi_gian', '$.byd.noi_chon.thoi_tiet')
+                       ELSE new.data END, '')
 BEGIN
     INSERT INTO change_events(at, kind, project_id, scene_id, before, after)
     VALUES (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'scene', new.project_id, new.id, old.data, new.data);

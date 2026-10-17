@@ -145,7 +145,8 @@ def tokens_text(r: dict) -> str:
 
 def image_estimate(p: Pipeline, pid: int):
     from core import image_models
-    return cost.estimate_images(p, pid, cost.load_pricing(), image_models.of_project(p.project(pid)))   # the project's picture model
+    return cost.estimate_images(p, pid, cost.load_pricing(), image_models.of_project(p.project(pid)),   # the project's picture model
+                                data_dir=DATA)
 
 def show_estimate(est, runner) -> bool:
     """Show the estimate; for real providers require a confirmation tick on large batches. Returns 'allowed'."""

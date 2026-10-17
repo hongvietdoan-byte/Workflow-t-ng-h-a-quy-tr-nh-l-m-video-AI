@@ -57,11 +57,18 @@ def audit_shot(conn, data_dir: str, pid: int, scene_id: int) -> List[Dict]:
         say("do", "nen", "shot có máy Sân khấu 3D (stage_camera) nhưng cờ stage_camera TẮT → nền dựng bằng máy cũ")
     rec = _plate_rec(data_dir, pid, scene_id)
     if locked:
-        cp = (rec or {}).get("camera_plan") or {}
-        if not rec or [round(v, 2) for v in cp.get("location", [])] != [round(v, 2) for v in sc["location"]]:
-            say("do", "nen", "render nền 3D chưa theo máy hiện tại (render lại: location_pack render)")
-        elif sc.get("props") and cp.get("props") != sc.get("props"):
-            say("do", "nen", "khối đạo cụ thay thế trong nền khác dàn cảnh hiện tại → render lại")
+        # 17/10 (#31 shot 20–25, 33): ONE definition of "old background" with the render step and the runner's hold —
+        # location_pack.stale_plates (plan key + render_moved); before, this compared stage_camera with the index on its own and
+        # called 7 renders old that `location_pack render` (ensure_plates) reused
+        from . import location_pack
+        prow = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
+        st = location_pack.stale_plate(conn, pid, data_dir, scene_id, place_refs.resolution_of(prow)) if prow else None
+        if not rec:
+            say("do", "nen", "render nền 3D chưa theo máy hiện tại — chưa có render (tự render khi gửi / location_pack render, 0 USD)")
+        elif rec.get("failed") or rec.get("needs"):
+            say("do", "nen", f"nền 3D chưa dùng được: {str(rec.get('failed') or rec.get('needs'))[:200]}")
+        elif st:
+            say("do", "nen", f"render nền 3D chưa theo máy hiện tại: {st['why']}")
         b = _brightness(rec["plate"]) if rec and rec.get("plate") else None
         if b is not None and b < place_refs.LIFT_BELOW:
             sent = place_refs.lifted(rec["plate"])

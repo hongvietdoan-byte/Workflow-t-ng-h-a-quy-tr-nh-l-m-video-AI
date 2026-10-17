@@ -15,12 +15,25 @@ class GateError(ValueError):
     """The manual "Gen ảnh" hit a gate the automatic run has (Bible contradicts the pictures, no Character Lock): nothing was queued."""
 
 
-def image_gates(p: Pipeline, project_id: int) -> Dict[str, List[str]]:
+def image_gates(p: Pipeline, project_id: int, data_dir: Optional[str] = None) -> Dict:
     """The gates the automatic run applies before any picture is paid for (core.autopilot._director_phase), for the manual path:
     {"block": [...]} = a Bible that contradicts its library pictures (last check, no new Claude call) or a character without a Character
-    Lock (O6) — the person must fix it or confirm; {"warn": [...]} = a character without a reference picture (drawn from words)."""
+    Lock (O6) — the person must fix it or confirm; {"warn": [...]} = a character without a reference picture (drawn from words).
+    17/10 (#31: 7 old 3D backgrounds only showed YELLOW on the Dashboard): `data_dir` given → a shot whose 3D background is not its
+    current camera's (location_pack.stale_plates — the one definition the runner's hold and the render step use) BLOCKS too, listed
+    in "plates_stale" {scene_id: item}; the caller starts the 0 USD render (place_refs.ensure_async). Read-only."""
     from . import autopilot, claude_tasks
     block, warn = [], []
+    plates_stale: Dict = {}
+    if data_dir:
+        from . import place_refs
+        if place_refs.enabled():
+            plates_stale = place_refs.stale(p.conn, data_dir, project_id, place_refs.resolution_of(p.project(project_id)))
+            if plates_stale:
+                shown = sorted(plates_stale.items(), key=lambda kv: kv[1].get("idx") or 0)
+                block.append(f"nền 3D cũ ở {len(shown)} shot (" + ", ".join(str(v.get("idx") or k) for k, v in shown[:12])
+                             + (" …" if len(shown) > 12 else "") + f"): {shown[0][1]['why']} — đang render lại (Blender, 0 USD), "
+                             "bấm lại khi xong; ảnh vẽ trên nền cũ sẽ sai bối cảnh")
     try:
         flags = claude_tasks.bible_flags(p, project_id)
     except Exception as e:  # noqa: BLE001 - a check that cannot be read is a gate too (never silently passed)
@@ -31,10 +44,10 @@ def image_gates(p: Pipeline, project_id: int) -> Dict[str, List[str]]:
     if gaps["no_lock"]:
         block.append("chưa có Character Lock (nét nhận diện phải giữ): " + ", ".join(gaps["no_lock"]))
     warn += [f"{n} chưa có ảnh tham chiếu ở Kho — model chỉ vẽ theo chữ, dễ lệch thiết kế" for n in gaps["no_picture"]]
-    return {"block": block, "warn": warn}
+    return {"block": block, "warn": warn, "plates_stale": plates_stale}
 
 
-def queue_images(p: Pipeline, project_id: int, confirmed: bool = False) -> Dict:
+def queue_images(p: Pipeline, project_id: int, confirmed: bool = False, data_dir: Optional[str] = None) -> Dict:
     """Image jobs for ready scenes without a live picture, and a redo for approved pictures made from an outdated spec.
     While a pilot is running only its scenes are queued. The automatic run's gates apply (image_gates): a blocking one raises
     GateError unless the person confirmed (`confirmed=True`, recorded as a diag); warnings are recorded as diags."""
@@ -50,7 +63,10 @@ def queue_images(p: Pipeline, project_id: int, confirmed: bool = False) -> Dict:
     fresh = pilot.allowed_scenes(p, project_id, fresh)
     redo_ids = pilot.allowed_scenes(p, project_id, [sid for sid in stale if not p.has_pending_take(sid, "image_gen")])   # S14.17 rà #2
     if fresh or redo_ids:
-        gates = image_gates(p, project_id)
+        gates = image_gates(p, project_id, data_dir)
+        if gates.get("plates_stale") and data_dir and -1 not in gates["plates_stale"]:
+            from . import place_refs                     # 17/10: the old backgrounds are rendered again now (0 USD)
+            place_refs.ensure_async(conn, project_id, data_dir, place_refs.resolution_of(p.project(project_id)))
         if gates["block"] and not confirmed:
             raise GateError("Chưa gen ảnh: " + "; ".join(gates["block"]) + " — sửa ở Bước 1 (Character Bible / Lock) hoặc tick "
                             "“vẫn gen” nếu bạn đã xem và chấp nhận")
