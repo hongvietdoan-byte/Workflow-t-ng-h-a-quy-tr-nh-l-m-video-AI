@@ -478,7 +478,7 @@ def plan(conn, pid: int, resolution=(1152, 2048)) -> List[Dict]:
         if cam.get("travel"):
             camera["travel"] = cam["travel"]["mode"]    # rà 15/10: a camera on the run is never turned round the character
         if lit["lights"]:
-            camera["lights"] = plate_choice.light_rigs(lit["lights"], sp["at"], camera["location"], height)
+            camera["lights"] = plate_choice.light_rigs(lit["lights"], sp["at"], plate_camera.light_origin(camera), height)
             env = dict(env, practical=True)             # plate_env.grade: a lit night keeps its lamps (the character gets the same)
         # F2 (09/10): the same-axis wide view of THIS shot's camera — rendered with it (same Blender run, same cache), sent with it
         wide_cam = plate_camera.wide_for(camera, height, aspect, cam.get("frame_h_m"))
@@ -1163,7 +1163,7 @@ def light_words(rec: Dict, sun_azimuth: float, data: Optional[Dict] = None) -> s
     loc, aim = cam.get("location"), cam.get("look_at")
     if not loc or not aim:
         return ""
-    if data is not None and (not data.get("characters") or cam.get("indoor")):
+    if data is not None and (not data.get("characters") or cam.get("indoor") or cam.get("pov")):   # rà 17/10: POV = nobody in frame
         return ""
     fx, fy = aim[0] - loc[0], aim[1] - loc[1]
     n = math.hypot(fx, fy) or 1.0

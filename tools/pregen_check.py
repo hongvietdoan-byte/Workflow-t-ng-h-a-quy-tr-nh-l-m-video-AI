@@ -35,7 +35,7 @@ def check(conn, pid: int, data_dir: str) -> dict:
     from core.pipeline import Pipeline
     pipe = Pipeline(conn)
     proj = pipe.project(pid)
-    gates = batch.image_gates(pipe, pid, data_dir)
+    gates = batch.image_gates(pipe, pid, data_dir, scene_ids=batch.image_targets(pipe, pid, include_queued=True))   # = the button
     holds, plates = [], []
     on = place_refs.enabled()
     for r in conn.execute("SELECT id, idx, data FROM scenes WHERE project_id=? ORDER BY idx", (pid,)).fetchall():

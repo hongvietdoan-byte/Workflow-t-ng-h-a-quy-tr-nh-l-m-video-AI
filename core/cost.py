@@ -184,7 +184,7 @@ def estimate_images(pipeline: Pipeline, project_id: int, pricing: Dict, model: s
     result.update(_range(None if price is None else price * n + d6, max_retry))
     # 17/10 (#31: the button said ≈ 2,13 = 41 pictures × price, the 💰 box ≈ 5,0 = + D6; the session priced 36 × price = 1,87 by hand):
     # ONE number for every place that shows it (button, box, tools/pregen_check) = pictures + D6 + Claude QC of those pictures, with
-    # the parts listed. `min` / `max` stay pictures + D6 (older callers).
+    # the parts listed. Rà gộp 17/10: `min` / `max` = the same total (× retries) so no place shows another number.
     qc_calls = _picture_qc_calls(pipeline.conn, project_id, n) if n else 0
     qc_unknown: list = []
     qc = picture_qc_usd(pipeline.conn, project_id, n, pricing, qc_unknown) * LLM_MARGIN if n else 0.0
@@ -194,11 +194,50 @@ def estimate_images(pipeline: Pipeline, project_id: int, pricing: Dict, model: s
              {"label": "khung cuối (end_frames)", "count": ends, "usd": None if pic is None else pic * ends},
              {"label": "ảnh toàn cảnh mở cảnh", "count": wide, "usd": None if pic is None else pic * wide},
              {"label": "Claude viết lại prompt trước khi gửi (D6)", "count": shots if d6 else 0, "usd": d6},
-             {"label": "Claude chấm ảnh (QC" + (", chưa có giá" if qc_unknown else "") + ")", "count": qc_calls, "usd": qc}]
+             # an unpriced QC is said "chưa có giá", never shown as 0.00 (rà gộp 17/10)
+             {"label": "Claude chấm ảnh (QC)", "count": qc_calls, "usd": None if qc_unknown and not qc else qc}]
+    extra = outside_estimate(pipeline.conn, shots, pricing)
+    if extra and extra["usd"] is not None:
+        parts.append(extra)                        # measured: counted in the total like D6
+    result["outside_note"] = extra["label"] if extra and extra["usd"] is None else ""   # not measured: said apart, never as 0
     result["parts"] = [x for x in parts if x["count"] or x["usd"]]
     result["qc"] = qc
-    result["total"] = None if pic is None else round(pic * n + d6 + qc, 4)
+    result["outside"] = (extra or {}).get("usd") or 0.0
+    result["total"] = None if pic is None else round(pic * n + d6 + qc + result["outside"], 4)
+    if result["total"] is not None:
+        result.update(_range(result["total"], max_retry))
     return result
+
+
+# 17/10 (#31 thật): ước tính cũ 1,87 USD, chi thật 4,26 USD = ảnh 2,13 + chat_prompt 1,91 + director_rewrite 0,09 + change_review 0,13
+# — the Director's prompt rewrites and Tổ rà soát were in no picture estimate.
+OUTSIDE_STAGES = ("director_rewrite", "change_review")
+OUTSIDE_MEASURED_P31 = "#31 17/10 đo: director_rewrite 0,09 + change_review 0,13 USD cho 41 ảnh"
+
+
+def outside_estimate(conn, pictures: int, pricing: Optional[Dict] = None) -> Optional[Dict]:
+    """The Claude calls made around the pictures but outside their estimate (Đạo diễn sửa prompt — director_rewrite, Tổ rà soát —
+    change_review), one part of the Step 2 total: the ledger's average calls per picture × the measured USD of one call, added
+    like D6. No ledger figure (no call / no picture recorded, or no price) → usd None and the label says "chưa tính" with the
+    #31 measure. None when both flags are off or no picture is to draw."""
+    from . import features
+    stages = [st for st in OUTSIDE_STAGES if features.on(st)]
+    if not stages or pictures <= 0:
+        return None
+    label = "Claude ngoài ước tính (Đạo diễn sửa prompt, Tổ rà soát)"
+    usd = 0.0
+    try:
+        images = conn.execute("SELECT COUNT(*) FROM usage_events WHERE kind='image' AND provider NOT LIKE 'mock%'").fetchone()[0]
+        for st in stages:
+            calls = conn.execute("SELECT COUNT(*) FROM usage_events WHERE kind='llm' AND stage=? AND tier='input'"
+                                 " AND provider NOT LIKE 'mock%'", (st,)).fetchone()[0]
+            one = llm_call_usd(conn, st, pricing, images=1 if st == "director_rewrite" else 0, ledger_stage=st) if calls else None
+            if not images or one is None:
+                return {"label": f"{label} — chưa tính ({OUTSIDE_MEASURED_P31})", "count": pictures, "usd": None}
+            usd += one * calls / images * pictures
+    except Exception as e:  # noqa: BLE001 - an old ledger without a column: said, never counted as 0
+        return {"label": f"{label} — chưa tính (không đọc được sổ chi: {e}; {OUTSIDE_MEASURED_P31})", "count": pictures, "usd": None}
+    return {"label": label + " (trung bình sổ chi mỗi ảnh)", "count": pictures, "usd": usd}
 
 
 def picture_qc_usd(conn, project_id: int, pictures: int, pricing: Dict, unknown: Optional[list] = None) -> float:
@@ -210,7 +249,7 @@ def picture_qc_usd(conn, project_id: int, pictures: int, pricing: Dict, unknown:
         return 0.0
     usd = llm_estimate(conn, "qc", _picture_qc_calls(conn, project_id, pictures), pricing, images=2)
     if usd is None:
-        if unknown is not None:
+        if unknown is not None and f"Claude {llm_model()}" not in unknown:   # rà gộp 17/10: one line per model, not one per caller
             unknown.append(f"Claude {llm_model()}")
         usd = 0.0
     observe_scene = features.on('qc_observe_enum') and qc_scene.active() and qc_scene.claude_on()
@@ -951,13 +990,19 @@ def image_parts_text(est: Dict) -> str:
                       + (f" ≈ {x['usd']:.2f}" if x.get("usd") is not None else " (chưa có giá)") for x in est.get("parts") or [])
 
 
+def _amount(x: float) -> str:
+    """'9.0' as before for a round figure, '2.13' when the cents matter (rà gộp 17/10: old readers parse one decimal)."""
+    return f"{x:.1f}" if round(x, 1) == round(x, 2) else f"{x:.2f}"
+
+
 def format_estimate(est: Dict) -> str:
     unit = "ảnh" if est["kind"] == "image" else "clip"
-    if est["kind"] == "image" and est.get("total") is not None:      # 17/10: ONE number (button = box = pregen_check), parts listed
-        over = "" if est["known"] else " dư — thiếu giá ảnh trong data/pricing.json: giá cao nhất đã biết × 1,5"
-        return (f"{est['items']} {unit} ≈ {est['total']:.2f} {est['currency']} (ước tính{over}; tối đa "
-                f"{est['total'] * (1 + est['max_retry']):.2f} nếu mọi mục phải làm lại đủ {est['max_retry']} lần) — gồm: "
-                + image_parts_text(est))
+    if est["kind"] == "image" and est.get("total") is not None and est["known"]:   # 17/10: ONE number (button = box = pregen_check)
+        # rà gộp 17/10: the old number format ('→ ước tính 9.0 credits (tối đa 27.0 …)') kept for its readers; parts appended
+        head = f"{est['items']} {unit}" + (f" (gồm {est['end_frames']} khung cuối)" if est.get("end_frames") else "")
+        return (f"{head} → ước tính {_amount(est['total'])} {est['currency']} (tối đa {_amount(est['total'] * (1 + est['max_retry']))} "
+                f"nếu mọi mục phải làm lại đủ {est['max_retry']} lần) — gồm: " + image_parts_text(est)
+                + (f" · {est['outside_note']}" if est.get("outside_note") else ""))
     head = f"{est['items']} {unit}" + (f" (gồm {est['end_frames']} khung cuối)" if est.get("end_frames") else "")
     if est["kind"] == "video":
         head += f" · {est['seconds']:.0f} giây · {est['model']} ({est['tier']})"

@@ -74,5 +74,72 @@ class PovViewTests(unittest.TestCase):
         self.assertAlmostEqual(v["background_deg"], (FACING + 180) % 360, delta=0.5)
 
 
+class PovReviewFixTests(unittest.TestCase):
+    """rà quy ước 7 (17/10) của bản sửa POV."""
+
+    def _pov(self, **kw):
+        return pc.camera_for(dict({"angle": "pov", "size": "WS"}, **kw), SPOT, FACING, 1.75)
+
+    def test_lights_keep_left_right_for_a_pov_camera(self):
+        cam = self._pov()["camera"]
+        rigs = plate_choice.light_rigs([{"kind": "lamp", "where": "left", "rgb": (1, 1, 1)}], list(SPOT), pc.light_origin(cam))
+        loc = rigs[0]["location"]
+        self.assertGreater(math.hypot(loc[0] - SPOT[0], loc[1] - SPOT[1]), 1.0)      # before: every light fell on the camera
+        fwd = (math.sin(math.radians(FACING)), math.cos(math.radians(FACING)))
+        right = (fwd[1], -fwd[0])
+        self.assertLess((loc[0] - SPOT[0]) * right[0] + (loc[1] - SPOT[1]) * right[1], -1.0)   # frame left of the eyes
+
+    def test_a_pov_and_a_front_shot_of_one_setup_do_not_share_a_camera(self):
+        shots = [{"id": 1, "data": {"angle": "pov", "size": "WS", "camera_setup": "A", "story_scene": 1}},
+                 {"id": 2, "data": {"angle": "eye", "size": "WS", "camera_setup": "A", "story_scene": 1}}]
+        cams = pc.plan_cameras(shots, lambda s: (SPOT, FACING), lambda s: 1.75)
+        self.assertTrue(cams[1].get("pov"))
+        self.assertFalse(cams[2].get("pov"))
+        self.assertNotIn("shared_with", cams[2])
+
+    def test_pov_view_words_never_say_behind_the_character(self):
+        entry = {"spots": {"s": {"at": list(SPOT), "facing": FACING}}, "default_spot": "s", "anchor": [1.6, 4.3, 1.0]}
+        for bg in ("landmark", "away"):
+            v = plate_choice.view_of(entry, dict(entry["spots"]["s"], name="s"),
+                                     {"angle": "pov", "plate_view": {"background": bg, "why": "x"}})
+            self.assertNotIn("character", v["words_en"])
+            self.assertIn("eyes", v["words_en"])
+
+    def test_pov_light_sentence_lights_no_character(self):
+        lights = [{"kind": "lamp", "where": "left", "rgb": (1, 1, 1), "color_name": "warm", "name": "desk lamp"}]
+        text = plate_choice.light_sentence(lights, True, "night", {"angle": "pov", "characters": ["Kelly"]})
+        self.assertNotIn("Light the character", text)
+
+    def test_pov_light_words_no_rim_light(self):
+        from core import location_pack
+        cam = self._pov()["camera"]
+        rec = {"camera_plan": cam}
+        self.assertEqual(location_pack.light_words(rec, FACING + 180, {"angle": "pov", "characters": ["Kelly"]}), "")
+
+    def test_stage_pov_camera_on_the_spot_has_no_stand_in_box(self):
+        sc = {"location": [SPOT[0], SPOT[1], 1.6], "look_at": [1.6, 4.3, 1.6], "lens": 20, "pov": "Kelly"}
+        cam = pc.from_stage(sc, SPOT, 1.75)
+        self.assertTrue(cam["camera"].get("pov"))
+        self.assertIsNone(cam["subject_box"])
+        far = pc.from_stage(dict(sc, location=[SPOT[0] + 3, SPOT[1], 1.6]), SPOT, 1.75)   # POV of someone else looking at the spot
+        self.assertFalse(far["camera"].get("pov"))
+        self.assertIsNotNone(far["subject_box"])
+
+    def test_pov_travel_why_says_eyes(self):
+        cam = pc.travel_camera({"angle": "pov", "size": "WS"}, SPOT, SPOT, (SPOT[0] - 3, SPOT[1] + 4, 0.0), "lead", 1.75)
+        self.assertIn("POV", cam["why"]["travel"])
+        self.assertNotIn("LÙI", cam["why"]["travel"])
+
+    def test_side_truth_pov_left_is_frame_left(self):
+        from core import side_truth
+        self.assertEqual(side_truth.camera_relation({"angle": "pov"})[0], "behind")
+
+    def test_geometry_sentence_keeps_the_eye_height_of_a_pov(self):
+        from core import place_refs
+        cam = dict(self._pov()["camera"], model_coords=True)
+        text = place_refs.geometry_sentence({"camera_plan": cam, "camera": {}}, {"angle": "pov"})
+        self.assertIn("1.6 m above the ground", text)
+
+
 if __name__ == "__main__":
     unittest.main()

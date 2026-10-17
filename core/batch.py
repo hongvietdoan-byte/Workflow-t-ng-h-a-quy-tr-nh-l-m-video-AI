@@ -15,20 +15,98 @@ class GateError(ValueError):
     """The manual "Gen ảnh" hit a gate the automatic run has (Bible contradicts the pictures, no Character Lock): nothing was queued."""
 
 
-def image_gates(p: Pipeline, project_id: int, data_dir: Optional[str] = None) -> Dict:
+_STALE_MEMO: Dict = {}
+_RERENDER_TRIED: Dict = {}
+
+
+def _index_stamp(data_dir: str, project_id: int):
+    import os
+    from . import location_pack
+    try:
+        return os.stat(location_pack._index_path(data_dir, project_id)).st_mtime_ns
+    except OSError:
+        return None
+
+
+def _stale_memo(p: Pipeline, project_id: int, data_dir: str) -> Dict:
+    """Rà gộp 17/10: place_refs.stale (plan() of every shot) once per index file + shots' data — Step 2 asks it on every redraw."""
+    import hashlib
+    import os
+    import time
+    from . import place_refs
+    res = place_refs.resolution_of(p.project(project_id))
+    digest = hashlib.sha1("".join(str(r[0]) + (r[1] or "") for r in p.conn.execute(
+        "SELECT id, data FROM scenes WHERE project_id=? ORDER BY id", (project_id,))).encode("utf-8")).hexdigest()
+    key = (id(p.conn), project_id, os.path.abspath(data_dir), _index_stamp(data_dir, project_id), digest, tuple(res))
+    hit = _STALE_MEMO.get(key)
+    if hit is None or time.time() - hit[0] > 30:          # 30 s: flags / pack files the plan reads are not in the key
+        _STALE_MEMO.clear()
+        hit = _STALE_MEMO[key] = (time.time(), place_refs.stale(p.conn, data_dir, project_id, res))
+    return hit[1]
+
+
+def rerender_stale(p: Pipeline, project_id: int, data_dir: str, run=None) -> Optional[str]:
+    """Rà gộp 17/10: start the 0 USD render of the old 3D backgrounds (place_refs.ensure_async) only when the plates index changed since
+    the last start — a render that cannot fix them would otherwise restart Blender on every press / redraw. None = rendering (or
+    started); a sentence = the last render left the index as it was (said, the person looks at it). `run` = ensure_async's (tests)."""
+    import os
+    from . import place_refs
+    t = place_refs._RUNNING.get(project_id)
+    if t is not None and t.is_alive():
+        return None
+    key = (os.path.abspath(data_dir), project_id)
+    stamp = _index_stamp(data_dir, project_id)
+    if key in _RERENDER_TRIED and _RERENDER_TRIED[key] == stamp:
+        return ("render nền 3D lại không sửa được nền cũ (plates/index.json không đổi từ lần render trước) — xem log render / "
+                "chạy `location_pack render --fresh-shot`")
+    _RERENDER_TRIED[key] = stamp
+    place_refs.ensure_async(p.conn, project_id, data_dir, place_refs.resolution_of(p.project(project_id)), run=run)
+    return None
+
+
+def image_targets(p: Pipeline, project_id: int, include_queued: bool = False) -> List[int]:
+    """Rà gộp 17/10: the shots a "Gen ảnh" press would draw — ready shots without a live picture that need their own (multi-shot),
+    approved pictures made from an outdated spec (no take waiting), both within a running pilot — the same lists queue_images
+    queues; `include_queued` adds the image jobs already queued (the Step 2 button sends those too)."""
+    conn = p.conn
+    fresh = [r["id"] for r in conn.execute(
+        f"SELECT id FROM scenes WHERE project_id=? AND state='ready' AND id NOT IN (SELECT scene_id FROM jobs WHERE type='image_gen'"
+        f" AND state IN {LIVE}) ORDER BY idx", (project_id,))]
+    stale = {sid: r for sid, r in lineage.scan(conn, project_id).items() if r["image_stale"] and r["image_job_id"]}
+    from . import shots
+    fresh = [sid for sid in fresh if shots.needs_own_image(conn, sid)]
+    fresh = pilot.allowed_scenes(p, project_id, fresh)
+    redo = pilot.allowed_scenes(p, project_id, [sid for sid in stale if not p.has_pending_take(sid, "image_gen")])
+    out = list(fresh) + [sid for sid in redo if sid not in fresh]
+    if include_queued:
+        out += [r[0] for r in conn.execute("SELECT DISTINCT scene_id FROM jobs WHERE project_id=? AND type='image_gen' AND state='queued'",
+                                           (project_id,)) if r[0] not in out]
+    return out
+
+
+def image_gates(p: Pipeline, project_id: int, data_dir: Optional[str] = None, scene_ids: Optional[List[int]] = None) -> Dict:
     """The gates the automatic run applies before any picture is paid for (core.autopilot._director_phase), for the manual path:
     {"block": [...]} = a Bible that contradicts its library pictures (last check, no new Claude call) or a character without a Character
     Lock (O6) — the person must fix it or confirm; {"warn": [...]} = a character without a reference picture (drawn from words).
     17/10 (#31: 7 old 3D backgrounds only showed YELLOW on the Dashboard): `data_dir` given → a shot whose 3D background is not its
     current camera's (location_pack.stale_plates — the one definition the runner's hold and the render step use) BLOCKS too, listed
-    in "plates_stale" {scene_id: item}; the caller starts the 0 USD render (place_refs.ensure_async). Read-only."""
+    in "plates_stale" {scene_id: item}; the caller starts the 0 USD render (place_refs.ensure_async). Read-only.
+    Rà gộp 17/10: `scene_ids` = the shots this press would draw (image_targets) — only their old backgrounds block (an approved shot
+    outside the pilot does not hold the others); None = every shot, as before. A plan that cannot be computed (place_refs.stale key
+    -1) is a WARNING "không so được nền 3D" — never a block that says "đang render lại" while nothing is rendered."""
     from . import autopilot, claude_tasks
     block, warn = [], []
     plates_stale: Dict = {}
     if data_dir:
         from . import place_refs
         if place_refs.enabled():
-            plates_stale = place_refs.stale(p.conn, data_dir, project_id, place_refs.resolution_of(p.project(project_id)))
+            plates_stale = dict(_stale_memo(p, project_id, data_dir))
+            broken = plates_stale.pop(-1, None)
+            if broken:
+                warn.append(f"không so được nền 3D với kế hoạch — {broken['why']}; ảnh gửi theo render hiện có (kiểm tay ở Bước 2)")
+            if scene_ids is not None:
+                keep = set(scene_ids)
+                plates_stale = {k: v for k, v in plates_stale.items() if k in keep}
             if plates_stale:
                 shown = sorted(plates_stale.items(), key=lambda kv: kv[1].get("idx") or 0)
                 block.append(f"nền 3D cũ ở {len(shown)} shot (" + ", ".join(str(v.get("idx") or k) for k, v in shown[:12])
@@ -63,10 +141,11 @@ def queue_images(p: Pipeline, project_id: int, confirmed: bool = False, data_dir
     fresh = pilot.allowed_scenes(p, project_id, fresh)
     redo_ids = pilot.allowed_scenes(p, project_id, [sid for sid in stale if not p.has_pending_take(sid, "image_gen")])   # S14.17 rà #2
     if fresh or redo_ids:
-        gates = image_gates(p, project_id, data_dir)
-        if gates.get("plates_stale") and data_dir and -1 not in gates["plates_stale"]:
-            from . import place_refs                     # 17/10: the old backgrounds are rendered again now (0 USD)
-            place_refs.ensure_async(conn, project_id, data_dir, place_refs.resolution_of(p.project(project_id)))
+        gates = image_gates(p, project_id, data_dir, scene_ids=list(fresh) + list(redo_ids))   # rà gộp 17/10: only the shots sent
+        if gates.get("plates_stale") and data_dir:
+            stuck = rerender_stale(p, project_id, data_dir)   # 17/10: the old backgrounds are rendered again now (0 USD)
+            if stuck:
+                gates["block"].append(stuck)
         if gates["block"] and not confirmed:
             raise GateError("Chưa gen ảnh: " + "; ".join(gates["block"]) + " — sửa ở Bước 1 (Character Bible / Lock) hoặc tick "
                             "“vẫn gen” nếu bạn đã xem và chấp nhận")

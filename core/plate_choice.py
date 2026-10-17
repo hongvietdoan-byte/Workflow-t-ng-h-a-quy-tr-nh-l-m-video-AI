@@ -102,7 +102,11 @@ def is_behind(data: Dict) -> bool:
 def _looks_along(data: Dict) -> bool:
     """The camera looks the way the character looks: from behind (is_behind) or as their eyes (angle 'pov', 17/10 #31 shot 1/2/3/5:
     the background of a POV was turned round — shot 3 rendered the wall at Kelly's back, not the two doors in front)."""
-    return is_behind(data) or str((data or {}).get("angle") or "").strip().lower() == "pov"
+    return is_behind(data) or _is_pov(data)
+
+
+def _is_pov(data: Optional[Dict]) -> bool:
+    return str((data or {}).get("angle") or "").strip().lower() == "pov"
 
 
 def bearing(a: Sequence[float], b: Sequence[float]) -> Optional[float]:
@@ -185,6 +189,11 @@ def view_of(entry: Dict, spot: Dict, data: Dict) -> Dict:
                                     "opposite side of the place",
                             "left": f"the camera looks across the place: {mark} is off-frame to the right",
                             "right": f"the camera looks across the place: {mark} is off-frame to the left"}[kind]
+                if _is_pov(data) and kind in ("landmark", "away"):
+                    # rà 17/10: nobody is in a POV frame — "behind the character" would invite the model to draw one
+                    words_en = (f"the eyes look towards {mark}: {mark} is ahead, in the frame (as far as the walls around let it be "
+                                "seen — the 3D render decides)" if kind == "landmark" else
+                                f"the eyes look away from {mark}: {mark} is NOT in the frame")
         elif text in ("scenery", "view", "view_out", "cảnh quan", "canh quan"):
             point = spot.get("view_out") if text == "view_out" or (text != "view" and spot.get("indoor") and spot.get("view_out")) \
                 else spot.get("view")
@@ -342,7 +351,7 @@ def light_sentence(lights: List[Dict], decided: bool, time: str, data: Optional[
     "the character", and "only the moonlight" is said only when the DP really wrote `practical_lights: []` (a lamp dropped for a bad
     `where` is not a choice of moonlight — lights_of reports it). indoor (rà 17/10): a room at night is not lit by "only the moonlight"
     — no extra lamp indoors says nothing."""
-    people = True if data is None else bool(data.get("characters"))
+    people = True if data is None else bool(data.get("characters")) and not _is_pov(data)   # rà 17/10: POV = nobody in frame
     if not lights:
         none_said = True if data is None else raw_lights(data) == []
         return ("No extra light source: only the moonlight lights the character."

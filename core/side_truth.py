@@ -62,6 +62,8 @@ def camera_relation(data: Dict) -> Tuple[Optional[str], str]:
     """('behind' | 'front' | None, lý do). Chỉ từ chữ máy của shot; không đủ chắc → None + lý do."""
     from . import plate_choice
     words = _nfc(" ".join(str(data.get(k) or "") for k in ("angle", "shot", "blocking", "start_frame")))
+    if str(data.get("angle") or "").strip().lower() == "pov":
+        return "behind", "góc nhìn thứ nhất (POV) — trái của nhân vật là trái khung, như máy sau lưng"   # rà 17/10
     behind = plate_choice.is_behind(data)
     front = _hit(_FRONT, words) or str(data.get("angle") or "").strip().lower() == "reverse"
     if behind and front:

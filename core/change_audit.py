@@ -61,8 +61,13 @@ def audit_shot(conn, data_dir: str, pid: int, scene_id: int) -> List[Dict]:
         # location_pack.stale_plates (plan key + render_moved); before, this compared stage_camera with the index on its own and
         # called 7 renders old that `location_pack render` (ensure_plates) reused
         from . import location_pack
-        prow = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
-        st = location_pack.stale_plate(conn, pid, data_dir, scene_id, place_refs.resolution_of(prow)) if prow else None
+        st = None
+        if rec and not (rec.get("failed") or rec.get("needs")):   # only asked when a usable render exists (the one case it decides)
+            try:
+                prow = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
+                st = location_pack.stale_plate(conn, pid, data_dir, scene_id, place_refs.resolution_of(prow)) if prow else None
+            except Exception as e:  # noqa: BLE001 - said, never silently passed (an old/partial database has no projects table)
+                say("vang", "nen", f"không so được nền 3D với kế hoạch ({type(e).__name__}: {e})")
         if not rec:
             say("do", "nen", "render nền 3D chưa theo máy hiện tại — chưa có render (tự render khi gửi / location_pack render, 0 USD)")
         elif rec.get("failed") or rec.get("needs"):

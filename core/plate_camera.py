@@ -62,6 +62,7 @@ LOOK_DOWN_ANGLES = ("high", "ots")
 LOW_CAM_SHARE, LOW_TILT_DEG = 0.5, 8.0
 # 17/10 (#31 shot 1/2/3/5): a POV camera is the eyes — at the spot, POV_EYE_SHARE of the height, aimed POV_AIM_M ahead
 POV_EYE_SHARE, POV_AIM_M = 0.93, 10.0
+STAGE_POV_NEAR_M = 0.6                         # a stage POV camera this close to the shot's spot stands on it (the eyes)
 DOWN_WORDS = ("look down", "looks down", "looking down", "peer down", "peers down", "peering down", "peer into", "peers into",
               "peering into", "gaze down", "gazes down", "gazing down", "glance down", "glances down", "glancing down", "stare down",
               "stares down", "staring down", "leaning over", "leans over", "lean over", "bends over", "bending over",
@@ -180,16 +181,27 @@ def _pov_camera(data: Dict, spot: Sequence[float], facing_deg: float, height_m: 
     down = looks_down(data)
     drop = POV_AIM_M * math.tan(math.radians(LOOK_DOWN_PITCH_DEG)) if down else 0.0
     cam = (spot[0], spot[1], eye_z + lift)
+    ground_z = spot[2] + lift
     aim = (spot[0] + fwd[0] * POV_AIM_M, spot[1] + fwd[1] * POV_AIM_M, eye_z + lift - drop)
     pitch = -LOOK_DOWN_PITCH_DEG if down else 0.0
     why = {"pov": (f"góc nhìn thứ nhất: máy tại chỗ đứng, cao mắt {height_m * POV_EYE_SHARE:.2f} m, nhìn theo hướng {facing_deg % 360:g}°"
                    + (f", cúi {LOOK_DOWN_PITCH_DEG:g}° (hành động nhìn xuống)" if down else ", ngang") + f", ống {lens:g} mm"),
            "direction": f"POV — nền là chỗ mắt nhìn ({facing_deg % 360:g}°), không có người trong khung"}
     return {"camera": {"name": name, "location": [round(c, 3) for c in cam], "look_at": [round(c, 3) for c in aim], "lens": lens,
-                       "angle": "eye_level", "pov": True},
+                       "angle": "eye_level", "pov": True, "ground_z": round(ground_z, 3)},
             "subject_box": None, "feet_y": None, "distance_m": 0.0, "size": size, "side": "center", "behind": False, "pov": True,
             "frame_h_m": round(2 * POV_AIM_M * math.tan(fov / 2), 3), "horizon_y": horizon_y(cam, aim, lens, aspect),
             "pitch_deg": round(pitch, 1), "fixes": [], "problem": None, "why": why}
+
+
+def light_origin(camera: Dict) -> List[float]:
+    """The camera point plate_choice.light_rigs reads the frame's left/right/behind from. A POV camera stands ON the spot (camera →
+    spot has no direction: every light fell on the camera, rà 17/10) → a point one aim-length behind it along its look."""
+    loc = [float(c) for c in camera["location"]]
+    if not camera.get("pov"):
+        return loc
+    aim = [float(c) for c in camera["look_at"]]
+    return [2 * loc[0] - aim[0], 2 * loc[1] - aim[1], loc[2]]
 
 
 def camera_for(data: Dict, spot: Sequence[float], facing_deg: float, height_m: float = 1.75, aspect: float = 9 / 16,
@@ -352,7 +364,8 @@ def travel_camera(data: Dict, here: Sequence[float], a: Sequence[float], b: Sequ
     lift = rise_at(loc[0], loc[1])
     cam["travel"] = {"mode": mode, "facing_deg": facing, "lift_m": round(lift, 2)}
     cam["why"]["travel"] = (f"nhân vật chạy theo hướng {facing:g}° (A→B, travel_truth): máy "
-                            + ("LÙI trước mặt trên đường chạy, nhìn về A" if mode == "lead" else "BÁM SAU lưng trên đường chạy, nhìn về B")
+                            + ("là MẮT người chạy (POV), nhìn về B" if cam.get("pov") else
+                               "LÙI trước mặt trên đường chạy, nhìn về A" if mode == "lead" else "BÁM SAU lưng trên đường chạy, nhìn về B")
                             + f", cách {cam['distance_m']:g} m, mặt đất dưới máy {'cao' if lift >= 0 else 'thấp'} hơn chỗ đứng "
                               f"{abs(lift):.2f} m (nội suy độ cao A/B)")
     return cam
@@ -582,7 +595,9 @@ def from_stage(sc: Dict, spot: Sequence[float], height_m: float, aspect: float =
     d = [a - c for a, c in zip(aim, cam)]
     pitch = math.degrees(math.atan2(d[2], math.hypot(d[0], d[1])))
     angle = "high_angle" if pitch <= -15 else ("low_angle" if cam[2] - spot[2] < 0.6 * height_m or pitch >= 10 else "eye_level")
-    box = subject_box(cam, aim, lens, aspect, spot, height_m)
+    # rà 17/10: a stage POV camera standing on the shot's own spot is the eyes — no stand-in / box / clearance against its own body
+    pov = bool(sc.get("pov")) and math.hypot(cam[0] - spot[0], cam[1] - spot[1]) < STAGE_POV_NEAR_M
+    box = None if pov else subject_box(cam, aim, lens, aspect, spot, height_m)
     why = {"stage": f"máy GIẢI từ yêu cầu khung ({sc.get('source', 'stage_v2')}): cao {cam[2] - spot[2]:.2f} m trên chỗ đứng, "
                     f"nghiêng {pitch:.0f}°, ống {lens:g} mm — đã đo che khuất bằng tia, không tự chỉnh"}
     if sc.get("pov"):
@@ -590,8 +605,10 @@ def from_stage(sc: Dict, spot: Sequence[float], height_m: float, aspect: float =
     if sc.get("move"):
         why["move"] = f"máy chuyển động trong shot: {sc['move']} (nền = khung ĐẦU)"
     return {"camera": {"name": name, "location": [round(c, 3) for c in cam], "look_at": [round(c, 3) for c in aim], "lens": lens,
-                       "angle": angle, "locked": True, **({"props": sc["props"]} if sc.get("props") else {})},
-            "subject_box": box, "feet_y": box[3], "distance_m": round(math.hypot(cam[0] - spot[0], cam[1] - spot[1]), 2), "size": None,
+                       "angle": angle, "locked": True, **({"props": sc["props"]} if sc.get("props") else {}),
+                       **({"pov": True, "ground_z": round(float(spot[2]), 3)} if pov else {})},
+            "subject_box": box, "feet_y": box[3] if box else None, "pov": pov,
+            "distance_m": 0.0 if pov else round(math.hypot(cam[0] - spot[0], cam[1] - spot[1]), 2), "size": None,
             "side": None, "behind": False, "frame_h_m": None, "horizon_y": horizon_y(cam, aim, lens, aspect), "pitch_deg": round(pitch, 1),
             "fixes": [], "problem": None, "why": why}
 
@@ -626,7 +643,8 @@ def plan_cameras(shots: List[Dict], spot_of, height_of, aspect: float = 9 / 16, 
             key = (scene, "plan", str(data[setup_field]), size_of(data), tuple(round(float(c), 3) for c in spot[0]),
                    str(data.get("angle") or "eye").lower(), looks_down(data), lens_of(data, 0.0), wants_sky(data))
         else:
-            key = (data.get("story_scene"), data.get("camera_setup"), size_of(data)) if data.get("camera_setup") else None
+            # rà 17/10: a POV and a shot with the character in front of the camera never share one camera
+            key = (data.get("story_scene"), data.get("camera_setup"), size_of(data), is_pov(data)) if data.get("camera_setup") else None
         if key and key in setups:
             out[s["id"]] = dict(setups[key], shared_with=setups[key]["camera"]["name"],
                                 **({"shared_by": "plan"} if key[1] == "plan" else {}))

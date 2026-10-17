@@ -654,39 +654,52 @@ def _migrate_outputs(conn: sqlite3.Connection) -> None:
 
 # 10/10 Tổ rà soát tác động: trigger tạo SAU mọi migration (CSDL cũ: assets.profile / asset_images.status được ALTER thêm sau SCHEMA —
 # tạo trong SCHEMA thì "no such column: new.profile", test_ai_label OutputsMigrationTest)
+_TIMES_SQL = "('dawn', 'day', 'dusk', 'night')"
+_WEATHERS_SQL = "('clear', 'cloudy', 'fog', 'rain', 'storm', 'snow', 'snowfall', 'ice', 'sandstorm')"
+
+
+def _t(x: str) -> str:
+    """The shot's time as core/plate_env.time_of reads it: `time_of_day` first, then `time` (rà gộp 17/10: the trigger copied `$.time`
+    while sync_noi_chon preferred time_of_day — two answers for one shot)."""
+    return f"lower(COALESCE(NULLIF(json_extract({x}, '$.time_of_day'), ''), json_extract({x}, '$.time')))"
+
+
+def _w(x: str) -> str:
+    return f"lower(json_extract({x}, '$.weather'))"
+
+
+def _noi_chon_cond(x: str) -> str:
+    """byd.noi_chon present and its thoi_gian / thoi_tiet not the shot's canonical time / weather."""
+    return (f"json_valid({x}) AND json_type({x}, '$.byd.noi_chon') = 'object' AND ("
+            f"        ({_t(x)} IN {_TIMES_SQL} AND COALESCE(json_extract({x}, '$.byd.noi_chon.thoi_gian'), '') <> {_t(x)})"
+            f"        OR ({_w(x)} IN {_WEATHERS_SQL} AND COALESCE(json_extract({x}, '$.byd.noi_chon.thoi_tiet'), '') <> {_w(x)}))")
+
+
+def _noi_chon_synced(x: str) -> str:
+    """`x` with byd.noi_chon.thoi_gian / thoi_tiet copied from the canonical time / weather (a non-canonical one left as it is)."""
+    ts = f"CASE WHEN {_t(x)} IN {_TIMES_SQL} THEN json_set({x}, '$.byd.noi_chon.thoi_gian', {_t(x)}) ELSE {x} END"
+    return f"CASE WHEN {_w(x)} IN {_WEATHERS_SQL} THEN json_set({ts}, '$.byd.noi_chon.thoi_tiet', {_w(x)}) ELSE {ts} END"
+
+
 CHANGE_TRIGGERS = """
 -- 17/10 (#31 shot 27–30: time/weather đổi night/fog, byd.noi_chon vẫn dawn/clear → Tổ rà soát gọi Claude bắt 13 mục đỏ): time /
 -- weather của shot là NGUỒN DUY NHẤT (data/decisions.json time-weather-single-source-2026-10-17); byd.noi_chon.thoi_gian / thoi_tiet là bản chép,
 -- đồng bộ ở CSDL cho MỌI đường ghi (Dashboard, Đạo diễn, công cụ, SQL tay). Chữ ngoài danh sách plate_env (vd 'đêm') do Python
 -- chuẩn hóa (core/shot_intent.sync_noi_chon); ở đây chỉ chép giá trị chuẩn. Đồng bộ không phải một thay đổi để rà (trg_change_scene).
-CREATE TRIGGER IF NOT EXISTS trg_scene_noi_chon AFTER UPDATE OF data ON scenes
-    WHEN json_valid(new.data) AND json_type(new.data, '$.byd.noi_chon') = 'object' AND (
-        (lower(json_extract(new.data, '$.time')) IN ('dawn', 'day', 'dusk', 'night')
-         AND COALESCE(json_extract(new.data, '$.byd.noi_chon.thoi_gian'), '') <> lower(json_extract(new.data, '$.time')))
-        OR (lower(json_extract(new.data, '$.weather')) IN ('clear', 'cloudy', 'fog', 'rain', 'storm', 'snow', 'snowfall', 'ice', 'sandstorm')
-         AND COALESCE(json_extract(new.data, '$.byd.noi_chon.thoi_tiet'), '') <> lower(json_extract(new.data, '$.weather'))))
+-- Rà gộp 17/10: DROP trước CREATE (CSDL đã có bản trigger cũ chép `$.time` thì IF NOT EXISTS giữ bản cũ mãi).
+DROP TRIGGER IF EXISTS trg_scene_noi_chon;
+DROP TRIGGER IF EXISTS trg_scene_noi_chon_new;
+CREATE TRIGGER trg_scene_noi_chon AFTER UPDATE OF data ON scenes
+    WHEN """ + _noi_chon_cond("new.data") + """
 BEGIN
-    UPDATE scenes SET data = json_set(data,
-        '$.byd.noi_chon.thoi_gian', CASE WHEN lower(json_extract(data, '$.time')) IN ('dawn', 'day', 'dusk', 'night') THEN lower(json_extract(data, '$.time'))
-                                         ELSE json_extract(data, '$.byd.noi_chon.thoi_gian') END,
-        '$.byd.noi_chon.thoi_tiet', CASE WHEN lower(json_extract(data, '$.weather')) IN ('clear', 'cloudy', 'fog', 'rain', 'storm', 'snow', 'snowfall', 'ice', 'sandstorm') THEN lower(json_extract(data, '$.weather'))
-                                         ELSE json_extract(data, '$.byd.noi_chon.thoi_tiet') END)
-    WHERE id = new.id;
+    UPDATE scenes SET data = """ + _noi_chon_synced("data") + """ WHERE id = new.id;
 END;
-CREATE TRIGGER IF NOT EXISTS trg_scene_noi_chon_new AFTER INSERT ON scenes
-    WHEN json_valid(new.data) AND json_type(new.data, '$.byd.noi_chon') = 'object' AND (
-        (lower(json_extract(new.data, '$.time')) IN ('dawn', 'day', 'dusk', 'night')
-         AND COALESCE(json_extract(new.data, '$.byd.noi_chon.thoi_gian'), '') <> lower(json_extract(new.data, '$.time')))
-        OR (lower(json_extract(new.data, '$.weather')) IN ('clear', 'cloudy', 'fog', 'rain', 'storm', 'snow', 'snowfall', 'ice', 'sandstorm')
-         AND COALESCE(json_extract(new.data, '$.byd.noi_chon.thoi_tiet'), '') <> lower(json_extract(new.data, '$.weather'))))
+CREATE TRIGGER trg_scene_noi_chon_new AFTER INSERT ON scenes
+    WHEN """ + _noi_chon_cond("new.data") + """
 BEGIN
-    UPDATE scenes SET data = json_set(data,
-        '$.byd.noi_chon.thoi_gian', CASE WHEN lower(json_extract(data, '$.time')) IN ('dawn', 'day', 'dusk', 'night') THEN lower(json_extract(data, '$.time'))
-                                         ELSE json_extract(data, '$.byd.noi_chon.thoi_gian') END,
-        '$.byd.noi_chon.thoi_tiet', CASE WHEN lower(json_extract(data, '$.weather')) IN ('clear', 'cloudy', 'fog', 'rain', 'storm', 'snow', 'snowfall', 'ice', 'sandstorm') THEN lower(json_extract(data, '$.weather'))
-                                         ELSE json_extract(data, '$.byd.noi_chon.thoi_tiet') END)
-    WHERE id = new.id;
+    UPDATE scenes SET data = """ + _noi_chon_synced("data") + """ WHERE id = new.id;
 END;
+-- rà gộp 17/10: `after` = the row as it will be stored (with the noi_chon copy made by trg_scene_noi_chon), not the write before it
 DROP TRIGGER IF EXISTS trg_change_scene;
 CREATE TRIGGER IF NOT EXISTS trg_change_scene AFTER UPDATE OF data ON scenes
     WHEN COALESCE(CASE WHEN json_valid(old.data) THEN json_remove(old.data, '$.byd.noi_chon.thoi_gian', '$.byd.noi_chon.thoi_tiet')
@@ -695,7 +708,8 @@ CREATE TRIGGER IF NOT EXISTS trg_change_scene AFTER UPDATE OF data ON scenes
                        ELSE new.data END, '')
 BEGIN
     INSERT INTO change_events(at, kind, project_id, scene_id, before, after)
-    VALUES (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'scene', new.project_id, new.id, old.data, new.data);
+    VALUES (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'scene', new.project_id, new.id, old.data,
+            CASE WHEN """ + _noi_chon_cond("new.data") + """ THEN """ + _noi_chon_synced("new.data") + """ ELSE new.data END);
 END;
 -- C4 (rà chuỗi 13/10): sửa tay motion prompt (Bước 3 / store_motion_prompts / mọi đường ghi) cũng là một thay đổi của shot — kind
 -- 'motion' (không lẫn với ảnh chụp scenes.data mà lineage đọc); chỉ được rà khi bật cờ change_review_motion (core/change_review.py)

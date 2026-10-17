@@ -67,10 +67,12 @@ def run_preview(a) -> dict:
     res = (720, 1280)
     cam = plate_camera.camera_for(data, sp["at"], view["facing_deg"], 1.75, res[0] / res[1], name="preview")
     camera = dict(cam["camera"], model_coords=True, subject={"location": sp["at"], "height_m": 1.75})
+    if camera.get("pov"):                                # like core/location_pack.plan: no stand-in at the POV eyes
+        camera.pop("subject")
     if sp.get("indoor"):                                 # rà 15/10: like core/location_pack.plan (room light + ceiling rule)
         camera["indoor"] = dict(sp["indoor"])
     if lit["lights"]:
-        camera["lights"] = plate_choice.light_rigs(lit["lights"], sp["at"], camera["location"], 1.75)
+        camera["lights"] = plate_choice.light_rigs(lit["lights"], sp["at"], plate_camera.light_origin(camera), 1.75)
         env = dict(env, practical=True)
     benv = plate_env.blender_env(env, entry.get("sun_azimuth", 250.0))
     out = os.path.abspath(a.out or ".")
@@ -178,7 +180,8 @@ def main():
     if a.cmd == "plan":
         for it in location_pack.plan(conn, a.project):
             print(f"shot {it['idx']:>3} · {it['place']} · {location_pack.layout_words(it)} · "
-                  f"cách {it['distance_m']} m · ống {it['camera']['lens']} mm · ô nhân vật {it['subject_box']}"
+                  + (f"POV — máy là mắt, không người trong khung · ống {it['camera']['lens']} mm" if it['camera'].get('pov') else
+                     f"cách {it['distance_m']} m · ống {it['camera']['lens']} mm · ô nhân vật {it['subject_box']}")
                   + "".join(f" · ⚠ {it[k]}" for k in ("weather_problem", "spot_problem", "view_problem", "light_problem", "travel_problem") if it.get(k))
                   + (f" · ⛔ {it['needs']}" if it.get("needs") else ""))
         return

@@ -211,10 +211,13 @@ def step2(p: Pipeline, pid: int):
         est = image_estimate(p, pid)
         if runner is not None:
             est_ok = SB.show_estimate(est, runner) if v2 else show_estimate(est, runner)
-        gates = batch.image_gates(p, pid, C.DATA)         # the automatic run's gates apply to this button too
-        if gates.get("plates_stale") and -1 not in gates["plates_stale"] and not C.read_only(p, pid):
-            from core import place_refs                   # 17/10: an old 3D background blocks (red) and is rendered again (0 USD)
-            place_refs.ensure_async(p.conn, pid, C.DATA, place_refs.resolution_of(proj))
+        # the automatic run's gates apply to this button too; rà gộp 17/10: only the shots this press draws (+ queued ones it sends)
+        gates = batch.image_gates(p, pid, C.DATA, scene_ids=batch.image_targets(p, pid, include_queued=True))
+        if gates.get("plates_stale") and not C.read_only(p, pid):
+            # 17/10: an old 3D background blocks (red) and is rendered again (0 USD) — once per index change (rà gộp 17/10)
+            stuck = batch.rerender_stale(p, pid, C.DATA)
+            if stuck:
+                gates["block"].append(stuck)
         if v2 and gates["warn"]:
             SB.note(f"⚠ {len(gates['warn'])} lưu ý trước khi gen ảnh", "\n".join(f"- ⚠ {w}" for w in gates["warn"]), "sb-gen-warn", kind="warn")
         else:

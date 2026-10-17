@@ -146,6 +146,8 @@ def geometry_sentence(rec: Dict, data: Dict, sun_azimuth: float = 250.0) -> str:
     # run on #8: a close-up said "camera 4.9 m above the ground" — 3.3 m of lift too many)
     lens, height = cam.get("lens"), (cam.get("location") or [None, None, None])[2]
     subject_z = ((cam.get("subject") or {}).get("location") or [0, 0, None])[2]
+    if subject_z is None and cam.get("pov"):
+        subject_z = cam.get("ground_z")                     # rà 17/10: a POV camera has no stand-in — its own ground height
     if lens and height is not None and subject_z is not None:
         bits.append(f"{float(lens):g} mm lens, camera {float(height) - float(subject_z):.1f} m above the ground")
     if data.get("characters") and rec.get("subject_box"):

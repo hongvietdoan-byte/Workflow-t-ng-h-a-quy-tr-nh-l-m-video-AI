@@ -168,7 +168,8 @@ class PriceTests(Base):
         self.assertEqual(est["items"], 1)
         self.assertAlmostEqual(est["total"], 0.05 + 0.08 + 0.1 * cost.LLM_MARGIN)
         self.assertAlmostEqual(sum(x["usd"] for x in est["parts"]), est["total"])
-        self.assertEqual(est["min"], 0.05 + 0.08)                                   # older callers unchanged
+        # rà gộp 17/10 (lỗi G): min / max = the same total (× retries) — before, min left QC out and differed from the button
+        self.assertAlmostEqual(est["min"], est["total"])
         text = cost.format_estimate(est)
         self.assertIn(f"{est['total']:.2f}", text)
         for label in ("ảnh khung đầu", "D6", "QC"):
@@ -204,7 +205,8 @@ class PregenCheckTests(StageBase):
     def test_the_command_reads_the_button_functions_not_a_copy(self):
         import pregen_check
         src = inspect.getsource(pregen_check.check)
-        for call in ("batch.image_gates(pipe, pid, data_dir)", "change_review.blocking(conn, r[\"id\"], data_dir)",
+        # rà gộp 17/10 (lỗi B): the command passes the button's own shot list (batch.image_targets) — same call as Step 2
+        for call in ("batch.image_gates(pipe, pid, data_dir, scene_ids=batch.image_targets(pipe, pid, include_queued=True))", "change_review.blocking(conn, r[\"id\"], data_dir)",
                      "cost.estimate_images(", "place_refs.broken("):
             self.assertIn(call, src)
 
