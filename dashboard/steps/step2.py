@@ -211,7 +211,10 @@ def step2(p: Pipeline, pid: int):
         est = image_estimate(p, pid)
         if runner is not None:
             est_ok = SB.show_estimate(est, runner) if v2 else show_estimate(est, runner)
-        gates = batch.image_gates(p, pid)                 # the automatic run's gates apply to this button too
+        gates = batch.image_gates(p, pid, C.DATA)         # the automatic run's gates apply to this button too
+        if gates.get("plates_stale") and -1 not in gates["plates_stale"] and not C.read_only(p, pid):
+            from core import place_refs                   # 17/10: an old 3D background blocks (red) and is rendered again (0 USD)
+            place_refs.ensure_async(p.conn, pid, C.DATA, place_refs.resolution_of(proj))
         if v2 and gates["warn"]:
             SB.note(f"⚠ {len(gates['warn'])} lưu ý trước khi gen ảnh", "\n".join(f"- ⚠ {w}" for w in gates["warn"]), "sb-gen-warn", kind="warn")
         else:
@@ -220,20 +223,23 @@ def step2(p: Pipeline, pid: int):
         forced = False
         if gates["block"]:
             if v2:                                        # lỗi chặn (P1) luôn hiện; lời khuyên sửa vào tooltip của ô tick
-                st.warning("Gen ảnh bị chặn: " + "; ".join(gates["block"]))
+                (st.error if gates.get("plates_stale") else st.warning)("Gen ảnh bị chặn: " + "; ".join(gates["block"]))   # 17/10: nền cũ = ĐỎ
                 forced = st.checkbox("Tôi đã xem, vẫn gen ảnh (ghi lại vào 📊 Theo dõi)", key=f"gen_img_force_{pid}",
                                      help="Chế độ tự động sẽ DỪNG ở đây trước khi gen ảnh. Sửa ở màn Kịch bản (Character Bible / Lock).")
             else:
-                st.warning("Chế độ tự động sẽ DỪNG ở đây trước khi gen ảnh: " + "; ".join(gates["block"]) + ". Sửa ở màn Kịch bản (Character Bible / Lock).")
+                (st.error if gates.get("plates_stale") else st.warning)(
+                    "Chế độ tự động sẽ DỪNG ở đây trước khi gen ảnh: " + "; ".join(gates["block"]) + ". Sửa ở màn Kịch bản (Character Bible / Lock).")
                 forced = st.checkbox("Tôi đã xem, vẫn gen ảnh (ghi lại vào 📊 Theo dõi)", key=f"gen_img_force_{pid}")
         unit = est.get("unit_over", est["unit_price"])            # S14.16: a missing price shows its high estimate
-        img_price = None if unit is None else unit * est["items"]
+        # 17/10 (#31: button ≈ 2,13 = pictures only, 💰 box ≈ 5,0 = + D6): the button shows the box's ONE total (pictures + end frames +
+        # D6 + Claude QC — core/cost.estimate_images "total", parts in the box)
+        img_price = est.get("total") if est.get("total") is not None else (None if unit is None else unit * est["items"])
         queued = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='queued'", (pid,)).fetchone()[0]
         if c1.button("▶ Gen ảnh các cảnh chưa có / đã cũ" + (f" · gửi {queued} ảnh đang chờ" if queued else "")   # 07/10: queued
                      + cost.price_tag(img_price, est["items"]), type="primary", key=f"gen_img_{pid}",    # redraws waited
                      disabled=(not est_ok and not queued) or (bool(gates["block"]) and not forced)):
             def go():
-                r = batch.queue_images(p, pid, confirmed=forced)
+                r = batch.queue_images(p, pid, confirmed=forced, data_dir=C.DATA)
                 # lỗi B (08/10): one click = queue + send. The click waits for the turn (the page / background polling held it and the
                 # send used to return 0 silently); jobs held by a real reason are sent by core.bg_poll when it is gone (lỗi A)
                 sent = runner.submit_pending(pid, wait_s=SEND_TURN_WAIT_S) if runner is not None else 0

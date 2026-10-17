@@ -674,6 +674,9 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
         wide = it.get("wide") or {}
         for kind, key, camera in (("shot", it["key"], it["camera"]), ("wide", wide.get("key"), wide.get("camera"))):
             again = it["idx"] in fresh                    # P24: render these shots again although cached (new Blender checks)
+            # 17/10: a cached render that moved this LOCKED camera is not this camera's (render_moved — the same answer as
+            # stale_plates / change_audit), rendered again without `--fresh-shot`
+            again = again or bool(key and render_moved(_cached(root, key), camera) and _failed(root, key) is None)
             if key and (again or _cached(root, key) is None) and (again or _failed(root, key) is None):
                 missing.setdefault((it["entry"]["sha256"], plate_env.key(it["env"])), []).append((it, kind, key, camera))
     rendered = set()
@@ -741,7 +744,8 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
                 rendered.add(it["scene_id"])
             rec = {"camera": p.get("camera"), "depth_range_m": p.get("depth_range_m"), "subject": p.get("subject"),
                    # P24: why the camera stands where it does (core/plate_camera `why`) + what Blender's rays changed / found
-                   "why": (it.get("camera_why") if kind == "shot" else (it.get("wide") or {}).get("why")) or {}}
+                   "why": (it.get("camera_why") if kind == "shot" else (it.get("wide") or {}).get("why")) or {},
+                   "locked_rule": LOCKED_RULE}                    # 17/10: rendered now — a locked camera is never moved (render_moved)
             clr = p.get("clearance") or {}
             if clr:
                 rec["clearance"] = clr
@@ -788,6 +792,8 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
             idx[str(it["scene_id"])] = {"key": it["key"], "failed": why, "place": it["place"], "spot": it["spot"], **extra}
             continue
         rec = _cached(root, it["key"])
+        if rec is not None and render_moved(rec, it["camera"]) and _failed(root, it["key"]):
+            rec = None                                   # 17/10: the old moved render is not sent while its new render failed
         if rec is None:
             why = _failed(root, it["key"])
             if why:
@@ -893,6 +899,37 @@ def effective_camera(camera: Dict, rec: Dict) -> Dict:
     return out
 
 
+LOCKED_RULE = "1710"          # meta mark: rendered under the rule "a locked camera is never moved" (render_moved trusts it)
+
+
+def render_moved(rec: Optional[Dict], camera: Dict) -> Optional[str]:
+    """17/10 (#31 shot 20–25, 33): ONE answer to "is this render the background of the shot's LOCKED camera (Sân khấu 3D, approved)?"
+    for ensure_plates (reuse the cache or render again), stale_plates (runner / autopilot / Dashboard gate) and core/change_audit.
+    A cache entry rendered before the 15/10 camera rules (SCRIPT_VERSION kept, comment at the top) may hold a locked camera Blender
+    pulled / turned / re-lensed — its key is the plan's, so ensure_plates reused it while change_audit (rendered camera vs stage_camera)
+    called it old: 7 shots needed `--fresh-shot` by hand. Returns the reason (Vietnamese, for the Dashboard) or None (an unlocked camera,
+    not moved, or rendered under the current rules — then a move is Blender's own answer, said by its warnings, never a render loop)."""
+    if not rec or not (camera or {}).get("locked") or rec.get("locked_rule") == LOCKED_RULE:
+        return None
+    real = effective_camera(camera, rec)
+    if real is camera:
+        return None
+    r2 = lambda v: [round(float(c), 2) for c in v]   # noqa: E731
+    what = []
+    if r2(real["location"]) != r2(camera["location"]):
+        what.append("chỗ đặt máy")
+    if r2(real["look_at"]) != r2(camera["look_at"]):
+        what.append("hướng nhìn")
+    if round(float(real.get("lens") or 0), 1) != round(float(camera.get("lens") or 0), 1):
+        what.append(f"ống kính {camera.get('lens')} → {real.get('lens')} mm")
+    if real.get("turned_deg"):
+        what.append(f"xoay {real['turned_deg']}° quanh nhân vật")
+    if not what:
+        return None
+    return ("bản render cũ đã dời máy Sân khấu 3D đã khóa (" + ", ".join(what) + ") — không phải máy hiện tại; render lại theo đúng "
+            "máy (Blender, 0 USD)")
+
+
 def frame_fields(it: Dict, rec: Dict) -> Dict:
     """The index record's subject_box / distance_m: the plan's, or the re-framed ones when Blender moved the camera (rà P24)."""
     rf = rec.get("reframed") or {}
@@ -939,6 +976,8 @@ def refresh_due(data_dir: str, pid: int) -> bool:
             continue
         if rec.get("finish_v") != plate_env.FINISH_VERSION or camera_problem(rec):
             return True
+        if render_moved(rec, rec.get("camera_planned") or {}):   # 17/10: a locked camera moved by an old render (same key)
+            return True
         wide = rec.get("wide") or {}
         if wide.get("plate") and wide.get("finish_v") != plate_env.FINISH_VERSION:
             return True
@@ -976,8 +1015,10 @@ def stale_plates(conn, pid: int, data_dir: str, resolution=(1152, 2048)) -> Dict
         else:
             it = planned(res).get(scene_id)
             why = None
-        if it is not None and it["key"] == rec.get("key") and why is None:
+        moved = render_moved(rec, it["camera"]) if it is not None and not rec.get("failed") else None
+        if it is not None and it["key"] == rec.get("key") and why is None and not moved:
             continue
+        why = why or moved                                  # 17/10: same key, but the render moved the locked camera
         old, new = rec.get("spot"), (it or {}).get("spot")
         if it is None:
             why = why or "shot không còn ở bối cảnh có mô hình 3D"
@@ -986,6 +1027,27 @@ def stale_plates(conn, pid: int, data_dir: str, resolution=(1152, 2048)) -> Dict
         out[scene_id] = {"idx": (it or {}).get("idx"), "old_spot": old, "new_spot": new,
                          "why": f"nền 3D đã cũ ({why}) — dựng lại nền (0 USD, Blender) trước khi gửi"}
     return out
+
+
+_STALE_MEMO: Dict[tuple, tuple] = {}
+
+
+def stale_plate(conn, pid: int, data_dir: str, scene_id: int, resolution) -> Optional[Dict]:
+    """17/10: stale_plates for ONE shot — core/change_audit asks it shot by shot (36 × plan() = seconds); the project's answer is kept
+    for a few seconds while the index file and the shots' data are the same."""
+    try:
+        stamp = os.stat(_index_path(data_dir, pid)).st_mtime_ns
+    except OSError:
+        return None                                           # no index: nothing rendered yet, nothing stale
+    digest = hashlib.sha1("".join(str(r[0]) + (r[1] or "") for r in conn.execute(
+        "SELECT id, data FROM scenes WHERE project_id=? ORDER BY id", (pid,))).encode("utf-8")).hexdigest()
+    key = (id(conn), pid, os.path.abspath(data_dir), stamp, digest, tuple(resolution))
+    hit = _STALE_MEMO.get(key)
+    if hit is None or time.time() - hit[0] > 10:
+        _STALE_MEMO.clear()
+        hit = (time.time(), stale_plates(conn, pid, data_dir, resolution))
+        _STALE_MEMO[key] = hit
+    return hit[1].get(scene_id)
 
 
 MOVE_FIELDS = ("location", "image_prompt", "blocking", "spatial_state", "action")

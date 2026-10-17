@@ -163,6 +163,22 @@ def check_stage_handheld_new_scenes():
     assert "not placed_without_handheld(k1_dir, seg)" in inspect.getsource(stage_auto.inputs_for), "cảnh đã duyệt bị đổi đầu vào"
     assert "weapon_size_from_scale" in inspect.getsource(stage_auto.inputs_for), "chưa suy cỡ vũ khí từ câu tỉ lệ Kho"
 
+def check_time_weather_single_source():
+    """17/10 (#31 shot 27–30): đổi time / weather bằng BẤT KỲ đường ghi nào → byd.noi_chon chép theo; việc chép không là thay đổi để rà."""
+    from core.db import connect
+    from core.pipeline import Pipeline
+    p = Pipeline(connect())
+    conn = p.conn
+    sid = p.create_scene(p.create_project("t"), 1, "s")
+    data = {"time": "dawn", "weather": "clear", "byd": {"noi_chon": {"kho_id": 1, "thoi_gian": "dawn", "thoi_tiet": "clear"}}}
+    conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), sid))
+    conn.execute("DELETE FROM change_events")
+    conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(dict(data, time="night", weather="fog")), sid))   # SQL tay
+    nc = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()[0])["byd"]["noi_chon"]
+    assert (nc["thoi_gian"], nc["thoi_tiet"], nc["kho_id"]) == ("night", "fog", 1), nc
+    assert conn.execute("SELECT COUNT(*) FROM change_events WHERE scene_id=?", (sid,)).fetchone()[0] == 1, "việc chép tạo thêm thay đổi"
+
+
 CHECKS = {k: v for k, v in globals().items() if k.startswith("check_") and callable(v)}
 
 

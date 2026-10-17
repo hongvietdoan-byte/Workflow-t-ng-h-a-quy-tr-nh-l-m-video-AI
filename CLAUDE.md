@@ -21,6 +21,8 @@ Kế hoạch chính nằm ở `PLAN.md` (nguồn tài liệu gốc: `Quy_Trinh_A
    `py tools/related_areas.py` (khu vực chứa file đổi + khu vực gọi tới module đổi + dùng chung cờ, theo `devsys/areas.json`) rồi giao
    đề bài đó cho một agent (Agent tool) rà: hành vi bị đổi theo mà chưa sửa / chưa có test. Sửa hết lỗi agent báo (hoặc ghi lý do bỏ) rồi
    mới commit. Thay đổi DỮ LIỆU sản xuất trên Dashboard do Tổ rà soát tác động (`core/change_review.py`, cờ `change_review`) lo.
+7b. **Trước khi xin duyệt gen ảnh: chạy `PYTHONUTF8=1 py tools/pregen_check.py --project N`** (0 USD, chỉ đọc; gọi đúng hàm nút Gen:
+   cổng, mục đỏ Tổ rà soát, nền 3D cũ, giá) và báo đúng con số nó in — không tính giá tay. Mã thoát 1 = còn chặn, sửa trước.
 8. **Quyết định người dùng kiểm được bằng code/cờ → ghi vào sổ quyết định (`data/decisions.json`) + check (`tests/test_decisions.py`,
    `py -m core.decisions check`); memory chỉ trỏ id.** Quyết định mới thay cũ bằng `replaces`, không sửa chữ mục cũ.
 

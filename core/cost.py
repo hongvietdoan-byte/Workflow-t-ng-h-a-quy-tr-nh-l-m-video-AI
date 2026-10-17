@@ -165,11 +165,13 @@ def pending_end_frames(pipeline: Pipeline, project_id: int) -> int:
     return n
 
 
-def estimate_images(pipeline: Pipeline, project_id: int, pricing: Dict, model: str) -> Dict:
-    """Pictures a run would pay for: the shots' start pictures plus the K1 end frames (feature end_frames)."""
+def estimate_images(pipeline: Pipeline, project_id: int, pricing: Dict, model: str, data_dir: Optional[str] = None) -> Dict:
+    """Pictures a run would pay for: the shots' start pictures plus the K1 end frames (feature end_frames). 17/10: `data_dir` = the
+    projects folder the caller uses (Dashboard C.DATA, tools/pregen_check's copy); None = <repo>/data/projects as before."""
     ends = pending_end_frames(pipeline, project_id)
     from . import scene_establish
-    wide = scene_establish.pending(pipeline.conn, project_id, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "projects"))
+    wide = scene_establish.pending(pipeline.conn, project_id, data_dir or os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "data", "projects"))
     shots = pending_image_units(pipeline, project_id)
     n = shots + ends + wide
     price = _number(pricing["per_image"].get(model))
@@ -180,7 +182,43 @@ def estimate_images(pipeline: Pipeline, project_id: int, pricing: Dict, model: s
     result = {"kind": "image", "items": n, "seconds": 0, "unit_price": price, "known": price is not None, "unit_over": over,
               "currency": pricing["currency"], "max_retry": max_retry, "end_frames": ends, "establishing": wide, "chat_prompt": d6}
     result.update(_range(None if price is None else price * n + d6, max_retry))
+    # 17/10 (#31: the button said ≈ 2,13 = 41 pictures × price, the 💰 box ≈ 5,0 = + D6; the session priced 36 × price = 1,87 by hand):
+    # ONE number for every place that shows it (button, box, tools/pregen_check) = pictures + D6 + Claude QC of those pictures, with
+    # the parts listed. `min` / `max` stay pictures + D6 (older callers).
+    qc_calls = _picture_qc_calls(pipeline.conn, project_id, n) if n else 0
+    qc_unknown: list = []
+    qc = picture_qc_usd(pipeline.conn, project_id, n, pricing, qc_unknown) * LLM_MARGIN if n else 0.0
+    unit = price if price is not None else over
+    pic = None if unit is None else unit
+    parts = [{"label": "ảnh khung đầu các shot", "count": shots, "usd": None if pic is None else pic * shots},
+             {"label": "khung cuối (end_frames)", "count": ends, "usd": None if pic is None else pic * ends},
+             {"label": "ảnh toàn cảnh mở cảnh", "count": wide, "usd": None if pic is None else pic * wide},
+             {"label": "Claude viết lại prompt trước khi gửi (D6)", "count": shots if d6 else 0, "usd": d6},
+             {"label": "Claude chấm ảnh (QC" + (", chưa có giá" if qc_unknown else "") + ")", "count": qc_calls, "usd": qc}]
+    result["parts"] = [x for x in parts if x["count"] or x["usd"]]
+    result["qc"] = qc
+    result["total"] = None if pic is None else round(pic * n + d6 + qc, 4)
     return result
+
+
+def picture_qc_usd(conn, project_id: int, pictures: int, pricing: Dict, unknown: Optional[list] = None) -> float:
+    """Claude QC of `pictures` new pictures, BEFORE LLM_MARGIN: the per-picture / per-scene calls (_picture_qc_calls), the QC agent
+    (fixed per scene) or Tổ QC (per frame + redraws) — the same rule the run estimate uses (_estimate_run). Unpriced → 0, said in
+    `unknown`."""
+    from . import features, qc_agent, qc_scene, qc_team
+    if not pictures:
+        return 0.0
+    usd = llm_estimate(conn, "qc", _picture_qc_calls(conn, project_id, pictures), pricing, images=2)
+    if usd is None:
+        if unknown is not None:
+            unknown.append(f"Claude {llm_model()}")
+        usd = 0.0
+    observe_scene = features.on('qc_observe_enum') and qc_scene.active() and qc_scene.claude_on()
+    if qc_agent.enabled() and not observe_scene:       # the agent: several turns per scene (not measured yet — a fixed figure)
+        usd += AGENT_SCENE_USD * _scenes_to_draw(conn, project_id)
+    if qc_team.active() and qc_scene.active() and not observe_scene:   # Tổ QC (or 🎓 học việc, same looks): one call per frame
+        usd += qc_team.FRAME_USD * pictures * (1 + REDRAW_SHARE)
+    return usd
 
 
 # ---- videos ---------------------------------------------------------------
@@ -846,7 +884,7 @@ def _estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] =
                     vid_usd += price
     llm_calls = {"director": 0 if conn.execute("SELECT 1 FROM characters WHERE project_id=? AND TRIM(description)!=''",
                                                (project_id,)).fetchone() else 1,
-                 "qc": _picture_qc_calls(conn, project_id, img["items"]) + len(todo) + remaining_final["clips"], "motion": 1 if todo else 0}
+                 "qc": len(todo) + remaining_final["clips"], "motion": 1 if todo else 0}
     llm_usd = 0.0
     for stage, calls in llm_calls.items():
         one = llm_estimate(conn, stage, calls, pricing, images=2 if stage == "qc" else 0)
@@ -854,14 +892,10 @@ def _estimate_run(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] =
             unknown.append(f"Claude {llm_model()}")
         else:
             llm_usd += one
-    from . import qc_agent
+    # 17/10: the pictures' QC (calls, agent, Tổ QC) — the same helper the Step 2 button / box use (estimate_images "qc")
+    llm_usd += picture_qc_usd(conn, project_id, img["items"], pricing, unknown)
     from . import features, qc_scene, qc_team
     observe_scene = features.on('qc_observe_enum') and qc_scene.active() and qc_scene.claude_on()
-    if img["items"] and qc_agent.enabled() and not observe_scene:            # the agent: several turns per scene (not measured yet — a fixed figure)
-        llm_usd += AGENT_SCENE_USD * _scenes_to_draw(conn, project_id)
-    from . import qc_scene, qc_team
-    if img["items"] and qc_team.active() and qc_scene.active() and not observe_scene:        # Tổ QC (or 🎓 học việc, same looks): one call per frame (+ redraws)
-        llm_usd += qc_team.FRAME_USD * img["items"] * (1 + REDRAW_SHARE)
     trainee_usd = (qc_team.FRAME_USD * img["items"] * (1 + REDRAW_SHARE) * LLM_MARGIN    # 🎓 the part of it that is học việc
                    if img["items"] and qc_team.shadow() and qc_scene.active() and not observe_scene else 0.0)
     llm_usd *= LLM_MARGIN
@@ -911,8 +945,19 @@ def format_run_estimate(est: Dict) -> str:
     return text
 
 
+def image_parts_text(est: Dict) -> str:
+    """17/10: the parts of the Step 2 picture total, one line ('ảnh khung đầu 36 ≈ 1.87 · khung cuối 5 ≈ 0.26 · …')."""
+    return " · ".join(f"{x['label']}" + (f" {x['count']:g}" if x.get("count") else "")
+                      + (f" ≈ {x['usd']:.2f}" if x.get("usd") is not None else " (chưa có giá)") for x in est.get("parts") or [])
+
+
 def format_estimate(est: Dict) -> str:
     unit = "ảnh" if est["kind"] == "image" else "clip"
+    if est["kind"] == "image" and est.get("total") is not None:      # 17/10: ONE number (button = box = pregen_check), parts listed
+        over = "" if est["known"] else " dư — thiếu giá ảnh trong data/pricing.json: giá cao nhất đã biết × 1,5"
+        return (f"{est['items']} {unit} ≈ {est['total']:.2f} {est['currency']} (ước tính{over}; tối đa "
+                f"{est['total'] * (1 + est['max_retry']):.2f} nếu mọi mục phải làm lại đủ {est['max_retry']} lần) — gồm: "
+                + image_parts_text(est))
     head = f"{est['items']} {unit}" + (f" (gồm {est['end_frames']} khung cuối)" if est.get("end_frames") else "")
     if est["kind"] == "video":
         head += f" · {est['seconds']:.0f} giây · {est['model']} ({est['tier']})"

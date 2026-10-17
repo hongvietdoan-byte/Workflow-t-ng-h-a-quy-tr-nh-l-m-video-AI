@@ -194,8 +194,11 @@ def record_stage_blocking_change(conn, project_id: int, old_dir: str, new_dir: s
 
 def _code_level(f: Dict) -> str:
     """Mức của một mục luật code trong Tổ rà soát: 'ảnh vẽ trên nền cũ' và 'render nền chưa theo máy / khối đạo cụ' là đúng việc mà
-    job vẽ lại + bước tự render nền làm → VÀNG (agent rà 10/10 lỗi 1: để đỏ thì chặn luôn job sửa nó, kẹt mãi)."""
-    if f["khau"] == "anh" or (f["khau"] == "nen" and ("chưa theo máy" in f["msg"] or "khối đạo cụ" in f["msg"])):
+    job vẽ lại + bước tự render nền làm → VÀNG (agent rà 10/10 lỗi 1: để đỏ thì chặn luôn job sửa nó, kẹt mãi). 17/10: nền cũ vẫn
+    CHẶN gen — ở chỗ không kẹt: runner._stale_plates giữ job + render lại (cùng một định nghĩa location_pack.stale_plates) và
+    batch.image_gates báo ĐỎ ở nút Gen; "nền 3D chưa dùng được" (lỗi / chờ hướng) runner cũng tự giữ (place_refs.broken / needs)."""
+    if f["khau"] == "anh" or (f["khau"] == "nen" and ("chưa theo máy" in f["msg"] or "khối đạo cụ" in f["msg"]
+                                                     or "chưa dùng được" in f["msg"])):
         return "vang"
     return f["muc"]
 

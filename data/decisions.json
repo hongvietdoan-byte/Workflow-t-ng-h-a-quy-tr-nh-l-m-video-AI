@@ -21,7 +21,10 @@
    "changes": "Model nhánh dễ 2.0 → 2.5; nhánh khó nháp 2.5 480p",
    "replaces": "video-e1-2026-10-09",
    "enforced_by": [
-    {"kind": "code", "check": "check_simple_shot_direct_720p"}
+    {
+     "kind": "code",
+     "check": "check_simple_shot_direct_720p"
+    }
    ],
    "status": "active"
   },
@@ -34,7 +37,10 @@
    "changes": "",
    "replaces": null,
    "enforced_by": [
-    {"kind": "code", "check": "check_no_480p_in_delivery"}
+    {
+     "kind": "code",
+     "check": "check_no_480p_in_delivery"
+    }
    ],
    "status": "active"
   },
@@ -58,7 +64,11 @@
    "changes": "qc_team không tự chấm",
    "replaces": "qc-autonomous-2026-10-13",
    "enforced_by": [
-    {"kind": "flag", "name": "qc_team", "on": false}
+    {
+     "kind": "flag",
+     "name": "qc_team",
+     "on": false
+    }
    ],
    "status": "active"
   },
@@ -71,7 +81,10 @@
    "changes": "Chạy tự động không tự duyệt nháp",
    "replaces": null,
    "enforced_by": [
-    {"kind": "code", "check": "check_draft_never_auto_approved"}
+    {
+     "kind": "code",
+     "check": "check_draft_never_auto_approved"
+    }
    ],
    "status": "active"
   },
@@ -84,13 +97,41 @@
    "changes": "Mặc định code của 7 cờ: tắt → bật (default_on, verified vẫn False)",
    "replaces": null,
    "enforced_by": [
-    {"kind": "flag", "name": "video_gate", "on": true},
-    {"kind": "flag", "name": "qc_framing_cap", "on": true},
-    {"kind": "flag", "name": "plate_view_sentence", "on": true},
-    {"kind": "flag", "name": "character_state_lock", "on": true},
-    {"kind": "flag", "name": "ref_rule_early", "on": true},
-    {"kind": "flag", "name": "motion_consistency_lint", "on": true},
-    {"kind": "flag", "name": "group_keep_approved", "on": true}
+    {
+     "kind": "flag",
+     "name": "video_gate",
+     "on": true
+    },
+    {
+     "kind": "flag",
+     "name": "qc_framing_cap",
+     "on": true
+    },
+    {
+     "kind": "flag",
+     "name": "plate_view_sentence",
+     "on": true
+    },
+    {
+     "kind": "flag",
+     "name": "character_state_lock",
+     "on": true
+    },
+    {
+     "kind": "flag",
+     "name": "ref_rule_early",
+     "on": true
+    },
+    {
+     "kind": "flag",
+     "name": "motion_consistency_lint",
+     "on": true
+    },
+    {
+     "kind": "flag",
+     "name": "group_keep_approved",
+     "on": true
+    }
    ],
    "status": "active"
   },
@@ -103,7 +144,10 @@
    "changes": "dashboard.env.example đặt DEEPIX_MODEL; mặc định trong code (core/image_models.DEFAULT) vẫn là Seedream 5.0 Pro khi thiếu dòng này",
    "replaces": null,
    "enforced_by": [
-    {"kind": "code", "check": "check_image_default_gpt25"}
+    {
+     "kind": "code",
+     "check": "check_image_default_gpt25"
+    }
    ],
    "status": "active"
   },
@@ -127,7 +171,10 @@
    "changes": "Chạy tự động không chờ 'Duyệt & khóa trần' trước khi gen ảnh",
    "replaces": "budget-lock-gate-2026-10-08",
    "enforced_by": [
-    {"kind": "code", "check": "check_no_budget_lock_gate"}
+    {
+     "kind": "code",
+     "check": "check_no_budget_lock_gate"
+    }
    ],
    "status": "active"
   },
@@ -220,8 +267,27 @@
    "changes": "16/10 code: core/stage_auto.placed_without_handheld + weapon_size_from_scale; bật ở data/feature_settings.json máy chính; check_stage_handheld_new_scenes.",
    "replaces": null,
    "enforced_by": [
-   {"kind": "code", "check": "check_stage_handheld_new_scenes"}
-  ],
+    {
+     "kind": "code",
+     "check": "check_stage_handheld_new_scenes"
+    }
+   ],
+   "status": "active"
+  },
+  {
+   "id": "time-weather-single-source-2026-10-17",
+   "date": "2026-10-17",
+   "by": "phiên Claude (sửa gốc theo yêu cầu người dùng 17/10: 'sửa tận gốc để không lặp lại, kể cả khi chỉ thao tác trên Dashboard')",
+   "text": "Giờ / thời tiết của shot: trường `time` / `weather` là NGUỒN DUY NHẤT (nền 3D plate_env, prompt, QC đọc chúng); byd.noi_chon.thoi_gian / thoi_tiet chỉ là bản chép, tự đồng bộ ở CSDL cho mọi đường ghi (trigger trg_scene_noi_chon) + Python chuẩn hóa chữ (shot_intent.sync_noi_chon trong llm_io.update_scene). Việc đồng bộ không tạo thay đổi để Tổ rà soát tác động rà.",
+   "keeps": "Các khóa khác của byd.noi_chon (kho_id, spot, anh_sang) do Đạo diễn ghi như cũ; weather ngoài danh sách plate_env không chép (như nền 3D: báo lỗi, dùng trời quang).",
+   "changes": "17/10 code: core/db.py CHANGE_TRIGGERS (trg_scene_noi_chon, trg_scene_noi_chon_new, trg_change_scene bỏ qua riêng hai khóa chép), core/shot_intent.sync_noi_chon, core/llm_io.update_scene; check_time_weather_single_source.",
+   "replaces": null,
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_time_weather_single_source"
+    }
+   ],
    "status": "active"
   }
  ]
