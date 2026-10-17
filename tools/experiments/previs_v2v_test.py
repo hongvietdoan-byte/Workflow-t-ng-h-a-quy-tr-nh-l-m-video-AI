@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.getcwd())
 
 NAME = "Thử V2V previs one-shot #31 shot 7–8 (16/10)"
-CAP_USD = 9.5                    # trần cứng dự án thử: lượt 5 s ($2,76) + nháp 480p lượt 1 ($2,21) + lượt 2 ($2,21 × 1,25)
+CAP_USD = 9.5                    # trần dự án thử (lượt 3 cần ≈ 12 — chỉ nâng khi người dùng duyệt)
 MODEL, CANONICAL, TIER, SECS, ASPECT = "seedance-2.5", "dreamina-seedance-2-5-260628", "720p", 5, "9:16"
 SOURCES = {r: os.path.join("D:" + os.sep, "AI-Video-Output", "2026-10-15_du-an-31", "previs",
                            f"previs_canh2_shot6-9_xoay60_them7s3_7sau_trai_{r}.mp4")
@@ -69,7 +69,14 @@ KELLY_REFS = [os.path.join("data", "assets", "23", "10.png"),    # Kelly mặt t
               os.path.join("data", "assets", "23", "16.png"),    # chữ lỗi trên lưng áo (chỉ gửi mặt trước → model bịa) · Kelly bên hông
               os.path.join("data", "assets", "427", "1.png"),
               os.path.join("data", "assets", "442", "2.png")]
-ROUND = "r2"                     # lượt 2 (17/10): previs không mũi chỉ hướng + dáng chạy + ảnh lưng/hông Kelly
+ROUND = "r3"                     # lượt 3 (17/10): + trời 428/2 + biệt thự 265/3 + 2 clip in-game người dùng (dáng chạy, ánh sáng)
+# người dùng 17/10 (xem lượt 2): bối cảnh quá tối, không thấy nhà to Cổng Trời, trời không mây — bỏ sót Kho 428 / 265 dự án đã gắn;
+# dáng chạy không tự nhiên như nhân vật trong clip in-game người dùng gửi
+ENV_REFS = [os.path.join("data", "assets", "265", "3.png"),      # mê cung + biệt thự mái đỏ Cổng Trời (render 3D game, ánh sáng ngày)
+            os.path.join("data", "assets", "428", "2.png")]      # TRỜI THẾ GIỚI SONG SONG: mây giông xám, bàn tay ma khổng lồ
+GAME_REFS = [os.path.join("data", "projects", "32", "experiments", "ref_ingame_chay_sau_lung_4s.mp4"),   # clip người dùng 17/10
+             os.path.join("data", "projects", "32", "experiments", "ref_ingame_biet_thu_6s.mp4")]
+GAME_REFS_S = (4.25, 6.17)
 RUN = ("Kelly SPRINTS the whole way: a fast running cycle with long strides, both feet leaving the ground, knees high, arms pumping "
        "hard, body leaning forward — never walking or jogging slowly. ")
 SEGMENTS = {
@@ -92,7 +99,7 @@ SEG = None                       # --seg D1|D2
 
 
 def seg_assets() -> list:
-    return [PLATE[s_] for s_ in SEGMENTS[SEG]["plates"]] + KELLY_REFS
+    return [PLATE[s_] for s_ in SEGMENTS[SEG]["plates"]] + KELLY_REFS + ENV_REFS
 
 
 def seg_prompt() -> str:
@@ -106,9 +113,18 @@ def seg_prompt() -> str:
             f"@Image {n + 4} is only the ghost look: Kelly's whole body is a glowing translucent blue-red silhouette like this; do not "
             f"take the game HUD, buttons, map, text, the house or the camera of @Image {n + 4}.\n"
             f"@Image {n + 5} is the cursed baby carriage: an old black Victorian pram with a torn lace hood, red inside, a stitched "
-            "doll and a faint red glow; not the grey background.\n" + DEPTH_ROLE +
+            "doll and a faint red glow; not the grey background.\n"
+            f"@Image {n + 6} shows the big two-storey villa with the red-orange roof of this place behind the hedges: the villa is "
+            "ALWAYS visible in the background above the hedges (moonlit, windows faint), use only its shape and roof; ignore the "
+            "daylight of this picture.\n"
+            f"@Image {n + 7} is the parallel-world sky: overcast grey storm clouds filling the sky, with faint giant ghost hands "
+            "in the clouds; use only the sky and its cold grey-blue light.\n" + DEPTH_ROLE +
+            "@Video 2 and @Video 3 are in-game footage used only for the ghost-form running animation (natural Free Fire run "
+            "cycle), the red light trail, the sky, the villa and the lighting; do not take their character (the man with the hat "
+            "and coat), the game HUD, buttons, minimap, text or their camera.\n" +
             "[Keep] Only Kelly and the carriage, Kelly's identity and clothes inside the ghost glow, nothing on or above her head, "
-            "no letters or symbols on her clothes, the Free Fire in-game 3D render style, dark night mood. No game HUD, no "
+            "no letters or symbols on her clothes, the Free Fire in-game 3D render style, parallel-world night: grey storm sky with "
+            "clouds, grey-blue moonlight, dark but every hedge, the floor and the villa readable — never pitch black. No game HUD, no "
             "subtitles, no on-screen text, no watermark.")
 
 
@@ -131,7 +147,8 @@ def spent(p, pid: int) -> float:
 
 def estimate() -> float:
     from core import cost
-    return cost.seedance_estimate(CANONICAL, TIER, ASPECT, SECS, CUT[1] - CUT[0])
+    extra = sum(GAME_REFS_S) if SEG and ROUND == "r3" else 0.0          # giá web cộng giây MỌI video tham chiếu
+    return cost.seedance_estimate(CANONICAL, TIER, ASPECT, SECS, CUT[1] - CUT[0] + extra)
 
 
 def ref_path(data_dir: str, pid: int) -> str:
@@ -199,7 +216,9 @@ def cmd_submit(p, data_dir: str, pid: int) -> None:
             raise SystemExit("TRẦN CHUNG CHẶN: " + over)
         try:
             entry["external_id"] = provider.submit(ASSETS[0], prompt(), None, SECS, MODEL, aspect_ratio=ASPECT, resolution=TIER,
-                                                   reference_only=ASSETS, reference_video={"path": ref, "refer_type": "feature"})
+                                                   reference_only=ASSETS, reference_video=[{"path": ref, "refer_type": "feature"}] + (
+                                                       [{"path": g_, "refer_type": "feature"} for g_ in GAME_REFS]
+                                                       if SEG and ROUND == "r3" else []))
             cost.record_usage(p.conn, None, "video", provider.name, CANONICAL, TIER, booked_s, "second", pid)
         except ProviderError as e:
             entry.update(state="failed", message=f"[{e.code}] {e}"[:400], usd=0.0)
