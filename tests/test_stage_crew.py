@@ -60,6 +60,13 @@ class PureTests(unittest.TestCase):
         text = "\n".join(sc.compare_table({"shots": []}, [spec], v2)[10])
         self.assertIn("ĐÃ KHAI che `chuyen_canh`", text)
 
+    def test_table_object_out_of_frame_has_none_size(self):
+        # #31 cảnh 4 (17/10): người ngoài khung có size_pct = None (khóa còn, giá trị rỗng) — bảng không được vỡ
+        spec, v2 = self.shot10_v2()
+        v2["shots"][0]["best"]["m"]["obj"]["kelly"] = {"seen_pct": None, "size_pct": None}
+        text = "\n".join(sc.compare_table({"shots": []}, [spec], v2)[10])
+        self.assertIn("đo cỡ 0 % khung, thấy 0 %", text)
+
     def run_machine(self, *steps):
         st = sc.new_state("fp")
         calls = []

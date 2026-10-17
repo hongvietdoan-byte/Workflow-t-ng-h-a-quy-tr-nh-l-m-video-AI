@@ -360,8 +360,8 @@ def compare_table(inputs: Dict, specs: List[Dict], v2: Dict, keep: Optional[Dict
             ob = objs.get(k) or {}
             d = math.dist(at[:2], ob["xy"]) if ob.get("xy") else None
             want = f", khai co_pct {c['co_pct'][0]}–{c['co_pct'][1]} %" if isinstance(c.get("co_pct"), list) and len(c["co_pct"]) == 2 else ""
-            row = (f"`{k}` ({c.get('vai')}{want}{', vùng ' + str(c['vung']) if c.get('vung') else ''}): đo cỡ {o.get('size_pct', 0):g} % "
-                   f"khung, thấy {o.get('seen_pct', 0):g} %" + (f", cách máy {d:.2f} m" if d is not None else ""))
+            row = (f"`{k}` ({c.get('vai')}{want}{', vùng ' + str(c['vung']) if c.get('vung') else ''}): đo cỡ {o.get('size_pct') or 0:g} % "
+                   f"khung, thấy {o.get('seen_pct') or 0:g} %" + (f", cách máy {d:.2f} m" if d is not None else ""))
             if c.get("che"):
                 row += f" · ĐÃ KHAI che `{c['che']}`: {c.get('ly_do')}"
             elif c.get("ly_do"):
