@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.getcwd())
 
 NAME = "Thử V2V previs one-shot #31 shot 7–8 (16/10)"
-CAP_USD = 9.5                    # trần dự án thử (lượt 3 cần ≈ 12 — chỉ nâng khi người dùng duyệt)
+CAP_USD = 12.0                   # trần dự án thử #32 (người dùng duyệt 17/10 nâng 12 USD cho lượt r3)
 MODEL, CANONICAL, TIER, SECS, ASPECT = "seedance-2.5", "dreamina-seedance-2-5-260628", "720p", 5, "9:16"
 SOURCES = {r: os.path.join("D:" + os.sep, "AI-Video-Output", "2026-10-15_du-an-31", "previs",
                            f"previs_canh2_shot6-9_xoay60_them7s3_7sau_trai_{r}.mp4")
