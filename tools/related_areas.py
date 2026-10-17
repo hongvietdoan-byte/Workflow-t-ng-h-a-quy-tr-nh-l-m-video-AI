@@ -88,6 +88,11 @@ def slow_needed(files, area_ids, A, slow):
 
 
 def main(argv):
+    for stream in (sys.stdout, sys.stderr):           # rà 17/10: cp1252 console broke on Vietnamese (UnicodeEncodeError)
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
     files = [f.replace("\\", "/") for f in argv] or changed_files()
     if not files:
         print("không có file đổi")

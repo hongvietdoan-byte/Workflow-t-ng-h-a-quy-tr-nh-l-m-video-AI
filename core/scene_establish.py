@@ -24,6 +24,9 @@ LIGHT = {"night": ("Night, yet every face is clearly lit and readable: a soft wa
                    "rim light separating the people from the background, lamps glowing around — dark sky, never muddy or crushed into black."),
          "dusk": "Dusk: warm low sun from the side, long soft shadows, faces lit and readable.",
          "day": "Bright daylight, clear shadows on the ground under the people, natural contact with the floor."}
+# rà 17/10 (#31): a room at night has no street lamps or moonlight rim — the room's own light
+NIGHT_INDOOR = ("Night indoors, yet every face is clearly lit and readable: the room's own lamps light the faces, soft shadows — never "
+                "muddy or crushed into black.")
 LABEL = "the place of this scene (wide view of the whole place, its architecture and this scene's light)"
 
 
@@ -55,7 +58,7 @@ def is_flashback(data: Dict) -> bool:
     return bool(_FLASHBACK.search(" ".join(str(data.get(k) or "") for k in ("action", "image_prompt"))))
 
 
-def light_sentence(data: Dict) -> str:
+def light_sentence(data: Dict, indoor: bool = False) -> str:
     """Trial #8: the Director asked for "most of the frame sunk in deep shadow" and the night frames came out muddy — dark scenes still
     light the faces. A flashback gets its own light: agent QC #8 found S5·3 (flashback) identical to the present day, the scene's
     establishing picture's hard noon light won."""
@@ -63,7 +66,10 @@ def light_sentence(data: Dict) -> str:
         return ""
     if is_flashback(data):
         return FLASHBACK
-    return LIGHT.get(str(data.get("time") or "day").lower(), LIGHT["day"])
+    time = str(data.get("time") or "day").lower()
+    if time == "night" and (indoor or data.get("indoor")):
+        return NIGHT_INDOOR
+    return LIGHT.get(time, LIGHT["day"])
 
 
 def _dir(data_dir: str, pid: int, trainee: bool = False) -> str:

@@ -275,7 +275,10 @@ def add_reference(refs: List[Dict], ref: Optional[Dict], limit: int) -> List[Dic
     while len(out) >= limit:
         drop = next((i for i in range(len(out) - 1, -1, -1)      # G3 17/10: never the shot's 3D render (geometric truth)
                      if out[i].get("role") not in _PEOPLE and out[i].get("role") != "place_render"), None)
-        if drop is None:
+        if drop is None:                          # rà 17/10: never silent — every slot is a person or the 3D render
+            import logging
+            logging.getLogger(__name__).warning("Không còn chỗ cho ảnh pha kỹ năng của %s (mọi ô là ảnh người / render 3D) — ảnh "
+                                                "kỹ năng KHÔNG gửi", ref.get("label"))
             return out
         out.pop(drop)
     people = [i for i, r in enumerate(out) if r.get("role") in _PEOPLE]

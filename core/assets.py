@@ -1535,10 +1535,14 @@ def location_text(conn, place: Dict, for_llm: bool = False) -> str:
         web_part = external_block("ff.garena.com — mô tả bối cảnh", re.sub(r"\s+", " ", web).strip()[:max(600 - len(desc), 120)])
     if not for_llm:                                   # G3 17/10 (#31 shots 14/15/33): "[ff.garena.com] Khu vực trên bản đồ Đảo Quân Sự"
         from .seedance_refs import has_vietnamese     # reached the image prompt — only the description's sentences without Vietnamese
-        desc = " ".join(s for s in re.split(r"(?<=[.!?])\s+", re.sub(r"\[[^\]]*\]", " ", desc))
-                        if s.strip() and not has_vietnamese(s)).strip()
-        desc = re.sub(r"\s+", " ", desc)
-    bits = [f"Setting: {place['name']}" + (f" — {desc}" if desc else "")]
+        desc = " ".join(s for s in re.split(r"(?<=[.!?])\s+", re.sub(r"\[[^\]]*\]", " ", re.sub(r"\s+", " ", head)))
+                        if s.strip() and not has_vietnamese(s)).strip()   # rà 17/10: filter the WHOLE text, then cut (was cut first:
+        desc = re.sub(r"\s+", " ", desc)[:600]                             # Vietnamese ahead ate the English sentences' room)
+    name = place.get("name") or ""
+    if not for_llm and has_vietnamese(name):           # rà 17/10: "Setting: Tháp đồng hồ" — an English alias, else the name unaccented
+        name = next((n.strip() for n in names_of({"name": name, "aliases": place.get("aliases") or ""})
+                     if n.strip() and not has_vietnamese(n)), fold(name).strip())
+    bits = [f"Setting: {name}" + (f" — {desc}" if desc else "")]
     if marks:
         bits.append(_sizes_sentence(marks, keep_vi=for_llm))
     if not for_llm:                                   # 16/10 #31: "Light: ánh sáng ban ngày dịu…" (a library photo's light, in
@@ -1805,8 +1809,9 @@ def _named_extras(conn, scene: Dict, chosen: List[Dict], names: List[str], proje
     from . import prop_lock
     # 12/10 (#27 shot 20): a line SPOKEN in the shot ("LỜI DẪN: … giành Booyah") is not a thing to draw — it pulled the
     # post-production banner "BOOYAH" into the picture; only the shot's own words outside dialogue lines name props
-    blob = " " + fold(" ".join([_without_spoken_lines(str(scene.get("text") or ""))]
-                               + [str(scene.get(k) or "") for k in ("image_prompt", "location")])) + " "
+    raw = " ".join([_without_spoken_lines(str(scene.get("text") or ""))] + [str(scene.get(k) or "") for k in ("image_prompt", "location")])
+    blob = " " + fold(raw) + " "
+    shot_words = _said_words(raw)   # rà 17/10 (#31 shot 12): names matched WITH accents (name_spans) — "cúi" no longer matches alias "cũi"
     cast = {fold(n) for n in names}
     people_names = {fold(r["name"]) for r in conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,))} | {
         fold(n) for x in chosen if x["kind"] == "character" for n in names_of(x)}
@@ -1824,8 +1829,8 @@ def _named_extras(conn, scene: Dict, chosen: List[Dict], names: List[str], proje
             continue                                          # the scene's own place: already decided above (plate or words)
         if away and a["kind"] == "location":
             continue                                          # 08/10: another picture of a place would pull a landmark in too
-        keys = [fold(n) for n in names_of(a) if len(fold(n)) >= 3 and fold(n) not in cast]
-        if any(" " + k + " " in blob for k in keys):
+        keys = [n for n in names_of(a) if len(fold(n)) >= 3 and fold(n) not in cast]
+        if any(name_spans(k, shot_words) for k in keys):
             if lock_on and a["kind"] in prop_lock.KINDS:    # a picture with a variant (skin) only when the shot names it
                 said = prop_lock.shot_text(scene) + " " + blob   # 14/10 #30: the scene script's form when the shot lost it
                 pics = prop_lock.usable_images(a, said, variant=prop_lock.variant_source(conn, project_id, scene, a, said)[0])

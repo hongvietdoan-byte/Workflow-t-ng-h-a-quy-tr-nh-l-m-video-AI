@@ -27,7 +27,7 @@ _CLOTHES = re.compile(
     r"(?<!\w)(track ?suit|track jacket|track pants|jacket|coat|hoodie|sweater|cardigan|blazer|vest|shirt|t-shirt|tee|top|crop top|"
     r"blouse|bra|dress|gown|skirt|pants|trousers|jeans|shorts|leggings|tights|stockings|socks|shoes|sneakers|trainers|boots|heels|"
     r"sandals|zip|zip-up|zipper|sleeves?|collar|hood|stripes?|prints?|outfit|costume|clothes|clothing|garments?|uniform|cape|cloak|"
-    r"scarf|gloves?|belt|choker|necklace|cap|hat|áo|quần|giày|váy|trang phục)(?!\w)", re.I)
+    r"scarf|gloves?|belt|choker|necklace|cap|hat|accessories|everyday look|OUTFIT image|áo|quần|giày|váy|trang phục)(?!\w)", re.I)
 
 
 def declared(description: str) -> List[str]:
@@ -82,20 +82,54 @@ def for_shot(conn, project_id: int, scene: Optional[Dict], chosen: Optional[List
             continue
         image = next((i for i in a.get("images") or [] if i.get("role") == ROLE and i.get("status") in (None, "approved")), None)
         for who in declared(a.get("description")):
+            if who in cast and who in out and out[who]["asset_id"] != a["id"]:   # rà 17/10: never silent — the first style wins
+                import logging
+                logging.getLogger(__name__).warning("%s được khai dạng ở hai mục Kho style (%s, %s) trong cùng shot — dùng mục đầu",
+                                                    who, out[who]["label"], a["name"])
             if who in cast and who not in out:
                 out[who] = {"form": english_name(a), "label": a["name"], "words": english_words(a), "asset_id": a["id"],
                             "image": image}
     return out
 
 
+def for_rows(conn, project_id: int, rows: List[Dict]) -> Dict[str, Dict]:
+    """Dạng theo TỪNG shot của một clip nhiều shot (rà 17/10: gom setdefault áp dạng cả clip — #31 shot 30 Kelly bị bắn về thực tại
+    mà câu vẫn khóa bóng mờ cả clip). {TÊN: for_shot(...) + "shots": [số thứ tự shot 1-based ở dạng], "all": dạng ở MỌI shot có người
+    đó}. rows: [{"data": scene data}] theo thứ tự phim."""
+    chosen = None
+    out: Dict[str, Dict] = {}
+    present: Dict[str, List[int]] = {}
+    for i, r in enumerate(rows or [], 1):
+        data = r["data"] or {}
+        for n in data.get("characters") or []:
+            present.setdefault(str(n).strip().upper(), []).append(i)
+        if chosen is None:
+            from .assets import project_assets
+            chosen = project_assets(conn, project_id)
+        for who, f in for_shot(conn, project_id, data, chosen).items():
+            out.setdefault(who, dict(f, shots=[]))["shots"].append(i)
+    for who, f in out.items():
+        f["all"] = sorted(set(f["shots"])) == sorted(set(present.get(who, [])))
+    return out
+
+
+_LEAD = re.compile(r"^\s*(?:keep|never|always|no|not)\b[ \t:]*", re.I)    # tiền tố của CẢ mệnh đề ("never red jacket, blonde hair")
+_BODY = re.compile(r"(?<!\w)(hair|hairstyle|haircut|bangs|fringe|ponytail|bun|braids?|face|eyes?|eyebrows?|skin|tóc|mặt|mắt)(?!\w)", re.I)
+
+
 def without_clothes(body: str) -> str:
-    """Chữ khóa của một người đã bỏ mọi mệnh đề (tách ';' rồi ',') nói về quần áo / phụ kiện mặc — giữ mặt, tóc, dáng, chiều cao."""
+    """Chữ khóa của một người đã bỏ mọi mảnh (tách ';' / hết câu, rồi ',') nói về quần áo / phụ kiện mặc — giữ mặt, tóc, dáng, chiều
+    cao. Rà 17/10: tiền tố keep/never của mệnh đề gắn lại vào phần còn lại (bỏ "never blue jacket" không được biến "never" thành mất →
+    "short hair" thành yêu cầu ngược); mảnh nói về TÓC/MẶT/MẮT không bao giờ bỏ ("hair tied on top", "hair under a cap")."""
     keep = []
-    for clause in str(body or "").split(";"):
-        pieces = [x for x in clause.split(",") if not _CLOTHES.search(x)]
-        txt = ",".join(pieces).strip()
-        if txt and txt.lower() not in ("keep", "never"):
-            keep.append(txt)
+    for clause in re.split(r";|(?<=[.!?])\s+", str(body or "")):
+        m = _LEAD.match(clause)
+        lead = m.group(0).strip() if m else ""
+        rest = clause[m.end():] if m else clause
+        pieces = [x.strip() for x in rest.split(",") if x.strip() and (_BODY.search(x) or not _CLOTHES.search(x))]
+        txt = ", ".join(pieces).strip().rstrip(".").strip()
+        if txt:
+            keep.append(f"{lead} {txt}".strip())
     return "; ".join(keep)
 
 

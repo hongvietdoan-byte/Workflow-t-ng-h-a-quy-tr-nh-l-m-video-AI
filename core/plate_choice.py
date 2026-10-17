@@ -329,16 +329,17 @@ def light_rigs(lights: List[Dict], subject: Sequence[float], camera: Sequence[fl
     return out
 
 
-def light_sentence(lights: List[Dict], decided: bool, time: str, data: Optional[Dict] = None) -> str:
+def light_sentence(lights: List[Dict], decided: bool, time: str, data: Optional[Dict] = None, indoor: bool = False) -> str:
     """The extra lights in words for the picture prompt (the character must be lit like the plate is).
     G5 (17/10, #31 shot 1/3): given the shot's data — a frame with NOBODY in it (POV of the ceiling) gets no sentence about lighting
     "the character", and "only the moonlight" is said only when the DP really wrote `practical_lights: []` (a lamp dropped for a bad
-    `where` is not a choice of moonlight — lights_of reports it)."""
+    `where` is not a choice of moonlight — lights_of reports it). indoor (rà 17/10): a room at night is not lit by "only the moonlight"
+    — no extra lamp indoors says nothing."""
     people = True if data is None else bool(data.get("characters"))
     if not lights:
         none_said = True if data is None else raw_lights(data) == []
         return ("No extra light source: only the moonlight lights the character."
-                if decided and none_said and people and time in NIGHT_TIMES else "")
+                if decided and none_said and people and time in NIGHT_TIMES and not indoor else "")
     if not people:
         parts = [f"{lt.get('name') or KINDS[lt['kind']][5]}, {lt['color_name']} colour, {_WHERE_PLACE[lt['where']]}" for lt in lights]
         return "Practical light of this place in this shot: " + "; ".join(parts) + "."

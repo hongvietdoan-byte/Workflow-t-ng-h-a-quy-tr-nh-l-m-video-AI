@@ -86,9 +86,9 @@ _TIME_RX = {
     "day": r"daylight|daytime|midday|noon|sunny|broad day|bright day|ban ngày|giữa trưa|nắng gắt",
 }
 _WEATHER_RX = {
-    "fog": r"fog|foggy|mist|misty|haze|hazy|sương mù",
-    "rain": r"rain(?![- ]?(?:coat|boots?|slicker))|raining|rainy|drizzle|downpour|mưa",
-    "snow": r"snow|snowy|snowfall|blizzard|tuyết",
+    "fog": r"fog|foggy|mist|misty|(?<!heat )haze|hazy|sương mù",     # rà 17/10: "heat haze" is not fog
+    "rain": r"rain(?![- ]?(?:coat|boots?|slicker)|\s+of\s)|raining|rainy|drizzle|downpour|mưa",   # rà 17/10: "rain of sparks"
+    "snow": r"snow(?![- ]?white)|snowy|snowfall|blizzard|tuyết",   # rà 17/10: "snow-white dress"
 }
 _WEATHER_FAMILY = {"fog": "fog", "rain": "rain", "storm": "rain", "snow": "snow", "snowfall": "snow", "ice": "snow"}
 

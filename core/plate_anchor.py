@@ -216,7 +216,9 @@ _MARK_NOUN = (r"(?:villas?|mansions?|castles?|manors?|palaces?|cathedrals?|churc
               r"rooftops?|skyline|cityscape|village|town|hills?|mountains?)")
 # the part is ABOUT the landmark: its silhouette, or the landmark noun heads the part ("the villa …", "and the pale villa's …") — never
 # a place phrase of the people around it ("far distance near the stone plaza of the Clock Tower" stays: test_plate_anchor_loi1)
-_MARK_SEG = re.compile(r"\bsilhouettes?\b|^\s*(?:and\s+)?(?:the\s+|a\s+|an\s+)?(?:[\w'’-]+\s+){0,2}?" + _MARK_NOUN + r"(?:'s|’s)?\b", re.I)
+# rà 17/10: "silhouette" alone is not a landmark ("a hooded silhouette waiting in the background", "the tall dark silhouette of the
+# Unseen looming far away" are people / the monster) — only a silhouette OF a landmark noun in the same part
+_MARK_SEG = re.compile(r"\bsilhouettes?\b[^,]*\b" + _MARK_NOUN + r"\b|\b" + _MARK_NOUN + r"\b[^,]*\bsilhouettes?\b|^\s*(?:and\s+)?(?:the\s+|a\s+|an\s+)?(?:[\w'’-]+\s+){0,2}?" + _MARK_NOUN + r"(?:'s|’s)?\b", re.I)
 _AWAY = re.compile(r"\b(?:background|backdrop|beyond|in the distance|far distance|far away|distant|faint(?:ly)? visible)\b", re.I)
 _SOURCE = re.compile(r"\b(?:light|lighting|lit|sunlight|moonlight|glow\w*|lamps?|lanterns?|fire)\b", re.I)
 

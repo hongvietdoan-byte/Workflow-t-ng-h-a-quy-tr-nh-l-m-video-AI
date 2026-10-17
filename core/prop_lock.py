@@ -452,7 +452,7 @@ _TYPE_SCALE = {
 }
 
 
-def weapon_scale(conn, asset: Dict, variant: Optional[str] = None) -> str:
+def weapon_scale(conn, asset: Dict, variant: Optional[str] = None, english: bool = False) -> str:
     """Tỉ lệ hồ sơ/mô tả/số đo thắng ước lượng theo loại; loại mâu thuẫn không đoán.
 
     Dùng trường hồ sơ hiện có (must_keep/identity/build), nhãn 'Tỉ lệ:' trong mô tả,
@@ -462,10 +462,11 @@ def weapon_scale(conn, asset: Dict, variant: Optional[str] = None) -> str:
     if not isinstance(profile, dict):
         profile = {}
     desc = form_text(asset, variant) if _forms(asset.get("description") or "") else re.sub(r"^\s*\[[^\]]*\]\s*", "", str(asset.get("description") or "")).split("[", 1)[0]
+    from .seedance_refs import has_vietnamese
     for source in [str(profile.get(k) or "") for k in ("must_keep", "identity", "build")] + [desc]:
         span = _scale_span(source)
-        if span:
-            return span[2]
+        if span and not (english and has_vietnamese(span[2])):   # rà 17/10: english=True (the image prompt) — a Vietnamese
+            return span[2]                                      # 'Tỉ lệ:' falls through to the measured size / the type
     size = asset.get("size") or {}
     if size:
         return "Library measured dimensions: " + ", ".join(f"{k.removesuffix('_m')} {float(size[k]):g} m" for k in ("height_m", "width_m") if k in size)
@@ -694,7 +695,14 @@ def issues(conn, project_id: int, data: Dict) -> List[Dict]:
                         "msg": f"món Kho {lk['asset']['name']}: mô tả dạng viết tiếng Việt — prompt ảnh không gửi chữ Việt, chỉ gửi "
                                f"'{sent or 'tên món'}'" + (" + ảnh Kho" if lk["image"] else " (KHÔNG có ảnh Kho của dạng này)")
                                + "; muốn gửi đủ thì viết mô tả dạng bằng tiếng Anh ở Kho"})
-        if lk["category"] == "gun" and not weapon_scale(conn, lk["asset"], lk["variant"]):
+        scale_vi = weapon_scale(conn, lk["asset"], lk["variant"]) if lk["category"] == "gun" else ""
+        if scale_vi and has_vietnamese(scale_vi):        # rà 17/10: luật 1 — never dropped silently
+            sent = weapon_scale(conn, lk["asset"], lk["variant"], english=True)
+            out.append({"level": "warn", "part": "dao_cu",
+                        "msg": f"món Kho {lk['asset']['name']}: tỉ lệ súng viết tiếng Việt — prompt ảnh không gửi chữ Việt, "
+                               + (f"gửi thay: '{sent}'" if sent else "KHÔNG gửi câu tỉ lệ nào")
+                               + "; viết 'Tỉ lệ:' bằng tiếng Anh ở Kho để gửi đúng"})
+        if lk["category"] == "gun" and not scale_vi:
             out.append({"level": "warn", "part": "dao_cu",
                         "msg": f"món Kho {lk['asset']['name']} thiếu tỉ lệ — loại súng chưa rõ hoặc mâu thuẫn; thêm 'Tỉ lệ:' vào mô tả/hồ sơ hoặc kích thước ở Kho"})
         if not lk["form"]:
@@ -811,8 +819,8 @@ def prompt_part(conn, project_id: int, data: Dict) -> str:
             bits.append(f"Prop lock: {a['name']} in this shot — {form}{over}"
                         + ("; as its reference picture shows" if lk["image"] else "") + "; keep this one form.")
         if lk["category"] == "gun":
-            scale = weapon_scale(conn, a, lk["variant"])
-            if scale and not has_vietnamese(scale):      # G4: a Vietnamese 'Tỉ lệ:' note is for people (said by issues())
+            scale = weapon_scale(conn, a, lk["variant"], english=True)   # G4 + rà 17/10: a Vietnamese 'Tỉ lệ:' falls to the next source
+            if scale and not has_vietnamese(scale):
                 bits.append(f"Weapon scale: {a['name']} — {scale}.")
     return " ".join(bits)
 

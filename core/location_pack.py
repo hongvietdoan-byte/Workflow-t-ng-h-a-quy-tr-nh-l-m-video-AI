@@ -1129,7 +1129,8 @@ def script_sentence(conn, pid: int, data: Dict) -> str:
         bits.append(f"Camera direction chosen for this shot: {view['words_en']}.")
     env = plate_env.env_of(data)
     lit = plate_choice.lights_of(data, env)
-    light = plate_choice.light_sentence(lit["lights"], lit["decided"], env["time"], data)   # G5: nobody in frame → no "character" light
+    light = plate_choice.light_sentence(lit["lights"], lit["decided"], env["time"], data,   # G5: nobody in frame → no "character" light
+                                        indoor=bool(spot_for(entry, data).get("indoor") or data.get("indoor")))   # rà 17/10: no moon indoors
     if light:
         bits.append(light)
     return " ".join(bits)

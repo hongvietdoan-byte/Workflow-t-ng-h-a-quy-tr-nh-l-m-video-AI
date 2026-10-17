@@ -540,7 +540,17 @@ def lock_text(conn, project_id: int, names=None, shots=None) -> str:
     shots = [d for d in (shots or []) if isinstance(d, dict)]
     exc = lx.for_shot(shots[0]) if len(shots) == 1 else {}
     from . import character_forms                     # G2 17/10 (#31): a person in a form THIS shot names is not judged on the profile's clothes
-    forms = character_forms.for_shot(conn, project_id, shots[0]) if len(shots) == 1 else {}
+    # rà 17/10: several shots (scene QC, qc_agent, motion writer) — a person in the SAME form in every judged shot that has them gets
+    # the form row; a person in a form in only SOME shots keeps the lock and each such shot is listed under it (was: forms only for 1 shot)
+    per_shot = [character_forms.for_shot(conn, project_id, d) for d in shots]
+    forms, form_notes = {}, []
+    for who in sorted({w for f in per_shot for w in f}):
+        inside = [i for i, d in enumerate(shots) if who in {str(n).strip().upper() for n in d.get("characters") or []}]
+        hits = [i for i in inside if who in per_shot[i]]
+        if hits and len(hits) == len(inside):
+            forms[who] = per_shot[hits[0]][who]
+        else:
+            form_notes += [f"Shot {i + 1}: " + character_forms.note_vi(who, per_shot[i][who]).lstrip("- ") for i in hits]
     rows = []
     for r in conn.execute("SELECT name, lock_rules, outfit_image_ids FROM characters WHERE project_id=?", (project_id,)):
         if names is not None and r["name"] not in names:
@@ -571,7 +581,8 @@ def lock_text(conn, project_id: int, names=None, shots=None) -> str:
                     f"cấm lệch: {lock.get('forbidden', '')}{size}")
     if not rows:
         return ""
-    notes = lx.notes_for_shots(shots, names)
+    notes = lx.notes_for_shots(shots, names) + [n for n in form_notes if names is None or any(
+        n.split("**")[1].strip().upper() == str(x).strip().upper() for x in names)]
     return "# Character Lock\n" + "\n".join(rows) + (
         "\n\n## Ngoại lệ chủ ý theo shot (BYĐ — đè lên khóa ở trên, chỉ trong shot đó)\n" + "\n".join(f"- {n}" for n in notes)
         if notes else "")

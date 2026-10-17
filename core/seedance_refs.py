@@ -334,6 +334,8 @@ def identity_pictures(conn, project_id: int, rows: List[Dict], room: int) -> Lis
             if str(n) not in names:
                 names.append(str(n))
     links = assets.link_characters(conn, project_id, names)
+    from . import character_forms        # rà 17/10: a person in a form in EVERY shot of the clip → no OUTFIT picture ("dress exactly in
+    formed = {w for w, f in character_forms.for_rows(conn, project_id, rows).items() if f.get("all")}   # these clothes" fought the form)
     out = []
     for n in names:
         link = links.get(n) or {}
@@ -344,11 +346,13 @@ def identity_pictures(conn, project_id: int, rows: List[Dict], room: int) -> Lis
             more = assets.best_references(link, len(link.get("images") or []), name=n) if link.get("images") else []
             pool = [i["path"] for i in list(link.get("refs") or [ref]) + more if i.get("path") and os.path.exists(i["path"])]
             out.append((n, _rule_ok_picture(conn, project_id, n, list(dict.fromkeys(pool)) or [ref["path"]])))
-        outfit = assets.outfit_images(conn, project_id, n)
+        outfit = assets.outfit_images(conn, project_id, n) if n.strip().upper() not in formed else []
         if outfit:     # 07/10 Khủng Long Đỏ: MAXIM KL / KELLY KL danced in their everyday clothes — only the library face picture
             out.append((n + OUTFIT_TAG, _rule_ok_picture(conn, project_id, n + OUTFIT_TAG, [o["path"] for o in outfit])))   # (everyday
             # look) went, the costume picture never did
     _say_speakers_without_picture(conn, project_id, rows, {n for n, _ in out})
+    while len(out) > max(room, 0) and any(n.endswith(OUTFIT_TAG) for n, _ in out):   # rà 17/10: over the room an OUTFIT picture goes
+        out.pop(max(i for i, (n, _) in enumerate(out) if n.endswith(OUTFIT_TAG)))     # before a person loses their only face picture
     return out[:max(room, 0)]
 
 
@@ -637,7 +641,9 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
              for i, (t, mk) in enumerate(zip(texts, marks), 1)]
     shared_lines = [f"{pt.shots_label(nums, n)}: {sent}" for sent, nums in shared]
     # 3. what stays still
-    still = (("Same place, same light, same characters and outfits throughout. " if n > 1 else "")
+    changes = any(f.get("shots") and not f.get("all") for f in (forms or {}).values())   # rà 17/10: a form in only some shots
+    still = ((("Same place, same light, same characters throughout. " if changes else
+               "Same place, same light, same characters and outfits throughout. ") if n > 1 else "")
              + "The buildings and the landmark behind the people keep exactly the shape they have in the storyboard frames.")  # 28/09
     # 4. identity lock
     dressed = {name[:-len(OUTFIT_TAG)] for name, _ in identities if name.endswith(OUTFIT_TAG)}
@@ -652,7 +658,14 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
                     + "— not the framing")
         form = (forms or {}).get(name.strip().upper())
         if form:                         # G2 17/10 (#31): in a form the clip's shots name (core/character_forms) — never the outfit
-            return (f"{name}: identity only (face, hair, body build) — NOT the clothes or their colours: in this clip {name} is in "
+            nums = form.get("shots")     # rà 17/10: per shot (character_forms.for_rows) — #31 shot 30 leaves the ghost form
+            if nums and not form.get("all") and n > 1:
+                where = ", ".join(f"Shot {i}" for i in nums)
+                return (f"{name}: identity only (face, hair, body build); in {where} {name} is in the {form['form']} — NOT the clothes "
+                        f"or their colours there, as the storyboard frame shows; in the other shots {name} looks as their storyboard "
+                        "frames show")
+            where = (", ".join(f"Shot {i}" for i in nums) if nums and n > 1 and len(nums) < n else "this clip")
+            return (f"{name}: identity only (face, hair, body build) — NOT the clothes or their colours: in {where} {name} is in "
                     f"the {form['form']}, as the storyboard frame shows")
         if name in dressed:
             return f"{name}: identity only (face, hair, body build) — NOT the clothes, which come only from the OUTFIT picture"

@@ -1963,10 +1963,7 @@ class VideoRunner(_Runner):
                 block = dialogue_take.group_block(segs, [n for n, _ in ids if not n.endswith(seedance_refs.OUTFIT_TAG)])
             # F5-A: real sizes of the library objects (the well), short form, once — dropped first when the prompt would pass the limit
             from . import character_forms           # G2 17/10 (#31): a person in a form the clip's shots name — not the outfit
-            forms = {}
-            for r in rows:
-                for k, v in character_forms.for_shot(conn, job["project_id"], r["data"]).items():
-                    forms.setdefault(k, v)
+            forms = character_forms.for_rows(conn, job["project_id"], rows)   # rà 17/10: per shot ("in Shot 2 …"), not the whole clip
             motion = no_minor_age(seedance_refs.prompt(parts, ids, clip_seconds=duration, model=model, places=places, forms=forms,
                                                        scales=_object_scales(conn, job["project_id"], rows),
                                                        reserve=(len(block) + 1 if block else 0) + (len(side) + 1 if side else 0)
@@ -2897,9 +2894,11 @@ def lock_note(conn, project_id: int, cast, data: Optional[Dict] = None) -> str:
     if not parts:
         return ""
     from .prompt_formula import garment_profile
-    held = any(garment_profile(conn, project_id, n) for n in (cast or []) if str(n).strip().upper() not in forms)
+    held = [str(n) for n in (cast or []) if str(n).strip().upper() not in forms and garment_profile(conn, project_id, n)]
+    # rà 17/10 (#31 shot 15): with someone in a form, the costume sentence names only the people still held to their costume
     return (" Identity lock — " + " | ".join(parts) + "."
-            + (" The costume follows the profile above" + (" (or the OUTFIT image)" if any("OUTFIT image" in x for x in parts) else "")
+            + ((f" The costume of {', '.join(held)} follows the profile above" if forms else " The costume follows the profile above")
+               + (" (or the OUTFIT image)" if any("OUTFIT image" in x for x in parts) else "")
                + "; any other colour word for these garments is wrong." if held else ""))
 
 
@@ -3357,11 +3356,14 @@ class ImageRunner(_Runner):
             data["image_prompt"] = prompt = cleaned
         for gap in assets.reference_gaps(conn, job["project_id"], data):     # luật 1: a missing reference is said at generation time
             self._diag(job, assets.gap_severity(gap), "missing_reference", gap)
+        from . import shot_text_checks                # rà 17/10 (G7/G8): someone outside the cast / time-weather against the words — said
+        for msg in shot_text_checks.notes(conn, job["project_id"], data):   # at generation time too (VÀNG, never blocks)
+            getattr(self, "_diag_once", self._diag)(job, "warn", "shot_text_check", msg)
         from . import place_refs
         render = place_refs.shot_ref(self.data_dir, job["project_id"], job["scene_id"]) if place_refs.enabled() else None
         from . import scene_establish
         from . import location_pack
-        light = scene_establish.light_sentence(data)
+        light = scene_establish.light_sentence(data, indoor=bool(indoor_spot(conn, job["project_id"], data)))   # rà 17/10: no moon indoors
         chosen = location_pack.script_sentence(conn, job["project_id"], data)   # S5.7: direction + extra lights of this shot
         geo = scale = ""
         if render is not None:                         # the render's real numbers (place_refs.geometry_sentence) — the place part
@@ -3444,6 +3446,10 @@ class ImageRunner(_Runner):
         say = getattr(self, "_diag_once", self._diag)
         names = list(data.get("characters") or [])
         stripped, removed = plate_anchor.strip_scenery(data.get("image_prompt") or "", names)
+        extra = {}
+        if data.get("blocking"):                       # rà 17/10 (#31 shot 6/11/13): "villa silhouette … background" also lives in blocking
+            extra["blocking"], more = plate_anchor.strip_scenery(str(data["blocking"]), names)
+            removed = list(removed) + list(more)
         if removed:
             say(job, "warn", plate_anchor.CODE_WORDS, plate_anchor.words_note(removed))
         place = assets.scene_location(conn, job["project_id"], data)
@@ -3454,7 +3460,7 @@ class ImageRunner(_Runner):
                                                          (entry or {}).get("landmark"), aspect=w / h if h else None)
         if notes:
             say(job, "warn", plate_anchor.CODE_BACKGROUND, "câu nền sinh từ plate thiếu dữ liệu: " + "; ".join(notes))
-        return dict(data, image_prompt=stripped), ground
+        return dict(data, image_prompt=stripped, **extra), ground
 
     def _finish_args(self, job, prompt: str, refs):
         """The picture job's (prompt, reference paths). Storyboard mode (feature storyboard_api, a provider that draws storyboard

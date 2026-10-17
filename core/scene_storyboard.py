@@ -12,6 +12,7 @@ The runner's normal machinery stays: one picture job per shot, the ledger, the c
 import hashlib
 import json
 import os
+import re
 from typing import Dict, List, Optional
 
 from . import assets, features
@@ -205,14 +206,24 @@ def shared_references(conn, pid: int, shots: List[Dict], limit: int = 8, cast_of
             if r.get("role") not in PERSON_ROLES and r["path"] not in seen and len(out) < limit:
                 seen.add(r["path"])
                 out.append(r)
-    for s in shots:
-        data = dict(s["data"])
-        for r in assets.scene_references(conn, pid, data, limit=assets.MAX_REFERENCES):
+    # rà 17/10: a prop an EARLIER shot of the scene names stays with the later frames ("she fires it" after shot 12 picks the gun up);
+    # only the props of LATER shots wait for their own shot (shot 10 must not get the gun picked up in shot 12)
+    cur = None if cast_of is None else next((i for i, s in enumerate(shots) if s["data"] is cast_of), None)
+    if cast_of is not None and cur is None:
+        cur = next((i for i, s in enumerate(shots) if s["data"] == cast_of), None)
+    uses = bool(cast_of is not None and _USES_HELD.search(" ".join(str(cast_of.get(f) or "") for f in
+                                                                     ("image_prompt", "action", "blocking", "text"))))
+    per = [assets.scene_references(conn, pid, dict(s["data"]), limit=assets.MAX_REFERENCES) for s in shots]
+    # … from the NEAREST earlier shot holding a prop only (the gun of shot 12 goes to "she fires it" in shot 13, the pram of shot 10 not)
+    carry = (max((k for k in range(cur) if any(r.get("role") in CARRIED_ROLES for r in per[k])), default=None)
+             if uses and cur is not None else None)
+    for k, s in enumerate(shots):
+        for r in per[k]:
             if r["path"] in seen or len(out) >= limit:
                 continue
             if cast_of is not None and r.get("role") in PERSON_ROLES:
                 continue                               # people come only from the frame's own pick (above)
-            if cast_of is not None and r.get("role") in OWN_ONLY_ROLES:
+            if cast_of is not None and r.get("role") in OWN_ONLY_ROLES and not (k == carry and r.get("role") in CARRIED_ROLES):
                 continue                               # G9 17/10: a prop only ANOTHER shot names is never this frame's prop (below)
             seen.add(r["path"])
             out.append(r)
@@ -222,7 +233,13 @@ def shared_references(conn, pid: int, shots: List[Dict], limit: int = 8, cast_of
 # G9 (17/10, #31 shot 10): the SKORP picture went with the pram shot (the gun is picked up only in shot 12) because the props of every
 # shot of the scene were shared — the model then draws the gun too early. A prop / weapon / outfit-as-object picture goes only with
 # a frame whose OWN words name it (assets.scene_references of that frame, the part above); the place stays shared.
-OWN_ONLY_ROLES = ("object", "outfit_object")
+# rà 17/10: + the clean atmosphere pictures (assets.ATMOSPHERE_ROLES) — another shot naming a style is not this frame's sky
+OWN_ONLY_ROLES = ("object", "outfit_object") + assets.ATMOSPHERE_ROLES
+CARRIED_ROLES = ("object", "outfit_object")      # a prop picked up earlier in the scene is still in the hands later
+# … carried only when THIS frame uses a held thing without naming it (the pram of shot 10 does not follow the gun shot 12)
+_USES_HELD = re.compile(r"\b(?:fires?|firing|shoots?|shooting|aims?|aiming|reloads?|reloading|swings?|swinging|throws?|throwing|"
+                        r"(?:holds?|holding|grips?|gripping|raises?|raising|lifts?|lifting|points?|pointing|drops?|dropping)\s+(?:it|the gun|"
+                        r"the weapon)|bắn|ngắm|nạp đạn|giơ súng|cầm súng)\b", re.I)
 
 
 def cast_missing(conn, pid: int, data: Dict, refs: List[Dict]) -> List[str]:

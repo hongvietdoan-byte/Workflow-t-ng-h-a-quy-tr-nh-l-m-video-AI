@@ -292,7 +292,7 @@ def add_wide(refs: List[Dict], wide: Optional[Dict], limit: int, reserve: int = 
     out = keep[:at] + [dict(wide)] + keep[at:]
     limit = max(limit - max(reserve, 0), 1)
     while len(out) > limit:
-        drop = next((i for i in range(len(out) - 1, -1, -1) if out[i].get("role") not in ("character", "sheet", "outfit", ROLE, WIDE_ROLE)),
+        drop = next((i for i in range(len(out) - 1, -1, -1) if out[i].get("role") not in ("character", "sheet", "outfit", "character_form", ROLE, WIDE_ROLE)),
                     None)
         out.pop(len(out) - 1 if drop is None else drop)
     return out
