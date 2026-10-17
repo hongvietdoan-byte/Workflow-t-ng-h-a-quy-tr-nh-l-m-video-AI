@@ -49,7 +49,9 @@ ROLES["pet"] = ROLES["character"]
 # CLEAN pictures (no game interface) with one job each — sent as pixels to shots that name the style (atmosphere_refs); every other
 # style picture stays words only (a screenshot with HUD pulls the interface into the picture)
 ROLES["style"] = {"atmosphere_sky": "bầu trời sạch (gửi ảnh: chỉ lấy trời / không khí)",
-                  "atmosphere_place": "không khí bối cảnh sạch (gửi ảnh: chỉ lấy màu / ánh sáng / chất liệu)"}
+                  "atmosphere_place": "không khí bối cảnh sạch (gửi ảnh: chỉ lấy màu / ánh sáng / chất liệu)",
+                  # G2 17/10 (#31): clean picture of a CHARACTER FORM (mô tả có dòng "Dạng của nhân vật: TÊN") — core/character_forms
+                  "character_form": "dạng nhân vật sạch (gửi ảnh cho người được khai khi shot nhắc tên dạng; không HUD)"}
 ATMOSPHERE_ROLES = ("atmosphere_sky", "atmosphere_place")
 LOOKS = {"ingame": "in-game FF", "anime": "anime"}
 STATUSES = {"approved": "đã duyệt", "pending": "chờ duyệt", "redundant": "ảnh thừa (trùng / icon — không dùng)",
@@ -1531,12 +1533,16 @@ def location_text(conn, place: Dict, for_llm: bool = False) -> str:
         from .prompts import external_block
         desc = re.sub(r"\s+", " ", own).strip()[:600]
         web_part = external_block("ff.garena.com — mô tả bối cảnh", re.sub(r"\s+", " ", web).strip()[:max(600 - len(desc), 120)])
+    if not for_llm:                                   # G3 17/10 (#31 shots 14/15/33): "[ff.garena.com] Khu vực trên bản đồ Đảo Quân Sự"
+        from .seedance_refs import has_vietnamese     # reached the image prompt — only the description's sentences without Vietnamese
+        desc = " ".join(s for s in re.split(r"(?<=[.!?])\s+", re.sub(r"\[[^\]]*\]", " ", desc))
+                        if s.strip() and not has_vietnamese(s)).strip()
+        desc = re.sub(r"\s+", " ", desc)
     bits = [f"Setting: {place['name']}" + (f" — {desc}" if desc else "")]
     if marks:
         bits.append(_sizes_sentence(marks, keep_vi=for_llm))
     if not for_llm:                                   # 16/10 #31: "Light: ánh sáng ban ngày dịu…" (a library photo's light, in
-        from .seedance_refs import has_vietnamese     # Vietnamese) reached a NIGHT shot's image prompt — never sent to the image model
-        light = "" if has_vietnamese(light) else light
+        light = "" if has_vietnamese(light) else light   # Vietnamese) reached a NIGHT shot's image prompt — never sent to the image model
     if light and not light.startswith("3D render"):
         bits.append(f"Light: {light[:120]}")
     return ". ".join(bits) + "." + (f"\n{web_part}" if web_part else "")
@@ -1596,6 +1602,13 @@ def gap_severity(gap: str) -> str:
     return "warn" if any(s in gap for s in ("mất file", "chưa khớp tên Kho")) else "info"
 
 
+def _forms_here(conn, project_id: int, scene: Dict) -> Dict[str, Dict]:
+    """G2 17/10: the character forms this shot names (core/character_forms) — asked only for a named style with no clean atmosphere
+    picture (project_assets is cached per database state)."""
+    from . import character_forms
+    return character_forms.for_shot(conn, project_id, scene)
+
+
 def _named_resource_gaps(conn, project_id: int, scene: Dict) -> List[str]:
     """D17: warn about a linked item named by its specific descriptor; never attach a guessed image."""
     if not english_names_enabled():
@@ -1617,7 +1630,8 @@ def _named_resource_gaps(conn, project_id: int, scene: Dict) -> List[str]:
                        w in _said_words(a["name"] + " " + a.get("description", ""))), None)
         if a["kind"] == "style" and (named or anchor) and not (named and conn.execute(
                 f"SELECT 1 FROM asset_images WHERE asset_id=? AND role IN {tuple(ATMOSPHERE_ROLES)} AND COALESCE(status,'approved') "
-                f"IN {USABLE_SQL} AND removed_at IS NULL LIMIT 1", (a["id"],)).fetchone()):   # 17/10: named → its clean pictures DO go
+                f"IN {USABLE_SQL} AND removed_at IS NULL LIMIT 1", (a["id"],)).fetchone()) and not (named and any(   # 17/10: named → its clean pictures DO go
+                f["asset_id"] == a["id"] and f.get("image") for f in _forms_here(conn, project_id, scene).values())):   # G2: + the form picture
             out.append(f"kiểu ảnh {a['name']} chỉ dùng bằng chữ — không gửi ảnh ref; ảnh có HUD có thể kéo sai hình. "
                        "Kiểm mô tả Kho trước khi gen.")
         elif not named and anchor:
@@ -1671,10 +1685,14 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
     linked = link_characters(conn, project_id, names, scene) if names else {}
     people, seen, caps = [], set(), []             # (label, [(path, role)...]) per person: face first, then outfit, then 2nd angle
     hand = _reference_rows(conn, project_id) if sheets else {}
+    from . import character_forms                  # G2 17/10 (#31): a person in a FORM the shot names (Kho style "Dạng của nhân vật")
+    forms = character_forms.for_shot(conn, project_id, scene, chosen) if names else {}
+    formed: Dict[str, Dict] = {}                   # label -> form: the person's pictures keep face/hair/build only (reference_note)
     for name in names:
         a = linked.get(name)
         label = a["name"] if a else name
-        outfit = outfit_images(conn, project_id, name)
+        form = forms.get(name.strip().upper())
+        outfit = [] if form else outfit_images(conn, project_id, name)   # the form decides the clothes, never an OUTFIT picture
         if label in seen or not (a or outfit):
             continue
         seen.add(label)
@@ -1690,6 +1708,10 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
         else:
             own = [(img["path"], "character") for img in (a["refs"] if a else [])]
             caps.append(MAX_REFS_PER_CHARACTER)
+        if form:
+            formed[label] = form
+            if form.get("image"):                  # the form's clean approved picture rides right after the face
+                own = own[:1] + [(form["image"]["path"], character_forms.ROLE)] + own[1:]
         people.append((label, own[:1] + [(img["path"], "outfit") for img in outfit[:1]] + own[1:]))
     place = scene_location(conn, project_id, scene)
     from .plate_choice import landmark_off_frame
@@ -1716,7 +1738,8 @@ def scene_references(conn, project_id: int, scene: Dict, limit: int = MAX_REFERE
             if sum(counts) < room and len(items) >= n and n <= caps[i]:
                 counts[i] = n
     for (label, items), k in zip(people, counts):  # grouped per person, so the note reads "Images 1/2 show KELLY"
-        refs += [{"path": path, "label": label, "role": role} for path, role in items[:k]]
+        mark = {"form": formed[label]["form"], "form_words": formed[label]["words"]} if label in formed else {}
+        refs += [{"path": path, "label": label, "role": role, **mark} for path, role in items[:k]]
     if loc and len(refs) < limit - reserve:
         refs.append({"path": loc["path"], "label": place["name"], "role": "landmark" if loc.get("_landmark") else "location"})
     for a, im in locked.values():
@@ -1833,7 +1856,7 @@ def reference_note(refs: List[Dict]) -> str:
             groups[-1]["nums"].append(i)
         else:
             groups.append({"label": r["label"], "role": r["role"], "nums": [i]})
-    bits, people = [], 0
+    bits, people, formed = [], 0, []
     for g in groups:
         nums = g["nums"]
         tag = f"Image {nums[0]}" if len(nums) == 1 else f"Images {'/'.join(map(str, nums))}"
@@ -1884,6 +1907,11 @@ def reference_note(refs: List[Dict]) -> str:
             bits.append(f"{tag} shows the LOOK of {g['label']}: copy only its colours, night light, mood and the materials of hedges, "
                         "walls, paving and buildings — never its camera, framing or layout, and add nothing from it that the scene "
                         "text and the 3D background do not have")
+        elif g["role"] == "character_form":       # G2 17/10 #31: the clean picture of the form this person is in (core/character_forms)
+            f = refs[nums[0] - 1]
+            bits.append(f"{tag} shows {g['label']} in the {f.get('form') or 'special form'} of this shot: draw {g['label']}'s whole body "
+                        "exactly in this form — its surface, glow, colours and transparency — with the face, hair and build of "
+                        f"{g['label']}'s own reference picture; not its camera, pose or background")
         elif g["role"] == "sheet":
             bits.append(f"{tag} is the character design sheet of {g['label']} (front / three-quarter / side / back views and details): use it "
                         f"only to know how {g['label']} looks from every side — do NOT copy its layout, labels, color swatches or its several "
@@ -1919,6 +1947,11 @@ def reference_note(refs: List[Dict]) -> str:
             keep = ("same face, hairstyle and hair color, body build; the clothes come from the OUTFIT image, not from this one"
                     if g["label"] in dressed else "same face, hairstyle and hair color, outfit and its colors, body build")
             front = (" — this front picture is the standard: its colors are the true colors" if g["label"] in sheeted else "")
+            form = refs[nums[0] - 1].get("form")
+            if form:                               # G2 17/10 #31: in a form this shot names — face/hair/build only, never the outfit
+                from .character_forms import ref_keep_en
+                keep, front = ref_keep_en(g["label"], {"form": form, "words": refs[nums[0] - 1].get("form_words") or ""}), ""
+                formed.append(g["label"])
             bits.append(f"{tag} {verb} {g['label']}{angles}: the person called {g['label']} in the scene must be exactly this person "
                         f"({keep}){front}")
     rule = ""
@@ -1927,6 +1960,11 @@ def reference_note(refs: List[Dict]) -> str:
                 "any clothing or hair words in the scene text that contradict the reference images. The people are different individuals."
                 " The reference images set who each person is, not the pose, the camera or how big they are in the frame: take those from "
                 "the scene text.")                                   # T5: a picture's job and what it does not control
+        if formed:                                 # G2: the clothing rule above is not for a person in a form this shot names
+            who = ", ".join(dict.fromkeys(formed))
+            rule += (f" Exception: {who} {'is' if len(set(formed)) == 1 else 'are'} in a special form in this shot — for "
+                     f"{'them' if len(set(formed)) > 1 else who} the scene text's words about the body, clothes, colours and glow DO "
+                     "apply; only the face, hair and build come from the reference images.")
         if people > 1:
             rule += (" Before drawing, pick ONE unmistakable visual anchor per named person from their reference image (hair color/style, "
                      "headwear, or a distinct clothing color) and keep checking each person against their own anchor as you draw the rest of "

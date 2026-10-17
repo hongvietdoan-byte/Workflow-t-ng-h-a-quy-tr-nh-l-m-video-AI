@@ -609,7 +609,7 @@ def _place_sentence(number: int, targets: str, view: Optional[str]) -> str:
 
 def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_seconds: Optional[float] = None,
            model: Optional[str] = None, places: Optional[List[Dict]] = None, scales: Optional[List[str]] = None,
-           reserve: int = 0, objects: Optional[List[tuple]] = None) -> str:
+           reserve: int = 0, objects: Optional[List[tuple]] = None, forms: Optional[Dict[str, Dict]] = None) -> str:
     """parts: [(motion prompt, seconds)] in film order. The wording of the tested P2m prompt (cut rule, which picture is which shot /
     whose identity, the shots), assembled in the motion formula's order (F1-C, docs/CONG_THUC_PROMPT_F0 mục 3.2 + 4): start point
     (the cut rule and each shot's storyboard frame) → each shot's action (what changes, first) → sentences shared by several shots, once
@@ -650,6 +650,10 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
                     + (f"— ignore the hair, face and body of any person modelling these clothes (those come only from {who}'s "
                        "identity picture); wear each accessory exactly as the picture shows it, for the whole clip " if strip else "")
                     + "— not the framing")
+        form = (forms or {}).get(name.strip().upper())
+        if form:                         # G2 17/10 (#31): in a form the clip's shots name (core/character_forms) — never the outfit
+            return (f"{name}: identity only (face, hair, body build) — NOT the clothes or their colours: in this clip {name} is in "
+                    f"the {form['form']}, as the storyboard frame shows")
         if name in dressed:
             return f"{name}: identity only (face, hair, body build) — NOT the clothes, which come only from the OUTFIT picture"
         return f"{name}: identity only (face, hair, outfit) — not the framing"
@@ -695,7 +699,7 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
     if scales and len(text) + max(int(reserve or 0), 0) > prompt_limit(model):
         # F5-A: the object sizes are the first thing to go when the prompt (+ `reserve`, e.g. the dialogue block added after) would pass
         # the model's limit — lint_group would block the whole send otherwise
-        return prompt(parts, identities, look, clip_seconds, model, places, None, reserve, objects)
+        return prompt(parts, identities, look, clip_seconds, model, places, None, reserve, objects, forms)
     return text
 
 

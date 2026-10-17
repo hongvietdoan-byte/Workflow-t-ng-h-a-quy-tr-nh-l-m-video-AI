@@ -539,6 +539,8 @@ def lock_text(conn, project_id: int, names=None, shots=None) -> str:
     from . import lock_exceptions as lx
     shots = [d for d in (shots or []) if isinstance(d, dict)]
     exc = lx.for_shot(shots[0]) if len(shots) == 1 else {}
+    from . import character_forms                     # G2 17/10 (#31): a person in a form THIS shot names is not judged on the profile's clothes
+    forms = character_forms.for_shot(conn, project_id, shots[0]) if len(shots) == 1 else {}
     rows = []
     for r in conn.execute("SELECT name, lock_rules, outfit_image_ids FROM characters WHERE project_id=?", (project_id,)):
         if names is not None and r["name"] not in names:
@@ -551,6 +553,9 @@ def lock_text(conn, project_id: int, names=None, shots=None) -> str:
             except ValueError:
                 lock = None
         if not lock:
+            continue
+        if str(r["name"]).strip().upper() in forms:
+            rows.append(character_forms.note_vi(r["name"], forms[str(r["name"]).strip().upper()]))
             continue
         lock = lx.apply_rules(lock, exc.get(str(r["name"]).strip().upper()))
         size = f"; cao ~{lock['height_m']:g} m" if lock.get("height_m") else ""
