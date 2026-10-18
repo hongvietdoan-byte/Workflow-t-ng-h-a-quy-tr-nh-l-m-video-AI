@@ -213,13 +213,6 @@ FEATURES: Dict[str, Dict] = {
         "why": "🎓 Học việc từ 08/10 (KIEM_22: kết luận T): chạy bóng, ghi trainee_log để so với người, không đổi phim; bật thật chỉ khi đủ chuẩn và bạn duyệt. 2026-09-29 (kế hoạch S3.4, sau #8: mỗi shot gen riêng, chuyển động bắt đầu lại ở mỗi điểm cắt): mới thử bằng test ffmpeg — "
                "chưa biết model video có diễn trọn đoạn 8–15 s đúng thứ tự không, và trả tiền nhiều giây hơn cho mỗi góc",
     },
-    "closeup_start_frame": {
-        "label": "Shot cận thấy mặt (ECU / CU / MCU có nhân vật) không đi nhóm Seedance chỉ-tham-chiếu mà đi Kling từ khung đầu = ảnh "
-                 "storyboard đã duyệt — mặt giữ đúng ảnh duyệt",
-        "verified": False,
-        "why": "2026-09-29 (kế hoạch S4.1, sau #8: cận Kelly đi nhóm tham chiếu ra kiểu anime): chưa chạy thật — A/B S4.6 (cận ref-only vs "
-               "khung đầu) quyết có giữ không; Kling tốn tiền theo giây như shot đơn, mất gộp nhóm",
-    },
     "shot_transitions": {
         "label": "Chuyển cảnh từng chỗ nối theo `transition_in` của shot (chớp trắng, tối đi, lia nhòe, lao vào khung) — vẽ trong hai clip "
                  "kề nhau nên độ dài phim không đổi",
@@ -773,6 +766,10 @@ REMOVED: Dict[str, str] = {
     "chain_previous_auto": "GĐ6: nối ảnh shot trước bất kể cỡ cảnh → shot cận kéo theo bố cục toàn cảnh",
     "setcheck_autofix": "GĐ6: QC đồng bộ chuẩn theo số đông, sửa sai người rồi tự trả tiền gen lại",
     "location_plates": "Ghép phông xanh lên nền 3D: tạm ngưng từ 27/09 (#8), thay bằng place_render_refs / scene_establishing",
+    "closeup_start_frame": ("18/10 người dùng (#31): gỡ — cận thấy mặt đi Kling từ khung đầu trái quyết định video-route-2026-10-13 (video "
+                            "hết Seedance 2.5, Kling chỉ đường lùi); A/B S4.6 01/10 (docs/KET_QUA_S4_2_S4_6_2026-10-01.md) đã kết luận khung "
+                            "đầu KHÔNG giữ mặt tốt hơn chỉ-ảnh-tham-chiếu, biểu cảm mạnh còn kém; Kling mất gộp nhóm, cần vẽ khung cuối; "
+                            "cờ vẫn bật ở máy chính nên 7 shot cận #31 lọt sang Kling (G24, docs/DANH_GIA_P31_LECH_3D_TI_LE_2026-10-18.md)"),
 }
 _SETTINGS = {"stamp": None, "path": None, "data": None}
 

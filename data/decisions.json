@@ -289,6 +289,22 @@
     }
    ],
    "status": "active"
+  },
+  {
+   "id": "no-kling-closeup-2026-10-18",
+   "date": "2026-10-18",
+   "by": "người dùng",
+   "text": "Gỡ cờ closeup_start_frame: shot cận thấy mặt (ECU/CU/MCU có nhân vật) KHÔNG tự đi Kling từ khung đầu nữa — theo video-route-2026-10-13 mọi shot đi Seedance 2.5, Kling chỉ là đường lùi khi Seedance từ chối.",
+   "keeps": "Kling vẫn dùng khi Seedance từ chối shot (route 'kling'), dự án Kling multi-shot, dự án cũ chưa chọn ưu tiên model; video-route-2026-10-13 giữ nguyên. RỦI RO (agent rà 18/10): shot cận giờ đi nhóm tham chiếu, ảnh đánh dấu đặt dấu GÓC (corner_plus) chỉ khi cờ ref_mark_off_face bật (đang bật máy chính, chưa verified) — tắt cờ thì dấu eye_plus nằm trên mặt shot cận (lỗi #27).",
+   "changes": "18/10 code: core/features.py (cờ vào REMOVED kèm lý do), core/seedance_refs.py (bỏ face_closeup), core/model_router.py (bỏ nhánh Kling cho cận mặt); check_no_kling_for_face_closeups. Lý do: A/B S4.6 01/10 (docs/KET_QUA_S4_2_S4_6_2026-10-01.md) — khung đầu không giữ mặt tốt hơn chỉ-ảnh-tham-chiếu, biểu cảm mạnh còn kém; Kling mất gộp nhóm + cần vẽ khung cuối; cờ vẫn bật ở máy chính nên 7 shot cận #31 lọt sang Kling trái quyết định (G24).",
+   "replaces": null,
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_no_kling_for_face_closeups"
+    }
+   ],
+   "status": "active"
   }
  ]
 }

@@ -143,8 +143,7 @@ def plan(p, pid, arm="ref"):
         r = rows[idx]
         job = {"id": -1, "scene_id": r["id"], "project_id": pid, "retry_reason": None, "type": "video_gen", "group_leader": None}
         print(f"\n=== shot {idx} ({r['data'].get('size')}, {r['data'].get('characters')}) — {model_router.scene_choice(p.conn, r['id'])}")
-        print("nhóm:", [g["idx"] for g in (shots.group_of(p.conn, r["id"]) or [])], "· refs:", vr._refs(job),
-              "· face_closeup:", seedance_refs.face_closeup(r["data"]))
+        print("nhóm:", [g["idx"] for g in (shots.group_of(p.conn, r["id"]) or [])], "· refs:", vr._refs(job))   # 18/10: face_closeup đã gỡ
         args, est = _estimate(real, job)
         if not args:
             print("(chưa gửi được: thiếu motion prompt / ảnh duyệt)")
@@ -369,7 +368,9 @@ def main():
     script_cap.add_argument(ap)
     a = ap.parse_args()
     script_cap.require(a, "s42_s46_take_closeup").start()
-    extra = {"FEATURE_CLOSEUP_START_FRAME": "1" if a.arm == "kling" and a.step in ("plan", "closeup") else "0"}
+    if getattr(a, "arm", None) == "kling":      # 18/10: cờ closeup_start_frame đã gỡ (features.REMOVED) — nhánh Kling của bài thử không còn
+        raise SystemExit("nhánh --arm kling đã bỏ 18/10: cờ closeup_start_frame gỡ khỏi code (quyết định no-kling-closeup-2026-10-18)")
+    extra = {}
     p = _p(extra)
     if a.step == "setup":
         return setup(p)

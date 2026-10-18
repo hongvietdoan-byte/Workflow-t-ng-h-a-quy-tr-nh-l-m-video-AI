@@ -130,7 +130,7 @@
    {"id": "S4.gen", "name": "Gen clip", "ui": "nút gen (ước tính) · ■ Hủy · ✏ Sửa motion rồi gen lại · ↺",
     "resp": "Gửi ClipAI, tự điều tốc song song, nhận mã thật, tải clip; shot ⭐ gen thêm bản", "who": "🎬 ClipAI Kling / Seedance · ⚙ runner/throttle",
     "in": "ảnh khung đầu (+ khung cuối) + motion + giọng/chủ thể", "out": "clip mp4", "store": "P/videos/, CSDL jobs, job_events", "cost": "💵 đắt nhất",
-    "flag": "hero_takes, seedance_ref_groups, continuous_takes, closeup_start_frame", "code": "core/runner.py, throttle.py, seedance_refs.py, hero_takes.py, regen.py"},
+    "flag": "hero_takes, seedance_ref_groups, continuous_takes", "code": "core/runner.py, throttle.py, seedance_refs.py, hero_takes.py, regen.py"},
    {"id": "S4.lip", "name": "👄 Khớp môi", "ui": "expander 👄",
     "resp": "Shot cận có thoại: Seedance tạo kèm giọng / một clip cả đoạn thoại; đo khớp môi bằng mốc môi", "who": "🎬 Seedance · ⚙ đo MediaPipe",
     "in": "giọng + ảnh", "out": "clip có môi", "store": "P/lipsync/", "cost": "💵", "flag": "lip_sync, dialogue_take", "code": "core/lipsync.py, dialogue_take.py"},

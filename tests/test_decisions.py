@@ -179,6 +179,15 @@ def check_time_weather_single_source():
     assert conn.execute("SELECT COUNT(*) FROM change_events WHERE scene_id=?", (sid,)).fetchone()[0] == 1, "việc chép tạo thêm thay đổi"
 
 
+def check_no_kling_for_face_closeups():
+    """18/10 (#31 G24): cờ closeup_start_frame đã gỡ (features.REMOVED) — shot cận thấy mặt không tự đi Kling; Kling chỉ là đường lùi."""
+    import inspect
+    from core import features, model_router, seedance_refs
+    assert "closeup_start_frame" in features.REMOVED and "closeup_start_frame" not in features.FEATURES, "cờ cận→Kling vẫn còn"
+    assert not hasattr(seedance_refs, "face_closeup"), "còn đường cận thấy mặt ra khỏi nhóm tham chiếu"
+    assert "closeup_start_frame" not in inspect.getsource(model_router), "bộ chọn model còn nhánh Kling cho cận mặt"
+
+
 CHECKS = {k: v for k, v in globals().items() if k.startswith("check_") and callable(v)}
 
 

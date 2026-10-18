@@ -93,7 +93,7 @@ _Giao diện / code: dashboard/steps/step1*.py_
   - Tiền: 💵 ≈ 0,15 USD/ý tưởng đo thật, trần 0,3
   - Trên giao diện: tab 💡 (chỉ khi bật cờ)
   - Code: core/idea_to_script.py, prompts/23, knowledge/roles/screenwriter.md, dashboard/steps/step1_idea.py
-  - Cờ: `idea_to_script` TẮT · chưa thử thật
+  - Cờ: `idea_to_script` TẮT
 - **1b · 🧰 Chuẩn bị**
   - Trên giao diện: fold 1b
   - **🎨 Phong cách hình ảnh (World Bible)**
@@ -142,7 +142,7 @@ _Giao diện / code: dashboard/steps/step1*.py_
   - Tiền: 💵 trần director 64k token
   - Trên giao diện: fold 1d · ✍ Nâng cao: dán JSON
   - Code: core/director_two_pass.py, shots.py, shot_normalize.py, continuity.py, director_report.py, prompts/17,19,20
-  - Cờ: `director_two_pass` BẬT, `film_crew` BẬT · chưa thử thật, `camera_setups` BẬT · chưa thử thật
+  - Cờ: `director_two_pass` BẬT, `film_crew` BẬT, `camera_setups` BẬT · chưa thử thật
 - **1e · 👥 Character Bible**
   - Trên giao diện: fold 1e
   - **Ảnh tham chiếu + ảnh mốc**
@@ -172,7 +172,7 @@ _Giao diện / code: dashboard/steps/step1*.py_
     - Tiền: theo ClipAI
     - Trên giao diện: expander 🧩 · 📥 Nhập chủ thể · Gắn cho …
     - Code: core/subjects.py
-    - Cờ: `seedance_subjects` BẬT · chưa thử thật
+    - Cờ: `seedance_subjects` BẬT
   - **Giọng nhân vật**
     - Trách nhiệm: Chọn giọng TTS cho nhân vật có thoại (ưu tiên 4 giọng clone VN)
     - Ai làm: 👤 · 🤖 Claude (voice casting)
@@ -209,7 +209,6 @@ _Giao diện / code: dashboard/steps/step1*.py_
   - Tiền: 💵 1 lượt/kịch bản
   - Trên giao diện: fold 1g
   - Code: core/layout.py, previz.py, prompts/07,08
-  - Cờ: `layout_to_model` BẬT · chưa thử thật, `chain_previous_auto` BẬT · chưa thử thật
 - **📋 Báo cáo Director & tổ làm phim**
   - Trách nhiệm: Đánh đổi, 👀 người xem lần đầu hiểu gì, ghi chú cho người viết, 🎬 Đạo diễn duyệt, code đã chuẩn hóa mấy chỗ
   - Ai làm: 🤖 Claude (first viewer) · ⚙ code
@@ -241,7 +240,7 @@ _Giao diện / code: dashboard/steps/step2.py (554 dòng)_
   - Tiền: 💵
   - Trên giao diện: theo cờ
   - Code: core/scene_establish.py, scene_storyboard.py, end_frames.py, place_refs.py, location_pack.py
-  - Cờ: `scene_establishing` BẬT · chưa thử thật, `storyboard_api` BẬT · chưa thử thật, `end_frames` BẬT · chưa thử thật, `place_render_refs` TẮT · chưa thử thật, `location_plates` TẮT · chưa thử thật
+  - Cờ: `scene_establishing` BẬT · chưa thử thật, `storyboard_api` BẬT, `end_frames` BẬT · chưa thử thật, `place_render_refs` TẮT
 - **QC ảnh (lớp 0 code → Claude → người)**
   - Trách nhiệm: Tự kiểm ảnh mới; QC theo cảnh; Tổ QC (code đo + model khai quan sát + code áp luật); kiểm đồng bộ cả bộ; chính sách QC 1 lựa chọn
   - Ai làm: ⚙ code đo · 🤖 Claude (QC / Tổ QC) · 👤 duyệt
@@ -324,7 +323,7 @@ _Giao diện / code: dashboard/steps/step4.py_
   - Tiền: 💵 đắt nhất
   - Trên giao diện: nút gen (ước tính) · ■ Hủy · ✏ Sửa motion rồi gen lại · ↺
   - Code: core/runner.py, throttle.py, seedance_refs.py, hero_takes.py, regen.py
-  - Cờ: `hero_takes` TẮT · chưa thử thật, `seedance_ref_groups` BẬT · chưa thử thật, `continuous_takes` BẬT · chưa thử thật, `closeup_start_frame` TẮT · chưa thử thật
+  - Cờ: `hero_takes` TẮT · chưa thử thật, `seedance_ref_groups` BẬT · chưa thử thật, `continuous_takes` BẬT · chưa thử thật
 - **👄 Khớp môi**
   - Trách nhiệm: Shot cận có thoại: Seedance tạo kèm giọng / một clip cả đoạn thoại; đo khớp môi bằng mốc môi
   - Ai làm: 🎬 Seedance · ⚙ đo MediaPipe
@@ -334,7 +333,7 @@ _Giao diện / code: dashboard/steps/step4.py_
   - Tiền: 💵
   - Trên giao diện: expander 👄
   - Code: core/lipsync.py, dialogue_take.py
-  - Cờ: `lip_sync` BẬT · chưa thử thật, `dialogue_take` BẬT · chưa thử thật
+  - Cờ: `lip_sync` BẬT · chưa thử thật, `dialogue_take` BẬT
 - **QC video (lớp 0 đo → Claude → người)**
   - Trách nhiệm: Đo không AI (độ dài, khựng, mặt, đen), Claude xem khung, người quyết
   - Ai làm: ⚙ clip_measure · 🤖 Claude (video QC) · 👤
@@ -376,7 +375,7 @@ _Giao diện / code: dashboard/steps/step5.py (753 dòng)_
     - Tiền: 💵
     - Trên giao diện: 🤖 Claude viết brief · 📋 Phiếu spotting · Chọn bản · Tải nhạc / Không dùng nhạc
     - Code: core/music.py, music_intent.py, music_timing.py, music_fit.py, prompts/04
-    - Cờ: `music_fit` BẬT · chưa thử thật, `music_breath` BẬT · chưa thử thật, `sound_intent` BẬT · chưa thử thật
+    - Cờ: `music_fit` BẬT, `music_breath` BẬT, `sound_intent` BẬT
   - **🎧 Hiệu ứng âm thanh (SFX) + giọng đọc thêm**
     - Trách nhiệm: Claude đọc cảnh + kho âm thanh của bạn → đặt hiệu ứng theo shot; tạo SFX/TTS thêm; âm nền mỗi cảnh
     - Ai làm: 🤖 Claude (sfx) · 🎬 ClipAI · ⚙ sound_ai nhận dạng
@@ -386,7 +385,7 @@ _Giao diện / code: dashboard/steps/step5.py (753 dòng)_
     - Tiền: 💵
     - Trên giao diện: 🤖 AI tự đề xuất hiệu ứng · tab SFX / TTS · 🗓 Xếp lại theo thoại
     - Code: core/sfx_plan.py, audio_lib.py, sound_lib.py, sound_ai.py, ambience.py
-    - Cờ: `ambience_bed` BẬT · chưa thử thật, `impact_shake` BẬT · chưa thử thật
+    - Cờ: `ambience_bed` BẬT, `impact_shake` BẬT
 - **5.3 · 🎞 Dựng video cuối + 🗺 Timeline tổng**
   - Trách nhiệm: ffmpeg ghép clip + giọng + nhạc + SFX, chuyển cảnh, khớp màu, chuẩn hóa −14 LUFS; timeline cho thấy cái gì ở giây nào
   - Ai làm: ⚙ ffmpeg_studio
@@ -396,7 +395,7 @@ _Giao diện / code: dashboard/steps/step5.py (753 dòng)_
   - Tiền: 0
   - Trên giao diện: ⚙ Thiết lập dựng · ▶ Dựng video cuối · 🔊 Giữ âm gốc
   - Code: core/ffmpeg_studio.py, delivery.py, color_match.py, timeline_view.py
-  - Cờ: `loudness_normalize` BẬT, `shot_color_match` BẬT · chưa thử thật, `j_cut` BẬT · chưa thử thật, `shot_transitions` BẬT · chưa thử thật, `speed_ramp` TẮT · chưa thử thật, `motion_trim` BẬT · chưa thử thật, `end_hold` BẬT · chưa thử thật, `flashback_fx` BẬT · chưa thử thật
+  - Cờ: `loudness_normalize` BẬT, `shot_color_match` BẬT, `j_cut` BẬT · chưa thử thật, `shot_transitions` BẬT · chưa thử thật, `speed_ramp` TẮT · chưa thử thật, `motion_trim` BẬT · chưa thử thật, `end_hold` BẬT, `flashback_fx` BẬT
 - **5.4 · ✨ Hậu kỳ**
   - Trách nhiệm: Phụ đề từ thoại (không đè mặt, chữ sáng theo giọng, font riêng), card chữ cuối, ảnh bìa, xuất thêm khổ/dung lượng, nhãn AI
   - Ai làm: ⚙ code · 👤

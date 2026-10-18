@@ -82,7 +82,7 @@ Shot 3 (9 job): 1 lỗi model (782) + 8 do G1/G2/G3. Shot 16 (14 job): G1 1, G2 
 - **Gốc**: Kho chủ thể đầy (lỗi 6.11) → dự phòng đánh dấu cả ẢNH KHUNG ĐẦU + ảnh nhân vật bằng dấu trên mắt (`…_marked_none_…_marked.png`).
   Cờ `ref_mark_off_face` đổi sang góc, nhưng sau 1 lần bị từ chối "người thật" lại quay về eye_plus = lỗi cũ → **che một phần**.
 - **Sửa**: thang dự phòng: hosted → banner (không dấu) → corner_plus → đổi tuyến Kling (start+end frame, không ref); KHÔNG bao giờ
-  eye_plus cho ảnh có mặt nhân vật cận (`face_closeup`) hay ảnh khung đầu. Sau gen: `clip_measure.ref_mark` có cờ → giữ cho người (hiện chỉ
+  eye_plus cho ảnh có mặt nhân vật cận (`face_closeup` (đã gỡ 18/10 cùng cờ closeup_start_frame)) hay ảnh khung đầu. Sau gen: `clip_measure.ref_mark` có cờ → giữ cho người (hiện chỉ
   gợi ý ở nháp).
 - **Test**: `tests/test_seedance_marks.py::test_refusal_never_returns_to_eye_plus_on_face`; `::test_start_frame_never_eye_marked`.
 

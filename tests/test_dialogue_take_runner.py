@@ -154,21 +154,15 @@ class DialogueTakeRunnerTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"FEATURE_DIALOGUE_TAKE": "0", "FEATURE_LIP_SYNC": "0"}):
             self.assertEqual(model_router.scene_choice(self.p.conn, self.ids[0])["model"], "seedance-fast")   # others: still cheap
 
-    def test_a_speaking_close_up_stays_in_its_take_with_closeup_start_frame_on(self):
-        """S4.1 × S4.2: with closeup_start_frame on, a speaking MCU left its group for Kling from its start frame — Kling takes no voice,
-        so the most visible mouth lost its lip sync without a word. A close-up nobody speaks in still goes to Kling."""
+    def test_a_speaking_close_up_stays_in_its_take(self):
+        """S4.1 × S4.2 (18/10: the closeup_start_frame flag is removed): a speaking MCU stays in its dialogue take on Seedance 2.5."""
         for sid in self.ids:
             d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()["data"])
             self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(dict(d, size="MCU"), ensure_ascii=False), sid))
         self.p.conn.commit()
         with mock.patch.dict(os.environ, {"FEATURE_CLOSEUP_START_FRAME": "1"}):
-            d = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.ids[0],)).fetchone()["data"])
-            self.assertFalse(seedance_refs.face_closeup(d))
             self.assertEqual([r["id"] for r in shots.group_of(self.p.conn, self.ids[0])], self.ids)
             self.assertEqual(model_router.scene_choice(self.p.conn, self.ids[0])["model"], "seedance-2.5")
-            self.assertTrue(seedance_refs.face_closeup(dict(d, dialogue=[])))   # nobody speaks: Kling from the start frame
-            with mock.patch.dict(os.environ, {"FEATURE_DIALOGUE_TAKE": "0"}):
-                self.assertTrue(seedance_refs.face_closeup(d))                # without the take: the S4.1 rule as before
 
     def test_frames_dropped_at_the_start_of_a_take_shot_move_its_voice_too(self):
         """S4.5 drops the neighbouring shot's frames at a cut clip's start: the mouths come `head` seconds earlier, so the shift grows."""
