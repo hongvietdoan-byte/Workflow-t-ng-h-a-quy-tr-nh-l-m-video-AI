@@ -65,3 +65,14 @@ gọi đúng `VideoRunner._blocked / _submit_args / _prepare_kwargs` + `video_pr
 | G17 (nợ) | `quality_tier.py:177` coi `lip_sync is True` là có khớp môi trước `method_for` | shot chỉ lời dẫn mà Đạo diễn gắn lip_sync → tính shot khó | Chưa sửa (agent rà) |
 
 **Sau dự án #31:** tổng hợp G1–G17 vào bản kế hoạch nâng cấp `docs/KE_HOACH_AI_VIDEO_PIPELINE_V2_1_REVIEW.md` (người dùng 18/10).
+
+**Kiểm bổ sung trước gen video (người dùng hỏi "đã kiểm kỹ chưa", 18/10 tối):**
+
+| Mã | Lỗi gốc | Bằng chứng | Xử lý |
+|---|---|---|---|
+| **G18** | BYĐ của shot mâu thuẫn trường khác của CHÍNH shot | Shot 2: `byd.may.chuyen_dong = dung_yen` nhưng `camera_move = pan` + kịch bản "góc nhìn lia theo hướng quay" → mọi motion đều bị Tổ rà soát báo đỏ một phía. Không có kiểm code nào so BYĐ ↔ camera_move/action khi Đạo diễn khai | Motion theo camera_move + kịch bản; đóng mục có lý do |
+| **G19** | Ảnh khung đầu vẽ trạng thái CUỐI thay vì ĐẦU của shot | Shot 1, 2: ảnh đã thấy 2 cửa trong khi shot là "quay người dần lộ 2 cửa"; shot 4: ý đồ qua vai thấy 2 cửa, ảnh không thấy. Gốc: prompt ảnh tả cả hành động ("camera turning to reveal two doors") → model vẽ kết quả. Liên quan G11 | Người dùng chốt ảnh tạm ổn; motion tả đúng ảnh |
+| **G20** | Cổng ảnh→video báo nhầm "lệch nền 3D" khi ảnh không có/ít trời | S22 (trong phòng) và S39 (từ trên cao): cổng so đường chân trời ở 7 % / 14 % khung — ảnh khớp bố cục nền 3D (xem ảnh so sánh) nhưng không lộ trời | Đề xuất "Bỏ qua kiểm nền" kèm lý do — chờ người dùng |
+| **G21** | Shot chèn tay không có BYĐ | S15–17: `video_pregen` VÀNG "chưa có BYĐ — chưa kiểm được nhịp đầu–đỉnh–cuối" (G6 mở rộng) | Ghi lại |
+| **G22** | BYĐ không cập nhật khi đổi nội dung shot | S18: BYĐ vẫn "Lính áo choàng đổi tư thế" sau khi đổi thành hạ Sứ giả | Ghi lại |
+| G23 | Công cụ kiểm gói video thiếu | Phải viết script tạm (thư mục thử + provider giả có chữ ký ClipAI) mới thấy G10–G13; sổ gói ghi `reference_only` không nhãn | = V2.1 §6.B B1 replay video |
