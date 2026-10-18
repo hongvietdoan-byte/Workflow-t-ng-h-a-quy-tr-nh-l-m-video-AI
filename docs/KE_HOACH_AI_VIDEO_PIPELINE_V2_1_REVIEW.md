@@ -1,4 +1,4 @@
-# Kế hoạch AI Video Pipeline V2.1 — Audit + bản cập nhật (17/10/2026)
+# Kế hoạch AI Video Pipeline V2.1 — Bản rà soát cập nhật R2 (17/10/2026; xác minh baseline 18/10)
 
 > **Trạng thái: CHỈ AUDIT + KẾ HOẠCH. CHƯA DUYỆT, CHƯA TRIỂN KHAI.** Không sửa code production, không migration, không bật cờ, không gọi
 > dịch vụ có phí. Đề bài: `docs/handoff/YEU_CAU_V2_1_2026-10-17.txt`. Kế hoạch gốc (không sửa): `docs/KE_HOACH_TRUONG_CAU_TRUC_VA_HOI_QUY_GOI_2026-10.md`
@@ -11,7 +11,9 @@ Ký hiệu trạng thái: **IMPL** = IMPLEMENTED · **PART** = PARTIAL · **MISS
 
 ---
 
-> **Cập nhật 17/10 tối (phiên ai-video-pipeline-todo-0db507):** nhánh `claude/wizardly-elbakyan-596555` + sửa máy POV (4775eab4) ĐÃ GỘP main sau rà quy ước 7 + cả bộ 6096 qua — điều kiện Q5 đã thỏa; chỗ nào bên dưới ghi "chưa gộp" là trạng thái lúc audit.
+> **Cập nhật R2 — nguồn: ghi chú 17/10 tối trong chính tài liệu:** báo cáo cho biết nhánh `claude/wizardly-elbakyan-596555` và sửa POV `4775eab4` **đã gộp main**, 6.096 test qua. Đây là **trạng thái được báo cáo**, chưa được xác minh lại trên repository trong lần biên tập R2. Các bảng audit tại `b39e005b` bên dưới là **ảnh chụp lịch sử**, không được dùng làm kết luận về HEAD hiện tại. **Q5 được coi là thỏa theo báo cáo, nhưng phải xác minh HEAD/ancestry và test trước B1.**
+
+> **Xác minh R2 — 18/10 (phiên ai-video-pipeline-upgrade-plan-04b569, chỉ đọc, 0 USD; biên bản `docs/audit/P1_BASELINE_VERIFICATION.md`):** HEAD `186a2cc9` chứa POV `4775eab4` (ancestry) và toàn bộ nội dung nhánh wizardly (SHA `3a2a6eb9` bị làm phẳng khi rebase — kiểm theo nội dung: trigger `trg_scene_noi_chon(_new)` có trong code **và** trong CSDL máy chính, `sync_noi_chon`, quyết định `time-weather-single-source-2026-10-17`, `tools/pregen_check.py`); 11 file test nền 244 qua → **Q5 ĐÃ THỎA**. Cờ máy chính, dữ liệu #24/#27/#31 đã chụp mốc. **Phát hiện mới:** `qc_observe_enum` đang **BẬT** ở máy chính và #31 shot 30 có `byd.vat = ["AWM"]` (chuỗi) → R3 đang xảy ra (QC shot đó luôn lỗi `BYĐ.vat thiếu vật chuẩn`), xem §9 R3.
 
 ## 1. Executive Summary
 
@@ -28,7 +30,7 @@ Ký hiệu trạng thái: **IMPL** = IMPLEMENTED · **PART** = PARTIAL · **MISS
 3. **QC đã có nhiều mảnh** (autoqc, qc_scene, qc_team + qc_golden benchmark, video_qc_context, clip_measure, plate_layout_qc,
    camera_match_qc, final_qc). Thiếu: preflight ảnh (L8), mã lỗi thống nhất, kiểm khung đen/đứng hình, cross-shot state, export Premiere.
 4. **Thứ tự khuyến nghị:** P0 (tài liệu này) → P1 = B0–B2 (golden, 0 USD) → P2 = A0–A3 → P3 = B4/A5/C → P4 = D+E (thiết kế→benchmark) → P5 = F.
-   **P1 chỉ bắt đầu sau khi nhánh `claude/wizardly-elbakyan-596555` gộp main** (nó đổi `scenes.data` qua trigger — fixture chụp trước gộp sẽ lệch).
+   **P1-B1 chỉ bắt đầu sau khi xác minh trên máy chính rằng hai thay đổi Q5 đã có trong HEAD, cờ máy chính đã được snapshot và các test nền đạt** (trigger có thể đổi `scenes.data` — fixture chụp sai mốc sẽ lệch).
 
 ## 2. Current Architecture Verification (Phase 0)
 
@@ -91,6 +93,8 @@ Ký hiệu trạng thái: **IMPL** = IMPLEMENTED · **PART** = PARTIAL · **MISS
 
 ### 2.5 Phiên khác đang sửa (chỉ ghi nhận, không phối hợp sửa)
 
+> **Ghi chú 18/10:** bảng dưới là ảnh chụp lịch sử 17/10 (giữ để truy vết). Trạng thái hiện hành: cả hai đã lên main — xem khối "Xác minh R2" đầu tài liệu.
+
 | Nhánh / commit | Trạng thái thật (`git fetch` 17/10) | File chạm liên quan V2.1 |
 |---|---|---|
 | `origin/claude/wizardly-elbakyan-596555` @ `3a2a6eb9` | **CHƯA gộp** (`merge-base --is-ancestor` → không); 1 commit, 18 file, +727/−46; HANDOFF ghi: chưa rà quy ước 7, chưa chạy cả bộ | `core/shot_intent.py` (+`sync_noi_chon`), `core/db.py` (trigger `trg_scene_noi_chon(_new)`, sửa `trg_change_scene`), `core/location_pack.py` (`render_moved`), `core/batch.py`, `core/cost.py`, `dashboard/steps/step2.py`, `data/decisions.json`, `tools/pregen_check.py` |
@@ -120,7 +124,7 @@ Ký hiệu trạng thái: **IMPL** = IMPLEMENTED · **PART** = PARTIAL · **MISS
 | **Q2** time/weather tại shot | **Đồng ý (a)** — và **đã được chốt** ở nhánh chưa gộp: quyết định `time-weather-single-source-2026-10-17` + trigger đồng bộ bản chép `byd.noi_chon` | Kiểm consumer thực tế | Consumer đọc **trường shot**: `plate_env.time_of/weather_of`, `location_pack`, `scene_establish`, `ambience`, `qc_spec`, `shot_text_checks`, `tools/render_plates`. Consumer đọc **BYĐ**: `prompt_formula:414/434` (ngữ cảnh LLM — đọc cả hai), `tools/dryrun_k0b_p24` (180–187). Không module dựng gói nào đọc `byd.noi_chon.thoi_*` | KH-gốc nói "bỏ trường BYĐ, chỉ so"; nhánh làm "giữ + đồng bộ bằng trigger". V2.1 theo nhánh (đã có quyết định) — bản chép không còn để "so lệch"; VÀNG lệch chỉ áp cho dữ liệu cũ trước trigger |
 | **Q3** tách outfit/hair/face | **Đồng ý, có điều kiện:** tách **trong `assets.profile`** (đã là nguồn hồ sơ chuẩn T1, `profile_digest` đọc), thêm `forms[]` có cấu trúc cho mục Kho style/nhân vật; script soạn nháp (Claude ≈ 0,05 USD — **phải xin duyệt riêng**) → bảng duyệt → ghi | Có duyệt dữ liệu chuyển đổi | Hiện không có trường outfit/hair/face/forms; `without_clothes` (121) tách chữ → nguồn lỗi 5/22 | Người dùng duyệt chi phí 0,05 USD + bảng chuyển đổi |
 | **Q4** giữ #24/#27 baseline; backfill #24 sau | **Đồng ý.** #27 (không BYĐ) và #24 (BYĐ v1) chỉ hồi quy đường cũ; backfill #24 chỉ sau khi A2a–A2f qua golden #31 | Không làm đổi baseline | Golden của #24/#27 chạy ở chế độ cờ máy chính + `byd_fields` TẮT/BẬT: v1 phải **giống byte** vì đọc theo version (v1 → đường cũ) | Không |
-| **Q5** chờ phiên sửa gốc (1)(2) | **Chờ gộp** `wizardly-elbakyan` (chưa gộp) **và** commit POV `4775eab4` (chưa lên main) rồi mới P1-B1 / P2-A2c/A2d. A2a/A2b không bị chặn bởi nhánh đó (nó không chạm character_forms/prop_lock) | Kiểm branch/commit thực tế | §2.5 | Không |
+| **Q5** đồng bộ thay đổi liên quan | **Đã được báo cáo là gộp main** ở ghi chú tối 17/10; **cần kiểm chứng lại HEAD** chứa cả thay đổi trigger và POV, rồi mới B1/A2c/A2d. Không còn coi “chờ merge” là công việc mở mặc định. | Kiểm `git rev-parse HEAD`, `git merge-base --is-ancestor` cho commit thực tế, diff các file liên quan và chạy test nền | §2.5 là ảnh chụp lịch sử trước merge. **18/10 đã xác minh:** POV theo ancestry, wizardly theo nội dung + trigger trong CSDL + 244 test nền qua (`docs/audit/P1_BASELINE_VERIFICATION.md`) | **Không — đã thỏa** |
 | **Q6** siết 3 cổng | **Đồng ý, kèm override audit thống nhất** (§6.A3): (a) ô "vẫn gen" chỉ bật sau mở thẻ gói; (b) lý do ≥ 15 ký tự (`video_gate.py:51` + UI 30/47 — phải đổi **cả hai** chỗ); (c) "Duyệt & khóa" chặn khi `anchor_approved=0` trừ tick có lý do | Có override audit được | Hiện chỉ (b) có actor + lý do; (a) chỉ diag; (c) không chặn | Người dùng xác nhận (c) không làm kẹt dự án chỉ có nhân vật phụ không ảnh mốc |
 
 ## 5. Updated Architecture (đích V2.1)
@@ -241,7 +245,7 @@ làm đổi ý đồ (đổi BYĐ, đổi dạng/đạo cụ) → dừng chờ n
 | Phase | Phạm vi | File/module dự kiến | Phụ thuộc | Rủi ro | Test | Acceptance | Rollback | Chi phí | Điểm dừng duyệt |
 |---|---|---|---|---|---|---|---|---|---|
 | **P0** | Audit (tài liệu này) | `docs/KE_HOACH_AI_VIDEO_PIPELINE_V2_1_REVIEW.md` | — | kết luận sai do thiếu data (UNK) | — | mọi kết luận có file:hàm | xóa file | 0 | **Người dùng duyệt V2.1 + Q1–Q6** |
-| **P1** | B0–B2 golden | mới: `tools/payload_golden.py`, `tests/test_payload_compat.py`, `tests/test_payload_correctness.py`, `tests/fixtures/payload_golden/*` + `CHANGES.md`; sửa nhẹ: `tools/replay_payload.py` (tách hàm video) | gộp `wizardly-elbakyan` + POV; máy có `data/` để chụp | fixture chụp khi cờ máy đổi; đường cần pixel | compat 3 dự án × ma trận cờ; cố ý đổi `_MARK_SEG` → đỏ đúng shot (ca 9.2 KH-gốc) | Lớp 1 xanh không cần `data/`; Lớp 2 xanh ở máy chính; danh sách `needs_pixels` in ra | xóa file mới (không đụng production) | 0 | duyệt fixture đầu tiên (diff = rỗng so replay) |
+| **P1** | B0–B2 golden | mới: `tools/payload_golden.py`, `tests/test_payload_compat.py`, `tests/test_payload_correctness.py`, `tests/fixtures/payload_golden/*` + `CHANGES.md`; sửa nhẹ: `tools/replay_payload.py` (tách hàm video) | **xác minh** HEAD đã gồm `wizardly-elbakyan` + POV; máy có `data/` để chụp; snapshot cờ | fixture chụp khi cờ máy đổi; đường cần pixel | compat 3 dự án × ma trận cờ; cố ý đổi `_MARK_SEG` → đỏ đúng shot (ca 9.2 KH-gốc) | Lớp 1 xanh không cần `data/`; Lớp 2 xanh ở máy chính; danh sách `needs_pixels` in ra | xóa file mới (không đụng production) | 0 | duyệt fixture đầu tiên (diff = rỗng so replay) |
 | **P2** | A0–A3 + A3' | `core/shot_intent.py` (v2, `read`), `prompts/31_director_byd.md`, `core/director_byd.py`, `character_forms`, `prop_lock`, `assets`, `scene_storyboard`, `plate_choice`, `plate_anchor`, `scene_establish`, `runner`, `shot_text_checks`, `shot_normalize`, `core/text_vs_field.py`, `core/features.py` (`byd_fields` + cờ con), `core/lineage.py`, `tools/byd_backfill.py`, `data/decisions.json` + `tests/test_decisions.py` | P1 xanh; Q3 duyệt (cho `forms`) | đổi gói ngoài ý muốn; `qc_observe` raise với `vat` v1 | compat (cờ TẮT = byte) + correctness hết xfail lỗi đã biết + `tests/test_byd_v2.py` | KPI: #31 shot trái trường = 0 (đo bằng replay); cờ TẮT giống byte | tắt `byd_fields`/cờ con (code giữ đường cũ) | 0 code; Q3 soạn nháp ≈ 0,05 USD; Đạo diễn v2 < 0,30 USD/dự án (ước tính KH-gốc §8) — **xin duyệt trước** | (1) duyệt bảng backfill #31; (2) duyệt bảng chuyển đổi Q3; (3) duyệt bật `byd_fields` cho dự án kế |
 | **P3** | B4 + A5 + C + Q6 + bảng `overrides` | `dashboard/payload_card_ui.py`, `dashboard/byd_ui.py`, `dashboard/steps/step2.py`, `step4.py`, `step1_v2.py`, `dashboard/video_gate_ui.py`, `core/video_gate.py`, `core/batch.py`, `core/db.py` (migration `overrides`), `devsys/stages.json` (L8 kiem_truoc) | P2 (thẻ hiện trường); migration duyệt | thẻ dùng logic song song; cổng siết làm kẹt | thẻ shot 3 #31 = `replay --shot 3`; so `sent_package`; override ghi đủ trường | thẻ khớp replay 100 %; mọi override có actor/lý do/snapshot | revert UI; bảng mới không ai đọc → để nguyên | 0 | duyệt migration `overrides`; duyệt (c) chặn khóa |
 | **P4** | D + E (thiết kế → benchmark → code sau duyệt) | `core/continuity_state.py` (mới, mỏng), `ImageRunner._pregen` (image_preflight), `core/final_qc.py` (blackdetect/freezedetect), `core/qc_golden.py` (ca mới) | P2 (BYĐ v2 làm Expected) | VLM sai; quá nhiều UNKNOWN | benchmark gắn nhãn (đạt/lỗi thật/biên) | recall chặn + báo nhầm đo được, không dùng điểm tổng | cờ riêng TẮT | QC model trên benchmark: **ước tính trước, xin duyệt** | duyệt bộ nhãn benchmark |
@@ -251,11 +255,11 @@ làm đổi ý đồ (đổi BYĐ, đổi dạng/đạo cụ) → dừng chờ n
 
 | # | Rủi ro | Khả năng | Ảnh hưởng | Giảm thiểu |
 |---|---|---|---|---|
-| R1 | Fixture chụp trước khi gộp nhánh trigger → baseline sai | Cao | Cao | B1 sau gộp `wizardly` + POV (Q5) |
+| R1 | Fixture chụp trên HEAD/cờ khác với máy production → baseline sai | Cao | Cao | Xác minh ancestry HEAD sau báo cáo merge, snapshot cờ máy chính và trigger trước B1 (Q5) |
 | R2 | Cờ máy chính ≠ cờ test (bài học 16/10) | TB | Cao | capture đọc cờ thật + ghi `co` vào fixture; worktree = UNK |
-| R3 | `qc_observe` raise khi `vat` là chuỗi (qc_observe.py:63–64) | TB (khi bật `qc_observe_enum`) | TB | schema v2 giữ khóa `vat`; A0 đếm; sửa đọc v1 trước khi bật cờ |
+| R3 | `qc_observe` raise khi `vat` là chuỗi (qc_observe.py:62–64) | **ĐANG XẢY RA** (18/10: `qc_observe_enum` BẬT ở máy chính; #31 shot 30 `vat=["AWM"]`) | TB (QC shot đó luôn `failed`, có báo) | sửa ngay parser v1 `str → {vat}` cho `qc_observe` (nhỏ, tách khỏi P2, cần duyệt + quy ước 7); schema v2 giữ khóa `vat`; A0 đếm |
 | R4 | Sửa BYĐ không làm ảnh "cũ" sau `byd_fields` | Cao nếu quên | Cao (gen trên gói cũ) | thêm `byd` vào `lineage` có điều kiện (§6.A) |
-| R5 | Đụng file với phiên khác (`plate_choice`, `location_pack`, `shot_intent`, `db.py`) | TB | TB | Q5; mỗi bước một commit; `py tools/related_areas.py` + agent rà quy ước 7 |
+| R5 | Đụng file với phiên khác hoặc sửa dựa trên commit audit cũ (`plate_choice`, `location_pack`, `shot_intent`, `db.py`) | TB | TB | Kiểm HEAD/worktree hiện tại; mỗi bước một commit; `py tools/related_areas.py` + agent rà quy ước 7 |
 | R6 | Golden bị coi là "đúng" | TB | Cao | tách compat ↔ correctness (§6.B) |
 | R7 | Siết cổng làm kẹt sản xuất | TB | TB | override có audit; (c) có tick lý do |
 | R8 | Trigger CSDL đổi format JSON `scenes.data` (HANDOFF nhánh ghi) → diff golden giả | TB | TB | normalize JSON khi so (sort_keys) |
@@ -295,12 +299,12 @@ làm đổi ý đồ (đổi BYĐ, đổi dạng/đạo cụ) → dừng chờ n
 
 ## 12. Open Questions (cần người dùng trả lời)
 
-1. **Duyệt V2.1 + Q1–Q6** như bảng §4 (đặc biệt Q2 theo cách "đồng bộ bằng trigger" của nhánh `wizardly`, khác KH-gốc)?
+1. **Duyệt kiến trúc R2 và cho phép P1 (chưa cho phép P2–P5)** theo bảng §4; Q5 cần xác minh trên HEAD trước capture; Q2 theo cách đồng bộ bằng trigger?
 2. **Q3:** đồng ý đặt `outfit/hair/face/forms[]` trong `assets.profile` và chi ≈ 0,05 USD cho Claude soạn nháp chuyển đổi?
 3. **Q6(c):** chặn "Duyệt & khóa" khi thiếu ảnh mốc áp cho **mọi** nhân vật hay chỉ nhân vật `chinh` theo BYĐ?
 4. **Migration bảng `overrides`** (P3) — chấp nhận thêm bảng, hay chỉ mở rộng `video_gate_skips` + diag?
 5. **Export Premiere** (XML/EDL) có nằm trong phạm vi V2.1 không, hay giữ làm tay?
-6. Chụp fixture (B1) cần chạy ở **máy chính có `data/`** (0 USD, chỉ đọc) — cho phép phiên chạy `payload_golden --capture` ở đó sau khi gộp nhánh?
+6. Chụp fixture (B1) ở **máy chính có `data/`** (0 USD, chỉ đọc) — cho phép sau khi **xác minh HEAD đã chứa các thay đổi Q5**, chụp snapshot cờ và bảo đảm không ghi vào CSDL production?
 
 ## 13. Bảng bằng chứng (file:hàm/dòng)
 
@@ -330,6 +334,111 @@ làm đổi ý đồ (đổi BYĐ, đổi dạng/đạo cụ) → dừng chờ n
 | Benchmark QC | `core/qc_golden.py` | IMPL |
 | Taxonomy loại | `core/lessons.py:REJECT_REASONS` 98 | IMPL (thô) |
 | Retry trần | `core/qc_policy.py` 9–35 (`max_retry`), `core/db.py` 32 `max_retry_count` | IMPL |
-| Nhánh Q5 chưa gộp | `git merge-base --is-ancestor origin/claude/wizardly-elbakyan-596555 origin/main` → false; `3a2a6eb9` | — |
-| POV chưa lên main | `git branch -a --contains 4775eab4` → chỉ `claude/ai-video-pipeline-todo-0db507` | — |
+| Nhánh Q5 tại **mốc audit cũ** chưa gộp | `git merge-base --is-ancestor origin/claude/wizardly-elbakyan-596555 origin/main` → false tại audit `b39e005b`; ghi chú tối báo **đã gộp**, cần xác minh HEAD | HISTORICAL / VERIFY |
+| POV tại **mốc audit cũ** chưa lên main | `git branch -a --contains 4775eab4` tại audit cũ; ghi chú tối báo **đã gộp**, cần xác minh HEAD | HISTORICAL / VERIFY |
 | Số đếm #31/#24, cờ máy chính | cần `data/` | UNK |
+
+
+---
+
+## 14. Phụ lục R2 — Chỉnh sửa bắt buộc trước phê duyệt thực thi
+
+> **Phân biệt nguồn:** Các kết luận module/file ở §2–§13 là **báo cáo audit của Claude** tại `b39e005b`; ghi chú tối 17/10 là **báo cáo merge/test mới hơn**. Những quy tắc dưới đây là **đề xuất thiết kế bổ sung trong lần review R2**, chưa được kiểm tra trong repository và chưa được triển khai.
+
+### 14.1. Freeze baseline và xử lý Q5 nhất quán
+
+- Giữ nguyên §2.5, §4 các bằng chứng `git` cũ để truy vết lịch sử, **không diễn giải chúng là trạng thái HEAD hiện tại**.
+- Trước B1, chạy trên **đúng máy/worktree dùng capture**: `git rev-parse HEAD`, `git status --short`, xác minh ancestry hoặc diff thực tế của thay đổi trigger `wizardly` và POV `4775eab4`, chạy lại test nền liên quan. Lưu kết quả vào `docs/audit/P1_BASELINE_VERIFICATION.md` (đường dẫn đề xuất).
+- Nếu commit đã squash/rebase, kiểm chứng **nội dung thay đổi** bằng file/diff và test, không chỉ dựa vào `merge-base` với SHA cũ.
+- Đóng băng: HEAD, phiên bản schema CSDL, snapshot feature flags, cấu hình provider/model, bộ input dự án, hash file ảnh/ref. Nếu thiếu `data/` thật, ghi `UNKNOWN` và **không chụp golden giả**.
+- B0 có thể chạy trước xác minh; B1 capture và B2 kiểm tương thích chỉ được chạy khi đủ điều kiện. B1 phải là thao tác chỉ đọc với CSDL production; mọi artifact fixture ghi ra workspace test riêng.
+
+### 14.2. Sửa tương thích `vat[]` — không chờ tới lúc bật QC mới phát hiện
+
+- A0 thống kê hình dạng `byd.vat` thực tế của #24/#27/#31 và đường đọc của `qc_observe`, `shot_intent`, `prop_lock`.
+- Định nghĩa parser tập trung cho v1/v2: `str` → `{vat: <tên>}` kèm provenance `byd_v1`; dict v2 phải kiểm `vat`, `kho_id`, `nguoi`, `cach` theo quy tắc tương ứng. Dữ liệu sai không được silently cast thành `[]`.
+- Thêm test cho: chuỗi v1, dict v2, danh sách rỗng, `None`, dict thiếu khóa, `nguoi` không thuộc `thanh_phan`, `kho_id` không tồn tại, trường `cach` không hợp lệ, `qc_observe_enum` bật/tắt.
+- **Cổng nghiệm thu P2:** Không có exception do sai kiểu `vat` trong fixture v1/v2; trường hợp dữ liệu thiếu cho ra WARN/REVIEW/BLOCK theo hợp đồng, không gây crash.
+
+### 14.3. Hợp đồng trạng thái Continuity (P4) — version và quyền ghi
+
+Không được xem `scenes.data.state` là một dict tự do cho cả Đạo diễn, QC và người duyệt cùng sửa. Nếu dùng vị trí lưu này, phải tách namespace và version:
+
+```json
+{
+  "continuity_state": {
+    "schema_version": 1,
+    "byd_revision": 4,
+    "expected": {"source": "byd_v2", "value": {}},
+    "observations": [
+      {
+        "qc_run_id": "QC_001",
+        "artifact_id": "VIDEO_007_V2",
+        "model_version": "unverified",
+        "value": {},
+        "unknown_fields": ["left_hand"]
+      }
+    ],
+    "resolution": {
+      "status": "PENDING_REVIEW",
+      "selected_observation_id": null,
+      "actor": null,
+      "reason": null
+    }
+  }
+}
+```
+
+- `expected`: chỉ thay khi BYĐ/ý đồ thay và phải mang revision; QC **không được ghi đè**.
+- `observations`: append-only theo artifact/QC run; `UNKNOWN` là hợp lệ, không suy diễn `PASS`.
+- `resolution`: chỉ ghi bởi workflow phê duyệt có actor/timestamp/evidence; override phải đi qua audit log chung.
+- Khi BYĐ hoặc artifact thay, `resolution` cũ phải bị đánh dấu **STALE** theo fingerprint; không được kế thừa duyệt từ phiên bản trước.
+- Cần kiểm kích thước JSON, xung đột cập nhật `scenes.data`, trigger hiện có và tác động lên `lineage` trước khi chốt nơi lưu. Nếu ghi nhiều/đồng thời, xem xét bảng phụ thay vì ép vào `scenes.data`.
+- **Cổng nghiệm thu P4:** Test chứng minh expected không bị QC sửa; observation cũ không duyệt nhầm artifact mới; cross-shot chỉ tạo cạnh dependency có bằng chứng logic truyện.
+
+### 14.4. Benchmark QC — điều kiện định lượng và vận hành an toàn
+
+Trước khi dùng Automated QC để chặn gen/dựng hoặc kích hoạt repair:
+
+1. Tạo bộ nhãn gồm ca PASS, FAIL, UNKNOWN, lỗi nghiêm trọng và ca biên; tách `dev_set`/`independent_set` bằng `qc_golden` hiện có. Định danh shot, artifact, nguồn bằng chứng và người gắn nhãn. Tránh rò rỉ các biến thể của cùng shot qua hai tập.
+2. Báo cáo **theo từng failure code**: số ca, confusion matrix, recall lỗi cần chặn, false-positive rate trên shot đạt, tỷ lệ UNKNOWN, chi phí QC/shot, độ trễ và mức đồng thuận người duyệt.
+3. **Ngưỡng đề xuất để thử nghiệm (chưa được hiệu chuẩn):** trên independent set có tối thiểu 20 ca lỗi nghiêm trọng và 20 ca đạt liên quan đến một nhóm luật trước khi xem xét tự động BLOCK nhóm đó; mục tiêu recall ≥ 95% với lỗi nghiêm trọng và false-positive rate ≤ 5% trên shot đạt. Đây là **mục tiêu thử nghiệm**, không phải chứng nhận chất lượng: với mẫu nhỏ cần xem cả khoảng tin cậy, phân tích lỗi và quyết định của người duyệt. Nếu không đủ dữ liệu hoặc không đạt, tiếp tục Shadow/REVIEW.
+4. Bắt đầu **Shadow Mode**: QC ghi report nhưng không chặn; sau đó **Guarded Mode**: chỉ rule kỹ thuật deterministic đã kiểm chứng được BLOCK; semantic QC chuyển REVIEW; cuối cùng mới cân nhắc auto-repair theo từng failure code.
+5. Chưa được bật lại `qc_team` chỉ vì đạt một tỷ lệ tổng hợp; phải xác định tiêu chí `≥75%` trong code đang đo điều gì, rồi kiểm benchmark độc lập theo loại lỗi và chi phí báo nhầm.
+6. Lưu evidence với timestamp/frame, `artifact_id`, `qc_run_id`, `qc_version`, input hash; model confidence chỉ là tín hiệu chưa hiệu chuẩn.
+
+**Cổng nghiệm thu P4:** Có báo cáo benchmark tái lập được, kết quả theo mã lỗi, người duyệt ký xác nhận danh sách luật được phép BLOCK; các luật chưa đủ bằng chứng giữ REVIEW/UNKNOWN.
+
+### 14.5. Ranh giới phê duyệt và phạm vi triển khai
+
+- **Duyệt tài liệu R2 không đồng nghĩa duyệt code hoặc chi phí.** Nếu người dùng chấp thuận, chỉ mở **P1-B0–B2** theo các điều kiện ở §14.1; P2–P5 vẫn là thiết kế chờ duyệt riêng.
+- **P1**: không gọi API có phí, không migration, không sửa dữ liệu dự án production; cần quyền chỉ đọc dữ liệu thực tế để capture. Cập nhật fixture phải có diff, lý do, người duyệt và test correctness độc lập.
+- **P2**: Q3 phải duyệt cấu trúc và bảng chuyển đổi trước khi ghi; mọi chi phí Claude soạn nháp và Đạo diễn v2 phải xin duyệt riêng.
+- **P3**: migration `overrides` phải có script up/down hoặc chiến lược forward-compatible, kiểm trigger và dữ liệu cũ; không tự động bật cổng chặn khi chưa nghiệm thu.
+- **P4**: thiết kế/benchmark trước, không tự động bật QC semantic chặn production; kiểm soát ngân sách và quyền truy cập media.
+- **P5**: chỉ cho auto-repair từng nhóm lỗi đã chứng minh được; không tự sửa BYĐ làm đổi ý đồ; giữ retry cap, spend gate, chống duplicate job và rollback artifact.
+
+### 14.6. Đề xuất trả lời các câu hỏi còn mở (CHƯA PHÊ DUYỆT)
+
+| Câu hỏi | Khuyến nghị R2 | Trạng thái |
+|---|---|---|
+| Q1 | B trước A, B1 chỉ sau khi xác minh HEAD/cờ máy chính | Đề xuất |
+| Q2 | Giữ `time/weather` shot là nguồn chuẩn, trigger đồng bộ bản chép BYĐ theo quyết định đã được báo cáo | Đề xuất; cần xác minh trigger |
+| Q3 | `outfit/hair/face/forms[]` trong `assets.profile`, chỉ soạn nháp bằng API sau duyệt chi phí riêng | Chờ duyệt |
+| Q4 | #24/#27 baseline, backfill sau khi #31 và v2 qua test | Đề xuất |
+| Q5 | Đã gộp; xác minh 18/10 trên HEAD `186a2cc9` (ancestry POV + nội dung wizardly + 244 test) | **Đã xác minh** |
+| Q6(c) | Bắt buộc ảnh mốc cho nhân vật chính theo BYĐ; nhân vật phụ chỉ chặn nếu shot yêu cầu ref bắt buộc, còn lại REVIEW/override có audit | Đề xuất; cần xác nhận quy tắc xác định nhân vật chính |
+| `overrides` | Ưu tiên bảng riêng, lưu actor/time/code/reason/payload hash/snapshot, migration P3 duyệt riêng | Chờ duyệt |
+| Premiere | Giữ export XML/EDL ngoài phạm vi bắt buộc V2.1; xem là P5+ tùy chọn | Đề xuất |
+| Capture B1 | Cho phép read-only ở máy chính sau xác minh baseline; không gọi API có phí | Chờ duyệt |
+
+### 14.7. Checklist trước khi giao Claude Code
+
+- [x] Xác minh HEAD mới và bằng chứng Q5; cập nhật mục §2.5 lịch sử bằng ghi chú mới, không xóa dấu vết cũ. (18/10, `docs/audit/P1_BASELINE_VERIFICATION.md`)
+- [x] Xác minh cờ máy chính, dữ liệu #24/#27/#31, trigger và schema CSDL. (18/10, cùng biên bản; chụp lại lúc capture)
+- [ ] Xác định phạm vi P1 và quyền chỉ đọc trước khi chạy capture.
+- [ ] Chốt parser/test `vat[]` v1/v2 trước khi bật các consumer mới.
+- [ ] Phê duyệt Q3, Q6(c), migration và mọi chi phí theo từng phase khi tới giai đoạn tương ứng.
+- [ ] Không triển khai P2–P5 khi mới duyệt P1.
+
+**Kết luận R2:** Kế hoạch đủ rõ để **đề xuất duyệt có điều kiện P1** sau khi xác minh baseline; **chưa phải lệnh triển khai**. Những bổ sung Continuity/QC/Repair là thiết kế định hướng, chưa phải chức năng đã được xác nhận trong code.
