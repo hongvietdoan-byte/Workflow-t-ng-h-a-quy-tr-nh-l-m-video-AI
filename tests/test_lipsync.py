@@ -35,6 +35,16 @@ class MethodTests(unittest.TestCase):
         self.assertEqual(lipsync.method_for({"size": "CU", "characters": ["KELLY"]}), "skip")     # nobody speaks
         self.assertEqual(lipsync.method_for(shot(lip_sync=False)), "skip")
 
+    def test_a_narrator_line_is_never_lip_synced_even_in_a_pov_shot_without_cast(self):
+        # 18/10 #31 S01–S03: POV shots (no characters) with LỜI DẪN lines were sent as a lip-sync take ("LOI DAN speak Audio1")
+        for post_ok in (True, False):
+            self.assertEqual(lipsync.method_for(shot(speaker="LỜI DẪN", cast=()), post_ok=post_ok), "skip")
+            self.assertEqual(lipsync.method_for(shot(speaker="LỜI DẪN"), post_ok=post_ok), "skip")
+            self.assertEqual(lipsync.method_for(shot(speaker="KELLY (V.O.)"), post_ok=post_ok), "skip")
+        both = shot()
+        both["dialogue"] = [{"speaker": "LỜI DẪN", "text": "Phía sau lưng bạn."}, {"speaker": "KELLY", "text": "Em hiểu rồi."}]
+        self.assertEqual(lipsync.method_for(both, post_ok=True), "post")      # Kelly still speaks in frame: her line keeps the sync
+
     def test_the_no_lip_sync_flag_is_lifted_only_when_the_feature_is_on(self):
         s = shot()
         self.assertTrue(storyboard_gate.lip_sync_risk(s))
@@ -64,6 +74,14 @@ class ShotAudioTests(unittest.TestCase):
         probe = subprocess.run([ff, "-i", seg["path"]], capture_output=True, text=True, errors="replace").stderr
         self.assertIn("Duration: 00:00:04.0", probe)
         self.assertIsNone(lipsync.shot_audio(data, 1, 99, 4.0, ff))                              # no voiced line: None
+        # 18/10 #31: a narrator line keeps its place (offsets) but is not in the voice the mouth follows; narrator only → None
+        audio_lib._save(adir, [{"kind": "tts", "scene_id": 8, "line": n, "speaker": who, "state": "succeeded", "file": f"l{n}.wav",
+                                "duration_ms": 800} for n, who in ((1, "LỜI DẪN"), (2, "KELLY"))]
+                        + [{"kind": "tts", "scene_id": 9, "line": 1, "speaker": "LỜI DẪN", "state": "succeeded", "file": "l1.wav",
+                            "duration_ms": 800}])
+        mixed = lipsync.shot_audio(data, 1, 8, 4.0, ff)
+        self.assertEqual(mixed["offsets"], [1.0, 1.95])
+        self.assertIsNone(lipsync.shot_audio(data, 1, 9, 4.0, ff))
 
 
 class SeedanceAudioTests(unittest.TestCase):

@@ -46,3 +46,22 @@ nên đều ra hàng rào thấp. Sửa gốc: kiểm file 3D gốc (mesh/LOD h�
 ## Sửa nhanh đã làm 18/10 (dữ liệu, 0 USD trước khi gen)
 
 Ghi ở `TODO.md` dòng 18/10 cùng ngày (sao lưu CSDL + danh sách trường đã đổi).
+
+## Bước video (18/10 tối) — lỗi gốc tìm thấy khi kiểm gói video trước khi gen (0 USD)
+
+Kiểm bằng cách DỰNG THỬ gói video của cả 39 shot trong thư mục thử (bản sao CSDL, provider giả không gửi được, chặn ghi `data/` thật),
+gọi đúng `VideoRunner._blocked / _submit_args / _prepare_kwargs` + `video_pregen.check`. Script tạm ở thư mục scratchpad phiên
+(chưa thành công cụ repo — đúng khoảng trống V2.1 §6.B B1 "replay video").
+
+| Mã | Lỗi gốc | Bằng chứng | Đã làm |
+|---|---|---|---|
+| **G10** | Lời người dẫn chuyện (LỜI DẪN) bị coi là lời thoại phải KHỚP MÔI | `core/lipsync.py:_method` so người nói với `characters`; shot POV không có cast → điều kiện "người nói ngoài khung" không bao giờ đúng → "post" → (cờ dialogue_take) "take" → gói nhóm S01–S03, S05–S06 ghi *"LOI DAN speak Audio1… Sync the mouth, jaw…"* + gửi reference_audio. Model có thể vẽ thêm người để khớp môi. Thêm: shot có cả người nói trong khung + lời dẫn thì `runner._take_segments` / `lipsync.shot_audio` trộn lời dẫn vào track khớp môi (agent rà quy ước 7 tìm ra) | **SỬA CODE** (bỏ người dẫn bằng `speaker_lint.is_narrator` ở `_method`, `_take_segments`, `shot_audio`; giữ vị trí thời gian lời dẫn) + 3 test; cả bộ 6098 qua |
+| **G11** | Motion prompt mô tả cảnh khác khung đầu (ảnh đã duyệt) | Shot 2: motion "chưa thấy cửa, quay mới lộ" — ảnh 987 đã thấy 2 cửa; shot 4: "2 cửa phía trước" — ảnh 948 là tường kệ sách; shot 35/36: "tường keo cong" — ảnh tường thẳng. Claude viết motion bám chữ kịch bản hơn ảnh, không có kiểm code nào so motion ↔ khung đầu | Sửa tay 4 motion |
+| **G12** | Tên địa danh có dấu trong câu tiếng Anh làm chặn gói | "the Cổng Trời hedge maze" (S05), "LỜI DẪN narrates" (S39) → `lint` "prompt còn chữ tiếng Việt" chặn cả clip nhóm. Motion writer không được dặn viết tên riêng không dấu | Sửa tay ("Cong Troi", "a narrator") |
+| **G13** | Gói nhóm vượt 5000 ký tự | S01–S03 = 5173 ký tự: motion mỗi shot có câu giải thích "because…" (viết cho người đọc), khối khớp môi G10 cộng thêm | Bỏ câu "because" ở 1–4; sau sửa G10 gói còn 3788 |
+| **G14** | Nút "⏱ Đặt thời lượng theo giọng thật" kéo dài MỌI shot có lời dẫn | `voice.fit_durations` kéo 17 shot (S10 1,3→8 s, S24 1→7 s) — đổi nhịp phim + tăng tiền video, không hỏi; chỉ 3 shot (6, 12, 31) thật sự bị chặn đỏ | Hoàn lại 14 shot, chỉ giữ 6/12/31 — **chờ người dùng quyết** có kéo theo lời dẫn không |
+| G15 (nợ) | Mục cũ trong lipsync index không dọn khi method đổi về "skip" | `runner.py:2214–2250`, `lipsync.mark` chỉ ghi thêm → `synced_scene_ids` sai khi gen lại | Chưa sửa (agent rà) |
+| G16 (nợ) | QC đo clip coi shot chỉ có lời dẫn là "đang nói" | `core/claude_tasks.py:323` `speaking = bool(data.get("dialogue"))` | Chưa sửa (agent rà) |
+| G17 (nợ) | `quality_tier.py:177` coi `lip_sync is True` là có khớp môi trước `method_for` | shot chỉ lời dẫn mà Đạo diễn gắn lip_sync → tính shot khó | Chưa sửa (agent rà) |
+
+**Sau dự án #31:** tổng hợp G1–G17 vào bản kế hoạch nâng cấp `docs/KE_HOACH_AI_VIDEO_PIPELINE_V2_1_REVIEW.md` (người dùng 18/10).

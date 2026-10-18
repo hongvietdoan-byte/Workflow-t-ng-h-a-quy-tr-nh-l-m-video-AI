@@ -112,6 +112,23 @@ class DialogueTakeRunnerTests(unittest.TestCase):
         self.assertAlmostEqual(items[self.ids[0]]["start"], voice.LIP_LEAD)
         self.assertAlmostEqual(items[self.ids[1]]["start"], round(2.0 + voice.LIP_LEAD - 0.4, 2))   # moved back onto the mouth
 
+    def test_a_narrator_line_in_a_take_shot_is_not_in_the_lip_sync_timeline(self):
+        # 18/10 #31 (rà agent): a shot with a speaker in frame AND a LỜI DẪN line — the narrator stays off Audio1 and the timeline
+        adir = audio_lib.assets_dir(self.data, self.pid)
+        wav(os.path.join(adir, "n1.wav"))
+        items = audio_lib.load(adir)
+        items.append({"kind": "tts", "scene_id": self.ids[0], "line": 2, "speaker": "LỜI DẪN", "text": "Bạn nghe thấy tiếng động.",
+                      "state": "succeeded", "file": "n1.wav", "duration_ms": 800, "dialogue": True})
+        audio_lib._save(adir, items)
+        vr = self._ready()
+        leader = self.p.job(self.p.create_job(self.ids[0], "video_gen"))
+        self.p.create_job(self.ids[1], "video_gen")
+        segs = vr._take_segments(leader, shots.group_of(self.p.conn, self.ids[0]))
+        self.assertEqual({s["speaker"] for s in segs}, {"KELLY", "MAXIM"})
+        prompt = vr._submit_args(leader)[1]
+        self.assertNotIn("Bạn nghe thấy tiếng động", prompt)
+        self.assertNotIn("LOI DAN", prompt)
+
     def test_without_voiced_lines_nothing_is_attached(self):
         audio_lib._save(audio_lib.assets_dir(self.data, self.pid), [])
         vr = self._ready()

@@ -74,7 +74,12 @@ def _method(data: Dict) -> str:
     lines = dialogue.scene_lines(data)
     if not lines:
         return "skip"
-    speakers = {str(s).upper() for s, _ in lines}
+    from .speaker_lint import is_narrator
+    # 18/10 #31 S01–S03: a narrator / voice-over line is heard, never mouthed — a POV shot has no cast, so the "speaker off screen"
+    # test below never fired and LỜI DẪN was sent as a lip-sync take ("LOI DAN speak Audio1 … sync the mouth")
+    speakers = {str(s).upper() for s, _ in lines if not is_narrator(str(s))}
+    if not speakers:
+        return "skip"
     cast = {str(c).upper() for c in (data.get("characters") or [])}
     if cast and not (speakers & cast):
         return "skip"                                             # the speaker is off screen (voice over another shot)
@@ -141,14 +146,19 @@ def shot_audio(data_dir: str, pid: int, scene_id: int, length_s: float, ffmpeg: 
     if not lines:
         return None
     offsets = line_offsets(lines, voice.LIP_LEAD)
+    # 18/10 #31: a narrator line keeps its place on the timeline (offsets over every line) but is never in the voice the mouth follows
+    from .speaker_lint import is_narrator
+    mouthed = [(e, o) for e, o in zip(lines, offsets) if not is_narrator(str(e.get("speaker") or ""))]
+    if not mouthed:
+        return None
     adir = audio_lib.assets_dir(data_dir, pid)
     out = os.path.join(_dir(data_dir, pid), f"shot_{scene_id}.wav")
     cmd = [ffmpeg, "-y", "-loglevel", "error"]
-    for e in lines:
+    for e, _ in mouthed:
         cmd += ["-i", os.path.join(adir, e["file"])]
-    parts = "".join(f"[{i}:a]adelay={int(o * 1000)}|{int(o * 1000)},aresample=44100[a{i}];" for i, o in enumerate(offsets))
-    mix = "".join(f"[a{i}]" for i in range(len(lines)))
-    flt = parts + f"{mix}amix=inputs={len(lines)}:normalize=0,apad,atrim=0:{max(length_s, offsets[-1] + 0.5):.3f}[out]"
+    parts = "".join(f"[{i}:a]adelay={int(o * 1000)}|{int(o * 1000)},aresample=44100[a{i}];" for i, (_, o) in enumerate(mouthed))
+    mix = "".join(f"[a{i}]" for i in range(len(mouthed)))
+    flt = parts + f"{mix}amix=inputs={len(mouthed)}:normalize=0,apad,atrim=0:{max(length_s, offsets[-1] + 0.5):.3f}[out]"
     cmd += ["-filter_complex", flt, "-map", "[out]", "-ac", "1", "-ar", "44100", out]
     proc = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
     if proc.returncode != 0 or not os.path.exists(out):

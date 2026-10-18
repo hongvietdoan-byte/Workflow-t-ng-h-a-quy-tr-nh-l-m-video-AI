@@ -1167,7 +1167,10 @@ class VideoRunner(_Runner):
             lines = lipsync.shot_lines(self.data_dir, job["project_id"], r["id"])
             from . import voice as _voice
             offs = lipsync.line_offsets(lines, _voice.LIP_LEAD)     # a take shot is made with its voice: the line on a whole second
+            from .speaker_lint import is_narrator
             for e, o in zip(lines, offs):
+                if is_narrator(str(e.get("speaker") or "")):
+                    continue                    # 18/10 #31: a narrator is heard over the cut, never in the take's Audio1 / lip-sync timeline
                 a = round(st + o, 3)
                 out.append({"speaker": e.get("speaker") or "", "text": e.get("text") or "", "file": e["file"], "start": a,
                             "end": round(a + (e.get("duration_ms") or 0) / 1000.0, 3), "scene_id": r["id"], "shot_start": st,
