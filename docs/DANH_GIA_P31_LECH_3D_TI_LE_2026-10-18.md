@@ -133,3 +133,15 @@ Dọn Kho chủ thể: xóa 22 asset của #27 (đã giao, `library_overview` nh
 |---|---|---|---|
 | G41 | Hướng chạy shot 35 ngược mạch: Kelly "chạy ra xa máy" vào nền, nơi có tường + tháp + địch (34: địch góc xa bên phải, tháp sau chúng) → chạy VỀ PHÍA địch, ngược "dựng keo định chuồn"; 36 lại chạy sang TRÁI khung → 35↔36 không nối hướng | shot 34 blocking; shot 35 blocking/motion "run away from camera", ảnh 976 tường ở nền; clip cuối 35 Kelly lao vào tường | 35: ném keo về phía địch (nền phải), tường dựng giữa Kelly và địch, Kelly quay chạy ra khỏi khung bên trái / về phía máy; giữ 36 |
 | G42 | Lời dẫn đi trước hình: shot 36 đọc "…tụi nó thì đứng cười hở nách ăn mừng" khi Kelly còn chạy; ngã ở 37, ăn mừng ở 38 (38 không có lời) | dialogue 36/38 | 36: "Kết quả là bạn bị chan không thương tiếc"; 38: "còn tụi nó thì đứng cười hở nách ăn mừng" |
+
+**Đã sửa dữ liệu G41/G42 (19/10, người dùng duyệt):** shot 35 image_prompt/blocking/end_state/action (ném keo về địch ở nền phải, tường cong rõ giữa hai bên, chạy ra khung trái); 36 lời dẫn "Kết quả là bạn bị chan không thương tiếc."; 38 thêm lời dẫn "Còn tụi nó thì đứng cười hở nách ăn mừng." (cần TTS lại 36/38); 36 tường "deep arc"; 29 có trời + tháp. Ảnh 1000/976/1004 bỏ duyệt (`reopen_approved`) → job ảnh 1084/1085/1086 (dự án tạm dừng). Không có Claude nên Đạo diễn không viết lại prompt → ghi chú bị nối "Fix:" (đã thay bằng câu tiếng Anh).
+
+### Rà nhất quán kịch bản shot 14, 25–31 (người dùng 19/10) — so ảnh khung đầu đã duyệt với kịch bản
+
+| Mã | Shot | Lệch | Đề xuất |
+|---|---|---|---|
+| G43 | 29 | Kịch bản: "quay người rời khỏi cái xác và đi tiếp"; ảnh 1000 cái xác ở NỀN sau lưng → clip Kelly đi vào nền, VỀ PHÍA cái xác | ĐÃ SỬA dữ liệu: tháp ở nền trái, xác ở nền phải, Kelly đi về tháp (khớp shot 30 ngược hướng: tháp sau máy) — gen lại ảnh 1084 |
+| G44 | 26→27 | Kịch bản 26: Kelly bên trái, xác "phía trước" giữa-phải, cô "phát hiện" nó; ảnh 998 Kelly đi về phía máy, xác lơ lửng SAU LƯNG bên TRÁI → không thể "phát hiện phía trước"; 27 xác bên PHẢI → nhảy trục 26↔27 | gen lại ảnh + video 26: Kelly bên trái đi ngang (nhìn nghiêng), xác lơ lửng phía trước bên phải, tháp ở nền |
+| G45 | 14 | Kịch bản: "bốn địch đứng tách biệt ở bốn góc xa", núp sau hàng rào cao; ảnh 994: bốn địch đứng gần nhau một hàng ở cuối, hàng rào trong thấp (G8 mô hình Kho #265) | chờ người dùng (đã nêu G8): nâng rào + tách bốn địch về bốn lối, gen lại ảnh + video 14 |
+| — | 25 | Nhỏ: kịch bản "đẩy cửa bằng hai tay", ảnh một tay; cửa 1 không thấy rõ | chấp nhận |
+| — | 27, 28, 30, 31 | Khớp kịch bản; 28 nền nhà (spot level_9_4, nhìn ngược tháp) hợp lý; 30/31 sau sửa G34 khớp 29 (ngược hướng) | — |
