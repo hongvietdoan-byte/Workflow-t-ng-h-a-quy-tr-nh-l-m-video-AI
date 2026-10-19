@@ -538,7 +538,7 @@ def _hold_failed(conn, scene_id: int, kinds: str) -> None:
                                   (FAIL_SOURCE, ev[0], _stamp(ev[3]))).fetchone():
         return
     _add(conn, ev[0], ev[1] or _project_of(conn, scene_id), scene_id, FAIL_SOURCE, "do", FAIL_KHAU,
-         f"rà soát lỗi: {ev[2] or 'không rõ lỗi'} — nạp tiền / chạy lại rà (nút Rà lại), hoặc bấm Bỏ qua ở 📥",
+         f"rà soát lỗi: {ev[2] or 'không rõ lỗi'} — nạp tiền rồi bấm ↻ Rà lại",
          "Kiểm số dư Anthropic rồi bấm Rà lại; hoặc Bỏ qua nếu chấp nhận gen khi chưa rà")
     conn.commit()
 
