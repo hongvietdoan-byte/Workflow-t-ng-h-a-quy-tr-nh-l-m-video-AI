@@ -709,7 +709,8 @@ def pov_hand_issues(prompt: str, data: Dict, ff: Optional[bool] = None) -> List[
     # 19/10 #31 S15: the person kept a POV gun in an approved picture. Set it with "pov_gun_ok" also in _user_locked (shots.store_plan
     # keeps only locked keys) and re-save the motion check (on_prompt_saved) — the stored formula_check is what seedance_refs holds on
     ok = data.get("pov_gun_ok")
-    if isinstance(ok, dict) and str(ok.get("by") or "").strip() and str(ok.get("why") or "").strip():
+    from .prop_lock import pov_gun_kept
+    if pov_gun_kept(data):
         return [_issue("warn", "pov_tay_khong", f"POV cầm súng (“{m.group(0)}”) — {ok['by']} cho giữ: {ok['why']}")]
     return [_issue("red", "pov_tay_khong", f"POV Free Fire là TAY KHÔNG (game không có góc nhìn thứ nhất cầm súng) mà diễn xuất / hành "
                                            f"động nhắc “{m.group(0)}” — sửa performance/action thành hai tay trống ('both hands "

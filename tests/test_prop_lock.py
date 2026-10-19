@@ -98,6 +98,23 @@ class PropLockTest(unittest.TestCase):
         self.assertNotIn("SKORP", [r["label"] for r in self._refs(shot, FLAG_ON)])
         self.assertIn("SKORP", [r["label"] for r in self._refs(shot, FLAG_OFF)])
 
+    def test_pov_gun_kept_by_person_sends_the_gun(self):
+        # 19/10 #31 S15: the person kept the POV gun of an approved picture → the gun is locked and sent like any shot
+        from core import prop_lock
+        shot = {"angle": "pov", "image_prompt": "Kelly holds SKORP and throws a glue wall",
+                "pov_gun_ok": {"by": "người dùng (chat 19/10)", "why": "giữ SKORP như ảnh đã duyệt"}}
+        with mock.patch.dict(os.environ, FLAG_ON):
+            self.assertTrue(prop_lock.is_pov(shot))
+            self.assertFalse(prop_lock.pov_no_gun(shot))
+            self.assertIn("SKORP", prop_lock.prompt_part(self.p.conn, self.pid, shot))
+            self.assertIsNone(prop_lock.pov_gun_issue(self.p.conn, self.pid, shot))
+        self.assertIn("SKORP", [r["label"] for r in self._refs(shot, FLAG_ON)])
+        half = dict(shot, pov_gun_ok={"by": "người dùng"})            # no reason → not kept, the no-gun rule stays
+        with mock.patch.dict(os.environ, FLAG_ON):
+            self.assertTrue(prop_lock.pov_no_gun(half))
+            self.assertNotIn("SKORP", prop_lock.prompt_part(self.p.conn, self.pid, half))
+        self.assertNotIn("SKORP", [r["label"] for r in self._refs(half, FLAG_ON)])
+
     def test_negated_ots_does_not_override_affirmative_pov(self):
         from core import prop_lock
         angles = ("not over-the-shoulder; POV", "Không qua vai; góc nhìn thứ nhất",

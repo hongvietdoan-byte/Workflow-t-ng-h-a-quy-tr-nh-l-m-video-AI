@@ -1827,7 +1827,7 @@ def _named_extras(conn, scene: Dict, chosen: List[Dict], names: List[str], proje
         fold(n) for x in chosen if x["kind"] == "character" for n in names_of(x)}
     out: List[Dict] = []
     for a in chosen:
-        if lock_on and prop_lock.is_pov(scene) and prop_lock.category(a) == "gun":
+        if lock_on and prop_lock.pov_no_gun(scene) and prop_lock.category(a) == "gun":
             continue
         if a["id"] in locked:
             continue                                          # already placed right after the place (its slot was kept)

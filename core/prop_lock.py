@@ -333,8 +333,20 @@ def is_pov(data: Dict) -> bool:
     return False
 
 
+def pov_gun_kept(data: Dict) -> bool:
+    """19/10 (#31 S15): the person approved a POV picture WITH the gun and said to keep it — `pov_gun_ok` {by, why} on the shot (also
+    in _user_locked so a new shot plan keeps it). The POV no-gun rule (FF has no first-person view holding a gun) then does not apply."""
+    ok = (data or {}).get("pov_gun_ok")
+    return isinstance(ok, dict) and bool(str(ok.get("by") or "").strip()) and bool(str(ok.get("why") or "").strip())
+
+
+def pov_no_gun(data: Dict) -> bool:
+    """A POV shot under the no-gun rule: POV and not kept with its gun by the person (pov_gun_kept)."""
+    return is_pov(data) and not pov_gun_kept(data)
+
+
 def pov_gun_issue(conn, project_id: int, data: Dict) -> Optional[Dict]:
-    if not enabled() or not is_pov(data):
+    if not enabled() or not pov_no_gun(data):
         return None
     pool, words, text, generic = _scan(conn, project_id, data)
     if generic["gun"] or any(c == "gun" and _named(a, words) for a, c in pool):
@@ -344,7 +356,7 @@ def pov_gun_issue(conn, project_id: int, data: Dict) -> Optional[Dict]:
 
 def suppress_pov_gun_refs(conn, project_id: int, data: Dict, refs):
     """Bộ storyboard có thể chứa súng của shot khác; chỉ bỏ ảnh đạo cụ súng, giữ ảnh người."""
-    if not enabled() or not is_pov(data):
+    if not enabled() or not pov_no_gun(data):
         return refs
     gun_names = {a["name"] for a in assets.project_assets(conn, project_id) if category(a) == "gun"}
     return [r for r in refs if not (r.get("role") == "object" and r.get("label") in gun_names)]
@@ -352,7 +364,7 @@ def suppress_pov_gun_refs(conn, project_id: int, data: Dict, refs):
 
 def prioritize_gun_refs(conn, project_id: int, data: Dict, refs, sendable):
     """Cùng số slot: ảnh súng khóa hợp lệ chỉ thay nền rộng, không lấy slot nguồn khác."""
-    if not enabled() or is_pov(data):
+    if not enabled() or pov_no_gun(data):
         return refs
     import os
     def key(path):
@@ -384,7 +396,7 @@ def locks(conn, project_id: int, data: Dict) -> List[Dict]:
     holders = _holders(conn, project_id, data, pool)
     out = []
     for cat in CATEGORIES:
-        if cat == "gun" and is_pov(data):
+        if cat == "gun" and pov_no_gun(data):
             continue
         mine = [a for a, c in pool if c == cat]
         named = [a for a in mine if _named(a, words)]
