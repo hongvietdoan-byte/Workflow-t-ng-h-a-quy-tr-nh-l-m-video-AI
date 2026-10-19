@@ -380,6 +380,7 @@ def price_tag(usd: Optional[float], count: int = 1) -> str:
 # qc: 10/10 (K0a kế hoạch kiểm soát) hai lần chấm cảnh 1 #24 ra 4648 / 5162 token (sổ chi) → 5200 (dư), 900 cũ ước thấp ~6 lần.
 LLM_STAGE_TOKENS = {"director": (25000, 18000), "motion": (9000, 4000), "qc": (6000, 5200), "style": (9000, 1500),
                     "video_analysis": (14000, 4000), "setcheck": (8000, 1200), "clipcheck": (10000, 1200),
+                    "qc_sequence": (9000, 3000),     # 19/10 logic cả chuỗi clip: prompt 22 + bảng shot của MỘT nhóm (+ tờ ghép qua `images`); chưa đo thật
                     "asset_vision": (6000, 900), "research": (25000, 1500),
                     "script_ocr": (1500, 3000),     # 09/10: chép chữ một trang kịch bản chụp (+ 1 ảnh qua `images`)
                     "director_byd": (9000, 6000),     # K1a: sửa BYĐ các shot hỏng (prompt 31 + shot hỏng; tính dư)

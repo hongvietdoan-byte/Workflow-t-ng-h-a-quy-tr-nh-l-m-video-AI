@@ -23,7 +23,8 @@ OTHER = "other"                     # stage_table row for any stage name not in 
 STAGE_LABEL = {**dict(STAGES), OTHER: "Khác"}
 # S14.4 C1b (04/10): other spellings seen in the code / old rows -> the one name of STAGES. No 'lipsync' here: nothing writes it.
 STAGE_ALIASES = {"videos": "video", "images": "image", "image_gen": "image", "video_gen": "video", "delivery": "render",
-                 "translate": "motion"}          # claude_tasks.translate_motion_fields (_run tag 'translate')
+                 "translate": "motion",          # claude_tasks.translate_motion_fields (_run tag 'translate')
+                 "qc_sequence": "qc"}             # core/sequence_logic.py (QC logic cả chuỗi clip)
 
 
 def normalize_stage(stage) -> str:

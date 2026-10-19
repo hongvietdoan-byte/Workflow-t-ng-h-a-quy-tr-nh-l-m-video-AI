@@ -821,6 +821,15 @@
    "what": "Tấm duyệt 2D Nhánh C + gói blockout có phiên bản/người duyệt/SHA; từ chối geometry ĐỎ, chưa nối Kho/pipeline",
    "where": "core/blockout_sheet.py:to_location_pack",
    "bat": false
+  },
+  {
+   "id": "d107",
+   "step": "step4",
+   "who": "claude",
+   "what": "QC logic cả chuỗi clip theo nhóm: vị trí/độ cao nền + vật giữa shot liền nhau, nhân–quả, hành động còn lý do, shot có mục đích, việc thoại nhắc có shot (cờ qc_sequence_logic, chỉ báo)",
+   "where": "core/sequence_logic.py:check",
+   "stage": "qc_sequence",
+   "bat": false
   }
  ]
 }

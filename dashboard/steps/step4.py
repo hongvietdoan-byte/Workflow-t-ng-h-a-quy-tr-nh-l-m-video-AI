@@ -122,6 +122,7 @@ def step4_v2(p: Pipeline, pid: int, runner, proj, summ) -> None:
                                       ready=ready.get(j["scene_id"]), plan_row=plan_rows.get(j["scene_id"]))
     with set_c:
         clip_set_panel(p, pid)
+        sequence_logic_panel(p, pid)
     if C.expert():
         with tune_c:
             experiments_panel(p, pid, runner)
@@ -315,6 +316,40 @@ def clip_set_panel(p: Pipeline, pid: int) -> None:
                         "Đã xếp hàng gen lại")
                     st.rerun()
 
+
+
+def sequence_logic_panel(p: Pipeline, pid: int) -> None:
+    """19/10 (cờ qc_sequence_logic, TẮT mặc định): Claude xem nối tiếp các shot của từng nhóm cảnh theo thứ tự truyện — vị trí / độ
+    cao nền giữa shot liền nhau, nhân–quả, hành động kịch bản nhắc tới có shot thể hiện, thứ tự. Chỉ báo; không tự gen lại."""
+    from core import features, sequence_logic
+    if not features.on(sequence_logic.FLAG):
+        return
+    calls, usd = sequence_logic.estimate(p, pid, C.DATA)
+    if not calls:
+        return
+    last = sequence_logic.last_result(C.DATA, pid)
+    issues = [(g, it) for g, o in ((last or {}).get("sequences") or {}).items() for it in (o.get("issues") or [])]
+    label = "🧩 Kiểm logic cả chuỗi clip" + ("" if last is None else (" — ổn" if not issues else f" — {len(issues)} chỗ vô lý"))
+    with st.expander(label, expanded=bool(issues)):
+        st.caption("Claude xem các shot của từng nhóm cảnh nối tiếp nhau (khung đầu · giữa · cuối mỗi clip, hoặc ảnh đã duyệt khi chưa "
+                   "có clip) kèm câu hành động: chỗ đứng / độ cao nền có giữ đúng giữa shot liền nhau, địch đã gục có bị bắn tiếp hay "
+                   "xuất hiện lại, việc lời thoại nhắc tới có shot thể hiện, thứ tự có nhảy vô lý. Chỉ báo — sửa / gen lại do bạn quyết.")
+        client = llm_client()
+        if st.button(f"🤖 Kiểm {calls} nhóm cảnh" + cost.llm_tag(usd, calls), key=f"seqlogic_{pid}",
+                     disabled=client is None, help=None if client else claude_hint()):
+            with st.spinner("Claude đang xem nối tiếp các shot…"):
+                act(lambda: sequence_logic.check(p, pid, client, C.DATA))
+            st.rerun()
+        if last is not None:
+            for g, o in (last.get("sequences") or {}).items():
+                if o.get("summary"):
+                    st.info(f"Nhóm {g}: {o['summary']}")
+                for s in o.get("sheets") or []:
+                    if os.path.exists(s):
+                        show_image(s, width="stretch")
+            for g, it in issues:
+                st.markdown(f"**{C.unit_code(p, pid, it['idx'])}** (nhóm {escape(str(g))}): {escape(it['problem'])}"
+                            + (f" → _{escape(it.get('fix') or '')}_" if it.get("fix") else ""))
 
 
 def _go_step3() -> None:

@@ -732,6 +732,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "Lỗi hệ thống 1 sau #27 tập 1 (13/10, shot 17/21 job 893/744): plate đứng thứ 7 trong 9 ảnh, chữ Đạo diễn tả 'nhà mái đỏ, "
                "tường chắn' → model vẽ theo chữ. Chưa chạy thật — bật rồi gen lại 1 shot rẻ, so với render",
     },
+    "qc_sequence_logic": {"costs": True,
+        "label": "QC logic CẢ CHUỖI clip theo thứ tự truyện: mỗi nhóm cảnh một tờ ghép (khung đầu/giữa/cuối mỗi shot) + câu hành động → "
+                 "Claude kiểm vị trí/độ cao nền giữa shot liền nhau, nhân–quả (địch đã gục), hành động kịch bản nhắc tới có shot thể "
+                 "hiện, thứ tự hợp lý (nút ở Bước 4, Claude ≈ vài cent / nhóm)",
+        "verified": False,
+        "why": "#31 19/10 người dùng chỉ ra lỗi GIỮA các shot mà QC từng clip không thấy: nhặt súng trên thềm cỏ nâng cao (S10/11/13) "
+               "khác mặt đất S8; S18 địch đã gục vẫn xả súng; S19 nói 'vừa hạ gục Xúc Tu Đỏ' không có shot. Chưa chạy thật (ước ~0,1 USD #31)",
+    },
     "two_tier_quality": {
         "label": "Video 2 bậc chất lượng: MỌI shot gen NHÁP Seedance 2.5 480p trước (gen lại ≤ 2), người duyệt rồi 'Gen bản cao' "
                  "(Seedance 2.5 nâng từ nháp, model khác gửi lại ở bậc cao; gen lại ≤ 1); gen thẳng chỉ khi người chọn (13/10). Bỏ qua 'Thử rẻ'",
