@@ -110,3 +110,13 @@ Kết quả nhìn bảng `p31_so_cu_moi_6shot.jpg` (Kling): 16 có trời ✓; 1
 | G36 | Tạm dừng dự án không chặn job đang chuẩn bị dở; thử lại sau khi bị từ chối lần đầu vẫn đi Seedance | Tạm dừng 03:42:31 (`ui_actions`), job 1075 running Kling 03:42:41; 1061→1073 và 1062→… lần thử lại đầu vẫn bị Seedance chặn real_person rồi mới sang Kling (sáng: 1057→1065→1071) | `core/runner.py:404` chỉ kiểm `paused` đầu lượt quét, dòng 413 chỉ kiểm sau lần gửi đầu → phải kiểm lại `paused` NGAY TRƯỚC `provider.submit` (trong SPEND_LOCK). Đổi model khi bị từ chối (`_record_provider_failure`) không có hiệu lực ở lần gửi lại đầu → kiểm tại sao (lần bị chặn tại bước gửi, không tốn tiền nhưng phí lượt) |
 
 Người dùng 19/10 hỏi "tưởng bỏ Kling rồi": quyết định `no-kling-closeup-2026-10-18` chỉ gỡ Kling cho shot cận mặt; Kling vẫn là đường lùi khi Seedance từ chối (mục keeps). Chờ người dùng chọn: bỏ hẳn đường lùi (ĐỎ giữ job) hay giữ.
+
+## Gen lại 8 shot bằng Seedance 2.5 nháp sau khi dọn Kho chủ thể (19/10 trưa) — job 1076–1083
+
+Dọn Kho chủ thể: xóa 22 asset của #27 (đã giao, `library_overview` nhóm done_project) → 78/100. Cả 8 job qua bộ lọc người thật (xác nhận gốc G32 = Kho đầy → ảnh thô). Chi ≈ 3,81 USD (37 s 480p nhóm 16+17, 28+29, 30+31, 35, 36). Tổng gen lại hôm nay ≈ 7,5 USD (Kling 3,40 + Seedance 3,81 + 0,26 lẻ). Clip Kling ở thùng rác `data/projects/31/trash/videos/*__20261019-111217.mp4`.
+
+| Mã | Lỗi | Bằng chứng | Gốc / hướng |
+|---|---|---|---|
+| G37 | Shot 28 (nhóm 28+29) Seedance vẽ Kelly áo vàng, mất dạng bóng mờ ngay khung đầu; Kling cùng đầu vào giữ bóng mờ | bảng `p31_kling_vs_seedance_8shot.jpg` | nghi gói nhóm: ảnh mặt Kelly (áo vàng) + ảnh dạng; ảnh dạng có thể bị cắt khi hết chỗ (thứ tự bỏ OUTFIT→OBJECT→FORM) hoặc khung đầu shot 2 trong nhóm không là khung đầu thật — cần dựng lại gói nhóm 28+29 (0 USD) đối chiếu từng Image N |
+| G38 | Shot 35/36 tường keo đúng skin nhưng THẲNG hàng, không cong về phía người ném (`gloo-wall-curved` 14/10) — cả Kling lẫn Seedance | cùng bảng | ảnh vật Kho #367 skin thang máy là dạng thẳng? → cần ảnh mẫu dạng cong hoặc câu tả hình dạng trong motion |
+| G39 | Sửa lỗi của phiên: gọi `regen.regenerate_video(p, 'data', …)` sai data_dir → thùng rác tạo ở `data/31/trash` | đã chuyển về đúng chỗ + gộp trash.json | data_dir đúng là `data/projects`; hàm nên kiểm data_dir có thư mục dự án |
