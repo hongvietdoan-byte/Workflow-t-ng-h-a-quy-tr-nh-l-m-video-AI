@@ -432,6 +432,15 @@ class MotionConsistencyV9(unittest.TestCase):
         out = F.pov_hand_issues("POV shot.", S1)                        # since 12/10: the acting counts too (ĐỎ)
         self.assertEqual([i["level"] for i in out], ["red"])
 
+    def test_pov_gun_person_ok_turns_red_into_warn(self):
+        # 19/10 #31 S15: the person approved a POV picture WITH the gun and said to keep it — ĐỎ becomes VÀNG naming who/why
+        ok = dict(S1, pov_gun_ok={"by": "người dùng (chat 19/10)", "why": "giữ SKORP như ảnh đã duyệt"})
+        out = F.pov_hand_issues("POV shot.", ok)
+        self.assertEqual([i["level"] for i in out], ["warn"])
+        self.assertIn("giữ SKORP như ảnh đã duyệt", out[0]["msg"])
+        for bad in ({"by": "", "why": "x"}, {"by": "a"}, "yes", True):  # no who + why → not a waiver, still ĐỎ
+            self.assertEqual([i["level"] for i in F.pov_hand_issues("POV shot.", dict(S1, pov_gun_ok=bad))], ["red"])
+
     def test_too_many_beats_for_seconds(self):
         with mock.patch.dict(os.environ, LINT_OFF):
             self.assertEqual(F.beat_issues(S20), [])
