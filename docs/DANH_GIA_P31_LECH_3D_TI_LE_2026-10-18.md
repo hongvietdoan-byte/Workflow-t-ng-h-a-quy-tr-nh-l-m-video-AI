@@ -145,3 +145,9 @@ Dọn Kho chủ thể: xóa 22 asset của #27 (đã giao, `library_overview` nh
 | G45 | 14 | Kịch bản: "bốn địch đứng tách biệt ở bốn góc xa", núp sau hàng rào cao; ảnh 994: bốn địch đứng gần nhau một hàng ở cuối, hàng rào trong thấp (G8 mô hình Kho #265) | chờ người dùng (đã nêu G8): nâng rào + tách bốn địch về bốn lối, gen lại ảnh + video 14 |
 | — | 25 | Nhỏ: kịch bản "đẩy cửa bằng hai tay", ảnh một tay; cửa 1 không thấy rõ | chấp nhận |
 | — | 27, 28, 30, 31 | Khớp kịch bản; 28 nền nhà (spot level_9_4, nhìn ngược tháp) hợp lý; 30/31 sau sửa G34 khớp 29 (ngược hướng) | — |
+
+### Người dùng 19/10 chiều: ảnh mới 14/29/35/36 vẫn sai — gốc chung G46
+
+**G46 (gốc chung của G41/G43/G44/G45):** vị trí vật/nhân vật xuyên các shot liên quan (xác 26–29, keo + địch 34–38, mê cung 14) chỉ tả bằng chữ riêng từng shot; mỗi ảnh gen độc lập → model đặt lại mỗi lần; vá chữ shot này làm lệch shot kia (vd sửa 29 "tháp trái, xác phải" trái với 26/27 xác ở chân tháp). #31 đã bỏ sân khấu chung (16/10 hỏng 2 lần với Claude trả tiền). **Hướng (chờ người dùng duyệt):** mỗi cảnh (4, 6, 8) một sơ đồ mặt bằng trên map 3D + vị trí cố định từng vật + máy từng shot theo trục; `tools/stage_auto.py --crew` ngoại tuyến 0 USD (Claude Code đóng vai, Blender người nộm) render bố cục từng shot; duyệt rồi mới gen ảnh → video.
+**Shot 14 (người dùng):** không bắt buộc Kelly thấy cả 4 địch cùng lúc — chèn 1 shot KHÔNG Kelly: 4 địch chia nhau ra 4 lối đi tìm Kelly; shot 14 chỉ Kelly núp sau rào cao.
+Ảnh 1084–1087 (14/29/35/36) KHÔNG duyệt.
