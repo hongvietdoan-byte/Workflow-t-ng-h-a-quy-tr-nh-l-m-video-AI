@@ -178,3 +178,57 @@ def test_place_words_for_the_image_model_have_no_vietnamese():
     assert "Real map: the clock tower stands on a wide stone plaza." in text
     assert not has_vietnamese(text.replace("Tháp Đồng Hồ", "")) and "ff.garena.com" not in text
     assert "Khu vực" in assets.location_text(None, place, for_llm=True)             # Claude (QC) still reads it
+
+
+# ---- G27 (19/10, #31): the VIDEO package sends the form picture and the library objects the shot names ----------------------------
+
+def _with_prop(p, pid):
+    gun = assets.create(p.conn, "FF", "weapon", "SKORP", aliases="skorp")
+    assets.add_image(p.conn, gun, "skorp.png", _png((200, 30, 30)))
+    assets.attach(p.conn, pid, gun)
+
+
+def test_video_pictures_carry_the_form_and_the_named_object(p):
+    pid = _project(p)
+    _with_prop(p, pid)
+    rows = [{"id": 1, "data": {"characters": ["Kelly"], "image_prompt": GHOST + " The red-glowing SKORP in her hands."}}]
+    ids = seedance_refs.identity_pictures(p.conn, pid, rows, 8)
+    names = [n for n, _ in ids]
+    assert "KELLY" in [seedance_refs.base_name(n).upper() for n in names if seedance_refs.is_person(n)]
+    assert any(n.endswith(seedance_refs.FORM_TAG) for n in names), names           # #31 shot 28: the ghost form picture now goes
+    assert any(n.endswith(seedance_refs.OBJECT_TAG) and "SKORP" in n for n in names), names
+    forms = character_forms.for_rows(p.conn, pid, rows)
+    text = seedance_refs.prompt([(GHOST, 4)], ids, forms=forms)
+    assert "ghost form in this clip: draw Kelly's whole body" in text.replace("KELLY", "Kelly")
+    assert "the object SKORP: whenever it appears, draw it exactly as this picture shows" in text
+
+
+def test_over_the_room_objects_go_before_the_form_and_the_face_stays(p):
+    pid = _project(p)
+    _with_prop(p, pid)
+    rows = [{"id": 1, "data": {"characters": ["Kelly"], "image_prompt": GHOST + " SKORP."}}]
+    two = [n for n, _ in seedance_refs.identity_pictures(p.conn, pid, rows, 2)]
+    assert len(two) == 2 and any(n.endswith(seedance_refs.FORM_TAG) for n in two)
+    assert not any(n.endswith(seedance_refs.OBJECT_TAG) for n in two)
+    one = [n for n, _ in seedance_refs.identity_pictures(p.conn, pid, rows, 1)]
+    assert len(one) == 1 and seedance_refs.is_person(one[0])
+
+
+def test_no_form_picture_in_the_library_sends_none(p):
+    pid = _project(p, form_picture=False)
+    rows = [{"id": 1, "data": {"characters": ["Kelly"], "image_prompt": GHOST}}]
+    names = [n for n, _ in seedance_refs.identity_pictures(p.conn, pid, rows, 8)]
+    assert not any(n.endswith(seedance_refs.FORM_TAG) for n in names)            # the runner's lint holds the send (ĐỎ)
+
+
+def test_an_accented_object_name_leaves_no_vietnamese_in_the_video_prompt(p):
+    pid = _project(p)
+    pram = assets.create(p.conn, "FF", "prop", "XE NÔI BỊ NGUYỀN", aliases="cursed pram")
+    assets.add_image(p.conn, pram, "pram.png", _png((20, 20, 20)))
+    assets.attach(p.conn, pid, pram)
+    rows = [{"id": 1, "data": {"characters": ["Kelly"], "image_prompt": GHOST + " Beside her stands the XE NÔI BỊ NGUYỀN."}}]
+    ids = seedance_refs.identity_pictures(p.conn, pid, rows, 8)
+    assert any(n.endswith(seedance_refs.OBJECT_TAG) for n, _ in ids), ids
+    text = seedance_refs.prompt([(GHOST + " Beside her stands the XE NÔI BỊ NGUYỀN.", 4)], ids,
+                                forms=character_forms.for_rows(p.conn, pid, rows))
+    assert "XE NOI BI NGUYEN" in text and "NÔI" not in text

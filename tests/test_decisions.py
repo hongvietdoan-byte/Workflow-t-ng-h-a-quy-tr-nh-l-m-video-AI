@@ -188,6 +188,15 @@ def check_no_kling_for_face_closeups():
     assert "closeup_start_frame" not in inspect.getsource(model_router), "bộ chọn model còn nhánh Kling cho cận mặt"
 
 
+def check_video_sends_form_picture():
+    """19/10 (#31 G27): gói video có ảnh dạng + ảnh vật Kho; thiếu ảnh dạng → lint ĐỎ."""
+    import inspect
+    from core import runner, seedance_refs
+    assert hasattr(seedance_refs, "form_and_object_pictures") and seedance_refs.FORM_TAG and seedance_refs.OBJECT_TAG
+    assert "form_and_object_pictures" in inspect.getsource(seedance_refs.identity_pictures), "identity_pictures không thêm ảnh dạng/vật"
+    assert "thiếu ảnh dạng" in inspect.getsource(runner.VideoRunner._ref_lint), "lint không chặn khi thiếu ảnh dạng"
+
+
 CHECKS = {k: v for k, v in globals().items() if k.startswith("check_") and callable(v)}
 
 

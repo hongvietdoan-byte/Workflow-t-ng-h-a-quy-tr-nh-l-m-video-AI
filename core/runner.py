@@ -1100,8 +1100,9 @@ class VideoRunner(_Runner):
         rows = self._ref_rows(job, group)
         from . import shots as _sh
         frames = [self._start_frame(job["project_id"], r["id"]) for r in rows]
-        ids = seedance_refs.identity_pictures(self.p.conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
         places = seedance_refs.place_pictures(self.data_dir, job["project_id"], rows)
+        ids = seedance_refs.identity_pictures(self.p.conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows) - len(places)
+                                              - (1 if self._ref_end_sentence(job, group, 0) else 0))
         secs = [self._cut_seconds(r) for r in group] if group else [float(args[3])]
         audio = bool(self._take_segments(job, rows)) if group else bool(self._lip_sync_audio_planned(job))
         tail = self._ref_end_sentence(job, group, len(rows) + len(ids) + len(places))    # 11/10: the end frame = one more picture
@@ -1115,6 +1116,14 @@ class VideoRunner(_Runner):
             for i, row in enumerate(rows, 1):
                 if i not in rendered and place_refs.wants_render(self.p.conn, job["project_id"], row["data"]):
                     problems.append(f"Shot {i} thiếu render địa điểm 3D; tạo lại render trước khi gửi video.")
+        # 19/10 (#31 G27): a person in a FORM (Kelly's ghost form) whose form picture is not in the send — the model followed the face
+        # picture's everyday outfit (shot 28 in the yellow jacket); never paid for without it
+        from . import character_forms
+        sent = {seedance_refs.base_name(n).strip().upper() for n, _ in ids if n.endswith(seedance_refs.FORM_TAG)}
+        for who, f in character_forms.for_rows(self.p.conn, job["project_id"], rows).items():
+            if who not in sent:
+                problems.append(f"{who} ở dạng {f.get('label')} nhưng gói video thiếu ảnh dạng (Kho #{f.get('asset_id')}: chưa có ảnh vai "
+                                f"dạng đã duyệt, hoặc hết chỗ ảnh) — model sẽ vẽ theo trang phục thường; thêm ảnh dạng / bớt ảnh rồi gửi")
         busy = seedance_refs.busy_shots(rows)
         if busy:
             self._diag(job, "warn", "busy_shot", "shot dồn ≥ 3 hành động (tài liệu Seedance 2.5: tả khái quát, chi tiết 1–2 điểm nhấn): "
@@ -1494,7 +1503,7 @@ class VideoRunner(_Runner):
         rows = [{"id": job["scene_id"], "data": json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],))
                                                           .fetchone()["data"] or "{}")}]
         people = [(n, path) for n, path in seedance_refs.identity_pictures(conn, job["project_id"], rows, 8)
-                  if not n.endswith(seedance_refs.OUTFIT_TAG)]      # one identity picture per PERSON (the outfit picture is not a person)
+                  if seedance_refs.is_person(n)]      # one identity picture per PERSON (outfit / form / object pictures are not a person)
         have = {skill_dossier._key(n) for n, _ in people}
         from . import assets
         links = assets.link_characters(conn, job["project_id"], [n for n, _ in people])
@@ -1568,9 +1577,14 @@ class VideoRunner(_Runner):
             frame = self._start_frame(pid, r["id"])
             if frame:
                 out.append({"host": f"P{pid}_S{r['id']}_frame", "path": frame, "say": f"storyboard frame of Shot {i} (khung đầu Shot {i})"})
-        ids = seedance_refs.identity_pictures(conn, pid, rows, seedance_refs.MAX_PICTURES - len(rows))
-        out += [{"host": f"P{pid}_{n}", "path": path, "say": f"nhân vật {n}"} for n, path in ids]
-        for k, ref in enumerate(seedance_refs.place_pictures(self.data_dir, pid, rows), 1):
+        places = seedance_refs.place_pictures(self.data_dir, pid, rows)
+        ids = seedance_refs.identity_pictures(conn, pid, rows, seedance_refs.MAX_PICTURES - len(rows) - len(places)
+                                              - (1 if self._ref_end_sentence(job, group, 0) else 0))
+        out += [{"host": f"P{pid}_{n}", "path": path,
+                 "say": (f"vật {seedance_refs.base_name(n)}" if n.endswith(seedance_refs.OBJECT_TAG)
+                         else f"dạng của {seedance_refs.base_name(n)}" if n.endswith(seedance_refs.FORM_TAG) else f"nhân vật {n}")}
+                for n, path in ids]
+        for k, ref in enumerate(places, 1):
             out.append({"host": f"P{pid}_place_{k}", "path": ref["path"],
                         "say": "PLACE render 3D cho " + ", ".join(f"Shot {i}" for i in ref["shots"])})
         return out
@@ -1954,16 +1968,18 @@ class VideoRunner(_Runner):
             from . import seedance_refs
             rows = self._ref_rows(job, group)
             parts = [((self._motion(r["id"]) or {"motion_prompt": ""})["motion_prompt"], s) for r, s in zip(rows, secs)]
-            ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows))
             # V1 (rà gốc 13/10; S2 → S3): each render measured against the approved start frames (flag plate_view_sentence)
             starts = ({r["id"]: self._start_frame(job["project_id"], r["id"]) for r in rows}
                       if seedance_refs.plate_view_on() else None)
             places = seedance_refs.place_pictures(self.data_dir, job["project_id"], rows, starts=starts)
+            # 19/10 (G27): the room counts the place renders too — form / object pictures must not push the send past MAX_PICTURES
+            ids = seedance_refs.identity_pictures(conn, job["project_id"], rows, seedance_refs.MAX_PICTURES - len(rows) - len(places)
+                                                  - (1 if self._ref_end_sentence(job, group, 0) else 0))
             segs = self._take_segments(job, rows)
             block = ""
             if segs:                                   # S4.2: who says which line at which second (the lines stay in Vietnamese)
                 from . import dialogue_take
-                block = dialogue_take.group_block(segs, [n for n, _ in ids if not n.endswith(seedance_refs.OUTFIT_TAG)])
+                block = dialogue_take.group_block(segs, [n for n, _ in ids if seedance_refs.is_person(n)])
             # F5-A: real sizes of the library objects (the well), short form, once — dropped first when the prompt would pass the limit
             from . import character_forms           # G2 17/10 (#31): a person in a form the clip's shots name — not the outfit
             forms = character_forms.for_rows(conn, job["project_id"], rows)   # rà 17/10: per shot ("in Shot 2 …"), not the whole clip

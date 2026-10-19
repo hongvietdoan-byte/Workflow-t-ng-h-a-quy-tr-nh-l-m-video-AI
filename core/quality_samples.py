@@ -79,8 +79,8 @@ def plan(p, pid, sid, data_dir):
             place_refs.ensure_async(p.conn, pid, data_dir, res)
             raise ValueError(f"{old['why']} — đang dựng lại nền (0 USD); thử lại sau ít phút.")
     if ref_only:
-        ids = seedance_refs.identity_pictures(p.conn, pid, rows, seedance_refs.MAX_PICTURES - 1)
         places = seedance_refs.place_pictures(data_dir, pid, rows)
+        ids = seedance_refs.identity_pictures(p.conn, pid, rows, seedance_refs.MAX_PICTURES - 1 - len(places))   # 19/10 G27
         if place_refs.enabled() and place_refs.wants_render(p.conn, pid, rows[0]["data"]) and not places:
             raise ValueError("Thiếu render địa điểm 3D của shot; tạo render trước khi thử.")
         pictures = [image] + [path for _, path in ids] + [r["path"] for r in places]

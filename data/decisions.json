@@ -305,6 +305,22 @@
     }
    ],
    "status": "active"
+  },
+  {
+   "id": "video-form-picture-2026-10-19",
+   "date": "2026-10-19",
+   "by": "người dùng (duyệt đề xuất sửa gốc G27, #31)",
+   "text": "Gói video gửi ảnh DẠNG của nhân vật (vd. bóng mờ thế giới song song) và ảnh VẬT Kho shot nhắc (súng, vật kỹ năng có skin, quái); nhân vật ở dạng mà gói video thiếu ảnh dạng → ĐỎ, không gửi (trước chỉ tả bằng chữ → #31 shot 28 ra áo vàng).",
+   "keeps": "Dự án không khai dạng: như cũ. Ảnh mặt người giữ chỗ trước; hết chỗ bỏ ảnh trang phục → ảnh vật → ảnh dạng (khi đó ĐỎ, tách nhóm).",
+   "changes": "19/10 code: core/seedance_refs.form_and_object_pictures + FORM_TAG / OBJECT_TAG + câu Image N; runner._ref_lint ĐỎ thiếu ảnh dạng; chỗ ảnh trừ render 3D + khung cuối; quality_samples. check_video_sends_form_picture.",
+   "replaces": null,
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_video_sends_form_picture"
+    }
+   ],
+   "status": "active"
   }
  ]
 }

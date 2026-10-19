@@ -25,6 +25,22 @@ BANNER = "CHARACTER SHEET REFERENCE"
 REF_MAX_SIDE = 1280           # reference pictures at or under the 720p output (Volcengine Seedance 2.5 提示词指南, 2026-09-29)
 ROUTES = (None, "single", "kling")
 OUTFIT_TAG = " OUTFIT"         # identity_pictures: the costume picture of a character, named "<NAME> OUTFIT"
+FORM_TAG = " FORM"             # 19/10 (#31 G27): the picture of the FORM a character is in (Kho style "Dạng của nhân vật"), "<NAME> FORM"
+OBJECT_TAG = " OBJECT"         # 19/10 (#31 G27): a library object the shots name (prop / skill object with its skin), "<NAME> OBJECT"
+TAGS = (OUTFIT_TAG, FORM_TAG, OBJECT_TAG)
+
+
+def base_name(name: str) -> str:
+    """The person / object name of an identity_pictures entry, without its OUTFIT / FORM / OBJECT tag."""
+    for tag in TAGS:
+        if name.endswith(tag):
+            return name[:-len(tag)]
+    return name
+
+
+def is_person(name: str) -> bool:
+    """An identity_pictures entry that is a PERSON's own identity picture (not an outfit, form or object picture)."""
+    return not any(name.endswith(tag) for tag in TAGS)
 
 
 def enabled(conn, project_id: int) -> bool:
@@ -337,9 +353,42 @@ def identity_pictures(conn, project_id: int, rows: List[Dict], room: int) -> Lis
             out.append((n + OUTFIT_TAG, _rule_ok_picture(conn, project_id, n + OUTFIT_TAG, [o["path"] for o in outfit])))   # (everyday
             # look) went, the costume picture never did
     _say_speakers_without_picture(conn, project_id, rows, {n for n, _ in out})
-    while len(out) > max(room, 0) and any(n.endswith(OUTFIT_TAG) for n, _ in out):   # rà 17/10: over the room an OUTFIT picture goes
-        out.pop(max(i for i, (n, _) in enumerate(out) if n.endswith(OUTFIT_TAG)))     # before a person loses their only face picture
+    out += form_and_object_pictures(conn, project_id, rows)
+    # over the room (rà 17/10): an OUTFIT picture goes first, then (19/10) an object, then a form — a person keeps their face picture
+    for tag in (OUTFIT_TAG, OBJECT_TAG, FORM_TAG):
+        while len(out) > max(room, 0) and any(n.endswith(tag) for n, _ in out):
+            out.pop(max(i for i, (n, _) in enumerate(out) if n.endswith(tag)))
     return out[:max(room, 0)]
+
+
+def form_and_object_pictures(conn, project_id: int, rows: List[Dict]) -> List[tuple]:
+    """19/10 (#31 G27): the FORM pictures (a person in a form, e.g. Kelly's ghost form #427) and the library OBJECT pictures (SKORP,
+    the Gloowall with its skin, the floating figure) the shots name — the same pictures the image package of each shot sends
+    (assets.scene_references, roles character_form / object), once each, in film order. Before, a video clip sent only one face
+    picture per person: shot 28 came out in Kelly's yellow jacket, the glue wall of shots 17/35/36 was drawn in another design."""
+    from . import assets, character_forms
+    out, seen = [], set()
+    # forms: by the SHOT's character name (rà G27: the library label differs for an alias, e.g. "Kelly KL" → Kho "KELLY", and the
+    # form picture must not compete with faces for scene_references' slots) — the lint and says() look the form up by that name
+    for who, f in character_forms.for_rows(conn, project_id, rows).items():
+        path = assets.resolve((f.get("image") or {}).get("path"))
+        if path and os.path.exists(path):
+            out.append((who + FORM_TAG, path))
+    for r in rows:
+        try:
+            refs = assets.scene_references(conn, project_id, r.get("data") or {})
+        except Exception:  # noqa: BLE001 - a shot whose references cannot be read keeps the old behaviour (the caller's lint says it)
+            continue
+        for ref in refs:
+            path = ref.get("path")
+            if ref.get("role") != "object" or not path or not os.path.exists(path):
+                continue
+            key = str(ref.get("label") or "").strip().upper()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append((str(ref.get("label") or "").strip() + OBJECT_TAG, path))
+    return out
 
 
 def _rule_ok_picture(conn, project_id: int, who: str, paths: List[str]) -> str:
@@ -638,6 +687,17 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
     strip = features.on("outfit_strip_model")   # KLD-7 (08/10): Kelly KL took the silver hair of the model wearing the OUTFIT
 
     def says(name: str) -> str:
+        if name.endswith(FORM_TAG):      # 19/10 (#31 G27): the picture of the form itself, next to the person's face picture
+            who = name[:-len(FORM_TAG)]
+            form = (forms or {}).get(who.strip().upper()) or {}
+            nums = form.get("shots")
+            where = (", ".join(f"Shot {i}" for i in nums) if nums and n > 1 and len(nums) < n else "this clip")
+            return (f"{who}'s {form.get('form') or 'form'} in {where}: draw {who}'s whole body, clothes and surface exactly as this "
+                    f"picture shows, with the face and hair from {who}'s identity picture — never {who}'s everyday outfit")
+        if name.endswith(OBJECT_TAG):
+            what = name[:-len(OBJECT_TAG)]
+            return (f"the object {what}: whenever it appears, draw it exactly as this picture shows — same shape, design, colours, "
+                    "material and skin; never another design — not the framing")
         if name.endswith(OUTFIT_TAG):
             who = name[:-len(OUTFIT_TAG)]
             return (f"the OUTFIT {who} wears in this video: dress {who} exactly in these clothes, cap, shoes and accessories "
@@ -685,14 +745,14 @@ def prompt(parts: List[tuple], identities: List[tuple], look: str = "", clip_sec
              if features.on("seedance_subjects") else
              "The white banner and red marks on the reference pictures are annotations, never part of the video.")
     if mark_off_face():                  # lỗi hệ thống 4 (#27 13/10): the plus was drawn onto Kelly's face — said by name, always
-        rules += " " + mark_ban_sentence(list(dict.fromkeys(nm[:-len(OUTFIT_TAG)] if nm.endswith(OUTFIT_TAG) else nm
-                                                            for nm, _ in identities)))
+        rules += " " + mark_ban_sentence(list(dict.fromkeys(base_name(nm) for nm, _ in identities
+                                                            if not nm.endswith(OBJECT_TAG))))
     blocks = [start.strip(), "\n".join(shots), "\n".join(shared_lines), still, identity.strip(), place_text.strip(), rules]
     text = "\n".join(b for b in blocks if b)
     # 08/10 (#24): a character named in Vietnamese ("YÊU NỮ TÀ LINH DẠNG 1") put accented letters into "Image N is …" and the shot
     # lines — the whole send was blocked as "prompt còn chữ tiếng Việt" though every Director field was translated. The names go
     # without accents (the same spelling in the mapping and the shots, so picture and name still match); spoken lines are untouched.
-    for name in sorted({nm[:-len(OUTFIT_TAG)] if nm.endswith(OUTFIT_TAG) else nm for nm, _ in identities}, key=len, reverse=True):
+    for name in sorted({base_name(nm) for nm, _ in identities}, key=len, reverse=True):
         if ascii_name(name) == name:
             continue
         for form in dict.fromkeys((name, name.upper(), name.title(), name.capitalize(), name.lower())):   # "Yêu nữ tà linh…" in a motion line
