@@ -538,7 +538,7 @@ def old_plate_images(conn, data_dir: str, pid: int, resolution) -> Dict[int, str
         it = plans[res].get(sid)
         if it is not None and it["key"] == key:
             continue
-        where = (f"nền 3D của shot đã đổi (chỗ đứng / hướng máy / ánh sáng / luật đặt máy; chỗ đứng hiện tại: {it['spot']})"
+        where = (f"nền 3D của shot đã đổi (chỗ đứng / hướng máy / ánh sáng / luật đặt máy / mô hình 3D; chỗ đứng hiện tại: {it['spot']})"
                  if it is not None else _why_no_place(conn, sid))
         out[sid] = (f"ảnh khung đầu (job {jid}) vẽ trên nền 3D cũ — {where}. Vẽ lại ảnh (nền mới tự dựng 0 USD) trước khi gen "
                     "video; chế độ tự chạy không tự gửi clip này, bạn bấm gửi tay vẫn được")

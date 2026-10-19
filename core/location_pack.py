@@ -4,7 +4,9 @@ every shot set there gets a background rendered from its own camera (pixel-true 
 Registry: the place's `assets.profile` JSON keeps `model3d` =
     {"path", "sha256", "real_height_m" (None = the model's own metres), "anchor": [x, y, z] of the landmark (model coordinates),
      "spots": {"plaza_front": {"at": [x, y, z], "facing": 0, "label": "..."}, ...}, "default_spot": "plaza_front",
-     "sun_azimuth": 250, "notes": ""}
+     "sun_azimuth": 250, "notes": "",
+     "stretch": [{"object": "PKK_OUT_Fence001", "height_m": 3.0, "keep_below_m": 1.0, "why": "..."}] (optional, G8 19/10: parts of the
+     game export lower than in the game, set to the in-game height at render time — tools/render_plates.stretch_objects)}
 Shot fields the DP writes: `plate_spot` (a spot name; else the default), `weather`, scene `time`, and (S5.7, người dùng 29/09 — decided
 per shot from the script, never a constant of the place) `plate_view` (the camera direction: what is behind the character) and
 `practical_lights` (extra lights of a night shot) — core/plate_choice.py. A spot may be marked `"direction": "script"` (the covered yard of the
@@ -49,6 +51,12 @@ def _file_sha(path: str) -> str:
     return h.hexdigest()
 
 
+def stretch_spec(entry: Dict) -> List[Dict]:
+    """G8 (19/10): the render part of `model3d.stretch` — object / height_m / keep_below_m (the `why` note never changes a plate)."""
+    return [{k: x[k] for k in ("object", "height_m", "keep_below_m") if x.get(k) is not None}
+            for x in entry.get("stretch") or [] if isinstance(x, dict)]
+
+
 def set_model3d(conn, asset_id: int, path: str, spots: Dict[str, Dict], default_spot: Optional[str] = None,
                 anchor: Optional[List[float]] = None, real_height_m: Optional[float] = None, sun_azimuth: float = 250.0,
                 notes: str = "", light: Optional[Dict] = None) -> Dict:
@@ -87,6 +95,8 @@ def set_model3d(conn, asset_id: int, path: str, spots: Dict[str, Dict], default_
         prof["model3d"]["landmark"] = old["landmark"]
     if old.get("stage_family"):                         # 15/10 sân khấu tự động: họ sân khấu (447 + 448 cùng phòng) giữ khi đăng ký lại
         prof["model3d"]["stage_family"] = old["stage_family"]
+    if old.get("stretch"):                              # G8 19/10: chiều cao vật đo theo game giữ khi đăng ký lại
+        prof["model3d"]["stretch"] = old["stretch"]
     conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(prof, ensure_ascii=False), asset_id))
     conn.commit()
     return prof["model3d"]
@@ -297,6 +307,8 @@ def cache_key(entry: Dict, camera: Dict, env: Dict, resolution) -> str:
     parts = {"model": entry["sha256"], "h": entry.get("real_height_m"), "cam": cam, "env": env, "res": list(resolution), "v": SCRIPT_VERSION}
     if entry.get("light"):                                          # only when set: the keys of places without it stay the same
         parts["light"] = entry["light"]
+    if stretch_spec(entry):                                         # G8: same rule — only the places with a stretch get new keys
+        parts["stretch"] = stretch_spec(entry)
     blob = json.dumps(parts, sort_keys=True)
     return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:20]
 
@@ -705,7 +717,8 @@ def ensure_plates(conn, pid: int, data_dir: str, data_root: str, resolution=(115
         out = plates3d.out_dir(data_root, first["place"])
         cfg = plates3d.plan(first["entry"]["path"], out, sky=benv["sky"], sun_elevation=benv["sun_elevation"],
                             sun_azimuth=benv["sun_azimuth"], resolution=resolution, samples=32, cameras=cams, only_cameras=True,
-                            weather=benv["weather"], sky_extra=benv["sky_extra"], real_height_m=first["entry"].get("real_height_m"))
+                            weather=benv["weather"], sky_extra=benv["sky_extra"], real_height_m=first["entry"].get("real_height_m"),
+                            stretch=stretch_spec(first["entry"]))
         cfg["owner"] = f"dự án #{pid}"                    # the Blender lock / Dashboard say which project holds this computer's Blender
         log(f"Render nền 3D: {first['place']} · {plate_env.key(first['env'])} · {len(cams)} góc máy")
         try:
@@ -1027,7 +1040,7 @@ def stale_plates(conn, pid: int, data_dir: str, resolution=(1152, 2048)) -> Dict
         if it is None:
             why = why or "shot không còn ở bối cảnh có mô hình 3D"
         elif why is None:
-            why = f"chỗ đứng đổi {old} → {new}" if old and new and old != new else "hướng máy / cỡ cảnh / đèn / thời tiết của shot đã đổi"
+            why = f"chỗ đứng đổi {old} → {new}" if old and new and old != new else "hướng máy / cỡ cảnh / đèn / thời tiết / mô hình 3D (vd chiều cao vật đo theo game) đã đổi"
         out[scene_id] = {"idx": (it or {}).get("idx"), "old_spot": old, "new_spot": new,
                          "why": f"nền 3D đã cũ ({why}) — dựng lại nền (0 USD, Blender) trước khi gửi"}
     return out

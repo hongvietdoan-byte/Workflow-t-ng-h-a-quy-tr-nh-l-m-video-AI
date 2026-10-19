@@ -156,9 +156,11 @@ def plan(model: str, out_dir: str, sky: str = "A", sun_elevation: float = 35, su
          presets: Optional[List[str]] = None, real_height_m: Optional[float] = None, decimate: float = 1.0,
          resolution=(1280, 720), engine: str = "auto", samples: int = 16, cameras: Optional[List[Dict]] = None,
          ground: bool = True, weather: Optional[Dict] = None, sky_extra: Optional[Dict] = None, only_cameras: bool = False,
-         probe: Optional[Dict] = None, heights: Optional[List] = None, rooms: Optional[List] = None) -> Dict:
+         probe: Optional[Dict] = None, heights: Optional[List] = None, rooms: Optional[List] = None,
+         stretch: Optional[List[Dict]] = None) -> Dict:
     """only_cameras: render just `cameras` (the shot cameras of a location pack), no preset views. weather: {"snow","wet","fog"}
-    0..1 on the geometry. sky_extra: more sky keys for tools/render_plates.py (sun_strength, sun_color, strength, exposure)."""
+    0..1 on the geometry. sky_extra: more sky keys for tools/render_plates.py (sun_strength, sun_color, strength, exposure).
+    stretch: the place's `model3d.stretch` (G8 19/10) — objects of the file set to their in-game height before rendering."""
     if not os.path.exists(model):
         raise Plates3DError(f"không thấy file 3D: {model}")
     if sky not in SKIES:
@@ -169,6 +171,7 @@ def plan(model: str, out_dir: str, sky: str = "A", sun_elevation: float = 35, su
             "samples": int(samples), "real_height_m": real_height_m, "decimate": float(decimate), "ground": bool(ground),
             "presets": [] if only_cameras else list(presets or PRESETS), "cameras": cameras or [], "depth": True,
             "weather": dict(weather or {}), **({"probe": probe} if probe else {}), **({"heights": heights} if heights else {}), **({"rooms": rooms} if rooms else {}),
+            **({"stretch": [dict(x) for x in stretch]} if stretch else {}),
             "sky": {"mode": sky, "sun_elevation": float(sun_elevation), "sun_azimuth": float(sun_azimuth),
                     "hdri": os.path.abspath(hdri) if hdri else None, **(sky_extra or {})}}
 

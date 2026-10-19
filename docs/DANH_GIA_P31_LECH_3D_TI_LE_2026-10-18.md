@@ -168,3 +168,21 @@ Dọn Kho chủ thể: xóa 22 asset của #27 (đã giao, `library_overview` nh
 
 **v5 (19/10, người dùng chấm):** (a) **1096 rào quá thấp so với video in-game** (`ref_nguoi_dung/me_cung_sach_17-10.mov`: máy ngang tầm người, rào ≈ 3 m vượt đầu) — gốc: máy cao 7 m thấy mặt trên rào + mô hình Kho #265 rào 1,5 m (G8) → máy 14 ngang tầm người 1,1 m ngoài khe tây, prompt "đá 1 m + lá ≈ 3 m, cao hơn đầu mọi người". (b) **1097 trông như đi xuyên keo** (Yêu nữ áp sát mặt tường) → prompt: mỗi địch đứng NGOÀI đầu tường, có sàn trống. (c) **G50 — 1017/1015 sai bố cục + phi thực tế:** 17 Sứ giả đứng ngay đầu tường bắn thẳng vào Kelly (tường không chắn giữa), tường cong lồi ngược; 18 tường chắn ngang ở chỗ khác, Sứ giả đã gục từ đầu shot; hành lang bắc rộng 4 m = bề rộng tường → không "vòng qua" được. Sửa: sơ đồ `so_do_nga_re_bac_15-18.jpg` — tường dựng ngang hành lang phía TÂY ngã rẽ, GIỮA Kelly và Sứ giả, chừa khe 1 m sát rào bắc; 17 máy (2; 12,5)→(−4; 13,6) Kelly nấp, Sứ giả bị che, đạn tóe; 18 máy sau vai (1,5; 14)→(−8; 15) Kelly lao qua khe, thấy Sứ giả còn đứng. Nền 14/17/18 đã render (17/18 nhìn về tây, biệt thự cuối — khớp 15).
 Kết quả gen v5 (19/10): 17 = 1103 đạt (QC lớp 0 tự vẽ lại 1099 vì WS); 36 = 1102 đạt; 18 = 1100 một phần (Kelly lao vào giữa tường, không nhắm khe); 14 = 1101 chưa đạt (rào ngang đầu — nền 3D Kho #265 rào 1,5 m vẫn kéo xuống, G8; 4 địch đi thành hàng). Hướng tiếp cho 14: sửa gốc G8 (đo / nâng rào trong mô hình 3D hoặc ảnh mẫu rào in-game làm tham chiếu) thay vì chỉ câu chữ.
+
+### G8 sửa gốc (19/10 chiều, phiên read-latest-todo-ab4d98)
+- **Đo file 3D gốc** (`Peak/T_30_XH_PCMAP_P20/asset.fbx`, Blender, 0 USD): mê cung là MỘT vật `PKK_OUT_Fence001_LOD0_plan` (427 mặt,
+  36 × 39,5 m, chỉ có LOD0 — không thiếu LOD/mesh): nền 68,04; tường đá (`Zone_J_House_wall01`) 68,04–69,04 = **1,0 m**; lá
+  (`plant_huatan01`) 69,04–70,24 = **1,2 m** → tổng **2,2 m** (ước 1,5 m trước đây là đo bằng mắt trên ảnh). Game ≈ 3 m (video 17/10).
+  Đáy tường đều 68,04 (sân phẳng) → một mặt cắt z cho cả vật là đúng.
+- **Sửa gốc bằng code:** khóa `model3d.stretch` trong Kho = `[{"object", "height_m", "keep_below_m", "why"}]` → `tools/render_plates.
+  stretch_objects` kéo phần trên `keep_below_m` tới `height_m` lúc render (đá giữ 1 m, lá 1,2 → 2,0 m); cùng hình học cho nền
+  (`ensure_plates`, `tools/location_pack.py preview`), mô hình trắng (`core/whitebox`), sân khấu/K1/sơ đồ/previs (`tools/stage_grid`,
+  khóa K1 `core/stage_auto.ensure_k1`); vào khóa cache nền CHỈ khi có (bối cảnh khác giữ khóa). Test `tests/test_plate_stretch.py`
+  (10), `test_location_pack` (đăng ký lại giữ stretch, cfg Blender nhận stretch), `test_stage_auto` (K1 đo lại).
+- **Rà quy ước 7 (agent):** CAO stage_grid/K1 chưa nhận stretch → đã sửa; VỪA lý do "nền cũ" không nói mô hình 3D đổi → đã thêm;
+  VỪA một mặt cắt z trên nền dốc → bỏ (đo: đáy phẳng 68,04); THẤP lo/hi trước stretch → tính lại; THẤP tiền tố khớp nhiều vật → cảnh
+  báo; THẤP `plates3d.ground_heights/room_cameras` không nhận stretch → bỏ (đo sàn, không đụng rào).
+- **Kho #265:** `stretch = [{"object": "PKK_OUT_Fence001", "height_m": 3.0, "keep_below_m": 1.0}]`. Hệ quả: mọi nền Cổng Trời đổi khóa
+  → 17 shot mê cung #31 (5–21) render lại 0 USD; 13 ảnh đã duyệt (5–12, 15, 16, 19–21) bị báo "vẽ trên nền 3D cũ" — autopilot không tự gửi
+  clip của chúng tới khi người dùng cho qua ở cổng nền / vẽ lại; gửi tay vẫn được.
+

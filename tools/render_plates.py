@@ -22,6 +22,7 @@ Plan (JSON):
                    A = Blender's physical sky (no download), B = HDRI picture, C = light from A/B but the sky left transparent
                    (the Dashboard puts an in-game sky picture behind it).
   real_height_m    true height of the model's tallest part (e.g. the clock tower) -> sets the scale; unset = guess the unit
+  stretch          [{"object": name prefix, "height_m": 3.0, "keep_below_m": 1.0}] objects set to their in-game height (G8 19/10)
   decimate         0.05..1 keeps that share of the triangles (heavy maps), default 1
   ground           true = add a large ground plane under the model (maps cut out of a bigger map end in the void)
   target           [x, y, z] in metres (after scaling) the preset cameras look at; default the model's centre
@@ -164,6 +165,45 @@ def normalise_scale(meshes, real_height, warnings):
 
 LIFT_Z = 0.0   # how far the model was raised to stand on z = 0 (a camera given in the model's own coordinates needs it — 2026-09-25:
                # clock tower cameras placed from a probe of the raw model ended up 2,16 m under the ground)
+
+
+def stretch_objects(specs, meshes, warnings):
+    """G8 (19/10, #31 maze): a part of the game export can be lower than in the game (Cổng Trời maze hedge: stone 1,0 m + leaves 1,2 m
+    in the file, ≈ 3 m in-game video). Each spec {"object": name prefix, "height_m": in-game height, "keep_below_m": optional} sets
+    the matching objects' height above their own base — only the part above `keep_below_m` stretches (the stone stays 1 m), else
+    the whole object scales in z. Scene metres, after normalise_scale. An object not found is said (warning), never skipped silently."""
+    done = []
+    for spec in specs or []:
+        prefix, want = str(spec.get("object") or ""), float(spec.get("height_m") or 0)
+        hits = [o for o in meshes if prefix and o.name.startswith(prefix)]
+        if len(hits) > 1:
+            warnings.append(f"stretch: '{prefix}' matches {len(hits)} objects ({', '.join(o.name for o in hits[:5])}) — all stretched")
+        if not hits or want <= 0:
+            warnings.append(f"stretch: no object '{prefix}' (or no height_m) — rendered at the file's height")
+            done.append({"object": prefix, "missing": True})
+            continue
+        for o in hits:
+            if o.data.users > 1:
+                o.data = o.data.copy()                                 # a shared mesh: stretch this object only
+            mw = o.matrix_world
+            inv = mw.inverted()
+            world = [mw @ v.co for v in o.data.vertices]
+            base, top = min(p.z for p in world), max(p.z for p in world)
+            keep = min(max(float(spec.get("keep_below_m") or 0), 0.0), want)
+            cut = base + keep
+            if top - cut <= 1e-6:
+                warnings.append(f"stretch: '{o.name}' has nothing above {keep} m — left as it is")
+                done.append({"object": o.name, "from_m": round(top - base, 2), "to_m": round(top - base, 2)})
+                continue
+            k = (want - keep) / (top - cut)
+            for v, p in zip(o.data.vertices, world):
+                if p.z > cut:
+                    v.co = inv @ Vector((p.x, p.y, cut + (p.z - cut) * k))
+            o.data.update()
+            done.append({"object": o.name, "from_m": round(top - base, 2), "to_m": round(want, 2), "keep_below_m": keep})
+            log(f"stretch {o.name}: {top - base:.2f} m -> {want:.2f} m (kept below {keep} m)")
+    bpy.context.view_layer.update()
+    return done
 
 
 def to_scene(point, factor):
@@ -1027,6 +1067,9 @@ def main():
     else:
         factor, (lo, hi) = normalise_scale(meshes, cfg.get("real_height_m"), warnings)
     manifest["scale_factor"] = factor
+    if cfg.get("stretch") and not clay:
+        manifest["stretch"] = stretch_objects(cfg["stretch"], meshes, warnings)
+        lo, hi = bbox(meshes)                                            # rà G8: ground / presets / probes see the stretched model
     manifest["bbox_m"] = {"min": [round(v, 2) for v in lo], "max": [round(v, 2) for v in hi],
                           "size": [round(hi[i] - lo[i], 2) for i in range(3)]}
     if cfg.get("rooms"):

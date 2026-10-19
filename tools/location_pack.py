@@ -80,7 +80,8 @@ def run_preview(a) -> dict:
     tag = f"{spot_name}_{(view['view'] or 'mac_dinh').replace(':', '-')}_{env['time']}_{'den' if lit['lights'] else 'khong_den'}"
     cfg = plates3d.plan(entry["path"], os.path.join(out, "_render_" + tag), sky=benv["sky"], sun_elevation=benv["sun_elevation"],
                         sun_azimuth=benv["sun_azimuth"], resolution=res, samples=a.samples, cameras=[camera], only_cameras=True,
-                        weather=benv["weather"], sky_extra=benv["sky_extra"], real_height_m=entry.get("real_height_m"))
+                        weather=benv["weather"], sky_extra=benv["sky_extra"], real_height_m=entry.get("real_height_m"),
+                        stretch=location_pack.stretch_spec(entry))
     man = plates3d.render(cfg, plates3d.find_blender(), timeout=3600)
     p = next((x for x in man.get("plates", []) if x["name"] == "preview"), None)
     if p is None:

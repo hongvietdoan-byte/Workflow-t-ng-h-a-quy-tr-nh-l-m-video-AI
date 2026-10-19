@@ -142,6 +142,20 @@ class PackTests(unittest.TestCase):
         location_pack.ensure_plates(self.p.conn, other, data, self.tmp, (W, H), blender="x", render=self.fake_render)
         self.assertEqual(len(self.calls), 2)                                    # nothing rendered again
 
+    def test_stretch_reaches_blender_and_survives_a_new_registration(self):
+        """G8 19/10: the place's `model3d.stretch` goes to the Blender config of its plates; registering the model again keeps it."""
+        prof = assets.get_profile(self.p.conn, self.place)
+        prof["model3d"]["stretch"] = [{"object": "Fence001", "height_m": 3.0, "keep_below_m": 1.0, "why": "video in-game"}]
+        self.p.conn.execute("UPDATE assets SET profile=? WHERE id=?", (json.dumps(prof), self.place))
+        self.p.conn.commit()
+        pid = self.project("st")
+        location_pack.ensure_plates(self.p.conn, pid, os.path.join(self.tmp, "projects"), self.tmp, (W, H), blender="x",
+                                    render=self.fake_render)
+        self.assertTrue(self.calls)
+        self.assertTrue(all(c["stretch"] == [{"object": "Fence001", "height_m": 3.0, "keep_below_m": 1.0}] for c in self.calls))
+        location_pack.set_model3d(self.p.conn, self.place, self.model, {"plaza_front": {"at": [1, 2, 3], "facing": 0}})
+        self.assertEqual(location_pack.model3d(self.p.conn, self.place)["stretch"][0]["why"], "video in-game")
+
     @mock.patch.dict(os.environ, {"FEATURE_LOCATION_PLATES": "1"})       # an old env line: S14.9 removed the flag, it does nothing
     def test_the_image_runner_never_waits_for_a_plate_nor_composites_on_green(self):
         """S14.9 (06/10): location_plates removed — with a rendered plate on disk the shot still draws a normal picture (no wait, no

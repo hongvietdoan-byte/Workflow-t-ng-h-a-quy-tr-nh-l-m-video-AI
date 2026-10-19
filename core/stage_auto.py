@@ -216,6 +216,9 @@ def ensure_k1(entry: Dict, spot: str, base: str, log: Callable[[str], None] = la
     want = {"sha256": entry.get("sha256"), "path": entry.get("path"), "at": (entry.get("spots") or {}).get(spot, {}).get("at")}
     if cells != 20:
         want["cells"] = int(cells)                        # lưới lớn hơn = K1 khác (cache riêng)
+    from .location_pack import stretch_spec
+    if stretch_spec(entry):                               # G8 19/10: rào nâng theo game = hình học khác → K1 đo lại
+        want["stretch"] = stretch_spec(entry)
     want["k1_version"] = K1_VERSION                       # đổi cách đo (16/10: sàn dưới trần) → đo lại
     mark = os.path.join(out, "k1_key.json")
     bad = os.path.join(out, "k1_error.json")

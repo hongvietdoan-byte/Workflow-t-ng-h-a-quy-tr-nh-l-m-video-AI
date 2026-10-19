@@ -193,6 +193,17 @@ class InputsTests(Base):
             stage_auto.ensure_k1(seg["entry"], "giua_phong", base)
         self.assertEqual(stage_auto.tool().k1_run.call_count, 2)
 
+    def test_k1_remeasured_when_the_place_gets_a_stretch(self):
+        """G8 19/10: rào nâng theo game (model3d.stretch) = hình học khác → K1 đo lại; ghi chú `why` đổi thì không."""
+        pid = self.project()
+        seg = stage_auto.segments(self.p.conn, pid)[0]
+        base = stage_auto.base_dir(self.data, pid, seg["stage"])
+        stage_auto.ensure_k1(seg["entry"], "giua_phong", base)
+        spec = {"object": "Fence001", "height_m": 3.0, "keep_below_m": 1.0}
+        stage_auto.ensure_k1(dict(seg["entry"], stretch=[dict(spec, why="a")]), "giua_phong", base)
+        stage_auto.ensure_k1(dict(seg["entry"], stretch=[dict(spec, why="b")]), "giua_phong", base)
+        self.assertEqual(stage_auto.tool().k1_run.call_count, 2)
+
     def test_k1_cached_by_model_and_spot(self):
         pid = self.project()
         seg = stage_auto.segments(self.p.conn, pid)[0]

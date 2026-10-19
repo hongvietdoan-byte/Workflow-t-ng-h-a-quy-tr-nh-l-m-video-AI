@@ -90,6 +90,13 @@ def add_person(bpy, p, floor, mk_mat):
     nose.data.materials.append(material)
 
 
+def _stretch_of(m3) -> dict:
+    """G8 19/10: the place's `model3d.stretch` (objects set to their in-game height) for a Blender cfg — {} when none."""
+    from core.location_pack import stretch_spec
+    spec = stretch_spec(m3 or {})
+    return {"stretch": spec} if spec else {}
+
+
 def blender_main(cfg):
     import bpy
     from mathutils import Vector
@@ -100,6 +107,9 @@ def blender_main(cfg):
     t0 = time.time()
     meshes, _ = rp.load_model(cfg["model"], warnings)
     factor, (lo, hi) = rp.normalise_scale(meshes, cfg.get("real_height_m"), warnings)
+    if cfg.get("stretch"):                                  # G8 19/10: the same in-game heights as the plates (one geometry truth)
+        rp.stretch_objects(cfg["stretch"], meshes, warnings)
+        lo, hi = rp.bbox(meshes)
     lift = rp.LIFT_Z
     scene = bpy.context.scene
     top_z = hi.z + 5
@@ -1265,7 +1275,7 @@ def fix_spot_main(argv):
     spot = m3["spots"][a.spot]
     out = os.path.abspath(a.out or os.path.join(os.path.dirname(db), "projects", "_fix_spot"))
     os.makedirs(out, exist_ok=True)
-    run_blender({"mode": "floor", "model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"),
+    run_blender({"mode": "floor", "model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), **_stretch_of(m3),
                  "origin_model": spot["at"], "cell_m": 1.0, "cols": 20, "rows": 20}, out, timeout=900)
     res = json.load(open(os.path.join(out, "fix_spot.json"), encoding="utf-8"))
     old, new = float(spot["at"][2]), float(res["floor_z_model"])
@@ -1606,7 +1616,7 @@ def v2_run(blocking, specs, out, stage_from=None, *, db=DEFAULT_DB, m3=None, max
                        "axis": None if not blocking.get("axis") or not all(k in beats[spec.get("nhip") or ""] for k in blocking["axis"])
                        else [list(beats[spec.get("nhip") or ""][k]["xy"]) + [0.0] for k in blocking["axis"]]})
     extra = [[o["xy"][0], o["xy"][1], 2.0] for bo in beats.values() for o in bo.values() if o["kind"] != "moc"]
-    cfg = {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spot["at"],
+    cfg = {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spot["at"], **_stretch_of(m3),
            "anchor_model": m3.get("anchor"), "cell_m": 1.0, "cols": int(st.get("cols") or 20), "rows": int(st.get("rows") or 20),
            "acting_area": {"half_m": 3.0, "extra": extra},
            "engine": "auto", "samples": 16, "top_view": {"centre": [0.0, 5.5], "size_m": 42.0, "px": 1260, "cut_m": TOP_CUT_M,
@@ -2005,6 +2015,7 @@ def k1_cfg(m3, spot_name, out, extra=None, cells=20):
     if spot_name not in spots:
         raise ValueError(f"chỗ đứng '{spot_name}' không có trong model 3D ({', '.join(spots) or 'không có chỗ đứng nào'})")
     return {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spots[spot_name]["at"],
+            **_stretch_of(m3),
             "anchor_model": m3.get("anchor"), "cell_m": 1.0, "cols": int(cells), "rows": int(cells),
             "acting_area": {"half_m": 3.0, "extra": list(extra or [])},
             "engine": "auto", "samples": 16, "top_view": {"centre": [0.0, 0.0], "size_m": float(cells) + 4.0, "px": 960}, "props": [],
@@ -2048,7 +2059,7 @@ def build_cfg(m3, spot, out, facing, well_dist, yeunu_in_well=False):
              "facing": (facing + 180) % 360, "rgb": [0.85, 0.05, 0.1]}
     if yeunu_in_well:
         yeunu["in_well"] = {"foot_z": foot, "rule": "chân = cao giếng − 0,72·H (ngực ngang miệng giếng, đầu + vai nhô lên)"}
-    return {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spot["at"],
+    return {"model": m3["path"], "out_dir": out, "real_height_m": m3.get("real_height_m"), "origin_model": spot["at"], **_stretch_of(m3),
             "anchor_model": m3["anchor"], "cell_m": 1.0, "cols": 20, "rows": 20, "acting_area": {"half_m": 3.0, "extra": [[well[0], well[1], 2.0]]}, "engine": "auto", "samples": 16,
             "top_view": {"centre": [0.0, 5.5], "size_m": 42.0, "px": 1260},
             "props": [{"name": "WELL", "kind": "well", "at": list(well[:2]), "radius": WELL_D / 2, "height": WELL_H, "sides": 8,

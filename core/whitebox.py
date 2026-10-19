@@ -97,12 +97,13 @@ def to_mp4(frames_dir: str, fps: int, dst: str, ffmpeg: str = "ffmpeg") -> str:
 
 def render(m3d: Dict, anim: Dict, out_dir: str, resolution=(720, 1280), day: Optional[Dict] = None, timeout: int = 3600) -> str:
     """Render the white model with Blender (0 USD, the Blender queue) → mp4 path."""
-    from . import plates3d
+    from . import location_pack, plates3d
     from .ffmpeg_studio import find_ffmpeg
     light = dict(day if day is not None else (m3d.get("light") or {}).get("day") or {})
     cfg = plates3d.plan(m3d["path"], out_dir, sky="A", sun_elevation=light.pop("sun_elevation", 45),
                         sun_azimuth=m3d.get("sun_azimuth", 250.0), resolution=resolution, cameras=[], only_cameras=True,
-                        sky_extra=light or None, real_height_m=m3d.get("real_height_m"), samples=8)
+                        sky_extra=light or None, real_height_m=m3d.get("real_height_m"), samples=8,
+                        stretch=location_pack.stretch_spec(m3d))
     cfg["depth"] = False
     cfg["animations"] = [anim]
     man = plates3d.render(cfg, timeout=timeout)
