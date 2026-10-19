@@ -524,6 +524,38 @@ def _stamp(at) -> str:
     return str(at or "")[:19]
 
 
+FAIL_KHAU, FAIL_SOURCE = "ra_soat", "review_fail"
+
+
+def _hold_failed(conn, scene_id: int, kinds: str) -> None:
+    """G35 (#31 19/10, job 1061): lần rà của shot LỖI (vd. Claude hết tiền) mà cổng vẫn mở → job tốn tiền gửi đi khi chưa ai rà. Lần
+    rà lỗi MỚI NHẤT của shot, mới hơn lần rà đạt gần nhất, thành mục ĐỎ (một mục cho mỗi lần lỗi; Bỏ qua / Rà lại đóng nó, không ghi
+    lại). Mục khâu 'ra_soat' không thuộc UPGRADE_KHAU → lệnh nâng bản cao từ nháp đã duyệt (C9) chỉ báo VÀNG như mục đỏ cũ."""
+    ev = conn.execute(f"SELECT id, project_id, note, reviewed_at FROM change_events WHERE scene_id=? AND state='failed' AND kind IN "
+                      f"{kinds} AND id > COALESCE((SELECT MAX(id) FROM change_events WHERE scene_id=? AND state='reviewed'), 0) "
+                      f"ORDER BY id DESC LIMIT 1", (scene_id, scene_id)).fetchone()
+    if ev is None or conn.execute("SELECT 1 FROM change_findings WHERE source=? AND event_id=? AND at>=?",
+                                  (FAIL_SOURCE, ev[0], _stamp(ev[3]))).fetchone():
+        return
+    _add(conn, ev[0], ev[1] or _project_of(conn, scene_id), scene_id, FAIL_SOURCE, "do", FAIL_KHAU,
+         f"rà soát lỗi: {ev[2] or 'không rõ lỗi'} — nạp tiền / chạy lại rà (nút Rà lại), hoặc bấm Bỏ qua ở 📥",
+         "Kiểm số dư Anthropic rồi bấm Rà lại; hoặc Bỏ qua nếu chấp nhận gen khi chưa rà")
+    conn.commit()
+
+
+def rerun_failed(conn, finding_id: int, who: Optional[str]) -> None:
+    """Nút "Rà lại" của mục rà lỗi (G35): lần thay đổi lỗi về 'pending' (cổng giữ 'đang rà' tới khi vòng nền rà xong), mục đóng."""
+    row = conn.execute("SELECT event_id, scene_id FROM change_findings WHERE id=? AND source=?", (finding_id, FAIL_SOURCE)).fetchone()
+    if row is None:
+        raise ValueError(finding_id)
+    n = conn.execute("UPDATE change_events SET state='pending', note=NULL WHERE scene_id=? AND state='failed' AND id<=? AND id > "
+                 "COALESCE((SELECT MAX(id) FROM change_events WHERE scene_id=? AND state='reviewed'), 0)", (row[1], row[0], row[1])).rowcount
+    if not n:          # lần lỗi đã bị dọn (KEEP_DAYS) → không có gì để rà lại: giữ mục, người dùng Bỏ qua nếu chấp nhận
+        raise ValueError("lần thay đổi lỗi không còn trong sổ — không rà lại được; bấm Bỏ qua nếu chấp nhận gen khi chưa rà")
+    conn.execute("UPDATE change_findings SET status='resolved', resolved_at=?, resolved_by=? WHERE id=?", (_now(), who, finding_id))
+    conn.commit()
+
+
 def blocking(conn, scene_id: int, data_dir: Optional[str] = None, since: Optional[str] = None,
              notes: Optional[List[str]] = None) -> Optional[str]:
     """Lý do chặn gen tốn tiền của shot: thay đổi của shot còn chờ rà (agent rà 10/10 lỗi 6: sửa xong bấm Gen ngay thì chưa ai rà) hoặc
@@ -537,6 +569,10 @@ def blocking(conn, scene_id: int, data_dir: Optional[str] = None, since: Optiona
                         (scene_id,)).fetchone()
     if wait:
         return f"Tổ rà soát tác động đang rà thay đổi #{wait[0]} của shot này (vài chục giây) — gửi ngay sau khi rà xong"
+    try:
+        _hold_failed(conn, scene_id, kinds)
+    except Exception as e:  # noqa: BLE001 - G35: not knowing whether a review failed never opens the gate
+        return f"Tổ rà soát tác động: không đọc được trạng thái rà của shot ({type(e).__name__}: {e}) — thử lại sau"
     if data_dir:
         try:
             refresh_code(conn, data_dir, scene_id)

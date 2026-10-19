@@ -440,3 +440,76 @@ class BeforeDirectorTests(unittest.TestCase):
         plan = {"before": json.dumps({"image_prompt": "x", "characters": ["KELLY"]}), "after": json.dumps({"image_prompt": "x", "characters": []})}
         self.assertTrue(CR._before_director(None, split))
         self.assertFalse(CR._before_director(None, plan))
+
+
+
+class FailedReview(unittest.TestCase):
+    """G35 (#31 19/10): rà LỖI (Claude hết tiền) mà cổng vẫn mở → job 1061 tự gửi khi chưa được rà. Rà lỗi = mục ĐỎ có lý do."""
+    setUp, _new_scene, _set = ChangeReview.setUp, ChangeReview._new_scene, ChangeReview._set
+
+    def _fail_review(self, sid):
+        self._set(sid, {"size": "WS", "image_prompt": "Wide shot, Kelly", "characters": ["KELLY"]})
+
+        class Broke(FakeClient):
+            def complete(self, prompt, images=()):
+                raise llm_runner.LlmError("credit balance is too low")
+        res = CR.process_pending(self.p.conn, self.tmp, client=Broke({}))
+        self.assertEqual(res["failed"], 1)
+
+    def test_failed_review_holds_with_reason_and_skip_releases(self):
+        self._fail_review(self.ids[1])
+        why = CR.blocking(self.p.conn, self.ids[1])
+        self.assertIsNotNone(why)                                            # trước sửa: None → job tốn tiền gửi đi
+        self.assertIn("rà soát lỗi", why)
+        self.assertIn("credit balance", why)
+        self.assertIn("Bỏ qua", why)
+        fid = [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"][0]["id"]
+        CR.close(self.p.conn, fid, "dismissed", "test")                      # nút Bỏ qua ở 📥
+        self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))
+        self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))             # bỏ qua rồi không ghi lại mục đó
+
+    def test_failed_review_rerun_then_ok_releases(self):
+        self._fail_review(self.ids[1])
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, self.ids[1]))
+        fid = [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"][0]["id"]
+        CR.rerun_failed(self.p.conn, fid, "test")                            # nút Rà lại (đã nạp tiền)
+        self.assertIn("đang rà", CR.blocking(self.p.conn, self.ids[1]))
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
+        self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))
+
+    def test_failed_review_older_than_a_good_review_does_not_hold(self):
+        self._fail_review(self.ids[1])
+        self._set(self.ids[1], {"size": "CU", "image_prompt": "Close up, Kelly", "characters": ["KELLY"]})
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
+        self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))
+
+    def test_failed_review_upgrade_from_approved_draft_goes_to_notes(self):
+        self._fail_review(self.ids[1])
+        notes = []
+        self.assertIsNone(CR.blocking(self.p.conn, self.ids[1], since="2000-01-01T00:00:00Z", notes=notes))   # C9 giữ nguyên
+        self.assertTrue(any("rà soát lỗi" in n for n in notes))
+
+    def test_failed_review_rerun_when_event_gone_keeps_hold(self):
+        self._fail_review(self.ids[1])
+        CR.blocking(self.p.conn, self.ids[1])
+        fid = [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"][0]["id"]
+        self.p.conn.execute("DELETE FROM change_events WHERE state='failed'")          # dọn KEEP_DAYS
+        with self.assertRaises(ValueError):
+            CR.rerun_failed(self.p.conn, fid, "test")
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, self.ids[1]))
+
+    def test_failed_review_hold_error_never_opens_gate(self):
+        self._fail_review(self.ids[1])
+        with mock.patch.object(CR, "_hold_failed", side_effect=RuntimeError("database is locked")):
+            self.assertIn("không đọc được", CR.blocking(self.p.conn, self.ids[1]))
+
+    def test_inbox_clean_does_not_close_failed_review(self):
+        from core import inbox_clean
+        self._fail_review(self.ids[1])
+        CR.blocking(self.p.conn, self.ids[1])
+        self.p.conn.execute("INSERT INTO jobs(project_id, scene_id, type, state, created_at, updated_at) VALUES (?,?,?,?,?,?)",
+                            (self.pid, self.ids[1], "image_gen", "approved", "2026-10-19T00:00:00Z", "2026-10-19T00:00:00Z"))
+        with mock.patch.object(inbox_clean, "_approved_at", return_value="2999-01-01T00:00:00Z"):
+            self.assertFalse([f for f in inbox_clean.stale(self.p.conn, self.pid)["findings"] if "ra_soat" in str(f)])
+            inbox_clean.clean(self.p, self.pid)
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, self.ids[1]))

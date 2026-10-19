@@ -69,13 +69,14 @@ def stale(conn, project_id: int) -> Dict[str, List[Dict]]:
             why = (f"shot đã có bản dùng được (job {keep})" if keep is not None else "dự án đã giao") + " — không đếm, giữ nguyên"
             out["failed"].append({"job_id": j["id"], "type": j["type"], "idx": j["idx"], "reason": why, "action": None})
     try:
-        rows = conn.execute("SELECT f.id, f.scene_id, f.level, f.khau, f.at, s.idx FROM change_findings f LEFT JOIN scenes s ON "
+        rows = conn.execute("SELECT f.id, f.scene_id, f.level, f.khau, f.source, f.at, s.idx FROM change_findings f LEFT JOIN scenes s ON "
                             "s.id=f.scene_id WHERE f.project_id=? AND f.status='open' ORDER BY s.idx, f.id", (project_id,)).fetchall()
     except Exception:  # noqa: BLE001 - an old database without the table: nothing to clean
         rows = []
     for f in rows:
         why = None
-        if f["scene_id"] is not None:
+        if f["scene_id"] is not None and f["source"] != "review_fail":
+            # G35: a failed review (change_review._hold_failed) is answered only by a review — Bỏ qua / Rà lại, never by an approval
             # a clip-stage item (motion / end frame / clip / continuity) is answered only by an approved CLIP — an approved picture
             # after it does not mean the clip was redone (its hold must stay); a picture-stage item by either
             types = ("video_gen",) if f["khau"] in CLIP_KHAU else GEN
