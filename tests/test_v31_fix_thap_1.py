@@ -47,12 +47,14 @@ def _size_check(data):
 
 
 @pytest.mark.parametrize("field,words", [("image_prompt", "Kelly faces the camera, the sun behind her shoulders"),
-                                         ("action", "Kelly rút súng sau lưng ra"), ("image_prompt", "camera behind the crates on the left")])
-def test_words_outside_the_camera_fields_never_skip_the_size_check(field, words):
+                                         ("action", "Kelly rút súng sau lưng ra"), ("image_prompt", "Kelly faces us, a tower behind her"),
+                                         ("action", "the sun behind her")])
+def test_character_words_never_skip_the_size_check(field, words):   # C-FIX-THAP-2: trường nào cũng vậy — regex chỉ khớp chữ về MÁY
     assert "shot_size" in _size_check({"size": "MS", "characters": ["KELLY"], field: words})
 
 
 @pytest.mark.parametrize("field,words", [("blocking", "camera behind the group, the backs of two cats in front"),
+                                         ("image_prompt", "Low camera behind the group: the backs of two cats fill the foreground"),
                                          ("angle", "ots"), ("shot", "over-the-shoulder on Kelly"), ("blocking", "máy đặt SAU LƯNG Kelly")])
 def test_camera_fields_still_skip(field, words):
     assert "shot_size" not in _size_check({"size": "MS", "characters": ["KELLY"], field: words})
@@ -126,3 +128,38 @@ def test_real_drops_still_explain(action):
 
 def test_shift_words_are_narrow():
     assert C._SHIFT.search("Kelly trở về thực tại") and not C._SHIFT.search("Kelly trở về nhà")
+
+
+# ---- C-FIX-THAP-2 --------------------------------------------------------------------------------------------------------------
+def test_series_cache_is_thread_safe_under_eviction(tmp_path):
+    import threading
+    from core import clip_measure
+    assert isinstance(clip_measure._SERIES_LOCK, type(threading.Lock()))
+    paths = []
+    for i in range(12):
+        f = tmp_path / f"{i}.mp4"
+        f.write_bytes(b"x" * (i + 1))
+        paths.append(str(f))
+    errors = []
+
+    def hammer(k):
+        try:
+            for j in range(200):
+                clip_measure.motion_series(paths[(k + j) % len(paths)])
+        except Exception as e:  # noqa: BLE001
+            errors.append(e)
+    with mock.patch.object(clip_measure, "_motion_series", return_value=([0.1], 24.0, [1.0])):
+        ts = [threading.Thread(target=hammer, args=(k,)) for k in range(8)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+    assert errors == [] and len(clip_measure._SERIES) <= clip_measure._SERIES_KEEP
+
+
+def test_banner_says_what_an_old_sha_only_record_really_compared():
+    with mock.patch.dict(os.environ, {"FEATURE_STALE_CODE_ALARM": "1"}), \
+         mock.patch.object(code_version, "stale_instances", return_value=[
+             {"port": "8503", "pid": 7, "sha": "o" * 40, "head": "n" * 40, "code": None},
+             {"port": "8504", "pid": 8, "sha": "o" * 40, "head": "n" * 40, "code": "oldcode0aaaa"}]):
+        band = code_version.banner()
+    old, new = band.split("8504")
+    assert "bản ghi cũ chỉ có sha" in old and "chưa biết tệp .py có đổi" in old and "tệp .py" in new and "đã đổi" in new
