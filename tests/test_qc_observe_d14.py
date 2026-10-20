@@ -346,3 +346,66 @@ def test_custom_outfit_never_scored_against_default_library_clothes(tmp_path):
     assert not fake.calls
     assert p.state(frames[0]['job_id']).value == 'succeeded'
     assert p.conn.execute('SELECT COUNT(*) FROM qc_results').fetchone()[0] == 0
+
+
+# ---- V3.1 M1.1 (20/10): BYĐ.vat bản v1 (danh sách chuỗi) làm QC enum crash ------------------------------------------------------------
+import json as _json
+import os as _os
+
+with open(_os.path.join(_os.path.dirname(__file__), 'fixtures', 'byd_vat_v1_p30_p31.json'), encoding='utf-8') as _fh:
+    _V1 = _json.load(_fh)['cases']
+
+
+@pytest.mark.parametrize('case', _V1, ids=lambda c: f"p{c['project']}_shot{c['idx']}")
+def test_real_v1_vat_strings_make_one_set_match_check_each(case):
+    """Dữ liệu thật #30 shot 3 ['BOM_KEO'], #31 shot 33 ['AWM'] (trước: ValueError 'BYĐ.vat thiếu vật chuẩn' → QC cả cảnh lỗi)."""
+    data = {'characters': case['characters'], 'byd': {'vat': case['byd']['vat']}}
+    profiles = {n.upper(): {'must_keep': 'correct face'} for n in case['characters']}
+    checks = qc_observe.compile_checks(None, case['project'], 1, data, CRITERIA, profiles=profiles)
+    got = [c for c in checks if c['source'].startswith('byd.vat[')]
+    assert [(c['detail'], c['source'], c['criterion']) for c in got] == \
+        [(v, f'byd.vat[{i}].vat', 'set_match') for i, v in enumerate(case['byd']['vat'])]
+
+
+def test_v1_and_v2_vat_give_the_same_check():
+    base = {'characters': ['GIRL']}
+    prof = {'GIRL': {'must_keep': 'correct face'}}
+    v1 = qc_observe.compile_checks(None, 24, 7, dict(base, byd={'vat': ['AWM']}), CRITERIA, profiles=prof)
+    v2 = qc_observe.compile_checks(None, 24, 7, dict(base, byd={'vat': [{'vat': 'AWM', 'kho_id': 1}]}), CRITERIA, profiles=prof)
+    assert [c for c in v1 if c['source'].startswith('byd.vat')] == [c for c in v2 if c['source'].startswith('byd.vat')]
+
+
+@pytest.mark.parametrize('bad', [[{'kho_id': 3}], [5], [''], [None]])
+def test_broken_vat_still_reported_not_silently_dropped(bad):
+    """Ngữ nghĩa cũ giữ nguyên: phần tử không đọc được vẫn báo (không âm thầm bỏ)."""
+    with pytest.raises(ValueError, match='BYĐ.vat'):
+        qc_observe.compile_checks(None, 24, 7, {'characters': ['GIRL'], 'byd': {'vat': bad}}, CRITERIA,
+                                  profiles={'GIRL': {'must_keep': 'correct face'}})
+
+
+@pytest.mark.parametrize('case', _V1, ids=lambda c: f"p{c['project']}_shot{c['idx']}_full")
+def test_real_full_byd_compiles_and_is_not_mutated(case):
+    """BYĐ đầy đủ máy chính (thanh_phan, hanh_dong…): QC dựng được câu hỏi; parser không làm bẩn dữ liệu (không có '_v' ghi lại)."""
+    import copy as _copy
+    data = {'characters': case['characters'], 'byd': _copy.deepcopy(case['byd'])}
+    before = _copy.deepcopy(data)
+    profiles = {n.upper(): {'must_keep': 'correct face'} for n in case['characters']}
+    checks = qc_observe.compile_checks(None, case['project'], 1, data, CRITERIA, profiles=profiles)
+    assert data == before
+    assert '"_v"' not in _json.dumps(data, ensure_ascii=False)
+    assert [c['detail'] for c in checks if c['source'].startswith('byd.vat[')] == case['byd']['vat']
+
+
+@pytest.mark.parametrize('empty', ['', '  ', {}, 0, None, [], False])
+def test_empty_vat_group_still_means_no_object(empty):
+    """Như trước M1.1 (`get('vat') or []`): nhóm vat rỗng → 0 câu hỏi, không lỗi."""
+    checks = qc_observe.compile_checks(None, 24, 7, {'characters': ['GIRL'], 'byd': {'vat': empty}}, CRITERIA,
+                                       profiles={'GIRL': {'must_keep': 'correct face'}})
+    assert not [c for c in checks if c['source'].startswith('byd.vat')]
+
+
+@pytest.mark.parametrize('single', ['AWM', {'vat': 'AWM'}])
+def test_single_value_vat_is_one_object(single):
+    checks = qc_observe.compile_checks(None, 24, 7, {'characters': ['GIRL'], 'byd': {'vat': single}}, CRITERIA,
+                                       profiles={'GIRL': {'must_keep': 'correct face'}})
+    assert [(c['detail'], c['source']) for c in checks if c['source'].startswith('byd.vat')] == [('AWM', 'byd.vat[0].vat')]
