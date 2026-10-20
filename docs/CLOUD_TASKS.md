@@ -104,6 +104,11 @@ push lên main, rồi báo người dùng mã việc để dán vào phiên clou
 | C-T12 | (cloud-C) Bổ sung test còn thiếu của M1.2/M1.3 | `cloud/v31-t12` | CHỜ (hộp thư) |
 | C-G36B | (cloud-D, chuyển từ cloud-C 20/10) G36 còn mở: lần thử lại đầu vẫn đi Seedance — điều tra + sửa gốc | `cloud/v31-g36b` | CHỜ (hộp thư) |
 | C-ERR-UPD | (cloud-D, chuyển từ cloud-C 20/10) Cập nhật sổ lỗi theo các commit đã gộp 20/10 | `cloud/v31-err-upd` | CHỜ (hộp thư) |
+| C-M42 | (cloud-C) M4.2 video QC đứng yên / khớp khung 0 / vật còn giữ / chuyển cảnh ref (shadow) | `cloud/v31-m42` | CHỜ (hộp thư) |
+| C-M43 | (cloud-C) M4.3 cross-shot logic qua qc_sequence_logic (shadow) | `cloud/v31-m43` | CHỜ (hộp thư) |
+| C-M26 | (cloud-C) M2.6 sent_package nhãn theo rel_path/asset_id — BẮT ĐẦU KHI golden M1.9 gộp main | `cloud/v31-m26` | CHỜ ĐIỀU KIỆN |
+| C-M29 | (cloud-C) M2.9 lời dẫn ngoài khớp môi mọi caller — BẮT ĐẦU KHI golden M1.9 gộp main | `cloud/v31-m29` | CHỜ ĐIỀU KIỆN |
+| C-M24 | (cloud-C) M2.4 insert_scene_after kế thừa bối cảnh + BYĐ DRAFT — BẮT ĐẦU KHI golden M1.9 gộp main | `cloud/v31-m24` | CHỜ ĐIỀU KIỆN |
 
 (20/10: 2 phiên `start_session target:"cloud"` tài khoản chính HỎNG khi khởi động — clone nhánh worktree chưa push + API error; M1.4a chuyển phiên con máy chính. 3 việc C-M010, C-M09, C-M011 độc lập, dán được song song 3 phiên.)
 
@@ -373,4 +378,31 @@ Bản dựng cuối (core/final_cut.py): chạy ffmpeg blackdetect + freezedetec
 Theo thiết kế docs/V3_1_M4_1_THIET_KE_BANG_CHUNG_QC_2026-10-20.md (đã trên main): module schema + hàm chuẩn hóa kết quả QC hiện có sang bản ghi bằng chứng
 (error_type, severity, evidence_type, confidence_calibration, artifact_id/sha, qc_run_id, qc_version, intent_exception, actionability, source_refs) + ghi
 shadow (không đổi quyết định QC hiện tại). Cờ mới TẮT; cờ TẮT = byte giống. Migration bảng mới nếu cần: CHỈ code + test CSDL tạm (áp CSDL thật = Cấp 3).
+```
+
+## Việc cloud-C (làn chính chạy liên tục — người dùng 20/10: cloud-C còn nhiều token tuần)
+Luật chung: như "Luật chung" + hộp thư; QC chỉ shadow/REVIEW (G2-5); cờ mới TẮT, cờ TẮT = byte giống; test ĐỎ→XANH; không API trả phí. Việc M2 chỉ bắt đầu khi
+`main` có commit gộp golden M1.9 (Codex Đ20 việc 2 — tìm `git log origin/main --grep "golden"` + file tests/test_golden_replay.py) — G2-3; trước đó làm việc
+không điều kiện hoặc mục DP. Mỗi việc M2 phải thêm/chạy golden compat (#24/#27 cờ TẮT = byte) bằng khung của M1.9.
+
+#### C-M42
+```
+M4.2 (kế hoạch V3.1 dòng M4.2; mã G51, B8 trong devsys/errors.json + nguồn docs/DANH_GIA_*): video QC — đứng yên > 1,5 s = REVIEW, khớp khung 0 với ảnh đầu,
+vật còn giữ trong tay (G51), chuyển cảnh trong video ref (B8). Ghi bản ghi theo schema M4.1 nếu DP4 đã gộp, nếu chưa thì cấu trúc tạm tương thích. Shadow:
+chỉ ghi kết quả, không đổi quyết định QC / không chặn. Đo bằng ffmpeg / OpenCV trên video tổng hợp tạo trong test (lưu ý reference_opencv_opencl_hang:
+tắt OpenCL — cv2.ocl.setUseOpenCL(False)). Nhánh cloud/v31-m42.
+```
+
+#### C-M43
+```
+M4.3 (G52, G42): cross-shot logic qua core qc_sequence_logic ở chế độ shadow — đọc code hiện có (cờ qc_sequence_logic, commit b269e88f), nối với
+continuity_state thiết kế M3.4 (docs/V3_1_M3_THIET_KE_WORLD_MAP_*.md) ở mức đọc; ca: vật / trang phục / hướng di chuyển đổi giữa 2 shot liền. Shadow, không chặn.
+Nhánh cloud/v31-m43.
+```
+
+#### C-M26 / C-M29 / C-M24 (BẮT ĐẦU KHI golden M1.9 gộp main)
+```
+Theo docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-20.md (mục M2.6, M2.9, M2.4) + thiết kế M2.1/M2.2, M0.9, M0.10 đã trên main. Thứ tự M2.6 → M2.9 → M2.4.
+M2.9 nghiệm thu = tests/test_narration_regression.py: ca G15/G16/G17/G53 hết xfail (gỡ dấu xfail đúng ca đã sửa; strict=True làm ca chưa sửa vẫn bắt).
+M2.4 dùng write guard ở chế độ shadow nếu M2.5 chưa có (không chặn). Mỗi việc: golden compat #24/#27 cờ TẮT = byte; cờ mới TẮT; nhánh cloud/v31-m26 / m29 / m24.
 ```
