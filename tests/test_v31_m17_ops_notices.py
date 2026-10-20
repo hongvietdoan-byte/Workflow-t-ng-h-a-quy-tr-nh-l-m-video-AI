@@ -59,16 +59,23 @@ class G55StaleCode(unittest.TestCase):
         self.assertTrue(sha is None or len(sha) == 40)
 
     def test_registry_finds_an_OTHER_port_running_old_code(self):
-        with flag("stale_code_alarm"), mock.patch.dict(code_version.BOOT, {"sha": "o" * 40, "pid": 4242}):
+        # C-FIX-M16-17: "code cũ" = các .py của core/ + dashboard/ đã đổi từ lúc tiến trình nạp (dấu vân tay), không phải sha HEAD
+        new, old = mock.patch.object(code_version, "code_fingerprint", return_value="newcode"), \
+            mock.patch.object(code_version, "code_fingerprint", return_value="oldcode")
+        with flag("stale_code_alarm"), mock.patch.dict(code_version.BOOT, {"sha": "o" * 40, "pid": 4242, "code": "oldcode"}), \
+                mock.patch.object(code_version, "_started_at", return_value=None):
             path = code_version.register("8503", self.db)
             self.assertTrue(path.endswith("dashboard_8503.json"))
-            rows = code_version.stale_instances(self.db, head="n" * 40, alive=lambda pid: True)
+            with new:
+                rows = code_version.stale_instances(self.db, head="n" * 40, alive=lambda pid: True)
             self.assertEqual([(r["port"], r["pid"]) for r in rows], [("8503", 4242)])
-            self.assertEqual(code_version.stale_instances(self.db, head="o" * 40, alive=lambda pid: True), [])
-            self.assertEqual(code_version.stale_instances(self.db, head="n" * 40, alive=lambda pid: False), [])  # tiến trình đã tắt
-            with mock.patch.object(code_version, "head_sha", return_value="n" * 40), \
+            with old:
+                self.assertEqual(code_version.stale_instances(self.db, head="n" * 40, alive=lambda pid: True), [])   # chỉ commit đổi
+            with new, mock.patch.object(code_version, "head_sha", return_value="n" * 40), \
                     mock.patch.object(code_version, "_alive", return_value=True):
                 text = code_version.banner(self.db)
+            with new:
+                self.assertEqual(code_version.stale_instances(self.db, head="n" * 40, alive=lambda pid: False), [])  # tiến trình đã tắt
         self.assertIn("8503", text)
         self.assertIn("stop_dashboard.ps1 -All", text)
 
@@ -85,8 +92,9 @@ class G55StaleCode(unittest.TestCase):
 
     def test_background_round_on_old_code_writes_a_diag(self):
         conn = connect(":memory:")
-        with flag("stale_code_alarm"), mock.patch.dict(code_version.BOOT, {"sha": "o" * 40, "port": "8503"}), \
-                mock.patch.object(code_version, "head_sha", return_value="n" * 40):
+        with flag("stale_code_alarm"), mock.patch.dict(code_version.BOOT, {"sha": "o" * 40, "port": "8503", "code": "oldcode"}), \
+                mock.patch.object(code_version, "head_sha", return_value="n" * 40), \
+                mock.patch.object(code_version, "code_fingerprint", return_value="newcode"):
             for _ in range(3):
                 msg = code_version.check_round(conn)
         self.assertIn("cổng 8503 chạy code cũ oooooooo ≠ HEAD nnnnnnnn", msg)

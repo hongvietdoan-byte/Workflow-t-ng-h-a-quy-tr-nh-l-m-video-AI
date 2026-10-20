@@ -129,10 +129,14 @@ def _write(conn, stage, severity, msg, code, project_id, scene_id, job_id) -> No
     row = None
     merged = False
     if code in MERGE_CODES and scene_id and _merge_on():   # G56: same code + shot + job within a day = one row, newest wording
+        # C-FIX-M16-17: one job says plate_stale for SEVERAL shots of its scene ("shot N: …", runner._stale_plates) — the shot named in
+        # the line is part of the key, else the other shots' lines were merged away into the newest one
+        head = msg.split(":", 1)[0] + ":" if code == "plate_stale" and msg.startswith("shot ") and ":" in msg else ""
         row = conn.execute(
             "SELECT id FROM diag_events WHERE stage=? AND severity=? AND code=? AND COALESCE(project_id,0)=? AND scene_id=?"
-            " AND COALESCE(job_id,0)=? AND (julianday('now') - julianday(last_at)) * 1440 < ? ORDER BY id DESC LIMIT 1",
-            (stage, severity, code, project_id or 0, scene_id, job_id or 0, MERGE_WINDOW_MIN)).fetchone()
+            " AND COALESCE(job_id,0)=? AND substr(message, 1, ?)=? AND (julianday('now') - julianday(last_at)) * 1440 < ?"
+            " ORDER BY id DESC LIMIT 1",
+            (stage, severity, code, project_id or 0, scene_id, job_id or 0, len(head), head, MERGE_WINDOW_MIN)).fetchone()
         merged = row is not None
     if row is None:
         row = conn.execute(

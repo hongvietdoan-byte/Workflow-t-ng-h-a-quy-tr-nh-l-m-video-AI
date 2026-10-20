@@ -58,8 +58,33 @@ def head_sha(root: str = ROOT) -> Optional[str]:
     return None
 
 
-BOOT = {"sha": head_sha(), "at": time.time(), "pid": os.getpid(), "port": None}
-"""HEAD lúc tiến trình này nạp code (module nạp một lần; Streamlit giữ module cũ tới khi khởi động lại)."""
+CODE_DIRS = ("core", "dashboard")
+
+
+def code_fingerprint(root: str = ROOT) -> Optional[str]:
+    """C-FIX-M16-17 (VỪA): dấu vân tay CODE đang có trên đĩa — (đường, cỡ, mtime) của mọi .py trong core/ + dashboard/. Commit chỉ đổi
+    TODO.md / hộp thư / tài liệu không đổi số này (trước: so sha HEAD → mọi commit báo 'code cũ' giả). Không đọc được → None."""
+    import hashlib
+    h, n = hashlib.sha1(), 0
+    for sub in CODE_DIRS:
+        base = os.path.join(root, sub)
+        for folder, dirs, files in os.walk(base):
+            dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+            for name in sorted(files):
+                if not name.endswith(".py"):
+                    continue
+                path = os.path.join(folder, name)
+                try:
+                    st = os.stat(path)
+                except OSError:
+                    continue
+                h.update(f"{os.path.relpath(path, root)}|{st.st_size}|{st.st_mtime_ns}\n".encode("utf-8"))
+                n += 1
+    return h.hexdigest()[:16] if n else None
+
+
+BOOT = {"sha": head_sha(), "code": code_fingerprint(), "at": time.time(), "pid": os.getpid(), "port": None}
+"""HEAD + dấu vân tay code lúc tiến trình này nạp code (module nạp một lần; Streamlit giữ module cũ tới khi khởi động lại)."""
 
 
 def run_dir(db_path: Optional[str] = None) -> str:
@@ -67,7 +92,7 @@ def run_dir(db_path: Optional[str] = None) -> str:
     return os.path.join(os.path.dirname(os.path.abspath(db)), "run")
 
 
-def register(port, db_path: Optional[str] = None, root: str = ROOT) -> Optional[str]:
+def register(port, db_path: Optional[str] = None, root: str = ROOT) -> Optional[str]:  # noqa: ARG001 - root: test thư mục giả
     """dashboard/serve.py: ghi sổ tiến trình này (cờ bật). Trả đường tệp hoặc None (cờ tắt / không ghi được — không chặn máy chủ)."""
     if not enabled():
         return None
@@ -76,7 +101,7 @@ def register(port, db_path: Optional[str] = None, root: str = ROOT) -> Optional[
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"port": BOOT["port"], "pid": BOOT["pid"], "sha": BOOT["sha"], "at": BOOT["at"]}, f)
+            json.dump({"port": BOOT["port"], "pid": BOOT["pid"], "sha": BOOT["sha"], "code": BOOT.get("code"), "at": BOOT["at"]}, f)
         return path
     except OSError:
         return None
@@ -109,12 +134,46 @@ def _alive(pid) -> bool:
     return True
 
 
-def stale_instances(db_path: Optional[str] = None, head: Optional[str] = None, alive=None) -> List[Dict]:
-    """Dashboard còn sống (sổ run/) chạy sha khác HEAD hiện tại: [{port, pid, sha, head}]. Cờ tắt / không biết HEAD → []."""
+def _started_at(pid) -> Optional[float]:
+    """Giờ (epoch) tiến trình `pid` bắt đầu, hoặc None khi không biết — để nhận ra pid đã bị tiến trình KHÁC dùng lại (THẤP rà M1.7)."""
+    try:
+        pid = int(pid)
+        if os.name == "nt":
+            import ctypes
+            from ctypes import wintypes
+            handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
+            if not handle:
+                return None
+            times = [wintypes.FILETIME() for _ in range(4)]
+            ok = ctypes.windll.kernel32.GetProcessTimes(handle, *[ctypes.byref(t) for t in times])
+            ctypes.windll.kernel32.CloseHandle(handle)
+            if not ok:
+                return None
+            ticks = (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime     # 100 ns từ 1601-01-01
+            return ticks / 1e7 - 11644473600
+        return os.stat(f"/proc/{pid}").st_ctime
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+
+
+START_SLACK_S = 5.0            # tiến trình bắt đầu SAU bản ghi quá chừng này → pid đã bị dùng lại, không phải Dashboard đã ghi
+
+
+def _same_process(rec: Dict, alive) -> bool:
+    if not alive(rec.get("pid")):
+        return False
+    started = _started_at(rec.get("pid"))
+    return started is None or not rec.get("at") or started <= float(rec["at"]) + START_SLACK_S
+
+
+def stale_instances(db_path: Optional[str] = None, head: Optional[str] = None, alive=None, root: str = ROOT) -> List[Dict]:
+    """Dashboard còn sống (sổ run/) chạy CODE khác code trên đĩa: [{port, pid, sha, head}]. Bản ghi của tiến trình đã chết (hoặc pid bị
+    dùng lại) bị xóa. Bản ghi cũ chưa có dấu vân tay code → so sha HEAD như trước. Cờ tắt → []."""
     if not enabled():
         return []
-    head = head or head_sha()
-    if not head:
+    head = head or head_sha(root)
+    code = code_fingerprint(root)
+    if not head and not code:
         return []
     alive = alive or _alive
     out = []
@@ -131,15 +190,26 @@ def stale_instances(db_path: Optional[str] = None, head: Optional[str] = None, a
                 rec = json.load(f)
         except (OSError, ValueError):
             continue
-        if rec.get("sha") and rec["sha"] != head and alive(rec.get("pid")):
-            out.append({"port": rec.get("port"), "pid": rec.get("pid"), "sha": rec["sha"], "head": head})
+        if not _same_process(rec, alive):
+            try:                                   # tiến trình đã tắt: bản ghi không còn nghĩa (pid có thể bị dùng lại sau này)
+                os.remove(os.path.join(folder, name))
+            except OSError:
+                pass
+            continue
+        old = (rec["code"] != code) if rec.get("code") and code else bool(rec.get("sha") and head and rec["sha"] != head)
+        if old:
+            out.append({"port": rec.get("port"), "pid": rec.get("pid"), "sha": rec.get("sha") or "?", "head": head or "?"})
     return out
 
 
-def self_stale(head: Optional[str] = None) -> Optional[str]:
-    """Câu báo khi CHÍNH tiến trình này chạy code cũ (sha lúc nạp ≠ HEAD), hoặc None."""
-    head = head or head_sha()
-    if not head or not BOOT["sha"] or BOOT["sha"] == head:
+def self_stale(head: Optional[str] = None, root: str = ROOT) -> Optional[str]:
+    """Câu báo khi CHÍNH tiến trình này chạy code cũ (code .py trên đĩa đã đổi từ lúc nạp), hoặc None. Commit không đổi .py → None."""
+    head = head or head_sha(root)
+    code = code_fingerprint(root)
+    if BOOT.get("code") and code:
+        if BOOT["code"] == code:
+            return None
+    elif not head or not BOOT["sha"] or BOOT["sha"] == head:
         return None
     where = f"cổng {BOOT['port']}" if BOOT["port"] else f"tiến trình {BOOT['pid']}"
     return (f"{where} chạy code cũ {BOOT['sha'][:8]} ≠ HEAD {head[:8]} — vòng nền gửi job bằng code cũ; tắt / mở lại Dashboard "

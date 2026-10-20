@@ -124,6 +124,20 @@ def _print(res: dict) -> None:
                   f"GEN ĐƯỢC — xin duyệt với giá ≈ {est.get('total') or 0:.2f} {est['currency']}"))
 
 
+def llm_provider_of(env_path: str):
+    """C-FIX-M16-17 (VỪA): LLM_PROVIDER của dashboard.env máy chính — CHỈ dòng đó (không phải bí mật; khóa API cùng file không bao giờ đọc).
+    Không có tệp / dòng → None. Giá Claude (claude_free: claude_cli = 0 USD API) phải tính đúng như Dashboard chạy."""
+    try:
+        with open(env_path, encoding="utf-8-sig") as f:
+            for line in f:
+                k, sep, v = line.strip().partition("=")
+                if sep and k.strip() == "LLM_PROVIDER":
+                    return v.split("#", 1)[0].strip().strip('"').strip("'") or None
+    except OSError:
+        return None
+    return None
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Kiểm trước khi gen ảnh: giá + cổng + Tổ rà soát + nền 3D (0 USD, chỉ đọc)")
     ap.add_argument("--project", type=int, required=True)
@@ -133,10 +147,17 @@ def main(argv=None) -> int:
     ap.add_argument("--width", type=int, default=400, help="--payload: cắt prompt in ra (0 = đủ)")
     ap.add_argument("--json", help="ghi kết quả ra file JSON (ngoài data/ thật)")
     ap.add_argument("--keep", action="store_true", help="giữ thư mục thử (junction vẫn được gỡ)")
+    ap.add_argument("--llm-provider", choices=("claude_cli", "anthropic", "mock"),
+                    help="Claude tính giá theo provider này (mặc định: LLM_PROVIDER của <main>/dashboard.env, như Dashboard)")
     a = ap.parse_args(argv)
     main_dir = os.path.abspath(a.main)
     work = tempfile.mkdtemp(prefix=f"pregen_p{a.project}_")
     envf = rp.env_flags(os.path.join(main_dir, "dashboard.env"))      # cờ FEATURE_ máy chính, như Dashboard chạy
+    llm = a.llm_provider or llm_provider_of(os.path.join(main_dir, "dashboard.env")) or os.environ.get("LLM_PROVIDER")
+    if llm:
+        envf = dict(envf, LLM_PROVIDER=llm)
+    print(f"Claude tính theo LLM_PROVIDER={llm or '(chưa khai — không có Claude)'}"
+          + (" (--llm-provider)" if a.llm_provider else " (dashboard.env máy chính)" if llm else ""))
     old_cwd = os.getcwd()
     old_env = {k: os.environ.get(k) for k in ("PIPELINE_DB", "FEATURE_SETTINGS_FILE", *envf)}
     box = None
