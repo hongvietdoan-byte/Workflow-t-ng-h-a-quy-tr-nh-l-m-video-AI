@@ -358,7 +358,7 @@ class CapacityWait(ValueError):
 def capacity(conn, library, pictures, limit=None) -> Dict:
     """GET chỉ đọc; kiểm cả gói trước upload. Không phải allocator/reservation.
 
-    Không bootstrap bảng. Cache thiếu hoặc snapshot không đủ → giữ VÀNG.
+    Không bootstrap bảng. Cache thiếu coi rỗng; snapshot không đủ → giữ VÀNG.
     """
     from .adapters.clipai_subjects import LIBRARY_LIMIT, is_active
     limit = LIBRARY_LIMIT if limit is None else limit
@@ -369,7 +369,7 @@ def capacity(conn, library, pictures, limit=None) -> Dict:
     try:
         if library is None:
             return unknown
-        assets = library.list_assets()
+        assets = library.list_assets(strict=True)
         ids = [a.get('asset_id') for a in assets]
         if any(not aid for aid in ids) or len(set(ids)) != len(ids):
             return unknown
@@ -381,7 +381,7 @@ def capacity(conn, library, pictures, limit=None) -> Dict:
         needed = sum(1 for sha in hashes if sha not in cached or cached[sha]['status'] != 'active'
                      or cached[sha]['asset_id'] not in active)
         # Một upload chưa rõ kết quả chiếm chỗ, không cho gửi lại/giả Kho trống.
-        if any(r['status'] not in ('active', 'failed') for r in rows):
+        if any(r['status'] not in ('active', 'failed') and r['asset_id'] not in ids for r in rows):
             return unknown
         free = max(0, limit - len(ids))
         full = needed > free

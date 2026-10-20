@@ -221,6 +221,9 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
         for r in conn.execute("SELECT p.id, p.name, d.message FROM projects p JOIN diag_events d ON d.project_id=p.id "
                               "WHERE d.code='subject_cleanup_plan' AND d.id=(SELECT MAX(x.id) FROM diag_events x "
                               "WHERE x.project_id=p.id AND x.code='subject_cleanup_plan')"):
+            from . import subjects
+            if not subjects.rejected_frame_assets(conn, r['id']):
+                continue
             out.append({'kind': 'Kho chủ thể', 'project_id': r['id'], 'project': r['name'], 'text': r['message'],
                         'screen': None, 'level': 'wait', 'who': '', 'sub': 'DRY-RUN — chờ duyệt riêng từng lần'})
     order = {"bad": 0, "wait": 1, "warn": 2, "todo": 3}

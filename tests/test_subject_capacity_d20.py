@@ -196,6 +196,8 @@ def test_actual_submit_loop_keeps_job_queued_full_no_kling(tmp_path):
          patch.object(runner, '_prepare_kwargs', side_effect=lambda job: runner._hosted_pictures(job, [('new', str(pic))])), \
          patch.object(provider, 'submit', side_effect=AssertionError('no paid submit')) as submit:
         assert runner.submit_pending(pid) == 0
+        assert runner.submit_pending(pid) == 0
+        assert lib.list_assets.call_count == 1
     assert p.job(jid)['state'] == 'queued'
     assert p.conn.execute("SELECT COUNT(*) FROM jobs WHERE type='video_gen'").fetchone()[0] == 1
     assert '100/100' in held_reason(p.conn, jid)
@@ -227,3 +229,87 @@ def test_cleanup_cli_readonly_and_no_schema(tmp_path, capsys):
     assert report['eligible'] == []
     assert report['protected'][0]['asset_id'] == 'unknown'
     assert db.read_bytes() == before
+
+
+def test_guard_off_native_get_and_upload_keep_legacy_short_snapshot(tmp_path):
+    from core import features
+    from core.adapters.clipai_subjects import ClipAISubjectLibrary
+    lib = object.__new__(ClipAISubjectLibrary)
+    lib.client, lib._sleep = Mock(), Mock()
+    lib.poll_sec, lib.timeout_sec = 0, 1
+    old = {'asset_id': 'old', 'asset_uri': 'asset://old', 'provider_status': 'active', 'name': 'old'}
+    new = dict(old, asset_id='new', asset_uri='asset://new', name='fixture')
+    pic = tmp_path / 'fixture.png'
+    pic.write_bytes(b'fixture')
+    with patch.object(features, 'on', return_value=False):
+        lib.client.get.side_effect = [{'assets': [old], 'count': 100}, {'assets': [old], 'count': 100},
+                                      {'assets': [old, new], 'count': 100}]
+        assert lib.get('old') == old
+        assert lib.upload(str(pic), 'fixture') == new
+
+
+@pytest.mark.parametrize('aid, expected', [('other', 'READY'), (None, 'QUEUE_UNKNOWN_CAPACITY'),
+                                         ('missing', 'QUEUE_UNKNOWN_CAPACITY')])
+def test_processing_snapshot_evidence_only_blocks_unresolved(aid, expected, tmp_path):
+    from core import subjects
+    conn = sqlite3.connect(':memory:')
+    conn.row_factory = sqlite3.Row
+    conn.execute('CREATE TABLE seedance_subject_pictures (sha TEXT, status TEXT, asset_id TEXT)')
+    conn.execute('INSERT INTO seedance_subject_pictures VALUES (?, ?, ?)', ('other-sha', 'processing', aid))
+    pic = tmp_path / 'new.png'
+    pic.write_bytes(b'new')
+    lib = Mock()
+    lib.list_assets.return_value = [{'asset_id': 'other', 'provider_status': 'processing'}]
+    assert subjects.capacity(conn, lib, [('new', str(pic))])['code'] == expected
+
+
+def test_capacity_cooling_expires_and_flag_off_bypasses():
+    from core import subjects, features, video_pregen
+    from core.runner import VideoRunner, PREGEN_RECHECK_S
+    runner = object.__new__(VideoRunner)
+    runner._diag_once = Mock()
+    error = subjects.CapacityWait({'code': 'QUEUE_CAPACITY', 'reason': 'fixture full'})
+    with patch.object(features, 'on', return_value=True), patch.object(video_pregen, 'enabled', return_value=False), \
+         patch('core.runner.time.time', return_value=100):
+        assert runner._pregen_prepare_error({'id': 1}, error)
+        assert runner._pregen_cooling({'id': 1})
+    with patch.object(features, 'on', return_value=True), patch.object(video_pregen, 'enabled', return_value=False), \
+         patch('core.runner.time.time', return_value=100 + PREGEN_RECHECK_S):
+        assert not runner._pregen_cooling({'id': 1})
+    with patch.object(features, 'on', return_value=False), patch.object(video_pregen, 'enabled', return_value=False), \
+         patch('core.runner.time.time', return_value=100):
+        assert runner._pregen_prepare_error({'id': 1}, error)
+        assert not runner._pregen_cooling({'id': 1})
+
+
+def test_cleanup_inbox_drops_stale_plan_without_candidates():
+    from core import subjects, inbox, diag
+    from core.db import connect
+    from core.pipeline import Pipeline
+    p = Pipeline(connect())
+    pid = p.create_project('fixture stale plan')
+    p.conn.execute('UPDATE projects SET archived=1 WHERE id=?', (pid,))
+    p.conn.commit()
+    diag.record(p.conn, 'video', 'warn', 'fixture plan', code='subject_cleanup_plan', project_id=pid)
+    with patch.object(subjects, 'rejected_frame_assets', return_value=[{'asset_id': 'a'}]):
+        assert any(i['kind'] == 'Kho chủ thể' for i in inbox.items(p.conn, 'fixture@example.test'))
+    with patch.object(subjects, 'rejected_frame_assets', return_value=[]):
+        assert not any(i['kind'] == 'Kho chủ thể' for i in inbox.items(p.conn, 'fixture@example.test'))
+    p.conn.close()
+
+
+def test_guard_off_uses_legacy_factory_signature(tmp_path):
+    from core import features, subjects
+    from core.runner import VideoRunner
+    from core.adapters import factory
+    runner = object.__new__(VideoRunner)
+    runner.provider = Mock(supports_subjects=True)
+    runner.p = Mock(conn=Mock())
+    runner._diag = Mock()
+    lib = Mock()
+    with patch.object(features, 'on', side_effect=lambda name: name == 'seedance_subjects'), \
+         patch.object(factory, 'subject_library', return_value=lib) as make, \
+         patch.object(subjects, 'capacity', side_effect=AssertionError('guard OFF')), \
+         patch.object(subjects, 'picture_refs', return_value={'refs': [{'uri': 'asset://fixture', 'uploaded': False}]}):
+        assert runner._hosted_pictures({'id': 1, 'project_id': 1}, [('fixture', 'unused')])
+    make.assert_called_once_with()

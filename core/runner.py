@@ -1082,7 +1082,9 @@ class VideoRunner(_Runner):
     def _pregen_prepare_error(self, job, error):
         from . import video_pregen
         if isinstance(error, subject_links.CapacityWait):
-            WAIT_REASONS[job['id']] = (str(error), time.time())
+            hit = (str(error), time.time())
+            WAIT_REASONS[job['id']] = hit
+            self.__dict__.setdefault('_capacity_held', {})[job['id']] = hit
             self._diag_once(job, 'warn', error.result['code'], str(error))
             return True
         if not video_pregen.enabled():
@@ -1126,6 +1128,14 @@ class VideoRunner(_Runner):
 
     def _pregen_cooling(self, job) -> bool:
         from . import video_pregen
+        from . import features
+        capacity_held = self.__dict__.get('_capacity_held', {})
+        hit = capacity_held.get(job['id'])
+        if hit:
+            if features.on('subject_capacity_guard') and time.time() - hit[1] < PREGEN_RECHECK_S:
+                WAIT_REASONS[job['id']] = hit
+                return True
+            capacity_held.pop(job['id'], None)
         if not video_pregen.enabled():
             PREGEN_HELD.pop(job["id"], None)
             self.__dict__.get("_pregen_fingerprints", {}).pop(job["id"], None)
