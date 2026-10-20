@@ -566,7 +566,36 @@ class PlanProgressTests(unittest.TestCase):
         if plan is None:
             self.skipTest("chưa có file kế hoạch")
         self.assertEqual(plan["bad"], [])
-        self.assertGreater(sum(len(w["tasks"]) for w in plan["waves"]), 50)
+        self.assertGreater(sum(len(w["tasks"]) for w in plan["waves"]), 30)
+        old = plan_progress.load(plan_progress.DEFAULT_PLAN_FILE)   # the S plan stays readable on the all-plans board
+        if old is not None:
+            self.assertEqual(old["bad"], [])
+
+    def test_main_plan_is_the_record_marked_chinh(self):
+        import json
+        import tempfile
+        from devsys import plan_progress
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, "devsys"))
+            path = os.path.join(root, "devsys", "plans.json")
+            self.assertEqual(plan_progress.main_plan_file(root), plan_progress.DEFAULT_PLAN_FILE)      # no file → the S plan
+            rec = {"id": "X", "ten": "x", "file": "docs/X.md", "kieu": "viec_s", "trang_thai": "dang_chay", "ghi_chu": ""}
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump([rec, dict(rec, id="Y", file="docs/Y.md", chinh=True)], f)
+            self.assertEqual(plan_progress.main_plan_file(root), plan_progress.DEFAULT_PLAN_FILE)   # file not there yet → S plan
+            os.makedirs(os.path.join(root, "docs"))
+            with open(os.path.join(root, "docs", "Y.md"), "w", encoding="utf-8") as f:
+                f.write("x")
+            self.assertEqual(plan_progress.main_plan_file(root), os.path.join(root, "docs", "Y.md"))
+            self.assertEqual(plan_progress.plan_files(root), [os.path.join(root, "docs", "Y.md")])
+            with open(path, "w", encoding="utf-8") as f:                                            # two marked → ambiguous → S plan
+                json.dump([dict(rec, chinh=True), dict(rec, id="Y", chinh=True)], f)
+            self.assertEqual(plan_progress.main_plan_file(root), plan_progress.DEFAULT_PLAN_FILE)
+            for bad in (dict(rec, id="Y", file="docs/Z.md", chinh=True), dict(rec, id="Y", file="../Y.md", chinh=True),
+                        dict(rec, id="Y", file="docs/Y.md", chinh=True, nhanh="main")):   # missing / outside / other branch → S plan
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump([bad], f)
+                self.assertEqual(plan_progress.main_plan_file(root), plan_progress.DEFAULT_PLAN_FILE)
 
 
 class AppTests(unittest.TestCase):

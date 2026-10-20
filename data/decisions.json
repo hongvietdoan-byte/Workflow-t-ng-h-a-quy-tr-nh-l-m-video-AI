@@ -321,6 +321,176 @@
     }
    ],
    "status": "active"
+  },
+  {
+   "id": "v31-permission-tiers-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'QUYẾT ĐỊNH NGƯỜI DÙNG — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "V3.1 phê duyệt ĐỊNH HƯỚNG có điều kiện, KHÔNG phê duyệt triển khai toàn bộ M0–M5. Ba cấp quyền: Cấp 1 (được làm ngay) = đọc/audit repo, cập nhật kế hoạch/thiết kế/test plan, ghi sổ quyết định, chạy test chỉ đọc 0 USD. Cấp 2 (triển khai code) = trước MỖI milestone/gói phải trình phạm vi file, hợp đồng dữ liệu, tác động đường cũ, regression + nghiệm thu, migration/cờ/rollback, chi phí thử — chỉ làm sau khi người dùng duyệt phạm vi đó. Cấp 3 (xin riêng) = migration/sửa dữ liệu production, bật cờ ảnh hưởng workflow đang chạy, gọi API trả phí (ảnh/video/âm/QC), tự đổi dữ liệu người đã duyệt, đổi chính sách ngân sách, cho QC tự BLOCK/tự sửa trên production, pilot trả phí.",
+   "keeps": "Mọi quy ước CLAUDE.md (commit/push, TODO, quy ước 7, pregen_check, sổ quyết định); chính sách tiền 04/10.",
+   "changes": "Không suy ra 'đồng ý định hướng' = 'được sửa code'. Kế hoạch V3.1 ghi cấp quyền từng việc. docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4b",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-kho-forms-direction-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'QUYẾT ĐỊNH NGƯỜI DÙNG — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "M2.3 ĐỒNG Ý ĐỊNH HƯỚNG (chưa được triển khai code / migration): Kho có dữ liệu cấu trúc forms[], outfit, hair, face + provenance. Điều kiện: (1) tương thích ngược Kho hiện tại và dự án cũ; (2) ảnh tài nguyên chuẩn trong Kho ưu tiên hơn metadata AI suy luận; (3) không tự ghi đè dữ liệu người nhập/sửa; (4) dữ liệu thiếu nhận diện rõ, không bịa; (5) có schema version, adapter v1/v2, migration và regression test; (6) Director, BYĐ, gen ảnh, gen video, QC dùng chung dữ liệu.",
+   "keeps": "Dòng chữ khai dạng Kho hiện tại vẫn chạy (adapter v1) tới khi triển khai được duyệt.",
+   "changes": "Được hoàn thiện thiết kế + test đề xuất; chưa được chạy migration production (Cấp 3). Phạm vi code duyệt riêng (Cấp 2). docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4b",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "replaced"
+  },
+  {
+   "id": "v31-user-edit-protection-direction-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'QUYẾT ĐỊNH NGƯỜI DÙNG — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "M2.5 ĐỒNG Ý ĐỊNH HƯỚNG (chưa được đổi write path production): mọi đường ghi tôn trọng quyền sửa của người dùng, ba trạng thái AUTO (AI được cập nhật theo quy tắc) / USER_LOCKED (AI không ghi đè) / REVIEW_REQUIRED (AI chỉ đề xuất, hiện diff để duyệt); áp thống nhất cho Claude Director, CLI, Dashboard, batch, autopilot, chèn shot, chạy lại Director, công cụ sửa dữ liệu. Dữ liệu khóa mâu thuẫn BYĐ / trạng thái mới → báo xung đột, không âm thầm sửa. Audit mọi đường ghi thật trước khi triển khai (không khóa chỉ ở giao diện).",
+   "keeps": "_user_locked hiện có (camera_plan, compare, dialogue) giữ nguyên tới khi triển khai được duyệt.",
+   "changes": "Được đặc tả cơ chế + chuẩn bị test; triển khai duyệt riêng (Cấp 2). docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4b",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "replaced"
+  },
+  {
+   "id": "v31-scene-world-map-trial-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'QUYẾT ĐỊNH NGƯỜI DÙNG — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "M3.1 DUYỆT THỬ NGHIỆM CÓ ĐIỀU KIỆN scene_world_map: (1) không bắt buộc mọi dự án có bản đồ 3D; (2) có 3D dùng tọa độ thế giới + máy; (3) thiếu 3D dùng sơ đồ 2D / quan hệ không gian; (4) thiếu bằng chứng → UNKNOWN, không suy tọa độ; (5) bản đồ có version, provenance, quan hệ shot phụ thuộc; (6) người dùng duyệt bản đồ trước khi dùng làm điều kiện chặn gen; (7) mở rộng/tái dùng module continuity sẵn có. Thử trước trên dữ liệu #31, #33.",
+   "keeps": "Sân khấu 3D v2 (stage-auto-plan-2026-10-15, stage-crew-plan-2026-10-16) giữ nguyên; không bật trên production.",
+   "changes": "Được xây thiết kế + bộ thử offline SAU khi milestone M3 được duyệt triển khai (Cấp 2); bật production xin riêng (Cấp 3). docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4b",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "replaced"
+  },
+  {
+   "id": "v31-pilot-three-rounds-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'QUYẾT ĐỊNH NGƯỜI DÙNG — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "M5.3 DUYỆT QUY TRÌNH, CHƯA DUYỆT CHI PHÍ — nghiệm thu 3 vòng, chỉ sang vòng sau khi vòng trước đạt: A Offline Regression (replay lỗi #31/#33: payload, continuity, QC, lineage, phục hồi; không API trả phí); B Controlled Pilot (dự án ngắn 5–8 shot, duyệt từng đợt, trình dự toán + người dùng đồng ý trước mọi API trả phí); C Production Pilot (dự án mới 20–40 shot: chất lượng, tỉ lệ gen lại, continuity, chi phí, mức can thiệp tay).",
+   "keeps": "Mọi lời gọi tốn tiền qua sổ chi + ước tính trước (CHUAN_XAY_DUNG).",
+   "changes": "Được lập test plan, benchmark, dự toán; không tự khởi chạy vòng B/C hay phát sinh chi phí (Cấp 3). docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4b",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-d01-money-policy-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'PHÊ DUYỆT D01–D10 — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "D01 — chọn A: giữ chính sách ngân sách 04/10 — ngân sách dự kiến chỉ CẢNH BÁO; không tự chặn khi phần trích dự án (allocation) = 0. Giữ các điều kiện chặn hiện hành: nhà cung cấp hết tiền thật, dự án tạm dừng, trần job/ngày autopilot, giới hạn tự gen lại đã chốt (ảnh ≤ 3, video ≤ 2). Yêu cầu: dự toán chính xác hơn, cảnh báo rõ trước khi gửi, đối soát chi phí thật. Không tự đổi chính sách tiền.",
+   "keeps": "budget-gate-removed-2026-10-15 giữ nguyên (cùng hướng); core/money_policy.py như hiện tại.",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; code pipeline, migration, đường ghi, vòng đời job, định tuyến provider, cổng QC cần duyệt phạm vi (Cấp 2); API trả phí / pilot duyệt chi phí riêng (Cấp 3). Chi tiết: docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4.",
+   "replaces": null,
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_no_budget_lock_gate"
+    }
+   ],
+   "status": "active"
+  },
+  {
+   "id": "v31-d02-claude-provider-per-project-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'PHÊ DUYỆT D01–D10 — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "D02 — chọn A + khóa theo job: nhà cung cấp Claude cấu hình theo dự án, fallback cấu hình mặc định khi dự án chưa khai. Điều kiện: tạo job lưu provider thực tế + phiên bản cấu hình; job đang chạy không đổi provider khi cấu hình Dashboard đổi; hết quota → dừng + báo rõ, không tự chuyển sang API trả phí; claude_cli ghi 0 USD API trực tiếp nhưng vẫn có giới hạn dùng; migration tương thích dự án cũ.",
+   "keeps": "Tới khi triển khai: LLM_PROVIDER trong dashboard.env cho mọi dự án (memory decision_no_anthropic_api_use_claude_code: không đổi env giữa dự án dở).",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; code pipeline, migration, đường ghi, vòng đời job, định tuyến provider, cổng QC cần duyệt phạm vi (Cấp 2); API trả phí / pilot duyệt chi phí riêng (Cấp 3). Chi tiết: docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-d03-subject-library-full-stop-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'PHÊ DUYỆT D01–D10 — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "D03 — chọn A: Kho chủ thể ClipAI đầy → dừng. Preflight kiểm sức chứa thật trước khi gửi nếu provider cho xác minh; không đủ chỗ hoặc không xác định được → báo rõ tình trạng + hướng xử lý. Không tự xóa asset, không chuyển model ngoài quy tắc đã duyệt (video-route-2026-10-13). Người dùng quyết dọn Kho; bảo vệ asset còn được dự án khác tham chiếu.",
+   "keeps": "video-route-2026-10-13 giữ nguyên; tới khi triển khai, gửi ảnh đánh dấu như hiện tại.",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; code pipeline, migration, đường ghi, vòng đời job, định tuyến provider, cổng QC cần duyệt phạm vi (Cấp 2); API trả phí / pilot duyệt chi phí riêng (Cấp 3). Chi tiết: docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-d04-field-level-write-guard-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'PHÊ DUYỆT D01–D10 — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "D04 — chọn B: bảo vệ dữ liệu người sửa ba trạng thái AUTO / USER_LOCKED / REVIEW_REQUIRED ở CẤP TRƯỜNG (không chỉ cấp scene). Bổ sung: một write guard thống nhất cho mọi đường ghi; kiểm revision để tác vụ cũ không ghi đè dữ liệu mới; xung đột tạo diff / yêu cầu duyệt; không tự sửa USER_LOCKED kể cả khi AI cho là sai; audit người/tiến trình ghi, thời điểm, revision, thay đổi; Shadow Mode trước khi chặn thật.",
+   "keeps": "_user_locked hiện có giữ nguyên tới khi triển khai; byd-auto-shot-number-2026-10-15 phải đi qua guard khi có.",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; code pipeline, migration, đường ghi, vòng đời job, định tuyến provider, cổng QC cần duyệt phạm vi (Cấp 2); API trả phí / pilot duyệt chi phí riêng (Cấp 3). Chi tiết: docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4.",
+   "replaces": "v31-user-edit-protection-direction-2026-10-20",
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-d05-kho-structured-forms-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'PHÊ DUYỆT D01–D10 — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "D05 — chọn A: Kho forms/outfit/hair/face có cấu trúc, đủ 6 điều kiện M2.3. Ảnh chuẩn trong Kho là nguồn nhận diện ưu tiên; metadata AI suy luận có provenance, không ghi đè dữ liệu người dùng. Yêu cầu adapter v1/v2, schema version, regression, kiểm mọi đường đọc Director / BYĐ / ảnh / video / QC. Backfill dữ liệu production và API trả phí duyệt riêng.",
+   "keeps": "Dòng chữ khai dạng + video-form-picture-2026-10-19 vẫn chạy qua adapter v1.",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; code pipeline, migration, đường ghi, vòng đời job, định tuyến provider, cổng QC cần duyệt phạm vi (Cấp 2); API trả phí / pilot duyệt chi phí riêng (Cấp 3). Chi tiết: docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4.",
+   "replaces": "v31-kho-forms-direction-2026-10-20",
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-d06-scene-world-map-flexible-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'PHÊ DUYỆT D01–D10 — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "D06 — chọn B: scene world map linh hoạt, không bắt buộc mọi dự án có 3D. Có 3D → tọa độ + quan hệ không gian thật; không có 3D → bản đồ 2D hoặc quan hệ tương đối; thiếu dữ liệu → UNKNOWN, không bịa vị trí. Map có version, provenance, quan hệ với shot và cơ chế invalidation; phải được duyệt trước khi dùng để chặn generation. Thử offline trước với #31/#33, tận dụng module continuity sẵn có.",
+   "keeps": "stage-auto-plan-2026-10-15, stage-crew-plan-2026-10-16 giữ nguyên (map mở rộng, không thay).",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; code pipeline, migration, đường ghi, vòng đời job, định tuyến provider, cổng QC cần duyệt phạm vi (Cấp 2); API trả phí / pilot duyệt chi phí riêng (Cấp 3). Chi tiết: docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4.",
+   "replaces": "v31-scene-world-map-trial-2026-10-20",
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-d07-qc-shadow-guarded-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'PHÊ DUYỆT D01–D10 — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "D07 — chọn A: QC Shadow → Guarded, benchmark phân loại theo từng nhóm lỗi. Lỗi kỹ thuật có bằng chứng xác định có thể xét bật chặn sau nghiệm thu; lỗi ngữ nghĩa, góc máy, continuity, chuyển động không chắc → REVIEW; không tự sửa lỗi ngữ nghĩa khi benchmark chưa đủ tin cậy; override cần người duyệt, lý do, bằng chứng, audit; 20 lỗi + 20 đạt mỗi nhóm chỉ là sàng lọc ban đầu, không tự cấp quyền BLOCK; bật QC chặn hoặc tự sửa trên production duyệt riêng.",
+   "keeps": "qc-team-off-2026-10-14 và drafts-approved-in-chat-2026-10-14 giữ nguyên.",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; code pipeline, migration, đường ghi, vòng đời job, định tuyến provider, cổng QC cần duyệt phạm vi (Cấp 2); API trả phí / pilot duyệt chi phí riêng (Cấp 3). Chi tiết: docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-d08-fixture-capture-readonly-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'PHÊ DUYỆT D01–D10 — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "D08 — chọn A: capture fixture từ dữ liệu thật, chỉ đọc, trên máy chính hoặc snapshot nhất quán (máy đang chạy job → ưu tiên snapshot); không sửa production, không API trả phí. Fixture ghi commit SHA, snapshot feature flags, schema version, model/provider, payload, thứ tự reference, hash cần thiết. Tách golden compatibility với correctness regression; không chấp nhận hành vi cũ chỉ vì khớp golden.",
+   "keeps": "tests/fixtures/p30_payload.json + tools/replay_payload.py giữ nguyên.",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; code pipeline, migration, đường ghi, vòng đời job, định tuyến provider, cổng QC cần duyệt phạm vi (Cấp 2); API trả phí / pilot duyệt chi phí riêng (Cấp 3). Chi tiết: docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-d09-error-registry-json-overrides-db-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'PHÊ DUYỆT D01–D10 — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "D09 — chọn C: devsys/errors.json = nguồn chuẩn định nghĩa lỗi + vòng đời xử lý; diag_events / jobs = nhật ký kỹ thuật + lần phát sinh thật; bảng overrides trong CSDL = quyết định ngoại lệ từ Dashboard / luồng vận hành. Bổ sung: mã lỗi bất biến, không trùng; phân biệt lỗi gốc với lần xuất hiện; liên kết lỗi nhiều dự án; phân biệt đã sửa code / đã qua test / đã xác minh chạy thật; không tự đóng lỗi khi chỉ có unit test; mọi override liên kết mã lỗi / QC finding, người quyết, revision; kiểm soát ghi đồng thời, kiểm schema, rollback. Migration bảng overrides duyệt phạm vi riêng.",
+   "keeps": "video_gate_skips + diag gate_override giữ nguyên tới khi có bảng overrides.",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; code pipeline, migration, đường ghi, vòng đời job, định tuyến provider, cổng QC cần duyệt phạm vi (Cấp 2); API trả phí / pilot duyệt chi phí riêng (Cấp 3). Chi tiết: docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-d10-premiere-bg-replace-outside-core-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'PHÊ DUYỆT D01–D10 — AI VIDEO PIPELINE V3.1', chat 20/10)",
+   "text": "D10 — chọn A: Premiere export và Background Replacement nằm ngoài core V3.1 nhưng không bỏ khỏi định hướng dài hạn; chỉ giữ interface / extension point cần thiết, không phát sinh việc và chi phí trong M0–M5; adapter độc lập làm ở giai đoạn sau.",
+   "keeps": "core/adapters/clipai.py submit_video_edit / submit_final_from_sample giữ nguyên; mẫu thay nền ghi ở docs/KE_HOACH_AI_VIDEO_PIPELINE_V3_2026-10-20.md §6.",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; code pipeline, migration, đường ghi, vòng đời job, định tuyến provider, cổng QC cần duyệt phạm vi (Cấp 2); API trả phí / pilot duyệt chi phí riêng (Cấp 3). Chi tiết: docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
   }
  ]
 }

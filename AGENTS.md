@@ -7,7 +7,7 @@ Dự án: Auto Pipeline sản xuất video AI (Streamlit dashboard + core Python
 2. `TODO.md` — khối 📌 mới nhất ở đầu mục "🚧 Đang làm / kế tiếp" (bàn giao từ phiên Claude: bước kế, nhánh dở, quyết định người dùng).
 3. `docs/CHUAN_XAY_DUNG.md` — 8 luật xây dựng + luật chi phí (không im lặng khi thiếu đầu vào; "đã sửa" kèm bằng chứng chạy thật; gen lại phải đổi đầu vào; mọi lời gọi tốn tiền qua sổ chi + ước tính trước).
 4. `.claude/skills/vong-lam-viec-theo-plan/SKILL.md` — vòng làm việc theo kế hoạch (thứ tự việc, mức rà RÀ KỸ / RÀ NHẸ, gộp, ghi trạng thái). Bỏ qua phần riêng của Claude Code (get_usage, Agent, PushNotification); giữ phần quy trình.
-5. Kế hoạch: `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` (dòng `> Đợt ưu tiên:`; `py tools/plan_progress.py` cho việc kế) + file kế hoạch chi tiết mà tiêu đề đợt trỏ tới.
+5. Kế hoạch chính: mục `"chinh": true` trong `devsys/plans.json` (từ 20/10 = `docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md`; kế hoạch S `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` đã lưu trữ) (dòng `> Đợt ưu tiên:`; `py tools/plan_progress.py` cho việc kế) + file kế hoạch chi tiết mà tiêu đề đợt trỏ tới.
 
 ## Luật cứng
 - **Tiền:** KHÔNG tự chạy gì tốn tiền (ClipAI, Deepix, Kling, Claude API, TTS, Apify…). Liệt kê trần từng việc, hỏi người dùng trước.

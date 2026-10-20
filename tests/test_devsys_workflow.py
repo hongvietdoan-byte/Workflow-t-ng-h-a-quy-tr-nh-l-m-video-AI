@@ -244,7 +244,7 @@ class PageTests(unittest.TestCase):
                 f.write("### S9 — Thử\n- [x] S9.1 · thử · nặng:1 · ✅ · abc1234 · 05/10: x. Số đo: chưa ghi\n")
             from devsys import plan_progress
             at = AppTest.from_file(os.path.join(ROOT, "devsys", "app.py"), default_timeout=180)
-            with mock.patch.dict(os.environ, {"DEVSYS_WORKFLOW_FILE": runs}), mock.patch.object(plan_progress, "PLAN_FILE", plan):
+            with mock.patch.dict(os.environ, {"DEVSYS_WORKFLOW_FILE": runs}), mock.patch.object(plan_progress, "PLAN_FILE", plan), mock.patch.object(plan_progress, "plan_files", lambda *a, **k: [plan]):
                 at.run()
                 at.sidebar.radio[0].set_value("Hiệu quả quy trình").run()
             self.assertEqual([e.value for e in at.exception], [])

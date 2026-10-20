@@ -195,7 +195,7 @@ with st.sidebar:
         st.session_state['devsys_page'] = 'Phiếu'
     if not ticket_ui_enabled and st.session_state.get('devsys_page') == 'Phiếu':
         del st.session_state['devsys_page']
-    page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
+    page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "🗺 Sơ đồ tiến độ", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
                               "Hiệu quả quy trình", "Ai quyết", "Làm ↔ Kiểm", "Bộ kỹ năng 3 vai", "Đang chạy"] + (["Phiếu"] if ticket_ui_enabled else []), label_visibility="collapsed", **({'key':'devsys_page'} if ticket_ui_enabled else {}))
     st.divider()
     st.markdown("**Test**")
@@ -876,7 +876,7 @@ def _answer_form(t: dict, key: str, rec) -> None:
 def _answer_box(t: dict, key: str, ans, inline: bool) -> None:
     """S14.27: under a ⏸ task — the saved answer's state and a box to answer/edit it. `ans` None = the answers file is unreadable
     (the error is shown once above; no box, so a broken file is never overwritten). An answer never changes the plan file itself:
-    the Claude session applies it, updates docs/KE_HOACH_SUA_SAU_DU_AN_8.md and marks it applied (`py -m devsys.answers applied`)."""
+    the Claude session applies it, updates the main plan file (devsys/plans.json "chinh") and marks it applied (`py -m devsys.answers applied`)."""
     if t["status"] != "⏸" or ans is None:
         return
     rec = ans.get(t["id"])
@@ -915,14 +915,23 @@ def _all_plans_board():
     if book["error"]:
         st.error(book["error"])
         return
-    st.dataframe([{"Mã": p["id"], "Kế hoạch": p["ten"], "Loại": p["kieu"], "Trạng thái đăng ký": p["trang_thai"],
-                   "Tiến độ tính từ nguồn": _pct_text(p["percent"]) if not p["error"] else p["error"],
-                   "Nguồn": p.get("nhanh", "checkout") + ":" + p["file"], "Ghi chú": p["ghi_chu"]} for p in book["items"]],
-                 hide_index=True, width="stretch")
-    for p in book["items"]:
+    def _table(items):
+        st.dataframe([{"Mã": p["id"], "Kế hoạch": p["ten"], "Loại": p["kieu"], "Trạng thái đăng ký": p["trang_thai"],
+                       "Tiến độ tính từ nguồn": _pct_text(p["percent"]) if not p["error"] else p["error"],
+                       "Nguồn": p.get("nhanh", "checkout") + ":" + p["file"], "Ghi chú": p["ghi_chu"]} for p in items],
+                     hide_index=True, width="stretch")
+    live = [p for p in book["items"] if p["trang_thai"] != "luu_tru"]       # 20/10 người dùng: kế hoạch cũ đã xong / không dùng → lưu trữ
+    old = [p for p in book["items"] if p["trang_thai"] == "luu_tru"]
+    _table(live)
+    for p in live:
         if p["error"]:
             st.warning(f"{p['id']}: {p['error']}")
-    control = next((p for p in book["items"] if p["kieu"] == "dot_bang"), None)
+    if old:
+        with st.expander(f"🗄 Đã lưu trữ ({len(old)}) — file kế hoạch giữ nguyên trong git", expanded=False):
+            _table(old)
+    control = next((p for p in live if p["kieu"] == "dot_bang"), None)
+    if control is None:
+        return
     st.subheader("Kế hoạch kiểm soát K0a–K8")
     if not control or control["error"]:
         st.warning(control["error"] if control else "không đọc được: sổ chưa có kế hoạch kiểm soát")
@@ -948,14 +957,14 @@ def page_plan():
     t1, t2 = st.columns([14, 1], vertical_alignment="center")
     t1.title("📋 Kế hoạch đang chạy")
     _all_plans_board()
-    path = plan_progress.PLAN_FILE
+    path = plan_progress.main_plan_file()
     plan = plan_progress.load(path)
     if plan is None:
         st.info(f"Chưa có file kế hoạch `{_rel(path)}`.")
         return
     with t2.popover("ⓘ", help="Nguồn và cách tính"):
         st.markdown(f"Nguồn: `{_rel(path)}`. Câu trả lời cho việc ⏸: `{_rel(answers.default_path())}` (không vào git). % do code tính từ danh sách việc: ✅ tính đủ, 🔄 tính nửa, ✖ không tính; "
-                    "trọng số nặng 1/2/3. Đặt tay đợt hiện tại bằng dòng `> Đợt ưu tiên: S13` ở đầu file.")
+                    "trọng số nặng 1/2/3. Đặt tay đợt hiện tại bằng dòng `> Đợt ưu tiên: M0` ở đầu file. Kế hoạch chính = mục `\"chinh\": true` trong `devsys/plans.json`; kế hoạch không có dòng `Trần đợt:` thì không hiện ô tiền đợt.")
     if plan["bad"]:
         st.error("Dòng việc không đọc được (sửa trong file kế hoạch):\n\n" + "\n".join(f"- {b}" for b in plan["bad"]))
     s = plan_progress.summary(plan)
@@ -1018,6 +1027,31 @@ def page_plan():
                                 for wid in finished), unsafe_allow_html=True)
 
 
+# ---- trang: Sơ đồ tiến độ (V3.1 M0.8, người dùng 20/10) ---------------------------------------------------------------
+def page_plan_map():
+    from devsys import plan_map
+    st.title("🗺 Sơ đồ tiến độ")
+    st.caption("Vẽ lại mỗi lần mở từ file kế hoạch chính (mục \"chinh\" trong `devsys/plans.json`), sổ khâu `devsys/stages.json` (theo cờ thật), "
+               "bảng việc ↔ khâu `devsys/plan_map.json` và sổ lỗi `devsys/errors.json` (khi có). Đổi trạng thái một việc trong file kế hoạch "
+               "(⬜ → 🔄 → ✅) là sơ đồ đổi màu theo — không tô tay. Xuất SVG: `py -m devsys.plan_map <thư mục>`.")
+    try:
+        m, roadmap, stage_map = plan_map.build()
+    except (OSError, ValueError) as e:
+        st.error(f"Không vẽ được sơ đồ: {e}")
+        return
+    if m["unmapped"]:
+        st.warning("Việc chưa gắn khâu trong `devsys/plan_map.json` (không hiện ở sơ đồ khâu): " + ", ".join(m["unmapped"]))
+    if m["stale"]:
+        st.info("Mã việc trong `devsys/plan_map.json` không còn trong kế hoạch: " + ", ".join(m["stale"]))
+    if m["unknown_stage"]:
+        st.warning("Mã khâu trong `devsys/plan_map.json` không có trong `devsys/stages.json`: " + ", ".join(m["unknown_stage"]))
+    tab1, tab2 = st.tabs(["Lộ trình theo milestone", "Khâu × việc"])
+    with tab1:
+        st.markdown(roadmap, unsafe_allow_html=True)
+    with tab2:
+        st.markdown(stage_map, unsafe_allow_html=True)
+
+
 # ---- trang: Hiệu quả (S14.10 Đợt 6b) -----------------------------------------------------------------------------------
 def page_effect():
     st.title("Hiệu quả — điểm devsys ↔ chất lượng đầu ra thật")
@@ -1073,12 +1107,16 @@ def page_flow():
     kinds = sorted({workflow.task_kind(r.get("task")) for r in all_rows})
     selected = st.multiselect("Lọc loại mã", kinds, default=kinds, format_func=lambda k: workflow.KIND_LABEL[k], key="flow_task_kinds")
     rows = [r for r in all_rows if workflow.task_kind(r.get("task")) in selected]
-    try:
-        with open(plan_progress.PLAN_FILE, encoding="utf-8") as f:
-            got = workflow.parse_plan(f.read())
-    except (OSError, UnicodeError) as error:
-        st.warning(f"không đọc được kế hoạch S: {error}")
-        got = {"bad": [], "runs": []}
+    got = {"bad": [], "runs": []}
+    for plan_path in plan_progress.plan_files():          # 20/10: mọi kế hoạch viec_s (S cũ + V3.1), không chỉ kế hoạch chính
+        try:
+            with open(plan_path, encoding="utf-8") as f:
+                one = workflow.parse_plan(f.read())
+        except (OSError, UnicodeError) as error:
+            st.warning(f"không đọc được kế hoạch {_rel(plan_path)}: {error}")
+            continue
+        got["bad"] += one["bad"]
+        got["runs"] += one["runs"]
     if got["bad"]:
         st.warning("Dòng 'Số đo:' trong kế hoạch KHÔNG đọc được (sửa lại cho đúng dạng 'làm ≈ 200k + sửa ≈ 50k, rà ≈ 100k, rà bắt 3'):\n\n"
                    + "\n".join(f"- {b}" for b in got["bad"]))
@@ -1232,7 +1270,7 @@ def page_running():
 
 from devsys.tickets_page import render as page_tickets
 
-PAGES = {"Phiếu": page_tickets, "Đang chạy": page_running, "📋 Kế hoạch đang chạy": page_plan, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
+PAGES = {"Phiếu": page_tickets, "Đang chạy": page_running, "📋 Kế hoạch đang chạy": page_plan, "🗺 Sơ đồ tiến độ": page_plan_map, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
          "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Hiệu quả quy trình": page_flow, "Ai quyết": page_decisions, "Làm ↔ Kiểm": page_stages,
          "Bộ kỹ năng 3 vai": page_skills}
 PAGES[page]()

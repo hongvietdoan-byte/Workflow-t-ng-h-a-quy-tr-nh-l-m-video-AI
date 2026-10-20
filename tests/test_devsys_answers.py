@@ -181,7 +181,7 @@ class PlanPageAnswerBoxTests(unittest.TestCase):
         from streamlit.testing.v1 import AppTest
         from devsys import plan_progress
         at = AppTest.from_file(os.path.join(ROOT, "devsys", "app.py"), default_timeout=180)
-        with mock.patch.object(plan_progress, "PLAN_FILE", self.plan), mock.patch.dict(os.environ, {"DEVSYS_ANSWERS_FILE": self.path}):
+        with mock.patch.object(plan_progress, "PLAN_FILE", self.plan), mock.patch.object(plan_progress, "main_plan_file", lambda *a, **k: self.plan), mock.patch.dict(os.environ, {"DEVSYS_ANSWERS_FILE": self.path}):
             at.run()
         return at
 
@@ -195,7 +195,7 @@ class PlanPageAnswerBoxTests(unittest.TestCase):
         self.assertFalse(any("S14.27" in k for k in keys))                       # only ⏸ tasks get a box
         at.radio(key="ans-choice-w-S14.12").set_value("Duyệt")
         at.text_area(key="ans-text-w-S14.12").input("ok trần 10 USD")
-        with mock.patch.object(plan_progress, "PLAN_FILE", self.plan), mock.patch.dict(os.environ, {"DEVSYS_ANSWERS_FILE": self.path}):
+        with mock.patch.object(plan_progress, "PLAN_FILE", self.plan), mock.patch.object(plan_progress, "main_plan_file", lambda *a, **k: self.plan), mock.patch.dict(os.environ, {"DEVSYS_ANSWERS_FILE": self.path}):
             at.button(key="ans-save-w-S14.12").click().run()
         self.assertEqual([e.value for e in at.exception], [])
         got = answers.load(self.path)["S14.12"]

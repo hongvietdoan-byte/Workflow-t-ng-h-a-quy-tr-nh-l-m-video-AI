@@ -1,4 +1,4 @@
-"""Tiến độ của kế hoạch đang chạy (docs/KE_HOACH_SUA_SAU_DU_AN_8.md) — % do code tính từ danh sách việc, không ai tự khai.
+"""Tiến độ của kế hoạch đang chạy (mục "chinh": true trong devsys/plans.json; 20/10 = V3.1, trước đó docs/KE_HOACH_SUA_SAU_DU_AN_8.md) — % do code tính từ danh sách việc, không ai tự khai.
 
 Mỗi việc là một dòng trong file kế hoạch:
     - [ ] S1.2 · Hiệu ứng âm thanh neo theo shot · nặng:2 · ⬜
@@ -13,7 +13,47 @@ import re
 from typing import Dict, List, Optional
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PLAN_FILE = os.path.join(ROOT, "docs", "KE_HOACH_SUA_SAU_DU_AN_8.md")
+DEFAULT_PLAN_FILE = os.path.join(ROOT, "docs", "KE_HOACH_SUA_SAU_DU_AN_8.md")
+
+
+def _local_plan(root: str, rec) -> Optional[str]:
+    """Path of a viec_s record read from this checkout (no `nhanh`, inside the repo, file exists); None otherwise."""
+    if not isinstance(rec, dict) or rec.get("kieu") != "viec_s" or rec.get("nhanh") or not isinstance(rec.get("file"), str):
+        return None
+    parts = rec["file"].replace("\\", "/").split("/")
+    if os.path.isabs(rec["file"]) or ".." in parts:
+        return None
+    path = os.path.join(root, *parts)
+    return path if os.path.isfile(path) else None
+
+
+def _records(root: str) -> list:
+    import json
+    try:
+        with open(os.path.join(root, "devsys", "plans.json"), encoding="utf-8") as f:
+            records = json.load(f)
+        return records if isinstance(records, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def main_plan_file(root: str = ROOT) -> str:
+    """20/10 (V3.1): the running plan = the ONE devsys/plans.json record marked "chinh": true (kind viec_s, local file that exists);
+    none / several / missing file / unreadable → the S plan. Read at each call so the pages follow a change without a restart."""
+    main = [r for r in _records(root) if isinstance(r, dict) and r.get("chinh") is True]
+    path = _local_plan(root, main[0]) if len(main) == 1 else None
+    return path or DEFAULT_PLAN_FILE
+
+
+def plan_files(root: str = ROOT) -> List[str]:
+    """Every local viec_s plan file (archived ones included) — for readers that must see all plans' lines ('Số đo:'), not only the main one."""
+    out = [p for p in (_local_plan(root, r) for r in _records(root)) if p]
+    if os.path.isfile(DEFAULT_PLAN_FILE) and DEFAULT_PLAN_FILE not in out and root == ROOT:
+        out.append(DEFAULT_PLAN_FILE)
+    return out
+
+
+PLAN_FILE = main_plan_file()
 
 STATUS = {"⬜": "chưa làm", "🔄": "đang làm", "⏸": "chờ người dùng", "✅": "xong", "✖": "bỏ"}
 TASK_RE = re.compile(r"^\s*- \[( |x|X)\] (?P<id>[A-Z]+\d*(?:\.\d+)?) · (?P<title>.+?) · nặng:(?P<w>[123]) · (?P<st>⬜|🔄|⏸|✅|✖)"

@@ -1,13 +1,14 @@
 [
-  {"id":"S","ten":"Kế hoạch sửa sau dự án 8","file":"docs/KE_HOACH_SUA_SAU_DU_AN_8.md","kieu":"viec_s","trang_thai":"dang_chay","ghi_chu":"Tiến độ trọng số theo API cũ"},
-  {"id":"K","ten":"Kiểm soát nhất quán K0a–K8","file":"docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md","kieu":"dot_bang","trang_thai":"dang_chay","ghi_chu":"Mục 8 và chốt A"},
-  {"id":"A21","ten":"Thẩm định cổng A21","file":"docs/THAM_DINH_KE_HOACH_KIEM_SOAT_2026-10-10.md","kieu":"ghi_chu","trang_thai":"dang_chay","ghi_chu":"Điểm theo lần, không có phần trăm hoàn thành"},
-  {"id":"CX1","ten":"Codex đợt 1","file":"docs/CODEX_TASKS.md","kieu":"codex","dot":1,"trang_thai":"xong","ghi_chu":"Đối chiếu phần kết quả, không dùng trạng thái này tính %"},
-  {"id":"CX2","ten":"Codex đợt 2","file":"docs/CODEX_TASKS.md","kieu":"codex","dot":2,"trang_thai":"xong","ghi_chu":"Đã gộp main 11/10 (phiên rà Codex); % tính từ phần kết quả"},
-  {"id":"CX3","ten":"Codex đợt 3","file":"docs/CODEX_TASKS.md","kieu":"codex","dot":3,"trang_thai":"xong","ghi_chu":"Đã gộp main 11/10 (phiên rà Codex); % tính từ phần kết quả"},
-  {"id":"CX4","ten":"Codex đợt 4","file":"docs/CODEX_TASKS.md","kieu":"codex","dot":4,"trang_thai":"xong","ghi_chu":"Đã gộp main 11/10"},
-  {"id":"CX5","ten":"Codex đợt 5 — nghiên cứu Tiểu Nhị","file":"docs/NGHIEN_CUU_TU_PHUC_VU_DASHBOARD.md","kieu":"ghi_chu","trang_thai":"xong","ghi_chu":"Nghiên cứu, không chia việc nên không quy đổi %; gộp main 11/10"},
-  {"id":"CX6","ten":"Codex đợt 6","file":"docs/CODEX_TASKS.md","kieu":"codex","dot":6,"trang_thai":"xong","ghi_chu":"Đã gộp main 11/10, 3 cờ TẮT"},
+  {"id":"V31","ten":"Master Build V3.1 — sổ lỗi, thực thi/chi phí, BYĐ v2, world map, QC, sửa chọn lọc","file":"docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md","kieu":"viec_s","trang_thai":"dang_chay","chinh":true,"ghi_chu":"Từ PDF V3.1 20/10; M0 trước, D01–D10 chờ người dùng"},
+  {"id":"S","ten":"Kế hoạch sửa sau dự án 8","file":"docs/KE_HOACH_SUA_SAU_DU_AN_8.md","kieu":"viec_s","trang_thai":"luu_tru","ghi_chu":"lưu trữ 20/10 (người dùng): thay bởi V31; còn 3 việc ⏸ + 13 việc mở chưa chuyển — xem docs/KE_HOACH_SUA_SAU_DU_AN_8.md · Tiến độ trọng số theo API cũ"},
+  {"id":"K","ten":"Kiểm soát nhất quán K0a–K8","file":"docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md","kieu":"dot_bang","trang_thai":"luu_tru","ghi_chu":"lưu trữ 20/10 (người dùng): phần kiểm soát gộp vào V31 (WS0/WS5); đợt K vẫn là cột 'Đợt' ở trang Làm ↔ Kiểm · Mục 8 và chốt A"},
+  {"id":"A21","ten":"Thẩm định cổng A21","file":"docs/THAM_DINH_KE_HOACH_KIEM_SOAT_2026-10-10.md","kieu":"ghi_chu","trang_thai":"luu_tru","ghi_chu":"lưu trữ 20/10 (người dùng): thẩm định đã xong · Điểm theo lần, không có phần trăm hoàn thành"},
+  {"id":"CX1","ten":"Codex đợt 1","file":"docs/CODEX_TASKS.md","kieu":"codex","dot":1,"trang_thai":"luu_tru","ghi_chu":"lưu trữ 20/10: đã gộp main · Đối chiếu phần kết quả, không dùng trạng thái này tính %"},
+  {"id":"CX2","ten":"Codex đợt 2","file":"docs/CODEX_TASKS.md","kieu":"codex","dot":2,"trang_thai":"luu_tru","ghi_chu":"lưu trữ 20/10: đã gộp main · Đã gộp main 11/10 (phiên rà Codex); % tính từ phần kết quả"},
+  {"id":"CX3","ten":"Codex đợt 3","file":"docs/CODEX_TASKS.md","kieu":"codex","dot":3,"trang_thai":"luu_tru","ghi_chu":"lưu trữ 20/10: đã gộp main · Đã gộp main 11/10 (phiên rà Codex); % tính từ phần kết quả"},
+  {"id":"CX4","ten":"Codex đợt 4","file":"docs/CODEX_TASKS.md","kieu":"codex","dot":4,"trang_thai":"luu_tru","ghi_chu":"lưu trữ 20/10: đã gộp main · Đã gộp main 11/10"},
+  {"id":"CX5","ten":"Codex đợt 5 — nghiên cứu Tiểu Nhị","file":"docs/NGHIEN_CUU_TU_PHUC_VU_DASHBOARD.md","kieu":"ghi_chu","trang_thai":"luu_tru","ghi_chu":"lưu trữ 20/10: nghiên cứu đã xong · Nghiên cứu, không chia việc nên không quy đổi %; gộp main 11/10"},
+  {"id":"CX6","ten":"Codex đợt 6","file":"docs/CODEX_TASKS.md","kieu":"codex","dot":6,"trang_thai":"luu_tru","ghi_chu":"lưu trữ 20/10: đã gộp main · Đã gộp main 11/10, 3 cờ TẮT"},
   {"id":"3D","ten":"Phương pháp Sân khấu 3D","file":"docs/PHUONG_PHAP_SAN_KHAU_3D.md","kieu":"phuong_phap","trang_thai":"dang_chay","ghi_chu":"Tài liệu phương pháp, không quy đổi %"},
   {"id":"UI","ten":"Ghi chú giao diện so FateBreaker","file":"docs/GHI_CHU_GIAO_DIEN_SO_FATEBREAKER_2026-10-10.md","kieu":"ghi_chu","trang_thai":"chua_lam","ghi_chu":"Chép vào main 13/10 (nhánh đã xóa), chưa sửa Dashboard"}
 ]

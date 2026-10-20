@@ -54,7 +54,7 @@ def test_flow_page_warns_skipped_row_and_missing_ignores_kind_filter(tmp_path, m
                     '- [x] S9.2 · thử · nặng:1 · ✅ · abc1235 · 05/10: x. Số đo: làm ≈ 50k, rà ≈ 0\n', encoding='utf-8')
     monkeypatch.setenv('DEVSYS_WORKFLOW_FILE', str(runs))
     at = AppTest.from_file(os.path.join(os.path.dirname(w.__file__), 'app.py'), default_timeout=180)
-    with mock.patch.object(plan_progress, 'PLAN_FILE', str(plan)):
+    with mock.patch.object(plan_progress, 'PLAN_FILE', str(plan)), mock.patch.object(plan_progress, 'plan_files', lambda *a, **k: [str(plan)]):
         at.run()
         at.sidebar.radio[0].set_value('Hiệu quả quy trình').run()
         assert [e.value for e in at.exception] == []

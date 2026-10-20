@@ -207,6 +207,48 @@ def test_ledger_in_git_tree_and_valid():
     assert any(i["status"] == "active" for i in LEDGER["items"])
 
 
+V31_DIRECTION = {"v31-kho-forms-direction-2026-10-20": "ĐỊNH HƯỚNG", "v31-user-edit-protection-direction-2026-10-20": "ĐỊNH HƯỚNG",
+                 "v31-scene-world-map-trial-2026-10-20": "THỬ NGHIỆM", "v31-pilot-three-rounds-2026-10-20": "CHƯA DUYỆT CHI PHÍ",
+                 "v31-permission-tiers-2026-10-20": "Cấp 3"}
+
+
+V31_REPLACED_BY = {"v31-user-edit-protection-direction-2026-10-20": "v31-d04-field-level-write-guard-2026-10-20",
+                   "v31-kho-forms-direction-2026-10-20": "v31-d05-kho-structured-forms-2026-10-20",
+                   "v31-scene-world-map-trial-2026-10-20": "v31-d06-scene-world-map-flexible-2026-10-20"}
+
+
+def test_v31_direction_decisions_say_they_are_not_implementation_approval():
+    """20/10 (người dùng, văn bản quyết định V3.1): M2.3 / M2.5 / M3.1 / M5.3 chỉ duyệt định hướng / quy trình — mục sổ phải nói rõ chưa
+    được triển khai (sổ chưa có trạng thái nhiều cấp; đề xuất mở rộng ở docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4b). Ba mục
+    định hướng đã được D04 / D05 / D06 thay (cùng ngày, chi tiết hơn) — giữ lịch sử, status replaced."""
+    items = {i["id"]: i for i in LEDGER["items"]}
+    for iid, must in V31_DIRECTION.items():
+        assert iid in items, iid
+        assert must in items[iid]["text"], iid
+        assert "Cấp" in items[iid]["changes"] or iid == "v31-permission-tiers-2026-10-20", iid
+        want = "replaced" if iid in V31_REPLACED_BY else "active"
+        assert items[iid]["status"] == want, iid
+    for old, new in V31_REPLACED_BY.items():
+        assert items[new]["replaces"] == old and items[new]["status"] == "active", new
+
+
+def test_v31_d01_to_d10_recorded_as_policy_not_implementation():
+    """20/10 người dùng duyệt D01–D10 (văn bản 'PHÊ DUYỆT D01–D10'): đủ 10 mục active, mỗi mục ghi lựa chọn và nói rõ là chính sách /
+    định hướng — không phải lệnh triển khai code (Cấp 2) hay chi phí (Cấp 3)."""
+    import re
+    got = {}
+    for i in LEDGER["items"]:
+        m = re.match(r"v31-d(0[1-9]|10)-", i["id"])
+        if m:
+            got[int(m.group(1))] = i
+    assert sorted(got) == list(range(1, 11))
+    choice = {1: "A", 2: "A", 3: "A", 4: "B", 5: "A", 6: "B", 7: "A", 8: "A", 9: "C", 10: "A"}
+    for n, it in got.items():
+        assert it["status"] == "active", it["id"]
+        assert f"chọn {choice[n]}" in it["text"], it["id"]
+        assert "không phải lệnh triển khai" in it["changes"], it["id"]
+
+
 def test_problems_catch_duplicate_dangling_and_orphan_replaced():
     doc = {"items": [
         {"id": "a", "date": "2026-10-01", "by": "người dùng", "text": "x", "keeps": "", "changes": "", "replaces": None,

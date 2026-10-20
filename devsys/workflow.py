@@ -6,7 +6,7 @@ File `devsys/workflow_runs.jsonl`: mỗi dòng một nhánh đã gộp —
     work_k / review_k / fix_k (nghìn token phiên làm / rà / sửa; None = không ghi) · fix_rounds · bugs · bugs_major · commit · note · source (cli | plan:dòng N)
 Ghi:  python -m devsys.workflow add S14.45 --mode cloud --review nhe --work 150 [--review-k 0 --fix 0 --rounds 0 --bugs 0 --major 0 --note …]
 Xem:  python -m devsys.workflow list
-Nhập lại từ kế hoạch:  python -m devsys.workflow import-plan [--write]   (đọc các dòng "Số đo: …" của docs/KE_HOACH_SUA_SAU_DU_AN_8.md;
+Nhập lại từ kế hoạch:  python -m devsys.workflow import-plan [--write]   (đọc các dòng "Số đo: …" của mọi kế hoạch viec_s trong devsys/plans.json;
       dòng không đọc được → liệt kê, không im lặng bỏ; chạy lại không nhân đôi).
 """
 import argparse
@@ -25,7 +25,7 @@ MODES = ("goi", "usd", "cloud")
 MODE_LABEL = {"goi": "gói", "usd": "$", "cloud": "cloud"}
 REVIEWS = ("ky", "nhe")
 REVIEW_LABEL = {"ky": "rà kỹ", "nhe": "rà nhẹ", "?": "không rõ"}
-KIND_LABEL = {"S": "Việc kế hoạch S (gồm mã F/P cũ)", "K": "Kiểm soát K", "CX": "Codex", "?": "không đọc được mã"}
+KIND_LABEL = {"S": "Việc kế hoạch (S/M…, gồm mã F/P cũ)", "K": "Kiểm soát K", "CX": "Codex", "?": "không đọc được mã"}
 TASK_PATTERNS = {"S": re.compile(r"(?!K[0-9]|CX)[A-Z]+[0-9]+(?:\.[0-9]+)?"),
                  "K": re.compile(r"(?:" + "|".join(re.escape(d) for d in DOT) + r")(?:-[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z][A-Za-z0-9]*)*)?"),
                  "CX": re.compile(r"CX-d[1-9][0-9]*-[1-9][0-9]*")}
@@ -353,9 +353,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"\n{s['n']} nhánh · tổng {s['total_k']}k · {_fmt(s['per_branch_k'])}k/nhánh · rà {_fmt(s['pct_review'])} % · sửa {_fmt(s['pct_fix'])} %")
         else:
             from devsys import plan_progress
-            plan = args.plan or plan_progress.PLAN_FILE
-            with open(plan, encoding="utf-8") as f:
-                got = import_plan(f.read(), path, write=args.write)
+            plans = [args.plan] if args.plan else plan_progress.plan_files()
+            text = ""
+            for plan in plans:                      # 20/10: mọi kế hoạch viec_s (S cũ + V3.1), không chỉ kế hoạch chính
+                with open(plan, encoding="utf-8") as f:
+                    text += f.read() + "\n"
+            got = import_plan(text, path, write=args.write)
             _print_rows(got["runs"])
             print(f"\n{len(got['runs'])} nhánh đọc được · {len(got['new'])} chưa có trong file" + (" → ĐÃ GHI" if args.write and got["new"] else
                                                                                                     "" if args.write else " (thêm --write để ghi)"))

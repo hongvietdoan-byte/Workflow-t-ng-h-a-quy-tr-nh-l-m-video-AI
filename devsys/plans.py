@@ -7,7 +7,7 @@ from . import plan_progress, stages
 
 ROOT = Path(__file__).resolve().parents[1]
 KINDS = {'viec_s', 'dot_bang', 'codex', 'ghi_chu', 'phuong_phap'}
-STATES = {'dang_chay', 'cho', 'xong', 'chua_lam'}
+STATES = {'dang_chay', 'cho', 'xong', 'chua_lam', 'luu_tru'}   # luu_tru (20/10): ẩn khỏi bảng, file giữ nguyên
 
 
 def parse_control(text):
