@@ -355,6 +355,12 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.22 cổng S11.2 ĐẠT: người dùng chấm phiếu 05d (docs/DO_S11_2_Y_TUONG_2026-10-05d.md) TB 4,20 ≥ 4,0, đo thật 0,709 USD; "
                "06/10 người dùng duyệt bật mặc định — dùng khi người dùng yêu cầu hoặc khi kịch bản sơ sài (Claude hỏi trong khung chat, chưa tự chi)",
     },
+    "repair_router": {
+        "label": "Repair router theo mã lỗi (V3.1 M5.1) — CHỈ ĐỀ XUẤT: QC không đạt → kế hoạch sửa (đổi đầu vào gì, lần mấy / trần, khi nào "
+                 "dừng hỏi người) ghi ở ⚙ Chẩn đoán; KHÔNG tự gửi job (tự gửi = Cấp 3)",
+        "verified": False,
+        "why": "Luật 6 CHUAN_XAY_DUNG + G2-6 (router mặc định TẮT). Chưa chạy trên dữ liệu thật",
+    },
     "qc_observe_enum": {
         "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",
         "verified": False,
