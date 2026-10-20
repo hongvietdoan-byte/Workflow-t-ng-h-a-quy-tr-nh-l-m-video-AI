@@ -51,3 +51,10 @@ py tools/golden_capture.py --db D:/AI-Video-Output/golden-snapshot/manifest.sqli
 - Native Python3.14 spawn bằng môi trường whitelist SYSTEMROOT/TEMP/TMP/PYTHONUTF8; pytest import/call dưới `patch.object(os, "environ", {})`; không đọc/in/assert môi trường thật/header/token, không provider client/registry/API/dữ liệu thật. `git diff --check` xanh.
 - Baseline không làm input builder, đổi prompt làm COMPAT đỏ; correctness có kỳ vọng riêng. Video fingerprint dùng khóa job thực + snapshot singular đã được builder sửa trước review. Ref có manifest hash/root, timestamp/cờ/provider stub đóng băng; hiện tại builder không đọc registry/config.
 - Không còn P1/P2 trong phạm vi đã rà. Stub tên provider không chứng nhận adapter submit signature/mạng hay chất lượng; thread-safety toàn tiến trình chưa hỗ trợ. M1.9a và capture sản xuất / `_submit_args` / cả bộ Windows / gộp vẫn OPEN; không push/main/TODO/plan/version.
+
+## Bổ sung phạm vi cờ COMPAT capture (Codex)
+
+- `--flags-file` hỗ trợ định dạng phẳng cũ (mọi cờ phải OFF) và định dạng `{flags: {legacy: true, new: false}, experimental_flags: [new]}`. Định dạng mới chỉ yêu cầu tập experimental khai rõ OFF; không đọc catalog/env, không suy đoán trạng thái cờ lúc gửi.
+- Lưu toàn bộ map `flags`, danh sách `experimental_flags` từ đầu vào (flat suy ra toàn bộ tên cờ theo hợp đồng cũ), giữ provenance `explicit_file_unverified_at_send`. Thiếu list, sai kiểu, tên ngoài map, trùng tên hoặc giá trị không boolean đều lỗi rõ.
+- 7 ca mới: legacy ON/experimental OFF được chụp; experimental ON và metadata hỏng bị từ chối. ĐỎ **1 failed / 34 passed (12,34s)** → XANH **35 passed (14,98s)**; native Python3.14, env spawn whitelist và patch.object fake trước pytest import/call. Không API/secret/live/full suite.
+- Thay hướng dẫn flags phẳng bắt buộc ở phần đầu báo cáo bằng hợp đồng mở rộng tại mục này; trạng thái M1.9a vẫn OPEN. Không thay areas/version/TODO/plan, không push.
