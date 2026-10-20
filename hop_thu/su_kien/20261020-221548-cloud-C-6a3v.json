@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:15:48.330121+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "DP2",
+  "branch": "cloud/v31-dp2",
+  "commit": "a90fb341",
+  "report": "docs/RA_CLOUD_DP2_2026-10-20.md",
+  "text": "G20: cổng ảnh→video bỏ kiểm chân trời khi nền không có trời (overhead/BYĐ trong nhà/chỗ đứng 3D trong nhà/INT./render sáng không trời) — VÀNG có lý do, không ĐỎ; có trời/không rõ giữ kiểm; cờ horizon_needs_sky TẮT; 9 test; cả bộ 6375 qua + 4 đỏ có sẵn"
+}
