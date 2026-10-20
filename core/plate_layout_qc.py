@@ -188,7 +188,7 @@ SKY_FLAG = "horizon_needs_sky"
 cổng ảnh→video báo nhầm "lệch nền 3D". Cờ bật: nền KHÔNG có trời → bỏ kiểm chân trời (nói lý do); có trời / KHÔNG RÕ → giữ kiểm."""
 _INDOOR = re.compile(r"(?<!\w)(?:INT\.|interior|indoors?|inside (?:a|the) (?:room|house|building|hall)|trong (?:nhà|phòng)|"
                                    r"phòng (?:ngủ|khách|tắm|học|làm việc)|hành lang)(?!\w)", re.I)
-_OUTDOOR = re.compile(r"(?<!\w)(?:EXT\.|exterior|outdoors?|ngoài trời|sân|phố|đường|rooftop|sky)(?!\w)", re.I)
+_OUTDOOR = re.compile(r"(?<!\w)(?:EXT\.|exterior|outdoors?|ngoài trời|sân(?! khấu)|phố|đường|rooftop|sky)(?!\w)", re.I)   # sân khấu: trong nhà
 
 
 def no_sky_reason(conn, pid: Optional[int], scene_id: Optional[int], plate_path: Optional[str], data: Optional[Dict] = None) -> Optional[str]:

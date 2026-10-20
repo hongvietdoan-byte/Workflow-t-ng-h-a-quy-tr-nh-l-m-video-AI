@@ -29,10 +29,12 @@ _RTL = re.compile(r"\bfrom (?:frame[- ])?right to (?:frame[- ])?left\b|\btowards
 # chữ nói lý do đổi: quay lại / vòng lại / máy đổi phía / thả, ném, mất vật / biến hình
 _TURN = re.compile(r"\bturns? (?:a)?round\b|\bu-?turn\b|\breverses?\b|\bdoubles? back\b|\bquay (?:lại|đầu|người)\b|vòng lại|"
                    r"\breverse angle\b|góc ngược", re.I)
-_LOSE = re.compile(r"\bdrops?\b|\bthrows?\b|\btosses?\b|\blets? go\b|\bholsters?\b|\bputs? (?:it |the \w+ )?(?:down|away)\b|\bloses?\b|"
-                   r"\bhands? (?:it|the \w+) (?:to|over)\b|đánh rơi|\bthả\b|\bném\b|cất (?:súng|vũ khí)|làm rơi|\bmất\b", re.I)
-_SHIFT = re.compile(r"\btransforms?\b|\bturns? into\b|\bchanges? (?:back|into|form)\b|\breturns? to (?:reality|normal)\b|biến (?:hình|thành)|"
-                    r"trở về|về thực tại|hiện nguyên hình", re.I)
+_LOSE = re.compile(r"\bdrops?\b|\bthrows?\b|\btosses?\b|\blets? go\b|\bholsters?\b|\bputs? (?:it |the \w+ )?(?:down|away)\b|"
+                   r"\bloses? (?:the|his|her|their) (?:gun|rifle|weapon|grip)\b|\bhands? (?:it|the \w+) (?:to|over)\b|\bdisarmed\b|"
+                   r"đánh rơi|làm rơi|rơi mất|đánh mất|làm mất|bị (?:tước|cướp|giật|đánh rơi) (?:mất )?|\bthả (?:súng|vũ khí|\w+ xuống)|"
+                   r"\bném (?:súng|vũ khí|\w+ đi)|cất (?:súng|vũ khí)", re.I)   # C-FIX-THAP-1: "mất" trần (mất thăng bằng / biến mất) KHÔNG tính
+_SHIFT = re.compile(r"\btransforms?\b|\bturns? into\b|\bchanges? (?:back|into|form)\b|\breturns? to (?:reality|normal|(?:his|her|their) form)\b|"
+                    r"biến (?:hình|thành)|trở về (?:thực tại|hình dạng|dạng)|về thực tại|hiện nguyên hình", re.I)   # "trở về nhà" không tính
 
 
 def enabled() -> bool:

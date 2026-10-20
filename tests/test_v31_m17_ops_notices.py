@@ -97,7 +97,7 @@ class G55StaleCode(unittest.TestCase):
                 mock.patch.object(code_version, "code_fingerprint", return_value="newcode"):
             for _ in range(3):
                 msg = code_version.check_round(conn)
-        self.assertIn("cổng 8503 chạy code cũ oooooooo ≠ HEAD nnnnnnnn", msg)
+        self.assertIn("cổng 8503 chạy code cũ — tệp .py của core/ / dashboard/ đã đổi", msg)   # C-FIX-THAP-1: theo dấu vân tay code
         rows = conn.execute("SELECT code, count FROM diag_events").fetchall()
         self.assertEqual([(r["code"], r["count"]) for r in rows], [(code_version.CODE, 3)])
 

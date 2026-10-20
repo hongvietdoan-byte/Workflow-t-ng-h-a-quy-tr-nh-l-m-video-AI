@@ -198,7 +198,8 @@ def stale_instances(db_path: Optional[str] = None, head: Optional[str] = None, a
             continue
         old = (rec["code"] != code) if rec.get("code") and code else bool(rec.get("sha") and head and rec["sha"] != head)
         if old:
-            out.append({"port": rec.get("port"), "pid": rec.get("pid"), "sha": rec.get("sha") or "?", "head": head or "?"})
+            out.append({"port": rec.get("port"), "pid": rec.get("pid"), "sha": rec.get("sha") or "?", "head": head or "?",
+                        "code": rec.get("code")})
     return out
 
 
@@ -212,7 +213,11 @@ def self_stale(head: Optional[str] = None, root: str = ROOT) -> Optional[str]:
     elif not head or not BOOT["sha"] or BOOT["sha"] == head:
         return None
     where = f"cổng {BOOT['port']}" if BOOT["port"] else f"tiến trình {BOOT['pid']}"
-    return (f"{where} chạy code cũ {BOOT['sha'][:8]} ≠ HEAD {head[:8]} — vòng nền gửi job bằng code cũ; tắt / mở lại Dashboard "
+    if BOOT.get("code") and code:                 # C-FIX-THAP-1: nói theo dấu vân tay code (cái thật sự so), không theo sha HEAD
+        what = f"code cũ — tệp .py của core/ / dashboard/ đã đổi từ lúc khởi động (dấu {BOOT['code'][:8]} → {code[:8]})"
+    else:                                         # bản ghi / tiến trình cũ chưa có dấu vân tay: như trước
+        what = f"code cũ {BOOT['sha'][:8]} ≠ HEAD {head[:8]}"
+    return (f"{where} chạy {what} — vòng nền gửi job bằng code cũ; tắt / mở lại Dashboard "
             "(tools/stop_dashboard.ps1 -All tắt mọi cổng)")
 
 
@@ -223,8 +228,9 @@ def banner(db_path: Optional[str] = None) -> str:
     rows = stale_instances(db_path)
     if not rows:
         return ""
-    ports = ", ".join(f"{r['port'] or '?'} (pid {r['pid']}, {r['sha'][:8]})" for r in rows)
-    return (f"⚠ Dashboard chạy code cũ ≠ HEAD {rows[0]['head'][:8]}: cổng {ports} — tắt / mở lại "
+    ports = ", ".join(f"{r['port'] or '?'} (pid {r['pid']}" + (f", dấu {r['code'][:8]})" if r.get("code") else f", {r['sha'][:8]})")
+                      for r in rows)
+    return (f"⚠ Dashboard chạy code cũ — tệp .py của core/ / dashboard/ đã đổi từ lúc khởi động: cổng {ports} — tắt / mở lại "
             "(tools/stop_dashboard.ps1 -All tắt mọi cổng dashboard.serve).")
 
 

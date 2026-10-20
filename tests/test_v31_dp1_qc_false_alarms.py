@@ -17,7 +17,7 @@ from core.pipeline import Pipeline
 ON = mock.patch.dict(os.environ, {"FEATURE_QC_FALSE_ALARM_FIX": "1"})
 OFF = mock.patch.dict(os.environ, {"FEATURE_QC_FALSE_ALARM_FIX": ""})
 S2 = {"size": "MS", "angle": "low", "characters": ["MEO_CAM", "MEO_TIM", "MEO_XAM"],
-      "image_prompt": "Low camera behind the group: the backs of two cats fill the left and right foreground, the purple cat faces us far away"}
+      "blocking": "Low camera behind the group: the backs of two cats fill the left and right foreground, the purple cat faces us far away"}
 
 
 def _check(data, face_h=0.08):
@@ -44,9 +44,9 @@ def test_behind_the_group_skips_the_size_check_and_says_why():
 
 @pytest.mark.parametrize("words", ["over-the-shoulder on Kelly", "máy đặt SAU LƯNG Kelly", "camera behind her shoulders",
                                    "quay lưng về máy", "rear view of the squad"])
-def test_behind_words_in_any_field(words):
+def test_behind_words_in_the_camera_fields(words):           # C-FIX-THAP-1: chỉ trường máy / bố cục (blocking), không image_prompt / action
     with ON:
-        out, _ = _check({"size": "MS", "characters": ["KELLY"], "action": words})
+        out, _ = _check({"size": "MS", "characters": ["KELLY"], "blocking": words})
     assert "shot_size" not in [o["code"] for o in out]
 
 
