@@ -22,3 +22,11 @@ py tools/golden_capture.py --db D:/AI-Video-Output/golden-snapshot/manifest.sqli
 ```
 
 Replay hiện hữu chỉ khi có pre-send sidecar độc lập: `actual = replay_builder(job['input_snapshot'], ref_root=...)`; `compare_compat(job['sent_package_raw'].encode('utf-8'), actual)`. Không sidecar thì báo thiếu; không nhập args suy từ package. Chưa có command actual DB replay. CX20-2b/M1.9/M2 chưa được mở khóa. Không push/main/TODO/plan/live.
+
+## RÀ KỸ độc lập guard/worker (sau 4e0320bf)
+
+- Phạm vi diff `688fce78..4e0320bf`: catalog AST bắt đủ unverified OFF, legacy verified ON giữ nguyên; queued/running/retryable có cảnh báo, SQLite đóng kể cả lỗi; Git fallback chỉ tìm executable. API cách ly cwd/env ở worker, không đổi object môi trường của caller; log worker bị giữ trong capture_output, lỗi không kèm payload. Không phát hiện thêm lỗi cần sửa trong phạm vi này.
+- **P2 đã sửa:** native Python bị khóa đường dẫn theo tài khoản máy; chuyển sang `sys.executable` tuyệt đối, kiểm runtime 3.14 + tên native trong whitelist + tệp tồn tại, từ chối launcher `py.exe`. Worker dùng `-I`, không nạp user-site/PYTHONPATH trước khi guard hoạt động. Không thêm import ứng dụng hay đọc credential ở tiến trình gọi.
+- ĐỎ **3 failed /40 deselected (0,18s)** trên ba regression native portable/launcher/version → XANH **43 passed (18,40s)** cả `tests/test_golden_replay.py`, đúng hai lượt pytest, `--tb=no -p no:cacheprovider`. Lệnh bootstrap đầu bị lỗi quoting trước pytest, đã chuyển sang tệp bootstrap ngoài repo; không tính là lượt test. Native 3.14 tuyệt đối, `-I`, thay object `os.environ` bằng dict giả trước import/call/spawn; child whitelist env và scratch ngoài repo. Không đọc/in env thật, không network/API/tốn tiền/dữ liệu thật; không cả bộ.
+- CAO-M2 vẫn **OPEN**: chưa có manifest đầu vào DB lịch sử hay phân loại drift chạy thật. Comparator hiện chỉ báo lệch byte, không tuyên bố CODE_MISMATCH; không dùng test tổng hợp để đóng M1.9/M2 hoặc chứng minh chất lượng/thử thật.
+- Ghi minh bạch theo phiên chính: lượt build trước đã dùng `git -c core.hooksPath=NUL` khi commit. Đây là bỏ qua hook; không lặp lại. Repo không cấu hình hooksPath; chỉ thấy post-commit hoạt động. Commit rà này chạy Git bình thường, không override hooks, không push/main/TODO/plan/version.

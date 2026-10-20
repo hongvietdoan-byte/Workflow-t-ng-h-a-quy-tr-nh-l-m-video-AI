@@ -5,6 +5,8 @@ import importlib
 import json
 import os
 import sqlite3
+import sys
+from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -263,3 +265,31 @@ def test_replay_api_does_not_change_global_cwd_or_environment(tmp_path):
         with patch.object(os, "chdir", side_effect=AssertionError("global cwd")):
             actual = module.replay_builder(snapshot, ref_root=tmp_path)
         assert actual == snapshot["baseline"].encode("utf-8")
+
+
+def test_replay_uses_current_native_python_isolated(tmp_path):
+    with patch.object(os, "environ", {}):
+        module = importlib.import_module("tools.golden_capture")
+        native = tmp_path / "portable" / "python.exe"
+        native.parent.mkdir()
+        native.write_bytes(b"synthetic interpreter")
+        def spawn(argv, **kwargs):
+            assert argv[0] == str(native)
+            assert argv[1] == "-I"
+            assert set(kwargs["env"]) == {"SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE", "PYTHONUTF8"}
+            assert kwargs["cwd"] == kwargs["env"]["TEMP"]
+            Path(argv[-1]).write_text('{"raw": "synthetic"}', encoding="utf-8")
+            return SimpleNamespace(returncode=0)
+        with patch.object(sys, "executable", str(native)), patch.object(sys, "version_info", (3, 14)), patch.object(module.subprocess, "run", side_effect=spawn):
+            assert module.replay_builder({}, ref_root=tmp_path) == b"synthetic"
+
+
+@pytest.mark.parametrize("name,version", [("py.exe", (3, 14)), ("python.exe", (3, 13))])
+def test_replay_rejects_launcher_or_unapproved_version(tmp_path, name, version):
+    with patch.object(os, "environ", {}):
+        module = importlib.import_module("tools.golden_capture")
+        native = tmp_path / name
+        native.write_bytes(b"synthetic interpreter")
+        with patch.object(sys, "executable", str(native)), patch.object(sys, "version_info", version), patch.object(module.subprocess, "run", side_effect=AssertionError("spawn forbidden")):
+            with pytest.raises(module.GoldenError, match="native Python"):
+                module.replay_builder({}, ref_root=tmp_path)

@@ -12,6 +12,7 @@ import re
 import sqlite3
 import subprocess
 import shutil
+import sys
 from urllib.parse import urlsplit
 
 
@@ -206,8 +207,10 @@ def replay_builder(snapshot, *, ref_root):
     """API: tiến trình riêng, không thay cwd hoặc environ của tiến trình gọi."""
     import tempfile
     _safe(snapshot)
-    python = Path("C:/Users/hongviet.doan/AppData/Local/Python/pythoncore-3.14-64/python.exe")
-    if not python.is_file():
+    python = Path(sys.executable)
+    if (sys.version_info[:2] != (3, 14) or not python.is_absolute()
+            or python.name.lower() not in {"python.exe", "python", "python3", "python3.14"}
+            or not python.is_file()):
         raise GoldenError("Replay cần native Python trong whitelist")
     with tempfile.TemporaryDirectory(prefix="golden-worker-") as scratch:
         request = Path(scratch) / "request.json"
@@ -215,7 +218,7 @@ def replay_builder(snapshot, *, ref_root):
         request.write_text(json.dumps({"snapshot": snapshot, "root": str(Path(ref_root).resolve())}), encoding="utf-8")
         env = {"SYSTEMROOT": "C:/Windows", "TEMP": scratch, "TMP": scratch,
                "HOME": scratch, "USERPROFILE": scratch, "PYTHONUTF8": "1"}
-        result = subprocess.run([str(python), str(Path(__file__).resolve()), "--isolated-builder", str(request), str(response)],
+        result = subprocess.run([str(python), "-I", str(Path(__file__).resolve()), "--isolated-builder", str(request), str(response)],
                                 cwd=scratch, env=env, capture_output=True, timeout=90)
         if result.returncode or not response.is_file():
             raise GoldenError("Replay worker không hoàn tất; không xuất log chứa payload")
