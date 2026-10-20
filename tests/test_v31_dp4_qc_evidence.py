@@ -52,11 +52,13 @@ def test_block_rules_d07():
     vlm = E.finding("QC-L13-CONTINUITY", "REVIEW", "vlm", {}, "x", "job:1", SHA, "x")
     vlm["severity"] = "BLOCK"
     assert any("tất định" in p for p in E.validate(vlm))                       # mã từ model không bao giờ BLOCK
-    black = E.finding("QC-A4-BLACK_FRAME", "REVIEW", "segment", {"at": 2}, "đen", "final:1", SHA, "x")
-    black["severity"] = "BLOCK"
-    assert any("confidence_calibration" in p for p in E.validate(black))        # tất định nhưng chưa benchmark + duyệt
-    black["confidence_calibration"] = {"benchmark_id": "m46-1", "precision": 0.97}
-    assert E.validate(black) == []
+    # C-FIX-DP345: BLACK/FREEZE nay trần REVIEW (G2-5) → luật hiệu chuẩn kiểm trên một mã tất định giả có trần BLOCK
+    with mock.patch.dict(E.CODES, {"QC-A4-TEST_BLOCKABLE": ("A4", True, "BLOCK", ())}):
+        det = E.finding("QC-A4-TEST_BLOCKABLE", "REVIEW", "segment", {"at": 2}, "đo", "final:1", SHA, "x")
+        det["severity"] = "BLOCK"
+        assert any("confidence_calibration" in p for p in E.validate(det))      # tất định nhưng chưa benchmark + duyệt
+        det["confidence_calibration"] = {"benchmark_id": "m46-1", "precision": 0.97}
+        assert E.validate(det) == []
     peak = E.finding("QC-A2-PEAK_OVER", "BLOCK", "metadata", {}, "đỉnh", "final:1", SHA, "x")
     assert E.validate(peak) == []                                               # đang chặn từ trước: chỉ chuẩn hóa cách ghi
 
