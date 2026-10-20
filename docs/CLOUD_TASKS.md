@@ -90,6 +90,7 @@ push lên main, rồi báo người dùng mã việc để dán vào phiên clou
 | C-M011 | M0.11 test plan + tiêu chí 3 vòng pilot + dự toán B/C (chỉ tài liệu) | `cloud/v31-m011` | XONG — gộp main 20/10 |
 | C-M04-05 | M0.4–M0.5 sổ lỗi `devsys/errors.json` + test hợp đồng + nhập G/A/B có nguồn (code devsys, Cấp 2 G2-1 ĐÃ DUYỆT) | `cloud/v31-m04-m05` | ĐANG LÀM (cloud tài khoản khác, 20/10) |
 | C-RA-D19 | Rà chỉ đọc 4 nhánh Codex đợt 19 | `cloud/v31-ra-d19` | CHỜ (hộp thư) |
+| C-M14B | M1.4b provider Claude theo dự án + snapshot theo job + dừng khi hết quota (CODE Cấp 2 G2-2 đã duyệt; migration chỉ viết, KHÔNG áp CSDL thật) | `cloud/v31-m14b` | CHỜ (hộp thư) — làm SAU C-RA-D19, TRƯỚC C-M21-22 |
 | C-M21-22 | Thiết kế M2.1 BYĐ v2 + M2.2 field readers/lineage (chỉ tài liệu) | `cloud/v31-m21-m22` | CHỜ (hộp thư) |
 | C-M41 | Thiết kế M4.1 schema bằng chứng QC + mã lỗi (chỉ tài liệu) | `cloud/v31-m41` | CHỜ (hộp thư) |
 
@@ -191,4 +192,25 @@ THIẾT KẾ (chỉ tài liệu) M4.1 schema bằng chứng QC + mã lỗi thố
 evidence_type, confidence_calibration, artifact_id/sha, qc_run_id, qc_version, intent_exception, actionability, source_refs), bảng mã lỗi QC ↔ sổ lỗi
 (devsys/errors.json của C-M04-05), đường QC hiện có → schema mới (file:hàm), chỉ luật kỹ thuật tất định được xét BLOCK sau benchmark, còn lại REVIEW; test
 plan + benchmark M4.6 (≥ 20 lỗi + 20 đạt mỗi mã). Nhánh cloud/v31-m41.
+```
+
+#### C-M14B
+```
+Việc V3.1 M1.4b (CODE, Cấp 2 gói G2-2 ĐÃ DUYỆT — sổ v31-cap2-milestone-packages-approved-2026-10-20). Nhánh cloud/v31-m14b từ origin/main MỚI NHẤT.
+Theo "Luật chung" docs/CLOUD_TASKS.md + hộp thư. KHÔNG làm Cấp 3: không áp migration lên CSDL thật (C3-1 do phiên chính làm sau backup), không bật cờ,
+không gọi API thật (chỉ provider giả / mock).
+Nguồn: docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md mục 2.3 (bảng file) + thiết kế Codex Đ19 việc 3 (nhánh origin/codex/d19-viec3-provider, file
+docs/V3_1_M1_4B_THIET_KE_*.md — dùng kèm kết quả rà C-RA-D19 của chính anh) + quyết định v31-d02-claude-provider-per-project-2026-10-20.
+Nền đã có trên main (M1.4a): core/llm_runner.py clean_env bỏ key, client_from_env không fallback ngầm, provider_status(), missing_hint(), STOP_CODES,
+cli_error_code usage_limit/out_of_credit. dashboard.env máy chính nay LLM_PROVIDER=claude_cli.
+Làm: client_for_project(conn, pid) (projects.llm_provider rỗng = theo env như cũ); snapshot jobs.llm_provider + llm_config_ver lúc tạo job, job đang chạy
+giữ provider snapshot dù đổi cấu hình; llm_calls.provider; mọi caller ở bảng 2.3 (bg_poll, change_review, prompt_rewrite, chat_prompt, autoqc, autopilot,
+dashboard/common, camera_plan) lấy client theo dự án / snapshot; hết quota (usage_limit/out_of_credit) → dừng cả lượt có giờ mở lại, 0 lời gọi API;
+devsys/scorer.py thêm lựa chọn claude_cli, đổi MẶC ĐỊNH khỏi 'anthropic' (tools/devsys_score.py --provider, devsys/app.py nút chọn) — rà C-RA-D19/M1.4a
+phát hiện devsys mặc định anthropic. Migration: hàm up/down trong core/db.py theo mẫu migration hiện có, CHỈ chạy trong test CSDL tạm; tương thích:
+worker code cũ chạy trên CSDL đã có cột mới vẫn đúng (test).
+Test ĐỎ→XANH: 2 dự án (anthropic giả / claude_cli giả) cùng tiến trình; job tạo trước khi đổi cấu hình giữ provider cũ; hết quota CLI → dừng có giờ mở, 0
+lời gọi API; env có key + provider claude_cli → subprocess không nhận key; LLM_PROVIDER rỗng + key → không tự ra anthropic; cột trống = hành vi env cũ;
+migration up rồi down trên CSDL tạm. Gom test liên quan một lệnh pytest, ≤ 3 lần. File mới khai devsys/areas.json (không tăng version).
+Báo cáo ≤ 30 dòng → docs/RA_CLOUD_M14B_2026-10-2x.md + dòng XONG trong hộp thư.
 ```
