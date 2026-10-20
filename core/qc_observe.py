@@ -59,7 +59,8 @@ def compile_checks(conn, pid, job, data, criteria, profiles=None):
         if str(item['vat']).upper() not in cast and 'set_match' in criteria:
             add('set_match', item['vat'], f'byd.thanh_phan[{i}].vat',
                 expected='khong_thay' if item.get('vai') == 'khong_duoc_co' else 'thay')
-    for i, item in enumerate((data.get('byd') or {}).get('vat') or []):
+    from . import shot_intent        # V3.1 M1.1: vật v1 (chuỗi) đọc như {vat}; dữ liệu sai vẫn báo như trước
+    for i, item in enumerate(shot_intent.vat_items(data.get('byd'))):
         if not isinstance(item, dict) or not item.get('vat'):
             raise ValueError('BYĐ.vat thiếu vật chuẩn')
         if 'set_match' in criteria:

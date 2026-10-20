@@ -1262,3 +1262,47 @@ thư `TODO.md` dòng [14/10 18:09]) → người dùng duyệt → mới build. 
 ## Bổ sung Kết quả Codex — đợt 11
 
 - 🟡 Việc1b · nhánh codex/d11-viec1b-doi-chieu · tài liệu63fb5000: mục9 đánhgiá đủ20dòng ClipAI + stage/segment/state và điểm nối code, khuyếnnghị mockupgọn9c. Root RÀNHẸ/đốichiếu sốdòng; docs-only khôngpytest/fakered. CHỜ người dùng chốt trước HTML/test/ảnh, chưa hoàn tất toàn việc. Không API/data/backend/TODO/PLAN/areas/main.
+
+# ĐỢT 19 — V3.1: regression lời dẫn, đối soát giá, thiết kế M1.4b + M1.5 (người dùng 20/10, hộp thư phiên `dashboard-chi-tiet-update`)
+
+**Đọc trước:** `docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md` (kế hoạch chính; mục 4b cấp quyền), `docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md` (audit,
+phạm vi từng gói), `data/decisions.json` mục `v31-*` (D01–D10 đã chốt = chính sách, KHÔNG phải lệnh triển khai).
+**Phạm vi người dùng duyệt 20/10 ("PHÊ DUYỆT TRIỂN KHAI CÓ KIỂM SOÁT — V3.1"):** đợt này CHỈ test, công cụ chỉ đọc và tài liệu thiết kế. Phiên Claude đang
+làm M1.1 + M1.4a → **KHÔNG sửa** `core/qc_observe.py`, `core/shot_intent.py`, `core/llm_runner.py`, `tests/test_qc_observe_d14.py`, `tests/test_shot_intent.py`.
+**Luật:** nhánh `codex/d19-viec<N>-<tên>` từ `origin/main` MỚI NHẤT; không gọi API trả phí; không đọc/ghi `data/projects/`; không migration, không sửa
+`data/manifest.sqlite`, không xóa asset ClipAI; không đổi bảng giá; không bật cờ. Mỗi việc một nhánh + báo cáo `docs/RA_D19_VIEC<N>_CODEX_2026-10-2x.md`
+(việc · nhánh · commit · test đỏ→xanh · việc mở). Phiên Claude rà quy ước 7 rồi mới gộp. Mã việc V3.1 ghi trong ngoặc.
+
+## Việc 1 — Bộ regression lời dẫn chung (V3.1 M2.9 — CHỈ TEST, không sửa code sản xuất)
+File mới `tests/test_narration_regression.py`: MỘT bảng ca, chạy qua mọi hàm đang xử lý lời dẫn / người nói: `core/lipsync.py` (`_method`, `_take_segments`,
+`shot_audio`, `mark`), `core/speaker_lint.py:is_narrator`, `core/seedance_refs.py` (cảnh báo `speaker_no_identity` ~546–552), `core/claude_tasks.py:323`
+(`speaking`), `core/quality_tier.py` (shot khó vì `lip_sync`). Ca bắt buộc: (a) shot chỉ lời dẫn, không cast (POV); (b) lời dẫn + nhân vật trong khung không nói;
+(c) nhân vật nói thật; (d) thoại trộn lời dẫn + một câu nhân vật; (e) biến thể tên người dẫn (`LỜI DẪN`, `Lời dẫn`, `NARRATOR`, `người dẫn chuyện`); (f) method
+đổi lipsync → skip phải dọn mục cũ. Mong đợi đúng như mục 4 của `docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md`. Ca đang SAI trên `main` (G15, G16, G17, G53)
+→ `pytest.mark.xfail(strict=True, reason="G53 …")` có mã lỗi — để khi M2.9 sửa, xfail thành đỏ buộc gỡ. Không nới test để che lỗi.
+
+## Việc 2 — Công cụ đối soát giá ClipAI theo token (V3.1 M1.6 — chỉ đọc, KHÔNG đổi bảng giá)
+`tools/clipai_cost_reconcile.py`: đọc danh sách task ClipAI (GET `video-list` qua `core/adapters/clipai.ClipAIVideoProvider._page`, miễn phí) + `jobs`
+(`external_id`, `quality_tier`, `draft_job_id`) + `usage_events` từ CSDL mở `mode=ro` hoặc bản sao (`--db`). Mỗi task: job / dự án, độ phân giải, loại
+(nháp / bước nâng `draft_task` / gen thẳng), `has_video_input`, giây, `total_tokens`, giá theo bảng hiện tại (`core.cost.seedance_token_usd` và giá theo giây
+mà sổ chi dùng), `seedance_cost_usd` nếu task có (task gửi từ web), ước tính lúc gửi (`request_params.seedance_cost_usd`). Tổng theo dự án; tách tiền bước nâng
+với tiền nháp; liệt kê điểm có tiền thật để hiệu chuẩn (ghi rõ số điểm — KHÔNG kết luận giá từ một mẫu). Ra bảng markdown + `--json`. Test offline bằng
+transport giả (dữ liệu mẫu chép từ mục 5 tài liệu gói: 3 nháp 480p 179 740 token / 1,150336 USD; nâng 1080p 909 225 token / 6,364575 USD / ước tính 2,79936).
+
+## Việc 3 — Thiết kế M1.4b provider Claude theo dự án (CHỈ tài liệu → `docs/V3_1_M1_4B_THIET_KE_2026-10-2x.md`)
+Dựa audit mục 2 tài liệu gói + quyết định `v31-d02-claude-provider-per-project-2026-10-20`. Phải có: schema (`projects.llm_provider`, snapshot
+`jobs.llm_provider` + phiên bản cấu hình, `llm_calls.provider`), migration up/down + tương thích dự án cũ, ma trận MỌI caller (bảng B của audit) → lấy client
+từ đâu sau thay đổi, job đang chạy giữ provider snapshot, quota (`usage_limit` / `out_of_credit` có giờ mở lại, dừng cả lượt — `autoqc`, `run_qc_batch`,
+`qc_video_batch`), ledger cho `claude_cli` (token, 0 USD), test plan + rollback. Không code.
+
+## Việc 4 — Thiết kế M1.5 Subject Asset Lifecycle Manager (CHỈ tài liệu → `docs/V3_1_M1_5_THIET_KE_KHO_CHU_THE_2026-10-2x.md`)
+Theo chỉ đạo người dùng 20/10 + quyết định `v31-d03b-subject-library-auto-clean-2026-10-20` + mục 3 tài liệu gói (185 ảnh, 95 khung, #31 = 84 chỗ). Phải có:
+asset BỀN / TẠM; quan hệ asset ↔ job ↔ dự án (bảng / khóa); giữ chỗ + cấp phát dung lượng NGUYÊN TỬ giữa nhiều tiến trình (như `send_claim`); hàng đợi khi Kho
+đầy (job chờ, KHÔNG gửi ảnh đánh dấu, KHÔNG lùi Kling vì Kho đầy); cleanup có điều kiện + **dry-run**; bảo vệ asset đang dùng / chưa rõ / thuộc job chưa
+đối soát; sửa G59 (luồng nền "chưa cấu hình Kho chủ thể", diag 1860/1861); **không dùng nhận diện khuôn mặt làm điều kiện duy nhất** để đưa / loại ảnh
+khỏi Kho; phân tích khôi phục + retry khi provider lỗi giữa upload → submit → cleanup (lỗi 1130 "retry after Ns", timeout, asset "processing"). Không code,
+không xóa asset thật.
+
+## Kết quả Codex — đợt 19
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)

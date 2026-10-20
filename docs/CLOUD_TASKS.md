@@ -68,3 +68,73 @@ Test đỏ→xanh: góp ý thấp → 1 dòng mistakes đúng stage; trùng → 
 2. Rà theo mức (skill mục 2): S14.24 RÀ KỸ (đụng lời gọi Claude tốn tiền + knowledge); S14.45, S14.25 rà nhẹ trừ khi đụng tiền/dữ liệu.
 3. Cả bộ test trên Windows → gộp `main` → tăng `devsys/areas.json` version một lần → push → pull ở `D:\AI-Video-Pipeline` → khởi động lại Dashboard / devsys.
 4. Ghi số đo vào dòng việc (chế độ `cloud`, credit đã dùng) + `py -m devsys.workflow add …` (khi S14.45 đã gộp).
+
+---
+
+## Làn thứ ba: phiên cloud TÀI KHOẢN KHÁC hỗ trợ ngoài Codex (người dùng 20/10)
+Cloud = tài khoản Cloud credits riêng ở claude.ai/code (KHÔNG phải tài khoản đang chạy phiên chính — người dùng 20/10: "không phải cloud
+của tài khoản này"). Phiên chính KHÔNG dùng `start_session target:"cloud"`; chỉ viết prompt tự đủ vào mục "Việc V3.1 cho cloud" bên dưới,
+push lên main, rồi báo người dùng mã việc để dán vào phiên cloud của tài khoản kia (kèm khối "Luật chung" ở trên).
+- Chọn việc cho cloud: Cấp 1 (tài liệu / thiết kế / test chỉ đọc) hoặc code Cấp 2 ĐÃ duyệt phạm vi, không cần `data/` / Windows / khóa API.
+  Không giao cloud việc trùng file với Codex đang làm (đợt Codex mới nhất trong `docs/CODEX_TASKS.md`) hay với phiên con máy chính.
+- Phiên cloud không báo về → phiên chính `git fetch` nhánh `cloud/*`, đọc `docs/RA_CLOUD_*.md`, rà quy ước 7, cả bộ test Windows, rồi gộp.
+- Ghi mỗi việc giao cloud vào mục 📨 BÀN GIAO của `TODO.md` (mã việc, nhánh `cloud/<mã>`, CHỜ → XONG).
+
+### Việc V3.1 cho cloud (giao 20/10)
+| Mã | Việc | Nhánh | Trạng thái |
+|---|---|---|---|
+| C-M06-07 | M0.6 bảng AS-IS/TO-BE + M0.7 ma trận test (chỉ tài liệu) | `cloud/v31-m06-m07` | CHỜ dán (tài khoản cloud khác) — phiên cloud tài khoản chính hỏng 20/10 |
+| C-M010 | M0.10 đặc tả AUTO/USER_LOCKED/REVIEW_REQUIRED + audit đường ghi (chỉ tài liệu) | `cloud/v31-m010` | CHỜ dán (tài khoản cloud khác) |
+| C-M09 | M0.9 thiết kế Kho forms/outfit/hair/face + provenance (chỉ tài liệu) | `cloud/v31-m09` | CHỜ dán (tài khoản cloud khác) |
+| C-M011 | M0.11 test plan + tiêu chí 3 vòng pilot + dự toán B/C (chỉ tài liệu) | `cloud/v31-m011` | CHỜ dán (tài khoản cloud khác) |
+
+(20/10: 2 phiên `start_session target:"cloud"` tài khoản chính HỎNG khi khởi động — clone nhánh worktree chưa push + API error; M1.4a chuyển phiên con máy chính. 3 việc C-M010, C-M09, C-M011 độc lập, dán được song song 3 phiên.)
+
+#### C-M06-07
+```
+Việc V3.1 M0.6 + M0.7 — CHỈ TÀI LIỆU, không sửa code. Nhánh cloud/v31-m06-m07 từ origin/main. Theo "Luật chung" docs/CLOUD_TASKS.md.
+Đọc: grep -n "M0.6\|M0.7\|WS[0-6]" docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md rồi đọc các đoạn đó (WS0–WS6, milestone M1–M5, bảng nghiệm thu ~dòng 110–125).
+1. M0.6 → docs/V3_1_M0_6_AS_IS_TO_BE_2026-10-20.md: với từng WS0–WS6, bảng năng lực TO-BE ↔ code hiện tại theo file:hàm (mở code thật, không đoán),
+   trạng thái IMPL / PART / MISS / UNK + bằng chứng (dòng code / test). UNK khi không xác minh được (vd cần data/ máy chính) — ghi lý do.
+   Cuối file: tổng đếm theo WS + danh sách MISS ưu tiên.
+2. M0.7 → docs/V3_1_M0_7_MA_TRAN_TEST_2026-10-20.md: mỗi milestone M1.x–M5.x: test bắt buộc theo docs/CHUAN_XAY_DUNG.md (đỏ trước/xanh sau, cờ TẮT =
+   byte, tiền/sổ chi, 2 dự án song song…), khu vực devsys/areas.json bị đụng, test hiện có phủ gì (tên file/test), còn thiếu gì, có cần mark slow (conftest.py).
+Được chạy pytest chỉ đọc để xác minh test tồn tại/xanh (ghi số). Báo cáo ≤ 25 dòng ghi cả vào docs/RA_CLOUD_M06_M07_2026-10-2x.md.
+```
+
+#### C-M010
+```
+Việc V3.1 M0.10 — CHỈ TÀI LIỆU, không sửa code. Nhánh cloud/v31-m010 từ origin/main. Theo "Luật chung" docs/CLOUD_TASKS.md.
+Đọc: grep -n "M0.10\|M2.5\|USER_LOCKED\|REVIEW_REQUIRED\|A4" docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md + quyết định v31-* liên quan trong data/decisions.json.
+→ docs/V3_1_M0_10_BAO_VE_DU_LIEU_2026-10-2x.md:
+1. Đặc tả 3 trạng thái AUTO / USER_LOCKED / REVIEW_REQUIRED cho từng trường scenes.data + Kho (ai được ghi, khi nào chuyển trạng thái, xung đột AI ghi đè tay).
+2. Audit MỌI đường ghi scenes.data / Kho thật theo file:hàm (grep update/save/set_scene/UPDATE scenes… trong core/ dashboard/ tools/): nguồn ghi
+   (người / AI / tự động / công cụ), có kiểm khóa tay không, có ghi diag/lịch sử không. Đường không xác minh được → ghi UNK + lý do.
+3. Thiết kế test cho M2.5 (shadow trước): ca AI ghi đè trường USER_LOCKED, REVIEW_REQUIRED chặn gen, tương thích dự án cũ (thiếu trạng thái = AUTO).
+Không đề xuất migration chạy luôn (Cấp 3) — chỉ mô tả. Báo cáo ≤ 25 dòng ghi cả vào docs/RA_CLOUD_M010_2026-10-2x.md.
+```
+
+#### C-M09
+```
+Việc V3.1 M0.9 — CHỈ TÀI LIỆU, không sửa code. Nhánh cloud/v31-m09 từ origin/main. Theo "Luật chung" docs/CLOUD_TASKS.md.
+Đọc: docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md dòng ~54 (hợp đồng dữ liệu: ảnh Kho > profile Kho > Bible > Lock), D05 ~104, M2.3 ~120, mục 4b;
+data/decisions.json mục v31-d05-kho-structured-forms-2026-10-20 và video-form-picture-2026-10-19. Đọc code Kho/profile hiện tại (grep kho_id, forms,
+profile, outfit, hair trong core/ dashboard/) — mọi khẳng định kèm file:hàm.
+→ docs/V3_1_M0_9_THIET_KE_KHO_FORMS_2026-10-2x.md: schema forms/outfit/hair/face có cấu trúc + kho_id + revision + schema_version; provenance
+(nguồn: người / AI + model / ảnh chuẩn; AI không ghi đè trường người dùng); adapter đọc v1/v2 và danh sách MỌI đường đọc (Director, BYĐ, ảnh, video,
+QC) phải đi qua adapter; đối chiếu đủ 6 điều kiện M2.3 (bảng điều kiện → cách đáp ứng → test); kế hoạch migration/backfill (Cấp 3 — chỉ mô tả,
+up/down, dự án cũ giống byte); bộ regression đề xuất. Không đụng thiết kế Kho chủ thể ClipAI (M1.5 — Codex đợt 19).
+Báo cáo ≤ 25 dòng ghi cả vào docs/RA_CLOUD_M09_2026-10-2x.md.
+```
+
+#### C-M011
+```
+Việc V3.1 M0.11 — CHỈ TÀI LIỆU, không sửa code, KHÔNG chạy gì tốn tiền. Nhánh cloud/v31-m011 từ origin/main. Theo "Luật chung" docs/CLOUD_TASKS.md.
+Đọc: grep -n "M5\.\|pilot\|vòng A\|vòng B\|vòng C" docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md + quyết định v31-pilot-three-rounds-2026-10-20
+(data/decisions.json) + bảng nghiệm thu ~dòng 110–125.
+→ docs/V3_1_M0_11_PILOT_3_VONG_2026-10-2x.md: (1) vòng A offline 0 USD — replay lỗi #31/#33 (payload, continuity, QC, lineage, phục hồi): ca thử, dữ
+liệu cần (fixture nào có trong tests/, cái gì phải lấy ở máy chính — ghi rõ), tiêu chí đạt/rớt đo được; (2) vòng B 5–8 shot và (3) vòng C 20–40 shot:
+tiêu chí chất lượng, tỉ lệ gen lại, continuity, chi phí, số lần can thiệp tay, điểm dừng; (4) dự toán B/C TÍNH TỪ code giá hiện tại (core/cost.py và
+bảng giá trong repo — dẫn hàm + công thức; ghi rõ giả định số lần gen lại; KHÔNG tự bịa giá), kèm khoảng thấp–cao. Ghi rõ: con số cuối phải chạy
+tools/pregen_check.py ở máy chính trước khi xin duyệt. Báo cáo ≤ 25 dòng ghi cả vào docs/RA_CLOUD_M011_2026-10-2x.md.
+```

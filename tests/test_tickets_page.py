@@ -158,6 +158,6 @@ def test_navigation_flags_preserve_old_options(monkeypatch,support,admin):
     monkeypatch.setattr('core.features.on',lambda name: support if name=='support_tickets' else admin)
     at=AppTest.from_string('import streamlit as st\nfrom core import features\n'+snippet+'\nst.text(page)').run()
     at.query_params['ticket']='linked'; at.run()
-    original=['📋 Kế hoạch đang chạy','Tổng quan','Bản đồ hệ thống','Dòng thời gian','Sức khỏe (đo bằng code)','Chấm điểm AI','Hiệu quả vận hành','Hiệu quả quy trình','Ai quyết','Làm ↔ Kiểm','Bộ kỹ năng 3 vai','Đang chạy']
+    original=['📋 Kế hoạch đang chạy','🗺 Sơ đồ tiến độ','Tổng quan','Bản đồ hệ thống','Dòng thời gian','Sức khỏe (đo bằng code)','Chấm điểm AI','Hiệu quả vận hành','Hiệu quả quy trình','Ai quyết','Làm ↔ Kiểm','Bộ kỹ năng 3 vai','Đang chạy']
     assert at.radio[0].options==original+(['Phiếu'] if support and admin else [])
     assert at.text[0].value==('Phiếu' if support and admin else original[0])

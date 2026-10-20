@@ -200,3 +200,32 @@ def test_k1a_dryrun_pose_is_per_character_not_shared():
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---- V3.1 M1.1 (20/10): một parser cho nhóm `vat` (v1 chuỗi / v2 bảng) -------------------------------------------------------------------
+def test_vat_items_reads_v1_v2_and_keeps_bad_items_for_the_caller():
+    from core import shot_intent as si
+    assert si.vat_items(None) == [] and si.vat_items({}) == [] and si.vat_items({"vat": None}) == [] and si.vat_items({"vat": []}) == []
+    assert si.vat_items({"vat": ["AWM", "BOM_KEO"]}) == [{"vat": "AWM", "_v": 1}, {"vat": "BOM_KEO", "_v": 1}]
+    assert si.vat_items({"vat": "AWM"}) == [{"vat": "AWM", "_v": 1}]
+    v2 = {"vat": "AWM", "kho_id": 4, "nguoi": "KELLY", "cach": "cam"}
+    assert si.vat_items({"vat": [v2, "M7"]}) == [v2, {"vat": "M7", "_v": 1}]
+    assert si.vat_items({"vat": [5, {"kho_id": 1}, ""]}) == [5, {"kho_id": 1}, ""]       # trả nguyên → nơi gọi báo lỗi
+    assert si.vat_items("not a dict") == []
+
+
+def test_kho_ids_reads_vat_through_the_parser():
+    from core import shot_intent as si
+    assert si._kho_ids({"vat": ["AWM", {"vat": "M7", "kho_id": 434}]}) == [("vat[1].kho_id", 434)]
+
+
+def test_kho_ids_single_dict_and_numbers_do_not_crash_and_real_byd_validates():
+    import json, os
+    from core import shot_intent as si
+    assert si._kho_ids({"vat": {"vat": "AWM", "kho_id": 9}}) == [("vat[0].kho_id", 9)]
+    assert si._kho_ids({"vat": 5}) == []
+    assert si.vat_items({"vat": ""}) == [] and si.vat_items({"vat": {}}) == [] and si.vat_items({"vat": 0}) == []
+    with open(os.path.join(os.path.dirname(__file__), "fixtures", "byd_vat_v1_p30_p31.json"), encoding="utf-8") as fh:
+        cases = json.load(fh)["cases"]
+    for c in cases:                                   # BYĐ thật #30 / #31: validate không có lỗi về nhóm vat
+        assert not [i for i in si.validate(c["byd"]) if str(i.get("truong", i.get("field", ""))).startswith("vat")], c["project"]
