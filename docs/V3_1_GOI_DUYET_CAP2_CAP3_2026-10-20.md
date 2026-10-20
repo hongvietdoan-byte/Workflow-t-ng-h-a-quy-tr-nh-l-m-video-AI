@@ -55,7 +55,7 @@ KHÔNG phải phê duyệt chi tiêu hay toàn quyền production. Cột "Ngư�
 | G2-6 | DUYỆT CÓ ĐK | router mặc định TẮT; pilot A offline 0 USD | chờ M3/M4 |
 | C3-0 | DUYỆT CÓ ĐK | M1.4a gộp main + test chứng minh tiến trình CLI không nhận key (`test_the_claude_subprocess_never_receives_the_key`) → đổi `dashboard.env` → restart → kiểm worker/tiến trình (env tiến trình con không có key, `provider_status`, health 8501/8503) | chờ M1.4a gộp |
 | C3-1 | DUYỆT CÓ ĐK | backup CSDL; test worker cũ/mới cùng chạy với cột mới; kế hoạch khôi phục CSDL viết sẵn | chờ code M1.4b |
-| C3-2 | DUYỆT CÓ ĐK | test 2 worker, crash/reconcile, submit không rõ kết quả đều đạt | chờ code M1.2/M1.3 |
+| C3-2 | DUYỆT CÓ ĐK | test 2 worker, crash/reconcile, submit không rõ kết quả đều đạt | XONG 20/10 — 2 cờ bật máy chính |
 | C3-3 | CHỈ DRY-RUN | chạy liệt kê: danh sách asset + dependency + lý do → trình duyệt riêng TỪNG lần xóa | chờ code M1.5 |
 | C3-4 | DUYỆT CÓ ĐK | M4.7 sẵn sàng; backup; test schema | chờ M4.7 |
 | C3-5 | KHẢO SÁT + NHÁP | đếm số liệu Kho (0 USD) + nháp; người dùng duyệt dữ liệu trước backfill; không ghi đè hồ sơ production | chờ M0.9 |

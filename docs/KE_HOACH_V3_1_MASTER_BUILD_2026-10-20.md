@@ -185,8 +185,8 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 
 ### M1 — Nền tin cậy (0 USD, provider giả)
 - [ ] M1.1 · Parser vat v1 str→{vat} cho qc_observe (R3, #31 shot 30) · nặng:1 · ✅ · gộp 36fcb4bd (20/10); cả bộ not-slow 6136 qua; FIXED_UNVERIFIED tới khi QC thật chạy #30/#31 (#31 còn thiếu hồ sơ LÍNH ĐỊCH ÁO CHOÀNG — dữ liệu Kho)
-- [ ] M1.2 · Succeed/poll nguyên tử liên tiến trình + ghi tệp tạm rồi đổi tên (A1, A15) · nặng:3 · ✅ · gộp 60b9da80 (20/10; cả bộ 6222 qua, 1 test UI chập chờn qua khi chạy riêng); cờ poll_claim TẮT — bật = C3-2 chờ người dùng; FIXED_UNVERIFIED
-- [ ] M1.3 · Kiểm tạm dừng ngay trước provider.submit, cả đường thử lại/lùi model (G36) · nặng:2 · ✅ · gộp 60b9da80; cờ pause_before_submit TẮT — bật = C3-2; còn mở: vì sao lần thử lại đầu vẫn đi Seedance
+- [ ] M1.2 · Succeed/poll nguyên tử liên tiến trình + ghi tệp tạm rồi đổi tên (A1, A15) · nặng:3 · ✅ · gộp 60b9da80 (20/10; cả bộ 6222 qua, 1 test UI chập chờn qua khi chạy riêng); cờ poll_claim BẬT máy chính 20/10 (C3-2); FIXED_UNVERIFIED tới khi chạy thật
+- [ ] M1.3 · Kiểm tạm dừng ngay trước provider.submit, cả đường thử lại/lùi model (G36) · nặng:2 · ✅ · gộp 60b9da80; cờ pause_before_submit BẬT máy chính 20/10 (C3-2); còn mở: vì sao lần thử lại đầu vẫn đi Seedance
 - [ ] M1.4 · Provider Claude theo dự án, clean_env bỏ key API, hết lượt gói = dừng có giờ mở (A2, A3, A13, G33, G57) · nặng:3 · 🔄 · M1.4a ✅ gộp 222bf9c5 (20/10; cả bộ 6195 qua; rà quy ước 7: 2 VỪA + 3 THẤP + 1 test ledger đã sửa); M1.4b: phiên Claude (thiết kế Codex Đ19 việc 3); C3-0 kế tiếp
 - [ ] M1.5 · Kiểm Kho chủ thể trước gửi video, dừng + đề xuất dọn (G30, G32, G58) · nặng:2 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
 - [ ] M1.6 · Ước tính giá đúng gói gửi: tier nháp, phụ phí ref, nâng 1080p, claude_cli = 0, giá video trong pregen_check (A7–A9, G31) · nặng:2 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
