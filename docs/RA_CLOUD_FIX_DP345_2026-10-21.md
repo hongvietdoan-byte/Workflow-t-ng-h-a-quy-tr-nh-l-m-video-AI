@@ -26,7 +26,7 @@ Nhánh `cloud/v31-fix-dp345` từ `origin/main` (đã có "Gộp cloud/v31-dp5" 
 `test_editor_fit_hold_mid_film_is_not_a_freeze`, `test_a_still_longer_than_the_hold_is_still_said`, `test_one_ffmpeg_pass_with_a_timeout`,
 `test_a_hung_ffmpeg_is_unmeasured_not_stuck`, `test_run_passes_the_manifest`, `test_black_and_freeze_never_block[BLACK|FREEZE]`,
 `test_repair_router_off_is_not_called` (kiểm mã nguồn: gọi observe nằm sau `enabled()`).
-Vùng: test_v31_dp3/dp4/dp5, test_final_qc — 64 qua. Cả bộ not-slow: xem dòng kết quả cuối báo cáo.
+Vùng: test_v31_dp3/dp4/dp5, test_final_qc — 64 qua. Cả bộ not-slow (Linux, -n 8): **6556 qua, 5 đỏ — cả 5 ĐỎ CÓ SẴN trên origin/main** (đã chạy lại trên worktree main sạch): test_cost_route_e1 `test_recut_by_hand_moves_where_the_final_is_cut`, test_end_popup_p24 `test_icons_and_vietnamese_words_pop_over_the_end`, test_ffmpeg_studio `test_the_frame_punches_in_on_the_beats_of_the_music` (ffmpeg/Linux), test_qc_observe_d14 `test_off_prompt_output_byte_equal_baseline` (clone nông thiếu commit 08c11b4), test_sent_package `test_unreadable_picture_sha_null_said_and_still_sent` (chạy root).
 
 ## Rủi ro / việc mở
 - Ánh xạ thời gian dựa vào `timeline` của manifest (giây đã cắt) — bản dựng có chuyển cảnh chồng (xfade) làm mốc lệch tối đa độ dài
