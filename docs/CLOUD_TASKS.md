@@ -97,6 +97,9 @@ push lên main, rồi báo người dùng mã việc để dán vào phiên clou
 | C-M31-34 | Thiết kế M3.1–M3.4 world map / người nộm / câu vị trí / continuity_state (chỉ tài liệu) | `cloud/v31-m31-m34` | CHỜ (hộp thư) |
 | C-M51-52 | Thiết kế M5.1 repair router + M5.2 release gate (chỉ tài liệu) | `cloud/v31-m51-m52` | CHỜ (hộp thư) |
 | C-M46 | Đặc tả bộ benchmark QC M4.6 theo mã lỗi (chỉ tài liệu + công cụ liệt kê ca chỉ đọc nếu cần) | `cloud/v31-m46` | CHỜ (hộp thư) |
+| C-M16 | M1.6 ước tính giá đúng gói gửi (CODE, chuyển từ Codex Đ20 việc 3) | `cloud/v31-m16` | CHỜ (hộp thư) |
+| C-M17 | M1.7 G55/G56/G39/A14 (CODE, chuyển từ Codex Đ20 việc 4) | `cloud/v31-m17` | CHỜ (hộp thư) |
+| C-M2X | Thiết kế M2.4, M2.6, M2.7, M2.8, M2.9 (chỉ tài liệu) | `cloud/v31-m2x` | CHỜ (hộp thư) |
 
 (20/10: 2 phiên `start_session target:"cloud"` tài khoản chính HỎNG khi khởi động — clone nhánh worktree chưa push + API error; M1.4a chuyển phiên con máy chính. 3 việc C-M010, C-M09, C-M011 độc lập, dán được song song 3 phiên.)
 
@@ -263,4 +266,30 @@ gate checklist đo được; test plan + rollback. Nhánh cloud/v31-m51-m52.
 nguồn ca thật có thể lấy (job/shot #24 #27 #31 #33 trong tài liệu docs/DANH_GIA_*, sổ lỗi) — ghi rõ ca nào cần máy chính trích (data/ không có trên cloud),
 quy trình gán nhãn (người dùng xác nhận), chỉ số (báo nhầm / bỏ sót theo mã, hiệu chuẩn độ tin cậy), ngưỡng xét BLOCK chỉ cho luật kỹ thuật tất định.
 → docs/V3_1_M4_6_DAC_TA_BENCHMARK_QC_2026-10-2x.md. Nhánh cloud/v31-m46.
+```
+
+#### C-M16
+```
+Việc V3.1 M1.6 (CODE, Cấp 2 G2-2 đã duyệt) — đề bài ĐÚNG như docs/CODEX_TASKS.md "# ĐỢT 20" → "## Việc 3 — M1.6" + luật chung đầu ĐỢT 20 (cờ TẮT khi đổi
+hành vi, KHÔNG đổi data/pricing.json, D01: 0 điểm chặn mới theo ngân sách, check_no_budget_lock_gate xanh). Chuyển từ Codex sang cloud-B 20/10.
+Công cụ tools/clipai_cost_reconcile.py ĐÃ trên main (dùng số hiệu chuẩn của nó; ghi rõ số điểm). Nhánh cloud/v31-m16 từ origin/main MỚI NHẤT.
+KHÔNG sửa core/llm_runner.py (M1.4b chờ gộp). Báo cáo → docs/RA_CLOUD_M16_2026-10-2x.md + XONG trong hộp thư.
+```
+
+#### C-M17
+```
+Việc V3.1 M1.7 (CODE, Cấp 2 G2-2 đã duyệt) — đề bài ĐÚNG như docs/CODEX_TASKS.md "# ĐỢT 20" → "## Việc 4 — M1.7" (G55 báo chạy code cũ, G56 gộp diag lặp,
+G39 regen kiểm data_dir, A14 câu báo ngân sách theo D01) + luật chung ĐỢT 20. core/runner.py, core/bg_poll.py nay ĐƯỢC sửa (M1.2/M1.3 đã gộp) nhưng giữ
+nguyên hành vi poll_claim / pause_before_submit (đang BẬT máy chính) — test cũ của chúng phải xanh. Lưu ý thực tế 20/10: tools/stop_dashboard.ps1 chỉ tắt
+8501, 2 Dashboard cũ 8503/8504 chạy code cũ cả ngày → G55 nên báo cả khi CỔNG KHÁC đang chạy code cũ (banner/diag), và stop_dashboard có tùy chọn tắt mọi
+cổng dashboard.serve. Nhánh cloud/v31-m17. Báo cáo → docs/RA_CLOUD_M17_2026-10-2x.md + XONG trong hộp thư.
+```
+
+#### C-M2X
+```
+THIẾT KẾ (chỉ tài liệu) chuẩn bị code M2 (G2-3 mở khi có golden M1.9): M2.4 insert_scene_after kế thừa bối cảnh + BYĐ DRAFT; M2.6 sent_package nhãn theo
+rel_path/asset_id (G5); M2.7 image preflight trong ImageRunner._pregen chung mã lỗi với video; M2.8 router theo khả năng model (không gộp nhóm khi cần khung
+đầu/cuối…); M2.9 lời dẫn ngoài khớp môi mọi caller (G15–G17, G53) — dùng tests/test_narration_regression.py (21 xfail strict đã trên main) làm nghiệm thu.
+Nguồn: kế hoạch V3.1 mục 5 dòng M2.x + mục 4a; thiết kế M2.1/M2.2, M0.9, M0.10 đã trên main; mã lỗi trong devsys/errors.json. Mỗi việc: file:hàm hiện có,
+thay đổi, cờ, test đỏ→xanh, golden compat (#24/#27 cờ TẮT = byte), rollback. → docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-2x.md. Nhánh cloud/v31-m2x.
 ```
