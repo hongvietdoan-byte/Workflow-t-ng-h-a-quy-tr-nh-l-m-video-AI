@@ -1305,6 +1305,10 @@ không xóa asset thật.
 
 ## Kết quả Codex — đợt 19
 
+- Mã code việc2: `fe9d68bb`, nhánh `codex/d19-viec2-doi-soat`, 26 test qua; công cụ đối soát không sửa giá production.
+
+- **Việc2/M1.6 — công cụ chỉ đọc:** `codex/d19-viec2-doi-soat`, `tools/clipai_cost_reconcile.py` SQLite mode=ro, offline JSON/GET opt-in, bảng Markdown/JSON allowlist; tách draft/upgrade/direct/unknown, giá token/bảng giây/actual web/request estimate, tổng known/missing và nhóm hiệu chuẩn. ĐỎ3fail13pass→20pass; rà độc lập+root đọc sửa lần hai→**26pass/1,22s**. Fixture actual9,815583USD/1điểm1080p chưa đủ sửa giá; không API/DB thật/bảng giá/cờ/migration/main/live/cả bộ. Areas87 giữ. RA `docs/RA_D19_VIEC2_CODEX_2026-10-20.md`, commit và việc mở trong HANDOFF cùng nhánh. Artifact tảiPython bị policy chặn dọn giữ ngoài commit.
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
 ---
