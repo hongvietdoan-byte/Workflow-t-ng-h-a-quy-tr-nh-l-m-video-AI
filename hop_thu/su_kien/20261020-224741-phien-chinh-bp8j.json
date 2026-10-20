@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:47:41.132777+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "DP7",
+  "to": "codex",
+  "title": "M4.6 khung chạy benchmark QC",
+  "spec": "docs/CLOUD_TASKS.md#### DP7",
+  "priority": 4
+}

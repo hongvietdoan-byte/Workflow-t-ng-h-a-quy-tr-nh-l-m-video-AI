@@ -456,3 +456,31 @@ M3.1 scene_world_map THỬ NGHIỆM offline — CODE schema + đọc/ghi + adapt
 tương đối / UNKNOWN, version, provenance, invalidation khi geometry/BYĐ đổi. G2-4: chỉ offline, KHÔNG chặn gen, KHÔNG bắt buộc 3D; không ai đọc map trong luồng gen
 (cờ TẮT). Lưu ở bảng/JSON mới — migration chỉ code + test CSDL tạm (áp CSDL thật = Cấp 3). Test: ca #31 cảnh 4/6/8 dạng fixture tổng hợp, map thiếu → UNKNOWN.
 ```
+
+## Việc M2 bổ sung 20/10 22:45 (BẮT ĐẦU KHI golden CX20-2 GỘP — hộp thư tự mở; G2-3)
+Mọi việc: golden compat #24/#27 cờ TẮT = byte bằng khung M1.9 (tests/test_golden_replay.py); BYĐ v1, Kho cũ, dự án cũ vẫn chạy; cờ mới TẮT; test ĐỎ→XANH.
+
+#### C-M21
+```
+M2.1 BYĐ v2 theo docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-20.md (phần M2.1): byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN (chỉ ghi —
+không tự chặn gen khi cờ TẮT; BLOCK thật = Cấp 3 sau). Adapter v1→v2 dùng parser vat v1/v2 (M1.1 đã có core/shot_intent.vat_items). Mọi caller đọc BYĐ qua adapter.
+```
+
+#### C-M25
+```
+M2.5 write guard cấp trường ở chế độ SHADOW theo docs/V3_1_M0_10_BAO_VE_DU_LIEU_2026-10-20.md (đặc tả + audit 34 đường ghi + 10 ca G1–G10): core/write_guard.py
+write_scene(actor, expected_rev, mode='shadow') — shadow chỉ GHI diag (field_conflict, stale_write), KHÔNG chặn / không đổi dữ liệu; nối dần các đường ghi
+L1–L6 qua guard ở shadow. Enforce = C3-6 (để sau). Cờ field_guard TẮT = byte giống. Quyết định đã chốt: take người chọn = USER_LOCKED; prompt khóa → REVIEW_REQUIRED.
+```
+
+#### DP9
+```
+M2.7 image preflight trong ImageRunner._pregen chung mã lỗi với video — theo docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-20.md (M2.7). Preflight chỉ báo REVIEW/VÀNG có
+mã lỗi (devsys/errors.json), cờ TẮT; KHÔNG thêm điểm chặn khi cờ TẮT. Không đụng core/runner.py phần poll/submit (M1.2/M1.3).
+```
+
+#### DP10
+```
+M2.8 router theo khả năng model (không gộp nhóm khi cần khung đầu/cuối, …) — theo docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-20.md (M2.8). Cờ TẮT = hành vi gộp nhóm cũ.
+Khi BẬT chỉ đổi cách chia nhóm trước khi gửi (không gọi API trong test; provider giả). Ghi lý do chia nhóm vào sent_package.
+```
