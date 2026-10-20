@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:43:36.374072+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX20-2",
+  "branch": "codex/d20-viec2-golden",
+  "commit": "13a3d1d4",
+  "report": "docs/RA_D20_VIEC2_CODEX_2026-10-20.md",
+  "text": "Code capture + replay biên _build_package ảnh/video từ frozen input độc lập đã push; 28 test xanh sau rà sửa 1P2 sidecar secret. M1.9a vẫn OPEN: chưa _submit_args/adapter signature thật, fixture dự án #24/#27/#31/#33 hoặc chất lượng/cả bộ Windows. Không coi synthetic golden là đủ cổng M2: phiên chính cần chụp dữ liệu thật + sidecar độc lập, lệnh trong RA/README. Không API trả phí, chưa gộp main."
+}
