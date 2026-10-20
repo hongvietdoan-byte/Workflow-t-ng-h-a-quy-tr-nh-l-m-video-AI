@@ -744,6 +744,8 @@ Theo công thức chung:
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
+- Đ20 việc 1 · `codex/d20-viec1-so-loi` · commit chứa dòng này (xem `git log -1`) · đỏ 4 ERROR trước công cụ → xanh 7 test (0,74s), SQLite tạm native/schema tổng hợp; `docs/RA_D20_VIEC1_CODEX_2026-10-20.md` · chờ rà độc lập + cả bộ Windows; ledger thiếu giá USD giữ UNKNOWN; job lỗi lấy note failed cuối mỗi job; chưa thử dữ liệu thật/chưa push.
+
 ---
 
 # ĐỢT 11 — Bàn dựng đạo diễn 3D: tấm duyệt đủ góc, Đạo diễn khai sơ đồ khối, Trình sửa sân khấu (người dùng duyệt 11/10 tối)
@@ -1305,6 +1307,21 @@ không xóa asset thật.
 
 ## Kết quả Codex — đợt 19
 
+- Mã test việc1: `846b3f1f` (nhánh `codex/d19-viec1-narration`); targeted42pass/21xfail, chưa sửa production M2.9.
+
+- **Việc1/M2.9 — chỉ test:** `codex/d19-viec1-narration`; test narration chung7ca×9nhóm hàm thật; ĐỎ21fail/35pass→**42passed/21xfailed strict /8,40s** (G15/G16/G17 mỗi5, G53×6). Rà độc lập sửa3điểm: exception riêng khoanh lỗi gốc/không che assert khác, winreg giả ngoàiWindows, loader guard trướcimport; root đọc sửa lần hai, teardown4/4. Giữ production/areas.version87, khôngAPI/data/projects/cảbộ/main/live. Lỗi gốc vẫn chờ M2.9; chưa chạyLinux thật. RA `docs/RA_D19_VIEC1_CODEX_2026-10-20.md`, mãcommit trong HANDOFF cùng nhánh.
+- Mã code việc2: `fe9d68bb`, nhánh `codex/d19-viec2-doi-soat`, 26 test qua; công cụ đối soát không sửa giá production.
+
+- **Việc2/M1.6 — công cụ chỉ đọc:** `codex/d19-viec2-doi-soat`, `tools/clipai_cost_reconcile.py` SQLite mode=ro, offline JSON/GET opt-in, bảng Markdown/JSON allowlist; tách draft/upgrade/direct/unknown, giá token/bảng giây/actual web/request estimate, tổng known/missing và nhóm hiệu chuẩn. ĐỎ3fail13pass→20pass; rà độc lập+root đọc sửa lần hai→**26pass/1,22s**. Fixture actual9,815583USD/1điểm1080p chưa đủ sửa giá; không API/DB thật/bảng giá/cờ/migration/main/live/cả bộ. Areas87 giữ. RA `docs/RA_D19_VIEC2_CODEX_2026-10-20.md`, commit và việc mở trong HANDOFF cùng nhánh. Artifact tảiPython bị policy chặn dọn giữ ngoài commit.
+
+- Mã tài liệu việc3: `22aff768`, nhánh `codex/d19-viec3-provider`; thiết kế đã rà, chưa triển khai M1.4b.
+
+- **Việc3/M1.4b — chỉ thiết kế:** `codex/d19-viec3-provider`, `docs/V3_1_M1_4B_THIET_KE_2026-10-20.md`; source76hit/44file, P/J/S và injected consumers/static, schema+job snapshot+legacy hold, CLI ledger0USD/tokenNULL, quota halt cả lượt, migration up/down bảo toàn, testplan và quyền Cấp2/3. Root RÀ NHẸ bổ sung cache theo job/operation/profile và ACL/rotation cùng tài khoản. Docs-only không pytest đỏ giả, không code/SQL/API/env/flags/areas/main/live. Cần đồng bộ M1.4a, quét lại và duyệt phạm vi trước build. RA `docs/RA_D19_VIEC3_CODEX_2026-10-20.md`; mã commit trong HANDOFF cùng nhánh.
+
+- **Tổng hợp Đ19 (nhánh riêng, chưa main):** V1 code846b3f1f/HEAD9e157f0b ·42pass21xfail strict; V2 codefe9d68bb/HEAD8854f5c4 ·26pass/ROtool; V3 code22aff768/HEAD56097a4e ·docsprovider; V4 code49c1face ·docsKho. HANDOFF.md nhánh `codex/d19-viec4-subjects` có bảng nhánh/commit/bằng chứng/bước Claude rà-gộp. Hoàn tất phần chuẩn bị Đ19, không phải đã sửa production M2.9/M1.6/M1.4b/M1.5; cả bộ Windows còn ở tích hợp.
+
+- **Việc4/M1.5 — chỉ thiết kế:** `codex/d19-viec4-subjects`, `docs/V3_1_M1_5_THIET_KE_KHO_CHU_THE_2026-10-20.md`; BỀN/TẠM, account scope/SHA/refs, reservation nguyên tử nhiều tiến trình/queue công bằng, frozen refs/quarantine, cleanup dry-run+outbox/fence mọi writer, retention>72h/unknown giữ, G59 config explicit và recovery1130/upload-submit-delete unknown. Không face-only/ảnh đánh dấu/Kling vì đầy, không hứa5project fit hay 60/40. Root RÀ NHẸ thêm ACL và mốc lifecycle sau reopen. Docs-only không code/test/SQL/API/delete/flags/areas/main/live, chưa sửa G59/M1.5 runtime. Cần chốt nháp cũ và duyệt scope Cấp2/3. RA `docs/RA_D19_VIEC4_CODEX_2026-10-20.md`, mã commit trong HANDOFF cùng nhánh.
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
 ---
@@ -1337,13 +1354,13 @@ payload gửi (ảnh + video: `sent_package`, prompt, thứ tự ref, hash từn
 giống TỪNG BYTE, (b) CORRECTNESS tách riêng (golden ≠ đúng). Test bằng fixture tổng hợp nhỏ (không lấy dữ liệu thật); thêm ca lệch 1 byte → đỏ, ca thiếu
 trường → báo rõ. Mô tả trong báo cáo: lệnh phiên Claude cần chạy để chụp #24/#27 (compat) và #31/#33 (correctness).
 
-## Việc 3 — M1.6 ước tính giá đúng gói gửi (A7–A9, G31; KHÔNG đổi bảng giá)
+## Việc 3 — M1.6 ước tính giá đúng gói gửi — ⚠ CHUYỂN cloud-B 20/10 (C-M16), Codex BỎ QUA (A7–A9, G31; KHÔNG đổi bảng giá)
 Đọc `docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md` mục 5 + báo cáo Đ19 việc 2 (`tools/clipai_cost_reconcile.py`). Sửa ước tính (`core/cost.py`, `core/spend_gate.py`
 phần ước tính, `tools/pregen_check.py`): tier nháp, phụ phí ref (video input), bước nâng 1080p (`draft_task`), `claude_cli` = 0 USD API, và **`pregen_check` in giá
 VIDEO** (hiện chỉ ảnh). Ước tính dùng đúng gói sẽ gửi (cùng hàm dựng gói của nút Gen), không tính tay. Test: 3 ca mẫu mục 5 (nháp 480p, nâng 1080p, có video input)
 → lệch ≤ 10 % so số thật ghi trong tài liệu (ghi rõ số điểm hiệu chuẩn); `check_no_budget_lock_gate` vẫn xanh (D01: 0 điểm chặn mới theo ngân sách).
 
-## Việc 4 — M1.7 Dashboard báo chạy code cũ (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01)
+## Việc 4 — M1.7 Dashboard báo chạy code cũ — ⚠ CHUYỂN cloud-B 20/10 (C-M17), Codex BỎ QUA (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01)
 Nguồn lỗi: grep "| G55 |", "| G56 |", "| G39 |" trong `docs/DANH_GIA_*.md`, "| A14 |" trong `docs/DANH_GIA_P33_LOI_GAP_PHAI_2026-10-20.md`. G55: Dashboard / tiến
 trình nền so HEAD lúc khởi động với HEAD repo → banner "đang chạy code cũ, khởi động lại". G56: diag cùng mã + cùng nội dung trong cửa sổ thời gian → gộp đếm.
 G39: tạo lại (regen) kiểm `data_dir` đúng dự án trước khi ghi. A14: câu báo ngân sách theo D01 (chỉ cảnh báo, có số). Không đụng `core/runner.py` / `core/bg_poll.py`
@@ -1364,6 +1381,14 @@ thái / workstream / dự án, đếm coverage, cảnh báo đỏ mục `problem
 theo lỗi mở. Theo mẫu trang hiện có trong `devsys/app.py`; cập nhật `tests/test_tickets_page.py` danh sách điều hướng nếu thêm trang. Test hiển thị theo cách
 test trang devsys hiện có.
 
+## CHỦ ĐỘNG LẤY VIỆC (người dùng 20/10 — áp dụng như làn cloud)
+Làm xong một việc → `git pull` + đọc hộp thư 📨 `TODO.md` → làm việc CHỜ kế của `codex`. Hết việc ĐỢT hiện hành (hoặc việc còn lại đang bị chặn
+"BẮT ĐẦU KHI") → nhận mục **DP** đầu tiên còn CHỜ ở `docs/CLOUD_TASKS.md` "HÀNG VIỆC DỰ PHÒNG" (đánh dấu `ĐANG LÀM <giờ> (codex)` trong hộp thư +
+push `hộp thư:` TRƯỚC khi code; làn khác nhận trước thì bỏ, lấy mục kế), nhánh `codex/v31-<mã>`. Không còn việc nào → ghi hộp thư
+`codex → phiên-chính: HẾT VIỆC — CHỜ` rồi dừng. Phiên chính giữ cho codex luôn ≥ 2 việc CHỜ.
+
 ## Kết quả Codex — đợt 20
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+- Đ20 việc 1 · codex/d20-viec1-so-loi · commit rà xem git log (cùng báo cáo) · RÀ KỸ sửa 2 P2: đủ mọi lần failed + JSON tiền hữu hạn; 2 regression đỏ → 9 test xanh (1,18s); native cost UNKNOWN khi thiếu USD, chờ cả bộ Windows/slow trước gộp.
