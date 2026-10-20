@@ -186,3 +186,16 @@ def test_capture_attaches_explicit_input_sidecar(golden):
         result = module.capture(db=db, project=24, shot=7, flags_file=flags, ref_root=root, purpose="compat", input_snapshots_file=sidecar)
     assert result["jobs"][0]["input_snapshot"] == {"provenance": "pre_send_snapshot"}
     assert result["jobs"][1]["input_snapshot"] is None
+
+@pytest.mark.parametrize("field", ["passwd", "access_key", "auth_session"])
+def test_sidecar_rejects_credential_fields_before_output(golden, field):
+    module, db, flags, root, _ = golden
+    sidecar = root / "inputs.json"
+    sidecar.write_text(json.dumps({"1": {"kwargs": {field: "synthetic-value"}}}), encoding="utf-8")
+    output = root / "credential-fixture.json"
+    with patch.object(os, "environ", {}), patch.object(module, "head_sha", return_value="a" * 40):
+        with pytest.raises(SystemExit):
+            module.main(["--db", str(db), "--project", "24", "--shot", "7", "--flags-file", str(flags),
+                         "--ref-root", str(root), "--purpose", "compat", "--input-snapshots-file", str(sidecar),
+                         "--output", str(output)])
+    assert not output.exists()
