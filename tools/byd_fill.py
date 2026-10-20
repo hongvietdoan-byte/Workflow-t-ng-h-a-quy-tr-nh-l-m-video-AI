@@ -169,7 +169,7 @@ def main(argv=None, conn=None, client=None) -> int:
         load_dashboard_env()
         client = llm_runner.client_from_env(ledger=a.db)
         if client is None:
-            raise SystemExit("Chưa cấu hình Claude API (dashboard.env).")
+            raise SystemExit("Chưa có Claude: " + llm_runner.missing_hint())
     for r in fill(conn, pid, pl["fill"], client):
         print(f"  {r['muc'].upper():4} cảnh {r['canh']} shot {r['shot']} (hàng #{r['idx']})" + (f" — {r['ly_do']}" if r["ly_do"] else ""))
     return 0

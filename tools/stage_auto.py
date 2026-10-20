@@ -212,6 +212,8 @@ def main(argv=None):
     load_dashboard_env(os.path.join(ROOT, "dashboard.env"))
     cap = script_cap.from_args(a, "stage_auto")
     client = llm_runner.client_from_env(ledger=llm_runner.db_file(conn))
+    if client is None:
+        raise SystemExit("Chưa có Claude: " + llm_runner.missing_hint())
     with cap:
         res = stage_auto.run(conn, a.project, a.data_dir, client=client, force=a.force, again=a.again, log=print,
                              scenes=set(a.scene) if a.scene else None)

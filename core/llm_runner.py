@@ -72,6 +72,11 @@ _CLI_LIMIT = ("hit your session limit", "hit your usage limit", "hit your limit"
 _CLI_NO_CREDIT = ("credit balance is too low", "credit balance too low", "insufficient credit")
 
 
+# Mã lỗi Claude làm DỪNG CẢ LƯỢT việc lặp (tự QC, đọc ảnh tài nguyên, QC hàng loạt) thay vì đẩy từng mục sang người (V3.1 M1.4a):
+# đăng nhập / cấu hình / hết hạn mức gói / hết tiền / lỗi mạng-máy chủ — gọi tiếp mục sau cũng hỏng y như vậy.
+STOP_CODES = ("auth", "config", "timeout", "cli_error", "usage_limit", "rate_limit", "out_of_credit", "server_error")
+
+
 def cli_error_code(detail: str) -> str:
     """The code of a Claude Code (CLI) failure, read once where the error is born: 'auth' (log in again), 'usage_limit' (the plan's
     limit reached — the automatic run stops until it resets), 'out_of_credit' (V3.1 M1.4a: the CLI ran on a paid API key whose credit is
@@ -968,7 +973,7 @@ def run_qc_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
             r = run_qc(p, j["id"], client, data_dir)
         except LlmError as e:
             summary["failed"].append((j["id"], fail_text(e)))
-            if e.code in ("auth", "config"):
+            if e.code in STOP_CODES:          # V3.1 M1.4a: the next picture fails the same way (limit / no credit / login / network)
                 break
             continue
         summary["checked"] += 1
@@ -1331,11 +1336,22 @@ def provider_status() -> Tuple[Optional[str], str]:
 
 
 def missing_hint() -> str:
-    """Câu báo người dùng khi `client_from_env()` trả None (V3.1 M1.4a): mọi chỗ trước đây bảo 'đặt ANTHROPIC_API_KEY' dùng câu này —
-    nói đúng lý do (LLM_PROVIDER thiếu / sai) và nói rõ có key mà không khai thì KHÔNG tự dùng API trả phí."""
+    """Câu báo người dùng khi client_from_env trả None hoặc ném LlmError 'config' (V3.1 M1.4a): mọi chỗ trước đây bảo 'đặt
+    ANTHROPIC_API_KEY' dùng câu này — nói đúng lý do (LLM_PROVIDER thiếu / sai / đã khai mà không dựng được) và nói rõ có key mà không
+    khai thì KHÔNG tự dùng API trả phí."""
     kind, why = provider_status()
-    return NO_PROVIDER_HINT if kind else why
+    if kind is None:
+        return why
+    if kind == "anthropic":
+        return ("LLM_PROVIDER=anthropic đã khai nhưng không dựng được Claude API — thiếu ANTHROPIC_API_KEY (xem dòng lỗi 'Claude: …'); "
+                "muốn 0 USD API thì đặt LLM_PROVIDER=claude_cli")
+    if kind == "claude_cli":
+        return ("LLM_PROVIDER=claude_cli đã khai nhưng không dựng được Claude Code — không thấy lệnh `claude` trên máy hoặc chưa đăng "
+                "nhập (mở `claude` một lần; xem dòng lỗi 'Claude: …')")
+    return f"LLM_PROVIDER={kind} đã khai nhưng không dựng được client (xem dòng lỗi 'Claude: …')"
 
+
+_WARNED_KEY_ONLY = False      # client_from_env: the 'key alone is not used' line is printed once per process
 
 # Việc chỉ chạy được trên Claude API trả phí (tìm web của Anthropic) — Claude Code trên máy không làm được.
 API_ONLY_HINT = "cần Claude API trả phí: đặt LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY (tìm web chỉ có trên API, Claude Code không làm được)"
@@ -1353,8 +1369,10 @@ def client_from_env(transport: Transport = urllib_transport, ledger: Optional[st
         return ClaudeCliClient.from_env()
     if kind == "anthropic":
         return AnthropicClient.from_env(transport, ledger=ledger)
-    if os.environ.get("ANTHROPIC_API_KEY", "").strip():
+    global _WARNED_KEY_ONLY
+    if os.environ.get("ANTHROPIC_API_KEY", "").strip() and not _WARNED_KEY_ONLY:
         import sys
+        _WARNED_KEY_ONLY = True                        # once per process: the dashboard asks for a client on every rerun / 30 s round
         print("[llm] " + NO_PROVIDER_HINT, file=sys.stderr)
     return None
 

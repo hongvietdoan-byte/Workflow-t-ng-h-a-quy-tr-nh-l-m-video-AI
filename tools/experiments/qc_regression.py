@@ -82,6 +82,8 @@ def main():
         print("(chưa chạy — thêm --yes --max-usd <USD>)")
         return
     client = llm_runner.client_from_env(ledger=a.db)
+    if client is None:
+        raise SystemExit("Chưa có Claude: " + llm_runner.missing_hint())
     results, caught, missed, false_alarm, good = {}, [], [], [], 0
     for s, fr in scenes.items():
         prompt, images, labels = qc_scene.build_request(p, a.project, fr, data_dir)

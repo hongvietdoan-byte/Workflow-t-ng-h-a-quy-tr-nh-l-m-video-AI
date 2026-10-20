@@ -266,7 +266,7 @@ def change_review_round(conn, data_dir: str) -> Optional[Dict]:
         diag.record(conn, "system", "warn", f"Tổ rà soát tác động: không gọi được Claude ({type(e).__name__}) — chỉ chạy luật code",
                     "change_review_noclaude", None)
     else:
-        if client is None and os.environ.get("ANTHROPIC_API_KEY", "").strip():   # V3.1 M1.4a: key alone is never used — say so
+        if client is None:          # V3.1 M1.4a: no / wrong LLM_PROVIDER (a key alone is never used) — say so, never run silently
             diag.record(conn, "system", "warn", "Tổ rà soát tác động: chỉ chạy luật code — " + llm_runner.missing_hint(),
                         "change_review_noclaude", None)
     return change_review.process_pending(conn, data_dir, client=client)

@@ -21,7 +21,8 @@ def _no_paid_api():
 class ProviderSelectionTests(unittest.TestCase):
     def test_only_a_key_gives_no_client_and_says_why(self):
         err = io.StringIO()
-        with mock.patch.dict(os.environ, ONLY_KEY), _no_paid_api(), contextlib.redirect_stderr(err):
+        with mock.patch.dict(os.environ, ONLY_KEY), mock.patch.object(lr, "_WARNED_KEY_ONLY", False), _no_paid_api(), \
+                contextlib.redirect_stderr(err):
             self.assertIsNone(lr.client_from_env())
         self.assertIn(lr.NO_PROVIDER_HINT, err.getvalue())
         self.assertNotIn(KEY, err.getvalue())
