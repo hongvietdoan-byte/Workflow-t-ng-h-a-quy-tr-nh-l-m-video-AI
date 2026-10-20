@@ -21,6 +21,9 @@ def regenerate_video(pipeline: Pipeline, data_dir: str, job_id: int, note: Optio
     job = pipeline.job(job_id)
     if job["type"] != "video_gen":
         raise ValueError("only video jobs can be regenerated")
+    wrong = wrong_data_dir(data_dir, job["project_id"])
+    if wrong:                                          # V3.1 M1.7 (G39): checked BEFORE anything is rejected / moved
+        raise ValueError(wrong)
     if auto and pipeline._retries_exhausted(job):
         pipeline._escalate(job, limit=True)
         return None
@@ -53,3 +56,17 @@ def regenerate_video(pipeline: Pipeline, data_dir: str, job_id: int, note: Optio
     return pipeline._insert_job(job["project_id"], job["scene_id"], "video_gen", parent_job_id=job_id,
                                 retry_count=job["retry_count"] + 1 if auto else 0, retry_reason=reason,
                                 origin="auto" if auto else None)
+
+
+def wrong_data_dir(data_dir: str, project_id: int) -> "str | None":
+    """V3.1 M1.7 (G39, #31 19/10): `regenerate_video(p, 'data', …)` — the data ROOT instead of `data/projects` — made the trash in
+    `data/31/trash`. Why `data_dir` is the wrong folder (it has `projects/<id>` but not `<id>`), else None. A folder without either
+    (a new project, a test) passes: the project's folder is made on first write as before."""
+    if not data_dir:
+        return "data_dir trống — truyền thư mục dữ liệu dự án (data/projects)"
+    own = os.path.isdir(os.path.join(data_dir, str(project_id)))
+    nested = os.path.join(data_dir, "projects")
+    if not own and os.path.isdir(os.path.join(nested, str(project_id))):
+        return (f"data_dir sai: '{data_dir}' là gốc dữ liệu — thư mục dự án #{project_id} nằm ở '{nested}'; "
+                "gọi lại với data/projects (không tạo thùng rác sai chỗ)")
+    return None

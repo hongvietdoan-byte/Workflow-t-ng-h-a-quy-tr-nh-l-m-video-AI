@@ -1135,6 +1135,7 @@ def status_line(p: Pipeline, pid: int) -> None:
     if stale:                                           # S6.4: #8 ran for hours on code older than the fixes on disk
         st.warning(f"⚠ Code đã đổi sau khi Dashboard khởi động ({stale}) — tắt / mở lại Dashboard để dùng bản mới "
                    "(các việc đang chạy vẫn dùng code cũ tới lúc đó).")
+    _other_ports_stale()
 
 
 def _status_line_v2(p: Pipeline, pid: int) -> None:
@@ -1202,6 +1203,7 @@ def _status_line_v2(p: Pipeline, pid: int) -> None:
     if stale:                                           # S6.4: #8 ran for hours on code older than the fixes on disk
         D.note("warning", f"Code đã đổi sau khi Dashboard khởi động (`{stale}`) — tắt / mở lại Dashboard để dùng bản mới "
                "(các việc đang chạy vẫn dùng code cũ tới lúc đó).", "⚠ Code đã đổi sau khi Dashboard khởi động — tắt / mở lại để dùng bản mới.", "shell-stale", attention=True)
+    _other_ports_stale()
 
 
 def _budget_left_frac(p: Pipeline, pid) -> "float | None":
@@ -1220,6 +1222,17 @@ def _budget_left_frac(p: Pipeline, pid) -> "float | None":
 
 
 _STARTED = __import__("time").time()
+
+
+def _other_ports_stale() -> None:
+    """V3.1 M1.7 (G55, cờ stale_code_alarm): Dashboard nào (kể cả CỔNG KHÁC, vd 8503/8504) còn chạy code cũ ≠ HEAD → băng vàng."""
+    try:
+        from core import code_version
+        text = code_version.banner(C.DB)
+    except Exception:  # noqa: BLE001 - a notice only
+        text = ""
+    if text:
+        st.warning(text)
 
 
 def code_changed_since_start() -> str:

@@ -174,6 +174,11 @@ def round_once(db_path: str, data_dir: str) -> Dict:
     try:
         make = default_runner(data_dir)
         out = {}
+        try:                                           # V3.1 M1.7 (G55, cờ stale_code_alarm): vòng nền chạy code cũ → diag, không chặn
+            from . import code_version
+            code_version.check_round(conn)
+        except Exception:  # noqa: BLE001 - a notice only; the round goes on
+            pass
         review = change_review_round(conn, data_dir)   # 10/10: rà thay đổi TRƯỚC khi tự gửi — mục đỏ kịp chặn gen
         if review:
             out[(0, "change_review")] = review
