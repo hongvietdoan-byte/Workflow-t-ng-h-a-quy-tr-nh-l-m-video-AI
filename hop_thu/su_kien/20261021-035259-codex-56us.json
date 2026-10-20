@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T03:52:59.934719+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX20-5b",
+  "branch": "codex/d20-viec5-kho-chu-the",
+  "commit": "747cdd8f",
+  "report": "docs/RA_D20_VIEC5B_CODEX_2026-10-21.md",
+  "text": "Đã sửa strict=False legacy chỉcapacity strict=True; processingID đãcótrongsnapshot khôngchặn mọijob; coolinggiảmGETheartbeat, inboxbỏstaleplan, factoryOFFcũ. 5đỏ→77xanh→135xanh, rootđọcdiffràlầnhai, HANDOFFđãxóa. Dryrun0DELETE, allocator/concurrency/lifecycle vẫnOPEN; chưa cảbộWindows/live."
+}
