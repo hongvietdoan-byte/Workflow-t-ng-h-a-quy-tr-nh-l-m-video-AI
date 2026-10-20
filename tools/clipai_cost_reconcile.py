@@ -33,11 +33,13 @@ def read_json(path):
 
 
 def validate_pricing(pricing):
+    """C-FIX-D19: giá null = CHƯA BIẾT (data/pricing.json `_note_null_prices` cố ý để null) — nhận, báo `unpriced:` ở từng task; chỉ kiểu sai
+    (chuỗi, âm, NaN, …) mới bị từ chối."""
     if not isinstance(pricing, dict) or pricing.get("_error"):
         raise ValueError("invalid_pricing")
     for key in ("per_video_second", "per_video_clip"):
         values = pricing.get(key)
-        if not isinstance(values, dict) or any(number(v) is None for v in values.values()):
+        if not isinstance(values, dict) or any(v is not None and number(v) is None for k, v in values.items() if not str(k).startswith("_")):
             raise ValueError("invalid_pricing")
 
 
@@ -113,7 +115,9 @@ def reconcile(conn, tasks, pricing, warnings=()):
     validate_pricing(pricing)
     warnings = list(warnings)
     jobs = {}
-    for raw in conn.execute("SELECT id,project_id,external_id,quality_tier,draft_job_id FROM jobs WHERE type='video_gen'"):
+    have = {r[1] for r in conn.execute("PRAGMA table_info(jobs)")}
+    extra_cols = "".join("," + c if c in have else ",NULL AS " + c for c in ("group_leader", "clip_span"))
+    for raw in conn.execute("SELECT id,project_id,external_id,quality_tier,draft_job_id" + extra_cols + " FROM jobs WHERE type='video_gen'"):
         job = dict(raw)
         if identifier(job["id"]) is None or identifier(job["project_id"]) is None:
             warnings.append("bad_type:job_identifiers")
@@ -160,10 +164,15 @@ def reconcile(conn, tasks, pricing, warnings=()):
         seconds = number(task.get("duration"))
         model = label(task.get("model_name") or params.get("model_name"))
         matched = jobs.get(tid, [])
-        job = matched[0] if len(matched) == 1 else None
+        job, members = (matched[0], matched) if len(matched) == 1 else (None, [])
+        if len(matched) > 1:
+            # C-FIX-D19: clip NHÓM — thành viên mang chung external_id của job dẫn (core/runner.py nhóm Seedance, cột group_leader)
+            leaders = [j for j in matched if j["group_leader"] in (None, j["id"])]
+            if len(leaders) == 1 and all(j["group_leader"] in (None, leaders[0]["id"]) for j in matched):
+                job, members = leaders[0], matched
         if not matched:
             notes.append("unmatched_task")
-        elif len(matched) > 1:
+        elif job is None:
             notes.append("ambiguous_job")
         tier = label(job["quality_tier"]) if job else None
         content = params.get("content", [])
@@ -175,7 +184,10 @@ def reconcile(conn, tasks, pricing, warnings=()):
         if draft is not None and type(draft) is not bool:
             notes.append("bad_type:is_draft")
             draft = None
-        kind = "upgrade" if upgrade or (job and job["draft_job_id"] is not None) else "draft" if draft is True or tier == "draft" else "direct" if draft is False and "bad_type:request_params" not in notes and "bad_type:content" not in notes else "unknown"
+        content_ok = "bad_type:request_params" not in notes and "bad_type:content" not in notes
+        # C-FIX-D19: bước nâng chỉ khi gói thật có draft_task; bản cao có draft_job_id mà gói không có draft_task = GEN MỚI (quality_tier.NEW_GEN)
+        kind = ("upgrade" if upgrade else "draft" if draft is True or tier == "draft"
+                else "new_final" if tier == "final" and content_ok else "direct" if draft is False and content_ok else "unknown")
         if kind == "unknown":
             notes.append("missing_or_invalid:task_kind")
         actual = number(task.get("seedance_cost_usd"))
@@ -183,29 +195,63 @@ def reconcile(conn, tasks, pricing, warnings=()):
         if estimate is None:
             notes.append("missing_or_invalid:request_estimate_usd")
         token_usd = number(cost.seedance_token_usd(model, tokens, video)) if model and tokens is not None and video is not None else None
-        ledger = events.get(job["id"], []) if job else []
         ledger_usd = None
         ledger_seconds = None
         ledger_tier = None
-        if len(ledger) == 1:
-            event = ledger[0]
-            ledger_tier = label(event["tier"])
-            if event["project_id"] != job["project_id"]:
-                notes.append("ledger_project_mismatch")
-            elif event["unit"] not in ("second", "seconds", "s") or number(event["quantity"]) is None:
-                notes.append("bad_type:ledger_seconds")
-            elif not label(event["model"]) or not ledger_tier:
-                notes.append("bad_type:ledger_model_tier")
-            else:
-                ledger_seconds = event["quantity"]
-                ledger_usd = cost.clip_price(pricing, event["model"], ledger_tier, ledger_seconds)
-                ledger_usd = number(ledger_usd)
-        else:
-            notes.append("ledger_missing" if not ledger else "ledger_multiple_events")
+        parts = []                                   # một sự kiện sổ chi mỗi job (nhóm: mỗi thành viên một sự kiện của phần mình)
+        for member in members:
+            got = events.get(member["id"], [])
+            if len(got) != 1:
+                notes.append("ledger_missing" if not got else "ledger_multiple_events")
+                parts = None
+                break
+            parts.append(got[0])
+        if not members:
+            notes.append("ledger_missing")
+        elif parts:
+            total_s, total_usd = 0.0, 0.0
+            for event in parts:
+                ledger_tier = label(event["tier"])
+                if event["project_id"] != job["project_id"]:
+                    notes.append("ledger_project_mismatch")
+                    total_usd = None
+                    break
+                if event["unit"] not in ("second", "seconds", "s") or number(event["quantity"]) is None:
+                    notes.append("bad_type:ledger_seconds")
+                    total_usd = None
+                    break
+                if not label(event["model"]) or not ledger_tier:
+                    notes.append("bad_type:ledger_model_tier")
+                    total_usd = None
+                    break
+                price = number(cost.clip_price(pricing, event["model"], ledger_tier, event["quantity"]))
+                total_s += event["quantity"]
+                if price is None:
+                    notes.append(f"unpriced:{event['model']}:{ledger_tier}")
+                    total_usd = None
+                    break
+                total_usd += price
+            ledger_seconds = round(total_s, 6) if total_usd is not None or total_s else None
+            ledger_usd = round(total_usd, 9) if total_usd is not None else None
         for field, value in (("total_tokens", tokens), ("has_video_input", video), ("seconds", seconds), ("resolution", resolution), ("actual_usd", actual), ("token_usd", token_usd), ("ledger_usd", ledger_usd)):
             if value is None:
                 notes.append("missing_or_invalid:" + field)
-        rows.append(dict(task_id=tid, job_id=job["id"] if job else None, project_id=job["project_id"] if job else None,
+        group = None
+        if len(members) > 1:                         # phần tiền của từng thành viên theo clip_span (thiếu → chia đều), tổng = tiền task MỘT lần
+            lengths = []
+            for member in members:
+                try:
+                    span = json.loads(member["clip_span"] or "null")
+                except (TypeError, ValueError):
+                    span = None
+                lengths.append(number(span.get("length")) if isinstance(span, dict) else None)
+            if any(v is None for v in lengths) or not sum(lengths):
+                notes.append("group_split_equal")
+                lengths = [1.0] * len(members)
+            whole = sum(lengths)
+            group = [dict(job_id=m["id"], share=round(v / whole, 6),
+                          actual_share_usd=round(actual * v / whole, 9) if actual is not None else None) for m, v in zip(members, lengths)]
+        rows.append(dict(task_id=tid, job_id=job["id"] if job else None, project_id=job["project_id"] if job else None, group_members=group,
                          quality_tier=tier, draft_job_id=job["draft_job_id"] if job else None, kind=kind,
                          resolution=resolution, has_video_input=video, seconds=seconds, total_tokens=tokens,
                          model=model, token_usd=token_usd, actual_usd=actual, request_estimate_usd=estimate,
@@ -214,7 +260,7 @@ def reconcile(conn, tasks, pricing, warnings=()):
         warnings.append("job_missing_task:" + tid)
     totals = []
     for project in sorted({r["project_id"] for r in rows}, key=lambda p: (p is None, p or 0)):
-        for kind in ("draft", "upgrade", "direct", "unknown"):
+        for kind in ("draft", "upgrade", "new_final", "direct", "unknown"):
             group = [r for r in rows if r["project_id"] == project and r["kind"] == kind]
             if not group:
                 continue
@@ -236,12 +282,14 @@ def reconcile(conn, tasks, pricing, warnings=()):
     count = sum(s["resolution"] == "1080p" for s in valid)
     return dict(tasks=rows, totals=totals, calibration=samples, actual_1080p_points=count,
                 calibration_groups=groups,
+                scope="seedance_only",
                 warnings=warnings + (["calibration_insufficient:need_at_least_5_1080p_points"] if not any(g["resolution"] == "1080p" and g["count"] >= 5 for g in groups) else []))
 
 
 def markdown(report):
     columns = ("task_id", "job_id", "project_id", "kind", "quality_tier", "resolution", "has_video_input", "seconds", "total_tokens", "token_usd", "ledger_usd", "actual_usd", "request_estimate_usd")
-    lines = ["# Đối soát ClipAI (chỉ đọc)", "", "Tiền nháp và bước nâng tính riêng. Dấu ? = chưa biết, không phải 0.", "", "| " + " | ".join(columns) + " |", "| " + " | ".join("---" for _ in columns) + " |"]
+    lines = ["# Đối soát ClipAI (chỉ đọc)", "", "Tiền nháp và bước nâng tính riêng. Dấu ? = chưa biết, không phải 0.",
+             "Phạm vi: chỉ họ Seedance (task Kling — vd lùi model — CHƯA đối soát ở đây). Clip nhóm: một task, chia phần theo clip_span.", "", "| " + " | ".join(columns) + " |", "| " + " | ".join("---" for _ in columns) + " |"]
     for row in report["tasks"]:
         lines.append("| " + " | ".join(str(row[c]) if row[c] is not None else "?" for c in columns) + " |")
     lines += ["", "## Tổng theo dự án / loại (chỉ cộng tiền đã biết)", "", "```json", json.dumps(report["totals"], ensure_ascii=False, indent=2), "```", "", "Điểm 1080p có tiền thật: " + str(report["actual_1080p_points"]) + ". Cần ≥ 5 điểm trước khi cân nhắc đổi giá.", "", "## Điểm hiệu chuẩn", "```json", json.dumps(report["calibration"], ensure_ascii=False, indent=2), "```", "", "## Cảnh báo"]
@@ -281,9 +329,12 @@ def main(argv=None, *, live_provider=None):
             report = reconcile(conn, tasks, pricing, warnings)
         print(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) if args.json else markdown(report))
         return 0
-    except Exception:
-        # Không xuất exception: SQLite / transport / JSON có thể chứa đường dẫn hoặc nội dung nhạy cảm.
-        print("Không đối soát được [" + stage + "]: kiểm tra file đầu vào, schema và provider chỉ đọc.")
+    except Exception as e:  # noqa: BLE001 - C-FIX-D19: nói loại lỗi + mã (luật 1 không im lặng)
+        # chi tiết chỉ in khi là MÃ do chính công cụ đặt (invalid_pricing, input_too_large…) — lời SQLite / JSON / transport có thể chứa
+        # đường dẫn hoặc nội dung nhạy cảm nên chỉ in tên loại lỗi
+        code = str(e) if re.fullmatch(r"[a-z0-9_:]{1,80}", str(e)) else ""
+        print(f"Không đối soát được [{stage}]: {type(e).__name__}" + (f" {code}" if code else "")
+              + " — kiểm tra file đầu vào, schema và provider chỉ đọc.")
         return 2
 
 

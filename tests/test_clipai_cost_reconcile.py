@@ -150,7 +150,8 @@ def test_cli_offline_json_and_sanitized_error(database, tmp_path, capsys):
     assert json.loads(capsys.readouterr().out)["actual_1080p_points"] == 1
     with patch.object(adapter.ClipAIVideoProvider, "from_env", side_effect=ValueError("offline_only")):
         assert tool.main(args + ["--live"]) == 2
-    assert capsys.readouterr().out.strip() == "Không đối soát được [provider_read]: kiểm tra file đầu vào, schema và provider chỉ đọc."
+    # C-FIX-D19: không nuốt lỗi — loại lỗi + mã do công cụ đặt (chi tiết lạ vẫn không in, xem dấu PRIVATE bên dưới)
+    assert capsys.readouterr().out.strip() == "Không đối soát được [provider_read]: ValueError offline_only — kiểm tra file đầu vào, schema và provider chỉ đọc."
     taskfile.write_text("{PRIVATE-FIXTURE-MARKER", encoding="utf-8")
     assert tool.main(args + ["--tasks-json", str(taskfile)]) == 2
     assert "PRIVATE-FIXTURE-MARKER" not in capsys.readouterr().out
@@ -271,3 +272,101 @@ def test_computed_overflow_is_unknown_and_json_finite(database):
     assert result["calibration"][-1]["difference_percent"] is None
     assert result["actual_1080p_points"] == 0
     json.dumps(result, allow_nan=False)
+
+
+# ---- C-FIX-D19 (rà C-RA-D19, docs/RA_CLOUD_D19_2026-10-20.md) -------------------------------------------------------------------
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REAL_PRICING = os.path.join(ROOT, "data", "pricing.json")
+
+
+def test_real_pricing_table_with_null_prices_runs(database, tmp_path, capsys):
+    """CAO: data/pricing.json CỐ Ý có giá null (_note_null_prices) — công cụ phải chạy được với bảng giá thật."""
+    rows = tmp_path / "tasks.json"
+    rows.write_text(json.dumps(tasks()), encoding="utf-8")
+    assert tool.main(["--db", str(database), "--pricing", REAL_PRICING, "--tasks-json", str(rows)]) == 0
+    assert "Đối soát ClipAI" in capsys.readouterr().out
+
+
+def test_null_price_is_unknown_not_zero_and_said(database):
+    pricing = {"per_video_second": {MODEL + ":480p": None, MODEL + ":1080p": .31}, "per_video_clip": {}}
+    conn = tool.open_readonly(database)
+    try:
+        result = tool.reconcile(conn, tasks(), pricing)
+    finally:
+        conn.close()
+    draft = result["tasks"][0]
+    assert draft["ledger_usd"] is None
+    assert any(w.startswith("unpriced:") for w in draft["warnings"])
+    with pytest.raises(ValueError):
+        tool.validate_pricing({"per_video_second": {"x": "0.1"}, "per_video_clip": {}})     # kiểu sai vẫn bị từ chối
+
+
+@pytest.fixture
+def group_db(tmp_path):
+    path = tmp_path / "group.sqlite"
+    with sqlite3.connect(path) as conn:
+        conn.executescript("""CREATE TABLE jobs(id INTEGER, project_id INTEGER, external_id TEXT, quality_tier TEXT, draft_job_id INTEGER,
+                              type TEXT, group_leader INTEGER, clip_span TEXT);
+        CREATE TABLE usage_events(id INTEGER, job_id INTEGER, project_id INTEGER, kind TEXT, provider TEXT, model TEXT, tier TEXT, quantity REAL, unit TEXT);""")
+        spans = {10: {"start": 0, "length": 6}, 11: {"start": 6, "length": 3}}
+        for jid, leader in ((10, None), (11, 10)):
+            conn.execute("INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?)", (jid, 31, "seedance:tg", "draft", None, "video_gen", leader, json.dumps(spans[jid])))
+            conn.execute("INSERT INTO usage_events VALUES(?,?,?,?,?,?,?,?,?)", (jid, jid, 31, "video", "clipai", MODEL, "480p", spans[jid]["length"], "second"))
+    return path
+
+
+def group_task():
+    return [dict(task_id="tg", task_status=2, model_name=MODEL, duration=9, is_draft=True, seedance_cost_usd=0.9,
+                 extra_data=dict(usage=dict(total_tokens=180000), has_video_input=False, resolution="480p"),
+                 request_params=dict(seedance_cost_usd=1.0, content=[]))]
+
+
+def test_group_task_belongs_to_its_leader_and_is_split_once(group_db):
+    """VỪA: thành viên nhóm mang chung external_id của job dẫn (core/runner.py) — không còn 'ambiguous_job', không đếm trùng."""
+    conn = tool.open_readonly(group_db)
+    try:
+        result = tool.reconcile(conn, group_task(), PRICING)
+    finally:
+        conn.close()
+    assert len(result["tasks"]) == 1
+    row = result["tasks"][0]
+    assert (row["job_id"], row["project_id"]) == (10, 31)
+    assert "ambiguous_job" not in row["warnings"]
+    assert row["ledger_usd"] == pytest.approx(.14 * 9)                       # sổ chi của cả nhóm (6 s + 3 s)
+    shares = {m["job_id"]: m["actual_share_usd"] for m in row["group_members"]}
+    assert shares == {10: pytest.approx(0.6), 11: pytest.approx(0.3)}        # chia theo clip_span, tổng = tiền task một lần
+    assert result["totals"][0]["actual_usd_known"] == pytest.approx(0.9)
+
+
+def test_two_leaders_on_one_task_stay_ambiguous(group_db):
+    with sqlite3.connect(group_db) as conn:
+        conn.execute("UPDATE jobs SET group_leader=NULL")
+    conn = tool.open_readonly(group_db)
+    try:
+        row = tool.reconcile(conn, group_task(), PRICING)["tasks"][0]
+    finally:
+        conn.close()
+    assert row["job_id"] is None and "ambiguous_job" in row["warnings"]
+
+
+def test_final_without_draft_task_is_a_new_generation_not_an_upgrade(database):
+    """THẤP: bản cao không nâng được từ nháp (quality_tier.NEW_GEN) có draft_job_id nhưng gói không có draft_task → không phải bước nâng."""
+    rows = tasks()
+    rows[3]["request_params"]["content"] = []
+    assert report(database, rows)["tasks"][3]["kind"] == "new_final"
+
+
+def test_errors_are_said_with_their_code(database, tmp_path, capsys):
+    bad = tmp_path / "p.json"
+    bad.write_text(json.dumps({"per_video_second": {"x": "abc"}, "per_video_clip": {}}), encoding="utf-8")
+    rows = tmp_path / "tasks.json"
+    rows.write_text("[]", encoding="utf-8")
+    assert tool.main(["--db", str(database), "--pricing", str(bad), "--tasks-json", str(rows)]) == 2
+    out = capsys.readouterr().out
+    assert "ValueError invalid_pricing" in out
+
+
+def test_report_says_only_seedance_is_reconciled(database):
+    result = report(database)
+    assert result["scope"] == "seedance_only"
+    assert "chỉ họ Seedance" in tool.markdown(result)
