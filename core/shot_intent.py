@@ -199,13 +199,28 @@ def _check_ngoai_le(items, out: List[Dict]) -> None:
             out.append(_issue("do", f"{t}.pham_vi", "phải là danh sách shot (≥ 1)"))
 
 
+def vat_items(byd) -> List:
+    """V3.1 M1.1 (20/10): MỘT cách đọc nhóm `vat` cho mọi nơi dùng. Dữ liệu thật đều là bản v1 — danh sách CHUỖI tên vật (#30 shot 3
+    `["BOM_KEO"]`, #31 shot 33 `["AWM"]`); bản v2 là bảng `{vat, kho_id, nguoi, cach, bien_the}`. Chuỗi → `{"vat": <chuỗi>, "_v": 1}`;
+    bảng giữ nguyên; một chuỗi đơn (không phải danh sách) → một vật; thiếu / None → []. Phần tử khác (số, bảng thiếu `vat`…) trả NGUYÊN
+    để nơi gọi báo lỗi như trước — không âm thầm ép kiểu."""
+    raw = byd.get("vat") if isinstance(byd, dict) else None
+    if not raw or (isinstance(raw, str) and not raw.strip()):     # như trước (`get('vat') or []`): "", {}, 0, None = không có vật
+        return []
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, list):
+        return [raw]
+    return [{"vat": x, "_v": 1} if isinstance(x, str) and x.strip() else x for x in raw]
+
+
 def _kho_ids(byd: Dict) -> List[tuple]:
     out = []
     nc = byd.get("noi_chon") or {}
     if nc.get("kho_id") is not None:
         out.append(("noi_chon.kho_id", nc["kho_id"]))
     for key in ("thanh_phan", "vat"):
-        for i, c in enumerate(byd.get(key) or []):
+        for i, c in enumerate(vat_items(byd) if key == "vat" else byd.get(key) or []):
             if isinstance(c, dict) and c.get("kho_id") is not None:
                 out.append((f"{key}[{i}].kho_id", c["kho_id"]))
     return out

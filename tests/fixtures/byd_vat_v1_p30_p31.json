@@ -1,0 +1,130 @@
+{
+ "_note": "V3.1 M1.1 (20/10): BYĐ thật có vat v1 (chuỗi) chép CHỈ ĐỌC từ data/manifest.sqlite máy chính — chỉ trường byd + characters.",
+ "cases": [
+  {
+   "project": 30,
+   "idx": 3,
+   "characters": [
+    "KELLY"
+   ],
+   "byd": {
+    "shot": 3,
+    "truyen": {
+     "nhip": "dat_bomkeo_1",
+     "muc_dich": "người xem thấy Kelly chủ động tạo chỗ nấp đầu tiên",
+     "cam_xuc": "quyết đoán"
+    },
+    "thanh_phan": [
+     {
+      "vat": "KELLY",
+      "vai": "chinh",
+      "vung": "giua",
+      "thay": "lung",
+      "dang": "thuong"
+     }
+    ],
+    "hanh_dong": [
+     {
+      "ai": "KELLY",
+      "bat_dau": {
+       "tu_the": "dung",
+       "cham_dat": [
+        "ban_chan"
+       ]
+      },
+      "ket_thuc": {
+       "tu_the": "dung",
+       "cham_dat": [
+        "ban_chan"
+       ]
+      }
+     }
+    ],
+    "vat": [
+     "BOM_KEO"
+    ],
+    "may": {
+     "co": "GAME_TPS",
+     "do_cao": "cao",
+     "goc": "cui",
+     "chuyen_dong": "dung_yen"
+    },
+    "noi_chon": {
+     "kho_id": 263,
+     "spot": "dinh_bac_thang_giua",
+     "thoi_gian": "day",
+     "thoi_tiet": "clear"
+    },
+    "ngoai_le": []
+   }
+  },
+  {
+   "project": 31,
+   "idx": 33,
+   "characters": [
+    "Kelly",
+    "Lính địch áo choàng"
+   ],
+   "byd": {
+    "shot": 4,
+    "truyen": {
+     "nhip": "dinh",
+     "muc_dich": "người xem sốc cùng lúc với Kelly khi cú bắn và cú chuyển thế giới xảy ra, chỉ thấy gợi ý kẻ bắn ở cuối shot",
+     "cam_xuc": "sốc"
+    },
+    "thanh_phan": [
+     {
+      "vat": "KELLY",
+      "vai": "chinh",
+      "vung": "giua",
+      "dang": {
+       "bat_dau": "bong_mo_song_song",
+       "ket_thuc": "thuong"
+      }
+     },
+     {
+      "vat": "LÍNH ĐỊCH ÁO CHOÀNG",
+      "vai": "phu",
+      "vung": "giua-tren"
+     }
+    ],
+    "hanh_dong": [
+     {
+      "ai": "KELLY",
+      "bat_dau": {
+       "tu_the": "dung",
+       "cham_dat": [
+        "ban_chan"
+       ]
+      },
+      "ket_thuc": {
+       "tu_the": "dung",
+       "cham_dat": [
+        "ban_chan"
+       ],
+       "che": [
+        "than"
+       ]
+      }
+     }
+    ],
+    "vat": [
+     "AWM"
+    ],
+    "may": {
+     "co": "MS",
+     "do_cao": "ngang",
+     "goc": "ngang",
+     "chuyen_dong": "dung_yen"
+    },
+    "noi_chon": {
+     "kho_id": 263,
+     "spot": "plaza_front",
+     "thoi_gian": "dawn",
+     "thoi_tiet": "fog"
+    },
+    "ngoai_le": []
+   }
+  }
+ ]
+}
