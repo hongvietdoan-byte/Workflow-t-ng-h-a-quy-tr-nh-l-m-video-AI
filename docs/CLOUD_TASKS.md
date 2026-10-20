@@ -424,3 +424,35 @@ THẤP tools/stop_dashboard.ps1:12 chỉ in pid + cổng (không in CommandLine 
 thêm item/plate vào khóa gộp hoặc giữ at đầu + last_at; THẤP core/code_version.py:107 bỏ bản ghi pid chết / so thời điểm tạo tiến trình.
 Báo cáo docs/RA_CLOUD_FIX_M16_17_2026-10-2x.md + XONG hộp thư (ghi tên nhánh thật anh push được).
 ```
+
+## Hàng dự phòng bổ sung 20/10 22:20 (pool — nhận bằng `hop_thu.py ke --lane <làn> --nhan --push`)
+Luật như "HÀNG VIỆC DỰ PHÒNG": Cấp 2 đã duyệt, cờ mới TẮT (cờ TẮT = byte giống), test ĐỎ→XANH, không API trả phí, không chặn gen/xuất.
+
+#### DP5
+```
+M5.1 repair router theo mã lỗi — CODE theo docs/V3_1_M5_THIET_KE_REPAIR_RELEASE_2026-10-20.md (phần M5.1). G2-6: router mặc định TẮT. Bảng mã lỗi → hành động sửa
+(đổi đầu vào gì — luật 6 CHUAN_XAY_DUNG) → trần ảnh ≤ 3 / video ≤ 2 → dừng hỏi người khi lặp lỗi. Khi cờ TẮT: không đổi gì đường gen lại hiện có (core/pipeline.py
+retry, core/autopilot.py AUTO_REGEN_LIMIT). Khi BẬT: chỉ ĐỀ XUẤT sửa (ghi diag + bản ghi), KHÔNG tự gửi job — tự gửi là Cấp 3 (C3-10 để sau). Giữ poll_claim /
+pause_before_submit / submit_unknown (đang BẬT). Test theo bảng mã (dùng devsys/errors.json làm nguồn mã).
+```
+
+#### DP6
+```
+M5.2 release gate — CODE theo docs/V3_1_M5_THIET_KE_REPAIR_RELEASE_2026-10-20.md (phần M5.2): checklist đo được trước xuất bản (shot đã duyệt, final QC M4.4 nếu có,
+đối soát chi phí qua tools/clipai_cost_reconcile.py / sổ chi, lỗi nghiêm trọng mở trong devsys/errors.json) → báo cáo ĐẠT / CHƯA ĐẠT kèm lý do. Cờ TẮT; khi BẬT chỉ
+hiện cảnh báo, KHÔNG chặn nút xuất (chặn = cần người dùng duyệt sau). Test: dự án giả đủ / thiếu từng điều kiện.
+```
+
+#### DP7
+```
+M4.6 khung chạy benchmark QC — CODE công cụ chỉ đọc theo docs/V3_1_M4_6_DAC_TA_BENCHMARK_QC_2026-10-20.md: định dạng bộ ca có nhãn (JSON: artifact, mã lỗi kỳ vọng,
+nhãn người), `tools/qc_benchmark.py` chạy các bộ kiểm QC hiện có (shadow) trên bộ ca → bảng báo nhầm / bỏ sót theo mã + hiệu chuẩn độ tin cậy; KHÔNG gọi API trả phí
+(bộ kiểm cần Claude dùng client giả trong test; khi chạy thật đi qua llm_provider theo dự án). Test bằng bộ ca tổng hợp nhỏ. Trích ca thật từ data/ là việc máy chính.
+```
+
+#### DP8
+```
+M3.1 scene_world_map THỬ NGHIỆM offline — CODE schema + đọc/ghi + adapter theo docs/V3_1_M3_THIET_KE_WORLD_MAP_2026-10-20.md (M3.1): 3D tọa độ thật / 2D / quan hệ
+tương đối / UNKNOWN, version, provenance, invalidation khi geometry/BYĐ đổi. G2-4: chỉ offline, KHÔNG chặn gen, KHÔNG bắt buộc 3D; không ai đọc map trong luồng gen
+(cờ TẮT). Lưu ở bảng/JSON mới — migration chỉ code + test CSDL tạm (áp CSDL thật = Cấp 3). Test: ca #31 cảnh 4/6/8 dạng fixture tổng hợp, map thiếu → UNKNOWN.
+```
