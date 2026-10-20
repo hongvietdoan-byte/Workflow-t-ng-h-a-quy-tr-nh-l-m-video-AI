@@ -271,4 +271,3 @@ def test_computed_overflow_is_unknown_and_json_finite(database):
     assert result["calibration"][-1]["difference_percent"] is None
     assert result["actual_1080p_points"] == 0
     json.dumps(result, allow_nan=False)
-
