@@ -47,13 +47,30 @@ UPGRADE_UNMEASURED = "giá nâng là ƯỚC TÍNH; 2.5 480p → 1080p 9:16 đã 
 UPGRADE_USD_PER_SECOND = 0.5254
 
 
-def upgrade_price(ratio: str, seconds: float) -> Optional[float]:
-    """Chỉ đường nâng Seedance 2.5 nháp 480p → 1080p dọc đã đo; không gửi lại ref."""
+def upgrade_price(ratio: str, seconds: float, input_video_s: float = 0.0) -> Optional[float]:
+    """Chỉ đường nâng Seedance 2.5 nháp 480p → 1080p dọc đã đo; không gửi lại ref.
+    V3.1 M1.6 (A7 #33, cờ send_estimate): nháp có video vào (`input_video_s` > 0) → bước nâng ClipAI TÍNH CẢ giây video vào (task
+    cgt-20261020000346-zyeku: 909 225 token = 1080p × (9 s ra + ≈ 9,7 s vào), 6,36 USD) — giá đo #24 (không video vào) thấp ~24 %;
+    lấy số lớn hơn của giá đo và công thức token (tính dư). Cờ tắt / không video vào → như cũ."""
     from . import cost
     if ratio == "9:16":
-        return UPGRADE_USD_PER_SECOND * max(4.0, seconds)
-    usd = cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, max(4.0, seconds))
-    return None if usd is None else usd * 1.5
+        usd = UPGRADE_USD_PER_SECOND * max(4.0, seconds)
+    else:
+        usd = cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, max(4.0, seconds))
+        usd = None if usd is None else usd * 1.5
+    if usd is not None and input_video_s and input_video_s > 0 and cost.send_estimate_on():
+        tokens = cost.seedance_estimate(SAMPLE_MODEL, FINAL_RESOLUTION, ratio, max(4.0, seconds), input_video_s)
+        usd = max(usd, tokens or 0.0)
+    return usd
+
+
+def upgrade_input_seconds(conn, scene_id: int, choice=None) -> float:
+    """M1.6 (cờ send_estimate): giây video vào mà bước nâng tính tiền = video tham chiếu của shot (như nháp đã gửi); cờ tắt → 0
+    (không probe ffmpeg thừa)."""
+    from . import cost
+    if not cost.send_estimate_on():
+        return 0.0
+    return float(cost.video_reference_seconds(conn, scene_id, choice)["seconds"] or 0.0)
 
 
 def draft_seconds(conn, draft) -> Optional[float]:
@@ -905,7 +922,7 @@ def _final_usd(conn, scene_id: int, proj, ratio: str, seconds: float):
     if seconds <= 0:
         return SAMPLE_MODEL, 0.0                      # made inside its group's clip (priced on the group's first shot)
     if upgrade_block(conn, approved_draft(conn, scene_id)) is None:
-        return SAMPLE_MODEL, upgrade_price(ratio, seconds)
+        return SAMPLE_MODEL, upgrade_price(ratio, seconds, upgrade_input_seconds(conn, scene_id))
     model = model_router.scene_choice(conn, scene_id, proj)["model"]
     canonical, family = _canonical(model)
     if family == "seedance":
@@ -988,7 +1005,7 @@ def e1_estimate(conn, pid: int, pricing: Optional[Dict] = None) -> Dict:
             out["direct"] += 1
         else:
             out["usd"] += (cost.seedance_estimate(SAMPLE_MODEL, DRAFT_RESOLUTION, ratio, sec, ref["seconds"]) or 0.0) + \
-                          (upgrade_price(ratio, sec) or 0.0)
+                          (upgrade_price(ratio, sec, ref["seconds"] if cost.send_estimate_on() else 0.0) or 0.0)
             out["draft_first"] += 1
     out["usd"] = round(out["usd"], 2)
     out["film_seconds"] = round(out["film_seconds"], 1)
@@ -1036,7 +1053,7 @@ def running_draft_final_estimate(conn, pid: int, rows, pricing) -> Dict:
         seconds = max(4.0, seconds)
         canonical, _ = _canonical(job["model"])
         if canonical == SAMPLE_MODEL:
-            usd = upgrade_price(ratio, seconds)
+            usd = upgrade_price(ratio, seconds, upgrade_input_seconds(conn, job["scene_id"]))
             result["finals_1080"] += 1
             result["warnings"].append(f"shot {job['scene_id']}: nháp đã gửi tiền; chỉ cộng bản cao còn thiếu — {UPGRADE_UNMEASURED}")
         else:
@@ -1111,7 +1128,7 @@ def run_estimate(conn, pid: int, rows, pricing: Optional[Dict] = None) -> Dict:
                 out.setdefault("unknown", []).extend(ref["warnings"])
                 continue
             draft = cost.seedance_estimate(SAMPLE_MODEL, "480p", ratio, max(billed, 4.0), ref["seconds"])
-            final = upgrade_price(ratio, max(billed, 4.0))
+            final = upgrade_price(ratio, max(billed, 4.0), ref["seconds"] if cost.send_estimate_on() else 0.0)
             if final is not None and final > (row_usd or 0.0):
                 out["usd"] += final - (row_usd or 0.0)
                 out["finals_1080"] += 1

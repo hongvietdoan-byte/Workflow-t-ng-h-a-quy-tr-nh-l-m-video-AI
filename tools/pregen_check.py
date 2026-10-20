@@ -8,6 +8,9 @@ Gọi ĐÚNG các hàm nút "▶ Gen ảnh" (Bước 2) và job gen ảnh chạy
   - change_review.blocking(…) từng shot   mục đỏ Tổ rà soát tác động còn mở / thay đổi chờ rà (chạy lại luật code, như runner)
   - place_refs.missing / broken / needs    nền 3D chưa có / hỏng / chờ hướng (runner giữ ảnh)
   - cost.estimate_images(…)                MỘT con số giá = nút Gen = ô 💰 (ảnh + khung cuối + ảnh toàn cảnh + D6 + QC Claude), có dòng tách
+  - cost.estimate_videos_by_scene(…)       giá VIDEO = nút "▶ Gen video" (Bước 4) + quality_tier.final_estimate (bản cao còn phải gen) —
+                                           V3.1 M1.6 (A9): chỉ để báo, KHÔNG vào mã thoát; cờ send_estimate bật → nháp 480p + video tham chiếu,
+                                           Claude qua claude_cli = 0 USD
   - --payload: tools/replay_payload.replay  gói gửi model từng shot (prompt + ảnh tham chiếu)
 Chạy trong thư mục thử như replay_payload (bản sao CSDL + cài đặt cờ + thư mục dự án; junction assets/_plates3d chỉ đọc; mọi ghi dưới
 <main>/data bị chặn). Giá và cổng tính với cờ THẬT của máy (kể cả D6 chat_prompts); phần --payload tắt D6 (không gọi Claude).
@@ -63,7 +66,26 @@ def check(conn, pid: int, data_dir: str) -> dict:
     est = cost.estimate_images(pipe, pid, cost.load_pricing(), image_models.of_project(proj), data_dir=data_dir)
     return {"gates": {"block": gates["block"], "warn": gates["warn"]}, "holds": holds, "plates": plates, "estimate": est,
             "estimate_text": cost.format_estimate(est) if est["items"] else "không có ảnh nào phải gen",
+            "video": video_prices(pipe, pid),
             "blocked": bool(gates["block"] or holds or any(p["state"] in ("cũ", "hỏng", "chờ hướng") for p in plates))}
+
+
+def video_prices(pipe, pid: int) -> dict:
+    """V3.1 M1.6 (A9): giá video của nút "▶ Gen video" (cost.estimate_videos_by_scene — cùng hàm Bước 4) + bản cao còn phải gen
+    (quality_tier.final_estimate); lỗi đọc → ghi lý do (không im lặng), không chặn phần ảnh."""
+    from core import cost, quality_tier
+    out = {"send_estimate": cost.send_estimate_on(), "claude_free": cost.claude_free()}
+    try:
+        est = cost.estimate_videos_by_scene(pipe, pid, cost.load_pricing())
+        out.update(estimate=est, text=cost.format_estimate(est) if est["items"] else "không có clip nào phải gen")
+    except Exception as e:  # noqa: BLE001 - said in the report, the picture part still stands
+        out.update(estimate=None, text=f"không tính được giá video ({type(e).__name__}: {e})")
+    try:
+        fin = quality_tier.final_estimate(pipe.conn, pid)
+        out["final"] = {"usd": fin["usd"], "shots": len(fin["scenes"]), "unknown": fin["unknown"]}
+    except Exception as e:  # noqa: BLE001
+        out["final"] = {"error": f"{type(e).__name__}: {e}"}
+    return out
 
 
 def _print(res: dict) -> None:
@@ -73,6 +95,17 @@ def _print(res: dict) -> None:
     for part in est.get("parts") or []:
         usd = "chưa có giá" if part.get("usd") is None else f"{part['usd']:.3f} {est['currency']}"
         print(f"    - {part['label']}: {part.get('count') or '-'} → {usd}")
+    vid = res.get("video") or {}
+    print("=== GIÁ VIDEO (cùng số với nút ▶ Gen video ở Bước 4 — chỉ báo, không vào kết luận) ===")
+    print("  " + (vid.get("text") or "-"))
+    fin = vid.get("final") or {}
+    if fin.get("error"):
+        print("  bản cao còn phải gen: không tính được (" + fin["error"] + ")")
+    elif fin.get("shots"):
+        print(f"  bản cao còn phải gen: {fin['shots']} shot ≈ {fin['usd']:.2f} USD"
+              + (f" (chưa có giá: {len(fin['unknown'])} shot)" if fin.get("unknown") else ""))
+    print("  cờ send_estimate: " + ("BẬT (giá theo gói gửi)" if vid.get("send_estimate") else "TẮT (giá cũ)")
+          + (" · Claude qua claude_cli = 0 USD API" if vid.get("claude_free") else ""))
     print("=== CỔNG NÚT GEN (batch.image_gates) ===")
     for b in res["gates"]["block"]:
         print("  CHẶN:", b)

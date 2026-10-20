@@ -70,6 +70,12 @@ FEATURES: Dict[str, Dict] = {
                                      "hàng đợi có lý do, không gửi (0 USD)", "verified": False,
         "why": "V3.1 M1.3 (G36, #31): tạm dừng 03:42:31 vẫn gửi job 1075 lúc 03:42:41 — runner chỉ kiểm paused đầu lượt quét; "
                "thử bằng provider giả, chưa chạy thật (C3-2: bật sau nghiệm thu)"},
+    "send_estimate": {"label": "Ước tính giá ĐÚNG gói sẽ gửi: video nháp theo bậc nháp (480p) + video tham chiếu, bản cao 1080p nâng từ nháp "
+                               "tính cả video vào, Claude qua claude_cli = 0 USD API (chỉ đổi con số báo giá, không chặn gì — 0 USD)",
+        "verified": False,
+        "why": "V3.1 M1.6 (A7–A9 #33, G31 #31): nút Gen video báo 9,13 USD (720p + D6 API) khi gửi nháp 480p; nháp có video tham chiếu "
+               "≈ 1,37 × bảng giá; bản cao 1080p sổ chi cao hơn ước tính ~24 %; pregen_check cộng Claude giá API dù chạy claude_cli. "
+               "Hiệu chuẩn 2 điểm task ClipAI (docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md mục 5), chưa đối chiếu sổ chi thật"},
     "locomotion_end_frame": {"fixes_projects": [27], "label": "Shot chạy/đi: không gửi khung cuối vẽ khi clip sinh dài hơn shot × 1,3 + câu mốc cảnh vật khi máy bám theo (0 USD)",
         "verified": False,
         "why": "Hộp thư 12/10 18:13: #27 shot 3 job 782 (shot 1–2 s, Kling sinh 3 s, khung cuối 'vài bước' ở giây 3 + máy bám sau) chạy tại chỗ; "
