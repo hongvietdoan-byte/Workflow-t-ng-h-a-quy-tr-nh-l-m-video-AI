@@ -87,6 +87,7 @@ push lên main, rồi báo người dùng mã việc để dán vào phiên clou
 | C-M010 | M0.10 đặc tả AUTO/USER_LOCKED/REVIEW_REQUIRED + audit đường ghi (chỉ tài liệu) | `cloud/v31-m010` | ĐANG LÀM — đã push; người dùng chốt câu mở 20/10 |
 | C-M09 | M0.9 thiết kế Kho forms/outfit/hair/face + provenance (chỉ tài liệu) | `cloud/v31-m09` | ĐANG LÀM — đã push; người dùng chốt câu mở 20/10 |
 | C-M011 | M0.11 test plan + tiêu chí 3 vòng pilot + dự toán B/C (chỉ tài liệu) | `cloud/v31-m011` | ĐANG LÀM — đã push; người dùng chốt câu mở 20/10 |
+| C-M04-05 | M0.4–M0.5 sổ lỗi `devsys/errors.json` + test hợp đồng + nhập G/A/B có nguồn (code devsys, Cấp 2 G2-1 ĐÃ DUYỆT) | `cloud/v31-m04-m05` | CHỜ dán (tài khoản cloud khác) |
 
 (20/10: 2 phiên `start_session target:"cloud"` tài khoản chính HỎNG khi khởi động — clone nhánh worktree chưa push + API error; M1.4a chuyển phiên con máy chính. 3 việc C-M010, C-M09, C-M011 độc lập, dán được song song 3 phiên.)
 
@@ -137,4 +138,26 @@ liệu cần (fixture nào có trong tests/, cái gì phải lấy ở máy chí
 tiêu chí chất lượng, tỉ lệ gen lại, continuity, chi phí, số lần can thiệp tay, điểm dừng; (4) dự toán B/C TÍNH TỪ code giá hiện tại (core/cost.py và
 bảng giá trong repo — dẫn hàm + công thức; ghi rõ giả định số lần gen lại; KHÔNG tự bịa giá), kèm khoảng thấp–cao. Ghi rõ: con số cuối phải chạy
 tools/pregen_check.py ở máy chính trước khi xin duyệt. Báo cáo ≤ 25 dòng ghi cả vào docs/RA_CLOUD_M011_2026-10-2x.md.
+```
+
+#### C-M04-05
+```
+Việc V3.1 M0.4 + M0.5 — sổ lỗi (Cấp 2, gói G2-1 người dùng DUYỆT 20/10: sổ data/decisions.json id v31-cap2-milestone-packages-approved-2026-10-20).
+Nhánh cloud/v31-m04-m05 từ origin/main. Theo "Luật chung" docs/CLOUD_TASKS.md (không cần hỏi credit nếu người dùng đã nói). Chỉ đụng devsys/ + tests/.
+Đặc tả: docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md đoạn "**Sổ lỗi (WS0):**" (~dòng 69) + bảng D09 (~dòng 107: errors.json = định nghĩa + vòng đời;
+diag_events/jobs = lần phát sinh; mã bất biến; lỗi gốc ≠ lần xuất hiện; liên kết nhiều dự án; tách đã sửa code / qua test / xác minh chạy thật;
+KHÔNG tự đóng khi chỉ có unit test) + mục 4a dòng "M0.4–M0.5 sổ lỗi".
+1. M0.4: devsys/errors.json (schema_version, items[] đủ trường đặc tả: id bất biến dạng P31-G1 / P33-A1 + alias, title, source_document, project/shot/job
+   ids, stage L1–L16, category, root_cause_hypothesis/confirmed, evidence, severity, status, first_seen, last_seen, affected_flows, owner, fix_commit,
+   tests, real_run_evidence, plan_workstream, dependencies, reopen_history). devsys/errors.py: load + problems() (mã trùng; trạng thái ngoài
+   OPEN/IN_PROGRESS/FIXED_UNVERIFIED/VERIFIED/REOPENED/WONT_FIX; VERIFIED thiếu fix_commit + tests + real_run_evidence → lỗi; WONT_FIX thiếu lý do;
+   OPEN thiếu plan_workstream) + CLI `python -m devsys.errors check|list`. Mẫu: devsys/decisions.py + core/decisions.py + tests/test_decisions.py.
+   tests/test_error_registry.py: ĐỎ trước XANH sau cho từng luật.
+2. M0.5: nhập G1–G58 (nguồn chính docs/DANH_GIA_P31_LECH_3D_TI_LE_2026-10-18.md; grep "^| G" trong docs/ cho mã khác), A1–A15 + B1–B12
+   (docs/DANH_GIA_P33_LOI_GAP_PHAI_2026-10-20.md). Mỗi mục có source_document + dòng. G25 khuyết → KHÔNG bịa, ghi rõ trong báo cáo coverage.
+   Trạng thái theo bằng chứng trong repo: có commit sửa + test → FIXED_UNVERIFIED (KHÔNG VERIFIED khi không có bằng chứng chạy thật);
+   M0.2 đã kiểm G7, G8, G10, G24, G27, G35 (xem kế hoạch dòng M0.2). Mã A1 (succeeded 2 lần) và G36 đang được sửa ở nhánh M1.2/M1.3 → IN_PROGRESS.
+   Báo cáo coverage: docs/V3_1_M0_5_COVERAGE_SO_LOI_2026-10-2x.md (tổng theo nguồn, theo trạng thái, theo workstream, mã khuyết).
+3. Khai file mới vào devsys/areas.json (KHÔNG tăng version). Không sửa devsys/app.py (trang hiển thị sổ để phiên chính làm sau).
+Báo cáo ≤ 25 dòng ghi cả vào docs/RA_CLOUD_M04_M05_2026-10-2x.md.
 ```
