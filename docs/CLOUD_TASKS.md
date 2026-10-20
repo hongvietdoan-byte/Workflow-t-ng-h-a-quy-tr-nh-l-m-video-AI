@@ -339,3 +339,38 @@ cổng 8503/8504 (G55 thực tế). Trạng thái tối đa FIXED_UNVERIFIED (ch
 KHÔNG VERIFIED. Chạy `python -m devsys.errors check` phải "Hợp lệ"; tests/test_error_registry.py xanh. Lấy commit/test bằng git log / grep, không đoán.
 Nhánh cloud/v31-err-upd. XONG hộp thư.
 ```
+
+---
+
+## HÀNG VIỆC DỰ PHÒNG (người dùng 20/10: làn hết việc tự lấy thêm; phiên chính chủ động bổ sung)
+Làn cloud (B, C, …) hết việc được giao riêng → nhận mục **DP** đầu tiên còn `CHỜ` trong hộp thư (dòng "VIỆC DỰ PHÒNG"): sửa đuôi mục đó thành
+`ĐANG LÀM <giờ> (<làn>)` + push commit `hộp thư:` NGAY (trước khi code) — thấy làn khác đã nhận trước (union merge có thể để 2 dòng nhận) thì làn
+nhận SAU bỏ, lấy mục kế. Mọi mục: Cấp 2 đã duyệt (G2-4 / G2-5: QC chỉ Shadow/REVIEW, không tự BLOCK, map chỉ offline), cờ mới TẮT, test ĐỎ→XANH,
+không API trả phí, nhánh `cloud/v31-<mã>`; báo cáo `docs/RA_CLOUD_<MÃ>_2026-10-2x.md` + XONG hộp thư.
+
+#### DP1 — M4.5 sửa báo nhầm A5 + A6
+```
+Nguồn docs/DANH_GIA_P33_LOI_GAP_PHAI_2026-10-20.md dòng "| A5 |" (QC lớp 0 đo nhầm cỡ cảnh khi bố cục qua vai) và "| A6 |" (Tổ rà soát báo nhầm "không có
+video tham chiếu" khi thiếu ref_video_path). Sửa gốc trong core/qc_*.py / core/change_review.py (đọc code đối chiếu dòng), test regression từ ca thật mô tả
+trong tài liệu (fixture tổng hợp). Giữ QC shadow/REVIEW. Mã sổ lỗi P33-A5/P33-A6 (devsys/errors.json) — KHÔNG đổi trạng thái sổ (C-ERR-UPD làm).
+```
+
+#### DP2 — M3.5 bỏ kiểm chân trời khi nền không có trời (G20)
+```
+Nguồn: grep "| G20 |" docs/DANH_GIA_*.md. Kiểm chân trời (horizon) chỉ chạy khi nền có trời (khai trong bối cảnh / plate / BYĐ); nền trong nhà / không trời →
+bỏ qua có ghi lý do (không im lặng). Đọc code core/qc_*.py, core/plate*.py tìm kiểm horizon. Sau cờ mới TẮT. Test ca có trời / không trời / không rõ (→ giữ kiểm).
+```
+
+#### DP3 — M4.4 Final QC blackdetect / freezedetect
+```
+Bản dựng cuối (core/final_cut.py): chạy ffmpeg blackdetect + freezedetect, ra danh sách đoạn đen / đứng hình (giây, shot) vào báo cáo final QC, mức REVIEW
+(không chặn xuất — G2-5). Cờ mới TẮT. Ngưỡng tham số hóa; đứng hình > 1,5 s (khớp M4.2) báo REVIEW. Test bằng video tổng hợp nhỏ do ffmpeg tạo trong test
+(lavfi color/testsrc) — có đoạn đen / đứng hình / không có. Lưu ý quyết định 11/10 "video không được đơ" (feedback ambient motion).
+```
+
+#### DP4 — M4.1 schema bằng chứng QC (code, shadow)
+```
+Theo thiết kế docs/V3_1_M4_1_THIET_KE_BANG_CHUNG_QC_2026-10-20.md (đã trên main): module schema + hàm chuẩn hóa kết quả QC hiện có sang bản ghi bằng chứng
+(error_type, severity, evidence_type, confidence_calibration, artifact_id/sha, qc_run_id, qc_version, intent_exception, actionability, source_refs) + ghi
+shadow (không đổi quyết định QC hiện tại). Cờ mới TẮT; cờ TẮT = byte giống. Migration bảng mới nếu cần: CHỈ code + test CSDL tạm (áp CSDL thật = Cấp 3).
+```
