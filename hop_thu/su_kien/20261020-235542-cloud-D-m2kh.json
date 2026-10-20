@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T23:55:42.193984+07:00",
+  "lane": "cloud-D",
+  "kind": "xong",
+  "task": "C-G36B",
+  "branch": "cloud/v31-g36b",
+  "commit": "74568cd",
+  "report": "docs/RA_CLOUD_G36B_2026-10-21.md",
+  "text": "Gốc: đường thường đã gửi lại bằng Kling; đường ảnh tham chiếu đi nhóm→từng shot→Kling (thứ tự 27/09) và bước từng shot gửi lại đúng ảnh dạng/vật bị chặn (G32). Sửa sau cờ refusal_skip_same_picture TẮT (đổi thứ tự người dùng chốt → cần duyệt). Test đỏ→xanh; test_sent_package unreadable đỏ có sẵn trên main (Linux root)."
+}
