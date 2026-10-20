@@ -388,6 +388,12 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Người dùng 11/10: video không được đơ; G51 (#31 shot 13 đơ 6 s). Ngưỡng chưa hiệu chuẩn trên bản dựng thật",
     },
+    "qc_evidence": {
+        "label": "Ghi BẰNG CHỨNG QC theo schema V3.1 M4.1 (qc_runs / qc_findings; chưa có bảng → <dự án>/qc_shadow/qc_evidence.jsonl) song "
+                 "song với QC hiện có — shadow: không đổi quyết định, không giữ job (nay nối: kiểm bản dựng cuối)",
+        "verified": False,
+        "why": "Không đo được báo nhầm theo mã khi 9 đường QC ghi 5 dạng khác nhau (thiết kế M4.1). Bảng = migration Cấp 3 (chưa áp CSDL thật)",
+    },
     "qc_observe_enum": {
         "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",
         "verified": False,
