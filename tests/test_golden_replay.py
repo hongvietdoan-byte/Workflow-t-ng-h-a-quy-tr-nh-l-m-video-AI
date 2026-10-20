@@ -148,3 +148,41 @@ def test_output_cannot_overwrite_database(golden):
             module.main(["--db", str(db), "--project", "24", "--shot", "7", "--flags-file", str(flags),
                          "--ref-root", str(root), "--purpose", "compat", "--output", str(db)])
     assert db.read_bytes() == before
+
+@pytest.mark.parametrize("kind", ["image", "video"])
+@pytest.mark.parametrize("provider", ["fake", "clipai", "deepix"])
+def test_current_builder_frozen_input_replay(kind, provider, tmp_path):
+    with patch.object(os, "environ", {}):
+        module = importlib.import_module("tools.golden_capture")
+        snapshot = json.loads((Path(__file__).parent / "golden" / "package_inputs.json").read_text(encoding="utf-8"))[kind]
+        snapshot["provider"] = provider
+        snapshot["baseline"] = snapshot["baseline"].replace('"provider": "fake"', '"provider": "' + provider + '"')
+        (tmp_path / "ref.bin").write_bytes(b"synthetic")
+        actual = module.replay_builder(snapshot, ref_root=tmp_path)
+        module.compare_compat(snapshot["baseline"].encode("utf-8"), actual)
+        changed = json.loads(json.dumps(snapshot))
+        changed["args"][0 if kind == "image" else 1] += "!"
+        with pytest.raises(module.GoldenError, match="COMPAT"):
+            module.compare_compat(snapshot["baseline"].encode("utf-8"), module.replay_builder(changed, ref_root=tmp_path))
+        assert module.check_correctness(actual, {"prompt_contains": ["chữ gốc"], "ref_roles": snapshot.get("correctness_roles", ["cast"])}) == []
+        assert module.check_correctness(actual, {"prompt_contains": ["không tồn tại"], "ref_roles": snapshot.get("correctness_roles", ["cast"])}) == ["prompt_contains"]
+
+
+def test_replay_missing_snapshot_field_and_ref(tmp_path):
+    with patch.object(os, "environ", {}):
+        module = importlib.import_module("tools.golden_capture")
+        with pytest.raises(module.GoldenError, match="snapshot thiếu"):
+            module.replay_builder({}, ref_root=tmp_path)
+        snapshot = json.loads((Path(__file__).parent / "golden" / "package_inputs.json").read_text(encoding="utf-8"))["image"]
+        with pytest.raises(module.GoldenError, match="ref"):
+            module.replay_builder(snapshot, ref_root=tmp_path)
+
+
+def test_capture_attaches_explicit_input_sidecar(golden):
+    module, db, flags, root, _ = golden
+    sidecar = root / "inputs.json"
+    sidecar.write_text('{"1": {"provenance": "pre_send_snapshot"}}', encoding="utf-8")
+    with patch.object(os, "environ", {}), patch.object(module, "head_sha", return_value="a" * 40):
+        result = module.capture(db=db, project=24, shot=7, flags_file=flags, ref_root=root, purpose="compat", input_snapshots_file=sidecar)
+    assert result["jobs"][0]["input_snapshot"] == {"provenance": "pre_send_snapshot"}
+    assert result["jobs"][1]["input_snapshot"] is None
