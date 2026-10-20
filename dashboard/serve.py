@@ -54,9 +54,30 @@ def _utf8_output() -> None:
             pass
 
 
+def _port(argv: List[str]) -> Optional[str]:
+    """Cổng Streamlit trong tham số (`--server.port 8503` / `--server.port=8503`), không có → DASHBOARD_PORT / None."""
+    for i, a in enumerate(argv):
+        if a.startswith("--server.port="):
+            return a.split("=", 1)[1]
+        if a == "--server.port" and i + 1 < len(argv):
+            return argv[i + 1]
+    return os.environ.get("DASHBOARD_PORT") or None
+
+
+def _register(argv: List[str]) -> None:
+    """V3.1 M1.7 (G55, cờ stale_code_alarm): ghi sổ cổng + sha code của tiến trình này — Dashboard khác báo được khi cổng này chạy code
+    cũ. Lỗi không chặn máy chủ."""
+    try:
+        from core import code_version
+        code_version.register(_port(argv))
+    except Exception as e:  # noqa: BLE001 - said, the server still starts
+        print(f"sổ phiên bản code: lỗi {type(e).__name__}: {e}", flush=True)
+
+
 def main(argv: Optional[List[str]] = None, run: Optional[Callable[[], object]] = None) -> object:
     argv = list(sys.argv[1:] if argv is None else argv)
     _utf8_output()
+    _register(argv)
     try:
         started = start_background()
         print(f"vòng nền: {'đã bắt đầu' if started else 'không bắt đầu (đã chạy, tiến trình khác giữ, hoặc BG_POLL=0)'}", flush=True)

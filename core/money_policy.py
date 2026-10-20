@@ -42,7 +42,10 @@ def warning_text(what: str, spent: float, planned: Optional[float], this_usd: Op
     """Một câu cảnh báo có số liệu: đã chi, mức dự tính, ước tính lượt này, % vượt, model thiếu giá. Lượt vẫn được gửi."""
     total = float(spent or 0) + float(this_usd or 0)
     parts = [f"⚠ {what}: đã chi ≈ ${float(spent or 0):.2f}"]
-    if planned is not None:
+    zero = planned is not None and float(planned) <= 0 and _notice_d01()
+    if zero:                       # V3.1 M1.7 (A14 #33): "mức dự tính $0.00" read like a cap — say there is no amount set (D01)
+        parts.append("chưa có mức dự tính (0 USD)")
+    elif planned is not None:
         parts.append(f"mức dự tính ${float(planned):.2f}")
     if this_usd is not None:
         parts.append(f"lượt này ≈ ${float(this_usd):.2f} {ESTIMATED}")
@@ -52,7 +55,19 @@ def warning_text(what: str, spent: float, planned: Optional[float], this_usd: Op
     miss = sorted({m for m in missing if m})
     if miss:
         parts.append("thiếu giá: " + ", ".join(miss))
+    if zero:
+        return ", ".join(parts) + (f" — {extra}" if extra else "") + (" — VẪN GỬI (D01: ngân sách chỉ cảnh báo, không chặn; đặt mức "
+                                                                       "dự tính / trích riêng ở 💵 để theo dõi)")
     return ", ".join(parts) + (f" — {extra}" if extra else "") + " — VẪN GỬI (trần chỉ để cảnh báo; đặt lại mức dự tính ở 💵)"
+
+
+def _notice_d01() -> bool:
+    """V3.1 M1.7 (A14, cờ budget_notice_d01): câu cảnh báo ngân sách theo D01 khi mức dự tính = 0. Cờ tắt → câu cũ."""
+    try:
+        from . import features
+        return features.on("budget_notice_d01")
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def over(spent: float, planned: Optional[float], this_usd: float = 0.0) -> bool:

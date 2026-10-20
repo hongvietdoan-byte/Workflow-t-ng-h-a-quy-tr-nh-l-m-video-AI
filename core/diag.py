@@ -109,13 +109,40 @@ def record(conn, stage: str, severity: str, message: str, code: Optional[str] = 
     _keep_lost(conn, f"{stage}/{severity}/{code or '-'} p{project_id or '-'}: {msg}", last)
 
 
+MERGE_WINDOW_MIN = 24 * 60
+"""V3.1 M1.7 (G56, cờ diag_merge): cửa sổ gộp theo (mã, shot) — #31 15–18/10 `change_review_hold` 4 435 lần, `plate_stale` 337 lần
+(câu đổi theo job / lý do nên khóa "cùng câu trong 10 phút" không gộp được)."""
+MERGE_CODES = ("change_review_hold", "video_pregen_hold", "final_wait", "end_frame_wait", "video_gate_hold", "plate_stale")
+"""Chỉ các mã báo GIỮ / nền cũ lặp mỗi vòng (runner.HOLD_CODES + plate_stale) — rà quy ước 7: mã khác có nơi đọc theo job_id / theo chữ
+(video_gate plate_layout, end_frames dropped_reason, money_policy.note [key]) nên KHÔNG gộp."""
+
+
+def _merge_on() -> bool:
+    try:
+        from . import features
+        return features.on("diag_merge")
+    except Exception:  # noqa: BLE001 - a diagnostic is never lost for a settings problem: the old key
+        return False
+
+
 def _write(conn, stage, severity, msg, code, project_id, scene_id, job_id) -> None:
-    row = conn.execute(
-        "SELECT id FROM diag_events WHERE stage=? AND severity=? AND COALESCE(code,'')=? AND message=?"
-        " AND COALESCE(project_id,0)=? AND (julianday('now') - julianday(last_at)) * 1440 < 10 ORDER BY id DESC LIMIT 1",
-        (stage, severity, code or "", msg, project_id or 0)).fetchone()
+    row = None
+    merged = False
+    if code in MERGE_CODES and scene_id and _merge_on():   # G56: same code + shot + job within a day = one row, newest wording
+        row = conn.execute(
+            "SELECT id FROM diag_events WHERE stage=? AND severity=? AND code=? AND COALESCE(project_id,0)=? AND scene_id=?"
+            " AND COALESCE(job_id,0)=? AND (julianday('now') - julianday(last_at)) * 1440 < ? ORDER BY id DESC LIMIT 1",
+            (stage, severity, code, project_id or 0, scene_id, job_id or 0, MERGE_WINDOW_MIN)).fetchone()
+        merged = row is not None
+    if row is None:
+        row = conn.execute(
+            "SELECT id FROM diag_events WHERE stage=? AND severity=? AND COALESCE(code,'')=? AND message=?"
+            " AND COALESCE(project_id,0)=? AND (julianday('now') - julianday(last_at)) * 1440 < 10 ORDER BY id DESC LIMIT 1",
+            (stage, severity, code or "", msg, project_id or 0)).fetchone()
     now = _now()
-    if row:
+    if row and merged:
+        conn.execute("UPDATE diag_events SET count=count+1, last_at=?, message=? WHERE id=?", (now, msg, row["id"]))
+    elif row:
         conn.execute("UPDATE diag_events SET count=count+1, last_at=? WHERE id=?", (now, row["id"]))
     else:
         conn.execute("INSERT INTO diag_events (at, last_at, stage, severity, code, message, project_id, scene_id, job_id)"

@@ -57,6 +57,17 @@ FEATURES: Dict[str, Dict] = {
     "end_state_fresh": {"fixes_projects": [27], "costs": True, "label": "Sửa end_state: ô sửa ở Bước 1/3 + bản dịch motion_en cũ của trường đã sửa không gửi im lặng (dịch lại qua sổ chi)",
         "verified": False,
         "why": "13/10 #27 lỗi 6: end_state sửa mà motion_en.end_state vẫn là bản dịch cũ → prompt code viết gửi trạng thái cuối cũ, tự duyệt"},
+    "stale_code_alarm": {"label": "Báo Dashboard / vòng nền chạy code cũ ≠ HEAD — kể cả CỔNG KHÁC (8503/8504): sổ cổng + sha, băng vàng, "
+                                  "diag stale_code; chỉ báo, không chặn (0 USD)", "verified": False,
+        "why": "V3.1 M1.7 (G55, #31): Dashboard 8503 chạy core cũ sau cập nhật → FAIL_SOURCE; 20/10 8503/8504 chạy code cũ cả ngày, "
+               "stop_dashboard.ps1 chỉ tắt 8501 (thêm -All). Thử bằng repo giả + pid giả, chưa chạy máy chính"},
+    "diag_merge": {"label": "Gộp chẩn đoán lặp theo (mã, shot) trong 24 giờ — một dòng đếm số lần, giữ câu mới nhất (0 USD)",
+        "verified": False,
+        "why": "V3.1 M1.7 (G56, #31 15–18/10): change_review_hold 4 435 lần, plate_stale 337 lần — câu đổi theo job nên khóa "
+               "'cùng câu trong 10 phút' không gộp được; thử bằng CSDL tạm"},
+    "budget_notice_d01": {"label": "Câu cảnh báo ngân sách theo D01 khi mức dự tính = 0 USD: 'chưa có mức dự tính', không ghi '$0.00' "
+                                   "như trần (vẫn gửi, chỉ cảnh báo)", "verified": False,
+        "why": "V3.1 M1.7 (A14, #33): trích riêng = 0 USD → cảnh báo 'mức dự tính $0.00' lặp lại; D01: không thêm điểm chặn theo ngân sách"},
     "tts_lowercase_caps": {"fixes_projects": [27], "label": "TTS: hạ chữ thường từ tiếng Việt viết IN HOA trước khi gửi (giữ tên/từ game; phụ đề giữ chữ gốc, 0 USD)",
         "verified": False,
         "why": "13/10 #27 lỗi 9: 'BÌNH TĨNH' đọc thành 'bình tỉnh' (đo F0); viết thường thì đúng thanh — mới thử tay 1 câu"},
