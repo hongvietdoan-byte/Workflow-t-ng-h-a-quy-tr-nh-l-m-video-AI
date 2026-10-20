@@ -338,6 +338,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.22 cổng S11.2 ĐẠT: người dùng chấm phiếu 05d (docs/DO_S11_2_Y_TUONG_2026-10-05d.md) TB 4,20 ≥ 4,0, đo thật 0,709 USD; "
                "06/10 người dùng duyệt bật mặc định — dùng khi người dùng yêu cầu hoặc khi kịch bản sơ sài (Claude hỏi trong khung chat, chưa tự chi)",
     },
+    "video_qc_shadow": {
+        "label": "QC video SHADOW (V3.1 M4.2): đo clip đứng yên ≥ 1,5 s, khung 0 khác ảnh đầu, chuyển cảnh chép từ video ref; ghi bằng chứng "
+                 "theo mã M4.1 vào <dự án>/qc_shadow/video_qc.jsonl — KHÔNG đổi điểm QC, không giữ job, không gen lại",
+        "verified": False,
+        "why": "#31 G51 (đơ 6 s, chạy tại chỗ), G28 (khung 0 khác ảnh đầu), #33 B8 (chép chuyển cảnh ref) chỉ người thấy. Ngưỡng chưa "
+               "hiệu chuẩn (benchmark M4.6) → chỉ ghi, chưa chặn. Chưa chạy trên clip thật",
+    },
     "qc_observe_enum": {
         "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",
         "verified": False,

@@ -329,6 +329,8 @@ def _measure_clip(p: Pipeline, job, path: str, data: Dict, first, data_dir: str)
         return None
     if note and isinstance(out.get("lips"), dict):
         out["lips"]["voice_note"] = note
+    from . import video_qc_shadow            # V3.1 M4.2 (cờ video_qc_shadow, TẮT): chỉ ghi bằng chứng, không đổi QC — never raises
+    video_qc_shadow.observe(p.conn, data_dir, job, path, data, picture)
     if out.get("flags"):
         diag.record(p.conn, "video", "warn", "đo clip: " + "; ".join(str(v.get("why")) for v in out.values()
                                                                    if isinstance(v, dict) and v.get("why")),
