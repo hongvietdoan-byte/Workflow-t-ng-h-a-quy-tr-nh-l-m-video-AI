@@ -484,3 +484,39 @@ mã lỗi (devsys/errors.json), cờ TẮT; KHÔNG thêm điểm chặn khi cờ
 M2.8 router theo khả năng model (không gộp nhóm khi cần khung đầu/cuối, …) — theo docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-20.md (M2.8). Cờ TẮT = hành vi gộp nhóm cũ.
 Khi BẬT chỉ đổi cách chia nhóm trước khi gửi (không gọi API trong test; provider giả). Ghi lý do chia nhóm vào sent_package.
 ```
+
+## Việc bổ sung 20/10 23:20 (cloud-C hết việc — không thuộc M2)
+
+#### C-M47A
+```
+M4.7 phần XEM (chỉ đọc, cờ mới TẮT): trên Dashboard Bước 4 (dashboard/steps/step4.py, thẻ clip v2) thêm khung gập "Gói sẽ gửi" — dựng gói bằng ĐÚNG hàm dựng gói của
+nút Gen (không tính tay, không gọi API), hiện thứ tự ref + nhãn + prompt + giá send_estimate nếu cờ đó bật; và khung "QC shadow" đọc kết quả M4.2/M4.3/M4.1
+(video_qc.jsonl, continuity_shadow.json, qc_evidence) của shot. KHÔNG có nút sửa/override (override + bảng overrides = C3-4 chờ). Cờ TẮT = giao diện cũ y nguyên
+(test ui snapshot hiện có xanh). Theo mẫu UI hiện có (dashboard/common.py, D.card).
+```
+
+#### C-M34
+```
+M3.4 continuity_state expected/observed/resolved + đồ thị phụ thuộc theo docs/V3_1_M3_THIET_KE_WORLD_MAP_2026-10-20.md (M3.4), chế độ SHADOW: tính trạng thái
+mong đợi giữa các shot liền (vật cầm, trang phục, vị trí, hướng) từ BYĐ (shot_intent) + kết quả quan sát QC shadow (M4.2/M4.3) → ghi file/ bảng tạm, mức REVIEW,
+không chặn. Cờ mới TẮT. Không đụng core/continuity_shadow.py ngoài việc đọc (C-FIX-THAP-1 vừa sửa). Test chuỗi 3 shot giả: vật mất / đổi tay / giữ đúng.
+```
+
+#### C-M32
+```
+M3.2 người nộm height_m trong whitebox + pitch eye / slightly_high (offline, G2-4) theo docs/V3_1_M3_THIET_KE_WORLD_MAP_2026-10-20.md (M3.2) và
+docs/PHUONG_PHAP_SAN_KHAU_3D.md: hàm hình học thuần (tính chiều cao người nộm theo hồ sơ nhân vật, góc pitch máy từ độ cao mắt / hơi cao) + chỗ Blender script
+đọc giá trị đó (không chạy Blender trong test — test hàm thuần + kiểm script nhận tham số). Cờ mới TẮT = whitebox cũ.
+```
+
+#### DP11
+```
+M3.3 câu vị trí sinh từ world map (thay tả tay từng shot, G41–G50) theo thiết kế M3 — BẮT ĐẦU KHI DP8 (M3.1 world map) GỘP. Chỉ sinh câu đề xuất + so với câu
+hiện tại (REVIEW), cờ TẮT, không đổi prompt gửi đi khi cờ TẮT.
+```
+
+#### DP12
+```
+M5.3 pilot vòng A OFFLINE (0 USD) theo docs/V3_1_M0_11_PILOT_3_VONG_2026-10-20.md (vòng A): khung chạy 5 nhóm ca (payload, continuity, QC, lineage, phục hồi)
+trên fixture golden — BẮT ĐẦU KHI CX20-2b GỘP. Tiêu chí đạt/rớt đo được; không VERIFIED khi chỉ offline. Ca cần dữ liệu thật: ghi danh sách để máy chính chụp.
+```
