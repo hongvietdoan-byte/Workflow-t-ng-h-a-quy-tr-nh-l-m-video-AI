@@ -1306,3 +1306,64 @@ không xóa asset thật.
 ## Kết quả Codex — đợt 19
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+---
+
+# ĐỢT 20 — V3.1 M1 (Cấp 2 ĐÃ DUYỆT): làm LIÊN TỤC 6 việc (người dùng 20/10: "gom giao số lượng task cho codex làm liên tục")
+
+**Quyền:** người dùng duyệt gói Cấp 2 G2-2 (M1) ngày 20/10 — sổ `data/decisions.json` id `v31-cap2-milestone-packages-approved-2026-10-20`, Cấp 3 từng mục
+`v31-cap3-items-decided-2026-10-20`; bảng `docs/V3_1_GOI_DUYET_CAP2_CAP3_2026-10-20.md` mục C. Được viết code + test offline trong phạm vi việc dưới.
+KHÔNG làm Cấp 3: không migration CSDL thật, không bật cờ trên máy chính, không gọi API trả phí, KHÔNG xóa asset ClipAI, không đổi bảng giá `data/pricing.json`.
+**Làm liên tục:** Việc 1 → 6 theo thứ tự, không chờ phiên Claude rà giữa chừng. Việc có điều kiện "BẮT ĐẦU KHI" chưa đủ → làm việc kế, quay lại sau
+(`git fetch` kiểm lại). Mỗi việc: nhánh `codex/d20-viec<N>-<tên>` từ `origin/main` MỚI NHẤT; test ĐỎ trước XANH sau (ghi tên test); cờ mới TẮT mặc định
+(mẫu `core/features.py`) khi đổi hành vi đường gửi / Dashboard; cờ TẮT = hành vi cũ; file mã mới khai `devsys/areas.json` (KHÔNG tăng version); báo cáo
+`docs/RA_D20_VIEC<N>_CODEX_2026-10-2x.md` (việc · nhánh · commit · test đỏ→xanh · cờ · việc mở) + ghi một dòng ở "Kết quả Codex — đợt 20" cuối file.
+**KHÔNG sửa (phiên Claude đang làm):** `core/llm_runner.py` (M1.4b), `core/qc_observe.py`, `core/shot_intent.py`; `core/runner.py` + `core/bg_poll.py` + đường
+claim/poll trong `core/db.py` cho tới khi `main` có commit "Gộp V3.1 M1.2" (nhánh `claude/v31-m12-m13`). Không đọc/ghi `data/projects/`, `data/manifest.sqlite`
+thật (dùng fixture / CSDL tạm). Không sửa `TODO.md` / kế hoạch. Không push `main`.
+**Tự kiểm trước báo cáo:** test bị nới để che lỗi; đường dẫn tương đối / phụ thuộc thư mục chạy; chặn mới làm vỡ luồng tự động / hàng loạt (autopilot,
+bg_poll, tải lô); bật mặc định đổi hành vi; so chữ bỏ dấu khớp nhầm từ ngắn; lời gọi tốn tiền khi chưa đồng ý.
+
+## Việc 1 — M1.8 `tools/project_error_report.py` (chỉ đọc)
+Gom `diag_events` + `jobs` + `job_events` (+ `usage_events`) của một dự án (`--project N`, CSDL `mode=ro` hoặc `--db` bản sao) thành bảng đề xuất mục sổ lỗi cuối
+dự án: nhóm theo mã diag / lỗi job / chuyển trạng thái lạ (vd `InvalidTransition`), lần đầu / lần cuối, số lần, job / shot liên quan, tiền đã chi cho job hỏng,
+gợi ý mã sổ lỗi (G/A/B nếu khớp nguồn `docs/DANH_GIA_*`), dạng markdown + `--json` hợp schema đặc tả sổ lỗi (kế hoạch V3.1 "**Sổ lỗi (WS0):**").
+KHÔNG ghi gì vào CSDL / sổ. Test: CSDL tạm dựng từ fixture (2 lỗi trùng mã, 1 job succeeded 2 lần, 1 job hỏng có tiền) → bảng đúng; CSDL thiếu bảng → báo rõ.
+
+## Việc 2 — M1.9a golden B0–B2: công cụ chụp + khung so sánh (D08; chụp DỮ LIỆU THẬT là việc phiên Claude ở máy chính)
+`tools/golden_capture.py` (chỉ đọc, `mode=ro` / `--db`): với dự án + shot chỉ định, ghi fixture JSON gồm HEAD SHA, cờ đang bật, schema version, model / provider,
+payload gửi (ảnh + video: `sent_package`, prompt, thứ tự ref, hash từng file ref), tier; theo quyết định `v31-d08-fixture-capture-readonly-2026-10-20` (đang chạy job
+→ cảnh báo, đề xuất snapshot). `tests/golden/` + `tests/test_golden_replay.py`: dựng lại payload bằng code hiện tại từ fixture và so (a) COMPAT: cờ TẮT phải
+giống TỪNG BYTE, (b) CORRECTNESS tách riêng (golden ≠ đúng). Test bằng fixture tổng hợp nhỏ (không lấy dữ liệu thật); thêm ca lệch 1 byte → đỏ, ca thiếu
+trường → báo rõ. Mô tả trong báo cáo: lệnh phiên Claude cần chạy để chụp #24/#27 (compat) và #31/#33 (correctness).
+
+## Việc 3 — M1.6 ước tính giá đúng gói gửi (A7–A9, G31; KHÔNG đổi bảng giá)
+Đọc `docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md` mục 5 + báo cáo Đ19 việc 2 (`tools/clipai_cost_reconcile.py`). Sửa ước tính (`core/cost.py`, `core/spend_gate.py`
+phần ước tính, `tools/pregen_check.py`): tier nháp, phụ phí ref (video input), bước nâng 1080p (`draft_task`), `claude_cli` = 0 USD API, và **`pregen_check` in giá
+VIDEO** (hiện chỉ ảnh). Ước tính dùng đúng gói sẽ gửi (cùng hàm dựng gói của nút Gen), không tính tay. Test: 3 ca mẫu mục 5 (nháp 480p, nâng 1080p, có video input)
+→ lệch ≤ 10 % so số thật ghi trong tài liệu (ghi rõ số điểm hiệu chuẩn); `check_no_budget_lock_gate` vẫn xanh (D01: 0 điểm chặn mới theo ngân sách).
+
+## Việc 4 — M1.7 Dashboard báo chạy code cũ (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01)
+Nguồn lỗi: grep "| G55 |", "| G56 |", "| G39 |" trong `docs/DANH_GIA_*.md`, "| A14 |" trong `docs/DANH_GIA_P33_LOI_GAP_PHAI_2026-10-20.md`. G55: Dashboard / tiến
+trình nền so HEAD lúc khởi động với HEAD repo → banner "đang chạy code cũ, khởi động lại". G56: diag cùng mã + cùng nội dung trong cửa sổ thời gian → gộp đếm.
+G39: tạo lại (regen) kiểm `data_dir` đúng dự án trước khi ghi. A14: câu báo ngân sách theo D01 (chỉ cảnh báo, có số). Không đụng `core/runner.py` / `core/bg_poll.py`
+trước khi M1.2 gộp — cần thì ghi vào việc mở. Test cho từng mã.
+
+## Việc 5 — M1.5 Kho chủ thể: triển khai theo thiết kế Đ19 việc 4 — CHỈ DRY-RUN xóa (C3-3)
+BẮT ĐẦU KHI: `main` có commit "Gộp V3.1 M1.2" (đụng `core/runner.py` ~1657 trước `picture_refs`). Theo `docs/V3_1_M1_5_THIET_KE_KHO_CHU_THE_2026-10-2x.md`
+(nhánh `codex/d19-viec4-subjects` — dùng bản đã gộp main nếu có) + `docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md` mục 3.2–3.3: `core/subjects.capacity`,
+`auto_clean_candidates`, preflight trước gửi video (thiếu chỗ → job CHỜ có lý do + cách xử lý; không gửi ảnh đánh dấu; KHÔNG lùi Kling vì Kho đầy; không xác
+định được sức chứa → VÀNG, không im lặng), sửa G59 (luồng nền nạp cấu hình như Dashboard). Cờ mới TẮT. **Xóa asset: chỉ dry-run** — `tools/subject_cleanup.py`
+mặc định in danh sách + dependency (job / dự án / nhân vật tham chiếu) + lý do; KHÔNG cài đường tự xóa trong luồng nền / preflight; nếu có hàm xóa thì chỉ chạy
+bằng cờ dòng lệnh + file danh sách đã được người dùng duyệt, và test chứng minh mặc định không gọi DELETE. Test theo mục 3.3 (provider giả: 100/100, 5 khung bị
+loại + 3 asset cất 4 ngày + 2 cất 1 ngày + 1 dùng chung → dry-run liệt kê đúng 8, giữ 3; Kho đầy → job chờ, 0 job Kling lùi; list lỗi mạng → VÀNG, 0 xóa).
+
+## Việc 6 — AI Dev System: trang "Sổ lỗi" (đọc `devsys/errors.json`)
+BẮT ĐẦU KHI: `main` có `devsys/errors.json` + `devsys/errors.py` (việc cloud C-M04-05, nhánh `cloud/v31-m04-m05`). Trang devsys liệt kê sổ lỗi: lọc theo trạng
+thái / workstream / dự án, đếm coverage, cảnh báo đỏ mục `problems()` (VERIFIED thiếu bằng chứng…); nối trang 🗺 Sơ đồ tiến độ (`devsys/plan_map.py`) để tô khâu
+theo lỗi mở. Theo mẫu trang hiện có trong `devsys/app.py`; cập nhật `tests/test_tickets_page.py` danh sách điều hướng nếu thêm trang. Test hiển thị theo cách
+test trang devsys hiện có.
+
+## Kết quả Codex — đợt 20
+
+(Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
