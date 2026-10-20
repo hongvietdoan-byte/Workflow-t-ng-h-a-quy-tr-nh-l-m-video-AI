@@ -179,10 +179,24 @@ class JobClients:
         self.conn, self.ledger, self._by = conn, ledger, {}
 
     def for_job(self, job):
-        kind, _ = job_provider(self.conn, job)
+        kind, why = job_provider(self.conn, job)
         if kind not in self._by:
             self._by[kind] = client_for_job(self.conn, job, ledger=self.ledger)
+        if self._by[kind] is None:               # rà C-RA-M14B: nói rõ (mã config = dừng lượt), không đưa None cho nơi gọi rồi hỏng từng job
+            from .llm_runner import LlmError, missing_hint
+            raise LlmError(f"không dựng được Claude cho job {job if not hasattr(job, 'keys') else job['id']}: "
+                           + (why if kind is None else missing_hint()), code="config")
         return self._by[kind]
+
+    def or_default(self, default):
+        """job_id → Claude của job: ảnh chụp lúc tạo nếu có, không thì `default` (client dự án / ngữ cảnh đang chạy — job cũ NULL như
+        trước M1.4b). Dùng cho QC hàng loạt (rà C-RA-M14B)."""
+        def pick(job):
+            row = job if hasattr(job, "keys") else self.conn.execute("SELECT * FROM jobs WHERE id=?", (int(job),)).fetchone()
+            if row is None or "llm_provider" not in row.keys() or not row["llm_provider"]:
+                return default
+            return self.for_job(row)
+        return pick
 
 
 def missing_hint_for(conn, project_id: Optional[int]) -> str:
@@ -194,7 +208,12 @@ def missing_hint_for(conn, project_id: Optional[int]) -> str:
 
 
 # ---- hết lượt / hết tiền: dừng có giờ mở lại ------------------------------------------------------------------------------------
-_RESET = re.compile(r"resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?(?:\s*\(([A-Za-z_]+/[A-Za-z_]+)\))?", re.I)
+# rà C-RA-M14B: "resets Oct 21, 4am" (giới hạn tuần) cũng đọc giờ — ngày bị bỏ qua: mở lại sớm hơn chỉ tốn MỘT lời gọi thử (0 USD API)
+_RESET = re.compile(r"resets?\s+(?:at\s+)?(?:[A-Za-z]{3,9}\.?\s+\d{1,2},?\s+(?:at\s+)?)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?"
+                    r"(?:\s*\(([A-Za-z_]+/[A-Za-z_]+)\))?", re.I)
+# rà C-RA-M14B (CAO-1): không đọc được giờ mở lại → trước đây dừng VĨNH VIỄN (không nơi nào mở lại). Nay: sau PROBE_MINUTES cho đi MỘT lời
+# gọi thử (claude_cli = 0 USD API); còn hết lượt thì CLI báo lại và dấu dừng ghi lại. Người có quyền mở lại ngay ở 💵 Tiền (dashboard/header).
+PROBE_MINUTES = 60
 
 
 def reset_at(message: str, now: Optional[datetime] = None) -> Optional[str]:
@@ -253,21 +272,31 @@ def quota_reopen(conn, provider: str) -> None:
         _save_quota(conn, data)
 
 
+def quota_all(conn) -> Dict:
+    """{provider: dấu dừng} đang ghi (kể cả đã qua giờ mở mà chưa ai gọi lại) — cho thẻ 💵 Tiền hiện + nút mở lại."""
+    return _quota(conn)
+
+
 def quota_halted(conn, provider: str, now: Optional[datetime] = None) -> Optional[Tuple[str, str]]:
     """(mã, lý do có giờ mở) khi provider đang dừng; qua giờ mở lại → tự mở (xóa dấu dừng) và trả None."""
     rec = _quota(conn).get(provider)
     if not rec:
         return None
     now = now or datetime.now(timezone.utc)
+    vn = timezone(timedelta(hours=7))
+    try:
+        until = datetime.fromisoformat(rec["reset_at"]) if rec.get("reset_at") else \
+            datetime.fromisoformat(rec["at"]) + timedelta(minutes=PROBE_MINUTES)
+    except (KeyError, TypeError, ValueError):
+        until = None                             # dấu dừng hỏng: vẫn dừng, người mở lại tay
+    if until is not None and now >= until:
+        quota_reopen(conn, provider)
+        return None
     if rec.get("reset_at"):
-        try:
-            if now >= datetime.fromisoformat(rec["reset_at"]):
-                quota_reopen(conn, provider)
-                return None
-        except ValueError:
-            pass
-    opens = (f"mở lại lúc {datetime.fromisoformat(rec['reset_at']).astimezone(timezone(timedelta(hours=7))):%d/%m %H:%M} (giờ VN)"
-             if rec.get("reset_at") else "chưa đọc được giờ mở lại — người mở lại trong ⚙ khi gói / tài khoản dùng được")
+        opens = f"mở lại lúc {until.astimezone(vn):%d/%m %H:%M} (giờ VN)"
+    else:
+        opens = ("chưa đọc được giờ mở lại — " + (f"tự thử lại 1 lời gọi lúc {until.astimezone(vn):%d/%m %H:%M} (giờ VN), " if until else "")
+                 + "hoặc người có quyền mở lại ở 💵 Tiền khi gói / tài khoản dùng được")
     what = "hết lượt gói" if rec["code"] == "usage_limit" else "hết tiền"
     return rec["code"], (f"⛔ Claude ({provider}) {what} từ {rec['at']} — đã dừng mọi lời gọi tới provider này, KHÔNG tự chuyển sang "
                          f"provider khác; {opens}. Lời gốc: {rec['message'][:160]}")

@@ -965,15 +965,16 @@ def _no_feet_in_frame(shot: Dict, obj: Dict) -> None:
     obj["issues"] = [s for s in parts if not _FEET.search(s)]
 
 
-def run_qc_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
-    """QC every generated image that has not been scored yet (state 'succeeded')."""
+def run_qc_batch(p: Pipeline, project_id: int, client, data_dir: str, client_for_job=None) -> Dict:
+    """QC every generated image that has not been scored yet (state 'succeeded'). client_for_job(job_id) (V3.1 M1.4b, rà C-RA-M14B):
+    each picture by the Claude its job was created with (core.llm_provider.JobClients) — without it, `client` for all."""
     access.need_edit(p, project_id, "chạy QC hàng loạt")
     jobs = p.conn.execute("SELECT id FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'"
                           " ORDER BY id", (project_id,)).fetchall()
     summary: Dict[str, Any] = {"checked": 0, "failed": [], "decisions": {}, "input_tokens": 0, "output_tokens": 0}
     for j in jobs:
         try:
-            r = run_qc(p, j["id"], client, data_dir)
+            r = run_qc(p, j["id"], client_for_job(j["id"]) if client_for_job is not None else client, data_dir)
         except LlmError as e:
             summary["failed"].append((j["id"], fail_text(e)))
             if e.code in STOP_CODES:          # V3.1 M1.4a: the next picture fails the same way (limit / no credit / login / network)

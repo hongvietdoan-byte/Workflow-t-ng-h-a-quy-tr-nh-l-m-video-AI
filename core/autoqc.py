@@ -102,6 +102,7 @@ def can_run(conn, project_id: int, client_factory: Optional[Callable] = None) ->
 def start(db_path: str, data_dir: str, project_id: int, client_factory: Optional[Callable] = None) -> bool:
     """Start checking this project's unchecked pictures in the background. True if a check was started."""
     conn = connect(db_path)
+    per_job = client_factory is None             # rà C-RA-M14B: như video — mỗi ảnh chấm bằng provider chụp lúc tạo job của nó
     client_factory = client_factory or llm_provider.project_factory(db_path, project_id)   # V3.1 M1.4b: Claude của dự án → sổ chi
     try:
         with _lock:
@@ -110,7 +111,8 @@ def start(db_path: str, data_dir: str, project_id: int, client_factory: Optional
             _active.add(project_id)
     finally:
         conn.close()
-    threading.Thread(target=_work, args=(db_path, data_dir, project_id, client_factory), daemon=True, name=f"autoqc-{project_id}").start()
+    threading.Thread(target=_work, args=(db_path, data_dir, project_id, client_factory, per_job), daemon=True,
+                     name=f"autoqc-{project_id}").start()
     return True
 
 
@@ -119,15 +121,16 @@ def _fail(conn, project_id: int, message: str) -> None:
     diag.record(conn, "qc", "warn", f"tự kiểm tra ảnh dừng: {message}", "autoqc", project_id)
 
 
-def _work(db_path: str, data_dir: str, project_id: int, client_factory: Callable) -> None:
+def _work(db_path: str, data_dir: str, project_id: int, client_factory: Callable, per_job: bool = False) -> None:
     conn = None
     try:
         conn = connect(db_path)
         p = Pipeline(conn)
         client = client_factory()
         if client is None:
-            _fail(conn, project_id, "chưa có Claude: " + llm_runner.missing_hint())
+            _fail(conn, project_id, "chưa có Claude: " + llm_provider.missing_hint_for(conn, project_id))
             return
+        jobs = llm_provider.JobClients(conn, db_path).or_default(client) if per_job else None
         from . import qc_scene
         if qc_scene.active():                              # QC per script scene (one call per scene once all its frames exist)
             r = qc_scene.run_ready_scenes(p, project_id, client, data_dir)
@@ -141,7 +144,7 @@ def _work(db_path: str, data_dir: str, project_id: int, client_factory: Callable
                 break
             autofix = bool(p.project(project_id)["qc_autofix"])
             try:
-                llm_runner.run_qc(p, row["id"], client, data_dir, autofix=autofix)
+                llm_runner.run_qc(p, row["id"], jobs(row["id"]) if jobs is not None else client, data_dir, autofix=autofix)
             except llm_runner.LlmError as e:
                 if e.code in llm_runner.STOP_CODES:      # V3.1 M1.4a: + usage_limit / out_of_credit
                     _fail(conn, project_id, str(e))
@@ -212,13 +215,13 @@ def _video_work(db_path: str, data_dir: str, project_id: int, client_factory: Ca
         conn = connect(db_path)
         p = Pipeline(conn)
         client = client_factory()
-        jobs = llm_provider.JobClients(conn, db_path) if per_job else None
+        jobs = llm_provider.JobClients(conn, db_path).or_default(client) if per_job else None
         for _ in range(200):
             todo = claude_tasks.unchecked_videos(p, project_id)
             if not todo or client is None:
                 break
             try:
-                claude_tasks.qc_video(p, todo[0], jobs.for_job(todo[0]) if jobs is not None else client, data_dir)
+                claude_tasks.qc_video(p, todo[0], jobs(todo[0]) if jobs is not None else client, data_dir)
             except llm_runner.LlmError as e:
                 if e.code in llm_runner.STOP_CODES:      # V3.1 M1.4a: + usage_limit / out_of_credit
                     _video_errors[project_id] = (str(e), time.time())

@@ -469,12 +469,13 @@ def _images_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
             _log(p, pid, "QC Claude theo cảnh đang tắt — khung mới của cảnh " + ", ".join(map(str, r["waiting"])) + " chờ người duyệt")
         if r["failed"]:
             _log(p, pid, f"QC cảnh lỗi ở cảnh {r['failed'][0][0]}: {r['failed'][0][1]}")
-            _stop_if_claude_blocked([(s, m) for s, m in r["failed"]])
+            _stop_if_claude_blocked([(s, m) for s, m in r["failed"]], p.conn)
     elif _count(p, "SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'", pid):
-        r = llm_runner.run_qc_batch(p, pid, ctx.llm, ctx.data_dir)
+        from . import llm_provider            # rà C-RA-M14B: mỗi ảnh chấm bằng Claude chụp lúc tạo job (job cũ NULL → ctx.llm như trước)
+        r = llm_runner.run_qc_batch(p, pid, ctx.llm, ctx.data_dir, client_for_job=llm_provider.JobClients(p.conn).or_default(ctx.llm))
         if r["failed"]:
             _log(p, pid, f"QC lỗi ở {len(r['failed'])} ảnh: {r['failed'][0][1]}")
-            _stop_if_claude_blocked(r["failed"])
+            _stop_if_claude_blocked(r["failed"], p.conn)
     held = _approve_unflagged(p, pid, "image_gen")         # W15: a picture below a floor waits for the person (storyboard)
     if pilot.active(p, pid):
         if pilot.done(p, pid):
@@ -521,7 +522,19 @@ _LOGIN_CODES = ("auth", "config")
 _LIMIT_CODES = ("usage_limit", "rate_limit")
 
 
-def _stop_if_claude_blocked(failed) -> None:
+def _quota_note(conn) -> str:
+    """rà C-RA-M14B: lý do + giờ mở lại của Claude đang dừng (core.llm_provider) — câu cắt 80 ký tự cuối từng làm mất giờ mở."""
+    if conn is None:
+        return ""
+    from . import llm_provider
+    try:
+        stops = [llm_provider.quota_halted(conn, k) for k in llm_provider.quota_all(conn)]
+    except Exception:  # noqa: BLE001 - an old database without app_settings: the short note below stays
+        return ""
+    return " · ".join(s[1] for s in stops if s)
+
+
+def _stop_if_claude_blocked(failed, conn=None) -> None:
     """Claude cannot answer at all (login refused / not set up, the plan's usage limit reached, out of credit, a ledger that cannot
     be written): stop with a clear note instead of asking it again on every tick (a real run asked 1,500+ times while the limit lasted). Resume once
     Claude is available again. Read from LlmError.code (the failed texts are llm_runner.FailText) — never from words in the text
@@ -532,10 +545,13 @@ def _stop_if_claude_blocked(failed) -> None:
         raise _Stop("Claude từ chối đăng nhập / khóa API hoặc chưa cấu hình (" + hit[-80:] + ")")
     hit = next((m for c, m in coded if c in _LIMIT_CODES), None)
     if hit:
-        raise _Stop("Claude đã hết hạn mức sử dụng — bấm Tiếp tục khi hạn mức được làm mới (" + hit[-80:] + ")")
+        quota = _quota_note(conn)
+        raise _Stop("Claude đã hết hạn mức sử dụng — bấm Tiếp tục khi hạn mức được làm mới (" + (quota or hit[-80:]) + ")")
     hit = next((m for c, m in coded if c == "out_of_credit"), None)
     if hit:
-        raise _Stop("Hết tiền trên tài khoản Anthropic — nạp thêm rồi mở lại ở ⚙ → 💵 Ngân sách, bấm Tiếp tục (" + hit[-120:] + ")")
+        quota = _quota_note(conn)              # claude_cli hết tiền ghi ở llm_quota — không phải tài khoản Anthropic API
+        raise _Stop(("Claude hết tiền / hết gói (" + quota + ") — bấm Tiếp tục khi dùng được") if quota else
+                    ("Hết tiền trên tài khoản Anthropic — nạp thêm rồi mở lại ở ⚙ → 💵 Ngân sách, bấm Tiếp tục (" + hit[-120:] + ")"))
     hit = next((m for c, m in coded if c == "ledger"), None)
     if hit:                                   # paid Claude calls could not be written down: every next call is refused until fixed
         raise _Stop("Không ghi được sổ chi Claude — kiểm tra CSDL, mở lại Dashboard rồi bấm Tiếp tục (" + hit[-120:] + ")")
@@ -653,7 +669,7 @@ def _stage_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     try:
         r = stage_auto.run(p.conn, pid, ctx.data_dir, client=ctx.llm, log=lambda m: _log(p, pid, m))
     except llm_runner.LlmError as e:
-        _stop_if_claude_blocked([(None, e)])
+        _stop_if_claude_blocked([(None, e)], p.conn)
         _d(p, pid, "director", "error", f"sân khấu 3D tự động lỗi Claude: {e}", stage_auto.CODE)
         raise _Wait("plates", f"Sân khấu 3D tự động chưa chạy được (Claude: {str(e)[:160]}) — xử lý rồi bấm Tiếp tục để thử lại, hoặc tắt "
                               "cờ stage_auto để nền 3D dùng máy thường")
@@ -1175,10 +1191,11 @@ def _videos_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     ctx.video_runner.poll_once(pid)
     _retry_or_hold(p, pid, "video_gen")
     if claude_tasks.unchecked_videos(p, pid):
-        r = claude_tasks.qc_video_batch(p, pid, ctx.llm, ctx.data_dir)
+        from . import llm_provider            # rà C-RA-M14B: như ảnh — Claude chụp lúc tạo job của clip
+        r = claude_tasks.qc_video_batch(p, pid, ctx.llm, ctx.data_dir, client_for_job=llm_provider.JobClients(p.conn).or_default(ctx.llm))
         if r["failed"]:
             _log(p, pid, f"QC video lỗi ở {len(r['failed'])} clip: {r['failed'][0][1][:120]}")
-            _stop_if_claude_blocked(r["failed"])
+            _stop_if_claude_blocked(r["failed"], p.conn)
     from . import hero_takes                                # S0.14 T4: a ⭐ shot gets a second take to choose from (flag hero_takes)
     for line in hero_takes.step(p, pid, ctx.data_dir, lambda sid: _hero_block(p, pid, sid)):
         _log(p, pid, line)

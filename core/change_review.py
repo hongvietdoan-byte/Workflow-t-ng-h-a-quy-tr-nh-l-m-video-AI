@@ -381,6 +381,7 @@ def claude_review(conn, ev, keys, scene_ids, code_found, client) -> float:
     return usd
 
 
+QUOTA_CODES = ("usage_limit", "out_of_credit")   # rà C-RA-M14B: lỗi của TÀI KHOẢN Claude, không phải của thay đổi — dừng lượt
 ROUND_LIMIT = 5             # thay đổi mỗi lượt vòng nền (agent rà 10/10 lỗi 7: 20 × lời gọi 10–30 s làm nghẽn tải / gửi job)
 ROUND_SECONDS = 90.0
 
@@ -467,6 +468,12 @@ def _review_group(conn, data_dir: str, ev, ids: List[int], client, res: Dict) ->
         res["reviewed"] += len(ids)
         res["usd"] += usd
     except Exception as e:  # noqa: BLE001 - one change's problem never stops the others (said)
+        if getattr(e, "code", None) in QUOTA_CODES:   # rà C-RA-M14B: hết lượt / hết tiền — không phải lỗi của thay đổi này: luật code đã
+            conn.execute(f"UPDATE change_events SET state='code_only', reviewed_at=? WHERE {mark} AND state='pending'",   # chạy → như
+                         (_now(), *ids))      # 'không có Claude' (code_only, Claude rà lại khi có), không 'failed'; dừng cả lượt
+            conn.commit()
+            res["halted"] = str(e)
+            return
         conn.execute(f"UPDATE change_events SET state='failed', note=?, reviewed_at=? WHERE {mark}",
                      (f"{type(e).__name__}: {e}"[:400], _now(), *ids))
         diag.record(conn, "system", "warn", f"Rà soát thay đổi #{ev['id']} lỗi: {type(e).__name__}: {e}", "change_review_fail",
@@ -496,6 +503,10 @@ def process_pending(conn, data_dir: str, client=None, limit: int = ROUND_LIMIT, 
         if time.time() - t0 > budget_s:
             break
         _review_group(conn, data_dir, ev, ids, client_for(ev["project_id"]) if client_for is not None else client, res)
+        if res.get("halted"):                    # mọi thay đổi sau cũng gặp đúng lỗi này: chờ giờ mở lại, các thay đổi giữ 'pending'
+            diag.record(conn, "system", "warn", "Tổ rà soát tác động dừng lượt — Claude: " + res["halted"][:300], "change_review_halt",
+                        ev["project_id"])
+            break
     conn.execute("DELETE FROM change_events WHERE state<>'pending' AND reviewed_at < ?",
                  (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - KEEP_DAYS * 86400)),))
     conn.commit()
