@@ -83,10 +83,10 @@ push lên main, rồi báo người dùng mã việc để dán vào phiên clou
 ### Việc V3.1 cho cloud (giao 20/10)
 | Mã | Việc | Nhánh | Trạng thái |
 |---|---|---|---|
-| C-M06-07 | M0.6 bảng AS-IS/TO-BE + M0.7 ma trận test (chỉ tài liệu) | `cloud/v31-m06-m07` | CHỜ dán (tài khoản cloud khác) — phiên cloud tài khoản chính hỏng 20/10 |
-| C-M010 | M0.10 đặc tả AUTO/USER_LOCKED/REVIEW_REQUIRED + audit đường ghi (chỉ tài liệu) | `cloud/v31-m010` | CHỜ dán (tài khoản cloud khác) |
-| C-M09 | M0.9 thiết kế Kho forms/outfit/hair/face + provenance (chỉ tài liệu) | `cloud/v31-m09` | CHỜ dán (tài khoản cloud khác) |
-| C-M011 | M0.11 test plan + tiêu chí 3 vòng pilot + dự toán B/C (chỉ tài liệu) | `cloud/v31-m011` | CHỜ dán (tài khoản cloud khác) |
+| C-M06-07 | M0.6 bảng AS-IS/TO-BE + M0.7 ma trận test (chỉ tài liệu) | `cloud/v31-m06-m07` | ĐANG LÀM — cùng phiên cloud tài khoản khác, sau 3 việc kia (20/10) |
+| C-M010 | M0.10 đặc tả AUTO/USER_LOCKED/REVIEW_REQUIRED + audit đường ghi (chỉ tài liệu) | `cloud/v31-m010` | ĐANG LÀM — đã push; người dùng chốt câu mở 20/10 |
+| C-M09 | M0.9 thiết kế Kho forms/outfit/hair/face + provenance (chỉ tài liệu) | `cloud/v31-m09` | ĐANG LÀM — đã push; người dùng chốt câu mở 20/10 |
+| C-M011 | M0.11 test plan + tiêu chí 3 vòng pilot + dự toán B/C (chỉ tài liệu) | `cloud/v31-m011` | ĐANG LÀM — đã push; người dùng chốt câu mở 20/10 |
 
 (20/10: 2 phiên `start_session target:"cloud"` tài khoản chính HỎNG khi khởi động — clone nhánh worktree chưa push + API error; M1.4a chuyển phiên con máy chính. 3 việc C-M010, C-M09, C-M011 độc lập, dán được song song 3 phiên.)
 
