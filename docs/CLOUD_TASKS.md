@@ -406,3 +406,21 @@ Theo docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-20.md (mục M2.6, M2.9, M2.4) + thi�
 M2.9 nghiệm thu = tests/test_narration_regression.py: ca G15/G16/G17/G53 hết xfail (gỡ dấu xfail đúng ca đã sửa; strict=True làm ca chưa sửa vẫn bắt).
 M2.4 dùng write guard ở chế độ shadow nếu M2.5 chưa có (không chặn). Mỗi việc: golden compat #24/#27 cờ TẮT = byte; cờ mới TẮT; nhánh cloud/v31-m26 / m29 / m24.
 ```
+
+#### C-FIX-M16-17 (cloud-C — ưu tiên NGAY sau việc đang làm; M1)
+```
+Sửa lỗi rà kỹ của phiên chính trên 2 nhánh (phiên chính gộp cả hai vào main khi cờ TẮT — tách nhánh sửa từ origin/main MỚI NHẤT; nếu main chưa có thì
+merge origin/cloud/v31-m16 + origin/cloud/v31-m17 trước). Mỗi lỗi test ĐỎ→XANH; chạy tests/test_v31_m16_send_estimate.py, tests/test_v31_m17_ops_notices.py,
+test check_no_budget_lock_gate.
+M16 (cờ send_estimate): CAO core/cost.py:389 send_clip_usd tính tier qua batch._draft_tier không có parent_job_id → job gen lại / thử lại kế thừa bậc cha
+(core/quality_tier.py:343–356, core/pipeline.py:395) bị báo giá nháp 480p (~1,15 USD) thay vì bước nâng 1080p (~6,36 USD): thêm parent_job_id cho clip_estimate
+và send_clip_usd (tier = quality_tier.tier_for_new_job(conn, sid, parent); final → upgrade_price(ratio, sec, upgrade_input_seconds(...))), các caller step4
+(:312 "↻ Gen lại clip này", :219/:233 thử lại) truyền job id. Test: job final + cờ BẬT → clip_estimate(..., parent_job_id=final) ≥ upgrade_price.
+VỪA tools/pregen_check.py (~139–154): nạp LLM_PROVIDER từ dashboard.env (không phải secret) hoặc --llm-provider; in "Claude tính theo LLM_PROVIDER=X".
+THẤP dashboard/model_line.py:83 dùng chung send_clip_usd / sàn bảng giá; THẤP core/cost.py:648 thêm claude_free() vào khóa _memo.
+M17 (cờ stale_code_alarm): VỪA core/code_version.py:156/:164 so sha HEAD → mọi commit (kể cả TODO.md / hộp thư) báo "code cũ" giả: ghi dấu vân tay
+core/ + dashboard/ (hash các .py) lúc khởi động, chỉ báo khi khác. Test: commit chỉ đổi TODO.md → stale_instances() rỗng, self_stale() None.
+THẤP tools/stop_dashboard.ps1:12 chỉ in pid + cổng (không in CommandLine — có thể lộ token), -All lọc theo thư mục repo hiện tại; THẤP core/diag.py:236 plate_stale
+thêm item/plate vào khóa gộp hoặc giữ at đầu + last_at; THẤP core/code_version.py:107 bỏ bản ghi pid chết / so thời điểm tạo tiến trình.
+Báo cáo docs/RA_CLOUD_FIX_M16_17_2026-10-2x.md + XONG hộp thư (ghi tên nhánh thật anh push được).
+```
