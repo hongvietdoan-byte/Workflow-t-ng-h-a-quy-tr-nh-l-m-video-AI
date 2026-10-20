@@ -1366,4 +1366,6 @@ test trang devsys hiện có.
 
 ## Kết quả Codex — đợt 20
 
+- Việc 2 · `codex/d20-viec2-golden` · tranche capture/validation, 17 test synthetic xanh sau rà độc lập (2 P2 đã sửa) từ SCHEMA thật; M1.9a **OPEN**, chưa current-builder/end-to-end replay; báo cáo `docs/RA_D20_VIEC2_CODEX_2026-10-20.md` (commit xem HEAD nhánh).
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)

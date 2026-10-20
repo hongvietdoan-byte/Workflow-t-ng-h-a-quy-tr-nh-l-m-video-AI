@@ -1,5 +1,7 @@
 # Bộ ca hồi quy (`tests/golden/`)
 
+Đ20 M1.9a: fixture chụp sổ gói gửi là định dạng riêng `fixture_version=1` từ `tools/golden_capture.py`, không bỏ vào `cases/` của loader K0a. `tests/test_golden_replay.py` dựng fixture tổng hợp từ SCHEMA thật; kiểm read-only, thiếu trường/hash, thứ tự ref và comparator byte. Replay từ current production builder và đánh giá CORRECTNESS vẫn **OPEN**; xem `docs/RA_D20_VIEC2_CODEX_2026-10-20.md`.
+
 Định dạng chốt ở K0a (`docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md` mục 3.9). Ca hồi quy chỉ để **kiểm hồi quy** — độ phủ đến từ
 cấu trúc (bảng loại lỗi `devsys/error_types.json`, A5), không từ số ca.
 
