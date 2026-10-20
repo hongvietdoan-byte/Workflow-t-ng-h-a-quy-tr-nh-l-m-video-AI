@@ -544,3 +544,30 @@ Mỗi mục: **gốc → sửa → test → nghiệm thu**. Mọi sửa đi qua 
 
 **P0.5 (mới):** N1 + N2 → **P1** golden (giữ) → **P2** BYĐ v2 + N5 + G1 → **P3** Dashboard / override + N6 → **P4** D + N3 (sơ đồ mặt bằng) + E + N4 / N7 → **P5** F.
 Bản hợp nhất: `docs/KE_HOACH_AI_VIDEO_PIPELINE_V3_2026-10-20.md`.
+
+### 15.5 Lỗi CHƯA được ghi trong tài liệu lỗi hai dự án (rà CSDL thật 20/10, chỉ đọc)
+
+Rà `data/manifest.sqlite` (bảng `jobs`, `job_events`, `diag_events`) + mục bàn giao 19/10 tối trong `TODO.md`, đối chiếu với hai tài liệu lỗi.
+Kết luận: **hai tài liệu chưa ghi hết.** Tài liệu #31 dừng ở G49 (không có G25; G50 chỉ ở commit `65f4e860`); phần chấm 12 clip nháp và QC logic
+chuỗi tối 19/10 chỉ nằm trong TODO. Bổ sung mã mới:
+
+| Mã | Lỗi (bằng chứng) | Nhóm sửa |
+|---|---|---|
+| G51 | Chấm 12 clip nháp 19/10 tối: 13 đơ 6 s; 16 địch không phản ứng, Kelly đơ; 18 máy Kling xuyên rào + địch gục vẫn bắn; 19 xoay 180° lố + áo đổi sọc; 29 súng biến mất 1–2,5 s; 35 mặt anime + 1 s cuối trống; 36 chạy tại chỗ, không trúng đạn. Gốc: QC clip chỉ xem 6 khung, không có tiêu chí đơ / tương tác / lố; cờ `qc_liveliness` được nhắc trong TODO nhưng **không có trên main** | N7 |
+| G52 | QC logic chuỗi 39 clip (`scripts_19-10/qc_sequence/result.json`): độ cao nền đổi giữa shot 9→13; S10/11/13 nhặt súng trên thềm cỏ cao; bắn khi đã hết địch (18, 19); tường keo có trước khi ném (35); cửa shot 24 khác 23/25; nền shot 37 đổi; Kelly đứng khỏe sau trúng đạn; 20/21 không nối tư thế | N3 + E cross-shot (`qc_sequence_logic`, cờ TẮT) |
+| G53 | `speaker_no_identity` vẫn báo cho LỜI DẪN tới 19/10 13:52 (sau sửa G10 ngày 18/10) — `core/seedance_refs.py:546` chưa bỏ người dẫn chuyện | N6 (dùng `speaker_lint.is_narrator`) |
+| G54 | Trần độ dài prompt chặn câu cần thiết: D6 bị từ chối (3256 > 3192; 4096 > 4000), `gore_restraint` "không thêm được câu … quá 4000 ký tự" | N4 cùng G13: ngân sách ký tự theo khối, ưu tiên câu bắt buộc |
+| G55 | Dashboard 8503 chạy core cũ sau khi cập nhật code → lỗi `FAIL_SOURCE` (TODO 19/10) | N1: Dashboard ghi sha code lúc khởi động, lệch HEAD → băng cảnh báo "khởi động lại" |
+| G56 | Diag lặp gây nhiễu: `change_review_hold` 4 435 lần, `plate_stale` 337 lần (15–18/10) | N1: gộp theo (code, scene) như `_diag_once` |
+| G57 | Tiến trình riêng không có provider: `director_rewrite_fallback` "Chưa cấu hình Claude" (18/10), `bg_autoqc_stuck` 13 lần | N1 cùng A2 |
+| G58 | Kho chủ thể đầy **lặp lại ở #33** (13 lần, 20/10) — G30 chưa sửa nên dự án sau gặp lại | N1 (G30) |
+| A11 | `end_frame_skill_object` báo "ném keo" 28 lần ở #33 (không có tường keo): thông điệp viết cứng ở `core/runner.py:1433`, nhận mọi lý do từ `end_frames.skip_reason` | N4: thông điệp theo lý do thật |
+| A12 | #33 không có BYĐ → `video_pregen` VÀNG "chưa có BYĐ" 22 lần, không kiểm được nhịp / khung cuối | P2: Đạo diễn BYĐ phải chạy được qua `claude_cli` |
+| A13 | Claude Code hết lượt gói ("You've hit your session limit · resets 4:20am") — 18 lần D6 lỗi, xử lý như lỗi thường | N1: coi như `out_of_credit` có giờ mở lại, dừng khâu Claude tới giờ đó |
+| A14 | Ngân sách: trích riêng dự án #33 = 0 USD (hàng chung đợt thử đã hết), cảnh báo "mức dự tính $0.00"; đợt thử 480p vượt trần 90 USD — chỉ cảnh báo | N2: trích dự án thiếu → chặn kèm lý do, không cảnh báo mãi |
+| A15 | `download_error` PermissionError WinError 32 (tệp bị tiến trình khác giữ) | N1 cùng A1 |
+
+Chưa rà từng mục: lỗi #31 ngày 15–17/10 (`stage_auto` trả sai mẫu, `plate_flat`, `director_plate_review`, thiếu `top_view.png`) — thuộc
+KH-gốc ("lỗi 15–17/10") và memory `reference_stage_auto_flag_mismatch`, không thuộc tài liệu G.
+**Đề xuất quy trình:** cuối mỗi dự án chạy một truy vấn tổng hợp `diag_events` (error/warn theo code) + `jobs.reject_reason` và ghi
+vào tài liệu lỗi, để không phụ thuộc trí nhớ phiên (đưa vào P0.5 như một công cụ `tools/project_error_report.py`, 0 USD).

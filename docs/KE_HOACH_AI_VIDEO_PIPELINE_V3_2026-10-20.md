@@ -13,6 +13,8 @@
 - V2.1 viết trước khi #31 phát sinh G26–G50 (19/10) và trước #33 (19–20/10). Rà lại: V2.1 chỉ che ≈ 1/4 lỗi #31 và **không che lỗi nào của #33**.
 - Ba nhóm lỗi lặp ở **cả hai** dự án mà V2.1 không có: (1) vận hành Claude / tiến trình / tạm dừng, (2) ước tính giá sai, (3) vị trí vật
   và hình học 3D xuyên shot. Hai nhóm đầu đã gây trả tiền thừa thật.
+- Rà CSDL thật 20/10 (V2.1 §15.5): hai tài liệu lỗi **chưa ghi hết** — thêm 13 mã (G51–G58, A11–A15), chủ yếu chấm clip nháp tối
+  19/10 và lỗi chỉ hiện trong `diag_events`. V3 thêm công cụ ghi lỗi cuối dự án để không phụ thuộc trí nhớ phiên.
 - Bối cảnh mới từ 19/10: bỏ Anthropic API, bước Claude chạy `claude_cli` (quyết định `no_anthropic_api_use_claude_code`) — V2.1 vẫn giả định
   chi Claude theo API.
 
@@ -48,11 +50,11 @@ tốn tiền qua sổ chi + ước tính trước; cờ mới TẮT mặc địn
 | Phase | Phạm vi | Nguồn chi tiết | Phụ thuộc | Chi phí | Điểm dừng duyệt |
 |---|---|---|---|---|---|
 | **P0** | Duyệt V3 + Q1–Q6 (V2.1 §4, §14.6) | tài liệu này | — | 0 | người dùng |
-| **P0.5 (mới)** | **N1 vận hành:** A1 khóa poll/succeed theo job, A3 `clean_env` bỏ key API, G36 kiểm tạm dừng trước `submit`, G39 kiểm `data_dir`, A2 provider Claude theo dự án, G30 đếm Kho chủ thể. **N2 giá:** A7 phụ phí ref + giá nâng 1080p + hệ số từ sổ chi, A8 tier nháp, A9 Claude = 0 khi `claude_cli` + giá video trong `pregen_check` | V2.1 §15.2 N1, N2 | không (độc lập BYĐ) | 0 USD (provider giả) | sau mỗi nhóm: test + quy ước 7 |
+| **P0.5 (mới)** | **N1 vận hành:** A1 khóa poll/succeed theo job, A3 `clean_env` bỏ key API, G36 kiểm tạm dừng trước `submit`, G39 kiểm `data_dir`, A2 provider Claude theo dự án, G30 đếm Kho chủ thể. **N2 giá:** A7 phụ phí ref + giá nâng 1080p + hệ số từ sổ chi, A8 tier nháp, A9 Claude = 0 khi `claude_cli` + giá video trong `pregen_check`. **Bổ sung từ rà CSDL (§15.5):** A13 hết lượt gói Claude Code = dừng có giờ mở lại, A14 trích ngân sách dự án = 0 thì chặn, G55 cảnh báo Dashboard chạy code cũ, G56 gộp diag lặp, G57/G58, A15; công cụ `tools/project_error_report.py` ghi lỗi cuối dự án từ `diag_events` + `jobs` | V2.1 §15.2 N1, N2, §15.5 | không (độc lập BYĐ) | 0 USD (provider giả) | sau mỗi nhóm: test + quy ước 7 |
 | **P1** | Golden gói: B0 dò đường mở ảnh, B1 chụp (ảnh + **video**), B2 test Compatibility / Correctness. Correctness thêm ca thật #31 (G27, G13) và #33 | V2.1 §6.B, §14.1 | baseline đã xác minh 18/10; chụp lại cờ ở máy chính | 0 | duyệt phạm vi chỉ đọc |
 | **P2** | BYĐ v2 (A0–A3): `byd_v`, `vat[]` schema + parser v1/v2 (sửa luôn lỗi ngầm `qc_observe`), Q2 trigger, Q3 `forms[]` trong `assets.profile` (+G38), field readers A2a–A2f, `byd` vào `lineage`. **Kèm N5:** `insert_scene_after` chép bối cảnh + BYĐ (G6, G21); **G1** chỉ mang đạo cụ có trong BYĐ; **A4** `locks.guard` cho mọi đường Claude ghi `scenes.data` (VÀNG trước, chặn sau) | V2.1 §6.A, §14.2, §15.2 N5 | P1 | Q3 ≈ 0,05 USD (xin duyệt) | Q3, mỗi cờ con |
 | **P3** | Dashboard: thẻ "Gói sẽ gửi" (so `sent_package`; sửa G5 khóa theo đường dẫn đầy đủ), BYĐ trên Dashboard, siết 3 cổng Q6 + bảng `overrides`, chỉ số C (cost/accepted shot, retry cost, override rate). **Kèm N6:** G15–G17 | V2.1 §6.C, §15.2 N6 | P2 | 0 | migration `overrides` |
-| **P4** | **D + N3 gộp:** sơ đồ mặt bằng theo cảnh thành dữ liệu (`stage_facts`) làm Expected state vị trí; người nộm tỉ lệ (G2); góc `slightly_high` + `eye` ≤ 5° + kiểm `depth.png` (G3, A10, G49); bỏ khóa chân trời khi nền không có trời (G20). **E + N4/N7:** image preflight, mã lỗi, clip đứng yên > 1,5 s, `qc_sequence_logic`, cross-shot (G42), luật router không gộp nhóm khi cần khung đầu (G28, G37, B9), độ dài gói nhóm (G13), cắt cảnh trong video ref (B8), A5, A6, G14 | V2.1 §7.D/E, §14.3, §14.4, §15.2 N3/N4/N7 | P2 | render 0 USD; gen thử ảnh chứng minh N3 — xin duyệt | benchmark §14.4 trước khi cho chặn |
+| **P4** | **D + N3 gộp:** sơ đồ mặt bằng theo cảnh thành dữ liệu (`stage_facts`) làm Expected state vị trí; người nộm tỉ lệ (G2); góc `slightly_high` + `eye` ≤ 5° + kiểm `depth.png` (G3, A10, G49); bỏ khóa chân trời khi nền không có trời (G20). **E + N4/N7:** image preflight, mã lỗi, clip đứng yên > 1,5 s, `qc_sequence_logic`, cross-shot (G42), luật router không gộp nhóm khi cần khung đầu (G28, G37, B9), độ dài gói nhóm (G13), cắt cảnh trong video ref (B8), A5, A6, G14; **§15.5:** G51 tiêu chí đơ / tương tác / lố cho QC clip, G52 lỗi logic chuỗi, G53 lời dẫn ở `seedance_refs`, G54 ngân sách ký tự, A11 thông điệp khung cuối, A12 BYĐ qua `claude_cli` | V2.1 §7.D/E, §14.3, §14.4, §15.2 N3/N4/N7 | P2 | render 0 USD; gen thử ảnh chứng minh N3 — xin duyệt | benchmark §14.4 trước khi cho chặn |
 | **P5** | F repair router theo mã lỗi | V2.1 §7.F, §14.5 | P4 | theo `spend_gate` | từng nhóm lỗi |
 | **Tồn đọng** | Export Premiere (P5+ tùy chọn); **Thay nền video** (§6) | — | — | — | — |
 
@@ -72,10 +74,23 @@ tốn tiền qua sổ chi + ước tính trước; cờ mới TẮT mặc địn
 **Yêu cầu:** người dùng gửi một video quay người thật + (mô tả nền bằng chữ **hoặc** ảnh ref nền) → hệ thống trả video cùng người, cùng
 động tác, nền mới. Ví dụ thành quả người dùng gửi: `E:/Tai xuong/cgt-20261020000346-zyeku_202610192303.mp4` (9,7 s, 1080×1920, 24 fps): người
 nhảy giữ nguyên mặt, áo, động tác; nền thành vườn hoa hồng hoàng hôn, ngược sáng khớp viền tóc, nền chuyển động theo máy.
-Cách làm gốc nằm trong một cuộc trò chuyện ChatGPT người dùng chỉ ra — **CHƯA ĐỌC ĐƯỢC** (link cần đăng nhập). Bổ sung kỹ thuật
-khi có nội dung.
+Cách làm gốc: cuộc trò chuyện ChatGPT người dùng xuất PDF `E:/Tai xuong/Kling_Seedance_2_5_Conversation.pdf` (đã đọc 20/10):
+- **Model / chế độ:** Seedance 2.5 trên Kling AI, chế độ *Video Edit / Video-to-Video*, video gốc làm reference; giữ thời lượng (≈ 9,8 s),
+  9:16, ≥ 1080×1920; creativity THẤP, reference adherence + motion preservation CAO; giữ camera motion gốc.
+- **Prompt 6 khối (bản rút gọn ≤ 5 000 ký tự là bản dùng):** TASK → giữ nguyên người (mặt, tóc, da, áo, mọi cử chỉ; "do not regenerate") →
+  BACKGROUND (xóa nền cũ, tả nền mới thật, "not CGI") → CAMERA MOTION SYNC (phân tích và tái tạo rung tay; nền neo trong thế giới 3D;
+  "do NOT stabilize, freeze, or independently animate the background; do NOT attach background movement to the person's body") →
+  3D PARALLAX (vật gần dịch nhiều hơn vật xa) → SUBJECT MASKING (tóc, ngón tay, mờ chuyển động, tay sát máy) → NATURAL COMPOSITING (ánh
+  sáng ấm, viền sáng, bóng) → TEMPORAL CONSISTENCY → FINAL RESULT. Kèm negative prompt (static/frozen/locked background, camera motion
+  mismatch, flat 2D backdrop, edge halos, missing fingers, face/clothing changes…).
+- **Thứ tự ưu tiên trong prompt:** giữ người → đồng bộ chuyển động máy → thay nền sạch → ánh sáng.
+- **Giới hạn đã ghi trong cuộc trò chuyện:** prompt không bảo đảm tách nền 100 %; nếu model vẫn ra nền đứng yên / trượt → cần camera
+  tracking từ video gốc + matting/compositing (đường dự phòng).
 
-**Phác thảo (chờ xác nhận bằng cuộc trò chuyện):**
+**Thiết kế trong pipeline:**
+- **Bộ dựng prompt bằng code** theo đúng 6 khối trên: khối người sinh từ mô tả đo được (tóc, áo, đạo cụ — đọc khung đầu bằng Claude
+  `claude_cli`, 0 USD API), khối nền từ chữ người dùng hoặc mô tả ảnh ref nền; tự kiểm ≤ 5 000 ký tự (cùng ngân sách ký tự G13/G54).
+  Khối CAMERA MOTION SYNC chỉ thêm khi đo thấy máy rung/di chuyển.
 - Đầu vào: video nguồn (bắt buộc), mô tả nền và/hoặc ảnh ref nền; tùy chọn: giữ âm thanh gốc.
 - Đường dự kiến: video-to-video có video tham chiếu (hướng `KE_HOACH_V2V_CAT_DOAN_2026-10-16.md` + luật video ref ClipAI ≥ 3 s), khung đầu = khung
   nguồn đã thay nền (gen ảnh với ảnh ref nền); hoặc tách người (mask) + nền gen + ghép, chỉnh ánh sáng.
@@ -88,6 +103,8 @@ khi có nội dung.
 - Kiểm: mặt / trang phục giữ nguyên (so khung), động tác khớp nguồn (`clip_measure`), không lộ viền mask; bộ lọc "người thật" của Seedance
   (G32) là rủi ro — người dùng phải có quyền với người trong video.
 - Chi phí: ước tính trước + sổ chi như mọi lời gọi tốn tiền; nháp 480p trước (luật rẻ trước, không phóng 480p).
+- **Cần kiểm trước khi code (0 USD, đọc docs):** ClipAI (nhà cung cấp hiện dùng) có chế độ Video Edit / V2V của Seedance 2.5 qua API
+  không; nếu không → hoặc thêm adapter Kling AI, hoặc đi đường dự phòng (mask + nền gen + ghép theo đường máy đo được).
 - Vị trí: mục mới trong Kho / bước 4, ngoài luồng dự án phim. Phase: sau P0.5 (cần giá đúng), độc lập P1–P5.
 
 ## 7. Rủi ro chính (bổ sung V2.1 §9)
