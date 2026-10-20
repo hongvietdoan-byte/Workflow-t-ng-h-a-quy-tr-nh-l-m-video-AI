@@ -58,17 +58,23 @@ def _behind(data: Dict) -> bool:
 
 
 FIX_FLAG = "qc_false_alarm_fix"    # V3.1 M4.5 (DP1): sửa báo nhầm P33-A5 (đây) + P33-A6 (core/change_review.build_prompt); TẮT = như cũ
-# A5 (#33 S2): bố cục qua vai / SAU LƯNG — mặt to nhất đo được là người ở xa / người quay lưng, không phải cỡ của shot. Đọc trường máy /
-# bố cục VÀ image_prompt / action (ca thật #33 S2 ghi ở image_prompt — C-FIX-THAP-2); regex chỉ khớp chữ nói về MÁY: "the sun behind her",
-# "rút súng sau lưng", "a tower behind her" KHÔNG tính.
+# A5 (#33 S2): bố cục qua vai / SAU LƯNG — mặt to nhất đo được là người ở xa / người quay lưng, không phải cỡ của shot. Hai regex
+# (C-FIX-THAP-4): trường MÁY / bố cục (angle, shot, blocking, start_frame) — mọi chữ "sau lưng / qua vai / from behind" ở đó là về máy;
+# chữ TẢ CẢNH (image_prompt, action — ca thật #33 S2 ở image_prompt) chỉ khớp chữ gắn với máy: "hides the grenade behind her back",
+# "grabs him from behind", "vác súng qua vai", "the sun behind her", "a tower behind her" KHÔNG tính.
 _BEHIND_ANY = re.compile(r"\bots\b|over[- ]the[- ]shoulder|from behind|\bbacks? (?:turned )?to (?:the )?camera|\bcamera (?:is |placed )?behind\b|"
                          r"behind (?:the|their|his|her) (?:group|backs?|squad|team)|\brear view\b|"
                          r"(?:máy|camera|góc máy)(?: \w+){0,2} sau lưng|qua vai|quay lưng (?:về|vào|lại) (?:phía )?(?:máy|camera|ống kính)", re.I)
+_BEHIND_PROSE = re.compile(r"\bots\b|over[- ]the[- ]shoulder (?:shot|view|angle|framing|on|of)\b|"
+                           r"\b(?:low |high )?camera (?:is |placed |sits |stands |set )?behind\b|\b(?:shot|seen|filmed|framed|viewed) from behind\b|"
+                           r"\bbacks? (?:turned )?to (?:the )?camera|\brear view\b|(?:máy|camera|góc máy)(?: \w+){0,2} sau lưng|"
+                           r"góc (?:máy )?qua vai|quay lưng (?:về|vào|lại) (?:phía )?(?:máy|camera|ống kính)", re.I)
 
 
 def _behind_any(data: Dict) -> bool:
-    words = " ".join(str(data.get(k) or "") for k in ("angle", "shot", "blocking", "start_frame", "image_prompt", "action"))
-    return _behind(data) or bool(_BEHIND_ANY.search(words))
+    camera = " ".join(str(data.get(k) or "") for k in ("angle", "shot", "blocking", "start_frame"))
+    prose = " ".join(str(data.get(k) or "") for k in ("image_prompt", "action"))
+    return _behind(data) or bool(_BEHIND_ANY.search(camera)) or bool(_BEHIND_PROSE.search(prose))
 
 
 # ---- layer 0 -------------------------------------------------------------------------------------------------------------
