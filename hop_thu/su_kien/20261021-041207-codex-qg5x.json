@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T04:12:07.151406+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX20-2b",
+  "branch": "codex/d20-viec2b-golden-replay",
+  "commit": "2d8ec51f",
+  "report": "docs/RA_D20_VIEC2B_CODEX_2026-10-21.md",
+  "text": "CODE+LỆNH XONG, chưa nghiệm thu thật/chưa mở M2. DB snapshot native prepare/build thật, không sidecar/roundtrip; manifest+publicconfig+fullflags; COMPAT/DATA_CHANGED/INSUFFICIENT/CODE_MISMATCH tách. Rà độc lập7P2 đỏ→sửa70test xanh43.28s; root đọc fixdiff. MC theo RA capture/replay snapshot bất biến #24/#27 mỗi dự án >=3shot ảnh+>=3shotvideo khác nhau,COMPAT100% trên đủinput,DATA_CHANGED<=1/3selected; insufficient không đếmđạt. CảbộWindows/gộp/acceptance vẫnOPEN; khônggop chỉvìcodeXONG. HANDOFF xóa, khôngmain/live/API/realdata."
+}
