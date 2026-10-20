@@ -19,6 +19,63 @@ class WhiteboxError(Exception):
     pass
 
 
+# V3.1 M3.2 (C-M32, cờ world_map_height_dummy — TẮT = whitebox cũ: EYE 1,6 m, khối 1,8 m, nhắm ngực 1,2 m): người nộm đúng `height_m` hồ sơ Kho
+# đã duyệt (thiếu → nói, không mặc định im lặng), máy ở mắt = EYE_SHARE × height_m; pitch "eye" ≤ EYE_MAX_DEG, "slightly_high" cúi
+# SLIGHTLY_HIGH_DEG (khoảng 8–12°) — G2 (tỉ lệ người), G3 (#31 shot 28 khai eye mà pitch +17,3°), A10 (high 30° làm nền chỉ còn sàn)
+DUMMY_FLAG = "world_map_height_dummy"
+EYE_SHARE = 0.93                                   # như plate_camera.camera_for (mắt = 0,93 × chiều cao)
+SLIGHTLY_HIGH_DEG, SLIGHTLY_HIGH_RANGE = 10.0, (8.0, 12.0)
+EYE_MAX_DEG = 5.0
+FALLBACK_HEIGHT = 1.8
+PITCH_ANGLES = ("eye", "slightly_high")
+
+
+def dummy_enabled() -> bool:
+    from . import features
+    return features.on(DUMMY_FLAG)
+
+
+def eye_height(height_m: float) -> float:
+    if not height_m or float(height_m) <= 0:
+        raise WhiteboxError(f"chiều cao nhân vật không hợp lệ ({height_m!r}) — cần `height_m` hồ sơ Kho")
+    return float(height_m) * EYE_SHARE
+
+
+def pitch_camera(feet_z: float, height_m: float, dist: float, angle: str = "eye") -> Dict[str, float]:
+    """Máy cách nhân vật `dist` m, nhìn vào mắt nhân vật: "eye" → máy ở mắt (pitch 0); "slightly_high" → máy nâng để cúi SLIGHTLY_HIGH_DEG.
+    → {"location_z", "aim_z", "pitch_deg"} (pitch âm = cúi)."""
+    if angle not in PITCH_ANGLES:
+        raise WhiteboxError(f"pitch '{angle}' không thuộc {'/'.join(PITCH_ANGLES)}")
+    aim = float(feet_z) + eye_height(height_m)
+    lift = float(dist) * math.tan(math.radians(SLIGHTLY_HIGH_DEG)) if angle == "slightly_high" else 0.0
+    return {"location_z": aim + lift, "aim_z": aim, "pitch_deg": -SLIGHTLY_HIGH_DEG if lift else 0.0}
+
+
+def pitch_note(angle: str, pitch_deg: float) -> Optional[str]:
+    """VÀNG khi pitch đo được không khớp mức khai: "eye" mà |pitch| > EYE_MAX_DEG; "slightly_high" mà cúi ngoài 8–12°. Mức khác → None."""
+    a = str(angle or "").lower()
+    if a == "eye" and abs(pitch_deg) > EYE_MAX_DEG:
+        return (f"shot khai angle 'eye' nhưng máy {'ngửa' if pitch_deg > 0 else 'cúi'} {abs(pitch_deg):.1f}° (> {EYE_MAX_DEG:g}°) — "
+                "nền / người sẽ lệch tầm mắt")
+    lo, hi = SLIGHTLY_HIGH_RANGE
+    if a == "slightly_high" and not lo <= -pitch_deg <= hi:
+        return f"shot khai 'slightly_high' (cúi {lo:g}–{hi:g}°) nhưng máy pitch {pitch_deg:+.1f}°"
+    return None
+
+
+def heights_of(conn, project_id: int, names: List[str]):
+    """({tên: height_m}, [tên thiếu]) từ hồ sơ chuẩn Kho đã duyệt (assets.standard_for — như stage_auto)."""
+    from . import assets
+    got, missing = {}, []
+    for n in names:
+        prof = assets.standard_for(conn, project_id, n)
+        if prof and prof.get("height_m"):
+            got[n] = float(prof["height_m"])
+        else:
+            missing.append(n)
+    return got, missing
+
+
 def camera_of(m3d: Dict, spot: str) -> Dict:
     """The spot's eye-level camera: at the spot, looking along its `view` (surroundings spots) or at the landmark (the anchor)."""
     s = (m3d.get("spots") or {}).get(spot)
@@ -43,14 +100,20 @@ def _point(cam: Dict, fwd: float, right: float) -> List[float]:
 
 
 def plan(m3d: Dict, spot: str, people: List[Dict], seconds: float = 4.0, lens: float = 28.0, name: str = "whitebox",
-         push_m: float = 0.0, aim: str = "people") -> Dict:
+         push_m: float = 0.0, aim: str = "people", heights: Optional[Dict[str, float]] = None, angle: str = "eye") -> Dict:
     """The render_plates animation of the white model. people: [{"name", "at": [fwd, right], "to": [fwd, right]?, "face": ...}].
     aim "people" (default): the camera looks at the middle of the group at chest height — the white model is about where people are
-    (first render 30/09 aimed at the tower and left the three blocks at the bottom edge); "spot": the spot's own view."""
+    (first render 30/09 aimed at the tower and left the three blocks at the bottom edge); "spot": the spot's own view.
+    M3.2 (cờ world_map_height_dummy): heights {tên: height_m hồ sơ Kho} → khối đúng chiều cao + `eye_m`; máy ở mắt nhóm, pitch theo
+    `angle` (eye / slightly_high); thiếu chiều cao → khối FALLBACK_HEIGHT + câu trong "warnings". Cờ tắt: heights / angle bỏ qua."""
     if not people:
         raise WhiteboxError("white-model cần ít nhất một người")
     if len(people) > len(COLORS):
         raise WhiteboxError(f"tối đa {len(COLORS)} người (mỗi người một màu)")
+    dummy = dummy_enabled()
+    warnings: List[str] = []
+    if dummy and angle not in PITCH_ANGLES:
+        raise WhiteboxError(f"pitch '{angle}' không thuộc {'/'.join(PITCH_ANGLES)}")
     cam = camera_of(m3d, spot)
     where = {p["name"]: _point(cam, *p["at"]) for p in people}
     actors = []
@@ -67,17 +130,31 @@ def plan(m3d: Dict, spot: str, people: List[Dict], seconds: float = 4.0, lens: f
                     raise WhiteboxError(f"'{p['name']}' nhìn về '{f}' — không có người này trong white-model")
                 return where[f]
             return _point(cam, *f)
-        actors.append({"name": p["name"], "color": list(rgb), "color_name": cname, "height": float(p.get("height", 1.8)),
-                       "keys": [{"t": 0.0, "location": start, "face": face_of(start)}, {"t": 1.0, "location": end, "face": face_of(end)}]})
+        height = float(p.get("height", FALLBACK_HEIGHT))
+        actor = {"name": p["name"], "color": list(rgb), "color_name": cname, "height": height,
+                 "keys": [{"t": 0.0, "location": start, "face": face_of(start)}, {"t": 1.0, "location": end, "face": face_of(end)}]}
+        if dummy:
+            known = p.get("height") or (heights or {}).get(p["name"])
+            if not known:
+                warnings.append(f"thiếu chiều cao {p['name']} (Kho → hồ sơ chuẩn `height_m`, đã duyệt) — khối tạm {FALLBACK_HEIGHT:g} m")
+            actor["height"] = float(known or FALLBACK_HEIGHT)
+            actor["eye_m"] = round(eye_height(actor["height"]), 4)
+        actors.append(actor)
     if aim == "people":
         mid = [sum(a["keys"][0]["location"][i] for a in actors) / len(actors) for i in range(2)]
         cam = dict(cam, look_at=[mid[0], mid[1], cam["ground_z"] + 1.2])
+    if dummy:                                       # máy ở mắt nhóm, pitch theo mức khai
+        group_h = sum(a["height"] for a in actors) / len(actors)
+        dist = math.hypot(cam["look_at"][0] - cam["location"][0], cam["look_at"][1] - cam["location"][1])
+        z = pitch_camera(cam["ground_z"], group_h, dist, angle)
+        cam = dict(cam, location=[cam["location"][0], cam["location"][1], z["location_z"]],
+                   look_at=[cam["look_at"][0], cam["look_at"][1], z["aim_z"]])
     (fx, fy), _ = _axes(cam)
     cam_end = [cam["location"][0] + fx * push_m, cam["location"][1] + fy * push_m, cam["location"][2]]
     return {"name": name, "seconds": float(max(seconds, 3.2)), "fps": 24, "model_coords": True, "white": True, "lens": float(lens),
             "keys": [{"t": 0.0, "location": cam["location"], "look_at": cam["look_at"]},
                      {"t": 1.0, "location": cam_end, "look_at": cam["look_at"]}],
-            "actors": actors}
+            "actors": actors, **({"warnings": warnings} if warnings else {})}
 
 
 def role_line(anim: Dict, index: int = 1) -> str:

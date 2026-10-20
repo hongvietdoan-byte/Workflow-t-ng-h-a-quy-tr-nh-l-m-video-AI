@@ -1295,7 +1295,9 @@ def add_actor(actor, factor):
     body = bpy.context.active_object
     body.name = "ACTOR_" + actor["name"]
     body.data.materials.append(mat)
-    bpy.ops.mesh.primitive_cone_add(radius1=r * 0.55, depth=r * 1.6, location=(0, r * 1.1, h * 0.25), rotation=(-1.5708, 0, 0))
+    eye = actor.get("eye_m")          # V3.1 M3.2 (cờ world_map_height_dummy): mũi hướng ở tầm mắt người nộm; không có → ngực như cũ
+    nose_z = float(eye) * factor - h / 2 if eye else h * 0.25
+    bpy.ops.mesh.primitive_cone_add(radius1=r * 0.55, depth=r * 1.6, location=(0, r * 1.1, nose_z), rotation=(-1.5708, 0, 0))
     nose = bpy.context.active_object
     nose.name = "ACTOR_NOSE_" + actor["name"]
     nose.data.materials.append(mat)
