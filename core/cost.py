@@ -319,6 +319,8 @@ def estimate_videos_by_scene(pipeline: Pipeline, project_id: int, pricing: Dict)
         tier = kling_tier if family == "omni" else (choice.get("resolution") or (profiles.get(choice["model"]) or {}).get("tier") or "720p")
         sec = effective_duration(canonical, family, row["duration_sec"])
         price = clip_price(pricing, canonical, tier, sec)
+        if send_estimate_on():                              # V3.1 M1.6 (A7, A8): the tier + reference video the runner sends
+            price = send_clip_usd(conn, row["scene_id"], pricing, row["duration_sec"])
         n = 2 if row["scene_id"] in hero else 1              # S0.14 T4: a ⭐ shot is sent twice to choose from
         items += n
         seconds += sec * n
@@ -341,6 +343,8 @@ def clip_estimate(conn, scene_id: int, pricing: Optional[Dict] = None, seconds: 
     from .adapters.clipai import effective_duration, resolve_model
     from .providers import ProviderError
     pricing = pricing or load_pricing()
+    if send_estimate_on():
+        return send_clip_usd(conn, scene_id, pricing, seconds)
     choice = model_router.scene_choice(conn, scene_id)
     try:
         canonical, family = resolve_model(choice["model"])
@@ -363,6 +367,45 @@ def clip_estimate(conn, scene_id: int, pricing: Optional[Dict] = None, seconds: 
     if exact is not None:
         return exact
     from . import money_policy                  # S14.16: no price → the high estimate the money gate uses too
+    return money_policy.estimate("video", canonical, tier, sec, pricing)["usd"]
+
+
+def send_clip_usd(conn, scene_id: int, pricing: Optional[Dict] = None, seconds: Optional[float] = None) -> Optional[float]:
+    """V3.1 M1.6 (A7, A8 #33; flag send_estimate): USD of the clip '▶ Gen video' sends for this shot NOW, priced on what goes out:
+    - the TIER the runner sends (batch._draft_tier — a draft-first shot without a draft goes at its model's low tier, Seedance 2.5
+      480p; A8: the button said 720p),
+    - a Seedance clip by ClipAI's token formula WITH its reference video seconds (the price table has no surcharge for a video input:
+      A7, drafts ≈ 1,37 × the table) — calibrated on ClipAI tasks, docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md mục 5,
+    - other models: the table, else the high estimate of money_policy (as clip_estimate). None when the model is unknown."""
+    from . import batch, formats, model_router, shots
+    from .adapters.clipai import effective_duration, resolve_model
+    from .providers import ProviderError
+    pricing = pricing or load_pricing()
+    choice = model_router.scene_choice(conn, scene_id)
+    try:
+        canonical, family = resolve_model(choice["model"])
+    except ProviderError:
+        return None
+    draft = batch._draft_tier(conn, scene_id, choice["model"])
+    if family == "omni":
+        tier = draft or os.environ.get("CLIPAI_KLING_MODE", "pro")
+    else:
+        tier = draft or choice.get("resolution") or (model_router.load_profiles()["models"].get(choice["model"]) or {}).get("tier") \
+            or "720p"
+    mp = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+    seconds = seconds or (mp["duration_sec"] if mp and mp["duration_sec"] else None) or shots.planned_seconds(conn, scene_id) or 5
+    sec = effective_duration(canonical, family, seconds)
+    if family == "seedance":
+        ref = video_reference_seconds(conn, scene_id, choice)
+        proj = conn.execute("SELECT p.* FROM projects p JOIN scenes s ON s.project_id=p.id WHERE s.id=?", (scene_id,)).fetchone()
+        ratio = formats.spec(formats.project_aspect(proj))["clip"] if proj is not None else "16:9"
+        usd = seedance_estimate(canonical, tier, ratio, sec, ref["seconds"] or 0.0)
+        if usd is not None:                        # never under the price table (tính dư: 2.0 480p table 0,75 / 5 s > formula 0,34)
+            return max(usd, clip_price(pricing, canonical, tier, sec) or 0.0)
+    exact = clip_price(pricing, canonical, tier, sec)
+    if exact is not None:
+        return exact
+    from . import money_policy
     return money_policy.estimate("video", canonical, tier, sec, pricing)["usd"]
 
 
@@ -433,7 +476,7 @@ def chat_prompt_estimate(conn, sends: int, pricing: Optional[Dict] = None, unkno
     if sends <= 0 or not features.on("chat_prompts"):
         return 0.0
     from .chat_prompt import MAX_IMAGES, STAGE
-    one = _memo(conn, ("d6_one", id(conn), id(pricing)),                       # once per draw (each card's button asks)
+    one = _memo(conn, ("d6_one", id(conn), id(pricing), claude_free()),                       # once per draw (each card's button asks)
                 lambda: llm_call_usd(conn, STAGE, pricing, images=MAX_IMAGES, ledger_stage=STAGE))
     if one is None:
         if unknown is not None:
@@ -444,7 +487,10 @@ def chat_prompt_estimate(conn, sends: int, pricing: Optional[Dict] = None, unkno
 
 def llm_call_usd(conn, stage: str, pricing: Optional[Dict] = None, images: int = 0, ledger_stage: Optional[str] = None) -> Optional[float]:
     """USD of ONE Claude call of this kind: the measured average of that stage's recorded calls (usage_events, kind llm) when there
-    are some, else LLM_STAGE_TOKENS + `images` pictures. None when the model has no price in per_million_tokens."""
+    are some, else LLM_STAGE_TOKENS + `images` pictures. None when the model has no price in per_million_tokens.
+    V3.1 M1.6 (A9, flag send_estimate): Claude through Claude Code on this machine (LLM_PROVIDER=claude_cli) costs 0 USD API."""
+    if claude_free():
+        return 0.0
     from . import budget
     pricing = pricing or load_pricing()
     model = llm_model()
@@ -466,6 +512,22 @@ def llm_call_usd(conn, stage: str, pricing: Optional[Dict] = None, images: int =
         inp, out = base_in + images * IMAGE_TOKENS, base_out
     a, b = budget.token_price(pricing, model, "input", inp), budget.token_price(pricing, model, "output", out)
     return None if a is None or b is None else a + b
+
+
+def send_estimate_on() -> bool:
+    """V3.1 M1.6: the price shown is the price of what will be SENT (flag send_estimate; off → the old numbers, unchanged)."""
+    from . import features
+    return features.on("send_estimate")
+
+
+def claude_free() -> bool:
+    """M1.6 (A9 #33, G31 #31; flag send_estimate): Claude calls go through Claude Code on this machine (LLM_PROVIDER=claude_cli of THIS
+    process — a run started with another LLM_PROVIDER pays its own way) —
+    0 USD API, so an estimate must not add them at API price (pregen_check added ≈ 1 USD of D6 + QC that was never billed)."""
+    if not send_estimate_on():
+        return False
+    from .llm_runner import provider_status
+    return provider_status()[0] == "claude_cli"
 
 
 def llm_estimate(conn, stage: str, calls: int, pricing: Optional[Dict] = None, images: int = 0,
@@ -583,7 +645,8 @@ def _group_clips(conn, ids, seconds: Dict) -> List:
 def video_batch_tag(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = None) -> str:
     """S14.2 A2: price text for a button that sends the project's ready clips (estimate_videos_by_scene: each shot its model, ⭐ twice);
     a model/mức without a price is estimated high per clip (clip_estimate → money_policy), said as such."""
-    return _memo(pipeline.conn, ("video_batch", id(pipeline.conn), project_id), lambda: _video_batch_tag(pipeline, project_id, pricing))
+    return _memo(pipeline.conn, ("video_batch", id(pipeline.conn), project_id, send_estimate_on()),
+                 lambda: _video_batch_tag(pipeline, project_id, pricing))
 
 
 def _video_batch_tag(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = None) -> str:
