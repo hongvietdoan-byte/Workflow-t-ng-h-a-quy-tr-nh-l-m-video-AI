@@ -6,6 +6,7 @@ Chi phí chưa có đơn vị USD thật được giữ UNKNOWN, không đoán t
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import sqlite3
@@ -111,7 +112,7 @@ def build_report(db_path, project):
         succeeded = set()
         for r in events:
             if r["to_state"] == "failed":
-                failed_events[r["job_id"]] = r
+                failed_events.setdefault(r["job_id"], []).append(r)
             duplicate = r["to_state"] == "succeeded" and r["job_id"] in succeeded
             if r["to_state"] == "succeeded":
                 succeeded.add(r["job_id"])
@@ -125,16 +126,20 @@ def build_report(db_path, project):
                 code = "duplicate_succeeded" if duplicate or transition == "succeeded->succeeded" else "InvalidTransition"
                 add("transition:" + transition, code, "transition", "job_events", r["id"], r["job_id"], first=r["at"], last=r["at"])
         for job_id, job in jobs.items():
-            event = failed_events.get(job_id)
-            if job["state"] == "failed" or event:
+            attempts = failed_events.get(job_id, [])
+            if not attempts and job["state"] == "failed":
+                attempts = [None]  # Trạng thái lỗi cũ không có lịch sử: một bằng chứng jobs.
+            for event in attempts:
                 code = _code((event or {}).get("note") or job.get("error"), "failed")
                 at = (event or {}).get("at") or job.get("updated_at") or job.get("created_at")
                 add("job:" + code, code, "job_failure", "job_events" if event else "jobs",
                     event["id"] if event else job_id, job_id, job.get("type"), first=at, last=at)
         for item in groups.values():
             values = [v for j in item["job_ids"] if jobs[j]["state"] == "failed" or j in failed_events for v in costs.get(j, [None])]
-            if values and all(isinstance(v, (int, float)) and v >= 0 for v in values):
-                item["failed_job_cost_usd"] = round(sum(values), 8)
+            if values and all(isinstance(v, (int, float)) and math.isfinite(v) and v >= 0 for v in values):
+                total = sum(values)
+                if math.isfinite(total):
+                    item["failed_job_cost_usd"] = round(total, 8)
     return {"schema_version": 1, "project_id": project, "proposal_only": True, "warnings": warnings,
             "errors": [groups[k] for k in sorted(groups)]}
 
@@ -161,7 +166,7 @@ def main(argv=None):
     except (sqlite3.Error, ValueError) as exc:
         print(f"Không thể lập báo cáo: {exc}", file=sys.stderr)
         return 2
-    print(json.dumps(report, ensure_ascii=False, indent=2) if args.json else render_markdown(report))
+    print(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) if args.json else render_markdown(report))
     return 0
 
 

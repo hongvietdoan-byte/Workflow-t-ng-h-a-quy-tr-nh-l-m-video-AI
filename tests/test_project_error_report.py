@@ -101,3 +101,25 @@ def test_other_invalid_transition_and_usd_units(report_module, sample):
     rows = {r["group_key"]: r for r in report_module.build_report(sample, 33)["errors"]}
     assert rows["transition:queued->approved"]["count"] == 1
     assert rows["job:provider_failure"]["failed_job_cost_usd"] == 0.25
+
+def test_all_failed_attempts_count_and_dates(report_module, sample):
+    with sqlite3.connect(sample) as db:
+        db.executemany("INSERT INTO job_events VALUES(?,?,?,?,?,?)", [
+            (3,1,'running','failed','timeout: first','t1'),
+            (4,1,'running','failed','other: middle','t2'),
+            (5,1,'running','failed','timeout: last','t5')])
+    rows = {r['group_key']: r for r in report_module.build_report(sample, 33)['errors']}
+    assert rows['job:timeout']['count'] == 2
+    assert (rows['job:timeout']['first_seen'], rows['job:timeout']['last_seen']) == ('t1','t5')
+    assert rows['job:other']['count'] == 1
+    assert rows['job:timeout']['failed_job_cost_usd'] == 0.75
+    assert [e['record_id'] for e in rows['job:timeout']['evidence']] == [3,5]
+
+
+def test_nonfinite_cost_stays_unknown_json_finite(report_module, sample):
+    import json
+    with sqlite3.connect(sample) as db:
+        db.execute('UPDATE usage_events SET cost_usd=? WHERE id=1', (float('inf'),))
+    result = report_module.build_report(sample, 33)
+    assert all(r['failed_job_cost_usd'] is None for r in result['errors'] if 1 in r['job_ids'])
+    json.dumps(result, allow_nan=False)

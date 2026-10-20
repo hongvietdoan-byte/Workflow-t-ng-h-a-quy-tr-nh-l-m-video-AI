@@ -1369,3 +1369,5 @@ test trang devsys hiện có.
 ## Kết quả Codex — đợt 20
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+- Đ20 việc 1 · codex/d20-viec1-so-loi · commit rà xem git log (cùng báo cáo) · RÀ KỸ sửa 2 P2: đủ mọi lần failed + JSON tiền hữu hạn; 2 regression đỏ → 9 test xanh (1,18s); native cost UNKNOWN khi thiếu USD, chờ cả bộ Windows/slow trước gộp.
