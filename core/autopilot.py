@@ -14,6 +14,7 @@ Design:
 - Spending is capped by the number of jobs per scene (retries included), not just by good behaviour.
 """
 from . import access
+import inspect
 import json
 import re
 import os
@@ -52,16 +53,18 @@ def default_render(p: Pipeline, project_id: int, data_dir: str, music_path: Opti
     return delivery.render(p, project_id, data_dir, music_path)["path"]
 
 
-def default_context(p: Pipeline, data_dir: str) -> Context:
+def default_context(p: Pipeline, data_dir: str, project_id: Optional[int] = None) -> Context:
     """Providers from the environment (IMAGE_PROVIDER, VIDEO_PROVIDER, LLM_PROVIDER [+ ANTHROPIC_API_KEY when anthropic], AUDIO_PROVIDER)."""
     from .adapters import factory
     from .runner import ImageRunner, VideoRunner
     image, video = factory.image_provider(), factory.video_provider()
     if image is None or video is None:
         raise ValueError("Chưa cấu hình nhà cung cấp ảnh/video (IMAGE_PROVIDER, VIDEO_PROVIDER).")
-    llm = llm_runner.client_from_env(ledger=llm_runner.db_file(p.conn))     # Claude API calls -> cost ledger + Claude cap
+    from . import llm_provider                # V3.1 M1.4b: provider Claude của dự án (rỗng = LLM_PROVIDER), sổ chi = CSDL này
+    llm = llm_provider.client_for_project(p.conn, project_id)
     if llm is None:
-        raise ValueError("Chưa có Claude — chế độ tự động cần để chấm QC và viết motion prompt: " + llm_runner.missing_hint())
+        raise ValueError("Chưa có Claude — chế độ tự động cần để chấm QC và viết motion prompt: "
+                         + llm_provider.missing_hint_for(p.conn, project_id))
     return Context(data_dir, ImageRunner(p, image, data_dir), VideoRunner(p, video, data_dir), llm,
                    music.audio_provider(), default_render)
 
@@ -134,7 +137,7 @@ def problems(p: Pipeline, project_id: int, ctx: Optional[Context] = None) -> Lis
         out.append("Dự án đang PAUSE.")
     if ctx is None:
         try:
-            ctx = default_context(p, os.environ.get("PIPELINE_DATA", os.path.join("data", "projects")))
+            ctx = default_context(p, os.environ.get("PIPELINE_DATA", os.path.join("data", "projects")), project_id)
         except ValueError as e:
             out.append(str(e))
     if ctx is not None and ctx.render is default_render:
@@ -1514,7 +1517,8 @@ class Manager:
         from .db import connect
         p = Pipeline(connect(self.db_path))
         try:
-            ctx = self.factory(p, self.data_dir)
+            ctx = (self.factory(p, self.data_dir, project_id=project_id)       # V3.1 M1.4b: Claude của DỰ ÁN này
+                   if "project_id" in inspect.signature(self.factory).parameters else self.factory(p, self.data_dir))
         except Exception as e:  # noqa: BLE001 - report configuration problems in the UI, never die silently
             _set(p, project_id, ERROR, f"Không khởi động được: {e}")
             _d(p, project_id, "autopilot", "error", f"không khởi động được: {e}", "config")

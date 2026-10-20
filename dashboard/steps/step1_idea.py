@@ -238,7 +238,7 @@ def idea_turns(p: Pipeline, pid: int, wish: str = "", used=lambda: None) -> None
     state = I.get_state(p.conn, pid)
     if not state.get("inputs"):
         return
-    client = C.llm_client()
+    client = C.llm_client(pid)
     if client is None:
         say("info", "Chưa có Claude — không chạy được Biên kịch: " + llm_runner.missing_hint(), f"script-idea-noclaude-{pid}")
         return

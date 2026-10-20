@@ -120,9 +120,18 @@ def image_runner(p: Pipeline):
         return None
     return ImageRunner(p, provider, DATA) if provider else None
 
-def llm_client():
-    """Claude client (LLM_PROVIDER=claude_cli | anthropic + ANTHROPIC_API_KEY | mock); None when not configured -> paste JSON by hand."""
+def llm_client(pid=None):
+    """Claude client (LLM_PROVIDER=claude_cli | anthropic + ANTHROPIC_API_KEY | mock); None when not configured -> paste JSON by hand.
+    pid (V3.1 M1.4b): the PROJECT's provider (`projects.llm_provider`; empty = LLM_PROVIDER) — without it, the environment's."""
     try:
+        if pid is not None:
+            from core import llm_provider
+            from core.db import connect
+            conn = connect(DB)
+            try:
+                return llm_provider.client_for_project(conn, pid, ledger=DB)
+            finally:
+                conn.close()
         return llm_runner.client_from_env(ledger=DB)       # Claude API calls go into the cost ledger + the Claude cap
     except llm_runner.LlmError as e:
         st.error(f"Claude: {e}")

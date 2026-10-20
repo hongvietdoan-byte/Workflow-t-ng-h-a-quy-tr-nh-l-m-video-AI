@@ -641,6 +641,9 @@ class AnthropicClient:
                                                                                 ensure_ascii=False), reply.input_tokens,
                                       reply.output_tokens, reply.cache_read_tokens, reply.cache_write_tokens,
                                       reply.latency_ms or None, reply.request_id or None))
+                        from .llm_provider import has_column      # V3.1 M1.4b: which provider made the call (column after C3-1)
+                        if has_column(conn, "llm_calls", "provider"):
+                            conn.execute("UPDATE llm_calls SET provider=? WHERE id=last_insert_rowid()", (self.name,))
                         conn.commit()
                     except Exception:  # noqa: BLE001 - an older ledger without the table: the tokens are recorded already
                         pass
@@ -1363,18 +1366,28 @@ def client_from_env(transport: Transport = urllib_transport, ledger: Optional[st
     the main machine keeps the key in the User environment, so the old fallback turned any script without LLM_PROVIDER into paid calls.
     ledger: the database file where Claude API calls are recorded and checked against the Claude cap (core.budget)."""
     kind = os.environ.get("LLM_PROVIDER", "").strip().lower()
-    if kind == "mock":
-        return MockLlm()
-    if kind in ("claude_cli", "claude-cli", "cli"):
-        return ClaudeCliClient.from_env()
-    if kind == "anthropic":
-        return AnthropicClient.from_env(transport, ledger=ledger)
+    if kind in ("mock", "claude_cli", "claude-cli", "cli", "anthropic"):
+        return client_for_provider(kind, transport, ledger=ledger)
     global _WARNED_KEY_ONLY
     if os.environ.get("ANTHROPIC_API_KEY", "").strip() and not _WARNED_KEY_ONLY:
         import sys
         _WARNED_KEY_ONLY = True                        # once per process: the dashboard asks for a client on every rerun / 30 s round
         print("[llm] " + NO_PROVIDER_HINT, file=sys.stderr)
     return None
+
+
+def client_for_provider(kind: str, transport: Transport = urllib_transport, ledger: Optional[str] = None):
+    """V3.1 M1.4b: the client of a NAMED provider (a project's `llm_provider`, a job's snapshot, or LLM_PROVIDER) — never another one.
+    Both real clients are bound to the ledger: the API records its cost, Claude Code records its tokens (0 USD) and its plan stops."""
+    from .llm_provider import normalize
+    k = normalize(kind)
+    if k == "mock":
+        return MockLlm()
+    if k == "claude_cli":
+        return ClaudeCliClient.from_env(ledger=ledger)
+    if k == "anthropic":
+        return AnthropicClient.from_env(transport, ledger=ledger)
+    raise LlmError(f"nhà cung cấp Claude {kind!r} không hợp lệ (anthropic | claude_cli | mock)", code="config")
 
 
 class ClaudeCliClient:
@@ -1399,14 +1412,15 @@ class ClaudeCliClient:
         paid = {k.upper() for k in ClaudeCliClient.PAID_KEYS}
         return {k: v for k, v in os.environ.items() if not k.startswith(drop) and k.upper() not in paid}
 
-    def __init__(self, model: str = "", timeout: int = 600, run=None):
+    def __init__(self, model: str = "", timeout: int = 600, run=None, ledger: Optional[str] = None):
         import subprocess
         self.model = model
         self.timeout = timeout
         self._run = run or subprocess.run
+        self.ledger = ledger          # V3.1 M1.4b: the database where its calls (tokens, 0 USD) and its plan stops are written
 
     @classmethod
-    def from_env(cls) -> "ClaudeCliClient":
+    def from_env(cls, ledger: Optional[str] = None) -> "ClaudeCliClient":
         import shutil
         if not shutil.which("claude"):
             raise LlmError("Không tìm thấy lệnh `claude` (Claude Code) trên máy này.", code="config")
@@ -1414,16 +1428,81 @@ class ClaudeCliClient:
             timeout = int(os.environ.get("CLAUDE_CLI_TIMEOUT", "600"))
         except ValueError:
             timeout = 600
-        return cls(os.environ.get("CLAUDE_CLI_MODEL", "").strip(), timeout)
+        return cls(os.environ.get("CLAUDE_CLI_MODEL", "").strip(), timeout, ledger=ledger)
+
+    def _ledger_conn(self):
+        import sqlite3
+        conn = sqlite3.connect(self.ledger, timeout=60)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _halted(self) -> None:
+        """V3.1 M1.4b: the plan is out (usage_limit) or the account is (out_of_credit) — refuse before running `claude`, with the reopen
+        time; never another provider."""
+        if not self.ledger:
+            return
+        from .llm_provider import quota_halted
+        try:
+            conn = self._ledger_conn()
+            try:
+                stop = quota_halted(conn, "claude_cli")
+            finally:
+                conn.close()
+        except Exception:  # noqa: BLE001 - an unreadable ledger never blocks; the CLI says its own limit again
+            return
+        if stop:
+            raise LlmError(stop[1], code=stop[0])
+
+    def _note_stop(self, e: "LlmError") -> None:
+        if not self.ledger or e.code not in ("usage_limit", "out_of_credit"):
+            return
+        from .llm_provider import quota_halt
+        try:
+            conn = self._ledger_conn()
+            try:
+                quota_halt(conn, "claude_cli", e.code, str(e))
+            finally:
+                conn.close()
+        except Exception as x:  # noqa: BLE001 - the error itself still reaches the caller
+            print(f"[llm] không ghi được dấu dừng claude_cli: {x}", file=sys.stderr)
+
+    def _record(self, reply: "LlmReply") -> None:
+        """Tokens of one Claude Code call into llm_calls (provider claude_cli) — NOT usage_events: the plan is not billed per token, so
+        nothing is priced as API money (0 USD API)."""
+        if not self.ledger:
+            return
+        stage, project_id = current_tag()
+        try:
+            conn = self._ledger_conn()
+            try:
+                from .llm_provider import has_column
+                cols = "at, project_id, stage, model, sources, input_tokens, output_tokens"
+                vals = [project_id, stage, self.model or "claude-cli", "[]", reply.input_tokens, reply.output_tokens]
+                if has_column(conn, "llm_calls", "provider"):
+                    cols += ", provider"
+                    vals.append("claude_cli")
+                conn.execute(f"INSERT INTO llm_calls ({cols}) VALUES (datetime('now'),{','.join('?' * len(vals))})", vals)
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception as e:  # noqa: BLE001 - an older ledger without the table: the answer is never lost for a note
+            print(f"[llm] không ghi được lượt claude_cli vào sổ: {e}", file=sys.stderr)
 
     def complete(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
         """One retry when Claude Code times out (a slow turn is common with several pictures); other errors are reported."""
+        self._halted()
         try:
-            return self._complete_once(prompt, images)
+            try:
+                reply = self._complete_once(prompt, images)
+            except LlmError as e:
+                if e.code != "timeout":
+                    raise
+                reply = self._complete_once(prompt, images)
         except LlmError as e:
-            if e.code != "timeout":
-                raise
-            return self._complete_once(prompt, images)
+            self._note_stop(e)
+            raise
+        self._record(reply)
+        return reply
 
     def _complete_once(self, prompt: str, images: Sequence[Tuple[str, str]] = ()) -> LlmReply:
         import shutil

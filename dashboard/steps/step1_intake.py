@@ -109,7 +109,7 @@ def style_offer(p: Pipeline, pid: int) -> None:
     if not paths or st.session_state.get(f"wb_draft_{pid}"):
         return
     n = min(len(paths), style.MAX_REFS)
-    llm = llm_client()
+    llm = llm_client(pid)
     with st.chat_message("assistant"):
         st.markdown(f"Có **{len(paths)} ảnh phong cách**. Claude soạn nháp World Bible từ {n} ảnh — bạn xem và Lưu ở ⚙ Chi tiết.")
         if st.button("🤖 Phân tích ảnh phong cách" + cost.llm_tag(cost.llm_estimate(p.conn, "style", 1, images=n), 1),

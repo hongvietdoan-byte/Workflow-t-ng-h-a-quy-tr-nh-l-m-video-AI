@@ -37,7 +37,7 @@ def step3(p: Pipeline, pid: int):
     change_review_ui.render(p, pid, who=(C.access_user() or {}).get("email"), read_only=C.read_only(p, pid), key="cr3")
     stale_idx = sorted(r["idx"] for r in status.values() if r["motion_stale"] and r["image_job_id"])
     missing = [r for r in approved_imgs if r["motion_state"] is None]
-    client = llm_client()
+    client = llm_client(pid)
     with (_card("sb-mot-tools") if v2 else st.container(border=True)):
         c1, c2, c3 = st.columns([2.6, 2, 2], vertical_alignment="center")
         todo = len(missing) + len(stale_idx)

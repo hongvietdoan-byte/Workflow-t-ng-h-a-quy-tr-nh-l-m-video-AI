@@ -29,7 +29,7 @@ def world_bible_panel(p: Pipeline, pid: int) -> None:
                 st.rerun()
         uploads = st.file_uploader("Ảnh tham khảo phong cách", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True,
                                    key=f"wb_up_{pid}")
-        llm = llm_client()
+        llm = llm_client(pid)
         n_up = min(len(uploads or []), style.MAX_REFS)
         if st.button("🤖 Phân tích ảnh phong cách bằng Claude" + cost.llm_tag(cost.llm_estimate(p.conn, "style", 1, images=n_up), 1),
                      key=f"wb_run_{pid}", disabled=not uploads or llm is None, help=None if llm else claude_hint()):
@@ -340,7 +340,7 @@ def storyboard_panel(p: Pipeline, pid: int) -> None:
         cap("Claude đọc góc máy/đường chân trời/mặt đất của ảnh bối cảnh (mỗi ảnh chỉ đọc 1 lần), đặt từng nhân vật theo "
                    "“Vị trí nhân vật” của cảnh; chương trình tự tính cỡ người theo phối cảnh và giữ chân trên mặt đất. "
                    "Chỉ cảnh đã có Background (ảnh bối cảnh trong kho) mới dựng được. Không phải duyệt: sửa blocking rồi dựng lại nếu muốn.")
-        client = llm_client()
+        client = llm_client(pid)
         c1, c2 = st.columns(2)
         if c1.button("🎬 Dựng storyboard", key=f"pv_plan_{pid}", disabled=client is None, type="primary",
                      help=None if client else C.claude_hint()):

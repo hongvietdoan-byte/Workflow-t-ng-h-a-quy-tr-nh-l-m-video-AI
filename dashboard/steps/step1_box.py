@@ -372,7 +372,7 @@ def _chat_ask(p: Pipeline, pid: int) -> None:
             st.rerun()
         if b.button(f"💬 Hỏi Claude · ≈ ${est:.2f}", key=f"box_chatask_chat_{pid}", width="stretch"):
             ss.pop(k["chatask"], None)
-            act(lambda: Chat.send(p, pid, text, llm_client(), record_user=False))
+            act(lambda: Chat.send(p, pid, text, llm_client(pid), record_user=False))
             st.rerun()
         if c.button("📜 Đây là kịch bản", key=f"box_chatask_script_{pid}", width="stretch"):
             _chat_choose(p, pid, "script")
@@ -448,7 +448,7 @@ def script_box(p: Pipeline, pid: int, with_reset: bool = True) -> bool:
                 ss[k["chatask"]] = incoming
             elif kind == "chat":
                 with st.spinner("Claude đang trả lời…"):
-                    act(lambda: Chat.send(p, pid, incoming, llm_client()))
+                    act(lambda: Chat.send(p, pid, incoming, llm_client(pid)))
             else:
                 Chat.append(p, pid, "user", incoming or f"📎 {files[0].name}")
                 if kind == "edit":

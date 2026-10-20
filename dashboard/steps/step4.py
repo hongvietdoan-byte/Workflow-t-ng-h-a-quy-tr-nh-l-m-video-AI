@@ -287,7 +287,7 @@ def clip_set_panel(p: Pipeline, pid: int) -> None:
     with st.expander(label, expanded=bool(last and last.get("issues"))):
         st.caption("Claude xem khung giữa của mọi clip và các điểm nối giữa hai shot liền mạch: màu, ánh sáng, chất hình, nhân vật có "
                    "khớp nhau không (clip do các model khác nhau làm dễ lệch). Nên chạy trước khi dựng ở màn Bản giao.")
-        client = llm_client()
+        client = llm_client(pid)
         if st.button(f"🤖 Kiểm tra {usable} clip" + cost.llm_tag(cost.llm_estimate(p.conn, "clipcheck", 1, images=2, ledger_stage="qc"), 1),
                      key=f"clipqc_{pid}", disabled=client is None, help=None if client else claude_hint()):
             with st.spinner("Claude đang so cả bộ clip…"):
@@ -334,7 +334,7 @@ def sequence_logic_panel(p: Pipeline, pid: int) -> None:
         st.caption("Claude xem các shot của từng nhóm cảnh nối tiếp nhau (khung đầu · giữa · cuối mỗi clip, hoặc ảnh đã duyệt khi chưa "
                    "có clip) kèm câu hành động: chỗ đứng / độ cao nền có giữ đúng giữa shot liền nhau, địch đã gục có bị bắn tiếp hay "
                    "xuất hiện lại, việc lời thoại nhắc tới có shot thể hiện, thứ tự có nhảy vô lý. Chỉ báo — sửa / gen lại do bạn quyết.")
-        client = llm_client()
+        client = llm_client(pid)
         if st.button(f"🤖 Kiểm {calls} nhóm cảnh" + cost.llm_tag(usd, calls), key=f"seqlogic_{pid}",
                      disabled=client is None, help=None if client else claude_hint()):
             with st.spinner("Claude đang xem nối tiếp các shot…"):

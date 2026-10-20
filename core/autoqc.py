@@ -11,7 +11,7 @@ import threading
 import time
 from typing import Callable, Dict, Optional, Tuple
 
-from . import diag, llm_runner
+from . import diag, llm_provider, llm_runner
 from .db import connect
 from .pipeline import Pipeline
 from .states import JobState
@@ -94,7 +94,7 @@ def can_run(conn, project_id: int, client_factory: Optional[Callable] = None) ->
     if active(project_id) or last_error(project_id) or not waiting(conn, project_id):
         return False
     try:
-        return (client_factory or llm_runner.ledger_factory(llm_runner.db_file(conn)))() is not None
+        return (client_factory or llm_provider.project_factory(llm_runner.db_file(conn), project_id))() is not None
     except llm_runner.LlmError:
         return False
 
@@ -102,7 +102,7 @@ def can_run(conn, project_id: int, client_factory: Optional[Callable] = None) ->
 def start(db_path: str, data_dir: str, project_id: int, client_factory: Optional[Callable] = None) -> bool:
     """Start checking this project's unchecked pictures in the background. True if a check was started."""
     conn = connect(db_path)
-    client_factory = client_factory or llm_runner.ledger_factory(db_path)      # every Claude call -> cost ledger + Claude cap
+    client_factory = client_factory or llm_provider.project_factory(db_path, project_id)   # V3.1 M1.4b: Claude của dự án → sổ chi
     try:
         with _lock:
             if not can_run(conn, project_id, client_factory) or not _claim(db_path, "image", project_id):
@@ -184,7 +184,8 @@ def start_video(db_path: str, data_dir: str, project_id: int, client_factory: Op
     from . import claude_tasks
     conn = connect(db_path)
     p = Pipeline(conn)
-    client_factory = client_factory or llm_runner.ledger_factory(db_path)
+    per_job = client_factory is None             # V3.1 M1.4b: mặc định → mỗi clip chấm bằng provider chụp lúc tạo job của nó
+    client_factory = client_factory or llm_provider.project_factory(db_path, project_id)
     try:
         with _lock:
             if video_active(project_id) or video_last_error(project_id) or not claude_tasks.unchecked_videos(p, project_id):
@@ -199,24 +200,25 @@ def start_video(db_path: str, data_dir: str, project_id: int, client_factory: Op
             _video_active.add(project_id)
     finally:
         conn.close()
-    threading.Thread(target=_video_work, args=(db_path, data_dir, project_id, client_factory), daemon=True,
+    threading.Thread(target=_video_work, args=(db_path, data_dir, project_id, client_factory, per_job), daemon=True,
                      name=f"autoqc-video-{project_id}").start()
     return True
 
 
-def _video_work(db_path: str, data_dir: str, project_id: int, client_factory: Callable) -> None:
+def _video_work(db_path: str, data_dir: str, project_id: int, client_factory: Callable, per_job: bool = False) -> None:
     from . import claude_tasks
     conn = None
     try:
         conn = connect(db_path)
         p = Pipeline(conn)
         client = client_factory()
+        jobs = llm_provider.JobClients(conn, db_path) if per_job else None
         for _ in range(200):
             todo = claude_tasks.unchecked_videos(p, project_id)
             if not todo or client is None:
                 break
             try:
-                claude_tasks.qc_video(p, todo[0], client, data_dir)
+                claude_tasks.qc_video(p, todo[0], jobs.for_job(todo[0]) if jobs is not None else client, data_dir)
             except llm_runner.LlmError as e:
                 if e.code in llm_runner.STOP_CODES:      # V3.1 M1.4a: + usage_limit / out_of_credit
                     _video_errors[project_id] = (str(e), time.time())

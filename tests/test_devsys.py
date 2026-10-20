@@ -442,7 +442,7 @@ class ScorerTests(unittest.TestCase):
         out = io.StringIO()
         with mock.patch.object(scorer, "make_client", side_effect=AssertionError("không được tạo client")), \
                 contextlib.redirect_stdout(out):
-            code = devsys_score.main(["--areas", "lipsync"])
+            code = devsys_score.main(["--areas", "lipsync", "--provider", "anthropic"])   # V3.1 M1.4b: mặc định nay là claude_cli
         self.assertEqual(code, 1)
         self.assertIn("Ước tính chấm 1 khu vực", out.getvalue())
         self.assertIn("Chưa gọi gì", out.getvalue())

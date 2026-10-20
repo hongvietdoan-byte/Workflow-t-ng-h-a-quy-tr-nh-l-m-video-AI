@@ -452,7 +452,7 @@ def character_bible_panel(p: Pipeline, pid: int, chars, risky) -> None:
                 return D.Raw(f'<span title="{escape(t)}">{escape(t if len(t) <= 70 else t[:69].rstrip() + "…")}</span>')
             heads = list(bible_rows[0]) if bible_rows else []
             st.html(D.table(heads, [[clip(v) if h == "Mô tả" else v for h, v in row.items()] for row in bible_rows]))
-            client = llm_client()
+            client = llm_client(pid)
             bible_check_box(p, pid, rows, client, locked)
             character_reference_panel(p, pid, chars)
             voices = _voices(pid)

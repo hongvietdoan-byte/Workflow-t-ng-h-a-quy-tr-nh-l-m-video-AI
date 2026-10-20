@@ -36,7 +36,7 @@ def read_page(p: Pipeline, pid: int, it) -> bool:
     from dashboard.steps import step1_box as Box
     k, ss = Box._keys(pid), st.session_state
     out = {}
-    if not act(lambda: out.setdefault("text", chat_refs.read_page(p, C.DATA, pid, it["id"], C.llm_client()))):
+    if not act(lambda: out.setdefault("text", chat_refs.read_page(p, C.DATA, pid, it["id"], C.llm_client(pid)))):
         return False
     text = out["text"]
     # rà 09/10: dự án đã có cảnh → _take đẩy trang trước sang pending / ask (và xóa text) — lấy chữ ở khóa đang có, theo thứ tự đó

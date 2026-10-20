@@ -476,12 +476,13 @@ def _review_group(conn, data_dir: str, ev, ids: List[int], client, res: Dict) ->
 
 
 def process_pending(conn, data_dir: str, client=None, limit: int = ROUND_LIMIT, log: Callable[[str], None] = lambda m: None,
-                    budget_s: float = ROUND_SECONDS) -> Dict:
+                    budget_s: float = ROUND_SECONDS, client_for: Optional[Callable] = None) -> Dict:
     """Một lượt worker: mỗi thay đổi đang chờ → lọc → luật code → agent Claude (nếu bật + có client). Không bao giờ ném lỗi.
-    Không có Claude → 'code_only' (luật code đã chạy); có Claude lại thì các thay đổi đó được Claude rà sau."""
+    Không có Claude → 'code_only' (luật code đã chạy); có Claude lại thì các thay đổi đó được Claude rà sau.
+    client_for(project_id) (V3.1 M1.4b): Claude của dự án của thay đổi (provider theo dự án); không truyền → `client` cho mọi thay đổi."""
     res = {"skipped": 0, "reviewed": 0, "failed": 0, "usd": 0.0}
     t0 = time.time()
-    states = ("pending", "code_only") if client is not None else ("pending",)
+    states = ("pending", "code_only") if client is not None else ("pending",)   # code_only chỉ rà lại khi có Claude chung (không quay vòng)
     q = ','.join('?' * len(states))
     # LIMIT đếm theo NHÓM (một shot = một dòng), không theo lần ghi: một shot ghi 6 lần không chiếm hết lượt của shot khác
     if not motion_enabled():                    # C4: cờ change_review_motion tắt → lần sửa motion prompt không rà (như trước cờ)
@@ -494,7 +495,7 @@ def process_pending(conn, data_dir: str, client=None, limit: int = ROUND_LIMIT, 
     for ev, ids in _group_by_scene(conn, rows, states):
         if time.time() - t0 > budget_s:
             break
-        _review_group(conn, data_dir, ev, ids, client, res)
+        _review_group(conn, data_dir, ev, ids, client_for(ev["project_id"]) if client_for is not None else client, res)
     conn.execute("DELETE FROM change_events WHERE state<>'pending' AND reviewed_at < ?",
                  (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - KEEP_DAYS * 86400)),))
     conn.commit()
