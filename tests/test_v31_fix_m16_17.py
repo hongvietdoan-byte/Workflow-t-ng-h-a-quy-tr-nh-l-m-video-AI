@@ -45,6 +45,7 @@ class RetryOfAFinalIsPricedAsTheUpgrade(Base):
         src = open(os.path.join(ROOT, "dashboard", "steps", "step4.py"), encoding="utf-8").read()
         self.assertIn('cost.clip_estimate(p.conn, p.job(job["id"])["scene_id"], parent_job_id=job["id"])', src)   # ↻ Gen lại clip này
         self.assertIn("cost.clip_estimate(p.conn, p.job(j)[\"scene_id\"], parent_job_id=j)", src)               # thử lại clip lỗi
+        self.assertIn("price = cost.clip_estimate(p.conn, j[\"scene_id\"], parent_job_id=jid)", src)   # thẻ clip v2: ↻ Gửi lại / Gen lại / ✖ Loại & gen lại (rà 20/10)
 
 
 class PregenCheckSaysWhichClaude(unittest.TestCase):

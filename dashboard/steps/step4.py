@@ -539,7 +539,7 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
     clip = j["result_path"] if state in ("succeeded", "pending_review", "approved") and j["result_path"] and os.path.exists(j["result_path"]) else None
     blocked = p.conn.execute("SELECT error_message FROM content_moderation_failures WHERE job_id=? ORDER BY id DESC LIMIT 1", (jid,)).fetchone()
     scores = qc_scores(p, jid)
-    price = cost.clip_estimate(p.conn, j["scene_id"])
+    price = cost.clip_estimate(p.conn, j["scene_id"], parent_job_id=jid)   # gen lại / gửi lại job này: bậc theo job cha (rà C-FIX 20/10)
     tag = cost.price_tag(price)                                            # M8: price on every button that sends a clip again
     reviewable = state in ("pending_review", "succeeded")
     with D.card(f"vid-{jid}"):
