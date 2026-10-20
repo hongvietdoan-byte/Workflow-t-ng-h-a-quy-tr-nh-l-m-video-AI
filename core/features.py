@@ -375,6 +375,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "#31 G51 (đơ 6 s, chạy tại chỗ), G28 (khung 0 khác ảnh đầu), #33 B8 (chép chuyển cảnh ref) chỉ người thấy. Ngưỡng chưa "
                "hiệu chuẩn (benchmark M4.6) → chỉ ghi, chưa chặn. Chưa chạy trên clip thật",
     },
+    "continuity_shadow": {
+        "label": "Logic XUYÊN SHOT shadow (V3.1 M4.3): giữa 2 shot liền cùng nhóm — vật đang cầm biến mất, đổi dạng, đổi hướng đi trên khung "
+                 "(chỉ khi chữ nói rõ) → ghi bằng chứng + đồ thị phụ thuộc + shot 'cần xem' theo kết quả QC logic chuỗi; KHÔNG chặn, 0 USD",
+        "verified": False,
+        "why": "#31 G52 (logic chuỗi 39 clip), G51 (súng biến mất), G41 (hướng chạy) chỉ người / Claude thấy; chạy sau qc_sequence_logic. "
+               "Chưa chạy trên dữ liệu thật",
+    },
     "qc_observe_enum": {
         "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",
         "verified": False,

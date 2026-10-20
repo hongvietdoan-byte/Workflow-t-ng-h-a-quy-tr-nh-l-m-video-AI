@@ -174,6 +174,8 @@ def check(p: Pipeline, project_id: int, client, data_dir: str, sequence: Optiona
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=1)
+    from . import continuity_shadow          # V3.1 M4.3 (cờ continuity_shadow, TẮT): expected + đồ thị phụ thuộc, chỉ ghi — never raises
+    continuity_shadow.run(p, project_id, data_dir, out)
     return out
 
 
