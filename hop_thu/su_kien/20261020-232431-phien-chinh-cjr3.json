@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T23:24:31.257725+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX20-5b",
+  "to": "codex",
+  "title": "Sửa 2 VỪA + THẤP của M1.5 Kho chủ thể",
+  "priority": 2,
+  "text": "Rà kỹ 20/10 nhánh codex/d20-viec5-kho-chu-the: (1) VỪA core/adapters/clipai_subjects.py:79–98 list_assets raise incomplete_snapshot bất kể cờ → get()/upload() đổi hành vi khi cờ TẮT: thêm list_assets(strict=False), chỉ capacity() dùng strict=True; test cờ TẮT + count lệch → upload/get như cũ. (2) VỪA core/subjects.py:384 một dòng processing bất kỳ (dự án khác / treo sau crash) làm mọi job QUEUE_UNKNOWN_CAPACITY mãi: chỉ UNKNOWN khi asset_id NULL hoặc không có trong snapshot; test. (3) THẤP runner.py:1084 CapacityWait thêm cooling như _pregen_cooling / cache snapshot theo vòng (không list 20 trang mỗi heartbeat trong SPEND_LOCK); inbox.py:219–225 bỏ dòng 'Kho chủ thể chờ duyệt' khi rejected_frame_assets rỗng; test 'subject_capacity_guard TẮT → factory.subject_library() cũ'. Xóa HANDOFF.md. Sửa trên chính nhánh đó rồi báo xong."
+}

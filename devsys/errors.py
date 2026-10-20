@@ -44,6 +44,28 @@ def stage_ids() -> set:
         return set()
 
 
+def register_problems(doc: Dict) -> List[str]:
+    """Kiểm cấu trúc trước problems(), để trang/sơ đồ báo rõ JSON sai schema."""
+    if not isinstance(doc.get('items'), list):
+        return ['errors.json: items phải là danh sách']
+    for n, row in enumerate(doc['items']):
+        if not isinstance(row, dict):
+            return [f'errors.json: mục {n} không phải object']
+        for field in ('alias', 'project_ids', 'shot_ids', 'job_ids', 'affected_flows',
+                      'dependencies', 'reopen_history'):
+            value = row.get(field)
+            if value is not None and not isinstance(value, list):
+                return [f'errors.json: mục {n} trường {field} phải là danh sách']
+        if any(not isinstance(a, str) for a in row.get('alias') or []):
+            return [f'errors.json: mục {n} alias phải chứa chuỗi']
+        if row.get('stage') is not None and not isinstance(row['stage'], str):
+            return [f'errors.json: mục {n} stage phải là chuỗi hoặc null']
+    try:
+        return problems(doc)
+    except (TypeError, AttributeError) as exc:
+        return [f'errors.json: cấu trúc trường không hợp lệ ({type(exc).__name__})']
+
+
 def problems(doc: Dict, stages: Optional[set] = None) -> List[str]:
     """Lỗi hợp đồng của sổ (rỗng = hợp lệ)."""
     out: List[str] = []

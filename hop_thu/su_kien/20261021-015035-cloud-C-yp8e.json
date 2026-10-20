@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T01:50:35.723504+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M34",
+  "branch": "cloud/v31-m34",
+  "commit": "b4abf8ee",
+  "report": "docs/RA_CLOUD_M34_2026-10-20.md",
+  "text": "M3.4 continuity_state SHADOW xong (cờ continuity_state TẮT): expected từ BYĐ giữa shot liền cùng nhóm (cầm giữ/MẤT/ĐỔI TAY, tư thế cuối→đầu, nơi kho_id, hướng như M4.3) + observed M4.2/M4.3 + đồ thị → can_xem; ghi <pid>/world/continuity_state.json, REVIEW, không chặn; gọi sau continuity_shadow.run trong sequence_logic.check; continuity_shadow chỉ đọc. 19 test (đỏ trước); full 6564 passed, 4 đỏ cũ. Gộp với cloud/v31-m47a: xung đột nhẹ features.py/areas.json — giữ cả hai. HẠN MỨC: không đọc được. Tiếp: C-M32."
+}

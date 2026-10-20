@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T02:15:09.409630+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-FIX-THAP-5",
+  "branch": "cloud/v31-fix-thap-5",
+  "commit": "ee1aef85",
+  "report": "docs/RA_CLOUD_FIX_THAP_5_2026-10-21.md",
+  "text": "4 THẤP xong: (1) final_qc intended_holds/_shot_at trừ chồng chuyển cảnh (manifest transition/fade, như final_cut.total_seconds); (2) world_map build_3d nhận byd → byd_changed + entities_at(m, None) trả mọi thực thể; (3) send_preview.shadow_cached (khóa mtime 3 tệp + max qc_run), UI dùng cache; (4) areas core_infra thêm g36b + test này. 9 test (8 đỏ trước); full 6600 passed, 4 đỏ cũ. HẠN MỨC: không đọc được."
+}

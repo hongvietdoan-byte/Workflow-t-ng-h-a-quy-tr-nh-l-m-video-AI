@@ -1,0 +1,16 @@
+# Lịch điều phối của phiên chính (tạo lại sau /clear)
+
+Phiên chính (người dùng chỉ điều khiển phiên này) giữ một lịch `CronCreate` lặp `13,43 * * * *` với đề bài dưới đây. Lịch chỉ sống trong phiên:
+sau `/clear` chạy `CronList`; thiếu thì `CronCreate` lại đúng đề bài này (recurring: true).
+
+```
+[Lịch điều phối hộp thư SỰ KIỆN — phiên chính] Theo skill vong-lam-viec-theo-plan + hop_thu/README.md. Tiếng Việt, ngắn. Người dùng CHỈ điều khiển phiên này; phiên này điều khiển mọi làn (cloud-C, cloud-D, codex — automation 30 phút; cloud-B đã dừng) qua hộp thư.
+1. Hạn mức phiên này: mcp__ccd_session_mgmt__get_usage. 5 giờ ≥ 90 % → chỉ `bang` + 1 dòng; 70–90 % → chỉ gộp tài liệu / việc nhỏ. Context ≥ 70 % → làm theo skill mục "THAY 20/10 23:58" (commit gói bàn giao, /clear, dùng tiếp phiên này).
+2. Worktree phiên này: git fetch origin && git merge origin/main. `PYTHONUTF8=1 py tools/hop_thu.py bang` + đọc tin "HẠN MỨC" mới nhất của từng làn.
+3. Mỗi việc XONG: rà theo mức (tài liệu = rà nhẹ đọc báo cáo; code đụng tiền/dữ liệu/vòng đời job/provider/migration/xóa asset = RÀ KỸ bằng Agent đọc diff; lỗi → `giao` việc sửa), gộp nhánh thật trong sự kiện xong (xung đột features.py/areas.json: `PYTHONUTF8=1 py tools/merge_union.py <file xung đột>` — giữ cả hai mục dict / hợp danh sách JSON), cả bộ test nền `PYTHONUTF8=1 py -m pytest -q -n 8 -p no:cacheprovider -rf` (KHÔNG chạy khi cây còn xung đột), xanh → trạng thái việc trong docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md + plan_progress --write → commit → push main → `hop_thu.py gop <mã> --lane phien-chinh --commit <sha>` (+ commit hop_thu, push) → pull ở D:\AI-Video-Pipeline; đổi core/ hoặc dashboard/ → khởi động lại 8501; devsys/ → 8502.
+4. Trả lời HỎI bằng `tra-loi … --push`. CHỦ ĐỘNG GIAO THEO HẠN MỨC (docs/CLOUD_TASKS.md "CHIA VIỆC THEO HẠN MỨC GÓI"): tuần < 60 % → việc nặng; 60–85 % → việc vừa; 85–90 % → việc nhỏ; ≥ 90 % → `giao` lại việc CHỜ của làn đó cho làn khác. Mỗi làn hoạt động ≥ 2 việc CHỜ + pool ≥ 3 CHỜ; HẾT VIỆC → giao ngay. Việc mới: đề bài tự đủ vào docs/CLOUD_TASKS.md (codex: docs/CODEX_TASKS.md) rồi `hop_thu.py giao <mã> --to <làn|pool> --title … --spec "<file>#### <mã>" [--depends …] [--priority N] --lane phien-chinh --push`. Chỉ Cấp 1 / Cấp 2 đã duyệt (sổ v31-cap2-milestone-packages-approved-2026-10-20); M2 code chỉ khi CX20-2b GỘP; QC chỉ shadow/REVIEW; map chỉ offline; không trùng file với việc đang làm. Quoting: không để backtick trong --text trên bash (dùng file tạm).
+5. KHÔNG tự làm Cấp 3 (bật cờ production, API trả phí, xóa asset, migration CSDL thật mới) — đủ điều kiện thì PushNotification xin người dùng. Codex không có hoạt động hộp thư > 1 giờ dù còn hạn mức → PushNotification nhắc người dùng mở lại ứng dụng Codex.
+6. Kết thúc: 2–4 dòng (đã gộp gì, giao gì, làn nào làm gì, hạn mức các làn). Không có gì mới → 1 dòng.
+```
+
+Công cụ gộp xung đột "cả hai bên đều thêm": `tools/merge_union.py` (devsys/areas.json: hợp danh sách; core/features.py: giữ cả hai mục dict).

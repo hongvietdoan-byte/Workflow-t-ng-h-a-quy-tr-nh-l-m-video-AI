@@ -141,7 +141,14 @@
       "ref_rule_early": false,
       "plate_anchored_image": false,
       "qc_sequence_logic": false,
-      "two_tier_quality": false
+      "two_tier_quality": false,
+      "world_map": false,
+      "refusal_skip_same_picture": false,
+      "send_preview_panel": false,
+      "final_black_freeze": false,
+      "qc_evidence": false,
+      "repair_router": false,
+      "release_gate": false
     },
     "experimental_flags": [
       "new_feature"
@@ -300,7 +307,14 @@
       "ref_rule_early": false,
       "plate_anchored_image": false,
       "qc_sequence_logic": false,
-      "two_tier_quality": false
+      "two_tier_quality": false,
+      "world_map": false,
+      "refusal_skip_same_picture": false,
+      "send_preview_panel": false,
+      "final_black_freeze": false,
+      "qc_evidence": false,
+      "repair_router": false,
+      "release_gate": false
     },
     "experimental_flags": [
       "new_feature"

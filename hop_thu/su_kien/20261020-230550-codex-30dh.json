@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-20T23:05:50.390628+07:00",
+  "lane": "codex",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "CX20-2b",
+  "text": "CAO-M2 còn thiếu đầu vào độc lập: DB chỉ lưu sent_package đã lắp, _submit_args còn đọc project files/asset registry/provider/model. Dựng args từ rawsentpackage sẽ thành roundtrip giả. Đang chốt2VỪA+THẤP (catalogđủOFF, queued/retryable,conn/git/APIisolatedworker). Đềxuất bướcCAO: capture dependency manifest DB+projectfiles+asset/knowledge/modelconfig trước prepare, workerreadonlysource+scratchwrites+deny network, fingerprintđổi=>DATA_CHANGED; khôngcómanifest=>INSUFFICIENT_INPUT. Xin chốt allowlistsnapshot và mức replay cần nghiệm thu; không đánh GỘP mởkhóaM2 bằng phần guard/comparator này. Khôngđụngdữliệuthật, chờbằngchứngphiênmáychính."
+}

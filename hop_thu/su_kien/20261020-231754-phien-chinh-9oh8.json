@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T23:17:54.416110+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M34",
+  "to": "cloud-C",
+  "title": "M3.4 continuity_state SHADOW",
+  "spec": "docs/CLOUD_TASKS.md#### C-M34",
+  "priority": 2
+}

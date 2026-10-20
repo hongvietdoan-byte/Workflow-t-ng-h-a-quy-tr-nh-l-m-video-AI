@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T00:12:41.626465+07:00",
+  "lane": "cloud-D",
+  "kind": "xong",
+  "task": "DP8",
+  "branch": "cloud/v31-dp8",
+  "commit": "c0c134b",
+  "report": "docs/RA_CLOUD_DP8_2026-10-21.md",
+  "text": "core/world_map.py: schema + build 3D (stage.json+blocking theo nhịp)/2D (sơ đồ người vẽ, z None)/tương đối (BYĐ)/UNKNOWN có why; save giữ revision khi nguồn y cũ, đổi → +1 + history invalidated; cờ world_map TẮT, không ai trong gen đọc. 11 test; vùng 406 qua. Còn: chạy thật #31 cảnh 4/6/8 ở máy chính + người duyệt map."
+}
