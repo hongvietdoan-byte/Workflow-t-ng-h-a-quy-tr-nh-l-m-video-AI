@@ -228,9 +228,12 @@ def banner(db_path: Optional[str] = None) -> str:
     rows = stale_instances(db_path)
     if not rows:
         return ""
-    ports = ", ".join(f"{r['port'] or '?'} (pid {r['pid']}" + (f", dấu {r['code'][:8]})" if r.get("code") else f", {r['sha'][:8]})")
-                      for r in rows)
-    return (f"⚠ Dashboard chạy code cũ — tệp .py của core/ / dashboard/ đã đổi từ lúc khởi động: cổng {ports} — tắt / mở lại "
+    def why(r) -> str:                            # C-FIX-THAP-2: bản ghi cũ (chưa có dấu vân tay) chỉ biết sha — nói đúng điều đã so
+        if r.get("code"):
+            return f"pid {r['pid']}: tệp .py của core/ / dashboard/ đã đổi từ lúc khởi động (dấu {r['code'][:8]})"
+        return f"pid {r['pid']}: bản ghi cũ chỉ có sha {r['sha'][:8]} ≠ HEAD {str(r.get('head') or '?')[:8]} — chưa biết tệp .py có đổi"
+    ports = ", ".join(f"{r['port'] or '?'} ({why(r)})" for r in rows)
+    return (f"⚠ Dashboard có thể chạy code cũ: cổng {ports} — tắt / mở lại "
             "(tools/stop_dashboard.ps1 -All tắt mọi cổng dashboard.serve).")
 
 
