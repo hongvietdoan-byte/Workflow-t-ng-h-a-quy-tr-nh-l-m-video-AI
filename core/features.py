@@ -355,6 +355,12 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.22 cổng S11.2 ĐẠT: người dùng chấm phiếu 05d (docs/DO_S11_2_Y_TUONG_2026-10-05d.md) TB 4,20 ≥ 4,0, đo thật 0,709 USD; "
                "06/10 người dùng duyệt bật mặc định — dùng khi người dùng yêu cầu hoặc khi kịch bản sơ sài (Claude hỏi trong khung chat, chưa tự chi)",
     },
+    "horizon_needs_sky": {
+        "label": "Cổng ảnh→video: chỉ so đường chân trời khi nền CÓ trời (V3.1 M3.5) — trong nhà / từ trên cao / render không trời → bỏ kiểm "
+                 "chân trời có lý do (VÀNG, không ĐỎ); có trời hoặc không rõ → kiểm như cũ",
+        "verified": False,
+        "why": "#31 G20: S22 trong phòng, S39 từ trên cao bị báo 'lệch nền 3D' vì mép tường/sàn bị đo như chân trời. Chưa chạy trên ảnh thật",
+    },
     "qc_observe_enum": {
         "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",
         "verified": False,
