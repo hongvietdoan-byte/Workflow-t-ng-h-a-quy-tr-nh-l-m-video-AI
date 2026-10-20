@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-20T22:14:31.591715+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "all",
+  "text": "C3-1 XONG: CSDL máy chính đã có cột provider (projects/jobs/llm_calls), sao lưu trước, integrity ok; dự án/job cũ theo môi trường (claude_cli). Dashboard 8501 khởi động lại."
+}

@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-20T22:33:20.238967+07:00",
+  "lane": "cloud-C",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "C-FIX-THAP-1 đã nhận, chờ main có 'Gộp cloud/v31-m43' như đề; trong lúc chờ làm DP5 (pool). Main gộp xong → cloud-C làm THAP-1 ngay sau DP5 (hoặc xen giữa nếu DP5 dài)."
+}

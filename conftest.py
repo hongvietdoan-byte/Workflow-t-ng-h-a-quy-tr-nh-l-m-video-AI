@@ -35,6 +35,8 @@ SLOW_TESTS = (
     "tests/test_ui_v2_acceptance.py::AcceptanceTests::test_no_widget_key_pattern_lost_in_source",
     "tests/test_clip_measure.py::ClipMeasureTests::test_the_next_shots_frames_at_the_end_are_found_and_dropped",
     "tests/test_group_cut.py::RefineTests::test_no_clear_cut_keeps_the_plan_and_says_so",
+    "tests/test_hop_thu.py::PushTests::test_two_lanes_writing_at_once_do_not_conflict",
+    "tests/test_hop_thu.py::PushTests::test_push_from_feature_branch_sends_only_the_event_file",
     "tests/test_subtitles.py::AutopilotSubtitleTests::test_when_switched_on_the_automatic_run_adds_subtitles_after_the_render_and_a_failure_never_loses_the_video",
 )
 

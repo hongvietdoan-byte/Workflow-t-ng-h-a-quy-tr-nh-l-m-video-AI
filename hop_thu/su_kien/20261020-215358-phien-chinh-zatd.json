@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T21:53:58.084810+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "DP4",
+  "to": "pool",
+  "title": "M4.1 schema bằng chứng QC (shadow)",
+  "spec": "docs/CLOUD_TASKS.md#### DP4",
+  "priority": 13
+}

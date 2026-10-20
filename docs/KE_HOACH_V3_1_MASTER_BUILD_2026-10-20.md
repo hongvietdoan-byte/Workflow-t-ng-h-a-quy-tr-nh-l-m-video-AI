@@ -156,13 +156,13 @@ kiểm giá trị; không đổi `STATUSES`.
 <!-- tien-do -->
 | Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | Tiến độ |
 |---|---|---|---|---|---|---|
-| M0 Đóng băng và thiết kế (0 USD) | 12 | 10 | 0 | 0 | 0 | 77,8 % |
-| M1 Nền tin cậy (0 USD, provider giả) | 9 | 1 | 8 | 0 | 0 | 52,6 % |
+| M0 Đóng băng và thiết kế (0 USD) | 12 | 12 | 0 | 0 | 0 | 100 % |
+| M1 Nền tin cậy (0 USD, provider giả) | 9 | 5 | 4 | 0 | 0 | 78,9 % |
 | M2 Hợp đồng sản xuất có cấu trúc | 9 | 0 | 0 | 0 | 0 | 0 % |
 | M3 Thế giới và liên tục | 5 | 0 | 0 | 0 | 0 | 0 % |
 | M4 QC có bằng chứng và Dashboard | 7 | 0 | 0 | 0 | 0 | 0 % |
 | M5 Sửa chọn lọc và pilot | 5 | 0 | 0 | 2 | 0 | 0 % |
-| **Tổng** | **47** | **11** | **8** | **2** | **0** | **25,8 %** |
+| **Tổng** | **47** | **17** | **4** | **2** | **0** | **35,5 %** |
 
 Đợt hiện tại: **M1** · việc kế: **M2.1** BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN
 <!-- /tien-do -->
@@ -173,8 +173,8 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M0.1 · Audit HEAD, cờ máy chính, schema CSDL, provider/model → biên bản docs/audit/M0_BASELINE_2026-10-20.md · nặng:1 · ✅ · biên bản docs/audit/M0_BASELINE_2026-10-20.md: HEAD/cờ/schema/provider đo trên máy chính
 - [ ] M0.2 · Kiểm 6 lỗi báo đã sửa (G7, G8, G10, G24, G27, G35) có trên HEAD + test tương ứng · nặng:1 · ✅ · 8 commit trên HEAD, 11 file test 331 qua → sổ lỗi FIXED_UNVERIFIED
 - [ ] M0.3 · Chốt D01–D10: người dùng chọn từng mục trong docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, rồi ghi sổ + test · nặng:1 · ✅ · người dùng chốt 20/10; sổ v31-d01…v31-d10 + test_v31_d01_to_d10_recorded_as_policy_not_implementation
-- [ ] M0.4 · Schema sổ lỗi devsys/errors.json + test hợp đồng (mã không trùng, VERIFIED cần commit+test+bằng chứng, OPEN cần workstream) · nặng:2 · ⬜ · G2-1 duyệt 20/10
-- [ ] M0.5 · Nhập G1–G58, A1–A15, B1–B12 có nguồn; báo cáo coverage 100 % (G25 khuyết ghi rõ) · nặng:2 · ⬜ · G2-1 duyệt 20/10
+- [ ] M0.4 · Schema sổ lỗi devsys/errors.json + test hợp đồng (mã không trùng, VERIFIED cần commit+test+bằng chứng, OPEN cần workstream) · nặng:2 · ✅ · cloud-B C-M04-05 gộp 20/10: devsys/errors.json 86 mục (G25 khuyết) + errors.py check; cả bộ 6293 qua
+- [ ] M0.5 · Nhập G1–G58, A1–A15, B1–B12 có nguồn; báo cáo coverage 100 % (G25 khuyết ghi rõ) · nặng:2 · ✅ · cloud-B C-M04-05 gộp 20/10: devsys/errors.json 86 mục (G25 khuyết) + errors.py check; cả bộ 6293 qua
 - [ ] M0.6 · Bảng AS-IS/TO-BE WS0–WS6 theo file:hàm (IMPL/PART/MISS/UNK) · nặng:2 · ✅ · cloud tài khoản khác, gộp 20/10 (e43acf20…e767e9d3); rà nhẹ (chỉ tài liệu)
 - [ ] M0.7 · Ma trận test bắt buộc cho từng milestone theo CHUAN_XAY_DUNG + devsys/areas.json · nặng:1 · ✅ · cloud tài khoản khác, gộp 20/10 (e43acf20…e767e9d3); rà nhẹ (chỉ tài liệu)
 - [ ] M0.8 · AI Dev System: trang sơ đồ tiến độ vẽ từ kế hoạch + sổ khâu (+ sổ lỗi khi có), tô màu theo trạng thái việc · nặng:2 · ✅ · người dùng yêu cầu trực tiếp 20/10; devsys/plan_map.py + trang 🗺; quy ước 7 đã rà, 11 lỗi đã sửa
@@ -185,13 +185,13 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 
 ### M1 — Nền tin cậy (0 USD, provider giả)
 - [ ] M1.1 · Parser vat v1 str→{vat} cho qc_observe (R3, #31 shot 30) · nặng:1 · ✅ · gộp 36fcb4bd (20/10); cả bộ not-slow 6136 qua; FIXED_UNVERIFIED tới khi QC thật chạy #30/#31 (#31 còn thiếu hồ sơ LÍNH ĐỊCH ÁO CHOÀNG — dữ liệu Kho)
-- [ ] M1.2 · Succeed/poll nguyên tử liên tiến trình + ghi tệp tạm rồi đổi tên (A1, A15) · nặng:3 · 🔄 · phiên con nhánh claude/v31-m12-m13
-- [ ] M1.3 · Kiểm tạm dừng ngay trước provider.submit, cả đường thử lại/lùi model (G36) · nặng:2 · 🔄 · phiên con nhánh claude/v31-m12-m13
-- [ ] M1.4 · Provider Claude theo dự án, clean_env bỏ key API, hết lượt gói = dừng có giờ mở (A2, A3, A13, G33, G57) · nặng:3 · 🔄 · M1.4a ✅ gộp 222bf9c5 (20/10; cả bộ 6195 qua; rà quy ước 7: 2 VỪA + 3 THẤP + 1 test ledger đã sửa); M1.4b: phiên Claude (thiết kế Codex Đ19 việc 3); C3-0 kế tiếp
+- [ ] M1.2 · Succeed/poll nguyên tử liên tiến trình + ghi tệp tạm rồi đổi tên (A1, A15) · nặng:3 · ✅ · gộp 60b9da80 (20/10; cả bộ 6222 qua, 1 test UI chập chờn qua khi chạy riêng); cờ poll_claim BẬT máy chính 20/10 (C3-2); FIXED_UNVERIFIED tới khi chạy thật
+- [ ] M1.3 · Kiểm tạm dừng ngay trước provider.submit, cả đường thử lại/lùi model (G36) · nặng:2 · ✅ · gộp 60b9da80; cờ pause_before_submit BẬT máy chính 20/10 (C3-2); còn mở: vì sao lần thử lại đầu vẫn đi Seedance
+- [ ] M1.4 · Provider Claude theo dự án, clean_env bỏ key API, hết lượt gói = dừng có giờ mở (A2, A3, A13, G33, G57) · nặng:3 · ✅ · M1.4a 222bf9c5 + M1.4b (cloud-B code, cloud-C rà kỹ 1 CAO + 4 VỪA đã sửa) gộp 20/10 dde800b4, cả bộ 6361 qua; migration cột provider ĐÃ áp CSDL máy chính 20/10 (C3-1, sao lưu trước) — FIXED_UNVERIFIED tới khi chạy thật
 - [ ] M1.5 · Kiểm Kho chủ thể trước gửi video, dừng + đề xuất dọn (G30, G32, G58) · nặng:2 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
-- [ ] M1.6 · Ước tính giá đúng gói gửi: tier nháp, phụ phí ref, nâng 1080p, claude_cli = 0, giá video trong pregen_check (A7–A9, G31) · nặng:2 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
-- [ ] M1.7 · Dashboard báo chạy code cũ (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01) · nặng:1 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
-- [ ] M1.8 · tools/project_error_report.py: gom diag_events + jobs + job_events thành đề xuất mục sổ lỗi cuối dự án · nặng:2 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
+- [ ] M1.6 · Ước tính giá đúng gói gửi: tier nháp, phụ phí ref, nâng 1080p, claude_cli = 0, giá video trong pregen_check (A7–A9, G31) · nặng:2 · 🔄 · code gộp 20/10 (cloud-B, cờ send_estimate TẮT); rà kỹ 1 CAO + 1 VỪA → C-FIX-M16-17 (cloud-C) trước khi bật cờ
+- [ ] M1.7 · Dashboard báo chạy code cũ (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01) · nặng:1 · 🔄 · code gộp 20/10 (cloud-B, cờ TẮT); rà kỹ 1 VỪA (báo động giả) → C-FIX-M16-17 (cloud-C)
+- [ ] M1.8 · tools/project_error_report.py: gom diag_events + jobs + job_events thành đề xuất mục sổ lỗi cuối dự án · nặng:2 · ✅ · Codex Đ20 việc 1 gộp 20/10 (tools/project_error_report.py, 9 test)
 - [ ] M1.9 · Golden gói B0–B2: replay ảnh + video, test compatibility / correctness, fixture có HEAD/cờ/CHANGES · nặng:3 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
 
 ### M2 — Hợp đồng sản xuất có cấu trúc

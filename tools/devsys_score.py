@@ -85,7 +85,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Chấm điểm AI khách quan các khu vực (devsys/rubric.md)")
     ap.add_argument("--all", action="store_true", help="chấm lại mọi khu vực (mặc định: chỉ khu vực đã đổi)")
     ap.add_argument("--areas", default="", help="danh sách id khu vực, cách nhau bằng dấu phẩy")
-    ap.add_argument("--provider", default="anthropic", choices=("anthropic", "mock"))
+    ap.add_argument("--provider", default="claude_cli", choices=("claude_cli", "anthropic", "mock"),
+                    help="claude_cli (mặc định, V3.1 M1.4b: Claude Code trên máy, 0 USD API) | anthropic (Claude API trả phí, cần --max-usd) | mock")
     ap.add_argument("--yes", action="store_true", help="đồng ý chi phí đã ước tính và gọi thật")
     ap.add_argument("--export", metavar="AREA", help="ghi dữ liệu đầu vào của một khu vực (hoặc 'all') cho người chấm ngoài")
     ap.add_argument("--report", nargs="?", const="", metavar="FILE", help="ghi báo cáo hành động theo khu vực (mặc định devsys/data/report.md)")
@@ -97,7 +98,7 @@ def main(argv=None) -> int:
     from core import script_cap  # noqa: E402  (S14.2: trần CỨNG --max-usd, bắt buộc khi gọi API trả tiền)
     script_cap.add_argument(ap)
     args = ap.parse_args(argv)
-    script_cap.from_args(argparse.Namespace(paid=args.yes and args.provider != "mock", max_usd=args.max_usd), "devsys_score").start()
+    script_cap.from_args(argparse.Namespace(paid=args.yes and args.provider == "anthropic", max_usd=args.max_usd), "devsys_score").start()
 
     cfg = collect.load_areas()
     if args.report is not None or args.compare or args.stability:
@@ -144,6 +145,8 @@ def main(argv=None) -> int:
         print(f"- chấm {b['area']}: {b['why']} (~{b['chars'] // 3} token vào)" + (f" · cắt: {len(b['notes'])} mục" if b["notes"] else ""))
     if args.provider == "mock":
         print(f"Người chấm giả lập: {len(p['todo'])} khu vực, $0 (không gọi mạng, không ghi sổ chi).")
+    elif args.provider == "claude_cli":
+        print(f"Claude Code trên máy: {len(p['todo'])} khu vực, 0 USD API (tính vào lượt gói; hết lượt → dừng có giờ mở).")
     else:
         est = scorer.estimate(p["todo"])
         print(scorer.estimate_text(est))

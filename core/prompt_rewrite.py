@@ -63,10 +63,13 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def client_for(p):
-    """The Claude client for the rewrite (ledger = this database, so the call is on the cost ledger and its warnings). None = not set up."""
-    from . import llm_runner
-    return llm_runner.client_from_env(ledger=llm_runner.db_file(p.conn))
+def client_for(p, job=None):
+    """The Claude client for the rewrite (ledger = this database, so the call is on the cost ledger and its warnings). None = not set up.
+    V3.1 M1.4b: the job's provider (snapshot at creation) — the provider of the project / environment when the job has none."""
+    from . import llm_provider
+    if job is not None:
+        return llm_provider.client_for_job(p.conn, job)
+    return llm_provider.client_for_project(p.conn, None)
 
 
 # ---- the shot's prompt and its versions -----------------------------------------------------------------------------------------
@@ -328,9 +331,10 @@ def propose_rewrite(p, job, note: Optional[str] = None, fix: Optional[str] = Non
     old = current_prompt(p.conn, job["scene_id"], kind)
     if not old:
         raise ValueError("shot chưa có prompt " + ("ảnh" if kind == "image" else "motion") + " để viết lại")
-    client = client if client is not None else client_for(p)
+    client = client if client is not None else client_for(p, job)
     if client is None:
-        raise llm_runner.LlmError("Chưa cấu hình Claude: " + llm_runner.missing_hint(), code="config")
+        from .llm_provider import missing_hint_for
+        raise llm_runner.LlmError("Chưa cấu hình Claude: " + missing_hint_for(p.conn, job["project_id"]), code="config")
     images, tmp = _images(job, kind)
     try:
         text = build_prompt(p, job, kind, old, note, fix, qc, len(images), by)
@@ -414,7 +418,7 @@ def _review_now(p, job) -> None:
     Không có Claude → chỉ luật code (thay đổi 'code_only', không giữ gen) + VÀNG; không bao giờ làm hỏng lần gen lại."""
     from . import change_review, world_rules
     try:
-        client = client_for(p)
+        client = client_for(p, job)
     except Exception:  # noqa: BLE001 - no Claude set up: the code rules still run, said below
         client = None
     try:

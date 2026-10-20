@@ -584,12 +584,18 @@ def trim_clip(pipeline: Pipeline, scene_id: int, path: str, lone_ref: bool = Fal
     shutil.move(path, raw)
     audio = ["-c:a", "aac", "-b:a", "256k"] if has_audio(raw) and vf is None else ["-an"]
     source_cut = ["-t", f"{min(source, have):.2f}"] if vf else []           # slowed: read only the part that fills the shot
-    proc = subprocess.run([find_ffmpeg(), "-y", *(["-ss", f"{start:.2f}"] if start else []), *source_cut, "-i", raw,
-                           *(["-vf", vf] if vf else []), "-t", f"{want:.2f}", *_encode(), *audio, path], capture_output=True,
-                          text=True, encoding="utf-8", errors="replace")
-    if proc.returncode != 0 or not os.path.exists(path):
+    from . import safe_download             # C-T12: the cut clip appears at `path` in one step (temp + os.replace), never half-written
+    err = []
+
+    def cut(tmp):
+        proc = subprocess.run([find_ffmpeg(), "-y", *(["-ss", f"{start:.2f}"] if start else []), *source_cut, "-i", raw,
+                               *(["-vf", vf] if vf else []), "-t", f"{want:.2f}", *_encode(), *audio, tmp], capture_output=True,
+                              text=True, encoding="utf-8", errors="replace")
+        err.append(proc.stderr or "")
+        return proc.returncode == 0
+    if not safe_download.write(path, cut):
         shutil.move(raw, path)             # keep the uncut clip rather than losing it
-        raise RuntimeError((proc.stderr or "")[-300:])
+        raise RuntimeError((err[-1] if err else "")[-300:])
     if out is not None:
         out.update(start=float(start), have=float(have), want=float(want))
     return True
@@ -760,14 +766,13 @@ def split_group_clip(path: str, group: List[Dict], dest_paths: List[str], conn=N
         audio = ["-c:a", "aac", "-b:a", "256k"] if has_audio(whole) else ["-an"]
     except Exception:  # noqa: BLE001 - no ffmpeg: every shot keeps the whole clip
         ffmpeg = None
+    from . import safe_download             # C-T12: each part appears in one step (temp + os.replace) — a reader never sees half a clip
     for (start, sec), dest in zip(group_parts(group, conn), dest_paths):
-        ok = False
-        if ffmpeg:
-            proc = subprocess.run([ffmpeg, "-y", "-ss", f"{start:.2f}", "-i", whole, "-t", f"{sec:.2f}", *_encode(), *audio, dest],
-                                  capture_output=True, text=True, encoding="utf-8", errors="replace")
-            ok = proc.returncode == 0 and os.path.exists(dest)
-        if not ok:
-            shutil.copyfile(whole, dest)
+        def cut(tmp, start=start, sec=sec):
+            return subprocess.run([ffmpeg, "-y", "-ss", f"{start:.2f}", "-i", whole, "-t", f"{sec:.2f}", *_encode(), *audio, tmp],
+                                  capture_output=True, text=True, encoding="utf-8", errors="replace").returncode == 0
+        if not (ffmpeg and safe_download.write(dest, cut)):
+            safe_download.copy(whole, dest)
         out.append(dest)
     return out
 

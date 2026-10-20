@@ -127,7 +127,7 @@ def step5a(p: Pipeline, pid: int):
                 ui.html(ui.card_title("Brief nhạc", "Claude viết theo thể loại, ý đồ và nhịp từng cảnh — bạn sửa được") + ui.badge(
                     provider.name + (" · giả lập" if provider.name == "mock-audio" else " · music_v2 · tốn credit"), "b-info"))
                 key = f"mbrief_{pid}"
-                client = llm_client()
+                client = llm_client(pid)
                 if st.button("🤖 Claude viết brief nhạc" + cost.llm_tag(cost.llm_estimate(p.conn, "music_brief", 1)), key=f"mbrief_ai_{pid}", disabled=client is None, help=None if client else claude_hint()):
                     with st.spinner("Claude đang viết brief…"):
                         brief = claude_tasks.music_brief(p, pid, client)
@@ -333,7 +333,7 @@ def subtitle_panel(p: Pipeline, pid: int, out: str = None, auto_ext: bool = None
     with st.expander("🔤 Phụ đề", expanded=has_final and settings["enabled"]):
         _note("Câu đã có giọng thoại lấy đúng thời điểm giọng nói; câu chưa có giọng thì ước lượng theo độ dài câu. Dịch được sang "
                    "ngôn ngữ khác bằng Claude. In vào một bản sao — video cuối gốc giữ nguyên.")
-        llm = llm_client()
+        llm = llm_client(pid)
         c1, c2, c3 = st.columns([2, 2, 1.4])
         langs = list(subtitles.LANGS)
         lang = c1.selectbox("Ngôn ngữ phụ đề", langs, index=langs.index(settings["lang"]) if settings["lang"] in langs else 0,
@@ -459,7 +459,7 @@ def sfx_assistant(p: Pipeline, pid: int) -> None:
                 if st.button("🤖 AI tự đề xuất hiệu ứng" + cost.llm_tag(cost.llm_estimate(p.conn, "sfx", 1)), key=f"sfx_ai_go_{pid}", type="primary"):
                     try:
                         access.need_edit(p, pid, "lập đề xuất hiệu ứng âm thanh")
-                        client = llm_client()
+                        client = llm_client(pid)
                         with st.spinner("AI đang đọc các cảnh và chọn hiệu ứng…"):
                             st.session_state[key] = sfx_plan.propose(client, p, C.DATA, pid, transition, fade, wish)
                     except (sfx_plan.SfxPlanError, llm_runner.LlmError, access.AccessDenied) as e:
@@ -861,7 +861,7 @@ def editor_review_panel(p: Pipeline, pid: int, measured: dict) -> None:
     if st.button(label, key=f"editor_review_{pid}", disabled=not n_img,
                  help="Hai lời gọi Claude: Biên tập viên xem ảnh quanh điểm cắt + số đo âm rồi đề xuất; Đạo diễn đọc ý đồ của mình và đồng ý / phản đối. "
                       "Chưa áp gì vào bản dựng. Cùng bản dựng + cùng ý đồ thì lấy lại kết quả đã lưu (không tốn tiền)."):
-        client = C.llm_client()
+        client = C.llm_client(pid)
         if client is not None:
             with st.spinner("Biên tập viên và Đạo diễn đang xem bản dựng…"):
                 ok = act(lambda: editor_review.run(p, pid, client, C.DATA))
@@ -1139,7 +1139,7 @@ def _deliver_button(p: Pipeline, pid: int, chosen, durations, label: str = "📦
     if st.button(label, type="primary", key=f"deliver_{pid}", disabled=not chosen, width="stretch"):
         _t0 = time.monotonic()
         with st.spinner("Đang xuất bản…"):
-            ok = act(lambda: st.session_state.__setitem__(f"deliver_res_{pid}", delivery.deliver(p, pid, C.DATA, llm_client(),
+            ok = act(lambda: st.session_state.__setitem__(f"deliver_res_{pid}", delivery.deliver(p, pid, C.DATA, llm_client(pid),
                                                                                                 clips=chosen, durations=durations)))
         C.log_ui(p, "ban_giao", page="ban_giao", project_id=pid, result=ok, t0=_t0, detail=f"{len(chosen)} clip")   # 14/10 nhật ký
         if ok:

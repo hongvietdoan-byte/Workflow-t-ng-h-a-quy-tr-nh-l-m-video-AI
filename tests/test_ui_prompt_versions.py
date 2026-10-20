@@ -43,7 +43,7 @@ class PromptVersionsUi(unittest.TestCase):
         self.sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx", (self.pid,)).fetchone()["id"]
 
     def rewrite(self, job, new):
-        with mock.patch.object(prompt_rewrite, "client_for", lambda p: Fake(new)):
+        with mock.patch.object(prompt_rewrite, "client_for", lambda p, job=None: Fake(new)):
             self.p.reject(job, "user", "đổi màu áo")
 
     def open(self, step):

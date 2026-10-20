@@ -25,7 +25,7 @@ Người dùng có một tài khoản **Cloud session credits $100** (hết hạ
 ```
 Luật dự án (bắt buộc):
 - Trả lời/ghi chú tiếng Việt. Đọc CLAUDE.md + docs/CHUAN_XAY_DUNG.md trước (không im lặng khi thiếu đầu vào; "đã sửa" kèm bằng chứng chạy thật).
-- HỘP THƯ: nhận việc / báo / hỏi qua mục 📨 đầu TODO.md trên main (luật "LUẬT HỘP THƯ CHUNG" ở đó; tên làn `cloud-B`) — ngoại lệ duy nhất được push main: commit CHỈ đổi dòng hộp thư (`hộp thư: …`), pull --ff-only trước, không force.
+- HỘP THƯ SỰ KIỆN (từ 20/10 tối): nhận / xong / hỏi bằng `python3 tools/hop_thu.py` (`ke --lane <làn> --nhan --push`, `xong … --push`; luật `hop_thu/README.md`) — không ghi dòng vào TODO.md nữa. (Cũ:) nhận việc / báo / hỏi qua mục 📨 đầu TODO.md trên main (luật "LUẬT HỘP THƯ CHUNG" ở đó; tên làn `cloud-B`) — ngoại lệ duy nhất được push main: commit CHỈ đổi dòng hộp thư (`hộp thư: …`), pull --ff-only trước, không force.
 - Làm trên nhánh mới `cloud/<mã-việc>` tách từ main. KHÔNG push lên main (trừ commit hộp thư), KHÔNG sửa phần khác của TODO.md / trạng thái kế hoạch, KHÔNG tăng devsys/areas.json "version" (file mã mới vẫn phải khai vào areas.json).
 - KHÔNG gọi API tốn tiền (Claude/ClipAI/TTS…) — chỉ mock. Không có data/ máy chính: dùng fixture trong tests/.
 - Test ĐỎ TRƯỚC, XANH SAU cho từng mục; chỉ chạy test liên quan: `python -m pytest -q -p no:cacheprovider tests/<file>.py` (Linux dùng python3; PYTHONUTF8=1).
@@ -90,8 +90,25 @@ push lên main, rồi báo người dùng mã việc để dán vào phiên clou
 | C-M011 | M0.11 test plan + tiêu chí 3 vòng pilot + dự toán B/C (chỉ tài liệu) | `cloud/v31-m011` | XONG — gộp main 20/10 |
 | C-M04-05 | M0.4–M0.5 sổ lỗi `devsys/errors.json` + test hợp đồng + nhập G/A/B có nguồn (code devsys, Cấp 2 G2-1 ĐÃ DUYỆT) | `cloud/v31-m04-m05` | ĐANG LÀM (cloud tài khoản khác, 20/10) |
 | C-RA-D19 | Rà chỉ đọc 4 nhánh Codex đợt 19 | `cloud/v31-ra-d19` | CHỜ (hộp thư) |
+| C-M14B | M1.4b provider Claude theo dự án + snapshot theo job + dừng khi hết quota (CODE Cấp 2 G2-2 đã duyệt; migration chỉ viết, KHÔNG áp CSDL thật) | `cloud/v31-m14b` | CHỜ (hộp thư) — làm SAU C-RA-D19, TRƯỚC C-M21-22 |
 | C-M21-22 | Thiết kế M2.1 BYĐ v2 + M2.2 field readers/lineage (chỉ tài liệu) | `cloud/v31-m21-m22` | CHỜ (hộp thư) |
 | C-M41 | Thiết kế M4.1 schema bằng chứng QC + mã lỗi (chỉ tài liệu) | `cloud/v31-m41` | CHỜ (hộp thư) |
+| C-FIX-D19 | Sửa lỗi CAO/VỪA của C-RA-D19 trên 3 nhánh Codex Đ19 (việc 2 code công cụ chỉ đọc; việc 3, 4 tài liệu) | `cloud/v31-fix-d19` | CHỜ (hộp thư) |
+| C-M31-34 | Thiết kế M3.1–M3.4 world map / người nộm / câu vị trí / continuity_state (chỉ tài liệu) | `cloud/v31-m31-m34` | CHỜ (hộp thư) |
+| C-M51-52 | Thiết kế M5.1 repair router + M5.2 release gate (chỉ tài liệu) | `cloud/v31-m51-m52` | CHỜ (hộp thư) |
+| C-M46 | Đặc tả bộ benchmark QC M4.6 theo mã lỗi (chỉ tài liệu + công cụ liệt kê ca chỉ đọc nếu cần) | `cloud/v31-m46` | CHỜ (hộp thư) |
+| C-M16 | M1.6 ước tính giá đúng gói gửi (CODE, chuyển từ Codex Đ20 việc 3) | `cloud/v31-m16` | CHỜ (hộp thư) |
+| C-M17 | M1.7 G55/G56/G39/A14 (CODE, chuyển từ Codex Đ20 việc 4) | `cloud/v31-m17` | CHỜ (hộp thư) |
+| C-M2X | Thiết kế M2.4, M2.6, M2.7, M2.8, M2.9 (chỉ tài liệu) | `cloud/v31-m2x` | CHỜ (hộp thư) |
+| C-RA-M14B | (cloud-C) RÀ KỸ độc lập nhánh `cloud/v31-m14b` rồi sửa một vòng | `cloud/v31-m14b-fix` | CHỜ (hộp thư) |
+| C-T12 | (cloud-C) Bổ sung test còn thiếu của M1.2/M1.3 | `cloud/v31-t12` | CHỜ (hộp thư) |
+| C-G36B | (cloud-D, chuyển từ cloud-C 20/10) G36 còn mở: lần thử lại đầu vẫn đi Seedance — điều tra + sửa gốc | `cloud/v31-g36b` | CHỜ (hộp thư) |
+| C-ERR-UPD | (cloud-D, chuyển từ cloud-C 20/10) Cập nhật sổ lỗi theo các commit đã gộp 20/10 | `cloud/v31-err-upd` | CHỜ (hộp thư) |
+| C-M42 | (cloud-C) M4.2 video QC đứng yên / khớp khung 0 / vật còn giữ / chuyển cảnh ref (shadow) | `cloud/v31-m42` | CHỜ (hộp thư) |
+| C-M43 | (cloud-C) M4.3 cross-shot logic qua qc_sequence_logic (shadow) | `cloud/v31-m43` | CHỜ (hộp thư) |
+| C-M26 | (cloud-C) M2.6 sent_package nhãn theo rel_path/asset_id — BẮT ĐẦU KHI golden M1.9 gộp main | `cloud/v31-m26` | CHỜ ĐIỀU KIỆN |
+| C-M29 | (cloud-C) M2.9 lời dẫn ngoài khớp môi mọi caller — BẮT ĐẦU KHI golden M1.9 gộp main | `cloud/v31-m29` | CHỜ ĐIỀU KIỆN |
+| C-M24 | (cloud-C) M2.4 insert_scene_after kế thừa bối cảnh + BYĐ DRAFT — BẮT ĐẦU KHI golden M1.9 gộp main | `cloud/v31-m24` | CHỜ ĐIỀU KIỆN |
 
 (20/10: 2 phiên `start_session target:"cloud"` tài khoản chính HỎNG khi khởi động — clone nhánh worktree chưa push + API error; M1.4a chuyển phiên con máy chính. 3 việc C-M010, C-M09, C-M011 độc lập, dán được song song 3 phiên.)
 
@@ -191,4 +208,251 @@ THIẾT KẾ (chỉ tài liệu) M4.1 schema bằng chứng QC + mã lỗi thố
 evidence_type, confidence_calibration, artifact_id/sha, qc_run_id, qc_version, intent_exception, actionability, source_refs), bảng mã lỗi QC ↔ sổ lỗi
 (devsys/errors.json của C-M04-05), đường QC hiện có → schema mới (file:hàm), chỉ luật kỹ thuật tất định được xét BLOCK sau benchmark, còn lại REVIEW; test
 plan + benchmark M4.6 (≥ 20 lỗi + 20 đạt mỗi mã). Nhánh cloud/v31-m41.
+```
+
+#### C-M14B
+```
+Việc V3.1 M1.4b (CODE, Cấp 2 gói G2-2 ĐÃ DUYỆT — sổ v31-cap2-milestone-packages-approved-2026-10-20). Nhánh cloud/v31-m14b từ origin/main MỚI NHẤT.
+Theo "Luật chung" docs/CLOUD_TASKS.md + hộp thư. KHÔNG làm Cấp 3: không áp migration lên CSDL thật (C3-1 do phiên chính làm sau backup), không bật cờ,
+không gọi API thật (chỉ provider giả / mock).
+Nguồn: docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md mục 2.3 (bảng file) + thiết kế Codex Đ19 việc 3 (nhánh origin/codex/d19-viec3-provider, file
+docs/V3_1_M1_4B_THIET_KE_*.md — dùng kèm kết quả rà C-RA-D19 của chính anh) + quyết định v31-d02-claude-provider-per-project-2026-10-20.
+Nền đã có trên main (M1.4a): core/llm_runner.py clean_env bỏ key, client_from_env không fallback ngầm, provider_status(), missing_hint(), STOP_CODES,
+cli_error_code usage_limit/out_of_credit. dashboard.env máy chính nay LLM_PROVIDER=claude_cli.
+Làm: client_for_project(conn, pid) (projects.llm_provider rỗng = theo env như cũ); snapshot jobs.llm_provider + llm_config_ver lúc tạo job, job đang chạy
+giữ provider snapshot dù đổi cấu hình; llm_calls.provider; mọi caller ở bảng 2.3 (bg_poll, change_review, prompt_rewrite, chat_prompt, autoqc, autopilot,
+dashboard/common, camera_plan) lấy client theo dự án / snapshot; hết quota (usage_limit/out_of_credit) → dừng cả lượt có giờ mở lại, 0 lời gọi API;
+devsys/scorer.py thêm lựa chọn claude_cli, đổi MẶC ĐỊNH khỏi 'anthropic' (tools/devsys_score.py --provider, devsys/app.py nút chọn) — rà C-RA-D19/M1.4a
+phát hiện devsys mặc định anthropic. Migration: hàm up/down trong core/db.py theo mẫu migration hiện có, CHỈ chạy trong test CSDL tạm; tương thích:
+worker code cũ chạy trên CSDL đã có cột mới vẫn đúng (test).
+Test ĐỎ→XANH: 2 dự án (anthropic giả / claude_cli giả) cùng tiến trình; job tạo trước khi đổi cấu hình giữ provider cũ; hết quota CLI → dừng có giờ mở, 0
+lời gọi API; env có key + provider claude_cli → subprocess không nhận key; LLM_PROVIDER rỗng + key → không tự ra anthropic; cột trống = hành vi env cũ;
+migration up rồi down trên CSDL tạm. Gom test liên quan một lệnh pytest, ≤ 3 lần. File mới khai devsys/areas.json (không tăng version).
+Báo cáo ≤ 30 dòng → docs/RA_CLOUD_M14B_2026-10-2x.md + dòng XONG trong hộp thư.
+```
+
+#### C-FIX-D19
+```
+Sửa lỗi C-RA-D19 (báo cáo docs/RA_CLOUD_D19_2026-10-20.md, đã trên main) — nhánh cloud/v31-fix-d19 tách từ origin/main MỚI NHẤT, rồi
+`git merge origin/codex/d19-viec2-doi-soat origin/codex/d19-viec3-provider origin/codex/d19-viec4-subjects` (bỏ HANDOFF.md + dòng TODO.md ngoài mục 📨
+khi gộp). Sửa:
+- Việc 2 tools/clipai_cost_reconcile.py: CAO validate_pricing từ chối null trong per_video_second → chấp nhận null (giá chưa biết = UNKNOWN, báo rõ, không
+  crash) và chạy được với data/pricing.json THẬT trong repo (test đọc file thật); VỪA clip NHÓM dùng chung external_id (core/runner.py ~2315/2481) → chia
+  task theo thành viên nhóm (theo sent_group / clip_span), không đếm trùng; THẤP: main không nuốt lỗi (in mã + chi tiết), ghi rõ chỉ họ seedance hoặc thêm
+  --family kling, kind upgrade vs bản cao gen mới (quality_tier.NEW_GEN). Test ĐỎ→XANH cho từng lỗi. Công cụ vẫn CHỈ ĐỌC, không gọi API trả phí.
+- Việc 3 docs/V3_1_M1_4B_THIET_KE_2026-10-20.md: VỪA bỏ "hold toàn bộ LLM" cho dự án/job cũ (LEGACY_LLM_CONTEXT_UNKNOWN) → job cũ = theo env như trước
+  (khớp M1.4b đã code trên cloud/v31-m14b); cập nhật dẫn chiếu missing_hint / STOP_CODES / clean_env đã có trên main.
+- Việc 4 docs/V3_1_M1_5_THIET_KE_KHO_CHU_THE_2026-10-20.md: VỪA lệch C3-3 → mọi xóa chỉ DRY-RUN, duyệt riêng TỪNG lần; VỪA sửa G59 làm cờ cũ
+  subject_auto_cleanup (verified=True) bắt đầu XÓA THẬT → thiết kế phải vô hiệu đường xóa tự động của cờ cũ (chuyển thành dry-run + báo) TRƯỚC/cùng lúc
+  sửa G59, có test; THẤP: job không cần ảnh Kho không vào QUEUE_CAPACITY.
+Báo cáo ≤ 25 dòng → docs/RA_CLOUD_FIX_D19_2026-10-2x.md + XONG trong hộp thư. Không sửa code ngoài tools/clipai_cost_reconcile.py + test của nó.
+```
+
+#### C-M31-34
+```
+THIẾT KẾ (chỉ tài liệu) M3.1–M3.4 theo G2-4 (world map CHỈ thử offline, không chặn gen, không bắt buộc 3D) + D06 (v31-d06-scene-world-map-flexible).
+Nguồn: kế hoạch V3.1 đoạn "**`scene_world_map` tối thiểu:**" + mục 4a "M3.x" + docs/DANH_GIA_P31_LECH_3D_TI_LE_2026-10-18.md (G1–G3, G41–G50, G52) +
+docs/PHUONG_PHAP_SAN_KHAU_3D.md; code core/plates3d*, core/stage_auto.py, core/camera_plan.py, core/continuity*.py, core/plate_camera.py.
+→ docs/V3_1_M3_THIET_KE_WORLD_MAP_2026-10-2x.md: schema scene_world_map (3D tọa độ thật / 2D / quan hệ tương đối / UNKNOWN, version, provenance,
+invalidation khi geometry/BYĐ đổi), blocking mỗi shot, M3.2 người nộm height_m + pitch, M3.3 câu vị trí sinh từ map (thay tả tay), M3.4 continuity_state
+expected/observed/resolved + đồ thị phụ thuộc; MỌI điểm đọc/ghi hiện có (file:hàm); ca offline #31 cảnh 4/6/8 + #33 tháp; cờ + rollback; nối M2.1 (BYĐ v2,
+docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-20.md). Nhánh cloud/v31-m31-m34.
+```
+
+#### C-M51-52
+```
+THIẾT KẾ (chỉ tài liệu) M5.1 repair router theo mã lỗi (trần ảnh ≤ 3 / video ≤ 2, dừng khi lặp lỗi, gen lại phải đổi đầu vào — luật 6 CHUAN_XAY_DUNG,
+router mặc định TẮT theo G2-6) + M5.2 release gate (shot duyệt, final QC, đối soát chi phí, lỗi nghiêm trọng mở). Nguồn: kế hoạch V3.1 M5.x + mục 4a,
+sổ lỗi devsys/errors.json (đã trên main), thiết kế M4.1 (docs/V3_1_M4_1_THIET_KE_BANG_CHUNG_QC_2026-10-20.md); code core/autopilot.py (AUTO_REGEN_LIMIT,
+_job_cap_check), core/pipeline.py retry, core/prompt_rewrite.py, core/final_cut.py. → docs/V3_1_M5_THIET_KE_REPAIR_RELEASE_2026-10-2x.md: bảng mã lỗi →
+hành động sửa (đổi đầu vào gì) → trần → khi nào dừng hỏi người; tương tác poll_claim / pause_before_submit / submit_unknown (đã bật máy chính); release
+gate checklist đo được; test plan + rollback. Nhánh cloud/v31-m51-m52.
+```
+
+#### C-M46
+```
+ĐẶC TẢ (chỉ tài liệu) bộ benchmark QC M4.6 theo D07 (≥ 20 lỗi + 20 đạt MỖI mã, chỉ là sàng lọc, không tự cấp BLOCK): danh sách mã QC (theo thiết kế M4.1),
+nguồn ca thật có thể lấy (job/shot #24 #27 #31 #33 trong tài liệu docs/DANH_GIA_*, sổ lỗi) — ghi rõ ca nào cần máy chính trích (data/ không có trên cloud),
+quy trình gán nhãn (người dùng xác nhận), chỉ số (báo nhầm / bỏ sót theo mã, hiệu chuẩn độ tin cậy), ngưỡng xét BLOCK chỉ cho luật kỹ thuật tất định.
+→ docs/V3_1_M4_6_DAC_TA_BENCHMARK_QC_2026-10-2x.md. Nhánh cloud/v31-m46.
+```
+
+#### C-M16
+```
+Việc V3.1 M1.6 (CODE, Cấp 2 G2-2 đã duyệt) — đề bài ĐÚNG như docs/CODEX_TASKS.md "# ĐỢT 20" → "## Việc 3 — M1.6" + luật chung đầu ĐỢT 20 (cờ TẮT khi đổi
+hành vi, KHÔNG đổi data/pricing.json, D01: 0 điểm chặn mới theo ngân sách, check_no_budget_lock_gate xanh). Chuyển từ Codex sang cloud-B 20/10.
+Công cụ tools/clipai_cost_reconcile.py ĐÃ trên main (dùng số hiệu chuẩn của nó; ghi rõ số điểm). Nhánh cloud/v31-m16 từ origin/main MỚI NHẤT.
+KHÔNG sửa core/llm_runner.py (M1.4b chờ gộp). Báo cáo → docs/RA_CLOUD_M16_2026-10-2x.md + XONG trong hộp thư.
+```
+
+#### C-M17
+```
+Việc V3.1 M1.7 (CODE, Cấp 2 G2-2 đã duyệt) — đề bài ĐÚNG như docs/CODEX_TASKS.md "# ĐỢT 20" → "## Việc 4 — M1.7" (G55 báo chạy code cũ, G56 gộp diag lặp,
+G39 regen kiểm data_dir, A14 câu báo ngân sách theo D01) + luật chung ĐỢT 20. core/runner.py, core/bg_poll.py nay ĐƯỢC sửa (M1.2/M1.3 đã gộp) nhưng giữ
+nguyên hành vi poll_claim / pause_before_submit (đang BẬT máy chính) — test cũ của chúng phải xanh. Lưu ý thực tế 20/10: tools/stop_dashboard.ps1 chỉ tắt
+8501, 2 Dashboard cũ 8503/8504 chạy code cũ cả ngày → G55 nên báo cả khi CỔNG KHÁC đang chạy code cũ (banner/diag), và stop_dashboard có tùy chọn tắt mọi
+cổng dashboard.serve. Nhánh cloud/v31-m17. Báo cáo → docs/RA_CLOUD_M17_2026-10-2x.md + XONG trong hộp thư.
+```
+
+#### C-M2X
+```
+THIẾT KẾ (chỉ tài liệu) chuẩn bị code M2 (G2-3 mở khi có golden M1.9): M2.4 insert_scene_after kế thừa bối cảnh + BYĐ DRAFT; M2.6 sent_package nhãn theo
+rel_path/asset_id (G5); M2.7 image preflight trong ImageRunner._pregen chung mã lỗi với video; M2.8 router theo khả năng model (không gộp nhóm khi cần khung
+đầu/cuối…); M2.9 lời dẫn ngoài khớp môi mọi caller (G15–G17, G53) — dùng tests/test_narration_regression.py (21 xfail strict đã trên main) làm nghiệm thu.
+Nguồn: kế hoạch V3.1 mục 5 dòng M2.x + mục 4a; thiết kế M2.1/M2.2, M0.9, M0.10 đã trên main; mã lỗi trong devsys/errors.json. Mỗi việc: file:hàm hiện có,
+thay đổi, cờ, test đỏ→xanh, golden compat (#24/#27 cờ TẮT = byte), rollback. → docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-2x.md. Nhánh cloud/v31-m2x.
+```
+
+#### C-RA-M14B (cloud-C)
+```
+RÀ KỸ độc lập (quy ước 7 CLAUDE.md) nhánh origin/cloud/v31-m14b (M1.4b provider Claude theo dự án, do cloud-B viết — anh là làn KHÁC nên rà độc lập).
+Đụng TIỀN + provider + migration → rà kỹ. Bước 1 CHỈ ĐỌC: git diff origin/main...origin/cloud/v31-m14b; đối chiếu đề bài "#### C-M14B" (file này), thiết kế
+docs/V3_1_M1_4B_THIET_KE_2026-10-20.md (đã sửa C-FIX-D19: job/dự án cũ theo env, không hold), quyết định v31-d02 + v31-cap3-items-decided (C3-1: migration
+chỉ áp sau backup — code KHÔNG được tự áp lên CSDL thật lúc khởi động trừ khi theo đúng cơ chế migration hiện có của core/db.py và tương thích worker cũ).
+Chạy `python tools/related_areas.py <file đổi>` để lấy khu vực liên quan; rà: caller nào còn client_from_env thay vì client_for_project; job đang chạy có giữ
+snapshot không; đường nền (bg_poll, autoqc, autopilot, change_review) khi hết quota dừng cả lượt có giờ mở; có đường nào tự sang anthropic khi dự án cũ NULL
+mà env claude_cli; devsys mặc định không còn anthropic; migration up/down + worker cũ; test bị nới. Ghi docs/RA_CLOUD_M14B_REVIEW_2026-10-2x.md (mỗi lỗi:
+CAO/VỪA/THẤP, file:dòng, cách sửa, test).
+Bước 2 SỬA một vòng: nhánh cloud/v31-m14b-fix tách từ origin/cloud/v31-m14b, sửa HẾT lỗi CAO/VỪA (+ THẤP nếu rẻ), test ĐỎ→XANH từng lỗi, gom test 1 lệnh.
+Không áp migration lên CSDL thật, không gọi API thật. XONG ghi hộp thư.
+```
+
+#### C-T12 (cloud-C)
+```
+Bổ sung TEST còn thiếu (chỉ test, không đổi hành vi; nếu test lộ lỗi thật → sửa tối thiểu + ghi rõ) cho M1.2/M1.3 đã gộp main (cờ poll_claim +
+pause_before_submit đang BẬT máy chính): (1) đường VIDEO qua core/safe_download.py: core/runner.py _finish_group / _finish_upgrade — tệp tạm + os.replace, người đọc
+không thấy tệp dở, clip nhóm; (2) core/bg_poll.poll_all ở mức 2 TIẾN TRÌNH thật (multiprocessing, CSDL SQLite tạm) cùng poll một job → đúng 1 succeeded;
+(3) core/end_frames.py: bước tạo khung cuối có thể tốn tiền lúc dự án đang Tạm dừng → phải 0 lần gửi khi pause_before_submit bật (nếu đang gửi được → đó
+là lỗi, sửa sau cờ pause_before_submit). Nguồn: báo cáo phiên con M1.2/M1.3 (mục rủi ro trong hộp thư 18:12 + tests/test_v31_m12_poll_claim.py,
+tests/test_v31_m13_pause_before_submit.py). Test chạy được trên Linux (không cần Windows). Nhánh cloud/v31-t12.
+```
+
+#### C-G36B (cloud-D)
+```
+G36 còn mở (docs/DANH_GIA_P31_LECH_3D_TI_LE_2026-10-18.md dòng "| G36 |"): sau khi Seedance từ chối (real_person), LẦN THỬ LẠI ĐẦU vẫn đi Seedance rồi mới
+sang Kling (1061→1073, 1057→1065→1071) — đổi model trong core/runner.py _record_provider_failure không có tác dụng ở lần gửi lại đầu. Điều tra gốc (đọc
+code + dựng lại bằng provider giả: job bị từ chối real_person → job thử lại phải mang model đã đổi ngay lần đầu), sửa GỐC (không vá), test ĐỎ→XANH. Giữ
+nguyên poll_claim / pause_before_submit; chặn trả tiền trùng; không gọi API thật. Nếu sửa đổi hành vi đường gửi → sau cờ mới TẮT (core/features.py).
+Nhánh cloud/v31-g36b. Báo cáo + XONG hộp thư.
+```
+
+#### C-ERR-UPD (cloud-D)
+```
+Cập nhật devsys/errors.json (sổ lỗi, đã trên main) theo các việc gộp main 20/10: M1.1 (R3 vat — commit gộp 36fcb4bd), M1.4a (R2 provider — 222bf9c5),
+M1.2 A1 + A15 và M1.3 G36 (60b9da80; cờ BẬT máy chính 20/10 — sổ v31-c3-2-flags-on-main), C3-0 (dashboard.env claude_cli), lỗi Dashboard cũ chạy
+cổng 8503/8504 (G55 thực tế). Trạng thái tối đa FIXED_UNVERIFIED (chưa có bằng chứng chạy thật), điền fix_commit + tests (tên test thật) + plan_workstream;
+KHÔNG VERIFIED. Chạy `python -m devsys.errors check` phải "Hợp lệ"; tests/test_error_registry.py xanh. Lấy commit/test bằng git log / grep, không đoán.
+Nhánh cloud/v31-err-upd. XONG hộp thư.
+```
+
+---
+
+## HÀNG VIỆC DỰ PHÒNG (người dùng 20/10: làn hết việc tự lấy thêm; phiên chính chủ động bổ sung) — từ 20/10 tối: các mục DP là việc `--to pool` trong hộp thư sự kiện; nhận bằng `hop_thu.py ke --lane <làn> --nhan --push`
+Làn cloud (B, C, …) **và Codex** hết việc được giao riêng → nhận mục **DP** đầu tiên còn `CHỜ` trong hộp thư (dòng "VIỆC DỰ PHÒNG"): sửa đuôi mục đó thành
+`ĐANG LÀM <giờ> (<làn>)` + push commit `hộp thư:` NGAY (trước khi code) — thấy làn khác đã nhận trước (union merge có thể để 2 dòng nhận) thì làn
+nhận SAU bỏ, lấy mục kế. Mọi mục: Cấp 2 đã duyệt (G2-4 / G2-5: QC chỉ Shadow/REVIEW, không tự BLOCK, map chỉ offline), cờ mới TẮT, test ĐỎ→XANH,
+không API trả phí, nhánh `cloud/v31-<mã>`; báo cáo `docs/RA_CLOUD_<MÃ>_2026-10-2x.md` + XONG hộp thư.
+
+#### DP1 — M4.5 sửa báo nhầm A5 + A6
+```
+Nguồn docs/DANH_GIA_P33_LOI_GAP_PHAI_2026-10-20.md dòng "| A5 |" (QC lớp 0 đo nhầm cỡ cảnh khi bố cục qua vai) và "| A6 |" (Tổ rà soát báo nhầm "không có
+video tham chiếu" khi thiếu ref_video_path). Sửa gốc trong core/qc_*.py / core/change_review.py (đọc code đối chiếu dòng), test regression từ ca thật mô tả
+trong tài liệu (fixture tổng hợp). Giữ QC shadow/REVIEW. Mã sổ lỗi P33-A5/P33-A6 (devsys/errors.json) — KHÔNG đổi trạng thái sổ (C-ERR-UPD làm).
+```
+
+#### DP2 — M3.5 bỏ kiểm chân trời khi nền không có trời (G20)
+```
+Nguồn: grep "| G20 |" docs/DANH_GIA_*.md. Kiểm chân trời (horizon) chỉ chạy khi nền có trời (khai trong bối cảnh / plate / BYĐ); nền trong nhà / không trời →
+bỏ qua có ghi lý do (không im lặng). Đọc code core/qc_*.py, core/plate*.py tìm kiểm horizon. Sau cờ mới TẮT. Test ca có trời / không trời / không rõ (→ giữ kiểm).
+```
+
+#### DP3 — M4.4 Final QC blackdetect / freezedetect
+```
+Bản dựng cuối (core/final_cut.py): chạy ffmpeg blackdetect + freezedetect, ra danh sách đoạn đen / đứng hình (giây, shot) vào báo cáo final QC, mức REVIEW
+(không chặn xuất — G2-5). Cờ mới TẮT. Ngưỡng tham số hóa; đứng hình > 1,5 s (khớp M4.2) báo REVIEW. Test bằng video tổng hợp nhỏ do ffmpeg tạo trong test
+(lavfi color/testsrc) — có đoạn đen / đứng hình / không có. Lưu ý quyết định 11/10 "video không được đơ" (feedback ambient motion).
+```
+
+#### DP4 — M4.1 schema bằng chứng QC (code, shadow)
+```
+Theo thiết kế docs/V3_1_M4_1_THIET_KE_BANG_CHUNG_QC_2026-10-20.md (đã trên main): module schema + hàm chuẩn hóa kết quả QC hiện có sang bản ghi bằng chứng
+(error_type, severity, evidence_type, confidence_calibration, artifact_id/sha, qc_run_id, qc_version, intent_exception, actionability, source_refs) + ghi
+shadow (không đổi quyết định QC hiện tại). Cờ mới TẮT; cờ TẮT = byte giống. Migration bảng mới nếu cần: CHỈ code + test CSDL tạm (áp CSDL thật = Cấp 3).
+```
+
+## Việc cloud-C (làn chính chạy liên tục — người dùng 20/10: cloud-C còn nhiều token tuần)
+Luật chung: như "Luật chung" + hộp thư; QC chỉ shadow/REVIEW (G2-5); cờ mới TẮT, cờ TẮT = byte giống; test ĐỎ→XANH; không API trả phí. Việc M2 chỉ bắt đầu khi
+`main` có commit gộp golden M1.9 (Codex Đ20 việc 2 — tìm `git log origin/main --grep "golden"` + file tests/test_golden_replay.py) — G2-3; trước đó làm việc
+không điều kiện hoặc mục DP. Mỗi việc M2 phải thêm/chạy golden compat (#24/#27 cờ TẮT = byte) bằng khung của M1.9.
+
+#### C-M42
+```
+M4.2 (kế hoạch V3.1 dòng M4.2; mã G51, B8 trong devsys/errors.json + nguồn docs/DANH_GIA_*): video QC — đứng yên > 1,5 s = REVIEW, khớp khung 0 với ảnh đầu,
+vật còn giữ trong tay (G51), chuyển cảnh trong video ref (B8). Ghi bản ghi theo schema M4.1 nếu DP4 đã gộp, nếu chưa thì cấu trúc tạm tương thích. Shadow:
+chỉ ghi kết quả, không đổi quyết định QC / không chặn. Đo bằng ffmpeg / OpenCV trên video tổng hợp tạo trong test (lưu ý reference_opencv_opencl_hang:
+tắt OpenCL — cv2.ocl.setUseOpenCL(False)). Nhánh cloud/v31-m42.
+```
+
+#### C-M43
+```
+M4.3 (G52, G42): cross-shot logic qua core qc_sequence_logic ở chế độ shadow — đọc code hiện có (cờ qc_sequence_logic, commit b269e88f), nối với
+continuity_state thiết kế M3.4 (docs/V3_1_M3_THIET_KE_WORLD_MAP_*.md) ở mức đọc; ca: vật / trang phục / hướng di chuyển đổi giữa 2 shot liền. Shadow, không chặn.
+Nhánh cloud/v31-m43.
+```
+
+#### C-M26 / C-M29 / C-M24 (BẮT ĐẦU KHI golden M1.9 gộp main)
+```
+Theo docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-20.md (mục M2.6, M2.9, M2.4) + thiết kế M2.1/M2.2, M0.9, M0.10 đã trên main. Thứ tự M2.6 → M2.9 → M2.4.
+M2.9 nghiệm thu = tests/test_narration_regression.py: ca G15/G16/G17/G53 hết xfail (gỡ dấu xfail đúng ca đã sửa; strict=True làm ca chưa sửa vẫn bắt).
+M2.4 dùng write guard ở chế độ shadow nếu M2.5 chưa có (không chặn). Mỗi việc: golden compat #24/#27 cờ TẮT = byte; cờ mới TẮT; nhánh cloud/v31-m26 / m29 / m24.
+```
+
+#### C-FIX-M16-17 (cloud-C — ưu tiên NGAY sau việc đang làm; M1)
+```
+Sửa lỗi rà kỹ của phiên chính trên 2 nhánh (phiên chính gộp cả hai vào main khi cờ TẮT — tách nhánh sửa từ origin/main MỚI NHẤT; nếu main chưa có thì
+merge origin/cloud/v31-m16 + origin/cloud/v31-m17 trước). Mỗi lỗi test ĐỎ→XANH; chạy tests/test_v31_m16_send_estimate.py, tests/test_v31_m17_ops_notices.py,
+test check_no_budget_lock_gate.
+M16 (cờ send_estimate): CAO core/cost.py:389 send_clip_usd tính tier qua batch._draft_tier không có parent_job_id → job gen lại / thử lại kế thừa bậc cha
+(core/quality_tier.py:343–356, core/pipeline.py:395) bị báo giá nháp 480p (~1,15 USD) thay vì bước nâng 1080p (~6,36 USD): thêm parent_job_id cho clip_estimate
+và send_clip_usd (tier = quality_tier.tier_for_new_job(conn, sid, parent); final → upgrade_price(ratio, sec, upgrade_input_seconds(...))), các caller step4
+(:312 "↻ Gen lại clip này", :219/:233 thử lại) truyền job id. Test: job final + cờ BẬT → clip_estimate(..., parent_job_id=final) ≥ upgrade_price.
+VỪA tools/pregen_check.py (~139–154): nạp LLM_PROVIDER từ dashboard.env (không phải secret) hoặc --llm-provider; in "Claude tính theo LLM_PROVIDER=X".
+THẤP dashboard/model_line.py:83 dùng chung send_clip_usd / sàn bảng giá; THẤP core/cost.py:648 thêm claude_free() vào khóa _memo.
+M17 (cờ stale_code_alarm): VỪA core/code_version.py:156/:164 so sha HEAD → mọi commit (kể cả TODO.md / hộp thư) báo "code cũ" giả: ghi dấu vân tay
+core/ + dashboard/ (hash các .py) lúc khởi động, chỉ báo khi khác. Test: commit chỉ đổi TODO.md → stale_instances() rỗng, self_stale() None.
+THẤP tools/stop_dashboard.ps1:12 chỉ in pid + cổng (không in CommandLine — có thể lộ token), -All lọc theo thư mục repo hiện tại; THẤP core/diag.py:236 plate_stale
+thêm item/plate vào khóa gộp hoặc giữ at đầu + last_at; THẤP core/code_version.py:107 bỏ bản ghi pid chết / so thời điểm tạo tiến trình.
+Báo cáo docs/RA_CLOUD_FIX_M16_17_2026-10-2x.md + XONG hộp thư (ghi tên nhánh thật anh push được).
+```
+
+## Hàng dự phòng bổ sung 20/10 22:20 (pool — nhận bằng `hop_thu.py ke --lane <làn> --nhan --push`)
+Luật như "HÀNG VIỆC DỰ PHÒNG": Cấp 2 đã duyệt, cờ mới TẮT (cờ TẮT = byte giống), test ĐỎ→XANH, không API trả phí, không chặn gen/xuất.
+
+#### DP5
+```
+M5.1 repair router theo mã lỗi — CODE theo docs/V3_1_M5_THIET_KE_REPAIR_RELEASE_2026-10-20.md (phần M5.1). G2-6: router mặc định TẮT. Bảng mã lỗi → hành động sửa
+(đổi đầu vào gì — luật 6 CHUAN_XAY_DUNG) → trần ảnh ≤ 3 / video ≤ 2 → dừng hỏi người khi lặp lỗi. Khi cờ TẮT: không đổi gì đường gen lại hiện có (core/pipeline.py
+retry, core/autopilot.py AUTO_REGEN_LIMIT). Khi BẬT: chỉ ĐỀ XUẤT sửa (ghi diag + bản ghi), KHÔNG tự gửi job — tự gửi là Cấp 3 (C3-10 để sau). Giữ poll_claim /
+pause_before_submit / submit_unknown (đang BẬT). Test theo bảng mã (dùng devsys/errors.json làm nguồn mã).
+```
+
+#### DP6
+```
+M5.2 release gate — CODE theo docs/V3_1_M5_THIET_KE_REPAIR_RELEASE_2026-10-20.md (phần M5.2): checklist đo được trước xuất bản (shot đã duyệt, final QC M4.4 nếu có,
+đối soát chi phí qua tools/clipai_cost_reconcile.py / sổ chi, lỗi nghiêm trọng mở trong devsys/errors.json) → báo cáo ĐẠT / CHƯA ĐẠT kèm lý do. Cờ TẮT; khi BẬT chỉ
+hiện cảnh báo, KHÔNG chặn nút xuất (chặn = cần người dùng duyệt sau). Test: dự án giả đủ / thiếu từng điều kiện.
+```
+
+#### DP7
+```
+M4.6 khung chạy benchmark QC — CODE công cụ chỉ đọc theo docs/V3_1_M4_6_DAC_TA_BENCHMARK_QC_2026-10-20.md: định dạng bộ ca có nhãn (JSON: artifact, mã lỗi kỳ vọng,
+nhãn người), `tools/qc_benchmark.py` chạy các bộ kiểm QC hiện có (shadow) trên bộ ca → bảng báo nhầm / bỏ sót theo mã + hiệu chuẩn độ tin cậy; KHÔNG gọi API trả phí
+(bộ kiểm cần Claude dùng client giả trong test; khi chạy thật đi qua llm_provider theo dự án). Test bằng bộ ca tổng hợp nhỏ. Trích ca thật từ data/ là việc máy chính.
+```
+
+#### DP8
+```
+M3.1 scene_world_map THỬ NGHIỆM offline — CODE schema + đọc/ghi + adapter theo docs/V3_1_M3_THIET_KE_WORLD_MAP_2026-10-20.md (M3.1): 3D tọa độ thật / 2D / quan hệ
+tương đối / UNKNOWN, version, provenance, invalidation khi geometry/BYĐ đổi. G2-4: chỉ offline, KHÔNG chặn gen, KHÔNG bắt buộc 3D; không ai đọc map trong luồng gen
+(cờ TẮT). Lưu ở bảng/JSON mới — migration chỉ code + test CSDL tạm (áp CSDL thật = Cấp 3). Test: ca #31 cảnh 4/6/8 dạng fixture tổng hợp, map thiếu → UNKNOWN.
 ```

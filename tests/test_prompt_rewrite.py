@@ -43,7 +43,7 @@ class Base(unittest.TestCase):
         self.addCleanup(env.stop)
         self.p = Pipeline(connect())
         self.client = FakeClient()
-        patcher = mock.patch.object(prompt_rewrite, "client_for", lambda p: self.client)
+        patcher = mock.patch.object(prompt_rewrite, "client_for", lambda p, job=None: self.client)
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -499,7 +499,7 @@ class Ledger(unittest.TestCase):
                                                  "usage": {"input_tokens": 900, "output_tokens": 120}}).encode())
         client = llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=send, sleep=lambda s: None, ledger=db)
         with mock.patch.dict(os.environ, dict(ON, FEATURE_SETTINGS_FILE=os.path.join(tmp, "none.json"))), \
-                mock.patch.object(prompt_rewrite, "client_for", lambda pp: client):
+                mock.patch.object(prompt_rewrite, "client_for", lambda pp, job=None: client):
             p.reject(job, "user", "đổi áo sang màu vàng")
         rows = p.conn.execute("SELECT DISTINCT stage, project_id FROM usage_events WHERE kind='llm'").fetchall()
         self.assertEqual([(r["stage"], r["project_id"]) for r in rows], [(prompt_rewrite.STAGE, pid)])
@@ -530,7 +530,7 @@ class Ledger(unittest.TestCase):
             raise ProviderError("timed out")
         client = llm_runner.AnthropicClient("sk-test", "claude-sonnet-5", transport=send, sleep=lambda s: None, ledger=db)
         with mock.patch.dict(os.environ, dict(ON, FEATURE_SETTINGS_FILE=os.path.join(tmp, "none.json"))), \
-                mock.patch.object(prompt_rewrite, "client_for", lambda pp: client):
+                mock.patch.object(prompt_rewrite, "client_for", lambda pp, job=None: client):
             p.reject(job, "user", "đổi áo sang màu vàng")
         self.assertEqual(len(waits), 2)                                       # one try + at most one retry
         self.assertTrue(all(60 <= w <= 90 for w in waits), waits)

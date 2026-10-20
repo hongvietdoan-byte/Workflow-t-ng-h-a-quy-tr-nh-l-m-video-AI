@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:23:10.165383+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "DP3",
+  "branch": "cloud/v31-dp3",
+  "commit": "42577ee6",
+  "report": "docs/RA_CLOUD_DP3_2026-10-20.md",
+  "text": "final QC blackdetect/freezedetect → warn (REVIEW, không chặn), bỏ mờ dần kết phim, không đo được → nói rõ; cờ final_black_freeze TẮT; 7 test video lavfi; cả bộ 6373 qua + 4 đỏ có sẵn"
+}

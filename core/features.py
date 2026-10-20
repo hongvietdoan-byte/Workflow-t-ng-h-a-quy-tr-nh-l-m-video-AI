@@ -57,11 +57,36 @@ FEATURES: Dict[str, Dict] = {
     "end_state_fresh": {"fixes_projects": [27], "costs": True, "label": "Sửa end_state: ô sửa ở Bước 1/3 + bản dịch motion_en cũ của trường đã sửa không gửi im lặng (dịch lại qua sổ chi)",
         "verified": False,
         "why": "13/10 #27 lỗi 6: end_state sửa mà motion_en.end_state vẫn là bản dịch cũ → prompt code viết gửi trạng thái cuối cũ, tự duyệt"},
+    "stale_code_alarm": {"label": "Báo Dashboard / vòng nền chạy code cũ ≠ HEAD — kể cả CỔNG KHÁC (8503/8504): sổ cổng + sha, băng vàng, "
+                                  "diag stale_code; chỉ báo, không chặn (0 USD)", "verified": False,
+        "why": "V3.1 M1.7 (G55, #31): Dashboard 8503 chạy core cũ sau cập nhật → FAIL_SOURCE; 20/10 8503/8504 chạy code cũ cả ngày, "
+               "stop_dashboard.ps1 chỉ tắt 8501 (thêm -All). Thử bằng repo giả + pid giả, chưa chạy máy chính"},
+    "diag_merge": {"label": "Gộp chẩn đoán lặp theo (mã, shot) trong 24 giờ — một dòng đếm số lần, giữ câu mới nhất (0 USD)",
+        "verified": False,
+        "why": "V3.1 M1.7 (G56, #31 15–18/10): change_review_hold 4 435 lần, plate_stale 337 lần — câu đổi theo job nên khóa "
+               "'cùng câu trong 10 phút' không gộp được; thử bằng CSDL tạm"},
+    "budget_notice_d01": {"label": "Câu cảnh báo ngân sách theo D01 khi mức dự tính = 0 USD: 'chưa có mức dự tính', không ghi '$0.00' "
+                                   "như trần (vẫn gửi, chỉ cảnh báo)", "verified": False,
+        "why": "V3.1 M1.7 (A14, #33): trích riêng = 0 USD → cảnh báo 'mức dự tính $0.00' lặp lại; D01: không thêm điểm chặn theo ngân sách"},
     "tts_lowercase_caps": {"fixes_projects": [27], "label": "TTS: hạ chữ thường từ tiếng Việt viết IN HOA trước khi gửi (giữ tên/từ game; phụ đề giữ chữ gốc, 0 USD)",
         "verified": False,
         "why": "13/10 #27 lỗi 9: 'BÌNH TĨNH' đọc thành 'bình tỉnh' (đo F0); viết thường thì đúng thanh — mới thử tay 1 câu"},
     "send_claim": {"fixes_projects": [27], "label": "Giữ chỗ gửi job trong CSDL — 2 tiến trình (script + Dashboard) không gửi trùng một job (0 USD)", "verified": False,
         "why": "Hộp thư 12/10 19:58: #27 job 776 gửi 2 lần (script + vòng nền), Deepix tạo 2 task; khóa lượt chỉ trong một tiến trình"},
+    "poll_claim": {"label": "Giữ chỗ hỏi/tải kết quả job trong CSDL — 2 tiến trình không cùng tải + duyệt một job; gửi không rõ kết quả "
+                            "(hết giờ / 5xx) thì KHÔNG gửi lại, chờ đối soát (0 USD)", "verified": False,
+        "why": "V3.1 M1.2 (A1, #33): job 1162 succeeded 2 lần (bg_poll tiến trình riêng + Dashboard), QC đọc ảnh dở → tự gen lại 1163; "
+               "thử bằng 2 kết nối SQLite + provider giả, chưa chạy thật (C3-2: bật sau nghiệm thu)"},
+    "pause_before_submit": {"label": "Kiểm tạm dừng dự án NGAY TRƯỚC khi gửi job (cả job thử lại / đổi model) — đang dừng thì job giữ "
+                                     "hàng đợi có lý do, không gửi (0 USD)", "verified": False,
+        "why": "V3.1 M1.3 (G36, #31): tạm dừng 03:42:31 vẫn gửi job 1075 lúc 03:42:41 — runner chỉ kiểm paused đầu lượt quét; "
+               "thử bằng provider giả, chưa chạy thật (C3-2: bật sau nghiệm thu)"},
+    "send_estimate": {"label": "Ước tính giá ĐÚNG gói sẽ gửi: video nháp theo bậc nháp (480p) + video tham chiếu, bản cao 1080p nâng từ nháp "
+                               "tính cả video vào, Claude qua claude_cli = 0 USD API (chỉ đổi con số báo giá, không chặn gì — 0 USD)",
+        "verified": False,
+        "why": "V3.1 M1.6 (A7–A9 #33, G31 #31): nút Gen video báo 9,13 USD (720p + D6 API) khi gửi nháp 480p; nháp có video tham chiếu "
+               "≈ 1,37 × bảng giá; bản cao 1080p sổ chi cao hơn ước tính ~24 %; pregen_check cộng Claude giá API dù chạy claude_cli. "
+               "Hiệu chuẩn 2 điểm task ClipAI (docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md mục 5), chưa đối chiếu sổ chi thật"},
     "locomotion_end_frame": {"fixes_projects": [27], "label": "Shot chạy/đi: không gửi khung cuối vẽ khi clip sinh dài hơn shot × 1,3 + câu mốc cảnh vật khi máy bám theo (0 USD)",
         "verified": False,
         "why": "Hộp thư 12/10 18:13: #27 shot 3 job 782 (shot 1–2 s, Kling sinh 3 s, khung cuối 'vài bước' ở giây 3 + máy bám sau) chạy tại chỗ; "

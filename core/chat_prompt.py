@@ -334,7 +334,7 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
             return calls.get("last") or assembled
         if client is None:
             from .prompt_rewrite import client_for
-            client = client_for(p)
+            client = client_for(p, job)          # V3.1 M1.4b: provider chụp lúc tạo job
         if client is None:
             say("warn", "chat_prompt_noclaude", "D6 (đường như chat): chưa có Claude — gửi bản code ghép như cũ")
             return assembled

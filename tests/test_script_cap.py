@@ -118,6 +118,7 @@ PAID = re.compile(r"client_from_env|\.submit\w*\(|submit_pending|submit_drafts|s
 # script → vì sao không cần trần USD
 SCRIPT_OK = {
     "tools/clipai_price_check.py": "chỉ đọc danh sách task ClipAI (GET), không gửi gì",
+    "tools/clipai_cost_reconcile.py": "chỉ đọc danh sách task ClipAI (GET video-list qua _page) + CSDL mode=ro, không gửi gì (V3.1 M1.6 Codex Đ19 việc 2)",
     "tools/voice_trial.py": "chỉ gửi âm thanh — chưa có giá USD; giới hạn theo lượt (audio_refusal / trần lượt âm thanh)",
     "tools/experiments/audio_s26_s115.py": "chỉ gửi âm thanh — chưa có giá USD; giới hạn theo lượt (budget.check_audio)",
     "tools/audit_run.py": "chỉ đọc trạng thái (.submitted), không gửi gì",

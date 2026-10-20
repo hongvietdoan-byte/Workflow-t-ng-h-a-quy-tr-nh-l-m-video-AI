@@ -54,7 +54,7 @@ def image_progress(p: Pipeline, pid: int, runner) -> None:
             "ORDER BY s.idx", (pid,)).fetchall()
         status = lineage.scan(p.conn, pid)
         if rows and not merged:
-            client_ready = llm_client() is not None
+            client_ready = llm_client(pid) is not None
             def label(r):
                 if r["state"] == "succeeded":
                     return "Chờ Claude kiểm tra" if client_ready else "Chờ bạn duyệt (chưa có Claude)"
@@ -303,7 +303,7 @@ def step2(p: Pipeline, pid: int):
         set_check_panel(p, pid)
     shot_storyboard_panel(p, pid)
 
-    client = llm_client()
+    client = llm_client(pid)
     to_check = p.conn.execute("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'",
                               (pid,)).fetchone()["c"]
     if client is None and to_check:
@@ -349,7 +349,7 @@ def grid_v2(p: Pipeline, pid: int, proj) -> None:
     """UI v2 (cờ ui_v2): thanh lọc → lưới thẻ kính 4 cột → MỘT thanh hành động dính → các mục gập (chính sách QC, kiểm bộ ảnh, storyboard)."""
     from dashboard.design.screens import storyboard_cards as SB
     from dashboard.design import components as D
-    client = llm_client()
+    client = llm_client(pid)
     to_check = p.conn.execute("SELECT COUNT(*) c FROM jobs WHERE project_id=? AND type='image_gen' AND state='succeeded'", (pid,)).fetchone()["c"]
     if client is None and to_check:
         SB.note(f"⚠ Chưa có điểm QC cho {to_check} ảnh (chưa có Claude)",
@@ -529,7 +529,7 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
                 if act(done):
                     st.rerun()
         elif state == "succeeded":
-            client = llm_client()
+            client = llm_client(pid)
             if client is not None:
                 st.caption("🔍 Claude tự kiểm tra ảnh này ở nền (không cần bấm); xem tiến độ ở đầu màn Storyboard.")
             if C.expert():
@@ -835,7 +835,7 @@ def set_check_panel(p: Pipeline, pid: int) -> None:
             SB.note("Claude so cả bộ ảnh đã duyệt để tìm cảnh lệch tông", _about, "sb-setqc-about")
         else:
             st.caption(_about)
-        client = llm_client()
+        client = llm_client(pid)
         if st.button(f"🤖 Kiểm tra {approved} ảnh đã duyệt" + cost.llm_tag(cost.llm_estimate(p.conn, "setcheck", 1, images=1,
                                                                                             ledger_stage="qc"), 1),
                      key=f"setqc_{pid}", disabled=client is None, help=None if client else claude_hint()):

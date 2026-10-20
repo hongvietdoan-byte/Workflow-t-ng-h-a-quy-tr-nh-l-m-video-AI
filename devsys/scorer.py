@@ -352,7 +352,7 @@ def default_model() -> str:
 
 
 def plan(root: str, cfg: Dict, snap: Dict, health: Dict, area_ids: Optional[Sequence[str]] = None, redo_all: bool = False,
-         provider: str = "anthropic") -> Dict:
+         provider: str = "claude_cli") -> Dict:
     """Which areas to (re)score. Default: those whose fingerprint changed since their last score (of the same kind: a mock score
     never counts as a real one). `redo_all` or an explicit `area_ids` list scores those anyway."""
     all_scores, _ = scores.load_all(root)
@@ -406,7 +406,7 @@ def score_command(areas: Sequence[str], provider: str, est: Dict) -> List[str]:
     """Arguments of `tools/devsys_score.py` for the page's "Chấm" button. Claude API: the hard lock `--max-usd` (core/script_cap.py,
     S14.2) = the worst case of the estimate rounded UP to the cent — without it the script refuses to run (rà soát A2)."""
     cmd = [os.path.join("tools", "devsys_score.py"), "--areas", ",".join(areas), "--provider", provider, "--yes"]
-    if provider != "mock":
+    if provider == "anthropic":                  # V3.1 M1.4b: chỉ Claude API trả tiền cần trần cứng; claude_cli = 0 USD API
         cap = math.ceil(float(est.get("usd_max") or 0.0) * 100 - 1e-9) / 100
         cmd += ["--max-usd", f"{max(cap, 0.01):.2f}"]
     return cmd
@@ -469,12 +469,18 @@ class MockScorerClient:
 
 
 def make_client(provider: str, db_path: Optional[str], transport=None):
-    """provider 'mock' → MockScorerClient; 'anthropic' → the project's AnthropicClient bound to the cost ledger (never without it)."""
+    """provider 'mock' → MockScorerClient; 'claude_cli' (V3.1 M1.4b, mặc định) → Claude Code trên máy (0 USD API, ghi token vào sổ,
+    hết lượt gói → dừng có giờ mở); 'anthropic' → the project's AnthropicClient bound to the cost ledger (never without it)."""
     if provider == "mock":
         return MockScorerClient()
+    if provider == "claude_cli":
+        from core import llm_runner
+        try:
+            return llm_runner.ClaudeCliClient.from_env(ledger=db_path if db_path and os.path.exists(db_path) else None)
+        except llm_runner.LlmError as e:
+            raise ScorerError(str(e)) from None
     if provider != "anthropic":
-        raise ScorerError(f"provider '{provider}' không hỗ trợ (anthropic | mock). Chế độ Claude Code trên máy không ghi sổ chi → dùng "
-                          "người chấm ngoài: py tools/devsys_score.py --export <khu_vực> rồi --import")
+        raise ScorerError(f"provider '{provider}' không hỗ trợ (claude_cli | anthropic | mock)")
     if not db_path or not os.path.exists(db_path):
         raise ScorerError(f"không thấy sổ chi {db_path or 'data/manifest.sqlite'} — mở Dashboard thật một lần (tạo CSDL) rồi chấm; "
                           "không gọi Claude ngoài sổ chi")
@@ -501,7 +507,7 @@ def budget_room(db_path: str) -> Optional[float]:
     return None if st["llm_usd"] <= 0 else float(st["llm_left"])
 
 
-def run(root: str, cfg: Dict, snap: Dict, bundles: Sequence[Dict], provider: str = "anthropic", yes: bool = False,
+def run(root: str, cfg: Dict, snap: Dict, bundles: Sequence[Dict], provider: str = "claude_cli", yes: bool = False,
         db_path: Optional[str] = None, transport=None, note: Callable[[str], None] = print, scorer_label: Optional[str] = None) -> Dict:
     """Score the planned areas. Refuses without `yes` (the estimate must have been shown and accepted)."""
     _root_on_path(root)
@@ -536,7 +542,7 @@ def run(root: str, cfg: Dict, snap: Dict, bundles: Sequence[Dict], provider: str
         except llm_runner.LlmError as e:
             failed.append({"area": b["area"], "error": str(e)})
             note(f"  lỗi: {e}")
-            if e.code in ("budget", "auth", "config"):
+            if e.code in ("budget", "auth", "config", "usage_limit", "out_of_credit"):   # M1.4b: hết lượt / hết tiền lặp ở mọi khu vực
                 note("  dừng: lỗi này sẽ lặp lại ở mọi khu vực")
                 break
             continue
@@ -549,7 +555,9 @@ def run(root: str, cfg: Dict, snap: Dict, bundles: Sequence[Dict], provider: str
             po = budget.token_price(pricing, model, "output", tout)
             price = round((pi or 0) + (po or 0), 4)
             usd += price
-        rec = {"format": scores.FORMAT, "scorer": scorer_label or ("claude-api" if provider == "anthropic" else "mock"),
+        if provider == "claude_cli":
+            price = 0.0                          # 0 USD API (lượt gói Claude Code); token vẫn ghi trong usage
+        rec = {"format": scores.FORMAT, "scorer": scorer_label or {"anthropic": "claude-api", "claude_cli": "claude-cli"}.get(provider, "mock"),
                "provider": provider, "model": model, "date": collect.now_iso(), "commit": hd.get("hash"), "dirty": dirty,
                "input_hash": b["input_hash"], "rubric_hash": scores.rubric_hash(root), "fingerprint": b["fingerprint"],
                "facts": b["facts"], "usage": {"input_tokens": tin, "output_tokens": tout, "usd": price}, "truncated": b["notes"],

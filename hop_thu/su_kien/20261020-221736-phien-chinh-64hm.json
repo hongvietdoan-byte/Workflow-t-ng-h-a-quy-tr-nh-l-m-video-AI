@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:17:36.844733+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "DP5",
+  "to": "pool",
+  "title": "M5.1 repair router (cờ TẮT, chỉ đề xuất)",
+  "spec": "docs/CLOUD_TASKS.md#### DP5",
+  "priority": 14
+}

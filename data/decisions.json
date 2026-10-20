@@ -551,6 +551,28 @@
     }
    ],
    "status": "active"
+  },
+  {
+   "id": "v31-c3-2-flags-on-main-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (chat 20/10: 'bật theo đề xuất')",
+   "text": "C3-2 thực hiện: bật cờ poll_claim (M1.2 — giữ chỗ poll liên tiến trình; gửi không rõ kết quả → cần đối soát, không tự gửi lại) và pause_before_submit (M1.3 — kiểm tạm dừng ngay trước submit) trên máy chính, sau khi test 2 worker / crash-reconcile / submit không rõ kết quả / tạm dừng giữa chuẩn bị đều xanh trong cả bộ (60b9da80). Chấp nhận: timeout/5xx lúc gửi → job chờ người đối soát trên web nhà cung cấp.",
+   "keeps": "v31-cap3-items-decided-2026-10-20 (C3-2 điều kiện đã chứng minh); không gửi lại job submit chưa rõ khi chưa đối soát.",
+   "changes": "data/feature_settings.json máy chính: poll_claim=true, pause_before_submit=true (sao lưu data/backup/feature_settings.before_c3-2_2026-10-20.json); Dashboard 8501 khởi động lại. Rollback: đặt hai cờ về false.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-c3-1-provider-columns-applied-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (chat 20/10: 'Tôi không thể chạy lệnh đó qua remote được, tự chạy đi')",
+   "text": "C3-1 thực hiện trên CSDL máy chính: thêm cột projects.llm_provider, jobs.llm_provider, jobs.llm_config_ver, llm_calls.provider (core.db.migrate_llm_provider_up). Điều kiện đã chứng minh: sao lưu trước (integrity ok, 1154 job); code trước M1.4b chạy trên bản sao đã có cột (tạo job, đọc jobs/projects, ghi llm_calls — mọi INSERT liệt kê cột); code mới khi thiếu cột = hành vi cũ (test_columns_absent_means_the_old_environment_behaviour); chạy lại không đổi. Sau áp: integrity ok; dự án / job cũ (cột NULL) → ClaudeCliClient theo môi trường.",
+   "keeps": "v31-cap3-items-decided-2026-10-20 (C3-1 điều kiện); D02 — job đang chạy giữ provider snapshot.",
+   "changes": "Sao lưu data/backup/manifest.before_c3-1_llm_provider_2026-10-20.sqlite; Dashboard 8501 khởi động lại. Khôi phục: chép lại bản sao lưu hoặc migrate_llm_provider_down (từ chối khi còn dữ liệu trừ force).",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
   }
  ]
 }

@@ -1,0 +1,15 @@
+# Rà ĐỢT 19 việc 1 — 20/10/2026
+
+- Nhánh `codex/d19-viec1-narration`, nền `c32162dc`; CHỈ TEST. Chưa commit theo chỉ đạo phiên điều phối.
+- Đọc CLAUDE, TODO bàn giao, CHUAN_XAY_DUNG, skill vòng, CODEX_TASKS Đ19v1 và gói V3.1 §4; không triển khai M2.9.
+- Một bảng 7 ca dùng chung cho 9 nhóm kiểm: POV, cast im lặng, nhân vật, trộn có thời gian, ba biến thể còn lại. LỜI DẪN được dùng ở POV/cast/trộn.
+- Gọi hàm thật `_method`, `VideoRunner._take_segments` (audit ghi nhầm module), `shot_audio`, `mark`/`synced_scene_ids`, `is_narrator`, `_say_speakers_without_picture`, `_measure_clip`, `hard_signs`.
+- I/O giả: danh sách TTS, ffmpeg ghi file tạm, truy vấn/mock diag, đo clip; assert lệnh mix chỉ chứa giọng nhân vật, vị trí sau lời dẫn 1,25s + GAP giữ nguyên. Không AST hoặc chép hàm sản xuất.
+- Lượt ĐỎ: `py -m pytest tests/test_narration_regression.py -q --tb=no -p no:cacheprovider` → **21 failed, 35 passed /12,95s**. Toàn bộ failure là AssertionError hành vi gốc.
+- Lượt 2 → **35 passed, 21 xfailed /0,63s**. Lượt cuối bổ sung guard OFF, cô lập loader → **42 passed, 21 xfailed /10,83s**.
+- Xfail strict, raises=KnownNarrationBug (lớp con riêng của AssertionError), reason đúng mã: G53 6 ca (kể cả mixed); G16/G17/G15 mỗi mã 5 ca chỉ lời dẫn. Ca nhân vật/trộn ở các hàm đã đúng vẫn assert thường; không xfail toàn bảng. Không đổi production để xanh.
+- Cô lập: patch.object thay os.environ bằng dict giả trước import/call; ExitStack trả object cũ khi thoát cả lỗi. Không sao chép/đọc/in môi trường thật, không patch.dict(clear=True). Chặn socket, process, registry, keyring/win32cred; provider/model loader chặn trước caller. Không spawn native: không có môi trường kế thừa; không cần whitelist native.
+- Tự rà 2b.5: tmp_path tuyệt đối cho file ghi; không cwd production, không data/projects/API/flags thật. Guard OFF đi qua hàm thật và fail nếu lấy model/audio/timing. Không batch/API nào được gọi; QC một clip chỉ nhận phép đo giả. Input malformed chưa thêm vì ngoài ma trận hồi quy đã duyệt; không ngụy tạo bằng chứng malformed/batch.
+- Quy ước 7: chạy related_areas → lipsync + dùng chung cờ autopilot, không test chậm; khai test trong areas, giữ version **87**. Test mới không có caller production; đã đọc caller thật: seedance_refs:355; claude_tasks:183; quality_tier:258; runner:1205/1693/2235/2268. Không thay đổi hành vi caller.
+- Đã rà độc lập phạm vi test/doc/areas: sửa xfail chỉ bắt lớp KnownNarrationBug phát sinh tại so đầu ra lỗi gốc, không bắt assert tiền điều kiện/assert phụ/setup; sửa winreg để chạy được ngoài Windows; đưa chặn loader trước import caller. Lượt kiểm sau khoanh xfail: 1 failed, 42 passed, 20 xfailed (8,29s), nhận diện đúng assert nội dung mixed G53; đã khoanh riêng phép so đó. Lượt cuối targeted: **42 passed, 21 xfailed /8,40s**; `git diff --check` sạch. Kiểm trực tiếp vòng đời fixture với 2 dict môi trường giả (thiếu/có provider), đóng bình thường và ném lỗi: **4 kiểm tra trả đúng object môi trường giả bên ngoài**. Không đọc môi trường thật.
+- Chưa cả bộ Windows, chưa thử thật/model. Phiên điều phối/Claude tiếp tục rà trước gộp; 4 lỗi gốc vẫn mở ở M2.9.

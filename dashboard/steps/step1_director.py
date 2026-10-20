@@ -45,7 +45,7 @@ def director_panel(p: Pipeline, pid: int, chars) -> None:
                 cap(f"🔒 {sum(len(r['fields']) for r in kept)} trường bạn đã sửa tay ở {len(kept)} cảnh được giữ nguyên khi chạy lại.")
             from dashboard.steps.step1_checklist import checklist_panel
             checklist_panel(p, pid, "dir")          # S14.23: flag asset_checklist off → draws nothing
-            client = llm_client()
+            client = llm_client(pid)
             running = director_lease.busy(p.conn, pid)
             if running:
                 st.info(running)
@@ -134,7 +134,7 @@ def dialogue_review_panel(p: Pipeline, pid: int) -> None:
         if fixable and st.button(f"⏱ Tự tăng thời lượng {len(fixable)} clip cho vừa thoại", key=f"dlg_fix_s1_{pid}"):
             dialogue.extend(p, entries)
             st.rerun()
-        client = llm_client()
+        client = llm_client(pid)
         if st.button("🤖 Claude rà thoại (6 lỗi thoại + độ dài)" + cost.llm_button_tag(p.conn, "director", 1), key=f"dlg_ai_{pid}", disabled=client is None,
                      help=None if client else claude_hint()):
             with st.spinner("Claude đang đọc thoại…"):
@@ -164,7 +164,7 @@ def _replan_button(p: Pipeline, pid: int, scene_idx: int, col) -> None:
              if (json.loads(r["data"] or "{}").get("story_scene") or 0) >= scene_idx]
     if later and p.conn.execute("SELECT 1 FROM jobs WHERE scene_id IN (" + ",".join("?" * len(later)) + ") LIMIT 1", later).fetchone():
         return
-    client = llm_client()
+    client = llm_client(pid)
     if client is None:
         return
     running = director_lease.busy(p.conn, pid)

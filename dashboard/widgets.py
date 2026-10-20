@@ -22,7 +22,7 @@ def video_busy(conn, pid: int) -> bool:
         return True
     if autoqc.video_active(pid):
         return True
-    if not autoqc.video_last_error(pid) and claude_tasks.unchecked_videos(Pipeline(conn), pid) and llm_client() is not None:
+    if not autoqc.video_last_error(pid) and claude_tasks.unchecked_videos(Pipeline(conn), pid) and llm_client(pid) is not None:
         return True
     from core import end_frames
     if end_frames.enabled() and end_frames.drawing(Pipeline(conn), pid):

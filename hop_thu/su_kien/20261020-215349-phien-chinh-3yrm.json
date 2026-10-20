@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T21:53:49.863186+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-FIX-M16-17",
+  "to": "cloud-C",
+  "title": "Sửa rà kỹ M1.6/M1.7 (1 CAO, 2 VỪA)",
+  "spec": "docs/CLOUD_TASKS.md#### C-FIX-M16-17",
+  "priority": 1
+}

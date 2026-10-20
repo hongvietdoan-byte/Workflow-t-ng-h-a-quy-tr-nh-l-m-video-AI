@@ -541,6 +541,9 @@ def money_card(p: Pipeline, pid) -> None:
         flag = " 🔴" if " 🔴" in flags else " 🟡" if " 🟡" in flags else ""
     elif claude_out:
         flag = " 🔴"
+    from core import llm_provider
+    if any(llm_provider.quota_halted(p.conn, k) for k in llm_provider.quota_all(p.conn)):
+        flag = " 🔴"                                     # Claude dừng vì hết lượt / hết tiền: thấy được mà không cần mở thẻ
     label = f"💵 {s['spent']:.2f}/{s['usd']:.0f}" if s["enabled"] else "💵 Tiền"
     if v2:
         label = "💵 Tiền" + (f" · {s['spent']:.2f}/{s['usd']:.0f}" if s["enabled"] else "")      # v2: always a word next to the icon
@@ -555,6 +558,15 @@ def money_card(p: Pipeline, pid) -> None:
                     st.rerun()
             else:
                 st.caption("Nhờ Owner (hoặc người có quyền “Cài đặt & bảng giá”) mở lại dịch vụ sau khi nạp tiền.")
+        for kind in llm_provider.quota_all(p.conn):       # V3.1 M1.4b (rà C-RA-M14B): Claude dừng có giờ mở + nút mở lại tay
+            stop = llm_provider.quota_halted(p.conn, kind)
+            if not stop:
+                continue
+            st.error(stop[1])
+            if allowed("settings"):
+                if st.button(f"Gói / tài khoản dùng được rồi — mở lại Claude ({kind})", key=f"mc_llm_reopen_{kind}"):
+                    llm_provider.quota_reopen(p.conn, kind)
+                    st.rerun()
         more = []                                        # v2: P3 details collected here, drawn once in a "ⓘ Chi tiết" fold at the end
         if s["enabled"]:
             frac = min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0
@@ -1123,6 +1135,7 @@ def status_line(p: Pipeline, pid: int) -> None:
     if stale:                                           # S6.4: #8 ran for hours on code older than the fixes on disk
         st.warning(f"⚠ Code đã đổi sau khi Dashboard khởi động ({stale}) — tắt / mở lại Dashboard để dùng bản mới "
                    "(các việc đang chạy vẫn dùng code cũ tới lúc đó).")
+    _other_ports_stale()
 
 
 def _status_line_v2(p: Pipeline, pid: int) -> None:
@@ -1190,6 +1203,7 @@ def _status_line_v2(p: Pipeline, pid: int) -> None:
     if stale:                                           # S6.4: #8 ran for hours on code older than the fixes on disk
         D.note("warning", f"Code đã đổi sau khi Dashboard khởi động (`{stale}`) — tắt / mở lại Dashboard để dùng bản mới "
                "(các việc đang chạy vẫn dùng code cũ tới lúc đó).", "⚠ Code đã đổi sau khi Dashboard khởi động — tắt / mở lại để dùng bản mới.", "shell-stale", attention=True)
+    _other_ports_stale()
 
 
 def _budget_left_frac(p: Pipeline, pid) -> "float | None":
@@ -1208,6 +1222,17 @@ def _budget_left_frac(p: Pipeline, pid) -> "float | None":
 
 
 _STARTED = __import__("time").time()
+
+
+def _other_ports_stale() -> None:
+    """V3.1 M1.7 (G55, cờ stale_code_alarm): Dashboard nào (kể cả CỔNG KHÁC, vd 8503/8504) còn chạy code cũ ≠ HEAD → băng vàng."""
+    try:
+        from core import code_version
+        text = code_version.banner(C.DB)
+    except Exception:  # noqa: BLE001 - a notice only
+        text = ""
+    if text:
+        st.warning(text)
 
 
 def code_changed_since_start() -> str:

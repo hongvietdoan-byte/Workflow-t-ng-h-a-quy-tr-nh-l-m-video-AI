@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:17:37.334774+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "DP6",
+  "to": "pool",
+  "title": "M5.2 release gate (cảnh báo, không chặn)",
+  "spec": "docs/CLOUD_TASKS.md#### DP6",
+  "priority": 15
+}

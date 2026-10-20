@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T21:53:48.895729+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX20-5",
+  "to": "codex",
+  "title": "M1.5 Kho chủ thể — chỉ dry-run xóa (lưu ý G59)",
+  "spec": "docs/CODEX_TASKS.md## Việc 5 — M1.5",
+  "priority": 2
+}
