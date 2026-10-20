@@ -156,13 +156,13 @@ kiểm giá trị; không đổi `STATUSES`.
 <!-- tien-do -->
 | Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | Tiến độ |
 |---|---|---|---|---|---|---|
-| M0 Đóng băng và thiết kế (0 USD) | 12 | 10 | 0 | 0 | 0 | 77,8 % |
-| M1 Nền tin cậy (0 USD, provider giả) | 9 | 3 | 6 | 0 | 0 | 65,8 % |
+| M0 Đóng băng và thiết kế (0 USD) | 12 | 12 | 0 | 0 | 0 | 100 % |
+| M1 Nền tin cậy (0 USD, provider giả) | 9 | 4 | 5 | 0 | 0 | 71,1 % |
 | M2 Hợp đồng sản xuất có cấu trúc | 9 | 0 | 0 | 0 | 0 | 0 % |
 | M3 Thế giới và liên tục | 5 | 0 | 0 | 0 | 0 | 0 % |
 | M4 QC có bằng chứng và Dashboard | 7 | 0 | 0 | 0 | 0 | 0 % |
 | M5 Sửa chọn lọc và pilot | 5 | 0 | 0 | 2 | 0 | 0 % |
-| **Tổng** | **47** | **13** | **6** | **2** | **0** | **28,5 %** |
+| **Tổng** | **47** | **16** | **5** | **2** | **0** | **33,9 %** |
 
 Đợt hiện tại: **M1** · việc kế: **M2.1** BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN
 <!-- /tien-do -->
@@ -173,8 +173,8 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M0.1 · Audit HEAD, cờ máy chính, schema CSDL, provider/model → biên bản docs/audit/M0_BASELINE_2026-10-20.md · nặng:1 · ✅ · biên bản docs/audit/M0_BASELINE_2026-10-20.md: HEAD/cờ/schema/provider đo trên máy chính
 - [ ] M0.2 · Kiểm 6 lỗi báo đã sửa (G7, G8, G10, G24, G27, G35) có trên HEAD + test tương ứng · nặng:1 · ✅ · 8 commit trên HEAD, 11 file test 331 qua → sổ lỗi FIXED_UNVERIFIED
 - [ ] M0.3 · Chốt D01–D10: người dùng chọn từng mục trong docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, rồi ghi sổ + test · nặng:1 · ✅ · người dùng chốt 20/10; sổ v31-d01…v31-d10 + test_v31_d01_to_d10_recorded_as_policy_not_implementation
-- [ ] M0.4 · Schema sổ lỗi devsys/errors.json + test hợp đồng (mã không trùng, VERIFIED cần commit+test+bằng chứng, OPEN cần workstream) · nặng:2 · ⬜ · G2-1 duyệt 20/10
-- [ ] M0.5 · Nhập G1–G58, A1–A15, B1–B12 có nguồn; báo cáo coverage 100 % (G25 khuyết ghi rõ) · nặng:2 · ⬜ · G2-1 duyệt 20/10
+- [ ] M0.4 · Schema sổ lỗi devsys/errors.json + test hợp đồng (mã không trùng, VERIFIED cần commit+test+bằng chứng, OPEN cần workstream) · nặng:2 · ✅ · cloud-B C-M04-05 gộp 20/10: devsys/errors.json 86 mục (G25 khuyết) + errors.py check; cả bộ 6293 qua
+- [ ] M0.5 · Nhập G1–G58, A1–A15, B1–B12 có nguồn; báo cáo coverage 100 % (G25 khuyết ghi rõ) · nặng:2 · ✅ · cloud-B C-M04-05 gộp 20/10: devsys/errors.json 86 mục (G25 khuyết) + errors.py check; cả bộ 6293 qua
 - [ ] M0.6 · Bảng AS-IS/TO-BE WS0–WS6 theo file:hàm (IMPL/PART/MISS/UNK) · nặng:2 · ✅ · cloud tài khoản khác, gộp 20/10 (e43acf20…e767e9d3); rà nhẹ (chỉ tài liệu)
 - [ ] M0.7 · Ma trận test bắt buộc cho từng milestone theo CHUAN_XAY_DUNG + devsys/areas.json · nặng:1 · ✅ · cloud tài khoản khác, gộp 20/10 (e43acf20…e767e9d3); rà nhẹ (chỉ tài liệu)
 - [ ] M0.8 · AI Dev System: trang sơ đồ tiến độ vẽ từ kế hoạch + sổ khâu (+ sổ lỗi khi có), tô màu theo trạng thái việc · nặng:2 · ✅ · người dùng yêu cầu trực tiếp 20/10; devsys/plan_map.py + trang 🗺; quy ước 7 đã rà, 11 lỗi đã sửa
@@ -191,7 +191,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M1.5 · Kiểm Kho chủ thể trước gửi video, dừng + đề xuất dọn (G30, G32, G58) · nặng:2 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
 - [ ] M1.6 · Ước tính giá đúng gói gửi: tier nháp, phụ phí ref, nâng 1080p, claude_cli = 0, giá video trong pregen_check (A7–A9, G31) · nặng:2 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
 - [ ] M1.7 · Dashboard báo chạy code cũ (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01) · nặng:1 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
-- [ ] M1.8 · tools/project_error_report.py: gom diag_events + jobs + job_events thành đề xuất mục sổ lỗi cuối dự án · nặng:2 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
+- [ ] M1.8 · tools/project_error_report.py: gom diag_events + jobs + job_events thành đề xuất mục sổ lỗi cuối dự án · nặng:2 · ✅ · Codex Đ20 việc 1 gộp 20/10 (tools/project_error_report.py, 9 test)
 - [ ] M1.9 · Golden gói B0–B2: replay ảnh + video, test compatibility / correctness, fixture có HEAD/cờ/CHANGES · nặng:3 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
 
 ### M2 — Hợp đồng sản xuất có cấu trúc
