@@ -2,6 +2,22 @@
 
 Trạng thái: **đề xuất thiết kế Cấp 1, chưa triển khai, chưa thử thật**. Nguồn code đối chiếu tại `7c41073c`, nhánh `codex/d19-viec4-subjects`. Không thay code, CSDL, cờ, môi trường hay provider. D03b là chính sách, không phải quyền code/xóa; D03 cũ đã bị thay. Cấp 2 cần duyệt phạm vi build; migration, bật production, API/pilot cần Cấp 3 riêng theo master §4b.
 
+> **Cập nhật C-FIX-D19 (cloud-B, 20/10)** theo rà C-RA-D19 + sổ `v31-cap3-items-decided-2026-10-20` (C3-3 CHỈ DUYỆT DRY-RUN):
+> 1. **Mọi xóa asset = DRY-RUN + duyệt riêng TỪNG lần.** Thay đoạn "Apply sau phê duyệt production" (§4): không có scheduler / worker tự apply. Mỗi
+>    `cleanup_plan` (bất biến, có `plan_hash`) cần NGƯỜI duyệt trên Dashboard (`approved_by`, `approved_at`, `plan_hash` khớp); apply chỉ nhận plan đã duyệt,
+>    chưa hết hạn, fingerprint không đổi; một lần duyệt = một plan (không duyệt chung cho các lần sau). Tới khi người dùng đổi C3-3, code xóa chỉ chạy được
+>    bằng nút duyệt của người. Test: `apply_refuses_unapproved_plan`, `apply_refuses_changed_plan_hash`, `approval_is_single_use`.
+> 2. **Vô hiệu đường xóa tự động của cờ cũ `subject_auto_cleanup` TRƯỚC / CÙNG LÚC sửa G59.** Hiện tự dọn cũ (`core/subjects.py:run_auto_cleanup:396`,
+>    gọi từ `schedule_auto_cleanup:432` ← `core/delivered.py:67`, `core/archive.py:65`) không xóa được CHỈ vì G59 ("chưa cấu hình Kho chủ thể"). Cờ có
+>    `verified: True` (`core/features.py:47`) → sửa G59 đơn lẻ sẽ làm nó XÓA THẬT ngay khi giao / cất (không 3 ngày, không dry-run) — trái C3-3. Thiết kế:
+>    cùng commit sửa G59, `run_auto_cleanup` chuyển sang chế độ CHỈ LIỆT KÊ: lập `cleanup_plan` (asset, dự án, lý do, phụ thuộc) + diag `subject_cleanup_plan`
+>    + một dòng 📥 "chờ duyệt xóa", KHÔNG gọi `library.delete_many`; đường xóa chỉ còn qua apply plan đã duyệt (mục 1). Test bắt buộc ĐỎ→XANH:
+>    `g59_fix_keeps_legacy_cleanup_dry_run` (provider Kho giả + cấu hình đủ → 0 lời gọi delete, có plan), `delivery_and_archive_never_delete`.
+>    Không đổi giá trị cờ trên máy chính (Cấp 3); ghi quyết định khi người dùng chốt.
+> 3. **Job không cần ảnh Kho không vào hàng chờ sức chứa (THẤP, D03b "chỉ chặn tác vụ thực sự cần Kho").** Gói không có ảnh nào cần Kho chủ thể (gen thẳng
+>    không ref người / chỉ ảnh đánh dấu hợp lệ / Kling) → không xin reservation, không `QUEUE_CAPACITY`, gửi như thường. Test: `job_without_subject_refs_skips_capacity_queue`.
+
+
 ## 1. Bằng chứng và khoảng trống
 
 Số **185 ảnh từng vào Kho, 95 khung đầu, #31 = 84** lấy từ audit `docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md:132–134`; đây là số lịch sử trong sổ, không phải occupancy hiện thời. Phiên này không đọc DB thật và không đo lại. Giới hạn cơ sở hiện có là `LIBRARY_LIMIT = 100` (`core/adapters/clipai_subjects.py:28`); chưa có bằng chứng 4–5 dự án luôn vừa Kho, hay chia cứng 60 BỀN/40 TẠM là tối ưu.
