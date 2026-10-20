@@ -141,7 +141,7 @@ def _work(db_path: str, game: str, client_factory: Callable) -> None:
         conn = connect(db_path)
         client = client_factory()
         if client is None:
-            _errors[game] = ("chưa có Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER=claude_cli)", time.time())
+            _errors[game] = ("chưa có Claude: " + llm_runner.missing_hint(), time.time())
             return
         todo = [a["id"] for a in assets.list_assets(conn, game, None, None, shared_only=True) if _eligible(a)]
         _progress[game] = {"done": 0, "total": len(todo)}
@@ -150,7 +150,7 @@ def _work(db_path: str, game: str, client_factory: Callable) -> None:
                 sync_one(conn, client, asset_id)
                 _progress[game]["done"] += 1
             except llm_runner.LlmError as e:
-                if e.code in ("auth", "config", "timeout", "cli_error", "rate_limit", "server_error"):
+                if e.code in llm_runner.STOP_CODES:      # V3.1 M1.4a: + usage_limit / out_of_credit
                     _errors[game] = (str(e), time.time())
                     return
                 diag.record(conn, "system", "warn", f"đọc ảnh tài nguyên lỗi (mục #{asset_id}): {e}", "asset_vision")

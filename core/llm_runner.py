@@ -67,15 +67,25 @@ def fail_text(e: BaseException, text: Optional[str] = None) -> "FailText":
     return out
 
 
-_CLI_LIMIT = ("hit your session limit", "hit your usage limit", "usage limit", "session limit", "rate limit")
+_CLI_LIMIT = ("hit your session limit", "hit your usage limit", "hit your limit", "hit your weekly limit", "usage limit",
+              "session limit", "rate limit")
+_CLI_NO_CREDIT = ("credit balance is too low", "credit balance too low", "insufficient credit")
+
+
+# Mã lỗi Claude làm DỪNG CẢ LƯỢT việc lặp (tự QC, đọc ảnh tài nguyên, QC hàng loạt) thay vì đẩy từng mục sang người (V3.1 M1.4a):
+# đăng nhập / cấu hình / hết hạn mức gói / hết tiền / lỗi mạng-máy chủ — gọi tiếp mục sau cũng hỏng y như vậy.
+STOP_CODES = ("auth", "config", "timeout", "cli_error", "usage_limit", "rate_limit", "out_of_credit", "server_error")
 
 
 def cli_error_code(detail: str) -> str:
     """The code of a Claude Code (CLI) failure, read once where the error is born: 'auth' (log in again), 'usage_limit' (the plan's
-    limit reached — the automatic run stops until it resets), else 'cli_error'."""
+    limit reached — the automatic run stops until it resets), 'out_of_credit' (V3.1 M1.4a: the CLI ran on a paid API key whose credit is
+    gone — #33; stop, never retry / switch to the paid API), else 'cli_error'."""
     low = str(detail or "").lower()
     if "authenticate" in low or "oauth" in low:
         return "auth"
+    if any(h in low for h in _CLI_NO_CREDIT):
+        return "out_of_credit"
     if any(h in low for h in _CLI_LIMIT):
         return "usage_limit"
     return "cli_error"
@@ -963,7 +973,7 @@ def run_qc_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
             r = run_qc(p, j["id"], client, data_dir)
         except LlmError as e:
             summary["failed"].append((j["id"], fail_text(e)))
-            if e.code in ("auth", "config"):
+            if e.code in STOP_CODES:          # V3.1 M1.4a: the next picture fails the same way (limit / no credit / login / network)
                 break
             continue
         summary["checked"] += 1
@@ -1309,16 +1319,61 @@ def ledger_factory(ledger: Optional[str]) -> Callable:
     return lambda: client_from_env(ledger=ledger)
 
 
+NO_PROVIDER_HINT = ("chưa khai LLM_PROVIDER — đặt LLM_PROVIDER=claude_cli (Claude Code trên máy, 0 USD API) hoặc LLM_PROVIDER=anthropic "
+                    "+ ANTHROPIC_API_KEY (Claude API trả phí); có ANTHROPIC_API_KEY mà không khai thì KHÔNG tự dùng API trả phí")
+
+
+def provider_status() -> Tuple[Optional[str], str]:
+    """(provider đã khai hoặc None, lý do) — để nơi gọi nói rõ vì sao tác vụ Claude không chạy (V3.1 M1.4a)."""
+    kind = os.environ.get("LLM_PROVIDER", "").strip().lower()
+    if kind in ("claude_cli", "claude-cli", "cli"):
+        return "claude_cli", "Claude Code trên máy (claude_cli)"
+    if kind in ("anthropic", "mock"):
+        return kind, kind
+    if kind:
+        return None, f"LLM_PROVIDER={kind!r} không hợp lệ (anthropic | claude_cli | mock)"
+    return None, NO_PROVIDER_HINT
+
+
+def missing_hint() -> str:
+    """Câu báo người dùng khi client_from_env trả None hoặc ném LlmError 'config' (V3.1 M1.4a): mọi chỗ trước đây bảo 'đặt
+    ANTHROPIC_API_KEY' dùng câu này — nói đúng lý do (LLM_PROVIDER thiếu / sai / đã khai mà không dựng được) và nói rõ có key mà không
+    khai thì KHÔNG tự dùng API trả phí."""
+    kind, why = provider_status()
+    if kind is None:
+        return why
+    if kind == "anthropic":
+        return ("LLM_PROVIDER=anthropic đã khai nhưng không dựng được Claude API — thiếu ANTHROPIC_API_KEY (xem dòng lỗi 'Claude: …'); "
+                "muốn 0 USD API thì đặt LLM_PROVIDER=claude_cli")
+    if kind == "claude_cli":
+        return ("LLM_PROVIDER=claude_cli đã khai nhưng không dựng được Claude Code — không thấy lệnh `claude` trên máy hoặc chưa đăng "
+                "nhập (mở `claude` một lần; xem dòng lỗi 'Claude: …')")
+    return f"LLM_PROVIDER={kind} đã khai nhưng không dựng được client (xem dòng lỗi 'Claude: …')"
+
+
+_WARNED_KEY_ONLY = False      # client_from_env: the 'key alone is not used' line is printed once per process
+
+# Việc chỉ chạy được trên Claude API trả phí (tìm web của Anthropic) — Claude Code trên máy không làm được.
+API_ONLY_HINT = "cần Claude API trả phí: đặt LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY (tìm web chỉ có trên API, Claude Code không làm được)"
+
+
 def client_from_env(transport: Transport = urllib_transport, ledger: Optional[str] = None):
-    """LLM_PROVIDER = anthropic | claude_cli (Claude Code on this PC, no key) | mock. Unset: anthropic when ANTHROPIC_API_KEY exists, else None.
+    """LLM_PROVIDER = anthropic | claude_cli (Claude Code on this PC, no key) | mock. Unset or unknown → None (the caller says why with
+    `provider_status()`). V3.1 M1.4a (người dùng duyệt 20/10, D02): NO silent fallback to the paid API when only ANTHROPIC_API_KEY exists —
+    the main machine keeps the key in the User environment, so the old fallback turned any script without LLM_PROVIDER into paid calls.
     ledger: the database file where Claude API calls are recorded and checked against the Claude cap (core.budget)."""
     kind = os.environ.get("LLM_PROVIDER", "").strip().lower()
     if kind == "mock":
         return MockLlm()
     if kind in ("claude_cli", "claude-cli", "cli"):
         return ClaudeCliClient.from_env()
-    if kind == "anthropic" or (not kind and os.environ.get("ANTHROPIC_API_KEY", "").strip()):
+    if kind == "anthropic":
         return AnthropicClient.from_env(transport, ledger=ledger)
+    global _WARNED_KEY_ONLY
+    if os.environ.get("ANTHROPIC_API_KEY", "").strip() and not _WARNED_KEY_ONLY:
+        import sys
+        _WARNED_KEY_ONLY = True                        # once per process: the dashboard asks for a client on every rerun / 30 s round
+        print("[llm] " + NO_PROVIDER_HINT, file=sys.stderr)
     return None
 
 
@@ -1330,13 +1385,19 @@ class ClaudeCliClient:
     """
     name = "claude-cli"
 
+    # V3.1 M1.4a (#33 A3): with any of these in its environment `claude -p` bills the paid API (or another endpoint) instead of the
+    # person's plan — the main machine keeps ANTHROPIC_API_KEY in the User environment and the launchers copy it into the dashboard.
+    PAID_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS")
+
     @staticmethod
     def clean_env() -> Dict[str, str]:
-        """The environment for `claude`: without the markers of a parent Claude session (desktop app / SDK). A dashboard started from inside another
-        Claude session inherits them, and the CLI then believes it is a child that must borrow that session's login instead of using the
-        person's own (`claude` logged in from a terminal)."""
+        """The environment for `claude`: without the markers of a parent Claude session (desktop app / SDK) — a dashboard started from inside
+        another Claude session inherits them, and the CLI then believes it is a child that must borrow that session's login instead of using
+        the person's own (`claude` logged in from a terminal) — and without any paid-API key / endpoint (PAID_KEYS), so the CLI always runs on
+        the plan, never on the API."""
         drop = ("CLAUDE_CODE", "CLAUDECODE", "CLAUDE_AGENT_SDK", "CLAUDE_PID", "CLAUDE_PREVIEW")
-        return {k: v for k, v in os.environ.items() if not k.startswith(drop)}
+        paid = {k.upper() for k in ClaudeCliClient.PAID_KEYS}
+        return {k: v for k, v in os.environ.items() if not k.startswith(drop) and k.upper() not in paid}
 
     def __init__(self, model: str = "", timeout: int = 600, run=None):
         import subprocess

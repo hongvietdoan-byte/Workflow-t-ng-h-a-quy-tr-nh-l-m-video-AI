@@ -716,7 +716,7 @@ def run_segment(conn, pid: int, seg: Dict, data_dir: str, client, prev_state: Op
         res["missing"] += [f"cổng 0 USD chưa qua — {g}" for g in gate]
         return res
     if client is None:
-        res["missing"].append("chưa cấu hình Claude (ANTHROPIC_API_KEY / LLM_PROVIDER) — Đạo diễn chưa dàn cảnh")
+        res["missing"].append("chưa cấu hình Claude (" + llm_runner.missing_hint() + ") — Đạo diễn chưa dàn cảnh")
         return res
     _say(conn, pid, "info", f"Sân khấu {seg['id']}: Đạo diễn dàn cảnh + yêu cầu khung {len(seg['shots'])} shot — ước tính "
                             f"{_estimate(conn, 1)} (tối đa {2 * sd.MAX_ROUNDS} lời gọi {_estimate(conn, 2 * sd.MAX_ROUNDS)})", log)
@@ -1439,7 +1439,7 @@ def run_segment_crew(conn, pid: int, seg: Dict, data_dir: str, client, prev_stat
         res["missing"] += [f"cổng 0 USD chưa qua — {g}" for g in gate]
         return res
     if client is None:
-        res["missing"].append("chưa cấu hình Claude (ANTHROPIC_API_KEY / LLM_PROVIDER) — tổ sân khấu chưa dàn cảnh")
+        res["missing"].append("chưa cấu hình Claude (" + llm_runner.missing_hint() + ") — tổ sân khấu chưa dàn cảnh")
         return res
     state = _crew_load(ctx)
     if state is None or state["fp"] != fp or force or state["phase"] == "xong":

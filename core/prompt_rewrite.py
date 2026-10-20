@@ -330,7 +330,7 @@ def propose_rewrite(p, job, note: Optional[str] = None, fix: Optional[str] = Non
         raise ValueError("shot chưa có prompt " + ("ảnh" if kind == "image" else "motion") + " để viết lại")
     client = client if client is not None else client_for(p)
     if client is None:
-        raise llm_runner.LlmError("Chưa cấu hình Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER).", code="config")
+        raise llm_runner.LlmError("Chưa cấu hình Claude: " + llm_runner.missing_hint(), code="config")
     images, tmp = _images(job, kind)
     try:
         text = build_prompt(p, job, kind, old, note, fix, qc, len(images), by)

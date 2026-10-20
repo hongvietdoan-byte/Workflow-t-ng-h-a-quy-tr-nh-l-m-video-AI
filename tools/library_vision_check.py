@@ -119,7 +119,7 @@ def main() -> None:
         sys.exit(budget.check_llm(conn))
     client = llm_runner.client_from_env(ledger=a.db)
     if client is None:
-        sys.exit("Chưa cấu hình Claude API.")
+        sys.exit("Chưa có Claude: " + llm_runner.missing_hint())
     import tempfile
     start = budget.llm_spent(conn)
     cap.start()

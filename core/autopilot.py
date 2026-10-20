@@ -53,7 +53,7 @@ def default_render(p: Pipeline, project_id: int, data_dir: str, music_path: Opti
 
 
 def default_context(p: Pipeline, data_dir: str) -> Context:
-    """Providers from the environment (IMAGE_PROVIDER, VIDEO_PROVIDER, ANTHROPIC_API_KEY / LLM_PROVIDER, AUDIO_PROVIDER)."""
+    """Providers from the environment (IMAGE_PROVIDER, VIDEO_PROVIDER, LLM_PROVIDER [+ ANTHROPIC_API_KEY when anthropic], AUDIO_PROVIDER)."""
     from .adapters import factory
     from .runner import ImageRunner, VideoRunner
     image, video = factory.image_provider(), factory.video_provider()
@@ -61,7 +61,7 @@ def default_context(p: Pipeline, data_dir: str) -> Context:
         raise ValueError("Chưa cấu hình nhà cung cấp ảnh/video (IMAGE_PROVIDER, VIDEO_PROVIDER).")
     llm = llm_runner.client_from_env(ledger=llm_runner.db_file(p.conn))     # Claude API calls -> cost ledger + Claude cap
     if llm is None:
-        raise ValueError("Chưa có Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER=claude_cli): chế độ tự động cần để chấm QC và viết motion prompt.")
+        raise ValueError("Chưa có Claude — chế độ tự động cần để chấm QC và viết motion prompt: " + llm_runner.missing_hint())
     return Context(data_dir, ImageRunner(p, image, data_dir), VideoRunner(p, video, data_dir), llm,
                    music.audio_provider(), default_render)
 

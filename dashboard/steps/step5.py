@@ -870,7 +870,7 @@ def editor_review_panel(p: Pipeline, pid: int, measured: dict) -> None:
             saved = editor_review.load(C.DATA, pid)
         else:                                       # J6: never silent — why nothing happened and how to fix it
             st.error("Chưa duyệt được bản thô: chưa kết nối được Claude (Biên tập viên + Đạo diễn là hai lời gọi Claude). "
-                     "Cách xử lý: đặt ANTHROPIC_API_KEY (Claude API) hoặc LLM_PROVIDER=claude_cli (Claude Code trên máy) trong "
+                     "Cách xử lý: " + llm_runner.missing_hint() + " — đặt trong "
                      "dashboard.env rồi khởi động lại dashboard; nếu ngay trên có dòng lỗi “Claude: …” thì sửa theo dòng đó. "
                      "Chưa gọi gì, chưa tốn tiền.")
     if saved:

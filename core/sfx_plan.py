@@ -92,7 +92,7 @@ def build_prompt(scenes: List[Dict], sounds: List[Dict], total: float, wish: str
 def propose(client, p: Pipeline, data_dir: str, pid: int, transition: str = "cut", fade: float = 1.0, wish: str = "") -> Dict:
     """{'summary': str, 'cues': [{at, scene, id, name, folder, volume, reason}]} (nothing is added to the project yet)."""
     if client is None:
-        raise SfxPlanError("Cần Claude API (ANTHROPIC_API_KEY) để AI đọc kịch bản và chọn hiệu ứng.")
+        raise SfxPlanError("Cần Claude để AI đọc kịch bản và chọn hiệu ứng: " + llm_runner.missing_hint())
     scenes = timeline(p, data_dir, pid, transition, fade)
     if not scenes:
         raise SfxPlanError("Chưa có clip nào (Bước 4) nên chưa biết đặt hiệu ứng ở đâu.")

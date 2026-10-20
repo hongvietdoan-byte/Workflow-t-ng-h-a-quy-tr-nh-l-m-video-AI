@@ -72,7 +72,7 @@ def main(argv=None):
         load_env(".")
         real = llm_runner.client_from_env(ledger=a.db)
         if real is None or not hasattr(real, "ask_json"):
-            raise SystemExit("cần Claude API (LLM_PROVIDER=anthropic)")
+            raise SystemExit("cần Claude API (LLM_PROVIDER=anthropic): " + llm_runner.missing_hint())
         client = qc_team.RecordingClient(real, os.path.join(run_dir, "calls.jsonl"))
         if a.bill_project == "new":
             row = p.conn.execute("SELECT id FROM projects WHERE name=?", (EVAL_PROJECT,)).fetchone()

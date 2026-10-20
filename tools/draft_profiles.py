@@ -191,7 +191,7 @@ def main():
             sys.exit(stop)
         client = llm_runner.client_from_env(ledger=a.db)
         if client is None:
-            sys.exit("Chưa cấu hình Claude API (dashboard.env).")
+            sys.exit("Chưa có Claude: " + llm_runner.missing_hint())
         for r in draft(conn, todo, client):
             print(f"  nháp: {r['entry']} — {r['profile'].get('identity', '')[:120]}")
 

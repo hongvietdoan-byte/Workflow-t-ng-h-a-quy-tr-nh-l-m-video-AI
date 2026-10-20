@@ -176,7 +176,7 @@ def run(p, pid: int, client) -> Dict:
     from . import access
     access.need_edit(p, pid, "lập bảng kê tài nguyên")    # rà S14.23: a viewer must not spend on Claude nor write the project's table
     if client is None:
-        raise ChecklistError("Chưa cấu hình Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER) — chưa lập được bảng kê tài nguyên.")
+        raise ChecklistError("Chưa cấu hình Claude — chưa lập được bảng kê tài nguyên: " + llm_runner.missing_hint())
     script = script_text(p, pid)
     if not script:
         raise ChecklistError("Chưa có kịch bản — dán hoặc tải kịch bản ở Bước 1 rồi mới lập bảng kê tài nguyên (chưa gọi Claude).")

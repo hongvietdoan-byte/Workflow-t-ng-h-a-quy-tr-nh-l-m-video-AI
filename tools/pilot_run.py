@@ -88,7 +88,11 @@ def main(argv=None) -> int:
     pid, data_dir = a.project, a.data
     only = {int(x) for x in a.only.split(",") if x.strip()}
     rows = [r for r in p.conn.execute("SELECT id, idx FROM scenes WHERE project_id=? ORDER BY idx", (pid,)) if not only or r["idx"] in only]
-    client = lambda: llm_runner.client_from_env(ledger=a.db)   # noqa: E731
+    def client():
+        c = llm_runner.client_from_env(ledger=a.db)
+        if c is None:
+            raise SystemExit("Chưa có Claude: " + llm_runner.missing_hint())
+        return c
 
     if a.cmd == "status":
         status(p, pid, data_dir)

@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 from . import assets, dialogue, diag, layout, llm_io, model_router, prompts, voice
-from .llm_runner import LlmError, ask_json, tagged
+from .llm_runner import LlmError, ask_json, missing_hint, tagged
 from .pipeline import Pipeline
 from .states import JobState
 
@@ -39,7 +39,7 @@ def _block(title: str, obj) -> str:
 def _run(p: Pipeline, project_id: int, stage: str, prompt: str, validate, client, images=()):
     access.need_edit(p, project_id, "chạy việc Claude")
     if client is None:
-        raise LlmError("Chưa cấu hình Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER=claude_cli).", code="config")
+        raise LlmError("Chưa cấu hình Claude: " + missing_hint(), code="config")
     try:
         with tagged(stage, project_id):
             return ask_json(client, prompt, validate, images, note=_note(p, stage, project_id))[0]

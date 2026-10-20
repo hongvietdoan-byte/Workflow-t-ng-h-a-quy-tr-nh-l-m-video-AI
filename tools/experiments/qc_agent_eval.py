@@ -87,6 +87,8 @@ def main():
     load_env(".")
     from core import llm_runner, qc_agent
     client = llm_runner.client_from_env(ledger=a.db)
+    if client is None:
+        raise SystemExit("Chưa có Claude: " + llm_runner.missing_hint())
     caught, missed, false_block, ok = [], [], [], 0
     out = {}
     path = os.path.join(data_dir, str(a.project), "qc_scene", "agent_eval.json")

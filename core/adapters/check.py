@@ -65,7 +65,7 @@ def check_llm(client=None) -> Tuple[str, bool, str]:
         db = os.environ.get("PIPELINE_DB") or os.path.join("data", "manifest.sqlite")
         client = client or llm_runner.client_from_env(ledger=db if os.path.exists(db) else None)
         if client is None:
-            return ("Claude", False, "chưa cấu hình (đặt ANTHROPIC_API_KEY hoặc LLM_PROVIDER=claude_cli)")
+            return ("Claude", False, "chưa cấu hình: " + llm_runner.missing_hint())
         with llm_runner.tagged("check"):
             reply = client.complete("Trả lời đúng một từ: OK")
         return ("Claude (" + getattr(client, "name", "?") + ")", True, f"trả lời được: {reply.text.strip()[:40]!r}")

@@ -499,7 +499,7 @@ def translate(client, cues: List[Cue], lang: str) -> List[Cue]:
     if lang == "src" or not cues:
         return cues
     if client is None:
-        raise SubtitleError("Dịch phụ đề cần Claude API (ANTHROPIC_API_KEY).")
+        raise SubtitleError("Dịch phụ đề cần Claude: " + llm_runner.missing_hint())
     label = LANGS.get(lang, lang)
     out: List[Cue] = []
     for i in range(0, len(cues), 40):

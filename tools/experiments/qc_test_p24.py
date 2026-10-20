@@ -86,7 +86,7 @@ def main() -> None:
     cap.guard((est or 0) * cost.LLM_MARGIN, "QC cảnh 1")    # K0a: bảng qc đã theo output đo thật (5200) — bỏ ×2 cũ
     client = llm_runner.client_from_env(ledger=llm_runner.db_file(p.conn))
     if client is None:
-        sys.exit("chưa cấu hình Claude")
+        sys.exit("Chưa có Claude: " + llm_runner.missing_hint())
     with llm_runner.tagged("qc", PID):
         obj, tin, tout = llm_runner.ask_json(client, prompt, lambda o: qc_scene.validate(o, labels), images)
     out = os.path.join(DATA, str(PID), "stage_v2", f"qc_test_{mode}.json")

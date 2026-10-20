@@ -274,7 +274,7 @@ def main(argv=None):
         load_env(os.path.dirname(os.path.dirname(os.path.abspath(a.db))))   # dashboard.env next to the data folder
         real = llm_runner.client_from_env(ledger=a.db)
         if real is None or getattr(real, "name", "") == "mock-llm":
-            raise SystemExit("cần Claude API (LLM_PROVIDER=anthropic)")
+            raise SystemExit("cần Claude API (LLM_PROVIDER=anthropic): " + llm_runner.missing_hint())
         over = project_budget.check(p.conn, pid, project_budget.claude_stage(I.STAGE), usd)
         if over:
             raise SystemExit(f"dừng trước khi chạy: {over}")

@@ -1839,6 +1839,8 @@ def v3_main(argv):
                 raise ValueError("Thiếu bản đã duyệt: cần --approved-blocking và --approved-specs tồn tại trước khi gọi Claude")
         script_cap.from_args(a, "stage_grid v3").start()
         client = llm_runner.client_from_env(ledger=llm_runner.db_file(conn))
+        if client is None:
+            raise SystemExit("Chưa có Claude: " + llm_runner.missing_hint())
         prev, feedback, rounds = None, [], []
         for rnd in range(1, (1 if blockout_on else sd.MAX_ROUNDS) + 1):
             text = sd.build_prompt(inputs, prev, feedback)

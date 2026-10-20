@@ -587,7 +587,7 @@ def before_plates(conn, pid: int, data_dir: str, client=None, force: bool = Fals
         return res
     client = client if client is not None else _client(conn)
     if client is None:
-        _say_new(conn, pid, "warn", "Chưa cấu hình Claude (ANTHROPIC_API_KEY / LLM_PROVIDER) — Đạo diễn chưa lập sơ đồ cảnh + bộ góc máy "
+        _say_new(conn, pid, "warn", "Chưa cấu hình Claude (" + llm_runner.missing_hint() + ") — Đạo diễn chưa lập sơ đồ cảnh + bộ góc máy "
                                 f"(G0) cho {len(todo)} cảnh; nền 3D dùng plate_view từng shot như cũ", log=log)
         return res
     for g in todo:
