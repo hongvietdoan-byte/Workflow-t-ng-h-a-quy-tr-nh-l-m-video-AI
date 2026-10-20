@@ -394,6 +394,12 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Không đo được báo nhầm theo mã khi 9 đường QC ghi 5 dạng khác nhau (thiết kế M4.1). Bảng = migration Cấp 3 (chưa áp CSDL thật)",
     },
+    "repair_router": {
+        "label": "Repair router theo mã lỗi (V3.1 M5.1) — CHỈ ĐỀ XUẤT: QC không đạt → kế hoạch sửa (đổi đầu vào gì, lần mấy / trần, khi nào "
+                 "dừng hỏi người) ghi ở ⚙ Chẩn đoán; KHÔNG tự gửi job (tự gửi = Cấp 3)",
+        "verified": False,
+        "why": "Luật 6 CHUAN_XAY_DUNG + G2-6 (router mặc định TẮT). Chưa chạy trên dữ liệu thật",
+    },
     "qc_observe_enum": {
         "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",
         "verified": False,
