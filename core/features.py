@@ -361,6 +361,13 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "#31 G20: S22 trong phòng, S39 từ trên cao bị báo 'lệch nền 3D' vì mép tường/sàn bị đo như chân trời. Chưa chạy trên ảnh thật",
     },
+    "qc_false_alarm_fix": {
+        "label": "Sửa báo nhầm QC (V3.1 M4.5): QC lớp 0 bỏ kiểm cỡ cảnh khi bố cục qua vai / sau lưng (A5); Tổ rà soát nhận tên video "
+                 "tham chiếu của shot (A6)",
+        "verified": False,
+        "why": "#33: S2 sau lưng nhóm bị đo nhầm 'WS, xin MS' → tự gen lại ép thắt lưng (A5); shot 6 bị báo 'không có video tham chiếu' "
+               "(#877, A6). Chỉ bớt báo nhầm, không chặn gì. Chưa chạy trên dữ liệu thật",
+    },
     "qc_observe_enum": {
         "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",
         "verified": False,

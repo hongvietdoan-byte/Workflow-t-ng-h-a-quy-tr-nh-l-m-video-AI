@@ -293,6 +293,14 @@ def build_prompt(conn, ev, keys: List[str], scene_ids: List[int], code_found: Li
         if mp is not None and str(mp[0] or "").strip():
             fields.pop("motion_en", None)
             fields["motion_prompt"] = f"[{'đã duyệt' if mp[1] == 'approved' else 'chờ duyệt'}] {mp[0]}"
+        if features.on("qc_false_alarm_fix"):    # V3.1 M4.5 (P33-A6, #33 #877): agent báo "không có video tham chiếu" vì đề thiếu trường này
+            try:
+                ref = conn.execute("SELECT ref_video_path, ref_video_type FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone()
+            except Exception:  # noqa: BLE001 - an old database without the columns: said as unknown, never as "none"
+                ref = ("?", None)
+            path = ref[0] if ref is not None else None
+            fields["video tham chiếu"] = ("(không có)" if not path else "(không đọc được)" if path == "?" else
+                                          os.path.basename(str(path)) + (f" [{ref[1]}]" if ref[1] else ""))
         L.append(f"### shot {row[0]} (id {sid}){' ← shot vừa đổi' if sid == ev['scene_id'] else ''}")
         labels = {"blocking": "khung đầu", "image_prompt": "khung đầu", "action": "đầu → đỉnh → cuối",
                   "motion_en": "đầu → đỉnh → cuối", "end_state": "khung cuối"} if frames else {}

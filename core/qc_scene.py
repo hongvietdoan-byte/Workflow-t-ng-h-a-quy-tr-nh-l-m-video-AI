@@ -57,6 +57,19 @@ def _behind(data: Dict) -> bool:
     return "ots" in words or "over the shoulder" in words or "over-the-shoulder" in words or "from behind" in words or "back to camera" in words
 
 
+FIX_FLAG = "qc_false_alarm_fix"    # V3.1 M4.5 (DP1): sửa báo nhầm P33-A5 (đây) + P33-A6 (core/change_review.build_prompt); TẮT = như cũ
+# A5 (#33 S2): bố cục qua vai / SAU LƯNG — mặt to nhất đo được là người ở xa / người quay lưng, không phải cỡ của shot. Đọc mọi trường chữ
+# của shot (cả image_prompt / action), cả tiếng Việt; "a tower behind her" (vật sau lưng nhân vật) KHÔNG tính.
+_BEHIND_ANY = re.compile(r"\bots\b|over[- ]the[- ]shoulder|from behind|\bbacks? (?:turned )?to (?:the )?camera|\bcamera (?:is |placed )?behind\b|"
+                         r"behind (?:the|their|his|her) (?:group|backs?|shoulders?|squad|team)|\brear view\b|"
+                         r"sau lưng|qua vai|quay lưng", re.I)
+
+
+def _behind_any(data: Dict) -> bool:
+    words = " ".join(str(data.get(k) or "") for k in ("angle", "shot", "blocking", "start_frame", "image_prompt", "action"))
+    return _behind(data) or bool(_BEHIND_ANY.search(words))
+
+
 # ---- layer 0 -------------------------------------------------------------------------------------------------------------
 TIER_FLAG = 5              # S5.4: long horizontal edge lines behind the people (wall tops, step edges) — calibrated 29/09: the 16
                            # eye-level renders of the real tower model count 0–3, #8's "stacked terraces" frames 5–10 (S5, S8, S20, S24)
@@ -111,7 +124,11 @@ def check_frame(path: str, data: Dict, flat_place: bool = False, measure: Option
     got = measured_size(h)
     if measure is not None:
         measure.update({"measured": got, "planned": size or None, "face_h": round(float(h), 3)})
-    if size in SIZES:
+    if size in SIZES and features.on(FIX_FLAG) and _behind_any(data):
+        if measure is not None:                  # số đo vẫn ghi (hiệu chuẩn SIZE_FROM), chỉ không phán — không im lặng
+            measure["size_skipped"] = ("bố cục qua vai / sau lưng — mặt đo được có thể là người ở xa / người quay lưng, không phải cỡ "
+                                       "của shot (P33-A5): không kiểm cỡ cảnh")
+    elif size in SIZES:
         steps = SIZES.index(got) - SIZES.index(size)
         severe = abs(steps) >= 2 or (size in ("CU", "ECU") and steps < 0)
         if steps:
