@@ -71,12 +71,43 @@ Test đỏ→xanh: góp ý thấp → 1 dòng mistakes đúng stage; trùng → 
 
 ---
 
-## Làn thứ ba: phiên cloud hỗ trợ ngoài Codex (người dùng 20/10)
-Phiên chính (máy chính) ngoài chia phiên con/Codex còn **mở phiên cloud** bằng `mcp__ccd_session__start_session` (`target: "cloud"`,
-`context: "fresh"`, `initiation: "user_asked"` khi người dùng đã bảo chia) — mỗi phiên cloud MỘT việc thuần code/test/tài liệu theo luật
-chung ở trên. Phiên cloud bắt đầu từ `main` trên GitHub → **push trước khi mở**; việc tiếp nhánh WIP thì đề bài ghi rõ
-`git fetch origin <nhánh> && git checkout -b cloud/<mã> origin/<nhánh>`.
+## Làn thứ ba: phiên cloud TÀI KHOẢN KHÁC hỗ trợ ngoài Codex (người dùng 20/10)
+Cloud = tài khoản Cloud credits riêng ở claude.ai/code (KHÔNG phải tài khoản đang chạy phiên chính — người dùng 20/10: "không phải cloud
+của tài khoản này"). Phiên chính KHÔNG dùng `start_session target:"cloud"`; chỉ viết prompt tự đủ vào mục "Việc V3.1 cho cloud" bên dưới,
+push lên main, rồi báo người dùng mã việc để dán vào phiên cloud của tài khoản kia (kèm khối "Luật chung" ở trên).
 - Chọn việc cho cloud: Cấp 1 (tài liệu / thiết kế / test chỉ đọc) hoặc code Cấp 2 ĐÃ duyệt phạm vi, không cần `data/` / Windows / khóa API.
-  Không giao cloud việc trùng file với Codex đang làm (xem đợt Codex mới nhất trong `docs/CODEX_TASKS.md`) hay với phiên con máy chính.
-- Phiên cloud không báo về phiên chính → phiên chính `git fetch` nhánh `cloud/*`, rà quy ước 7, cả bộ test Windows, rồi mới gộp.
-- Ghi mỗi phiên cloud đã giao vào mục 📨 BÀN GIAO của `TODO.md` (tên phiên, nhánh `cloud/<mã>`, trạng thái CHỜ → XONG).
+  Không giao cloud việc trùng file với Codex đang làm (đợt Codex mới nhất trong `docs/CODEX_TASKS.md`) hay với phiên con máy chính.
+- Phiên cloud không báo về → phiên chính `git fetch` nhánh `cloud/*`, đọc `docs/RA_CLOUD_*.md`, rà quy ước 7, cả bộ test Windows, rồi gộp.
+- Ghi mỗi việc giao cloud vào mục 📨 BÀN GIAO của `TODO.md` (mã việc, nhánh `cloud/<mã>`, CHỜ → XONG).
+
+### Việc V3.1 cho cloud (giao 20/10)
+| Mã | Việc | Nhánh | Trạng thái |
+|---|---|---|---|
+| C-M06-07 | M0.6 bảng AS-IS/TO-BE + M0.7 ma trận test (chỉ tài liệu) | `cloud/v31-m06-m07` | CHỜ dán |
+| C-M010 | M0.10 đặc tả AUTO/USER_LOCKED/REVIEW_REQUIRED + audit đường ghi (chỉ tài liệu) | `cloud/v31-m010` | CHỜ dán |
+
+(M1.4a 20/10 lỡ chạy trên cloud tài khoản chính → nhánh `cloud/v31-m14a` nếu phiên đó push; không giao lại.)
+
+#### C-M06-07
+```
+Việc V3.1 M0.6 + M0.7 — CHỈ TÀI LIỆU, không sửa code. Nhánh cloud/v31-m06-m07 từ origin/main. Theo "Luật chung" docs/CLOUD_TASKS.md.
+Đọc: grep -n "M0.6\|M0.7\|WS[0-6]" docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md rồi đọc các đoạn đó (WS0–WS6, milestone M1–M5, bảng nghiệm thu ~dòng 110–125).
+1. M0.6 → docs/V3_1_M0_6_AS_IS_TO_BE_2026-10-20.md: với từng WS0–WS6, bảng năng lực TO-BE ↔ code hiện tại theo file:hàm (mở code thật, không đoán),
+   trạng thái IMPL / PART / MISS / UNK + bằng chứng (dòng code / test). UNK khi không xác minh được (vd cần data/ máy chính) — ghi lý do.
+   Cuối file: tổng đếm theo WS + danh sách MISS ưu tiên.
+2. M0.7 → docs/V3_1_M0_7_MA_TRAN_TEST_2026-10-20.md: mỗi milestone M1.x–M5.x: test bắt buộc theo docs/CHUAN_XAY_DUNG.md (đỏ trước/xanh sau, cờ TẮT =
+   byte, tiền/sổ chi, 2 dự án song song…), khu vực devsys/areas.json bị đụng, test hiện có phủ gì (tên file/test), còn thiếu gì, có cần mark slow (conftest.py).
+Được chạy pytest chỉ đọc để xác minh test tồn tại/xanh (ghi số). Báo cáo ≤ 25 dòng ghi cả vào docs/RA_CLOUD_M06_M07_2026-10-2x.md.
+```
+
+#### C-M010
+```
+Việc V3.1 M0.10 — CHỈ TÀI LIỆU, không sửa code. Nhánh cloud/v31-m010 từ origin/main. Theo "Luật chung" docs/CLOUD_TASKS.md.
+Đọc: grep -n "M0.10\|M2.5\|USER_LOCKED\|REVIEW_REQUIRED\|A4" docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md + quyết định v31-* liên quan trong data/decisions.json.
+→ docs/V3_1_M0_10_BAO_VE_DU_LIEU_2026-10-2x.md:
+1. Đặc tả 3 trạng thái AUTO / USER_LOCKED / REVIEW_REQUIRED cho từng trường scenes.data + Kho (ai được ghi, khi nào chuyển trạng thái, xung đột AI ghi đè tay).
+2. Audit MỌI đường ghi scenes.data / Kho thật theo file:hàm (grep update/save/set_scene/UPDATE scenes… trong core/ dashboard/ tools/): nguồn ghi
+   (người / AI / tự động / công cụ), có kiểm khóa tay không, có ghi diag/lịch sử không. Đường không xác minh được → ghi UNK + lý do.
+3. Thiết kế test cho M2.5 (shadow trước): ca AI ghi đè trường USER_LOCKED, REVIEW_REQUIRED chặn gen, tương thích dự án cũ (thiếu trạng thái = AUTO).
+Không đề xuất migration chạy luôn (Cấp 3) — chỉ mô tả. Báo cáo ≤ 25 dòng ghi cả vào docs/RA_CLOUD_M010_2026-10-2x.md.
+```
