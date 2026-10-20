@@ -28,4 +28,4 @@ Khu core_infra: thêm `tests/test_v31_g36b_refusal_skip.py` và `tests/test_v31_
 ## Bằng chứng
 - `tests/test_v31_fix_thap_5.py` có 9 test. 8 test được commit riêng khi còn đỏ, sau khi sửa thì xanh cả 9.
 - Các test liên quan vẫn xanh: DP3, C-FIX-DP345, DP8, M47A, devsys.
-- Bộ test đầy đủ: xem tin hộp thư `xong C-FIX-THAP-5`.
+- Bộ test đầy đủ: 6600 passed; 4 failed cũ (đỏ cả trên main).
