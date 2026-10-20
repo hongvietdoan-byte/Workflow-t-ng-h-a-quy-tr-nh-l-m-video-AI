@@ -102,8 +102,8 @@ push lên main, rồi báo người dùng mã việc để dán vào phiên clou
 | C-M2X | Thiết kế M2.4, M2.6, M2.7, M2.8, M2.9 (chỉ tài liệu) | `cloud/v31-m2x` | CHỜ (hộp thư) |
 | C-RA-M14B | (cloud-C) RÀ KỸ độc lập nhánh `cloud/v31-m14b` rồi sửa một vòng | `cloud/v31-m14b-fix` | CHỜ (hộp thư) |
 | C-T12 | (cloud-C) Bổ sung test còn thiếu của M1.2/M1.3 | `cloud/v31-t12` | CHỜ (hộp thư) |
-| C-G36B | (cloud-C) G36 còn mở: lần thử lại đầu vẫn đi Seedance — điều tra + sửa gốc | `cloud/v31-g36b` | CHỜ (hộp thư) |
-| C-ERR-UPD | (cloud-C) Cập nhật sổ lỗi theo các commit đã gộp 20/10 | `cloud/v31-err-upd` | CHỜ (hộp thư) |
+| C-G36B | (cloud-D, chuyển từ cloud-C 20/10) G36 còn mở: lần thử lại đầu vẫn đi Seedance — điều tra + sửa gốc | `cloud/v31-g36b` | CHỜ (hộp thư) |
+| C-ERR-UPD | (cloud-D, chuyển từ cloud-C 20/10) Cập nhật sổ lỗi theo các commit đã gộp 20/10 | `cloud/v31-err-upd` | CHỜ (hộp thư) |
 
 (20/10: 2 phiên `start_session target:"cloud"` tài khoản chính HỎNG khi khởi động — clone nhánh worktree chưa push + API error; M1.4a chuyển phiên con máy chính. 3 việc C-M010, C-M09, C-M011 độc lập, dán được song song 3 phiên.)
 
@@ -322,7 +322,7 @@ là lỗi, sửa sau cờ pause_before_submit). Nguồn: báo cáo phiên con M1
 tests/test_v31_m13_pause_before_submit.py). Test chạy được trên Linux (không cần Windows). Nhánh cloud/v31-t12.
 ```
 
-#### C-G36B (cloud-C)
+#### C-G36B (cloud-D)
 ```
 G36 còn mở (docs/DANH_GIA_P31_LECH_3D_TI_LE_2026-10-18.md dòng "| G36 |"): sau khi Seedance từ chối (real_person), LẦN THỬ LẠI ĐẦU vẫn đi Seedance rồi mới
 sang Kling (1061→1073, 1057→1065→1071) — đổi model trong core/runner.py _record_provider_failure không có tác dụng ở lần gửi lại đầu. Điều tra gốc (đọc
@@ -331,7 +331,7 @@ nguyên poll_claim / pause_before_submit; chặn trả tiền trùng; không g�
 Nhánh cloud/v31-g36b. Báo cáo + XONG hộp thư.
 ```
 
-#### C-ERR-UPD (cloud-C)
+#### C-ERR-UPD (cloud-D)
 ```
 Cập nhật devsys/errors.json (sổ lỗi, đã trên main) theo các việc gộp main 20/10: M1.1 (R3 vat — commit gộp 36fcb4bd), M1.4a (R2 provider — 222bf9c5),
 M1.2 A1 + A15 và M1.3 G36 (60b9da80; cờ BẬT máy chính 20/10 — sổ v31-c3-2-flags-on-main), C3-0 (dashboard.env claude_cli), lỗi Dashboard cũ chạy
