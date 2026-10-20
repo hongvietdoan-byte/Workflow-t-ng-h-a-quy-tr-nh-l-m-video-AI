@@ -744,6 +744,8 @@ Theo công thức chung:
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
+- Đ20 việc 6 · `codex/d20-viec6-so-loi` · mã commit xem git log/HANDOFF cùng nhánh · trang Sổ lỗi chỉ đọc, lọc/coverage/problems toàn sổ; plan_map đọc chuẩn items/schema, khâu lỗi mở viền đỏ. 9 đỏ → 52 xanh (10,26s), gồm AppTest; RÀ NHẸ sửa alias số gây crash. Báo cáo `docs/RA_D20_VIEC6_CODEX_2026-10-20.md`; chưa cả bộ Windows/slow, push/gộp/live.
+
 - Đ20 việc 1 · `codex/d20-viec1-so-loi` · commit chứa dòng này (xem `git log -1`) · đỏ 4 ERROR trước công cụ → xanh 7 test (0,74s), SQLite tạm native/schema tổng hợp; `docs/RA_D20_VIEC1_CODEX_2026-10-20.md` · chờ rà độc lập + cả bộ Windows; ledger thiếu giá USD giữ UNKNOWN; job lỗi lấy note failed cuối mỗi job; chưa thử dữ liệu thật/chưa push.
 
 ---

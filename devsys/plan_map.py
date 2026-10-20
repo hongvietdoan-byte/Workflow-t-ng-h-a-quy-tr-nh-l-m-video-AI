@@ -12,7 +12,7 @@ import os
 from typing import Dict, List, Optional, Tuple
 from xml.sax.saxutils import escape
 
-from . import plan_progress
+from . import plan_progress, errors
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAP_FILE = os.path.join(ROOT, "devsys", "plan_map.json")
@@ -38,12 +38,12 @@ def open_errors_by_stage(path: str = ERRORS_FILE) -> Optional[Dict[str, int]]:
     """{khâu: số lỗi chưa VERIFIED/WONT_FIX}; None khi chưa có sổ lỗi (M0.4). Mục sai dạng → ValueError có lý do (trang báo, không sập)."""
     if not os.path.exists(path):
         return None
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    if not isinstance(data, dict) or not isinstance(data.get("errors", []), list):
-        raise ValueError("errors.json: cần {'errors': [...]}")
+    data = errors.load(path)
+    issues = errors.register_problems(data)
+    if issues:
+        raise ValueError('Sổ lỗi không hợp lệ: ' + '; '.join(issues))
     out: Dict[str, int] = {}
-    for n, e in enumerate(data.get("errors", [])):
+    for n, e in enumerate(data['items']):
         if not isinstance(e, dict):
             raise ValueError(f"errors.json: mục {n} không phải object")
         if e.get("status") in ("VERIFIED", "WONT_FIX"):
@@ -152,7 +152,7 @@ def stages_svg(m: Dict, title: str) -> str:
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="100%" font-family="Segoe UI, Arial">',
            f'<rect width="{width}" height="{height}" fill="{BG}"/>',
            f'<text x="{width / 2}" y="40" fill="{TEXT}" font-size="26" font-weight="700" text-anchor="middle">{escape(title)}</text>',
-           f'<text x="{width / 2}" y="64" fill="{MUTED}" font-size="13" text-anchor="middle">Viền khâu: đỏ = tốn tiền thiếu kiểm trước · '
+           f'<text x="{width / 2}" y="64" fill="{MUTED}" font-size="13" text-anchor="middle">Viền khâu: đỏ = còn lỗi mở hoặc tốn tiền thiếu kiểm trước · '
            f'vàng = kết luận đọc chữ tự do · xanh = có kiểm (devsys/stages.json theo cờ thật). Chip = việc V3.1 sửa khâu đó.</text>',
            _legend(80, width)]
     hx = [40, 470, 1290, 1400]
@@ -160,7 +160,7 @@ def stages_svg(m: Dict, title: str) -> str:
         out.append(f'<text x="{x}" y="{top - 4}" fill="{MUTED}" font-size="12" font-weight="700">{h}</text>')
     for i, r in enumerate(rows):
         y = top + 6 + i * (row_h + 8)
-        c = STAGE_COLOR[r["kind"]]
+        c = STAGE_COLOR['thieu'] if r['open_errors'] else STAGE_COLOR[r["kind"]]
         out.append(f'<rect x="40" y="{y}" width="410" height="{row_h}" rx="7" fill="{PANEL}" stroke="{c}" stroke-width="2"/>'
                    f'<text x="54" y="{y + 22}" fill="{c}" font-size="14" font-weight="700">{escape(r["id"] if r["id"] != NEN else "Nền")}</text>')
         for k, line in enumerate(_wrap(r["ten"], 46)[:2]):

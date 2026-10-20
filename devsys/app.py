@@ -195,7 +195,7 @@ with st.sidebar:
         st.session_state['devsys_page'] = 'Phiếu'
     if not ticket_ui_enabled and st.session_state.get('devsys_page') == 'Phiếu':
         del st.session_state['devsys_page']
-    page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "🗺 Sơ đồ tiến độ", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
+    page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "🗺 Sơ đồ tiến độ", "📕 Sổ lỗi", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
                               "Hiệu quả quy trình", "Ai quyết", "Làm ↔ Kiểm", "Bộ kỹ năng 3 vai", "Đang chạy"] + (["Phiếu"] if ticket_ui_enabled else []), label_visibility="collapsed", **({'key':'devsys_page'} if ticket_ui_enabled else {}))
     st.divider()
     st.markdown("**Test**")
@@ -1270,9 +1270,10 @@ def page_running():
                   for t in data["tasks"]], hide_index=True, width="stretch")
 
 
+from devsys.errors_page import render as page_errors
 from devsys.tickets_page import render as page_tickets
 
-PAGES = {"Phiếu": page_tickets, "Đang chạy": page_running, "📋 Kế hoạch đang chạy": page_plan, "🗺 Sơ đồ tiến độ": page_plan_map, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
+PAGES = {"📕 Sổ lỗi": page_errors, "Phiếu": page_tickets, "Đang chạy": page_running, "📋 Kế hoạch đang chạy": page_plan, "🗺 Sơ đồ tiến độ": page_plan_map, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
          "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Hiệu quả quy trình": page_flow, "Ai quyết": page_decisions, "Làm ↔ Kiểm": page_stages,
          "Bộ kỹ năng 3 vai": page_skills}
 PAGES[page]()
