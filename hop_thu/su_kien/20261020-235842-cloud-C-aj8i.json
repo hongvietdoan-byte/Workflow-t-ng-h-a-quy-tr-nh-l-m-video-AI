@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T23:58:42.882452+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-FIX-THAP-2",
+  "branch": "cloud/v31-fix-thap-2",
+  "commit": "7d5cca3a",
+  "report": "docs/RA_CLOUD_FIX_THAP_2_2026-10-20.md",
+  "text": "(1) VỪA trả image_prompt/action vào _behind_any, giữ regex hẹp, fixture DP1 về image_prompt + 4 ca âm; (2) khóa luồng cache motion_series; (3) banner bản ghi cũ chỉ sha nói đúng. Cả bộ 6551 qua + 4 đỏ có sẵn"
+}

@@ -44,7 +44,7 @@ def test_behind_the_group_skips_the_size_check_and_says_why():
 
 @pytest.mark.parametrize("words", ["over-the-shoulder on Kelly", "máy đặt SAU LƯNG Kelly", "camera behind her shoulders",
                                    "quay lưng về máy", "rear view of the squad"])
-def test_behind_words_in_any_field(words):
+def test_behind_words_in_any_field(words):                   # C-FIX-THAP-2: chữ về MÁY ở mọi trường (cả image_prompt / action)
     with ON:
         out, _ = _check({"size": "MS", "characters": ["KELLY"], "action": words})
     assert "shot_size" not in [o["code"] for o in out]

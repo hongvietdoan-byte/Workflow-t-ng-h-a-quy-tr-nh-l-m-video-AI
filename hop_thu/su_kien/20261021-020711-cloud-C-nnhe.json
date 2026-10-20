@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T02:07:11.959389+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-FIX-THAP-4",
+  "branch": "cloud/v31-fix-thap-4",
+  "commit": "66d4021a",
+  "report": "docs/RA_CLOUD_FIX_THAP_4_2026-10-21.md",
+  "text": "VỪA qc_scene._behind_any: 2 regex — trường máy giữ _BEHIND_ANY; image_prompt/action dùng _BEHIND_PROSE chỉ chữ gắn MÁY (OTS, over-the-shoulder shot/view/on/of, camera behind, seen/shot from behind, rear view, máy…sau lưng, góc qua vai, quay lưng về máy); 6 ca âm hành động + P33-A5 vẫn khớp. THẤP banner: stale_instances ghi by=code|sha, so sha → không nói 'tệp .py đã đổi'. 21 test (7 đỏ trước); full 6612 passed, 4 đỏ cũ. HẠN MỨC: không đọc được. Tiếp: C-FIX-THAP-5."
+}

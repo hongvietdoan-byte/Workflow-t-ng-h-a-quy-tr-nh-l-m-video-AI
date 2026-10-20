@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T00:06:56.169305+07:00",
+  "lane": "cloud-D",
+  "kind": "xong",
+  "task": "C-FIX-DP345",
+  "branch": "cloud/v31-fix-dp345",
+  "commit": "61a522e",
+  "report": "docs/RA_CLOUD_FIX_DP345_2026-10-21.md",
+  "text": "(1) Final QC trừ đứng hình cố ý (end_hold / popup giữ khung / editor_fit hold), phần còn lại >1,5 s vẫn báo; 1 lượt ffmpeg + timeout 600 s. (2) BLACK/FREEZE trần REVIEW + validate báo vượt trần (test d07 chuyển sang mã giả). (3) repair_router TẮT không gọi observe. 10 test đỏ→xanh; cả bộ 6556 qua, 5 đỏ có sẵn trên main (Linux/ffmpeg/clone nông/root)."
+}

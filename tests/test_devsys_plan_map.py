@@ -46,8 +46,15 @@ class PlanMapTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "errors.json")
             with open(path, "w", encoding="utf-8") as f:
-                json.dump({"errors": [{"id": "a", "stage": ["L8"], "status": "OPEN"}, {"id": "b", "stage": ["L8"], "status": "VERIFIED"},
-                                      {"id": "c", "stage": "L9", "status": "WONT_FIX"}, {"id": "d", "stage": None, "status": "OPEN"}]}, f)
+                from devsys.errors import FIELDS
+                def row(i, stage, status):
+                    it = dict.fromkeys(FIELDS)
+                    it.update(id=f'P31-G{i}', alias=[], source_document='fixture', stage=stage,
+                              status=status, severity='cao', plan_workstream='WS1',
+                              fix_commit='abc', tests=['t'], real_run_evidence=['run'], status_reason='lý do')
+                    return it
+                json.dump({'schema_version': 1, 'items': [row(1, 'L8', 'OPEN'), row(2, 'L8', 'VERIFIED'),
+                                                         row(3, 'L9', 'WONT_FIX'), row(4, None, 'OPEN')]}, f)
             self.assertEqual(plan_map.open_errors_by_stage(path), {"L8": 1, "NEN": 1})
         self.assertIsNone(plan_map.open_errors_by_stage(os.path.join(tempfile.gettempdir(), "khong_co_errors.json")))
 

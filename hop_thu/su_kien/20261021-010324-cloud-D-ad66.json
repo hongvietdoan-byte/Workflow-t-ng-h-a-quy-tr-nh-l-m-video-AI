@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T01:03:24.657628+07:00",
+  "lane": "cloud-D",
+  "kind": "xong",
+  "task": "DP11",
+  "branch": "cloud/v31-dp11",
+  "commit": "97accc1",
+  "report": "docs/RA_CLOUD_DP11_2026-10-21.md",
+  "text": "world_map.position_sentence (3D theo stage_camera trừ gốc O: trái/giữa/phải khung, 'behind' cùng phía xa ≥1,5 m, mốc in the distance; tương đối từ BYĐ; thiếu → None + why) + review REVIEW bắt câu nói ngược phía cùng vế. Cờ world_map_sentences TẮT, không đổi prompt. 6 test đỏ→xanh; vùng 181 qua."
+}

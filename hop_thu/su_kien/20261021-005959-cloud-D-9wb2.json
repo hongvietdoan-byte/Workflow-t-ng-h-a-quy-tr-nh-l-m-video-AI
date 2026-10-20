@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T00:59:59.725357+07:00",
+  "lane": "cloud-D",
+  "kind": "xong",
+  "task": "C-FIX-THAP-3",
+  "branch": "cloud/v31-fix-thap-3",
+  "commit": "2d8f248",
+  "report": "docs/RA_CLOUD_FIX_THAP3_2026-10-21.md",
+  "text": "(1) chỉ thiếu đo → 'CHƯA ĐO ĐỦ — đạt 7 · chưa đo 1 · chưa đạt 0' (ok vẫn False). (2) cache G2/G3 theo id final + id output mới nhất + mtime, TTL 120 s; step5 truyền session_state. (3) width=stretch. 9 test (8 đỏ→xanh); vùng 294 qua."
+}

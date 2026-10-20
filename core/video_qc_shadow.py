@@ -72,6 +72,20 @@ def _sha(path: str) -> Optional[str]:
         return None
 
 
+def first_frame(clip: str, width: int = 640):
+    """Khung 0 của clip (BGR, rộng `width`) — đọc MỘT khung, hoặc None."""
+    from .clip_measure import _cv
+    cv2 = _cv()
+    cap = cv2.VideoCapture(clip)
+    try:
+        ok, f = cap.read()
+    finally:
+        cap.release()
+    if not ok or f is None:
+        return None
+    return cv2.resize(f, (width, int(f.shape[0] * width / f.shape[1]))) if f.shape[1] != width else f
+
+
 def _first_frame(clip_frames: List, picture: Optional[str]) -> Tuple[Optional[Dict], Optional[str]]:
     """(finding hoặc None, ghi chú khi không đo được)."""
     from . import framing_guard as fg
@@ -118,8 +132,8 @@ def check(clip: str, picture: Optional[str] = None, ref_video: Optional[str] = N
         findings.append(_finding("QC-V2-STILL_OVER_1_5S", ["P31-G51"], "segment", {"t0": t0, "t1": t1, "flow_max": STILL_FLOW},
                                  f"clip đứng yên {t1 - t0:.1f} s ({t0:.1f}–{t1:.1f} s)", "core/video_qc_shadow.py:STILL_S/STILL_FLOW"))
     try:
-        fs, _ = clip_measure.frames(clip, width=640)
-        f0, note = _first_frame(fs[:1], picture)
+        first = first_frame(clip)                      # C-FIX-THAP-1: một khung đầu, không giải mã cả clip
+        f0, note = _first_frame([first] if first is not None else [], picture)
     except Exception as e:  # noqa: BLE001
         f0, note = None, f"không so được khung 0 ({type(e).__name__}: {e})"
     if f0:
