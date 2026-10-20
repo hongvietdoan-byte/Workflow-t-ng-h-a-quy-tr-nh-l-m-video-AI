@@ -19,10 +19,10 @@ class WhiteboxError(Exception):
     pass
 
 
-# V3.1 M3.2 (C-M32, cờ world_map_height_dummy — TẮT = whitebox cũ: EYE 1,6 m, khối 1,8 m, nhắm ngực 1,2 m): người nộm đúng `height_m` hồ sơ Kho
+# V3.1 M3.2 (C-M32, cờ whitebox_height_dummy — TẮT = whitebox cũ: EYE 1,6 m, khối 1,8 m, nhắm ngực 1,2 m): người nộm đúng `height_m` hồ sơ Kho
 # đã duyệt (thiếu → nói, không mặc định im lặng), máy ở mắt = EYE_SHARE × height_m; pitch "eye" ≤ EYE_MAX_DEG, "slightly_high" cúi
 # SLIGHTLY_HIGH_DEG (khoảng 8–12°) — G2 (tỉ lệ người), G3 (#31 shot 28 khai eye mà pitch +17,3°), A10 (high 30° làm nền chỉ còn sàn)
-DUMMY_FLAG = "world_map_height_dummy"
+DUMMY_FLAG = "whitebox_height_dummy"
 EYE_SHARE = 0.93                                   # như plate_camera.camera_for (mắt = 0,93 × chiều cao)
 SLIGHTLY_HIGH_DEG, SLIGHTLY_HIGH_RANGE = 10.0, (8.0, 12.0)
 EYE_MAX_DEG = 5.0
@@ -104,7 +104,7 @@ def plan(m3d: Dict, spot: str, people: List[Dict], seconds: float = 4.0, lens: f
     """The render_plates animation of the white model. people: [{"name", "at": [fwd, right], "to": [fwd, right]?, "face": ...}].
     aim "people" (default): the camera looks at the middle of the group at chest height — the white model is about where people are
     (first render 30/09 aimed at the tower and left the three blocks at the bottom edge); "spot": the spot's own view.
-    M3.2 (cờ world_map_height_dummy): heights {tên: height_m hồ sơ Kho} → khối đúng chiều cao + `eye_m`; máy ở mắt nhóm, pitch theo
+    M3.2 (cờ whitebox_height_dummy): heights {tên: height_m hồ sơ Kho} → khối đúng chiều cao + `eye_m`; máy ở mắt nhóm, pitch theo
     `angle` (eye / slightly_high); thiếu chiều cao → khối FALLBACK_HEIGHT + câu trong "warnings". Cờ tắt: heights / angle bỏ qua."""
     if not people:
         raise WhiteboxError("white-model cần ít nhất một người")

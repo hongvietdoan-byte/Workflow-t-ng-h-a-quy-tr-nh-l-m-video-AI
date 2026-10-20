@@ -397,7 +397,7 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Người dùng không thấy gói thật sẽ gửi trước khi trả tiền và không thấy kết quả QC shadow theo shot. Chưa chạy trên dữ liệu thật",
     },
-    "world_map_height_dummy": {
+    "whitebox_height_dummy": {
         "label": "Người nộm whitebox đúng chiều cao hồ sơ Kho (height_m) + máy ở tầm mắt 0,93 × height_m, pitch eye (≤ 5°) / slightly_high "
                  "(cúi ~10°); thiếu chiều cao → báo, không im lặng (V3.1 M3.2, offline — không gửi gì thêm cho model)",
         "verified": False,

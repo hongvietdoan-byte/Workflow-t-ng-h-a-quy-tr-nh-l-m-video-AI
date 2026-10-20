@@ -1,5 +1,5 @@
 """V3.1 M3.2 (C-M32, offline, G2-4): người nộm whitebox đúng `height_m` hồ sơ Kho + máy ở độ cao mắt (0,93 × height_m) và pitch `eye` (≤ 5°) /
-`slightly_high` (cúi 8–12°). Cờ `world_map_height_dummy` TẮT = whitebox cũ y nguyên (EYE 1,6 m, khối 1,8 m, nhắm ngực 1,2 m). Hàm hình học
+`slightly_high` (cúi 8–12°). Cờ `whitebox_height_dummy` TẮT = whitebox cũ y nguyên (EYE 1,6 m, khối 1,8 m, nhắm ngực 1,2 m). Hàm hình học
 thuần + script Blender nhận tham số (không chạy Blender trong test)."""
 import inspect
 import json
@@ -11,8 +11,8 @@ import pytest
 
 from core import whitebox as W
 
-ON = mock.patch.dict(os.environ, {"FEATURE_WORLD_MAP_HEIGHT_DUMMY": "1"})
-OFF = mock.patch.dict(os.environ, {"FEATURE_WORLD_MAP_HEIGHT_DUMMY": ""})
+ON = mock.patch.dict(os.environ, {"FEATURE_WHITEBOX_HEIGHT_DUMMY": "1"})
+OFF = mock.patch.dict(os.environ, {"FEATURE_WHITEBOX_HEIGHT_DUMMY": ""})
 M3D = {"path": "x.fbx", "spots": {"front": {"at": [0.0, 0.0, 2.0]}}}
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
