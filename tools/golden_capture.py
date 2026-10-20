@@ -42,8 +42,9 @@ def _safe(value):
     if isinstance(value, dict):
         for key, item in value.items():
             low = str(key).lower().replace("-", "_")
-            if low in ("key", "auth", "headers") or any(w in low for w in
-                    ("token", "secret", "password", "credential", "authorization", "cookie", "api_key", "apikey")):
+            if (low in ("key", "auth", "headers") or low.startswith("auth_")
+                    or low.endswith(("access_key", "private_key")) or any(w in low for w in
+                    ("token", "secret", "password", "passwd", "credential", "authorization", "cookie", "api_key", "apikey"))):
                 raise GoldenError("Gói chứa trường nhạy cảm; cần bản xuất đã lược bỏ trước khi chụp")
             _safe(item)
     elif isinstance(value, list):
