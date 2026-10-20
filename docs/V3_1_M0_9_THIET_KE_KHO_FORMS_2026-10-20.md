@@ -57,10 +57,10 @@ Nằm trong `assets.profile` (JSON). Trường v1 giữ nguyên tên và nghĩa 
              "sets": [{"id": "everyday", "label": "Đồ thường", "items": [ /* cùng dạng khai_bao_chu */ ],
                        "image_ids": [813], "_p": {...}}]},
   "forms": [                                 // có THỨ TỰ (G38: dạng triển khai đầu tiên là dạng mặc định khi shot không nói)
-    {"ma": "ghost", "ten_en": "ghost form", "ten_vi": "bóng mờ", "applies_to": ["KELLY"],      // style/dạng người
+    {"ma": "ghost_form", "ten_en": "ghost form", "ten_vi": "bóng mờ", "applies_to": ["KELLY"],      // style/dạng người
      "keeps": ["face", "hair", "build"], "outfit_override": true, "image_role": "character_form", "image_ids": [901],
      "words_en": "translucent glowing silhouette", "_p": {...}},
-    {"ma": "curved", "ten_en": "curved deployed wall", "applies_to": [], "keeps": [], "image_ids": [1367], "_p": {...}}  // dạng vật
+    {"ma": "curved_deployed", "ten_en": "curved deployed wall", "applies_to": [], "keeps": [], "image_ids": [1367], "_p": {...}}  // dạng vật
   ],
   "_p": {"profile": {"source": "human", "by": "...", "at": "..."}}   // provenance cấp hồ sơ cho trường v1 (chưa tách)
 }
@@ -72,7 +72,8 @@ Quy tắc:
 - `_p.state` theo M0.10: người ghi → USER_LOCKED; AI ghi vào trường USER_LOCKED → không ghi, lưu `proposal` + diag; AI ghi trường trống →
   REVIEW_REQUIRED (người duyệt mới tính là "chuẩn"). Hồ sơ `approved` chỉ khi mọi trường cấu trúc có mặt đều USER_LOCKED.
 - `kho_id` = `assets.id`: mọi nơi dùng hồ sơ ghi `kho_id` + `revision` đã đọc vào `jobs.sent_package` / lineage (truy vết lần gen nào dùng
-  bản hồ sơ nào). `forms[].ma` là khóa ổn định cho BYĐ `thanh_phan[].dang` (V2.1 A1: enum "∈ forms Kho" **chỉ khi** Kho có forms; chưa có
+  bản hồ sơ nào). `forms[].ma` (**ĐÃ CHỐT 20/10:** tiếng Anh không dấu, viết thường, nối gạch dưới — vd `ghost_form`;
+  kiểm `^[a-z0-9]+(_[a-z0-9]+)*$`, duy nhất trong một mục Kho) là khóa ổn định cho BYĐ `thanh_phan[].dang` (V2.1 A1: enum "∈ forms Kho" **chỉ khi** Kho có forms; chưa có
   → VÀNG `dang_khong_kiem_duoc`).
 - Thiếu dữ liệu → **không bịa**: trường vắng = vắng; adapter trả `None` + lý do; người gọi báo (luật 1). Không có `hair` → không viết câu
   tóc mới, dùng chữ v1 như hôm nay + VÀNG một lần "hồ sơ chưa tách tóc".
@@ -87,7 +88,8 @@ read(conn, asset_id) -> KhoProfile{kho_id, revision, schema_version, approved,
                                    provenance: {field: _p}, gaps: [lý do thiếu]}
 for_character(conn, project_id, name) -> KhoProfile | None     # thay assets.standard_for (cùng luật approved + link_characters)
 forms_for_shot(conn, project_id, scene) -> {TÊN: Form}          # thay character_forms.for_shot / for_rows
-outfit_for(conn, project_id, name, scene) -> OutfitSet           # characters.outfit_image_ids (dự án) > form.outfit_override > outfit.default
+outfit_for(conn, project_id, name, scene) -> OutfitSet           # characters.outfit_image_ids (dự án, MẶC ĐỊNH) > form.outfit_override > outfit.default
+save_outfit_to_kho(conn, project_id, name, actor) -> set_id       # ĐÃ CHỐT 20/10: chỉ khi người bấm "lưu vào Kho" → outfit.sets (actor human)
 lock_text_en(profile, form=None, outfit=None) -> str            # thay without_clothes + lock_en: ghép từ trường, không tách chữ bằng regex
 ```
 
@@ -123,7 +125,7 @@ Mẫu: `tests/test_decisions.py` có check code tĩnh.
 
 | # | Điều kiện (sổ `v31-d05…`) | Cách đáp ứng | Test |
 |---|---|---|---|
-| 1 | Tương thích ngược Kho hiện tại + dự án cũ | v2 nằm trong JSON cũ, trường v1 giữ; adapter đọc v1 = đường cũ; cờ `kho_forms_v2` TẮT | `test_kho_profile_compat`: replay gói ảnh/video (fixture có trên `main`: `tests/fixtures/p30_payload.json`, `director_p24_shots.json`; `byd_vat_v1_p30_p31.json` chỉ có ở nhánh `claude/v31-m11-vat` chưa gộp; hồ sơ Kho #31 thật phải chụp ở máy chính theo D08) cờ TẮT và hồ sơ v1 → prompt + thứ tự ref giống byte |
+| 1 | Tương thích ngược Kho hiện tại + dự án cũ | v2 nằm trong JSON cũ, trường v1 giữ; adapter đọc v1 = đường cũ; cờ `kho_forms_v2` TẮT | `test_kho_profile_compat`: replay gói ảnh/video (fixture có trên `main`: `tests/fixtures/p30_payload.json`, `director_p24_shots.json`; `byd_vat_v1_p30_p31.json` (đã có trên `main` — M1.1 đã gộp); hồ sơ Kho #31 thật phải chụp ở máy chính theo D08) cờ TẮT và hồ sơ v1 → prompt + thứ tự ref giống byte |
 | 2 | Ảnh chuẩn Kho ưu tiên hơn metadata AI | `ref_image_ids` + `forms[].image_ids` chọn trước chữ; trường `source: ai` mâu thuẫn ảnh → REVIEW_REQUIRED; ảnh luôn đi trước chữ trong `lock_text_en` | `test_image_over_ai_text`: hair AI "blonde" + ảnh close_up đã duyệt → câu khóa không có "blonde", trường REVIEW_REQUIRED |
 | 3 | Không tự ghi đè dữ liệu người nhập/sửa | ghi qua write guard M0.10 (Actor, revision CAS); `set_profile` AI chỉ ghi trường AUTO/trống | `test_ai_never_overwrites_human_field` (draft_profiles / profile_finalize trên hồ sơ có trường USER_LOCKED); `test_profile_revision_cas` |
 | 4 | Thiếu → nhận diện rõ, không bịa | adapter `gaps`; v1 không suy face/hair vào trường mới; BYĐ `dang` không có trong forms → VÀNG | `test_missing_hair_is_reported_not_invented`, `test_dang_not_in_forms_warns` |
@@ -134,14 +136,18 @@ Mẫu: `tests/test_decisions.py` có check code tĩnh.
 
 - **Không đổi bảng.** "Migration" = ghi thêm khối v2 vào `assets.profile` của từng mục Kho.
 - **Up (từng mục, có duyệt):** (1) công cụ `tools/kho_forms_backfill.py --dry-run` (0 USD) dựng **bảng chuyển đổi**: forms từ dòng "Dạng của
-  nhân vật" + ảnh `character_form`; outfit từ `khai_bao_chu` + ảnh role outfit; face/hair để trống (không suy). (2) tùy chọn: Claude soạn
-  nháp face/hair từ ảnh `close_up` (V2.1 Q3 ≈ 0,05 USD, qua sổ chi + ước tính trước + **xin duyệt chi**) → `source: ai`, REVIEW_REQUIRED.
+  nhân vật" + ảnh `character_form`; outfit từ `khai_bao_chu` + ảnh role outfit; face/hair để trống (không suy). (2) Claude soạn nháp
+  face/hair từ ảnh `close_up` qua **`claude_cli` — 0 USD API, không cần xin duyệt tiền (ĐÃ CHỐT 20/10)**; vẫn ghi ước tính token vào sổ chi
+  (nhãn `profile_draft`; `core/cost.py` chưa có mục riêng → mặc định `LLM_STAGE_TOKENS` (6 000 vào, 1 500 ra) + 2 ảnh × `IMAGE_TOKENS` 1 400
+  ≈ 8 800 token vào + 1 500 ra / mục Kho) → `source: ai`, `model`, `from_image_ids`, REVIEW_REQUIRED.
   (3) người duyệt từng dòng trên Dashboard (Kho) → ghi với `schema_version: 2`, `revision += 1`, `history` + lý do.
 - **Down:** xóa khóa `schema_version/revision/face/hair/outfit/forms/_p` khỏi JSON (trường v1 không bị đụng khi up) → dữ liệu như trước;
   hoặc chỉ tắt cờ `kho_forms_v2` (adapter bỏ qua v2).
 - **Dự án cũ giống byte:** dự án đã giao/cất không bị đọc lại; dự án đang làm: cờ TẮT tới khi người dùng bật theo dự án; test compat mục 5.1.
 - **Snapshot trước khi ghi:** `tools/project_snapshot.py` / bản sao `manifest.sqlite` (D08: chỉ đọc khi máy chính đang chạy job → snapshot).
-- Mô tả Kho dòng "Dạng của nhân vật:" **giữ** (adapter v1 + người quen sửa ở đó) cho tới khi người dùng quyết bỏ.
+- **ĐÃ CHỐT 20/10:** khai dạng **chuyển hẳn vào `forms[]`**. Dòng mô tả cũ "Dạng của nhân vật:" chỉ để adapter đọc bản v1 (mục chưa có
+  `schema_version: 2`); **không ghi song song hai nơi** — khi mục lên v2, backfill chuyển dòng đó vào `forms` và bỏ khỏi mô tả (có
+  `history`); adapter đọc v2 bỏ qua dòng mô tả.
 
 ## 7. Bộ regression đề xuất
 
@@ -156,9 +162,13 @@ Mẫu: `tests/test_decisions.py` có check code tĩnh.
 Ma trận luồng (CHUAN_XAY_DUNG luật 2): bấm tay · autopilot · v2 cảnh · v3 từng shot · multi-shot · nhân bản (`compare.clone_project` — hồ sơ ở
 Kho, dùng chung, không chép) · chạy lại Director — mỗi luồng một ca trong `test_kho_profile_v2.py`.
 
-## 8. Việc mở / cần người dùng
+## 8. ĐÃ CHỐT 20/10 (người dùng trả lời mục "Việc mở")
 
-1. Tên khóa cuối cùng (`forms[].ma` tiếng Anh không dấu?) và vị trí khai dạng: giữ dòng mô tả song song hay chuyển hẳn vào `forms`.
-2. Chi phí soạn nháp face/hair bằng Claude (≈ 0,05 USD theo V2.1 Q3 — con số cũ, phải ước tính lại qua `spend_gate` trước khi xin).
-3. Trang phục theo dự án (`characters.outfit_image_ids`) có thành `outfit.sets` của Kho (dùng lại cho dự án khác) hay giữ theo dự án.
-4. UNK (cần máy chính): số mục Kho có dòng "Dạng của nhân vật", số hồ sơ `approved`, số `khai_bao_chu` đã điền — quyết quy mô backfill.
+1. **Khóa dạng:** `forms[].ma` dạng tiếng Anh không dấu, viết thường nối gạch dưới (vd `ghost_form`). Chuyển hẳn vào `forms`. Dòng mô tả cũ
+   chỉ để adapter đọc bản v1, không ghi song song hai nơi. (Áp vào mục 2, 6.)
+2. **Soạn nháp face/hair:** dùng `claude_cli`, 0 USD API, không cần xin duyệt tiền. Vẫn ghi ước tính token (≈ 8 800 vào + 1 500 ra / mục
+   Kho). (Áp vào mục 6.)
+3. **Trang phục:** mặc định giữ theo dự án (`characters.outfit_image_ids`). Có thao tác "lưu vào Kho" (`save_outfit_to_kho`) để thành
+   `outfit.sets` dùng lại cho dự án / tập sau. Chỉ khi người bấm, không tự nâng. (Áp vào mục 3; test: không có lời gọi nào ghi `outfit.sets`
+   ngoài thao tác này, actor = human.)
+4. **Số liệu UNK** (số mục Kho có "Dạng của nhân vật", số hồ sơ `approved`, số `khai_bao_chu` đã điền): giữ UNK — **máy chính đo** (chỉ đọc).
