@@ -338,6 +338,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.22 cổng S11.2 ĐẠT: người dùng chấm phiếu 05d (docs/DO_S11_2_Y_TUONG_2026-10-05d.md) TB 4,20 ≥ 4,0, đo thật 0,709 USD; "
                "06/10 người dùng duyệt bật mặc định — dùng khi người dùng yêu cầu hoặc khi kịch bản sơ sài (Claude hỏi trong khung chat, chưa tự chi)",
     },
+    "continuity_shadow": {
+        "label": "Logic XUYÊN SHOT shadow (V3.1 M4.3): giữa 2 shot liền cùng nhóm — vật đang cầm biến mất, đổi dạng, đổi hướng đi trên khung "
+                 "(chỉ khi chữ nói rõ) → ghi bằng chứng + đồ thị phụ thuộc + shot 'cần xem' theo kết quả QC logic chuỗi; KHÔNG chặn, 0 USD",
+        "verified": False,
+        "why": "#31 G52 (logic chuỗi 39 clip), G51 (súng biến mất), G41 (hướng chạy) chỉ người / Claude thấy; chạy sau qc_sequence_logic. "
+               "Chưa chạy trên dữ liệu thật",
+    },
     "qc_observe_enum": {
         "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",
         "verified": False,
