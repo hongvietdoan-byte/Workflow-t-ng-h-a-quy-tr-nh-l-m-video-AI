@@ -40,7 +40,7 @@ def _label(args):
     db = os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite"))
     client = llm_runner.client_from_env(ledger=db if os.path.exists(db) else None)
     if client is None:
-        raise SystemExit("Chưa cấu hình Claude (LLM_PROVIDER / ANTHROPIC_API_KEY)")
+        raise SystemExit("Chưa cấu hình Claude: " + llm_runner.missing_hint())
     sheets = [(f"Bảng khung hình {i}:", p) for i, p in enumerate(work["sheets"], 1)]
     labels = ra.label(client, args.style, work["meta"], work["shots"], sheets, args.title or os.path.basename(work["source"]))
     path = ra.save_record(args.style, work["source"], args.title or os.path.splitext(os.path.basename(work["source"]))[0],

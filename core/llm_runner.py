@@ -1330,6 +1330,17 @@ def provider_status() -> Tuple[Optional[str], str]:
     return None, NO_PROVIDER_HINT
 
 
+def missing_hint() -> str:
+    """Câu báo người dùng khi `client_from_env()` trả None (V3.1 M1.4a): mọi chỗ trước đây bảo 'đặt ANTHROPIC_API_KEY' dùng câu này —
+    nói đúng lý do (LLM_PROVIDER thiếu / sai) và nói rõ có key mà không khai thì KHÔNG tự dùng API trả phí."""
+    kind, why = provider_status()
+    return NO_PROVIDER_HINT if kind else why
+
+
+# Việc chỉ chạy được trên Claude API trả phí (tìm web của Anthropic) — Claude Code trên máy không làm được.
+API_ONLY_HINT = "cần Claude API trả phí: đặt LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY (tìm web chỉ có trên API, Claude Code không làm được)"
+
+
 def client_from_env(transport: Transport = urllib_transport, ledger: Optional[str] = None):
     """LLM_PROVIDER = anthropic | claude_cli (Claude Code on this PC, no key) | mock. Unset or unknown → None (the caller says why with
     `provider_status()`). V3.1 M1.4a (người dùng duyệt 20/10, D02): NO silent fallback to the paid API when only ANTHROPIC_API_KEY exists —

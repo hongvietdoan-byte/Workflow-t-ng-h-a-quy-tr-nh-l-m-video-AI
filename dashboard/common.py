@@ -121,7 +121,7 @@ def image_runner(p: Pipeline):
     return ImageRunner(p, provider, DATA) if provider else None
 
 def llm_client():
-    """Claude client (ANTHROPIC_API_KEY, LLM_PROVIDER=claude_cli or mock); None when not configured -> paste JSON by hand."""
+    """Claude client (LLM_PROVIDER=claude_cli | anthropic + ANTHROPIC_API_KEY | mock); None when not configured -> paste JSON by hand."""
     try:
         return llm_runner.client_from_env(ledger=DB)       # Claude API calls go into the cost ledger + the Claude cap
     except llm_runner.LlmError as e:
@@ -433,7 +433,7 @@ def step_header(title: str, goal: str, progress: str = "", stale: int = 0) -> No
 
 
 def claude_hint() -> str:
-    return "Cần Claude: ANTHROPIC_API_KEY hoặc LLM_PROVIDER=claude_cli (Claude Code trên máy)."
+    return "Cần Claude: " + llm_runner.missing_hint()
 
 
 def scene_status_text(row) -> str:

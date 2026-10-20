@@ -96,6 +96,8 @@ class ClientTests(unittest.TestCase):
             with self.assertRaises(lr.LlmError):
                 lr.AnthropicClient.from_env()
         with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": KEY, "LLM_PROVIDER": "", "ANTHROPIC_MODEL": "claude-opus-5"}):
+            self.assertIsNone(lr.client_from_env())          # V3.1 M1.4a: a key alone never picks the paid API
+        with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": KEY, "LLM_PROVIDER": "anthropic", "ANTHROPIC_MODEL": "claude-opus-5"}):
             c = lr.client_from_env()
             self.assertEqual((c.name, c.model), ("anthropic", "claude-opus-5"))
         with mock.patch.dict(os.environ, {"LLM_PROVIDER": "mock"}):

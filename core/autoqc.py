@@ -126,7 +126,7 @@ def _work(db_path: str, data_dir: str, project_id: int, client_factory: Callable
         p = Pipeline(conn)
         client = client_factory()
         if client is None:
-            _fail(conn, project_id, "chưa có Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER=claude_cli)")
+            _fail(conn, project_id, "chưa có Claude: " + llm_runner.missing_hint())
             return
         from . import qc_scene
         if qc_scene.active():                              # QC per script scene (one call per scene once all its frames exist)

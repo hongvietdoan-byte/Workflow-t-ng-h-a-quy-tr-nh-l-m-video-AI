@@ -343,7 +343,7 @@ def storyboard_panel(p: Pipeline, pid: int) -> None:
         client = llm_client()
         c1, c2 = st.columns(2)
         if c1.button("🎬 Dựng storyboard", key=f"pv_plan_{pid}", disabled=client is None, type="primary",
-                     help=None if client else "Cần Claude (LLM_PROVIDER=claude_cli hoặc ANTHROPIC_API_KEY)"):
+                     help=None if client else C.claude_hint()):
             with st.spinner("Claude đang đọc ảnh nền và dựng layout…"):
                 if act(lambda: st.session_state.__setitem__("pv_res", previz.plan_layouts(p, pid, client, C.DATA))):
                     r = st.session_state.pop("pv_res")
@@ -357,7 +357,7 @@ def storyboard_panel(p: Pipeline, pid: int) -> None:
             with st.spinner("Claude đang rà lỗi liên tục…"):
                 act(lambda: previz.review_storyboard(p, pid, client, C.DATA))
         if client is None:
-            cap("Chưa cấu hình Claude: đặt LLM_PROVIDER=claude_cli (dùng hạn mức Claude Code trên máy) hoặc ANTHROPIC_API_KEY.")
+            cap("Chưa cấu hình Claude: " + llm_runner.missing_hint())
         moved = st.session_state.get(f"pv_moved_{pid}")
         if moved:
             cap("Đã kéo chân về mặt đất (vị trí Claude đặt nằm ngoài vùng đứng được): "

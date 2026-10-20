@@ -1273,7 +1273,7 @@ def lesson_judge_panel(conn, llm) -> None:
                    "bấm Duyệt/Bỏ như cũ — agent KHÔNG tự duyệt và không đổi bài học hay kiến thức nào. Bài nguồn web và chủ đề tính "
                    "năng đã bỏ được code quyết, không tốn lượt Claude.")
         if st.button(f"🤖 Chấm {n} bài học" + cost.llm_button_tag(conn, lesson_judge.STAGE, n), key="ls_judge", disabled=llm is None or n == 0,
-                     help="Cần ANTHROPIC_API_KEY." if llm is None else
+                     help=C.claude_hint() if llm is None else
                      (f"Tối đa ≈ {est['usd_max']:.2f} USD nếu phải hỏi lại mọi bài (trả lời sai dạng)." if est["usd_max"] is not None
                       else "Model chưa có giá trong bảng giá — xem ⚙ → Bảng giá.")):
             try:
@@ -1315,7 +1315,7 @@ def lessons_tab(p: Pipeline, pid: int) -> None:
             st.error(str(e))
     if c2.button("🌐 Nghiên cứu tài liệu mới ngay" + cost.llm_tag(research.estimate(conn)), key="ls_research", use_container_width=True,
                  disabled=llm is None,
-                 help=f"Cần ANTHROPIC_API_KEY. Giá trên nút là mức tối đa: token Claude + tối đa {research.MAX_SEARCHES} lượt tìm web "
+                 help=f"Nghiên cứu {llm_runner.API_ONLY_HINT}. Giá trên nút là mức tối đa: token Claude + tối đa {research.MAX_SEARCHES} lượt tìm web "
                       "mỗi chủ đề (0,01 USD/lượt, ghi vào sổ chi)."):
         try:
             r = research.run(conn, llm)

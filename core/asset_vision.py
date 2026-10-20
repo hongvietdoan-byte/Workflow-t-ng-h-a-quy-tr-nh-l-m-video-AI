@@ -141,7 +141,7 @@ def _work(db_path: str, game: str, client_factory: Callable) -> None:
         conn = connect(db_path)
         client = client_factory()
         if client is None:
-            _errors[game] = ("chưa có Claude (ANTHROPIC_API_KEY hoặc LLM_PROVIDER=claude_cli)", time.time())
+            _errors[game] = ("chưa có Claude: " + llm_runner.missing_hint(), time.time())
             return
         todo = [a["id"] for a in assets.list_assets(conn, game, None, None, shared_only=True) if _eligible(a)]
         _progress[game] = {"done": 0, "total": len(todo)}

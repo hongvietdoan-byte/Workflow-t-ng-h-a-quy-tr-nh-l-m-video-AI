@@ -240,7 +240,7 @@ def idea_turns(p: Pipeline, pid: int, wish: str = "", used=lambda: None) -> None
         return
     client = C.llm_client()
     if client is None:
-        say("info", "Chưa có Claude (LLM_PROVIDER / ANTHROPIC_API_KEY) — không chạy được Biên kịch.", f"script-idea-noclaude-{pid}")
+        say("info", "Chưa có Claude — không chạy được Biên kịch: " + llm_runner.missing_hint(), f"script-idea-noclaude-{pid}")
         return
     cap(f"Đã dùng ≈ {float(state.get('spent') or 0):.3f} USD cho ý tưởng này.")
     replies = turn_questions(p, pid, state, client, wish, used)

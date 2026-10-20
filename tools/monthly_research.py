@@ -1,7 +1,7 @@
 """Monthly research from the command line (for the Windows Task Scheduler): py tools/monthly_research.py --max-usd 1.0 [--force]
 
 Does the same as the dashboard's monthly round: only when "Tự nghiên cứu hàng tháng" is switched on and due (or --force);
-needs ANTHROPIC_API_KEY. Findings become PROPOSED lessons; a person approves them in the dashboard tab "🎓 Bài học".
+needs LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY (V3.1 M1.4a: a key alone is never used). Findings become PROPOSED lessons; a person approves them in the dashboard tab "🎓 Bài học".
 S14.2: --max-usd is REQUIRED (hard lock of this run, core/script_cap.py) — nobody sees a warning on a scheduled run.
 """
 import argparse
@@ -30,7 +30,7 @@ def main():
         return
     client = llm_runner.client_from_env(ledger=llm_runner.db_file(conn))
     if client is None:
-        print("Thiếu ANTHROPIC_API_KEY: không nghiên cứu được.")
+        print("Chưa có Claude — không nghiên cứu được: " + llm_runner.missing_hint() + "; nghiên cứu " + llm_runner.API_ONLY_HINT)
         return
     with cap:
         result = research.run(conn, client)
