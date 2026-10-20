@@ -1305,6 +1305,8 @@ không xóa asset thật.
 
 ## Kết quả Codex — đợt 19
 
+- Mã tài liệu việc3: `22aff768`, nhánh `codex/d19-viec3-provider`; thiết kế đã rà, chưa triển khai M1.4b.
+
 - **Việc3/M1.4b — chỉ thiết kế:** `codex/d19-viec3-provider`, `docs/V3_1_M1_4B_THIET_KE_2026-10-20.md`; source76hit/44file, P/J/S và injected consumers/static, schema+job snapshot+legacy hold, CLI ledger0USD/tokenNULL, quota halt cả lượt, migration up/down bảo toàn, testplan và quyền Cấp2/3. Root RÀ NHẸ bổ sung cache theo job/operation/profile và ACL/rotation cùng tài khoản. Docs-only không pytest đỏ giả, không code/SQL/API/env/flags/areas/main/live. Cần đồng bộ M1.4a, quét lại và duyệt phạm vi trước build. RA `docs/RA_D19_VIEC3_CODEX_2026-10-20.md`; mã commit trong HANDOFF cùng nhánh.
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
