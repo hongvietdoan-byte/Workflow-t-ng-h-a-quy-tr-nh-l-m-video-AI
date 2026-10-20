@@ -157,14 +157,14 @@ kiểm giá trị; không đổi `STATUSES`.
 | Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | Tiến độ |
 |---|---|---|---|---|---|---|
 | M0 Đóng băng và thiết kế (0 USD) | 12 | 5 | 0 | 0 | 0 | 33,3 % |
-| M1 Nền tin cậy (0 USD, provider giả) | 9 | 1 | 1 | 0 | 0 | 13,2 % |
+| M1 Nền tin cậy (0 USD, provider giả) | 9 | 1 | 8 | 0 | 0 | 52,6 % |
 | M2 Hợp đồng sản xuất có cấu trúc | 9 | 0 | 0 | 0 | 0 | 0 % |
 | M3 Thế giới và liên tục | 5 | 0 | 0 | 0 | 0 | 0 % |
 | M4 QC có bằng chứng và Dashboard | 7 | 0 | 0 | 0 | 0 | 0 % |
 | M5 Sửa chọn lọc và pilot | 5 | 0 | 0 | 2 | 0 | 0 % |
-| **Tổng** | **47** | **6** | **1** | **2** | **0** | **9,1 %** |
+| **Tổng** | **47** | **6** | **8** | **2** | **0** | **17,2 %** |
 
-Đợt hiện tại: **M1** · việc kế: **M1.2** Succeed/poll nguyên tử liên tiến trình + ghi tệp tạm rồi đổi tên (A1, A15)
+Đợt hiện tại: **M1** · việc kế: **M2.1** BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN
 <!-- /tien-do -->
 
 Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · ✅ xong · ✖ bỏ. Mỗi việc xong ghi commit + bằng chứng.
@@ -187,7 +187,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M1.1 · Parser vat v1 str→{vat} cho qc_observe (R3, #31 shot 30) · nặng:1 · ✅ · gộp 36fcb4bd (20/10); cả bộ not-slow 6136 qua; FIXED_UNVERIFIED tới khi QC thật chạy #30/#31 (#31 còn thiếu hồ sơ LÍNH ĐỊCH ÁO CHOÀNG — dữ liệu Kho)
 - [ ] M1.2 · Succeed/poll nguyên tử liên tiến trình + ghi tệp tạm rồi đổi tên (A1, A15) · nặng:3 · 🔄 · phiên con nhánh claude/v31-m12-m13
 - [ ] M1.3 · Kiểm tạm dừng ngay trước provider.submit, cả đường thử lại/lùi model (G36) · nặng:2 · 🔄 · phiên con nhánh claude/v31-m12-m13
-- [ ] M1.4 · Provider Claude theo dự án, clean_env bỏ key API, hết lượt gói = dừng có giờ mở (A2, A3, A13, G33, G57) · nặng:3 · 🔄 · M1.4a WIP nhánh claude/v31-m14a-provider-guard; M1.4b chỉ thiết kế (Codex Đ19)
+- [ ] M1.4 · Provider Claude theo dự án, clean_env bỏ key API, hết lượt gói = dừng có giờ mở (A2, A3, A13, G33, G57) · nặng:3 · 🔄 · M1.4a ✅ gộp 222bf9c5 (20/10; cả bộ 6195 qua; rà quy ước 7: 2 VỪA + 3 THẤP + 1 test ledger đã sửa); M1.4b: phiên Claude (thiết kế Codex Đ19 việc 3); C3-0 kế tiếp
 - [ ] M1.5 · Kiểm Kho chủ thể trước gửi video, dừng + đề xuất dọn (G30, G32, G58) · nặng:2 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
 - [ ] M1.6 · Ước tính giá đúng gói gửi: tier nháp, phụ phí ref, nâng 1080p, claude_cli = 0, giá video trong pregen_check (A7–A9, G31) · nặng:2 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
 - [ ] M1.7 · Dashboard báo chạy code cũ (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01) · nặng:1 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
