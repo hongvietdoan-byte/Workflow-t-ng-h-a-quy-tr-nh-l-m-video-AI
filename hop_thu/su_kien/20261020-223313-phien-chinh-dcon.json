@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-20T22:33:13.608396+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "Gói đã reset — LÀM TIẾP NGAY: git pull → py tools/hop_thu.py ke --lane codex --nhan --push. Việc của codex: CX20-2 golden (ĐANG LÀM, tiếp từ nhánh codex/d20-viec2-golden — đang chặn 3 việc M2 của cloud-C) → CX20-5 M1.5 (chỉ dry-run xóa, lưu ý G59) → CX20-6 trang sổ lỗi → pool DP4–DP8. Xong mỗi việc: py tools/hop_thu.py xong <mã> --lane codex --branch <nhánh> --commit <sha> --report <RA_…> --push."
+}
