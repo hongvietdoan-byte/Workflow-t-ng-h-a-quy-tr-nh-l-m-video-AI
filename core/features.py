@@ -91,6 +91,11 @@ FEATURES: Dict[str, Dict] = {
         "why": "V3.1 M1.6 (A7–A9 #33, G31 #31): nút Gen video báo 9,13 USD (720p + D6 API) khi gửi nháp 480p; nháp có video tham chiếu "
                "≈ 1,37 × bảng giá; bản cao 1080p sổ chi cao hơn ước tính ~24 %; pregen_check cộng Claude giá API dù chạy claude_cli. "
                "Hiệu chuẩn 2 điểm task ClipAI (docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md mục 5), chưa đối chiếu sổ chi thật"},
+    "refusal_skip_same_picture": {"label": "Seedance từ chối gói nhóm vì MỘT ảnh (content[N]): shot nào còn ảnh đó trong gói từng shot thì "
+                                           "sang Kling ngay, bỏ bước \"Seedance từng shot\" chắc chắn bị từ chối lại (0 USD)",
+        "verified": False,
+        "why": "V3.1 C-G36B (G36 phần 2, #31 1057→1065→1071): lần thử lại đầu đi Seedance từng shot với đúng ảnh dạng/vật đã bị "
+               "từ chối → phí một lượt; đổi thứ tự người dùng chốt 2026-09-27 nên để TẮT tới khi người dùng duyệt — thử bằng provider giả"},
     "locomotion_end_frame": {"fixes_projects": [27], "label": "Shot chạy/đi: không gửi khung cuối vẽ khi clip sinh dài hơn shot × 1,3 + câu mốc cảnh vật khi máy bám theo (0 USD)",
         "verified": False,
         "why": "Hộp thư 12/10 18:13: #27 shot 3 job 782 (shot 1–2 s, Kling sinh 3 s, khung cuối 'vài bước' ở giây 3 + máy bám sau) chạy tại chỗ; "

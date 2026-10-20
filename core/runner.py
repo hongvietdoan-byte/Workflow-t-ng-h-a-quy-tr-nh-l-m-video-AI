@@ -2270,8 +2270,16 @@ class VideoRunner(_Runner):
             ids = [r["id"] for r in group] if group else [job["scene_id"]]
             data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
             step = seedance_refs.next_route(data, bool(group))
-            seedance_refs.set_route(self.p.conn, ids, step)
             why = "ảnh giống người thật" if kind == REAL_PERSON else "video có thể dính bản quyền"
+            refused, skip = self._refused_in_single(job, group, message) if step == "single" else ([], set())
+            if skip:                         # C-G36B: the per-shot try would send the refused picture again — those shots go to Kling now
+                seedance_refs.set_route(self.p.conn, [i for i in ids if i not in skip], "single")
+                seedance_refs.set_route(self.p.conn, [i for i in ids if i in skip], "kling")
+                self._diag(job, "warn", kind, f"Seedance từ chối ({why}: {', '.join(refused)}) — ảnh này vẫn có trong gói từng shot của "
+                           f"{len(skip)}/{len(ids)} shot → các shot đó sang Kling từ khung đầu ngay (bỏ bước Seedance từng shot chắc chắn "
+                           "bị từ chối lại)" + (f"; {len(ids) - len(skip)} shot còn lại đi Seedance từng shot" if len(skip) < len(ids) else ""))
+                return True
+            seedance_refs.set_route(self.p.conn, ids, step)
             self._diag(job, "warn", kind, f"Seedance từ chối ({why}, dù ảnh đã đánh dấu) → {len(ids)} shot chuyển sang "
                        + ("Seedance từng shot" if step == "single" else "Kling từ khung đầu"))
             return True
@@ -2282,6 +2290,24 @@ class VideoRunner(_Runner):
         why = "ảnh giống người thật" if kind == REAL_PERSON else "video có thể dính bản quyền"
         self._diag(job, "warn", kind, f"Seedance từ chối ({why}) → {len(ids)} cảnh/shot chuyển sang Kling")
         return True
+
+    def _refused_in_single(self, job, group, message: str) -> Tuple[List[str], set]:
+        """C-G36B (cờ refusal_skip_same_picture): the refusal names the picture(s) it refused — `content[N]`, content[0] being the
+        text, content[N] the N-th reference picture of the group send (_reference_sources order, the order the adapter sends). The
+        shots whose OWN per-shot send (_reference_sources, no group) still carries such a picture would be refused again: their ids,
+        with what the pictures are. Flag off / no picture named / an index past the send → ([], set()): the order chosen 2026-09-27."""
+        from . import features
+        if not group or not features.on("refusal_skip_same_picture"):
+            return [], set()
+        sent = self._reference_sources(job, group)
+        named = sorted({int(n) for n in re.findall(r"content\[(\d+)\]", message or "")})
+        hit = [sent[n - 1] for n in named if 1 <= n <= len(sent)]
+        if not hit:
+            return [], set()
+        bad = {os.path.abspath(s["path"]) for s in hit}
+        skip = {r["id"] for r in group
+                if bad & {os.path.abspath(s["path"]) for s in self._reference_sources(dict(job, scene_id=r["id"]), [])}}
+        return [f"Image {sent.index(s) + 1} = {s['say']}" for s in hit], skip
 
     def _dest_path(self, job) -> str:
         idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["idx"]
