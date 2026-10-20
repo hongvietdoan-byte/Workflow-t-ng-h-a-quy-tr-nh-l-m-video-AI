@@ -237,9 +237,9 @@ def test_v31_d01_to_d10_recorded_as_policy_not_implementation():
     định hướng — không phải lệnh triển khai code (Cấp 2) hay chi phí (Cấp 3)."""
     import re
     got = {}
-    for i in LEDGER["items"]:
-        m = re.match(r"v31-d(0[1-9]|10)-", i["id"])
-        if m:
+    for i in LEDGER["items"]:                       # mục sửa sau (vd. v31-d03b-…, người dùng 20/10) thay mục gốc: lấy mục active
+        m = re.match(r"v31-d(0[1-9]|10)[a-z]?-", i["id"])
+        if m and (i["status"] == "active" or int(m.group(1)) not in got):
             got[int(m.group(1))] = i
     assert sorted(got) == list(range(1, 11))
     choice = {1: "A", 2: "A", 3: "A", 4: "B", 5: "A", 6: "B", 7: "A", 8: "A", 9: "C", 10: "A"}

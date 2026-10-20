@@ -413,7 +413,7 @@
    "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; code pipeline, migration, đường ghi, vòng đời job, định tuyến provider, cổng QC cần duyệt phạm vi (Cấp 2); API trả phí / pilot duyệt chi phí riêng (Cấp 3). Chi tiết: docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4.",
    "replaces": null,
    "enforced_by": [],
-   "status": "active"
+   "status": "replaced"
   },
   {
    "id": "v31-d04-field-level-write-guard-2026-10-20",
@@ -489,6 +489,17 @@
    "keeps": "core/adapters/clipai.py submit_video_edit / submit_final_from_sample giữ nguyên; mẫu thay nền ghi ở docs/KE_HOACH_AI_VIDEO_PIPELINE_V3_2026-10-20.md §6.",
    "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; code pipeline, migration, đường ghi, vòng đời job, định tuyến provider, cổng QC cần duyệt phạm vi (Cấp 2); API trả phí / pilot duyệt chi phí riêng (Cấp 3). Chi tiết: docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4.",
    "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-d03b-subject-library-auto-clean-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (chat 20/10: 'tự xóa với bản nháp cũ và dự án đã xong, đã cất trên 3 ngày')",
+   "text": "D03 (sửa) — chọn A, bổ sung tự dọn — Kho chủ thể ClipAI: GIỮ preflight kiểm sức chứa trước khi gửi + dừng và báo rõ khi thiếu chỗ / không xác định được, không tự đổi model, chỉ chặn tác vụ thực sự cần Kho. THÊM: hệ thống ĐƯỢC tự xóa khỏi Kho (a) asset của bản nháp cũ — ảnh khung bị loại / không thành video — và (b) asset của dự án đã xong (đã giao bản cuối) hoặc đã cất (📦) TRÊN 3 NGÀY. Không bao giờ xóa asset còn được một dự án đang làm (chưa giao, chưa cất) hoặc một nhân vật đang liên kết tham chiếu; không chắc ai dùng → giữ. Mỗi lần xóa ghi rõ asset, dự án, lý do. Cách hiểu 'bản nháp cũ' (ảnh khung bị loại / không dùng) chờ người dùng xác nhận.",
+   "keeps": "Cờ subject_auto_cleanup (13/10: xóa khung bị loại của dự án ngay khi giao / cất) giữ tới khi M1.5 triển khai; mốc 3 ngày và phần 'dự án đã xong / đã cất' áp khi M1.5 được duyệt phạm vi code.",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; M1.5 cần duyệt phạm vi (Cấp 2). Xóa asset là thao tác bên ngoài không hoàn tác — chỉ chạy theo đúng quy tắc trên. Thay v31-d03-subject-library-full-stop-2026-10-20.",
+   "replaces": "v31-d03-subject-library-full-stop-2026-10-20",
    "enforced_by": [],
    "status": "active"
   }

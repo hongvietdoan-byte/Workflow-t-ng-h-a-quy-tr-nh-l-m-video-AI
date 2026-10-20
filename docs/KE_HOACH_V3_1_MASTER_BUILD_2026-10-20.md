@@ -230,6 +230,8 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 
 ## 6. Nhật ký
 
+- 20/10 (tối): người dùng 'CHỈ ĐẠO XỬ LÝ RỦI RO V3.1 VÀ KẾ HOẠCH S' → `docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md`: gói M1.1 (vat v1, chỉ `qc_observe` crash; dữ liệu thật #30 ×4, #31 idx 33), audit đường gọi Claude + biện pháp tạm + gói M1.4 (key Anthropic có ở biến User; an toàn nhờ chặn hết tiền), gói M1.5 + phương án Kho chủ thể chạy song song + quyết định `v31-d03b` (tự dọn nháp cũ / dự án xong-cất > 3 ngày; thay `v31-d03`), lỗi mới G59 (tự dọn Kho 13/10 chưa từng chạy được), regression lời dẫn M2.9, đối soát giá 1080p (6,36 = riêng bước nâng, tính theo token; 2,80 = ước tính ClipAI lúc gửi), ma trận 6 rủi ro, bảng 14 việc S (không phải 16), thứ tự build. Chờ duyệt phạm vi code.
+
 - 20/10 (sau): người dùng chốt D01–D10 (văn bản "PHÊ DUYỆT D01–D10") → sổ `v31-d01`…`v31-d10`; D04/D05/D06 `replaces` 3 mục định hướng cùng ngày; điều kiện bổ sung vào mục 4a. M0.3 ✅. Dừng: chờ người dùng duyệt gói triển khai tiếp theo.
 
 - 20/10: người dùng gửi văn bản quyết định V3.1 → ghi 5 mục sổ (mục 4b), bảng D01–D10 chờ duyệt, tách việc thiết kế Cấp 1 (M0.9–M0.12) khỏi triển khai; M0.4/M0.5 ⏸ chờ duyệt phạm vi + D09; pilot tách 3 vòng (M5.3–M5.5). Dừng ở đây theo văn bản: không tự triển khai code pipeline, không gọi API trả phí.
