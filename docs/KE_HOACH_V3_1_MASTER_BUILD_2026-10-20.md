@@ -157,12 +157,12 @@ kiểm giá trị; không đổi `STATUSES`.
 | Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | Tiến độ |
 |---|---|---|---|---|---|---|
 | M0 Đóng băng và thiết kế (0 USD) | 12 | 4 | 0 | 2 | 0 | 27,8 % |
-| M1 Nền tin cậy (0 USD, provider giả) | 9 | 0 | 2 | 0 | 0 | 10,5 % |
+| M1 Nền tin cậy (0 USD, provider giả) | 9 | 1 | 1 | 0 | 0 | 13,2 % |
 | M2 Hợp đồng sản xuất có cấu trúc | 9 | 0 | 0 | 2 | 0 | 0 % |
 | M3 Thế giới và liên tục | 5 | 0 | 0 | 1 | 0 | 0 % |
 | M4 QC có bằng chứng và Dashboard | 7 | 0 | 0 | 0 | 0 | 0 % |
 | M5 Sửa chọn lọc và pilot | 5 | 0 | 0 | 2 | 0 | 0 % |
-| **Tổng** | **47** | **4** | **2** | **7** | **0** | **7,5 %** |
+| **Tổng** | **47** | **5** | **1** | **7** | **0** | **8,1 %** |
 
 Đợt hiện tại: **M0** · việc kế: **M0.6** Bảng AS-IS/TO-BE WS0–WS6 theo file:hàm (IMPL/PART/MISS/UNK)
 <!-- /tien-do -->
@@ -184,7 +184,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M0.12 · Gói xin duyệt phạm vi M1 (file/module, hợp đồng, tác động đường cũ, test, cờ/rollback, chi phí) — Cấp 2 · nặng:1 · ⬜
 
 ### M1 — Nền tin cậy (0 USD, provider giả)
-- [ ] M1.1 · Parser vat v1 str→{vat} cho qc_observe (R3, #31 shot 30) · nặng:1 · 🔄 · nhánh claude/v31-m11-vat chờ cả bộ test rồi gộp
+- [ ] M1.1 · Parser vat v1 str→{vat} cho qc_observe (R3, #31 shot 30) · nặng:1 · ✅ · gộp 36fcb4bd (20/10); cả bộ not-slow 6136 qua; FIXED_UNVERIFIED tới khi QC thật chạy #30/#31 (#31 còn thiếu hồ sơ LÍNH ĐỊCH ÁO CHOÀNG — dữ liệu Kho)
 - [ ] M1.2 · Succeed/poll nguyên tử liên tiến trình + ghi tệp tạm rồi đổi tên (A1, A15) · nặng:3 · ⬜
 - [ ] M1.3 · Kiểm tạm dừng ngay trước provider.submit, cả đường thử lại/lùi model (G36) · nặng:2 · ⬜
 - [ ] M1.4 · Provider Claude theo dự án, clean_env bỏ key API, hết lượt gói = dừng có giờ mở (A2, A3, A13, G33, G57) · nặng:3 · 🔄 · M1.4a WIP nhánh claude/v31-m14a-provider-guard; M1.4b chỉ thiết kế (Codex Đ19)
