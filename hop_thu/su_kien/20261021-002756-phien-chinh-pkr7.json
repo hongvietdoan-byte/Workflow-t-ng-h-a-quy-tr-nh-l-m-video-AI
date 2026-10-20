@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T00:27:56.664361+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-FIX-THAP-3",
+  "to": "cloud-D",
+  "title": "3 lỗi THẤP: câu release gate, cache step5, errors_page width",
+  "priority": 1,
+  "text": "Việc NHỎ (cloud-D tuần 86 %: ≤ 30 lượt gọi). Sửa 3 lỗi THẤP từ rà 20/10, cờ giữ TẮT, test đỏ→xanh: (1) core/release_gate.py:74 + câu báo: G4 luôn KHÔNG RÕ nên màn hình luôn \"CHƯA ĐẠT — 0 chưa đạt, 1 chưa đo được\" → câu dạng \"đạt 7 · chưa đo 1 · chưa đạt 0\" (không gọi là CHƯA ĐẠT khi chỉ thiếu đo). (2) dashboard/steps/step5.py ~1139: cache final_qc.run + delivery.status theo id bản dựng (không chạy lại mỗi lần Streamlit rerun). (3) devsys/errors_page.py:50 use_container_width=True → width=\"stretch\" như nơi khác. Nhánh của phiên anh; xong báo xong."
+}
