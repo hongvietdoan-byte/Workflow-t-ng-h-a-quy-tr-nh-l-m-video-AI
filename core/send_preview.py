@@ -43,7 +43,7 @@ class _NoCall:
         return blocked
 
 
-def _note(notes: List[Dict], severity: str, code: Any, text: str) -> None:
+def _add_note(notes: List[Dict], severity: str, code: Any, text: str) -> None:
     item = {"severity": severity, "code": str(code or ""), "text": str(text)}
     if item not in notes:
         notes.append(item)
@@ -69,10 +69,10 @@ def video_package(p, runner, job) -> Dict[str, Any]:
     r.provider = _NoCall(runner.provider)
     r.__dict__.update(_preview=True, _pregen_local=True, _pregen_deferred=[], _sent={}, _storyboard={}, _final_routes={},
                       _pregen_fingerprints={})
-    say = lambda j, severity, code, message: _note(notes, severity, code, message)   # noqa: E731
+    say = lambda j, severity, code, message: _add_note(notes, severity, code, message)   # noqa: E731
     r._diag = say
     r._diag_once = say
-    r._pregen_note = lambda j, code, message: _note(notes, "warn", code, message)
+    r._pregen_note = lambda j, code, message: _add_note(notes, "warn", code, message)
     try:
         args = r._submit_args(job)
         if args is None:
@@ -87,16 +87,16 @@ def video_package(p, runner, job) -> Dict[str, Any]:
         return out
     for key, what in (("_wait", "chờ"), ("_hold", "giữ")):
         if kwargs.get(key):
-            _note(notes, "warn", key.strip("_"), f"lúc gửi job sẽ {what}: {kwargs[key]}")
+            _add_note(notes, "warn", key.strip("_"), f"lúc gửi job sẽ {what}: {kwargs[key]}")
     if chat_prompt.enabled():
-        _note(notes, "info", "d6", "D6 (chat_prompts) bật: lúc gửi Claude viết lại prompt từ bản code ghép dưới đây — xem trước không gọi "
+        _add_note(notes, "info", "d6", "D6 (chat_prompts) bật: lúc gửi Claude viết lại prompt từ bản code ghép dưới đây — xem trước không gọi "
                                    "Claude (0 USD), prompt thật có thể khác chữ")
     if r.__dict__.get("_pregen_deferred"):
-        _note(notes, "info", "hosted", "ảnh qua Kho chủ thể: lúc gửi sẽ tải lên (asset://) — đây là tệp cục bộ sẽ được tải")
+        _add_note(notes, "info", "hosted", "ảnh qua Kho chủ thể: lúc gửi sẽ tải lên (asset://) — đây là tệp cục bộ sẽ được tải")
     sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}
     pkg, warns = r._build_package(job, args, kwargs, sent_kwargs, None)
     for w in warns:
-        _note(notes, "warn", "sent_package", w)
+        _add_note(notes, "warn", "sent_package", w)
     if not pkg:
         out["why"] = "không dựng được gói gửi (xem ghi chú)"
         return out
