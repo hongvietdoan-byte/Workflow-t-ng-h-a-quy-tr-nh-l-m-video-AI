@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:50:06.314612+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-FIX-THAP-1",
+  "branch": "cloud/v31-fix-thap-1",
+  "commit": "8961263d",
+  "report": "docs/RA_CLOUD_FIX_THAP_1_2026-10-20.md",
+  "text": "6 mục: (1) 1 khung đầu + nhớ motion_series 4 clip; (2) _BEHIND_ANY chỉ trường máy; (3) sân khấu ≠ ngoài trời; (4) câu code cũ theo dấu vân tay; (5) test hành vi estimate_images claude_cli = 0 (đã đúng); (6) _LOSE/_SHIFT hẹp. 21 test (11 đỏ→xanh), test DP1/M17 cũ đổi theo nghĩa mới; cả bộ 6447 qua + 4 đỏ có sẵn"
+}
