@@ -39,3 +39,30 @@ Chung cho mọi gói: chi phí thử 0 USD (provider giả, test offline); mọi
 | C3-12 | **Pilot vòng C** 20–40 shot (dự án mới thật) | M5.5 | autopilot theo cờ đã bật; ngưỡng C: duyệt lần đầu ≥ 50 %, gen lại video ≤ 1,0/shot, ảnh ≤ 1,5/shot | tiền | dừng đợt | **≈ 52–136 USD** (giữa ≈ 112; trần lý thuyết 576) | sau pilot B đạt | Để sau (quyết theo kết quả B) | |
 
 Không phải Cấp 3 (Cấp 1, 0 USD, chỉ đọc — làm khi người dùng bảo): chụp fixture / dữ liệu vòng A ở máy chính (D08), đếm số liệu Kho cho M0.9.
+
+## C. KẾT QUẢ DUYỆT 20/10 (văn bản "PHÊ DUYỆT GÓI CẤP 2 / CẤP 3 — V3.1") + tiêu chí mở khóa
+
+Sổ: `v31-cap2-milestone-packages-approved-2026-10-20`, `v31-cap3-items-decided-2026-10-20`. Đây là phê duyệt triển khai có kiểm soát,
+KHÔNG phải phê duyệt chi tiêu hay toàn quyền production. Cột "Người dùng" ở mục A/B lấy theo bảng này.
+
+| Mã | Kết quả | Điều kiện / tiêu chí mở khóa (phải chứng minh bằng test hoặc báo cáo kiểm tra) | Trạng thái |
+|---|---|---|---|
+| G2-1 | DUYỆT | không VERIFIED nếu thiếu commit + test + bằng chứng vận hành | được làm |
+| G2-2 | DUYỆT CÓ ĐK | checkpoint có test + rollback độc lập; đối chiếu HEAD M1.1/M1.4a trước khi làm tiếp; không tự làm Cấp 3 | được làm (ưu tiên 1) |
+| G2-3 | DUYỆT CÓ ĐK | mở khi: M0.9 + M0.10 gộp main, M1.9 golden có fixture #24/#27; BYĐ v1, Kho cũ, dự án cũ vẫn chạy | chờ đầu vào |
+| G2-4 | DUYỆT CÓ ĐK | world map chỉ offline; không chặn gen; không bắt buộc 3D | chờ M2 |
+| G2-5 | DUYỆT CÓ ĐK | QC chỉ Shadow/REVIEW; không tự BLOCK/tự sửa production | chờ M2 |
+| G2-6 | DUYỆT CÓ ĐK | router mặc định TẮT; pilot A offline 0 USD | chờ M3/M4 |
+| C3-0 | DUYỆT CÓ ĐK | M1.4a gộp main + test chứng minh tiến trình CLI không nhận key (`test_the_claude_subprocess_never_receives_the_key`) → đổi `dashboard.env` → restart → kiểm worker/tiến trình (env tiến trình con không có key, `provider_status`, health 8501/8503) | chờ M1.4a gộp |
+| C3-1 | DUYỆT CÓ ĐK | backup CSDL; test worker cũ/mới cùng chạy với cột mới; kế hoạch khôi phục CSDL viết sẵn | chờ code M1.4b |
+| C3-2 | DUYỆT CÓ ĐK | test 2 worker, crash/reconcile, submit không rõ kết quả đều đạt | chờ code M1.2/M1.3 |
+| C3-3 | CHỈ DRY-RUN | chạy liệt kê: danh sách asset + dependency + lý do → trình duyệt riêng TỪNG lần xóa | chờ code M1.5 |
+| C3-4 | DUYỆT CÓ ĐK | M4.7 sẵn sàng; backup; test schema | chờ M4.7 |
+| C3-5 | KHẢO SÁT + NHÁP | đếm số liệu Kho (0 USD) + nháp; người dùng duyệt dữ liệu trước backfill; không ghi đè hồ sơ production | chờ M0.9 |
+| C3-6 | ĐỂ SAU | số liệu shadow ≥ 1 dự án + kiểm đủ mọi đường ghi | — |
+| C3-7 | ĐỂ SAU | golden + correctness regression xanh; trình từng cờ | — |
+| C3-8 | ĐỂ SAU | map offline được duyệt + dự toán riêng | — |
+| C3-9 | ĐỂ SAU | benchmark từng mã lỗi, nhất là tỉ lệ báo nhầm | — |
+| C3-10 | ĐỂ SAU | pilot + cơ chế giới hạn chi phí tự động | — |
+| C3-11 | NGUYÊN TẮC (chưa chi) | trình `pregen_check`, hard cap, phạm vi job, phương án dừng trước khi chạy | chờ M5.1–M5.3 |
+| C3-12 | ĐỂ SAU | pilot B đạt nghiệm thu | — |

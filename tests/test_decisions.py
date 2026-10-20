@@ -307,3 +307,19 @@ def test_v31_speedup_recorded():
     assert it["status"] == "active" and it["replaces"] is None
     assert "MILESTONE" in it["text"] and "Cấp 3" in it["text"] and "v31-permission-tiers-2026-10-20" in it["keeps"]
     assert items["v31-permission-tiers-2026-10-20"]["status"] == "active"
+
+
+def test_v31_cap2_cap3_approval_recorded():
+    """20/10 'PHÊ DUYỆT GÓI CẤP 2 / CẤP 3 — V3.1': Cấp 2 duyệt theo milestone có điều kiện; Cấp 3 từng mục — C3-3 chỉ dry-run,
+    C3-11 chưa duyệt chi tiêu; không thay cấp quyền gốc."""
+    items = {i["id"]: i for i in LEDGER["items"]}
+    c2 = items["v31-cap2-milestone-packages-approved-2026-10-20"]
+    c3 = items["v31-cap3-items-decided-2026-10-20"]
+    assert c2["status"] == c3["status"] == "active" and c2["replaces"] is None and c3["replaces"] is None
+    for code in ("G2-1", "G2-2", "G2-3", "G2-4", "G2-5", "G2-6"):
+        assert code in c2["text"], code
+    for code in ("C3-0", "C3-1", "C3-2", "C3-3", "C3-4", "C3-5", "C3-11"):
+        assert code in c3["text"], code
+    assert "DRY-RUN" in c3["text"] and "CHƯA duyệt chi tiêu" in c3["text"]
+    assert "không cấp quyền migration" in c2["keeps"]
+    assert items["v31-permission-tiers-2026-10-20"]["status"] == "active"

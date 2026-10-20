@@ -513,6 +513,28 @@
    "replaces": null,
    "enforced_by": [],
    "status": "active"
+  },
+  {
+   "id": "v31-cap2-milestone-packages-approved-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'PHÊ DUYỆT GÓI CẤP 2 / CẤP 3 — V3.1', chat 20/10)",
+   "text": "Cấp 2 theo milestone: G2-1 sổ lỗi DUYỆT (không VERIFIED nếu thiếu commit+test+bằng chứng vận hành); G2-2 M1 DUYỆT CÓ ĐIỀU KIỆN (checkpoint có test + rollback độc lập; đối chiếu HEAD M1.1/M1.4a trước khi làm tiếp; không tự làm Cấp 3); G2-3 M2 DUYỆT CÓ ĐIỀU KIỆN (chỉ bắt đầu khi M0.9, M0.10, M1.9 đạt đầu vào; BYĐ v1, Kho cũ, dự án cũ vẫn chạy); G2-4 M3 DUYỆT CÓ ĐIỀU KIỆN (world map chỉ thử offline, không chặn gen, không bắt buộc 3D); G2-5 M4 DUYỆT CÓ ĐIỀU KIỆN (QC Shadow/REVIEW, không tự BLOCK/tự sửa production); G2-6 M5 DUYỆT CÓ ĐIỀU KIỆN (router mặc định TẮT; pilot A offline 0 USD). Triển khai liên tục khi đủ phụ thuộc, không xin lại từng file; vượt phạm vi → trình riêng. Ưu tiên xong M1 + golden M1.9 trước M2. Mỗi milestone: báo cáo nghiệm thu, commit, test, rollback, rủi ro mở.",
+   "keeps": "v31-permission-tiers-2026-10-20 (Cấp 2 không cấp quyền migration, xóa asset, bật cờ production, gọi API trả phí); nguyên tắc: không đổi provider job đang chạy; không gửi lại job submit chưa rõ khi chưa đối soát provider; cờ TẮT tương thích workflow cũ (không giữ được → báo trước).",
+   "changes": "Cấp 2: được viết code, test offline, commit, cập nhật tài liệu trong phạm vi milestone đã duyệt. Bảng: docs/V3_1_GOI_DUYET_CAP2_CAP3_2026-10-20.md mục A.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-cap3-items-decided-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (văn bản 'PHÊ DUYỆT GÓI CẤP 2 / CẤP 3 — V3.1', chat 20/10)",
+   "text": "Cấp 3 từng mục: C3-0 DUYỆT CÓ ĐIỀU KIỆN (chuyển dashboard.env sang claude_cli chỉ sau khi xác minh M1.4a bỏ key khỏi CLI; kiểm lại worker/tiến trình sau restart). C3-1 DUYỆT CÓ ĐIỀU KIỆN (migration cột provider sau backup, kiểm tương thích worker cũ/mới, có kế hoạch khôi phục CSDL). C3-2 DUYỆT CÓ ĐIỀU KIỆN (bật cờ M1.2/M1.3 sau khi test 2 worker, crash/reconcile, submit không rõ kết quả đều đạt). C3-3 CHỈ DUYỆT DRY-RUN (chưa xóa asset thật; trình danh sách + dependency + lý do để duyệt riêng). C3-4 DUYỆT CÓ ĐIỀU KIỆN (bảng overrides khi M4.7 sẵn sàng, backup, test schema). C3-5 DUYỆT KHẢO SÁT + NHÁP (chưa ghi đè hồ sơ Kho production; người dùng duyệt dữ liệu trước backfill). C3-6, C3-7, C3-8, C3-9, C3-10, C3-12 ĐỂ SAU. C3-11 DUYỆT NGUYÊN TẮC PILOT B, CHƯA duyệt chi tiêu (trình pregen_check, hard cap, phạm vi job, phương án dừng trước khi chạy). Không phải phê duyệt chi tiêu hay toàn quyền production.",
+   "keeps": "v31-permission-tiers-2026-10-20; v31-d01…d10; chính sách tiền 04/10; không xóa/ghi đè dữ liệu production khi chưa có phê duyệt cụ thể.",
+   "changes": "Mục Cấp 3 có điều kiện chỉ thực hiện khi điều kiện được chứng minh bằng test / báo cáo kiểm tra. Danh sách chờ + tiêu chí mở khóa: docs/V3_1_GOI_DUYET_CAP2_CAP3_2026-10-20.md mục B.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
   }
  ]
 }

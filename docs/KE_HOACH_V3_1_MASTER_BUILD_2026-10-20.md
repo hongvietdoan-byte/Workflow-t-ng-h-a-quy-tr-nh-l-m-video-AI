@@ -1,6 +1,6 @@
 # Kế hoạch V3.1 — Master Build Plan (20/10/2026) — NGUỒN DUY NHẤT VỀ TIẾN ĐỘ BUILD V3.1
 
-> Đợt ưu tiên: M0
+> Đợt ưu tiên: M1 (G2-2 duyệt 20/10 — ưu tiên M1 + golden M1.9 trước M2; song song M0.4–M0.5 sổ lỗi G2-1; M0.6–M0.11 ở làn cloud)
 
 > **Nguồn:** `E:/Tai xuong/AI_VIDEO_PIPELINE_MASTER_PLAN_V3_1_2026_10_20.pdf` (người dùng 20/10, 11 trang) — chuyển sang markdown để AI Dev
 > System (`devsys/plans.json`, kiểu `viec_s`) tính tiến độ từ danh sách việc ở mục 5. Hợp nhất: KH-gốc 17/10, V2.1 R2/R3
@@ -156,15 +156,15 @@ kiểm giá trị; không đổi `STATUSES`.
 <!-- tien-do -->
 | Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | Tiến độ |
 |---|---|---|---|---|---|---|
-| M0 Đóng băng và thiết kế (0 USD) | 12 | 4 | 0 | 2 | 0 | 27,8 % |
+| M0 Đóng băng và thiết kế (0 USD) | 12 | 5 | 0 | 0 | 0 | 33,3 % |
 | M1 Nền tin cậy (0 USD, provider giả) | 9 | 1 | 1 | 0 | 0 | 13,2 % |
-| M2 Hợp đồng sản xuất có cấu trúc | 9 | 0 | 0 | 2 | 0 | 0 % |
-| M3 Thế giới và liên tục | 5 | 0 | 0 | 1 | 0 | 0 % |
+| M2 Hợp đồng sản xuất có cấu trúc | 9 | 0 | 0 | 0 | 0 | 0 % |
+| M3 Thế giới và liên tục | 5 | 0 | 0 | 0 | 0 | 0 % |
 | M4 QC có bằng chứng và Dashboard | 7 | 0 | 0 | 0 | 0 | 0 % |
 | M5 Sửa chọn lọc và pilot | 5 | 0 | 0 | 2 | 0 | 0 % |
-| **Tổng** | **47** | **5** | **1** | **7** | **0** | **8,1 %** |
+| **Tổng** | **47** | **6** | **1** | **2** | **0** | **9,1 %** |
 
-Đợt hiện tại: **M0** · việc kế: **M0.6** Bảng AS-IS/TO-BE WS0–WS6 theo file:hàm (IMPL/PART/MISS/UNK)
+Đợt hiện tại: **M1** · việc kế: **M1.2** Succeed/poll nguyên tử liên tiến trình + ghi tệp tạm rồi đổi tên (A1, A15)
 <!-- /tien-do -->
 
 Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · ✅ xong · ✖ bỏ. Mỗi việc xong ghi commit + bằng chứng.
@@ -173,15 +173,15 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M0.1 · Audit HEAD, cờ máy chính, schema CSDL, provider/model → biên bản docs/audit/M0_BASELINE_2026-10-20.md · nặng:1 · ✅ · biên bản docs/audit/M0_BASELINE_2026-10-20.md: HEAD/cờ/schema/provider đo trên máy chính
 - [ ] M0.2 · Kiểm 6 lỗi báo đã sửa (G7, G8, G10, G24, G27, G35) có trên HEAD + test tương ứng · nặng:1 · ✅ · 8 commit trên HEAD, 11 file test 331 qua → sổ lỗi FIXED_UNVERIFIED
 - [ ] M0.3 · Chốt D01–D10: người dùng chọn từng mục trong docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, rồi ghi sổ + test · nặng:1 · ✅ · người dùng chốt 20/10; sổ v31-d01…v31-d10 + test_v31_d01_to_d10_recorded_as_policy_not_implementation
-- [ ] M0.4 · Schema sổ lỗi devsys/errors.json + test hợp đồng (mã không trùng, VERIFIED cần commit+test+bằng chứng, OPEN cần workstream) · nặng:2 · ⏸
-- [ ] M0.5 · Nhập G1–G58, A1–A15, B1–B12 có nguồn; báo cáo coverage 100 % (G25 khuyết ghi rõ) · nặng:2 · ⏸
+- [ ] M0.4 · Schema sổ lỗi devsys/errors.json + test hợp đồng (mã không trùng, VERIFIED cần commit+test+bằng chứng, OPEN cần workstream) · nặng:2 · ⬜ · G2-1 duyệt 20/10
+- [ ] M0.5 · Nhập G1–G58, A1–A15, B1–B12 có nguồn; báo cáo coverage 100 % (G25 khuyết ghi rõ) · nặng:2 · ⬜ · G2-1 duyệt 20/10
 - [ ] M0.6 · Bảng AS-IS/TO-BE WS0–WS6 theo file:hàm (IMPL/PART/MISS/UNK) · nặng:2 · ⬜
 - [ ] M0.7 · Ma trận test bắt buộc cho từng milestone theo CHUAN_XAY_DUNG + devsys/areas.json · nặng:1 · ⬜
 - [ ] M0.8 · AI Dev System: trang sơ đồ tiến độ vẽ từ kế hoạch + sổ khâu (+ sổ lỗi khi có), tô màu theo trạng thái việc · nặng:2 · ✅ · người dùng yêu cầu trực tiếp 20/10; devsys/plan_map.py + trang 🗺; quy ước 7 đã rà, 11 lỗi đã sửa
 - [ ] M0.9 · Thiết kế Kho forms/outfit/hair/face + provenance theo 6 điều kiện M2.3 (schema version, adapter v1/v2, kế hoạch migration, regression) — chỉ tài liệu · nặng:2 · ⬜
 - [ ] M0.10 · Đặc tả AUTO/USER_LOCKED/REVIEW_REQUIRED + audit MỌI đường ghi scenes.data/Kho thật (file:hàm) + thiết kế test — chỉ tài liệu · nặng:2 · ⬜
 - [ ] M0.11 · Test plan + tiêu chí 3 vòng pilot (A offline, B 5–8 shot, C 20–40 shot) + dự toán B/C — chỉ tài liệu · nặng:1 · ⬜
-- [ ] M0.12 · Gói xin duyệt phạm vi M1 (file/module, hợp đồng, tác động đường cũ, test, cờ/rollback, chi phí) — Cấp 2 · nặng:1 · 🔄 · bảng chốt docs/V3_1_GOI_DUYET_CAP2_CAP3_2026-10-20.md (G2-1…G2-6, C3-0…C3-12) chờ người dùng
+- [ ] M0.12 · Gói xin duyệt phạm vi M1 (file/module, hợp đồng, tác động đường cũ, test, cờ/rollback, chi phí) — Cấp 2 · nặng:1 · ✅ · người dùng duyệt 20/10: docs/V3_1_GOI_DUYET_CAP2_CAP3_2026-10-20.md mục C; sổ v31-cap2-milestone-packages-approved + v31-cap3-items-decided
 
 ### M1 — Nền tin cậy (0 USD, provider giả)
 - [ ] M1.1 · Parser vat v1 str→{vat} cho qc_observe (R3, #31 shot 30) · nặng:1 · ✅ · gộp 36fcb4bd (20/10); cả bộ not-slow 6136 qua; FIXED_UNVERIFIED tới khi QC thật chạy #30/#31 (#31 còn thiếu hồ sơ LÍNH ĐỊCH ÁO CHOÀNG — dữ liệu Kho)
@@ -197,16 +197,16 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 ### M2 — Hợp đồng sản xuất có cấu trúc
 - [ ] M2.1 · BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN · nặng:3 · ⬜
 - [ ] M2.2 · Field readers A2a–A2f + byd vào lineage khi cờ bật (G4, G22) · nặng:3 · ⬜
-- [ ] M2.3 · Triển khai Kho forms/outfit/hair/face (G38) theo thiết kế M0.9 — code Cấp 2, backfill/migration Cấp 3 · nặng:2 · ⏸
+- [ ] M2.3 · Triển khai Kho forms/outfit/hair/face (G38) theo thiết kế M0.9 — code Cấp 2, backfill/migration Cấp 3 · nặng:2 · ⬜ · G2-3 duyệt có ĐK (sau M0.9, M0.10, M1.9); backfill = C3-5 chỉ khảo sát + nháp
 - [ ] M2.4 · insert_scene_after kế thừa bối cảnh + BYĐ DRAFT; chỉ mang đạo cụ có trong BYĐ (G6, G21, G1) · nặng:2 · ⬜
-- [ ] M2.5 · Triển khai AUTO/USER_LOCKED/REVIEW_REQUIRED mọi đường ghi theo đặc tả M0.10 (A4), shadow trước — Cấp 2 · nặng:2 · ⏸
+- [ ] M2.5 · Triển khai AUTO/USER_LOCKED/REVIEW_REQUIRED mọi đường ghi theo đặc tả M0.10 (A4), shadow trước — Cấp 2 · nặng:2 · ⬜ · G2-3 duyệt có ĐK (shadow); enforce = C3-6 để sau
 - [ ] M2.6 · sent_package nhãn theo rel_path/asset_id (G5) · nặng:1 · ⬜
 - [ ] M2.7 · Image preflight trong ImageRunner._pregen, chung mã lỗi với video_pregen · nặng:3 · ⬜
 - [ ] M2.8 · Router theo khả năng model: không gộp nhóm khi cần khung đầu (G28, G37, B9); ngân sách ký tự (G13, G54) · nặng:2 · ⬜
 - [ ] M2.9 · Lời dẫn ngoài khớp môi mọi caller (G15–G17, G53); fit_durations hiện danh sách duyệt (G14); thông điệp khung cuối (A11); BYĐ qua claude_cli (A12) · nặng:2 · ⬜
 
 ### M3 — Thế giới và liên tục
-- [ ] M3.1 · scene_world_map thử nghiệm (3D hoặc 2D, UNKNOWN, version/provenance, người duyệt map) trên #31/#33 — sau khi M3 được duyệt, không bật production · nặng:3 · ⏸
+- [ ] M3.1 · scene_world_map thử nghiệm (3D hoặc 2D, UNKNOWN, version/provenance, người duyệt map) trên #31/#33 — sau khi M3 được duyệt, không bật production · nặng:3 · ⬜ · G2-4 duyệt có ĐK (chỉ offline)
 - [ ] M3.2 · Người nộm height_m trong whitebox; pitch eye/slightly_high; kiểm depth che (G2, G3, A10, G49) · nặng:2 · ⬜
 - [ ] M3.3 · Câu vị trí sinh từ world map, không tả tay từng shot (G41–G50, G46) · nặng:3 · ⬜
 - [ ] M3.4 · continuity_state expected/observed/resolved + đồ thị phụ thuộc theo thực thể · nặng:3 · ⬜
@@ -225,8 +225,8 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M5.1 · Repair router theo mã lỗi, trần ảnh ≤ 3 / video ≤ 2, dừng khi đổi ý đồ · nặng:3 · ⬜
 - [ ] M5.2 · Release gate: shot duyệt, final QC, đối soát chi phí, lỗi nghiêm trọng mở = 0 hoặc có miễn trừ ký tên · nặng:2 · ⬜
 - [ ] M5.3 · Pilot vòng A Offline Regression: replay lỗi #31/#33 (payload, continuity, QC, lineage, phục hồi), 0 USD · nặng:2 · ⬜
-- [ ] M5.4 · Pilot vòng B 5–8 shot, duyệt từng đợt — dự toán + người dùng đồng ý trước API trả phí (Cấp 3) · nặng:2 · ⏸
-- [ ] M5.5 · Pilot vòng C 20–40 shot: chất lượng, tỉ lệ gen lại, continuity, chi phí, can thiệp tay (Cấp 3) · nặng:2 · ⏸
+- [ ] M5.4 · Pilot vòng B 5–8 shot, duyệt từng đợt — dự toán + người dùng đồng ý trước API trả phí (Cấp 3) · nặng:2 · ⏸ · C3-11 duyệt nguyên tắc, CHƯA duyệt chi tiêu
+- [ ] M5.5 · Pilot vòng C 20–40 shot: chất lượng, tỉ lệ gen lại, continuity, chi phí, can thiệp tay (Cấp 3) · nặng:2 · ⏸ · C3-12 để sau
 
 ## 6. Nhật ký
 
