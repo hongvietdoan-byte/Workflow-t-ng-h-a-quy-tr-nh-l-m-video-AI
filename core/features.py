@@ -355,6 +355,12 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.22 cổng S11.2 ĐẠT: người dùng chấm phiếu 05d (docs/DO_S11_2_Y_TUONG_2026-10-05d.md) TB 4,20 ≥ 4,0, đo thật 0,709 USD; "
                "06/10 người dùng duyệt bật mặc định — dùng khi người dùng yêu cầu hoặc khi kịch bản sơ sài (Claude hỏi trong khung chat, chưa tự chi)",
     },
+    "final_black_freeze": {
+        "label": "Kiểm bản dựng cuối: đoạn màn hình ĐEN (≥ 0,5 s) và ĐỨNG HÌNH (> 1,5 s) bằng ffmpeg blackdetect / freezedetect — chỉ "
+                 "cảnh báo (cần xem), không chặn xuất (V3.1 M4.4)",
+        "verified": False,
+        "why": "Người dùng 11/10: video không được đơ; G51 (#31 shot 13 đơ 6 s). Ngưỡng chưa hiệu chuẩn trên bản dựng thật",
+    },
     "qc_observe_enum": {
         "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",
         "verified": False,

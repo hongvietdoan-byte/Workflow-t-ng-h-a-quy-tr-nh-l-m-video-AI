@@ -21,6 +21,13 @@ LENGTH_WARN, LENGTH_BLOCK = 0.10, 0.20       # cut longer / shorter than the pla
 PEAK_BLOCK = -1.0                           # dBTP: above this the platform's re-encode clips (AES TD1008)
 SILENT_DB, SILENT_S = -45.0, 2.5            # the whole mix this quiet for this long (not the last 1,5 s) = a hole in the sound
 SHORT_SHOT_S = 1.0
+# V3.1 M4.4 (DP3, cờ final_black_freeze — TẮT): đoạn ĐEN / ĐỨNG HÌNH của bản dựng cuối, mức "warn" (REVIEW — không chặn xuất, G2-5).
+BLACK_FREEZE_FLAG = "final_black_freeze"
+BLACK_MIN_S = 0.5          # blackdetect d= : đen liền ít nhất chừng này
+BLACK_PIX = 0.10           # blackdetect pix_th= : điểm ảnh tối hơn mức này (0–1) tính là đen
+FREEZE_S = 1.5             # freezedetect d= : đứng hình > 1,5 s (khớp M4.2 QC-V2-STILL_OVER_1_5S; quyết định 11/10 "video không được đơ")
+FREEZE_NOISE = 0.003       # freezedetect n= : khác biệt khung nhỏ hơn mức này = đứng hình (mặc định ffmpeg 0,001 quá chặt với nén h264)
+END_FADE_S = 1.5           # đen / đứng hình chạm hết phim trong khoảng cuối này = mờ dần kết phim (như silent_spans), không báo
 
 
 def _issue(code: str, level: str, msg: str, at: Optional[float] = None) -> Dict:
@@ -160,6 +167,56 @@ def silent_spans(video: str, window: float = 0.5, ffmpeg: Optional[str] = None) 
     return out
 
 
+def _detect(video: str, vf: str, ffmpeg: Optional[str] = None) -> str:
+    ffmpeg = ffmpeg or ffmpeg_studio.find_ffmpeg()
+    proc = subprocess.run([ffmpeg, "-hide_banner", "-nostats", "-i", video, "-an", "-vf", vf, "-f", "null", "-"], capture_output=True,
+                          text=True, encoding="utf-8", errors="replace")
+    if proc.returncode != 0:
+        raise OSError((proc.stderr or "")[-300:])
+    return proc.stderr or ""
+
+
+def black_freeze_spans(video: str, ffmpeg: Optional[str] = None) -> Dict[str, List[Tuple[float, float]]]:
+    """{"black": [(t0, t1)], "freeze": [(t0, t1)]} giây — ffmpeg blackdetect + freezedetect trên toàn bản dựng (một lượt mỗi bộ lọc).
+    Không đọc được → OSError / FFmpegNotFound (nơi gọi nói rõ)."""
+    err = _detect(video, f"blackdetect=d={BLACK_MIN_S}:pix_th={BLACK_PIX}", ffmpeg)
+    black = [(float(a), float(b)) for a, b in re.findall(r"black_start:([\d.]+)\s+black_end:([\d.]+)", err)]
+    err = _detect(video, f"freezedetect=n={FREEZE_NOISE}:d={FREEZE_S}", ffmpeg)
+    starts = [float(x) for x in re.findall(r"freeze_start:\s*([\d.]+)", err)]
+    ends = [float(x) for x in re.findall(r"freeze_end:\s*([\d.]+)", err)]
+    total = ffmpeg_studio.probe_duration(video) or 0.0
+    freeze = [(a, ends[i] if i < len(ends) else total) for i, a in enumerate(starts)]   # đứng tới hết phim: không có freeze_end
+    return {"black": black, "freeze": freeze}
+
+
+def _shot_at(timeline: Sequence[Dict], t: float) -> Optional[str]:
+    acc = 0.0
+    for r in timeline or []:
+        acc += float(r.get("seconds") or 0)
+        if t < acc:
+            return str(r.get("idx"))
+    return None
+
+
+def check_black_freeze(video: str, timeline: Sequence[Dict] = ()) -> List[Dict]:
+    """V3.1 M4.4: đoạn đen ≥ BLACK_MIN_S và đứng hình > FREEZE_S (trừ mờ dần kết phim) → "warn" (REVIEW, không chặn). Không đo được →
+    một "warn" nói rõ (không coi là đạt)."""
+    try:
+        spans = black_freeze_spans(video)
+    except (OSError, ffmpeg_studio.FFmpegNotFound) as e:
+        return [_issue("black_freeze_unmeasured", "warn", f"không đo được đoạn đen / đứng hình của bản dựng ({str(e)[:120]}) — xem tay")]
+    total = ffmpeg_studio.probe_duration(video) or 0.0
+    out = []
+    for code, what, rows in (("black_frame", "màn hình ĐEN", spans["black"]), ("freeze_frame", "ĐỨNG HÌNH", spans["freeze"])):
+        for a, b in rows:
+            if total and b >= total - 0.05 and a >= total - END_FADE_S:
+                continue                                   # mờ dần kết phim
+            shot = _shot_at(timeline, a)
+            out.append(_issue(code, "warn", f"{what} {b - a:.1f} s ({a:.1f}–{b:.1f} s{', shot ' + shot if shot else ''}) — xem lại clip / điểm nối "
+                                            "(video không được đơ)", a))
+    return out
+
+
 def check_silence(video: str) -> List[Dict]:
     try:
         spans = silent_spans(video)
@@ -218,6 +275,9 @@ def run(p: Pipeline, project_id: int, data_dir: str, frames: bool = True, layers
                 issues += check_srt(f.read(), speakers)
     if frames and os.path.exists(fin["path"]):
         issues += check_silence(fin["path"])
+        from . import features
+        if features.on(BLACK_FREEZE_FLAG):      # V3.1 M4.4: REVIEW (warn), không thêm chặn
+            issues += check_black_freeze(fin["path"], timeline)
         if sub is not None:
             try:
                 sub_man = json.loads(sub["manifest"] or "{}")
