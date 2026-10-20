@@ -1396,3 +1396,6 @@ push `hộp thư:` TRƯỚC khi code; làn khác nhận trước thì bỏ, lấ
 
 - Đ20 việc 1 · codex/d20-viec1-so-loi · commit rà xem git log (cùng báo cáo) · RÀ KỸ sửa 2 P2: đủ mọi lần failed + JSON tiền hữu hạn; 2 regression đỏ → 9 test xanh (1,18s); native cost UNKNOWN khi thiếu USD, chờ cả bộ Windows/slow trước gộp.
 - Việc 2 bổ sung · `codex/d20-viec2-golden`: frozen pre-send input ảnh/video qua ImageRunner/VideoRunner._build_package thật; 3 đỏ →25 xanh/9,47s; COMPAT byte + correctness cấu trúc riêng, provider stub fake/clipai/deepix; M1.9a OPEN (chưa `_submit_args`/capture sản xuất/chất lượng/cả bộ). Chi tiết RA_D20_VIEC2; không API/dữ liệu thật, chưa push/gộp.
+
+### Kết quả Codex CX20-2b (từng phần)
+Hai VỪA + THẤP: catalog COMPAT đủ/OFF, queued cảnh báo, Git fallback, đóng SQLite, replay API worker cách ly cwd/env; đỏ 2/35 → xanh 40, xác nhận 40. CAO-M2 actual DB replay còn OPEN, không mở khóa M2. Báo cáo docs/RA_D20_VIEC2B_CODEX_2026-10-20.md. Không push/main/live.

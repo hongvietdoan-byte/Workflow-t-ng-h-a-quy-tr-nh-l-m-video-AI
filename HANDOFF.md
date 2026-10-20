@@ -22,3 +22,6 @@ Giữ nguyên areas version. Không push, không sửa TODO/kế hoạch/main. P
 - M1.9a vẫn OPEN: chưa prompt assembly `_submit_args`/snapshot DB sản xuất/quality thật. Root đọc diff, rà độc lập rồi quyết định bước tiếp; không gộp/push/TODO ở nhánh này.
 - Chi tiết giới hạn/sidecar/env launcher trong RA_D20_VIEC2. Phiên kế không sinh lại baseline từ code hiện tại để làm xanh.
 - Finding tự rà cuối: fingerprint video JSON key string; đã đổi snapshot field đơn và ca video có frozen-fingerprint; xác nhận 25 xanh/9,60s. Rà độc lập `d20_golden_final_review` đang đọc.
+
+## CX20-2b — bàn giao từng phần
+Hai VỪA + THẤP đã có 40 test xanh. CAO-M2 actual DB replay vẫn OPEN, không mở khóa M2. Xem docs/RA_D20_VIEC2B_CODEX_2026-10-20.md; dependency đã cherry-pick có chủ ý, không push/main/live. Phần kế cần dependency manifest trước prepare + sandbox deny-read, phân biệt DATA_CHANGED/INSUFFICIENT_INPUT với CODE_MISMATCH; không suy args lịch sử từ package.

@@ -35,7 +35,7 @@ def golden(tmp_path):
         conn.commit()
         conn.close()
         flags = tmp_path / "flags.json"
-        flags.write_text('{"new_feature": false}', encoding="utf-8")
+        flags.write_text(json.dumps({**{k: False for k, v in module.feature_catalog().items() if v.get("verified") is False}, "new_feature": False}), encoding="utf-8")
         yield module, db, flags, tmp_path, raw
 
 
@@ -54,7 +54,7 @@ def test_capture_preserves_bytes_order_hash_and_readonly(golden):
     assert result["jobs"][0]["sent_package_raw"] == raw
     assert result["jobs"][0]["refs"][0]["hash_status"] == "match"
     assert result["head_sha"] == "a" * 40
-    assert result["flags"] == {"new_feature": False}
+    assert result["flags"]["new_feature"] is False
     assert result["schema"]["user_version"] == 0
     assert result["replay_status"] == "OPEN"
 
@@ -202,11 +202,14 @@ def test_sidecar_rejects_credential_fields_before_output(golden, field):
 
 
 def test_capture_structured_flags_preserves_legacy_on(golden):
-    _, _, flags, _, _ = golden
-    flags.write_text(json.dumps({"flags": {"legacy": True, "new": False}, "experimental_flags": ["new"]}), encoding="utf-8")
+    module, _, flags, _, _ = golden
+    values = {k: False for k, v in module.feature_catalog().items() if v.get("verified") is False}
+    legacy = next(k for k, v in module.feature_catalog().items() if v.get("verified") is True)
+    values[legacy] = True
+    flags.write_text(json.dumps({"flags": values, "experimental_flags": []}), encoding="utf-8")
     result = capture(golden)
-    assert result["flags"] == {"legacy": True, "new": False}
-    assert result["experimental_flags"] == ["new"]
+    assert result["flags"] == values
+    assert result["experimental_flags"] == []
     assert result["flags_provenance"] == "explicit_file_unverified_at_send"
 
 
@@ -223,3 +226,40 @@ def test_capture_structured_flags_rejects_on_or_invalid_metadata(golden, payload
     flags.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(module.GoldenError, match="flags|COMPAT"):
         capture(golden)
+
+
+def test_compat_requires_every_unverified_flag(golden):
+    module, _, flags, _, _ = golden
+    flags.write_text(json.dumps({"flags": {}, "experimental_flags": []}), encoding="utf-8")
+    with pytest.raises(module.GoldenError, match="COMPAT"):
+        capture(golden)
+
+
+def test_queued_job_warns(golden):
+    with sqlite3.connect(golden[1]) as conn:
+        conn.execute("UPDATE jobs SET state='queued'")
+    assert any("snapshot" in value for value in capture(golden)["warnings"])
+
+
+@pytest.mark.parametrize("change", ["missing_one", "enabled_unverified"])
+def test_catalog_cannot_be_bypassed_by_experimental_list(golden, change):
+    module, _, flags, _, _ = golden
+    values = {k: False for k, v in module.feature_catalog().items() if v.get("verified") is False}
+    key = next(iter(values))
+    if change == "missing_one":
+        del values[key]
+    else:
+        values[key] = True
+    flags.write_text(json.dumps({"flags": values, "experimental_flags": []}), encoding="utf-8")
+    with pytest.raises(module.GoldenError, match="COMPAT"):
+        capture(golden)
+
+
+def test_replay_api_does_not_change_global_cwd_or_environment(tmp_path):
+    with patch.object(os, "environ", {}):
+        module = importlib.import_module("tools.golden_capture")
+        snapshot = json.loads((Path(__file__).parent / "golden/package_inputs.json").read_text(encoding="utf-8"))["image"]
+        (tmp_path / "ref.bin").write_bytes(b"synthetic")
+        with patch.object(os, "chdir", side_effect=AssertionError("global cwd")):
+            actual = module.replay_builder(snapshot, ref_root=tmp_path)
+        assert actual == snapshot["baseline"].encode("utf-8")
