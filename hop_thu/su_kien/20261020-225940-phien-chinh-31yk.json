@@ -1,0 +1,13 @@
+{
+  "ts": "2026-10-20T22:59:40.826485+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "DP9",
+  "to": "pool",
+  "title": "M2.7 image preflight (REVIEW, cờ TẮT)",
+  "spec": "docs/CLOUD_TASKS.md#### DP9",
+  "depends": [
+    "CX20-2b"
+  ],
+  "priority": 18
+}
