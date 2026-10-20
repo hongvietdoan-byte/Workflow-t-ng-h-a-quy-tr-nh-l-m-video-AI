@@ -65,3 +65,29 @@ def test_does_not_infer_verified_labels_or_promote_block():
     m = score_cases([row(1, label_by='goi_y')])['QC-X']
     assert m['label_verification'] == 'NOT_ASSESSED'
     assert 'BLOCK' not in str(m)
+
+
+def test_mixed_splits_different_hashes_are_rejected():
+    with pytest.raises(ValueError, match='split'):
+        score_cases([row(1), dict(row(2), split='dev')])
+
+
+def test_recall_false_alarm_and_doubt_match_existing_golden_contract():
+    from core.qc_golden import score
+    labels = ['LOI', 'LOI', 'LOI', 'DAT', 'DAT']
+    preds = ['error', 'pass', 'doubt', 'error', 'pass']
+    rows = [row(i, label, pred) for i, (label, pred) in enumerate(zip(labels, preds), 1)]
+    old = score([{'job': i, 'label': 'chặn' if label == 'LOI' else 'đạt', 'categories': []}
+                 for i, label in enumerate(labels, 1)],
+                {i: {'verdict': {'error': 'block', 'pass': 'pass', 'doubt': 'doubt'}[pred]}
+                 for i, pred in enumerate(preds, 1)})
+    new = score_cases(rows)['QC-X']
+    assert round(new['recall'], 3) == old['recall']
+    assert round(new['fpr'], 3) == old['false_block_rate']
+    assert round(new['doubt_rate'], 3) == old['doubt_rate']
+
+
+def test_calibration_bin_boundaries_include_one():
+    m = score_cases([row(i, confidence=confidence) for i, confidence in enumerate([0., .2, .4, .6, .8, 1.])])['QC-X']
+    assert [b['n'] for b in m['confidence_bins']] == [1, 1, 1, 1, 2]
+    assert m['ece'] == pytest.approx(.5)

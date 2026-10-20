@@ -54,6 +54,8 @@ def score_cases(cases):
                 or not math.isfinite(confidence) or not 0 <= confidence <= 1):
             raise ValueError('confidence phải hữu hạn trong [0,1]')
         groups.setdefault(case['qc_code'], []).append(case)
+    if len(set(splits.values())) > 1:
+        raise ValueError('Phải chọn một split trước khi tính metrics')
     result = {}
     for code, rows in groups.items():
         m = dict.fromkeys(('tp', 'fp', 'fn', 'tn', 'abstain', 'n_pos', 'n_neg',
