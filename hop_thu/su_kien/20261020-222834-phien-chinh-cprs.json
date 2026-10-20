@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:28:34.104778+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-FIX-THAP-1",
+  "to": "cloud-C",
+  "title": "Sửa THẤP sau rà 20/10 (QC shadow + M1.6/M1.7)",
+  "priority": 3,
+  "text": "Làm SAU khi main có commit 'Gộp cloud/v31-m43' (phiên chính đang gộp fix-m16-17, dp1, dp2, m42, m43). Sửa, mỗi mục test đỏ→xanh, cờ giữ TẮT: (1) core/video_qc_shadow.py check: đọc 1 khung đầu thay vì giải mã cả clip (clip_measure.frames width=640) + dùng lại motion_series đã tính trong measure; (2) core/qc_scene.py _BEHIND_ANY chỉ dò trường góc/shot/blocking, không dò image_prompt/action ('the sun behind', 'rút súng sau lưng' không được bỏ kiểm cỡ); (3) core/plate_layout_qc.py _OUTDOOR: 'sân khấu' không tính là ngoài trời; (4) core/code_version.py self_stale/banner: câu báo theo dấu vân tay file, bỏ '≠ HEAD <sha>'; (5) test hành vi (không chỉ so chuỗi nguồn) cho estimate_images khi claude_cli + send_estimate BẬT → phần Claude = 0; (6) core/continuity_shadow.py regex _LOSE/_SHIFT/_TURN: \\bmất\\b khớp rộng — thu hẹp + ca test. Nhánh của phiên anh; xong báo bằng hop_thu.py xong."
+}
