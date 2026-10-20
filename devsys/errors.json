@@ -1088,7 +1088,7 @@
    "plan_task": "M1.4",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": "M1.4a đã gộp (222bf9c5: dừng cả lượt khi hết lượt / hết tiền, không fallback ngầm); provider theo dự án M1.4b chưa làm"
+   "status_reason": "M1.4a đã gộp (222bf9c5: không fallback ngầm, dừng cả lượt khi hết lượt / hết tiền); C3-0 xong 20/10: dashboard.env máy chính LLM_PROVIDER=anthropic → claude_cli (sao lưu data/backup/dashboard.env.before_c3-0_2026-10-20; ghi TODO 51acfea), 8501 khởi động lại; còn M1.4b provider theo dự án (nhánh cloud/v31-m14b, chưa gộp)"
   },
   {
    "id": "P31-G34",
@@ -1180,23 +1180,26 @@
    "root_cause_id": null,
    "evidence": "Tạm dừng 03:42:31 (`ui_actions`), job 1075 running Kling 03:42:41; 1061→1073 và 1062→… lần thử lại đầu vẫn bị Seedance chặn real_person rồi mới sang Kling (sáng: 1057→1065→1071)",
    "severity": "cao",
-   "status": "FIXED_UNVERIFIED",
+   "status": "IN_PROGRESS",
    "first_seen": "2026-10-19",
    "last_seen": "2026-10-19",
    "affected_flows": [],
    "owner": "",
    "fix_commit": [
-    "5e5df49d (nhánh claude/v31-m12-m13, cờ pause_before_submit TẮT, chưa gộp main)"
+    "60b9da80 (gộp main 20/10: phần tạm dừng — kiểm paused ngay trước submit, cờ pause_before_submit; nhánh @5e5df49d)"
    ],
    "tests": [
-    "tests/test_v31_m13_pause_before_submit.py"
+    "tests/test_v31_m13_pause_before_submit.py::test_pause_during_preparation_sends_nothing_and_keeps_the_job",
+    "tests/test_v31_m13_pause_before_submit.py::test_pause_after_a_first_send_stops_the_next_one_already_in_preparation",
+    "tests/test_v31_m13_pause_before_submit.py::test_pause_stops_a_retry_job",
+    "tests/test_v31_m13_pause_before_submit.py::test_pause_stops_the_model_switched_retry"
    ],
    "real_run_evidence": [],
    "plan_workstream": "WS1",
    "plan_task": "M1.3",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "Phần 1 (tạm dừng không chặn job đang chuẩn bị) đã sửa 60b9da80, cờ BẬT máy chính 20/10 (sổ v31-c3-2-flags-on-main-2026-10-20). Phần 2 (lần thử lại đầu sau real_person vẫn đi Seedance) CÒN MỞ — việc C-G36B (cloud-D, nhánh cloud/v31-g36b) → giữ IN_PROGRESS tới khi xong cả hai"
   },
   {
    "id": "P31-G37",
@@ -1799,7 +1802,7 @@
    "alias": [
     "G55"
    ],
-   "title": "Dashboard 8503 chạy core cũ sau khi cập nhật code → lỗi `FAIL_SOURCE` (TODO 19/10)",
+   "title": "Dashboard cũ (8503/8504) chạy core cũ sau khi cập nhật code → lỗi `FAIL_SOURCE` (TODO 19/10)",
    "source_document": "docs/KE_HOACH_AI_VIDEO_PIPELINE_V2_1_REVIEW.md:560",
    "project_ids": [
     31
@@ -1811,7 +1814,7 @@
    "root_cause_hypothesis": "",
    "root_cause_confirmed": "",
    "root_cause_id": null,
-   "evidence": "N1: Dashboard ghi sha code lúc khởi động, lệch HEAD → băng cảnh báo \"khởi động lại\"",
+   "evidence": "N1: Dashboard ghi sha code lúc khởi động, lệch HEAD → băng cảnh báo \"khởi động lại\" · 20/10 thực tế: 2 Dashboard cũ cổng 8503/8504 chạy code cũ cả ngày; tools/stop_dashboard.ps1 chỉ tắt 8501 → phiên chính tắt tay lúc C3-0 (hộp thư 20/10 18:08)",
    "severity": "vua",
    "status": "OPEN",
    "first_seen": "2026-10-20",
@@ -1825,7 +1828,7 @@
    "plan_task": "M1.7",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "Chưa sửa code — M1.7 (C-M17: báo cả khi CỔNG KHÁC chạy code cũ + stop_dashboard tắt mọi cổng dashboard.serve)"
   },
   {
    "id": "P31-G56",
@@ -1891,7 +1894,7 @@
    "plan_task": "M1.4",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": "M1.4a đã gộp (222bf9c5: dừng cả lượt khi hết lượt / hết tiền, không fallback ngầm); provider theo dự án M1.4b chưa làm"
+   "status_reason": "M1.4a đã gộp (222bf9c5: không fallback ngầm, dừng cả lượt khi hết lượt / hết tiền); C3-0 xong 20/10: dashboard.env máy chính LLM_PROVIDER=anthropic → claude_cli (sao lưu data/backup/dashboard.env.before_c3-0_2026-10-20; ghi TODO 51acfea), 8501 khởi động lại; còn M1.4b provider theo dự án (nhánh cloud/v31-m14b, chưa gộp)"
   },
   {
    "id": "P31-G58",
@@ -1953,17 +1956,21 @@
    "affected_flows": [],
    "owner": "",
    "fix_commit": [
-    "5e5df49d (nhánh claude/v31-m12-m13, cờ poll_claim TẮT, chưa gộp main)"
+    "60b9da80 (gộp main 20/10; nhánh claude/v31-m12-m13 @5e5df49d)"
    ],
    "tests": [
-    "tests/test_v31_m12_poll_claim.py"
+    "tests/test_v31_m12_poll_claim.py::test_flag_on_two_pollers_one_success_no_invalid_transition",
+    "tests/test_v31_m12_poll_claim.py::test_two_threads_two_connections_poll_together_one_success",
+    "tests/test_v31_m12_poll_claim.py::test_crash_mid_download_is_reconciled_after_the_claim_expires",
+    "tests/test_v31_m12_poll_claim.py::test_a_claim_that_expired_mid_download_does_not_write_twice",
+    "tests/test_v31_m12_poll_claim.py::test_reader_never_sees_a_half_written_result"
    ],
    "real_run_evidence": [],
    "plan_workstream": "WS1",
    "plan_task": "M1.2",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "Cờ poll_claim — cờ BẬT máy chính 20/10 (sổ v31-c3-2-flags-on-main-2026-10-20); chưa có bằng chứng chạy thật"
   },
   {
    "id": "P33-A2",
@@ -1996,7 +2003,7 @@
    "plan_task": "M1.4",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": "M1.4b provider theo dự án (Codex đợt 19) chưa gộp"
+   "status_reason": "M1.4a đã gộp (222bf9c5: không fallback ngầm, dừng cả lượt khi hết lượt / hết tiền); C3-0 xong 20/10: dashboard.env máy chính LLM_PROVIDER=anthropic → claude_cli (sao lưu data/backup/dashboard.env.before_c3-0_2026-10-20; ghi TODO 51acfea), 8501 khởi động lại; còn M1.4b provider theo dự án (nhánh cloud/v31-m14b, chưa gộp)"
   },
   {
    "id": "P33-A3",
@@ -2026,14 +2033,18 @@
     "222bf9c5"
    ],
    "tests": [
-    "tests/test_llm_runner.py"
+    "tests/test_llm_runner.py",
+    "tests/test_provider_guard_m14a.py::ClaudeCliEnvTests::test_the_claude_subprocess_never_receives_the_key",
+    "tests/test_provider_guard_m14a.py::CliErrorCodeTests::test_new_limit_and_credit_messages",
+    "tests/test_m14a_review_fixes.py::StopCodesTests::test_limit_and_credit_codes_stop_a_round",
+    "tests/test_m14a_review_fixes.py::AutoQcStopsTests::test_the_qc_batch_stops_at_the_first_limit"
    ],
    "real_run_evidence": [],
    "plan_workstream": "WS1",
    "plan_task": "M1.4",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "M1.4a 222bf9c5 (clean_env bỏ key khỏi tiến trình claude) + C3-0 xong 20/10: dashboard.env máy chính LLM_PROVIDER=anthropic → claude_cli (sao lưu data/backup/dashboard.env.before_c3-0_2026-10-20; ghi TODO 51acfea), 8501 khởi động lại; chưa có bằng chứng chạy thật"
   },
   {
    "id": "P33-A4",
@@ -2360,14 +2371,17 @@
     "222bf9c5"
    ],
    "tests": [
-    "tests/test_llm_runner.py"
+    "tests/test_llm_runner.py",
+    "tests/test_provider_guard_m14a.py::CliErrorCodeTests::test_new_limit_and_credit_messages",
+    "tests/test_m14a_review_fixes.py::StopCodesTests::test_limit_and_credit_codes_stop_a_round",
+    "tests/test_m14a_review_fixes.py::AutoQcStopsTests::test_the_qc_batch_stops_at_the_first_limit"
    ],
    "real_run_evidence": [],
    "plan_workstream": "WS1",
    "plan_task": "M1.4",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "M1.4a 222bf9c5 (hit your limit → usage_limit, dừng cả lượt); chưa có bằng chứng chạy thật"
   },
   {
    "id": "P33-A14",
@@ -2427,17 +2441,19 @@
    "affected_flows": [],
    "owner": "",
    "fix_commit": [
-    "5e5df49d (nhánh claude/v31-m12-m13: tải vào tệp tạm rồi os.replace; chưa gộp main)"
+    "60b9da80 (gộp main 20/10: core/safe_download.py tải vào tệp tạm rồi os.replace; nhánh @5e5df49d)"
    ],
    "tests": [
-    "tests/test_v31_m12_poll_claim.py"
+    "tests/test_v31_m12_poll_claim.py::test_replace_tries_again_while_the_file_is_held",
+    "tests/test_v31_m12_poll_claim.py::test_download_error_removes_the_temp_and_keeps_the_job_running",
+    "tests/test_v31_m12_poll_claim.py::test_reader_never_sees_a_half_written_result"
    ],
    "real_run_evidence": [],
    "plan_workstream": "WS1",
    "plan_task": "M1.2",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "Gộp cùng M1.2 — cờ BẬT máy chính 20/10 (sổ v31-c3-2-flags-on-main-2026-10-20); chưa có bằng chứng chạy thật"
   },
   {
    "id": "P33-B1",
@@ -2904,7 +2920,12 @@
     "222bf9c5"
    ],
    "tests": [
-    "tests/test_llm_runner.py"
+    "tests/test_llm_runner.py",
+    "tests/test_provider_guard_m14a.py::ClaudeCliEnvTests::test_the_claude_subprocess_never_receives_the_key",
+    "tests/test_provider_guard_m14a.py::ClaudeCliEnvTests::test_clean_env_drops_the_four_paid_variables",
+    "tests/test_provider_guard_m14a.py::ProviderSelectionTests::test_only_a_key_gives_no_client_and_says_why",
+    "tests/test_m14a_review_fixes.py::MissingHintTests::test_a_declared_provider_that_cannot_be_built_is_not_called_undeclared",
+    "tests/test_m14a_review_fixes.py::ChangeReviewWrongProviderTests::test_a_wrong_provider_without_a_key_is_said_not_silent"
    ],
    "real_run_evidence": [],
    "plan_workstream": "WS1",
@@ -2917,7 +2938,7 @@
     "P31-G57"
    ],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "Code: M1.4a gộp 222bf9c5. Máy chính: C3-0 xong 20/10: dashboard.env máy chính LLM_PROVIDER=anthropic → claude_cli (sao lưu data/backup/dashboard.env.before_c3-0_2026-10-20; ghi TODO 51acfea), 8501 khởi động lại. Còn M1.4b (provider theo dự án, nhánh cloud/v31-m14b chưa gộp); chưa có bằng chứng chạy thật"
   }
  ]
 }
