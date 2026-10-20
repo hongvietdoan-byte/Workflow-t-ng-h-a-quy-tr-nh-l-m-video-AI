@@ -382,6 +382,12 @@ FEATURES: Dict[str, Dict] = {
         "why": "#31 G52 (logic chuỗi 39 clip), G51 (súng biến mất), G41 (hướng chạy) chỉ người / Claude thấy; chạy sau qc_sequence_logic. "
                "Chưa chạy trên dữ liệu thật",
     },
+    "send_preview_panel": {
+        "label": "Thẻ clip Bước 4: khung gập \"Gói sẽ gửi\" (dựng bằng đúng đường nút Gen — thứ tự ảnh ref, nhãn, prompt, giá send_estimate; "
+                 "không gửi, không gọi Claude/nhà cung cấp) + khung \"QC shadow\" (đọc M4.2 / M4.3 / M4.1) — CHỈ XEM (V3.1 M4.7)",
+        "verified": False,
+        "why": "Người dùng không thấy gói thật sẽ gửi trước khi trả tiền và không thấy kết quả QC shadow theo shot. Chưa chạy trên dữ liệu thật",
+    },
     "final_black_freeze": {
         "label": "Kiểm bản dựng cuối: đoạn màn hình ĐEN (≥ 0,5 s) và ĐỨNG HÌNH (> 1,5 s) bằng ffmpeg blackdetect / freezedetect — chỉ "
                  "cảnh báo (cần xem), không chặn xuất (V3.1 M4.4)",
