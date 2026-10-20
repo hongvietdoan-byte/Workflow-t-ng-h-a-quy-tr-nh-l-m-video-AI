@@ -140,6 +140,42 @@ def _evidence(conn, data_dir: str, project_id: int, job_id: int) -> List[Dict]:
     return [r for r in _jsonl(os.path.join(data_dir, str(project_id), "qc_shadow", "qc_evidence.jsonl")) if job_id in (r.get("job_ids") or [])]
 
 
+SHADOW_CACHE: Dict[tuple, Dict[str, Any]] = {}
+SHADOW_CACHE_MAX = 512
+
+
+def _mtime(path: str) -> Optional[int]:
+    try:
+        return os.stat(path).st_mtime_ns
+    except OSError:
+        return None
+
+
+def _shadow_key(conn, data_dir: str, project_id: int, job, idx) -> tuple:
+    from . import continuity_shadow, qc_evidence
+    base = os.path.join(data_dir, str(project_id), "qc_shadow")
+    run = None
+    try:
+        if conn is not None and qc_evidence.has_tables(conn):
+            run = conn.execute("SELECT MAX(rowid) FROM qc_runs WHERE project_id=?", (project_id,)).fetchone()[0]
+    except Exception:  # noqa: BLE001 - no key part → read again next time
+        run = object()
+    return (data_dir, project_id, job["id"], idx, _mtime(os.path.join(base, "video_qc.jsonl")),
+            _mtime(os.path.join(base, "qc_evidence.jsonl")), _mtime(continuity_shadow.result_path(data_dir, project_id)), run)
+
+
+def shadow_cached(conn, data_dir: str, project_id: int, job, idx: Optional[int]) -> Dict[str, Any]:
+    """C-FIX-THAP-5: shadow_of qua bộ nhớ đệm — thẻ clip vẽ lại mỗi rerun; chỉ đọc lại khi tệp M4.2 / M4.3 / M4.1 đổi (mtime) hoặc có
+    qc_run mới trong bảng."""
+    key = _shadow_key(conn, data_dir, project_id, job, idx)
+    hit = SHADOW_CACHE.get(key)
+    if hit is None:
+        if len(SHADOW_CACHE) >= SHADOW_CACHE_MAX:
+            SHADOW_CACHE.clear()
+        hit = SHADOW_CACHE[key] = shadow_of(conn, data_dir, project_id, job, idx)
+    return hit
+
+
 def shadow_of(conn, data_dir: str, project_id: int, job, idx: Optional[int]) -> Dict[str, Any]:
     """Bản ghi QC shadow của job / shot: {"video": [M4.2 của job], "continuity": [M4.3 có shot idx], "can_xem": [shot gốc],
     "evidence": [M4.1 của job], "notes": [chưa có gì → nói]}. Chỉ đọc, không bao giờ ném lỗi."""

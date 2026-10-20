@@ -194,12 +194,25 @@ def black_freeze_spans(video: str, ffmpeg: Optional[str] = None) -> Dict[str, Li
     return {"black": black, "freeze": freeze}
 
 
-def _shot_at(timeline: Sequence[Dict], t: float) -> Optional[str]:
-    acc = 0.0
-    for r in timeline or []:
+def _overlap(manifest: Optional[Dict]) -> float:
+    """C-FIX-THAP-5: giây mỗi chuyển cảnh chồng (crossfade / dip_to_black) ăn vào bản dựng — như final_cut.total_seconds."""
+    man = manifest or {}
+    return float(man.get("fade") or 0) if man.get("transition") in ffmpeg_studio.OVERLAP_STYLES else 0.0
+
+
+def _shot_ends(timeline: Sequence[Dict], manifest: Optional[Dict] = None) -> List[Tuple[str, float]]:
+    """[(idx, giây kết thúc trên BẢN DỰNG)]: tổng timeline trừ phần chồng của các chuyển cảnh trước đó."""
+    over, acc, out = _overlap(manifest), 0.0, []
+    for i, r in enumerate(timeline or []):
         acc += float(r.get("seconds") or 0)
-        if t < acc:
-            return str(r.get("idx"))
+        out.append((str(r.get("idx")), acc - over * i))
+    return out
+
+
+def _shot_at(timeline: Sequence[Dict], t: float, manifest: Optional[Dict] = None) -> Optional[str]:
+    for idx, end in _shot_ends(timeline, manifest):
+        if t < end:
+            return idx
     return None
 
 
@@ -208,10 +221,9 @@ def intended_holds(manifest: Optional[Dict], timeline: Sequence[Dict], total: fl
     delivery._hold_end: nằm cuối timeline), popup cuối giữ khung (`end_popup.held_s`: thêm SAU timeline, tới hết phim), shot người sửa
     kéo dài bằng giữ khung cuối (`editor_fit` how "hold": cuối shot đó)."""
     man = manifest or {}
-    ends, acc = {}, 0.0
-    for r in timeline or []:
-        acc += float(r.get("seconds") or 0)
-        ends[str(r.get("idx"))] = acc
+    pairs = _shot_ends(timeline, man)              # C-FIX-THAP-5: mốc trên bản dựng (đã trừ chuyển cảnh chồng)
+    ends = dict(pairs)
+    acc = pairs[-1][1] if pairs else 0.0
     out = []
     held = float((man.get("end_hold") or {}).get("held_s") or 0)
     if held > 0 and acc > 0:
@@ -249,7 +261,7 @@ def check_black_freeze(video: str, timeline: Sequence[Dict] = (), manifest: Opti
                     continue
                 if kept > 0:
                     note = f"; đã trừ {kept:.1f} s giữ khung cố ý, còn {(b - a) - kept:.1f} s đứng không cố ý"
-            shot = _shot_at(timeline, a)
+            shot = _shot_at(timeline, a, manifest)
             out.append(_issue(code, "warn", f"{what} {b - a:.1f} s ({a:.1f}–{b:.1f} s{', shot ' + shot if shot else ''}{note}) — xem lại clip / "
                                             "điểm nối (video không được đơ)", a))
     return out

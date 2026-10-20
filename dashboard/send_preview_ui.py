@@ -1,7 +1,7 @@
 """V3.1 M4.7 phần XEM (C-M47A, cờ send_preview_panel — tắt = thẻ clip y cũ): hai khung gập dưới thẻ clip Bước 4.
 "📦 Gói sẽ gửi": bấm "Dựng gói (0 USD)" → core.send_preview.video_package (đúng đường nút Gen, không gửi, không gọi Claude / nhà cung cấp):
 thứ tự ảnh ref + nhãn + vai, prompt, model, tham số, giá send_estimate (cờ đó bật), ghi chú của runner.
-"🔎 QC shadow": bản ghi M4.2 / M4.3 / M4.1 của clip (core.send_preview.shadow_of). CHỈ XEM — không nút sửa / override (C3-4 chờ)."""
+"🔎 QC shadow": bản ghi M4.2 / M4.3 / M4.1 của clip (core.send_preview.shadow_cached — đọc lại khi tệp / bảng đổi). CHỈ XEM — không nút sửa / override (C3-4 chờ)."""
 import json
 
 import streamlit as st
@@ -34,7 +34,7 @@ def card_block(p, pid: int, j, runner, idx=None) -> None:
         if got:
             _package(D, got)
     with st.expander("🔎 QC shadow (chỉ xem)", expanded=False):
-        _shadow(D, send_preview.shadow_of(p.conn, _data_dir(runner), pid, j, idx))
+        _shadow(D, send_preview.shadow_cached(p.conn, _data_dir(runner), pid, j, idx))
 
 
 def _package(D, got) -> None:
