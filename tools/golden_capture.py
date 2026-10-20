@@ -93,10 +93,16 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
         raise GoldenError("Cần --db tồn tại và --ref-root là thư mục rõ ràng")
     if purpose not in ("compat", "correctness"):
         raise GoldenError("purpose cần compat hoặc correctness")
-    flags = json.loads(Path(flags_file).read_text(encoding="utf-8-sig"))
+    flag_input = json.loads(Path(flags_file).read_text(encoding="utf-8-sig"))
+    structured = isinstance(flag_input, dict) and "flags" in flag_input
+    flags = flag_input.get("flags") if structured else flag_input
     if not isinstance(flags, dict) or not all(isinstance(k, str) and type(v) is bool for k, v in flags.items()):
         raise GoldenError("flags phải là JSON object tên cờ → boolean (không đọc môi trường)")
-    if purpose == "compat" and any(flags.values()):
+    experimental = flag_input.get("experimental_flags") if structured else list(flags)
+    if (not isinstance(experimental, list) or not all(isinstance(k, str) and k in flags for k in experimental)
+            or len(set(experimental)) != len(experimental)):
+        raise GoldenError("experimental_flags cần list tên cờ duy nhất có trong flags")
+    if purpose == "compat" and any(flags[k] for k in experimental):
         raise GoldenError("COMPAT yêu cầu các cờ thử nghiệm khai trong file đều TẮT")
     inputs = {}
     if input_snapshots_file is not None:
@@ -146,6 +152,7 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
                          "tier": row["quality_tier"], "provider": package["provider"], "prompt": package["prompt"],
                          "sent_package_raw": raw, "sent_package_sha256": hashlib.sha256(raw.encode("utf-8")).hexdigest(), "refs": refs, "input_snapshot": inputs.get(str(row["id"]))})
     return {"fixture_version": 1, "purpose": purpose, "head_sha": head_sha(), "flags": flags,
+            "experimental_flags": experimental,
             "flags_provenance": "explicit_file_unverified_at_send", "schema": schema, "project": project, "scene_id": shot,
             "jobs": jobs, "warnings": warnings, "replay_status": "OPEN", "correctness_status": "OPEN"}
 

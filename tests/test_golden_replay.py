@@ -199,3 +199,27 @@ def test_sidecar_rejects_credential_fields_before_output(golden, field):
                          "--ref-root", str(root), "--purpose", "compat", "--input-snapshots-file", str(sidecar),
                          "--output", str(output)])
     assert not output.exists()
+
+
+def test_capture_structured_flags_preserves_legacy_on(golden):
+    _, _, flags, _, _ = golden
+    flags.write_text(json.dumps({"flags": {"legacy": True, "new": False}, "experimental_flags": ["new"]}), encoding="utf-8")
+    result = capture(golden)
+    assert result["flags"] == {"legacy": True, "new": False}
+    assert result["experimental_flags"] == ["new"]
+    assert result["flags_provenance"] == "explicit_file_unverified_at_send"
+
+
+@pytest.mark.parametrize("payload", [
+    {"flags": {"legacy": True, "new": True}, "experimental_flags": ["new"]},
+    {"flags": {"legacy": True}},
+    {"flags": {"new": False}, "experimental_flags": "new"},
+    {"flags": {"new": False}, "experimental_flags": ["missing"]},
+    {"flags": {"new": False}, "experimental_flags": [1]},
+    {"flags": {"new": 0}, "experimental_flags": ["new"]},
+])
+def test_capture_structured_flags_rejects_on_or_invalid_metadata(golden, payload):
+    module, _, flags, _, _ = golden
+    flags.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(module.GoldenError, match="flags|COMPAT"):
+        capture(golden)
