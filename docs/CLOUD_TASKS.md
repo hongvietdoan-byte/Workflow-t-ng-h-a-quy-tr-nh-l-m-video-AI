@@ -83,10 +83,12 @@ push lên main, rồi báo người dùng mã việc để dán vào phiên clou
 ### Việc V3.1 cho cloud (giao 20/10)
 | Mã | Việc | Nhánh | Trạng thái |
 |---|---|---|---|
-| C-M06-07 | M0.6 bảng AS-IS/TO-BE + M0.7 ma trận test (chỉ tài liệu) | `cloud/v31-m06-m07` | CHỜ dán |
-| C-M010 | M0.10 đặc tả AUTO/USER_LOCKED/REVIEW_REQUIRED + audit đường ghi (chỉ tài liệu) | `cloud/v31-m010` | CHỜ dán |
+| C-M06-07 | M0.6 bảng AS-IS/TO-BE + M0.7 ma trận test (chỉ tài liệu) | `cloud/v31-m06-m07` | ĐANG LÀM — cloud tài khoản chính 20/10, KHÔNG dán lại |
+| C-M010 | M0.10 đặc tả AUTO/USER_LOCKED/REVIEW_REQUIRED + audit đường ghi (chỉ tài liệu) | `cloud/v31-m010` | CHỜ dán (tài khoản cloud khác) |
+| C-M09 | M0.9 thiết kế Kho forms/outfit/hair/face + provenance (chỉ tài liệu) | `cloud/v31-m09` | CHỜ dán (tài khoản cloud khác) |
+| C-M011 | M0.11 test plan + tiêu chí 3 vòng pilot + dự toán B/C (chỉ tài liệu) | `cloud/v31-m011` | CHỜ dán (tài khoản cloud khác) |
 
-(M1.4a 20/10 lỡ chạy trên cloud tài khoản chính → nhánh `cloud/v31-m14a` nếu phiên đó push; không giao lại.)
+(M1.4a + C-M06-07 chạy trên cloud tài khoản chính 20/10 — người dùng cho làm tiếp; không giao lại. 3 việc C-M010, C-M09, C-M011 độc lập, dán được song song 3 phiên.)
 
 #### C-M06-07
 ```
@@ -110,4 +112,29 @@ Việc V3.1 M0.10 — CHỈ TÀI LIỆU, không sửa code. Nhánh cloud/v31-m01
    (người / AI / tự động / công cụ), có kiểm khóa tay không, có ghi diag/lịch sử không. Đường không xác minh được → ghi UNK + lý do.
 3. Thiết kế test cho M2.5 (shadow trước): ca AI ghi đè trường USER_LOCKED, REVIEW_REQUIRED chặn gen, tương thích dự án cũ (thiếu trạng thái = AUTO).
 Không đề xuất migration chạy luôn (Cấp 3) — chỉ mô tả. Báo cáo ≤ 25 dòng ghi cả vào docs/RA_CLOUD_M010_2026-10-2x.md.
+```
+
+#### C-M09
+```
+Việc V3.1 M0.9 — CHỈ TÀI LIỆU, không sửa code. Nhánh cloud/v31-m09 từ origin/main. Theo "Luật chung" docs/CLOUD_TASKS.md.
+Đọc: docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md dòng ~54 (hợp đồng dữ liệu: ảnh Kho > profile Kho > Bible > Lock), D05 ~104, M2.3 ~120, mục 4b;
+data/decisions.json mục v31-d05-kho-structured-forms-2026-10-20 và video-form-picture-2026-10-19. Đọc code Kho/profile hiện tại (grep kho_id, forms,
+profile, outfit, hair trong core/ dashboard/) — mọi khẳng định kèm file:hàm.
+→ docs/V3_1_M0_9_THIET_KE_KHO_FORMS_2026-10-2x.md: schema forms/outfit/hair/face có cấu trúc + kho_id + revision + schema_version; provenance
+(nguồn: người / AI + model / ảnh chuẩn; AI không ghi đè trường người dùng); adapter đọc v1/v2 và danh sách MỌI đường đọc (Director, BYĐ, ảnh, video,
+QC) phải đi qua adapter; đối chiếu đủ 6 điều kiện M2.3 (bảng điều kiện → cách đáp ứng → test); kế hoạch migration/backfill (Cấp 3 — chỉ mô tả,
+up/down, dự án cũ giống byte); bộ regression đề xuất. Không đụng thiết kế Kho chủ thể ClipAI (M1.5 — Codex đợt 19).
+Báo cáo ≤ 25 dòng ghi cả vào docs/RA_CLOUD_M09_2026-10-2x.md.
+```
+
+#### C-M011
+```
+Việc V3.1 M0.11 — CHỈ TÀI LIỆU, không sửa code, KHÔNG chạy gì tốn tiền. Nhánh cloud/v31-m011 từ origin/main. Theo "Luật chung" docs/CLOUD_TASKS.md.
+Đọc: grep -n "M5\.\|pilot\|vòng A\|vòng B\|vòng C" docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md + quyết định v31-pilot-three-rounds-2026-10-20
+(data/decisions.json) + bảng nghiệm thu ~dòng 110–125.
+→ docs/V3_1_M0_11_PILOT_3_VONG_2026-10-2x.md: (1) vòng A offline 0 USD — replay lỗi #31/#33 (payload, continuity, QC, lineage, phục hồi): ca thử, dữ
+liệu cần (fixture nào có trong tests/, cái gì phải lấy ở máy chính — ghi rõ), tiêu chí đạt/rớt đo được; (2) vòng B 5–8 shot và (3) vòng C 20–40 shot:
+tiêu chí chất lượng, tỉ lệ gen lại, continuity, chi phí, số lần can thiệp tay, điểm dừng; (4) dự toán B/C TÍNH TỪ code giá hiện tại (core/cost.py và
+bảng giá trong repo — dẫn hàm + công thức; ghi rõ giả định số lần gen lại; KHÔNG tự bịa giá), kèm khoảng thấp–cao. Ghi rõ: con số cuối phải chạy
+tools/pregen_check.py ở máy chính trước khi xin duyệt. Báo cáo ≤ 25 dòng ghi cả vào docs/RA_CLOUD_M011_2026-10-2x.md.
 ```
