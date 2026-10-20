@@ -167,21 +167,26 @@ def silent_spans(video: str, window: float = 0.5, ffmpeg: Optional[str] = None) 
     return out
 
 
+DETECT_TIMEOUT_S = 600      # C-FIX-DP345: một bản dựng hỏng không được treo Final QC — quá giờ = "không đo được"
+
+
 def _detect(video: str, vf: str, ffmpeg: Optional[str] = None) -> str:
     ffmpeg = ffmpeg or ffmpeg_studio.find_ffmpeg()
-    proc = subprocess.run([ffmpeg, "-hide_banner", "-nostats", "-i", video, "-an", "-vf", vf, "-f", "null", "-"], capture_output=True,
-                          text=True, encoding="utf-8", errors="replace")
+    try:
+        proc = subprocess.run([ffmpeg, "-hide_banner", "-nostats", "-i", video, "-an", "-vf", vf, "-f", "null", "-"], capture_output=True,
+                              text=True, encoding="utf-8", errors="replace", timeout=DETECT_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        raise OSError(f"ffmpeg đo quá {DETECT_TIMEOUT_S} s")
     if proc.returncode != 0:
         raise OSError((proc.stderr or "")[-300:])
     return proc.stderr or ""
 
 
 def black_freeze_spans(video: str, ffmpeg: Optional[str] = None) -> Dict[str, List[Tuple[float, float]]]:
-    """{"black": [(t0, t1)], "freeze": [(t0, t1)]} giây — ffmpeg blackdetect + freezedetect trên toàn bản dựng (một lượt mỗi bộ lọc).
-    Không đọc được → OSError / FFmpegNotFound (nơi gọi nói rõ)."""
-    err = _detect(video, f"blackdetect=d={BLACK_MIN_S}:pix_th={BLACK_PIX}", ffmpeg)
+    """{"black": [(t0, t1)], "freeze": [(t0, t1)]} giây — ffmpeg blackdetect + freezedetect trên toàn bản dựng (MỘT lượt giải mã, hai bộ
+    lọc nối nhau). Không đọc được / quá giờ → OSError / FFmpegNotFound (nơi gọi nói rõ)."""
+    err = _detect(video, f"blackdetect=d={BLACK_MIN_S}:pix_th={BLACK_PIX},freezedetect=n={FREEZE_NOISE}:d={FREEZE_S}", ffmpeg)
     black = [(float(a), float(b)) for a, b in re.findall(r"black_start:([\d.]+)\s+black_end:([\d.]+)", err)]
-    err = _detect(video, f"freezedetect=n={FREEZE_NOISE}:d={FREEZE_S}", ffmpeg)
     starts = [float(x) for x in re.findall(r"freeze_start:\s*([\d.]+)", err)]
     ends = [float(x) for x in re.findall(r"freeze_end:\s*([\d.]+)", err)]
     total = ffmpeg_studio.probe_duration(video) or 0.0
@@ -198,22 +203,55 @@ def _shot_at(timeline: Sequence[Dict], t: float) -> Optional[str]:
     return None
 
 
-def check_black_freeze(video: str, timeline: Sequence[Dict] = ()) -> List[Dict]:
+def intended_holds(manifest: Optional[Dict], timeline: Sequence[Dict], total: float) -> List[Tuple[float, float]]:
+    """C-FIX-DP345: các đoạn bản dựng CỐ Ý đứng hình (giây trên bản dựng), đọc từ manifest — giữ khung cuối shot cuối (`end_hold`,
+    delivery._hold_end: nằm cuối timeline), popup cuối giữ khung (`end_popup.held_s`: thêm SAU timeline, tới hết phim), shot người sửa
+    kéo dài bằng giữ khung cuối (`editor_fit` how "hold": cuối shot đó)."""
+    man = manifest or {}
+    ends, acc = {}, 0.0
+    for r in timeline or []:
+        acc += float(r.get("seconds") or 0)
+        ends[str(r.get("idx"))] = acc
+    out = []
+    held = float((man.get("end_hold") or {}).get("held_s") or 0)
+    if held > 0 and acc > 0:
+        out.append((acc - held, acc))
+    held = float((man.get("end_popup") or {}).get("held_s") or 0)
+    if held > 0 and total > 0:
+        out.append((total - held, total))
+    for f in man.get("editor_fit") or []:
+        end = ends.get(str(f.get("idx")))
+        extra = float(f.get("to_s") or 0) - float(f.get("from_s") or 0)
+        if f.get("how") == "hold" and end is not None and extra > 0:
+            out.append((end - extra, end))
+    return out
+
+
+def check_black_freeze(video: str, timeline: Sequence[Dict] = (), manifest: Optional[Dict] = None) -> List[Dict]:
     """V3.1 M4.4: đoạn đen ≥ BLACK_MIN_S và đứng hình > FREEZE_S (trừ mờ dần kết phim) → "warn" (REVIEW, không chặn). Không đo được →
-    một "warn" nói rõ (không coi là đạt)."""
+    một "warn" nói rõ (không coi là đạt). C-FIX-DP345: phần đứng hình nằm trong đoạn giữ khung CỐ Ý của manifest (intended_holds) không
+    tính; phần còn lại > FREEZE_S vẫn báo (nói rõ đã trừ bao nhiêu)."""
     try:
         spans = black_freeze_spans(video)
     except (OSError, ffmpeg_studio.FFmpegNotFound) as e:
         return [_issue("black_freeze_unmeasured", "warn", f"không đo được đoạn đen / đứng hình của bản dựng ({str(e)[:120]}) — xem tay")]
     total = ffmpeg_studio.probe_duration(video) or 0.0
+    holds = intended_holds(manifest, timeline, total)
     out = []
     for code, what, rows in (("black_frame", "màn hình ĐEN", spans["black"]), ("freeze_frame", "ĐỨNG HÌNH", spans["freeze"])):
         for a, b in rows:
             if total and b >= total - 0.05 and a >= total - END_FADE_S:
                 continue                                   # mờ dần kết phim
+            note = ""
+            if code == "freeze_frame" and holds:
+                kept = sum(max(0.0, min(b, h1) - max(a, h0)) for h0, h1 in holds)
+                if (b - a) - kept <= FREEZE_S + 0.05:      # 0,05 s: freezedetect đặt mốc theo khung, lệch ≤ 1 khung với mốc manifest
+                    continue
+                if kept > 0:
+                    note = f"; đã trừ {kept:.1f} s giữ khung cố ý, còn {(b - a) - kept:.1f} s đứng không cố ý"
             shot = _shot_at(timeline, a)
-            out.append(_issue(code, "warn", f"{what} {b - a:.1f} s ({a:.1f}–{b:.1f} s{', shot ' + shot if shot else ''}) — xem lại clip / điểm nối "
-                                            "(video không được đơ)", a))
+            out.append(_issue(code, "warn", f"{what} {b - a:.1f} s ({a:.1f}–{b:.1f} s{', shot ' + shot if shot else ''}{note}) — xem lại clip / "
+                                            "điểm nối (video không được đơ)", a))
     return out
 
 
@@ -277,7 +315,7 @@ def run(p: Pipeline, project_id: int, data_dir: str, frames: bool = True, layers
         issues += check_silence(fin["path"])
         from . import features
         if features.on(BLACK_FREEZE_FLAG):      # V3.1 M4.4: REVIEW (warn), không thêm chặn
-            issues += check_black_freeze(fin["path"], timeline)
+            issues += check_black_freeze(fin["path"], timeline, man)
         if sub is not None:
             try:
                 sub_man = json.loads(sub["manifest"] or "{}")

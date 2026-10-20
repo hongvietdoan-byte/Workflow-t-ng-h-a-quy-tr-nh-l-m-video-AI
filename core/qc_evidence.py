@@ -51,8 +51,8 @@ CODES: Dict[str, Tuple[str, bool, str, Tuple[str, ...]]] = {
     "QC-A4-LENGTH_MISMATCH": ("A4", True, "BLOCK", ()),
     "QC-A2-PEAK_OVER": ("A2", True, "BLOCK", ()),
     "QC-A2-SILENT_GAP": ("A2", True, "REVIEW", ()),
-    "QC-A4-BLACK_FRAME": ("A4", True, "BLOCK", ()),
-    "QC-A4-FREEZE_FRAME": ("A4", True, "BLOCK", ()),
+    "QC-A4-BLACK_FRAME": ("A4", True, "REVIEW", ()),      # C-FIX-DP345: G2-5 — QC bản dựng cuối không chặn xuất
+    "QC-A4-FREEZE_FRAME": ("A4", True, "REVIEW", ()),
     "QC-A4-DELIVERY_RES": ("A4", True, "BLOCK", ()),
 }
 # Mã ĐANG chặn từ trước (người dùng đã chấp nhận — thiết kế mục 4 "Ngoại lệ đã có"): chỉ chuẩn hóa cách ghi, không cần hiệu chuẩn mới.
@@ -106,6 +106,9 @@ def validate(finding: Dict, types: Optional[set] = None, registry: Optional[set]
         out.append("artifact_sha phải là sha256 (64 hex) hoặc null")
     if finding.get("status", "open") not in STATUSES:
         out.append(f"status ∉ {STATUSES}")
+    sev = finding.get("severity")
+    if code in CODES and sev in SEVERITIES and SEVERITIES.index(sev) < SEVERITIES.index(CODES[code][2]):
+        out.append(f"severity {sev} vượt trần {CODES[code][2]} của mã {code}")        # C-FIX-DP345: finding() hạ mức, ghi tay cũng không lọt
     if finding.get("severity") == "BLOCK":
         det = CODES.get(code, ("", False, "REVIEW", ()))[1]
         if not det:

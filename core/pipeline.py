@@ -563,8 +563,8 @@ class Pipeline:
                    "muốn sửa → gen NHÁP mới)" + self._same_as_draft(job, scores, threshold) + suffix)
             return self._hold(job_id, why[:2000])
         hold = None if passed else self._no_auto_retry(job, scores, threshold, fix, measured)
-        if not passed:                            # V3.1 M5.1 (cờ repair_router, TẮT): chỉ ĐỀ XUẤT kế hoạch sửa theo mã lỗi — không đổi gì ở dưới
-            from . import repair_router
+        from . import repair_router
+        if not passed and repair_router.enabled():  # V3.1 M5.1 (cờ repair_router, TẮT): chỉ ĐỀ XUẤT kế hoạch sửa theo mã lỗi — TẮT không đọc gì
             repair_router.observe(self.conn, job, [k for k, v in scores.items() if v < threshold] + [h.split(" ")[0] for h in hard],
                                   fix, hold, self.auto_limit(job))
         if qc is None:                            # S14.17 rà (c): what the Director reads before rewriting (picture QC and clip QC)
