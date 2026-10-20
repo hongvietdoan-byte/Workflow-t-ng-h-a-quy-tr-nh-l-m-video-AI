@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T00:37:48.110133+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-FIX-THAP-5",
+  "to": "cloud-C",
+  "title": "THẤP: final_qc fade, world_map byd, preview cache, areas g36b",
+  "priority": 4,
+  "text": "Việc vừa, sau C-M32. Sửa các THẤP từ rà 21/10 (đã gộp main, cờ TẮT), mỗi mục test đỏ→xanh: (1) core/final_qc.py:206–228 intended_holds (và _shot_at:197): trừ phần chồng chuyển cảnh OVERLAP_STYLES (manifest transition/fade, xem final_cut.total_seconds) — test 3 shot fade 1 s + end_hold → không freeze_frame. (2) core/world_map.py build() → build_3d: truyền byd vào sources() — test BYĐ đổi → revision+1, history invalidated byd_changed; entities_at(m, None) với valid_from số → trả mọi thực thể. (3) dashboard/send_preview_ui.py:37 shadow_of chạy mỗi rerun ở mọi thẻ clip → cache theo (pid, job, mtime video_qc.jsonl, max qc_run id) hoặc chỉ đọc khi bấm. (4) devsys/areas.json: thêm tests/test_v31_g36b_refusal_skip.py vào \"tests\" khu core_infra. Nhánh mới từ origin/main."
+}

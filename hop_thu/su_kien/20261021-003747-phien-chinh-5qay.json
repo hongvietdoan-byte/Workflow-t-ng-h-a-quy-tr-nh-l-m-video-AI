@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T00:37:47.152985+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-FIX-THAP-4",
+  "to": "cloud-C",
+  "title": "VỪA qc_scene 2 regex (máy vs hành động) + banner",
+  "priority": 0,
+  "text": "Ưu tiên 0. Rà 21/10 nhánh fix-thap-2 (đã gộp main, cờ qc_false_alarm_fix TẮT): VỪA core/qc_scene.py:64–70 — _behind_any quét image_prompt/action bằng regex _BEHIND_ANY còn có \"from behind\", \"behind (her|his) back(s)\", \"qua vai\" → khớp câu HÀNH ĐỘNG: \"Kelly hides the grenade behind her back\", \"an enemy grabs him from behind\", \"sneaks up from behind the wall\", \"Kelly vác súng qua vai\", \"nhìn qua vai\" → khi bật cờ sẽ bỏ kiểm cỡ shot sai. Sửa: 2 regex — trường máy (angle/shot/blocking/start_frame) giữ regex hiện tại; image_prompt/action chỉ khớp chữ gắn với MÁY: OTS, over-the-shoulder (shot|view), camera (is |placed )?behind, (shot|seen|filmed) from behind, low camera behind the group, máy … sau lưng, góc qua vai, quay lưng về máy, rear view. Test: 5 ca âm ở action như trên; ca thật P33-A5 vẫn khớp. Kèm THẤP core/code_version.py:231 (bản ghi có code nhưng máy không tính được dấu → câu không nói \"tệp .py đã đổi\"). Nhánh mới từ origin/main."
+}
