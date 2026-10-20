@@ -68,3 +68,15 @@ Test đỏ→xanh: góp ý thấp → 1 dòng mistakes đúng stage; trùng → 
 2. Rà theo mức (skill mục 2): S14.24 RÀ KỸ (đụng lời gọi Claude tốn tiền + knowledge); S14.45, S14.25 rà nhẹ trừ khi đụng tiền/dữ liệu.
 3. Cả bộ test trên Windows → gộp `main` → tăng `devsys/areas.json` version một lần → push → pull ở `D:\AI-Video-Pipeline` → khởi động lại Dashboard / devsys.
 4. Ghi số đo vào dòng việc (chế độ `cloud`, credit đã dùng) + `py -m devsys.workflow add …` (khi S14.45 đã gộp).
+
+---
+
+## Làn thứ ba: phiên cloud hỗ trợ ngoài Codex (người dùng 20/10)
+Phiên chính (máy chính) ngoài chia phiên con/Codex còn **mở phiên cloud** bằng `mcp__ccd_session__start_session` (`target: "cloud"`,
+`context: "fresh"`, `initiation: "user_asked"` khi người dùng đã bảo chia) — mỗi phiên cloud MỘT việc thuần code/test/tài liệu theo luật
+chung ở trên. Phiên cloud bắt đầu từ `main` trên GitHub → **push trước khi mở**; việc tiếp nhánh WIP thì đề bài ghi rõ
+`git fetch origin <nhánh> && git checkout -b cloud/<mã> origin/<nhánh>`.
+- Chọn việc cho cloud: Cấp 1 (tài liệu / thiết kế / test chỉ đọc) hoặc code Cấp 2 ĐÃ duyệt phạm vi, không cần `data/` / Windows / khóa API.
+  Không giao cloud việc trùng file với Codex đang làm (xem đợt Codex mới nhất trong `docs/CODEX_TASKS.md`) hay với phiên con máy chính.
+- Phiên cloud không báo về phiên chính → phiên chính `git fetch` nhánh `cloud/*`, rà quy ước 7, cả bộ test Windows, rồi mới gộp.
+- Ghi mỗi phiên cloud đã giao vào mục 📨 BÀN GIAO của `TODO.md` (tên phiên, nhánh `cloud/<mã>`, trạng thái CHỜ → XONG).
