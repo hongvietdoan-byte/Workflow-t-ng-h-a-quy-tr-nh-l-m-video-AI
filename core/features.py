@@ -382,6 +382,12 @@ FEATURES: Dict[str, Dict] = {
         "why": "#31 G52 (logic chuỗi 39 clip), G51 (súng biến mất), G41 (hướng chạy) chỉ người / Claude thấy; chạy sau qc_sequence_logic. "
                "Chưa chạy trên dữ liệu thật",
     },
+    "final_black_freeze": {
+        "label": "Kiểm bản dựng cuối: đoạn màn hình ĐEN (≥ 0,5 s) và ĐỨNG HÌNH (> 1,5 s) bằng ffmpeg blackdetect / freezedetect — chỉ "
+                 "cảnh báo (cần xem), không chặn xuất (V3.1 M4.4)",
+        "verified": False,
+        "why": "Người dùng 11/10: video không được đơ; G51 (#31 shot 13 đơ 6 s). Ngưỡng chưa hiệu chuẩn trên bản dựng thật",
+    },
     "qc_observe_enum": {
         "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",
         "verified": False,
