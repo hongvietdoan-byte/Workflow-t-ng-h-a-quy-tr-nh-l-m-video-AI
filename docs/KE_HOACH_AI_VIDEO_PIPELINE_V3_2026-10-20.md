@@ -87,6 +87,24 @@ Cách làm gốc: cuộc trò chuyện ChatGPT người dùng xuất PDF `E:/Tai
 - **Giới hạn đã ghi trong cuộc trò chuyện:** prompt không bảo đảm tách nền 100 %; nếu model vẫn ra nền đứng yên / trượt → cần camera
   tracking từ video gốc + matting/compositing (đường dự phòng).
 
+**Mẫu đã chạy thật trên ClipAI (người dùng 19/10 23:00, đọc lại danh sách task ClipAI 20/10, chỉ đọc):**
+
+| | Bản mẫu 480p `cgt-20261020000042-prl47` | Bản 1080p `cgt-20261020000346-zyeku` |
+|---|---|---|
+| Model | `dreamina-seedance-2-5-260628` | cùng |
+| Nội dung gửi | `text` = **"Chỉnh sửa@Video1 "** + prompt rút gọn (bản "nên dùng" của PDF) **nối liền negative prompt vào cuối** (không có trường negative riêng); `reference_video` = `asset://asset-20261019235356-z5stm` (video nguồn đã tải lên kho asset ClipAI) | `content = [{type: "draft_task", draft_task: {id: "<task 480p>"}}]` — nâng từ bản mẫu, không gửi lại prompt |
+| Tham số | `draft: true`, `duration: -1` (theo video nguồn), `ratio: "adaptive"`, `resolution: "480p"`, `generate_audio: true`, `video_num: 2` | `resolution: "1080p"`, `video_num: 1` |
+| Kết quả | 2 bản mẫu; hết hạn nâng sau ≈ 7 ngày (`draft_expired_at`) | 9 s, 9:16, 24 fps, `has_video_input: true`, 909 225 token |
+| Giá | ước tính lúc gửi 2,52 USD (2 bản) | ước tính lúc gửi 2,80 USD; **dòng task ghi `seedance_cost_usd` 6,36 USD** — cần đối chiếu sổ ClipAI xem số nào là tiền thật |
+
+Đối chiếu với code hiện có (`core/adapters/clipai.py`):
+- `submit_video_edit` (S4.12, cờ `seedance_video_edit`) đã gửi được Seedance 2.5 sửa clip, nhưng **khác mẫu**: thêm
+  `omni_reference_task_type: "edit"`, `generate_audio: False`, không có `draft`, tải video dạng tệp thay vì asset, và chặn 1080p.
+- `submit_final_from_sample` đã có (nâng `draft_task` → 1080p) — dùng lại được cho bước nâng.
+- → Việc code: thêm tùy chọn `draft=True` + tiền tố "Chỉnh sửa@Video1" vào `submit_video_edit` (hoặc hàm mới `submit_background_replace`),
+  so trước bằng một lần gửi thử 480p xem có cần `omni_reference_task_type` không; giá ước tính theo token video vào (`cost.seedance_token_usd`)
+  và cập nhật bảng giá nâng 1080p (trùng A7).
+
 **Thiết kế trong pipeline:**
 - **Bộ dựng prompt bằng code** theo đúng 6 khối trên: khối người sinh từ mô tả đo được (tóc, áo, đạo cụ — đọc khung đầu bằng Claude
   `claude_cli`, 0 USD API), khối nền từ chữ người dùng hoặc mô tả ảnh ref nền; tự kiểm ≤ 5 000 ký tự (cùng ngân sách ký tự G13/G54).
@@ -103,8 +121,7 @@ Cách làm gốc: cuộc trò chuyện ChatGPT người dùng xuất PDF `E:/Tai
 - Kiểm: mặt / trang phục giữ nguyên (so khung), động tác khớp nguồn (`clip_measure`), không lộ viền mask; bộ lọc "người thật" của Seedance
   (G32) là rủi ro — người dùng phải có quyền với người trong video.
 - Chi phí: ước tính trước + sổ chi như mọi lời gọi tốn tiền; nháp 480p trước (luật rẻ trước, không phóng 480p).
-- **Cần kiểm trước khi code (0 USD, đọc docs):** ClipAI (nhà cung cấp hiện dùng) có chế độ Video Edit / V2V của Seedance 2.5 qua API
-  không; nếu không → hoặc thêm adapter Kling AI, hoặc đi đường dự phòng (mask + nền gen + ghép theo đường máy đo được).
+- **Đã xác nhận 20/10:** ClipAI gửi được Seedance 2.5 sửa video + nâng 1080p qua API (mẫu thật ở bảng trên) → không cần adapter Kling.
 - Vị trí: mục mới trong Kho / bước 4, ngoài luồng dự án phim. Phase: sau P0.5 (cần giá đúng), độc lập P1–P5.
 
 ## 7. Rủi ro chính (bổ sung V2.1 §9)
