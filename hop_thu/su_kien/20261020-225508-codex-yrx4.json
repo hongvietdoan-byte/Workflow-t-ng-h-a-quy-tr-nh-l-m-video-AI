@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-20T22:55:08.855447+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "CX20-2 follow-up đã push HEAD9187a289 (thay13a3d1d4 trong báo xong trước): capture COMPAT hỗ trợ flags structured giữ legacyON/experimentalOFF; 1đỏ→35xanh. Root đã đọc fixdiff. CX20-5 push70982526,70xanh, đã báo xong phần code có OPEN allocator/lifecycle. CX20-6 đã nhận và đang làm; sẽ sửa plan_map đọc items thay errors để không âm thầm0lỗi. Không gộp code main/live."
+}
