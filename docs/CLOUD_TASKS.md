@@ -343,7 +343,7 @@ Nhánh cloud/v31-err-upd. XONG hộp thư.
 ---
 
 ## HÀNG VIỆC DỰ PHÒNG (người dùng 20/10: làn hết việc tự lấy thêm; phiên chính chủ động bổ sung)
-Làn cloud (B, C, …) hết việc được giao riêng → nhận mục **DP** đầu tiên còn `CHỜ` trong hộp thư (dòng "VIỆC DỰ PHÒNG"): sửa đuôi mục đó thành
+Làn cloud (B, C, …) **và Codex** hết việc được giao riêng → nhận mục **DP** đầu tiên còn `CHỜ` trong hộp thư (dòng "VIỆC DỰ PHÒNG"): sửa đuôi mục đó thành
 `ĐANG LÀM <giờ> (<làn>)` + push commit `hộp thư:` NGAY (trước khi code) — thấy làn khác đã nhận trước (union merge có thể để 2 dòng nhận) thì làn
 nhận SAU bỏ, lấy mục kế. Mọi mục: Cấp 2 đã duyệt (G2-4 / G2-5: QC chỉ Shadow/REVIEW, không tự BLOCK, map chỉ offline), cờ mới TẮT, test ĐỎ→XANH,
 không API trả phí, nhánh `cloud/v31-<mã>`; báo cáo `docs/RA_CLOUD_<MÃ>_2026-10-2x.md` + XONG hộp thư.

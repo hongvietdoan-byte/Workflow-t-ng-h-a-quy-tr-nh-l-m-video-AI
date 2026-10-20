@@ -1381,6 +1381,12 @@ thái / workstream / dự án, đếm coverage, cảnh báo đỏ mục `problem
 theo lỗi mở. Theo mẫu trang hiện có trong `devsys/app.py`; cập nhật `tests/test_tickets_page.py` danh sách điều hướng nếu thêm trang. Test hiển thị theo cách
 test trang devsys hiện có.
 
+## CHỦ ĐỘNG LẤY VIỆC (người dùng 20/10 — áp dụng như làn cloud)
+Làm xong một việc → `git pull` + đọc hộp thư 📨 `TODO.md` → làm việc CHỜ kế của `codex`. Hết việc ĐỢT hiện hành (hoặc việc còn lại đang bị chặn
+"BẮT ĐẦU KHI") → nhận mục **DP** đầu tiên còn CHỜ ở `docs/CLOUD_TASKS.md` "HÀNG VIỆC DỰ PHÒNG" (đánh dấu `ĐANG LÀM <giờ> (codex)` trong hộp thư +
+push `hộp thư:` TRƯỚC khi code; làn khác nhận trước thì bỏ, lấy mục kế), nhánh `codex/v31-<mã>`. Không còn việc nào → ghi hộp thư
+`codex → phiên-chính: HẾT VIỆC — CHỜ` rồi dừng. Phiên chính giữ cho codex luôn ≥ 2 việc CHỜ.
+
 ## Kết quả Codex — đợt 20
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
