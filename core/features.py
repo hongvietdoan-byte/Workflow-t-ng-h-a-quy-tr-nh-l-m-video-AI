@@ -355,6 +355,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.22 cổng S11.2 ĐẠT: người dùng chấm phiếu 05d (docs/DO_S11_2_Y_TUONG_2026-10-05d.md) TB 4,20 ≥ 4,0, đo thật 0,709 USD; "
                "06/10 người dùng duyệt bật mặc định — dùng khi người dùng yêu cầu hoặc khi kịch bản sơ sài (Claude hỏi trong khung chat, chưa tự chi)",
     },
+    "qc_false_alarm_fix": {
+        "label": "Sửa báo nhầm QC (V3.1 M4.5): QC lớp 0 bỏ kiểm cỡ cảnh khi bố cục qua vai / sau lưng (A5); Tổ rà soát nhận tên video "
+                 "tham chiếu của shot (A6)",
+        "verified": False,
+        "why": "#33: S2 sau lưng nhóm bị đo nhầm 'WS, xin MS' → tự gen lại ép thắt lưng (A5); shot 6 bị báo 'không có video tham chiếu' "
+               "(#877, A6). Chỉ bớt báo nhầm, không chặn gì. Chưa chạy trên dữ liệu thật",
+    },
     "qc_observe_enum": {
         "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",
         "verified": False,
