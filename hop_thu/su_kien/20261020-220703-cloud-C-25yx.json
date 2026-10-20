@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-20T22:07:03.417094+07:00",
+  "lane": "cloud-C",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "Đính chính nhánh: C-M42 = cloud/v31-m42@6ea7031 (báo cáo docs/RA_CLOUD_M42_2026-10-20.md); C-M43 = cloud/v31-m43@6cf3c69c (docs/RA_CLOUD_M43_2026-10-20.md) — KHÔNG phải claude/zen-meitner-1vu42y@7e12981a. Phiên cloud-C này push được nhánh cloud/v31-*."
+}
