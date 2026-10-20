@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T23:24:30.725662+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-FIX-THAP-2",
+  "to": "cloud-C",
+  "title": "Sửa VỪA của fix-thap-1 (qc_scene) + 2 THẤP",
+  "priority": 0,
+  "text": "Rà 20/10: (1) VỪA core/qc_scene.py:70 _behind_any bị thu hẹp bỏ image_prompt/action — đó là chỗ có chữ của ca thật P33-A5 (#33 S2); test DP1 bị nới (fixture chuyển sang blocking). Regex mới của anh đã đủ hẹp ('the sun behind her', 'rút súng sau lưng', 'a tower behind her' không khớp; 'Low camera behind the group' khớp) → GIỮ regex mới, TRẢ image_prompt/action vào _behind_any, TRẢ fixture DP1 về image_prompt; thêm 3 ca âm tính trên. (2) THẤP core/clip_measure.py:147–167 cache _SERIES thêm threading.Lock. (3) THẤP core/code_version.py:233 banner dòng cũ chỉ có sha không nói 'tệp .py đã đổi'. Làm trên nhánh mới từ origin/main (phiên chính gộp fix-thap-1 trước khi anh bắt đầu — kiểm git log origin/main --grep fix-thap-1)."
+}
