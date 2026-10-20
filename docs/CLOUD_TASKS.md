@@ -97,6 +97,13 @@ push lên main, rồi báo người dùng mã việc để dán vào phiên clou
 | C-M31-34 | Thiết kế M3.1–M3.4 world map / người nộm / câu vị trí / continuity_state (chỉ tài liệu) | `cloud/v31-m31-m34` | CHỜ (hộp thư) |
 | C-M51-52 | Thiết kế M5.1 repair router + M5.2 release gate (chỉ tài liệu) | `cloud/v31-m51-m52` | CHỜ (hộp thư) |
 | C-M46 | Đặc tả bộ benchmark QC M4.6 theo mã lỗi (chỉ tài liệu + công cụ liệt kê ca chỉ đọc nếu cần) | `cloud/v31-m46` | CHỜ (hộp thư) |
+| C-M16 | M1.6 ước tính giá đúng gói gửi (CODE, chuyển từ Codex Đ20 việc 3) | `cloud/v31-m16` | CHỜ (hộp thư) |
+| C-M17 | M1.7 G55/G56/G39/A14 (CODE, chuyển từ Codex Đ20 việc 4) | `cloud/v31-m17` | CHỜ (hộp thư) |
+| C-M2X | Thiết kế M2.4, M2.6, M2.7, M2.8, M2.9 (chỉ tài liệu) | `cloud/v31-m2x` | CHỜ (hộp thư) |
+| C-RA-M14B | (cloud-C) RÀ KỸ độc lập nhánh `cloud/v31-m14b` rồi sửa một vòng | `cloud/v31-m14b-fix` | CHỜ (hộp thư) |
+| C-T12 | (cloud-C) Bổ sung test còn thiếu của M1.2/M1.3 | `cloud/v31-t12` | CHỜ (hộp thư) |
+| C-G36B | (cloud-C) G36 còn mở: lần thử lại đầu vẫn đi Seedance — điều tra + sửa gốc | `cloud/v31-g36b` | CHỜ (hộp thư) |
+| C-ERR-UPD | (cloud-C) Cập nhật sổ lỗi theo các commit đã gộp 20/10 | `cloud/v31-err-upd` | CHỜ (hộp thư) |
 
 (20/10: 2 phiên `start_session target:"cloud"` tài khoản chính HỎNG khi khởi động — clone nhánh worktree chưa push + API error; M1.4a chuyển phiên con máy chính. 3 việc C-M010, C-M09, C-M011 độc lập, dán được song song 3 phiên.)
 
@@ -263,4 +270,72 @@ gate checklist đo được; test plan + rollback. Nhánh cloud/v31-m51-m52.
 nguồn ca thật có thể lấy (job/shot #24 #27 #31 #33 trong tài liệu docs/DANH_GIA_*, sổ lỗi) — ghi rõ ca nào cần máy chính trích (data/ không có trên cloud),
 quy trình gán nhãn (người dùng xác nhận), chỉ số (báo nhầm / bỏ sót theo mã, hiệu chuẩn độ tin cậy), ngưỡng xét BLOCK chỉ cho luật kỹ thuật tất định.
 → docs/V3_1_M4_6_DAC_TA_BENCHMARK_QC_2026-10-2x.md. Nhánh cloud/v31-m46.
+```
+
+#### C-M16
+```
+Việc V3.1 M1.6 (CODE, Cấp 2 G2-2 đã duyệt) — đề bài ĐÚNG như docs/CODEX_TASKS.md "# ĐỢT 20" → "## Việc 3 — M1.6" + luật chung đầu ĐỢT 20 (cờ TẮT khi đổi
+hành vi, KHÔNG đổi data/pricing.json, D01: 0 điểm chặn mới theo ngân sách, check_no_budget_lock_gate xanh). Chuyển từ Codex sang cloud-B 20/10.
+Công cụ tools/clipai_cost_reconcile.py ĐÃ trên main (dùng số hiệu chuẩn của nó; ghi rõ số điểm). Nhánh cloud/v31-m16 từ origin/main MỚI NHẤT.
+KHÔNG sửa core/llm_runner.py (M1.4b chờ gộp). Báo cáo → docs/RA_CLOUD_M16_2026-10-2x.md + XONG trong hộp thư.
+```
+
+#### C-M17
+```
+Việc V3.1 M1.7 (CODE, Cấp 2 G2-2 đã duyệt) — đề bài ĐÚNG như docs/CODEX_TASKS.md "# ĐỢT 20" → "## Việc 4 — M1.7" (G55 báo chạy code cũ, G56 gộp diag lặp,
+G39 regen kiểm data_dir, A14 câu báo ngân sách theo D01) + luật chung ĐỢT 20. core/runner.py, core/bg_poll.py nay ĐƯỢC sửa (M1.2/M1.3 đã gộp) nhưng giữ
+nguyên hành vi poll_claim / pause_before_submit (đang BẬT máy chính) — test cũ của chúng phải xanh. Lưu ý thực tế 20/10: tools/stop_dashboard.ps1 chỉ tắt
+8501, 2 Dashboard cũ 8503/8504 chạy code cũ cả ngày → G55 nên báo cả khi CỔNG KHÁC đang chạy code cũ (banner/diag), và stop_dashboard có tùy chọn tắt mọi
+cổng dashboard.serve. Nhánh cloud/v31-m17. Báo cáo → docs/RA_CLOUD_M17_2026-10-2x.md + XONG trong hộp thư.
+```
+
+#### C-M2X
+```
+THIẾT KẾ (chỉ tài liệu) chuẩn bị code M2 (G2-3 mở khi có golden M1.9): M2.4 insert_scene_after kế thừa bối cảnh + BYĐ DRAFT; M2.6 sent_package nhãn theo
+rel_path/asset_id (G5); M2.7 image preflight trong ImageRunner._pregen chung mã lỗi với video; M2.8 router theo khả năng model (không gộp nhóm khi cần khung
+đầu/cuối…); M2.9 lời dẫn ngoài khớp môi mọi caller (G15–G17, G53) — dùng tests/test_narration_regression.py (21 xfail strict đã trên main) làm nghiệm thu.
+Nguồn: kế hoạch V3.1 mục 5 dòng M2.x + mục 4a; thiết kế M2.1/M2.2, M0.9, M0.10 đã trên main; mã lỗi trong devsys/errors.json. Mỗi việc: file:hàm hiện có,
+thay đổi, cờ, test đỏ→xanh, golden compat (#24/#27 cờ TẮT = byte), rollback. → docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-2x.md. Nhánh cloud/v31-m2x.
+```
+
+#### C-RA-M14B (cloud-C)
+```
+RÀ KỸ độc lập (quy ước 7 CLAUDE.md) nhánh origin/cloud/v31-m14b (M1.4b provider Claude theo dự án, do cloud-B viết — anh là làn KHÁC nên rà độc lập).
+Đụng TIỀN + provider + migration → rà kỹ. Bước 1 CHỈ ĐỌC: git diff origin/main...origin/cloud/v31-m14b; đối chiếu đề bài "#### C-M14B" (file này), thiết kế
+docs/V3_1_M1_4B_THIET_KE_2026-10-20.md (đã sửa C-FIX-D19: job/dự án cũ theo env, không hold), quyết định v31-d02 + v31-cap3-items-decided (C3-1: migration
+chỉ áp sau backup — code KHÔNG được tự áp lên CSDL thật lúc khởi động trừ khi theo đúng cơ chế migration hiện có của core/db.py và tương thích worker cũ).
+Chạy `python tools/related_areas.py <file đổi>` để lấy khu vực liên quan; rà: caller nào còn client_from_env thay vì client_for_project; job đang chạy có giữ
+snapshot không; đường nền (bg_poll, autoqc, autopilot, change_review) khi hết quota dừng cả lượt có giờ mở; có đường nào tự sang anthropic khi dự án cũ NULL
+mà env claude_cli; devsys mặc định không còn anthropic; migration up/down + worker cũ; test bị nới. Ghi docs/RA_CLOUD_M14B_REVIEW_2026-10-2x.md (mỗi lỗi:
+CAO/VỪA/THẤP, file:dòng, cách sửa, test).
+Bước 2 SỬA một vòng: nhánh cloud/v31-m14b-fix tách từ origin/cloud/v31-m14b, sửa HẾT lỗi CAO/VỪA (+ THẤP nếu rẻ), test ĐỎ→XANH từng lỗi, gom test 1 lệnh.
+Không áp migration lên CSDL thật, không gọi API thật. XONG ghi hộp thư.
+```
+
+#### C-T12 (cloud-C)
+```
+Bổ sung TEST còn thiếu (chỉ test, không đổi hành vi; nếu test lộ lỗi thật → sửa tối thiểu + ghi rõ) cho M1.2/M1.3 đã gộp main (cờ poll_claim +
+pause_before_submit đang BẬT máy chính): (1) đường VIDEO qua core/safe_download.py: core/runner.py _finish_group / _finish_upgrade — tệp tạm + os.replace, người đọc
+không thấy tệp dở, clip nhóm; (2) core/bg_poll.poll_all ở mức 2 TIẾN TRÌNH thật (multiprocessing, CSDL SQLite tạm) cùng poll một job → đúng 1 succeeded;
+(3) core/end_frames.py: bước tạo khung cuối có thể tốn tiền lúc dự án đang Tạm dừng → phải 0 lần gửi khi pause_before_submit bật (nếu đang gửi được → đó
+là lỗi, sửa sau cờ pause_before_submit). Nguồn: báo cáo phiên con M1.2/M1.3 (mục rủi ro trong hộp thư 18:12 + tests/test_v31_m12_poll_claim.py,
+tests/test_v31_m13_pause_before_submit.py). Test chạy được trên Linux (không cần Windows). Nhánh cloud/v31-t12.
+```
+
+#### C-G36B (cloud-C)
+```
+G36 còn mở (docs/DANH_GIA_P31_LECH_3D_TI_LE_2026-10-18.md dòng "| G36 |"): sau khi Seedance từ chối (real_person), LẦN THỬ LẠI ĐẦU vẫn đi Seedance rồi mới
+sang Kling (1061→1073, 1057→1065→1071) — đổi model trong core/runner.py _record_provider_failure không có tác dụng ở lần gửi lại đầu. Điều tra gốc (đọc
+code + dựng lại bằng provider giả: job bị từ chối real_person → job thử lại phải mang model đã đổi ngay lần đầu), sửa GỐC (không vá), test ĐỎ→XANH. Giữ
+nguyên poll_claim / pause_before_submit; chặn trả tiền trùng; không gọi API thật. Nếu sửa đổi hành vi đường gửi → sau cờ mới TẮT (core/features.py).
+Nhánh cloud/v31-g36b. Báo cáo + XONG hộp thư.
+```
+
+#### C-ERR-UPD (cloud-C)
+```
+Cập nhật devsys/errors.json (sổ lỗi, đã trên main) theo các việc gộp main 20/10: M1.1 (R3 vat — commit gộp 36fcb4bd), M1.4a (R2 provider — 222bf9c5),
+M1.2 A1 + A15 và M1.3 G36 (60b9da80; cờ BẬT máy chính 20/10 — sổ v31-c3-2-flags-on-main), C3-0 (dashboard.env claude_cli), lỗi Dashboard cũ chạy
+cổng 8503/8504 (G55 thực tế). Trạng thái tối đa FIXED_UNVERIFIED (chưa có bằng chứng chạy thật), điền fix_commit + tests (tên test thật) + plan_workstream;
+KHÔNG VERIFIED. Chạy `python -m devsys.errors check` phải "Hợp lệ"; tests/test_error_registry.py xanh. Lấy commit/test bằng git log / grep, không đoán.
+Nhánh cloud/v31-err-upd. XONG hộp thư.
 ```

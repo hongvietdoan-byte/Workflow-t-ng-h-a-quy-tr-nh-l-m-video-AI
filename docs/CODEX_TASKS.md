@@ -1354,13 +1354,13 @@ payload gửi (ảnh + video: `sent_package`, prompt, thứ tự ref, hash từn
 giống TỪNG BYTE, (b) CORRECTNESS tách riêng (golden ≠ đúng). Test bằng fixture tổng hợp nhỏ (không lấy dữ liệu thật); thêm ca lệch 1 byte → đỏ, ca thiếu
 trường → báo rõ. Mô tả trong báo cáo: lệnh phiên Claude cần chạy để chụp #24/#27 (compat) và #31/#33 (correctness).
 
-## Việc 3 — M1.6 ước tính giá đúng gói gửi (A7–A9, G31; KHÔNG đổi bảng giá)
+## Việc 3 — M1.6 ước tính giá đúng gói gửi — ⚠ CHUYỂN cloud-B 20/10 (C-M16), Codex BỎ QUA (A7–A9, G31; KHÔNG đổi bảng giá)
 Đọc `docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md` mục 5 + báo cáo Đ19 việc 2 (`tools/clipai_cost_reconcile.py`). Sửa ước tính (`core/cost.py`, `core/spend_gate.py`
 phần ước tính, `tools/pregen_check.py`): tier nháp, phụ phí ref (video input), bước nâng 1080p (`draft_task`), `claude_cli` = 0 USD API, và **`pregen_check` in giá
 VIDEO** (hiện chỉ ảnh). Ước tính dùng đúng gói sẽ gửi (cùng hàm dựng gói của nút Gen), không tính tay. Test: 3 ca mẫu mục 5 (nháp 480p, nâng 1080p, có video input)
 → lệch ≤ 10 % so số thật ghi trong tài liệu (ghi rõ số điểm hiệu chuẩn); `check_no_budget_lock_gate` vẫn xanh (D01: 0 điểm chặn mới theo ngân sách).
 
-## Việc 4 — M1.7 Dashboard báo chạy code cũ (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01)
+## Việc 4 — M1.7 Dashboard báo chạy code cũ — ⚠ CHUYỂN cloud-B 20/10 (C-M17), Codex BỎ QUA (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01)
 Nguồn lỗi: grep "| G55 |", "| G56 |", "| G39 |" trong `docs/DANH_GIA_*.md`, "| A14 |" trong `docs/DANH_GIA_P33_LOI_GAP_PHAI_2026-10-20.md`. G55: Dashboard / tiến
 trình nền so HEAD lúc khởi động với HEAD repo → banner "đang chạy code cũ, khởi động lại". G56: diag cùng mã + cùng nội dung trong cửa sổ thời gian → gộp đếm.
 G39: tạo lại (regen) kiểm `data_dir` đúng dự án trước khi ghi. A14: câu báo ngân sách theo D01 (chỉ cảnh báo, có số). Không đụng `core/runner.py` / `core/bg_poll.py`
