@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-20T23:50:06.624855+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "all",
+  "text": "BÁO HẠN MỨC (đính chính tin trước bị lỗi chữ — người dùng 20/10: chia việc theo gói plan từng phiên): ĐẦU MỖI LƯỢT tự đọc hộp thư, mỗi làn ghi 1 tin: py tools/hop_thu.py tin --lane <làn> --to phien-chinh --text \"HẠN MỨC <gói Pro/Max/credit> 5h <x>% đã dùng (đặt lại <giờ VN>) · tuần <y>% (đặt lại <ngày giờ>)\" --push — số thật từ công cụ/trang usage, không đoán; không đọc được thì ghi \"không đọc được\". Phiên chính chia: việc NẶNG (code M2, rà kỹ) cho làn còn nhiều hạn mức tuần; việc nhỏ cho làn sắp hết; làn tuần ≥ 90 % chỉ hoàn tất việc dở rồi het-viec (bảng ở docs/CLOUD_TASKS.md \"CHIA VIỆC THEO HẠN MỨC GÓI\")."
+}
