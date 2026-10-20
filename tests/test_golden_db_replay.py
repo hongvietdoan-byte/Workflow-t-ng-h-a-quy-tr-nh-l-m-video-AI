@@ -135,11 +135,15 @@ def test_api_leaves_global_cwd_and_environment(database):
         assert fake=={}
 
 
-@pytest.mark.parametrize('operation',['write','os_open','network','subprocess','read_outside'])
+@pytest.mark.parametrize('operation',['write','os_open','utime','network','subprocess','os_system','read_outside','read_asset_text'])
 def test_worker_blocks_source_writes_network_and_unknown_reads(database,operation):
     module,db,root,flags=database
     marker=root/'synthetic-outside.txt'
     marker.write_text('synthetic sentinel',encoding='utf-8')
+    if operation == 'read_asset_text':
+        with closing(sqlite3.connect(db)) as conn,conn:
+            conn.execute("INSERT INTO assets(id,game,kind,name) VALUES(900,'OTHER','object','red cube')")
+            conn.execute("INSERT INTO asset_images(asset_id,path) VALUES(900,'synthetic-outside.txt')")
     with tempfile.TemporaryDirectory(prefix='golden-probe-') as temp,patch.object(os,'environ',{}):
         box=Path(temp);(box/'data').mkdir()
         module._db_snapshot(db,box/'data/manifest.sqlite')
@@ -158,9 +162,11 @@ with patch.object(os,'environ',{}):
   operation=sys.argv[3]
   if operation=='write':path.write_text('forbidden',encoding='utf-8')
   elif operation=='os_open':os.open(path,os.O_WRONLY)
+  elif operation=='utime':os.utime(path,(1,1))
   elif operation=='network':socket.socket()
   elif operation=='subprocess':subprocess.Popen(['forbidden'])
-  elif operation=='read_outside':path.read_text(encoding='utf-8')
+  elif operation=='os_system':os.system('exit 0')
+  elif operation in ('read_outside','read_asset_text'):path.read_text(encoding='utf-8')
  with patch.object(runner.ImageRunner,'_submit_args',probe):
   try:_worker(request)
   except ValueError:Path('blocked').write_text('yes')
@@ -187,7 +193,7 @@ def test_summary_counts_distinct_shots_and_keeps_insufficient_separate():
         assert result['data_changed_fraction']==1/5
 
 
-@pytest.mark.parametrize('cached',[True,False])
+@pytest.mark.parametrize('cached',[True,False,'ambiguous'])
 def test_verified_hosted_refs_use_only_active_cached_registry(database,cached):
     module,db,root,flags=database
     flags['seedance_subjects']=True
@@ -197,6 +203,8 @@ def test_verified_hosted_refs_use_only_active_cached_registry(database,cached):
         if cached:
             digest=hashlib.sha256((root/'data/projects/24/images/job_1.png').read_bytes()).hexdigest()
             conn.execute("INSERT INTO seedance_subject_pictures(sha,name,asset_id,asset_uri,status) VALUES(?,'synthetic','fixture-public','asset://fixture-public','active')",(digest,))
+            if cached == 'ambiguous':
+                conn.execute("INSERT INTO seedance_subject_pictures(sha,name,asset_id,asset_uri,status) VALUES(?,'other','fixture-public','asset://other','active')",('b'*64,))
         conn.commit()
     with tempfile.TemporaryDirectory(prefix='golden-cache-') as temp,patch.object(os,'environ',{}):
         box=Path(temp);(box/'data').mkdir()
@@ -225,9 +233,71 @@ with patch.object(os,'environ',{}):
             env={'SYSTEMROOT':'C:/Windows','HOME':temp,'USERPROFILE':temp,'TEMP':temp,'TMP':temp},capture_output=True,timeout=60)
         assert result.returncode==0
         answer=json.loads((box/'answer.json').read_text(encoding='utf-8'))
-        if cached:
+        if cached is True:
             assert answer['status']=='BUILT',answer
             assert json.loads((box/'hosted.json').read_text())==[{'uri':'asset://fixture-public'}]
             assert answer['registry'][0]['status']=='active'
         else:
             assert answer['status']=='INSUFFICIENT_INPUT'
+
+
+def test_legacy_flags_must_be_explicit(database):
+    flags_module = importlib.import_module('tools.golden_capture')
+    legacy = next(k for k,v in flags_module.feature_catalog().items() if v.get('verified') is not False)
+    database[3].pop(legacy)
+    with pytest.raises(ValueError, match='INSUFFICIENT_INPUT'):
+        build(database,1)
+
+
+def test_low_level_read_is_fingerprinted(database):
+    module,db,root,flags=database
+    target=root/'data/pricing.json'
+    target.parent.mkdir(exist_ok=True)
+    target.write_text('{}',encoding='utf-8')
+    with tempfile.TemporaryDirectory(prefix='golden-probe-') as temp,patch.object(os,'environ',{}):
+        box=Path(temp);(box/'data').mkdir()
+        module._db_snapshot(db,box/'data/manifest.sqlite')
+        request={'root':str(root),'job_id':1,'flags':flags,'envelope':{'provider':'fake','at':'2026-10-21','external_id':'fixture'},'public_config':{},'expected_files':None}
+        path=box/'probe.json';path.write_text(json.dumps(request),encoding='utf-8')
+        code="""import os,sys,json
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,sys.argv[1])
+with patch.object(os,'environ',{}):
+ from tools.golden_db_replay import _worker
+ from core import runner
+ request=json.loads(Path(sys.argv[2]).read_text(encoding='utf-8'))
+ original=runner.ImageRunner._submit_args
+ def probe(self,job):
+  fd=os.open(Path(request['root'])/'data/pricing.json',os.O_RDONLY)
+  try:os.read(fd,2)
+  finally:os.close(fd)
+  return original(self,job)
+ with patch.object(runner.ImageRunner,'_submit_args',probe):
+  answer=_worker(request)
+  Path('answer.json').write_text(json.dumps(answer),encoding='utf-8')
+"""
+        result=subprocess.run([sys.executable,'-I','-B','-c',code,str(Path(__file__).resolve().parents[1]),str(path)],cwd=box,
+            env={'SYSTEMROOT':'C:/Windows','HOME':temp,'USERPROFILE':temp,'TEMP':temp,'TMP':temp},capture_output=True,timeout=60)
+        assert result.returncode==0
+        answer=json.loads((box/'answer.json').read_text(encoding='utf-8'))
+        assert answer['status']=='BUILT'
+        assert answer['files']['data/pricing.json']==hashlib.sha256(b'{}').hexdigest()
+
+
+def test_capture_cli_preserves_explicit_public_config(database):
+    module,db,root,flags=database
+    expected=json.loads((Path(__file__).parent/'golden/db_package_expected.json').read_text(encoding='utf-8'))
+    with closing(sqlite3.connect(db)) as conn,conn:
+        for job_id,raw in expected.items():
+            conn.execute('UPDATE jobs SET sent_package=? WHERE id=?',(raw,int(job_id)))
+    flags_file=root/'flags.json';flags_file.write_text(json.dumps(flags),encoding='utf-8')
+    public_file=root/'public.json';public_file.write_text(json.dumps({'LLM_PROVIDER':'synthetic'}),encoding='utf-8')
+    output=root/'fixture.json'
+    with patch.object(os,'environ',{}),patch.object(importlib.import_module('tools.golden_capture'),'head_sha',return_value='a'*40):
+        capture=importlib.import_module('tools.golden_capture')
+        assert capture.main(['--db',str(db),'--project','24','--shot','7','--flags-file',str(flags_file),
+            '--ref-root',str(root),'--output',str(output),'--purpose','compat','--database-replay',
+            '--public-config-file',str(public_file)])==0
+    fixture=json.loads(output.read_text(encoding='utf-8'))
+    assert all(j['database_replay']['manifest']['public_config']=={'LLM_PROVIDER':'synthetic'} for j in fixture['jobs'])

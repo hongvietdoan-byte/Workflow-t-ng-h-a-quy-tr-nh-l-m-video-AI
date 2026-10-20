@@ -21,7 +21,7 @@
 
 - Manifest/đầu vào thiếu → INSUFFICIENT_INPUT. DB/file/cờ/config/job/envelope khác capture → DATA_CHANGED, không CODE_MISMATCH. Byte khác ngay lúc capture nhưng không có input lịch sử → INSUFFICIENT_INPUT (không đoán dữ liệu trước gửi). Chỉ baseline đã khớp lúc capture + cùng dependency sau đó nhưng builder lệch mới CODE_MISMATCH. Byte đúng → COMPAT, không suy ra chất lượng đúng.
 - Whole DB fingerprint cố ý bảo thủ: DB snapshot thay đổi bất kỳ bảng nào cũng DATA_CHANGED. Dùng cùng snapshot vật lý bất biến cho capture và replay, tránh DB Dashboard live. File ngoài allowlist/asset chưa xác định được trong shot, nguồn dùng symlink, provider/model khác whitelist, `_from_sample`, upload/list registry thiếu chứng cứ, hoặc prepare cần subprocess → INSUFFICIENT_INPUT; không tự đoán/fallback.
-- Audit/VFS là guard cho code pipeline tin cậy, **không phải OS sandbox chống Python ác ý**. Socket/Popen và các audit event đã liệt kê được chặn; chưa chứng minh mọi đường native/ctypes/os.system/startfile/registry có cùng bảo vệ. Rà độc lập cần kiểm đúng threat model này; không chạy mã tùy ý hay plugin ngoài trusted pipeline trong worker.
+- Audit/VFS là guard cho code pipeline tin cậy, **không phải OS sandbox chống Python ác ý**. Socket/Popen, os.system/startfile/exec/spawn và các audit event đã liệt kê được chặn; chưa chứng minh mọi đường native/ctypes/registry có cùng bảo vệ. Không chạy mã tùy ý hay plugin ngoài trusted pipeline trong worker.
 - **Code + lệnh đã có; M1.9/CAO-M2 acceptance thật vẫn OPEN.** Chưa chạy #24/#27, chưa cả bộ Windows, chưa gộp/mở M2, chưa API/provider trả tiền. Phiên chính chụp/chạy nghiệm thu, ghi rõ các ca INSUFFICIENT_INPUT; chúng không được tính thành COMPAT. Rà độc lập code còn mở.
 
 ## Lệnh phiên chính (0 USD, chưa chạy)
@@ -33,12 +33,14 @@ $db = 'D:/AI-Video-Output/golden-snapshot/manifest.sqlite'
 $root = 'D:/AI-Video-Pipeline'
 $out = 'D:/AI-Video-Output/golden-snapshot'
 $flags = "$out/compat-flags.json"
+$public = "$out/public-config.json" # JSON public explicit; LLM_PROVIDER/image_model/video_model/FEATURE_*, không xuất từ môi trường.
+# Flags phải đủ TOÀN BỘ catalog, gồm legacy verified; public {} nghĩa là chủ ý dùng mặc định code/DB.
 # $scenes24 và $scenes27: mỗi biến chứa ít nhất 3 scenes.id khác nhau do phiên chính chọn.
 foreach ($sid in $scenes24) {
-  py tools/golden_capture.py --db $db --project 24 --shot $sid --flags-file $flags --ref-root $root --purpose compat --database-replay --latest-per-type --output "$out/p24-s$sid.json"
+  py tools/golden_capture.py --db $db --project 24 --shot $sid --flags-file $flags --ref-root $root --purpose compat --database-replay --latest-per-type --public-config-file $public --output "$out/p24-s$sid.json"
 }
 foreach ($sid in $scenes27) {
-  py tools/golden_capture.py --db $db --project 27 --shot $sid --flags-file $flags --ref-root $root --purpose compat --database-replay --latest-per-type --output "$out/p27-s$sid.json"
+  py tools/golden_capture.py --db $db --project 27 --shot $sid --flags-file $flags --ref-root $root --purpose compat --database-replay --latest-per-type --public-config-file $public --output "$out/p27-s$sid.json"
 }
 $replayArgs = @('--db', $db, '--ref-root', $root, '--output', "$out/replay-24-27.json")
 foreach ($sid in $scenes24) { $replayArgs += @('--fixture', "$out/p24-s$sid.json") }
@@ -47,3 +49,17 @@ py tools/golden_db_replay.py @replayArgs
 ```
 
 Owner kiểm từng project 24 và 27: `distinct_compat_image_shots >=3`, `distinct_compat_video_shots >=3`; `compat_percent_complete_input=100` (mẫu số COMPAT+CODE_MISMATCH); DATA_CHANGED/selected_cases ≤1/3. Selected cases là job duy nhất được chọn, không phải số take đếm lặp. DATA_CHANGED kèm lý do; INSUFFICIENT_INPUT riêng và không đếm vào 3 shot xanh. `acceptance=OPEN_OWNER_ONLY_24_27` luôn giữ cho người nghiệm thu quyết, không tự mở M2.
+
+## RÀ KỸ độc lập và vòng sửa gom (21/10)
+
+- **P2 — manifest thiếu dependency low-level:** `os.open(..., O_RDONLY)` được audit cho phép nhưng không đi qua `open`/`io.open`, không ghi fingerprint. Đã bọc `os.open` qua cùng VFS; không nhận dir_fd không chứng minh được đường dẫn. Regression native `test_low_level_read_is_fingerprinted`: ĐỎ → XANH.
+- **P2 — nguồn chưa thật sự chỉ đọc:** `os.utime` sửa được mtime nguồn; audit nay chặn utime/chmod/chown/truncate ngoài scratch. `test_worker_blocks_source_writes_network_and_unknown_reads[utime]`: 1 đỏ/0,68s → XANH.
+- **P2 — đường spawn ngoài Popen:** `os.system` khởi được shell. Audit nay chặn system/startfile/exec/spawn/posix_spawn/fork; regression `[os_system]`: 1 đỏ/0,98s → XANH.
+- **P2 — registry mơ hồ:** lookup `fetchone` theo asset_id có thể lấy URI/SHA của bản ghi khác khi hai SHA cùng id. Nay đòi đúng một mapping, active + URI có sẵn; không đoán/list/upload. Regression cache `[ambiguous]`: ĐỎ → XANH.
+- **P2 — registry mở rộng allowlist quá mức:** asset_images có thể trỏ tệp văn bản bất kỳ dưới root rồi được phép đọc. Nay chỉ nhận extension ảnh; tệp khác trả INSUFFICIENT_INPUT trước khi đọc. Regression `[read_asset_text]` dùng sentinel .txt tổng hợp: 1 đỏ/0,90s → XANH, không tạo/đọc credential.
+- **P2 — thiếu legacy flags bị im lặng coi OFF:** DB builder nay đòi đủ toàn bộ catalog, không chỉ cờ experimental. `test_legacy_flags_must_be_explicit`: ĐỎ → XANH; catalog/code mới cần capture mới khi thiếu cờ mới.
+- **P2 — CLI bỏ config public:** builder có input public_config nhưng capture CLI không truyền được, luôn rỗng. Thêm `--public-config-file` qua API capture vào từng job manifest, chỉ khóa public, không đọc môi trường. `test_capture_cli_preserves_explicit_public_config`: 1 đỏ/0,26s → XANH.
+- Ba regression ban đầu: **3 failed /2 passed (4,11s)**. Các lượt bổ sung đều do finding mới, dùng `--tb=no`; không đổi test cũ để che lỗi.
+- Kiểm cuối: **70 passed (43,28s)** cho `tests/test_golden_db_replay.py tests/test_golden_replay.py -q --tb=no -p no:cacheprovider`, native `C:/Users/hongviet.doan/AppData/Local/Python/pythoncore-3.14-64/python.exe`. Trước import pytest/call/spawn dùng `patch.object(os, 'environ', {})`; worker subprocess nhận môi trường whitelist riêng. Không đọc/in/repr/assert môi trường thật hay credential; sentinel và public config đều tổng hợp.
+- Rà caller: golden_capture là caller runtime duy nhất; production runner/default/autopilot không đổi. `related_areas.py`: step2, chung flags assets/autopilot/core_infra/plates3d/step1; không test chậm bắt buộc. Phiên chính đọc diff vòng sửa trước push/gộp theo quy ước 7.
+- Giữ areas.version=87, HANDOFF đã xóa; trạng thái nằm tại báo cáo này. Nghiệm thu thật #24/#27, cả bộ Windows, gộp/main và mở M2 vẫn OPEN. Không đọc dữ liệu thật, không paid/provider call.

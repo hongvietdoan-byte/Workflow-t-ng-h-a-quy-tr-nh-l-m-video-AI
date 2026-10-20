@@ -109,7 +109,7 @@ def _ref(ref, root):
     return result
 
 
-def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots_file=None, database_replay=False, latest_per_type=False):
+def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots_file=None, database_replay=False, latest_per_type=False, public_config_file=None):
     db, root = Path(db).resolve(), Path(ref_root).resolve()
     if not db.is_file() or not root.is_dir():
         raise GoldenError("Cần --db tồn tại và --ref-root là thư mục rõ ràng")
@@ -117,6 +117,15 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
         raise GoldenError("purpose cần compat hoặc correctness")
     if database_replay and purpose != "compat":
         raise GoldenError("Database replay hiện chỉ hỗ trợ COMPAT với cờ thử nghiệm TẮT")
+    public_config = {}
+    if public_config_file is not None:
+        if not database_replay:
+            raise GoldenError("public config chỉ dùng với database replay")
+        public_config = json.loads(Path(public_config_file).read_text(encoding="utf-8-sig"))
+        from tools.golden_db_replay import PUBLIC
+        if not isinstance(public_config, dict) or any(k not in PUBLIC and not k.startswith("FEATURE_") for k in public_config):
+            raise GoldenError("Config ngoài danh sách public")
+        _safe(public_config)
     flag_input = json.loads(Path(flags_file).read_text(encoding="utf-8-sig"))
     structured = isinstance(flag_input, dict) and "flags" in flag_input
     flags = flag_input.get("flags") if structured else flag_input
@@ -182,7 +191,7 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
     if database_replay:
         from tools.golden_db_replay import capture_database_job
         for job in jobs:
-            job["database_replay"] = capture_database_job(job,db=db,ref_root=root,flags=flags)
+            job["database_replay"] = capture_database_job(job,db=db,ref_root=root,flags=flags,public_config=public_config)
     return {"fixture_version": 1, "purpose": purpose, "head_sha": head_sha(), "flags": flags,
             "experimental_flags": experimental,
             "flags_provenance": "explicit_file_unverified_at_send", "schema": schema, "project": project, "scene_id": shot,
@@ -200,10 +209,11 @@ def main(argv=None):
     parser.add_argument("--input-snapshots-file", type=Path, help="JSON job id → args/kwargs trước lắp gói; không suy ngược từ sent_package")
     parser.add_argument("--database-replay", action="store_true", help="Chụp dependency và dựng gói bằng prepare/build thật từ DB, không cần sidecar")
     parser.add_argument("--latest-per-type", action="store_true", help="Chỉ job cuối ảnh và video của shot; không chọn nhiều take cũ")
+    parser.add_argument("--public-config-file", type=Path, help="JSON config public explicit (LLM_PROVIDER, image_model, video_model, FEATURE_*); không đọc môi trường")
     args = parser.parse_args(argv)
     try:
         result = capture(db=args.db, project=args.project, shot=args.shot, flags_file=args.flags_file,
-                         ref_root=args.ref_root, purpose=args.purpose, input_snapshots_file=args.input_snapshots_file, database_replay=args.database_replay, latest_per_type=args.latest_per_type)
+                         ref_root=args.ref_root, purpose=args.purpose, input_snapshots_file=args.input_snapshots_file, database_replay=args.database_replay, latest_per_type=args.latest_per_type, public_config_file=args.public_config_file)
         with args.output.open("x", encoding="utf-8", newline="\n") as stream:
             json.dump(result, stream, ensure_ascii=False, indent=2, allow_nan=False)
     except GoldenError as exc:

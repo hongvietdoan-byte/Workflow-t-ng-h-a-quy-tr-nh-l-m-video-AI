@@ -56,10 +56,12 @@ def _db_snapshot(db, target):
 
 def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None, public_config=None):
     """Không nhận baseline/prompt/args. Manifest None = chụp dependency, có manifest = replay."""
-    from tools.golden_capture import _safe, validate_compat_flags
+    from tools.golden_capture import _safe, validate_compat_flags, feature_catalog
     if not isinstance(flags,dict) or any(not isinstance(k,str) or type(v) is not bool for k,v in flags.items()):
         raise ValueError("INSUFFICIENT_INPUT: cờ phải explicit boolean")
     validate_compat_flags(flags)
+    if feature_catalog().keys() - flags.keys():
+        raise ValueError("INSUFFICIENT_INPUT: thiếu cờ legacy explicit")
     public_config = public_config or {}
     if any(k not in PUBLIC and not k.startswith("FEATURE_") for k in public_config):
         raise ValueError("INSUFFICIENT_INPUT: config ngoài danh sách public")
@@ -182,6 +184,7 @@ def _worker(request):
     scratch, source = Path.cwd(), Path(request["root"])
     files, denied, changed = {}, [], []
     original_open, original_io, original_stat = builtins.open, io.open, os.stat
+    original_os_open = os.open
     original_listdir, original_scandir = os.listdir, os.scandir
     project = None
     asset_paths = set()
@@ -247,6 +250,11 @@ def _worker(request):
         return original_io(locate(path, any(c in str(mode) for c in "wax+")), mode, *args, **kwargs)
     def wrapped_stat(path, *args, **kwargs):
         return original_stat(locate(path), *args, **kwargs)
+    def wrapped_os_open(path, flags, mode=0o777, *, dir_fd=None):
+        if dir_fd is not None:
+            forbidden()
+        writing = bool(flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND))
+        return original_os_open(locate(path, writing), flags, mode)
     def wrapped_listdir(path="."):
         return original_listdir(locate(path))
     def wrapped_scandir(path="."):
@@ -273,10 +281,10 @@ def _worker(request):
             if not path.is_relative_to(scratch) and not path.is_relative_to(Path(sys.base_prefix)) and not code_directory and not (name and allowed(name)):
                 denied.append("directory")
                 forbidden()
-        elif event.startswith(("socket.", "subprocess.")):
+        elif event.startswith(("socket.", "subprocess.", "os.exec", "os.spawn", "os.posix_spawn", "os.startfile")) or event in {"os.system", "os.fork", "os.forkpty"}:
             denied.append("network")
             forbidden()
-        elif event in {"os.remove", "os.rmdir", "os.mkdir", "os.rename", "os.link", "os.symlink"}:
+        elif event in {"os.remove", "os.rmdir", "os.mkdir", "os.rename", "os.link", "os.symlink", "os.utime", "os.chmod", "os.chown", "os.truncate"}:
             for arg in args[:2] if event in {"os.rename", "os.link", "os.symlink"} else args[:1]:
                 if isinstance(arg, (str, bytes, os.PathLike)) and not Path(os.path.abspath(arg)).is_relative_to(scratch):
                     denied.append("write")
@@ -300,6 +308,9 @@ def _worker(request):
                 p = Path(row["path"])
                 if p.is_absolute():
                     p = p.relative_to(source)
+                # Registry ảnh không được mở rộng allowlist sang config/văn bản tùy ý.
+                if p.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff", ".avif"}:
+                    forbidden()
                 asset_paths.add(p.as_posix())
         # Không cho builder đọc baseline từ DB làm đầu vào.
         conn.execute("UPDATE jobs SET sent_package=NULL")
@@ -330,7 +341,7 @@ def _worker(request):
                        draft=False, high_res_sample=False):
                 forbidden()
         sys.addaudithook(audit)
-        with patch.object(os, "environ", fake_env), patch.object(socket, "socket", forbidden), patch.object(socket, "create_connection", forbidden), patch.object(subprocess, "Popen", forbidden), patch.object(builtins, "open", wrapped_open), patch.object(io, "open", wrapped_io), patch.object(os, "stat", wrapped_stat), patch.object(os, "listdir", wrapped_listdir), patch.object(os, "scandir", wrapped_scandir):
+        with patch.object(os, "environ", fake_env), patch.object(socket, "socket", forbidden), patch.object(socket, "create_connection", forbidden), patch.object(subprocess, "Popen", forbidden), patch.object(builtins, "open", wrapped_open), patch.object(io, "open", wrapped_io), patch.object(os, "open", wrapped_os_open), patch.object(os, "stat", wrapped_stat), patch.object(os, "listdir", wrapped_listdir), patch.object(os, "scandir", wrapped_scandir):
             from core import runner, features, sent_package, seedance_refs
             from core.pipeline import Pipeline
             cls = runner.ImageRunner if job["type"] == "image_gen" else runner.VideoRunner
@@ -339,10 +350,13 @@ def _worker(request):
             class CachedLibrary:
                 def get(self,asset_id):
                     try:
-                        row=conn.execute("SELECT sha,asset_id,asset_uri,status FROM seedance_subject_pictures WHERE asset_id=?",(asset_id,)).fetchone()
+                        rows=conn.execute("SELECT sha,asset_id,asset_uri,status FROM seedance_subject_pictures WHERE asset_id=?",(asset_id,)).fetchall()
                     except sqlite3.Error:
                         forbidden()
-                    if row is None or row['status']!='active' or not str(row['asset_uri'] or '').startswith('asset://'):
+                    if len(rows) != 1:
+                        forbidden()
+                    row = rows[0]
+                    if row['status']!='active' or not str(row['asset_uri'] or '').startswith('asset://'):
                         forbidden()
                     public={k:row[k] for k in ('sha','asset_id','asset_uri','status')}
                     registry_used.append(public)
