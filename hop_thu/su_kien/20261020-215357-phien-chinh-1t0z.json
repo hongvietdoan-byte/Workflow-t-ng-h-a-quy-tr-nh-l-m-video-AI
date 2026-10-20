@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T21:53:57.501545+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "DP3",
+  "to": "pool",
+  "title": "M4.4 final QC black/freeze",
+  "spec": "docs/CLOUD_TASKS.md#### DP3",
+  "priority": 12
+}

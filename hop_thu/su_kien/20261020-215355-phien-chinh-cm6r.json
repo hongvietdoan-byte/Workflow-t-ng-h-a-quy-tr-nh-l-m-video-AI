@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T21:53:55.590455+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-G36B",
+  "to": "cloud-D",
+  "title": "G36: thử lại đầu vẫn đi Seedance",
+  "spec": "docs/CLOUD_TASKS.md#### C-G36B (cloud-D)",
+  "priority": 1
+}

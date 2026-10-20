@@ -25,7 +25,7 @@ Người dùng có một tài khoản **Cloud session credits $100** (hết hạ
 ```
 Luật dự án (bắt buộc):
 - Trả lời/ghi chú tiếng Việt. Đọc CLAUDE.md + docs/CHUAN_XAY_DUNG.md trước (không im lặng khi thiếu đầu vào; "đã sửa" kèm bằng chứng chạy thật).
-- HỘP THƯ: nhận việc / báo / hỏi qua mục 📨 đầu TODO.md trên main (luật "LUẬT HỘP THƯ CHUNG" ở đó; tên làn `cloud-B`) — ngoại lệ duy nhất được push main: commit CHỈ đổi dòng hộp thư (`hộp thư: …`), pull --ff-only trước, không force.
+- HỘP THƯ SỰ KIỆN (từ 20/10 tối): nhận / xong / hỏi bằng `python3 tools/hop_thu.py` (`ke --lane <làn> --nhan --push`, `xong … --push`; luật `hop_thu/README.md`) — không ghi dòng vào TODO.md nữa. (Cũ:) nhận việc / báo / hỏi qua mục 📨 đầu TODO.md trên main (luật "LUẬT HỘP THƯ CHUNG" ở đó; tên làn `cloud-B`) — ngoại lệ duy nhất được push main: commit CHỈ đổi dòng hộp thư (`hộp thư: …`), pull --ff-only trước, không force.
 - Làm trên nhánh mới `cloud/<mã-việc>` tách từ main. KHÔNG push lên main (trừ commit hộp thư), KHÔNG sửa phần khác của TODO.md / trạng thái kế hoạch, KHÔNG tăng devsys/areas.json "version" (file mã mới vẫn phải khai vào areas.json).
 - KHÔNG gọi API tốn tiền (Claude/ClipAI/TTS…) — chỉ mock. Không có data/ máy chính: dùng fixture trong tests/.
 - Test ĐỎ TRƯỚC, XANH SAU cho từng mục; chỉ chạy test liên quan: `python -m pytest -q -p no:cacheprovider tests/<file>.py` (Linux dùng python3; PYTHONUTF8=1).
@@ -347,7 +347,7 @@ Nhánh cloud/v31-err-upd. XONG hộp thư.
 
 ---
 
-## HÀNG VIỆC DỰ PHÒNG (người dùng 20/10: làn hết việc tự lấy thêm; phiên chính chủ động bổ sung)
+## HÀNG VIỆC DỰ PHÒNG (người dùng 20/10: làn hết việc tự lấy thêm; phiên chính chủ động bổ sung) — từ 20/10 tối: các mục DP là việc `--to pool` trong hộp thư sự kiện; nhận bằng `hop_thu.py ke --lane <làn> --nhan --push`
 Làn cloud (B, C, …) **và Codex** hết việc được giao riêng → nhận mục **DP** đầu tiên còn `CHỜ` trong hộp thư (dòng "VIỆC DỰ PHÒNG"): sửa đuôi mục đó thành
 `ĐANG LÀM <giờ> (<làn>)` + push commit `hộp thư:` NGAY (trước khi code) — thấy làn khác đã nhận trước (union merge có thể để 2 dòng nhận) thì làn
 nhận SAU bỏ, lấy mục kế. Mọi mục: Cấp 2 đã duyệt (G2-4 / G2-5: QC chỉ Shadow/REVIEW, không tự BLOCK, map chỉ offline), cờ mới TẮT, test ĐỎ→XANH,

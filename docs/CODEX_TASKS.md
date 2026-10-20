@@ -1382,6 +1382,7 @@ theo lỗi mở. Theo mẫu trang hiện có trong `devsys/app.py`; cập nhật
 test trang devsys hiện có.
 
 ## CHỦ ĐỘNG LẤY VIỆC (người dùng 20/10 — áp dụng như làn cloud)
+**Từ 20/10 tối dùng hộp thư sự kiện:** `py tools/hop_thu.py ke --lane codex --nhan --push` → làm → `py tools/hop_thu.py xong <mã> --lane codex --branch <nhánh> --commit <sha> --report <RA_…> --push` (mã việc đợt 20: `CX20-2`, `CX20-5`, `CX20-6`; luật `hop_thu/README.md`). Không ghi dòng hộp thư vào TODO.md nữa.
 Làm xong một việc → `git pull` + đọc hộp thư 📨 `TODO.md` → làm việc CHỜ kế của `codex`. Hết việc ĐỢT hiện hành (hoặc việc còn lại đang bị chặn
 "BẮT ĐẦU KHI") → nhận mục **DP** đầu tiên còn CHỜ ở `docs/CLOUD_TASKS.md` "HÀNG VIỆC DỰ PHÒNG" (đánh dấu `ĐANG LÀM <giờ> (codex)` trong hộp thư +
 push `hộp thư:` TRƯỚC khi code; làn khác nhận trước thì bỏ, lấy mục kế), nhánh `codex/v31-<mã>`. Không còn việc nào → ghi hộp thư

@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T21:53:57.013314+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "DP2",
+  "to": "pool",
+  "title": "M3.5 chân trời G20",
+  "spec": "docs/CLOUD_TASKS.md#### DP2",
+  "priority": 11
+}

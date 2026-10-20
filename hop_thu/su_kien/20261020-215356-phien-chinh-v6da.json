@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T21:53:56.538423+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "DP1",
+  "to": "pool",
+  "title": "M4.5 sửa báo nhầm A5/A6",
+  "spec": "docs/CLOUD_TASKS.md#### DP1",
+  "priority": 10
+}

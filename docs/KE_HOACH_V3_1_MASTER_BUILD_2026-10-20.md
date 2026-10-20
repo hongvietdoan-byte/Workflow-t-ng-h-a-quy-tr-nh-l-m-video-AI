@@ -189,8 +189,8 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M1.3 · Kiểm tạm dừng ngay trước provider.submit, cả đường thử lại/lùi model (G36) · nặng:2 · ✅ · gộp 60b9da80; cờ pause_before_submit BẬT máy chính 20/10 (C3-2); còn mở: vì sao lần thử lại đầu vẫn đi Seedance
 - [ ] M1.4 · Provider Claude theo dự án, clean_env bỏ key API, hết lượt gói = dừng có giờ mở (A2, A3, A13, G33, G57) · nặng:3 · ✅ · M1.4a 222bf9c5 + M1.4b (cloud-B code, cloud-C rà kỹ 1 CAO + 4 VỪA đã sửa) gộp 20/10 dde800b4, cả bộ 6361 qua; migration cột provider CHƯA áp CSDL thật = C3-1 (backup + kiểm worker cũ/mới) — FIXED_UNVERIFIED
 - [ ] M1.5 · Kiểm Kho chủ thể trước gửi video, dừng + đề xuất dọn (G30, G32, G58) · nặng:2 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
-- [ ] M1.6 · Ước tính giá đúng gói gửi: tier nháp, phụ phí ref, nâng 1080p, claude_cli = 0, giá video trong pregen_check (A7–A9, G31) · nặng:2 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
-- [ ] M1.7 · Dashboard báo chạy code cũ (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01) · nặng:1 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
+- [ ] M1.6 · Ước tính giá đúng gói gửi: tier nháp, phụ phí ref, nâng 1080p, claude_cli = 0, giá video trong pregen_check (A7–A9, G31) · nặng:2 · 🔄 · code gộp 20/10 (cloud-B, cờ send_estimate TẮT); rà kỹ 1 CAO + 1 VỪA → C-FIX-M16-17 (cloud-C) trước khi bật cờ
+- [ ] M1.7 · Dashboard báo chạy code cũ (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01) · nặng:1 · 🔄 · code gộp 20/10 (cloud-B, cờ TẮT); rà kỹ 1 VỪA (báo động giả) → C-FIX-M16-17 (cloud-C)
 - [ ] M1.8 · tools/project_error_report.py: gom diag_events + jobs + job_events thành đề xuất mục sổ lỗi cuối dự án · nặng:2 · ✅ · Codex Đ20 việc 1 gộp 20/10 (tools/project_error_report.py, 9 test)
 - [ ] M1.9 · Golden gói B0–B2: replay ảnh + video, test compatibility / correctness, fixture có HEAD/cờ/CHANGES · nặng:3 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
 
