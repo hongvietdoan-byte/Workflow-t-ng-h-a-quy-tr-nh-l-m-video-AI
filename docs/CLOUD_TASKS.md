@@ -25,7 +25,8 @@ Người dùng có một tài khoản **Cloud session credits $100** (hết hạ
 ```
 Luật dự án (bắt buộc):
 - Trả lời/ghi chú tiếng Việt. Đọc CLAUDE.md + docs/CHUAN_XAY_DUNG.md trước (không im lặng khi thiếu đầu vào; "đã sửa" kèm bằng chứng chạy thật).
-- Làm trên nhánh mới `cloud/<mã-việc>` tách từ main. KHÔNG push lên main, KHÔNG sửa TODO.md / trạng thái kế hoạch, KHÔNG tăng devsys/areas.json "version" (file mã mới vẫn phải khai vào areas.json).
+- HỘP THƯ: nhận việc / báo / hỏi qua mục 📨 đầu TODO.md trên main (luật "LUẬT HỘP THƯ CHUNG" ở đó; tên làn `cloud-B`) — ngoại lệ duy nhất được push main: commit CHỈ đổi dòng hộp thư (`hộp thư: …`), pull --ff-only trước, không force.
+- Làm trên nhánh mới `cloud/<mã-việc>` tách từ main. KHÔNG push lên main (trừ commit hộp thư), KHÔNG sửa phần khác của TODO.md / trạng thái kế hoạch, KHÔNG tăng devsys/areas.json "version" (file mã mới vẫn phải khai vào areas.json).
 - KHÔNG gọi API tốn tiền (Claude/ClipAI/TTS…) — chỉ mock. Không có data/ máy chính: dùng fixture trong tests/.
 - Test ĐỎ TRƯỚC, XANH SAU cho từng mục; chỉ chạy test liên quan: `python -m pytest -q -p no:cacheprovider tests/<file>.py` (Linux dùng python3; PYTHONUTF8=1).
 - Commit nhỏ, dòng cuối: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; `git push -u origin <nhánh>` NGAY sau mỗi commit; cập nhật HANDOFF.md (đã xong / đang dở / bước kế) mỗi commit; xóa HANDOFF.md ở commit cuối khi xong hẳn.
@@ -78,7 +79,7 @@ push lên main, rồi báo người dùng mã việc để dán vào phiên clou
 - Chọn việc cho cloud: Cấp 1 (tài liệu / thiết kế / test chỉ đọc) hoặc code Cấp 2 ĐÃ duyệt phạm vi, không cần `data/` / Windows / khóa API.
   Không giao cloud việc trùng file với Codex đang làm (đợt Codex mới nhất trong `docs/CODEX_TASKS.md`) hay với phiên con máy chính.
 - Phiên cloud không báo về → phiên chính `git fetch` nhánh `cloud/*`, đọc `docs/RA_CLOUD_*.md`, rà quy ước 7, cả bộ test Windows, rồi gộp.
-- Ghi mỗi việc giao cloud vào mục 📨 BÀN GIAO của `TODO.md` (mã việc, nhánh `cloud/<mã>`, CHỜ → XONG).
+- Mọi trao đổi với cloud qua hộp thư 📨 `TODO.md` (người dùng 20/10): phiên chính đăng `phiên-chính → cloud-B: <MÃ> — CHỜ`; cloud tự đổi ĐANG LÀM / XONG / HỎI. Người dùng chỉ cần nói với cloud "đọc hộp thư, làm việc CHỜ của cloud-B".
 
 ### Việc V3.1 cho cloud (giao 20/10)
 | Mã | Việc | Nhánh | Trạng thái |
@@ -88,6 +89,9 @@ push lên main, rồi báo người dùng mã việc để dán vào phiên clou
 | C-M09 | M0.9 thiết kế Kho forms/outfit/hair/face + provenance (chỉ tài liệu) | `cloud/v31-m09` | XONG — gộp main 20/10 |
 | C-M011 | M0.11 test plan + tiêu chí 3 vòng pilot + dự toán B/C (chỉ tài liệu) | `cloud/v31-m011` | XONG — gộp main 20/10 |
 | C-M04-05 | M0.4–M0.5 sổ lỗi `devsys/errors.json` + test hợp đồng + nhập G/A/B có nguồn (code devsys, Cấp 2 G2-1 ĐÃ DUYỆT) | `cloud/v31-m04-m05` | ĐANG LÀM (cloud tài khoản khác, 20/10) |
+| C-RA-D19 | Rà chỉ đọc 4 nhánh Codex đợt 19 | `cloud/v31-ra-d19` | CHỜ (hộp thư) |
+| C-M21-22 | Thiết kế M2.1 BYĐ v2 + M2.2 field readers/lineage (chỉ tài liệu) | `cloud/v31-m21-m22` | CHỜ (hộp thư) |
+| C-M41 | Thiết kế M4.1 schema bằng chứng QC + mã lỗi (chỉ tài liệu) | `cloud/v31-m41` | CHỜ (hộp thư) |
 
 (20/10: 2 phiên `start_session target:"cloud"` tài khoản chính HỎNG khi khởi động — clone nhánh worktree chưa push + API error; M1.4a chuyển phiên con máy chính. 3 việc C-M010, C-M09, C-M011 độc lập, dán được song song 3 phiên.)
 
@@ -160,4 +164,31 @@ KHÔNG tự đóng khi chỉ có unit test) + mục 4a dòng "M0.4–M0.5 sổ l
    Báo cáo coverage: docs/V3_1_M0_5_COVERAGE_SO_LOI_2026-10-2x.md (tổng theo nguồn, theo trạng thái, theo workstream, mã khuyết).
 3. Khai file mới vào devsys/areas.json (KHÔNG tăng version). Không sửa devsys/app.py (trang hiển thị sổ để phiên chính làm sau).
 Báo cáo ≤ 25 dòng ghi cả vào docs/RA_CLOUD_M04_M05_2026-10-2x.md.
+```
+
+#### C-RA-D19
+```
+RÀ CHỈ ĐỌC 4 nhánh Codex đợt 19: origin/codex/d19-viec1-narration, d19-viec2-doi-soat, d19-viec3-provider, d19-viec4-subjects (đề bài: docs/CODEX_TASKS.md
+"# ĐỢT 19"). Không sửa các nhánh đó. Mỗi nhánh: git diff origin/main...<nhánh>, đối chiếu đề bài + docs/CHUAN_XAY_DUNG.md, chạy test của nhánh (Linux; thiếu
+streamlit/Windows → "bỏ qua"); tìm: test nới che lỗi, xfail thiếu strict / mã lỗi, công cụ "chỉ đọc" có đường ghi CSDL / gọi API trả phí, thiết kế M1.4b/M1.5
+lệch quyết định v31-d02 / v31-d03b / C3-3 (chỉ dry-run xóa). Mỗi lỗi: CAO/VỪA/THẤP, file:dòng, cách sửa, test chứng minh.
+→ docs/RA_CLOUD_D19_2026-10-2x.md trên nhánh cloud/v31-ra-d19.
+```
+
+#### C-M21-22
+```
+THIẾT KẾ (chỉ tài liệu) M2.1 BYĐ v2 + M2.2 field readers/lineage. grep "M2.1\|M2.2\|BYĐ v2\|byd_v\|A2a" trong docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md
+và docs/KE_HOACH_AI_VIDEO_PIPELINE_V3_2026-10-20.md (Phụ lục A). Đọc core/shot_intent.py (parser vat v1/v2 đã gộp), core/llm_io.py, lineage.
+→ docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-2x.md: schema byd_v + vat[] object + provenance, mức BLOCK/REVIEW/WARN, adapter v1→v2 (dự án cũ giống byte khi cờ
+TẮT), MỌI caller đọc BYĐ (file:hàm), field readers A2a–A2f, cờ, test plan (golden #24/#27 compat + #31/#33 correctness), rollback; nối M0.9 + M0.10.
+Nhánh cloud/v31-m21-m22.
+```
+
+#### C-M41
+```
+THIẾT KẾ (chỉ tài liệu) M4.1 schema bằng chứng QC + mã lỗi thống nhất: kế hoạch V3.1 đoạn "**Bằng chứng QC:**" + D07 (v31-d07-qc-shadow-guarded) + mục 4a
+"M4.x QC". Đọc core/qc_*.py, core/autoqc.py, core/qc_observe.py. → docs/V3_1_M4_1_THIET_KE_BANG_CHUNG_QC_2026-10-2x.md: schema (error_type, severity,
+evidence_type, confidence_calibration, artifact_id/sha, qc_run_id, qc_version, intent_exception, actionability, source_refs), bảng mã lỗi QC ↔ sổ lỗi
+(devsys/errors.json của C-M04-05), đường QC hiện có → schema mới (file:hàm), chỉ luật kỹ thuật tất định được xét BLOCK sau benchmark, còn lại REVIEW; test
+plan + benchmark M4.6 (≥ 20 lỗi + 20 đạt mỗi mã). Nhánh cloud/v31-m41.
 ```

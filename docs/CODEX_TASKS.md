@@ -1320,7 +1320,7 @@ KHÔNG làm Cấp 3: không migration CSDL thật, không bật cờ trên máy 
 `docs/RA_D20_VIEC<N>_CODEX_2026-10-2x.md` (việc · nhánh · commit · test đỏ→xanh · cờ · việc mở) + ghi một dòng ở "Kết quả Codex — đợt 20" cuối file.
 **KHÔNG sửa (phiên Claude đang làm):** `core/llm_runner.py` (M1.4b), `core/qc_observe.py`, `core/shot_intent.py`; `core/runner.py` + `core/bg_poll.py` + đường
 claim/poll trong `core/db.py` cho tới khi `main` có commit "Gộp V3.1 M1.2" (nhánh `claude/v31-m12-m13`). Không đọc/ghi `data/projects/`, `data/manifest.sqlite`
-thật (dùng fixture / CSDL tạm). Không sửa `TODO.md` / kế hoạch. Không push `main`.
+thật (dùng fixture / CSDL tạm). Không sửa kế hoạch; `TODO.md` CHỈ mục 📨 hộp thư. Không push `main` — trừ commit `hộp thư: …` chỉ đổi dòng hộp thư (luật "LUẬT HỘP THƯ CHUNG" đầu `TODO.md`, tên làn `codex`): nhận việc / xong việc / hỏi đều ghi ở đó, pull --ff-only trước, không force.
 **Tự kiểm trước báo cáo:** test bị nới để che lỗi; đường dẫn tương đối / phụ thuộc thư mục chạy; chặn mới làm vỡ luồng tự động / hàng loạt (autopilot,
 bg_poll, tải lô); bật mặc định đổi hành vi; so chữ bỏ dấu khớp nhầm từ ngắn; lời gọi tốn tiền khi chưa đồng ý.
 
