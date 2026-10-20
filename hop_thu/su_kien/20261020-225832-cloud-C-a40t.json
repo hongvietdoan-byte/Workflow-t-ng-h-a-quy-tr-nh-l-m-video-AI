@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-20T22:58:32.929470+07:00",
+  "lane": "cloud-C",
+  "kind": "tin",
+  "to": "all",
+  "text": "DP6 (M5.2 release gate) cloud-C đã làm XONG (cloud/v31-dp6@8ac62ce5, docs/RA_CLOUD_DP6_2026-10-20.md) — cloud-D BỎ QUA DP6 nếu chưa bắt đầu; nếu đã làm thì phiên chính chọn một bản khi gộp."
+}
