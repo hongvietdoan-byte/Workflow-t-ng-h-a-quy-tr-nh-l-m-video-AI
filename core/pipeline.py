@@ -45,6 +45,8 @@ PLAIN_RESEND = "gửi lại nguyên đầu vào"
 (core.runner.model_fix). Only provider/transient failures are resent this way — a picture/clip that came out wrong needs a fix."""
 STALE_INPUT = "stale_input"
 """KLD-1 (08/10): failure-note prefix of a job the runner refused to send because its input changed after it was queued (core.runner)."""
+SUBMIT_UNKNOWN = "submit_unknown"
+"""V3.1 M1.2: failure-note prefix of a send whose outcome is unknown (core.poll_claim.SUBMIT_UNKNOWN) — never resent automatically."""
 MISSING_INPUT = "missing inputs"
 """failure-note prefix of a job the runner could not send (no approved picture / motion prompt) — not a provider failure either."""
 FINAL_HOLD = "final_hold"
@@ -461,6 +463,12 @@ class Pipeline:
             raise InvalidTransition(f"job {job_id} hỏng vì đầu vào đã cũ — không gửi lại y nguyên; xếp hàng lại từ đầu vào mới")
         if not (fix or "").strip() and _final_hold(self.failure_note(job_id)):
             raise InvalidTransition(f"job {job_id} là bản cao chờ bạn xác nhận — không gửi lại y nguyên; dùng “⬆ Gen MỚI bản cao” trên thẻ")
+        if not by_user and (self.failure_note(job_id) or "").startswith(SUBMIT_UNKNOWN):
+            # V3.1 M1.2 (core/poll_claim.py, cờ poll_claim): the send may have created (and billed) a task — never resent by itself;
+            # the person reconciles with the provider first (the note exists only when the flag was on)
+            if not self.job(job_id)["escalated"]:
+                self._escalate(self.job(job_id))
+            return None
         if not by_user and self._retries_exhausted(self.job(job_id)):
             self._escalate(self.job(job_id), limit=True)
             return None

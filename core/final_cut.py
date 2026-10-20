@@ -37,7 +37,8 @@ def collect_clips(pipeline: Pipeline, data_dir: str, project_id: int) -> List[Di
     folder = os.path.dirname(clip_path(data_dir, project_id, 0))
     extras = sorted(n for n in (os.listdir(folder) if os.path.isdir(folder) else [])
                     if n.lower().endswith(".mp4") and n not in known
-                    and not n.lower().endswith(("_raw.mp4", "_group.mp4")))   # v3: uncut / whole multi-shot originals of a shot
+                    and not n.lower().endswith(("_raw.mp4", "_group.mp4"))
+                    and ".part-" not in n)          # V3.1 M1.2: a result still downloading (core/safe_download temp)   # v3: uncut / whole multi-shot originals of a shot
     for name in extras:
         # KLD-3 (08/10): bản dựng #33 của #22 gom 4 tệp phụ (bản sao, bản giữ tay) và thiếu shot 1, 2 — a file that is no shot's clip
         # is listed (⚠ at Step 5) but goes in only when the person ticks it
