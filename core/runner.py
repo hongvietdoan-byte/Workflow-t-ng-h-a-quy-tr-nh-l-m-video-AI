@@ -519,6 +519,8 @@ class _Runner:
                 if over:
                     self._diag(job, "warn", "budget", over)
                     break                        # a real stop (S14.16: the service is out of credit): leave everything queued, say why
+                if self._paused_now(job):                # M1.3: checked BEFORE _finish_kwargs too (its uploads / 'sent' notes stay undone)
+                    break
                 try:
                     kwargs = self._finish_kwargs(job, kwargs)
                 except (OSError, ValueError, ProviderError) as error:
@@ -526,12 +528,20 @@ class _Runner:
                         continue
                     raise
                 sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}   # '_' keys: the runner's notes, never sent
+                if self._paused_now(job):                # M1.3 (G36, cờ pause_before_submit): ⏸ pressed while this job was prepared
+                    break                                # (plain, retry or model-switched try alike) — stays queued, said, nothing sent
+                from . import poll_claim
                 try:
                     if kwargs.get("_from_sample"):       # N1: a final made from its approved Seedance 2.5 draft (draft_task)
                         task_id = self.provider.submit_final_from_sample(kwargs["_from_sample"], resolution=kwargs.get("resolution"))
                     else:
                         task_id = self.provider.submit(*args, **sent_kwargs)
-                except ProviderError as e:
+                except Exception as e:  # noqa: BLE001 - M1.2: an outcome nobody knows is never sent again blindly (cờ poll_claim)
+                    if poll_claim.enabled() and poll_claim.unknown_outcome(e):
+                        self._submit_unknown(job, args, kwargs, e)
+                        break                            # the line may be down: the rest of the pass waits for the next heartbeat
+                    if not isinstance(e, ProviderError):
+                        raise                            # flag off: as before
                     if e.code == "rate_limited" and THROTTLE.on_rate_limited(self.job_type):   # halve the learned limit
                         self._throttle_changed()
                     if e.transient:
@@ -574,6 +584,38 @@ class _Runner:
             slots -= 1
             submitted += 1
         return submitted
+
+    def _paused_now(self, job) -> bool:
+        """M1.3 (G36, cờ pause_before_submit): the project is paused NOW (read again right before provider.submit) — the job keeps its
+        place in the queue with the reason (WAIT_REASONS), said once. Flag off: False (the old start-of-pass check only)."""
+        from . import features
+        if not features.on("pause_before_submit") or not self.p.project(job["project_id"])["paused"]:
+            return False
+        why = "dự án đang tạm dừng — job giữ trong hàng đợi, chưa gửi (bỏ tạm dừng thì gửi tiếp)"
+        WAIT_REASONS[job["id"]] = (why, time.time())
+        self._diag_once(job, "info", "paused_before_submit", f"bấm tạm dừng lúc job đang chuẩn bị — {why}")
+        return True
+
+    def _submit_unknown(self, job, args, kwargs, error: BaseException) -> None:
+        """M1.2 (cờ poll_claim): provider.submit failed in a way that does not prove the task was not created — it may exist and be
+        billed. Never left queued (the next pass would pay again): written in the spending ledger (may be billed), failed with the
+        SUBMIT_UNKNOWN note and handed to the person, who reconciles with the provider (relink when the task exists, ↻ gen lại when not)."""
+        from .poll_claim import SUBMIT_UNKNOWN
+        what = f"{type(error).__name__}: {error}"
+        try:
+            self._record_usage(job, args, kwargs)
+        except Exception:  # noqa: BLE001 - the ledger note never hides the stop below
+            pass
+        self._diag(job, "error", SUBMIT_UNKNOWN,
+                   f"gửi job KHÔNG rõ kết quả ({what}) — task có thể đã tạo + tính tiền ở {getattr(self.provider, 'name', '?')}; KHÔNG tự "
+                   "gửi lại. Đối soát trên web nhà cung cấp: có task → chờ / tải tay hoặc hủy tay ở đó; không có → bấm gen lại")
+        try:
+            self._running(job["id"])                      # QUEUED→FAILED is not a transition (core/states.py)
+            self.p.fail(job["id"], f"{SUBMIT_UNKNOWN}: {what}")
+        except InvalidTransition as e:                    # cancelled / moved on while submit() was in flight: said, the pass goes on
+            self._diag(job, "error", SUBMIT_UNKNOWN, f"job đã đổi trạng thái trong lúc gửi ({e}) — vẫn cần đối soát ở nhà cung cấp")
+            return
+        self.p._escalate(self.p.job(job["id"]))
 
     def _build_package(self, job, args, kwargs, sent_kwargs, task_id):
         """(JSON text of the package, warnings) for this send — one builder for the ledger (_write_sent_package) and the K3 check before
@@ -666,9 +708,17 @@ class _Runner:
                     self._diag(job, "warn", e.code, f"hỏi trạng thái job gặp lỗi tạm: {e}")
                     counts["running"] += 1  # keep polling on network/server errors
                     continue
-                self._diag(job, "error", e.code, f"hỏi trạng thái job thất bại: {e}")
-                self._record_provider_failure(job, e.code, str(e))
-                self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
+                held = self._poll_take(job)          # M1.2 (A1): one process acts on a finished job
+                if held is None:
+                    counts["running"] += 1
+                    continue
+                job, owner = held
+                try:
+                    self._diag(job, "error", e.code, f"hỏi trạng thái job thất bại: {e}")
+                    self._record_provider_failure(job, e.code, str(e))
+                    self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
+                finally:
+                    self._poll_release(job, owner)
                 counts["failed"] += 1
                 continue
             except Exception as e:  # noqa: BLE001 - an unexpected answer must not take the whole page down
@@ -678,77 +728,122 @@ class _Runner:
                 continue
             if status.state == "running":
                 counts["running"] += 1
-            elif status.state == "succeeded":
-                try:
-                    target = self._dest_path(job)
-                    aside = self._superseded(job)
-                    if self.job_type == "video_gen" and not aside:   # KLD-2 (08/10): the older take keeps its file (trash) + its result_path
-                        from . import takes
-                        takes.make_room(self.p.conn, self.data_dir, job, target)
-                    else:
-                        trash.move_to_trash(target, self.data_dir, job["project_id"], "images", "bị thay bằng bản gen lại", job["id"])
-                    dest = self.provider.download(job["external_id"], target)
-                except ProviderError as e:
-                    self._diag(job, "warn" if e.transient else "error", e.code, f"tải kết quả lỗi: {e}")
-                    if e.transient:
-                        counts["running"] += 1
-                        continue
-                    self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
-                    counts["failed"] += 1
-                    continue
-                except Exception as e:  # noqa: BLE001 - e.g. disk full: keep the job, report it, keep the page alive
-                    self._diag(job, "warn", "download_error", f"tải kết quả gặp lỗi không lường trước ({type(e).__name__}: {e}); sẽ thử lại")
-                    counts["running"] += 1
-                    continue
-                try:
-                    dest = self._after_download(job, dest)
-                except RedrawWithFix as e:            # the result is unusable for a stated reason: a new try WITH the fix (luật 6)
-                    self._diag(job, "error", "redraw", str(e))
-                    plan = self._rewrite_redraw(job, dest, e)
-                    self.p.fail(job["id"], f"redraw: {e}")
-                    counts["failed"] += 1
-                    if self.p.retry(job["id"], str(e), fix=plan.apply() if plan is not None else e.fix) is not None:
-                        counts["retried"] += 1
-                    continue
-                except UpgradeCutFailed as e:         # rà 12/10: said red in diag (final_cut); never retried (a retry pays again)
-                    self.p.fail(job["id"], f"final_cut: {e}")
-                    counts["failed"] += 1
-                    continue
-                self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, job["id"]))
-                self.p.conn.commit()
-                self.p.succeed(job["id"])
-                if aside:                              # 13/10: paid for, kept aside under its own name, never the shot's take
-                    self._diag(job, "warn", "superseded_final", f"bản cao xong nhưng {aside} — để riêng {os.path.basename(dest)}, "
-                                                                "cho nghỉ (không thay clip của shot)")
-                    from . import quality_tier
-                    quality_tier.retire_superseded_finals(self.p, job["scene_id"])
-                if THROTTLE.on_success(self.job_type):
-                    self._throttle_changed()
-                counts["succeeded"] += 1
-            elif status.error_code in (NOT_CREATED, "not_found") and self._relink(job):
-                counts["running"] += 1                  # W12b: the provider made it under a new id — follow that one
-            elif status.error_code == NOT_CREATED:
-                self._not_created(job, status.error_message or "")
-                counts["failed"] += 1
-            elif status.error_code == "not_found":         # maybe still running at the provider: never resend blindly (paid twice)
-                self._diag(job, "error", "not_found", status.error_message or "không thấy task")
-                self.p.fail(job["id"], f"not_found: {status.error_message}")
-                self.p._escalate(self.p.job(job["id"]))
-                counts["failed"] += 1
-            else:
-                message = f"{status.error_code}: {status.error_message}"
-                self._diag(job, "warn" if status.error_code == RISK_CONTROL else "error", status.error_code,
-                           f"nhà cung cấp báo job thất bại: {status.error_message}")
-                if status.error_code == RISK_CONTROL:
-                    record_failure(self.p.conn, job["id"], self.provider.name, status.error_message or "")
-                switched = self._on_refused(job, status.error_code, status.error_message or "")
-                self.p.fail(job["id"], message)
-                counts["failed"] += 1
-                if status.transient and self.p.retry(job["id"], message) is not None:
-                    counts["retried"] += 1
-                elif switched and self._retry_switched(job):
-                    counts["retried"] += 1
+                continue
+            held = self._poll_take(job)              # M1.2 (A1): claimed across processes (flag poll_claim), re-read, then acted on
+            if held is None:
+                counts["running"] += 1
+                continue
+            job, owner = held
+            self._poll_owner = owner
+            try:
+                self._poll_result(job, status, counts)
+            finally:
+                self._poll_owner = None
+                self._poll_release(job, owner)
         return counts
+
+    def _poll_take(self, job):
+        """M1.2 (A1, core/poll_claim.py): (job row to act on, claim owner or None) — None = another process acts on it (said once)."""
+        from . import poll_claim
+        owner = poll_claim.new_owner() if poll_claim.enabled() else None
+        fresh, note = poll_claim.take(self.p.conn, job, owner)
+        if fresh is None:
+            if note:
+                self._diag_once(job, *note)
+            return None
+        return fresh, owner
+
+    def _poll_still_held(self, job) -> bool:
+        """M1.2: right before the job's new state — this poller still holds its claim (refreshed); flag off / no claim: True."""
+        owner = self.__dict__.get("_poll_owner")
+        if not owner:
+            return True
+        from . import poll_claim
+        if poll_claim.refresh(self.p.conn, job["id"], owner):
+            return True
+        self._diag(job, "warn", "poll_claim_lost", "giữ chỗ tải kết quả đã hết hạn giữa chừng — tiến trình khác xử lý job này, không ghi lần hai")
+        return False
+
+    def _poll_release(self, job, owner) -> None:
+        from . import poll_claim
+        poll_claim.release(self.p.conn, job["id"], owner)
+
+    def _poll_result(self, job, status, counts: Dict[str, int]) -> None:
+        """The provider said the job finished (succeeded / failed): download + succeed, or fail / retry. Counts into `counts`."""
+        if status.state == "succeeded":
+            try:
+                target = self._dest_path(job)
+                aside = self._superseded(job)
+                if self.job_type == "video_gen" and not aside:   # KLD-2 (08/10): the older take keeps its file (trash) + its result_path
+                    from . import takes
+                    takes.make_room(self.p.conn, self.data_dir, job, target)
+                else:
+                    trash.move_to_trash(target, self.data_dir, job["project_id"], "images", "bị thay bằng bản gen lại", job["id"])
+                from . import safe_download              # M1.2 (A1/A15): temp file + os.replace — nobody reads a half-written result
+                dest = safe_download.download(self.provider, job["external_id"], target)
+            except ProviderError as e:
+                self._diag(job, "warn" if e.transient else "error", e.code, f"tải kết quả lỗi: {e}")
+                if e.transient:
+                    counts["running"] += 1
+                    return
+                self.p.fail(job["id"], f"{e.code or 'error'}: {e}")
+                counts["failed"] += 1
+                return
+            except Exception as e:  # noqa: BLE001 - e.g. disk full: keep the job, report it, keep the page alive
+                self._diag(job, "warn", "download_error", f"tải kết quả gặp lỗi không lường trước ({type(e).__name__}: {e}); sẽ thử lại")
+                counts["running"] += 1
+                return
+            try:
+                dest = self._after_download(job, dest)
+            except RedrawWithFix as e:            # the result is unusable for a stated reason: a new try WITH the fix (luật 6)
+                self._diag(job, "error", "redraw", str(e))
+                plan = self._rewrite_redraw(job, dest, e)
+                self.p.fail(job["id"], f"redraw: {e}")
+                counts["failed"] += 1
+                if self.p.retry(job["id"], str(e), fix=plan.apply() if plan is not None else e.fix) is not None:
+                    counts["retried"] += 1
+                return
+            except UpgradeCutFailed as e:         # rà 12/10: said red in diag (final_cut); never retried (a retry pays again)
+                self.p.fail(job["id"], f"final_cut: {e}")
+                counts["failed"] += 1
+                return
+            if not self._poll_still_held(job):         # M1.2: the claim expired during a long download / cut — the other process acts
+                counts["running"] += 1
+                return
+            self.p.conn.execute("UPDATE jobs SET result_path=? WHERE id=?", (dest, job["id"]))
+            self.p.conn.commit()
+            self.p.succeed(job["id"])
+            if aside:                              # 13/10: paid for, kept aside under its own name, never the shot's take
+                self._diag(job, "warn", "superseded_final", f"bản cao xong nhưng {aside} — để riêng {os.path.basename(dest)}, "
+                                                            "cho nghỉ (không thay clip của shot)")
+                from . import quality_tier
+                quality_tier.retire_superseded_finals(self.p, job["scene_id"])
+            if THROTTLE.on_success(self.job_type):
+                self._throttle_changed()
+            counts["succeeded"] += 1
+        elif status.error_code in (NOT_CREATED, "not_found") and self._relink(job):
+            counts["running"] += 1                  # W12b: the provider made it under a new id — follow that one
+        elif status.error_code == NOT_CREATED:
+            self._not_created(job, status.error_message or "")
+            counts["failed"] += 1
+        elif status.error_code == "not_found":         # maybe still running at the provider: never resend blindly (paid twice)
+            self._diag(job, "error", "not_found", status.error_message or "không thấy task")
+            self.p.fail(job["id"], f"not_found: {status.error_message}")
+            self.p._escalate(self.p.job(job["id"]))
+            counts["failed"] += 1
+        else:
+            message = f"{status.error_code}: {status.error_message}"
+            self._diag(job, "warn" if status.error_code == RISK_CONTROL else "error", status.error_code,
+                       f"nhà cung cấp báo job thất bại: {status.error_message}")
+            if status.error_code == RISK_CONTROL:
+                record_failure(self.p.conn, job["id"], self.provider.name, status.error_message or "")
+            switched = self._on_refused(job, status.error_code, status.error_message or "")
+            self.p.fail(job["id"], message)
+            counts["failed"] += 1
+            if status.transient and self.p.retry(job["id"], message) is not None:
+                counts["retried"] += 1
+            elif switched and self._retry_switched(job):
+                counts["retried"] += 1
 
     def _relink(self, job) -> bool:
         """W12b: the provider created the task under another id (queue id → real id). Video only; False = not found that way."""
