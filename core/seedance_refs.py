@@ -892,11 +892,13 @@ def _cut_parts(whole: str, bounds: List[float], dest_paths: List[str], ffmpeg: s
     from .shots import _encode
     audio = ["-c:a", "aac", "-b:a", "256k"] if has_audio(whole) else ["-an"]
     out = []
+    from . import safe_download             # C-T12: each part appears in one step (temp + os.replace) — a reader never sees half a clip
     for (start, end), dest in zip(zip(bounds, bounds[1:]), dest_paths):
-        proc = subprocess.run([ffmpeg, "-y", "-ss", f"{start:.3f}", "-i", whole, "-t", f"{max(end - start, 0.2):.3f}", *_encode(), *audio,
-                               dest], capture_output=True, text=True, encoding="utf-8", errors="replace")
-        if proc.returncode != 0 or not os.path.exists(dest):
-            shutil.copyfile(whole, dest)
+        def cut(tmp, start=start, end=end):
+            return subprocess.run([ffmpeg, "-y", "-ss", f"{start:.3f}", "-i", whole, "-t", f"{max(end - start, 0.2):.3f}", *_encode(),
+                                   *audio, tmp], capture_output=True, text=True, encoding="utf-8", errors="replace").returncode == 0
+        if not safe_download.write(dest, cut):
+            safe_download.copy(whole, dest)
         out.append(dest)
     return out
 
