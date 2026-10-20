@@ -1305,4 +1305,6 @@ không xóa asset thật.
 
 ## Kết quả Codex — đợt 19
 
+- **Việc1/M2.9 — chỉ test:** `codex/d19-viec1-narration`; test narration chung7ca×9nhóm hàm thật; ĐỎ21fail/35pass→**42passed/21xfailed strict /8,40s** (G15/G16/G17 mỗi5, G53×6). Rà độc lập sửa3điểm: exception riêng khoanh lỗi gốc/không che assert khác, winreg giả ngoàiWindows, loader guard trướcimport; root đọc sửa lần hai, teardown4/4. Giữ production/areas.version87, khôngAPI/data/projects/cảbộ/main/live. Lỗi gốc vẫn chờ M2.9; chưa chạyLinux thật. RA `docs/RA_D19_VIEC1_CODEX_2026-10-20.md`, mãcommit trong HANDOFF cùng nhánh.
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
