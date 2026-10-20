@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:59:35.665562+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-FIX-DP345",
+  "to": "cloud-D",
+  "title": "Sửa rà DP3/DP4/DP5",
+  "priority": 1,
+  "text": "Sau khi main có 'Gộp cloud/v31-dp5'. (1) VỪA core/final_qc.py check_black_freeze: bỏ qua đứng hình trùng manifest end_hold (core/delivery.py:408 END_HOLD_S=2,5) / extend_hold / popup giữ ở shot cuối — test shot cuối 0,8 s + end_hold → không freeze_frame; THẤP gộp blackdetect+freezedetect một lượt ffmpeg + timeout. (2) THẤP core/qc_evidence.py CODES: QC-A4-BLACK_FRAME/FREEZE_FRAME trần REVIEW (không BLOCK). (3) THẤP core/pipeline.py ~566: if not passed and repair_router.enabled(): (cờ TẮT không đọc gì). Cờ giữ TẮT, test đỏ→xanh."
+}
