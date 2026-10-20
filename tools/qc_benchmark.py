@@ -181,6 +181,9 @@ def load_cases(path):
         raw = stream.read(MAX_MANIFEST_BYTES + 1)
     if len(raw) > MAX_MANIFEST_BYTES:
         raise BenchError('Bộ ca quá lớn')
+    # PowerShell/Windows thường xuất UTF-8 BOM; bỏ đúng tiền tố trước khi
+    # phân biệt JSON list nhiều dòng với JSONL (json.loads(bytes) vốn nhận BOM).
+    raw = raw.removeprefix(b'\xef\xbb\xbf')
     if raw.lstrip().startswith(b'['):
         cases = _loads(raw)
     else:
@@ -266,7 +269,9 @@ def _summaries(cases, results):
             n_measured = m['n_pos'] + m['n_neg']
             missing = len(selected) - n_measured
             known = REGRESSIONS.get(code, ())
-            missing_regressions = [ref for ref in known if not any(c['label'] == 'DAT' and ref in c['source_ref'] for c in selected)]
+            missing_regressions = [ref for ref in known if not any(
+                c['label'] == 'DAT' and re.search(r'(?<![A-Za-z0-9_-])' + re.escape(ref) + r'(?![A-Za-z0-9_-])', c['source_ref'])
+                for c in selected)]
             shares = {p: sum(c['project_id'] == p for c in selected) for p in {c['project_id'] for c in selected}}
             m.update(label_verification='EXPLICIT_ASSERTION_ONLY', eligible=len(selected), measured=n_measured,
                      unmeasured=missing, coverage=n_measured / len(selected) if selected else None,

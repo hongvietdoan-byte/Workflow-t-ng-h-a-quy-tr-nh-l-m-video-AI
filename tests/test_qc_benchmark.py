@@ -289,3 +289,24 @@ def test_registry_guard_without_registry_access():
     with bench.offline_guard():
         with pytest.raises(PermissionError):
             winreg.OpenKey(None, 'synthetic')
+
+
+def test_utf8_bom_manifest_from_windows_export(tmp_path):
+    c = make_case(tmp_path)
+    for suffix, value in [('json', [c]), ('jsonl', c)]:
+        manifest = tmp_path / f'cases.{suffix}'
+        manifest.write_text(json.dumps(value, indent=2 if suffix == 'json' else None), encoding='utf-8-sig')
+        assert bench.load_cases(manifest) == [c]
+
+
+@pytest.mark.parametrize('source', ['errors.json:P33-A50', 'docs/P33-A5-other-case.md'])
+def test_regression_source_requires_complete_reference(tmp_path, source):
+    c = make_case(tmp_path, code='QC-L6-SIZE_MISMATCH', label='DAT', source_ref=source)
+    report = bench.run_benchmark([c], tmp_path)
+    assert report['splits']['independent']['per_code'][c['qc_code']]['missing_regressions'] == ['P33-A5']
+
+
+def test_regression_source_accepts_exact_reference_with_line(tmp_path):
+    c = make_case(tmp_path, code='QC-L6-SIZE_MISMATCH', label='DAT', source_ref='errors.json:P33-A5:42')
+    report = bench.run_benchmark([c], tmp_path)
+    assert report['splits']['independent']['per_code'][c['qc_code']]['missing_regressions'] == []
