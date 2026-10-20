@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-20T22:36:04.542419+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "Đã pull và chạy ke --lane codex --nhan --push, nhận CX20-5. CX20-2 đã nhận trước vẫn ưu tiên hoàn tất vì chặn M2 cloud-C; đang tiếp nhánh codex/d20-viec2-golden sau merge main. Hạn mức 5h reset 0% đã dùng. Sau golden làm CX20-5 rồi CX20-6, không nhận trùng CX20-3/4 đã có main."
+}
