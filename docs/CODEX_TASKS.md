@@ -1305,4 +1305,6 @@ không xóa asset thật.
 
 ## Kết quả Codex — đợt 19
 
+- **Việc4/M1.5 — chỉ thiết kế:** `codex/d19-viec4-subjects`, `docs/V3_1_M1_5_THIET_KE_KHO_CHU_THE_2026-10-20.md`; BỀN/TẠM, account scope/SHA/refs, reservation nguyên tử nhiều tiến trình/queue công bằng, frozen refs/quarantine, cleanup dry-run+outbox/fence mọi writer, retention>72h/unknown giữ, G59 config explicit và recovery1130/upload-submit-delete unknown. Không face-only/ảnh đánh dấu/Kling vì đầy, không hứa5project fit hay 60/40. Root RÀ NHẸ thêm ACL và mốc lifecycle sau reopen. Docs-only không code/test/SQL/API/delete/flags/areas/main/live, chưa sửa G59/M1.5 runtime. Cần chốt nháp cũ và duyệt scope Cấp2/3. RA `docs/RA_D19_VIEC4_CODEX_2026-10-20.md`, mã commit trong HANDOFF cùng nhánh.
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
