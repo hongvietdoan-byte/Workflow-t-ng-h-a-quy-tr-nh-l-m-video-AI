@@ -59,8 +59,9 @@ Một vai chưa đủ tin (cờ có `"trainee": True` trong `core/features.py`) 
 - **Trần chỉ để CẢNH BÁO** (ngân sách dự án, đợt thử, Claude API, trần một việc/khâu = "mức dự tính"): vượt → vẫn gửi, kèm cảnh báo có số
   liệu (đã chi, mức dự tính, ước tính lượt này, % vượt, model thiếu giá) ghi `diag` mã `money_warning` → thanh 💵 vàng (≥ 100 %) / đỏ
   (≥ 150 %) + một dòng 📥.
-- **Chỉ CHẶN** khi: nhà cung cấp báo hết tiền thật (`out_of_credit` → `budget.halt`), dự án Tạm dừng (`PipelinePaused`), trần job/ngày của
-  autopilot. Mọi lần chặn kèm thông báo tiếng Việt có số liệu (lý do, đã chi, mức dự tính, cách mở).
+- **Chỉ CHẶN** khi: nhà cung cấp báo hết tiền thật (`out_of_credit` → `budget.halt`), dự án Tạm dừng (`PipelinePaused`), trần job theo
+  sản phẩm của autopilot (job do máy tạo ≤ shot ảnh × 4 + shot video × 3, S14.16/S14.18 — `core/autopilot.py:_job_caps` /
+  `_job_cap_check`, theo `AUTO_REGEN_LIMIT`) + giới hạn tự gen lại; không còn trần job/ngày chung cả máy (người dùng 20/10). Mọi lần chặn kèm thông báo tiếng Việt có số liệu (lý do, đã chi, mức dự tính, cách mở).
 - Mọi lời gọi Claude đi qua **một client có sổ chi** + nhãn công đoạn (`stage`) + `project_id`; không có đường gọi nào ngoài sổ chi.
 - Mọi nút/lệnh tốn tiền (ảnh, video, âm thanh, Claude hàng loạt) **hiện ước tính trước** (trên nút hoặc câu hỏi xác nhận, ghi "(ước tính)").
 - Sổ chi video đối chiếu với nhà cung cấp (task không được tạo → bỏ khỏi sổ; `cost` thật khi quy đổi được).
