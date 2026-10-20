@@ -232,7 +232,13 @@ def run(p: Pipeline, project_id: int, data_dir: str, frames: bool = True, layers
     issues += style_hints(shots.styles(p.project(project_id)), timeline)
     blocks = sum(i["level"] == "block" for i in issues)
     warns = sum(i["level"] == "warn" for i in issues)
-    return {"ok": blocks == 0, "blocks": blocks, "warns": warns, "issues": issues}
+    res = {"ok": blocks == 0, "blocks": blocks, "warns": warns, "issues": issues}
+    from . import qc_evidence                    # V3.1 M4.1 (cờ qc_evidence, TẮT): ghi bằng chứng song song — không đổi kết quả, không ném lỗi
+    if qc_evidence.enabled():
+        art = f"final:{project_id}:{fin['id'] if 'id' in fin.keys() else '?'}" if hasattr(fin, "keys") else f"final:{project_id}"
+        sha = qc_evidence.sha256_of(fin["path"]) if frames else None
+        qc_evidence.record(p.conn, data_dir, project_id, "final", "Q9", "final_qc@1", qc_evidence.from_final_qc(res, art, sha))
+    return res
 
 
 _MARK = {"block": "❌", "warn": "⚠", "hint": ""}       # a hint carries its own 💡

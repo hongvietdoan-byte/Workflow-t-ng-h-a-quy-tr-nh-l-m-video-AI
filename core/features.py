@@ -355,6 +355,12 @@ FEATURES: Dict[str, Dict] = {
         "why": "S14.22 cổng S11.2 ĐẠT: người dùng chấm phiếu 05d (docs/DO_S11_2_Y_TUONG_2026-10-05d.md) TB 4,20 ≥ 4,0, đo thật 0,709 USD; "
                "06/10 người dùng duyệt bật mặc định — dùng khi người dùng yêu cầu hoặc khi kịch bản sơ sài (Claude hỏi trong khung chat, chưa tự chi)",
     },
+    "qc_evidence": {
+        "label": "Ghi BẰNG CHỨNG QC theo schema V3.1 M4.1 (qc_runs / qc_findings; chưa có bảng → <dự án>/qc_shadow/qc_evidence.jsonl) song "
+                 "song với QC hiện có — shadow: không đổi quyết định, không giữ job (nay nối: kiểm bản dựng cuối)",
+        "verified": False,
+        "why": "Không đo được báo nhầm theo mã khi 9 đường QC ghi 5 dạng khác nhau (thiết kế M4.1). Bảng = migration Cấp 3 (chưa áp CSDL thật)",
+    },
     "qc_observe_enum": {
         "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",
         "verified": False,
