@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T02:00:10.130705+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M32",
+  "branch": "cloud/v31-m32",
+  "commit": "892facf7",
+  "report": "docs/RA_CLOUD_M32_2026-10-21.md",
+  "text": "M3.2 người nộm xong (cờ whitebox_height_dummy TẮT = whitebox cũ; KHÔNG đặt tên world_map_height_dummy như thiết kế §8 vì test DP8 cấm chuỗi world_map trong core/): whitebox.eye_height/pitch_camera(eye 0°, slightly_high cúi 10°)/pitch_note(eye >5° → VÀNG, G3)/heights_of (hồ sơ Kho); plan(heights, angle) khối đúng height_m + eye_m, máy tầm mắt nhóm, thiếu chiều cao → warnings; render_plates.add_actor mũi ở eye_m. 13 test (đỏ trước); full 6602 passed, 4 đỏ cũ. Chưa: plate_camera bắt buộc height_m + slightly_high ở nền thật (cần golden M1.9 + render máy chính). HẠN MỨC: không đọc được."
+}
