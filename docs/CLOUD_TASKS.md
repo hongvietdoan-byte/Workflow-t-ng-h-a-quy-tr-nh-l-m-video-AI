@@ -520,3 +520,13 @@ hiện tại (REVIEW), cờ TẮT, không đổi prompt gửi đi khi cờ TẮT
 M5.3 pilot vòng A OFFLINE (0 USD) theo docs/V3_1_M0_11_PILOT_3_VONG_2026-10-20.md (vòng A): khung chạy 5 nhóm ca (payload, continuity, QC, lineage, phục hồi)
 trên fixture golden — BẮT ĐẦU KHI CX20-2b GỘP. Tiêu chí đạt/rớt đo được; không VERIFIED khi chỉ offline. Ca cần dữ liệu thật: ghi danh sách để máy chính chụp.
 ```
+
+## CHIA VIỆC THEO HẠN MỨC GÓI (người dùng 20/10 23:50)
+Mỗi làn báo hạn mức thật đầu mỗi lượt (`tin … "HẠN MỨC …"`). Phiên chính chia:
+| Hạn mức tuần ĐÃ DÙNG của làn | Giao |
+|---|---|
+| < 60 % | việc nặng: code M2, rà kỹ, việc ưu tiên 1 — làn chính |
+| 60–85 % | việc vừa: sửa VỪA/THẤP, thiết kế, test bổ sung |
+| 85–90 % | chỉ việc nhỏ ≤ 30 lượt gọi; không nhận việc mới lớn |
+| ≥ 90 % (hoặc 5 giờ ≥ 90 %) | hoàn tất việc dở → xong → het-viec; phiên chính chuyển việc CHỜ của làn đó sang làn khác (`giao` lại cùng mã) |
+Ghi nhận 20/10: cloud-B DỪNG (hết tuần); cloud-C còn nhiều tuần (làn chính); cloud-D chưa báo; codex 5 giờ 91 % lúc 23:16, tuần 29 %.
