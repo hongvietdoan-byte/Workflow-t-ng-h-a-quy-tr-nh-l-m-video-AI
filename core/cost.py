@@ -336,15 +336,18 @@ def estimate_videos_by_scene(pipeline: Pipeline, project_id: int, pricing: Dict)
     return result
 
 
-def clip_estimate(conn, scene_id: int, pricing: Optional[Dict] = None, seconds: Optional[float] = None) -> Optional[float]:
+def clip_estimate(conn, scene_id: int, pricing: Optional[Dict] = None, seconds: Optional[float] = None,
+                  parent_job_id: Optional[int] = None) -> Optional[float]:
     """M8: USD of sending this one shot's clip again (its model/tier/length; a remade shot of a multi-shot group goes alone).
-    A model / tier without a price is estimated HIGH (money_policy.estimate, S14.16); None only when nothing of its kind has a price."""
+    A model / tier without a price is estimated HIGH (money_policy.estimate, S14.16); None only when nothing of its kind has a price.
+    parent_job_id (C-FIX-M16-17, flag send_estimate): the job this send retries / remakes — it keeps its parent's tier (a final stays a
+    1080p upgrade, quality_tier.tier_for_new_job); flag off: unused (as before)."""
     from . import model_router, shots
     from .adapters.clipai import effective_duration, resolve_model
     from .providers import ProviderError
     pricing = pricing or load_pricing()
     if send_estimate_on():
-        return send_clip_usd(conn, scene_id, pricing, seconds)
+        return send_clip_usd(conn, scene_id, pricing, seconds, parent_job_id)
     choice = model_router.scene_choice(conn, scene_id)
     try:
         canonical, family = resolve_model(choice["model"])
@@ -370,14 +373,18 @@ def clip_estimate(conn, scene_id: int, pricing: Optional[Dict] = None, seconds: 
     return money_policy.estimate("video", canonical, tier, sec, pricing)["usd"]
 
 
-def send_clip_usd(conn, scene_id: int, pricing: Optional[Dict] = None, seconds: Optional[float] = None) -> Optional[float]:
+def send_clip_usd(conn, scene_id: int, pricing: Optional[Dict] = None, seconds: Optional[float] = None,
+                  parent_job_id: Optional[int] = None) -> Optional[float]:
     """V3.1 M1.6 (A7, A8 #33; flag send_estimate): USD of the clip '▶ Gen video' sends for this shot NOW, priced on what goes out:
     - the TIER the runner sends (batch._draft_tier — a draft-first shot without a draft goes at its model's low tier, Seedance 2.5
       480p; A8: the button said 720p),
     - a Seedance clip by ClipAI's token formula WITH its reference video seconds (the price table has no surcharge for a video input:
       A7, drafts ≈ 1,37 × the table) — calibrated on ClipAI tasks, docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md mục 5,
-    - other models: the table, else the high estimate of money_policy (as clip_estimate). None when the model is unknown."""
-    from . import batch, formats, model_router, shots
+    - other models: the table, else the high estimate of money_policy (as clip_estimate). None when the model is unknown.
+    parent_job_id (C-FIX-M16-17, CAO): a retry / remake keeps its PARENT's tier (core/pipeline._insert_job → quality_tier.tier_for_new_job)
+    — a final is priced as its 1080p upgrade step (quality_tier.upgrade_price), a draft at the draft tier, a direct at the shot's tier;
+    batch._draft_tier only knows a NEW job (the retry of a failed final was quoted at the 480p draft price, ~1,15 instead of ~6,36 USD)."""
+    from . import batch, formats, model_router, quality_tier, shots
     from .adapters.clipai import effective_duration, resolve_model
     from .providers import ProviderError
     pricing = pricing or load_pricing()
@@ -387,6 +394,17 @@ def send_clip_usd(conn, scene_id: int, pricing: Optional[Dict] = None, seconds: 
     except ProviderError:
         return None
     draft = batch._draft_tier(conn, scene_id, choice["model"])
+    inherited = quality_tier.tier_for_new_job(conn, scene_id, parent_job_id) if parent_job_id is not None and quality_tier.enabled() else None
+    if inherited is not None and inherited["quality_tier"] == "final" and family == "seedance":
+        proj = conn.execute("SELECT p.* FROM projects p JOIN scenes s ON s.project_id=p.id WHERE s.id=?", (scene_id,)).fetchone()
+        ratio = formats.spec(formats.project_aspect(proj))["clip"] if proj is not None else "16:9"
+        src = conn.execute("SELECT * FROM jobs WHERE id=?", (inherited["draft_job_id"],)).fetchone() if inherited["draft_job_id"] else None
+        mp = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
+        sec = (quality_tier.draft_seconds(conn, src) if src is not None else None) or seconds or \
+            (mp["duration_sec"] if mp and mp["duration_sec"] else None) or shots.planned_seconds(conn, scene_id) or 5
+        return quality_tier.upgrade_price(ratio, float(sec), quality_tier.upgrade_input_seconds(conn, scene_id, choice))
+    if inherited is not None:
+        draft = draft if inherited["quality_tier"] == "draft" else None          # a retry of a direct send goes at the shot's tier
     if family == "omni":
         tier = draft or os.environ.get("CLIPAI_KLING_MODE", "pro")
     else:
@@ -592,7 +610,7 @@ def image_button_tag(model: Optional[str], count: int = 1, pricing: Optional[Dic
     if count <= 0:
         return ""
     from . import money_policy
-    extra = (_memo(retake_conn, ("rewrite", id(retake_conn), count),
+    extra = (_memo(retake_conn, ("rewrite", id(retake_conn), count, claude_free()),          # đổi LLM_PROVIDER → giá Claude đổi
                    lambda: rewrite_estimate(retake_conn, count, 0, 0, 0, pricing)[0]) if retake_conn is not None else 0.0)
     if shot:
         extra += chat_prompt_estimate(retake_conn, count, pricing)
@@ -645,7 +663,7 @@ def _group_clips(conn, ids, seconds: Dict) -> List:
 def video_batch_tag(pipeline: Pipeline, project_id: int, pricing: Optional[Dict] = None) -> str:
     """S14.2 A2: price text for a button that sends the project's ready clips (estimate_videos_by_scene: each shot its model, ⭐ twice);
     a model/mức without a price is estimated high per clip (clip_estimate → money_policy), said as such."""
-    return _memo(pipeline.conn, ("video_batch", id(pipeline.conn), project_id, send_estimate_on()),
+    return _memo(pipeline.conn, ("video_batch", id(pipeline.conn), project_id, send_estimate_on(), claude_free()),
                  lambda: _video_batch_tag(pipeline, project_id, pricing))
 
 

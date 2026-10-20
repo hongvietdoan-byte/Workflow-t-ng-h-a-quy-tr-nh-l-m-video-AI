@@ -80,7 +80,11 @@ def shot_line(conn, pid: int, scene_id: int, row: Optional[Dict] = None, ratio: 
             final = qt.FINAL_RESOLUTION if keeps else qt.final_resolution(model)
             model_text = f"{base} · nháp {low} → cao {final}" + ("" if keeps else " (gen mới)")
             if not in_group and billed is not None:
-                parts = [cost.seedance_estimate(canonical, low, ratio, sec, row.get("input_video_s") or 0), qt.upgrade_price(ratio, sec, (row.get("input_video_s") or 0) if cost.send_estimate_on() else 0) if keeps else cost.seedance_estimate(canonical, final, ratio, sec, row.get("input_video_s") or 0)]
+                # C-FIX-M16-17 (THẤP): cờ send_estimate → phần nháp = đúng số nút ▶ Gen video báo (cost.send_clip_usd: bậc gửi thật +
+                # sàn bảng giá), không tự tính lại một công thức khác
+                first = cost.send_clip_usd(conn, scene_id, seconds=sec) if cost.send_estimate_on() else \
+                    cost.seedance_estimate(canonical, low, ratio, sec, row.get("input_video_s") or 0)
+                parts = [first, qt.upgrade_price(ratio, sec, (row.get("input_video_s") or 0) if cost.send_estimate_on() else 0) if keeps else cost.seedance_estimate(canonical, final, ratio, sec, row.get("input_video_s") or 0)]
                 usd = None if any(v is None for v in parts) else sum(parts)
         else:
             res = res or qt.E1_DIRECT_RESOLUTION
@@ -88,7 +92,8 @@ def shot_line(conn, pid: int, scene_id: int, row: Optional[Dict] = None, ratio: 
             model_text = f"{base} · {res} gen thẳng" + (f" → phóng {UPSCALE_AT_EDIT} lúc dựng" if res == "720p" else
                                                         " — chỉ xem nháp, bản giao cần ≥ 720p" if res == "480p" else "")
             if not in_group and billed is not None:
-                usd = cost.seedance_estimate(canonical, res, ratio, sec, row.get("input_video_s") or 0)
+                usd = cost.send_clip_usd(conn, scene_id, seconds=sec) if cost.send_estimate_on() else \
+                    cost.seedance_estimate(canonical, res, ratio, sec, row.get("input_video_s") or 0)
     else:
         model_text = model_router.label(model, res)
     if in_group:

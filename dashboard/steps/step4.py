@@ -216,7 +216,7 @@ def _video_batch(p: Pipeline, pid: int, runner) -> None:
             st.rerun()
     # KLD-1 (08/10): job 559 của #22 hỏng vì đầu vào đã cũ nằm trong nút này → gửi lại y nguyên thành 566. Nút chỉ còn lỗi nhà cung cấp.
     failed = batch.provider_failures(p, pid)
-    prices = [cost.clip_estimate(p.conn, p.job(j)["scene_id"]) for j in failed]
+    prices = [cost.clip_estimate(p.conn, p.job(j)["scene_id"], parent_job_id=j) for j in failed]   # p.retry: giữ bậc của job (bản cao = nâng 1080p)
     total = None if any(x is None for x in prices) else sum(prices)
     if c2.button(f"↻ Gửi lại clip lỗi ({len(failed)}){cost.price_tag(total, len(failed))}", key="btn_bad_retry", disabled=not failed,
                  help="Gửi lại Y NGUYÊN đầu vào — chỉ dùng khi lỗi do nhà cung cấp (mạng, quá tải). Clip bị bộ lọc nội dung chặn "
@@ -309,7 +309,7 @@ def clip_set_panel(p: Pipeline, pid: int) -> None:
                                      (pid, it["idx"])).fetchone()
                 if job and not (it.get("fix") or "").strip():
                     c2.caption("QC không nêu câu sửa — sửa motion prompt ở tab Motion (Storyboard)")
-                elif job and c2.button("↻ Gen lại clip này" + cost.price_tag(cost.clip_estimate(p.conn, p.job(job["id"])["scene_id"])),
+                elif job and c2.button("↻ Gen lại clip này" + cost.price_tag(cost.clip_estimate(p.conn, p.job(job["id"])["scene_id"], parent_job_id=job["id"])),
                                        key=f"clipqc_redo_{pid}_{n}", help="Gen lại với câu sửa của QC (tiếng Anh) — đầu vào khác lần trước"):
                     act(_spin(lambda: regen.regenerate_video(p, C.DATA, job["id"], f"Đồng bộ cả bộ clip: {it['problem']}", fix=it["fix"],
                                                              reason="chuyen_dong_sai")),   # C2: the clip-set QC's fault is the motion
