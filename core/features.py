@@ -77,6 +77,10 @@ FEATURES: Dict[str, Dict] = {
                             "(hết giờ / 5xx) thì KHÔNG gửi lại, chờ đối soát (0 USD)", "verified": False,
         "why": "V3.1 M1.2 (A1, #33): job 1162 succeeded 2 lần (bg_poll tiến trình riêng + Dashboard), QC đọc ảnh dở → tự gen lại 1163; "
                "thử bằng 2 kết nối SQLite + provider giả, chưa chạy thật (C3-2: bật sau nghiệm thu)"},
+    "world_map": {"label": "World map theo cảnh THỬ NGHIỆM OFFLINE (M3.1): dựng + lưu data/projects/<pid>/world/scene_<cảnh>.json (3D / 2D / "
+                           "tương đối / UNKNOWN, version, provenance, invalidation) — không ai trong luồng gen đọc, không chặn gen (0 USD)",
+        "verified": False,
+        "why": "V3.1 DP8 (G2-4, D06): chỉ offline để người duyệt map #31 cảnh 4/6/8 trước; bật chặn / câu vị trí = việc sau (Cấp 3)"},
     "pause_before_submit": {"label": "Kiểm tạm dừng dự án NGAY TRƯỚC khi gửi job (cả job thử lại / đổi model) — đang dừng thì job giữ "
                                      "hàng đợi có lý do, không gửi (0 USD)", "verified": False,
         "why": "V3.1 M1.3 (G36, #31): tạm dừng 03:42:31 vẫn gửi job 1075 lúc 03:42:41 — runner chỉ kiểm paused đầu lượt quét; "
