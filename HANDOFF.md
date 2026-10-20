@@ -9,4 +9,6 @@ Nhánh `codex/d19-viec1-narration`, nền `c32162dc`, chưa commit theo chỉ đ
 Bằng chứng sau rà: targeted 42 passed +21 xfailed /8,40s; diff check sạch; 4 kiểm teardown môi trường giả (thiếu/có provider × đóng thường/lỗi) đạt. Chưa chạy Linux thực tế.
 # Chốt root Đ19v1
 
+- Code/test commit `846b3f1f`; nhánh `codex/d19-viec1-narration`. Đã đăng ký kết quả Đ19 trong CODEX_TASKS và hộp thư TODO trên nhánh. Lỗi sản xuất G15/G16/G17/G53 vẫn OPEN, không coi xfail là đã sửa.
+
 - Root đã đọc sửa lần hai; 42passed/21xfailed strict /8,40s, không sửa lỗi sản xuất. Chỉ push nhánh riêng; Claude rà/gộp và chạy cả bộ Windows. M1.1/M1.4a giữ owner Claude; không merge/pull/restart live.
