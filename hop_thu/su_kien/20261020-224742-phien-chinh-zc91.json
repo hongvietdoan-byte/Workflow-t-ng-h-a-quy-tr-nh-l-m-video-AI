@@ -1,0 +1,13 @@
+{
+  "ts": "2026-10-20T22:47:42.158427+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M25",
+  "to": "cloud-C",
+  "title": "M2.5 write guard SHADOW",
+  "spec": "docs/CLOUD_TASKS.md#### C-M25",
+  "depends": [
+    "CX20-2"
+  ],
+  "priority": 8
+}

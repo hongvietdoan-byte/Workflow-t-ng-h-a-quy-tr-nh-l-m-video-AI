@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:54:13.789045+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX20-5",
+  "branch": "codex/d20-viec5-kho-chu-the",
+  "commit": "70982526",
+  "report": "docs/RA_D20_VIEC5_CODEX_2026-10-20.md",
+  "text": "Đã push preflight capacity cờOFF: full/unknown giữ queued0submit0Kling, G59 reuse configured client, legacyauto chỉ dryrun0DELETE, readonlyCLI. 7 đỏ builder→42xanh; rà snapshot parser 7 đỏ→70xanh. OPEN: allocator/reservation/fence/ownership lifecycle chuẩn; DBlegacy không đủ bằng chứng thì UNKNOWN giữ, 8/3 là policy fixture explicit. Chưa full M1.5/production/cả bộ Windows. Golden có followup flags legacyON experimentalOFF 9187a289,35xanh; sẽ báo tin SHA mới."
+}

@@ -1300,10 +1300,11 @@ class VideoRunner(_Runner):
         except Exception as e:  # noqa: BLE001
             self._diag(job, "warn", "lipsync_audio", f"không ghép được track thoại của nhóm ({e}) — clip gửi không kèm giọng")
             return None
-        for sid in dict.fromkeys(x["scene_id"] for x in segs):
-            first = next(x for x in segs if x["scene_id"] == sid)
-            lipsync.mark(self.data_dir, job["project_id"], sid, state="generate_sent", job_id=job["id"], method="take",
-                         planned_start=first["shot_start"], offsets=first["offsets"])
+        if not self.__dict__.get("_preview"):            # M4.7 xem trước gói: chưa gửi gì → không ghi 'generate_sent'
+            for sid in dict.fromkeys(x["scene_id"] for x in segs):
+                first = next(x for x in segs if x["scene_id"] == sid)
+                lipsync.mark(self.data_dir, job["project_id"], sid, state="generate_sent", job_id=job["id"], method="take",
+                             planned_start=first["shot_start"], offsets=first["offsets"])
         return out
 
     def _submit_kwargs(self, job) -> Dict:
@@ -1319,8 +1320,9 @@ class VideoRunner(_Runner):
         if job["quality_tier"] == "direct" and quality_tier.draft_resolution_sent(self._choice(job), out):
             # lỗi 8 #27 (896/901): bậc ghi lúc tạo job (direct) và đường lúc gửi (nháp 2.5 480p của nhóm) lệch → job 'direct' bị gửi 2.5
             # 480p KHÔNG draft=True: không nâng 1080p được, không phải bản giao. Đường lúc gửi thắng: gửi như nháp, ghi lại bậc
-            self.p.conn.execute("UPDATE jobs SET quality_tier='draft', draft_job_id=NULL WHERE id=?", (job["id"],))
-            self.p.conn.commit()
+            if not self.__dict__.get("_preview"):      # M4.7 xem trước gói: không ghi bậc của job
+                self.p.conn.execute("UPDATE jobs SET quality_tier='draft', draft_job_id=NULL WHERE id=?", (job["id"],))
+                self.p.conn.commit()
             self._diag_once(job, "info", "tier_to_draft", "job gen thẳng mà đường của shot lúc gửi là nháp Seedance 2.5 480p → gửi như NHÁP "
                                                      "(draft=True, nâng 1080p được sau khi duyệt), không gửi 480p gen thẳng")
             return quality_tier.low_tier(out, self._choice(job).get("model"))
@@ -1728,7 +1730,8 @@ class VideoRunner(_Runner):
             else:
                 seedance_refs.note_sent(conn, [r["id"] for r in rows], "hosted")
             return hosted
-        seedance_refs.note_sent(conn, [r["id"] for r in rows], style)
+        if not self.__dict__.get("_preview"):            # M4.7 xem trước gói: chưa gửi gì → không ghi kiểu đánh dấu đã gửi
+            seedance_refs.note_sent(conn, [r["id"] for r in rows], style)
         out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_marked")
         return [seedance_refs.mark(s["path"], out_dir, style) for s in src]
 
@@ -1802,8 +1805,9 @@ class VideoRunner(_Runner):
         if seg is None:
             self._diag(job, "warn", "lipsync_audio", "shot khớp môi nhưng câu thoại chưa có giọng — tạo giọng (Bước 3) trước")
             return None
-        lipsync.mark(self.data_dir, job["project_id"], job["scene_id"], state="generate_sent", job_id=job["id"], offsets=seg["offsets"],
-                     method="generate")
+        if not self.__dict__.get("_preview"):            # M4.7 xem trước gói: chưa gửi gì → không ghi 'generate_sent'
+            lipsync.mark(self.data_dir, job["project_id"], job["scene_id"], state="generate_sent", job_id=job["id"],
+                         offsets=seg["offsets"], method="generate")
         return seg["path"]
 
     def _find_real(self, job) -> Optional[str]:
@@ -2283,8 +2287,16 @@ class VideoRunner(_Runner):
             ids = [r["id"] for r in group] if group else [job["scene_id"]]
             data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
             step = seedance_refs.next_route(data, bool(group))
-            seedance_refs.set_route(self.p.conn, ids, step)
             why = "ảnh giống người thật" if kind == REAL_PERSON else "video có thể dính bản quyền"
+            refused, skip = self._refused_in_single(job, group, message) if step == "single" else ([], set())
+            if skip:                         # C-G36B: the per-shot try would send the refused picture again — those shots go to Kling now
+                seedance_refs.set_route(self.p.conn, [i for i in ids if i not in skip], "single")
+                seedance_refs.set_route(self.p.conn, [i for i in ids if i in skip], "kling")
+                self._diag(job, "warn", kind, f"Seedance từ chối ({why}: {', '.join(refused)}) — ảnh này vẫn có trong gói từng shot của "
+                           f"{len(skip)}/{len(ids)} shot → các shot đó sang Kling từ khung đầu ngay (bỏ bước Seedance từng shot chắc chắn "
+                           "bị từ chối lại)" + (f"; {len(ids) - len(skip)} shot còn lại đi Seedance từng shot" if len(skip) < len(ids) else ""))
+                return True
+            seedance_refs.set_route(self.p.conn, ids, step)
             self._diag(job, "warn", kind, f"Seedance từ chối ({why}, dù ảnh đã đánh dấu) → {len(ids)} shot chuyển sang "
                        + ("Seedance từng shot" if step == "single" else "Kling từ khung đầu"))
             return True
@@ -2295,6 +2307,24 @@ class VideoRunner(_Runner):
         why = "ảnh giống người thật" if kind == REAL_PERSON else "video có thể dính bản quyền"
         self._diag(job, "warn", kind, f"Seedance từ chối ({why}) → {len(ids)} cảnh/shot chuyển sang Kling")
         return True
+
+    def _refused_in_single(self, job, group, message: str) -> Tuple[List[str], set]:
+        """C-G36B (cờ refusal_skip_same_picture): the refusal names the picture(s) it refused — `content[N]`, content[0] being the
+        text, content[N] the N-th reference picture of the group send (_reference_sources order, the order the adapter sends). The
+        shots whose OWN per-shot send (_reference_sources, no group) still carries such a picture would be refused again: their ids,
+        with what the pictures are. Flag off / no picture named / an index past the send → ([], set()): the order chosen 2026-09-27."""
+        from . import features
+        if not group or not features.on("refusal_skip_same_picture"):
+            return [], set()
+        sent = self._reference_sources(job, group)
+        named = sorted({int(n) for n in re.findall(r"content\[(\d+)\]", message or "")})
+        hit = [sent[n - 1] for n in named if 1 <= n <= len(sent)]
+        if not hit:
+            return [], set()
+        bad = {os.path.abspath(s["path"]) for s in hit}
+        skip = {r["id"] for r in group
+                if bad & {os.path.abspath(s["path"]) for s in self._reference_sources(dict(job, scene_id=r["id"]), [])}}
+        return [f"Image {sent.index(s) + 1} = {s['say']}" for s in hit], skip
 
     def _dest_path(self, job) -> str:
         idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["idx"]
@@ -3080,6 +3110,8 @@ def chat_rewrite(runner, job, kind: str, assembled: str, images, model, limit: i
     tắt / không dùng được → bản code ghép như cũ (lý do vào diag). Module-level: works with any runner-like object (p + _diag)."""
     from . import chat_prompt
     if not chat_prompt.enabled():
+        return assembled
+    if getattr(runner, "_preview", False):        # M4.7 xem trước gói (core/send_preview): không gọi Claude, nói trên thẻ
         return assembled
     say = getattr(runner, "_diag_once", None) or getattr(runner, "_diag", None)
     from . import side_truth, skill_objects, travel_truth

@@ -744,6 +744,8 @@ Theo công thức chung:
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
+- Đ20 việc 6 · `codex/d20-viec6-so-loi` · mã commit xem git log/HANDOFF cùng nhánh · trang Sổ lỗi chỉ đọc, lọc/coverage/problems toàn sổ; plan_map đọc chuẩn items/schema, khâu lỗi mở viền đỏ. 9 đỏ → 52 xanh (10,26s), gồm AppTest; RÀ NHẸ sửa alias số gây crash. Báo cáo `docs/RA_D20_VIEC6_CODEX_2026-10-20.md`; chưa cả bộ Windows/slow, push/gộp/live.
+
 - Đ20 việc 1 · `codex/d20-viec1-so-loi` · commit chứa dòng này (xem `git log -1`) · đỏ 4 ERROR trước công cụ → xanh 7 test (0,74s), SQLite tạm native/schema tổng hợp; `docs/RA_D20_VIEC1_CODEX_2026-10-20.md` · chờ rà độc lập + cả bộ Windows; ledger thiếu giá USD giữ UNKNOWN; job lỗi lấy note failed cuối mỗi job; chưa thử dữ liệu thật/chưa push.
 
 ---
@@ -1393,6 +1395,9 @@ push `hộp thư:` TRƯỚC khi code; làn khác nhận trước thì bỏ, lấ
 
 ## Kết quả Codex — đợt 20
 
+- Việc 2 · `codex/d20-viec2-golden` · tranche capture/validation, 17 test synthetic xanh sau rà độc lập (2 P2 đã sửa) từ SCHEMA thật; M1.9a **OPEN**, chưa current-builder/end-to-end replay; báo cáo `docs/RA_D20_VIEC2_CODEX_2026-10-20.md` (commit xem HEAD nhánh).
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
 - Đ20 việc 1 · codex/d20-viec1-so-loi · commit rà xem git log (cùng báo cáo) · RÀ KỸ sửa 2 P2: đủ mọi lần failed + JSON tiền hữu hạn; 2 regression đỏ → 9 test xanh (1,18s); native cost UNKNOWN khi thiếu USD, chờ cả bộ Windows/slow trước gộp.
+- Việc 2 bổ sung · `codex/d20-viec2-golden`: frozen pre-send input ảnh/video qua ImageRunner/VideoRunner._build_package thật; 3 đỏ →25 xanh/9,47s; COMPAT byte + correctness cấu trúc riêng, provider stub fake/clipai/deepix; M1.9a OPEN (chưa `_submit_args`/capture sản xuất/chất lượng/cả bộ). Chi tiết RA_D20_VIEC2; không API/dữ liệu thật, chưa push/gộp.

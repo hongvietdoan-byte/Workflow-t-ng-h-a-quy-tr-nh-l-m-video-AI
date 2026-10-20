@@ -25,6 +25,7 @@
 Thresholds were set on #8's own clips (tools/clip_measure_calibrate.py, numbers in the constants' comments); every check returns its
 numbers so a person can see why. Nothing here blocks on its own: the flags go to the clip QC as evidence."""
 import os
+import threading
 from typing import Dict, List, Optional, Tuple
 
 FLOW_WIDTH = 256           # optical flow on a small copy: enough for whole-picture motion, fast
@@ -144,9 +145,35 @@ def look_drift(clip: str, picture: str, samples: int = 5) -> Dict:
             **({"why": why} if flag else {})}
 
 
+_SERIES: Dict[tuple, Tuple[List[float], float, List[float]]] = {}
+_SERIES_KEEP = 4           # C-FIX-THAP-1: measure() (jerks) + the M4.2 shadow read the SAME clip back to back — decoded + flowed once
+_SERIES_LOCK = threading.Lock()   # C-FIX-THAP-2: autoqc (luồng nền) + bấm tay cùng đo — đọc / đuổi / ghi bộ nhớ trong khóa
+
+
 def motion_series(clip: str) -> Tuple[List[float], float, List[float]]:
     """Per pair of consecutive frames: mean optical-flow magnitude (pixels at FLOW_WIDTH) and colour-histogram correlation (a hard cut
-    drops it), plus fps."""
+    drops it), plus fps. Kept for the last few clips by (path, size, mtime) — a rewritten file is measured again."""
+    try:
+        st = os.stat(clip)
+        key = (os.path.abspath(clip), st.st_size, st.st_mtime_ns)
+    except OSError:
+        key = None
+    if key is not None:
+        with _SERIES_LOCK:
+            hit = _SERIES.get(key)
+        if hit is not None:
+            series, fps, same = hit
+            return list(series), fps, list(same)
+    out = _motion_series(clip)                    # ngoài khóa: đo chậm (giây) không chặn luồng khác
+    if key is not None:
+        with _SERIES_LOCK:
+            while len(_SERIES) >= _SERIES_KEEP:
+                _SERIES.pop(next(iter(_SERIES)))
+            _SERIES[key] = (list(out[0]), out[1], list(out[2]))
+    return out
+
+
+def _motion_series(clip: str) -> Tuple[List[float], float, List[float]]:
     cv2 = _cv()
     fs, fps = frames(clip, width=FLOW_WIDTH)
     flow_out, same, prev, prev_h = [], [], None, None

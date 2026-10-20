@@ -1,0 +1,90 @@
+{
+  "image": {
+    "kind": "image",
+    "args": [
+      "chữ gốc",
+      [
+        {
+          "path": "ref.bin",
+          "role": "cast"
+        }
+      ]
+    ],
+    "kwargs": {
+      "model": "fake-image",
+      "quality_tier": "draft"
+    },
+    "sent_kwargs": {
+      "model": "fake-image",
+      "quality_tier": "draft"
+    },
+    "job": {
+      "id": 1
+    },
+    "meta": [],
+    "external_id": "fixture-image",
+    "at": "2026-10-20T00:00:00+00:00",
+    "provider": "fake",
+    "files": {
+      "ref.bin": "b3cc0475bb78a5026098858e9889acf666d31062d513d303314eca31d36e72f2"
+    },
+    "baseline": "{\"v\": 1, \"call\": \"submit\", \"prompt\": \"chữ gốc\", \"negative\": null, \"refs\": [{\"param\": \"references\", \"role\": \"cast\", \"label\": null, \"path\": \"ref.bin\", \"file\": \"ref.bin\", \"sha256\": \"b3cc0475bb78a5026098858e9889acf666d31062d513d303314eca31d36e72f2\"}], \"provider\": \"fake\", \"model\": \"fake-image\", \"params\": {\"model\": \"fake-image\", \"quality_tier\": \"draft\"}, \"external_id\": \"fixture-image\", \"at\": \"2026-10-20T00:00:00+00:00\"}",
+    "flags": {
+      "new_feature": false,
+      "legacy_verified": true
+    },
+    "experimental_flags": [
+      "new_feature"
+    ]
+  },
+  "video": {
+    "kind": "video",
+    "args": [
+      "ref.bin",
+      "chữ gốc"
+    ],
+    "kwargs": {
+      "model": "fake-video",
+      "quality_tier": "draft",
+      "image_references": [
+        {
+          "path": "ref.bin",
+          "role": "cast"
+        }
+      ]
+    },
+    "sent_kwargs": {
+      "model": "fake-video",
+      "quality_tier": "draft",
+      "image_references": [
+        {
+          "path": "ref.bin",
+          "role": "cast"
+        }
+      ]
+    },
+    "job": {
+      "id": 1
+    },
+    "meta": [],
+    "external_id": "fixture-video",
+    "at": "2026-10-20T00:00:00+00:00",
+    "provider": "fake",
+    "files": {
+      "ref.bin": "b3cc0475bb78a5026098858e9889acf666d31062d513d303314eca31d36e72f2"
+    },
+    "baseline": "{\"v\": 1, \"call\": \"submit\", \"prompt\": \"chữ gốc\", \"negative\": null, \"refs\": [{\"param\": \"image_path\", \"role\": \"start_frame\", \"label\": null, \"path\": \"ref.bin\", \"file\": \"ref.bin\", \"sha256\": \"b3cc0475bb78a5026098858e9889acf666d31062d513d303314eca31d36e72f2\"}, {\"param\": \"image_references\", \"role\": \"cast\", \"label\": null, \"path\": \"ref.bin\", \"file\": \"ref.bin\", \"sha256\": \"b3cc0475bb78a5026098858e9889acf666d31062d513d303314eca31d36e72f2\"}], \"provider\": \"fake\", \"model\": \"fake-video\", \"params\": {\"model\": \"fake-video\", \"quality_tier\": \"draft\"}, \"external_id\": \"fixture-video\", \"at\": \"2026-10-20T00:00:00+00:00\", \"pregen_fingerprint\": \"frozen-fingerprint\"}",
+    "correctness_roles": [
+      "start_frame",
+      "cast"
+    ],
+    "flags": {
+      "new_feature": false,
+      "legacy_verified": true
+    },
+    "experimental_flags": [
+      "new_feature"
+    ],
+    "pregen_fingerprint": "frozen-fingerprint"
+  }
+}

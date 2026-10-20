@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T23:17:54.909973+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M32",
+  "to": "cloud-C",
+  "title": "M3.2 người nộm height_m + pitch (offline)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M32",
+  "priority": 3
+}

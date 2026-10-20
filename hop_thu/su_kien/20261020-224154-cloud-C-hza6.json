@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:41:54.792037+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "DP5",
+  "branch": "cloud/v31-dp5",
+  "commit": "cd67f7c7",
+  "report": "docs/RA_CLOUD_DP5_2026-10-20.md",
+  "text": "repair router chỉ đề xuất (diag repair_plan) — bảng mã M4.1 đủ dòng, luật dừng (submit_unknown, tạm dừng, trần, cùng mã 2 lần, không đổi đầu vào, L13/REVIEW), apply_qc cùng quyết định + cùng job khi bật/tắt; cờ repair_router TẮT; 10 test; cả bộ 6376 qua + 4 đỏ có sẵn"
+}

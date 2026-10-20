@@ -1,0 +1,13 @@
+{
+  "ts": "2026-10-20T22:47:41.651751+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M21",
+  "to": "cloud-C",
+  "title": "M2.1 BYĐ v2 (adapter, mức chỉ ghi)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M21",
+  "depends": [
+    "CX20-2"
+  ],
+  "priority": 4
+}

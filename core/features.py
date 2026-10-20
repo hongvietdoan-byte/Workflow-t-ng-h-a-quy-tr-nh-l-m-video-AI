@@ -79,6 +79,10 @@ FEATURES: Dict[str, Dict] = {
                             "(hết giờ / 5xx) thì KHÔNG gửi lại, chờ đối soát (0 USD)", "verified": False,
         "why": "V3.1 M1.2 (A1, #33): job 1162 succeeded 2 lần (bg_poll tiến trình riêng + Dashboard), QC đọc ảnh dở → tự gen lại 1163; "
                "thử bằng 2 kết nối SQLite + provider giả, chưa chạy thật (C3-2: bật sau nghiệm thu)"},
+    "world_map": {"label": "World map theo cảnh THỬ NGHIỆM OFFLINE (M3.1): dựng + lưu data/projects/<pid>/world/scene_<cảnh>.json (3D / 2D / "
+                           "tương đối / UNKNOWN, version, provenance, invalidation) — không ai trong luồng gen đọc, không chặn gen (0 USD)",
+        "verified": False,
+        "why": "V3.1 DP8 (G2-4, D06): chỉ offline để người duyệt map #31 cảnh 4/6/8 trước; bật chặn / câu vị trí = việc sau (Cấp 3)"},
     "pause_before_submit": {"label": "Kiểm tạm dừng dự án NGAY TRƯỚC khi gửi job (cả job thử lại / đổi model) — đang dừng thì job giữ "
                                      "hàng đợi có lý do, không gửi (0 USD)", "verified": False,
         "why": "V3.1 M1.3 (G36, #31): tạm dừng 03:42:31 vẫn gửi job 1075 lúc 03:42:41 — runner chỉ kiểm paused đầu lượt quét; "
@@ -89,6 +93,11 @@ FEATURES: Dict[str, Dict] = {
         "why": "V3.1 M1.6 (A7–A9 #33, G31 #31): nút Gen video báo 9,13 USD (720p + D6 API) khi gửi nháp 480p; nháp có video tham chiếu "
                "≈ 1,37 × bảng giá; bản cao 1080p sổ chi cao hơn ước tính ~24 %; pregen_check cộng Claude giá API dù chạy claude_cli. "
                "Hiệu chuẩn 2 điểm task ClipAI (docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md mục 5), chưa đối chiếu sổ chi thật"},
+    "refusal_skip_same_picture": {"label": "Seedance từ chối gói nhóm vì MỘT ảnh (content[N]): shot nào còn ảnh đó trong gói từng shot thì "
+                                           "sang Kling ngay, bỏ bước \"Seedance từng shot\" chắc chắn bị từ chối lại (0 USD)",
+        "verified": False,
+        "why": "V3.1 C-G36B (G36 phần 2, #31 1057→1065→1071): lần thử lại đầu đi Seedance từng shot với đúng ảnh dạng/vật đã bị "
+               "từ chối → phí một lượt; đổi thứ tự người dùng chốt 2026-09-27 nên để TẮT tới khi người dùng duyệt — thử bằng provider giả"},
     "locomotion_end_frame": {"fixes_projects": [27], "label": "Shot chạy/đi: không gửi khung cuối vẽ khi clip sinh dài hơn shot × 1,3 + câu mốc cảnh vật khi máy bám theo (0 USD)",
         "verified": False,
         "why": "Hộp thư 12/10 18:13: #27 shot 3 job 782 (shot 1–2 s, Kling sinh 3 s, khung cuối 'vài bước' ở giây 3 + máy bám sau) chạy tại chỗ; "
@@ -383,6 +392,36 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "#31 G52 (logic chuỗi 39 clip), G51 (súng biến mất), G41 (hướng chạy) chỉ người / Claude thấy; chạy sau qc_sequence_logic. "
                "Chưa chạy trên dữ liệu thật",
+    },
+    "send_preview_panel": {
+        "label": "Thẻ clip Bước 4: khung gập \"Gói sẽ gửi\" (dựng bằng đúng đường nút Gen — thứ tự ảnh ref, nhãn, prompt, giá send_estimate; "
+                 "không gửi, không gọi Claude/nhà cung cấp) + khung \"QC shadow\" (đọc M4.2 / M4.3 / M4.1) — CHỈ XEM (V3.1 M4.7)",
+        "verified": False,
+        "why": "Người dùng không thấy gói thật sẽ gửi trước khi trả tiền và không thấy kết quả QC shadow theo shot. Chưa chạy trên dữ liệu thật",
+    },
+    "final_black_freeze": {
+        "label": "Kiểm bản dựng cuối: đoạn màn hình ĐEN (≥ 0,5 s) và ĐỨNG HÌNH (> 1,5 s) bằng ffmpeg blackdetect / freezedetect — chỉ "
+                 "cảnh báo (cần xem), không chặn xuất (V3.1 M4.4)",
+        "verified": False,
+        "why": "Người dùng 11/10: video không được đơ; G51 (#31 shot 13 đơ 6 s). Ngưỡng chưa hiệu chuẩn trên bản dựng thật",
+    },
+    "qc_evidence": {
+        "label": "Ghi BẰNG CHỨNG QC theo schema V3.1 M4.1 (qc_runs / qc_findings; chưa có bảng → <dự án>/qc_shadow/qc_evidence.jsonl) song "
+                 "song với QC hiện có — shadow: không đổi quyết định, không giữ job (nay nối: kiểm bản dựng cuối)",
+        "verified": False,
+        "why": "Không đo được báo nhầm theo mã khi 9 đường QC ghi 5 dạng khác nhau (thiết kế M4.1). Bảng = migration Cấp 3 (chưa áp CSDL thật)",
+    },
+    "repair_router": {
+        "label": "Repair router theo mã lỗi (V3.1 M5.1) — CHỈ ĐỀ XUẤT: QC không đạt → kế hoạch sửa (đổi đầu vào gì, lần mấy / trần, khi nào "
+                 "dừng hỏi người) ghi ở ⚙ Chẩn đoán; KHÔNG tự gửi job (tự gửi = Cấp 3)",
+        "verified": False,
+        "why": "Luật 6 CHUAN_XAY_DUNG + G2-6 (router mặc định TẮT). Chưa chạy trên dữ liệu thật",
+    },
+    "release_gate": {
+        "label": "Cổng phát hành (V3.1 M5.2): trước nút Xuất bản hiện checklist 8 mục đo được — shot đã duyệt, kiểm bản dựng, lớp ⚠ cũ, đối "
+                 "soát chi phí, gửi không rõ kết quả, lỗi CAO mở, việc chờ người, lineage — ĐẠT / CHƯA ĐẠT; CHỈ cảnh báo, không chặn xuất",
+        "verified": False,
+        "why": "Thiết kế M5.2 (shadow trước; chặn = guarded, Cấp 3). Chưa chạy trên dự án thật",
     },
     "qc_observe_enum": {
         "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",

@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:58:10.251995+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "DP6",
+  "branch": "cloud/v31-dp6",
+  "commit": "8ac62ce5",
+  "report": "docs/RA_CLOUD_DP6_2026-10-20.md",
+  "text": "cổng phát hành 8 mục (shot duyệt, final_qc, lớp cũ, chi phí, submit_unknown, lỗi CAO mở, chờ người, lineage) — đạt/chưa đạt/không rõ, chỉ cảnh báo trên nút Xuất bản; cờ release_gate TẮT; 14 test; cả bộ 6440 qua + 4 đỏ có sẵn"
+}

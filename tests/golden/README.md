@@ -1,5 +1,7 @@
 # Bộ ca hồi quy (`tests/golden/`)
 
+Đ20 M1.9a: fixture chụp sổ gói gửi là định dạng riêng `fixture_version=1` từ `tools/golden_capture.py`, không bỏ vào `cases/` của loader K0a. `tests/test_golden_replay.py` dựng fixture tổng hợp từ SCHEMA thật; kiểm read-only, thiếu trường/hash, thứ tự ref và comparator byte. Replay biên `_build_package` ảnh/video từ `package_inputs.json` đã có (baseline đóng băng độc lập); toàn tuyến `_submit_args` và đánh giá chất lượng thật vẫn **OPEN**; xem `docs/RA_D20_VIEC2_CODEX_2026-10-20.md`.
+
 Định dạng chốt ở K0a (`docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md` mục 3.9). Ca hồi quy chỉ để **kiểm hồi quy** — độ phủ đến từ
 cấu trúc (bảng loại lỗi `devsys/error_types.json`, A5), không từ số ca.
 
@@ -35,3 +37,19 @@ Thêm ca: lỗi người dùng bắt mà lọt → xếp loại (mục 10 kế h
 `tests/fixtures/stage_facts_golden.json` đã chuyển sang đây (K0a).
 
 Nhánh C: `blockout` {plan, cho_dung (tùy chọn), vat_kich_ban (tùy chọn), codes} chạy ở `tests/test_blockout.py`, lớp kiểm d97 CHƯA nối pipeline. Ca tổng hợp kiểm thiếu khối/chồng lấn; có lớp test chạy nên không ghi chua_co_lop.
+
+
+Đ20 bổ sung: `package_inputs.json` chứa args/kwargs/sent_kwargs/meta/job trước lắp gói,
+manifest SHA256 ref, provider/model/tier, flags (legacy ON giữ riêng experimental OFF),
+timestamp/external id và baseline UTF-8 viết độc lập. Ref `ref.bin` tổng hợp là bytes
+`synthetic`; test dựng file trong thư mục tạm rồi gọi **ImageRunner/VideoRunner._build_package**
+hiện tại. Không sinh lại baseline trong test. `replay_builder` chỉ lắp gói, provider stub
+chỉ mang tên fake/clipai/deepix, không tạo client/registry, gửi/poll/mạng/subprocess bị chặn.
+Không hỗ trợ nâng nháp `_from_sample` vì còn cần snapshot CSDL nguồn.
+
+Chụp có thể thêm `--input-snapshots-file <inputs.json>` (object job id → input snapshot).
+Sidecar phải được đóng băng **trước** lắp gói, không tái tạo args từ sent_package; tool
+chỉ đính kèm sidecar, không chứng nhận xuất xứ/độ đầy đủ. Ref vật lý phải có trong ref-root.
+Dùng `replay_builder(job["input_snapshot"], ref_root=...)` rồi `compare_compat` với raw
+baseline ở fixture; `check_correctness` chạy với kỳ vọng viết riêng, không lấy golden
+làm chuẩn đúng. Chưa có sidecar sản xuất → giữ OPEN, không suy ngược cho đủ dữ liệu.

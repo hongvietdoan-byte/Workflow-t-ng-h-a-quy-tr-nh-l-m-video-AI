@@ -456,3 +456,77 @@ M3.1 scene_world_map THỬ NGHIỆM offline — CODE schema + đọc/ghi + adapt
 tương đối / UNKNOWN, version, provenance, invalidation khi geometry/BYĐ đổi. G2-4: chỉ offline, KHÔNG chặn gen, KHÔNG bắt buộc 3D; không ai đọc map trong luồng gen
 (cờ TẮT). Lưu ở bảng/JSON mới — migration chỉ code + test CSDL tạm (áp CSDL thật = Cấp 3). Test: ca #31 cảnh 4/6/8 dạng fixture tổng hợp, map thiếu → UNKNOWN.
 ```
+
+## Việc M2 bổ sung 20/10 22:45 (BẮT ĐẦU KHI golden CX20-2 GỘP — hộp thư tự mở; G2-3)
+Mọi việc: golden compat #24/#27 cờ TẮT = byte bằng khung M1.9 (tests/test_golden_replay.py); BYĐ v1, Kho cũ, dự án cũ vẫn chạy; cờ mới TẮT; test ĐỎ→XANH.
+
+#### C-M21
+```
+M2.1 BYĐ v2 theo docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-20.md (phần M2.1): byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN (chỉ ghi —
+không tự chặn gen khi cờ TẮT; BLOCK thật = Cấp 3 sau). Adapter v1→v2 dùng parser vat v1/v2 (M1.1 đã có core/shot_intent.vat_items). Mọi caller đọc BYĐ qua adapter.
+```
+
+#### C-M25
+```
+M2.5 write guard cấp trường ở chế độ SHADOW theo docs/V3_1_M0_10_BAO_VE_DU_LIEU_2026-10-20.md (đặc tả + audit 34 đường ghi + 10 ca G1–G10): core/write_guard.py
+write_scene(actor, expected_rev, mode='shadow') — shadow chỉ GHI diag (field_conflict, stale_write), KHÔNG chặn / không đổi dữ liệu; nối dần các đường ghi
+L1–L6 qua guard ở shadow. Enforce = C3-6 (để sau). Cờ field_guard TẮT = byte giống. Quyết định đã chốt: take người chọn = USER_LOCKED; prompt khóa → REVIEW_REQUIRED.
+```
+
+#### DP9
+```
+M2.7 image preflight trong ImageRunner._pregen chung mã lỗi với video — theo docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-20.md (M2.7). Preflight chỉ báo REVIEW/VÀNG có
+mã lỗi (devsys/errors.json), cờ TẮT; KHÔNG thêm điểm chặn khi cờ TẮT. Không đụng core/runner.py phần poll/submit (M1.2/M1.3).
+```
+
+#### DP10
+```
+M2.8 router theo khả năng model (không gộp nhóm khi cần khung đầu/cuối, …) — theo docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-20.md (M2.8). Cờ TẮT = hành vi gộp nhóm cũ.
+Khi BẬT chỉ đổi cách chia nhóm trước khi gửi (không gọi API trong test; provider giả). Ghi lý do chia nhóm vào sent_package.
+```
+
+## Việc bổ sung 20/10 23:20 (cloud-C hết việc — không thuộc M2)
+
+#### C-M47A
+```
+M4.7 phần XEM (chỉ đọc, cờ mới TẮT): trên Dashboard Bước 4 (dashboard/steps/step4.py, thẻ clip v2) thêm khung gập "Gói sẽ gửi" — dựng gói bằng ĐÚNG hàm dựng gói của
+nút Gen (không tính tay, không gọi API), hiện thứ tự ref + nhãn + prompt + giá send_estimate nếu cờ đó bật; và khung "QC shadow" đọc kết quả M4.2/M4.3/M4.1
+(video_qc.jsonl, continuity_shadow.json, qc_evidence) của shot. KHÔNG có nút sửa/override (override + bảng overrides = C3-4 chờ). Cờ TẮT = giao diện cũ y nguyên
+(test ui snapshot hiện có xanh). Theo mẫu UI hiện có (dashboard/common.py, D.card).
+```
+
+#### C-M34
+```
+M3.4 continuity_state expected/observed/resolved + đồ thị phụ thuộc theo docs/V3_1_M3_THIET_KE_WORLD_MAP_2026-10-20.md (M3.4), chế độ SHADOW: tính trạng thái
+mong đợi giữa các shot liền (vật cầm, trang phục, vị trí, hướng) từ BYĐ (shot_intent) + kết quả quan sát QC shadow (M4.2/M4.3) → ghi file/ bảng tạm, mức REVIEW,
+không chặn. Cờ mới TẮT. Không đụng core/continuity_shadow.py ngoài việc đọc (C-FIX-THAP-1 vừa sửa). Test chuỗi 3 shot giả: vật mất / đổi tay / giữ đúng.
+```
+
+#### C-M32
+```
+M3.2 người nộm height_m trong whitebox + pitch eye / slightly_high (offline, G2-4) theo docs/V3_1_M3_THIET_KE_WORLD_MAP_2026-10-20.md (M3.2) và
+docs/PHUONG_PHAP_SAN_KHAU_3D.md: hàm hình học thuần (tính chiều cao người nộm theo hồ sơ nhân vật, góc pitch máy từ độ cao mắt / hơi cao) + chỗ Blender script
+đọc giá trị đó (không chạy Blender trong test — test hàm thuần + kiểm script nhận tham số). Cờ mới TẮT = whitebox cũ.
+```
+
+#### DP11
+```
+M3.3 câu vị trí sinh từ world map (thay tả tay từng shot, G41–G50) theo thiết kế M3 — BẮT ĐẦU KHI DP8 (M3.1 world map) GỘP. Chỉ sinh câu đề xuất + so với câu
+hiện tại (REVIEW), cờ TẮT, không đổi prompt gửi đi khi cờ TẮT.
+```
+
+#### DP12
+```
+M5.3 pilot vòng A OFFLINE (0 USD) theo docs/V3_1_M0_11_PILOT_3_VONG_2026-10-20.md (vòng A): khung chạy 5 nhóm ca (payload, continuity, QC, lineage, phục hồi)
+trên fixture golden — BẮT ĐẦU KHI CX20-2b GỘP. Tiêu chí đạt/rớt đo được; không VERIFIED khi chỉ offline. Ca cần dữ liệu thật: ghi danh sách để máy chính chụp.
+```
+
+## CHIA VIỆC THEO HẠN MỨC GÓI (người dùng 20/10 23:50)
+Mỗi làn báo hạn mức thật đầu mỗi lượt (`tin … "HẠN MỨC …"`). Phiên chính chia:
+| Hạn mức tuần ĐÃ DÙNG của làn | Giao |
+|---|---|
+| < 60 % | việc nặng: code M2, rà kỹ, việc ưu tiên 1 — làn chính |
+| 60–85 % | việc vừa: sửa VỪA/THẤP, thiết kế, test bổ sung |
+| 85–90 % | chỉ việc nhỏ ≤ 30 lượt gọi; không nhận việc mới lớn |
+| ≥ 90 % (hoặc 5 giờ ≥ 90 %) | hoàn tất việc dở → xong → het-viec; phiên chính chuyển việc CHỜ của làn đó sang làn khác (`giao` lại cùng mã) |
+Ghi nhận 20/10: cloud-B DỪNG (hết tuần); cloud-C còn nhiều tuần (làn chính); cloud-D chưa báo; codex 5 giờ 91 % lúc 23:16, tuần 29 %.

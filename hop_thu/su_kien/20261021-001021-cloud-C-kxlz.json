@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T00:10:21.676653+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M47A",
+  "branch": "cloud/v31-m47a",
+  "commit": "981f39f5",
+  "report": "docs/RA_CLOUD_M47A_2026-10-20.md",
+  "text": "M4.7 phần XEM xong (cờ send_preview_panel TẮT): thẻ clip Bước 4 'Gói sẽ gửi' dựng bằng _submit_args/_submit_kwargs/_build_package trên bản sao runner (provider chặn gọi, không tải Kho chủ thể, không D6, 5 chốt _preview trong runner.py bỏ ghi lipsync/note_sent/bậc/diag) + 'QC shadow' đọc M4.2/M4.3/M4.1. 15 test mới; full 6561 passed, 4 đỏ cũ. HẠN MỨC: không đọc được (cloud). Tiếp: C-M34."
+}

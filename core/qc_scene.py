@@ -58,11 +58,12 @@ def _behind(data: Dict) -> bool:
 
 
 FIX_FLAG = "qc_false_alarm_fix"    # V3.1 M4.5 (DP1): sửa báo nhầm P33-A5 (đây) + P33-A6 (core/change_review.build_prompt); TẮT = như cũ
-# A5 (#33 S2): bố cục qua vai / SAU LƯNG — mặt to nhất đo được là người ở xa / người quay lưng, không phải cỡ của shot. Đọc mọi trường chữ
-# của shot (cả image_prompt / action), cả tiếng Việt; "a tower behind her" (vật sau lưng nhân vật) KHÔNG tính.
+# A5 (#33 S2): bố cục qua vai / SAU LƯNG — mặt to nhất đo được là người ở xa / người quay lưng, không phải cỡ của shot. Đọc trường máy /
+# bố cục VÀ image_prompt / action (ca thật #33 S2 ghi ở image_prompt — C-FIX-THAP-2); regex chỉ khớp chữ nói về MÁY: "the sun behind her",
+# "rút súng sau lưng", "a tower behind her" KHÔNG tính.
 _BEHIND_ANY = re.compile(r"\bots\b|over[- ]the[- ]shoulder|from behind|\bbacks? (?:turned )?to (?:the )?camera|\bcamera (?:is |placed )?behind\b|"
-                         r"behind (?:the|their|his|her) (?:group|backs?|shoulders?|squad|team)|\brear view\b|"
-                         r"sau lưng|qua vai|quay lưng", re.I)
+                         r"behind (?:the|their|his|her) (?:group|backs?|squad|team)|\brear view\b|"
+                         r"(?:máy|camera|góc máy)(?: \w+){0,2} sau lưng|qua vai|quay lưng (?:về|vào|lại) (?:phía )?(?:máy|camera|ống kính)", re.I)
 
 
 def _behind_any(data: Dict) -> bool:

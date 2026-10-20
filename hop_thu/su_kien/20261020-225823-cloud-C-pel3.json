@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-20T22:58:23.043343+07:00",
+  "lane": "cloud-C",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "text": "cloud-C đã XONG: C-FIX-M16-17, DP1–DP6, C-FIX-THAP-1 (chờ gộp: cloud/v31-dp3, dp4, dp5, dp6, fix-thap-1). Hàng riêng + pool đã hết; C-M26/M29/M24 còn chờ golden M1.9. Xin giao việc tiếp — cloud-C còn hạn mức, tự đọc hộp thư mỗi giờ (phút :49)."
+}

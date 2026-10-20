@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:59:34.891431+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX20-2b",
+  "to": "codex",
+  "title": "Golden: replay mức _build_package + sửa 2 VỪA (mở khóa M2)",
+  "priority": 1,
+  "text": "Ưu tiên SỐ 1 (trước CX20-5 nếu dừng được ở điểm commit). Rà 20/10: (1) CAO-M2: fixture thật chưa replay được vì thiếu input trước lắp gói → thêm replay mức _build_package: dựng lại gói từ CSDL (bản sao chỉ đọc) cho shot đã chụp, cờ TẮT, so byte với sent_package đã chụp (COMPAT); ghi rõ giới hạn (CSDL đổi sau khi gửi → báo 'dữ liệu đã đổi', không tính là lệch code). (2) VỪA tools/golden_capture.py ~93: purpose=compat phải có đủ mọi cờ verified False trong core.features.FEATURES (thiếu → GoldenError) + test. (3) VỪA ~110: cảnh báo job đang chạy dùng state queued/running/retryable (core/pipeline.py:354) + test job queued. (4) THẤP: head_sha dự phòng shutil.which('git'); đóng sqlite connection; replay_builder không đổi os.environ/cwd toàn cục ngoài CLI/test. Xong: báo lệnh chụp #24/#27 để phiên chính chụp dữ liệu thật ở máy chính. Không chạm dữ liệu thật."
+}

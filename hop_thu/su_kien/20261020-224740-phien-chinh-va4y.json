@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:47:40.624526+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "DP8",
+  "to": "cloud-D",
+  "title": "M3.1 world map thử nghiệm offline",
+  "spec": "docs/CLOUD_TASKS.md#### DP8",
+  "priority": 3
+}
