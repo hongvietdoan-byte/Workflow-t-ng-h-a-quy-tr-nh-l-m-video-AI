@@ -744,6 +744,8 @@ Theo công thức chung:
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
+- Đ20 việc 1 · `codex/d20-viec1-so-loi` · commit chứa dòng này (xem `git log -1`) · đỏ 4 ERROR trước công cụ → xanh 7 test (0,74s), SQLite tạm native/schema tổng hợp; `docs/RA_D20_VIEC1_CODEX_2026-10-20.md` · chờ rà độc lập + cả bộ Windows; ledger thiếu giá USD giữ UNKNOWN; job lỗi lấy note failed cuối mỗi job; chưa thử dữ liệu thật/chưa push.
+
 ---
 
 # ĐỢT 11 — Bàn dựng đạo diễn 3D: tấm duyệt đủ góc, Đạo diễn khai sơ đồ khối, Trình sửa sân khấu (người dùng duyệt 11/10 tối)
@@ -1371,3 +1373,5 @@ test trang devsys hiện có.
 ## Kết quả Codex — đợt 20
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
+
+- Đ20 việc 1 · codex/d20-viec1-so-loi · commit rà xem git log (cùng báo cáo) · RÀ KỸ sửa 2 P2: đủ mọi lần failed + JSON tiền hữu hạn; 2 regression đỏ → 9 test xanh (1,18s); native cost UNKNOWN khi thiếu USD, chờ cả bộ Windows/slow trước gộp.
