@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T22:32:45.043105+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "DP4",
+  "branch": "cloud/v31-dp4",
+  "commit": "307e610b",
+  "report": "docs/RA_CLOUD_DP4_2026-10-20.md",
+  "text": "core/qc_evidence: bảng mã ↔ error_types/sổ lỗi, validate (luật BLOCK D07), adapter final_qc/clip_measure/shadow M42+M43, bảng qc_runs/qc_findings migrate up/down không tự chạy (jsonl khi chưa bảng), nối final_qc.run (kết quả không đổi); cờ qc_evidence TẮT; 22 test; cả bộ 6388 qua + 4 đỏ có sẵn. Cần duyệt error_type cho QC-PKG-*"
+}
