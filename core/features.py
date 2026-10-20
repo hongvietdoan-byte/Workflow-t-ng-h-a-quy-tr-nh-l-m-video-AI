@@ -70,6 +70,11 @@ FEATURES: Dict[str, Dict] = {
                                      "hàng đợi có lý do, không gửi (0 USD)", "verified": False,
         "why": "V3.1 M1.3 (G36, #31): tạm dừng 03:42:31 vẫn gửi job 1075 lúc 03:42:41 — runner chỉ kiểm paused đầu lượt quét; "
                "thử bằng provider giả, chưa chạy thật (C3-2: bật sau nghiệm thu)"},
+    "refusal_skip_same_picture": {"label": "Seedance từ chối gói nhóm vì MỘT ảnh (content[N]): shot nào còn ảnh đó trong gói từng shot thì "
+                                           "sang Kling ngay, bỏ bước \"Seedance từng shot\" chắc chắn bị từ chối lại (0 USD)",
+        "verified": False,
+        "why": "V3.1 C-G36B (G36 phần 2, #31 1057→1065→1071): lần thử lại đầu đi Seedance từng shot với đúng ảnh dạng/vật đã bị "
+               "từ chối → phí một lượt; đổi thứ tự người dùng chốt 2026-09-27 nên để TẮT tới khi người dùng duyệt — thử bằng provider giả"},
     "locomotion_end_frame": {"fixes_projects": [27], "label": "Shot chạy/đi: không gửi khung cuối vẽ khi clip sinh dài hơn shot × 1,3 + câu mốc cảnh vật khi máy bám theo (0 USD)",
         "verified": False,
         "why": "Hộp thư 12/10 18:13: #27 shot 3 job 782 (shot 1–2 s, Kling sinh 3 s, khung cuối 'vài bước' ở giây 3 + máy bám sau) chạy tại chỗ; "
