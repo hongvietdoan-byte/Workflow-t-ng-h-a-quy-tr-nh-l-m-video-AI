@@ -382,6 +382,12 @@ FEATURES: Dict[str, Dict] = {
         "why": "#31 G52 (logic chuỗi 39 clip), G51 (súng biến mất), G41 (hướng chạy) chỉ người / Claude thấy; chạy sau qc_sequence_logic. "
                "Chưa chạy trên dữ liệu thật",
     },
+    "release_gate": {
+        "label": "Cổng phát hành (V3.1 M5.2): trước nút Xuất bản hiện checklist 8 mục đo được — shot đã duyệt, kiểm bản dựng, lớp ⚠ cũ, đối "
+                 "soát chi phí, gửi không rõ kết quả, lỗi CAO mở, việc chờ người, lineage — ĐẠT / CHƯA ĐẠT; CHỈ cảnh báo, không chặn xuất",
+        "verified": False,
+        "why": "Thiết kế M5.2 (shadow trước; chặn = guarded, Cấp 3). Chưa chạy trên dự án thật",
+    },
     "qc_observe_enum": {
         "label": "QC ảnh: model khai quan sát enum, code quyết điểm (Đ14)",
         "verified": False,

@@ -1136,6 +1136,10 @@ def _deliver_button(p: Pipeline, pid: int, chosen, durations, label: str = "📦
     sub = subtitles.get_settings(p, pid)                 # S14.2 A2: the only paid part is translating subtitle lines never translated
     label += (cost.llm_button_tag(p.conn, "subtitles", 1) + " (dịch phụ đề)" if sub["enabled"] and sub["lang"] != "src"
               else " · ≈ 0.00 USD (ước tính)")
+    from core import release_gate                        # V3.1 M5.2 (cờ release_gate, TẮT): cổng phát hành — CHỈ cảnh báo, không chặn nút
+    if release_gate.enabled():
+        gate = release_gate.check(p, pid, C.DATA)
+        (st.success if gate["ok"] else st.warning)(release_gate.summary(gate))
     if st.button(label, type="primary", key=f"deliver_{pid}", disabled=not chosen, width="stretch"):
         _t0 = time.monotonic()
         with st.spinner("Đang xuất bản…"):
