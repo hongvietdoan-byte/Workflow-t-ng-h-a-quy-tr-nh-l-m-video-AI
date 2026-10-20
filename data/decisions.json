@@ -502,6 +502,17 @@
    "replaces": "v31-d03-subject-library-full-stop-2026-10-20",
    "enforced_by": [],
    "status": "active"
+  },
+  {
+   "id": "v31-speedup-milestone-approval-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (chat 20/10: 'áp dụng cả 3 cách rút ngắn')",
+   "text": "Rút ngắn V3.1: (1) Cấp 2 trình và duyệt phạm vi theo CẢ MILESTONE (một gói cho toàn bộ M1, rồi M2…), không xin từng việc; (2) Cấp 3 trình SỚM một gói tổng hợp mọi mục Cấp 3 của M1–M5 (migration cột provider, migration/backfill Kho forms, bảng overrides, bật cờ production, chi phí pilot B/C…), người dùng duyệt từng mục trong gói; (3) giữ 3 làn song song: máy chính ≤ 2 phiên con code, cloud tài khoản khác cho tài liệu/thiết kế/test chỉ đọc (dồn trước khi credit hết hạn 05/11), Codex cho test/công cụ chỉ đọc/thiết kế.",
+   "keeps": "Ba cấp quyền v31-permission-tiers-2026-10-20 (vẫn phải có gói phạm vi được duyệt trước khi code; Cấp 3 vẫn duyệt từng mục); quy ước 7, pregen_check, chính sách tiền 04/10.",
+   "changes": "Đơn vị trình duyệt Cấp 2 = milestone (gói M0.12 cho M1). Gói Cấp 3 sớm: docs/V3_1_GOI_DUYET_CAP3_*.md. Làn cloud: docs/CLOUD_TASKS.md 'Làn thứ ba'.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
   }
  ]
 }

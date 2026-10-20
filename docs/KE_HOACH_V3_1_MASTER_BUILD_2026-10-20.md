@@ -181,7 +181,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M0.9 · Thiết kế Kho forms/outfit/hair/face + provenance theo 6 điều kiện M2.3 (schema version, adapter v1/v2, kế hoạch migration, regression) — chỉ tài liệu · nặng:2 · ⬜
 - [ ] M0.10 · Đặc tả AUTO/USER_LOCKED/REVIEW_REQUIRED + audit MỌI đường ghi scenes.data/Kho thật (file:hàm) + thiết kế test — chỉ tài liệu · nặng:2 · ⬜
 - [ ] M0.11 · Test plan + tiêu chí 3 vòng pilot (A offline, B 5–8 shot, C 20–40 shot) + dự toán B/C — chỉ tài liệu · nặng:1 · ⬜
-- [ ] M0.12 · Gói xin duyệt phạm vi M1 (file/module, hợp đồng, tác động đường cũ, test, cờ/rollback, chi phí) — Cấp 2 · nặng:1 · ⬜
+- [ ] M0.12 · Gói xin duyệt phạm vi M1 (file/module, hợp đồng, tác động đường cũ, test, cờ/rollback, chi phí) — Cấp 2 · nặng:1 · 🔄 · bảng chốt docs/V3_1_GOI_DUYET_CAP2_CAP3_2026-10-20.md (G2-1…G2-6, C3-0…C3-12) chờ người dùng
 
 ### M1 — Nền tin cậy (0 USD, provider giả)
 - [ ] M1.1 · Parser vat v1 str→{vat} cho qc_observe (R3, #31 shot 30) · nặng:1 · ✅ · gộp 36fcb4bd (20/10); cả bộ not-slow 6136 qua; FIXED_UNVERIFIED tới khi QC thật chạy #30/#31 (#31 còn thiếu hồ sơ LÍNH ĐỊCH ÁO CHOÀNG — dữ liệu Kho)

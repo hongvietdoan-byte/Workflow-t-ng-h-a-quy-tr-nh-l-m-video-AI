@@ -298,3 +298,12 @@ def test_cli_list_and_check_from_any_cwd():
                              capture_output=True, text=True, encoding="utf-8", timeout=180)
         assert out.returncode == 0, (cmd, out.stdout[-800:], out.stderr[-800:])
         assert "p27-fix-flags-on" in out.stdout
+
+
+def test_v31_speedup_recorded():
+    """20/10 người dùng 'áp dụng cả 3 cách rút ngắn': duyệt Cấp 2 theo milestone, gói Cấp 3 sớm, 3 làn — KHÔNG bỏ cấp quyền."""
+    items = {i["id"]: i for i in LEDGER["items"]}
+    it = items["v31-speedup-milestone-approval-2026-10-20"]
+    assert it["status"] == "active" and it["replaces"] is None
+    assert "MILESTONE" in it["text"] and "Cấp 3" in it["text"] and "v31-permission-tiers-2026-10-20" in it["keeps"]
+    assert items["v31-permission-tiers-2026-10-20"]["status"] == "active"
