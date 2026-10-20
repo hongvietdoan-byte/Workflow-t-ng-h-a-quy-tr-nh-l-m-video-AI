@@ -1309,6 +1309,10 @@ không xóa asset thật.
 
 - **Việc2/M1.6 — công cụ chỉ đọc:** `codex/d19-viec2-doi-soat`, `tools/clipai_cost_reconcile.py` SQLite mode=ro, offline JSON/GET opt-in, bảng Markdown/JSON allowlist; tách draft/upgrade/direct/unknown, giá token/bảng giây/actual web/request estimate, tổng known/missing và nhóm hiệu chuẩn. ĐỎ3fail13pass→20pass; rà độc lập+root đọc sửa lần hai→**26pass/1,22s**. Fixture actual9,815583USD/1điểm1080p chưa đủ sửa giá; không API/DB thật/bảng giá/cờ/migration/main/live/cả bộ. Areas87 giữ. RA `docs/RA_D19_VIEC2_CODEX_2026-10-20.md`, commit và việc mở trong HANDOFF cùng nhánh. Artifact tảiPython bị policy chặn dọn giữ ngoài commit.
 
+- Mã tài liệu việc3: `22aff768`, nhánh `codex/d19-viec3-provider`; thiết kế đã rà, chưa triển khai M1.4b.
+
+- **Việc3/M1.4b — chỉ thiết kế:** `codex/d19-viec3-provider`, `docs/V3_1_M1_4B_THIET_KE_2026-10-20.md`; source76hit/44file, P/J/S và injected consumers/static, schema+job snapshot+legacy hold, CLI ledger0USD/tokenNULL, quota halt cả lượt, migration up/down bảo toàn, testplan và quyền Cấp2/3. Root RÀ NHẸ bổ sung cache theo job/operation/profile và ACL/rotation cùng tài khoản. Docs-only không pytest đỏ giả, không code/SQL/API/env/flags/areas/main/live. Cần đồng bộ M1.4a, quét lại và duyệt phạm vi trước build. RA `docs/RA_D19_VIEC3_CODEX_2026-10-20.md`; mã commit trong HANDOFF cùng nhánh.
+
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
 ---
