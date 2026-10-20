@@ -29,5 +29,11 @@ Nhánh `codex/d20-viec5-kho-chu-the`, base `3fec1686`. **Chưa gộp, chưa th�
 1. **Allocator/reservation liên tiến trình, account scope bền, fairness 4–5 project, frozen payload/fence/outbox chưa triển khai.** Guard là snapshot trước upload, không bảo đảm chống race/oversubscribe ngoài hệ thống. Chưa được bật production.
 2. Legacy schema không có đầy đủ owners/refs và mốc lifecycle UTC sau restore. CLI giữ UNKNOWN toàn bộ phần đó, không giả eligible chỉ từ tên/path. Cần hợp đồng dữ liệu + migration được duyệt riêng; fixture8/3 không thay thế bước này.
 3. Plan hiện trả trong bộ nhớ/hash và ghi diag đề nghị; chưa có kho plan bất biến, duyệt single-use, TTL/revalidation hay apply. Không có quyền xóa.
-4. Tự rà phát hiện rủi ro còn lại trong parser native `list_assets`: max_pages đã fail-closed, nhưng response thiếu `assets` hoặc trang ngắn mâu thuẫn `count` có thể bị coi snapshot trống/đủ. Đã giao reviewer kiểm và sửa trong một vòng; **không bật guard trước khi xử lý**.
+4. Rủi ro parser snapshot đã được reviewer xử lý trong vòng rà độc lập dưới đây; không còn OPEN ở phạm vi snapshot thiếu/sai định dạng đã thử.
 5. Chưa có ca dữ liệu thật/health account/snapshot hiện thời; cả bộ Windows + rà độc lập còn ở root. Không main/push/TODO/plan/restart/live trong nhánh làm này.
+
+## RÀ KỸ độc lập — sau build `9f027c1d`
+
+- P2: native `list_assets` nhận thiếu `assets`/payload rỗng hoặc trang ngắn mâu thuẫn `count` như snapshot đầy đủ, khiến guard cho upload với sức chứa chưa rõ. Sửa từ chối payload không có danh sách assets, count sai kiểu/âm, tổng nhận vượt count và trang ngắn chưa đủ count; lỗi `incomplete_snapshot` đi vào `QUEUE_UNKNOWN_CAPACITY`.
+- Hai regression `test_native_malformed_snapshot_holds_unknown` và `test_native_inconsistent_count_holds_unknown`: **ĐỎ 7 ca / 0,20s → XANH 70 test / 7,38s**, gồm bốn file capacity/auto_cleanup/library_cleanup/subjects. Dùng cùng harness fake OBJECT environ/home và native Python3.14, `--tb=no`; không mạng/credential/provider thật.
+- Đã đọc callers archive/delivered → schedule/run (không xóa), autopilot/bg_poll → VideoRunner dùng chung, cả đường deferred và lỗi chuẩn bị gói, inbox, factory/config và CLI. Không thấy P1/P2 khác trong phạm vi này. Rà 2b.5: không nới assertion/test cũ, không bật cờ, không thêm paid call, không đổi areas.version. Snapshot guard vẫn không thay thế allocator/concurrency/fence trong OPEN1; CLI legacy vẫn UNKNOWN.

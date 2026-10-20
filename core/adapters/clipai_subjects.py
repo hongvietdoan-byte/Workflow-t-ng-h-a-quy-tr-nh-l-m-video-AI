@@ -79,10 +79,19 @@ class ClipAISubjectLibrary:
         out: List[Dict] = []
         for page in range(1, max(max_pages, 1) + 1):
             query = {"asset_type": asset_type, "page": page, "page_size": size}
-            data = call_rate_limited(lambda: self.client.get(PATH_LIST, query), self._sleep) or {}
-            rows = list(data.get("assets") or [])
-            out += rows
+            data = call_rate_limited(lambda: self.client.get(PATH_LIST, query), self._sleep)
+            if not isinstance(data, dict) or not isinstance(data.get('assets'), list):
+                raise ProviderError('Kho chủ thể: snapshot sai định dạng; chưa xác minh sức chứa.',
+                                    code='incomplete_snapshot', transient=True)
+            rows = data['assets']
             count = data.get("count")
+            if count is not None and (type(count) is not int or count < 0):
+                raise ProviderError('Kho chủ thể: tổng snapshot không hợp lệ; chưa xác minh sức chứa.',
+                                    code='incomplete_snapshot', transient=True)
+            out += rows
+            if count is not None and (len(out) > count or (len(rows) < size and len(out) < count)):
+                raise ProviderError('Kho chủ thể: snapshot thiếu hoặc lệch tổng; chưa xác minh sức chứa.',
+                                    code='incomplete_snapshot', transient=True)
             if len(rows) < size or (isinstance(count, int) and len(out) >= count):
                 break
         else:

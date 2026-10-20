@@ -39,6 +39,39 @@ def test_network_list_fail_yellow_zero_delete():
     lib.delete_many.assert_not_called()
 
 
+@pytest.mark.parametrize('payload', [None, {}, {'assets': None}, {'assets': {}}])
+def test_native_malformed_snapshot_holds_unknown(payload, tmp_path):
+    from core import subjects
+    from core.adapters.clipai_subjects import ClipAISubjectLibrary
+    lib = object.__new__(ClipAISubjectLibrary)
+    lib.client, lib._sleep = Mock(), Mock()
+    lib.client.get.return_value = payload
+    pic = tmp_path / 'fixture.png'
+    pic.write_bytes(b'fixture')
+    with patch.object(lib, 'upload') as upload, patch.object(lib, 'delete_many') as delete:
+        result = subjects.capacity(sqlite3.connect(':memory:'), lib, [('new', str(pic))])
+    assert result['code'] == 'QUEUE_UNKNOWN_CAPACITY'
+    upload.assert_not_called()
+    delete.assert_not_called()
+
+
+@pytest.mark.parametrize('payload', [{'assets': [], 'count': 100}, {'assets': [], 'count': -1},
+                                    {'assets': [], 'count': '100'}])
+def test_native_inconsistent_count_holds_unknown(payload, tmp_path):
+    from core import subjects
+    from core.adapters.clipai_subjects import ClipAISubjectLibrary
+    lib = object.__new__(ClipAISubjectLibrary)
+    lib.client, lib._sleep = Mock(), Mock()
+    lib.client.get.return_value = payload
+    pic = tmp_path / 'fixture.png'
+    pic.write_bytes(b'fixture')
+    with patch.object(lib, 'upload') as upload, patch.object(lib, 'delete_many') as delete:
+        result = subjects.capacity(sqlite3.connect(':memory:'), lib, [('new', str(pic))])
+    assert result['code'] == 'QUEUE_UNKNOWN_CAPACITY'
+    upload.assert_not_called()
+    delete.assert_not_called()
+
+
 def test_job_without_subject_refs_skips_capacity_queue():
     from core import subjects
     lib = Mock()
