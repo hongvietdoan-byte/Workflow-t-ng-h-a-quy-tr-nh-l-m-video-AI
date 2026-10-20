@@ -1310,6 +1310,17 @@ không xóa asset thật.
 - Mã test việc1: `846b3f1f` (nhánh `codex/d19-viec1-narration`); targeted42pass/21xfail, chưa sửa production M2.9.
 
 - **Việc1/M2.9 — chỉ test:** `codex/d19-viec1-narration`; test narration chung7ca×9nhóm hàm thật; ĐỎ21fail/35pass→**42passed/21xfailed strict /8,40s** (G15/G16/G17 mỗi5, G53×6). Rà độc lập sửa3điểm: exception riêng khoanh lỗi gốc/không che assert khác, winreg giả ngoàiWindows, loader guard trướcimport; root đọc sửa lần hai, teardown4/4. Giữ production/areas.version87, khôngAPI/data/projects/cảbộ/main/live. Lỗi gốc vẫn chờ M2.9; chưa chạyLinux thật. RA `docs/RA_D19_VIEC1_CODEX_2026-10-20.md`, mãcommit trong HANDOFF cùng nhánh.
+- Mã code việc2: `fe9d68bb`, nhánh `codex/d19-viec2-doi-soat`, 26 test qua; công cụ đối soát không sửa giá production.
+
+- **Việc2/M1.6 — công cụ chỉ đọc:** `codex/d19-viec2-doi-soat`, `tools/clipai_cost_reconcile.py` SQLite mode=ro, offline JSON/GET opt-in, bảng Markdown/JSON allowlist; tách draft/upgrade/direct/unknown, giá token/bảng giây/actual web/request estimate, tổng known/missing và nhóm hiệu chuẩn. ĐỎ3fail13pass→20pass; rà độc lập+root đọc sửa lần hai→**26pass/1,22s**. Fixture actual9,815583USD/1điểm1080p chưa đủ sửa giá; không API/DB thật/bảng giá/cờ/migration/main/live/cả bộ. Areas87 giữ. RA `docs/RA_D19_VIEC2_CODEX_2026-10-20.md`, commit và việc mở trong HANDOFF cùng nhánh. Artifact tảiPython bị policy chặn dọn giữ ngoài commit.
+
+- Mã tài liệu việc3: `22aff768`, nhánh `codex/d19-viec3-provider`; thiết kế đã rà, chưa triển khai M1.4b.
+
+- **Việc3/M1.4b — chỉ thiết kế:** `codex/d19-viec3-provider`, `docs/V3_1_M1_4B_THIET_KE_2026-10-20.md`; source76hit/44file, P/J/S và injected consumers/static, schema+job snapshot+legacy hold, CLI ledger0USD/tokenNULL, quota halt cả lượt, migration up/down bảo toàn, testplan và quyền Cấp2/3. Root RÀ NHẸ bổ sung cache theo job/operation/profile và ACL/rotation cùng tài khoản. Docs-only không pytest đỏ giả, không code/SQL/API/env/flags/areas/main/live. Cần đồng bộ M1.4a, quét lại và duyệt phạm vi trước build. RA `docs/RA_D19_VIEC3_CODEX_2026-10-20.md`; mã commit trong HANDOFF cùng nhánh.
+
+- **Tổng hợp Đ19 (nhánh riêng, chưa main):** V1 code846b3f1f/HEAD9e157f0b ·42pass21xfail strict; V2 codefe9d68bb/HEAD8854f5c4 ·26pass/ROtool; V3 code22aff768/HEAD56097a4e ·docsprovider; V4 code49c1face ·docsKho. HANDOFF.md nhánh `codex/d19-viec4-subjects` có bảng nhánh/commit/bằng chứng/bước Claude rà-gộp. Hoàn tất phần chuẩn bị Đ19, không phải đã sửa production M2.9/M1.6/M1.4b/M1.5; cả bộ Windows còn ở tích hợp.
+
+- **Việc4/M1.5 — chỉ thiết kế:** `codex/d19-viec4-subjects`, `docs/V3_1_M1_5_THIET_KE_KHO_CHU_THE_2026-10-20.md`; BỀN/TẠM, account scope/SHA/refs, reservation nguyên tử nhiều tiến trình/queue công bằng, frozen refs/quarantine, cleanup dry-run+outbox/fence mọi writer, retention>72h/unknown giữ, G59 config explicit và recovery1130/upload-submit-delete unknown. Không face-only/ảnh đánh dấu/Kling vì đầy, không hứa5project fit hay 60/40. Root RÀ NHẸ thêm ACL và mốc lifecycle sau reopen. Docs-only không code/test/SQL/API/delete/flags/areas/main/live, chưa sửa G59/M1.5 runtime. Cần chốt nháp cũ và duyệt scope Cấp2/3. RA `docs/RA_D19_VIEC4_CODEX_2026-10-20.md`, mã commit trong HANDOFF cùng nhánh.
 
 (Codex ghi: việc · nhánh · commit · bằng chứng · việc mở.)
 
