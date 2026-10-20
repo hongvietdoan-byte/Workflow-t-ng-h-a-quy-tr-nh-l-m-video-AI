@@ -671,8 +671,10 @@ def page_scores():
     c1, c2 = st.columns(2)
     mode = c1.radio("Khu vực", ["changed", "pick", "all"], format_func={"changed": "Tăng dần: chỉ khu vực đã đổi từ lần chấm trước",
                                                                        "pick": "Tự chọn khu vực", "all": "Tất cả (chấm lại hết)"}.get)
-    provider = c2.radio("Người chấm", ["anthropic", "mock"], format_func={"anthropic": "Claude API (tốn tiền, ghi sổ chi, trần Claude)",
-                                                                         "mock": "Giả lập (miễn phí — chỉ để thử luồng)"}.get)
+    provider = c2.radio("Người chấm", ["claude_cli", "anthropic", "mock"],     # V3.1 M1.4b: mặc định Claude Code (0 USD API)
+                        format_func={"claude_cli": "Claude Code trên máy (0 USD API, tính vào lượt gói)",
+                                     "anthropic": "Claude API (tốn tiền, ghi sổ chi, trần Claude)",
+                                     "mock": "Giả lập (miễn phí — chỉ để thử luồng)"}.get)
     picked = ()
     if mode == "pick":
         picked = tuple(st.multiselect("Chọn khu vực", list(names), format_func=lambda x: names[x]))

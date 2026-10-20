@@ -269,7 +269,21 @@ def change_review_round(conn, data_dir: str) -> Optional[Dict]:
         if client is None:          # V3.1 M1.4a: no / wrong LLM_PROVIDER (a key alone is never used) — say so, never run silently
             diag.record(conn, "system", "warn", "Tổ rà soát tác động: chỉ chạy luật code — " + llm_runner.missing_hint(),
                         "change_review_noclaude", None)
-    return change_review.process_pending(conn, data_dir, client=client)
+    from . import llm_provider                   # V3.1 M1.4b: mỗi thay đổi rà bằng Claude của DỰ ÁN nó (rỗng = môi trường như trên)
+    made: Dict = {}
+
+    def client_for(pid):
+        if llm_provider.project_provider(conn, pid) is None:
+            return client
+        if pid not in made:
+            try:
+                made[pid] = llm_provider.client_for_project(conn, pid)
+            except Exception as e:  # noqa: BLE001 - that project's Claude cannot be built: its changes get the code rules only
+                diag.record(conn, "system", "warn", f"Tổ rà soát tác động: Claude của dự án #{pid} không dựng được ({e}) — chỉ luật code",
+                            "change_review_noclaude", pid)
+                made[pid] = None
+        return made[pid]
+    return change_review.process_pending(conn, data_dir, client=client, client_for=client_for)
 
 
 def loop(db_path: str, one_round: Callable[[str], object], interval: float = INTERVAL_SEC, max_rounds: Optional[int] = None,

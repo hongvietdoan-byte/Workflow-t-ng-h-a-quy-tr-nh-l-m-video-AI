@@ -24,7 +24,7 @@ def checklist_panel(p: Pipeline, pid: int, scope: str = "dir") -> None:
         st.markdown("**📋 Bảng kê tài nguyên** — xem kịch bản cần gì, Kho đã có gì, TRƯỚC khi trả tiền cho Director "
                     "(🧪 cờ `asset_checklist`, chưa thử thật)")
         res = asset_checklist.get(p, pid)
-        client = llm_client()
+        client = llm_client(pid)
         if st.button(("📋 Lập bảng kê tài nguyên" if res is None else "↻ Lập lại bảng kê")
                      + cost.llm_button_tag(p.conn, asset_checklist.STAGE, 1),
                      key=f"asset_chk_{scope}_{pid}", disabled=client is None,

@@ -408,6 +408,8 @@ class Pipeline:
                 par = self.conn.execute("SELECT confirm_new FROM jobs WHERE id=?", (parent_job_id,)).fetchone()
                 if par is not None and par["confirm_new"] and not model_fix(retry_reason):
                     self.conn.execute("UPDATE jobs SET confirm_new=? WHERE id=?", (par["confirm_new"], cur.lastrowid))
+        from . import llm_provider               # V3.1 M1.4b: provider Claude của job chụp lúc tạo (cột sau C3-1; chưa có → không ghi)
+        llm_provider.snapshot_job(self.conn, cur.lastrowid, parent_job_id)
         self._event(cur.lastrowid, None, JobState.QUEUED, "system", retry_reason)
         self.conn.commit()
         return cur.lastrowid

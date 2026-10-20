@@ -148,7 +148,7 @@ def _primary_action(p: Pipeline, pid: int, kind: str, scenes, chars, b_total: fl
     elif kind == "plan":
         from dashboard.steps.step1_checklist import checklist_panel
         checklist_panel(p, pid, "hero")            # S14.23: flag asset_checklist off → draws nothing
-        client = llm_client()
+        client = llm_client(pid)
         label = "🤖 Lập kế hoạch"
         if client is not None:
             from core import director_two_pass

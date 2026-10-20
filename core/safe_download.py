@@ -75,3 +75,23 @@ def download(provider, external_id: str, target: str, sleep: Callable[[float], N
         _remove(tmp)
         raise
     return target
+
+
+def write(target: str, make: Callable[[str], bool]) -> bool:
+    """C-T12 (cloud-C 20/10): the same one-step appearance for a file the pipeline MAKES (ffmpeg cut of a group clip / a shot's trim):
+    `make(tmp)` writes a temp next to `target` and says whether it worked; then os.replace. False (target untouched, temp removed) when
+    `make` said no or wrote nothing. Raises what `make` raises (temp removed)."""
+    tmp = part_path(target)
+    try:
+        ok = make(tmp) and os.path.exists(tmp)
+        if ok:
+            replace(tmp, target)
+        return bool(ok)
+    finally:
+        _remove(tmp)
+
+
+def copy(src: str, target: str) -> None:
+    """shutil.copyfile into `target` in one step (a fallback 'keep the whole clip' copy is never seen half-written either)."""
+    import shutil
+    write(target, lambda tmp: shutil.copyfile(src, tmp) is not None)

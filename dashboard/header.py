@@ -541,6 +541,9 @@ def money_card(p: Pipeline, pid) -> None:
         flag = " 🔴" if " 🔴" in flags else " 🟡" if " 🟡" in flags else ""
     elif claude_out:
         flag = " 🔴"
+    from core import llm_provider
+    if any(llm_provider.quota_halted(p.conn, k) for k in llm_provider.quota_all(p.conn)):
+        flag = " 🔴"                                     # Claude dừng vì hết lượt / hết tiền: thấy được mà không cần mở thẻ
     label = f"💵 {s['spent']:.2f}/{s['usd']:.0f}" if s["enabled"] else "💵 Tiền"
     if v2:
         label = "💵 Tiền" + (f" · {s['spent']:.2f}/{s['usd']:.0f}" if s["enabled"] else "")      # v2: always a word next to the icon
@@ -555,6 +558,15 @@ def money_card(p: Pipeline, pid) -> None:
                     st.rerun()
             else:
                 st.caption("Nhờ Owner (hoặc người có quyền “Cài đặt & bảng giá”) mở lại dịch vụ sau khi nạp tiền.")
+        for kind in llm_provider.quota_all(p.conn):       # V3.1 M1.4b (rà C-RA-M14B): Claude dừng có giờ mở + nút mở lại tay
+            stop = llm_provider.quota_halted(p.conn, kind)
+            if not stop:
+                continue
+            st.error(stop[1])
+            if allowed("settings"):
+                if st.button(f"Gói / tài khoản dùng được rồi — mở lại Claude ({kind})", key=f"mc_llm_reopen_{kind}"):
+                    llm_provider.quota_reopen(p.conn, kind)
+                    st.rerun()
         more = []                                        # v2: P3 details collected here, drawn once in a "ⓘ Chi tiết" fold at the end
         if s["enabled"]:
             frac = min(s["spent"] / s["usd"], 1.0) if s["usd"] else 0.0

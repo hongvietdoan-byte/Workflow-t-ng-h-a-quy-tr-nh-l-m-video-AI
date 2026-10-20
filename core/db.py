@@ -953,3 +953,42 @@ def _migrate_v2(conn: sqlite3.Connection) -> None:
             "UPDATE jobs SET source_job_id=(SELECT MAX(i.id) FROM jobs i JOIN review_log r ON r.job_id=i.id AND r.decision='approve'"
             " WHERE i.scene_id=jobs.scene_id AND i.type='image_gen' AND i.id<jobs.id) WHERE type='video_gen'")
     conn.commit()
+
+
+# ---- V3.1 M1.4b (D02): cột nhà cung cấp Claude theo dự án / theo job — migration Cấp 3 (C3-1: phiên chính chạy SAU khi sao lưu) ---------
+# KHÔNG nằm trong _migrate / V2_COLUMNS: mở CSDL không tự thêm cột. Thiếu cột → core/llm_provider chạy như cũ (theo LLM_PROVIDER).
+LLM_PROVIDER_COLUMNS = (("projects", "llm_provider", "TEXT"),      # NULL = theo môi trường (hành vi cũ)
+                        ("jobs", "llm_provider", "TEXT"),          # provider thực tế chụp lúc tạo job
+                        ("jobs", "llm_config_ver", "TEXT"),        # dấu vân tay cấu hình (không chứa key) lúc tạo job
+                        ("llm_calls", "provider", "TEXT"))         # provider của từng lời gọi Claude
+
+
+def migrate_llm_provider_up(conn: sqlite3.Connection) -> list:
+    """Thêm các cột (bổ sung, NULL cho dòng cũ — dự án / job cũ chạy như trước). Chạy lại không đổi gì. Trả danh sách cột đã thêm."""
+    added = []
+    for table, col, ddl in LLM_PROVIDER_COLUMNS:
+        have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if have and col not in have:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+            added.append(f"{table}.{col}")
+    conn.commit()
+    return added
+
+
+def migrate_llm_provider_down(conn: sqlite3.Connection, force: bool = False) -> list:
+    """Gỡ các cột (SQLite ≥ 3.35). Còn dữ liệu (dự án đã khai provider / job đã chụp / lời gọi đã ghi) → TỪ CHỐI trừ khi `force`
+    (mất dấu provider của job đang chạy). Đường lùi an toàn hơn: để cột, tắt dùng — cột NULL = hành vi env cũ."""
+    present = []
+    for table, col, _ in LLM_PROVIDER_COLUMNS:
+        if col in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}:
+            present.append((table, col))
+    if not force:
+        used = [f"{t}.{c}" for t, c in present if conn.execute(f"SELECT 1 FROM {t} WHERE {c} IS NOT NULL LIMIT 1").fetchone()]
+        if used:
+            raise ValueError("còn dữ liệu ở " + ", ".join(used) + " — gỡ sẽ mất provider đã chụp; dùng force=True sau khi sao lưu")
+    for table, col in present:
+        conn.execute(f"ALTER TABLE {table} DROP COLUMN {col}")
+    conn.commit()
+    from . import llm_provider                   # cột đã gỡ: bộ nhớ "có cột" của llm_provider không còn đúng
+    llm_provider._COLS.clear()
+    return [f"{t}.{c}" for t, c in present]

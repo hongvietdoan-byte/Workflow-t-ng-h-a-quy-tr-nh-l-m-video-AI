@@ -532,10 +532,10 @@ def apply(conn, pid: int, group: Dict, plan: Dict) -> Dict:
     return {"changed": changed, "locked": locked_out, "resized": resized, "apart": apart}
 
 
-def _client(conn):
-    from . import llm_runner
+def _client(conn, pid=None):
+    from . import llm_provider, llm_runner
     try:
-        return llm_runner.client_from_env(ledger=llm_runner.db_file(conn))
+        return llm_provider.client_for_project(conn, pid)      # V3.1 M1.4b: provider của dự án (rỗng = môi trường)
     except llm_runner.LlmError:
         return None
 
@@ -585,7 +585,7 @@ def before_plates(conn, pid: int, data_dir: str, client=None, force: bool = Fals
                                     f"{pid} --yes --force", log=log)
     if not todo:
         return res
-    client = client if client is not None else _client(conn)
+    client = client if client is not None else _client(conn, pid)
     if client is None:
         _say_new(conn, pid, "warn", "Chưa cấu hình Claude (" + llm_runner.missing_hint() + ") — Đạo diễn chưa lập sơ đồ cảnh + bộ góc máy "
                                 f"(G0) cho {len(todo)} cảnh; nền 3D dùng plate_view từng shot như cũ", log=log)
@@ -760,7 +760,7 @@ def after_plates(conn, pid: int, data_dir: str, data_root: str, client=None, ren
             for st in plan.get("setups") or [] if not (st.get("review") or {}).get("done")]
     if not todo:
         return res
-    client = client if client is not None else _client(conn)
+    client = client if client is not None else _client(conn, pid)
     if client is None:
         _say_new(conn, pid, "warn", f"Chưa cấu hình Claude — Đạo diễn chưa xem render nền của {len(todo)} góc máy (G0)", REVIEW_CODE,
                  log)

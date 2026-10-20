@@ -367,16 +367,17 @@ def unchecked_videos(p: Pipeline, project_id: int) -> List[int]:
         " AND NOT EXISTS (SELECT 1 FROM qc_results q WHERE q.job_id=j.id) ORDER BY j.id", (project_id,))]
 
 
-def qc_video_batch(p: Pipeline, project_id: int, client, data_dir: str) -> Dict:
+def qc_video_batch(p: Pipeline, project_id: int, client, data_dir: str, client_for_job=None) -> Dict:
+    """client_for_job(job_id) (V3.1 M1.4b, rà C-RA-M14B): each clip by the Claude its job was created with; without it `client`."""
     access.need_edit(p, project_id, "QC video hàng loạt")
     out = {"checked": 0, "failed": [], "decisions": {}}
     for jid in unchecked_videos(p, project_id):
         try:
-            r = qc_video(p, jid, client, data_dir)
+            r = qc_video(p, jid, client_for_job(jid) if client_for_job is not None else client, data_dir)
         except (LlmError, Exception) as e:  # noqa: BLE001 - one clip that cannot be read must not stop the others
             from .llm_runner import fail_text
             out["failed"].append((jid, fail_text(e)))
-            if isinstance(e, LlmError) and e.code in ("auth", "config", "out_of_credit", "ledger"):
+            if isinstance(e, LlmError) and e.code in ("auth", "config", "out_of_credit", "usage_limit", "ledger"):   # rà C-RA-M14B: + hết lượt gói
                 break
             if not (isinstance(e, LlmError) and e.code in ("bad_json", "no_video", "bad_image", "truncated", "refusal", "empty",
                                                             "too_many_images")):
