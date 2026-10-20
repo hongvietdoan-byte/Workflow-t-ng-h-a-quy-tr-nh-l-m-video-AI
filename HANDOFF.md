@@ -17,3 +17,8 @@ Giữ nguyên areas version. Không push, không sửa TODO/kế hoạch/main. P
 - Chỉ commit mục 📨 TODO được push main theo ngoại lệ mới; mọi code vẫn nhánh riêng. Hộp thư worktree `D:/AI-Video-Pipeline/.codex-wt/d20-hop-thu`, nhánhcodex/d20-hop-thu; tránh checkout main live đang chạy. Fetch/pull mailbox trước ghi, không force, kiểm union không lặp.
 - Quota mốc nghỉ: 5h ĐÃ DÙNG90%, còn10%; tuần ĐÃ DÙNG14%. Reset5h dự kiến20/10 21:44:29 Asia/Saigon. Không mở child khi ≥90%, không mua/resetcredit/đổi tài khoản, không tự tạo automation.
 - Mọi test env: patch.object thay OBJECT os.environ dictgiả trướcimport/call/spawn (khôngpatch.dictclear), mockcredential/provider/model; nativeexplicitwhitelist và Python3.14đãcài; pytest --tb=no khôngshowlocals/dumpenv/đọc khóa thật. Test targeted đã chạy; Windows cả bộ/slow tại tích hợp, chưa gộp main/live/restart.
+## Replay bổ sung
+- 25 test xanh /9,47s: current ImageRunner/VideoRunner._build_package từ frozen args/kwargs và ref bytes tổng hợp; baseline viết độc lập; provider stub fake/clipai/deepix; COMPAT + correctness cấu trúc tách riêng.
+- M1.9a vẫn OPEN: chưa prompt assembly `_submit_args`/snapshot DB sản xuất/quality thật. Root đọc diff, rà độc lập rồi quyết định bước tiếp; không gộp/push/TODO ở nhánh này.
+- Chi tiết giới hạn/sidecar/env launcher trong RA_D20_VIEC2. Phiên kế không sinh lại baseline từ code hiện tại để làm xanh.
+- Finding tự rà cuối: fingerprint video JSON key string; đã đổi snapshot field đơn và ca video có frozen-fingerprint; xác nhận 25 xanh/9,60s. Rà độc lập `d20_golden_final_review` đang đọc.
