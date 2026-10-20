@@ -323,3 +323,12 @@ def test_v31_cap2_cap3_approval_recorded():
     assert "DRY-RUN" in c3["text"] and "CHƯA duyệt chi tiêu" in c3["text"]
     assert "không cấp quyền migration" in c2["keeps"]
     assert items["v31-permission-tiers-2026-10-20"]["status"] == "active"
+
+
+def test_v31_d01b_product_job_cap_replaces_daily_wording():
+    """20/10: D01 ghi 'trần job/ngày autopilot' nhưng code (S14.16/S14.18) dùng trần theo sản phẩm — D01b thay D01, giữ lịch sử."""
+    items = {i["id"]: i for i in LEDGER["items"]}
+    old, new = items["v31-d01-money-policy-2026-10-20"], items["v31-d01b-money-policy-product-job-cap-2026-10-20"]
+    assert old["status"] == "replaced" and new["status"] == "active" and new["replaces"] == old["id"]
+    assert "THEO SẢN PHẨM" in new["text"] and "job/ngày autopilot" not in new["text"].replace("trần job/ngày chung", "")
+    assert new["enforced_by"] == old["enforced_by"]

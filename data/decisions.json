@@ -391,7 +391,7 @@
      "check": "check_no_budget_lock_gate"
     }
    ],
-   "status": "active"
+   "status": "replaced"
   },
   {
    "id": "v31-d02-claude-provider-per-project-2026-10-20",
@@ -534,6 +534,22 @@
    "changes": "Mục Cấp 3 có điều kiện chỉ thực hiện khi điều kiện được chứng minh bằng test / báo cáo kiểm tra. Danh sách chờ + tiêu chí mở khóa: docs/V3_1_GOI_DUYET_CAP2_CAP3_2026-10-20.md mục B.",
    "replaces": null,
    "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-d01b-money-policy-product-job-cap-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (chat 20/10: trả lời phiên cloud 'sửa chữ tài liệu theo code, không đưa trần ngày trở lại')",
+   "text": "D01 — chọn A: giữ chính sách ngân sách 04/10 — ngân sách dự kiến chỉ CẢNH BÁO; không tự chặn khi phần trích dự án (allocation) = 0. Giữ các điều kiện chặn hiện hành: nhà cung cấp hết tiền thật, dự án tạm dừng, trần job THEO SẢN PHẨM của autopilot (job do máy tạo ≤ shot ảnh × 4 + shot video × 3, S14.16/S14.18 — không còn trần job/ngày chung cả máy), giới hạn tự gen lại đã chốt (ảnh ≤ 3, video ≤ 2). Yêu cầu: dự toán chính xác hơn, cảnh báo rõ trước khi gửi, đối soát chi phí thật. Không tự đổi chính sách tiền.",
+   "keeps": "budget-gate-removed-2026-10-15 giữ nguyên (cùng hướng); core/money_policy.py như hiện tại.",
+   "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; code pipeline, migration, đường ghi, vòng đời job, định tuyến provider, cổng QC cần duyệt phạm vi (Cấp 2); API trả phí / pilot duyệt chi phí riêng (Cấp 3). Chi tiết: docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md, docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md mục 4.",
+   "replaces": "v31-d01-money-policy-2026-10-20",
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_no_budget_lock_gate"
+    }
+   ],
    "status": "active"
   }
  ]
