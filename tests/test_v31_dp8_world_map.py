@@ -4,6 +4,7 @@ Thiết kế docs/V3_1_M3_THIET_KE_WORLD_MAP_2026-10-20.md mục 2."""
 import json
 import os
 import pathlib
+import re
 from unittest import mock
 
 import pytest
@@ -144,7 +145,7 @@ def test_save_refuses_a_broken_map(tmp_path):
 def test_nothing_in_the_gen_path_reads_the_map():
     """G2-4: thử nghiệm offline — không module nào khác của core/ / dashboard/ import world_map."""
     root = pathlib.Path(__file__).resolve().parent.parent
+    use = re.compile(r"^\s*(?:from\s+\S+\s+)?import\s+[^\n]*\bworld_map\b|\bworld_map\.\w", re.M)   # import / gọi hàm (tên cờ không tính)
     users = [str(p.relative_to(root)) for d in ("core", "dashboard") for p in (root / d).rglob("*.py")
-             if p.name != "world_map.py" and "world_map" in p.read_text(encoding="utf-8", errors="replace").replace('"world_map"', "")
-             .replace("'world_map'", "")]
+             if p.name != "world_map.py" and use.search(p.read_text(encoding="utf-8", errors="replace"))]
     assert users == []

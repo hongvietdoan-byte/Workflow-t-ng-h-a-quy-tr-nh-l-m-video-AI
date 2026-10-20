@@ -343,3 +343,118 @@ def entities_at(m: Dict, shot) -> List[Dict]:
         if (vf is None or shot >= vf) and (vt is None or shot <= vt):
             out.append(e)
     return out
+
+
+# ---- M3.3 (DP11, cờ world_map_sentences — TẮT): câu vị trí sinh từ map, CHỈ ĐỀ XUẤT + so câu hiện tại (REVIEW) ---------------------------
+SENTENCE_FLAG = "world_map_sentences"
+CENTRE_DEG = 8.0           # |góc ngang| dưới mức này = giữa khung
+BEHIND_GAP_M = 1.5         # hai người cùng phía khung, xa hơn ≥ chừng này = "phía sau"
+_SIDE_EN = {"left": "frame left", "centre": "frame centre", "right": "frame right"}
+_CLAUSE = re.compile(r"[.;,\n]|\bwhile\b|\band\b|\bbut\b|\bvà\b|\bcòn\b|\btrong khi\b", re.I)
+_SIDE_WORDS = {"left": re.compile(r"\bleft\b|bên trái|phía trái|sang trái", re.I), "right": re.compile(r"\bright\b|bên phải|phía phải|sang phải", re.I)}
+
+
+def sentences_enabled() -> bool:
+    from . import features
+    return features.on(SENTENCE_FLAG) and enabled()
+
+
+def _cam_rel(m: Dict, camera: Optional[Dict]) -> Optional[Tuple[List[float], List[float]]]:
+    """stage_camera (tọa độ MODEL: location / look_at) → so với gốc O của map. Thiếu gì → None (không đoán máy)."""
+    o = (m.get("origin") or {}).get("model_xyz")
+    if not camera or not o or not camera.get("location") or not camera.get("look_at"):
+        return None
+    sub = lambda v: [float(v[k]) - float(o[k]) for k in range(2)]    # noqa: E731 — mặt sàn đủ cho trái / phải / xa gần
+    return sub(camera["location"]), sub(camera["look_at"])
+
+
+def _place(loc: List[float], look: List[float], xy: List[float]) -> Optional[Tuple[str, float]]:
+    """(trái | giữa | phải khung, độ sâu m) của điểm xy nhìn từ máy; sau lưng máy → None."""
+    import math
+    fx, fy = look[0] - loc[0], look[1] - loc[1]
+    n = math.hypot(fx, fy)
+    if n < 1e-6:
+        return None
+    fx, fy = fx / n, fy / n
+    dx, dy = xy[0] - loc[0], xy[1] - loc[1]
+    depth, lateral = dx * fx + dy * fy, dx * fy - dy * fx          # phải của hướng nhìn (x Đông, y Bắc, z lên)
+    if depth <= 0.05:
+        return None
+    ang = math.degrees(math.atan2(lateral, depth))
+    return ("centre" if abs(ang) < CENTRE_DEG else "right" if ang > 0 else "left"), depth
+
+
+def position_sentence(m: Optional[Dict], shot, camera: Optional[Dict] = None) -> Tuple[Optional[str], Dict]:
+    """(câu tiếng Anh | None, provenance). 3D: mọi thực thể có hiệu lực ở shot → trái / giữa / phải khung theo máy, người cùng phía xa hơn
+    ≥ BEHIND_GAP_M = "behind", mốc = "in the distance"; ngoài khung (sau máy) ghi provenance.out_of_frame. Tương đối: quan hệ trái/phải +
+    vật cầm của shot. Map unknown / invalidated / thiếu máy (3D) → None + why (đường cũ giữ nguyên)."""
+    prov = {"map_revision": (m or {}).get("map_revision"), "kind": (m or {}).get("kind"), "shot": shot, "from": []}
+    if not m or m.get("invalidated"):
+        return None, dict(prov, why="không có map còn hiệu lực")
+    if m.get("kind") == "unknown":
+        return None, dict(prov, why=m.get("why") or "map UNKNOWN")
+    ents = entities_at(m, shot)
+    if m.get("kind") in ("3d", "2d"):
+        cam = _cam_rel(m, camera)
+        if cam is None:
+            return None, dict(prov, why="thiếu máy của shot (stage_camera location / look_at) hoặc gốc O của map — không đoán khung")
+        placed, out = [], []
+        for e in ents:
+            xyz = (e.get("transform") or {}).get("xyz")
+            if not xyz:
+                continue
+            got = _place(cam[0], cam[1], xyz[:2])
+            if got is None:
+                out.append(e["entity_id"])
+                continue
+            placed.append((e, got[0], got[1]))
+        if not placed:
+            return None, dict(prov, why="không thực thể nào trong khung theo máy này", out_of_frame=out)
+        people = [x for x in placed if x[0]["kind"] == "nguoi"]
+        bits = []
+        for e, side, depth in sorted(placed, key=lambda x: x[2]):
+            label = e.get("label") or e["entity_id"]
+            if e["kind"] == "moc":
+                bits.append(f"{label} in the distance at {_SIDE_EN[side]}")
+                continue
+            front = [q for q in people if q[0] is not e and q[1] == side and depth - q[2] >= BEHIND_GAP_M]
+            tail = f", behind {front[0][0].get('label') or front[0][0]['entity_id']}" if e["kind"] == "nguoi" and front else ""
+            bits.append(f"{label} at {_SIDE_EN[side]}{tail}")
+        prov.update({"from": ["entities", "stage_camera"], "out_of_frame": out,
+                     "placed": {e["entity_id"]: side for e, side, _ in placed}})
+        return "; ".join(bits) + ".", prov
+    rel = [r for r in m.get("relations") or [] if r.get("valid_from") in (None, shot) or
+           (isinstance(r.get("valid_from"), (int, float)) and r["valid_from"] <= shot <= (r.get("valid_to") or r["valid_from"]))]
+    bits = [f"{r['a']} at frame left of {r['b']}" if r["rel"] == "trai_cua" else f"{r['a']} {r['rel'].replace('_', ' ')} {r['b']}" for r in rel]
+    bits += [f"{e['entity_id']} holding {', '.join(e['state']['cam'])}" for e in ents if (e.get("state") or {}).get("cam")]
+    if not bits:
+        return None, dict(prov, why="map tương đối không có quan hệ nào ở shot này")
+    placed = {}
+    for r in rel:
+        if r["rel"] == "trai_cua":
+            placed.setdefault(r["a"], "left")
+            placed.setdefault(r["b"], "right")
+    prov.update({"from": ["relations"], "placed": placed})
+    return "; ".join(bits) + ".", prov
+
+
+def review(m: Optional[Dict], shot, current_text: str, camera: Optional[Dict] = None) -> Optional[Dict]:
+    """REVIEW (cờ world_map_sentences + world_map; TẮT → None, không đọc gì): câu đề xuất + chỗ câu hiện tại (image_prompt / blocking) nói
+    trái/phải NGƯỢC map cho cùng tên. Không sửa prompt, không chặn gen."""
+    if not sentences_enabled():
+        return None
+    suggested, prov = position_sentence(m, shot, camera)
+    out = {"level": "REVIEW", "shot": shot, "suggested": suggested, "provenance": prov, "mismatches": []}
+    text = current_text or ""
+    labels = {}
+    for e in (m or {}).get("entities") or []:
+        labels[e["entity_id"]] = e.get("label") or e["entity_id"]
+    clauses = [c.strip() for c in _CLAUSE.split(text) if c and c.strip()]
+    for eid, side in (prov.get("placed") or {}).items():
+        name = labels.get(eid, eid)
+        other = "right" if side == "left" else "left" if side == "right" else None
+        for c in clauses:                          # trái/phải đọc trong CÙNG vế với tên (không vớ chữ của người khác)
+            if other and re.search(re.escape(str(name)), c, re.I) and _SIDE_WORDS[other].search(c) and not _SIDE_WORDS[side].search(c):
+                out["mismatches"].append({"entity": name, "map": side, "text": c})
+                break
+    return out

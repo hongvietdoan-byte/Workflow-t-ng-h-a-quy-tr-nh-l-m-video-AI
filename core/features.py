@@ -77,6 +77,10 @@ FEATURES: Dict[str, Dict] = {
                             "(hết giờ / 5xx) thì KHÔNG gửi lại, chờ đối soát (0 USD)", "verified": False,
         "why": "V3.1 M1.2 (A1, #33): job 1162 succeeded 2 lần (bg_poll tiến trình riêng + Dashboard), QC đọc ảnh dở → tự gen lại 1163; "
                "thử bằng 2 kết nối SQLite + provider giả, chưa chạy thật (C3-2: bật sau nghiệm thu)"},
+    "world_map_sentences": {"label": "Câu vị trí sinh từ world map (M3.3): CHỈ đề xuất + so câu hiện tại, báo REVIEW khi trái/phải ngược map — "
+                                     "không đổi prompt gửi đi (cần world_map, 0 USD)",
+        "verified": False,
+        "why": "V3.1 DP11 (G41–G50, gốc P31-G46): thử offline trên #31 trước; thay câu tả tay = việc sau khi người duyệt map"},
     "world_map": {"label": "World map theo cảnh THỬ NGHIỆM OFFLINE (M3.1): dựng + lưu data/projects/<pid>/world/scene_<cảnh>.json (3D / 2D / "
                            "tương đối / UNKNOWN, version, provenance, invalidation) — không ai trong luồng gen đọc, không chặn gen (0 USD)",
         "verified": False,
