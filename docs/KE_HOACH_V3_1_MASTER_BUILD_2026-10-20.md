@@ -157,12 +157,12 @@ kiểm giá trị; không đổi `STATUSES`.
 | Đợt | Việc | Xong | Đang làm | Chờ người dùng | Bỏ | Tiến độ |
 |---|---|---|---|---|---|---|
 | M0 Đóng băng và thiết kế (0 USD) | 12 | 12 | 0 | 0 | 0 | 100 % |
-| M1 Nền tin cậy (0 USD, provider giả) | 9 | 5 | 4 | 0 | 0 | 78,9 % |
+| M1 Nền tin cậy (0 USD, provider giả) | 9 | 7 | 2 | 0 | 0 | 86,8 % |
 | M2 Hợp đồng sản xuất có cấu trúc | 9 | 0 | 0 | 0 | 0 | 0 % |
-| M3 Thế giới và liên tục | 5 | 0 | 0 | 0 | 0 | 0 % |
-| M4 QC có bằng chứng và Dashboard | 7 | 0 | 0 | 0 | 0 | 0 % |
+| M3 Thế giới và liên tục | 5 | 1 | 0 | 0 | 0 | 8,3 % |
+| M4 QC có bằng chứng và Dashboard | 7 | 3 | 0 | 0 | 0 | 38,5 % |
 | M5 Sửa chọn lọc và pilot | 5 | 0 | 0 | 2 | 0 | 0 % |
-| **Tổng** | **47** | **17** | **4** | **2** | **0** | **35,5 %** |
+| **Tổng** | **47** | **23** | **2** | **2** | **0** | **43,5 %** |
 
 Đợt hiện tại: **M1** · việc kế: **M2.1** BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN
 <!-- /tien-do -->
@@ -189,8 +189,8 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M1.3 · Kiểm tạm dừng ngay trước provider.submit, cả đường thử lại/lùi model (G36) · nặng:2 · ✅ · gộp 60b9da80; cờ pause_before_submit BẬT máy chính 20/10 (C3-2); còn mở: vì sao lần thử lại đầu vẫn đi Seedance
 - [ ] M1.4 · Provider Claude theo dự án, clean_env bỏ key API, hết lượt gói = dừng có giờ mở (A2, A3, A13, G33, G57) · nặng:3 · ✅ · M1.4a 222bf9c5 + M1.4b (cloud-B code, cloud-C rà kỹ 1 CAO + 4 VỪA đã sửa) gộp 20/10 dde800b4, cả bộ 6361 qua; migration cột provider ĐÃ áp CSDL máy chính 20/10 (C3-1, sao lưu trước) — FIXED_UNVERIFIED tới khi chạy thật
 - [ ] M1.5 · Kiểm Kho chủ thể trước gửi video, dừng + đề xuất dọn (G30, G32, G58) · nặng:2 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
-- [ ] M1.6 · Ước tính giá đúng gói gửi: tier nháp, phụ phí ref, nâng 1080p, claude_cli = 0, giá video trong pregen_check (A7–A9, G31) · nặng:2 · 🔄 · code gộp 20/10 (cloud-B, cờ send_estimate TẮT); rà kỹ 1 CAO + 1 VỪA → C-FIX-M16-17 (cloud-C) trước khi bật cờ
-- [ ] M1.7 · Dashboard báo chạy code cũ (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01) · nặng:1 · 🔄 · code gộp 20/10 (cloud-B, cờ TẮT); rà kỹ 1 VỪA (báo động giả) → C-FIX-M16-17 (cloud-C)
+- [ ] M1.6 · Ước tính giá đúng gói gửi: tier nháp, phụ phí ref, nâng 1080p, claude_cli = 0, giá video trong pregen_check (A7–A9, G31) · nặng:2 · ✅ · gộp 20/10 (cloud-B code + cloud-C C-FIX + phiên chính sửa CAO thẻ clip v2), cờ send_estimate TẮT; cả bộ 6470 qua — bật cờ = xin người dùng
+- [ ] M1.7 · Dashboard báo chạy code cũ (G55), gộp diag lặp (G56), regen kiểm data_dir (G39), thông điệp ngân sách (A14 theo D01) · nặng:1 · ✅ · gộp 20/10 (cloud-B + C-FIX báo code cũ theo dấu vân tay file), cờ TẮT; cả bộ 6470 qua
 - [ ] M1.8 · tools/project_error_report.py: gom diag_events + jobs + job_events thành đề xuất mục sổ lỗi cuối dự án · nặng:2 · ✅ · Codex Đ20 việc 1 gộp 20/10 (tools/project_error_report.py, 9 test)
 - [ ] M1.9 · Golden gói B0–B2: replay ảnh + video, test compatibility / correctness, fixture có HEAD/cờ/CHANGES · nặng:3 · 🔄 · giao Codex Đ20 (docs/CODEX_TASKS.md)
 
@@ -210,14 +210,14 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M3.2 · Người nộm height_m trong whitebox; pitch eye/slightly_high; kiểm depth che (G2, G3, A10, G49) · nặng:2 · ⬜
 - [ ] M3.3 · Câu vị trí sinh từ world map, không tả tay từng shot (G41–G50, G46) · nặng:3 · ⬜
 - [ ] M3.4 · continuity_state expected/observed/resolved + đồ thị phụ thuộc theo thực thể · nặng:3 · ⬜
-- [ ] M3.5 · Bỏ kiểm chân trời khi nền không có trời (G20) · nặng:1 · ⬜
+- [ ] M3.5 · Bỏ kiểm chân trời khi nền không có trời (G20) · nặng:1 · ✅ · DP2 cloud-C gộp 20/10, cờ horizon_needs_sky TẮT (bật = xin người dùng sau C-FIX-THAP-1)
 
 ### M4 — QC có bằng chứng và Dashboard
 - [ ] M4.1 · Schema bằng chứng QC + mã lỗi thống nhất · nặng:2 · ⬜
-- [ ] M4.2 · Video QC: đứng yên > 1,5 s = REVIEW, khớp khung 0, vật còn giữ (G51); chuyển cảnh trong video ref (B8) · nặng:2 · ⬜
-- [ ] M4.3 · Cross-shot logic qua qc_sequence_logic ở chế độ shadow (G52, G42) · nặng:2 · ⬜
+- [ ] M4.2 · Video QC: đứng yên > 1,5 s = REVIEW, khớp khung 0, vật còn giữ (G51); chuyển cảnh trong video ref (B8) · nặng:2 · ✅ · C-M42 cloud-C gộp 20/10, cờ video_qc_shadow TẮT, chỉ ghi REVIEW
+- [ ] M4.3 · Cross-shot logic qua qc_sequence_logic ở chế độ shadow (G52, G42) · nặng:2 · ✅ · C-M43 cloud-C gộp 20/10, cờ continuity_shadow TẮT, chỉ ghi REVIEW
 - [ ] M4.4 · Final QC blackdetect/freezedetect · nặng:1 · ⬜
-- [ ] M4.5 · Sửa báo nhầm A5 (qua vai), A6 (thiếu ref_video_path) + regression · nặng:1 · ⬜
+- [ ] M4.5 · Sửa báo nhầm A5 (qua vai), A6 (thiếu ref_video_path) + regression · nặng:1 · ✅ · DP1 cloud-C gộp 20/10, cờ qc_false_alarm_fix TẮT (bật = xin người dùng sau C-FIX-THAP-1)
 - [ ] M4.6 · Benchmark độc lập theo mã lỗi (≥ 20 lỗi + 20 đạt mỗi nhóm luật) · nặng:2 · ⬜
 - [ ] M4.7 · Dashboard: BYĐ, thẻ gói sẽ gửi, sổ lỗi, overrides + siết 3 cổng (Q6) · nặng:3 · ⬜
 
