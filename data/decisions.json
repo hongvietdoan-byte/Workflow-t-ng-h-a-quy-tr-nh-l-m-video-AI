@@ -562,6 +562,17 @@
    "replaces": null,
    "enforced_by": [],
    "status": "active"
+  },
+  {
+   "id": "v31-c3-1-provider-columns-applied-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (chat 20/10: 'Tôi không thể chạy lệnh đó qua remote được, tự chạy đi')",
+   "text": "C3-1 thực hiện trên CSDL máy chính: thêm cột projects.llm_provider, jobs.llm_provider, jobs.llm_config_ver, llm_calls.provider (core.db.migrate_llm_provider_up). Điều kiện đã chứng minh: sao lưu trước (integrity ok, 1154 job); code trước M1.4b chạy trên bản sao đã có cột (tạo job, đọc jobs/projects, ghi llm_calls — mọi INSERT liệt kê cột); code mới khi thiếu cột = hành vi cũ (test_columns_absent_means_the_old_environment_behaviour); chạy lại không đổi. Sau áp: integrity ok; dự án / job cũ (cột NULL) → ClaudeCliClient theo môi trường.",
+   "keeps": "v31-cap3-items-decided-2026-10-20 (C3-1 điều kiện); D02 — job đang chạy giữ provider snapshot.",
+   "changes": "Sao lưu data/backup/manifest.before_c3-1_llm_provider_2026-10-20.sqlite; Dashboard 8501 khởi động lại. Khôi phục: chép lại bản sao lưu hoặc migrate_llm_provider_down (từ chối khi còn dữ liệu trừ force).",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
   }
  ]
 }
