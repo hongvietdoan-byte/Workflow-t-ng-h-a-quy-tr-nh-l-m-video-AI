@@ -1401,3 +1401,6 @@ push `hộp thư:` TRƯỚC khi code; làn khác nhận trước thì bỏ, lấ
 
 ### Kết quả Codex CX20-2b (từng phần)
 Hai VỪA + THẤP: catalog COMPAT đủ/OFF, queued cảnh báo, Git fallback, đóng SQLite, replay API worker cách ly cwd/env; đỏ 2/35 → xanh 40, xác nhận 40. CAO-M2 actual DB replay còn OPEN, không mở khóa M2. Báo cáo docs/RA_D20_VIEC2B_CODEX_2026-10-20.md. Không push/main/live.
+
+### Kết quả Codex CX20-2b — 21/10
+Đã có replay prepare/build thật từ snapshot DB + manifest readonly, CLI capture/replay nhiều fixture, không sidecar args. 63 test native xanh; byte ảnh/video tổng hợp, drift/sandbox/cache/đếm distinct shot. Xem docs/RA_D20_VIEC2B_CODEX_2026-10-21.md để chạy #24/#27. Code + lệnh xong; nghiệm thu thật M1.9/CAO-M2, rà độc lập, cả bộ/gộp/mở M2 còn OPEN. Không push/main/live/TODO/plan.

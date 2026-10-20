@@ -1,0 +1,4 @@
+{
+  "1": "{\"v\": 1, \"call\": \"submit\", \"prompt\": \"A red cube on a white table.\", \"negative\": null, \"refs\": [], \"provider\": \"fake\", \"model\": \"dola-seedream-5-0-pro-260628\", \"params\": {\"model\": \"dola-seedream-5-0-pro-260628\"}, \"external_id\": \"synthetic\", \"at\": \"2026-10-21T00:00:00\"}",
+  "2": "{\"v\": 1, \"call\": \"submit\", \"prompt\": \"The cube rotates.\", \"negative\": \"\", \"refs\": [{\"param\": \"image_path\", \"role\": \"start_frame\", \"label\": null, \"path\": \"data/projects/24/images/job_1.png\", \"file\": \"job_1.png\", \"sha256\": \"ef504a6a99a0bcd1b509be3a4281c6bfbc65fcfb2ea2a415d2e7d11c7644364e\"}], \"provider\": \"fake\", \"model\": \"kling\", \"params\": {\"duration_sec\": 5.0, \"model\": \"kling\"}, \"external_id\": \"synthetic\", \"at\": \"2026-10-21T00:00:00\"}"
+}

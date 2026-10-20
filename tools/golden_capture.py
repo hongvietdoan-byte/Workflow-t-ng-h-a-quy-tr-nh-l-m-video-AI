@@ -109,12 +109,14 @@ def _ref(ref, root):
     return result
 
 
-def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots_file=None):
+def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots_file=None, database_replay=False, latest_per_type=False):
     db, root = Path(db).resolve(), Path(ref_root).resolve()
     if not db.is_file() or not root.is_dir():
         raise GoldenError("Cần --db tồn tại và --ref-root là thư mục rõ ràng")
     if purpose not in ("compat", "correctness"):
         raise GoldenError("purpose cần compat hoặc correctness")
+    if database_replay and purpose != "compat":
+        raise GoldenError("Database replay hiện chỉ hỗ trợ COMPAT với cờ thử nghiệm TẮT")
     flag_input = json.loads(Path(flags_file).read_text(encoding="utf-8-sig"))
     structured = isinstance(flag_input, dict) and "flags" in flag_input
     flags = flag_input.get("flags") if structured else flag_input
@@ -150,6 +152,8 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
         rows = conn.execute("SELECT id,type,state,model,quality_tier,sent_package FROM jobs WHERE project_id=? AND scene_id=? AND type IN ('image_gen','video_gen') ORDER BY id", (project, shot)).fetchall()
         if not rows:
             raise GoldenError("Không có jobs ảnh/video cho project + shot chỉ định")
+        if latest_per_type:
+            rows=list({row['type']:row for row in rows}.values())
         for row in rows:
             raw = row["sent_package"]
             try:
@@ -175,13 +179,18 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
             jobs.append({"id": row["id"], "type": row["type"], "state": row["state"], "model": row["model"],
                          "tier": row["quality_tier"], "provider": package["provider"], "prompt": package["prompt"],
                          "sent_package_raw": raw, "sent_package_sha256": hashlib.sha256(raw.encode("utf-8")).hexdigest(), "refs": refs, "input_snapshot": inputs.get(str(row["id"]))})
+    if database_replay:
+        from tools.golden_db_replay import capture_database_job
+        for job in jobs:
+            job["database_replay"] = capture_database_job(job,db=db,ref_root=root,flags=flags)
     return {"fixture_version": 1, "purpose": purpose, "head_sha": head_sha(), "flags": flags,
             "experimental_flags": experimental,
             "flags_provenance": "explicit_file_unverified_at_send", "schema": schema, "project": project, "scene_id": shot,
-            "jobs": jobs, "warnings": warnings, "replay_status": "OPEN", "correctness_status": "OPEN"}
+            "jobs": jobs, "warnings": warnings, "replay_status": "CAPTURED_NOT_ACCEPTED" if database_replay else "OPEN", "correctness_status": "OPEN"}
 
 
 def main(argv=None):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("db", "flags-file", "ref-root", "output"):
         parser.add_argument("--" + name, required=True, type=Path)
@@ -189,10 +198,12 @@ def main(argv=None):
         parser.add_argument("--" + name, required=True, type=int)
     parser.add_argument("--purpose", required=True, choices=("compat", "correctness"))
     parser.add_argument("--input-snapshots-file", type=Path, help="JSON job id → args/kwargs trước lắp gói; không suy ngược từ sent_package")
+    parser.add_argument("--database-replay", action="store_true", help="Chụp dependency và dựng gói bằng prepare/build thật từ DB, không cần sidecar")
+    parser.add_argument("--latest-per-type", action="store_true", help="Chỉ job cuối ảnh và video của shot; không chọn nhiều take cũ")
     args = parser.parse_args(argv)
     try:
         result = capture(db=args.db, project=args.project, shot=args.shot, flags_file=args.flags_file,
-                         ref_root=args.ref_root, purpose=args.purpose, input_snapshots_file=args.input_snapshots_file)
+                         ref_root=args.ref_root, purpose=args.purpose, input_snapshots_file=args.input_snapshots_file, database_replay=args.database_replay, latest_per_type=args.latest_per_type)
         with args.output.open("x", encoding="utf-8", newline="\n") as stream:
             json.dump(result, stream, ensure_ascii=False, indent=2, allow_nan=False)
     except GoldenError as exc:

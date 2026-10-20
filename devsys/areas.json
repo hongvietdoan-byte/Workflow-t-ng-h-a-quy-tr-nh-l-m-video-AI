@@ -267,7 +267,8 @@
         "core/layout_audit.py",
         "tools/scene_layout_audit.py",
         "core/travel_truth.py",
-        "tools/golden_capture.py"
+        "tools/golden_capture.py",
+        "tools/golden_db_replay.py"
       ],
       "assets": [
         "prompts/02_*",
@@ -286,7 +287,8 @@
         "tools/experiments/storyboard_test.py",
         "tools/replay_payload.py",
         "tools/golden_capture.py",
-        "tests/golden/package_inputs.json"
+        "tests/golden/package_inputs.json",
+        "tests/golden/db_package_expected.json"
       ],
       "docs": [
         "docs/PHAN_TICH_LOI_GD6_2026-09-24.md",
@@ -321,7 +323,8 @@
         "tests/test_continuity_ui_d18.py",
         "tests/test_layout_audit.py",
         "tests/test_replay_payload_p30.py",
-        "tests/test_golden_replay.py"
+        "tests/test_golden_replay.py",
+        "tests/test_golden_db_replay.py"
       ],
       "flags": [
         "qc_false_alarm_fix",
