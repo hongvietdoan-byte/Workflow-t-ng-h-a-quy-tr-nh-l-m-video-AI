@@ -34,4 +34,4 @@ Nhánh `cloud/v31-fix-thap-4`, tạo từ origin/main.
   - 4 ca trường máy giữ regex rộng;
   - 1 ca banner so bằng sha.
 - Đã đăng ký test trong `devsys/areas.json`, ở khu step2 và diag.
-- Bộ test đầy đủ: xem tin hộp thư `xong C-FIX-THAP-4`.
+- Bộ test đầy đủ: 6612 passed; 4 failed cũ (đỏ cả trên main).
