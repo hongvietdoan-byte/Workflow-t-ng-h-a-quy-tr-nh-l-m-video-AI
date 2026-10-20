@@ -151,20 +151,20 @@ class StopDashboardNeverPrintsTheCommandLine(unittest.TestCase):
         self.assertIn("$PSScriptRoot", src)                 # lọc theo thư mục repo của chính script
 
 
-class PlateStaleMergeKeepsFirstSeen(unittest.TestCase):
-    """THẤP: gộp plate_stale theo (mã, shot, job) — giữ `at` lần đầu + `last_at` lần cuối + đếm (không mất mốc bắt đầu)."""
+class PlateStaleMergeKeepsEachShot(unittest.TestCase):
+    """THẤP: một job ghi plate_stale cho NHIỀU shot của cảnh (runner._stale_plates: "shot N: …") — khóa gộp (mã, shot của job, job) dồn
+    các shot vào MỘT dòng, giữ câu mới nhất → mất các shot khác. Nay: thêm "shot N:" vào khóa; cùng shot lặp → 1 dòng, giữ `at` đầu."""
 
-    def test_first_at_is_kept(self):
+    def test_each_shot_keeps_its_row_and_first_seen(self):
         conn = connect(":memory:")
         with mock.patch.dict(os.environ, {"FEATURE_DIAG_MERGE": "1"}):
-            diag.record(conn, "image", "warn", "nền 3D cũ: plate A", "plate_stale", 1, scene_id=5)
+            diag.record(conn, "image", "warn", "shot 3: render cũ (chỗ đứng đổi)", "plate_stale", 1, scene_id=5, job_id=9)
             first = conn.execute("SELECT at FROM diag_events").fetchone()[0]
             time.sleep(1.1)
-            diag.record(conn, "image", "warn", "nền 3D cũ: plate B", "plate_stale", 1, scene_id=5)
-        rows = conn.execute("SELECT at, last_at, count, message FROM diag_events").fetchall()
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["at"], first)
+            diag.record(conn, "image", "warn", "shot 4: render cũ (góc máy đổi)", "plate_stale", 1, scene_id=5, job_id=9)
+            diag.record(conn, "image", "warn", "shot 3: render cũ (chỗ đứng đổi · ghế → cửa)", "plate_stale", 1, scene_id=5, job_id=9)
+        rows = conn.execute("SELECT at, last_at, count, message FROM diag_events ORDER BY id").fetchall()
+        self.assertEqual([r["message"].split(":")[0] for r in rows], ["shot 3", "shot 4"])
+        self.assertEqual((rows[0]["at"], rows[0]["count"]), (first, 2))
         self.assertGreater(rows[0]["last_at"], first)
-        self.assertEqual(rows[0]["count"], 2)
-        self.assertIn("plate A", rows[0]["message"])          # lần gộp nói cả nền trước (không mất 'item' cũ)
-        self.assertIn("plate B", rows[0]["message"])
+        self.assertIn("ghế → cửa", rows[0]["message"])                 # câu mới nhất của chính shot đó
