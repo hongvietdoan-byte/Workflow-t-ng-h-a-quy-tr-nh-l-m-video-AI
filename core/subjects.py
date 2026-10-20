@@ -348,6 +348,141 @@ def delete_assets(conn, library, asset_ids: List[str], who=None) -> Dict:
 _JOB_IN_FILE = re.compile(r"^job_(\d+)_")
 
 
+class CapacityWait(ValueError):
+    """Giữ job trong queued; tuyệt đối không biến lỗi Kho thành đổi model."""
+    def __init__(self, result):
+        self.result = result
+        super().__init__(result['reason'])
+
+
+def capacity(conn, library, pictures, limit=None) -> Dict:
+    """GET chỉ đọc; kiểm cả gói trước upload. Không phải allocator/reservation.
+
+    Không bootstrap bảng. Cache thiếu hoặc snapshot không đủ → giữ VÀNG.
+    """
+    from .adapters.clipai_subjects import LIBRARY_LIMIT, is_active
+    limit = LIBRARY_LIMIT if limit is None else limit
+    if not pictures:
+        return {'code': 'READY', 'needed': 0, 'severity': 'info'}
+    unknown = {'code': 'QUEUE_UNKNOWN_CAPACITY', 'severity': 'warn',
+               'reason': 'VÀNG: chưa xác minh được sức chứa Kho chủ thể — giữ job CHỜ; kiểm cấu hình Kho và thử lại.'}
+    try:
+        if library is None:
+            return unknown
+        assets = library.list_assets()
+        ids = [a.get('asset_id') for a in assets]
+        if any(not aid for aid in ids) or len(set(ids)) != len(ids):
+            return unknown
+        active = {a['asset_id'] for a in assets if is_active(a)}
+        hashes = {picture_sha(path) for _, path in pictures}
+        exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='seedance_subject_pictures'").fetchone()
+        rows = [dict(r) for r in conn.execute('SELECT sha, status, asset_id FROM seedance_subject_pictures')] if exists else []
+        cached = {r['sha']: r for r in rows}
+        needed = sum(1 for sha in hashes if sha not in cached or cached[sha]['status'] != 'active'
+                     or cached[sha]['asset_id'] not in active)
+        # Một upload chưa rõ kết quả chiếm chỗ, không cho gửi lại/giả Kho trống.
+        if any(r['status'] not in ('active', 'failed') for r in rows):
+            return unknown
+        free = max(0, limit - len(ids))
+        full = needed > free
+        return {'code': 'QUEUE_CAPACITY' if full else 'READY', 'severity': 'warn' if full else 'info',
+                'count': len(ids), 'limit': limit, 'needed': needed, 'free': free,
+                'reason': (f'Kho chủ thể đầy: {len(ids)}/{limit}, cần {needed}, còn {free} — job CHỜ. '
+                           'Lập dry-run dọn Kho, xem phụ thuộc và chờ duyệt từng lần; không tự xóa/đổi Kling.') if full else ''}
+    except Exception:  # không đưa thông điệp transport/credential vào diag
+        return unknown
+
+
+def auto_clean_candidates(assets, dependencies, now=None) -> Dict:
+    """Lập plan chỉ đọc từ snapshot và dependency đã được xác minh bởi caller.
+
+    Legacy tên/path không chứng minh owner/lifecycle → giữ UNKNOWN. Không tự suy
+    tuổi từ mtime/updated_at; đầu vào này không cấp quyền apply hay xóa.
+    """
+    import hashlib
+    from datetime import datetime, timezone
+    now = now or datetime.now(timezone.utc)
+    evidence = {}
+    for d in dependencies:
+        aid = d.get('asset_id')
+        evidence[aid] = None if aid in evidence else d  # trùng evidence không đoán bản nào đúng
+    eligible, protected = [], []
+    for asset in assets:
+        aid = asset.get('asset_id')
+        d = evidence.get(aid) or {}
+        owners, jobs, chars = d.get('project_refs'), d.get('job_refs'), d.get('character_refs')
+        reason = 'UNKNOWN: thiếu bằng chứng đầy đủ về phụ thuộc'
+        safe = (bool(aid) and d.get('verified') is True and d.get('owners_complete') is True
+                and isinstance(owners, list) and bool(owners) and isinstance(jobs, list) and isinstance(chars, list))
+        if safe:
+            safe = (not chars and asset.get('provider_status') in ('active', 'failed')
+                    and not d.get('processing') and not d.get('unknown') and not d.get('pinned'))
+            reason = 'đang dùng / nhân vật / trạng thái chưa chắc chắn'
+        if safe:
+            safe = all(j.get('state') in ('rejected', 'failed') and j.get('job_id') is not None for j in jobs)
+            reason = 'job đang dùng hoặc chưa đối soát'
+        if safe:
+            safe = all(p.get('project_id') is not None and p.get('state') in ('archived', 'delivered')
+                       and not p.get('restored') for p in owners)
+            reason = 'dự án active / restore / shared chưa kết thúc'
+        if safe:
+            rejected = bool(jobs) and all(j.get('state') == 'rejected' and j.get('type') == 'image_gen' for j in jobs)
+            old = True
+            for project in owners:
+                try:
+                    terminal = datetime.fromisoformat(project['terminal_at'])
+                    old = old and terminal.utcoffset() is not None and now.utcoffset() is not None and (now - terminal).total_seconds() > 72 * 3600
+                except (KeyError, ValueError, TypeError):
+                    old = False
+            safe = rejected or old
+            reason = 'khung đã bị loại, không còn job dùng' if rejected else ('mọi dự án kết thúc trên 72 giờ' if old else 'chưa đủ >72 giờ hoặc thiếu mốc UTC đáng tin')
+        row = {'asset_id': aid, 'reason': reason, 'dependencies': d}
+        (eligible if safe else protected).append(row)
+    plan = {'dry_run': True, 'eligible': eligible, 'protected': protected, 'created_at': now.isoformat()}
+    plan['plan_hash'] = hashlib.sha256(json.dumps(plan, sort_keys=True, ensure_ascii=False).encode('utf-8')).hexdigest()
+    return plan
+
+
+def cleanup_dependencies(conn, assets) -> List[Dict]:
+    """Đọc dependency legacy để người rà; không DDL, không suy ownership hoàn chỉnh.
+
+    Tên/path chỉ là gợi ý. Schema hiện chưa có lifecycle UTC/refs toàn cục:
+    không thể biến một cache row thành bằng chứng được phép xóa.
+    """
+    def rows(sql):
+        try:
+            cur = conn.execute(sql)
+            names = [c[0] for c in cur.description]
+            return [dict(zip(names, r)) for r in cur]
+        except Exception:
+            return []
+    pictures = rows('SELECT asset_id, name, path, status FROM seedance_subject_pictures WHERE asset_id IS NOT NULL')
+    characters = rows('SELECT id, project_id, subject_asset_id FROM characters WHERE subject_asset_id IS NOT NULL')
+    projects = {p['id']: p for p in rows('SELECT id, archived FROM projects')}
+    jobs = rows('SELECT id, project_id, type, state, source_job_id FROM jobs')
+    result = []
+    for a in assets:
+        aid = a.get('asset_id')
+        matching = [p for p in pictures if p['asset_id'] == aid]
+        char_refs = [c for c in characters if c['subject_asset_id'] == aid]
+        owners = set(c['project_id'] for c in char_refs)
+        job_ids = set()
+        for p in matching:
+            owners.update(_projects_of_picture(p['name'], p['path']))
+            match = _JOB_IN_FILE.match(os.path.basename((p['path'] or '').replace('\\', '/')))
+            if match:
+                job_ids.add(int(match.group(1)))
+        job_refs = [dict(j, job_id=j['id']) for j in jobs if j['id'] in job_ids or j['source_job_id'] in job_ids]
+        owners.update(j['project_id'] for j in job_refs)
+        project_refs = [{'project_id': pid, 'state': ('archived' if projects[pid]['archived'] else 'active')
+                         if pid in projects else 'unknown'} for pid in sorted(owners, key=lambda p: -1 if p is None else p)]
+        result.append({'asset_id': aid, 'verified': False, 'owners_complete': False,
+                       'project_refs': project_refs, 'job_refs': job_refs, 'character_refs': char_refs,
+                       'processing': any(p['status'] == 'processing' for p in matching),
+                       'evidence': 'legacy: thiếu quan hệ toàn cục và mốc lifecycle UTC; chỉ gợi ý để rà'})
+    return result
+
+
 def rejected_frame_assets(conn, project_id: int) -> List[Dict]:
     """[{"asset_id", "name", "job_id"}] of this project's rejected frames still in the library (read only)."""
     _pictures_table(conn)
@@ -390,35 +525,21 @@ def _rejected_unused_frame(conn, project_id: int, job_id: int) -> bool:
 
 def _cleanup_note(conn, project_id: int, severity: str, message: str) -> None:
     from . import diag
-    diag.record(conn, "video", severity, message, code="subject_cleanup", project_id=project_id)
+    diag.record(conn, "video", severity, message, code="subject_cleanup_plan", project_id=project_id)
 
 
 def run_auto_cleanup(conn, project_id: int, why: str, library=None) -> Dict:
-    """Delete this project's rejected frames from the library now and say what was deleted (diag info) or what could not be (diag warn —
-    the rows stay, so the next delivery / put-away tries again). Never raises."""
+    """C3-3: lập đề nghị DRY-RUN, không mở provider và không có đường xóa."""
     found = rejected_frame_assets(conn, project_id)
-    if not found:
-        return {"deleted": [], "errors": []}
-    ids = [f["asset_id"] for f in found]
-    names = {f["asset_id"]: f"{f['asset_id']} ({f['name']}, job #{f['job_id']})" for f in found}
-    try:
-        if library is None:
-            from .adapters import factory
-            library = factory.subject_library()
-        if library is None:
-            raise RuntimeError("chưa cấu hình Kho chủ thể (SUBJECT_PROVIDER / VIDEO_PROVIDER)")
-        res = delete_assets(conn, library, ids)
-    except Exception as e:  # noqa: BLE001 - the delivery / put-away already went through: say it, try again next time
-        _cleanup_note(conn, project_id, "warn", f"Tự dọn Kho chủ thể ({why}) chưa chạy được: {type(e).__name__}: {e} — "
-                                                f"còn {len(ids)} khung bị loại: " + ", ".join(names[i] for i in ids))
-        return {"deleted": [], "errors": [(i, str(e)) for i in ids]}
-    if res["deleted"]:
-        _cleanup_note(conn, project_id, "info", f"Tự dọn Kho chủ thể ({why}): đã xóa {len(res['deleted'])} khung ảnh bị loại: "
-                                                + ", ".join(names.get(i, i) for i in res["deleted"]))
-    if res["errors"]:
-        _cleanup_note(conn, project_id, "warn", f"Tự dọn Kho chủ thể ({why}): {len(res['errors'])} khung chưa xóa được (lần giao/cất "
-                                                "sau thử lại): " + "; ".join(f"{names.get(i, i)}: {m}" for i, m in res["errors"]))
-    return res
+    # C3-3: ngoại lệ bắt buộc dù cờ mới OFF. Không mở provider, không xóa.
+    import hashlib
+    plan = {'dry_run': True, 'project_id': project_id, 'why': why, 'candidates': found,
+            'reason': 'chờ duyệt xóa từng plan; dependency legacy cần xác minh lại'}
+    plan['plan_hash'] = hashlib.sha256(json.dumps(plan, sort_keys=True, ensure_ascii=False).encode('utf-8')).hexdigest()
+    if found:
+        _cleanup_note(conn, project_id, 'warn', f'Kho chủ thể: {len(found)} khung đề nghị xem xét — chờ duyệt xóa (DRY-RUN); không xóa: '
+                      + ', '.join(f['asset_id'] for f in found) + f'. Plan {plan["plan_hash"]}')
+    return {'deleted': [], 'errors': [], 'plan': plan}
 
 
 _RUNNING_LOCK = threading.Lock()

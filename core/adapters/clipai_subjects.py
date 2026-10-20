@@ -64,6 +64,14 @@ class ClipAISubjectLibrary:
         return cls(token, os.environ.get("CLIPAI_API_BASE", DEFAULT_BASE).strip() or DEFAULT_BASE, transport)
 
     # ---- read ----------------------------------------------------------
+    @classmethod
+    def from_video_provider(cls, provider):
+        """Kế thừa client ClipAI đã cấu hình; không đọc env hay dò credential."""
+        obj = cls.__new__(cls)
+        obj.client = provider.client
+        obj._sleep, obj.poll_sec, obj.timeout_sec = time.sleep, 3.0, 180.0
+        return obj
+
     def list_assets(self, asset_type: Optional[str] = None, page_size: int = 100, max_pages: int = 20) -> List[Dict]:
         """Every asset of this token's library (all pages — S4.7: one upload per storyboard frame fills page 1 fast, and an asset past
         it was "not found", so a cached id looked gone and the upload lookup could miss the new asset)."""
@@ -77,6 +85,8 @@ class ClipAISubjectLibrary:
             count = data.get("count")
             if len(rows) < size or (isinstance(count, int) and len(out) >= count):
                 break
+        else:
+            raise ProviderError('Kho chủ thể: snapshot thiếu trang; chưa xác minh sức chứa.', code='incomplete_snapshot', transient=True)
         return out
 
     def get(self, asset_id: str) -> Optional[Dict]:

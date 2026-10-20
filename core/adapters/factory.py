@@ -39,8 +39,15 @@ def image_provider():
     return None
 
 
-def subject_library():
+def subject_library(video_provider=None):
     """SUBJECT_PROVIDER = clipai | mock. Unset: follows VIDEO_PROVIDER (clipai -> real library, mock -> mock)."""
+    # Runner nền dùng đúng client đã được Dashboard/launcher cấp, không nạp env file
+    # hoặc tìm key thay thế. Chỉ ClipAI thật được kế thừa transport/account.
+    if video_provider is not None:
+        from .clipai import ClipAIVideoProvider
+        if isinstance(video_provider, ClipAIVideoProvider):
+            from .clipai_subjects import ClipAISubjectLibrary
+            return ClipAISubjectLibrary.from_video_provider(video_provider)
     kind = os.environ.get("SUBJECT_PROVIDER", "").strip().lower() or os.environ.get("VIDEO_PROVIDER", "").strip().lower()
     if kind == "mock":
         from .clipai_subjects import MockSubjectLibrary

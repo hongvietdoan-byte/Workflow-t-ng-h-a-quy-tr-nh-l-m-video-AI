@@ -1376,6 +1376,9 @@ bằng cờ dòng lệnh + file danh sách đã được người dùng duyệt,
 loại + 3 asset cất 4 ngày + 2 cất 1 ngày + 1 dùng chung → dry-run liệt kê đúng 8, giữ 3; Kho đầy → job chờ, 0 job Kling lùi; list lỗi mạng → VÀNG, 0 xóa).
 
 ## Việc 6 — AI Dev System: trang "Sổ lỗi" (đọc `devsys/errors.json`)
+<!-- Kết quả Codex Đ20 việc 5: bản build để rà, chưa gộp/chưa live. -->
+**Kết quả Codex Đ20 việc 5 (CX20-5, nhánh `codex/d20-viec5-kho-chu-the`):** guard Kho mặc định OFF, full/unknown giữ queued không đánh dấu/Kling; G59 dùng lại client cấu hình; cleanup legacy chỉ DRY-RUN C3-3; CLI SQLite read-only/snapshot offline. Đỏ7→xanh42/5,54s. Bản rà `docs/RA_D20_VIEC5_CODEX_2026-10-20.md` + `HANDOFF.md`; OPEN ownership/lifecycle legacy, reservation liên tiến trình, plan approval/apply, parser snapshot cần reviewer sửa. Chưa đủ nghiệm thu toàn M1.5, chưa cả bộ Windows/production/API.
+
 BẮT ĐẦU KHI: `main` có `devsys/errors.json` + `devsys/errors.py` (việc cloud C-M04-05, nhánh `cloud/v31-m04-m05`). Trang devsys liệt kê sổ lỗi: lọc theo trạng
 thái / workstream / dự án, đếm coverage, cảnh báo đỏ mục `problems()` (VERIFIED thiếu bằng chứng…); nối trang 🗺 Sơ đồ tiến độ (`devsys/plan_map.py`) để tô khâu
 theo lỗi mở. Theo mẫu trang hiện có trong `devsys/app.py`; cập nhật `tests/test_tickets_page.py` danh sách điều hướng nếu thêm trang. Test hiển thị theo cách
