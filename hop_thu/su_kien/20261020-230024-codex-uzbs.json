@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-20T23:00:24.788880+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX20-6",
+  "branch": "codex/d20-viec6-so-loi",
+  "commit": "ec9e62e1",
+  "report": "docs/RA_D20_VIEC6_CODEX_2026-10-20.md",
+  "text": "Đã push trang Sổ lỗi readonly filter status/workstream/project + coverage/probs đỏ; plan_map dùng canonical items khôngâmthầm0lỗi và viềnkhâuđỏkhiOPEN, FIXED_UNVERIFIED vẫn mở. 9đỏ→52xanh (AppTest/planmap/navigation/registry), rootRÀNHẸđọcdiff và sửa regression alias sai. Chưa fullsuite/live/8502restart. .test-home fixture untracked cleanup bịauto-reviewpolicychặn, khôngbypass/commit."
+}
