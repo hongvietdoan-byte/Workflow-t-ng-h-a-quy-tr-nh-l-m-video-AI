@@ -93,6 +93,10 @@ push lên main, rồi báo người dùng mã việc để dán vào phiên clou
 | C-M14B | M1.4b provider Claude theo dự án + snapshot theo job + dừng khi hết quota (CODE Cấp 2 G2-2 đã duyệt; migration chỉ viết, KHÔNG áp CSDL thật) | `cloud/v31-m14b` | CHỜ (hộp thư) — làm SAU C-RA-D19, TRƯỚC C-M21-22 |
 | C-M21-22 | Thiết kế M2.1 BYĐ v2 + M2.2 field readers/lineage (chỉ tài liệu) | `cloud/v31-m21-m22` | CHỜ (hộp thư) |
 | C-M41 | Thiết kế M4.1 schema bằng chứng QC + mã lỗi (chỉ tài liệu) | `cloud/v31-m41` | CHỜ (hộp thư) |
+| C-FIX-D19 | Sửa lỗi CAO/VỪA của C-RA-D19 trên 3 nhánh Codex Đ19 (việc 2 code công cụ chỉ đọc; việc 3, 4 tài liệu) | `cloud/v31-fix-d19` | CHỜ (hộp thư) |
+| C-M31-34 | Thiết kế M3.1–M3.4 world map / người nộm / câu vị trí / continuity_state (chỉ tài liệu) | `cloud/v31-m31-m34` | CHỜ (hộp thư) |
+| C-M51-52 | Thiết kế M5.1 repair router + M5.2 release gate (chỉ tài liệu) | `cloud/v31-m51-m52` | CHỜ (hộp thư) |
+| C-M46 | Đặc tả bộ benchmark QC M4.6 theo mã lỗi (chỉ tài liệu + công cụ liệt kê ca chỉ đọc nếu cần) | `cloud/v31-m46` | CHỜ (hộp thư) |
 
 (20/10: 2 phiên `start_session target:"cloud"` tài khoản chính HỎNG khi khởi động — clone nhánh worktree chưa push + API error; M1.4a chuyển phiên con máy chính. 3 việc C-M010, C-M09, C-M011 độc lập, dán được song song 3 phiên.)
 
@@ -213,4 +217,50 @@ Test ĐỎ→XANH: 2 dự án (anthropic giả / claude_cli giả) cùng tiến 
 lời gọi API; env có key + provider claude_cli → subprocess không nhận key; LLM_PROVIDER rỗng + key → không tự ra anthropic; cột trống = hành vi env cũ;
 migration up rồi down trên CSDL tạm. Gom test liên quan một lệnh pytest, ≤ 3 lần. File mới khai devsys/areas.json (không tăng version).
 Báo cáo ≤ 30 dòng → docs/RA_CLOUD_M14B_2026-10-2x.md + dòng XONG trong hộp thư.
+```
+
+#### C-FIX-D19
+```
+Sửa lỗi C-RA-D19 (báo cáo docs/RA_CLOUD_D19_2026-10-20.md, đã trên main) — nhánh cloud/v31-fix-d19 tách từ origin/main MỚI NHẤT, rồi
+`git merge origin/codex/d19-viec2-doi-soat origin/codex/d19-viec3-provider origin/codex/d19-viec4-subjects` (bỏ HANDOFF.md + dòng TODO.md ngoài mục 📨
+khi gộp). Sửa:
+- Việc 2 tools/clipai_cost_reconcile.py: CAO validate_pricing từ chối null trong per_video_second → chấp nhận null (giá chưa biết = UNKNOWN, báo rõ, không
+  crash) và chạy được với data/pricing.json THẬT trong repo (test đọc file thật); VỪA clip NHÓM dùng chung external_id (core/runner.py ~2315/2481) → chia
+  task theo thành viên nhóm (theo sent_group / clip_span), không đếm trùng; THẤP: main không nuốt lỗi (in mã + chi tiết), ghi rõ chỉ họ seedance hoặc thêm
+  --family kling, kind upgrade vs bản cao gen mới (quality_tier.NEW_GEN). Test ĐỎ→XANH cho từng lỗi. Công cụ vẫn CHỈ ĐỌC, không gọi API trả phí.
+- Việc 3 docs/V3_1_M1_4B_THIET_KE_2026-10-20.md: VỪA bỏ "hold toàn bộ LLM" cho dự án/job cũ (LEGACY_LLM_CONTEXT_UNKNOWN) → job cũ = theo env như trước
+  (khớp M1.4b đã code trên cloud/v31-m14b); cập nhật dẫn chiếu missing_hint / STOP_CODES / clean_env đã có trên main.
+- Việc 4 docs/V3_1_M1_5_THIET_KE_KHO_CHU_THE_2026-10-20.md: VỪA lệch C3-3 → mọi xóa chỉ DRY-RUN, duyệt riêng TỪNG lần; VỪA sửa G59 làm cờ cũ
+  subject_auto_cleanup (verified=True) bắt đầu XÓA THẬT → thiết kế phải vô hiệu đường xóa tự động của cờ cũ (chuyển thành dry-run + báo) TRƯỚC/cùng lúc
+  sửa G59, có test; THẤP: job không cần ảnh Kho không vào QUEUE_CAPACITY.
+Báo cáo ≤ 25 dòng → docs/RA_CLOUD_FIX_D19_2026-10-2x.md + XONG trong hộp thư. Không sửa code ngoài tools/clipai_cost_reconcile.py + test của nó.
+```
+
+#### C-M31-34
+```
+THIẾT KẾ (chỉ tài liệu) M3.1–M3.4 theo G2-4 (world map CHỈ thử offline, không chặn gen, không bắt buộc 3D) + D06 (v31-d06-scene-world-map-flexible).
+Nguồn: kế hoạch V3.1 đoạn "**`scene_world_map` tối thiểu:**" + mục 4a "M3.x" + docs/DANH_GIA_P31_LECH_3D_TI_LE_2026-10-18.md (G1–G3, G41–G50, G52) +
+docs/PHUONG_PHAP_SAN_KHAU_3D.md; code core/plates3d*, core/stage_auto.py, core/camera_plan.py, core/continuity*.py, core/plate_camera.py.
+→ docs/V3_1_M3_THIET_KE_WORLD_MAP_2026-10-2x.md: schema scene_world_map (3D tọa độ thật / 2D / quan hệ tương đối / UNKNOWN, version, provenance,
+invalidation khi geometry/BYĐ đổi), blocking mỗi shot, M3.2 người nộm height_m + pitch, M3.3 câu vị trí sinh từ map (thay tả tay), M3.4 continuity_state
+expected/observed/resolved + đồ thị phụ thuộc; MỌI điểm đọc/ghi hiện có (file:hàm); ca offline #31 cảnh 4/6/8 + #33 tháp; cờ + rollback; nối M2.1 (BYĐ v2,
+docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-20.md). Nhánh cloud/v31-m31-m34.
+```
+
+#### C-M51-52
+```
+THIẾT KẾ (chỉ tài liệu) M5.1 repair router theo mã lỗi (trần ảnh ≤ 3 / video ≤ 2, dừng khi lặp lỗi, gen lại phải đổi đầu vào — luật 6 CHUAN_XAY_DUNG,
+router mặc định TẮT theo G2-6) + M5.2 release gate (shot duyệt, final QC, đối soát chi phí, lỗi nghiêm trọng mở). Nguồn: kế hoạch V3.1 M5.x + mục 4a,
+sổ lỗi devsys/errors.json (đã trên main), thiết kế M4.1 (docs/V3_1_M4_1_THIET_KE_BANG_CHUNG_QC_2026-10-20.md); code core/autopilot.py (AUTO_REGEN_LIMIT,
+_job_cap_check), core/pipeline.py retry, core/prompt_rewrite.py, core/final_cut.py. → docs/V3_1_M5_THIET_KE_REPAIR_RELEASE_2026-10-2x.md: bảng mã lỗi →
+hành động sửa (đổi đầu vào gì) → trần → khi nào dừng hỏi người; tương tác poll_claim / pause_before_submit / submit_unknown (đã bật máy chính); release
+gate checklist đo được; test plan + rollback. Nhánh cloud/v31-m51-m52.
+```
+
+#### C-M46
+```
+ĐẶC TẢ (chỉ tài liệu) bộ benchmark QC M4.6 theo D07 (≥ 20 lỗi + 20 đạt MỖI mã, chỉ là sàng lọc, không tự cấp BLOCK): danh sách mã QC (theo thiết kế M4.1),
+nguồn ca thật có thể lấy (job/shot #24 #27 #31 #33 trong tài liệu docs/DANH_GIA_*, sổ lỗi) — ghi rõ ca nào cần máy chính trích (data/ không có trên cloud),
+quy trình gán nhãn (người dùng xác nhận), chỉ số (báo nhầm / bỏ sót theo mã, hiệu chuẩn độ tin cậy), ngưỡng xét BLOCK chỉ cho luật kỹ thuật tất định.
+→ docs/V3_1_M4_6_DAC_TA_BENCHMARK_QC_2026-10-2x.md. Nhánh cloud/v31-m46.
 ```
