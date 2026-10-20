@@ -442,3 +442,105 @@ Trước khi dùng Automated QC để chặn gen/dựng hoặc kích hoạt repa
 - [ ] Không triển khai P2–P5 khi mới duyệt P1.
 
 **Kết luận R2:** Kế hoạch đủ rõ để **đề xuất duyệt có điều kiện P1** sau khi xác minh baseline; **chưa phải lệnh triển khai**. Những bổ sung Continuity/QC/Repair là thiết kế định hướng, chưa phải chức năng đã được xác nhận trong code.
+
+---
+
+## 15. Phụ lục R3 — Lỗi #31 / #33 chưa có trong kế hoạch + phân tích hướng sửa (20/10/2026)
+
+> **Trạng thái: CHỈ KẾ HOẠCH, CHƯA DUYỆT, CHƯA SỬA CODE, 0 USD.** Nguồn lỗi: `docs/DANH_GIA_P31_LECH_3D_TI_LE_2026-10-18.md` (G1–G49;
+> G50 ở commit `65f4e860`), `docs/DANH_GIA_P33_LOI_GAP_PHAI_2026-10-20.md` (A1–A10, B1–B12), gói bàn giao 19/10 trong `TODO.md`.
+> Mốc code đọc: `main` = `3ecf053b`. Vị trí code (file:dòng) đọc trên mốc này — **mở lại file trước khi sửa**.
+> §2–§14 viết 17–18/10, trước khi #31 phát sinh G26–G50 (19/10) và trước #33 → không mục nào của §2–§14 nhắc mã lỗi của hai dự án.
+
+### 15.1 Ánh xạ lỗi ↔ kế hoạch
+
+| Nhóm | Lỗi | Tình trạng |
+|---|---|---|
+| **Đã sửa code** (không cần kế hoạch) | G8 (`40f8a865` `model3d.stretch`), G10 (`ed612528` lời dẫn không khớp môi), G24 (`35277c3e` gỡ `closeup_start_frame`), G27 (`bda12fee` gói video gửi ảnh dạng + vật Kho), G35 (`cdead4bd`, `99db024d` rà soát lỗi thì giữ), G7 (`pov_gun_ok`: `core/prop_lock.py:337`, `core/prompt_formula.py:709`) | XONG |
+| **V2.1 §2–§14 che trực tiếp** | G23 + G29 (B1 replay video), G4 (A2e đọc trường BYĐ), G22 (R4: `byd` vào `lineage`) | Chờ duyệt P1/P2 |
+| **V2.1 che một phần** | G9 / G18 / G34 (`text_vs_field` → VÀNG/REVIEW); G5 (thẻ gói so `sent_package` — lỗi khóa basename chưa nêu); G11 / G19 / G26 / G41–G46 (D Continuity — chỉ thiết kế, chưa có hướng sân khấu/sơ đồ chung); clip đơ 13/16 (E `freezedetect` chỉ ở bản cuối); A5 (§14.4 benchmark QC) | Bổ sung ở §15.2 |
+| **Chưa có** | #33: A1–A4, A6–A10, B8, B9. #31: G1–G3, G6, G13–G17, G20, G21, G28, G30–G33, G36–G39, G42, G47–G50 | §15.2 |
+
+Lỗi nội dung đã xử lý tay trong dự án (#33 B1–B7, B10–B12; #31 G11–G13, G18, G19, G34, G41–G44) không cần code riêng, trừ khi nằm trong nhóm dưới.
+
+### 15.2 Kế hoạch sửa theo nhóm (N1–N7)
+
+Mỗi mục: **gốc → sửa → test → nghiệm thu**. Mọi sửa đi qua quy ước 7 (`py tools/related_areas.py` + agent rà) và CHUAN_XAY_DUNG.
+
+#### N1 — Vận hành Claude / tiến trình / tạm dừng (ưu tiên CAO: đã gây trả tiền thừa)
+
+| Mã | Gốc (file) | Sửa đề xuất | Test | Nghiệm thu |
+|---|---|---|---|---|
+| A1 | `core/bg_poll.py:300` khóa tệp chỉ giữ MỘT *vòng nền* mỗi CSDL; script riêng gọi `runner.poll_once` (`core/runner.py:648`) trực tiếp → hai tiến trình cùng chuyển job sang `succeeded` | Chuyển `running→succeeded` bằng **UPDATE có điều kiện** (`WHERE id=? AND state='running'`, chỉ bên `rowcount==1` tải/ghi file + chạy QC); bên thua ghi diag `poll_lost_race`. Ghi file qua tệp tạm + `os.replace` để QC không đọc file dở | 2 tiến trình giả cùng poll 1 job: đúng 1 lần ghi, 0 `InvalidTransition`, 0 job tự gen lại | tái hiện #33 job 1162→1163 bằng provider giả |
+| A2, G33 | `LLM_PROVIDER` đọc một lần từ `dashboard.env` cho mọi dự án và vòng nền Tổ rà soát | Nhà cung cấp Claude chọn theo **dự án** (`projects.llm_provider`, rỗng = env); vòng nền `change_review` dùng client của dự án; Anthropic hết tiền → giữ mục ĐỎ (đã có nhờ G35), không tự đổi provider | dự án A = anthropic, B = claude_cli trong cùng tiến trình | rà #33 không còn `failed` vì Anthropic |
+| A3 | `core/llm_runner.py:1334 ClaudeCliClient.clean_env` bỏ biến phiên Claude nhưng giữ `ANTHROPIC_API_KEY` → CLI dùng key API hết tiền | Thêm `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` vào danh sách bỏ | test env | 1 dòng + test |
+| A4 | `director_rewrite` / `chat_prompts` ghi đè `image_prompt` người đã chỉnh; `_user_locked` chỉ được `camera_plan`, `compare`, `dialogue` tôn trọng | Hàm chung `locks.guard(data, new_fields)` dùng ở MỌI đường Claude ghi `scenes.data`; trường khóa → không ghi, báo VÀNG "Đạo diễn muốn đổi …". Người sửa tay trên Dashboard tự thêm trường vào `_user_locked` | ca #33 shot 1–3 | 0 lần ghi đè trường khóa (đếm diag) |
+| G36 | `core/runner.py:404/413` chỉ kiểm `paused` đầu lượt và sau lần gửi đầu; lần thử lại sau từ chối / lùi model không kiểm lại | Kiểm `paused` **ngay trước `provider.submit`** trong `SPEND_LOCK`; nhánh thử lại / lùi model đi qua cùng cổng | tạm dừng giữa lúc chuẩn bị gói | 0 job gửi sau thời điểm tạm dừng |
+| G39 | `core/regen.py:9 regenerate_video(…, data_dir)` nhận sai thư mục vẫn chạy (tạo `data/31/trash`) | Kiểm `data_dir` có thư mục dự án, sai → `ValueError` | test | — |
+| G30, G32 | Kho chủ thể ClipAI đầy 100/100 → ảnh không thành asset → bộ lọc "người thật" → lùi Kling | Trước gửi video: đếm chỗ trống Kho chủ thể (`core/subjects.py`), thiếu → **chặn có lý do** + danh sách asset của dự án đã kết thúc để người dùng duyệt dọn (không tự xóa) | provider giả báo đầy | 0 lần lùi Kling vì Kho đầy |
+
+#### N2 — Giá / ước tính (ưu tiên CAO: chạm trần giữa đợt)
+
+| Mã | Gốc | Sửa | Nghiệm thu |
+|---|---|---|---|
+| A7 | `core/cost.py:55 clip_price` không có phụ phí video ref (thực tế ≈ 1,37×) và giá nâng 1080p (+24 %) | Thêm khóa giá `model:tier:ref` + giá nâng bản cao vào `pricing`; hệ số hiệu chỉnh tự tính từ `usage_events` các dự án gần nhất (như hệ số KLĐ 07/10, `cost.py:108`), hiện cạnh giá | ước tính #33 lệch sổ chi ≤ 10 % |
+| A8 | `cost.py:295 estimate_videos_by_scene` lấy tier từ profile; nháp gửi tier của `core/batch.py:182 _draft_tier` | Dùng chung `_draft_tier` | giá nút Gen = tier gói gửi |
+| A9, G31 | `tools/pregen_check.py` + `cost.estimate_images` cộng Claude theo giá API kể cả khi `claude_cli` | Claude = 0 USD ("dùng gói") khi provider dự án = `claude_cli`; thêm ước tính VIDEO vào `pregen_check` (cùng hàm nút Gen video) | `pregen_check` in đủ ảnh + video |
+
+#### N3 — Hình học 3D / vị trí xuyên shot (gốc chất lượng lớn nhất)
+
+| Mã | Gốc | Sửa |
+|---|---|---|
+| G1 | `core/stage_auto.py:373–377` mang MỌI đạo cụ cảnh trước sang cảnh sau "cùng sân khấu" | Chỉ mang vật có trong `byd.thanh_phan` / `vat` của shot sau hoặc khai là vật cố định; không bao giờ qua ranh giới thế giới (song song ↔ thực) |
+| G2 | Nền 3D không có mốc tỉ lệ người | Người nộm đúng `height_m` (Kho) tại chỗ đứng blocking trong render K1/whitebox → ảnh bố cục riêng (không làm nền gửi đi); so % khung trong prompt ↔ số đo |
+| G3, A10, G49 | `core/plate_camera.py:26 HIGH_TILT_DEG = 30` cố định; góc `eye` vẫn ngước/chúi lớn | Thêm mức `slightly_high` (≈ 10–12°); `eye` ép \|pitch\| ≤ 5°; kiểm `depth.png` (> 60 % điểm < 2 m = bị che → giữ shot) |
+| G46 (+ G41/G43/G44/G45/G47/G48/G50, #33 B3) | Vị trí vật/người xuyên shot chỉ tả bằng chữ từng shot; mỗi ảnh gen độc lập | **Sơ đồ mặt bằng theo cảnh** (vẽ tay 19/10 trên `top_raw.png`) thành dữ liệu cấu trúc trong `stage_facts`: mỗi shot đọc vị trí từ sơ đồ chung, câu vị trí sinh bằng code. Gộp với D (Expected state). Vật mốc cố định (tháp, trời) đặt qua nền 3D, không qua chữ |
+| G20 | `core/camera_match_qc.py` so chân trời cả khi ảnh trong nhà / nhìn từ trên cao | Nền 3D không có trời (đo trên plate) → bỏ khóa `horizon`, ghi UNKNOWN thay vì ĐỎ |
+
+#### N4 — Gói video / model video
+
+| Mã | Gốc | Sửa |
+|---|---|---|
+| G13 | Gói nhóm vượt 5000 ký tự (`core/adapters/clipai.py:205`, `core/dialogue_take.py:19`) | Motion writer biết ngân sách ký tự theo số shot trong nhóm; vượt → tách nhóm, không cắt chữ |
+| G28, G37, #33 B9 | Seedance chế độ ref/nhóm không khóa khung đầu, bám khoảng cách máy của ref | Shot cần khung đầu đúng (dạng đặc biệt, cận mặt) → không gộp nhóm (đã làm tay `video_route=single` S14–S17) — thành luật trong `model_router`; `framing_guard` ĐỎ ở khung 0 → không tự duyệt |
+| #33 B8 | Seedance chép cả đoạn chuyển cảnh ở đầu video ref | Đo cắt cảnh trong video ref trước gửi (`clip_measure` cuts) → VÀNG + đề xuất cắt |
+| G38 | Ảnh vật Kho dạng triển khai sai (tường keo phẳng) | Kho: `forms[]` có thứ tự (Q3) — đi cùng P2 |
+| G14 | `core/voice.py:436 fit_durations` kéo MỌI shot có lời dẫn | Chỉ kéo shot có lời dài hơn thời lượng; hiện danh sách + tiền chênh để người dùng duyệt |
+
+#### N5 — Shot chèn tay / BYĐ
+
+| Mã | Gốc | Sửa |
+|---|---|---|
+| G6, G21 | `core/llm_io.py:838 insert_scene_after` không chép bối cảnh, không có BYĐ | Chép `location_asset/location/time/weather/lighting/mood` của shot `after_idx`; BYĐ khởi tạo bằng `shot_intent.from_shot_spec` + VÀNG "BYĐ suy ra, cần Đạo diễn"; shot ở bối cảnh có 3D mà thiếu nền → `pregen_check` ĐỎ |
+| G42 | Lời dẫn đi trước hình | REVIEW khi lời dẫn nhắc hành động thuộc `hanh_dong` của shot SAU — thuộc E cross-shot |
+
+#### N6 — Khớp môi / lời dẫn (nợ G15–G17)
+
+| Mã | Gốc | Sửa |
+|---|---|---|
+| G15 | `core/lipsync.py:116 mark` chỉ ghi thêm; mục cũ không dọn khi method về `skip` | Ghi đè theo scene_id |
+| G16 | `core/claude_tasks.py:323 speaking = bool(data.get("dialogue"))` | Dùng `speaker_lint.is_narrator` như G10 |
+| G17 | `core/quality_tier.py` coi `lip_sync is True` là shot khó trước `method_for` | Dùng `lipsync._method` |
+
+#### N7 — QC báo nhầm / thiếu dữ liệu
+
+| Mã | Gốc | Sửa |
+|---|---|---|
+| A5 | QC lớp 0 đo cỡ cảnh theo mặt người gần nhất (`scene_qc`, `core/features.py:291`) | Bỏ kiểm cỡ cảnh khi shot qua vai / sau lưng (đọc `byd.khung` / `camera`); thêm ca vào `qc_golden` |
+| A6 | Đề rà của Tổ rà soát thiếu `motion_prompts.ref_video_path` | Đưa `ref_video_path` + `ref_video_type` vào ngữ cảnh rà (`core/change_review.py`) |
+| Clip đơ 13/16; QC chấm 0,96 cho clip đơ | `core/clip_measure.py:36 FREEZE` chỉ bắt "đứng rồi giật", không bắt đứng yên kéo dài | Số đo "chuyển động thấp > 1,5 s" mỗi clip (luật motion nhanh 19/10) → REVIEW; nối `qc_sequence_logic` (cờ TẮT, `b269e88f`) vào E Video QC |
+
+### 15.3 Phân tích
+
+1. **N1 + N2 không phụ thuộc BYĐ v2** → làm được ngay, tách khỏi P1–P5 thành **P0.5**. Thay đổi nhỏ, test bằng provider giả, 0 USD.
+   Lý do: A1 / G36 / G30 đã gây trả tiền thừa thật; A7 / A8 làm chạm trần `--max-usd` giữa đợt (#33).
+2. **N3 là gốc chất lượng lớn nhất** (≥ 10 lần vẽ lại ảnh #31 vì G41–G50). Hướng "sơ đồ mặt bằng theo cảnh" trùng D (Expected state) → **gộp D với N3**: Expected state về vị trí lấy từ sơ đồ, không chỉ từ BYĐ. G1 cần BYĐ `thanh_phan/vat` (P2).
+3. **N4 / N7 nối vào E và F:** G28/G37 là luật định tuyến (không cần QC mới); clip đơ cần số đo mới ở `clip_measure`.
+4. **N5 / N6 nhỏ, độc lập** — gộp vào P2 (N5 đụng BYĐ) và P3 (N6).
+5. **Rủi ro:** A1 đụng đường ghi job (lõi) → test 2 tiến trình + chạy cả bộ; A2 đổi chọn provider → chạm mọi khâu Claude (quy ước 7 trả nhiều khu vực); A4 có thể chặn sửa hợp lệ của Đạo diễn → bắt đầu bằng VÀNG, đo, rồi mới chặn.
+6. **Chi phí:** N1, N2, N5, N6, N7 = 0 USD (provider giả). N3 = render Blender 0 USD + một đợt gen thử ảnh để chứng minh (xin duyệt riêng).
+
+### 15.4 Thứ tự đề xuất
+
+**P0.5 (mới):** N1 + N2 → **P1** golden (giữ) → **P2** BYĐ v2 + N5 + G1 → **P3** Dashboard / override + N6 → **P4** D + N3 (sơ đồ mặt bằng) + E + N4 / N7 → **P5** F.
+Bản hợp nhất: `docs/KE_HOACH_AI_VIDEO_PIPELINE_V3_2026-10-20.md`.
