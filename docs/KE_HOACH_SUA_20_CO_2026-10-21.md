@@ -143,7 +143,29 @@ Phát hiện mới khi đọc code (không có trong bảng mục 3): ngoài `he
 4. `two_tier_quality`: khóa sau #34 nếu giá ước tính khớp sổ chi ±5 %?
 5. Cơ chế baseline cờ (mục 5 đánh giá) làm trước hay song song Gói B? (khóa cờ mà máy khác vẫn đọc mặc định code thì "khóa" không tới máy đó).
 
-## 6. Giao việc đề xuất (sau khi duyệt)
+## 6. Bảng quyết định Gói C (M7.5 — trình EP duyệt TỪNG DÒNG)
+
+> Sổ `v31-ep-fb-fc-flag-packs-2026-10-21` (F-C): duyệt AUDIT + THIẾT KẾ từng cờ; **chưa** cho nối / bỏ hàng loạt; F-Q2: `audio_first` giữ TÙY CHỌN
+> thử nghiệm cho workflow ưu tiên thoại. Bảng này CHỈ đề xuất — không đổi cờ, không đổi code. Mọi dòng đổi hành vi production = Cấp 3 (`v31-permission-tiers-2026-10-20`).
+> Nguồn: code `origin/main` (đọc 21/10), `docs/BANG_CHUNG_CHOT_CO_2026-10-21.md` (dòng 93–95, 128, 172–174, 199–207, 254), đánh giá cờ mục 3.
+
+| Cờ | Đề xuất | Hành vi production TRƯỚC (máy chính) | Hành vi SAU nếu duyệt | Ai bị ảnh hưởng | Chi phí | Test | Rollback | EP chọn |
+|---|---|---|---|---|---|---|---|---|
+| `audio_first` (env BẬT) | **GIỮ TÙY CHỌN** (F-Q2) — không nối vào mọi dự án | chỉ chạy trong autopilot `core/autopilot.py:_voice_first_phase` (≈1704): TTS mọi câu + `claude_tasks.cast_voices` (Claude) trước khi vẽ ảnh, khóa timeline; #24–#33 không chạy autopilot → 0 dấu vết | (1) khai `costs: True` (TTS + Claude, hiện KHÔNG khai — bảng chứng cứ dòng 174); (2) thành tùy chọn dự án "ưu tiên thoại" (một ô ở Bước 1, mặc định TẮT) thay vì cờ máy; (3) Dashboard thường KHÔNG tự chạy | dự án nhiều thoại chọn bật; autopilot | TTS mọi câu (giá TTS hiện có) + 1 lượt Claude chọn giọng / dự án — báo giá trước khi bật | ô dự án TẮT → `_voice_first_phase` không chạy (byte); BẬT → TTS gửi trước ảnh; `costly_fix_flag` = True | bỏ ô dự án / tắt cờ; timeline đã khóa mở bằng chạy lại Đạo diễn (như cũ) | ☐ |
+| `story_check` (env BẬT) | **NỐI** (có 1 phát hiện thật #31 `story_unclear`) | chỉ autopilot `_story_check_phase` (≈1681), cần `ctx.llm`; 1 lượt Claude "người xem lần đầu" / thay đổi bảng shot; không chặn | nút "👁 Người xem lần đầu đọc bảng shot" ở Bước 1 (báo giá Claude trước, khai `costs: True`); kết quả ở màn Kịch bản như autopilot đang ghi; vẫn KHÔNG chặn | người dùng Bước 1; Đạo diễn (sửa theo chỗ khó hiểu) | 1 lượt Claude / lần bấm (đệm theo fingerprint bảng shot — bấm lại không đổi bảng = 0) | nút chỉ gọi khi bấm; fingerprint không đổi → không gọi; LlmError → diag `story_check_failed`, không ném | gỡ nút; autopilot giữ như cũ | ☐ |
+| `voice_check_redo` (env BẬT) | **NỐI có trần + đo shadow trước** | chỉ autopilot `_check_voices` (≈1671): giọng nghi lỗi → `voice_check.redo` gửi lại TTS 1 lần / dự án (marker `voice_redo_done`); resends 0 ở #8–#33 | bước 1 (shadow, 0 USD): chạy `voice_check.check_project` sau TTS ở Bước 3, chỉ ghi diag "nghi lỗi" để đo báo nhầm 1 dự án; bước 2 (Cấp 3 sau số đo): nút "Tạo lại N câu nghi lỗi" có giá, trần 1 lần / câu; khai `costs: True` | người dùng Bước 3 (giọng) | shadow 0; gửi lại = giá TTS × số câu (báo trước) | shadow không gọi TTS; trần 1 lần/câu; marker giữ như autopilot | tắt cờ / gỡ nút | ☐ |
+| `stage_auto` (TẮT, `costs`) | **NỐI theo đường 3D chính — sau điều kiện** | TẮT ở máy chính (đang ĐỎ 🧭 `fixes_projects [31]` cho #34); chạy tay CLI `tools/stage_auto.py` #31 (diag 34; hỏng 2 lần 16/10, 0,68 USD); G1 / G3 IN_PROGRESS, G8 FIXED_UNVERIFIED | bật cho dự án kế KHI: C-M24 (`stage_props_byd`, G1) gộp + G3 (pitch ≤ 5°, kiểm `depth.png`) xong + preflight 0 USD #31 đạt; thao tác người qua bàn đạo diễn 3D (`docs/KE_HOACH_BAN_DAO_DIEN_3D_DASHBOARD_2026-10-21.md`, phương án A) | Đạo diễn sân khấu, Quay phim (vai M6), người duyệt máy | Claude `director_stage_specs` (ước tính sẵn ở `before_run.PAID_FLAGS`, ×4 xấu nhất / cảnh) + Blender 0 USD | preflight 0 USD #31 shot 15–17 / 28 / 30 / 34 / 35 (G1, G3); REQUIRES `stage_camera` + `place_render_refs` | tắt cờ (nền 3D cũ vẫn dùng được, `stage_camera` người khóa giữ) | ☐ |
+| `stage_handheld_props` (OPT, BẬT, vô tác dụng) | **GIỮ NGUYÊN** — tự có tác dụng khi `stage_auto` bật | `REQUIRES ("stage_auto",)`, cha TẮT → `unmet_all` báo; chỉ đọc trong `stage_auto.inputs_for` (≈294) | không đổi; khi `stage_auto` bật thì vũ khí / đồ cầm tay vào objects (đã thiết kế) | Đạo diễn sân khấu | 0 thêm (trong lượt `stage_auto`) | `unmet_all` có dòng khi cha tắt (đã có) | tắt cờ | ☐ |
+| `stage_crew_user_approve` (dOn, vô tác dụng) | **GIỮ NGUYÊN** — đi cùng `stage_crew` | `REQUIRES ("stage_crew",)`, `stage_crew` OPT_IN TẮT → không tác dụng; `core/stage_crew.py:user_approves` (≈61) chỉ gọi trong `stage_auto` | không đổi; khi bàn đạo diễn 3D (C-STAGE-PLAN Q-B) chốt "chỉ người dùng được Duyệt" thì cờ này là công tắc của quy tắc đó | người duyệt sân khấu | 0 | — | — | ☐ |
+| `continuity_layout` (BẬT) | **THAY THẾ khi cờ mới bật — không xóa trước** | chỉ VÀNG ở `core/continuity.py:_layout_on` (≈46, đọc start_frame/blocking), không mã đo riêng; G51 / G52 không bắt được | giữ bật tới khi `continuity_state` (M3.4) + `continuity_shadow` (M4.3) + Continuity Validator (M6.9, C-M61-M69) bật và đo ≥ 1 dự án; sau đó đưa vào `features.REMOVED` (Cấp 3) | vai Continuity | 0 | so VÀNG cũ ↔ phát hiện mới trên #31/#33 (cùng shot) trước khi bỏ | khôi phục khỏi REMOVED | ☐ |
+
+**Phát hiện thêm khi lập bảng:** `story_check` gọi Claude và `audio_first` gọi TTS + Claude nhưng cả hai KHÔNG khai `costs` (cùng nhóm A2 "khai costs" —
+nên gộp vào việc C-M71 hoặc việc kế); khi máy khác bật autopilot với hai cờ này từ `dashboard.env`, nút "bật hàng loạt cờ 0 USD" không nhận ra.
+
+**Câu hỏi EP (mỗi dòng một ô ☐):** đồng ý đề xuất cột 2 cho từng cờ; riêng `stage_auto` xác nhận ĐIỀU KIỆN bật (C-M24 + G3 + preflight #31);
+`voice_check_redo` đồng ý chạy shadow 1 dự án trước khi cho nút gửi lại.
+
+## 7. Giao việc đề xuất (sau khi duyệt)
 - G-A code: 1 việc cloud (A1+A2+A5, cùng `core/change_review.py`/`core/features.py`/`core/chat_prompt.py`/`tools/pregen_check.py`), A3 nối sau M2.5 + C-M25B.
 - G-B code: 1 việc nhỏ (motion lint + bg_autoqc + nhãn two_tier); phần còn lại là bật cờ con có sẵn (Cấp 3) + gộp `cloud/v31-m29`.
 - G-C: chờ câu 2; `story_check` / `voice_check_redo` 1 việc vừa sau khi chọn NỐI.
