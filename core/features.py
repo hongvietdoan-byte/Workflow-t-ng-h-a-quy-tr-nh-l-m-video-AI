@@ -415,6 +415,20 @@ FEATURES: Dict[str, Dict] = {
         "why": "#31 G51 (súng biến mất), G52 (logic chuỗi 39 clip), G1 (đạo cụ sang cảnh khác) chỉ người thấy. Chạy sau QC logic chuỗi. "
                "Chưa chạy trên dữ liệu thật",
     },
+    "narration_offscreen": {
+        "label": "Lời dẫn / giọng ngoài khung KHÔNG coi là \"đang nói\" ở MỌI caller (V3.1 M2.9): cảnh báo thiếu ảnh định danh, đo môi QC, dấu "
+                 "hiệu shot khó (khớp môi), sổ khớp môi (method skip xóa trạng thái cũ) đều hỏi một hàm lipsync.talking — 0 USD",
+        "verified": False,
+        "why": "#31 G15 / G16 / G17 / G53: shot chỉ có LỜI DẪN bị báo thiếu ảnh định danh, đo môi như đang nói, bị ép nháp vì khớp môi, giữ "
+               "'done' khớp môi cũ. Chưa chạy trên dữ liệu thật",
+    },
+    "fit_durations_review": {
+        "label": "Kéo thời lượng clip theo giọng thật = ĐỀ XUẤT + DUYỆT (V3.1 M2.9, G14): mỗi shot ghi lý do (thoại trong khung / chỉ lời dẫn / "
+                 "giọng ngoài khung) + tiền thêm (ước tính); tự động chỉ áp shot thoại trong khung, shot chỉ lời dẫn chờ người tick ở nút ⏱",
+        "verified": False,
+        "why": "G14: voice.fit_durations kéo dài MỌI shot có giọng (kể cả chỉ lời dẫn) và ghi thẳng motion_prompts — tiền video thêm không "
+               "ai duyệt. Chưa chạy trên dữ liệu thật",
+    },
     "whitebox_height_dummy": {
         "label": "Người nộm whitebox đúng chiều cao hồ sơ Kho (height_m) + máy ở tầm mắt 0,93 × height_m, pitch eye (≤ 5°) / slightly_high "
                  "(cúi ~10°); thiếu chiều cao → báo, không im lặng (V3.1 M3.2, offline — không gửi gì thêm cho model)",

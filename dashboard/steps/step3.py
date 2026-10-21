@@ -239,6 +239,34 @@ def voice_poll(pid: int) -> None:
     st.caption(f"🔄 Đang tạo giọng… tự cập nhật mỗi 5 giây · {time.strftime('%H:%M:%S')}")
 
 
+def _fit_review(p: Pipeline, pid: int, col) -> None:
+    """V3.1 M2.9 G14: bảng duyệt ⏱ — mỗi shot giọng dài hơn clip: giây cũ → mới, lý do, tiền thêm (ước tính). Mặc định chỉ chọn shot có
+    thoại TRONG khung; shot chỉ lời dẫn / giọng ngoài khung bỏ chọn. Chỉ ghi khi bấm Áp dụng (shot đã có video → làm lại clip, tốn tiền)."""
+    plan = voice.plan_fit(p.conn, pid, C.DATA, with_clips=True)
+    if not plan:
+        col.caption("⏱ Thời lượng clip đã vừa giọng thật")
+        return
+    col.caption(f"⏱ {len(plan)} shot có giọng dài hơn clip — duyệt ở bảng bên dưới")
+    with st.expander(f"⏱ Duyệt kéo thời lượng clip theo giọng thật ({len(plan)} shot)", expanded=False):
+        st.caption("Mặc định chỉ chọn shot có thoại TRONG khung (miệng cần đủ giây). Shot chỉ lời dẫn / giọng ngoài khung bỏ chọn: lời "
+                   "dẫn đọc tràn sang shot sau được. Shot ĐÃ có video: kéo dài = làm lại clip (tốn tiền).")
+        chosen = []
+        for c in plan:
+            usd = c.get("tien_them_usd")
+            label = (f"S{c['idx'] or 0:02d}: {float(c['from'] or 0):g} → {float(c['to']):g} s · {voice.FIT_REASONS[c['ly_do']]}"
+                     + (f" · thêm ≈ {usd:.2f} USD (ước tính)" if usd is not None else " · tiền thêm chưa có giá")
+                     + (" · vẫn ngắn hơn giọng (clip dài nhất của model)" if c["short"] else ""))
+            if st.checkbox(label, value=c["tick"], key=f"fit_{pid}_{c['scene_id']}"):
+                chosen.append(c)
+        redo = [c["scene_id"] for c in chosen if voice.has_clip(p.conn, c["scene_id"])]
+        if st.button(f"⏱ Áp dụng {len(chosen)} shot đã chọn" + (f" (làm lại {len(redo)} clip đã có)" if redo else "")
+                     + cost.video_button_tag(p.conn, redo, seconds={c["scene_id"]: c["to"] for c in chosen if c["scene_id"] in redo}),
+                     key=f"fit_apply_{pid}", disabled=not chosen):
+            ch = voice.apply_fit(p.conn, chosen)
+            st.toast(f"{len(ch)} clip được kéo dài theo giọng thật")
+            st.rerun()
+
+
 def voice_panel(p: Pipeline, pid: int) -> None:
     """Character voices for the dialogue (TTS is the main path for Vietnamese lines): make them, hear them, size the clips."""
     stat = voice.status(p.conn, pid, C.DATA)
@@ -289,7 +317,9 @@ def voice_panel(p: Pipeline, pid: int) -> None:
                 SB.note(f"⚠ {len(late)} cảnh đã có video ngắn hơn giọng thật", _late, "sb-voice-late", kind="warn")
             else:
                 st.warning(_late)
-        if c3.button("⏱ Đặt thời lượng clip theo giọng thật" + (f" (làm lại {len(late)} clip đã có)" if late else "")
+        if voice.fit_review_on():           # V3.1 M2.9 G14 (cờ fit_durations_review): đề xuất + người duyệt, không kéo hết
+            _fit_review(p, pid, c3)
+        elif c3.button("⏱ Đặt thời lượng clip theo giọng thật" + (f" (làm lại {len(late)} clip đã có)" if late else "")
                      + cost.video_button_tag(p.conn, [x["scene_id"] for x in late], seconds={x["scene_id"]: x["need"] for x in late}),
                      key=f"tts_fit_{pid}",
                      help="Cảnh đã có video: thời lượng mới làm video cũ bị coi là cũ → chạy tự động làm lại (tốn tiền)."):

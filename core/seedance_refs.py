@@ -530,11 +530,15 @@ def _say_once(conn, project_id: int, code: str, msg: str) -> None:
 
 def _say_speakers_without_picture(conn, project_id: int, rows: List[Dict], pictured: set) -> None:
     """S14.4 C1b: a SPEAKER of these shots with no identity picture (Kho) is said (diag) — Seedance cannot tell whose mouth moves."""
-    from . import dialogue, diag
+    from . import dialogue, diag, lipsync, speaker_lint
     who = []
+    offscreen = lipsync.offscreen_on()            # M2.9 G53: chỉ người nói TRONG khung (lời dẫn / giọng ngoài khung không mở miệng)
     for r in rows:
-        for s, _ in dialogue.scene_lines(r.get("data") or {}):
+        data = r.get("data") or {}
+        for s, _ in dialogue.scene_lines(data):
             s = str(s).strip()
+            if offscreen and not speaker_lint.in_frame(data, s):
+                continue
             if s and not dialogue.is_non_speaker(s) and s not in pictured and s.upper() not in {p.upper() for p in pictured} \
                     and s not in who:
                 who.append(s)

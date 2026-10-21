@@ -1301,6 +1301,9 @@ class VideoRunner(_Runner):
         """The group's dialogue track (Audio1): every take line at its second of the clip, silence around, the clip's length. Each
         take shot is marked sent (lipsync index: its planned start in the clip — the cut may move it, see _take_done)."""
         from . import audio_lib, dialogue_take, ffmpeg_studio, lipsync, seedance_refs
+        if not self.__dict__.get("_preview"):            # M2.9 G15 (cờ narration_offscreen): shot nay "skip" không giữ khớp môi cũ
+            for r in rows:
+                lipsync.forget_skipped(self.data_dir, job["project_id"], r["id"], r["data"])
         segs = self._take_segments(job, rows)
         if not segs:
             return None
@@ -1543,8 +1546,11 @@ class VideoRunner(_Runner):
         from . import end_frames               # R3 (rà S3): ONE rule with queue / tick / card (end_frames.skip_reason)
         if not end_frames.skip_reason(self.p.conn, job["scene_id"], self._scene_data(job)):
             return False
-        self._diag_once(job, "warn", "end_frame_skill_object", f"shot có vật kỹ năng xuất hiện (ném keo) — clip gửi KHÔNG kèm khung cuối "
-                        f"vẽ{f' ({os.path.basename(end)})' if end else ''}; dựng bằng GHÉP code cắt cứng sang khung có tường (`py {skill_objects.COMPOSE_TOOL}`)")
+        # M2.9 A11: nói đúng vật (tên Kho), không viết cứng "ném keo" / "tường"
+        vat = ", ".join(skill_objects.rising_names(self.p.conn, job["project_id"], self._scene_data(job)))
+        self._diag_once(job, "warn", "end_frame_skill_object", end_frames.SKIP_TEXT["skill_object"].format(vat=f" {vat}" if vat else "")
+                        + f" — clip gửi KHÔNG kèm khung cuối vẽ{f' ({os.path.basename(end)})' if end else ''}; dựng bằng GHÉP code cắt "
+                        f"cứng sang khung cuối có {vat or 'vật kỹ năng'} (`py {skill_objects.COMPOSE_TOOL}`)")
         return True
 
     def _same_ground(self, job, end: str) -> bool:
@@ -1810,6 +1816,8 @@ class VideoRunner(_Runner):
             return None
         data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
         if not lipsync.voiced(lipsync.method_for(data)):
+            if not self.__dict__.get("_preview"):        # M2.9 G15 (cờ narration_offscreen): bỏ trạng thái khớp môi cũ của shot nay "skip"
+                lipsync.forget_skipped(self.data_dir, job["project_id"], job["scene_id"], data)
             return None
         mp = self._motion(job["scene_id"])
         length = float((mp["duration_sec"] if mp is not None and mp["duration_sec"] else None) or data.get("duration_s") or 4)
@@ -2927,9 +2935,9 @@ def _skill_object_guard(runner, job, text: str, what: str, group=None) -> str:
                                                                        .fetchone() or {"data": "{}"})["data"] or "{}")}]
         if any(skill_objects.rises(r["data"]) for r in rows):
             say(job, "warn", "skill_object_compose",
-                f"shot có {', '.join(names)} xuất hiện (ném keo) — tường xuất hiện luôn, prompt tả tường đã đứng sẵn đủ cao (không tả "
+                f"shot có {', '.join(names)} xuất hiện — vật xuất hiện luôn, prompt tả {', '.join(names)} đã đứng sẵn đủ cao (không tả "
                 f"mọc); model video hay vẽ sai vật kỹ năng (#27 shot 16: 6 lần gen hỏng) → gợi ý dựng bằng GHÉP code: clip người cắt "
-                f"cứng sang khung cuối có tường + rung (`py {skill_objects.COMPOSE_TOOL}`)")
+                f"cứng sang khung cuối có {', '.join(names)} + rung (`py {skill_objects.COMPOSE_TOOL}`)")   # M2.9 A11: không viết cứng "ném keo" / "tường"
     return new
 
 
