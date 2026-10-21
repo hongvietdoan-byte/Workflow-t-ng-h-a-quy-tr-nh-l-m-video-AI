@@ -38,6 +38,10 @@ def merge_json(base, ours, theirs):
             values = [merge_json(old.get(k, _MISSING), left.get(k, _MISSING), right.get(k, _MISSING))
                       for k in dict.fromkeys([*left, *right])]
             return [value for value in values if value is not _MISSING]
+        if isinstance(base, list):
+            # CX21-FIX2: theo base — mục một bên đã xóa (có ở base, mất ở một bên) không sống lại; mục mới của hai bên giữ cả
+            return ([x for x in ours if x in theirs or x not in base]
+                    + [x for x in theirs if x not in ours and x not in base])
         result = list(ours)
         for item in theirs:
             if item not in result:

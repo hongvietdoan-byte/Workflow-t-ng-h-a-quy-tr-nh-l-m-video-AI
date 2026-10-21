@@ -47,3 +47,13 @@ Launcher thay OBJECT `os.environ` bằng dict whitelist giả bằng `patch.obje
 - Không phát hiện lỗi mới có đủ bằng chứng cần sửa trong phạm vi này. Không thay code để suy đoán. Kiểm tĩnh: pregen OFF vẫn chuẩn bị kwargs ngoài SPEND_LOCK; capacity-guard OFF giữ defer cũ; snapshot tên mơ hồ của sha liên quan giữ UNKNOWN; sha không liên quan dự phòng một chỗ; merge xóa đối nghịch sửa/scalar xung đột dừng trước ghi; sổ active D03c giữ guard D03b và không mở quyền xóa.
 - Chạy độc lập lại đúng 6 file đã liệt kê: **169 passed, 29.64s**. Native Python3.14; thay OBJECT os.environ bằng dict whitelist trước import pytest; `--tb=no --no-showlocals -q -p no:cacheprovider`; tắt dọn TEMP cũ qua PIPELINE_TEST_KEEP_TEMP để lượt rà không tác động thư mục tạm ngoài fixture. Không đọc/in môi trường thật hay payload credential; không API/chi phí, dữ liệu thật, dashboard.env hoặc dịch vụ live.
 - Giữ nguyên giới hạn bằng chứng: chưa cả bộ Windows, chưa vận hành thật; chưa có baseline đỏ riêng C3-3/golden. Bản rà này không cấp phép gộp. Không đổi areas version 88, TODO hoặc nhánh main.
+
+## Bổ sung CX21-FIX2 (cloud-C, 21/10) — merge_union: mục một bên xóa bị sống lại
+- Lỗi (từ rà C-RA-FIX21): `tools/merge_union.merge_json` với list không có `id` gộp kiểu hợp. Ví dụ: base `["f1","f2","f3"]`, bên A xóa `f2`, bên B thêm `fB` → kết quả `["f1","f2","f3","fB"]`, tức `f2` sống lại.
+- Sửa: nếu `base` là list, gộp theo base:
+  ```
+  [x for x in ours if x in theirs or x not in base] + [x for x in theirs if x not in ours and x not in base]
+  ```
+  Nếu `base` không phải list thì vẫn hợp như cũ. List có `id` (areas) không đổi.
+- Test: `tests/test_cx21_fix.py::test_merge_union_deleted_on_one_side_stays_deleted`, gồm 4 ca: A xóa / B thêm, đổi phía, hai bên cùng thêm khác mục, base không phải list. Đã commit test khi còn đỏ, sau đó xanh. Cả `tests/test_cx21_fix.py`: 13 qua.
+- Nhánh `codex/v31-fix2-21`.

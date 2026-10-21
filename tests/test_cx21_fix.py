@@ -183,3 +183,16 @@ def test_resolve_complete_multiline_stages_preserves_twenty_areas(tmp_path):
     assert len(got['areas']) == 21
     assert got['areas'][0] == {'id': 'shared', 'code': ['base', 'left'], 'tests': ['right']}
     assert {a['id']: a['code'] for a in got['areas'][1:]} == {str(i): ['module' + str(i)] for i in range(20)}
+
+
+def test_merge_union_deleted_on_one_side_stays_deleted():
+    """CX21-FIX2 (rà C-RA-FIX21): list không id — A xóa f2, B thêm fB → kết quả ["f1", "f3", "fB"], f2 không sống lại."""
+    from tools import merge_union
+    base = {"files": ["f1", "f2", "f3"]}
+    ours = {"files": ["f1", "f3"]}
+    theirs = {"files": ["f1", "f2", "f3", "fB"]}
+    assert merge_union.merge_json(base, ours, theirs) == {"files": ["f1", "f3", "fB"]}
+    assert merge_union.merge_json(base, theirs, ours) == {"files": ["f1", "f3", "fB"]}         # đổi phía: vẫn không sống lại
+    both_add = merge_union.merge_json(["a"], ["a", "x"], ["a", "y"])            # cùng thêm khác mục → giữ cả hai, thứ tự ours trước
+    assert both_add == ["a", "x", "y"]
+    assert merge_union.merge_json(None, ["a", "x"], ["a", "y"]) == ["a", "x", "y"]   # base không phải list → union như cũ
