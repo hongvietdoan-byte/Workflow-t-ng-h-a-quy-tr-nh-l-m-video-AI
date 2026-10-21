@@ -8,7 +8,9 @@
 
 - A11: end_frames.SKIP_TEXT + skill_objects.rising_names; runner nói đúng vật (bỏ "(ném keo)"/"tường" viết cứng), code diag giữ.
 
+- A12: test ClaudeCliTests (tests/test_director_byd.py) — settle qua ClaudeCliClient (chữ + rào JSON) ĐÃ đọc được BYĐ (xanh ngay, không cần sửa code); nguyên nhân #33 chưa tái hiện = việc mở.
+
 ## Đang dở / bước kế
 - G14 `voice.plan_fit` / `apply_fit` (cờ fit_durations_review) + nút ⏱ duyệt.
-- A12 kiểm director_byd.settle với ClaudeCliClient.
+
 - related_areas + báo cáo docs/RA_CLOUD_M29_2026-10-21.md; xóa HANDOFF.md ở commit cuối.
