@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T05:09:25.396600+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "C-M83-TOOL",
+  "to": "cloud-C",
+  "title": "Công cụ đo tải 10 người (Playwright + provider giả) cho M8.3 — chuyển từ cloud-E (im ~3 giờ, luật 5b)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M83-TOOL",
+  "priority": 2
+}
