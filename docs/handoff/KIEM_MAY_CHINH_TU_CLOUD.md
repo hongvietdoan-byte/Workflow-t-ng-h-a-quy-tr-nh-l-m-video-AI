@@ -1,0 +1,42 @@
+# Việc phiên CLOUD đã rà / gộp — máy chính KIỂM LẠI trực tiếp (người dùng 22/10)
+
+Phiên cloud `cloud-claude` (claude.ai/code session_0199VQqnF6CAfLBQHaMV8TDF) điều phối TẠM thay phiên chính từ 22/10 00:50 (phiên chính đứt
+Remote Control). Cloud KHÔNG có `data/`, Blender, khóa API, Windows → mọi "đã kiểm" dưới đây là **test Linux + Agent rà đọc diff**, chưa chạy
+thật. File này cập nhật mỗi lượt điều phối; máy chính đánh dấu cột "Máy chính" khi kiểm xong (✅ đạt / ❌ lỗi + ghi chú).
+
+## Bước chung mỗi lần mở máy chính (làm TRƯỚC các mục dưới)
+1. `cd D:\AI-Video-Pipeline` → `git pull` → khởi động lại 8501 (đổi `core/`, `dashboard/`) và 8502 (đổi `devsys/`).
+2. Cả bộ test Windows: `py -m pytest -q -n 8 -p no:cacheprovider -rf` — so với số hỏng ghi ở mục đợt gộp (Linux có vài ca hỏng sẵn do môi trường).
+3. `/status` trong phiên chính: thấy env `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (mục P3) — chưa thấy thì khởi động lại phiên một lần.
+4. Đọc `PYTHONUTF8=1 py tools/hop_thu.py bang`; muốn nhận lại điều phối → ghi tin "NHẬN LẠI ĐIỀU PHỐI" `--to cloud-claude` TRƯỚC khi gộp/giao.
+
+## A. Đợt gộp 22/10 sáng (nhánh tích hợp `tich-hop-2210` → main)
+
+| Mã | Nhánh @ commit | Cloud đã kiểm | Máy chính kiểm | Máy chính |
+|---|---|---|---|---|
+| C-M81B | cloud/v31-m81b @ fabeeafb | tài liệu M8.1 mục 8c + PDF; gộp sạch | mở `docs/pdf/M8_1_Che_do_Don_gian.pdf` trên điện thoại, đọc mục 8c | |
+| CX21-GOLDEN6 / GOLDEN4 | codex/v31-golden6, codex/v31-golden4 | chỉ báo cáo; GOLDEN6 CHƯA ĐẠT (validator catalog) → giao C-GOLDEN7 + CX21-GOLDEN7 | không cần — chờ CX21-GOLDEN7 | |
+| C-STAGE-VIEW | cloud/v31-stage-view @ 9617f2b8 | gỡ xung đột `tests/golden/package_inputs.json` (merge_union); cả bộ test; Agent rà | bật `stage_view_ui` ở 🧪 trên BẢN SAO / dự án thử → mở màn Xem sân khấu 3D #31: mỗi cảnh một khung, không nút ghi/dựng, báo thiếu nền rõ lệnh; tắt lại | |
+| C-M61-M69 | cloud/v31-m61-m69 @ e74ba672 | gỡ xung đột areas.json + package_inputs.json; cả bộ test; Agent rà | cờ `crew_registry` + `continuity_validator` TẮT: không tạo tệp mới trong `data/projects/<id>/crew/`; (tùy) bật thử trên dự án thử → chỉ ghi jsonl shadow, không đổi CSDL | |
+| C-M71 (Gói A sửa cờ) | cloud/v31-m71 @ 1691d07d | gỡ xung đột `core/before_run.py` (giữ `_drift_items` của main + `_cost_items(conn, pid)` của M71); cả bộ test; **Agent rà kỹ (tiền)** | (1) Bước "trước khi chạy": danh sách cờ tốn tiền có 6 cờ mới `costs` (không bị bật hàng loạt 0 USD); (2) `py tools/pregen_check.py --payload --project <id>` in dòng "D6:" mỗi shot; (3) Bước 4 🧭 hero_takes báo giá khớp ô 💰 | |
+
+Kết quả cả bộ test Linux đợt này: _(cập nhật khi chạy xong)_ · Agent rà kỹ: _(cập nhật)_ · commit gộp main: _(cập nhật)_
+
+**Chờ golden đạt, CHƯA gộp:** cloud/v31-m2-tichhop (M21, M25, M25B, M26, M29, DP9, DP10, GOLDEN2), cloud/v31-m24, cloud/v31-golden5, cloud/v31-m73,
+cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp M2).
+
+## B. PR của phiên cloud đã gộp main trước đó (14/10 → 21/10) — CHƯA kiểm thật
+
+| PR | Nội dung | Máy chính kiểm | Máy chính |
+|---|---|---|---|
+| #18 | `music_story_arc` BẬT mặc định; `delivery.fit_music_to_film` (một bài ngắn hơn phim kéo dài vừa khít, giữ đoạn kết gốc; quá ngắn → lặp + VÀNG `music_fill`) | dựng Bước 5 một dự án có 1 bài nhạc ngắn hơn phim: nghe đoạn nối không giật, kết bài trùng hết phim; manifest có `music_fill` | |
+| #19 | `anchor_by_spot` neo shot RỘNG nhất tại chỗ khác neo cả cảnh; G0 một sơ đồ mỗi chỗ đứng (`<cảnh>@<chỗ>`); `tools/scene_layout_audit.py` | `py tools/scene_layout_audit.py --project <tập 2>` → bảng 🔴/🟡/🟢; bật `anchor_by_spot` → gen ảnh nháp các shot cùng chỗ: diag có ảnh neo `previous_scene` của shot rộng nhất tại chỗ, không còn `storyboard_anchor_skipped` VÀNG | |
+| #20 | Phiên chính 70 % context: tự nén cùng phiên (`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=70`), hook SessionStart `startup|clear|compact`; skill mục 4 cấm `clear_session` | lần nén đầu: Remote Control còn nối, hook in "PHIÊN NÀY VỪA TỰ NÉN CONTEXT", phiên tự làm tiếp theo gói | |
+
+## C. Việc cloud-claude đã GIAO (theo dõi trên `hop_thu bang`)
+
+| Mã | Làn | Đề | Ghi chú |
+|---|---|---|---|
+| C-GOLDEN7 | cloud-C (ưu tiên 0) | docs/CLOUD_TASKS.md#### C-GOLDEN7 | validator `--ab` theo catalog cây đang dựng; lỗi cấu hình = mã 2 |
+| CX21-GOLDEN7 | codex (depends C-GOLDEN7) | docs/CODEX_TASKS.md### CX21-GOLDEN7 | chạy lại A/B; ĐẠT → gộp tích hợp M2 một lần |
+| C-M83-TOOL | cloud-E (ưu tiên 2) | docs/CLOUD_TASKS.md#### C-M83-TOOL | công cụ đo tải 10 người (Playwright + provider giả); lượt đo thật M8.3 = máy chính |
