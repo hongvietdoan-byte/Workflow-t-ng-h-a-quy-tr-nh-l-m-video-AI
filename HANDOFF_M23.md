@@ -36,3 +36,9 @@ Quota cuối: 5h ĐÃ DÙNG89%, còn11%; tuần57%, còn43%. Reset tự nhiên 2
 ## UI lưu outfit đã nối sau cờ OFF
 - Nút owner-only với recheck users role/active; fake UI + ảnh khác asset được kiểm. 43/43 Kho (5.57s).
 - OPEN UI entrypoint phía trên đã có code/test, chưa chạy Dashboard thật. Raw SQL vẫn OPEN; AST alias đã mở rộng.
+
+## Checkpoint fresh review độc lập (chưa XONG)
+- Đã đóng: merge v2 khác cấu trúc/provenance; digest OFF v2 write; raw diagnostic/review readers; schema malformed + AI scalar metadata; lọc form/outfit chưa duyệt; CAS/audit atomic và revision đổi giữa phases.
+- XANH 209 assets/golden (79.54s), rồi 115 Kho/schema/change_review (16.93s). Chi tiết RED/fixture correction/SQL inventory/sáu điều kiện ở RA.
+- Còn local: dashboard/admin.py profile_form actor hardcode phải lấy identity email xác thực cho v2 và xử lý error/CAS nhánh seed.
+- External: BYĐ core/shot_intent.py thuộc cloud-C chưa được phép sửa; cần root tích hợp và acceptance/full suite máy chính. Không nghiệm thu, không XONG.

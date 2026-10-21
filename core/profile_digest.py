@@ -133,7 +133,7 @@ def refresh(conn, asset_id: int) -> Optional[Dict]:
     prof = kho_profile.read(conn, asset_id)
     if not prof.get("identity") and not prof.get("must_keep"):
         return None
-    if kho_profile.enabled():
+    if kho_profile.enabled() or prof.get('schema_version') == 2:
         # View adapter có gaps/provenance dẫn xuất: tuyệt đối không ghi ngược vào Kho.
         return current(prof)
     digest = current(prof)

@@ -650,6 +650,9 @@ def asset_folder(asset_id) -> Optional[str]:
 
 
 def _same_profile(a: Dict, b: Dict) -> bool:
+    if a.get('schema_version') == 2 or b.get('schema_version') == 2:
+        # Bảo thủ: cả provenance/quyền khóa phải giống; chưa tự hợp nhất các dạng khác nhau.
+        return a == b
     return all(str(a.get(k) or "").strip() == str(b.get(k) or "").strip() for k in PROFILE_KEYS) and bool(a.get("approved")) == bool(b.get("approved"))
 
 
@@ -675,7 +678,7 @@ def merge(conn, from_id: int, into_id: int) -> int:
     copy_profile = False
     if sp and not dp:
         copy_profile = True
-    elif sp and dp and not _same_profile(sp, dp) and not (dp.get("approved") and not sp.get("approved")):
+    elif sp and dp and not _same_profile(sp, dp) and (sp.get('schema_version') == 2 or dp.get('schema_version') == 2 or not (dp.get("approved") and not sp.get("approved"))):
         raise AssetError(f"Hai mục đều có hồ sơ chuẩn khác nhau (“{src['name']}”: {'đã duyệt' if sp.get('approved') else 'nháp'}, "
                          f"“{dst['name']}”: {'đã duyệt' if dp.get('approved') else 'nháp'}) — mở 📋 Hồ sơ chuẩn, giữ một bản rồi gộp "
                          "lại (chưa đổi gì).")

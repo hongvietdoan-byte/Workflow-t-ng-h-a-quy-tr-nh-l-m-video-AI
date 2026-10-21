@@ -20,10 +20,20 @@ def validate(profile, conn=None, asset_id=None):
     """Chặn hồ sơ sai trước khi ghi; không tự sửa dữ liệu nguồn."""
     if not isinstance(profile, dict):
         raise ProfileError('Hồ sơ phải là object')
-    if profile.get('schema_version', 1) != 2:
+    if type(profile.get('schema_version')) is not int or profile.get('schema_version') != 2:
         raise ProfileError('schema_version phải bằng 2')
     if type(profile.get('revision', 0)) is not int or profile.get('revision', 0) < 0:
         raise ProfileError('revision không hợp lệ')
+    def provenance(meta):
+        if not isinstance(meta,dict) or meta.get('source') not in ('human','ai','image','import') or meta.get('state') not in ('AUTO','USER_LOCKED','REVIEW_REQUIRED'):
+            raise ProfileError('provenance thiếu hoặc sai source/state')
+        if meta['source'] == 'ai' and (not isinstance(meta.get('model'),str) or not meta['model'].strip() or not (meta.get('from_image_ids') or meta.get('from_text'))):
+            raise ProfileError('AI phải khai model và nguồn')
+    root_meta=profile.get('_p',{})
+    if not isinstance(root_meta,dict):
+        raise ProfileError('provenance cấp hồ sơ phải là object')
+    for meta in root_meta.values():
+        provenance(meta)
     seen = set()
     forms = profile.get('forms', [])
     if not isinstance(forms, list):
@@ -41,6 +51,13 @@ def validate(profile, conn=None, asset_id=None):
         raise ProfileError('outfit id thiếu/trùng')
     if outfit.get('default') and outfit['default'] not in {s['id'] for s in sets}:
         raise ProfileError('outfit.default không tồn tại')
+    for item_set in sets:
+        items=item_set.get('items',[])
+        if not isinstance(items,list) or any(not isinstance(item,dict) for item in items):
+            raise ProfileError('outfit.items phải là danh sách object')
+        from . import identity_declare
+        if any(issue.get('muc') == 'do' for issue in identity_declare.validate_khai_bao_chu(items)):
+            raise ProfileError('outfit.items sai khai báo trang phục')
     for f in forms:
         if not isinstance(f, dict) or not re.fullmatch(r'[a-z0-9]+(_[a-z0-9]+)*', str(f.get('ma', ''))) or f['ma'] in seen:
             raise ProfileError('Mã dạng thiếu/sai/trùng')
@@ -56,10 +73,7 @@ def validate(profile, conn=None, asset_id=None):
         for key in ('text_en','color','length','style','eyes','ten_en','ten_vi','words_en'):
             if key in f and not isinstance(f[key],str):
                 raise ProfileError(f'{key} phải là chữ')
-        if p.get('source') not in ('human', 'ai', 'image', 'import') or p.get('state') not in ('AUTO','USER_LOCKED','REVIEW_REQUIRED'):
-            raise ProfileError('provenance thiếu hoặc sai source/state')
-        if p['source'] == 'ai' and (not p.get('model') or not (p.get('from_image_ids') or p.get('from_text'))):
-            raise ProfileError('AI phải khai model và nguồn')
+        provenance(p)
         for key in ('image_ids', 'ref_image_ids'):
             ids = f.get(key, [])
             if not isinstance(ids, list) or any(type(i) is not int or i <= 0 for i in ids):
@@ -155,6 +169,8 @@ def forms_for_shot(conn, project_id, scene, chosen=None):
         if p.get('schema_version') != 2:
             continue
         for f in p['forms']:
+            if f.get('_p',{}).get('state') != 'USER_LOCKED':
+                continue
             targets = {str(n).strip().upper() for n in f.get('applies_to', [])} & cast
             if not targets:
                 continue
@@ -198,7 +214,7 @@ def outfit_for(conn, project_id, name, scene=None):
     if form and form.get('outfit_override'):
         return dict(form,id=form['ma'],images=[form['image']] if form.get('image') else [])
     default = p.get('outfit',{}).get('default')
-    s = next((s for s in p['outfit_sets'] if s['id']==default),None)
+    s = next((s for s in p['outfit_sets'] if s['id']==default and s.get('_p',{}).get('state')=='USER_LOCKED'),None)
     if s:
         images = [i for iid in s.get('image_ids',[]) for i in asset.get('images',[]) if i['id']==iid and i.get('status')=='approved']
         return dict(s,images=images,kho_id=asset['id'],revision=p['revision'])
@@ -239,7 +255,14 @@ def save(conn, asset_id, changes, actor, expected_revision, *, approved=None):
     if row is None:
         raise ProfileError('Không tìm thấy mục Kho')
     raw = row['profile']
-    old = json.loads(raw) if raw else {}
+    try:
+        old = json.loads(raw) if raw else {}
+    except (ValueError,TypeError):
+        raise ProfileError('Hồ sơ nguồn không phải JSON hợp lệ') from None
+    if not isinstance(old,dict):
+        raise ProfileError('Hồ sơ nguồn phải là object')
+    if old.get('schema_version',1) != 1:
+        validate(old,conn,asset_id)
     if old.get('revision',0) != expected_revision:
         raise ProfileError('revision đã đổi; tải lại')
     p = copy.deepcopy(old)
@@ -311,7 +334,7 @@ def selected_images(asset, scene=None):
     if p.get('schema_version') != 2:
         return None
     validate(p)
-    forms = p.get('forms',[])
+    forms = [f for f in p.get('forms',[]) if f.get('_p',{}).get('state')=='USER_LOCKED']
     text = ' '.join(str((scene or {}).get(k) or '') for k in ('text','image_prompt','location')).lower()
     explicit = [f for f in forms if any(str(f[k]).lower() in text for k in ('ma','ten_en','ten_vi') if f.get(k))]
     chosen = explicit[:1] or ([forms[0]] if forms and not forms[0].get('applies_to') else [])
@@ -408,7 +431,7 @@ def declaration(profile):
     from . import identity_declare
     outfit = profile.get('outfit') or {}
     sets = outfit.get('sets') or profile.get('outfit_sets') or []
-    chosen = next((s for s in sets if s.get('id')==outfit.get('default')),None)
+    chosen = next((s for s in sets if s.get('id')==outfit.get('default') and s.get('_p',{}).get('state')=='USER_LOCKED'),None)
     if chosen is None:
         return [], [{'muc':'vang','mon':None,'loi':'Hồ sơ v2 chưa khai trang phục mặc định'}]
     return identity_declare.declare_from_profile({'khai_bao_chu':chosen.get('items',[])})
