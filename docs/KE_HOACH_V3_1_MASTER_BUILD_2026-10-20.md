@@ -164,13 +164,13 @@ kiểm giá trị; không đổi `STATUSES`.
 |---|---|---|---|---|---|---|
 | M0 Đóng băng và thiết kế (0 USD) | 12 | 12 | 0 | 0 | 0 | 100 % |
 | M1 Nền tin cậy (0 USD, provider giả) | 9 | 8 | 1 | 0 | 0 | 92,1 % |
-| M2 Hợp đồng sản xuất có cấu trúc | 10 | 0 | 0 | 0 | 0 | 0 % |
+| M2 Hợp đồng sản xuất có cấu trúc | 10 | 0 | 1 | 0 | 0 | 6,5 % |
 | M3 Thế giới và liên tục | 5 | 5 | 0 | 0 | 0 | 100 % |
 | M4 QC có bằng chứng và Dashboard | 8 | 6 | 2 | 0 | 0 | 81,2 % |
 | M5 Sửa chọn lọc và pilot | 5 | 2 | 1 | 0 | 0 | 54,5 % |
 | M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 0 | 1 | 0 | 0 | 1,8 % |
 | M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 3 | 0 | 0 | 0 | 31,2 % |
-| **Tổng** | **70** | **36** | **5** | **0** | **0** | **50,3 %** |
+| **Tổng** | **70** | **36** | **6** | **0** | **0** | **51,4 %** |
 
 Đợt hiện tại: **M1** · việc kế: **M2.1** BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN
 <!-- /tien-do -->
@@ -212,7 +212,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M2.7 · Image preflight trong ImageRunner._pregen, chung mã lỗi với video_pregen · nặng:3 · ⬜
 - [ ] M2.8 · Router theo khả năng model: không gộp nhóm khi cần khung đầu (G28, G37, B9); ngân sách ký tự (G13, G54) · nặng:2 · ⬜
 - [ ] M2.9 · Lời dẫn ngoài khớp môi mọi caller (G15–G17, G53); fit_durations hiện danh sách duyệt (G14); thông điệp khung cuối (A11); BYĐ qua claude_cli (A12) · nặng:2 · ⬜
-- [ ] M2.10 · Gói gửi tối giản (người dùng 21/10): prompt ngắn ref-first (mỗi tài nguyên 1 dòng vai trò + 2–4 câu hành động/máy, không tả lại thứ ảnh đã có) + BỘ ẢNH tham chiếu tối ưu theo shot (đúng vai, bỏ ref thừa / trùng / mâu thuẫn — video có khung đầu không gửi lại ảnh nhân vật/bối cảnh trùng khung) + cách dùng kết hợp; đo 0 USD trên gói thật #31/#33 → builder lean SHADOW cờ TẮT → A/B pilot (Cấp 3) · nặng:3 · ⬜ · số đo 21/10: ảnh #31 TB 5.380 ký tự / 6,2 ref, #33 11.059 ký tự; video #31 3.029 ký tự, video tới 15 ref, 9 ref trùng sha; Weave Canvas: prompt video 1 câu + khung đầu/cuối
+- [ ] M2.10 · Gói gửi tối giản (người dùng 21/10): prompt ngắn ref-first (mỗi tài nguyên 1 dòng vai trò + 2–4 câu hành động/máy, không tả lại thứ ảnh đã có) + BỘ ẢNH tham chiếu tối ưu theo shot (đúng vai, bỏ ref thừa / trùng / mâu thuẫn — video có khung đầu không gửi lại ảnh nhân vật/bối cảnh trùng khung) + cách dùng kết hợp; đo 0 USD trên gói thật #31/#33 → builder lean SHADOW cờ TẮT → A/B pilot (Cấp 3) · nặng:3 · 🔄 · EP DUYỆT 3 bước 21/10 (sổ v31-ep-m210-lean-package-2026-10-21; bước 3 A/B trả phí chờ trình giá) · C-M210-DESIGN cloud-E · số đo 21/10: ảnh #31 TB 5.380 ký tự / 6,2 ref, #33 11.059 ký tự; video #31 3.029 ký tự, video tới 15 ref, 9 ref trùng sha; Weave Canvas: prompt video 1 câu + khung đầu/cuối
 
 ### M3 — Thế giới và liên tục
 - [ ] M3.1 · scene_world_map thử nghiệm (3D hoặc 2D, UNKNOWN, version/provenance, người duyệt map) trên #31/#33 — sau khi M3 được duyệt, không bật production · nặng:3 · ✅ · DP8 cloud-D gộp 21/10 (core/world_map.py, cờ world_map TẮT, offline, JSON tệp); THẤP byd 3D → C-FIX-THAP-5

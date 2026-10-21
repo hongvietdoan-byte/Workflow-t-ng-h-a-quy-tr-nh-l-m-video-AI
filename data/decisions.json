@@ -771,6 +771,17 @@
    "replaces": null,
    "enforced_by": [],
    "status": "active"
+  },
+  {
+   "id": "v31-ep-m210-lean-package-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — chat 21/10: 'Duyệt 3 câu trên' cho 3 bước M2.10 gói gửi tối giản)",
+   "text": "M2.10 gói gửi tối giản (prompt ngắn ref-first + bộ ảnh tham chiếu tối ưu theo shot, cách dùng kết hợp): DUYỆT 3 bước — (1) thiết kế bảng cách dùng theo loại shot + builder lean SHADOW cờ lean_package TẮT (Cấp 2, không gửi, golden byte giữ); (2) phiên chính chạy shadow trên gói thật #31/#33, 0 USD; (3) A/B có trả phí vài shot trong pilot vòng B — duyệt NGUYÊN TẮC, chi phí trình riêng bằng pregen_check trước khi chạy (Cấp 3 chi tiêu chưa cấp).",
+   "keeps": "v31-ep-implementation-rules-2026-10-21; v31-permission-tiers-2026-10-20; C3-11 pilot B (chưa chi)",
+   "changes": "Thêm M2.10 vào kế hoạch V3.1; đổi gói gửi production chỉ sau A/B đạt + duyệt riêng.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
   }
  ]
 }
