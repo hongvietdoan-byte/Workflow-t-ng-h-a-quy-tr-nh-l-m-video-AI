@@ -88,3 +88,26 @@ lịch sử đúng thời điểm gửi. Chỉ phiên máy chính chạy các l�
 ```
 Lặp cho project 27; cần ≥3 shot ảnh + ≥3 shot video COMPAT mỗi dự án, 0 CODE_MISMATCH.
 Nghiệm thu thật #24/#27 vẫn OPEN cho tới khi chủ máy xác nhận đủ số đo.
+
+## C-GOLDEN2 (21/10) — COMPAT theo cờ sản xuất, final video, model theo job
+
+Nghiệm thu #24/#27 lần 2: 68/68 INSUFFICIENT_INPUT, 0 CODE_MISMATCH. Đã sửa:
+
+- **(b) Định nghĩa COMPAT mới** (phiên chính chốt theo D08 "cờ mới TẮT = byte giống"). Máy chính đang bật 83 cờ `verified: False`. Nếu bắt
+  "mọi cờ verified False TẮT" thì không ca thật nào COMPAT được.
+  - File cờ dạng mới: `{"baseline_flags": {...}, "experimental_flags": [...]}`.
+  - `baseline_flags`: trạng thái MỌI cờ của catalog lúc chụp, giống lúc gửi. Thiếu cờ nào → fail-closed.
+  - `experimental_flags`: danh sách cờ MỚI của V3.1 do người chụp ghi tường minh. Các cờ này phải TẮT.
+  - COMPAT = dựng lại với `baseline_flags` (experimental TẮT) cho ra đúng byte gói đã gửi.
+  - Fixture ghi `flags_mode: "baseline"` và `flags_provenance: "baseline_production_at_capture"`. Manifest ghi `experimental_flags`; khi replay, khác cờ → DATA_CHANGED.
+  - File cờ dạng cũ `{"flags", "experimental_flags"}` vẫn chạy theo định nghĩa cũ (`validate_compat_flags`).
+- **(a) Final video** (`submit_final_from_sample`, prompt rỗng): `--latest-per-type` lần theo `draft_job_id` (bản nháp video). `source_job_id`
+  của final trỏ job ẢNH. Ảnh vẫn lần theo `source_job_id`.
+- **(c) Model:** worker dựng lại dùng `jobs.model` của chính job. Video dùng `golden_db_replay.pinned_choice`; ảnh dùng `image_models.of_project`
+  trả `jobs.model`. Không còn ra `seedance-fast` từ cấu hình chung / chế độ thử rẻ.
+- **(d) `pregen_fingerprint`** gắn NGOÀI `_build_package` (`VideoRunner._pregen`), nên so RIÊNG trường này. Phần còn lại giống hệt → `COMPAT`
+  kèm `pregen_fingerprint: "so_rieng"`, `fingerprint_sent`, `fingerprint_built` (đối chiếu tay). Khác ở trường khác → như cũ.
+- **(e) Builder đòi tệp nền 3D / ảnh Kho ngoài refs đã gửi** (`data/_plates3d/`, `data/assets/` — dữ liệu sân khấu/Kho đổi sau ngày gửi) →
+  `DATA_CHANGED` + `paths` + lý do, không còn INSUFFICIENT_INPUT (`golden_db_replay.classify_answer`).
+- **(f)** `--help` của hai công cụ: stdout/stderr chuyển sang utf-8. Trước đó lỗi cp1252 khi thiếu PYTHONUTF8.
+- **(g)** Test cần worker native Python 3.14 có `needs_native_314` (skipif kèm lý do). Cloud 3.13 bỏ qua, máy chính chạy đủ.

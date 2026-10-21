@@ -66,20 +66,20 @@ def _baseline(module, on=()):
 def test_b_production_flags_on_are_compat_when_experimental_off(golden):  # noqa: F811
     module, _, flags, _, _ = golden
     prod_on = ["project_prop_lock", "video_pregen", "two_tier_quality"]
-    flags.write_text(json.dumps({"baseline_flags": _baseline(module, prod_on), "experimental_flags": ["byd_v2_levels", "field_guard"]}),
+    flags.write_text(json.dumps({"baseline_flags": _baseline(module, prod_on), "experimental_flags": ["continuity_state", "whitebox_height_dummy"]}),
                      encoding="utf-8")
     got = _capture(golden)
     assert got["flags_mode"] == "baseline" and all(got["flags"][k] for k in prod_on)
-    assert got["experimental_flags"] == ["byd_v2_levels", "field_guard"]
+    assert got["experimental_flags"] == ["continuity_state", "whitebox_height_dummy"]
     assert got["flags_provenance"] == "baseline_production_at_capture"
 
 
 @pytest.mark.parametrize("change", ["experimental_on", "missing_catalog_flag", "unknown_experimental", "not_bool"])
 def test_b_fail_closed(golden, change):  # noqa: F811
     module, _, flags, _, _ = golden
-    base, exp = _baseline(module), ["field_guard"]
+    base, exp = _baseline(module), ["whitebox_height_dummy"]
     if change == "experimental_on":
-        base["field_guard"] = True
+        base["whitebox_height_dummy"] = True
     elif change == "missing_catalog_flag":
         del base["video_pregen"]
     elif change == "unknown_experimental":
@@ -94,9 +94,9 @@ def test_b_fail_closed(golden, change):  # noqa: F811
 def test_b_build_validates_baseline_mode():
     module, replay = _mods()
     base = _baseline(module, ["video_pregen"])
-    module.validate_baseline_flags(base, ["field_guard"])                      # không ném
+    module.validate_baseline_flags(base, ["whitebox_height_dummy"])                      # không ném
     with pytest.raises(module.GoldenError):
-        module.validate_baseline_flags(dict(base, field_guard=True), ["field_guard"])
+        module.validate_baseline_flags(dict(base, whitebox_height_dummy=True), ["whitebox_height_dummy"])
     with pytest.raises(module.GoldenError):
         module.validate_compat_flags(base)                                      # định nghĩa cũ vẫn chặt như trước
 
