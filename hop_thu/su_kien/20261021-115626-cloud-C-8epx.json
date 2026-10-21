@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:56:26.840825+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-GOLDEN2",
+  "branch": "cloud/v31-golden2",
+  "commit": "3f6db2de",
+  "report": "docs/RA_CLOUD_GOLDEN2_2026-10-21.md",
+  "text": "C-GOLDEN2 xong (chỉ tools/golden_capture + golden_db_replay + test, không sửa core/): (a) video final lần theo draft_job_id; (b) file cờ {baseline_flags, experimental_flags} + validate_baseline_flags fail-closed, manifest/fixture ghi flags_mode=baseline, dạng cũ giữ nguyên, README ghi định nghĩa mới; (c) worker ghim model = jobs.model (pinned_choice video, image_models.of_project ảnh); (d) pregen_fingerprint so riêng → COMPAT + so_rieng + fingerprint_sent/built; (e) classify_answer: chặn đọc data/_plates3d|data/assets → DATA_CHANGED + paths; (f) --help utf-8; (g) needs_native_314 skipif 14 test (test_worker_reads_only_job_ref… vào main cùng CX21-GOLDEN đỏ trên 3.13 do audit hook đệ quy — máy chính xác nhận trên 3.14). 22 test mới (16 đỏ trước). Full 6863 passed, 38 skipped, 4 đỏ cũ. CẦN MÁY CHÍNH: chạy lệnh chụp lại trong báo cáo + duyệt danh sách experimental_flags (đề xuất 20 cờ có chữ V3.1; thêm byd_v2_levels/field_guard khi gộp). HẠN MỨC: không đọc được."
+}
