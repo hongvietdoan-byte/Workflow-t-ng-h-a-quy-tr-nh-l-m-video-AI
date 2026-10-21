@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:19:00.406313+07:00",
+  "lane": "cloud-D",
+  "kind": "xong",
+  "task": "C-RA-FIX21",
+  "branch": "cloud/v31-ra-fix21",
+  "commit": "614c573",
+  "report": "docs/RA_CLOUD_RA_FIX21_2026-10-21.md",
+  "text": "GỘP ĐƯỢC codex/v31-fix-21@4dedfe4f: 6/6 mục đúng gốc, test_cx21_fix 11 đỏ trên main → xanh, vùng 236 qua (1 đỏ có sẵn root). capacity chỉ gọi khi cờ BẬT (cờ TẮT byte cũ); SPEND_LOCK rảnh lúc GET; merge_union thử repo tạm 2 định dạng không mất mục. 1 THẤP: list không id — mục một bên xóa sống lại (A xóa f2, B thêm fB → f2 quay lại); cách sửa trong báo cáo."
+}
