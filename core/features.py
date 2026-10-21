@@ -579,6 +579,14 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "S14.17 người dùng duyệt 04/10, chưa chạy thật Claude (core/prompt_rewrite.py; Claude lỗi → quay về 'Fix: …' + diag)",
     },
+    "director_rewrite_respect_lock": {
+        "label": "Đạo diễn viết lại prompt: trường bạn đã sửa / khóa (image_prompt, motion_prompt trong _user_locked) chỉ được ĐỀ XUẤT "
+                 "(diag + nút áp dụng), không ghi đè; lần gen lại dùng câu sửa 'Fix: …' như cũ",
+        "verified": False,
+        "why": "C-M71 A3 (P33-A4 #33: Đạo diễn viết lại image_prompt shot 1–3 người đã chỉnh tay). Mặc định TẮT (bật = Cấp 3, sổ "
+               "v31-ep-fa-flag-fix-pack-a-2026-10-21); motion_prompt chỉ được bảo vệ khi đã nằm trong _user_locked (đánh dấu khi sửa "
+               "tay Bước 3 = C-M25B, chưa gộp)",
+    },
     "change_review_frames": {"fixes_projects": [24], "costs": True, 
         "label": "Tổ rà soát phân biệt khung đầu, quá trình và khung cuối; đếm nhịp chuyển động thay vì câu",
         "verified": False,
@@ -1099,7 +1107,7 @@ def active(name: str) -> bool:
 
 # S14.4 C1b (04/10): a flag that only works together with another one (dialogue_take: the runner asks lipsync.enabled() = lip_sync
 # first). Shown in 🧪 instead of a flag that looks ON and does nothing. B1 học việc: qc_team only runs inside scene_qc (by active()).
-REQUIRES = {"dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_review_frames": ("change_review",), "change_review_motion": ("change_review",),
+REQUIRES = {"director_rewrite_respect_lock": ("director_rewrite",), "dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_review_frames": ("change_review",), "change_review_motion": ("change_review",),
             "ambient_motion": ("prompt_formula",), "plate_anchored_image": ("place_render_refs",),
             "anchor_by_spot": ("storyboard_api",),
             # rà 15/10: máy sân khấu chỉ được nền 3D dùng khi stage_camera bật; nền 3D cần place_render_refs
