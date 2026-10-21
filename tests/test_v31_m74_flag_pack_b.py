@@ -33,3 +33,26 @@ def test_b2_no_flag_is_locked_on_top_of_an_unlocked_parent_except_the_decided_on
     bad = {k: [n for n in needs if not features.FEATURES[n]["verified"]] for k, needs in features.REQUIRES.items()
            if features.FEATURES.get(k, {}).get("verified")}
     assert {k: v for k, v in bad.items() if v} == {"dialogue_take": ["lip_sync"]}
+
+
+# ---- B8: travel_truth ↔ stage_camera — hai nguồn quyết máy vào plate_camera.plan_cameras; thứ tự chưa có test ------------------------
+def _shot(sid, stage=None):
+    d = {"size": "MS", "story_scene": 1, "action": "Kelly chạy từ cửa tới bàn"}
+    if stage:
+        d["stage_camera"] = stage
+    return {"id": sid, "data": d}
+
+
+def test_b8_approved_stage_camera_wins_over_the_travel_route():
+    from core import plate_camera as pc
+    stage = {"location": [0.0, -4.0, 1.5], "look_at": [0.0, 0.0, 1.2], "lens": 35, "source": "stage_v2"}
+    route = {"mode": "lead", "a": [0.0, 0.0, 0.0], "b": [0.0, 6.0, 0.0]}
+    cams = pc.plan_cameras([_shot(1, stage), _shot(2)], lambda s: ([0.0, 0.0, 0.0], 0.0), lambda s: 1.7,
+                           stage_field=pc.STAGE_FIELD, travel_of=lambda s: route)
+    assert cams[1]["camera"]["location"] == stage["location"]                 # máy sân khấu đã duyệt dùng NGUYÊN
+    alone = pc.travel_camera(_shot(2)["data"], [0.0, 0.0, 0.0], route["a"], route["b"], route["mode"], 1.7, 9 / 16, name="shot_2")
+    if alone is not None:
+        assert cams[2]["camera"]["location"] == alone["camera"]["location"]   # shot không có máy sân khấu → theo đường chạy
+    cams_off = pc.plan_cameras([_shot(1, stage)], lambda s: ([0.0, 0.0, 0.0], 0.0), lambda s: 1.7, stage_field=None,
+                               travel_of=lambda s: route)
+    assert cams_off[1]["camera"]["location"] != stage["location"]             # stage_camera TẮT → không dùng máy sân khấu
