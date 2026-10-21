@@ -500,6 +500,7 @@ def process_pending(conn, data_dir: str, client=None, limit: int = ROUND_LIMIT, 
     client_for(project_id) (V3.1 M1.4b): Claude của dự án của thay đổi (provider theo dự án); không truyền → `client` cho mọi thay đổi."""
     res = {"skipped": 0, "reviewed": 0, "failed": 0, "usd": 0.0}
     t0 = time.time()
+    clients: Dict = {}
     states = ("pending", "code_only") if client is not None else ("pending",)   # code_only chỉ rà lại khi có Claude chung (không quay vòng)
     q = ','.join('?' * len(states))
     pick = f"state IN ({q})"
@@ -507,7 +508,14 @@ def process_pending(conn, data_dir: str, client=None, limit: int = ROUND_LIMIT, 
         # Rà kỹ C-M71 (VỪA 2): không có Claude chung nhưng dự án có Claude riêng — lần rà dừng vì HẾT TIỀN / HẾT LƯỢT (code_only + QUOTA_NOTE)
         # vẫn được rà lại (lời báo "vòng nền tự rà lại" đúng sự thật); code_only "không có Claude" giữ như cũ (không quay vòng)
         states = ("pending", "code_only")
-        pick = f"(state='pending' OR (state='code_only' AND note LIKE '{QUOTA_NOTE}%'))"
+        # C-M71-FIX (THẤP 3): lọc dự án CÓ Claude TRƯỚC khi áp LIMIT — trước nhóm code_only của dự án không có Claude bị `continue` mà
+        # vẫn ăn suất LIMIT → ≥ LIMIT nhóm như vậy làm nhóm hết tiền của dự án CÓ Claude không bao giờ tới lượt
+        pids = [r[0] for r in conn.execute(f"SELECT DISTINCT project_id FROM change_events WHERE state='code_only' AND note LIKE "
+                                           f"'{QUOTA_NOTE}%'").fetchall()]
+        clients = {pid: client_for(pid) for pid in pids}
+        ok = sorted(int(pid) for pid, c in clients.items() if c is not None and pid is not None)
+        pick = (f"(state='pending' OR (state='code_only' AND note LIKE '{QUOTA_NOTE}%' AND project_id IN ({','.join(map(str, ok))})))"
+                if ok else "state='pending'")
     # LIMIT đếm theo NHÓM (một shot = một dòng), không theo lần ghi: một shot ghi 6 lần không chiếm hết lượt của shot khác
     if not motion_enabled():                    # C4: cờ change_review_motion tắt → lần sửa motion prompt không rà (như trước cờ)
         conn.execute("UPDATE change_events SET state='skipped', reviewed_at=?, note=? WHERE kind='motion' AND state IN ('pending', "
@@ -519,7 +527,7 @@ def process_pending(conn, data_dir: str, client=None, limit: int = ROUND_LIMIT, 
     for ev, ids in _group_by_scene(conn, rows, states):
         if time.time() - t0 > budget_s:
             break
-        c = client_for(ev["project_id"]) if client_for is not None else client
+        c = (clients[ev["project_id"]] if ev["project_id"] in clients else client_for(ev["project_id"])) if client_for is not None else client
         if c is None and ev["state"] != "pending":   # VỪA 2: dự án vẫn không có Claude — code_only để nguyên (không quay vòng)
             continue
         _review_group(conn, data_dir, ev, ids, c, res)
@@ -579,7 +587,9 @@ def _hold_failed(conn, scene_id: int, kinds: str) -> None:
     owns = not getattr(conn, "in_transaction", False)
     wrote = False
     done = conn.execute("SELECT f.id FROM change_findings f JOIN change_events e ON e.id=f.event_id WHERE f.scene_id=? AND f.source=? "
-                        "AND f.status='open' AND e.state='reviewed'", (scene_id, FAIL_SOURCE)).fetchall()
+                        "AND f.status='open' AND e.state IN ('reviewed', 'skipped')", (scene_id, FAIL_SOURCE)).fetchall()
+    # C-M71-FIX (THẤP 2): thay đổi của mục đã thành 'skipped' (cờ change_review_motion tắt → motion code_only kể cả dòng hết tiền bị bỏ;
+    # rà lại ra keys rỗng) cũng tự đóng — trước chỉ 'reviewed' → mục ĐỎ kẹt tới khi người bấm Bỏ qua
     if done:
         conn.execute(f"UPDATE change_findings SET status='resolved', resolved_at=?, resolved_by='change_review' WHERE id IN "
                      f"({','.join('?' * len(done))})", (_now(), *[r[0] for r in done]))
