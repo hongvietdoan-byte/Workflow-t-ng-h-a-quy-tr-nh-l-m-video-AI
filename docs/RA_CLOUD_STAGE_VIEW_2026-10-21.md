@@ -41,7 +41,8 @@
   - ảnh thu nhỏ, tệp quá lớn bị từ chối;
   - không có nút / lệnh ghi;
   - người nộm + câu vị trí chỉ hiện khi cờ bật.
-- Bộ test đầy đủ: xem tin hộp thư `xong C-STAGE-VIEW`.
+- Bộ test đầy đủ (cloud, Python 3.13): 6853 xanh. Còn đỏ: 25 golden (cần Python 3.14 máy chính), 4 lỗi nền đã biết (`recut_by_hand`, `punches`, `end_popup_p24`, `unreadable_picture`), và `test_devsys_plan_map` (M4.8 chưa map trong `devsys/plan_map.json` — đỏ sẵn trên origin/main, không do nhánh này).
+- Test DP8 `test_nothing_in_the_gen_path_reads_the_map` (G2-4: không module nào ngoài world_map dùng map): thêm danh sách trắng có lý do cho `dashboard/stage_view_ui.py` (màn XEM chỉ đọc, không thuộc đường gen), kèm điều kiện cấm `world_map.refresh(` / `save(` / `build` / `_write(` trong màn này.
 
 ## Đường dẫn dữ liệu màn này ĐỌC (để phiên chính kiểm trên #31 thật)
 | Dữ liệu | Đường dẫn (theo `data_dir` của pipeline, `<pid>` = 31) | Hàm |
