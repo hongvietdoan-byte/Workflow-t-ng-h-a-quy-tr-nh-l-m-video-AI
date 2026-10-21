@@ -8,7 +8,7 @@ def db():
     with patch.object(os, 'environ', {}):
         c = sqlite3.connect(':memory:')
         c.row_factory = sqlite3.Row
-        c.executescript('CREATE TABLE assets(id INTEGER PRIMARY KEY, name TEXT, profile TEXT); CREATE TABLE asset_images(id INTEGER PRIMARY KEY, asset_id INTEGER, path TEXT, status TEXT);')
+        c.executescript('CREATE TABLE assets(id INTEGER PRIMARY KEY, name TEXT, profile TEXT); CREATE TABLE asset_images(id INTEGER PRIMARY KEY, asset_id INTEGER, path TEXT, status TEXT); CREATE TABLE audit_log(id INTEGER PRIMARY KEY, at TEXT, email TEXT, action TEXT, detail TEXT);')
         c.execute("INSERT INTO assets VALUES(1,'Kelly','{}')")
         yield c
 
@@ -112,3 +112,45 @@ def test_save_outfit_preserves_untouched_ai_set_provenance(db):
     assert saved['outfit']['sets'][0]==first['outfit']['sets'][0]
     assert saved['outfit']['sets'][1]['_p']['state']=='USER_LOCKED'
     assert saved['approved'] is False
+
+
+def test_save_keeps_outer_transaction_rollback_atomic(db):
+    from core import kho_profile as k
+    db.commit()
+    db.execute('BEGIN')
+    k.save(db,1,{'hair':{'text_en':'black bob'}},{'kind':'human','who':'fixture'},0)
+    db.rollback()
+    assert db.execute('SELECT profile FROM assets WHERE id=1').fetchone()[0]=='{}'
+    assert db.execute('SELECT count(*) FROM audit_log').fetchone()[0]==0
+
+
+@pytest.mark.parametrize('actor,revision', [(None,0), ({'kind':'human','who':'fixture'},True)])
+def test_invalid_writer_inputs_raise_profile_error_without_write(db, actor, revision):
+    from core import kho_profile as k
+    with pytest.raises(k.ProfileError):
+        k.save(db,1,{},actor,revision)
+    assert db.execute('SELECT profile FROM assets WHERE id=1').fetchone()[0]=='{}'
+
+
+def test_audit_failure_rolls_back_profile_and_preserves_outer_work(db):
+    from core import kho_profile as k
+    db.commit()
+    db.execute("CREATE TRIGGER reject_audit BEFORE INSERT ON audit_log BEGIN SELECT RAISE(ABORT,'fixture audit failure'); END")
+    db.execute("UPDATE assets SET name='Outer change' WHERE id=1")
+    with pytest.raises(k.ProfileError,match='audit'):
+        k.save(db,1,{'hair':{'text_en':'black bob'}},{'kind':'human','who':'fixture'},0)
+    row=db.execute('SELECT name,profile FROM assets WHERE id=1').fetchone()
+    assert tuple(row)==('Outer change','{}')
+    assert db.execute('SELECT count(*) FROM audit_log').fetchone()[0]==0
+
+
+def test_audit_contains_only_metadata_and_hashes(db):
+    from core import kho_profile as k
+    import json
+    k.save(db,1,{'hair':{'text_en':'black bob'}},{'kind':'human','who':'fixture'},0)
+    row=db.execute('SELECT email,action,detail FROM audit_log').fetchone()
+    assert tuple(row[:2])==('fixture','kho_profile')
+    detail=json.loads(row['detail'])
+    assert set(detail)=={'kho_id','actor_kind','before_revision','revision','changed_keys','before_hash','after_hash'}
+    assert detail['changed_keys']==['hair'] and detail['before_revision']==0 and detail['revision']==1
+    assert len(detail['before_hash'])==len(detail['after_hash'])==64

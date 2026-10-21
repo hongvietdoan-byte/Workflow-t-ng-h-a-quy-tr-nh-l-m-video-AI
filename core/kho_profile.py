@@ -3,8 +3,10 @@
 Không migration, không I/O nhà cung cấp. CAS dùng mẫu data IS của package_overrides.
 """
 import copy
+import hashlib
 import json
 import re
+import sqlite3
 from datetime import datetime, timezone
 from . import assets, features, character_forms
 
@@ -227,8 +229,12 @@ def validate_dang(conn, project_id, name, dang):
 
 def save(conn, asset_id, changes, actor, expected_revision, *, approved=None):
     """Ghi có actor, giữ trường khóa, lưu đề xuất và CAS nguyên JSON (không migration)."""
-    if actor.get('kind') not in ('human','ai','auto','tool') or not actor.get('who'):
+    if not isinstance(actor,dict) or actor.get('kind') not in ('human','ai','auto','tool') or not isinstance(actor.get('who'),str) or not actor['who'].strip():
         raise ProfileError('Cần actor hợp lệ')
+    if type(expected_revision) is not int or expected_revision < 0:
+        raise ProfileError('expected_revision không hợp lệ')
+    if not isinstance(changes,dict):
+        raise ProfileError('Thay đổi hồ sơ phải là object')
     row = conn.execute('SELECT profile FROM assets WHERE id=?',(asset_id,)).fetchone()
     if row is None:
         raise ProfileError('Không tìm thấy mục Kho')
@@ -274,10 +280,26 @@ def save(conn, asset_id, changes, actor, expected_revision, *, approved=None):
     if approved is not None:
         p['approved'] = bool(approved) and p['approved']
     validate(p,conn,asset_id)
-    changed = conn.execute('UPDATE assets SET profile=? WHERE id=? AND profile IS ?',(json.dumps(p,ensure_ascii=False),asset_id,raw)).rowcount
-    if changed != 1:
-        raise ProfileError('revision đã đổi; tải lại')
-    conn.commit()
+    # Không commit transaction caller: rollback ngoài phải hoàn tác cả hồ sơ.
+    conn.execute('SAVEPOINT kho_profile_write')
+    try:
+        changed = conn.execute('UPDATE assets SET profile=? WHERE id=? AND profile IS ?',(json.dumps(p,ensure_ascii=False),asset_id,raw)).rowcount
+        if changed != 1:
+            raise ProfileError('revision đã đổi; tải lại')
+        detail = {'kho_id':asset_id,'actor_kind':actor['kind'],
+                  'before_revision':expected_revision,'revision':p['revision'],
+                  'changed_keys':sorted(k for k in changes if old.get(k) != p.get(k)),
+                  'before_hash':hashlib.sha256((raw or '').encode('utf-8')).hexdigest(),
+                  'after_hash':hashlib.sha256(json.dumps(p,ensure_ascii=False).encode('utf-8')).hexdigest()}
+        conn.execute('INSERT INTO audit_log(at,email,action,detail) VALUES(?,?,?,?)',
+                     (datetime.now(timezone.utc).isoformat(),actor['who'],'kho_profile',json.dumps(detail,ensure_ascii=False)))
+        conn.execute('RELEASE kho_profile_write')
+    except Exception as exc:
+        conn.execute('ROLLBACK TO kho_profile_write')
+        conn.execute('RELEASE kho_profile_write')
+        if isinstance(exc,sqlite3.Error):
+            raise ProfileError('Không ghi được hồ sơ và audit; đã hoàn tác lần lưu') from None
+        raise
     return p
 
 def selected_images(asset, scene=None):

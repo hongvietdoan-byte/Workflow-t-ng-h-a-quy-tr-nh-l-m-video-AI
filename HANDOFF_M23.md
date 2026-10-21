@@ -28,3 +28,7 @@ Quota cuối: 5h ĐÃ DÙNG89%, còn11%; tuần57%, còn43%. Reset tự nhiên 2
 ## Checkpoint fresh review ba regression
 - ĐỎ 3/3 với AST hàm cũ từ HEAD trong tiến trình riêng; XANH 28/28 provenance/v2/readers (5.08s).
 - Ba sửa writer OFF/v2, provenance outfit per-id và AI locked no-op đã kiểm bằng SQLite tạm. Chưa sản xuất; các OPEN khác phía trên vẫn giữ.
+
+## Checkpoint transaction/audit
+- Writer SAVEPOINT + audit_log metadata/hash nguyên tử; actor/revision typeguard. ĐỎ 2 fail / 1 pass; XANH 45/45 (4.88s).
+- OPEN mới xác nhận: UI chưa có nút lưu outfit vào Kho (helper không phải entrypoint). Raw SQL readers/AST alias và BYĐ cloud-C vẫn chưa đóng.
