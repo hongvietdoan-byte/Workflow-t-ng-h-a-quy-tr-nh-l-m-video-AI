@@ -39,7 +39,19 @@ RETRY_WARN = float(os.environ.get("DIAG_RETRY_WARN", "0.4"))
 
 _SECRETS = [(re.compile(r"sk-[A-Za-z0-9_\-]{8,}"), "sk-***"), (re.compile(r"(?i)bearer\s+[A-Za-z0-9._\-]{8,}"), "Bearer ***"),
             (re.compile(r"(?i)(token|key|secret|password)(\"?\s*[:=]\s*\"?)[^\s\",;]{6,}"), r"\1\2***"),
-            (re.compile(r"[A-Za-z0-9+/_\-]{40,}"), "***")]
+            (re.compile(r"[A-Za-z0-9+/_\-]{40,}"), None)]       # None: _long_run (a key / base64 run, but not a POSIX path)
+
+
+def _long_run(m: "re.Match") -> str:
+    """C-PORT4 (21/10): the 40+ run also matched a POSIX path ('/tmp/pytest-of-root/…/gone.png' → '***.png') — on Windows the '\\'
+    breaks it, so the same note named the file there and hid it on Linux. An absolute path (starts with ONE '/', not after ':' / '=',
+    every part between '/' shorter than 40) is kept; a key, base64 ('/9j/…' has a long part), '//host/…' or 'key=/…' is still hidden."""
+    run, start = m.group(0), m.start()
+    before = m.string[start - 1] if start else ""
+    if run.startswith("/") and not run.startswith("//") and before not in (":", "=") \
+            and all(len(part) < 40 for part in run.split("/")):
+        return run
+    return "***"
 
 
 def redact(text: str) -> str:
@@ -48,7 +60,7 @@ def redact(text: str) -> str:
     if home and home != "~":
         text = text.replace(home, "~").replace(home.replace("\\", "/"), "~")
     for pattern, repl in _SECRETS:
-        text = pattern.sub(repl, text)
+        text = pattern.sub(repl if repl is not None else _long_run, text)
     return text
 
 
