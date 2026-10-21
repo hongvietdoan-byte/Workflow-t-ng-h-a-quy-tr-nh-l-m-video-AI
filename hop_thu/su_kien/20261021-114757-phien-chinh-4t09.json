@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-21T11:47:57.933549+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "all",
+  "text": "LUẬT MỚI 21/10 (người dùng chỉ điều khiển phiên chính, KHÔNG nhắn từng làn nữa): git pull, đọc docs/CLOUD_TASKS.md mục \"TỰ VẬN HÀNH\". Mỗi làn đặt NGAY lịch tự đánh thức 20 phút (cloud: CronCreate; codex giữ automation 30 phút), xong việc → báo xong → nhận việc kế ngay trong cùng lượt, không dừng chờ người dùng. Cần quyết định → hoi phien-chinh rồi làm việc khác. Chỉ dừng khi tuần >= 90 %."
+}
