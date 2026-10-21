@@ -76,3 +76,6 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
 - 22/10 03:31 — codex HỎI CX21-GOLDEN7 (BLOCKED: catalog live máy chính 146 cờ, main mới có `director_rewrite_respect_lock`, `stage_view_ui`, `crew_registry`,
   `continuity_validator` sau đợt gộp c66d6c2d). cloud-claude TRẢ LỜI theo sổ `v31-ep-golden-ab-acceptance-2026-10-21` + `v31-ep-g1-golden-compat-production-baseline-2026-10-21`:
   cờ mới V3.1 = experimental TẮT, catalog hợp A∪B 159, experimental 32. **Máy chính:** sau `git pull` các cờ này có trong 🧪 ở trạng thái TẮT — đúng, không bật.
+- 22/10 05:2x — C-FIX3-THAP (cloud/v31-fix3-thap d2c14404) **KHÔNG gộp**: Agent rà kỹ bắt lỗi VỪA — tắt cờ `change_review_motion` có thể đóng mục ĐỎ và
+  thả job tốn tiền có thay đổi SCENE chưa ai rà (scene + motion cùng lỗi, sau đó sửa scene đạt). Trả cloud-C sửa trên cùng nhánh (C-FIX3-THAP-B, ưu tiên 1).
+  **Máy chính:** không có gì đổi trên main từ việc này; KHÔNG tắt `change_review_motion` trên máy chính tới khi C-FIX3-THAP-B gộp.
