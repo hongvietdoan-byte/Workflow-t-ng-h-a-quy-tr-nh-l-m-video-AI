@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T02:58:33.726619+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "C-M71-FIX",
+  "to": "cloud-C",
+  "title": "Lỗi rà kỹ M71 (QUOTA_KEY D6 chung, mục ĐỎ change_review kẹt, LIMIT 5) + rò tệp test DP12 — chuyển từ cloud-E (im >1 giờ, luật 5b)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M71-FIX",
+  "priority": 1
+}
