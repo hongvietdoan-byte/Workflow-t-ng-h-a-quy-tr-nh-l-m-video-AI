@@ -837,3 +837,14 @@ BỔ SUNG người dùng 21/10 (sơ đồ "Làm phim qua Dashboard" theo DỰ Á
 Test thêm: sự kiện hold ở nút Gen ảnh → ô vàng; lỗi → đỏ; cli_step stage_auto → xuất hiện nút ảo nét đứt ở cột STORYBOARD; cờ ui_step_log TẮT → Dashboard không
 ghi gì (byte giống). Đọc CSDL thật chỉ bằng mode=ro.
 ```
+
+#### C-M72-FIX (cloud-C — ưu tiên 0, trên cloud/v31-m72) — 2 lỗi rà kỹ phiên chính 21/10
+```
+1. TRUNG BÌNH core/features.py:946-954 save_settings gieo baseline_state(k) vào tệp 🧪 ở lần lưu đầu mà không xét env/preset → env FEATURE_X=0 bị đè thành on;
+   preset stable/experimental lần đầu cũng bị đè. Sửa: chỉ gieo khi source(k) == "baseline"; bỏ gieo khi preset truyền vào là stable/experimental.
+   Test: máy mới + FEATURE_X=0 + baseline X=on, lưu cờ khác → state(X) == "off"; lưu đầu preset="stable" → cờ chưa verified off.
+2. THẤP core/features.py:1558-1560 restore_settings: 30 bản sao lưu + khôi phục bản cũ nhất → backup_settings() dọn mất chính bản đó → FileNotFoundError.
+   Sửa: ghi raw đã đọc ra tệp tạm (không copyfile(real)) hoặc không xóa real khi dọn. Test: 30 bản, khôi phục bản cũ nhất thành công, nội dung khớp.
+Commit trên cloud/v31-m72, cập nhật báo cáo, XONG hộp thư (mã C-M72-FIX). Ghi chú: tệp data/flag_baseline.json chỉ tạo ở máy chính bằng
+py -m core.features --baseline-capture SAU khi gộp (phiên chính làm, Cấp 3 nhẹ: có diff 0 cờ đổi).
+```
