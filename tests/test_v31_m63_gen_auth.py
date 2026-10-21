@@ -228,7 +228,10 @@ def test_flag_on_records_but_never_blocks_and_package_is_byte_identical(tmp_path
     p1, pid1, j1, prov1 = _send(tmp_path / "off", OFF, prior=3)
     p2, pid2, j2, prov2 = _send(tmp_path / "on", ON, prior=3)
     assert prov1.sent == prov2.sent == 1                                                     # vượt trần vẫn GỬI (shadow)
-    assert p1.job(j1)["sent_package"] == p2.job(j2)["sent_package"]                          # giữ byte gói gửi
+    def _no_at(raw):                                                                         # "at" = giờ gửi (khác giây giữa 2 lần) — so phần còn lại
+        import json as _j
+        d = _j.loads(raw); d.pop("at", None); return d
+    assert _no_at(p1.job(j1)["sent_package"]) == _no_at(p2.job(j2)["sent_package"])          # giữ byte gói gửi (trừ giờ gửi)
     assert not (tmp_path / "off" / "data" / str(pid1) / "crew").exists()                     # cờ tắt: không ghi gì
     rows = G.read_shadow(str(tmp_path / "on" / "data"), pid2)
     assert len(rows) == 1 and rows[0]["job_id"] == j2 and rows[0]["code"] == "ATTEMPTS_EXHAUSTED" and rows[0]["allow"] is False
