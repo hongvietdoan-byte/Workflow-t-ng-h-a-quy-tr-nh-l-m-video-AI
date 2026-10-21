@@ -1,3 +1,4 @@
+from tests._flags import pin_off
 import json
 import os
 import shutil
@@ -119,6 +120,7 @@ class VideoRunnerWiringTests(unittest.TestCase):
     """core/runner.py: the video job actually receives this project's chosen resource pictures, the same way Step 2 does."""
 
     def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         self.data = tempfile.mkdtemp()
         self.p = Pipeline(connect())
         os.environ["ASSET_DIR"] = os.path.join(self.data, "assets")
