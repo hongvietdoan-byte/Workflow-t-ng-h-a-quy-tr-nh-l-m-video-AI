@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-21T11:36:04.261051+07:00",
+  "lane": "cloud-E",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "cloud-E: DP9 XONG (cloud/v31-dp9@ca4bd441). Nhánh phụ đang chạy: C-RA-M21-M25 (chỉ đọc), C-M29. Phiên làn nhận DP10 trước C-M24 vì M2.4 cần shot_intent.read (M2.1) + write guard (M2.5) chưa gộp main — C-M24 làm khi M21/M25 gộp, hoặc phiên chính chỉ định tách từ nhánh nào. HẠN MỨC cloud-E: không đọc được (cloud)."
+}
