@@ -13,6 +13,12 @@ from unittest.mock import patch
 import pytest
 
 
+# C-GOLDEN2 (g): worker dựng gói (tools/golden_capture.replay_builder, tools/golden_db_replay.build_from_database) chỉ chạy native Python 3.14
+needs_native_314 = pytest.mark.skipif(not (sys.version_info[:2] == (3, 14) and sys.prefix == sys.base_prefix),
+                                      reason="cần worker native Python 3.14 (golden_capture / golden_db_replay) — máy này khác (cloud 3.13); "
+                                             "chạy ở máy chính")
+
+
 @pytest.fixture
 def golden(tmp_path):
     with patch.object(os, "environ", {}):
@@ -153,6 +159,7 @@ def test_output_cannot_overwrite_database(golden):
 
 @pytest.mark.parametrize("kind", ["image", "video"])
 @pytest.mark.parametrize("provider", ["fake", "clipai", "deepix"])
+@needs_native_314
 def test_current_builder_frozen_input_replay(kind, provider, tmp_path):
     with patch.object(os, "environ", {}):
         module = importlib.import_module("tools.golden_capture")
@@ -170,6 +177,7 @@ def test_current_builder_frozen_input_replay(kind, provider, tmp_path):
         assert module.check_correctness(actual, {"prompt_contains": ["không tồn tại"], "ref_roles": snapshot.get("correctness_roles", ["cast"])}) == ["prompt_contains"]
 
 
+@needs_native_314
 def test_replay_missing_snapshot_field_and_ref(tmp_path):
     with patch.object(os, "environ", {}):
         module = importlib.import_module("tools.golden_capture")
@@ -257,6 +265,7 @@ def test_catalog_cannot_be_bypassed_by_experimental_list(golden, change):
         capture(golden)
 
 
+@needs_native_314
 def test_replay_api_does_not_change_global_cwd_or_environment(tmp_path):
     with patch.object(os, "environ", {}):
         module = importlib.import_module("tools.golden_capture")

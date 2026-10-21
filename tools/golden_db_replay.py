@@ -48,6 +48,43 @@ class DataChanged(ValueError):
     pass
 
 
+FINGERPRINT = "pregen_fingerprint"
+# C-GOLDEN2 (e): builder đòi tệp nền 3D / ảnh Kho KHÁC tệp trong refs đã gửi = dữ liệu sân khấu / Kho đổi sau ngày gửi
+CHANGED_DATA_PREFIXES = ("data/_plates3d/", "data/assets/")
+CHANGED_DATA_KINDS = {"data", "read", "manifest", "directory"}
+
+
+def pinned_choice(choice, job):
+    """C-GOLDEN2 (c): model của lần dựng lại = cột jobs.model của CHÍNH job (như lúc gửi), không từ cấu hình chung / chế độ thử rẻ."""
+    model = (job or {}).get("model")
+    return {**choice, "model": model} if model else choice
+
+
+def _without_fingerprint(raw):
+    try:
+        body = json.loads(raw)
+    except (TypeError, ValueError):
+        return None, None
+    if not isinstance(body, dict):
+        return None, None
+    fp = body.pop(FINGERPRINT, None)
+    return json.dumps(body, ensure_ascii=False, sort_keys=True), fp
+
+
+def classify_answer(answer):
+    """C-GOLDEN2 (e): INSUFFICIENT_INPUT vì sandbox chặn đọc tệp nền/Kho ngoài refs đã gửi → DATA_CHANGED có lý do (tệp nào)."""
+    if not isinstance(answer, dict) or answer.get("status") != "INSUFFICIENT_INPUT":
+        return answer
+    diag = answer.get("diagnostic")
+    items = diag if isinstance(diag, list) else [diag] if isinstance(diag, dict) else []
+    paths = [str(d.get("path")) for d in items if isinstance(d, dict) and d.get("kind") in CHANGED_DATA_KINDS
+             and str(d.get("path") or "").startswith(CHANGED_DATA_PREFIXES)]
+    if not paths or len(paths) != len(items):
+        return answer
+    return {**answer, "status": "DATA_CHANGED", "paths": sorted(set(paths)),
+            "reason": "builder đòi tệp nền/Kho khác refs đã gửi (dữ liệu sân khấu/Kho đổi sau ngày gửi): " + ", ".join(sorted(set(paths))[:5])}
+
+
 def _digest(path):
     with Path(path).open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
@@ -83,12 +120,16 @@ def _db_snapshot(db, target):
     return _digest(target)
 
 
-def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None, public_config=None):
-    """Không nhận baseline/prompt/args. Manifest None = chụp dependency, có manifest = replay."""
-    from tools.golden_capture import _safe, validate_compat_flags, feature_catalog
+def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None, public_config=None, experimental=None):
+    """Không nhận baseline/prompt/args. Manifest None = chụp dependency, có manifest = replay.
+    experimental (C-GOLDEN2 b): None = định nghĩa cũ (mọi cờ verified False TẮT); list = `flags` là baseline cờ sản xuất, chỉ các cờ này phải TẮT."""
+    from tools.golden_capture import _safe, validate_compat_flags, validate_baseline_flags, feature_catalog
     if not isinstance(flags,dict) or any(not isinstance(k,str) or type(v) is not bool for k,v in flags.items()):
         raise ValueError("INSUFFICIENT_INPUT: cờ phải explicit boolean")
-    validate_compat_flags(flags)
+    if experimental is None:
+        validate_compat_flags(flags)
+    else:
+        validate_baseline_flags(flags, experimental)
     if feature_catalog().keys() - flags.keys():
         raise ValueError("INSUFFICIENT_INPUT: thiếu cờ legacy explicit")
     public_config = public_config or {}
@@ -113,7 +154,8 @@ def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None,
         if manifest is not None:
             if manifest.get("db_sha256") != digest:
                 return {"status": "DATA_CHANGED", "reason": "CSDL đã đổi"}
-            if manifest.get("flags") != flags or manifest.get("public_config") != public_config:
+            if (manifest.get("flags") != flags or manifest.get("public_config") != public_config
+                    or manifest.get("experimental_flags") != experimental):
                 return {"status": "DATA_CHANGED", "reason": "cờ/config public đã đổi"}
             if manifest["job_id"] != int(job_id) or manifest["envelope"] != envelope:
                 return {"status": "DATA_CHANGED", "reason": "định danh/envelope capture đã đổi"}
@@ -136,7 +178,7 @@ def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None,
         response = box / "response.json"
         if result.returncode or not response.is_file():
             return {"status": "INSUFFICIENT_INPUT", "reason": "worker không dựng được gói"}
-        answer = json.loads(response.read_text(encoding="utf-8"))
+        answer = classify_answer(json.loads(response.read_text(encoding="utf-8")))
         if answer.get("status") != "BUILT":
             return answer
         for name,expected in answer["files"].items():
@@ -144,6 +186,7 @@ def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None,
                 return {"status":"DATA_CHANGED", "reason":"nguồn đổi trong lúc capture/replay"}
         answer["manifest"] = {"version": 1, "db_sha256": digest, "files": answer.pop("files"),
                               "flags": flags, "public_config": public_config,
+                              **({"experimental_flags": experimental} if experimental is not None else {}),
                               "schema": schema,
                               "job_id":int(job_id), "envelope":envelope,
                               "head_sha": __import__("tools.golden_capture", fromlist=["head_sha"]).head_sha(),
@@ -157,18 +200,24 @@ def compare_database_job(job, actual):
         return {k: v for k, v in actual.items() if k != "raw"}
     if actual["raw"] == job["sent_package_raw"]:
         return {"status": "COMPAT"}
+    # C-GOLDEN2 (d): pregen_fingerprint gắn NGOÀI _build_package (VideoRunner._pregen → _build_package khi đã có task id) — so RIÊNG trường
+    # này: phần còn lại giống hệt → COMPAT có ghi chú; giá trị fingerprint lúc gửi giữ trong kết quả để đối chiếu tay.
+    sent_rest, sent_fp = _without_fingerprint(job["sent_package_raw"])
+    built_rest, built_fp = _without_fingerprint(actual["raw"])
+    if sent_rest is not None and sent_rest == built_rest and sent_fp != built_fp:
+        return {"status": "COMPAT", FINGERPRINT: "so_rieng", "fingerprint_sent": sent_fp, "fingerprint_built": built_fp}
     if job.get("database_replay", {}).get("matched_at_capture") is True:
         return {"status": "CODE_MISMATCH", "reason": "input capture ổn định nhưng builder đổi"}
     return {"status": "INSUFFICIENT_INPUT", "reason": "không đủ bằng chứng đầu vào lúc gửi"}
 
 
-def capture_database_job(job, *, db, ref_root, flags, public_config=None):
+def capture_database_job(job, *, db, ref_root, flags, public_config=None, experimental=None):
     package = json.loads(job["sent_package_raw"])
     if any(k not in package for k in ("provider","at","external_id")):
         return {"status":"INSUFFICIENT_INPUT", "matched_at_capture":False, "reason":"thiếu envelope lịch sử"}
     envelope = {k:package[k] for k in ("provider", "at", "external_id")}
     actual = build_from_database(db=db, ref_root=ref_root, job_id=job["id"], flags=flags,
-                                 envelope=envelope, public_config=public_config)
+                                 envelope=envelope, public_config=public_config, experimental=experimental)
     result = {"envelope": envelope, "matched_at_capture": actual.get("raw") == job["sent_package_raw"]}
     result.update({k:v for k,v in actual.items() if k not in {"raw"}})
     result["comparison"] = compare_database_job(job, actual)
@@ -184,7 +233,8 @@ def replay_fixture(fixture, *, db, ref_root):
             results.append({**identity, "status":"INSUFFICIENT_INPUT", "reason":recorded.get("reason", "thiếu manifest"), **({"diagnostic": recorded["diagnostic"]} if "diagnostic" in recorded else {})})
             continue
         actual = build_from_database(db=db, ref_root=ref_root, job_id=job["id"], flags=fixture["flags"],
-            envelope=recorded["envelope"], manifest=recorded["manifest"], public_config=recorded["manifest"].get("public_config"))
+            envelope=recorded["envelope"], manifest=recorded["manifest"], public_config=recorded["manifest"].get("public_config"),
+            experimental=fixture.get("experimental_flags") if fixture.get("flags_mode") == "baseline" else None)
         results.append({**identity, **compare_database_job(job,actual)})
     return summarize(results)
 
@@ -383,10 +433,13 @@ def _worker(request):
                 forbidden()
         sys.addaudithook(audit)
         with patch.object(os, "environ", fake_env), patch.object(socket, "socket", forbidden), patch.object(socket, "create_connection", forbidden), patch.object(subprocess, "Popen", forbidden), patch.object(builtins, "open", wrapped_open), patch.object(io, "open", wrapped_io), patch.object(os, "open", wrapped_os_open), patch.object(os, "stat", wrapped_stat), patch.object(os, "listdir", wrapped_listdir), patch.object(os, "scandir", wrapped_scandir):
-            from core import runner, features, sent_package, seedance_refs
+            from core import runner, features, sent_package, seedance_refs, image_models
             from core.pipeline import Pipeline
             cls = runner.ImageRunner if job["type"] == "image_gen" else runner.VideoRunner
             instance = cls(Pipeline(conn), ImageProvider() if job["type"] == "image_gen" else VideoProvider(), "data/projects")
+            if job["type"] == "video_gen":         # C-GOLDEN2 (c): model như lúc gửi = jobs.model của job
+                plain_choice = instance._choice
+                instance._choice = lambda j, _c=plain_choice: pinned_choice(_c(j), job)
             registry_used = []
             class CachedLibrary:
                 def get(self,asset_id):
@@ -421,7 +474,10 @@ def _worker(request):
                         if p.is_relative_to(home):
                             return p.relative_to(home).as_posix()
                 return original_rel_path(path)
-            with patch.object(features, "on", side_effect=lambda n: flags.get(n, False)), patch.object(features, "active", side_effect=lambda n: flags.get(n, False)), patch.object(features, "shadow", return_value=False), patch.object(sent_package, "ROOT", str(scratch)), patch.object(sent_package,"rel_path",side_effect=relative_input), patch.object(seedance_refs,"mark",side_effect=canonical_mark), patch.object(sent_package.datetime, "datetime", Frozen):
+            plain_of_project = image_models.of_project
+            def job_image_model(proj):             # C-GOLDEN2 (c): model ảnh = jobs.model của job ảnh
+                return job["model"] if job["type"] == "image_gen" and job.get("model") else plain_of_project(proj)
+            with patch.object(features, "on", side_effect=lambda n: flags.get(n, False)), patch.object(features, "active", side_effect=lambda n: flags.get(n, False)), patch.object(features, "shadow", return_value=False), patch.object(sent_package, "ROOT", str(scratch)), patch.object(sent_package,"rel_path",side_effect=relative_input), patch.object(seedance_refs,"mark",side_effect=canonical_mark), patch.object(sent_package.datetime, "datetime", Frozen), patch.object(image_models, "of_project", side_effect=job_image_model):
                 args = instance._submit_args(job)
                 if args is None:
                     return {"status": "INSUFFICIENT_INPUT", "reason": "shot thiếu input prepare"}
@@ -441,6 +497,11 @@ def _worker(request):
 
 def main(argv=None):
     import argparse
+    for stream in (sys.stdout, sys.stderr):    # C-GOLDEN2 (f): console cp1252 không in được chữ Việt của --help
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--fixture',required=True,type=Path,action='append')
     for name in ("db", "ref-root", "output"):
