@@ -193,3 +193,77 @@ def test_runner_remembers_and_before_run_says_drift(machine, tmp_path):
     res = before_run.collect(p.conn, str(data), b)
     texts = [i["text"] for g in res["groups"] for i in g["items"]]
     assert any("Drift cấu hình cờ" in t and PLAIN[0] in t for t in texts)
+
+
+# ---- rà khâu C-M72 --------------------------------------------------------------------------------------------------------------
+def test_paid_flags_without_costs_meta_are_never_turned_on(machine):
+    from core import before_run
+    settings, base, write = machine
+    paid = sorted(n for n in before_run.PAID_FLAGS if n in F.FEATURES and not F.FEATURES[n]["verified"])
+    write({n: "on" for n in paid})
+    assert [n for n in paid if F.state(n) != F.default_state(n)] == []
+
+
+def test_first_save_on_a_baseline_machine_keeps_the_baseline(machine):
+    settings, base, write = machine
+    a, b = PLAIN[0], PLAIN[1]
+    t = TRAINEE[0]
+    write({a: "on", t: "on"})
+    assert F.state(a) == "on" and F.state(t) == "trainee"
+    F.save_settings(flags={b: True})                                       # lần lưu đầu tạo tệp 🧪 → baseline thôi áp
+    assert not F.baseline_active()
+    assert (F.state(a), F.state(b), F.state(t)) == ("on", "on", "trainee")   # không "rơi vực" về mặc định
+    assert F.source(a) == "settings"
+
+
+def test_reset_preview_never_touches_the_shared_cache(machine):
+    settings, base, write = machine
+    F.save_settings(flags={PLAIN[0]: True})
+    seen = []
+    real = F.state
+
+    def spy(name, *a, **k):
+        seen.append(F._SETTINGS["data"]["flags"].get(PLAIN[0]))           # luồng khác đọc giữa lúc xem trước
+        return real(name, *a, **k)
+    with mock.patch.object(F, "state", spy):
+        F.reset_preview()
+    assert seen and all(v is True for v in seen)
+
+
+def test_drift_picks_the_project_that_sent_last(machine, tmp_path):
+    settings, base, write = machine
+    data = tmp_path / "projects"
+    write({PLAIN[0]: "on"})
+    F.remember_config(str(data), 30)
+    write({})
+    F.remember_config(str(data), 29)                                       # #29 gửi sau, cấu hình khác
+    write({PLAIN[0]: "on"})
+    F.remember_config(str(data), 30)                                       # #30 gửi lại sau cùng, cùng hash cũ
+    snap29 = data / "29" / "flag_config.json"
+    os.utime(snap29, (2e9, 2e9))                                           # mtime không được quyết định
+    assert F.drift(str(data), 31) == []                                    # so với #30 (gửi cuối): không drift
+
+
+def test_restore_refuses_a_non_json_and_backups_are_capped(machine):
+    settings, base, write = machine
+    F.save_settings(flags={PLAIN[0]: True})
+    for _ in range(F.MAX_BACKUPS + 3):
+        F.backup_settings()
+    assert len(F.list_backups()) == F.MAX_BACKUPS
+    odd = os.path.join(F._backup_dir(), "feature_settings.x.txt")
+    open(odd, "w").write("{}")
+    with pytest.raises(ValueError):
+        F.restore_settings(odd)
+
+
+def test_tools_that_make_a_fresh_settings_file_switch_baseline_off():
+    for rel in ("tools/ui_v2_acceptance.py", "tools/ui_snapshot.py", "tools/golden_db_replay.py"):
+        src = open(os.path.join(ROOT, rel), encoding="utf-8").read()
+        assert 'FEATURE_BASELINE="0"' in src or '"FEATURE_BASELINE": "0"' in src, rel
+    src = open(os.path.join(ROOT, "tools", "pregen_check.py"), encoding="utf-8").read()
+    assert "json.dump({}, f)" not in src                                   # máy không có tệp 🧪: không tự tạo tệp rỗng (baseline lệch nút Gen)
+
+
+def test_backups_are_not_committed():
+    ign = open(os.path.join(ROOT, ".gitignore"), encoding="utf-8").read().split()
+    assert "data/backup/" in ign and "data/*.tmp" in ign
