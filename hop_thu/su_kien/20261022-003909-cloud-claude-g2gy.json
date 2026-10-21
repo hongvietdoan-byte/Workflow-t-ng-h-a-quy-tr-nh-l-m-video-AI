@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-22T00:39:09.348294+07:00",
+  "lane": "cloud-claude",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "SỬA QUY TRÌNH CONTEXT PHIÊN CHÍNH (người dùng 21/10): chạm 70 % mà gọi clear_session = LƯU TRỮ phiên, đứt Remote Control. Từ nay KHÔNG gọi clear_session / archive_session / start_session cho phiên chính. Thay bằng: .claude/settings.json env CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=70 (Claude Code tự nén context trong CÙNG phiên) + hook SessionStart matcher startup|clear|compact (tools/session_handoff.py nạp lại gói sau khi nén). Context >= 60 %: commit + push gói PHIÊN KẾ rồi làm tiếp; sau nén: đọc gói, CronList, điều phối tiếp. Skill vong-lam-viec-theo-plan mục 4 + hop_thu/LICH_DIEU_PHOI.md bước 1 đã sửa. Sau khi gộp: pull ở D:\\AI-Video-Pipeline; nếu /status chưa thấy env mới thì khởi động lại phiên một lần (người dùng làm)."
+}

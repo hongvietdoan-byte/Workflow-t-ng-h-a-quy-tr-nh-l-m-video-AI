@@ -1,8 +1,11 @@
 {
+  "env": {
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "70"
+  },
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|clear",
+        "matcher": "startup|clear|compact",
         "hooks": [
           {
             "type": "command",
