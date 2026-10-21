@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:39:23.332674+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-GOLDEN2",
+  "to": "cloud-C",
+  "title": "Golden lần 3: final theo draft_job_id, COMPAT theo cờ sản xuất, model theo job, fingerprint (mở khóa M2)",
+  "spec": "docs/CLOUD_TASKS.md#### C-GOLDEN2",
+  "priority": 0
+}
