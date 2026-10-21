@@ -906,3 +906,13 @@ luồng 4 bước cho người mới (ý tưởng → duyệt kịch bản → d
 (BYĐ, plate, ref, motion… → giải thích 1 dòng); mặc định an toàn (không tốn tiền khi bấm nhầm, xác nhận + giá trước khi gen); cảnh báo dễ hiểu thay mã lỗi;
 bản vẽ màn (ASCII/SVG); chỉ số đo (số cú bấm tới video đầu tiên, số quyết định, thời gian). Không code. Nhánh cloud/v31-m81. XONG hộp thư — phiên chính trình EP.
 ```
+
+#### C-GOLDEN6 (cloud-C — ưu tiên 0, đường găng) — negative control của --ab không bắt được thay đổi cây B
+```
+Codex chạy A/B (docs/RA_CX21_GOLDEN5_CODEX_*.md trên nhánh codex/v31-golden5): 158 ca #24/#27/#31/#33 → SAME 127 · DIFF 0 · ONE_FAIL 0 · BOTH_FAIL 31 — NHƯNG
+negative control native ĐỎ: sửa một dòng sent_package.py ở cây B mà công cụ vẫn ra DIFF + ONE_FAIL = 0 (assert ((0 + 0) >= 1)). Tức có thể worker KHÔNG nạp code
+của --code-b (import core/ từ cây khác / sys.path / cache .pyc / _plain(name, …) kiểm chữ ký sau worker — xem dòng 62 báo cáo). Tìm gốc, sửa để mỗi bên nạp
+ĐÚNG cây code của nó (in đường dẫn module core.runner / core.sent_package thật đã nạp vào kết quả mỗi ca), negative control native xanh (sửa 1 dòng builder
+cây B → DIFF), rồi báo XONG để codex chạy lại. 31 BOTH_FAIL (NOT_BUILT 29, NO_SENT 6…) ghi lý do theo nhóm. Trên nhánh cloud/v31-golden5 (commit mới),
+báo cáo bổ sung docs/RA_CLOUD_GOLDEN5_*.md mục "GOLDEN6". XONG hộp thư (mã C-GOLDEN6).
+```
