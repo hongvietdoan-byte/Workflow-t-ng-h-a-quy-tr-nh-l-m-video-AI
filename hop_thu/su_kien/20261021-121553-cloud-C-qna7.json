@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T12:15:53.232457+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-STAGE-VIEW",
+  "branch": "cloud/v31-stage-view",
+  "commit": "9617f2b8",
+  "report": "docs/RA_CLOUD_STAGE_VIEW_2026-10-21.md",
+  "text": "Màn XEM sân khấu 3D chỉ đọc (cờ stage_view_ui TẮT, verified False), gọi trên khối gen Bước 2; 12 test mới xanh; không nút, không ghi data/CSDL. Test DP8 thêm danh sách trắng có lý do cho màn xem (cấm refresh/save/build/_write). Bộ đủ: 6853 xanh; đỏ = 25 golden (cần 3.14) + 4 nền + test_devsys_plan_map (M4.8 chưa map, đỏ sẵn trên main). Cần phiên chính kiểm đường dẫn stage/doan trên #31 thật. HẠN MỨC: không đọc được."
+}
