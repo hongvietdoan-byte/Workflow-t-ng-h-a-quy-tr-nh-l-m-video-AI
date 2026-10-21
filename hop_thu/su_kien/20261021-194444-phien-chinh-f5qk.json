@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T19:44:44.976097+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M71",
+  "to": "cloud-E",
+  "title": "M7.1 Gói A sửa cờ (change_review đóng cổng, hero_takes costs, director_rewrite respect_lock, chat_prompts)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M71",
+  "priority": 0
+}
