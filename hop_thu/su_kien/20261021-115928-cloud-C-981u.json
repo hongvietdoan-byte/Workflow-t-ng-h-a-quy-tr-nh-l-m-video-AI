@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:59:28.602226+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-RA-DP9-M29",
+  "branch": "cloud/v31-ra-dp9-m29",
+  "commit": "379cf28d",
+  "report": "docs/RA_CLOUD_RA_DP9_M29_2026-10-21.md",
+  "text": "Rà chỉ đọc DP9 (ca4bd441) + M29 (c4da3ee9): CẢ HAI GỘP ĐƯỢC, 0 CAO. Cờ TẮT y cũ, 0 điểm chặn mới, không đụng poll/submit; M29 narration_regression: xfail strict giữ khi tắt, gỡ đúng G15/G16/G17/G53 khi bật (261 qua, 21 xfail đều offscreen_off). VỪA-1 (DP9×C-M21): image_pregen._check_byd đọc data.get('byd') thẳng → test AST của C-M21 đỏ khi gộp — sửa 1 dòng shot_intent.byd_of. VỪA-2 (DP9/M2.4×C-M21): BYĐ nháp _p.draft/_p.from vs schema _p.by bắt buộc ở M2.1 → cần thống nhất với C-M24 (đề xuất thêm draft/from vào _p, by='code'). THẤP: 3/10 mã có id sổ lỗi; shadow dựng gói 2 lần; luật ref Deepix cho mọi provider; A11 đổi chữ diag không theo cờ; apply_fit nên qua write_guard khi gộp C-M25. Xung đột gộp: features.py/package_inputs.json/areas.json — giữ cả hai. HẠN MỨC: không đọc được."
+}
