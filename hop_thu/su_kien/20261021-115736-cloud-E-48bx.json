@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:57:36.604763+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "C-RA-M21-M25",
+  "branch": "cloud/v31-ra-m21-m25",
+  "commit": "bf60212c",
+  "report": "docs/RA_CLOUD_RA_M21_M25_2026-10-21.md",
+  "text": "Rà chỉ đọc: M21 GỘP ĐƯỢC sau sửa VỪA M21-1 (byd sai kiểu nay im lặng → QC vẫn gọi VLM tốn tiền, cả khi cờ TẮT; qc_observe/lock_exceptions/film_grammar) + THẤP validate() đổi không qua cờ. M25 GỘP ĐƯỢC sau sửa VỪA M25-1 (diag.record commit giữa transaction người gọi khi field_guard BẬT → shadow đổi dữ liệu) + 2 THẤP. Cả bộ: 0 đỏ mới (m25 1 test chập chờn, chạy lại xanh)."
+}
