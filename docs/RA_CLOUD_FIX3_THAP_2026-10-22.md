@@ -37,3 +37,73 @@
 ## Test
 - Test liên quan (`test_v31_m71_fix`, `test_change_review`, `test_v31_m63_gen_auth`): 103 xanh.
 - Full suite (cloud 3.13): **7091 passed**. 25 đỏ đều là golden cần native Python 3.14 (nền). Không còn tệp lạ trong cây làm việc sau khi chạy.
+
+---
+
+# C-FIX3-THAP-B — rà kỹ mở lại kịch bản "CAO 1" (cloud-C, 22/10)
+
+- Cùng nhánh `cloud/v31-fix3-thap`. 0 USD, không đổi cờ, không migration.
+
+## Lỗi (đề bài)
+- Kịch bản:
+  1. Cờ motion BẬT. Một nhóm rà của shot có sửa scene #a và sửa motion #b, lần rà lỗi (timeout) → cả hai `failed`. Mục ĐỎ gắn #b.
+  2. Người sửa scene tiếp #c → rà đạt. `#c.before` đã ở trạng thái sau #a, nên Claude không thấy #a.
+  3. Tắt cờ → #b `skipped` → mục đóng.
+- Kết quả: #a nằm dưới "lần rà đạt gần nhất", nên không bao giờ ra mục mới → cổng mở, job tốn tiền được gửi khi #a chưa ai rà.
+
+## Sửa (`core/change_review.py`)
+Không vá riêng nhánh tắt cờ mà sửa gốc. Lượt rà đầu đã tìm thêm 3 lỗi cùng gốc, nên cách vá riêng bị bỏ.
+
+**`_COVERED` — điều kiện "đã có mục che":** một lần rà lỗi được coi là đã che khi có mục `review_fail` thỏa cả 4 điều kiện:
+- cùng shot;
+- `event_id` ≥ lần lỗi đó;
+- ghi SAU lần lỗi;
+- còn mở, hoặc do người đóng (Bỏ qua / Rà lại / dọn dự án đã giao).
+
+Mục tự đóng `'change_review'` (lần của mục đã rà xong hoặc bị bỏ) KHÔNG che các lần khác.
+
+**`_hold_failed`:**
+- Bỏ cận "id > lần rà đạt gần nhất".
+- Lần rà lỗi mới nhất CHƯA được che → mục ĐỎ.
+- **Mỗi shot chỉ MỘT mục mở:** nếu đã có mục mở, gắn lại mục đó vào lần lỗi mới (`event_id`, `msg`, `at`) thay vì `_add`. Trước đây `_add` bỏ qua mục trùng lời, nên lần lỗi mới không có mục nào che.
+
+**`rerun_failed`:**
+- Đưa về pending mọi lần lỗi mà mục này che (id ≤ lần của mục, không bị mục KHÁC còn mở hoặc đã Bỏ qua che).
+- Trước đây nút ném "không còn trong sổ" (sai) khi lần sửa sau đã rà đạt.
+
+**UPDATE:** không dùng bí danh bảng nữa.
+
+**Nhánh tắt cờ trong `process_pending`:** giữ như C-FIX3-THAP. #b `skipped` → mục của nó tự đóng → #a hết được che → ra mục mới ngay trong cùng `blocking()`.
+
+## Các lỗi phát hiện khi rà (quy tắc 7, 3 lượt agent)
+
+| Mức | Lỗi | Xử lý |
+|---|---|---|
+| CAO (có từ trước) | Lần lỗi chưa ai gọi `blocking()` mà lần sửa sau rà đạt → không giữ. Đã ghi "Để lại" trong `docs/RA_CLOUD_M71_2026-10-21.md`; test cũ `test_failed_review_older_than_a_good_review_does_not_hold` khóa đúng lỗi này | Sửa; test đổi thành `…_still_holds` |
+| VỪA | Rà lại ở kịch bản a/b/c ném "không còn trong sổ" | Sửa |
+| VỪA | Lần scene lỗi đã được người Bỏ qua vẫn giữ lại motion khi tắt cờ (bản vá riêng đầu tiên) | Thiết kế mới không giữ |
+| VỪA | Lần lỗi thứ 2 cùng lời → mục hiện lại ngay sau Bỏ qua; Rà lại chỉ rà một phần | Một mục mỗi shot, gắn lại |
+| VỪA | Dữ liệu cũ có 2 mục mở: Rà lại mục sau → Rà lại mục trước báo lỗi sai | Mục đã Rà lại / ✓ Đã sửa (`resolved`) không cản lần rà lại khác |
+
+## ⚠️ Cần phiên chính kiểm trước khi gộp (dữ liệu thật)
+- Lần `failed` / `code_only` hết tiền cũ (trong `KEEP_DAYS`) chưa từng có mục che sẽ bật mục ĐỎ ở lần `blocking()` kế tiếp. Đúng ý: các thay đổi đó chưa ai rà.
+- Hệ quả: autopilot giữ các shot đó; người phải Rà lại (tốn Claude) hoặc Bỏ qua.
+- Đếm trước, chỉ đọc, trên `manifest.sqlite` của máy chính (bản trong repo không có dòng `change_events`):
+  ```sql
+  SELECT project_id, scene_id, COUNT(*) FROM change_events e
+  WHERE (state='failed' OR (state='code_only' AND note LIKE 'quota:%'))
+    AND NOT EXISTS (SELECT 1 FROM change_findings f WHERE f.source='review_fail' AND f.scene_id=e.scene_id AND f.event_id>=e.id
+                    AND substr(f.at,1,19)>=substr(COALESCE(e.reviewed_at,''),1,19)
+                    AND (f.status='open' OR COALESCE(f.resolved_by,'')<>'change_review'))
+  GROUP BY 1, 2;
+  ```
+- Còn lại, có từ trước: lần lỗi bị `KEEP_DAYS` xóa trong khi mục còn mở → mục chỉ đóng được bằng Bỏ qua.
+
+## Việc phụ
+- `tests/test_v31_m71_fix.py`: dùng `tmp_path` thay `mkdtemp` (không còn rác thư mục tạm).
+- `tests/test_v31_m63_gen_auth.py`: mock `_usd_of_jobs` ghi lại TỪNG lần gọi (`seen == [[1], [2]]`), không vỡ khi gọi với `ids` rỗng.
+
+## Test
+- Test mới / đổi trong `tests/test_change_review.py`: 7.
+  - ĐỎ trên code trước sửa: 4 test của bản `_COVERED` đỏ trên C-FIX3-THAP; 3 test của bản gắn lại đỏ trên eb50a0ea.
+  - Test "Bỏ qua scene rồi tắt cờ" là test chặn hồi quy cho bản vá riêng đầu tiên.
