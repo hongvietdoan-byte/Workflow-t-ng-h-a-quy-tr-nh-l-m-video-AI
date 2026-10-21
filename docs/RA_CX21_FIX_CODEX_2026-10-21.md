@@ -40,3 +40,10 @@ Launcher thay OBJECT `os.environ` bằng dict whitelist giả bằng `patch.obje
 - Root mở phiên rà kỹ sạch sau bàn giao; commit nhánh chưa là chấp thuận merge.
 - Snapshot capacity không phải reservation; guard submit/provider tiếp tục xử lý thay đổi sức chứa sau snapshot. Upload/reconcile GET khác của ensure_picture giữ hành vi hiện tại; chỉ GET capacity được chuyển ra khỏi khóa theo đề.
 - merge JSON scalar thay đổi đồng thời cần giải quyết tay; không đoán để ghi nhầm config.
+
+## Rà kỹ độc lập sau triển khai (Codex, 21/10/2026)
+
+- Rà diff `2a2b30ec..b3f34f0a` đủ 6 mục, đối chiếu đề CX21-FIX và chạy lại `related_areas.py` với runner/subjects/golden/merge/decisions. Đọc caller prepare/finish trong submit, ensure_picture/picture_refs, inbox đọc khung bị loại và lifecycle archive/delivered/schedule_auto_cleanup.
+- Không phát hiện lỗi mới có đủ bằng chứng cần sửa trong phạm vi này. Không thay code để suy đoán. Kiểm tĩnh: pregen OFF vẫn chuẩn bị kwargs ngoài SPEND_LOCK; capacity-guard OFF giữ defer cũ; snapshot tên mơ hồ của sha liên quan giữ UNKNOWN; sha không liên quan dự phòng một chỗ; merge xóa đối nghịch sửa/scalar xung đột dừng trước ghi; sổ active D03c giữ guard D03b và không mở quyền xóa.
+- Chạy độc lập lại đúng 6 file đã liệt kê: **169 passed, 29.64s**. Native Python3.14; thay OBJECT os.environ bằng dict whitelist trước import pytest; `--tb=no --no-showlocals -q -p no:cacheprovider`; tắt dọn TEMP cũ qua PIPELINE_TEST_KEEP_TEMP để lượt rà không tác động thư mục tạm ngoài fixture. Không đọc/in môi trường thật hay payload credential; không API/chi phí, dữ liệu thật, dashboard.env hoặc dịch vụ live.
+- Giữ nguyên giới hạn bằng chứng: chưa cả bộ Windows, chưa vận hành thật; chưa có baseline đỏ riêng C3-3/golden. Bản rà này không cấp phép gộp. Không đổi areas version 88, TODO hoặc nhánh main.
