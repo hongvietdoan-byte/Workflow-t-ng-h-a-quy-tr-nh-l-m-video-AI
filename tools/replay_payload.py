@@ -258,6 +258,16 @@ def replay(conn, pid: int, data_dir: str, shot=None) -> list:
     return out
 
 
+def annotate_d6(conn, results: list) -> list:
+    """C-M71 A5 (P31-G29): máy chính BẬT D6 (chat_prompts) mà gói dựng lại ở đây luôn TẮT D6 → mỗi shot thêm "d6" = bản D6 đã lưu
+    của job (core.chat_prompt.saved_view, 0 USD, không gọi Claude) hoặc lời "chưa xem được" — không in im lặng bản code ghép như gói thật."""
+    from core import chat_prompt
+    for s in results:
+        if not s.get("error"):
+            s["d6"] = chat_prompt.saved_view(conn, s["job_id"], "image", assembled=s.get("prompt"))
+    return results
+
+
 def _print(results: list, width: int) -> None:
     for s in results:
         print(f"=== shot {s['idx']} (scene {s['scene_id']}, job {s['job_id']}) ===")
@@ -284,6 +294,11 @@ def _print(results: list, width: int) -> None:
             if sev != "info":
                 print(f"  diag {sev} {code}: {msg[:200]}")
         print("  prompt:", (s["prompt"][:width] + " …") if width and len(s["prompt"]) > width else s["prompt"])
+        d6 = s.get("d6")
+        if d6:
+            print("  D6:", d6["note"])
+            if d6.get("prompt"):
+                print("  prompt D6:", (d6["prompt"][:width] + " …") if width and len(d6["prompt"]) > width else d6["prompt"])
 
 
 def main(argv=None) -> int:

@@ -25,6 +25,10 @@ from . import diag, features
 from .pipeline import REWRITE_NOTE
 
 FLAG = "director_rewrite"
+LOCK_FLAG = "director_rewrite_respect_lock"     # C-M71 A3
+PROPOSAL_CODE = "director_rewrite_proposal"
+PROPOSAL_KEY = "director_proposal:{}:{}"        # app_settings: scene id, kind → {prompt, old_prompt, changed, why, job_id, at}
+LOCK_FIELD = {"image": "image_prompt", "video": "motion_prompt"}
 STAGE = "director_rewrite"
 FALLBACK_CODE = "director_rewrite_fallback"
 DONE_CODE = "director_rewrite"
@@ -38,6 +42,11 @@ _SHOT_KEYS = ("characters", "shot", "size", "angle", "camera_move", "action", "b
 
 class RewriteRefused(Exception):
     """The Director's answer cannot be used (same prompt, a character outside the shot…): the old way (Fix:) is used instead."""
+
+
+class RewriteLocked(RewriteRefused):
+    """C-M71 A3 (flag director_rewrite_respect_lock): the person set this prompt by hand (`_user_locked`) — the rewrite is kept as a
+    PROPOSAL (proposal() / apply_proposal()), nothing written; the retake goes the old way (Fix:)."""
 
 
 @dataclass
@@ -382,9 +391,87 @@ def propose_rewrite(p, job, note: Optional[str] = None, fix: Optional[str] = Non
     return RewriteResult(new, changed, str(obj.get("why") or ""), 0, old, removed)
 
 
-def save_rewrite(p, job, res: RewriteResult, note: Optional[str] = None) -> int:
-    """Write the proposed prompt into the shot (old one kept as a version). Returns the new version number."""
+def respect_lock() -> bool:
+    try:
+        return features.on(LOCK_FLAG)
+    except KeyError:
+        return False
+
+
+def locked(conn, scene_id: int, kind: str) -> bool:
+    """The shot's prompt of this kind is in `_user_locked` (the person set it by hand — llm_io.update_scene / Bước 2/3)."""
+    row = conn.execute("SELECT data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    try:
+        data = json.loads(row["data"] or "{}") if row else {}
+    except ValueError:
+        return False
+    return LOCK_FIELD[kind] in set((data if isinstance(data, dict) else {}).get("_user_locked") or [])
+
+
+def proposal(conn, scene_id: int, kind: str) -> Optional[Dict]:
+    """The Director's kept proposal for a locked prompt (None = none / no longer matches the shot's prompt)."""
+    row = conn.execute("SELECT value FROM app_settings WHERE key=?", (PROPOSAL_KEY.format(scene_id, kind),)).fetchone()
+    try:
+        got = json.loads(row[0]) if row else None
+    except ValueError:
+        return None
+    if not isinstance(got, dict) or got.get("old_prompt") != current_prompt(conn, scene_id, kind):
+        return None                                       # the person changed the prompt since: the proposal is stale
+    return got
+
+
+def _keep_proposal(p, job, res: RewriteResult) -> None:
     kind = KINDS[job["type"]]
+    value = {"prompt": res.new_prompt, "old_prompt": res.old_prompt, "changed": res.changed, "why": res.why[:600],
+             "job_id": job["id"], "at": _now()}
+    p.conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                   (PROPOSAL_KEY.format(job["scene_id"], kind), json.dumps(value, ensure_ascii=False)))
+    idx = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
+    diag.record(p.conn, kind, "warn", f"Đạo diễn ĐỀ XUẤT prompt {'ảnh' if kind == 'image' else 'clip'} mới cho shot "
+                f"{idx['idx'] if idx else '?'} — KHÔNG ghi đè vì bạn đã sửa/khóa {LOCK_FIELD[kind]}; lần gen lại dùng câu sửa như cũ. "
+                f"Đề xuất: {res.new_prompt[:300]}", PROPOSAL_CODE, job["project_id"], scene_id=job["scene_id"], job_id=job["id"])
+    p.conn.commit()
+
+
+def proposal_mark(got: Optional[Dict]) -> Optional[str]:
+    """Short mark of a proposal (its prompt + time) — the "Áp dụng" button sends the one it SHOWS (rà kỹ C-M71)."""
+    if not got:
+        return None
+    import hashlib
+    return hashlib.sha256(f"{got.get('at')}|{got.get('prompt')}".encode("utf-8")).hexdigest()[:12]
+
+
+def apply_proposal(p, scene_id: int, kind: str, expect: Optional[str] = None) -> str:
+    """The person presses "Áp dụng" on the Director's proposal: the prompt becomes it (old one kept as a version). Free.
+    expect = proposal_mark of the proposal on screen: a newer proposal written meanwhile is refused (the person saw another one)."""
+    from . import access
+    access.need_edit_scene(p, scene_id, "áp dụng đề xuất của Đạo diễn")
+    got = proposal(p.conn, scene_id, kind)
+    if got is None:
+        raise ValueError("Không có đề xuất của Đạo diễn còn khớp prompt hiện tại của shot.")
+    if expect is not None and proposal_mark(got) != expect:
+        raise ValueError("Đề xuất của Đạo diễn vừa đổi (bản mới hơn bản bạn đang xem) — tải lại trang rồi xem lại.")
+    pid = p.conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()["project_id"]
+    if not versions(p.conn, scene_id, kind) or versions(p.conn, scene_id, kind)[-1]["prompt"] != got["old_prompt"]:
+        _add_version(p.conn, pid, scene_id, kind, got["old_prompt"], "original" if not versions(p.conn, scene_id, kind) else "manual",
+                     who=p.actor)
+    _set_prompt(p.conn, scene_id, kind, got["prompt"])
+    _add_version(p.conn, pid, scene_id, kind, got["prompt"], "proposal_applied", changed=got.get("changed"), why=got.get("why"),
+                 job_id=got.get("job_id"), who=p.actor)
+    p.conn.execute("DELETE FROM app_settings WHERE key=?", (PROPOSAL_KEY.format(scene_id, kind),))
+    p.conn.commit()
+    from . import prompt_formula
+    prompt_formula.on_prompt_saved(p.conn, scene_id, kind, got["old_prompt"], got["prompt"])
+    return got["prompt"]
+
+
+def save_rewrite(p, job, res: RewriteResult, note: Optional[str] = None) -> int:
+    """Write the proposed prompt into the shot (old one kept as a version). Returns the new version number.
+    C-M71 A3 (flag director_rewrite_respect_lock): a prompt the person locked is not written — kept as a proposal, RewriteLocked."""
+    kind = KINDS[job["type"]]
+    if respect_lock() and locked(p.conn, job["scene_id"], kind):
+        _keep_proposal(p, job, res)
+        raise RewriteLocked(f"{LOCK_FIELD[kind]} do bạn sửa/khóa — Đạo diễn chỉ đề xuất")
     vers = versions(p.conn, job["scene_id"], kind)
     if not vers or vers[-1]["prompt"] != res.old_prompt:   # the prompt in use now (the Director's / a hand edit) is saved before it changes
         _add_version(p.conn, job["project_id"], job["scene_id"], kind, res.old_prompt, "original" if not vers else "manual", who=p.actor)
@@ -419,7 +506,12 @@ def _review_now(p, job) -> None:
     from . import change_review, world_rules
     try:
         client = client_for(p, job)
-    except Exception:  # noqa: BLE001 - no Claude set up: the code rules still run, said below
+    except Exception as e:  # noqa: BLE001 - C-M71 A1 (G35): a Claude ERROR is not "no Claude": the change stays 'pending' (held), said
+        if change_review.enabled():
+            diag.record(p.conn, "video", "warn", f"Chưa rà được bản motion Đạo diễn vừa viết lại — gọi Claude lỗi ({type(e).__name__}: "
+                        f"{str(e)[:160]}) — lần gen lại bị giữ tới khi vòng nền rà xong", "rewrite_review_fail", job["project_id"],
+                        scene_id=job["scene_id"], job_id=job["id"])
+            return
         client = None
     try:
         change_review.review_scene_now(p.conn, world_rules.data_dir_abs(), job["scene_id"], client=client)
@@ -482,6 +574,8 @@ class Plan:
             if current_prompt(p.conn, job["scene_id"], kind) != self.res.old_prompt:
                 raise RewriteRefused("prompt của shot vừa được sửa tay trong lúc Đạo diễn viết — giữ bản của người")
             version = save_rewrite(p, job, self.res, self.note)
+        except RewriteLocked:                             # C-M71 A3: proposal kept + said (diag PROPOSAL_CODE) — the old way, no fallback
+            return self.reason
         except Exception as e:  # noqa: BLE001 - never lose the take: the old way, said
             _fallback(p, job, e)
             return self.reason

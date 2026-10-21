@@ -711,3 +711,116 @@ def test_fallback_is_said_to_a_script_caller_too(capsys):
     assert "shot 16" in p.last_rewrite_fallback and "Chưa cấu hình Claude" in p.last_rewrite_fallback
     assert "Đạo diễn chưa viết lại prompt ảnh shot 16" in capsys.readouterr().err
 
+
+
+LOCK = {"FEATURE_DIRECTOR_REWRITE": "1", "FEATURE_DIRECTOR_REWRITE_RESPECT_LOCK": "1"}
+
+
+class RespectLock(Base):
+    """C-M71 A3 (P33-A4): trường người dùng đã sửa / khóa (`_user_locked`) — Đạo diễn chỉ ĐỀ XUẤT, không ghi đè. Cờ con
+    director_rewrite_respect_lock (verified False, mặc định TẮT); cờ tắt → như cũ (ghi đè)."""
+
+    def lock(self, sid, *keys):
+        data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()["data"])
+        data["_user_locked"] = list(keys)
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), sid))
+        self.p.conn.commit()
+
+    def diags(self, code):
+        return self.p.conn.execute("SELECT * FROM diag_events WHERE code=?", (code,)).fetchall()
+
+    def test_flag_is_new_unverified_off_and_needs_director_rewrite(self):
+        from core import features
+        meta = features.FEATURES["director_rewrite_respect_lock"]
+        self.assertFalse(meta["verified"])
+        self.assertFalse(meta.get("default_on"))
+        self.assertEqual(features.REQUIRES["director_rewrite_respect_lock"], ("director_rewrite",))
+        with mock.patch.dict(os.environ, {"FEATURE_DIRECTOR_REWRITE_RESPECT_LOCK": ""}):
+            self.assertFalse(features.on("director_rewrite_respect_lock"))
+
+    def test_locked_image_prompt_is_only_proposed(self):
+        _, sid, job = self.make()
+        self.lock(sid, "image_prompt")
+        with mock.patch.dict(os.environ, LOCK):
+            self.p.reject(job, "user", "đổi áo sang màu vàng")
+        self.assertEqual(self.image_prompt(sid), OLD)                       # trước C-M71: NEW (ghi đè bản người sửa)
+        self.assertEqual(prompt_rewrite.versions(self.p.conn, sid, "image"), [])
+        self.assertEqual(self.child(job)["retry_reason"], "đổi áo sang màu vàng")    # gen lại bằng câu sửa như cũ
+        self.assertEqual(len(self.diags(prompt_rewrite.PROPOSAL_CODE)), 1)
+        self.assertEqual(self.diags(prompt_rewrite.FALLBACK_CODE), [])
+        self.assertEqual(prompt_rewrite.proposal(self.p.conn, sid, "image")["prompt"], NEW)
+
+    def test_person_applies_the_proposal(self):
+        _, sid, job = self.make()
+        self.lock(sid, "image_prompt")
+        with mock.patch.dict(os.environ, LOCK):
+            self.p.reject(job, "user", "đổi áo sang màu vàng")
+            self.assertEqual(prompt_rewrite.apply_proposal(self.p, sid, "image"), NEW)
+        self.assertEqual(self.image_prompt(sid), NEW)
+        self.assertIsNone(prompt_rewrite.proposal(self.p.conn, sid, "image"))
+        self.assertEqual([v["source"] for v in prompt_rewrite.versions(self.p.conn, sid, "image")], ["original", "proposal_applied"])
+
+    def test_locked_motion_prompt_is_only_proposed(self):
+        _, sid, job = self.make(kind="video_gen")
+        self.lock(sid, "motion_prompt")
+        with mock.patch.dict(os.environ, LOCK):
+            self.client.answer = {"new_prompt": "Static camera, Kelly turns her head slowly", "changed": ["x"], "why": "y"}
+            self.p.reject(job, "user", "giữ máy đứng yên")
+        mp = self.p.conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone()
+        self.assertEqual(mp["motion_prompt"], "Slow push-in, Kelly turns her head")
+        self.assertEqual(len(self.diags(prompt_rewrite.PROPOSAL_CODE)), 1)
+
+    def test_rewrite_for_retry_locked_changes_nothing(self):
+        _, sid, job = self.make()
+        self.lock(sid, "image_prompt")
+        with mock.patch.dict(os.environ, LOCK):
+            with self.assertRaises(prompt_rewrite.RewriteLocked):
+                prompt_rewrite.rewrite_for_retry(self.p, self.p.job(job), note="đổi áo sang màu vàng", fix="yellow jacket")
+        self.assertEqual(self.image_prompt(sid), OLD)
+        self.assertEqual(len(self.diags(prompt_rewrite.PROPOSAL_CODE)), 1)
+
+    def test_unlocked_field_rewritten_as_before(self):
+        _, sid, job = self.make()
+        self.lock(sid, "size")                                               # khóa trường khác: prompt ảnh vẫn viết lại
+        with mock.patch.dict(os.environ, LOCK):
+            self.p.reject(job, "user", "đổi áo sang màu vàng")
+        self.assertEqual(self.image_prompt(sid), NEW)
+        self.assertEqual(self.diags(prompt_rewrite.PROPOSAL_CODE), [])
+
+    def test_sub_flag_off_keeps_old_overwrite(self):
+        _, sid, job = self.make()
+        self.lock(sid, "image_prompt")
+        with mock.patch.dict(os.environ, dict(ON, FEATURE_DIRECTOR_REWRITE_RESPECT_LOCK="0")):
+            self.p.reject(job, "user", "đổi áo sang màu vàng")
+        self.assertEqual(self.image_prompt(sid), NEW)                       # hành vi cũ giữ nguyên khi cờ con tắt
+        self.assertEqual(self.diags(prompt_rewrite.PROPOSAL_CODE), [])
+
+
+class RespectLockDeepReview(Base):
+    """Rà kỹ C-M71 (THẤP 5 + test thiếu): áp dụng đề xuất sau khi người vừa sửa tay → báo lỗi; nút Áp dụng gửi kèm dấu bản đang hiện."""
+    lock, diags = RespectLock.lock, RespectLock.diags
+
+    def _propose(self):
+        _, sid, job = self.make()
+        self.lock(sid, "image_prompt")
+        with mock.patch.dict(os.environ, LOCK):
+            self.p.reject(job, "user", "đổi áo sang màu vàng")
+        return sid
+
+    def test_apply_after_hand_edit_is_refused(self):
+        sid = self._propose()
+        data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()["data"])
+        data["image_prompt"] = "the person's own new prompt"
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), sid))
+        self.p.conn.commit()
+        with self.assertRaises(ValueError):
+            prompt_rewrite.apply_proposal(self.p, sid, "image")
+        self.assertEqual(self.image_prompt(sid), "the person's own new prompt")
+
+    def test_apply_refuses_a_different_proposal_than_shown(self):
+        sid = self._propose()
+        shown = prompt_rewrite.proposal_mark(prompt_rewrite.proposal(self.p.conn, sid, "image"))
+        with self.assertRaises(ValueError):
+            prompt_rewrite.apply_proposal(self.p, sid, "image", expect="khác")
+        self.assertEqual(self.image_prompt(sid), OLD)
+        self.assertEqual(prompt_rewrite.apply_proposal(self.p, sid, "image", expect=shown), NEW)

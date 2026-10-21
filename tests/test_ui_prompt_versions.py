@@ -91,6 +91,32 @@ class PromptVersionsUi(unittest.TestCase):
         self.assertIn(f"pvrevert_video_{self.sid}", {b.key for b in at.button})
 
 
+class ProposalUi(PromptVersionsUi):
+    """C-M71 A3: prompt người đã khóa + cờ director_rewrite_respect_lock → thẻ Storyboard hiện '💡 Đạo diễn đề xuất' + nút Áp dụng."""
+
+    def test_storyboard_card_shows_proposal_and_applies_it(self):
+        with mock.patch.dict(os.environ, {"FEATURE_DIRECTOR_REWRITE_RESPECT_LOCK": "1"}):
+            data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (self.sid,)).fetchone()["data"])
+            data["_user_locked"] = sorted(set(data.get("_user_locked") or []) | {"image_prompt"})
+            self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), self.sid))
+            self.p.conn.commit()
+            old = prompt_rewrite.current_prompt(self.p.conn, self.sid, "image")
+            job = self.p.create_job(self.sid)
+            self.p.start(job)
+            self.p.succeed(job)
+            self.p.apply_qc(job, {"a": 0.9, "b": 0.9})
+            self.rewrite(job, "a proposed prompt for the shot")
+            self.assertEqual(prompt_rewrite.current_prompt(self.p.conn, self.sid, "image"), old)
+            at = self.open(2)
+            self.assertTrue(any(e.label.startswith("💡 Đạo diễn đề xuất") for e in at.expander))
+            at.button(key=f"pvprop_image_{self.sid}").click().run()
+            self.assertFalse(at.exception, at.exception)
+        self.assertEqual(prompt_rewrite.current_prompt(connect(self.db), self.sid, "image"), "a proposed prompt for the shot")
+
+    test_storyboard_card_shows_old_new_and_reverts_for_free = None
+    test_video_card_shows_the_motion_prompt_rewrite = None
+
+
 class SpinnerScan(unittest.TestCase):
     """Rà S14.17 #3: mọi nút có thể gọi Đạo diễn (Loại & gen lại kèm ghi chú, bỏ duyệt kèm ghi chú, gen lại clip kèm câu sửa) chạy dưới
     spinner — người dùng thấy đang chờ Claude thay vì trang đứng im."""
