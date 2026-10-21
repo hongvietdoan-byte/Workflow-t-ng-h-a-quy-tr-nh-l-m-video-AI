@@ -24,6 +24,12 @@ thật. File này cập nhật mỗi lượt điều phối; máy chính đánh 
 
 **Agent rà kỹ:** 0 CAO · 1 VỪA (khóa hết tiền D6 `QUOTA_KEY` dùng chung mọi dự án) · 3 THẤP (2 chỗ kẹt mục ĐỎ change_review khi sự kiện skipped / LIMIT 5; baseline cờ hero_takes/scene_qc_claude giờ costs → máy MỚI hạ OFF) → giao **C-M71-FIX** cloud-E (kèm sửa rò tệp test DP12 ghi `data/ref_padded/` thật). Gỡ xung đột before_run.py: Agent xác nhận đúng.
 
+## A2. Lượt 22/10 01:21 — C-M63-FIX (cloud-C) @ cloud/v31-m63-fix 7a68a597
+
+| Mã | Cloud đã kiểm | Máy chính kiểm | Máy chính |
+|---|---|---|---|
+| C-M63-FIX (gen_auth.shadow_send ở 6 đường gửi thẳng: khung cuối, phép thử chất lượng, khớp môi, ảnh toàn cảnh, bộ ảnh nhân vật, experiments; đếm lượt clip nhóm; autoqc xóa mã dừng khi lượt mới) | gộp sạch; cả bộ Linux 7099 qua, 31 hỏng = y hệt main; **Agent rà kỹ: 0 CAO**, 1 VỪA (attempts() quét toàn bảng jobs khi cờ BẬT — chậm) + 4 THẤP → giao **C-M63-FIX2** cloud-D | cờ `gen_auth_shadow` TẮT (mặc định): gửi khung cuối / khớp môi / phép thử chất lượng một lần trên dự án thử bằng provider giả → KHÔNG có tệp `data/projects/<id>/crew/gen_auth_shadow.jsonl` mới, job đi như cũ; (tùy) bật cờ trên bản sao → mỗi lần gửi thêm đúng 1 dòng jsonl, không chặn | |
+
 **Chờ golden đạt, CHƯA gộp:** cloud/v31-m2-tichhop (M21, M25, M25B, M26, M29, DP9, DP10, GOLDEN2), cloud/v31-m24, cloud/v31-golden5, cloud/v31-m73,
 cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp M2).
 
@@ -41,5 +47,6 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
 |---|---|---|---|
 | C-GOLDEN7 | cloud-C (ưu tiên 0) | docs/CLOUD_TASKS.md#### C-GOLDEN7 | validator `--ab` theo catalog cây đang dựng; lỗi cấu hình = mã 2 |
 | CX21-GOLDEN7 | codex (depends C-GOLDEN7) | docs/CODEX_TASKS.md### CX21-GOLDEN7 | chạy lại A/B; ĐẠT → gộp tích hợp M2 một lần |
+| C-M63-FIX2 | cloud-D (ưu tiên 2, việc nhỏ) | docs/CLOUD_TASKS.md#### C-M63-FIX2 | lỗi rà kỹ C-M63-FIX |
 | C-M71-FIX | cloud-E (ưu tiên 1) | docs/CLOUD_TASKS.md#### C-M71-FIX | lỗi rà kỹ M71 + rò tệp test DP12 |
 | C-M83-TOOL | cloud-E (ưu tiên 2) | docs/CLOUD_TASKS.md#### C-M83-TOOL | công cụ đo tải 10 người (Playwright + provider giả); lượt đo thật M8.3 = máy chính |
