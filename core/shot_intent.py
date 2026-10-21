@@ -62,6 +62,121 @@ REQUIRED = ("shot", "thanh_phan", "may", "noi_chon")
 # Trường chữ chỉ để HIỂU Ý (như `muc_dich` của shot_specs) — không lớp kiểm nào được kết luận từ chúng (N1).
 TEXT_ONLY = ("truyen.muc_dich", "truyen.cam_xuc", "ngoai_le[].dieu_trai", "ngoai_le[].cach_hien")
 
+# ---- V3.1 M2.1 (C-M21): BYĐ v2 — docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-20.md mục 2 --------------------------------------------------
+# `byd_v: 2` (thiếu = v1) + `vat[]` là bảng {vat, kho_id, nguoi, cach, bien_the} + nhóm `khung.moc_nen` + `noi_chon.trong_nha` (code suy) +
+# provenance `_p`. v1 kiểm y như cũ; nhóm / khóa v2 trong BYĐ v1 vẫn là "trường lạ". Mức BLOCK / REVIEW / WARN (assess) chỉ GHI (cờ
+# byd_v2_levels → director_byd.settle ghi `byd_kiem.muc_v2`), không chặn gen — BLOCK thật = Cấp 3 sau.
+BYD_V = 2
+V2_GROUPS = ("khung",)
+V2_KEYS = ("_p",)
+CACH = ("cam", "deo", "dat", "nem")
+Y_DO = ("trong_khung", "ngoai_khung")
+P_BY = ("director", "human", "backfill", "code")
+LEVELS = ("BLOCK", "REVIEW", "WARN")
+LEVELS_FLAG = "byd_v2_levels"
+PROVENANCE = ("byd_v2", "byd_v1", "suy_tu_spot", "doc_chu", "thieu")   # suy_tu_spot / doc_chu: nơi gọi tự suy khi read() trả "thieu"
+V2_ONLY = ("khung", "_p", "noi_chon.trong_nha")
+
+
+def levels_enabled() -> bool:
+    from core import features
+    return features.on(LEVELS_FLAG)
+
+
+def version(byd) -> Optional[int]:
+    """2 = BYĐ v2 (`byd_v: 2`), 1 = bảng BYĐ không khai / khai 1, None = không phải bảng (chưa có BYĐ)."""
+    if not isinstance(byd, dict):
+        return None
+    return BYD_V if byd.get("byd_v") == BYD_V else 1
+
+
+def byd_of(data) -> Optional[Dict]:
+    """BYĐ của một shot (`scenes.data` / shot kế hoạch): chính bảng đó (sửa tại chỗ được), không có / sai kiểu → None."""
+    byd = data.get("byd") if isinstance(data, dict) else None
+    return byd if isinstance(byd, dict) else None
+
+
+def read(data, field: str, default=None):
+    """MỘT hàm đọc trường BYĐ (M2.1): (giá trị, provenance, câu cảnh báo | None). `field` = đường chấm ("noi_chon.kho_id", "khung.moc_nen").
+    provenance: "byd_v2" / "byd_v1" (có trường), "thieu" (không có BYĐ / thiếu trường — nơi gọi dùng đường cũ: suy / đọc chữ, và nói ra).
+    `vat` luôn qua vat_items (chuỗi v1 → {"vat", "_v": 1})."""
+    byd = byd_of(data)
+    if byd is None:
+        return ([] if field == "vat" and default is None else default), "thieu", "shot chưa có BYĐ"
+    v = version(byd)
+    cur = byd
+    for part in field.split("."):
+        if isinstance(cur, dict) and part in cur:
+            cur = cur[part]
+            continue
+        if field == "vat":
+            return vat_items(byd), "thieu", f"BYĐ v{v} thiếu `vat`"
+        why = (f"BYĐ v1 không có `{field}` (trường của v2)" if v == 1 and any(field == k or field.startswith(k + ".") for k in V2_ONLY)
+               else f"BYĐ v{v} thiếu `{field}`")
+        return default, "thieu", why
+    if field == "vat":
+        cur = vat_items(byd)
+    return cur, "byd_v2" if v == BYD_V else "byd_v1", None
+
+
+def level_of(issue: Dict) -> str:
+    """Ánh xạ tương thích: "do" cũ = BLOCK, "vang" cũ = WARN; mục đã có `level` giữ nguyên."""
+    return issue.get("level") or ("BLOCK" if issue.get("muc") == "do" else "WARN")
+
+
+def assess(byd, conn=None) -> List[Dict]:
+    """validate() + mức M2.1: mỗi mục có thêm `level` (BLOCK / REVIEW / WARN). v2: `thanh_phan[].dang` chưa kiểm theo forms Kho (M2.3)
+    → REVIEW. Chỉ để GHI (byd_kiem / diag) — không nơi nào chặn gen theo mức này khi cờ tắt."""
+    out = [dict(i, level=level_of(i)) for i in validate(byd, conn)]
+    if version(byd) == BYD_V:
+        for i, c in enumerate(byd.get("thanh_phan") or []):
+            if isinstance(c, dict) and c.get("dang") not in (None, "", [], {}):
+                out.append({"muc": "vang", "truong": f"thanh_phan[{i}].dang", "level": "REVIEW",
+                            "loi": "dạng chưa kiểm theo forms của mục Kho (M2.3) — người xem"})
+    return out
+
+
+def _check_v2(byd: Dict, names: set, out: List[Dict]) -> None:
+    vat = byd.get("vat")
+    if vat is not None and not isinstance(vat, list):
+        out.append(_issue("do", "vat", "v2: phải là danh sách bảng {vat, kho_id, nguoi, cach}"))
+        vat = []
+    for i, item in enumerate(vat or []):
+        t = f"vat[{i}]"
+        if not isinstance(item, dict):
+            out.append(_issue("do", t, "v2: mỗi vật là bảng {vat, kho_id, nguoi, cach, bien_the} (chuỗi chỉ hợp lệ ở v1)"))
+            continue
+        if not str(item.get("vat") or "").strip():
+            out.append(_issue("do", f"{t}.vat", "thiếu tên vật"))
+        if item.get("kho_id") is None:
+            out.append(_issue("do", f"{t}.kho_id", "v2: thiếu mã Kho của vật"))
+        _enum(out, f"{t}.cach", item.get("cach"), CACH, required=True)
+        if item.get("nguoi") not in (None, "") and item["nguoi"] not in names:
+            out.append(_issue("do", f"{t}.nguoi", f"'{item['nguoi']}' không có trong thanh_phan"))
+        if item.get("bien_the") not in (None, ""):
+            out.append(_issue("vang", f"{t}.bien_the", "bien_the_khong_kiem_duoc: chưa có forms của mục Kho (M2.3)"))
+    if "khung" in byd:
+        k = byd["khung"]
+        if not isinstance(k, dict):
+            out.append(_issue("do", "khung", "phải là bảng {moc_nen}"))
+        elif "moc_nen" in k:
+            m = k["moc_nen"]
+            if not isinstance(m, dict):
+                out.append(_issue("do", "khung.moc_nen", "phải là bảng {kho_id, y_do, ly_do}"))
+            else:
+                if m.get("kho_id") is None:
+                    out.append(_issue("do", "khung.moc_nen.kho_id", "thiếu mã Kho của mốc nền"))
+                _enum(out, "khung.moc_nen.y_do", m.get("y_do"), Y_DO, required=True)
+    nc = byd.get("noi_chon")
+    if isinstance(nc, dict) and nc.get("trong_nha") not in (None, True, False):
+        out.append(_issue("do", "noi_chon.trong_nha", "phải là true / false / null (code suy từ chỗ đứng 3D)"))
+    if "_p" in byd:
+        p = byd["_p"]
+        if not isinstance(p, dict):
+            out.append(_issue("do", "_p", "phải là bảng {by, model, at, revision}"))
+        else:
+            _enum(out, "_p.by", p.get("by"), P_BY, required=True)
+
 
 def empty(shot: int) -> Dict:
     """Khung BYĐ rỗng của một shot (mọi nhóm có mặt)."""
@@ -223,6 +338,9 @@ def _kho_ids(byd: Dict) -> List[tuple]:
         for i, c in enumerate(vat_items(byd) if key == "vat" else byd.get(key) or []):
             if isinstance(c, dict) and c.get("kho_id") is not None:
                 out.append((f"{key}[{i}].kho_id", c["kho_id"]))
+    m = (byd.get("khung") or {}).get("moc_nen") if version(byd) == BYD_V and isinstance(byd.get("khung"), dict) else None
+    if isinstance(m, dict) and m.get("kho_id") is not None:          # M2.1: mốc nền v2
+        out.append(("khung.moc_nen.kho_id", m["kho_id"]))
     return out
 
 
@@ -235,9 +353,13 @@ def validate(byd: Dict, conn=None) -> List[Dict]:
     for k in REQUIRED:
         if k not in byd:
             out.append(_issue("do", k, "thiếu trường bắt buộc"))
+    v2 = version(byd) == BYD_V
+    if "byd_v" in byd and byd["byd_v"] not in (1, BYD_V):
+        out.append(_issue("do", "byd_v", f"phiên bản BYĐ lạ ({byd['byd_v']!r}) — 2 hoặc thiếu (= v1)"))
+    groups = GROUPS + (V2_GROUPS if v2 else ())
     for k in byd:
-        if k not in GROUPS and k not in ("shot", "ca_vang_tay"):
-            out.append(_issue("do", k, f"trường lạ (nhóm hợp lệ: {', '.join(GROUPS)})"))
+        if k not in groups and k not in ("shot", "ca_vang_tay", "byd_v") and not (v2 and k in V2_KEYS):
+            out.append(_issue("do", k, f"trường lạ (nhóm hợp lệ: {', '.join(groups)})"))
     if "shot" in byd and not isinstance(byd["shot"], int):
         out.append(_issue("do", "shot", "phải là số shot"))
     if "thanh_phan" in byd:
@@ -256,6 +378,8 @@ def validate(byd: Dict, conn=None) -> List[Dict]:
             _enum(out, "noi_chon.thoi_gian", nc.get("thoi_gian"), THOI_GIAN)
             _enum(out, "noi_chon.thoi_tiet", nc.get("thoi_tiet"), THOI_TIET)
     _check_ngoai_le(byd.get("ngoai_le"), out)
+    if v2:
+        _check_v2(byd, names, out)
     ids = _kho_ids(byd)
     if ids and conn is None:
         out.append(_issue("vang", "kho_id", "chưa kiểm mã Kho (không có kết nối CSDL)"))

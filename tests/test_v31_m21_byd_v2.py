@@ -150,12 +150,12 @@ def _plan(byd):
 
 def test_settle_records_levels_only_with_the_flag():
     from core import director_byd
-    with OFF:
+    with OFF, mock.patch("core.diag.record"):
         obj = _plan(_v2(vat=[{"vat": "X", "kho_id": 1, "cach": "dat", "bien_the": "a"}]))
         director_byd.settle(None, 1, obj, client=None)
         kiem = obj["scenes"][0]["shots"][0]["byd_kiem"]
     assert "muc_v2" not in kiem
-    with ON:
+    with ON, mock.patch("core.diag.record"):
         obj = _plan(_v2(vat=[{"vat": "X", "kho_id": 1, "cach": "dat", "bien_the": "a"}]))
         director_byd.settle(None, 1, obj, client=None)
         kiem = obj["scenes"][0]["shots"][0]["byd_kiem"]
@@ -170,8 +170,6 @@ ALLOWED = {
     ("core/director_byd.py", "_own_number"): "điền số shot vào BYĐ (ghi)",
     ("core/director_byd.py", "_parse"): "đọc câu trả lời của Đạo diễn",
     ("core/director_byd.py", "settle"): "vòng sửa ghi BYĐ",
-    ("core/shots.py", "shot_data"): "chép BYĐ từ kế hoạch sang scenes.data (ghi)",
-    ("core/director_two_pass.py", "estimate"): "đếm shot có BYĐ trong kế hoạch (không đọc trường)",
     ("core/director_two_pass.py", "estimate_text"): "như trên",
     ("core/change_review.py", "build_prompt"): "đề rà chép nguyên BYĐ cho agent",
     ("core/film_grammar.py", "warnings"): "kiểm KIỂU BYĐ do Claude viết (sai kiểu → VÀNG, không im lặng) — cần giá trị thô",

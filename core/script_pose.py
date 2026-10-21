@@ -61,7 +61,8 @@ def script_poses(script, shot_text: str) -> Tuple[List[str], str]:
 
 
 def byd_poses(data: Dict) -> List[str]:
-    byd = data.get("byd") if isinstance(data.get("byd"), dict) else {}
+    from . import shot_intent                      # V3.1 M2.1: đọc BYĐ qua adapter
+    byd = shot_intent.byd_of(data) or {}
     out = []
     for h in byd.get("hanh_dong") or []:
         for nhip in ("bat_dau", "dinh", "ket_thuc"):
@@ -115,7 +116,8 @@ def fix_standing(script: str, shots: Sequence[Tuple[int, Dict]]) -> List[str]:
         said, words = script_poses(idx, " ".join(str(data.get(k) or "") for k in ("action", "text")))
         if said != ["dung"] or _SHIFT.search(words):
             continue
-        people = [h for h in data["byd"].get("hanh_dong") or [] if isinstance(h, dict)
+        from . import shot_intent
+        people = [h for h in (shot_intent.byd_of(data) or {}).get("hanh_dong") or [] if isinstance(h, dict)
                   and any(isinstance(h.get(n), dict) and h[n].get("tu_the") for n in ("bat_dau", "dinh", "ket_thuc"))]
         if len({h.get("ai") for h in people}) != 1:
             continue

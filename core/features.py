@@ -418,6 +418,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "G2 (người sai tỉ lệ so nền), G3 (#31 shot 28 khai eye mà pitch +17,3°), A10. Whitebox cũ cố định mắt 1,6 m, khối 1,8 m. "
                "Chưa render thử trên máy chính",
     },
+    "byd_v2_levels": {
+        "label": "BYĐ v2 (V3.1 M2.1): ghi mức BLOCK / REVIEW / WARN của BYĐ từng shot vào byd_kiem (đếm theo mức + phiên bản byd_v) — CHỈ GHI, "
+                 "không chặn gen, không đổi gói gửi",
+        "verified": False,
+        "why": "Thiết kế M2.1 (docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-20.md mục 2.1): 'do'/'vang' cũ chưa phân biệt cần người xem (REVIEW). "
+               "Chưa chạy trên dữ liệu thật",
+    },
     "final_black_freeze": {
         "label": "Kiểm bản dựng cuối: đoạn màn hình ĐEN (≥ 0,5 s) và ĐỨNG HÌNH (> 1,5 s) bằng ffmpeg blackdetect / freezedetect — chỉ "
                  "cảnh báo (cần xem), không chặn xuất (V3.1 M4.4)",
