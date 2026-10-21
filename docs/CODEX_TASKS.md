@@ -1490,3 +1490,9 @@ không gửi job, không API trả phí). Mỗi phần một mục báo cáo, d�
     trên Windows; liệt kê side effect khi khóa (đường gọi nào đổi hành vi).
 (3) back_view_guard (K1): dependency seedance_ref_groups + per_shot — đếm gói gửi thật có câu back_view (jobs.sent_package) theo dự án; side effect khi khóa.
 Báo cáo docs/RA_CX21_K_EVID_CODEX_2026-10-2x.md (nhánh codex/v31-k-evid chỉ báo cáo). XONG hộp thư — phiên chính trình EP từng cờ (Cấp 3).
+
+### CX21-GOLDEN5 — chạy nghiệm thu golden A/B ở máy chính (ưu tiên 0 khi cloud-C báo XONG C-GOLDEN5)
+Sổ v31-ep-golden-ab-acceptance-2026-10-21. Theo lệnh trong docs/RA_CLOUD_GOLDEN5_*.md: worktree tạm A = origin/main, B = origin/cloud/v31-m2-tichhop (nếu
+cloud-C đã gộp thêm m24/m72… thì dùng nhánh tích hợp mới nhất ghi trong hộp thư), công cụ từ cloud/v31-golden5; snapshot CSDL mới mode=ro → golden-snapshot-5;
+cờ = trạng thái hiệu lực sản xuất + cờ mới V3.1 false. Dự án #24, #27, #31, #33. Báo cáo docs/RA_CX21_GOLDEN5_CODEX_2026-10-2x.md (nhánh codex/v31-golden5):
+SAME / DIFF / BOTH_FAIL / ONE_FAIL theo dự án + kết luận ĐẠT (0 DIFF, 0 ONE_FAIL). Gỡ worktree tạm. Chỉ đọc, 0 USD. XONG hộp thư.

@@ -760,6 +760,17 @@
    "replaces": null,
    "enforced_by": [],
    "status": "active"
+  },
+  {
+   "id": "v31-ep-golden-ab-acceptance-2026-10-21",
+   "date": "2026-10-21",
+   "by": "Executive Producer (người dùng — chat 21/10: 'Duyệt' đề xuất so A/B sau 4 lần nghiệm thu golden không đạt)",
+   "text": "Cổng nghiệm thu M1.9 (golden COMPAT, mở khóa gộp M2): so A/B trên CÙNG một bản chụp dữ liệu hiện tại — dựng gói gửi mọi shot #24/#27/#31/#33 bằng code main hiện tại (chưa có M2) và bằng code M2 tích hợp với cờ mới V3.1 TẮT, cả hai dùng cấu hình cờ sản xuất thật; phải GIỐNG BYTE, 0 ca lệch (ca không dựng được ở CẢ HAI bên ghi riêng, không tính lệch). Báo cáo ghi rõ 'baseline tái dựng: code main hiện tại trên dữ liệu hiện tại'. So với gói gửi lịch sử vẫn chạy kèm nhưng chỉ là tham khảo correctness, không làm cổng.",
+   "keeps": "v31-ep-g1-golden-compat-production-baseline-2026-10-21 (cấu hình production thật, chỉ cờ mới V3.1 TẮT, tách COMPAT/correctness); v31-d08-fixture-capture-readonly-2026-10-20 (chỉ đọc, snapshot)",
+   "changes": "Lần 1–4 (21/10) so với gói gửi 11–13/10: 64/68 ca dựng được nhưng 63 ca lệch vì dữ liệu Kho/nền/cảnh đổi sau ngày gửi — ngưỡng lịch sử không đạt được. So lịch sử đóng băng chỉ áp từ dự án mới (#34) khi có snapshot lúc gửi.",
+   "replaces": null,
+   "enforced_by": [],
+   "status": "active"
   }
  ]
 }

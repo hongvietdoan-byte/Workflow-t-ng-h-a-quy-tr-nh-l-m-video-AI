@@ -848,3 +848,14 @@ ghi gì (byte giống). Đọc CSDL thật chỉ bằng mode=ro.
 Commit trên cloud/v31-m72, cập nhật báo cáo, XONG hộp thư (mã C-M72-FIX). Ghi chú: tệp data/flag_baseline.json chỉ tạo ở máy chính bằng
 py -m core.features --baseline-capture SAU khi gộp (phiên chính làm, Cấp 3 nhẹ: có diff 0 cờ đổi).
 ```
+
+#### C-GOLDEN5 (cloud-C — ưu tiên 0, TRƯỚC C-M74) — công cụ golden so A/B (EP duyệt 21/10)
+```
+Sổ v31-ep-golden-ab-acceptance-2026-10-21. Tách từ origin/cloud/v31-golden4 (công cụ C-GOLDEN2 + C-GOLDEN4). Thêm chế độ --ab: với MỘT snapshot CSDL + ref-root
+chỉ đọc + MỘT file cờ (baseline_flags sản xuất + experimental_flags cờ mới V3.1 = false), dựng gói gửi (đúng hàm ImageRunner/VideoRunner._build_package +
+pregen_fingerprint) cho mọi scene có job ảnh/video của các dự án chỉ định bằng HAI cây code: --code-a <thư mục worktree main> và --code-b <worktree M2 tích hợp>;
+mỗi bên chạy worker cách ly như hiện có (đọc data/ có fingerprint, cấm ghi/mạng). So byte gói A vs B từng ca: SAME / DIFF (in trường lệch đầu tiên, không in
+prompt đầy đủ) / BOTH_FAIL (cả hai không dựng được — ghi riêng) / ONE_FAIL (chỉ một bên lỗi — tính như DIFF). Kết quả JSON + bảng theo dự án; ĐẠT = 0 DIFF,
+0 ONE_FAIL. So lịch sử giữ nguyên làm cột tham khảo. Test ĐỎ→XANH bằng 2 cây code tổng hợp (giống / khác một dòng prompt / một bên lỗi). Ghi lệnh chạy
+mẫu cho máy chính (git worktree add main + m2-tichhop). Nhánh cloud/v31-golden5. Báo cáo docs/RA_CLOUD_GOLDEN5_2026-10-2x.md. XONG hộp thư.
+```
