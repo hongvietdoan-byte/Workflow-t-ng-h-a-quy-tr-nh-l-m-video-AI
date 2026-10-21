@@ -216,8 +216,8 @@ def _check_start(conn, scene_id: int, plan: Dict, out: List[Dict]) -> None:
 
 # ---- (2) khung cuối đã duyệt + khớp ket_thuc BYĐ ----------------------------------------------------------------------------------
 def _byd(data: Dict) -> Optional[Dict]:
-    b = data.get("byd")
-    return b if isinstance(b, dict) else None
+    from . import shot_intent                      # V3.1 M2.1: đọc BYĐ qua adapter
+    return shot_intent.byd_of(data)
 
 
 def _changes(byd: Dict) -> Optional[bool]:

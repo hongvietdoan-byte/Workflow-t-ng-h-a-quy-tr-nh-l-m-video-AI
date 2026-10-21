@@ -311,7 +311,8 @@ def ref_coverage(doc: Optional[Dict], data: Dict) -> List[Dict]:
 
 # ---- (5) cỡ khung theo biên độ động tác -------------------------------------------------------------------------------------
 def _main_pose(data: Dict) -> Optional[str]:
-    byd = data.get("byd") if isinstance(data.get("byd"), dict) else {}
+    from . import shot_intent                      # V3.1 M2.1: đọc BYĐ qua adapter
+    byd = shot_intent.byd_of(data) or {}
     for h in byd.get("hanh_dong") or []:
         for nhip in ("dinh", "bat_dau", "ket_thuc"):
             pose = ((h or {}).get(nhip) or {}).get("tu_the")
@@ -323,7 +324,8 @@ def _main_pose(data: Dict) -> Optional[str]:
 def frame_share(data: Dict) -> Optional[float]:
     """Ước % chiều cao khung của nhân vật chính = tỉ lệ của cỡ cảnh (stage_grid.FRAMING, người đứng) × hệ số tư thế (BYĐ)."""
     from .stage_grid import FRAMING
-    byd = data.get("byd") if isinstance(data.get("byd"), dict) else {}
+    from . import shot_intent                      # V3.1 M2.1: đọc BYĐ qua adapter
+    byd = shot_intent.byd_of(data) or {}
     size = data.get("size") or (byd.get("may") or {}).get("co")
     if size not in FRAMING or size in CLOSE:           # cỡ cận cắt theo mặt / ngực — tư thế không làm người nhỏ đi (rà 11/10)
         return None

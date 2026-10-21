@@ -53,14 +53,14 @@ def compile_checks(conn, pid, job, data, criteria, profiles=None):
                 # Giữ VÀNG tới khi có bộ khai tương ứng; không thay luật cũ bằng suy đoán.
                 checks[-1]['needs_specialized_observation'] = True
     cast = {str(n).upper() for n in data.get('characters') or []}
-    for i, item in enumerate((data.get('byd') or {}).get('thanh_phan') or []):
+    from . import shot_intent        # V3.1 M2.1: đọc BYĐ qua adapter
+    for i, item in enumerate((shot_intent.byd_of(data) or {}).get('thanh_phan') or []):
         if not isinstance(item, dict) or not item.get('vat'):
             raise ValueError('BYĐ.thanh_phan thiếu vật chuẩn')
         if str(item['vat']).upper() not in cast and 'set_match' in criteria:
             add('set_match', item['vat'], f'byd.thanh_phan[{i}].vat',
                 expected='khong_thay' if item.get('vai') == 'khong_duoc_co' else 'thay')
-    from . import shot_intent        # V3.1 M1.1: vật v1 (chuỗi) đọc như {vat}; dữ liệu sai vẫn báo như trước
-    for i, item in enumerate(shot_intent.vat_items(data.get('byd'))):
+    for i, item in enumerate(shot_intent.read(data, 'vat')[0]):   # V3.1 M1.1/M2.1: vật v1 (chuỗi) đọc như {vat}
         if not isinstance(item, dict) or not item.get('vat'):
             raise ValueError('BYĐ.vat thiếu vật chuẩn')
         if 'set_match' in criteria:

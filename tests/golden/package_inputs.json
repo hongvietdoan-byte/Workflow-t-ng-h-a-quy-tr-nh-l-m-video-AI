@@ -152,7 +152,8 @@
       "subject_capacity_guard": false,
       "world_map_sentences": false,
       "continuity_state": false,
-      "whitebox_height_dummy": false
+      "whitebox_height_dummy": false,
+      "byd_v2_levels": false
     },
     "experimental_flags": [
       "new_feature"
@@ -322,7 +323,8 @@
       "subject_capacity_guard": false,
       "world_map_sentences": false,
       "continuity_state": false,
-      "whitebox_height_dummy": false
+      "whitebox_height_dummy": false,
+      "byd_v2_levels": false
     },
     "experimental_flags": [
       "new_feature"

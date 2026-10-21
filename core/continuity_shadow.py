@@ -61,7 +61,7 @@ def held(data: Dict) -> Dict[str, Set[str]]:
     """{NGƯỜI: {VẬT}} từ BYĐ v2 (cach = cam). v1 (chuỗi) không có người cầm → {} (không suy)."""
     from . import shot_intent
     out: Dict[str, Set[str]] = {}
-    for v in shot_intent.vat_items(data.get("byd")):
+    for v in shot_intent.read(data, "vat")[0]:
         if isinstance(v, dict) and str(v.get("cach") or "").lower() in ("cam", "cầm") and v.get("nguoi") and v.get("vat"):
             out.setdefault(str(v["nguoi"]).strip().upper(), set()).add(str(v["vat"]).strip().upper())
     return out
@@ -89,7 +89,8 @@ def build(rows: List[Dict], forms_of=None) -> Dict:
         ta, tb = _text(da, a.get("motion") or ""), _text(db, b.get("motion") or "")
         both = sorted(_cast(da) & _cast(db))
         ha, hb = held(da), held(db)
-        b_has_byd_vat = isinstance(db.get("byd"), dict) and "vat" in db["byd"]
+        from . import shot_intent                  # V3.1 M2.1: đọc BYĐ qua adapter
+        b_has_byd_vat = "vat" in (shot_intent.byd_of(db) or {})
         for who in both:
             for thing in sorted(ha.get(who, set())):
                 if thing in hb.get(who, set()):
