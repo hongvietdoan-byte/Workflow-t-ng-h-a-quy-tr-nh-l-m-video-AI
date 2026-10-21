@@ -726,6 +726,7 @@ def diag_summary(db_path: Optional[str] = None, days: int = 14, root: str = ROOT
         conn.row_factory = sqlite3.Row
         try:
             rows = conn.execute("SELECT stage, severity, code, message, count, last_at FROM diag_events WHERE last_at>=? "
+                                "AND stage NOT IN ('ui_step', 'cli_step') "      # bước bấm / lệnh CLI = quan sát, không phải cảnh báo
                                 "ORDER BY last_at DESC LIMIT 400", (since,)).fetchall()
         finally:
             conn.close()

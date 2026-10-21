@@ -1058,7 +1058,7 @@ def _evidence_commit(PM, globs) -> str:
     """Commit cuối chạm các tệp bằng chứng của ô (glob → tệp thật); không có tệp → "" (không lấy commit cuối cả repo)."""
     import glob as _g
     files = sorted({os.path.relpath(f, PM.ROOT) for g in globs for f in _g.glob(os.path.join(PM.ROOT, g), recursive=True) if os.path.isfile(f)})
-    return PM.git_reason(files[:20]) if files else ""
+    return PM.git_reason(files) if files else ""
 
 
 def page_pipeline_maps():
@@ -1113,9 +1113,12 @@ def page_pipeline_maps():
         else:
             st.caption("Chưa có ô nào đổi màu giữa các lần ghi.")
         st.markdown(f"**So với mốc {m['moc_date']}**")
-        ev_files = {c["id"]: [e["glob"] for e in c.get("evidence") or []] for c in PM.load()["dashboard"]["cells"] + PM.load()["truong"]["nodes"]}
+        doc = PM.load()
+        ev_files = {c["id"]: [e["glob"] for e in c.get("evidence") or []] for c in doc["dashboard"]["cells"] + doc["truong"]["nodes"]}
+        with_git = st.toggle("Kèm commit cuối của tệp bằng chứng (chạy git log, chậm)", False, key="pm_git")
         rows = [{"ô": c["id"], "màu": f"{c['old']} → {c['new']}", "lý do": "; ".join(c["why"]),
-                 "commit cuối tệp bằng chứng": _evidence_commit(PM, ev_files.get(c["id"]) or [])} for c in PM.vs_moc(m) if keep(c)]
+                 **({"commit cuối tệp bằng chứng": _evidence_commit(PM, ev_files.get(c["id"]) or [])} if with_git else {})}
+                for c in PM.vs_moc(m) if keep(c)]
         st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch") if rows else st.caption("Không ô nào khác mốc.")
 
 

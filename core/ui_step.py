@@ -10,7 +10,7 @@ nội dung trong 10 phút thành một dòng có `count`. devsys đọc lại b�
 from typing import Dict, List, Optional
 
 FLAG = "ui_step_log"
-RESULTS = {"ok": "info", "warn": "warn", "hold": "warn", "error": "error", "skip": "error"}
+RESULTS = {"ok": "info", "warn": "warn", "hold": "warn", "error": "error", "skip": "warn"}   # skip = người chủ ý bỏ qua cổng: không phải lỗi
 
 
 def enabled() -> bool:

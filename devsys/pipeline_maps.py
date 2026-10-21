@@ -343,10 +343,12 @@ def overlay(m: Dict, events: List[Dict]) -> Dict:
         if not mine:
             cells[c["id"]] = {"color": "xam", "count": 0, "last": ""}
             continue
-        worst = max(_SEV.get(e["severity"], 1) for e in mine)
-        top = [e for e in mine if _SEV.get(e["severity"], 1) == worst]
-        last = max(top, key=lambda e: e.get("last_at") or "")
-        cells[c["id"]] = {"color": {3: "do", 2: "vang", 1: "xanh"}[worst], "count": sum(e["count"] for e in top), "last": last["message"]}
+        last = max(mine, key=lambda e: e.get("last_at") or "")           # lần bấm MỚI NHẤT quyết màu (đỏ một lần không đỏ mãi)
+        sev = _SEV.get(last["severity"], 1)
+        same = [e for e in mine if _SEV.get(e["severity"], 1) == sev]
+        bad = sum(e["count"] for e in mine if _SEV.get(e["severity"], 1) > 1)
+        cells[c["id"]] = {"color": {3: "do", 2: "vang", 1: "xanh"}[sev], "count": sum(e["count"] for e in same), "last": last["message"],
+                          "bad_total": bad}
     screen_of = {o["tool"]: o["screen"] for o in m["dashboard"]["outside"]}
     for c in m["dashboard"]["cells"]:
         for t in c.get("cli") or []:

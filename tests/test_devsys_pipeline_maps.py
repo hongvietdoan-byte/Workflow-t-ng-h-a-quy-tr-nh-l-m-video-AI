@@ -203,7 +203,7 @@ def test_dashboard_main_buttons_log_and_cli_tools_log():
                         ("dashboard/steps/step1_director.py", "chay_dao_dien"), ("dashboard/steps/step3.py", "viet_motion"),
                         ("dashboard/steps/step5.py", "ban_giao")):
         src = open(os.path.join(ROOT, rel), encoding="utf-8").read()
-        assert f'C.log_ui(p, "{action}"' in src, rel
+        assert f'C.log_ui(p, "{action}"' in src or f'C.log_step("{action}"' in src, rel
     assert 'step=("skip" if forced' in open(os.path.join(ROOT, "dashboard", "steps", "step2.py"), encoding="utf-8").read()
     keys = {k for c in PM.load()["dashboard"]["cells"] for k in c["ui"]}
     assert {"gen_anh", "gen_video", "chay_dao_dien", "viet_motion"} <= keys
@@ -243,3 +243,48 @@ def test_devsys_page_renders_four_tabs_and_three_maps(tmp_path):
     assert [t.value for t in at.title] == ["🧭 Sơ đồ dây chuyền"]
     assert len(at.tabs) == 4 and sum("<svg" in md.value for md in at.markdown) == 3
     assert (tmp_path / "h.jsonl").exists()                                    # lần mở đầu ghi ảnh chụp
+
+
+# ---- rà khâu C-DEVSYS-MAPS ------------------------------------------------------------------------------------------------------
+def test_observation_events_stay_out_of_diagnostics_and_error_reports(tmp_path):
+    from core import diag, ui_step
+    path, conn = _db(tmp_path)
+    with mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}):
+        ui_step.record(conn, 31, "storyboard", "gen_anh", "skip", "vẫn gen dù cổng chặn")
+        ui_step.cli(conn, "stage_auto", 31, "dàn cảnh")
+    diag.record(conn, "image", "warn", "lỗi thật", "real_warn", 31)
+    assert [r["code"] for r in diag.recent(conn)] == ["real_warn"]
+    assert all(r["stage"] not in diag.OBSERVE for r in diag.repeated(conn, min_count=1))
+    assert not any(r["stage"] == "other" for r in diag.stage_table(conn))
+    assert conn.execute("SELECT severity FROM diag_events WHERE code='ui_step:gen_anh'").fetchone()[0] == "warn"   # skip ≠ lỗi
+    conn.close()
+    from tools import project_error_report as per
+    src = open(per.__file__, encoding="utf-8").read()
+    assert "\"ui_step\", \"cli_step\"" in src
+
+
+def test_latest_click_decides_the_colour(mini, tmp_path):
+    root, doc = mini
+    m = _model(root, doc, _on("send_preview_panel"))
+    ev = [{"kind": "ui_step", "key": "gen_images", "severity": "error", "message": "lỗi", "count": 1, "at": "a", "last_at": "2026-10-20T10:00"},
+          {"kind": "ui_step", "key": "gen_images", "severity": "info", "message": "ok", "count": 3, "at": "b", "last_at": "2026-10-21T10:00"}]
+    c = PM.overlay(m, ev)["cells"]["c1"]
+    assert c["color"] == "xanh" and c["count"] == 3 and c["bad_total"] == 1
+
+
+def test_read_only_cli_modes_do_not_log_and_replay_reads_the_main_flag(tmp_path):
+    src = open(os.path.join(ROOT, "tools", "stage_auto.py"), encoding="utf-8").read()
+    assert "if not (a.beats or a.score or a.prompt_out or a.dry)" in src
+    from tools import replay_payload as rp
+    main = tmp_path / "main"
+    (main / "data").mkdir(parents=True)
+    with mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}):
+        (main / "data" / "feature_settings.json").write_text(json.dumps({"flags": {"ui_step_log": False}}), encoding="utf-8")
+        assert rp._main_flag_on(str(main), "ui_step_log") is False          # máy chính tắt → không ghi dù repo này bật
+    (main / "data" / "feature_settings.json").write_text(json.dumps({"flags": {"ui_step_log": True}}), encoding="utf-8")
+    assert rp._main_flag_on(str(main), "ui_step_log") is True
+
+
+def test_flag_is_opt_in_only():
+    from core import features
+    assert "ui_step_log" in features.OPT_IN_ONLY                             # preset Thử nghiệm không tự bật ghi mỗi bước bấm

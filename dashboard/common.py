@@ -365,6 +365,22 @@ def log_ui(p, action: str, *, page: str = "", project_id=None, scene_id=None, jo
     except Exception as e:  # noqa: BLE001 - nhật ký không được chặn thao tác; nói ra log, không nuốt im lặng
         print(f"[ui_log] lỗi ghi thao tác {action}: {type(e).__name__}: {e}", file=sys.stderr)
 
+def log_step(action: str, *, page: str = "", project_id=None, result="ok", note: str = "", error_code: str = None) -> None:
+    """C-DEVSYS-MAPS: CHỈ sự kiện ui_step (cờ ui_step_log) cho nút chưa có nhật ký thao tác — cờ tắt = không mở kết nối, không ghi gì."""
+    try:
+        from core import ui_step
+        if not ui_step.enabled():
+            return
+        res = ("ok" if result else "error") if isinstance(result, bool) else result
+        conn = connect(DB)                         # kết nối riêng: không commit giữa giao dịch của trang
+        try:
+            ui_step.record(conn, project_id, page, action, res, note, error_code)
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001 - quan sát, không chặn nút
+        print(f"[ui_step] lỗi ghi bước {action}: {type(e).__name__}: {e}", file=sys.stderr)
+
+
 def allowed(permission: str) -> bool:
     return auth.can(me(), permission)
 

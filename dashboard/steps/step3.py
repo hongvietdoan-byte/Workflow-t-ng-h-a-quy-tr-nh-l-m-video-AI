@@ -81,7 +81,7 @@ def step3(p: Pipeline, pid: int):
             with st.spinner("Claude đang viết motion prompt…"):
                 _t0 = time.monotonic()
                 _ok = act(go)
-                C.log_ui(p, "viet_motion", page="storyboard", project_id=pid, result=_ok, t0=_t0)   # C-DEVSYS-MAPS: bước bấm
+                C.log_step("viet_motion", page="motion", project_id=pid, result=_ok)   # C-DEVSYS-MAPS: bước bấm (cờ ui_step_log)
                 if _ok:
                     st.rerun()
         waiting = [r["sid"] for r in rows if r["state"] != "approved"]
