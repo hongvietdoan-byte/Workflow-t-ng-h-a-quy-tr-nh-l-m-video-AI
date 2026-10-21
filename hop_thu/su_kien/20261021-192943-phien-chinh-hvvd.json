@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-21T19:29:43.229956+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "cloud-C",
+  "text": "C-FLAGTEST8: bảng nhóm A (file + số test theo cờ) đã có ở docs/BANG_CHUNG_CHOT_CO_2026-10-21.md mục 2.4.2 (git pull). 155/164 đỏ do cờ, 2 flaky Node timeout, 1 mốc test_devsys_plan_map (đã sửa main). back_view_guard, send_claim: 0 đỏ. Nhóm B (lỗi thật, mục 2.4.3) KHÔNG sửa trong việc này."
+}
