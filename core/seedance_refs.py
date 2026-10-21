@@ -9,6 +9,7 @@ Order the person chose (2026-09-27): **P2m group** (2–4 consecutive shots of o
 storyboard picture) → refused: **Seedance per shot** (the same, one shot) → refused again: **Kling per shot** (start frame, as before).
 The route of a shot is kept in its scene data (`video_route`: absent = group, "single", "kling"), so a refusal changes the input once and
 the retry is not the same request (luật 6)."""
+from core import kho_profile
 import json
 import math
 import os
@@ -337,7 +338,7 @@ def identity_pictures(conn, project_id: int, rows: List[Dict], room: int) -> Lis
                 names.append(str(n))
     links = assets.link_characters(conn, project_id, names)
     from . import character_forms        # rà 17/10: a person in a form in EVERY shot of the clip → no OUTFIT picture ("dress exactly in
-    formed = {w for w, f in character_forms.for_rows(conn, project_id, rows).items() if f.get("all")}   # these clothes" fought the form)
+    formed = {w for w, f in kho_profile.forms_for_rows(conn, project_id, rows).items() if f.get("all")}   # these clothes" fought the form)
     out = []
     for n in names:
         link = links.get(n) or {}
@@ -348,7 +349,7 @@ def identity_pictures(conn, project_id: int, rows: List[Dict], room: int) -> Lis
             more = assets.best_references(link, len(link.get("images") or []), name=n) if link.get("images") else []
             pool = [i["path"] for i in list(link.get("refs") or [ref]) + more if i.get("path") and os.path.exists(i["path"])]
             out.append((n, _rule_ok_picture(conn, project_id, n, list(dict.fromkeys(pool)) or [ref["path"]])))
-        outfit = assets.outfit_images(conn, project_id, n) if n.strip().upper() not in formed else []
+        outfit = kho_profile.outfit_images(conn, project_id, n) if n.strip().upper() not in formed else []
         if outfit:     # 07/10 Khủng Long Đỏ: MAXIM KL / KELLY KL danced in their everyday clothes — only the library face picture
             out.append((n + OUTFIT_TAG, _rule_ok_picture(conn, project_id, n + OUTFIT_TAG, [o["path"] for o in outfit])))   # (everyday
             # look) went, the costume picture never did
@@ -370,7 +371,7 @@ def form_and_object_pictures(conn, project_id: int, rows: List[Dict]) -> List[tu
     out, seen = [], set()
     # forms: by the SHOT's character name (rà G27: the library label differs for an alias, e.g. "Kelly KL" → Kho "KELLY", and the
     # form picture must not compete with faces for scene_references' slots) — the lint and says() look the form up by that name
-    for who, f in character_forms.for_rows(conn, project_id, rows).items():
+    for who, f in kho_profile.forms_for_rows(conn, project_id, rows).items():
         path = assets.resolve((f.get("image") or {}).get("path"))
         if path and os.path.exists(path):
             out.append((who + FORM_TAG, path))
@@ -503,7 +504,7 @@ def reference_rule_issues(conn, project_id: int, rows: List[Dict]) -> List[str]:
     out = []
     # một lượt vẽ Dashboard (memo.per_rerun): cùng bộ nhân vật của nhiều shot → tra Kho một lần (readiness cả dự án không N+1)
     from . import character_forms        # rà 17/10 vòng 2: the pictures depend on who is in a form all clip (no OUTFIT) — in the key
-    formed = frozenset(w for w, f in character_forms.for_rows(conn, project_id, rows).items() if f.get("all"))
+    formed = frozenset(w for w, f in kho_profile.forms_for_rows(conn, project_id, rows).items() if f.get("all"))
     pictures = cached(conn, ("ref_rule_pictures", project_id, names, formed),
                       lambda: identity_pictures(conn, project_id, rows, MAX_PICTURES))
     for name, path in pictures:

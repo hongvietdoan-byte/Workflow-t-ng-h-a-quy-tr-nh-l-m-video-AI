@@ -1,4 +1,5 @@
 """QC quan sát Đ14: model khai bằng chứng; code quyết điểm. Chưa thử thật."""
+from core import kho_profile
 import hashlib
 import json
 import math
@@ -39,7 +40,7 @@ def compile_checks(conn, pid, job, data, criteria, profiles=None):
         # Hồ sơ có nhiều đặc điểm: tách theo dấu phân cách, không so từ ngắn/bỏ dấu.
         if a['type'] == 'identity' and a['source'] == 'profile.must_keep':
             from . import assets, lock_exceptions
-            profile = (profiles or {}).get(a['subject']) if profiles is not None else assets.standard_for(conn, pid, a['subject'])
+            profile = (profiles or {}).get(a['subject']) if profiles is not None else kho_profile.for_character(conn, pid, a['subject'])
             profile = lock_exceptions.apply_rules(profile, lock_exceptions.for_shot(data).get(a['subject']))
             if not str(profile.get('must_keep') or '').strip():
                 raise ValueError('Thiếu đặc điểm hồ sơ chuẩn: ' + a['subject'])

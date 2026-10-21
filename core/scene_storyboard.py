@@ -9,6 +9,7 @@ frames, where separate pictures moved the tower and changed the light).
 
 The runner's normal machinery stays: one picture job per shot, the ledger, the cap, QC, regenerate one frame (same group fields).
 """
+from core import kho_profile
 import hashlib
 import json
 import os
@@ -275,7 +276,7 @@ def story_text(conn, pid: int, g: Dict) -> str:
                      for i, s in enumerate(g["shots"]))
     datas = [s["data"] for s in g.get("shots") or []]
     from . import character_forms                     # rà 17/10 vòng 2: someone in a form in only some frames — "outfits" is not the same
-    changes = any(not f.get("all") for f in character_forms.for_rows(conn, pid, [{"data": d} for d in datas]).values())
+    changes = any(not f.get("all") for f in kho_profile.forms_for_rows(conn, pid, [{"data": d} for d in datas]).values())
     frame = ("One continuous scene — same place, same light, the same people" + ("" if changes else " and outfits")
              + " wherever they appear; each frame shows only the people it names.")
     # the scene's light: a flashback sentence only when EVERY frame is one (a flashback shot gets its own sentence in its prompt)

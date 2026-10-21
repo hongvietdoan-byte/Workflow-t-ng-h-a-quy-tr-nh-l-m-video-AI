@@ -1,4 +1,5 @@
 """Build copy-paste prompt bundles for V0 (Claude Desktop chat). V1 sends the same text via API."""
+from core import kho_profile
 import json
 import os
 import re
@@ -518,7 +519,7 @@ def standard_block(pipeline: Pipeline, project_id: int, names=None) -> str:
     if names is None:
         names = [r["name"] for r in pipeline.conn.execute("SELECT name FROM characters WHERE project_id=?", (project_id,))]
     for name in names:
-        prof = assets.standard_for(pipeline.conn, project_id, name)
+        prof = kho_profile.for_character(pipeline.conn, project_id, name)
         if prof:
             rows.append(f"- **{name}** ({prof['asset']}): {prof.get('identity') or ''} — giữ: {prof.get('must_keep') or ''}"
                         + (f"; cao ~{prof['height_m']:g} m" if prof.get("height_m") else ""))
@@ -542,7 +543,7 @@ def lock_text(conn, project_id: int, names=None, shots=None) -> str:
     from . import character_forms                     # G2 17/10 (#31): a person in a form THIS shot names is not judged on the profile's clothes
     # rà 17/10: several shots (scene QC, qc_agent, motion writer) — a person in the SAME form in every judged shot that has them gets
     # the form row; a person in a form in only SOME shots keeps the lock and each such shot is listed under it (was: forms only for 1 shot)
-    per_shot = [character_forms.for_shot(conn, project_id, d) for d in shots]
+    per_shot = [kho_profile.forms_for_shot(conn, project_id, d) for d in shots]
     forms, form_notes = {}, []
     for who in sorted({w for f in per_shot for w in f}):
         inside = [i for i, d in enumerate(shots) if who in {str(n).strip().upper() for n in d.get("characters") or []}]
@@ -555,7 +556,7 @@ def lock_text(conn, project_id: int, names=None, shots=None) -> str:
     for r in conn.execute("SELECT name, lock_rules, outfit_image_ids FROM characters WHERE project_id=?", (project_id,)):
         if names is not None and r["name"] not in names:
             continue
-        lock, source = assets.standard_for(conn, project_id, r["name"]), " (hồ sơ chuẩn Kho)"   # T1: the library profile wins
+        lock, source = kho_profile.for_character(conn, project_id, r["name"]), " (hồ sơ chuẩn Kho)"   # T1: the library profile wins
         if lock is None:
             source = ""
             try:

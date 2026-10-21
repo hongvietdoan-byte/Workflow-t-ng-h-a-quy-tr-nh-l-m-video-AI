@@ -11,6 +11,7 @@ một kiểu, và khâu chọn ảnh tham chiếu (assets.scene_references, kh�
   chỉ được gửi khi chữ shot nhắc variant đó ("Gloowall", "OB55"); không nhắc → dạng mặc định (đoạn có chữ "mặc định"/"default").
 
 Cờ tắt → không đổi gì (prompt giống từng byte, ảnh tham chiếu như cũ). Không gọi API, 0 USD."""
+from core import kho_profile
 import re
 from typing import Dict, List, Optional
 
@@ -470,7 +471,7 @@ def weapon_scale(conn, asset: Dict, variant: Optional[str] = None, english: bool
     Dùng trường hồ sơ hiện có (must_keep/identity/build), nhãn 'Tỉ lệ:' trong mô tả,
     hoặc kích thước Kho. Không migration, không sửa hồ sơ và không API.
     """
-    profile = assets.get_profile(conn, asset["id"])
+    profile = kho_profile.read(conn, asset["id"])
     if not isinstance(profile, dict):
         profile = {}
     desc = form_text(asset, variant) if _forms(asset.get("description") or "") else re.sub(r"^\s*\[[^\]]*\]\s*", "", str(asset.get("description") or "")).split("[", 1)[0]

@@ -15,6 +15,7 @@ Per-project index: <data>/<pid>/plates/index.json  (scene id -> the plate files 
 Cache: <data root>/_plates3d/cache/<key>/ — key = model sha + camera + time/weather + size + script version: two projects with the
 same camera render once.
 """
+from core import kho_profile
 import hashlib
 import json
 import math
@@ -39,7 +40,7 @@ class LocationPackError(ValueError):
 def model3d(conn, asset_id: Optional[int]) -> Optional[Dict]:
     if not asset_id:
         return None
-    entry = assets.get_profile(conn, asset_id).get("model3d")
+    entry = kho_profile.read(conn, asset_id).get("model3d")
     return entry if isinstance(entry, dict) and entry.get("path") else None
 
 
@@ -268,7 +269,7 @@ def director_block(conn, pid: int) -> str:
 def _height(conn, pid: int, data: Dict) -> float:
     """Real height of the main character of the shot (standard profile height_m), else 1.75 m."""
     for name in data.get("characters") or []:
-        prof = assets.standard_for(conn, pid, name)
+        prof = kho_profile.for_character(conn, pid, name)
         if prof and prof.get("height_m"):
             return float(prof["height_m"])
     return 1.75

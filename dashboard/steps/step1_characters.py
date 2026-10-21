@@ -1,4 +1,5 @@
 """Step 1 · 1e: Character Bible — reference pictures, outfits, subjects, voices, Lock, anchors (split from step1.py, S9.5)."""
+from core import kho_profile
 from typing import Optional
 
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
@@ -83,7 +84,7 @@ def weapon_select(p: Pipeline, pid: int, name: str, box) -> None:
 
 def outfit_line(p: Pipeline, pid: int, name: str) -> str:
     """S14.28: "👗 Trang phục: mặc định FF" / "👗 Trang phục: <tên bộ>" — the outfit a character wears, said in the character list."""
-    label = assets.outfit_label(p.conn, pid, name)
+    label = kho_profile.outfit_label(p.conn, pid, name)
     return "👗 Trang phục: " + (label if label else "mặc định " + ((p.project(pid)["game"] or "FF") if p.project(pid) else "FF"))
 
 
@@ -101,7 +102,7 @@ def outfit_panel(p: Pipeline, pid: int, name: str, box) -> None:
     """A different outfit for this video, from pictures + text: pick outfit picture(s) from the library (another skin, a costume photo),
     optionally generate a 2-picture character set wearing it (it then becomes the reference; nothing to approve).
     S14.28: the popover label IS the character-list line "👗 Trang phục: mặc định FF / <tên bộ> · chọn bộ khác"; the Kho's outfits are offered too."""
-    current = assets.outfit_images(p.conn, pid, name)
+    current = kho_profile.outfit_images(p.conn, pid, name)
     with box.popover(outfit_line(p, pid, name) + " · chọn bộ khác", width="stretch"):
         cap("Muốn nhân vật mặc trang phục khác (skin khác, đồ theo kịch bản): chọn ảnh trang phục trong kho. Khi gen, mặt/tóc lấy từ ảnh "
                    "nhân vật, quần áo lấy từ ảnh trang phục. Mô tả thêm bằng chữ ở ô “Trang phục / dấu hiệu” (mục ✏ Sửa nhân vật). "

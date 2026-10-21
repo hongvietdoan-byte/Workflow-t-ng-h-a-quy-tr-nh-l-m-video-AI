@@ -16,6 +16,7 @@ ITS OWN camera — free (Blender), cached across projects — and the model draw
 - `ensure_async`   renders missing plates in a background thread (the Step 2 buttons have no automatic plates phase); the shot waits.
 
 S14.9 (06/10): the green-screen flag `location_plates` was removed from the code — this is the only user of the plates now."""
+from core import kho_profile
 import json
 import os
 import sqlite3
@@ -500,7 +501,7 @@ def _why_no_place(conn, scene_id: int) -> str:
         lid = None
     a = assets.get(conn, lid) if isinstance(lid, int) and not isinstance(lid, bool) else None
     if a is not None and a["kind"] == "location" and not a["images"] and a.get("missing") \
-            and (assets.get_profile(conn, lid).get("model3d") or {}).get("path"):
+            and (kho_profile.read(conn, lid).get("model3d") or {}).get("path"):
         return (f"không đọc được bối cảnh 3D '{a['name']}' (#{lid}): {len(a['missing'])} ảnh Kho mất tệp, vd {a['missing'][0]} — "
                 "kiểm thư mục data/assets trước khi vẽ lại")
     return "shot không còn ở bối cảnh có mô hình 3D"

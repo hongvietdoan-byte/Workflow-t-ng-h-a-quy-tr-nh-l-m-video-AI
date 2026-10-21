@@ -8,6 +8,7 @@ Two levels, both optional:
     "reference picture comes from" choice as any other), so every scene then copies one consistent look. Nothing to approve: the set
     is used as soon as it exists, and the person can switch back in the Character Bible.
 """
+from core import kho_profile
 import re
 import os
 import time
@@ -27,7 +28,7 @@ def _refs(p: Pipeline, project_id: int, name: str) -> List[Dict]:
     linked = assets.link_characters(p.conn, project_id, [name]).get(name)
     refs = [{"path": img["path"], "label": linked["name"], "role": "character"} for img in (linked["refs"][:1] if linked else [])]
     label = linked["name"] if linked else name
-    return refs + [{"path": img["path"], "label": label, "role": "outfit"} for img in assets.outfit_images(p.conn, project_id, name)[:2]]
+    return refs + [{"path": img["path"], "label": label, "role": "outfit"} for img in kho_profile.outfit_images(p.conn, project_id, name)[:2]]
 
 
 def set_prompt(p: Pipeline, project_id: int, name: str, view: str, refs: List[Dict]) -> str:

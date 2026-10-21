@@ -18,6 +18,7 @@ Giới hạn (nói rõ, không giả vờ hiểu câu): so bằng regex tiếng 
 "chi tiết ghê" chỉ cần MỘT câu tiết chế ở bất kỳ đâu trong prompt; màu trang phục chỉ bắt "màu + (≤ 3 từ) + tên món" và gán cho tên
 nhân vật đứng gần nhất phía trước. Cờ `prompt_formula` tắt → không kiểm, không ghi.
 """
+from core import kho_profile
 import hashlib
 import json
 import re
@@ -919,11 +920,11 @@ def garment_profile(conn, project_id: int, name: str) -> str:
         for r in conn.execute(f"SELECT DISTINCT a.id, a.description FROM asset_images i JOIN assets a ON a.id=i.asset_id "
                               f"WHERE i.id IN ({marks})", ids):
             words.append(str(r["description"] or "").split("[AI đọc ảnh]")[0])
-            prof = assets.get_profile(conn, r["id"])
+            prof = kho_profile.read(conn, r["id"])
             if prof.get("approved") and prof.get("must_keep"):
                 words.append(str(prof["must_keep"]))
         return " ".join(w for w in words if w.strip())
-    rules = assets.standard_for(conn, project_id, name)
+    rules = kho_profile.for_character(conn, project_id, name)
     if rules is None:
         try:
             rules = json.loads(row["lock_rules"]) if row["lock_rules"] else None

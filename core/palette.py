@@ -18,6 +18,7 @@ Không dùng mã hex trong prompt (model ảnh làm theo hex kém) — hex chỉ
 'uncertain' (ghi chú cho người, không tự từ chối / vẽ lại), cùng nguyên tắc với qc_measure. Chỉ đo khung có đúng MỘT mặt và bảng shot có
 đúng MỘT nhân vật (nhiều người thì không biết thân nào của ai — not_measurable, không đoán).
 """
+from core import kho_profile
 import hashlib
 import json
 import re
@@ -250,7 +251,7 @@ def _reference_path(conn, pid: int, name: str) -> Optional[str]:
 def _has_outfit(conn, pid: int, name: str) -> bool:
     from . import assets
     try:
-        return bool(assets.outfit_images(conn, pid, name))
+        return bool(kho_profile.outfit_images(conn, pid, name))
     except Exception:  # noqa: BLE001 - an old database without the outfit column: no outfit
         return False
 

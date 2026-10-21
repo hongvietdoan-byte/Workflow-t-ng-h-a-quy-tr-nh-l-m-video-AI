@@ -11,6 +11,7 @@ It reads the playbook (knowledge/qc_playbook.md — faults already confirmed by 
 view notes, the shot table, and an INSPECTION PLAN built by code from the profiles (every one-sided detail → a strip across the frames of
 that character, front and back views apart). Every frame must be recorded before `finish`. Verdicts are applied like qc_scene (not trusted
 yet → notes for the person, every frame waits at the gate)."""
+from core import kho_profile
 import json
 import os
 import re
@@ -218,7 +219,7 @@ def inspection_plan(conn, pid: int, frames: List[Dict]) -> List[str]:
             if str(n) not in names:
                 names.append(str(n))
     for n in names:
-        rules = assets.standard_for(conn, pid, n) or {}
+        rules = kho_profile.for_character(conn, pid, n) or {}
         text = f"{rules.get('must_keep') or ''} {json.dumps(rules.get('view_notes') or {}, ensure_ascii=False)}"
         ks = [f["k"] for f in frames if n in (f["data"].get("characters") or [])]
         if not ks:
@@ -564,7 +565,7 @@ class QcAgent:
         views = {}
         from . import assets
         for n in names:
-            v = (assets.standard_for(self.p.conn, self.pid, n) or {}).get("view_notes")
+            v = (kho_profile.for_character(self.p.conn, self.pid, n) or {}).get("view_notes")
             if v:
                 views[n] = v
         plan = inspection_plan(self.p.conn, self.pid, self.frames)

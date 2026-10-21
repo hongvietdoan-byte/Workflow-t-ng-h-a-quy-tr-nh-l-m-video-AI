@@ -1,4 +1,5 @@
 """Settings / monitoring panels: knowledge base, asset library, users, pricing, monitor, lessons, history."""
+from core import kho_profile
 from dashboard.common import *  # noqa: F401,F403  (shared imports + helpers)
 from dashboard import common as C
 import contextlib
@@ -404,7 +405,7 @@ def library_health(p: Pipeline, game: str) -> None:
 
 def profile_form(p: Pipeline, a: dict) -> None:
     """T1: the character's standard profile, approved once here and inherited by every project (the Director may not rewrite it)."""
-    prof = assets.get_profile(p.conn, a["id"])
+    prof = kho_profile.read(p.conn, a["id"])
     label = "📋 Hồ sơ chuẩn" + (" · ✔ đã duyệt" if prof.get("approved") else " · chưa có" if not prof else " · nháp")
     if not st.checkbox(label, key=f"prof_open_{a['id']}"):
         return

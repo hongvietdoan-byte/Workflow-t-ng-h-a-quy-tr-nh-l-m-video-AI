@@ -13,6 +13,7 @@ Design:
   provider) STOPS the run with a clear note instead of guessing; nothing else is skipped or approved blindly.
 - Spending is capped by the number of jobs per scene (retries included), not just by good behaviour.
 """
+from core import kho_profile
 from . import access
 import inspect
 import json
@@ -392,7 +393,7 @@ def bible_gaps(p: Pipeline, pid: int) -> Dict[str, List[str]]:
         if used and c["name"].upper() not in used:
             continue
         has_lock = bool((c["lock_rules"] or "").strip()) if "lock_rules" in c.keys() else False
-        if not has_lock and not assets.standard_for(p.conn, pid, c["name"]):
+        if not has_lock and not kho_profile.for_character(p.conn, pid, c["name"]):
             no_lock.append(c["name"])
         refs = (c["ref_asset_id"] if "ref_asset_id" in c.keys() else None) or (c["ref_image_ids"] if "ref_image_ids" in c.keys() else None)
         if not refs and not assets.link_characters(p.conn, pid, [c["name"]]).get(c["name"]):

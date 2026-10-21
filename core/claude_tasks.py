@@ -9,6 +9,7 @@ goes). Same `ask_json` path as the Director/QC/motion steps, so they run with th
 - cast_voices          a voice (and a persona line) for each speaking character
 - music_brief          music brief from genre, intent and scene timing (prompts/04, previously unused)
 """
+from core import kho_profile
 from . import access
 import json
 import os
@@ -565,7 +566,7 @@ def character_lock(p: Pipeline, project_id: int, name: str, client) -> Dict:
         raise ValueError(f"không có nhân vật '{name}'")
     linked = assets.link_characters(p.conn, project_id, [name]).get(name)
     refs = _on_disk(p, project_id, name, list((linked or {}).get("refs", [])), "Character Lock", linked)
-    outfits = _on_disk(p, project_id, name, list(assets.outfit_images(p.conn, project_id, name)), "Character Lock (trang phục)",
+    outfits = _on_disk(p, project_id, name, list(kho_profile.outfit_images(p.conn, project_id, name)), "Character Lock (trang phục)",
                       {"missing": []})          # the library entry's lost pictures were said once just above
     images = [(f"Ảnh tham chiếu — {name}:", assets.thumbnail(r["path"], 900)) for r in refs]
     images += [(f"Ảnh trang phục — {name}:", assets.thumbnail(i["path"], 900)) for i in outfits]

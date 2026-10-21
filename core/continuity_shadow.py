@@ -12,6 +12,7 @@ duyệt, M4.7) chưa có. Đồ thị phụ thuộc theo thực thể: cạnh `s
 
 Observed (Claude) có lỗi ở shot i → mọi shot j phụ thuộc i qua cạnh → `can_xem` (KHÔNG tự gen lại — M5.1 quyết).
 Ghi `<data_dir>/<pid>/qc_set/sequence/continuity_shadow.json` (findings theo trường M4.1: qc_code QC-L13-CONTINUITY…)."""
+from core import kho_profile
 import json
 import os
 import re
@@ -172,7 +173,7 @@ def run(p, project_id: int, data_dir: str, claude_result: Optional[Dict] = None)
     try:
         from . import character_forms
         rows = rows_of(p, project_id)
-        res = build(rows, lambda d: {w: f.get("form") for w, f in character_forms.for_shot(p.conn, project_id, d).items()})
+        res = build(rows, lambda d: {w: f.get("form") for w, f in kho_profile.forms_for_shot(p.conn, project_id, d).items()})
         obs = observed(claude_result)
         need = {}
         for f in obs:

@@ -14,6 +14,7 @@ checks); it is kept until the profile changes.
 Checks (never silent, CHUAN_XAY_DUNG rule 1): the length, no age under 18, and no word that the profile names only as FORBIDDEN (a word
 like "ponytail" in the short form of Kelly — whose profile forbids tying the hair — would draw exactly what is forbidden).
 """
+from core import kho_profile
 import hashlib
 import json
 import re
@@ -129,7 +130,7 @@ def current(profile: Dict) -> Dict:
 def refresh(conn, asset_id: int) -> Optional[Dict]:
     """Make / renew the digest of one library profile and keep it there. Returns it (None: no profile)."""
     from . import assets
-    prof = assets.get_profile(conn, asset_id)
+    prof = kho_profile.read(conn, asset_id)
     if not prof.get("identity") and not prof.get("must_keep"):
         return None
     digest = current(prof)
@@ -146,7 +147,7 @@ def for_character(conn, project_id: int, name: str, level: str = "lock_medium") 
     asset = assets.link_characters(conn, project_id, [name]).get(name)
     if asset is None:
         return None
-    prof = assets.get_profile(conn, asset["id"])
+    prof = kho_profile.read(conn, asset["id"])
     if not prof.get("approved"):
         return None
     digest = refresh(conn, asset["id"])

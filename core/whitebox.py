@@ -5,6 +5,7 @@ each person stands, how they move and the camera — the official Seedance 2.5 "
 People are placed in metres from the camera of a spot of the place's 3D pack (location_pack model3d): `fwd` ahead of the camera, `right`
 to its right; `to` moves them during the clip; `face` = "camera", another person's name, or [fwd, right]. The clip meets the reference
 video rules of both services (≥ 3 s, both sides ≥ 704 px, square pixels) so it can go as @Video as it is."""
+from core import kho_profile
 import math
 import os
 import subprocess
@@ -68,7 +69,7 @@ def heights_of(conn, project_id: int, names: List[str]):
     from . import assets
     got, missing = {}, []
     for n in names:
-        prof = assets.standard_for(conn, project_id, n)
+        prof = kho_profile.for_character(conn, project_id, n)
         if prof and prof.get("height_m"):
             got[n] = float(prof["height_m"])
         else:

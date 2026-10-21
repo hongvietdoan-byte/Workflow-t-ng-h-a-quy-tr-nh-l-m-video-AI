@@ -9,6 +9,7 @@ Ba việc, đều bằng code:
                             từ xa = không chặn, LỘ màn hình = "cần tài nguyên màn hình mô phỏng" (screen_needs → bảng kê tài nguyên);
                             check_anchors(...): điểm then chốt phải còn trong kịch bản.
 """
+from core import kho_profile
 import os
 import re
 from typing import Dict, List, Optional, Tuple
@@ -86,7 +87,7 @@ def kit(conn, pid: int, game: str = "FF") -> Dict[str, List[Dict]]:
         elif a["kind"] in ("character", "pet"):
             if not any(i.get("role") in _STANDARD_ROLES and not assets.is_skin(i) for i in a["images"]):
                 continue
-            prof = assets.get_profile(conn, a["id"])
+            prof = kho_profile.read(conn, a["id"])
             approved = _brief(prof.get("must_keep") or prof.get("identity") or "") if prof.get("approved") else ""
             own, web = assets.split_web(a.get("description") or "")     # rà bảo mật 06/10: website text goes wrapped (kit_block)
             draft = "" if approved else _brief(own)

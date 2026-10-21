@@ -8,6 +8,7 @@ Mỗi lượt Claude trả, cho từng ảnh (đánh số trên ảnh ghép): ok
 other_person (người khác) / other_look (cùng người nhưng ngoại hình khác hồ sơ — chỉ ghi chú, người quyết); và hồ sơ nháp có mâu thuẫn
 với ảnh không. Kết quả lưu ở data/library_check.json (mỗi nhân vật làm một lần; chạy lại bỏ qua người đã có — dùng --redo để làm lại).
 Chạy từ worktree: thêm --db D:/AI-Video-Pipeline/data/manifest.sqlite --repo D:/AI-Video-Pipeline."""
+from core import kho_profile
 import argparse
 import json
 import os
@@ -126,7 +127,7 @@ def main() -> None:
     for c in todo:
         if not cap.allow(max(EST_USD, cap.estimate_llm("library_check", images=1))):
             break                                    # script_cap đã in: đã chi bao nhiêu, vì sao dừng
-        prof = assets.get_profile(conn, c["id"])
+        prof = kho_profile.read(conn, c["id"])
         official = (c.get("description") or "").split("[ff.garena.com]")[-1] if "[ff.garena.com]" in (c.get("description") or "") else ""
         imgs = c["images"][:MAX_IMAGES]
         sheet = contact_sheet(imgs, os.path.join(tempfile.gettempdir(), f"libchk_{c['id']}.jpg"))

@@ -9,6 +9,7 @@
 Thứ tự soạn: nhân vật đã dùng trong dự án → nhân vật còn lại (thú cưng sau cùng). Nháp không bao giờ tự duyệt — người duyệt ở
 ⚙ → 📁 Kho → 📋 Hồ sơ chuẩn. Luật tuổi (người dùng chốt 2026-09-25): KHÔNG ghi số tuổi dưới 18 — tả "young, not yet 20".
 """
+from core import kho_profile
 import argparse
 import json
 import os
@@ -85,7 +86,7 @@ def report(conn, game: str) -> Dict:
             if not i.get("role"):
                 role = assets.guess_role(assets.resolve(i["path"]) or i["path"], c["kind"])
                 unlabelled.append({"entry": c["name"], "image": i, "guess": role})
-        if not assets.get_profile(conn, c["id"]).get("approved") and not assets.get_profile(conn, c["id"]).get("identity"):
+        if not kho_profile.read(conn, c["id"]).get("approved") and not kho_profile.read(conn, c["id"]).get("identity"):
             missing.append(c)
     used = used_in_projects(conn)
     missing.sort(key=lambda c: (c["id"] not in used, c["kind"] == "pet", c["name"]))
@@ -131,11 +132,12 @@ def draft(conn, entries: List[Dict], client) -> List[Dict]:
     from core import llm_runner
     out = []
     for c in entries:
+        before = kho_profile.read(conn, c["id"])
         refs = assets.best_references(c, limit=2)
         images = [(f"{c['name']} — ảnh {i + 1}", assets.thumbnail(r["path"], 900)) for i, r in enumerate(refs)]
         with llm_runner.tagged("profile_draft"):
             obj = llm_runner.ask_json(client, draft_prompt(c), _check, images)[0]
-        saved = assets.set_profile(conn, c["id"], obj, approved=False)              # a draft: never approved here
+        saved = assets.set_profile(conn, c["id"], obj, approved=False, actor={"kind":"ai", "who":"draft_profiles", "model":"claude", "from_text":"draft_profiles"}, expected_revision=before.get("revision",0))              # a draft: never approved here
         out.append({"entry": c["name"], "profile": saved})
     return out
 

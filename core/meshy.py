@@ -19,6 +19,7 @@ A send whose answer was lost (network) is kept as UNKNOWN and counted, never sil
   refresh(conn, client)           poll the open tasks, download what finished into data/models3d/<NAME>_<asset>/<task>/
   views_to_library(conn, task)    Meshy's front / right / back / left renders → the library's review box (roles full_body / side / back)
 """
+from core import kho_profile
 import base64
 import io
 import json
@@ -189,7 +190,7 @@ def plan(conn, asset_id: int, sheet_image_id: Optional[int] = None, work_dir: Op
     a = conn.execute("SELECT id, name FROM assets WHERE id=?", (asset_id,)).fetchone()
     if a is None:
         raise MeshyError(f"không có tài nguyên #{asset_id}")
-    prof = assets.get_profile(conn, asset_id)
+    prof = kho_profile.read(conn, asset_id)
     problems = []
     override = (texture_override or "").strip()[:TEXTURE_PROMPT_MAX]
     if not prof.get("approved") and not override:
@@ -427,7 +428,7 @@ def submit_rig(conn, client: Client, model_row: int) -> Dict:
     if m is None or m["kind"] not in ("model", "remesh", "retexture") or m["status"] != "DOWNLOADED":
         raise MeshyError("chỉ gắn khung xương cho mô hình (hoặc bản giảm lưới) đã xong và đã tải về")
     from . import assets
-    height = assets.get_profile(conn, m["asset_id"]).get("height_m") or 1.75
+    height = kho_profile.read(conn, m["asset_id"]).get("height_m") or 1.75
     try:
         bal = client.balance()
     except MeshyError:
