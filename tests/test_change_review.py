@@ -513,3 +513,122 @@ class FailedReview(unittest.TestCase):
             self.assertFalse([f for f in inbox_clean.stale(self.p.conn, self.pid)["findings"] if "ra_soat" in str(f)])
             inbox_clean.clean(self.p, self.pid)
         self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, self.ids[1]))
+
+
+class M71FailClosed(unittest.TestCase):
+    """C-M71 A1 (G35/B3, docs/KE_HOACH_SUA_20_CO_2026-10-21.md mục 1): rà LỖI — Claude hết tiền / hết lượt, timeout, trả rỗng — thì cổng
+    giữ phải ĐÓNG (job ở 'queued' + lý do), có diag mã; không tự gửi. Cờ change_review tắt → như cũ (không giữ)."""
+    setUp, _new_scene, _set = ChangeReview.setUp, ChangeReview._new_scene, ChangeReview._set
+    _motion, _rewrite_setup = ChangeReview._motion, ChangeReview._rewrite_setup
+
+    def test_director_rewrite_loop_quota_holds(self):
+        # B3 vòng change_review ↔ director_rewrite (core/prompt_rewrite.py Plan._second_try / save_rewrite → _review_now): rà ngay bản
+        # motion Đạo diễn vừa viết mà Claude hết tiền → giữ (trước: code_only → gửi khi chưa rà)
+        PR, sid, job = self._rewrite_setup()
+
+        class Q(FakeClient):
+            def complete(self, prompt, images=()):
+                raise llm_runner.LlmError("credit", code="out_of_credit")
+        with mock.patch.object(PR, "client_for", return_value=Q({})):
+            PR.save_rewrite(self.p, job, PR.RewriteResult("slow push in, Kelly turns", ["x"], "QC", 0, "push in"))
+        self.assertIsNotNone(CR.blocking(self.p.conn, sid))
+
+    def test_director_rewrite_loop_client_error_holds(self):
+        # gọi client lỗi (khác "chưa cấu hình" = None) → thay đổi còn 'pending' (giữ "đang rà"), vòng nền rà sau; diag có mã
+        PR, sid, job = self._rewrite_setup()
+        with mock.patch.object(PR, "client_for", side_effect=RuntimeError("provider table broken")):
+            PR.save_rewrite(self.p, job, PR.RewriteResult("slow push in, Kelly turns", ["x"], "QC", 0, "push in"))
+        self.assertIn("đang rà", CR.blocking(self.p.conn, sid) or "")
+        self.assertTrue(self.p.conn.execute("SELECT 1 FROM diag_events WHERE code='rewrite_review_fail'").fetchone())
+
+    def _review_with(self, sid, exc=None, answer=None):
+        self._set(sid, {"size": "WS", "image_prompt": "Wide shot, Kelly", "characters": ["KELLY"]})
+
+        class C(FakeClient):
+            def complete(self, prompt, images=()):
+                if exc is not None:
+                    raise exc
+                return llm_runner.LlmReply(answer, 10, 0)
+        return CR.process_pending(self.p.conn, self.tmp, client=C({}))
+
+    def test_quota_out_of_credit_holds_gate(self):
+        res = self._review_with(self.ids[1], llm_runner.LlmError("credit balance is too low", code="out_of_credit"))
+        self.assertTrue(res.get("halted"))
+        why = CR.blocking(self.p.conn, self.ids[1])
+        self.assertIsNotNone(why)                                  # trước C-M71: code_only → None → job tự gửi (G35)
+        self.assertIn("Claude", why)
+        self.assertIn("Bỏ qua", why)
+
+    def test_quota_usage_limit_holds_then_claude_review_releases(self):
+        self._review_with(self.ids[1], llm_runner.LlmError("session limit", code="usage_limit"))
+        self.assertIsNotNone(CR.blocking(self.p.conn, self.ids[1]))
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))    # Claude mở lại: vòng nền tự rà lại
+        self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))
+
+    def test_quota_hold_skip_releases_and_rerun_works(self):
+        self._review_with(self.ids[1], llm_runner.LlmError("credit", code="out_of_credit"))
+        CR.blocking(self.p.conn, self.ids[1])
+        fid = [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == CR.FAIL_KHAU][0]["id"]
+        CR.rerun_failed(self.p.conn, fid, "test")                           # nút Rà lại
+        self.assertIn("đang rà", CR.blocking(self.p.conn, self.ids[1]))
+        import time as _t
+        _t.sleep(1.1)                                                       # reviewed_at mới (giây) cho lần rà dừng thứ hai
+
+        class Q(FakeClient):
+            def complete(self, prompt, images=()):
+                raise llm_runner.LlmError("credit", code="out_of_credit")
+        CR.process_pending(self.p.conn, self.tmp, client=Q({}))             # vẫn hết tiền → giữ lại, mục mới
+        self.assertIsNotNone(CR.blocking(self.p.conn, self.ids[1]))
+        fid = [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == CR.FAIL_KHAU][0]["id"]
+        CR.close(self.p.conn, fid, "dismissed", "test")                     # nút Bỏ qua ở 📥
+        self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))
+
+    def test_no_claude_round_still_does_not_hold(self):
+        self._set(self.ids[1], {"size": "WS", "image_prompt": "Wide shot, Kelly", "characters": ["KELLY"]})
+        CR.process_pending(self.p.conn, self.tmp, client=None)               # không cấu hình Claude: thiết kế cũ, không giữ
+        self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))
+
+    def test_timeout_and_empty_answer_hold(self):
+        self._review_with(self.ids[1], llm_runner.LlmError("timed out", code="timeout"))
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, self.ids[1]) or "")
+        self._review_with(self.ids[2], answer="")
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, self.ids[2]) or "")
+
+    def test_flag_off_never_holds(self):
+        self._review_with(self.ids[1], llm_runner.LlmError("credit", code="out_of_credit"))
+        with mock.patch.dict(os.environ, {"FEATURE_CHANGE_REVIEW": "0"}):
+            self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))
+
+    def test_unreadable_table_holds_instead_of_raising(self):
+        class Broken:
+            def __init__(self, conn):
+                self.conn = conn
+
+            def execute(self, sql, *a):
+                if "change_events" in sql:
+                    raise RuntimeError("database disk image is malformed")
+                return self.conn.execute(sql, *a)
+        why = CR.blocking(Broken(self.p.conn), self.ids[1])
+        self.assertIn("không đọc được", why or "")
+
+    def test_scene_now_quota_says_diag_with_code(self):
+        self._set(self.ids[1], {"size": "WS", "image_prompt": "Wide shot, Kelly", "characters": ["KELLY"]})
+
+        class Q(FakeClient):
+            def complete(self, prompt, images=()):
+                raise llm_runner.LlmError("credit", code="out_of_credit")
+        CR.review_scene_now(self.p.conn, self.tmp, self.ids[1], client=Q({}))
+        self.assertTrue(self.p.conn.execute("SELECT 1 FROM diag_events WHERE code='change_review_halt'").fetchone())
+        self.assertIsNotNone(CR.blocking(self.p.conn, self.ids[1]))
+
+    def test_runner_keeps_job_queued_with_reason(self):
+        from core.providers import MockImageProvider
+        from core.runner import ImageRunner, WAIT_REASONS
+        self._review_with(self.ids[1], llm_runner.LlmError("credit", code="out_of_credit"))
+        jid = self.p.create_job(self.ids[1], "image_gen")
+        runner = ImageRunner(self.p, MockImageProvider(), self.tmp)
+        sent = runner.submit_pending(self.pid)
+        self.assertEqual(sent, 0)
+        self.assertEqual(self.p.conn.execute("SELECT state FROM jobs WHERE id=?", (jid,)).fetchone()[0], "queued")
+        self.assertIn("Tổ rà soát", WAIT_REASONS.get(jid, ("",))[0])
+        self.assertTrue(self.p.conn.execute("SELECT 1 FROM diag_events WHERE code='change_review_hold' AND job_id=?", (jid,)).fetchone())

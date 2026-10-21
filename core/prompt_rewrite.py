@@ -419,7 +419,12 @@ def _review_now(p, job) -> None:
     from . import change_review, world_rules
     try:
         client = client_for(p, job)
-    except Exception:  # noqa: BLE001 - no Claude set up: the code rules still run, said below
+    except Exception as e:  # noqa: BLE001 - C-M71 A1 (G35): a Claude ERROR is not "no Claude": the change stays 'pending' (held), said
+        if change_review.enabled():
+            diag.record(p.conn, "video", "warn", f"Chưa rà được bản motion Đạo diễn vừa viết lại — gọi Claude lỗi ({type(e).__name__}: "
+                        f"{str(e)[:160]}) — lần gen lại bị giữ tới khi vòng nền rà xong", "rewrite_review_fail", job["project_id"],
+                        scene_id=job["scene_id"], job_id=job["id"])
+            return
         client = None
     try:
         change_review.review_scene_now(p.conn, world_rules.data_dir_abs(), job["scene_id"], client=client)
