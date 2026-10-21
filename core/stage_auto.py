@@ -262,6 +262,45 @@ def _model(stage: Dict, rel_xyz) -> List[float]:
     return [round(o[k] + float(rel_xyz[k] if k < len(rel_xyz) else 0.0), 3) for k in range(3)]
 
 
+# V3.1 M2.4 G1 (#31 shot 28/30/34/35 "XÁC ĐEN BIẾT BAY"): đạo cụ cảnh trước chỉ mang sang khi cùng thế giới + shot nhắc tên
+PROPS_BYD_FLAG = "stage_props_byd"
+
+
+def _world_keys(shots: List[Dict]) -> set:
+    """Thế giới của các shot (chưa có world_id M3): (location_asset, time) — đổi một trong hai = thế giới khác (song song ↔ thực tại)."""
+    return {(d.get("location_asset"), d.get("time")) for d in shots if d.get("location_asset") is not None or d.get("time")}
+
+
+def _prop_carry(conn, pid: int, seg: Dict, prev_state: Dict) -> Callable[[str, Dict], Optional[str]]:
+    """Hàm (khóa, vật) → lý do KHÔNG mang (None = mang): khác thế giới với cảnh trước, hoặc BYĐ (vat / thanh_phan) lẫn chữ shot của đoạn
+    này không nhắc tên vật. BYĐ thiếu → chỉ xét chữ shot (không đoán thêm)."""
+    from . import prop_lock, shot_intent
+    from .assets import fold
+    prev_scene = str(prev_state.get("scene"))
+    prev_shots = []
+    for r in conn.execute("SELECT data FROM scenes WHERE project_id=?", (pid,)):
+        try:
+            d = json.loads(r["data"] or "{}")
+        except ValueError:
+            continue
+        if str(d.get("story_scene")) == prev_scene:
+            prev_shots.append(d)
+    now = [s["data"] for s in seg["shots"]]
+    was, cur = _world_keys(prev_shots), _world_keys(now)
+    other_world = bool(was and cur and not (was & cur))
+    text = " " + " ".join(fold(prop_lock.shot_text(d)).lower() for d in now) + " "
+    named = {fold(n).lower() for d in now for n in shot_intent.named_things(d)}
+
+    def why(k: str, o: Dict) -> Optional[str]:
+        if other_world:
+            return "đoạn này khác thế giới (location_asset / time khác cảnh trước)"
+        names = {fold(str(x)).lower() for x in (k, k.replace("_", " "), o.get("label")) if x}
+        if names & named or any(n in text for n in names if len(n) >= 3):
+            return None
+        return "BYĐ / chữ shot của đoạn này không nhắc tên vật"
+    return why
+
+
 def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict] = None) -> Tuple[Dict, List[str]]:
     """Đề bài prompt 29 cho một đoạn, lấy từ Kho + kịch bản (CSDL chỉ đọc, 0 USD). Trả (inputs, thiếu) — thiếu khác rỗng thì KHÔNG
     gọi Đạo diễn (luật 1 CHUAN_XAY_DUNG: không bịa chiều cao / kích thước)."""
@@ -365,6 +404,8 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
         notes.append(f"(code bỏ {far} chỗ đứng khác cách O hơn {NEAR_SPOT_M:g} m mà kịch bản cảnh này không nhắc)")
     have_keys = {o["key"] for o in fixed}
     by_key = {o["key"]: o for o in fixed}
+    carry = _prop_carry(conn, pid, seg, prev_state) if prev_state and features.on(PROPS_BYD_FLAG) else None
+    dropped = set()
     for k, o in (prev_state or {}).get("objects", {}).items():
         if k in by_key and "at" not in by_key[k] and by_key[k]["kind"] != "moc":     # đạo cụ Kho đã đặt ở cảnh trước: giữ chỗ
             r = _rel(st, o["at_model"])
@@ -372,13 +413,18 @@ def inputs_for(conn, pid: int, seg: Dict, k1_dir: str, prev_state: Optional[Dict
             continue
         # rà 15/10: đạo cụ của cảnh trước trên cùng sân khấu = vật CỐ ĐỊNH ở đúng chỗ cũ (không thì Đạo diễn bị từ chối vì "tự thêm")
         if o.get("kind") not in ("nguoi", "moc") and k not in have_keys and o.get("h") and o.get("d"):
+            why = carry(k, o) if carry else None
+            if why:                                   # M2.4 G1 (cờ stage_props_byd): không mang vật cảnh trước mà shot không nhắc
+                notes.append(f"(code bỏ đạo cụ `{k}` ({o.get('label') or k}) của cảnh {prev_state.get('scene')}: {why})")
+                dropped.add(k)
+                continue
             r = _rel(st, o["at_model"])
             fixed.append({"key": k, "kind": o["kind"], "at": [r[0], r[1]], "h": o["h"], "d": o["d"], "label": o.get("label") or k,
                           **({"hollow": True} if o.get("hollow") else {}), "source": f"cảnh {prev_state.get('scene')} (cùng sân khấu)"})
             have_keys.add(k)
     if prev_state:
         for k, o in prev_state.get("objects", {}).items():
-            if k in have_keys:
+            if k in have_keys or k in dropped:
                 continue
             r = _rel(st, o["at_model"])
             facing = "" if o.get("facing") is None else f", hướng {o['facing']}°"

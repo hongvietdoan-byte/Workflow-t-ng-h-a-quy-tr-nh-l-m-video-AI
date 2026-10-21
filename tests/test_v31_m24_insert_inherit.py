@@ -73,7 +73,7 @@ class InsertInheritTests(unittest.TestCase):
         for k, v in CTX.items():
             self.assertEqual(d[k], v, k)
         self.assertFalse(set(CTX) & set(d["_user_locked"]))
-        msg = self.p.conn.execute("SELECT message FROM diagnostics WHERE code='insert_inherit'").fetchone()
+        msg = self.p.conn.execute("SELECT message FROM diag_events WHERE code='insert_inherit'").fetchone()
         self.assertIsNotNone(msg)
         self.assertIn("shot 6", msg["message"])
         self.assertIn("location_asset", msg["message"])
@@ -106,7 +106,7 @@ class InsertInheritTests(unittest.TestCase):
         self.p.conn.commit()
         self.insert()
         self.assertNotIn("byd", self.new_data())
-        msg = self.p.conn.execute("SELECT message FROM diagnostics WHERE code='insert_inherit'").fetchone()["message"]
+        msg = self.p.conn.execute("SELECT message FROM diag_events WHERE code='insert_inherit'").fetchone()["message"]
         self.assertIn("không có BYĐ", msg)
 
     def test_later_byd_shot_numbers_follow(self):
@@ -155,7 +155,7 @@ class StagePropsBydTests(_tsa.Base):
         got = self.inputs(pid, {"FEATURE_STAGE_PROPS_BYD": "1"})
         self.assertNotIn("xenoi", self.keys(got))
         self.assertTrue(any("bỏ đạo cụ" in n and "Xe nôi" in n and "cảnh 1" in n for n in got["user_notes"]))
-        self.assertFalse(any("`xenoi`" in n for n in got["user_notes"]))     # không còn "GIỮ chỗ" cho vật đã bỏ
+        self.assertFalse(any("`xenoi`" in n and "GIỮ" in n for n in got["user_notes"]))     # không còn "GIỮ chỗ" cho vật đã bỏ
 
     def test_prop_named_in_shot_text_or_byd_is_kept(self):
         pid = self.project(((1, "giua_phong"), (2, "giua_phong")))

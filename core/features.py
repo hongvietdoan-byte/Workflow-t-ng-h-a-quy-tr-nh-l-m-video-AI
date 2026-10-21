@@ -403,6 +403,17 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Người dùng không thấy gói thật sẽ gửi trước khi trả tiền và không thấy kết quả QC shadow theo shot. Chưa chạy trên dữ liệu thật",
     },
+    "insert_inherit": {
+        "label": "Chèn shot thừa kế bối cảnh (V3.1 M2.4, G6/G21): shot chèn chép location_asset / location / time / weather / lighting / mood "
+                 "của shot trước khi không nhập (không 🔒, ghi ⚙ insert_inherit) + BYĐ NHÁP (giữ nơi chốn + thành phần, bỏ hành động / máy / "
+                 "vật — cổng video VÀNG byd_draft) + byd.shot của các shot sau dời theo; 0 USD",
+        "verified": False,
+    },
+    "stage_props_byd": {
+        "label": "Đạo cụ cảnh trước theo BYĐ (V3.1 M2.4, G1): sân khấu tự động chỉ mang đạo cụ của cảnh trước (cùng sân khấu) khi CÙNG thế "
+                 "giới (location_asset + time) và BYĐ / chữ shot nhắc tên — bỏ thì ghi chú cho Đạo diễn sân khấu; 0 USD",
+        "verified": False,
+    },
     "continuity_state": {
         "label": "continuity_state SHADOW (V3.1 M3.4): trạng thái mong đợi giữa 2 shot liền từ BYĐ (vật cầm giữ / mất / đổi tay, tư thế cuối → "
                  "đầu, nơi chốn, hướng trên khung) + quan sát của QC shadow (M4.2 / M4.3) + đồ thị phụ thuộc → <dự án>/world/continuity_state.json; "

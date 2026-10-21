@@ -307,3 +307,44 @@ def from_shot_spec(spec: Dict, blocking: Optional[Dict] = None) -> Dict:
                 tu_the, nguon = "dung", "mac_dinh_dung"
             b["hanh_dong"].append({"ai": k, "bat_dau": {"tu_the": tu_the}, "nguon": nguon})
     return b
+
+
+# ---- V3.1 M2.4 (cờ insert_inherit / stage_props_byd): BYĐ nháp của shot chèn + đổi số + tên vật BYĐ nhắc ---------------------------
+def is_draft(byd) -> bool:
+    """BYĐ do code dựng nháp (shot chèn chép từ shot trước) — chưa ai duyệt."""
+    return isinstance(byd, dict) and isinstance(byd.get("_p"), dict) and byd["_p"].get("draft") is True
+
+
+def draft_of(data: Dict, shot: int, from_scene_id: int, characters=None) -> Optional[Dict]:
+    """BYĐ NHÁP cho shot chèn sau shot `data` (M2.4, G21): giữ `noi_chon`, `thanh_phan` (có `characters` → chỉ giữ thứ có tên trong đó;
+    vật phải khai lại), BỎ `hanh_dong` / `may` / `vat` (shot mới làm việc khác — không đoán). `_p` = {by: code, draft, from}.
+    Shot trước không có BYĐ → None (nơi gọi nói ra)."""
+    src = data.get("byd") if isinstance(data, dict) else None
+    if not isinstance(src, dict):
+        return None
+    parts = [copy.deepcopy(c) for c in src.get("thanh_phan") or [] if isinstance(c, dict)]
+    if characters:
+        from core.assets import fold
+        names = {fold(str(n)).lower() for n in characters}
+        parts = [c for c in parts if fold(str(c.get("vat") or "")).lower() in names]
+    return {"shot": shot, "thanh_phan": parts, "noi_chon": copy.deepcopy(src.get("noi_chon") or {}), "hanh_dong": [], "vat": [],
+            "may": {}, "_p": {"by": "code", "draft": True, "from": from_scene_id}}
+
+
+def shift_shot(data: Dict, old_no: int, new_no: int) -> bool:
+    """Đổi số shot trong BYĐ khi shot_no dời (chèn shot): chỉ khi `byd.shot` đúng là số cũ (số khác = người / Đạo diễn ghi khác — giữ)."""
+    byd = data.get("byd") if isinstance(data, dict) else None
+    if isinstance(byd, dict) and byd.get("shot") == old_no and not isinstance(byd.get("shot"), bool):
+        data["byd"] = dict(byd, shot=new_no)            # bản mới: bảng cũ (của `data` trước khi dời) giữ nguyên để so
+        return True
+    return False
+
+
+def named_things(data: Dict) -> List[str]:
+    """Tên các thứ BYĐ của shot nhắc (`vat[].vat` + `thanh_phan[].vat`) — M2.4 G1: đạo cụ cảnh trước chỉ mang khi có tên ở đây / chữ shot."""
+    byd = data.get("byd") if isinstance(data, dict) else None
+    if not isinstance(byd, dict):
+        return []
+    out = [str(c.get("vat")) for c in vat_items(byd) if isinstance(c, dict) and c.get("vat")]
+    out += [str(c.get("vat")) for c in byd.get("thanh_phan") or [] if isinstance(c, dict) and c.get("vat")]
+    return out
