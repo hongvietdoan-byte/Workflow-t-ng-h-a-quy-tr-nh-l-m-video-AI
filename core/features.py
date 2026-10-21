@@ -679,9 +679,10 @@ FEATURES: Dict[str, Dict] = {
                "dự án thật (đo báo nhầm trên #24 trước khi bật)",
     },
     "router_first_frame": {
-        "label": "Router theo khả năng model (V3.1 M2.8): shot CẦN khung đầu đã duyệt (nối clip trước, continuity_from, BYĐ mốc nền trong khung, "
+        "label": "Router theo khả năng model (V3.1 M2.8, MỚI NỬA ĐẦU): shot CẦN khung đầu đã duyệt (nối clip trước, BYĐ mốc nền trong khung, "
                  "nhân vật ở dạng đặc biệt) không gộp vào nhóm Seedance ref-only (ref-only không giữ khung đầu — data/provider_rules.json "
-                 "first_frame_in_ref_mode) → gửi một mình; lý do tách ghi vào gói gửi (sent_package.router). Đổi SỐ clip → giá: xem pregen_check",
+                 "refs_with_first_frame) → gửi một mình, lý do ghi vào gói gửi (sent_package.router). Shot tách VẪN ref-only (chưa đổi sang "
+                 "chế độ khung đầu) → kiểm video VÀNG khung_dau. Đổi SỐ clip → giá: xem pregen_check. CHƯA BẬT khi chưa có phần đổi đường",
         "verified": False,
         "why": "#31 G28 (job 1043 khung 0 khác ảnh đầu), G37 (shot 28 nhóm 28+29 mất dạng bóng mờ). Tách nhóm thêm clip (≥ 4 s tính tiền mỗi "
                "clip). Chưa chạy trên dự án thật; chất lượng clip chỉ chứng minh bằng gen (Cấp 3)",

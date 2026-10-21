@@ -58,10 +58,9 @@ class RouterFirstFrame(_Base):
         flags_on(self, "router_first_frame")
         target = self.ids[-1]
 
-        def forms(conn, pid, rows):
-            sid_data = rows[0]["data"]
-            return {"KENTA": {"form": "ghost", "label": "Bóng mờ"}} if sid_data.get("shot_no") == self.shot_no(target) else {}
-        with mock.patch.object(character_forms, "for_rows", side_effect=forms):
+        def forms(conn, pid, data, chosen=None):
+            return {"KENTA": {"form": "ghost", "label": "Bóng mờ"}} if data.get("shot_no") == self.shot_no(target) else {}
+        with mock.patch.object(character_forms, "for_shot", side_effect=forms):
             self.assertFalse(any(target in g for g in self.group_ids()))
             self.assertIn("Bóng mờ", seedance_refs.split_reason(self.p.conn, target))
 
@@ -71,7 +70,7 @@ class RouterFirstFrame(_Base):
     def test_a_model_family_that_keeps_the_first_frame_is_not_split(self):
         flags_on(self, "router_first_frame")
         self.set(self.ids[0], start_from_prev_clip=True)
-        keep = {k: dict(v, first_frame_in_ref_mode=True) for k, v in video_rules.models().items()}
+        keep = {k: dict(v, refs_with_first_frame=True) for k, v in video_rules.models().items()}
         with mock.patch.object(video_rules, "models", return_value=keep):
             self.assertTrue(model_router.ref_mode_keeps_first_frame())
             self.assertIn(self.ids[0], self.group_ids()[0])
@@ -85,14 +84,15 @@ class RouterFirstFrame(_Base):
         no = self.shot_no(sid)
         real = model_router.needs_first_frame
         with mock.patch.object(model_router, "needs_first_frame",
-                               side_effect=lambda c, p, d: "nhân vật ở dạng đặc biệt: KENTA (Bóng mờ)" if d.get("shot_no") == no
-                               else real(c, p, d)):
+                               side_effect=lambda c, p, d, chosen=None: "nhân vật ở dạng đặc biệt: KENTA (Bóng mờ)"
+                               if d.get("shot_no") == no else real(c, p, d, chosen)):
             jid = self.p.create_job(sid, "video_gen")
             vr.submit_pending(self.pid)
         pkg = json.loads(self.p.job(jid)["sent_package"] or "{}")
         self.assertTrue(pkg, "job gửi đi phải có gói")
         self.assertTrue(pkg["router"]["gui_mot_minh"])
         self.assertIn("Bóng mờ", pkg["router"]["ly_do"])
+        self.assertIn("VẪN ref-only", pkg["router"]["ly_do"])             # rà DP10 CAO: không nói như đã có khung đầu
 
     def test_sent_package_without_the_flag_has_no_router_key(self):
         flags_on(self, "router_first_frame", value=False)
@@ -104,12 +104,71 @@ class RouterFirstFrame(_Base):
         self.assertNotIn("router", pkg)
 
 
+    def test_a_middle_shot_split_leaves_two_sub_groups_or_lone_shots(self):
+        flags_on(self, "router_first_frame", value=False)
+        before = self.group_ids()[0]
+        self.assertGreaterEqual(len(before), 3, "cần nhóm ≥ 3 shot")
+        mid = before[1]
+        flags_on(self, "router_first_frame")
+        self.set(mid, start_from_prev_clip=True)
+        after = self.group_ids()
+        self.assertFalse(any(mid in g for g in after))
+        self.assertNotIn([before[0]], after)                             # lone remains are one-shot clips, not groups
+        self.assertEqual([x for g in after for x in g if x in before], [x for x in before[2:]] if len(before) > 3 else [])
+
+    def test_split_reason_none_when_the_old_rule_already_sent_it_alone(self):
+        """Rà DP10 VỪA-4: shot đứng lẻ theo luật cũ (nhóm khác) — không ghi 'tách vì khung đầu'."""
+        flags_on(self, "router_first_frame")
+        lone = self.ids[0]
+        self.set(lone, sequence=99, start_from_prev_clip=True)          # its own continuity group: alone under the old rule
+        self.assertIsNone(seedance_refs.split_reason(self.p.conn, lone))
+
+    def test_price_follows_the_same_groups(self):
+        """Giá dùng cùng groups() (model_router.plan): shot trong clip nhóm tính 0 s; bị tách → tính tiền clip riêng (≥ 4 s Seedance)."""
+        sid = self.ids[1]
+        billed = lambda: next(r["billed_seconds"] for r in model_router.plan(self.p.conn, self.pid) if r["scene_id"] == sid)  # noqa: E731
+        flags_on(self, "router_first_frame", value=False)
+        self.set(sid, start_from_prev_clip=True)
+        self.assertEqual(billed(), 0.0)                                  # cờ tắt: trong clip nhóm của shot đầu
+        flags_on(self, "router_first_frame")
+        self.assertGreaterEqual(billed(), seedance_refs.SEEDANCE_MIN)
+
+    def test_video_pregen_says_the_split_shot_still_has_no_first_frame(self):
+        from core import video_pregen
+        flags_on(self, "router_first_frame")
+        self.set(self.ids[0], start_from_prev_clip=True)
+        out = []
+        video_pregen._check_router_split(self.p.conn, self.ids[0], {"reference_only": ["a.png"]}, out)
+        self.assertEqual([(i["ma"], i["muc"]) for i in out], [("khung_dau", "vang")])
+        self.assertIn("start_from_prev_clip", out[0]["ly_do"])
+        out = []
+        video_pregen._check_router_split(self.p.conn, self.ids[1], {"reference_only": ["a.png"]}, out)
+        self.assertEqual(out, [])
+        flags_on(self, "router_first_frame", value=False)
+        video_pregen._check_router_split(self.p.conn, self.ids[0], {"reference_only": ["a.png"]}, out)
+        self.assertEqual(out, [])
+
+    def test_flag_switched_on_while_a_group_clip_is_in_flight_does_not_send_the_part_twice(self):
+        """Rà DP10 VỪA-3: clip nhóm [A, B, …] đã gửi từ A; bật cờ, B bị tách → B KHÔNG gửi một mình lần nữa."""
+        flags_on(self, "router_first_frame", value=False)
+        vr = self._ready()
+        lead = self.p.create_job(self.ids[0], "video_gen")
+        self.assertEqual(vr.submit_pending(self.pid), 1)
+        sent = json.loads(self.p.job(lead)["sent_group"] or "[]")
+        self.assertIn(self.ids[1], [int(g["id"]) for g in sent])
+        flags_on(self, "router_first_frame")
+        self.set(self.ids[1], start_from_prev_clip=True)
+        b = self.p.create_job(self.ids[1], "video_gen")
+        self.assertTrue(vr._wait(self.p.job(b)))
+        self.assertEqual(self.p.job(b)["state"], "queued")
+
+
 class Rules(unittest.TestCase):
     def test_every_seedance_model_declares_the_capability(self):
         fam = {k: v for k, v in video_rules.models().items() if v.get("family") == "seedance"}
         self.assertTrue(fam)
         for k, v in fam.items():
-            self.assertIs(v.get("first_frame_in_ref_mode"), False, k)
+            self.assertIs(v.get("refs_with_first_frame"), False, k)
         self.assertFalse(model_router.ref_mode_keeps_first_frame())
 
     def test_unknown_capability_counts_as_not_kept(self):
@@ -120,13 +179,14 @@ class Rules(unittest.TestCase):
 
     def test_reasons(self):
         nf = lambda d: model_router.needs_first_frame(None, 1, d)  # noqa: E731
-        with mock.patch.object(character_forms, "for_rows", return_value={}):
+        with mock.patch.object(character_forms, "for_shot", return_value={}):
             self.assertIsNone(nf({"shot_no": 1}))
-            self.assertIn("continuity_from", nf({"continuity_from": 3}))
+            self.assertIsNone(nf({"continuity_from": 3}))                 # rà DP10 VỪA-2: luật bố cục ảnh, không phải khung đầu video
+            self.assertIn("start_from_prev_clip", nf({"start_from_prev_clip": True}))
             self.assertIn("trong_khung", nf({"byd": {"khung": {"moc_nen": {"y_do": "trong_khung"}}}}))
             self.assertIsNone(nf({"byd": {"khung": {"moc_nen": {"y_do": "ngoai_khung"}}}}))
             self.assertIsNone(nf({"byd": "hỏng"}))
-        with mock.patch.object(character_forms, "for_rows", return_value={"KELLY": {"label": "Bóng mờ"}}):
+        with mock.patch.object(character_forms, "for_shot", return_value={"KELLY": {"label": "Bóng mờ"}}):
             self.assertIn("KELLY (Bóng mờ)", nf({"characters": ["KELLY"]}))
 
 

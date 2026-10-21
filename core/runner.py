@@ -1123,9 +1123,10 @@ class VideoRunner(_Runner):
         if pkg and model_router.router_first_frame_on() and job["scene_id"]:   # M2.8: why this shot left its ref-only group (flag off: as before)
             from . import seedance_refs
             reason = seedance_refs.split_reason(self.p.conn, job["scene_id"])
-            if reason and not self._sends_group(job):
+            if reason:
                 body = json.loads(pkg)
-                body["router"] = {"gui_mot_minh": True, "ly_do": f"cần khung đầu — {reason}; nhóm ref-only không giữ khung đầu"}
+                body["router"] = {"gui_mot_minh": True, "ly_do": f"tách khỏi nhóm ref-only vì cần khung đầu — {reason}; clip này VẪN ref-only "
+                                                                  "(chưa có khung đầu, M2.8 phần đổi đường chưa làm)"}
                 pkg = json.dumps(body, ensure_ascii=False)
         fingerprint = self.__dict__.get("_pregen_fingerprints", {}).get(job["id"])
         if pkg and task_id is not None and fingerprint:
@@ -1890,6 +1891,19 @@ class VideoRunner(_Runner):
                                   (scene_id,)).fetchone()
         return row is not None and row["state"] in ("queued", "retryable")
 
+    def _in_flight_group(self, scene_id: int) -> bool:
+        """M2.8: a group clip being made (queued / running, sent_group) of ANOTHER shot carries this shot's part — whatever the groups are
+        now (the router may have split the group after it was sent)."""
+        rows = self.p.conn.execute("SELECT sent_group FROM jobs WHERE type='video_gen' AND state IN ('queued','running') AND sent_group"
+                                   " IS NOT NULL AND scene_id<>?", (scene_id,)).fetchall()
+        for r in rows:
+            try:
+                if any(int(g.get("id")) == scene_id for g in json.loads(r["sent_group"]) or []):
+                    return True
+            except (TypeError, ValueError, AttributeError):
+                continue
+        return False
+
     def _covered(self, scene_id: int, group) -> bool:
         """A group clip already sent (or being made) carries this shot's part."""
         ids = [r["id"] for r in group if r["id"] != scene_id]
@@ -1986,6 +2000,9 @@ class VideoRunner(_Runner):
                 return self._hold(job, line)
         group = shots.group_of(self.p.conn, job["scene_id"]) or []
         if len(group) < 2:
+            from . import model_router         # rà DP10 VỪA-3: cờ router bật giữa chừng — phần của shot đã đi cùng một clip nhóm đang bay
+            if model_router.router_first_frame_on() and self._refs(job) and self._in_flight_group(job["scene_id"]):
+                return True
             return False
         if self._refs(job) and self._covered(job["scene_id"], group):
             return True                   # its part comes with a group clip already sent

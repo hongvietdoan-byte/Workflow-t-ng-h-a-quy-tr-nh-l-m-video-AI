@@ -95,7 +95,8 @@ def groups(conn, project_id: int) -> List[List[Dict]]:
     return cached(conn, ("seedance_refs.groups", project_id), lambda: _groups(conn, project_id))
 
 
-def _groups(conn, project_id: int) -> List[List[Dict]]:
+def _groups(conn, project_id: int, split: Optional[bool] = None) -> List[List[Dict]]:
+    """split: None = theo cờ router_first_frame (M2.8); False = luật chia cũ (split_reason so với nó)."""
     from .shots import _group_key, _rows
     out: List[List[Dict]] = []
     cur: List[Dict] = []
@@ -112,10 +113,15 @@ def _groups(conn, project_id: int) -> List[List[Dict]]:
     dressed = {r["name"] for r in conn.execute("SELECT name, outfit_image_ids FROM characters WHERE project_id=?", (project_id,))
                if (r["outfit_image_ids"] or "").strip()}
     from . import model_router          # M2.8 (cờ router_first_frame; tắt = như cũ): shot cần khung đầu gửi một mình
-    split = model_router.router_first_frame_on() and not model_router.ref_mode_keeps_first_frame()
+    if split is None:
+        split = model_router.router_first_frame_on() and not model_router.ref_mode_keeps_first_frame()
+    chosen = None
+    if split:
+        from .assets import project_assets
+        chosen = project_assets(conn, project_id)          # một lần mỗi lượt chia nhóm (không đọc Kho mỗi hàng)
     for r in rows:
         d = r["data"]
-        if not d.get("shot_no") or not _groupable(d) or (split and model_router.needs_first_frame(conn, project_id, d)):
+        if not d.get("shot_no") or not _groupable(d) or (split and model_router.needs_first_frame(conn, project_id, d, chosen)):
             close()
             continue
         sec = floored(d, d.get("duration_s") or 0)
@@ -211,6 +217,8 @@ def split_reason(conn, scene_id: int) -> Optional[str]:
     data = json.loads(row["data"] or "{}")
     if not data.get("shot_no") or not _groupable(data):
         return None
+    if not any(len(g) > 1 and any(x["id"] == scene_id for x in g) for g in _groups(conn, row["project_id"], split=False)):
+        return None                       # rà DP10 VỪA-4: theo luật cũ shot này vốn đã đi lẻ — không phải do router tách
     return model_router.needs_first_frame(conn, row["project_id"], data)
 
 
