@@ -20,7 +20,9 @@ thật. File này cập nhật mỗi lượt điều phối; máy chính đánh 
 | C-M61-M69 | cloud/v31-m61-m69 @ e74ba672 | gỡ xung đột areas.json + package_inputs.json; cả bộ test; Agent rà | cờ `crew_registry` + `continuity_validator` TẮT: không tạo tệp mới trong `data/projects/<id>/crew/`; (tùy) bật thử trên dự án thử → chỉ ghi jsonl shadow, không đổi CSDL | |
 | C-M71 (Gói A sửa cờ) | cloud/v31-m71 @ 1691d07d | gỡ xung đột `core/before_run.py` (giữ `_drift_items` của main + `_cost_items(conn, pid)` của M71); cả bộ test; **Agent rà kỹ (tiền)** | (1) Bước "trước khi chạy": danh sách cờ tốn tiền có 6 cờ mới `costs` (không bị bật hàng loạt 0 USD); (2) `py tools/pregen_check.py --payload --project <id>` in dòng "D6:" mỗi shot; (3) Bước 4 🧭 hero_takes báo giá khớp ô 💰 | |
 
-Kết quả cả bộ test Linux đợt này: _(cập nhật khi chạy xong)_ · Agent rà kỹ: _(cập nhật)_ · commit gộp main: _(cập nhật)_
+**Kết quả cả bộ test Linux đợt này:** 7089 qua, 32 hỏng → so cùng các tệp trên main sạch: 31 hỏng Y HỆT main (test_golden_db_replay ×13, test_golden_replay ×8, test_s1446_retired_lessons ×2 … — môi trường Linux), 1 hỏng MỚI `test_pending_flags_expire_when_the_branch_lands` → đã sửa (gỡ `pending_flags` của ô `sb.stage3d` trong devsys/pipeline_maps.json vì C-STAGE-VIEW đã gộp), devsys 285 qua. **Máy chính:** cả bộ Windows — golden_db_replay / golden_replay có hỏng không (nếu Windows XANH thì đúng là lỗi môi trường Linux).
+
+**Agent rà kỹ:** 0 CAO · 1 VỪA (khóa hết tiền D6 `QUOTA_KEY` dùng chung mọi dự án) · 3 THẤP (2 chỗ kẹt mục ĐỎ change_review khi sự kiện skipped / LIMIT 5; baseline cờ hero_takes/scene_qc_claude giờ costs → máy MỚI hạ OFF) → giao **C-M71-FIX** cloud-E (kèm sửa rò tệp test DP12 ghi `data/ref_padded/` thật). Gỡ xung đột before_run.py: Agent xác nhận đúng.
 
 **Chờ golden đạt, CHƯA gộp:** cloud/v31-m2-tichhop (M21, M25, M25B, M26, M29, DP9, DP10, GOLDEN2), cloud/v31-m24, cloud/v31-golden5, cloud/v31-m73,
 cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp M2).
@@ -39,4 +41,5 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
 |---|---|---|---|
 | C-GOLDEN7 | cloud-C (ưu tiên 0) | docs/CLOUD_TASKS.md#### C-GOLDEN7 | validator `--ab` theo catalog cây đang dựng; lỗi cấu hình = mã 2 |
 | CX21-GOLDEN7 | codex (depends C-GOLDEN7) | docs/CODEX_TASKS.md### CX21-GOLDEN7 | chạy lại A/B; ĐẠT → gộp tích hợp M2 một lần |
+| C-M71-FIX | cloud-E (ưu tiên 1) | docs/CLOUD_TASKS.md#### C-M71-FIX | lỗi rà kỹ M71 + rò tệp test DP12 |
 | C-M83-TOOL | cloud-E (ưu tiên 2) | docs/CLOUD_TASKS.md#### C-M83-TOOL | công cụ đo tải 10 người (Playwright + provider giả); lượt đo thật M8.3 = máy chính |

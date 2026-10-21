@@ -928,6 +928,7 @@ Agent rà kỹ 22/10 (0 CAO): sửa trên nhánh mới cloud/v31-m71-fix từ ma
    như vậy làm nhóm hết tiền của dự án CÓ Claude không bao giờ tới lượt. Lọc trước khi áp LIMIT.
 4. Ghi chú: data/flag_baseline.json (M7.2) ghi hero_takes / scene_qc_claude on; nay costs:True → _guarded hạ OFF trên máy MỚI (chưa có tệp 🧪). Đúng thiết kế;
    ghi rõ vào báo cáo + đề xuất chụp lại baseline (KHÔNG tự đổi cờ production).
+5. Rò tệp test: tests/test_v31_dp12_pilot_a.py (qua core/seedance_refs ref_padded) ghi data/ref_padded/*_pad.png vào data/ THẬT của repo khi chạy cả bộ → test phải ghi vào thư mục tạm (tmp_path / DATA_DIR giả); test đỏ: chạy test rồi kiểm repo data/ref_padded không có tệp mới.
 Báo cáo docs/RA_CLOUD_M71_FIX_2026-10-2x.md. XONG hộp thư.
 ```
 
