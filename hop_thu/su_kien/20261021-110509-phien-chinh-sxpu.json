@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:05:09.634061+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "DP12",
+  "to": "cloud-C",
+  "title": "M5.3 pilot vòng A offline (nhánh phụ song song)",
+  "spec": "docs/CLOUD_TASKS.md#### DP12",
+  "priority": 9
+}
