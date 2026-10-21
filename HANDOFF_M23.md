@@ -11,3 +11,8 @@
 - Đã nối UI actor/revision, ghi AI tools model/revision; đã có capture revision vào package + lineage thực, 245 test xanh / 58.20s.
 - Đã test SQLite thật: Director/image/video refs/QC, autopilot bible_gaps, clone_project, digest no-write; 3 mode ImageRunner chuẩn bị + package.
 - OPEN còn: BYĐ cloud-C; video submit package/multi full; reader raw SQL ngoại lệ; v1 ON byte kiểm riêng; rollback/audit CAS nguyên tử và profile writers ngoài set_profile; self-review/caller + regressions/full suite. Giữ trạng thái CHƯA HOÀN TẤT.
+
+## Lô nhỏ cuối
+- Đã có actual VideoRunner prepare/package (single/multi reference-only, model/route/group/mark giả) + v1 ON/OFF prompt/ref equality; cả 3 ca xanh.
+- Fixture đặt PIPELINE_DATA tạm, video PAD_DIR tạm và mock mark. Ba ảnh tổng hợp untracked data/ref_padded ghi trong RA; KHÔNG xóa/commit.
+- Dừng ghi sau checkpoint theo parent/quota; chưa hoàn thành nhiệm vụ. Rà kỹ fresh rồi xử lý OPEN ở RA, đặc biệt BYĐ cloud-C + reader/writer coverage/CAS audit. Không push/main/live/test cả bộ.

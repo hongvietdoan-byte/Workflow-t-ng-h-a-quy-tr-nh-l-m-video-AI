@@ -625,7 +625,8 @@ class _Runner:
         gen (_pregen: the same package BEFORE the send, task_id None). Never raises (sent_package.safe_build)."""
         from . import sent_package
         kind = self.job_type.split("_")[0]
-        kho_extra = {'kho_profiles': kho_profile.package_inputs(self,job)} if kho_profile.enabled() else None
+        kho_inputs = kho_profile.package_inputs(self,job) if kho_profile.enabled() else []
+        kho_extra = {'kho_profiles': kho_inputs} if kho_inputs else None
         if kwargs.get("_from_sample"):
             extra = sent_package.draft_of(self.p.conn, kwargs["_from_sample"])
             if kho_extra:

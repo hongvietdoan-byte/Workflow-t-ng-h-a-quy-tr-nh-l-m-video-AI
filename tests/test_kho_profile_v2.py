@@ -53,7 +53,7 @@ def test_invalid_schema_rejected(adapter,change):
 
 @pytest.fixture
 def live_flow(tmp_path):
-    with patch.object(os,'environ',{'ASSET_DIR':str(tmp_path/'assets'), 'FEATURE_SETTINGS_FILE':str(tmp_path/'features.json'),'FEATURE_KHO_FORMS_V2':'1'}):
+    with patch.object(os,'environ',{'ASSET_DIR':str(tmp_path/'assets'), 'FEATURE_SETTINGS_FILE':str(tmp_path/'features.json'),'PIPELINE_DATA':str(tmp_path/'projects'),'FEATURE_KHO_FORMS_V2':'1'}):
         from core import assets
         from core.db import connect
         from core.pipeline import Pipeline
@@ -136,3 +136,66 @@ def test_image_prepare_and_sent_package_capture_revision(live_flow,tmp_path,mode
     payload=json.loads(package)
     assert payload['kho_profiles']==[{'kho_id':aid,'revision':9}]
     assert not warnings
+
+@pytest.mark.parametrize('multi',[False,True])
+def test_video_prepare_and_sent_package_capture_revision(live_flow,tmp_path,multi):
+    from core import runner, seedance_refs
+    from PIL import Image
+    p,pid,aid,sid,scene=live_flow
+    p.conn.execute('UPDATE projects SET shot_mode=?,video_model=? WHERE id=?',('multishot' if multi else 'per_shot','seedance',pid))
+    scene.update(shot_no=1,story_scene=1,duration_s=4)
+    p.conn.execute('UPDATE scenes SET data=? WHERE id=?',(json.dumps(scene),sid))
+    rows=[{'id':sid,'idx':1,'data':scene}]
+    if multi:
+        second=dict(scene,shot_no=2)
+        p.conn.execute('INSERT INTO scenes(project_id,idx,data) VALUES(?,2,?)',(pid,json.dumps(second)))
+        sid2=p.conn.execute('SELECT max(id) FROM scenes').fetchone()[0]
+        rows.append({'id':sid2,'idx':2,'data':second})
+    folder=tmp_path/str(pid)/'images';folder.mkdir(parents=True)
+    for i,r in enumerate(rows,1):
+        p.conn.execute("INSERT INTO motion_prompts(scene_id,motion_prompt,negative_prompt,duration_sec,state) VALUES(?,?,?,4,'approved')",(r['id'],'KELLY in ghost form runs.',''))
+        p.conn.execute("INSERT INTO jobs(id,project_id,scene_id,type,state,created_at,updated_at) VALUES(?,?,?,'image_gen','approved','fixture','fixture')",(i,pid,r['id']))
+        Image.new('RGB',(640,960),'purple').save(folder/f'job_{i}.png')
+    p.conn.commit()
+    class Provider:
+        name='fixture';supports_aspect=True;supports_subjects=False
+        def submit(self,*args,**kwargs):raise AssertionError('Không gọi provider')
+    video=runner.VideoRunner(p,Provider(),str(tmp_path))
+    job={'id':99,'project_id':pid,'scene_id':sid,'retry_reason':None}
+    with patch.object(video,'_choice',return_value={'model':'seedance'}), patch.object(video,'_refs',return_value=True), patch.object(video,'_sends_group',return_value=rows if multi else None), patch.object(seedance_refs,'PAD_DIR',str(tmp_path/'padding')), patch.object(seedance_refs,'mark',side_effect=lambda path,*a,**kw:path):
+        args=video._submit_args(job)
+        kwargs=video._prepare_kwargs(job)
+        sent={key:value for key,value in kwargs.items() if not key.startswith('_')}
+        package,warnings=video._build_package(job,args,kwargs,sent,'fixture')
+    assert not warnings
+    payload=json.loads(package)
+    assert payload['kho_profiles']==[{'kho_id':aid,'revision':9}]
+    assert 'ghost form' in payload['prompt']
+    assert any(ref['param']=='reference_only' for ref in payload['refs'])
+
+def test_v1_on_and_off_produce_identical_prompts_and_refs(live_flow):
+    from core import prompts,seedance_refs
+    from core.runner import lock_note
+    p,pid,aid,sid,scene=live_flow
+    raw={'approved':True,'identity':'oval face, black bob','must_keep':'oval face; black bob; yellow jacket','forbidden':'red hair','height_m':1.7}
+    p.conn.execute('UPDATE assets SET profile=? WHERE id=?',(json.dumps(raw),aid))
+    def outputs():
+        return (prompts.standard_block(p,pid), prompts.lock_text(p.conn,pid,['KELLY'],shots=[scene]),lock_note(p.conn,pid,['KELLY'],scene),seedance_refs.identity_pictures(p.conn,pid,[{'id':sid,'data':scene}],8))
+    with patch.object(os,'environ',{'FEATURE_KHO_FORMS_V2':'0','ASSET_DIR':os.environ.get('ASSET_DIR'),'PIPELINE_DATA':os.environ.get('PIPELINE_DATA')}):
+        off=outputs()
+    assert outputs()==off
+
+
+def test_v1_package_does_not_add_empty_provenance(live_flow,tmp_path):
+    from core import runner
+    p,pid,aid,sid,scene=live_flow
+    p.conn.execute('UPDATE assets SET profile=? WHERE id=?',(json.dumps({'approved':True,'must_keep':'black bob'}),aid))
+    class Provider:
+        name='fixture'
+        def submit(self,prompt,references,**kwargs):raise AssertionError('Không gọi provider')
+    image=runner.ImageRunner(p,Provider(),str(tmp_path))
+    job={'id':99,'project_id':pid,'scene_id':sid,'retry_reason':None}
+    args=image._submit_args(job)
+    package,warnings=image._build_package(job,args,{}, {},'fixture')
+    assert not warnings
+    assert 'kho_profiles' not in json.loads(package)
