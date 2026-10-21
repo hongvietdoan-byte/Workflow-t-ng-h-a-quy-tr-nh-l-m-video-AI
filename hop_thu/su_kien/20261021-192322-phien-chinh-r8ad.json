@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T19:23:22.915335+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M60-AUDIT",
+  "to": "cloud-E",
+  "title": "M6.0 audit caller tạo job + đường ghi theo vai (tài liệu)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M60-AUDIT",
+  "priority": 1
+}
