@@ -4,6 +4,7 @@ from dashboard import common as C
 from dashboard.widgets import dialogue_panel
 from contextlib import nullcontext
 from core import motion_prompt_lint
+from core import write_guard  # V3.1 M2.5 (C-M25B): người sửa tay motion prompt → khóa (cờ field_guard)
 
 
 def _card(key: str):
@@ -102,7 +103,7 @@ def step3(p: Pipeline, pid: int):
                 st.code(llm_runner.plain(prompts.build_motion_bundle(p, pid)), language="markdown")
                 raw = st.text_area("Dán JSON motion prompts từ Claude", key=f"motion_{pid}", height=140)
                 if st.button("▶ Lưu motion prompts", disabled=not raw.strip(), key=f"mot_paste_{pid}"):
-                    if act(lambda: llm_io.store_motion_prompts(p, pid, raw), "Đã lưu"):
+                    if act(lambda: llm_io.store_motion_prompts(p, pid, raw, actor=write_guard.actor("ai", "claude_paste")), "Đã lưu"):
                         st.rerun()
     voice_panel(p, pid)
     motion_ok = sum(1 for r in rows if r["state"] == "approved") if rows and "state" in rows[0].keys() else 0
@@ -161,14 +162,16 @@ def step3(p: Pipeline, pid: int):
                             st.rerun()
                     act(lambda: llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": r["idx"], "motion_prompt": new, "camera": r["camera"],
                                                                                  "duration_sec": r["duration_sec"],
-                                                                                 "negative_prompt": r["negative_prompt"]}]}))
+                                                                                 "negative_prompt": r["negative_prompt"]}]},
+                                                        actor=write_guard.actor("human", p.actor or "dashboard")))
                     st.rerun()
                 if c3.button("✔ Duyệt", key=f"mpa_{r['sid']}", disabled=r["state"] == "approved" and not srow.get("motion_stale")
                              and new == r["motion_prompt"], type="primary"):
                     if new != r["motion_prompt"]:          # M6: approving keeps what was just typed (it used to be thrown away)
                         act(lambda: llm_io.store_motion_prompts(p, pid, {"scenes": [{"idx": r["idx"], "motion_prompt": new, "camera": r["camera"],
                                                                                      "duration_sec": r["duration_sec"],
-                                                                                     "negative_prompt": r["negative_prompt"]}]}))
+                                                                                     "negative_prompt": r["negative_prompt"]}]},
+                                                        actor=write_guard.actor("human", p.actor or "dashboard")))
                     act(lambda: llm_io.approve_motion_prompt(p, r["sid"]))
                     st.rerun()
                 if not v2:

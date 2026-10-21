@@ -1121,6 +1121,7 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any, actor: 
     obj = validate_motion_prompts(data)
     conn = pipeline.conn
     saved = []                                           # F1-A: (scene, old prompt, new prompt) checked after the commit
+    hand_edits: List[int] = []
     for s in obj["scenes"]:
         row = conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?",
                            (project_id, s["idx"])).fetchone()
@@ -1138,6 +1139,8 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any, actor: 
             from . import write_guard
             write_guard.observe(conn, row["id"], {"motion_prompt": s["motion_prompt"]}, actor,
                                 before={"motion_prompt": old["motion_prompt"] if old else None})
+            if (old["motion_prompt"] if old else None) != s["motion_prompt"]:
+                hand_edits.append(row["id"])           # C-M25B: người sửa tay → khóa sau khi ghi (cờ field_guard)
         duration = s.get("duration_sec") or scene_data.get("duration_s") or 5
         if "duration_s" in set(scene_data.get("_user_locked") or []) and scene_data.get("duration_s"):
             duration = scene_data["duration_s"]          # length the person set (e.g. sized to the dialogue) wins
@@ -1157,6 +1160,10 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any, actor: 
         from .lineage import stamp_motion
         stamp_motion(conn, row["id"])
     conn.commit()
+    if hand_edits and (actor or {}).get("kind") == "human":
+        from . import write_guard
+        for sid in hand_edits:
+            write_guard.lock(conn, sid, "motion_prompt", actor)
     from . import prompt_formula
     for sid, old, new in saved:
         prompt_formula.on_prompt_saved(conn, sid, "motion", old, new)
