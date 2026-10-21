@@ -169,8 +169,8 @@ kiểm giá trị; không đổi `STATUSES`.
 | M4 QC có bằng chứng và Dashboard | 8 | 6 | 2 | 0 | 0 | 81,2 % |
 | M5 Sửa chọn lọc và pilot | 5 | 2 | 1 | 0 | 0 | 54,5 % |
 | M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 0 | 1 | 0 | 0 | 1,8 % |
-| M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 2 | 0 | 0 | 0 | 18,8 % |
-| **Tổng** | **69** | **35** | **5** | **0** | **0** | **50 %** |
+| M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 3 | 0 | 0 | 0 | 31,2 % |
+| **Tổng** | **69** | **36** | **5** | **0** | **0** | **51,4 %** |
 
 Đợt hiện tại: **M1** · việc kế: **M2.1** BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN
 <!-- /tien-do -->
@@ -257,7 +257,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 > Bằng chứng: `docs/DANH_GIA_HIEU_QUA_CO_2026-10-21.md`, `docs/BANG_CHUNG_CHOT_CO_2026-10-21.md`, `docs/KE_HOACH_SUA_20_CO_2026-10-21.md`.
 > Mỗi gói: test, bằng chứng thực thi, acceptance criteria, rollback, rủi ro mở. Đổi trạng thái cờ production / khóa cờ = Cấp 3 TỪNG CỜ (trình bằng chứng).
 - [ ] M7.1 · Gói A sửa cờ (F-A): change_review đóng cổng khi rà lỗi (G35), hero_takes khai costs, director_rewrite respect_lock (trường người sửa), chat_prompts kiểm D6 + hết tiền · nặng:3 · ⬜ · Cấp 2 DUYỆT 21/10; đổi trạng thái cờ = Cấp 3
-- [ ] M7.2 · Baseline cờ chỉ khi chưa có cấu hình riêng (K4 b) + effective config + config hash + cảnh báo drift; nút reset có preview / xác nhận / sao lưu / khôi phục (K6) · nặng:2 · ⬜ · Cấp 2 DUYỆT 21/10; song song M7.4, nghiệm thu tích hợp trước khi khóa cờ môi trường khác (K5)
+- [ ] M7.2 · Baseline cờ chỉ khi chưa có cấu hình riêng (K4 b) + effective config + config hash + cảnh báo drift; nút reset có preview / xác nhận / sao lưu / khôi phục (K6) · nặng:2 · ✅ · C-M72 + C-M72-FIX gộp 21/10 (rà kỹ: 0/144 cờ đổi máy có cài đặt; 2 lỗi đã sửa; cả bộ 6937 qua) · Cấp 2 DUYỆT 21/10; song song M7.4, nghiệm thu tích hợp trước khi khóa cờ môi trường khác (K5)
 - [ ] M7.3 · seedance_ref_groups + end_frames cùng hoạt động (K3 b, B4 end_frames.py:32) · nặng:2 · ⬜ · Cấp 2 DUYỆT 21/10
 - [ ] M7.4 · Gói B sửa cờ (F-B): video_gate, two_tier_quality (±5 % + tiêu chí chất lượng), motion_consistency_lint, end_frames, scene_qc, lip_sync + dialogue_take, bg_autoqc… · nặng:3 · ⬜ · Cấp 2 DUYỆT 21/10; khóa từng cờ sau correctness + benchmark + chi phí
 - [ ] M7.5 · Gói C (F-C): audit + thiết kế + BẢNG QUYẾT ĐỊNH từng cờ (audio_first tùy chọn thử nghiệm — F-Q2) trình EP trước khi đổi hành vi production · nặng:1 · ✅ · C-M75 bảng quyết định Gói C gộp 21/10 (KE_HOACH_SUA_20_CO mục 6) — TRÌNH EP duyệt từng dòng · chỉ tài liệu
