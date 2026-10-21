@@ -425,6 +425,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "Thiết kế M2.1 (docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-20.md mục 2.1): 'do'/'vang' cũ chưa phân biệt cần người xem (REVIEW). "
                "Chưa chạy trên dữ liệu thật",
     },
+    "field_guard": {
+        "label": "Write guard cấp trường SHADOW (V3.1 M2.5): mỗi lần AI / tự động / công cụ ghi đè trường người khóa (USER_LOCKED), đổi trường "
+                 "quan trọng đã có giá trị (REVIEW_FIELDS) hoặc ghi bằng bản đọc cũ → một dòng ⚙ Chẩn đoán field_conflict / field_review / "
+                 "stale_write — KHÔNG chặn, không đổi dữ liệu (enforce = Cấp 3)",
+        "verified": False,
+        "why": "D04 (data/decisions.json v31-d04-field-level-write-guard): lỗ hổng L1–L6 của audit M0.10 (motion prompt / duration_s / "
+               "video_route / image_prompt người sửa bị AI đè, mất cập nhật luồng nền). Shadow trước để đo số ca thật. Chưa chạy trên dữ liệu thật",
+    },
     "final_black_freeze": {
         "label": "Kiểm bản dựng cuối: đoạn màn hình ĐEN (≥ 0,5 s) và ĐỨNG HÌNH (> 1,5 s) bằng ffmpeg blackdetect / freezedetect — chỉ "
                  "cảnh báo (cần xem), không chặn xuất (V3.1 M4.4)",

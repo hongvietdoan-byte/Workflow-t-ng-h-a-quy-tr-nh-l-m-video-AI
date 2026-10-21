@@ -24,6 +24,8 @@ def fit_shots(conn, project_id: int, data_dir: str) -> List[Dict]:
         need = round(math.ceil((voice.LEAD + secs + voice.TAIL) * 10) / 10, 1)
         have = float(data.get("duration_s") or 0)
         if need > have + 0.05:
+            from . import write_guard              # V3.1 M2.5 (cờ field_guard, shadow): duration_s người khóa bị đè (L2) → diag
+            write_guard.observe(conn, sid, {"duration_s": need}, write_guard.actor("auto", "audio_first"), read_data=dict(data))
             data["duration_s"] = need
             data["duration_from_voice"] = {"was": have, "voice_s": secs}
             conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), sid))

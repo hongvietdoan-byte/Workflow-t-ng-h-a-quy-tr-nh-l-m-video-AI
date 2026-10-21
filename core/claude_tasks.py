@@ -126,6 +126,7 @@ def lint_motion(p: Pipeline, project_id: int, client, scene_ids: Optional[List[i
 
 def apply_lint(p: Pipeline, project_id: int, scene_id: int) -> bool:
     """Use the revised prompt proposed by the check (the prompt then waits for approval again)."""
+    from . import write_guard
     access.need_edit(p, project_id, "áp dụng sửa motion")
     row = p.conn.execute("SELECT s.idx, m.* FROM motion_prompts m JOIN scenes s ON s.id=m.scene_id WHERE m.scene_id=?",
                          (scene_id,)).fetchone()
@@ -135,7 +136,8 @@ def apply_lint(p: Pipeline, project_id: int, scene_id: int) -> bool:
         return False
     llm_io.store_motion_prompts(p, project_id, {"scenes": [{"idx": row["idx"], "motion_prompt": new, "camera": row["camera"],
                                                             "duration_sec": row["duration_sec"],
-                                                            "negative_prompt": row["negative_prompt"]}]})
+                                                            "negative_prompt": row["negative_prompt"]}]},
+                               actor=write_guard.actor("human", p.actor or "dashboard"))   # M2.5: người bấm áp đề xuất = người ghi
     return True
 
 

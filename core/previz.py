@@ -152,6 +152,8 @@ def compose_scene(p: Pipeline, project_id: int, scene: Dict, shot: Dict, backgro
     layout.compose(background, analysis, shot, cutouts, layout_path(data_dir, project_id, scene["idx"], board=True), size=size,
                    labels=True)
     data = {k: v for k, v in scene.items() if k not in ("_id", "idx")}
+    from . import write_guard                      # V3.1 M2.5 (cờ field_guard, shadow): ghi lại cả dict đọc từ trước (L6) → diag stale_write
+    write_guard.observe(p.conn, scene["_id"], {"layout": shot, "layout_people": None}, write_guard.actor("auto", "previz"), read_data=data)
     data["layout"] = shot
     data["layout_people"] = [{"name": pp["name"], "color_index": pp["color_index"], "cutout": pp["name"] in cutouts} for pp in people]
     p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), scene["_id"]))

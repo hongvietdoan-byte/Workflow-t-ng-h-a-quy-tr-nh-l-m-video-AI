@@ -1115,8 +1115,9 @@ def unlock_character_bible(pipeline: Pipeline, project_id: int) -> int:
     return n
 
 
-def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any) -> int:
-    """Step 3: save motion prompts for scenes that have an approved image. Editing resets approval."""
+def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any, actor: Optional[Dict] = None) -> int:
+    """Step 3: save motion prompts for scenes that have an approved image. Editing resets approval.
+    actor (V3.1 M2.5, cờ field_guard shadow): nơi gọi AI truyền write_guard.actor("ai", …) → motion prompt người khóa bị đè (L1) ghi diag."""
     obj = validate_motion_prompts(data)
     conn = pipeline.conn
     saved = []                                           # F1-A: (scene, old prompt, new prompt) checked after the commit
@@ -1133,6 +1134,10 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any) -> int:
         scene_data = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (row["id"],)).fetchone()["data"] or "{}")
         old = conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (row["id"],)).fetchone()
         saved.append((row["id"], old["motion_prompt"] if old else None, s["motion_prompt"]))
+        if actor:
+            from . import write_guard
+            write_guard.observe(conn, row["id"], {"motion_prompt": s["motion_prompt"]}, actor,
+                                before={"motion_prompt": old["motion_prompt"] if old else None})
         duration = s.get("duration_sec") or scene_data.get("duration_s") or 5
         if "duration_s" in set(scene_data.get("_user_locked") or []) and scene_data.get("duration_s"):
             duration = scene_data["duration_s"]          # length the person set (e.g. sized to the dialogue) wins
