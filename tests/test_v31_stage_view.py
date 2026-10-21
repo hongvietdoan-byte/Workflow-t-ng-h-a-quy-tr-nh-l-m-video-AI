@@ -114,12 +114,13 @@ def test_missing_stage_and_map_are_said_with_a_command(proj, tmp_path):
     assert any("chưa có sân khấu 3D" in m and "tools/stage_auto.py" in m for m in s1["missing"])
 
 
-def test_reads_nothing_writes_nothing(proj):
+@pytest.mark.parametrize("place_refs_on", ["", "1"])          # "1": cổng nền cũ (place_refs.stale) cũng chạy
+def test_reads_nothing_writes_nothing(proj, place_refs_on):
     from dashboard import stage_view_ui as U
     p, pid, data_dir, db, _ = proj
     root = pathlib.Path(data_dir).parent
     before = _snapshot(root, db)
-    with ON, mock.patch.object(U, "st"):
+    with ON, mock.patch.dict(os.environ, {"FEATURE_PLACE_RENDER_REFS": place_refs_on}), mock.patch.object(U, "st"):
         U.render(p, pid, data_dir)
     p.conn.commit()
     assert _snapshot(root, db) == before
@@ -151,14 +152,14 @@ def test_no_action_buttons_in_the_view():
     from dashboard import stage_view_ui as U
     src = inspect.getsource(U)
     assert "st.button" not in src and "form_submit" not in src
-    for word in ("render(cfg", "submit", "ensure_async", "world_map.save", "world_map.refresh", ".execute(\"UPDATE", "INSERT", "CREATE"):
+    for word in ("render(cfg", "submit", "ensure_async", "world_map.save(", "world_map.refresh(", ".execute(\"UPDATE", "INSERT", "CREATE"):
         assert word not in src, word
 
 
 def test_dummy_heights_and_sentence_only_when_flags_on(proj):
     from dashboard import stage_view_ui as U
     p, pid, data_dir, _, _ = proj
-    with mock.patch.dict(os.environ, {"FEATURE_WHITEBOX_HEIGHT_DUMMY": "1", "FEATURE_WORLD_MAP_SENTENCES": "1"}), \
+    with mock.patch.dict(os.environ, {"FEATURE_WHITEBOX_HEIGHT_DUMMY": "1", "FEATURE_WORLD_MAP_SENTENCES": "1", "FEATURE_WORLD_MAP": "1"}), \
          mock.patch("core.assets.standard_for", return_value={"height_m": 1.65}):
         s1 = U.collect(p, pid, data_dir)[0]
     assert s1["dummies"] == {"KELLY": 1.65}

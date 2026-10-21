@@ -418,6 +418,12 @@ FEATURES: Dict[str, Dict] = {
         "why": "G2 (người sai tỉ lệ so nền), G3 (#31 shot 28 khai eye mà pitch +17,3°), A10. Whitebox cũ cố định mắt 1,6 m, khối 1,8 m. "
                "Chưa render thử trên máy chính",
     },
+    "stage_view_ui": {
+        "label": "Xem sân khấu 3D (chỉ đọc) ở Bước 2: mỗi cảnh tấm clay / khối, nền 3D từng shot + hướng máy, sơ đồ world map 2D, người nộm, "
+                 "câu vị trí gợi ý, cảnh báo nền cũ / hỏng / map cũ — không render, không ghi, 0 USD",
+        "verified": False,
+        "why": "Người dùng 21/10: Dashboard chưa xem được sân khấu 3D, mọi thứ chạy CLI và ảnh nằm trong thư mục. Chưa kiểm trên #31 thật",
+    },
     "final_black_freeze": {
         "label": "Kiểm bản dựng cuối: đoạn màn hình ĐEN (≥ 0,5 s) và ĐỨNG HÌNH (> 1,5 s) bằng ffmpeg blackdetect / freezedetect — chỉ "
                  "cảnh báo (cần xem), không chặn xuất (V3.1 M4.4)",
