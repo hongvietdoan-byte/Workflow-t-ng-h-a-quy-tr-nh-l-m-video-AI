@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:01:04.346341+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M21",
+  "branch": "cloud/v31-m21",
+  "commit": "6581bde7",
+  "report": "docs/RA_CLOUD_M21_2026-10-21.md",
+  "text": "M2.1 BYĐ v2 xong (cờ byd_v2_levels TẮT, đã thêm false vào tests/golden/package_inputs.json image+video): shot_intent.version/_check_v2 (vat[] bảng: vat+kho_id+cach∈{cam,deo,dat,nem}+nguoi∈thanh_phan, bien_the→vang chưa kiểm forms; khung.moc_nen kho_id+y_do; noi_chon.trong_nha bool; _p.by), khung/_p chỉ hợp lệ ở v2; assess() BLOCK/REVIEW/WARN (do→BLOCK, vang→WARN, v2 dang→REVIEW), chỉ ghi qua director_byd.settle byd_kiem.muc_v2; read(data, field)→(value, provenance byd_v2|byd_v1|thieu, warn) + byd_of; 13 caller core/ đổi sang adapter (hành vi y cũ) + test AST có danh sách ngoại lệ có lý do. 26 test (23 đỏ trước). Full: 6821 passed, 27 đỏ = 4 cũ + 23 golden replay đỏ CẢ trên main ở cloud (golden_capture đòi Python 3.14, cloud 3.13) → golden cần chạy máy chính. HẠN MỨC: không đọc được. Tiếp: C-M25."
+}
