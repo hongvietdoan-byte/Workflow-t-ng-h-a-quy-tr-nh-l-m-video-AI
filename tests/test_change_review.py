@@ -765,6 +765,62 @@ class M71DeepReview(unittest.TestCase):
         CR.process_pending(self.p.conn, self.tmp, client=None)
         self.assertIsNone(CR.blocking(self.p.conn, sid))
 
+    def _two_failures(self):
+        """Hai lần rà lỗi cùng lời (timeout) của một shot, blocking gọi xen giữa; trả (sid, mục ra_soat đang mở)."""
+        sid = self.ids[1]
+        self._review_with(sid, llm_runner.LlmError("timed out", code="timeout"))
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")
+        self._set(sid, {"size": "CU", "image_prompt": "Close up, Kelly", "characters": ["KELLY"]})
+
+        class Boom(FakeClient):
+            def complete(self, prompt, images=()):
+                raise llm_runner.LlmError("timed out", code="timeout")
+        CR.process_pending(self.p.conn, self.tmp, client=Boom({}))
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")
+        return sid, [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"]
+
+    def test_one_open_failure_finding_per_shot_dismiss_covers_both(self):
+        # C-FIX3-THAP-B (rà VỪA 2): lần lỗi thứ 2 cùng lời → trước _add bỏ qua (trùng lời) → không mục nào che → Bỏ qua mục 1 thì nhịp sau
+        # ra ngay mục y hệt. Nay mục đang mở GẮN LẠI vào lần lỗi mới nhất → một mục; Bỏ qua phủ cả hai
+        sid, open_ = self._two_failures()
+        self.assertEqual(len(open_), 1)
+        newest = self.p.conn.execute("SELECT MAX(id) FROM change_events WHERE state='failed'").fetchone()[0]
+        self.assertEqual(self.p.conn.execute("SELECT event_id FROM change_findings WHERE id=?", (open_[0]["id"],)).fetchone()[0], newest)
+        CR.close(self.p.conn, open_[0]["id"], "dismissed", "tester")
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+        self.assertFalse([r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"])
+
+    def test_rerun_of_the_single_finding_rereviews_every_failure(self):
+        sid, open_ = self._two_failures()
+        CR.rerun_failed(self.p.conn, open_[0]["id"], "tester")
+        self.assertFalse(self.p.conn.execute("SELECT 1 FROM change_events WHERE state='failed'").fetchone())
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+
+    def test_rerun_of_an_older_open_finding_after_rerunning_the_newer_one(self):
+        # C-FIX3-THAP-B (rà VỪA 1): dữ liệu cũ có HAI mục mở (e1, e2 khác lời). Rà lại mục 2 → chỉ e2 (e1 do mục 1 còn mở che); rồi Rà lại
+        # mục 1 → trước: e1 bị coi là mục 2 (người đóng) che → "không còn trong sổ" sai. Mục đã Rà lại không che lần rà lại khác
+        sid = self.ids[1]
+        self._review_with(sid, llm_runner.LlmError("timed out", code="timeout"))
+        CR.blocking(self.p.conn, sid)
+        self._set(sid, {"size": "CU", "image_prompt": "Close up, Kelly", "characters": ["KELLY"]})
+
+        class Boom(FakeClient):
+            def complete(self, prompt, images=()):
+                raise llm_runner.LlmError("bad gateway", code="http")
+        CR.process_pending(self.p.conn, self.tmp, client=Boom({}))
+        e1, e2 = [r[0] for r in self.p.conn.execute("SELECT id FROM change_events WHERE state='failed' ORDER BY id")]
+        f1 = [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"][0]["id"]
+        CR._add(self.p.conn, e2, self.pid, sid, CR.FAIL_SOURCE, "do", CR.FAIL_KHAU, "rà soát lỗi: bad gateway (dữ liệu cũ)")
+        self.p.conn.execute("UPDATE change_findings SET event_id=? WHERE id=?", (e1, f1))
+        self.p.conn.commit()
+        f2 = self.p.conn.execute("SELECT MAX(id) FROM change_findings WHERE source=?", (CR.FAIL_SOURCE,)).fetchone()[0]
+        CR.rerun_failed(self.p.conn, f2, "tester")
+        self.assertEqual(self.p.conn.execute("SELECT state FROM change_events WHERE id=?", (e1,)).fetchone()[0], "failed")
+        CR.rerun_failed(self.p.conn, f1, "tester")                                       # không ném "không còn trong sổ"
+        self.assertEqual(self.p.conn.execute("SELECT state FROM change_events WHERE id=?", (e1,)).fetchone()[0], "pending")
+
     def test_failed_change_not_released_by_later_good_review(self):
         # CAO 1: X rà lỗi (timeout) → mục ĐỎ; người sửa tiếp Y; nền rà Y đạt — Y.before = sau X nên Claude không thấy X → vẫn giữ
         self._review_with(self.ids[1], llm_runner.LlmError("timed out", code="timeout"))
