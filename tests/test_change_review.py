@@ -661,6 +661,9 @@ class M71DeepReview(unittest.TestCase):
         CR.process_pending(self.p.conn, self.tmp, client=None)
         self.assertIsNone(CR.blocking(self.p.conn, sid))
         self.assertFalse([r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"])
+        note = self.p.conn.execute("SELECT note FROM change_events WHERE kind='motion'").fetchone()[0]
+        self.assertIn("tắt", note)
+        self.assertIn("timed out", note)                                       # lời lỗi gốc còn giữ
 
     def test_failed_change_not_released_by_later_good_review(self):
         # CAO 1: X rà lỗi (timeout) → mục ĐỎ; người sửa tiếp Y; nền rà Y đạt — Y.before = sau X nên Claude không thấy X → vẫn giữ

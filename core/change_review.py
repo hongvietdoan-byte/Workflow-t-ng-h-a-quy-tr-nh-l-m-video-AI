@@ -520,8 +520,9 @@ def process_pending(conn, data_dir: str, client=None, limit: int = ROUND_LIMIT, 
     if not motion_enabled():                    # C4: cờ change_review_motion tắt → lần sửa motion prompt không rà (như trước cờ)
         # C-FIX3-THAP: cả 'failed' (Claude timeout / lỗi) — trước mục ĐỎ "rà lỗi" của sự kiện motion failed vẫn mở và vẫn chặn khi cờ
         # tắt; nay sự kiện thành skipped → _hold_failed tự đóng mục (C-M71-FIX)
-        conn.execute("UPDATE change_events SET state='skipped', reviewed_at=?, note=? WHERE kind='motion' AND state IN ('pending', "
-                     "'code_only', 'failed')", (_now(), f"cờ {MOTION_FLAG} tắt — sửa motion prompt không rà"))
+        conn.execute("UPDATE change_events SET state='skipped', reviewed_at=?, note=? || COALESCE(' — trước: ' || note, '') WHERE "
+                     "kind='motion' AND state IN ('pending', 'code_only', 'failed')",   # giữ lời lỗi gốc (rà C-FIX3-THAP)
+                     (_now(), f"cờ {MOTION_FLAG} tắt — sửa motion prompt không rà (bỏ hẳn, kể cả lần đã lỗi; bật lại cờ không rà lại)"))
         conn.commit()
     rows = conn.execute(f"SELECT * FROM change_events WHERE id IN (SELECT MIN(id) FROM change_events WHERE {pick} GROUP BY "
                         f"CASE WHEN kind IN ('scene', 'motion') AND scene_id IS NOT NULL THEN 'S' || scene_id ELSE 'E' || id END) "

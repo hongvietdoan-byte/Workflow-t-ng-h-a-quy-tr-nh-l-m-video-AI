@@ -131,4 +131,5 @@ def test_real_rewrite_out_of_credit_at_source_a_does_not_stop_source_b():
         out = run("B", b)
         assert b.calls == 1 and out != assembled                             # B (nguồn khác) vẫn gọi Claude — trước: dừng chung
         assert CP.saved_view(p.conn, jobs["A"], "image", assembled)["state"] == "paused"
-        assert CP.saved_view(p.conn, jobs["B"], "image", assembled)["state"] != "paused"
+        assert CP.saved_view(p.conn, jobs["B"], "image", assembled)["state"] == "saved"
+    assert ("A", CP.QUOTA_CODE) in said and ("B", CP.QUOTA_CODE) not in said       # tạm ngừng thật (không phải trúng cache D6)
