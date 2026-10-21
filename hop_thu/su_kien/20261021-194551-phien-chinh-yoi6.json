@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T19:45:51.859668+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M74",
+  "to": "pool",
+  "title": "M7.4 Gói B sửa cờ (F-B)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M74",
+  "priority": 6
+}
