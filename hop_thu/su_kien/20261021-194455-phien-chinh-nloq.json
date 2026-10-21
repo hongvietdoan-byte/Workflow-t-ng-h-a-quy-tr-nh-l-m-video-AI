@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T19:44:55.927895+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M73",
+  "to": "cloud-E",
+  "title": "M7.3 seedance_ref_groups + end_frames cùng chạy (K3)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M73",
+  "priority": 2
+}
