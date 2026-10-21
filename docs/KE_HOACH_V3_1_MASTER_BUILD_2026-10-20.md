@@ -274,6 +274,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M8.2 · Triển khai chế độ Đơn giản (cờ simple_mode TẮT; chế độ Chuyên gia giữ nguyên) theo thiết kế M8.1 đã duyệt · nặng:3 · ⬜ · Cấp 2 sau khi EP duyệt M8.1
 - [ ] M8.3 · Đo tải 10 người cùng lúc (0 USD, provider giả, bản sao dữ liệu): 10 phiên trình duyệt tự động mở dự án, xem, duyệt, bấm gen (giả); đo thời gian vẽ từng màn, CPU/RAM tiến trình Streamlit, chờ khóa SQLite, luồng nền nhân bản theo phiên, khóa Blender, hàng đợi Claude CLI → bảng giới hạn (ở bao nhiêu người thì chậm/khóa, khâu nào nghẽn) · nặng:2 · ⬜ · máy chính
 - [ ] M8.4 · Tối ưu theo số đo M8.3 (gộp M6.11): cache dùng chung theo revision (không tính lại mỗi lần bấm), fragment + nạp lười ảnh/thumbnail, tóm tắt tính sẵn ở nền, MỘT bộ luồng nền cho cả server (không theo phiên), hàng đợi ghi, giới hạn việc nặng/người; nếu cần: nhiều tiến trình Streamlit + worker riêng · nặng:3 · ⬜ · Cấp 2 theo số đo; nghiệm thu: 10 người, màn chính < 2 s
+> **Tham khảo, CHƯA vào kế hoạch (EP 21/10):** M8.5 phát ảnh/video dạng file tĩnh + ảnh thu nhỏ; M8.6 worker phân tán trên máy người dùng (Claude CLI theo tài khoản từng người, ffmpeg/OpenCV/MediaPipe; không chia gọi API có khóa, ghi CSDL, Blender). Phụ thuộc MÔ HÌNH TÀI KHOẢN EP chưa chốt: (1) cả công ty dùng chung một tài khoản API tính tiền ClipAI/Deepix (không phải tài khoản cá nhân EP) hay (2) tính theo tài khoản đăng nhập từng người → quyết định sổ chi, nơi giữ khóa, quyền gửi job, phân việc worker. Khi EP chốt mô hình tài khoản, phiên chính lập lại M8.5/M8.6.
 
 ## 6. Nhật ký
 
