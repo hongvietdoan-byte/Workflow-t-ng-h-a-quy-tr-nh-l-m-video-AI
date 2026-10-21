@@ -168,10 +168,10 @@ kiểm giá trị; không đổi `STATUSES`.
 | M3 Thế giới và liên tục | 5 | 5 | 0 | 0 | 0 | 100 % |
 | M4 QC có bằng chứng và Dashboard | 8 | 6 | 2 | 0 | 0 | 81,2 % |
 | M5 Sửa chọn lọc và pilot | 5 | 2 | 1 | 0 | 0 | 54,5 % |
-| M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 1 | 1 | 0 | 0 | 12,5 % |
-| M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 4 | 0 | 0 | 0 | 50 % |
+| M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 3 | 1 | 0 | 0 | 26,8 % |
+| M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 5 | 0 | 0 | 0 | 68,8 % |
 | M8 Dashboard cho người không chuyên + chịu tải nhiều người (người dùng 21/10) | 4 | 0 | 0 | 0 | 0 | 0 % |
-| **Tổng** | **74** | **38** | **6** | **0** | **0** | **52 %** |
+| **Tổng** | **74** | **41** | **6** | **0** | **0** | **56,5 %** |
 
 Đợt hiện tại: **M1** · việc kế: **M2.1** BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN
 <!-- /tien-do -->
@@ -241,7 +241,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 
 ### M6 — Tổ làm phim có chủ (AI Video Production Team)
 - [ ] M6.0 · Audit vai trò, caller tạo job, đường ghi theo vai, hiệu suất Dashboard (P0); sổ quyết định M6; check "Kỹ sư không ghi nội dung production" · nặng:1 · 🔄 · 21/10: kế hoạch docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục 0 (E1–E7: lượt gen/shot, Claude/khâu, lineage.summary #31 7,6–11,3 s); sổ v31-m6-*; còn audit caller + profiling đủ khối · ưu tiên 1/13 (EP Q6 21/10)
-- [ ] M6.1 · Role Registry data/crew_roles.json + core/crew.py (đọc): quyền đọc/ghi, đầu vào/ra, công cụ, nghiệm thu, lỗi phụ trách, leo thang · nặng:2 · ⬜ · DUYỆT Cấp 2 Gói M6-A 21/10 (sổ v31-ep-m6-pack-a-approved-2026-10-21; cờ TẮT, shadow, 0 USD) · Gói M6-A (trình khi EP chốt Q3) · ưu tiên 2/13 (EP Q6 21/10)
+- [ ] M6.1 · Role Registry data/crew_roles.json + core/crew.py (đọc): quyền đọc/ghi, đầu vào/ra, công cụ, nghiệm thu, lỗi phụ trách, leo thang · nặng:2 · ✅ · gộp main c66d6c2d (C-M61-M69 SHADOW, cờ crew_registry TẮT) — CHƯA kiểm máy chính · DUYỆT Cấp 2 Gói M6-A 21/10 (sổ v31-ep-m6-pack-a-approved-2026-10-21; cờ TẮT, shadow, 0 USD) · Gói M6-A (trình khi EP chốt Q3) · ưu tiên 2/13 (EP Q6 21/10)
 - [ ] M6.2 · Handoff Contract shadow (jsonl): id dự án/shot, revision, phụ thuộc, sản phẩm, bằng chứng QC, trạng thái duyệt · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — cần M1.9, M2.6 · ưu tiên 6/13 (EP Q6 21/10)
 - [ ] M6.3 · Generation Authorization + Repair Budget dùng chung trước provider.submit (ảnh 3 / video 2 lượt, không đặt lại, 6 điều kiện) — shadow trước · nặng:3 · ✅ · C-M63 gộp 22/10 (SHADOW cờ TẮT, rà kỹ đạt; 6 đường gửi chưa qua cổng → C-M63-FIX) · DUYỆT Cấp 2 Gói M6-A 21/10 (sổ v31-ep-m6-pack-a-approved-2026-10-21; cờ TẮT, shadow, 0 USD) · cần M1.2/M1.3/M1.6/M5.1 (đã ✅); EP chốt 21/10: Q1 nâng 1080p không tính lượt, Q2 EP bấm có trừ lượt, Q4 cho lùi model trong danh sách duyệt; còn chờ Q3 ngân sách tự sửa (đề xuất 40 % tiền lượt đầu) · Gói M6-A · ưu tiên 3/13 (EP Q6 21/10)
 - [ ] M6.4 · Write guard theo vai (actor = role trong guard M2.5), mỗi trường một vai chủ · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — cần M2.5 gộp · ưu tiên 7/13 (EP Q6 21/10)
@@ -249,7 +249,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M6.6 · Storyboard Artist: ảnh khung đầu nhìn plate + Kho, tự kiểm có bằng chứng độc lập; Shadow · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — cần M2.1, M2.7 · ưu tiên 8/13 (EP Q6 21/10)
 - [ ] M6.7 · 3D Artist: đứng tên sân khấu / plate / world map khi có, nhận phiếu nền lệch · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — cần M3.1–M3.3, M4.8 · ưu tiên 11/13 (EP Q6 21/10)
 - [ ] M6.8 · Sound Designer + Editor/VFX: TTS/SFX/nhạc/khớp môi; ghép VFX + dựng kiểu #27 thành khâu Bước 5 · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — cần M2.9, M4.4 · ưu tiên 10/13 (EP Q6 21/10)
-- [ ] M6.9 · Continuity Validator (năng lực, code trước): continuity_state + qc_evidence + định tuyến lỗi về vai chủ · nặng:2 · ⬜ · DUYỆT Cấp 2 Gói M6-A 21/10 (sổ v31-ep-m6-pack-a-approved-2026-10-21; cờ TẮT, shadow, 0 USD) · M3.4/M4.1/M4.3 đã ✅ · Gói M6-A · ưu tiên 4/13 (EP Q6 21/10)
+- [ ] M6.9 · Continuity Validator (năng lực, code trước): continuity_state + qc_evidence + định tuyến lỗi về vai chủ · nặng:2 · ✅ · gộp main c66d6c2d (C-M61-M69 SHADOW, cờ continuity_validator TẮT) — CHƯA kiểm máy chính · DUYỆT Cấp 2 Gói M6-A 21/10 (sổ v31-ep-m6-pack-a-approved-2026-10-21; cờ TẮT, shadow, 0 USD) · M3.4/M4.1/M4.3 đã ✅ · Gói M6-A · ưu tiên 4/13 (EP Q6 21/10)
 - [ ] M6.10 · Dashboard điều phối cho Executive Producer: sửa theo vai, yêu cầu ngôn ngữ tự nhiên, phiếu lỗi, payload, so phiên bản, lượt + ngân sách, duyệt vượt quyền · nặng:3 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — cần M4.7, M6.1–M6.3 · ưu tiên 9/13 (EP Q6 21/10)
 - [ ] M6.11 · Tốc độ Dashboard theo profiling: nhớ lineage giữa lần vẽ lại, đo từng khối, fragment + nạp lười; chỉ số thời gian tới shot đạt chuẩn · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — EP Q5 21/10: chưa làm, chờ các việc V3.1 M1–M5 hoàn thành; số đo E5 giữ làm mốc · ưu tiên 12/13 (EP Q6 21/10)
 - [ ] M6.12 · Replay offline #24/#27/#31 + pilot có kiểm soát + nghiệm thu thực tế (pilot trả phí = Cấp 3) · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — cần M5.3, M6.3, M6.5, M6.6 · ưu tiên 13/13 (EP Q6 21/10)
@@ -258,7 +258,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 > Nguồn: `docs/CAU_HOI_CHOT_TONG_HOP_2026-10-21.md` + văn bản "QUYẾT ĐỊNH EXECUTIVE PRODUCER — TỔNG HỢP V3.1 VÀ M6" (21/10); sổ `v31-ep-*-2026-10-21`.
 > Bằng chứng: `docs/DANH_GIA_HIEU_QUA_CO_2026-10-21.md`, `docs/BANG_CHUNG_CHOT_CO_2026-10-21.md`, `docs/KE_HOACH_SUA_20_CO_2026-10-21.md`.
 > Mỗi gói: test, bằng chứng thực thi, acceptance criteria, rollback, rủi ro mở. Đổi trạng thái cờ production / khóa cờ = Cấp 3 TỪNG CỜ (trình bằng chứng).
-- [ ] M7.1 · Gói A sửa cờ (F-A): change_review đóng cổng khi rà lỗi (G35), hero_takes khai costs, director_rewrite respect_lock (trường người sửa), chat_prompts kiểm D6 + hết tiền · nặng:3 · ⬜ · Cấp 2 DUYỆT 21/10; đổi trạng thái cờ = Cấp 3
+- [ ] M7.1 · Gói A sửa cờ (F-A): change_review đóng cổng khi rà lỗi (G35), hero_takes khai costs, director_rewrite respect_lock (trường người sửa), chat_prompts kiểm D6 + hết tiền · nặng:3 · ✅ · gộp main c66d6c2d (C-M71, rà kỹ 0 CAO; lỗi VỪA/THẤP → C-M71-FIX cloud-E) — CHƯA kiểm máy chính · Cấp 2 DUYỆT 21/10; đổi trạng thái cờ = Cấp 3
 - [ ] M7.2 · Baseline cờ chỉ khi chưa có cấu hình riêng (K4 b) + effective config + config hash + cảnh báo drift; nút reset có preview / xác nhận / sao lưu / khôi phục (K6) · nặng:2 · ✅ · C-M72 + C-M72-FIX gộp 21/10 (rà kỹ: 0/144 cờ đổi máy có cài đặt; 2 lỗi đã sửa; cả bộ 6937 qua) · Cấp 2 DUYỆT 21/10; song song M7.4, nghiệm thu tích hợp trước khi khóa cờ môi trường khác (K5)
 - [ ] M7.3 · seedance_ref_groups + end_frames cùng hoạt động (K3 b, B4 end_frames.py:32) · nặng:2 · ⬜ · Cấp 2 DUYỆT 21/10
 - [ ] M7.4 · Gói B sửa cờ (F-B): video_gate, two_tier_quality (±5 % + tiêu chí chất lượng), motion_consistency_lint, end_frames, scene_qc, lip_sync + dialogue_take, bg_autoqc… · nặng:3 · ✅ · C-M74 gộp 22/10 (rà kỹ: không thêm chặn/tiền với cờ đang BẬT; release_gate+final_black_freeze bật cùng = điểm chặn mới, Cấp 3) · Cấp 2 DUYỆT 21/10; khóa từng cờ sau correctness + benchmark + chi phí
