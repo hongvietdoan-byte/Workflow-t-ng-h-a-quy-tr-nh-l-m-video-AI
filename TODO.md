@@ -191,9 +191,11 @@
 - MCP Claude / V0 trong Claude Desktop (tạm gác từ 2026-09-19; tập trung build Dashboard). Các mục dry-run V0 và "mở lại Claude Desktop" bên dưới chờ mở lại.
 
 ## 🚧 Đang làm / kế tiếp (ưu tiên từ trên xuống)
+- [ ] **21/10 · Tổ làm phim có chủ (đề xuất M6)** — `docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md`: vai 3D Artist / Họa sĩ storyboard / Viết prompt video / Âm thanh + Dựng-VFX, công cụ (ClipAI, Deepix, Blender…) nằm dưới vai; lỗi do vai tự sửa, phiên Claude Code chỉ sửa code; bảng ô sửa còn thiếu trên Dashboard; tốc độ đo thật 4–5 s/lần bấm, tab Motion #31 36 s. Chờ duyệt rồi đưa M6 vào Master Build.
 - *(07/10, người dùng: xóa hẳn các mục cũ 09/2026–03/10 ở đây — việc đang mở nằm ở đầu file (việc để sau Khủng Long Đỏ), `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` và mục 🐞 bên dưới; nội dung cũ xem lịch sử git trước commit này)*
 
 ## 👤 Việc cần người dùng quyết định / cung cấp
+- [ ] **21/10 · Duyệt đề xuất Tổ làm phim có chủ** (mục 5 của `docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md`): danh sách vai, quyền tự sửa trong trần, thứ tự M6 so với M2.
 - *(07/10, người dùng: xóa hẳn các mục cũ 09/2026–03/10 ở đây — việc đang mở nằm ở đầu file (việc để sau Khủng Long Đỏ), `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` và mục 🐞 bên dưới; nội dung cũ xem lịch sử git trước commit này)*
 
 ## 🐞 Tồn đọng / cần sửa lại
