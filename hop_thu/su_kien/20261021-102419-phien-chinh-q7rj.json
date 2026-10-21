@@ -1,0 +1,14 @@
+{
+  "ts": "2026-10-21T10:24:19.042557+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX21-M22",
+  "to": "codex",
+  "title": "M2.2 field readers A2a–A2f + lineage (cờ con TẮT)",
+  "spec": "docs/CODEX_TASKS.md### CX21-M22",
+  "depends": [
+    "C-M21",
+    "CX21-M23"
+  ],
+  "priority": 2
+}
