@@ -943,10 +943,13 @@ def save_settings(preset: str = None, flags: Dict = None, modes: Dict = None) ->
     save many flags at once leave locked flags out (dashboard/header.py, core/before_run.enable_fix_flags only saves True)."""
     import json
     cur = {"preset": settings()["preset"], "flags": dict(settings()["flags"]), "modes": dict(settings().get("modes") or {})}
-    if baseline_active():                 # M7.2 (rà C-M72): lần lưu ĐẦU trên máy theo baseline → gieo baseline (đã bảo vệ) vào tệp,
-        for k in FEATURES:                # không thì baseline thôi áp và mọi cờ khác "rơi" về mặc định không báo
+    if baseline_active() and preset not in ("stable", "experimental"):
+        # M7.2 (rà C-M72): lần lưu ĐẦU trên máy theo baseline → gieo baseline (đã bảo vệ) vào tệp, không thì baseline thôi áp và mọi cờ
+        # khác "rơi" về mặc định không báo. C-M72-FIX: chỉ gieo cờ ĐANG theo baseline (env FEATURE_X thắng — không đè thành tệp 🧪);
+        # chọn preset Ổn định / Thử nghiệm ở lần đầu = chọn theo preset, không gieo.
+        for k in FEATURES:
             b = baseline_state(k)
-            if b is None or locked(k) or b == default_state(k):
+            if b is None or locked(k) or b == default_state(k) or source(k) != "baseline":
                 continue
             if b == "trainee":
                 cur["modes"][k] = "trainee"
@@ -1545,19 +1548,20 @@ def restore_settings(path: str) -> Optional[str]:
     """Khôi phục một bản sao lưu (chỉ tệp trong thư mục backup). Sao lưu bản đang dùng trước; trả đường dẫn bản đó. Lựa chọn cũ tắt cờ 🔒
     vẫn bị bỏ qua như mọi khi (locked_off_ignored)."""
     import json
-    import shutil
     real = os.path.realpath(path)
     name = os.path.basename(real)
     if os.path.normcase(os.path.dirname(real)) != os.path.normcase(os.path.realpath(_backup_dir())) \
             or not name.startswith("feature_settings.") or not name.endswith(".json"):
         raise ValueError(f"{path} không phải bản sao lưu cài đặt cờ ({_backup_dir()})")
     with open(real, encoding="utf-8") as f:
-        raw = json.load(f)
+        text = f.read()
+    raw = json.loads(text)
     if not isinstance(raw, dict) or not isinstance(raw.get("flags", {}), dict):
         raise ValueError(f"{path} không đúng dạng cài đặt cờ")
-    before = backup_settings()
+    before = backup_settings()                    # C-M72-FIX: có thể dọn chính bản cũ nhất (giữ MAX_BACKUPS) — ghi từ nội dung đã đọc
     tmp = settings_path() + ".tmp"
-    shutil.copyfile(real, tmp)
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
     os.replace(tmp, settings_path())
     _SETTINGS["stamp"] = object()
     return before
