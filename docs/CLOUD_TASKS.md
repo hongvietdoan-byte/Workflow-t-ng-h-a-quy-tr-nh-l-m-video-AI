@@ -917,6 +917,14 @@ cây B → DIFF), rồi báo XONG để codex chạy lại. 31 BOTH_FAIL (NOT_BU
 báo cáo bổ sung docs/RA_CLOUD_GOLDEN5_*.md mục "GOLDEN6". XONG hộp thư (mã C-GOLDEN6).
 ```
 
+#### C-FIX4 (cloud-C — ưu tiên 1, TRƯỚC phần còn lại C-M83-TOOL nếu kịp; cloud-claude 22/10 06:5x sau rà kỹ C-FIX3-THAP-B) — nút "✓ Đã sửa" gọi Claude không báo giá
+```
+core/change_review.py ~699-705 (sau C-FIX3-THAP): bấm "✓ Đã sửa" trên mục rà LỖI (review_fail) âm thầm gọi rerun_failed → đưa lần sửa về chờ rà + tốn tiền
+Claude, không ước tính / không báo trước (trái CHUAN_XAY_DUNG "mọi lời gọi tốn tiền qua sổ chi + ước tính trước"). Sửa: với mục review_fail, nút hiện rõ
+"🔁 Rà lại — ≈ X USD" (ước tính qua cost.llm_estimate stage change_review, như nút Rà lại sẵn có) hoặc ẩn "✓ Đã sửa" cho loại mục này; giữ "Bỏ qua". Test giao
+diện (AppTest) + test không gọi rerun_failed khi chưa xác nhận. Nhánh cloud/v31-fix4 từ main. XONG hộp thư.
+```
+
 #### C-FIX3-THAP-B (cloud-C — ưu tiên 1, TRƯỚC C-M83-TOOL; cloud-claude 22/10 05:2x) — rà kỹ C-FIX3-THAP: CHƯA GỘP, sửa trên CÙNG nhánh cloud/v31-fix3-thap
 ```
 Agent rà kỹ: mục (1) mở lại kịch bản "CAO 1" — thả job có thay đổi SCENE chưa ai rà. core/change_review.py ~523-525 (cờ motion TẮT → motion 'failed' thành

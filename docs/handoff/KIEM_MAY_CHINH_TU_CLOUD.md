@@ -79,3 +79,7 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
 - 22/10 05:2x — C-FIX3-THAP (cloud/v31-fix3-thap d2c14404) **KHÔNG gộp**: Agent rà kỹ bắt lỗi VỪA — tắt cờ `change_review_motion` có thể đóng mục ĐỎ và
   thả job tốn tiền có thay đổi SCENE chưa ai rà (scene + motion cùng lỗi, sau đó sửa scene đạt). Trả cloud-C sửa trên cùng nhánh (C-FIX3-THAP-B, ưu tiên 1).
   **Máy chính:** không có gì đổi trên main từ việc này; KHÔNG tắt `change_review_motion` trên máy chính tới khi C-FIX3-THAP-B gộp.
+- 22/10 06:5x — C-FIX3-THAP + C-FIX3-THAP-B (cloud/v31-fix3-thap): Agent rà kỹ lại: lỗi VỪA (thả job có thay đổi scene chưa rà khi tắt cờ motion) ĐÃ HẾT, 0 CAO/VỪA mới.
+  1 THẤP về tiền: "✓ Đã sửa" trên mục rà LỖI âm thầm gọi Claude rà lại không báo giá → giao **C-FIX4** cloud-C (ưu tiên 1). **Máy chính:** tới khi C-FIX4 gộp, trên
+  mục ĐỎ loại "rà lỗi" dùng nút "Rà lại" (có giá) hoặc "Bỏ qua", KHÔNG bấm "✓ Đã sửa". Sau pull: mở Tổ rà soát một dự án có mục rà lỗi motion, tắt `change_review_motion`
+  ở 🧪 trên bản sao → mục motion đóng, mục scene cũ hơn (nếu có) vẫn giữ.
