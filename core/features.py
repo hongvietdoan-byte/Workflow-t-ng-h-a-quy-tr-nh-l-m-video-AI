@@ -411,6 +411,21 @@ FEATURES: Dict[str, Dict] = {
         "why": "#31 G51 (súng biến mất), G52 (logic chuỗi 39 clip), G1 (đạo cụ sang cảnh khác) chỉ người thấy. Chạy sau QC logic chuỗi. "
                "Chưa chạy trên dữ liệu thật",
     },
+    "crew_registry": {
+        "label": "Role Registry CHỈ ĐỌC (V3.1 M6.1): data/crew_roles.json — vai, quyền đọc/ghi, đầu vào/ra, công cụ, nghiệm thu, lỗi phụ "
+                 "trách, leo thang; tra cứu vai của một đường ghi / lỗi gốc → vai chủ. Không ghi gì, không đổi đường ghi / gửi job",
+        "verified": False,
+        "why": "Sổ v31-ep-m6-pack-a-approved-2026-10-21 (M6-A Cấp 2). Audit M6.0: không đường ghi nào có actor = vai → chưa định tuyến lỗi "
+               "về vai chủ được. Cờ chỉ mở registry cho đường chạy (Continuity Validator); `py -m core.crew check` luôn kiểm",
+    },
+    "continuity_validator": {
+        "label": "Continuity Validator SHADOW (V3.1 M6.9): gom phát hiện continuity_state + qc_evidence + QC shadow M4.2/M4.3, định tuyến "
+                 "về vai chủ theo Role Registry + sổ lỗi → <dự án>/crew/continuity_validator.jsonl; CHỈ ghi bằng chứng — không chặn, "
+                 "không giữ job, không gọi Claude/API, 0 USD (cần crew_registry)",
+        "verified": False,
+        "why": "#31 G51 / G52 / G1: lỗi liên tục chỉ người thấy và không ai đứng tên sửa. Sổ v31-ep-m6-pack-a-approved-2026-10-21. "
+               "Chạy sau QC logic chuỗi. Chưa chạy trên dữ liệu thật",
+    },
     "whitebox_height_dummy": {
         "label": "Người nộm whitebox đúng chiều cao hồ sơ Kho (height_m) + máy ở tầm mắt 0,93 × height_m, pitch eye (≤ 5°) / slightly_high "
                  "(cúi ~10°); thiếu chiều cao → báo, không im lặng (V3.1 M3.2, offline — không gửi gì thêm cho model)",
@@ -1104,7 +1119,8 @@ REQUIRES = {"dialogue_take": ("lip_sync",), "qc_team": ("scene_qc",), "change_re
             "anchor_by_spot": ("storyboard_api",),
             # rà 15/10: máy sân khấu chỉ được nền 3D dùng khi stage_camera bật; nền 3D cần place_render_refs
             "stage_auto": ("stage_camera", "place_render_refs"),
-            "stage_crew": ("stage_auto",), "stage_crew_user_approve": ("stage_crew",), "stage_handheld_props": ("stage_auto",)}
+            "stage_crew": ("stage_auto",), "stage_crew_user_approve": ("stage_crew",), "stage_handheld_props": ("stage_auto",),
+            "continuity_validator": ("crew_registry",)}      # M6.9 định tuyến theo Role Registry M6.1
 
 
 def unmet(name: str) -> list:
