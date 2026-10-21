@@ -48,6 +48,22 @@ class DataChanged(ValueError):
     pass
 
 
+# C-GOLDEN4: worker đọc MỌI tệp dưới data/ của ref-root (chỉ đọc, mỗi lần đọc vào manifest có sha) — trừ danh sách cấm cứng này.
+# Lần 1 thiếu data/_plates3d, lần 3 thiếu data/skills: allowlist từng thư mục luôn sót dependency mới → sửa gốc bằng danh sách CẤM.
+DENIED_SUFFIXES = (".env", ".sqlite", ".sqlite-wal", ".sqlite-shm", ".sqlite-journal", ".db", ".db-wal", ".db-shm", ".db-journal",
+                   ".key", ".pem", ".p12", ".pfx", ".crt")
+DENIED_WORDS = ("token", "secret", "password", "passwd", "credential", "cookie", "apikey", "api_key", "private_key")
+
+
+def read_denied(name):
+    """Tên tương đối (posix) bị cấm đọc dù nằm dưới data/: CSDL live (worker chỉ dùng bản snapshot trong scratch), *.env / dashboard.env,
+    tệp khóa / credential, data/backup/**. True = cấm."""
+    parts = Path(name).parts
+    base = parts[-1].lower() if parts else ""
+    return (name == "data/backup" or name.startswith("data/backup/") or base == "dashboard.env" or base.startswith(".env")
+            or base.endswith(DENIED_SUFFIXES) or any(w in base for w in DENIED_WORDS))
+
+
 FINGERPRINT = "pregen_fingerprint"
 # C-GOLDEN2 (e): builder đòi tệp nền 3D / ảnh Kho KHÁC tệp trong refs đã gửi = dữ liệu sân khấu / Kho đổi sau ngày gửi
 CHANGED_DATA_PREFIXES = ("data/_plates3d/", "data/assets/")
@@ -230,7 +246,10 @@ def replay_fixture(fixture, *, db, ref_root):
         identity={"project_id":fixture["project"],"scene_id":fixture["scene_id"],"type":job["type"],"job_id":job["id"]}
         recorded = job.get("database_replay") or {}
         if not recorded.get("manifest"):
-            results.append({**identity, "status":"INSUFFICIENT_INPUT", "reason":recorded.get("reason", "thiếu manifest"), **({"diagnostic": recorded["diagnostic"]} if "diagnostic" in recorded else {})})
+            # C-GOLDEN4: capture đã phân loại DATA_CHANGED (dữ liệu đổi sau ngày gửi) giữ nguyên nhân — không gộp thành INSUFFICIENT_INPUT
+            status = "DATA_CHANGED" if recorded.get("status") == "DATA_CHANGED" else "INSUFFICIENT_INPUT"
+            extra = {k: recorded[k] for k in ("diagnostic", "paths", "chain") if k in recorded}
+            results.append({**identity, "status":status, "reason":recorded.get("reason", "thiếu manifest"), **extra})
             continue
         actual = build_from_database(db=db, ref_root=ref_root, job_id=job["id"], flags=fixture["flags"],
             envelope=recorded["envelope"], manifest=recorded["manifest"], public_config=recorded["manifest"].get("public_config"),
@@ -285,9 +304,9 @@ def _worker(request):
             name = None
         denied.append({"kind": kind, "path": name or "<outside-root>"})
     def allowed(name):
-        return (name.startswith((f"data/projects/{project}/", "data/knowledge/", "knowledge/", "prompts/"))
-                or name == f"data/projects/{project}"
-                or name in {"data/pricing.json", "data/feature_settings.json", "data/provider_rules.json"} or name in asset_paths)
+        if read_denied(name):
+            return False
+        return (name == "data" or name.startswith(("data/", "knowledge/", "prompts/")) or name in asset_paths)
     def locate(path, write=False):
         if not isinstance(path, (str, bytes, os.PathLike)):
             return path

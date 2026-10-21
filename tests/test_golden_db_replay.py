@@ -347,7 +347,8 @@ def test_job_ref_permission_is_exact_file_readonly(database, name):
 
 @pytest.mark.parametrize("name", ["data/_plates3d/cache/plate.png", "data/assets/900/ref.png"])
 @needs_native_314   # gọi thẳng _worker: trên 3.13 audit hook đệ quy trong pathlib.relative_to (đỏ cả trên main ở cloud)
-def test_worker_reads_only_job_ref_and_reports_blocked_sibling(database,name):
+def test_worker_reads_job_ref_and_sibling_into_manifest(database,name):
+    """C-GOLDEN4: mọi tệp dưới data/ đọc được (chỉ đọc) và vào manifest có sha — thay luật cũ "chỉ đúng tệp ref, anh em bị chặn"."""
     module,db,root,flags=database
     target=root/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(b"synthetic referenced image")
     sibling=target.with_name('other.png');sibling.write_bytes(b"unreferenced")
@@ -365,12 +366,12 @@ with patch.object(os,'environ',{}):
  from tools.golden_db_replay import _worker,SandboxDenied
  from core import runner
  request=json.loads(Path(sys.argv[2]).read_text(encoding='utf-8'))
+ original=runner.ImageRunner._submit_args
  def probe(self,job):
   path=Path(request['root'])/sys.argv[3]
   assert path.read_bytes()==b'synthetic referenced image'
-  try:path.with_name('other.png').read_bytes()
-  except SandboxDenied as exc:Path('denied.json').write_text(json.dumps(exc.diagnostic))
-  return None
+  assert path.with_name('other.png').read_bytes()==b'unreferenced'
+  return original(self,job)
  with patch.object(runner.ImageRunner,'_submit_args',probe):
   result=_worker(request)
  Path('answer.json').write_text(json.dumps(result))
@@ -378,4 +379,6 @@ with patch.object(os,'environ',{}):
         result=subprocess.run([sys.executable,'-I','-B','-c',code,str(Path(__file__).resolve().parents[1]),str(path),name],cwd=box,
             env={'SYSTEMROOT':'C:/Windows','HOME':temp,'USERPROFILE':temp,'TEMP':temp,'TMP':temp},capture_output=True,timeout=60)
         assert result.returncode==0
-        assert json.loads((box/'denied.json').read_text())=={'kind':'data','path':str(Path(name).with_name('other.png')).replace('\\','/')}
+        files=json.loads((box/'answer.json').read_text()).get('files') or {}
+        sibling_name=str(Path(name).with_name('other.png')).replace('\\','/')
+        assert sibling_name in files and name in files
