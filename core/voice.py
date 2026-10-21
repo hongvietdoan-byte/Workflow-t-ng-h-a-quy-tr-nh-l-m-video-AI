@@ -591,11 +591,22 @@ def pending_fits(conn, project_id: int, data_dir: str) -> List[Dict]:
     """Scenes that already have a clip SHORTER than their real voice needs — the person decides: remake those clips (cost) or keep them
     and let the edit hold the picture under the longer line."""
     out = []
+    review = fit_review_on()
     for sid, secs in scene_seconds(conn, project_id, data_dir).items():
         row = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone()
         if row is None or not has_clip(conn, sid):
             continue
         need = math.ceil(_lead(conn, sid) + secs + TAIL)
+        if review and need > float(row["duration_sec"] or 0):
+            # M2.9 G14 (cờ fit_durations_review): shot không có thoại trong khung (chỉ lời dẫn / giọng ngoài khung) không cần kéo — lời
+            # đọc tràn sang shot sau; không giữ chạy tự động vì nó (vẫn kéo được ở bảng duyệt ⏱)
+            sc = conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()
+            try:
+                data = json.loads(sc["data"] or "{}") if sc is not None else {}
+            except ValueError:
+                data = {}
+            if _fit_reason(data) != "thoai_trong_khung":
+                continue
         if need > float(row["duration_sec"] or 0):
             out.append({"scene_id": sid, "have": float(row["duration_sec"] or 0), "need": need})
     return out

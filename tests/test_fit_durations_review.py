@@ -84,3 +84,17 @@ class FitReviewTests(Base):
         d = self._durations()
         self.assertEqual(d[self.narr], 1)
         self.assertTrue(all(d[sid] > 1 for sid in self.talk))
+
+    def test_flag_on_narration_shot_with_a_clip_does_not_hold_the_automatic_run(self):
+        """Cờ BẬT: shot chỉ lời dẫn không được tự kéo → khi đã có clip, pending_fits không được giữ chạy tự động (_Wait voice_fit) vì
+        nó; shot thoại trong khung vẫn hỏi người như cũ."""
+        for sid in self.voiced:
+            jid = self.p.create_job(sid, "video_gen")
+            self.p.conn.execute("UPDATE jobs SET state='approved' WHERE id=?", (jid,))
+        self.p.conn.commit()
+        with mock.patch.dict(os.environ, {"FEATURE_FIT_DURATIONS_REVIEW": "0"}):
+            self.assertIn(self.narr, [c["scene_id"] for c in voice.pending_fits(self.p.conn, self.pid, self.data)])
+        with mock.patch.dict(os.environ, {"FEATURE_FIT_DURATIONS_REVIEW": "1"}):
+            late = [c["scene_id"] for c in voice.pending_fits(self.p.conn, self.pid, self.data)]
+        self.assertNotIn(self.narr, late)
+        self.assertEqual(sorted(late), self.talk)
