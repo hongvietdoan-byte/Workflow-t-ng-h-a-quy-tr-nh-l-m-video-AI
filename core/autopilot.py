@@ -581,7 +581,7 @@ def _review_wait(p: Pipeline, pid: int, kind: str, data_dir: Optional[str] = Non
     for job in p.conn.execute("SELECT * FROM jobs WHERE project_id=? AND type=? AND state='queued' AND scene_id IS NOT NULL ORDER BY id",
                               (pid, kind)).fetchall():
         why = change_review.blocking(p.conn, job["scene_id"], data_dir, since=draft_approved_at(p.conn, job))
-        if why and not why.startswith("Tổ rà soát tác động đang rà"):
+        if why and not why.startswith(("Tổ rà soát tác động đang rà", change_review.READ_FAIL)):   # rà kỹ C-M71: đọc lỗi = chờ tạm
             raise _Wait("change_review", why)
 
 

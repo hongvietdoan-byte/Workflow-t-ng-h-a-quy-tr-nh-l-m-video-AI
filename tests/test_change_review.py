@@ -632,3 +632,61 @@ class M71FailClosed(unittest.TestCase):
         self.assertEqual(self.p.conn.execute("SELECT state FROM jobs WHERE id=?", (jid,)).fetchone()[0], "queued")
         self.assertIn("Tổ rà soát", WAIT_REASONS.get(jid, ("",))[0])
         self.assertTrue(self.p.conn.execute("SELECT 1 FROM diag_events WHERE code='change_review_hold' AND job_id=?", (jid,)).fetchone())
+
+
+class M71DeepReview(unittest.TestCase):
+    """Rà kỹ C-M71 (@c03ae66b): lỗi CAO/VỪA của A1 — mỗi lỗi một test đúng kịch bản."""
+    setUp, _new_scene, _set = ChangeReview.setUp, ChangeReview._new_scene, ChangeReview._set
+    _review_with = M71FailClosed._review_with
+
+    def test_failed_change_not_released_by_later_good_review(self):
+        # CAO 1: X rà lỗi (timeout) → mục ĐỎ; người sửa tiếp Y; nền rà Y đạt — Y.before = sau X nên Claude không thấy X → vẫn giữ
+        self._review_with(self.ids[1], llm_runner.LlmError("timed out", code="timeout"))
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, self.ids[1]) or "")
+        self._set(self.ids[1], {"size": "CU", "image_prompt": "Close up, Kelly", "characters": ["KELLY"]})
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, self.ids[1]) or "")
+
+    def test_quota_change_rereviewed_through_project_client(self):
+        # VỪA 2: máy không có Claude chung (client None), dự án có Claude riêng (client_for) → code_only hết tiền được rà lại
+        self._review_with(self.ids[1], llm_runner.LlmError("credit", code="out_of_credit"))
+        self.assertIsNotNone(CR.blocking(self.p.conn, self.ids[1]))
+        good = FakeClient({"muc": []})
+        CR.process_pending(self.p.conn, self.tmp, client=None, client_for=lambda pid: good)
+        self.assertEqual(len(good.calls), 1)
+        self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))
+
+    def test_project_without_claude_does_not_loop_code_only(self):
+        self._review_with(self.ids[1], llm_runner.LlmError("credit", code="out_of_credit"))
+        before = self.p.conn.execute("SELECT state, note, reviewed_at FROM change_events WHERE state='code_only'").fetchall()
+        CR.process_pending(self.p.conn, self.tmp, client=None, client_for=lambda pid: None)
+        after = self.p.conn.execute("SELECT state, note, reviewed_at FROM change_events WHERE state='code_only'").fetchall()
+        self.assertEqual([tuple(r) for r in before], [tuple(r) for r in after])      # không đụng, không quay vòng
+
+    def test_blocking_writes_nothing_when_nothing_to_do(self):
+        # VỪA 3: blocking() mỗi nhịp không được ghi / commit khi không có gì đổi
+        self._review_with(self.ids[1], llm_runner.LlmError("timed out", code="timeout"))
+        CR.blocking(self.p.conn, self.ids[1])                                 # mục ĐỎ đã ghi
+        n = self.p.conn.total_changes
+        for _ in range(3):
+            CR.blocking(self.p.conn, self.ids[1])
+            CR.blocking(self.p.conn, self.ids[2])
+        self.assertEqual(self.p.conn.total_changes, n)
+
+    def test_blocking_never_commits_callers_transaction(self):
+        self._review_with(self.ids[1], llm_runner.LlmError("timed out", code="timeout"))
+        self.p.conn.execute("UPDATE projects SET name='dở' WHERE id=?", (self.pid,))          # giao dịch dở của người gọi
+        self.assertTrue(self.p.conn.in_transaction)
+        self.assertIsNotNone(CR.blocking(self.p.conn, self.ids[1]))           # ghi mục ĐỎ trong giao dịch, không commit hộ
+        self.p.conn.rollback()
+        self.assertNotEqual(self.p.conn.execute("SELECT name FROM projects WHERE id=?", (self.pid,)).fetchone()[0], "dở")
+
+    def test_autopilot_treats_unreadable_as_temporary(self):
+        from core import autopilot
+        jid = self.p.create_job(self.ids[1], "image_gen")
+        self.assertTrue(jid)
+        with mock.patch.object(CR, "blocking", return_value=CR.READ_FAIL + " (OperationalError: database is locked) — thử lại sau"):
+            autopilot._review_wait(self.p, self.pid, "image_gen")              # không ném _Wait (chờ người)
+        with mock.patch.object(CR, "blocking", return_value="Tổ rà soát tác động: anh: sai"):
+            with self.assertRaises(autopilot._Wait):
+                autopilot._review_wait(self.p, self.pid, "image_gen")
