@@ -67,11 +67,38 @@ def _ref_shot_wants_end(data: Dict, shot_mode: Optional[str]) -> bool:
         and bool((data.get("end_state") or "").strip())
 
 
-def own_clip_reason(data: Dict, shot_mode: Optional[str]) -> Optional[str]:
-    """Vì sao shot tuyến ref này phải gửi MỘT MÌNH (khung cuối không đi được trong clip nhóm nhiều shot), None = không cần."""
+def own_clip_reason(data: Dict, shot_mode: Optional[str], conn=None) -> Optional[str]:
+    """Vì sao shot tuyến ref này phải gửi MỘT MÌNH (khung cuối không đi được trong clip nhóm nhiều shot), None = không cần. `conn`: shot
+    runner LUÔN bỏ khung cuối (skip_reason — vật kỹ năng → GHÉP) không tách (rà M7.3 THẤP c)."""
     if not ref_route_on() or not _ref_shot_wants_end(data, shot_mode):
         return None
+    if conn is not None and skip_reason(conn, 0, data):
+        return None
     return "cần khung cuối (end_state: " + (data.get("end_state") or "").strip()[:80] + ")"
+
+
+def ref_carried(conn, scene_id: int, data: Dict) -> bool:
+    """Rà M7.3 VỪA/THẤP: cờ bật giữa dự án — shot tuyến ref mà phần clip của nó đã có (clip của chính nó, không có job video chờ gửi lại)
+    hoặc đang đi trong clip nhóm đang bay của shot khác: không vẽ khung cuối (sẽ không được gửi), không tính giá, không giữ clip."""
+    if not ref_route_on() or route(data) != "seedance_ref":
+        return False
+    own = conn.execute("SELECT state FROM jobs WHERE scene_id=? AND type='video_gen'", (scene_id,)).fetchall()
+    states = {r[0] for r in own}
+    if states & {"succeeded", "pending_review", "approved"} and not states & {"queued", "running"}:
+        return True
+    for r in conn.execute("SELECT sent_group FROM jobs WHERE type='video_gen' AND state IN ('queued','running') AND sent_group IS NOT NULL"
+                          " AND scene_id<>?", (scene_id,)).fetchall():
+        try:
+            if any(int(g.get("id")) == scene_id for g in json.loads(r[0]) or []):
+                return True
+        except (TypeError, ValueError, AttributeError):
+            continue
+    return False
+
+
+def wanted(conn, scene_id: int, data: Dict, shot_mode: Optional[str]) -> bool:
+    """needed() + (M7.3) không phải shot tuyến ref mà clip đã mang phần của nó (ref_carried). Cờ ref_end_frames tắt = needed()."""
+    return needed(data, shot_mode) and not ref_carried(conn, scene_id, data)
 
 
 def ref_unsupported_reason(data: Dict, shot_mode: Optional[str]) -> Optional[str]:
@@ -322,7 +349,7 @@ def queue(p: Pipeline, project_id: int) -> List[int]:
     for s in p.conn.execute("SELECT id, data FROM scenes WHERE project_id=? ORDER BY idx", (project_id,)).fetchall():
         data = json.loads(s["data"] or "{}")
         start = _start_job(p.conn, s["id"])
-        if not needed(data, mode) or start is None or skip_reason(p.conn, s["id"], data):
+        if not wanted(p.conn, s["id"], data, mode) or start is None or skip_reason(p.conn, s["id"], data):
             continue
         row = current(p.conn, s["id"])
         if row is not None and row["start_job_id"] == start["id"] and row["state"] in ("queued", "running", "ready", "failed") \

@@ -134,6 +134,7 @@
       ],
       "last_frame": true,
       "refs_with_first_frame": false,
+      "refs_with_end_frame": true,
       "max_images": 9,
       "max_videos": 3,
       "max_audios": 3
@@ -152,6 +153,7 @@
       ],
       "last_frame": true,
       "refs_with_first_frame": false,
+      "refs_with_end_frame": true,
       "max_images": 9,
       "max_videos": 3,
       "max_audios": 3
@@ -170,6 +172,7 @@
       ],
       "last_frame": true,
       "refs_with_first_frame": false,
+      "refs_with_end_frame": true,
       "max_images": 30,
       "max_videos": 10,
       "max_audios": 10,

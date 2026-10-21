@@ -126,7 +126,7 @@ def _groups(conn, project_id: int, split: Optional[bool] = None) -> List[List[Di
     for r in rows:
         d = r["data"]
         if not d.get("shot_no") or not _groupable(d) or (split and model_router.needs_first_frame(conn, project_id, d, chosen)) \
-                or (ends and end_frames.own_clip_reason(d, "per_shot")):
+                or (ends and end_frames.own_clip_reason(d, "per_shot", conn)):
             close()
             continue
         sec = floored(d, d.get("duration_s") or 0)
@@ -242,7 +242,7 @@ def end_split_reason(conn, scene_id: int) -> Optional[str]:
         return None
     if not any(len(g) > 1 and any(x["id"] == scene_id for x in g) for g in _groups(conn, row["project_id"], split=False)):
         return None
-    return end_frames.own_clip_reason(data, "per_shot")
+    return end_frames.own_clip_reason(data, "per_shot", conn)
 
 
 def group_of(conn, scene_id: int) -> Optional[List[Dict]]:
