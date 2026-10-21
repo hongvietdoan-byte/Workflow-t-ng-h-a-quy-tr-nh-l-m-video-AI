@@ -1,0 +1,61 @@
+# C-GOLDEN5 — Công cụ golden so A/B hai cây code trên cùng snapshot (cloud-C, 21/10)
+
+- Nhánh: `cloud/v31-golden5`, tách từ `origin/cloud/v31-golden4` (công cụ C-GOLDEN2 + C-GOLDEN4).
+- Theo sổ `v31-ep-golden-ab-acceptance-2026-10-21`.
+- 0 USD: không gửi provider, không ghi dữ liệu thật.
+
+## Đã làm — `tools/golden_db_replay.py --ab`
+- Đầu vào:
+  - MỘT snapshot CSDL (`--db`);
+  - MỘT ref-root chỉ đọc (`--ref-root`);
+  - MỘT file cờ (`--flags`: `{"baseline_flags": {...cờ sản xuất...}, "experimental_flags": [cờ mới V3.1], "public_config": {...}}` — cờ mới = false);
+  - HAI cây code: `--code-a` (worktree main) và `--code-b` (worktree M2 tích hợp);
+  - `--project N` (lặp được).
+- Mỗi shot có job ảnh / video của dự án: lấy job MỚI NHẤT mỗi loại.
+  - Envelope lấy từ gói đã gửi; job chưa gửi dùng envelope giả cố định, giống nhau cho A và B (so CODE, không so lịch sử).
+- Dựng gói hai lần bằng đúng đường cũ: `_submit_args` → `_prepare_kwargs` → `_finish_kwargs` → `_build_package` + `pregen_fingerprint`. Mỗi bên một **worker cách ly như hiện có**:
+  - chỉ đọc `data/`, có fingerprint;
+  - cấm ghi / mạng / tiến trình;
+  - Python 3.14 native.
+  - Worker nhận `request["code_root"]` và import `core` của CÂY ĐÓ. Phần của công cụ (`_safe` của `golden_capture`) nạp theo đường dẫn từ cây chứa công cụ, nên không phụ thuộc main có công cụ hay không.
+- So từng ca:
+  - **SAME**;
+  - **DIFF**: in trường lệch đầu tiên (đường JSON, vị trí ký tự, độ dài), **không in prompt**;
+  - **ONE_FAIL**: một bên không dựng được — tính như DIFF;
+  - **BOTH_FAIL**: ghi riêng.
+- **ĐẠT = 0 DIFF + 0 ONE_FAIL.** Mã thoát: 0 = đạt, 1 = chưa đạt.
+- Cột tham khảo `history_a` / `history_b`: so với gói đã gửi lúc đó (`SAME_AS_SENT` / `SAME_EXCEPT_FINGERPRINT` / `DIFF_FROM_SENT` / `NO_SENT` / `NOT_BUILT`).
+- Kết quả: JSON (`--output`, chế độ tạo mới, không ghi đè) + bảng theo dự án in ra màn hình.
+
+## Test — `tests/test_golden5.py` (6 xanh trên cloud + 1 chỉ chạy máy chính)
+- Đỏ trên code cũ: tạm cất phần sửa `tools/` thì 6 đỏ → xanh.
+- Các ca:
+  - `first_diff` chỉ nói đường + vị trí, không lộ chữ;
+  - `compare_ab` đủ 4 trạng thái;
+  - `run_ab` với 2 cây code tổng hợp: giống → SAME + ĐẠT; khác một dòng prompt → DIFF; một bên lỗi → ONE_FAIL; cả hai lỗi → BOTH_FAIL, không tính lệch;
+  - `ab_jobs` chọn job mới nhất mỗi shot / loại + envelope;
+  - `code_root` không phải cây code → từ chối;
+  - `main_ab` ghi JSON + mã thoát.
+- `test_real_worker_two_code_trees_same_and_one_line_changed` (`needs_native_314`): worker thật với 2 bản sao repo, giống → không lệch, đổi một dòng `sent_package` → lệch.
+- Test golden cũ (`test_golden2` / `test_golden4` / `test_golden_db_replay`): xanh / skip đúng như trước.
+
+## Lệnh chạy mẫu trên MÁY CHÍNH (Windows, Python 3.14 native)
+```powershell
+cd D:\AI-Video-Pipeline
+git fetch origin
+git worktree add ..\wt-main origin/main
+git worktree add ..\wt-m2 origin/cloud/v31-m2-tichhop
+git worktree add ..\wt-golden5 origin/cloud/v31-golden5
+# snapshot CSDL chỉ đọc + file cờ (baseline sản xuất = trạng thái hiệu lực máy chính; cờ mới V3.1 = false)
+py -c "import sqlite3; s=sqlite3.connect('file:data/manifest.sqlite?mode=ro', uri=True); d=sqlite3.connect(r'..\golden_ab\snap.sqlite'); s.backup(d)"
+py -m core.features --json > ..\golden_ab\features_now.json     # rồi dựng flags.json: {"baseline_flags": {cờ: on?}, "experimental_flags": [...]}
+cd ..\wt-golden5
+py tools\golden_db_replay.py --ab --db ..\golden_ab\snap.sqlite --ref-root D:\AI-Video-Pipeline `
+   --flags ..\golden_ab\flags.json --code-a ..\wt-main --code-b ..\wt-m2 --project 24 --project 27 --output ..\golden_ab\ab_24_27.json
+```
+- `experimental_flags` = các cờ mới của V3.1 có trong nhánh M2: `byd_v2_levels`, `field_guard`, `insert_inherit`, `stage_props_byd`, `sent_package_relpath`… — liệt kê đủ theo `core/features.py` của `wt-m2`.
+- `baseline_flags` phải có MỌI cờ của catalog cây công cụ, dạng boolean (fail-closed như C-GOLDEN2).
+
+## Giới hạn
+- Worker thật chưa chạy trên cloud (Python 3.13): nghiệm thu thật #24/#27 phải làm ở máy chính.
+- Envelope giả cho job chưa từng gửi làm `provider = fake`, nên gói không giống gói thật sẽ gửi. Điều này chấp nhận được vì A và B cùng dùng một envelope.
