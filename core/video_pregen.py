@@ -502,7 +502,7 @@ def _check_motion(conn, scene_id: int, plan: Dict, out: List[Dict]) -> None:
             missing.append(tag.rstrip(": ") or "shot")
             continue
         if shot_intent.is_draft(byd):                  # M2.4 (insert_inherit): shot chèn — BYĐ chép nháp, chưa duyệt; chưa kiểm được nhịp / máy
-            src = conn.execute("SELECT idx FROM scenes WHERE id=?", (byd["_p"].get("from"),)).fetchone()
+            src = conn.execute("SELECT idx FROM scenes WHERE id=?", (shot_intent.draft_source(byd),)).fetchone()
             out.append(_issue("byd_draft", VANG, f"{tag}BYĐ nháp" + (f" từ shot {src['idx']}" if src else "")
                               + " (shot chèn) — duyệt / điền hành động + máy ở Bước 3"))
             if not byd.get("may") and not byd.get("hanh_dong"):

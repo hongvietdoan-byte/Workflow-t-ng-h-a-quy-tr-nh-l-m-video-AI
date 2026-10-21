@@ -64,7 +64,7 @@ TEXT_ONLY = ("truyen.muc_dich", "truyen.cam_xuc", "ngoai_le[].dieu_trai", "ngoai
 
 # ---- V3.1 M2.1 (C-M21): BYĐ v2 — docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-20.md mục 2 --------------------------------------------------
 # `byd_v: 2` (thiếu = v1) + `vat[]` là bảng {vat, kho_id, nguoi, cach, bien_the} + nhóm `khung.moc_nen` + `noi_chon.trong_nha` (code suy) +
-# provenance `_p`. v1 kiểm y như cũ; nhóm / khóa v2 trong BYĐ v1 vẫn là "trường lạ". Mức BLOCK / REVIEW / WARN (assess) chỉ GHI (cờ
+# provenance `_p` {by, model, at, revision; M2.4: draft, from}. v1 kiểm y như cũ; nhóm / khóa v2 trong BYĐ v1 vẫn là "trường lạ". Mức BLOCK / REVIEW / WARN (assess) chỉ GHI (cờ
 # byd_v2_levels → director_byd.settle ghi `byd_kiem.muc_v2`), không chặn gen — BLOCK thật = Cấp 3 sau.
 BYD_V = 2
 V2_GROUPS = ("khung",)
@@ -176,6 +176,10 @@ def _check_v2(byd: Dict, names: set, out: List[Dict]) -> None:
             out.append(_issue("do", "_p", "phải là bảng {by, model, at, revision}"))
         else:
             _enum(out, "_p.by", p.get("by"), P_BY, required=True)
+            if "draft" in p and not isinstance(p["draft"], bool):            # M2.4: BYĐ nháp của shot chèn (một nguồn provenance)
+                out.append(_issue("do", "_p.draft", "phải là true / false (BYĐ nháp do code dựng)"))
+            if p.get("from") is not None and (not isinstance(p["from"], int) or isinstance(p["from"], bool)):
+                out.append(_issue("do", "_p.from", "phải là mã shot (scene id) BYĐ nháp chép từ"))
 
 
 def empty(shot: int) -> Dict:
@@ -439,6 +443,14 @@ def is_draft(byd) -> bool:
     return isinstance(byd, dict) and isinstance(byd.get("_p"), dict) and byd["_p"].get("draft") is True
 
 
+def draft_source(byd) -> Optional[int]:
+    """Mã shot (scene id) mà BYĐ nháp chép từ — None khi không phải nháp / không ghi nguồn."""
+    if not is_draft(byd):
+        return None
+    src = byd["_p"].get("from")
+    return src if isinstance(src, int) and not isinstance(src, bool) else None
+
+
 def draft_of(data: Dict, shot: int, from_scene_id: int, characters=None, place=None, spot=None) -> Optional[Dict]:
     """BYĐ NHÁP cho shot chèn sau shot `data` (M2.4, G21): giữ `noi_chon`, `thanh_phan` (có `characters` → chỉ giữ thứ có tên trong đó),
     BỎ `hanh_dong` / `may` (shot mới làm việc khác — không đoán) và KHÔNG có khóa `vat` (vật phải khai lại: thiếu khóa = chưa rõ, không
@@ -457,8 +469,8 @@ def draft_of(data: Dict, shot: int, from_scene_id: int, characters=None, place=N
         noi["kho_id"] = place
     if spot and noi.get("spot") not in (None, spot):
         noi["spot"] = spot
-    return {"shot": shot, "thanh_phan": parts, "noi_chon": noi, "hanh_dong": [], "may": {},
-            "_p": {"by": "code", "draft": True, "from": from_scene_id}}
+    return {"byd_v": BYD_V, "shot": shot, "thanh_phan": parts, "noi_chon": noi, "hanh_dong": [], "may": {},
+            "_p": {"by": "code", "draft": True, "from": from_scene_id}}            # `_p` M2.1 chỉ hợp lệ ở v2
 
 
 def _shift_no(v, after_no: int):
