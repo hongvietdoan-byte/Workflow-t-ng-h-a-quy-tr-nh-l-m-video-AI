@@ -916,3 +916,22 @@ của --code-b (import core/ từ cây khác / sys.path / cache .pyc / _plain(na
 cây B → DIFF), rồi báo XONG để codex chạy lại. 31 BOTH_FAIL (NOT_BUILT 29, NO_SENT 6…) ghi lý do theo nhóm. Trên nhánh cloud/v31-golden5 (commit mới),
 báo cáo bổ sung docs/RA_CLOUD_GOLDEN5_*.md mục "GOLDEN6". XONG hộp thư (mã C-GOLDEN6).
 ```
+
+#### C-M81B (pool — ưu tiên 1; Cấp 1 tài liệu) — bổ sung M8.1: KHI LỖI và KHI MUỐN ĐỔI ở chế độ Đơn giản
+```
+EP 21/10 hỏi: "khi lỗi gen ảnh / gen video người dùng đơn giản làm gì, vào thao tác ra sao? tối giản nhưng vẫn đổi được đầu vào / đầu ra theo ý". Bản M8.1
+(docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-21.md) mới có "Vẽ lại / Làm lại + lý do bằng lời", thẻ lỗi 3 dòng, máy tự sửa trong trần M6. Thêm mục "8c. Khi lỗi và
+khi muốn đổi" vào CÙNG tệp:
+1. THẺ CẢNH thống nhất (ảnh + clip) với 4 nút cố định: "✔ Được" · "✍ Sửa bằng lời" · "🖼 Đổi ảnh tham chiếu" · "⋯ Khác" (bản cũ, bỏ cảnh, chế độ Chuyên gia).
+2. Khi LỖI (gen hỏng, bị nhà cung cấp từ chối, QC trượt, hết lượt tự sửa 3 ảnh / 2 video theo M6): thẻ "Chuyện gì — Máy đã thử gì — Bạn chọn" với 2–3 lựa chọn
+   kèm giá: (a) thử lại với góp ý (gõ lời), (b) đổi ảnh tham chiếu / đổi cách quay đơn giản hơn (máy đề xuất sẵn), (c) giữ bản tốt nhất hiện có, (d) báo kỹ thuật
+   (phiếu M6 lên Director/Kỹ sư). Bảng ánh xạ loại lỗi (devsys/errors.json + lỗi provider: kiểm duyệt người thật, hết tiền, timeout, Kho đầy, sai nhân vật,
+   đứng hình, lẫn tóc/áo…) → câu + lựa chọn. Hết lượt tự sửa: KHÔNG tự chi thêm, chỉ hiện lựa chọn.
+3. ĐỔI ĐẦU VÀO kiểu Weave Canvas: gắn 1 ảnh mới (trang phục / skin / nền / đạo cụ) vào cảnh + 1 dòng lời ("dùng áo này cho Kelly từ cảnh 3") → máy cập nhật
+   bộ ảnh tham chiếu + dòng vai trò (nối M2.10 gói gửi tối giản), đánh dấu cũ đúng các ảnh/clip phụ thuộc (S-D), báo giá vẽ lại. Đổi thoại / giọng / độ dài / góc
+   quay bằng lời → Đạo diễn sửa trường BYĐ, người thấy bản trước/sau trước khi chi. Dữ liệu người sửa → USER_LOCKED (sổ v31-ep-motion-prompt-user-locked).
+4. ĐỔI ĐẦU RA: chọn bản cũ (‹ ›), cắt ngắn clip, bỏ / đổi thứ tự cảnh, thay nhạc — 0 USD, không cần Chuyên gia.
+5. Đếm thao tác: lỗi → giải quyết ≤ 3 cú bấm; đổi skin/nền một cảnh ≤ 4 cú bấm (gắn ảnh + 1 câu + xem giá + đồng ý).
+Bản vẽ ASCII thẻ cảnh + thẻ lỗi. Không code. Xuất kèm PDF docs/pdf/M8_1_Che_do_Don_gian.pdf (pandoc → Chrome/Edge in PDF, như tools/build_docs.sh) để EP xem điện thoại.
+Nhánh cloud/v31-m81b. XONG hộp thư.
+```
