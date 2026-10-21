@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:40:38.188278+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "C-M29",
+  "branch": "cloud/v31-m29",
+  "commit": "c4da3ee9",
+  "report": "docs/RA_CLOUD_M29_2026-10-21.md",
+  "text": "M2.9: cờ narration_offscreen + fit_durations_review TẮT; 21 ca G15/G16/G17/G53 xanh khi BẬT, xfail strict giữ khi TẮT. Lưu ý rà: lời diag A11 (end_frame_skill_object / skill_object_compose) đổi ở MỌI mức cờ (chỉ chữ chẩn đoán, không đổi gói/prompt). Golden replay Linux 23 đỏ = main."
+}
