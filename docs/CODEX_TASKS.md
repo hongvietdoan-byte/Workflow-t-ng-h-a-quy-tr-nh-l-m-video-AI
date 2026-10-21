@@ -1425,3 +1425,21 @@ BẮT ĐẦU KHI: main đã gộp C-M21 (BYĐ v2, `shot_intent.read` có provena
 Theo `docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-20.md` mục 4 (bảng A2a–A2f, thứ tự A2e → A2a → A2b → A2d → A2c → A2f): mỗi reader một cờ con dưới cờ mẹ
 `byd_fields` (TẮT), một commit, một test; byd vào lineage khi cờ bật (G4, G22). Cờ TẮT = byte giống (golden compat #24/#27). A2c/A2d đụng
 `core/plate_choice.py` — giữ sửa POV 4775eab4. Nhánh `codex/v31-m22`. Báo cáo `docs/RA_CX21_M22_CODEX_2026-10-2x.md`.
+
+### CX21-FIX — sửa lỗi rà kỹ 21/10 của CX20-5b + CX20-2b + tools/merge_union.py (ưu tiên 0, làm TRƯỚC CX21-M23)
+Từ origin/main mới nhất (đã gộp viec2b + viec5, cờ TẮT). Mỗi lỗi test ĐỎ→XANH. Nhánh `codex/v31-fix-21`.
+1. VỪA `core/subjects.py` `capacity()`: dòng `processing` có `asset_id=NULL` (upload timeout / tiến trình chết) làm cả Kho trả QUEUE_UNKNOWN_CAPACITY
+   vĩnh viễn khi cờ `subject_capacity_guard` BẬT. Sửa: tìm theo `name` trong ảnh chụp `list_assets` — thấy thì tính 1 chỗ và để `ensure_picture` đối soát;
+   không thấy thì chỉ UNKNOWN khi sha thuộc gói đang gửi, dòng không liên quan tính 1 chỗ dự phòng. Test: (a) processing NULL có tên trong snapshot → READY,
+   lần sau ensure_picture → active; (b) processing treo của dự án khác không chặn dự án này khi còn chỗ; (c) submit loop 2 lượt không treo.
+2. THẤP `core/runner.py` ~1786 `_hosted_pictures`: `capacity()` chạy trong `budget.SPEND_LOCK` (`_finish_kwargs`) → GET tới 20 trang trong khóa chi tiêu.
+   Chuyển kiểm sang `_prepare_kwargs` (ngoài khóa) hoặc dùng lại kết quả. Test: mock list_assets chậm, khẳng định SPEND_LOCK không bị giữ lúc gọi.
+3. THẤP `core/inbox.py` (+122–131): `rejected_frame_assets` → `_pictures_table` chạy `CREATE TABLE IF NOT EXISTS` trên đường đọc. Kiểm `sqlite_master` trước.
+   Test: inbox trên CSDL chưa có bảng không tạo bảng.
+4. THẤP `data/decisions.json`: thêm mục C3-3 (subject_auto_cleanup chỉ DRY-RUN, `replaces` mục duyệt 13/10) + check trong `tests/test_decisions.py`.
+5. THẤP golden (`tools/golden_db_replay.py`): ghi vào `tests/golden/README.md` rằng manifest khóa sha CẢ CSDL (phải giữ bản sao CSDL đóng băng đi kèm fixture) và
+   worker ép Python 3.14 + SYSTEMROOT (venv fail-closed); thêm test sha CSDL nguồn + mtime `data/` không đổi sau `replay_fixture`.
+6. VỪA `tools/merge_union.py`: hợp danh sách JSON theo từng dòng → khi một bên đã format lại danh sách nhiều dòng (viec2b), mục của bên kia bị RƠI (21/10 rơi
+   20 mục areas.json, phiên chính bù tay). Sửa: parse JSON cả hai bên (ours/theirs/base từ `git show :1: :2: :3:`), hợp theo cấu trúc (areas theo id, list hợp
+   giữ thứ tự), ghi lại theo định dạng gốc (dict thụt lề, list một dòng); không parse được → báo lỗi, không ghi. Test: hai bên khác định dạng → không mất mục.
+Báo cáo `docs/RA_CX21_FIX_CODEX_2026-10-2x.md` + XONG hộp thư.
