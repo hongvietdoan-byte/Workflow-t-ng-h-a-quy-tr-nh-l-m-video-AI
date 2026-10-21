@@ -21,7 +21,7 @@ Cờ `generation_authorization` (mặc định TẮT): tắt = không làm gì. 
 import json
 import os
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 FLAG = "generation_authorization"
@@ -30,6 +30,10 @@ REPAIR_PCT = 0.40
 SAME_CAUSE_STREAK = 3
 NOT_CREATED = "not_created"                        # core.runner.NOT_CREATED
 SUBMIT_UNKNOWN = "submit_unknown"                  # core.pipeline.SUBMIT_UNKNOWN
+RESEND_NOTE = "gửi lại: nhà cung cấp không tạo task"   # core.runner.RESEND_NOTE (not_created / relink_failed: job con thay lượt cũ)
+# ý đồ / dữ liệu đã khóa của shot (BYĐ + kế hoạch) — KHÔNG gồm prompt ảnh / motion (vòng tự sửa được viết lại) và trường sổ sách
+LOCKED_KEYS = ("byd", "characters", "location", "location_asset", "layout", "blocking", "action", "end_state", "emotional_intent",
+               "beat", "why", "dialogue", "text", "on_screen_text", "duration_s", "continuity_from", "continuous_with_next")
 CODES = ("OK", "ATTEMPTS_EXHAUSTED", "BUDGET_EXCEEDED", "SAME_CAUSE_STREAK", "PROVIDER_UNVERIFIED", "DUPLICATE_INFLIGHT", "LOCKED_CHANGE",
          "NO_CAUSE", "MODEL_NOT_APPROVED")
 
@@ -54,14 +58,19 @@ def enabled() -> bool:
 
 
 def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
+    """UTC, cùng dạng jobs.created_at (sổ cấp lượt grants.jsonl ghi `at` cũng theo UTC ISO)."""
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def is_upgrade(job) -> bool:
-    """Q1: bản cao nâng từ nháp đã duyệt (quality_tier final + draft_job_id) — cùng bố cục / chuyển động, không tính lượt."""
+    """Q1: bản cao NÂNG từ nháp đã duyệt (gói đã gửi call = submit_final_from_sample — cùng task nháp, cùng bố cục / chuyển động):
+    không tính lượt. Bản cao gen MỚI (nháp hết hạn / không nâng được / có câu sửa) là lượt mới, có tính. Job chưa gửi → False (lúc gửi
+    runner nói thẳng qua `upgrade=`)."""
     try:
-        return (job["quality_tier"] or "") == "final" and bool(job["draft_job_id"])
-    except (IndexError, KeyError):
+        if (job["quality_tier"] or "") != "final" or not job["draft_job_id"]:
+            return False
+        return json.loads(job["sent_package"] or "{}").get("call") == "submit_final_from_sample"
+    except (IndexError, KeyError, ValueError, TypeError, AttributeError):
         return False
 
 
@@ -86,10 +95,15 @@ def _grants(data_dir: Optional[str], pid: int) -> List[Dict]:
     return out
 
 
-def cycle_start(data_dir: Optional[str], pid: int, scene_id: int, kind: str) -> Optional[str]:
-    """Thời điểm EP cấp lượt gần nhất cho shot / loại (chu kỳ mới) — lượt trước đó không tính. None = chu kỳ đầu."""
-    times = [g.get("at") for g in _grants(data_dir, pid) if g.get("scene_id") == scene_id and g.get("kind") == kind and g.get("at")]
+def _cycle_from(grants: List[Dict], scene_id: int, kind: str) -> Optional[str]:
+    times = [g.get("at") for g in grants if g.get("scene_id") == scene_id and g.get("kind") == kind and g.get("at")]
     return max(times) if times else None
+
+
+def cycle_start(data_dir: Optional[str], pid: int, scene_id: int, kind: str) -> Optional[str]:
+    """Thời điểm (UTC ISO) EP cấp lượt gần nhất cho shot / loại (chu kỳ mới) — lượt trước đó không tính. None = chu kỳ đầu.
+    grants.jsonl: {"scene_id", "kind", "at" (UTC ISO như jobs.created_at), "by", "reason"} — chưa có code ghi (M6-B)."""
+    return _cycle_from(_grants(data_dir, pid), scene_id, kind)
 
 
 def attempts(conn, scene_id: int, kind: str, *, exclude_job_id: Optional[int] = None, since: Optional[str] = None) -> List:
@@ -101,9 +115,11 @@ def attempts(conn, scene_id: int, kind: str, *, exclude_job_id: Optional[int] = 
     for r in rows:
         if is_upgrade(r):
             continue
-        note = _failed_note(conn, r["id"]) if r["state"] == "failed" else ""
+        note = _failed_note(conn, r["id"])            # mọi trạng thái: job not_created / submit_unknown sau resend thành cancelled
         if note.startswith(NOT_CREATED):
             continue
+        if conn.execute("SELECT 1 FROM jobs WHERE parent_job_id=? AND retry_reason LIKE ? LIMIT 1", (r["id"], RESEND_NOTE + "%")).fetchone():
+            continue                                  # relink_failed / not_created: job con mang lượt này — không đếm 2 lần
         if r["external_id"] or note.startswith(SUBMIT_UNKNOWN):
             out.append(r)
     return out
@@ -112,9 +128,10 @@ def attempts(conn, scene_id: int, kind: str, *, exclude_job_id: Optional[int] = 
 def _pricing():
     from . import cost
     try:
-        return cost.load_pricing()
+        pricing = cost.load_pricing()
     except Exception:  # noqa: BLE001 - shadow: không có bảng giá → không tính tiền (nói trong lý do)
         return None
+    return None if not isinstance(pricing, dict) or pricing.get("_error") else pricing   # bảng giá hỏng ≠ ngân sách 0
 
 
 def _usd_of_jobs(conn, job_ids: List[int], pricing) -> float:
@@ -143,24 +160,38 @@ def repair_budget(conn, project_id: int, data_dir: Optional[str] = None, pricing
     except Exception:  # noqa: BLE001 - bảng / giá trị lạ: tỷ lệ mặc định
         pass
     first, repair = [], []
+    grants = _grants(data_dir, project_id)            # đọc sổ cấp lượt MỘT lần
     for s in conn.execute("SELECT DISTINCT scene_id, type FROM jobs WHERE project_id=? AND scene_id IS NOT NULL AND type IN "
                           "('image_gen', 'video_gen')", (project_id,)).fetchall():
-        done = attempts(conn, s[0], s[1], since=cycle_start(data_dir, project_id, s[0], s[1]))
+        done = attempts(conn, s[0], s[1], since=_cycle_from(grants, s[0], s[1]))
         first += [r["id"] for r in done[:1]]
-        repair += [r["id"] for r in done[1:]]
+        repair += [r["id"] for r in done[1:] if (r["origin"] or "") == "auto"]   # 4d: thao tác EP tự bấm KHÔNG ăn vào ngân sách tự sửa
     first_usd, repair_usd = _usd_of_jobs(conn, first, pricing), _usd_of_jobs(conn, repair, pricing)
     limit = first_usd * pct
     return {"first_usd": round(first_usd, 4), "repair_usd": round(repair_usd, 4), "limit_usd": round(limit, 4),
             "left_usd": round(limit - repair_usd, 4), "pct": pct, "priced": pricing is not None}
 
 
-def _cause(job) -> str:
-    """Mã nguyên nhân của một lượt làm lại: lý do loại (C2) hoặc đầu câu retry_reason."""
-    rr = (job["reject_reason"] or "").strip()
+def _cause_of_take(conn, take) -> str:
+    """Mã lỗi của MỘT lượt đã ra (lượt bị làm lại): lý do loại C2 (`reject_reason`, ghi lên job BỊ loại), không có thì mã đầu của
+    ghi chú hỏng (job_events failed: 'mã: câu')."""
+    if take is None:
+        return ""
+    rr = (take["reject_reason"] or "").strip()
     if rr:
         return rr
-    text = (job["retry_reason"] or "").strip()
-    return text.split(":", 1)[0].strip()[:60] if text else ""
+    note = _failed_note(conn, take["id"]).strip()
+    head = note.split(":", 1)[0].strip() if ":" in note else ""
+    return head if head and " " not in head else ""
+
+
+def _cause(conn, job, done: Optional[List] = None) -> str:
+    """Nguyên nhân của lượt làm lại này = mã lỗi của lượt TRƯỚC: job cha (parent_job_id) hoặc lượt đã tính gần nhất của shot."""
+    parent = conn.execute("SELECT * FROM jobs WHERE id=?", (job["parent_job_id"],)).fetchone() if job["parent_job_id"] else None
+    cause = _cause_of_take(conn, parent)
+    if not cause and done:
+        cause = _cause_of_take(conn, done[-1])
+    return cause
 
 
 def _same_cause_streak(conn, project_id: int, kind: str, cause: str, scene_id: int) -> bool:
@@ -173,7 +204,7 @@ def _same_cause_streak(conn, project_id: int, kind: str, cause: str, scene_id: i
         if r["scene_id"] in seen:
             continue
         seen.add(r["scene_id"])
-        causes.append(_cause(r))
+        causes.append(_cause(conn, r))
         if len(causes) >= SAME_CAUSE_STREAK:
             break
     return len(causes) >= SAME_CAUSE_STREAK and len(set(causes)) == 1
@@ -199,12 +230,33 @@ def approved_models(conn, project_id: int, scene_id: Optional[int], kind: str) -
     return chosen
 
 
+def _locked_changes(conn, scene_id: int, since: str) -> List[str]:
+    """Khóa ý đồ / dữ liệu đã khóa (LOCKED_KEYS) đổi sau `since` (change_events kind 'scene' — trigger ghi MỌI lần ghi scenes.data,
+    kể cả prompt Đạo diễn viết lại / takes / seedance_refs: chỉ khóa thuộc ý đồ mới tính). So theo giây UTC (19 ký tự đầu)."""
+    from . import change_review
+    out: List[str] = []
+    for r in conn.execute("SELECT before, after FROM change_events WHERE scene_id=? AND kind='scene' AND substr(at, 1, 19)>? ORDER BY id",
+                          (scene_id, (since or "")[:19])).fetchall():
+        for k in change_review.changed_keys(_json(r[0]), _json(r[1]), LOCKED_KEYS):
+            if k not in out:
+                out.append(k)
+    return out
+
+
+def _json(text) -> Dict:
+    try:
+        v = json.loads(text or "{}")
+        return v if isinstance(v, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
 def _est_usd(conn, job, model: Optional[str], pricing) -> Optional[float]:
     from . import cost
     try:
         if job["type"] == "image_gen":
             return cost._number((pricing or {}).get("per_image", {}).get(model)) if pricing else None
-        return cost.send_clip_usd(conn, job["scene_id"], pricing)
+        return cost.send_clip_usd(conn, job["scene_id"], pricing, parent_job_id=job["parent_job_id"])   # bậc của lượt thử lại
     except Exception:  # noqa: BLE001 - không ước tính được → không tính tiền lượt này (nói trong lý do)
         return None
 
@@ -235,17 +287,17 @@ def authorize(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool]
             codes.append("BUDGET_EXCEEDED")
             why.append(f"ngân sách tự sửa {budget['pct']:.0%} lượt đầu = {budget['limit_usd']:.2f} USD, đã dùng {budget['repair_usd']:.2f}"
                        f" + lượt này ≈ {(est or 0):.2f} USD")
-        cause = _cause(job)
+        cause = _cause(conn, job, done)
         if not cause:
             codes.append("NO_CAUSE")
             why.append("tự sửa không có nguyên nhân rõ (không lý do loại / câu lỗi)")
         elif _same_cause_streak(conn, pid, kind, cause, sid):
             codes.append("SAME_CAUSE_STREAK")
             why.append(f"{SAME_CAUSE_STREAK} shot liên tiếp tự sửa cùng mã '{cause}' — dấu hiệu lỗi hệ thống, dừng tự sửa + phiếu")
-        if done and conn.execute("SELECT 1 FROM change_events WHERE scene_id=? AND kind='scene' AND state<>'skipped' AND at>? LIMIT 1",
-                                 (sid, done[0]["created_at"])).fetchone():
+        locked = _locked_changes(conn, sid, done[0]["created_at"]) if done else []
+        if locked:
             codes.append("LOCKED_CHANGE")
-            why.append("dữ liệu cảnh đổi sau lượt đầu — tự sửa không được đổi ý đồ / dữ liệu đã khóa")
+            why.append(f"ý đồ / dữ liệu khóa của shot đổi sau lượt đầu ({', '.join(locked[:4])}) — tự sửa không được đổi")
     if sid:
         unknown = [r for r in done if not r["external_id"]]          # submit chưa rõ, chưa nối lại task
         if auto and unknown:
@@ -265,24 +317,42 @@ def authorize(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool]
                     needs_ep=needs_ep, reason_vi="; ".join(why) or "đủ điều kiện", codes=codes, counted=not upgrade, auto=auto)
 
 
-def shadow(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool] = None, data_dir: Optional[str] = None) -> Optional[Decision]:
+def shadow(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool] = None, data_dir: Optional[str] = None,
+           group: Optional[List[int]] = None) -> Optional[Decision]:
     """SHADOW: tính quyết định và GHI vào `<data_dir>/<pid>/crew/gen_auth_shadow.jsonl` — không chặn, không ghi CSDL. Cờ tắt → None,
-    không đọc gì. Mọi lỗi bị nuốt (quan sát, không phải điều khiển) nhưng nói ra stderr."""
+    không đọc gì. `group` = các shot KHÁC cùng đi trong lượt gửi nhóm (multi-shot / nhóm Seedance): mỗi shot một dòng quyết định (trần
+    lượt tính theo shot), dòng của leader trả về. Một job còn trong hàng (lỗi tạm, gửi lại nhịp sau) có thể có nhiều dòng — đọc theo
+    `latest_per_job`. Mọi lỗi bị nuốt (quan sát, không phải điều khiển) nhưng nói ra stderr."""
     try:
         if not enabled() or job is None or job["type"] not in LIMITS:
             return None
         d = authorize(conn, job, model=model, upgrade=upgrade, data_dir=data_dir)
+        lines = [{"at": _now(), "job_id": job["id"], "scene_id": job["scene_id"], "kind": job["type"], "model": model or job["model"],
+                  **asdict(d)}]
+        for sid in group or []:
+            member = dict(job)
+            member["scene_id"] = sid
+            md = authorize(conn, member, model=model, upgrade=upgrade, data_dir=data_dir)
+            lines.append({"at": _now(), "job_id": job["id"], "scene_id": sid, "kind": job["type"], "model": model or job["model"],
+                          "group_of": job["scene_id"], **asdict(md)})
         if data_dir:
             folder = os.path.join(data_dir, str(job["project_id"]), "crew")
             os.makedirs(folder, exist_ok=True)
             with open(os.path.join(folder, "gen_auth_shadow.jsonl"), "a", encoding="utf-8") as f:
-                f.write(json.dumps({"at": _now(), "job_id": job["id"], "scene_id": job["scene_id"], "kind": job["type"],
-                                    "model": model or job["model"], **asdict(d)}, ensure_ascii=False) + "\n")
+                f.write("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in lines))
         return d
     except Exception as e:  # noqa: BLE001 - cổng shadow không bao giờ làm hỏng lượt gửi
         import sys
         print(f"[gen_auth] shadow lỗi job {job['id'] if job is not None else '?'}: {type(e).__name__}: {e}", file=sys.stderr)
         return None
+
+
+def latest_per_job(rows: List[Dict]) -> List[Dict]:
+    """Dòng mới nhất mỗi (job, shot) — job còn trong hàng được ghi lại mỗi nhịp gửi."""
+    last: Dict = {}
+    for r in rows:
+        last[(r.get("job_id"), r.get("scene_id"))] = r
+    return list(last.values())
 
 
 def read_shadow(data_dir: str, project_id: int) -> List[Dict]:

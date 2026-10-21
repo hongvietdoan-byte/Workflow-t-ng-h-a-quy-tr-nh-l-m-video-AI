@@ -36,14 +36,15 @@ _T = [0]
 
 
 def _job(p, pid, sid, *, kind="image_gen", ext="t", state="approved", origin=None, model="m", retry_count=0, reason=None,
-         reject=None, note=None, tier=None, draft=None, parent=None, usd_q=None):
+         reject=None, note=None, tier=None, draft=None, parent=None, usd_q=None, call=None):
     """Một job đã có (lượt cũ) — created_at tăng dần."""
     _T[0] += 1
     at = f"2026-10-21T10:{_T[0]:02d}:00"
     cur = p.conn.execute("INSERT INTO jobs (project_id, scene_id, type, state, retry_count, escalated, created_at, updated_at, task_seen,"
-                         " task_unseen, external_id, origin, model, retry_reason, reject_reason, quality_tier, draft_job_id, parent_job_id)"
-                         " VALUES (?,?,?,?,?,0,?,?,0,0,?,?,?,?,?,?,?,?)",
-                         (pid, sid, kind, state, retry_count, at, at, ext, origin, model, reason, reject, tier, draft, parent))
+                         " task_unseen, external_id, origin, model, retry_reason, reject_reason, quality_tier, draft_job_id, parent_job_id,"
+                         " sent_package) VALUES (?,?,?,?,?,0,?,?,0,0,?,?,?,?,?,?,?,?,?)",
+                         (pid, sid, kind, state, retry_count, at, at, ext, origin, model, reason, reject, tier, draft, parent,
+                          json.dumps({"call": call}) if call else None))
     jid = cur.lastrowid
     if note:
         p.conn.execute("INSERT INTO job_events (job_id, from_state, to_state, actor, note, at) VALUES (?,?,?,?,?,?)",
@@ -82,21 +83,52 @@ def test_third_image_attempt_is_allowed(tmp_path):
 def test_video_limit_two_and_upgrade_from_draft_not_counted(tmp_path):
     p, pid, (sid,) = _setup(tmp_path)
     draft = _job(p, pid, sid, kind="video_gen", model="seedance25", tier="draft")
-    _job(p, pid, sid, kind="video_gen", model="seedance25", tier="final", draft=draft)          # Q1: nâng 1080p — không tính
+    _job(p, pid, sid, kind="video_gen", model="seedance25", tier="final", draft=draft, call="submit_final_from_sample")   # Q1: nâng
     d = _auth(p, _job(p, pid, sid, kind="video_gen", ext=None, state="queued", model="seedance25"), tmp_path)
     assert d.attempts_used == 1 and "ATTEMPTS_EXHAUSTED" not in d.codes
     _job(p, pid, sid, kind="video_gen", model="seedance25")
     up = _job(p, pid, sid, kind="video_gen", ext=None, state="queued", model="seedance25", tier="final", draft=draft)
-    assert "ATTEMPTS_EXHAUSTED" not in _auth(p, up, tmp_path).codes and _auth(p, up, tmp_path).counted is False
+    d = _auth(p, up, tmp_path, upgrade=True)                                                   # runner: upgrade = có _from_sample
+    assert "ATTEMPTS_EXHAUSTED" not in d.codes and d.counted is False
     again = _job(p, pid, sid, kind="video_gen", ext=None, state="queued", model="seedance25")
     assert _auth(p, again, tmp_path).code == "ATTEMPTS_EXHAUSTED"
 
 
-def test_not_created_is_not_counted_submit_unknown_is(tmp_path):
+def test_final_made_new_is_a_counted_attempt(tmp_path):
+    """Rà: bản cao gen MỚI (nháp không nâng được) là lượt đắt nhất — có tính, không phải 'nâng nháp'."""
     p, pid, (sid,) = _setup(tmp_path)
-    _job(p, pid, sid, state="failed", note="not_created: provider không tạo task")
-    unknown = _job(p, pid, sid, ext=None, state="failed", note="submit_unknown: ConnectionError")
+    draft = _job(p, pid, sid, kind="video_gen", model="seedance25", tier="draft")
+    _job(p, pid, sid, kind="video_gen", model="seedance25", tier="final", draft=draft, call="submit")
+    assert len(G.attempts(p.conn, sid, "video_gen")) == 2
+    new_final = _job(p, pid, sid, kind="video_gen", ext=None, state="queued", model="seedance25", tier="final", draft=draft)
+    d = _auth(p, new_final, tmp_path, upgrade=False)
+    assert d.code == "ATTEMPTS_EXHAUSTED" and d.counted is True
+
+
+def test_not_created_is_not_counted_submit_unknown_is(tmp_path):
+    """Rà: job not_created / submit_unknown sau resend thành CANCELLED — vẫn đọc ghi chú hỏng (mọi trạng thái)."""
+    p, pid, (sid,) = _setup(tmp_path)
+    nc = _job(p, pid, sid, state="cancelled", note="not_created: provider không tạo task")      # còn external_id provider trả
+    _job(p, pid, sid, state="queued", ext=None, parent=nc, reason="gửi lại: nhà cung cấp không tạo task (1/2)")
+    unknown = _job(p, pid, sid, ext=None, state="cancelled", note="submit_unknown: ConnectionError")
     assert [r["id"] for r in G.attempts(p.conn, sid, "image_gen")] == [unknown]             # chỉ job submit_unknown
+
+
+def test_not_created_through_the_real_runner_path(tmp_path):
+    from core.runner import ImageRunner as IR
+    p, pid, (sid,) = _setup(tmp_path)
+    jid = p.create_job(sid, "image_gen")
+    r = IR(p, MockImageProvider(), str(tmp_path / "data"))
+    r.submit_pending(pid)
+    r._not_created(p.job(jid), "task never created")
+    assert G.attempts(p.conn, sid, "image_gen") == []                                        # resend → cancelled, không tính
+
+
+def test_relinked_send_counts_once(tmp_path):
+    p, pid, (sid,) = _setup(tmp_path)
+    old = _job(p, pid, sid, ext="t-mat", state="cancelled", note="not_found: task không thấy")
+    new = _job(p, pid, sid, ext="t-that", parent=old, reason="gửi lại: nhà cung cấp không tạo task (nối lại task thật t-that)")
+    assert [r["id"] for r in G.attempts(p.conn, sid, "image_gen")] == [new]
 
 
 def test_ep_grant_starts_a_new_cycle(tmp_path):
@@ -115,9 +147,10 @@ def test_ep_grant_starts_a_new_cycle(tmp_path):
 def test_auto_repair_over_40_percent_budget(tmp_path):
     p, pid, sids = _setup(tmp_path, shots=2)
     _job(p, pid, sids[0], usd_q=1)                    # lượt đầu 2 × 1 USD = 2 USD → ngân sách 0,8 USD
-    _job(p, pid, sids[1], usd_q=1)
-    _job(p, pid, sids[0], usd_q=0.5, origin="auto", reject="mat_sai")       # làm lại đã chi 0,5
-    new = _job(p, pid, sids[1], ext=None, state="queued", origin="auto", reject="mat_sai")
+    first1 = _job(p, pid, sids[1], usd_q=1, reject="mat_sai")
+    _job(p, pid, sids[0], usd_q=0.5, origin="auto")                         # làm lại TỰ ĐỘNG đã chi 0,5
+    _job(p, pid, sids[0], usd_q=3, retry_count=0)                           # EP tự bấm 3 USD: KHÔNG ăn ngân sách tự sửa (4d)
+    new = _job(p, pid, sids[1], ext=None, state="queued", origin="auto", parent=first1)
     d = _auth(p, new, tmp_path)
     assert "BUDGET_EXCEEDED" in d.codes and d.budget_left_usd == pytest.approx(0.3) and d.needs_ep
     b = G.repair_budget(p.conn, pid, pricing=PRICING)
@@ -139,11 +172,16 @@ def test_three_shots_same_cause_stop_self_repair(tmp_path):
     p, pid, sids = _setup(tmp_path, shots=3)
     for sid in sids:
         _job(p, pid, sid, usd_q=1)
-    for sid in sids[:2]:
-        _job(p, pid, sid, origin="auto", parent=1, reject="mat_sai", ext=None, state="queued")
-    new = _job(p, pid, sids[2], ext=None, state="queued", origin="auto", parent=1, reject="mat_sai")
-    assert "SAME_CAUSE_STREAK" in _auth(p, new, tmp_path).codes
-    other = _job(p, pid, sids[2], ext=None, state="queued", origin="auto", parent=1, reject="tay_sai")
+    """reject_reason nằm trên job BỊ loại (cha) — lượt làm lại đọc nguyên nhân từ cha (rà: trước đọc job mới → luôn rỗng)."""
+    p, pid, sids = _setup(tmp_path, shots=3)
+    firsts = [_job(p, pid, sid, usd_q=1, state="rejected", reject="mat_sai") for sid in sids]
+    for sid, f in zip(sids[:2], firsts[:2]):
+        _job(p, pid, sid, origin="auto", parent=f, ext=None, state="queued")
+    new = _job(p, pid, sids[2], ext=None, state="queued", origin="auto", parent=firsts[2])
+    d = _auth(p, new, tmp_path)
+    assert "SAME_CAUSE_STREAK" in d.codes and "NO_CAUSE" not in d.codes
+    other_first = _job(p, pid, sids[2], usd_q=1, state="failed", note="tay_sai: 6 ngón")
+    other = _job(p, pid, sids[2], ext=None, state="queued", origin="auto", parent=other_first)
     assert "SAME_CAUSE_STREAK" not in _auth(p, other, tmp_path).codes
 
 
@@ -152,8 +190,9 @@ def test_unverified_submit_duplicate_locked_change_no_cause_model(tmp_path):
     _job(p, pid, sid, usd_q=1)
     _job(p, pid, sid, ext=None, state="failed", note="submit_unknown: timeout")
     _job(p, pid, sid, ext="t2", state="running")
-    p.conn.execute("INSERT INTO change_events (at, kind, project_id, scene_id, state, cost_usd) VALUES ('2026-10-21T12:00:00','scene',?,?,"
-                   "'reviewed',0)", (pid, sid))
+    p.conn.execute("INSERT INTO change_events (at, kind, project_id, scene_id, state, cost_usd, before, after) VALUES "
+                   "('2026-10-21T12:00:00.000Z','scene',?,?,'reviewed',0,?,?)",
+                   (pid, sid, json.dumps({"byd": {"y_do": "a"}}), json.dumps({"byd": {"y_do": "b"}})))
     p.conn.commit()
     new = _job(p, pid, sid, ext=None, state="queued", origin="auto", model="z")
     d = _auth(p, new, tmp_path)
@@ -210,6 +249,69 @@ def test_shadow_writes_no_database_row(tmp_path):
     assert d is not None and d.allow and p.conn.total_changes == before
 
 
+def test_prompt_rewrite_by_the_repair_loop_is_not_a_locked_change(tmp_path):
+    """Rà: trigger ghi change_events cho MỌI lần ghi scenes.data — Đạo diễn viết lại image_prompt (chính bước tự sửa) không phải
+    đổi ý đồ."""
+    p, pid, (sid,) = _setup(tmp_path)
+    first = _job(p, pid, sid, usd_q=1, state="rejected", reject="mat_sai")
+    p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"image_prompt": "rewritten by the Director"}), sid))
+    p.conn.commit()
+    new = _job(p, pid, sid, ext=None, state="queued", origin="auto", parent=first)
+    assert "LOCKED_CHANGE" not in _auth(p, new, tmp_path).codes
+    p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"image_prompt": "x", "byd": {"y_do": "khác"}}), sid))
+    p.conn.commit()
+    d = _auth(p, new, tmp_path)
+    assert "LOCKED_CHANGE" in d.codes and "byd" in d.reason_vi
+
+
+def test_broken_pricing_is_not_a_zero_budget(tmp_path):
+    p, pid, (sid,) = _setup(tmp_path)
+    first = _job(p, pid, sid, usd_q=1, state="rejected", reject="mat_sai")
+    new = _job(p, pid, sid, ext=None, state="queued", origin="auto", parent=first)
+    with mock.patch("core.cost.load_pricing", return_value={"_error": "hỏng"}):
+        d = G.authorize(p.conn, p.job(new), data_dir=str(tmp_path / "data"))
+    assert "BUDGET_EXCEEDED" not in d.codes
+
+
+def test_video_runner_records_the_model_really_sent(tmp_path, monkeypatch):
+    """Rà: video model nằm ở đối số thứ 5 của submit (jobs.model chỉ ghi SAU khi gửi)."""
+    from core.llm_io import approve_motion_prompt, store_motion_prompts
+    from core.providers import MockVideoProvider
+    from core.runner import VideoRunner
+    monkeypatch.setenv("FEATURE_VIDEO_PREGEN", "0")
+    p = Pipeline(connect(str(tmp_path / "v.sqlite")))
+    pid = p.create_project("#63 video")
+    sid = p.create_scene(pid, 1, "S1")
+    img = p.create_job(sid)
+    p.start(img)
+    p.succeed(img)
+    p.approve(img)
+    store_motion_prompts(p, pid, {"scenes": [{"idx": 1, "motion_prompt": "slow push-in"}]})
+    approve_motion_prompt(p, sid)
+    vid = p.create_job(sid, "video_gen")
+    sent = []
+
+    class Prov(MockVideoProvider):
+        def submit(self, *a, **k):
+            sent.append(a[4] if len(a) > 4 else k.get("model"))
+            return super().submit(*a, **k)
+    with mock.patch.dict(os.environ, ON):
+        VideoRunner(p, Prov(), str(tmp_path / "data")).submit_pending(pid)
+    rows = G.read_shadow(str(tmp_path / "data"), pid)
+    assert sent and rows and rows[0]["job_id"] == vid and rows[0]["model"] == sent[0] and rows[0]["model"]
+
+
+def test_group_send_records_each_shot(tmp_path):
+    p, pid, sids = _setup(tmp_path, shots=2)
+    for _ in range(3):
+        _job(p, pid, sids[1])                         # shot đi kèm đã hết lượt
+    lead = _job(p, pid, sids[0], ext=None, state="queued")
+    with mock.patch.dict(os.environ, ON), mock.patch.object(G, "_pricing", return_value=PRICING):
+        d = G.shadow(p.conn, p.job(lead), data_dir=str(tmp_path / "data"), group=[sids[1]])
+    rows = G.latest_per_job(G.read_shadow(str(tmp_path / "data"), pid))
+    assert d.allow and {(r["scene_id"], r["code"]) for r in rows} == {(sids[0], "OK"), (sids[1], "ATTEMPTS_EXHAUSTED")}
+
+
 def test_runner_calls_shadow_right_before_submit():
     src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "core", "runner.py"), encoding="utf-8").read()
     i = src.index("gen_auth.shadow(")
@@ -222,7 +324,7 @@ def test_flag_registered_off_golden_and_areas():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     assert features.FEATURES[G.FLAG]["verified"] is False
     with mock.patch.dict(os.environ, {"FEATURE_GENERATION_AUTHORIZATION": ""}):
-        assert features.FEATURES[G.FLAG].get("default", False) is False
+        assert features.default_state(G.FLAG) == "off"
     golden = json.load(open(os.path.join(root, "tests", "golden", "package_inputs.json"), encoding="utf-8"))
     assert all(golden[k]["flags"][G.FLAG] is False for k in ("image", "video"))
     areas = json.load(open(os.path.join(root, "devsys", "areas.json"), encoding="utf-8"))["areas"]
