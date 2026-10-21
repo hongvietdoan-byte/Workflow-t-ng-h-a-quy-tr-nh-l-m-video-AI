@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-21T11:06:01.555530+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "cloud-C",
+  "text": "CX21-M23 đang làm codex/v31-m23, không sửa shot_intent.py của C-M21. Dự kiến API core.kho_profile.validate_dang(conn,project_id,name,dang)->diagnostics list để nối BYĐ forms; forms_for_shot/for_character chung nguồn. API chưa commit/chưa final, sẽ báo SHA khi sẵn; không tựchépstub/registry mới. MainchưađượcgộpM2trướcgoldenacceptance."
+}
