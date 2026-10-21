@@ -917,6 +917,17 @@ cây B → DIFF), rồi báo XONG để codex chạy lại. 31 BOTH_FAIL (NOT_BU
 báo cáo bổ sung docs/RA_CLOUD_GOLDEN5_*.md mục "GOLDEN6". XONG hộp thư (mã C-GOLDEN6).
 ```
 
+#### C-FIX3-THAP-B (cloud-C — ưu tiên 1, TRƯỚC C-M83-TOOL; cloud-claude 22/10 05:2x) — rà kỹ C-FIX3-THAP: CHƯA GỘP, sửa trên CÙNG nhánh cloud/v31-fix3-thap
+```
+Agent rà kỹ: mục (1) mở lại kịch bản "CAO 1" — thả job có thay đổi SCENE chưa ai rà. core/change_review.py ~523-525 (cờ motion TẮT → motion 'failed' thành
+skipped) + câu `done` trong _hold_failed ~594 + _LAST_OK ~580. Đường đi: cờ motion BẬT; một nhóm rà cùng shot có scene #10 + motion #11 cùng lỗi (timeout) →
+cả hai failed, mục ĐỎ gắn event mới nhất #11 (motion); người sửa scene tiếp → #12 rà đạt (#12.before đã là trạng thái sau #10 nên Claude không thấy #10); trên
+main mục #11 vẫn giữ (đúng). Tắt cờ motion → #11 skipped → mục đóng; tìm lỗi scene mới đòi id > _LAST_OK = 12 nên #10 không sinh mục mới → cổng mở, job tốn
+tiền đi dù #10 chưa rà. Sửa (chọn một): chỉ đổi motion failed → skipped khi CÙNG shot không còn scene failed id nhỏ hơn; HOẶC chuyển mục ĐỎ sang event scene
+failed mới nhất của nhóm thay vì đóng. Test đỏ→xanh đúng kịch bản trên (qua process_pending thật). Phụ: dọn mkdtemp trong test (2); _usd_of_jobs giả trả []
+khi id rỗng → làm chắc. Commit mới trên cloud/v31-fix3-thap, cập nhật báo cáo, XONG hộp thư mã C-FIX3-THAP-B.
+```
+
 #### C-FIX3-THAP (cloud-C — ưu tiên 3; việc NHỎ; cloud-claude giao 22/10 sau rà kỹ C-M71-FIX + C-M63-FIX2) — 3 lỗi THẤP còn lại
 ```
 Nhánh mới cloud/v31-fix3-thap từ main, test đỏ→xanh:
