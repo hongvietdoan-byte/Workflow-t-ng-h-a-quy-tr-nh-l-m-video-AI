@@ -1458,3 +1458,8 @@ fixture p24-s265, p27-s272/284/285/287/291, replay-24-27.json). Kết quả: 0 C
 Nghiệm thu: phiên chính chụp lại ≥ 3 ảnh + ≥ 3 video COMPAT mỗi dự án, 0 CODE_MISMATCH. Báo cáo `docs/RA_CX21_GOLDEN_CODEX_2026-10-2x.md`, ghi lệnh chụp lại.
 (e) bổ sung CX21-GOLDEN 21/10: trên cloud (Python 3.13) 23 test golden replay ĐỎ vì worker ép 3.14 → các làn luôn thấy đỏ giả. Test cần worker thật:
     `pytest.mark.skipif` khi không có Python 3.14 native (lý do rõ); công cụ chụp thật vẫn fail-closed. Test tổng hợp không cần worker vẫn chạy mọi nơi.
+
+### CX21-FIX2 — THẤP merge_union: mục một bên xóa bị sống lại (từ rà C-RA-FIX21, nhỏ)
+`tools/merge_union.py` `merge_json`, list không có `id`: hợp kiểu union → A xóa `f2`, B thêm `fB` cho `["f1","f2","f3","fB"]`. Sửa theo `base`:
+`[x for x in ours if x in theirs or x not in base] + [x for x in theirs if x not in ours and x not in base]` (base không phải list → như cũ). Test "một bên xóa,
+bên kia thêm" ĐỎ→XANH. Nhánh `codex/v31-fix2-21`. Báo cáo ngắn trong docs/RA_CX21_FIX_CODEX_2026-10-21.md (mục bổ sung).
