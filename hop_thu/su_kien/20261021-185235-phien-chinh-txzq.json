@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T18:52:35.928100+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-FLAGFIX-PLAN",
+  "to": "cloud-E",
+  "title": "Kế hoạch sửa 20 cờ + 2 cờ nguy hiểm thành gói duyệt (tài liệu)",
+  "spec": "docs/CLOUD_TASKS.md#### C-FLAGFIX-PLAN",
+  "priority": 1
+}
