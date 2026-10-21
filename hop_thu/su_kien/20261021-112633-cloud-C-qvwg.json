@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:26:33.791134+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "DP12",
+  "branch": "cloud/v31-dp12",
+  "commit": "3b4373a4",
+  "report": "docs/RA_CLOUD_DP12_2026-10-21.md",
+  "text": "DP12 pilot vòng A offline xong: tools/pilot_a.py (ca lấy thẳng từ devsys/errors.json: FIXED_UNVERIFIED phải xanh, OPEN phải đỏ; 5 nhóm; 5 tiêu chí mục 1.3; kết quả DAT_OFFLINE/CHUA_DO_DU/ROT — không bao giờ VERIFIED) + tools/pilot_a_guard.py (plugin pytest chặn kết nối ra ngoài, ghi lại mọi lần ghi data/). 15 test (đỏ trước). Chạy thật cloud: CHUA_DO_DU — 18/18 ca đã sửa xanh, 0 kết nối ra ngoài, 0 ghi data/; golden không đo được (cần Python 3.14 → chạy lại ở máy chính). Phát hiện: c5 đạt vì 0 mục OPEN có tests (xfail narration chưa ghi vào sổ); nhóm lineage 0 ca (G22/G55 chưa có test); 62 mục sổ chưa có test. HẠN MỨC: không đọc được."
+}
