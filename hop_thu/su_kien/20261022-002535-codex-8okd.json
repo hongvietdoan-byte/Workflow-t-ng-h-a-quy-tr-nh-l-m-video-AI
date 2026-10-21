@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T00:25:35.613831+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX21-GOLDEN6",
+  "branch": "codex/v31-golden6",
+  "commit": "d45d322a",
+  "report": "docs/RA_CX21_GOLDEN6_CODEX_2026-10-22.md",
+  "text": "CHƯA ĐẠT: negativecontrol nativeXANH1pass19.67s trước lượt thật; tool91708722 A62ede0dc B9746a6ea. Baselineunion155cờ/30experimentalOFF có gen_auth_shadow mới. PreflightA/B qua nhưng build_from_database validator dùng catalogtool153 thiếu gen_auth_shadow, từ chối cấu hình trướcworker;158BOTHFAIL/loaded0trên316,5.744s exit1,không bằng chứngcompatible. Không loại cờ/rerun/sửa tool. Cần chủtool sửa unioncatalog và invalidprecondition phải failwhole rõ thay foldBOTHFAIL. Đãrootrà/push report-onlyd45d322a; snapshot6 ngoàiGit,3worktree tạm gỡ,0USD/live readonly."
+}
