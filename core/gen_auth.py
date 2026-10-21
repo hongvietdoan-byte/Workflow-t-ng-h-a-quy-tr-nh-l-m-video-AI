@@ -109,10 +109,17 @@ def cycle_start(data_dir: Optional[str], pid: int, scene_id: int, kind: str) -> 
 def attempts(conn, scene_id: int, kind: str, *, exclude_job_id: Optional[int] = None, since: Optional[str] = None) -> List:
     """Các job ĐÃ TÍNH lượt của shot / loại (cũ → mới): có task ở provider hoặc submit chưa rõ; trừ not_created (provider không tạo)
     và bước nâng nháp → bản cao (Q1)."""
-    rows = conn.execute("SELECT * FROM jobs WHERE scene_id=? AND type=? AND (? IS NULL OR id<>?) AND (? IS NULL OR created_at>=?) "
-                        "ORDER BY id", (scene_id, kind, exclude_job_id, exclude_job_id, since, since)).fetchall()
+    rows = conn.execute("SELECT * FROM jobs WHERE type=? AND (? IS NULL OR id<>?) AND (? IS NULL OR created_at>=?) AND (scene_id=? OR "
+                        "(sent_group IS NOT NULL AND json_valid(sent_group) AND EXISTS (SELECT 1 FROM json_each(jobs.sent_group) g "
+                        "WHERE CAST(json_extract(g.value, '$.id') AS INTEGER)=?))) ORDER BY id",
+                        (kind, exclude_job_id, exclude_job_id, since, since, scene_id, scene_id)).fetchall()
+    # C-M63-FIX: clip NHÓM (Seedance / multi-shot) do shot đầu gửi mang phần của shot này (sent_group) — tính cho shot này; job đi kèm
+    # của chính shot đã nhận cùng task (external_id của leader) thì không đếm 2 lần
+    own_ext = {r["external_id"] for r in rows if r["scene_id"] == scene_id and r["external_id"]}
     out = []
     for r in rows:
+        if r["scene_id"] != scene_id and r["external_id"] in own_ext:
+            continue
         if is_upgrade(r):
             continue
         note = _failed_note(conn, r["id"])            # mọi trạng thái: job not_created / submit_unknown sau resend thành cancelled
@@ -125,13 +132,25 @@ def attempts(conn, scene_id: int, kind: str, *, exclude_job_id: Optional[int] = 
     return out
 
 
+_PRICING_CACHE: Dict = {}
+PRICING_TTL_S = 60
+_BUDGET_CACHE: Dict = {}
+
+
 def _pricing():
+    """Bảng giá — nạp lại tối đa mỗi PRICING_TTL_S (C-M63-FIX: trước nạp mỗi lượt gửi, trong SPEND_LOCK)."""
+    import time
+    hit = _PRICING_CACHE.get("v")
+    if hit is not None and time.monotonic() - hit[0] < PRICING_TTL_S:
+        return hit[1]
     from . import cost
     try:
         pricing = cost.load_pricing()
     except Exception:  # noqa: BLE001 - shadow: không có bảng giá → không tính tiền (nói trong lý do)
-        return None
-    return None if not isinstance(pricing, dict) or pricing.get("_error") else pricing   # bảng giá hỏng ≠ ngân sách 0
+        pricing = None
+    pricing = None if not isinstance(pricing, dict) or pricing.get("_error") else pricing   # bảng giá hỏng ≠ ngân sách 0
+    _PRICING_CACHE["v"] = (time.monotonic(), pricing)
+    return pricing
 
 
 def _usd_of_jobs(conn, job_ids: List[int], pricing) -> float:
@@ -152,6 +171,20 @@ def repair_budget(conn, project_id: int, data_dir: Optional[str] = None, pricing
     """{"first_usd", "repair_usd", "limit_usd", "left_usd", "pct"} — tiền lượt đầu / làm lại theo SỔ CHI (usage_events) của các lượt đã
     tính; ngân sách = REPAIR_PCT × lượt đầu (EP đổi tỷ lệ theo dự án: app_settings `gen_auth_repair_pct:<pid>`)."""
     pricing = pricing if pricing is not None else _pricing()
+    # C-M63-FIX: cache theo lượt — CSDL không đổi (total_changes + data_version) thì dùng lại (trước: N+1 truy vấn mỗi lượt gửi, trong SPEND_LOCK)
+    try:
+        key = (id(conn), project_id, data_dir, conn.total_changes, conn.execute("PRAGMA data_version").fetchone()[0], id(pricing))
+    except Exception:  # noqa: BLE001 - kết nối lạ: không cache
+        key = None
+    if key is not None and _BUDGET_CACHE.get("key") == key:
+        return dict(_BUDGET_CACHE["value"])
+    value = _repair_budget(conn, project_id, data_dir, pricing)
+    if key is not None:
+        _BUDGET_CACHE.update(key=key, value=dict(value))
+    return value
+
+
+def _repair_budget(conn, project_id: int, data_dir: Optional[str], pricing) -> Dict:
     pct = REPAIR_PCT
     try:
         row = conn.execute("SELECT value FROM app_settings WHERE key=?", (f"gen_auth_repair_pct:{project_id}",)).fetchone()
@@ -318,7 +351,7 @@ def authorize(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool]
 
 
 def shadow(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool] = None, data_dir: Optional[str] = None,
-           group: Optional[List[int]] = None) -> Optional[Decision]:
+           group: Optional[List[int]] = None, route: Optional[str] = None) -> Optional[Decision]:
     """SHADOW: tính quyết định và GHI vào `<data_dir>/<pid>/crew/gen_auth_shadow.jsonl` — không chặn, không ghi CSDL. Cờ tắt → None,
     không đọc gì. `group` = các shot KHÁC cùng đi trong lượt gửi nhóm (multi-shot / nhóm Seedance): mỗi shot một dòng quyết định (trần
     lượt tính theo shot), dòng của leader trả về. Một job còn trong hàng (lỗi tạm, gửi lại nhịp sau) có thể có nhiều dòng — đọc theo
@@ -328,7 +361,7 @@ def shadow(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool] = 
             return None
         d = authorize(conn, job, model=model, upgrade=upgrade, data_dir=data_dir)
         lines = [{"at": _now(), "job_id": job["id"], "scene_id": job["scene_id"], "kind": job["type"], "model": model or job["model"],
-                  **asdict(d)}]
+                  **({"route": route} if route else {}), **asdict(d)}]
         for sid in group or []:
             member = dict(job)
             member["scene_id"] = sid
@@ -345,6 +378,19 @@ def shadow(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool] = 
         import sys
         print(f"[gen_auth] shadow lỗi job {job['id'] if job is not None else '?'}: {type(e).__name__}: {e}", file=sys.stderr)
         return None
+
+
+def shadow_send(conn, *, project_id: int, scene_id: Optional[int], kind: str, model: Optional[str], route: str,
+                data_dir: Optional[str]) -> Optional[Decision]:
+    """C-M63-FIX: các đường gửi tiền KHÔNG qua runner (`spend_gate.slot.send` thẳng: khung cuối, phép thử chất lượng, khớp môi, ảnh
+    toàn cảnh, bộ ảnh nhân vật, thử nghiệm multi-shot) — cùng cổng shadow, một job GIẢ (không id, origin 'auto') cho shot / loại;
+    dòng jsonl mang `route`. Không chặn, không ghi CSDL; cờ tắt → None (không đọc gì)."""
+    if not enabled():
+        return None
+    job = {"id": None, "type": kind, "project_id": project_id, "scene_id": scene_id, "model": model, "origin": "auto",
+           "parent_job_id": None, "retry_reason": None, "reject_reason": None, "quality_tier": None, "draft_job_id": None,
+           "sent_package": None, "created_at": _now(), "route": route}
+    return shadow(conn, job, model=model, data_dir=data_dir, route=route)
 
 
 def latest_per_job(rows: List[Dict]) -> List[Dict]:

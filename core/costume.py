@@ -83,7 +83,10 @@ def make_character_set(p: Pipeline, project_id: int, name: str, provider, data_d
             provider.size = PORTRAIT_SIZE
         tasks = []
         try:
+            from . import gen_auth                 # C-M63-FIX: M6.3 shadow (bộ ảnh nhân vật — không gắn shot)
             for key, prompt in prompts:
+                gen_auth.shadow_send(p.conn, project_id=project_id, scene_id=None, kind="image_gen", model=model,
+                                     route="character_set", data_dir=data_dir)
                 tasks.append((key, slot.send(provider.submit, prompt, [r["path"] for r in refs])))
                 slot.record()
         finally:

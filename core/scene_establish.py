@@ -331,6 +331,9 @@ def step(conn, pid: int, story_scene, provider, data_dir: str, model: Optional[s
             say("warn", "budget", f"ảnh toàn cảnh cảnh {story_scene} không gửi: {slot.over}")
             return "skipped"
         prompt = prompt_for(conn, pid, rows, with_render)
+        from . import gen_auth                     # C-M63-FIX: M6.3 shadow (ảnh toàn cảnh của cảnh truyện — không gắn một shot)
+        gen_auth.shadow_send(conn, project_id=pid, scene_id=None, kind="image_gen", model=model,
+                             route="trainee_establishing" if trainee else "establishing", data_dir=data_dir)
         try:
             try:
                 mid = slot.send(provider.submit, prompt, pictures or None, size=SIZE, model=model)

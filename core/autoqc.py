@@ -117,23 +117,30 @@ def start(db_path: str, data_dir: str, project_id: int, client_factory: Optional
     return True
 
 
-_codes: Dict[Tuple[str, int], str] = {}          # M7.4 (rà C-M74): mã lỗi dừng (LlmError.code / no_client) — vòng nền phân loại theo MÃ
+_codes: Dict[Tuple[str, int], Tuple[str, float]] = {}   # M7.4 (rà C-M74): mã lỗi dừng (LlmError.code / no_client) + lúc ghi
 
 
 def last_error_code(kind: str, project_id: int) -> Optional[str]:
-    """Mã của lần tự kiểm dừng gần nhất ("image" / "video"): STOP_CODES của llm_runner hoặc "no_client"; None = không dừng vì Claude."""
-    return _codes.get((kind, project_id))
+    """Mã của lần tự kiểm dừng gần nhất ("image" / "video"): STOP_CODES của llm_runner hoặc "no_client"; None = không dừng vì Claude.
+    Giữ QUA cửa sổ RETRY_AFTER (vòng nền chỉ phân loại "kẹt" sau AUTOQC_TRIES vòng — M7.4); C-M63-FIX: bị xóa khi một lượt MỚI bắt đầu
+    (lỗi hết hạn → vòng nền chạy lại → mã của lượt cũ không còn đúng), khi lượt dừng vì lỗi khác, và ở clear_error / clear_video_error —
+    trước đó mã không bao giờ xóa: một lần Claude dừng làm mọi lần kẹt sau bị báo nhầm "Claude không dùng được"."""
+    entry = _codes.get((kind, project_id))
+    return entry[0] if entry else None
 
 
 def _fail(conn, project_id: int, message: str, code: Optional[str] = None) -> None:
     _errors[project_id] = (message, time.time())
     if code:
-        _codes[("image", project_id)] = code
+        _codes[("image", project_id)] = (code, time.time())
+    else:
+        _codes.pop(("image", project_id), None)          # dừng vì lỗi khác: không giữ mã Claude cũ
     diag.record(conn, "qc", "warn", f"tự kiểm tra ảnh dừng: {message}", "autoqc", project_id)
 
 
 def _work(db_path: str, data_dir: str, project_id: int, client_factory: Callable, per_job: bool = False) -> None:
     conn = None
+    _codes.pop(("image", project_id), None)              # C-M63-FIX: lượt mới — mã dừng của lượt trước không còn đúng
     try:
         conn = connect(db_path)
         p = Pipeline(conn)
@@ -191,6 +198,7 @@ def video_last_error(project_id: int) -> Optional[str]:
 
 def clear_video_error(project_id: int) -> None:
     _video_errors.pop(project_id, None)
+    _codes.pop(("video", project_id), None)              # C-M63-FIX: trước chỉ xóa lỗi, giữ mã video cũ
 
 
 def start_video(db_path: str, data_dir: str, project_id: int, client_factory: Optional[Callable] = None) -> bool:
@@ -222,6 +230,7 @@ def start_video(db_path: str, data_dir: str, project_id: int, client_factory: Op
 def _video_work(db_path: str, data_dir: str, project_id: int, client_factory: Callable, per_job: bool = False) -> None:
     from . import claude_tasks
     conn = None
+    _codes.pop(("video", project_id), None)              # C-M63-FIX: lượt mới — mã dừng của lượt trước không còn đúng
     try:
         conn = connect(db_path)
         p = Pipeline(conn)
@@ -236,7 +245,7 @@ def _video_work(db_path: str, data_dir: str, project_id: int, client_factory: Ca
             except llm_runner.LlmError as e:
                 if e.code in llm_runner.STOP_CODES:      # V3.1 M1.4a: + usage_limit / out_of_credit
                     _video_errors[project_id] = (str(e), time.time())
-                    _codes[("video", project_id)] = e.code
+                    _codes[("video", project_id)] = (e.code, time.time())
                     diag.record(conn, "video", "warn", f"tự kiểm tra video dừng: {e}", "autoqc_video", project_id)
                     return
                 p.transition(todo[0], JobState.PENDING_REVIEW, actor="ai_agent", note=f"tự kiểm tra video lỗi: {e}")

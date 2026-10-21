@@ -91,6 +91,12 @@ def kling_multishot(p: Pipeline, project_id: int, sequence: int, provider, data_
     with spend_gate.spend(p.conn, "video", provider.name, project_id=project_id, model=MODEL, tier=_tier(), units=total,
                           ledger_stage="kling_multishot") as slot:
         slot.raise_if_over("Không gửi thử nghiệm multi-shot")
+        from . import gen_auth                     # C-M63-FIX: M6.3 shadow (thử nghiệm multi-shot — mỗi shot của nhóm một dòng)
+        if gen_auth.enabled():
+            ids = [s["id"] for s in scenes if "id" in s.keys() and s["id"]]
+            for sid in ids or [None]:
+                gen_auth.shadow_send(p.conn, project_id=project_id, scene_id=sid, kind="video_gen", model="kling",
+                                     route="kling_multishot", data_dir=data_dir)
         task = slot.send(provider.submit, first, shots[0]["prompt"], None, total, "kling", **kwargs)
         slot.record()
     items = load(data_dir, project_id)
