@@ -1,6 +1,7 @@
 """V3.1 M4.7 phần XEM (C-M47A, cờ send_preview_panel TẮT): thẻ clip Bước 4 — khung gập "Gói sẽ gửi" dựng bằng ĐÚNG đường của nút Gen
 (VideoRunner._submit_args / _submit_kwargs / _build_package), KHÔNG gọi nhà cung cấp, không ghi CSDL / diag; khung "QC shadow" đọc
 M4.2 (video_qc.jsonl), M4.3 (continuity_shadow.json), M4.1 (qc_evidence). Không có nút sửa / override. Provider giả, CSDL tạm."""
+from tests._flags import pin_off
 import functools
 import inspect
 import json
@@ -70,6 +71,10 @@ class Base(unittest.TestCase):
 
 
 class PackagePreviewTests(Base):
+    def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_preview_is_the_package_the_gen_button_sends(self):
         job = self.video_job()
         prov = MockVideoProvider()
