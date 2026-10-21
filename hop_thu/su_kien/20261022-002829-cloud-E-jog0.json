@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T00:28:29.614558+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "C-M210-DESIGN",
+  "branch": "cloud/v31-m210",
+  "commit": "b7cc130b",
+  "report": "docs/RA_CLOUD_M210_2026-10-21.md",
+  "text": "(1) docs/KE_HOACH_GOI_GUI_TOI_GIAN_2026-10-21.md: 9 loại shot → ref tối thiểu + câu vai + thân lệnh 2–4 câu, GIỮ/BỎ/ĐỔI câu builder, đổi skin/nền = 1 ref + 1 dòng, chỉ số đo, đề xuất A/B Cấp 3. (2) core/lean_package.py SHADOW (cờ lean_package TẮT; preset experimental sẽ bật — tắt hẳn: FEATURE_LEAN_PACKAGE=0) + tools/lean_package_shadow.py (CSDL mode=ro) — chạy trên #31/#33 thật. Đã qua agent rà (2 VỪA: dạng 'thuong' bị tính đổi dạng → sửa; fixture golden thiếu sent_package_relpath → vá, golden 3.14 108 xanh/3 đỏ môi trường, 6 ca so byte xanh). Nhánh tách từ cloud/v31-m2-tichhop."
+}
