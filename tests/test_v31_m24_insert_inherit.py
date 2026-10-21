@@ -224,3 +224,33 @@ class StagePropsBydTests(_tsa.Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DraftProvenanceTests(unittest.TestCase):
+    """Tích hợp M2 VỪA-2 (DP9/M2.4 × M2.1): BYĐ nháp dùng MỘT nguồn provenance — `_p` của M2.1 {by, model, at, revision} thêm
+    `draft` (bool) + `from` (scene id); nháp là BYĐ v2 (`_p` chỉ hợp lệ ở v2); mọi nơi đọc nháp qua shot_intent.is_draft / draft_source."""
+
+    def draft(self):
+        return shot_intent.draft_of({"byd": dict(BYD)}, 3, 41)
+
+    def test_draft_is_v2_and_its_provenance_is_valid(self):
+        b = self.draft()
+        self.assertEqual(shot_intent.version(b), shot_intent.BYD_V)
+        self.assertFalse([i for i in shot_intent.validate(b) if i["truong"].startswith("_p")])
+        self.assertEqual(shot_intent.draft_source(b), 41)
+        self.assertIsNone(shot_intent.draft_source(dict(BYD)))
+
+    def test_bad_draft_keys_are_said(self):
+        b = self.draft()
+        b["_p"].update(draft="có", **{"from": "shot 6"})
+        bad = {i["truong"] for i in shot_intent.validate(b)}
+        self.assertTrue({"_p.draft", "_p.from"} <= bad)
+
+    def test_image_gate_reads_the_draft_through_shot_intent(self):
+        from core import image_pregen
+        out = []
+        with mock.patch.object(shot_intent, "draft_source", return_value=99) as src:
+            image_pregen._check_byd(None, 1, {}, {"byd": self.draft()}, out)
+        self.assertTrue(src.called)
+        self.assertEqual([i["ma"] for i in out], ["byd_draft"])
+        self.assertIn("99", out[0]["ly_do"])
