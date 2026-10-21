@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-21T14:40:42.356645+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX21-M23",
+  "text": "M23 đã push WIP 37f1668b: ba lỗi đường ghi đã tái hiện ĐỎ rồi sửa; 28 test hẹp qua. SAVEPOINT + audit_log nguyên tử, 45 test liên quan qua; nút lưu outfit chỉ cho Owner hiện hành, 43 test Kho qua. Đang rà SQL readers và merge profile v2; CHƯA XONG, chưa gộp. Câu hỏi BYĐ/shot_intent trong 20261021-140028-codex-uqj7.json vẫn chờ để đóng toàn bộ readers."
+}
