@@ -194,3 +194,26 @@ class M71HeroTakesEstimate(unittest.TestCase):
     def test_collect_lists_hero_takes(self):
         with mock.patch.dict(os.environ, {"FEATURE_HERO_TAKES": "1"}):
             self.assertTrue([t for t in _texts(self.collect(), "cost") if "`hero_takes`" in t])
+
+
+class M71HeroSameSetAsStep4(unittest.TestCase):
+    """Rà kỹ C-M71 (THẤP 5): 🧭 hero_takes dùng cùng tập shot với ước tính Bước 4 (ready_for_video, bỏ shot đã có clip) khi đã có."""
+    setUp, _asset, collect = BeforeRun.setUp, BeforeRun._asset, BeforeRun.collect
+
+    def test_uses_ready_shots_when_any(self):
+        from core import cost
+        idx = self.p.add_scene_next(self.pid, "s2")
+        sid2 = self.c.execute("SELECT id FROM scenes WHERE project_id=? AND idx=?", (self.pid, idx)).fetchone()[0]
+        for sid in (self.sid, sid2):
+            self.c.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"shot_role": "hero"}), sid))
+        self.c.commit()
+        with mock.patch.dict(os.environ, {"FEATURE_HERO_TAKES": "1"}), mock.patch.object(cost, "clip_estimate", return_value=0.5), \
+                mock.patch.object(cost, "ready_for_video", return_value=[{"scene_id": sid2}]):
+            hit = [i["text"] for i in BR._cost_items(self.c, self.pid) if "`hero_takes`" in i["text"]]
+        self.assertIn("thêm 1 clip", hit[0])
+        self.assertIn("0.50 USD", hit[0])
+        with mock.patch.dict(os.environ, {"FEATURE_HERO_TAKES": "1"}), mock.patch.object(cost, "clip_estimate", return_value=0.5), \
+                mock.patch.object(cost, "ready_for_video", return_value=[]):
+            hit = [i["text"] for i in BR._cost_items(self.c, self.pid) if "`hero_takes`" in i["text"]]
+        self.assertIn("thêm 2 clip", hit[0])
+        self.assertIn("theo kế hoạch", hit[0])

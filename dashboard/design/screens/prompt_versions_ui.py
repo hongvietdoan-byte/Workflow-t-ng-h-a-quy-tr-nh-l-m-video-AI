@@ -57,7 +57,8 @@ def _proposal(p, scene_id: int, kind: str, act=None) -> bool:
         if st.button("✔ Áp dụng đề xuất", key=f"pvprop_{kind}_{scene_id}",
                      help="Không gọi Claude, không tạo job — lần gen sau dùng prompt này."):
             run = act or (lambda fn, msg="": (fn(), True)[1])
-            if run(lambda: prompt_rewrite.apply_proposal(p, scene_id, kind), "Đã áp dụng đề xuất của Đạo diễn"):
+            mark = prompt_rewrite.proposal_mark(got)          # rà kỹ C-M71: áp dụng đúng bản đang hiện
+            if run(lambda: prompt_rewrite.apply_proposal(p, scene_id, kind, expect=mark), "Đã áp dụng đề xuất của Đạo diễn"):
                 st.rerun()
     return True
 

@@ -77,14 +77,23 @@ def _short_label(label: str, n: int = 90) -> str:
 def _hero_money(conn, pid: int) -> str:
     """C-M71 A2: số clip ⭐ thêm của DỰ ÁN này + USD ước tính (cost.clip_estimate từng shot — cùng hàm ô 💰 / nút Gen)."""
     from . import cost, hero_takes
-    sids = [r[0] for r in conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx", (pid,))]
+    from .pipeline import Pipeline
+    # rà kỹ C-M71: cùng tập shot với ước tính Bước 4 (cost.estimate_videos_by_scene: ready_for_video, bỏ shot đã có clip sống trừ
+    # đang chờ); chưa shot nào sẵn sàng video (Bước 1) → mọi shot của dự án, nói rõ "theo kế hoạch"
+    live = {r[0] for r in conn.execute("SELECT scene_id FROM jobs WHERE project_id=? AND type='video_gen' AND state NOT IN "
+                                       "('cancelled','rejected','queued')", (pid,))}
+    ready = [r["scene_id"] for r in cost.ready_for_video(Pipeline(conn), pid)]
+    planned = not ready
+    sids = [r[0] for r in conn.execute("SELECT id FROM scenes WHERE project_id=? ORDER BY idx", (pid,))] if planned else \
+        [sid for sid in ready if sid not in live]
     extra = hero_takes.extra_clips(conn, pid, sids)
+    where = " (theo kế hoạch — chưa shot nào sẵn sàng video)" if planned else ""
     if not extra:
-        return "dự án này chưa có shot ⭐ gửi riêng — 0 clip thêm lúc này (mỗi shot ⭐ sau này thêm 1 clip)"
+        return "dự án này chưa có shot ⭐ gửi riêng — 0 clip thêm lúc này (mỗi shot ⭐ sau này thêm 1 clip)" + where
     prices = [cost.clip_estimate(conn, sid) for sid in extra]
     if any(p is None for p in prices):
-        return f"thêm {len(extra)} clip cho {len(extra)} shot ⭐ — chưa có giá model (xem ước tính dư ở Bước 4)"
-    return f"thêm {len(extra)} clip cho {len(extra)} shot ⭐ ≈ {sum(prices):.2f} USD (ước tính)"
+        return f"thêm {len(extra)} clip cho {len(extra)} shot ⭐{where} — chưa có giá model (xem ước tính dư ở Bước 4)"
+    return f"thêm {len(extra)} clip cho {len(extra)} shot ⭐{where} ≈ {sum(prices):.2f} USD (ước tính)"
 
 
 def _end_frame_money(conn, pid: int) -> str:

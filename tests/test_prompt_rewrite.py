@@ -794,3 +794,33 @@ class RespectLock(Base):
             self.p.reject(job, "user", "đổi áo sang màu vàng")
         self.assertEqual(self.image_prompt(sid), NEW)                       # hành vi cũ giữ nguyên khi cờ con tắt
         self.assertEqual(self.diags(prompt_rewrite.PROPOSAL_CODE), [])
+
+
+class RespectLockDeepReview(Base):
+    """Rà kỹ C-M71 (THẤP 5 + test thiếu): áp dụng đề xuất sau khi người vừa sửa tay → báo lỗi; nút Áp dụng gửi kèm dấu bản đang hiện."""
+    lock, diags = RespectLock.lock, RespectLock.diags
+
+    def _propose(self):
+        _, sid, job = self.make()
+        self.lock(sid, "image_prompt")
+        with mock.patch.dict(os.environ, LOCK):
+            self.p.reject(job, "user", "đổi áo sang màu vàng")
+        return sid
+
+    def test_apply_after_hand_edit_is_refused(self):
+        sid = self._propose()
+        data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()["data"])
+        data["image_prompt"] = "the person's own new prompt"
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data), sid))
+        self.p.conn.commit()
+        with self.assertRaises(ValueError):
+            prompt_rewrite.apply_proposal(self.p, sid, "image")
+        self.assertEqual(self.image_prompt(sid), "the person's own new prompt")
+
+    def test_apply_refuses_a_different_proposal_than_shown(self):
+        sid = self._propose()
+        shown = prompt_rewrite.proposal_mark(prompt_rewrite.proposal(self.p.conn, sid, "image"))
+        with self.assertRaises(ValueError):
+            prompt_rewrite.apply_proposal(self.p, sid, "image", expect="khác")
+        self.assertEqual(self.image_prompt(sid), OLD)
+        self.assertEqual(prompt_rewrite.apply_proposal(self.p, sid, "image", expect=shown), NEW)

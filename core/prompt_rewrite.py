@@ -433,13 +433,24 @@ def _keep_proposal(p, job, res: RewriteResult) -> None:
     p.conn.commit()
 
 
-def apply_proposal(p, scene_id: int, kind: str) -> str:
-    """The person presses "Áp dụng" on the Director's proposal: the prompt becomes it (old one kept as a version). Free."""
+def proposal_mark(got: Optional[Dict]) -> Optional[str]:
+    """Short mark of a proposal (its prompt + time) — the "Áp dụng" button sends the one it SHOWS (rà kỹ C-M71)."""
+    if not got:
+        return None
+    import hashlib
+    return hashlib.sha256(f"{got.get('at')}|{got.get('prompt')}".encode("utf-8")).hexdigest()[:12]
+
+
+def apply_proposal(p, scene_id: int, kind: str, expect: Optional[str] = None) -> str:
+    """The person presses "Áp dụng" on the Director's proposal: the prompt becomes it (old one kept as a version). Free.
+    expect = proposal_mark of the proposal on screen: a newer proposal written meanwhile is refused (the person saw another one)."""
     from . import access
     access.need_edit_scene(p, scene_id, "áp dụng đề xuất của Đạo diễn")
     got = proposal(p.conn, scene_id, kind)
     if got is None:
         raise ValueError("Không có đề xuất của Đạo diễn còn khớp prompt hiện tại của shot.")
+    if expect is not None and proposal_mark(got) != expect:
+        raise ValueError("Đề xuất của Đạo diễn vừa đổi (bản mới hơn bản bạn đang xem) — tải lại trang rồi xem lại.")
     pid = p.conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()["project_id"]
     if not versions(p.conn, scene_id, kind) or versions(p.conn, scene_id, kind)[-1]["prompt"] != got["old_prompt"]:
         _add_version(p.conn, pid, scene_id, kind, got["old_prompt"], "original" if not versions(p.conn, scene_id, kind) else "manual",
