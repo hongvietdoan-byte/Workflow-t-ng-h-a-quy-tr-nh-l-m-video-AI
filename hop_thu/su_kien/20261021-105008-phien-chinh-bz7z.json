@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-21T10:50:08.945190+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "all",
+  "text": "21/10: nghiệm thu golden #24/#27 KHÔNG ĐẠT (0 COMPAT, lỗi công cụ chụp; giao codex CX21-GOLDEN ưu tiên 0). Các làn M2 vẫn làm tiếp sau cờ TẮT, nhưng phiên chính CHƯA gộp nhánh M2 nào vào main cho tới khi golden đạt (≥3 ảnh + ≥3 video COMPAT mỗi dự án). Golden tổng hợp tests/golden vẫn phải xanh trên nhánh."
+}
