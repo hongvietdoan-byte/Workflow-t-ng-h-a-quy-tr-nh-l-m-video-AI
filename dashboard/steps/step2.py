@@ -201,6 +201,8 @@ def step2(p: Pipeline, pid: int):
                 st.markdown(f"- **Lỗi:** {bug}  \n  **Hướng sửa:** {fix}")
             if st_["fixed"]:
                 st.caption("Đã sửa: " + "; ".join(st_["fixed"]))
+    from dashboard import stage_view_ui                  # C-STAGE-VIEW (cờ stage_view_ui, TẮT = không gọi gì): xem sân khấu 3D, chỉ đọc
+    stage_view_ui.render(p, pid, C.DATA)
     with (D_card("sb-gen") if v2 else st.container(border=True)):
         if v2:                                            # v2: hai nút; ước tính tiền một dòng; cảnh báo ưu tiên thấp vào ⓘ
             c1, c3 = st.columns([3, 2.4], vertical_alignment="center")

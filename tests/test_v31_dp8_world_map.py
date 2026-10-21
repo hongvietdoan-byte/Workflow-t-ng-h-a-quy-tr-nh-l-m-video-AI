@@ -148,4 +148,10 @@ def test_nothing_in_the_gen_path_reads_the_map():
     use = re.compile(r"^\s*(?:from\s+\S+\s+)?import\s+[^\n]*\bworld_map\b|\bworld_map\.\w", re.M)   # import / gọi hàm (tên cờ không tính)
     users = [str(p.relative_to(root)) for d in ("core", "dashboard") for p in (root / d).rglob("*.py")
              if p.name != "world_map.py" and use.search(p.read_text(encoding="utf-8", errors="replace"))]
-    assert users == []
+    # C-STAGE-VIEW (21/10): màn XEM sân khấu 3D (cờ stage_view_ui) chỉ đọc map để hiện — không thuộc đường gen; cấm ghi / dựng map
+    read_only_views = {"dashboard/stage_view_ui.py"}
+    assert [u for u in users if u.replace("\\", "/") not in read_only_views] == []
+    for view in read_only_views:
+        src = (root / view).read_text(encoding="utf-8")
+        for word in ("world_map.refresh(", "world_map.save(", "world_map.build", "world_map._write("):
+            assert word not in src, (view, word)
