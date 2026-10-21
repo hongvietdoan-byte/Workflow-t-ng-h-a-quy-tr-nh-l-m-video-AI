@@ -262,7 +262,7 @@ def annotate_d6(conn, results: list) -> list:
     from core import chat_prompt
     for s in results:
         if not s.get("error"):
-            s["d6"] = chat_prompt.saved_view(conn, s["job_id"], "image")
+            s["d6"] = chat_prompt.saved_view(conn, s["job_id"], "image", assembled=s.get("prompt"))
     return results
 
 

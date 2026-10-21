@@ -337,3 +337,47 @@ class M71QuotaAndPayload(unittest.TestCase):
             rp._print(res, 0)
         self.assertIn("D6", out.getvalue())
         self.assertIn("chưa xem được", out.getvalue())
+
+
+class M71DeepReviewD6(unittest.TestCase):
+    """Rà kỹ C-M71 (VỪA 4, THẤP 5): saved_view nói đúng khi D6 tạm ngừng / đầu vào đã đổi; lượt sửa hết tiền như lượt đầu."""
+    setUp, _job, _rewrite = ChatPromptTests.setUp, ChatPromptTests._job, ChatPromptTests._rewrite
+    _quota = M71QuotaAndPayload._quota
+
+    def test_paused_says_package_is_assembled(self):
+        self._rewrite(FakeClaude([{"prompt": "Image 1 and Image 2: d6 text"}]))
+        self._rewrite(self._quota(), assembled=ASSEMBLED + " x")             # job khác đầu vào → hết tiền → tạm ngừng
+        view = chat_prompt.saved_view(self.p.conn, self.jid, "image", assembled=ASSEMBLED)
+        self.assertEqual(view["state"], "paused")
+        self.assertIn("tạm ngừng tới", view["note"])
+        self.assertIn("code ghép", view["note"])
+
+    def test_saved_view_says_whether_inputs_match(self):
+        self._rewrite(FakeClaude([{"prompt": "Image 1 and Image 2: d6 text"}]))
+        same = chat_prompt.saved_view(self.p.conn, self.jid, "image", assembled=ASSEMBLED)
+        self.assertEqual(same["state"], "saved")
+        self.assertIn("khớp", same["note"])
+        other = chat_prompt.saved_view(self.p.conn, self.jid, "image", assembled=ASSEMBLED + " changed")
+        self.assertEqual(other["state"], "stale")
+        self.assertIn("đã đổi", other["note"])
+
+    def test_fix_turn_out_of_credit_is_like_first_turn(self):
+        from core.llm_runner import LlmError
+        answers = [{"prompt": "Kelly behind the wall, as in Image 1."}]        # bản đầu mất Image 2 → lượt sửa
+
+        class Half(FakeClaude):
+            def complete(self, prompt, images=()):
+                if self.answers:
+                    return super().complete(prompt, images)
+                raise LlmError("credit", code="out_of_credit")
+        self.assertEqual(self._rewrite(Half(answers)), ASSEMBLED)
+        self.assertIn(chat_prompt.QUOTA_CODE, [c for _, c, _ in self.said])
+        hit = chat_prompt._cached(self.p.conn, chat_prompt.fingerprint("image", "gpt-image", ASSEMBLED,
+                                                                      [("Image 1: plate", self.pics[0]), ("Image 2: KELLY", self.pics[1])],
+                                                                      chat_prompt.intent_of(json.loads(self.p.conn.execute(
+                                                                          "SELECT data FROM scenes WHERE id=?", (self.sid,)).fetchone()[0])),
+                                                                      chat_prompt.user_notes(self.p.conn, self.sid, "image_gen"), 4000))
+        self.assertIsNone(hit)                                                 # không ghi 'refused' cho đầu vào này
+        calls = json.loads(self.p.conn.execute("SELECT value FROM app_settings WHERE key=?",
+                                               (chat_prompt.CALLS_KEY.format(self.jid),)).fetchone()[0])
+        self.assertEqual(calls.get("fix", 0), 0)                               # không mất lượt sửa

@@ -309,24 +309,40 @@ def previous_take(conn, job, kind: str) -> Tuple[List[Tuple[str, str]], Optional
     return [(f"Khung {i} của clip lần trước (bị loại)", fr) for i, fr in enumerate(frames, 1)], tmp
 
 
-def _quota_paused(conn) -> bool:
+def _pause(conn, e) -> None:
+    conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                 (QUOTA_KEY, json.dumps({"at": time.time(), "code": getattr(e, "code", None), "msg": str(e)[:200]}, ensure_ascii=False)))
+    conn.commit()
+
+
+def _paused_until(conn) -> Optional[float]:
+    """Epoch seconds D6 stays paused until (Claude out of credit / plan limit), None = not paused."""
     row = conn.execute("SELECT value FROM app_settings WHERE key=?", (QUOTA_KEY,)).fetchone()
     try:
         at = float(json.loads(row[0]).get("at")) if row else None
     except (ValueError, TypeError, AttributeError):
-        return False
-    return at is not None and time.time() - at < QUOTA_PAUSE_S
+        return None
+    return at + QUOTA_PAUSE_S if at is not None and time.time() - at < QUOTA_PAUSE_S else None
 
 
-def saved_view(conn, job_id: int, kind: str) -> Dict:
+def _quota_paused(conn) -> bool:
+    return _paused_until(conn) is not None
+
+
+def saved_view(conn, job_id: int, kind: str, assembled: Optional[str] = None) -> Dict:
     """C-M71 A5 (P31-G29): what tools/pregen_check --payload can say about the REAL D6 package of a job without calling Claude —
     {"state": "saved", "prompt", "note"} = the last D6 prompt written for this job (CALLS_KEY 'last', else the cache rows of the job),
     or {"state": "unseen", "note"} (never silent: the package actually sent will be Claude's rewrite at send time)."""
+    until = _paused_until(conn)
+    if until is not None:                              # rà kỹ C-M71 (VỪA 4): tạm ngừng → gói gửi lúc này = bản code ghép
+        return {"state": "paused", "note": "D6 tạm ngừng tới " + time.strftime("%H:%M", time.localtime(until)) + " (Claude hết tiền / "
+                "hết lượt) — gói gửi lúc này = bản code ghép in dưới đây"}
     row = conn.execute("SELECT value FROM app_settings WHERE key=?", (CALLS_KEY.format(job_id),)).fetchone()
     try:
-        last = json.loads(row[0]).get("last") if row else None
+        calls = json.loads(row[0]) if row else {}
+        last = calls.get("last")
     except (ValueError, AttributeError):
-        last = None
+        calls, last = {}, None
     if not last:
         for (value,) in conn.execute("SELECT value FROM app_settings WHERE key LIKE 'chat_prompt:%' ORDER BY rowid DESC"):
             try:
@@ -337,6 +353,14 @@ def saved_view(conn, job_id: int, kind: str) -> Dict:
                 last = got["prompt"]
                 break
     if last:
+        mine = (calls.get("parts") or {}).get("assembled")
+        if assembled is not None and mine:           # 0 USD: so phần "bản code ghép" của vân tay đầu vào lượt đã trả tiền
+            now = hashlib.sha256(json.dumps(assembled, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()[:12]
+            if now != mine:
+                return {"state": "stale", "prompt": last, "note": f"D6 bản đã lưu của job {job_id} viết từ bản code ghép CŨ — đầu vào đã "
+                        "đổi, lúc gửi Claude viết lại bản mới (chưa xem được); bản lưu chỉ để tham khảo"}
+            return {"state": "saved", "prompt": last, "note": f"D6 bản đã lưu của job {job_id}: bản code ghép khớp lượt đã trả tiền (ảnh / "
+                    "ghi chú chưa so) — nhiều khả năng là gói gửi"}
         return {"state": "saved", "prompt": last,
                 "note": f"D6 bản đã lưu của job {job_id} (lượt Claude gần nhất) — đầu vào đổi thì lúc gửi Claude viết lại bản mới"}
     return {"state": "unseen", "note": "D6 bật: gói thật sẽ do Claude viết lại lúc gửi — chưa xem được (chưa có bản lưu); prompt in "
@@ -411,9 +435,7 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
         except Exception as e:  # noqa: BLE001 - Claude down / over the cap / bad answer: the old way, said
             if getattr(e, "code", None) in QUOTA_CODES:               # C-M71 A5: account out — not this job's try; paused, one coded line
                 conn.execute("UPDATE app_settings SET value=? WHERE key=?", (before_calls, CALLS_KEY.format(job["id"])))
-                conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                             (QUOTA_KEY, json.dumps({"at": time.time(), "code": e.code, "msg": str(e)[:200]}, ensure_ascii=False)))
-                conn.commit()
+                _pause(conn, e)
                 say("warn", QUOTA_CODE, QUOTA_MSG.format(m=QUOTA_PAUSE_S // 60))
                 return assembled
             say("warn", "chat_prompt_fail", f"D6 job {job['id']} (đường như chat) không viết được prompt ({str(e)[:200]}) — gửi bản code ghép như cũ")
@@ -435,6 +457,12 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
             try:
                 obj, new = ask(fix_text(first, new, problems, assembled, limit))
             except Exception as e:  # noqa: BLE001 - the fix turn failed: the old way, said
+                if getattr(e, "code", None) in QUOTA_CODES:           # rà kỹ C-M71: như lượt đầu — không mất lượt sửa, tạm ngừng, 1 dòng
+                    calls["fix"] -= 1
+                    conn.execute("UPDATE app_settings SET value=? WHERE key=?", (json.dumps(calls, ensure_ascii=False), CALLS_KEY.format(job["id"])))
+                    _pause(conn, e)
+                    say("warn", QUOTA_CODE, QUOTA_MSG.format(m=QUOTA_PAUSE_S // 60))
+                    return assembled
                 say("warn", "chat_prompt_refused", f"D6 job {job['id']}: bản Claude viết không gửi được (" + "; ".join(problems)
                     + f"), lượt sửa lỗi ({str(e)[:160]}) — gửi bản code ghép như cũ")
                 return assembled
