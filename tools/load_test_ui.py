@@ -21,6 +21,8 @@ import asyncio
 import glob
 import json
 import os
+import pathlib
+import re
 import shutil
 import sqlite3
 import statistics
@@ -54,38 +56,73 @@ def build_data(out_dir: str, projects: int = 3, shots: int = 30) -> Dict:
     return ui_snapshot.build_sample_data(out_dir, n_projects=projects, scenes_primary=shots, rich_others=shots)
 
 
+def neutralize(db: str) -> List[str]:
+    """Làm TRƠ bản sao trước khi Dashboard đo mở nó (rà C-M83-TOOL C1/C2): không đường nào từ bản sao chạm tới dữ liệu / dịch vụ thật.
+    - ảnh Kho đã xóa (status 'removed'): bỏ hàng — dọn rác hằng giờ (assets.purge_removed) xóa FILE theo đường dẫn lưu (có thể tuyệt đối
+      → file thật);
+    - nguồn Kho ảnh / âm thanh 'auto': tắt — đồng bộ đầu phiên quét thư mục thật (Drive);
+    - nguồn Claude khai theo dự án / job (projects/jobs.llm_provider, M1.4b): bỏ → mọi lời gọi theo LLM_PROVIDER=mock (claude_cli tốn hạn
+      mức gói thật dù 0 USD)."""
+    done = []
+    conn = sqlite3.connect(db)
+    try:
+        def cols(t):
+            return {r[1] for r in conn.execute(f"PRAGMA table_info({t})")}
+
+        def run(label, sql):
+            done.append(f"{label}: {conn.execute(sql).rowcount}")
+        if "status" in cols("asset_images"):
+            run("asset_images removed", "DELETE FROM asset_images WHERE status='removed'")
+        for t in ("asset_sources", "sound_sources"):
+            if "auto" in cols(t):
+                run(f"{t} auto→0", f"UPDATE {t} SET auto=0 WHERE auto<>0")
+        if "llm_provider" in cols("projects"):
+            run("projects.llm_provider→NULL", "UPDATE projects SET llm_provider=NULL WHERE llm_provider IS NOT NULL")
+        if "llm_provider" in cols("jobs"):
+            run("jobs.llm_provider→mock", "UPDATE jobs SET llm_provider='mock' WHERE llm_provider IS NOT NULL")
+        conn.commit()
+    finally:
+        conn.close()
+    return done
+
+
 def copy_db(src: str, out_dir: str, data: Optional[str] = None) -> Dict:
-    """Bản SAO của CSDL thật: mở mode=ro (không ghi, không khóa ghi) → backup sang out_dir/manifest.sqlite. Thư mục ảnh (`data`) được
-    CHÉP nếu có (để đo vẽ thẻ ảnh thật) — Dashboard đo chỉ ghi vào bản sao, không bao giờ vào dữ liệu thật."""
+    """Bản SAO của CSDL thật: mở mode=ro (không ghi, không khóa ghi) → backup sang out_dir/manifest.sqlite, rồi làm trơ (neutralize).
+    `data` (thư mục dự án thật): chỉ chép thư mục `<id>/images` (thẻ ảnh) — Dashboard đo chỉ ghi vào bản sao."""
     if not os.path.isfile(src):
         raise FileNotFoundError(src)
     os.makedirs(out_dir, exist_ok=True)
     dst = os.path.join(out_dir, "manifest.sqlite")
-    ro = sqlite3.connect(f"file:{os.path.abspath(src)}?mode=ro", uri=True)
+    ro = sqlite3.connect(pathlib.Path(src).resolve().as_uri() + "?mode=ro", uri=True)   # as_uri: đường Windows / ký tự ?#% an toàn
     try:
         to = sqlite3.connect(dst)
         ro.backup(to)
         to.close()
     finally:
         ro.close()
+    notes = neutralize(dst)
     out_data = os.path.join(out_dir, "projects")
-    if data and os.path.isdir(data):
-        shutil.copytree(data, out_data, dirs_exist_ok=True)
     os.makedirs(out_data, exist_ok=True)
+    if data and os.path.isdir(data):
+        for name in os.listdir(data):
+            img = os.path.join(data, name, "images")
+            if os.path.isdir(img):
+                shutil.copytree(img, os.path.join(out_data, name, "images"), dirs_exist_ok=True)
     conn = sqlite3.connect(dst)
     try:
         made = [(r[0], r[1], "copy") for r in conn.execute("SELECT id, name FROM projects ORDER BY id")]
     finally:
         conn.close()
-    return {"db": dst, "data": out_data, "projects": made}
+    return {"db": dst, "data": out_data, "projects": made, "neutralized": notes}
 
 
 # ---------------------------------------------------------------- đầu dò trong tiến trình Streamlit
 PROBE = r'''
 # Đầu dò đo tải (tools/load_test_ui.py) — chỉ nạp khi LOAD_PROBE_OUT có; không đổi hành vi, chỉ đếm giờ.
 import os, sys, json, time, threading, sqlite3
-_OUT = os.environ.get("LOAD_PROBE_OUT")
+_OUT = os.environ.pop("LOAD_PROBE_OUT", None)   # bỏ khỏi môi trường: tiến trình python con (Blender, công cụ) không ghi đè probe.json
 if _OUT:
+    import functools
     _LOCK_WAIT = float(os.environ.get("LOAD_PROBE_LOCK_WAIT", "0.05"))
     _LAT = float(os.environ.get("LOAD_MOCK_LATENCY", "0") or 0)
     _S = {"writes": 0, "write_s": 0.0, "waits": 0, "wait_s": 0.0, "wait_max": 0.0, "locked_errors": 0, "reads": 0, "read_s": 0.0,
@@ -149,6 +186,7 @@ if _OUT:
                 fn = getattr(cls, name, None)
                 if fn is None or getattr(fn, "_slow", False):
                     continue
+                @functools.wraps(fn)          # giữ chữ ký (core/sent_package._bind đọc inspect.signature)
                 def slow(*a, _fn=fn, **k):
                     time.sleep(_LAT)
                     return _fn(*a, **k)
@@ -175,6 +213,20 @@ if _OUT:
                 pass
             time.sleep(0.5)
     threading.Thread(target=_dump, name="load-probe-dump", daemon=True).start()
+
+# Nạp tiếp sitecustomize gốc của hệ thống / venv (đầu dò đứng đầu PYTHONPATH nên che nó)
+def _chain():
+    import importlib.machinery, importlib.util
+    here = os.path.dirname(os.path.abspath(__file__))
+    rest = [p for p in sys.path if os.path.abspath(p or ".") != here]
+    spec = importlib.machinery.PathFinder.find_spec("sitecustomize", rest)
+    if spec and spec.loader and os.path.abspath(spec.origin or "") != os.path.abspath(__file__):
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+try:
+    _chain()
+except Exception:
+    pass
 '''
 
 
@@ -194,15 +246,24 @@ def read_probe(path: str) -> Dict:
         return {}
 
 
+SECRET_RE = re.compile(r"(_KEY|_TOKEN|_SECRET|PASSCODE|PASSWORD)$|^ANTHROPIC_|^CLAUDE_CODE_", re.I)
+
+
 def app_env(db: str, data: str, work: str, latency: float, probe_dir: str) -> Dict[str, str]:
-    """Môi trường của tiến trình Streamlit đo: mọi nhà cung cấp GIẢ, không khóa API, cờ theo tệp tạm (không baseline sản xuất)."""
-    env = dict(os.environ, PIPELINE_DB=db, PIPELINE_DATA=data, IMAGE_PROVIDER="mock", VIDEO_PROVIDER="mock", AUDIO_PROVIDER="mock",
+    """Môi trường của tiến trình Streamlit đo: mọi nhà cung cấp GIẢ, không khóa API (bỏ theo DANH SÁCH + theo MẪU tên *_KEY / *_TOKEN /
+    *_SECRET / *PASSCODE / ANTHROPIC_* — rà V2: SYNC_API_KEY, MESHY_API_KEY, ANTHROPIC_AUTH_TOKEN…), cờ theo tệp tạm (không baseline
+    sản xuất), Kho ảnh + mô hình âm thanh trong thư mục đo (không ghi data/ của repo). Đồng bộ đầu phiên chạy NỀN như sản xuất
+    (DASHBOARD_SYNC_BACKGROUND mặc định) — không phồng bước "Mở dự án"."""
+    home = os.path.dirname(db)
+    env = {k: v for k, v in os.environ.items() if k not in SECRET_ENV and not SECRET_RE.search(k)}
+    env.update(PIPELINE_DB=db, PIPELINE_DATA=data, IMAGE_PROVIDER="mock", VIDEO_PROVIDER="mock", AUDIO_PROVIDER="mock",
                LLM_PROVIDER="mock", SUBJECT_PROVIDER="mock", MOCK_REAL_MEDIA="1", FEATURE_UI_V2="1", DASHBOARD_AUTH="off",
-               DASHBOARD_SYNC_BACKGROUND="0", FEATURE_SETTINGS_FILE=os.path.join(work, "feature_settings.json"), FEATURE_BASELINE="0",
+               FEATURE_SETTINGS_FILE=os.path.join(work, "feature_settings.json"), FEATURE_BASELINE="0",
+               ASSET_DIR=os.path.join(home, "assets"), SOUND_MODEL_DIR=os.path.join(home, "models"),
+               PYTHONUTF8="1", PYTHONIOENCODING="utf-8",
                LOAD_PROBE_OUT=os.path.join(work, "probe.json"), LOAD_PROBE_LOCK_WAIT=str(LOCK_WAIT_S), LOAD_MOCK_LATENCY=str(latency),
                PYTHONPATH=os.pathsep.join([probe_dir] + [x for x in [os.environ.get("PYTHONPATH")] if x]))
-    for k in SECRET_ENV:
-        env.pop(k, None)
+    env.pop("DASHBOARD_SYNC_BACKGROUND", None)
     return env
 
 
@@ -229,8 +290,10 @@ def summarize(levels: List[Dict]) -> Dict:
         for step in STEPS:
             vals = [s["steps"].get(step) for s in lv["sessions"]]
             errs = sum(1 for s in lv["sessions"] if step in s.get("errors", {}))
-            per[step] = {"p50": pct(vals, 0.5), "p95": pct(vals, 0.95), "max": pct(vals, 1.0), "errors": errs}
-        slow = [s for s in MAIN_STEPS if (per[s]["p95"] or 0) > SLOW_S]
+            nr = sum(1 for s in lv["sessions"] if step in s.get("no_rerun", []))
+            per[step] = {"p50": pct(vals, 0.5), "p95": pct(vals, 0.95), "max": pct(vals, 1.0), "errors": errs, "no_rerun": nr}
+        # rà V3: bước LỖI / quá hạn ở một phiên = chậm (không bị pct() bỏ qua mà ra "không mức nào chậm")
+        slow = [s for s in MAIN_STEPS if (per[s]["p95"] or 0) > SLOW_S or per[s]["errors"]]
         if slow and first_slow is None:
             first_slow = {"n": n, "steps": slow}
         srv, pr = lv.get("server", {}), lv.get("probe", {})
@@ -244,16 +307,19 @@ def summarize(levels: List[Dict]) -> Dict:
     top = rows[-1] if rows else None
     bottleneck = None
     if top:
-        step = max(STEPS, key=lambda s: top["steps"][s]["p95"] or 0)
-        bottleneck = {"n": top["n"], "step": step, "p95": top["steps"][step]["p95"]}
+        step = max(STEPS, key=lambda s: (top["steps"][s]["errors"], top["steps"][s]["p95"] or 0))
+        bottleneck = {"n": top["n"], "step": step, "p95": top["steps"][step]["p95"], "errors": top["steps"][step]["errors"]}
         sq = top["sqlite"]
-        if sq.get("wait_max") and bottleneck["p95"] and sq["wait_max"] >= 0.5 * bottleneck["p95"]:
-            bottleneck["note"] = "chờ khóa SQLite chiếm phần lớn thời gian bước chậm nhất"
-        elif top.get("sys_cpu_peak") and top["sys_cpu_peak"] >= 95:
+        total = sum(v or 0 for lv in levels[-1:] for s_ in lv["sessions"] for v in s_["steps"].values())
+        # rà V5: CPU xét TRƯỚC — "chờ khóa" đo theo thời gian lệnh ghi, gồm cả chờ GIL khi CPU bão hòa
+        if top.get("sys_cpu_peak") and top["sys_cpu_peak"] >= 95:
             bottleneck["note"] = "CẢ MÁY đo bão hòa CPU (trình duyệt đo + Streamlit chung máy) — số đo phồng; đo lại với ít phiên hơn / máy mạnh hơn"
         elif top.get("cpu_peak") and top["cpu_peak"] >= 90:
             bottleneck["note"] = "CPU tiến trình Streamlit ~bão hòa một lõi (Python GIL) — script rerun của các phiên xếp hàng"
-    return {"slow_s": SLOW_S, "rows": rows, "first_slow": first_slow, "bottleneck": bottleneck}
+        elif sq.get("wait_s") and total and sq["wait_s"] >= 0.25 * total:
+            bottleneck["note"] = "chờ khóa SQLite (gồm chờ GIL) ≥ 1/4 tổng thời gian các bước"
+    errors = sum(r["steps"][s]["errors"] for r in rows for s in STEPS)
+    return {"slow_s": SLOW_S, "rows": rows, "first_slow": first_slow, "bottleneck": bottleneck, "errors": errors}
 
 
 def _f(x, unit="") -> str:
@@ -272,6 +338,7 @@ def markdown(summary: Dict, meta: Dict) -> str:
         for r in summary["rows"]:
             c = r["steps"][step]
             cells.append(f"{_f(c['p50'])} / {_f(c['p95'])}" + (f" ⚠{c['errors']} lỗi" if c["errors"] else "")
+                         + (f" ·{c['no_rerun']} không rerun" if c.get("no_rerun") else "")
                          + (" 🐢" if step in r["slow"] else ""))
         out.append(f"| {STEP_LABEL[step]} | " + " | ".join(cells) + " |")
     out += ["", "## Server (tiến trình Streamlit)", "",
@@ -285,9 +352,15 @@ def markdown(summary: Dict, meta: Dict) -> str:
     fs, bn = summary["first_slow"], summary["bottleneck"]
     out += ["", "## Kết luận", "",
             f"- Ngưỡng chậm xuất hiện ở: {'N=' + str(fs['n']) + ' (' + ', '.join(STEP_LABEL[s] for s in fs['steps']) + ')' if fs else 'không mức nào'}",
-            f"- Khâu nghẽn (p95 lớn nhất ở N={bn['n']}): {STEP_LABEL[bn['step']]} {bn['p95']} s" + (f" — {bn['note']}" if bn.get("note") else "")
+            f"- Khâu nghẽn (lỗi rồi p95 lớn nhất ở N={bn['n']}): {STEP_LABEL[bn['step']]} {bn['p95']} s"
+            + (f" · {bn['errors']} phiên lỗi" if bn.get("errors") else "") + (f" — {bn['note']}" if bn.get("note") else "")
             if bn else "- Khâu nghẽn: —",
-            "- Không đo ở đây: khóa Blender, hàng đợi Claude CLI, giới hạn Deepix / Clip AI (bộ giả)."]
+            f"- Tổng bước lỗi: {summary.get('errors', 0)}" + (" — xem ảnh loi_n*/ trong thư mục kết quả" if summary.get("errors") else ""),
+            "- Không đo ở đây: khóa Blender, hàng đợi Claude CLI, giới hạn Deepix / Clip AI (bộ giả).",
+            "- Khác máy chính: DASHBOARD_AUTH=off (bỏ ghi team.touch / quyền mỗi lần chạy lại), `streamlit run dashboard/app.py` (máy chính: "
+            "dashboard.serve), trình duyệt đo chạy CÙNG máy với server — tranh chấp SQLite thấp hơn, CPU cao hơn thực tế.",
+            "- Mỗi số đo gồm ~0.3 s cửa sổ \"yên\" của bộ đo; \"không rerun\" = bấm mà không có lượt chạy lại trong "
+            f"{NO_RERUN_S:.0f} s (số đo gồm thời gian chờ đó). Luồng thêm / phiên tính cả luồng khởi một lần mỗi tiến trình (N=1 phồng)."]
     if summary["rows"]:
         names = summary["rows"][-1]["thread_names"]
         if names:
@@ -297,17 +370,45 @@ def markdown(summary: Dict, meta: Dict) -> str:
 
 
 # ---------------------------------------------------------------- chạy thật (trình duyệt)
+BUSY_STATES = ("running", "rerunRequested", "stopRequested")   # rà C3: cả lúc đã bấm mà server chưa nhận rerun
 JS_BUSY = ("() => !!document.querySelector('[data-testid=\"stStatusWidget\"]') || "
-           "document.querySelector('.stApp')?.getAttribute('data-test-script-state') === 'running'")
+           f"{list(BUSY_STATES)!r}.includes(document.querySelector('.stApp')?.getAttribute('data-test-script-state'))")
+# Đếm số lần trang CHUYỂN sang bận (MutationObserver từ lúc tải trang): một bước chỉ "ổn định" khi đã thấy lượt chạy lại MỚI của chính nó
+# rồi yên — không trả sớm khi server tải nặng chưa kịp nhận cú bấm (thăm dò 0.1 s có thể lỡ một lượt ngắn; bộ đếm thì không)
+JS_COUNT_RUNS = """(() => {
+  window.__ltRuns = 0;
+  const busy = v => %s.includes(v);
+  const hook = () => {
+    const el = document.querySelector('.stApp');
+    if (!el) return setTimeout(hook, 30);
+    let last = el.getAttribute('data-test-script-state');
+    if (busy(last)) window.__ltRuns++;
+    new MutationObserver(() => {
+      const v = el.getAttribute('data-test-script-state');
+      if (busy(v) && !busy(last)) window.__ltRuns++;
+      last = v;
+    }).observe(el, {attributes: true, attributeFilter: ['data-test-script-state']});
+  };
+  hook();
+})()""" % json.dumps(list(BUSY_STATES))
+NO_RERUN_S = 10.0                                # bấm xong mà trong ngần này giây không có lượt chạy lại nào → ghi "không rerun"
 
 
-async def settle(pg, timeout: float = 120.0) -> float:
-    """Chờ tới khi màn ổn định: không bận 3 lần liền cách 0.1 s. Trả giây; quá hạn → TimeoutError."""
+async def runs(pg) -> int:
+    return int(await pg.evaluate("() => window.__ltRuns || 0") or 0)
+
+
+async def settle(pg, before: int = 0, timeout: float = 120.0) -> bool:
+    """Chờ tới khi màn ổn định SAU một lượt chạy lại mới (bộ đếm > `before`) và không bận 3 lần liền cách 0.1 s. Trả True; không thấy lượt
+    chạy lại nào trong NO_RERUN_S (cú bấm không gây rerun) → False khi đã yên; quá hạn → TimeoutError."""
     t0, quiet = time.perf_counter(), 0
     while time.perf_counter() - t0 < timeout:
         quiet = 0 if await pg.evaluate(JS_BUSY) else quiet + 1
         if quiet >= 3:
-            return time.perf_counter() - t0
+            if await runs(pg) > before:
+                return True
+            if time.perf_counter() - t0 > NO_RERUN_S:
+                return False
         await asyncio.sleep(0.1)
     raise TimeoutError("màn không ổn định")
 
@@ -318,15 +419,17 @@ async def _radio(pg, label: str) -> None:
 
 async def session(browser, url: str, i: int, n_projects: int, log, shots_dir: Optional[str] = None) -> Dict:
     ctx = await browser.new_context(viewport={"width": 1440, "height": 900})
+    await ctx.add_init_script(JS_COUNT_RUNS)
     pg = await ctx.new_page()
-    steps, errors = {}, {}
+    steps, errors, no_rerun = {}, {}, []
 
     async def step(name, act):
         t0 = time.perf_counter()
         try:
+            before = 0 if name == "home" else await runs(pg)
             await act()
-            await asyncio.sleep(0.15)            # Streamlit cần một nhịp để nhận sự kiện và bật trạng thái chạy
-            await settle(pg)
+            if not await settle(pg, before):
+                no_rerun.append(name)           # số đo của bước này gồm NO_RERUN_S chờ — ghi rõ, không coi là màn nhanh
             steps[name] = round(time.perf_counter() - t0, 3)
         except Exception as e:  # noqa: BLE001 - một bước lỗi không dừng phiên: ghi lại, đo tiếp
             steps[name] = None
@@ -341,7 +444,10 @@ async def session(browser, url: str, i: int, n_projects: int, log, shots_dir: Op
     async def home():
         await pg.goto(url)
         await pg.wait_for_selector(".st-key-step", timeout=120000)
+        await settle(pg, 0)                      # lượt vẽ đầu (mở mặc định dự án #1) xong rồi mới bấm Trang chủ
+        before = await runs(pg)
         await _radio(pg, "Tất cả dự án")
+        await settle(pg, before)
 
     async def open_():
         opens = pg.locator("button", has_text="Mở →")
@@ -377,7 +483,7 @@ async def session(browser, url: str, i: int, n_projects: int, log, shots_dir: Op
     await ctx.close()
     if errors:
         log(f"    phiên {i}: lỗi {errors}")
-    return {"i": i, "steps": steps, "errors": errors}
+    return {"i": i, "steps": steps, "errors": errors, "no_rerun": no_rerun}
 
 
 async def run_sessions(n: int, url: str, n_projects: int, chrome: Optional[str], log, shots_dir: Optional[str] = None) -> List[Dict]:
@@ -423,40 +529,97 @@ class Sampler(threading.Thread):
                 "sys_cpu_peak": round(max((x.get("sys_cpu", 0) for x in s), default=0), 1)}
 
 
+def _ver(path: str) -> int:
+    import re as _re
+    m = _re.search(r"chromium[-_](\d+)", path.replace("\\", "/"))
+    return int(m.group(1)) if m else -1
+
+
 def find_chrome(arg: Optional[str]) -> Optional[str]:
+    """Chromium của Playwright (PLAYWRIGHT_BROWSERS_PATH, /opt/pw-browsers, %LOCALAPPDATA%\\ms-playwright, ~/.cache/ms-playwright; bản số
+    lớn nhất — so SỐ, không so chữ) → Chrome / Edge của máy (ui_snapshot.find_browser). None = để Playwright tự tìm (có thể cần
+    `playwright install` — đề bài cấm: hãy truyền --chrome)."""
     if arg:
         return arg
-    root = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "/opt/pw-browsers")
-    for pat in ("chromium-*/chrome-linux/chrome", "chromium-*/chrome-win/chrome.exe", "chromium/chrome-linux/chrome"):
-        hits = sorted(glob.glob(os.path.join(root, pat)))
-        if hits:
-            return hits[-1]
-    return None                                   # playwright tự tìm (bản khớp phiên bản đã cài)
+    roots = [os.environ.get("PLAYWRIGHT_BROWSERS_PATH", ""), "/opt/pw-browsers",
+             os.path.join(os.environ.get("LOCALAPPDATA", ""), "ms-playwright") if os.environ.get("LOCALAPPDATA") else "",
+             os.path.expanduser("~/.cache/ms-playwright")]
+    hits = []
+    for root in [r for r in roots if r and os.path.isdir(r)]:
+        for pat in ("chromium-*/chrome-linux/chrome", "chromium-*/chrome-linux64/chrome", "chromium-*/chrome-win/chrome.exe",
+                    "chromium-*/chrome-win64/chrome.exe", "chromium/chrome-linux/chrome"):
+            hits += glob.glob(os.path.join(root, pat))
+    if hits:
+        return max(hits, key=_ver)
+    try:
+        import ui_snapshot
+        return ui_snapshot.find_browser()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def port_free(port: int) -> bool:
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sk:
+        try:
+            sk.bind(("127.0.0.1", port))
+            return True
+        except OSError:
+            return False
+
+
+def listens(pid: int, port: int) -> bool:
+    """Tiến trình `pid` (hoặc con của nó) đang nghe `port` — health 'ok' phải là của Streamlit ĐO, không phải Dashboard thật cùng cổng."""
+    import psutil
+    try:
+        procs = [psutil.Process(pid)] + psutil.Process(pid).children(recursive=True)
+    except psutil.Error:
+        return False
+    for pr in procs:
+        try:
+            conns = pr.net_connections(kind="tcp") if hasattr(pr, "net_connections") else pr.connections(kind="tcp")
+        except psutil.Error:
+            continue
+        if any(c.laddr and c.laddr.port == port and c.status == psutil.CONN_LISTEN for c in conns):
+            return True
+    return False
+
+
+PROD_PORTS = (8501, 8502)                        # cổng Dashboard thật trên máy chính — không bao giờ đo ở đây
 
 
 def run_level(n: int, template: Dict, args, log) -> Dict:
     work = tempfile.mkdtemp(prefix=f"load_ui_n{n}_")
-    db = os.path.join(work, "manifest.sqlite")
+    home = os.path.join(work, "data")          # <work>/data/manifest.sqlite: assets.resolve() giải đường tương đối về <work>, không về repo
+    os.makedirs(home)
+    db = os.path.join(home, "manifest.sqlite")
     shutil.copy2(template["db"], db)
-    data = os.path.join(work, "projects")
+    data = os.path.join(home, "projects")
     shutil.copytree(template["data"], data)
     probe_dir = os.path.join(work, "probe")
     write_probe(probe_dir)
     env = app_env(db, data, work, args.latency, probe_dir)
     port = args.port
+    if port in PROD_PORTS or not port_free(port):
+        raise RuntimeError(f"Cổng {port} " + ("là cổng Dashboard thật" if port in PROD_PORTS else "đang bận") + " — chọn --port khác")
     with open(os.path.join(work, "streamlit.log"), "w", encoding="utf-8") as lg:
         app = subprocess.Popen([sys.executable, "-m", "streamlit", "run", "dashboard/app.py", "--server.port", str(port),
                                 "--server.headless", "true", "--browser.gatherUsageStats", "false"], cwd=ROOT, env=env, stdout=lg,
                                stderr=subprocess.STDOUT)
     try:
         for _ in range(240):
+            if app.poll() is not None:
+                raise RuntimeError(f"Streamlit đo đã thoát (mã {app.returncode}) — xem {work}/streamlit.log")
             try:
                 if urllib.request.urlopen(f"http://127.0.0.1:{port}/_stcore/health", timeout=2).read().strip() == b"ok":
                     break
             except Exception:  # noqa: BLE001
-                time.sleep(0.5)
+                pass
+            time.sleep(0.5)
         else:
             raise RuntimeError(f"Streamlit không lên — xem {work}/streamlit.log")
+        if not listens(app.pid, port):
+            raise RuntimeError(f"Cổng {port} trả lời nhưng KHÔNG phải Streamlit đo (pid {app.pid}) — dừng, không bấm gì")
         time.sleep(1.0)
         import psutil
         base = psutil.Process(app.pid).num_threads()
@@ -532,7 +695,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                   ensure_ascii=False, indent=1)
     print(md)
     print(f"Đã ghi {out}/load_ui.md + load_ui.json")
-    return 0
+    return 1 if summary["errors"] else 0         # rà V3: có bước lỗi → mã ≠ 0 (lượt đo không sạch)
 
 
 if __name__ == "__main__":

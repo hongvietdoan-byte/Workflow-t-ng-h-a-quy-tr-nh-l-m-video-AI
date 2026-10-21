@@ -26,6 +26,55 @@ def test_fake_data_has_projects_times_shots(tmp_path):
     assert len(made["projects"]) == 3 and os.listdir(os.path.join(made["data"], str(made["projects"][1][0]), "images"))
 
 
+def test_copy_db_opens_the_source_with_mode_ro_even_with_special_characters(tmp_path, monkeypatch):
+    src = tmp_path / "a b#%?x" / "real.sqlite"
+    src.parent.mkdir()
+    c = sqlite3.connect(src)
+    c.execute("CREATE TABLE projects(id INTEGER PRIMARY KEY, name TEXT)")
+    c.execute("INSERT INTO projects(name) VALUES ('A')")
+    c.commit()
+    c.close()
+    seen = []
+    real = sqlite3.connect
+
+    def spy(*a, **k):
+        seen.append((a[0] if a else k.get("database"), k.get("uri")))
+        return real(*a, **k)
+    monkeypatch.setattr(L.sqlite3, "connect", spy)
+    made = L.copy_db(str(src), str(tmp_path / "out"))
+    assert made["projects"] == [(1, "A", "copy")]
+    first, uri = seen[0]
+    assert uri and str(first).startswith("file:") and str(first).endswith("?mode=ro")
+
+
+def test_copy_db_neutralizes_paths_to_real_files_and_real_claude(tmp_path):
+    src = tmp_path / "real.sqlite"
+    c = sqlite3.connect(src)
+    c.executescript("""
+        CREATE TABLE projects(id INTEGER PRIMARY KEY, name TEXT, llm_provider TEXT);
+        CREATE TABLE jobs(id INTEGER PRIMARY KEY, llm_provider TEXT);
+        CREATE TABLE asset_images(id INTEGER PRIMARY KEY, path TEXT, status TEXT);
+        CREATE TABLE asset_sources(id INTEGER PRIMARY KEY, auto INTEGER);
+        CREATE TABLE sound_sources(id INTEGER PRIMARY KEY, auto INTEGER);
+        INSERT INTO projects(name, llm_provider) VALUES ('A', 'claude_cli');
+        INSERT INTO jobs(llm_provider) VALUES ('anthropic'), (NULL);
+        INSERT INTO asset_images(path, status) VALUES ('/real/x.png', 'removed'), ('/real/y.png', 'active');
+        INSERT INTO asset_sources(auto) VALUES (1); INSERT INTO sound_sources(auto) VALUES (1);
+    """)
+    c.commit()
+    c.close()
+    before = src.read_bytes()
+    made = L.copy_db(str(src), str(tmp_path / "out"))
+    d = sqlite3.connect(made["db"])
+    assert d.execute("SELECT llm_provider FROM projects").fetchone()[0] is None
+    assert [r[0] for r in d.execute("SELECT llm_provider FROM jobs ORDER BY id")] == ["mock", None]
+    assert [r[0] for r in d.execute("SELECT status FROM asset_images")] == ["active"]    # dọn rác Kho không xóa file thật
+    assert d.execute("SELECT auto FROM asset_sources").fetchone()[0] == 0
+    assert d.execute("SELECT auto FROM sound_sources").fetchone()[0] == 0
+    d.close()
+    assert src.read_bytes() == before
+
+
 def test_copy_db_reads_the_original_read_only(tmp_path):
     src = tmp_path / "real.sqlite"
     conn = sqlite3.connect(src)
@@ -46,6 +95,10 @@ def test_copy_db_reads_the_original_read_only(tmp_path):
 
 
 def test_app_env_is_mock_only_and_drops_api_keys(tmp_path, monkeypatch):
+    for k in ("SYNC_API_KEY", "MESHY_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN",
+              "DASHBOARD_OWNER_PASSCODE", "SOME_SECRET"):
+        monkeypatch.setenv(k, "x")
+    monkeypatch.setenv("DASHBOARD_SYNC_BACKGROUND", "0")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     monkeypatch.setenv("CLIPAI_TOKEN", "x")
     monkeypatch.setenv("IMAGE_PROVIDER", "deepix")
@@ -53,6 +106,11 @@ def test_app_env_is_mock_only_and_drops_api_keys(tmp_path, monkeypatch):
     assert all(env[k] == "mock" for k in ("IMAGE_PROVIDER", "VIDEO_PROVIDER", "AUDIO_PROVIDER", "LLM_PROVIDER", "SUBJECT_PROVIDER"))
     assert "ANTHROPIC_API_KEY" not in env and "CLIPAI_TOKEN" not in env
     assert env["PYTHONPATH"].split(os.pathsep)[0] == "probe" and env["FEATURE_BASELINE"] == "0"
+    assert not [k for k in env if k.endswith(("_KEY", "_TOKEN", "_SECRET", "PASSCODE")) or k.startswith(("ANTHROPIC_", "CLAUDE_CODE_"))]
+    assert "DASHBOARD_SYNC_BACKGROUND" not in env                         # đồng bộ đầu phiên chạy nền như sản xuất
+    db = str(tmp_path / "data" / "manifest.sqlite")
+    env = L.app_env(db, "data", str(tmp_path), 0.1, "probe")
+    assert env["ASSET_DIR"].startswith(str(tmp_path)) and env["SOUND_MODEL_DIR"].startswith(str(tmp_path))
 
 
 def test_probe_counts_sqlite_lock_waits_and_threads(tmp_path):
@@ -78,6 +136,96 @@ time.sleep(1.2)
     assert snap["connects"] == 2 and snap["writes"] >= 4 and snap["reads"] >= 1
     assert snap["waits"] >= 1 and snap["wait_max"] >= 0.2                # b chờ a nhả khóa ghi ~0.3 s
     assert snap["thread_names"].get("load-probe-dump") == 1
+
+
+def test_probe_hides_its_output_from_child_processes_and_chains_the_original_sitecustomize(tmp_path):
+    probe = tmp_path / "probe"
+    L.write_probe(str(probe))
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "sitecustomize.py").write_text("import builtins; builtins.__orig_site__ = True\n", encoding="utf-8")
+    env = dict(os.environ, LOAD_PROBE_OUT=str(tmp_path / "p.json"), PYTHONPATH=os.pathsep.join([str(probe), str(other)]))
+    r = subprocess.run([sys.executable, "-c", "import os, builtins; print(os.environ.get('LOAD_PROBE_OUT'), "
+                        "getattr(builtins, '__orig_site__', False))"], env=env, capture_output=True, text=True, check=True, timeout=60)
+    assert r.stdout.split() == ["None", "True"]
+
+
+def test_probe_keeps_the_signature_of_slowed_mock_methods(tmp_path):
+    probe = tmp_path / "probe"
+    L.write_probe(str(probe))
+    code = ("import sys, time, inspect; sys.path.insert(0, %r); import core.providers as P; time.sleep(1.0); "
+            "print(P.MockImageProvider.submit.__name__, list(inspect.signature(P.MockImageProvider.submit).parameters)[:2])") % ROOT
+    env = dict(os.environ, LOAD_PROBE_OUT=str(tmp_path / "p.json"), LOAD_MOCK_LATENCY="0.01", PYTHONPATH=str(probe))
+    r = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True, timeout=60, cwd=ROOT)
+    assert r.stdout.split()[0] == "submit" and "'prompt'" in r.stdout
+
+
+def test_refuses_production_and_busy_ports(tmp_path):
+    import socket
+    with socket.socket() as sk:
+        sk.bind(("127.0.0.1", 0))
+        sk.listen()
+        busy = sk.getsockname()[1]
+        assert not L.port_free(busy)
+        args = type("A", (), {"port": busy, "latency": 0, "keep": False, "chrome": None, "out": None})()
+        tpl = L.build_data(str(tmp_path / "d"), projects=1, shots=20)
+        with pytest.raises(RuntimeError, match="bận"):
+            L.run_level(1, tpl, args, print)
+        args.port = 8501
+        with pytest.raises(RuntimeError, match="Dashboard thật"):
+            L.run_level(1, tpl, args, print)
+
+
+class FakePage:
+    """Trang giả cho settle(): `states` = trạng thái mỗi lần hỏi; bộ đếm lượt chạy lại tăng khi chuyển sang bận."""
+
+    def __init__(self, states):
+        self.states, self.k, self.count, self.prev = list(states), 0, 0, "notRunning"
+
+    async def evaluate(self, js):
+        if "__ltRuns" in js:
+            return self.count
+        st = self.states[min(self.k, len(self.states) - 1)]
+        self.k += 1
+        if st in L.BUSY_STATES and self.prev not in L.BUSY_STATES:
+            self.count += 1
+        self.prev = st
+        return st in L.BUSY_STATES
+
+
+def test_settle_waits_for_the_rerun_requested_after_a_click():
+    import asyncio
+    # server tải nặng: sau cú bấm vẫn yên vài nhịp rồi mới 'rerunRequested' → 'running' → yên. Trước: trả ngay ở nhịp yên đầu
+    pg = FakePage(["notRunning"] * 5 + ["rerunRequested"] * 3 + ["running"] * 4 + ["notRunning"] * 5)
+    assert asyncio.run(L.settle(pg, 0)) is True
+    assert pg.k >= 15
+
+
+def test_settle_reports_a_click_without_rerun(monkeypatch):
+    import asyncio
+    monkeypatch.setattr(L, "NO_RERUN_S", 0.3)
+    assert asyncio.run(L.settle(FakePage(["notRunning"]), 0)) is False
+
+
+def test_errors_count_as_slow_and_fail_the_run():
+    lv = _level(5, 0.5)
+    for s_ in lv["sessions"]:
+        s_["steps"]["home"] = None
+        s_["errors"] = {"home": "TimeoutError"}
+    s = L.summarize([lv])
+    assert s["first_slow"] == {"n": 5, "steps": ["home"]} and s["errors"] == 5
+    assert s["bottleneck"]["step"] == "home" and s["bottleneck"]["errors"] == 5
+    assert "Tổng bước lỗi: 5" in L.markdown(s, {"latency": 0})
+
+
+def test_find_chrome_picks_the_highest_version_numerically(tmp_path, monkeypatch):
+    for v in ("999", "1194"):
+        d = tmp_path / f"chromium-{v}" / "chrome-linux"
+        d.mkdir(parents=True)
+        (d / "chrome").write_text("")
+    monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(tmp_path))
+    monkeypatch.setattr(L.os.path, "isdir", lambda p: str(p) == str(tmp_path))
+    assert "chromium-1194" in L.find_chrome(None)
 
 
 def test_probe_is_inert_without_the_output_variable(tmp_path):
@@ -110,7 +258,7 @@ def test_summary_finds_first_slow_level_and_bottleneck():
 
 
 def test_summary_blames_sqlite_when_lock_wait_dominates():
-    s = L.summarize([_level(10, 1.0, storyboard=3.0, waits=5, wait_max=2.0)])
+    s = L.summarize([_level(10, 1.0, storyboard=3.0, waits=30, wait_max=2.0)])
     assert s["bottleneck"]["step"] == "storyboard" and "SQLite" in s["bottleneck"]["note"]
 
 
