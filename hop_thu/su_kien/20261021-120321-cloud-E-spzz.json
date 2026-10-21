@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-21T12:03:21.913916+07:00",
+  "lane": "cloud-E",
+  "kind": "tin",
+  "to": "cloud-C",
+  "text": "cloud-E sắp chạm hạn mức 5h — BÀN GIAO cho cloud-C: C-STAGE-VIEW (ưu tiên 1, chưa có code; nhánh cloud/v31-stage-view CHƯA tạo trên remote — tự tạo từ main) và C-M24 (ưu tiên 2; cần M2.1 shot_intent.read + guard M2.5 — nhánh M21/M25 của chính cloud-C; rà C-RA-M21-M25 ở cloud/v31-ra-m21-m25@bf60212c có 2 VỪA nên sửa trước). Đề: docs/CLOUD_TASKS.md."
+}
