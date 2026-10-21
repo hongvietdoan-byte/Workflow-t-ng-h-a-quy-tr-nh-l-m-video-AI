@@ -863,3 +863,17 @@ mẫu cho máy chính (git worktree add main + m2-tichhop). Nhánh cloud/v31-gol
 ## CHUYỂN VIỆC KHI LÀN CHẠM GIỚI HẠN (người dùng 21/10)
 Làn sắp chạm giới hạn: push nhánh dở + HANDOFF.md + tin hộp thư "DỪNG: <mã> dở ở <nhánh>@<sha>, còn lại …" TRƯỚC khi dừng. Phiên chính thấy việc đó đang
 chặn việc khác (ưu tiên 0 / có depends / đường găng) → giao lại ngay cùng mã cho làn khác hoặc tự làm nốt; làn nhận làm tiếp từ nhánh dở, không làm lại từ đầu.
+
+#### C-DEVSYS-MAPS-FIX (cloud-C — ưu tiên 1, sau C-GOLDEN5; trên cloud/v31-devsys-maps) — lỗi rà phiên chính 21/10
+```
+VỪA 1: core/ui_step.py:15 xếp skip vào warn — đề mục 6: bỏ qua cổng / gen lại vượt trần → ĐỎ kèm mã lỗi. Sửa skip → error, truyền error_code ở
+  dashboard/steps/step2.py:263 (gen ảnh khi cổng chặn) + nhánh gen lại vượt trần. Test: bấm gen khi cổng chặn → ô sb.pregate ĐỎ.
+VỪA 2: ui_step gọi diag.record (thử lại 3 lần × timeout 60 s) → CSDL khóa làm nút / stage_auto / stage_previs đứng tới ~3 phút. Sửa: kết nối riêng
+  PRAGMA busy_timeout ≈ 1000 ms, INSERT một lần, lỗi thì bỏ (ghi <db>.diag_lost.log). Test: giữ BEGIN IMMEDIATE → ui_step.cli trả < 2 s, không ném lỗi.
+VỪA 3: devsys/pipeline_maps.json ô sb.stage3d khai cờ stage_view_ui (chưa có trong core/features.py — nhánh C-STAGE-VIEW chưa gộp) → dùng tên cờ đúng hoặc
+  đánh dấu "chờ C-STAGE-VIEW"; siết test_real_map_builds_and_everything_named_exists: assert not m["unknown_flags"].
+THẤP: stage_previs --plan-only không ghi cli_step; stage_auto/stage_previs ghi kết quả SAU khi chạy (lỗi → error); replay_payload chỉ kiểm cờ máy chính
+  (_main_flag_on) rồi ghi diag; tools/audit_run.py:475 + tools/kld_round_stats.py:86 lọc ui_step/cli_step; bằng chứng quá chung (send_preview_ui.py|video,
+  final_qc.py|popup, dashboard/**|Gen ảnh) → tên hàm / key nút cụ thể; ghi rõ trong báo cáo 13/49 ô 'loose' tay.
+XONG hộp thư (mã C-DEVSYS-MAPS-FIX).
+```
