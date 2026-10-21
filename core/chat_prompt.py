@@ -16,6 +16,7 @@ import os
 import re
 import shutil
 import tempfile
+import time
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from . import features
@@ -44,6 +45,15 @@ MAX_CALLS_PER_JOB = 2                  # inputs that keep changing every poll ne
 CALLS_KEY = "chat_prompt_calls:{}"
 MAX_FIX_TURNS = 1                      # việc 5 (14/10): a refused answer gets ONE fix turn told the exact fault, per job, then the old way
 REFUSED_KEY = "chat_prompt_refused:{}"
+# C-M71 A5 (P31-G29): Claude hết tiền / hết lượt — lỗi của TÀI KHOẢN, không phải của job: gửi bản code ghép, MỘT diag có mã (cùng lời →
+# runner._diag_once gộp một dòng mỗi job), KHÔNG tính vào MAX_CALLS_PER_JOB (trước: 2 nhịp hết tiền = job mất D6 vĩnh viễn), và không
+# gọi lại D6 trong QUOTA_PAUSE_S (mọi job) — llm_runner vốn đã chặn trước khi trả tiền, đây chỉ bớt lượt thử + nhiễu.
+QUOTA_CODES = ("out_of_credit", "usage_limit")
+QUOTA_CODE = "chat_prompt_quota"
+QUOTA_KEY = "chat_prompt_quota"
+QUOTA_PAUSE_S = 600
+QUOTA_MSG = ("D6 (đường như chat): Claude hết tiền / hết lượt — gửi bản code ghép như cũ; tạm không gọi D6 {m} phút (nạp tiền / chờ giờ "
+             "mở lại thì D6 tự chạy lại)")
 # Thử D6 #29 14/10: "Images 2/3" là HAI mã (Image 2, Image 3) — Claude viết "Image 2 and Image 3" không phải mất mã.
 _IMAGES_GROUP = re.compile(r"\bImages? (\d+(?:/\d+)*)\b")
 _IMAGES_LIST = re.compile(r"Images (\d+(?:" + _LIST_SEP + r"\d+)+)", re.I)
@@ -299,6 +309,40 @@ def previous_take(conn, job, kind: str) -> Tuple[List[Tuple[str, str]], Optional
     return [(f"Khung {i} của clip lần trước (bị loại)", fr) for i, fr in enumerate(frames, 1)], tmp
 
 
+def _quota_paused(conn) -> bool:
+    row = conn.execute("SELECT value FROM app_settings WHERE key=?", (QUOTA_KEY,)).fetchone()
+    try:
+        at = float(json.loads(row[0]).get("at")) if row else None
+    except (ValueError, TypeError, AttributeError):
+        return False
+    return at is not None and time.time() - at < QUOTA_PAUSE_S
+
+
+def saved_view(conn, job_id: int, kind: str) -> Dict:
+    """C-M71 A5 (P31-G29): what tools/pregen_check --payload can say about the REAL D6 package of a job without calling Claude —
+    {"state": "saved", "prompt", "note"} = the last D6 prompt written for this job (CALLS_KEY 'last', else the cache rows of the job),
+    or {"state": "unseen", "note"} (never silent: the package actually sent will be Claude's rewrite at send time)."""
+    row = conn.execute("SELECT value FROM app_settings WHERE key=?", (CALLS_KEY.format(job_id),)).fetchone()
+    try:
+        last = json.loads(row[0]).get("last") if row else None
+    except (ValueError, AttributeError):
+        last = None
+    if not last:
+        for (value,) in conn.execute("SELECT value FROM app_settings WHERE key LIKE 'chat_prompt:%' ORDER BY rowid DESC"):
+            try:
+                got = json.loads(value)
+            except ValueError:
+                continue
+            if isinstance(got, dict) and got.get("job") == job_id and got.get("kind") == kind and got.get("prompt"):
+                last = got["prompt"]
+                break
+    if last:
+        return {"state": "saved", "prompt": last,
+                "note": f"D6 bản đã lưu của job {job_id} (lượt Claude gần nhất) — đầu vào đổi thì lúc gửi Claude viết lại bản mới"}
+    return {"state": "unseen", "note": "D6 bật: gói thật sẽ do Claude viết lại lúc gửi — chưa xem được (chưa có bản lưu); prompt in "
+                                       "dưới đây là bản code ghép"}
+
+
 def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]], model: Optional[str] = None,
             limit: int = 4000, client=None, say=None) -> str:
     """The prompt to send: Claude's one coherent prompt (cached by its inputs), or `assembled` unchanged when D6 cannot be used — the
@@ -325,8 +369,12 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
             say("warn", "chat_prompt_refused", f"D6 job {job['id']}: đầu vào này đã bị từ chối sau lượt sửa (" + "; ".join(hit["refused"])
                 + ") — gửi bản code ghép như cũ (không gọi lại)")
             return assembled
+        if _quota_paused(conn):                                         # C-M71 A5: hết tiền / hết lượt gần đây — không gọi lại mỗi nhịp
+            say("warn", QUOTA_CODE, QUOTA_MSG.format(m=QUOTA_PAUSE_S // 60))
+            return assembled
         calls = conn.execute("SELECT value FROM app_settings WHERE key=?", (CALLS_KEY.format(job["id"]),)).fetchone()
         calls = json.loads(calls[0]) if calls else {"n": 0, "last": None}
+        before_calls = json.dumps(calls, ensure_ascii=False)
         parts = lambda: input_parts(kind, model, assembled, pics, intent, notes, limit)   # noqa: E731 - only when needed (rereads pictures)
         if calls["n"] >= MAX_CALLS_PER_JOB:
             say("warn", "chat_prompt_cap", f"D6 job {job['id']}: đã gọi Claude {calls['n']} lần, {cap_reason(calls, key, parts)} — "
@@ -361,6 +409,13 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
         try:
             obj, new = ask(first)
         except Exception as e:  # noqa: BLE001 - Claude down / over the cap / bad answer: the old way, said
+            if getattr(e, "code", None) in QUOTA_CODES:               # C-M71 A5: account out — not this job's try; paused, one coded line
+                conn.execute("UPDATE app_settings SET value=? WHERE key=?", (before_calls, CALLS_KEY.format(job["id"])))
+                conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                             (QUOTA_KEY, json.dumps({"at": time.time(), "code": e.code, "msg": str(e)[:200]}, ensure_ascii=False)))
+                conn.commit()
+                say("warn", QUOTA_CODE, QUOTA_MSG.format(m=QUOTA_PAUSE_S // 60))
+                return assembled
             say("warn", "chat_prompt_fail", f"D6 job {job['id']} (đường như chat) không viết được prompt ({str(e)[:200]}) — gửi bản code ghép như cũ")
             return assembled
         problems = check(assembled, new, limit)

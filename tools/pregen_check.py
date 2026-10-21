@@ -13,7 +13,8 @@ Gọi ĐÚNG các hàm nút "▶ Gen ảnh" (Bước 2) và job gen ảnh chạy
                                            Claude qua claude_cli = 0 USD
   - --payload: tools/replay_payload.replay  gói gửi model từng shot (prompt + ảnh tham chiếu)
 Chạy trong thư mục thử như replay_payload (bản sao CSDL + cài đặt cờ + thư mục dự án; junction assets/_plates3d chỉ đọc; mọi ghi dưới
-<main>/data bị chặn). Giá và cổng tính với cờ THẬT của máy (kể cả D6 chat_prompts); phần --payload tắt D6 (không gọi Claude).
+<main>/data bị chặn). Giá và cổng tính với cờ THẬT của máy (kể cả D6 chat_prompts); phần --payload tắt D6 (không gọi Claude) — D6 bật
+ở máy thật thì mỗi shot in thêm dòng "D6:" = bản D6 đã lưu của job hoặc "chưa xem được" (C-M71 A5, P31-G29).
 Mã thoát: 0 = gen được; 1 = còn chặn (cổng / mục đỏ / nền) — báo người dùng, không xin duyệt gen khi còn chặn.
 Phiên Claude dùng lệnh này để báo giá và tình trạng trước khi xin duyệt gen ảnh (CLAUDE.md, skill vong-lam-viec-theo-plan).
 """
@@ -180,8 +181,12 @@ def main(argv=None) -> int:
             res = check(conn, a.project, box["data_dir"])
             payload = None
             if a.payload:
+                from core import features
+                d6_on = features.on("chat_prompts")                      # cờ THẬT của máy (C-M71 A5, P31-G29)
                 os.environ["FEATURE_SETTINGS_FILE"] = box["settings"]     # D6 tắt: gói code ghép, không gọi Claude
                 payload = rp.replay(conn, a.project, box["data_dir"], a.shot)
+                if d6_on:                                                 # gói thật = bản D6: in bản đã lưu hoặc nói "chưa xem được"
+                    rp.annotate_d6(conn, payload)
         conn.close()
         _print(res)
         if payload is not None:
