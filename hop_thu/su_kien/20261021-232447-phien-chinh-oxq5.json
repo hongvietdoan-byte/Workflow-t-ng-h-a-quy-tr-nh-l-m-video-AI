@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T23:24:47.280422+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX21-GOLDEN6",
+  "to": "codex",
+  "title": "Chạy lại nghiệm thu golden A/B (negative control trước)",
+  "spec": "docs/CODEX_TASKS.md### CX21-GOLDEN6",
+  "priority": 0
+}
