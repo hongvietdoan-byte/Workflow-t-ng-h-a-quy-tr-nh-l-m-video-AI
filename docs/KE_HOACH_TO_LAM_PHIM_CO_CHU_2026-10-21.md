@@ -1,7 +1,9 @@
 # M6 — AI Video Production Team (Tổ làm phim có chủ) — kế hoạch kiến trúc (21/10/2026)
 
 > **Trạng thái:** kiến trúc ĐÃ CHỐT ĐỊNH HƯỚNG (Executive Producer, văn bản "PHÊ DUYỆT KIẾN TRÚC M6", chat 21/10) — **CHƯA PHÊ DUYỆT TRIỂN KHAI
-> CODE**. Tài liệu Cấp 1 (0 USD). Sổ quyết định: `v31-m6-crew-architecture-2026-10-21`, `v31-m6-generation-limits-policy-2026-10-21`.
+> CODE**. Tài liệu Cấp 1 (0 USD). Sổ quyết định: `v31-m6-crew-architecture-2026-10-21`, `v31-m6-generation-limits-policy-b-2026-10-21`
+> (thay bản đầu cùng ngày sau khi EP trả lời Q1/Q2/Q4). **EP trả lời 21/10:** Q1 không tính, Q2 có trừ, Q3 cần giải thích (mục 4d), Q4 có,
+> Q5 chưa làm vội, Q6 sắp theo ưu tiên (mục 10a).
 > Gộp vào `docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md` mục 5 "M6". Đối chiếu: HEAD `main` = `e4693838`, `data/decisions.json` (42 mục),
 > `CLAUDE.md`, Master Build V3.1. Bản đề xuất sáng 21/10 (8 ý) đã được thay bằng bản này — lịch sử ở git.
 >
@@ -202,7 +204,7 @@ def record_outcome(conn, job_id, outcome)   # accepted | rejected_before_generat
 
 - **Một chỗ gọi:** ngay trước `provider.submit` trong `runner._submit_pending` — cùng chỗ đã có `send_claim` (M1 1.1), `pause_before_submit`
   (M1.3) — và cả đường thử lại / lùi model (`seedance_refs.next_route`). Các nút tạo job không cần sửa từng nút: job bị giữ ở cổng.
-- **Đếm:** job cùng `(scene_id, kind, cycle_id)` đã có `external_id` HOẶC `poll_claim.unknown_outcome` → tính; job `RESEND_NOTE` /
+- **Đếm (Q1: bước nâng 1080p của nháp đã duyệt không tính):** job cùng `(scene_id, kind, cycle_id)` đã có `external_id` HOẶC `poll_claim.unknown_outcome` → tính; job `RESEND_NOTE` /
   `runner._not_created` (có bằng chứng provider không tạo) → không tính. Bỏ phụ thuộc `retry_count` (đặt lại khi người bấm).
 - **Chu kỳ (`cycle_id`):** tăng chỉ khi EP duyệt đổi ý đồ / cấp lượt mới (ghi kèm lý do, người duyệt, thời điểm — sổ cấp lượt shadow
   `<pid>/crew/grants.jsonl`, bảng = Cấp 3).
@@ -212,10 +214,41 @@ def record_outcome(conn, job_id, outcome)   # accepted | rejected_before_generat
 - **Repair Budget** = (lượt còn theo shot) + (USD tự sửa còn lại của dự án, EP đặt) + (lượt Claude theo vai, mục 9). Hiện trên thẻ shot.
 - **Giữ D01b cho thao tác của EP:** ngân sách dự kiến vẫn chỉ CẢNH BÁO khi EP tự bấm (chính sách 04/10); cổng chỉ CHẶN hành động TỰ ĐỘNG của vai.
 
-### 4c. Chỗ lệch cần EP chốt trước khi code (mục 10: Q1–Q3)
-- Bước nâng nháp 480p → 1080p (`quality_tier`) có tính là một lượt video không? Nếu có: mọi shot nháp + bản cao đã dùng hết 2 lượt.
-- EP tự bấm "Vẽ lại / Gen lại" có trừ lượt không (đề xuất: có trừ, nhưng EP luôn được vượt bằng một lần bấm xác nhận + lý do).
-- Thang lùi model khi bị từ chối (Seedance nhóm → đơn → Kling) hiện tự động — theo III.6 phải nằm trong danh sách model đã duyệt của dự án.
+### 4c. EP đã chốt (21/10)
+- **Q1 — nâng nháp 480p → 1080p KHÔNG tính lượt.** Lượt video chỉ đếm lần gen ra nội dung mới (nháp hoặc gen thẳng); bước nâng bản cao cùng
+  bố cục / chuyển động của nháp đã duyệt không trừ. Cổng vẫn kiểm các điều kiện khác (không trùng job, ngân sách, provider đã xác minh).
+- **Q2 — EP tự bấm "Vẽ lại / Gen lại" CÓ trừ lượt.** Hết lượt thì nút hỏi EP xác nhận vượt + lý do (EP là người có quyền cấp thêm) — ghi vào
+  sổ cấp lượt; số đã dùng không đặt lại.
+- **Q4 — thang lùi model tự động CÓ** (vd. Seedance 2.5 bị từ chối → Kling) khi model đích nằm trong danh sách model đã duyệt của dự án; lượt
+  bị từ chối có bằng chứng "không phát sinh generation" thì không tính, lượt đã sinh thì tính; lùi model KHÔNG đặt lại số lượt.
+- **Q3 — ngân sách tự sửa:** chờ EP chọn sau phần giải thích ở 4d.
+
+### 4d. Q3 giải thích — "ngân sách cho tự sửa" là gì và nên đặt thế nào
+**Là gì:** số tiền tối đa các VAI được TỰ chi cho việc làm lại (gen lại ảnh / video sau lượt đầu) trong một dự án mà không hỏi EP. Không gồm:
+lượt đầu của mỗi shot (đã có dự toán dự án), bước nâng 1080p (Q1), thao tác EP tự bấm (vẫn theo D01b: chỉ cảnh báo), Claude chạy bằng gói
+`claude_cli` (đo bằng số lượt — mục 9). Chạm ngân sách → vai dừng tự sửa, phiếu lên EP (không chặn EP).
+
+**Số thật (sổ chi, chỉ đọc 21/10):**
+
+| Dự án | Lượt đầu (ảnh + video) | Làm lại đã chi | Làm lại NẾU áp trần mới (ảnh 1+2, video 1+1) | Làm lại theo trần mới / lượt đầu |
+|---|---|---|---|---|
+| #27 | 1,14 + 62,98 = 64,12 USD | 4,68 + 35,44 = 40,12 USD | 1,98 + 21,44 = 23,42 USD | **37 %** |
+| #31 | 2,29 + 23,79 = 26,08 USD | 3,22 + 10,81 = 14,03 USD | 2,08 + 5,52 = 7,60 USD | **29 %** |
+
+Trường hợp xấu nhất theo trần mới (mọi shot dùng hết lượt) = 2 × tiền ảnh lượt đầu + 1 × tiền video lượt đầu ≈ **100 %** tiền lượt đầu (video
+chiếm phần lớn): trần lượt đã tự giới hạn tiền, nhưng mức xấu nhất gấp ~3 lần thực tế.
+
+**Ba cách đặt:**
+
+| Cách | Làm thế nào | Ưu | Nhược |
+|---|---|---|---|
+| A. Số USD cố định / dự án | EP gõ một số (vd. 15 USD) | đơn giản | dự án 10 shot và 40 shot dùng chung một số — dự án lớn hết sớm, dự án nhỏ thừa |
+| **B. % tiền lượt đầu (đề xuất)** | code lấy dự toán lượt đầu (`cost.estimate_*`, đã có trong `project_budget.propose`) × % EP chọn; mặc định **40 %** | tự co giãn theo số shot / model / độ dài; 40 % phủ cả #27 (37 %) và #31 (29 %) | dự toán sai thì ngân sách sai theo (dự toán đang được sửa ở M1.6) |
+| C. Không đặt riêng | chỉ dùng trần lượt / shot | không thêm khái niệm | mức xấu nhất ≈ 100 % lượt đầu, không có điểm dừng sớm khi nhiều shot cùng hỏng (vd. lỗi hệ thống làm mọi clip lệch) |
+
+**Đề xuất:** B, mặc định 40 %, EP đổi được theo dự án. Dashboard hiện cạnh nhau: dự toán lượt đầu, ngân sách tự sửa, đã dùng, mức xấu nhất theo
+trần lượt (tham khảo). Thêm chốt an toàn: một vai tự sửa hỏng liên tiếp ≥ 3 shot cùng mã lỗi → dừng tự sửa, phiếu lên Director / Kỹ sư (dấu
+hiệu lỗi hệ thống, không phải lỗi từng shot).
 
 ---
 
@@ -332,10 +365,27 @@ Chi phí gen (ảnh/video/âm) không đổi theo vai; trần lượt mới gi�
 
 **Không tự bật** vai có quyền ghi production hoặc gọi API trả phí khi phụ thuộc chưa đạt nghiệm thu (VII).
 
-### Câu hỏi cho Executive Producer
-- **Q1.** Bước nâng nháp 480p → 1080p có tính là một lượt video không? (E2: #27 có 17/22 shot video vượt 2 lượt nếu tính cả nâng cấp.)
-- **Q2.** Thao tác "Vẽ lại / Gen lại" do chính EP bấm có trừ lượt không? Đề xuất: có trừ, EP vượt được bằng xác nhận + lý do.
-- **Q3.** Ngân sách cho TỰ SỬA: EP đặt một số USD / dự án (đề xuất) hay theo % dự toán? (Thao tác của EP giữ D01b: chỉ cảnh báo.)
-- **Q4.** Thang lùi model tự động khi bị từ chối: giữ trong danh sách model dự án (Seedance 2.5 → Kling) hay luôn hỏi?
-- **Q5.** Cho làm sớm M6.11 (tốc độ, sửa gốc `lineage`) như gói Cấp 2 riêng trước M6-P1?
-- **Q6.** Duyệt gói Cấp 2 M6-P1 (M6.1–M6.3 shadow, 0 USD) khi nào trình — ngay sau khi golden M1.9 đạt, hay ngay bây giờ (M6.1 không phụ thuộc M2)?
+### 10a. Thứ tự ưu tiên (EP Q6, 21/10) — theo giá trị + phụ thuộc đã đạt
+Q5: M6.11 (tốc độ) **chưa làm** — chờ các việc theo kế hoạch V3.1 (M1–M5) hoàn thành rồi mới làm; số đo E5 giữ làm mốc.
+
+| Ưu tiên | Việc | Vì sao đứng đây | Phụ thuộc hiện nay | Gói duyệt |
+|---|---|---|---|---|
+| 1 | **M6.0** hoàn tất audit (caller tạo job, đường ghi theo vai) | nền cho mọi gói | không | làm ngay (Cấp 1) |
+| 2 | **M6.1** Role Registry (chỉ đọc) | mọi vai / cổng / Dashboard đọc nó | không | **Gói M6-A** (Cấp 2) |
+| 3 | **M6.3** Generation Authorization — shadow | giữ tiền: chặn gen thừa (E2); không phụ thuộc M2 | M1.2/M1.3/M1.5/M1.6 ✅, M5.1 ✅; chờ EP chốt Q3 | **Gói M6-A** |
+| 4 | **M6.9** Continuity Validator — shadow | QC độc lập là điều kiện "đạt" của mọi vai | M3.4 ✅, M4.1 ✅, M4.3 ✅ | **Gói M6-A** |
+| 5 | **M6.5** Video Prompt Artist — shadow | chất lượng video lớn nhất (prompt ghép); D6 đã có | **M2.1** + golden M1.9 | **Gói M6-B** (sau golden + gộp M2) |
+| 6 | **M6.2** Handoff Contract — shadow | truy vết bàn giao, stale đúng phụ thuộc | M1.9, M2.6 | Gói M6-B |
+| 7 | **M6.4** Write guard theo vai | vai không ghi đè nhau / dữ liệu khóa | M2.5 (+ M2.5b) | Gói M6-B |
+| 8 | **M6.6** Storyboard Artist — shadow | ảnh khung đầu bám plate + Kho | M2.1, M2.7 | Gói M6-B |
+| 9 | **M6.10** Dashboard điều phối EP | dùng được khi đã có registry, cổng, phiếu | M4.7, M6.1–M6.3 | **Gói M6-C** |
+| 10 | **M6.8** Sound Designer + Editor/VFX | đưa dựng / VFX kiểu #27 thành khâu | M2.9, M4.4 | Gói M6-C |
+| 11 | **M6.7** 3D Artist | sau bàn đạo diễn 3D | M3.1–M3.3, **M4.8** | Gói M6-C |
+| 12 | **M6.11** Tốc độ Dashboard | EP Q5: chờ kế hoạch khác xong | M1–M5 xong | gói riêng sau |
+| 13 | **M6.12** Replay offline + pilot | nghiệm thu thực tế | M5.3, M6.3, M6.5, M6.6 | Cấp 3 (dự toán) |
+
+**Trình duyệt:** Gói M6-A (M6.1 + M6.3 shadow + M6.9 shadow, 0 USD, cờ TẮT) trình khi EP chốt Q3; Gói M6-B khi golden M1.9 đạt và M2 gộp
+`main`; Gói M6-C sau M6-B.
+
+### Câu hỏi còn mở cho Executive Producer
+- **Q3.** Chọn cách đặt ngân sách tự sửa (mục 4d): A số USD cố định / **B % tiền lượt đầu, mặc định 40 % (đề xuất)** / C không đặt riêng.

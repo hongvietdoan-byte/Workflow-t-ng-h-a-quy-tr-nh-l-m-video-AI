@@ -195,7 +195,7 @@
 - *(07/10, người dùng: xóa hẳn các mục cũ 09/2026–03/10 ở đây — việc đang mở nằm ở đầu file (việc để sau Khủng Long Đỏ), `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` và mục 🐞 bên dưới; nội dung cũ xem lịch sử git trước commit này)*
 
 ## 👤 Việc cần người dùng quyết định / cung cấp
-- [ ] **21/10 · Executive Producer trả lời Q1–Q6 của M6** (mục 10 `docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md`): nâng nháp→1080p có tính lượt không; EP bấm gen lại có trừ lượt không; ngân sách tự sửa; thang lùi model; làm sớm M6.11 tốc độ; khi nào trình gói Cấp 2 M6-P1.
+- [ ] **21/10 · M6 — EP đã trả lời Q1/Q2/Q4/Q5/Q6** (nâng 1080p không tính lượt; EP bấm có trừ lượt; cho lùi model trong danh sách duyệt; M6.11 tốc độ chờ M1–M5 xong; thứ tự ưu tiên 1–13, Gói M6-A = M6.1 + M6.3 + M6.9). **Còn Q3:** chọn cách đặt ngân sách tự sửa — đề xuất B = 40 % tiền lượt đầu (mục 4d `docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md`, số #27 37 % / #31 29 %). Chốt Q3 → trình Gói M6-A (Cấp 2).
 - *(07/10, người dùng: xóa hẳn các mục cũ 09/2026–03/10 ở đây — việc đang mở nằm ở đầu file (việc để sau Khủng Long Đỏ), `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` và mục 🐞 bên dưới; nội dung cũ xem lịch sử git trước commit này)*
 
 ## 🐞 Tồn đọng / cần sửa lại

@@ -237,21 +237,23 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M5.5 · Pilot vòng C 20–40 shot: chất lượng, tỉ lệ gen lại, continuity, chi phí, can thiệp tay (Cấp 3) · nặng:2 · ⏸ · C3-12 để sau
 
 ### M6 — Tổ làm phim có chủ (AI Video Production Team)
-- [ ] M6.0 · Audit vai trò, caller tạo job, đường ghi theo vai, hiệu suất Dashboard (P0); sổ quyết định M6; check "Kỹ sư không ghi nội dung production" · nặng:1 · 🔄 · 21/10: kế hoạch docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục 0 (E1–E7: lượt gen/shot, Claude/khâu, lineage.summary #31 7,6–11,3 s); sổ v31-m6-*; còn audit caller + profiling đủ khối
-- [ ] M6.1 · Role Registry data/crew_roles.json + core/crew.py (đọc): quyền đọc/ghi, đầu vào/ra, công cụ, nghiệm thu, lỗi phụ trách, leo thang · nặng:2 · ⏸ · chờ duyệt gói Cấp 2 M6-P1
-- [ ] M6.2 · Handoff Contract shadow (jsonl): id dự án/shot, revision, phụ thuộc, sản phẩm, bằng chứng QC, trạng thái duyệt · nặng:2 · ⏸ · cần M1.9, M2.6
-- [ ] M6.3 · Generation Authorization + Repair Budget dùng chung trước provider.submit (ảnh 3 / video 2 lượt, không đặt lại, 6 điều kiện) — shadow trước · nặng:3 · ⏸ · cần M1.2/M1.3/M1.6/M5.1; câu hỏi EP Q1–Q4
-- [ ] M6.4 · Write guard theo vai (actor = role trong guard M2.5), mỗi trường một vai chủ · nặng:2 · ⏸ · cần M2.5 gộp
-- [ ] M6.5 · Video Prompt Artist dưới Director: BYĐ v2 + ảnh duyệt + ràng buộc model → prompt + coverage; code chỉ kiểm; Shadow so prompt builder cũ · nặng:3 · ⏸ · cần M2.1, M1.9
-- [ ] M6.6 · Storyboard Artist: ảnh khung đầu nhìn plate + Kho, tự kiểm có bằng chứng độc lập; Shadow · nặng:2 · ⏸ · cần M2.1, M2.7
-- [ ] M6.7 · 3D Artist: đứng tên sân khấu / plate / world map khi có, nhận phiếu nền lệch · nặng:2 · ⏸ · cần M3.1–M3.3, M4.8
-- [ ] M6.8 · Sound Designer + Editor/VFX: TTS/SFX/nhạc/khớp môi; ghép VFX + dựng kiểu #27 thành khâu Bước 5 · nặng:2 · ⏸ · cần M2.9, M4.4
-- [ ] M6.9 · Continuity Validator (năng lực, code trước): continuity_state + qc_evidence + định tuyến lỗi về vai chủ · nặng:2 · ⏸ · cần M3.4, M4.1, M4.3
-- [ ] M6.10 · Dashboard điều phối cho Executive Producer: sửa theo vai, yêu cầu ngôn ngữ tự nhiên, phiếu lỗi, payload, so phiên bản, lượt + ngân sách, duyệt vượt quyền · nặng:3 · ⏸ · cần M4.7, M6.1–M6.3
-- [ ] M6.11 · Tốc độ Dashboard theo profiling: nhớ lineage giữa lần vẽ lại, đo từng khối, fragment + nạp lười; chỉ số thời gian tới shot đạt chuẩn · nặng:2 · ⏸ · không phụ thuộc — câu hỏi EP Q5 (làm sớm)
-- [ ] M6.12 · Replay offline #24/#27/#31 + pilot có kiểm soát + nghiệm thu thực tế (pilot trả phí = Cấp 3) · nặng:2 · ⏸ · cần M5.3, M6.3, M6.5, M6.6
+- [ ] M6.0 · Audit vai trò, caller tạo job, đường ghi theo vai, hiệu suất Dashboard (P0); sổ quyết định M6; check "Kỹ sư không ghi nội dung production" · nặng:1 · 🔄 · 21/10: kế hoạch docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục 0 (E1–E7: lượt gen/shot, Claude/khâu, lineage.summary #31 7,6–11,3 s); sổ v31-m6-*; còn audit caller + profiling đủ khối · ưu tiên 1/13 (EP Q6 21/10)
+- [ ] M6.1 · Role Registry data/crew_roles.json + core/crew.py (đọc): quyền đọc/ghi, đầu vào/ra, công cụ, nghiệm thu, lỗi phụ trách, leo thang · nặng:2 · ⏸ · Gói M6-A (trình khi EP chốt Q3) · ưu tiên 2/13 (EP Q6 21/10)
+- [ ] M6.2 · Handoff Contract shadow (jsonl): id dự án/shot, revision, phụ thuộc, sản phẩm, bằng chứng QC, trạng thái duyệt · nặng:2 · ⏸ · cần M1.9, M2.6 · ưu tiên 6/13 (EP Q6 21/10)
+- [ ] M6.3 · Generation Authorization + Repair Budget dùng chung trước provider.submit (ảnh 3 / video 2 lượt, không đặt lại, 6 điều kiện) — shadow trước · nặng:3 · ⏸ · cần M1.2/M1.3/M1.6/M5.1 (đã ✅); EP chốt 21/10: Q1 nâng 1080p không tính lượt, Q2 EP bấm có trừ lượt, Q4 cho lùi model trong danh sách duyệt; còn chờ Q3 ngân sách tự sửa (đề xuất 40 % tiền lượt đầu) · Gói M6-A · ưu tiên 3/13 (EP Q6 21/10)
+- [ ] M6.4 · Write guard theo vai (actor = role trong guard M2.5), mỗi trường một vai chủ · nặng:2 · ⏸ · cần M2.5 gộp · ưu tiên 7/13 (EP Q6 21/10)
+- [ ] M6.5 · Video Prompt Artist dưới Director: BYĐ v2 + ảnh duyệt + ràng buộc model → prompt + coverage; code chỉ kiểm; Shadow so prompt builder cũ · nặng:3 · ⏸ · cần M2.1, M1.9 · ưu tiên 5/13 (EP Q6 21/10)
+- [ ] M6.6 · Storyboard Artist: ảnh khung đầu nhìn plate + Kho, tự kiểm có bằng chứng độc lập; Shadow · nặng:2 · ⏸ · cần M2.1, M2.7 · ưu tiên 8/13 (EP Q6 21/10)
+- [ ] M6.7 · 3D Artist: đứng tên sân khấu / plate / world map khi có, nhận phiếu nền lệch · nặng:2 · ⏸ · cần M3.1–M3.3, M4.8 · ưu tiên 11/13 (EP Q6 21/10)
+- [ ] M6.8 · Sound Designer + Editor/VFX: TTS/SFX/nhạc/khớp môi; ghép VFX + dựng kiểu #27 thành khâu Bước 5 · nặng:2 · ⏸ · cần M2.9, M4.4 · ưu tiên 10/13 (EP Q6 21/10)
+- [ ] M6.9 · Continuity Validator (năng lực, code trước): continuity_state + qc_evidence + định tuyến lỗi về vai chủ · nặng:2 · ⏸ · M3.4/M4.1/M4.3 đã ✅ · Gói M6-A · ưu tiên 4/13 (EP Q6 21/10)
+- [ ] M6.10 · Dashboard điều phối cho Executive Producer: sửa theo vai, yêu cầu ngôn ngữ tự nhiên, phiếu lỗi, payload, so phiên bản, lượt + ngân sách, duyệt vượt quyền · nặng:3 · ⏸ · cần M4.7, M6.1–M6.3 · ưu tiên 9/13 (EP Q6 21/10)
+- [ ] M6.11 · Tốc độ Dashboard theo profiling: nhớ lineage giữa lần vẽ lại, đo từng khối, fragment + nạp lười; chỉ số thời gian tới shot đạt chuẩn · nặng:2 · ⏸ · EP Q5 21/10: chưa làm, chờ các việc V3.1 M1–M5 hoàn thành; số đo E5 giữ làm mốc · ưu tiên 12/13 (EP Q6 21/10)
+- [ ] M6.12 · Replay offline #24/#27/#31 + pilot có kiểm soát + nghiệm thu thực tế (pilot trả phí = Cấp 3) · nặng:2 · ⏸ · cần M5.3, M6.3, M6.5, M6.6 · ưu tiên 13/13 (EP Q6 21/10)
 
 ## 6. Nhật ký
+
+- 21/10 (sau): EP trả lời M6 — Q1 nâng nháp 480p→1080p KHÔNG tính lượt; Q2 EP tự bấm gen lại CÓ trừ lượt; Q4 CÓ cho lùi model tự động trong danh sách duyệt; Q5 M6.11 tốc độ chưa làm, chờ M1–M5 xong; Q6 thứ tự ưu tiên 1–13 + Gói M6-A (M6.1, M6.3, M6.9) / M6-B (sau golden + M2) / M6-C. Q3 (ngân sách tự sửa) đã giải thích bằng số #27/#31, chờ EP chọn. Sổ: `v31-m6-generation-limits-policy-b-2026-10-21` thay bản đầu.
 
 - 21/10: Executive Producer gửi "PHÊ DUYỆT KIẾN TRÚC M6 — AI VIDEO PRODUCTION TEAM" (chốt định hướng, chưa duyệt code) → thêm M6 (mục 3, 4b, 5), kế hoạch `docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md`, sổ `v31-m6-crew-architecture-2026-10-21` + `v31-m6-generation-limits-policy-2026-10-21`, `devsys/plan_map.json` gắn khâu M6. Lệch cần chốt: trần code hiện = TỰ gen lại 3/2 (tổng 4/3, đặt lại khi người bấm) ≠ chính sách mới tổng 3/2 không đặt lại → khi triển khai M6.3 ghi D01c thay D01b. Dừng, chờ EP đánh giá.
 

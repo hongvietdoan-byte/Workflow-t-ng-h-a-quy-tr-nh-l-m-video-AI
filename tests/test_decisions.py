@@ -364,9 +364,12 @@ def test_v31_m6_architecture_recorded_as_direction_not_implementation():
     TỰ gen lại) giữ nguyên tới khi M6.3 được duyệt — D01b chưa bị thay."""
     items = {i["id"]: i for i in LEDGER["items"]}
     crew = items["v31-m6-crew-architecture-2026-10-21"]
-    lim = items["v31-m6-generation-limits-policy-2026-10-21"]
+    first = items["v31-m6-generation-limits-policy-2026-10-21"]
+    lim = items["v31-m6-generation-limits-policy-b-2026-10-21"]       # EP trả lời Q1/Q2/Q4 cùng ngày → bản b thay bản đầu
+    assert first["status"] == "replaced" and lim["replaces"] == first["id"]
+    assert crew["replaces"] is None
     for it in (crew, lim):
-        assert it["status"] == "active" and it["replaces"] is None, it["id"]
+        assert it["status"] == "active", it["id"]
         assert "không phải lệnh triển khai code" in it["changes"] and "Cấp 2" in it["changes"] and "Cấp 3" in it["changes"], it["id"]
     for role in ("Executive Producer", "Director", "Scriptwriter", "Cinematographer", "3D Artist", "Storyboard Artist",
                  "Video Prompt Artist", "Sound Designer", "Editor / VFX", "Continuity Validator"):
@@ -375,6 +378,8 @@ def test_v31_m6_architecture_recorded_as_direction_not_implementation():
     assert "ảnh tối đa 3 lượt" in lim["text"] and "video tối đa 2 lượt" in lim["text"]
     assert "CHƯA phải phê duyệt bật tự động gen trả phí" in lim["text"]
     assert "AUTO_REGEN_LIMIT" in lim["keeps"] and "D01c" in lim["keeps"]
+    assert "KHÔNG tính lượt video" in lim["text"] and "CÓ trừ lượt" in lim["text"] and "CÓ cho tự lùi model" in lim["text"]
+    assert "Q3 (ngân sách tự sửa) chưa chốt" in lim["text"]
     assert items["v31-d01b-money-policy-product-job-cap-2026-10-20"]["status"] == "active"
     from core.pipeline import AUTO_REGEN_LIMIT                 # chưa triển khai M6.3: code giữ trần cũ
     assert AUTO_REGEN_LIMIT == {"image_gen": 3, "video_gen": 2}
