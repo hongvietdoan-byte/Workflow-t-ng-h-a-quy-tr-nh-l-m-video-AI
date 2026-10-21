@@ -103,6 +103,8 @@ def _set_prompt(conn, scene_id: int, kind: str, text: str, actor=None) -> None:
             old = conn.execute("SELECT motion_prompt FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
             write_guard.observe(conn, scene_id, {"motion_prompt": text}, actor, before={"motion_prompt": old[0] if old else None})
         conn.execute("UPDATE motion_prompts SET motion_prompt=? WHERE scene_id=?", (text, scene_id))
+        if actor and actor.get("kind") == "human":       # C-M25B: người chọn lại bản cũ = sửa tay → khóa (cờ field_guard)
+            write_guard.lock(conn, scene_id, "motion_prompt", actor)
 
 
 def versions(conn, scene_id: int, kind: str) -> List[Dict]:

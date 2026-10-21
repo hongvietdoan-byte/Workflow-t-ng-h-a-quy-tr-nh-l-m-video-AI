@@ -46,10 +46,15 @@ def _mp(p, sid):
 
 def test_flag_off_hand_edit_writes_no_lock(shot):
     p, pid, sid = shot
-    before = p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()[0]
     with OFF:
         _save(p, pid, "người sửa", HUMAN)
-    assert p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()[0] == before
+    got = _data(p, sid)
+    with OFF:                                                                   # cùng lần lưu không actor (đường cũ) → dữ liệu như nhau
+        _save(p, pid, "người sửa 2")
+        _save(p, pid, "người sửa")
+    old_way = _data(p, sid)
+    got.pop("formula_check", None), old_way.pop("formula_check", None)          # sha kiểm công thức đóng dấu mỗi lần lưu (đã có)
+    assert got == old_way and not {"_field_state", "_field_prov", "_rev"} & set(got)
     assert _mp(p, sid) == "người sửa"
 
 

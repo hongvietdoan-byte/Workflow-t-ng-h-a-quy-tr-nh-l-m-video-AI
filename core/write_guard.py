@@ -26,7 +26,7 @@ REVIEW_FIELDS = ("characters", "location_asset", "byd", "end_state", "dialogue",
 DERIVED = ("formula_check", "motion_en", "motion_en_src", "motion_en_src_fields", "motion_en_ambiguous", "ref_mark_sent", "layout",
            "layout_people", "difficulty_by", "difficulty_director", "stage_segment", "plate_setup", "plate_setup_scene", "spatial_state",
            "duration_from_voice")
-META = ("_user_locked", "_field_state", "_rev")
+META = ("_user_locked", "_field_state", "_field_prov", "_rev")
 
 
 def enabled() -> bool:
@@ -153,6 +153,33 @@ def observe(conn, scene_id: int, changes: Dict[str, Any], who: Dict, read_data: 
         try:
             from . import diag
             diag.record(conn, "system", "warn", f"field_guard (shadow) lỗi ({type(e).__name__}: {e}) — lần ghi vẫn đi như cũ", "field_guard",
+                        pid, scene_id)
+        except Exception:  # noqa: BLE001
+            pass
+        return None
+
+
+def lock(conn, scene_id: int, field: str, who: Dict) -> Optional[Dict]:
+    """C-M25B: NGƯỜI sửa tay một trường không nằm trong cơ chế khóa cũ (motion prompt) → `_field_state[field] = USER_LOCKED` + provenance
+    `_field_prov[field] = {by, at}` + `_rev` + 1. Cờ tắt / không phải người → None, không đọc, không ghi. Không bao giờ ném lỗi (lỗi → diag)."""
+    if not enabled() or (who or {}).get("kind") != "human":
+        return None
+    pid = None
+    try:
+        import datetime
+        pid, data = _load(conn, scene_id)
+        fs = data.get("_field_state") if isinstance(data.get("_field_state"), dict) else {}
+        prov = data.get("_field_prov") if isinstance(data.get("_field_prov"), dict) else {}
+        fs[field] = USER_LOCKED
+        prov[field] = {"by": f"human:{who.get('who', '?')}", "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")}
+        data["_field_state"], data["_field_prov"], data["_rev"] = fs, prov, rev(data) + 1
+        conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), scene_id))
+        conn.commit()
+        return data
+    except Exception as e:  # noqa: BLE001 - a lock that cannot be written is said, the person's edit stands
+        try:
+            from . import diag
+            diag.record(conn, "system", "warn", f"field_guard: không ghi được khóa `{field}` ({type(e).__name__}: {e})", "field_guard",
                         pid, scene_id)
         except Exception:  # noqa: BLE001
             pass
