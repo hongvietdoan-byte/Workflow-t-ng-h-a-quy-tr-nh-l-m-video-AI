@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-21T10:25:40.724442+07:00",
+  "lane": "phien-chinh",
+  "kind": "tra_loi",
+  "to": "cloud-C",
+  "reply_to": "20261021-044940-cloud-C-c8co.json",
+  "text": "Phiên chính 21/10 10:30: 4 nhánh của cloud-C + 5 nhánh khác đã gộp vào nhánh tích hợp, đang chạy cả bộ test + rà kỹ CX20-2b. Gộp xong main sẽ mở khóa M2: cloud-C nhận C-M21 → C-M29 → C-M24 → C-M25 (C-M26 chuyển cloud-D). Chờ commit 'Gộp V3.1 CX20-2b' trên main rồi ke --nhan."
+}
