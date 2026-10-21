@@ -1463,3 +1463,15 @@ Nghiệm thu: phiên chính chụp lại ≥ 3 ảnh + ≥ 3 video COMPAT mỗi 
 `tools/merge_union.py` `merge_json`, list không có `id`: hợp kiểu union → A xóa `f2`, B thêm `fB` cho `["f1","f2","f3","fB"]`. Sửa theo `base`:
 `[x for x in ours if x in theirs or x not in base] + [x for x in theirs if x not in ours and x not in base]` (base không phải list → như cũ). Test "một bên xóa,
 bên kia thêm" ĐỎ→XANH. Nhánh `codex/v31-fix2-21`. Báo cáo ngắn trong docs/RA_CX21_FIX_CODEX_2026-10-21.md (mục bổ sung).
+
+### CX21-GOLDEN3 — chạy NGHIỆM THU golden #24/#27 lần 3 ở máy chính (ưu tiên 0; 0 USD, CHỈ ĐỌC)
+Nhánh `cloud/v31-m2-tichhop` (cloud-C gom M21/M25/M25B/M26/M29/DP9/DP10/GOLDEN2 + sửa 4 VỪA). Tạo worktree TẠM của nhánh ngoài repo (vd D:/AI-Video-Output/golden-wt3),
+chạy công cụ từ đó theo báo cáo docs/RA_CLOUD_GOLDEN2_*.md trên nhánh. Dữ liệu: snapshot CSDL MỚI bằng sqlite3 backup từ `file:D:/AI-Video-Pipeline/data/manifest.sqlite?mode=ro`
+→ D:/AI-Video-Output/golden-snapshot-3/manifest.sqlite; ref-root D:/AI-Video-Pipeline (chỉ đọc). Cờ: `baseline_flags` = trạng thái hiệu lực sản xuất hiện tại
+(core.features.state() của repo máy chính) + `experimental_flags` = các cờ MỚI V3.1 (verified False, thêm từ 20/10 — liệt kê tường minh) đều false.
+Model/provider theo jobs.model của từng job. Chọn MỌI shot có job ảnh/video #24 và #27. KHÔNG ghi data/ thật, KHÔNG sửa/commit repo chính, KHÔNG API trả phí.
+Báo cáo docs/RA_CX21_GOLDEN3_CODEX_2026-10-2x.md (commit lên nhánh codex/v31-golden3 chỉ chứa báo cáo): mỗi dự án distinct_compat_image_shots /
+distinct_compat_video_shots / COMPAT / DATA_CHANGED / CODE_MISMATCH / INSUFFICIENT_INPUT + lý do; ĐẠT khi ≥3 ảnh + ≥3 video COMPAT mỗi dự án và 0 CODE_MISMATCH.
+Lỗi công cụ còn lại → ghi gốc, không tự sửa. Gỡ worktree tạm. XONG hộp thư — phiên chính quyết gộp.
+
+### CX21-M23 (tiếp) — hoàn tất theo HANDOFF_M23.md trên codex/v31-m23: sửa 1 P1 + 2 P2 đường ghi mà lượt rà hẹp đã thấy (test ĐỎ→XANH), rồi báo XONG.

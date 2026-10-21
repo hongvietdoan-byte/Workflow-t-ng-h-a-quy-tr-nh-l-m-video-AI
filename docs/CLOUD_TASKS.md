@@ -694,3 +694,37 @@ Chạy CẢ BỘ test trên nhánh tích hợp (Linux; golden 3.14 skip là đú
 docs/RA_CLOUD_M2_TICHHOP_2026-10-2x.md (danh sách merge + sha, xung đột đã hợp, 4 lỗi đã sửa + test). XONG hộp thư. Phiên chính sẽ nghiệm thu golden #24/#27
 trên nhánh này ở máy chính rồi gộp main một lần.
 ```
+
+## Chia việc 21/10 tối (người dùng: "chia lại task cho codex, cloud-C, cloud-E qua hòm thư")
+
+#### C-FLAGTEST8 (cloud-C — ưu tiên 0; chỉ TEST, không đổi hành vi code)
+```
+Bối cảnh: docs/DANH_GIA_HIEU_QUA_CO_2026-10-21.md đề nghị KHÓA 8 cờ (send_claim, video_pregen, framing_guard, plate_view_sentence, stage_camera,
+seedance_ref_groups, back_view_guard, chat_first). Đo 21/10 (máy chính): ép 8 cờ BẬT kiểu "soft" (= verified True) → 164 test ĐỎ / 6752 qua (mốc 1 đỏ) —
+lặp lại vụ 13/10 (khóa 20 cờ → 362 đỏ → revert). Danh sách: docs/flagmatrix/k8_failed_2026-10-21.txt; phân loại sơ bộ: docs/flagmatrix/k8_classify_2026-10-21.json.
+Plugin ép cờ: tools/testing/flagforce.py (PYTHONPATH=tools/testing python -m pytest -p flagforce; FLAGMATRIX_ON="a,b", FLAGMATRIX_MODE=soft|hard).
+Làm: với mỗi test đỏ, xác định (A) test ngầm dựa vào cờ TẮT mặc định → sửa test cho TỰ ĐẶT trạng thái cờ nó cần (helper flag()/flags_off có sẵn
+trong tests/_flags.py), KHÔNG nới assert; (B) lỗi thật của code khi cờ BẬT → KHÔNG sửa code, ghi vào báo cáo (file:dòng, kịch bản, đề xuất sửa).
+Nghiệm thu: chạy cả bộ 2 lần — mặc định (= như cũ) và FLAGMATRIX_ON=8 cờ soft → đỏ chỉ còn nhóm (B). Mỗi file test sửa một commit nhỏ.
+Nhánh cloud/v31-flagtest8. Báo cáo docs/RA_CLOUD_FLAGTEST8_2026-10-2x.md (bảng: test · nhóm A/B · cờ · cách sửa). XONG hộp thư.
+```
+
+#### C-M60-AUDIT (cloud-C — ưu tiên 3; Cấp 1 chỉ tài liệu)
+```
+M6.0 phần còn lại (docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục 0 + kế hoạch V3.1 dòng M6.0): audit MỌI caller tạo job (ảnh / video / Claude /
+TTS / nhạc …: file:hàm, ai gọi — Dashboard nút nào, autopilot, CLI, nền) và MỌI đường ghi nội dung production theo vai dự kiến (Director, Storyboard,
+Video Prompt Artist, 3D, Sound, Editor, Continuity, Kỹ sư); đánh dấu đường nào "Kỹ sư (Claude Code) ghi nội dung production" (vi phạm hướng M6).
+Đề xuất check tự động cho sổ quyết định (`check_*` kiểu tests/test_decisions.py) — chỉ đề xuất. Profiling Dashboard KHÔNG làm ở cloud (cần máy chính).
+Kết quả docs/V3_1_M6_0_AUDIT_VAI_2026-10-2x.md, nhánh cloud/v31-m60-audit. XONG hộp thư.
+```
+
+#### C-FLAGFIX-PLAN (cloud-E — ưu tiên 1; Cấp 1 chỉ tài liệu)
+```
+Gói sửa 20 cờ nhóm "SỬA rồi bật/khóa" của docs/DANH_GIA_HIEU_QUA_CO_2026-10-21.md mục 4 (video_gate, two_tier_quality, motion_consistency_lint,
+change_review, director_rewrite, chat_prompts, bg_autoqc, lip_sync, dialogue_take, end_frames, scene_qc, stage_auto, stage_handheld_props,
+stage_crew_user_approve, travel_truth, continuity_layout, hero_takes, audio_first, story_check, voice_check_redo) + 2 cờ nguy hiểm (scene_qc_claude,
+director_rewrite). Mỗi cờ: lỗi cụ thể (mã devsys/errors.json nếu có, file:hàm), gốc, cách sửa đề xuất, test ĐỎ→XANH dự kiến, tác động khi đang BẬT ở máy
+chính (cờ nào đang BẬT: xem bảng mục 3), có làm thêm điểm chặn / tốn tiền không, cấp quyền (Cấp 2 code / Cấp 3 đổi trạng thái), thứ tự ưu tiên
+(change_review "cổng mở khi Claude lỗi → job tự gửi" + hero_takes "tốn tiền mà không khai costs" lên đầu). Gom thành 2–3 GÓI để người dùng duyệt một lần.
+docs/KE_HOACH_SUA_20_CO_2026-10-2x.md, nhánh cloud/v31-flagfix-plan. XONG hộp thư.
+```
