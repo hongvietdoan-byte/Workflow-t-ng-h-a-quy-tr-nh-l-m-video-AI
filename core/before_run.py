@@ -81,6 +81,10 @@ def _cost_items(conn) -> List[Dict]:
         else:
             money = spec["text"]
         out.append(_item("vang", f"`{name}` — {label}: {money}", WHERE_FLAGS))
+    for k, note in features.unmet_all().items():     # M7.4 B2: cờ bật / 🔒 khóa mà KHÔNG tác dụng (dialogue_take cần lip_sync) — nói ra
+        out.append(_item("vang", ("🔒 " if features.locked(k) else "") + note
+                         + (" — khóa lip_sync chờ 1 shot cận chạy thật (quyết định lip-sync-lock-after-real-run)" if "lip_sync" in note else ""),
+                         WHERE_FLAGS))
     others = [k for k in features.on_unverified() if k not in PAID_FLAGS]
     if others:
         out.append(_item("info", f"{len(others)} cờ chưa thử thật khác đang bật: " + ", ".join(others[:12])
