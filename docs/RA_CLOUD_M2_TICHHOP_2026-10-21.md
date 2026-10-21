@@ -45,18 +45,35 @@ Sau mỗi lần dùng merge_union đã kiểm `features.py` parse được và k
    - Đã sửa một test cũ: `test_v31_m25_write_guard::test_l6…` gọi `_write` giữa giao dịch. Test nay commit + flush trước khi đọc diag, và kiểm thêm "giữa giao dịch chưa ghi". Đây là hành vi mới có chủ đích.
    - Điểm phụ "người sửa motion rồi AI đè → diag": `test_v31_m25b_motion_lock` + `test_l1_motion_prompt_by_ai_on_locked` xanh trên nhánh tích hợp.
 
-## Bộ test đầy đủ (cloud Linux, Python 3.13)
-`7101 passed, 38 skipped, 22 xfailed`. 5 failed, **đều đỏ sẵn trên main**:
-- `test_devsys_plan_map` (M4.8 chưa map);
-- `recut_by_hand`;
-- `punches`;
-- `end_popup_p24`;
-- `unreadable_picture`.
+## Bộ test đầy đủ (cloud Linux, Python 3.13, HEAD dffc594b)
+`7103 passed, 38 skipped, 22 xfailed`. 6 failed, không cái nào do nhánh này:
+- **đỏ sẵn trên main:**
+  - `test_devsys_plan_map` (M4.8 chưa map);
+  - `recut_by_hand`;
+  - `punches`;
+  - `end_popup_p24`;
+  - `unreadable_picture`.
+- **chập chờn khi chạy song song (xdist):**
+  - `test_subjects::…only_when_switched_on` — chạy riêng xanh; lần chạy đủ trước (c2669686) cũng xanh;
+  - agent rà còn gặp `test_ui_v2_acceptance::test_dynamic_keys_only_documented_renames_missing`, chạy riêng cũng xanh.
 
 Golden: skip đúng (golden2 `needs_native_314`) — phiên chính nghiệm thu golden #24/#27 trên nhánh này ở máy chính (Python 3.14).
 
-## Rà khâu liên quan (luật 7)
-Xem mục cuối (agent rà 4 sửa).
+## Rà khâu liên quan (luật 7) — agent rà 4 sửa, sửa ở dffc594b
+- **VỪA-1:** `needs_first_frame` so cũ / mới trên 11 ca BYĐ → y hệt.
+- **M21-1:** mọi nơi gọi `lock_exceptions` / `film_grammar` / `qc_observe` xử lý ValueError y như AttributeError cũ (lan / bắt Exception); không có vòng thử lại trả tiền.
+- **VỪA (M25-1):** diag shadow giữ lại của lần ghi đã ROLLBACK vẫn bị ghi sau đó, và `_PENDING` giữ kết nối mãi → đã sửa:
+  - thêm `write_guard.discard(conn)`, gọi ở 2 nhánh rollback của `prompt_formula`;
+  - `flush` an toàn với kết nối đã đóng;
+  - có test.
+- **THẤP — đã sửa:**
+  - `qc_observe._prepare` giữ mã `byd_sai_kieu` (trước bị gọi là `qc_missing_input`);
+  - cổng ảnh in **số shot** nháp như cổng video, thay vì scene id. Test DP9 `test_missing_byd_yellow_and_draft_byd_yellow` đổi kỳ vọng từ "#41" sang "từ shot N" — hành vi mới có chủ đích;
+  - BYĐ nháp đổi nơi / chỗ đứng → bỏ `noi_chon.trong_nha` (code suy lại).
+- **THẤP — để mở:**
+  - `store_motion_prompts` lỗi giữa lô không rollback (có sẵn trên main; đổi là đổi hành vi cờ TẮT). Diag giữ của lô đó ghi ở lần observe kế;
+  - `assess` có thể thêm REVIEW cho `dang` của nháp (chỉ khi cờ `byd_v2_levels` bật, chỉ ghi);
+  - thiếu test đầu-cuối `prompt_rewrite.revert()` → kết nối khác thấy USER_LOCKED (đã đọc code: revert có commit sau lock).
 
 ## Còn mở
 - **M21-2 (THẤP, không thuộc 4 VỪA):** `validate()` nhận khóa `byd_v` không qua cờ.
