@@ -1119,6 +1119,14 @@ class VideoRunner(_Runner):
 
     def _build_package(self, job, args, kwargs, sent_kwargs, task_id):
         pkg, warns = super()._build_package(job, args, kwargs, sent_kwargs, task_id)
+        from . import model_router
+        if pkg and model_router.router_first_frame_on() and job["scene_id"]:   # M2.8: why this shot left its ref-only group (flag off: as before)
+            from . import seedance_refs
+            reason = seedance_refs.split_reason(self.p.conn, job["scene_id"])
+            if reason and not self._sends_group(job):
+                body = json.loads(pkg)
+                body["router"] = {"gui_mot_minh": True, "ly_do": f"cần khung đầu — {reason}; nhóm ref-only không giữ khung đầu"}
+                pkg = json.dumps(body, ensure_ascii=False)
         fingerprint = self.__dict__.get("_pregen_fingerprints", {}).get(job["id"])
         if pkg and task_id is not None and fingerprint:
             body = json.loads(pkg)

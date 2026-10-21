@@ -152,6 +152,7 @@
       "subject_capacity_guard": false,
       "world_map_sentences": false,
       "continuity_state": false,
+      "router_first_frame": false,
       "whitebox_height_dummy": false
     },
     "experimental_flags": [
@@ -322,6 +323,7 @@
       "subject_capacity_guard": false,
       "world_map_sentences": false,
       "continuity_state": false,
+      "router_first_frame": false,
       "whitebox_height_dummy": false
     },
     "experimental_flags": [

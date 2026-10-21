@@ -678,6 +678,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "K3 (docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md mục 3.4b, A17): mới thử bằng CSDL tạm + provider giả — chưa chạy trên "
                "dự án thật (đo báo nhầm trên #24 trước khi bật)",
     },
+    "router_first_frame": {
+        "label": "Router theo khả năng model (V3.1 M2.8): shot CẦN khung đầu đã duyệt (nối clip trước, continuity_from, BYĐ mốc nền trong khung, "
+                 "nhân vật ở dạng đặc biệt) không gộp vào nhóm Seedance ref-only (ref-only không giữ khung đầu — data/provider_rules.json "
+                 "first_frame_in_ref_mode) → gửi một mình; lý do tách ghi vào gói gửi (sent_package.router). Đổi SỐ clip → giá: xem pregen_check",
+        "verified": False,
+        "why": "#31 G28 (job 1043 khung 0 khác ảnh đầu), G37 (shot 28 nhóm 28+29 mất dạng bóng mờ). Tách nhóm thêm clip (≥ 4 s tính tiền mỗi "
+               "clip). Chưa chạy trên dự án thật; chất lượng clip chỉ chứng minh bằng gen (Cấp 3)",
+    },
     "murch_knowledge": {
         "label": "Bộ não prompt Đợt 2: Director + motion đọc thang ưu tiên cảm xúc (Murch), motion đọc kỷ luật I2V (giữ trước, hỏng thì "
                  "giảm chuyển động, check_flags gọi tên rủi ro), Director đọc phương pháp âm thanh; người xem lần đầu chấm thêm cam_xuc",
