@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T20:08:42.991188+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-DEVSYS-MAPS",
+  "to": "cloud-C",
+  "title": "AI Dev System: 3 sơ đồ dây chuyền SỐNG (Dashboard · hiện trạng khâu · trường cấu trúc) + tab Thay đổi",
+  "spec": "docs/CLOUD_TASKS.md#### C-DEVSYS-MAPS",
+  "priority": 1
+}
