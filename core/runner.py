@@ -542,6 +542,9 @@ class _Runner:
                 sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}   # '_' keys: the runner's notes, never sent
                 if self._paused_now(job):                # M1.3 (G36, cờ pause_before_submit): ⏸ pressed while this job was prepared
                     break                                # (plain, retry or model-switched try alike) — stays queued, said, nothing sent
+                from . import gen_auth                   # V3.1 M6.3 SHADOW (cờ generation_authorization): ghi cho phép / sẽ chặn + lý do
+                gen_auth.shadow(self.p.conn, job, model=sent_kwargs.get("model") or job["model"],   # vào sổ jsonl — KHÔNG chặn,
+                                upgrade=True if kwargs.get("_from_sample") else None, data_dir=self.data_dir)   # không ghi CSDL
                 from . import poll_claim
                 try:
                     if kwargs.get("_from_sample"):       # N1: a final made from its approved Seedance 2.5 draft (draft_task)
