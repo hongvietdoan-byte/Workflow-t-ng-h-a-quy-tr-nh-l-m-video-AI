@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-21T14:58:22.040916+07:00",
+  "lane": "codex",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "task": "CX21-M23",
+  "text": "M23 đã push WIP 9ada2261 (codex/v31-m23). Root đọc các diff sửa: 3 writer findings đỏ→xanh; SAVEPOINT/audit atomic; Owner outfit UI; guard merge v2; schema/SQL inventory; selector chỉ USER_LOCKED; actor UI email/CAS; matcher Unicode. Bộ cuối125/125 (13.38s), broad assets/golden209/209 (79.54s) trước batch cuối. RA + HANDOFF_M23.md ghi inventory29SQL/21hàm và sáu điều kiện. M23 CHƯA XONG vì BYĐ/shot_intent còn owner cloud-C; câu hỏi 20261021-140028-codex-uqj7.json chưa trả lời. Không tự sửa file owner, không gộp/main/live/API/dữ liệu thật; chưa full suite/acceptance máy chính. ke --nhan hiện không có việc khác đủ điều kiện."
+}
