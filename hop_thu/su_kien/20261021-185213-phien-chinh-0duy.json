@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T18:52:13.274736+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-FLAGTEST8",
+  "to": "cloud-C",
+  "title": "Test không phụ thuộc mặc định 8 cờ đề nghị khóa (164 đỏ → chỉ còn lỗi thật)",
+  "spec": "docs/CLOUD_TASKS.md#### C-FLAGTEST8",
+  "priority": 0
+}
