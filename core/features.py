@@ -418,6 +418,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "G2 (người sai tỉ lệ so nền), G3 (#31 shot 28 khai eye mà pitch +17,3°), A10. Whitebox cũ cố định mắt 1,6 m, khối 1,8 m. "
                "Chưa render thử trên máy chính",
     },
+    "field_guard": {
+        "label": "Write guard cấp trường SHADOW (V3.1 M2.5): mỗi lần AI / tự động / công cụ ghi đè trường người khóa (USER_LOCKED), đổi trường "
+                 "quan trọng đã có giá trị (REVIEW_FIELDS) hoặc ghi bằng bản đọc cũ → một dòng ⚙ Chẩn đoán field_conflict / field_review / "
+                 "stale_write — KHÔNG chặn, không đổi dữ liệu (enforce = Cấp 3)",
+        "verified": False,
+        "why": "D04 (data/decisions.json v31-d04-field-level-write-guard): lỗ hổng L1–L6 của audit M0.10 (motion prompt / duration_s / "
+               "video_route / image_prompt người sửa bị AI đè, mất cập nhật luồng nền). Shadow trước để đo số ca thật. Chưa chạy trên dữ liệu thật",
+    },
     "final_black_freeze": {
         "label": "Kiểm bản dựng cuối: đoạn màn hình ĐEN (≥ 0,5 s) và ĐỨNG HÌNH (> 1,5 s) bằng ffmpeg blackdetect / freezedetect — chỉ "
                  "cảnh báo (cần xem), không chặn xuất (V3.1 M4.4)",

@@ -1120,6 +1120,8 @@ def _say(conn, project_id, scene_id, label: str, fc: Dict) -> None:
 
 
 def _write(conn, scene_id: int, data: Dict, fc: Dict) -> None:
+    from . import write_guard                      # V3.1 M2.5 (cờ field_guard, shadow): ghi cả bảng đọc từ trước (L6) → diag stale_write
+    write_guard.observe(conn, scene_id, {"formula_check": fc}, write_guard.actor("auto", "prompt_formula"), read_data=data)
     data["formula_check"] = fc
     conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), scene_id))
 

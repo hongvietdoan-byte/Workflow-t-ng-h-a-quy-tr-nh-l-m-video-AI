@@ -1026,7 +1026,8 @@ def run_motion(p: Pipeline, project_id: int, client, data_dir: str, only_idx=Non
             bundle = plain(bundle)     # one call: nothing to reuse, a cache write would only cost more
         obj, i, o = ask_json(client, bundle, llm_io.validate_motion_prompts, images, note=_retry_note(p, "motion", project_id))
         obj["scenes"] = [s for s in obj["scenes"] if s["idx"] in wanted]
-        llm_io.store_motion_prompts(p, project_id, obj)
+        from . import write_guard
+        llm_io.store_motion_prompts(p, project_id, obj, actor=write_guard.actor("ai", "director_motion"))
         done, tin, tout = done + len(obj["scenes"]), tin + i, tout + o
     return {"scenes": done, "input_tokens": tin, "output_tokens": tout, "calls": len(batches)}
 
