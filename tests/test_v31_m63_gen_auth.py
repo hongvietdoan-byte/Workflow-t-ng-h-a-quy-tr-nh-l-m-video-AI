@@ -21,10 +21,17 @@ PRICING = {"per_image": {"m": 1.0, "x": 1.0}, "per_video_second": {}, "per_video
 
 @pytest.fixture(autouse=True)
 def _fresh_pricing_cache():
-    """Bảng giá cache 60 s ở cấp module (C-M63-FIX) — mỗi test bắt đầu sạch để mock load_pricing có hiệu lực."""
+    """Bảng giá cache 60 s ở cấp module (C-M63-FIX) — mỗi test bắt đầu sạch để mock load_pricing có hiệu lực. C-M63-FIX2: dọn cả lỗi /
+    mã autoqc toàn cục của dự án giả 78 / 79 (không rò sang test khác)."""
     G._PRICING_CACHE.clear()
     yield
     G._PRICING_CACHE.clear()
+    from core import autoqc
+    for pid in (78, 79):
+        autoqc._errors.pop(pid, None)
+        autoqc._video_errors.pop(pid, None)
+        for kind in ("image", "video"):
+            autoqc._codes.pop((kind, pid), None)
 
 
 def _setup(tmp_path, shots=1):
@@ -480,10 +487,154 @@ def test_autoqc_stop_code_is_cleared_by_a_new_run_and_by_clear():
         assert autoqc.last_error_code("image", 78) == "usage_limit"
         autoqc._fail(None, 78, "JSON hỏng")                                         # dừng vì lỗi khác: không giữ mã cũ
         assert autoqc.last_error_code("image", 78) is None
-    autoqc._codes[("video", 78)] = ("usage_limit", 0.0)
+    autoqc._codes[("video", 78)] = "usage_limit"                                      # C-M63-FIX2: _codes giữ CHUỖI
     autoqc.clear_video_error(78)
     assert autoqc.last_error_code("video", 78) is None
-    autoqc._codes[("image", 79)] = ("usage_limit", 0.0)
+    autoqc._codes[("image", 79)] = "usage_limit"
     with mock.patch.object(autoqc, "connect", side_effect=RuntimeError("stop after the clear")), mock.patch("core.diag.record"):
         autoqc._work(":memory:", "data", 79, lambda: None)
     assert autoqc.last_error_code("image", 79) is None
+
+
+
+# ---- C-M63-FIX2 (rà kỹ C-M63-FIX 22/10) --------------------------------------------------------------------------------------------
+def test_attempts_reads_the_project_once_not_two_table_scans_per_shot(tmp_path):
+    """VỪA 1: _repair_budget gọi attempts cho từng (shot, loại) — mỗi lần 2 câu quét toàn bảng jobs (không chỉ mục) trong SPEND_LOCK.
+    Nay đọc job của dự án MỘT lần: số câu SQL không tăng theo số shot."""
+    counts = {}
+    for n in (2, 8):
+        (tmp_path / f"n{n}").mkdir()
+        p, pid, sids = _setup(tmp_path / f"n{n}", shots=n)
+        for sid in sids:
+            _job(p, pid, sid, usd_q=1)
+            _job(p, pid, sid, usd_q=1, origin="auto")
+        stmts = []
+        p.conn.set_trace_callback(stmts.append)
+        b = G.repair_budget(p.conn, pid, pricing=PRICING)
+        p.conn.set_trace_callback(None)
+        counts[n] = len([x for x in stmts if x.lstrip().upper().startswith("SELECT") and "FROM JOBS" in x.upper()])
+        assert b["first_usd"] == n and b["repair_usd"] == n
+    assert counts[8] == counts[2], counts
+
+
+def test_group_resend_that_is_another_shots_first_take_counts_as_repair(tmp_path):
+    """THẤP 4: clip nhóm gửi lại (tự động) của shot A mà là lượt đầu của shot B — trước vào 'lượt đầu' → ngân sách phình 40 %; nay
+    vào bên làm lại (thận trọng tiền)."""
+    p, pid, sids = _setup(tmp_path, shots=2)
+    _job(p, pid, sids[0], kind="video_gen", usd_q=1)                                     # lượt đầu của A (riêng)
+    regroup = _job(p, pid, sids[0], kind="video_gen", usd_q=1, origin="auto", ext="grp")  # A gửi lại cả nhóm: lượt 2 của A, lượt 1 của B
+    p.conn.execute("UPDATE jobs SET sent_group=? WHERE id=?", (json.dumps([{"id": sids[0]}, {"id": sids[1]}]), regroup))
+    _job(p, pid, sids[1], kind="video_gen", ext=None, state="queued")                    # B có job riêng (đi kèm, chưa nhận task)
+    p.conn.commit()
+    with mock.patch("core.budget.row_usd", side_effect=lambda pr, r: float(r["quantity"])):
+        b = G.repair_budget(p.conn, pid, pricing=PRICING)
+    assert b["repair_usd"] == 1.0 and b["first_usd"] == 1.0
+
+
+def test_busy_sees_a_running_group_clip_carrying_this_shot(tmp_path):
+    """THẤP 5: clip NHÓM đang chạy (shot đầu gửi, sent_group chứa shot này) = shot đang có job chạy (như runner._covered)."""
+    p, pid, sids = _setup(tmp_path, shots=2)
+    lead = _job(p, pid, sids[0], kind="video_gen", state="running", ext="g")
+    p.conn.execute("UPDATE jobs SET sent_group=? WHERE id=?", (json.dumps([{"id": sids[0]}, {"id": sids[1]}]), lead))
+    p.conn.commit()
+    assert G._busy(p.conn, sids[1], "video_gen", None) == lead
+
+
+def test_end_frames_flag_off_never_asks_the_provider_for_usage_info(tmp_path):
+    """THẤP 2: model của dòng shadow (`_usage_model(provider)` = provider.usage_info()) chỉ tính khi cờ BẬT — chạy đường gửi thật, cờ TẮT."""
+    import tempfile
+    from core import end_frames, llm_runner
+    from tests.test_end_frames import _shot_with_end_state
+    from tests.test_v3 import _approve_all_images, kenta_project
+    asked = []
+    with mock.patch.dict(os.environ, {"FEATURE_SEEDANCE_REF_GROUPS": "0", "FEATURE_END_FRAMES": "1", **OFF}):
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        _shot_with_end_state(p, pid)
+        data = tempfile.mkdtemp()
+        _approve_all_images(p, pid, data)
+        end_frames.queue(p, pid)
+
+        class Prov(MockImageProvider):
+            def submit(self, *a, **k):
+                asked.append("send")
+                return super().submit(*a, **k)
+        with mock.patch.object(end_frames, "_usage_model", wraps=end_frames._usage_model) as um:
+            end_frames.tick(p, pid, Prov(), data)
+    assert G.read_shadow(data, pid) == [] and asked
+    # _usage_model: một lần cho sổ chi mỗi lượt gửi; cờ TẮT → shadow KHÔNG hỏi thêm (trước: 2 lần mỗi lượt gửi)
+    assert um.call_count == len(asked), (um.call_count, len(asked))
+
+
+def test_group_ids_keeps_the_good_members_of_a_partly_broken_group():
+    row = {"sent_group": json.dumps([{"id": 7}, {"id": "abc"}, {"id": "9"}, "x"])}
+
+    class R(dict):
+        def keys(self):
+            return super().keys()
+    assert G._group_ids(R(row)) == {7, 9}
+
+
+def test_first_take_of_the_sender_is_first_even_if_a_group_member_had_takes(tmp_path):
+    """Rà: lượt ĐẦU của A (gửi clip nhóm A+B tự động) khi B đã có clip riêng — vẫn là lượt đầu (theo shot GỬI), không phạt 2 lần."""
+    p, pid, sids = _setup(tmp_path, shots=2)
+    _job(p, pid, sids[1], kind="video_gen", usd_q=1)                                     # B đã có clip riêng
+    grp = _job(p, pid, sids[0], kind="video_gen", usd_q=1, origin="auto", ext="grp")   # lượt đầu của A, mang cả B
+    p.conn.execute("UPDATE jobs SET sent_group=? WHERE id=?", (json.dumps([{"id": sids[0]}, {"id": sids[1]}]), grp))
+    p.conn.commit()
+    with mock.patch("core.budget.row_usd", side_effect=lambda pr, r: float(r["quantity"])):
+        b = G.repair_budget(p.conn, pid, pricing=PRICING)
+    assert b["first_usd"] == 2.0 and b["repair_usd"] == 0.0
+
+
+def test_one_send_reads_the_project_jobs_once(tmp_path):
+    """Rà: một lượt shadow (leader + shot nhóm, có ngân sách tự sửa) đọc job dự án MỘT lần (memo ctx)."""
+    p, pid, sids = _setup(tmp_path, shots=3)
+    for sid in sids:
+        _job(p, pid, sid, usd_q=1, state="rejected", reject="mat_sai")
+    lead = _job(p, pid, sids[0], ext=None, state="queued", origin="auto", parent=1)
+    with mock.patch.dict(os.environ, ON), mock.patch.object(G, "_pricing", return_value=PRICING), \
+            mock.patch.object(G, "project_jobs", wraps=G.project_jobs) as pj:
+        G.shadow(p.conn, p.job(lead), data_dir=str(tmp_path / "data"), group=sids[1:])
+    assert pj.call_count == 1
+
+
+def test_quality_sample_shadow_error_never_leaves_the_entry_sending(tmp_path, monkeypatch):
+    """THẤP 3: cổng shadow ném lỗi (vd đọc cờ hỏng) sau khi mục đã lưu 'sending' — trước: ném ra ngoài, mục kẹt + ăn trần 4 USD."""
+    from core import quality_samples as QS
+    from core.providers import MockVideoProvider
+    p, pid, (sid,) = _setup(tmp_path)
+    monkeypatch.setenv("FEATURE_SEEDANCE_SAMPLE_MODE", "1")
+    plan = {"image": str(tmp_path / "a.png"), "prompt": "p", "negative": None, "pictures": [], "reference_only": False}
+    (tmp_path / "a.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 64)
+
+    class Prov(MockVideoProvider):
+        def submit(self, *a, **k):
+            return "task-1"
+    with mock.patch.object(G, "shadow_send", side_effect=RuntimeError("cờ hỏng")), mock.patch.object(QS, "plan", return_value=plan):
+        entry = QS.send(p, pid, sid, "draft", Prov(), str(tmp_path / "data"))
+    assert entry["state"] == "running" and entry["external_id"] == "task-1"
+
+
+def test_end_frames_real_send_with_the_flag_on_writes_a_shadow_line(tmp_path):
+    """Qua ĐƯỜNG GỬI THẬT (end_frames.tick, provider giả, cờ BẬT): dòng jsonl route end_frame TRƯỚC khi gửi; vẫn gửi."""
+    import tempfile
+    from core import end_frames, llm_runner
+    from tests.test_end_frames import _shot_with_end_state
+    from tests.test_v3 import _approve_all_images, kenta_project
+    with mock.patch.dict(os.environ, {"FEATURE_SEEDANCE_REF_GROUPS": "0", "FEATURE_END_FRAMES": "1", **ON}):
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        sid = _shot_with_end_state(p, pid)
+        data = tempfile.mkdtemp()
+        _approve_all_images(p, pid, data)
+        assert sid in end_frames.queue(p, pid)
+        seen = []
+
+        class Prov(MockImageProvider):
+            def submit(self, *a, **k):
+                seen.append(len(G.read_shadow(data, pid)))
+                return super().submit(*a, **k)
+        end_frames.tick(p, pid, Prov(), data)
+    rows = [r for r in G.read_shadow(data, pid) if r.get("route") == "end_frame"]
+    assert seen and seen[0] >= 1 and rows and rows[0]["scene_id"] == sid
