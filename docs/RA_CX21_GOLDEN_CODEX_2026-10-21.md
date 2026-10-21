@@ -45,3 +45,20 @@ C:/Users/hongviet.doan/AppData/Local/Python/pythoncore-3.14-64/python.exe -m pyt
 ```
 Lượt bổ sung cuối có lý do: lỗi audit utime + các ca NULL/malformed/cycle/provider/per-case mới phát hiện.
 `git diff --check` sạch. Không chạy nghiệm thu thật #24/#27; không khẳng định COMPAT sản xuất.
+
+## Rà kỹ độc lập
+
+- Đã đọc diff `a3a4e75c..47a0a9bc` và các chỗ gọi: source chain cùng project/scene/type,
+  NULL/hỏng/vòng lặp, tiếp tục từng ca; quyền FILE plate/asset và manifest; baseline chỉ cấp quyền
+  trước khi bị mask NULL, không đưa prompt/args vào builder; diagnostic; comparator và CLI.
+- `related_areas.py` xác nhận vùng step2, không có khu vực gọi tới module đổi; các vùng dùng chung
+  cờ assets/autopilot/core_infra/plates3d/step1 không bị thay đổi. Không tìm thấy finding cần sửa.
+- Đính chính thử nghiệm trong phiên rà: giả định NUL path phát ValueError không đúng với native
+  Python 3.14 Windows; phép thử trực tiếp trả `missing`. Ca OSError chỉ dùng mock, chưa tái hiện
+  lỗi Windows thật. Hai test thử ban đầu đỏ **không phải bằng chứng hai bug sản phẩm**.
+  Đã bỏ toàn bộ test và catch thử nghiệm, giữ nguyên code tại `47a0a9bc`.
+- Lượt gom thử có 89 qua/1 đỏ trong 82,99 giây: gồm 88 test hiện có qua, một ca OSError mock qua,
+  một ca NUL đỏ do kỳ vọng sai đã bỏ. Không ghi lượt này là cả bộ xanh; bằng chứng sạch trước rà
+  vẫn là 88 passed/59,79 giây ở trên. Không chạy lại bộ không thay đổi.
+- Không đọc snapshot/dữ liệu thật, không API/provider, không thay TODO/main/cờ hay areas version 88.
+  Nghiệm thu thật #24/#27 vẫn OPEN; giữ runtime guard CX21-FIX `b3f34f0a` khi tích hợp.
