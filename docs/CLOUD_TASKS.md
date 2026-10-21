@@ -648,3 +648,20 @@ Người dùng KHÔNG nhắn từng làn nữa. Mỗi làn phải tự chạy li
 3. Cần quyết định → `hop_thu.py hoi … --to phien-chinh --push` rồi làm việc khác trong lúc chờ; KHÔNG hỏi người dùng trực tiếp.
 4. Lịch hết hạn (7 ngày) / phiên khởi động lại → tạo lại lịch ở bước đầu tiên.
 5. Dừng hẳn chỉ khi hạn mức tuần ≥ 90 % (hoặc credit ≥ $90): hoàn tất việc dở → het-viec + tin HẠN MỨC → tắt lịch.
+
+#### C-STAGE-VIEW (cloud-E — người dùng duyệt 21/10 "giao luôn cho cloud-E, bản chỉ xem")
+```
+Màn XEM sân khấu 3D trên Dashboard — CHỈ XEM, 0 USD, cờ mới `stage_view_ui` (verified False; label "Xem sân khấu 3D (chỉ đọc)"; không costs).
+Gốc: hiện Dashboard không xem được sân khấu 3D; mọi thứ chỉ chạy CLI (tools/stage_auto.py, tools/stage_previs.py, tools/location_pack.py) và ảnh nằm trong thư mục.
+Làm dashboard/stage_view_ui.py + một dòng gọi trong Bước 2 (dashboard/steps/step2.py, ngay trên khối gen ảnh, khi cờ BẬT) — mỗi cảnh (story_scene) một expander:
+  1. Tấm clay / khối (core/blockout_sheet.py gói blockout, core/blockout_clay.py, core/whitebox.py — ảnh/clip đã render nếu có).
+  2. Ảnh nền 3D từng shot + hướng máy (core/plates3d.out_dir, core/location_pack._index_path/_cached, core/stage_auto.base_dir; trường shot plate_view / camera).
+  3. Sơ đồ world map 2D: vị trí người / vật / máy (core/world_map.load, plan2d_path; vẽ bằng SVG/matplotlib tĩnh, không gọi Blender).
+  4. Người nộm đúng chiều cao nếu cờ whitebox_height_dummy có dữ liệu (M3.2), câu vị trí gợi ý từ world map nếu có (M3.3 world_map_sentences — chỉ hiện).
+  5. Cảnh báo: nền cũ / hỏng (dùng ĐÚNG hàm cổng hiện có của Bước 2 — plates_stale / world_map.stale / plate_view_check), thiếu file → "chưa có <gì>, chạy <lệnh CLI>" (không im lặng).
+Luật cứng: KHÔNG nút render / gen / ghi; KHÔNG ghi data/ hay CSDL (kể cả CREATE TABLE / cache) — test khẳng định mtime data/ + sha CSDL không đổi;
+cờ TẮT → không gọi gì, Bước 2 giống byte (test); đường dẫn qua data_dir của pipeline, không tương đối cwd; đọc file lớn có giới hạn (ảnh thu nhỏ).
+Test ĐỎ→XANH bằng thư mục data tạm + CSDL :memory: tổng hợp (2 cảnh, 3 shot: đủ dữ liệu / thiếu plate / world map cũ). Khai file vào devsys/areas.json
+(khu step2), cờ vào core/features.py + tests/golden/package_inputs.json (false). Báo cáo docs/RA_CLOUD_STAGE_VIEW_2026-10-2x.md kèm danh sách đường dẫn dữ liệu
+đã đọc để phiên chính kiểm trên #31 thật. Nhánh cloud/v31-stage-view. Chạy được dạng nhánh phụ (không trùng file với DP10 / C-M24 / C-PORT4).
+```
