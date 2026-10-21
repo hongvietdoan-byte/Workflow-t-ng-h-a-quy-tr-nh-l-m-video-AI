@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T19:37:42.545833+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-FLAGTEST8",
+  "branch": "cloud/v31-flagtest8",
+  "commit": "3444f921",
+  "report": "docs/RA_CLOUD_FLAGTEST8_2026-10-21.md",
+  "text": "Chỉ sửa test (0 dòng code, không nới assert). 155 test đỏ do 8 cờ đều nhóm A (test ngầm dựa mặc định TẮT): tests/_flags.pin_off (FEATURE_X=0 ở setUp, test tự bật vẫn thắng) + monkeypatch cho test hàm + test_stage_auto \"\"→\"0\"; 45 commit nhỏ mỗi file. Nhóm B (lỗi code thật) = 0 — 3 ca nghi đã kiểm là chủ đích (chat_first duyệt 1 click, framing_guard thay qc_framing_cap, video_pregen giữ job khi thiếu dữ liệu). Nhóm C = 5 test khẳng định verified False / mặc định TẮT → đổi CÙNG commit khóa cờ. Nghiệm thu cloud: mặc định 6847 qua, đỏ = 25 golden(3.14); 8 cờ soft: đỏ = 25 golden + 5 C. HẠN MỨC: không đọc được."
+}
