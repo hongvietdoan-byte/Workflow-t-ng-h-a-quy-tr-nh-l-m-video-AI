@@ -19,6 +19,10 @@ from typing import Dict, List, Optional
 STAGES = (("director", "Director (phân cảnh)"), ("previz", "Layout / storyboard"), ("image", "Gen ảnh"), ("qc", "QC ảnh"), ("motion", "Motion prompt"),
           ("video", "Gen video"), ("voice", "Giọng thoại (TTS)"), ("music", "Nhạc nền"), ("render", "Ghép & render"),
           ("autopilot", "Chạy tự động"), ("system", "Hệ thống"))
+# C-DEVSYS-MAPS: sự kiện QUAN SÁT (bước bấm Dashboard / lệnh CLI, core/ui_step, cờ ui_step_log) — không phải lỗi: không vào bảng khâu,
+# danh sách gần đây / lặp lại của ⚙ Chẩn đoán, trang Sức khỏe devsys hay đề xuất sổ lỗi (tools/project_error_report)
+OBSERVE = ("ui_step", "cli_step")
+_NOT_OBSERVE = "stage NOT IN ('ui_step', 'cli_step')"
 OTHER = "other"                     # stage_table row for any stage name not in STAGES (S14.4 C1b: nothing disappears)
 STAGE_LABEL = {**dict(STAGES), OTHER: "Khác"}
 # S14.4 C1b (04/10): other spellings seen in the code / old rows -> the one name of STAGES. No 'lipsync' here: nothing writes it.
@@ -169,15 +173,15 @@ def _write(conn, stage, severity, msg, code, project_id, scene_id, job_id) -> No
 
 def recent(conn, hours: float = 24, limit: int = 40) -> List[Dict]:
     since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
-    return [dict(r) for r in conn.execute("SELECT * FROM diag_events WHERE last_at>=? ORDER BY last_at DESC, id DESC LIMIT ?",
-                                          (since, limit)).fetchall()]
+    return [dict(r) for r in conn.execute(f"SELECT * FROM diag_events WHERE last_at>=? AND {_NOT_OBSERVE} ORDER BY last_at DESC, id DESC "
+                                          "LIMIT ?", (since, limit)).fetchall()]
 
 
 def repeated(conn, hours: float = 24, min_count: int = 3) -> List[Dict]:
     since = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(timespec="seconds")
     return [dict(r) for r in conn.execute(
         "SELECT stage, severity, code, message, SUM(count) n, MIN(at) first_at, MAX(last_at) last_at FROM diag_events"
-        " WHERE last_at>=? GROUP BY stage, severity, code, message HAVING n>=? ORDER BY n DESC LIMIT 15",
+        f" WHERE last_at>=? AND {_NOT_OBSERVE} GROUP BY stage, severity, code, message HAVING n>=? ORDER BY n DESC LIMIT 15",
         (since, min_count)).fetchall()]
 
 
@@ -257,8 +261,8 @@ def stage_table(conn, hours: float = 24) -> List[Dict]:
     rows = []
     by_stage: Dict[str, Dict[str, int]] = {}
     known = {s for s, _ in STAGES}
-    for r in conn.execute("SELECT stage, severity, SUM(count) n FROM diag_events WHERE last_at>=? GROUP BY stage, severity",
-                          (since,)).fetchall():
+    for r in conn.execute(f"SELECT stage, severity, SUM(count) n FROM diag_events WHERE last_at>=? AND {_NOT_OBSERVE} "
+                          "GROUP BY stage, severity", (since,)).fetchall():
         name = normalize_stage(r["stage"])                      # rows written before S14.4 under 'videos' / 'delivery' …
         name = name if name in known else OTHER
         bucket = by_stage.setdefault(name, {s: 0 for s in SEVERITIES})

@@ -410,6 +410,14 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Người dùng không thấy gói thật sẽ gửi trước khi trả tiền và không thấy kết quả QC shadow theo shot. Chưa chạy trên dữ liệu thật",
     },
+    "ui_step_log": {
+        "label": "Ghi từng bước bấm (C-DEVSYS-MAPS): nút chính Bước 1–5 + lệnh CLI làm thay Dashboard ghi một dòng diag_events "
+                 "(ui_step / cli_step: màn, nút, kết quả ok / cảnh báo / lỗi + mã) để sơ đồ dây chuyền AI Dev System tô theo dự án thật; "
+                 "không đổi hành vi nút, lỗi ghi không làm hỏng nút; 0 USD",
+        "verified": False,
+        "why": "Người dùng 21/10: sơ đồ 'Làm phim qua Dashboard' theo DỰ ÁN THẬT — chỗ nào cảnh báo / lỗi / phải làm ngoài Dashboard. "
+               "Chưa chạy trên Dashboard thật",
+    },
     "continuity_state": {
         "label": "continuity_state SHADOW (V3.1 M3.4): trạng thái mong đợi giữa 2 shot liền từ BYĐ (vật cầm giữ / mất / đổi tay, tư thế cuối → "
                  "đầu, nơi chốn, hướng trên khung) + quan sát của QC shadow (M4.2 / M4.3) + đồ thị phụ thuộc → <dự án>/world/continuity_state.json; "
@@ -884,7 +892,8 @@ HARMFUL: tuple = ()
 # Flags that spend money with nobody clicking (a background loop sends paid jobs): the "experimental" preset never turns them on —
 # only a choice on 🧪 or FEATURE_<NAME>=1 does (rà quy ước 7, 12/10: a machine on "experimental" would start paying the moment it pulls).
 OPT_IN_ONLY: tuple = ("motion_sfx", "anchor_by_spot", "continuity_from_ui", "blockout_clay_sheet", "director_blockout", "auto_send_self_fix", "qc_observe_enum", "shot_popup", "bg_autoqc", "asset_english_names", "film_grammar_check", "camera_match_qc", "stage_crew",
-                      "stage_handheld_props")
+                      "stage_handheld_props",
+                      "ui_step_log")           # C-DEVSYS-MAPS: ghi CSDL mỗi bước bấm — chỉ bật khi chọn riêng (preset Thử nghiệm không bật)
 # S14.9 (Gói L, 06/10, người dùng: cờ gây hại phải bị xóa, không chỉ tắt): flags taken out of the code — the code now always does
 # what it did with the flag OFF. An old choice in data/feature_settings.json or a FEATURE_<NAME> line in dashboard.env naming one is
 # ignored (said by `removed_in_use()`, never an error). Reasons + dates: docs/TODO_LICH_SU.md.

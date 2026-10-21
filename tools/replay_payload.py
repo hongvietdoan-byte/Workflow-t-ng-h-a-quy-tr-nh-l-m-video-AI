@@ -12,6 +12,8 @@ logic song song. Cách chạy an toàn trên dữ liệu thật (CSDL lưu đư�
   - so với jobs.sent_package thật: ảnh (nhãn, file), câu khóa đạo cụ, câu HÌNH vật kỹ năng, câu hướng chạy;
   - provider giả (không có hàm gửi); mọi lệnh MỞ GHI / tạo / xóa / đổi tên dưới `<main>/data` bị CHẶN (PermissionError);
   - xong: gỡ junction bằng os.rmdir (không theo link) rồi mới xóa thư mục thử.
+  - NGOẠI LỆ ghi duy nhất (C-DEVSYS-MAPS): khi cờ ui_step_log BẬT ở CHÍNH máy <main> (tệp 🧪 của nó / FEATURE_UI_STEP_LOG), SAU khi
+    xong lượt dựng lại, thêm MỘT dòng diag_events stage cli_step vào CSDL thật (việc làm ngoài Dashboard → sơ đồ AI Dev System).
 In ra từng shot: ảnh gửi (Image N, nhãn, vai, file, mã mục Kho), so với `jobs.sent_refs` thật của job gần nhất, các diag, prompt.
 """
 import argparse
@@ -343,7 +345,37 @@ def main(argv=None) -> int:
                 print("CẢNH BÁO: junction chưa gỡ được — KHÔNG xóa thư mục thử", work, file=sys.stderr)
             else:
                 shutil.rmtree(work, ignore_errors=True)
+    _cli_step(main_dir, a.project, "dựng lại gói gửi model" + (f" shot {a.shot}" if a.shot else " mọi shot"))
     return 0
+
+
+def _main_flag_on(main_dir: str, name: str) -> bool:
+    """Cờ của MÁY <main> (không phải repo đang chạy lệnh): tệp 🧪 <main>/data/feature_settings.json, rồi FEATURE_<NAME> môi trường."""
+    try:
+        with open(os.path.join(main_dir, "data", "feature_settings.json"), encoding="utf-8") as f:
+            flags = json.load(f).get("flags") or {}
+        if name in flags:
+            return flags[name] is True
+    except (OSError, ValueError, AttributeError):
+        pass
+    return os.environ.get("FEATURE_" + name.upper(), "").strip().lower() in ("1", "true", "on", "yes")
+
+
+def _cli_step(main_dir: str, pid: int, task: str) -> None:
+    """C-DEVSYS-MAPS (cờ ui_step_log, TẮT = không làm gì): một dòng cli_step vào CSDL THẬT — lần ghi duy nhất của công cụ này, SAU khi
+    sandbox xong (WriteGuard chỉ bọc lượt dựng lại). Lỗi không bao giờ làm hỏng lệnh."""
+    try:
+        from core import ui_step
+        db = os.path.join(main_dir, "data", "manifest.sqlite")
+        if not _main_flag_on(main_dir, ui_step.FLAG) or not os.path.isfile(db):
+            return
+        conn = sqlite3.connect(db, timeout=5)
+        try:
+            ui_step.cli(conn, "replay_payload", pid, task, flag_checked=True)   # cờ của <main>, không phải repo chạy lệnh
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001 - quan sát, không phải điều khiển
+        pass
 
 
 if __name__ == "__main__":
