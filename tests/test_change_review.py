@@ -791,6 +791,26 @@ class M71DeepReview(unittest.TestCase):
         self.assertIsNone(CR.blocking(self.p.conn, sid))
         self.assertFalse([r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"])
 
+    def test_marking_a_failure_finding_fixed_rereviews_instead_of_releasing(self):
+        # C-FIX3-THAP-B (rà VỪA): "✓ Đã sửa" mục rà lỗi trước đóng 'resolved' → che các lần lỗi → cổng mở, lần 'failed' nằm mãi chưa rà
+        sid, open_ = self._two_failures()
+        CR.close(self.p.conn, open_[0]["id"], "resolved", "tester")
+        self.assertIn("đang rà", CR.blocking(self.p.conn, sid) or "")
+        self.assertFalse(self.p.conn.execute("SELECT 1 FROM change_events WHERE state='failed'").fetchone())
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+
+    def test_reattached_finding_closing_on_the_newer_event_reopens_for_the_older(self):
+        # C-FIX3-THAP-B (rà S1): mục gắn lại vào lần lỗi mới e2; e2 được rà xong (mục tự đóng) mà e1 còn lỗi → mục mới cho e1, vẫn giữ
+        sid, open_ = self._two_failures()
+        e1, e2 = [r[0] for r in self.p.conn.execute("SELECT id FROM change_events WHERE state='failed' ORDER BY id")]
+        self.p.conn.execute("UPDATE change_events SET state='reviewed', reviewed_at=? WHERE id=?", ("2026-10-22T00:00:00Z", e2))
+        self.p.conn.commit()
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")
+        now = [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"]
+        self.assertEqual(len(now), 1)
+        self.assertEqual(self.p.conn.execute("SELECT event_id FROM change_findings WHERE id=?", (now[0]["id"],)).fetchone()[0], e1)
+
     def test_rerun_of_the_single_finding_rereviews_every_failure(self):
         sid, open_ = self._two_failures()
         CR.rerun_failed(self.p.conn, open_[0]["id"], "tester")

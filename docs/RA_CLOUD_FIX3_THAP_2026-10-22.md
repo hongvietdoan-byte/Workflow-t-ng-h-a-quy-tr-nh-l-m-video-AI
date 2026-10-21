@@ -84,6 +84,10 @@ Mục tự đóng `'change_review'` (lần của mục đã rà xong hoặc bị
 | VỪA | Lần scene lỗi đã được người Bỏ qua vẫn giữ lại motion khi tắt cờ (bản vá riêng đầu tiên) | Thiết kế mới không giữ |
 | VỪA | Lần lỗi thứ 2 cùng lời → mục hiện lại ngay sau Bỏ qua; Rà lại chỉ rà một phần | Một mục mỗi shot, gắn lại |
 | VỪA | Dữ liệu cũ có 2 mục mở: Rà lại mục sau → Rà lại mục trước báo lỗi sai | Mục đã Rà lại / ✓ Đã sửa (`resolved`) không cản lần rà lại khác |
+| VỪA | "✓ Đã sửa" trên mục rà lỗi đóng `resolved` → che mọi lần lỗi → cổng mở khi chưa ai rà (vòng nền không tự rà lại `failed`) | `close(…, "resolved")` của mục rà lỗi = Rà lại; lần lỗi không còn trong sổ → đóng như cũ |
+| THẤP | Gắn lại có thể kéo `event_id` lùi → mục lật e4↔e5 một nhịp | `event_id = MAX(event_id, lần mới)` |
+
+- Ghi nhận, không sửa (THẤP): người đang đọc lời lỗi cũ, nhịp nền gắn lại lời mới, người bấm Bỏ qua → chấp nhận cả lần mới chưa đọc. Đây là chủ ý "Bỏ qua phủ cả shot".
 
 ## ⚠️ Cần phiên chính kiểm trước khi gộp (dữ liệu thật)
 - Lần `failed` / `code_only` hết tiền cũ (trong `KEEP_DAYS`) chưa từng có mục che sẽ bật mục ĐỎ ở lần `blocking()` kế tiếp. Đúng ý: các thay đổi đó chưa ai rà.
@@ -104,6 +108,8 @@ Mục tự đóng `'change_review'` (lần của mục đã rà xong hoặc bị
 - `tests/test_v31_m63_gen_auth.py`: mock `_usd_of_jobs` ghi lại TỪNG lần gọi (`seen == [[1], [2]]`), không vỡ khi gọi với `ids` rỗng.
 
 ## Test
-- Test mới / đổi trong `tests/test_change_review.py`: 7.
-  - ĐỎ trên code trước sửa: 4 test của bản `_COVERED` đỏ trên C-FIX3-THAP; 3 test của bản gắn lại đỏ trên eb50a0ea.
+- Test mới / đổi trong `tests/test_change_review.py`: 9.
+  - ĐỎ trên code trước sửa: 4 test của bản `_COVERED` đỏ trên C-FIX3-THAP; 3 test của bản gắn lại đỏ trên eb50a0ea; test ✓ Đã sửa đỏ trên 03ddd1c9.
+  - Test "gắn lại rồi lần mới rà xong → mục mới cho lần cũ" là test chặn hồi quy.
+- Test liên quan (`test_change_review`, `test_change_review_frames`): 70 xanh.
   - Test "Bỏ qua scene rồi tắt cờ" là test chặn hồi quy cho bản vá riêng đầu tiên.

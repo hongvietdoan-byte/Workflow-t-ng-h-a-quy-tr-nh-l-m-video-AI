@@ -619,7 +619,8 @@ def _hold_failed(conn, scene_id: int, kinds: str) -> None:
         cur = conn.execute("SELECT id FROM change_findings WHERE scene_id=? AND source=? AND status='open' ORDER BY id DESC LIMIT 1",
                            (scene_id, FAIL_SOURCE)).fetchone()
         if cur is not None:   # C-FIX3-THAP-B (rà VỪA 1-2): gắn lại mục đang mở (trước _add bỏ qua lời trùng → lần lỗi mới không ai che)
-            conn.execute("UPDATE change_findings SET event_id=?, msg=?, de_xuat=?, at=? WHERE id=?", (ev[0], msg, fix, _now(), cur[0]))
+            conn.execute("UPDATE change_findings SET event_id=MAX(COALESCE(event_id, 0), ?), msg=?, de_xuat=?, at=? WHERE id=?",
+                         (ev[0], msg, fix, _now(), cur[0]))     # không kéo lùi (rà THẤP: lật e4↔e5 mỗi nhịp)
             wrote = True
         else:
             wrote |= _add(conn, ev[0], ev[1] or _project_of(conn, scene_id), scene_id, FAIL_SOURCE, "do", FAIL_KHAU, msg, fix)
@@ -695,5 +696,13 @@ def open_findings(conn, project_id: int) -> List[Dict]:
 def close(conn, finding_id: int, status: str, who: Optional[str]) -> None:
     if status not in ("resolved", "dismissed"):
         raise ValueError(status)
+    if status == "resolved" and conn.execute("SELECT 1 FROM change_findings WHERE id=? AND source=?",
+                                             (finding_id, FAIL_SOURCE)).fetchone():
+        # C-FIX3-THAP-B (rà VỪA): "✓ Đã sửa" mục rà LỖI = đã hết lỗi (nạp tiền…) → Rà lại, KHÔNG phải chấp nhận gen khi chưa rà (đó là
+        # Bỏ qua). Trước: mục đóng 'resolved' → che các lần lỗi → cổng mở, lần 'failed' nằm mãi (vòng nền không tự rà lại 'failed')
+        try:
+            return rerun_failed(conn, finding_id, who)
+        except ValueError:   # lần lỗi không còn trong sổ (KEEP_DAYS) → không có gì để rà: đóng như cũ
+            pass
     conn.execute("UPDATE change_findings SET status=?, resolved_at=?, resolved_by=? WHERE id=?", (status, _now(), who, finding_id))
     conn.commit()
