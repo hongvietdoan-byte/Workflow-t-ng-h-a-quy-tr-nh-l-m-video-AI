@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T00:13:55.055457+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M63-FIX",
+  "to": "cloud-C",
+  "title": "Đường gửi chưa qua gen_auth + đếm nhóm + autoqc codes",
+  "spec": "docs/CLOUD_TASKS.md#### C-M63-FIX",
+  "priority": 1
+}
