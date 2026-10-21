@@ -46,4 +46,4 @@ Nhánh `cloud/v31-golden2`, tạo từ origin/main. Chỉ sửa `tools/golden_ca
 Ca nào vẫn INSUFFICIENT thì gửi `reason` + `diagnostic` về hộp thư để rà tiếp.
 
 ## Bộ test đầy đủ
-Xem tin hộp thư `xong C-GOLDEN2`.
+6863 passed, 38 skipped (gồm 25 test golden cần worker 3.14), 4 failed cũ (đỏ cả trên main: recut_by_hand, punches, end_popup_p24, unreadable_picture). Trước C-GOLDEN2, 24 test golden đỏ ở cloud vì Python 3.13 — nay bỏ qua có lý do.
