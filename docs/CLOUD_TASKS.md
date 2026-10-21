@@ -935,3 +935,15 @@ khi muốn đổi" vào CÙNG tệp:
 Bản vẽ ASCII thẻ cảnh + thẻ lỗi. Không code. Xuất kèm PDF docs/pdf/M8_1_Che_do_Don_gian.pdf (pandoc → Chrome/Edge in PDF, như tools/build_docs.sh) để EP xem điện thoại.
 Nhánh cloud/v31-m81b. XONG hộp thư.
 ```
+
+#### C-M63-FIX (cloud-C — ưu tiên 1) — lỗi rà phiên chính 22/10 (M6.3 + M7.4, đã gộp main)
+```
+VỪA (M6.3): gen_auth.shadow chưa phủ MỌI đường gửi tiền — các chỗ gọi slot.send(provider.submit…) thẳng: core/end_frames.py:466, core/quality_samples.py:162,171,
+  core/lipsync.py:281, core/scene_establish.py:336, core/costume.py:87, core/experiments.py:94 → gọi gen_auth.shadow({scene_id, type}) trước mỗi slot.send (shadow,
+  không chặn). Test: cờ BẬT, end_frames / quality_samples với provider giả → có dòng jsonl.
+THẤP (M6.3): attempts() (gen_auth.py:112) chỉ đếm scene_id — clip nhóm Seedance do shot đầu gửi không tính cho shot cùng nhóm → đếm thêm job có sent_group chứa
+  id shot; test shot đầu gửi 2 lần → shot cùng nhóm ATTEMPTS_EXHAUSTED. repair_budget N+1 truy vấn + nạp bảng giá mỗi lượt trong SPEND_LOCK → cache theo lượt.
+THẤP (M7.4): autoqc._codes không bao giờ xóa (clear_error autoqc.py:83 không ai gọi; clear_video_error :192 không xóa mã video) → sau một lần Claude dừng mọi lần
+  kẹt sau báo nhầm "Claude không dùng được" → xóa khi lượt chạy xong không lỗi / hết hạn theo RETRY_AFTER; test.
+Nhánh cloud/v31-m63-fix từ origin/main. XONG hộp thư.
+```
