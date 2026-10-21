@@ -79,7 +79,10 @@ def step3(p: Pipeline, pid: int):
                 st.toast(f"Đã viết {code['by_code'] + r1['scenes'] + r2['scenes']} motion prompt"
                          + (f" ({code['by_code']} bằng code, không gọi Claude)" if code["by_code"] else ""))
             with st.spinner("Claude đang viết motion prompt…"):
-                if act(go):
+                _t0 = time.monotonic()
+                _ok = act(go)
+                C.log_ui(p, "viet_motion", page="storyboard", project_id=pid, result=_ok, t0=_t0)   # C-DEVSYS-MAPS: bước bấm
+                if _ok:
                     st.rerun()
         waiting = [r["sid"] for r in rows if r["state"] != "approved"]
         if confirm_all("btn_ok_all", waiting, f"✔ Duyệt tất cả ({len(waiting)} prompt)", f"Duyệt tất cả {len(waiting)} motion prompt đang chờ?", c2):

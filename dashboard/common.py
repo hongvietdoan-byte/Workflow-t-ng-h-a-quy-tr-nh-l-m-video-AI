@@ -341,9 +341,11 @@ def op_source() -> str:
     return st.session_state.get("op_source") or "nguoi"
 
 def log_ui(p, action: str, *, page: str = "", project_id=None, scene_id=None, job_id=None, result="ok", detail=None,
-           t0: float = None) -> None:
+           t0: float = None, step: str = None, step_note: str = None, error_code: str = None) -> None:
     """Ghi một thao tác vào `ui_actions` (core/ui_log.py): email người đăng nhập + nguồn người/Claude. `result` True/False được
-    hiểu là ok/error (giá trị trả về của act()). `t0` = time.monotonic() lúc bấm → ms xử lý. Không bao giờ ném lỗi."""
+    hiểu là ok/error (giá trị trả về của act()). `t0` = time.monotonic() lúc bấm → ms xử lý. Không bao giờ ném lỗi.
+    C-DEVSYS-MAPS (cờ ui_step_log): cùng lần ghi thêm một sự kiện ui_step cho sơ đồ dây chuyền — `step` thay kết quả khi nút biết rõ
+    hơn ok / error (hold = cổng giữ, skip = bỏ qua cổng, warn), `step_note` câu ngắn, `error_code` mã sổ lỗi."""
     try:
         from core import ui_log
         res = ("ok" if result else "error") if isinstance(result, bool) else result
@@ -353,6 +355,9 @@ def log_ui(p, action: str, *, page: str = "", project_id=None, scene_id=None, jo
         try:
             ok = ui_log.record(conn, action, email=me().get("email"), source=op_source(), page=page, project_id=project_id,
                                scene_id=scene_id, job_id=job_id, result=res, detail=detail, ms=ms)
+            from core import ui_step                  # kết nối riêng này: không commit giữa giao dịch của trang
+            ui_step.record(conn, project_id, page, action, step or res, step_note if step_note is not None else (str(detail) if detail else ""),
+                           error_code)
         finally:
             conn.close()
         if not ok:

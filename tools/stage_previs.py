@@ -679,6 +679,8 @@ def main(argv=None):
     from core.db import connect
     import stage_grid as sgt
     conn = connect(os.path.abspath(a.db))
+    from core import ui_step                             # C-DEVSYS-MAPS (cờ ui_step_log): việc làm NGOÀI Dashboard → nút ảo trên sơ đồ
+    ui_step.cli(conn, "stage_previs", a.project, f"previs Blender cảnh {a.scene}")
     seg = next((g for g in stage_auto.segments(conn, a.project) if g["scene"] == a.scene), None)
     if seg is None:
         sys.exit(f"không có cảnh {a.scene}")

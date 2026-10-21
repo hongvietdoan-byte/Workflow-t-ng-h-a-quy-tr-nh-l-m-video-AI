@@ -343,7 +343,25 @@ def main(argv=None) -> int:
                 print("CẢNH BÁO: junction chưa gỡ được — KHÔNG xóa thư mục thử", work, file=sys.stderr)
             else:
                 shutil.rmtree(work, ignore_errors=True)
+    _cli_step(main_dir, a.project, "dựng lại gói gửi model" + (f" shot {a.shot}" if a.shot else " mọi shot"))
     return 0
+
+
+def _cli_step(main_dir: str, pid: int, task: str) -> None:
+    """C-DEVSYS-MAPS (cờ ui_step_log, TẮT = không làm gì): một dòng cli_step vào CSDL THẬT — lần ghi duy nhất của công cụ này, SAU khi
+    sandbox xong (WriteGuard chỉ bọc lượt dựng lại). Lỗi không bao giờ làm hỏng lệnh."""
+    try:
+        from core import ui_step
+        db = os.path.join(main_dir, "data", "manifest.sqlite")
+        if not ui_step.enabled() or not os.path.isfile(db):
+            return
+        conn = sqlite3.connect(db, timeout=5)
+        try:
+            ui_step.cli(conn, "replay_payload", pid, task)
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001 - quan sát, không phải điều khiển
+        pass
 
 
 if __name__ == "__main__":

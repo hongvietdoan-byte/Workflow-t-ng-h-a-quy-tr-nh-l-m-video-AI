@@ -98,12 +98,12 @@ def test_changes_against_the_17_10_mark(mini):
 def test_moc_rebuilds_every_box_of_the_three_old_svgs():
     doc = PM.load()
     tree = ast.parse(open(os.path.join(ROOT, "docs", "so_do", "gen_dashboard.py"), encoding="utf-8").read())
-    screens = next(n.value for n in tree.body if isinstance(n, ast.Assign) and n.targets[0].id == "SCREENS")
+    screens = next(n.value for n in tree.body if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "SCREENS")
     chips = sum(len(s.elts[3].elts) for s in screens.elts)
     outs = next(n.value for n in tree.body if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "outs")
     assert len(doc["dashboard"]["cells"]) == chips == 28 and len(doc["dashboard"]["outside"]) == len(outs.elts) == 4
     tree = ast.parse(open(os.path.join(ROOT, "docs", "so_do", "gen_hien_trang_khau.py"), encoding="utf-8").read())
-    rows = next(n.value for n in tree.body if isinstance(n, ast.Assign) and n.targets[0].id == "ROWS")
+    rows = next(n.value for n in tree.body if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "ROWS")
     assert [r["id"] for r in doc["khau"]["rows"]] == [r.elts[0].value for r in rows.elts]
     svg = open(os.path.join(ROOT, "docs", "so_do", "SO_DO_TRUONG_CAU_TRUC_2026-10.svg"), encoding="utf-8").read()
     for n in doc["truong"]["nodes"]:                                         # mỗi nút trường có nhãn trong SVG mốc
@@ -196,15 +196,33 @@ def test_flag_registered_off_golden_and_areas():
 
 
 def test_dashboard_main_buttons_log_and_cli_tools_log():
-    for rel, button in (("dashboard/steps/step2.py", "gen_images"), ("dashboard/steps/step4.py", "gen_video"),
-                        ("dashboard/steps/step1_v2.py", "director"), ("dashboard/steps/step3.py", "write_motion"),
-                        ("dashboard/steps/step5.py", "export")):
+    src = open(os.path.join(ROOT, "dashboard", "common.py"), encoding="utf-8").read()
+    i = src.index("def log_ui(")
+    assert "ui_step.record(" in src[i:i + 3000]                          # MỘT hàm chung: nhật ký thao tác → sự kiện ui_step
+    for rel, action in (("dashboard/steps/step2.py", "gen_anh"), ("dashboard/steps/step4.py", "gen_video"),
+                        ("dashboard/steps/step1_director.py", "chay_dao_dien"), ("dashboard/steps/step3.py", "viet_motion"),
+                        ("dashboard/steps/step5.py", "ban_giao")):
         src = open(os.path.join(ROOT, rel), encoding="utf-8").read()
-        assert f'"{button}"' in src and "ui_step.record(" in src, rel
+        assert f'C.log_ui(p, "{action}"' in src, rel
+    assert 'step=("skip" if forced' in open(os.path.join(ROOT, "dashboard", "steps", "step2.py"), encoding="utf-8").read()
+    keys = {k for c in PM.load()["dashboard"]["cells"] for k in c["ui"]}
+    assert {"gen_anh", "gen_video", "chay_dao_dien", "viet_motion"} <= keys
     for rel, tool in (("tools/stage_auto.py", "stage_auto"), ("tools/stage_previs.py", "stage_previs"),
                       ("tools/replay_payload.py", "replay_payload")):
         src = open(os.path.join(ROOT, rel), encoding="utf-8").read()
         assert f'"{tool}"' in src and "ui_step.cli(" in src, rel
+
+
+def test_log_ui_writes_the_step_on_its_own_connection(tmp_path):
+    from core.db import connect
+    from dashboard import common as C
+    db = str(tmp_path / "m.sqlite")
+    connect(db).close()
+    with mock.patch.object(C, "DB", db), mock.patch.object(C, "me", return_value={"email": "a@b.c"}), \
+            mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}):
+        C.log_ui(None, "gen_anh", page="storyboard", project_id=31, result=True, step="hold", step_note="2 ảnh chờ điều kiện")
+    ev = PM.project_events(db, 31)
+    assert [(e["kind"], e["key"], e["severity"]) for e in ev] == [("ui_step", "gen_anh", "warn")] and "2 ảnh chờ" in ev[0]["message"]
 
 
 def test_export_writes_three_svgs(tmp_path):

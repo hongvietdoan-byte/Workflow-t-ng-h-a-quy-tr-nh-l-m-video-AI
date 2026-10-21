@@ -403,6 +403,14 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Người dùng không thấy gói thật sẽ gửi trước khi trả tiền và không thấy kết quả QC shadow theo shot. Chưa chạy trên dữ liệu thật",
     },
+    "ui_step_log": {
+        "label": "Ghi từng bước bấm (C-DEVSYS-MAPS): nút chính Bước 1–5 + lệnh CLI làm thay Dashboard ghi một dòng diag_events "
+                 "(ui_step / cli_step: màn, nút, kết quả ok / cảnh báo / lỗi + mã) để sơ đồ dây chuyền AI Dev System tô theo dự án thật; "
+                 "không đổi hành vi nút, lỗi ghi không làm hỏng nút; 0 USD",
+        "verified": False,
+        "why": "Người dùng 21/10: sơ đồ 'Làm phim qua Dashboard' theo DỰ ÁN THẬT — chỗ nào cảnh báo / lỗi / phải làm ngoài Dashboard. "
+               "Chưa chạy trên Dashboard thật",
+    },
     "continuity_state": {
         "label": "continuity_state SHADOW (V3.1 M3.4): trạng thái mong đợi giữa 2 shot liền từ BYĐ (vật cầm giữ / mất / đổi tay, tư thế cuối → "
                  "đầu, nơi chốn, hướng trên khung) + quan sát của QC shadow (M4.2 / M4.3) + đồ thị phụ thuộc → <dự án>/world/continuity_state.json; "

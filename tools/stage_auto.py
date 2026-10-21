@@ -63,6 +63,8 @@ def main(argv=None):
     from core.camera_plan import drawn_shots
     from core.db import connect
     conn = connect(os.path.abspath(a.db))
+    from core import ui_step                             # C-DEVSYS-MAPS (cờ ui_step_log): việc làm NGOÀI Dashboard → nút ảo trên sơ đồ
+    ui_step.cli(conn, "stage_auto", a.project, "sân khấu 3D" + (f" cảnh {a.scene}" if a.scene else " cả dự án"))
     if a.set_family:
         stage_auto.set_family(conn, a.place or [], a.set_family)
         print(f"Đã khai họ sân khấu '{a.set_family}' cho Kho {a.place}")

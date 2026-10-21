@@ -241,6 +241,8 @@ def step2(p: Pipeline, pid: int):
         if c1.button("▶ Gen ảnh các cảnh chưa có / đã cũ" + (f" · gửi {queued} ảnh đang chờ" if queued else "")   # 07/10: queued
                      + cost.price_tag(img_price, est["items"]), type="primary", key=f"gen_img_{pid}",    # redraws waited
                      disabled=(not est_ok and not queued) or (bool(gates["block"]) and not forced)):
+            _step = {}
+
             def go():
                 r = batch.queue_images(p, pid, confirmed=forced, data_dir=C.DATA)
                 # lỗi B (08/10): one click = queue + send. The click waits for the turn (the page / background polling held it and the
@@ -248,12 +250,16 @@ def step2(p: Pipeline, pid: int):
                 sent = runner.submit_pending(pid, wait_s=SEND_TURN_WAIT_S) if runner is not None else 0
                 left = p.conn.execute("SELECT COUNT(*) FROM jobs WHERE project_id=? AND type='image_gen' AND state='queued'",
                                       (pid,)).fetchone()[0]
+                _step["left"] = left if runner else 0
                 st.toast(f"Xếp hàng {r['created']} ảnh mới, {r['redo']} ảnh làm lại" + (f" · đã gửi {sent}" if runner else "")
                          + (f" · {left} ảnh chờ điều kiện, sẽ tự gửi (xem lý do bên dưới)" if runner and left else "")
                          + (" · đang gen thử" if r["pilot"] else ""))
             _t0 = time.monotonic()
             _ok = act(go)
-            C.log_ui(p, "gen_anh", page="storyboard", project_id=pid, result=_ok, t0=_t0)   # 14/10 nhật ký thao tác
+            C.log_ui(p, "gen_anh", page="storyboard", project_id=pid, result=_ok, t0=_t0,   # 14/10 nhật ký thao tác
+                     step=("skip" if forced and gates["block"] else "hold" if _step.get("left") else None) if _ok else None,
+                     step_note=("vẫn gen dù cổng chặn: " + "; ".join(map(str, gates["block"]))[:200] if forced and gates["block"] else
+                                f"{_step['left']} ảnh chờ điều kiện" if _step.get("left") else None))
             if _ok:
                 st.rerun()
         pending = [j["id"] for j in p.conn.execute(
