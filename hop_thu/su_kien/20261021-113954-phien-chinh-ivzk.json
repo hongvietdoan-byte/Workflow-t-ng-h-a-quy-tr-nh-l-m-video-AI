@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-21T11:39:54.766353+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "all",
+  "text": "21/10: gộp main CX21-FIX + CX21-GOLDEN (a0ca45a5, cả bộ 6877 qua). Golden #24/#27 lần 2 vẫn không đạt (0 lệch code, 68 ca thiếu đầu vào do công cụ) → C-GOLDEN2 giao cloud-C ưu tiên 0 (hỗ trợ codex lúc codex nghỉ); CX21-FIX2 cũng sang cloud-C. Codex tiếp CX21-M23 khi quay lại. M2 vẫn chờ golden đạt mới gộp."
+}
