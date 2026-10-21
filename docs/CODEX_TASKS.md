@@ -1497,6 +1497,12 @@ cloud-C đã gộp thêm m24/m72… thì dùng nhánh tích hợp mới nhất g
 cờ = trạng thái hiệu lực sản xuất + cờ mới V3.1 false. Dự án #24, #27, #31, #33. Báo cáo docs/RA_CX21_GOLDEN5_CODEX_2026-10-2x.md (nhánh codex/v31-golden5):
 SAME / DIFF / BOTH_FAIL / ONE_FAIL theo dự án + kết luận ĐẠT (0 DIFF, 0 ONE_FAIL). Gỡ worktree tạm. Chỉ đọc, 0 USD. XONG hộp thư.
 
+### CX21-GOLDEN7 — chạy LẠI nghiệm thu golden A/B (ưu tiên 0) sau khi cloud-C sửa validator catalog (C-GOLDEN7 XONG; cloud-claude giao 22/10)
+Như CX21-GOLDEN6 (cùng baseline 155 cờ + 30 experimental TẮT, KHÔNG loại gen_auth_shadow), công cụ từ nhánh cloud/v31-golden5 MỚI NHẤT (có sửa C-GOLDEN7).
+Thứ tự: negative control native trước (đỏ → dừng); snapshot CSDL MỚI mode=ro; A = origin/main mới nhất, B = origin/cloud/v31-m2-tichhop mới nhất (ghi SHA).
+Công cụ trả mã 2 (lỗi precondition) → dừng, báo nguyên văn, không chạy lại. ĐẠT = negative control xanh + 0 DIFF + 0 ONE_FAIL + mỗi dự án ≥ 1 SAME + loaded
+evidence đủ cho mọi ca dựng được. Báo cáo docs/RA_CX21_GOLDEN7_CODEX_2026-10-2x.md (nhánh codex/v31-golden7). XONG hộp thư.
+
 ### CX21-GOLDEN6 — chạy LẠI nghiệm thu golden A/B (ưu tiên 0) sau khi cloud-C sửa negative control (C-GOLDEN6 XONG)
 Như CX21-GOLDEN5 nhưng công cụ từ nhánh cloud/v31-golden5 MỚI NHẤT (có sửa C-GOLDEN6). TRƯỚC KHI chạy 158 ca: chạy negative control native (sửa 1 dòng builder
 cây B → phải ra DIFF/ONE_FAIL ≥ 1) — đỏ thì dừng, báo lỗi, không chạy tiếp. Kết quả mỗi ca in đường dẫn module core thật đã nạp cho A và B. ĐẠT = negative

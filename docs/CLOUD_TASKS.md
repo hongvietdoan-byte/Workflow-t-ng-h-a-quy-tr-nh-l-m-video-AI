@@ -917,6 +917,21 @@ cây B → DIFF), rồi báo XONG để codex chạy lại. 31 BOTH_FAIL (NOT_BU
 báo cáo bổ sung docs/RA_CLOUD_GOLDEN5_*.md mục "GOLDEN6". XONG hộp thư (mã C-GOLDEN6).
 ```
 
+#### C-GOLDEN7 (cloud-C — ưu tiên 0, đường găng; cloud-claude giao 22/10) — validator cờ của --ab dùng catalog CÂY CÔNG CỤ thay vì cây đang dựng
+```
+CX21-GOLDEN6 (docs/RA_CX21_GOLDEN6_CODEX_2026-10-22.md, nhánh codex/v31-golden6): negative control native XANH, nhưng lượt thật 158/158 BOTH_FAIL TRƯỚC worker,
+0 worker spawn. Gốc: build_from_database() (tools/golden_db_replay.py ~dòng 215) gọi validate_baseline_flags() / feature_catalog() của tools/golden_capture.py
+= catalog FEATURES của CÂY CÔNG CỤ (153 cờ), trong khi baseline phủ hợp A∪B (155 cờ; main có cờ mới gen_auth_shadow) → ValueError
+"experimental_flags cần list tên cờ duy nhất có trong catalog"; run_ab() nuốt lỗi đầu vào thành INSUFFICIENT_INPUT/BOTH_FAIL thay vì dừng mã 2.
+Sửa trên nhánh cloud/v31-golden5 (commit mới):
+1. Ở --ab (code_root có giá trị): validate + "thiếu cờ" theo catalog của CHÍNH cây đang dựng (_catalog(code_root), đã có cho _preflight); experimental hợp lệ khi
+   có trong catalog cây đó HOẶC trong hợp A∪B (cờ chỉ có ở một cây = TẮT ở cây kia là đúng nghĩa). Không --ab: giữ y nguyên.
+2. Lỗi cấu hình (validator / catalog) là lỗi PRECONDITION của cả lượt → run_ab dừng mã 2 với thông báo rõ, không gộp thành BOTH_FAIL từng ca.
+3. Test đỏ→xanh: hai cây giả, cây A có thêm một cờ (như gen_auth_shadow) mà cây công cụ không có → trước: mọi ca BOTH_FAIL; sau: dựng được cả hai bên; cấu hình
+   sai (cờ lạ không thuộc A∪B) → mã 2, không chạy ca nào. Giữ test negative control native.
+Báo cáo bổ sung docs/RA_CLOUD_GOLDEN5_*.md mục "GOLDEN7". XONG hộp thư (mã C-GOLDEN7) — codex nhận CX21-GOLDEN7 sau đó.
+```
+
 #### C-M81B (pool — ưu tiên 1; Cấp 1 tài liệu) — bổ sung M8.1: KHI LỖI và KHI MUỐN ĐỔI ở chế độ Đơn giản
 ```
 EP 21/10 hỏi: "khi lỗi gen ảnh / gen video người dùng đơn giản làm gì, vào thao tác ra sao? tối giản nhưng vẫn đổi được đầu vào / đầu ra theo ý". Bản M8.1
