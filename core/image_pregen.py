@@ -21,6 +21,8 @@ from .pregen_codes import DO, REVIEW, VANG
 
 FLAG = "image_pregen"
 DIAG_CODE = "image_pregen_shadow"
+# Mức shadow không ghi lại mã mà điểm chặn cũ đang tự nói (nen_3d = diag plate_package_mixed, cùng lời) — tránh hai dòng cùng nội dung (rà DP9 VỪA-2).
+SHADOW_SKIP = ("nen_3d",)
 _HAD_PICTURE = ("succeeded", "pending_review", "approved", "rejected")
 
 
@@ -133,8 +135,12 @@ def _check_byd(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> 
 
 def _check_stand_in(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> None:
     """G1 (M2.4): gói có render nền 3D của shot mà render còn khối giữ chỗ lọt khung → prompt phải có câu giải thích khối
-    (core/stage_facts._prompt_stand_in), thiếu thì model vẽ khối xám thành vật thật lạ."""
-    from . import place_refs, stage_facts
+    (core/stage_facts._prompt_stand_in), thiếu thì model vẽ khối xám thành vật thật lạ. Runner chỉ nối câu này khi cờ stage_camera bật và
+    shot có stage_camera (runner._geometry_part) — ngoài điều kiện đó không đòi (rà DP9 VỪA-1). D6 (chat_prompts) viết lại prompt: dự phòng
+    "placeholder" + tên khối, không khớp nguyên văn."""
+    from . import features, place_refs, stage_facts
+    if not features.on("stage_camera") or not data.get("stage_camera"):
+        return
     if not any(s.get("role") == place_refs.ROLE for s in plan.get("sent") or []):
         return
     facts = [f for f in stage_facts.for_shot(conn, plan["project_id"], data, render=True)["facts"] if f["kind"] == "stand_in"]

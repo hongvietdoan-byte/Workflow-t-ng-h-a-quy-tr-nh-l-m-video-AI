@@ -134,6 +134,8 @@ class Unit(unittest.TestCase):
 
     # ---- khoi_giu_cho (G1) -------------------------------------------------------------------------------------------------------
     def test_block_in_the_render_without_its_sentence_is_red(self):
+        flags_on(self, "stage_camera")
+        self.data({"image_prompt": "x", "byd": {"shot": 1}, "stage_camera": {"location": [0, 0, 1], "look_at": [1, 0, 1], "lens": 24}})
         fact = {"kind": "stand_in", "name": "black flying corpse",
                 "prompt": "The grey block in the background render is a placeholder for black flying corpse."}
         sent = [{"role": place_refs.ROLE, "plate_key": "k", "file": "plate.png"}]
@@ -146,6 +148,21 @@ class Unit(unittest.TestCase):
         self.assertIn("black flying corpse", bad[0]["ly_do"])
         self.assertEqual(good, [])
         self.assertEqual(no_render, [])
+
+    def test_no_stand_in_demand_when_the_runner_does_not_add_the_sentence(self):
+        """Rà DP9 VỪA-1: runner._geometry_part nối câu khối chỉ khi cờ stage_camera bật + shot có stage_camera."""
+        fact = {"kind": "stand_in", "name": "corpse", "prompt": "The grey block ... placeholder for corpse."}
+        sent = [{"role": place_refs.ROLE, "plate_key": "k", "file": "plate.png"}]
+        cam = {"image_prompt": "x", "byd": {"shot": 1}, "stage_camera": {"location": [0, 0, 1], "look_at": [1, 0, 1], "lens": 24}}
+        with mock.patch.object(stage_facts, "for_shot", return_value={"facts": [fact], "missing": None}) as fs, \
+                mock.patch.object(place_refs, "package_problem", return_value=None):
+            flags_on(self, "stage_camera", value=False)
+            self.data(cam)
+            self.assertEqual(image_pregen.check(self.p.conn, self.sid, self.plan(sent=sent)), [])
+            flags_on(self, "stage_camera")
+            self.data({"image_prompt": "x", "byd": {"shot": 1}})
+            self.assertEqual(image_pregen.check(self.p.conn, self.sid, self.plan(sent=sent)), [])
+        fs.assert_not_called()
 
     # ---- loi_kiem: một lớp hỏng nói rõ, các lớp khác vẫn chạy -------------------------------------------------------------------
     def test_a_broken_check_is_red_and_the_others_still_run(self):
@@ -204,14 +221,16 @@ class RunnerShadow(_Send):
     def send(self):
         self.render()
         self.p.create_job(self.sid, "image_gen")
+        self.last_runner = self.runner()
         with mock.patch.object(place_refs, "ensure_async"):
-            return self.runner().submit_pending(self.pid)
+            return self.last_runner.submit_pending(self.pid)
 
     def test_flag_off_never_runs_the_check(self):
         flags_on(self, "image_pregen", value=False)
         with mock.patch.object(image_pregen, "check") as chk:
             self.assertEqual(self.send(), 1)
         chk.assert_not_called()
+        self.assertNotIn("_pregen_dropped", self.last_runner.__dict__)    # rà DP9 THẤP-1: cờ tắt không giữ gì
         self.assertEqual(self.diags(image_pregen.DIAG_CODE), [])
 
     def test_flag_on_writes_review_lines_and_still_sends(self):
@@ -243,8 +262,9 @@ class RunnerShadow(_Send):
         self.assertIn("[loi_kiem]", msg)
         self.assertIn("RuntimeError: boom", msg)
 
-    def test_old_plate_hold_unchanged_and_shadow_also_says_it(self):
-        """Mọi mức cờ: nền 3D của máy khác vẫn GIỮ như trước (plate_package_mixed, cùng lời); cờ bật thêm dòng REVIEW nen_3d."""
+    def test_old_plate_hold_unchanged_and_shadow_does_not_repeat_it(self):
+        """Mọi mức cờ: nền 3D của máy khác vẫn GIỮ như trước (plate_package_mixed, cùng lời); shadow không ghi thêm dòng nen_3d trùng
+        nội dung (rà DP9 VỪA-2) — check() vẫn trả nen_3d cho mức enforce sau."""
         from core.runner import WAIT_REASONS
         flags_on(self, "image_pregen")
         self.render()
@@ -256,7 +276,7 @@ class RunnerShadow(_Send):
         self.assertTrue(WAIT_REASONS[job][0].startswith("CẦN BẠN SỬA: "))
         self.assertTrue(WAIT_REASONS[job][0].endswith("render lại nền 3D / sửa góc máy rồi sẽ tự gửi"))
         self.assertTrue(self.diags("plate_package_mixed"))
-        self.assertTrue(any("[nen_3d]" in d["message"] and "zzz" in d["message"] for d in self.diags(image_pregen.DIAG_CODE)))
+        self.assertFalse(any("[nen_3d]" in d["message"] for d in self.diags(image_pregen.DIAG_CODE)))
 
     def test_blocked_words_unchanged(self):
         r = self.runner()

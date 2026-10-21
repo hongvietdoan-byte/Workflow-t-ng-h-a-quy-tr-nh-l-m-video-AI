@@ -3492,6 +3492,7 @@ class ImageRunner(_Runner):
         self._diag_once(job, "error", "plate_package_mixed", line)
         self._sent.pop(job["id"], None)
         getattr(self, "_storyboard", {}).pop(job["id"], None)
+        self.__dict__.get("_pregen_dropped", {}).pop(job["id"], None)
         return True
 
     def _pregen_shadow(self, job, args, kwargs) -> None:
@@ -3508,7 +3509,8 @@ class ImageRunner(_Runner):
         except Exception as e:  # noqa: BLE001 - shadow: said, the send goes on as before
             issues = [{"ma": "loi_kiem", "muc": "do", "ly_do": f"lớp kiểm trước gen ảnh lỗi ({type(e).__name__}: {e}) — chưa kiểm được"}]
         for issue in issues:
-            self._shadow_note(job, image_pregen.shadow_line(issue))
+            if issue["ma"] not in image_pregen.SHADOW_SKIP:
+                self._shadow_note(job, image_pregen.shadow_line(issue))
 
     def _shadow_note(self, job, message: str) -> None:
         """One diag line per (job, text) for the process (module-level like video's _pregen_note: the dashboard makes new runners)."""
@@ -3689,7 +3691,9 @@ class ImageRunner(_Runner):
         if anchored:                                   # lỗi 1 #27: render của shot là ẢNH 1 (không bị trần số ảnh cắt, đánh số 1)
             refs = plate_anchor.plate_first(refs)
         refs, dropped = sendable_references(refs, model)
-        self.__dict__.setdefault("_pregen_dropped", {})[job["id"]] = list(dropped)   # M2.7: read by the shadow check
+        from . import image_pregen
+        if image_pregen.enabled():                   # M2.7: read by the shadow check (flag off: nothing kept)
+            self.__dict__.setdefault("_pregen_dropped", {})[job["id"]] = list(dropped)
         if dropped:
             self._diag(job, "warn", "missing_reference", "ảnh tham chiếu không gửi được (bỏ khỏi yêu cầu và khỏi câu đánh số ảnh): "
                        + ", ".join(dropped))
@@ -3790,7 +3794,8 @@ class ImageRunner(_Runner):
                                f"{why}: KHÔNG gửi ảnh neo khung 1 (shot {g['anchor']['idx']}, có {mark or 'mốc'}) — chỉ ảnh nhân "
                                f"vật/trang phục + render 3D của shot, phiên storyboard riêng{extra}")
                 if fields is not None:
-                    self._pregen_dropped[job["id"]] = list(dropped)   # M2.7: the storyboard list is what leaves
+                    if image_pregen.enabled():         # M2.7: the storyboard list is what leaves
+                        self.__dict__.setdefault("_pregen_dropped", {})[job["id"]] = list(dropped)
                     refs = fields["refs"]
                     prompt = prompt.rstrip() + fields.get("cast_note", "")
                     self._storyboard = getattr(self, "_storyboard", {})
