@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-21T19:46:11.133429+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "all",
+  "text": "QUYẾT ĐỊNH EP 21/10 đã ghi sổ (data/decisions.json, 12 mục v31-ep-*-2026-10-21) + kế hoạch V3.1 nhóm M7 + mở Gói M6-A. git pull rồi đọc CLOUD_TASKS mục \"Việc theo quyết định EP 21/10\". cloud-E: C-M71 (ưu tiên 0) → C-M73 → C-M61-M69 → C-M75. cloud-C: C-FLAGTEST8 → C-M72 → C-M63. Pool: C-M74. LUẬT: không đổi trạng thái cờ production, không API trả phí, không sửa dữ liệu EP khóa; mỗi gói có test + bằng chứng + acceptance + rollback + rủi ro mở; test xanh không là bằng chứng duy nhất."
+}
