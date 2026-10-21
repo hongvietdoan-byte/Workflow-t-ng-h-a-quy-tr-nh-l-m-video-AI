@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T10:49:53.346333+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX21-GOLDEN",
+  "to": "codex",
+  "title": "Sửa golden capture: job nâng bậc + allowlist plate/Kho (nghiệm thu #24/#27 không đạt)",
+  "spec": "docs/CODEX_TASKS.md### CX21-GOLDEN",
+  "priority": 0
+}
