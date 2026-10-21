@@ -53,3 +53,5 @@ chỉ đính kèm sidecar, không chứng nhận xuất xứ/độ đầy đủ.
 Dùng `replay_builder(job["input_snapshot"], ref_root=...)` rồi `compare_compat` với raw
 baseline ở fixture; `check_correctness` chạy với kỳ vọng viết riêng, không lấy golden
 làm chuẩn đúng. Chưa có sidecar sản xuất → giữ OPEN, không suy ngược cho đủ dữ liệu.
+
+CX20-2b (21/10): db_package_expected.json là baseline byte tổng hợp đóng băng (prompt ảnh cube, motion cube rotates, PNG đỏ16x16); test không sinh lại expected. tools/golden_capture.py --database-replay --latest-per-type lấy args bằng prepare/build thật từ DB readonly, không cần sidecar; tools/golden_db_replay.py nhận nhiều --fixture. Manifest ghi DB/schema/HEAD/cờ/public config và file/stat/missing dependencies; DATA_CHANGED/INSUFFICIENT_INPUT tách CODE_MISMATCH. Xem RA_D20_VIEC2B_CODEX_2026-10-21.md: dữ liệu thật #24/#27 và M2 acceptance vẫn OPEN.

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+import ast
+from contextlib import closing
 import hashlib
 import json
 import math
@@ -9,6 +11,8 @@ from pathlib import Path
 import re
 import sqlite3
 import subprocess
+import shutil
+import sys
 from urllib.parse import urlsplit
 
 
@@ -20,7 +24,10 @@ def head_sha():
     # Không kế thừa môi trường máy chính, không nạp provider/config ứng dụng.
     git = Path("C:/Program Files/Git/cmd/git.exe")
     if not git.is_file():
-        raise GoldenError("Không tìm thấy Git; chưa chụp được HEAD SHA")
+        found = shutil.which("git")
+        if not found:
+            raise GoldenError("Không tìm thấy Git; chưa chụp được HEAD SHA")
+        git = Path(found)
     result = subprocess.run([str(git), "rev-parse", "HEAD"], cwd=Path(__file__).resolve().parents[1],
                             env={"SYSTEMROOT": "C:/Windows"}, capture_output=True, check=True, text=True)
     value = result.stdout.strip()
@@ -35,6 +42,21 @@ def compare_compat(expected: bytes, actual: bytes):
         raise GoldenError("COMPAT cần hai chuỗi bytes")
     if expected != actual:
         raise GoldenError("COMPAT lệch byte; chưa đạt tương thích")
+
+
+def feature_catalog():
+    """Đọc catalog literal, không import config/credential hay đọc môi trường."""
+    tree = ast.parse((Path(__file__).resolve().parents[1] / "core/features.py").read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == "FEATURES":
+            return ast.literal_eval(node.value)
+    raise GoldenError("Không đọc được catalog FEATURES")
+
+
+def validate_compat_flags(flags):
+    needed = {name for name, meta in feature_catalog().items() if meta.get("verified") is False}
+    if needed - flags.keys() or any(flags[name] is not False for name in needed & flags.keys()):
+        raise GoldenError("COMPAT cần đủ mọi cờ verified False trong catalog và đều TẮT")
 
 
 def _safe(value):
@@ -87,12 +109,23 @@ def _ref(ref, root):
     return result
 
 
-def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots_file=None):
+def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots_file=None, database_replay=False, latest_per_type=False, public_config_file=None):
     db, root = Path(db).resolve(), Path(ref_root).resolve()
     if not db.is_file() or not root.is_dir():
         raise GoldenError("Cần --db tồn tại và --ref-root là thư mục rõ ràng")
     if purpose not in ("compat", "correctness"):
         raise GoldenError("purpose cần compat hoặc correctness")
+    if database_replay and purpose != "compat":
+        raise GoldenError("Database replay hiện chỉ hỗ trợ COMPAT với cờ thử nghiệm TẮT")
+    public_config = {}
+    if public_config_file is not None:
+        if not database_replay:
+            raise GoldenError("public config chỉ dùng với database replay")
+        public_config = json.loads(Path(public_config_file).read_text(encoding="utf-8-sig"))
+        from tools.golden_db_replay import PUBLIC
+        if not isinstance(public_config, dict) or any(k not in PUBLIC and not k.startswith("FEATURE_") for k in public_config):
+            raise GoldenError("Config ngoài danh sách public")
+        _safe(public_config)
     flag_input = json.loads(Path(flags_file).read_text(encoding="utf-8-sig"))
     structured = isinstance(flag_input, dict) and "flags" in flag_input
     flags = flag_input.get("flags") if structured else flag_input
@@ -104,6 +137,8 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
         raise GoldenError("experimental_flags cần list tên cờ duy nhất có trong flags")
     if purpose == "compat" and any(flags[k] for k in experimental):
         raise GoldenError("COMPAT yêu cầu các cờ thử nghiệm khai trong file đều TẮT")
+    if purpose == "compat":
+        validate_compat_flags(flags)
     inputs = {}
     if input_snapshots_file is not None:
         inputs = json.loads(Path(input_snapshots_file).read_text(encoding="utf-8-sig"))
@@ -111,7 +146,7 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
             raise GoldenError("input snapshots cần object job id → snapshot trước lắp gói")
         _safe(inputs)
     warnings, jobs = [], []
-    with sqlite3.connect(db.as_uri() + "?mode=ro", uri=True) as conn:
+    with closing(sqlite3.connect(db.as_uri() + "?mode=ro", uri=True)) as conn:
         conn.row_factory = sqlite3.Row
         conn.execute("BEGIN")  # Một snapshot đọc nhất quán cho mọi SELECT.
         schema = {key: conn.execute(f"PRAGMA {key}").fetchone()[0] for key in ("user_version", "schema_version")}
@@ -120,12 +155,14 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
         missing = required - columns
         if missing:
             raise GoldenError("jobs thiếu trường: " + ", ".join(sorted(missing)))
-        running = conn.execute("SELECT count(*) FROM jobs WHERE project_id=? AND state IN ('running','submitted','polling','sending')", (project,)).fetchone()[0]
+        running = conn.execute("SELECT count(*) FROM jobs WHERE project_id=? AND state IN ('queued','running','retryable')", (project,)).fetchone()[0]
         if running:
             warnings.append("Dự án có job đang chạy; nên dùng snapshot CSDL + ref nhất quán trước khi chụp")
         rows = conn.execute("SELECT id,type,state,model,quality_tier,sent_package FROM jobs WHERE project_id=? AND scene_id=? AND type IN ('image_gen','video_gen') ORDER BY id", (project, shot)).fetchall()
         if not rows:
             raise GoldenError("Không có jobs ảnh/video cho project + shot chỉ định")
+        if latest_per_type:
+            rows=list({row['type']:row for row in rows}.values())
         for row in rows:
             raw = row["sent_package"]
             try:
@@ -151,13 +188,18 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
             jobs.append({"id": row["id"], "type": row["type"], "state": row["state"], "model": row["model"],
                          "tier": row["quality_tier"], "provider": package["provider"], "prompt": package["prompt"],
                          "sent_package_raw": raw, "sent_package_sha256": hashlib.sha256(raw.encode("utf-8")).hexdigest(), "refs": refs, "input_snapshot": inputs.get(str(row["id"]))})
+    if database_replay:
+        from tools.golden_db_replay import capture_database_job
+        for job in jobs:
+            job["database_replay"] = capture_database_job(job,db=db,ref_root=root,flags=flags,public_config=public_config)
     return {"fixture_version": 1, "purpose": purpose, "head_sha": head_sha(), "flags": flags,
             "experimental_flags": experimental,
             "flags_provenance": "explicit_file_unverified_at_send", "schema": schema, "project": project, "scene_id": shot,
-            "jobs": jobs, "warnings": warnings, "replay_status": "OPEN", "correctness_status": "OPEN"}
+            "jobs": jobs, "warnings": warnings, "replay_status": "CAPTURED_NOT_ACCEPTED" if database_replay else "OPEN", "correctness_status": "OPEN"}
 
 
 def main(argv=None):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("db", "flags-file", "ref-root", "output"):
         parser.add_argument("--" + name, required=True, type=Path)
@@ -165,10 +207,13 @@ def main(argv=None):
         parser.add_argument("--" + name, required=True, type=int)
     parser.add_argument("--purpose", required=True, choices=("compat", "correctness"))
     parser.add_argument("--input-snapshots-file", type=Path, help="JSON job id → args/kwargs trước lắp gói; không suy ngược từ sent_package")
+    parser.add_argument("--database-replay", action="store_true", help="Chụp dependency và dựng gói bằng prepare/build thật từ DB, không cần sidecar")
+    parser.add_argument("--latest-per-type", action="store_true", help="Chỉ job cuối ảnh và video của shot; không chọn nhiều take cũ")
+    parser.add_argument("--public-config-file", type=Path, help="JSON config public explicit (LLM_PROVIDER, image_model, video_model, FEATURE_*); không đọc môi trường")
     args = parser.parse_args(argv)
     try:
         result = capture(db=args.db, project=args.project, shot=args.shot, flags_file=args.flags_file,
-                         ref_root=args.ref_root, purpose=args.purpose, input_snapshots_file=args.input_snapshots_file)
+                         ref_root=args.ref_root, purpose=args.purpose, input_snapshots_file=args.input_snapshots_file, database_replay=args.database_replay, latest_per_type=args.latest_per_type, public_config_file=args.public_config_file)
         with args.output.open("x", encoding="utf-8", newline="\n") as stream:
             json.dump(result, stream, ensure_ascii=False, indent=2, allow_nan=False)
     except GoldenError as exc:
@@ -180,6 +225,31 @@ def main(argv=None):
 
 
 def replay_builder(snapshot, *, ref_root):
+    """API: tiến trình riêng, không thay cwd hoặc environ của tiến trình gọi."""
+    import tempfile
+    _safe(snapshot)
+    python = Path(sys.executable)
+    if (sys.version_info[:2] != (3, 14) or not python.is_absolute()
+            or python.name.lower() not in {"python.exe", "python", "python3", "python3.14"}
+            or not python.is_file()):
+        raise GoldenError("Replay cần native Python trong whitelist")
+    with tempfile.TemporaryDirectory(prefix="golden-worker-") as scratch:
+        request = Path(scratch) / "request.json"
+        response = Path(scratch) / "response.json"
+        request.write_text(json.dumps({"snapshot": snapshot, "root": str(Path(ref_root).resolve())}), encoding="utf-8")
+        env = {"SYSTEMROOT": "C:/Windows", "TEMP": scratch, "TMP": scratch,
+               "HOME": scratch, "USERPROFILE": scratch, "PYTHONUTF8": "1"}
+        result = subprocess.run([str(python), "-I", str(Path(__file__).resolve()), "--isolated-builder", str(request), str(response)],
+                                cwd=scratch, env=env, capture_output=True, timeout=90)
+        if result.returncode or not response.is_file():
+            raise GoldenError("Replay worker không hoàn tất; không xuất log chứa payload")
+        answer = json.loads(response.read_text(encoding="utf-8"))
+        if "error" in answer:
+            raise GoldenError(answer["error"])
+        return answer["raw"].encode("utf-8")
+
+
+def _replay_builder_sandbox(snapshot, *, ref_root):
     """Replay biên lắp sổ gửi từ input trước lắp gói; không chạy prepare/send/poll.
 
     Snapshot độc lập chứa args/kwargs/meta, bytes ref nằm trong ref_root; baseline
@@ -197,6 +267,7 @@ def replay_builder(snapshot, *, ref_root):
         raise GoldenError("Replay cần tên provider trong whitelist và loại image/video")
     if not isinstance(snapshot["flags"], dict) or any(type(v) is not bool for v in snapshot["flags"].values()) or any(snapshot["flags"].get(k) is not False for k in snapshot.get("experimental_flags", snapshot["flags"])):
         raise GoldenError("COMPAT replay cần cờ TẮT explicit")
+    validate_compat_flags(snapshot["flags"])
     root = Path(ref_root).resolve()
     for name, digest in snapshot["files"].items():
         path = (root / name).resolve()
@@ -269,4 +340,16 @@ def check_correctness(actual, expectations):
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    import sys
+    if len(sys.argv) == 4 and sys.argv[1] == "--isolated-builder":
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        request = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+        try:
+            answer = {"raw": _replay_builder_sandbox(request["snapshot"], ref_root=request["root"]).decode("utf-8")}
+        except GoldenError as exc:
+            answer = {"error": str(exc)}
+        except Exception:
+            answer = {"error": "Replay worker thiếu đầu vào; không đủ bằng chứng"}
+        Path(sys.argv[3]).write_text(json.dumps(answer, ensure_ascii=False), encoding="utf-8")
+    else:
+        raise SystemExit(main())

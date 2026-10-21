@@ -1398,3 +1398,9 @@ push `hộp thư:` TRƯỚC khi code; làn khác nhận trước thì bỏ, lấ
 
 - Đ20 việc 1 · codex/d20-viec1-so-loi · commit rà xem git log (cùng báo cáo) · RÀ KỸ sửa 2 P2: đủ mọi lần failed + JSON tiền hữu hạn; 2 regression đỏ → 9 test xanh (1,18s); native cost UNKNOWN khi thiếu USD, chờ cả bộ Windows/slow trước gộp.
 - Việc 2 bổ sung · `codex/d20-viec2-golden`: frozen pre-send input ảnh/video qua ImageRunner/VideoRunner._build_package thật; 3 đỏ →25 xanh/9,47s; COMPAT byte + correctness cấu trúc riêng, provider stub fake/clipai/deepix; M1.9a OPEN (chưa `_submit_args`/capture sản xuất/chất lượng/cả bộ). Chi tiết RA_D20_VIEC2; không API/dữ liệu thật, chưa push/gộp.
+
+### Kết quả Codex CX20-2b (từng phần)
+Hai VỪA + THẤP: catalog COMPAT đủ/OFF, queued cảnh báo, Git fallback, đóng SQLite, replay API worker cách ly cwd/env; đỏ 2/35 → xanh 40, xác nhận 40. CAO-M2 actual DB replay còn OPEN, không mở khóa M2. Báo cáo docs/RA_D20_VIEC2B_CODEX_2026-10-20.md. Không push/main/live.
+
+### Kết quả Codex CX20-2b — 21/10
+Đã có replay prepare/build thật từ snapshot DB + manifest readonly, CLI capture/replay nhiều fixture, không sidecar args. 63 test native xanh; byte ảnh/video tổng hợp, drift/sandbox/cache/đếm distinct shot. Xem docs/RA_D20_VIEC2B_CODEX_2026-10-21.md để chạy #24/#27. Code + lệnh xong; nghiệm thu thật M1.9/CAO-M2, rà độc lập, cả bộ/gộp/mở M2 còn OPEN. Không push/main/live/TODO/plan.
