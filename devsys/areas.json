@@ -43,7 +43,7 @@
       "code": ["core/voice.py", "core/voice_casting.py", "core/voice_check.py", "core/voice_direction.py", "core/audio_first.py", "core/project_defaults.py", "core/claude_tasks.py", "core/llm_runner.py", "dashboard/steps/step3.py", "core/motion_prompt_lint.py", "core/tts_caps.py"],
       "assets": ["prompts/03_*", "prompts/11_*", "prompts/15_*", "knowledge/motion_prompt_lint.md", "knowledge/video_motion_vocab.md", "knowledge/motion_complex_shots.md", "knowledge/t2v_prompt_structure.md", "data/motion_vocab.json", "data/voices_vi.json", "data/pronunciation_vi.json", "tools/voice_trial.py"],
       "docs": [],
-      "tests": ["tests/test_qc_video.py", "tests/test_code_motion_p27.py", "tests/test_voice_speed.py"],
+      "tests": ["tests/test_qc_video.py", "tests/test_code_motion_p27.py", "tests/test_voice_speed.py", "tests/test_fit_durations_review.py"],
       "flags": ["qc_framing_cap", "voice_direction", "voice_check_redo", "j_cut", "audio_first", "auto_voice_cast", "short_lock_outfit", "end_state_fresh", "tts_lowercase_caps", "fit_durations_review"],
       "diag_stages": ["motion", "voice"],
       "ops_stages": ["motion", "audio"],

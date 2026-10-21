@@ -9,8 +9,9 @@
 - A11: end_frames.SKIP_TEXT + skill_objects.rising_names; runner nói đúng vật (bỏ "(ném keo)"/"tường" viết cứng), code diag giữ.
 
 - A12: test ClaudeCliTests (tests/test_director_byd.py) — settle qua ClaudeCliClient (chữ + rào JSON) ĐÃ đọc được BYĐ (xanh ngay, không cần sửa code); nguyên nhân #33 chưa tái hiện = việc mở.
+- G14: voice.plan_fit / apply_fit / fit_review_on (cờ fit_durations_review); fit_durations cờ BẬT chỉ áp mặc định (thoại trong khung);
+  Bước 3 bảng duyệt ⏱ (_fit_review). tests/test_fit_durations_review.py; price scan thêm voice.apply_fit.
 
 ## Đang dở / bước kế
-- G14 `voice.plan_fit` / `apply_fit` (cờ fit_durations_review) + nút ⏱ duyệt.
 
 - related_areas + báo cáo docs/RA_CLOUD_M29_2026-10-21.md; xóa HANDOFF.md ở commit cuối.

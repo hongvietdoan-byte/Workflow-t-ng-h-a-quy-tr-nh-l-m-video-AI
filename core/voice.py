@@ -439,6 +439,8 @@ def fit_durations(conn, project_id: int, data_dir: str, with_clips: bool = False
     A scene that ALREADY HAS a clip is left alone unless `with_clips` (a person chose to remake those clips): lengthening its motion
     makes the clip stale and the automatic run made it again — #8 2026-09-28: voices chosen after the 33 clips existed, 19 clips (and
     their groups) queued again, ~5.8 USD, without anyone asking (see pending_fits)."""
+    if fit_review_on():                 # V3.1 M2.9 G14: tự động chỉ áp đề xuất mặc định (thoại trong khung); lời dẫn chờ người tick ⏱
+        return apply_fit(conn, [c for c in plan_fit(conn, project_id, data_dir, with_clips, price=False) if c["tick"]])
     from .dialogue import max_clip_seconds
     from .pipeline import Pipeline
     changes = []
@@ -454,6 +456,81 @@ def fit_durations(conn, project_id: int, data_dir: str, with_clips: bool = False
         if target > float(row["duration_sec"] or 0):
             conn.execute("UPDATE motion_prompts SET duration_sec=? WHERE scene_id=?", (target, sid))
             changes.append({"scene_id": sid, "from": row["duration_sec"], "to": target, "short": need > target})
+    conn.commit()
+    return changes
+
+
+FIT_REVIEW = "fit_durations_review"
+# lý do kéo (M2.9 G14) → chữ hiện ở bảng duyệt ⏱
+FIT_REASONS = {"thoai_trong_khung": "thoại trong khung (miệng phải đủ giây)",
+               "chi_loi_dan": "chỉ lời dẫn — đọc tràn sang shot sau được, không cần kéo",
+               "giong_ngoai_khung": "giọng ngoài khung (người nói không có trong shot)"}
+
+
+def fit_review_on() -> bool:
+    from . import features
+    return features.on(FIT_REVIEW)
+
+
+def _fit_reason(data: Dict) -> str:
+    from . import lipsync, speaker_lint
+    if lipsync.talking(data):
+        return "thoai_trong_khung"
+    said = [str(s) for s, _ in dialogue.scene_lines(data or {}) if str(s).strip() and not dialogue.is_non_speaker(str(s))]
+    if said and all(speaker_lint.is_narrator(s) for s in said):
+        return "chi_loi_dan"
+    return "giong_ngoai_khung"
+
+
+def plan_fit(conn, project_id: int, data_dir: str, with_clips: bool = False, price: bool = True) -> List[Dict]:
+    """V3.1 M2.9 G14: ĐỀ XUẤT kéo thời lượng clip theo giọng thật — cùng phép tính fit_durations, KHÔNG ghi CSDL.
+    [{scene_id, idx, from, to, short, ly_do, tien_them_usd, tick}]: ly_do = thoai_trong_khung | chi_loi_dan | giong_ngoai_khung;
+    tien_them_usd = cost.clip_estimate(giây mới) − cost.clip_estimate(giây cũ) (ước tính, None khi không tính được; price=False bỏ qua);
+    tick = mặc định chọn (chỉ thoại trong khung)."""
+    from .dialogue import max_clip_seconds
+    from .pipeline import Pipeline
+    out = []
+    p = Pipeline(conn)
+    for sid, secs in scene_seconds(conn, project_id, data_dir).items():
+        row = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (sid,)).fetchone()
+        if row is None:
+            continue
+        if not with_clips and has_clip(conn, sid):
+            continue
+        need = math.ceil(_lead(conn, sid) + secs + TAIL)
+        target = min(need, max_clip_seconds(p, project_id, sid))
+        if not target > float(row["duration_sec"] or 0):
+            continue
+        sc = conn.execute("SELECT idx, data FROM scenes WHERE id=?", (sid,)).fetchone()
+        try:
+            data = json.loads(sc["data"] or "{}") if sc is not None else {}
+        except ValueError:
+            data = {}
+        why = _fit_reason(data)
+        extra = None
+        if price:
+            try:
+                from . import cost
+                new_usd = cost.clip_estimate(conn, sid, seconds=target)
+                old_usd = cost.clip_estimate(conn, sid, seconds=float(row["duration_sec"] or 0) or None)
+                extra = round(new_usd - old_usd, 4) if new_usd is not None and old_usd is not None else None
+            except Exception:  # noqa: BLE001 - giá không tính được: nói "chưa rõ" ở bảng, không chặn đề xuất
+                extra = None
+        out.append({"scene_id": sid, "idx": sc["idx"] if sc is not None else None, "from": row["duration_sec"], "to": target,
+                    "short": need > target, "ly_do": why, "tien_them_usd": extra, "tick": why == "thoai_trong_khung"})
+    return sorted(out, key=lambda c: (c["idx"] or 0, c["scene_id"]))
+
+
+def apply_fit(conn, chosen: List[Dict]) -> List[Dict]:
+    """V3.1 M2.9 G14: ghi các đề xuất người (hoặc mặc định tự động) đã chọn — chỉ kéo dài, đọc lại giây hiện tại trước khi ghi.
+    Trả các thay đổi như fit_durations ({scene_id, from, to, short})."""
+    changes = []
+    for c in chosen or []:
+        row = conn.execute("SELECT duration_sec FROM motion_prompts WHERE scene_id=?", (c["scene_id"],)).fetchone()
+        if row is None or not float(c["to"]) > float(row["duration_sec"] or 0):
+            continue
+        conn.execute("UPDATE motion_prompts SET duration_sec=? WHERE scene_id=?", (c["to"], c["scene_id"]))
+        changes.append({"scene_id": c["scene_id"], "from": row["duration_sec"], "to": c["to"], "short": bool(c.get("short"))})
     conn.commit()
     return changes
 
