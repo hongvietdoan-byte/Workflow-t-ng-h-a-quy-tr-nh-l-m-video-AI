@@ -541,12 +541,62 @@ def test_busy_sees_a_running_group_clip_carrying_this_shot(tmp_path):
 
 
 def test_end_frames_flag_off_never_asks_the_provider_for_usage_info(tmp_path):
-    """THẤP 2: model của dòng shadow (`_usage_model(provider)` = provider.usage_info()) chỉ tính khi cờ BẬT."""
-    import inspect
-    from core import end_frames
-    src = inspect.getsource(end_frames._tick)
-    i = src.index("gen_auth.shadow_send(")
-    assert "if gen_auth.enabled():" in src[i - 200:i]
+    """THẤP 2: model của dòng shadow (`_usage_model(provider)` = provider.usage_info()) chỉ tính khi cờ BẬT — chạy đường gửi thật, cờ TẮT."""
+    import tempfile
+    from core import end_frames, llm_runner
+    from tests.test_end_frames import _shot_with_end_state
+    from tests.test_v3 import _approve_all_images, kenta_project
+    asked = []
+    with mock.patch.dict(os.environ, {"FEATURE_SEEDANCE_REF_GROUPS": "0", "FEATURE_END_FRAMES": "1", **OFF}):
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        _shot_with_end_state(p, pid)
+        data = tempfile.mkdtemp()
+        _approve_all_images(p, pid, data)
+        end_frames.queue(p, pid)
+
+        class Prov(MockImageProvider):
+            def submit(self, *a, **k):
+                asked.append("send")
+                return super().submit(*a, **k)
+        with mock.patch.object(end_frames, "_usage_model", wraps=end_frames._usage_model) as um:
+            end_frames.tick(p, pid, Prov(), data)
+    assert G.read_shadow(data, pid) == [] and asked
+    # _usage_model: một lần cho sổ chi mỗi lượt gửi; cờ TẮT → shadow KHÔNG hỏi thêm (trước: 2 lần mỗi lượt gửi)
+    assert um.call_count == len(asked), (um.call_count, len(asked))
+
+
+def test_group_ids_keeps_the_good_members_of_a_partly_broken_group():
+    row = {"sent_group": json.dumps([{"id": 7}, {"id": "abc"}, {"id": "9"}, "x"])}
+
+    class R(dict):
+        def keys(self):
+            return super().keys()
+    assert G._group_ids(R(row)) == {7, 9}
+
+
+def test_first_take_of_the_sender_is_first_even_if_a_group_member_had_takes(tmp_path):
+    """Rà: lượt ĐẦU của A (gửi clip nhóm A+B tự động) khi B đã có clip riêng — vẫn là lượt đầu (theo shot GỬI), không phạt 2 lần."""
+    p, pid, sids = _setup(tmp_path, shots=2)
+    _job(p, pid, sids[1], kind="video_gen", usd_q=1)                                     # B đã có clip riêng
+    grp = _job(p, pid, sids[0], kind="video_gen", usd_q=1, origin="auto", ext="grp")   # lượt đầu của A, mang cả B
+    p.conn.execute("UPDATE jobs SET sent_group=? WHERE id=?", (json.dumps([{"id": sids[0]}, {"id": sids[1]}]), grp))
+    p.conn.commit()
+    with mock.patch("core.budget.row_usd", side_effect=lambda pr, r: float(r["quantity"])):
+        b = G.repair_budget(p.conn, pid, pricing=PRICING)
+    assert b["first_usd"] == 2.0 and b["repair_usd"] == 0.0
+
+
+def test_one_send_reads_the_project_jobs_once(tmp_path):
+    """Rà: một lượt shadow (leader + shot nhóm, có ngân sách tự sửa) đọc job dự án MỘT lần (memo ctx)."""
+    p, pid, sids = _setup(tmp_path, shots=3)
+    for sid in sids:
+        _job(p, pid, sid, usd_q=1, state="rejected", reject="mat_sai")
+    lead = _job(p, pid, sids[0], ext=None, state="queued", origin="auto", parent=1)
+    with mock.patch.dict(os.environ, ON), mock.patch.object(G, "_pricing", return_value=PRICING), \
+            mock.patch.object(G, "project_jobs", wraps=G.project_jobs) as pj:
+        G.shadow(p.conn, p.job(lead), data_dir=str(tmp_path / "data"), group=sids[1:])
+    assert pj.call_count == 1
 
 
 def test_quality_sample_shadow_error_never_leaves_the_entry_sending(tmp_path, monkeypatch):

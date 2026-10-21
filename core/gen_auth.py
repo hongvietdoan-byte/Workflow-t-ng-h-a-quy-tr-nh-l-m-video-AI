@@ -112,9 +112,17 @@ def _group_ids(row) -> set:
     if not raw:
         return set()
     try:
-        return {int(g["id"]) for g in json.loads(raw) or [] if isinstance(g, dict) and g.get("id") is not None}
+        items = json.loads(raw) or []
     except (ValueError, TypeError):
         return set()
+    out = set()
+    for g in items if isinstance(items, list) else []:
+        try:                                          # rà: MỘT phần tử hỏng không làm mất cả nhóm
+            if isinstance(g, dict) and g.get("id") is not None:
+                out.add(int(g["id"]))
+        except (ValueError, TypeError):
+            continue
+    return out
 
 
 def project_jobs(conn, project_id: Optional[int], kind: Optional[str] = None) -> Dict:
@@ -199,14 +207,14 @@ def _usd_of_jobs(conn, job_ids: List[int], pricing) -> float:
     return total
 
 
-def repair_budget(conn, project_id: int, data_dir: Optional[str] = None, pricing=None) -> Dict:
+def repair_budget(conn, project_id: int, data_dir: Optional[str] = None, pricing=None, ctx: Optional[Dict] = None) -> Dict:
     """{"first_usd", "repair_usd", "limit_usd", "left_usd", "pct"} — tiền lượt đầu / làm lại theo SỔ CHI (usage_events) của các lượt đã
     tính; ngân sách = REPAIR_PCT × lượt đầu (EP đổi tỷ lệ theo dự án: app_settings `gen_auth_repair_pct:<pid>`)."""
     pricing = pricing if pricing is not None else _pricing()
-    return _repair_budget(conn, project_id, data_dir, pricing)
+    return _repair_budget(conn, project_id, data_dir, pricing, ctx)
 
 
-def _repair_budget(conn, project_id: int, data_dir: Optional[str], pricing) -> Dict:
+def _repair_budget(conn, project_id: int, data_dir: Optional[str], pricing, ctx: Optional[Dict] = None) -> Dict:
     pct = REPAIR_PCT
     try:
         row = conn.execute("SELECT value FROM app_settings WHERE key=?", (f"gen_auth_repair_pct:{project_id}",)).fetchone()
@@ -216,15 +224,15 @@ def _repair_budget(conn, project_id: int, data_dir: Optional[str], pricing) -> D
         pass
     first, repair = [], []
     grants = _grants(data_dir, project_id)            # đọc sổ cấp lượt MỘT lần
-    ctx = project_jobs(conn, project_id)              # C-M63-FIX2: job của dự án MỘT lần (trước: 2 câu quét toàn bảng mỗi shot / loại)
+    ctx = ctx if ctx is not None else project_jobs(conn, project_id)   # C-M63-FIX2: job của dự án MỘT lần
     pairs = sorted({(r["scene_id"], r["type"]) for r in ctx["rows"] if r["scene_id"] is not None}
                    | {(sid, r["type"]) for r in ctx["rows"] for sid in ctx["groups"].get(r["id"], ())})
     for sid, typ in pairs:
         done = attempts_in(ctx, sid, typ, since=_cycle_from(grants, sid, typ))
-        first += [r["id"] for r in done[:1]]
-        repair += [r["id"] for r in done[1:] if (r["origin"] or "") == "auto"]   # 4d: thao tác EP tự bấm KHÔNG ăn vào ngân sách tự sửa
-    # rà C-M63-FIX: mỗi job (một khoản chi) chỉ vào MỘT bên, MỘT lần. C-M63-FIX2: job là lần LÀM LẠI tự động của bất kỳ shot nào → bên
-    # làm lại (thận trọng tiền): clip nhóm gửi lại của A mà là lượt đầu của B trước bị tính vào lượt đầu → ngân sách phình 40 %
+        # C-M63-FIX2 (rà): mỗi job (một khoản chi) xếp theo vị trí ở CHÍNH shot gửi nó (jobs.scene_id) — clip nhóm gửi lại của A (lượt 2
+        # của A) mà là lượt đầu của B = làm lại; lượt đầu của A dù B đã có lượt = lượt đầu (không phạt 2 lần)
+        first += [r["id"] for r in done[:1] if r["scene_id"] == sid]
+        repair += [r["id"] for r in done[1:] if r["scene_id"] == sid and (r["origin"] or "") == "auto"]   # 4d: EP bấm KHÔNG ăn ngân sách
     repair_ids = sorted(set(repair))
     first_ids = sorted(set(first) - set(repair_ids))
     first_usd, repair_usd = _usd_of_jobs(conn, first_ids, pricing), _usd_of_jobs(conn, repair_ids, pricing)
@@ -337,7 +345,12 @@ def authorize(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool]
     model = model or job["model"]
     pricing = _pricing()
     since = cycle_start(data_dir, pid, sid, kind) if sid else None
-    done = attempts(conn, sid, kind, exclude_job_id=job["id"], since=since) if sid else []
+    ctx = None
+    if memo is not None and sid:                       # rà C-M63-FIX2: dữ liệu dự án đọc MỘT lần cho cả lượt gửi (leader + các shot nhóm)
+        if "ctx" not in memo:
+            memo["ctx"] = project_jobs(conn, pid)
+        ctx = memo["ctx"]
+    done = attempts(conn, sid, kind, exclude_job_id=job["id"], since=since, ctx=ctx) if sid else []
     used = len(done)
     codes, why = [], []
     if not upgrade and limit and used + 1 > limit:
@@ -349,7 +362,7 @@ def authorize(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool]
         if memo is not None and "budget" in memo:
             budget = memo["budget"]
         else:
-            budget = repair_budget(conn, pid, data_dir, pricing)
+            budget = repair_budget(conn, pid, data_dir, pricing, ctx=ctx)
             if memo is not None:
                 memo["budget"] = budget
         est = est_usd if est_usd is not None else _est_usd(conn, job, model, pricing)
