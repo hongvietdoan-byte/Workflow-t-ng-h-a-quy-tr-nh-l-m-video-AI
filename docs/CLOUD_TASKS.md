@@ -728,3 +728,67 @@ chính (cờ nào đang BẬT: xem bảng mục 3), có làm thêm điểm chặ
 (change_review "cổng mở khi Claude lỗi → job tự gửi" + hero_takes "tốn tiền mà không khai costs" lên đầu). Gom thành 2–3 GÓI để người dùng duyệt một lần.
 docs/KE_HOACH_SUA_20_CO_2026-10-2x.md, nhánh cloud/v31-flagfix-plan. XONG hộp thư.
 ```
+
+## Việc theo quyết định EP 21/10 (sổ `v31-ep-*-2026-10-21`; kế hoạch V3.1 nhóm M7 + M6-A)
+Luật chung mọi gói (v31-ep-implementation-rules-2026-10-21): test ĐỎ→XANH, bằng chứng thực thi, acceptance criteria, rollback, rủi ro mở trong báo cáo;
+cờ mới TẮT (thêm vào tests/golden/package_inputs.json = false); KHÔNG đổi trạng thái cờ production, KHÔNG API trả phí, KHÔNG sửa dữ liệu EP đã khóa.
+
+#### C-M71 (cloud-E — ưu tiên 0) — M7.1 Gói A sửa cờ (Cấp 2 đã duyệt)
+```
+Theo docs/KE_HOACH_SUA_20_CO_2026-10-21.md mục 1 (A1, A2, A3, A5) + bằng chứng docs/BANG_CHUNG_CHOT_CO_2026-10-21.md mục 2.4.3 (B3, B5):
+A1 change_review: rà lỗi (Claude lỗi / timeout / trả rỗng) → cổng ĐÓNG (giữ job, ghi diag có mã), không tự gửi (G35); vòng với director_rewrite qua
+   core/prompt_rewrite.py:500. A2 hero_takes: khai costs + ước tính đúng ở before_run (không còn 0 USD). A3 director_rewrite: cờ con
+   director_rewrite_respect_lock (verified False) — trường người dùng đã sửa/khóa: Đạo diễn chỉ ĐỀ XUẤT, không ghi đè (dùng write guard M2.5 nếu đã
+   trên main, không thì kiểm provenance hiện có). A5 chat_prompts: kiểm gói có D6 + xử lý lỗi hết tiền rõ ràng. KHÔNG làm A4 (tắt scene_qc_claude = Cấp 3).
+Cờ TẮT / hành vi cũ giữ byte (test). Nhánh cloud/v31-m71. Báo cáo docs/RA_CLOUD_M71_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-M72 (cloud-C — ưu tiên 1, SAU C-FLAGTEST8) — M7.2 baseline cờ + effective config + reset an toàn
+```
+Theo sổ v31-ep-k4-k6-flag-baseline-reset-2026-10-21 + docs/BANG_CHUNG_CHOT_CO_2026-10-21.md mục 3 (thứ tự F): tệp baseline trong git (vd data/flag_baseline.json —
+trạng thái cờ sản xuất) CHỈ áp khi môi trường CHƯA có data/feature_settings.json; thứ tự REMOVED → khóa → 🧪 → preset → env → baseline có bảo vệ → mặc định;
+bảo vệ: không bật cờ costs / OPT_IN_ONLY, học việc tối đa trainee, bộ test tắt baseline (FEATURE_BASELINE_FILE rỗng). Thêm effective_config() + config_hash()
++ cảnh báo drift (cờ đã bật ở dự án trước nay tắt / máy khác hash khác) — nguồn "baseline" trong source()/why_state(). Công cụ --baseline-diff: trên máy
+chính phải ra 0 cờ đổi. Nút "↺ Bỏ mọi lựa chọn riêng" (dashboard/header.py ~732): preview thay đổi, xác nhận, sao lưu, khôi phục. Test bất biến: 0 cờ đổi khi
+có cấu hình riêng; 0 cờ costs bị bật trên máy trống. Nhánh cloud/v31-m72. Báo cáo docs/RA_CLOUD_M72_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-M73 (cloud-E — ưu tiên 2) — M7.3 seedance_ref_groups + end_frames cùng chạy
+```
+Sổ v31-ep-k3-seedance-ref-groups-with-end-frames-2026-10-21. Gốc B4 (docs/BANG_CHUNG_CHOT_CO_2026-10-21.md mục 2.4.3): core/end_frames.py:32 bỏ khung cuối ở
+tuyến ref của seedance_ref_groups. Sửa để shot đủ điều kiện khung cuối vẫn có khung cuối khi đi tuyến ref (theo khả năng model — nếu model tuyến ref không
+nhận khung cuối thì router M2.8/DP10 phải chọn tuyến khác hoặc báo REVIEW, không âm thầm bỏ). Test 47 ca nhóm A của seedance_ref_groups không được nới.
+Nhánh cloud/v31-m73. Báo cáo docs/RA_CLOUD_M73_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-M75 (cloud-E — ưu tiên 4, chỉ tài liệu) — M7.5 bảng quyết định từng cờ Gói C
+```
+Sổ v31-ep-fb-fc-flag-packs-2026-10-21 (F-C): mỗi cờ Gói C (docs/KE_HOACH_SUA_20_CO_2026-10-21.md mục 3) — một dòng quyết định: nối / bỏ / giữ tùy chọn, hành
+vi production trước-sau, ai bị ảnh hưởng, chi phí, test, rollback. audio_first = TÙY CHỌN thử nghiệm cho workflow ưu tiên thoại (F-Q2). Trình EP duyệt từng dòng.
+docs/KE_HOACH_SUA_20_CO_2026-10-21.md thêm mục "6. Bảng quyết định Gói C", nhánh cloud/v31-m75. XONG hộp thư.
+```
+
+#### C-M61-M69 (cloud-E nhánh phụ — ưu tiên 3) — M6.1 Role Registry + M6.9 Continuity Validator SHADOW (Gói M6-A)
+```
+Sổ v31-ep-m6-pack-a-approved-2026-10-21. Theo docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục 2a (data/crew_roles.json + core/crew.py CHỈ ĐỌC: vai, quyền
+đọc/ghi, đầu vào/ra, công cụ, nghiệm thu, lỗi phụ trách, leo thang) và mục 5 (Continuity Validator: continuity_state + qc_evidence + định tuyến lỗi về vai
+chủ — SHADOW chỉ ghi). Cờ mới TẮT (crew_registry, continuity_validator). Không đổi đường ghi/gửi job. Nhánh cloud/v31-m61-m69. Báo cáo
+docs/RA_CLOUD_M61_M69_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-M63 (cloud-C — ưu tiên 2, SAU C-M72) — M6.3 Generation Authorization SHADOW (Gói M6-A)
+```
+Sổ v31-ep-m6-pack-a-approved-2026-10-21 + v31-m6-generation-limits-policy-b-2026-10-21 + v31-ep-m6-self-repair-budget-40-2026-10-21. Theo
+docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục 4: một hàm authorize(job) gọi NGAY trước provider.submit ở MỌI đường (ImageRunner/VideoRunner, autopilot,
+repair router, nút Dashboard) — SHADOW: chỉ ghi quyết định (cho phép / sẽ chặn + lý do: vượt 3 ảnh / 2 video mỗi shot tính chung, vượt ngân sách tự sửa
+40 % lượt đầu, 3 shot liên tiếp cùng mã lỗi, submit chưa rõ, đổi ý đồ/dữ liệu khóa, đổi model ngoài phạm vi) — KHÔNG chặn. Bộ đếm không reset khi sửa
+prompt / đổi model / restart. Cờ generation_authorization TẮT; giữ byte gói gửi (golden tổng hợp). Không đụng phần poll/submit claim M1.2/M1.3 ngoài
+một lời gọi shadow. Nhánh cloud/v31-m63. Báo cáo docs/RA_CLOUD_M63_2026-10-2x.md. XONG hộp thư.
+```
+
+#### C-M74 (pool — ưu tiên 6) — M7.4 Gói B sửa cờ
+```
+Sổ v31-ep-fb-fc-flag-packs-2026-10-21 (F-B). Theo docs/KE_HOACH_SUA_20_CO_2026-10-21.md mục 2 + bằng chứng mục 2.4.3 (B2 dialogue_take/lip_sync, B7 release_gate
+không thấy final_black_freeze, B8 travel_truth vs stage_camera ưu tiên máy). two_tier_quality: nghiệm thu dự toán vs chi ±5 % tính đủ phát sinh + tiêu chí
+chất lượng (F-Q4). Mỗi cờ một commit + test. KHÔNG khóa cờ. Nhánh cloud/v31-m74 (hoặc codex/v31-m74). Báo cáo docs/RA_*_M74_2026-10-2x.md. XONG hộp thư.
+```
