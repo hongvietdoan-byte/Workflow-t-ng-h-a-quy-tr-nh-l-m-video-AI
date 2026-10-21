@@ -196,10 +196,11 @@ def stale_instances(db_path: Optional[str] = None, head: Optional[str] = None, a
             except OSError:
                 pass
             continue
-        old = (rec["code"] != code) if rec.get("code") and code else bool(rec.get("sha") and head and rec["sha"] != head)
-        if old:
+        by_code = bool(rec.get("code") and code)
+        old = (rec["code"] != code) if by_code else bool(rec.get("sha") and head and rec["sha"] != head)
+        if old:                                    # by: điều thật sự đã so (C-FIX-THAP-4: banner nói đúng — dấu code hay chỉ sha)
             out.append({"port": rec.get("port"), "pid": rec.get("pid"), "sha": rec.get("sha") or "?", "head": head or "?",
-                        "code": rec.get("code")})
+                        "code": rec.get("code"), "by": "code" if by_code else "sha"})
     return out
 
 
@@ -229,8 +230,11 @@ def banner(db_path: Optional[str] = None) -> str:
     if not rows:
         return ""
     def why(r) -> str:                            # C-FIX-THAP-2: bản ghi cũ (chưa có dấu vân tay) chỉ biết sha — nói đúng điều đã so
-        if r.get("code"):
+        if r.get("code") and r.get("by", "code") == "code":
             return f"pid {r['pid']}: tệp .py của core/ / dashboard/ đã đổi từ lúc khởi động (dấu {r['code'][:8]})"
+        if r.get("code"):                          # C-FIX-THAP-4: có dấu nhưng máy này không tính được dấu hiện tại → so sha
+            return (f"pid {r['pid']}: không tính được dấu code hiện tại — so sha {r['sha'][:8]} ≠ HEAD "
+                    f"{str(r.get('head') or '?')[:8]}, chưa biết code có đổi")
         return f"pid {r['pid']}: bản ghi cũ chỉ có sha {r['sha'][:8]} ≠ HEAD {str(r.get('head') or '?')[:8]} — chưa biết tệp .py có đổi"
     ports = ", ".join(f"{r['port'] or '?'} ({why(r)})" for r in rows)
     return (f"⚠ Dashboard có thể chạy code cũ: cổng {ports} — tắt / mở lại "
