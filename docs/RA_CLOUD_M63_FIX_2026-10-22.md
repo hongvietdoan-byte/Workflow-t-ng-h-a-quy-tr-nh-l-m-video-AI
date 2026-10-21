@@ -58,3 +58,4 @@
 - `tests/test_v31_m63_gen_auth.py` thêm 10 test. Trên code cũ: 7 test của commit đầu đều đỏ.
 - Các test liên quan xanh: end_frames, quality_samples, lipsync, costume, scene_establish, bg_autoqc, runner, M7.4.
 - Full suite: xem dòng cuối.
+- Full suite (cloud 3.13, `-m "not slow" -n auto`): **6973 passed**, 25 đỏ đều là golden cần native Python 3.14 (nền).
