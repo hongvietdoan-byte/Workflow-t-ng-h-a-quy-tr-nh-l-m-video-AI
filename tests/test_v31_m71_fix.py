@@ -43,15 +43,14 @@ def test_rewrite_path_checks_and_sets_the_job_scope():
     assert "_pause(conn, e)\n" not in src
 
 
-def test_padded_copies_of_tests_never_land_in_the_repo_data_folder():
+def test_padded_copies_of_tests_never_land_in_the_repo_data_folder(tmp_path):
     """Mục 5: CSDL `:memory:` + PIPELINE_DATA mặc định → bản đệm từng ghi vào data/ref_padded THẬT của repo (đã lọt vào git)."""
     from PIL import Image
     from core import seedance_refs
-    import tempfile
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     repo_pad = os.path.join(root, "data", "ref_padded")
     before = set(os.listdir(repo_pad)) if os.path.isdir(repo_pad) else set()
-    narrow = os.path.join(tempfile.mkdtemp(), "narrow.png")
+    narrow = str(tmp_path / "narrow.png")
     Image.new("RGB", (100, 400), (40, 40, 40)).save(narrow)
     out = seedance_refs.pad_to_rule(narrow, _conn())
     assert out and not os.path.abspath(out).startswith(os.path.abspath(repo_pad))
@@ -77,11 +76,10 @@ def test_zz_after_a_pop_the_next_test_still_writes_outside_the_repo():
     assert not os.path.abspath(seedance_refs.pad_dir(_conn())).startswith(os.path.join(root, "data"))
 
 
-def test_real_rewrite_out_of_credit_at_source_a_does_not_stop_source_b():
+def test_real_rewrite_out_of_credit_at_source_a_does_not_stop_source_b(tmp_path):
     """C-FIX3-THAP 2: chạy rewrite() THẬT — Claude của nguồn A báo out_of_credit → D6 của job nguồn A tạm ngừng (không gọi lại), job
     nguồn B (Claude riêng) vẫn gọi Claude; saved_view nói 'paused' đúng cho A, không cho B."""
     import json
-    import tempfile
     from core.db import connect
     from core.llm_runner import LlmReply
     from core.pipeline import Pipeline
@@ -102,7 +100,7 @@ def test_real_rewrite_out_of_credit_at_source_a_does_not_stop_source_b():
 
     p = Pipeline(connect())
     jobs = {}
-    d = tempfile.mkdtemp()
+    d = str(tmp_path)
     pics = []
     for n in ("plate.png", "kelly.png"):
         path = os.path.join(d, n)

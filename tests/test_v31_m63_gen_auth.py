@@ -655,8 +655,8 @@ def test_group_leader_without_a_shot_still_counts_in_the_budget(tmp_path):
             return super().keys()
     rows = [R(row(1, sids[0], None, None)), R(row(2, None, "auto", sids))]
     ctx = {"rows": rows, "notes": {}, "resent": set(), "groups": {r["id"]: G._group_ids(r) for r in rows}}
-    seen = {}
-    with mock.patch.object(G, "_usd_of_jobs", side_effect=lambda conn, ids, pr: seen.setdefault(len(seen), sorted(ids)) and len(ids)):
+    seen = []                                                                 # mỗi lần gọi một dòng (kể cả ids rỗng → 0)
+    with mock.patch.object(G, "_usd_of_jobs", side_effect=lambda conn, ids, pr: seen.append(sorted(ids)) or len(ids)):
         b = G._repair_budget(p.conn, pid, None, PRICING, ctx=ctx)
-    assert seen[0] == [1] and seen[1] == [2]                                  # job 2: lượt 2 của shot 1 (tự động) → làm lại; không mất
+    assert seen == [[1], [2]]                                  # job 2: lượt 2 của shot 1 (tự động) → làm lại; không mất
     assert b["repair_usd"] == 1

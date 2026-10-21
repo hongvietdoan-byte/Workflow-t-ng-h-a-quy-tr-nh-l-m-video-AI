@@ -577,12 +577,17 @@ FAIL_KHAU, FAIL_SOURCE = "ra_soat", "review_fail"
 READ_FAIL = "Tổ rà soát tác động: không đọc được trạng thái rà của shot"   # giữ TẠM (khóa CSDL…): autopilot chờ nhịp sau, không chờ người
 # C-M71 A1: lần rà CHƯA xong vì lỗi — 'failed' (Claude lỗi / timeout / trả rỗng hay sai mẫu) hoặc code_only do hết tiền / hết lượt
 _UNREVIEWED = f"(state='failed' OR (state='code_only' AND note LIKE '{QUOTA_NOTE}%'))"
-_LAST_OK = "COALESCE((SELECT MAX(id) FROM change_events WHERE scene_id=? AND state='reviewed'), 0)"
+# C-FIX3-THAP-B: lần rà lỗi e (bí danh e) đã có mục 'rà lỗi' CHE: mục ghi SAU lần lỗi đó, trên chính e hoặc lần mới hơn cùng shot (một
+# nhóm rà lỗi = một mục, gắn lần mới nhất), còn mở HOẶC do người đóng (Bỏ qua / Rà lại / dọn dự án đã giao). Mục tự đóng
+# ('change_review': lần của mục đã rà xong / bị bỏ) KHÔNG che các lần khác của nhóm → chúng ra mục mới
+_COVERED = ("EXISTS (SELECT 1 FROM change_findings f WHERE f.source='review_fail' AND f.scene_id=e.scene_id AND f.event_id>=e.id "
+            "AND substr(f.at, 1, 19)>=substr(COALESCE(e.reviewed_at, ''), 1, 19) {extra}AND (f.status='open' OR "
+            "COALESCE(f.resolved_by, '')<>'change_review'))")
 
 
 def _hold_failed(conn, scene_id: int, kinds: str) -> None:
     """G35 (#31 19/10, job 1061): lần rà của shot LỖI (vd. Claude hết tiền) mà cổng vẫn mở → job tốn tiền gửi đi khi chưa ai rà. Lần
-    rà lỗi MỚI NHẤT của shot, mới hơn lần rà đạt gần nhất, thành mục ĐỎ (một mục cho mỗi lần lỗi; Bỏ qua / Rà lại đóng nó, không ghi
+    rà lỗi MỚI NHẤT của shot CHƯA có mục che (_COVERED, C-FIX3-THAP-B) thành mục ĐỎ (một mục cho mỗi lần lỗi; Bỏ qua / Rà lại đóng nó, không ghi
     lại). Mục khâu 'ra_soat' không thuộc UPGRADE_KHAU → lệnh nâng bản cao từ nháp đã duyệt (C9) chỉ báo VÀNG như mục đỏ cũ.
     C-M71 A1: cả lần rà dừng vì Claude hết tiền / hết lượt (code_only + QUOTA_NOTE) cũng giữ; mục rà lỗi tự đóng CHỈ khi CHÍNH lần thay
     đổi của nó đã được Claude rà đạt (rà kỹ CAO 1: lần rà đạt của thay đổi SAU không thấy thay đổi lỗi — 'failed' không vào nhóm).
@@ -597,10 +602,12 @@ def _hold_failed(conn, scene_id: int, kinds: str) -> None:
         conn.execute(f"UPDATE change_findings SET status='resolved', resolved_at=?, resolved_by='change_review' WHERE id IN "
                      f"({','.join('?' * len(done))})", (_now(), *[r[0] for r in done]))
         wrote = True
-    ev = conn.execute(f"SELECT id, project_id, note, reviewed_at, state FROM change_events WHERE scene_id=? AND {_UNREVIEWED} AND kind IN "
-                      f"{kinds} AND id > {_LAST_OK} ORDER BY id DESC LIMIT 1", (scene_id, scene_id)).fetchone()
-    if ev is not None and not conn.execute("SELECT 1 FROM change_findings WHERE source=? AND event_id=? AND at>=?",
-                                           (FAIL_SOURCE, ev[0], _stamp(ev[3]))).fetchone():
+    # C-FIX3-THAP-B (rà kỹ): trước chỉ xét lần lỗi id > lần rà đạt gần nhất → lần lỗi CHƯA ra mục (chưa ai gọi blocking) mà lần sửa sau đã rà đạt,
+    # hoặc mục của nhóm gắn lần motion vừa bị bỏ (cờ change_review_motion tắt) → không bao giờ ra mục → cổng mở khi thay đổi chưa ai rà.
+    # Nay: lần rà lỗi mới nhất CHƯA có mục che (_COVERED) → mục ĐỎ
+    ev = conn.execute(f"SELECT id, project_id, note, reviewed_at, state FROM change_events e WHERE scene_id=? AND {_UNREVIEWED} AND kind "
+                      f"IN {kinds} AND NOT {_COVERED.format(extra='')} ORDER BY id DESC LIMIT 1", (scene_id,)).fetchone()
+    if ev is not None:
         if ev[4] == "code_only":
             wrote |= _add(conn, ev[0], ev[1] or _project_of(conn, scene_id), scene_id, FAIL_SOURCE, "do", FAIL_KHAU,
                           f"rà soát chưa chạy — Claude hết tiền / hết lượt ({str(ev[2])[len(QUOTA_NOTE):][:200]}) — vòng nền tự rà lại "
@@ -618,8 +625,10 @@ def rerun_failed(conn, finding_id: int, who: Optional[str]) -> None:
     row = conn.execute("SELECT event_id, scene_id FROM change_findings WHERE id=? AND source=?", (finding_id, FAIL_SOURCE)).fetchone()
     if row is None:
         raise ValueError(finding_id)
-    n = conn.execute(f"UPDATE change_events SET state='pending', note=NULL WHERE scene_id=? AND {_UNREVIEWED} AND id<=? AND id > "
-                     f"{_LAST_OK}", (row[1], row[0], row[1])).rowcount
+    # C-FIX3-THAP-B: các lần lỗi mục này che (id ≤ lần của mục, không có mục KHÁC che) — trước cận id > lần rà đạt gần nhất làm nút hỏng khi lần sửa
+    # sau đã rà đạt ("không còn trong sổ" sai sự thật, mục chỉ còn Bỏ qua)
+    n = conn.execute(f"UPDATE change_events AS e SET state='pending', note=NULL WHERE scene_id=? AND {_UNREVIEWED} AND id<=? AND NOT "
+                     f"{_COVERED.format(extra='AND f.id<>? ')}", (row[1], row[0], finding_id)).rowcount
     if not n:          # lần lỗi đã bị dọn (KEEP_DAYS) → không có gì để rà lại: giữ mục, người dùng Bỏ qua nếu chấp nhận
         raise ValueError("lần thay đổi lỗi không còn trong sổ — không rà lại được; bấm Bỏ qua nếu chấp nhận gen khi chưa rà")
     conn.execute("UPDATE change_findings SET status='resolved', resolved_at=?, resolved_by=? WHERE id=?", (_now(), who, finding_id))
