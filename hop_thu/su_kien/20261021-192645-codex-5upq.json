@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T19:26:45.413064+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX21-GOLDEN3",
+  "branch": "codex/v31-golden3",
+  "commit": "26fe20d8",
+  "report": "docs/RA_CX21_GOLDEN3_CODEX_2026-10-21.md",
+  "text": "Đã hoàn tất nghiệm thu, KẾT QUẢ KHÔNG ĐẠT: đủ68ca/34shot (#24:24,#27:44), COMPAT0/CODE_MISMATCH0; replay68INSUFFICIENT. Capture60data/skills bị sandbox chặn,4source thiếu/hỏng,1DATA_CHANGED plate,3BUILT chưa khớp lịch sử. Baseline153cờ,29experimental OFF, không đổi live. Fixture tổng hợp thiếu sent_package_relpath=false. Native3.14 targeted INCOMPLETE: dừng đúng owned process ở15phút, ít nhất8F, không có summary; không tự sửa công cụ/test. Đã push báo cáo, gỡ worktree công cụ, snapshot ngoàiGit. KHÔNG mở khóa gộpM2; M23 chờ dependency main."
+}
