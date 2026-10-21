@@ -666,8 +666,16 @@ class _Runner:
                 self._diag(job, "warn", "sent_package", w)
             except Exception:  # noqa: BLE001 - a ledger note, never a gate: the send and its ledger entry stand
                 pass
-        from . import lean_package
-        if lean_package.enabled():                         # M2.10 SHADOW: flag off = nothing else is called
+        try:
+            from . import lean_package
+            on = lean_package.enabled()                    # M2.10 SHADOW: flag off = nothing else is called
+        except Exception as e:  # noqa: BLE001 - a broken flag read never touches the send that already happened
+            on = False
+            try:
+                self._diag(job, "warn", "lean_package", f"không đọc được cờ lean_package ({type(e).__name__}: {e}) — bỏ shadow")
+            except Exception:  # noqa: BLE001 - a note only
+                pass
+        if on:
             self._lean_shadow(job)
 
     def _lean_shadow(self, job) -> None:

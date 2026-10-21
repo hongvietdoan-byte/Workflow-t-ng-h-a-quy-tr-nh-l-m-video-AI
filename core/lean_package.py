@@ -88,6 +88,7 @@ SILENT_WHY = {"truyen": "chữ hiểu ý (TEXT_ONLY) — không gửi", "noi_cho
               "am_chu.nhac": "âm thanh — không thuộc gói hình", "am_chu.sfx": "âm thanh — không thuộc gói hình",
               "am_chu.popup": "dựng — không thuộc gói hình", "am_chu.phu_de": "dựng — không thuộc gói hình"}
 SKIP_FIELDS = ("shot", "byd_v", "_p")
+DEFAULT_FORMS = ("THUONG", "BINH THUONG", "MAC DINH", "NORMAL", "DEFAULT")   # giá trị `dang` = dạng thường (không đổi dạng)
 
 
 def enabled() -> bool:
@@ -137,13 +138,26 @@ def _byd(data) -> Tuple[Optional[Dict], str]:
     return b, "byd_v2" if shot_intent.version(b) == shot_intent.BYD_V else "byd_v1"
 
 
-def _cast(byd: Optional[Dict]) -> Dict[str, Dict]:
-    """{tên fold: mục thanh_phan} cho người / thứ có mặt (vai khác khong_duoc_co)."""
+def _cast(byd: Optional[Dict], kinds: Optional[Dict[str, str]] = None) -> Dict[str, Dict]:
+    """{tên fold: mục thanh_phan} cho NGƯỜI có mặt (vai khác khong_duoc_co). thanh_phan còn chứa vật / mốc (khóa sân khấu,
+    shot_intent.from_shot_spec): bỏ mục trùng tên BYĐ `vat` và mục mà blocking (`kinds` {khóa: kind}) ghi kind khác 'nguoi'."""
+    things = _things(byd) or {}
+    kinds = {fold(k): v for k, v in (kinds or {}).items()}
     out = {}
     for c in (byd or {}).get("thanh_phan") or []:
         if isinstance(c, dict) and c.get("vat") and c.get("vai") != "khong_duoc_co":
-            out[fold(c["vat"])] = c
+            k = fold(c["vat"])
+            if k in things or (k in kinds and kinds[k] != "nguoi"):
+                continue
+            out[k] = c
     return out
+
+
+def kinds_of(data) -> Dict[str, str]:
+    """{khóa sân khấu: kind} từ scenes.data.blocking.objects (prompt 29) — rỗng khi không có."""
+    b = (data or {}).get("blocking") if isinstance(data, dict) else None
+    objs = b.get("objects") if isinstance(b, dict) else None
+    return {o["key"]: str(o.get("kind") or "") for o in objs or [] if isinstance(o, dict) and o.get("key") and o.get("kind")}
 
 
 def _absent(byd: Optional[Dict]) -> List[str]:
@@ -163,17 +177,35 @@ def _things(byd: Optional[Dict]) -> Optional[Dict[str, Dict]]:
     return out
 
 
+def _special(v) -> bool:
+    """Một giá trị dạng KHÁC mặc định ('thuong' = dạng thường, prompts/31_director_byd.md — BYĐ thật #30 shot 3)."""
+    if isinstance(v, list):
+        return any(_special(x) for x in v)
+    return bool(str(v or "").strip()) and fold(v) not in DEFAULT_FORMS
+
+
+def has_form(c: Optional[Dict]) -> bool:
+    """Người này có dạng đặc biệt ở ít nhất một nhịp (chuỗi / danh sách / bảng {nhip: dạng})."""
+    d = (c or {}).get("dang")
+    if isinstance(d, dict):
+        return any(_special(x) for x in d.values())
+    return _special(d)
+
+
 def _form_by_beat(c: Optional[Dict]) -> bool:
-    return isinstance((c or {}).get("dang"), dict)
+    """Biến hình trong shot: bảng theo nhịp có dạng đặc biệt (vd #31 idx 33 bat_dau bong_mo → ket_thuc thuong)."""
+    return isinstance((c or {}).get("dang"), dict) and has_form(c)
 
 
 def _form_name(c: Optional[Dict]) -> Optional[str]:
+    """Tên dạng đặc biệt đầu tiên theo nhịp (bat_dau → dinh → ket_thuc); dạng thường bỏ qua."""
     d = (c or {}).get("dang")
-    if isinstance(d, dict):
-        d = d.get("ket_thuc") or d.get("dinh") or d.get("bat_dau")
-    if isinstance(d, list):
-        d = d[0] if d else None
-    return show(d) if d else None
+    vals = [d.get(k) for k in ("bat_dau", "dinh", "ket_thuc")] if isinstance(d, dict) else (d if isinstance(d, list) else [d])
+    for v in vals:
+        for x in (v if isinstance(v, list) else [v]):
+            if _special(x):
+                return show(x)
+    return None
 
 
 def _back_only(c: Optional[Dict]) -> bool:
@@ -182,10 +214,11 @@ def _back_only(c: Optional[Dict]) -> bool:
 
 
 # ---- phân loại + chọn ref ------------------------------------------------------------------------------------------------------
-def classify(kind: str, refs: List[Dict], byd: Optional[Dict], prev_byd: Optional[Dict] = None) -> Tuple[str, List[str]]:
+def classify(kind: str, refs: List[Dict], byd: Optional[Dict], prev_byd: Optional[Dict] = None,
+             kinds: Optional[Dict[str, str]] = None) -> Tuple[str, List[str]]:
     """(loại shot chính, thẻ phụ). Thẻ: nhieu_nguoi, co_vat, doi_dang, doi_nen, nhieu_nguoi_3."""
     roles = [r.get("role") for r in refs]
-    cast = _cast(byd)
+    cast = _cast(byd, kinds)
     people = len(cast) if byd else len({fold(r.get("label")) for r in refs if r.get("role") == "character"})
     tags = []
     if people >= 2:
@@ -195,7 +228,7 @@ def classify(kind: str, refs: List[Dict], byd: Optional[Dict], prev_byd: Optiona
     things = _things(byd)
     if (things if things is not None else [r for r in refs if r.get("role") == "object"]):
         tags.append("co_vat")
-    if any(c.get("dang") not in (None, "", [], {}) for c in cast.values()) or "character_form" in roles:
+    if any(has_form(c) for c in cast.values()) or "character_form" in roles:
         tags.append("doi_dang")
     kho = ((byd or {}).get("noi_chon") or {}).get("kho_id")
     pkho = ((prev_byd or {}).get("noi_chon") or {}).get("kho_id") if isinstance(prev_byd, dict) else None
@@ -371,7 +404,7 @@ def role_lines(kind: str, keep: List[Dict], byd: Optional[Dict], model: Optional
             line = f"{t} is the exact background (3D render from this camera): keep its layout and sizes; draw the people into it."
         elif role == "character":
             fn = form_of.get(fold(k.get("label")))
-            if fn is not None or (c and c.get("dang") not in (None, "", [], {})):
+            if fn is not None or has_form(c):
                 line = f"{t} is {name}: face, hair and build only — NOT the clothes or their colours."
             else:
                 line = f"{t} is {name}: face, hair, outfit and build — not the pose, camera or background."
@@ -518,12 +551,13 @@ def build(pkg: Dict, data: Optional[Dict], kind: str, prev_data: Optional[Dict] 
     model = pkg.get("model")
     byd, prov = _byd(data)
     prev_byd = _byd(prev_data)[0] if prev_data else None
-    loai, tags = classify(kind, refs, byd, prev_byd)
+    kinds = kinds_of(data)
+    loai, tags = classify(kind, refs, byd, prev_byd, kinds)
     keep, drop, warns = select(kind, refs, byd, model)
     lines = role_lines(kind, keep, byd, model)
     has_video = any(k["role"] == "reference_video" for k in keep)
     people = [k for k in keep if k["role"] == "character"]
-    many = len(_cast(byd)) >= 2 if byd else len(people) >= 2
+    many = len(_cast(byd, kinds)) >= 2 if byd else len(people) >= 2
     scene_text = str((data or {}).get("image_prompt" if kind == "image" else "action") or "")
     core_body, said, w2 = body(kind, byd, scene_text, has_video, many, model)
     warns += w2
@@ -610,7 +644,7 @@ def out_path(data_dir: str, project_id, job_id) -> str:
 
 def write(rep: Dict, path: str) -> str:
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
+    tmp = f"{path}.{os.getpid()}.tmp"                  # theo tiến trình: hai tiến trình cùng job không đè tệp tạm của nhau
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(rep, f, ensure_ascii=False, indent=1)
     os.replace(tmp, path)

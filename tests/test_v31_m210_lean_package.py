@@ -246,8 +246,107 @@ class Report(unittest.TestCase):
         self.assertIn("loi", rep)
 
 
-class _Conn:
-    pass
+REAL = json.load(open(os.path.join(ROOT, "tests", "fixtures", "byd_vat_v1_p30_p31.json"), encoding="utf-8"))["cases"]
+
+
+def real_case(project, idx):
+    return next(c for c in REAL if c["project"] == project and c["idx"] == idx)
+
+
+class ReviewFixes(unittest.TestCase):
+    """Rà C-M210 (@d021c1fb): VỪA-1 dạng 'thuong' = mặc định; THẤP: thanh_phan có vật, enabled() ném lỗi."""
+
+    def test_real_p30_shot3_default_form_is_not_a_form_change(self):
+        c = real_case(30, 3)                                 # thanh_phan KELLY dang "thuong", vat ["BOM_KEO"] (v1)
+        p = pkg([ref("place_render", "P"), ref("character", "KELLY"), ref("object", "BOM_KEO")])
+        rep = run(p, {"byd": c["byd"]})
+        self.assertNotIn("doi_dang", rep["the"])
+        self.assertEqual(rep["loai"], "anh_co_vat")
+        line = rep["goi_gon"]["role_lines"][1]
+        self.assertNotIn("NOT the clothes", line)
+        self.assertIn("outfit", line)
+
+    def test_real_p31_idx33_form_by_beat_names_the_special_form(self):
+        c = real_case(31, 33)                                # KELLY dang {bat_dau: bong_mo_song_song, ket_thuc: thuong}
+        p = pkg([ref("place_render", "P"), ref("character", "KELLY"), ref("character_form", "KELLY")])
+        rep = run(p, {"byd": c["byd"]})
+        self.assertIn("doi_dang", rep["the"])
+        self.assertIn("bong mo song song", rep["goi_gon"]["role_lines"][2])     # không lấy 'thuong' làm tên dạng
+        vrep = run(pkg([ref("start_frame", None, param="image_path"), ref("character", "KELLY"), ref("character_form", "KELLY")],
+                       model="seedance-2.5"), {"byd": c["byd"]}, kind="video")
+        self.assertEqual(vrep["ref_bo"], [])                 # biến hình theo nhịp: giữ ảnh dạng
+
+    def test_default_form_dict_and_list_are_not_forms(self):
+        for dang in ("thuong", ["thuong"], {"bat_dau": "thuong", "ket_thuc": "thuong"}, "Thường"):
+            self.assertFalse(L.has_form({"dang": dang}), dang)
+        self.assertTrue(L.has_form({"dang": ["thuong", "bong_mo"]}))
+
+    def test_props_in_thanh_phan_are_not_people(self):
+        b = byd(cast=("KELLY", "BOM_KEO", "THUNG_GO"), vat=[{"vat": "BOM_KEO", "kho_id": 3, "nguoi": "KELLY", "cach": "nem"}])
+        data = {"byd": b, "blocking": {"objects": [{"key": "KELLY", "kind": "nguoi"}, {"key": "THUNG_GO", "kind": "vat"}]}}
+        rep = run(pkg([ref("place_render", "P"), ref("character", "KELLY")]), data)
+        self.assertNotIn("nhieu_nguoi", rep["the"])
+        self.assertNotIn("never swap", rep["goi_gon"]["prompt"])
+
+    def test_enabled_raising_is_said_and_never_breaks(self):
+        from core import runner
+        notes = []
+
+        class Stub(runner.ImageRunner):
+            def __init__(s):
+                pass
+
+            def _diag(s, job, severity, code, message):
+                notes.append((severity, code, message))
+        with mock.patch.object(L, "enabled", side_effect=RuntimeError("cờ hỏng")), mock.patch.object(L, "shadow") as sh:
+            Stub()._say_package({"id": 1, "project_id": 1, "scene_id": 1}, [])
+        sh.assert_not_called()
+        self.assertEqual([(n[0], n[1]) for n in notes], [("warn", "lean_package")])
+        self.assertIn("cờ hỏng", notes[0][2])
+
+
+class RealSendLoop(unittest.TestCase):
+    """Vòng gửi THẬT (ImageRunner.submit_pending + provider giả): cờ BẬT ≠ đổi gì đã gửi; chỉ thêm tệp + một dòng ⚙."""
+
+    def _send(self, env):
+        from core.db import connect
+        from core.pipeline import Pipeline
+        from core.providers import MockImageProvider
+        from core.runner import ImageRunner
+        tmp = tempfile.mkdtemp()
+        p = Pipeline(connect(os.path.join(tmp, "t.db")))
+        pid = p.create_project("m210", max_retry=2)
+        scene = p.create_scene(pid, 1, "S1")
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"image_prompt": "Kelly đứng ở bậc thang.", "byd": byd()},
+                                                                          ensure_ascii=False), scene))
+        p.conn.commit()
+        job = p.create_job(scene)
+        prov = MockImageProvider()
+        calls = []
+        orig = prov.submit
+
+        def spy(*a, **k):
+            calls.append((a, dict(k)))
+            return orig(*a, **k)
+        prov.submit = spy
+        data = os.path.join(tmp, "projects")
+        os.makedirs(data)
+        with mock.patch.dict(os.environ, env):
+            ImageRunner(p, prov, data).submit_pending(pid)
+        pkg_row = json.loads(p.conn.execute("SELECT sent_package FROM jobs WHERE id=?", (job,)).fetchone()[0])
+        notes = p.conn.execute("SELECT code FROM diag_events WHERE code=?", (L.DIAG_CODE,)).fetchall()
+        files = os.path.exists(os.path.join(data, "lean_package", str(pid), f"job_{job}.json"))
+        p.conn.close()
+        return calls, {k: v for k, v in pkg_row.items() if k not in ("at", "external_id")}, len(notes), files
+
+    def test_flag_on_changes_nothing_sent(self):
+        off = self._send(OFF)
+        on = self._send(ON)
+        self.assertEqual(len(off[0]), 1)
+        self.assertEqual(off[0], on[0])                      # đúng một lần gửi, cùng đối số
+        self.assertEqual(off[1], on[1])                      # gói thật giống hệt (trừ giờ / mã task)
+        self.assertEqual((off[2], off[3]), (0, False))       # TẮT: không ⚙, không tệp
+        self.assertEqual((on[2], on[3]), (1, True))          # BẬT: một ⚙ + một tệp
 
 
 def _db(path):
@@ -311,7 +410,8 @@ class Tool(unittest.TestCase):
         T = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(T)
         tmp = tempfile.mkdtemp()
-        dbp = os.path.join(tmp, "p.db")
+        os.makedirs(os.path.join(tmp, "db"))
+        dbp = os.path.join(tmp, "db", "p.db")
         c = _db(dbp)
         c.execute("INSERT INTO scenes VALUES (5, 31, 3, ?)", (json.dumps({"byd": byd()}),))
         c.execute("INSERT INTO jobs VALUES (7, 31, 5, 'image_gen', 'succeeded', ?)",
@@ -330,6 +430,12 @@ class Tool(unittest.TestCase):
         self.assertEqual(summary["so_goi"], {"image_gen": 1, "video_gen": 1})
         self.assertIn("image_gen", summary["tb"])
         self.assertTrue(os.path.exists(os.path.join(out, "tong_hop.md")))
+        # rà C-M210 THẤP: --out dưới thư mục CSDL / data/ của repo → từ chối, không ghi gì
+        bad = os.path.join(tmp, "db", "out")
+        self.assertEqual(T.main(["--db", dbp, "--project", "31", "--out", bad]), 2)
+        self.assertFalse(os.path.exists(bad))
+        self.assertEqual(T.main(["--db", dbp, "--project", "31", "--out", os.path.join(ROOT, "data", "lean_x")]), 2)
+        self.assertFalse(os.path.exists(os.path.join(ROOT, "data", "lean_x")))
 
 
 if __name__ == "__main__":

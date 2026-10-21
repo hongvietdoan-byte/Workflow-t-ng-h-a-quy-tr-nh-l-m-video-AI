@@ -102,6 +102,19 @@ def markdown(s) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _under(path: str, root: str) -> bool:
+    p, r = os.path.realpath(path), os.path.realpath(root)
+    return p == r or p.startswith(r.rstrip(os.sep) + os.sep)
+
+
+def out_problem(out: str, db: str):
+    """Câu từ chối khi --out nằm dưới data/ của repo hoặc dưới thư mục chứa CSDL (dữ liệu thật) — None = được."""
+    for root, what in ((os.path.join(ROOT, "data"), "data/ của repo"), (os.path.dirname(os.path.abspath(db)), "thư mục CSDL")):
+        if _under(out, root):
+            return f"--out {out!r} nằm dưới {what} ({root}) — chọn thư mục ngoài dữ liệu thật"
+    return None
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Gói gửi tối giản SHADOW trên gói đã gửi (0 USD, CSDL chỉ đọc)")
     ap.add_argument("--db", default=os.environ.get("PIPELINE_DB"), help="tệp CSDL (mặc định PIPELINE_DB)")
@@ -112,6 +125,10 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if not a.db or not os.path.exists(a.db):
         print(f"Không thấy CSDL: {a.db!r} (--db hoặc PIPELINE_DB)", file=sys.stderr)
+        return 2
+    why = out_problem(a.out, a.db)
+    if why:
+        print(why, file=sys.stderr)
         return 2
     s = run(a.db, a.project, a.out, jobs=set(a.job or []), limit=a.limit)
     print(markdown(s))

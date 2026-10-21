@@ -57,7 +57,7 @@ dạng), ghi lý do `vuot_tran_model`.
 
 | Mã | Khi nào bỏ | Vì sao |
 |---|---|---|
-| `trung_sha` | ảnh trùng sha với ref đã giữ | gửi 2 lần cùng ảnh (#31 video: 9 ref trùng sha) |
+| `trung_sha` | ảnh trùng sha với ref đã giữ | gửi 2 lần cùng ảnh (#31 video có khung đầu vẫn gửi lại character / location — đề C-M210 trong docs/CLOUD_TASKS.md ghi "9 ref trùng sha", phiên chính đếm trên CSDL thật; chưa kiểm lại ở nhánh này) |
 | `goc_thu_2` | ảnh thứ 2+ cùng một người / vật | 1 ảnh đủ định danh; nhiều góc = thử A/B riêng |
 | `khong_trong_khung` | người không có trong BYĐ `thanh_phan` hoặc vai `khong_duoc_co` | model vẽ người có ảnh (#31 thêm người lạ) |
 | `vat_khong_trong_byd` | vật không có trong BYĐ `vat` (v2 hoặc chuỗi v1) | ảnh không gọi tên bị dùng lỏng |
@@ -136,13 +136,19 @@ Code: bảng này là `core/lean_package.SENTENCE_FAMILIES` (mã, mẫu nhận, 
 ## 9. Phần code SHADOW (đã làm trong nhánh này)
 
 - `core/lean_package.py`: `classify` (loại shot + thẻ), `select` (ref giữ / bỏ + mã), `role_lines`, `body`, `families` (họ câu + quyết),
-  `build` (gói tối giản: prompt, refs — KHÔNG có đường gửi), `compare` (báo cáo), `shadow(pkg_text, scene_data, …)` thuần, `write(…)` ra tệp.
+  `build` (gói tối giản + báo cáo so sánh trong cùng một bảng: prompt, refs, độ dài, ref giữ / bỏ, họ câu, phủ BYĐ — KHÔNG có đường gửi),
+  `shadow(pkg_text, scene_data, …)` thuần (không ném lỗi), `note` (một dòng ⚙), `write(…)` ra tệp, `shadow_job` (runner).
+  Dạng `thuong` (và bình thường / mặc định) là mặc định — không tính là đổi dạng; `thanh_phan` có vật / mốc không tính là người.
 - Chạy ở đâu: (a) **runner** `_Runner._say_package` — SAU khi gói thật đã ghi + commit + ghi sổ chi; cờ TẮT = chỉ `features.on` rồi về (test:
   `shadow` không được gọi); cờ BẬT = đọc `jobs.sent_package` (đúng gói đã gửi), ghi `<data_dir>/lean_package/<project>/job_<id>.json` + 1 dòng ⚙
   mã `lean_package`; lỗi bị nuốt thành 1 dòng ⚙, không bao giờ chặn. (b) **công cụ** `tools/lean_package_shadow.py --db … --project N` chạy
   trên gói ĐÃ gửi (CSDL mở `mode=ro`, 0 USD) — đây là đường phiên chính dùng cho #31/#33.
 - Acceptance: golden byte giữ (gói thật không đổi khi cờ BẬT hay TẮT); test theo 8 loại shot; số dòng vai = số ref giữ; mỗi ref bỏ có mã.
-- Rollback: tắt cờ (mặc định đã tắt) hoặc revert commit; không dữ liệu nào bị ghi ngoài thư mục `lean_package/`.
+- Rollback: tắt cờ (mặc định đã tắt) hoặc revert commit. Khi BẬT, ghi ra: tệp trong `lean_package/` + MỘT dòng `diag_events` (mã `lean_package`)
+  mỗi lần gửi — không cột / bảng nào khác của CSDL.
+- Preset "experimental" (🧪 Thử nghiệm — bật hết cờ chưa thử thật, `core/features.state`) CŨNG bật `lean_package` (không nằm trong
+  `OPT_IN_ONLY` vì không tiêu tiền — danh sách đó là "tự tiêu tiền"). Hệ quả: máy chạy preset đó ghi thêm tệp + 1 dòng ⚙ mỗi lần gửi, 0 USD,
+  gói gửi không đổi (test vòng gửi thật). Muốn TẮT hẳn trên máy đó: `FEATURE_LEAN_PACKAGE=0` hoặc chọn TẮT ở 🧪.
 - Rủi ro mở: chất lượng gói tối giản CHƯA chứng minh (chỉ gen thật mới chứng minh — Cấp 3); thân lệnh lấy câu đầu chữ shot có thể thiếu ý;
   `reference_only` không rõ vai; Kling element chưa có.
 
