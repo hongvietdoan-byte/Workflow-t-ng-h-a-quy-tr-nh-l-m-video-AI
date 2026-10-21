@@ -3,6 +3,7 @@ import hashlib
 import json
 import math
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -156,9 +157,12 @@ def send(p, pid, sid, kind, provider, data_dir, max_usd=4.0):
             items.append(entry)
             _save(data_dir, pid, items)  # survive interrupted/uncertain POST; prevents paying twice
             attempted = False
-            from . import gen_auth                 # C-M63-FIX: M6.3 shadow ở đường gửi không qua runner (ghi, không chặn)
-            gen_auth.shadow_send(p.conn, project_id=pid, scene_id=sid, kind="video_gen", model=MODEL, route=f"quality_sample_{kind}",
-                                 data_dir=data_dir, origin=None)   # người bấm
+            try:                                   # C-M63-FIX: M6.3 shadow ở đường gửi không qua runner (ghi, không chặn).
+                from . import gen_auth             # C-M63-FIX2: lỗi cổng shadow KHÔNG được để mục kẹt "sending" (đã _save) + ăn trần 4 USD
+                gen_auth.shadow_send(p.conn, project_id=pid, scene_id=sid, kind="video_gen", model=MODEL,
+                                     route=f"quality_sample_{kind}", data_dir=data_dir, origin=None)   # người bấm
+            except Exception as e:  # noqa: BLE001 - quan sát, không phải điều khiển
+                print(f"[gen_auth] shadow phép thử chất lượng lỗi: {type(e).__name__}: {e}", file=sys.stderr)
             try:
                 if source:
                     attempted = True

@@ -26,7 +26,7 @@
 ## THẤP — đếm lượt clip nhóm + hiệu năng
 - `attempts()` đếm thêm job của shot KHÁC có `sent_group` chứa id shot này. Đó là clip nhóm Seedance / multi-shot do shot đầu gửi.
   - Job đi kèm đã nhận cùng task (`external_id` của leader) không đếm 2 lần.
-  - Câu SQL tách bằng `UNION`: nhánh `scene_id=?` dùng chỉ mục; nhánh nhóm chỉ quét trong dự án của shot.
+  - Câu SQL tách bằng `UNION`: nhánh `scene_id=?` và nhánh nhóm. **ĐÍNH CHÍNH (C-M63-FIX2):** bảng `jobs` KHÔNG có chỉ mục, nên cả hai nhánh vẫn quét toàn bảng cho mỗi cặp (shot, loại). C-M63-FIX2 thay bằng cách đọc job của dự án MỘT lần (`project_jobs`) rồi lọc trong Python.
 - Ngân sách tự sửa:
   - tính **một lần cho cả lượt gửi** (leader + các shot nhóm, `memo`) thay vì N lần trong `SPEND_LOCK`;
   - mỗi khoản chi chỉ vào MỘT bên — lượt đầu hoặc làm lại — không đếm khoản chi của leader 2 lần.
@@ -47,7 +47,7 @@
 | 2 | TB | Khớp môi luôn bị báo MODEL_NOT_APPROVED | Đường gửi thẳng bỏ kiểm model; multi-shot truyền model thật `kling-v3-omni` |
 | 3 | THẤP–TB | `id<>NULL` làm DUPLICATE_INFLIGHT không bao giờ bật | `_busy` dùng `(? IS NULL OR id<>?)` |
 | 4 | THẤP–TB | Cache ngân sách toàn cục khóa theo `id(conn)` | Bỏ; dùng `memo` theo lượt |
-| 5 | THẤP–TB | `json_each` + `OR` quét mọi job | Dùng `UNION` có chỉ mục |
+| 5 | THẤP–TB | `json_each` + `OR` quét mọi job | Dùng `UNION` (đính chính: bảng không có chỉ mục — sửa lại ở C-M63-FIX2: đọc dự án một lần) |
 | 6 | THẤP | Khoản chi của leader bị đếm 2 lần | Khử trùng |
 | 7 | THẤP | Multi-shot ghi cả shot bị cắt | `scenes[:len(shots)]` |
 | 8 | THẤP | `latest_per_job` gộp các đường | Khóa thêm `route` |

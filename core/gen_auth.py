@@ -106,16 +106,36 @@ def cycle_start(data_dir: Optional[str], pid: int, scene_id: int, kind: str) -> 
     return _cycle_from(_grants(data_dir, pid), scene_id, kind)
 
 
-def attempts(conn, scene_id: int, kind: str, *, exclude_job_id: Optional[int] = None, since: Optional[str] = None) -> List:
-    """Các job ĐÃ TÍNH lượt của shot / loại (cũ → mới): có task ở provider hoặc submit chưa rõ; trừ not_created (provider không tạo)
-    và bước nâng nháp → bản cao (Q1)."""
-    cond = "type=? AND (? IS NULL OR id<>?) AND (? IS NULL OR created_at>=?)"
-    args = (kind, exclude_job_id, exclude_job_id, since, since)
-    rows = conn.execute(f"SELECT * FROM jobs WHERE scene_id=? AND {cond} UNION "     # nhánh 1 dùng chỉ mục scene_id; nhánh 2 chỉ dự án
-                        f"SELECT * FROM jobs WHERE project_id=(SELECT project_id FROM scenes WHERE id=?) AND scene_id<>? AND {cond} "
-                        "AND sent_group IS NOT NULL AND json_valid(sent_group) AND EXISTS (SELECT 1 FROM json_each(jobs.sent_group) g "
-                        "WHERE CAST(json_extract(g.value, '$.id') AS INTEGER)=?) ORDER BY id",
-                        (scene_id, *args, scene_id, scene_id, *args, scene_id)).fetchall()
+def _group_ids(row) -> set:
+    """Id các shot trong clip nhóm của job (sent_group: list {"id": scene_id, …}); rỗng khi không phải clip nhóm / hỏng."""
+    raw = row["sent_group"] if "sent_group" in row.keys() else None
+    if not raw:
+        return set()
+    try:
+        return {int(g["id"]) for g in json.loads(raw) or [] if isinstance(g, dict) and g.get("id") is not None}
+    except (ValueError, TypeError):
+        return set()
+
+
+def project_jobs(conn, project_id: Optional[int], kind: Optional[str] = None) -> Dict:
+    """C-M63-FIX2: đọc job ảnh / video của dự án + ghi chú hỏng mới nhất + job đã có job con gửi lại MỘT lần (trước: mỗi cặp shot / loại
+    hai câu quét TOÀN bảng jobs — bảng không có chỉ mục — trong SPEND_LOCK). Không thêm chỉ mục CSDL (Cấp 3)."""
+    kinds = (kind,) if kind else ("image_gen", "video_gen")
+    q = ",".join("?" * len(kinds))
+    rows = conn.execute(f"SELECT * FROM jobs WHERE project_id=? AND type IN ({q}) ORDER BY id", (project_id, *kinds)).fetchall()
+    notes: Dict[int, str] = {}
+    for r in conn.execute(f"SELECT e.job_id, e.note FROM job_events e JOIN jobs j ON j.id=e.job_id WHERE j.project_id=? AND j.type IN ({q}) "
+                          "AND e.to_state='failed' ORDER BY e.id", (project_id, *kinds)).fetchall():
+        notes[r[0]] = r[1] or ""                      # mới nhất thắng
+    resent = {r["parent_job_id"] for r in rows if r["parent_job_id"] and (r["retry_reason"] or "").startswith(RESEND_NOTE)}
+    return {"rows": rows, "notes": notes, "resent": resent, "groups": {r["id"]: _group_ids(r) for r in rows}}
+
+
+def attempts_in(ctx: Dict, scene_id: int, kind: str, *, exclude_job_id: Optional[int] = None, since: Optional[str] = None) -> List:
+    """Như attempts() nhưng trên dữ liệu dự án đã đọc (project_jobs) — 0 truy vấn."""
+    rows = [r for r in ctx["rows"] if r["type"] == kind and (exclude_job_id is None or r["id"] != exclude_job_id)
+            and (since is None or (r["created_at"] or "") >= since)
+            and (r["scene_id"] == scene_id or scene_id in ctx["groups"].get(r["id"], ()))]
     # C-M63-FIX: clip NHÓM (Seedance / multi-shot) do shot đầu gửi mang phần của shot này (sent_group) — tính cho shot này; job đi kèm
     # của chính shot đã nhận cùng task (external_id của leader) thì không đếm 2 lần
     own_ext = {r["external_id"] for r in rows if r["scene_id"] == scene_id and r["external_id"]}
@@ -125,14 +145,24 @@ def attempts(conn, scene_id: int, kind: str, *, exclude_job_id: Optional[int] = 
             continue
         if is_upgrade(r):
             continue
-        note = _failed_note(conn, r["id"])            # mọi trạng thái: job not_created / submit_unknown sau resend thành cancelled
+        note = ctx["notes"].get(r["id"], "")          # mọi trạng thái: job not_created / submit_unknown sau resend thành cancelled
         if note.startswith(NOT_CREATED):
             continue
-        if conn.execute("SELECT 1 FROM jobs WHERE parent_job_id=? AND retry_reason LIKE ? LIMIT 1", (r["id"], RESEND_NOTE + "%")).fetchone():
+        if r["id"] in ctx["resent"]:
             continue                                  # relink_failed / not_created: job con mang lượt này — không đếm 2 lần
         if r["external_id"] or note.startswith(SUBMIT_UNKNOWN):
             out.append(r)
     return out
+
+
+def attempts(conn, scene_id: int, kind: str, *, exclude_job_id: Optional[int] = None, since: Optional[str] = None,
+             ctx: Optional[Dict] = None) -> List:
+    """Các job ĐÃ TÍNH lượt của shot / loại (cũ → mới): có task ở provider hoặc submit chưa rõ; trừ not_created (provider không tạo)
+    và bước nâng nháp → bản cao (Q1). Đọc job của dự án MỘT lần (project_jobs), lọc trong Python."""
+    if ctx is None:
+        row = conn.execute("SELECT project_id FROM scenes WHERE id=?", (scene_id,)).fetchone()
+        ctx = project_jobs(conn, row[0] if row else None, kind)
+    return attempts_in(ctx, scene_id, kind, exclude_job_id=exclude_job_id, since=since)
 
 
 _PRICING_CACHE: Dict = {}
@@ -186,14 +216,17 @@ def _repair_budget(conn, project_id: int, data_dir: Optional[str], pricing) -> D
         pass
     first, repair = [], []
     grants = _grants(data_dir, project_id)            # đọc sổ cấp lượt MỘT lần
-    for s in conn.execute("SELECT DISTINCT scene_id, type FROM jobs WHERE project_id=? AND scene_id IS NOT NULL AND type IN "
-                          "('image_gen', 'video_gen')", (project_id,)).fetchall():
-        done = attempts(conn, s[0], s[1], since=_cycle_from(grants, s[0], s[1]))
+    ctx = project_jobs(conn, project_id)              # C-M63-FIX2: job của dự án MỘT lần (trước: 2 câu quét toàn bảng mỗi shot / loại)
+    pairs = sorted({(r["scene_id"], r["type"]) for r in ctx["rows"] if r["scene_id"] is not None}
+                   | {(sid, r["type"]) for r in ctx["rows"] for sid in ctx["groups"].get(r["id"], ())})
+    for sid, typ in pairs:
+        done = attempts_in(ctx, sid, typ, since=_cycle_from(grants, sid, typ))
         first += [r["id"] for r in done[:1]]
         repair += [r["id"] for r in done[1:] if (r["origin"] or "") == "auto"]   # 4d: thao tác EP tự bấm KHÔNG ăn vào ngân sách tự sửa
-    # rà C-M63-FIX: clip nhóm tính cho nhiều shot — mỗi job (một khoản chi) chỉ vào MỘT bên, MỘT lần (lượt đầu được ưu tiên)
-    first_ids = sorted(set(first))
-    repair_ids = sorted(set(repair) - set(first_ids))
+    # rà C-M63-FIX: mỗi job (một khoản chi) chỉ vào MỘT bên, MỘT lần. C-M63-FIX2: job là lần LÀM LẠI tự động của bất kỳ shot nào → bên
+    # làm lại (thận trọng tiền): clip nhóm gửi lại của A mà là lượt đầu của B trước bị tính vào lượt đầu → ngân sách phình 40 %
+    repair_ids = sorted(set(repair))
+    first_ids = sorted(set(first) - set(repair_ids))
     first_usd, repair_usd = _usd_of_jobs(conn, first_ids, pricing), _usd_of_jobs(conn, repair_ids, pricing)
     limit = first_usd * pct
     return {"first_usd": round(first_usd, 4), "repair_usd": round(repair_usd, 4), "limit_usd": round(limit, 4),
@@ -388,7 +421,14 @@ def shadow(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool] = 
 def _busy(conn, scene_id: int, kind: str, job_id: Optional[int]) -> Optional[int]:
     row = conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type=? AND state='running' AND (? IS NULL OR id<>?) LIMIT 1",
                        (scene_id, kind, job_id, job_id)).fetchone()     # job giả (id None): `id<>NULL` luôn NULL — rà C-M63-FIX
-    return row[0] if row else None
+    if row:
+        return row[0]
+    # C-M63-FIX2: clip NHÓM đang chạy (shot đầu gửi, sent_group chứa shot này — như runner._covered) cũng là job đang chạy của shot
+    for r in conn.execute("SELECT id, sent_group FROM jobs WHERE type=? AND state='running' AND sent_group IS NOT NULL AND (? IS NULL OR id<>?) "
+                          "AND project_id=(SELECT project_id FROM scenes WHERE id=?)", (kind, job_id, job_id, scene_id)).fetchall():
+        if scene_id in _group_ids(r):
+            return r["id"]
+    return None
 
 
 def _authorize_direct(conn, job, *, model: Optional[str], data_dir: Optional[str], route: str) -> Decision:

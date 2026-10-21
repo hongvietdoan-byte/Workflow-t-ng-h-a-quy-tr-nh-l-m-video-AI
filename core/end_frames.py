@@ -463,8 +463,9 @@ def _tick(p: Pipeline, project_id: int, provider, data_dir: str, only_ids=None) 
                     break
                 sent_args = (assets.reference_note(refs) + "Scene: " + prompt, [r["path"] for r in refs])
                 from . import gen_auth             # C-M63-FIX: M6.3 shadow ở đường gửi không qua runner (ghi, không chặn)
-                gen_auth.shadow_send(p.conn, project_id=project_id, scene_id=row["scene_id"], kind="image_gen",
-                                     model=kwargs.get("model") or _usage_model(provider), route="end_frame", data_dir=data_dir)
+                if gen_auth.enabled():             # C-M63-FIX2: cờ tắt → không hỏi provider.usage_info() thêm lần nào
+                    gen_auth.shadow_send(p.conn, project_id=project_id, scene_id=row["scene_id"], kind="image_gen",
+                                         model=kwargs.get("model") or _usage_model(provider), route="end_frame", data_dir=data_dir)
                 try:
                     ext = slot.send(provider.submit, *sent_args, **kwargs)
                 except ProviderError as e:
