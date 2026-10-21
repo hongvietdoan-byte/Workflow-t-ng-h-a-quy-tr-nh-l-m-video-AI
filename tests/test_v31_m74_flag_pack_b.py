@@ -151,3 +151,11 @@ def test_giu_yen_flag_off_says_nothing():
     from core import prompt_formula as PF
     with mock.patch.dict(os.environ, {"FEATURE_MOTION_CONSISTENCY_LINT": "0"}):
         assert PF.hold_issues("Max remains motionless.", {"duration_s": 5}) == []
+
+
+# ---- end_frames: khai tiền + why không còn nói "chỉ chạy bóng" khi máy chính BẬT thật -----------------------------------------------
+def test_end_frames_declares_its_cost_and_its_two_modes():
+    meta = features.FEATURES["end_frames"]
+    assert meta["costs"] is True and meta["trainee"] is True
+    assert "BẬT thật" in meta["why"] and "học việc" in meta["why"]
+    assert before_run.costly_fix_flag("end_frames")                         # nút "Bật các cờ sửa lỗi" không bật hàng loạt

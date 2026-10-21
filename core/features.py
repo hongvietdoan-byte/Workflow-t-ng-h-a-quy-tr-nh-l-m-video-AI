@@ -524,7 +524,11 @@ FEATURES: Dict[str, Dict] = {
         "label": "Ảnh khung cuối cho shot có end_state (vẽ thêm 1 ảnh, gửi clip khung đầu + cuối)",
         "verified": False,
         "trainee": True,       # 08/10 người dùng: học việc — chạy + ghi quyết định, so với người, không tác động (docs/KE_HOACH_HOC_VIEC_2026-10-08.md)
-        "why": "🎓 Học việc từ 08/10 (KIEM_22: kết luận T): chạy bóng, ghi trainee_log để so với người, không đổi phim; bật thật chỉ khi đủ chuẩn và bạn duyệt. K1/K2 (kế hoạch tổng K-a): tốn thêm 1 ảnh mỗi shot đổi trạng thái; chưa thử thật Kling end_frame với khung vẽ từ ảnh đầu",
+        "costs": True,         # M7.4 (A2 / B5): BẬT thật = vẽ thêm 1 ảnh khung cuối mỗi shot đổi trạng thái (tiền ảnh) — không bật hàng loạt
+        "why": "Có chế độ 🎓 học việc (08/10, KIEM_22 kết luận T: chạy bóng, ghi trainee_log, không đổi phim) VÀ chế độ BẬT thật ở 🧪 "
+               "(máy chính 21/10 đang BẬT: vẽ thật ảnh khung cuối, gửi clip khung đầu + cuối) — trạng thái hiện tại xem dòng nguồn ở trên. "
+               "Tốn thêm 1 ảnh mỗi shot đổi trạng thái (K1/K2 kế hoạch K-a). #31: end_frame_missing 9 lần; thông điệp 'ném keo' sai 28 lần "
+               "(P33-A11, sửa ở cloud/v31-m29). Chưa thử thật Kling end_frame với khung vẽ từ ảnh đầu",
     },
     "ui_v2": {
         "label": "Giao diện v2 kiểu “AI product”: nền tối aurora, thẻ kính, nút gradient + glow, thanh bước viên thuốc, pill trạng thái, chữ gradient (lớp thiết kế dashboard/design/, chạy trên cùng các màn hiện có)",
