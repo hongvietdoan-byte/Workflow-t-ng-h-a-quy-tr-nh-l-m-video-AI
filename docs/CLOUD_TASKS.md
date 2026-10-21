@@ -859,3 +859,7 @@ prompt đầy đủ) / BOTH_FAIL (cả hai không dựng được — ghi riêng
 0 ONE_FAIL. So lịch sử giữ nguyên làm cột tham khảo. Test ĐỎ→XANH bằng 2 cây code tổng hợp (giống / khác một dòng prompt / một bên lỗi). Ghi lệnh chạy
 mẫu cho máy chính (git worktree add main + m2-tichhop). Nhánh cloud/v31-golden5. Báo cáo docs/RA_CLOUD_GOLDEN5_2026-10-2x.md. XONG hộp thư.
 ```
+
+## CHUYỂN VIỆC KHI LÀN CHẠM GIỚI HẠN (người dùng 21/10)
+Làn sắp chạm giới hạn: push nhánh dở + HANDOFF.md + tin hộp thư "DỪNG: <mã> dở ở <nhánh>@<sha>, còn lại …" TRƯỚC khi dừng. Phiên chính thấy việc đó đang
+chặn việc khác (ưu tiên 0 / có depends / đường găng) → giao lại ngay cùng mã cho làn khác hoặc tự làm nốt; làn nhận làm tiếp từ nhánh dở, không làm lại từ đầu.
