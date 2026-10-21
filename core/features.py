@@ -411,7 +411,8 @@ FEATURES: Dict[str, Dict] = {
     },
     "stage_props_byd": {
         "label": "Đạo cụ cảnh trước theo BYĐ (V3.1 M2.4, G1): sân khấu tự động chỉ mang đạo cụ của cảnh trước (cùng sân khấu) khi CÙNG thế "
-                 "giới (location_asset + time) và BYĐ / chữ shot nhắc tên — bỏ thì ghi chú cho Đạo diễn sân khấu; 0 USD",
+                 "giới (location_asset + time) và BYĐ / chữ shot nhắc tên — bỏ thì ghi chú cho Đạo diễn sân khấu; 0 USD khi bật, NHƯNG đoạn nào bị "
+                 "bỏ đạo cụ thì đổi vân tay đầu vào → sân khấu đã dựng thành 'cũ', dựng lại là lượt Claude trả tiền",
         "verified": False,
     },
     "continuity_state": {

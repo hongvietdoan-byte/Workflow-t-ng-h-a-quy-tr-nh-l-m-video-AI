@@ -266,9 +266,11 @@ def _model(stage: Dict, rel_xyz) -> List[float]:
 PROPS_BYD_FLAG = "stage_props_byd"
 
 
-def _world_keys(shots: List[Dict]) -> set:
-    """Thế giới của các shot (chưa có world_id M3): (location_asset, time) — đổi một trong hai = thế giới khác (song song ↔ thực tại)."""
-    return {(d.get("location_asset"), d.get("time")) for d in shots if d.get("location_asset") is not None or d.get("time")}
+def _world_keys(shots: List[Dict]) -> Tuple[set, set]:
+    """Thế giới của các shot (chưa có world_id M3): (các location_asset, các giờ chuẩn hóa plate_env) — thiếu = chưa rõ, không tính."""
+    from .plate_env import time_of
+    return ({d["location_asset"] for d in shots if d.get("location_asset") is not None},
+            {time_of(d) for d in shots if d.get("time") or d.get("time_of_day")})
 
 
 def _prop_carry(conn, pid: int, seg: Dict, prev_state: Dict) -> Callable[[str, Dict], Optional[str]]:
@@ -287,7 +289,7 @@ def _prop_carry(conn, pid: int, seg: Dict, prev_state: Dict) -> Callable[[str, D
             prev_shots.append(d)
     now = [s["data"] for s in seg["shots"]]
     was, cur = _world_keys(prev_shots), _world_keys(now)
-    other_world = bool(was and cur and not (was & cur))
+    other_world = any(a and b and not (a & b) for a, b in zip(was, cur))      # đổi nơi (Kho) hoặc đổi giờ; thiếu một bên = chưa rõ
     text = " " + " ".join(fold(prop_lock.shot_text(d)).lower() for d in now) + " "
     named = {fold(n).lower() for d in now for n in shot_intent.named_things(d)}
 

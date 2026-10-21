@@ -236,7 +236,7 @@ def validate(byd: Dict, conn=None) -> List[Dict]:
         if k not in byd:
             out.append(_issue("do", k, "thiếu trường bắt buộc"))
     for k in byd:
-        if k not in GROUPS and k not in ("shot", "ca_vang_tay"):
+        if k not in GROUPS and k not in ("shot", "ca_vang_tay", "_p"):     # _p: nguồn gốc BYĐ (M2.1 / M2.4 nháp)
             out.append(_issue("do", k, f"trường lạ (nhóm hợp lệ: {', '.join(GROUPS)})"))
     if "shot" in byd and not isinstance(byd["shot"], int):
         out.append(_issue("do", "shot", "phải là số shot"))
@@ -315,10 +315,11 @@ def is_draft(byd) -> bool:
     return isinstance(byd, dict) and isinstance(byd.get("_p"), dict) and byd["_p"].get("draft") is True
 
 
-def draft_of(data: Dict, shot: int, from_scene_id: int, characters=None) -> Optional[Dict]:
-    """BYĐ NHÁP cho shot chèn sau shot `data` (M2.4, G21): giữ `noi_chon`, `thanh_phan` (có `characters` → chỉ giữ thứ có tên trong đó;
-    vật phải khai lại), BỎ `hanh_dong` / `may` / `vat` (shot mới làm việc khác — không đoán). `_p` = {by: code, draft, from}.
-    Shot trước không có BYĐ → None (nơi gọi nói ra)."""
+def draft_of(data: Dict, shot: int, from_scene_id: int, characters=None, place=None, spot=None) -> Optional[Dict]:
+    """BYĐ NHÁP cho shot chèn sau shot `data` (M2.4, G21): giữ `noi_chon`, `thanh_phan` (có `characters` → chỉ giữ thứ có tên trong đó),
+    BỎ `hanh_dong` / `may` (shot mới làm việc khác — không đoán) và KHÔNG có khóa `vat` (vật phải khai lại: thiếu khóa = chưa rõ, không
+    phải "không cầm gì" — continuity_shadow / continuity_state đọc `"vat" in byd`). `place` / `spot` = location_asset / plate_spot của
+    shot mới: khác nơi chốn của shot trước → noi_chon theo shot mới. `_p` = {by: code, draft, from}. Shot trước không có BYĐ → None."""
     src = data.get("byd") if isinstance(data, dict) else None
     if not isinstance(src, dict):
         return None
@@ -327,17 +328,38 @@ def draft_of(data: Dict, shot: int, from_scene_id: int, characters=None) -> Opti
         from core.assets import fold
         names = {fold(str(n)).lower() for n in characters}
         parts = [c for c in parts if fold(str(c.get("vat") or "")).lower() in names]
-    return {"shot": shot, "thanh_phan": parts, "noi_chon": copy.deepcopy(src.get("noi_chon") or {}), "hanh_dong": [], "vat": [],
-            "may": {}, "_p": {"by": "code", "draft": True, "from": from_scene_id}}
+    noi = copy.deepcopy(src.get("noi_chon") or {})
+    if place is not None and noi.get("kho_id") not in (None, place):
+        noi["kho_id"] = place
+    if spot and noi.get("spot") not in (None, spot):
+        noi["spot"] = spot
+    return {"shot": shot, "thanh_phan": parts, "noi_chon": noi, "hanh_dong": [], "may": {},
+            "_p": {"by": "code", "draft": True, "from": from_scene_id}}
 
 
-def shift_shot(data: Dict, old_no: int, new_no: int) -> bool:
-    """Đổi số shot trong BYĐ khi shot_no dời (chèn shot): chỉ khi `byd.shot` đúng là số cũ (số khác = người / Đạo diễn ghi khác — giữ)."""
+def _shift_no(v, after_no: int):
+    n = v if isinstance(v, int) and not isinstance(v, bool) else (int(v.strip()) if isinstance(v, str) and v.strip().isdigit() else None)
+    if n is None or n <= after_no:
+        return v
+    return n + 1 if isinstance(v, int) else str(n + 1)
+
+
+def shift_shot(data: Dict, old_no: int, after_no: int) -> bool:
+    """Đổi số shot trong BYĐ khi shot_no dời (chèn shot sau shot_no `after_no` của cùng cảnh): `byd.shot` (chỉ khi đúng là số cũ — số khác
+    = người / Đạo diễn ghi khác, giữ) và mọi số > after_no trong `ngoai_le[].pham_vi` (lock_exceptions so pham_vi với byd.shot)."""
     byd = data.get("byd") if isinstance(data, dict) else None
-    if isinstance(byd, dict) and byd.get("shot") == old_no and not isinstance(byd.get("shot"), bool):
-        data["byd"] = dict(byd, shot=new_no)            # bản mới: bảng cũ (của `data` trước khi dời) giữ nguyên để so
-        return True
-    return False
+    if not isinstance(byd, dict):
+        return False
+    new = dict(byd)                                    # bản mới: bảng cũ (của `data` trước khi dời) giữ nguyên để so
+    if byd.get("shot") == old_no and not isinstance(byd.get("shot"), bool):
+        new["shot"] = old_no + 1
+    if isinstance(byd.get("ngoai_le"), list):
+        new["ngoai_le"] = [dict(n, pham_vi=[_shift_no(x, after_no) for x in n["pham_vi"]])
+                           if isinstance(n, dict) and isinstance(n.get("pham_vi"), list) else n for n in byd["ngoai_le"]]
+    if new == byd:
+        return False
+    data["byd"] = new
+    return True
 
 
 def named_things(data: Dict) -> List[str]:

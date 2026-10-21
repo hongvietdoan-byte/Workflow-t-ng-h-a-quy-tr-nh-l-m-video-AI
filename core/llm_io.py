@@ -939,7 +939,7 @@ def insert_scene_after(pipeline: Pipeline, project_id: int, after_idx: int, fiel
                 new["shot_no"] = d["shot_no"] + 1
                 title = _retitle(title, new["shot_no"])
                 if inherit:                                # M2.4: BYĐ ghi số shot (shot_no) — theo cùng giao dịch
-                    shot_intent.shift_shot(new, d["shot_no"], new["shot_no"])
+                    shot_intent.shift_shot(new, d["shot_no"], no)
             for key in _TEXT_KEYS:
                 if isinstance(d.get(key), str):
                     new[key] = _shift_text(d[key], after_idx)
@@ -988,12 +988,13 @@ def insert_scene_after(pipeline: Pipeline, project_id: int, after_idx: int, fiel
         if inherit:                                    # M2.4 G6: bối cảnh của shot trước (không 🔒 — người không gõ), BYĐ nháp (G21)
             got = [k for k in INHERIT_KEYS if k not in fields and prev_data.get(k) not in (None, "")]
             base.update({k: prev_data[k] for k in got})
-            draft = shot_intent.draft_of(prev_data, no + 1 if no else after_idx + 1, prev["id"], fields.get("characters"))
+            draft = shot_intent.draft_of(prev_data, no + 1 if no else after_idx + 1, prev["id"], fields.get("characters"),
+                                         place=fields.get("location_asset"), spot=fields.get("plate_spot"))
             if draft is not None:
                 base["byd"] = draft
             inherit_note = (f"shot chèn {after_idx + 1} thừa kế từ shot {after_idx}: "
                             + (", ".join(f"{k}={prev_data[k]}" for k in got) if got else "không có trường bối cảnh nào để chép")
-                            + ("; BYĐ NHÁP (giữ nơi chốn + thành phần, bỏ hành động / máy / vật) — duyệt ở Bước 3" if draft is not None
+                            + ("; BYĐ NHÁP (nơi chốn theo shot mới + thành phần, bỏ hành động / máy / vật) — duyệt ở Bước 3" if draft is not None
                                else f"; shot {after_idx} không có BYĐ → shot mới chưa có BYĐ"))
         base.update(direct)
         if "text" not in base and direct.get("action"):

@@ -88,9 +88,10 @@ class InsertInheritTests(unittest.TestCase):
         self.insert(dict(_ti.NEW, characters=["KELLY"]))
         b = self.new_data()["byd"]
         self.assertEqual(b["shot"], 3)                 # shot_no mới (cảnh 3 · shot 3)
-        self.assertEqual(b["noi_chon"], BYD["noi_chon"])
+        self.assertEqual(b["noi_chon"], dict(BYD["noi_chon"], spot=_ti.NEW["plate_spot"]))   # chỗ đứng = plate_spot shot mới
         self.assertEqual([c["vat"] for c in b["thanh_phan"]], ["KELLY"])     # lọc theo characters
-        self.assertEqual((b["hanh_dong"], b["vat"]), ([], []))
+        self.assertEqual(b["hanh_dong"], [])
+        self.assertNotIn("vat", b)                     # vật phải khai lại: thiếu khóa = chưa rõ (không phải "không cầm gì")
         self.assertNotIn("co", b.get("may") or {})
         self.assertEqual({k: b["_p"][k] for k in ("by", "draft", "from")}, {"by": "code", "draft": True, "from": self.ids[6]})
         self.assertTrue(shot_intent.is_draft(b))
@@ -114,6 +115,41 @@ class InsertInheritTests(unittest.TestCase):
         self.assertEqual(self.data_of(self.ids[7])["byd"]["shot"], 4)
         self.assertEqual(self.data_of(self.ids[8])["byd"]["shot"], 5)
         self.assertEqual(self.data_of(self.ids[6])["byd"]["shot"], 2)
+
+    def test_exception_scope_follows_the_shot_number(self):
+        from core import lock_exceptions
+        d = self.data_of(self.ids[7])
+        d["byd"]["ngoai_le"] = [{"doi_tuong": "KELLY", "pham_vi": [3], "dieu_trai": "không có glitch", "cach_hien": "ảnh sạch"}]
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), self.ids[7]))
+        self.p.conn.commit()
+        before = lock_exceptions.for_shot(d)
+        self.assertTrue(before)
+        self.insert()
+        after = self.data_of(self.ids[7])
+        self.assertEqual(after["byd"]["ngoai_le"][0]["pham_vi"], [4])
+        self.assertEqual(lock_exceptions.for_shot(after), before)
+
+    def test_new_place_and_spot_override_the_drafted_place(self):
+        self.insert(dict(_ti.NEW, location_asset=9))
+        nc = self.new_data()["byd"]["noi_chon"]
+        self.assertEqual((nc["kho_id"], nc["spot"]), (9, _ti.NEW["plate_spot"]))
+        self.assertEqual(nc["thoi_gian"], "night")
+
+    def test_draft_is_schema_known_and_picked_for_repair(self):
+        self.insert()
+        issues = shot_intent.validate(self.new_data()["byd"])
+        self.assertFalse([i for i in issues if i["truong"] == "_p"])
+        self.assertTrue(issues)                        # máy chưa điền → vẫn lỗi → vòng điền BYĐ nhận shot này
+
+    def test_filled_draft_is_checked_as_usual(self):
+        self.insert()
+        sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=7", (self.pid,)).fetchone()["id"]
+        d = self.new_data()
+        d["byd"]["may"] = {"co": "MS"}                 # điền máy nhưng quên chuyển động
+        self.p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), sid))
+        out = []
+        video_pregen._check_motion(self.p.conn, sid, {}, out)
+        self.assertEqual([i["ma"] for i in out], ["byd_draft", "chuyen_dong"])
 
     def test_video_gate_says_draft_not_missing(self):
         self.insert()
@@ -165,6 +201,18 @@ class StagePropsBydTests(_tsa.Base):
         self.assertIn("xenoi", self.keys(self.inputs(pid, {"FEATURE_STAGE_PROPS_BYD": "1"})))
         self.set_shot(pid, 2, byd={"shot": 1, "thanh_phan": [{"vat": "xenoi", "vai": "phu"}]})
         self.assertIn("xenoi", self.keys(self.inputs(pid, {"FEATURE_STAGE_PROPS_BYD": "1"})))
+
+    def test_unknown_or_synonym_time_is_not_another_world(self):
+        pid = self.project(((1, "giua_phong"), (2, "giua_phong")))
+        self.set_shot(pid, 2, action="Kelly đẩy xe nôi", time=None)
+        self.assertIn("xenoi", self.keys(self.inputs(pid, {"FEATURE_STAGE_PROPS_BYD": "1"})))
+        self.set_shot(pid, 2, time="ban ngày")                                 # = day (plate_env.time_of)
+        self.assertIn("xenoi", self.keys(self.inputs(pid, {"FEATURE_STAGE_PROPS_BYD": "1"})))
+
+    def test_flag_on_without_a_drop_keeps_the_inputs(self):
+        pid = self.project(((1, "giua_phong"), (2, "giua_phong")))
+        self.set_shot(pid, 2, action="Kelly đẩy xe nôi")
+        self.assertEqual(self.inputs(pid, {"FEATURE_STAGE_PROPS_BYD": "1"}), self.inputs(pid, {"FEATURE_STAGE_PROPS_BYD": ""}))
 
     def test_other_world_drops_the_prop_even_if_named(self):
         pid = self.project(((1, "giua_phong"), (2, "giua_phong")))
