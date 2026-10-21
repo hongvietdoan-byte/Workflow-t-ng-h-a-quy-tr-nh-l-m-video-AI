@@ -45,6 +45,41 @@ def test_unknown_dang_is_warning(adapter):
     k,_=adapter
     assert k.validate_dang(None,1,'KELLY','absent')[0]['muc']=='vang'
 
+
+@pytest.mark.parametrize('source',['human','ai'])
+def test_profile_level_provenance_does_not_require_field_state(adapter,source):
+    k,_=adapter
+    p=profile();meta={'source':source,'by':'fixture','at':'fixture-time'}
+    if source=='ai':
+        meta.update(model='fixture',from_text='fixture')
+    p['_p']={'profile':meta}
+    assert k.validate(p)
+    if source=='ai':
+        del meta['model']
+        with pytest.raises(k.ProfileError):
+            k.validate(p)
+    p['_p']={'identity':{'source':'human'}}
+    with pytest.raises(k.ProfileError):
+        k.validate(p)
+
+
+def test_v2_form_names_match_whole_words_and_exact_byd(adapter):
+    k,asset=adapter
+    p=profile();p['forms'][0].update(ma='ice',ten_en='ice')
+    asset['profile']=json.dumps(p)
+    with patch.object(k.assets,'get_profile',return_value=p):
+        scene={'characters':['KELLY'],'text':'Alice changes her hair'}
+        assert k.forms_for_shot(None,1,scene)=={}
+        assert k.selected_images(asset,scene) is None
+        scene['byd']={'thanh_phan':[{'vat':'KELLY','dang':'ice'}]}
+        assert k.forms_for_shot(None,1,scene)['KELLY']['ma']=='ice'
+        scene={'characters':['KELLY'],'text':'Kelly becomes ice.'}
+        assert k.forms_for_shot(None,1,scene)['KELLY']['ma']=='ice'
+        assert k.selected_images(asset,scene)[0]['id']==9
+        p['forms'][0].update(ma='ghost_form',ten_en='ghost form',ten_vi='bóng mờ')
+        scene['text']='Kelly thành bóng mờ.'
+        assert k.forms_for_shot(None,1,scene)['KELLY']['ma']=='ghost_form'
+
 @pytest.mark.parametrize('change',[{'forms':[{'ma':'Bad key'}]}, {'hair':{'_p':{'source':'ai','state':'AUTO'}}}, {'forms':{}}, {'outfit':{'default':'absent','sets':[]}}])
 def test_invalid_schema_rejected(adapter,change):
     k,_=adapter

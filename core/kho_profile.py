@@ -24,16 +24,16 @@ def validate(profile, conn=None, asset_id=None):
         raise ProfileError('schema_version phải bằng 2')
     if type(profile.get('revision', 0)) is not int or profile.get('revision', 0) < 0:
         raise ProfileError('revision không hợp lệ')
-    def provenance(meta):
-        if not isinstance(meta,dict) or meta.get('source') not in ('human','ai','image','import') or meta.get('state') not in ('AUTO','USER_LOCKED','REVIEW_REQUIRED'):
+    def provenance(meta, require_state=True):
+        if not isinstance(meta,dict) or meta.get('source') not in ('human','ai','image','import') or (require_state or 'state' in meta) and meta.get('state') not in ('AUTO','USER_LOCKED','REVIEW_REQUIRED'):
             raise ProfileError('provenance thiếu hoặc sai source/state')
         if meta['source'] == 'ai' and (not isinstance(meta.get('model'),str) or not meta['model'].strip() or not (meta.get('from_image_ids') or meta.get('from_text'))):
             raise ProfileError('AI phải khai model và nguồn')
     root_meta=profile.get('_p',{})
     if not isinstance(root_meta,dict):
         raise ProfileError('provenance cấp hồ sơ phải là object')
-    for meta in root_meta.values():
-        provenance(meta)
+    for key,meta in root_meta.items():
+        provenance(meta,require_state=key != 'profile')
     seen = set()
     forms = profile.get('forms', [])
     if not isinstance(forms, list):
@@ -154,6 +154,12 @@ def for_character(conn, project_id, name):
         p['must_keep'] = lock_text_en(p)
     return p
 
+def _mentions_form(text, label):
+    """Khớp tên dạng theo ranh giới từ Unicode, không khớp ice trong Alice."""
+    phrase=r'\s+'.join(re.escape(word) for word in str(label or '').split())
+    return bool(phrase and re.search(r'(?<!\w)'+phrase+r'(?!\w)',text,re.IGNORECASE))
+
+
 def forms_for_shot(conn, project_id, scene, chosen=None):
     if not enabled():
         return character_forms.for_shot(conn, project_id, scene, chosen)
@@ -172,10 +178,11 @@ def forms_for_shot(conn, project_id, scene, chosen=None):
             if f.get('_p',{}).get('state') != 'USER_LOCKED':
                 continue
             targets = {str(n).strip().upper() for n in f.get('applies_to', [])} & cast
+            targets = {n for n in targets if not requested.get(n) or requested[n] == f['ma']}
             if not targets:
                 continue
             explicit = any(requested.get(n) == f['ma'] for n in targets)
-            matched = any(str(f.get(k) or '').lower() in text for k in ('ma','ten_en','ten_vi') if f.get(k))
+            matched = any(_mentions_form(text,f[k]) for k in ('ma','ten_en','ten_vi') if f.get(k))
             if not explicit and not matched:
                 continue
             image = next((i for iid in f.get('image_ids',[]) for i in a.get('images',[]) if i['id']==iid and i.get('status')=='approved'),None)
@@ -299,7 +306,7 @@ def save(conn, asset_id, changes, actor, expected_revision, *, approved=None):
         p[key]=value
     p.update(schema_version=2,revision=expected_revision+1)
     fields = [p[k] for k in ('face','hair') if p.get(k)] + p.get('forms',[]) + p.get('outfit',{}).get('sets',[])
-    p['approved'] = bool(fields) and all(f.get('_p',{}).get('state')=='USER_LOCKED' for f in fields) and all(m.get('state')=='USER_LOCKED' for m in p.get('_p',{}).values() if isinstance(m,dict))
+    p['approved'] = bool(fields) and all(f.get('_p',{}).get('state')=='USER_LOCKED' for f in fields) and all(m.get('state')=='USER_LOCKED' for key,m in p.get('_p',{}).items() if key != 'profile' and isinstance(m,dict))
     if approved is not None:
         p['approved'] = bool(approved) and p['approved']
     validate(p,conn,asset_id)
@@ -336,7 +343,7 @@ def selected_images(asset, scene=None):
     validate(p)
     forms = [f for f in p.get('forms',[]) if f.get('_p',{}).get('state')=='USER_LOCKED']
     text = ' '.join(str((scene or {}).get(k) or '') for k in ('text','image_prompt','location')).lower()
-    explicit = [f for f in forms if any(str(f[k]).lower() in text for k in ('ma','ten_en','ten_vi') if f.get(k))]
+    explicit = [f for f in forms if any(_mentions_form(text,f[k]) for k in ('ma','ten_en','ten_vi') if f.get(k))]
     chosen = explicit[:1] or ([forms[0]] if forms and not forms[0].get('applies_to') else [])
     ids = [i for f in chosen for i in f.get('image_ids',[])]
     ids += [i for key in ('face','hair') for i in (p.get(key) or {}).get('ref_image_ids',[])]

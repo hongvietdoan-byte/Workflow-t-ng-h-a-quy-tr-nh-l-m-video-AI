@@ -322,3 +322,65 @@ def test_unreviewed_forms_and_outfit_are_not_selected_as_standard(db):
         assert k.forms_for_shot(db,9,scene,[asset])=={}
         assert k.outfit_for(db,9,'Kelly') is None
         assert k.selected_images(asset,scene) is None
+
+
+@pytest.mark.parametrize('schema,identity,active,conflict,expected',[
+    (1,{},None,False,True),
+    (2,{},None,False,False),
+    (2,{'email':'owner.fixture'},None,False,False),
+    (2,{'email':'owner.fixture'},0,False,False),
+    (2,{'email':'owner.fixture'},1,True,False),
+    (2,{'email':'owner.fixture'},1,False,True),
+])
+def test_profile_ui_uses_authenticated_actor_and_handles_conflict(db,schema,identity,active,conflict,expected):
+    import ast
+    from pathlib import Path
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from core import assets, kho_profile as k
+    db.execute('CREATE TABLE users(email TEXT,active INTEGER)')
+    if active is not None:
+        db.execute('INSERT INTO users VALUES(?,?)',('owner.fixture',active))
+    tree=ast.parse(Path('dashboard/admin.py').read_text(encoding='utf-8-sig'))
+    node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='_save_profile_from_identity')
+    ui=Mock();scope={'C':SimpleNamespace(me=lambda:identity),'kho_profile':k,'assets':assets,'st':ui}
+    exec(compile(ast.Module(body=[node],type_ignores=[]),'<fixture-profile-ui>','exec'),scope)
+    with patch.object(assets,'set_profile',side_effect=k.ProfileError('revision đã đổi') if conflict else None) as save:
+        result=scope['_save_profile_from_identity'](SimpleNamespace(conn=db),1,{'identity':'fixture'},False,{'schema_version':schema,'revision':4})
+        assert result is expected
+        if schema==1:
+            assert save.call_args.kwargs=={'approved':False}
+        elif active==1:
+            assert save.call_args.kwargs['actor']=={'kind':'human','who':'owner.fixture'}
+            assert save.call_args.kwargs['expected_revision']==4
+        else:
+            save.assert_not_called()
+        assert ui.error.called is (not expected)
+
+
+def test_profile_form_attributes_actor_to_authenticated_identity(db):
+    import ast
+    from pathlib import Path
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from core import assets, kho_profile as k
+    db.execute('CREATE TABLE users(email TEXT,active INTEGER)')
+    db.execute("INSERT INTO users VALUES('owner.fixture',1)")
+    class FormConnection:
+        def execute(self,sql,args=()):
+            if sql.startswith('SELECT pr.name'):
+                return SimpleNamespace(fetchall=lambda:[])
+            return db.execute(sql,args)
+    ui=Mock();ui.checkbox.return_value=True;ui.button.return_value=True
+    ui.text_area.return_value='fixture';ui.text_input.return_value='fixture'
+    left=Mock();left.number_input.return_value=1.7
+    right=Mock();right.text_input.return_value='fixture'
+    ui.columns.return_value=(left,right)
+    tree=ast.parse(Path('dashboard/admin.py').read_text(encoding='utf-8-sig'))
+    functions=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in ('_save_profile_from_identity','profile_form')]
+    scope={'C':SimpleNamespace(me=lambda:{'email':'owner.fixture'}),'kho_profile':k,'assets':assets,'st':ui,'Pipeline':object}
+    exec(compile(ast.Module(body=functions,type_ignores=[]),'<fixture-profile-form>','exec'),scope)
+    with patch.object(k,'read',return_value={'schema_version':2,'revision':4}),patch.object(assets,'set_profile') as save:
+        scope['profile_form'](SimpleNamespace(conn=FormConnection()),{'id':1,'name':'Kelly'})
+        assert save.call_args.kwargs['actor']=={'kind':'human','who':'owner.fixture'}
+        assert save.call_args.kwargs['expected_revision']==4

@@ -42,3 +42,9 @@ Quota cuối: 5h ĐÃ DÙNG89%, còn11%; tuần57%, còn43%. Reset tự nhiên 2
 - XANH 209 assets/golden (79.54s), rồi 115 Kho/schema/change_review (16.93s). Chi tiết RED/fixture correction/SQL inventory/sáu điều kiện ở RA.
 - Còn local: dashboard/admin.py profile_form actor hardcode phải lấy identity email xác thực cho v2 và xử lý error/CAS nhánh seed.
 - External: BYĐ core/shot_intent.py thuộc cloud-C chưa được phép sửa; cần root tích hợp và acceptance/full suite máy chính. Không nghiệm thu, không XONG.
+
+## Checkpoint cuối của lượt fresh review
+- Actor UI hồ sơ v2 đã dùng email identity active + CAS cho cả save/seed, error rõ; không hardcode who.
+- Chấp nhận `_p.profile` không state đúng M0.9, giữ guard state ở mọi field; matcher v2 không khớp chuỗi con ice/Alice, BYĐ exact vẫn được chọn.
+- ĐỎ actor1; root profile/matcher3. XANH cuối 125/125 (13.38s). Root đọc diff commit trước push.
+- Chưa XONG: BYĐ cloud-C/shot_intent không tự sửa; máy chính full suite/acceptance/production vẫn chưa chạy. Không còn mở rộng phạm vi trong lượt này.
