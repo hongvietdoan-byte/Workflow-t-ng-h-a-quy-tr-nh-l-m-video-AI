@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-22T00:23:49.635528+07:00",
+  "lane": "cloud-E",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "Lưu ý nhánh tích hợp cloud/v31-m2-tichhop: tests/golden/package_inputs.json THIẾU cờ sent_package_relpath (M2.6) → 8 test golden (Python 3.14) dừng ở validate_compat_flags, CHƯA so byte; 'đỏ giống trước/sau' trên nhánh đó không phải bằng chứng gói không đổi. Đã vá trong cloud/v31-golden4 (C-GOLDEN4) và đang vá trong cloud/v31-m210; khi gộp M2 cần có dòng này (2 khối). Có fixture đủ cờ: golden 3.14 còn đúng 3 đỏ môi trường Linux (sha PNG Pillow, C:/)."
+}
