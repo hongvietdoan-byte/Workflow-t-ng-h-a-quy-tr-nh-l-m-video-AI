@@ -160,7 +160,8 @@
       "image_pregen": false,
       "router_first_frame": false,
       "insert_inherit": false,
-      "stage_props_byd": false
+      "stage_props_byd": false,
+      "lean_package": false
     },
     "experimental_flags": ["new_feature"]
   },
@@ -330,7 +331,8 @@
       "image_pregen": false,
       "router_first_frame": false,
       "insert_inherit": false,
-      "stage_props_byd": false
+      "stage_props_byd": false,
+      "lean_package": false
     },
     "experimental_flags": ["new_feature"],
     "pregen_fingerprint": "frozen-fingerprint"

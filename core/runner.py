@@ -666,6 +666,23 @@ class _Runner:
                 self._diag(job, "warn", "sent_package", w)
             except Exception:  # noqa: BLE001 - a ledger note, never a gate: the send and its ledger entry stand
                 pass
+        from . import lean_package
+        if lean_package.enabled():                         # M2.10 SHADOW: flag off = nothing else is called
+            self._lean_shadow(job)
+
+    def _lean_shadow(self, job) -> None:
+        """M2.10 (cờ lean_package): the lean package built BESIDE the one just sent (read back from jobs.sent_package, after the ledger
+        commit) → <data_dir>/lean_package/<project>/job_<id>.json + one ⚙ line. Never sent, never changes the real package, never raises."""
+        from . import lean_package
+        try:
+            rep, path = lean_package.shadow_job(self.p.conn, self.data_dir, job)
+            message = lean_package.note(rep, path)
+        except Exception as e:  # noqa: BLE001 - shadow: said, the send stands
+            message = f"gói tối giản (shadow, KHÔNG gửi): lỗi ({type(e).__name__}: {e})"
+        try:
+            self._diag(job, "info", lean_package.DIAG_CODE, message)
+        except Exception:  # noqa: BLE001 - a note only
+            pass
 
     def _running(self, job_id: int, note: Optional[str] = None) -> None:
         """QUEUED → RUNNING without Pipeline.start()'s pause check (T2): used once the task exists at the provider, or on the way to
