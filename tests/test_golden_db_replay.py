@@ -89,7 +89,11 @@ def test_capture_and_replay_without_sidecar(database):
     with patch.object(os,'environ',{}), patch.object(importlib.import_module('tools.golden_capture'),'head_sha',return_value='a'*40):
         capture=importlib.import_module('tools.golden_capture').capture(db=db,project=24,shot=7,flags_file=flags_file,ref_root=root,purpose='compat',database_replay=True)
         assert all(j['database_replay']['matched_at_capture'] for j in capture['jobs'])
+        before_db = hashlib.sha256(db.read_bytes()).hexdigest()
+        before_data = {str(p.relative_to(root)): p.stat().st_mtime_ns for p in (root/'data').rglob('*')}
         assert all(j['status']=='COMPAT' for j in module.replay_fixture(capture,db=db,ref_root=root)['jobs'])
+        assert hashlib.sha256(db.read_bytes()).hexdigest() == before_db
+        assert {str(p.relative_to(root)): p.stat().st_mtime_ns for p in (root/'data').rglob('*')} == before_data
         saved=root/'capture.json';saved.write_text(json.dumps(capture),encoding='utf-8')
         output=root/'replay.json'
         assert module.main(['--fixture',str(saved),'--db',str(db),'--ref-root',str(root),'--output',str(output)])==0
@@ -98,6 +102,13 @@ def test_capture_and_replay_without_sidecar(database):
         assert report['projects']['24']['distinct_compat_video_shots']==1
         capture['jobs'][0].pop('database_replay')
         assert module.replay_fixture(capture,db=db,ref_root=root)['jobs'][0]['status']=='INSUFFICIENT_INPUT'
+
+
+def test_virtual_environment_is_fail_closed(database):
+    with patch.object(sys, 'prefix', 'synthetic-venv'), patch.object(sys, 'base_prefix', 'synthetic-native'), \
+         patch.object(subprocess, 'run', side_effect=AssertionError('venv must not spawn')):
+        with pytest.raises(ValueError, match='native Python3.14'):
+            build(database, 1)
 
 
 def test_missing_dependency_appearing_is_data_changed(database):

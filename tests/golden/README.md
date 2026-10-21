@@ -55,3 +55,16 @@ baseline ở fixture; `check_correctness` chạy với kỳ vọng viết riêng
 làm chuẩn đúng. Chưa có sidecar sản xuất → giữ OPEN, không suy ngược cho đủ dữ liệu.
 
 CX20-2b (21/10): db_package_expected.json là baseline byte tổng hợp đóng băng (prompt ảnh cube, motion cube rotates, PNG đỏ16x16); test không sinh lại expected. tools/golden_capture.py --database-replay --latest-per-type lấy args bằng prepare/build thật từ DB readonly, không cần sidecar; tools/golden_db_replay.py nhận nhiều --fixture. Manifest ghi DB/schema/HEAD/cờ/public config và file/stat/missing dependencies; DATA_CHANGED/INSUFFICIENT_INPUT tách CODE_MISMATCH. Xem RA_D20_VIEC2B_CODEX_2026-10-21.md: dữ liệu thật #24/#27 và M2 acceptance vẫn OPEN.
+# Khóa nguồn replay từ CSDL
+
+Manifest `database_replay.manifest.db_sha256` khóa **toàn bộ CSDL**, không chỉ các
+bảng/shot được chọn. Phải giữ một bản sao CSDL đóng băng đi kèm fixture ở kho
+ngoài Git được chủ dữ liệu quản lý. CSDL đang chạy chỉ cần có một ghi khác cũng
+có thể trả `DATA_CHANGED`; không thay hash để ép fixture qua. Không commit CSDL
+production hoặc khóa vào repository.
+
+Worker bắt buộc native Python 3.14 (`sys.prefix == sys.base_prefix`); virtualenv
+fail-closed trước khi spawn. Tiến trình con dùng môi trường whitelist mới, có
+`SYSTEMROOT=C:/Windows`, HOME/USERPROFILE/TEMP/TMP trỏ scratch, không kế thừa
+credential của máy. Replay chỉ đọc CSDL nguồn và `data/`; regression kiểm SHA
+CSDL nguồn cùng mtime nanosecond toàn cây `data/` không đổi.

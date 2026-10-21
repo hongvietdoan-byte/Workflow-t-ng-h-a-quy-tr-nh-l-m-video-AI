@@ -1098,7 +1098,8 @@ class VideoRunner(_Runner):
     def _finish_kwargs(self, job, kwargs):
         from . import seedance_refs
         for pending in self.__dict__.get("_pregen_deferred", []):
-            hosted = self._hosted_pictures(job, pending["pictures"], clean=pending["clean"])
+            hosted = self._hosted_pictures(job, pending["pictures"], clean=pending["clean"],
+                                           capacity_checked=pending.get("capacity_checked", False))
             if hosted is None:
                 hosted = [path for _, path in pending["pictures"]]
                 if pending.get("mark_fallback"):
@@ -1747,7 +1748,7 @@ class VideoRunner(_Runner):
 
     subject_library = None          # S4.7: the Seedance Subject Library (tests set a double; else core.adapters.factory's)
 
-    def _hosted_pictures(self, job, pictures, clean: bool = False) -> Optional[list]:
+    def _hosted_pictures(self, job, pictures, clean: bool = False, capacity_checked: bool = False) -> Optional[list]:
         """S4.7 (flag seedance_subjects): [(label, local picture)] → [{"uri": "asset://…"}] in the same order — each picture uploaded to
         the ClipAI Subject Library once (by its bytes, core.subjects.ensure_picture) and sent reviewed, so no red mark is needed. None
         when the flag is off, the provider is not ClipAI, or ANY picture has no active asset (said; the caller sends as before).
@@ -1755,7 +1756,7 @@ class VideoRunner(_Runner):
         from . import features, seedance_refs
         if not features.on("seedance_subjects") or not pictures or not getattr(self.provider, "supports_subjects", False):
             return None
-        if self.__dict__.get("_pregen_local"):
+        if self.__dict__.get("_pregen_local") and not features.on('subject_capacity_guard'):
             if clean:
                 out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_clean")
                 pictures = [(label, seedance_refs.mark(path, out_dir, style="none")) for label, path in pictures]
@@ -1782,10 +1783,15 @@ class VideoRunner(_Runner):
         if clean:
             out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_clean")
             pictures = [(label, seedance_refs.mark(path, out_dir, style="none")) for label, path in pictures]
-        if features.on('subject_capacity_guard'):
+        if features.on('subject_capacity_guard') and not capacity_checked:
             check = subject_links.capacity(self.p.conn, lib, pictures)
             if check['code'] != 'READY':
                 raise subject_links.CapacityWait(check)
+        if self.__dict__.get("_pregen_local"):
+            local = [path for _, path in pictures]
+            self._pregen_deferred.append({"local": local, "pictures": list(pictures), "clean": False,
+                                          "capacity_checked": True})
+            return local
         res = subject_links.picture_refs(self.p.conn, lib, pictures)
         if not res["refs"]:
             if features.on('subject_capacity_guard'):
