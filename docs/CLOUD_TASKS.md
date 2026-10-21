@@ -19,7 +19,7 @@ Người dùng có một tài khoản **Cloud session credits $100** (hết hạ
 - Phiên cloud **không tự đọc được số credit** → người dùng xem ở trang credit và báo trong chat ("đã dùng $X"); phiên cloud hỏi người dùng số credit **trước khi bắt đầu mỗi việc** và **sau mỗi ~30 lượt gọi công cụ**.
 - Ước chi mỗi việc (Opus, ước theo token, có thể lệch): việc vừa ≈ $8–15, việc lớn ≈ $15–25. Chưa chắc đủ → làm phần nhỏ trước.
 - **Commit + `git push` sau MỖI commit** (không gom cuối phiên), `HANDOFF.md` ở gốc nhánh luôn ghi: đã xong / đang dở / bước kế. Hết credit giữa chừng vẫn còn việc trên GitHub để làm tiếp.
-- Một phiên cloud = một việc. Không mở phiên con (Agent) trong cloud — tốn gấp đôi.
+- Một phiên cloud = một việc. Không mở phiên con (Agent) trong cloud — tốn gấp đôi. **NGOẠI LỆ 21/10 (người dùng): cloud-C và cloud-E ĐƯỢC mở nhánh phụ song song — xem mục "NHÁNH PHỤ SONG SONG (cloud-C, cloud-E)".**
 
 ## Luật chung (dán kèm mọi prompt)
 ```
@@ -562,4 +562,55 @@ Rà độc lập CHỈ ĐỌC nhánh codex của CX21-FIX (tên nhánh trong s�
 chỗ gọi tới; kiểm từng mục 1–6 của đề đã sửa đúng gốc và có test ĐỎ→XANH; đặc biệt: core/subjects.capacity khi cờ TẮT giữ byte cũ, SPEND_LOCK không bị
 giữ lúc gọi mạng, merge_union không mất mục khi hai bên khác định dạng (thử bằng 2 file tạm). Không sửa code. Báo cáo docs/RA_CLOUD_RA_FIX21_2026-10-2x.md:
 GỘP ĐƯỢC / CẦN SỬA, mỗi lỗi mức + file:dòng + cách sửa. Push nhánh cloud/v31-ra-fix21 (chỉ báo cáo). XONG hộp thư.
+```
+
+## NHÁNH PHỤ SONG SONG (cloud-C, cloud-E) — người dùng 21/10 12:30 "đẩy nhanh tiến độ"
+Làn cloud-C / cloud-E được chạy **tối đa 2 nhánh phụ cùng lúc** (Agent tool, `isolation: worktree`, chạy nền) ngoài việc phiên làn đang tự làm → tối đa 3 việc song song/làn.
+1. Mỗi nhánh phụ = MỘT mã việc đã nhận trên hộp thư (`hop_thu.py ke --lane <làn> --nhan --push` lần lượt cho từng việc), nhánh riêng `cloud/v31-<mã>`, báo cáo riêng.
+   Phiên làn (không phải nhánh phụ) đăng `xong <mã>` sau khi đọc báo cáo + `git diff --stat` của nhánh phụ.
+2. Chỉ chạy song song các việc KHÔNG trùng file mã (ngoài `core/features.py`, `devsys/areas.json`, `tests/golden/package_inputs.json` — phiên chính hợp khi gộp).
+   Cặp đã xét 21/10: cloud-C `C-M21` ∥ `C-M25` (M2.5 KHÔNG sửa `core/shot_intent.py`; chỉ bọc đường ghi ở shadow) ∥ `DP12`; cloud-E `DP9` ∥ `C-M29`, sau đó `C-M24`,
+   `DP10` (DP10 và DP9 cùng đụng `core/runner.py` → KHÔNG chạy song song hai việc này). Nghi trùng file → chạy nối tiếp.
+3. Đề bài cho nhánh phụ phải tự đủ: mã việc + đường dẫn đề (spec) + "Luật chung" + luật cờ mới TẮT/golden fixture + test ĐỎ→XANH chỉ chạy file test liên quan
+   (gom MỘT lệnh pytest, ≤ 3 lần) + commit nhỏ + `HANDOFF.md` + push nhánh + báo cáo ≤ 30 dòng; KHÔNG sửa TODO.md, KHÔNG push main, KHÔNG đổi `version` areas.json.
+   Tự kiểm trước khi bàn giao: test bị nới để che lỗi; đường dẫn tương đối `data/…`; chặn mới làm vỡ luồng tự động/hàng loạt; bật mặc định đổi hành vi; lời gọi tốn tiền.
+4. Hạn mức: làn báo hạn mức sau mỗi việc xong. Tuần ≥ 85 % (hoặc credit ≥ $80) → không mở nhánh phụ mới, chỉ hoàn tất nhánh đang chạy.
+5. Phiên chính vẫn gộp từng nhánh riêng (rà theo mức) — M2 chỉ gộp sau khi golden #24/#27 đạt (CX21-GOLDEN).
+
+## Việc phiên chính tự đề xuất 21/10 12:50 (người dùng: "tự đề xuất và giao cho các cloud")
+
+#### C-RA-M21-M25 (cloud-E — chỉ đọc, nhánh phụ được)
+```
+RÀ KỸ độc lập CHỈ ĐỌC 2 nhánh cloud-C: origin/cloud/v31-m21 (M2.1 BYĐ v2, 13 chỗ core/ chuyển sang đọc qua hàm BYĐ chung) và nhánh C-M25 (M2.5 write guard
+SHADOW core/write_guard.py, gắn 6 đường ghi L1–L6) khi cloud-C báo XONG. Đề gốc: docs/CLOUD_TASKS.md "#### C-M21", "#### C-M25"; thiết kế
+docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-20.md, docs/V3_1_M0_10_BAO_VE_DU_LIEU_2026-10-20.md. Kiểm: cờ TẮT = byte giống (mọi caller cũ trả đúng giá trị cũ;
+so cả kiểu None/""/list rỗng); shadow KHÔNG chặn/không đổi dữ liệu, không ghi CSDL thêm ngoài diag; không làm vỡ luồng tự động (autopilot, byd_fill,
+director); chữ so khớp bỏ dấu; test có bị nới không. Không sửa code. Báo cáo docs/RA_CLOUD_RA_M21_M25_2026-10-2x.md: GỘP ĐƯỢC / CẦN SỬA, mỗi lỗi mức +
+file:dòng + cách sửa + test chứng minh. Push cloud/v31-ra-m21-m25 (chỉ báo cáo). XONG hộp thư.
+```
+
+#### C-RA-DP9-M29 (cloud-C — chỉ đọc, nhánh phụ được; BẮT ĐẦU KHI cloud-E báo XONG DP9 / C-M29)
+```
+RÀ KỸ độc lập CHỈ ĐỌC nhánh cloud-E: cloud/v31-dp9 (M2.7 image preflight: core/pregen_codes.py, core/image_pregen.py, core/runner.py) và cloud/v31-m29 (M2.9
+lời dẫn ngoài khớp môi). Đề: "#### DP9", "#### C-M26 / C-M29 / C-M24"; thiết kế docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-20.md. Kiểm: cờ TẮT = byte giống và
+0 điểm chặn mới; preflight chỉ REVIEW/VÀNG có mã devsys/errors.json; không đụng phần poll/submit runner (M1.2/M1.3); M2.9 nghiệm thu
+tests/test_narration_regression.py (xfail G15/G16/G17/G53 gỡ đúng ca, strict=True). Báo cáo docs/RA_CLOUD_RA_DP9_M29_2026-10-2x.md (như C-RA-M21-M25).
+Push cloud/v31-ra-dp9-m29. XONG hộp thư.
+```
+
+#### C-M25B (cloud-C — sau C-M25)
+```
+Câu hỏi cloud-C nêu ở C-M25: motion prompt người sửa tay chưa có dấu khóa riêng → guard chỉ báo khi trường đã khóa chung. Phiên chính chốt (theo M0.10 đã
+duyệt: take người chọn = USER_LOCKED; prompt khóa → REVIEW_REQUIRED): người dùng SỬA TAY motion prompt trên Dashboard Bước 3 (và mọi đường lưu motion prompt
+do người, không phải AI) → đặt khóa trường motion_prompt = USER_LOCKED cho shot đó (ghi provenance người + revision), CHỈ khi cờ field_guard BẬT; cờ TẮT =
+byte giống, không ghi gì. AI/tự động sắp ghi đè trường khóa → shadow chỉ ghi diag như C-M25. Test ĐỎ→XANH: sửa tay → khóa; AI viết lại → diag
+field_conflict, dữ liệu người giữ nguyên ở chế độ shadow (không chặn); cờ TẮT không ghi khóa. Nhánh cloud/v31-m25b, báo cáo docs/RA_CLOUD_M25B_2026-10-2x.md.
+```
+
+#### C-PORT4 (cloud-E — nhỏ, chỉ test)
+```
+4 test đỏ trên Linux/cloud nhưng xanh Windows (các làn báo "4 failed cũ"): recut_by_hand, punches, end_popup_p24, unreadable_picture (tìm bằng
+grep -rn trong tests/: test_end_popup_p24.py, test_cost_route_e1.py, test_ffmpeg_studio.py, test_sent_package.py…). Chạy trên cloud, tìm gốc (đường dẫn
+\ vs /, font/ffmpeg thiếu, phân biệt hoa thường, encoding…). Sửa test (hoặc code nếu lỗi thật đa nền tảng) để xanh cả hai; thiếu công cụ hệ thống thì
+skipif có lý do rõ — KHÔNG nới assert. Báo cáo gốc từng test docs/RA_CLOUD_PORT4_2026-10-2x.md. Nhánh cloud/v31-port4. XONG hộp thư.
 ```

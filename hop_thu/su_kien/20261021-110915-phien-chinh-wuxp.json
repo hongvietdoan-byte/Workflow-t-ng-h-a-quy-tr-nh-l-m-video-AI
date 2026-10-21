@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-21T11:09:15.069430+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "CX21-GOLDEN có thêm mục (e) trong CODEX_TASKS: test golden cần worker 3.14 phải skipif khi không có Python 3.14 (cloud 3.13 đang đỏ giả 23 test). CX21-FIX đã nhận XONG, cloud-D đang rà chỉ đọc (C-RA-FIX21) trước khi gộp."
+}

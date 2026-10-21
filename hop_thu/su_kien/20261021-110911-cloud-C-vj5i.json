@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:09:11.046937+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M25",
+  "branch": "cloud/v31-m25",
+  "commit": "b405b2d2",
+  "report": "docs/RA_CLOUD_M25_2026-10-21.md",
+  "text": "M2.5 write guard SHADOW xong (cờ field_guard TẮT, đã thêm false vào golden image+video): core/write_guard (state đọc _field_state→_user_locked, assess thuần: field_conflict/field_review/stale_write, observe chỉ ghi diag stage system — không chặn, không đổi dữ liệu; write_scene shadow, enforce→NotImplementedError = C3-6). Nối L1 store_motion_prompts(actor=) [llm_runner/seedance/mcp = ai, claude_tasks.apply_lint = human], L2 audio_first, L3 set_route, L4 prompt_rewrite._set_prompt (save_rewrite ai / revert human), L5 tools/byd_fill, L6 prompt_formula._write + previz.compose_scene. 25 test (đỏ trước). Full 6820 passed, 27 đỏ = 4 cũ + 23 golden (Python 3.14). CẦN CHỐT: motion prompt người sửa tay chưa có dấu khóa (Bước 3 nên đặt _user_locked motion_prompt). HẠN MỨC: không đọc được."
+}

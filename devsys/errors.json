@@ -1,7 +1,7 @@
 {
  "_note": "V3.1 M0.4/M0.5 (D09 chọn C): sổ lỗi = định nghĩa + vòng đời lỗi gốc; lần phát sinh ở diag_events / jobs. Mã bất biến P31-Gn (tài liệu lỗi #31 + bổ sung V2.1 §15.5), P33-An / P33-Bn (tài liệu #33 + V2.1 §15.5), V21-R3, V31-R2. Không VERIFIED khi chưa có real_run_evidence. Kiểm: python -m devsys.errors check (tests/test_error_registry.py).",
  "schema_version": 1,
- "updated": "2026-10-20",
+ "updated": "2026-10-21",
  "missing_codes": {
   "G25": "Khuyết trong tài liệu nguồn (docs/DANH_GIA_P31_LECH_3D_TI_LE_2026-10-18.md đánh số nhảy G24 → G26; V2.1 §15.5 dòng 550 xác nhận 'không có G25') — không bịa."
  },
@@ -25,19 +25,23 @@
    "root_cause_id": null,
    "evidence": "`stage_camera.props` = trụ Ø0,5×1,75 m nhãn \"XÁC ĐEN BIẾT BAY\" (dàn cảnh cảnh 6) có ở shot 28/30 (`source: \"cảnh 6 (cùng sân khấu)\"`) và 34/35 (`\"cảnh 7 (cùng sân khấu)\"`), kể cả cảnh 8 = thế giới THỰC TẠI ban ngày (không có quái). Khối render vào nền (`plate.png`) → model vẽ thành cột đá; D6 shot 3",
    "severity": "vua",
-   "status": "OPEN",
+   "status": "IN_PROGRESS",
    "first_seen": "2026-10-18",
    "last_seen": "2026-10-18",
    "affected_flows": [],
    "owner": "",
-   "fix_commit": [],
-   "tests": [],
+   "fix_commit": [
+    "7c3a979 (gộp cloud/v31-m34, 21/10)"
+   ],
+   "tests": [
+    "tests/test_v31_m34_continuity_state.py::test_place_changes_inside_a_sequence"
+   ],
    "real_run_evidence": [],
    "plan_workstream": "WS3",
    "plan_task": "M2.4",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "M3.4 shadow: đổi nơi chốn trong cùng nhóm → REVIEW (chỉ phát hiện, cờ continuity_state TẮT); chưa chặn khối giữ chỗ mang sang cảnh (S1 stage_auto)"
   },
   {
    "id": "P31-G2",
@@ -70,7 +74,7 @@
    "plan_task": "M3.2",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "M3.2 (6d88be6) mới làm người nộm height_m + pitch trong whitebox; mốc tỉ lệ người trong render nền CHƯA làm"
   },
   {
    "id": "P31-G3",
@@ -91,19 +95,24 @@
    "root_cause_id": null,
    "evidence": "Shot 28 `angle: eye` nhưng máy thấp hơn cảnh 0,56 m (z 10,85 vs 11,41), meta `pitch_deg +17.3` → nền gần như chỉ tường trống, model tự bịa; shot 35 `pitch +11.1`",
    "severity": "vua",
-   "status": "OPEN",
+   "status": "IN_PROGRESS",
    "first_seen": "2026-10-18",
    "last_seen": "2026-10-18",
    "affected_flows": [],
    "owner": "",
-   "fix_commit": [],
-   "tests": [],
+   "fix_commit": [
+    "6d88be6 (gộp cloud/v31-m32, 21/10)"
+   ],
+   "tests": [
+    "tests/test_v31_m32_height_dummy.py::test_pitch_note_g3",
+    "tests/test_v31_m32_height_dummy.py::test_pitch_eye_is_level_and_slightly_high_looks_down_10"
+   ],
    "real_run_evidence": [],
    "plan_workstream": "WS3",
    "plan_task": "M3.2",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "M3.2 phần whitebox: khai eye mà |pitch| > 5° → VÀNG (cờ whitebox_height_dummy TẮT). Chưa: plate_camera đường render thật, kiểm vật che"
   },
   {
    "id": "P31-G4",
@@ -977,19 +986,26 @@
    "root_cause_id": null,
    "evidence": "diag `subjects` jobs 1047, 1049–1051, 1054 (code 1110)",
    "severity": "cao",
-   "status": "IN_PROGRESS",
+   "status": "FIXED_UNVERIFIED",
    "first_seen": "2026-10-19",
    "last_seen": "2026-10-19",
    "affected_flows": [],
    "owner": "",
-   "fix_commit": [],
-   "tests": [],
+   "fix_commit": [
+    "88812a4 (gộp codex/d20-viec5-kho-chu-the CX20-5/5b, 21/10; tích hợp ffa85d2)"
+   ],
+   "tests": [
+    "tests/test_subject_capacity_d20.py::test_full_100_capacity_no_upload",
+    "tests/test_subject_capacity_d20.py::test_runner_capacity_hold_no_marked_no_kling",
+    "tests/test_subject_capacity_d20.py::test_actual_submit_loop_keeps_job_queued_full_no_kling",
+    "tests/test_subject_capacity_d20.py::test_existing_sha_full_library_needs_no_upload"
+   ],
    "real_run_evidence": [],
    "plan_workstream": "WS1",
    "plan_task": "M1.5",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": "M1.5 (Codex đợt 19)"
+   "status_reason": "Cờ subject_capacity_guard TẮT: Kho đầy/không rõ → job giữ hàng đợi, không gửi ảnh đánh dấu / không lùi Kling. Còn mở (CX20-5b): allocator nguyên tử nhiều tiến trình, account scope; chưa chạy thật"
   },
   {
    "id": "P31-G31",
@@ -1043,19 +1059,25 @@
    "root_cause_id": null,
    "evidence": "`job_events` 1057/1058/1059/1060/1063/1064/1065/1066: `InputImageSensitiveContentDetected.PrivacyInformation`; diag `subjects`: \"Kho chủ thể ClipAI đầy (100/100) … gửi ảnh như cũ (đánh dấu)\"",
    "severity": "vua",
-   "status": "OPEN",
+   "status": "FIXED_UNVERIFIED",
    "first_seen": "2026-10-19",
    "last_seen": "2026-10-19",
    "affected_flows": [],
    "owner": "",
-   "fix_commit": [],
-   "tests": [],
+   "fix_commit": [
+    "88812a4 (gộp codex/d20-viec5-kho-chu-the CX20-5/5b, 21/10; tích hợp ffa85d2)",
+    "447fde9b (gộp C-G36B cloud/v31-g36b@74568cd, 20/10)"
+   ],
+   "tests": [
+    "tests/test_subject_capacity_d20.py::test_runner_capacity_hold_no_marked_no_kling",
+    "tests/test_v31_g36b_refusal_skip.py::RefusalSkipSamePicture::test_a_shared_picture_refused_skips_the_per_shot_step"
+   ],
    "real_run_evidence": [],
    "plan_workstream": "WS1",
    "plan_task": "M1.5",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "Gốc: Kho đầy → ảnh dạng/vật đi thô → bộ lọc người thật. Guard Kho (cờ subject_capacity_guard) giữ job thay vì gửi thô; C-G36B (cờ refusal_skip_same_picture) bỏ bước Seedance từng shot vô ích. Cả hai cờ TẮT; chưa chạy thật"
   },
   {
    "id": "P31-G33",
@@ -1364,7 +1386,7 @@
    "plan_task": "M3.3",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "M3.3 câu vị trí đề xuất có (DP11 e53363f, cờ world_map_sentences TẮT) nhưng ca này chưa có test riêng — hướng chạy chưa ghép travel_truth"
   },
   {
    "id": "P31-G42",
@@ -1418,19 +1440,23 @@
    "root_cause_id": "P31-G46",
    "evidence": "Kịch bản: \"quay người rời khỏi cái xác và đi tiếp\"; ảnh 1000 cái xác ở NỀN sau lưng → clip Kelly đi vào nền, VỀ PHÍA cái xác",
    "severity": "vua",
-   "status": "OPEN",
+   "status": "IN_PROGRESS",
    "first_seen": "2026-10-19",
    "last_seen": "2026-10-19",
    "affected_flows": [],
    "owner": "",
-   "fix_commit": [],
-   "tests": [],
+   "fix_commit": [
+    "e53363f (gộp cloud/v31-dp11, 21/10)"
+   ],
+   "tests": [
+    "tests/test_v31_dp11_position_sentence.py::test_the_farther_one_on_the_same_side_is_behind"
+   ],
    "real_run_evidence": [],
    "plan_workstream": "WS3",
    "plan_task": "M3.3",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "M3.3 sinh \"behind <người gần>\" từ map 3D (cờ TẮT, chỉ đề xuất); chưa chạy trên map thật cảnh 6"
   },
   {
    "id": "P31-G44",
@@ -1463,7 +1489,7 @@
    "plan_task": "M3.3",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "M3.3 câu vị trí đề xuất có (DP11 e53363f, cờ world_map_sentences TẮT) nhưng ca này chưa có test riêng"
   },
   {
    "id": "P31-G45",
@@ -1496,7 +1522,7 @@
    "plan_task": "M3.3",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "M3.3 câu vị trí đề xuất có (DP11 e53363f, cờ world_map_sentences TẮT) nhưng ca này chưa có test riêng"
   },
   {
    "id": "P31-G46",
@@ -1517,19 +1543,26 @@
    "root_cause_id": null,
    "evidence": "",
    "severity": "cao",
-   "status": "OPEN",
+   "status": "IN_PROGRESS",
    "first_seen": "2026-10-19",
    "last_seen": "2026-10-19",
    "affected_flows": [],
    "owner": "",
-   "fix_commit": [],
-   "tests": [],
+   "fix_commit": [
+    "447fde9b (gộp DP8 world_map M3.1)",
+    "e53363f (gộp cloud/v31-dp11, 21/10)"
+   ],
+   "tests": [
+    "tests/test_v31_dp8_world_map.py::test_scene4_3d_entities_follow_the_beats",
+    "tests/test_v31_dp11_position_sentence.py::test_scene4_3d_sides_follow_the_camera",
+    "tests/test_v31_dp11_position_sentence.py::test_review_flags_a_text_that_says_the_opposite_side"
+   ],
    "real_run_evidence": [],
    "plan_workstream": "WS3",
    "plan_task": "M3.1",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "Gốc chung G41–G50: map theo cảnh (M3.1) + câu vị trí đề xuất / REVIEW (M3.3), cờ world_map + world_map_sentences TẮT; chưa thay câu tả tay trong prompt, chưa map thật #31"
   },
   {
    "id": "P31-G47",
@@ -1562,7 +1595,7 @@
    "plan_task": "M3.1",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "M3.3 câu vị trí đề xuất có (DP11 e53363f, cờ world_map_sentences TẮT) nhưng ca này chưa có test riêng"
   },
   {
    "id": "P31-G48",
@@ -1628,7 +1661,7 @@
    "plan_task": "M3.2",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "M3.2 (6d88be6) mới làm người nộm height_m + pitch trong whitebox; kiểm bậc dưới chân (grid floor_z) CHƯA làm"
   },
   {
    "id": "P31-G50",
@@ -1661,7 +1694,7 @@
    "plan_task": "M3.3",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "M3.3 câu vị trí đề xuất có (DP11 e53363f, cờ world_map_sentences TẮT) nhưng ca này chưa có test riêng"
   },
   {
    "id": "P31-G51",
@@ -1915,13 +1948,18 @@
    "root_cause_id": "P31-G30",
    "evidence": "N1 (G30)",
    "severity": "cao",
-   "status": "OPEN",
+   "status": "FIXED_UNVERIFIED",
    "first_seen": "2026-10-20",
    "last_seen": "2026-10-20",
    "affected_flows": [],
    "owner": "",
-   "fix_commit": [],
-   "tests": [],
+   "fix_commit": [
+    "88812a4 (gộp codex/d20-viec5-kho-chu-the CX20-5/5b, 21/10; tích hợp ffa85d2)"
+   ],
+   "tests": [
+    "tests/test_subject_capacity_d20.py::test_full_100_capacity_no_upload",
+    "tests/test_subject_capacity_d20.py::test_runner_capacity_hold_no_marked_no_kling"
+   ],
    "real_run_evidence": [],
    "plan_workstream": "WS1",
    "plan_task": "M1.5",
@@ -1929,7 +1967,7 @@
     "P31-G30"
    ],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "Cùng gốc P31-G30 (guard Kho chủ thể, cờ TẮT); chưa chạy thật trên #33"
   },
   {
    "id": "P33-A1",
@@ -2098,19 +2136,25 @@
    "root_cause_id": null,
    "evidence": "tạm: Hủy job tự gen, đổi size shot sang WS",
    "severity": "vua",
-   "status": "OPEN",
+   "status": "FIXED_UNVERIFIED",
    "first_seen": "2026-10-20",
    "last_seen": "2026-10-20",
    "affected_flows": [],
    "owner": "",
-   "fix_commit": [],
-   "tests": [],
+   "fix_commit": [
+    "b503691 (gộp cloud/v31-dp1, 20/10)",
+    "a50b298 (gộp cloud/v31-fix-thap-4, 21/10)"
+   ],
+   "tests": [
+    "tests/test_v31_dp1_qc_false_alarms.py::test_behind_the_group_skips_the_size_check_and_says_why",
+    "tests/test_v31_fix_thap_4.py"
+   ],
    "real_run_evidence": [],
    "plan_workstream": "WS5",
    "plan_task": "M4.5",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "QC lớp 0 bỏ đo cỡ cảnh khi bố cục sau lưng nhóm (có lý do), regex hẹp lại ở C-FIX-THAP-4; cờ TẮT, chưa chạy thật"
   },
   {
    "id": "P33-A6",
@@ -2263,19 +2307,23 @@
    "root_cause_id": null,
    "evidence": "tạm: Dùng `eye` (máy ngang mắt người lớn ≈ chúc 5–10° xuống con rối chibi)",
    "severity": "vua",
-   "status": "OPEN",
+   "status": "IN_PROGRESS",
    "first_seen": "2026-10-20",
    "last_seen": "2026-10-20",
    "affected_flows": [],
    "owner": "",
-   "fix_commit": [],
-   "tests": [],
+   "fix_commit": [
+    "6d88be6 (gộp cloud/v31-m32, 21/10)"
+   ],
+   "tests": [
+    "tests/test_v31_m32_height_dummy.py::test_flag_on_slightly_high_looks_down"
+   ],
    "real_run_evidence": [],
    "plan_workstream": "WS3",
    "plan_task": "M3.2",
    "dependencies": [],
    "reopen_history": [],
-   "status_reason": ""
+   "status_reason": "Mức slightly_high (cúi 10°) có trong whitebox (cờ TẮT); plate_camera.HIGH_TILT_DEG chưa đổi"
   },
   {
    "id": "P33-A11",

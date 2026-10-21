@@ -1456,3 +1456,5 @@ fixture p24-s265, p27-s272/284/285/287/291, replay-24-27.json). Kết quả: 0 C
 (c) Video 915, 839, 790 (#27): "dependency thiếu hoặc sandbox chặn" — chẩn đoán loại nào, in rõ đường dẫn bị chặn trong diagnostic.
 (d) Video 660/846/909 BUILT nhưng lệch byte lúc capture (dữ liệu đổi sau ngày gửi) = INSUFFICIENT_INPUT đúng thiết kế — giữ; ghi gợi ý chọn shot trong README.
 Nghiệm thu: phiên chính chụp lại ≥ 3 ảnh + ≥ 3 video COMPAT mỗi dự án, 0 CODE_MISMATCH. Báo cáo `docs/RA_CX21_GOLDEN_CODEX_2026-10-2x.md`, ghi lệnh chụp lại.
+(e) bổ sung CX21-GOLDEN 21/10: trên cloud (Python 3.13) 23 test golden replay ĐỎ vì worker ép 3.14 → các làn luôn thấy đỏ giả. Test cần worker thật:
+    `pytest.mark.skipif` khi không có Python 3.14 native (lý do rõ); công cụ chụp thật vẫn fail-closed. Test tổng hợp không cần worker vẫn chạy mọi nơi.
