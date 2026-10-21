@@ -19,7 +19,7 @@ Người dùng có một tài khoản **Cloud session credits $100** (hết hạ
 - Phiên cloud **không tự đọc được số credit** → người dùng xem ở trang credit và báo trong chat ("đã dùng $X"); phiên cloud hỏi người dùng số credit **trước khi bắt đầu mỗi việc** và **sau mỗi ~30 lượt gọi công cụ**.
 - Ước chi mỗi việc (Opus, ước theo token, có thể lệch): việc vừa ≈ $8–15, việc lớn ≈ $15–25. Chưa chắc đủ → làm phần nhỏ trước.
 - **Commit + `git push` sau MỖI commit** (không gom cuối phiên), `HANDOFF.md` ở gốc nhánh luôn ghi: đã xong / đang dở / bước kế. Hết credit giữa chừng vẫn còn việc trên GitHub để làm tiếp.
-- Một phiên cloud = một việc. Không mở phiên con (Agent) trong cloud — tốn gấp đôi.
+- Một phiên cloud = một việc. Không mở phiên con (Agent) trong cloud — tốn gấp đôi. **NGOẠI LỆ 21/10 (người dùng): cloud-C và cloud-E ĐƯỢC mở nhánh phụ song song — xem mục "NHÁNH PHỤ SONG SONG (cloud-C, cloud-E)".**
 
 ## Luật chung (dán kèm mọi prompt)
 ```
@@ -563,3 +563,16 @@ chỗ gọi tới; kiểm từng mục 1–6 của đề đã sửa đúng gốc
 giữ lúc gọi mạng, merge_union không mất mục khi hai bên khác định dạng (thử bằng 2 file tạm). Không sửa code. Báo cáo docs/RA_CLOUD_RA_FIX21_2026-10-2x.md:
 GỘP ĐƯỢC / CẦN SỬA, mỗi lỗi mức + file:dòng + cách sửa. Push nhánh cloud/v31-ra-fix21 (chỉ báo cáo). XONG hộp thư.
 ```
+
+## NHÁNH PHỤ SONG SONG (cloud-C, cloud-E) — người dùng 21/10 12:30 "đẩy nhanh tiến độ"
+Làn cloud-C / cloud-E được chạy **tối đa 2 nhánh phụ cùng lúc** (Agent tool, `isolation: worktree`, chạy nền) ngoài việc phiên làn đang tự làm → tối đa 3 việc song song/làn.
+1. Mỗi nhánh phụ = MỘT mã việc đã nhận trên hộp thư (`hop_thu.py ke --lane <làn> --nhan --push` lần lượt cho từng việc), nhánh riêng `cloud/v31-<mã>`, báo cáo riêng.
+   Phiên làn (không phải nhánh phụ) đăng `xong <mã>` sau khi đọc báo cáo + `git diff --stat` của nhánh phụ.
+2. Chỉ chạy song song các việc KHÔNG trùng file mã (ngoài `core/features.py`, `devsys/areas.json`, `tests/golden/package_inputs.json` — phiên chính hợp khi gộp).
+   Cặp đã xét 21/10: cloud-C `C-M21` ∥ `C-M25` (M2.5 KHÔNG sửa `core/shot_intent.py`; chỉ bọc đường ghi ở shadow) ∥ `DP12`; cloud-E `DP9` ∥ `C-M29`, sau đó `C-M24`,
+   `DP10` (DP10 và DP9 cùng đụng `core/runner.py` → KHÔNG chạy song song hai việc này). Nghi trùng file → chạy nối tiếp.
+3. Đề bài cho nhánh phụ phải tự đủ: mã việc + đường dẫn đề (spec) + "Luật chung" + luật cờ mới TẮT/golden fixture + test ĐỎ→XANH chỉ chạy file test liên quan
+   (gom MỘT lệnh pytest, ≤ 3 lần) + commit nhỏ + `HANDOFF.md` + push nhánh + báo cáo ≤ 30 dòng; KHÔNG sửa TODO.md, KHÔNG push main, KHÔNG đổi `version` areas.json.
+   Tự kiểm trước khi bàn giao: test bị nới để che lỗi; đường dẫn tương đối `data/…`; chặn mới làm vỡ luồng tự động/hàng loạt; bật mặc định đổi hành vi; lời gọi tốn tiền.
+4. Hạn mức: làn báo hạn mức sau mỗi việc xong. Tuần ≥ 85 % (hoặc credit ≥ $80) → không mở nhánh phụ mới, chỉ hoàn tất nhánh đang chạy.
+5. Phiên chính vẫn gộp từng nhánh riêng (rà theo mức) — M2 chỉ gộp sau khi golden #24/#27 đạt (CX21-GOLDEN).
