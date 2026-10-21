@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:08:47.187871+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M25B",
+  "to": "cloud-C",
+  "title": "Sửa tay motion prompt → USER_LOCKED (cờ field_guard, shadow)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M25B",
+  "priority": 10
+}
