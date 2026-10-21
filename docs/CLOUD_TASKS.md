@@ -665,3 +665,15 @@ Test ĐỎ→XANH bằng thư mục data tạm + CSDL :memory: tổng hợp (2 c
 (khu step2), cờ vào core/features.py + tests/golden/package_inputs.json (false). Báo cáo docs/RA_CLOUD_STAGE_VIEW_2026-10-2x.md kèm danh sách đường dẫn dữ liệu
 đã đọc để phiên chính kiểm trên #31 thật. Nhánh cloud/v31-stage-view. Chạy được dạng nhánh phụ (không trùng file với DP10 / C-M24 / C-PORT4).
 ```
+
+#### C-STAGE-PLAN (cloud-E — chỉ tài liệu, sau hoặc song song C-STAGE-VIEW)
+```
+Viết docs/KE_HOACH_BAN_DAO_DIEN_3D_DASHBOARD_2026-10-2x.md — M4.8(b) phần THAO TÁC của bàn đạo diễn 3D trên Dashboard (người dùng 21/10). Đọc:
+docs/KE_HOACH_NOI_SAN_KHAU_3D_TU_DONG_2026-10-15.md (K1–K5, Q1–Q7, Q3 "xem tấm ghép K5 trên Dashboard"), docs/KE_HOACH_CHIA_VAI_SAN_KHAU_2026-10-16.md +
+docs/DANH_GIA_CHIA_VAI_SAN_KHAU_2026-10-16.md, docs/PHUONG_PHAP_SAN_KHAU_3D.md, docs/V3_1_M3_THIET_KE_WORLD_MAP_2026-10-20.md, skill .claude/skills/vong-lam-viec-theo-plan
+mục 4b (lệnh stage_auto --crew/--prompt-out/--answer/--crew-approve/--crew-tra-lai/--crew-reset, stage_previs, location_pack render), core/stage_auto.py,
+core/stage_crew.py, core/stage_director.py. Nội dung: luồng người dùng trên Dashboard (bước nào, màn nào), danh sách NÚT ↔ lệnh/hàm hiện có, cái nào 0 USD
+(Blender cục bộ) / tốn tiền (Claude API — phải báo giá + duyệt), khóa Blender + chạy nền + tiến độ, ghi dữ liệu qua write guard (M2.5) + sổ quyết định khi
+duyệt, các PHƯƠNG ÁN thiết kế (2–3 phương án, ưu/nhược, khuyến nghị), test plan, cờ, rollback, câu hỏi cần người dùng chốt. Không code. Nhánh
+cloud/v31-stage-plan. XONG hộp thư — phiên chính đưa người dùng duyệt.
+```

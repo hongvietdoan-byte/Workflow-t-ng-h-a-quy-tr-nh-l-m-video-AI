@@ -160,9 +160,9 @@ kiểm giá trị; không đổi `STATUSES`.
 | M1 Nền tin cậy (0 USD, provider giả) | 9 | 8 | 1 | 0 | 0 | 92,1 % |
 | M2 Hợp đồng sản xuất có cấu trúc | 9 | 0 | 0 | 0 | 0 | 0 % |
 | M3 Thế giới và liên tục | 5 | 5 | 0 | 0 | 0 | 100 % |
-| M4 QC có bằng chứng và Dashboard | 7 | 6 | 1 | 0 | 0 | 88,5 % |
+| M4 QC có bằng chứng và Dashboard | 8 | 6 | 2 | 0 | 0 | 81,2 % |
 | M5 Sửa chọn lọc và pilot | 5 | 2 | 1 | 2 | 0 | 54,5 % |
-| **Tổng** | **47** | **33** | **3** | **2** | **0** | **69,9 %** |
+| **Tổng** | **48** | **33** | **4** | **2** | **0** | **69,3 %** |
 
 Đợt hiện tại: **M1** · việc kế: **M2.1** BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN
 <!-- /tien-do -->
@@ -220,6 +220,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M4.5 · Sửa báo nhầm A5 (qua vai), A6 (thiếu ref_video_path) + regression · nặng:1 · ✅ · DP1 cloud-C gộp 20/10, cờ qc_false_alarm_fix TẮT (bật = xin người dùng sau C-FIX-THAP-1)
 - [ ] M4.6 · Benchmark độc lập theo mã lỗi (≥ 20 lỗi + 20 đạt mỗi nhóm luật) · nặng:2 · ✅ · gộp 21/10 (14a65fd4), cờ TẮT, rà nhẹ (báo cáo cloud/codex + test xanh)
 - [ ] M4.7 · Dashboard: BYĐ, thẻ gói sẽ gửi, sổ lỗi, overrides + siết 3 cổng (Q6) · nặng:3 · 🔄 · phần XEM (C-M47A cloud-C) gộp 21/10, cờ TẮT; overrides = C3-4 chờ
+- [ ] M4.8 · Bàn đạo diễn 3D trên Dashboard (thêm 21/10 — người dùng hỏi vì sao V3.1 thiếu): (a) màn XEM chỉ đọc cờ stage_view_ui (C-STAGE-VIEW cloud-E); (b) phương án + nút thao tác (chia vai, duyệt/trả lại, previs, render lại nền, chọn phương án máy) — kế hoạch riêng chờ duyệt Cấp 2 · nặng:3 · 🔄 · K5 'Claude/người dùng xem tấm ghép trên Dashboard' đã duyệt 15/10 (stage-auto-plan Q3) nhưng chưa từng làm
 
 ### M5 — Sửa chọn lọc và pilot
 - [ ] M5.1 · Repair router theo mã lỗi, trần ảnh ≤ 3 / video ≤ 2, dừng khi đổi ý đồ · nặng:3 · ✅ · DP5 cloud-C gộp 20/10, cờ repair_router TẮT, chỉ đề xuất (tự gửi = C3-10 để sau)
