@@ -16,3 +16,11 @@
 - Đã có actual VideoRunner prepare/package (single/multi reference-only, model/route/group/mark giả) + v1 ON/OFF prompt/ref equality; cả 3 ca xanh.
 - Fixture đặt PIPELINE_DATA tạm, video PAD_DIR tạm và mock mark. Ba ảnh tổng hợp untracked data/ref_padded ghi trong RA; KHÔNG xóa/commit.
 - Dừng ghi sau checkpoint theo parent/quota; chưa hoàn thành nhiệm vụ. Rà kỹ fresh rồi xử lý OPEN ở RA, đặc biệt BYĐ cloud-C + reader/writer coverage/CAS audit. Không push/main/live/test cả bộ.
+
+## Rà hẹp đường ghi — CHẶN GỘP (21/10, cuối lượt)
+Chỉ đọc 5 tool calls, chưa test tái hiện; không coi là RÀ KỸ toàn nhánh. Sửa ĐỎ→XANH trước các việc khác sau reset:
+- P1 core/assets.py:1421,1436,1461: hồ sơ đã schema v2 nhưng tắt kho_forms_v2 rồi lưu rơi vào writer v1, có thể mất forms/face/hair/outfit/_p/revision. Chọn writer theo schema đã lưu; OFF không được downgrade ngầm. Đối chiếu hợp đồng OFF với dữ liệu v1 và bảo vệ v2 đã tồn tại.
+- P2 core/kho_profile.py:264–269,315–319: save_outfit_to_kho chép cả outfit rồi save khóa tất cả sets human/USER_LOCKED, kể cả set AI chưa duyệt. Merge theo set id, giữ provenance set không sửa, chỉ khóa set vừa lưu.
+- P2 core/kho_profile.py:249–257: AI gửi lại giá trị human khóa giống hệt có thể vượt bảo vệ rồi thay provenance thành AI/REVIEW_REQUIRED. No-op phải giữ nguyên giá trị + provenance; khác mới proposal.
+Reviewer tiếp tục: /root/cx21_m23_write_review (đã đọc đúng vùng); ưu tiên gom test/sửa cả ba trong một lượt, rồi root đọc fixdiff. Còn full review readers/lineage/video/rights chưa làm. Không gộp, không sử dụng với dữ liệu thật.
+Quota cuối: 5h ĐÃ DÙNG89%, còn11%; tuần57%, còn43%. Reset tự nhiên 21/10 13:47:05 Asia/Saigon. Không mở lượt sửa có nguy cơ vượt95%; giữ automation30phút.
