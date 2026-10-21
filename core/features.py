@@ -83,6 +83,10 @@ FEATURES: Dict[str, Dict] = {
                                      "không đổi prompt gửi đi (cần world_map, 0 USD)",
         "verified": False,
         "why": "V3.1 DP11 (G41–G50, gốc P31-G46): thử offline trên #31 trước; thay câu tả tay = việc sau khi người duyệt map"},
+    "sent_package_relpath": {"label": "Sổ gói gửi gán nhãn ảnh theo ĐƯỜNG DẪN (+ id Kho), không theo tên tệp — hai ảnh Kho cùng tên "
+                                      "(2.png) không còn chung nhãn; tên trùng không khớp đường dẫn → không nhãn + cảnh báo (0 USD, chỉ sổ)",
+        "verified": False,
+        "why": "V3.1 M2.6 (G5, C-M26): prompt gửi model vốn đúng, chỉ SỔ sai (trang Gói sẽ gửi, video_pregen, golden); TẮT = gói byte cũ"},
     "world_map": {"label": "World map theo cảnh THỬ NGHIỆM OFFLINE (M3.1): dựng + lưu data/projects/<pid>/world/scene_<cảnh>.json (3D / 2D / "
                            "tương đối / UNKNOWN, version, provenance, invalidation) — không ai trong luồng gen đọc, không chặn gen (0 USD)",
         "verified": False,

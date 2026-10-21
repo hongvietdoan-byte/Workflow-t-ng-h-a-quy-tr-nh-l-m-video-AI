@@ -3675,8 +3675,8 @@ class ImageRunner(_Runner):
             refs = prop_lock.prioritize_gun_refs(self.p.conn, job["project_id"], lock_data, refs,
                                                 lambda ref: bool(sendable_references([ref], model)[0]))
         self._sent = getattr(self, "_sent", {})
-        self._sent[job["id"]] = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"]),
-                                  **({"plate_key": r["plate_key"]} if r.get("plate_key") else {})} for r in refs]   # KLD-6
+        from . import sent_package as _sp                # C-M26: + path / asset_id khi cờ sent_package_relpath (G5 tên trùng)
+        self._sent[job["id"]] = [_sp.meta_entry(r, **({"plate_key": r["plate_key"]} if r.get("plate_key") else {})) for r in refs]   # KLD-6
         from . import scene_storyboard
         if scene_storyboard.enabled() and getattr(self.provider, "supports_storyboard", False):
             warning = scene_storyboard.anchor_warning(self.p.conn, self.data_dir, job["project_id"], job["scene_id"])
@@ -3769,8 +3769,8 @@ class ImageRunner(_Runner):
                     self._storyboard = getattr(self, "_storyboard", {})
                     self._storyboard[job["id"]] = fields["storyboard"]
                     self._sent = getattr(self, "_sent", {})
-                    self._sent[job["id"]] = [{"label": r["label"], "role": r.get("role", ""), "file": os.path.basename(r["path"]),
-                                              **({"plate_key": r["plate_key"]} if r.get("plate_key") else {})}
+                    from . import sent_package as _sp
+                    self._sent[job["id"]] = [_sp.meta_entry(r, **({"plate_key": r["plate_key"]} if r.get("plate_key") else {}))
                                              for r in refs] + [{"label": "storyboard", "role": "storyboard",
                                                                 "file": fields["storyboard"]["storyboard_id"]}]
         if hasattr(self, "_diag"):                     # luật 1 (#24 shot 9, 11/10): a pictured person of the frame left out is said
