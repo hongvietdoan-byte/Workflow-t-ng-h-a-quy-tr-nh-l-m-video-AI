@@ -171,3 +171,25 @@ def test_header_reset_asks_with_a_preview_and_backs_up():
     assert "reset_preview(" in block and "reset_choices(" in block and "restore_settings(" in block
     assert "feat_reset_yes" in block                                       # bấm lần 2 mới làm (xác nhận)
     assert "save_settings(flags={k: None" not in block                     # không còn xóa một bấm, không sao lưu
+
+
+def test_runner_remembers_and_before_run_says_drift(machine, tmp_path):
+    from core import before_run
+    from core.db import connect
+    from core.pipeline import Pipeline
+    from core.runner import ImageRunner
+    settings, base, write = machine
+    data = tmp_path / "projects"
+    p = Pipeline(connect(str(tmp_path / "m.sqlite")))
+    a, b = p.create_project("a"), p.create_project("b")
+    write({PLAIN[0]: "on"})
+    r = ImageRunner(p, None, str(data))
+    r._remember_flags(a)
+    snap = data / str(a) / "flag_config.json"
+    stamp = snap.stat().st_mtime_ns
+    r._remember_flags(a)
+    assert snap.stat().st_mtime_ns == stamp                                # hash không đổi → không ghi lại
+    write({})
+    res = before_run.collect(p.conn, str(data), b)
+    texts = [i["text"] for g in res["groups"] for i in g["items"]]
+    assert any("Drift cấu hình cờ" in t and PLAIN[0] in t for t in texts)
