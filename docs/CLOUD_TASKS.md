@@ -825,4 +825,15 @@ docs/so_do/SO_DO_TRUONG_CAU_TRUC_2026-10.svg (luồng trường JSON BYĐ → kh
 Test ĐỎ→XANH: ô có bằng chứng + cờ bật → xanh; tắt cờ → vàng; xóa hàm bằng chứng → đỏ; đổi việc kế hoạch ⬜→✅ → lịch sử ghi 1 dòng thay đổi; mốc 17/10 dựng lại
 đủ số ô của 3 SVG cũ. Khai devsys/areas.json. Nhánh cloud/v31-devsys-maps. Báo cáo docs/RA_CLOUD_DEVSYS_MAPS_2026-10-2x.md kèm ảnh SVG xuất. XONG hộp thư —
 phiên chính kiểm trên 8502 máy chính (khởi động lại 8502) rồi gửi ảnh người dùng.
+BỔ SUNG người dùng 21/10 (sơ đồ "Làm phim qua Dashboard" theo DỰ ÁN THẬT):
+5. Ghi từng bước bấm: dashboard ghi sự kiện thao tác nhẹ (cờ mới ui_step_log, TẮT mặc định; một hàm chung gọi ở các nút chính của step1–step5: dự án, màn,
+   nút, thời điểm, kết quả ok / cảnh báo / lỗi + mã lỗi) vào bảng/tệp sự kiện chỉ-thêm (ưu tiên dùng diag_events sẵn có với kind='ui_step'; không đổi
+   hành vi nút, lỗi ghi log không được làm hỏng nút). Lệnh CLI làm thay Dashboard (tools/stage_auto.py, stage_previs.py, replay_payload.py, sửa CSDL bằng
+   script) ghi sự kiện kind='cli_step' (công cụ, dự án, việc).
+6. Trên sơ đồ, chọn một DỰ ÁN (#31, #33…): ô nút tô theo sự kiện thật của dự án đó — có cảnh báo/hold → VÀNG kèm số lần + câu cảnh báo mới nhất (tooltip);
+   lỗi / bỏ qua cổng / gen lại vượt trần → ĐỎ kèm mã lỗi (devsys/errors.json); chạy ổn → xanh. Ô không ai bấm → xám. Mỗi sự kiện cli_step cho việc thuộc
+   một khâu Dashboard → VẼ THÊM nút ảo nét đứt "THIẾU NÚT: <việc>" gắn vào đúng cột màn + đường nối từ ô ngoài-Dashboard, đếm số lần phải làm ngoài.
+   Khung cảnh báo trên đầu trang: các ô đỏ/vàng của dự án đang chọn.
+Test thêm: sự kiện hold ở nút Gen ảnh → ô vàng; lỗi → đỏ; cli_step stage_auto → xuất hiện nút ảo nét đứt ở cột STORYBOARD; cờ ui_step_log TẮT → Dashboard không
+ghi gì (byte giống). Đọc CSDL thật chỉ bằng mode=ro.
 ```
