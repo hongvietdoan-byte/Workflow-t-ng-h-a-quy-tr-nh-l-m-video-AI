@@ -530,3 +530,17 @@ Mỗi làn báo hạn mức thật đầu mỗi lượt (`tin … "HẠN MỨC �
 | 85–90 % | chỉ việc nhỏ ≤ 30 lượt gọi; không nhận việc mới lớn |
 | ≥ 90 % (hoặc 5 giờ ≥ 90 %) | hoàn tất việc dở → xong → het-viec; phiên chính chuyển việc CHỜ của làn đó sang làn khác (`giao` lại cùng mã) |
 Ghi nhận 20/10: cloud-B DỪNG (hết tuần); cloud-C còn nhiều tuần (làn chính); cloud-D chưa báo; codex 5 giờ 91 % lúc 23:16, tuần 29 %.
+
+## Làn cloud-E (mở 21/10 11:40 — tài khoản cloud mới)
+Prompt dán vào phiên cloud-E (kèm khối "Luật chung" ở đầu file):
+```
+Bạn là làn cloud-E của dự án AI Video Pipeline (repo GitHub hongvietdoan-byte/Workflow-t-ng-h-a-quy-tr-nh-l-m-video-AI, branch main). Tiếng Việt.
+1. git pull; đọc CLAUDE.md, hop_thu/README.md, docs/CLOUD_TASKS.md mục "Luật chung" + "CHIA VIỆC THEO HẠN MỨC GÓI", docs/CHUAN_XAY_DUNG.md.
+2. Báo hạn mức: PYTHONUTF8=1 python tools/hop_thu.py tin --lane cloud-E --to phien-chinh --text "HẠN MỨC cloud-E 5h X% · tuần Y%" --push
+3. Lấy việc: python tools/hop_thu.py ke --lane cloud-E --nhan --push (việc CHỜ của cloud-E trước, rồi pool). Đề bài ở trường spec.
+4. Mỗi việc: nhánh cloud/v31-<mã>, test ĐỎ→XANH, cờ mới TẮT (cờ TẮT = byte giống; thêm cờ verified False thì thêm cờ đó = false vào
+   tests/golden/package_inputs.json cả image + video), khai file mới vào devsys/areas.json (không tăng version), báo cáo docs/RA_CLOUD_<MÃ>_2026-10-2x.md,
+   push nhánh, rồi hop_thu.py xong <mã> --lane cloud-E --branch <nhánh> --commit <sha> --push. KHÔNG push main ngoài commit hộp thư; không sửa TODO.md.
+5. Hết việc → hop_thu.py het-viec --lane cloud-E --push. Tuần ≥ 90 % → hoàn tất việc dở rồi het-viec + báo hạn mức.
+```
+Việc giao đầu: C-M29 (M2.9 lời dẫn ngoài khớp môi), C-M24 (M2.4 insert_scene_after) — chuyển từ cloud-C; đề `#### C-M26 / C-M29 / C-M24`.
