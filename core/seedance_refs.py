@@ -854,6 +854,8 @@ def set_route(conn, scene_ids: List[int], value: Optional[str]) -> None:
             data["video_route"] = value
         conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), sid))
     conn.commit()
+    from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+    _wg.flush(conn)
 
 
 def cut_points(path: str, n: int, ffmpeg: Optional[str] = None) -> Optional[List[float]]:

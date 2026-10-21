@@ -158,6 +158,8 @@ def compose_scene(p: Pipeline, project_id: int, scene: Dict, shot: Dict, backgro
     data["layout_people"] = [{"name": pp["name"], "color_index": pp["color_index"], "cutout": pp["name"] in cutouts} for pp in people]
     p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), scene["_id"]))
     p.conn.commit()
+    from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+    _wg.flush(p.conn)
     return [pp["name"] for pp in people if pp["moved"]]
 
 

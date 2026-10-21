@@ -159,6 +159,8 @@ def revert(p, scene_id: int, kind: str) -> str:
     _set_prompt(p.conn, scene_id, kind, old, actor=write_guard.actor("human", p.actor or "dashboard"))
     _add_version(p.conn, pid, scene_id, kind, old, "revert", note=f"dùng lại prompt v{vers[-2]['version']}", who=p.actor)
     p.conn.commit()
+    from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+    _wg.flush(p.conn)
     from . import prompt_formula                          # F1-A: the prompt back in use gets its own check (no growth: it is older)
     prompt_formula.on_prompt_saved(p.conn, scene_id, kind, None, old)
     return old
@@ -411,8 +413,12 @@ def save_rewrite(p, job, res: RewriteResult, note: Optional[str] = None) -> int:
                                                               "không rà (cờ change_review_motion tắt)", last_ev, job["scene_id"]))
         else:
             p.conn.commit()
+            from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+            _wg.flush(p.conn)
             _review_now(p, job)
     p.conn.commit()
+    from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+    _wg.flush(p.conn)
     from . import prompt_formula                          # F1-A (F0 mục 4b): the Director's rewrite is checked + compared to the old one
     prompt_formula.on_prompt_saved(p.conn, job["scene_id"], kind, res.old_prompt, res.new_prompt)
     try:                                                  # rà 12/10: the new prompt is saved — a failing note never turns it into a fallback

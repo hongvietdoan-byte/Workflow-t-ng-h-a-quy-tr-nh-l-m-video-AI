@@ -73,6 +73,8 @@ def fill_numbers(conn, rows: List[Dict]) -> None:
             cur["byd"]["shot"] = cur["shot_no"]
             conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(cur, ensure_ascii=False), row["id"]))
     conn.commit()
+    from core import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+    _wg.flush(conn)
 
 
 def estimate_usd(conn, n_shots: int) -> Dict:
@@ -125,6 +127,8 @@ def fill(conn, pid: int, rows: List[Dict], client) -> List[Dict]:
         out.append({"id": row["id"], "idx": row["idx"], "canh": sc, "shot": k, "muc": kiem.get("muc") or "vang",
                     "ly_do": kiem.get("ly_do") or ("" if kiem else "settle không ghi byd_kiem")})
     conn.commit()
+    from core import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+    _wg.flush(conn)
     return out
 
 

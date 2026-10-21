@@ -14,7 +14,7 @@ Người (`actor kind human`) không bao giờ bị báo (G3). Trường dẫn x
 Đã nối (shadow) các đường ghi: L1 llm_io.store_motion_prompts (khi nơi gọi AI truyền actor), L2 audio_first.fit_shots, L3 seedance_refs.set_route,
 L4 prompt_rewrite._set_prompt, L5 tools/byd_fill, L6 prompt_formula._write + previz.compose_scene."""
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 FLAG = "field_guard"
 AUTO, USER_LOCKED, REVIEW_REQUIRED = "AUTO", "USER_LOCKED", "REVIEW_REQUIRED"
@@ -134,6 +134,36 @@ def _message(ev: Dict, who: Dict) -> str:
     return f"[shadow field_guard] {by}: {ev['why']} — enforce sẽ báo StaleWrite; hiện vẫn ghi như cũ"
 
 
+# rà M25-1: diag.record tự commit — gọi giữa giao dịch của nơi gọi là commit hộ NỬA LÔ (shadow đổi dữ liệu bền). Đang trong giao dịch →
+# giữ dòng diag ở đây; ghi khi nơi gọi xong (flush sau commit / rollback của nó, hoặc lần observe / lock sau ngoài giao dịch).
+_PENDING: Dict[int, Tuple[Any, List[tuple]]] = {}
+
+
+def _say(conn, message: str, code: str, pid, scene_id) -> None:
+    if conn.in_transaction:
+        _PENDING.setdefault(id(conn), (conn, []))[1].append((message, code, pid, scene_id))
+        return
+    from . import diag
+    diag.record(conn, "system", "warn", message, code, pid, scene_id)
+
+
+def flush(conn) -> int:
+    """Ghi các dòng diag shadow đã giữ khi nơi gọi đang trong giao dịch — gọi SAU commit / rollback của nó. Còn trong giao dịch → để
+    sau (không commit hộ). Trả số dòng đã ghi. Không bao giờ ném lỗi."""
+    if conn.in_transaction or id(conn) not in _PENDING:
+        return 0
+    held = _PENDING.pop(id(conn))
+    if held[0] is not conn:                              # id tái dùng sau khi kết nối cũ mất: không phải của kết nối này
+        return 0
+    from . import diag
+    for message, code, pid, scene_id in held[1]:
+        try:
+            diag.record(conn, "system", "warn", message, code, pid, scene_id)
+        except Exception:  # noqa: BLE001 - diag tự giữ dòng không ghi được (_keep_lost)
+            pass
+    return len(held[1])
+
+
 def observe(conn, scene_id: int, changes: Dict[str, Any], who: Dict, read_data: Optional[Dict] = None,
             expected_rev: Optional[int] = None, before: Optional[Dict] = None) -> Optional[List[Dict]]:
     """Shadow: cờ tắt → None (không đọc gì). Bật: so lần ghi sắp làm với trạng thái trường, ghi một dòng diag mỗi điều lẽ ra đã chặn; trả
@@ -145,15 +175,13 @@ def observe(conn, scene_id: int, changes: Dict[str, Any], who: Dict, read_data: 
         pid, current = _load(conn, scene_id)
         data = read_data if isinstance(read_data, dict) else current
         events = assess(data, changes, who, expected_rev, current if isinstance(read_data, dict) else None, before)
-        from . import diag
+        flush(conn)
         for ev in events:
-            diag.record(conn, "system", "warn", _message(ev, who), ev["code"], pid, scene_id)
+            _say(conn, _message(ev, who), ev["code"], pid, scene_id)
         return events
     except Exception as e:  # noqa: BLE001 - shadow never stops the real write
         try:
-            from . import diag
-            diag.record(conn, "system", "warn", f"field_guard (shadow) lỗi ({type(e).__name__}: {e}) — lần ghi vẫn đi như cũ", "field_guard",
-                        pid, scene_id)
+            _say(conn, f"field_guard (shadow) lỗi ({type(e).__name__}: {e}) — lần ghi vẫn đi như cũ", "field_guard", pid, scene_id)
         except Exception:  # noqa: BLE001
             pass
         return None
@@ -173,14 +201,15 @@ def lock(conn, scene_id: int, field: str, who: Dict) -> Optional[Dict]:
         fs[field] = USER_LOCKED
         prov[field] = {"by": f"human:{who.get('who', '?')}", "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")}
         data["_field_state"], data["_field_prov"], data["_rev"] = fs, prov, rev(data) + 1
+        mine = not conn.in_transaction                   # rà M25-1: giao dịch của nơi gọi → nó commit cùng lần sửa tay, không commit hộ
         conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), scene_id))
-        conn.commit()
+        if mine:
+            conn.commit()
+            flush(conn)
         return data
     except Exception as e:  # noqa: BLE001 - a lock that cannot be written is said, the person's edit stands
         try:
-            from . import diag
-            diag.record(conn, "system", "warn", f"field_guard: không ghi được khóa `{field}` ({type(e).__name__}: {e})", "field_guard",
-                        pid, scene_id)
+            _say(conn, f"field_guard: không ghi được khóa `{field}` ({type(e).__name__}: {e})", "field_guard", pid, scene_id)
         except Exception:  # noqa: BLE001
             pass
         return None

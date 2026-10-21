@@ -198,6 +198,9 @@ def test_l6_formula_write_after_a_change_in_between(db):
     p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d), sid))
     with ON:
         prompt_formula._write(p.conn, sid, read, {"ok": True})
+        assert _diags(p, "stale_write") == []          # rà M25-1: giữa giao dịch nơi gọi → chưa ghi (không commit hộ)
+        p.conn.commit()
+        G.flush(p.conn)
     rows = _diags(p, "stale_write")
     assert rows and "size" in rows[0]["message"]
 

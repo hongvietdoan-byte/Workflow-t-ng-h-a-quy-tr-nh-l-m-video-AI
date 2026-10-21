@@ -1179,6 +1179,8 @@ def store_motion_prompts(pipeline: Pipeline, project_id: int, data: Any, actor: 
         from .lineage import stamp_motion
         stamp_motion(conn, row["id"])
     conn.commit()
+    from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+    _wg.flush(conn)
     if hand_edits and (actor or {}).get("kind") == "human":
         from . import write_guard
         for sid in hand_edits:

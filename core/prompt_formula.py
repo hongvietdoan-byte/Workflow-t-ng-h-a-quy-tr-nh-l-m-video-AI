@@ -1164,6 +1164,8 @@ def after_director(conn, project_id: int, before: Optional[Dict] = None) -> None
             fc["cross"] = [i for i in cross if r["idx"] in i.get("shots", [])]
             _write(conn, r["id"], data, fc)
         conn.commit()
+        from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+        _wg.flush(conn)
         warn_only = []
         for r, data, fc in results:
             if any(i["level"] == "red" for i in fc["image"] + fc["motion"] + fc["growth"]):
@@ -1210,6 +1212,8 @@ def on_prompt_saved(conn, scene_id: int, kind: str, old: Optional[str], new: Opt
         fc.update(image_sha=_sha(image), motion_sha=_sha(motion), at=_now())
         _write(conn, scene_id, data, fc)
         conn.commit()
+        from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+        _wg.flush(conn)
         _say(conn, project_id, scene_id, _label(data, row["idx"]) + f" ({'ảnh' if kind == 'image' else 'motion'} vừa lưu)",
              dict(fc, image=fc["image"] if kind == "image" else [], motion=fc["motion"] if kind == "motion" else [],
                   growth=[g for g in fc["growth"] if g.get("kind") == kind], cross=[]))

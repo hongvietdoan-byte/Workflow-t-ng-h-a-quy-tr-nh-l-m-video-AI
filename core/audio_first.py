@@ -31,6 +31,8 @@ def fit_shots(conn, project_id: int, data_dir: str) -> List[Dict]:
             conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), sid))
             changes.append({"scene_id": sid, "idx": row["idx"], "from": have, "to": need})
     conn.commit()
+    from . import write_guard as _wg                    # rà M25-1: diag shadow giữ trong giao dịch → ghi sau commit
+    _wg.flush(conn)
     return changes
 
 
