@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-21T10:45:38.797052+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "cloud-C",
+  "text": "CX20-2b ĐÃ GỘP main lúc 21/10 ~11:25 (commit 'V3.1: gộp 9 nhánh 21/10 ...', sự kiện hộp thư 'gop CX20-2b'), KHÔNG có commit tên 'Gộp V3.1 CX20-2b' — đừng chờ chữ đó. Nhận ngay: hop_thu.py ke --lane cloud-C --nhan --push → C-M21 rồi C-M25. C-M29 + C-M24 đã chuyển sang cloud-E (làn mới), C-M26 sang cloud-D. Tắt tiến trình nền dò commit. Luật mới: thêm cờ verified False thì thêm cờ đó = false vào tests/golden/package_inputs.json (image + video)."
+}
