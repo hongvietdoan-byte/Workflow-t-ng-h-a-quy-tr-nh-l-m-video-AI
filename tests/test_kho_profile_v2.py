@@ -50,3 +50,89 @@ def test_invalid_schema_rejected(adapter,change):
     k,_=adapter
     p=profile();p.update(change)
     with pytest.raises(k.ProfileError):k.validate(p)
+
+@pytest.fixture
+def live_flow(tmp_path):
+    with patch.object(os,'environ',{'ASSET_DIR':str(tmp_path/'assets'), 'FEATURE_SETTINGS_FILE':str(tmp_path/'features.json'),'FEATURE_KHO_FORMS_V2':'1'}):
+        from core import assets
+        from core.db import connect
+        from core.pipeline import Pipeline
+        from PIL import Image
+        import io
+        p=Pipeline(connect())
+        pid=p.create_project('fixture',game='FF')
+        aid=assets.create(p.conn,'FF','character','KELLY')
+        buf=io.BytesIO();Image.new('RGB',(64,96),'purple').save(buf,'PNG')
+        assets.add_image(p.conn,aid,'face.png',buf.getvalue(),role='close_up')
+        assets.add_image(p.conn,aid,'ghost.png',buf.getvalue(),role='character_form')
+        assets.approve_images(p.conn,[i['id'] for i in assets.pending_images(p.conn)])
+        assets.attach(p.conn,pid,aid)
+        ids=[r['id'] for r in p.conn.execute('SELECT id FROM asset_images WHERE asset_id=? ORDER BY id',(aid,))]
+        raw=profile();raw['face']['ref_image_ids']=[ids[0]];raw['forms'][0]['image_ids']=[ids[1]];raw['outfit']['sets'][0]['image_ids']=[ids[0]]
+        p.conn.execute('UPDATE assets SET profile=? WHERE id=?',(json.dumps(raw),aid))
+        p.conn.execute('INSERT INTO characters(project_id,name,ref_asset_id,description) VALUES(?,?,?,?)',(pid,'KELLY',aid,'fixture'))
+        scene={'characters':['KELLY'],'text':'KELLY ghost form runs.','image_prompt':'KELLY ghost form runs.'}
+        p.conn.execute('INSERT INTO scenes(project_id,idx,data) VALUES(?,1,?)',(pid,json.dumps(scene)))
+        sid=p.conn.execute('SELECT id FROM scenes WHERE project_id=?',(pid,)).fetchone()['id']
+        p.conn.commit()
+        yield p,pid,aid,sid,scene
+        p.conn.close()
+
+def test_real_director_image_video_qc_read_same_revision(live_flow):
+    from core import prompts, seedance_refs, kho_profile as k, qc_spec, lineage
+    from core.runner import lock_note
+    p,pid,aid,sid,scene=live_flow
+    reads={};token=k._READS.set(reads)
+    try:
+        director=prompts.standard_block(p,pid)
+        image=lock_note(p.conn,pid,['KELLY'],scene)
+        refs=seedance_refs.identity_pictures(p.conn,pid,[{'id':sid,'data':scene}],8)
+        qc=qc_spec.compile_frame(p.conn,pid,1,scene)
+    finally:k._READS.reset(token)
+    assert 'ghost_form' in director and 'black bob' in director
+    assert 'ghost form' in image and 'black bob' in image
+    assert any(n.endswith(seedance_refs.FORM_TAG) for n,path in refs)
+    assert 'translucent silhouette' in json.dumps(qc)
+    assert reads=={aid:9}
+    old_hash=lineage.current_image_hash(p.conn,pid,sid)
+    raw=profile();raw['forms'][0]['image_ids']=[];raw['outfit']['sets'][0]['image_ids']=[];raw['revision']=10
+    p.conn.execute('UPDATE assets SET profile=? WHERE id=?',(json.dumps(raw),aid))
+    assert lineage.current_image_hash(p.conn,pid,sid)!=old_hash
+
+def test_autopilot_recognizes_profile_and_clone_shares_library(live_flow):
+    from core import autopilot, compare, kho_profile as k, prompts
+    p,pid,aid,sid,scene=live_flow
+    assert autopilot.bible_gaps(p,pid)=={'no_lock':[],'no_picture':[]}
+    clone=compare.clone_project(p,pid,'fixture clone')
+    assert k.for_character(p.conn,clone,'KELLY')['kho_id']==aid
+    assert k.for_character(p.conn,clone,'KELLY')['revision']==9
+    # Director chạy lại đọc cùng Kho; clone không tạo bản sao hồ sơ.
+    assert prompts.standard_block(p,clone)==prompts.standard_block(p,pid)
+    assert p.conn.execute('SELECT count(*) FROM assets').fetchone()[0]==1
+
+def test_profile_digest_does_not_persist_adapter_view(live_flow):
+    from core import profile_digest
+    p,pid,aid,_,_=live_flow
+    before=p.conn.execute('SELECT profile FROM assets WHERE id=?',(aid,)).fetchone()['profile']
+    profile_digest.refresh(p.conn,aid)
+    after=p.conn.execute('SELECT profile FROM assets WHERE id=?',(aid,)).fetchone()['profile']
+    assert after==before
+
+@pytest.mark.parametrize('mode',[None,'per_shot','multishot'])
+def test_image_prepare_and_sent_package_capture_revision(live_flow,tmp_path,mode):
+    from core import runner, kho_profile as k
+    p,pid,aid,sid,scene=live_flow
+    p.conn.execute('UPDATE projects SET shot_mode=? WHERE id=?',(mode,pid))
+    class Provider:
+        name='fixture';supports_aspect=True;supports_model=False
+        def submit(self,prompt,references,**kwargs):
+            raise AssertionError('Không được gọi provider trong test 0 USD')
+    image=runner.ImageRunner(p,Provider(),str(tmp_path))
+    job={'id':99,'project_id':pid,'scene_id':sid,'retry_reason':None}
+    args=image._submit_args(job)
+    assert args and 'ghost form' in args[0]
+    kwargs=image._prepare_kwargs(job)
+    package,warnings=image._build_package(job,args,kwargs,kwargs,'fixture')
+    payload=json.loads(package)
+    assert payload['kho_profiles']==[{'kho_id':aid,'revision':9}]
+    assert not warnings

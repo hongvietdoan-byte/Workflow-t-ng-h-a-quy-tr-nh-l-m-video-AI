@@ -257,6 +257,7 @@ class _Runner:
         return log
 
     # ---- hooks -----------------------------------------------------------
+    @kho_profile.capture_inputs
     def _submit_args(self, job) -> Optional[Tuple]:
         raise NotImplementedError
 
@@ -624,15 +625,19 @@ class _Runner:
         gen (_pregen: the same package BEFORE the send, task_id None). Never raises (sent_package.safe_build)."""
         from . import sent_package
         kind = self.job_type.split("_")[0]
+        kho_extra = {'kho_profiles': kho_profile.package_inputs(self,job)} if kho_profile.enabled() else None
         if kwargs.get("_from_sample"):
             extra = sent_package.draft_of(self.p.conn, kwargs["_from_sample"])
+            if kho_extra:
+                extra.update(kho_extra)
             return sent_package.safe_build(
                 self.provider.submit_final_from_sample, (kwargs["_from_sample"],), {"resolution": kwargs.get("resolution")},
                 kind=kind, provider=self.provider, external_id=task_id, model=extra.pop("draft_model", None),
                 call="submit_final_from_sample", extra=extra)
         return sent_package.safe_build(self.provider.submit, tuple(args), sent_kwargs, kind=kind, provider=self.provider,
-                                       external_id=task_id, meta=getattr(self, "_sent", {}).get(job["id"]))
+                                       external_id=task_id, meta=getattr(self, "_sent", {}).get(job["id"]), extra=kho_extra)
 
+    @kho_profile.capture_inputs
     def _prepare_kwargs(self, job):
         return self._submit_kwargs(job)
 
@@ -1071,6 +1076,7 @@ class VideoRunner(_Runner):
         _PREGEN_SAID.add(key)
         super()._diag(job, "warn", code, message)
 
+    @kho_profile.capture_inputs
     def _prepare_kwargs(self, job):
         from . import video_pregen
         self._pregen_local = video_pregen.enabled()
@@ -2052,6 +2058,7 @@ class VideoRunner(_Runner):
         mp = self._motion(row["id"])
         return round(float((mp["duration_sec"] if mp is not None and mp["duration_sec"] else None) or row["data"].get("duration_s") or 0), 2)
 
+    @kho_profile.capture_inputs
     def _submit_args(self, job):
         conn = self.p.conn
         mp = conn.execute("SELECT motion_prompt, negative_prompt, duration_sec, ref_video_path, ref_video_type"
@@ -3515,6 +3522,7 @@ class ImageRunner(_Runner):
         return {"input_hash": lineage.current_image_hash(self.p.conn, job["project_id"], job["scene_id"]),
                 "sent_refs": json.dumps(sent, ensure_ascii=False) if sent is not None else None}
 
+    @kho_profile.capture_inputs
     def _submit_args(self, job):
         conn = self.p.conn
         scene = conn.execute("SELECT idx, data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()

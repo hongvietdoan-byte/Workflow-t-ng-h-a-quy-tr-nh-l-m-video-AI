@@ -105,7 +105,7 @@ def compile_frame(conn, project_id: int, frame_job: int, data: Dict, profiles: O
     from . import lock_exceptions as lx
     exc = lx.for_shot(data)                 # 11/10 #24 shot 9–10: ngoại lệ BYĐ của shot đè khóa — không hỏi món ảnh sạch cố ý không có
     for name in cast:
-        prof = (profiles or {}).get(name) if profiles is not None else (kho_profile.for_character(conn, project_id, name) if conn else None)
+        prof = (profiles or {}).get(name) if profiles is not None else (kho_profile.for_scene_character(conn, project_id, name, data) if conn else None)
         prof = lx.apply_rules(prof, exc.get(name))
         view = view_of(data, name)
         if not prof:

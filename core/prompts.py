@@ -523,6 +523,9 @@ def standard_block(pipeline: Pipeline, project_id: int, names=None) -> str:
         if prof:
             rows.append(f"- **{name}** ({prof['asset']}): {prof.get('identity') or ''} — giữ: {prof.get('must_keep') or ''}"
                         + (f"; cao ~{prof['height_m']:g} m" if prof.get("height_m") else ""))
+            if kho_profile.enabled() and prof.get('schema_version') == 2:
+                rows += [f"  Dạng Kho {f['ma']}: {f.get('ten_en') or f['ma']} — {f.get('words_en') or ''}" for f in prof.get('forms',[])]
+                rows += [f"  Trang phục Kho {o['id']}: {o.get('label') or o['id']}" for o in prof.get('outfit_sets',[])]
     return ("# Hồ sơ chuẩn nhân vật (Kho — đã duyệt, KHÔNG viết lại ngoại hình; chỉ ghi biến thể của video này như trang phục/bị thương)\n"
             + "\n".join(rows)) if rows else ""
 

@@ -429,7 +429,8 @@ def profile_form(p: Pipeline, a: dict) -> None:
     ok = st.checkbox("✔ Duyệt — mọi dự án dùng hồ sơ này (thắng Lock của từng dự án)", bool(prof.get("approved")), key=f"prof_ok_{a['id']}")
     if st.button("💾 Lưu hồ sơ chuẩn", key=f"prof_save_{a['id']}"):
         assets.set_profile(p.conn, a["id"], {"identity": identity, "must_keep": keep, "may_change": may, "forbidden": forbid,
-                                             "height_m": height, "build": build}, approved=ok)
+                                             "height_m": height, "build": build}, approved=ok,
+                           actor={"kind":"human", "who":"dashboard.admin.profile_form"}, expected_revision=prof.get('revision',0))
         st.rerun()
 
 

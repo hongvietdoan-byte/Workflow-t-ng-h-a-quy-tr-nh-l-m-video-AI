@@ -112,7 +112,7 @@ def main() -> None:
             left.append(c["name"])
             continue
         good = complete(obj.get("identity", ""))
-        assets.set_profile(conn, c["id"], obj, approved=bool(a.approve and good), reason="soạn lại theo thông tin chính thức + đối chiếu ảnh (02/10)", actor={"kind":"ai", "who":"profile_finalize", "model":"claude", "from_text":"profile_finalize"}, expected_revision=prof.get("revision",0))
+        assets.set_profile(conn, c["id"], obj, approved=bool(a.approve and good), reason="soạn lại theo thông tin chính thức + đối chiếu ảnh (02/10)", actor={"kind":"ai", "who":"profile_finalize", "model":getattr(client,"model", "unknown"), "from_text":"profile_finalize"}, expected_revision=prof.get("revision",0))
         ok += good
         if not good:
             left.append(c["name"])

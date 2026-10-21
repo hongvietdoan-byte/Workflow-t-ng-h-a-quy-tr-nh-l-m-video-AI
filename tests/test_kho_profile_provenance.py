@@ -41,3 +41,42 @@ def test_approved_image_beats_ai_text(db):
         read = k.read(db, 1)
         assert 'blonde' not in k.lock_text_en(read)
         assert read['hair']['_p']['state'] == 'REVIEW_REQUIRED'
+
+def test_nested_human_form_cannot_be_replaced_by_ai(db):
+    from core import kho_profile as k
+    form={'ma':'ghost_form','ten_en':'ghost form','image_ids':[]}
+    with patch.object(os,'environ',{'FEATURE_KHO_FORMS_V2':'1'}):
+        first=k.save(db,1,{'forms':[form]}, {'kind':'human','who':'fixture'},0)
+        second=k.save(db,1,{'forms':[]},{'kind':'ai','who':'fixture','model':'fixture','from_text':'fixture'},1)
+        assert second['forms']==first['forms'] and second['approved'] is True
+        assert second['proposals']['forms']==[]
+
+def test_malformed_v2_is_reported_and_not_approved(db):
+    from core import kho_profile as k
+    db.execute('UPDATE assets SET profile=?', ('{"schema_version":2,"approved":true,"outfit":{"sets":["bad"]}}',))
+    with patch.object(os,'environ',{'FEATURE_KHO_FORMS_V2':'1'}):
+        p=k.read(db,1)
+        assert p['approved'] is False and p['gaps'] and p['forms']==[]
+
+def test_capture_records_revision_read_not_later_revision(db):
+    from core import kho_profile as k
+    import json
+    with patch.object(os,'environ',{'FEATURE_KHO_FORMS_V2':'1'}):
+        k.save(db,1,{'hair':{'text_en':'black bob'}},{'kind':'human','who':'fixture'},0)
+        class Builder:
+            @k.capture_inputs
+            def _submit_args(self, job):
+                return k.read(db,1)['hair']['text_en']
+        runner=Builder();job={'id':7}
+        assert runner._submit_args(job)=='black bob'
+        k.save(db,1,{'hair':{'text_en':'short black bob'}},{'kind':'human','who':'fixture'},1)
+        assert k.package_inputs(runner,job)==[{'kho_id':1,'revision':1}]
+
+def test_off_profile_v2_uses_legacy_writer_byte_behavior(db):
+    from core import assets
+    db.execute('UPDATE assets SET profile=?', ('{"schema_version":2,"revision":4,"hair":{}}',))
+    # Cờ OFF giữ đúng writer v1, không tự kích hoạt guard.
+    with patch.object(os,'environ',{}), patch.object(assets,'SIZED_KINDS',()):
+        db.execute('ALTER TABLE assets ADD COLUMN kind TEXT')
+        p=assets.set_profile(db,1,{'identity':'fixture'},False)
+        assert 'schema_version' not in p and p['identity']=='fixture'

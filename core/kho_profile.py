@@ -33,6 +33,8 @@ def validate(profile, conn=None, asset_id=None):
     sets = outfit.get('sets', [])
     if any(not isinstance(s,dict) for s in sets):
         raise ProfileError('outfit.sets phải chứa object')
+    if any(not isinstance(s.get('id'),str) for s in sets):
+        raise ProfileError('outfit id phải là chữ')
     if len({s.get('id') for s in sets}) != len(sets) or any(not s.get('id') for s in sets):
         raise ProfileError('outfit id thiếu/trùng')
     if outfit.get('default') and outfit['default'] not in {s['id'] for s in sets}:
@@ -47,6 +49,11 @@ def validate(profile, conn=None, asset_id=None):
         if not isinstance(f, dict):
             raise ProfileError('Trường cấu trúc phải là object')
         p = f.get('_p', {})
+        if not isinstance(p,dict):
+            raise ProfileError('provenance phải là object')
+        for key in ('text_en','color','length','style','eyes','ten_en','ten_vi','words_en'):
+            if key in f and not isinstance(f[key],str):
+                raise ProfileError(f'{key} phải là chữ')
         if p.get('source') not in ('human', 'ai', 'image', 'import') or p.get('state') not in ('AUTO','USER_LOCKED','REVIEW_REQUIRED'):
             raise ProfileError('provenance thiếu hoặc sai source/state')
         if p['source'] == 'ai' and (not p.get('model') or not (p.get('from_image_ids') or p.get('from_text'))):
@@ -93,7 +100,7 @@ def read(conn, asset_id):
     p.setdefault('forms', [])
     if p['schema_version'] == 1 and raw.get('khai_bao_chu'):
         p['outfit_sets'] = [{'id':'legacy', 'items':copy.deepcopy(raw['khai_bao_chu']), 'nguon':'khai_bao_chu'}]
-    return p
+    return _record(p)
 
 def lock_text_en(profile, form=None, outfit=None):
     if profile.get('schema_version', 1) != 2:
@@ -218,7 +225,7 @@ def validate_dang(conn, project_id, name, dang):
         return [{'muc':'vang','ma':'dang_khong_trong_kho','loi':'Dạng không thuộc forms Kho'}]
     return []
 
-def save(conn, asset_id, changes, actor, expected_revision):
+def save(conn, asset_id, changes, actor, expected_revision, *, approved=None):
     """Ghi có actor, giữ trường khóa, lưu đề xuất và CAS nguyên JSON (không migration)."""
     if actor.get('kind') not in ('human','ai','auto','tool') or not actor.get('who'):
         raise ProfileError('Cần actor hợp lệ')
@@ -260,6 +267,8 @@ def save(conn, asset_id, changes, actor, expected_revision):
     p.update(schema_version=2,revision=expected_revision+1)
     fields = [p[k] for k in ('face','hair') if p.get(k)] + p.get('forms',[]) + p.get('outfit',{}).get('sets',[])
     p['approved'] = bool(fields) and all(f.get('_p',{}).get('state')=='USER_LOCKED' for f in fields) and all(m.get('state')=='USER_LOCKED' for m in p.get('_p',{}).values() if isinstance(m,dict))
+    if approved is not None:
+        p['approved'] = bool(approved) and p['approved']
     validate(p,conn,asset_id)
     changed = conn.execute('UPDATE assets SET profile=? WHERE id=? AND profile IS ?',(json.dumps(p,ensure_ascii=False),asset_id,raw)).rowcount
     if changed != 1:
@@ -275,6 +284,7 @@ def selected_images(asset, scene=None):
     p = json.loads(raw) if isinstance(raw,str) else raw
     if p.get('schema_version') != 2:
         return None
+    validate(p)
     forms = p.get('forms',[])
     text = ' '.join(str((scene or {}).get(k) or '') for k in ('text','image_prompt','location')).lower()
     explicit = [f for f in forms if any(str(f[k]).lower() in text for k in ('ma','ten_en','ten_vi') if f.get(k))]
@@ -308,3 +318,71 @@ def save_outfit_to_kho(conn, project_id, name, actor):
     outfit.setdefault('default',set_id)
     save(conn,a['id'],{'outfit':outfit},actor,p.get('revision',0))
     return set_id
+
+# Thu đúng revision đã ĐỌC khi dựng gói; không đọc lại hồ sơ khi ghi sổ gửi.
+from contextvars import ContextVar
+from functools import wraps
+_READS = ContextVar('kho_profile_reads', default=None)
+
+def _record(profile):
+    target = _READS.get()
+    if target is not None and profile.get('schema_version') == 2 and profile.get('kho_id') is not None:
+        aid, rev = profile['kho_id'], profile['revision']
+        if aid in target and target[aid] != rev:
+            raise ProfileError('Hồ sơ Kho đổi trong khi dựng gói; tải lại trước khi gửi')
+        target[aid] = rev
+    return profile
+
+def capture_inputs(fn):
+    @wraps(fn)
+    def wrapped(self, job, *args, **kwargs):
+        if not enabled():
+            return fn(self,job,*args,**kwargs)
+        all_reads = self.__dict__.setdefault('_kho_inputs',{})
+        if fn.__name__ == '_submit_args':
+            all_reads[job['id']] = {}
+        target = all_reads.setdefault(job['id'],{})
+        token = _READS.set(target)
+        try:
+            return fn(self,job,*args,**kwargs)
+        finally:
+            _READS.reset(token)
+    return wrapped
+
+def package_inputs(runner, job):
+    return [{'kho_id':aid,'revision':rev} for aid,rev in sorted(getattr(runner,'_kho_inputs',{}).get(job['id'],{}).items())]
+
+def lineage_inputs(conn, project_id, scene):
+    if not enabled():
+        return []
+    out = {}
+    token = _READS.set(out)
+    try:
+        for n in scene.get('characters',[]):
+            for_character(conn,project_id,n)
+            outfit_for(conn,project_id,n,scene)
+        forms_for_shot(conn,project_id,scene)
+    finally:
+        _READS.reset(token)
+    return [{'kho_id':aid,'revision':rev} for aid,rev in sorted(out.items())]
+
+def for_scene_character(conn, project_id, name, scene):
+    p = for_character(conn,project_id,name)
+    if not p or not enabled() or p.get('schema_version') != 2:
+        return p
+    form = forms_for_shot(conn,project_id,scene).get(str(name).strip().upper())
+    outfit = outfit_for(conn,project_id,name,scene)
+    p['must_keep'] = lock_text_en(p,form,outfit)
+    if form:
+        p['form'] = form
+    return p
+
+def declaration(profile):
+    """Ô món của trang phục cấu trúc, không suy lại quần áo v1 trong hồ sơ v2."""
+    from . import identity_declare
+    outfit = profile.get('outfit') or {}
+    sets = outfit.get('sets') or profile.get('outfit_sets') or []
+    chosen = next((s for s in sets if s.get('id')==outfit.get('default')),None)
+    if chosen is None:
+        return [], [{'muc':'vang','mon':None,'loi':'Hồ sơ v2 chưa khai trang phục mặc định'}]
+    return identity_declare.declare_from_profile({'khai_bao_chu':chosen.get('items',[])})

@@ -137,7 +137,7 @@ def draft(conn, entries: List[Dict], client) -> List[Dict]:
         images = [(f"{c['name']} — ảnh {i + 1}", assets.thumbnail(r["path"], 900)) for i, r in enumerate(refs)]
         with llm_runner.tagged("profile_draft"):
             obj = llm_runner.ask_json(client, draft_prompt(c), _check, images)[0]
-        saved = assets.set_profile(conn, c["id"], obj, approved=False, actor={"kind":"ai", "who":"draft_profiles", "model":"claude", "from_text":"draft_profiles"}, expected_revision=before.get("revision",0))              # a draft: never approved here
+        saved = assets.set_profile(conn, c["id"], obj, approved=False, actor={"kind":"ai", "who":"draft_profiles", "model":getattr(client,"model", "unknown"), "from_text":"draft_profiles"}, expected_revision=before.get("revision",0))              # a draft: never approved here
         out.append({"entry": c["name"], "profile": saved})
     return out
 

@@ -1421,7 +1421,7 @@ def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optiona
     if kho_profile.enabled() and old.get('schema_version') == 2:
         if actor is None or expected_revision is None:
             raise AssetError('Hồ sơ v2 cần actor và expected_revision; tải lại trước khi lưu')
-        return kho_profile.save(conn, asset_id, data, actor, expected_revision)
+        return kho_profile.save(conn, asset_id, data, actor, expected_revision, approved=approved)
     # K0b phần 2 (A20): ô `khai_bao_chu` (khóa nhận diện bằng chữ, core/identity_declare) sống trong cùng JSON hồ sơ — không phải cột
     # mới. Lưu hồ sơ không gửi ô này → GIỮ ô cũ (không mất dữ liệu); gửi ô sai dạng → báo lỗi, không ghi gì.
     kbc = old.get("khai_bao_chu")

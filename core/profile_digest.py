@@ -133,6 +133,9 @@ def refresh(conn, asset_id: int) -> Optional[Dict]:
     prof = kho_profile.read(conn, asset_id)
     if not prof.get("identity") and not prof.get("must_keep"):
         return None
+    if kho_profile.enabled():
+        # View adapter có gaps/provenance dẫn xuất: tuyệt đối không ghi ngược vào Kho.
+        return current(prof)
     digest = current(prof)
     if prof.get("digest") != digest:
         prof["digest"] = digest
@@ -150,5 +153,7 @@ def for_character(conn, project_id: int, name: str, level: str = "lock_medium") 
     prof = kho_profile.read(conn, asset["id"])
     if not prof.get("approved"):
         return None
+    if kho_profile.enabled() and prof.get('schema_version') == 2:
+        return kho_profile.lock_text_en(prof) or None
     digest = refresh(conn, asset["id"])
     return digest.get(level) if digest else None
