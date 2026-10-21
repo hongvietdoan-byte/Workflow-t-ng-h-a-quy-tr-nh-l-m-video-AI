@@ -1,6 +1,7 @@
 """S14.1 A1a — one money gate for every paid send outside the runners (core.spend_gate). Each class of regression fails on the code before
 the gate: the character set skipped every cap, the end frame / establishing picture / multi-shot try skipped the project's locked budget.
 Fake providers and a temporary database only — 0 USD, no real API."""
+from tests._flags import pin_off
 import os
 import shutil
 import tempfile
@@ -115,6 +116,10 @@ class CostumeGateTests(unittest.TestCase):
 
 
 class EndFrameGateTests(unittest.TestCase):
+    def setUp(self):
+        pin_off(self, "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     @mock.patch.dict(os.environ, ON)
     def test_a_locked_project_budget_warns_and_the_end_frame_is_sent(self):
         # S14.16: was "keeps the end frame waiting" — the locked amount only warns now
