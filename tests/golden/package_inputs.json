@@ -156,7 +156,8 @@
       "byd_v2_levels": false,
       "field_guard": false,
       "narration_offscreen": false,
-      "fit_durations_review": false
+      "fit_durations_review": false,
+      "image_pregen": false
     },
     "experimental_flags": ["new_feature"]
   },
@@ -322,7 +323,8 @@
       "byd_v2_levels": false,
       "field_guard": false,
       "narration_offscreen": false,
-      "fit_durations_review": false
+      "fit_durations_review": false,
+      "image_pregen": false
     },
     "experimental_flags": ["new_feature"],
     "pregen_fingerprint": "frozen-fingerprint"
