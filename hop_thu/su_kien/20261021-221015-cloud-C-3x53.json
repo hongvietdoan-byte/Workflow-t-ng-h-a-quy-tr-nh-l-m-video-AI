@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T22:10:15.537772+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-GOLDEN5",
+  "branch": "cloud/v31-golden5",
+  "commit": "46f81fc0",
+  "report": "docs/RA_CLOUD_GOLDEN5_2026-10-21.md",
+  "text": "golden_db_replay --ab: so A/B 2 cây code trên cùng snapshot; ĐẠT = 0 DIFF + 0 ONE_FAIL + mỗi dự án ≥1 SAME; lỗi đầu vào/môi trường → mã 2. Rà soát 9 mục đã sửa. test_golden5 7 xanh (1 chỉ máy chính 3.14). Full suite 7154 passed / 5 failed (đỏ sẵn trên nền golden4). Nghiệm thu thật #24/#27 phải chạy máy chính (lệnh trong báo cáo). HẠN MỨC: không đọc được."
+}
