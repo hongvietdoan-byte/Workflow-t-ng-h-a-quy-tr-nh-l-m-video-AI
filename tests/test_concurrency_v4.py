@@ -1,4 +1,5 @@
 """Kế hoạch V4, GĐ1 — M3 (one poller per project), the spending lock, and one Blender at a time on the computer."""
+from tests._flags import pin_off
 import os
 import tempfile
 import threading
@@ -40,6 +41,7 @@ def project(tmp, jobs=1):
 
 class OnePollerTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         THROTTLE.reset()
 
     def test_a_second_thread_skips_while_the_project_is_being_polled(self):
