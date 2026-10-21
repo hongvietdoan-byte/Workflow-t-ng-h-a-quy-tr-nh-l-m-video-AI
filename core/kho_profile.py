@@ -246,8 +246,9 @@ def save(conn, asset_id, changes, actor, expected_revision, *, approved=None):
         nested = (prev if isinstance(prev,list) else prev.get('sets',[]) if key == 'outfit' and isinstance(prev,dict) else [])
         if any(isinstance(f,dict) and f.get('_p',{}).get('state') in ('USER_LOCKED','REVIEW_REQUIRED') for f in nested):
             state = 'USER_LOCKED'
-        if not human and state in ('USER_LOCKED','REVIEW_REQUIRED') and prev != value:
-            p.setdefault('proposals',{})[key]=copy.deepcopy(value)
+        if not human and state in ('USER_LOCKED','REVIEW_REQUIRED'):
+            if prev != value:
+                p.setdefault('proposals',{})[key]=copy.deepcopy(value)
             continue
         meta = {'source':'human' if human else 'ai', 'by':actor['who'], 'at':datetime.now(timezone.utc).isoformat(), 'state':'USER_LOCKED' if human else 'REVIEW_REQUIRED'}
         if not human:
@@ -262,7 +263,10 @@ def save(conn, asset_id, changes, actor, expected_revision, *, approved=None):
         else:
             p.setdefault('_p',{})[key]=meta
         if key == 'outfit' and isinstance(value,dict):
-            value['sets'] = [dict(s,_p=meta) for s in value.get('sets',[])]
+            old_sets = {s['id']: s for s in (prev or {}).get('sets', [])} if isinstance(prev,dict) else {}
+            # Lưu một set không đồng nghĩa duyệt lại các set khác trong bản chép outfit.
+            value['sets'] = [copy.deepcopy(old_sets[s['id']]) if s.get('id') in old_sets and s == old_sets[s['id']]
+                             else dict(s,_p=meta) for s in value.get('sets',[])]
         p[key]=value
     p.update(schema_version=2,revision=expected_revision+1)
     fields = [p[k] for k in ('face','hair') if p.get(k)] + p.get('forms',[]) + p.get('outfit',{}).get('sets',[])

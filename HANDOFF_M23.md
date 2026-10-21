@@ -24,3 +24,7 @@ Chỉ đọc 5 tool calls, chưa test tái hiện; không coi là RÀ KỸ toàn
 - P2 core/kho_profile.py:249–257: AI gửi lại giá trị human khóa giống hệt có thể vượt bảo vệ rồi thay provenance thành AI/REVIEW_REQUIRED. No-op phải giữ nguyên giá trị + provenance; khác mới proposal.
 Reviewer tiếp tục: /root/cx21_m23_write_review (đã đọc đúng vùng); ưu tiên gom test/sửa cả ba trong một lượt, rồi root đọc fixdiff. Còn full review readers/lineage/video/rights chưa làm. Không gộp, không sử dụng với dữ liệu thật.
 Quota cuối: 5h ĐÃ DÙNG89%, còn11%; tuần57%, còn43%. Reset tự nhiên 21/10 13:47:05 Asia/Saigon. Không mở lượt sửa có nguy cơ vượt95%; giữ automation30phút.
+
+## Checkpoint fresh review ba regression
+- ĐỎ 3/3 với AST hàm cũ từ HEAD trong tiến trình riêng; XANH 28/28 provenance/v2/readers (5.08s).
+- Ba sửa writer OFF/v2, provenance outfit per-id và AI locked no-op đã kiểm bằng SQLite tạm. Chưa sản xuất; các OPEN khác phía trên vẫn giữ.

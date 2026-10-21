@@ -72,11 +72,43 @@ def test_capture_records_revision_read_not_later_revision(db):
         k.save(db,1,{'hair':{'text_en':'short black bob'}},{'kind':'human','who':'fixture'},1)
         assert k.package_inputs(runner,job)==[{'kho_id':1,'revision':1}]
 
-def test_off_profile_v2_uses_legacy_writer_byte_behavior(db):
-    from core import assets
-    db.execute('UPDATE assets SET profile=?', ('{"schema_version":2,"revision":4,"hair":{}}',))
-    # Cờ OFF giữ đúng writer v1, không tự kích hoạt guard.
-    with patch.object(os,'environ',{}), patch.object(assets,'SIZED_KINDS',()):
+def test_off_preserves_v2_and_legacy_v1_writer(db):
+    from core import assets, kho_profile as k
+    with patch.object(os,'environ',{}):
         db.execute('ALTER TABLE assets ADD COLUMN kind TEXT')
         p=assets.set_profile(db,1,{'identity':'fixture'},False)
         assert 'schema_version' not in p and p['identity']=='fixture'
+        first=k.save(db,1,{'hair':{'text_en':'black bob'}},{'kind':'human','who':'fixture'},0)
+        raw=db.execute('SELECT profile FROM assets WHERE id=1').fetchone()[0]
+        with pytest.raises(assets.AssetError):
+            assets.set_profile(db,1,{'identity':'replacement'},False)
+        assert db.execute('SELECT profile FROM assets WHERE id=1').fetchone()[0]==raw
+        saved=assets.set_profile(db,1,{'identity':'updated'},False,actor={'kind':'human','who':'fixture'},expected_revision=1)
+        assert saved['hair']==first['hair'] and saved['schema_version']==2 and saved['revision']==2
+        with pytest.raises(k.ProfileError):
+            assets.set_profile(db,1,{},False,actor={'kind':'human','who':'fixture'},expected_revision=1)
+
+
+def test_ai_locked_noop_preserves_provenance_and_approval(db):
+    from core import kho_profile as k
+    human={'kind':'human','who':'fixture'}
+    ai={'kind':'ai','who':'fixture-ai','model':'fixture','from_text':'fixture'}
+    first=k.save(db,1,{'hair':{'text_en':'black bob'},'identity':'Kelly'},human,0)
+    second=k.save(db,1,{'hair':first['hair'],'identity':'Kelly'},ai,1)
+    assert second['hair']==first['hair'] and second['_p']==first['_p']
+    assert second['approved'] is True
+    third=k.save(db,1,{'hair':{'text_en':'blonde'}},ai,2)
+    assert third['hair']==first['hair'] and third['proposals']['hair']['text_en']=='blonde'
+
+
+def test_save_outfit_preserves_untouched_ai_set_provenance(db):
+    from core import assets, kho_profile as k
+    ai={'kind':'ai','who':'fixture-ai','model':'fixture','from_text':'fixture'}
+    first=k.save(db,1,{'outfit':{'sets':[{'id':'draft','items':[],'image_ids':[]}]}},ai,0)
+    db.execute("INSERT INTO asset_images VALUES(7,1,'fixture.png','approved')")
+    with patch.object(assets,'link_characters',return_value={'Kelly':{'id':1}}), patch.object(assets,'outfit_images',return_value=[{'id':7}]), patch.object(assets,'outfit_label',return_value='fixture'):
+        assert k.save_outfit_to_kho(db,9,'Kelly',{'kind':'human','who':'fixture'})=='project_9'
+    saved=assets.get_profile(db,1)
+    assert saved['outfit']['sets'][0]==first['outfit']['sets'][0]
+    assert saved['outfit']['sets'][1]['_p']['state']=='USER_LOCKED'
+    assert saved['approved'] is False

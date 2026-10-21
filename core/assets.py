@@ -1418,7 +1418,8 @@ def set_profile(conn, asset_id: int, data: Dict, approved: bool, reason: Optiona
     The short forms (`digest`, core/profile_digest.py) are made again from the new text the next time they are asked for."""
     old = get_profile(conn, asset_id)
     from . import kho_profile
-    if kho_profile.enabled() and old.get('schema_version') == 2:
+    # Cờ chỉ chọn đường đọc; hồ sơ đã lên v2 luôn cần guard để tránh mất dữ liệu khi OFF.
+    if old.get('schema_version') == 2:
         if actor is None or expected_revision is None:
             raise AssetError('Hồ sơ v2 cần actor và expected_revision; tải lại trước khi lưu')
         return kho_profile.save(conn, asset_id, data, actor, expected_revision, approved=approved)
