@@ -17,14 +17,14 @@ docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục 4):
   - tự sửa không đổi dữ liệu cảnh đã khóa (thay đổi cảnh sau lượt đầu); tự sửa phải có nguyên nhân;
   - model ngoài phạm vi đã duyệt (dự án / shot chưa chọn, dự án chưa gửi thật) → sẽ chặn (Q4: lùi trong phạm vi thì được).
 
-Cờ `generation_authorization` (mặc định TẮT): tắt = không làm gì. Lỗi của cổng shadow không bao giờ làm hỏng lượt gửi."""
+Cờ `gen_auth_shadow` (mặc định TẮT): tắt = không làm gì. Lỗi của cổng shadow không bao giờ làm hỏng lượt gửi."""
 import json
 import os
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-FLAG = "generation_authorization"
+FLAG = "gen_auth_shadow"
 LIMITS = {"image_gen": 3, "video_gen": 2}
 REPAIR_PCT = 0.40
 SAME_CAUSE_STREAK = 3

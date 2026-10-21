@@ -91,7 +91,7 @@ FEATURES: Dict[str, Dict] = {
                                      "hàng đợi có lý do, không gửi (0 USD)", "verified": False,
         "why": "V3.1 M1.3 (G36, #31): tạm dừng 03:42:31 vẫn gửi job 1075 lúc 03:42:41 — runner chỉ kiểm paused đầu lượt quét; "
                "thử bằng provider giả, chưa chạy thật (C3-2: bật sau nghiệm thu)"},
-    "generation_authorization": {"label": "Cổng quyền gen (M6.3) chạy BÓNG: ngay trước khi gửi job ảnh / video của shot, ghi cho phép / "
+    "gen_auth_shadow": {"label": "Cổng quyền gen (M6.3) chạy BÓNG: ngay trước khi gửi job ảnh / video của shot, ghi cho phép / "
                                           "sẽ chặn + lý do (trần 3 ảnh / 2 video mỗi shot tính chung, ngân sách tự sửa 40 % lượt đầu, 3 shot "
                                           "liền cùng lỗi, gửi chưa rõ, trùng job, đổi dữ liệu khóa, model ngoài phạm vi) vào "
                                           "<dự án>/crew/gen_auth_shadow.jsonl — KHÔNG chặn, không đổi gói gửi (0 USD)", "verified": False,

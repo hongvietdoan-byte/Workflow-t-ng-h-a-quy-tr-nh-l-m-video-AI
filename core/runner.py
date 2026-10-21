@@ -542,7 +542,7 @@ class _Runner:
                 sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}   # '_' keys: the runner's notes, never sent
                 if self._paused_now(job):                # M1.3 (G36, cờ pause_before_submit): ⏸ pressed while this job was prepared
                     break                                # (plain, retry or model-switched try alike) — stays queued, said, nothing sent
-                from . import gen_auth                   # V3.1 M6.3 SHADOW (cờ generation_authorization): ghi cho phép / sẽ chặn + lý do
+                from . import gen_auth                   # V3.1 M6.3 SHADOW (cờ gen_auth_shadow): ghi cho phép / sẽ chặn + lý do
                 if gen_auth.enabled():                   # vào sổ jsonl — KHÔNG chặn, không ghi CSDL, không đổi gói
                     gen_auth.shadow(self.p.conn, job, model=self._sent_model(args, sent_kwargs) or job["model"],
                                     upgrade=bool(kwargs.get("_from_sample")), data_dir=self.data_dir,

@@ -14,8 +14,8 @@ from core.pipeline import Pipeline
 from core.providers import MockImageProvider
 from core.runner import ImageRunner
 
-ON = {"FEATURE_GENERATION_AUTHORIZATION": "1"}
-OFF = {"FEATURE_GENERATION_AUTHORIZATION": "0"}
+ON = {"FEATURE_GEN_AUTH_SHADOW": "1"}
+OFF = {"FEATURE_GEN_AUTH_SHADOW": "0"}
 PRICING = {"per_image": {"m": 1.0, "x": 1.0}, "per_video_second": {}, "per_video_clip": {}}
 
 
@@ -323,10 +323,18 @@ def test_flag_registered_off_golden_and_areas():
     from core import features
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     assert features.FEATURES[G.FLAG]["verified"] is False
-    with mock.patch.dict(os.environ, {"FEATURE_GENERATION_AUTHORIZATION": ""}):
+    with mock.patch.dict(os.environ, {"FEATURE_GEN_AUTH_SHADOW": ""}):
         assert features.default_state(G.FLAG) == "off"
     golden = json.load(open(os.path.join(root, "tests", "golden", "package_inputs.json"), encoding="utf-8"))
     assert all(golden[k]["flags"][G.FLAG] is False for k in ("image", "video"))
     areas = json.load(open(os.path.join(root, "devsys", "areas.json"), encoding="utf-8"))["areas"]
     a = next(a for a in areas if a["id"] == "core_infra")
     assert "core/gen_auth.py" in a["code"] and G.FLAG in a["flags"] and "tests/test_v31_m63_gen_auth.py" in a["tests"]
+
+
+def test_flag_name_passes_the_golden_secret_filter():
+    """Rà full suite: tên `generation_authorization` (đề bài) chứa 'authorization' → golden_capture._safe coi file cờ là trường nhạy
+    cảm, từ chối CẢ bản chụp (test_golden_db_replay đỏ). Đổi tên gen_auth_shadow; mọi cờ trong catalog phải qua bộ lọc."""
+    from core import features
+    from tools.golden_capture import _safe
+    _safe({name: False for name in features.FEATURES})
