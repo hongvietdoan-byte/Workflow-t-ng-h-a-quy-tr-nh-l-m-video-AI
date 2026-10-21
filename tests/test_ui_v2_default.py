@@ -1,6 +1,7 @@
 """S14.14 G-a (người dùng duyệt 05/10): giao diện v2 là MẶC ĐỊNH — không có FEATURE_UI_V2 trong môi trường thì `ui.v2_on()` là True,
 và các màn nhóm nhẹ (Kịch bản step1_*, Video step4, 📊 Theo dõi admin, khung app/ui) chỉ còn lớp v2: kể cả FEATURE_UI_V2=0 cũng không
 còn đường về giao diện cũ ở đó (nhóm nặng — Storyboard, Bản giao, Nhóm, header — vẫn đọc cờ tới G-b)."""
+from tests._flags import pin_off
 import os
 import tempfile
 import unittest
@@ -43,6 +44,10 @@ class DefaultOnTests(unittest.TestCase):
 
 class LightScreensAlwaysV2Tests(unittest.TestCase):
     """AppTest of the real app: the Kịch bản screen (step1) draws the v2 hero/cards with no flag set — and still with FEATURE_UI_V2=0."""
+    def setUp(self):
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
 
     def _run(self, **extra):
         tmp = tempfile.mkdtemp()
