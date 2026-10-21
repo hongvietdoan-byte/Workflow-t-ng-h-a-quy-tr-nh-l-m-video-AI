@@ -38,6 +38,7 @@ PART_LABELS = {
     "dao_cu": "Đạo cụ dự án",                 # 12/10 #27: project_prop_lock (core/prop_lock)
     "nhat_quan": "Diễn xuất ↔ hành động",     # 13/10 V9 (cờ motion_consistency_lint)
     "nhip": "Số nhịp ↔ thời lượng",          # 13/10 V9
+    "giu_yen": "Giữ yên quá lâu",            # 21/10 M7.4 (G51: clip đơ / giữ tư thế mà lint không bắt)
     "trang_thai_nv": "Trạng thái nhân vật",   # 13/10 V10 (cờ character_state_lock)
     "anh_ref": "Ảnh tham chiếu",             # 13/10 V13 (cờ ref_rule_early)
 }
@@ -548,6 +549,7 @@ def lint_motion(prompt: str, data: Dict, chars: Optional[List[Dict]] = None, ff:
     out += outfit_issues(prompt, data, chars)
     out += pov_hand_issues(prompt, data, ff)
     out += beat_issues(data)
+    out += hold_issues(prompt, data)
     out += state_issues(prompt, data)
     return out + _common(prompt, data, chars, "motion", ff)
 
@@ -624,6 +626,46 @@ def beat_issues(data: Dict) -> List[Dict]:
         return []
     return [_issue("warn", "nhip", f"Hành động có {beats} nhịp trong {sec:g} s (> {BEATS_PER_SECOND:g} nhịp/giây) — model sẽ bỏ nhịp, "
                                    "không tới trạng thái cuối (#27 s20: 1,5 s thụp→bật→chạy). Tách shot hoặc tăng thời lượng.")]
+
+
+# M7.4 (G51, 19/10 người dùng: clip #31 đơ / giữ tư thế): motion bảo giữ yên / chậm mà không có hành động kế → model giữ khung cả đoạn
+_HOLD = re.compile(r"\b(?:holds?|holding)\s+(?:still|(?:the|this|that|his|her|their)\s+(?:pose|position|stance))\b|\bpaus(?:es|e|ing)\b|"
+                   r"\bpoised\b|\bstays?\s+still\b|\bremains?\s+(?:still|motionless|frozen)\b|\bmotionless\b|\bfreez(?:es|e|ing)\b|"
+                   r"\bfrozen\b|\bslowly\b|\bđứng yên\b|\bgiữ nguyên\b|\bbất động\b", I)
+_NEXT = re.compile(r"\b(?:then|before|after that|suddenly|until)\b|\brồi\b|\bsau đó\b|→|->|\b(?:walk\w*|steps?|stepping|turn\w*|raises?|"
+                   r"lift\w*|swing\w*|aims?|reach\w*|lunge\w*|charg\w*|strik\w*|punch\w*|kick\w*|spin\w*|draws?|nods?|"
+                   r"looks?\s+(?:up|down|left|right|back|around))\b", I)
+_SECONDS = re.compile(r"(\d+(?:[.,]\d+)?)\s*(?:s\b|sec\b|secs\b|seconds?\b|giây\b)", I)
+_ENDING = re.compile(r"\bends?\s+(?:with|on|in)\b|\bfinal\b|\bending\b|\bkết thúc\b", I)
+HOLD_MAX_S = 1.5                       # quyết định 11/10 "video không được đơ" (= final_qc.FREEZE_S, QC-V2-STILL_OVER_1_5S)
+
+
+def hold_issues(prompt: str, data: Dict) -> List[Dict]:
+    """VÀNG (không chặn): câu motion bảo nhân vật giữ yên / dừng / chậm mà SAU đó không có hành động kế, và ước thời gian giữ > 1,5 s
+    (số giây ghi rõ trong câu, không thì phần thời lượng còn lại sau chữ giữ). Câu trạng thái cuối ('It ends with …') không tính. Cờ
+    motion_consistency_lint TẮT → []."""
+    if not consistency_on() or not prompt:
+        return []
+    try:
+        sec = float((data or {}).get("duration_s") or 0)
+    except (TypeError, ValueError):
+        sec = 0.0
+    sents = [m for m in re.finditer(r"[^.!?\n]+", prompt)]
+    for i, sm in enumerate(sents):
+        sent = sm.group(0)
+        h = _HOLD.search(sent)
+        if not h or _ENDING.search(sent):
+            continue
+        after = sent[h.end():] + " " + (sents[i + 1].group(0) if i + 1 < len(sents) and not _ENDING.search(sents[i + 1].group(0)) else "")
+        if _NEXT.search(after) or _verbs_in(after):
+            continue
+        n = _SECONDS.search(sent)
+        est = float(n.group(1).replace(",", ".")) if n else (sec * (len(prompt) - (sm.start() + h.start())) / len(prompt) if sec else 0.0)
+        if est > HOLD_MAX_S:
+            return [_issue("warn", "giu_yen", f"Motion bảo '{h.group(0)}' rồi không có hành động kế — ước giữ yên ≈ {est:.1f} s "
+                                              f"(> {HOLD_MAX_S:g} s): clip dễ ĐƠ (G51). Thêm hành động sau, hoặc rút thời lượng / ghi rõ "
+                                              "'for a beat, then …'.")]
+    return []
 
 
 def bleed_issues(data: Dict, neighbours: Iterable[Tuple[str, Dict]]) -> List[Dict]:

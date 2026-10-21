@@ -118,3 +118,36 @@ def test_acceptance_tool_snapshot_then_check(tmp_path, capsys):
     rec = tmp_path / "rec.json"
     rec.write_text(json.dumps({"rows": [{"project_id": pid, "job_id": 1, "quality_tier": "final", "actual_usd": 10.0}]}), encoding="utf-8")
     assert T.main(["--project", str(pid), "--db", db, "--data-dir", data, "--reconcile", str(rec)]) == 2   # chưa có job final → KHÔNG RÕ
+
+
+# ---- motion_consistency_lint: luật VÀNG giu_yen (G51 — clip đơ / giữ tư thế mà lint không bắt) -------------------------------------
+LINT_ON = {"FEATURE_MOTION_CONSISTENCY_LINT": "1"}
+
+
+@pytest.mark.parametrize("prompt", [
+    "Kelly raises the rifle, then holds still, poised, staring at the doorway.",
+    "Max pauses for 2 seconds in the doorway.",
+    "The soldier remains motionless behind the crate while smoke drifts.",
+])
+def test_giu_yen_long_hold_without_a_next_action_is_yellow(prompt):
+    from core import prompt_formula as PF
+    with mock.patch.dict(os.environ, LINT_ON):
+        got = PF.hold_issues(prompt, {"duration_s": 5})
+    assert got and got[0]["part"] == "giu_yen" and got[0]["level"] == "warn"
+
+
+@pytest.mark.parametrize("prompt", [
+    "Kelly holds still for a beat, then sprints to the left and dives behind the wall.",
+    "Kelly runs to the door. It ends with Kelly holding the rifle, poised.",
+    "Max pauses for 1 second.",
+])
+def test_giu_yen_short_or_followed_hold_is_fine(prompt):
+    from core import prompt_formula as PF
+    with mock.patch.dict(os.environ, LINT_ON):
+        assert PF.hold_issues(prompt, {"duration_s": 5}) == []
+
+
+def test_giu_yen_flag_off_says_nothing():
+    from core import prompt_formula as PF
+    with mock.patch.dict(os.environ, {"FEATURE_MOTION_CONSISTENCY_LINT": "0"}):
+        assert PF.hold_issues("Max remains motionless.", {"duration_s": 5}) == []
