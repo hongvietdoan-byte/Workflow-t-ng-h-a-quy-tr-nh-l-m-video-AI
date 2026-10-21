@@ -54,7 +54,7 @@ def _tree(tmp, name, prompt_line, catalog=None):
 
 def _fake_builder(broken=()):
     """Builder giả (thay worker 3.14): gói = dòng PROMPT đọc từ core/runner.py của cây code được truyền."""
-    def build(*, db, ref_root, job_id, flags, envelope, public_config=None, experimental=None, code_root=None):
+    def build(*, db, ref_root, job_id, flags, envelope, public_config=None, experimental=None, code_root=None, catalog_union=None):
         if Path(code_root).name in broken:
             return {"status": "INSUFFICIENT_INPUT", "reason": "worker không dựng được gói"}
         line = (Path(code_root) / "core" / "runner.py").read_text(encoding="utf-8").split("=", 1)[1].strip().strip("'")
@@ -206,3 +206,76 @@ def test_loaded_outside_names_the_wrong_tree(tmp_path):
     assert G.loaded_outside(good, a) == []
     assert G.loaded_outside(dict(good, **{"core.sent_package": str(b / "core" / "sent_package.py")}), a) == ["core.sent_package"]
     assert G.loaded_outside(None, a) == ["core.runner", "core.sent_package"]
+
+
+# ---- C-GOLDEN7: validator cờ theo catalog CÂY ĐANG DỰNG (CX21-GOLDEN6: 158/158 BOTH_FAIL trước worker) -------------------------------
+def _with_extra_flag(root, name):
+    """Cây code có thêm MỘT cờ (như gen_auth_shadow ở main) mà cây công cụ chưa có."""
+    fp = root / "core" / "features.py"
+    text = fp.read_text(encoding="utf-8")
+    marker = "FEATURES: Dict[str, Dict] = {" if "FEATURES: Dict[str, Dict] = {" in text else "FEATURES: dict = {"
+    assert marker in text
+    fp.write_text(text.replace(marker, marker + f"\n    {name!r}: {{'label': 'x', 'verified': False}},", 1), encoding="utf-8")
+    return root
+
+
+def test_ab_validates_flags_by_the_tree_being_built(database, tmp_path):  # noqa: F811
+    """Cây A có cờ mới mà cây công cụ không có; file cờ phủ A∪B, cờ mới là experimental TẮT → validator KHÔNG chặn (trước: ValueError
+    'experimental_flags cần list tên cờ duy nhất có trong catalog' ở mọi ca → BOTH_FAIL)."""
+    module, db, root, flags = database
+    a = _with_extra_flag(_tree(tmp_path, "main", "x"), "zz_new_flag")
+    G.validate_ab_flags(dict(flags, zz_new_flag=False), ["zz_new_flag"], a, {"zz_new_flag"} | set(flags))
+    try:
+        G.build_from_database(db=db, ref_root=root, job_id=1, flags=dict(flags, zz_new_flag=False),
+                              envelope={"provider": "fake", "at": "2026-01-01T00:00:00", "external_id": "x"},
+                              experimental=["zz_new_flag"], code_root=a, catalog_union=G._catalog(a))
+    except ValueError as e:
+        assert "catalog" not in str(e) and "experimental" not in str(e), e          # chỉ còn lỗi môi trường (3.13) / cây giả
+    b = _tree(tmp_path, "m2", "x")                                                     # cây B không có cờ đó: vẫn hợp lệ (cờ của cây kia)
+    G.validate_ab_flags(dict(flags, zz_new_flag=False), ["zz_new_flag"], b, G._catalog(a) | G._catalog(b))
+
+
+def test_config_error_stops_the_whole_run_with_exit_2(database, tmp_path):  # noqa: F811
+    module, db, root, flags = database
+    a, b = _tree(tmp_path, "main", "x"), _tree(tmp_path, "m2", "x")
+    calls = []
+
+    def builder(**kw):
+        calls.append(kw)
+        return _built(PKG)
+    kw = dict(db=db, ref_root=root, flags=flags, projects=[24], code_a=a, code_b=b, builder=builder)
+    with pytest.raises(G.ABError, match="khong_co_dau"):
+        G.run_ab(experimental=["khong_co_dau"], **kw)                                  # cờ lạ không thuộc A∪B
+    with pytest.raises(G.ABError, match="TẮT"):
+        G.run_ab(experimental=[next(iter(flags))], **dict(kw, flags=dict(flags, **{next(iter(flags)): True})))
+    assert calls == []                                                                 # không chạy ca nào
+    spec = tmp_path / "flags.json"
+    spec.write_text(json.dumps({"baseline_flags": flags, "experimental_flags": ["khong_co_dau"]}), encoding="utf-8")
+    with pytest.raises(SystemExit) as e:
+        G.main_ab(["--ab", "--db", str(db), "--ref-root", str(root), "--flags", str(spec), "--code-a", str(a), "--code-b", str(b),
+                   "--project", "24", "--output", str(tmp_path / "ab.json")])
+    assert e.value.code == 2 and not (tmp_path / "ab.json").exists()
+
+
+def test_config_error_raised_mid_run_is_not_folded_into_both_fail(database, tmp_path):  # noqa: F811
+    module, db, root, flags = database
+    a, b = _tree(tmp_path, "main", "x"), _tree(tmp_path, "m2", "x")
+
+    def builder(**kw):
+        raise G.ABError("catalog cây đổi giữa chừng")
+    with pytest.raises(G.ABError):
+        G.run_ab(db=db, ref_root=root, flags=flags, experimental=[], projects=[24], code_a=a, code_b=b, builder=builder)
+
+
+@needs_native_314
+def test_real_worker_tree_with_a_new_flag_builds_both_sides(database, tmp_path):  # noqa: F811
+    """Native: cây A = repo + MỘT cờ mới (experimental, TẮT), cây B = repo → cả hai bên dựng được, SAME (trước: mọi ca BOTH_FAIL)."""
+    module, db, root, flags = database
+    ignore = shutil.ignore_patterns("__pycache__", "data", ".git", "tests", "docs", "mockup")
+    a, b = tmp_path / "code_a", tmp_path / "code_b"
+    shutil.copytree(ROOT, a, ignore=ignore)
+    shutil.copytree(ROOT, b, ignore=ignore)
+    _with_extra_flag(a, "zz_new_flag")
+    res = G.run_ab(db=db, ref_root=root, flags=dict(flags, zz_new_flag=False), experimental=["zz_new_flag"], projects=[24],
+                   code_a=a, code_b=b)
+    assert res["total"]["SAME"] >= 1 and res["total"]["BOTH_FAIL"] == 0 and res["pass"] is True

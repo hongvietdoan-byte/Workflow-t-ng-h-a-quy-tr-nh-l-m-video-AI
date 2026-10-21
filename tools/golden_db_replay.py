@@ -202,19 +202,25 @@ def _native_python():
     return python
 
 
-def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None, public_config=None, experimental=None, code_root=None):
+def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None, public_config=None, experimental=None, code_root=None,
+                        catalog_union=None):
     """Không nhận baseline/prompt/args. Manifest None = chụp dependency, có manifest = replay.
     experimental (C-GOLDEN2 b): None = định nghĩa cũ (mọi cờ verified False TẮT); list = `flags` là baseline cờ sản xuất, chỉ các cờ này phải TẮT.
     code_root (C-GOLDEN5 --ab): dựng gói bằng `core/` của cây code này (worktree) thay cho cây chứa công cụ; None = như cũ."""
     from tools.golden_capture import _safe, validate_compat_flags, validate_baseline_flags, feature_catalog
     if not isinstance(flags,dict) or any(not isinstance(k,str) or type(v) is not bool for k,v in flags.items()):
         raise ValueError("INSUFFICIENT_INPUT: cờ phải explicit boolean")
-    if experimental is None:
-        validate_compat_flags(flags)
+    if code_root is not None:
+        # C-GOLDEN7 (--ab): cờ theo catalog CỦA CHÍNH cây đang dựng (+ hợp A∪B cho experimental), không theo cây công cụ — main có cờ
+        # mới (gen_auth_shadow) mà cây công cụ chưa có → trước: ValueError mọi ca → 158/158 BOTH_FAIL trước worker
+        validate_ab_flags(flags, experimental, code_root, catalog_union)
     else:
-        validate_baseline_flags(flags, experimental)
-    if feature_catalog().keys() - flags.keys():
-        raise ValueError("INSUFFICIENT_INPUT: thiếu cờ legacy explicit")
+        if experimental is None:
+            validate_compat_flags(flags)
+        else:
+            validate_baseline_flags(flags, experimental)
+        if feature_catalog().keys() - flags.keys():
+            raise ValueError("INSUFFICIENT_INPUT: thiếu cờ legacy explicit")
     public_config = public_config or {}
     if any(k not in PUBLIC and not k.startswith("FEATURE_") for k in public_config):
         raise ValueError("INSUFFICIENT_INPUT: config ngoài danh sách public")
@@ -694,23 +700,48 @@ class ABError(ValueError):
 
 def _catalog(code_root):
     import ast
-    tree = ast.parse((Path(code_root) / "core" / "features.py").read_text(encoding="utf-8"))
+    fp = Path(code_root) / "core" / "features.py"
+    if not fp.is_file():
+        raise ABError(f"{code_root}: không phải cây code (thiếu core/features.py)")
+    tree = ast.parse(fp.read_text(encoding="utf-8"))
     for node in tree.body:
         if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == "FEATURES":
             return set(ast.literal_eval(node.value))
     raise ABError(f"không đọc được FEATURES của {code_root}")
 
 
-def _preflight(flags, code_roots):
-    """Mỗi cây code: có core/runner.py + sent_package.py + features.py; file cờ có MỌI cờ của catalog cây đó (fail-closed — thiếu thì
-    cờ lặng lẽ = False ở worker)."""
+def validate_ab_flags(flags, experimental, code_root, union=None):
+    """C-GOLDEN7: cờ của MỘT bên --ab, fail-closed theo catalog của cây `code_root`: mọi cờ của catalog cây đó có trong `flags` (bool);
+    experimental = list tên DUY NHẤT, mỗi tên có trong catalog cây đó HOẶC trong hợp A∪B (`union` — cờ chỉ có ở một cây = TẮT ở cây kia
+    là đúng nghĩa), và đều TẮT. Lỗi = lỗi cấu hình cả lượt (ABError → mã 2), không phải lỗi từng ca."""
+    catalog = _catalog(code_root)
+    allowed = catalog | set(union or ())
+    if not isinstance(flags, dict) or any(not isinstance(k, str) or type(v) is not bool for k, v in flags.items()):
+        raise ABError("file cờ: baseline_flags phải là object tên cờ → boolean")
+    missing = sorted(catalog - set(flags))
+    if missing:
+        raise ABError(f"file cờ thiếu {len(missing)} cờ của {Path(code_root).name}: " + ", ".join(missing[:12]))
+    if not isinstance(experimental, list) or len(set(experimental)) != len(experimental) or \
+            any(not isinstance(k, str) or k not in allowed for k in experimental):
+        bad = [k for k in experimental if k not in allowed] if isinstance(experimental, list) else []
+        raise ABError("experimental_flags cần list tên cờ DUY NHẤT có trong catalog cây A ∪ B"
+                      + (f" — lạ: {', '.join(map(str, bad[:8]))}" if bad else ""))
+    on = [k for k in experimental if flags.get(k)]
+    if on:
+        raise ABError("experimental_flags phải TẮT: " + ", ".join(on[:8]))
+
+
+def _preflight(flags, code_roots, experimental=None):
+    """Mỗi cây code: có core/runner.py + sent_package.py + features.py; file cờ hợp lệ theo catalog CỦA cây đó (validate_ab_flags, fail-
+    closed — thiếu thì cờ lặng lẽ = False ở worker). Trả hợp catalog A∪B (cho validator từng ca)."""
     for code in code_roots:
         code = Path(code)
         if not all((code / "core" / f).is_file() for f in ("runner.py", "sent_package.py", "features.py")):
             raise ABError(f"{code}: không phải cây code (thiếu core/runner.py / sent_package.py / features.py)")
-        missing = sorted(_catalog(code) - set(flags))
-        if missing:
-            raise ABError(f"file cờ thiếu {len(missing)} cờ của {code.name}: " + ", ".join(missing[:12]))
+    union = set().union(*(_catalog(c) for c in code_roots))
+    for code in code_roots:
+        validate_ab_flags(flags, experimental if experimental is not None else [], code, union)
+    return union
 
 
 def ab_jobs(db, projects):
@@ -743,14 +774,16 @@ def run_ab(*, db, ref_root, flags, experimental, code_a, code_b, projects, publi
     if builder is None:
         builder = build_from_database
         _native_python()                    # môi trường sai → dừng cả lượt (ABError), không thành BOTH_FAIL giả
-    _preflight(flags, (code_a, code_b))
+    union = _preflight(flags, (code_a, code_b), experimental)
     rows = []
     for job in ab_jobs(db, projects):
         res = {}
         for side, code in (("a", code_a), ("b", code_b)):
             try:
                 res[side] = builder(db=db, ref_root=ref_root, job_id=job["job_id"], flags=flags, envelope=job["envelope"],
-                                    public_config=public_config, experimental=experimental, code_root=code)
+                                    public_config=public_config, experimental=experimental, code_root=code, catalog_union=union)
+            except ABError:
+                raise                               # C-GOLDEN7: lỗi cấu hình của cả lượt → main_ab mã 2, không gộp thành BOTH_FAIL từng ca
             except (ValueError, subprocess.TimeoutExpired) as e:
                 res[side] = {"status": "INSUFFICIENT_INPUT", "reason": str(e)[:200]}
         rows.append({k: job[k] for k in ("job_id", "project_id", "scene_id", "type", "state")} | compare_ab(res["a"], res["b"])
