@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T22:07:41.339794+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-GOLDEN5",
+  "to": "cloud-C",
+  "title": "Công cụ golden so A/B code main vs M2 (cloud-C đã nhận 21:51 — giữ ở cloud-C)",
+  "spec": "docs/CLOUD_TASKS.md#### C-GOLDEN5",
+  "priority": 0
+}
