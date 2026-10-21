@@ -1,3 +1,4 @@
+from tests._flags import pin_off
 import os
 import tempfile
 import unittest
@@ -11,6 +12,7 @@ from core.runner import ImageRunner, VideoRunner
 
 class RunnerTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         self.p = Pipeline(connect())
         self.dir = tempfile.mkdtemp()
         self.pid = self.p.create_project("t", max_retry=2)
