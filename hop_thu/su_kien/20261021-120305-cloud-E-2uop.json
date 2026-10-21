@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T12:03:05.864992+07:00",
+  "lane": "cloud-E",
+  "kind": "giao",
+  "task": "C-M24",
+  "to": "cloud-C",
+  "title": "M2.4 insert_scene_after kế thừa bối cảnh + BYĐ DRAFT",
+  "spec": "docs/CLOUD_TASKS.md#### C-M26 / C-M29 / C-M24",
+  "priority": 2
+}

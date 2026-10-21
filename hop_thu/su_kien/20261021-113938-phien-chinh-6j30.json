@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:39:38.343653+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX21-FIX2",
+  "to": "cloud-C",
+  "title": "merge_union: mục một bên xóa bị sống lại (nhỏ)",
+  "spec": "docs/CODEX_TASKS.md### CX21-FIX2",
+  "priority": 6
+}

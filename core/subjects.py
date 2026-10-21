@@ -376,14 +376,29 @@ def capacity(conn, library, pictures, limit=None) -> Dict:
         active = {a['asset_id'] for a in assets if is_active(a)}
         hashes = {picture_sha(path) for _, path in pictures}
         exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='seedance_subject_pictures'").fetchone()
-        rows = [dict(r) for r in conn.execute('SELECT sha, status, asset_id FROM seedance_subject_pictures')] if exists else []
+        rows = [dict(r) for r in conn.execute('SELECT * FROM seedance_subject_pictures')] if exists else []
         cached = {r['sha']: r for r in rows}
-        needed = sum(1 for sha in hashes if sha not in cached or cached[sha]['status'] != 'active'
-                     or cached[sha]['asset_id'] not in active)
-        # Một upload chưa rõ kết quả chiếm chỗ, không cho gửi lại/giả Kho trống.
-        if any(r['status'] not in ('active', 'failed') and r['asset_id'] not in ids for r in rows):
-            return unknown
-        free = max(0, limit - len(ids))
+        by_name = {}
+        for asset in assets:
+            if asset.get('name'):
+                by_name.setdefault(asset['name'], []).append(asset)
+        reserved = 0
+        resolved = {}
+        for row in rows:
+            aid = row['asset_id']
+            if not aid and row['status'] == 'processing':
+                matches = by_name.get(row.get('name'), [])
+                if len(matches) == 1:
+                    aid = matches[0]['asset_id']
+            resolved[row['sha']] = aid
+            if row['status'] not in ('active', 'failed') and aid not in ids:
+                if row['sha'] in hashes:
+                    return unknown
+                reserved += 1  # upload khác chưa rõ kết quả: giữ một chỗ, không khóa cả Kho
+        needed = sum(1 for sha in hashes if sha not in cached or not (
+            (cached[sha]['status'] == 'active' and resolved[sha] in active)
+            or (cached[sha]['status'] == 'processing' and resolved[sha] in ids)))
+        free = max(0, limit - len(ids) - reserved)
         full = needed > free
         return {'code': 'QUEUE_CAPACITY' if full else 'READY', 'severity': 'warn' if full else 'info',
                 'count': len(ids), 'limit': limit, 'needed': needed, 'free': free,
@@ -485,7 +500,8 @@ def cleanup_dependencies(conn, assets) -> List[Dict]:
 
 def rejected_frame_assets(conn, project_id: int) -> List[Dict]:
     """[{"asset_id", "name", "job_id"}] of this project's rejected frames still in the library (read only)."""
-    _pictures_table(conn)
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='seedance_subject_pictures'").fetchone():
+        return []
     rows = conn.execute("SELECT asset_id, name, path FROM seedance_subject_pictures WHERE asset_id IS NOT NULL").fetchall()
     owners: Dict[str, set] = {}
     for r in rows:

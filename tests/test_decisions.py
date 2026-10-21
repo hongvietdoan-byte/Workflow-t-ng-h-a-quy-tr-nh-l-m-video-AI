@@ -84,7 +84,7 @@ def check_image_default_gpt25():
                 value = line.split("=", 1)[1].strip()
     assert value and value.startswith("gpt-image-2.5"), f"dashboard.env.example DEEPIX_MODEL = {value!r}"
     assert value in image_models.models(), f"{value} không có trong data/provider_rules.json"
-    with mock.patch.dict(os.environ, {"DEEPIX_MODEL": value}):
+    with mock.patch.object(os, "environ", {"DEEPIX_MODEL": value}):
         assert image_models.of_project(None) == value
 
 
@@ -114,7 +114,7 @@ def check_byd_missing_shot_auto_numbered():
     byd = {"thanh_phan": [{"vat": "KELLY", "vai": "chinh"}],
            "may": {"co": "MS", "do_cao": "ngang", "goc": "ngang", "chuyen_dong": "dung_yen"},
            "noi_chon": {"kho_id": KHO, "thoi_gian": "day", "thoi_tiet": "clear"}}
-    with mock.patch.dict(os.environ, {"FEATURE_SHOT_INTENT": "1"}):
+    with mock.patch.object(os, "environ", {"FEATURE_SHOT_INTENT": "1"}):
         p, pid = _project()
         obj = {"scenes": [{"idx": 8, "shots": [{"characters": ["KELLY"], "byd": dict(byd)},
                                                {"characters": ["KELLY"], "byd": dict(byd)}]}]}
@@ -195,6 +195,18 @@ def check_video_sends_form_picture():
     assert hasattr(seedance_refs, "form_and_object_pictures") and seedance_refs.FORM_TAG and seedance_refs.OBJECT_TAG
     assert "form_and_object_pictures" in inspect.getsource(seedance_refs.identity_pictures), "identity_pictures không thêm ảnh dạng/vật"
     assert "thiếu ảnh dạng" in inspect.getsource(runner.VideoRunner._ref_lint), "lint không chặn khi thiếu ảnh dạng"
+
+
+def check_subject_cleanup_dry_run():
+    """C3-3: không mở provider hoặc xóa khi cờ bật, chỉ đề nghị duyệt riêng."""
+    from core import subjects
+    with mock.patch.object(os, 'environ', {}), \
+         mock.patch.object(subjects, 'rejected_frame_assets', return_value=[{'asset_id': 'fixture'}]), \
+         mock.patch.object(subjects, '_cleanup_note'):
+        library = mock.Mock()
+        result = subjects.run_auto_cleanup(None, 1, 'fixture', library=library)
+    assert result['deleted'] == [] and result['plan']['dry_run'] is True
+    assert library.mock_calls == []
 
 
 CHECKS = {k: v for k, v in globals().items() if k.startswith("check_") and callable(v)}
@@ -280,7 +292,7 @@ def test_flag_matches_decision_at_code_default(item_id, name, want):
     empty = os.path.join(tempfile.mkdtemp(), "none.json")
     env = {"FEATURE_" + k.upper(): "" for k in features.FEATURES}
     env["FEATURE_SETTINGS_FILE"] = empty
-    with mock.patch.dict(os.environ, env):
+    with mock.patch.object(os, "environ", env):
         got = features.state(name)
     assert features.default_state(name) == got
     assert (got == "on") is bool(want), f"{item_id}: cờ {name} mặc định code '{got}', quyết định {'BẬT' if want else 'không bật'}"
@@ -292,7 +304,7 @@ def test_code_check(item_id, check):
 
 
 def test_cli_list_and_check_from_any_cwd():
-    env = dict(os.environ, PYTHONUTF8="1", PYTHONPATH=ROOT)
+    env = {"SYSTEMROOT": "C:/Windows", "PYTHONUTF8": "1", "PYTHONPATH": ROOT}
     for cmd in ("list", "check"):
         out = subprocess.run([sys.executable, "-m", "core.decisions", cmd], cwd=tempfile.mkdtemp(), env=env,
                              capture_output=True, text=True, encoding="utf-8", timeout=180)
@@ -332,3 +344,15 @@ def test_v31_d01b_product_job_cap_replaces_daily_wording():
     assert old["status"] == "replaced" and new["status"] == "active" and new["replaces"] == old["id"]
     assert "THEO SẢN PHẨM" in new["text"] and "job/ngày autopilot" not in new["text"].replace("trần job/ngày chung", "")
     assert new["enforced_by"] == old["enforced_by"]
+
+
+def test_c3_3_supersedes_legacy_cleanup_keeps_other_guards():
+    items = {i['id']: i for i in LEDGER['items']}
+    old = items['v31-d03b-subject-library-auto-clean-2026-10-20']
+    new = items['v31-d03c-c3-3-subject-cleanup-dry-run-2026-10-20']
+    assert old['status'] == 'replaced'
+    assert new['status'] == 'active' and new['replaces'] == old['id']
+    assert '13/10' in new['text'] and 'subject_auto_cleanup' in new['text']
+    for guard in ('preflight', 'không tự đổi model', 'nhân vật', 'TRÊN 3 NGÀY'):
+        assert guard in new['keeps']
+    check_subject_cleanup_dry_run()

@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:22:02.533518+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M25B",
+  "branch": "cloud/v31-m25b",
+  "commit": "94a606b4",
+  "report": "docs/RA_CLOUD_M25B_2026-10-21.md",
+  "text": "C-M25B xong (nhánh dựng trên cloud/v31-m25 — gộp C-M25 trước; cờ field_guard): write_guard.lock → _field_state.motion_prompt=USER_LOCKED + _field_prov {by human, at} + _rev+1, chỉ khi người SỬA (chữ khác); store_motion_prompts(actor=human) khóa sau khi ghi; revert bản motion cũ = người → khóa; Dashboard Bước 3 (💾, ✔ Duyệt) + Bước 1 Storyboard truyền actor người; JSON Claude dán tay Bước 3 = ai:claude_paste (không khóa). AI ghi đè → diag field_conflict, shadow vẫn ghi chữ AI (chặn = C3-6), khóa giữ. Cờ TẮT không ghi khóa. 10 test (8 đỏ trước). Full 6830 passed, 27 đỏ = 4 cũ + 23 golden (Python 3.14). Ghi chú: đề 'dữ liệu người giữ nguyên ở shadow' mâu thuẫn với 'không chặn' — hiểu là giữ khóa + provenance. HẠN MỨC: không đọc được."
+}

@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T12:23:06.032414+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M2-TICHHOP",
+  "to": "cloud-C",
+  "title": "Nhánh tích hợp M2 + sửa 4 VỪA rà chéo (M21-1, M25-1, DP9×M21)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M2-TICHHOP",
+  "priority": 0
+}

@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T12:03:08.716219+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "DP10",
+  "branch": "cloud/v31-dp10",
+  "commit": "e5a4a1ac",
+  "report": "docs/RA_CLOUD_DP10_2026-10-21.md",
+  "text": "M2.8 NỬA ĐẦU: cờ router_first_frame TẮT = byte cũ; BẬT tách shot cần khung đầu khỏi nhóm ref-only + lý do trong gói + VÀNG khung_dau. Rà quy ước 7 đã sửa 3 VỪA + 3 THẤP; CAO (shot tách vẫn ref-only, chưa đổi đường) để M2.8b — KHÔNG bật cờ trước đó, cần phiên chính quyết. Test DP10 15 + liên quan 181 qua (1 đỏ có sẵn Linux). CẢ BỘ chưa chạy xong (dừng vì hạn mức 5h) — phiên chính chạy cả bộ khi gộp."
+}

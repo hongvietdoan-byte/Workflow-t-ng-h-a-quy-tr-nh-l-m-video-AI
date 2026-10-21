@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:58:43.744825+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-STAGE-PLAN",
+  "to": "cloud-E",
+  "title": "Kế hoạch nút/phương án bàn đạo diễn 3D trên Dashboard (chỉ tài liệu)",
+  "spec": "docs/CLOUD_TASKS.md#### C-STAGE-PLAN",
+  "priority": 2
+}

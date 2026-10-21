@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T12:03:02.994320+07:00",
+  "lane": "cloud-E",
+  "kind": "giao",
+  "task": "C-STAGE-VIEW",
+  "to": "cloud-C",
+  "title": "Màn XEM sân khấu 3D trên Dashboard (chỉ đọc, cờ stage_view_ui)",
+  "spec": "docs/CLOUD_TASKS.md#### C-STAGE-VIEW",
+  "priority": 1
+}

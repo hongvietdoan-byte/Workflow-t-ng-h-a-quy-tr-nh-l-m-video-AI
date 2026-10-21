@@ -30,6 +30,17 @@ class RecordTests(unittest.TestCase):
         self.assertNotIn("abcdef1234567890", text)
         self.assertNotIn("sk-ant-abcdefghijk", text)
 
+    def test_a_long_posix_path_is_named_but_long_keys_stay_hidden(self):
+        """C-PORT4: a POSIX path is not a key ('/tmp/pytest-of-root/…/gone.png' became '***.png' on Linux only)."""
+        path = "/tmp/pytest-of-root/pytest-54/test_unreadable_picture_sha_nu0/tmpabc12345/gone.png"
+        self.assertEqual(diag.redact(f"không đọc được {path}"), f"không đọc được {path}")
+        for secret in ("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",              # a key with '/'
+                       "/9j/4AAQSkZJRgABAQAAAQABAADwefwefwefwefwefwefwef",       # base64 of a picture
+                       "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH"):
+            self.assertEqual(diag.redact(f"x {secret} y"), "x *** y")
+        self.assertNotIn("abcdefghij", diag.redact("u=/abcdefghijklmnopqrstuvwxyz/0123456789ABCD"))
+        self.assertNotIn("abcdefghij", diag.redact("http://abcdefghijklmnopqrstuvwxyz/0123456789ABCD"))
+
     def test_recording_never_raises(self):
         conn = connect()
         conn.execute("DROP TABLE diag_events")

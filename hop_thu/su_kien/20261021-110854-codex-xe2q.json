@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:08:54.834275+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX21-GOLDEN",
+  "branch": "codex/v31-golden-fix",
+  "commit": "c0bcefd6",
+  "report": "docs/RA_CX21_GOLDEN_CODEX_2026-10-21.md",
+  "text": "Code47a0a9bc: source_job_id cùngscope/NULLmalformedcycle per-caseinsufficient; exactFILEplate/assetsrefsROhashed; diagnostic loại/pathrootrelative; giữhistoricalbytekhácINSUFFICIENT. 3đỏ→88pass59.79s; ràđộclậpkhôngfindingcầnsửa, NULgiảđịnhsaiđãrúttest/thayđổithử vàđínhchínhRA. Rootđọcdiff. MCchụplạisnapshotthật theoRA >=3ảnh+3videoCOMPATmỗip24/p27, chưanghiệmthu/chưacảbộ/chưagộp. TíchhợpgiữruntimevenvFIXb3f34f0a+workerGOLDEN, READMEcảhai. KhôngAPI/live/realdata."
+}

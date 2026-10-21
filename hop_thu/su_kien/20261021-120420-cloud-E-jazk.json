@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T12:04:20.557628+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "C-PORT4",
+  "branch": "cloud/v31-port4",
+  "commit": "0eaf8e02",
+  "report": "docs/RA_CLOUD_PORT4_2026-10-21.md",
+  "text": "4 test Linux: unreadable_picture = LỖI CODE thật core/diag.redact nuốt đường dẫn POSIX (đã sửa + test; hệ quả phụ: tickets._safe không còn vô tình che đường dẫn POSIX giữa chuỗi — RÀ KỸ); punches skipIf thiếu librosa; end_popup font hệ thống Linux; recut_by_hand clip thử từ Y=16 (ffmpeg kẹp khác). Cả bộ trừ golden Linux 0 failed. Cần chạy Windows xác nhận ca 3–4. Chưa có agent rà quy ước 7 (nhánh phụ không mở Agent)."
+}

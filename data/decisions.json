@@ -501,7 +501,7 @@
    "changes": "CHÍNH SÁCH / ĐỊNH HƯỚNG KIẾN TRÚC — không phải lệnh triển khai code; M1.5 cần duyệt phạm vi (Cấp 2). Xóa asset là thao tác bên ngoài không hoàn tác — chỉ chạy theo đúng quy tắc trên. Thay v31-d03-subject-library-full-stop-2026-10-20.",
    "replaces": "v31-d03-subject-library-full-stop-2026-10-20",
    "enforced_by": [],
-   "status": "active"
+   "status": "replaced"
   },
   {
    "id": "v31-speedup-milestone-approval-2026-10-20",
@@ -572,6 +572,22 @@
    "changes": "Sao lưu data/backup/manifest.before_c3-1_llm_provider_2026-10-20.sqlite; Dashboard 8501 khởi động lại. Khôi phục: chép lại bản sao lưu hoặc migrate_llm_provider_down (từ chối khi còn dữ liệu trừ force).",
    "replaces": null,
    "enforced_by": [],
+   "status": "active"
+  },
+  {
+   "id": "v31-d03c-c3-3-subject-cleanup-dry-run-2026-10-20",
+   "date": "2026-10-20",
+   "by": "người dùng (gói Cấp 3, C3-3)",
+   "text": "D03 — chọn A. C3-3 CHỈ DUYỆT DRY-RUN: subject_auto_cleanup chỉ lập danh sách + dependency + lý do; chưa xóa asset thật, kể cả khi cờ bật và dự án giao/cất. Mỗi plan cần duyệt riêng trước mọi thao tác xóa. Thay duyệt tự dọn khung bị loại 13/10 được ghi ở keeps của D03b.",
+   "keeps": "Chuyển tiếp D03b: preflight sức chứa trước gửi, dừng báo rõ khi thiếu/không xác định; chỉ chặn tác vụ cần Kho; không tự đổi model. Giữ bảo vệ asset còn dự án đang làm hoặc nhân vật tham chiếu; không rõ owner thì giữ. Mốc TRÊN 3 NGÀY cho dự án đã giao/cất và phạm vi bản nháp cũ chỉ là tiêu chí đề nghị dry-run, không cấp quyền xóa.",
+   "changes": "Chỉ supersede quyền tự xóa subject_auto_cleanup 13/10 trong D03b; giữ nguyên mọi guard còn lại. Code M1.5 không gọi provider/delete từ run_auto_cleanup dù cờ bật. CHÍNH SÁCH — không phải lệnh triển khai hay cấp quyền xóa production.",
+   "replaces": "v31-d03b-subject-library-auto-clean-2026-10-20",
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_subject_cleanup_dry_run"
+    }
+   ],
    "status": "active"
   }
  ]

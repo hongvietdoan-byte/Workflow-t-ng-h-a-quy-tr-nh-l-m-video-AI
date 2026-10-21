@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T12:01:05.638963+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "CX21-FIX2",
+  "branch": "codex/v31-fix2-21",
+  "commit": "bddd41f7",
+  "report": "docs/RA_CX21_FIX_CODEX_2026-10-21.md",
+  "text": "CX21-FIX2 xong: tools/merge_union.merge_json list không id gộp theo base ([x for x in ours if x in theirs or x not in base] + [x for x in theirs if x not in ours and x not in base]; base không phải list → union như cũ; list có id không đổi). Test 4 ca (A xóa/B thêm, đổi phía, hai bên cùng thêm, base không list) đỏ trước → xanh; test_cx21_fix 13 qua + devsys/hop_thu 68 qua. Mục bổ sung trong RA_CX21_FIX_CODEX. HẠN MỨC: không đọc được."
+}

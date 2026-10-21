@@ -158,40 +158,84 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
         running = conn.execute("SELECT count(*) FROM jobs WHERE project_id=? AND state IN ('queued','running','retryable')", (project,)).fetchone()[0]
         if running:
             warnings.append("Dự án có job đang chạy; nên dùng snapshot CSDL + ref nhất quán trước khi chụp")
-        rows = conn.execute("SELECT id,type,state,model,quality_tier,sent_package FROM jobs WHERE project_id=? AND scene_id=? AND type IN ('image_gen','video_gen') ORDER BY id", (project, shot)).fetchall()
+        rows = conn.execute("SELECT * FROM jobs WHERE project_id=? AND scene_id=? AND type IN ('image_gen','video_gen') ORDER BY id", (project, shot)).fetchall()
         if not rows:
             raise GoldenError("Không có jobs ảnh/video cho project + shot chỉ định")
         if latest_per_type:
             rows=list({row['type']:row for row in rows}.values())
         for row in rows:
-            raw = row["sent_package"]
+            selected_id = row["id"]
+            if latest_per_type:
+                visited = set()
+                while True:
+                    try:
+                        try:
+                            candidate = json.loads(row["sent_package"])
+                        except (TypeError, ValueError):
+                            candidate = None
+                        _safe(candidate)
+                        if isinstance(candidate, dict) and isinstance(candidate.get("prompt"), str) and candidate["prompt"]:
+                            break
+                        visited.add(row["id"])
+                        source_id = row["source_job_id"] if "source_job_id" in columns else None
+                        if type(source_id) is not int or source_id in visited:
+                            raise GoldenError("chuỗi nguồn thiếu/hỏng hoặc có vòng lặp")
+                        parent = conn.execute("SELECT * FROM jobs WHERE id=? AND project_id=? AND scene_id=? AND type=?",
+                                              (source_id, project, shot, row["type"])).fetchone()
+                        if parent is None:
+                            raise GoldenError("nguồn không thuộc cùng project/scene/type")
+                        row = parent
+                    except (GoldenError, TypeError, ValueError):
+                        jobs.append({"id": selected_id, "type": row["type"], "selected_job_id": selected_id,
+                                     "database_replay": {"status": "INSUFFICIENT_INPUT", "matched_at_capture": False,
+                                                         "reason": "chuỗi source_job_id thiếu/hỏng hoặc không an toàn"}})
+                        row = None
+                        break
+                if row is None:
+                    continue
             try:
-                package = json.loads(raw)
-            except (TypeError, ValueError):
-                raise GoldenError(f"job {row['id']}: thiếu/hỏng sent_package") from None
-            if not isinstance(package, dict):
-                raise GoldenError(f"job {row['id']}: sent_package cần object")
-            for name in ("v", "prompt", "provider", "model", "refs"):
-                if name not in package:
-                    raise GoldenError(f"job {row['id']}: sent_package thiếu {name}")
-            if not isinstance(package["refs"], list):
-                raise GoldenError("refs cần list giữ nguyên thứ tự")
-            if not isinstance(package["prompt"], str) or not package["provider"] or not package["model"]:
-                raise GoldenError("prompt/provider/model thiếu giá trị")
-            _safe(package)
-            refs = [_ref(ref, root) for ref in package["refs"]]
+                raw = row["sent_package"]
+                try:
+                    package = json.loads(raw)
+                except (TypeError, ValueError):
+                    raise GoldenError(f"job {row['id']}: thiếu/hỏng sent_package") from None
+                if not isinstance(package, dict):
+                    raise GoldenError(f"job {row['id']}: sent_package cần object")
+                for name in ("v", "prompt", "provider", "model", "refs"):
+                    if name not in package:
+                        raise GoldenError(f"job {row['id']}: sent_package thiếu {name}")
+                if not isinstance(package["refs"], list):
+                    raise GoldenError("refs cần list giữ nguyên thứ tự")
+                if not isinstance(package["prompt"], str) or not package["provider"] or not package["model"]:
+                    raise GoldenError("prompt/provider/model thiếu giá trị")
+                _safe(package)
+                refs = [_ref(ref, root) for ref in package["refs"]]
+            except GoldenError:
+                if not latest_per_type:
+                    raise
+                jobs.append({"id": selected_id, "type": row["type"], "selected_job_id": selected_id,
+                             "database_replay": {"status": "INSUFFICIENT_INPUT", "matched_at_capture": False,
+                                                 "reason": "gói lịch sử thiếu/hỏng hoặc không an toàn"}})
+                continue
             for index, ref in enumerate(refs):
                 if ref["hash_status"] != "match":
                     warnings.append(f"job {row['id']} refs[{index}]: {ref['hash_status']}")
             if row["quality_tier"] is None:
                 warnings.append(f"job {row['id']}: thiếu quality_tier (NULL), không suy đoán")
-            jobs.append({"id": row["id"], "type": row["type"], "state": row["state"], "model": row["model"],
+            jobs.append({"id": row["id"], "selected_job_id": selected_id, "type": row["type"], "state": row["state"], "model": row["model"],
                          "tier": row["quality_tier"], "provider": package["provider"], "prompt": package["prompt"],
                          "sent_package_raw": raw, "sent_package_sha256": hashlib.sha256(raw.encode("utf-8")).hexdigest(), "refs": refs, "input_snapshot": inputs.get(str(row["id"]))})
     if database_replay:
         from tools.golden_db_replay import capture_database_job
         for job in jobs:
-            job["database_replay"] = capture_database_job(job,db=db,ref_root=root,flags=flags,public_config=public_config)
+            if "sent_package_raw" not in job:
+                continue
+            try:
+                job["database_replay"] = capture_database_job(job,db=db,ref_root=root,flags=flags,public_config=public_config)
+            except (ValueError, OSError, sqlite3.Error, subprocess.SubprocessError) as exc:
+                job["database_replay"] = {"status": "INSUFFICIENT_INPUT", "matched_at_capture": False,
+                                          "reason": "không dựng được ca; tiếp tục các ca khác",
+                                          "diagnostic": {"kind": type(exc).__name__}}
     return {"fixture_version": 1, "purpose": purpose, "head_sha": head_sha(), "flags": flags,
             "experimental_flags": experimental,
             "flags_provenance": "explicit_file_unverified_at_send", "schema": schema, "project": project, "scene_id": shot,
