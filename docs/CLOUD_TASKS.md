@@ -614,3 +614,27 @@ grep -rn trong tests/: test_end_popup_p24.py, test_cost_route_e1.py, test_ffmpeg
 \ vs /, font/ffmpeg thiếu, phân biệt hoa thường, encoding…). Sửa test (hoặc code nếu lỗi thật đa nền tảng) để xanh cả hai; thiếu công cụ hệ thống thì
 skipif có lý do rõ — KHÔNG nới assert. Báo cáo gốc từng test docs/RA_CLOUD_PORT4_2026-10-2x.md. Nhánh cloud/v31-port4. XONG hộp thư.
 ```
+
+## Việc chuyển từ codex sang cloud (người dùng 21/10: "giao cho phiên cloud khác hỗ trợ codex trong thời gian nghỉ")
+
+#### C-GOLDEN2 (cloud-C — ưu tiên 0; mở khóa gộp M2)
+```
+Nghiệm thu golden #24/#27 lần 2 (21/10, công cụ CX21-GOLDEN đã gộp main) vẫn KHÔNG ĐẠT: 68/68 INSUFFICIENT_INPUT, 0 CODE_MISMATCH. Kết quả + fixture ở máy chính
+(D:/AI-Video-Output/golden-snapshot-2/ — cloud KHÔNG đọc được; dưới đây là đủ chẩn đoán). Sửa tools/golden_capture.py + tools/golden_db_replay.py (+ test):
+(a) Video bản final (submit_final_from_sample, prompt rỗng): source_job_id trỏ job ẢNH, bản nháp video ở draft_job_id → đi theo draft_job_id (29 ca).
+(b) ĐỔI ĐỊNH NGHĨA COMPAT (phiên chính chốt theo ý D08 "cờ mới TẮT = byte giống"): máy chính đang BẬT 83 cờ verified False (project_prop_lock,
+    plate_anchored_image, video_pregen, two_tier_quality…), nên đòi "mọi cờ verified False TẮT" làm 0 ca thật nào COMPAT. Mới: file cờ structured có
+    `baseline_flags` = trạng thái cờ sản xuất lúc chụp (như lúc gửi) + `experimental_flags` = các cờ MỚI của V3.1 (danh sách tường minh do người chụp
+    đưa, phải TẮT). COMPAT = dựng lại với baseline_flags + experimental TẮT ra đúng byte gói đã gửi. Ghi rõ vào tests/golden/README.md; giữ fail-closed khi
+    thiếu cờ trong catalog.
+(c) Model: public-config {} làm dựng ra seedance-fast thay vì seedance-2.5/kling (job 667/657/660/879/909/915/839/790) → lấy model/provider từ cột
+    jobs.model (và provider) của chính job, không từ cấu hình chung.
+(d) pregen_fingerprint gắn NGOÀI _build_package → tái tạo bằng đúng hàm tạo fingerprint, hoặc so tách riêng trường này (ghi rõ) — job 846 chỉ lệch trường này.
+(e) Builder đòi file plate/asset KHÁC file trong refs đã gửi (dữ liệu sân khấu/Kho đổi sau ngày gửi) → xếp DATA_CHANGED có lý do, không INSUFFICIENT_INPUT.
+(f) `golden_capture.py --help` lỗi UnicodeEncodeError cp1252 khi thiếu PYTHONUTF8 → reconfigure stdout utf-8.
+(g) CX21-GOLDEN (e) nếu chưa có: test cần worker Python 3.14 → skipif khi không có (cloud 3.13), lý do rõ.
+Test ĐỎ→XANH bằng fixture tổng hợp cho từng mục. Không sửa core/ (chỉ đọc hàm builder). Nhánh cloud/v31-golden2. Báo cáo docs/RA_CLOUD_GOLDEN2_2026-10-2x.md
+kèm LỆNH chụp lại cho phiên chính (máy chính chạy). XONG hộp thư.
+```
+
+#### CX21-FIX2 → cloud-C (nhỏ): đề ở docs/CODEX_TASKS.md "### CX21-FIX2" (merge_union: mục một bên xóa bị sống lại). Nhánh cloud/v31-fix2-21.
