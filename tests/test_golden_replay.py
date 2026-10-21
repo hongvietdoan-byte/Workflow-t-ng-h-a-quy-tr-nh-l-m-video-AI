@@ -293,3 +293,45 @@ def test_replay_rejects_launcher_or_unapproved_version(tmp_path, name, version):
         with patch.object(sys, "executable", str(native)), patch.object(sys, "version_info", version), patch.object(module.subprocess, "run", side_effect=AssertionError("spawn forbidden")):
             with pytest.raises(module.GoldenError, match="native Python"):
                 module.replay_builder({}, ref_root=tmp_path)
+
+@pytest.mark.parametrize('source',[2,999,1,3])
+@pytest.mark.parametrize('raw_kind',['prompt_none','null','malformed'])
+def test_latest_final_resolves_or_continues(golden, source, raw_kind):
+    module, db, flags, root, raw = golden
+    package=json.loads(raw);package['prompt']=None
+    with sqlite3.connect(db) as conn:
+        conn.execute('ALTER TABLE jobs ADD COLUMN source_job_id INTEGER')
+        conn.execute("INSERT INTO jobs(id,project_id,scene_id,type,state,model,quality_tier,sent_package,source_job_id,created_at,updated_at) VALUES(3,24,7,'video_gen','succeeded','fake-image','final',?,?,'x','x')",(None if raw_kind=='null' else 'malformed synthetic' if raw_kind=='malformed' else json.dumps(package),source))
+    with patch.object(os,'environ',{}),patch.object(module,'head_sha',return_value='a'*40):
+        result=module.capture(db=db,project=24,shot=7,flags_file=flags,ref_root=root,purpose='compat',latest_per_type=True)
+    assert len(result['jobs'])==2
+    job=result['jobs'][1]
+    if source==2:
+        assert job['id']==2
+        assert job['selected_job_id']==3
+    else:
+        assert job['database_replay']['status']=='INSUFFICIENT_INPUT'
+        assert result['jobs'][0]['id']==1
+
+
+def test_latest_invalid_provider_continues(golden):
+    module,db,flags,root,raw=golden
+    package=json.loads(raw);package['provider']=None
+    with sqlite3.connect(db) as conn:
+        conn.execute('UPDATE jobs SET sent_package=? WHERE id=2',(json.dumps(package),))
+    with patch.object(os,'environ',{}),patch.object(module,'head_sha',return_value='a'*40):
+        result=module.capture(db=db,project=24,shot=7,flags_file=flags,ref_root=root,purpose='compat',latest_per_type=True)
+    assert len(result['jobs'])==2
+    assert result['jobs'][1]['database_replay']['status']=='INSUFFICIENT_INPUT'
+    assert result['jobs'][0]['sent_package_raw']==raw
+
+
+def test_database_capture_error_is_per_case(golden):
+    module,db,flags,root,_=golden
+    with patch.object(os,'environ',{}),patch.object(module,'head_sha',return_value='a'*40):
+        replay=importlib.import_module('tools.golden_db_replay')
+        with patch.object(replay,'capture_database_job',side_effect=[ValueError('synthetic'),{'status':'BUILT'}]) as call:
+            result=module.capture(db=db,project=24,shot=7,flags_file=flags,ref_root=root,purpose='compat',database_replay=True)
+        assert call.call_count==2
+    assert result['jobs'][0]['database_replay']['status']=='INSUFFICIENT_INPUT'
+    assert result['jobs'][1]['database_replay']['status']=='BUILT'

@@ -301,3 +301,53 @@ def test_capture_cli_preserves_explicit_public_config(database):
             '--public-config-file',str(public_file)])==0
     fixture=json.loads(output.read_text(encoding='utf-8'))
     assert all(j['database_replay']['manifest']['public_config']=={'LLM_PROVIDER':'synthetic'} for j in fixture['jobs'])
+
+
+@pytest.mark.parametrize("name", ["data/_plates3d/cache/plate.png", "data/assets/900/ref.png"])
+def test_job_ref_permission_is_exact_file_readonly(database, name):
+    module, _, root, _ = database
+    target=root/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(b"synthetic image")
+    with patch.object(os,"environ",{}):
+        granted=module._job_ref_paths({"refs":[{"path":name}]},root)
+        assert granted=={name}
+        assert (Path(name).parent/'other.png').as_posix() not in granted
+        assert module._job_ref_paths({"refs":[{"path":"data/assets/900/config.json"}]},root)==set()
+        with pytest.raises(ValueError):
+            module._job_ref_paths({"refs":[{"path":"data/assets/900/../../../escape.png"}]},root)
+        exc=module.SandboxDenied("read", name)
+        assert exc.diagnostic=={"kind":"read","path":name}
+
+
+@pytest.mark.parametrize("name", ["data/_plates3d/cache/plate.png", "data/assets/900/ref.png"])
+def test_worker_reads_only_job_ref_and_reports_blocked_sibling(database,name):
+    module,db,root,flags=database
+    target=root/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(b"synthetic referenced image")
+    sibling=target.with_name('other.png');sibling.write_bytes(b"unreferenced")
+    with closing(sqlite3.connect(db)) as conn,conn:
+        conn.execute('UPDATE jobs SET sent_package=? WHERE id=1',(json.dumps({'refs':[{'path':name}]}),))
+    with tempfile.TemporaryDirectory(prefix='golden-probe-') as temp,patch.object(os,'environ',{}):
+        box=Path(temp);(box/'data').mkdir();module._db_snapshot(db,box/'data/manifest.sqlite')
+        request={'root':str(root),'job_id':1,'flags':flags,'envelope':{'provider':'fake','at':'2026-10-21','external_id':'fixture'},'public_config':{},'expected_files':None}
+        path=box/'probe.json';path.write_text(json.dumps(request),encoding='utf-8')
+        code="""import os,sys,json
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,sys.argv[1])
+with patch.object(os,'environ',{}):
+ from tools.golden_db_replay import _worker,SandboxDenied
+ from core import runner
+ request=json.loads(Path(sys.argv[2]).read_text(encoding='utf-8'))
+ def probe(self,job):
+  path=Path(request['root'])/sys.argv[3]
+  assert path.read_bytes()==b'synthetic referenced image'
+  try:path.with_name('other.png').read_bytes()
+  except SandboxDenied as exc:Path('denied.json').write_text(json.dumps(exc.diagnostic))
+  return None
+ with patch.object(runner.ImageRunner,'_submit_args',probe):
+  result=_worker(request)
+ Path('answer.json').write_text(json.dumps(result))
+"""
+        result=subprocess.run([sys.executable,'-I','-B','-c',code,str(Path(__file__).resolve().parents[1]),str(path),name],cwd=box,
+            env={'SYSTEMROOT':'C:/Windows','HOME':temp,'USERPROFILE':temp,'TEMP':temp,'TMP':temp},capture_output=True,timeout=60)
+        assert result.returncode==0
+        assert json.loads((box/'denied.json').read_text())=={'kind':'data','path':str(Path(name).with_name('other.png')).replace('\\','/')}
