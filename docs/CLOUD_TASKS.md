@@ -917,6 +917,23 @@ cây B → DIFF), rồi báo XONG để codex chạy lại. 31 BOTH_FAIL (NOT_BU
 báo cáo bổ sung docs/RA_CLOUD_GOLDEN5_*.md mục "GOLDEN6". XONG hộp thư (mã C-GOLDEN6).
 ```
 
+#### C-M83-TOOL (cloud-E — ưu tiên 2; Cấp 1 công cụ đo, 0 USD; cloud-claude giao 22/10) — công cụ đo tải 10 người cho M8.3 (lượt đo thật = máy chính)
+```
+Kế hoạch V3.1 M8.3: "10 phiên trình duyệt tự động mở dự án, xem, duyệt, bấm gen (giả); đo thời gian vẽ từng màn, CPU/RAM tiến trình Streamlit, chờ khóa SQLite,
+luồng nền nhân bản theo phiên, khóa Blender, hàng đợi Claude CLI → bảng giới hạn". tools/load_test.py hiện chỉ đo autopilot (không có trình duyệt). Làm
+tools/load_test_ui.py (Playwright, Chromium có sẵn /opt/pw-browsers; executablePath nếu pin version khác; KHÔNG playwright install):
+1. Dựng CSDL TẠM giả (≥ 3 dự án × 20–40 shot, ảnh giả nhỏ) hoặc --db <bản sao> (mở mode=ro → backup vào thư mục tạm, như tools/scene_layout_audit.py);
+   khởi Streamlit dashboard trên cổng riêng với provider GIẢ (MOCK, độ trễ giả) — tuyệt đối không khóa API / không gọi trả phí.
+2. N phiên (1, 2, 5, 10 mặc định) song song: mở Trang chủ → dự án → Bước 2 (xem thẻ, duyệt 1 ảnh) → Bước 4 (xem) → bấm Gen giả; mỗi bước đo thời gian tới khi
+   màn ổn định (không còn spinner / "Running").
+3. Đo phía server: CPU/RAM tiến trình Streamlit (psutil), số luồng, thời gian chờ khóa SQLite (bọc connect/execute bằng bộ đếm qua biến môi trường đo),
+   số luồng nền theo phiên.
+4. Ra bảng markdown + JSON: p50/p95 từng màn theo N, CPU/RAM đỉnh, khóa SQLite, ngưỡng "chậm" (màn chính > 2 s) xuất hiện ở N nào, khâu nghẽn.
+5. Test nhanh (không trình duyệt): dựng CSDL giả + bộ tổng hợp số đo; test có trình duyệt đánh dấu slow.
+Không sửa dashboard/ (chỉ đo). Báo cáo docs/RA_CLOUD_M83_TOOL_2026-10-2x.md kèm số đo chạy thử trên cloud (ghi rõ: Linux cloud ≠ máy chính) + lệnh cho máy chính
+chạy lượt thật. Nhánh cloud/v31-m83-tool. XONG hộp thư.
+```
+
 #### C-GOLDEN7 (cloud-C — ưu tiên 0, đường găng; cloud-claude giao 22/10) — validator cờ của --ab dùng catalog CÂY CÔNG CỤ thay vì cây đang dựng
 ```
 CX21-GOLDEN6 (docs/RA_CX21_GOLDEN6_CODEX_2026-10-22.md, nhánh codex/v31-golden6): negative control native XANH, nhưng lượt thật 158/158 BOTH_FAIL TRƯỚC worker,
