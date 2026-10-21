@@ -50,18 +50,31 @@ class DataChanged(ValueError):
 
 # C-GOLDEN4: worker đọc MỌI tệp dưới data/ của ref-root (chỉ đọc, mỗi lần đọc vào manifest có sha) — trừ danh sách cấm cứng này.
 # Lần 1 thiếu data/_plates3d, lần 3 thiếu data/skills: allowlist từng thư mục luôn sót dependency mới → sửa gốc bằng danh sách CẤM.
-DENIED_SUFFIXES = (".env", ".sqlite", ".sqlite-wal", ".sqlite-shm", ".sqlite-journal", ".db", ".db-wal", ".db-shm", ".db-journal",
-                   ".key", ".pem", ".p12", ".pfx", ".crt")
-DENIED_WORDS = ("token", "secret", "password", "passwd", "credential", "cookie", "apikey", "api_key", "private_key")
+DENIED_SUFFIXES = (".key", ".pem", ".p12", ".pfx", ".crt", ".log", ".bak", ".old", ".zip", ".7z", ".tar", ".gz")
+DENIED_SEGMENTS = ("env", "db", "bak", "log")           # một khúc giữa các dấu chấm của tên: x.env.local, dashboard.env.bak, a.db-wal …
+DENIED_WORDS = ("token", "secret", "password", "passwd", "credential", "cookie", "apikey", "api_key", "private_key", "owner_setup_code",
+                "id_rsa", "id_ed25519", "service_account")
+IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff", ".avif")
 
 
 def read_denied(name):
-    """Tên tương đối (posix) bị cấm đọc dù nằm dưới data/: CSDL live (worker chỉ dùng bản snapshot trong scratch), *.env / dashboard.env,
-    tệp khóa / credential, data/backup/**. True = cấm."""
-    parts = Path(name).parts
-    base = parts[-1].lower() if parts else ""
-    return (name == "data/backup" or name.startswith("data/backup/") or base == "dashboard.env" or base.startswith(".env")
-            or base.endswith(DENIED_SUFFIXES) or any(w in base for w in DENIED_WORDS))
+    """Tên tương đối (posix) bị cấm đọc dù nằm dưới data/ — so KHÔNG phân biệt hoa thường: CSDL (mọi *.sqlite* / *.db* — worker chỉ dùng
+    snapshot trong scratch), mọi biến thể .env (dashboard.env, x.env.local, .env.bak), log / bản sao lưu / nén, tệp khóa / credential, data/backup*.
+    Tên lạ kiểu Windows (':' luồng NTFS, khúc kết thúc bằng '.' hoặc dấu cách) cũng cấm. Ảnh (đuôi ảnh) không xét từ khóa (gold_token.png là ảnh Kho).
+    True = cấm."""
+    low = str(name).casefold()
+    parts = Path(low).parts
+    if not parts or ":" in low or any(p.endswith((".", " ")) for p in parts):
+        return True
+    base = parts[-1]
+    if low == "data/backup" or low.startswith("data/backup"):
+        return True
+    segments = base.split(".")
+    if any(s in DENIED_SEGMENTS or s.startswith(("sqlite", "db-", "env")) for s in segments[1:]) or segments[0] in ("", "env"):
+        return True
+    if base.endswith(IMAGE_SUFFIXES):
+        return False
+    return base.endswith(DENIED_SUFFIXES) or any(w in base for w in DENIED_WORDS)
 
 
 FINGERPRINT = "pregen_fingerprint"
@@ -88,7 +101,9 @@ def _without_fingerprint(raw):
 
 
 def classify_answer(answer):
-    """C-GOLDEN2 (e): INSUFFICIENT_INPUT vì sandbox chặn đọc tệp nền/Kho ngoài refs đã gửi → DATA_CHANGED có lý do (tệp nào)."""
+    """C-GOLDEN2 (e): INSUFFICIENT_INPUT vì sandbox chặn đọc tệp nền/Kho ngoài refs đã gửi → DATA_CHANGED có lý do (tệp nào).
+    C-GOLDEN4: worker nay đọc được mọi tệp dưới data/ trừ danh sách cấm — lần chặn vì bí mật mang kind "secret" (ngoài CHANGED_DATA_KINDS)
+    nên KHÔNG bị gán DATA_CHANGED; còn lại là tệp mới chỉ có ở lần replay (kind manifest) dưới nền/Kho."""
     if not isinstance(answer, dict) or answer.get("status") != "INSUFFICIENT_INPUT":
         return answer
     diag = answer.get("diagnostic")
@@ -106,12 +121,24 @@ def _digest(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def _signature(path):
+def _signature(path, expected=None):
+    """Chữ ký tệp/thư mục để so manifest. expected dạng {"stat": …} (C-GOLDEN4: builder chỉ hỏi tồn tại / kích thước, không mở) → so dạng đó."""
+    if isinstance(expected, dict) and "stat" in expected:
+        return {"stat": _stat_value(path)}
     if path.is_file():
         return _digest(path)
     if path.is_dir():
         return {"directory_sha256": hashlib.sha256(json.dumps(sorted(os.listdir(path))).encode()).hexdigest()}
     return None
+
+
+def _stat_value(path, stat=None):
+    """Kích thước tệp / "dir" / None (không có). stat: os.stat GỐC khi gọi trong worker (os.stat ở đó đã bị bọc bởi locate)."""
+    try:
+        st = (stat or os.stat)(path)
+    except OSError:
+        return None
+    return "dir" if __import__("stat").S_ISDIR(st.st_mode) else st.st_size
 
 
 def _plain(path, root):
@@ -177,7 +204,7 @@ def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None,
                 return {"status": "DATA_CHANGED", "reason": "định danh/envelope capture đã đổi"}
             for name, expected in manifest["files"].items():
                 path = _plain(name, root)
-                actual = _signature(path)
+                actual = _signature(path, expected)
                 if actual != expected:
                     return {"status": "DATA_CHANGED", "reason": "file đầu vào đã đổi"}
         request = {"root": str(root), "job_id": int(job_id), "flags": flags, "envelope": envelope,
@@ -198,7 +225,7 @@ def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None,
         if answer.get("status") != "BUILT":
             return answer
         for name,expected in answer["files"].items():
-            if _signature(_plain(name,root)) != expected:
+            if _signature(_plain(name,root), expected) != expected:
                 return {"status":"DATA_CHANGED", "reason":"nguồn đổi trong lúc capture/replay"}
         answer["manifest"] = {"version": 1, "db_sha256": digest, "files": answer.pop("files"),
                               "flags": flags, "public_config": public_config,
@@ -247,7 +274,8 @@ def replay_fixture(fixture, *, db, ref_root):
         recorded = job.get("database_replay") or {}
         if not recorded.get("manifest"):
             # C-GOLDEN4: capture đã phân loại DATA_CHANGED (dữ liệu đổi sau ngày gửi) giữ nguyên nhân — không gộp thành INSUFFICIENT_INPUT
-            status = "DATA_CHANGED" if recorded.get("status") == "DATA_CHANGED" else "INSUFFICIENT_INPUT"
+            # chỉ DATA_CHANGED đã phân loại có tệp (classify_answer: paths); DATA_CHANGED do race lúc chụp → INSUFFICIENT_INPUT như cũ
+            status = "DATA_CHANGED" if recorded.get("status") == "DATA_CHANGED" and recorded.get("paths") else "INSUFFICIENT_INPUT"
             extra = {k: recorded[k] for k in ("diagnostic", "paths", "chain") if k in recorded}
             results.append({**identity, "status":status, "reason":recorded.get("reason", "thiếu manifest"), **extra})
             continue
@@ -281,6 +309,7 @@ def _worker(request):
     import datetime
     from unittest.mock import patch
     scratch, source = Path.cwd(), Path(request["root"])
+    scratch_real, source_real = Path(os.path.realpath(scratch)), Path(os.path.realpath(source))
     files, denied, changed = {}, [], []
     original_open, original_io, original_stat = builtins.open, io.open, os.stat
     original_os_open = os.open
@@ -306,8 +335,10 @@ def _worker(request):
     def allowed(name):
         if read_denied(name):
             return False
-        return (name == "data" or name.startswith(("data/", "knowledge/", "prompts/")) or name in asset_paths)
-    def locate(path, write=False):
+        return name.startswith(("data/", "knowledge/", "prompts/")) or name in asset_paths
+    def locate(path, write=False, light=False):
+        """light=True (os.stat / exists / getsize): chỉ ghi tồn tại + kích thước, không băm nội dung (C-GOLDEN4: tránh DATA_CHANGED giả và băm lại
+        tệp lớn mỗi lần hỏi tồn tại); lần MỞ tệp ghi sha đầy đủ. Lúc replay theo đúng dạng đã ghi lúc capture."""
         if not isinstance(path, (str, bytes, os.PathLike)):
             return path
         name = relpath(path)
@@ -325,9 +356,20 @@ def _worker(request):
             except OSError:
                 pass
             target = _plain(name, source)
-            if request["expected_files"] is not None and name not in request["expected_files"]:
+            expected_files = request["expected_files"]
+            if expected_files is not None and name not in expected_files:
                 block("manifest", path)
                 forbidden()
+            if expected_files is not None:
+                want_stat = isinstance(expected_files[name], dict) and "stat" in expected_files[name]
+            else:
+                want_stat = light and name not in files
+            if want_stat:
+                files[name] = {"stat": _stat_value(target, original_stat)}
+                if expected_files is not None and files[name] != expected_files[name]:
+                    changed.append(True)
+                    raise DataChanged()
+                return target
             try:
                 st = original_stat(target)
                 if __import__('stat').S_ISDIR(st.st_mode):
@@ -346,7 +388,7 @@ def _worker(request):
                 raise DataChanged()
             return target
         if name and name.startswith("data/") and not absolute.is_relative_to(scratch):
-            block("data", path)
+            block("secret" if read_denied(name) else "data", path)
             forbidden()
         return path
     def wrapped_open(path, mode="r", *args, **kwargs):
@@ -354,7 +396,7 @@ def _worker(request):
     def wrapped_io(path, mode="r", *args, **kwargs):
         return original_io(locate(path, any(c in str(mode) for c in "wax+")), mode, *args, **kwargs)
     def wrapped_stat(path, *args, **kwargs):
-        return original_stat(locate(path), *args, **kwargs)
+        return original_stat(locate(path, light=True), *args, **kwargs)
     def wrapped_os_open(path, flags, mode=0o777, *, dir_fd=None):
         if dir_fd is not None:
             forbidden()
@@ -377,8 +419,14 @@ def _worker(request):
                 runtime = path.is_relative_to(Path(sys.base_prefix))
                 code = path.is_relative_to(ROOT) and path.suffix in {".py", ".pyc", ".pyd"}
                 if not (runtime or code or (name and allowed(name))):
-                    block("read", path)
+                    block("secret" if name and read_denied(name) else "read", path)
                     forbidden()
+                if name and allowed(name) and not runtime and not code:
+                    # C-GOLDEN4: đọc thẳng (FileIO / _io.open, không qua locate) — tệp thật phải nằm trong nguồn/scratch, không symlink ra ngoài
+                    real = Path(os.path.realpath(path))
+                    if not (real.is_relative_to(source_real) or real.is_relative_to(scratch_real) or real.is_relative_to(ROOT)):
+                        block("read", path)
+                        forbidden()
         elif event in {"os.listdir", "os.scandir"}:
             path = Path(os.path.abspath(os.fspath(args[0])))
             name = relpath(path)
