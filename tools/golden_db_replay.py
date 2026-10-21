@@ -698,15 +698,24 @@ class ABError(ValueError):
     """Đầu vào / môi trường của lượt so A/B sai (cây code, cờ, Python) — dừng cả lượt, mã thoát 2."""
 
 
+_CATALOGS = {}
+
+
 def _catalog(code_root):
+    """Tên cờ trong FEATURES (literal, đọc AST) của cây `code_root` — cache theo (đường dẫn, mtime, size) (C-GOLDEN7: trước parse lại mỗi ca)."""
     import ast
     fp = Path(code_root) / "core" / "features.py"
     if not fp.is_file():
         raise ABError(f"{code_root}: không phải cây code (thiếu core/features.py)")
+    st = fp.stat()
+    key = (str(fp.resolve()), st.st_mtime_ns, st.st_size)
+    if key in _CATALOGS:
+        return set(_CATALOGS[key])
     tree = ast.parse(fp.read_text(encoding="utf-8"))
     for node in tree.body:
         if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == "FEATURES":
-            return set(ast.literal_eval(node.value))
+            _CATALOGS[key] = frozenset(ast.literal_eval(node.value))
+            return set(_CATALOGS[key])
     raise ABError(f"không đọc được FEATURES của {code_root}")
 
 
@@ -731,16 +740,31 @@ def validate_ab_flags(flags, experimental, code_root, union=None):
         raise ABError("experimental_flags phải TẮT: " + ", ".join(on[:8]))
 
 
-def _preflight(flags, code_roots, experimental=None):
+def _preflight(flags, code_roots, experimental=None, public_config=None, ref_root=None):
     """Mỗi cây code: có core/runner.py + sent_package.py + features.py; file cờ hợp lệ theo catalog CỦA cây đó (validate_ab_flags, fail-
-    closed — thiếu thì cờ lặng lẽ = False ở worker). Trả hợp catalog A∪B (cho validator từng ca)."""
+    closed — thiếu thì cờ lặng lẽ = False ở worker). Rà C-GOLDEN7: MỌI lỗi cấu hình cả lượt kiểm ở đây (ABError → mã 2), không để từng ca
+    gộp thành BOTH_FAIL: experimental phải là list (--ab không có chế độ compat ngầm), public_config chỉ khóa public, ref-root hợp lệ,
+    cờ / config không chứa trường nhạy cảm. Trả hợp catalog A∪B (cho validator từng ca)."""
+    if not isinstance(experimental, list):
+        raise ABError("--ab cần experimental_flags là list (có thể rỗng) — không có chế độ compat ngầm")
+    public_config = public_config or {}
+    if not isinstance(public_config, dict) or any(k not in PUBLIC and not str(k).startswith("FEATURE_") for k in public_config):
+        raise ABError("public_config chỉ được có khóa public: " + ", ".join(sorted(PUBLIC)) + " hoặc FEATURE_*")
+    if ref_root is not None:
+        original = Path(ref_root).absolute()
+        if not Path(ref_root).resolve().is_dir() or any(p.is_symlink() or p.is_junction() for p in (original, *original.parents)):
+            raise ABError("ref-root không hợp lệ (không phải thư mục / nằm dưới symlink-junction)")
+    try:
+        _tool_capture()._safe({"flags": flags, "public_config": public_config})
+    except ValueError:
+        raise ABError("file cờ / public_config chứa trường nhạy cảm — cần bản đã lược bỏ") from None
     for code in code_roots:
         code = Path(code)
         if not all((code / "core" / f).is_file() for f in ("runner.py", "sent_package.py", "features.py")):
             raise ABError(f"{code}: không phải cây code (thiếu core/runner.py / sent_package.py / features.py)")
     union = set().union(*(_catalog(c) for c in code_roots))
     for code in code_roots:
-        validate_ab_flags(flags, experimental if experimental is not None else [], code, union)
+        validate_ab_flags(flags, experimental, code, union)
     return union
 
 
@@ -774,7 +798,7 @@ def run_ab(*, db, ref_root, flags, experimental, code_a, code_b, projects, publi
     if builder is None:
         builder = build_from_database
         _native_python()                    # môi trường sai → dừng cả lượt (ABError), không thành BOTH_FAIL giả
-    union = _preflight(flags, (code_a, code_b), experimental)
+    union = _preflight(flags, (code_a, code_b), experimental, public_config, ref_root)
     rows = []
     for job in ab_jobs(db, projects):
         res = {}
@@ -835,10 +859,13 @@ def main_ab(argv):
         if not isinstance(spec.get("baseline_flags"), dict):
             raise ABError("file cờ thiếu baseline_flags")
         experimental = list(spec.get("experimental_flags") or [])
-        flags = dict(spec["baseline_flags"]) | {n: False for n in experimental}
+        on = [n for n in experimental if spec["baseline_flags"].get(n) is True]
+        if on:                               # rà C-GOLDEN7: trước ép False LẶNG LẼ — cờ đang BẬT ở sản xuất bị tắt mà không ai biết
+            raise ABError("experimental_flags đang BẬT trong baseline_flags (phải TẮT, sửa file cờ): " + ", ".join(on[:8]))
+        flags = dict(spec["baseline_flags"]) | {n: False for n in experimental if n not in spec["baseline_flags"]}
         result = run_ab(db=a.db, ref_root=a.ref_root, flags=flags, experimental=experimental, code_a=a.code_a, code_b=a.code_b,
                         projects=a.project, public_config=spec.get("public_config") or {})
-    except (ABError, OSError, ValueError) as e:
+    except (ABError, OSError, ValueError, sqlite3.Error) as e:    # sqlite3.Error: --db sai / hỏng → mã 2, không traceback
         ap.exit(2, f"Không chạy được so A/B (đầu vào / môi trường): {str(e)[:300]}\n")
     with a.output.open("x", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)

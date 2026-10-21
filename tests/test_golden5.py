@@ -4,6 +4,7 @@ snapshot CSDL + ref-root chỉ đọc + MỘT file cờ (baseline sản xuất +
 riêng). ĐẠT = 0 DIFF + 0 ONE_FAIL. Lịch sử (gói đã gửi) chỉ là cột tham khảo. Worker thật cần native Python 3.14 → test đó ở máy chính."""
 import json
 import shutil
+from unittest import mock
 from pathlib import Path
 
 import pytest
@@ -279,3 +280,41 @@ def test_real_worker_tree_with_a_new_flag_builds_both_sides(database, tmp_path):
     res = G.run_ab(db=db, ref_root=root, flags=dict(flags, zz_new_flag=False), experimental=["zz_new_flag"], projects=[24],
                    code_a=a, code_b=b)
     assert res["total"]["SAME"] >= 1 and res["total"]["BOTH_FAIL"] == 0 and res["pass"] is True
+
+
+def test_every_whole_run_config_error_is_exit_2_not_both_fail(database, tmp_path):  # noqa: F811
+    """Rà C-GOLDEN7: public_config sai khóa, experimental None, ref-root hỏng → ABError TRƯỚC ca đầu (trước: N/N BOTH_FAIL, mã 1)."""
+    module, db, root, flags = database
+    a, b = _tree(tmp_path, "main", "x"), _tree(tmp_path, "m2", "x")
+    calls = []
+
+    def builder(**kw):
+        calls.append(kw)
+        return _built(PKG)
+    kw = dict(db=db, ref_root=root, flags=flags, projects=[24], code_a=a, code_b=b, builder=builder)
+    with pytest.raises(G.ABError, match="public_config"):
+        G.run_ab(experimental=[], public_config={"API_KEY_X": "1"}, **kw)
+    with pytest.raises(G.ABError, match="list"):
+        G.run_ab(experimental=None, **kw)
+    with pytest.raises(G.ABError, match="ref-root"):
+        G.run_ab(experimental=[], **dict(kw, ref_root=tmp_path / "khong_co"))
+    assert calls == []
+
+
+def test_cli_refuses_an_experimental_flag_that_is_on_and_a_bad_db(database, tmp_path):  # noqa: F811
+    module, db, root, flags = database
+    a, b = _tree(tmp_path, "main", "x"), _tree(tmp_path, "m2", "x")
+    name = next(iter(flags))
+    spec = tmp_path / "flags.json"
+    spec.write_text(json.dumps({"baseline_flags": dict(flags, **{name: True}), "experimental_flags": [name]}), encoding="utf-8")
+    args = ["--ab", "--ref-root", str(root), "--code-a", str(a), "--code-b", str(b), "--project", "24"]
+    with pytest.raises(SystemExit) as e:                                              # trước: ép False lặng lẽ
+        G.main_ab(args + ["--db", str(db), "--flags", str(spec), "--output", str(tmp_path / "o1.json")])
+    assert e.value.code == 2
+    bad = tmp_path / "hong.sqlite"
+    bad.write_bytes(b"khong phai sqlite" * 10)
+    spec.write_text(json.dumps({"baseline_flags": flags, "experimental_flags": []}), encoding="utf-8")
+    with mock.patch.object(G, "run_ab", lambda **kw: G.ab_jobs(kw["db"], kw["projects"])):
+        with pytest.raises(SystemExit) as e:                                          # sqlite3.Error → mã 2, không traceback
+            G.main_ab(args + ["--db", str(bad), "--flags", str(spec), "--output", str(tmp_path / "o2.json")])
+    assert e.value.code == 2

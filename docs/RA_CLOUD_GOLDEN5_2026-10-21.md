@@ -117,3 +117,44 @@ Codex báo (`docs/RA_CX21_GOLDEN5_CODEX_2026-10-21.md`, nhánh `codex/v31-golden
 - Python 3.13: 73 xanh.
 
 **Codex chạy lại trên máy chính:** cùng lệnh `--ab` của C-GOLDEN5 với công cụ HEAD mới của `cloud/v31-golden5`; xác nhận negative control native xanh, và mọi dòng có `loaded_a` / `loaded_b` trỏ đúng worktree.
+
+## GOLDEN7 — kiểm cờ theo catalog CÂY ĐANG DỰNG (cloud-C, 22/10)
+
+**Vấn đề** (CX21-GOLDEN6, `docs/RA_CX21_GOLDEN6_CODEX_2026-10-22.md`): negative control xanh, nhưng lượt thật ra **158/158 BOTH_FAIL TRƯỚC worker**.
+- `build_from_database` kiểm cờ bằng `validate_baseline_flags` / `feature_catalog` của **cây công cụ** (153 cờ).
+- File cờ phủ hợp A∪B (155 cờ; main có thêm cờ mới `gen_auth_shadow`) → `ValueError` ở mọi ca.
+- `run_ab` nuốt lỗi đó thành INSUFFICIENT_INPUT / BOTH_FAIL và trả mã 1. Đúng ra phải dừng với mã 2.
+
+**Sửa** (`tools/golden_db_replay.py`):
+1. Ở `--ab`, hàm `validate_ab_flags(flags, experimental, code_root, union)` kiểm theo `_catalog(code_root)` của CHÍNH cây đang dựng:
+   - mọi cờ trong catalog cây đó phải có giá trị bool;
+   - mỗi cờ experimental phải là tên duy nhất, nằm trong catalog cây đó HOẶC trong hợp A∪B (cờ chỉ có ở một cây thì ở cây kia coi là TẮT), và phải TẮT.
+   - Đường KHÔNG `--ab` (capture / replay) giữ nguyên.
+2. **Mọi lỗi cấu hình của cả lượt** được kiểm một lần ở `_preflight` và dừng bằng `ABError` → **mã 2**, không chạy ca nào. Gồm:
+   - cờ theo catalog từng cây;
+   - `experimental_flags` phải là list — `--ab` không có chế độ compat ngầm;
+   - `public_config` chỉ được có khóa public;
+   - ref-root phải hợp lệ;
+   - cờ / config không được chứa trường nhạy cảm.
+   - `run_ab` ném lại `ABError` nếu nó xảy ra giữa chừng, không gộp vào BOTH_FAIL.
+3. CLI `main_ab`:
+   - Cờ experimental đang BẬT trong `baseline_flags` → mã 2. Trước đây bị ép TẮT lặng lẽ.
+   - `--db` hỏng (`sqlite3.Error`) → mã 2, không in traceback.
+4. Catalog của mỗi cây được cache theo (đường dẫn, mtime, size). Trước đây parse lại 316 lần mỗi lượt.
+
+**Test** (`tests/test_golden5.py`) — 6 test mới, ĐỎ trên code trước sửa:
+- cây A có thêm một cờ mà cây công cụ không có → validator cho qua; native: dựng được cả hai bên, ra SAME;
+- cờ lạ ngoài A∪B / experimental đang BẬT → `ABError`, không chạy ca nào, CLI trả mã 2;
+- lỗi cấu hình phát sinh giữa lượt → không gộp vào BOTH_FAIL;
+- `public_config` sai khóa / experimental None / ref-root hỏng → mã 2;
+- CLI: experimental BẬT → mã 2, `--db` hỏng → mã 2.
+
+Negative control native (GOLDEN6) vẫn xanh. Kết quả chạy:
+- Python 3.14 native Linux, 5 tệp golden: 171 xanh. 3 đỏ là ca chỉ đúng trên Windows, đã đỏ từ trước.
+- Python 3.13: 78 xanh.
+
+**Còn treo** (từ báo cáo Codex GOLDEN6, chuyển phiên chính / Codex):
+- Lượt nghiệm thu thật phải chạy lại bằng công cụ mới trên snapshot mới. Kết quả cũ là 158/158 BOTH_FAIL, 0 ca có bằng chứng `loaded`.
+- Phiên chính cần chốt SHA cho A / B. B = `cloud/v31-m2-tichhop`@9746a6ea có thể không còn là bản tích hợp cuối.
+- Baseline cờ tái dựng từ trạng thái hiện tại, không phải ảnh chụp cấu hình lúc gửi. Đây là giới hạn đã biết.
+- Cờ đang ở chế độ 🎓 học việc trên sản xuất: worker coi `shadow` = False và `on` lấy theo giá trị bool trong file cờ. Khi dựng file cờ, ghi rõ cách quy chế độ học việc về bool.
