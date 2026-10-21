@@ -112,7 +112,8 @@ def record(conn, stage: str, severity: str, message: str, code: Optional[str] = 
 MERGE_WINDOW_MIN = 24 * 60
 """V3.1 M1.7 (G56, cờ diag_merge): cửa sổ gộp theo (mã, shot) — #31 15–18/10 `change_review_hold` 4 435 lần, `plate_stale` 337 lần
 (câu đổi theo job / lý do nên khóa "cùng câu trong 10 phút" không gộp được)."""
-MERGE_CODES = ("change_review_hold", "video_pregen_hold", "final_wait", "end_frame_wait", "video_gate_hold", "plate_stale")
+MERGE_CODES = ("change_review_hold", "video_pregen_hold", "final_wait", "end_frame_wait", "video_gate_hold", "plate_stale",
+               "QUEUE_CAPACITY", "QUEUE_CONFIG", "QUEUE_UNKNOWN_CAPACITY")   # M1.5 Kho chủ thể (cờ subject_capacity_guard)
 """Chỉ các mã báo GIỮ / nền cũ lặp mỗi vòng (runner.HOLD_CODES + plate_stale) — rà quy ước 7: mã khác có nơi đọc theo job_id / theo chữ
 (video_gate plate_layout, end_frames dropped_reason, money_policy.note [key]) nên KHÔNG gộp."""
 
