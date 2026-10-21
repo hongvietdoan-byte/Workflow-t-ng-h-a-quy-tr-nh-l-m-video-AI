@@ -40,6 +40,13 @@ Codex hết hạn mức tuần (92 %) → bàn giao Claude máy chính chạy M�
 |---|---|---|---|
 | C-M63-FIX (gen_auth.shadow_send ở 6 đường gửi thẳng: khung cuối, phép thử chất lượng, khớp môi, ảnh toàn cảnh, bộ ảnh nhân vật, experiments; đếm lượt clip nhóm; autoqc xóa mã dừng khi lượt mới) | gộp sạch; cả bộ Linux 7099 qua, 31 hỏng = y hệt main; **Agent rà kỹ: 0 CAO**, 1 VỪA (attempts() quét toàn bảng jobs khi cờ BẬT — chậm) + 4 THẤP → giao **C-M63-FIX2** cloud-D | cờ `gen_auth_shadow` TẮT (mặc định): gửi khung cuối / khớp môi / phép thử chất lượng một lần trên dự án thử bằng provider giả → KHÔNG có tệp `data/projects/<id>/crew/gen_auth_shadow.jsonl` mới, job đi như cũ; (tùy) bật cờ trên bản sao → mỗi lần gửi thêm đúng 1 dòng jsonl, không chặn | |
 
+## A3. Lượt 22/10 04:37 — C-M71-FIX (cloud/v31-m71-fix e887f4de) + C-M63-FIX2 (cloud/v31-m63-fix2 26ba0395), cloud-C
+
+| Mã | Cloud đã kiểm | Máy chính kiểm | Máy chính |
+|---|---|---|---|
+| C-M71-FIX — D6 tạm ngừng theo NGUỒN Claude của job (`chat_prompt_quota:<anthropic/claude_cli/…>`), mục ĐỎ rà lỗi tự đóng khi sự kiện skipped, lọc dự án có Claude trước LIMIT 5, test không ghi `data/` thật (conftest), **gỡ 72 tệp `data/ref_padded/1_*_pad.png` khỏi git + .gitignore** | cả bộ Linux 7116 qua / 31 hỏng = y hệt main; chạy test KHÔNG còn sinh tệp rác `data/ref_padded`; **Agent rà kỹ: 0 CAO, 0 VỪA**, 3 THẤP → C-FIX3-THAP cloud-C. 72 tệp gỡ = rác test (tên `1_<hash>`), `pad_to_rule` tự sinh lại khi thiếu | sau `git pull`: 72 tệp `data/ref_padded/1_*_pad.png` biến mất — bình thường (bộ đệm tự sinh lại); gửi một clip Seedance có ảnh ref cần đệm (dự án thử, provider giả) → tệp `_pad.png` được tạo lại; cả bộ test Windows không để lại tệp mới trong `data/ref_padded/` | |
+| C-M63-FIX2 — gen_auth đọc job dự án MỘT lần (hết quét toàn bảng trong SPEND_LOCK), job làm lại → bên làm lại, `_busy` thấy clip nhóm, end_frames chỉ hỏi model khi cờ bật, quality_samples lỗi shadow không kẹt 'sending' | như trên; Agent rà kỹ: đúng gốc, không hồi quy cờ TẮT | không cần riêng (shadow, cờ `gen_auth_shadow` TẮT) | |
+
 **Chờ golden đạt, CHƯA gộp:** cloud/v31-m2-tichhop (M21, M25, M25B, M26, M29, DP9, DP10, GOLDEN2), cloud/v31-m24, cloud/v31-golden5, cloud/v31-m73,
 cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp M2).
 
@@ -57,7 +64,8 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
 |---|---|---|---|
 | C-GOLDEN7 | cloud-C (ưu tiên 0) | docs/CLOUD_TASKS.md#### C-GOLDEN7 | validator `--ab` theo catalog cây đang dựng; lỗi cấu hình = mã 2 |
 | CX21-GOLDEN7 | codex (C-GOLDEN7 XONG 621661a8 trên cloud/v31-golden5; 02:59 bỏ điều kiện GỘP — chạy thẳng trên nhánh, quota codex còn ~10 %) | docs/CODEX_TASKS.md### CX21-GOLDEN7 | chạy lại A/B; ĐẠT → gộp tích hợp M2 một lần |
-| C-M63-FIX2 | cloud-C (ưu tiên 2; chuyển từ cloud-D im > 1 giờ, 02:58) | docs/CLOUD_TASKS.md#### C-M63-FIX2 | lỗi rà kỹ C-M63-FIX |
+| C-FIX3-THAP | cloud-C (ưu tiên 3, việc nhỏ) | docs/CLOUD_TASKS.md#### C-FIX3-THAP | 3 lỗi THẤP sau rà M71-FIX/M63-FIX2 |
+| C-M63-FIX2 | cloud-C (ưu tiên 2; chuyển từ cloud-D im > 1 giờ, 02:58) — ĐÃ GỘP 04:4x | docs/CLOUD_TASKS.md#### C-M63-FIX2 | lỗi rà kỹ C-M63-FIX |
 | C-M71-FIX | cloud-C (ưu tiên 1; chuyển từ cloud-E im > 1 giờ, 02:58) | docs/CLOUD_TASKS.md#### C-M71-FIX | lỗi rà kỹ M71 + rò tệp test DP12 |
 | C-M83-TOOL | cloud-E (ưu tiên 2) | docs/CLOUD_TASKS.md#### C-M83-TOOL | công cụ đo tải 10 người (Playwright + provider giả); lượt đo thật M8.3 = máy chính |
 
