@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T19:52:55.528881+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX21-GOLDEN4",
+  "to": "codex",
+  "title": "Nghiệm thu golden lần 4 trên cloud/v31-golden4 (khi C-GOLDEN4 XONG)",
+  "spec": "docs/CODEX_TASKS.md### CX21-GOLDEN4",
+  "priority": 0
+}
