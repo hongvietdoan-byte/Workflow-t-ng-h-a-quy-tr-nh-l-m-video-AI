@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T19:45:18.112542+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M75",
+  "to": "cloud-E",
+  "title": "M7.5 bảng quyết định từng cờ Gói C (tài liệu)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M75",
+  "priority": 4
+}
