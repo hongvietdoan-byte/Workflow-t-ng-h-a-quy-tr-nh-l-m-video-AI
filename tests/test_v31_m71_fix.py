@@ -75,3 +75,60 @@ def test_zz_after_a_pop_the_next_test_still_writes_outside_the_repo():
     from core import seedance_refs
     assert os.environ.get("PIPELINE_DATA")
     assert not os.path.abspath(seedance_refs.pad_dir(_conn())).startswith(os.path.join(root, "data"))
+
+
+def test_real_rewrite_out_of_credit_at_source_a_does_not_stop_source_b():
+    """C-FIX3-THAP 2: chạy rewrite() THẬT — Claude của nguồn A báo out_of_credit → D6 của job nguồn A tạm ngừng (không gọi lại), job
+    nguồn B (Claude riêng) vẫn gọi Claude; saved_view nói 'paused' đúng cho A, không cho B."""
+    import json
+    import tempfile
+    from core.db import connect
+    from core.llm_runner import LlmReply
+    from core.pipeline import Pipeline
+    good_text = ("Image 1 is the 3D PLACE render, Image 2 is KELLY. Kelly crouches behind the glue wall at frame-left, holding her "
+                 "SKORP with both hands; the tower stays small in the distance as in Image 1.")
+    assembled = ("Image 1 is the 3D PLACE render. Image 2 is KELLY. Scene: Kelly holds an assault rifle near the tower. "
+                 "Fix: tower is too big. Prop lock: the gun is SKORP.")
+
+    class Claude:
+        def __init__(self, boom=False):
+            self.boom, self.calls = boom, 0
+
+        def complete(self, prompt, images=()):
+            self.calls += 1
+            if self.boom:
+                raise llm_runner.LlmError("credit balance is too low", code="out_of_credit")
+            return LlmReply(text=json.dumps({"prompt": good_text}), input_tokens=100, output_tokens=50)
+
+    p = Pipeline(connect())
+    jobs = {}
+    d = tempfile.mkdtemp()
+    pics = []
+    for n in ("plate.png", "kelly.png"):
+        path = os.path.join(d, n)
+        with open(path, "wb") as f:
+            f.write(b"png" + n.encode())
+        pics.append(path)
+    for name in ("A", "B"):
+        pid = p.create_project(name)
+        sid = p.create_scene(pid, 1, "s1")
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"action": "Kelly đứng sau tường keo"}), sid))
+        jobs[name] = p.create_job(sid, "image_gen")
+    p.conn.commit()
+    source = {p.job(jobs["A"])["project_id"]: ("anthropic", "env"), p.job(jobs["B"])["project_id"]: ("claude_cli", "project")}
+    imgs = [("Image 1: plate", pics[0]), ("Image 2: KELLY", pics[1])]
+    said = []
+
+    def run(name, client):
+        return CP.rewrite(p, p.job(jobs[name]), "image", assembled, imgs, model="gpt-image", limit=4000, client=client,
+                          say=lambda lv, code, msg: said.append((name, code)))
+    with mock.patch("core.features.on", side_effect=lambda n: n == CP.FLAG), \
+            mock.patch("core.llm_provider.job_provider", side_effect=lambda c, j: source[j["project_id"]]):
+        assert run("A", Claude(boom=True)) == assembled                      # A hết tiền → tạm ngừng nguồn A
+        again = Claude()
+        assert run("A", again) == assembled and again.calls == 0             # A: không gọi lại trong 600 s
+        b = Claude()
+        out = run("B", b)
+        assert b.calls == 1 and out != assembled                             # B (nguồn khác) vẫn gọi Claude — trước: dừng chung
+        assert CP.saved_view(p.conn, jobs["A"], "image", assembled)["state"] == "paused"
+        assert CP.saved_view(p.conn, jobs["B"], "image", assembled)["state"] != "paused"

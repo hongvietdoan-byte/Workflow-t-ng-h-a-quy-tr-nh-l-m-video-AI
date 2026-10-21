@@ -639,6 +639,29 @@ class M71DeepReview(unittest.TestCase):
     setUp, _new_scene, _set = ChangeReview.setUp, ChangeReview._new_scene, ChangeReview._set
     _review_with = M71FailClosed._review_with
 
+    def test_failed_motion_review_finding_closes_when_the_motion_flag_is_turned_off(self):
+        # C-FIX3-THAP 1: rà sửa motion LỖI (timeout) khi cờ change_review_motion BẬT → mục ĐỎ; tắt cờ → vòng nền (process_pending) bỏ
+        # sự kiện motion failed → mục tự đóng, không chặn nữa (trước: chỉ pending / code_only → mục kẹt)
+        os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_CHANGE_REVIEW_MOTION", None)
+        sid = self.ids[1]
+        ChangeReview._motion(self, sid, "Kelly kneels by the well")
+        self.p.conn.execute("UPDATE change_events SET state='skipped'")
+        ChangeReview._motion(self, sid, "Kelly stands up and walks to the well")              # SỬA motion → sự kiện kind 'motion'
+        self.p.conn.execute("UPDATE change_events SET state='skipped' WHERE kind<>'motion'")
+        self.p.conn.commit()
+
+        class Boom(FakeClient):
+            def complete(self, prompt, images=()):
+                raise llm_runner.LlmError("timed out", code="timeout")
+        CR.process_pending(self.p.conn, self.tmp, client=Boom({}))
+        self.assertEqual([r[0] for r in self.p.conn.execute("SELECT state FROM change_events WHERE kind='motion'")], ["failed"])
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")
+        os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "0"
+        CR.process_pending(self.p.conn, self.tmp, client=None)
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+        self.assertFalse([r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"])
+
     def test_failed_change_not_released_by_later_good_review(self):
         # CAO 1: X rà lỗi (timeout) → mục ĐỎ; người sửa tiếp Y; nền rà Y đạt — Y.before = sau X nên Claude không thấy X → vẫn giữ
         self._review_with(self.ids[1], llm_runner.LlmError("timed out", code="timeout"))
