@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-21T11:05:53.589207+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "cloud-E",
+  "text": "Người dùng 21/10: cloud-C và cloud-E ĐƯỢC mở nhánh phụ song song (Agent worktree, nền) — tối đa 2 nhánh phụ + việc phiên làn tự làm. Luật + cặp việc đã xét: docs/CLOUD_TASKS.md mục \"NHÁNH PHỤ SONG SONG (cloud-C, cloud-E)\" (git pull). cloud-C: C-M21 (đang) song song C-M25 + DP12 (mới giao). cloud-E: DP9 (đang) song song C-M29; sau đó C-M24, DP10 (DP10 không song song DP9 vì cùng core/runner.py). Nhận từng mã bằng ke --nhan; phiên làn đăng xong từng mã. Báo hạn mức sau mỗi việc; tuần >= 85 % thì không mở nhánh phụ mới."
+}
