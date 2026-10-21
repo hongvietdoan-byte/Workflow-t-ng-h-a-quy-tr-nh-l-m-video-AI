@@ -170,7 +170,8 @@ kiểm giá trị; không đổi `STATUSES`.
 | M5 Sửa chọn lọc và pilot | 5 | 2 | 1 | 0 | 0 | 54,5 % |
 | M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 0 | 1 | 0 | 0 | 1,8 % |
 | M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 3 | 0 | 0 | 0 | 31,2 % |
-| **Tổng** | **70** | **36** | **6** | **0** | **0** | **51,4 %** |
+| M8 Dashboard cho người không chuyên + chịu tải nhiều người (người dùng 21/10) | 4 | 0 | 0 | 0 | 0 | 0 % |
+| **Tổng** | **74** | **36** | **6** | **0** | **0** | **48 %** |
 
 Đợt hiện tại: **M1** · việc kế: **M2.1** BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN
 <!-- /tien-do -->
@@ -265,6 +266,14 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M7.6 · Test không phụ thuộc mặc định 8 cờ đề nghị khóa (155 test nhóm A) · nặng:2 · ✅ · C-FLAGTEST8 cloud-C gộp 21/10: cả bộ 6914 qua; ép 8 cờ khóa BẬT 164 → 7 đỏ (đều là test "cờ mặc định TẮT" — đổi khi khóa thật)
 - [ ] M7.7 · Kiểm chứng + khóa TỪNG cờ: K1 send_claim, back_view_guard (dependency, 2 worker, crash/reconcile, replay production); K2 video_pregen, chat_first, framing_guard, stage_camera, plate_view_sentence (+ two_tier_quality, video_gate sau M7.4); K7 bốn cờ chỉ-ghi (stale_code_alarm, diag_merge, budget_notice_d01, send_estimate) · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — Cấp 3 từng cờ — trình khi đủ bằng chứng; refusal_skip_same_picture CHƯA bật; qc_false_alarm_fix + horizon_needs_sky chờ replay #31/#33
 - [ ] M7.8 · Kiểm tuyến QC thay thế rồi trình tắt scene_qc_claude (Cấp 3 riêng) · nặng:1 · ⬜ · F-A: tắt KHÔNG nằm trong duyệt code
+
+### M8 — Dashboard cho người không chuyên + chịu tải nhiều người (người dùng 21/10)
+> Mục tiêu: người ít kiến thức video AI vẫn dùng được; 10 người mở Dashboard cùng lúc vẫn nhanh, không khóa nhau. Song song với build, không đợi xong V3.1.
+> Nối: M6.10 (Dashboard điều phối EP), M6.11 (tốc độ theo profiling — lineage.summary #31 đo 7,6–11,3 s/lần vẽ), sơ đồ "Làm phim qua Dashboard" + ghi bước bấm (C-DEVSYS-MAPS).
+- [ ] M8.1 · Audit thao tác + thiết kế CHẾ ĐỘ ĐƠN GIẢN: đếm màn/nút/bước bắt buộc/thuật ngữ từ sơ đồ dây chuyền + nhật ký bước bấm; gộp nút, ẩn nút chuyên gia, wizard theo bước, chữ thường thay thuật ngữ, mặc định an toàn; bản vẽ màn + bảng nút giữ/gộp/ẩn — trình EP · nặng:2 · ⬜ · Cấp 1 (tài liệu)
+- [ ] M8.2 · Triển khai chế độ Đơn giản (cờ simple_mode TẮT; chế độ Chuyên gia giữ nguyên) theo thiết kế M8.1 đã duyệt · nặng:3 · ⬜ · Cấp 2 sau khi EP duyệt M8.1
+- [ ] M8.3 · Đo tải 10 người cùng lúc (0 USD, provider giả, bản sao dữ liệu): 10 phiên trình duyệt tự động mở dự án, xem, duyệt, bấm gen (giả); đo thời gian vẽ từng màn, CPU/RAM tiến trình Streamlit, chờ khóa SQLite, luồng nền nhân bản theo phiên, khóa Blender, hàng đợi Claude CLI → bảng giới hạn (ở bao nhiêu người thì chậm/khóa, khâu nào nghẽn) · nặng:2 · ⬜ · máy chính
+- [ ] M8.4 · Tối ưu theo số đo M8.3 (gộp M6.11): cache dùng chung theo revision (không tính lại mỗi lần bấm), fragment + nạp lười ảnh/thumbnail, tóm tắt tính sẵn ở nền, MỘT bộ luồng nền cho cả server (không theo phiên), hàng đợi ghi, giới hạn việc nặng/người; nếu cần: nhiều tiến trình Streamlit + worker riêng · nặng:3 · ⬜ · Cấp 2 theo số đo; nghiệm thu: 10 người, màn chính < 2 s
 
 ## 6. Nhật ký
 

@@ -896,3 +896,13 @@ Làm 2 phần:
     ref bỏ/giữ + lý do, trường BYĐ nào không còn được nói) vào diag/tệp — KHÔNG gửi, không đổi gói thật (golden byte giữ). Test ĐỎ→XANH theo các loại shot.
 Nhánh cloud/v31-m210. Báo cáo docs/RA_CLOUD_M210_2026-10-2x.md. XONG hộp thư — phiên chính chạy shadow trên #31/#33 thật rồi trình EP A/B (Cấp 3).
 ```
+
+#### C-M81 (pool — ưu tiên 2; Cấp 1 tài liệu) — M8.1 audit thao tác + thiết kế CHẾ ĐỘ ĐƠN GIẢN
+```
+Người dùng 21/10: Dashboard dành cả cho người ÍT kiến thức video AI → tối giản, tối ưu nút + thao tác. Đọc dashboard/steps/*, dashboard/header.py, sơ đồ
+docs/so_do/SO_DO_DASHBOARD_2026-10-17.svg + gen_dashboard.py (màn → nút → khâu), devsys/pipeline_maps.json (nhánh cloud/v31-devsys-maps nếu chưa gộp).
+Ra docs/KE_HOACH_DASHBOARD_DON_GIAN_2026-10-2x.md: bảng mọi nút (màn, tên, khi nào cần, ai dùng, tốn tiền?) → GIỮ / GỘP / ẨN (chế độ Chuyên gia) / TỰ ĐỘNG;
+luồng 4 bước cho người mới (ý tưởng → duyệt kịch bản → duyệt ảnh → duyệt video → tải bản giao) với ít quyết định nhất; đổi thuật ngữ sang chữ thường
+(BYĐ, plate, ref, motion… → giải thích 1 dòng); mặc định an toàn (không tốn tiền khi bấm nhầm, xác nhận + giá trước khi gen); cảnh báo dễ hiểu thay mã lỗi;
+bản vẽ màn (ASCII/SVG); chỉ số đo (số cú bấm tới video đầu tiên, số quyết định, thời gian). Không code. Nhánh cloud/v31-m81. XONG hộp thư — phiên chính trình EP.
+```
