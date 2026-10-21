@@ -97,7 +97,8 @@ def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None,
                    "public_config": public_config, "expected_files": None if manifest is None else manifest["files"]}
         (box / "request.json").write_text(json.dumps(request), encoding="utf-8")
         python = Path(sys.executable)
-        if sys.version_info[:2] != (3, 14) or not python.is_absolute() or python.name.lower() not in {"python.exe", "python", "python3", "python3.14"}:
+        if (sys.version_info[:2] != (3, 14) or sys.prefix != sys.base_prefix or not python.is_absolute()
+                or python.name.lower() not in {"python.exe", "python", "python3", "python3.14"}):
             raise ValueError("INSUFFICIENT_INPUT: cần native Python3.14")
         env = {"SYSTEMROOT": "C:/Windows", "HOME": scratch, "USERPROFILE": scratch, "TEMP": scratch,
                "TMP": scratch, "PYTHONUTF8": "1", "PYTHONDONTWRITEBYTECODE": "1"}

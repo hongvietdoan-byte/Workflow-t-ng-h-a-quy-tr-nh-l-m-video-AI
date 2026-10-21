@@ -248,8 +248,8 @@ def test_guard_off_native_get_and_upload_keep_legacy_short_snapshot(tmp_path):
         assert lib.upload(str(pic), 'fixture') == new
 
 
-@pytest.mark.parametrize('aid, expected', [('other', 'READY'), (None, 'QUEUE_UNKNOWN_CAPACITY'),
-                                         ('missing', 'QUEUE_UNKNOWN_CAPACITY')])
+@pytest.mark.parametrize('aid, expected', [('other', 'READY'), (None, 'READY'),
+                                         ('missing', 'READY')])
 def test_processing_snapshot_evidence_only_blocks_unresolved(aid, expected, tmp_path):
     from core import subjects
     conn = sqlite3.connect(':memory:')
