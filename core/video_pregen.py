@@ -538,7 +538,20 @@ def check(conn, scene_id: int, plan: Dict) -> List[Dict[str, str]]:
     _check_refs(conn, scene_id, plan, out)
     _check_motion(conn, scene_id, plan, out)
     _check_fingerprint(conn, scene_id, plan, out)
+    _check_router_split(conn, scene_id, plan, out)
     return out
+
+
+def _check_router_split(conn, scene_id: int, plan: Dict, out: List[Dict]) -> None:
+    """M2.8 (cờ router_first_frame): shot router tách khỏi nhóm vì CẦN khung đầu mà vẫn gửi ref-only (không có khung đầu) → VÀNG, nói rõ."""
+    from . import model_router
+    if not plan.get("reference_only") or not model_router.router_first_frame_on():
+        return
+    from . import seedance_refs
+    why = seedance_refs.split_reason(conn, scene_id)
+    if why:
+        out.append(_issue("khung_dau", VANG, f"shot cần khung đầu ({why}) nhưng clip vẫn gửi ref-only — model không nhận khung đầu ở "
+                                             "chế độ này, khung 0 có thể khác ảnh đã duyệt; đổi sang Kling / gửi có khung đầu nếu cần giữ"))
 
 
 def plan_of(job, args, kwargs: Dict, package: Optional[str], data_dir: str, group_ids=None) -> Dict:

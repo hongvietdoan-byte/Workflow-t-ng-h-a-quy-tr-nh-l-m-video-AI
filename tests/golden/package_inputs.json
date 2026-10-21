@@ -157,7 +157,8 @@
       "field_guard": false,
       "narration_offscreen": false,
       "fit_durations_review": false,
-      "image_pregen": false
+      "image_pregen": false,
+      "router_first_frame": false
     },
     "experimental_flags": ["new_feature"]
   },
@@ -324,7 +325,8 @@
       "field_guard": false,
       "narration_offscreen": false,
       "fit_durations_review": false,
-      "image_pregen": false
+      "image_pregen": false,
+      "router_first_frame": false
     },
     "experimental_flags": ["new_feature"],
     "pregen_fingerprint": "frozen-fingerprint"

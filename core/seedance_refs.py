@@ -95,7 +95,8 @@ def groups(conn, project_id: int) -> List[List[Dict]]:
     return cached(conn, ("seedance_refs.groups", project_id), lambda: _groups(conn, project_id))
 
 
-def _groups(conn, project_id: int) -> List[List[Dict]]:
+def _groups(conn, project_id: int, split: Optional[bool] = None) -> List[List[Dict]]:
+    """split: None = theo cờ router_first_frame (M2.8); False = luật chia cũ (split_reason so với nó)."""
     from .shots import _group_key, _rows
     out: List[List[Dict]] = []
     cur: List[Dict] = []
@@ -111,9 +112,16 @@ def _groups(conn, project_id: int) -> List[List[Dict]]:
     ff = looks.is_ff(conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone())
     dressed = {r["name"] for r in conn.execute("SELECT name, outfit_image_ids FROM characters WHERE project_id=?", (project_id,))
                if (r["outfit_image_ids"] or "").strip()}
+    from . import model_router          # M2.8 (cờ router_first_frame; tắt = như cũ): shot cần khung đầu gửi một mình
+    if split is None:
+        split = model_router.router_first_frame_on() and not model_router.ref_mode_keeps_first_frame()
+    chosen = None
+    if split:
+        from .assets import project_assets
+        chosen = project_assets(conn, project_id)          # một lần mỗi lượt chia nhóm (không đọc Kho mỗi hàng)
     for r in rows:
         d = r["data"]
-        if not d.get("shot_no") or not _groupable(d):
+        if not d.get("shot_no") or not _groupable(d) or (split and model_router.needs_first_frame(conn, project_id, d, chosen)):
             close()
             continue
         sec = floored(d, d.get("duration_s") or 0)
@@ -195,6 +203,23 @@ def _estimated_len(rows: List[Dict], ff: bool = True, dressed: Optional[set] = N
         if n in (dressed or ()):
             ids.append((n + OUTFIT_TAG, ""))
     return len(prompt([(m, float(r["data"].get("duration_s") or 2)) for m, r in zip(motions, rows)], ids, places=places)) + gore
+
+
+def split_reason(conn, scene_id: int) -> Optional[str]:
+    """M2.8: vì sao shot này (đủ điều kiện nhóm theo luật cũ) gửi MỘT MÌNH — cần khung đầu mà chế độ ref-only không giữ. None = không tách
+    (cờ router_first_frame tắt, dự án không dùng nhóm, shot không thuộc đường nhóm, hoặc không cần khung đầu). Ghi vào sent_package."""
+    from . import model_router
+    if not model_router.router_first_frame_on() or model_router.ref_mode_keeps_first_frame():
+        return None
+    row = conn.execute("SELECT project_id, data FROM scenes WHERE id=?", (scene_id,)).fetchone()
+    if row is None or not enabled(conn, row["project_id"]):
+        return None
+    data = json.loads(row["data"] or "{}")
+    if not data.get("shot_no") or not _groupable(data):
+        return None
+    if not any(len(g) > 1 and any(x["id"] == scene_id for x in g) for g in _groups(conn, row["project_id"], split=False)):
+        return None                       # rà DP10 VỪA-4: theo luật cũ shot này vốn đã đi lẻ — không phải do router tách
+    return model_router.needs_first_frame(conn, row["project_id"], data)
 
 
 def group_of(conn, scene_id: int) -> Optional[List[Dict]]:
