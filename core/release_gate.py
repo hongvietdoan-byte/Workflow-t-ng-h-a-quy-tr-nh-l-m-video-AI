@@ -76,6 +76,16 @@ def _g2_final_qc(p, pid: int, data_dir: str, cache: Optional[Dict] = None) -> Di
     if res["blocks"]:
         return _item("G2", "Kiểm bản dựng không có lỗi chặn", CHUA, "; ".join(i["msg"] for i in res["issues"] if i["level"] == "block")[:400],
                      blocks=res["blocks"], warns=res["warns"])
+    from . import features
+    if features.on(final_qc.BLACK_FREEZE_FLAG):      # M7.4 B7: cổng chạy nhanh (không đọc video) → đọc lần kiểm ĐỌC VIDEO của chính bản dựng này
+        fid = p.conn.execute("SELECT MAX(id) FROM outputs WHERE project_id=? AND kind='final'", (pid,)).fetchone()[0]
+        bf = final_qc.last_full(data_dir, pid, fid)
+        if bf is None:
+            return _item("G2", "Kiểm bản dựng không có lỗi chặn", CHUA, "đen / đứng hình CHƯA ĐO cho bản dựng hiện tại — bấm 🔎 Kiểm bản "
+                         "dựng (đọc video) rồi mở lại cổng", warns=res["warns"])
+        if bf:
+            return _item("G2", "Kiểm bản dựng không có lỗi chặn", DAT, f"0 lỗi chặn, {res['warns'] + len(bf)} cần xem — đen / đứng hình: "
+                         + "; ".join(i["msg"] for i in bf)[:300], warns=res["warns"] + len(bf))
     return _item("G2", "Kiểm bản dựng không có lỗi chặn", DAT,
                  f"0 lỗi chặn, {res['warns']} cần xem (mục đọc video — im lặng, phụ đề đè mặt, đen/đứng hình — chạy ở nút Kiểm bản dựng)",
                  warns=res["warns"])
