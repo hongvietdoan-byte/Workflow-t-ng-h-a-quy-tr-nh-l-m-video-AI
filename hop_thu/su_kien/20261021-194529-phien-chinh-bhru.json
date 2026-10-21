@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T19:45:29.321989+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M72",
+  "to": "cloud-C",
+  "title": "M7.2 baseline cờ + effective config/hash/drift + reset an toàn (K4/K6)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M72",
+  "priority": 1
+}
