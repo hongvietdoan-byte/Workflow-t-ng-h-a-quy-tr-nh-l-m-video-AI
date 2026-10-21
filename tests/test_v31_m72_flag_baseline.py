@@ -265,3 +265,33 @@ def test_tools_that_make_a_fresh_settings_file_switch_baseline_off():
 def test_backups_are_not_committed():
     ign = open(os.path.join(ROOT, ".gitignore"), encoding="utf-8").read().split()
     assert "data/backup/" in ign and "data/*.tmp" in ign
+
+
+# ---- C-M72-FIX (rà kỹ phiên chính 21/10) -------------------------------------------------------------------------------------------
+def test_first_save_does_not_seed_over_env(machine, monkeypatch):
+    settings, base, write = machine
+    x, other = PLAIN[0], PLAIN[1]
+    write({x: "on"})
+    monkeypatch.setenv("FEATURE_" + x.upper(), "0")
+    assert F.state(x) == "off" and F.source(x) == "env"
+    F.save_settings(flags={other: True})                                   # lần lưu đầu: chỉ gieo cờ đang theo baseline
+    assert F.state(x) == "off" and x not in F.settings()["flags"]
+
+
+def test_first_save_with_a_preset_does_not_seed(machine):
+    settings, base, write = machine
+    write({n: "on" for n in PLAIN})
+    F.save_settings(preset="stable")
+    assert F.settings()["flags"] == {} and all(F.state(n) == "off" for n in PLAIN)   # stable: chỉ cờ đã thử thật
+
+
+def test_restore_the_oldest_of_a_full_backup_folder(machine):
+    settings, base, write = machine
+    F.save_settings(flags={PLAIN[0]: True})
+    first = F.backup_settings()
+    for i in range(F.MAX_BACKUPS - 1):
+        F.save_settings(flags={PLAIN[1]: bool(i % 2)})
+        F.backup_settings()
+    assert len(F.list_backups()) == F.MAX_BACKUPS and first == F.list_backups()[-1]["path"]
+    F.restore_settings(first)                                              # sao lưu bản đang dùng trước có thể dọn chính bản cũ nhất
+    assert F.settings()["flags"] == {PLAIN[0]: True}
