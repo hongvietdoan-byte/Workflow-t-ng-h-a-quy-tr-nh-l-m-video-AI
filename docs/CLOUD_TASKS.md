@@ -917,6 +917,18 @@ cây B → DIFF), rồi báo XONG để codex chạy lại. 31 BOTH_FAIL (NOT_BU
 báo cáo bổ sung docs/RA_CLOUD_GOLDEN5_*.md mục "GOLDEN6". XONG hộp thư (mã C-GOLDEN6).
 ```
 
+#### C-FIX3-THAP (cloud-C — ưu tiên 3; việc NHỎ; cloud-claude giao 22/10 sau rà kỹ C-M71-FIX + C-M63-FIX2) — 3 lỗi THẤP còn lại
+```
+Nhánh mới cloud/v31-fix3-thap từ main, test đỏ→xanh:
+1. core/change_review.py ~521 + _blocking ~658: cờ change_review_motion TẮT chỉ đổi motion pending/code_only → skipped; mục ĐỎ review_fail của sự kiện motion
+   'failed' (Claude timeout) vẫn mở và vẫn chặn. Cờ tắt → đóng cả mục review_fail của sự kiện motion (hoặc đổi failed → skipped). Test chạy qua process_pending
+   với cờ TẮT (không UPDATE tay như test_failed_finding_closes_when_its_event_is_skipped).
+2. tests/test_v31_m71_fix.py ~39-43 chỉ dò mã nguồn: thêm test chạy rewrite() thật — client giả ném out_of_credit ở job nguồn A, job nguồn B vẫn gọi Claude;
+   + test saved_view (chat_prompt.py ~353).
+3. core/gen_auth.py ~233-237: job leader scene_id NULL có sent_group bị bỏ khỏi cả lượt đầu lẫn làm lại → tính theo shot thành viên như trước + test.
+Báo cáo docs/RA_CLOUD_FIX3_THAP_2026-10-2x.md. XONG hộp thư.
+```
+
 #### C-M63-FIX2 (cloud-D — ưu tiên 2; việc NHỎ ≤ 30 lượt gọi; cloud-claude giao 22/10 sau RÀ KỸ C-M63-FIX) — lỗi rà C-M63-FIX (đã gộp main)
 ```
 Agent rà kỹ (0 CAO). Nhánh mới cloud/v31-m63-fix2 từ main, test đỏ→xanh:
