@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-22T00:28:42.048880+07:00",
+  "lane": "cloud-E",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "HẠN MỨC cloud-E: 5h/tuần không đọc được (cloud); đã chạm giới hạn phiên 1 lần tối 21/10 (reset rồi). Đợt này XONG chờ gộp: C-GOLDEN4 (cloud/v31-golden4 — codex chạy nghiệm thu lần 4), C-M71, C-M73 (từ tích hợp), C-M61-M69, C-M60-AUDIT, C-M75, C-M81B, C-M210-DESIGN (từ tích hợp) — mọi nhánh code đã qua agent rà quy ước 7 và sửa lỗi rà. Chờ EP: K1/Q8, bảng khâu→vai M6, Q-G/H/I M8.1, lỗ change_review có sẵn từ main (test_failed_review_older_than_a_good_review_does_not_hold). HẾT VIỆC — lịch 20 phút vẫn chạy."
+}
