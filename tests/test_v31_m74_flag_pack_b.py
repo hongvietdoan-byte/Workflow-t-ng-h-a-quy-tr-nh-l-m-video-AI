@@ -56,3 +56,65 @@ def test_b8_approved_stage_camera_wins_over_the_travel_route():
     cams_off = pc.plan_cameras([_shot(1, stage)], lambda s: ([0.0, 0.0, 0.0], 0.0), lambda s: 1.7, stage_field=None,
                                travel_of=lambda s: route)
     assert cams_off[1]["camera"]["location"] != stage["location"]             # stage_camera TẮT → không dùng máy sân khấu
+
+
+# ---- two_tier_quality: nhãn theo quyết định 15/10 + nghiệm thu F-Q4 (±5 % đủ phát sinh + chất lượng) --------------------------------
+def test_two_tier_label_no_longer_says_every_shot_is_drafted():
+    label = features.FEATURES["two_tier_quality"]["label"]
+    assert "MỌI shot" not in label and "DỄ đi thẳng 720p" in label and "two_tier_acceptance" in label
+
+
+EST = {"usd": 10.0, "scenes": [{"scene_id": 1}, {"scene_id": 2}], "unknown": []}
+
+
+def _jobs(*states_by_scene):
+    out, jid = [], 1
+    for sid, states in enumerate(states_by_scene, 1):
+        for st in states:
+            out.append({"id": jid, "scene_id": sid, "state": st})
+            jid += 1
+    return out
+
+
+def test_acceptance_within_5_percent_with_retries_counted():
+    from core import quality_tier as Q
+    rows = [{"job_id": 1, "quality_tier": "final", "actual_usd": 5.1}, {"job_id": 2, "quality_tier": "final", "actual_usd": 4.3},
+            {"job_id": 3, "quality_tier": "final", "actual_usd": 0.9}, {"job_id": 9, "quality_tier": "draft", "actual_usd": 3.0}]
+    res = Q.acceptance(EST, rows, _jobs(["approved"], ["rejected", "approved"]))
+    assert res["actual_usd"] == 10.3 and res["diff_pct"] == 3.0 and res["cost_ok"] is True       # nháp không tính; gen lại tính
+    assert res["first_try_share"] == 0.5 and res["quality_ok"] is False and res["ok"] is False   # 1/2 cảnh duyệt ngay < 80 %
+
+
+def test_acceptance_over_5_percent_fails_and_unknown_is_never_a_pass():
+    from core import quality_tier as Q
+    rows = [{"job_id": 1, "quality_tier": "final", "actual_usd": 12.4}]
+    assert Q.acceptance(EST, rows, _jobs(["approved"], ["approved"]))["cost_ok"] is False         # +24 % (P33-A7)
+    res = Q.acceptance(EST, [{"job_id": 1, "quality_tier": "final", "actual_usd": None}], _jobs(["approved"]))
+    assert res["cost_ok"] is None and res["ok"] is False and res["cost_why"]
+    res = Q.acceptance(dict(EST, unknown=[3]), rows, _jobs(["approved"]))
+    assert res["cost_ok"] is None
+
+
+def test_acceptance_regen_cap_and_all_good():
+    from core import quality_tier as Q
+    rows = [{"job_id": i, "quality_tier": "final", "actual_usd": 2.5} for i in range(1, 5)]
+    assert Q.acceptance(EST, rows, _jobs(["rejected", "rejected", "approved"], ["approved"]))["over_regen_scenes"] == [1]
+    good = Q.acceptance(EST, rows, _jobs(["approved"], ["approved"]))
+    assert good["ok"] is True and good["diff_pct"] == 0.0
+
+
+def test_acceptance_tool_snapshot_then_check(tmp_path, capsys):
+    import json
+    from core.db import connect
+    from core.pipeline import Pipeline
+    from tools import two_tier_acceptance as T
+    db = str(tmp_path / "m.sqlite")
+    p = Pipeline(connect(db))
+    pid = p.create_project("t")
+    p.conn.close()
+    data = str(tmp_path / "projects")
+    with mock.patch("core.quality_tier.final_estimate", return_value=dict(EST)):
+        assert T.main(["--project", str(pid), "--db", db, "--data-dir", data, "--snapshot"]) == 0
+    rec = tmp_path / "rec.json"
+    rec.write_text(json.dumps({"rows": [{"project_id": pid, "job_id": 1, "quality_tier": "final", "actual_usd": 10.0}]}), encoding="utf-8")
+    assert T.main(["--project", str(pid), "--db", db, "--data-dir", data, "--reconcile", str(rec)]) == 2   # chưa có job final → KHÔNG RÕ
