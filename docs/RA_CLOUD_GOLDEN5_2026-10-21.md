@@ -71,3 +71,7 @@ py tools\golden_db_replay.py --ab --db ..\golden_ab\snap.sqlite --ref-root D:\AI
 ## Giới hạn
 - Worker thật chưa chạy trên cloud (Python 3.13): nghiệm thu thật #24/#27 phải làm ở máy chính.
 - Envelope giả cho job chưa từng gửi làm `provider = fake`, nên gói không giống gói thật sẽ gửi. Điều này chấp nhận được vì A và B cùng dùng một envelope.
+
+## Full suite (cloud, Python 3.13)
+- `-m "not slow" -n auto`: **7154 passed, 5 failed**, 43 skipped, 22 xfailed.
+- 5 đỏ đều đỏ y hệt trên nền `origin/cloud/v31-golden4` (đã chạy lại riêng 5 test trên worktree nền), không liên quan diff này (chỉ `tools/golden_db_replay.py` + `tests/test_golden5.py` + `devsys/areas.json` + báo cáo): `test_devsys_plan_map::test_real_plan_and_map_agree`, `test_cost_route_e1::…recut_by_hand…`, `test_end_popup_p24::…icons…`, `test_ffmpeg_studio::…punches_in…`, `test_sent_package::…unreadable_picture…` (chạy bằng root → đọc được tệp "không đọc được").
