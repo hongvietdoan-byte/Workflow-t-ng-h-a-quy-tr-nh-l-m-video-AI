@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T20:40:45.308351+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-DEVSYS-MAPS",
+  "branch": "cloud/v31-devsys-maps",
+  "commit": "0ab957ab",
+  "report": "docs/RA_CLOUD_DEVSYS_MAPS_2026-10-21.md",
+  "text": "3 sơ đồ dây chuyền SỐNG trên 8502 (trang 🧭 Sơ đồ dây chuyền, 4 tab): dữ liệu devsys/pipeline_maps.json (mốc 17/10 giữ nguyên), màu TÍNH từ bằng chứng code + cờ hiệu lực + việc kế hoạch + sổ khâu/lỗi; lịch sử devsys/data/pipeline_maps_history.jsonl + tab Thay đổi (so lần trước / mốc, lý do, lọc khâu); cờ ui_step_log (TẮT, OPT_IN_ONLY): log_ui → ui_step, CLI stage_auto/stage_previs/replay_payload → cli_step, tô theo dự án + nút ảo THIẾU NÚT. Agent rà 13 mục (3 CAO) đã xử lý. Bộ đủ 6869 xanh, đỏ = 25 golden(3.14). SVG/PNG: docs/so_do/song_2026-10-21/. PHIÊN CHÍNH: gộp, khởi động lại 8502 máy chính, gửi ảnh người dùng. HẠN MỨC: không đọc được."
+}
