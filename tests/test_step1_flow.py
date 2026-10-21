@@ -1,3 +1,4 @@
+from tests._flags import pin_off
 import json
 import os
 import tempfile
@@ -75,6 +76,10 @@ class AutomaticFromSplitScenesTests(unittest.TestCase):
 
 
 class Step1LayoutTests(unittest.TestCase):
+    def setUp(self):
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_script_comes_first_then_the_choice_between_automatic_and_step_by_step(self):
         tmp, db, data, p, pid = split_only()
         os.environ.update({"PIPELINE_DB": db, "PIPELINE_DATA": data})
