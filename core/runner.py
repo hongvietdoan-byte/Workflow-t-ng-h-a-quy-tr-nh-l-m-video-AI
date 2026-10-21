@@ -382,7 +382,18 @@ class _Runner:
                 send_claim.release(self.p.conn, jid, claims["owner"])
             lock.release()
         self._script_cap_stop(project_id)
+        if sent:
+            self._remember_flags(project_id)
         return sent
+
+    def _remember_flags(self, project_id: int) -> None:
+        """M7.2: mốc cấu hình cờ của dự án (<data>/<pid>/flag_config.json, có `at` = lần gửi) mỗi lần nó THẬT gửi job — dự án sau so
+        drift với dự án gửi CUỐI (🧭 trước khi chạy). Một tệp nhỏ; lỗi không bao giờ chặn việc gửi."""
+        try:
+            from . import features
+            features.remember_config(self.data_dir, project_id)
+        except Exception:  # noqa: BLE001 - một mốc so drift, không bao giờ là lý do ngừng gửi
+            pass
 
     def _script_cap_stop(self, project_id: int) -> None:
         """S14.2 rà soát A2 (a): a command-line run hit its --max-usd (core.script_cap) — its queued jobs will never be sent, so they

@@ -171,6 +171,14 @@ def _fix_flag_items(conn, pid: int) -> List[Dict]:
     return out
 
 
+def _drift_items(data_dir: str, pid: int) -> List[Dict]:
+    """M7.2: cấu hình cờ khác dự án chạy trước (cờ đã bật nay tắt / máy khác hash khác) — VÀNG, không giữ việc."""
+    from . import features
+    found = features.drift(data_dir, pid)
+    h = features.config_hash() if found else ""
+    return [_item("vang", f"Drift cấu hình cờ: {d}", f"🧪 Tính năng thử — kiểm cờ trước khi gen (hash {h})") for d in found]
+
+
 # ---- 2. thứ có thể giữ việc -------------------------------------------------------------------------------------------------------
 def _review_items(conn, pid: int) -> List[Dict]:
     from . import change_review
@@ -369,6 +377,7 @@ def _collect(conn, data_dir: str, pid: int) -> Dict:
         scenes = []
         items["inputs"].append(_unreadable("danh sách shot", e))
     for group, what, fn in (("fixes", "cờ sửa lỗi dự án trước", lambda: _fix_flag_items(conn, pid)),
+                            ("fixes", "drift cấu hình cờ", lambda: _drift_items(data_dir, pid)),
                             ("cost", "cờ tính năng", lambda: _cost_items(conn)),
                             ("hold", "mục Tổ rà soát", lambda: _review_items(conn, pid)),
                             ("cost", "ngân sách dự án", lambda: _budget_items(conn, pid)),   # 15/10: chỉ cảnh báo, không giữ việc

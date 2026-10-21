@@ -943,6 +943,18 @@ def save_settings(preset: str = None, flags: Dict = None, modes: Dict = None) ->
     save many flags at once leave locked flags out (dashboard/header.py, core/before_run.enable_fix_flags only saves True)."""
     import json
     cur = {"preset": settings()["preset"], "flags": dict(settings()["flags"]), "modes": dict(settings().get("modes") or {})}
+    if baseline_active() and preset not in ("stable", "experimental"):
+        # M7.2 (rà C-M72): lần lưu ĐẦU trên máy theo baseline → gieo baseline (đã bảo vệ) vào tệp, không thì baseline thôi áp và mọi cờ
+        # khác "rơi" về mặc định không báo. C-M72-FIX: chỉ gieo cờ ĐANG theo baseline (env FEATURE_X thắng — không đè thành tệp 🧪);
+        # chọn preset Ổn định / Thử nghiệm ở lần đầu = chọn theo preset, không gieo.
+        for k in FEATURES:
+            b = baseline_state(k)
+            if b is None or locked(k) or b == default_state(k) or source(k) != "baseline":
+                continue
+            if b == "trainee":
+                cur["modes"][k] = "trainee"
+            else:
+                cur["flags"][k] = b == "on"
     if preset is not None:
         if preset not in PRESETS:
             raise ValueError(f"preset không có: {preset}")
@@ -994,6 +1006,93 @@ def _env(name: str) -> str:
     return os.environ.get("FEATURE_" + name.upper(), "").strip().lower()
 
 
+# ---- V3.1 M7.2 (sổ v31-ep-k4-k6-flag-baseline-reset-2026-10-21, docs/BANG_CHUNG_CHOT_CO_2026-10-21.md mục 3 thứ tự F) ------------------
+# data/flag_baseline.json (trong git) = trạng thái cờ sản xuất, chụp bằng `py -m core.features --baseline-capture` trên máy chính. Chỉ là
+# "hạt giống" cho máy CHƯA có data/feature_settings.json (worktree / cloud / Codex) — không bao giờ ghi đè lựa chọn của máy đã cấu hình.
+# Đứng sau env, trước mặc định; bảo vệ: không bật cờ `costs` / OPT_IN_ONLY, cờ học việc tối đa trainee. Bộ test tắt (FEATURE_BASELINE_FILE
+# rỗng — tests/__init__.py); FEATURE_BASELINE=0 tắt ở mọi máy.
+_BASELINE = {"stamp": None, "path": None, "data": None, "problem": None}
+
+
+def baseline_path() -> str:
+    """"" = baseline tắt (FEATURE_BASELINE_FILE đặt rỗng)."""
+    env = os.environ.get("FEATURE_BASELINE_FILE")
+    if env is not None:
+        return env
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "flag_baseline.json")
+
+
+def baseline() -> Dict:
+    """{"flags": {name: "on"|"trainee"|"off"}, ...} của tệp baseline ({} khi không có / tắt). Tệp hỏng → {} + baseline_problems()."""
+    path = baseline_path()
+    try:
+        stamp = os.stat(path).st_mtime_ns if path else None
+    except OSError:
+        stamp = None
+    if _BASELINE["stamp"] != stamp or _BASELINE["path"] != path:
+        data, problem = {}, None
+        if stamp is not None:
+            try:
+                import json
+                with open(path, encoding="utf-8") as f:
+                    raw = json.load(f)
+                flags = raw.get("flags") if isinstance(raw, dict) else None
+                if not isinstance(flags, dict):
+                    raise ValueError("thiếu bảng flags")
+                data = dict(raw, flags={k: ("on" if v is True else "off" if v is False else str(v))
+                                        for k, v in flags.items() if k in FEATURES})
+            except (OSError, ValueError, AttributeError) as e:
+                problem = f"baseline cờ {path} hỏng ({type(e).__name__}: {e}) — bỏ qua, máy dùng mặc định code"
+        _BASELINE.update(stamp=stamp, path=path, data=data, problem=problem)
+    return _BASELINE["data"]
+
+
+def baseline_problems() -> List[str]:
+    baseline()
+    return [_BASELINE["problem"]] if _BASELINE["problem"] else []
+
+
+def baseline_active() -> bool:
+    """Baseline có hiệu lực: không phải bộ test, không FEATURE_BASELINE=0, có tệp baseline, và máy CHƯA có tệp 🧪 (thứ tự F)."""
+    if _TEST_BYPASS or os.environ.get("FEATURE_BASELINE", "").strip().lower() in _NO or not baseline_path():
+        return False
+    settings()                                        # đã stat tệp 🧪 (cache theo mtime) — không stat thêm mỗi lần đọc cờ
+    if _SETTINGS["stamp"] is not None:
+        return False
+    return bool(baseline().get("flags"))
+
+
+def _paid(name: str) -> bool:
+    """Cờ tốn tiền: `costs`, OPT_IN_ONLY, hoặc trong before_run.PAID_FLAGS (rà C-M72: director_rewrite / director_camera_plan /
+    two_tier_quality / stage_camera không có `costs` nhưng đổi lời gọi trả tiền)."""
+    if FEATURES[name].get("costs") or name in OPT_IN_ONLY:
+        return True
+    from . import before_run
+    return name in before_run.PAID_FLAGS
+
+
+def _guarded(name: str, want: Optional[str]) -> Optional[str]:
+    """Bảo vệ của baseline: không bao giờ BẬT (kể cả học việc) cờ tốn tiền / OPT_IN_ONLY; cờ học việc tối đa trainee; giá trị lạ / học
+    việc cho cờ không có học việc → None (không nói gì, rơi về mặc định)."""
+    meta = FEATURES[name]
+    if want not in MODES:
+        return None
+    if want in ("on", "trainee") and _paid(name):
+        return None
+    if meta.get("trainee") and want == "on":
+        return "trainee"
+    if want == "trainee" and not meta.get("trainee"):
+        return None
+    return want
+
+
+def baseline_state(name: str) -> Optional[str]:
+    """Trạng thái baseline (đã qua bảo vệ) của cờ, None khi baseline không áp / không nói về cờ này."""
+    if not baseline_active():
+        return None
+    return _guarded(name, baseline()["flags"].get(name))
+
+
 LOCKED_TEXT = "🔒 đã kiểm chứng — khóa bật (chỉ sửa code mới tắt)"
 
 
@@ -1038,17 +1137,20 @@ def locked_off_ignored() -> Dict[str, str]:
 
 
 def state(name: str) -> str:
+    return _state(name, settings())
+
+
+def _state(name: str, s: Dict) -> str:
     """"on" / "trainee" (🎓 học việc: runs and records its decision, never acts) / "off". Order (KE_HOACH_HOC_VIEC_2026-10-08 mục 1):
     removed flag → 🔒 verified flag (15/10: always on) → choice on the 🧪 screen (modes / flags) → preset (stable: only verified;
     experimental: a học-việc flag is trainee, never on) → FEATURE_<NAME> (=trainee, or =1 for a học-việc flag → trainee; real ON only
-    from 🧪; =0 off) → default_state() (`verified` or `default_on`)."""
+    from 🧪; =0 off) → baseline (M7.2: chỉ máy chưa có tệp 🧪, có bảo vệ) → default_state() (`verified` or `default_on`)."""
     if name in REMOVED:
         return "off"
     if locked(name):
         return "on"
     meta = FEATURES[name]
     trainee = bool(meta.get("trainee"))
-    s = settings()
     if name in (s.get("modes") or {}):
         return "trainee"
     if name in s["flags"]:
@@ -1069,7 +1171,7 @@ def state(name: str) -> str:
         return "on"
     if env in _NO or env == "trainee":
         return "off"
-    return default_state(name)
+    return baseline_state(name) or default_state(name)
 
 
 def default_state(name: str) -> str:
@@ -1145,6 +1247,8 @@ def _why_state(name: str) -> str:
     if env:
         return "dashboard.env / môi trường" + (f" (FEATURE_{name.upper()}={env} với cờ học việc → học việc)"
                                                 if FEATURES[name].get("trainee") and (env in _YES or env == "trainee") else "")
+    if baseline_state(name):
+        return f"baseline cờ sản xuất ({baseline_path()}) — máy chưa có lựa chọn riêng"
     if FEATURES[name]["verified"]:
         return "mặc định: đã thử thật → bật"
     if FEATURES[name].get("default_on"):
@@ -1194,7 +1298,8 @@ def fix_flags_off(project_id: Optional[int]) -> List[Dict]:
 
 
 SOURCES = {"removed": "đã bỏ khỏi code", "locked": LOCKED_TEXT, "settings": "màn 🧪 (data/feature_settings.json)", "preset": "preset",
-           "env": "dashboard.env / môi trường (FEATURE_<NAME>)", "default": "mặc định code"}
+           "env": "dashboard.env / môi trường (FEATURE_<NAME>)", "baseline": "baseline cờ sản xuất (data/flag_baseline.json)",
+           "default": "mặc định code"}
 
 
 def source(name: str) -> str:
@@ -1208,7 +1313,9 @@ def source(name: str) -> str:
         return "settings"
     if s["preset"] in ("stable", "experimental"):
         return "preset"
-    return "env" if _env(name) else "default"
+    if _env(name):
+        return "env"
+    return "baseline" if baseline_state(name) else "default"
 
 
 def report() -> List[Dict]:
@@ -1240,6 +1347,226 @@ def report_md(rows: Optional[List[Dict]] = None) -> str:
     return "\n".join(out)
 
 
+# ---- M7.2: cấu hình hiệu lực + hash + drift --------------------------------------------------------------------------------------
+def _machine() -> str:
+    import platform
+    return platform.node() or "?"
+
+
+def config_hash(states: Optional[Dict[str, str]] = None) -> str:
+    """Dấu vân tay 16 hex của trạng thái hiệu lực mọi cờ — hai máy / hai lần chạy cùng hash = cùng cấu hình cờ."""
+    import hashlib
+    import json
+    states = {n: state(n) for n in FEATURES} if states is None else states
+    return hashlib.sha256(json.dumps(sorted(states.items()), ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
+
+
+def effective_config() -> Dict:
+    """{flags: {cờ: on|trainee|off}, sources: {cờ: nguồn}, hash, baseline_active, machine} — cấu hình cờ THẬT của máy này."""
+    flags = {n: state(n) for n in FEATURES}
+    return {"flags": flags, "sources": {n: source(n) for n in FEATURES}, "hash": config_hash(flags),
+            "baseline_active": baseline_active(), "machine": _machine()}
+
+
+def _snapshot_path(data_dir: str, pid) -> str:
+    return os.path.join(data_dir, str(pid), "flag_config.json")
+
+
+def remember_config(data_dir: str, pid) -> Optional[str]:
+    """Ghi cấu hình cờ hiệu lực của dự án `pid` (<data>/<pid>/flag_config.json) — mốc để dự án sau so drift. Lỗi ghi → None (không chặn)."""
+    import datetime
+    import json
+    cfg = effective_config()
+    snap = {"hash": cfg["hash"], "flags": cfg["flags"], "machine": cfg["machine"],     # `at` tới micro giây: drift chọn dự án gửi CUỐI
+            "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="microseconds")}
+    path = _snapshot_path(data_dir, pid)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(snap, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, path)
+        return path
+    except OSError:
+        return None
+
+
+def drift(data_dir: str, pid) -> List[str]:
+    """Cảnh báo drift của dự án `pid` so với mốc cấu hình mới nhất của DỰ ÁN KHÁC: cờ đã bật / học việc ở dự án trước mà nay tắt; dự án
+    trước chạy ở máy khác với hash khác. Không có mốc → []. Chỉ đọc."""
+    import json
+    best = None
+    try:
+        names = os.listdir(data_dir)
+    except OSError:
+        return []
+    for d in names:
+        if d == str(pid):
+            continue
+        path = _snapshot_path(data_dir, d)
+        try:
+            with open(path, encoding="utf-8") as f:
+                stamp = str(json.load(f).get("at") or "")      # lần GỬI cuối (runner ghi mỗi lần gửi) — không theo mtime
+        except (OSError, ValueError, AttributeError):
+            if not os.path.exists(path):
+                continue
+            stamp = ""
+        if best is None or stamp > best[0]:
+            best = (stamp, d, path)
+    if best is None:
+        return []
+    try:
+        with open(best[2], encoding="utf-8") as f:
+            snap = json.load(f)
+    except (OSError, ValueError):
+        return [f"mốc cấu hình cờ dự án #{best[1]} hỏng ({best[2]}) — không so được drift"]
+    now = {n: state(n) for n in FEATURES}
+    out = [f"cờ {n} {'bật' if was == 'on' else 'học việc'} ở dự án #{best[1]} nay TẮT ({why_state(n)})"
+           for n, was in sorted((snap.get("flags") or {}).items()) if n in now and was in ("on", "trainee") and now[n] == "off"]
+    if snap.get("machine") and snap["machine"] != _machine() and snap.get("hash") != config_hash(now):
+        out.append(f"dự án #{best[1]} chạy ở máy khác ({snap['machine']}) với cấu hình cờ khác (hash {snap.get('hash')} ≠ {config_hash(now)})")
+    return out
+
+
+# ---- M7.2: baseline chụp / so ---------------------------------------------------------------------------------------------------
+def baseline_capture(path: Optional[str] = None) -> str:
+    """Chụp trạng thái hiệu lực máy này thành tệp baseline (chạy trên MÁY CHÍNH rồi commit). Trả đường dẫn."""
+    import datetime
+    import json
+    path = path or baseline_path()
+    if not path:
+        raise ValueError("baseline đang tắt (FEATURE_BASELINE_FILE rỗng) — không có chỗ ghi")
+    cfg = effective_config()
+    data = {"flags": cfg["flags"], "hash": cfg["hash"], "machine": cfg["machine"],
+            "captured": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+            "note": "M7.2: chỉ áp ở máy CHƯA có data/feature_settings.json; không bật cờ costs / OPT_IN_ONLY; học việc tối đa trainee"}
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=1, sort_keys=True)
+    os.replace(tmp, path)
+    _BASELINE["stamp"] = object()
+    return path
+
+
+def baseline_diff() -> Dict:
+    """here: cờ mà tệp baseline ghi khác trạng thái hiệu lực máy này (máy chính sau khi chụp phải = []); fresh: một máy MỚI (chưa có tệp 🧪,
+    không env) sẽ khác máy này ở cờ nào và vì sao (bảo vệ costs / OPT_IN, học việc tối đa trainee, baseline không ghi)."""
+    raw = baseline().get("flags") or {}
+    here, fresh = [], []
+    for n in FEATURES:
+        now = state(n)
+        if n in raw and raw[n] != now:
+            here.append({"name": n, "now": now, "baseline": raw[n]})
+        if n in REMOVED:
+            new, why = "off", "đã bỏ khỏi code"
+        elif FEATURES[n]["verified"]:
+            new, why = "on", "khóa"
+        else:
+            g = _guarded(n, raw.get(n))
+            new = g or default_state(n)
+            why = ("baseline" if g == raw.get(n) else "baseline bị bảo vệ hạ (" + (
+                "cờ tốn tiền / OPT_IN không bao giờ tự bật" if _paid(n)
+                else "học việc tối đa trainee" if FEATURES[n].get("trainee") else "giá trị không áp được") + ")") if g or n in raw \
+                else "baseline không ghi → mặc định code"
+        if new != now:
+            fresh.append({"name": n, "now": now, "fresh": new, "why": why})
+    return {"path": baseline_path(), "active_here": baseline_active(), "here": here, "fresh": fresh}
+
+
+# ---- M7.2 / K6: bỏ lựa chọn riêng an toàn (preview, xác nhận ở UI, sao lưu, khôi phục) ---------------------------------------------
+MAX_BACKUPS = 30
+
+
+def _backup_dir() -> str:
+    return os.path.join(os.path.dirname(settings_path()), "backup")
+
+
+def backup_settings() -> Optional[str]:
+    """Chép tệp 🧪 hiện tại vào <data>/backup/feature_settings.<giờ>.json. Không có tệp → None."""
+    import datetime
+    import shutil
+    src = settings_path()
+    if not os.path.isfile(src):
+        return None
+    os.makedirs(_backup_dir(), exist_ok=True)
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    dst = os.path.join(_backup_dir(), f"feature_settings.{stamp}.json")
+    shutil.copy2(src, dst)
+    for old in list_backups()[MAX_BACKUPS:]:          # giữ MAX_BACKUPS bản mới nhất
+        try:
+            os.remove(old["path"])
+        except OSError:
+            pass
+    return dst
+
+
+def list_backups() -> List[Dict]:
+    """Bản sao lưu tệp 🧪, mới nhất trước: [{path, name, n_flags}]."""
+    import json
+    out = []
+    d = _backup_dir()
+    for name in sorted(os.listdir(d), reverse=True) if os.path.isdir(d) else []:
+        if not (name.startswith("feature_settings.") and name.endswith(".json")):
+            continue
+        path = os.path.join(d, name)
+        try:
+            with open(path, encoding="utf-8") as f:
+                n = len((json.load(f).get("flags") or {}))
+        except (OSError, ValueError, AttributeError):
+            n = None
+        out.append({"path": path, "name": name, "n_flags": n})
+    return out
+
+
+def _state_with(data: Dict, name: str) -> str:
+    """Trạng thái của `name` nếu tệp 🧪 là `data` — thuần (không đụng cache chung: luồng nền / phiên khác đọc cờ cùng lúc)."""
+    return _state(name, data)
+
+
+def reset_preview() -> List[Dict]:
+    """Cờ đổi trạng thái nếu bỏ mọi lựa chọn riêng (giữ preset): [{name, now, after, why}]."""
+    cur = settings()
+    bare = {"preset": cur["preset"], "flags": {}, "modes": {}}
+    out = []
+    for n in sorted(set(cur["flags"]) | set(cur.get("modes") or {})):
+        now, after = state(n), _state_with(bare, n)
+        if now != after:
+            out.append({"name": n, "now": now, "after": after})
+    return out
+
+
+def reset_choices() -> Optional[str]:
+    """Sao lưu tệp 🧪 rồi bỏ mọi lựa chọn riêng (giữ preset). Trả đường dẫn bản sao lưu."""
+    cur = settings()
+    path = backup_settings()
+    save_settings(flags={k: None for k in list(cur["flags"])}, modes={k: None for k in list(cur.get("modes") or {})})
+    return path
+
+
+def restore_settings(path: str) -> Optional[str]:
+    """Khôi phục một bản sao lưu (chỉ tệp trong thư mục backup). Sao lưu bản đang dùng trước; trả đường dẫn bản đó. Lựa chọn cũ tắt cờ 🔒
+    vẫn bị bỏ qua như mọi khi (locked_off_ignored)."""
+    import json
+    real = os.path.realpath(path)
+    name = os.path.basename(real)
+    if os.path.normcase(os.path.dirname(real)) != os.path.normcase(os.path.realpath(_backup_dir())) \
+            or not name.startswith("feature_settings.") or not name.endswith(".json"):
+        raise ValueError(f"{path} không phải bản sao lưu cài đặt cờ ({_backup_dir()})")
+    with open(real, encoding="utf-8") as f:
+        text = f.read()
+    raw = json.loads(text)
+    if not isinstance(raw, dict) or not isinstance(raw.get("flags", {}), dict):
+        raise ValueError(f"{path} không đúng dạng cài đặt cờ")
+    before = backup_settings()                    # C-M72-FIX: có thể dọn chính bản cũ nhất (giữ MAX_BACKUPS) — ghi từ nội dung đã đọc
+    tmp = settings_path() + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
+    os.replace(tmp, settings_path())
+    _SETTINGS["stamp"] = object()
+    return before
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     import argparse
     import json
@@ -1252,7 +1579,34 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--report", action="store_true", help="bảng trạng thái mọi cờ (bật/tắt + nguồn)")
     ap.add_argument("--json", action="store_true", help="xuất JSON thay bảng")
     ap.add_argument("--project", type=int, help="liệt kê cờ sửa lỗi dự án trước còn TẮT với dự án này")
+    ap.add_argument("--baseline-capture", action="store_true", help="chụp trạng thái hiệu lực máy này vào data/flag_baseline.json (máy chính)")
+    ap.add_argument("--baseline-diff", action="store_true", help="so baseline với máy này (máy chính phải 0 cờ đổi) + máy mới sẽ khác gì")
+    ap.add_argument("--config", action="store_true", help="cấu hình cờ hiệu lực + hash")
     a = ap.parse_args(argv)
+    if a.baseline_capture:
+        print(f"Đã chụp baseline: {baseline_capture()} (hash {config_hash()})")
+        return 0
+    if a.baseline_diff:
+        d = baseline_diff()
+        if a.json:
+            print(json.dumps(d, ensure_ascii=False, indent=1))
+            return 0
+        print(f"Baseline {d['path'] or '(tắt)'} · áp ở máy này: {'có' if d['active_here'] else 'không (máy đã có tệp 🧪)'}")
+        for p_ in baseline_problems():
+            print("⚠ " + p_)
+        print(f"So với máy này: {len(d['here'])} cờ đổi")
+        for r in d["here"]:
+            print(f"  {r['name']}: máy này {r['now']} · baseline {r['baseline']}")
+        print(f"Máy MỚI (chưa có tệp 🧪, không env) sẽ khác máy này ở {len(d['fresh'])} cờ:")
+        for r in d["fresh"]:
+            print(f"  {r['name']}: {r['now']} → {r['fresh']} ({r['why']})")
+        return 0
+    if a.config:
+        cfg = effective_config()
+        print(json.dumps(cfg, ensure_ascii=False, indent=1) if a.json else f"hash {cfg['hash']} · máy {cfg['machine']} · baseline "
+              f"{'áp' if cfg['baseline_active'] else 'không áp'} · bật {sum(v == 'on' for v in cfg['flags'].values())} / "
+              f"học việc {sum(v == 'trainee' for v in cfg['flags'].values())} / tắt {sum(v == 'off' for v in cfg['flags'].values())}")
+        return 0
     if a.project is not None:
         rows = fix_flags_off(a.project)
         print(json.dumps(rows, ensure_ascii=False, indent=1) if a.json else
