@@ -236,6 +236,7 @@ def summarize(levels: List[Dict]) -> Dict:
         srv, pr = lv.get("server", {}), lv.get("probe", {})
         base = srv.get("threads_base") or 0
         rows.append({"n": n, "steps": per, "slow": slow, "cpu_peak": srv.get("cpu_peak"), "rss_peak_mb": srv.get("rss_peak_mb"),
+                     "sys_cpu_peak": srv.get("sys_cpu_peak"),
                      "threads_base": base, "threads_peak": srv.get("threads_peak"),
                      "threads_per_session": round(((srv.get("threads_peak") or base) - base) / n, 2) if n else None,
                      "sqlite": {k: pr.get(k) for k in ("writes", "waits", "wait_s", "wait_max", "locked_errors", "connects")},
@@ -248,6 +249,8 @@ def summarize(levels: List[Dict]) -> Dict:
         sq = top["sqlite"]
         if sq.get("wait_max") and bottleneck["p95"] and sq["wait_max"] >= 0.5 * bottleneck["p95"]:
             bottleneck["note"] = "chờ khóa SQLite chiếm phần lớn thời gian bước chậm nhất"
+        elif top.get("sys_cpu_peak") and top["sys_cpu_peak"] >= 95:
+            bottleneck["note"] = "CẢ MÁY đo bão hòa CPU (trình duyệt đo + Streamlit chung máy) — số đo phồng; đo lại với ít phiên hơn / máy mạnh hơn"
         elif top.get("cpu_peak") and top["cpu_peak"] >= 90:
             bottleneck["note"] = "CPU tiến trình Streamlit ~bão hòa một lõi (Python GIL) — script rerun của các phiên xếp hàng"
     return {"slow_s": SLOW_S, "rows": rows, "first_slow": first_slow, "bottleneck": bottleneck}
@@ -272,11 +275,11 @@ def markdown(summary: Dict, meta: Dict) -> str:
                          + (" 🐢" if step in r["slow"] else ""))
         out.append(f"| {STEP_LABEL[step]} | " + " | ".join(cells) + " |")
     out += ["", "## Server (tiến trình Streamlit)", "",
-            "| N | CPU đỉnh % | RAM đỉnh MB | Luồng gốc → đỉnh | Luồng thêm / phiên | Lệnh ghi SQLite | Chờ khóa (≥ "
-            f"{LOCK_WAIT_S} s) | Chờ lâu nhất s | Lỗi locked |", "|---|---|---|---|---|---|---|---|---|"]
+            "| N | CPU đỉnh % | CPU cả máy đỉnh % | RAM đỉnh MB | Luồng gốc → đỉnh | Luồng thêm / phiên | Lệnh ghi SQLite | Chờ khóa (≥ "
+            f"{LOCK_WAIT_S} s) | Chờ lâu nhất s | Lỗi locked |", "|---|---|---|---|---|---|---|---|---|---|"]
     for r in summary["rows"]:
         sq = r["sqlite"]
-        out.append(f"| {r['n']} | {_f(r['cpu_peak'])} | {_f(r['rss_peak_mb'])} | {_f(r['threads_base'])} → {_f(r['threads_peak'])} | "
+        out.append(f"| {r['n']} | {_f(r['cpu_peak'])} | {_f(r.get('sys_cpu_peak'))} | {_f(r['rss_peak_mb'])} | {_f(r['threads_base'])} → {_f(r['threads_peak'])} | "
                    f"{_f(r['threads_per_session'])} | {_f(sq.get('writes'))} | {_f(sq.get('waits'))} ({_f(sq.get('wait_s'))} s) | "
                    f"{_f(sq.get('wait_max'))} | {_f(sq.get('locked_errors'))} |")
     fs, bn = summary["first_slow"], summary["bottleneck"]
@@ -313,7 +316,7 @@ async def _radio(pg, label: str) -> None:
     await pg.locator('.st-key-step label[data-testid="stRadioOption"]', has_text=label).first.click()
 
 
-async def session(browser, url: str, i: int, n_projects: int, log) -> Dict:
+async def session(browser, url: str, i: int, n_projects: int, log, shots_dir: Optional[str] = None) -> Dict:
     ctx = await browser.new_context(viewport={"width": 1440, "height": 900})
     pg = await ctx.new_page()
     steps, errors = {}, {}
@@ -328,6 +331,12 @@ async def session(browser, url: str, i: int, n_projects: int, log) -> Dict:
         except Exception as e:  # noqa: BLE001 - một bước lỗi không dừng phiên: ghi lại, đo tiếp
             steps[name] = None
             errors[name] = f"{type(e).__name__}: {str(e)[:160]}"
+            if shots_dir and len(errors) == 1:   # ảnh màn lúc lỗi ĐẦU của phiên — chẩn đoán (trang trắng / "Connecting" / lỗi Python)
+                try:
+                    os.makedirs(shots_dir, exist_ok=True)
+                    await pg.screenshot(path=os.path.join(shots_dir, f"loi_s{i}_{name}.png"), timeout=10000)
+                except Exception:  # noqa: BLE001
+                    pass
 
     async def home():
         await pg.goto(url)
@@ -371,13 +380,13 @@ async def session(browser, url: str, i: int, n_projects: int, log) -> Dict:
     return {"i": i, "steps": steps, "errors": errors}
 
 
-async def run_sessions(n: int, url: str, n_projects: int, chrome: Optional[str], log) -> List[Dict]:
+async def run_sessions(n: int, url: str, n_projects: int, chrome: Optional[str], log, shots_dir: Optional[str] = None) -> List[Dict]:
     from playwright.async_api import async_playwright
     async with async_playwright() as pw:
         kw = {"executable_path": chrome} if chrome else {}
         browser = await pw.chromium.launch(**kw)
         try:
-            return list(await asyncio.gather(*[session(browser, url, i, n_projects, log) for i in range(n)]))
+            return list(await asyncio.gather(*[session(browser, url, i, n_projects, log, shots_dir) for i in range(n)]))
         finally:
             await browser.close()
 
@@ -393,12 +402,14 @@ class Sampler(threading.Thread):
         self.stop = threading.Event()
 
     def run(self):
+        import psutil
         self.proc.cpu_percent(None)
+        psutil.cpu_percent(None)
         while not self.stop.is_set():
             try:
                 with self.proc.oneshot():
                     self.samples.append({"cpu": self.proc.cpu_percent(None), "rss_mb": self.proc.memory_info().rss / 2**20,
-                                         "threads": self.proc.num_threads()})
+                                         "threads": self.proc.num_threads(), "sys_cpu": psutil.cpu_percent(None)})
             except Exception:  # noqa: BLE001 - tiến trình đã dừng
                 return
             self.stop.wait(0.5)
@@ -407,7 +418,9 @@ class Sampler(threading.Thread):
         s = self.samples
         return {"cpu_peak": round(max((x["cpu"] for x in s), default=0), 1), "rss_peak_mb": round(max((x["rss_mb"] for x in s), default=0), 1),
                 "threads_base": base_threads, "threads_peak": max((x["threads"] for x in s), default=base_threads),
-                "cpu_mean": round(statistics.mean(x["cpu"] for x in s), 1) if s else None}
+                "cpu_mean": round(statistics.mean(x["cpu"] for x in s), 1) if s else None,
+                # CPU CẢ MÁY (mọi lõi, %): trình duyệt đo chạy CÙNG máy — gần 100 % thì số đo phồng do máy đo, không chỉ do Streamlit
+                "sys_cpu_peak": round(max((x.get("sys_cpu", 0) for x in s), default=0), 1)}
 
 
 def find_chrome(arg: Optional[str]) -> Optional[str]:
@@ -450,7 +463,8 @@ def run_level(n: int, template: Dict, args, log) -> Dict:
         smp = Sampler(app.pid)
         smp.start()
         t0 = time.perf_counter()
-        sessions = asyncio.run(run_sessions(n, f"http://127.0.0.1:{port}/", len(template["projects"]), args.chrome, log))
+        sessions = asyncio.run(run_sessions(n, f"http://127.0.0.1:{port}/", len(template["projects"]), args.chrome, log,
+                                            os.path.join(args.out, f"loi_n{n}") if args.out else None))
         wall = round(time.perf_counter() - t0, 2)
         time.sleep(1.0)                           # đầu dò ghi 0.5 s / lần
         smp.stop.set()

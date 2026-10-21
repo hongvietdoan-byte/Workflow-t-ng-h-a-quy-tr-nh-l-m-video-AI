@@ -93,7 +93,7 @@ def test_probe_is_inert_without_the_output_variable(tmp_path):
 def _level(n, home, storyboard=0.4, cpu=50, waits=0, wait_max=0.0, err=False):
     sessions = [{"steps": {"home": home + k * 0.1, "open": 1.0, "storyboard": storyboard, "approve": 1.0, "video": 0.8, "gen": 1.2},
                  "errors": ({"approve": "LookupError"} if err and k == 0 else {})} for k in range(n)]
-    return {"n": n, "sessions": sessions, "server": {"cpu_peak": cpu, "rss_peak_mb": 120, "threads_base": 7, "threads_peak": 7 + 3 * n},
+    return {"n": n, "sessions": sessions, "server": {"cpu_peak": cpu, "sys_cpu_peak": 50, "rss_peak_mb": 120, "threads_base": 7, "threads_peak": 7 + 3 * n},
             "probe": {"writes": 10 * n, "waits": waits, "wait_s": wait_max * waits, "wait_max": wait_max, "locked_errors": 0,
                       "thread_names": {"ScriptRunner": n}}}
 
@@ -133,3 +133,11 @@ def test_real_run_one_session(tmp_path):
     assert not sess["errors"], sess["errors"]
     assert all(sess["steps"][s] is not None for s in L.STEPS)
     assert got["levels"][0]["probe"].get("writes")                     # đầu dò chạy trong tiến trình Streamlit
+
+
+def test_summary_flags_a_saturated_measuring_machine():
+    lv = _level(10, 4.0, cpu=99)
+    lv["server"]["sys_cpu_peak"] = 99.0
+    s = L.summarize([lv])
+    assert "CẢ MÁY" in s["bottleneck"]["note"]
+    assert "| 99.0 |" in L.markdown(s, {"latency": 0})
