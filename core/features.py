@@ -407,6 +407,13 @@ FEATURES: Dict[str, Dict] = {
         "why": "#31 G51 (súng biến mất), G52 (logic chuỗi 39 clip), G1 (đạo cụ sang cảnh khác) chỉ người thấy. Chạy sau QC logic chuỗi. "
                "Chưa chạy trên dữ liệu thật",
     },
+    "whitebox_height_dummy": {
+        "label": "Người nộm whitebox đúng chiều cao hồ sơ Kho (height_m) + máy ở tầm mắt 0,93 × height_m, pitch eye (≤ 5°) / slightly_high "
+                 "(cúi ~10°); thiếu chiều cao → báo, không im lặng (V3.1 M3.2, offline — không gửi gì thêm cho model)",
+        "verified": False,
+        "why": "G2 (người sai tỉ lệ so nền), G3 (#31 shot 28 khai eye mà pitch +17,3°), A10. Whitebox cũ cố định mắt 1,6 m, khối 1,8 m. "
+               "Chưa render thử trên máy chính",
+    },
     "final_black_freeze": {
         "label": "Kiểm bản dựng cuối: đoạn màn hình ĐEN (≥ 0,5 s) và ĐỨNG HÌNH (> 1,5 s) bằng ffmpeg blackdetect / freezedetect — chỉ "
                  "cảnh báo (cần xem), không chặn xuất (V3.1 M4.4)",
