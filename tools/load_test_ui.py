@@ -338,19 +338,26 @@ async def session(browser, url: str, i: int, n_projects: int, log) -> Dict:
         opens = pg.locator("button", has_text="Mở →")
         await opens.nth(i % max(1, min(n_projects, await opens.count()))).click()
 
+    async def click_first(text: str, exact: bool, why: str, wait: float = 20.0):
+        """Bấm nút đầu tiên khớp + bấm được; màn có thể còn đang vẽ phần sau (tải nặng) → thử lại tới `wait` giây (tính vào bước)."""
+        t0 = time.perf_counter()
+        while True:
+            for b in await pg.locator("button", has_text=text).all():
+                try:
+                    if (not exact or (await b.inner_text()).strip() == text) and await b.is_enabled():
+                        await b.click(timeout=5000)
+                        return
+                except Exception:  # noqa: BLE001 - nút bị vẽ lại giữa chừng: tìm lại
+                    continue
+            if time.perf_counter() - t0 > wait:
+                raise LookupError(why)
+            await asyncio.sleep(0.25)
+
     async def approve():
-        for b in await pg.locator("button", has_text="✔ Duyệt").all():
-            if (await b.inner_text()).strip() == "✔ Duyệt" and await b.is_enabled():
-                await b.click()
-                return
-        raise LookupError("không có ảnh nào chờ duyệt")
+        await click_first("✔ Duyệt", True, "không có ảnh nào chờ duyệt")
 
     async def gen():
-        for b in await pg.locator("button", has_text="▶ Gen video").all():
-            if await b.is_enabled():
-                await b.click()
-                return
-        raise LookupError("nút Gen video không bấm được")
+        await click_first("▶ Gen video", False, "nút Gen video không bấm được")
 
     await step("home", home)
     await step("open", open_)
