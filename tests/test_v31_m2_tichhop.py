@@ -122,3 +122,33 @@ def test_lock_does_not_commit_the_callers_transaction(tmp_path):
     other.close()
     assert seen == "cũ 1" and p.conn.in_transaction
     p.conn.commit()
+
+
+def test_rolled_back_write_is_not_reported_and_closed_conn_is_safe(tmp_path):
+    from core import write_guard
+    p, pid, sids, _ = _three_shots(tmp_path)
+    with mock.patch.dict(os.environ, {"FEATURE_FIELD_GUARD": "1"}):
+        p.conn.execute("UPDATE scenes SET title='x' WHERE id=?", (sids[1],))     # nơi gọi đang trong giao dịch
+        write_guard.observe(p.conn, sids[1], {"motion_prompt": "AI"}, write_guard.actor("ai", "director"))
+        p.conn.rollback()
+        assert write_guard.discard(p.conn) == 1
+        assert write_guard.flush(p.conn) == 0
+        assert p.conn.execute("SELECT COUNT(*) FROM diag_events WHERE code='field_conflict'").fetchone()[0] == 0
+        p.conn.execute("UPDATE scenes SET title='y' WHERE id=?", (sids[1],))
+        write_guard.observe(p.conn, sids[1], {"motion_prompt": "AI"}, write_guard.actor("ai", "director"))
+        p.conn.close()
+        assert write_guard.flush(p.conn) == 0                                     # kết nối đã đóng: không ném
+        assert id(p.conn) not in write_guard._PENDING
+
+
+def test_qc_keeps_the_wrong_type_code(tmp_path):
+    from core import llm_runner
+    img = tmp_path / "a.png"
+    img.write_bytes(b"x")
+    job = {"id": 1, "scene_id": 1, "project_id": 24}
+    with mock.patch.dict(os.environ, ON), pytest.raises(llm_runner.LlmError) as e:
+        qc_observe._prepare(mock.Mock(), job, str(img), ["set_match"], {"byd": "BOM"})
+    assert e.value.code == "byd_sai_kieu"
+    with mock.patch.dict(os.environ, ON), pytest.raises(llm_runner.LlmError) as e:
+        qc_observe._prepare(mock.Mock(), job, str(tmp_path / "khong.png"), ["set_match"], {})
+    assert e.value.code == "qc_missing_input"

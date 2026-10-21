@@ -127,10 +127,11 @@ class Unit(unittest.TestCase):
     def test_missing_byd_yellow_and_draft_byd_yellow(self):
         self.data({"image_prompt": "x"})
         self.assertEqual(self.codes(), [("byd", "vang")])
-        self.data({"image_prompt": "x", "byd": {"shot": 2, "_p": {"by": "code", "draft": True, "from": 41}}})
+        self.data({"image_prompt": "x", "byd": {"shot": 2, "_p": {"by": "code", "draft": True, "from": self.sid}}})
         issues = image_pregen.check(self.p.conn, self.sid, self.plan())
         self.assertEqual([(i["ma"], i["muc"]) for i in issues], [("byd_draft", "vang")])
-        self.assertIn("#41", issues[0]["ly_do"])
+        idx = self.p.conn.execute("SELECT idx FROM scenes WHERE id=?", (self.sid,)).fetchone()["idx"]
+        self.assertIn(f"từ shot {idx}", issues[0]["ly_do"])       # tích hợp M2: số shot như cổng video (trước: #scene id)
 
     # ---- khoi_giu_cho (G1) -------------------------------------------------------------------------------------------------------
     def test_block_in_the_render_without_its_sentence_is_red(self):

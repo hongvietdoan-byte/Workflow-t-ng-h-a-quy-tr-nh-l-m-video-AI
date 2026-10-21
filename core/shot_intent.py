@@ -483,10 +483,13 @@ def draft_of(data: Dict, shot: int, from_scene_id: int, characters=None, place=N
         names = {fold(str(n)).lower() for n in characters}
         parts = [c for c in parts if fold(str(c.get("vat") or "")).lower() in names]
     noi = copy.deepcopy(src.get("noi_chon") or {})
+    moved = False
     if place is not None and noi.get("kho_id") not in (None, place):
-        noi["kho_id"] = place
+        noi["kho_id"], moved = place, True
     if spot and noi.get("spot") not in (None, spot):
-        noi["spot"] = spot
+        noi["spot"], moved = spot, True
+    if moved:
+        noi.pop("trong_nha", None)                     # code suy từ chỗ đứng 3D cũ — chỗ mới thì suy lại
     return {"byd_v": BYD_V, "shot": shot, "thanh_phan": parts, "noi_chon": noi, "hanh_dong": [], "may": {},
             "_p": {"by": "code", "draft": True, "from": from_scene_id}}            # `_p` M2.1 chỉ hợp lệ ở v2
 

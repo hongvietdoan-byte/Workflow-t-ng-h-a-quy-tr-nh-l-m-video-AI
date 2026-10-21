@@ -1183,6 +1183,8 @@ def after_director(conn, project_id: int, before: Optional[Dict] = None) -> None
             diag.record(conn, "director", "warn", "Công thức prompt (giữa các shot): " + i["msg"], "prompt_formula", project_id)
     except Exception as e:  # noqa: BLE001 - a check, never a reason to lose the paid plan
         conn.rollback()
+        from . import write_guard as _wg                   # rà M25-1: diag shadow của lần ghi đã hủy không được ghi
+        _wg.discard(conn)
         diag.record(conn, "director", "warn", f"không kiểm được công thức prompt: {type(e).__name__}: {e}", "prompt_formula", project_id)
 
 
@@ -1220,6 +1222,8 @@ def on_prompt_saved(conn, scene_id: int, kind: str, old: Optional[str], new: Opt
     except Exception as e:  # noqa: BLE001 - never a reason to lose a saved prompt
         try:
             conn.rollback()
+            from . import write_guard as _wg               # rà M25-1: diag shadow của lần ghi đã hủy không được ghi
+            _wg.discard(conn)
         except Exception:  # noqa: BLE001
             pass
         diag.record(conn, "director", "warn", f"không kiểm được công thức prompt (shot #{scene_id}): {type(e).__name__}: {e}",

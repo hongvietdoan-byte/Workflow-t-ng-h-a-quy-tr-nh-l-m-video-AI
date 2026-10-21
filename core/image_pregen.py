@@ -129,8 +129,8 @@ def _check_byd(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> 
         out.append(_issue("byd", VANG, "chưa có BYĐ — chưa kiểm được thành phần / máy của ảnh theo ý đồ shot"))
         return
     if shot_intent.is_draft(byd):                      # provenance M2.1 `_p` (M2.4 draft / from) — một nguồn với cổng video
-        src = shot_intent.draft_source(byd)
-        src = f" từ shot #{src}" if src is not None else ""
+        row = conn.execute("SELECT idx FROM scenes WHERE id=?", (shot_intent.draft_source(byd),)).fetchone() if conn else None
+        src = f" từ shot {row['idx']}" if row else ""       # số shot như cổng video (không phải mã scene id)
         out.append(_issue("byd_draft", VANG, f"BYĐ nháp do code dựng{src} — duyệt ở Bước 3"))
 
 

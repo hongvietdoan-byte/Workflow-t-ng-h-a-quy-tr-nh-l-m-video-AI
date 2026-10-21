@@ -162,8 +162,8 @@ def _prepare(p, job, path, criteria, data):
             (f"Ảnh chuẩn job {job['id']} — {r['label']}:", assets.thumbnail(r['path'], 900)) for r in refs]
         if any(not os.path.isfile(img) for _, img in images):
             raise ValueError('Thiếu file ảnh tham chiếu thực gửi')
-    except ValueError as exc:
-        raise llm_runner.LlmError(str(exc), code='qc_missing_input') from exc
+    except ValueError as exc:                     # BYĐ sai kiểu (cờ byd_v2_levels): giữ mã byd_sai_kieu, không gọi là "thiếu đầu vào"
+        raise llm_runner.LlmError(str(exc), code=getattr(exc, 'code', None) or 'qc_missing_input') from exc
     return checks, images
 
 

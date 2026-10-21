@@ -147,10 +147,21 @@ def _say(conn, message: str, code: str, pid, scene_id) -> None:
     diag.record(conn, "system", "warn", message, code, pid, scene_id)
 
 
+def discard(conn) -> int:
+    """Nơi gọi ROLLBACK: bỏ các dòng diag shadow đang giữ của lần ghi đã hủy (không báo "lẽ ra đã chặn" cho lần ghi không xảy ra) —
+    gọi ngay sau conn.rollback(). Trả số dòng bỏ. Không bao giờ ném lỗi."""
+    held = _PENDING.pop(id(conn), None)
+    return len(held[1]) if held and held[0] is conn else 0
+
+
 def flush(conn) -> int:
     """Ghi các dòng diag shadow đã giữ khi nơi gọi đang trong giao dịch — gọi SAU commit / rollback của nó. Còn trong giao dịch → để
     sau (không commit hộ). Trả số dòng đã ghi. Không bao giờ ném lỗi."""
-    if conn.in_transaction or id(conn) not in _PENDING:
+    try:
+        if id(conn) not in _PENDING or conn.in_transaction:
+            return 0
+    except Exception:  # noqa: BLE001 - kết nối đã đóng: bỏ dòng giữ (không ghi được, không ném)
+        _PENDING.pop(id(conn), None)
         return 0
     held = _PENDING.pop(id(conn))
     if held[0] is not conn:                              # id tái dùng sau khi kết nối cũ mất: không phải của kết nối này

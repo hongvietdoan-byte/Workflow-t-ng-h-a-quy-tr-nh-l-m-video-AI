@@ -249,8 +249,16 @@ class DraftProvenanceTests(unittest.TestCase):
     def test_image_gate_reads_the_draft_through_shot_intent(self):
         from core import image_pregen
         out = []
+        conn = mock.Mock()
+        conn.execute.return_value.fetchone.return_value = {"idx": 7}
         with mock.patch.object(shot_intent, "draft_source", return_value=99) as src:
-            image_pregen._check_byd(None, 1, {}, {"byd": self.draft()}, out)
+            image_pregen._check_byd(conn, 1, {}, {"byd": self.draft()}, out)
         self.assertTrue(src.called)
+        self.assertEqual(conn.execute.call_args[0][1], (99,))
         self.assertEqual([i["ma"] for i in out], ["byd_draft"])
-        self.assertIn("99", out[0]["ly_do"])
+        self.assertIn("từ shot 7", out[0]["ly_do"])                       # số shot như cổng video, không phải scene id
+
+    def test_moved_place_drops_the_inferred_indoor_flag(self):
+        src = {"byd": dict(BYD, noi_chon=dict(BYD["noi_chon"], trong_nha=True))}
+        self.assertTrue(shot_intent.draft_of(src, 3, 41)["noi_chon"]["trong_nha"])
+        self.assertNotIn("trong_nha", shot_intent.draft_of(src, 3, 41, spot="ngoai_troi")["noi_chon"])
