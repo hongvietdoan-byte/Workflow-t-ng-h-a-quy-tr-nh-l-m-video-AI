@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T21:26:26.308847+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M210-DESIGN",
+  "to": "cloud-E",
+  "title": "M2.10 gói gửi tối giản: cách dùng prompt ngắn + bộ ảnh tham chiếu tối ưu (tài liệu + builder SHADOW)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M210-DESIGN",
+  "priority": 1
+}
