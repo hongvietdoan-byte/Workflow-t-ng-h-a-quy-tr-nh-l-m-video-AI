@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T21:04:17.997635+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-DEVSYS-MAPS-FIX",
+  "to": "cloud-C",
+  "title": "Sửa 3 VỪA + THẤP nhánh sơ đồ dây chuyền (skip→đỏ, CSDL khóa treo nút, cờ sai tên)",
+  "spec": "docs/CLOUD_TASKS.md#### C-DEVSYS-MAPS-FIX",
+  "priority": 1
+}
