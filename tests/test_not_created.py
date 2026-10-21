@@ -1,6 +1,7 @@
 """W12: ClipAI answers with a task id but never creates the task (real runs 2026-09-22/24: 16 such Kling tasks, absent from the
 account's whole list). The status check must look past the first list page, report 'not created' quickly, and the runner must take
 the submission out of the ledger and send the same attempt again — without using up a retry — at most 3 times in a row."""
+from tests._flags import pin_off
 import json
 import os
 import tempfile
@@ -42,6 +43,7 @@ class FakeClipAI:
 
 class NotCreatedTest(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         self.dir = tempfile.mkdtemp()
         p = self.p = Pipeline(connect())
         self.pid = p.create_project("t", max_retry=1)
@@ -121,6 +123,10 @@ class RequeuedTaskTest(NotCreatedTest):
     """W12b (trial 2A, 2026-09-25): past its concurrency limit ClipAI answers with a short queue id that never shows in the list, then
     creates the real task under a NEW id when a slot frees. 8 of 10 paid clips were written off as "not found" — and the "not created"
     branch would have resent (paid twice) and taken the cost out of the ledger."""
+    def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
 
     def queue_then_create(self, prompt="push in"):
         import time as _t
@@ -171,6 +177,10 @@ class CapTest(unittest.TestCase):
 class PersistentCountersTest(NotCreatedTest):
     """GĐ-A2: the dashboard builds a new provider on every poll — the counters live on the job rows, and a task hidden below many
     newer tasks (shared token, several projects) is never called 'not created' (it could still be running and billed)."""
+    def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
 
     def fresh_runner(self):
         return VideoRunner(self.p, ClipAIVideoProvider("tok", "https://clipai.example", self.fake), self.dir)
