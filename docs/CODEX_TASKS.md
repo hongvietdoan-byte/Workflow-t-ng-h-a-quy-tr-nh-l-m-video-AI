@@ -1443,3 +1443,16 @@ Từ origin/main mới nhất (đã gộp viec2b + viec5, cờ TẮT). Mỗi l�
    20 mục areas.json, phiên chính bù tay). Sửa: parse JSON cả hai bên (ours/theirs/base từ `git show :1: :2: :3:`), hợp theo cấu trúc (areas theo id, list hợp
    giữ thứ tự), ghi lại theo định dạng gốc (dict thụt lề, list một dòng); không parse được → báo lỗi, không ghi. Test: hai bên khác định dạng → không mất mục.
 Báo cáo `docs/RA_CX21_FIX_CODEX_2026-10-2x.md` + XONG hộp thư.
+
+### CX21-GOLDEN — nghiệm thu golden #24/#27 KHÔNG ĐẠT (21/10): sửa công cụ để chụp được (ưu tiên 0, TRƯỚC CX21-FIX)
+Phiên chính chạy nghiệm thu 21/10 trên snapshot CSDL thật (`D:/AI-Video-Output/golden-snapshot/` — manifest.sqlite, compat-flags.json 144 cờ, public-config `{}`,
+fixture p24-s265, p27-s272/284/285/287/291, replay-24-27.json). Kết quả: 0 COMPAT, 12/12 INSUFFICIENT_INPUT. Nhánh `codex/v31-golden-fix`. Mỗi lỗi test ĐỎ→XANH.
+(a) `tools/golden_capture.py --latest-per-type` lấy job video cuối = bản nâng final/upscale (`source_job_id` = nháp) có `sent_package.prompt=None` → capture
+    DỪNG rc 2 "prompt/provider/model thiếu giá trị" (#24: 7/8 shot chết vì lỗi này). Sửa: job nâng bậc → đi theo `source_job_id` về job có prompt (hoặc so gói
+    nâng theo đúng hàm dựng gói nâng), không thì ghi INSUFFICIENT_INPUT cho ca đó và chạy tiếp, không dừng cả lệnh.
+(b) Ảnh 6/6 INSUFFICIENT_INPUT: `ValueError runner.py:3310 → deepix.py:38 getsize → golden_db_replay.py:245/252` — ref `place_render` ở `data/_plates3d/cache/…`
+    nằm ngoài allowlist VFS (chỉ data/projects/{pid}, data/knowledge, knowledge/, prompts/, asset_images). Cờ `place_render_refs` verified ON → mọi ảnh có plate
+    bị chặn. Thêm vào allowlist (chỉ đọc, đúng file được job tham chiếu) `data/_plates3d/cache/` và kiểm `data/assets/<id>/` của Kho.
+(c) Video 915, 839, 790 (#27): "dependency thiếu hoặc sandbox chặn" — chẩn đoán loại nào, in rõ đường dẫn bị chặn trong diagnostic.
+(d) Video 660/846/909 BUILT nhưng lệch byte lúc capture (dữ liệu đổi sau ngày gửi) = INSUFFICIENT_INPUT đúng thiết kế — giữ; ghi gợi ý chọn shot trong README.
+Nghiệm thu: phiên chính chụp lại ≥ 3 ảnh + ≥ 3 video COMPAT mỗi dự án, 0 CODE_MISMATCH. Báo cáo `docs/RA_CX21_GOLDEN_CODEX_2026-10-2x.md`, ghi lệnh chụp lại.
