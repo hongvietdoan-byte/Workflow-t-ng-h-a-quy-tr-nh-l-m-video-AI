@@ -792,3 +792,16 @@ Sổ v31-ep-fb-fc-flag-packs-2026-10-21 (F-B). Theo docs/KE_HOACH_SUA_20_CO_2026
 không thấy final_black_freeze, B8 travel_truth vs stage_camera ưu tiên máy). two_tier_quality: nghiệm thu dự toán vs chi ±5 % tính đủ phát sinh + tiêu chí
 chất lượng (F-Q4). Mỗi cờ một commit + test. KHÔNG khóa cờ. Nhánh cloud/v31-m74 (hoặc codex/v31-m74). Báo cáo docs/RA_*_M74_2026-10-2x.md. XONG hộp thư.
 ```
+
+#### C-GOLDEN4 (cloud-E — ưu tiên 0, TRƯỚC C-M71; mở khóa gộp M2)
+```
+Nghiệm thu golden lần 3 (docs/RA_CX21_GOLDEN3_CODEX_2026-10-21.md trên nhánh codex/v31-golden3) KHÔNG ĐẠT lần thứ 3 vì CÔNG CỤ, 0 CODE_MISMATCH:
+60/68 ca INSUFFICIENT_INPUT do worker bị chặn đọc data/skills (allowlist tools/golden_db_replay.py:_worker.allowed() liệt kê từng thư mục); 4 ca chuỗi
+source_job_id; replay_fixture() biến capture DATA_CHANGED không manifest thành INSUFFICIENT_INPUT. Lần 1 thiếu data/_plates3d, lần 3 thiếu data/skills →
+SỬA GỐC, không vá từng thư mục: cho worker ĐỌC mọi tệp dưới data/ của ref-root (chỉ đọc), MỌI lần đọc được ghi vào dependency manifest có sha (fingerprint),
+trừ danh sách cấm cứng: data/manifest.sqlite live (chỉ dùng bản snapshot), dashboard.env, *.env, tệp khóa/credential, data/backup/**; ghi/đổi/xóa/mạng/
+subprocess vẫn chặn như cũ. replay_fixture giữ nguyên phân loại DATA_CHANGED của capture. Kiểm lại 4 ca source_job_id (in chuỗi id bị đứt).
+Test ĐỎ→XANH: worker đọc data/skills/x.json → có trong manifest; đọc dashboard.env → bị chặn; DATA_CHANGED giữ qua replay. Làm TRÊN nhánh tích hợp:
+tách cloud/v31-golden4 từ origin/cloud/v31-m2-tichhop (công cụ C-GOLDEN2 chỉ có ở đó). Báo cáo docs/RA_CLOUD_GOLDEN4_2026-10-2x.md kèm lệnh chạy lại.
+XONG hộp thư → codex chạy nghiệm thu lần 4 (CX21-GOLDEN4) trên cloud/v31-golden4.
+```

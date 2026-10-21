@@ -1475,3 +1475,8 @@ distinct_compat_video_shots / COMPAT / DATA_CHANGED / CODE_MISMATCH / INSUFFICIE
 Lỗi công cụ còn lại → ghi gốc, không tự sửa. Gỡ worktree tạm. XONG hộp thư — phiên chính quyết gộp.
 
 ### CX21-M23 (tiếp) — hoàn tất theo HANDOFF_M23.md trên codex/v31-m23: sửa 1 P1 + 2 P2 đường ghi mà lượt rà hẹp đã thấy (test ĐỎ→XANH), rồi báo XONG.
+
+### CX21-GOLDEN4 — chạy nghiệm thu golden lần 4 (ưu tiên 0 khi cloud-E báo XONG C-GOLDEN4)
+Như CX21-GOLDEN3 nhưng trên nhánh `cloud/v31-golden4` (allowlist đọc data/ có fingerprint) và snapshot MỚI golden-snapshot-4; cờ theo sổ
+v31-ep-g1-golden-compat-production-baseline-2026-10-21 (baseline sản xuất thực tế + chỉ cờ mới V3.1 TẮT; ghi rõ "baseline tái dựng"). Báo cáo
+docs/RA_CX21_GOLDEN4_CODEX_2026-10-2x.md trên nhánh codex/v31-golden4. XONG hộp thư.
