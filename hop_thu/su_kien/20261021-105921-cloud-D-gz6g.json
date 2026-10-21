@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T10:59:21.535164+07:00",
+  "lane": "cloud-D",
+  "kind": "xong",
+  "task": "C-ERR-UPD2",
+  "branch": "cloud/v31-err-upd2",
+  "commit": "17fb74d",
+  "report": "docs/RA_CLOUD_ERR_UPD2_2026-10-21.md",
+  "text": "G30/G58/G32 + P33-A5 → FIXED_UNVERIFIED; G3/A10/G1/G46/G43 → IN_PROGRESS (chỉ shadow/whitebox/đề xuất); G2/G49/G41/44/45/47/50 giữ OPEN + lý do. G59 không có dòng nguồn → không thêm (phiên chính quyết). check Hợp lệ; 54 test trích dẫn xanh."
+}
