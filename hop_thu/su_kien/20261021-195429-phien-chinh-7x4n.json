@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-21T19:54:29.335588+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "Phiên chính 21/10 20:10: codex tuần còn 24 % → GIỮ hạn mức cho việc chỉ codex làm được ở máy chính. C-M74 chuyển sang cloud-C (nếu đã có WIP thì push nhánh codex/v31-m74 + ghi HANDOFF, báo tên nhánh). Thứ tự codex: CX21-GOLDEN4 (ưu tiên 0, chạy NGAY khi cloud-E báo XONG C-GOLDEN4 — nghiệm thu golden lần 4 trên cloud/v31-golden4) → M23 (chờ M2 gộp) → M22. Giữa chừng không có việc thì nghỉ, không nhận pool lớn. Lưu ý: golden lần 3 KHÔNG ĐẠT do allowlist chặn data/skills — cloud-E đang sửa gốc."
+}
