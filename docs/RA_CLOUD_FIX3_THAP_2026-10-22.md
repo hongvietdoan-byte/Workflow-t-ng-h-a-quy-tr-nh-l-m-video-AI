@@ -113,3 +113,4 @@ Mục tự đóng `'change_review'` (lần của mục đã rà xong hoặc bị
   - Test "gắn lại rồi lần mới rà xong → mục mới cho lần cũ" là test chặn hồi quy.
 - Test liên quan (`test_change_review`, `test_change_review_frames`): 70 xanh.
   - Test "Bỏ qua scene rồi tắt cờ" là test chặn hồi quy cho bản vá riêng đầu tiên.
+- Full suite (cloud 3.13, `-m "not slow" -n auto`) trên 151653a9: **7100 passed**. 25 đỏ đều là golden cần native Python 3.14 (nền).
