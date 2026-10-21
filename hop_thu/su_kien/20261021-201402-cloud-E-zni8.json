@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T20:14:02.420060+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "C-M60-AUDIT",
+  "branch": "cloud/v31-m60-audit",
+  "commit": "cc526c98",
+  "report": "docs/V3_1_M6_0_AUDIT_VAI_2026-10-21.md",
+  "text": "31 caller tạo job (J1–J31), 14 lời gọi tốn tiền ngoài bảng jobs (P1–P14), 24 khâu Claude, 38 đường ghi production gắn vai M6. INSERT INTO jobs chỉ 1 chỗ (Pipeline._insert_job) → chỗ đặt Generation Authorization; J17 QC tự sinh gen lại. 16 đường 'Kỹ sư ghi production' (8 cao: stage_auto --answer/--crew, byd_fill bỏ khóa, pilot_run ghi 'user', redraw_compare origin=user, apply_v4 #24…). 9 check đề xuất Q1–Q9 (2 chạy xanh ngay dạng ratchet)."
+}

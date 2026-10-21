@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T20:16:54.440134+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX21-K-EVID",
+  "branch": "codex/v31-k-evid",
+  "commit": "419e5e03",
+  "report": "docs/RA_CX21_K_EVID_CODEX_2026-10-21.md",
+  "text": "Đã push báo cáo chỉ đọc và root rà. 32 test Windows tuần tự xanh/17.46s. CHƯA đủ nghiệm thu khóa/bật cờ: QC thiếu observation+truth lịch sử; G20 S22 ĐỎ→ĐỎ, S39 ĐỎ→VÀNG nhưng plate khác. A6 chỉ chứng minh ref context thêm6/6 shot33. send_claim race giả OFF2submit/ON1submit; số event/external_id thật không đủ kết luận duplicate payment. Back guard đúng câu có35/207gói27,3/10gói28,2/10gói29; không chứng minh chất lượng clip. Không đổi flags/live/DB/API. Chi tiết side effects, denominator, acceptance còn mở và rollback ở báo cáo; phiên chính trình EP từng cờ."
+}

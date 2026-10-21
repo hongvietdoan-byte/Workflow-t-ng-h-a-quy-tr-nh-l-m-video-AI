@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T20:14:16.614274+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M72",
+  "branch": "cloud/v31-m72",
+  "commit": "f3c6e203",
+  "report": "docs/RA_CLOUD_M72_2026-10-21.md",
+  "text": "M7.2 xong: baseline cờ data/flag_baseline.json theo thứ tự F (chỉ máy chưa có tệp 🧪; REMOVED→khóa→🧪→preset→env→baseline→mặc định; không bật cờ costs/OPT_IN/PAID_FLAGS, học việc tối đa trainee, bộ test + FEATURE_BASELINE=0 tắt), effective_config/config_hash/drift (🧭 VÀNG + mốc runner mỗi lần gửi), CLI --baseline-capture/--baseline-diff/--config, nút ↺ có preview/xác nhận/sao lưu/khôi phục. Agent rà 10 mục (2 CAO) đã sửa hết kèm test. Bộ đủ 6868 xanh, đỏ = 25 golden(3.14). PHIÊN CHÍNH: trên máy chính chạy py -m core.features --baseline-capture, kiểm --baseline-diff = 0 cờ đổi, commit data/flag_baseline.json. HẠN MỨC: không đọc được."
+}
