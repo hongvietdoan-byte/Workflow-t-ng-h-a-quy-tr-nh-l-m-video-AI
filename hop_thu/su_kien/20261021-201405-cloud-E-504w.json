@@ -1,0 +1,8 @@
+{
+  "ts": "2026-10-21T20:14:05.026179+07:00",
+  "lane": "cloud-E",
+  "kind": "hoi",
+  "to": "phien-chinh",
+  "task": "C-M60-AUDIT",
+  "text": "Câu hỏi cho EP (từ C-M60-AUDIT): K1 'đạo diễn ngoại tuyến' (tools/stage_auto.py --answer/--crew, phiên Claude Code chạy, ghi stage_camera, source mặc định claude_code) tính là VAI chạy ngoại tuyến hợp lệ hay là Kỹ sư ghi production phải chặn? Quyết định check Q8 + allowlist Q1 (docs/V3_1_M6_0_AUDIT_VAI_2026-10-21.md)."
+}
