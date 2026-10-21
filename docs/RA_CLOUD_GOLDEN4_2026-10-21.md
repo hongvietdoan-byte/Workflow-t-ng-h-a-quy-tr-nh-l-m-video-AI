@@ -21,7 +21,7 @@ Nhánh `cloud/v31-golden4` tách `origin/cloud/v31-m2-tichhop` @ 9746a6ea (công
 4. `tests/golden/package_inputs.json`: thêm `sent_package_relpath: false` (ảnh + video) — codex lần 3 phát hiện thiếu (validate_compat_flags fail-closed).
 
 ## Test (Python 3.14 NATIVE trên cloud — `uv python install 3.14`, không venv)
-- `tests/test_golden4.py` (mới; sau rà: 49 test): danh sách cấm (13 tên) / không cấm (7); replay giữ DATA_CHANGED; chuỗi đứt in `chain` + `broken`;
+- `tests/test_golden4.py` (mới; sau rà: 47 test): danh sách cấm (13 tên) / không cấm (7); replay giữ DATA_CHANGED; chuỗi đứt in `chain` + `broken`;
   worker 3.14 đọc `data/skills/x.json` → `files` có sha; worker đọc `dashboard.env`, `data/backup/…`, `data/x.env`, `data/manifest.sqlite` nguồn → bị chặn.
   **Code cũ: 23 đỏ / 1 xanh** (ca "vẫn cấm env…" xanh cả trước) → code mới 24 xanh (3.14); 3.13: 22 xanh + 2 skip (worker).
 - `tests/test_golden_db_replay.py::test_worker_reads_only_job_ref_and_reports_blocked_sibling` → đổi thành `…_reads_job_ref_and_sibling_into_manifest`
