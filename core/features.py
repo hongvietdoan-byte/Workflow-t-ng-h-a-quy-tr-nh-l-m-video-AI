@@ -176,7 +176,7 @@ FEATURES: Dict[str, Dict] = {
     },
     "voice_check_redo": {
         "label": "Chạy tự động: tạo lại giọng thoại bị cờ lỗi (cắt/thiếu chữ/ngắt quãng) một lần",
-        "verified": False,
+        "verified": False, "costs": True,   # C-M71 A2: gửi lại TTS trả tiền
         "why": "AU-f mới (2026-09-24): ngưỡng độ dài/im lặng và so chữ nghe được chưa đo trên giọng Việt thật — cờ sai thì trả tiền TTS vô ích",
     },
     "film_crew": {
@@ -263,7 +263,7 @@ FEATURES: Dict[str, Dict] = {
     "story_check": {
         "label": "Người xem lần đầu: 1 lượt Claude chỉ đọc cái sẽ hiện trên màn hình (hành động, thoại, chữ — không đọc ý đồ Director) rồi "
                  "kể lại truyện và chỉ chỗ khó hiểu, trước khi làm ảnh",
-        "verified": False,
+        "verified": False, "costs": True,   # C-M71 (B5): một lượt Claude
         "why": "2026-09-29 (kế hoạch S3.2, sau #8: truyện cụt, Maxim trúng đạn không thấy ai bắn): mới thử bằng Claude giả lập — chưa biết "
                "người xem Claude có bắt đúng chỗ người xem thật thấy khó hiểu không (lần chạy kiểm K)",
     },
@@ -277,7 +277,7 @@ FEATURES: Dict[str, Dict] = {
     "audio_first": {
         "label": "Timeline theo âm thanh: tạo giọng ngay sau Director, kéo độ dài từng shot theo giọng thật, kiểm tổng so với mục tiêu "
                  "kịch bản (±10 %) và khóa timeline TRƯỚC khi làm ảnh / video",
-        "verified": False,
+        "verified": False, "costs": True,   # C-M71 (B5): TTS mọi câu sớm + Claude chọn giọng (claude_tasks.cast_voices)
         "why": "2026-09-29 (kế hoạch S2, sau #8: dự kiến 58 s ra 83 s vì giọng làm sau clip): mới thử bằng test, chưa chạy trên dự án thật",
     },
     "music_fit": {
@@ -346,7 +346,7 @@ FEATURES: Dict[str, Dict] = {
     "scene_qc_claude": {
         "label": "QC theo cảnh lớp 1: Claude MỘT lượt mỗi cảnh tự chạy khi đủ khung (tắt: khung mới đi thẳng tới người duyệt, lớp 0 "
                  "bằng code vẫn chạy; bật agent QC thì agent thay lớp này)",
-        "verified": False,
+        "verified": False, "costs": True,   # C-M71 A2: một lượt Claude mỗi cảnh
         "why": "Nghiệm thu 2026-09-27 trên 33 khung có nhãn của #8 không đạt (bỏ lọt 6 khung dán, báo nhầm 12/21 khung tốt); chấm lại cả "
                "cảnh sau mỗi lần vẽ lại tốn ~0,5 USD Claude chỉ để ghi chú (docs/CHAY_THU_2026-09-27_NHAT_KY.md phát hiện 44)",
     },
@@ -522,7 +522,7 @@ FEATURES: Dict[str, Dict] = {
     },
     "end_frames": {
         "label": "Ảnh khung cuối cho shot có end_state (vẽ thêm 1 ảnh, gửi clip khung đầu + cuối)",
-        "verified": False,
+        "verified": False, "costs": True,   # C-M71 A2: thêm 1 ảnh trả tiền mỗi shot đổi trạng thái
         "trainee": True,       # 08/10 người dùng: học việc — chạy + ghi quyết định, so với người, không tác động (docs/KE_HOACH_HOC_VIEC_2026-10-08.md)
         "why": "🎓 Học việc từ 08/10 (KIEM_22: kết luận T): chạy bóng, ghi trainee_log để so với người, không đổi phim; bật thật chỉ khi đủ chuẩn và bạn duyệt. K1/K2 (kế hoạch tổng K-a): tốn thêm 1 ảnh mỗi shot đổi trạng thái; chưa thử thật Kling end_frame với khung vẽ từ ảnh đầu",
     },
@@ -556,7 +556,7 @@ FEATURES: Dict[str, Dict] = {
     "hero_takes": {
         "label": "Shot ⭐ (hero / money_shot) gửi riêng được gen THÊM một bản cùng đầu vào; code đo lớp 0 cả hai, bản ít lỗi hơn được dùng, "
                  "ngang nhau thì giữ cả hai cho bạn chọn ở Bước 4 (ước tính tính 2 bản)",
-        "verified": False,
+        "verified": False, "costs": True,   # C-M71 A2: thêm 1 clip trả tiền mỗi shot ⭐
         "why": "S0.14 T4 (người dùng duyệt 2026-09-30): người làm phim AI TQ 'cảnh xịn = gen nhiều rồi chọn'; dồn tiền vào vài shot then "
                "chốt thay vì gen lại mọi shot (core/hero_takes.py) — chưa chạy thật; thêm ≈ 1 USD mỗi shot ⭐ Seedance 2.5 4–5 s",
     },
