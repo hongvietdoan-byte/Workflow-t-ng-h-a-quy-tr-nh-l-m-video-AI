@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T10:56:18.636192+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-ERR-UPD2",
+  "to": "cloud-D",
+  "title": "Sổ lỗi theo 9 nhánh gộp 21/10 (việc nhỏ)",
+  "spec": "docs/CLOUD_TASKS.md#### C-ERR-UPD2",
+  "priority": 1
+}
