@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T22:34:54.145265+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-M81",
+  "to": "pool",
+  "title": "M8.1 audit thao tác + thiết kế chế độ Đơn giản cho người không chuyên (tài liệu)",
+  "spec": "docs/CLOUD_TASKS.md#### C-M81",
+  "priority": 2
+}
