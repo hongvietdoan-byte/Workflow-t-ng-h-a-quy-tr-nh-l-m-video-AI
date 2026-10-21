@@ -23,6 +23,7 @@ if os.environ.get("PIPELINE_TEST_REAL_DATA") != "1":
     os.makedirs(os.environ["KNOWLEDGE_USER_DIR"], exist_ok=True)
 
 
+_SESSION_DATA = os.environ.get("PIPELINE_DATA")   # thư mục data cách ly của cả lượt (tests/__init__.py đặt trước khi conftest nạp)
 _REAL_TEMP = tempfile.gettempdir()      # %TEMP% of the machine, read before _temp_in_tmp_path moves tempfile into tmp_path
 # 13/10 (người dùng): after every run the leftovers of EARLIER runs are deleted from %TEMP% — director_lease lease files of `:memory:`
 # databases and Python's tmpXXXXXXXX folders — only when older than the age below, so a run in another worktree right now keeps its files
@@ -81,4 +82,15 @@ def _fresh_runner_memory():
 @pytest.fixture(autouse=True)
 def _temp_in_tmp_path(tmp_path, monkeypatch):
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    # C-M71-FIX (mục 5): bản đệm ảnh tham chiếu (core/seedance_refs.pad_to_rule) của test có CSDL `:memory:` đi theo PIPELINE_DATA mặc định
+    # = data/ref_padded THẬT của repo — cả bộ để lại hàng chục *_pad.png (đã lọt vào git qua các commit gộp). Mỗi test ghi vào tmp_path;
+    # test kiểm đường mặc định tự đặt PAD_DIR=None (thắng: patch trong test chạy sau fixture này).
+    if os.environ.get("PIPELINE_TEST_REAL_DATA") != "1":
+        # gốc (dò bằng probe cả bộ): nhiều test `os.environ.pop("PIPELINE_DATA")` ở tearDown → xóa luôn thư mục cách ly của tests/__init__
+        # → test SAU trong cùng worker ghi theo mặc định data/projects (= data/ THẬT). Mỗi test bắt đầu lại với thư mục cách ly.
+        if _SESSION_DATA and not os.environ.get("PIPELINE_DATA"):
+            os.environ["PIPELINE_DATA"] = _SESSION_DATA      # gán thẳng (không monkeypatch: teardown sẽ xóa lại → setUpClass lớp kế thiếu)
+        from core import seedance_refs
+        if seedance_refs.PAD_DIR is None:
+            monkeypatch.setattr(seedance_refs, "PAD_DIR", str(tmp_path / "ref_padded"))
     yield

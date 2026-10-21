@@ -309,15 +309,32 @@ def previous_take(conn, job, kind: str) -> Tuple[List[Tuple[str, str]], Optional
     return [(f"Khung {i} của clip lần trước (bị loại)", fr) for i, fr in enumerate(frames, 1)], tmp
 
 
-def _pause(conn, e) -> None:
+def quota_scope(conn, job) -> str:
+    """C-M71-FIX (VỪA 1): tạm ngừng D6 theo NGUỒN Claude của job (provider chụp lúc tạo job / của dự án, M1.4b; key Anthropic
+    dùng chung môi trường nên cùng provider = cùng tài khoản) —
+    trước khóa chung: một dự án báo out_of_credit làm D6 dừng 600 s cho MỌI dự án, kể cả dự án có Claude riêng còn tiền."""
+    from . import llm_provider
+    try:
+        kind = llm_provider.job_provider(conn, job)[0]
+    except Exception:  # noqa: BLE001 - không đọc được nguồn: khóa riêng "none" (không chặn dự án khác)
+        kind = None
+    return kind or "none"           # rà: hết tiền / hết lượt là của TÀI KHOẢN — không tách theo model (đổi model ≠ mở lại)
+
+
+def _quota_key(scope: Optional[str]) -> str:
+    return f"{QUOTA_KEY}:{scope}" if scope else QUOTA_KEY
+
+
+def _pause(conn, e, scope: Optional[str] = None) -> None:
     conn.execute("INSERT INTO app_settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                 (QUOTA_KEY, json.dumps({"at": time.time(), "code": getattr(e, "code", None), "msg": str(e)[:200]}, ensure_ascii=False)))
+                 (_quota_key(scope), json.dumps({"at": time.time(), "code": getattr(e, "code", None), "msg": str(e)[:200]},
+                                                ensure_ascii=False)))
     conn.commit()
 
 
-def _paused_until(conn) -> Optional[float]:
-    """Epoch seconds D6 stays paused until (Claude out of credit / plan limit), None = not paused."""
-    row = conn.execute("SELECT value FROM app_settings WHERE key=?", (QUOTA_KEY,)).fetchone()
+def _paused_until(conn, scope: Optional[str] = None) -> Optional[float]:
+    """Epoch seconds D6 stays paused until (Claude out of credit / plan limit) for this Claude source, None = not paused."""
+    row = conn.execute("SELECT value FROM app_settings WHERE key=?", (_quota_key(scope),)).fetchone()
     try:
         at = float(json.loads(row[0]).get("at")) if row else None
     except (ValueError, TypeError, AttributeError):
@@ -325,15 +342,16 @@ def _paused_until(conn) -> Optional[float]:
     return at + QUOTA_PAUSE_S if at is not None and time.time() - at < QUOTA_PAUSE_S else None
 
 
-def _quota_paused(conn) -> bool:
-    return _paused_until(conn) is not None
+def _quota_paused(conn, scope: Optional[str] = None) -> bool:
+    return _paused_until(conn, scope) is not None
 
 
 def saved_view(conn, job_id: int, kind: str, assembled: Optional[str] = None) -> Dict:
     """C-M71 A5 (P31-G29): what tools/pregen_check --payload can say about the REAL D6 package of a job without calling Claude —
     {"state": "saved", "prompt", "note"} = the last D6 prompt written for this job (CALLS_KEY 'last', else the cache rows of the job),
     or {"state": "unseen", "note"} (never silent: the package actually sent will be Claude's rewrite at send time)."""
-    until = _paused_until(conn)
+    job = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+    until = _paused_until(conn, quota_scope(conn, job) if job is not None else None)
     if until is not None:                              # rà kỹ C-M71 (VỪA 4): tạm ngừng → gói gửi lúc này = bản code ghép
         return {"state": "paused", "note": "D6 tạm ngừng tới " + time.strftime("%H:%M", time.localtime(until)) + " (Claude hết tiền / "
                 "hết lượt) — gói gửi lúc này = bản code ghép in dưới đây"}
@@ -393,7 +411,8 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
             say("warn", "chat_prompt_refused", f"D6 job {job['id']}: đầu vào này đã bị từ chối sau lượt sửa (" + "; ".join(hit["refused"])
                 + ") — gửi bản code ghép như cũ (không gọi lại)")
             return assembled
-        if _quota_paused(conn):                                         # C-M71 A5: hết tiền / hết lượt gần đây — không gọi lại mỗi nhịp
+        scope = quota_scope(conn, job)                                  # C-M71-FIX: theo nguồn Claude của job, không chung
+        if _quota_paused(conn, scope):                                  # C-M71 A5: hết tiền / hết lượt gần đây — không gọi lại mỗi nhịp
             say("warn", QUOTA_CODE, QUOTA_MSG.format(m=QUOTA_PAUSE_S // 60))
             return assembled
         calls = conn.execute("SELECT value FROM app_settings WHERE key=?", (CALLS_KEY.format(job["id"]),)).fetchone()
@@ -435,7 +454,7 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
         except Exception as e:  # noqa: BLE001 - Claude down / over the cap / bad answer: the old way, said
             if getattr(e, "code", None) in QUOTA_CODES:               # C-M71 A5: account out — not this job's try; paused, one coded line
                 conn.execute("UPDATE app_settings SET value=? WHERE key=?", (before_calls, CALLS_KEY.format(job["id"])))
-                _pause(conn, e)
+                _pause(conn, e, scope)
                 say("warn", QUOTA_CODE, QUOTA_MSG.format(m=QUOTA_PAUSE_S // 60))
                 return assembled
             say("warn", "chat_prompt_fail", f"D6 job {job['id']} (đường như chat) không viết được prompt ({str(e)[:200]}) — gửi bản code ghép như cũ")
@@ -460,7 +479,7 @@ def rewrite(p, job, kind: str, assembled: str, images: Sequence[Tuple[str, str]]
                 if getattr(e, "code", None) in QUOTA_CODES:           # rà kỹ C-M71: như lượt đầu — không mất lượt sửa, tạm ngừng, 1 dòng
                     calls["fix"] -= 1
                     conn.execute("UPDATE app_settings SET value=? WHERE key=?", (json.dumps(calls, ensure_ascii=False), CALLS_KEY.format(job["id"])))
-                    _pause(conn, e)
+                    _pause(conn, e, scope)
                     say("warn", QUOTA_CODE, QUOTA_MSG.format(m=QUOTA_PAUSE_S // 60))
                     return assembled
                 say("warn", "chat_prompt_refused", f"D6 job {job['id']}: bản Claude viết không gửi được (" + "; ".join(problems)

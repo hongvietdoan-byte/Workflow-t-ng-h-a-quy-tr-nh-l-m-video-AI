@@ -663,6 +663,29 @@ class M71DeepReview(unittest.TestCase):
         after = self.p.conn.execute("SELECT state, note, reviewed_at FROM change_events WHERE state='code_only'").fetchall()
         self.assertEqual([tuple(r) for r in before], [tuple(r) for r in after])      # không đụng, không quay vòng
 
+    def test_failed_finding_closes_when_its_event_is_skipped(self):
+        # C-M71-FIX (THẤP 2): cờ change_review_motion tắt → process_pending đổi motion code_only (kể cả dòng hết tiền) sang 'skipped';
+        # rà lại ra keys rỗng cũng 'skipped' → mục ĐỎ của chính thay đổi đó phải tự đóng (trước chỉ 'reviewed' → kẹt tới khi bấm Bỏ qua)
+        self._review_with(self.ids[1], llm_runner.LlmError("credit", code="out_of_credit"))
+        self.assertIsNotNone(CR.blocking(self.p.conn, self.ids[1]))
+        self.p.conn.execute("UPDATE change_events SET state='skipped', reviewed_at=? WHERE scene_id=? AND state='code_only'",
+                            ("2026-10-22T00:00:00Z", self.ids[1]))
+        self.p.conn.commit()
+        self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))
+        self.assertFalse([r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"])
+
+    def test_limit_is_not_eaten_by_projects_without_claude(self):
+        # C-M71-FIX (THẤP 3): ≥ LIMIT nhóm code_only hết tiền của dự án KHÔNG có Claude (id nhỏ hơn) không được ăn suất của dự án CÓ Claude
+        for i in range(6):
+            self.p.conn.execute("INSERT INTO change_events (at, kind, project_id, scene_id, state, note, cost_usd) VALUES "
+                                "('2026-10-21T00:00:00Z', 'scene', 999, ?, 'code_only', ?, 0)", (90001 + i, CR.QUOTA_NOTE + " hết tiền"))
+        self.p.conn.commit()
+        self._review_with(self.ids[1], llm_runner.LlmError("credit", code="out_of_credit"))
+        good = FakeClient({"muc": []})
+        CR.process_pending(self.p.conn, self.tmp, client=None, client_for=lambda pid: good if pid == self.pid else None, limit=5)
+        self.assertEqual(len(good.calls), 1)
+        self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))
+
     def test_blocking_writes_nothing_when_nothing_to_do(self):
         # VỪA 3: blocking() mỗi nhịp không được ghi / commit khi không có gì đổi
         self._review_with(self.ids[1], llm_runner.LlmError("timed out", code="timeout"))

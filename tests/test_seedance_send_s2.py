@@ -283,6 +283,7 @@ class AfterReviewS2(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, True)
         narrow = os.path.join(tmp, "narrow.png")
         Image.new("RGB", (100, 400), (50, 50, 50)).save(narrow)
+        self.enterContext(mock.patch.object(seedance_refs, "PAD_DIR", None))    # đường MẶC ĐỊNH (conftest đặt PAD_DIR = tmp cho mọi test khác)
         with mock.patch.dict(os.environ, {"PIPELINE_DATA": os.path.join(tmp, "data", "projects")}):
             out = seedance_refs.pad_to_rule(narrow, self.p.conn)                 # in-memory DB: PIPELINE_DATA's parent
         self.assertEqual(os.path.normcase(os.path.dirname(out)), os.path.normcase(os.path.join(tmp, "data", "ref_padded")))

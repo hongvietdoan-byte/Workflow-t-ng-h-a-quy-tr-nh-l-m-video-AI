@@ -7,6 +7,7 @@ data/manifest.sqlite-shm
 data/manifest.sqlite-wal
 data/*.director.sqlite*
 data/*.diag_lost.log
+data/ref_padded/
 Get this Skill to Claude/
 data/trial/
 data/demo/
