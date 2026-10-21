@@ -1480,3 +1480,13 @@ Lỗi công cụ còn lại → ghi gốc, không tự sửa. Gỡ worktree tạ
 Như CX21-GOLDEN3 nhưng trên nhánh `cloud/v31-golden4` (allowlist đọc data/ có fingerprint) và snapshot MỚI golden-snapshot-4; cờ theo sổ
 v31-ep-g1-golden-compat-production-baseline-2026-10-21 (baseline sản xuất thực tế + chỉ cờ mới V3.1 TẮT; ghi rõ "baseline tái dựng"). Báo cáo
 docs/RA_CX21_GOLDEN4_CODEX_2026-10-2x.md trên nhánh codex/v31-golden4. XONG hộp thư.
+
+### CX21-K-EVID — bằng chứng máy chính cho khóa/bật cờ (ưu tiên 1, làm trong lúc chờ C-GOLDEN4; 0 USD, CHỈ ĐỌC)
+Sổ v31-ep-flag-lock-policy-2026-10-21 + v31-ep-k7-v31-flags-verify-2026-10-21. Trên dữ liệu thật máy chính (CSDL mở mode=ro / bản sao snapshot; không ghi data/,
+không gửi job, không API trả phí). Mỗi phần một mục báo cáo, dừng ở phần nào hết hạn mức thì ghi rõ:
+(1) qc_false_alarm_fix + horizon_needs_sky: phát lại QC đã ghi của #31 và #33 (qc_observe / video_gate) với cờ TẮT vs BẬT trên bản sao → số ca báo nhầm A5/A6/G20
+    trước/sau, có ca đúng nào bị bỏ sót không (bảng ca).
+(2) send_claim (K1): đếm job #27–#33 có trùng gửi / claim, kiểm 2 worker giả + crash/reconcile bằng test có sẵn (tests/test_v31_t12_m12_m13_gaps.py…) chạy TUẦN TỰ
+    trên Windows; liệt kê side effect khi khóa (đường gọi nào đổi hành vi).
+(3) back_view_guard (K1): dependency seedance_ref_groups + per_shot — đếm gói gửi thật có câu back_view (jobs.sent_package) theo dự án; side effect khi khóa.
+Báo cáo docs/RA_CX21_K_EVID_CODEX_2026-10-2x.md (nhánh codex/v31-k-evid chỉ báo cáo). XONG hộp thư — phiên chính trình EP từng cờ (Cấp 3).
