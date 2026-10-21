@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T20:32:30.542382+07:00",
+  "lane": "codex",
+  "kind": "xong",
+  "task": "CX21-GOLDEN4",
+  "branch": "codex/v31-golden4",
+  "commit": "f93ac9c4",
+  "report": "docs/RA_CX21_GOLDEN4_CODEX_2026-10-21.md",
+  "text": "Nghiệm thu đủ68ca KHÔNG ĐẠT: #24 COMPAT0/24; #27 COMPAT1video/44(job846scene272); 0CODE_MISMATCH/0DATA_CHANGED,67INSUFFICIENT (4sourcebroken+63thiếu bằng chứng đầu vào lịch sử). Capture64BUILT, data/skills không còn chặn. Baseline tái dựng153cờ/29experimentalOFF. NativeWindows3.14 test_golden4:45pass2fail22.41s: exists nt._path_exists không vào manifest (KeyError); symlink WinError1314 trước assertion. Không sửa công cụ/quyền, không mở khóaM2. Root đã rà và push report-only; công cụworktree gỡ, snapshot4 ngoàiGit,0USD/live readonly."
+}
