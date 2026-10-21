@@ -638,3 +638,25 @@ def test_end_frames_real_send_with_the_flag_on_writes_a_shadow_line(tmp_path):
         end_frames.tick(p, pid, Prov(), data)
     rows = [r for r in G.read_shadow(data, pid) if r.get("route") == "end_frame"]
     assert seen and seen[0] >= 1 and rows and rows[0]["scene_id"] == sid
+
+
+def test_group_leader_without_a_shot_still_counts_in_the_budget(tmp_path):
+    """C-FIX3-THAP 3: job clip nhóm có sent_group mà scene_id NULL (dữ liệu cũ / hỏng — schema hiện NOT NULL nên dựng ctx tay) → tính
+    theo shot thành viên như trước C-M63-FIX2; trước bị bỏ khỏi CẢ lượt đầu lẫn làm lại (khoản chi biến mất khỏi ngân sách)."""
+    p, pid, sids = _setup(tmp_path, shots=2)
+
+    def row(jid, scene, origin, group):
+        return {"id": jid, "scene_id": scene, "type": "video_gen", "origin": origin, "external_id": f"t{jid}", "created_at": "2026",
+                "quality_tier": None, "draft_job_id": None, "sent_package": None, "parent_job_id": None, "retry_reason": None,
+                "sent_group": json.dumps([{"id": s} for s in group]) if group else None}
+
+    class R(dict):
+        def keys(self):
+            return super().keys()
+    rows = [R(row(1, sids[0], None, None)), R(row(2, None, "auto", sids))]
+    ctx = {"rows": rows, "notes": {}, "resent": set(), "groups": {r["id"]: G._group_ids(r) for r in rows}}
+    seen = []                                                                 # mỗi lần gọi một dòng (kể cả ids rỗng → 0)
+    with mock.patch.object(G, "_usd_of_jobs", side_effect=lambda conn, ids, pr: seen.append(sorted(ids)) or len(ids)):
+        b = G._repair_budget(p.conn, pid, None, PRICING, ctx=ctx)
+    assert seen == [[1], [2]]                                  # job 2: lượt 2 của shot 1 (tự động) → làm lại; không mất
+    assert b["repair_usd"] == 1

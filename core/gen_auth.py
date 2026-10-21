@@ -231,8 +231,11 @@ def _repair_budget(conn, project_id: int, data_dir: Optional[str], pricing, ctx:
         done = attempts_in(ctx, sid, typ, since=_cycle_from(grants, sid, typ))
         # C-M63-FIX2 (rà): mỗi job (một khoản chi) xếp theo vị trí ở CHÍNH shot gửi nó (jobs.scene_id) — clip nhóm gửi lại của A (lượt 2
         # của A) mà là lượt đầu của B = làm lại; lượt đầu của A dù B đã có lượt = lượt đầu (không phạt 2 lần)
-        first += [r["id"] for r in done[:1] if r["scene_id"] == sid]
-        repair += [r["id"] for r in done[1:] if r["scene_id"] == sid and (r["origin"] or "") == "auto"]   # 4d: EP bấm KHÔNG ăn ngân sách
+        # C-FIX3-THAP: job không gắn shot (scene_id NULL — dữ liệu cũ / hỏng; schema hiện NOT NULL) mà có sent_group → xếp theo shot thành
+        # viên như trước C-M63-FIX2 (trước bị bỏ khỏi CẢ lượt đầu lẫn làm lại → khoản chi biến mất khỏi ngân sách)
+        mine = lambda r: r["scene_id"] == sid or r["scene_id"] is None   # noqa: E731
+        first += [r["id"] for r in done[:1] if mine(r)]
+        repair += [r["id"] for r in done[1:] if mine(r) and (r["origin"] or "") == "auto"]   # 4d: EP bấm KHÔNG ăn ngân sách
     repair_ids = sorted(set(repair))
     first_ids = sorted(set(first) - set(repair_ids))
     first_usd, repair_usd = _usd_of_jobs(conn, first_ids, pricing), _usd_of_jobs(conn, repair_ids, pricing)

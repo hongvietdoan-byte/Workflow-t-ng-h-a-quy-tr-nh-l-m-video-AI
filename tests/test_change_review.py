@@ -477,11 +477,13 @@ class FailedReview(unittest.TestCase):
         CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
         self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))
 
-    def test_failed_review_older_than_a_good_review_does_not_hold(self):
+    def test_failed_review_older_than_a_good_review_still_holds(self):
+        # C-FIX3-THAP-B: trước "does_not_hold" — lỗi để lại của C-M71 (docs/RA_CLOUD_M71_2026-10-21.md "Để lại"): lần sửa sau rà đạt
+        # không thấy lần lỗi (before = sau lần lỗi) → vẫn giữ tới khi Rà lại đạt / người Bỏ qua
         self._fail_review(self.ids[1])
         self._set(self.ids[1], {"size": "CU", "image_prompt": "Close up, Kelly", "characters": ["KELLY"]})
         CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
-        self.assertIsNone(CR.blocking(self.p.conn, self.ids[1]))
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, self.ids[1]) or "")
 
     def test_failed_review_upgrade_from_approved_draft_goes_to_notes(self):
         self._fail_review(self.ids[1])
@@ -638,6 +640,206 @@ class M71DeepReview(unittest.TestCase):
     """Rà kỹ C-M71 (@c03ae66b): lỗi CAO/VỪA của A1 — mỗi lỗi một test đúng kịch bản."""
     setUp, _new_scene, _set = ChangeReview.setUp, ChangeReview._new_scene, ChangeReview._set
     _review_with = M71FailClosed._review_with
+
+    def test_failed_motion_review_finding_closes_when_the_motion_flag_is_turned_off(self):
+        # C-FIX3-THAP 1: rà sửa motion LỖI (timeout) khi cờ change_review_motion BẬT → mục ĐỎ; tắt cờ → vòng nền (process_pending) bỏ
+        # sự kiện motion failed → mục tự đóng, không chặn nữa (trước: chỉ pending / code_only → mục kẹt)
+        os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_CHANGE_REVIEW_MOTION", None)
+        sid = self.ids[1]
+        ChangeReview._motion(self, sid, "Kelly kneels by the well")
+        self.p.conn.execute("UPDATE change_events SET state='skipped'")
+        ChangeReview._motion(self, sid, "Kelly stands up and walks to the well")              # SỬA motion → sự kiện kind 'motion'
+        self.p.conn.execute("UPDATE change_events SET state='skipped' WHERE kind<>'motion'")
+        self.p.conn.commit()
+
+        class Boom(FakeClient):
+            def complete(self, prompt, images=()):
+                raise llm_runner.LlmError("timed out", code="timeout")
+        CR.process_pending(self.p.conn, self.tmp, client=Boom({}))
+        self.assertEqual([r[0] for r in self.p.conn.execute("SELECT state FROM change_events WHERE kind='motion'")], ["failed"])
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")
+        os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "0"
+        CR.process_pending(self.p.conn, self.tmp, client=None)
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+        self.assertFalse([r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"])
+        note = self.p.conn.execute("SELECT note FROM change_events WHERE kind='motion'").fetchone()[0]
+        self.assertIn("tắt", note)
+        self.assertIn("timed out", note)                                       # lời lỗi gốc còn giữ
+
+    def test_flag_off_does_not_release_a_failed_scene_change_hidden_behind_a_failed_motion(self):
+        # C-FIX3-THAP-B (rà kỹ, mở lại CAO 1): cờ motion BẬT; một nhóm rà của shot có sửa SCENE #a + sửa MOTION #b, rà lỗi (timeout) →
+        # cả hai 'failed', mục ĐỎ gắn #b (mới nhất); người sửa scene tiếp #c → rà đạt (#c.before đã sau #a → Claude không thấy #a);
+        # tắt cờ motion → KHÔNG được đổi #b thành skipped (đóng mục) vì #a (dưới lần rà đạt #c) chưa có mục riêng → job gửi khi #a chưa rà
+        os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_CHANGE_REVIEW_MOTION", None)
+        sid = self.ids[1]
+        ChangeReview._motion(self, sid, "Kelly kneels by the well")
+        self.p.conn.execute("UPDATE change_events SET state='skipped'")
+        self.p.conn.commit()
+        self._set(sid, {"size": "WS", "image_prompt": "Wide shot, Kelly at the well", "characters": ["KELLY"],
+                        "motion_prompt": "Kelly kneels by the well"})                                    # scene #a
+        self.p.conn.execute("UPDATE motion_prompts SET motion_prompt=? WHERE scene_id=?", ("Kelly stands up and walks", sid))
+        self.p.conn.commit()                                                                            # motion #b (chỉ bảng motion)
+        groups = self.p.conn.execute("SELECT kind FROM change_events WHERE state='pending' ORDER BY id").fetchall()
+        self.assertEqual([r[0] for r in groups], ["scene", "motion"])
+
+        class Boom(FakeClient):
+            def complete(self, prompt, images=()):
+                raise llm_runner.LlmError("timed out", code="timeout")
+        CR.process_pending(self.p.conn, self.tmp, client=Boom({}))
+        self.assertEqual({r[0] for r in self.p.conn.execute("SELECT state FROM change_events WHERE state<>'skipped'")}, {"failed"})
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")
+        self._set(sid, {"size": "CU", "image_prompt": "Close up, Kelly", "characters": ["KELLY"],
+                        "motion_prompt": "Kelly kneels by the well"})                                    # scene #c
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")                              # main: vẫn giữ (đúng)
+        os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "0"
+        CR.process_pending(self.p.conn, self.tmp, client=None)
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")                              # sửa scene #a chưa ai rà
+        self.assertTrue([r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"])
+
+    def _abc(self):
+        """Nhóm rà lỗi scene #a + motion #b (cờ motion BẬT), rồi sửa scene #c rà đạt — không gọi blocking xen giữa."""
+        os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_CHANGE_REVIEW_MOTION", None)
+        sid = self.ids[1]
+        ChangeReview._motion(self, sid, "Kelly kneels by the well")
+        self.p.conn.execute("UPDATE change_events SET state='skipped'")
+        self.p.conn.commit()
+        self._set(sid, {"size": "WS", "image_prompt": "Wide shot, Kelly at the well", "characters": ["KELLY"]})
+        self.p.conn.execute("UPDATE motion_prompts SET motion_prompt=? WHERE scene_id=?", ("Kelly stands up and walks", sid))
+        self.p.conn.commit()
+
+        class Boom(FakeClient):
+            def complete(self, prompt, images=()):
+                raise llm_runner.LlmError("timed out", code="timeout")
+        CR.process_pending(self.p.conn, self.tmp, client=Boom({}))
+        self._set(sid, {"size": "CU", "image_prompt": "Close up, Kelly", "characters": ["KELLY"]})
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
+        return sid
+
+    def test_failure_never_seen_by_blocking_still_holds_after_a_later_good_review(self):
+        # C-FIX3-THAP-B (rà mục 1, CAO): mục ĐỎ chỉ ghi lười trong blocking(); trước chỉ xét lần lỗi id > lần rà đạt gần nhất → lỗi chưa ai
+        # gọi blocking mà lần sửa sau đã rà đạt → không bao giờ ra mục → cổng mở dù thay đổi chưa ai rà
+        self._review_with(self.ids[1], llm_runner.LlmError("timed out", code="timeout"))
+        self._set(self.ids[1], {"size": "CU", "image_prompt": "Close up, Kelly", "characters": ["KELLY"]})
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, self.ids[1]) or "")
+        self.assertIsNotNone(CR.blocking(self.p.conn, self.ids[1]))           # gọi lại không ghi thêm mục
+        self.assertEqual(len([r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"]), 1)
+
+    def test_rerun_works_after_a_later_good_review_and_releases_when_reviewed(self):
+        # C-FIX3-THAP-B (rà mục 2): "Rà lại" trước chỉ đưa về pending lần lỗi id > lần rà đạt gần nhất → ở kịch bản a/b/c ném "không còn
+        # trong sổ" (sai) → mục chỉ còn Bỏ qua
+        sid = self._abc()
+        why = CR.blocking(self.p.conn, sid)
+        self.assertIn("rà soát lỗi", why or "")
+        fid = [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"][0]["id"]
+        CR.rerun_failed(self.p.conn, fid, "tester")
+        self.assertEqual({r[0] for r in self.p.conn.execute("SELECT state FROM change_events WHERE state NOT IN ('skipped', 'reviewed')")},
+                         {"pending"})
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+
+    def test_flag_off_after_scene_failure_was_dismissed_does_not_hold_the_motion_again(self):
+        # C-FIX3-THAP-B (rà mục 3): lần scene lỗi đã có mục riêng và người đã Bỏ qua → tắt cờ motion thì lần motion lỗi sau KHÔNG giữ nữa
+        os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "1"
+        self.addCleanup(os.environ.pop, "FEATURE_CHANGE_REVIEW_MOTION", None)
+        sid = self.ids[1]
+        self._review_with(sid, llm_runner.LlmError("timed out", code="timeout"))
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")
+        CR.close(self.p.conn, [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"][0]["id"], "dismissed", "tester")
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+        ChangeReview._motion(self, sid, "Kelly walks to the well")
+        self.p.conn.execute("UPDATE motion_prompts SET motion_prompt=? WHERE scene_id=?", ("Kelly runs to the well", sid))
+        self.p.conn.execute("UPDATE change_events SET state='skipped' WHERE state='pending' AND kind='scene'")
+        self.p.conn.commit()
+
+        class Boom(FakeClient):
+            def complete(self, prompt, images=()):
+                raise llm_runner.LlmError("timed out", code="timeout")
+        CR.process_pending(self.p.conn, self.tmp, client=Boom({}))
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")
+        os.environ["FEATURE_CHANGE_REVIEW_MOTION"] = "0"
+        CR.process_pending(self.p.conn, self.tmp, client=None)
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+
+    def _two_failures(self):
+        """Hai lần rà lỗi cùng lời (timeout) của một shot, blocking gọi xen giữa; trả (sid, mục ra_soat đang mở)."""
+        sid = self.ids[1]
+        self._review_with(sid, llm_runner.LlmError("timed out", code="timeout"))
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")
+        self._set(sid, {"size": "CU", "image_prompt": "Close up, Kelly", "characters": ["KELLY"]})
+
+        class Boom(FakeClient):
+            def complete(self, prompt, images=()):
+                raise llm_runner.LlmError("timed out", code="timeout")
+        CR.process_pending(self.p.conn, self.tmp, client=Boom({}))
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")
+        return sid, [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"]
+
+    def test_one_open_failure_finding_per_shot_dismiss_covers_both(self):
+        # C-FIX3-THAP-B (rà VỪA 2): lần lỗi thứ 2 cùng lời → trước _add bỏ qua (trùng lời) → không mục nào che → Bỏ qua mục 1 thì nhịp sau
+        # ra ngay mục y hệt. Nay mục đang mở GẮN LẠI vào lần lỗi mới nhất → một mục; Bỏ qua phủ cả hai
+        sid, open_ = self._two_failures()
+        self.assertEqual(len(open_), 1)
+        newest = self.p.conn.execute("SELECT MAX(id) FROM change_events WHERE state='failed'").fetchone()[0]
+        self.assertEqual(self.p.conn.execute("SELECT event_id FROM change_findings WHERE id=?", (open_[0]["id"],)).fetchone()[0], newest)
+        CR.close(self.p.conn, open_[0]["id"], "dismissed", "tester")
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+        self.assertFalse([r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"])
+
+    def test_marking_a_failure_finding_fixed_rereviews_instead_of_releasing(self):
+        # C-FIX3-THAP-B (rà VỪA): "✓ Đã sửa" mục rà lỗi trước đóng 'resolved' → che các lần lỗi → cổng mở, lần 'failed' nằm mãi chưa rà
+        sid, open_ = self._two_failures()
+        CR.close(self.p.conn, open_[0]["id"], "resolved", "tester")
+        self.assertIn("đang rà", CR.blocking(self.p.conn, sid) or "")
+        self.assertFalse(self.p.conn.execute("SELECT 1 FROM change_events WHERE state='failed'").fetchone())
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+
+    def test_reattached_finding_closing_on_the_newer_event_reopens_for_the_older(self):
+        # C-FIX3-THAP-B (rà S1): mục gắn lại vào lần lỗi mới e2; e2 được rà xong (mục tự đóng) mà e1 còn lỗi → mục mới cho e1, vẫn giữ
+        sid, open_ = self._two_failures()
+        e1, e2 = [r[0] for r in self.p.conn.execute("SELECT id FROM change_events WHERE state='failed' ORDER BY id")]
+        self.p.conn.execute("UPDATE change_events SET state='reviewed', reviewed_at=? WHERE id=?", ("2026-10-22T00:00:00Z", e2))
+        self.p.conn.commit()
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")
+        now = [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"]
+        self.assertEqual(len(now), 1)
+        self.assertEqual(self.p.conn.execute("SELECT event_id FROM change_findings WHERE id=?", (now[0]["id"],)).fetchone()[0], e1)
+
+    def test_rerun_of_the_single_finding_rereviews_every_failure(self):
+        sid, open_ = self._two_failures()
+        CR.rerun_failed(self.p.conn, open_[0]["id"], "tester")
+        self.assertFalse(self.p.conn.execute("SELECT 1 FROM change_events WHERE state='failed'").fetchone())
+        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
+        self.assertIsNone(CR.blocking(self.p.conn, sid))
+
+    def test_rerun_of_an_older_open_finding_after_rerunning_the_newer_one(self):
+        # C-FIX3-THAP-B (rà VỪA 1): dữ liệu cũ có HAI mục mở (e1, e2 khác lời). Rà lại mục 2 → chỉ e2 (e1 do mục 1 còn mở che); rồi Rà lại
+        # mục 1 → trước: e1 bị coi là mục 2 (người đóng) che → "không còn trong sổ" sai. Mục đã Rà lại không che lần rà lại khác
+        sid = self.ids[1]
+        self._review_with(sid, llm_runner.LlmError("timed out", code="timeout"))
+        CR.blocking(self.p.conn, sid)
+        self._set(sid, {"size": "CU", "image_prompt": "Close up, Kelly", "characters": ["KELLY"]})
+
+        class Boom(FakeClient):
+            def complete(self, prompt, images=()):
+                raise llm_runner.LlmError("bad gateway", code="http")
+        CR.process_pending(self.p.conn, self.tmp, client=Boom({}))
+        e1, e2 = [r[0] for r in self.p.conn.execute("SELECT id FROM change_events WHERE state='failed' ORDER BY id")]
+        f1 = [r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"][0]["id"]
+        CR._add(self.p.conn, e2, self.pid, sid, CR.FAIL_SOURCE, "do", CR.FAIL_KHAU, "rà soát lỗi: bad gateway (dữ liệu cũ)")
+        self.p.conn.execute("UPDATE change_findings SET event_id=? WHERE id=?", (e1, f1))
+        self.p.conn.commit()
+        f2 = self.p.conn.execute("SELECT MAX(id) FROM change_findings WHERE source=?", (CR.FAIL_SOURCE,)).fetchone()[0]
+        CR.rerun_failed(self.p.conn, f2, "tester")
+        self.assertEqual(self.p.conn.execute("SELECT state FROM change_events WHERE id=?", (e1,)).fetchone()[0], "failed")
+        CR.rerun_failed(self.p.conn, f1, "tester")                                       # không ném "không còn trong sổ"
+        self.assertEqual(self.p.conn.execute("SELECT state FROM change_events WHERE id=?", (e1,)).fetchone()[0], "pending")
 
     def test_failed_change_not_released_by_later_good_review(self):
         # CAO 1: X rà lỗi (timeout) → mục ĐỎ; người sửa tiếp Y; nền rà Y đạt — Y.before = sau X nên Claude không thấy X → vẫn giữ
