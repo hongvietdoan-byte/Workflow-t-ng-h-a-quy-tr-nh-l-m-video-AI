@@ -475,7 +475,7 @@ def _tick(p: Pipeline, project_id: int, provider, data_dir: str, only_ids=None) 
                 if info is not None:
                     used, tier = info(kwargs["model"]) if kwargs.get("model") else info()
                     slot.record(model=used, tier=tier)
-            sent_meta = [{"label": r["label"], "role": r["role"], "file": os.path.basename(r["path"])} for r in refs]
+            sent_meta = [sent_package.meta_entry(r) for r in refs]      # C-M26: + path / asset_id khi cờ sent_package_relpath
             # K1a: what really left, written with the task id (a ledger, never a gate; imported at the top: nothing here may raise)
             package, warns = sent_package.safe_build(provider.submit, sent_args, kwargs, kind="image", provider=provider,
                                                      external_id=ext, meta=sent_meta, extra={"stage": "end_frame"})

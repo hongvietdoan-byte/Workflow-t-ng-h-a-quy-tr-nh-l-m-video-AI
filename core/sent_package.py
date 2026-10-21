@@ -19,6 +19,8 @@ import os
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 V = 1
+V_RELPATH = 2               # C-M26 (M2.6, cờ sent_package_relpath): gói có nhãn theo đường dẫn — golden phân biệt hai bản
+FLAG = "sent_package_relpath"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # argument → role of the file(s) it carries (None = the role comes from the reference dict / the runner's own list)
@@ -121,15 +123,56 @@ def _jsonable(value: Any, depth: int = 0) -> Any:
     return f"<{type(value).__name__}>"         # a provider object / anything else: its kind only (no repr: may hold a secret)
 
 
-def _meta_index(meta: Optional[Iterable[Dict]]) -> Dict[str, Dict]:
-    out: Dict[str, Dict] = {}
-    for m in meta or []:
-        if isinstance(m, dict) and m.get("file"):
-            out.setdefault(str(m["file"]), m)
+def relpath_on() -> bool:
+    from . import features
+    return features.on(FLAG)
+
+
+def meta_entry(r: Dict, **more) -> Dict:
+    """Meta một ảnh của gói cho build(meta=…): {label, role, file} như cũ; cờ sent_package_relpath (M2.6, G5) thêm `path` (rel_path) +
+    `asset_id` khi ref biết — hai mục Kho cùng `2.png` không còn chung nhãn. Cờ TẮT = dict cũ."""
+    out = {"label": r.get("label"), "role": r.get("role", ""), "file": os.path.basename(r["path"]), **more}
+    if relpath_on():
+        out["path"] = rel_path(r["path"])
+        if r.get("asset_id") is not None:
+            out["asset_id"] = r["asset_id"]
     return out
 
 
-def _one_ref(param: str, item: Any, role: Optional[str], meta: Dict[str, Dict], warns: List[str]) -> Optional[Dict]:
+class _Index(dict):
+    """Cờ TẮT: {basename: meta} như cũ (setdefault — tên trùng lấy ảnh đầu). Cờ BẬT: tra `rel_path` trước; tên tệp chỉ khi tên đó DUY NHẤT
+    trong meta; tên trùng mà không khớp đường dẫn → không nhãn + một cảnh báo (không đoán)."""
+    def __init__(self, meta: Optional[Iterable[Dict]]):
+        super().__init__()
+        self.on = relpath_on()
+        self.by_path: Dict[str, Dict] = {}
+        self.dup: set = set()
+        seen: Dict[str, int] = {}
+        for m in meta or []:
+            if isinstance(m, dict) and m.get("file"):
+                self.setdefault(str(m["file"]), m)
+                seen[str(m["file"])] = seen.get(str(m["file"]), 0) + 1
+                if m.get("path"):
+                    self.by_path.setdefault(str(m["path"]).replace("\\", "/"), m)
+        self.dup = {f for f, n in seen.items() if n > 1}
+
+    def find(self, path: str, base: str, warns: List[str]) -> Dict:
+        if not self.on:
+            return self.get(base) or {}
+        hit = self.by_path.get(rel_path(path))
+        if hit is not None:
+            return hit
+        if base in self.dup:
+            warns.append(f"gói gửi: 2 ảnh cùng tên {base} — không gán nhãn theo tên ({rel_path(path)})")
+            return {}
+        return self.get(base) or {}
+
+
+def _meta_index(meta: Optional[Iterable[Dict]]) -> "_Index":
+    return _Index(meta)
+
+
+def _one_ref(param: str, item: Any, role: Optional[str], meta: "_Index", warns: List[str]) -> Optional[Dict]:
     extra: Dict[str, Any] = {}
     label = None
     if isinstance(item, dict):
@@ -145,11 +188,13 @@ def _one_ref(param: str, item: Any, role: Optional[str], meta: Dict[str, Dict], 
         return None
     path = str(path)
     base = os.path.basename(path)
-    known = meta.get(base) or {}
+    known = meta.find(path, base, warns) if isinstance(meta, _Index) else (meta.get(base) or {})
     ref: Dict[str, Any] = {"param": param, "role": role or known.get("role") or param, "label": label or known.get("label"),
                            "path": rel_path(path), "file": base, "sha256": None}
     if known.get("plate_key"):
         ref["plate_key"] = known["plate_key"]
+    if getattr(meta, "on", False) and known.get("asset_id") is not None:
+        ref["asset_id"] = known["asset_id"]
     if path.startswith(("http://", "https://")):
         ref["path"] = path.split("?", 1)[0].split("#", 1)[0]     # a signed URL's query may hold a token: never kept
         ref["file"] = os.path.basename(ref["path"])
@@ -192,7 +237,7 @@ def build(fn, args: Sequence, kwargs: Dict, *, kind: str, provider: Any, externa
             continue
         params[name] = _jsonable(value)
     pkg: Dict[str, Any] = {
-        "v": V, "call": call,
+        "v": V_RELPATH if index.on else V, "call": call,
         "prompt": prompt if isinstance(prompt, str) or prompt is None else _jsonable(prompt),
         "negative": negative if isinstance(negative, str) or negative is None else _jsonable(negative),
         "refs": refs, "provider": str(getattr(provider, "name", "") or type(provider).__name__),
