@@ -12,6 +12,7 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+TOOL_ROOT = ROOT          # C-GOLDEN5: cây chứa CÔNG CỤ này; ROOT = cây code ĐANG SO (worker --ab đổi theo request["code_root"])
 PUBLIC = {"LLM_PROVIDER", "image_model", "video_model"}
 
 
@@ -163,9 +164,22 @@ def _db_snapshot(db, target):
     return _digest(target)
 
 
-def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None, public_config=None, experimental=None):
+def _tool_capture():
+    """tools/golden_capture của CÂY CÔNG CỤ (không phải cây code đang so — main có thể chưa có / khác): nạp theo đường dẫn tệp."""
+    import importlib.util
+    mod = sys.modules.get("_golden_capture_tool")
+    if mod is None:
+        spec = importlib.util.spec_from_file_location("_golden_capture_tool", TOOL_ROOT / "tools" / "golden_capture.py")
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["_golden_capture_tool"] = mod
+        spec.loader.exec_module(mod)
+    return mod
+
+
+def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None, public_config=None, experimental=None, code_root=None):
     """Không nhận baseline/prompt/args. Manifest None = chụp dependency, có manifest = replay.
-    experimental (C-GOLDEN2 b): None = định nghĩa cũ (mọi cờ verified False TẮT); list = `flags` là baseline cờ sản xuất, chỉ các cờ này phải TẮT."""
+    experimental (C-GOLDEN2 b): None = định nghĩa cũ (mọi cờ verified False TẮT); list = `flags` là baseline cờ sản xuất, chỉ các cờ này phải TẮT.
+    code_root (C-GOLDEN5 --ab): dựng gói bằng `core/` của cây code này (worktree) thay cho cây chứa công cụ; None = như cũ."""
     from tools.golden_capture import _safe, validate_compat_flags, validate_baseline_flags, feature_catalog
     if not isinstance(flags,dict) or any(not isinstance(k,str) or type(v) is not bool for k,v in flags.items()):
         raise ValueError("INSUFFICIENT_INPUT: cờ phải explicit boolean")
@@ -209,6 +223,11 @@ def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None,
                     return {"status": "DATA_CHANGED", "reason": "file đầu vào đã đổi"}
         request = {"root": str(root), "job_id": int(job_id), "flags": flags, "envelope": envelope,
                    "public_config": public_config, "expected_files": None if manifest is None else manifest["files"]}
+        if code_root is not None:
+            code = Path(code_root).resolve()
+            if not (code / "core" / "runner.py").is_file() or not (code / "core" / "sent_package.py").is_file():
+                raise ValueError("INSUFFICIENT_INPUT: cây code không có core/runner.py + core/sent_package.py")
+            request["code_root"] = str(code)
         (box / "request.json").write_text(json.dumps(request), encoding="utf-8")
         python = Path(sys.executable)
         if (sys.version_info[:2] != (3, 14) or sys.prefix != sys.base_prefix or not python.is_absolute()
@@ -417,20 +436,22 @@ def _worker(request):
             if not writing and not path.is_relative_to(scratch):
                 name = relpath(path)
                 runtime = path.is_relative_to(Path(sys.base_prefix))
-                code = path.is_relative_to(ROOT) and path.suffix in {".py", ".pyc", ".pyd"}
+                code = (path.is_relative_to(ROOT) or path.is_relative_to(TOOL_ROOT)) and path.suffix in {".py", ".pyc", ".pyd"}
                 if not (runtime or code or (name and allowed(name))):
                     block("secret" if name and read_denied(name) else "read", path)
                     forbidden()
                 if name and allowed(name) and not runtime and not code:
                     # C-GOLDEN4: đọc thẳng (FileIO / _io.open, không qua locate) — tệp thật phải nằm trong nguồn/scratch, không symlink ra ngoài
                     real = Path(os.path.realpath(path))
-                    if not (real.is_relative_to(source_real) or real.is_relative_to(scratch_real) or real.is_relative_to(ROOT)):
+                    if not (real.is_relative_to(source_real) or real.is_relative_to(scratch_real) or real.is_relative_to(ROOT)
+                            or real.is_relative_to(TOOL_ROOT)):
                         block("read", path)
                         forbidden()
         elif event in {"os.listdir", "os.scandir"}:
             path = Path(os.path.abspath(os.fspath(args[0])))
             name = relpath(path)
-            code_directory = path == ROOT or path.is_relative_to(ROOT / "core") or path.is_relative_to(ROOT / "tools")
+            code_directory = (path == ROOT or path.is_relative_to(ROOT / "core") or path.is_relative_to(ROOT / "tools")
+                              or path == TOOL_ROOT or path.is_relative_to(TOOL_ROOT / "tools"))
             if not path.is_relative_to(scratch) and not path.is_relative_to(Path(sys.base_prefix)) and not code_directory and not (name and allowed(name)):
                 block("directory", path)
                 forbidden()
@@ -557,9 +578,151 @@ def _worker(request):
                     return {"status":"DATA_CHANGED", "reason":"nguồn đổi trong lúc worker đọc"}
                 if not raw or warnings or denied:
                     return {"status": "INSUFFICIENT_INPUT", "reason": "dependency thiếu hoặc sandbox chặn", "diagnostic": denied or [{"kind": "dependency", "path": "<unavailable>"}]}
-                from tools.golden_capture import _safe
-                _safe(json.loads(raw))
+                _tool_capture()._safe(json.loads(raw))
                 return {"status": "BUILT", "raw": raw, "files": files, "registry":registry_used}
+
+
+# ---- C-GOLDEN5 (sổ v31-ep-golden-ab-acceptance-2026-10-21): so A/B HAI cây code trên CÙNG snapshot + CÙNG cờ ------------------------
+AB_STATUSES = ("SAME", "DIFF", "ONE_FAIL", "BOTH_FAIL")
+
+
+def first_diff(a, b, path=""):
+    """Chỗ lệch ĐẦU TIÊN giữa hai gói (đã parse JSON) — đường trường + kiểu lệch; chuỗi chỉ nói vị trí ký tự + độ dài, KHÔNG in nội dung."""
+    if type(a) is not type(b):
+        return {"path": path or "$", "kind": "type", "a": type(a).__name__, "b": type(b).__name__}
+    if isinstance(a, dict):
+        for k in sorted(set(a) | set(b)):
+            if k not in a or k not in b:
+                return {"path": f"{path}.{k}" if path else k, "kind": "missing_in_" + ("a" if k not in a else "b")}
+            d = first_diff(a[k], b[k], f"{path}.{k}" if path else k)
+            if d:
+                return d
+        return None
+    if isinstance(a, list):
+        for i, (x, y) in enumerate(zip(a, b)):
+            d = first_diff(x, y, f"{path}[{i}]")
+            if d:
+                return d
+        return None if len(a) == len(b) else {"path": path or "$", "kind": "length", "a": len(a), "b": len(b)}
+    if a == b:
+        return None
+    if isinstance(a, str):
+        at = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
+        return {"path": path or "$", "kind": "text", "at_char": at, "len_a": len(a), "len_b": len(b)}
+    return {"path": path or "$", "kind": "value", "a": a if isinstance(a, (int, float, bool)) or a is None else "…",
+            "b": b if isinstance(b, (int, float, bool)) or b is None else "…"}
+
+
+def compare_ab(res_a, res_b):
+    """SAME / DIFF (trường lệch đầu tiên) / ONE_FAIL (một bên không dựng được — tính như DIFF) / BOTH_FAIL (ghi riêng)."""
+    built_a, built_b = res_a.get("status") == "BUILT", res_b.get("status") == "BUILT"
+    if not built_a and not built_b:
+        return {"status": "BOTH_FAIL", "a": _fail_view(res_a), "b": _fail_view(res_b)}
+    if built_a != built_b:
+        return {"status": "ONE_FAIL", "failed": "a" if not built_a else "b", "reason": _fail_view(res_a if not built_a else res_b)}
+    if res_a["raw"] == res_b["raw"]:
+        return {"status": "SAME"}
+    try:
+        diff = first_diff(json.loads(res_a["raw"]), json.loads(res_b["raw"]))
+    except ValueError:
+        diff = {"path": "$", "kind": "raw"}
+    return {"status": "DIFF", "first_diff": diff or {"path": "$", "kind": "raw_bytes"}}
+
+
+def _fail_view(res):
+    return {k: res[k] for k in ("status", "reason", "diagnostic") if k in res}
+
+
+def _history(job_raw, res):
+    """Cột THAM KHẢO: gói dựng lại so với gói đã gửi lúc đó (không quyết ĐẠT)."""
+    if not job_raw:
+        return "NO_SENT"
+    if res.get("status") != "BUILT":
+        return "NOT_BUILT"
+    if res["raw"] == job_raw:
+        return "SAME_AS_SENT"
+    sent_rest, _ = _without_fingerprint(job_raw)
+    built_rest, _ = _without_fingerprint(res["raw"])
+    return "SAME_EXCEPT_FINGERPRINT" if sent_rest is not None and sent_rest == built_rest else "DIFF_FROM_SENT"
+
+
+def ab_jobs(db, projects):
+    """Mỗi shot có job ảnh / video của các dự án: job MỚI NHẤT mỗi loại; envelope từ gói đã gửi, không có → envelope giả cố định
+    (cùng cho A và B — so code, không so lịch sử)."""
+    out = []
+    with closing(sqlite3.connect("file:" + str(Path(db).resolve()).replace("\\", "/") + "?mode=ro", uri=True)) as conn:
+        conn.row_factory = sqlite3.Row
+        for pid in projects:
+            for r in conn.execute("SELECT j.id, j.project_id, j.scene_id, j.type, j.sent_package, j.created_at FROM jobs j WHERE j.project_id=? "
+                                  "AND j.type IN ('image_gen','video_gen') AND j.id = (SELECT MAX(k.id) FROM jobs k WHERE k.scene_id=j.scene_id "
+                                  "AND k.type=j.type) ORDER BY j.scene_id, j.type", (int(pid),)):
+                env = None
+                try:
+                    pkg = json.loads(r["sent_package"] or "null")
+                    if isinstance(pkg, dict) and all(k in pkg for k in ("provider", "at", "external_id")):
+                        env = {k: pkg[k] for k in ("provider", "at", "external_id")}
+                except ValueError:
+                    pass
+                if env is None or env["provider"] not in {"fake", "clipai", "deepix"}:
+                    env = {"provider": "fake", "at": "2026-01-01T00:00:00", "external_id": "golden-ab"}
+                out.append({"job_id": r["id"], "project_id": r["project_id"], "scene_id": r["scene_id"], "type": r["type"],
+                            "envelope": env, "sent_package_raw": r["sent_package"]})
+    return out
+
+
+def run_ab(*, db, ref_root, flags, experimental, code_a, code_b, projects, public_config=None, builder=None):
+    """Dựng gói từng ca bằng cây A và cây B (worker cách ly mỗi bên) → bảng SAME / DIFF / ONE_FAIL / BOTH_FAIL. ĐẠT = 0 DIFF + 0 ONE_FAIL
+    (BOTH_FAIL ghi riêng, không tính lệch). `builder` để test (mặc định build_from_database)."""
+    builder = builder or build_from_database
+    rows = []
+    for job in ab_jobs(db, projects):
+        res = {}
+        for side, code in (("a", code_a), ("b", code_b)):
+            try:
+                res[side] = builder(db=db, ref_root=ref_root, job_id=job["job_id"], flags=flags, envelope=job["envelope"],
+                                    public_config=public_config, experimental=experimental, code_root=code)
+            except ValueError as e:
+                res[side] = {"status": "INSUFFICIENT_INPUT", "reason": str(e)[:200]}
+        rows.append({k: job[k] for k in ("job_id", "project_id", "scene_id", "type")} | compare_ab(res["a"], res["b"])
+                    | {"history_a": _history(job["sent_package_raw"], res["a"]), "history_b": _history(job["sent_package_raw"], res["b"])})
+    projects_out = {}
+    for pid in sorted({r["project_id"] for r in rows}):
+        sel = [r for r in rows if r["project_id"] == pid]
+        projects_out[str(pid)] = {s: sum(r["status"] == s for r in sel) for s in AB_STATUSES} | {"cases": len(sel)}
+    total = {s: sum(r["status"] == s for r in rows) for s in AB_STATUSES}
+    return {"rows": rows, "projects": projects_out, "total": total, "pass": bool(rows) and total["DIFF"] == 0 and total["ONE_FAIL"] == 0,
+            "code_a": str(code_a), "code_b": str(code_b)}
+
+
+def ab_table(result):
+    lines = ["| Dự án | Ca | SAME | DIFF | ONE_FAIL | BOTH_FAIL |", "|---|---|---|---|---|---|"]
+    for pid, c in result["projects"].items():
+        lines.append(f"| #{pid} | {c['cases']} | {c['SAME']} | {c['DIFF']} | {c['ONE_FAIL']} | {c['BOTH_FAIL']} |")
+    lines.append(f"\nKẾT LUẬN: {'ĐẠT' if result['pass'] else 'CHƯA ĐẠT'} (ĐẠT = 0 DIFF + 0 ONE_FAIL)")
+    for r in result["rows"]:
+        if r["status"] in ("DIFF", "ONE_FAIL"):
+            lines.append(f"- #{r['project_id']} shot {r['scene_id']} {r['type']} job {r['job_id']}: {r['status']} "
+                         + json.dumps(r.get("first_diff") or r.get("reason"), ensure_ascii=False))
+    return "\n".join(lines)
+
+
+def main_ab(argv):
+    import argparse
+    ap = argparse.ArgumentParser(description="C-GOLDEN5: so A/B gói gửi của hai cây code trên cùng snapshot + cùng cờ")
+    ap.add_argument("--ab", action="store_true", required=True)
+    for name in ("db", "ref-root", "flags", "code-a", "code-b", "output"):
+        ap.add_argument("--" + name, required=True, type=Path)
+    ap.add_argument("--project", type=int, action="append", required=True)
+    a = ap.parse_args(argv)
+    spec = json.loads(a.flags.read_text(encoding="utf-8-sig"))
+    experimental = list(spec.get("experimental_flags") or [])
+    flags = dict(spec["baseline_flags"]) | {n: False for n in experimental}
+    result = run_ab(db=a.db, ref_root=a.ref_root, flags=flags, experimental=experimental, code_a=a.code_a, code_b=a.code_b,
+                    projects=a.project, public_config=spec.get("public_config") or {})
+    with a.output.open("x", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+    print(ab_table(result))
+    return 0 if result["pass"] else 1
 
 
 def main(argv=None):
@@ -588,11 +751,13 @@ def main(argv=None):
 
 
 if __name__ == "__main__" and len(sys.argv) == 2 and not sys.argv[1].startswith('--'):
-    sys.path.insert(0, str(ROOT))
     if Path(sys.argv[1]).parent != Path.cwd() or not Path.cwd().name.startswith('golden-db-'):
         raise SystemExit(2)
     try:
         request = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+        if request.get("code_root"):              # C-GOLDEN5 --ab: `core` của cây code đang so (main / M2), công cụ vẫn của cây này
+            ROOT = Path(request["code_root"]).resolve()
+        sys.path.insert(0, str(ROOT))
         answer = _worker(request)
     except DataChanged:
         answer = {"status":"DATA_CHANGED", "reason":"input thay đổi trong lúc worker đọc"}
@@ -606,4 +771,4 @@ if __name__ == "__main__" and len(sys.argv) == 2 and not sys.argv[1].startswith(
     Path("response.json").write_text(json.dumps(answer, ensure_ascii=False), encoding="utf-8")
 elif __name__ == "__main__":
     sys.path.insert(0,str(ROOT))
-    raise SystemExit(main())
+    raise SystemExit(main_ab(sys.argv[1:]) if "--ab" in sys.argv[1:] else main())
