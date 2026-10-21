@@ -1,4 +1,5 @@
 """Đợt 3 (01/10): ⌂ Tất cả dự án, 👥 Nhóm, 📥 Việc cần bạn, 🎚 Mức tự động, 📎 Đầu vào & tham chiếu (AppTest + phần logic thuần)."""
+from tests._flags import pin_off
 import os
 import tempfile
 import unittest
@@ -52,6 +53,7 @@ class HomeLogicTests(unittest.TestCase):
 
 class ScreensTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         self.tmp = tempfile.mkdtemp()
         self.db = os.path.join(self.tmp, "m.sqlite")
         os.environ.update({"PIPELINE_DB": self.db, "PIPELINE_DATA": os.path.join(self.tmp, "projects"),
