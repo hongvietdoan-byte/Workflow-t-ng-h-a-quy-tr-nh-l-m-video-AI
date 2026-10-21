@@ -59,4 +59,5 @@
 - `tests/test_devsys_pipeline_maps.py`: thêm 15 test.
   - Trên code cũ: **11 đỏ**, trong đó test CSDL khóa chạy 6 phút.
   - Sau sửa, cùng `test_diag` / `test_stage_auto` / `test_stage_previs`: 166 xanh.
-- Full suite: xem mục dưới.
+- Full suite (cloud, Python 3.13, `-m "not slow" -n auto`): **6884 passed, 25 failed** — 25 đỏ đều là `test_golden_db_replay` / `test_golden_replay` cần native Python 3.14 (đúng nền 25 đỏ đã biết của cloud), không liên quan diff.
+- `TODO.md` không sửa trên nhánh cloud (tiến độ báo qua hộp thư sự kiện; phiên chính ghi khi gộp).
