@@ -496,8 +496,9 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
                        "Đã xếp hàng gen lại"):
                     st.rerun()
             if j["escalated"] and st.button("↺ Làm lại từ đầu" + retake, key=f"rs_{jid}", help="Đã hết số lần thử: bắt đầu lại cảnh này"):
+                _ex = C.retries_exhausted(p, j)                 # trước khi bấm: restart_job đổi job
                 _ok = act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh")
-                C.log_over_limit("storyboard", pid, jid, _ok)          # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
+                C.log_over_limit(p, "storyboard", pid, j, _ok, _ex)          # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
                 if _ok:
                     st.rerun()
             if st.button("🔍 Xem", key=f"sel_btn_{jid}"):
@@ -582,8 +583,9 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
                          detail="câu sửa: " + ("có" if fix.strip() else "không"))
                 st.rerun()
         if j["escalated"] and st.button("↺ Làm lại từ đầu" + retake, key=f"drs_{jid}", type="primary"):
+            _ex = C.retries_exhausted(p, j)                 # trước khi bấm: restart_job đổi job
             _ok = act(lambda: p.restart_job(jid), "Đã xếp hàng job mới cho cảnh")
-            C.log_over_limit("storyboard", pid, jid, _ok)              # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
+            C.log_over_limit(p, "storyboard", pid, j, _ok, _ex)              # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
             if _ok:
                 st.rerun()
         if state == "approved":

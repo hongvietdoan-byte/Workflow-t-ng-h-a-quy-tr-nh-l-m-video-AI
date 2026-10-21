@@ -621,13 +621,17 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
             if r2.button(("↻ Gen lại theo ảnh/prompt mới" if stale_reason else "↻ Gen lại video") + tag, key=f"vregen_{jid}", width="stretch",
                          disabled=bool(gerr),
                          help=gerr or "Clip này vào thùng rác (giữ 30 ngày) và xếp hàng video mới. Muốn đổi cách quay thì sửa motion prompt trước."):
-                _ok = act(lambda: regen.regenerate_video(p, C.DATA, jid, f"làm lại vì {stale_reason}" if stale_reason else None,
-                                                         reason=gcode, reason_text=gtext),   # C2: input changed = khong_phai_loi
-                          "Đã xếp hàng gen lại video")
-                try:                                         # C-DEVSYS-MAPS-FIX: từ chối gen lại y nguyên → mã (chỉ để ghi bước)
-                    _same = None if _ok else p._same_input_regen(p.job(jid), None)
-                except Exception:  # noqa: BLE001 - nhật ký không chặn nút
-                    _same = None
+                _why = []                                    # C-DEVSYS-MAPS-FIX: lý do từ chối THẬT của lượt này (mã bước)
+
+                def _regen():
+                    try:
+                        regen.regenerate_video(p, C.DATA, jid, f"làm lại vì {stale_reason}" if stale_reason else None,
+                                               reason=gcode, reason_text=gtext)   # C2: input changed = khong_phai_loi
+                    except ValueError as e:
+                        _why.append(str(e))
+                        raise
+                _ok = act(_regen, "Đã xếp hàng gen lại video")
+                _same = bool(_why) and _why[0].startswith("không gen lại:")      # core/regen.py: từ chối gen lại y nguyên
                 C.log_ui(p, "gen_lai_video", page="video", project_id=j["project_id"], scene_id=j["scene_id"], job_id=jid, result=_ok,
                          detail="đầu vào cũ" if stale_reason else "", error_code="regen_same_input" if _same else None)
                 if _ok:
@@ -672,8 +676,9 @@ def video_card_v2(p: Pipeline, pid: int, j, runner, stale_reason, line=None, rea
                         st.toast("Không thấy task nào khớp prompt — có thể ClipAI thật sự chưa tạo; bấm Gen lại")
                 if can_restart and st.button("↺ Làm lại từ đầu" + tag, key=f"vrs_{jid}",
                                              help="Đã hết số lần thử: bắt đầu lại với một job video mới"):
+                    _ex = C.retries_exhausted(p, j)                 # trước khi bấm: restart_job đổi job
                     _ok = act(lambda: p.restart_job(jid), "Đã xếp hàng video mới")
-                    C.log_over_limit("video", j["project_id"], jid, _ok)   # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
+                    C.log_over_limit(p, "video", j["project_id"], j, _ok, _ex)   # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
                     if _ok:
                         st.rerun()
         keep = p.keepable_rejected(j["scene_id"]) if state in ("rejected", "queued", "failed", "retryable") else None

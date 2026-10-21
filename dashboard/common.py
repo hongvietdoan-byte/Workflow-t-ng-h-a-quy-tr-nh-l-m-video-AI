@@ -381,12 +381,26 @@ def log_step(action: str, *, page: str = "", project_id=None, result="ok", note:
         print(f"[ui_step] lỗi ghi bước {action}: {type(e).__name__}: {e}", file=sys.stderr)
 
 
-def log_over_limit(page: str, project_id, job_id, ok: bool) -> None:
-    """C-DEVSYS-MAPS-FIX (đề mục 6): người bấm "↺ Làm lại từ đầu" job đã vượt trần gen lại tự động = bỏ qua giới hạn → bước ĐỎ kèm mã
-    (cờ ui_step_log; tắt = không làm gì)."""
+def retries_exhausted(p, job):
+    """Job đã hết lượt gen lại tự động chưa (chỉ để ghi bước); không đọc được → None (log_over_limit coi như vượt trần)."""
+    try:
+        return p._retries_exhausted(job)
+    except Exception:  # noqa: BLE001 - nhật ký không chặn nút
+        return None
+
+
+def log_over_limit(p, page: str, project_id, job, ok: bool, exhausted=None) -> None:
+    """C-DEVSYS-MAPS-FIX (đề mục 6): người bấm "↺ Làm lại từ đầu" job đã dừng tự động (escalated) = bỏ qua giới hạn → bước ĐỎ kèm mã:
+    vượt trần gen lại tự động (`regen_over_limit`) hoặc dừng vì gen lại y nguyên (`regen_same_input`). `exhausted` tính TRƯỚC khi
+    bấm (restart_job đổi job). Key theo màn: lam_lai_anh (sb.card) / lam_lai_video (vd.gen). Cờ ui_step_log tắt = không làm gì."""
     from core import ui_step
-    log_step("lam_lai_tu_dau", page=page, project_id=project_id, result="skip" if ok else "error",
-             note=f"job {job_id} đã hết lượt thử tự động", error_code=ui_step.REGEN_OVER_LIMIT)
+    if not ui_step.enabled():
+        return
+    if exhausted is None:
+        exhausted = True
+    log_step("lam_lai_video" if page == "video" else "lam_lai_anh", page=page, project_id=project_id, result="skip" if ok else "error",
+             note=f"job {job['id']} " + ("đã hết lượt thử tự động" if exhausted else "dừng vì gen lại y nguyên"),
+             error_code=ui_step.REGEN_OVER_LIMIT if exhausted else ui_step.REGEN_SAME_INPUT)
 
 
 def allowed(permission: str) -> bool:

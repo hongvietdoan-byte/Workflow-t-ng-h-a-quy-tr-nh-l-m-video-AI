@@ -51,14 +51,17 @@ def _write(conn, stage: str, severity: str, message: str, code: str, project_id:
     path = diag._db_file(conn)
     own = None
     try:
-        if path:
+        if path and not getattr(conn, "in_transaction", False):   # kết nối gọi đang giữ giao dịch ghi: kết nối riêng sẽ chờ chính nó
             own = sqlite3.connect(path, timeout=BUSY_MS / 1000)
             own.row_factory = sqlite3.Row
             own.execute(f"PRAGMA busy_timeout={BUSY_MS}")
         diag._write(own or conn, stage, severity, msg, code, project_id, None, None)   # CSDL trong bộ nhớ: chính kết nối đó
     except sqlite3.Error as e:
         try:
-            (own or conn).rollback()
+            if own is not None:
+                own.rollback()
+            elif not path:                                 # CSDL trong bộ nhớ: lần ghi trên chính kết nối đó — gỡ phần hỏng
+                conn.rollback()
         except sqlite3.Error:
             pass
         diag._keep_lost(conn, f"{stage}/{severity}/{code} p{project_id or '-'}: {msg}", e)
@@ -87,16 +90,28 @@ def run_cli(tool: str, fn, argv=None):
         out = fn(argv, step)
     except BaseException as e:  # noqa: BLE001 - ghi xong rồi ném lại nguyên vẹn
         ok = isinstance(e, SystemExit) and e.code in (None, 0)
-        _cli_done(tool, step, ok, None if ok else (str(e) or type(e).__name__))
+        _cli_done(tool, step, None if ok else "error", None if ok else (str(e) or type(e).__name__))
         raise
-    _cli_done(tool, step, True)
+    _cli_done(tool, step)
     return out
 
 
-def _cli_done(tool: str, step: Dict, ok: bool, why: Optional[str] = None) -> None:
-    if step.get("conn") is not None:
-        cli(step["conn"], tool, step.get("project"), str(step.get("task") or "") + (f" — lỗi: {why[:160]}" if why else ""),
-            "ok" if ok else "error")
+def _cli_done(tool: str, step: Dict, result: Optional[str] = None, why: Optional[str] = None) -> None:
+    """result None = lệnh chạy hết: lấy step["result"] / step["why"] do công cụ tự nói (nhánh return sớm không làm gì → warn, câu
+    trả lời LỖI → error), mặc định ok. Lỗi giữa giao dịch: rollback kết nối của công cụ trước (tiến trình thoát cũng mất phần đó)
+    để dòng error không tự khóa với chính nó."""
+    conn = step.get("conn")
+    if conn is None:
+        return
+    result = result or step.get("result") or "ok"
+    why = why or step.get("why")
+    if result == "error" and getattr(conn, "in_transaction", False):
+        try:
+            conn.rollback()
+        except sqlite3.Error:
+            pass
+    cli(conn, tool, step.get("project"), str(step.get("task") or "") + (f" — {'lỗi' if result == 'error' else 'lưu ý'}: {why[:160]}"
+                                                                        if why else ""), result)
 
 
 def events(conn, project_id: int) -> List[Dict]:

@@ -363,8 +363,9 @@ def image_group_v2(p, pid: int, history: list, proj, stale_reason=None, ready=No
             if j["escalated"]:
                 st.caption("↺ Làm lại 1 ảnh" + retake)
                 if b3.button("↺ Làm lại", key=f"rs_{jid}", type="primary", width="stretch", help="Đã hết số lần thử: bắt đầu lại cảnh này"):
+                    _ex = C.retries_exhausted(p, j)                 # trước khi bấm: restart_job đổi job
                     _ok = act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh")
-                    C.log_over_limit("storyboard", pid, jid, _ok)      # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
+                    C.log_over_limit(p, "storyboard", pid, j, _ok, _ex)      # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
                     if _ok:
                         _send_queued(p, pid)
                         st.rerun()

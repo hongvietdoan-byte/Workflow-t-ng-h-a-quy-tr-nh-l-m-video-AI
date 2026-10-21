@@ -302,17 +302,108 @@ def test_skip_is_red_with_a_code_and_the_pregate_cell_turns_red(tmp_path):
             mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}):
         C.log_ui(None, "gen_anh", page="storyboard", project_id=31, result=True, step="skip",
                  step_note="vẫn gen dù cổng chặn: nền cũ", error_code="gate_skipped")
-        C.log_over_limit("video", 31, 77, True)
+        C.log_over_limit(None, "video", 31, {"id": 77}, True, True)
+        C.log_over_limit(None, "storyboard", 31, {"id": 78}, True, False)       # dừng vì gen lại y nguyên, không phải vượt trần
     ev = PM.project_events(db, 31)
-    assert [(e["key"], e["severity"]) for e in ev] == [("gen_anh", "error"), ("lam_lai_tu_dau", "error")]
-    assert "[gate_skipped]" in ev[0]["message"] and "[regen_over_limit]" in ev[1]["message"]
+    assert [(e["key"], e["severity"]) for e in ev] == [("gen_anh", "error"), ("lam_lai_video", "error"), ("lam_lai_anh", "error")]
+    assert "[gate_skipped]" in ev[0]["message"] and "[regen_over_limit]" in ev[1]["message"] and "[regen_same_input]" in ev[2]["message"]
     ov = PM.overlay(PM.build_model(), ev)
     assert ov["cells"]["sb.pregate"]["color"] == "do" and "gate_skipped" in ov["cells"]["sb.pregate"]["last"]
+    assert ov["cells"]["vd.gen"]["color"] == "do" and ov["cells"]["sb.card"]["color"] == "do"     # vượt trần LÊN sơ đồ
     src = open(os.path.join(ROOT, "dashboard", "steps", "step2.py"), encoding="utf-8").read()
     assert 'error_code="gate_skipped" if _ok and forced and gates["block"]' in src
     for rel in ("dashboard/steps/step2.py", "dashboard/steps/step4.py", "dashboard/design/screens/storyboard_cards.py"):
         src = open(os.path.join(ROOT, rel), encoding="utf-8").read()
-        assert src.count("p.restart_job(jid)") == src.count("C.log_over_limit("), rel     # mọi "↺ Làm lại từ đầu" ghi bước
+        assert src.count("p.restart_job(jid)") == src.count("C.log_over_limit(") == src.count("C.retries_exhausted(p, j)"), rel
+    src = open(os.path.join(ROOT, "dashboard", "steps", "step4.py"), encoding="utf-8").read()
+    assert '_why[0].startswith("không gen lại:")' in src                       # mã lấy từ lỗi THẬT của lượt, không đoán lại
+
+
+def test_every_logged_button_key_is_on_the_map():
+    """Rà C-DEVSYS-MAPS-FIX: bước ghi mà không ô nào có key = đỏ không lên sơ đồ."""
+    import glob
+    import re
+    keys = {k for c in PM.load()["dashboard"]["cells"] for k in c["ui"]}
+    logged = set()
+    for path in glob.glob(os.path.join(ROOT, "dashboard", "**", "*.py"), recursive=True):
+        src = open(path, encoding="utf-8").read()
+        logged |= set(re.findall(r'C\.log_step\("(\w+)"', src))
+    logged |= {"lam_lai_anh", "lam_lai_video"}                                    # log_over_limit
+    assert logged <= keys, sorted(logged - keys)
+
+
+def test_pending_flags_expire_when_the_branch_lands():
+    from core import features
+    for c in PM.load()["dashboard"]["cells"] + PM.load()["truong"]["nodes"]:
+        for f, branch in (c.get("pending_flags") or {}).items():
+            assert f not in features.FEATURES, f"{c['id']}: cờ {f} đã có (nhánh {branch} đã gộp) — bỏ pending_flags"
+            assert f in c["flags"], c["id"]
+
+
+def test_error_mid_transaction_is_logged_not_self_locked(tmp_path):
+    """Rà: lệnh lỗi khi kết nối của công cụ còn giữ giao dịch ghi → rollback rồi ghi error (không chờ chính nó, không mất dòng)."""
+    import time
+    from core import ui_step
+    path, conn = _db(tmp_path)
+    conn.commit()
+
+    def loi(argv, step):
+        step.update(conn=conn, project=31, task="dàn cảnh 4")
+        conn.execute("UPDATE diag_events SET count=count WHERE 0")
+        conn.execute("INSERT INTO diag_events (at, last_at, stage, severity, message) VALUES ('a','a','image','info','dở dang')")
+        assert conn.in_transaction
+        raise RuntimeError("hỏng giữa vòng lặp")
+
+    with mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}):
+        t0 = time.monotonic()
+        with pytest.raises(RuntimeError):
+            ui_step.run_cli("stage_auto", loi)
+        assert time.monotonic() - t0 < 0.8
+    ev = PM.project_events(path, 31)
+    assert [(e["key"], e["severity"]) for e in ev] == [("stage_auto", "error")] and "hỏng giữa vòng lặp" in ev[0]["message"]
+    assert not os.path.exists(path + ".diag_lost.log")
+
+
+def test_ok_with_an_open_transaction_writes_on_the_same_connection(tmp_path):
+    from core import ui_step
+    path, conn = _db(tmp_path)
+    conn.commit()
+    conn.execute("INSERT INTO diag_events (at, last_at, stage, severity, message) VALUES ('a','a','image','info','của công cụ')")
+    with mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}):
+        ui_step.run_cli("stage_auto", lambda argv, step: step.update(conn=conn, project=31, task="x"))
+    assert [e["key"] for e in PM.project_events(path, 31)] == ["stage_auto"]
+    assert not os.path.exists(path + ".diag_lost.log")
+
+
+def test_write_failure_never_rolls_back_the_callers_work(tmp_path):
+    from core import ui_step
+    path, conn = _db(tmp_path)
+    conn.commit()
+    with mock.patch("sqlite3.connect", side_effect=sqlite3.OperationalError("không mở được")), \
+            mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}):
+        ui_step.record(conn, 31, "storyboard", "gen_anh", "ok")
+    assert os.path.exists(path + ".diag_lost.log")
+    conn.execute("INSERT INTO diag_events (at, last_at, stage, severity, message) VALUES ('a','a','image','info','của trang')")
+    with mock.patch("sqlite3.connect", side_effect=sqlite3.OperationalError("không mở được")), \
+            mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}):
+        ui_step.record(conn, 31, "storyboard", "gen_anh", "ok")                 # đang giao dịch → ghi trên chính conn (không mở kết nối)
+    conn.commit()
+    assert conn.execute("SELECT COUNT(*) FROM diag_events WHERE message='của trang'").fetchone()[0] == 1
+
+
+def test_tool_says_warn_for_a_no_op_and_nothing_for_estimate_only(tmp_path):
+    from core import ui_step
+    path, conn = _db(tmp_path)
+    with mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}):
+        ui_step.run_cli("stage_auto", lambda argv, step: step.update(conn=conn, project=31, task="dàn cảnh 4", result="warn",
+                                                                       why="có shot đã vẽ ảnh"))
+        ui_step.run_cli("stage_auto", lambda argv, step: (step.update(conn=conn, project=31, task="x"), step.clear()))
+    ev = PM.project_events(path, 31)
+    assert [(e["key"], e["severity"]) for e in ev] == [("stage_auto", "warn")] and "có shot đã vẽ ảnh" in ev[0]["message"]
+    src = open(os.path.join(ROOT, "tools", "stage_auto.py"), encoding="utf-8").read()
+    i = src.index("Chưa chạy (thêm --yes")
+    assert "step.clear()" in src[i:i + 300]
+    assert src.count('step.update(result="warn"') == 4 and src.count('step.update(result="error"') == 2
 
 
 def test_skip_without_a_code_gets_the_gate_code():

@@ -94,10 +94,12 @@ def _main(argv, step):
     if a.crew or a.crew_approve or a.crew_tra_lai:     # 16/10 chia vai (kế hoạch docs/KE_HOACH_CHIA_VAI_SAN_KHAU_2026-10-16.md)
         if len(segs) != 1:
             print("Chế độ chia vai cần đúng MỘT cảnh (--scene)")
+            step.update(result="warn", why="sai tham số: cần đúng MỘT cảnh")   # C-DEVSYS-MAPS-FIX: không làm gì ≠ ok
             return
         g = segs[0]
         if (a.answer or a.crew_approve or a.crew_tra_lai) and drawn_shots(conn, g) and not a.force:
             print(f"{g['id']}: có shot đã vẽ ảnh — thêm --force để đổi máy")
+            step.update(result="warn", why="có shot đã vẽ ảnh — chưa đổi máy")
             return
         if a.crew_approve or a.crew_tra_lai:
             tra = []
@@ -127,10 +129,13 @@ def _main(argv, step):
                 f.write(chr(10).join(r["errors"]) if r.get("errors") else "ĐẠT")
             print(json.dumps({k: v for k, v in r.items() if k not in ("errors", "result")}, ensure_ascii=False, indent=1, default=str))
             print(("LỖI (" + str(len(r["errors"])) + ") → " + loi) if r.get("errors") else f"ĐẠT — bước kế: {r.get('phase')}")
+            if r.get("errors"):
+                step.update(result="error", why=f"câu trả lời chia vai LỖI ({len(r['errors'])})")
         return
     if a.prompt_out or a.answer:
         if len(segs) != 1:
             print("Chế độ ngoại tuyến cần đúng MỘT cảnh (--scene)")
+            step.update(result="warn", why="sai tham số: cần đúng MỘT cảnh")
             return
         g = segs[0]
         if a.prompt_out:
@@ -141,6 +146,7 @@ def _main(argv, step):
         if a.answer:
             if drawn_shots(conn, g) and not a.force:
                 print(f"{g['id']}: có shot đã vẽ ảnh — thêm --force để đổi máy")
+                step.update(result="warn", why="có shot đã vẽ ảnh — chưa đổi máy")
                 return
             from core.llm_runner import extract_json
             try:
@@ -154,6 +160,8 @@ def _main(argv, step):
                 f.write(chr(10).join(r["errors"]) if r["errors"] else "ĐẠT")
             print(json.dumps({k: v for k, v in r.items() if k != "errors"}, ensure_ascii=False, indent=1))
             print(("LỖI (" + str(len(r["errors"])) + ") → " + loi) if r["errors"] else "ĐẠT — đã ghi stage_camera")
+            if r["errors"]:
+                step.update(result="error", why=f"câu trả lời ngoại tuyến LỖI ({len(r['errors'])})")
         return
     if a.beats:                                          # 16/10: ảnh nhìn từ trên theo nhịp cho người duyệt — 0 USD, không ghi CSDL
         os.makedirs(a.beats, exist_ok=True)
@@ -215,6 +223,7 @@ def _main(argv, step):
         return
     if not a.yes:
         print("Chưa chạy (thêm --yes --max-usd <USD> để đồng ý chi tiền; --dry để xem đề bài 0 USD)")
+        step.clear()                                     # chỉ in ước tính: không phải việc làm thay Dashboard → không ghi
         return
     from core import llm_runner
     from core.adapters.check import load_dashboard_env
