@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:08:04.702957+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-RA-M21-M25",
+  "to": "cloud-E",
+  "title": "Rà kỹ chỉ đọc nhánh M21 + M25 của cloud-C",
+  "spec": "docs/CLOUD_TASKS.md#### C-RA-M21-M25",
+  "priority": 0
+}
