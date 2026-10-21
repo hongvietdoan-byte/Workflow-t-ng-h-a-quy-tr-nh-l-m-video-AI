@@ -10,6 +10,16 @@ thật. File này cập nhật mỗi lượt điều phối; máy chính đánh 
 3. `/status` trong phiên chính: thấy env `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (mục P3) — chưa thấy thì khởi động lại phiên một lần.
 4. Đọc `PYTHONUTF8=1 py tools/hop_thu.py bang`; muốn nhận lại điều phối → ghi tin "NHẬN LẠI ĐIỀU PHỐI" `--to cloud-claude` TRƯỚC khi gộp/giao.
 
+## ⭐ VIỆC ĐẦU TIÊN CỦA MÁY CHÍNH — nghiệm thu golden A/B (CX21-GOLDEN7, đường găng mở khóa gộp toàn bộ M2)
+Codex hết hạn mức tuần (92 %) → bàn giao Claude máy chính chạy MỘT lượt (hộp thư giao `--to phien-chinh`, ưu tiên 0):
+1. Đọc `git show origin/codex/v31-golden7:docs/RA_CX21_GOLDEN7_CODEX_2026-10-22.md` + thư chốt 03:31 (commit db0ccfac, `hop_thu bang`).
+2. Worktree công cụ `cloud/v31-golden5` @ 621661a8; A = main @ a117497d (pin, ghi SHA), B = `cloud/v31-m2-tichhop` @ 9746a6ea.
+3. Native negative control trước (`tests/test_golden5.py::test_real_worker_two_code_trees_same_and_one_line_changed`) — ĐỎ thì dừng.
+4. Snapshot CSDL MỚI `mode=ro`; baseline = cờ production thật, catalog hợp A∪B 159, 32 experimental TẮT explicit (gồm `director_rewrite_respect_lock`,
+   `stage_view_ui`, `crew_registry`, `continuity_validator`, `gen_auth_shadow`) — theo sổ `v31-ep-golden-ab-acceptance-2026-10-21`.
+5. `main_ab --ab` 158 ca #24/#27/#31/#33 + loaded paths. ĐẠT = negative control xanh + 0 DIFF + 0 ONE_FAIL + mỗi dự án ≥ 1 SAME. 0 USD.
+6. ĐẠT → `hop_thu.py xong CX21-GOLDEN7 …` → điều phối gộp một lần `cloud/v31-m2-tichhop` + m24 + golden5 (+ m73, m210, golden4). CHƯA ĐẠT → báo cáo, giao sửa cloud-C.
+
 ## A. Đợt gộp 22/10 sáng (nhánh tích hợp `tich-hop-2210` → main)
 
 | Mã | Nhánh @ commit | Cloud đã kiểm | Máy chính kiểm | Máy chính |
