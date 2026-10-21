@@ -46,7 +46,12 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
 | Mã | Làn | Đề | Ghi chú |
 |---|---|---|---|
 | C-GOLDEN7 | cloud-C (ưu tiên 0) | docs/CLOUD_TASKS.md#### C-GOLDEN7 | validator `--ab` theo catalog cây đang dựng; lỗi cấu hình = mã 2 |
-| CX21-GOLDEN7 | codex (depends C-GOLDEN7) | docs/CODEX_TASKS.md### CX21-GOLDEN7 | chạy lại A/B; ĐẠT → gộp tích hợp M2 một lần |
-| C-M63-FIX2 | cloud-D (ưu tiên 2, việc nhỏ) | docs/CLOUD_TASKS.md#### C-M63-FIX2 | lỗi rà kỹ C-M63-FIX |
-| C-M71-FIX | cloud-E (ưu tiên 1) | docs/CLOUD_TASKS.md#### C-M71-FIX | lỗi rà kỹ M71 + rò tệp test DP12 |
+| CX21-GOLDEN7 | codex (C-GOLDEN7 XONG 621661a8 trên cloud/v31-golden5; 02:59 bỏ điều kiện GỘP — chạy thẳng trên nhánh, quota codex còn ~10 %) | docs/CODEX_TASKS.md### CX21-GOLDEN7 | chạy lại A/B; ĐẠT → gộp tích hợp M2 một lần |
+| C-M63-FIX2 | cloud-C (ưu tiên 2; chuyển từ cloud-D im > 1 giờ, 02:58) | docs/CLOUD_TASKS.md#### C-M63-FIX2 | lỗi rà kỹ C-M63-FIX |
+| C-M71-FIX | cloud-C (ưu tiên 1; chuyển từ cloud-E im > 1 giờ, 02:58) | docs/CLOUD_TASKS.md#### C-M71-FIX | lỗi rà kỹ M71 + rò tệp test DP12 |
 | C-M83-TOOL | cloud-E (ưu tiên 2) | docs/CLOUD_TASKS.md#### C-M83-TOOL | công cụ đo tải 10 người (Playwright + provider giả); lượt đo thật M8.3 = máy chính |
+
+## D. Ghi chú lượt 22/10 02:58
+- C-GOLDEN7 (cloud-C) XONG @ cloud/v31-golden5 621661a8 — CHƯA gộp (công cụ golden gộp cùng tích hợp M2 khi CX21-GOLDEN7 ĐẠT). Máy chính: không cần làm gì
+  tới khi codex báo kết quả; ĐẠT → phiên điều phối gộp cloud/v31-m2-tichhop + m24 + golden5 (+ m73, m210, golden4 dựng trên nền đó) một lần.
+- cloud-E và cloud-D không nhận việc > 1 giờ (lịch tự vận hành có thể đã dừng) → đã báo người dùng mở lại làn. C-M83-TOOL vẫn để cloud-E.
