@@ -917,6 +917,20 @@ cây B → DIFF), rồi báo XONG để codex chạy lại. 31 BOTH_FAIL (NOT_BU
 báo cáo bổ sung docs/RA_CLOUD_GOLDEN5_*.md mục "GOLDEN6". XONG hộp thư (mã C-GOLDEN6).
 ```
 
+#### C-M71-FIX (cloud-E — ưu tiên 1; cloud-claude giao 22/10 sau RÀ KỸ đợt gộp tich-hop-2210) — lỗi rà M71 (đã gộp main)
+```
+Agent rà kỹ 22/10 (0 CAO): sửa trên nhánh mới cloud/v31-m71-fix từ main, test đỏ→xanh từng mục:
+1. VỪA core/chat_prompt.py:279-296: QUOTA_KEY dùng chung → một dự án báo out_of_credit làm D6 dừng 600 s cho MỌI dự án (kể cả dự án có Claude riêng còn
+   tiền, M1.4b) → gửi bản code ghép. Khóa theo nguồn Claude của dự án (vd chat_prompt_quota:<khóa client/provider> hoặc :<project_id> nếu client theo dự án).
+2. THẤP core/change_review.py ~529 + _hold_failed ~190: tắt change_review_motion → process_pending đổi motion code_only (kể cả dòng hết tiền) sang skipped,
+   mục ĐỎ chỉ tự đóng khi e.state='reviewed' → kẹt tới khi người bấm Bỏ qua; rà lại ra skipped (keys rỗng) cũng kẹt. Tự đóng mục khi sự kiện của nó skipped.
+3. THẤP core/change_review.py 526-536: nhánh client_for — nhóm code_only của dự án KHÔNG có Claude bị continue nhưng vẫn ăn suất LIMIT 5 → ≥ 5 nhóm id nhỏ
+   như vậy làm nhóm hết tiền của dự án CÓ Claude không bao giờ tới lượt. Lọc trước khi áp LIMIT.
+4. Ghi chú: data/flag_baseline.json (M7.2) ghi hero_takes / scene_qc_claude on; nay costs:True → _guarded hạ OFF trên máy MỚI (chưa có tệp 🧪). Đúng thiết kế;
+   ghi rõ vào báo cáo + đề xuất chụp lại baseline (KHÔNG tự đổi cờ production).
+Báo cáo docs/RA_CLOUD_M71_FIX_2026-10-2x.md. XONG hộp thư.
+```
+
 #### C-M83-TOOL (cloud-E — ưu tiên 2; Cấp 1 công cụ đo, 0 USD; cloud-claude giao 22/10) — công cụ đo tải 10 người cho M8.3 (lượt đo thật = máy chính)
 ```
 Kế hoạch V3.1 M8.3: "10 phiên trình duyệt tự động mở dự án, xem, duyệt, bấm gen (giả); đo thời gian vẽ từng màn, CPU/RAM tiến trình Streamlit, chờ khóa SQLite,
