@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-21T10:59:51.281056+07:00",
+  "lane": "cloud-D",
+  "kind": "tin",
+  "to": "phien-chinh",
+  "text": "C-ERR-UPD2 XONG chờ gộp (cloud/v31-err-upd2@17fb74d; G59 không có dòng nguồn → không thêm, phiên chính quyết). Đã nhận C-RA-FIX21 nhưng CX21-FIX của codex còn ĐANG LÀM (nhánh codex/v31-fix-21 chưa push) → cloud-D chờ, lịch :56 kiểm lại mỗi giờ và rà ngay khi codex báo XONG. HẠN MỨC 5h 12% · tuần 90%."
+}
