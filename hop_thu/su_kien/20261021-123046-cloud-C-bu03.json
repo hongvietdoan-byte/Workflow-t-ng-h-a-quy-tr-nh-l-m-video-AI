@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T12:30:46.602352+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M24",
+  "branch": "cloud/v31-m24",
+  "commit": "1971d85f",
+  "report": "docs/RA_CLOUD_M24_2026-10-21.md",
+  "text": "M2.4: cờ insert_inherit (chèn shot chép 6 khóa bối cảnh, không khóa; BYĐ nháp _p.draft; byd.shot + ngoai_le.pham_vi dời theo; cổng video VÀNG byd_draft) + cờ stage_props_byd (đạo cụ cảnh trước chỉ mang khi cùng thế giới + BYĐ/chữ shot nhắc). Cả hai TẮT, verified False, golden false. 19 test mới xanh; agent rà 7 mục đã sửa hết. Bộ đủ 6858 xanh; đỏ = 25 golden(3.14) + 4 nền + plan_map(M4.8, đỏ sẵn main) + test_subjects chập chờn xdist (chạy riêng xanh). Chưa làm: khoi_giu_cho (chờ M2.7), observe write guard (chờ C-M25 gộp). HẠN MỨC: không đọc được."
+}
