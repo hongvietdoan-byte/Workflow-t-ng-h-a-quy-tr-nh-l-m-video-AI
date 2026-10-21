@@ -1408,3 +1408,20 @@ Hai VỪA + THẤP: catalog COMPAT đủ/OFF, queued cảnh báo, Git fallback, 
 ### Kết quả Codex CX20-2b — 21/10
 Đã có replay prepare/build thật từ snapshot DB + manifest readonly, CLI capture/replay nhiều fixture, không sidecar args. 63 test native xanh; byte ảnh/video tổng hợp, drift/sandbox/cache/đếm distinct shot. Xem docs/RA_D20_VIEC2B_CODEX_2026-10-21.md để chạy #24/#27. Code + lệnh xong; nghiệm thu thật M1.9/CAO-M2, rà độc lập, cả bộ/gộp/mở M2 còn OPEN. Không push/main/live/TODO/plan.
 - CX20-5b · `codex/d20-viec5-kho-chu-the` · commit chứa dòng này: strict chỉ capacity, OFF giữ native get/upload/factory cũ; processing có snapshot không chặn toàn Kho, cooling heartbeat và inbox bỏ plan cũ. Đỏ5/21pass → xanh77 →135pass/14,34s; root đã đọc diff. RA `docs/RA_D20_VIEC5B_CODEX_2026-10-21.md`; allocator/concurrency/lifecycle native vẫn OPEN, chưa cả bộ/live/main/push.
+
+## Đợt 21 (21/10) — M2 sau khi CX20-2b gộp main
+
+### CX21-M23 — M2.3 Kho forms/outfit/hair/face: adapter v1/v2 (code Cấp 2, KHÔNG migration)
+BẮT ĐẦU KHI: main có commit gộp CX20-2b (golden replay). Theo `docs/V3_1_M0_9_THIET_KE_KHO_FORMS_2026-10-20.md` (mục 2 schema v2, 3 adapter
+`core/kho_profile.py`, 4 mọi đường đọc, 5 sáu điều kiện, 7 regression, 8 ĐÃ CHỐT) + D05 trong `docs/KE_HOACH_V3_1_MASTER_BUILD_2026-10-20.md`.
+Làm: `core/kho_profile.py` đọc v1 (dữ liệu hiện có) và v2 (forms/outfit/hair/face + provenance, schema_version); ảnh chuẩn Kho ưu tiên hơn metadata AI;
+metadata AI có provenance, KHÔNG ghi đè trường người dùng; nối MỌI đường đọc ở mục 4 (Director / BYĐ / ảnh / video / QC) qua adapter sau cờ mới TẮT
+(`kho_forms_v2`, khai `core/features.py` costs TẮT). Cờ TẮT = byte giống: chạy golden compat #24/#27 (`tools/` CLI replay của CX20-2b) trên fixture có sẵn.
+KHÔNG backfill / migration CSDL / API trả phí (Cấp 3 = C3-5). Test ĐỎ→XANH theo mục 7 (v1 giống byte; v2 đúng forms; người dùng khóa không bị AI đè).
+Không đụng `core/shot_intent.py` phần BYĐ v2 (cloud-C làm C-M21 song song) — chỉ đọc. Nhánh `codex/v31-m23`. Báo cáo `docs/RA_CX21_M23_CODEX_2026-10-2x.md`.
+
+### CX21-M22 — M2.2 field readers A2a–A2f + byd vào lineage (cờ con TẮT)
+BẮT ĐẦU KHI: main đã gộp C-M21 (BYĐ v2, `shot_intent.read` có provenance) và CX21-M23 (adapter forms cho A2a).
+Theo `docs/V3_1_M2_1_M2_2_THIET_KE_2026-10-20.md` mục 4 (bảng A2a–A2f, thứ tự A2e → A2a → A2b → A2d → A2c → A2f): mỗi reader một cờ con dưới cờ mẹ
+`byd_fields` (TẮT), một commit, một test; byd vào lineage khi cờ bật (G4, G22). Cờ TẮT = byte giống (golden compat #24/#27). A2c/A2d đụng
+`core/plate_choice.py` — giữ sửa POV 4775eab4. Nhánh `codex/v31-m22`. Báo cáo `docs/RA_CX21_M22_CODEX_2026-10-2x.md`.
