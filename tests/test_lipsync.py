@@ -1,5 +1,6 @@
 """Kế hoạch V4 GĐ3 — lip sync for the whole video: which shots, the shot's own voice at the timeline's seconds, Seedance
 reference_audio at generation, post lip sync (sync.so adapter), the voice kept at the synced seconds, the no-lip-sync flag lifted."""
+from tests._flags import pin_off
 import json
 import os
 import subprocess
@@ -111,6 +112,10 @@ class SeedanceAudioTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
+    def setUp(self):
+        pin_off(self, "seedance_ref_groups", "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     @mock.patch.dict(os.environ, ON)
     def test_a_marked_close_up_goes_to_seedance_with_its_voice(self):
         from core import batch, llm_io, llm_runner, model_router
