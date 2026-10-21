@@ -1,6 +1,7 @@
 """V11 (rà gốc video #27 13/10, cờ qc_framing_cap): QC clip phải thấy bố cục cần giữ (khung CUỐI clip cạnh ảnh khung đầu, render 3D,
 khung cuối dự kiến) và trả lời câu hỏi bố cục; máy đo thấy đổi bố cục (framing_guard) → code hạ trần motion_match / artifacts.
 Claude giả (không gọi API), không đọc clip thật (trích khung giả)."""
+from tests._flags import pin_off
 import json
 import os
 import tempfile
@@ -21,6 +22,7 @@ HIGH = {"identity": 0.98, "physics": 0.95, "motion_match": 0.97, "artifacts": 0.
 
 class FramingCap(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "framing_guard")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         self.tmp = tempfile.mkdtemp()
         self.p = Pipeline(connect(":memory:"))
         self.pid = self.p.create_project("#27")
