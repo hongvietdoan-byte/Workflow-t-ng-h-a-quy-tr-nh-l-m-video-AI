@@ -118,7 +118,8 @@ def test_real_map_builds_and_everything_named_exists():
     from core import features
     for c in PM.load()["dashboard"]["cells"] + PM.load()["truong"]["nodes"]:
         for f in c.get("flags") or []:
-            assert f in features.FEATURES or f in m["unknown_flags"], f
+            assert f in features.FEATURES or f in (c.get("pending_flags") or {}), f   # cờ chưa có = phải ghi rõ chờ nhánh nào
+    assert not m["unknown_flags"], m["unknown_flags"]                                 # C-DEVSYS-MAPS-FIX VỪA 3
     assert all(c["color"] in PM.COLORS for c in m["dashboard"]["cells"] + m["khau"]["rows"] + m["truong"]["nodes"])
 
 
@@ -179,7 +180,7 @@ def test_ui_step_flag_off_writes_nothing(tmp_path):
 
 def test_ui_step_never_breaks_the_button():
     from core import ui_step
-    with mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}), mock.patch("core.diag.record", side_effect=RuntimeError("đĩa đầy")):
+    with mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}), mock.patch("core.diag._write", side_effect=RuntimeError("đĩa đầy")):
         ui_step.record(object(), 1, "s", "b", "ok")
         ui_step.cli(object(), "t", 1, "x")
 
@@ -210,7 +211,7 @@ def test_dashboard_main_buttons_log_and_cli_tools_log():
     for rel, tool in (("tools/stage_auto.py", "stage_auto"), ("tools/stage_previs.py", "stage_previs"),
                       ("tools/replay_payload.py", "replay_payload")):
         src = open(os.path.join(ROOT, rel), encoding="utf-8").read()
-        assert f'"{tool}"' in src and "ui_step.cli(" in src, rel
+        assert f'"{tool}"' in src and ("ui_step.cli(" in src or f'ui_step.run_cli("{tool}"' in src), rel
 
 
 def test_log_ui_writes_the_step_on_its_own_connection(tmp_path):
@@ -256,7 +257,7 @@ def test_observation_events_stay_out_of_diagnostics_and_error_reports(tmp_path):
     assert [r["code"] for r in diag.recent(conn)] == ["real_warn"]
     assert all(r["stage"] not in diag.OBSERVE for r in diag.repeated(conn, min_count=1))
     assert not any(r["stage"] == "other" for r in diag.stage_table(conn))
-    assert conn.execute("SELECT severity FROM diag_events WHERE code='ui_step:gen_anh'").fetchone()[0] == "warn"   # skip ≠ lỗi
+    assert conn.execute("SELECT severity FROM diag_events WHERE code='ui_step:gen_anh'").fetchone()[0] == "error"  # C-DEVSYS-MAPS-FIX: bỏ qua cổng = ĐỎ (đề mục 6) — vẫn ngoài bảng chẩn đoán
     conn.close()
     from tools import project_error_report as per
     src = open(per.__file__, encoding="utf-8").read()
@@ -288,3 +289,129 @@ def test_read_only_cli_modes_do_not_log_and_replay_reads_the_main_flag(tmp_path)
 def test_flag_is_opt_in_only():
     from core import features
     assert "ui_step_log" in features.OPT_IN_ONLY                             # preset Thử nghiệm không tự bật ghi mỗi bước bấm
+
+
+# ---- C-DEVSYS-MAPS-FIX (rà phiên chính 21/10) ------------------------------------------------------------------------------------
+def test_skip_is_red_with_a_code_and_the_pregate_cell_turns_red(tmp_path):
+    """VỪA 1 (đề mục 6): bỏ qua cổng = ĐỎ kèm mã. Bấm gen khi cổng chặn (step=skip) → ô sb.pregate của sơ đồ thật ĐỎ, có mã."""
+    from dashboard import common as C
+    db = str(tmp_path / "m.sqlite")
+    from core.db import connect
+    connect(db).close()
+    with mock.patch.object(C, "DB", db), mock.patch.object(C, "me", return_value={"email": "a@b.c"}), \
+            mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}):
+        C.log_ui(None, "gen_anh", page="storyboard", project_id=31, result=True, step="skip",
+                 step_note="vẫn gen dù cổng chặn: nền cũ", error_code="gate_skipped")
+        C.log_over_limit("video", 31, 77, True)
+    ev = PM.project_events(db, 31)
+    assert [(e["key"], e["severity"]) for e in ev] == [("gen_anh", "error"), ("lam_lai_tu_dau", "error")]
+    assert "[gate_skipped]" in ev[0]["message"] and "[regen_over_limit]" in ev[1]["message"]
+    ov = PM.overlay(PM.build_model(), ev)
+    assert ov["cells"]["sb.pregate"]["color"] == "do" and "gate_skipped" in ov["cells"]["sb.pregate"]["last"]
+    src = open(os.path.join(ROOT, "dashboard", "steps", "step2.py"), encoding="utf-8").read()
+    assert 'error_code="gate_skipped" if _ok and forced and gates["block"]' in src
+    for rel in ("dashboard/steps/step2.py", "dashboard/steps/step4.py", "dashboard/design/screens/storyboard_cards.py"):
+        src = open(os.path.join(ROOT, rel), encoding="utf-8").read()
+        assert src.count("p.restart_job(jid)") == src.count("C.log_over_limit("), rel     # mọi "↺ Làm lại từ đầu" ghi bước
+
+
+def test_skip_without_a_code_gets_the_gate_code():
+    from core import ui_step
+    with mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}), mock.patch.object(ui_step, "_write") as w:
+        ui_step.record(object(), 1, "storyboard", "gen_anh", "skip")
+    stage, sev, msg = w.call_args[0][1:4]
+    assert (stage, sev) == ("ui_step", "error") and "[gate_skipped]" in msg
+
+
+def test_locked_database_does_not_hold_the_button(tmp_path, capsys):
+    """VỪA 2: CSDL bị khóa (BEGIN IMMEDIATE ở tiến trình khác) → ui_step.cli trả < 2 s, không ném lỗi; dòng mất ghi vào <db>.diag_lost.log."""
+    import time
+    from core import ui_step
+    path, conn = _db(tmp_path)
+    conn.commit()
+    holder = sqlite3.connect(path)
+    holder.execute("BEGIN IMMEDIATE")
+    try:
+        with mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}):
+            t0 = time.monotonic()
+            ui_step.cli(conn, "stage_auto", 31, "dàn cảnh 4")
+            ui_step.record(conn, 31, "storyboard", "gen_anh", "ok")
+            took = time.monotonic() - t0
+    finally:
+        holder.rollback()
+        holder.close()
+    assert took < 4, took                                                       # 2 lần ghi × ≤ ~1 s busy_timeout (trước: tới ~3 phút)
+    lost = open(path + ".diag_lost.log", encoding="utf-8").read()
+    assert "cli_step:stage_auto" in lost and "ui_step:gen_anh" in lost
+    assert conn.execute("SELECT COUNT(*) FROM diag_events").fetchone()[0] == 0
+
+
+def test_cli_step_is_written_after_the_run_with_the_real_result(tmp_path):
+    """THẤP: ghi SAU khi chạy; lỗi / sys.exit khác 0 → error kèm lý do; chế độ chỉ đọc (không điền step) → không ghi."""
+    from core import ui_step
+    path, conn = _db(tmp_path)
+
+    def ok(argv, step):
+        step.update(conn=conn, project=31, task="dàn cảnh 4")
+        assert not conn.execute("SELECT COUNT(*) FROM diag_events WHERE stage='cli_step'").fetchone()[0]   # chưa ghi lúc đang chạy
+        return 0
+
+    def dung(argv, step):
+        step.update(conn=conn, project=31, task="previs cảnh 4")
+        raise SystemExit("DỪNG — không tìm được lối")
+
+    with mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": "1"}):
+        assert ui_step.run_cli("stage_auto", ok) == 0
+        with pytest.raises(SystemExit):
+            ui_step.run_cli("stage_previs", dung)
+        ui_step.run_cli("stage_auto", lambda argv, step: None)                 # chỉ đọc: không điền step
+    ev = PM.project_events(path, 31)
+    assert [(e["key"], e["severity"]) for e in ev] == [("stage_auto", "info"), ("stage_previs", "error")]
+    assert "không tìm được lối" in ev[1]["message"]
+
+
+def test_stage_previs_plan_only_does_not_log_and_tools_use_run_cli():
+    for rel, tool in (("tools/stage_auto.py", "stage_auto"), ("tools/stage_previs.py", "stage_previs")):
+        src = open(os.path.join(ROOT, rel), encoding="utf-8").read()
+        assert f'ui_step.run_cli("{tool}", _main, argv)' in src and "ui_step.cli(" not in src, rel
+    src = open(os.path.join(ROOT, "tools", "stage_previs.py"), encoding="utf-8").read()
+    i = src.index("step.update(conn=conn")
+    assert "if not a.plan_only:" in src[i - 200:i]
+
+
+def test_replay_payload_trusts_the_main_machine_flag(tmp_path):
+    """THẤP: replay_payload kiểm cờ của <main> (_main_flag_on) — ui_step.cli không kiểm lại cờ của repo đang chạy lệnh."""
+    from core.db import connect
+    from tools import replay_payload as R
+    main = tmp_path / "main"
+    (main / "data").mkdir(parents=True)
+    connect(str(main / "data" / "manifest.sqlite")).close()
+    (main / "data" / "feature_settings.json").write_text(json.dumps({"flags": {"ui_step_log": True}}), encoding="utf-8")
+    with mock.patch.dict(os.environ, {"FEATURE_UI_STEP_LOG": ""}):              # repo chạy lệnh: cờ TẮT
+        R._cli_step(str(main), 31, "dựng lại gói gửi model shot 7")
+    ev = PM.project_events(str(main / "data" / "manifest.sqlite"), 31)
+    assert [(e["kind"], e["key"]) for e in ev] == [("cli_step", "replay_payload")]
+
+
+def test_reports_leave_out_observation_events():
+    for rel in ("tools/audit_run.py", "tools/kld_round_stats.py"):
+        src = open(os.path.join(ROOT, rel), encoding="utf-8").read()
+        assert "stage NOT IN ('ui_step', 'cli_step')" in src, rel
+
+
+def test_pending_flag_is_waiting_not_unknown(mini):
+    root, doc = mini
+    doc["dashboard"]["cells"][0]["flags"] = ["co_chua_gop"]
+    doc["dashboard"]["cells"][0]["pending_flags"] = {"co_chua_gop": "C-NHANH"}
+    m = _model(root, doc, lambda n: "unknown")
+    c = _cell(m, "c1")
+    assert not m["unknown_flags"] and c["color"] == "vang" and any("chờ nhánh C-NHANH" in w for w in c["why"])
+
+
+def test_evidence_names_a_function_or_a_button_key():
+    """THẤP: bằng chứng không còn chung chung (chữ ngắn / glob dashboard/** / 'def ')."""
+    doc = PM.load()
+    for c in doc["dashboard"]["cells"] + doc["truong"]["nodes"]:
+        for e in c.get("evidence") or []:
+            assert e["text"].strip() not in ("def", "popup", "video", "Gen ảnh"), (c["id"], e)
+            assert not (e["glob"].startswith("dashboard/**") and "(" not in e["text"] and "key=" not in e["text"]), (c["id"], e)

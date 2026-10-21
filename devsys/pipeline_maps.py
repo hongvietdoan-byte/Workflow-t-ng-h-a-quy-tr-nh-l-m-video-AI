@@ -84,9 +84,12 @@ def _cell_color(cell: Dict, root: str, state, plan: Dict[str, str], cache: Dict,
     oks = [_evidence_ok(root, e, cache) for e in ev]
     have = any(oks) if cell.get("evidence_any") else all(oks)
     flags = {}
+    pending = cell.get("pending_flags") or {}            # C-DEVSYS-MAPS-FIX: cờ của nhánh CHƯA gộp (tên đúng, chờ nhánh đó) — không phải "không rõ"
     for f in cell.get("flags") or []:
         s = state(f)
-        if s == "unknown":
+        if s == "unknown" and f in pending:
+            s = "cho:" + pending[f]
+        elif s == "unknown":
             unknown_flags.add(f)
         flags[f] = s
     tasks = {t: plan.get(t, "?") for t in cell.get("plan") or [] if t in plan}
@@ -99,7 +102,8 @@ def _cell_color(cell: Dict, root: str, state, plan: Dict[str, str], cache: Dict,
         why += [f"việc {t} đang làm" for t, s in tasks.items() if s == "🔄"]
     elif any(s != "on" for s in flags.values()):
         color = "vang"
-        why += [f"cờ {f} {'không có trong code' if s == 'unknown' else s.upper()}" for f, s in flags.items() if s != "on"]
+        why += [f"cờ {f} " + ("không có trong code" if s == "unknown" else f"chờ nhánh {s[4:]} gộp" if s.startswith("cho:") else s.upper())
+                for f, s in flags.items() if s != "on"]
     elif cell.get("loose"):
         color = "vang"
         why.append("lỏng: chỉ người / chỉ theo nút / bỏ qua được (mốc 17/10)")

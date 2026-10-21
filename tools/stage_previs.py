@@ -654,6 +654,11 @@ def encode(frames_dir: str, prefix: str, fps: int, path: str) -> str:
 
 
 def main(argv=None):
+    from core import ui_step                             # C-DEVSYS-MAPS-FIX: cli_step ghi SAU khi chạy, theo kết quả thật
+    return ui_step.run_cli("stage_previs", _main, argv)
+
+
+def _main(argv, step):
     ap = argparse.ArgumentParser(prog="stage_previs.py")
     ap.add_argument("--project", type=int, required=True)
     ap.add_argument("--scene", required=True, help="cảnh truyện (story_scene)")
@@ -685,8 +690,8 @@ def main(argv=None):
     rd = stage_auto.result_round(a.data_dir, a.project, seg)
     if rd is None:
         sys.exit(f"cảnh {a.scene}: chưa có lượt sân khấu đã lưu")
-    from core import ui_step                             # C-DEVSYS-MAPS (cờ ui_step_log): việc làm NGOÀI Dashboard → nút ảo trên sơ đồ
-    ui_step.cli(conn, "stage_previs", a.project, f"previs Blender cảnh {a.scene}")
+    if not a.plan_only:                                  # C-DEVSYS-MAPS (cờ ui_step_log): việc làm NGOÀI Dashboard → nút ảo trên sơ đồ;
+        step.update(conn=conn, project=a.project, task=f"previs Blender cảnh {a.scene}")   # --plan-only chỉ in kế hoạch: không ghi
     shots = None
     if a.shots:
         lo_, _, hi_ = a.shots.partition("-")

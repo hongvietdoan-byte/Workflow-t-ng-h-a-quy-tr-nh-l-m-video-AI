@@ -371,7 +371,7 @@ def _cli_step(main_dir: str, pid: int, task: str) -> None:
             return
         conn = sqlite3.connect(db, timeout=5)
         try:
-            ui_step.cli(conn, "replay_payload", pid, task)
+            ui_step.cli(conn, "replay_payload", pid, task, flag_checked=True)   # cờ của <main>, không phải repo chạy lệnh
         finally:
             conn.close()
     except Exception:  # noqa: BLE001 - quan sát, không phải điều khiển

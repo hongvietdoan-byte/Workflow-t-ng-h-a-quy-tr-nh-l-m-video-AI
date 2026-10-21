@@ -259,7 +259,8 @@ def step2(p: Pipeline, pid: int):
             C.log_ui(p, "gen_anh", page="storyboard", project_id=pid, result=_ok, t0=_t0,   # 14/10 nhật ký thao tác
                      step=("skip" if forced and gates["block"] else "hold" if _step.get("left") else None) if _ok else None,
                      step_note=("vẫn gen dù cổng chặn: " + "; ".join(map(str, gates["block"]))[:200] if forced and gates["block"] else
-                                f"{_step['left']} ảnh chờ điều kiện" if _step.get("left") else None))
+                                f"{_step['left']} ảnh chờ điều kiện" if _step.get("left") else None),
+                     error_code="gate_skipped" if _ok and forced and gates["block"] else None)   # C-DEVSYS-MAPS-FIX: bỏ qua cổng = ĐỎ kèm mã
             if _ok:
                 st.rerun()
         pending = [j["id"] for j in p.conn.execute(
@@ -495,7 +496,9 @@ def image_card(p: Pipeline, pid: int, j, proj, read_only: bool = False, stale_re
                        "Đã xếp hàng gen lại"):
                     st.rerun()
             if j["escalated"] and st.button("↺ Làm lại từ đầu" + retake, key=f"rs_{jid}", help="Đã hết số lần thử: bắt đầu lại cảnh này"):
-                if act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh"):
+                _ok = act(lambda: p.restart_job(jid), "Đã xếp hàng ảnh mới cho cảnh")
+                C.log_over_limit("storyboard", pid, jid, _ok)          # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
+                if _ok:
                     st.rerun()
             if st.button("🔍 Xem", key=f"sel_btn_{jid}"):
                 st.session_state[f"sel_{pid}"] = jid
@@ -579,7 +582,9 @@ def image_detail(p: Pipeline, pid: int, j, proj, on_card: bool = False):
                          detail="câu sửa: " + ("có" if fix.strip() else "không"))
                 st.rerun()
         if j["escalated"] and st.button("↺ Làm lại từ đầu" + retake, key=f"drs_{jid}", type="primary"):
-            if act(lambda: p.restart_job(jid), "Đã xếp hàng job mới cho cảnh"):
+            _ok = act(lambda: p.restart_job(jid), "Đã xếp hàng job mới cho cảnh")
+            C.log_over_limit("storyboard", pid, jid, _ok)              # C-DEVSYS-MAPS-FIX: vượt trần → ĐỎ kèm mã
+            if _ok:
                 st.rerun()
         if state == "approved":
             r_note = st.text_input("Lý do bỏ duyệt (đưa vào prompt gen lại)", key=f"rn_{jid}")

@@ -83,7 +83,8 @@ def main(db: str, pid: int) -> str:
     out.append("")
     # --- diag ---
     dg = defaultdict(lambda: defaultdict(int))
-    for r in c.execute("SELECT stage,code,severity,at,count FROM diag_events WHERE project_id=?", (pid,)):
+    for r in c.execute("SELECT stage,code,severity,at,count FROM diag_events WHERE project_id=? "
+                       "AND stage NOT IN ('ui_step', 'cli_step')", (pid,)):   # C-DEVSYS-MAPS-FIX: quan sát, không phải cảnh báo
         dg[(r["stage"], r["code"], r["severity"])][rnd_of(r["at"])] += r["count"] or 1
     out.append("## 4. Cảnh báo `diag_events` theo loại (tổng số lần)\n")
     out.append("| Khâu | Mã | Mức | " + " | ".join(n for n, _, _ in ROUNDS) + " |\n|---|---|---|---|---|---|")

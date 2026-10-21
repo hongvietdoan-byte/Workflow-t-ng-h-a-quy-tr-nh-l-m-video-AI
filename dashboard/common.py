@@ -381,6 +381,14 @@ def log_step(action: str, *, page: str = "", project_id=None, result="ok", note:
         print(f"[ui_step] lỗi ghi bước {action}: {type(e).__name__}: {e}", file=sys.stderr)
 
 
+def log_over_limit(page: str, project_id, job_id, ok: bool) -> None:
+    """C-DEVSYS-MAPS-FIX (đề mục 6): người bấm "↺ Làm lại từ đầu" job đã vượt trần gen lại tự động = bỏ qua giới hạn → bước ĐỎ kèm mã
+    (cờ ui_step_log; tắt = không làm gì)."""
+    from core import ui_step
+    log_step("lam_lai_tu_dau", page=page, project_id=project_id, result="skip" if ok else "error",
+             note=f"job {job_id} đã hết lượt thử tự động", error_code=ui_step.REGEN_OVER_LIMIT)
+
+
 def allowed(permission: str) -> bool:
     return auth.can(me(), permission)
 

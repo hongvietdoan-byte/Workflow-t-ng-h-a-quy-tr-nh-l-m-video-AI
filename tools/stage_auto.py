@@ -19,6 +19,11 @@ DATA = os.environ.get("PIPELINE_DATA", os.path.join("data", "projects"))
 
 
 def main(argv=None):
+    from core import ui_step                             # C-DEVSYS-MAPS-FIX: cli_step ghi SAU khi chạy, theo kết quả thật
+    return ui_step.run_cli("stage_auto", _main, argv)
+
+
+def _main(argv, step):
     ap = argparse.ArgumentParser(prog="stage_auto.py")
     ap.add_argument("--project", type=int, required=True)
     ap.add_argument("--db", default=os.environ.get("PIPELINE_DB", os.path.join("data", "manifest.sqlite")))
@@ -64,8 +69,8 @@ def main(argv=None):
     from core.db import connect
     conn = connect(os.path.abspath(a.db))
     if not (a.beats or a.score or a.prompt_out or a.dry):  # C-DEVSYS-MAPS (cờ ui_step_log): việc làm NGOÀI Dashboard → nút ảo trên
-        from core import ui_step                         # sơ đồ; chế độ chỉ đọc / chỉ in đề (--beats, --score, --prompt-out, --dry) không ghi
-        ui_step.cli(conn, "stage_auto", a.project, "sân khấu 3D" + (f" cảnh {', '.join(a.scene)}" if a.scene else " cả dự án")
+        # sơ đồ; chế độ chỉ đọc / chỉ in đề (--beats, --score, --prompt-out, --dry) không ghi; ghi ở ui_step.run_cli SAU khi chạy
+        step.update(conn=conn, project=a.project, task="sân khấu 3D" + (f" cảnh {', '.join(a.scene)}" if a.scene else " cả dự án")
                     + (" · khai họ sân khấu" if a.set_family else ""))
     if a.set_family:
         stage_auto.set_family(conn, a.place or [], a.set_family)
