@@ -431,3 +431,66 @@ def from_shot_spec(spec: Dict, blocking: Optional[Dict] = None) -> Dict:
                 tu_the, nguon = "dung", "mac_dinh_dung"
             b["hanh_dong"].append({"ai": k, "bat_dau": {"tu_the": tu_the}, "nguon": nguon})
     return b
+
+
+# ---- V3.1 M2.4 (cờ insert_inherit / stage_props_byd): BYĐ nháp của shot chèn + đổi số + tên vật BYĐ nhắc ---------------------------
+def is_draft(byd) -> bool:
+    """BYĐ do code dựng nháp (shot chèn chép từ shot trước) — chưa ai duyệt."""
+    return isinstance(byd, dict) and isinstance(byd.get("_p"), dict) and byd["_p"].get("draft") is True
+
+
+def draft_of(data: Dict, shot: int, from_scene_id: int, characters=None, place=None, spot=None) -> Optional[Dict]:
+    """BYĐ NHÁP cho shot chèn sau shot `data` (M2.4, G21): giữ `noi_chon`, `thanh_phan` (có `characters` → chỉ giữ thứ có tên trong đó),
+    BỎ `hanh_dong` / `may` (shot mới làm việc khác — không đoán) và KHÔNG có khóa `vat` (vật phải khai lại: thiếu khóa = chưa rõ, không
+    phải "không cầm gì" — continuity_shadow / continuity_state đọc `"vat" in byd`). `place` / `spot` = location_asset / plate_spot của
+    shot mới: khác nơi chốn của shot trước → noi_chon theo shot mới. `_p` = {by: code, draft, from}. Shot trước không có BYĐ → None."""
+    src = data.get("byd") if isinstance(data, dict) else None
+    if not isinstance(src, dict):
+        return None
+    parts = [copy.deepcopy(c) for c in src.get("thanh_phan") or [] if isinstance(c, dict)]
+    if characters:
+        from core.assets import fold
+        names = {fold(str(n)).lower() for n in characters}
+        parts = [c for c in parts if fold(str(c.get("vat") or "")).lower() in names]
+    noi = copy.deepcopy(src.get("noi_chon") or {})
+    if place is not None and noi.get("kho_id") not in (None, place):
+        noi["kho_id"] = place
+    if spot and noi.get("spot") not in (None, spot):
+        noi["spot"] = spot
+    return {"shot": shot, "thanh_phan": parts, "noi_chon": noi, "hanh_dong": [], "may": {},
+            "_p": {"by": "code", "draft": True, "from": from_scene_id}}
+
+
+def _shift_no(v, after_no: int):
+    n = v if isinstance(v, int) and not isinstance(v, bool) else (int(v.strip()) if isinstance(v, str) and v.strip().isdigit() else None)
+    if n is None or n <= after_no:
+        return v
+    return n + 1 if isinstance(v, int) else str(n + 1)
+
+
+def shift_shot(data: Dict, old_no: int, after_no: int) -> bool:
+    """Đổi số shot trong BYĐ khi shot_no dời (chèn shot sau shot_no `after_no` của cùng cảnh): `byd.shot` (chỉ khi đúng là số cũ — số khác
+    = người / Đạo diễn ghi khác, giữ) và mọi số > after_no trong `ngoai_le[].pham_vi` (lock_exceptions so pham_vi với byd.shot)."""
+    byd = data.get("byd") if isinstance(data, dict) else None
+    if not isinstance(byd, dict):
+        return False
+    new = dict(byd)                                    # bản mới: bảng cũ (của `data` trước khi dời) giữ nguyên để so
+    if byd.get("shot") == old_no and not isinstance(byd.get("shot"), bool):
+        new["shot"] = old_no + 1
+    if isinstance(byd.get("ngoai_le"), list):
+        new["ngoai_le"] = [dict(n, pham_vi=[_shift_no(x, after_no) for x in n["pham_vi"]])
+                           if isinstance(n, dict) and isinstance(n.get("pham_vi"), list) else n for n in byd["ngoai_le"]]
+    if new == byd:
+        return False
+    data["byd"] = new
+    return True
+
+
+def named_things(data: Dict) -> List[str]:
+    """Tên các thứ BYĐ của shot nhắc (`vat[].vat` + `thanh_phan[].vat`) — M2.4 G1: đạo cụ cảnh trước chỉ mang khi có tên ở đây / chữ shot."""
+    byd = data.get("byd") if isinstance(data, dict) else None
+    if not isinstance(byd, dict):
+        return []
+    out = [str(c.get("vat")) for c in vat_items(byd) if isinstance(c, dict) and c.get("vat")]
+    out += [str(c.get("vat")) for c in byd.get("thanh_phan") or [] if isinstance(c, dict) and c.get("vat")]
+    return out

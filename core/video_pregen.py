@@ -5,7 +5,8 @@ check(conn, scene_id, plan) -> [{ma, muc: "do" | "vang", ly_do}] — "do" = khô
 đoán), "vang" = gửi + ghi chẩn đoán. Thiếu dữ liệu để kiểm (ảnh duyệt không có, tệp không đọc được, video không đo được) → ĐỎ có lý do,
 không coi là đạt (CHUAN_XAY_DUNG luật 1). Riêng "chưa có BYĐ" → VÀNG (BYĐ chưa bắt buộc ở mọi dự án).
 
-Mã (ma): khung_dau (1) · khung_cuoi (2) · thoi_luong (3) · tham_chieu (4) · chuyen_dong (5) · van_tay (6) · byd (chưa có BYĐ).
+Mã (ma): khung_dau (1) · khung_cuoi (2) · thoi_luong (3) · tham_chieu (4) · chuyen_dong (5) · van_tay (6) · byd (chưa có BYĐ) ·
+byd_draft (BYĐ nháp của shot chèn, M2.4).
 
 `plan` = cái runner SẮP gửi (plan_of dựng từ args / kwargs thật của provider.submit + gói `core/sent_package.build` dựng y như lúc gửi):
 {job_id, project_id, data_dir, start_frame, prompt, duration, model, with_audio, subjects, image_references, reference_video,
@@ -500,6 +501,12 @@ def _check_motion(conn, scene_id: int, plan: Dict, out: List[Dict]) -> None:
         if byd is None:
             missing.append(tag.rstrip(": ") or "shot")
             continue
+        if shot_intent.is_draft(byd):                  # M2.4 (insert_inherit): shot chèn — BYĐ chép nháp, chưa duyệt; chưa kiểm được nhịp / máy
+            src = conn.execute("SELECT idx FROM scenes WHERE id=?", (byd["_p"].get("from"),)).fetchone()
+            out.append(_issue("byd_draft", VANG, f"{tag}BYĐ nháp" + (f" từ shot {src['idx']}" if src else "")
+                              + " (shot chèn) — duyệt / điền hành động + máy ở Bước 3"))
+            if not byd.get("may") and not byd.get("hanh_dong"):
+                continue                               # chưa điền gì: chưa kiểm được nhịp / máy (nói ở câu trên); điền rồi → kiểm như thường
         may = byd.get("may") if isinstance(byd.get("may"), dict) else {}
         if may.get("chuyen_dong") in (None, ""):
             out.append(_issue("chuyen_dong", DO, f"{tag}BYĐ thiếu chuyển động máy (may.chuyen_dong: một trong "
