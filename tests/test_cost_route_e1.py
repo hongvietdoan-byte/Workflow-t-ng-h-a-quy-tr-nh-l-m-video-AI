@@ -536,16 +536,18 @@ def _ff():
 
 
 def _ramp(path, seconds, size):
-    """A clip whose brightness rises 20 per second: the first frame of a cut says where in the task clip the cut started."""
+    """A clip whose brightness rises 20 per second: the first frame of a cut says where in the task clip the cut started.
+    C-PORT4: starts at Y=16 (the bottom of limited range), not 0 — some ffmpeg builds (Windows) clamp a re-encoded Y below 16 and others
+    (Linux 6.1) keep 0, so a 0 s cut read 0.8 on one and 0.0 on the other; from 16 both read 0.0."""
     subprocess.run([_ff(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"color=c=black:s={size}:d={seconds}:r=24",
-                    "-vf", "format=yuv420p,geq=lum='min(255,T*20)':cb=128:cr=128", "-pix_fmt", "yuv420p", path], check=True)
+                    "-vf", "format=yuv420p,geq=lum='min(255,16+T*20)':cb=128:cr=128", "-pix_fmt", "yuv420p", path], check=True)
 
 
 def _start_second(path):
     w, h = ffmpeg_studio.probe_size(path)                 # the Y plane as written by geq (no range conversion)
     out = subprocess.run([_ff(), "-v", "error", "-i", path, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "yuv420p", "-"],
                          capture_output=True).stdout[:w * h]
-    return sum(out) / len(out) / 20.0
+    return (sum(out) / len(out) - 16) / 20.0
 
 
 class _Clips:
@@ -726,8 +728,8 @@ class UpgradeReviewFixTests(UpgradeCutsTheDraftPartTests):
         f = self.final()
         self.poll()
         lead = self.p.job(f)
-        # the person's cut (0 s), not the automatic 1 s — a re-encoded cut keeps Y >= 16 (limited range), so 0 s reads 16/20 = 0.8
-        self.assertAlmostEqual(_start_second(lead["result_path"]), 0.8, delta=0.1)
+        # the person's cut (0 s), not the automatic 1 s (the ramp starts at Y=16, see _ramp: no clamp difference between ffmpeg builds)
+        self.assertAlmostEqual(_start_second(lead["result_path"]), 0.0, delta=0.1)
         self.assertAlmostEqual(ffmpeg_studio.probe_duration(lead["result_path"]), 2.0, delta=0.15)
         for sid, start, sec in ((self.sids[1], 2.0, 3.0), (self.sids[2], 5.0, 3.0)):
             row = self.p.conn.execute("SELECT * FROM jobs WHERE scene_id=? AND quality_tier='final'", (sid,)).fetchone()

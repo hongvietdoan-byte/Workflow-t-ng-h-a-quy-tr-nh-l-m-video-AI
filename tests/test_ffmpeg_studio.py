@@ -1,3 +1,4 @@
+import importlib.util
 import os
 import unittest
 from unittest import mock
@@ -51,6 +52,8 @@ class FFmpegStudioTests(unittest.TestCase):
         self.assertIn("adelay=16000:all=1", " ".join(graph))
         self.assertIn("atrim=0:35.5", " ".join(graph))         # trimmed to what is left of the film
 
+    @unittest.skipIf(importlib.util.find_spec("librosa") is None,
+                     "C-PORT4: cần librosa (bắt nhịp nhạc) — máy chính có, không nằm trong requirements.txt; máy Linux/cloud thường thiếu")
     def test_the_frame_punches_in_on_the_beats_of_the_music(self):
         """07/10 Khủng Long Đỏ (người dùng): the camera zooms in a little and shakes on the song's beats — real librosa + ffmpeg run."""
         import subprocess
