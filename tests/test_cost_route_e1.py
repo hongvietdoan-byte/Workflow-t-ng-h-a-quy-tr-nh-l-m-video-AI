@@ -3,6 +3,7 @@
 Cờ two_tier_quality BẬT: shot dễ → Seedance 2.0 720p (dựng phóng 1080p bằng ffmpeg); khó / chưa rõ → nháp Seedance 2.5 480p → nâng 1080p
 từ nháp. #24: bản cao không nâng được từ nháp bị tự gửi lại (720p, nội dung khác) và clip nhóm ghi đè clip nháp của shot đi theo —
 cả hai bị chặn ở đây. Không gọi dịch vụ tốn tiền (nhà cung cấp là Mock / bị thay)."""
+from tests._flags import pin_off
 import json
 import os
 import shutil
@@ -341,6 +342,10 @@ class MixedGroupPriceTests(Base):
 
 
 class TransientDraftReadTests(Base):
+    def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_a_failed_expiry_read_keeps_the_final_queued_and_does_not_lock_the_upgrade(self):
         with ON:
             self.approved_draft()
@@ -578,6 +583,7 @@ class UpgradeCutsTheDraftPartTests(Base):
     N = 3
 
     def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         super().setUp()
         self.clips = _Clips(8)
         self.vr = VideoRunner(self.p, self.clips.prov, self.data)
@@ -680,6 +686,7 @@ class UpgradeLoneTrimmedDraftTests(Base):
     """#24 shot 05: a lone draft cut at 1,833–4,833 s of its 5 s clip; the final must be that very part, the ledger 5 s."""
 
     def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         super().setUp()
         self.clips = _Clips(5)
         self.vr = VideoRunner(self.p, self.clips.prov, self.data)
@@ -717,6 +724,10 @@ class UpgradeLoneTrimmedDraftTests(Base):
 @unittest.skipUnless(_ff(), "ffmpeg missing")
 class UpgradeReviewFixTests(UpgradeCutsTheDraftPartTests):
     """Kế thừa dựng nháp nhóm 3 shot (1–4 s, 4–6 s, 6–8 s) — chỉ chạy các test mới dưới đây (các test cha chạy ở lớp cha)."""
+    def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
 
     def _videos(self):
         return os.path.join(self.data, str(self.pid), "videos")
