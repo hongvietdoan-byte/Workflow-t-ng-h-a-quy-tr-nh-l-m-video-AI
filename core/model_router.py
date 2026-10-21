@@ -525,10 +525,9 @@ def needs_first_frame(conn, project_id: int, data: Dict, chosen=None) -> Optiona
     data = data or {}
     if data.get("start_from_prev_clip"):
         return "nối từ khung cuối clip shot trước (start_from_prev_clip)"
-    byd = data.get("byd") if isinstance(data.get("byd"), dict) else {}
-    khung = byd.get("khung") if isinstance(byd.get("khung"), dict) else {}
-    moc = khung.get("moc_nen") if isinstance(khung.get("moc_nen"), dict) else {}
-    if moc.get("y_do") == "trong_khung":
+    from . import shot_intent
+    y_do, _, _ = shot_intent.read(data, "khung.moc_nen.y_do")
+    if y_do == "trong_khung":
         return "BYĐ khai mốc nền phải trong khung (khung.moc_nen.y_do = trong_khung)"
     from . import character_forms
     forms = character_forms.for_shot(conn, project_id, data, chosen)

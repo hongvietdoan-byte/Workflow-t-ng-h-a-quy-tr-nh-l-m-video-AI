@@ -123,8 +123,9 @@ def _check_fingerprint(conn, scene_id: int, plan: Dict, data: Dict, out: List[Di
 
 
 def _check_byd(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> None:
-    byd = data.get("byd")
-    if not isinstance(byd, dict):
+    from . import shot_intent
+    byd = shot_intent.byd_of(data)
+    if byd is None:
         out.append(_issue("byd", VANG, "chưa có BYĐ — chưa kiểm được thành phần / máy của ảnh theo ý đồ shot"))
         return
     p = byd.get("_p") if isinstance(byd.get("_p"), dict) else {}
