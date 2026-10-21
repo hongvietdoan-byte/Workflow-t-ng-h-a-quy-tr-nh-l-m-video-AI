@@ -145,7 +145,10 @@ def test_main_ab_writes_json_and_exit_code(database, tmp_path, monkeypatch):  # 
 
 @needs_native_314
 def test_real_worker_two_code_trees_same_and_one_line_changed(database, tmp_path):  # noqa: F811
-    """Worker thật (máy chính): cây A = bản sao repo; cây B = bản sao đổi MỘT câu của prompt → DIFF; B y A → SAME."""
+    """Worker thật (native 3.14): cây A = bản sao repo; cây B = bản sao đổi MỘT dòng builder → DIFF; B y A → SAME.
+    C-GOLDEN6: bản trước đổi `meta_entry` (nhãn ảnh tham chiếu) — gói của fixture KHÔNG có ảnh tham chiếu nên dòng đó không chạy → 0 DIFF
+    (negative control đỏ ở máy chính, KHÔNG phải worker nạp sai cây). Nay đổi dòng `"call": call,` mà MỌI gói đều đi qua, và kiểm module
+    thật đã nạp (loaded_a / loaded_b) nằm trong đúng cây."""
     module, db, root, flags = database
     ignore = shutil.ignore_patterns("__pycache__", "data", ".git", "tests", "docs", "mockup")
     a, b = tmp_path / "code_a", tmp_path / "code_b"
@@ -153,10 +156,53 @@ def test_real_worker_two_code_trees_same_and_one_line_changed(database, tmp_path
     shutil.copytree(ROOT, b, ignore=ignore)
     kw = dict(db=db, ref_root=root, flags=flags, experimental=[], projects=[24])
     same = G.run_ab(code_a=a, code_b=b, **kw)
-    assert same["total"]["DIFF"] == 0 and same["total"]["ONE_FAIL"] == 0
+    assert same["total"]["SAME"] >= 1 and same["total"]["DIFF"] == 0 and same["total"]["ONE_FAIL"] == 0   # có ca BUILT thật để so
+    for row in same["rows"]:
+        if row["status"] == "SAME":
+            assert all(Path(p).is_relative_to(a) for p in row["loaded_a"].values()), row["loaded_a"]
+            assert all(Path(p).is_relative_to(b) for p in row["loaded_b"].values()), row["loaded_b"]
     sp = b / "core" / "sent_package.py"
     text = sp.read_text(encoding="utf-8")
-    assert 'out = {"label": r.get("label"),' in text                                  # chỗ đổi phải CÓ THẬT (không thì test vô nghĩa)
-    sp.write_text(text.replace('out = {"label": r.get("label"),', 'out = {"label_b": r.get("label"),', 1), encoding="utf-8")
+    assert text.count('"call": call,') == 1                                          # chỗ đổi phải CÓ THẬT và nằm trên đường mọi gói
+    sp.write_text(text.replace('"call": call,', '"call": str(call) + "_b",', 1), encoding="utf-8")
     changed = G.run_ab(code_a=a, code_b=b, **kw)
-    assert changed["total"]["DIFF"] + changed["total"]["ONE_FAIL"] >= 1 and changed["pass"] is False
+    assert changed["total"]["DIFF"] == same["total"]["SAME"] and changed["pass"] is False
+    assert {r["first_diff"]["path"] for r in changed["rows"] if r["status"] == "DIFF"} == {"call"}
+
+
+@needs_native_314
+def test_stale_bytecode_in_a_code_tree_is_never_used(database, tmp_path):  # noqa: F811
+    """C-GOLDEN6: .pyc cũ trong __pycache__ của cây code (cùng mtime + kích thước nguồn) không được dùng — worker dịch từ nguồn
+    (sys.pycache_prefix trong thư mục tạm)."""
+    import os
+    import py_compile
+    module, db, root, flags = database
+    ignore = shutil.ignore_patterns("__pycache__", "data", ".git", "tests", "docs", "mockup")
+    b = tmp_path / "code_b"
+    shutil.copytree(ROOT, b, ignore=ignore)
+    sp = b / "core" / "sent_package.py"
+    text = sp.read_text(encoding="utf-8")
+    st = sp.stat()
+    assert len('"call": call,') == len('"call": "zz",')
+    sp.write_text(text.replace('"call": call,', '"call": "zz",', 1), encoding="utf-8")       # CÙNG độ dài → .pyc cũ hợp lệ theo mtime+size
+    os.utime(sp, (st.st_atime, st.st_mtime))
+    py_compile.compile(str(sp), cfile=str(b / "core" / "__pycache__" / f"sent_package.{__import__('sys').implementation.cache_tag}.pyc"))
+    sp.write_text(text, encoding="utf-8")                                              # nguồn về như cũ, .pyc vẫn là bản đổi
+    os.utime(sp, (st.st_atime, st.st_mtime))
+    res = G.run_ab(code_a=b, code_b=b, **dict(db=db, ref_root=root, flags=flags, experimental=[], projects=[24]))
+    built = [r for r in res["rows"] if r["status"] == "SAME"]
+    assert built
+    raw = G.build_from_database(db=db, ref_root=root, job_id=built[0]["job_id"], flags=flags,
+                                envelope={"provider": "fake", "at": "2026-01-01T00:00:00", "external_id": "x"}, experimental=[],
+                                code_root=b)
+    assert raw["status"] == "BUILT" and json.loads(raw["raw"])["call"] != "zz"
+
+
+def test_loaded_outside_names_the_wrong_tree(tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    (a / "core").mkdir(parents=True)
+    (b / "core").mkdir(parents=True)
+    good = {"core.runner": str(a / "core" / "runner.py"), "core.sent_package": str(a / "core" / "sent_package.py")}
+    assert G.loaded_outside(good, a) == []
+    assert G.loaded_outside(dict(good, **{"core.sent_package": str(b / "core" / "sent_package.py")}), a) == ["core.sent_package"]
+    assert G.loaded_outside(None, a) == ["core.runner", "core.sent_package"]

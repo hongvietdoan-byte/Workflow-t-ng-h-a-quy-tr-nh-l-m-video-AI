@@ -175,6 +175,19 @@ def _tool_capture():
     return mod
 
 
+def loaded_outside(loaded, code_root):
+    """C-GOLDEN6: module core.runner / core.sent_package mà worker THẬT SỰ nạp phải nằm trong `code_root`; trả tên module nạp sai / thiếu."""
+    if not isinstance(loaded, dict):
+        return ["core.runner", "core.sent_package"]
+    root = Path(os.path.realpath(code_root))
+    out = []
+    for name in ("core.runner", "core.sent_package"):
+        path = loaded.get(name)
+        if not path or not Path(os.path.realpath(path)).is_relative_to(root):
+            out.append(name)
+    return out
+
+
 def _native_python():
     python = Path(sys.executable)
     if (sys.version_info[:2] != (3, 14) or sys.prefix != sys.base_prefix or not python.is_absolute()
@@ -245,10 +258,16 @@ def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None,
         if result.returncode or not response.is_file():
             return {"status": "INSUFFICIENT_INPUT", "reason": "worker không dựng được gói"}
         answer = classify_answer(json.loads(response.read_text(encoding="utf-8")))
+        if code_root is not None and (answer.get("status") == "BUILT" or "loaded" in answer):   # C-GOLDEN6: bằng chứng nạp ĐÚNG cây
+            outside = loaded_outside(answer.get("loaded"), request["code_root"])
+            if outside:
+                return {"status": "INSUFFICIENT_INPUT", "reason": "worker nạp core ngoài cây code được so: " + ", ".join(outside),
+                        "loaded": answer.get("loaded")}
         if answer.get("status") != "BUILT":
             return answer
         for name,expected in answer["files"].items():
-            if _signature(_plain(name,root), expected) != expected:
+            home = Path(request["code_root"]) if request.get("code_root") and name.startswith(("prompts/", "knowledge/")) else root
+            if _signature(_plain(name, home), expected) != expected:   # C-GOLDEN6: prompts/knowledge --ab đọc từ cây code
                 return {"status":"DATA_CHANGED", "reason":"nguồn đổi trong lúc capture/replay"}
         answer["manifest"] = {"version": 1, "db_sha256": digest, "files": answer.pop("files"),
                               "flags": flags, "public_config": public_config,
@@ -526,8 +545,15 @@ def _worker(request):
                 forbidden()
         sys.addaudithook(audit)
         with patch.object(os, "environ", fake_env), patch.object(socket, "socket", forbidden), patch.object(socket, "create_connection", forbidden), patch.object(subprocess, "Popen", forbidden), patch.object(builtins, "open", wrapped_open), patch.object(io, "open", wrapped_io), patch.object(os, "open", wrapped_os_open), patch.object(os, "stat", wrapped_stat), patch.object(os, "listdir", wrapped_listdir), patch.object(os, "scandir", wrapped_scandir):
+            stale = sorted(m for m, mod in list(sys.modules.items()) if (m == "core" or m.startswith("core."))
+                           and getattr(mod, "__file__", None)
+                           and not Path(os.path.realpath(mod.__file__)).is_relative_to(Path(os.path.realpath(ROOT))))
+            if stale:                                # C-GOLDEN6: `core` đã nạp trước TỪ CÂY KHÁC → không dựng, nói rõ
+                return {"status": "INSUFFICIENT_INPUT", "reason": "worker: core đã nạp trước khi chọn cây code",
+                        "diagnostic": [{"kind": "preloaded", "path": stale[0]}]}
             from core import runner, features, sent_package, seedance_refs, image_models
             from core.pipeline import Pipeline
+            loaded = {"core.runner": os.path.realpath(runner.__file__), "core.sent_package": os.path.realpath(sent_package.__file__)}
             cls = runner.ImageRunner if job["type"] == "image_gen" else runner.VideoRunner
             instance = cls(Pipeline(conn), ImageProvider() if job["type"] == "image_gen" else VideoProvider(), "data/projects")
             if job["type"] == "video_gen":         # C-GOLDEN2 (c): model như lúc gửi = jobs.model của job
@@ -575,8 +601,11 @@ def _worker(request):
                 if args is None:
                     return {"status": "INSUFFICIENT_INPUT", "reason": "shot thiếu input prepare"}
                 kwargs = instance._prepare_kwargs(job)
-                if kwargs.get("_wait") or kwargs.get("_hold") or kwargs.get("_from_sample"):
-                    return {"status": "INSUFFICIENT_INPUT", "reason": "prepare chờ hoặc cần draft lịch sử"}
+                # C-GOLDEN6: tách lý do để BOTH_FAIL gom được theo nhóm (trước chung "prepare chờ hoặc cần draft lịch sử")
+                for key, why in (("_from_sample", "cần draft lịch sử (bản cao nâng từ nháp)"), ("_wait", "prepare chờ (_wait)"),
+                                 ("_hold", "prepare giữ (_hold)")):
+                    if kwargs.get(key):
+                        return {"status": "INSUFFICIENT_INPUT", "reason": why, "loaded": loaded}
                 kwargs = instance._finish_kwargs(job, kwargs)
                 raw, warnings = instance._build_package(job, args, kwargs, {k:v for k,v in kwargs.items() if not k.startswith('_')}, request["envelope"]["external_id"])
                 if changed:
@@ -584,7 +613,7 @@ def _worker(request):
                 if not raw or warnings or denied:
                     return {"status": "INSUFFICIENT_INPUT", "reason": "dependency thiếu hoặc sandbox chặn", "diagnostic": denied or [{"kind": "dependency", "path": "<unavailable>"}]}
                 _tool_capture()._safe(json.loads(raw))
-                return {"status": "BUILT", "raw": raw, "files": files, "registry":registry_used}
+                return {"status": "BUILT", "raw": raw, "files": files, "registry":registry_used, "loaded": loaded}
 
 
 # ---- C-GOLDEN5 (sổ v31-ep-golden-ab-acceptance-2026-10-21): so A/B HAI cây code trên CÙNG snapshot + CÙNG cờ ------------------------
@@ -717,7 +746,8 @@ def run_ab(*, db, ref_root, flags, experimental, code_a, code_b, projects, publi
             except (ValueError, subprocess.TimeoutExpired) as e:
                 res[side] = {"status": "INSUFFICIENT_INPUT", "reason": str(e)[:200]}
         rows.append({k: job[k] for k in ("job_id", "project_id", "scene_id", "type", "state")} | compare_ab(res["a"], res["b"])
-                    | {"history_a": _history(job["sent_package_raw"], res["a"]), "history_b": _history(job["sent_package_raw"], res["b"])})
+                    | {"history_a": _history(job["sent_package_raw"], res["a"]), "history_b": _history(job["sent_package_raw"], res["b"])}
+                    | {"loaded_a": res["a"].get("loaded"), "loaded_b": res["b"].get("loaded")})   # C-GOLDEN6: module thật đã nạp mỗi bên
     projects_out = {}
     for pid in sorted({r["project_id"] for r in rows}):
         sel = [r for r in rows if r["project_id"] == pid]
@@ -808,6 +838,7 @@ if __name__ == "__main__" and len(sys.argv) == 2 and not sys.argv[1].startswith(
         if request.get("code_root"):              # C-GOLDEN5 --ab: `core` của cây code đang so (main / M2), công cụ vẫn của cây này
             ROOT = Path(request["code_root"]).resolve()
         sys.path.insert(0, str(ROOT))
+        sys.pycache_prefix = str(Path.cwd() / "_pyc")   # C-GOLDEN6: KHÔNG đọc .pyc trong cây code (cũ / của cây khác) — luôn dịch từ nguồn
         answer = _worker(request)
     except DataChanged:
         answer = {"status":"DATA_CHANGED", "reason":"input thay đổi trong lúc worker đọc"}
