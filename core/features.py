@@ -539,7 +539,11 @@ FEATURES: Dict[str, Dict] = {
         "label": "Ảnh khung cuối cho shot có end_state (vẽ thêm 1 ảnh, gửi clip khung đầu + cuối)",
         "verified": False,
         "trainee": True,       # 08/10 người dùng: học việc — chạy + ghi quyết định, so với người, không tác động (docs/KE_HOACH_HOC_VIEC_2026-10-08.md)
-        "why": "🎓 Học việc từ 08/10 (KIEM_22: kết luận T): chạy bóng, ghi trainee_log để so với người, không đổi phim; bật thật chỉ khi đủ chuẩn và bạn duyệt. K1/K2 (kế hoạch tổng K-a): tốn thêm 1 ảnh mỗi shot đổi trạng thái; chưa thử thật Kling end_frame với khung vẽ từ ảnh đầu",
+        "costs": True,         # M7.4 (A2 / B5): BẬT thật = vẽ thêm 1 ảnh khung cuối mỗi shot đổi trạng thái (tiền ảnh) — không bật hàng loạt
+        "why": "Có chế độ 🎓 học việc (08/10, KIEM_22 kết luận T: chạy bóng, ghi trainee_log, không đổi phim) VÀ chế độ BẬT thật ở 🧪 "
+               "(vẽ thật ảnh khung cuối, gửi clip khung đầu + cuối) — máy đang ở chế độ nào xem dòng nguồn ở trên. "
+               "Tốn thêm 1 ảnh mỗi shot đổi trạng thái (K1/K2 kế hoạch K-a). #31: end_frame_missing 9 lần; thông điệp 'ném keo' sai 28 lần "
+               "(P33-A11, sửa ở cloud/v31-m29). Chưa thử thật Kling end_frame với khung vẽ từ ảnh đầu",
     },
     "ui_v2": {
         "label": "Giao diện v2 kiểu “AI product”: nền tối aurora, thẻ kính, nút gradient + glow, thanh bước viên thuốc, pill trạng thái, chữ gradient (lớp thiết kế dashboard/design/, chạy trên cùng các màn hiện có)",
@@ -868,8 +872,9 @@ FEATURES: Dict[str, Dict] = {
                "khác mặt đất S8; S18 địch đã gục vẫn xả súng; S19 nói 'vừa hạ gục Xúc Tu Đỏ' không có shot. Chưa chạy thật (ước ~0,1 USD #31)",
     },
     "two_tier_quality": {
-        "label": "Video 2 bậc chất lượng: MỌI shot gen NHÁP Seedance 2.5 480p trước (gen lại ≤ 2), người duyệt rồi 'Gen bản cao' "
-                 "(Seedance 2.5 nâng từ nháp, model khác gửi lại ở bậc cao; gen lại ≤ 1); gen thẳng chỉ khi người chọn (13/10). Bỏ qua 'Thử rẻ'",
+        "label": "Video 2 bậc chất lượng: shot PHỨC TẠP gen NHÁP Seedance 2.5 480p trước (gen lại ≤ 2), người duyệt rồi 'Gen bản cao' "
+                 "(Seedance 2.5 nâng từ nháp, model khác gửi lại ở bậc cao; gen lại ≤ 1); shot DỄ đi thẳng 720p (15/10, đường 'Tự động'), "
+                 "người chọn 'Nháp trước' / 'Cao luôn' từng shot được. Bỏ qua 'Thử rẻ'. Nghiệm thu: tools/two_tier_acceptance.py (±5 % + chất lượng)",
         "verified": False,
         "why": "N1 (người dùng chốt 08/10, docs/THIET_KE_2_BAC_CHAT_LUONG_VA_NHAC_2026-10-08.md mục 5a): bản cuối draft_task 1080p "
                "chưa chạy thật lần nào (≈ 2,1 USD / 4 s ước tính) — phải chạy thật 1 lần (hỏi giá trước) rồi mới bật",

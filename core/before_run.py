@@ -17,6 +17,7 @@ WHERE_KHO = "📚 Kho → mở vật → hồ sơ chuẩn"
 PAID_FLAGS: Dict[str, Dict] = {
     "change_review": {"stage": "change_review", "unit": "thay đổi shot, không trần (mỗi thay đổi một lời gọi Claude)"},
     "director_rewrite": {"stage": "director_rewrite", "images": 1, "unit": "lần gen lại có ghi chú / lỗi QC (Claude viết lại prompt)"},
+    "end_frames": {"text": "BẬT thật = vẽ thêm 1 ảnh khung cuối mỗi shot đổi trạng thái (giá ảnh như ảnh khung đầu); học việc = 0 USD"},
     "two_tier_quality": {"text": "video nháp 480p rồi bản cao — giá từng clip xem ở ước tính Bước 4; bản cuối chưa chạy thật lần nào"},
     "stage_camera": {"text": "tự nó không thêm lời gọi tốn tiền (render Blender 0 USD) nhưng đổi nền 3D gửi model ảnh — ảnh vẽ trên nền "
                              "này vẫn tính tiền như thường; máy sân khấu do stage_auto lập thì tốn Claude (xem dòng stage_auto)"},
@@ -81,6 +82,10 @@ def _cost_items(conn) -> List[Dict]:
         else:
             money = spec["text"]
         out.append(_item("vang", f"`{name}` — {label}: {money}", WHERE_FLAGS))
+    for k, note in features.unmet_all().items():     # M7.4 B2: cờ bật / 🔒 khóa mà KHÔNG tác dụng (dialogue_take cần lip_sync) — nói ra
+        out.append(_item("vang", ("🔒 " if features.locked(k) else "") + note
+                         + (" — khóa lip_sync chờ 1 shot cận chạy thật (quyết định lip-sync-lock-after-real-run)" if "lip_sync" in note else ""),
+                         WHERE_FLAGS))
     others = [k for k in features.on_unverified() if k not in PAID_FLAGS]
     if others:
         out.append(_item("info", f"{len(others)} cờ chưa thử thật khác đang bật: " + ", ".join(others[:12])

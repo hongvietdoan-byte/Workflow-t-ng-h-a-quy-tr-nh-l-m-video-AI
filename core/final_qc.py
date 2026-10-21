@@ -30,6 +30,37 @@ FREEZE_NOISE = 0.003       # freezedetect n= : khác biệt khung nhỏ hơn m�
 END_FADE_S = 1.5           # đen / đứng hình chạm hết phim trong khoảng cuối này = mờ dần kết phim (như silent_spans), không báo
 
 
+BLACK_FREEZE_CODES = ("black_frame", "freeze_frame", "black_freeze_unmeasured")
+
+
+def _full_path(data_dir: str, project_id: int) -> str:
+    return os.path.join(data_dir, str(project_id), "final_qc_full.json")
+
+
+def _save_full(data_dir: str, project_id: int, final_id, issues: List[Dict]) -> None:
+    """M7.4 B7: kết quả đen / đứng hình của lần kiểm ĐỌC VIDEO gần nhất, theo id bản dựng (bản dựng mới → không còn khớp). Lỗi ghi → bỏ qua."""
+    import datetime
+    path = _full_path(data_dir, project_id)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            json.dump({"final_id": final_id, "issues": issues,
+                       "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")}, f, ensure_ascii=False)
+        os.replace(path + ".tmp", path)
+    except OSError:
+        pass
+
+
+def last_full(data_dir: str, project_id: int, final_id) -> Optional[List[Dict]]:
+    """Mục đen / đứng hình của lần kiểm đọc video gần nhất CHO bản dựng `final_id`; None = chưa đo bản dựng này."""
+    try:
+        with open(_full_path(data_dir, project_id), encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return list(data.get("issues") or []) if data.get("final_id") == final_id else None
+
+
 def _issue(code: str, level: str, msg: str, at: Optional[float] = None) -> Dict:
     return {"code": code, "level": level, "msg": msg, "at": None if at is None else round(float(at), 2)}
 
@@ -343,6 +374,11 @@ def run(p: Pipeline, project_id: int, data_dir: str, frames: bool = True, layers
     blocks = sum(i["level"] == "block" for i in issues)
     warns = sum(i["level"] == "warn" for i in issues)
     res = {"ok": blocks == 0, "blocks": blocks, "warns": warns, "issues": issues}
+    if frames and os.path.exists(fin["path"]):
+        from . import features
+        fid = fin["id"] if hasattr(fin, "keys") and "id" in fin.keys() else None
+        if fid is not None and features.on(BLACK_FREEZE_FLAG):   # M7.4 B7: cổng phát hành (đọc nhanh) đọc lại lần đo ĐỌC VIDEO này
+            _save_full(data_dir, project_id, fid, [i for i in issues if i["code"] in BLACK_FREEZE_CODES])
     from . import qc_evidence                    # V3.1 M4.1 (cờ qc_evidence, TẮT): ghi bằng chứng song song — không đổi kết quả, không ném lỗi
     if qc_evidence.enabled():
         art = f"final:{project_id}:{fin['id'] if 'id' in fin.keys() else '?'}" if hasattr(fin, "keys") else f"final:{project_id}"
