@@ -55,3 +55,6 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
 - C-GOLDEN7 (cloud-C) XONG @ cloud/v31-golden5 621661a8 — CHƯA gộp (công cụ golden gộp cùng tích hợp M2 khi CX21-GOLDEN7 ĐẠT). Máy chính: không cần làm gì
   tới khi codex báo kết quả; ĐẠT → phiên điều phối gộp cloud/v31-m2-tichhop + m24 + golden5 (+ m73, m210, golden4 dựng trên nền đó) một lần.
 - cloud-E và cloud-D không nhận việc > 1 giờ (lịch tự vận hành có thể đã dừng) → đã báo người dùng mở lại làn. C-M83-TOOL vẫn để cloud-E.
+- 22/10 03:31 — codex HỎI CX21-GOLDEN7 (BLOCKED: catalog live máy chính 146 cờ, main mới có `director_rewrite_respect_lock`, `stage_view_ui`, `crew_registry`,
+  `continuity_validator` sau đợt gộp c66d6c2d). cloud-claude TRẢ LỜI theo sổ `v31-ep-golden-ab-acceptance-2026-10-21` + `v31-ep-g1-golden-compat-production-baseline-2026-10-21`:
+  cờ mới V3.1 = experimental TẮT, catalog hợp A∪B 159, experimental 32. **Máy chính:** sau `git pull` các cờ này có trong 🧪 ở trạng thái TẮT — đúng, không bật.
