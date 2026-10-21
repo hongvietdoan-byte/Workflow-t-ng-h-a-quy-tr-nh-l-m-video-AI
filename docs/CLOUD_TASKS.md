@@ -677,3 +677,20 @@ core/stage_crew.py, core/stage_director.py. Nội dung: luồng người dùng t
 duyệt, các PHƯƠNG ÁN thiết kế (2–3 phương án, ưu/nhược, khuyến nghị), test plan, cờ, rollback, câu hỏi cần người dùng chốt. Không code. Nhánh
 cloud/v31-stage-plan. XONG hộp thư — phiên chính đưa người dùng duyệt.
 ```
+
+#### C-M2-TICHHOP (cloud-C — ưu tiên 0 sau C-M24; gom M2 + sửa 4 VỪA rà chéo)
+```
+Tạo nhánh tích hợp cloud/v31-m2-tichhop từ origin/main mới nhất, merge lần lượt: cloud/v31-m21, cloud/v31-m25, cloud/v31-m25b, cloud/v31-m26, cloud/v31-m29,
+cloud/v31-dp9, cloud/v31-dp10, cloud/v31-golden2 (và cloud/v31-m24 khi xong). Xung đột core/features.py / devsys/areas.json / tests/golden/package_inputs.json:
+`python tools/merge_union.py <file>` (bản đã sửa CX21-FIX trên main). Rồi sửa 4 lỗi VỪA của 2 lượt rà chéo (mỗi lỗi test ĐỎ→XANH, commit riêng):
+- M21-1 (docs/RA_CLOUD_RA_M21_M25_2026-10-21.md): BYĐ sai kiểu (chuỗi/danh sách) trước làm hỏng job, nay bị bỏ qua IM LẶNG kể cả khi cờ TẮT → cờ TẮT phải giữ
+  hành vi cũ y hệt; cờ BẬT → ghi REVIEW có mã lỗi, không im lặng.
+- M25-1: cờ field_guard BẬT, diag.record commit giữa transaction của nơi gọi (commit nửa lô) → ghi diag bằng kết nối riêng / sau commit của caller, không
+  commit hộ caller; test lô 2 bản ghi lỗi giữa chừng → không lưu nửa lô. Kèm điểm phụ: kịch bản "người sửa motion rồi AI đè" phải ra diag (C-M25B đã có
+  khóa — kiểm lại trên nhánh tích hợp).
+- VỪA-1 (docs/RA_CLOUD_RA_DP9_M29_2026-10-21.md): core/image_pregen._check_byd đọc data.get("byd") thẳng → đọc qua hàm BYĐ chung của M2.1.
+- VỪA-2: BYĐ nháp dùng _p.draft / _p.from (DP9/M2.4 × M2.1) → thống nhất một nguồn provenance theo M2.1.
+Chạy CẢ BỘ test trên nhánh tích hợp (Linux; golden 3.14 skip là đúng) — báo số qua/đỏ, đỏ có sẵn trên main tách riêng. Push nhánh, báo cáo
+docs/RA_CLOUD_M2_TICHHOP_2026-10-2x.md (danh sách merge + sha, xung đột đã hợp, 4 lỗi đã sửa + test). XONG hộp thư. Phiên chính sẽ nghiệm thu golden #24/#27
+trên nhánh này ở máy chính rồi gộp main một lần.
+```
