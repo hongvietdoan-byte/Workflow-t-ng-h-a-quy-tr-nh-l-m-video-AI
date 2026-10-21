@@ -399,6 +399,14 @@ FEATURES: Dict[str, Dict] = {
         "verified": False,
         "why": "Người dùng không thấy gói thật sẽ gửi trước khi trả tiền và không thấy kết quả QC shadow theo shot. Chưa chạy trên dữ liệu thật",
     },
+    "continuity_state": {
+        "label": "continuity_state SHADOW (V3.1 M3.4): trạng thái mong đợi giữa 2 shot liền từ BYĐ (vật cầm giữ / mất / đổi tay, tư thế cuối → "
+                 "đầu, nơi chốn, hướng trên khung) + quan sát của QC shadow (M4.2 / M4.3) + đồ thị phụ thuộc → <dự án>/world/continuity_state.json; "
+                 "mức REVIEW, KHÔNG chặn, 0 USD",
+        "verified": False,
+        "why": "#31 G51 (súng biến mất), G52 (logic chuỗi 39 clip), G1 (đạo cụ sang cảnh khác) chỉ người thấy. Chạy sau QC logic chuỗi. "
+               "Chưa chạy trên dữ liệu thật",
+    },
     "final_black_freeze": {
         "label": "Kiểm bản dựng cuối: đoạn màn hình ĐEN (≥ 0,5 s) và ĐỨNG HÌNH (> 1,5 s) bằng ffmpeg blackdetect / freezedetect — chỉ "
                  "cảnh báo (cần xem), không chặn xuất (V3.1 M4.4)",
