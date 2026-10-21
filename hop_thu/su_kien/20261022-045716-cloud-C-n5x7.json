@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T04:57:16.906945+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-FIX3-THAP",
+  "branch": "cloud/v31-fix3-thap",
+  "commit": "d2c14404",
+  "report": "docs/RA_CLOUD_FIX3_THAP_2026-10-22.md",
+  "text": "1 cờ change_review_motion tắt bỏ cả motion 'failed' → mục ĐỎ rà lỗi tự đóng (test qua process_pending thật, note giữ lời lỗi gốc); 2 test rewrite() thật hai nguồn Claude (A out_of_credit tạm ngừng, B vẫn gọi) + saved_view paused/saved — đỏ trên code trước M71-FIX; 3 job nhóm scene_id NULL tính theo shot thành viên (phòng thủ: schema NOT NULL). Rà 0 CAO/VỪA. Suite 7091 passed, đỏ chỉ golden 3.14 nền. HẠN MỨC: không đọc được."
+}
