@@ -542,6 +542,12 @@ class _Runner:
                 sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}   # '_' keys: the runner's notes, never sent
                 if self._paused_now(job):                # M1.3 (G36, cờ pause_before_submit): ⏸ pressed while this job was prepared
                     break                                # (plain, retry or model-switched try alike) — stays queued, said, nothing sent
+                from . import gen_auth                   # V3.1 M6.3 SHADOW (cờ gen_auth_shadow): ghi cho phép / sẽ chặn + lý do
+                if gen_auth.enabled():                   # vào sổ jsonl — KHÔNG chặn, không ghi CSDL, không đổi gói
+                    gen_auth.shadow(self.p.conn, job, model=self._sent_model(args, sent_kwargs) or job["model"],
+                                    upgrade=bool(kwargs.get("_from_sample")), data_dir=self.data_dir,
+                                    group=[g["id"] for g in (getattr(self, "_sends_group", lambda j: None)(job) or [])
+                                           if g["id"] != job["scene_id"]])
                 from . import poll_claim
                 try:
                     if kwargs.get("_from_sample"):       # N1: a final made from its approved Seedance 2.5 draft (draft_task)
@@ -596,6 +602,14 @@ class _Runner:
             slots -= 1
             submitted += 1
         return submitted
+
+    def _sent_model(self, args, sent_kwargs) -> Optional[str]:
+        """M6.3: model THẬT của lượt gửi (video: đối số thứ 5 của provider.submit — jobs.model chỉ ghi SAU khi gửi; ảnh: kwargs)."""
+        if sent_kwargs.get("model"):
+            return sent_kwargs["model"]
+        if self.job_type == "video_gen" and args is not None and len(args) > 4:
+            return args[4]
+        return None
 
     def _paused_now(self, job) -> bool:
         """M1.3 (G36, cờ pause_before_submit): the project is paused NOW (read again right before provider.submit) — the job keeps its

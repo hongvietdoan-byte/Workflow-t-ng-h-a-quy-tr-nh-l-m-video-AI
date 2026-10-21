@@ -91,6 +91,13 @@ FEATURES: Dict[str, Dict] = {
                                      "hàng đợi có lý do, không gửi (0 USD)", "verified": False,
         "why": "V3.1 M1.3 (G36, #31): tạm dừng 03:42:31 vẫn gửi job 1075 lúc 03:42:41 — runner chỉ kiểm paused đầu lượt quét; "
                "thử bằng provider giả, chưa chạy thật (C3-2: bật sau nghiệm thu)"},
+    "gen_auth_shadow": {"label": "Cổng quyền gen (M6.3) chạy BÓNG: ngay trước khi gửi job ảnh / video của shot, ghi cho phép / "
+                                          "sẽ chặn + lý do (trần 3 ảnh / 2 video mỗi shot tính chung, ngân sách tự sửa 40 % lượt đầu, 3 shot "
+                                          "liền cùng lỗi, gửi chưa rõ, trùng job, đổi dữ liệu khóa, model ngoài phạm vi) vào "
+                                          "<dự án>/crew/gen_auth_shadow.jsonl — KHÔNG chặn, không đổi gói gửi (0 USD)", "verified": False,
+        "why": "V3.1 M6.3 Gói M6-A (sổ v31-ep-m6-pack-a-approved-2026-10-21, chính sách v31-m6-generation-limits-policy-b-2026-10-21, "
+               "ngân sách v31-ep-m6-self-repair-budget-40-2026-10-21): đo quyết định của cổng trên dự án thật trước khi cho chặn (M6-B chưa "
+               "duyệt); thử bằng provider giả, chưa chạy thật"},
     "send_estimate": {"label": "Ước tính giá ĐÚNG gói sẽ gửi: video nháp theo bậc nháp (480p) + video tham chiếu, bản cao 1080p nâng từ nháp "
                                "tính cả video vào, Claude qua claude_cli = 0 USD API (chỉ đổi con số báo giá, không chặn gì — 0 USD)",
         "verified": False,
