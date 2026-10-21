@@ -17,13 +17,14 @@
   - chỉ đọc `data/`, có fingerprint;
   - cấm ghi / mạng / tiến trình;
   - Python 3.14 native.
-  - Worker nhận `request["code_root"]` và import `core` của CÂY ĐÓ. Phần của công cụ (`_safe` của `golden_capture`) nạp theo đường dẫn từ cây chứa công cụ, nên không phụ thuộc main có công cụ hay không.
+  - Worker nhận `request["code_root"]` và import `core` của CÂY ĐÓ; `prompts/` + `knowledge/` cũng đọc từ cây đó (`data/` vẫn từ ref-root). Phần của công cụ (`_safe` của `golden_capture`) nạp theo đường dẫn từ cây chứa công cụ, nên không phụ thuộc main có công cụ hay không.
 - So từng ca:
   - **SAME**;
   - **DIFF**: in trường lệch đầu tiên (đường JSON, vị trí ký tự, độ dài), **không in prompt**;
   - **ONE_FAIL**: một bên không dựng được — tính như DIFF;
   - **BOTH_FAIL**: ghi riêng.
-- **ĐẠT = 0 DIFF + 0 ONE_FAIL.** Mã thoát: 0 = đạt, 1 = chưa đạt.
+- **ĐẠT = 0 DIFF + 0 ONE_FAIL + mỗi dự án có ≥ 1 ca SAME** (toàn BOTH_FAIL = không so được gì → CHƯA ĐẠT). Mã thoát: 0 = đạt, 1 = chưa đạt, 2 = đầu vào / môi trường sai (không chạy).
+- Kiểm trước khi chạy (`_preflight`, lỗi → `ABError`, mã 2): mỗi cây code có `core/runner.py` + `sent_package.py` + `features.py`; file cờ có MỌI cờ trong `FEATURES` (đọc AST) của CẢ HAI cây; worker thật cần native Python 3.14; tệp `--output` chưa tồn tại.
 - Cột tham khảo `history_a` / `history_b`: so với gói đã gửi lúc đó (`SAME_AS_SENT` / `SAME_EXCEPT_FINGERPRINT` / `DIFF_FROM_SENT` / `NO_SENT` / `NOT_BUILT`).
 - Kết quả: JSON (`--output`, chế độ tạo mới, không ghi đè) + bảng theo dự án in ra màn hình.
 
@@ -38,6 +39,17 @@
   - `main_ab` ghi JSON + mã thoát.
 - `test_real_worker_two_code_trees_same_and_one_line_changed` (`needs_native_314`): worker thật với 2 bản sao repo, giống → không lệch, đổi một dòng `sent_package` → lệch.
 - Test golden cũ (`test_golden2` / `test_golden4` / `test_golden_db_replay`): xanh / skip đúng như trước.
+
+## Rà soát (quy tắc 7) — đã sửa
+- CAO: lỗi môi trường / cây code / cờ bị gộp thành INSUFFICIENT_INPUT → toàn BOTH_FAIL → ĐẠT giả. Sửa: `_preflight` + `_native_python()` dừng cả lượt (mã 2); ĐẠT cần ≥ 1 SAME mỗi dự án.
+- CAO: worker đọc `prompts/` / `knowledge/` từ ref-root → A và B dùng chung prompt. Sửa: đọc từ `code_root`.
+- CAO (test): bản đổi một dòng trong test máy chính thay chuỗi không tồn tại (no-op). Sửa: đổi khóa `"label"` có thật ở `sent_package.py` + assert chỗ đổi tồn tại.
+- VỪA: `_job_ref_paths` import `_safe` từ cây code đang so → dùng `_tool_capture()._safe`.
+- VỪA: catalog cờ chỉ kiểm theo cây công cụ → kiểm theo `FEATURES` của từng cây.
+- VỪA: `main_ab` thiếu UTF-8 stdout, kiểm tệp kết quả sau khi chạy, thiếu `baseline_flags` → KeyError. Sửa cả ba (mã 2).
+- THẤP: bắt `subprocess.TimeoutExpired` từng job (→ bên đó lỗi); mỗi dòng ghi `state` của job; bảng ghi chú envelope giả.
+- Ghi chú (không sửa): `head_sha` trong manifest lấy từ cây công cụ, `run_ab` không dùng.
+- Test thêm: `test_preflight_stops_the_run_instead_of_folding_into_both_fail`; `test_run_ab_…` (toàn BOTH_FAIL → CHƯA ĐẠT); `test_main_ab_…` (tệp có sẵn / thiếu `baseline_flags` → mã 2). Đỏ trên code trước sửa: 3 đỏ → xanh.
 
 ## Lệnh chạy mẫu trên MÁY CHÍNH (Windows, Python 3.14 native)
 ```powershell
@@ -54,7 +66,7 @@ py tools\golden_db_replay.py --ab --db ..\golden_ab\snap.sqlite --ref-root D:\AI
    --flags ..\golden_ab\flags.json --code-a ..\wt-main --code-b ..\wt-m2 --project 24 --project 27 --output ..\golden_ab\ab_24_27.json
 ```
 - `experimental_flags` = các cờ mới của V3.1 có trong nhánh M2: `byd_v2_levels`, `field_guard`, `insert_inherit`, `stage_props_byd`, `sent_package_relpath`… — liệt kê đủ theo `core/features.py` của `wt-m2`.
-- `baseline_flags` phải có MỌI cờ của catalog cây công cụ, dạng boolean (fail-closed như C-GOLDEN2).
+- `baseline_flags` + `experimental_flags` phải phủ MỌI cờ trong catalog của CẢ `wt-main` và `wt-m2` (thiếu → mã 2), dạng boolean (fail-closed như C-GOLDEN2).
 
 ## Giới hạn
 - Worker thật chưa chạy trên cloud (Python 3.13): nghiệm thu thật #24/#27 phải làm ở máy chính.

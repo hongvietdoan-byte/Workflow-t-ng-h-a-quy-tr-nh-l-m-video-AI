@@ -24,8 +24,7 @@ class SandboxDenied(ValueError):
 
 def _job_ref_paths(package, root):
     """Chỉ cấp quyền FILE ảnh được gói job tham chiếu, không cấp cây thư mục."""
-    from tools.golden_capture import _safe
-    _safe(package)
+    _tool_capture()._safe(package)       # C-GOLDEN5: của CÂY CÔNG CỤ (trong worker --ab, `tools.*` là của cây code đang so)
     paths = set()
     for ref in package.get("refs", []):
         if not isinstance(ref, dict) or not isinstance(ref.get("path"), str):
@@ -176,6 +175,14 @@ def _tool_capture():
     return mod
 
 
+def _native_python():
+    python = Path(sys.executable)
+    if (sys.version_info[:2] != (3, 14) or sys.prefix != sys.base_prefix or not python.is_absolute()
+            or python.name.lower() not in {"python.exe", "python", "python3", "python3.14"}):
+        raise ValueError("INSUFFICIENT_INPUT: cần native Python3.14")
+    return python
+
+
 def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None, public_config=None, experimental=None, code_root=None):
     """Không nhận baseline/prompt/args. Manifest None = chụp dependency, có manifest = replay.
     experimental (C-GOLDEN2 b): None = định nghĩa cũ (mọi cờ verified False TẮT); list = `flags` là baseline cờ sản xuất, chỉ các cờ này phải TẮT.
@@ -229,10 +236,7 @@ def build_from_database(*, db, ref_root, job_id, flags, envelope, manifest=None,
                 raise ValueError("INSUFFICIENT_INPUT: cây code không có core/runner.py + core/sent_package.py")
             request["code_root"] = str(code)
         (box / "request.json").write_text(json.dumps(request), encoding="utf-8")
-        python = Path(sys.executable)
-        if (sys.version_info[:2] != (3, 14) or sys.prefix != sys.base_prefix or not python.is_absolute()
-                or python.name.lower() not in {"python.exe", "python", "python3", "python3.14"}):
-            raise ValueError("INSUFFICIENT_INPUT: cần native Python3.14")
+        python = _native_python()
         env = {"SYSTEMROOT": "C:/Windows", "HOME": scratch, "USERPROFILE": scratch, "TEMP": scratch,
                "TMP": scratch, "PYTHONUTF8": "1", "PYTHONDONTWRITEBYTECODE": "1"}
         result = subprocess.run([str(python), "-I", "-B", str(Path(__file__).resolve()), str(box / "request.json")],
@@ -374,7 +378,8 @@ def _worker(request):
                 return local
             except OSError:
                 pass
-            target = _plain(name, source)
+            # C-GOLDEN5 --ab: prompts/ + knowledge/ là CỦA CÂY CODE đang so (M2 sửa prompt phải thấy); data/ vẫn từ nguồn (ref-root)
+            target = _plain(name, ROOT if request.get("code_root") and name.startswith(("prompts/", "knowledge/")) else source)
             expected_files = request["expected_files"]
             if expected_files is not None and name not in expected_files:
                 block("manifest", path)
@@ -646,6 +651,31 @@ def _history(job_raw, res):
     return "SAME_EXCEPT_FINGERPRINT" if sent_rest is not None and sent_rest == built_rest else "DIFF_FROM_SENT"
 
 
+class ABError(ValueError):
+    """Đầu vào / môi trường của lượt so A/B sai (cây code, cờ, Python) — dừng cả lượt, mã thoát 2."""
+
+
+def _catalog(code_root):
+    import ast
+    tree = ast.parse((Path(code_root) / "core" / "features.py").read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == "FEATURES":
+            return set(ast.literal_eval(node.value))
+    raise ABError(f"không đọc được FEATURES của {code_root}")
+
+
+def _preflight(flags, code_roots):
+    """Mỗi cây code: có core/runner.py + sent_package.py + features.py; file cờ có MỌI cờ của catalog cây đó (fail-closed — thiếu thì
+    cờ lặng lẽ = False ở worker)."""
+    for code in code_roots:
+        code = Path(code)
+        if not all((code / "core" / f).is_file() for f in ("runner.py", "sent_package.py", "features.py")):
+            raise ABError(f"{code}: không phải cây code (thiếu core/runner.py / sent_package.py / features.py)")
+        missing = sorted(_catalog(code) - set(flags))
+        if missing:
+            raise ABError(f"file cờ thiếu {len(missing)} cờ của {code.name}: " + ", ".join(missing[:12]))
+
+
 def ab_jobs(db, projects):
     """Mỗi shot có job ảnh / video của các dự án: job MỚI NHẤT mỗi loại; envelope từ gói đã gửi, không có → envelope giả cố định
     (cùng cho A và B — so code, không so lịch sử)."""
@@ -653,7 +683,7 @@ def ab_jobs(db, projects):
     with closing(sqlite3.connect("file:" + str(Path(db).resolve()).replace("\\", "/") + "?mode=ro", uri=True)) as conn:
         conn.row_factory = sqlite3.Row
         for pid in projects:
-            for r in conn.execute("SELECT j.id, j.project_id, j.scene_id, j.type, j.sent_package, j.created_at FROM jobs j WHERE j.project_id=? "
+            for r in conn.execute("SELECT j.id, j.project_id, j.scene_id, j.type, j.state, j.sent_package, j.created_at FROM jobs j WHERE j.project_id=? "
                                   "AND j.type IN ('image_gen','video_gen') AND j.id = (SELECT MAX(k.id) FROM jobs k WHERE k.scene_id=j.scene_id "
                                   "AND k.type=j.type) ORDER BY j.scene_id, j.type", (int(pid),)):
                 env = None
@@ -665,7 +695,7 @@ def ab_jobs(db, projects):
                     pass
                 if env is None or env["provider"] not in {"fake", "clipai", "deepix"}:
                     env = {"provider": "fake", "at": "2026-01-01T00:00:00", "external_id": "golden-ab"}
-                out.append({"job_id": r["id"], "project_id": r["project_id"], "scene_id": r["scene_id"], "type": r["type"],
+                out.append({"job_id": r["id"], "project_id": r["project_id"], "scene_id": r["scene_id"], "type": r["type"], "state": r["state"],
                             "envelope": env, "sent_package_raw": r["sent_package"]})
     return out
 
@@ -673,7 +703,10 @@ def ab_jobs(db, projects):
 def run_ab(*, db, ref_root, flags, experimental, code_a, code_b, projects, public_config=None, builder=None):
     """Dựng gói từng ca bằng cây A và cây B (worker cách ly mỗi bên) → bảng SAME / DIFF / ONE_FAIL / BOTH_FAIL. ĐẠT = 0 DIFF + 0 ONE_FAIL
     (BOTH_FAIL ghi riêng, không tính lệch). `builder` để test (mặc định build_from_database)."""
-    builder = builder or build_from_database
+    if builder is None:
+        builder = build_from_database
+        _native_python()                    # môi trường sai → dừng cả lượt (ABError), không thành BOTH_FAIL giả
+    _preflight(flags, (code_a, code_b))
     rows = []
     for job in ab_jobs(db, projects):
         res = {}
@@ -681,16 +714,19 @@ def run_ab(*, db, ref_root, flags, experimental, code_a, code_b, projects, publi
             try:
                 res[side] = builder(db=db, ref_root=ref_root, job_id=job["job_id"], flags=flags, envelope=job["envelope"],
                                     public_config=public_config, experimental=experimental, code_root=code)
-            except ValueError as e:
+            except (ValueError, subprocess.TimeoutExpired) as e:
                 res[side] = {"status": "INSUFFICIENT_INPUT", "reason": str(e)[:200]}
-        rows.append({k: job[k] for k in ("job_id", "project_id", "scene_id", "type")} | compare_ab(res["a"], res["b"])
+        rows.append({k: job[k] for k in ("job_id", "project_id", "scene_id", "type", "state")} | compare_ab(res["a"], res["b"])
                     | {"history_a": _history(job["sent_package_raw"], res["a"]), "history_b": _history(job["sent_package_raw"], res["b"])})
     projects_out = {}
     for pid in sorted({r["project_id"] for r in rows}):
         sel = [r for r in rows if r["project_id"] == pid]
         projects_out[str(pid)] = {s: sum(r["status"] == s for r in sel) for s in AB_STATUSES} | {"cases": len(sel)}
     total = {s: sum(r["status"] == s for r in rows) for s in AB_STATUSES}
-    return {"rows": rows, "projects": projects_out, "total": total, "pass": bool(rows) and total["DIFF"] == 0 and total["ONE_FAIL"] == 0,
+    # ĐẠT = 0 DIFF + 0 ONE_FAIL VÀ mỗi dự án có ≥ 1 ca SAME (toàn BOTH_FAIL = không so được gì → không phải đạt)
+    no_same = sorted(p for p, c in projects_out.items() if c["SAME"] == 0)
+    return {"rows": rows, "projects": projects_out, "total": total, "no_same_projects": no_same,
+            "pass": bool(rows) and total["DIFF"] == 0 and total["ONE_FAIL"] == 0 and not no_same,
             "code_a": str(code_a), "code_b": str(code_b)}
 
 
@@ -698,7 +734,9 @@ def ab_table(result):
     lines = ["| Dự án | Ca | SAME | DIFF | ONE_FAIL | BOTH_FAIL |", "|---|---|---|---|---|---|"]
     for pid, c in result["projects"].items():
         lines.append(f"| #{pid} | {c['cases']} | {c['SAME']} | {c['DIFF']} | {c['ONE_FAIL']} | {c['BOTH_FAIL']} |")
-    lines.append(f"\nKẾT LUẬN: {'ĐẠT' if result['pass'] else 'CHƯA ĐẠT'} (ĐẠT = 0 DIFF + 0 ONE_FAIL)")
+    lines.append(f"\nKẾT LUẬN: {'ĐẠT' if result['pass'] else 'CHƯA ĐẠT'} (ĐẠT = 0 DIFF + 0 ONE_FAIL + mỗi dự án ≥ 1 SAME)"
+                 + (f" — dự án không có ca SAME nào: {', '.join('#' + p for p in result['no_same_projects'])}" if result.get("no_same_projects") else "")
+                 + "\nGhi chú: job chưa từng gửi dùng envelope giả (provider fake) cho CẢ hai bên — nhánh Kho chủ thể ClipAI không được so ở các ca đó.")
     for r in result["rows"]:
         if r["status"] in ("DIFF", "ONE_FAIL"):
             lines.append(f"- #{r['project_id']} shot {r['scene_id']} {r['type']} job {r['job_id']}: {r['status']} "
@@ -714,11 +752,23 @@ def main_ab(argv):
         ap.add_argument("--" + name, required=True, type=Path)
     ap.add_argument("--project", type=int, action="append", required=True)
     a = ap.parse_args(argv)
-    spec = json.loads(a.flags.read_text(encoding="utf-8-sig"))
-    experimental = list(spec.get("experimental_flags") or [])
-    flags = dict(spec["baseline_flags"]) | {n: False for n in experimental}
-    result = run_ab(db=a.db, ref_root=a.ref_root, flags=flags, experimental=experimental, code_a=a.code_a, code_b=a.code_b,
-                    projects=a.project, public_config=spec.get("public_config") or {})
+    for stream in (sys.stdout, sys.stderr):    # console cp1252: bảng chữ Việt
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+    if a.output.exists():
+        ap.exit(2, f"{a.output} đã có — chọn tên tệp kết quả mới (không ghi đè)\n")
+    try:
+        spec = json.loads(a.flags.read_text(encoding="utf-8-sig"))
+        if not isinstance(spec.get("baseline_flags"), dict):
+            raise ABError("file cờ thiếu baseline_flags")
+        experimental = list(spec.get("experimental_flags") or [])
+        flags = dict(spec["baseline_flags"]) | {n: False for n in experimental}
+        result = run_ab(db=a.db, ref_root=a.ref_root, flags=flags, experimental=experimental, code_a=a.code_a, code_b=a.code_b,
+                        projects=a.project, public_config=spec.get("public_config") or {})
+    except (ABError, OSError, ValueError) as e:
+        ap.exit(2, f"Không chạy được so A/B (đầu vào / môi trường): {str(e)[:300]}\n")
     with a.output.open("x", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     print(ab_table(result))

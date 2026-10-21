@@ -39,12 +39,16 @@ def test_compare_ab_statuses():
     assert G.compare_ab(fail, fail)["status"] == "BOTH_FAIL"
 
 
-def _tree(tmp, name, prompt_line):
-    """Cây code tổng hợp: chỉ cần core/runner.py + core/sent_package.py để qua kiểm; dòng prompt khác nhau giữa hai cây."""
+def _tree(tmp, name, prompt_line, catalog=None):
+    """Cây code tổng hợp: core/runner.py + sent_package.py + features.py (catalog = cờ của cây, mặc định catalog thật) để qua kiểm;
+    dòng prompt khác nhau giữa hai cây."""
+    from core.features import FEATURES
     root = tmp / name
     (root / "core").mkdir(parents=True)
     (root / "core" / "runner.py").write_text(f"PROMPT = {prompt_line!r}\n", encoding="utf-8")
     (root / "core" / "sent_package.py").write_text("", encoding="utf-8")
+    cat = {n: {} for n in (FEATURES if catalog is None else catalog)}
+    (root / "core" / "features.py").write_text(f"FEATURES: dict = {cat!r}\n", encoding="utf-8")
     return root
 
 
@@ -72,9 +76,28 @@ def test_run_ab_same_diff_and_one_fail(database, tmp_path):  # noqa: F811
     res = G.run_ab(code_a=a, code_b=same, builder=_fake_builder(broken={"m2_same"}), **kw)
     assert res["total"]["ONE_FAIL"] == 2 and res["pass"] is False                  # một bên lỗi = lệch
     res = G.run_ab(code_a=a, code_b=same, builder=_fake_builder(broken={"main", "m2_same"}), **kw)
-    assert res["total"]["BOTH_FAIL"] == 2 and res["total"]["DIFF"] == 0 and res["pass"] is True
-    assert res["rows"][0]["history_a"] == "NOT_BUILT"
-    assert "ĐẠT" in G.ab_table(res) and "#24" in G.ab_table(res)
+    # toàn BOTH_FAIL = không so được gì → CHƯA ĐẠT (rà C-GOLDEN5: trước đây thành ĐẠT giả)
+    assert res["total"]["BOTH_FAIL"] == 2 and res["total"]["DIFF"] == 0 and res["pass"] is False
+    assert res["no_same_projects"] == ["24"] and res["rows"][0]["history_a"] == "NOT_BUILT"
+    assert "CHƯA ĐẠT" in G.ab_table(res) and "#24" in G.ab_table(res)
+    assert {r["state"] for r in res["rows"]} <= {"approved", "succeeded", "queued", "pending_review", "sent", "failed", "running"}
+
+
+def test_preflight_stops_the_run_instead_of_folding_into_both_fail(database, tmp_path):  # noqa: F811
+    """Rà C-GOLDEN5: lỗi đầu vào / môi trường (cờ thiếu so với catalog CỦA TỪNG CÂY, cây code sai, Python không phải 3.14) dừng cả
+    lượt bằng ABError — không thành BOTH_FAIL rồi 'ĐẠT'."""
+    module, db, root, flags = database
+    kw = dict(db=db, ref_root=root, flags=flags, experimental=[], projects=[24])
+    a = _tree(tmp_path, "main", "x")
+    b = _tree(tmp_path, "m2", "x", catalog=list(flags) + ["co_moi_v31"])          # cây B có cờ mà file cờ không có
+    with pytest.raises(G.ABError, match="co_moi_v31"):
+        G.run_ab(code_a=a, code_b=b, builder=_fake_builder(), **kw)
+    with pytest.raises(G.ABError, match="cây code"):
+        G.run_ab(code_a=a, code_b=tmp_path / "khong_co", builder=_fake_builder(), **kw)
+    import sys
+    if sys.version_info[:2] != (3, 14):
+        with pytest.raises(ValueError, match="3.14"):                              # builder mặc định = worker thật
+            G.run_ab(code_a=a, code_b=a, **kw)
 
 
 def test_ab_jobs_latest_per_shot_and_type_with_a_fixed_envelope(database):  # noqa: F811
@@ -109,6 +132,15 @@ def test_main_ab_writes_json_and_exit_code(database, tmp_path, monkeypatch):  # 
     code = G.main_ab(["--ab", "--db", str(db), "--ref-root", str(root), "--flags", str(spec), "--code-a", str(a), "--code-b", str(b),
                       "--project", "24", "--output", str(out)])
     assert code == 1 and json.loads(out.read_text(encoding="utf-8"))["total"]["DIFF"] == 2
+    args = ["--ab", "--db", str(db), "--ref-root", str(root), "--code-a", str(a), "--code-b", str(b), "--project", "24"]
+    with pytest.raises(SystemExit) as e:                                              # tệp kết quả đã có → dừng TRƯỚC khi chạy
+        G.main_ab(args + ["--flags", str(spec), "--output", str(out)])
+    assert e.value.code == 2
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps({"experimental_flags": []}), encoding="utf-8")
+    with pytest.raises(SystemExit) as e:                                              # thiếu baseline_flags → mã 2, không KeyError
+        G.main_ab(args + ["--flags", str(bad), "--output", str(tmp_path / "ab2.json")])
+    assert e.value.code == 2 and not (tmp_path / "ab2.json").exists()
 
 
 @needs_native_314
@@ -123,6 +155,8 @@ def test_real_worker_two_code_trees_same_and_one_line_changed(database, tmp_path
     same = G.run_ab(code_a=a, code_b=b, **kw)
     assert same["total"]["DIFF"] == 0 and same["total"]["ONE_FAIL"] == 0
     sp = b / "core" / "sent_package.py"
-    sp.write_text(sp.read_text(encoding="utf-8").replace('"version"', '"version_b"', 1), encoding="utf-8")
+    text = sp.read_text(encoding="utf-8")
+    assert 'out = {"label": r.get("label"),' in text                                  # chỗ đổi phải CÓ THẬT (không thì test vô nghĩa)
+    sp.write_text(text.replace('out = {"label": r.get("label"),', 'out = {"label_b": r.get("label"),', 1), encoding="utf-8")
     changed = G.run_ab(code_a=a, code_b=b, **kw)
     assert changed["total"]["DIFF"] + changed["total"]["ONE_FAIL"] >= 1 and changed["pass"] is False
