@@ -1138,7 +1138,7 @@ def _deliver_button(p: Pipeline, pid: int, chosen, durations, label: str = "📦
               else " · ≈ 0.00 USD (ước tính)")
     from core import release_gate                        # V3.1 M5.2 (cờ release_gate, TẮT): cổng phát hành — CHỈ cảnh báo, không chặn nút
     if release_gate.enabled():
-        gate = release_gate.check(p, pid, C.DATA)
+        gate = release_gate.check(p, pid, C.DATA, cache=st.session_state.setdefault("release_gate_cache", {}))   # rerun không đo lại
         (st.success if gate["ok"] else st.warning)(release_gate.summary(gate))
     if st.button(label, type="primary", key=f"deliver_{pid}", disabled=not chosen, width="stretch"):
         _t0 = time.monotonic()

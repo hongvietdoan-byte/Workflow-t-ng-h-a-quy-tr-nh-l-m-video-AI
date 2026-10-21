@@ -5,6 +5,7 @@ shadow: CHỈ CẢNH BÁO ở màn Bản giao, KHÔNG chặn nút xuất (chặn
 Mỗi mục: "dat" / "chua_dat" / "khong_ro" (đo không được — nói lý do; KHÔNG BAO GIỜ coi là đạt)."""
 import json
 import os
+import time
 from typing import Dict, List, Optional
 
 FLAG = "release_gate"
@@ -12,6 +13,7 @@ DAT, CHUA, KHONG_RO = "dat", "chua_dat", "khong_ro"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OPEN_SEVERE = ("cao",)
 CLOSED = ("VERIFIED", "WONT_FIX")
+CACHE_TTL_S = 120          # C-FIX-THAP-3: thiết lập đổi mà chưa dựng lại vẫn hiện "⚠ cũ" trong ≤ 2 phút (khóa cache chỉ theo bản dựng)
 
 
 def enabled() -> bool:
@@ -36,9 +38,38 @@ def _g1_shots_approved(p, pid: int, data_dir: str) -> Dict:
     return _item("G1", "Mọi shot trong bản dựng đã duyệt", DAT, f"{len(clips)}/{len(clips)} shot đã duyệt", tong=len(clips))
 
 
-def _g2_final_qc(p, pid: int, data_dir: str) -> Dict:
+def _render_mtime(p, pid: int) -> Optional[float]:
+    from . import lineage
+    fin = lineage.latest_output(p.conn, pid, "final")
+    try:
+        return os.path.getmtime(fin["path"]) if fin is not None else None
+    except (OSError, TypeError, KeyError, IndexError):
+        return None
+
+
+def _cached(cache: Optional[Dict], name: str, p, pid: int, fn):
+    """C-FIX-THAP-3: kết quả đo đắt (final_qc.run / delivery.status) nhớ theo BẢN DỰNG — (id bản final mới nhất, id output mới nhất của dự án
+    = lớp phụ đề / card / kích thước, mtime tệp final) + hạn CACHE_TTL_S. cache None = đo mỗi lần như cũ."""
+    if cache is None:
+        return fn()
+    conn = p.conn
+    final = conn.execute("SELECT MAX(id) FROM outputs WHERE project_id=? AND kind='final'", (pid,)).fetchone()[0]
+    last = conn.execute("SELECT MAX(id) FROM outputs WHERE project_id=?", (pid,)).fetchone()[0]
+    key = (pid, name, final, last, _render_mtime(p, pid))
+    now = time.monotonic()
+    hit = cache.get(key)
+    if hit is not None and now - hit[0] <= CACHE_TTL_S:
+        return hit[1]
+    for k in [k for k in cache if isinstance(k, tuple) and k[:2] == (pid, name)]:
+        cache.pop(k, None)                             # bản cũ của chính phép đo này: không giữ mãi trong session
+    val = fn()
+    cache[key] = (now, val)
+    return val
+
+
+def _g2_final_qc(p, pid: int, data_dir: str, cache: Optional[Dict] = None) -> Dict:
     from . import final_qc
-    res = final_qc.run(p, pid, data_dir, frames=False)          # chỉ đọc số liệu dựng (không đọc video) — cổng chạy nhanh mỗi lần mở màn
+    res = _cached(cache, "final_qc", p, pid, lambda: final_qc.run(p, pid, data_dir, frames=False))          # chỉ đọc số liệu dựng (không đọc video) — cổng chạy nhanh mỗi lần mở màn
     codes = [i["code"] for i in res["issues"]]
     if "no_render" in codes:
         return _item("G2", "Kiểm bản dựng không có lỗi chặn", CHUA, "chưa có bản dựng")
@@ -50,9 +81,9 @@ def _g2_final_qc(p, pid: int, data_dir: str) -> Dict:
                  warns=res["warns"])
 
 
-def _g3_layers_current(p, pid: int, data_dir: str) -> Dict:
+def _g3_layers_current(p, pid: int, data_dir: str, cache: Optional[Dict] = None) -> Dict:
     from . import delivery
-    st = delivery.status(p, pid, data_dir)
+    st = _cached(cache, "delivery_status", p, pid, lambda: delivery.status(p, pid, data_dir))
     fin = st.get("final") or {}
     if fin.get("state") == "missing":
         return _item("G3", "Bản giao khớp nguồn (không lớp ⚠ cũ)", CHUA, "chưa có bản dựng")
@@ -125,10 +156,11 @@ def _g8_lineage(p, pid: int) -> Dict:
     return _item("G8", "Bản dựng có nguồn (lineage)", DAT, f"bản dựng ghi {len(man['timeline'])} clip nguồn")
 
 
-def check(p, project_id: int, data_dir: str, errors_path: Optional[str] = None) -> Dict:
-    """{"ok", "items": [8 mục], "dat", "chua_dat", "khong_ro"} — chỉ đọc. Một mục đo lỗi → KHÔNG RÕ có lý do (không coi là đạt)."""
-    steps = [("G1", lambda: _g1_shots_approved(p, project_id, data_dir)), ("G2", lambda: _g2_final_qc(p, project_id, data_dir)),
-             ("G3", lambda: _g3_layers_current(p, project_id, data_dir)), ("G4", lambda: _g4_cost(p, project_id)),
+def check(p, project_id: int, data_dir: str, errors_path: Optional[str] = None, cache: Optional[Dict] = None) -> Dict:
+    """{"ok", "items": [8 mục], "dat", "chua_dat", "khong_ro"} — chỉ đọc. Một mục đo lỗi → KHÔNG RÕ có lý do (không coi là đạt).
+    `cache` (dict sống qua các lần Streamlit rerun, vd session_state): G2 / G3 không đo lại khi bản dựng chưa đổi (_cached)."""
+    steps = [("G1", lambda: _g1_shots_approved(p, project_id, data_dir)), ("G2", lambda: _g2_final_qc(p, project_id, data_dir, cache)),
+             ("G3", lambda: _g3_layers_current(p, project_id, data_dir, cache)), ("G4", lambda: _g4_cost(p, project_id)),
              ("G5", lambda: _g5_no_unknown_send(p, project_id)), ("G6", lambda: _g6_severe_errors(project_id, errors_path)),
              ("G7", lambda: _g7_no_waiting_review(p, project_id)), ("G8", lambda: _g8_lineage(p, project_id))]
     items: List[Dict] = []
@@ -144,7 +176,10 @@ def check(p, project_id: int, data_dir: str, errors_path: Optional[str] = None) 
 def summary(res: Dict) -> str:
     """Câu cho màn Bản giao (shadow): ĐẠT / CHƯA ĐẠT + từng mục chưa đạt / không rõ. Chỉ cảnh báo — không chặn nút xuất."""
     mark = {DAT: "✅", CHUA: "❌", KHONG_RO: "❔"}
+    counts = f"đạt {res[DAT]} · chưa đo {res[KHONG_RO]} · chưa đạt {res[CHUA]}"
+    # C-FIX-THAP-3: chỉ THIẾU ĐO (G4 đối soát cần máy chính) không phải "CHƯA ĐẠT" — vẫn không phải ĐẠT (ok False)
     head = ("✅ Cổng phát hành: ĐẠT 8/8" if res["ok"] else
-            f"⚠ Cổng phát hành: CHƯA ĐẠT — {res[CHUA]} chưa đạt, {res[KHONG_RO]} chưa đo được (chỉ cảnh báo, vẫn xuất được)")
+            f"⚠ Cổng phát hành: CHƯA ĐẠT — {counts} (chỉ cảnh báo, vẫn xuất được)" if res[CHUA] else
+            f"❔ Cổng phát hành: CHƯA ĐO ĐỦ — {counts} (chỉ cảnh báo, vẫn xuất được)")
     lines = [f"- {mark[i['state']]} {i['id']} {i['label']}: {i['why']}" for i in res["items"] if i["state"] != DAT]
     return head + ("\n" + "\n".join(lines) if lines else "")

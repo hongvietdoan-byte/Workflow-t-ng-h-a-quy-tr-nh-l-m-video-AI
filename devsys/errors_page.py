@@ -47,4 +47,4 @@ def render(st=None, path=None):
                    'Mức độ': r.get('severity'), 'Commit sửa': r.get('fix_commit'),
                    'Bằng chứng chạy thật': str(r.get('real_run_evidence') or ''),
                    'Nguồn': r.get('source_document')} for r in selected],
-                 hide_index=True, use_container_width=True)
+                 hide_index=True, width="stretch")
