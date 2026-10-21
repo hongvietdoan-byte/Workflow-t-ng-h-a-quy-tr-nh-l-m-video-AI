@@ -75,3 +75,45 @@ py tools\golden_db_replay.py --ab --db ..\golden_ab\snap.sqlite --ref-root D:\AI
 ## Full suite (cloud, Python 3.13)
 - `-m "not slow" -n auto`: **7154 passed, 5 failed**, 43 skipped, 22 xfailed.
 - 5 đỏ đều đỏ y hệt trên nền `origin/cloud/v31-golden4` (đã chạy lại riêng 5 test trên worktree nền), không liên quan diff này (chỉ `tools/golden_db_replay.py` + `tests/test_golden5.py` + `devsys/areas.json` + báo cáo): `test_devsys_plan_map::test_real_plan_and_map_agree`, `test_cost_route_e1::…recut_by_hand…`, `test_end_popup_p24::…icons…`, `test_ffmpeg_studio::…punches_in…`, `test_sent_package::…unreadable_picture…` (chạy bằng root → đọc được tệp "không đọc được").
+
+## GOLDEN6 — negative control đỏ ở máy chính: tìm gốc + sửa (cloud-C, 21/10)
+
+Codex báo (`docs/RA_CX21_GOLDEN5_CODEX_2026-10-21.md`, nhánh `codex/v31-golden5`): sửa một dòng `sent_package.py` ở cây B mà vẫn có `DIFF + ONE_FAIL = 0`.
+
+**Tái hiện trên cloud bằng Python 3.14 native thật** (`uv python install 3.14`, Linux, `sys.prefix == base_prefix`, đã cài requirements). Test `test_real_worker_two_code_trees_same_and_one_line_changed` đỏ y như Codex báo.
+
+**Gốc: lỗi ở TEST, không phải worker nạp sai cây.**
+- Test đổi dòng `out = {"label": …}` trong `meta_entry` — nhãn ảnh tham chiếu. Gói của fixture không có ảnh tham chiếu nên dòng đó không bao giờ chạy, và hai bên vẫn giống nhau.
+- Thử đổi dòng `"call": call,` ở cây B (mọi gói đều đi qua dòng này) → **2/2 ca DIFF ở trường `call`**. Như vậy worker nạp đúng `core` của `--code-b`.
+
+**Đã sửa** (`tools/golden_db_replay.py`, `tests/test_golden5.py`):
+1. Negative control đổi dòng `"call": call,`. Test kiểm:
+   - đếm DIFF đúng bằng số ca SAME trước khi đổi;
+   - mọi DIFF nằm ở trường `call`;
+   - lần chạy "giống nhau" phải có ≥ 1 ca SAME, để toàn BOTH_FAIL không lọt qua như trước.
+2. **Bằng chứng nạp đúng cây ở mỗi ca.**
+   - Worker `--ab` trả `loaded` = đường dẫn thật của `core.runner` / `core.sent_package`.
+   - Công cụ kiểm `loaded_outside` (realpath + normcase) xem các module đó có nằm trong `--code-a` / `--code-b` không. Nạp sai cây → `INSUFFICIENT_INPUT` kèm tên module.
+   - Mỗi dòng kết quả A/B có `loaded_a` / `loaded_b`.
+   - Đường capture / replay thường KHÔNG mang `loaded`, để fixture không chứa đường dẫn tuyệt đối của máy chụp.
+3. **Không đọc `.pyc` trong cây code** (`sys.pycache_prefix` trỏ vào thư mục tạm, chỉ ở `--ab`). Đây là rủi ro THẬT:
+   - test `test_stale_bytecode_in_a_code_tree_is_never_used` dựng một `.pyc` cũ cùng mtime + kích thước nguồn;
+   - bỏ dòng sửa → test ĐỎ (gói ra theo `.pyc` cũ); có dòng sửa → xanh.
+4. Nếu `core` đã được nạp trước từ cây khác → worker từ chối và nói rõ (phòng thủ, vì `-I` không đưa thư mục script vào `sys.path`).
+5. Kiểm chữ ký `prompts/` + `knowledge/` cả trước lẫn sau worker đều dùng cây code đang so (`_home_of`). Đây là điểm Codex nêu ở dòng 62.
+6. **Tách lý do BOTH_FAIL.** Trước đây mọi trường hợp chung một câu "prepare chờ hoặc cần draft lịch sử"; nay tách thành:
+   - `cần draft lịch sử (bản cao nâng từ nháp)` (`_from_sample`);
+   - `prepare chờ (_wait)`;
+   - `prepare giữ (_hold)`.
+
+**31 BOTH_FAIL của lượt Codex:** cả 31 đều thuộc nhóm "prepare chờ hoặc cần draft lịch sử" — builder không dựng gói mới vì job cần task nháp lịch sử hoặc đang chờ / giữ.
+- Đây không phải lỗi của A hay B; A và B ra cùng lý do.
+- Cột lịch sử `NOT_BUILT 29` / `NO_SENT 6` chỉ để tham khảo: `NOT_BUILT` = công cụ không dựng được; `NO_SENT` = job chưa từng gửi, nên không có gói để so lịch sử.
+- Lượt chạy lại sẽ chia 31 ca theo 3 nhóm mới.
+
+**Test:**
+- Python 3.14 native Linux, 5 tệp golden: 165 xanh, 3 đỏ. Cả 3 đỏ đã có từ trước sửa và là ca chỉ đúng trên Windows: `test_unsafe_manifest_path_rejected[C:/outside]`, `test_actual_prepare_build_native[2]`, `test_capture_and_replay_without_sidecar`.
+- Negative control và test `.pyc` cũ: XANH.
+- Python 3.13: 73 xanh.
+
+**Codex chạy lại trên máy chính:** cùng lệnh `--ab` của C-GOLDEN5 với công cụ HEAD mới của `cloud/v31-golden5`; xác nhận negative control native xanh, và mọi dòng có `loaded_a` / `loaded_b` trỏ đúng worktree.
