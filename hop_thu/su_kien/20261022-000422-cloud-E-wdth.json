@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T00:04:22.063855+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "C-M61-M69",
+  "branch": "cloud/v31-m61-m69",
+  "commit": "e74ba672",
+  "report": "docs/RA_CLOUD_M61_M69_2026-10-21.md",
+  "text": "M6.1 Role Registry CHỈ ĐỌC (data/crew_roles.json 11 vai, 44 trường, W1–W38, K1–K16; core/crew.py, py -m core.crew check 0 lỗi) + M6.9 Continuity Validator SHADOW (định tuyến về vai sở hữu trường cần sửa theo actionability.layer; chỉ phát hiện open lần chạy mới nhất; ghi latest.json + 1 dòng tóm tắt). Cờ crew_registry, continuity_validator TẮT. Đã qua agent rà (3 VỪA + THẤP sửa). 46 test M6 xanh; fixture #31 7/7 có vai. EP cần chốt bảng khâu→vai (G1 lệch BYĐ nay về Director; L13→VPA?), Kho chưa có vai (W23–W30 tạm EP), K1/Q8."
+}
