@@ -1130,7 +1130,8 @@ class VideoRunner(_Runner):
                                                                   "(chưa có khung đầu, M2.8 phần đổi đường chưa làm)"}
                 pkg = json.dumps(body, ensure_ascii=False)
         from . import end_frames
-        if pkg and job["scene_id"] and end_frames.ref_route_on():       # M7.3: tách khỏi nhóm ref-only để mang khung cuối (cờ tắt: như cũ)
+        if pkg and end_frames.ref_route_on() and job["scene_id"]:       # M7.3: tách khỏi nhóm ref-only để mang khung cuối (cờ tắt: như cũ,
+            #                                                             không đọc job — golden replay dựng job thiếu scene_id)
             from . import seedance_refs
             reason = seedance_refs.end_split_reason(self.p.conn, job["scene_id"])
             if reason:
