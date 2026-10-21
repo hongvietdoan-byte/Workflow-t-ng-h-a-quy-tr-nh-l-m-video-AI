@@ -805,3 +805,24 @@ Test ĐỎ→XANH: worker đọc data/skills/x.json → có trong manifest; đ�
 tách cloud/v31-golden4 từ origin/cloud/v31-m2-tichhop (công cụ C-GOLDEN2 chỉ có ở đó). Báo cáo docs/RA_CLOUD_GOLDEN4_2026-10-2x.md kèm lệnh chạy lại.
 XONG hộp thư → codex chạy nghiệm thu lần 4 (CX21-GOLDEN4) trên cloud/v31-golden4.
 ```
+
+#### C-DEVSYS-MAPS (cloud-C nhánh phụ — ưu tiên 1; người dùng yêu cầu 21/10: "vẽ thêm 3 sơ đồ này vào AI dev sys để theo dõi cụ thể chi tiết sự thay đổi")
+```
+Ba sơ đồ 17/10 hiện là SVG vẽ TAY từ dữ liệu cứng: docs/so_do/gen_dashboard.py (SO_DO_DASHBOARD — màn → nút → khâu, tiện/lỏng/thiếu),
+docs/so_do/gen_hien_trang_khau.py (SO_DO_HIEN_TRANG_KHAU — khâu L1–L16 × kiểm trước tiền / kiểm sau / kết luận từ / lỗi · kế hoạch),
+docs/so_do/SO_DO_TRUONG_CAU_TRUC_2026-10.svg (luồng trường JSON BYĐ → khâu đọc → gói gửi → hồi quy). Làm thành trang AI Dev System 8502 SỐNG, như trang
+"🗺 Sơ đồ tiến độ" (devsys/app.py page_plan_map + devsys/plan_map.py — học cách vẽ SVG + màu theo dữ liệu):
+1. Dữ liệu tách khỏi code: devsys/pipeline_maps.json — mỗi ô (nút Dashboard / ô khâu / nút trường) có: nhãn, mô tả, khâu (L…), mã việc kế hoạch liên quan
+   (M4.7, M4.8, M2.1, A2a…), cờ liên quan, và "bằng chứng" máy kiểm được (file + tên hàm/nút phải tồn tại; cờ phải BẬT hiệu lực). Khởi tạo từ dữ liệu cứng
+   2 tệp gen_*.py + SVG trường cấu trúc (giữ đúng nội dung 17/10 làm MỐC).
+2. Màu TÍNH, không tô tay: xanh = bằng chứng có + cờ hiệu lực BẬT (devsys.stages effective / core.features.state) + việc kế hoạch ✅; vàng = có code nhưng cờ
+   TẮT / chỉ người / chỉ theo nút; đỏ = thiếu (không có nút / hàm / kiểm); tím = việc kế hoạch đang làm sửa ô này. Lỗi mở theo khâu từ devsys/errors.json.
+3. Theo dõi THAY ĐỔI: mỗi lần dựng ghi ảnh chụp trạng thái ô vào devsys/data/pipeline_maps_history.jsonl (thư mục data devsys, không vào git — như
+   user_answers); tab "Thay đổi" liệt kê ô đổi màu so với lần trước và so với MỐC 17/10: ngày, ô, màu cũ → mới, lý do (việc ✅ nào / cờ nào bật / commit nào
+   qua git log tệp bằng chứng). Có bộ lọc theo khâu.
+4. Trang mới "🧭 Sơ đồ dây chuyền" (4 tab: Làm phim qua Dashboard · Hiện trạng khâu · Trường cấu trúc · Thay đổi) + lệnh xuất SVG
+   `py -m devsys.pipeline_maps <thư mục>`. Không đọc data/ sản xuất ngoài trạng thái cờ (như stages); không ghi CSDL.
+Test ĐỎ→XANH: ô có bằng chứng + cờ bật → xanh; tắt cờ → vàng; xóa hàm bằng chứng → đỏ; đổi việc kế hoạch ⬜→✅ → lịch sử ghi 1 dòng thay đổi; mốc 17/10 dựng lại
+đủ số ô của 3 SVG cũ. Khai devsys/areas.json. Nhánh cloud/v31-devsys-maps. Báo cáo docs/RA_CLOUD_DEVSYS_MAPS_2026-10-2x.md kèm ảnh SVG xuất. XONG hộp thư —
+phiên chính kiểm trên 8502 máy chính (khởi động lại 8502) rồi gửi ảnh người dùng.
+```
