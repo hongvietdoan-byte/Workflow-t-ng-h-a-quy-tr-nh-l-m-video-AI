@@ -38,9 +38,52 @@ def needed(data: Dict, shot_mode: Optional[str], ignore_route: bool = False) -> 
     itself even when its clip goes out as a Seedance reference group — the plan is recorded, nothing is drawn."""
     if shot_mode != "per_shot" or data.get("continuous_with_next"):
         return False
-    if not ignore_route and route(data) == "seedance_ref":
+    if not ignore_route and route(data) == "seedance_ref" and not ref_route_on():
         return False                  # not drawn on its own for a reference-only Seedance clip (11/10: one drawn by hand — 🔁 vẽ lại — IS sent, as the last reference picture)
     return bool((data.get("end_state") or "").strip())
+
+
+# ---- V3.1 M7.3 (B4, sổ v31-ep-k3-seedance-ref-groups-with-end-frames-2026-10-21; cờ ref_end_frames, mặc định TẮT) -----------------
+# Tuyến ref-only (seedance_ref_groups) giữ khung cuối: shot cần khung cuối được vẽ như tuyến khung đầu + cuối và tách khỏi nhóm ref-only
+# (seedance_refs._groups) để gửi một mình — khung cuối đi như ảnh tham chiếu cuối có câu vai trò (adapter ClipAI). Model tuyến ref
+# không nhận khung cuối (data/provider_rules.json `last_frame`) → không tách, không vẽ, báo VÀNG (ref_unsupported_reason).
+REF_FLAG = "ref_end_frames"
+
+
+def ref_end_frames_on() -> bool:
+    return features.on(REF_FLAG)
+
+
+def ref_route_on() -> bool:
+    """Tuyến ref-only có khung cuối: cờ ref_end_frames + end_frames bật + model tuyến ref nhận khung cuối."""
+    if not ref_end_frames_on() or not enabled():
+        return False
+    from . import model_router
+    return model_router.ref_mode_takes_end_frame()
+
+
+def _ref_shot_wants_end(data: Dict, shot_mode: Optional[str]) -> bool:
+    return shot_mode == "per_shot" and not data.get("continuous_with_next") and route(data) == "seedance_ref" \
+        and bool((data.get("end_state") or "").strip())
+
+
+def own_clip_reason(data: Dict, shot_mode: Optional[str]) -> Optional[str]:
+    """Vì sao shot tuyến ref này phải gửi MỘT MÌNH (khung cuối không đi được trong clip nhóm nhiều shot), None = không cần."""
+    if not ref_route_on() or not _ref_shot_wants_end(data, shot_mode):
+        return None
+    return "cần khung cuối (end_state: " + (data.get("end_state") or "").strip()[:80] + ")"
+
+
+def ref_unsupported_reason(data: Dict, shot_mode: Optional[str]) -> Optional[str]:
+    """Cờ ref_end_frames + end_frames bật, shot tuyến ref cần khung cuối, nhưng model tuyến ref không nhận khung cuối → lý do (VÀNG,
+    REVIEW — không âm thầm bỏ), else None."""
+    if not ref_end_frames_on() or not enabled() or not _ref_shot_wants_end(data, shot_mode):
+        return None
+    from . import model_router
+    if model_router.ref_mode_takes_end_frame():
+        return None
+    return ("shot cần khung cuối (end_state) nhưng model tuyến Seedance tham chiếu không nhận khung cuối (data/provider_rules.json "
+            "last_frame) — clip gửi KHÔNG kèm khung cuối, cảnh kết thúc theo prompt; cân nhắc gửi tuyến khung đầu + cuối (Kling)")
 
 
 def _start_job(conn, scene_id: int):

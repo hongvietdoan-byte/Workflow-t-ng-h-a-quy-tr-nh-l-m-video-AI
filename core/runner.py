@@ -1129,6 +1129,16 @@ class VideoRunner(_Runner):
                 body["router"] = {"gui_mot_minh": True, "ly_do": f"tách khỏi nhóm ref-only vì cần khung đầu — {reason}; clip này VẪN ref-only "
                                                                   "(chưa có khung đầu, M2.8 phần đổi đường chưa làm)"}
                 pkg = json.dumps(body, ensure_ascii=False)
+        from . import end_frames
+        if pkg and job["scene_id"] and end_frames.ref_route_on():       # M7.3: tách khỏi nhóm ref-only để mang khung cuối (cờ tắt: như cũ)
+            from . import seedance_refs
+            reason = seedance_refs.end_split_reason(self.p.conn, job["scene_id"])
+            if reason:
+                body = json.loads(pkg)
+                body["router_khung_cuoi"] = {"gui_mot_minh": True, "ly_do": f"tách khỏi nhóm ref-only để gửi được khung cuối — {reason}; "
+                                                                           "khung cuối đi như ảnh tham chiếu cuối có câu vai trò "
+                                                                           "(không có khung cuối trong gói = chưa vẽ / bị bỏ, xem ⚙ Chẩn đoán)"}
+                pkg = json.dumps(body, ensure_ascii=False)
         fingerprint = self.__dict__.get("_pregen_fingerprints", {}).get(job["id"])
         if pkg and task_id is not None and fingerprint:
             body = json.loads(pkg)
@@ -1410,6 +1420,10 @@ class VideoRunner(_Runner):
                     out["reference_audio"] = [track]
                 else:
                     self._no_lip_sync_note(job, "seedance", group)
+            from . import end_frames
+            unsupported = end_frames.ref_unsupported_reason(self._scene_data(job), mode)
+            if unsupported:                  # M7.3: model tuyến ref không nhận khung cuối — báo VÀNG (REVIEW), không âm thầm bỏ
+                self._diag_once(job, "warn", "end_frame_ref_unsupported", unsupported)
             if not group:                    # 11/10 (#24 job 662/664): the drawn end state (K1) goes with a reference-only shot too —
                 end = self._end_frame(job, choice.get("model") or "seedance", chain=False)   # the adapter sends it as the LAST
                 if end:                                                                  # reference picture with its role sentence
@@ -2015,7 +2029,8 @@ class VideoRunner(_Runner):
         group = shots.group_of(self.p.conn, job["scene_id"]) or []
         if len(group) < 2:
             from . import model_router         # rà DP10 VỪA-3: cờ router bật giữa chừng — phần của shot đã đi cùng một clip nhóm đang bay
-            if model_router.router_first_frame_on() and self._refs(job) and self._in_flight_group(job["scene_id"]):
+            if (model_router.router_first_frame_on() or end_frames.ref_route_on()) and self._refs(job) \
+                    and self._in_flight_group(job["scene_id"]):        # M7.3: cờ ref_end_frames bật giữa chừng — cùng luật
                 return True
             return False
         if self._refs(job) and self._covered(job["scene_id"], group):

@@ -235,6 +235,9 @@ def _check_end(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> 
     byd = _byd(data)
     in_place = _in_place(conn, scene_id, plan, data)
     if not lf:
+        unsupported = end_frames.ref_unsupported_reason(data, "per_shot") if plan.get("reference_only") is not None else None
+        if unsupported:                                  # M7.3 (cờ ref_end_frames): model tuyến ref không nhận khung cuối — REVIEW
+            out.append(_issue("khung_cuoi", VANG, unsupported))
         if in_place and end_frames.enabled() and not plan.get("group_ids") and end_frames.usable_path(conn, scene_id):
             out.append(_issue("khung_cuoi", VANG, f"{in_place} — không gửi khung cuối vẽ (cờ locomotion_end_frame)"))
         elif byd is not None and _changes(byd) and end_frames.enabled() and not plan.get("group_ids"):
