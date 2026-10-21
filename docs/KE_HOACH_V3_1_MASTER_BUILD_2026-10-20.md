@@ -169,8 +169,8 @@ kiểm giá trị; không đổi `STATUSES`.
 | M4 QC có bằng chứng và Dashboard | 8 | 6 | 2 | 0 | 0 | 81,2 % |
 | M5 Sửa chọn lọc và pilot | 5 | 2 | 1 | 0 | 0 | 54,5 % |
 | M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 0 | 1 | 0 | 0 | 1,8 % |
-| M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 1 | 0 | 0 | 0 | 12,5 % |
-| **Tổng** | **69** | **34** | **5** | **0** | **0** | **49,3 %** |
+| M7 Cờ và cấu hình (Executive Producer chốt 21/10) | 8 | 2 | 0 | 0 | 0 | 18,8 % |
+| **Tổng** | **69** | **35** | **5** | **0** | **0** | **50 %** |
 
 Đợt hiện tại: **M1** · việc kế: **M2.1** BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN
 <!-- /tien-do -->
@@ -260,7 +260,7 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M7.2 · Baseline cờ chỉ khi chưa có cấu hình riêng (K4 b) + effective config + config hash + cảnh báo drift; nút reset có preview / xác nhận / sao lưu / khôi phục (K6) · nặng:2 · ⬜ · Cấp 2 DUYỆT 21/10; song song M7.4, nghiệm thu tích hợp trước khi khóa cờ môi trường khác (K5)
 - [ ] M7.3 · seedance_ref_groups + end_frames cùng hoạt động (K3 b, B4 end_frames.py:32) · nặng:2 · ⬜ · Cấp 2 DUYỆT 21/10
 - [ ] M7.4 · Gói B sửa cờ (F-B): video_gate, two_tier_quality (±5 % + tiêu chí chất lượng), motion_consistency_lint, end_frames, scene_qc, lip_sync + dialogue_take, bg_autoqc… · nặng:3 · ⬜ · Cấp 2 DUYỆT 21/10; khóa từng cờ sau correctness + benchmark + chi phí
-- [ ] M7.5 · Gói C (F-C): audit + thiết kế + BẢNG QUYẾT ĐỊNH từng cờ (audio_first tùy chọn thử nghiệm — F-Q2) trình EP trước khi đổi hành vi production · nặng:1 · ⬜ · chỉ tài liệu
+- [ ] M7.5 · Gói C (F-C): audit + thiết kế + BẢNG QUYẾT ĐỊNH từng cờ (audio_first tùy chọn thử nghiệm — F-Q2) trình EP trước khi đổi hành vi production · nặng:1 · ✅ · C-M75 bảng quyết định Gói C gộp 21/10 (KE_HOACH_SUA_20_CO mục 6) — TRÌNH EP duyệt từng dòng · chỉ tài liệu
 - [ ] M7.6 · Test không phụ thuộc mặc định 8 cờ đề nghị khóa (155 test nhóm A) · nặng:2 · ✅ · C-FLAGTEST8 cloud-C gộp 21/10: cả bộ 6914 qua; ép 8 cờ khóa BẬT 164 → 7 đỏ (đều là test "cờ mặc định TẮT" — đổi khi khóa thật)
 - [ ] M7.7 · Kiểm chứng + khóa TỪNG cờ: K1 send_claim, back_view_guard (dependency, 2 worker, crash/reconcile, replay production); K2 video_pregen, chat_first, framing_guard, stage_camera, plate_view_sentence (+ two_tier_quality, video_gate sau M7.4); K7 bốn cờ chỉ-ghi (stale_code_alarm, diag_merge, budget_notice_d01, send_estimate) · nặng:2 · ⬜ · CHỜ PHỤ THUỘC / BẰNG CHỨNG (chưa cần EP quyết; khi đủ điều kiện phiên chính mới trình) — Cấp 3 từng cờ — trình khi đủ bằng chứng; refusal_skip_same_picture CHƯA bật; qc_false_alarm_fix + horizon_needs_sky chờ replay #31/#33
 - [ ] M7.8 · Kiểm tuyến QC thay thế rồi trình tắt scene_qc_claude (Cấp 3 riêng) · nặng:1 · ⬜ · F-A: tắt KHÔNG nằm trong duyệt code
