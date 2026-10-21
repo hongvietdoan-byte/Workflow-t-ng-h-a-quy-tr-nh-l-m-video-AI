@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T23:58:26.745860+07:00",
+  "lane": "cloud-E",
+  "kind": "xong",
+  "task": "C-M71",
+  "branch": "cloud/v31-m71",
+  "commit": "1691d07d",
+  "report": "docs/RA_CLOUD_M71_2026-10-21.md",
+  "text": "Gói A: A1 change_review đóng cổng khi rà lỗi/hết tiền (tự mở khi rà đạt chính thay đổi đó), A2 khai costs 6 cờ (hero_takes, end_frames, scene_qc_claude, voice_check_redo, audio_first, story_check) + ước tính hero, A3 cờ con director_rewrite_respect_lock TẮT (đề xuất + Áp dụng có dấu), A5 D6 hết tiền → code ghép + tạm ngừng 10 phút, pregen in D6. Đã qua agent rà KỸ (1 CAO + 3 VỪA + 3 THẤP đã sửa, test đỏ→xanh). 532 test liên quan + golden 3.14 57 xanh. LỖ CÓ SẴN TỪ MAIN (chưa sửa, test cũ test_failed_review_older_than_a_good_review_does_not_hold khẳng định): thay đổi rà lỗi mà chưa có blocking() nào trước khi thay đổi sau rà đạt thì không bị giữ — cần quyết sửa. Bật cờ con = Cấp 3."
+}
