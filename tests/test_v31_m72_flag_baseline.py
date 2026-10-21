@@ -234,13 +234,10 @@ def test_drift_picks_the_project_that_sent_last(machine, tmp_path):
     settings, base, write = machine
     data = tmp_path / "projects"
     write({PLAIN[0]: "on"})
-    F.remember_config(str(data), 30)
+    F.remember_config(str(data), 29)                                       # #29 gửi trước, PLAIN[0] bật
     write({})
-    F.remember_config(str(data), 29)                                       # #29 gửi sau, cấu hình khác
-    write({PLAIN[0]: "on"})
-    F.remember_config(str(data), 30)                                       # #30 gửi lại sau cùng, cùng hash cũ
-    snap29 = data / "29" / "flag_config.json"
-    os.utime(snap29, (2e9, 2e9))                                           # mtime không được quyết định
+    F.remember_config(str(data), 30)                                       # #30 gửi SAU CÙNG, PLAIN[0] tắt
+    os.utime(data / "29" / "flag_config.json", (2e9, 2e9))                 # mtime #29 mới hơn — không được quyết định
     assert F.drift(str(data), 31) == []                                    # so với #30 (gửi cuối): không drift
 
 
