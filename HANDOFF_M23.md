@@ -32,3 +32,7 @@ Quota cuối: 5h ĐÃ DÙNG89%, còn11%; tuần57%, còn43%. Reset tự nhiên 2
 ## Checkpoint transaction/audit
 - Writer SAVEPOINT + audit_log metadata/hash nguyên tử; actor/revision typeguard. ĐỎ 2 fail / 1 pass; XANH 45/45 (4.88s).
 - OPEN mới xác nhận: UI chưa có nút lưu outfit vào Kho (helper không phải entrypoint). Raw SQL readers/AST alias và BYĐ cloud-C vẫn chưa đóng.
+
+## UI lưu outfit đã nối sau cờ OFF
+- Nút owner-only với recheck users role/active; fake UI + ảnh khác asset được kiểm. 43/43 Kho (5.57s).
+- OPEN UI entrypoint phía trên đã có code/test, chưa chạy Dashboard thật. Raw SQL vẫn OPEN; AST alias đã mở rộng.

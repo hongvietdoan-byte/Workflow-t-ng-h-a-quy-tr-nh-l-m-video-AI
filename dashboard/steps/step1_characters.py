@@ -98,6 +98,27 @@ def outfit_pool(p: Pipeline, pid: int) -> list:
     return sorted(pool, key=lambda a: (a["kind"] != "outfit", assets.fold(a["name"])))       # outfits first
 
 
+def _outfit_to_kho_button(p, pid, name, box):
+    """Kho dùng chung: chỉ Owner đã đăng nhập được chủ động lưu, kiểm lại quyền khi bấm."""
+    if not kho_profile.enabled():
+        return
+    who=C.me()
+    if who.get('role') != 'owner' or not who.get('email'):
+        return
+    if not box.button('Lưu trang phục vào Kho',key=f'outfit_to_kho_{pid}_{name}'):
+        return
+    owner=p.conn.execute('SELECT role,active FROM users WHERE email=?',(who['email'],)).fetchone()
+    if owner is None or owner['role'] != 'owner' or not owner['active']:
+        box.error('Chỉ Owner đang hoạt động được lưu trang phục vào Kho; đăng nhập lại để kiểm quyền.')
+        return
+    try:
+        kho_profile.save_outfit_to_kho(p.conn,pid,name,{'kind':'human','who':who['email']})
+    except kho_profile.ProfileError as exc:
+        box.error(str(exc))
+        return
+    box.success('Đã lưu trang phục vào Kho.')
+
+
 def outfit_panel(p: Pipeline, pid: int, name: str, box) -> None:
     """A different outfit for this video, from pictures + text: pick outfit picture(s) from the library (another skin, a costume photo),
     optionally generate a 2-picture character set wearing it (it then becomes the reference; nothing to approve).
@@ -118,6 +139,8 @@ def outfit_panel(p: Pipeline, pid: int, name: str, box) -> None:
         if [i["id"] for i in current] != chosen and st.button("💾 Lưu trang phục", key=f"outfit_save_{pid}_{name}"):
             assets.set_outfit(p.conn, pid, name, chosen)
             st.rerun()
+        if current:
+            _outfit_to_kho_button(p,pid,name,st)
         runner = image_runner(p) if current else None
         set_model = (getattr(runner.provider, "usage_info", lambda: (None,))()[0] if runner is not None else None)  # S14.2 A2
         if current and st.button("🧍 Tạo bộ ảnh nhân vật mặc trang phục này (2 ảnh Deepix)" + cost.image_button_tag(set_model, 2),

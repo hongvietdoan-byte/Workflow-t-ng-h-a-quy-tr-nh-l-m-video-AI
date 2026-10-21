@@ -154,3 +154,46 @@ def test_audit_contains_only_metadata_and_hashes(db):
     assert set(detail)=={'kho_id','actor_kind','before_revision','revision','changed_keys','before_hash','after_hash'}
     assert detail['changed_keys']==['hair'] and detail['before_revision']==0 and detail['revision']==1
     assert len(detail['before_hash'])==len(detail['after_hash'])==64
+
+
+@pytest.mark.parametrize('enabled,identity,dbrole,active,clicked,expected', [
+    (False,{'email':'owner.fixture','role':'owner'},'owner',1,True,False),
+    (True,{},'owner',1,True,False),
+    (True,{'email':'owner.fixture','role':'member'},'owner',1,True,False),
+    (True,{'email':'owner.fixture','role':'owner'},'owner',0,True,False),
+    (True,{'email':'owner.fixture','role':'owner'},'member',1,True,False),
+    (True,{'email':'owner.fixture','role':'owner'},None,1,True,False),
+    (True,{'email':'owner.fixture','role':'owner'},'owner',1,False,False),
+    (True,{'email':'owner.fixture','role':'owner'},'owner',1,True,True),
+])
+def test_outfit_ui_owner_guard_fake_ui(db,enabled,identity,dbrole,active,clicked,expected):
+    import ast
+    from pathlib import Path
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from core import kho_profile as k
+    db.execute('CREATE TABLE users(email TEXT,role TEXT,active INTEGER)')
+    if dbrole is not None:
+        db.execute('INSERT INTO users VALUES(?,?,?)',('owner.fixture',dbrole,active))
+    # Thực thi đúng helper UI đã lưu, không import Dashboard/common hay mở phiên thật.
+    tree=ast.parse(Path('dashboard/steps/step1_characters.py').read_text(encoding='utf-8-sig'))
+    node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='_outfit_to_kho_button')
+    scope={'C':SimpleNamespace(me=lambda:identity),'kho_profile':k}
+    exec(compile(ast.Module(body=[node],type_ignores=[]),'<fixture-ui>','exec'),scope)
+    box=Mock();box.button.return_value=clicked
+    with patch.object(k,'enabled',return_value=enabled),patch.object(k,'save_outfit_to_kho') as save:
+        scope['_outfit_to_kho_button'](SimpleNamespace(conn=db),9,'Kelly',box)
+        assert save.called is expected
+        if expected:
+            assert save.call_args.args[1:]==(9,'Kelly',{'kind':'human','who':'owner.fixture'})
+    if not enabled or not identity or identity.get('role') != 'owner':
+        box.button.assert_not_called()
+
+
+def test_outfit_from_other_asset_rejected_without_write(db):
+    from core import assets, kho_profile as k
+    db.execute("INSERT INTO asset_images VALUES(7,2,'fixture.png','approved')")
+    with patch.object(assets,'link_characters',return_value={'Kelly':{'id':1}}),patch.object(assets,'outfit_images',return_value=[{'id':7}]):
+        with pytest.raises(k.ProfileError,match='thuộc mục Kho khác'):
+            k.save_outfit_to_kho(db,9,'Kelly',{'kind':'human','who':'fixture'})
+    assert db.execute('SELECT profile FROM assets WHERE id=1').fetchone()[0]=='{}'
