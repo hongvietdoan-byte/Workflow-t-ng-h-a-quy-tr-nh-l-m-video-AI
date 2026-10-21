@@ -1,0 +1,11 @@
+{
+  "ts": "2026-10-22T02:58:30.318623+07:00",
+  "lane": "cloud-claude",
+  "kind": "giao",
+  "task": "CX21-GOLDEN7",
+  "to": "codex",
+  "title": "Chạy lại nghiệm thu golden A/B — công cụ cloud/v31-golden5 @ 621661a8 (C-GOLDEN7 XONG, chạy thẳng trên nhánh như GOLDEN6; nhánh công cụ chỉ gộp main sau khi ĐẠT)",
+  "spec": "docs/CODEX_TASKS.md### CX21-GOLDEN7",
+  "priority": 0,
+  "text": "C-GOLDEN7 XONG 621661a8: --ab kiểm cờ theo catalog cây đang dựng, lỗi cấu hình = mã 2 ở _preflight. Không cần chờ gộp. Giữ baseline 155 cờ + 30 experimental TẮT (không loại gen_auth_shadow). A = origin/main mới nhất, B = origin/cloud/v31-m2-tichhop mới nhất. Quota tuần còn 10%: chỉ một lượt, negative control trước."
+}
