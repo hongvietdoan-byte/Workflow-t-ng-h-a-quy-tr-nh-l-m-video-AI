@@ -877,3 +877,22 @@ THẤP: stage_previs --plan-only không ghi cli_step; stage_auto/stage_previs gh
   final_qc.py|popup, dashboard/**|Gen ảnh) → tên hàm / key nút cụ thể; ghi rõ trong báo cáo 13/49 ô 'loose' tay.
 XONG hộp thư (mã C-DEVSYS-MAPS-FIX).
 ```
+
+#### C-M210-DESIGN (cloud-E — ưu tiên 1 sau C-M71; chỉ tài liệu + code SHADOW cờ TẮT) — M2.10 gói gửi tối giản
+```
+Người dùng 21/10: prompt hiện quá dài (ảnh #31 TB 5.380 ký tự / ~940 từ, #33 11.059 ký tự; video 3.000–4.000 ký tự), gói ảnh TB 6 ref (character 2,9 · place_render
+1,3 · object · character_form · previous_scene · atmosphere), video TB 5,6 ref tới 15, có start_frame NHƯNG vẫn gửi lại character/location (9 ref trùng sha).
+Mẫu Weave Canvas (Deepix): khung storyboard ~60 từ gọi "Figure 1/Figure 2"; video 1 câu ("Use frame 1 as start, frame 2 as end…", "They happily hug each other.").
+Đầu vào số liệu: docs/data/goi_gui_31_33_2026-10-21.md (phiên chính trích từ gói thật — đọc trước). Tài liệu chính thức: docs/NGHIEN_CUU_PROMPT_THAM_CHIEU_2026-09-30.md,
+knowledge/reference_assets_prompting.md (Seedance 2.5: mỗi tài sản một dòng vai trò + thứ KHÔNG lấy; có video ref thì không tả lại động tác; Kling <<<image_N>>>).
+Làm 2 phần:
+(1) docs/KE_HOACH_GOI_GUI_TOI_GIAN_2026-10-2x.md — CÁCH DÙNG KẾT HỢP prompt + ref: bảng theo loại shot (ảnh khung đầu 1 người / nhiều người / có vật / đổi
+    skin-trang phục / đổi nền; video có khung đầu / khung đầu+cuối / video ref hành động) → bộ ref TỐI THIỂU (vai, thứ tự, giới hạn số theo model), câu vai
+    trò mẫu, thân lệnh 2–4 câu, câu nào trong builder hiện tại (prop lock, plate_view_sentence, back_view, câu vị trí M3.3, ghi chú tóc/áo, câu 'chỉ gợi')
+    GIỮ (ảnh không thay được) / BỎ (trùng ảnh) / ĐỔI thành dòng vai trò; quy tắc đổi skin/nền giữa cảnh = thay 1 ref + 1 dòng; tiếng Việt → dịch ngắn hay gửi
+    thẳng (đề xuất thử); rủi ro (3 người, ảnh trang phục lẫn tóc, model bỏ qua ref không gọi tên) + chốt an toàn; chỉ số đo (độ dài, số ref, phủ BYĐ, tỉ lệ
+    đạt lần đầu).
+(2) core/lean_package.py SHADOW (cờ lean_package TẮT, verified False): từ BYĐ v2 + refs đã chọn → dựng gói tối giản bên cạnh gói thật, ghi so sánh (độ dài,
+    ref bỏ/giữ + lý do, trường BYĐ nào không còn được nói) vào diag/tệp — KHÔNG gửi, không đổi gói thật (golden byte giữ). Test ĐỎ→XANH theo các loại shot.
+Nhánh cloud/v31-m210. Báo cáo docs/RA_CLOUD_M210_2026-10-2x.md. XONG hộp thư — phiên chính chạy shadow trên #31/#33 thật rồi trình EP A/B (Cấp 3).
+```
