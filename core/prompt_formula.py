@@ -630,13 +630,17 @@ def beat_issues(data: Dict) -> List[Dict]:
 
 # M7.4 (G51, 19/10 người dùng: clip #31 đơ / giữ tư thế): motion bảo giữ yên / chậm mà không có hành động kế → model giữ khung cả đoạn
 _HOLD = re.compile(r"\b(?:holds?|holding)\s+(?:still|(?:the|this|that|his|her|their)\s+(?:pose|position|stance))\b|\bpaus(?:es|e|ing)\b|"
-                   r"\bpoised\b|\bstays?\s+still\b|\bremains?\s+(?:still|motionless|frozen)\b|\bmotionless\b|\bfreez(?:es|e|ing)\b|"
-                   r"\bfrozen\b|\bslowly\b|\bđứng yên\b|\bgiữ nguyên\b|\bbất động\b", I)
+                   r"\bpoised\b|\bstays?\s+(?:still|motionless|frozen)\b|\bremains?\s+(?:still|motionless|frozen)\b|"
+                   r"\b(?:stands?|sits?|kneels?|lies?)\s+(?:still|motionless|frozen)\b|\bfreez(?:es|e)\s+in\s+place\b|"
+                   r"\bđứng yên\b|\bgiữ nguyên tư thế\b|\bbất động\b", I)
+# câu mà chủ ngữ là máy / ánh sáng / khí / vật nền — chuyển động máy hay nền, không phải người giữ yên (rà C-M74: 'camera slowly pushes in')
+_NOT_PERSON = re.compile(r"^\s*(?:the\s+)?(?:camera|shot|frame|lens|light|lights|sun|moon|smoke|fire|flames?|dust|fog|mist|rain|snow|wind|"
+                         r"water|waves?|leaves|grass|trees?|clouds?|sky|background|scene|hair|cape|cloth|flag|máy quay|khói|lửa|bụi|ánh sáng)\b", I)
 _NEXT = re.compile(r"\b(?:then|before|after that|suddenly|until)\b|\brồi\b|\bsau đó\b|→|->|\b(?:walk\w*|steps?|stepping|turn\w*|raises?|"
                    r"lift\w*|swing\w*|aims?|reach\w*|lunge\w*|charg\w*|strik\w*|punch\w*|kick\w*|spin\w*|draws?|nods?|"
                    r"looks?\s+(?:up|down|left|right|back|around))\b", I)
 _SECONDS = re.compile(r"(\d+(?:[.,]\d+)?)\s*(?:s\b|sec\b|secs\b|seconds?\b|giây\b)", I)
-_ENDING = re.compile(r"\bends?\s+(?:with|on|in)\b|\bfinal\b|\bending\b|\bkết thúc\b", I)
+_ENDING = re.compile(r"\bends?\s+(?:with|on|in)\b|\bin the end\b|\bfinal\s+(?:pose|frame|beat|moment|position)\b|\bkết thúc\b", I)
 HOLD_MAX_S = 1.5                       # quyết định 11/10 "video không được đơ" (= final_qc.FREEZE_S, QC-V2-STILL_OVER_1_5S)
 
 
@@ -654,7 +658,7 @@ def hold_issues(prompt: str, data: Dict) -> List[Dict]:
     for i, sm in enumerate(sents):
         sent = sm.group(0)
         h = _HOLD.search(sent)
-        if not h or _ENDING.search(sent):
+        if not h or _ENDING.search(sent) or _NOT_PERSON.search(sent):
             continue
         after = sent[h.end():] + " " + (sents[i + 1].group(0) if i + 1 < len(sents) and not _ENDING.search(sents[i + 1].group(0)) else "")
         if _NEXT.search(after) or _verbs_in(after):

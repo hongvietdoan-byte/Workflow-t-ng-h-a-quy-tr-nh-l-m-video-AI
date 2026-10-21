@@ -179,11 +179,12 @@ def _bg_project(tmp_path, shots=1):
     return db, p.conn, pid
 
 
-def _bg_rounds(conn, db, n=4, err=None, scene_qc=False):
+def _bg_rounds(conn, db, n=4, err=None, scene_qc=False, code=None):
     from core import autoqc, bg_poll
     with mock.patch.dict(os.environ, {"FEATURE_BG_AUTOQC": "1"}), \
             mock.patch.object(autoqc, "start", lambda *a, **k: True), mock.patch.object(autoqc, "start_video", lambda *a, **k: False), \
-            mock.patch.object(autoqc, "last_error", lambda pid: err), mock.patch("core.qc_scene.active", lambda: scene_qc):
+            mock.patch.object(autoqc, "last_error", lambda pid: err), mock.patch.object(autoqc, "last_error_code", lambda k, pid: code), \
+            mock.patch("core.qc_scene.active", lambda: scene_qc):
         for _ in range(n):
             bg_poll.autoqc_round(conn, db, "/tmp/data")
 
@@ -194,7 +195,7 @@ def _codes(conn):
 
 def test_bg_autoqc_claude_down_is_said_as_such_once(tmp_path):
     db, conn, pid = _bg_project(tmp_path)
-    _bg_rounds(conn, db, err="chưa có Claude: hết lượt gói tới 18:00")
+    _bg_rounds(conn, db, err="chưa có Claude: hết lượt gói tới 18:00", code="usage_limit")
     assert _codes(conn) == ["bg_autoqc_no_claude"]
     assert "hết lượt gói" in conn.execute("SELECT message FROM diag_events WHERE code='bg_autoqc_no_claude'").fetchone()[0]
 
@@ -207,6 +208,78 @@ def test_bg_autoqc_waiting_for_the_scene_frames_is_quiet(tmp_path):
 
 def test_bg_autoqc_other_reason_still_says_stuck_with_the_last_error(tmp_path):
     db, conn, pid = _bg_project(tmp_path)
-    _bg_rounds(conn, db, err="JSON hỏng ở câu trả lời QC")
+    _bg_rounds(conn, db, err="QC cảnh 402: credit balance câu trả lời JSON hỏng")      # chữ giống lỗi tiền nhưng MÃ không dừng
     assert _codes(conn) == ["bg_autoqc_stuck"]
     assert "JSON hỏng" in conn.execute("SELECT message FROM diag_events WHERE code='bg_autoqc_stuck'").fetchone()[0]
+
+
+def test_autoqc_keeps_the_stop_code_past_the_retry_window():
+    from core import autoqc
+    with mock.patch("core.diag.record"):
+        autoqc._fail(None, 77, "hết hạn mức", code="usage_limit")
+    assert autoqc.last_error_code("image", 77) == "usage_limit"
+    autoqc.clear_error(77)
+    assert autoqc.last_error_code("image", 77) is None
+
+
+# ---- rà khâu C-M74 ---------------------------------------------------------------------------------------------------------------
+def test_acceptance_tool_reads_the_real_reconcile_output(tmp_path):
+    import json
+    from core.db import connect
+    from core.pipeline import Pipeline
+    from tools import clipai_cost_reconcile as R, two_tier_acceptance as T
+    src = open(R.__file__, encoding="utf-8").read()
+    assert "dict(tasks=rows" in src                                          # reconcile() để dòng ở "tasks"
+    db = str(tmp_path / "m.sqlite")
+    p = Pipeline(connect(db))
+    pid = p.create_project("t")
+    sid = p.create_scene(pid, 1, "s")
+    jid = p.create_job(sid, "video_gen")
+    p.conn.execute("UPDATE jobs SET quality_tier='final', state='approved' WHERE id=?", (jid,))
+    p.conn.commit()
+    p.conn.close()
+    data = str(tmp_path / "projects")
+    with mock.patch("core.quality_tier.final_estimate", return_value={"usd": 10.0, "scenes": [{"scene_id": sid}], "unknown": []}):
+        T.main(["--project", str(pid), "--db", db, "--data-dir", data, "--snapshot"])
+    rec = tmp_path / "rec.json"
+    rec.write_text(json.dumps({"tasks": [{"project_id": pid, "job_id": jid, "quality_tier": "final", "actual_usd": 10.2}]}), encoding="utf-8")
+    assert T.main(["--project", str(pid), "--db", db, "--data-dir", data, "--reconcile", str(rec)]) == 0
+
+
+def test_acceptance_counts_only_judged_finals():
+    from core import quality_tier as Q
+    rows = [{"job_id": 1, "quality_tier": "final", "actual_usd": 10.0}]
+    res = Q.acceptance(EST, rows, _jobs(["failed", "approved"], ["approved"]))
+    assert res["first_try_share"] == 1.0 and res["over_regen_scenes"] == [] and res["quality_ok"] is True   # lỗi NCC ≠ gen lại
+    res = Q.acceptance(EST, rows, _jobs(["approved"], ["pending_review"]))
+    assert res["quality_ok"] is None and res["pending_scenes"] == [2]                                       # còn chờ phán → KHÔNG RÕ
+    assert Q.acceptance(dict(EST, usd=0.0), rows, _jobs(["approved"]))["cost_ok"] is None
+
+
+@pytest.mark.parametrize("prompt", [
+    "The camera slowly pushes in on her face while she smiles.",
+    "Smoke rises slowly behind the soldier.",
+    "He breathes slowly, eyes on the door.",
+    "Soft window light drifts slowly across the empty room.",
+    "Kelly lands the final blow and pauses for a beat, then turns away.",
+])
+def test_giu_yen_no_false_alarm_on_camera_or_background_motion(prompt):
+    from core import prompt_formula as PF
+    with mock.patch.dict(os.environ, LINT_ON):
+        assert PF.hold_issues(prompt, {"duration_s": 5}) == []
+
+
+def test_release_gate_unmeasured_black_freeze_is_not_passed(tmp_path):
+    from core import final_qc, release_gate as G
+    from core.db import connect
+    from core.pipeline import Pipeline
+    p = Pipeline(connect(str(tmp_path / "m.sqlite")))
+    pid = p.create_project("g")
+    p.conn.execute("INSERT INTO outputs (project_id, kind, path, manifest, created_at) VALUES (?, 'final', '/x.mp4', '{}', 'x')", (pid,))
+    p.conn.commit()
+    fid = p.conn.execute("SELECT MAX(id) FROM outputs").fetchone()[0]
+    final_qc._save_full(str(tmp_path), pid, fid, [{"code": "black_freeze_unmeasured", "level": "warn", "msg": "không có ffmpeg"}])
+    with mock.patch.dict(os.environ, {"FEATURE_FINAL_BLACK_FREEZE": "1"}), \
+            mock.patch("core.final_qc.run", return_value={"ok": True, "blocks": 0, "warns": 0, "issues": []}):
+        g2 = G._g2_final_qc(p, pid, str(tmp_path))
+    assert g2["state"] == G.CHUA and "KHÔNG ĐO ĐƯỢC" in g2["why"] and "Xuất bản" in g2["why"]

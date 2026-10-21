@@ -234,7 +234,7 @@ def autoqc_round(conn, db_path: str, data_dir: str) -> Dict[int, str]:
             if n >= AUTOQC_TRIES:
                 if n == AUTOQC_TRIES:                 # said once per unchanged set
                     _autoqc_tries[(db_path, pid, kind)] = (sig, n + 1)
-                    why, err = _stuck_reason(conn, pid, kind, sig)   # M7.4 (P31-G57: bg_autoqc_stuck ×29): nói đúng lý do, chờ đủ khung = im
+                    why, err = _stuck_reason(conn, pid, kind, sig, data_dir)   # M7.4 (P31-G57: bg_autoqc_stuck ×29): nói đúng lý do, chờ đủ khung = im
                     if why == "claude":
                         _say(conn, pid, "warn", f"vòng nền ngừng tự kiểm tra {'ảnh' if kind == 'image' else 'clip'} dự án #{pid}: Claude "
                              f"không dùng được ({err[:160]}) — không tự gọi lại tới khi có job mới; kiểm Claude / lượt gói rồi bấm kiểm tay",
@@ -258,37 +258,37 @@ def autoqc_round(conn, db_path: str, data_dir: str) -> Dict[int, str]:
     return out
 
 
-_CLAUDE_DOWN = re.compile(r"chưa có Claude|credit|balance|quota|rate.?limit|hết (?:lượt|tiền|hạn mức)|\b40[12]\b|\b429\b|overloaded|"
-                          r"unauthori[sz]ed|api key|LlmUnavailable|usage limit", re.I)
-
-
-def _stuck_reason(conn, pid: int, kind: str, sig) -> tuple:
-    """Vì sao job vẫn chờ sau AUTOQC_TRIES lần: ("claude", lỗi) — Claude không dùng được / hết tiền; ("waiting_frames", "") — QC theo
-    cảnh đợi đủ khung (không lỗi nào, cảnh còn shot chưa có ảnh): chờ im; ("unknown", lỗi | "")."""
-    from . import autoqc
+def _stuck_reason(conn, pid: int, kind: str, sig, data_dir: str) -> tuple:
+    """Vì sao job vẫn chờ sau AUTOQC_TRIES lần: ("claude", lỗi) — lần tự kiểm dừng vì Claude (mã LlmError STOP_CODES / chưa có Claude, lưu
+    theo MÃ, không dò chữ); ("waiting_frames", "") — QC theo cảnh đợi đủ khung (qc_scene.scene_frames chưa đủ): chờ im; ("unknown", lỗi | "")."""
+    from . import autoqc, llm_runner
     err = (autoqc.last_error(pid) if kind == "image" else autoqc.video_last_error(pid)) or ""
-    if err and _CLAUDE_DOWN.search(err):
-        return "claude", err
+    code = autoqc.last_error_code(kind, pid)
+    if code and (code in llm_runner.STOP_CODES or code == "no_client"):
+        return "claude", err or code
     if not err and kind == "image":
         try:
             from . import qc_scene
-            if qc_scene.active() and _scene_incomplete(conn, pid, sig):
+            if qc_scene.active() and _scene_incomplete(conn, pid, sig, data_dir):
                 return "waiting_frames", ""
         except Exception:  # noqa: BLE001 - không phân loại được: nói như cũ
             pass
     return "unknown", err
 
 
-def _scene_incomplete(conn, pid: int, job_ids) -> bool:
-    """Cảnh kịch bản của các job chờ còn shot chưa có ảnh (succeeded / chờ duyệt / đã duyệt) — QC cảnh chưa chạy được."""
+def _scene_incomplete(conn, pid: int, job_ids, data_dir: str) -> bool:
+    """Cảnh kịch bản của các job chờ chưa đủ khung theo ĐÚNG luật QC cảnh (qc_scene.scene_frames → None)."""
     import json as _json
-    scenes = {r[0]: _json.loads(r[1] or "{}").get("story_scene") for r in conn.execute(
-        "SELECT id, data FROM scenes WHERE project_id=?", (pid,))}
-    stories = {scenes.get(r[0]) for r in conn.execute(
-        f"SELECT scene_id FROM jobs WHERE id IN ({','.join('?' * len(job_ids))})", tuple(job_ids))} - {None}
-    have = {r[0] for r in conn.execute("SELECT DISTINCT scene_id FROM jobs WHERE project_id=? AND type='image_gen' "
-                                       "AND state IN ('succeeded','pending_review','approved')", (pid,))}
-    return any(sid not in have for sid, st in scenes.items() if st in stories)
+    from .pipeline import Pipeline
+    from . import qc_scene
+    stories = set()
+    for r in conn.execute(f"SELECT s.data FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.id IN ({','.join('?' * len(job_ids))})",
+                          tuple(job_ids)):
+        st = _json.loads(r[0] or "{}").get("story_scene")
+        if st is not None:
+            stories.add(st)
+    p = Pipeline(conn)
+    return any(qc_scene.scene_frames(p, pid, st, data_dir) is None for st in stories)
 
 
 def _say(conn, pid: Optional[int], level: str, msg: str, code: str) -> None:

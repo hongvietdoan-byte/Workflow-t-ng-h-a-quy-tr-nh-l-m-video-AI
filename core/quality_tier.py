@@ -1164,15 +1164,25 @@ def acceptance(estimate: Dict, actual_rows: List[Dict], final_jobs: List[Dict]) 
         why.append(f"{len(unknown_actual)} job bản cao chưa có tiền thật (chạy lại đối soát)")
     if not rows:
         why.append("chưa có job bản cao nào trong đối soát")
+    if not est:
+        why.append("dự toán = 0 / không có — không so được")
     diff = None if not est else round((actual - float(est)) / float(est), 4)
     cost_ok = None if why else (diff is not None and abs(diff) <= COST_TOLERANCE)
+    # chất lượng: chỉ job ĐÃ được phán (duyệt / loại); lỗi nhà cung cấp (failed / cancelled) không phải lần gen lại; cảnh còn chờ phán →
+    # KHÔNG RÕ (rà C-M74)
     by_scene: Dict[int, List[Dict]] = {}
+    pending = set()
     for j in sorted(final_jobs, key=lambda j: j["id"]):
-        by_scene.setdefault(j["scene_id"], []).append(j)
+        if j["state"] in ("approved", "rejected"):
+            by_scene.setdefault(j["scene_id"], []).append(j)
+        elif j["state"] not in ("failed", "cancelled"):
+            pending.add(j["scene_id"])
+    pending -= {sid for sid, js in by_scene.items() if any(x["state"] == "approved" for x in js)}
     first_ok = sum(1 for js in by_scene.values() if js and js[0]["state"] == "approved")
     over = sorted(sid for sid, js in by_scene.items() if len(js) - 1 > FINAL_REGEN_MAX)
     share = None if not by_scene else round(first_ok / len(by_scene), 3)
-    quality_ok = None if share is None else (share >= FIRST_TRY_MIN and not over)
+    quality_ok = None if share is None or pending else (share >= FIRST_TRY_MIN and not over)
     return {"estimate_usd": est, "actual_usd": actual, "diff_pct": None if diff is None else round(diff * 100, 2), "cost_ok": cost_ok,
             "cost_why": why, "first_try_share": share, "over_regen_scenes": over, "quality_ok": quality_ok,
+            "pending_scenes": sorted(pending),
             "ok": cost_ok is True and quality_ok is True}

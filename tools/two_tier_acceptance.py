@@ -52,7 +52,7 @@ def main(argv=None) -> int:
             est = json.load(f)
         with open(a.reconcile, encoding="utf-8") as f:
             rec = json.load(f)
-        rows = [r for r in rec.get("rows") or [] if r.get("project_id") == a.project]
+        rows = [r for r in (rec.get("tasks") or rec.get("rows") or []) if r.get("project_id") == a.project]   # reconcile() → "tasks"
         jobs = [dict(r) for r in conn.execute("SELECT id, scene_id, state FROM jobs WHERE project_id=? AND type='video_gen' "
                                               "AND quality_tier='final'", (a.project,))]
     finally:
