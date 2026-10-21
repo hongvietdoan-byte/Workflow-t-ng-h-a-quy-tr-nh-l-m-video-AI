@@ -137,13 +137,13 @@ def _entity_3d(key: str, o: Dict, marks: Dict) -> Dict:
             "valid_from": None, "valid_to": None, "state": state or None, "source": src, "confidence": conf}
 
 
-def build_3d(story_scene, k1_dir: str, seg_dir: str, world_id=None, by: str = "code") -> Dict:
+def build_3d(story_scene, k1_dir: str, seg_dir: str, world_id=None, by: str = "code", byd: Optional[Dict] = None) -> Dict:
     """3D từ stage.json + blocking.json (+ shot_specs.json: thực thể theo nhịp → valid_from/valid_to theo shot; cùng trạng thái liền
     nhau gộp một dòng). Vật vắng ở một nhịp (`hidden`) = dòng trước kết thúc ở shot trước đó."""
     stage = _read(os.path.join(k1_dir, "stage.json")) or {}
     blocking = _read(os.path.join(seg_dir, "blocking.json")) or {}
     specs = (_read(os.path.join(seg_dir, "shot_specs.json")) or {}).get("shots") or []
-    m = _base(story_scene, "3d", world_id, sources(k1_dir, seg_dir), ["stage.json", "blocking.json"]
+    m = _base(story_scene, "3d", world_id, sources(k1_dir, seg_dir, byd), ["stage.json", "blocking.json"]   # C-FIX-THAP-5: BYĐ đổi → byd_changed
               + (["shot_specs.json"] if specs else []), by)
     m["axes"] = stage.get("axes")
     m["origin"] = {"stage": os.path.basename(os.path.dirname(os.path.abspath(k1_dir))), "xyz": [0.0, 0.0, 0.0],
@@ -235,7 +235,7 @@ def build(story_scene, k1_dir: Optional[str] = None, seg_dir: Optional[str] = No
     """Adapter (D06): 3D khi có đủ stage.json + blocking.json → 2D khi có sơ đồ người vẽ → tương đối từ BYĐ → UNKNOWN (why = thiếu gì)."""
     missing = []
     if k1_dir and seg_dir and os.path.exists(os.path.join(k1_dir, "stage.json")) and os.path.exists(os.path.join(seg_dir, "blocking.json")):
-        return build_3d(story_scene, k1_dir, seg_dir, world_id)
+        return build_3d(story_scene, k1_dir, seg_dir, world_id, byd=byd)
     missing.append("sân khấu 3D (stage.json + blocking.json)")
     plan = _read(plan2d_file)
     if plan and plan.get("points"):
@@ -334,9 +334,12 @@ def refresh(data_dir: str, pid: int, story_scene, **inputs) -> Optional[Dict]:
 
 
 def entities_at(m: Dict, shot) -> List[Dict]:
-    """Thực thể có hiệu lực ở shot (valid_from ≤ shot ≤ valid_to; None = cả cảnh). Map đã invalidated → [] (không dùng số cũ)."""
+    """Thực thể có hiệu lực ở shot (valid_from ≤ shot ≤ valid_to; None = cả cảnh). Map đã invalidated → [] (không dùng số cũ).
+    shot None (C-FIX-THAP-5) → mọi thực thể của cảnh."""
     if not m or m.get("invalidated"):
         return []
+    if shot is None:
+        return list(m.get("entities") or [])
     out = []
     for e in m.get("entities") or []:
         vf, vt = e.get("valid_from"), e.get("valid_to")
