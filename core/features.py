@@ -12,6 +12,8 @@ import os
 from typing import Dict, List, Optional
 
 FEATURES: Dict[str, Dict] = {
+    'subject_capacity_guard': {'label': 'Kho đầy / chưa rõ sức chứa → giữ job chờ, không đổi model',
+                               'verified': False, 'why': 'Đ20 M1.5: chỉ thử offline; chưa có allocator đa tiến trình'},
     "motion_sfx": {"label": "SFX theo nhịp BYĐ (code 0 USD)", "verified": False,
                    "why": "Đ12v2: mốc ước tính, chưa nối caller Bước 5/chưa thử sản xuất"},
     'blockout_clay_sheet': {'label':'Tấm duyệt khối clay (Blender cục bộ, 0 USD)', 'verified':False,
@@ -44,7 +46,7 @@ FEATURES: Dict[str, Dict] = {
     "layout_from_follow": {"fixes_projects": [27], "costs": True, "label": "Shot giữ bố cục (continuity_from): chờ ảnh shot nguồn, thử mẫu kéo shot nguồn, ảnh nguồn vẽ lại → ⚠ cũ", "verified": False,
         "why": "Hộp thư 12/10 19:17: #27 shot 15/17 giữ bố cục theo shot 18 — gửi trước ảnh nguồn thì thiếu ảnh bố cục; nguồn vẽ lại không báo cũ. "
                "TỐN TIỀN khi bật: ảnh ⚠ cũ được chạy tự động / ▶ Gen ảnh vẽ lại (ảnh + motion + clip mỗi shot giữ bố cục)"},
-    "subject_auto_cleanup": {"fixes_projects": [27], "label": "Giao bản cuối / cất dự án → tự xóa khỏi Kho chủ thể ClipAI các khung ảnh ĐÃ BỊ LOẠI của dự án đó "
+    "subject_auto_cleanup": {"fixes_projects": [27], "label": "Giao bản cuối / cất dự án → lập DRY-RUN xem xét khung ảnh ĐÃ BỊ LOẠI, chờ duyệt xóa từng lần "
                                       "(chạy nền, 0 USD)",
         "verified": True,       # 13/10 người dùng duyệt tính năng (Kho chủ thể đầy 100/100 ở #27); thư viện giả lập, chưa chạy thật
         "why": "13/10 #27: Kho chủ thể đầy vì khung ảnh bị loại vẫn nằm trong Kho; chỉ xóa khung job image_gen 'rejected' của đúng dự án"},

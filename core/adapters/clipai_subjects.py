@@ -64,19 +64,42 @@ class ClipAISubjectLibrary:
         return cls(token, os.environ.get("CLIPAI_API_BASE", DEFAULT_BASE).strip() or DEFAULT_BASE, transport)
 
     # ---- read ----------------------------------------------------------
-    def list_assets(self, asset_type: Optional[str] = None, page_size: int = 100, max_pages: int = 20) -> List[Dict]:
+    @classmethod
+    def from_video_provider(cls, provider):
+        """Kế thừa client ClipAI đã cấu hình; không đọc env hay dò credential."""
+        obj = cls.__new__(cls)
+        obj.client = provider.client
+        obj._sleep, obj.poll_sec, obj.timeout_sec = time.sleep, 3.0, 180.0
+        return obj
+
+    def list_assets(self, asset_type: Optional[str] = None, page_size: int = 100, max_pages: int = 20,
+                    strict: bool = False) -> List[Dict]:
         """Every asset of this token's library (all pages — S4.7: one upload per storyboard frame fills page 1 fast, and an asset past
-        it was "not found", so a cached id looked gone and the upload lookup could miss the new asset)."""
+        it was "not found", so a cached id looked gone and the upload lookup could miss the new asset).
+        strict=True chỉ dành cho kiểm sức chứa; mặc định giữ hợp đồng legacy get/upload."""
         size = min(max(page_size, 1), 100)
         out: List[Dict] = []
         for page in range(1, max(max_pages, 1) + 1):
             query = {"asset_type": asset_type, "page": page, "page_size": size}
-            data = call_rate_limited(lambda: self.client.get(PATH_LIST, query), self._sleep) or {}
-            rows = list(data.get("assets") or [])
-            out += rows
+            data = call_rate_limited(lambda: self.client.get(PATH_LIST, query), self._sleep)
+            if strict and (not isinstance(data, dict) or not isinstance(data.get('assets'), list)):
+                raise ProviderError('Kho chủ thể: snapshot sai định dạng; chưa xác minh sức chứa.',
+                                    code='incomplete_snapshot', transient=True)
+            data = data or {}
+            rows = list(data.get('assets') or [])
             count = data.get("count")
+            if strict and count is not None and (type(count) is not int or count < 0):
+                raise ProviderError('Kho chủ thể: tổng snapshot không hợp lệ; chưa xác minh sức chứa.',
+                                    code='incomplete_snapshot', transient=True)
+            out += rows
+            if strict and count is not None and (len(out) > count or (len(rows) < size and len(out) < count)):
+                raise ProviderError('Kho chủ thể: snapshot thiếu hoặc lệch tổng; chưa xác minh sức chứa.',
+                                    code='incomplete_snapshot', transient=True)
             if len(rows) < size or (isinstance(count, int) and len(out) >= count):
                 break
+        else:
+            if strict:
+                raise ProviderError('Kho chủ thể: snapshot thiếu trang; chưa xác minh sức chứa.', code='incomplete_snapshot', transient=True)
         return out
 
     def get(self, asset_id: str) -> Optional[Dict]:
@@ -172,7 +195,7 @@ class MockSubjectLibrary:
     """Offline stand-in: every upload is 'active' at once with a deterministic id (no state kept between runs)."""
     name = "mock-subjects"
 
-    def list_assets(self, asset_type=None, page_size=100):
+    def list_assets(self, asset_type=None, page_size=100, strict=False):
         return []
 
     def get(self, asset_id):

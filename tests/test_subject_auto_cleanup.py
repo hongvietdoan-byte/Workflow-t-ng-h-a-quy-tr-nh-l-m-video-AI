@@ -137,27 +137,29 @@ class AutoCleanupTests(unittest.TestCase):
         self.conn.commit()
         self.lib = FullLibrary([asset(i) for i in range(1, 6)], full=False)
         self.patches = [mock.patch("core.adapters.factory.subject_library", return_value=self.lib),
-                        mock.patch.dict(os.environ, {"FEATURE_SUBJECT_AUTO_CLEANUP": ""})]
+                        mock.patch.object(os, 'environ', {"FEATURE_SUBJECT_AUTO_CLEANUP": ""})]
         for pt in self.patches:
             pt.start()
             self.addCleanup(pt.stop)
 
     def diags(self):
         return [(r["severity"], r["message"]) for r in self.conn.execute(
-            "SELECT severity, message FROM diag_events WHERE code='subject_cleanup' AND project_id=?", (self.pid,))]
+            "SELECT severity, message FROM diag_events WHERE code='subject_cleanup_plan' AND project_id=?", (self.pid,))]
 
-    def test_delivery_deletes_only_the_rejected_frames_of_that_project(self):
+    def test_delivery_and_archive_never_delete(self):
         delivered.mark(self.conn, self.pid, "D:/out/x.mp4")
-        self.assertEqual(self.lib.deleted, ["asset-1"])
-        self.assertIsNone(subjects.picture_row(self.conn, "s1"))
-        self.assertTrue(any("asset-1" in m for s, m in self.diags() if s == "info"))
+        archive._move(self.p, put_away=self.pid)
+        self.assertEqual(self.lib.deleted, [])
+        self.assertIsNotNone(subjects.picture_row(self.conn, "s1"))
+        self.assertTrue(any("asset-1" in m and 'DRY-RUN' in m for s, m in self.diags() if s == "warn"))
 
     def test_archive_does_the_same(self):
         archive._move(self.p, put_away=self.pid)
-        self.assertEqual(self.lib.deleted, ["asset-1"])
+        self.assertEqual(self.lib.deleted, [])
+        self.assertTrue(any('DRY-RUN' in m for _, m in self.diags()))
 
     def test_flag_off_touches_nothing(self):
-        with mock.patch.dict(os.environ, {"FEATURE_SUBJECT_AUTO_CLEANUP": "0"}):
+        with mock.patch.object(os, 'environ', {"FEATURE_SUBJECT_AUTO_CLEANUP": "0"}):
             delivered.mark(self.conn, self.pid, "D:/out/x.mp4")
         self.assertEqual(self.lib.deleted, [])
 

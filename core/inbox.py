@@ -68,7 +68,7 @@ def _video_waits(conn, pid: int, final_hold: List[int]) -> List[str]:
     held = {}
     for r in conn.execute("SELECT j.id, s.idx FROM jobs j JOIN scenes s ON s.id=j.scene_id WHERE j.project_id=? AND j.type='video_gen'"
                           " AND j.state='queued' AND EXISTS (SELECT 1 FROM diag_events d WHERE d.job_id=j.id AND d.code IN"
-                          " ('video_pregen_hold','final_wait')) ORDER BY s.idx", (pid,)).fetchall():
+                          " ('video_pregen_hold','final_wait','QUEUE_CAPACITY','QUEUE_UNKNOWN_CAPACITY','QUEUE_CONFIG')) ORDER BY s.idx", (pid,)).fetchall():
         why = held_reason(conn, r["id"])
         if why:
             held.setdefault(why, []).append(r["idx"])
@@ -216,6 +216,16 @@ def items(conn, email: str, is_owner: bool = True, can_money: bool = True, auth_
             out.append({"kind": "Yêu cầu", "project_id": None, "project": "",
                         "text": f"{len(waiting)} yêu cầu vượt mức dự án chờ bạn duyệt ở 👥 Nhóm ({names})", "screen": None,
                         "level": "wait", "who": "", "sub": ""})
+    if is_owner:
+        # C3-3: cả dự án đã cất vẫn có một dòng chờ duyệt; không có nút apply.
+        for r in conn.execute("SELECT p.id, p.name, d.message FROM projects p JOIN diag_events d ON d.project_id=p.id "
+                              "WHERE d.code='subject_cleanup_plan' AND d.id=(SELECT MAX(x.id) FROM diag_events x "
+                              "WHERE x.project_id=p.id AND x.code='subject_cleanup_plan')"):
+            from . import subjects
+            if not subjects.rejected_frame_assets(conn, r['id']):
+                continue
+            out.append({'kind': 'Kho chủ thể', 'project_id': r['id'], 'project': r['name'], 'text': r['message'],
+                        'screen': None, 'level': 'wait', 'who': '', 'sub': 'DRY-RUN — chờ duyệt riêng từng lần'})
     order = {"bad": 0, "wait": 1, "warn": 2, "todo": 3}
     out.sort(key=lambda x: (order.get(x["level"], 9), x["project_id"] or 0))
     return out

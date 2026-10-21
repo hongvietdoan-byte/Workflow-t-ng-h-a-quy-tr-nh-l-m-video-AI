@@ -72,7 +72,8 @@ def wait_reason(job_id: int) -> Optional[str]:
     return hit[0] if hit and time.time() - hit[1] < WAIT_FRESH_SEC else None
 
 
-HOLD_CODES = ("change_review_hold", "video_pregen_hold", "final_wait", "end_frame_wait", "video_gate_hold")
+HOLD_CODES = ("change_review_hold", "video_pregen_hold", "final_wait", "end_frame_wait", "video_gate_hold",
+              'QUEUE_CAPACITY', 'QUEUE_UNKNOWN_CAPACITY', 'QUEUE_CONFIG')
 """C7 (13/10): diag codes the video runner writes when it KEEPS a queued job (Tổ rà soát, kiểm trước gen ĐỎ, bản cao chờ)."""
 
 
@@ -1080,6 +1081,12 @@ class VideoRunner(_Runner):
 
     def _pregen_prepare_error(self, job, error):
         from . import video_pregen
+        if isinstance(error, subject_links.CapacityWait):
+            hit = (str(error), time.time())
+            WAIT_REASONS[job['id']] = hit
+            self.__dict__.setdefault('_capacity_held', {})[job['id']] = hit
+            self._diag_once(job, 'warn', error.result['code'], str(error))
+            return True
         if not video_pregen.enabled():
             return False
         line = f"kiểm trước gen chặn: không chuẩn bị được tệp / tham chiếu ({type(error).__name__}: {error}) — chỉ giữ shot này"
@@ -1121,6 +1128,14 @@ class VideoRunner(_Runner):
 
     def _pregen_cooling(self, job) -> bool:
         from . import video_pregen
+        from . import features
+        capacity_held = self.__dict__.get('_capacity_held', {})
+        hit = capacity_held.get(job['id'])
+        if hit:
+            if features.on('subject_capacity_guard') and time.time() - hit[1] < PREGEN_RECHECK_S:
+                WAIT_REASONS[job['id']] = hit
+                return True
+            capacity_held.pop(job['id'], None)
         if not video_pregen.enabled():
             PREGEN_HELD.pop(job["id"], None)
             self.__dict__.get("_pregen_fingerprints", {}).pop(job["id"], None)
@@ -1752,18 +1767,30 @@ class VideoRunner(_Runner):
         if lib is None:
             from .adapters import factory
             try:
-                lib = factory.subject_library()
+                lib = (factory.subject_library(video_provider=self.provider) if features.on('subject_capacity_guard')
+                       else factory.subject_library())
             except ProviderError as e:
+                if features.on('subject_capacity_guard'):
+                    raise subject_links.CapacityWait({'code': 'QUEUE_CONFIG', 'reason': 'VÀNG: chưa cấu hình Kho chủ thể — job CHỜ; kiểm nguồn cấu hình Dashboard rồi thử lại.'}) from None
                 self._diag(job, "warn", "subjects", f"không mở được Kho chủ thể ({e}) — gửi ảnh như cũ")
                 return None
         if lib is None:
+            if features.on('subject_capacity_guard'):
+                raise subject_links.CapacityWait({'code': 'QUEUE_CONFIG', 'reason': 'VÀNG: chưa cấu hình Kho chủ thể — job CHỜ; kiểm nguồn cấu hình Dashboard rồi thử lại.'})
             self._diag(job, "warn", "subjects", "cờ seedance_subjects bật nhưng chưa có Kho chủ thể (SUBJECT_PROVIDER) — gửi ảnh như cũ")
             return None
         if clean:
             out_dir = os.path.join(self.data_dir, str(job["project_id"]), "refs_clean")
             pictures = [(label, seedance_refs.mark(path, out_dir, style="none")) for label, path in pictures]
+        if features.on('subject_capacity_guard'):
+            check = subject_links.capacity(self.p.conn, lib, pictures)
+            if check['code'] != 'READY':
+                raise subject_links.CapacityWait(check)
         res = subject_links.picture_refs(self.p.conn, lib, pictures)
         if not res["refs"]:
+            if features.on('subject_capacity_guard'):
+                raise subject_links.CapacityWait({'code': 'QUEUE_CAPACITY' if res.get('library_full') else 'QUEUE_UNKNOWN_CAPACITY',
+                                                 'reason': 'VÀNG: Kho chưa nhận đủ ảnh — job CHỜ; kiểm Kho rồi thử lại, không gửi ảnh đánh dấu/đổi model.'})
             self._diag(job, "warn", "subjects", "Kho chủ thể chưa nhận đủ ảnh — gửi ảnh như cũ (đánh dấu): " + "; ".join(res["problems"]))
             return None
         new = sum(1 for r in res["refs"] if r["uploaded"])

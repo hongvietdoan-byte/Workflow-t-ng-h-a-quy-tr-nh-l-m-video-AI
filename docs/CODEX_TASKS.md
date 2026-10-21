@@ -1378,6 +1378,9 @@ bằng cờ dòng lệnh + file danh sách đã được người dùng duyệt,
 loại + 3 asset cất 4 ngày + 2 cất 1 ngày + 1 dùng chung → dry-run liệt kê đúng 8, giữ 3; Kho đầy → job chờ, 0 job Kling lùi; list lỗi mạng → VÀNG, 0 xóa).
 
 ## Việc 6 — AI Dev System: trang "Sổ lỗi" (đọc `devsys/errors.json`)
+<!-- Kết quả Codex Đ20 việc 5: bản build để rà, chưa gộp/chưa live. -->
+**Kết quả Codex Đ20 việc 5 (CX20-5, nhánh `codex/d20-viec5-kho-chu-the`):** guard Kho mặc định OFF, full/unknown giữ queued không đánh dấu/Kling; G59 dùng lại client cấu hình; cleanup legacy chỉ DRY-RUN C3-3; CLI SQLite read-only/snapshot offline. Đỏ7→xanh42/5,54s. Bản rà `docs/RA_D20_VIEC5_CODEX_2026-10-20.md` + `HANDOFF.md`; OPEN ownership/lifecycle legacy, reservation liên tiến trình, plan approval/apply, parser snapshot cần reviewer sửa. Chưa đủ nghiệm thu toàn M1.5, chưa cả bộ Windows/production/API.
+
 BẮT ĐẦU KHI: `main` có `devsys/errors.json` + `devsys/errors.py` (việc cloud C-M04-05, nhánh `cloud/v31-m04-m05`). Trang devsys liệt kê sổ lỗi: lọc theo trạng
 thái / workstream / dự án, đếm coverage, cảnh báo đỏ mục `problems()` (VERIFIED thiếu bằng chứng…); nối trang 🗺 Sơ đồ tiến độ (`devsys/plan_map.py`) để tô khâu
 theo lỗi mở. Theo mẫu trang hiện có trong `devsys/app.py`; cập nhật `tests/test_tickets_page.py` danh sách điều hướng nếu thêm trang. Test hiển thị theo cách
@@ -1404,3 +1407,4 @@ Hai VỪA + THẤP: catalog COMPAT đủ/OFF, queued cảnh báo, Git fallback, 
 
 ### Kết quả Codex CX20-2b — 21/10
 Đã có replay prepare/build thật từ snapshot DB + manifest readonly, CLI capture/replay nhiều fixture, không sidecar args. 63 test native xanh; byte ảnh/video tổng hợp, drift/sandbox/cache/đếm distinct shot. Xem docs/RA_D20_VIEC2B_CODEX_2026-10-21.md để chạy #24/#27. Code + lệnh xong; nghiệm thu thật M1.9/CAO-M2, rà độc lập, cả bộ/gộp/mở M2 còn OPEN. Không push/main/live/TODO/plan.
+- CX20-5b · `codex/d20-viec5-kho-chu-the` · commit chứa dòng này: strict chỉ capacity, OFF giữ native get/upload/factory cũ; processing có snapshot không chặn toàn Kho, cooling heartbeat và inbox bỏ plan cũ. Đỏ5/21pass → xanh77 →135pass/14,34s; root đã đọc diff. RA `docs/RA_D20_VIEC5B_CODEX_2026-10-21.md`; allocator/concurrency/lifecycle native vẫn OPEN, chưa cả bộ/live/main/push.
