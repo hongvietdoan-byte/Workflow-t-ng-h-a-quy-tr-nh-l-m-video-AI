@@ -68,3 +68,23 @@ fail-closed trước khi spawn. Tiến trình con dùng môi trường whitelist
 `SYSTEMROOT=C:/Windows`, HOME/USERPROFILE/TEMP/TMP trỏ scratch, không kế thừa
 credential của máy. Replay chỉ đọc CSDL nguồn và `data/`; regression kiểm SHA
 CSDL nguồn cùng mtime nanosecond toàn cây `data/` không đổi.
+CX21-GOLDEN (21/10): `--latest-per-type` chọn job final/upscale thiếu prompt sẽ lần
+`source_job_id` trong cùng project/scene/type về bản nguồn có prompt. Fixture ghi
+`selected_job_id` (bản cuối) và `id` (bản nguồn thực sự được dựng/so byte). Chuỗi nguồn
+thiếu, khác phạm vi hoặc vòng lặp → INSUFFICIENT_INPUT riêng ca, các ca khác vẫn chạy.
+VFS cấp thêm quyền chỉ đọc đúng FILE ảnh được job tham chiếu trong
+`data/_plates3d/cache/` hoặc `data/assets/<id>/`; không mở cả cây thư mục. File đọc
+vẫn được đóng băng SHA256 trong dependency manifest. Diagnostic chặn ghi loại và
+path tương đối root; path ngoài root được thay `<outside-root>`, không xuất payload.
+
+Chọn shot nghiệm thu: ưu tiên bản nguồn có envelope đầy đủ, refs còn nguyên hash,
+scene/motion/asset/config chưa đổi từ lúc gửi. BUILT nhưng byte khác ngay khi capture
+(ví dụ lịch sử job 660/846/909) vẫn INSUFFICIENT_INPUT; không đổi baseline, không gắn
+matched_at_capture=True để nâng thành COMPAT. Chọn shot khác hoặc dùng snapshot
+lịch sử đúng thời điểm gửi. Chỉ phiên máy chính chạy các lệnh sau trên snapshot được duyệt:
+```
+<python-native-3.14> tools/golden_capture.py --db <snapshot>/manifest.sqlite --project 24 --shot <scene> --flags-file <snapshot>/compat-flags.json --public-config-file <snapshot>/public-config.json --ref-root <snapshot-ref-root> --purpose compat --database-replay --latest-per-type --output <fixture-moi>.json
+<python-native-3.14> tools/golden_db_replay.py --fixture <fixture-moi>.json --db <snapshot>/manifest.sqlite --ref-root <snapshot-ref-root> --output <replay-moi>.json
+```
+Lặp cho project 27; cần ≥3 shot ảnh + ≥3 shot video COMPAT mỗi dự án, 0 CODE_MISMATCH.
+Nghiệm thu thật #24/#27 vẫn OPEN cho tới khi chủ máy xác nhận đủ số đo.

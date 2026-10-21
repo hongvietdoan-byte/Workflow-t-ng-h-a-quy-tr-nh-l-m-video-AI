@@ -15,6 +15,35 @@ ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = {"LLM_PROVIDER", "image_model", "video_model"}
 
 
+class SandboxDenied(ValueError):
+    def __init__(self, kind, path=None):
+        super().__init__("INSUFFICIENT_INPUT: sandbox chặn")
+        self.diagnostic = {"kind": kind, "path": path or "<outside-root>"}
+
+
+def _job_ref_paths(package, root):
+    """Chỉ cấp quyền FILE ảnh được gói job tham chiếu, không cấp cây thư mục."""
+    from tools.golden_capture import _safe
+    _safe(package)
+    paths = set()
+    for ref in package.get("refs", []):
+        if not isinstance(ref, dict) or not isinstance(ref.get("path"), str):
+            continue
+        path = Path(ref["path"])
+        if path.is_absolute():
+            try:
+                path = path.relative_to(root)
+            except ValueError:
+                continue
+        name = path.as_posix()
+        if (name.startswith(("data/_plates3d/cache/", "data/assets/"))
+                and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff", ".avif"}):
+            candidate = _plain(name, root)
+            if candidate.is_file():
+                paths.add(name)
+    return paths
+
+
 class DataChanged(ValueError):
     pass
 
@@ -152,7 +181,7 @@ def replay_fixture(fixture, *, db, ref_root):
         identity={"project_id":fixture["project"],"scene_id":fixture["scene_id"],"type":job["type"],"job_id":job["id"]}
         recorded = job.get("database_replay") or {}
         if not recorded.get("manifest"):
-            results.append({**identity, "status":"INSUFFICIENT_INPUT", "reason":"thiếu manifest"})
+            results.append({**identity, "status":"INSUFFICIENT_INPUT", "reason":recorded.get("reason", "thiếu manifest"), **({"diagnostic": recorded["diagnostic"]} if "diagnostic" in recorded else {})})
             continue
         actual = build_from_database(db=db, ref_root=ref_root, job_id=job["id"], flags=fixture["flags"],
             envelope=recorded["envelope"], manifest=recorded["manifest"], public_config=recorded["manifest"].get("public_config"))
@@ -190,7 +219,8 @@ def _worker(request):
     project = None
     asset_paths = set()
     def forbidden(*args, **kwargs):
-        raise ValueError("INSUFFICIENT_INPUT: thao tác ngoài sandbox")
+        last = denied[-1] if denied else {"kind": "operation", "path": "<outside-root>"}
+        raise SandboxDenied(last["kind"], last["path"])
     def relpath(path):
         p = Path(os.path.abspath(os.fspath(path)))
         for home in (scratch, source, ROOT):
@@ -199,6 +229,11 @@ def _worker(request):
             except ValueError:
                 pass
         return None
+    def block(kind, path=None):
+        name = relpath(path) if path is not None else None
+        if name and (".." in Path(name).parts or ":" in name or "?" in name or "#" in name):
+            name = None
+        denied.append({"kind": kind, "path": name or "<outside-root>"})
     def allowed(name):
         return (name.startswith((f"data/projects/{project}/", "data/knowledge/", "knowledge/", "prompts/"))
                 or name == f"data/projects/{project}"
@@ -210,7 +245,7 @@ def _worker(request):
         absolute = Path(os.path.abspath(os.fspath(path)))
         if write:
             if not absolute.is_relative_to(scratch):
-                denied.append("write")
+                block("write", path)
                 forbidden()
             return absolute
         if name and allowed(name):
@@ -222,7 +257,7 @@ def _worker(request):
                 pass
             target = _plain(name, source)
             if request["expected_files"] is not None and name not in request["expected_files"]:
-                denied.append("manifest")
+                block("manifest", path)
                 forbidden()
             try:
                 st = original_stat(target)
@@ -242,7 +277,7 @@ def _worker(request):
                 raise DataChanged()
             return target
         if name and name.startswith("data/") and not absolute.is_relative_to(scratch):
-            denied.append("data")
+            block("data", path)
             forbidden()
         return path
     def wrapped_open(path, mode="r", *args, **kwargs):
@@ -266,38 +301,43 @@ def _worker(request):
             mode, flags = args[1:3]
             writing = (isinstance(mode, str) and any(c in mode for c in "wax+")) or (isinstance(flags, int) and flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC))
             if writing and not path.is_relative_to(scratch):
-                denied.append("write")
+                block("write", path)
                 forbidden()
             if not writing and not path.is_relative_to(scratch):
                 name = relpath(path)
                 runtime = path.is_relative_to(Path(sys.base_prefix))
                 code = path.is_relative_to(ROOT) and path.suffix in {".py", ".pyc", ".pyd"}
                 if not (runtime or code or (name and allowed(name))):
-                    denied.append("read")
+                    block("read", path)
                     forbidden()
         elif event in {"os.listdir", "os.scandir"}:
             path = Path(os.path.abspath(os.fspath(args[0])))
             name = relpath(path)
             code_directory = path == ROOT or path.is_relative_to(ROOT / "core") or path.is_relative_to(ROOT / "tools")
             if not path.is_relative_to(scratch) and not path.is_relative_to(Path(sys.base_prefix)) and not code_directory and not (name and allowed(name)):
-                denied.append("directory")
+                block("directory", path)
                 forbidden()
         elif event.startswith(("socket.", "subprocess.", "os.exec", "os.spawn", "os.posix_spawn", "os.startfile")) or event in {"os.system", "os.fork", "os.forkpty"}:
-            denied.append("network")
+            block("network")
             forbidden()
         elif event in {"os.remove", "os.rmdir", "os.mkdir", "os.rename", "os.link", "os.symlink", "os.utime", "os.chmod", "os.chown", "os.truncate"}:
             for arg in args[:2] if event in {"os.rename", "os.link", "os.symlink"} else args[:1]:
                 if isinstance(arg, (str, bytes, os.PathLike)) and not Path(os.path.abspath(arg)).is_relative_to(scratch):
-                    denied.append("write")
+                    block("write", arg)
                     forbidden()
         elif event == "sqlite3.connect":
             if not Path(str(args[0])).resolve().is_relative_to(scratch):
-                denied.append("db")
+                block("db")
                 forbidden()
     with closing(sqlite3.connect(scratch / "data/manifest.sqlite")) as conn:
         conn.row_factory = sqlite3.Row
         job = dict(conn.execute("SELECT * FROM jobs WHERE id=?", (request["job_id"],)).fetchone())
         project = int(job["project_id"])
+        try:
+            reference_package = json.loads(job.get("sent_package") or "{}")
+            asset_paths.update(_job_ref_paths(reference_package, source))
+        except (ValueError, TypeError):
+            pass  # Baseline không hợp lệ không cấp thêm quyền đọc.
         scene = json.loads(conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()[0] or "{}")
         scene_text = json.dumps(scene, ensure_ascii=False).casefold()
         ids = {r["id"] for r in conn.execute("SELECT id,name FROM assets") if r["name"].casefold() in scene_text}
@@ -393,7 +433,7 @@ def _worker(request):
                 if changed:
                     return {"status":"DATA_CHANGED", "reason":"nguồn đổi trong lúc worker đọc"}
                 if not raw or warnings or denied:
-                    return {"status": "INSUFFICIENT_INPUT", "reason": "dependency thiếu hoặc sandbox chặn"}
+                    return {"status": "INSUFFICIENT_INPUT", "reason": "dependency thiếu hoặc sandbox chặn", "diagnostic": denied or [{"kind": "dependency", "path": "<unavailable>"}]}
                 from tools.golden_capture import _safe
                 _safe(json.loads(raw))
                 return {"status": "BUILT", "raw": raw, "files": files, "registry":registry_used}
@@ -434,7 +474,7 @@ if __name__ == "__main__" and len(sys.argv) == 2 and not sys.argv[1].startswith(
         while trace is not None:
             positions.append(f"{Path(trace.tb_frame.f_code.co_filename).name}:{trace.tb_lineno}")
             trace = trace.tb_next
-        answer = {"status": "INSUFFICIENT_INPUT", "reason": "worker thiếu dependency hoặc schema", "diagnostic": type(exc).__name__ + " " + ",".join(positions[-8:])}
+        answer = {"status": "INSUFFICIENT_INPUT", "reason": "worker thiếu dependency hoặc schema", "diagnostic": getattr(exc, "diagnostic", {"kind": type(exc).__name__, "positions": positions[-8:]})}
     Path("response.json").write_text(json.dumps(answer, ensure_ascii=False), encoding="utf-8")
 elif __name__ == "__main__":
     sys.path.insert(0,str(ROOT))
