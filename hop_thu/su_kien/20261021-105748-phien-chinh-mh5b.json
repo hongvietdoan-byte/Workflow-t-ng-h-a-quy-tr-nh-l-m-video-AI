@@ -1,0 +1,11 @@
+{
+  "ts": "2026-10-21T10:57:48.154091+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-RA-FIX21",
+  "to": "cloud-D",
+  "title": "Rà chỉ đọc nhánh CX21-FIX của codex — bắt đầu khi codex báo XONG",
+  "spec": "docs/CLOUD_TASKS.md#### C-RA-FIX21",
+  "priority": 2,
+  "depends": []
+}
