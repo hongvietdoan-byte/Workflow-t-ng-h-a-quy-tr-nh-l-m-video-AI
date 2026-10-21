@@ -638,3 +638,13 @@ kèm LỆNH chụp lại cho phiên chính (máy chính chạy). XONG hộp thư
 ```
 
 #### CX21-FIX2 → cloud-C (nhỏ): đề ở docs/CODEX_TASKS.md "### CX21-FIX2" (merge_union: mục một bên xóa bị sống lại). Nhánh cloud/v31-fix2-21.
+
+## TỰ VẬN HÀNH — mọi làn cloud/codex (người dùng 21/10: "tôi chỉ việc điều khiển phiên chính")
+Người dùng KHÔNG nhắn từng làn nữa. Mỗi làn phải tự chạy liên tục:
+1. Đặt lịch tự đánh thức NGAY khi đọc mục này (cloud: CronCreate lặp mỗi 20 phút, phút lệch vd `7,27,47 * * * *`; codex: automation 30 phút đã có):
+   đề bài lịch = "git pull; hop_thu.py bang; xử lý tin/trả lời mới gửi làn mình; nếu còn việc ĐANG LÀM thì làm tiếp; nếu không thì
+   hop_thu.py ke --lane <làn> --nhan --push rồi làm; HẾT VIỆC thì het-viec + báo hạn mức (1 lần/giờ là đủ)".
+2. Xong một việc → báo xong → nhận việc kế NGAY trong cùng lượt (không dừng chờ người dùng gõ). Nhánh phụ (cloud-C, cloud-E) xong → đăng xong rồi mở nhánh phụ cho việc CHỜ kế.
+3. Cần quyết định → `hop_thu.py hoi … --to phien-chinh --push` rồi làm việc khác trong lúc chờ; KHÔNG hỏi người dùng trực tiếp.
+4. Lịch hết hạn (7 ngày) / phiên khởi động lại → tạo lại lịch ở bước đầu tiên.
+5. Dừng hẳn chỉ khi hạn mức tuần ≥ 90 % (hoặc credit ≥ $90): hoàn tất việc dở → het-viec + tin HẠN MỨC → tắt lịch.
