@@ -96,3 +96,50 @@ def test_no_caller_infers_talking_without_flag():
                 continue
             bad.append(f"{rel}:{fn.name}:{hits[0].lineno}")
     assert not bad, bad
+
+
+# ---- A11: thông điệp end_frame_skill_object theo vật thật, không viết cứng "ném keo" / "tường" ----
+def _skill_runner(said):
+    from types import SimpleNamespace
+    return SimpleNamespace(p=SimpleNamespace(conn=None), _scene_data=lambda job: {"action": "the ice tower rises"},
+                           _diag_once=lambda job, level, code, msg: said.append((code, msg)))
+
+
+def test_skill_object_message_names_real_object():
+    from unittest.mock import patch
+    from core import end_frames, runner, skill_objects
+    said = []
+    with patch.object(end_frames, "skip_reason", return_value=end_frames.SKILL_SKIP), \
+         patch.object(skill_objects, "rising_names", return_value=["Tháp băng"]):
+        assert runner.VideoRunner._skill_object_appears(_skill_runner(said), {"scene_id": 5, "project_id": 1}, "end_5.png")
+    (code, msg), = said
+    assert code == "end_frame_skill_object"                       # trang Chẩn đoán lọc theo code: giữ nguyên
+    assert "ném keo" not in msg and "tường" not in msg
+    assert "Tháp băng" in msg and "GHÉP" in msg and "KHÔNG kèm" in msg and "end_5.png" in msg
+
+
+def test_skill_object_message_without_known_name():
+    from unittest.mock import patch
+    from core import end_frames, runner, skill_objects
+    said = []
+    with patch.object(end_frames, "skip_reason", return_value=end_frames.SKILL_SKIP), \
+         patch.object(skill_objects, "rising_names", return_value=[]):
+        runner.VideoRunner._skill_object_appears(_skill_runner(said), {"scene_id": 5, "project_id": 1}, "")
+    msg = said[0][1]
+    assert "ném keo" not in msg and "tường" not in msg and "vật kỹ năng" in msg
+
+
+def test_rising_names_only_objects_in_rising_sentence():
+    from unittest.mock import patch
+    from core import skill_objects
+    tower = {"name": "Tháp băng"}
+    with patch.object(skill_objects, "skill_assets", return_value=[tower]), \
+         patch.object(skill_objects, "_names_of", side_effect=lambda items: [a["name"] for a in items] + ["ice tower"]):
+        assert skill_objects.rising_names(None, 1, {"action": "The ice tower shoots up in front of Kenta."}) == ["Tháp băng"]
+        assert skill_objects.rising_names(None, 1, {"action": "Kenta runs. The ice tower stands behind him."}) == []
+
+
+def test_no_hardcoded_glue_words_in_runner_messages():
+    """A11: lời nhắn diag của runner không còn viết cứng "(ném keo)" cho mọi vật kỹ năng."""
+    src = (ROOT / "core" / "runner.py").read_text(encoding="utf-8")
+    assert "(ném keo)" not in src

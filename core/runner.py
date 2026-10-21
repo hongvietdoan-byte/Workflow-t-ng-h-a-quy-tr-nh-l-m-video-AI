@@ -1545,8 +1545,11 @@ class VideoRunner(_Runner):
         from . import end_frames               # R3 (rà S3): ONE rule with queue / tick / card (end_frames.skip_reason)
         if not end_frames.skip_reason(self.p.conn, job["scene_id"], self._scene_data(job)):
             return False
-        self._diag_once(job, "warn", "end_frame_skill_object", f"shot có vật kỹ năng xuất hiện (ném keo) — clip gửi KHÔNG kèm khung cuối "
-                        f"vẽ{f' ({os.path.basename(end)})' if end else ''}; dựng bằng GHÉP code cắt cứng sang khung có tường (`py {skill_objects.COMPOSE_TOOL}`)")
+        # M2.9 A11: nói đúng vật (tên Kho), không viết cứng "ném keo" / "tường"
+        vat = ", ".join(skill_objects.rising_names(self.p.conn, job["project_id"], self._scene_data(job)))
+        self._diag_once(job, "warn", "end_frame_skill_object", end_frames.SKIP_TEXT["skill_object"].format(vat=f" {vat}" if vat else "")
+                        + f" — clip gửi KHÔNG kèm khung cuối vẽ{f' ({os.path.basename(end)})' if end else ''}; dựng bằng GHÉP code cắt "
+                        f"cứng sang khung cuối có {vat or 'vật kỹ năng'} (`py {skill_objects.COMPOSE_TOOL}`)")
         return True
 
     def _same_ground(self, job, end: str) -> bool:
@@ -2926,9 +2929,9 @@ def _skill_object_guard(runner, job, text: str, what: str, group=None) -> str:
                                                                        .fetchone() or {"data": "{}"})["data"] or "{}")}]
         if any(skill_objects.rises(r["data"]) for r in rows):
             say(job, "warn", "skill_object_compose",
-                f"shot có {', '.join(names)} xuất hiện (ném keo) — tường xuất hiện luôn, prompt tả tường đã đứng sẵn đủ cao (không tả "
+                f"shot có {', '.join(names)} xuất hiện — vật xuất hiện luôn, prompt tả {', '.join(names)} đã đứng sẵn đủ cao (không tả "
                 f"mọc); model video hay vẽ sai vật kỹ năng (#27 shot 16: 6 lần gen hỏng) → gợi ý dựng bằng GHÉP code: clip người cắt "
-                f"cứng sang khung cuối có tường + rung (`py {skill_objects.COMPOSE_TOOL}`)")
+                f"cứng sang khung cuối có {', '.join(names)} + rung (`py {skill_objects.COMPOSE_TOOL}`)")   # M2.9 A11: không viết cứng "ném keo" / "tường"
     return new
 
 

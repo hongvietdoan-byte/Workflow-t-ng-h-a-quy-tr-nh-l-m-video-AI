@@ -6,7 +6,9 @@
   G15 lipsync.mark(method="skip") + runner gọi forget_skipped (đơn shot + nhóm take). test_narration_regression: tham số cờ TẮT (21 xfail strict giữ)
   / BẬT (hết xfail). tests/test_v31_m29_narration.py (AST + forget_skipped).
 
+- A11: end_frames.SKIP_TEXT + skill_objects.rising_names; runner nói đúng vật (bỏ "(ném keo)"/"tường" viết cứng), code diag giữ.
+
 ## Đang dở / bước kế
 - G14 `voice.plan_fit` / `apply_fit` (cờ fit_durations_review) + nút ⏱ duyệt.
-- A11 thông điệp end_frames theo lý do (bỏ "ném keo" viết cứng). A12 kiểm director_byd.settle với ClaudeCliClient.
+- A12 kiểm director_byd.settle với ClaudeCliClient.
 - related_areas + báo cáo docs/RA_CLOUD_M29_2026-10-21.md; xóa HANDOFF.md ở commit cuối.
