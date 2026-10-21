@@ -277,6 +277,9 @@ def post_tick(p, pid: int, data_dir: str, provider, ffmpeg: str, log=lambda m: N
                 log(f"Khớp môi dừng: {slot.over}")
                 say("warn", "budget", f"khớp môi dừng: {slot.over}", s["id"], job["id"])
                 break
+            from . import gen_auth                 # C-M63-FIX: M6.3 shadow ở đường gửi không qua runner (ghi, không chặn)
+            gen_auth.shadow_send(p.conn, project_id=pid, scene_id=s["id"], kind="video_gen", model=getattr(provider, "model", None),
+                                 route="lipsync", data_dir=data_dir)
             try:
                 task = slot.send(provider.submit, job["result_path"], seg["path"])
             except ProviderError as e:
