@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T11:08:19.206311+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-PORT4",
+  "to": "cloud-E",
+  "title": "4 test đỏ trên Linux: tìm gốc, xanh đa nền tảng (chỉ test)",
+  "spec": "docs/CLOUD_TASKS.md#### C-PORT4",
+  "priority": 4
+}
