@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T22:54:48.317229+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M63",
+  "branch": "cloud/v31-m63",
+  "commit": "cda07775",
+  "report": "docs/RA_CLOUD_M63_2026-10-21.md",
+  "text": "core/gen_auth.authorize/shadow gọi ngay trước provider.submit (runner._submit_pending, sau _paused_now M1.3) — SHADOW ghi <pid>/crew/gen_auth_shadow.jsonl, không chặn, không ghi CSDL, gói gửi giữ byte. Mã: ATTEMPTS_EXHAUSTED (3 ảnh/2 video tính chung, không reset; Q1 nâng nháp không tính; Q2 EP bấm needs_ep), BUDGET_EXCEEDED (40 % lượt đầu, chỉ việc tự động), SAME_CAUSE_STREAK, PROVIDER_UNVERIFIED, DUPLICATE_INFLIGHT, LOCKED_CHANGE, NO_CAUSE, MODEL_NOT_APPROVED. LƯU Ý: tên cờ = gen_auth_shadow (generation_authorization bị golden _safe coi là bí mật → 2 golden đỏ). Rà 18 mục: sửa 14, ghi lại 4 (đường quality_samples/end_frames không qua cổng, MODEL_NOT_APPROVED gần vô hiệu tới M6.1, risk_control lúc poll, M6-B nên dùng cờ chặn riêng). 22 test mới. Suite: 6890 passed, đỏ chỉ golden 3.14 nền. HẠN MỨC: không đọc được."
+}
