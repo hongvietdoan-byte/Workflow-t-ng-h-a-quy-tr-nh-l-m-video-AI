@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T21:51:19.106669+07:00",
+  "lane": "cloud-C",
+  "kind": "xong",
+  "task": "C-M74",
+  "branch": "cloud/v31-m74",
+  "commit": "2127b049",
+  "report": "docs/RA_CLOUD_M74_2026-10-21.md",
+  "text": "Gói B sửa cờ, KHÔNG khóa: B7 cổng phát hành thấy đen/đứng hình (lưu kết quả đọc video theo id bản dựng; chưa đo/không đo được = CHƯA ĐẠT); B2 🔒 không tác dụng (dialogue_take cần lip_sync) → VÀNG 🧭; B8 test máy sân khấu thắng đường chạy; two_tier_quality nhãn 15/10 + nghiệm thu F-Q4 tools/two_tier_acceptance.py (±5 % đủ phát sinh + ≥80 % duyệt ngay + gen lại ≤1, thiếu số = KHÔNG RÕ); motion_consistency_lint luật VÀNG giu_yen; end_frames costs + why; bg_autoqc phân loại kẹt theo mã lỗi (P31-G57). Agent rà 10 mục (1 CAO) đã sửa. Bộ đủ 6880 xanh, đỏ = 25 golden(3.14). Không làm (cấu hình/nhánh khác): video_gate→horizon_needs_sky, scene_qc flags, lip_sync (m29+baseline), travel_truth (DP11). HẠN MỨC: không đọc được."
+}
