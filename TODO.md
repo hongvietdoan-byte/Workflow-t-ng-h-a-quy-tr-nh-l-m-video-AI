@@ -191,11 +191,11 @@
 - MCP Claude / V0 trong Claude Desktop (tạm gác từ 2026-09-19; tập trung build Dashboard). Các mục dry-run V0 và "mở lại Claude Desktop" bên dưới chờ mở lại.
 
 ## 🚧 Đang làm / kế tiếp (ưu tiên từ trên xuống)
-- [ ] **21/10 · Tổ làm phim có chủ (đề xuất M6)** — `docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md`: vai 3D Artist / Họa sĩ storyboard / Viết prompt video / Âm thanh + Dựng-VFX, công cụ (ClipAI, Deepix, Blender…) nằm dưới vai; lỗi do vai tự sửa, phiên Claude Code chỉ sửa code; bảng ô sửa còn thiếu trên Dashboard; tốc độ đo thật 4–5 s/lần bấm, tab Motion #31 36 s. Chờ duyệt rồi đưa M6 vào Master Build.
+- [ ] **21/10 · M6 AI Video Production Team** — Executive Producer chốt ĐỊNH HƯỚNG KIẾN TRÚC (chưa duyệt code). Kế hoạch đầy đủ `docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md` (10 mục: tổ + phân quyền, Role Registry, Handoff Contract, Video Prompt Artist, Generation Authorization ảnh 3 / video 2 lượt, QC + định tuyến lỗi, Dashboard + tốc độ, ma trận M1–M6, schema/test/rollback, chi phí Claude, lộ trình P0–P6). Đã gộp M6.0–M6.12 vào Master Build V3.1 mục 5 + `devsys/plan_map.json`; sổ `v31-m6-crew-architecture-2026-10-21`, `v31-m6-generation-limits-policy-2026-10-21`. Bằng chứng P0: `lineage.summary` #31 7,6–11,3 s mỗi lần vẽ lại (gốc Dashboard chậm); #27 16/22 shot ảnh > 3 lượt, 17/22 shot video > 2 lượt.
 - *(07/10, người dùng: xóa hẳn các mục cũ 09/2026–03/10 ở đây — việc đang mở nằm ở đầu file (việc để sau Khủng Long Đỏ), `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` và mục 🐞 bên dưới; nội dung cũ xem lịch sử git trước commit này)*
 
 ## 👤 Việc cần người dùng quyết định / cung cấp
-- [ ] **21/10 · Duyệt đề xuất Tổ làm phim có chủ** (mục 5 của `docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md`): danh sách vai, quyền tự sửa trong trần, thứ tự M6 so với M2.
+- [ ] **21/10 · Executive Producer trả lời Q1–Q6 của M6** (mục 10 `docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md`): nâng nháp→1080p có tính lượt không; EP bấm gen lại có trừ lượt không; ngân sách tự sửa; thang lùi model; làm sớm M6.11 tốc độ; khi nào trình gói Cấp 2 M6-P1.
 - *(07/10, người dùng: xóa hẳn các mục cũ 09/2026–03/10 ở đây — việc đang mở nằm ở đầu file (việc để sau Khủng Long Đỏ), `docs/KE_HOACH_SUA_SAU_DU_AN_8.md` và mục 🐞 bên dưới; nội dung cũ xem lịch sử git trước commit này)*
 
 ## 🐞 Tồn đọng / cần sửa lại

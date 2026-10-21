@@ -2,6 +2,9 @@
 
 > Đợt ưu tiên: M1 (G2-2 duyệt 20/10 — ưu tiên M1 + golden M1.9 trước M2; song song M0.4–M0.5 sổ lỗi G2-1; M0.6–M0.11 ở làn cloud)
 
+> **21/10 — thêm M6 "AI Video Production Team"** (Executive Producer chốt ĐỊNH HƯỚNG KIẾN TRÚC, chưa duyệt code): kế hoạch chi tiết
+> `docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md`; triển khai XEN KẼ theo phụ thuộc với M1–M5 (không làm hết M6 trước M2, không chờ M2 100 %).
+
 > **Nguồn:** `E:/Tai xuong/AI_VIDEO_PIPELINE_MASTER_PLAN_V3_1_2026_10_20.pdf` (người dùng 20/10, 11 trang) — chuyển sang markdown để AI Dev
 > System (`devsys/plans.json`, kiểu `viec_s`) tính tiến độ từ danh sách việc ở mục 5. Hợp nhất: KH-gốc 17/10, V2.1 R2/R3
 > (`docs/KE_HOACH_AI_VIDEO_PIPELINE_V2_1_REVIEW.md` §1–§15), V3 (`docs/KE_HOACH_AI_VIDEO_PIPELINE_V3_2026-10-20.md` + Phụ lục A), báo cáo lỗi
@@ -85,6 +88,7 @@ mã lỗi sửa chọn lọc).
 | M3 Thế giới & liên tục | WS3 world map/whitebox/blocking + expected state; nối WS4 | người dùng duyệt map cảnh 4/6/8 #31 + tháp #33; kiểm hình học offline; gen chứng minh xin riêng | tắt định tuyến map, dùng ref cũ |
 | M4 QC & Dashboard | WS5 bằng chứng QC, benchmark shadow, Dashboard xem gói/override/chi phí | benchmark độc lập theo mã; rà báo nhầm; override có audit | QC chỉ shadow |
 | M5 Sửa & pilot | WS6 repair router, trần retry, final QC; pilot end-to-end | pilot thật có duyệt, không gen thừa, không sửa ngoài phụ thuộc; final QC; báo cáo chi phí | tắt repair router |
+| M6 Tổ làm phim có chủ (21/10) | Role Registry, Handoff Contract, Generation Authorization (ảnh 3 / video 2 lượt mỗi shot), Video Prompt Artist + Storyboard Artist shadow, vai 3D / âm thanh / dựng / continuity, Dashboard điều phối + tốc độ theo profiling | mỗi trường một vai chủ; cổng lượt khớp tính tay trên replay #27/#31; VPA coverage 100 % + EP chọn ≥ 2/3 so mù; `lineage.summary` #31 < 0,3 s; cờ TẮT = golden byte giống | cờ từng phần TẮT (shadow trước) |
 
 **Bắt buộc mỗi thay đổi (V3.1 §13.1, CHUAN_XAY_DUNG):** kiểm thao tác tay, autopilot, v2 cảnh, v3 từng shot, nhiều shot, clone dự án, chạy
 lại Đạo diễn; `py tools/related_areas.py` + agent rà khu vực liên quan trước commit (quy ước 7); `pregen_check --project N` trước khi xin gen
@@ -132,6 +136,8 @@ Phân tích phương án: `docs/V3_1_D01_D10_CHO_DUYET_2026-10-20.md`. Sổ: `da
 | `v31-kho-forms-direction-2026-10-20` (M2.3) | Kho forms/outfit/hair/face + provenance, 6 điều kiện | định hướng | thiết kế + test đề xuất; KHÔNG migration production |
 | `v31-user-edit-protection-direction-2026-10-20` (M2.5) | AUTO / USER_LOCKED / REVIEW_REQUIRED mọi đường ghi; báo xung đột | định hướng | đặc tả + audit đường ghi + chuẩn bị test; KHÔNG đổi write path |
 | `v31-scene-world-map-trial-2026-10-20` (M3.1) | world map không bắt buộc; 3D hoặc 2D; UNKNOWN; version + provenance; duyệt trước khi chặn | thử nghiệm có điều kiện | thiết kế + thử offline SAU khi M3 được duyệt triển khai; KHÔNG bật production |
+| `v31-m6-crew-architecture-2026-10-21` (M6) | Tổ làm phim: Executive Producer → Director → 7 vai chuyên trách + Continuity Validator; Kỹ sư chỉ code; Role Registry + Handoff Contract; dùng chung cơ chế V3.1 | định hướng kiến trúc | tài liệu, audit, roadmap, test plan; KHÔNG code pipeline |
+| `v31-m6-generation-limits-policy-2026-10-21` (M6.3) | ảnh ≤ 3 lượt (1+2), video ≤ 2 lượt (1+1) mỗi shot/chu kỳ, tính chung, không đặt lại; 6 điều kiện tự sửa; Generation Authorization | chính sách tự động hóa | chưa bật tự gen trả phí; code hiện hành `AUTO_REGEN_LIMIT` giữ tới khi M6.3 được duyệt |
 | `v31-pilot-three-rounds-2026-10-20` (M5.3) | 3 vòng A offline / B 5–8 shot / C 20–40 shot | quy trình, chưa duyệt chi phí | test plan, benchmark, dự toán; KHÔNG chạy B/C |
 
 **Xung đột với sổ cũ:** không mục nào bị thay (`replaces` = null). Lưu ý cần giữ đồng bộ khi triển khai: `budget-gate-removed-2026-10-15`
@@ -162,7 +168,8 @@ kiểm giá trị; không đổi `STATUSES`.
 | M3 Thế giới và liên tục | 5 | 5 | 0 | 0 | 0 | 100 % |
 | M4 QC có bằng chứng và Dashboard | 8 | 6 | 2 | 0 | 0 | 81,2 % |
 | M5 Sửa chọn lọc và pilot | 5 | 2 | 1 | 2 | 0 | 54,5 % |
-| **Tổng** | **48** | **33** | **4** | **2** | **0** | **69,3 %** |
+| M6 Tổ làm phim có chủ (AI Video Production Team) | 13 | 0 | 1 | 12 | 0 | 1,8 % |
+| **Tổng** | **61** | **33** | **5** | **14** | **0** | **54 %** |
 
 Đợt hiện tại: **M1** · việc kế: **M2.1** BYĐ v2: byd_v, vat[] object, shot_intent.read có provenance, mức BLOCK/REVIEW/WARN
 <!-- /tien-do -->
@@ -229,7 +236,24 @@ Trạng thái: ⬜ chưa làm · 🔄 đang làm · ⏸ chờ người dùng · 
 - [ ] M5.4 · Pilot vòng B 5–8 shot, duyệt từng đợt — dự toán + người dùng đồng ý trước API trả phí (Cấp 3) · nặng:2 · ⏸ · C3-11 duyệt nguyên tắc, CHƯA duyệt chi tiêu
 - [ ] M5.5 · Pilot vòng C 20–40 shot: chất lượng, tỉ lệ gen lại, continuity, chi phí, can thiệp tay (Cấp 3) · nặng:2 · ⏸ · C3-12 để sau
 
+### M6 — Tổ làm phim có chủ (AI Video Production Team)
+- [ ] M6.0 · Audit vai trò, caller tạo job, đường ghi theo vai, hiệu suất Dashboard (P0); sổ quyết định M6; check "Kỹ sư không ghi nội dung production" · nặng:1 · 🔄 · 21/10: kế hoạch docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md mục 0 (E1–E7: lượt gen/shot, Claude/khâu, lineage.summary #31 7,6–11,3 s); sổ v31-m6-*; còn audit caller + profiling đủ khối
+- [ ] M6.1 · Role Registry data/crew_roles.json + core/crew.py (đọc): quyền đọc/ghi, đầu vào/ra, công cụ, nghiệm thu, lỗi phụ trách, leo thang · nặng:2 · ⏸ · chờ duyệt gói Cấp 2 M6-P1
+- [ ] M6.2 · Handoff Contract shadow (jsonl): id dự án/shot, revision, phụ thuộc, sản phẩm, bằng chứng QC, trạng thái duyệt · nặng:2 · ⏸ · cần M1.9, M2.6
+- [ ] M6.3 · Generation Authorization + Repair Budget dùng chung trước provider.submit (ảnh 3 / video 2 lượt, không đặt lại, 6 điều kiện) — shadow trước · nặng:3 · ⏸ · cần M1.2/M1.3/M1.6/M5.1; câu hỏi EP Q1–Q4
+- [ ] M6.4 · Write guard theo vai (actor = role trong guard M2.5), mỗi trường một vai chủ · nặng:2 · ⏸ · cần M2.5 gộp
+- [ ] M6.5 · Video Prompt Artist dưới Director: BYĐ v2 + ảnh duyệt + ràng buộc model → prompt + coverage; code chỉ kiểm; Shadow so prompt builder cũ · nặng:3 · ⏸ · cần M2.1, M1.9
+- [ ] M6.6 · Storyboard Artist: ảnh khung đầu nhìn plate + Kho, tự kiểm có bằng chứng độc lập; Shadow · nặng:2 · ⏸ · cần M2.1, M2.7
+- [ ] M6.7 · 3D Artist: đứng tên sân khấu / plate / world map khi có, nhận phiếu nền lệch · nặng:2 · ⏸ · cần M3.1–M3.3, M4.8
+- [ ] M6.8 · Sound Designer + Editor/VFX: TTS/SFX/nhạc/khớp môi; ghép VFX + dựng kiểu #27 thành khâu Bước 5 · nặng:2 · ⏸ · cần M2.9, M4.4
+- [ ] M6.9 · Continuity Validator (năng lực, code trước): continuity_state + qc_evidence + định tuyến lỗi về vai chủ · nặng:2 · ⏸ · cần M3.4, M4.1, M4.3
+- [ ] M6.10 · Dashboard điều phối cho Executive Producer: sửa theo vai, yêu cầu ngôn ngữ tự nhiên, phiếu lỗi, payload, so phiên bản, lượt + ngân sách, duyệt vượt quyền · nặng:3 · ⏸ · cần M4.7, M6.1–M6.3
+- [ ] M6.11 · Tốc độ Dashboard theo profiling: nhớ lineage giữa lần vẽ lại, đo từng khối, fragment + nạp lười; chỉ số thời gian tới shot đạt chuẩn · nặng:2 · ⏸ · không phụ thuộc — câu hỏi EP Q5 (làm sớm)
+- [ ] M6.12 · Replay offline #24/#27/#31 + pilot có kiểm soát + nghiệm thu thực tế (pilot trả phí = Cấp 3) · nặng:2 · ⏸ · cần M5.3, M6.3, M6.5, M6.6
+
 ## 6. Nhật ký
+
+- 21/10: Executive Producer gửi "PHÊ DUYỆT KIẾN TRÚC M6 — AI VIDEO PRODUCTION TEAM" (chốt định hướng, chưa duyệt code) → thêm M6 (mục 3, 4b, 5), kế hoạch `docs/KE_HOACH_TO_LAM_PHIM_CO_CHU_2026-10-21.md`, sổ `v31-m6-crew-architecture-2026-10-21` + `v31-m6-generation-limits-policy-2026-10-21`, `devsys/plan_map.json` gắn khâu M6. Lệch cần chốt: trần code hiện = TỰ gen lại 3/2 (tổng 4/3, đặt lại khi người bấm) ≠ chính sách mới tổng 3/2 không đặt lại → khi triển khai M6.3 ghi D01c thay D01b. Dừng, chờ EP đánh giá.
 
 - 20/10 (tối): người dùng 'CHỈ ĐẠO XỬ LÝ RỦI RO V3.1 VÀ KẾ HOẠCH S' → `docs/V3_1_GOI_SUA_VA_RUI_RO_2026-10-20.md`: gói M1.1 (vat v1, chỉ `qc_observe` crash; dữ liệu thật #30 ×4, #31 idx 33), audit đường gọi Claude + biện pháp tạm + gói M1.4 (key Anthropic có ở biến User; an toàn nhờ chặn hết tiền), gói M1.5 + phương án Kho chủ thể chạy song song + quyết định `v31-d03b` (tự dọn nháp cũ / dự án xong-cất > 3 ngày; thay `v31-d03`), lỗi mới G59 (tự dọn Kho 13/10 chưa từng chạy được), regression lời dẫn M2.9, đối soát giá 1080p (6,36 = riêng bước nâng, tính theo token; 2,80 = ước tính ClipAI lúc gửi), ma trận 6 rủi ro, bảng 14 việc S (không phải 16), thứ tự build. Chờ duyệt phạm vi code.
 
