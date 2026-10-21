@@ -678,6 +678,14 @@ FEATURES: Dict[str, Dict] = {
         "why": "K3 (docs/KE_HOACH_KIEM_SOAT_NHAT_QUAN_2026-10-10.md mục 3.4b, A17): mới thử bằng CSDL tạm + provider giả — chưa chạy trên "
                "dự án thật (đo báo nhầm trên #24 trước khi bật)",
     },
+    "image_pregen": {
+        "label": "Kiểm ẢNH TRƯỚC gen SHADOW (V3.1 M2.7, 0 USD): trên đúng gói sắp gửi — nền 3D đúng máy, bố cục Kho, công thức prompt, ảnh "
+                 "tham chiếu đọc được + trong trần model, vân tay khác lần gen trước (N10), BYĐ, khối giữ chỗ có câu giải thích — cùng "
+                 "mã với kiểm video (core/pregen_codes.py); mỗi lỗi một dòng ⚙ Chẩn đoán REVIEW, KHÔNG giữ job, không đổi gói gửi",
+        "verified": False,
+        "why": "V3.1 M2.7 (docs/V3_1_M2_THIET_KE_CON_LAI_2026-10-20.md mục 3): ảnh chỉ có kiểm nền 3D + _blocked, định dạng khác video. "
+               "Shadow trước để đo báo nhầm; giữ job theo ĐỎ = việc sau (Cấp 3). Chưa chạy trên dự án thật",
+    },
     "murch_knowledge": {
         "label": "Bộ não prompt Đợt 2: Director + motion đọc thang ưu tiên cảm xúc (Murch), motion đọc kỷ luật I2V (giữ trước, hỏng thì "
                  "giảm chuyển động, check_flags gọi tên rủi ro), Director đọc phương pháp âm thanh; người xem lần đầu chấm thêm cam_xuc",

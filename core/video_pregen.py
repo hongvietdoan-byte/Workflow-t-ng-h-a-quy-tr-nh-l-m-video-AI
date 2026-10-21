@@ -24,7 +24,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 FLAG = "video_pregen"
-DO, VANG = "do", "vang"
+from .pregen_codes import DO, VANG  # noqa: E402 - M2.7: one set of codes for picture + video (same strings as before)
 # job trước có clip (đã trả tiền + có kết quả) mới tính là "lần gen trước" của N10; lần trước hỏng ở nhà cung cấp (không có clip) thì
 # gửi lại y gói là đúng (pipeline.retry PLAIN_RESEND), chỉ VÀNG
 _HAD_CLIP = ("succeeded", "pending_review", "approved", "rejected")

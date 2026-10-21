@@ -3375,12 +3375,11 @@ class ImageRunner(_Runner):
         row = self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
         if row is None:
             return None
-        layout = assets.missing_layout(self.p.conn, job["project_id"], json.loads(row["data"] or "{}"))
+        from . import image_pregen               # M2.7: the same two reasons as the check before gen (one source, same words)
+        layout = image_pregen.layout_reason(self.p.conn, job["project_id"], json.loads(row["data"] or "{}"))
         if layout:
             return layout
-        from . import prompt_formula             # F1 (09/10): a picture prompt that breaks the formula is not paid for
-        red = prompt_formula.red_issues(self.p.conn, job["scene_id"], "image")
-        return ("prompt ảnh sai công thức — sửa ở Bước 1/2: " + " · ".join(red)) if red else None
+        return image_pregen.formula_reason(self.p.conn, job["scene_id"])   # F1 (09/10): a prompt that breaks the formula is not paid for
 
     def _over_budget(self, job, args, kwargs) -> Optional[str]:
         model = (kwargs or {}).get("model")
@@ -3474,9 +3473,13 @@ class ImageRunner(_Runner):
 
     def _pregen(self, job, args, kwargs) -> bool:
         """#24 job 649 (11/10): the last check of the picture's package before it is paid for — every 3D background in it must be
-        THIS shot's current camera (place_refs.package_problem). Otherwise ĐỎ: held with the reason (never sent, never silent)."""
+        THIS shot's current camera (place_refs.package_problem). Otherwise ĐỎ: held with the reason (never sent, never silent).
+        M2.7 (cờ image_pregen, mức shadow): before that, core/image_pregen.check on the same package — REVIEW lines only, never held."""
         from . import place_refs
         from . import location_pack
+        from . import image_pregen
+        if job["scene_id"] and image_pregen.enabled():
+            self._pregen_shadow(job, args, kwargs)
         sent = getattr(self, "_sent", {}).get(job["id"])
         if not sent or not job["scene_id"]:
             return False
@@ -3484,12 +3487,39 @@ class ImageRunner(_Runner):
         if not why:
             PREGEN_HELD.pop(job["id"], None)
             return False
-        line = f"CẦN BẠN SỬA: {why} — ảnh GIỮ CHỜ, không gửi (0 USD); render lại nền 3D / sửa góc máy rồi sẽ tự gửi"
+        line = image_pregen.plate_line(why)
         WAIT_REASONS[job["id"]] = PREGEN_HELD[job["id"]] = (line, time.time())
         self._diag_once(job, "error", "plate_package_mixed", line)
         self._sent.pop(job["id"], None)
         getattr(self, "_storyboard", {}).pop(job["id"], None)
         return True
+
+    def _pregen_shadow(self, job, args, kwargs) -> None:
+        """M2.7 shadow: image_pregen.check on the package about to leave (the same builder as the ledger, task id None) — one ⚙ Chẩn
+        đoán line per issue (REVIEW), once per (job, text) for the life of the process. Never holds, never changes the send; a check
+        that cannot run is said, not swallowed."""
+        from . import image_pregen
+        try:
+            sent_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}
+            pkg, _ = self._build_package(job, args, kwargs, sent_kwargs, None)
+            plan = image_pregen.plan_of(job, args, kwargs, pkg, self.data_dir, getattr(self, "_sent", {}).get(job["id"]),
+                                        self.__dict__.get("_pregen_dropped", {}).get(job["id"]))
+            issues = image_pregen.check(self.p.conn, job["scene_id"], plan)
+        except Exception as e:  # noqa: BLE001 - shadow: said, the send goes on as before
+            issues = [{"ma": "loi_kiem", "muc": "do", "ly_do": f"lớp kiểm trước gen ảnh lỗi ({type(e).__name__}: {e}) — chưa kiểm được"}]
+        for issue in issues:
+            self._shadow_note(job, image_pregen.shadow_line(issue))
+
+    def _shadow_note(self, job, message: str) -> None:
+        """One diag line per (job, text) for the process (module-level like video's _pregen_note: the dashboard makes new runners)."""
+        from . import image_pregen
+        key = (job["id"], image_pregen.DIAG_CODE, message)
+        if key in _PREGEN_SAID:
+            return
+        if len(_PREGEN_SAID) > 5000:
+            _PREGEN_SAID.clear()
+        _PREGEN_SAID.add(key)
+        self._diag(job, "warn", image_pregen.DIAG_CODE, message)
 
     def _anchor_wait_note(self, job) -> None:
         """Lỗi 11 (#24): the job waits for its scene's anchor picture. When the anchor has NO picture job on its way (not queued / running),
@@ -3511,6 +3541,7 @@ class ImageRunner(_Runner):
     def _stamp(self, job, args) -> Dict:
         from . import lineage
         sent = getattr(self, "_sent", {}).pop(job["id"], None)
+        self.__dict__.get("_pregen_dropped", {}).pop(job["id"], None)
         return {"input_hash": lineage.current_image_hash(self.p.conn, job["project_id"], job["scene_id"]),
                 "sent_refs": json.dumps(sent, ensure_ascii=False) if sent is not None else None}
 
@@ -3658,6 +3689,7 @@ class ImageRunner(_Runner):
         if anchored:                                   # lỗi 1 #27: render của shot là ẢNH 1 (không bị trần số ảnh cắt, đánh số 1)
             refs = plate_anchor.plate_first(refs)
         refs, dropped = sendable_references(refs, model)
+        self.__dict__.setdefault("_pregen_dropped", {})[job["id"]] = list(dropped)   # M2.7: read by the shadow check
         if dropped:
             self._diag(job, "warn", "missing_reference", "ảnh tham chiếu không gửi được (bỏ khỏi yêu cầu và khỏi câu đánh số ảnh): "
                        + ", ".join(dropped))
@@ -3758,6 +3790,7 @@ class ImageRunner(_Runner):
                                f"{why}: KHÔNG gửi ảnh neo khung 1 (shot {g['anchor']['idx']}, có {mark or 'mốc'}) — chỉ ảnh nhân "
                                f"vật/trang phục + render 3D của shot, phiên storyboard riêng{extra}")
                 if fields is not None:
+                    self._pregen_dropped[job["id"]] = list(dropped)   # M2.7: the storyboard list is what leaves
                     refs = fields["refs"]
                     prompt = prompt.rstrip() + fields.get("cast_note", "")
                     self._storyboard = getattr(self, "_storyboard", {})
