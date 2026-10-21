@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T10:50:44.271907+07:00",
+  "lane": "cloud-D",
+  "kind": "xong",
+  "task": "C-M26",
+  "branch": "cloud/v31-m26",
+  "commit": "0212786",
+  "report": "docs/RA_CLOUD_M26_2026-10-21.md",
+  "text": "sent_package.meta_entry + _Index: cờ BẬT tra rel_path trước, basename chỉ khi duy nhất, trùng → None + cảnh báo; asset_id; v=2. 3 chỗ dựng meta dùng meta_entry. Cờ TẮT = byte cũ (test so build cũ/mới). 5 test (4 đỏ→xanh). Golden replay cần Python 3.14 → chạy ở máy chính (24 đỏ có sẵn trên main ở cloud 3.13)."
+}
