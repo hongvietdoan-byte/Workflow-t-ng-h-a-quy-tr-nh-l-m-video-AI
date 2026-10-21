@@ -195,7 +195,7 @@ with st.sidebar:
         st.session_state['devsys_page'] = 'Phiếu'
     if not ticket_ui_enabled and st.session_state.get('devsys_page') == 'Phiếu':
         del st.session_state['devsys_page']
-    page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "🗺 Sơ đồ tiến độ", "📕 Sổ lỗi", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
+    page = st.radio("Trang", ["📋 Kế hoạch đang chạy", "🗺 Sơ đồ tiến độ", "🧭 Sơ đồ dây chuyền", "📕 Sổ lỗi", "Tổng quan", "Bản đồ hệ thống", "Dòng thời gian", "Sức khỏe (đo bằng code)", "Chấm điểm AI", "Hiệu quả vận hành",
                               "Hiệu quả quy trình", "Ai quyết", "Làm ↔ Kiểm", "Bộ kỹ năng 3 vai", "Đang chạy"] + (["Phiếu"] if ticket_ui_enabled else []), label_visibility="collapsed", **({'key':'devsys_page'} if ticket_ui_enabled else {}))
     st.divider()
     st.markdown("**Test**")
@@ -1054,6 +1054,71 @@ def page_plan_map():
         st.markdown(stage_map, unsafe_allow_html=True)
 
 
+def _evidence_commit(PM, globs) -> str:
+    """Commit cuối chạm các tệp bằng chứng của ô (glob → tệp thật); không có tệp → "" (không lấy commit cuối cả repo)."""
+    import glob as _g
+    files = sorted({os.path.relpath(f, PM.ROOT) for g in globs for f in _g.glob(os.path.join(PM.ROOT, g), recursive=True) if os.path.isfile(f)})
+    return PM.git_reason(files[:20]) if files else ""
+
+
+def page_pipeline_maps():
+    """C-DEVSYS-MAPS (người dùng 21/10): 3 sơ đồ dây chuyền SỐNG + tab Thay đổi; chọn dự án → ô nút tô theo lần bấm thật."""
+    from devsys import pipeline_maps as PM
+    st.title("🧭 Sơ đồ dây chuyền")
+    st.caption("Ba sơ đồ 17/10 dựng lại SỐNG từ `devsys/pipeline_maps.json`: màu TÍNH mỗi lần mở — bằng chứng code (tệp + chữ phải có), cờ "
+               "hiệu lực (core.features.state), trạng thái việc kế hoạch chính, sổ khâu theo cờ thật và sổ lỗi. Chấm nhỏ góc ô = màu mốc 17/10. "
+               "Xuất SVG: `py -m devsys.pipeline_maps <thư mục>`.")
+    try:
+        m = PM.build_model()
+    except (OSError, ValueError) as e:
+        st.error(f"Không dựng được sơ đồ: {e}")
+        return
+    for w in m["warnings"]:
+        st.warning(w)
+    if PM.record_history(m):
+        st.caption("Đã ghi ảnh chụp trạng thái mới vào devsys/data/pipeline_maps_history.jsonl (có ô đổi so với lần trước).")
+    db = PM.db_path()
+    projs = PM.projects(db)
+    pick = st.selectbox("Tô theo dự án (sự kiện bấm thật — cần cờ ui_step_log BẬT ở Dashboard)",
+                        [None] + [r["id"] for r in projs], key="pm_project",
+                        format_func=lambda x: "— không chọn: màu theo code / cờ / kế hoạch —" if x is None
+                        else next(f"#{r['id']} {r['name']}" for r in projs if r["id"] == x))
+    ov = None
+    if pick is not None:
+        ev = PM.project_events(db, pick)
+        ov = PM.overlay(m, ev)
+        if not ev:
+            st.info(f"Dự án #{pick} chưa có sự kiện ui_step / cli_step (cờ ui_step_log TẮT, hoặc chưa ai bấm từ khi bật) — mọi ô xám.")
+        if ov["alerts"]:
+            st.error("Ô đỏ / vàng của dự án #%s:\n" % pick + "\n".join(
+                f"- **{a['label']}** ({a['color']}, {a['count']} lần): {a['last']}" for a in ov["alerts"]))
+        if ov["virtual"]:
+            st.warning("Việc phải làm NGOÀI Dashboard: " + " · ".join(f"{v['tool']} × {v['count']} ({v['task']})" for v in ov["virtual"]))
+    t1, t2, t3, t4 = st.tabs(["Làm phim qua Dashboard", "Hiện trạng khâu", "Trường cấu trúc", "Thay đổi"])
+    with t1:
+        st.markdown(PM.svg_dashboard(m, ov), unsafe_allow_html=True)
+    with t2:
+        st.markdown(PM.svg_khau(m), unsafe_allow_html=True)
+    with t3:
+        st.markdown(PM.svg_truong(m), unsafe_allow_html=True)
+    with t4:
+        khau = sorted({k for i in PM.all_items(m) for k in (i.get("khau") or [i["id"]])})
+        only = st.multiselect("Lọc theo khâu", khau, key="pm_khau")
+        keep = (lambda r: not only or set(r.get("khau") or [r["id"]]) & set(only))
+        st.markdown("**So với lần ghi trước** (devsys/data/pipeline_maps_history.jsonl)")
+        ch = [c for c in PM.changes() if keep(c)]
+        if ch:
+            st.dataframe(pd.DataFrame([{"ngày": c["at"], "ô": c["id"], "màu": f"{c['old']} → {c['new']}", "lý do": "; ".join(c["why"])}
+                                       for c in reversed(ch)]), hide_index=True, width="stretch")
+        else:
+            st.caption("Chưa có ô nào đổi màu giữa các lần ghi.")
+        st.markdown(f"**So với mốc {m['moc_date']}**")
+        ev_files = {c["id"]: [e["glob"] for e in c.get("evidence") or []] for c in PM.load()["dashboard"]["cells"] + PM.load()["truong"]["nodes"]}
+        rows = [{"ô": c["id"], "màu": f"{c['old']} → {c['new']}", "lý do": "; ".join(c["why"]),
+                 "commit cuối tệp bằng chứng": _evidence_commit(PM, ev_files.get(c["id"]) or [])} for c in PM.vs_moc(m) if keep(c)]
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch") if rows else st.caption("Không ô nào khác mốc.")
+
+
 # ---- trang: Hiệu quả (S14.10 Đợt 6b) -----------------------------------------------------------------------------------
 def page_effect():
     st.title("Hiệu quả — điểm devsys ↔ chất lượng đầu ra thật")
@@ -1273,7 +1338,7 @@ def page_running():
 from devsys.errors_page import render as page_errors
 from devsys.tickets_page import render as page_tickets
 
-PAGES = {"📕 Sổ lỗi": page_errors, "Phiếu": page_tickets, "Đang chạy": page_running, "📋 Kế hoạch đang chạy": page_plan, "🗺 Sơ đồ tiến độ": page_plan_map, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
+PAGES = {"📕 Sổ lỗi": page_errors, "Phiếu": page_tickets, "Đang chạy": page_running, "📋 Kế hoạch đang chạy": page_plan, "🗺 Sơ đồ tiến độ": page_plan_map, "🧭 Sơ đồ dây chuyền": page_pipeline_maps, "Tổng quan": page_overview, "Bản đồ hệ thống": page_map, "Dòng thời gian": page_timeline, "Sức khỏe (đo bằng code)": page_health,
          "Chấm điểm AI": page_scores, "Hiệu quả vận hành": page_effect, "Hiệu quả quy trình": page_flow, "Ai quyết": page_decisions, "Làm ↔ Kiểm": page_stages,
          "Bộ kỹ năng 3 vai": page_skills}
 PAGES[page]()

@@ -230,3 +230,16 @@ def test_export_writes_three_svgs(tmp_path):
     names = sorted(os.listdir(tmp_path))
     assert names == ["so_do_dashboard.svg", "so_do_hien_trang_khau.svg", "so_do_truong_cau_truc.svg"]
     assert all(open(os.path.join(tmp_path, n), encoding="utf-8").read().startswith("<svg") for n in names)
+
+
+def test_devsys_page_renders_four_tabs_and_three_maps(tmp_path):
+    from streamlit.testing.v1 import AppTest
+    with mock.patch.object(PM, "HISTORY_FILE", str(tmp_path / "h.jsonl")), \
+            mock.patch.dict(os.environ, {"PIPELINE_DB": str(tmp_path / "khong_co.sqlite")}):
+        at = AppTest.from_file(os.path.join(ROOT, "devsys", "app.py"), default_timeout=120)
+        at.run()
+        at.radio[0].set_value("🧭 Sơ đồ dây chuyền").run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert [t.value for t in at.title] == ["🧭 Sơ đồ dây chuyền"]
+    assert len(at.tabs) == 4 and sum("<svg" in md.value for md in at.markdown) == 3
+    assert (tmp_path / "h.jsonl").exists()                                    # lần mở đầu ghi ảnh chụp

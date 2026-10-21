@@ -225,8 +225,9 @@ def _read_history(path: str) -> List[Dict]:
     return out
 
 
-def record_history(m: Dict, path: str = HISTORY_FILE, now: Optional[str] = None) -> bool:
+def record_history(m: Dict, path: Optional[str] = None, now: Optional[str] = None) -> bool:
     """Ghi ảnh chụp khi màu / đầu vào khác lần ghi trước (lần đầu luôn ghi). True = đã ghi. Lỗi ghi → False (trang vẫn vẽ)."""
+    path = path or HISTORY_FILE
     snap = snapshot(m)
     hist = _read_history(path)
     if hist and hist[-1].get("cells") == snap:
@@ -260,9 +261,9 @@ def _reasons(old: Dict, new: Dict) -> List[str]:
     return out or ["đầu vào không ghi được lý do (dữ liệu sơ đồ đổi)"]
 
 
-def changes(path: str = HISTORY_FILE) -> List[Dict]:
+def changes(path: Optional[str] = None) -> List[Dict]:
     """Ô đổi màu giữa hai lần ghi liền nhau (cũ → mới): {at, id, old, new, why, khau}."""
-    hist = _read_history(path)
+    hist = _read_history(path or HISTORY_FILE)
     out = []
     for prev, cur in zip(hist, hist[1:]):
         for cid, c in cur.get("cells", {}).items():
@@ -377,14 +378,20 @@ def _head(w: int, h: int, title: str, sub: str) -> List[str]:
     return o
 
 
+def _cut(text: str, n: int) -> str:
+    return text if len(text) <= n else text[:n - 1].rstrip() + "…"
+
+
 def _box(o: List[str], x, y, w, h, color: str, title: str, lines: List[str], tip: str = "", dashed: bool = False, moc: str = ""):
     c = COLORS[color]
     dash = ' stroke-dasharray="8 5"' if dashed else ""
-    o.append(f'<g><title>{escape(tip)}</title><rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="{c}" fill-opacity="0.10" '
+    o.append(f'<g><title>{escape(tip)}</title><rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="{BG}"/>'
+             f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="{c}" fill-opacity="0.10" '
              f'stroke="{c}" stroke-width="2"{dash}/><rect x="{x}" y="{y}" width="6" height="{h}" rx="3" fill="{c}"/>')
-    o.append(f'<text x="{x + 16}" y="{y + 22}" font-size="14" font-weight="700" fill="#ffffff">{escape(title[:52])}</text>')
+    t_max, l_max = max(8, int((w - 40) / 8.6)), max(10, int((w - 30) / 6.6))       # chữ không tràn khỏi ô (tooltip có đủ)
+    o.append(f'<text x="{x + 16}" y="{y + 22}" font-size="14" font-weight="700" fill="#ffffff">{escape(_cut(title, t_max))}</text>')
     for k, line in enumerate(lines[:2]):
-        o.append(f'<text x="{x + 16}" y="{y + 42 + k * 17}" font-size="12" fill="#b8c2cc">{escape(str(line)[:62])}</text>')
+        o.append(f'<text x="{x + 16}" y="{y + 42 + k * 17}" font-size="12" fill="#b8c2cc">{escape(_cut(str(line), l_max))}</text>')
     if moc and moc != color:
         o.append(f'<circle cx="{x + w - 14}" cy="{y + 14}" r="6" fill="{COLORS[moc]}"><title>mốc 17/10: {escape(moc)}</title></circle>')
     o.append("</g>")
@@ -460,8 +467,9 @@ def svg_khau(m: Dict) -> str:
         mc = r["moc_cells"]
         for (x, cw, _), key in zip(cols[1:4], ("truoc", "sau", "doc")):
             mt = (mc.get(key) or ["", ""])[1]
-            _box(o, x, y, cw, hh, r["cells"][key], {"xanh": "có, đang chạy", "vang": "cờ tắt / chỉ người", "do": "KHÔNG CÓ / chữ tự do",
-                                                    "xam": "—"}[r["cells"][key]], [f"mốc: {mt}"], mt,
+            names = ({"xanh": "kết quả / trường", "do": "chữ tự do", "xam": "—"} if key == "doc" else
+                     {"xanh": "có, đang chạy", "vang": "cờ tắt / chỉ người", "do": "KHÔNG CÓ", "xam": "—"})
+            _box(o, x, y, cw, hh, r["cells"][key], names.get(r["cells"][key], r["cells"][key]), [f"mốc: {mt}"], mt,
                  moc=MOC.get((mc.get(key) or ["", ""])[0], ""))
         doing = [t for t, s in r["tasks"].items() if s == "🔄"]
         lines = [f"lỗi mở: {r['open_errors']}"] + ([f"đang sửa: {', '.join(doing)}"] if doing else [])
@@ -487,10 +495,9 @@ def svg_truong(m: Dict) -> str:
             y = top + 30 + j * (nh + 12)
             pos[n["id"]] = (x, y)
     for a, b in t["edges"]:
-        if a in pos and b in pos:
+        if a in pos and b in pos and pos[a][0] != pos[b][0]:          # chỉ nối giữa các cột (cùng cột: thứ tự trên → dưới đã nói)
             (xa, ya), (xb, yb) = pos[a], pos[b]
-            x1, x2 = (xa + cw, xb) if xb > xa else (xa + cw / 2, xb + cw / 2)
-            y1, y2 = (ya + nh / 2, yb + nh / 2) if xb > xa else (ya + nh, yb)
+            x1, x2, y1, y2 = xa + cw, xb, ya + nh / 2, yb + nh / 2
             o.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#3a4450" stroke-width="1.5"/>')
     for n in t["nodes"]:
         x, y = pos[n["id"]]
