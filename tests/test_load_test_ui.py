@@ -289,3 +289,13 @@ def test_summary_flags_a_saturated_measuring_machine():
     s = L.summarize([lv])
     assert "CẢ MÁY" in s["bottleneck"]["note"]
     assert "| 99.0 |" in L.markdown(s, {"latency": 0})
+
+
+def test_a_screen_already_shown_is_reported_not_measured():
+    lv = _level(2, 0.5)
+    for s_ in lv["sessions"]:
+        s_["steps"]["storyboard"] = None
+        s_["skipped"] = ["storyboard"]
+    s = L.summarize([lv])
+    assert s["rows"][0]["steps"]["storyboard"]["skipped"] == 2 and not s["first_slow"] and s["errors"] == 0
+    assert "đã hiện sẵn" in L.markdown(s, {"latency": 0})

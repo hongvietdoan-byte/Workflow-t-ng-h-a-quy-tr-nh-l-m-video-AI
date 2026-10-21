@@ -43,7 +43,7 @@ PORT = 8541
 SLOW_S = 2.0                                     # màn chính chậm hơn mức này = "chậm" (kế hoạch M8.3)
 MAIN_STEPS = ("home", "open", "storyboard", "video")
 STEPS = ("home", "open", "storyboard", "approve", "video", "gen")
-STEP_LABEL = {"home": "Trang chủ", "open": "Mở dự án", "storyboard": "Storyboard (Bước 2)", "approve": "Duyệt 1 ảnh",
+STEP_LABEL = {"home": "Trang chủ", "open": "Mở dự án (vào thẳng Storyboard)", "storyboard": "Storyboard (Bước 2)", "approve": "Duyệt 1 ảnh",
               "video": "Video (Bước 4)", "gen": "Bấm Gen video (giả)"}
 LOCK_WAIT_S = 0.05                               # lệnh ghi / commit lâu hơn mức này coi là đã CHỜ khóa
 SECRET_ENV = ("ANTHROPIC_API_KEY", "CLIPAI_API_KEY", "CLIPAI_TOKEN", "DEEPIX_TOKEN", "DEEPIX_API_KEY", "ELEVENLABS_API_KEY", "OPENAI_API_KEY")
@@ -291,7 +291,9 @@ def summarize(levels: List[Dict]) -> Dict:
             vals = [s["steps"].get(step) for s in lv["sessions"]]
             errs = sum(1 for s in lv["sessions"] if step in s.get("errors", {}))
             nr = sum(1 for s in lv["sessions"] if step in s.get("no_rerun", []))
-            per[step] = {"p50": pct(vals, 0.5), "p95": pct(vals, 0.95), "max": pct(vals, 1.0), "errors": errs, "no_rerun": nr}
+            sk = sum(1 for s in lv["sessions"] if step in s.get("skipped", []))
+            per[step] = {"p50": pct(vals, 0.5), "p95": pct(vals, 0.95), "max": pct(vals, 1.0), "errors": errs, "no_rerun": nr,
+                         "skipped": sk}
         # rà V3: bước LỖI / quá hạn ở một phiên = chậm (không bị pct() bỏ qua mà ra "không mức nào chậm")
         slow = [s for s in MAIN_STEPS if (per[s]["p95"] or 0) > SLOW_S or per[s]["errors"]]
         if slow and first_slow is None:
@@ -337,6 +339,9 @@ def markdown(summary: Dict, meta: Dict) -> str:
         cells = []
         for r in summary["rows"]:
             c = r["steps"][step]
+            if c.get("skipped") and c["p50"] is None and not c["errors"]:
+                cells.append("đã hiện sẵn sau bước trước")
+                continue
             cells.append(f"{_f(c['p50'])} / {_f(c['p95'])}" + (f" ⚠{c['errors']} lỗi" if c["errors"] else "")
                          + (f" ·{c['no_rerun']} không rerun" if c.get("no_rerun") else "")
                          + (" 🐢" if step in r["slow"] else ""))
@@ -413,21 +418,31 @@ async def settle(pg, before: int = 0, timeout: float = 120.0) -> bool:
     raise TimeoutError("màn không ổn định")
 
 
-async def _radio(pg, label: str) -> None:
-    await pg.locator('.st-key-step label[data-testid="stRadioOption"]', has_text=label).first.click()
+SKIP = "skip"
+
+
+async def _radio(pg, label: str):
+    """Bấm màn trên thanh bước; màn ĐÃ đang chọn (vd. "Mở →" vào thẳng Storyboard) → không bấm (bấm lại không gây rerun), trả SKIP."""
+    opt = pg.locator('.st-key-step label[data-testid="stRadioOption"]', has_text=label).first
+    if await opt.evaluate("e => !!e.querySelector('input')?.checked"):
+        return SKIP
+    await opt.click()
 
 
 async def session(browser, url: str, i: int, n_projects: int, log, shots_dir: Optional[str] = None) -> Dict:
     ctx = await browser.new_context(viewport={"width": 1440, "height": 900})
     await ctx.add_init_script(JS_COUNT_RUNS)
     pg = await ctx.new_page()
-    steps, errors, no_rerun = {}, {}, []
+    steps, errors, no_rerun, skipped = {}, {}, [], []
 
     async def step(name, act):
         t0 = time.perf_counter()
         try:
             before = 0 if name == "home" else await runs(pg)
-            await act()
+            if await act() == SKIP:
+                steps[name] = None
+                skipped.append(name)            # màn đã hiện sẵn: thời gian vẽ nằm ở bước trước
+                return
             if not await settle(pg, before):
                 no_rerun.append(name)           # số đo của bước này gồm NO_RERUN_S chờ — ghi rõ, không coi là màn nhanh
             steps[name] = round(time.perf_counter() - t0, 3)
@@ -483,7 +498,7 @@ async def session(browser, url: str, i: int, n_projects: int, log, shots_dir: Op
     await ctx.close()
     if errors:
         log(f"    phiên {i}: lỗi {errors}")
-    return {"i": i, "steps": steps, "errors": errors, "no_rerun": no_rerun}
+    return {"i": i, "steps": steps, "errors": errors, "no_rerun": no_rerun, "skipped": skipped}
 
 
 async def run_sessions(n: int, url: str, n_projects: int, chrome: Optional[str], log, shots_dir: Optional[str] = None) -> List[Dict]:
@@ -561,6 +576,7 @@ def find_chrome(arg: Optional[str]) -> Optional[str]:
 def port_free(port: int) -> bool:
     import socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sk:
+        sk.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)   # như tornado: cổng TIME_WAIT của mức trước vẫn dùng được
         try:
             sk.bind(("127.0.0.1", port))
             return True
@@ -600,6 +616,10 @@ def run_level(n: int, template: Dict, args, log) -> Dict:
     write_probe(probe_dir)
     env = app_env(db, data, work, args.latency, probe_dir)
     port = args.port
+    for _ in range(30):                          # Streamlit của mức trước có thể còn đang nhả cổng
+        if port_free(port):
+            break
+        time.sleep(0.5)
     if port in PROD_PORTS or not port_free(port):
         raise RuntimeError(f"Cổng {port} " + ("là cổng Dashboard thật" if port in PROD_PORTS else "đang bận") + " — chọn --port khác")
     with open(os.path.join(work, "streamlit.log"), "w", encoding="utf-8") as lg:
