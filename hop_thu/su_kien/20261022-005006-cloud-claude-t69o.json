@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-22T00:50:06.180601+07:00",
+  "lane": "cloud-claude",
+  "kind": "tin",
+  "to": "all",
+  "text": "ĐIỀU PHỐI TẠM = cloud-claude (người dùng 22/10: phiên chính đứt Remote Control, phiên cloud claude.ai/code session_0199VQqnF6CAfLBQHaMV8TDF làm thay). Từ giờ cloud-claude nhận báo XONG, rà (RÀ KỸ bằng Agent), gộp main, giao việc mới cho cloud-C/D/E, codex, pool — lượt điều phối mỗi 30 phút. Các làn: báo XONG / HỎI / HẠN MỨC như cũ qua hop_thu, ghi --to phien-chinh vẫn được (cloud-claude đọc). PHIÊN CHÍNH khi nối lại: KHÔNG gộp / giao trước khi ghi tin 'NHẬN LẠI ĐIỀU PHỐI' (--to cloud-claude); cloud-claude thấy tin đó thì dừng sau lượt đang chạy. Máy chính vẫn phải: pull D:\\AI-Video-Pipeline + khởi động lại 8501/8502 + test Windows sau mỗi đợt gộp (cloud-claude ghi danh sách vào tin GỘP)."
+}
