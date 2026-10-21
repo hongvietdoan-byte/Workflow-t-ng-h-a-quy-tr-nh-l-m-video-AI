@@ -387,18 +387,10 @@ class _Runner:
         return sent
 
     def _remember_flags(self, project_id: int) -> None:
-        """M7.2: mốc cấu hình cờ của dự án (<data>/<pid>/flag_config.json) khi nó THẬT gửi job — dự án sau so drift (🧭 trước khi chạy).
-        Chỉ ghi khi hash đổi; lỗi không bao giờ chặn việc gửi."""
+        """M7.2: mốc cấu hình cờ của dự án (<data>/<pid>/flag_config.json, có `at` = lần gửi) mỗi lần nó THẬT gửi job — dự án sau so
+        drift với dự án gửi CUỐI (🧭 trước khi chạy). Một tệp nhỏ; lỗi không bao giờ chặn việc gửi."""
         try:
-            import json
             from . import features
-            path = features._snapshot_path(self.data_dir, project_id)
-            try:
-                with open(path, encoding="utf-8") as f:
-                    if json.load(f).get("hash") == features.config_hash():
-                        return
-            except (OSError, ValueError, AttributeError):
-                pass
             features.remember_config(self.data_dir, project_id)
         except Exception:  # noqa: BLE001 - một mốc so drift, không bao giờ là lý do ngừng gửi
             pass

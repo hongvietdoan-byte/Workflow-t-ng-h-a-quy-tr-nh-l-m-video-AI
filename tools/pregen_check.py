@@ -167,9 +167,7 @@ def main(argv=None) -> int:
         src = os.path.join(main_dir, "data", "feature_settings.json")
         if os.path.exists(src):
             shutil.copyfile(src, real_settings)
-        else:
-            with open(real_settings, "w", encoding="utf-8") as f:
-                json.dump({}, f)
+        # máy không có tệp 🧪: KHÔNG tạo tệp rỗng — để baseline cờ (M7.2) áp như nút Gen trên chính máy đó
         os.environ["PIPELINE_DB"] = box["db"]
         os.environ["FEATURE_SETTINGS_FILE"] = real_settings
         os.environ.update(envf)

@@ -186,9 +186,10 @@ def test_runner_remembers_and_before_run_says_drift(machine, tmp_path):
     r = ImageRunner(p, None, str(data))
     r._remember_flags(a)
     snap = data / str(a) / "flag_config.json"
-    stamp = snap.stat().st_mtime_ns
+    first = json.loads(snap.read_text(encoding="utf-8"))
     r._remember_flags(a)
-    assert snap.stat().st_mtime_ns == stamp                                # hash không đổi → không ghi lại
+    again = json.loads(snap.read_text(encoding="utf-8"))
+    assert again["hash"] == first["hash"] and again["at"] >= first["at"]   # mỗi lần gửi: `at` mới (drift chọn dự án gửi cuối)
     write({})
     res = before_run.collect(p.conn, str(data), b)
     texts = [i["text"] for g in res["groups"] for i in g["items"]]

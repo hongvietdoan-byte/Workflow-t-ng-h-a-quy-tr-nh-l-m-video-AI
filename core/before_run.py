@@ -174,8 +174,9 @@ def _fix_flag_items(conn, pid: int) -> List[Dict]:
 def _drift_items(data_dir: str, pid: int) -> List[Dict]:
     """M7.2: cấu hình cờ khác dự án chạy trước (cờ đã bật nay tắt / máy khác hash khác) — VÀNG, không giữ việc."""
     from . import features
-    return [_item("vang", f"Drift cấu hình cờ: {d}", "🧪 Tính năng thử — kiểm cờ trước khi gen (hash "
-                  f"{features.config_hash()})") for d in features.drift(data_dir, pid)]
+    found = features.drift(data_dir, pid)
+    h = features.config_hash() if found else ""
+    return [_item("vang", f"Drift cấu hình cờ: {d}", f"🧪 Tính năng thử — kiểm cờ trước khi gen (hash {h})") for d in found]
 
 
 # ---- 2. thứ có thể giữ việc -------------------------------------------------------------------------------------------------------

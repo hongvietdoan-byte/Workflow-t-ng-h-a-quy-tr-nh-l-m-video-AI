@@ -943,6 +943,15 @@ def save_settings(preset: str = None, flags: Dict = None, modes: Dict = None) ->
     save many flags at once leave locked flags out (dashboard/header.py, core/before_run.enable_fix_flags only saves True)."""
     import json
     cur = {"preset": settings()["preset"], "flags": dict(settings()["flags"]), "modes": dict(settings().get("modes") or {})}
+    if baseline_active():                 # M7.2 (rà C-M72): lần lưu ĐẦU trên máy theo baseline → gieo baseline (đã bảo vệ) vào tệp,
+        for k in FEATURES:                # không thì baseline thôi áp và mọi cờ khác "rơi" về mặc định không báo
+            b = baseline_state(k)
+            if b is None or locked(k) or b == default_state(k):
+                continue
+            if b == "trainee":
+                cur["modes"][k] = "trainee"
+            else:
+                cur["flags"][k] = b == "on"
     if preset is not None:
         if preset not in PRESETS:
             raise ValueError(f"preset không có: {preset}")
@@ -1044,9 +1053,19 @@ def baseline_active() -> bool:
     """Baseline có hiệu lực: không phải bộ test, không FEATURE_BASELINE=0, có tệp baseline, và máy CHƯA có tệp 🧪 (thứ tự F)."""
     if _TEST_BYPASS or os.environ.get("FEATURE_BASELINE", "").strip().lower() in _NO or not baseline_path():
         return False
-    if os.path.exists(settings_path()):
+    settings()                                        # đã stat tệp 🧪 (cache theo mtime) — không stat thêm mỗi lần đọc cờ
+    if _SETTINGS["stamp"] is not None:
         return False
     return bool(baseline().get("flags"))
+
+
+def _paid(name: str) -> bool:
+    """Cờ tốn tiền: `costs`, OPT_IN_ONLY, hoặc trong before_run.PAID_FLAGS (rà C-M72: director_rewrite / director_camera_plan /
+    two_tier_quality / stage_camera không có `costs` nhưng đổi lời gọi trả tiền)."""
+    if FEATURES[name].get("costs") or name in OPT_IN_ONLY:
+        return True
+    from . import before_run
+    return name in before_run.PAID_FLAGS
 
 
 def _guarded(name: str, want: Optional[str]) -> Optional[str]:
@@ -1055,7 +1074,7 @@ def _guarded(name: str, want: Optional[str]) -> Optional[str]:
     meta = FEATURES[name]
     if want not in MODES:
         return None
-    if want in ("on", "trainee") and (meta.get("costs") or name in OPT_IN_ONLY):
+    if want in ("on", "trainee") and _paid(name):
         return None
     if meta.get("trainee") and want == "on":
         return "trainee"
@@ -1115,6 +1134,10 @@ def locked_off_ignored() -> Dict[str, str]:
 
 
 def state(name: str) -> str:
+    return _state(name, settings())
+
+
+def _state(name: str, s: Dict) -> str:
     """"on" / "trainee" (🎓 học việc: runs and records its decision, never acts) / "off". Order (KE_HOACH_HOC_VIEC_2026-10-08 mục 1):
     removed flag → 🔒 verified flag (15/10: always on) → choice on the 🧪 screen (modes / flags) → preset (stable: only verified;
     experimental: a học-việc flag is trainee, never on) → FEATURE_<NAME> (=trainee, or =1 for a học-việc flag → trainee; real ON only
@@ -1125,7 +1148,6 @@ def state(name: str) -> str:
         return "on"
     meta = FEATURES[name]
     trainee = bool(meta.get("trainee"))
-    s = settings()
     if name in (s.get("modes") or {}):
         return "trainee"
     if name in s["flags"]:
@@ -1352,8 +1374,8 @@ def remember_config(data_dir: str, pid) -> Optional[str]:
     import datetime
     import json
     cfg = effective_config()
-    snap = {"hash": cfg["hash"], "flags": cfg["flags"], "machine": cfg["machine"],
-            "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")}
+    snap = {"hash": cfg["hash"], "flags": cfg["flags"], "machine": cfg["machine"],     # `at` tới micro giây: drift chọn dự án gửi CUỐI
+            "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="microseconds")}
     path = _snapshot_path(data_dir, pid)
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -1380,9 +1402,12 @@ def drift(data_dir: str, pid) -> List[str]:
             continue
         path = _snapshot_path(data_dir, d)
         try:
-            stamp = os.stat(path).st_mtime_ns
-        except OSError:
-            continue
+            with open(path, encoding="utf-8") as f:
+                stamp = str(json.load(f).get("at") or "")      # lần GỬI cuối (runner ghi mỗi lần gửi) — không theo mtime
+        except (OSError, ValueError, AttributeError):
+            if not os.path.exists(path):
+                continue
+            stamp = ""
         if best is None or stamp > best[0]:
             best = (stamp, d, path)
     if best is None:
@@ -1438,7 +1463,7 @@ def baseline_diff() -> Dict:
             g = _guarded(n, raw.get(n))
             new = g or default_state(n)
             why = ("baseline" if g == raw.get(n) else "baseline bị bảo vệ hạ (" + (
-                "cờ tốn tiền / OPT_IN không bao giờ tự bật" if FEATURES[n].get("costs") or n in OPT_IN_ONLY
+                "cờ tốn tiền / OPT_IN không bao giờ tự bật" if _paid(n)
                 else "học việc tối đa trainee" if FEATURES[n].get("trainee") else "giá trị không áp được") + ")") if g or n in raw \
                 else "baseline không ghi → mặc định code"
         if new != now:
@@ -1447,6 +1472,9 @@ def baseline_diff() -> Dict:
 
 
 # ---- M7.2 / K6: bỏ lựa chọn riêng an toàn (preview, xác nhận ở UI, sao lưu, khôi phục) ---------------------------------------------
+MAX_BACKUPS = 30
+
+
 def _backup_dir() -> str:
     return os.path.join(os.path.dirname(settings_path()), "backup")
 
@@ -1462,6 +1490,11 @@ def backup_settings() -> Optional[str]:
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     dst = os.path.join(_backup_dir(), f"feature_settings.{stamp}.json")
     shutil.copy2(src, dst)
+    for old in list_backups()[MAX_BACKUPS:]:          # giữ MAX_BACKUPS bản mới nhất
+        try:
+            os.remove(old["path"])
+        except OSError:
+            pass
     return dst
 
 
@@ -1484,12 +1517,8 @@ def list_backups() -> List[Dict]:
 
 
 def _state_with(data: Dict, name: str) -> str:
-    keep = dict(_SETTINGS)
-    _SETTINGS.update(stamp=keep["stamp"], path=settings_path(), data=data)
-    try:
-        return state(name)
-    finally:
-        _SETTINGS.update(keep)
+    """Trạng thái của `name` nếu tệp 🧪 là `data` — thuần (không đụng cache chung: luồng nền / phiên khác đọc cờ cùng lúc)."""
+    return _state(name, data)
 
 
 def reset_preview() -> List[Dict]:
@@ -1518,7 +1547,9 @@ def restore_settings(path: str) -> Optional[str]:
     import json
     import shutil
     real = os.path.realpath(path)
-    if os.path.dirname(real) != os.path.realpath(_backup_dir()) or not os.path.basename(real).startswith("feature_settings."):
+    name = os.path.basename(real)
+    if os.path.normcase(os.path.dirname(real)) != os.path.normcase(os.path.realpath(_backup_dir())) \
+            or not name.startswith("feature_settings.") or not name.endswith(".json"):
         raise ValueError(f"{path} không phải bản sao lưu cài đặt cờ ({_backup_dir()})")
     with open(real, encoding="utf-8") as f:
         raw = json.load(f)

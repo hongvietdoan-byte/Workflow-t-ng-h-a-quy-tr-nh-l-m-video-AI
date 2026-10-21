@@ -335,7 +335,8 @@ class Runner:
     # -- app
     def start_app(self, db: str, data: str) -> None:
         env = dict(os.environ, PIPELINE_DB=db, PIPELINE_DATA=data, AUDIO_PROVIDER="mock", LLM_PROVIDER="mock", SUBJECT_PROVIDER="mock",
-                   MOCK_REAL_MEDIA="1", FEATURE_UI_V2="1", DASHBOARD_AUTH="off", DASHBOARD_SYNC_BACKGROUND="0", FEATURE_SETTINGS_FILE=os.path.join(self.work, "feature_settings.json"))
+                   MOCK_REAL_MEDIA="1", FEATURE_UI_V2="1", DASHBOARD_AUTH="off", DASHBOARD_SYNC_BACKGROUND="0", FEATURE_SETTINGS_FILE=os.path.join(self.work, "feature_settings.json"),
+                   FEATURE_BASELINE="0")                                   # M7.2: chụp màn không theo baseline cờ sản xuất
         for k in ("ANTHROPIC_API_KEY", "CLIPAI_API_KEY"):
             env.pop(k, None)
         log = open(os.path.join(self.work, "streamlit.log"), "w", encoding="utf-8")
