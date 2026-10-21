@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-21T10:52:11.085117+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX21-FIX",
+  "to": "codex",
+  "title": "Sửa lỗi rà kỹ viec5b/viec2b + merge_union",
+  "spec": "docs/CODEX_TASKS.md### CX21-FIX",
+  "priority": 0
+}
