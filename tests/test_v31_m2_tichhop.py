@@ -48,4 +48,4 @@ def test_empty_or_missing_byd_reads_as_none(env, empty):
     with mock.patch.dict(os.environ, env):
         assert lock_exceptions.for_shot({"byd": empty}) == {}
         assert lock_exceptions.shot_label({"byd": empty, "shot_no": 4}) == 4
-        assert film_grammar._exception({"byd": empty}, 1, "jump") is None
+        assert film_grammar._exception({"byd": empty}, 1, "jump") is False

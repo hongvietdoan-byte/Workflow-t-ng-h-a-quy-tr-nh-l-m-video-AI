@@ -14,8 +14,8 @@ _NEGATION = re.compile(r"(?<!\w)(không|no|without|never|bỏ|sạch|clean)(?!\w
 
 def shot_label(data: Optional[Dict]):
     """Số shot dùng để so `pham_vi`: byd.shot, không có thì shot_no."""
-    from .shot_intent import byd_of                # V3.1 M2.1: đọc BYĐ qua adapter
-    byd = byd_of(data) or {}
+    from .shot_intent import byd_or_raw            # V3.1 M2.1: qua adapter; sai kiểu không nuốt im lặng (rà M21-1)
+    byd = byd_or_raw(data) or {}
     return byd.get("shot", (data or {}).get("shot_no"))
 
 
@@ -23,8 +23,8 @@ def for_shot(data: Optional[Dict]) -> Dict[str, Dict]:
     """BYĐ `ngoai_le` của CHÍNH shot này theo tên nhân vật (viết hoa) → {"items": [khóa identity_declare.ITEMS ngoại lệ nhắc tới],
     "without": True khi ngoại lệ nói KHÔNG có món đó}. Ngoại lệ có `pham_vi` không chứa shot này → bỏ qua."""
     from .identity_declare import ITEMS
-    from .shot_intent import byd_of                # V3.1 M2.1: đọc BYĐ qua adapter
-    byd = byd_of(data) or {}
+    from .shot_intent import byd_or_raw            # V3.1 M2.1: qua adapter; sai kiểu không nuốt im lặng (rà M21-1)
+    byd = byd_or_raw(data) or {}
     shot = shot_label(data)
     out: Dict[str, Dict] = {}
     for n in byd.get("ngoai_le") or []:

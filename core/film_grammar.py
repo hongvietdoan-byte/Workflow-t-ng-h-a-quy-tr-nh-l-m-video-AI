@@ -23,8 +23,8 @@ def _finite_object(obj):
 def _exception(shot, number, rule):
     words = {"jump": ("cắt nhảy", "jump cut", "30°"), "eyeline": ("hướng nhìn", "eyeline"),
              "lead": ("lead room", "khoảng trống phía trước"), "head": ("headroom", "khoảng trống trên đầu")}
-    from .shot_intent import NGOAI_LE_LY_DO, byd_of
-    for e in (byd_of(shot) or {}).get("ngoai_le") or []:
+    from .shot_intent import NGOAI_LE_LY_DO, byd_or_raw
+    for e in (byd_or_raw(shot) or {}).get("ngoai_le") or []:     # sai kiểu không nuốt im lặng (rà M21-1)
         if not isinstance(e, dict) or e.get("ly_do") not in NGOAI_LE_LY_DO:
             continue
         if number not in (e.get("pham_vi") or []) or not all(e.get(k) for k in ("doi_tuong", "dieu_trai", "cach_hien")):

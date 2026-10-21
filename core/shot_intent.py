@@ -96,6 +96,24 @@ def byd_of(data) -> Optional[Dict]:
     return byd if isinstance(byd, dict) else None
 
 
+class BydTypeError(ValueError):
+    """BYĐ có giá trị nhưng không phải bảng (chuỗi / danh sách — vd câu trả lời sửa của Claude gán thẳng). Mức REVIEW, mã byd_sai_kieu."""
+    code = "byd_sai_kieu"
+    level = "REVIEW"
+
+
+def byd_or_raw(data):
+    """Cho nơi đọc cũ `(data.get("byd") or {})` (rà M21-1): bảng → bảng; thiếu / rỗng → None; CÓ giá trị mà sai kiểu:
+    cờ byd_v2_levels TẮT → trả NGUYÊN giá trị (nơi gọi vỡ AttributeError y main — không đổi hành vi), BẬT → BydTypeError (REVIEW, nói ra).
+    Không bao giờ nuốt im lặng như byd_of()."""
+    raw = data.get("byd") if isinstance(data, dict) else None
+    if isinstance(raw, dict) or not raw:
+        return raw or None
+    if levels_enabled():
+        raise BydTypeError(f"BYĐ sai kiểu ({type(raw).__name__}, cần bảng) — REVIEW byd_sai_kieu: sửa / điền lại BYĐ shot này")
+    return raw
+
+
 def read(data, field: str, default=None):
     """MỘT hàm đọc trường BYĐ (M2.1): (giá trị, provenance, câu cảnh báo | None). `field` = đường chấm ("noi_chon.kho_id", "khung.moc_nen").
     provenance: "byd_v2" / "byd_v1" (có trường), "thieu" (không có BYĐ / thiếu trường — nơi gọi dùng đường cũ: suy / đọc chữ, và nói ra).

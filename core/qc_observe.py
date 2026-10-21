@@ -54,7 +54,7 @@ def compile_checks(conn, pid, job, data, criteria, profiles=None):
                 checks[-1]['needs_specialized_observation'] = True
     cast = {str(n).upper() for n in data.get('characters') or []}
     from . import shot_intent        # V3.1 M2.1: đọc BYĐ qua adapter
-    for i, item in enumerate((shot_intent.byd_of(data) or {}).get('thanh_phan') or []):
+    for i, item in enumerate((shot_intent.byd_or_raw(data) or {}).get('thanh_phan') or []):   # sai kiểu: vỡ / REVIEW (rà M21-1)
         if not isinstance(item, dict) or not item.get('vat'):
             raise ValueError('BYĐ.thanh_phan thiếu vật chuẩn')
         if str(item['vat']).upper() not in cast and 'set_match' in criteria:
