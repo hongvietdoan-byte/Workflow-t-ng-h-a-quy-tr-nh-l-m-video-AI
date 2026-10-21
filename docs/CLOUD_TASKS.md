@@ -917,6 +917,23 @@ cây B → DIFF), rồi báo XONG để codex chạy lại. 31 BOTH_FAIL (NOT_BU
 báo cáo bổ sung docs/RA_CLOUD_GOLDEN5_*.md mục "GOLDEN6". XONG hộp thư (mã C-GOLDEN6).
 ```
 
+#### C-M63-FIX2 (cloud-D — ưu tiên 2; việc NHỎ ≤ 30 lượt gọi; cloud-claude giao 22/10 sau RÀ KỸ C-M63-FIX) — lỗi rà C-M63-FIX (đã gộp main)
+```
+Agent rà kỹ (0 CAO). Nhánh mới cloud/v31-m63-fix2 từ main, test đỏ→xanh:
+1. VỪA core/gen_auth.py ~114-117 + _repair_budget ~189-193: attempts() UNION 2 nhánh quét TOÀN bảng jobs (bảng jobs KHÔNG có index — báo cáo M63-FIX ghi sai
+   "dùng chỉ mục"), gọi cho từng cặp (shot, loại) trong SPEND_LOCK → chậm hơn trước. Sửa: đọc jobs/sent_group của dự án MỘT lần trong _repair_budget (không thêm
+   migration/index CSDL thật — index = Cấp 3); sửa câu trong docs/RA_CLOUD_M63_FIX_*.md.
+2. THẤP core/end_frames.py ~467: `kwargs.get("model") or _usage_model(provider)` tính trước khi kiểm cờ → gọi thêm provider.usage_info() khi cờ TẮT; bọc
+   `if gen_auth.enabled():` như experiments.
+3. THẤP core/quality_samples.py ~159: shadow_send nằm NGOÀI try sau _save(state="sending") → nếu ném lỗi, mục kẹt "sending" + tính vào trần 4 USD; chuyển vào try.
+4. THẤP core/gen_auth.py ~195-196 repair_ids = set(repair) − set(first_ids): clip nhóm gửi lại của A mà là lượt đầu của B bị tính vào first → ngân sách phình
+   40 %; xếp vào bên làm lại (thận trọng tiền) + test.
+5. THẤP _busy ~388 chỉ xem scene_id → bỏ sót clip nhóm đang chạy chứa shot này (runner có _group_inflight ~1921) — dùng lại.
+6. THẤP test: tests/test_v31_m63_gen_auth.py — autoqc test gán tuple vào _codes (thật là chuỗi) + để lại autoqc._errors[78/79] toàn cục (dọn trong teardown);
+   end_frames test gọi shadow_send trực tiếp — thêm một test chạy qua đường gửi thật với provider giả, cờ BẬT.
+Báo cáo docs/RA_CLOUD_M63_FIX2_2026-10-2x.md. XONG hộp thư.
+```
+
 #### C-M71-FIX (cloud-E — ưu tiên 1; cloud-claude giao 22/10 sau RÀ KỸ đợt gộp tich-hop-2210) — lỗi rà M71 (đã gộp main)
 ```
 Agent rà kỹ 22/10 (0 CAO): sửa trên nhánh mới cloud/v31-m71-fix từ main, test đỏ→xanh từng mục:
