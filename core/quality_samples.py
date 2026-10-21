@@ -158,7 +158,7 @@ def send(p, pid, sid, kind, provider, data_dir, max_usd=4.0):
             attempted = False
             from . import gen_auth                 # C-M63-FIX: M6.3 shadow ở đường gửi không qua runner (ghi, không chặn)
             gen_auth.shadow_send(p.conn, project_id=pid, scene_id=sid, kind="video_gen", model=MODEL, route=f"quality_sample_{kind}",
-                                 data_dir=data_dir)
+                                 data_dir=data_dir, origin=None)   # người bấm
             try:
                 if source:
                     attempted = True

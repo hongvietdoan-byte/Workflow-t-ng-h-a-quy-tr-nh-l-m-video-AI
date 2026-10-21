@@ -19,6 +19,14 @@ OFF = {"FEATURE_GEN_AUTH_SHADOW": "0"}
 PRICING = {"per_image": {"m": 1.0, "x": 1.0}, "per_video_second": {}, "per_video_clip": {}}
 
 
+@pytest.fixture(autouse=True)
+def _fresh_pricing_cache():
+    """Bảng giá cache 60 s ở cấp module (C-M63-FIX) — mỗi test bắt đầu sạch để mock load_pricing có hiệu lực."""
+    G._PRICING_CACHE.clear()
+    yield
+    G._PRICING_CACHE.clear()
+
+
 def _setup(tmp_path, shots=1):
     p = Pipeline(connect(str(tmp_path / "m.sqlite")))
     pid = p.create_project("#63 thử")
@@ -413,16 +421,46 @@ def test_group_clip_sent_by_the_first_shot_counts_for_the_other_shot(tmp_path):
     assert _auth(p, new, tmp_path).code == "ATTEMPTS_EXHAUSTED"
 
 
-def test_repair_budget_is_cached_within_a_pass(tmp_path):
+def test_group_budget_is_computed_once_per_send(tmp_path):
+    """Rà: ngân sách tự sửa tính MỘT lần cho cả lượt gửi nhóm (leader + shot đi kèm), không N lần trong SPEND_LOCK."""
+    p, pid, sids = _setup(tmp_path, shots=3)
+    for sid in sids:
+        _job(p, pid, sid, usd_q=1, state="rejected", reject="mat_sai")
+    lead = _job(p, pid, sids[0], ext=None, state="queued", origin="auto", parent=1)
+    with mock.patch.dict(os.environ, ON), mock.patch.object(G, "_pricing", return_value=PRICING), \
+            mock.patch.object(G, "_repair_budget", wraps=G._repair_budget) as inner:
+        G.shadow(p.conn, p.job(lead), data_dir=str(tmp_path / "data"), group=sids[1:])
+    assert inner.call_count == 1
+
+
+def test_leader_cost_is_counted_once_in_the_budget(tmp_path):
+    """Rà: clip nhóm tính lượt cho nhiều shot — khoản chi của job leader chỉ vào lượt đầu, không vào cả làm lại của shot đi kèm."""
+    p, pid, sids = _setup(tmp_path, shots=2)
+    _job(p, pid, sids[1], kind="image_gen", usd_q=1)
+    _job(p, pid, sids[1], usd_q=1)                                    # shot 2 đã có lượt riêng
+    lead = _job(p, pid, sids[0], usd_q=2, origin="auto")
+    p.conn.execute("UPDATE jobs SET sent_group=? WHERE id=?", (json.dumps([{"id": sids[0]}, {"id": sids[1]}]), lead))
+    p.conn.commit()
+    b = G.repair_budget(p.conn, pid, pricing=PRICING)
+    assert b["first_usd"] + b["repair_usd"] <= 4.0 and b["repair_usd"] == 0.0     # leader (2 USD) chỉ ở lượt đầu
+
+
+def test_direct_route_is_recorded_not_counted_and_sees_a_running_job(tmp_path):
+    """Rà: đường gửi thẳng không phải lượt làm lại của shot → không ATTEMPTS / NO_CAUSE / BUDGET / MODEL giả (khớp môi model riêng);
+    job đang chạy của shot → DUPLICATE_INFLIGHT (trước: job giả id None làm `id<>NULL` luôn sai)."""
     p, pid, (sid,) = _setup(tmp_path)
-    _job(p, pid, sid, usd_q=1)
-    G._BUDGET_CACHE.clear()
-    with mock.patch.object(G, "_repair_budget", wraps=G._repair_budget) as inner:
-        a = G.repair_budget(p.conn, pid, pricing=PRICING)
-        b = G.repair_budget(p.conn, pid, pricing=PRICING)
-        assert a == b and inner.call_count == 1
-        _job(p, pid, sid, usd_q=1, origin="auto")                                    # CSDL đổi → tính lại
-        assert G.repair_budget(p.conn, pid, pricing=PRICING)["repair_usd"] == 1.0 and inner.call_count == 2
+    for _ in range(3):
+        _job(p, pid, sid, usd_q=1)
+    _job(p, pid, sid, ext="t-run", state="running")
+    with mock.patch.dict(os.environ, ON), mock.patch.object(G, "_pricing", return_value=PRICING):
+        d = G.shadow_send(p.conn, project_id=pid, scene_id=sid, kind="video_gen", model="lipsync-2-pro", route="lipsync",
+                          data_dir=str(tmp_path / "data"))
+        e = G.shadow_send(p.conn, project_id=pid, scene_id=sid, kind="image_gen", model="m", route="end_frame",
+                          data_dir=str(tmp_path / "data"))
+    assert d.codes == [] and d.counted is False and not d.needs_ep
+    assert e.codes == ["DUPLICATE_INFLIGHT"] and not e.needs_ep
+    rows = G.latest_per_job(G.read_shadow(str(tmp_path / "data"), pid))
+    assert {r["route"] for r in rows} == {"lipsync", "end_frame"}                 # không gộp theo (None, shot)
 
 
 def test_pricing_is_loaded_once_per_ttl():

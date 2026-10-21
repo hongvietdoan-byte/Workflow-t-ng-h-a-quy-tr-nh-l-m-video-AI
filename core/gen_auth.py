@@ -109,10 +109,13 @@ def cycle_start(data_dir: Optional[str], pid: int, scene_id: int, kind: str) -> 
 def attempts(conn, scene_id: int, kind: str, *, exclude_job_id: Optional[int] = None, since: Optional[str] = None) -> List:
     """Các job ĐÃ TÍNH lượt của shot / loại (cũ → mới): có task ở provider hoặc submit chưa rõ; trừ not_created (provider không tạo)
     và bước nâng nháp → bản cao (Q1)."""
-    rows = conn.execute("SELECT * FROM jobs WHERE type=? AND (? IS NULL OR id<>?) AND (? IS NULL OR created_at>=?) AND (scene_id=? OR "
-                        "(sent_group IS NOT NULL AND json_valid(sent_group) AND EXISTS (SELECT 1 FROM json_each(jobs.sent_group) g "
-                        "WHERE CAST(json_extract(g.value, '$.id') AS INTEGER)=?))) ORDER BY id",
-                        (kind, exclude_job_id, exclude_job_id, since, since, scene_id, scene_id)).fetchall()
+    cond = "type=? AND (? IS NULL OR id<>?) AND (? IS NULL OR created_at>=?)"
+    args = (kind, exclude_job_id, exclude_job_id, since, since)
+    rows = conn.execute(f"SELECT * FROM jobs WHERE scene_id=? AND {cond} UNION "     # nhánh 1 dùng chỉ mục scene_id; nhánh 2 chỉ dự án
+                        f"SELECT * FROM jobs WHERE project_id=(SELECT project_id FROM scenes WHERE id=?) AND scene_id<>? AND {cond} "
+                        "AND sent_group IS NOT NULL AND json_valid(sent_group) AND EXISTS (SELECT 1 FROM json_each(jobs.sent_group) g "
+                        "WHERE CAST(json_extract(g.value, '$.id') AS INTEGER)=?) ORDER BY id",
+                        (scene_id, *args, scene_id, scene_id, *args, scene_id)).fetchall()
     # C-M63-FIX: clip NHÓM (Seedance / multi-shot) do shot đầu gửi mang phần của shot này (sent_group) — tính cho shot này; job đi kèm
     # của chính shot đã nhận cùng task (external_id của leader) thì không đếm 2 lần
     own_ext = {r["external_id"] for r in rows if r["scene_id"] == scene_id and r["external_id"]}
@@ -134,7 +137,6 @@ def attempts(conn, scene_id: int, kind: str, *, exclude_job_id: Optional[int] = 
 
 _PRICING_CACHE: Dict = {}
 PRICING_TTL_S = 60
-_BUDGET_CACHE: Dict = {}
 
 
 def _pricing():
@@ -171,17 +173,7 @@ def repair_budget(conn, project_id: int, data_dir: Optional[str] = None, pricing
     """{"first_usd", "repair_usd", "limit_usd", "left_usd", "pct"} — tiền lượt đầu / làm lại theo SỔ CHI (usage_events) của các lượt đã
     tính; ngân sách = REPAIR_PCT × lượt đầu (EP đổi tỷ lệ theo dự án: app_settings `gen_auth_repair_pct:<pid>`)."""
     pricing = pricing if pricing is not None else _pricing()
-    # C-M63-FIX: cache theo lượt — CSDL không đổi (total_changes + data_version) thì dùng lại (trước: N+1 truy vấn mỗi lượt gửi, trong SPEND_LOCK)
-    try:
-        key = (id(conn), project_id, data_dir, conn.total_changes, conn.execute("PRAGMA data_version").fetchone()[0], id(pricing))
-    except Exception:  # noqa: BLE001 - kết nối lạ: không cache
-        key = None
-    if key is not None and _BUDGET_CACHE.get("key") == key:
-        return dict(_BUDGET_CACHE["value"])
-    value = _repair_budget(conn, project_id, data_dir, pricing)
-    if key is not None:
-        _BUDGET_CACHE.update(key=key, value=dict(value))
-    return value
+    return _repair_budget(conn, project_id, data_dir, pricing)
 
 
 def _repair_budget(conn, project_id: int, data_dir: Optional[str], pricing) -> Dict:
@@ -199,7 +191,10 @@ def _repair_budget(conn, project_id: int, data_dir: Optional[str], pricing) -> D
         done = attempts(conn, s[0], s[1], since=_cycle_from(grants, s[0], s[1]))
         first += [r["id"] for r in done[:1]]
         repair += [r["id"] for r in done[1:] if (r["origin"] or "") == "auto"]   # 4d: thao tác EP tự bấm KHÔNG ăn vào ngân sách tự sửa
-    first_usd, repair_usd = _usd_of_jobs(conn, first, pricing), _usd_of_jobs(conn, repair, pricing)
+    # rà C-M63-FIX: clip nhóm tính cho nhiều shot — mỗi job (một khoản chi) chỉ vào MỘT bên, MỘT lần (lượt đầu được ưu tiên)
+    first_ids = sorted(set(first))
+    repair_ids = sorted(set(repair) - set(first_ids))
+    first_usd, repair_usd = _usd_of_jobs(conn, first_ids, pricing), _usd_of_jobs(conn, repair_ids, pricing)
     limit = first_usd * pct
     return {"first_usd": round(first_usd, 4), "repair_usd": round(repair_usd, 4), "limit_usd": round(limit, 4),
             "left_usd": round(limit - repair_usd, 4), "pct": pct, "priced": pricing is not None}
@@ -295,8 +290,13 @@ def _est_usd(conn, job, model: Optional[str], pricing) -> Optional[float]:
 
 
 def authorize(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool] = None, data_dir: Optional[str] = None,
-              est_usd: Optional[float] = None) -> Decision:
-    """Quyết định cho MỘT lượt gửi job ảnh / video của shot. Chỉ đọc CSDL + tệp sổ cấp lượt. Không bao giờ ném lỗi ra ngoài shadow()."""
+              est_usd: Optional[float] = None, route: Optional[str] = None, memo: Optional[Dict] = None) -> Decision:
+    """Quyết định cho MỘT lượt gửi job ảnh / video của shot. Chỉ đọc CSDL + tệp sổ cấp lượt. Không bao giờ ném lỗi ra ngoài shadow().
+    `route` (C-M63-FIX, đường gửi thẳng không qua runner: khung cuối, khớp môi, phép thử chất lượng…): KHÔNG phải lượt gen / làm lại
+    của shot → không kiểm trần lượt, điều kiện tự sửa, model (khớp môi dùng model riêng); chỉ ghi + kiểm trùng job / gửi chưa rõ. Có
+    tính vào trần hay không là câu hỏi M6-B. `memo` = ngân sách tự sửa tính MỘT lần cho cả lượt gửi (leader + các shot nhóm)."""
+    if route:
+        return _authorize_direct(conn, job, model=model, data_dir=data_dir, route=route)
     kind, pid, sid = job["type"], job["project_id"], job["scene_id"]
     limit = LIMITS.get(kind, 0)
     auto = (job["origin"] or "") == "auto"
@@ -313,7 +313,12 @@ def authorize(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool]
                    + ("EP xác nhận vượt + lý do (sổ cấp lượt)" if not auto else "chuyển EP cấp lượt"))
     budget, left = None, None
     if auto and used >= 1 and not upgrade:
-        budget = repair_budget(conn, pid, data_dir, pricing)
+        if memo is not None and "budget" in memo:
+            budget = memo["budget"]
+        else:
+            budget = repair_budget(conn, pid, data_dir, pricing)
+            if memo is not None:
+                memo["budget"] = budget
         est = est_usd if est_usd is not None else _est_usd(conn, job, model, pricing)
         left = budget["left_usd"]
         if budget["priced"] and left - (est or 0.0) < 0:
@@ -336,11 +341,10 @@ def authorize(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool]
         if auto and unknown:
             codes.append("PROVIDER_UNVERIFIED")
             why.append(f"job {unknown[-1]['id']} gửi chưa rõ kết quả, chưa đối soát — không tự gửi lại")
-        busy = conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type=? AND state='running' AND id<>? LIMIT 1",
-                            (sid, kind, job["id"])).fetchone()
+        busy = _busy(conn, sid, kind, job["id"])
         if busy:
             codes.append("DUPLICATE_INFLIGHT")
-            why.append(f"shot đang có job {busy[0]} chạy ở provider")
+            why.append(f"shot đang có job {busy} chạy ở provider")
     ok_models = approved_models(conn, pid, sid, kind)
     if model and ok_models and model not in ok_models:                # dự án chưa chọn / chưa gửi gì: không có phạm vi để so
         codes.append("MODEL_NOT_APPROVED")
@@ -359,13 +363,14 @@ def shadow(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool] = 
     try:
         if not enabled() or job is None or job["type"] not in LIMITS:
             return None
-        d = authorize(conn, job, model=model, upgrade=upgrade, data_dir=data_dir)
+        memo: Dict = {}
+        d = authorize(conn, job, model=model, upgrade=upgrade, data_dir=data_dir, route=route, memo=memo)
         lines = [{"at": _now(), "job_id": job["id"], "scene_id": job["scene_id"], "kind": job["type"], "model": model or job["model"],
-                  **({"route": route} if route else {}), **asdict(d)}]
+                  **({"route": route, "origin": job["origin"]} if route else {}), **asdict(d)}]
         for sid in group or []:
             member = dict(job)
             member["scene_id"] = sid
-            md = authorize(conn, member, model=model, upgrade=upgrade, data_dir=data_dir)
+            md = authorize(conn, member, model=model, upgrade=upgrade, data_dir=data_dir, memo=memo)
             lines.append({"at": _now(), "job_id": job["id"], "scene_id": sid, "kind": job["type"], "model": model or job["model"],
                           "group_of": job["scene_id"], **asdict(md)})
         if data_dir:
@@ -380,14 +385,40 @@ def shadow(conn, job, *, model: Optional[str] = None, upgrade: Optional[bool] = 
         return None
 
 
+def _busy(conn, scene_id: int, kind: str, job_id: Optional[int]) -> Optional[int]:
+    row = conn.execute("SELECT id FROM jobs WHERE scene_id=? AND type=? AND state='running' AND (? IS NULL OR id<>?) LIMIT 1",
+                       (scene_id, kind, job_id, job_id)).fetchone()     # job giả (id None): `id<>NULL` luôn NULL — rà C-M63-FIX
+    return row[0] if row else None
+
+
+def _authorize_direct(conn, job, *, model: Optional[str], data_dir: Optional[str], route: str) -> Decision:
+    kind, sid = job["type"], job["scene_id"]
+    codes, why = [], []
+    used = 0
+    if sid:
+        done = attempts(conn, sid, kind, since=cycle_start(data_dir, job["project_id"], sid, kind))
+        used = len(done)
+        busy = _busy(conn, sid, kind, None)
+        if busy:
+            codes.append("DUPLICATE_INFLIGHT")
+            why.append(f"shot đang có job {busy} chạy ở provider")
+        unknown = [r for r in done if not r["external_id"]]
+        if unknown and (job["origin"] or "") == "auto":
+            codes.append("PROVIDER_UNVERIFIED")
+            why.append(f"job {unknown[-1]['id']} gửi chưa rõ kết quả, chưa đối soát")
+    return Decision(allow=not codes, code=codes[0] if codes else "OK", attempts_used=used, attempts_limit=LIMITS.get(kind, 0),
+                    budget_left_usd=None, needs_ep=False, reason_vi="; ".join(why) or f"đường {route}: ghi lại (không tính lượt shot)",
+                    codes=codes, counted=False, auto=(job["origin"] or "") == "auto")
+
+
 def shadow_send(conn, *, project_id: int, scene_id: Optional[int], kind: str, model: Optional[str], route: str,
-                data_dir: Optional[str]) -> Optional[Decision]:
+                data_dir: Optional[str], origin: Optional[str] = "auto") -> Optional[Decision]:
     """C-M63-FIX: các đường gửi tiền KHÔNG qua runner (`spend_gate.slot.send` thẳng: khung cuối, phép thử chất lượng, khớp môi, ảnh
-    toàn cảnh, bộ ảnh nhân vật, thử nghiệm multi-shot) — cùng cổng shadow, một job GIẢ (không id, origin 'auto') cho shot / loại;
-    dòng jsonl mang `route`. Không chặn, không ghi CSDL; cờ tắt → None (không đọc gì)."""
+    toàn cảnh, bộ ảnh nhân vật, thử nghiệm multi-shot) — cùng cổng shadow, một job GIẢ (không id; origin 'auto' cho việc máy tự làm,
+    None cho nút người bấm) cho shot / loại; dòng jsonl mang `route` + `origin`. Không chặn, không ghi CSDL; cờ tắt → None."""
     if not enabled():
         return None
-    job = {"id": None, "type": kind, "project_id": project_id, "scene_id": scene_id, "model": model, "origin": "auto",
+    job = {"id": None, "type": kind, "project_id": project_id, "scene_id": scene_id, "model": model, "origin": origin,
            "parent_job_id": None, "retry_reason": None, "reject_reason": None, "quality_tier": None, "draft_job_id": None,
            "sent_package": None, "created_at": _now(), "route": route}
     return shadow(conn, job, model=model, data_dir=data_dir, route=route)
@@ -397,7 +428,7 @@ def latest_per_job(rows: List[Dict]) -> List[Dict]:
     """Dòng mới nhất mỗi (job, shot) — job còn trong hàng được ghi lại mỗi nhịp gửi."""
     last: Dict = {}
     for r in rows:
-        last[(r.get("job_id"), r.get("scene_id"))] = r
+        last[(r.get("job_id"), r.get("scene_id"), r.get("route"))] = r     # đường gửi thẳng: job_id None — tách theo route
     return list(last.values())
 
 
