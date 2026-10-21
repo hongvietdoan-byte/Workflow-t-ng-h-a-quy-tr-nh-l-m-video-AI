@@ -424,7 +424,8 @@ FEATURES: Dict[str, Dict] = {
                  "không giữ job, không gọi Claude/API, 0 USD (cần crew_registry)",
         "verified": False,
         "why": "#31 G51 / G52 / G1: lỗi liên tục chỉ người thấy và không ai đứng tên sửa. Sổ v31-ep-m6-pack-a-approved-2026-10-21. "
-               "Chạy sau QC logic chuỗi. Chưa chạy trên dữ liệu thật",
+               "Chạy sau QC logic chuỗi. Tự gọi continuity_state.build (M3.4) + đọc tệp M4.2/M4.3 KỂ CẢ khi cờ của chúng TẮT (chỉ tính, không "
+               "ghi tệp của chúng). Chưa chạy trên dữ liệu thật",
     },
     "whitebox_height_dummy": {
         "label": "Người nộm whitebox đúng chiều cao hồ sơ Kho (height_m) + máy ở tầm mắt 0,93 × height_m, pitch eye (≤ 5°) / slightly_high "

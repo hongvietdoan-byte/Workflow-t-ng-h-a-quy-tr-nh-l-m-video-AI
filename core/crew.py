@@ -81,7 +81,10 @@ def engineer_paths(reg: Optional[Dict] = None) -> List[Dict]:
     return list((reg or load()).get("engineer_paths") or [])
 
 
-def _errors_index(errors: Optional[Iterable[Dict]] = None) -> Dict[str, Dict]:
+def errors_index(errors=None) -> Dict[str, Dict]:
+    """{id / 'alias:Gx': mục sổ lỗi}. Nhận danh sách mục, chỉ mục đã dựng (trả lại nguyên), hoặc None = đọc devsys/errors.json."""
+    if isinstance(errors, dict):
+        return errors
     if errors is None:
         try:
             with open(os.path.join(ROOT, "devsys", "errors.json"), encoding="utf-8") as f:
@@ -97,9 +100,15 @@ def _errors_index(errors: Optional[Iterable[Dict]] = None) -> Dict[str, Dict]:
     return out
 
 
+FALLBACK_NOTE = "không vai nào nhận lỗi này (mã QC / mục sổ lỗi chưa gán vai trong data/crew_roles.json) → Director phân công"
+
+
 def owner_of_error(qc_code: Optional[str] = None, registry_ids: Iterable[str] = (), reg: Optional[Dict] = None,
-                   errors: Optional[Iterable[Dict]] = None) -> Dict:
-    """Lỗi → vai chủ. {"owner", "via", "candidates": [{role, via}]}. Thứ tự: mã QC → category sổ lỗi → khâu sổ lỗi → fallback."""
+                   errors=None, layer: Optional[str] = None) -> Dict:
+    """Lỗi → vai chủ. {"owner", "via", "candidates": [{role, via}], "registry_owner", "fix_field", "owner_cannot_fix", "note"}.
+    Thứ tự: actionability.layer → trường sửa (layer_fields) → vai chủ trường đó (vai SỬA được) → mã QC → category sổ lỗi → khâu sổ lỗi
+    → fallback (nói rõ trong note). registry_owner = vai của LOẠI lỗi (không tính layer). owner_cannot_fix: True khi vai chủ không có quyền
+    ghi trường sửa; None khi không biết trường sửa (layer lạ / không có)."""
     reg = reg or load()
     rs = roles(reg)
     cands: List[Dict] = []
@@ -108,11 +117,14 @@ def owner_of_error(qc_code: Optional[str] = None, registry_ids: Iterable[str] = 
         if rid and all(c["role"] != rid for c in cands):
             cands.append({"role": rid, "via": via})
 
+    fix_field = (reg.get("layer_fields") or {}).get(layer) if layer else None
+    fix_owner = owner_of(fix_field, reg) if fix_field else None
+
     if qc_code:
         for r in rs:
             if any(fnmatch.fnmatchcase(qc_code, pat) for pat in (r.get("owns_errors") or {}).get("codes") or []):
                 add(r["id"], f"code:{qc_code}")
-    idx = _errors_index(errors)
+    idx = errors_index(errors)
     for rid_ in registry_ids or []:
         e = idx.get(rid_) or idx.get(f"alias:{rid_}")
         if e is None:
@@ -124,16 +136,22 @@ def owner_of_error(qc_code: Optional[str] = None, registry_ids: Iterable[str] = 
             add(r, f"category:{cat} ({rid_})")
         for r in by_stage:
             add(r, f"stage:{stage} ({rid_})")
+    reg_owner = cands[0]["role"] if cands else None
+    if fix_owner:
+        cands = [{"role": fix_owner, "via": f"layer:{layer} → {fix_field}"}] + [c for c in cands if c["role"] != fix_owner]
     if cands:
-        return {"owner": cands[0]["role"], "via": cands[0]["via"], "candidates": cands}
+        owner = cands[0]["role"]
+        return {"owner": owner, "via": cands[0]["via"], "candidates": cands, "registry_owner": reg_owner, "fix_field": fix_field,
+                "owner_cannot_fix": (not can_write(owner, fix_field, reg)) if fix_field else None, "note": ""}
     fb = reg.get("fallback_owner") or "director"
-    return {"owner": fb, "via": "fallback", "candidates": [{"role": fb, "via": "fallback"}]}
+    return {"owner": fb, "via": "fallback", "candidates": [{"role": fb, "via": "fallback"}], "registry_owner": None, "fix_field": fix_field,
+            "owner_cannot_fix": (not can_write(fb, fix_field, reg)) if fix_field else None, "note": FALLBACK_NOTE}
 
 
 # ---- kiểm hợp đồng (chỉ đọc mã nguồn / sổ, không ghi) ------------------------------------------------------------------------------
-def _read(rel: str) -> str:
+def _read(rel: str, root: str = ROOT) -> str:
     try:
-        with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
+        with open(os.path.join(root, rel), encoding="utf-8") as f:
             return f.read()
     except OSError:
         return ""
@@ -182,7 +200,14 @@ def _where_real(where: str, root: str) -> bool:
     return True
 
 
-def problems(reg: Optional[Dict] = None, root: str = ROOT) -> List[str]:
+def _errors_list(root: str) -> List[Dict]:
+    try:
+        return json.loads(_read(os.path.join("devsys", "errors.json"), root)).get("items") or []
+    except (ValueError, AttributeError):
+        return []
+
+
+def problems(reg: Optional[Dict] = None, root: str = ROOT, errors=None) -> List[str]:
     """Lỗi hợp đồng của registry ([] = đạt). Kiểm: trường bắt buộc, id duy nhất, reports_to / escalate trỏ vai có thật, mỗi trường đúng
     MỘT vai chủ + vai đó khai trong writes, writes ⊂ trường thật (bảng CSDL / khóa scenes.data có trong code), owns_errors.stages ⊂
     devsys/stages.json và mỗi khâu đúng một vai, codes ⊂ qc_evidence.CODES, categories ⊂ devsys/errors.json, claude_stage là nhãn sổ chi
@@ -197,8 +222,12 @@ def problems(reg: Optional[Dict] = None, root: str = ROOT) -> List[str]:
     if dup:
         out.append(f"id vai trùng: {dup}")
     known = set(ids)
-    db_src = _read(os.path.join("core", "db.py"))
+    db_src = _read(os.path.join("core", "db.py"), root)
     code_src = _code_text(root)
+    if not db_src:
+        out.append("không đọc được core/db.py — không kiểm được trường thật")
+    if not code_src:
+        out.append("không đọc được mã nguồn core/ tools/ — không kiểm được khóa scenes.data / claude_stage")
     try:
         from . import features
         flags = set(features.FEATURES)
@@ -206,14 +235,19 @@ def problems(reg: Optional[Dict] = None, root: str = ROOT) -> List[str]:
         flags = set()
     try:
         from . import qc_evidence
-        qc_codes = set(qc_evidence.CODES)
+        qc_map = dict(qc_evidence.CODES)
     except Exception:  # noqa: BLE001
-        qc_codes = set()
+        qc_map = {}
+    qc_codes = set(qc_map)
     try:
-        stages = [s["id"] for s in json.loads(_read(os.path.join("devsys", "stages.json")))["stages"]]
+        stages = [s["id"] for s in json.loads(_read(os.path.join("devsys", "stages.json"), root))["stages"]]
     except (ValueError, KeyError, TypeError):
         stages = []
-    cats = {e.get("category") for e in _errors_index().values() if e.get("category")}
+        out.append("không đọc được devsys/stages.json — không kiểm được khâu")
+    eidx = errors_index(errors) if errors is not None else errors_index(_errors_list(root))
+    if not eidx:
+        out.append("không đọc được devsys/errors.json — không kiểm được category / mục sổ lỗi")
+    cats = {e.get("category") for e in eidx.values() if e.get("category")}
     stage_known = set(reg.get("claude_stages_known") or [])
     fields = reg.get("fields") or {}
     for r in rs:
@@ -267,6 +301,26 @@ def problems(reg: Optional[Dict] = None, root: str = ROOT) -> List[str]:
         owners = [r.get("id") for r in rs if s in ((r.get("owns_errors") or {}).get("stages") or [])]
         if len(owners) != 1:
             out.append(f"khâu {s}: cần đúng một vai chủ, đang có {owners}")
+    claim_cat = {c for r in rs for c in (r.get("owns_errors") or {}).get("categories") or []}
+    claim_stage = {c for r in rs for c in (r.get("owns_errors") or {}).get("stages") or []}
+    claim_code = [c for r in rs for c in (r.get("owns_errors") or {}).get("codes") or []]
+    items = {e["id"]: e for e in eidx.values()}
+
+    def claimed(e: Dict) -> bool:
+        return e.get("category") in claim_cat or e.get("stage") in claim_stage
+
+    for e in items.values():
+        if not claimed(e):
+            out.append(f"sổ lỗi {e['id']} (khâu {e.get('stage')!r}, category {e.get('category')!r}): không vai nào nhận — sẽ rơi về fallback")
+    for code, meta in sorted(qc_map.items()):
+        regs = meta[3] if len(meta) > 3 else ()
+        if any(fnmatch.fnmatchcase(code, pat) for pat in claim_code):
+            continue
+        if not regs or not all(r in items and claimed(items[r]) for r in regs):
+            out.append(f"mã QC {code}: không vai nào nhận (không ở owns_errors.codes, mục sổ lỗi của mã chưa đủ vai) — sẽ rơi về fallback")
+    for layer, f in (reg.get("layer_fields") or {}).items():
+        if f not in fields:
+            out.append(f"layer_fields.{layer}: trường {f!r} không có trong bảng sở hữu")
     if reg.get("fallback_owner") not in known:
         out.append("fallback_owner phải là vai có thật")
     for w in reg.get("write_paths") or []:
@@ -284,7 +338,7 @@ def problems(reg: Optional[Dict] = None, root: str = ROOT) -> List[str]:
             if db_src and not _field_real(f, db_src, code_src):
                 out.append(f"{w.get('id')}: trường {f!r} không có thật")
     try:
-        dec_ids = {d.get("id") for d in json.loads(_read(os.path.join("data", "decisions.json"))).get("items") or []}
+        dec_ids = {d.get("id") for d in json.loads(_read(os.path.join("data", "decisions.json"), root)).get("items") or []}
     except (ValueError, AttributeError):
         dec_ids = set()
     for k in reg.get("engineer_paths") or []:

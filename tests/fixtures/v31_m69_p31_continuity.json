@@ -1,5 +1,5 @@
 {
- "_note": "Fixture TỔNG HỢP (không phải dữ liệu thật) tái hiện #31: G51/G52 (shot 28 Kelly cầm AWM → shot 29 liền sau mất súng, chữ không nói thả; shot 13 đứng yên 6 s — M4.2; shot 24 cửa khác 23/25 — QC logic chuỗi M4.3), G1 (nơi chốn/khối sân khấu đổi giữa shot 34→35 cùng nhóm), G41 (hướng chạy 35→36 ngược), qc_evidence M4.1 chân trời lệch shot 9. Dùng bởi tests/test_v31_m69_continuity_validator.py và `py -m core.continuity_validator --fixture`.",
+ "_note": "Fixture TỔNG HỢP (không phải dữ liệu thật) tái hiện #31: G51/G52 (shot 28 Kelly cầm AWM → shot 29 liền sau mất súng, chữ không nói thả; shot 13 đứng yên 6 s — M4.2; shot 24 cửa khác 23/25 — QC logic chuỗi M4.3), G1 (nơi chốn/khối sân khấu đổi giữa shot 34→35 cùng nhóm), G41 (hướng chạy 35→36 ngược), qc_evidence M4.1 chân trời lệch shot 9 + khối sân khấu G1 còn trong nền shot 35 (layer stage). Dùng bởi tests/test_v31_m69_continuity_validator.py và `py -m core.continuity_validator --fixture`.",
  "rows": [
   {"idx": 28, "sequence": "9", "data": {"characters": ["KELLY"], "action": "Kelly nấp sau tường, cầm AWM", "byd": {"vat": [{"vat": "AWM", "nguoi": "KELLY", "cach": "cam"}]}}, "motion": "Kelly aims the AWM over the wall"},
   {"idx": 29, "sequence": "9", "data": {"characters": ["KELLY"], "action": "Kelly nhìn sang phải", "byd": {"vat": []}}, "motion": "Kelly looks to the side"},
@@ -12,6 +12,7 @@
   {"qc_code": "QC-L13-CONTINUITY", "registry_ids": ["P31-G52"], "severity": "REVIEW", "evidence_type": "vlm", "evidence": {"shots": [24], "problem": "cửa shot 24 khác 23/25"}, "why": "cửa shot 24 khác 23/25", "source": "M4.3"}
  ],
  "qc_evidence": [
+  {"qc_code": "QC-L7-PROP_MISSING", "error_type": "L7", "registry_ids": ["P31-G1"], "severity": "REVIEW", "evidence_type": "frame", "evidence": {"shots": [35]}, "actionability": {"layer": "stage", "auto_ok": false}, "why": "khối giữ chỗ sân khấu 3D (XÁC ĐEN BIẾT BAY) còn trong nền cảnh thực tại"},
   {"qc_code": "QC-L9-HORIZON_MISMATCH", "error_type": "L9", "registry_ids": ["P31-G20"], "severity": "REVIEW", "evidence_type": "frame", "evidence": {"shots": [9]}, "why": "chân trời lệch so với nền"}
  ]
 }

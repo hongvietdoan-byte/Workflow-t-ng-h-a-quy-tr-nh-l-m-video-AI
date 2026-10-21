@@ -8,7 +8,9 @@ Một NĂNG LỰC kiểm (không phải phiên Claude): gom phát hiện đã c�
 rồi định tuyến từng phát hiện về VAI CHỦ theo Role Registry (core/crew.owner_of_error: mã QC → category sổ lỗi → khâu sổ lỗi → Director)
 + devsys/errors.json. Lỗi hệ thống / API / code → Kỹ sư (kênh tools/hop_thu.py — shadow: chỉ ghi, KHÔNG đăng).
 
-CHỈ ghi bằng chứng: nối một dòng vào `<data_dir>/<pid>/crew/continuity_validator.jsonl` (như các shadow khác). Không chặn, không giữ job,
+CHỈ ghi bằng chứng: bản đầy đủ lần mới nhất `<data_dir>/<pid>/crew/continuity_validator_latest.json` (ghi đè) + một dòng tóm tắt nối vào
+`continuity_validator.jsonl`. qc_evidence chỉ lấy phát hiện còn mở của lần chạy mới nhất mỗi (scope, qc_path).
+Vai chủ = vai SỬA được (actionability.layer → trường → vai chủ trường đó), vai của loại lỗi giữ ở `registry_owner`; fallback nói ở `canh_bao`. Không chặn, không giữ job,
 không tạo / gửi job, không sửa dữ liệu, không gọi model (0 USD). Cờ `continuity_validator` TẮT → không làm gì (không đọc registry, không
 dựng). Cờ bật mà `crew_registry` TẮT → không chạy, nói ở diag (không im lặng). Không bao giờ ném lỗi ra đường QC thật."""
 import json
@@ -31,29 +33,48 @@ def enabled() -> bool:
 
 
 def result_path(data_dir: str, project_id: int) -> str:
+    """Nhật ký: MỘT dòng tóm tắt mỗi lần chạy (đếm, đầu vào) — không phình theo số phát hiện."""
     return os.path.join(data_dir, str(project_id), "crew", "continuity_validator.jsonl")
+
+
+def latest_path(data_dir: str, project_id: int) -> str:
+    """Bản đầy đủ của lần chạy MỚI NHẤT (ghi đè)."""
+    return os.path.join(data_dir, str(project_id), "crew", "continuity_validator_latest.json")
 
 
 def _compact(f: Dict, source: str) -> Dict:
     ev = f.get("evidence") if isinstance(f.get("evidence"), dict) else {}
-    return {"qc_code": f.get("qc_code"), "attribute": ev.get("attribute"), "shots": list(ev.get("shots") or []),
+    shots = ev.get("shots") if isinstance(ev.get("shots"), list) else []
+    act = f.get("actionability") if isinstance(f.get("actionability"), dict) else {}
+    return {"qc_code": f.get("qc_code"), "attribute": ev.get("attribute"),
+            "shots": [x for x in shots if isinstance(x, int) and not isinstance(x, bool)], "layer": act.get("layer"),
+            "qc_run_id": f.get("qc_run_id"),
             "entity": ev.get("entity"), "severity": f.get("severity") or "REVIEW", "why": f.get("why") or ev.get("problem") or "",
             "source": source}
 
 
+def _open(status) -> bool:
+    return (status or "open") == "open"
+
+
 def read_evidence(conn, data_dir: Optional[str], project_id: int) -> List[Dict]:
-    """Phát hiện M4.1 của dự án: bảng qc_findings (khi đã migration) hoặc qc_shadow/qc_evidence.jsonl. Chỉ đọc."""
+    """Phát hiện M4.1 CÒN MỞ của LẦN CHẠY MỚI NHẤT mỗi (scope, qc_path): bảng qc_findings (khi đã migration) hoặc
+    qc_shadow/qc_evidence.jsonl (dòng sau thay dòng trước cùng scope + qc_path). Lỗi đã sửa ở lần chạy sau / status khác 'open' → bỏ. Chỉ đọc."""
     from . import qc_evidence
     out: List[Dict] = []
     if conn is not None and qc_evidence.has_tables(conn):
-        q = ("SELECT f.qc_code, f.registry_ids, f.severity, f.evidence FROM qc_findings f JOIN qc_runs r ON r.qc_run_id=f.qc_run_id "
-             "WHERE r.project_id=? ORDER BY f.id")
-        for code, regs, sev, ev in conn.execute(q, (project_id,)).fetchall():
-            out.append({"qc_code": code, "registry_ids": json.loads(regs or "[]"), "severity": sev, "evidence": json.loads(ev or "{}")})
+        q = ("SELECT r.qc_run_id, f.qc_code, f.registry_ids, f.severity, f.evidence, f.actionability, f.status FROM qc_findings f "
+             "JOIN qc_runs r ON r.qc_run_id=f.qc_run_id WHERE r.rowid IN (SELECT MAX(rowid) FROM qc_runs WHERE project_id=? "
+             "GROUP BY scope, qc_path) ORDER BY f.id")
+        for run_id, code, regs, sev, ev, act, st in conn.execute(q, (project_id,)).fetchall():
+            if _open(st):
+                out.append({"qc_run_id": run_id, "qc_code": code, "registry_ids": json.loads(regs or "[]"), "severity": sev,
+                            "evidence": json.loads(ev or "{}"), "actionability": json.loads(act or "{}")})
         return out
     if not data_dir:
         return out
     path = os.path.join(data_dir, str(project_id), "qc_shadow", "qc_evidence.jsonl")
+    latest: Dict[tuple, Dict] = {}
     try:
         with open(path, encoding="utf-8") as fh:
             for line in fh:
@@ -61,9 +82,13 @@ def read_evidence(conn, data_dir: Optional[str], project_id: int) -> List[Dict]:
                     rec = json.loads(line)
                 except ValueError:
                     continue
-                out += [f for f in rec.get("findings") or [] if isinstance(f, dict)]
+                if isinstance(rec, dict):
+                    latest.pop((rec.get("scope"), rec.get("qc_path")), None)
+                    latest[(rec.get("scope"), rec.get("qc_path"))] = rec
     except OSError:
         pass
+    for rec in latest.values():
+        out += [dict(f, qc_run_id=rec.get("qc_run_id")) for f in rec.get("findings") or [] if isinstance(f, dict) and _open(f.get("status"))]
     return out
 
 
@@ -71,6 +96,7 @@ def build(rows: List[Dict], observed: List[Dict], evidence: List[Dict], reg: Dic
     """Thuần (không I/O ngoài đọc devsys/errors.json khi errors=None): rows như continuity_shadow.rows_of; observed = finding có
     evidence.shots (M4.2/M4.3); evidence = finding M4.1. → bản ghi {routed, unrouted, inputs, counts, can_xem}."""
     from . import continuity_state
+    errors = crew.errors_index(errors)                          # nạp sổ lỗi MỘT lần cho cả lượt
     cs = continuity_state.build(rows, observed) if rows else {"findings": [], "can_xem": {}, "unknown": []}
     items = [(f, "M3.4") for f in cs["findings"]] + [(f, str(f.get("source") or "observed")) for f in observed] + \
             [(f, "M4.1") for f in evidence]
@@ -79,19 +105,21 @@ def build(rows: List[Dict], observed: List[Dict], evidence: List[Dict], reg: Dic
         if not isinstance(f, dict) or not f.get("qc_code"):
             continue
         c = _compact(f, src)
-        key = (c["qc_code"], c["attribute"], tuple(c["shots"]), c["why"])
+        key = (c["qc_code"], c["attribute"], tuple(c["shots"]), c["why"], c["qc_run_id"])
         if key in seen:
             continue
         seen.add(key)
         regs = [r for r in f.get("registry_ids") or [] if isinstance(r, str)]
-        r = crew.owner_of_error(c["qc_code"], regs, reg, errors)
+        r = crew.owner_of_error(c["qc_code"], regs, reg, errors, layer=c["layer"])
         owner = r["owner"]
         if owner == "continuity_validator" or crew.role(owner, reg) is None:
             unrouted.append({"finding": c, "registry_ids": regs, "ly_do": f"vai chủ không hợp lệ: {owner!r}"})
             continue
         role = crew.role(owner, reg)
         routed.append({"finding": c, "registry_ids": regs, "owner": owner, "via": r["via"],
-                       "candidates": [x["role"] for x in r["candidates"]], "reports_to": role.get("reports_to"),
+                       "candidates": [x["role"] for x in r["candidates"]], "registry_owner": r["registry_owner"],
+                       "fix_field": r["fix_field"], "owner_cannot_fix": r["owner_cannot_fix"], "canh_bao": r["note"],
+                       "reports_to": role.get("reports_to"),
                        "escalate": role.get("escalate") or {}, "kenh": ENGINEER_CHANNEL if owner == "engineer" else ROLE_CHANNEL,
                        "phieu": {"to_role": owner, "status": "returned", "shadow": True}})
     thieu = []
@@ -117,6 +145,10 @@ def _append(path: str, rec: Dict) -> None:
         fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
+def _summary(rec: Dict) -> Dict:
+    return {k: rec.get(k) for k in ("qc_version", "mode", "project_id", "at", "registry_version", "inputs", "counts")}
+
+
 def run(p, project_id: int, data_dir: str) -> Optional[Dict]:
     """Cờ bật (+ crew_registry): gom + định tuyến + nối một dòng bằng chứng; trả bản ghi. Cờ tắt → None, không đọc / ghi gì."""
     if not enabled():
@@ -132,7 +164,11 @@ def run(p, project_id: int, data_dir: str) -> Optional[Dict]:
         rec = build(continuity_shadow.rows_of(p, project_id), continuity_state.observed_of(p.conn, data_dir, project_id),
                     read_evidence(p.conn, data_dir, project_id), reg)
         rec = {**rec, "project_id": project_id, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
-        _append(result_path(data_dir, project_id), rec)
+        path = latest_path(data_dir, project_id)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(rec, fh, ensure_ascii=False, indent=1)
+        _append(result_path(data_dir, project_id), _summary(rec))
         return rec
     except Exception as e:  # noqa: BLE001 - shadow never touches the real run: said in diag
         try:
@@ -162,7 +198,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("CHƯA ĐỊNH TUYẾN", x["finding"]["qc_code"], x["ly_do"])
     print(f"tổng: {rec['counts']} | thiếu: {rec['inputs']['thieu']}")
     if "--out" in argv:
-        _append(os.path.join(argv[argv.index("--out") + 1], "continuity_validator.jsonl"), rec)
+        _append(os.path.join(argv[argv.index("--out") + 1], "continuity_validator.jsonl"), _summary(rec))
     return 0
 
 

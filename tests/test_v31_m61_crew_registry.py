@@ -163,3 +163,39 @@ def test_module_is_read_only():
     src = inspect.getsource(crew)
     for bad in ("open(path, \"w\"", "'w'", "\"w\"", "\"a\"", ".write(", "json.dump(", "execute(", "os.makedirs"):
         assert bad not in src, bad
+
+
+# ---- rà C-M61-M69 (VỪA-3, THẤP) ------------------------------------------------------------------------------------------------------
+def test_every_error_item_and_qc_code_has_a_role():
+    assert not [p for p in crew.problems() if "không vai nào nhận" in p]
+
+
+def test_problems_catch_error_item_no_role_takes():
+    errs = [{"id": "X-NEW-1", "stage": None, "category": "loai_moi_chua_gan"}]
+    out = "\n".join(crew.problems(errors=errs))
+    assert "X-NEW-1" in out and "không vai nào nhận" in out
+
+
+def test_problems_catch_qc_code_no_role_takes():
+    reg = copy.deepcopy(crew.load())
+    for r in reg["roles"]:
+        r["owns_errors"]["codes"] = [c for c in r["owns_errors"]["codes"] if c != "QC-V1-DRIFT"]
+    assert any("QC-V1-DRIFT" in p and "không vai nào nhận" in p for p in crew.problems(reg))
+
+
+def test_fallback_says_so():
+    fb = crew.owner_of_error(registry_ids=["KHONG-CO"])
+    assert fb["via"] == "fallback" and "không vai nào nhận" in fb["note"]
+
+
+def test_problems_use_the_given_root_and_say_empty_sources(tmp_path):
+    out = "\n".join(crew.problems(root=str(tmp_path)))
+    assert "core/db.py" in out and "devsys/stages.json" in out          # nguồn kiểm rỗng → báo, không bỏ qua im lặng
+
+
+def test_audit_paths_completed():
+    w = {x["id"]: x for x in crew.load()["write_paths"]}
+    assert "core/claude_tasks.py:dismiss_bible_flag" in w["W32"]["where"] and "core/subjects.py:unlink" in w["W32"]["where"]
+    assert "core/assets.py:set_outfit" in w["W32"]["where"]
+    assert "dashboard/steps/step1.py:reset_unworked_scenes" in w["W20"]["where"]
+    assert "scenes.data.spatial_state" in w["W3"]["fields"]
