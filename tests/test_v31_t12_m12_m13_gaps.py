@@ -199,7 +199,8 @@ def _end_frame_project(tmp_path):
 
 
 @pytest.mark.parametrize("flag", ["1", "0"])
-def test_paused_project_sends_no_end_frame(tmp_path, flag):
+def test_paused_project_sends_no_end_frame(tmp_path, flag, monkeypatch):
+    monkeypatch.setenv("FEATURE_SEEDANCE_REF_GROUPS", "0")      # C-FLAGTEST8: shot lẻ cần khung cuối — đường nhóm ref TẮT, không dựa mặc định
     p, pid, data = _end_frame_project(tmp_path)
     p.set_paused(pid, True)
     img = _Counting()
@@ -211,7 +212,8 @@ def test_paused_project_sends_no_end_frame(tmp_path, flag):
     assert all("tạm dừng" in (r["note"] or "").lower() for r in rows)    # nói lý do, không im lặng
 
 
-def test_pause_pressed_while_the_end_frame_is_being_prepared_sends_nothing(tmp_path):
+def test_pause_pressed_while_the_end_frame_is_being_prepared_sends_nothing(tmp_path, monkeypatch):
+    monkeypatch.setenv("FEATURE_SEEDANCE_REF_GROUPS", "0")      # C-FLAGTEST8: như trên
     p, pid, data = _end_frame_project(tmp_path)
     img = _Counting()
     real = end_frames.prompt_for

@@ -1,5 +1,6 @@
 """Regressions for the audit before the paid trial ($10, cheap quality, 2026-09-26) — one class per audit item; each test fails on the
 code before the fix. No real provider is called."""
+from tests._flags import pin_off
 import json
 import os
 import shutil
@@ -546,6 +547,7 @@ class MissingInputTests(Base):
 # ---- 8 ---------------------------------------------------------------------------------------------------------------------
 class EndFrameTests(Base):
     def setUp(self):
+        pin_off(self, "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         super().setUp()
         self.p.set_project_field(self.pid, "shot_mode", "per_shot")
         self.p.set_project_field(self.pid, "look", "FF_INGAME")
@@ -616,6 +618,10 @@ class CloneRerunsTheDirectorTests(unittest.TestCase):
 
 # ---- 10 --------------------------------------------------------------------------------------------------------------------
 class EstimateTests(Base):
+    def setUp(self):
+        pin_off(self, "seedance_ref_groups")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_claude_batch_estimates_use_the_ledger_average_when_there_is_one(self):
         self.assertGreater(cost.llm_estimate(self.p.conn, "motion", 1), 0)
         cost.record_usage(self.p.conn, None, "llm", "anthropic", "claude-sonnet-5", "input", 1_000_000, "token", stage="motion")

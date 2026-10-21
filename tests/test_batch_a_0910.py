@@ -1,4 +1,5 @@
 """Đợt A 09/10: A1 — motion prompt rỗng bị CHẶN ở chỗ gửi video (khớp ô "sẵn sàng" báo đỏ, CHUAN luật 1). Không gọi dịch vụ."""
+from tests._flags import pin_off
 import unittest
 
 from core.runner import VideoRunner
@@ -123,6 +124,10 @@ from tests.test_ui_quality_tier import TwoTierSeed as _Seed, md as _md   # noqa:
 
 class VideoHeroAndQcLine(_Seed):
     """09/10 (người dùng): tiến độ màn Video theo 2 bậc; không hiện ngân sách đợt thử CHUNG; điểm QC + tiêu chí một dòng."""
+    def setUp(self):
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
 
     def test_hero_counts_tiers_and_hides_the_shared_trial_budget(self):
         from unittest import mock

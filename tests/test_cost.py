@@ -1,3 +1,4 @@
+from tests._flags import pin_off
 import json
 import os
 import tempfile
@@ -25,6 +26,7 @@ def full(pricing=None):
 
 class CostTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         self.p = Pipeline(connect())
         self.pid = self.p.create_project("t", max_retry=2)
 

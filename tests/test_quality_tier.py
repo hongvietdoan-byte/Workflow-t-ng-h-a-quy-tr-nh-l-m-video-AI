@@ -2,6 +2,7 @@
 
 Cờ two_tier_quality TẮT = hành vi y như cũ (kể cả "Thử rẻ"); BẬT = bỏ qua test_quality, nháp → duyệt → bản cao, trần nháp 2 / bản cao 1,
 gen lại y nguyên bị từ chối (CHUAN_XAY_DUNG luật 3)."""
+from tests._flags import pin_off
 import json
 import os
 import tempfile
@@ -644,6 +645,10 @@ class ReviewRoundS1Tests(Base):
 
 
 class RunnerTierTests(Base):
+    def setUp(self):
+        pin_off(self, "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_draft_goes_as_the_seedance_2_5_sample_at_480p(self):
         with ON:
             d = self.p.create_job(self.s1, "video_gen")

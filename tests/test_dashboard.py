@@ -1,3 +1,4 @@
+from tests._flags import pin_off
 import os
 import tempfile
 import unittest
@@ -15,6 +16,7 @@ APP = os.path.join(os.path.dirname(__file__), "..", "dashboard", "app.py")
 
 class DashboardSmokeTests(unittest.TestCase):
     def setUp(self):
+        pin_off(self, "chat_first", "video_pregen")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
         os.environ["DASHBOARD_EXPERT"] = "1"      # these tests use the advanced panels (kế hoạch V4 5.3)
         self.addCleanup(os.environ.pop, "DASHBOARD_EXPERT", None)
         # S14.14 G-a: ui_v2 is ON by default now. These smoke tests were written for the classic screens; the heavy screens (Storyboard,

@@ -1,3 +1,4 @@
+from tests._flags import pin_off
 import os
 import unittest
 
@@ -77,6 +78,10 @@ class AutoRefreshTests(ImageProgressTests):
 
 
 class StatusTableTests(ImageProgressTests):
+    def setUp(self):
+        pin_off(self, "chat_first")                    # C-FLAGTEST8: đường cờ TẮT, không dựa mặc định
+        super().setUp()
+
     def test_the_per_scene_status_table_lists_every_scene_with_its_state(self):
         _, at = self.text()
         table = next(d for d in at.dataframe if list(d.value.columns) == ["Cảnh", "Trạng thái", "Điểm QC", "Đã gen lại"])
