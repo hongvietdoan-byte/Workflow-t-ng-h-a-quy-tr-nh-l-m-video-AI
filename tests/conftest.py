@@ -89,7 +89,7 @@ def _temp_in_tmp_path(tmp_path, monkeypatch):
         # gốc (dò bằng probe cả bộ): nhiều test `os.environ.pop("PIPELINE_DATA")` ở tearDown → xóa luôn thư mục cách ly của tests/__init__
         # → test SAU trong cùng worker ghi theo mặc định data/projects (= data/ THẬT). Mỗi test bắt đầu lại với thư mục cách ly.
         if _SESSION_DATA and not os.environ.get("PIPELINE_DATA"):
-            monkeypatch.setenv("PIPELINE_DATA", _SESSION_DATA)
+            os.environ["PIPELINE_DATA"] = _SESSION_DATA      # gán thẳng (không monkeypatch: teardown sẽ xóa lại → setUpClass lớp kế thiếu)
         from core import seedance_refs
         if seedance_refs.PAD_DIR is None:
             monkeypatch.setattr(seedance_refs, "PAD_DIR", str(tmp_path / "ref_padded"))

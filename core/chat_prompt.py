@@ -310,14 +310,15 @@ def previous_take(conn, job, kind: str) -> Tuple[List[Tuple[str, str]], Optional
 
 
 def quota_scope(conn, job) -> str:
-    """C-M71-FIX (VỪA 1): tạm ngừng D6 theo NGUỒN Claude của job (provider chụp lúc tạo job / của dự án + dấu vân tay cấu hình, M1.4b) —
+    """C-M71-FIX (VỪA 1): tạm ngừng D6 theo NGUỒN Claude của job (provider chụp lúc tạo job / của dự án, M1.4b; key Anthropic
+    dùng chung môi trường nên cùng provider = cùng tài khoản) —
     trước khóa chung: một dự án báo out_of_credit làm D6 dừng 600 s cho MỌI dự án, kể cả dự án có Claude riêng còn tiền."""
     from . import llm_provider
     try:
         kind = llm_provider.job_provider(conn, job)[0]
     except Exception:  # noqa: BLE001 - không đọc được nguồn: khóa riêng "none" (không chặn dự án khác)
         kind = None
-    return f"{kind or 'none'}:{llm_provider.config_version(kind) or '-'}"
+    return kind or "none"           # rà: hết tiền / hết lượt là của TÀI KHOẢN — không tách theo model (đổi model ≠ mở lại)
 
 
 def _quota_key(scope: Optional[str]) -> str:
