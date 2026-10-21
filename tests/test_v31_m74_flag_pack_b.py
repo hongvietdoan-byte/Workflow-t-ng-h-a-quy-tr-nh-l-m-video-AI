@@ -159,3 +159,54 @@ def test_end_frames_declares_its_cost_and_its_two_modes():
     assert meta["costs"] is True and meta["trainee"] is True
     assert "BẬT thật" in meta["why"] and "học việc" in meta["why"]
     assert before_run.costly_fix_flag("end_frames")                         # nút "Bật các cờ sửa lỗi" không bật hàng loạt
+
+
+# ---- bg_autoqc (P31-G57: bg_autoqc_stuck 29 lần): lý do kẹt — Claude không dùng được / chờ đủ khung (im) / khác ------------------------
+def _bg_project(tmp_path, shots=1):
+    import json
+    from core.db import connect as _c
+    from core.pipeline import Pipeline as _P
+    db = str(tmp_path / "bg.sqlite")
+    p = _P(_c(db))
+    pid = p.create_project("bg")
+    for i in range(1, shots + 1):
+        sid = p.create_scene(pid, i, f"s{i}")
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps({"story_scene": 1, "shot_no": i}), sid))
+        if i == 1:
+            jid = p.create_job(sid, "image_gen")
+            p.conn.execute("UPDATE jobs SET state='succeeded' WHERE id=?", (jid,))
+    p.conn.commit()
+    return db, p.conn, pid
+
+
+def _bg_rounds(conn, db, n=4, err=None, scene_qc=False):
+    from core import autoqc, bg_poll
+    with mock.patch.dict(os.environ, {"FEATURE_BG_AUTOQC": "1"}), \
+            mock.patch.object(autoqc, "start", lambda *a, **k: True), mock.patch.object(autoqc, "start_video", lambda *a, **k: False), \
+            mock.patch.object(autoqc, "last_error", lambda pid: err), mock.patch("core.qc_scene.active", lambda: scene_qc):
+        for _ in range(n):
+            bg_poll.autoqc_round(conn, db, "/tmp/data")
+
+
+def _codes(conn):
+    return [r[0] for r in conn.execute("SELECT code FROM diag_events WHERE code LIKE 'bg_autoqc_%' ORDER BY id")]
+
+
+def test_bg_autoqc_claude_down_is_said_as_such_once(tmp_path):
+    db, conn, pid = _bg_project(tmp_path)
+    _bg_rounds(conn, db, err="chưa có Claude: hết lượt gói tới 18:00")
+    assert _codes(conn) == ["bg_autoqc_no_claude"]
+    assert "hết lượt gói" in conn.execute("SELECT message FROM diag_events WHERE code='bg_autoqc_no_claude'").fetchone()[0]
+
+
+def test_bg_autoqc_waiting_for_the_scene_frames_is_quiet(tmp_path):
+    db, conn, pid = _bg_project(tmp_path, shots=2)                         # shot 2 của cùng cảnh chưa có ảnh
+    _bg_rounds(conn, db, scene_qc=True)
+    assert _codes(conn) == []
+
+
+def test_bg_autoqc_other_reason_still_says_stuck_with_the_last_error(tmp_path):
+    db, conn, pid = _bg_project(tmp_path)
+    _bg_rounds(conn, db, err="JSON hỏng ở câu trả lời QC")
+    assert _codes(conn) == ["bg_autoqc_stuck"]
+    assert "JSON hỏng" in conn.execute("SELECT message FROM diag_events WHERE code='bg_autoqc_stuck'").fetchone()[0]
