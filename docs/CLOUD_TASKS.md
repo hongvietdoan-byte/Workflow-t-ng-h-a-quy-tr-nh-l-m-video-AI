@@ -544,3 +544,22 @@ Bạn là làn cloud-E của dự án AI Video Pipeline (repo GitHub hongvietdoa
 5. Hết việc → hop_thu.py het-viec --lane cloud-E --push. Tuần ≥ 90 % → hoàn tất việc dở rồi het-viec + báo hạn mức.
 ```
 Việc giao đầu: C-M29 (M2.9 lời dẫn ngoài khớp môi), C-M24 (M2.4 insert_scene_after) — chuyển từ cloud-C; đề `#### C-M26 / C-M29 / C-M24`.
+
+## Việc NHỎ cho cloud-D (21/10 — tuần 89 %, mỗi việc ≤ 30 lượt gọi)
+
+#### C-ERR-UPD2 (cloud-D)
+```
+Cập nhật devsys/errors.json theo các việc gộp main 21/10 (commit ffa85d2f "V3.1: gộp 9 nhánh 21/10"): CX20-5/5b M1.5 Kho chủ thể (G30, G32, G58, G59; cờ
+subject_capacity_guard TẮT), DP7 M4.6 benchmark QC, C-FIX-THAP-3/4/5, C-M34 M3.4 continuity_state (G51, G52, G1), C-M32 M3.2 người nộm (G2, G3, A10, G49),
+DP11 M3.3 câu vị trí (G41–G50, G46). Đọc báo cáo docs/RA_CLOUD_*_2026-10-21.md, docs/RA_D20_VIEC5B_CODEX_2026-10-21.md, docs/RA_DP7_CODEX_2026-10-21.md để
+lấy mã lỗi + tên test thật. Trạng thái tối đa FIXED_UNVERIFIED (cờ TẮT, chưa chạy thật); điền fix_commit + tests + plan_workstream; KHÔNG VERIFIED.
+`python -m devsys.errors check` phải "Hợp lệ"; tests/test_error_registry.py xanh. Không đoán commit/test — git log / grep. Nhánh cloud/v31-err-upd2. XONG hộp thư.
+```
+
+#### C-RA-FIX21 (cloud-D — chỉ đọc, BẮT ĐẦU KHI codex báo XONG CX21-FIX)
+```
+Rà độc lập CHỈ ĐỌC nhánh codex của CX21-FIX (tên nhánh trong sự kiện xong; đề: docs/CODEX_TASKS.md "### CX21-FIX"). Đọc git diff origin/main...<nhánh> +
+chỗ gọi tới; kiểm từng mục 1–6 của đề đã sửa đúng gốc và có test ĐỎ→XANH; đặc biệt: core/subjects.capacity khi cờ TẮT giữ byte cũ, SPEND_LOCK không bị
+giữ lúc gọi mạng, merge_union không mất mục khi hai bên khác định dạng (thử bằng 2 file tạm). Không sửa code. Báo cáo docs/RA_CLOUD_RA_FIX21_2026-10-2x.md:
+GỘP ĐƯỢC / CẦN SỬA, mỗi lỗi mức + file:dòng + cách sửa. Push nhánh cloud/v31-ra-fix21 (chỉ báo cáo). XONG hộp thư.
+```
