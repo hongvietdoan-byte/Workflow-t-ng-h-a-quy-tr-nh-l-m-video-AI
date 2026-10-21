@@ -1300,6 +1300,9 @@ class VideoRunner(_Runner):
         """The group's dialogue track (Audio1): every take line at its second of the clip, silence around, the clip's length. Each
         take shot is marked sent (lipsync index: its planned start in the clip — the cut may move it, see _take_done)."""
         from . import audio_lib, dialogue_take, ffmpeg_studio, lipsync, seedance_refs
+        if not self.__dict__.get("_preview"):            # M2.9 G15 (cờ narration_offscreen): shot nay "skip" không giữ khớp môi cũ
+            for r in rows:
+                lipsync.forget_skipped(self.data_dir, job["project_id"], r["id"], r["data"])
         segs = self._take_segments(job, rows)
         if not segs:
             return None
@@ -1804,6 +1807,8 @@ class VideoRunner(_Runner):
             return None
         data = json.loads(self.p.conn.execute("SELECT data FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()["data"] or "{}")
         if not lipsync.voiced(lipsync.method_for(data)):
+            if not self.__dict__.get("_preview"):        # M2.9 G15 (cờ narration_offscreen): bỏ trạng thái khớp môi cũ của shot nay "skip"
+                lipsync.forget_skipped(self.data_dir, job["project_id"], job["scene_id"], data)
             return None
         mp = self._motion(job["scene_id"])
         length = float((mp["duration_sec"] if mp is not None and mp["duration_sec"] else None) or data.get("duration_s") or 4)

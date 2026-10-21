@@ -152,7 +152,9 @@
       "subject_capacity_guard": false,
       "world_map_sentences": false,
       "continuity_state": false,
-      "whitebox_height_dummy": false
+      "whitebox_height_dummy": false,
+      "narration_offscreen": false,
+      "fit_durations_review": false
     },
     "experimental_flags": [
       "new_feature"
@@ -322,7 +324,9 @@
       "subject_capacity_guard": false,
       "world_map_sentences": false,
       "continuity_state": false,
-      "whitebox_height_dummy": false
+      "whitebox_height_dummy": false,
+      "narration_offscreen": false,
+      "fit_durations_review": false
     },
     "experimental_flags": [
       "new_feature"
