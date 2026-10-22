@@ -917,6 +917,17 @@ cây B → DIFF), rồi báo XONG để codex chạy lại. 31 BOTH_FAIL (NOT_BU
 báo cáo bổ sung docs/RA_CLOUD_GOLDEN5_*.md mục "GOLDEN6". XONG hộp thư (mã C-GOLDEN6).
 ```
 
+#### C-FIX5 (cloud-C — ưu tiên 2, sau C-M48-DESK-CORE; cloud-claude giao 22/10 09:0x sau rà C-FIX4 + C-M83-TOOL)
+```
+1. VỪA (C-M83-TOOL CHƯA GỘP — sửa trên cloud/v31-m83-tool): tools/load_test_ui.py ~59-90 neutralize — chạy --db bản sao CSDL thật thì jobs.result_path và các
+   đường tuyệt đối khác vẫn trỏ data/projects THẬT; luồng duyệt ảnh / Gen video giả có thể thay clip cũ hoặc dời tệp vào thùng rác theo đường đó → đụng tệp
+   thật. Đổi tiền tố mọi đường thật (result_path, sent_package, assets, plates…) sang thư mục bản sao (hoặc NULL) + test: sau một lượt đo, mtime/danh sách
+   tệp data/projects thật không đổi. Báo cáo bổ sung docs/RA_CLOUD_M83_TOOL_*.md. XONG hộp thư mã C-M83-TOOL lại.
+2. THẤP (C-FIX4 đã gộp main): dashboard/change_review_ui.py ~41 — close() ném ValueError (mục còn thay đổi chưa rà, do phiên khác vừa đổi) không bắt → trang
+   hiện traceback; bọc try/except → st.error như nút Rà lại. tests/test_v31_fix4.py ~29 tempfile.mkdtemp không dọn → tmp_path. Nhánh cloud/v31-fix5 từ main.
+XONG hộp thư mã C-FIX5.
+```
+
 #### C-M48-DESK-CORE (cloud-E — ưu tiên 1; Cấp 2 đã duyệt: sổ v31-ep-stage-desk-actions-2026-10-21 S-A…S-G; cloud-claude giao 22/10) — Bàn đạo diễn 3D Đợt 1, tầng lõi
 ```
 Theo docs/KE_HOACH_BAN_DAO_DIEN_3D_DASHBOARD_2026-10-21.md mục 0, 2, 4, 5, 7, 9, 10, 13 (Đợt 1, 0 USD). NỀN NHÁNH: write guard (M2.5) mới có trên

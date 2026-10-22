@@ -85,3 +85,8 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
   1 THẤP về tiền: "✓ Đã sửa" trên mục rà LỖI âm thầm gọi Claude rà lại không báo giá → giao **C-FIX4** cloud-C (ưu tiên 1). **Máy chính:** tới khi C-FIX4 gộp, trên
   mục ĐỎ loại "rà lỗi" dùng nút "Rà lại" (có giá) hoặc "Bỏ qua", KHÔNG bấm "✓ Đã sửa". Sau pull: mở Tổ rà soát một dự án có mục rà lỗi motion, tắt `change_review_motion`
   ở 🧪 trên bản sao → mục motion đóng, mục scene cũ hơn (nếu có) vẫn giữ.
+- 22/10 09:1x — **C-FIX4 GỘP** (cloud/v31-fix4): "✓ Đã sửa" không còn gọi Claude; mục rà LỖI còn thay đổi chưa rà chỉ có "↻ Rà lại — ≈ X USD" (ước tính
+  cost.llm_button_tag) hoặc "Bỏ qua". Cả bộ Linux 7156 qua / 31 = baseline; Agent rà: 0 CAO/VỪA. **Máy chính:** Tổ rà soát một mục ĐỎ "rà lỗi" → nút Rà lại hiện giá,
+  không còn "✓ Đã sửa"; mục ĐỎ thường vẫn có "✓ Đã sửa". (Lưu ý cũ "KHÔNG bấm ✓ Đã sửa" ở mục 06:5x hết hiệu lực sau khi pull bản này.)
+- **C-M83-TOOL KHÔNG gộp:** rủi ro VỪA — chạy `--db` bản sao CSDL thật thì đường tệp trong job vẫn trỏ `data/projects` thật, thao tác giả có thể đụng tệp thật.
+  Trả cloud-C sửa (C-FIX5 mục 1). **Máy chính: chưa chạy `tools/load_test_ui.py --db` thật** tới khi bản sửa gộp.
