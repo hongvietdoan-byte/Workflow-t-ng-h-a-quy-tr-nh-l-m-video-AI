@@ -641,14 +641,14 @@ def rerun_targets(conn, finding_id: int) -> int:
     return conn.execute(f"SELECT COUNT(*) FROM change_events WHERE {_RERUN_WHERE}", (row[1], row[0], finding_id)).fetchone()[0]
 
 
-def rerun_usd(conn) -> Optional[float]:
-    """Ước tính USD của một lần "↻ Rà lại" (luật chi phí: báo TRƯỚC khi bấm): các lần lỗi của mục cùng một shot → vòng nền rà chung
-    MỘT nhóm = một lời gọi Claude stage change_review. None = chưa có giá."""
+def rerun_tag(conn) -> str:
+    """Chữ giá của nút "↻ Rà lại" (luật chi phí: báo TRƯỚC khi bấm), theo quy ước nút Claude S14.2 A2 (cost.llm_button_tag: × LLM_MARGIN,
+    chưa có giá → ước tính dư): các lần lỗi của mục cùng một shot → vòng nền rà chung MỘT nhóm = một lời gọi Claude stage change_review."""
     from . import cost
     try:
-        return cost.llm_estimate(conn, STAGE, 1)
-    except Exception:  # noqa: BLE001 - bảng giá lỗi: nút vẫn hiện, ghi "chưa có giá"
-        return None
+        return cost.llm_button_tag(conn, STAGE, 1)
+    except Exception:  # noqa: BLE001 - bảng giá lỗi: nút vẫn hiện, nói rõ
+        return " · Claude: chưa có giá"
 
 
 def rerun_failed(conn, finding_id: int, who: Optional[str]) -> None:

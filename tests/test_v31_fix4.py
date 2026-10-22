@@ -63,7 +63,8 @@ def test_failure_finding_has_no_fixed_button_and_the_rerun_button_shows_the_esti
     assert f"cr_ok_{fail_id}" not in _keys(at, "cr_ok_")                    # không "✓ Đã sửa" trên mục rà lỗi
     assert f"cr_ok_{other_id}" in _keys(at, "cr_ok_")                       # mục thường vẫn có
     rerun = at.button(key=f"cr_rerun_{fail_id}")
-    assert "Claude ≈ 0.01 USD" in rerun.label                               # ước tính TRƯỚC khi bấm
+    from core import cost
+    assert f"Claude ≈ {0.0123 * cost.LLM_MARGIN:.2f} USD" in rerun.label    # ước tính TRƯỚC khi bấm, tính dư như mọi nút Claude
     assert at.session_state["_states"][-1] == "failed"                      # vẽ khung không gọi rà lại
 
 
@@ -86,3 +87,17 @@ def test_rerun_button_puts_the_change_back_in_the_queue(db):
     at.button(key=f"cr_rerun_{fail_id}").click().run()
     assert not at.exception
     assert at.session_state["_states"][-1] == "pending"                     # chỉ khi NGƯỜI bấm nút có giá
+
+
+def test_failure_finding_whose_changes_are_gone_offers_fixed_not_a_priced_rerun(db):
+    # rà C-FIX4 THẤP: lần lỗi đã bị dọn (KEEP_DAYS) → không còn gì để rà: không nút "Rà lại" báo giá giả; "✓ Đã sửa" (0 USD) đóng được
+    conn = connect(db)
+    conn.execute("DELETE FROM change_events WHERE state='failed'")
+    conn.commit()
+    fail_id = conn.execute("SELECT id FROM change_findings WHERE source=?", (CR.FAIL_SOURCE,)).fetchone()[0]
+    conn.close()
+    at = AppTest.from_function(_page, args=(db,)).run()
+    assert f"cr_rerun_{fail_id}" not in _keys(at, "cr_rerun_")
+    at.button(key=f"cr_ok_{fail_id}").click().run()
+    assert not at.exception
+    assert at.session_state["_open"][0] == "resolved"
