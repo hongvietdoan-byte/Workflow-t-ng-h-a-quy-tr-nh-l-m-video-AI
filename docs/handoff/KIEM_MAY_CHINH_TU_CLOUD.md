@@ -67,6 +67,8 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
 | C-FIX3-THAP | cloud-C (ưu tiên 3, việc nhỏ) | docs/CLOUD_TASKS.md#### C-FIX3-THAP | 3 lỗi THẤP sau rà M71-FIX/M63-FIX2 |
 | C-M63-FIX2 | cloud-C (ưu tiên 2; chuyển từ cloud-D im > 1 giờ, 02:58) — ĐÃ GỘP 04:4x | docs/CLOUD_TASKS.md#### C-M63-FIX2 | lỗi rà kỹ C-M63-FIX |
 | C-M71-FIX | cloud-C (ưu tiên 1; chuyển từ cloud-E im > 1 giờ, 02:58) | docs/CLOUD_TASKS.md#### C-M71-FIX | lỗi rà kỹ M71 + rò tệp test DP12 |
+| C-M48-DESK-CORE | cloud-E (ưu tiên 1) | docs/CLOUD_TASKS.md#### C-M48-DESK-CORE | bàn đạo diễn 3D Đợt 1 lõi (0 USD), nền nhánh tích hợp M2 → gộp cùng M2 khi golden ĐẠT |
+| C-M48-DESK-UI | cloud-D (ưu tiên 2) | docs/CLOUD_TASKS.md#### C-M48-DESK-UI | bàn đạo diễn 3D Đợt 1 giao diện + cờ `stage_desk_ui` TẮT |
 | C-M83-TOOL | cloud-E (ưu tiên 2) | docs/CLOUD_TASKS.md#### C-M83-TOOL | công cụ đo tải 10 người (Playwright + provider giả); lượt đo thật M8.3 = máy chính |
 
 ## D. Ghi chú lượt 22/10 02:58
