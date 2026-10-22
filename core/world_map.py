@@ -460,7 +460,7 @@ def name_spots(clause: str, names) -> List[Tuple[int, int, str]]:
     """[(đầu, cuối, tên)] trong vế; tên dài trước, không chồng lấn ("Kelly" trong "Kelly Ghost")."""
     spots: List[Tuple[int, int, str]] = []
     for n in sorted({str(x) for x in names or [] if x}, key=len, reverse=True):
-        for mt in re.finditer(re.escape(n), clause, re.I):
+        for mt in re.finditer(r"(?<!\w)" + re.escape(n) + r"(?!\w)", clause, re.I):   # nguyên từ: "Ma" không khớp "machine"
             if not any(mt.start() < e and s0 < mt.end() for s0, e, _ in spots):
                 spots.append((mt.start(), mt.end(), n))
     return sorted(spots)

@@ -453,3 +453,13 @@ def test_rel_review_missing_camera_is_said_once_with_the_right_reason():
     m, _, _ = _p31(34)
     got = pi.check_text_sides(m, 34, {"blocking": f"{YEU} stands to the right of Kelly; Kelly is to the left of {YEU}"}, None)
     assert len(got) == 1 and got[0]["level"] == "khong_ro" and "máy shot chưa có" in got[0]["msg"]
+
+
+# ---- gộp cloud-E 22/10: tên ngắn trên map không khớp nhầm GIỮA một từ ("Ma" trong "machine" / "man") --------------------------------
+def test_rel_short_name_does_not_match_inside_a_word():
+    assert world_map.name_spots("the man stands to the right of the machine", ["Ma"]) == []
+    assert world_map.name_spots("Ma stands; ma.", ["Ma"]) == [(0, 2, "Ma"), (11, 13, "Ma")]
+    m = map3d([ent("Kelly", [-3, 10], "nguoi"), ent("Ma", [3, 10], "nguoi")])
+    got = pi.check_text_sides(m, 1, {"blocking": "Kelly stands to the right of the machine"}, cam([0, 0], [0, 10]))
+    assert all(f["numbers"].get("other") != "Ma" for f in got)                   # không thành "Kelly bên phải Ma"
+    assert [(f["level"], f["numbers"].get("other")) for f in got] == [("khong_ro", "machine")]

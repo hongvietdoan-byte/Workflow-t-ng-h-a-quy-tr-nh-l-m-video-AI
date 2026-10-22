@@ -51,6 +51,19 @@ class CloneIntentTests(unittest.TestCase):
         self.assertIsNone(self.p.project(new)["render_settings"])
         delivery.get_settings(self.p, new)
 
+    def test_pilot_trial_keeps_same_plan_intent(self):
+        """Gộp cloud-E 22/10: tools/pilot_setup cắt CÙNG kế hoạch Đạo diễn (director_raw nguồn) → giữ ý đồ + render_settings của phim
+        (card cuối tắt), dù clone_project(with_rows=False) đã bỏ chúng cho ca chạy lại Đạo diễn thật."""
+        from tools import pilot_setup
+        new = compare.clone_project(self.p, self.pid, "thử", None, with_rows=False)
+        pilot_setup.carry_same_plan(self.p, self.p.project(self.pid), new)
+        proj = self.p.project(new)
+        self.assertEqual(json.loads(proj["director_intent_raw"]), OLD_INTENT)
+        rs = json.loads(proj["render_settings"])
+        self.assertEqual(rs["music_start"], 12.5)
+        self.assertFalse(rs["end_card"]["enabled"])
+        self.assertEqual(json.loads(self.p.project(self.pid)["render_settings"]), OLD_RENDER)   # dự án gốc không đổi
+
 
 if __name__ == "__main__":
     unittest.main()
