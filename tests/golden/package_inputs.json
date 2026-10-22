@@ -165,6 +165,7 @@
       "fit_durations_review": false,
       "image_pregen": false,
       "router_first_frame": false,
+      "sent_package_relpath": false,
       "insert_inherit": false,
       "stage_props_byd": false
     },
@@ -341,6 +342,7 @@
       "fit_durations_review": false,
       "image_pregen": false,
       "router_first_frame": false,
+      "sent_package_relpath": false,
       "insert_inherit": false,
       "stage_props_byd": false
     },

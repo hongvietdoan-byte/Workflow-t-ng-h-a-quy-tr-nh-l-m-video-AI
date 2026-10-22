@@ -187,6 +187,7 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
             selected_id = row["id"]
             if latest_per_type:
                 visited = set()
+                chain = [row["id"]]
                 while True:
                     try:
                         try:
@@ -201,17 +202,25 @@ def capture(*, db, project, shot, flags_file, ref_root, purpose, input_snapshots
                         # video được nâng nằm ở draft_job_id → đi theo draft_job_id; ảnh / chưa có draft → source_job_id như cũ
                         draft_id = row["draft_job_id"] if "draft_job_id" in columns and row["type"] == "video_gen" else None
                         source_id = draft_id if type(draft_id) is int else (row["source_job_id"] if "source_job_id" in columns else None)
-                        if type(source_id) is not int or source_id in visited:
-                            raise GoldenError("chuỗi nguồn thiếu/hỏng hoặc có vòng lặp")
+                        if type(source_id) is not int:
+                            raise GoldenError(f"job {row['id']}: không có draft_job_id / source_job_id kiểu số (gói không có prompt)")
+                        if source_id in visited:
+                            raise GoldenError(f"job {row['id']}: vòng lặp về job {source_id}")
                         parent = conn.execute("SELECT * FROM jobs WHERE id=? AND project_id=? AND scene_id=? AND type=?",
                                               (source_id, project, shot, row["type"])).fetchone()
                         if parent is None:
-                            raise GoldenError("nguồn không thuộc cùng project/scene/type")
+                            other = conn.execute("SELECT type, project_id, scene_id FROM jobs WHERE id=?", (source_id,)).fetchone()
+                            what = ("không tồn tại" if other is None else
+                                    f"là {other['type']} của dự án {other['project_id']} shot {other['scene_id']}")
+                            raise GoldenError(f"job {row['id']} → nguồn {source_id} {what} (cần {row['type']} cùng dự án/shot)")
                         row = parent
-                    except (GoldenError, TypeError, ValueError):
+                        chain.append(row["id"])
+                    except (GoldenError, TypeError, ValueError) as broken:
+                        # C-GOLDEN4: in chuỗi id bị đứt + chỗ đứt (chỉ id/kiểu, không prompt/gói)
                         jobs.append({"id": selected_id, "type": row["type"], "selected_job_id": selected_id,
                                      "database_replay": {"status": "INSUFFICIENT_INPUT", "matched_at_capture": False,
-                                                         "reason": "chuỗi source_job_id thiếu/hỏng hoặc không an toàn"}})
+                                                         "reason": "chuỗi source_job_id thiếu/hỏng hoặc không an toàn",
+                                                         "chain": chain, "broken": str(broken)[:300]}})
                         row = None
                         break
                 if row is None:
