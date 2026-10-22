@@ -1,0 +1,13 @@
+{
+  "ts": "2026-10-22T20:32:01.336065+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "CX22-DON-RAC-TOOL",
+  "to": "codex",
+  "title": "tools/don_rac.py + xoay vòng sao lưu + tự gỡ worktree khi gộp (0 USD)",
+  "spec": "docs/CODEX_TASKS.md### CX22-DON-RAC-TOOL",
+  "depends": [
+    "CX22-DON-RAC"
+  ],
+  "priority": 3
+}
