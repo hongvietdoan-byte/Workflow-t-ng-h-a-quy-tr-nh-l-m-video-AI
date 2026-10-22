@@ -212,8 +212,7 @@ def shared_references(conn, pid: int, shots: List[Dict], limit: int = 8, cast_of
     cur = None if cast_of is None else next((i for i, s in enumerate(shots) if s["data"] is cast_of), None)
     if cast_of is not None and cur is None:
         cur = next((i for i, s in enumerate(shots) if s["data"] == cast_of), None)
-    uses = bool(cast_of is not None and _USES_HELD.search(" ".join(str(cast_of.get(f) or "") for f in
-                                                                     ("image_prompt", "action", "blocking", "text"))))
+    uses = _uses_held(conn, pid, cast_of)
     per = [assets.scene_references(conn, pid, dict(s["data"]), limit=assets.MAX_REFERENCES) for s in shots]
     # … from the NEAREST earlier shot holding a prop only (the gun of shot 12 goes to "she fires it" in shot 13, the pram of shot 10 not)
     carry = (max((k for k in range(cur) if any(r.get("role") in CARRIED_ROLES for r in per[k])), default=None)
@@ -241,6 +240,25 @@ CARRIED_ROLES = ("object", "outfit_object")      # a prop picked up earlier in t
 _USES_HELD = re.compile(r"\b(?:fires?|firing|shoots?|shooting|aims?|aiming|reloads?|reloading|swings?|swinging|throws?|throwing|"
                         r"(?:holds?|holding|grips?|gripping|raises?|raising|lifts?|lifting|points?|pointing|drops?|dropping)\s+(?:it|the gun|"
                         r"the weapon)|bắn|ngắm|nạp đạn|giơ súng|cầm súng)\b", re.I)
+
+
+def _uses_held(conn, pid: int, cast_of: Optional[Dict]) -> bool:
+    """Khung này dùng một vật đang cầm (mang ảnh vật của shot trước gần nhất). Đường cũ: regex _USES_HELD trên chữ shot. V3.1 M2.2 A2b
+    (cờ byd_fields + byd_fields_a2b) + BYĐ v2: có vật `vat[]` cầm / đeo / ném (prop_lock.HELD_WAYS) bởi một người; chưa v2 → regex + byd_fallback."""
+    if cast_of is None:
+        return False
+    from . import byd_fields
+    if byd_fields.enabled("a2b"):
+        if byd_fields.is_v2(cast_of):
+            from . import prop_lock, shot_intent
+            items, _, _ = shot_intent.read(cast_of, "vat", [])
+            return any(isinstance(it, dict) and it.get("cach") in prop_lock.HELD_WAYS and it.get("nguoi")
+                       for it in (items if isinstance(items, list) else []))
+        uses = bool(_USES_HELD.search(" ".join(str(cast_of.get(f) or "") for f in ("image_prompt", "action", "blocking", "text"))))
+        if uses:
+            byd_fields.note(conn, "a2b", cast_of, "khung dùng vật đang cầm đoán theo chữ (shot chưa có BYĐ v2 vat[])", project_id=pid)
+        return uses
+    return bool(_USES_HELD.search(" ".join(str(cast_of.get(f) or "") for f in ("image_prompt", "action", "blocking", "text"))))
 
 
 def cast_missing(conn, pid: int, data: Dict, refs: List[Dict]) -> List[str]:

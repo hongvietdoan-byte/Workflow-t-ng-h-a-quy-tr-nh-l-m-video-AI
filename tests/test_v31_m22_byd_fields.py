@@ -229,3 +229,76 @@ def test_a2a_on_v1_or_no_dang_falls_back_with_warning(kho):
     assert kho["forms"](_a2a_scene(v1=True), *on) == old
     assert kho["forms"](_a2a_scene("-"), *on) == old                                        # v2 không khai dang cho KELLY
     assert len(kho["diags"](byd_fields.FALLBACK)) >= 2
+
+
+
+# ---- A2b: đạo cụ cầm theo vat[].kho_id / nguoi / cach (G1, G38) ---------------------------------------------------------------
+@pytest.fixture
+def guns(kho):
+    from core import prop_lock
+    c, pid = kho["conn"], kho["pid"]
+    ids = {}
+    for key, name, desc in (("skorp", "SKORP", "Súng tiểu liên SKORP"), ("awm", "AWM", "Súng bắn tỉa AWM sniper rifle")):
+        aid = c.execute("INSERT INTO assets (game, kind, name, aliases, description) VALUES ('FF','weapon',?,?,?)", (name, "", desc)).lastrowid
+        c.execute("INSERT INTO project_assets (project_id, asset_id) VALUES (?,?)", (pid, aid))
+        ids[key] = aid
+    c.execute("INSERT INTO characters (project_id, name, description) VALUES (?, 'KELLY', 'cô gái')", (pid,))
+    c.commit()
+    prop_lock.set_weapon(c, pid, "KELLY", ids["skorp"])
+
+    def holders(scene, *flags):
+        with env(*flags):
+            pool, _, _, _ = prop_lock._scan(c, pid, scene)
+            return prop_lock._holders(c, pid, scene, pool)
+
+    return dict(kho, guns=ids, holders=holders)
+
+
+def _a2b_scene(vat=None, v1=False, text="Kelly bắn súng"):
+    s = {"text": text, "image_prompt": "", "characters": ["KELLY"]}
+    if v1:
+        s["byd"] = {"shot": 2, "vat": ["AWM"]}
+    elif vat is not None:
+        s["byd"] = v2_scene(vat=vat)["byd"]
+    return s
+
+
+def test_a2b_off_is_default_weapon_table(guns):
+    awm = [{"vat": "AWM", "kho_id": guns["guns"]["awm"], "nguoi": "KELLY", "cach": "cam"}]
+    old = guns["holders"](_a2b_scene())
+    assert old == {guns["guns"]["skorp"]: ["KELLY"]}
+    for flags in ((), ("a2b",), ("mother",)):
+        assert guns["holders"](_a2b_scene(awm), *flags) == old
+    assert guns["diags"](byd_fields.FALLBACK) == []
+
+
+def test_a2b_on_v2_vat_overrides_default_gun(guns):
+    on = ("mother", "a2b")
+    awm = [{"vat": "AWM", "kho_id": guns["guns"]["awm"], "nguoi": "KELLY", "cach": "cam"}]
+    assert guns["holders"](_a2b_scene(awm), *on) == {guns["guns"]["awm"]: ["KELLY"]}
+    put_down = [{"vat": "AWM", "kho_id": guns["guns"]["awm"], "nguoi": "KELLY", "cach": "dat"}]   # đặt xuống: không phải cầm
+    assert guns["holders"](_a2b_scene(put_down), *on) == {guns["guns"]["skorp"]: ["KELLY"]}
+    gone = [{"vat": "AWM", "kho_id": 99999, "nguoi": "KELLY", "cach": "cam"}]
+    assert guns["holders"](_a2b_scene(gone), *on) == {guns["guns"]["skorp"]: ["KELLY"]}         # mã lạ: không đổi súng, nói ra
+    assert any("99999" in m for m in guns["diags"](byd_fields.MISMATCH))
+
+
+def test_a2b_on_v1_falls_back_with_warning(guns):
+    on = ("mother", "a2b")
+    assert guns["holders"](_a2b_scene(v1=True), *on) == {guns["guns"]["skorp"]: ["KELLY"]}
+    assert any("KELLY" in m for m in guns["diags"](byd_fields.FALLBACK))
+
+
+def test_a2b_storyboard_uses_held_reads_vat(kho):
+    from core import scene_storyboard as sb
+    c, pid = kho["conn"], kho["pid"]
+    fires = {"image_prompt": "Kelly fires", "characters": ["KELLY"]}
+    held = [{"vat": "AWM", "kho_id": 5, "nguoi": "KELLY", "cach": "cam"}]
+    with env():
+        assert sb._uses_held(c, pid, fires) is True and sb._uses_held(c, pid, None) is False
+        assert sb._uses_held(c, pid, dict(fires, byd=v2_scene(vat=[])["byd"])) is True      # tắt: chữ quyết như cũ
+    with env("mother", "a2b"):
+        assert sb._uses_held(c, pid, dict(fires, byd=v2_scene(vat=[])["byd"])) is False     # v2: không ai cầm gì
+        assert sb._uses_held(c, pid, {"image_prompt": "Kelly đứng", "byd": v2_scene(vat=held)["byd"]}) is True
+        assert sb._uses_held(c, pid, fires) is True                                        # chưa BYĐ → regex + cảnh báo
+    assert any("cầm" in m for m in kho["diags"](byd_fields.FALLBACK))
