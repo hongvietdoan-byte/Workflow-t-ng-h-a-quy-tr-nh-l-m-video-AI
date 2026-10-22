@@ -462,3 +462,95 @@ def test_a2f_setting_and_background_use_one_helper():
     src = (ROOT / "core" / "runner.py").read_text(encoding="utf-8")
     assert src.count("assets.model_place_name(place)") == 1                     # chỉ còn trong place_name_for_model (đường cũ)
     assert src.count("place_name_for_model(") >= 3
+
+
+
+# ---- Vòng sửa sau RÀ KỸ (23/10) ------------------------------------------------------------------------------------------------
+def test_fix1_v1_byd_never_enters_hash():
+    v1 = {"text": "Kelly", "image_prompt": "Kelly", "characters": [], "byd": {"shot": 1, "vat": ["AWM"], "khung": "MS"}}
+    with env():
+        img, mo = lineage.image_spec_hash(v1, [], "9:16"), lineage.motion_spec_hash(v1)
+    with env("mother"):
+        assert lineage.image_spec_hash(v1, [], "9:16") == img and lineage.motion_spec_hash(v1) == mo   # #24 (v1): bật cờ không "⚠ cũ"
+        assert byd_fields.image_part(v1) is None and byd_fields.motion_part(v1) is None
+
+
+def _stamped_project():
+    from core.db import connect
+    from core.pipeline import Pipeline
+    p = Pipeline(connect(":memory:"))
+    pid = p.create_project("m22-restamp")
+    sid = p.create_scene(pid, 1, "shot 1")
+    d = v2_scene()
+    p.conn.execute("UPDATE scenes SET state='ready', data=? WHERE id=?", (json.dumps(d, ensure_ascii=False), sid))
+    j = p.create_job(sid, "image_gen")
+    with env():                                                    # ảnh + motion làm khi cờ TẮT (dấu cũ, không có byd)
+        p.conn.execute("UPDATE jobs SET state='approved', input_hash=? WHERE id=?", (lineage.current_image_hash(p.conn, pid, sid), j))
+        p.conn.execute("INSERT INTO motion_prompts (scene_id, motion_prompt, image_job_id, spec_hash) VALUES (?,?,?,?)",
+                       (sid, "Kelly throws", j, lineage.motion_spec_hash(d)))
+    p.conn.commit()
+    return p, pid, sid, j
+
+
+def test_fix1_turning_mother_on_restamps_fresh_work_once():
+    p, pid, sid, j = _stamped_project()
+    with env("mother"):
+        row = lineage.scan(p.conn, pid)[sid]
+        assert row["image_stale"] is None and row["motion_stale"] is None              # ảnh đang mới vẫn mới (không gen lại tốn tiền)
+        assert p.conn.execute("SELECT input_hash FROM jobs WHERE id=?", (j,)).fetchone()[0] == lineage.current_image_hash(p.conn, pid, sid)
+        d = json.loads(p.conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()[0])
+        d["byd"]["vat"][0]["kho_id"] = 999                                               # sửa BYĐ SAU khi bật cờ → "⚠ cũ" (G22)
+        p.conn.execute("UPDATE scenes SET data=? WHERE id=?", (json.dumps(d), sid))
+        p.conn.commit()
+        assert lineage.scan(p.conn, pid)[sid]["image_stale"]
+    with env():
+        assert lineage.restamp_byd(p.conn, pid) == 0                                    # cờ tắt: không đụng gì
+
+
+def test_fix2_background_name_never_vietnamese(kho):
+    from core import runner
+    ids, pl = _places(kho)
+    s = _a2f_scene(ids["villa"])
+    with env("mother", "a2f"):
+        assert runner.plate_place_name(kho["conn"], kho["pid"], s, pl["villa"], "Biệt thự") == "the place"
+        assert runner.plate_place_name(kho["conn"], kho["pid"], s, None, "Villa yard") == "Villa yard"
+    with env():
+        assert runner.plate_place_name(kho["conn"], kho["pid"], s, None, "Biệt thự") == "Biệt thự"      # TẮT: y cũ
+        assert runner.plate_place_name(kho["conn"], kho["pid"], s, pl["villa"], "Biệt thự") == "biet thu"
+    src = (ROOT / "core" / "runner.py").read_text(encoding="utf-8")
+    assert 'or render.get("label") or "the place"' not in src
+
+
+def test_fix3_outdoor_setting_uses_the_same_name(kho):
+    from core import runner, assets
+    ids, pl = _places(kho)
+    for key, place_render in (("villa", True), ("villa", False), ("tower", True)):
+        s = _a2f_scene(ids[key])
+        with mock.patch.object(runner, "indoor_spot", return_value=None):
+            with env():
+                off = runner._place_part(kho["conn"], kho["pid"], s, pl[key], place_render, [])
+                assert off == (assets.render_place_text(kho["conn"], pl[key]) if place_render else assets.location_text(kho["conn"], pl[key]))
+            with env("mother", "a2f"):
+                on = runner._place_part(kho["conn"], kho["pid"], s, pl[key], place_render, [])
+        if key == "villa":
+            assert "biet thu" in off and "biet thu" not in on and "Setting: the place" in on
+        else:
+            assert on == off and "Setting: Clock Tower" in on
+
+
+def test_fix4_landmark_calls_pass_conn():
+    src = (ROOT / "core" / "runner.py").read_text(encoding="utf-8") + (ROOT / "core" / "scene_storyboard.py").read_text(encoding="utf-8")
+    for bad in ("landmark_off_frame(data)", "landmark_off_frame(own)", "landmark_off_frame(_shot_data(g, scene_id))",
+                "turned_away(g, job[\"scene_id\"])", "away = turned_away(g, scene_id)\n"):
+        assert bad not in src, bad
+
+
+def test_fix5_change_review_watches_byd_only_when_mother_on():
+    from core import change_review as cr
+    before, after = v2_scene(), v2_scene(vat=[{"vat": "AWM", "kho_id": 5, "nguoi": "KELLY", "cach": "cam"}])
+    with env():
+        assert cr.changed_keys(before, after, list(cr.watch())) == []                     # TẮT: y cũ (byd không phải khóa WATCH)
+        assert cr.watch() is cr.WATCH
+    with env("mother"):
+        assert cr.changed_keys(before, after, list(cr.watch())) == ["byd.vat"]
+        assert "anh" in cr.watch()["byd.vat"] and "byd.khung" in cr.watch() and "byd.thanh_phan" in cr.watch()

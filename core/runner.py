@@ -3846,7 +3846,7 @@ class ImageRunner(_Runner):
         if est and indoor_spot(conn, job["project_id"], data):   # an indoor shot: the 3D render of the room is the place, never the
             est = None                                           # outdoor wide picture of the scene (07/10 Khủng Long Đỏ)
         from .plate_choice import landmark_off_frame
-        if est and landmark_off_frame(data):                     # 08/10 (#24 shot 4): the wide picture shows the landmark the camera
+        if est and landmark_off_frame(data, conn, job["project_id"]):   # 08/10 (#24 shot 4): the wide picture shows the landmark the camera
             est = None                                           # is turned away from — it pulled the tower into a reverse shot
         if est:                                        # the scene's wide establishing picture: the shared reference for the place
             refs = ([r for r in refs if r.get("role") != "location"][:max(limit - 2, 1)]
@@ -3964,7 +3964,7 @@ class ImageRunner(_Runner):
                 if est and indoor_spot(self.p.conn, job["project_id"], own):   # indoor: the room render, not the outdoor wide picture
                     est = None
                 from .plate_choice import landmark_off_frame
-                if landmark_off_frame(own):            # 08/10 (#24): camera turned away from the landmark — no picture showing it
+                if landmark_off_frame(own, self.p.conn, job["project_id"]):   # 08/10 (#24): camera turned away from the landmark — no picture showing it
                     est = None
                     shared = [r for r in shared if r.get("role") not in ("location", "landmark")]
                 if est:                                # the scene's wide establishing picture: the shared reference for the place
@@ -4000,7 +4000,7 @@ class ImageRunner(_Runner):
                     if prev is not None:
                         previous = os.path.join(self.data_dir, str(job["project_id"]), "images", f"job_{prev['id']}.png")
                 mark = None
-                if scene_storyboard.turned_away(g, job["scene_id"]):   # lỗi D 08/10: the landmark's name for the away sentence
+                if scene_storyboard.turned_away(g, job["scene_id"], self.p.conn, job["project_id"]):   # lỗi D 08/10: the landmark's name for the away sentence
                     try:
                         mark = (location_pack_entry(self.p.conn, assets.scene_location(self.p.conn, job["project_id"], own))
                                 or {}).get("landmark")
@@ -4017,7 +4017,7 @@ class ImageRunner(_Runner):
                 if fields is not None and fields.get("anchor_skipped"):
                     view = own.get("plate_view")
                     view = view.get("background") if isinstance(view, dict) else view
-                    if scene_storyboard.turned_away(g, job["scene_id"]):
+                    if scene_storyboard.turned_away(g, job["scene_id"], self.p.conn, job["project_id"]):
                         why = f"shot quay khỏi mốc (plate_view {view})"
                         extra = ", thêm câu 'mốc không trong khung'"
                     elif scene_storyboard.other_spot(g, job["scene_id"]):   # rà 12/10: the reason said, not "quay khỏi mốc"

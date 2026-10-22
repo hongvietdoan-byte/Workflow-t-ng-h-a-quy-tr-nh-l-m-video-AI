@@ -108,7 +108,7 @@ def _shot_data(g: Dict, scene_id: int) -> Dict:
     return next((s["data"] for s in g["shots"] if s["id"] == scene_id), {})
 
 
-def turned_away(g: Dict, scene_id: int) -> bool:
+def turned_away(g: Dict, scene_id: int, conn=None, pid: Optional[int] = None) -> bool:
     """08/10 (#24, lỗi D): this shot's `plate_view` turns the camera away from the place's landmark (away / left / right) while the
     anchor frame does not — the anchor picture (frame 1, #24 shot 1 WS looking at the Tháp Đồng Hồ) shows the landmark, and sent as a
     reference it pulled the tower into shot 4 (reverse shot towards the red-roof house; job 576 sent job_573.png)."""
@@ -116,7 +116,8 @@ def turned_away(g: Dict, scene_id: int) -> bool:
     anchor = g.get("anchor")
     if not anchor or anchor["id"] == scene_id:
         return False
-    return landmark_off_frame(_shot_data(g, scene_id)) and not landmark_off_frame(anchor["data"])
+    return (landmark_off_frame(_shot_data(g, scene_id), conn, pid)          # conn: A2d bật thì cảnh báo BYĐ được ghi
+            and not landmark_off_frame(anchor["data"], conn, pid))
 
 
 def own_camera(g: Dict, scene_id: int) -> bool:
@@ -396,7 +397,7 @@ def job_fields(conn, data_dir: str, pid: int, scene_id: int, refs: List[Dict], j
     if g is None:
         return None
     is_anchor = g["anchor"]["id"] == scene_id
-    away = turned_away(g, scene_id)
+    away = turned_away(g, scene_id, conn, pid)
     own = own_camera(g, scene_id)
     anchor_pic = None if is_anchor or away or own else anchor_picture(conn, data_dir, pid, g["anchor"]["id"])
     send = list(refs) + ([{"path": anchor_pic, "label": "frame 1 (scene anchor)", "role": "previous_scene"}] if anchor_pic else [])
