@@ -49,4 +49,4 @@
 
 ## Kết quả cả bộ
 - Full suite (cloud 3.13, `-m "not slow" -n auto`) trên 85992465: **7104 passed**. 25 đỏ đều là golden cần native Python 3.14 (nền).
-- Sau bản sửa theo rà: test liên quan (`test_v31_fix4`, `test_change_review`) có 69 xanh.
+- Sau bản sửa theo rà: test liên quan (`test_v31_fix4`, `test_change_review`) có 69 xanh; full suite **7105 passed** (25 golden nền).
