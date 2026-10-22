@@ -340,3 +340,85 @@ def test_a_screen_already_shown_is_reported_not_measured():
     s = L.summarize([lv])
     assert s["rows"][0]["steps"]["storyboard"]["skipped"] == 2 and not s["first_slow"] and s["errors"] == 0
     assert "đã hiện sẵn" in L.markdown(s, {"latency": 0})
+
+
+def test_relocate_moves_every_real_path_into_the_copy(tmp_path):
+    # C-FIX5 (rà VỪA): bản sao CSDL thật còn đường tới tệp THẬT (tuyệt đối / tương đối 'data/…', cả trong JSON) → đổi sang bản sao
+    real = tmp_path / "real" / "data"
+    db = tmp_path / "copy.sqlite"
+    win = str(real).replace("/", "\\")
+    c = sqlite3.connect(db)
+    c.executescript("CREATE TABLE jobs(id INTEGER PRIMARY KEY, result_path TEXT, n INTEGER); CREATE TABLE scenes(id INTEGER PRIMARY KEY, data TEXT)")
+    c.execute("INSERT INTO jobs(result_path, n) VALUES (?, 1), (?, 2), (?, 3), (?, 4)",
+              (str(real / "projects" / "1" / "images" / "a.png"), "data/projects/1/videos/b.mp4", win + "\\projects\\1\\c.png",
+               "/khac/data/x.png"))
+    c.execute("INSERT INTO scenes(data) VALUES (?)", (json.dumps({"sent_package": str(real / "projects" / "1" / "sent"), "ref": win + "\\assets\\k.png",
+                                                                "rel": "data/assets/z.png", "word": "metadata/khong"}),))
+    c.commit()
+    c.close()
+    new = tmp_path / "work" / "data"
+    changed = L.relocate(str(db), [str(real)], str(new))
+    assert changed == {"jobs.result_path": 3, "scenes.data": 1}
+    c = sqlite3.connect(db)
+    paths = [r[0] for r in c.execute("SELECT result_path FROM jobs ORDER BY id")]
+    data = json.loads(c.execute("SELECT data FROM scenes").fetchone()[0])
+    c.close()
+    root = str(new).replace("\\", "/")
+    assert paths[0] == f"{root}/projects/1/images/a.png" and paths[1] == f"{root}/projects/1/videos/b.mp4"
+    assert paths[2].startswith(root) and paths[3] == "/khac/data/x.png"                     # đường không thuộc data thật giữ nguyên
+    assert data["sent_package"].startswith(root) and data["ref"].startswith(root) and data["rel"] == f"{root}/assets/z.png"
+    assert data["word"] == "metadata/khong"
+    blob = json.dumps([paths, data])
+    assert str(real) not in blob and win not in blob
+
+
+def test_copy_db_names_the_real_homes(tmp_path):
+    src = tmp_path / "data" / "manifest.sqlite"
+    src.parent.mkdir()
+    c = sqlite3.connect(src)
+    c.execute("CREATE TABLE projects(id INTEGER PRIMARY KEY, name TEXT)")
+    c.commit()
+    c.close()
+    made = L.copy_db(str(src), str(tmp_path / "out"), str(tmp_path / "data" / "projects"))
+    assert os.path.abspath(str(tmp_path / "data")) in made["real_homes"]
+
+
+@pytest.mark.slow
+def test_a_measured_run_on_a_real_copy_never_touches_the_real_files(tmp_path):
+    # C-FIX5: sau một lượt đo trên bản sao (--db / --data), danh sách + mtime tệp của thư mục dữ liệu thật không đổi
+    pytest.importorskip("playwright")
+    pytest.importorskip("psutil")
+    if L.find_chrome(None) is None:
+        pytest.skip("không có Chromium")
+    made = L.build_data(str(tmp_path / "real"), projects=1, shots=20)
+    c = sqlite3.connect(made["db"])
+    for jid, sid in c.execute("SELECT j.id, j.scene_id FROM jobs j WHERE j.type='image_gen'").fetchall():
+        pid = c.execute("SELECT project_id FROM scenes WHERE id=?", (sid,)).fetchone()[0]
+        p = os.path.join(made["data"], str(pid), "images", f"job_{jid}.png")
+        if os.path.exists(p):
+            c.execute("UPDATE jobs SET result_path=? WHERE id=?", (os.path.abspath(p), jid))      # đường TUYỆT ĐỐI tới tệp thật
+    c.commit()
+    c.close()
+
+    def snap():
+        return sorted((os.path.relpath(os.path.join(r, f), made["data"]), os.stat(os.path.join(r, f)).st_mtime_ns)
+                      for r, _d, fs in os.walk(made["data"]) for f in fs)
+    before = snap()
+    import glob
+    import tempfile
+    old = set(glob.glob(os.path.join(tempfile.gettempdir(), "load_ui_n1_*")))
+    rc = L.main(["--levels", "1", "--db", made["db"], "--data", made["data"], "--port", "8548", "--latency", "0", "--out", str(tmp_path / "o"),
+                 "--keep"])
+    assert rc in (0, 1)
+    assert snap() == before                                                                   # tệp thật không đổi
+    work = sorted(set(glob.glob(os.path.join(tempfile.gettempdir(), "load_ui_n1_*"))) - old)
+    assert len(work) == 1
+    try:
+        c = sqlite3.connect(os.path.join(work[0], "data", "manifest.sqlite"))
+        blob = json.dumps([list(map(str, r)) for r in c.execute("SELECT result_path FROM jobs")] +
+                          [r[0] for r in c.execute("SELECT data FROM scenes")])
+        c.close()
+        assert os.path.abspath(made["data"]) not in blob and work[0] in blob                  # bản sao chỉ trỏ vào thư mục của nó
+    finally:
+        import shutil
+        shutil.rmtree(work[0], ignore_errors=True)

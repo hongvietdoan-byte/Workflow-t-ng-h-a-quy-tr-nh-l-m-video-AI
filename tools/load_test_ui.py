@@ -32,7 +32,7 @@ import tempfile
 import threading
 import time
 import urllib.request
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
@@ -90,6 +90,51 @@ def neutralize(db: str) -> List[str]:
     return done
 
 
+_REL_DATA = re.compile(r"(?<![\w/\\.:~-])data(?:/|\\\\|\\)")      # 'data/…' / 'data\\…' (JSON) / 'data\…' TƯƠNG ĐỐI (cwd = repo)
+
+
+def _variants(path: str) -> List[str]:
+    """Các dạng một đường tuyệt đối có thể nằm trong CSDL: dấu xuôi, dấu ngược, và dấu ngược đã thoát trong JSON."""
+    a = os.path.abspath(path).rstrip("/\\")
+    out = {a, a.replace("\\", "/"), a.replace("/", "\\"), a.replace("\\", "\\\\"), a.replace("/", "\\\\")}
+    return sorted(out, key=len, reverse=True)
+
+
+def relocate(db: str, real_homes: Sequence[str], new_home: str) -> Dict[str, int]:
+    """C-FIX5 (rà VỪA, C-M83-TOOL): bản sao CSDL thật còn ĐƯỜNG tới tệp thật — jobs.result_path, sent_package, ảnh Kho, plates… dạng
+    tuyệt đối (thư mục data thật) hoặc tương đối 'data/…' (giải theo cwd = repo / máy thật). Luồng duyệt ảnh / Gen video giả / dọn rác có
+    thể thay hoặc dời tệp theo đường đó. Đổi MỌI cột chữ của MỌI bảng (cả JSON): tiền tố thư mục data thật → `new_home` (thư mục data của
+    bản sao), 'data/…' tương đối → `new_home`/…. Trả {bảng.cột: số hàng đổi}."""
+    new = os.path.abspath(new_home).replace("\\", "/").rstrip("/")
+    pairs = [(v, new) for h in real_homes if h for v in _variants(h)]
+
+    def fix(text: str) -> str:
+        for old, to in pairs:
+            text = text.replace(old, to)
+        return _REL_DATA.sub(new + "/", text)
+
+    out: Dict[str, int] = {}
+    conn = sqlite3.connect(db)
+    try:
+        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
+        for t in tables:
+            cols = [r[1] for r in conn.execute(f'PRAGMA table_info("{t}")') if (r[2] or "").upper() in ("TEXT", "", "JSON")
+                    or "CHAR" in (r[2] or "").upper()]
+            for c in cols:
+                n = 0
+                for rowid, val in conn.execute(f'SELECT rowid, "{c}" FROM "{t}" WHERE typeof("{c}")=\'text\'').fetchall():
+                    new_val = fix(val)
+                    if new_val != val:
+                        conn.execute(f'UPDATE "{t}" SET "{c}"=? WHERE rowid=?', (new_val, rowid))
+                        n += 1
+                if n:
+                    out[f"{t}.{c}"] = n
+        conn.commit()
+    finally:
+        conn.close()
+    return out
+
+
 def copy_db(src: str, out_dir: str, data: Optional[str] = None) -> Dict:
     """Bản SAO của CSDL thật: mở mode=ro (không ghi, không khóa ghi) → backup sang out_dir/manifest.sqlite, rồi làm trơ (neutralize).
     `data` (thư mục dự án thật): chỉ chép thư mục `<id>/images` (thẻ ảnh) — Dashboard đo chỉ ghi vào bản sao."""
@@ -117,7 +162,9 @@ def copy_db(src: str, out_dir: str, data: Optional[str] = None) -> Dict:
         made = [(r[0], r[1], "copy") for r in conn.execute("SELECT id, name FROM projects ORDER BY id")]
     finally:
         conn.close()
-    return {"db": dst, "data": out_data, "projects": made, "neutralized": notes}
+    # thư mục data THẬT (để relocate ở từng mức đo): thư mục chứa CSDL + thư mục dự án truyền vào (và cha của nó)
+    real = [os.path.dirname(os.path.abspath(src))] + ([os.path.abspath(data), os.path.dirname(os.path.abspath(data))] if data else [])
+    return {"db": dst, "data": out_data, "projects": made, "neutralized": notes, "real_homes": real}
 
 
 # ---------------------------------------------------------------- đầu dò trong tiến trình Streamlit
@@ -718,6 +765,8 @@ def run_level(n: int, template: Dict, args, log) -> Dict:
     shutil.copy2(template["db"], db)
     data = os.path.join(home, "projects")
     shutil.copytree(template["data"], data)
+    if template.get("real_homes"):                # C-FIX5: mọi đường tới tệp thật → thư mục của mức đo này
+        log(f"  đổi đường tệp thật → bản sao: {relocate(db, template['real_homes'], home)}")
     probe_dir = os.path.join(work, "probe")
     write_probe(probe_dir)
     env = app_env(db, data, work, args.latency, probe_dir)

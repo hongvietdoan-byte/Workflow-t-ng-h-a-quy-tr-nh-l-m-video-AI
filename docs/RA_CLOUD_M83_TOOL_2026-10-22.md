@@ -139,3 +139,17 @@ Lệnh: `py tools/load_test_ui.py --levels 1,2,5,10 --shots 30` (dữ liệu gi�
 - `tests/test_ui_snapshot.py` xanh, vì tham số mới `rich_others` mặc định None giữ hành vi cũ.
 - Đã đăng ký `tools/load_test_ui.py` và test vào khu vực `diag` (`devsys/areas.json`).
 - Full suite (cloud 3.13, `-m "not slow" -n auto`): **7111 passed**. 25 đỏ đều là golden cần native Python 3.14 (nền).
+
+## C-FIX5 (22/10) — rà VỪA: bản sao `--db` còn đường tới tệp THẬT
+- **Lỗi.** `neutralize` chỉ làm trơ hàng (ảnh Kho đã xóa, nguồn auto, Claude theo dự án). `jobs.result_path`, `sent_package`, ảnh Kho, plates… vẫn trỏ về dữ liệu thật, hoặc tuyệt đối, hoặc tương đối `data/…` giải theo cwd = repo. Luồng duyệt ảnh / Gen video giả / dọn rác có thể thay hoặc dời tệp thật theo các đường đó.
+- **Sửa.** `relocate(db, real_homes, new_home)` chạy ở MỖI mức đo, trên bản chép CSDL của mức đó:
+  - quét MỌI cột chữ của MỌI bảng, kể cả JSON;
+  - tiền tố thư mục data thật → `<work>/data` của mức. Thư mục data thật gồm thư mục chứa CSDL và `--data` cùng thư mục cha của nó; đổi cả dạng dấu xuôi, dấu ngược, và dấu ngược đã thoát trong JSON;
+  - `data/…` tương đối (đứng đầu, sau dấu nháy hoặc khoảng trắng) → `<work>/data/…`;
+  - đường không thuộc data thật thì giữ nguyên (ví dụ `/khac/data/x`, `metadata/…`).
+  - Số hàng đổi được in ra log của mức.
+- **Test:**
+  - `test_relocate_moves_every_real_path_into_the_copy`: tuyệt đối dấu xuôi + dấu ngược, JSON, tương đối; giữ đường khác.
+  - `test_copy_db_names_the_real_homes`.
+  - `test_a_measured_run_on_a_real_copy_never_touches_the_real_files` (slow, Chromium thật, `--db` + `--data` với `result_path` TUYỆT ĐỐI tới tệp thật): sau lượt đo, danh sách + mtime tệp thật không đổi, và CSDL của mức không còn đường tới data thật. Tắt `relocate` thì test này ĐỎ (CSDL mức đo còn đường thật).
+- `tests/test_load_test_ui.py`: 27 xanh (gồm 2 test slow chạy Chromium).
