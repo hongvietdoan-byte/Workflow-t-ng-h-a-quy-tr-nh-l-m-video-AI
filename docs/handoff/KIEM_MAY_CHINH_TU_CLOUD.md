@@ -119,3 +119,10 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
   không còn "✓ Đã sửa"; mục ĐỎ thường vẫn có "✓ Đã sửa". (Lưu ý cũ "KHÔNG bấm ✓ Đã sửa" ở mục 06:5x hết hiệu lực sau khi pull bản này.)
 - **C-M83-TOOL KHÔNG gộp:** rủi ro VỪA — chạy `--db` bản sao CSDL thật thì đường tệp trong job vẫn trỏ `data/projects` thật, thao tác giả có thể đụng tệp thật.
   Trả cloud-C sửa (C-FIX5 mục 1). **Máy chính: chưa chạy `tools/load_test_ui.py --db` thật** tới khi bản sửa gộp.
+
+## E. Máy chính đã kiểm — 22/10 10:30–10:55 (phiên chính nhận lại điều phối)
+- Bước chung 1: bản chính đã ở b4cd91ec; khởi động lại 8501 + 8502 → `_stcore/health` ok cả hai.
+- Bước chung 2: cả bộ test Windows trên main: **7185 qua, 1 hỏng** (`test_v31_t12_m12_m13_gaps.py::test_two_real_processes_poll_one_job_once`
+  — chạy riêng XANH 22 s; hỏng do máy tải nặng vì golden chạy song song = test nhạy thời gian). `test_golden_db_replay` / `test_golden_replay` XANH trên
+  Windows → 31 hỏng Linux đúng là lỗi môi trường. ✅
+- Các mục kiểm tay trên Dashboard (A, A2, A3, B) chưa làm — làm sau khi gộp đợt M2 (tránh kiểm hai lần).
