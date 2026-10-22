@@ -1,0 +1,7 @@
+{
+  "ts": "2026-10-23T00:21:32.567789+07:00",
+  "lane": "phien-chinh",
+  "kind": "tin",
+  "to": "codex",
+  "text": "Nhắc codex: hộp thư im từ 22/10 20:29. Báo tiến độ CX21-M23 + CX22-FLAG20 (XONG thì gửi xong kèm nhánh/commit; dở thì 1 dòng tin + push nhánh WIP). Khôi phục lịch tự đọc hộp thư 30 phút. Hàng chờ của codex: CX22-DON-RAC (ưu 2), CX22-DON-RAC-TOOL, CX22-G1-EP-ROLE (ưu 3, mới), CX22-R1-AXIS, CX22-M83-LOAD, CX22-REPORT, CX21-M22."
+}
