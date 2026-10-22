@@ -47,6 +47,10 @@ def mode_control(name: str) -> None:
 def no_effect_note(name: str) -> str:
     """Said next to a flag that is really ON but changes nothing in this configuration."""
     other = NO_EFFECT_WITH.get(name)
+    if name == "end_frames":
+        from core import end_frames
+        if end_frames.ref_route_on():   # M7.3 (cờ ref_end_frames): tuyến ref-only giữ khung cuối — end_frames có tác dụng
+            return ""
     if other and features.on(name) and features.on(other):
         return (f"⚠ Bật thật nhưng không có tác dụng khi `{other}` bật (clip chỉ-ảnh-tham-chiếu: không gộp / quay liền / khung cuối) "
                 "— dùng 🎓 Học việc để vẫn đo được.")

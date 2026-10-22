@@ -789,6 +789,15 @@ FEATURES: Dict[str, Dict] = {
         "why": "#31 G28 (job 1043 khung 0 khác ảnh đầu), G37 (shot 28 nhóm 28+29 mất dạng bóng mờ). Tách nhóm thêm clip (≥ 4 s tính tiền mỗi "
                "clip). Chưa chạy trên dự án thật; chất lượng clip chỉ chứng minh bằng gen (Cấp 3)",
     },
+    "ref_end_frames": {
+        "label": "Khung cuối trên tuyến Seedance tham chiếu (V3.1 M7.3, B4): shot per_shot có end_state đi tuyến ref-only VẪN cần khung cuối "
+                 "— vẽ như tuyến khung đầu + cuối, tách khỏi nhóm ref-only (gửi một mình; khung cuối đi như ảnh tham chiếu cuối có câu vai "
+                 "trò), lý do ghi vào gói gửi (sent_package.router_khung_cuoi). Model tuyến ref không nhận khung cuối "
+                 "(data/provider_rules.json last_frame) → không tách, báo VÀNG. Cần end_frames + seedance_ref_groups. Đổi SỐ clip → giá",
+        "verified": False,
+        "why": "Sổ v31-ep-k3-seedance-ref-groups-with-end-frames-2026-10-21 (EP 21/10 K3-b): end_frames.py:32 bỏ khung cuối ở tuyến ref. "
+               "Tách nhóm thêm clip (≥ 4 s tính tiền mỗi clip) + 1 ảnh khung cuối mỗi shot đổi trạng thái. Chưa chạy trên dự án thật",
+    },
     "murch_knowledge": {
         "label": "Bộ não prompt Đợt 2: Director + motion đọc thang ưu tiên cảm xúc (Murch), motion đọc kỷ luật I2V (giữ trước, hỏng thì "
                  "giảm chuyển động, check_flags gọi tên rủi ro), Director đọc phương pháp âm thanh; người xem lần đầu chấm thêm cam_xuc",
@@ -1320,7 +1329,8 @@ REQUIRES = {"director_rewrite_respect_lock": ("director_rewrite",), "dialogue_ta
             # rà 15/10: máy sân khấu chỉ được nền 3D dùng khi stage_camera bật; nền 3D cần place_render_refs
             "stage_auto": ("stage_camera", "place_render_refs"),
             "stage_crew": ("stage_auto",), "stage_crew_user_approve": ("stage_crew",), "stage_handheld_props": ("stage_auto",),
-            "continuity_validator": ("crew_registry",)}      # M6.9 định tuyến theo Role Registry M6.1
+            "continuity_validator": ("crew_registry",),       # M6.9 định tuyến theo Role Registry M6.1
+            "ref_end_frames": ("end_frames", "seedance_ref_groups")}   # M7.3: khung cuối tuyến ref chỉ có nghĩa khi cả hai bật
 
 
 def unmet(name: str) -> list:

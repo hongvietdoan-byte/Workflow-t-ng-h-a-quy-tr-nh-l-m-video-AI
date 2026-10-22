@@ -235,6 +235,8 @@ def _check_end(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> 
     byd = _byd(data)
     in_place = _in_place(conn, scene_id, plan, data)
     if not lf:
+        if plan.get("reference_only") is not None and end_frames.ref_end_frames_on():
+            _check_ref_unsupported(conn, scene_id, plan, data, out)       # M7.3: model tuyến ref không nhận khung cuối — REVIEW
         if in_place and end_frames.enabled() and not plan.get("group_ids") and end_frames.usable_path(conn, scene_id):
             out.append(_issue("khung_cuoi", VANG, f"{in_place} — không gửi khung cuối vẽ (cờ locomotion_end_frame)"))
         elif byd is not None and _changes(byd) and end_frames.enabled() and not plan.get("group_ids"):
@@ -265,6 +267,28 @@ def _check_end(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> 
     elif ch is False and not same(nxt, lf):
         out.append(_issue("khung_cuoi", DO, "BYĐ khai trạng thái cuối = trạng thái đầu (không đổi) mà clip gửi kèm khung cuối vẽ trạng "
                                             "thái khác — sửa BYĐ hoặc bỏ khung cuối"))
+
+
+def _check_ref_unsupported(conn, scene_id: int, plan: Dict, data: Dict, out: List[Dict]) -> None:
+    """M7.3 (rà VỪA-1): mọi shot của clip (plan.group_ids — clip nhóm do shot dẫn đầu gửi) cần khung cuối mà model tuyến ref không
+    nhận → một dòng VÀNG có số shot."""
+    from . import end_frames
+    ids = [int(i) for i in plan.get("group_ids") or []] or [scene_id]
+    late, why = [], None
+    for sid in ids:
+        if sid == scene_id:
+            d = data
+        else:
+            row = conn.execute("SELECT data FROM scenes WHERE id=?", (sid,)).fetchone()
+            d = json.loads(row["data"] or "{}") if row is not None else {}
+        r = end_frames.ref_unsupported_reason(d, "per_shot")
+        if r:
+            late.append(sid)
+            why = r
+    if late:
+        names = ", ".join(f"S{r['idx']:02d}" for r in conn.execute(
+            "SELECT idx FROM scenes WHERE id IN (%s) ORDER BY idx" % ",".join("?" * len(late)), late))
+        out.append(_issue("khung_cuoi", VANG, f"{names}: {why}"))
 
 
 def _check_end_distance(conn, scene_id: int, plan: Dict, lf: str, out: List[Dict]) -> None:

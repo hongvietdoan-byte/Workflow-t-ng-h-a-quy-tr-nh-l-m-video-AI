@@ -167,7 +167,8 @@
       "router_first_frame": false,
       "sent_package_relpath": false,
       "insert_inherit": false,
-      "stage_props_byd": false
+      "stage_props_byd": false,
+      "ref_end_frames": false
     },
     "experimental_flags": ["new_feature"]
   },
@@ -344,7 +345,8 @@
       "router_first_frame": false,
       "sent_package_relpath": false,
       "insert_inherit": false,
-      "stage_props_byd": false
+      "stage_props_byd": false,
+      "ref_end_frames": false
     },
     "experimental_flags": ["new_feature"],
     "pregen_fingerprint": "frozen-fingerprint"

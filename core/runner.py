@@ -1154,6 +1154,17 @@ class VideoRunner(_Runner):
                 body["router"] = {"gui_mot_minh": True, "ly_do": f"tách khỏi nhóm ref-only vì cần khung đầu — {reason}; clip này VẪN ref-only "
                                                                   "(chưa có khung đầu, M2.8 phần đổi đường chưa làm)"}
                 pkg = json.dumps(body, ensure_ascii=False)
+        from . import end_frames
+        if pkg and end_frames.ref_route_on() and job["scene_id"]:       # M7.3: tách khỏi nhóm ref-only để mang khung cuối (cờ tắt: như cũ,
+            #                                                             không đọc job — golden replay dựng job thiếu scene_id)
+            from . import seedance_refs
+            reason = seedance_refs.end_split_reason(self.p.conn, job["scene_id"])
+            if reason:
+                body = json.loads(pkg)
+                body["router_khung_cuoi"] = {"gui_mot_minh": True, "ly_do": f"tách khỏi nhóm ref-only để gửi được khung cuối — {reason}; "
+                                                                           "khung cuối đi như ảnh tham chiếu cuối có câu vai trò "
+                                                                           "(không có khung cuối trong gói = chưa vẽ / bị bỏ, xem ⚙ Chẩn đoán)"}
+                pkg = json.dumps(body, ensure_ascii=False)
         fingerprint = self.__dict__.get("_pregen_fingerprints", {}).get(job["id"])
         if pkg and task_id is not None and fingerprint:
             body = json.loads(pkg)
@@ -1435,6 +1446,18 @@ class VideoRunner(_Runner):
                     out["reference_audio"] = [track]
                 else:
                     self._no_lip_sync_note(job, "seedance", group)
+            from . import end_frames
+            if end_frames.ref_end_frames_on():   # M7.3: model tuyến ref không nhận khung cuối — VÀNG (REVIEW), không âm thầm bỏ; rà VỪA-1:
+                members = [(r["id"], r["data"]) for r in group] if group else [(job["scene_id"], self._scene_data(job))]  # mọi shot
+                late = []                                                                                         # của clip nhóm
+                for sid, d in members:
+                    why = end_frames.ref_unsupported_reason(d, mode)
+                    if why:
+                        late.append(sid)
+                if late:
+                    names = ", ".join(f"S{r['idx']:02d}" for r in self.p.conn.execute(
+                        "SELECT idx FROM scenes WHERE id IN (%s) ORDER BY idx" % ",".join("?" * len(late)), late))
+                    self._diag_once(job, "warn", "end_frame_ref_unsupported", f"{names}: {why}")
             if not group:                    # 11/10 (#24 job 662/664): the drawn end state (K1) goes with a reference-only shot too —
                 end = self._end_frame(job, choice.get("model") or "seedance", chain=False)   # the adapter sends it as the LAST
                 if end:                                                                  # reference picture with its role sentence
@@ -1896,6 +1919,15 @@ class VideoRunner(_Runner):
     def _motion(self, scene_id: int):
         return self.p.conn.execute("SELECT * FROM motion_prompts WHERE scene_id=?", (scene_id,)).fetchone()
 
+    def _end_frame_still_wanted(self, job, row) -> bool:
+        """Rà M7.3 VỪA-2: một khung cuối đang vẽ chỉ giữ clip khi NGƯỜI đã bấm vẽ (asked — như cũ) hoặc shot vẫn cần nó (end_frames.wanted).
+        Rollback cờ ref_end_frames: dòng do chạy tự động xếp cho shot tuyến ref không còn giữ shot (về nhóm như cũ)."""
+        from . import end_frames, shots
+        data = self._scene_data(job)
+        if end_frames.route(data) != "seedance_ref" or end_frames.asked(self.p.conn, row["id"]):
+            return True                  # tuyến khung đầu + cuối / người bấm vẽ: giữ như cũ
+        return end_frames.wanted(self.p.conn, job["scene_id"], data, shots.mode(self.p.project(job["project_id"])))
+
     def _has_clip(self, scene_id: int) -> bool:
         # 08/10 (#24): 'pending_review' was left out — with "Tôi duyệt hết" every clip waits there, so the redo of shot 3 (a part of
         # the S01–S03 group clip) waited forever, silently, for shot 1 to "have a clip". A clip waiting for the person IS a clip.
@@ -2030,7 +2062,8 @@ class VideoRunner(_Runner):
         if end_frames.enabled():
             row = end_frames.current(self.p.conn, job["scene_id"])
             if row is not None and row["state"] in ("queued", "running") and not end_frames.skip_reason(self.p.conn, job["scene_id"]) \
-                    and not end_frames.sent_without(self.p.conn, job["scene_id"]):    # C3: the person chose to send it without
+                    and not end_frames.sent_without(self.p.conn, job["scene_id"]) \
+                    and self._end_frame_still_wanted(job, row):    # C3: the person chose to send it without; M7.3 rà VỪA-2
                 # C5: held WITH the reason (card / inbox), never silently. R8 (rà S3): also in diag (end_frame_wait ∈ HOLD_CODES) so
                 # held_reason reads it after WAIT_FRESH_SEC / in another process; R1/R7: the real reason (autopilot's row waiting, cap)
                 why = end_frames.missing_reason(self.p.conn, job["scene_id"]) or "đang vẽ khung cuối"
@@ -2040,7 +2073,8 @@ class VideoRunner(_Runner):
         group = shots.group_of(self.p.conn, job["scene_id"]) or []
         if len(group) < 2:
             from . import model_router         # rà DP10 VỪA-3: cờ router bật giữa chừng — phần của shot đã đi cùng một clip nhóm đang bay
-            if model_router.router_first_frame_on() and self._refs(job) and self._in_flight_group(job["scene_id"]):
+            if (model_router.router_first_frame_on() or end_frames.ref_route_on()) and self._refs(job) \
+                    and self._in_flight_group(job["scene_id"]):        # M7.3: cờ ref_end_frames bật giữa chừng — cùng luật
                 return True
             return False
         if self._refs(job) and self._covered(job["scene_id"], group):

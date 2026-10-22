@@ -513,6 +513,16 @@ def ref_mode_keeps_first_frame() -> bool:
     return bool(fam) and all(r.get("refs_with_first_frame") is True for r in fam)
 
 
+def ref_mode_takes_end_frame() -> bool:
+    """V3.1 M7.3 (cờ ref_end_frames): tuyến ref-only (họ Seedance) nhận khung cuối? Chỉ True khi MỌI model họ seedance trong luật khai
+    `refs_with_end_frame: true` — khóa riêng của tuyến ref (rà M7.3 THẤP b): ở đây khung cuối KHÔNG đi bằng vai trò last_frame mà như
+    ảnh tham chiếu cuối có câu vai trò (ref_end_frame_sentence; chỗ ảnh đã giữ trong max_images). Thiếu khai / không có model → False
+    (không biết thì không tách nhóm để vẽ khung cuối; báo VÀNG — end_frames.ref_unsupported_reason)."""
+    from . import video_rules
+    fam = [r for r in video_rules.models().values() if isinstance(r, dict) and r.get("family") == "seedance"]
+    return bool(fam) and all(r.get("refs_with_end_frame") is True for r in fam)
+
+
 def needs_first_frame(conn, project_id: int, data: Dict, chosen=None) -> Optional[str]:
     """Lý do (tiếng Việt) shot này CẦN khung đầu đã duyệt, else None. Chỉ đọc dữ liệu shot + Kho, 0 USD. `chosen` = project_assets đọc
     sẵn (một lần mỗi lượt chia nhóm).

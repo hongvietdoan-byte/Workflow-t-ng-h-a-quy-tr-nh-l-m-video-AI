@@ -157,7 +157,7 @@ def pending_end_frames(pipeline: Pipeline, project_id: int) -> int:
     mode = proj["shot_mode"] if "shot_mode" in proj.keys() else None
     n = 0
     for s in pipeline.conn.execute("SELECT id, data FROM scenes WHERE project_id=?", (project_id,)).fetchall():
-        if not end_frames.needed(json.loads(s["data"] or "{}"), mode):
+        if not end_frames.wanted(pipeline.conn, s["id"], json.loads(s["data"] or "{}"), mode):   # M7.3: clip nhóm đang bay → không tính
             continue
         row = end_frames.current(pipeline.conn, s["id"])
         if row is None or row["state"] not in ("queued", "running", "ready"):
