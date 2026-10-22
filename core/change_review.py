@@ -587,6 +587,11 @@ _COVERED = ("EXISTS (SELECT 1 FROM change_findings f WHERE f.source='review_fail
             "COALESCE(f.resolved_by, '')<>'change_review'))")
 
 
+# các lần lỗi mục (tham số: scene_id, event_id của mục, id mục) che: id ≤ lần của mục, không bị mục KHÁC còn mở / đã Bỏ qua che
+_RERUN_WHERE = (f"scene_id=? AND {_UNREVIEWED} AND id<=? AND NOT "
+                + _COVERED.format(e="change_events", extra="AND f.id<>? AND f.status<>'resolved' "))
+
+
 def _hold_failed(conn, scene_id: int, kinds: str) -> None:
     """G35 (#31 19/10, job 1061): lần rà của shot LỖI (vd. Claude hết tiền) mà cổng vẫn mở → job tốn tiền gửi đi khi chưa ai rà. Lần
     rà lỗi MỚI NHẤT của shot CHƯA có mục che (_COVERED, C-FIX3-THAP-B) thành mục ĐỎ (một mục cho mỗi lần lỗi; Bỏ qua / Rà lại đóng nó, không ghi
@@ -628,6 +633,24 @@ def _hold_failed(conn, scene_id: int, kinds: str) -> None:
         conn.commit()
 
 
+def rerun_targets(conn, finding_id: int) -> int:
+    """Số lần thay đổi lỗi mà "↻ Rà lại" của mục này sẽ đưa về chờ rà (0 = không còn gì để rà — không tốn Claude). Không ghi gì."""
+    row = conn.execute("SELECT event_id, scene_id FROM change_findings WHERE id=? AND source=?", (finding_id, FAIL_SOURCE)).fetchone()
+    if row is None:
+        return 0
+    return conn.execute(f"SELECT COUNT(*) FROM change_events WHERE {_RERUN_WHERE}", (row[1], row[0], finding_id)).fetchone()[0]
+
+
+def rerun_usd(conn) -> Optional[float]:
+    """Ước tính USD của một lần "↻ Rà lại" (luật chi phí: báo TRƯỚC khi bấm): các lần lỗi của mục cùng một shot → vòng nền rà chung
+    MỘT nhóm = một lời gọi Claude stage change_review. None = chưa có giá."""
+    from . import cost
+    try:
+        return cost.llm_estimate(conn, STAGE, 1)
+    except Exception:  # noqa: BLE001 - bảng giá lỗi: nút vẫn hiện, ghi "chưa có giá"
+        return None
+
+
 def rerun_failed(conn, finding_id: int, who: Optional[str]) -> None:
     """Nút "Rà lại" của mục rà lỗi (G35): lần thay đổi lỗi về 'pending' (cổng giữ 'đang rà' tới khi vòng nền rà xong), mục đóng."""
     row = conn.execute("SELECT event_id, scene_id FROM change_findings WHERE id=? AND source=?", (finding_id, FAIL_SOURCE)).fetchone()
@@ -636,9 +659,7 @@ def rerun_failed(conn, finding_id: int, who: Optional[str]) -> None:
     # C-FIX3-THAP-B: các lần lỗi mục này che (id ≤ lần của mục, không có mục KHÁC che) — trước cận id > lần rà đạt gần nhất làm nút hỏng khi lần sửa
     # sau đã rà đạt ("không còn trong sổ" sai sự thật, mục chỉ còn Bỏ qua). Mục khác chỉ "che" khi còn mở hoặc người Bỏ qua (dismissed):
     # mục đã Rà lại / ✓ Đã sửa ('resolved') không cản lần rà lại này (rà VỪA 1: hai mục mở cũ, Rà lại mục sau làm mục trước báo lỗi sai)
-    other = _COVERED.format(e="change_events", extra="AND f.id<>? AND f.status<>'resolved' ")
-    n = conn.execute(f"UPDATE change_events SET state='pending', note=NULL WHERE scene_id=? AND {_UNREVIEWED} AND id<=? AND NOT {other}",
-                     (row[1], row[0], finding_id)).rowcount
+    n = conn.execute(f"UPDATE change_events SET state='pending', note=NULL WHERE {_RERUN_WHERE}", (row[1], row[0], finding_id)).rowcount
     if not n:          # lần lỗi đã bị dọn (KEEP_DAYS) → không có gì để rà lại: giữ mục, người dùng Bỏ qua nếu chấp nhận
         raise ValueError("lần thay đổi lỗi không còn trong sổ — không rà lại được; bấm Bỏ qua nếu chấp nhận gen khi chưa rà")
     conn.execute("UPDATE change_findings SET status='resolved', resolved_at=?, resolved_by=? WHERE id=?", (_now(), who, finding_id))
@@ -693,16 +714,17 @@ def open_findings(conn, project_id: int) -> List[Dict]:
                                           "WHERE f.project_id=? AND f.status='open' ORDER BY f.level, s.idx, f.id", (project_id,))]
 
 
+FIXED_ON_FAIL = ("Mục rà soát LỖI: thay đổi chưa được Claude rà — bấm \"↻ Rà lại\" (tốn Claude, có ước tính trên nút) hoặc \"Bỏ qua\" "
+                 "nếu chấp nhận gen khi chưa rà")
+
+
 def close(conn, finding_id: int, status: str, who: Optional[str]) -> None:
     if status not in ("resolved", "dismissed"):
         raise ValueError(status)
-    if status == "resolved" and conn.execute("SELECT 1 FROM change_findings WHERE id=? AND source=?",
-                                             (finding_id, FAIL_SOURCE)).fetchone():
-        # C-FIX3-THAP-B (rà VỪA): "✓ Đã sửa" mục rà LỖI = đã hết lỗi (nạp tiền…) → Rà lại, KHÔNG phải chấp nhận gen khi chưa rà (đó là
-        # Bỏ qua). Trước: mục đóng 'resolved' → che các lần lỗi → cổng mở, lần 'failed' nằm mãi (vòng nền không tự rà lại 'failed')
-        try:
-            return rerun_failed(conn, finding_id, who)
-        except ValueError:   # lần lỗi không còn trong sổ (KEEP_DAYS) → không có gì để rà: đóng như cũ
-            pass
+    if status == "resolved" and rerun_targets(conn, finding_id):
+        # C-FIX4: mục rà LỖI còn thay đổi chưa rà → "đã sửa" KHÔNG đóng (đóng = che các lần lỗi → cổng mở khi chưa ai rà, C-FIX3-THAP-B)
+        # và KHÔNG âm thầm gọi Claude (trước: tự rerun_failed — tốn tiền không báo giá, trái luật chi phí). Người chọn: "↻ Rà lại" (nút có
+        # ước tính) hoặc "Bỏ qua" (chấp nhận gen khi chưa rà). Lần lỗi không còn trong sổ (KEEP_DAYS) → đóng như mục thường (0 USD)
+        raise ValueError(FIXED_ON_FAIL)
     conn.execute("UPDATE change_findings SET status=?, resolved_at=?, resolved_by=? WHERE id=?", (status, _now(), who, finding_id))
     conn.commit()

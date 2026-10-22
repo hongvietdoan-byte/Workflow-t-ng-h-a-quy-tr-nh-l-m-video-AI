@@ -791,14 +791,28 @@ class M71DeepReview(unittest.TestCase):
         self.assertIsNone(CR.blocking(self.p.conn, sid))
         self.assertFalse([r for r in CR.open_findings(self.p.conn, self.pid) if r["khau"] == "ra_soat"])
 
-    def test_marking_a_failure_finding_fixed_rereviews_instead_of_releasing(self):
-        # C-FIX3-THAP-B (rà VỪA): "✓ Đã sửa" mục rà lỗi trước đóng 'resolved' → che các lần lỗi → cổng mở, lần 'failed' nằm mãi chưa rà
+    def test_marking_a_failure_finding_fixed_neither_releases_nor_spends(self):
+        # C-FIX3-THAP-B (rà VỪA): "✓ Đã sửa" mục rà lỗi trước đóng 'resolved' → che các lần lỗi → cổng mở khi chưa rà.
+        # C-FIX4: rồi C-FIX3-THAP-B cho nó âm thầm Rà lại (tốn Claude, không báo giá). Nay: từ chối, không đổi gì — người chọn "↻ Rà lại"
+        # (có ước tính) hoặc "Bỏ qua"
         sid, open_ = self._two_failures()
+        with mock.patch.object(CR, "rerun_failed", side_effect=AssertionError("không được gọi")):
+            with self.assertRaises(ValueError) as e:
+                CR.close(self.p.conn, open_[0]["id"], "resolved", "tester")
+        self.assertIn("Rà lại", str(e.exception))
+        self.assertEqual(self.p.conn.execute("SELECT status FROM change_findings WHERE id=?", (open_[0]["id"],)).fetchone()[0], "open")
+        self.assertEqual(self.p.conn.execute("SELECT COUNT(*) FROM change_events WHERE state='failed'").fetchone()[0], 2)
+        self.assertIn("rà soát lỗi", CR.blocking(self.p.conn, sid) or "")
+        self.assertEqual(CR.rerun_targets(self.p.conn, open_[0]["id"]), 2)
+
+    def test_marking_fixed_closes_a_failure_finding_whose_changes_are_gone(self):
+        # lần lỗi đã bị dọn (KEEP_DAYS): không còn gì để rà → "đã sửa" đóng mục như thường (0 USD), không kẹt
+        sid, open_ = self._two_failures()
+        self.p.conn.execute("DELETE FROM change_events WHERE state='failed'")
+        self.p.conn.commit()
+        self.assertEqual(CR.rerun_targets(self.p.conn, open_[0]["id"]), 0)
         CR.close(self.p.conn, open_[0]["id"], "resolved", "tester")
-        self.assertIn("đang rà", CR.blocking(self.p.conn, sid) or "")
-        self.assertFalse(self.p.conn.execute("SELECT 1 FROM change_events WHERE state='failed'").fetchone())
-        CR.process_pending(self.p.conn, self.tmp, client=FakeClient({"muc": []}))
-        self.assertIsNone(CR.blocking(self.p.conn, sid))
+        self.assertEqual(self.p.conn.execute("SELECT status FROM change_findings WHERE id=?", (open_[0]["id"],)).fetchone()[0], "resolved")
 
     def test_reattached_finding_closing_on_the_newer_event_reopens_for_the_older(self):
         # C-FIX3-THAP-B (rà S1): mục gắn lại vào lần lỗi mới e2; e2 được rà xong (mục tự đóng) mà e1 còn lỗi → mục mới cho e1, vẫn giữ
