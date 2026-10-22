@@ -3418,12 +3418,33 @@ def _place_part(conn, project_id: int, data: Dict, place, place_render: bool, ex
         head = (f"Setting: INSIDE a room{label}{name}. An interior with walls, ceiling and floor exactly as in the 3D render; only "
                 "the room itself is visible, and the outside appears only through its windows.")
     elif place is not None and place_render:       # F1-B (#24): "grass, palms, sea" of the general words beat the render → locked to it
-        head = assets.render_place_text(conn, place)
+        head = assets.render_place_text(conn, place, name=_setting_name(conn, project_id, data, place))
     elif place is not None:                        # B1: the place in words (+ real landmark heights), whatever pictures go
-        head = assets.location_text(conn, place)
+        head = assets.location_text(conn, place, name=_setting_name(conn, project_id, data, place))
     else:
         head = ""
     return pt.join([head] + [x for x in (extra or []) if x])
+
+
+def _setting_name(conn, project_id: int, data: Dict, place) -> Optional[str]:
+    """Rà kỹ 23/10 (A2f): "Setting:" ngoài trời dùng CÙNG tên với "… map" / câu nền. Cờ tắt → None (assets giữ model_place_name cũ)."""
+    from . import byd_fields
+    if not byd_fields.enabled("a2f"):
+        return None
+    return place_name_for_model(conn, project_id, data, place) or "the place"
+
+
+def plate_place_name(conn, project_id: int, data: Dict, place, label: Optional[str]) -> str:
+    """Tên nơi cho câu nền plate. Cũ: tên model, else nhãn render, else "the place". Rà kỹ 23/10 (A2f bật): nhãn render là tên Việt có dấu
+    (place_refs / location_pack) → không bao giờ gửi chữ Việt: "the place"."""
+    n = place_name_for_model(conn, project_id, data, place)
+    if n:
+        return n
+    from . import byd_fields
+    if byd_fields.enabled("a2f"):
+        from .seedance_refs import has_vietnamese
+        return label if label and not has_vietnamese(label) else "the place"
+    return label or "the place"
 
 
 def place_name_for_model(conn, project_id: int, data: Dict, place) -> str:
@@ -3882,7 +3903,7 @@ class ImageRunner(_Runner):
         entry = location_pack_entry(conn, place)
         from . import place_refs
         w, h = place_refs.resolution_of(self.p.project(job["project_id"]))
-        ground, notes = plate_anchor.background_sentence(render["_rec"], entry, place_name_for_model(conn, job["project_id"], data, place) or render.get("label") or "the place",
+        ground, notes = plate_anchor.background_sentence(render["_rec"], entry, plate_place_name(conn, job["project_id"], data, place, render.get("label")),
                                                          (entry or {}).get("landmark"), aspect=w / h if h else None)
         if notes:
             say(job, "warn", plate_anchor.CODE_BACKGROUND, "câu nền sinh từ plate thiếu dữ liệu: " + "; ".join(notes))

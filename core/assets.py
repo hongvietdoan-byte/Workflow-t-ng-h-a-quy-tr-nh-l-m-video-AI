@@ -1543,7 +1543,7 @@ def location_landmark(conn, place: Dict, scene: Optional[Dict]) -> Optional[Dict
             or next((i for i in place["images"] if i.get("role") == "low_angle"), None))
 
 
-def location_text(conn, place: Dict, for_llm: bool = False) -> str:
+def location_text(conn, place: Dict, for_llm: bool = False, name: Optional[str] = None) -> str:
     """B1: the place in words for the image prompt — its description and, from the set analyses already read or rendered, the real
     heights of its landmarks (so people get the right size next to a wall or a door without copying a picture's camera).
     for_llm=True (the QC agent's brief, read by Claude): the website part of the description goes wrapped by prompts.external_block
@@ -1562,9 +1562,9 @@ def location_text(conn, place: Dict, for_llm: bool = False) -> str:
         desc = " ".join(s for s in re.split(r"(?<=[.!?])\s+", re.sub(r"\[[^\]]*\]", " ", re.sub(r"\s+", " ", head)))
                         if s.strip() and not has_vietnamese(s)).strip()   # rà 17/10: filter the WHOLE text, then cut (was cut first:
         desc = re.sub(r"\s+", " ", desc)[:600]                             # Vietnamese ahead ate the English sentences' room)
-    name = place.get("name") or ""
+    given, name = name, place.get("name") or ""
     if not for_llm:                                    # rà 17/10: "Setting: Tháp đồng hồ" — an English alias, else the name unaccented
-        name = model_place_name(place)
+        name = model_place_name(place) if given is None else given   # V3.1 M2.2 A2f: tên đã giải (runner.place_name_for_model)
     bits = [f"Setting: {name}" + (f" — {desc}" if desc else "")]
     if marks:
         bits.append(_sizes_sentence(marks, keep_vi=for_llm))
@@ -1619,13 +1619,13 @@ def model_place_name(place: Dict) -> str:
                  if n.strip() and not has_vietnamese(n)), fold(name).strip())
 
 
-def render_place_text(conn, place: Dict, tag: str = RENDER_TAG) -> str:
+def render_place_text(conn, place: Dict, tag: str = RENDER_TAG, name: Optional[str] = None) -> str:
     """F1-B (09/10, #24): the place sentence of a shot that HAS its 3D render attached. The place's general description ("… stone
     plaza; red-roof houses, grass, palms, sea around") pulled the picture away from the render, so the background is locked to the
     render the way #22's approved prompts did — what is right, never a list of what is forbidden (bài học L2). The real landmark heights
     stay (people's size); the library picture's light does not (the render and the scene light decide it)."""
     marks, _light = _landmark_heights(conn, place)
-    bits = [f"Setting: {model_place_name(place)}",
+    bits = [f"Setting: {model_place_name(place) if name is None else name}",   # A2f: name = tên đã giải (cờ tắt → None = cũ)
             f"Background: exactly the 3D render picture of this place{tag} (same camera and spot) — it decides the architecture, the "
             "landmarks and where they sit in the frame; keep the scale of the objects as in that picture"]
     if marks:
