@@ -42,7 +42,7 @@ def render(p, pid: int, who=None, read_only: bool = False, key: str = "cr") -> N
                     CR.close(p.conn, r["id"], "resolved", who)
                     st.rerun()
                 except ValueError as e:
-                    st.error(str(e))
+                    st.error(f"{e} — tải lại trang để thấy nút ↻ Rà lại")
             if b.button("Bỏ qua", key=f"{key}_skip_{r['id']}", help="Chấp nhận lệch này — shot không bị giữ gen vì mục này nữa"):
                 CR.close(p.conn, r["id"], "dismissed", who)
                 st.rerun()
