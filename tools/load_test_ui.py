@@ -95,7 +95,6 @@ def neutralize(db: str) -> List[str]:
 _REL_DATA = re.compile(r"(?<![\w/\\.:~-])(?:\./|\.\\)?data(?:/|\\\\|\\)(?=[\w.-])", re.I if os.name == "nt" else 0)
 # bộ đếm rò (C-FIX6): đúng mẫu đường tương đối như trên nhưng LUÔN không phân biệt hoa / thường ("Data/…" rò trên Windows)
 _REL_DATA_LEAK = re.compile(_REL_DATA.pattern, re.I)
-_PATH_END = re.compile(r"[\"'\s,;]")
 _BOUNDARY = r"(?=[/\\\"'\s]|$)"                 # sau tiền tố thư mục phải là ranh giới đường (không đổi '/x/data2', '/x/database')
 # thư viện Kho / âm thanh: CHỈ ĐỌC khi đo (dọn rác + đồng bộ đã làm trơ ở neutralize); lineage băm đường ảnh Kho → đổi đường làm mọi ảnh
 # đã duyệt thành "cũ" (số đo lệch máy thật). Lịch sử ticket: trigger chặn UPDATE + chuỗi hash
@@ -111,6 +110,8 @@ def _variants(path: str) -> List[str]:
         if not a or os.path.dirname(a) == a or re.fullmatch(r"[A-Za-z]:", a):
             continue
         out |= {a, a.replace("\\", "/"), a.replace("/", "\\"), a.replace("\\", "\\\\"), a.replace("/", "\\\\")}
+    # rà kỹ C-FIX6 B3: JSON ensure_ascii (mặc định của json.dumps) ghi tên tiếng Việt thành \uXXXX — cùng đường, dạng khác
+    out |= {json.dumps(v)[1:-1] for v in list(out) if not v.isascii()}
     return sorted(out, key=len, reverse=True)
 
 
@@ -127,16 +128,18 @@ def real_homes_of(src_db: str, data: Optional[str]) -> List[tuple]:
     return out
 
 
-def _leaks_in(val: str, pat) -> int:
-    """Số chỗ trong một giá trị còn trỏ tệp THẬT: 'data/…' tương đối (cả './data/', 'Data/') + đường tuyệt đối dưới thư mục thật
-    (cùng regex có ranh giới đường của relocate) mà tệp / thư mục đó TỒN TẠI ngoài bản sao."""
+def _leaks_in(val: str, pat, own: Sequence[str] = ()) -> int:
+    """Số chỗ trong một giá trị còn trỏ tệp THẬT: 'data/…' tương đối (cả './data/', 'Data/') + MỌI lần khớp đường tuyệt đối dưới thư mục
+    thật (cùng regex có ranh giới đường của relocate, gồm dạng JSON \\uXXXX). Rà kỹ C-FIX6 B3: không còn cắt đường ở khoảng trắng / dấu
+    phẩy rồi hỏi exists — đường có dấu cách, tên tiếng Việt, tệp chưa có vẫn là rò. `own` = các dạng đường của bản sao (_variants): khớp
+    nằm ở đầu đường của chính bản sao (bản sao nằm TRONG một thư mục thật, vd. Temp) không tính."""
     n = len(_REL_DATA_LEAK.findall(val))
-    for m in (pat.finditer(val) if pat is not None else ()):
-        end = _PATH_END.search(val, m.end())
-        path = val[m.start():end.start() if end else len(val)].replace("\\\\", "\\")
-        if os.path.exists(path):
-            n += 1
-    return n
+    if pat is None:
+        return n
+    nt = os.name == "nt"
+    low = val.lower() if nt else val
+    mine = [o.lower() if nt else o for o in own]
+    return n + sum(1 for m in pat.finditer(val) if not any(low.startswith(o, m.start()) for o in mine))
 
 
 def relocate(db: str, real_homes: Sequence, new_home: str) -> Dict[str, int]:
@@ -195,12 +198,13 @@ def relocate(db: str, real_homes: Sequence, new_home: str) -> Dict[str, int]:
             conn.execute(sql)
         conn.commit()
         leaks = 0
+        own = _variants(new_home)                                       # bản sao có thể nằm trong một thư mục thật
         for t in tables:
             if t in SKIP_TABLES:
                 continue
             for c in [r[1] for r in conn.execute(f'PRAGMA table_info("{t}")')]:
                 for (val,) in conn.execute(f'SELECT "{c}" FROM "{t}" WHERE typeof("{c}")=\'text\''):
-                    leaks += _leaks_in(val, pat)
+                    leaks += _leaks_in(val, pat, own)
     finally:
         conn.close()
     if skipped:
@@ -835,39 +839,45 @@ PROD_PORTS = (8501, 8502)                        # cổng Dashboard thật trên
 
 def run_level(n: int, template: Dict, args, log) -> Dict:
     work = tempfile.mkdtemp(prefix=f"load_ui_n{n}_")
-    home = os.path.join(work, "data")          # <work>/data/manifest.sqlite: assets.resolve() giải đường tương đối về <work>, không về repo
-    os.makedirs(home)
-    db = os.path.join(home, "manifest.sqlite")
-    shutil.copy2(template["db"], db)
-    data = os.path.join(home, "projects")
-    shutil.copytree(template["data"], data)
-    if template.get("real_homes"):                # C-FIX5: mọi đường tới tệp thật → thư mục của mức đo này
-        moved = relocate(db, template["real_homes"], home)
-        log(f"  đổi đường tệp thật → bản sao: {moved}")
-        if moved.get("_leaks"):
-            msg = (f"còn {moved['_leaks']} chỗ trong bản sao trỏ tệp THẬT (bảng thư viện Kho chỉ đọc không tính) — phiên bấm Duyệt / Gen "
-                   "có thể ghi / dời tệp thật")
-            if not getattr(args, "allow_leaks", False):
-                raise RuntimeError(msg + " — dừng (chạy lại với --allow-leaks nếu chấp nhận có chủ ý)")
-            log("  ⚠ " + msg + " (--allow-leaks: vẫn đo)")
-    for name in ("retired_topics.json", "knowledge_user"):      # C-FIX6: đọc như máy thật nhưng ghi vào bản sao
-        src = os.path.join(ROOT, "data", name)
-        if os.path.isdir(src):
-            shutil.copytree(src, os.path.join(work, name))
-        elif os.path.isfile(src):
-            shutil.copy2(src, os.path.join(work, name))
-    probe_dir = os.path.join(work, "probe")
-    write_probe(probe_dir)
-    env = app_env(db, data, work, args.latency, probe_dir)
-    port = args.port
-    if port in PROD_PORTS:
-        raise RuntimeError(f"Cổng {port} là cổng Dashboard thật — chọn --port khác")
-    for _ in range(30):                          # Streamlit của mức trước có thể còn đang nhả cổng
-        if port_free(port):
-            break
-        time.sleep(0.5)
-    if port in PROD_PORTS or not port_free(port):
-        raise RuntimeError(f"Cổng {port} " + ("là cổng Dashboard thật" if port in PROD_PORTS else "đang bận") + " — chọn --port khác")
+    try:                                         # rà kỹ C-FIX6 B2: dừng trước khi Streamlit chạy (rò đường thật, cổng) → không bỏ lại
+                                                 # bản sao CSDL thật + dự án trong Temp (trừ --keep)
+        home = os.path.join(work, "data")          # <work>/data/manifest.sqlite: assets.resolve() giải đường tương đối về <work>, không về repo
+        os.makedirs(home)
+        db = os.path.join(home, "manifest.sqlite")
+        shutil.copy2(template["db"], db)
+        data = os.path.join(home, "projects")
+        shutil.copytree(template["data"], data)
+        if template.get("real_homes"):                # C-FIX5: mọi đường tới tệp thật → thư mục của mức đo này
+            moved = relocate(db, template["real_homes"], home)
+            log(f"  đổi đường tệp thật → bản sao: {moved}")
+            if moved.get("_leaks"):
+                msg = (f"còn {moved['_leaks']} chỗ trong bản sao trỏ tệp THẬT (bảng thư viện Kho chỉ đọc không tính) — phiên bấm Duyệt / Gen "
+                       "có thể ghi / dời tệp thật")
+                if not getattr(args, "allow_leaks", False):
+                    raise RuntimeError(msg + " — dừng (chạy lại với --allow-leaks nếu chấp nhận có chủ ý)")
+                log("  ⚠ " + msg + " (--allow-leaks: vẫn đo)")
+        for name in ("retired_topics.json", "knowledge_user"):      # C-FIX6: đọc như máy thật nhưng ghi vào bản sao
+            src = os.path.join(ROOT, "data", name)
+            if os.path.isdir(src):
+                shutil.copytree(src, os.path.join(work, name))
+            elif os.path.isfile(src):
+                shutil.copy2(src, os.path.join(work, name))
+        probe_dir = os.path.join(work, "probe")
+        write_probe(probe_dir)
+        env = app_env(db, data, work, args.latency, probe_dir)
+        port = args.port
+        if port in PROD_PORTS:
+            raise RuntimeError(f"Cổng {port} là cổng Dashboard thật — chọn --port khác")
+        for _ in range(30):                          # Streamlit của mức trước có thể còn đang nhả cổng
+            if port_free(port):
+                break
+            time.sleep(0.5)
+        if port in PROD_PORTS or not port_free(port):
+            raise RuntimeError(f"Cổng {port} " + ("là cổng Dashboard thật" if port in PROD_PORTS else "đang bận") + " — chọn --port khác")
+    except BaseException:
+        if not getattr(args, "keep", False):
+            shutil.rmtree(work, ignore_errors=True)
+        raise
     with open(os.path.join(work, "streamlit.log"), "w", encoding="utf-8") as lg:
         app = subprocess.Popen([sys.executable, "-m", "streamlit", "run", "dashboard/app.py", "--server.port", str(port),
                                 "--server.headless", "true", "--browser.gatherUsageStats", "false"], cwd=ROOT, env=env, stdout=lg,

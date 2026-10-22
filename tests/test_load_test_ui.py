@@ -27,7 +27,8 @@ def test_fake_data_has_projects_times_shots(tmp_path):
 
 
 def test_copy_db_opens_the_source_with_mode_ro_even_with_special_characters(tmp_path, monkeypatch):
-    src = tmp_path / "a b#%?x" / "real.sqlite"
+    # '?' không hợp lệ trong tên thư mục Windows (WinError 123) — ở đó thử các ký tự URI đặc biệt còn lại (# % & dấu cách)
+    src = tmp_path / ("a b#%&x" if os.name == "nt" else "a b#%?x") / "real.sqlite"
     src.parent.mkdir()
     c = sqlite3.connect(src)
     c.execute("CREATE TABLE projects(id INTEGER PRIMARY KEY, name TEXT)")
@@ -364,7 +365,8 @@ def test_relocate_moves_every_real_path_into_the_copy(tmp_path):
     data = json.loads(c.execute("SELECT data FROM scenes").fetchone()[0])
     c.close()
     root = str(new).replace("\\", "/")
-    assert paths[0] == f"{root}/projects/1/images/a.png" and paths[1] == f"{root}/projects/1/videos/b.mp4"
+    norm = os.path.normpath                                    # Windows: phần đuôi giữ dấu '\' gốc (đường lẫn / và \ vẫn đúng tệp)
+    assert norm(paths[0]) == norm(f"{root}/projects/1/images/a.png") and norm(paths[1]) == norm(f"{root}/projects/1/videos/b.mp4")
     assert paths[2].startswith(root) and paths[3] == "/khac/data/x.png"                     # đường không thuộc data thật giữ nguyên
     assert data["sent_package"].startswith(root) and data["ref"].startswith(root) and data["rel"] == f"{root}/assets/z.png"
     assert data["word"] == "metadata/khong"
@@ -446,7 +448,8 @@ def test_relocate_maps_the_projects_folder_onto_the_copy_projects(tmp_path):
     c = sqlite3.connect(db)
     got = c.execute("SELECT result_path FROM jobs").fetchone()[0]
     c.close()
-    assert got == str(tmp_path / "w" / "data" / "projects" / "1" / "images" / "a.png").replace("\\", "/")
+    assert os.path.normpath(got) == os.path.normpath(str(tmp_path / "w" / "data" / "projects" / "1" / "images" / "a.png"))
+    assert got.startswith(str(tmp_path / "w" / "data" / "projects").replace("\\", "/"))      # tiền tố đổi đúng thư mục projects
 
 
 @pytest.mark.slow
@@ -494,12 +497,57 @@ def test_a_measured_run_on_a_real_copy_never_touches_the_real_files(tmp_path):
 def test_leak_counter_matches_the_relocate_patterns(tmp_path):
     real = tmp_path / "real"
     (real / "projects").mkdir(parents=True)
-    pat = __import__("re").compile(__import__("re").escape(str(real)) + L._BOUNDARY)
+    pat = _real_pat(real)                                     # cùng _variants như relocate (JSON thoát '\\' trên Windows)
     assert L._leaks_in("./data/projects/1/a.png", pat) == 1
     assert L._leaks_in("Data/assets/k.png", pat) == 1                                       # hoa / thường: rò trên Windows
     assert L._leaks_in("metadata/x and https://h/data/y", pat) == 0
-    assert L._leaks_in(json.dumps({"p": str(real / "projects")}), pat) == 1                 # đường tuyệt đối TỒN TẠI ngoài bản sao
-    assert L._leaks_in(json.dumps({"p": str(real / "khong_co.png")}), pat) == 0             # không tồn tại: không ghi / dời được
+    assert L._leaks_in(json.dumps({"p": str(real / "projects")}), pat) == 1                 # đường tuyệt đối dưới thư mục thật
+    # rà kỹ C-FIX6 B3: tệp chưa có vẫn là rò (phiên đo có thể GHI vào đó) — trước đây đếm 0 vì hỏi exists
+    assert L._leaks_in(json.dumps({"p": str(real / "khong_co.png")}), pat) == 1
+
+
+def _real_pat(*homes):
+    import re
+    vs = sorted({v for h in homes for v in L._variants(str(h))}, key=len, reverse=True)
+    return re.compile("(?:" + "|".join(re.escape(v) for v in vs) + ")" + L._BOUNDARY, re.I if os.name == "nt" else 0)
+
+
+def test_leak_counter_counts_paths_with_spaces_and_vietnamese_names_in_ascii_json(tmp_path):
+    real = tmp_path / "thư mục thật"
+    pat = _real_pat(real)
+    for v in (json.dumps({"p": str(real / "dự án 1" / "ảnh a.png")}),                    # ensure_ascii: \uXXXX
+              json.dumps({"p": str(real / "a b, c.png")}, ensure_ascii=False), str(real / "x y.png")):
+        assert L._leaks_in(v, pat) == 1, v
+
+
+def test_relocate_moves_ascii_json_vietnamese_paths_and_ignores_the_copy_inside_a_real_home(tmp_path):
+    real = tmp_path / "Tạm thật"                                # bản sao nằm TRONG thư mục thật (như Temp)
+    new = real / "load_ui_n1_x" / "data"
+    new.mkdir(parents=True)
+    db = str(tmp_path / "c.sqlite")
+    c = sqlite3.connect(db)
+    c.execute("CREATE TABLE scenes(data TEXT)")
+    c.execute("INSERT INTO scenes VALUES (?), (?)", (json.dumps({"p": str(real / "dự án" / "a b.png")}), str(real / "khác" / "c d.png")))
+    c.commit()
+    c.close()
+    moved = L.relocate(db, [str(real)], str(new))
+    assert moved.get("scenes.data") == 2 and "_leaks" not in moved, moved                # đường đã dời không bị đếm là rò
+    c = sqlite3.connect(db)
+    vals = [r[0] for r in c.execute("SELECT data FROM scenes")]
+    c.close()
+    root = str(new).replace("\\", "/")
+    assert json.loads(vals[0])["p"].startswith(root) and vals[1].startswith(root)
+
+
+def test_run_level_removes_the_work_dir_when_it_stops_on_leaks(tmp_path, monkeypatch):
+    tpl = dict(L.build_data(str(tmp_path / "d"), projects=1, shots=20), real_homes=[(str(tmp_path / "real"), "")])
+    monkeypatch.setattr(L, "relocate", lambda *a, **k: {"_leaks": 1})
+    work = tmp_path / "work"
+    monkeypatch.setattr(L.tempfile, "mkdtemp", lambda prefix=None: (work.mkdir(), str(work))[1])
+    args = type("A", (), {"port": 8549, "latency": 0, "keep": False, "chrome": None, "out": None, "allow_leaks": False})()
+    with pytest.raises(RuntimeError, match="--allow-leaks"):
+        L.run_level(1, tpl, args, print)
+    assert not work.exists()                                    # bản sao CSDL thật + dự án không bị bỏ lại trong Temp
 
 
 def test_run_level_stops_on_leaks_unless_allowed(tmp_path, monkeypatch):
