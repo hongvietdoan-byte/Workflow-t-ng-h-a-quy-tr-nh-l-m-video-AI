@@ -1554,3 +1554,27 @@ Bối cảnh: agent dọn rác phiên chính 22/10 đã gỡ 176 worktree + 372 
    xóa nhóm này — phiên chính quyết sau. BỎ QUA `agent-a58a3cb071487e5ef` (cloud/v31-golden8-fin) và `agent-a621cb12b97522c41`.
 Báo cáo `docs/RA_CX22_DON_RAC_CODEX_2026-10-2x.md` (≤ 60 dòng: dung lượng trước/sau `D:` + `.codex-wt` + `.claude/worktrees`, bảng nhóm 2).
 Commit báo cáo trên nhánh `codex/v31-don-rac`, push nhánh, XONG hộp thư.
+
+### CX22-DON-RAC-TOOL — công cụ tự dọn: tools/don_rac.py + xoay vòng sao lưu + tự gỡ worktree khi gộp (ưu tiên 3; người dùng DUYỆT 22/10; Cấp 1 tooling, 0 USD)
+BẮT ĐẦU KHI: CX22-DON-RAC đã XONG (dùng chính nhật ký/luật nhóm 1–3 làm ca thử). Mục tiêu: rác không tích lại nữa và dọn không tốn token agent
+(lần 22/10 agent tốn ~121k token, 54 phút; 310 worktree / 519 nhánh tích từ 09/10). Luật chung: `docs/CHUAN_XAY_DUNG.md`; mọi lệnh có `--dry-run`
+mặc định khi xóa/chuyển (phải `--lam-that` mới làm), ghi nhật ký JSONL khôi phục được ở `D:\AI-Video-Output\_luu_tru\nhat_ky_don_rac.jsonl`
+(đường dẫn gốc cấu hình được, test dùng tmp_path). KHÔNG bao giờ đụng: `data/manifest.sqlite`, `dashboard.env`, `data/projects`, `data/models3d`,
+`data/_plates3d`, `.codex-runtime/`, cổng 8501/8502, worktree có thay đổi chưa commit / sửa < 24 giờ / HEAD chưa ở origin/main hay nhánh remote.
+1. **`tools/don_rac.py`** (khai `devsys/areas.json`, không tăng version), lệnh con:
+   - `nhanh` — dùng cho MỖI lượt điều phối, in đúng 1 dòng: số server Streamlit thừa (cổng 8503–8510, không kết nối ESTABLISHED) đã tắt, pytest
+     mồ côi (cha đã chết) đã tắt, số worktree/nhánh dọn được; mặc định làm thật cho server/pytest (an toàn), worktree chỉ đếm.
+   - `worktree [--lam-that]` — luật như agent 22/10: `.claude/worktrees/*` + `.codex-wt/*` sạch, > 24 giờ (Codex: > 3 ngày, chỉ còn HANDOFF.md
+     chưa theo dõi được), HEAD trong origin/main hoặc nhánh remote → `git worktree remove` + `git branch -d`; worktree bị app khóa → bỏ qua, báo.
+   - `sao-luu <file> [--loai TEN]` — tạo bản sao lưu chuẩn tên `<loai>.backup_<YYYYmmdd-HHMMSS>` cạnh file rồi xoay vòng ngay; thay cho
+     copy tay (các bản `manifest.backup_*`, `feature_settings.backup_*`, `backup_dashboard.env.before_*` trước nay agent tạo bằng shell).
+   - `xoay [--giu 3] [--lam-that]` — mỗi loại sao lưu trong `data/` giữ N bản mới nhất, cũ hơn CHUYỂN (không xóa) sang `_luu_tru\backup_cu\<ngày>\`.
+   - `bao-cao` — 15 thư mục lớn nhất trong repo + `D:\AI-Video-Output`, số worktree/nhánh, đổi so lần trước (đọc nhật ký).
+   - `khoi-phuc <id>` — trả lại một mục đã chuyển; nhánh đã xóa → in lệnh `git branch <tên> <sha>`.
+2. **Tự gỡ khi gộp**: `tools/hop_thu.py gop <mã> --commit …` — sau khi ghi sự kiện, nếu sự kiện `xong` của mã có `branch` và nhánh đó đã nằm trong
+   origin/main: gỡ worktree đang checkout nhánh đó (nếu sạch) + `git branch -d` local; in 1 dòng kết quả; lỗi/khóa thì chỉ cảnh báo, KHÔNG làm hỏng
+   lệnh gop. Cờ `--giu-worktree` để tắt. Không xóa nhánh remote.
+3. **Test** `tests/test_don_rac.py` (+ bổ sung `tests/test_hop_thu*.py`): repo git giả trong tmp_path — worktree sạch đã gộp bị gỡ; worktree bẩn /
+   mới / chưa gộp / bị khóa được giữ; `xoay` giữ đúng 3 bản, chuyển chứ không xóa, `khoi-phuc` trả lại; `nhanh` in đúng 1 dòng; `gop` gỡ worktree
+   nhánh đã gộp và vẫn thành công khi gỡ lỗi. Test đỏ trước, xanh sau. Chạy thật `don_rac.py bao-cao` + `worktree` (dry-run) trên máy chính, dán số vào báo cáo.
+Nhánh `codex/v31-don-rac-tool`. Báo cáo `docs/RA_CX22_DON_RAC_TOOL_CODEX_2026-10-2x.md`. XONG hộp thư (phiên chính rà kỹ vì đụng xóa/chuyển file).
