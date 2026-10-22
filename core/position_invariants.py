@@ -8,6 +8,9 @@ position_sentence, side_review) và cùng hướng máy của `core/layout_facts
   R1-MAP          cảnh ≥ 2 shot mà chưa có map còn hiệu lực / map UNKNOWN → KHÔNG RÕ + lý do (không đoán vị trí)
   R1-SIDE         chữ của shot (image_prompt / blocking / motion) nói trái/phải NGƯỢC chỗ map đặt người/vật theo máy shot đó
                   → VÀNG + câu vị trí sinh từ map (world_map.position_sentence)
+                  Hai loại mệnh đề (C-R1-REL 22/10): (a) bên KHUNG tuyệt đối ("frame-right", "left of frame", "khung trái") → góc
+                  chủ thể so với tâm khung; (b) TƯƠNG ĐỐI ("to the right of Kelly", "on Kelly's left", "bên phải Kelly") → góc hai thực
+                  thể so với nhau theo máy (map tương đối: quan hệ trai_cua). |Δ| < REL_MIN_DEG → KHÔNG RÕ + số đo, không VÀNG
   R1-AXIS-JUMP    cùng vật đổi bên khung giữa hai shot LIỀN NHAU mà hai máy cùng phía trục (yaw lệch ≤ layout_facts.SAME_VIEW_YAW_DEG)
                   → VÀNG (G44 26↔27); hai máy ngược trục thì đổi bên là đúng, không báo
   R1-TRAVEL       chữ tả hướng đi (vào nền / về phía máy / sang trái-phải khung) + "về phía X" / "rời khỏi X": X trên map phải nằm
@@ -29,6 +32,7 @@ from . import layout_facts, world_map
 VANG, KHONG_RO = "vang", "khong_ro"
 ERR_ROOT = ["V31-GOC1", "P31-G46"]
 TEXT_FIELDS = ("image_prompt", "blocking", "action", "motion_en")
+REL_MIN_DEG = 5.0                           # quan hệ tương đối: hai thực thể lệch góc ngang dưới mức này = không rõ ai trái / phải
 AHEAD_COS = math.cos(math.radians(60))     # X nằm "phía trước hướng đi" khi lệch ≤ 60° so với hướng đi
 NO_SCENE_KEY = "?"                          # project_report: nhóm shot thiếu story_scene
 
@@ -127,10 +131,131 @@ def check_text_sides(m: Dict, shot, texts: Dict[str, str], camera: Optional[Dict
         if not text:
             continue
         r = world_map.side_review(m, shot, text, camera)
-        for mm in r["mismatches"]:
-            out.append(_f("R1-SIDE", ERR_ROOT + ["P31-G44"], f"shot {shot} · {field}: chữ đặt {mm['entity']} NGƯỢC bên so với bản đồ "
-                          f"cảnh (map: {mm['map']} theo máy shot này) — «{mm['text'][:80]}»",
-                          r["suggested"] or "", field=field, entity=mm["entity"], map_side=mm["map"]))
+        for mm in r["mismatches"]:                       # (a) bên KHUNG tuyệt đối — world_map đã bỏ các chữ tương đối "right of X"
+            e = find_entity(m, mm["entity"], shot)
+            ang = _angle(m, e, camera) if e else None
+            extra = {"angle_deg": ang} if ang is not None else {}
+            out.append(_f("R1-SIDE", ERR_ROOT + ["P31-G44"], f"shot {shot} · {field}: chữ đặt {mm['entity']} NGƯỢC bên KHUNG so với bản đồ "
+                          f"cảnh (map: {mm['map']}" + (f", {ang:+.1f}°" if ang is not None else "") + f" theo máy shot này) — "
+                          f"«{mm['text'][:80]}»", r["suggested"] or "", field=field, entity=mm["entity"], map_side=mm["map"],
+                          kind="tuyet_doi", **extra))
+        out += _check_relative(m, shot, field, text, camera)
+    return out
+
+
+# (b) tương đối: "A … to the right of B" / "A … on B's right" / "A … bên phải (của) B" → (A, "right", B)
+_POSS_END = re.compile(r"(['’]s)\s*$")
+
+
+def relative_claims(clause: str, names: Sequence[str]) -> List[Tuple[Optional[str], str, Optional[str], str]]:
+    """[(A | None, "left"/"right", B | None, chữ B)]: vế chữ đặt A ở bên trái/phải CỦA B. B None = chữ sau "of / của" không phải tên trên
+    map cũng không phải khung (người gọi báo KHÔNG RÕ). Bộ phận cơ thể ("Kelly's right shoulder") / đại từ ("her left") / bên khung
+    ("right of frame / centre / camera", "bên phải của màn hình") → không phải quan hệ tương đối. A không tìm được → None."""
+    spots = world_map.name_spots(clause, names)
+    out = []
+    for tok in world_map._SIDE_TOKEN.finditer(clause):
+        if not (tok.group(1) or tok.group(2)):
+            continue
+        side = "left" if (tok.group(1) or tok.group(2)).lower() in ("left", "trái") else "right"
+        before, after = clause[:tok.start()], clause[tok.end():]
+        if tok.group(1) and (world_map._BODY_AFTER.match(after) or world_map._PART_AFTER.match(after)):
+            continue
+        tgt = world_map.rel_target(tok, clause, spots)
+        b, raw = None, ""
+        if tgt and tgt[0] == "ten":
+            b = (tgt[1], tgt[2], tgt[3])
+        elif tgt:
+            raw = tgt[1]
+        elif tok.group(1):
+            poss = _POSS_END.search(before)
+            b = next((x for x in spots if x[1] == poss.start()), None) if poss else None
+        if b is None and not raw:
+            continue
+        lo = b[0] if b else tok.start()
+        prev = [x for x in spots if x[1] <= lo and (not b or x[2] != b[2])]
+        nxt = [x for x in spots if x[0] >= (b[1] if b else tok.end()) and (not b or x[2] != b[2])]
+        a = prev[-1][2] if prev else (nxt[0][2] if nxt else None)
+        out.append((a, side, b[2] if b else None, b[2] if b else raw))
+    return out
+
+
+def _angle(m: Dict, e: Dict, camera: Optional[Dict]) -> Optional[float]:
+    """Góc ngang (độ, dương = phải khung) của thực thể theo máy shot; sau lưng máy / thiếu → None."""
+    p = _frame_of(m, e, camera)
+    if p is None or p[1] <= 0.05:
+        return None
+    return math.degrees(math.atan2(p[0], p[1]))
+
+
+def _rel_of_map(m: Dict, shot, a: str, b: str) -> Optional[str]:
+    """Map tương đối: "left"/"right" của a so với b theo quan hệ trai_cua có hiệu lực ở shot (world_map.relations_at); không có → None."""
+    pa, pb = _plain(a), _plain(b)
+    for r in world_map.relations_at(m, shot):
+        if r.get("rel") != "trai_cua":
+            continue
+        ra, rb = _plain(r.get("a")), _plain(r.get("b"))
+        if (ra, rb) == (pa, pb):
+            return "left"
+        if (ra, rb) == (pb, pa):
+            return "right"
+    return None
+
+
+def _check_relative(m: Dict, shot, field: str, text: str, camera: Optional[Dict]) -> List[Dict]:
+    if not m or m.get("invalidated") or m.get("kind") not in ("3d", "2d", "relative"):
+        return []
+    names = world_map.rel_names(m, shot)
+    out = []
+    no_cam = m["kind"] != "relative" and world_map._cam_rel(m, camera) is None
+    for clause in (c.strip() for c in world_map._CLAUSE.split(text or "") if c and c.strip()):
+        for a, side, b, raw in relative_claims(clause, names):
+            vn = "phải" if side == "right" else "trái"
+            head = f"shot {shot} · {field}: chữ đặt {a or '?'} bên {vn} CỦA {raw}"
+            q = f" — «{clause[:80]}»"
+            if b is None:
+                out.append(_f("R1-SIDE", ERR_ROOT, head + f" nhưng «{raw}» không phải tên trên map (cũng không phải khung) — không kiểm được"
+                              + q, "Dùng đúng tên trên map, hoặc thêm thực thể vào map", level=KHONG_RO, field=field, entity=a or "",
+                              other=raw, kind="tuong_doi"))
+                continue
+            if no_cam:                                    # một lần cho cả trường: lỗi ở máy, không ở thực thể
+                out.append(_f("R1-SIDE", ERR_ROOT, f"shot {shot} · {field}: chữ có quan hệ trái/phải giữa hai thực thể nhưng máy shot chưa "
+                              "có (stage_camera thiếu / cờ stage_camera tắt) hoặc map thiếu gốc O — không kiểm được",
+                              "Dựng máy của shot (stage_camera) / bật cờ khi đã duyệt", level=KHONG_RO, field=field, kind="tuong_doi"))
+                return out
+            if a is None:
+                out.append(_f("R1-SIDE", ERR_ROOT, head + " nhưng vế không nêu ai đứng đó — không kiểm được" + q,
+                              "Nêu tên chủ thể trong cùng vế", level=KHONG_RO, field=field, entity=b, kind="tuong_doi"))
+                continue
+            if m["kind"] == "relative":
+                got = _rel_of_map(m, shot, a, b)
+                if got is None:
+                    out.append(_f("R1-SIDE", ERR_ROOT, head + " nhưng map tương đối không có quan hệ trái/phải giữa hai người" + q,
+                                  "Thêm quan hệ vào map (BYĐ)", level=KHONG_RO, field=field, entity=a, other=b, kind="tuong_doi"))
+                elif got != side:
+                    out.append(_f("R1-SIDE", ERR_ROOT + ["P31-G44"], head + f" — map tương đối đặt {a} bên "
+                                  f"{'phải' if got == 'right' else 'trái'} {b}" + q, "Đổi chữ cho khớp quan hệ trên map",
+                                  field=field, entity=a, other=b, map_side=got, kind="tuong_doi"))
+                continue
+            ea, eb = find_entity(m, a, shot), find_entity(m, b, shot)
+            ga = _angle(m, ea, camera) if ea else None
+            gb = _angle(m, eb, camera) if eb else None
+            if ga is None or gb is None:
+                miss, e_miss = (a, ea) if ga is None else (b, eb)
+                p = _frame_of(m, e_miss, camera) if e_miss else None
+                why = "nằm sau lưng máy shot này" if p is not None else "thiếu toạ độ trên map"
+                out.append(_f("R1-SIDE", ERR_ROOT, head + f" nhưng {miss} {why} — không kiểm được" + q, "Thêm thực thể vào map hoặc máy của shot",
+                              level=KHONG_RO, field=field, entity=a, other=b, kind="tuong_doi"))
+                continue
+            delta = ga - gb                               # dương = A phải hơn B theo hướng máy
+            nums = dict(field=field, entity=a, other=b, kind="tuong_doi", angle_deg=ga, other_angle_deg=gb, delta_deg=delta)
+            if abs(delta) < REL_MIN_DEG:
+                out.append(_f("R1-SIDE", ERR_ROOT, head + f" — map: hai người gần như thẳng hàng theo máy (Δ {delta:+.1f}° < "
+                              f"{REL_MIN_DEG:g}°), không rõ ai trái / phải" + q, "Dời một người trên map hoặc bỏ chữ trái/phải",
+                              level=KHONG_RO, **nums))
+            elif (delta > 0) != (side == "right"):
+                out.append(_f("R1-SIDE", ERR_ROOT + ["P31-G44"], head + f" — map đặt {a} {ga:+.1f}°, {b} {gb:+.1f}° (Δ {delta:+.1f}°): "
+                              f"{a} ở bên {'phải' if delta > 0 else 'trái'} {b} theo máy shot này" + q,
+                              "Đổi chữ cho khớp map, hoặc dời người trên map", **nums))
     return out
 
 

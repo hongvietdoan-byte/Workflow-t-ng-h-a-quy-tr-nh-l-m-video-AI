@@ -25,6 +25,17 @@ def trimmed_script(script: str, sections: int) -> str:
     return "\n".join(out).rstrip() + "\n"
 
 
+def carry_same_plan(p: Pipeline, src, new: int) -> None:
+    """The trial cuts the SAME Director plan (director_raw of the source): it keeps that film's render settings (end card off — it
+    belongs to the full film) and its Director intent (director_intent_raw — the rough-cut review reads focus / peak / target_s from it).
+    compare.clone_project(with_rows=False) drops both for a real re-run of the Director (C-CLONE-INTENT), so they are put back here."""
+    settings = json.loads(src["render_settings"] or "{}")
+    settings["end_card"] = {**(settings.get("end_card") or {}), "enabled": False}
+    p.set_project_field(new, "render_settings", json.dumps(settings, ensure_ascii=False))
+    if src["director_intent_raw"]:
+        p.set_project_field(new, "director_intent_raw", src["director_intent_raw"])
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--project", type=int, required=True)
@@ -55,9 +66,7 @@ def main(argv=None) -> int:
     p.conn.execute("DELETE FROM scenes WHERE project_id=? AND idx>?", (new, a.sections))
     p.conn.commit()
     p.set_script_text(new, script)
-    settings = json.loads(src["render_settings"] or "{}")
-    settings["end_card"] = {**(settings.get("end_card") or {}), "enabled": False}      # the end card belongs to the full film
-    p.set_project_field(new, "render_settings", json.dumps(settings, ensure_ascii=False))
+    carry_same_plan(p, src, new)
     music.set_off(p, new, True)                                                          # no paid music in the trial
     stored = llm_io.store_scene_analysis(p, new, obj)                                    # normaliser runs here (H1)
     p.set_project_field(new, "director_raw", json.dumps(stored, ensure_ascii=False))

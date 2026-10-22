@@ -39,9 +39,13 @@ def clone_project(p: Pipeline, project_id: int, name: str, shot_mode: Optional[s
         approval = person_limits.check_create(conn, p.user)
         try:
             src = p.project(project_id)
-            skip = SKIP_PROJECT | ({"director_raw"} if not with_rows else set())    # the old plan must not seed "chia shot lại một cảnh"
+            # the old plan must not seed "chia shot lại một cảnh" — nor the old intent pass (C-CLONE-INTENT, TODO 🐞 13/10 ý 5)
+            skip = SKIP_PROJECT | ({"director_raw", "director_intent_raw"} if not with_rows else set())
             cols = [c for c in _cols(conn, "projects") if c not in skip]
             values = [src[c] for c in cols]
+            if not with_rows and "render_settings" in cols:   # like a new project: the way of cutting, not the old film's marks
+                from .project_defaults import _carried
+                values[cols.index("render_settings")] = _carried("render_settings", src["render_settings"])
             if shot_mode != "keep":
                 values[cols.index("shot_mode")] = shot_mode
             if "autopilot_gates" in cols:          # the person's checkpoint switches carry over; the run state (Bible approved…) does not
