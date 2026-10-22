@@ -917,6 +917,31 @@ cây B → DIFF), rồi báo XONG để codex chạy lại. 31 BOTH_FAIL (NOT_BU
 báo cáo bổ sung docs/RA_CLOUD_GOLDEN5_*.md mục "GOLDEN6". XONG hộp thư (mã C-GOLDEN6).
 ```
 
+#### C-M48-DESK-CORE (cloud-E — ưu tiên 1; Cấp 2 đã duyệt: sổ v31-ep-stage-desk-actions-2026-10-21 S-A…S-G; cloud-claude giao 22/10) — Bàn đạo diễn 3D Đợt 1, tầng lõi
+```
+Theo docs/KE_HOACH_BAN_DAO_DIEN_3D_DASHBOARD_2026-10-21.md mục 0, 2, 4, 5, 7, 9, 10, 13 (Đợt 1, 0 USD). NỀN NHÁNH: write guard (M2.5) mới có trên
+cloud/v31-m2-tichhop (chưa gộp main — chờ golden) → tạo cloud/v31-m48-desk-core từ origin/cloud/v31-m2-tichhop + merge origin/main mới nhất (xung đột
+features.py/areas.json/package_inputs.json: tools/merge_union.py). Làm: core/stage_desk.py MỚI (status theo cảnh, khóa S, một luồng nền mỗi dự án, xếp hàng
+Blender qua plates3d.blender_turn, tiến độ ra <data>/<pid>/stage/desk_progress.json) + stage_auto.apply(..., who=None) ghi qua write_guard.write_scene (SHADOW,
+expected_rev, giữ _user_locked) + run(manual) + hàm cho nút N1–N11 TRỪ N13 (không gọi Claude API, không tiền) + sổ quyết định (S-B chỉ EP duyệt sân khấu; S-C
+plate 3D bắt buộc chưa duyệt → HOLD/xác nhận ngoại lệ trước gen trả phí; S-D chia vai lại = hỏi + preview + stale đúng phụ thuộc) có check_* kiểm được.
+Cờ: KHÔNG thêm cờ UI (việc C-M48-DESK-UI); nếu cần cờ lõi thì TẮT, verified False. Test 1–10, 12–13 của mục 10 (Blender giả). KHÔNG sửa dashboard/
+(trừ không gì) — API công khai của stage_desk ghi rõ ở đầu module + báo cáo để C-M48-DESK-UI gọi. Báo cáo docs/RA_CLOUD_M48_DESK_CORE_2026-10-2x.md.
+Gộp main CÙNG tích hợp M2 khi golden ĐẠT. XONG hộp thư.
+```
+
+#### C-M48-DESK-UI (cloud-D — ưu tiên 2; song song C-M48-DESK-CORE, không chồng file; cloud-claude giao 22/10) — Bàn đạo diễn 3D Đợt 1, giao diện
+```
+Theo cùng kế hoạch mục 3, 4, 9, 10, 12 (Đợt 1). Nhánh cloud/v31-m48-desk-ui từ origin/main (stage_view_ui đã gộp). Làm dashboard/stage_desk_ui.py MỚI: hàng
+nút trong expander từng cảnh của màn XEM (dashboard/stage_view_ui.py gọi MỘT dòng ở cuối expander, chỉ khi cờ stage_desk_ui BẬT); nút N1–N11 trừ N13 theo
+bảng mục 4 (duyệt / trả lại + lý do / làm lại / ảnh ghép / render lại / render nền / đề bài ngoại tuyến), mỗi nút gọi hàm của core/stage_desk (API đặt theo
+mục 4 kế hoạch; khi C-M48-DESK-CORE chưa có thì gọi qua lớp mỏng có thể thay — test bằng stub). Hiện tiến độ đọc desk_progress.json, khóa nút khi đang chạy,
+xác nhận trước thao tác đổi dữ liệu; quyền: chỉ EP thấy Duyệt (S-B). Cờ MỚI stage_desk_ui: TẮT, verified False, KHÔNG costs, REQUIRES ("stage_view_ui",),
+thêm vào core/features.py + tests/golden/package_inputs.json (false) + devsys/areas.json (khu step2). Test AppTest: cờ TẮT → màn XEM giống byte (test
+tests/test_v31_stage_view.py vẫn xanh, không st.button); cờ BẬT → đủ nút, bấm gọi đúng hàm stub, không gọi Claude/không ghi CSDL ngoài hàm lõi. Báo cáo
+docs/RA_CLOUD_M48_DESK_UI_2026-10-2x.md (ảnh chụp màn Playwright nếu được). XONG hộp thư.
+```
+
 #### C-FIX4 (cloud-C — ưu tiên 1, TRƯỚC phần còn lại C-M83-TOOL nếu kịp; cloud-claude 22/10 06:5x sau rà kỹ C-FIX3-THAP-B) — nút "✓ Đã sửa" gọi Claude không báo giá
 ```
 core/change_review.py ~699-705 (sau C-FIX3-THAP): bấm "✓ Đã sửa" trên mục rà LỖI (review_fail) âm thầm gọi rerun_failed → đưa lần sửa về chờ rà + tốn tiền
