@@ -663,11 +663,15 @@ def _stage_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     """Sân khấu 3D tự động (cờ stage_auto — TẮT: không làm gì): trước nền 3D + mọi ảnh, mỗi cảnh trên bối cảnh 3D được dàn cảnh
     (Đạo diễn, sổ chi) và giải máy → `stage_camera`. Kết quả lưu theo vân tay đầu vào: lượt sau không gọi Claude lại. Shot không đạt /
     đoạn thiếu đầu vào → giữ ở cổng nền 3D (Tiếp tục = các shot đó dùng máy thường, VÀNG)."""
-    from . import stage_auto
+    from . import stage_auto, stage_desk, write_guard
     if not stage_auto.enabled():
         return None
+    held = stage_desk.busy(p.conn, pid, ctx.data_dir)  # M4.8: người đang thao tác sân khấu trên Dashboard (khóa S) — không ghi đè state
+    if held:
+        raise _Wait("plates", "Sân khấu 3D: " + "; ".join(stage_desk.lock_line(sid, h) for sid, h in held[:3]))
     try:
-        r = stage_auto.run(p.conn, pid, ctx.data_dir, client=ctx.llm, log=lambda m: _log(p, pid, m))
+        r = stage_auto.run(p.conn, pid, ctx.data_dir, client=ctx.llm, log=lambda m: _log(p, pid, m),
+                           who=write_guard.actor("auto", "autopilot.stage"))
     except llm_runner.LlmError as e:
         _stop_if_claude_blocked([(None, e)], p.conn)
         _d(p, pid, "director", "error", f"sân khấu 3D tự động lỗi Claude: {e}", stage_auto.CODE)

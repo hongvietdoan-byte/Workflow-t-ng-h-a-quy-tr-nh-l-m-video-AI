@@ -725,7 +725,20 @@
    "keeps": "stage-auto-plan-2026-10-15, stage-crew-plan-2026-10-16",
    "changes": "",
    "replaces": null,
-   "enforced_by": [],
+   "enforced_by": [
+    {
+     "kind": "code",
+     "check": "check_stage_desk_ep_only"
+    },
+    {
+     "kind": "code",
+     "check": "check_stage_desk_paid_gate"
+    },
+    {
+     "kind": "code",
+     "check": "check_stage_desk_reset_confirm"
+    }
+   ],
    "status": "active"
   },
   {

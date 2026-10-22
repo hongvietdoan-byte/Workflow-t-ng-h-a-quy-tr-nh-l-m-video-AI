@@ -84,6 +84,15 @@ def _main(argv, step):
               + (f" · ĐÃ có ảnh shot {drawn}" + ("" if a.force else " → bỏ qua (thêm --force)") if drawn else ""))
     for h in stage_auto.family_hints(segs):
         print("⚠", h)
+    if not (a.score or a.dry):                          # M4.8: nút bàn đạo diễn đang giữ đoạn (khóa S) → không ghi đè crew/state.json
+        from core import stage_desk
+        held = [(g["id"], stage_desk.lock_holder(a.data_dir, a.project, g["scene"], conn, seg=g)) for g in segs]
+        held = [(sid, h) for sid, h in held if h]
+        if held:
+            for sid, h in held:
+                print("⛔", stage_desk.lock_line(sid, h))
+            step.update(result="warn", why="đoạn đang được thao tác trên Dashboard (khóa S)")
+            return
     from core import features
     if a.cam_tay:
         os.environ[stage_auto.HANDHELD_REDO_ENV] = "1"

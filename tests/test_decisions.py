@@ -155,6 +155,44 @@ def check_stage_crew_plan():
 
 
 
+def check_stage_desk_ep_only():
+    """v31-ep-stage-desk-actions-2026-10-21 S-B: chỉ Executive Producer (NGƯỜI, Owner / chủ dự án) duyệt / trả lại sân khấu trên bàn đạo
+    diễn; Director / phiên Claude / công cụ không tự duyệt; nút nạp câu trả lời vai không nhận lượt duyệt (nguồn cố định claude_code)."""
+    import inspect
+    from core import stage_desk
+    for fn in (stage_desk.approve, stage_desk.return_):
+        assert "_need_ep(" in inspect.getsource(fn), f"{fn.__name__} không kiểm Executive Producer"
+    need = inspect.getsource(stage_desk._need_ep)
+    assert '"human"' in need and "is_executive_producer" in need, "S-B: phải là người + Executive Producer"
+    assert 'RANK["own"]' in inspect.getsource(stage_desk.is_executive_producer), "EP = Owner / chủ dự án"
+    la = inspect.getsource(stage_desk.load_answer)
+    assert "source=SOURCE_DESK" in la and '"duyet" in obj' in la and stage_desk.SOURCE_DESK == "claude_code", \
+        "nút nạp câu trả lời không được nhận lượt duyệt của người dùng"
+    assert "source=\"nguoi_dung\"" in inspect.getsource(__import__("core.stage_auto", fromlist=["x"]).crew_user_verdict)
+
+
+def check_stage_desk_paid_gate():
+    """S-C: mặc định cảnh báo VÀNG; shot EP đánh dấu bắt buộc plate 3D đã duyệt mà sân khấu chưa duyệt → HOLD, hoặc EP xác nhận ngoại
+    lệ (có lý do) trước generation trả phí."""
+    import inspect
+    from core import stage_desk
+    src = inspect.getsource(stage_desk.paid_gate)
+    assert '"level": "hold"' in src and '"level": "warn"' in src and 'g["exceptions"]' in src, "cổng S-C thiếu HOLD / VÀNG / ngoại lệ"
+    assert "_need_ep(" in inspect.getsource(stage_desk.require_plate) and "_need_ep(" in inspect.getsource(stage_desk.allow_exception)
+    assert "ngoại lệ cần lý do" in inspect.getsource(stage_desk.allow_exception)
+
+
+def check_stage_desk_reset_confirm():
+    """S-D: chia vai lại = hỏi xác nhận + xem trước thay đổi + đánh dấu tài nguyên phụ thuộc sẽ cũ; không gỡ máy đã ghi trước lượt duyệt mới."""
+    import inspect
+    from core import stage_desk
+    src = inspect.getsource(stage_desk.reset)
+    assert "if not confirm:" in src and '"preview"' in src and "RESET_FILE" in src, "Làm lại phải hỏi + xem trước + đánh dấu phụ thuộc"
+    prev = inspect.getsource(stage_desk.reset_preview)
+    for key in ("plates_stale_after", "images_stale_after", "world_map_stale_after", "cams_kept"):
+        assert key in prev, f"xem trước thiếu {key}"
+
+
 def check_stage_handheld_new_scenes():
     """16/10: cờ stage_handheld_props chỉ cho cảnh MỚI — đoạn đã dàn không có đồ cầm tay giữ đầu vào (vân tay) cũ; không bật qua preset."""
     import inspect
