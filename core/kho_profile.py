@@ -160,6 +160,15 @@ def _mentions_form(text, label):
     return bool(phrase and re.search(r'(?<!\w)'+phrase+r'(?!\w)',text,re.IGNORECASE))
 
 
+def scalar_form(value):
+    """Chỉ một dạng rõ ràng; nhiều dạng/theo nhịp cần người quyết cách chọn ảnh."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list) and len(value) == 1 and isinstance(value[0], str):
+        return value[0]
+    return None
+
+
 def forms_for_shot(conn, project_id, scene, chosen=None):
     if not enabled():
         return character_forms.for_shot(conn, project_id, scene, chosen)
@@ -172,6 +181,7 @@ def forms_for_shot(conn, project_id, scene, chosen=None):
     from . import shot_intent
     participants, _, _ = shot_intent.read(scene, 'thanh_phan', [])
     requested = {str(t.get('vat') or t.get('ten') or t.get('name') or '').strip().upper():t.get('dang') for t in participants if isinstance(t,dict)} if isinstance(participants,list) else {}
+    requested_ids = {str(t.get('vat') or t.get('ten') or t.get('name') or '').strip().upper():t.get('kho_id') for t in participants if isinstance(t,dict)} if isinstance(participants,list) else {}
     for a in chosen:
         p = read(conn,a['id'])
         if p.get('schema_version') != 2:
@@ -180,10 +190,11 @@ def forms_for_shot(conn, project_id, scene, chosen=None):
             if f.get('_p',{}).get('state') != 'USER_LOCKED':
                 continue
             targets = {str(n).strip().upper() for n in f.get('applies_to', [])} & cast
-            targets = {n for n in targets if not requested.get(n) or requested[n] == f['ma']}
+            targets = {n for n in targets if (requested_ids.get(n) is None or type(requested_ids[n]) is int and requested_ids[n] == a['id'])
+                       and (not requested.get(n) or scalar_form(requested[n]) == f['ma'])}
             if not targets:
                 continue
-            explicit = any(requested.get(n) == f['ma'] for n in targets)
+            explicit = any(scalar_form(requested.get(n)) == f['ma'] for n in targets)
             matched = any(_mentions_form(text,f[k]) for k in ('ma','ten_en','ten_vi') if f.get(k))
             if not explicit and not matched:
                 continue
@@ -239,11 +250,13 @@ def outfit_label(conn, project_id, name):
         return assets.outfit_label(conn,project_id,name)
     return (outfit_for(conn,project_id,name) or {}).get('label')
 
-def validate_dang(conn, project_id, name, dang):
+def validate_dang(conn, project_id, name, dang, *, asset_id=None):
     """API BYĐ cho C-M21: chỉ cảnh báo, không bịa enum khi Kho chưa khai."""
     if not enabled():
         return []
     a = assets.link_characters(conn,project_id,[name]).get(name)
+    if asset_id is not None and (type(asset_id) is not int or not a or a['id'] != asset_id):
+        return [{'muc':'vang','ma':'dang_kho_khong_khop','loi':'Mã Kho BYĐ không khớp mục Kho nhân vật đang chọn trong dự án; chưa kiểm dạng'}]
     p = read(conn,a['id']) if a else {}
     forms = p.get('forms') or []
     if not forms:

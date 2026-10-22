@@ -55,3 +55,8 @@ Quota cuối: 5h ĐÃ DÙNG89%, còn11%; tuần57%, còn43%. Reset tự nhiên 2
 - forms_for_shot chuyển raw BYĐ sang shot_intent.read. Code và test mới chưa kết thúc rà độc lập; root thực hiện trước push.
 - Không triển khai R5 vat[].bien_the/stage_shape hoặc quyết định chọn dạng ảnh theo nhiều nhịp ngoài đề M23. Không test production/golden thật/full suite.
 - Test cuối XANH103/103 (636,06s) v2/readers/router/golden. Nhóm Director/byd_fill/shot_intent/M21 trước đó qua; AST caller mới đã sửa. Chờ root rà độc lập rồi push/trạng thái; M23 chưa được tự đánh dấu XONG toàn bộ khi còn scopes nêu trên.
+
+## Vòng sửa sau rà độc lập (22/10)
+- Hai P2 đã tái hiện ĐỎ5/5 rồi sửa: enum/selector kiểm mã Kho đúng link dự án; singleton-list dùng cùng ref với scalar; nhiều dạng/theo nhịp giữ VÀNG/REVIEW, không tự chọn first/final.
+- XANH89/89 (80,82s) một batch v2/readers/M21/Director/byd_fill; không chạy lại golden. Root cần đọc diff sửa trước push.
+- R5/vat[].bien_the và policy chọn ảnh nhiều nhịp vẫn OPEN, chưa tự báo toàn M23 XONG; không migration/production/full suite.

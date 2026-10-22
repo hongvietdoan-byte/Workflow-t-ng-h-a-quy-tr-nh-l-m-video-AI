@@ -60,7 +60,8 @@ def byd_conn():
 def test_byd_checks_declared_forms_with_project_context(adapter,byd_conn,dang):
     from core import shot_intent as s
     byd=s.empty(1);byd.update(byd_v=2,thanh_phan=[{'vat':'KELLY','vai':'chinh','vung':'giua','dang':dang}])
-    assert not [i for i in s.assess(byd,byd_conn,project_id=1) if '.dang' in i['truong']]
+    issues = [i for i in s.assess(byd,byd_conn,project_id=1) if '.dang' in i['truong']]
+    assert [i.get('ma') for i in issues] == (['dang_chua_chon_duoc'] if isinstance(dang,dict) else [])
 
 
 def test_byd_unknown_form_warns_at_exact_beat(adapter,byd_conn):
@@ -90,6 +91,44 @@ def test_router_first_frame_uses_the_same_v2_form(adapter):
     _,asset=adapter
     scene={'characters':['KELLY'],'byd':{'thanh_phan':[{'vat':'KELLY','dang':'ghost_form'}]}}
     assert 'KELLY' in model_router.needs_first_frame(None,1,scene,chosen=[asset])
+
+
+def test_single_form_list_selects_same_reference_as_scalar(adapter):
+    k, _ = adapter
+    scene = {'characters':['KELLY'],'byd':{'thanh_phan':[{'vat':'KELLY','dang':'ghost_form'}]}}
+    scalar = k.forms_for_shot(None, 1, scene)
+    scene['byd']['thanh_phan'][0]['dang'] = ['ghost_form']
+    assert k.forms_for_shot(None, 1, scene) == scalar
+    assert k.outfit_for(None, 1, 'KELLY', scene)['id'] == 'ghost_form'
+
+
+@pytest.mark.parametrize('dang', [['ghost_form','ghost_form'], {'bat_dau':'ghost_form','ket_thuc':'ghost_form'}])
+def test_non_scalar_form_selection_remains_visible_review(adapter, byd_conn, dang):
+    k, _ = adapter
+    from core import shot_intent as s
+    byd = s.empty(1)
+    byd.update(byd_v=2, thanh_phan=[{'vat':'KELLY','vai':'chinh','vung':'giua','dang':dang}])
+    issues = s.assess(byd, byd_conn, project_id=1)
+    assert any(i.get('ma') == 'dang_chua_chon_duoc' and i['muc'] == 'vang' and i['level'] == 'REVIEW' for i in issues)
+    assert not k.forms_for_shot(byd_conn, 1, {'characters':['KELLY'],'byd':byd,'text':'ghost form'})
+
+
+def test_declared_kho_id_mismatch_does_not_validate_another_asset(adapter, byd_conn):
+    k, _ = adapter
+    from core import shot_intent as s
+    byd_conn.execute('CREATE TABLE assets(id INTEGER)')
+    byd_conn.executemany('INSERT INTO assets VALUES (?)', [(1,), (2,)])
+    byd = s.empty(1)
+    byd.update(byd_v=2, thanh_phan=[{'vat':'KELLY','kho_id':2,'vai':'chinh','vung':'giua','dang':'ghost_form'}])
+    with patch.object(k, 'read', side_effect=AssertionError('must not read another asset')):
+        issues = s.assess(byd, byd_conn, project_id=1)
+    assert any(i.get('ma') == 'dang_kho_khong_khop' and i['muc'] == 'vang' for i in issues)
+
+
+def test_form_selector_rejects_declared_kho_id_mismatch(adapter):
+    k, _ = adapter
+    scene = {'characters':['KELLY'],'byd':{'thanh_phan':[{'vat':'KELLY','kho_id':2,'dang':'ghost_form'}]}}
+    assert not k.forms_for_shot(None, 1, scene)
 
 
 @pytest.mark.parametrize('source',['human','ai'])

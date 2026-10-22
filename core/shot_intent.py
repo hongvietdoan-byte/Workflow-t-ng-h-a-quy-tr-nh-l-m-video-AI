@@ -389,12 +389,17 @@ def _check_kho_dang(byd, conn, project_id, out):
     for i, item in enumerate(items):
         if not isinstance(item, dict) or not item.get("vat"):
             continue
+        declared = item.get("dang")
+        if declared not in (None, "", [], {}) and kho_profile.scalar_form(declared) is None:
+            out.append({"muc":"vang", "ma":"dang_chua_chon_duoc", "level":"REVIEW",
+                        "truong":f"thanh_phan[{i}].dang",
+                        "loi":"Đã khai nhiều dạng hoặc dạng theo nhịp; chưa có quy tắc chọn ảnh dạng, cần người duyệt"})
         for path, dang in leaves(item.get("dang"), f"thanh_phan[{i}].dang"):
             if conn is None or type(project_id) is not int or project_id <= 0:
                 issues = [{"muc": "vang", "ma": "dang_khong_kiem_duoc",
                            "loi": "chưa kiểm dạng Kho (thiếu kết nối CSDL hoặc mã dự án)"}]
             else:
-                issues = kho_profile.validate_dang(conn, project_id, item["vat"], dang)
+                issues = kho_profile.validate_dang(conn, project_id, item["vat"], dang, asset_id=item.get("kho_id"))
             out.extend(dict(issue, truong=path) for issue in issues)
 
 
