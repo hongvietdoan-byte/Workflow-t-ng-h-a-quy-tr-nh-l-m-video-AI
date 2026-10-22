@@ -149,4 +149,4 @@ Nối cổng S-C cho nút Gen ảnh và `tools/pregen_check`:
 - 13 test sửa theo rà ĐỎ trên commit trước sửa (`fd0a8dbd`).
 - Test liên quan (`stage_auto`, `stage_crew`, `stage_view`, `decisions`, `autopilot`, `write_guard`, `world_map`, `devsys` maps): xanh.
 - `tests/test_devsys_pipeline_maps.py`: số đếm `step.update(result="warn")` của CLI 4 → 5 (nhánh khóa S mới).
-- Full suite: xem dòng cuối.
+- Full suite (cloud 3.13, `-m "not slow" -n auto`): **7418 passed, 0 đỏ** (nhánh nền tích hợp M2 không còn 25 đỏ golden nền).
