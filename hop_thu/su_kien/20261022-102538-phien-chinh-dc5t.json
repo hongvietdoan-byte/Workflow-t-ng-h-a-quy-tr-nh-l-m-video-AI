@@ -1,0 +1,10 @@
+{
+  "ts": "2026-10-22T10:25:38.691974+07:00",
+  "lane": "phien-chinh",
+  "kind": "giao",
+  "task": "C-FIX6",
+  "to": "phien-chinh",
+  "title": "Lỗi rà DESK-CORE (CAO cổng S-C) + M83-TOOL — chuyển từ cloud-C (hết tuần); B xong a7d7770b, A làm lại",
+  "spec": "docs/CLOUD_TASKS.md#### C-FIX6",
+  "priority": 1
+}
