@@ -39,6 +39,7 @@ def project(shots):
 def flags(monkeypatch):
     monkeypatch.setenv("FEATURE_STORYBOARD_API", "1")
     monkeypatch.setenv("FEATURE_ANCHOR_BY_SPOT", "1")
+    monkeypatch.setenv("FEATURE_STAGE_CAMERA", "1")
 
 
 def test_contract_keys_and_version(tmp_path):
@@ -134,3 +135,10 @@ def test_side_in_blocking_matches_the_qc_reading():
     assert lf.side_in_blocking("KELLY crouches at frame-left, MAXIM frame right", "MAXIM") == "right"
     assert lf.side_in_blocking("KELLY stands frame-centre", "KELLY") == "center"
     assert lf.side_in_blocking("KELLY stands; frame-left is the wall", "KELLY") is None
+
+
+def test_stage_camera_flag_off_ignores_old_coordinates(tmp_path, monkeypatch):
+    monkeypatch.setenv("FEATURE_STAGE_CAMERA", "0")
+    p, pid, ids = project([("WS", "a", {"stage_camera": stage(), "camera_setup": "A1"})])
+    f = lf.facts_for_shot(p.conn, pid, ids[0], str(tmp_path))
+    assert f["camera"]["source"] == "camera_plan" and f["camera"]["yaw_deg"] is None and f["horizon"]["plate_row"] is None

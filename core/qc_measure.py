@@ -105,6 +105,33 @@ def _target_side(target: str, frame_names: List[str], layout: Dict[str, str]) ->
     return None
 
 
+LAYOUT_MARGIN = 0.08       # "nửa trái/phải": tâm mặt cách đường giữa khung ≥ 8 % bề ngang mới chắc (đặt từ bộ đo vàng — đoán đầu)
+LAYOUT_CENTER = (0.12, 0.25)  # "giữa": lệch ≤ 12 % chắc đúng, ≥ 25 % chắc sai (đoán đầu)
+
+
+def _layout_side(boxes, cast: List[str], a: Dict) -> Dict:
+    """Bên khung của người (C-QC-BOCUC): chỉ đo khi khung có MỘT người và đúng MỘT mặt; nhiều người / không mặt → không đo.
+    Gần ranh giới → 'uncertain' (người / model xem), không phán."""
+    want = {"centre": "center"}.get(str(a["expected"]).lower(), str(a["expected"]).lower())
+    if boxes is None:
+        return {"status": "not_measurable", "note": "không có bộ dò mặt"}
+    if len(cast) != 1 or len(boxes) != 1:
+        return {"status": "not_measurable", "note": f"{len(boxes)} mặt / {len(cast)} người — chưa biết mặt nào của ai"}
+    if want not in ("left", "right", "center"):
+        return {"status": "not_measurable", "note": f"bên mong đợi '{a['expected']}' không đọc được"}
+    x = (boxes[0][0] + boxes[0][2]) / 2
+    off = x - 0.5
+    if want == "center":
+        ok = abs(off) <= LAYOUT_CENTER[0]
+        fail = abs(off) >= LAYOUT_CENTER[1]
+    else:
+        toward = -off if want == "left" else off
+        ok, fail = toward >= LAYOUT_MARGIN, toward <= -LAYOUT_MARGIN
+    note = f"mặt ở {x:.2f} bề ngang, cần {want}"
+    status = "certain_ok" if ok else "certain_fail" if fail else "uncertain"
+    return {"status": status, "value": round(x, 3), "note": note}
+
+
 def measure_frame(path: str, data: Dict, assertions: List[Dict]) -> Dict:
     """Code results for the assertions a code measure can speak to: {assertion id: {"status", "value", "note"}}, plus "_faces" and
     "_sky". Status: certain_ok / certain_fail / uncertain / not_measurable. Nothing is decided here that a person has not set a
@@ -113,8 +140,16 @@ def measure_frame(path: str, data: Dict, assertions: List[Dict]) -> Dict:
     boxes = faces(path)
     out["_faces"] = {"count": None if boxes is None else len(boxes), "boxes": [[round(v, 3) for v in b] for b in boxes or []]}
     cast = [str(c).upper() for c in data.get("characters") or []]
-    layout = {a["subject"]: a["expected"] for a in assertions if a["type"] == "layout"}
+    # gaze chọn mặt / bên nhìn theo bên người KHAI trong blocking — không theo bên SUY từ shot cùng chỗ (C-QC-BOCUC, rà 22/10: suy luận
+    # mức 'minor' không được đẩy hướng nhìn có thoại lên 'block', D07)
+    layout = {a["subject"]: a["expected"] for a in assertions if a["type"] == "layout" and a.get("source", "blocking") == "blocking"}
     for a in assertions:
+        if a.get("code_result"):                       # C-QC-BOCUC: đã đo bằng code lúc lập mệnh đề (plate_layout_qc) — dùng y nguyên
+            out[a["id"]] = dict(a["code_result"])
+            continue
+        if a["type"] == "layout":
+            out[a["id"]] = _layout_side(boxes, cast, a)
+            continue
         if a["type"] == "count":
             if boxes is None:
                 out[a["id"]] = {"status": "not_measurable", "note": "không có bộ dò mặt"}

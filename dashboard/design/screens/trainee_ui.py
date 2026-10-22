@@ -163,6 +163,12 @@ def render_panel(conn) -> None:
     """Màn 🧪: the agreement table, "Chấm lại" and the cards."""
     if not features.trainee_list():
         return
+    if not st.session_state.get("trn_auto_scored"):   # C-QC-BOCUC 22/10: 366 dòng học việc, 0 dòng chấm — trước chỉ chấm lúc Xuất bản / bấm nút
+        st.session_state["trn_auto_scored"] = True
+        try:
+            rescore(conn)
+        except Exception as e:  # noqa: BLE001 - bảng vẫn hiện số cũ; nút Chấm lại còn đó
+            st.warning(f"Chưa tự chấm được vai học việc: {e}. Bấm '↻ Chấm lại'.")
     render_table(conn)
     if st.button("↻ Chấm lại (0 USD)", key="trn_rescore", help="So quyết định của vai học việc với lần duyệt của bạn (review_log)"):
         rescore(conn)

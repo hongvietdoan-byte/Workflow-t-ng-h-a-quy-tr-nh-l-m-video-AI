@@ -28,10 +28,22 @@ SAME_VIEW_YAW_DEG = 60.0     # hai máy 3D lệch hướng ≤ 60° coi là cùn
 _SIDE_WORD = {"left": "left", "right": "right", "center": "center", "centre": "center"}
 
 
+def blocking_side_match(blocking: str, name: str):
+    """Câu blocking đặt `name` ở frame-left/right/center — MỘT cách đọc cho cả Tổ QC (qc_spec mệnh đề layout) và layout_facts."""
+    return re.search(rf"\b{re.escape(name)}\b[^,;.]*?\bframe[- ](left|right|center|centre)\b", str(blocking or ""), re.I)
+
+
 def side_in_blocking(blocking: str, name: str) -> Optional[str]:
-    """'left' / 'right' / 'center' khi chữ blocking đặt `name` ở frame-left/right/center (mệnh đề layout của Tổ QC dùng đúng câu này)."""
-    m = re.search(rf"\b{re.escape(name)}\b[^,;.]*?\bframe[- ](left|right|center|centre)\b", str(blocking or ""), re.I)
+    """'left' / 'right' / 'center' khi chữ blocking đặt `name` ở frame-left/right/center."""
+    m = blocking_side_match(blocking, name)
     return _SIDE_WORD[m.group(1).lower()] if m else None
+
+
+def _stage(data: Dict) -> Optional[Dict]:
+    """Máy Sân khấu 3D của shot — CHỈ khi cờ stage_camera bật (như ảnh / QC dùng nó); cờ tắt thì toạ độ cũ còn trong data không được
+    tính (rà 22/10: yaw của máy không dùng khi vẽ sẽ cho 'cùng phía trục' sai)."""
+    from . import features, stage_facts
+    return stage_facts.stage_of(data) if features.on("stage_camera") else None
 
 
 def _row(conn, scene_id: int) -> Optional[Dict]:
@@ -41,7 +53,7 @@ def _row(conn, scene_id: int) -> Optional[Dict]:
 
 def _camera(data: Dict, missing: List[str], prov: Dict) -> Dict:
     from . import stage_facts
-    st = stage_facts.stage_of(data)
+    st = _stage(data)
     if st is not None:
         dx, dy, dz = (st["aim"][i] - st["cam"][i] for i in range(3))
         h = stage_facts.horizon(st["cam"], st["aim"], st["lens"])
@@ -68,8 +80,8 @@ def _camera(data: Dict, missing: List[str], prov: Dict) -> Dict:
 
 def _landmarks(data: Dict, missing: List[str], prov: Dict) -> List[Dict]:
     from . import stage_facts
-    if stage_facts.stage_of(data) is None:
-        missing.append("chưa biết mốc nào trong khung: shot không có máy 3D (R3 — câu tả nền theo tầm nhìn máy)")
+    if _stage(data) is None:
+        missing.append("chưa biết mốc nào trong khung: shot không có máy 3D đang dùng (cờ stage_camera / stage_camera) — R3")
         return []
     res = stage_facts.derive(data, render=False)
     if res.get("missing"):
@@ -85,7 +97,7 @@ def _landmarks(data: Dict, missing: List[str], prov: Dict) -> List[Dict]:
 def _horizon(conn, data_dir: str, pid: int, scene_id: int, data: Dict, prov: Dict) -> Dict:
     from . import plate_layout_qc, stage_facts
     out = {"plate_row": None, "image_row": None, "mismatch": None, "measured": False, "reasons": [], "job_id": None}
-    st = stage_facts.stage_of(data)
+    st = _stage(data)
     if st is not None:
         out["plate_row"] = stage_facts.horizon(st["cam"], st["aim"], st["lens"])["w"]
         prov["horizon.plate_row"] = "stage_facts.horizon"

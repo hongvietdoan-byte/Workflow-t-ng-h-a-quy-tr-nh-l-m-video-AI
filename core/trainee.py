@@ -12,7 +12,7 @@ from typing import Dict, Iterable, Optional
 # Each role answers in two classes: `pos` (it acts: block / redraw / group …) and `neg` (it lets things be). `pred` maps its decision
 # to one of the two; `truth` = review_log ("review"), a 👍/👎 card ("card") or the storyboard gate fingerprint ("gate_fingerprint").
 RULES: Dict[str, Dict] = {
-    "qc_team": {"pos": "reject", "neg": "approve", "pred": {"block": "reject", "pass": "approve"}, "truth": "review",
+    "qc_team": {"pos": "reject", "neg": "approve", "pred": {"block": "reject", "flag": "reject", "pass": "approve"}, "truth": "review",
                 "min_per_project": 15, "min_pos": 5, "min_neg": 5, "unit": "khung"},
     "scene_qc": {"pos": "reject", "neg": "approve", "pred": {"redraw": "reject", "flag": "reject", "pass": "approve"}, "truth": "review",
                  "min_per_project": 15, "min_pos": 5, "min_neg": 5, "min_decision": {"redraw": 8}, "unit": "khung"},
