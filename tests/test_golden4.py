@@ -230,6 +230,9 @@ def test_symlink_in_data_pointing_outside_is_denied(database):  # noqa: F811
     outside = Path(tempfile.mkdtemp(prefix="golden4-outside-")) / "secret.txt"
     outside.write_text("outside", encoding="utf-8")
     (root / "data/skills").mkdir(parents=True, exist_ok=True)
-    os.symlink(outside, root / "data/skills/link.json")
+    try:
+        os.symlink(outside, root / "data/skills/link.json")
+    except OSError as exc:                       # gộp M2 22/10: Windows không Developer Mode / admin → WinError 1314
+        pytest.skip(f"không tạo được symlink trên máy này: {exc}")
     seen, answer = _probe(database, ["data/skills/link.json"])
     assert seen["data/skills/link.json"] != "read"

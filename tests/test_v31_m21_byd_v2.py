@@ -180,7 +180,7 @@ ALLOWED = {
 def _byd_reads():
     hits = []
     for path in sorted((ROOT / "core").rglob("*.py")):
-        rel = str(path.relative_to(ROOT))
+        rel = path.relative_to(ROOT).as_posix()          # gộp M2 22/10: Windows ra '\' → so khớp ALLOWED ('/') hỏng
         if rel == "core/shot_intent.py":
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))

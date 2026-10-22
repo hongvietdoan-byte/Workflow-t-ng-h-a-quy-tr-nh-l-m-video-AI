@@ -449,6 +449,17 @@ def _worker(request):
         return original_open(locate(path, any(c in str(mode) for c in "wax+")), mode, *args, **kwargs)
     def wrapped_io(path, mode="r", *args, **kwargs):
         return original_io(locate(path, any(c in str(mode) for c in "wax+")), mode, *args, **kwargs)
+    def _nt_path_probes():
+        """Gộp M2 22/10: trên Windows (3.12+) os.path.exists / isfile / isdir là hàm C của nt, KHÔNG qua os.stat → hỏi tồn tại
+        thoát khỏi locate (không ghi manifest, đọc thẳng nguồn). Đổi về bản genericpath (gọi os.stat đã bọc) như trên Linux."""
+        import contextlib
+        import genericpath
+        if os.name != "nt":
+            return contextlib.nullcontext()
+        stack = contextlib.ExitStack()
+        for name in ("exists", "isfile", "isdir"):
+            stack.enter_context(patch.object(os.path, name, getattr(genericpath, name)))
+        return stack
     def wrapped_stat(path, *args, **kwargs):
         return original_stat(locate(path, light=True), *args, **kwargs)
     def wrapped_os_open(path, flags, mode=0o777, *, dir_fd=None):
@@ -556,7 +567,7 @@ def _worker(request):
                        draft=False, high_res_sample=False):
                 forbidden()
         sys.addaudithook(audit)
-        with patch.object(os, "environ", fake_env), patch.object(socket, "socket", forbidden), patch.object(socket, "create_connection", forbidden), patch.object(subprocess, "Popen", forbidden), patch.object(builtins, "open", wrapped_open), patch.object(io, "open", wrapped_io), patch.object(os, "open", wrapped_os_open), patch.object(os, "stat", wrapped_stat), patch.object(os, "listdir", wrapped_listdir), patch.object(os, "scandir", wrapped_scandir):
+        with patch.object(os, "environ", fake_env), patch.object(socket, "socket", forbidden), patch.object(socket, "create_connection", forbidden), patch.object(subprocess, "Popen", forbidden), patch.object(builtins, "open", wrapped_open), patch.object(io, "open", wrapped_io), patch.object(os, "open", wrapped_os_open), patch.object(os, "stat", wrapped_stat), patch.object(os, "listdir", wrapped_listdir), patch.object(os, "scandir", wrapped_scandir), _nt_path_probes():
             stale = sorted(m for m, mod in list(sys.modules.items()) if (m == "core" or m.startswith("core."))
                            and getattr(mod, "__file__", None)
                            and not Path(os.path.realpath(mod.__file__)).is_relative_to(Path(os.path.realpath(ROOT))))
