@@ -590,11 +590,14 @@ def _desk_wait(p: Pipeline, pid: int, kind: str, data_dir: Optional[str]) -> Non
     """C-FIX6 (S-C): runner đã GIỮ job trả phí vì plate 3D bắt buộc chưa đạt (core.stage_desk.paid_hold — cùng hàm) → CHỜ người (EP
     duyệt sân khấu / render nền / xác nhận ngoại lệ) thay vì 'Gen ảnh…' mãi. Phần không bị giữ đã gửi. Chưa đánh dấu → không đọc gì."""
     from . import stage_desk
+    from .runner import wait_reason
     if not data_dir or not os.path.isfile(stage_desk._gate_path(data_dir, pid)):
         return
     for job in p.conn.execute("SELECT * FROM jobs WHERE project_id=? AND type=? AND state='queued' AND scene_id IS NOT NULL ORDER BY id",
                               (pid, kind)).fetchall():
-        why = stage_desk.paid_hold(p.conn, pid, data_dir, [job["scene_id"]])
+        why = wait_reason(job["id"])                 # rà C-FIX6: đúng lý do runner vừa giữ (gồm cả shot cùng nhóm gửi) — không tính lại
+        if not (why or "").startswith(stage_desk.HOLD_PREFIX):
+            why = None
         if why:
             idx = p.conn.execute("SELECT idx FROM scenes WHERE id=?", (job["scene_id"],)).fetchone()
             raise _Wait("stage_desk", (f"S{idx[0]:02d}: " if idx else "") + why + " — xử lý ở Bàn đạo diễn 3D (Executive Producer) rồi "
@@ -864,6 +867,11 @@ def _end_frame_phase(p: Pipeline, pid: int, ctx: Context) -> Optional[str]:
     if provider is None:
         return None
     end_frames.tick(p, pid, provider, ctx.data_dir)
+    from .stage_desk import HOLD_PREFIX            # C-FIX6: khung cuối bị cổng S-C giữ → CHỜ người có câu (không 'còn N ảnh' mãi)
+    held = p.conn.execute("SELECT note FROM end_frames WHERE project_id=? AND state='queued' AND note LIKE ? ORDER BY id LIMIT 1",
+                          (pid, "chờ: " + HOLD_PREFIX + "%")).fetchone()
+    if held:
+        raise _Wait("stage_desk", f"khung cuối {held['note'][5:]} — xử lý ở Bàn đạo diễn 3D (Executive Producer) rồi bấm Tiếp tục")
     left = end_frames.pending(p, pid)
     return f"Khung cuối: còn {left} ảnh" if left else None
 

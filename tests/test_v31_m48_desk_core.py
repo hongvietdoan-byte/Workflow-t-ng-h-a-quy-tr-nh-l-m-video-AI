@@ -68,6 +68,7 @@ class DeskBase(Base):
         def norm(v, pid):
             text = json.dumps(v, sort_keys=True, ensure_ascii=False)
             text = text.replace(os.sep + "projects" + os.sep + str(pid) + os.sep, "/P/").replace("/projects/" + str(pid) + "/", "/P/")
+            text = text.replace("\\\\projects\\\\" + str(pid) + "\\\\", "/P/")   # C-FIX6: Windows — dấu \ trong JSON đã thoát thành \\
             return re.sub(r'"inputs_fp": "[0-9a-f]+"', '"inputs_fp": "-"', text)
         self.assertEqual(norm(a, self.pid), norm(b, twin))
 

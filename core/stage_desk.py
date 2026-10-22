@@ -33,8 +33,10 @@ API CÔNG KHAI (dashboard/stage_desk_ui.py — C-M48-DESK-UI — chỉ gọi cá
     N10 score(conn, pid, data_dir, scene)                   đồng bộ, khóa S: chấm lại các lượt đã lưu (không ghi CSDL)
     N11 render_plates(conn, pid, data_dir, scene, who)      quên render nền hỏng của các shot cảnh + place_refs.ensure_async
   S-C (cổng trước gen trả phí — C-FIX6: MỘT hàm paid_hold ở core.runner._submit_pending cho mọi đường gửi trả phí ảnh + video: nút
-  Gen ảnh, autopilot, gen video, gửi lại; batch.image_gates / tools/pregen_check báo trước bằng paid_gate. Chỉ chạy khi EP đã đánh dấu
-  bắt buộc — chưa đánh dấu thì không VÀNG / không giữ, y hệt trước):
+  Gen ảnh, autopilot, gen video, gửi lại; cùng hàm ở hai đường trả phí theo shot KHÔNG qua runner: core/end_frames (ảnh khung cuối) và
+  core/quality_samples (phép thử Seedance + bản cuối từ mẫu). batch.image_gates / tools/pregen_check báo trước bằng paid_gate. Không áp
+  dụng: lipsync (ghép môi clip ĐÃ có), scene_establish (ảnh cấp cảnh, không theo shot). Chỉ chạy khi EP đã đánh dấu bắt buộc — chưa
+  đánh dấu thì không VÀNG / không giữ, y hệt trước):
     paid_hold(conn, pid, data_dir, scene_ids) -> str|None             lý do GIỮ job trả phí (runner), None = gửi được
     require_plate(conn, pid, data_dir, scene_id, on, who, user)       EP đánh dấu shot BẮT BUỘC có plate 3D đã duyệt làm reference
     allow_exception(conn, pid, data_dir, scene_id, why, who, user)    EP xác nhận ngoại lệ (gen trả phí khi sân khấu chưa duyệt)
@@ -61,7 +63,8 @@ LOCK_FILE = ".desk.lock"
 PROGRESS_FILE = "desk_progress.json"
 RESET_FILE = "desk_reset.json"
 RESET_STALE_FILE = "desk_reset_stale.json"      # S-D (C-FIX6 mục 5): shot đổi máy / ảnh / world map đã cũ sau lượt duyệt kế một lần làm lại
-GATE_FILE = "desk_gate.json"                    # <data>/<pid>/stage/desk_gate.json — S-C: shot bắt buộc plate đã duyệt + ngoại lệ
+HOLD_PREFIX = "sân khấu 3D — "                  # đầu câu lý do giữ của paid_hold (autopilot._desk_wait nhận ra lý do runner giữ)
+GATE_FILE = "desk_gate.json"                   # <data>/<pid>/stage/desk_gate.json — S-C: shot bắt buộc plate đã duyệt + ngoại lệ
 LOCK_STALE_SEC = 3 * 3600                       # một thao tác sân khấu (đo K3 + K4 nhiều shot) không quá chừng này
 LOG_KEEP = 50
 SOURCE_DESK = "claude_code"                     # N4: câu trả lời vai từ phiên Claude Code / người viết — KHÔNG phải người dùng duyệt
@@ -792,7 +795,8 @@ def reset_preview(conn, pid: int, data_dir: str, scene, seg: Optional[Dict] = No
 def _close_reset(conn, pid: int, data_dir: str, seg: Dict, who: Optional[Dict]) -> Optional[Dict]:
     """S-D, lượt duyệt sau một lần Làm lại (C-FIX6 mục 5): shot ĐỔI máy so với lúc làm lại (marks_before) → nền 3D cũ; ảnh đã vẽ của
     các shot đó cũ; world map cũ khi có shot đổi. GHI danh sách vào desk_reset_stale.json RỒI mới xóa desk_reset.json (không ghi được
-    → giữ dấu, báo ⚙). Không có dấu làm lại → None."""
+    → giữ dấu, báo ⚙). Không có dấu làm lại → None. Chỉ gọi ở N6 (EP duyệt): đường Đạo diễn tự chốt / CLI --crew-approve chưa gọi —
+    dấu còn, lần EP duyệt sau so với marks_before lúc làm lại (đúng nghĩa "đổi so với trước khi làm lại")."""
     from .camera_plan import drawn_shots
     d = seg_dir(data_dir, pid, seg)
     path = os.path.join(d, RESET_FILE)
@@ -875,7 +879,9 @@ def render_plates(conn, pid: int, data_dir: str, scene, who: Optional[Dict] = No
     from . import location_pack, place_refs
     seg = segment(conn, pid, scene)
 
-    def fn():                                       # C-FIX6 mục 6: giữ khóa S — không quên render khi autopilot / CLI đang ghi máy đoạn này
+    # C-FIX6 mục 6: giữ khóa S — không quên render khi autopilot / CLI đang ghi máy đoạn này. Giới hạn: render thật chạy ở luồng
+    # place_refs SAU khi nhả khóa; máy ghi xen giữa lúc đó được runner bắt bằng location_pack.stale_plates (render lại, 0 USD).
+    def fn():
         forgot = [s["idx"] for s in seg["shots"] if location_pack.forget_shot(data_dir, pid, s["id"])]
         row = conn.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
         started = place_refs.ensure_async(conn, pid, data_dir, place_refs.resolution_of(row))
@@ -971,9 +977,17 @@ def paid_gate(conn, pid: int, data_dir: str, scene_ids: Sequence[int]) -> List[D
     out = []
     try:
         segs = _sa().segments(conn, pid)
-    except Exception as e:  # noqa: BLE001 - không biết thì nói (VÀNG), không im lặng
-        return [{"scene_id": sid, "idx": None, "level": "warn", "why": f"không đọc được sân khấu 3D ({type(e).__name__}: {e})"}
+    except Exception as e:  # noqa: BLE001 - không biết thì nói; shot EP bắt buộc → GIỮ (rà C-FIX6: lỗi đọc không mở cổng)
+        return [{"scene_id": sid, "idx": None, "level": "hold" if str(sid) in g["required"] else "warn",
+                 "why": f"không đọc được sân khấu 3D ({type(e).__name__}: {e})"
+                        + (" — shot có plate 3D bắt buộc: giữ trước khi gen trả phí" if str(sid) in g["required"] else "")}
                 for sid in sorted(want)]
+    seen = {s["id"] for seg in segs for s in seg["shots"]}
+    for sid in sorted(want - seen):                 # rà C-FIX6: shot bắt buộc mà không thuộc sân khấu nào → không im lặng cho qua
+        if str(sid) in g["required"] and str(sid) not in g["exceptions"]:
+            out.append({"scene_id": sid, "idx": None, "level": "hold",
+                        "why": f"shot (scene_id {sid}) có plate 3D bắt buộc nhưng không thuộc sân khấu 3D nào — bỏ đánh dấu hoặc xếp shot "
+                               "vào bối cảnh 3D, hoặc Executive Producer xác nhận ngoại lệ"})
     for seg in segs:
         hit = [s for s in seg["shots"] if s["id"] in want]
         if not hit:
@@ -1019,5 +1033,5 @@ def paid_hold(conn, pid: int, data_dir: Optional[str], scene_ids: Sequence[int])
     try:
         held = [it["why"] for it in paid_gate(conn, pid, data_dir, scene_ids) if it["level"] == "hold"]
     except Exception as e:  # noqa: BLE001 - EP đã đánh dấu bắt buộc: không kiểm được = giữ, có câu
-        return f"sân khấu 3D — không kiểm được cổng plate 3D bắt buộc (S-C): {type(e).__name__}: {e}"
-    return ("sân khấu 3D — " + "; ".join(held)) if held else None
+        return f"{HOLD_PREFIX}không kiểm được cổng plate 3D bắt buộc (S-C): {type(e).__name__}: {e}"
+    return (HOLD_PREFIX + "; ".join(held)) if held else None

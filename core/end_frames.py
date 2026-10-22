@@ -454,6 +454,13 @@ def _tick(p: Pipeline, project_id: int, provider, data_dir: str, only_ids=None) 
                 kwargs["size"] = image_models.size_for(proj, model or image_models.of_project(proj))
             if model:
                 kwargs["model"] = model
+            from . import stage_desk               # C-FIX6 (S-C): đường trả phí ngoài runner — cùng cổng plate 3D bắt buộc (EP)
+            desk = stage_desk.paid_hold(p.conn, project_id, data_dir, [row["scene_id"]])
+            if desk:
+                if row["note"] != f"chờ: {desk}":
+                    _set(p, row["id"], note=f"chờ: {desk}")
+                    _diag(p, row, "warn", "stage_desk_hold", f"khung cuối chưa gửi: {desk}")
+                continue
             if not _claim(p, row["id"]):
                 continue                               # R2: another tab / process is sending this row right now
             # S14.1: the gate adds the project's locked budget (it was skipped), a paused project and 'out_of_credit' → halt

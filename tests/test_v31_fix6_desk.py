@@ -251,3 +251,77 @@ class LockRobustnessTests(FixBase):
         self.assertFalse(r["ok"])
         self.assertIn("autopilot", r["errors"][0])
         self.assertFalse(ens.called)
+
+
+# ---- rà quy ước 7 (C-FIX6): lỗi đọc, shot ngoài sân khấu, nhóm, 📥 ------------------------------------------------------------
+class ReviewGateTests(FixBase):
+    def test_required_shot_is_held_when_segments_cannot_be_read(self):
+        self.mark(1)
+        with mock.patch("core.stage_auto.segments", side_effect=OSError("hỏng")):
+            g = {x["scene_id"]: x for x in D.paid_gate(self.p.conn, self.pid, self.data, [self.sid(1), self.sid(2)])}
+            self.assertEqual((g[self.sid(1)]["level"], g[self.sid(2)]["level"]), ("hold", "warn"))
+            self.assertTrue(D.paid_hold(self.p.conn, self.pid, self.data, [self.sid(1)]))
+
+    def test_required_shot_outside_every_stage_is_held(self):
+        other = self.p.create_scene(self.pid, 9, "s9")                                  # không có bối cảnh 3D
+        self.assertTrue(D.require_plate(self.p.conn, self.pid, self.data, other, True, HUMAN, EP)["ok"])
+        self.assertEqual([x["level"] for x in D.paid_gate(self.p.conn, self.pid, self.data, [other])], ["hold"])
+
+    def test_autopilot_waits_when_the_runner_held_a_group_leader(self):
+        self.mark(1)
+        jid = self.p.create_job(self.sid(1), "video_gen")
+        R.WAIT_REASONS[jid] = ("sân khấu 3D — shot 2: plate 3D bắt buộc chưa đạt", __import__("time").time())   # runner giữ vì shot nhóm
+        with mock.patch.object(D, "paid_hold", return_value=None):                     # tính riêng shot 1 thì qua
+            with self.assertRaises(autopilot._Wait) as w:
+                autopilot._desk_wait(self.p, self.pid, "video_gen", self.data)
+        self.assertEqual(w.exception.gate, "stage_desk")
+
+    def test_inbox_lists_a_clip_held_by_the_desk_gate(self):
+        from core import inbox
+        self.mark(1)
+        jid = self.p.create_job(self.sid(1), "video_gen")
+        with mock.patch.object(R.VideoRunner, "_wait", return_value=False):
+            R.VideoRunner(self.p, _CountingVideo(), self.data).submit_pending(self.pid)
+        self.assertEqual(self.state(jid), "queued")
+        lines = inbox._video_waits(self.p.conn, self.pid, [])
+        self.assertTrue(any("plate 3D bắt buộc" in x for x in lines), lines)
+
+
+class OffRunnerPaidPathsTests(DeskBase):
+    """Đường trả phí theo shot KHÔNG qua runner: ảnh khung cuối (end_frames._tick) và phép thử Seedance (quality_samples.send)."""
+
+    def test_quality_sample_is_held_before_any_spend(self):
+        from core import quality_samples
+        from tests.test_quality_samples import Provider
+        prov = Provider()
+        sid = self.p.conn.execute("SELECT id FROM scenes WHERE project_id=? AND idx=1", (self.pid,)).fetchone()[0]
+        with mock.patch.dict(os.environ, {"FEATURE_SEEDANCE_SAMPLE_MODE": "1"}), \
+                mock.patch.object(D, "paid_hold", return_value="sân khấu 3D — shot 1: plate 3D bắt buộc chưa đạt"), \
+                mock.patch.object(quality_samples, "plan", side_effect=AssertionError("không được dựng đầu vào trả phí")):
+            with self.assertRaises(ValueError) as e:
+                quality_samples.send(self.p, self.pid, sid, "draft", prov, self.data)
+        self.assertIn("plate 3D", str(e.exception))
+        self.assertEqual(prov.calls, [])
+
+
+class EndFrameHoldTests(__import__("unittest").TestCase):
+    def test_end_frame_is_held_before_any_spend(self):
+        import tempfile
+        from core import end_frames, llm_runner
+        from tests._flags import pin_off
+        from tests.test_end_frames import _shot_with_end_state
+        from tests.test_v3 import _approve_all_images, kenta_project
+        pin_off(self, "seedance_ref_groups")
+        p, pid = kenta_project()
+        llm_runner.run_director(p, pid, llm_runner.MockLlm())
+        sid = _shot_with_end_state(p, pid)
+        data = tempfile.mkdtemp()
+        _approve_all_images(p, pid, data)
+        self.assertIn(sid, end_frames.queue(p, pid))
+        prov = MockImageProvider()
+        with mock.patch.object(D, "paid_hold", side_effect=lambda c, i, d, s: "sân khấu 3D — plate 3D bắt buộc chưa đạt" if sid in s
+                               else None):
+            end_frames.tick(p, pid, prov, data)
+        self.assertFalse([t for t, pr in prov.prompts.items() if "lies on the ground" in pr])
+        row = p.conn.execute("SELECT state, note FROM end_frames WHERE scene_id=? ORDER BY id DESC", (sid,)).fetchone()
+        self.assertIn("plate 3D", row["note"] or "")
