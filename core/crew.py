@@ -444,7 +444,9 @@ def link_problems(reg: Optional[Dict] = None, prof: Optional[Dict] = None, root:
         prod = v.get("producer")
         if prod not in rs:
             out.append(f"sản phẩm {pid}: vai làm ra {prod!r} không có thật")
-        kpis = v.get("kpi") or []
+        kpis = [k for k in v.get("kpi") or [] if isinstance(k, dict)]
+        if len(kpis) != len(v.get("kpi") or []):
+            out.append(f"sản phẩm {pid}: KPI phải là {{id, ten, nguong, cach_do}}")
         if not kpis:
             out.append(f"sản phẩm {pid}: không có KPI")
         ids = [k.get("id") for k in kpis]
@@ -470,6 +472,9 @@ def link_problems(reg: Optional[Dict] = None, prof: Optional[Dict] = None, root:
             if not reqs:
                 out.append(f"sản phẩm {pid}: người nhận {c} chưa ghi đòi hỏi gì")
             for r in reqs or []:
+                if not isinstance(r, dict):
+                    out.append(f"sản phẩm {pid}: yêu cầu của {c} phải là {{yeu_cau, dap_ung}}")
+                    continue
                 if not r.get("yeu_cau"):
                     out.append(f"sản phẩm {pid}: người nhận {c} có yêu cầu trống")
                 if r.get("dap_ung") not in ids:
@@ -531,8 +536,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         bad = problems() + link_problems()
         for b in bad:
             print("✖", b)
-        print(f"Role Registry: {len(roles())} vai, {len(load().get('fields') or {})} trường, "
-              f"{len(load_profiles().get('products') or {})} sản phẩm — {len(bad)} lỗi")
+        try:
+            n_products = len(load_profiles().get("products") or {})
+        except (OSError, ValueError):
+            n_products = 0
+        print(f"Role Registry: {len(roles())} vai, {len(load().get('fields') or {})} trường, {n_products} sản phẩm — {len(bad)} lỗi")
         return 1 if bad else 0
     if cmd == "hoso":
         print(hoso_text())
