@@ -92,6 +92,14 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
   (R1 vị trí một nguồn world_map · R2 hình học đo thay hằng số · R3 chữ sinh từ tầm nhìn máy · R4 BYĐ nhất quán · R5 Kho nhiều dạng — chờ CX21-M23), mỗi gốc
   một bất biến + test biến thể; owner 23 lỗi đang TRỐNG → điền theo crew_roles. **Máy chính khi gộp:** chạy lệnh Blender thật trong báo cáo RA_CLOUD_3D_GOC_*.
 
+- **22/10 ~10:10 — GỘP C-FIX5** (0c354b05; chỉ phần THẤP của C-FIX4: nút ✓ Đã sửa không traceback khi mục rà vừa đổi + test tmp_path).
+  Cả bộ Linux 31 hỏng = baseline. **Máy chính:** pull + khởi động lại 8501/8502, thử bấm ✓ Đã sửa ở mục rà lỗi vừa đổi → hiện st.error.
+- **C-M83-TOOL CHƯA gộp** (rà kỹ: VỪA — relocate còn rò đường thật vẫn chạy 10 phiên; bộ đếm rò sai hai chiều) → C-FIX6 mục 7. **Vẫn KHÔNG chạy
+  `load_test_ui.py --db` trên dữ liệu thật.**
+- **C-M48-DESK-CORE rà kỹ: 1 CAO** (cổng S-C chỉ nối nút Gen ảnh, autopilot + video trả phí chưa qua) + 4 VỪA → C-FIX6 (cloud-C ưu tiên 1). Chưa gộp.
+- **C-QC-BOCUC** (cloud-claude tự làm): core/layout_facts v1 lên main 31340c68 (nguồn bố cục chung). Phần QC + tools/trainee_score_report.py
+  đang trên nhánh cloud/v31-qc-bocuc. **Máy chính khi gộp:** `py tools/trainee_score_report.py --feature qc_team` → báo người dùng khớp thật.
+
 ## D. Ghi chú lượt 22/10 02:58
 - C-GOLDEN7 (cloud-C) XONG @ cloud/v31-golden5 621661a8 — CHƯA gộp (công cụ golden gộp cùng tích hợp M2 khi CX21-GOLDEN7 ĐẠT). Máy chính: không cần làm gì
   tới khi codex báo kết quả; ĐẠT → phiên điều phối gộp cloud/v31-m2-tichhop + m24 + golden5 (+ m73, m210, golden4 dựng trên nền đó) một lần.
@@ -111,3 +119,10 @@ cloud/v31-m210, cloud/v31-golden4 (ba nhánh sau dựng trên nền tích hợp 
   không còn "✓ Đã sửa"; mục ĐỎ thường vẫn có "✓ Đã sửa". (Lưu ý cũ "KHÔNG bấm ✓ Đã sửa" ở mục 06:5x hết hiệu lực sau khi pull bản này.)
 - **C-M83-TOOL KHÔNG gộp:** rủi ro VỪA — chạy `--db` bản sao CSDL thật thì đường tệp trong job vẫn trỏ `data/projects` thật, thao tác giả có thể đụng tệp thật.
   Trả cloud-C sửa (C-FIX5 mục 1). **Máy chính: chưa chạy `tools/load_test_ui.py --db` thật** tới khi bản sửa gộp.
+
+## E. Máy chính đã kiểm — 22/10 10:30–10:55 (phiên chính nhận lại điều phối)
+- Bước chung 1: bản chính đã ở b4cd91ec; khởi động lại 8501 + 8502 → `_stcore/health` ok cả hai.
+- Bước chung 2: cả bộ test Windows trên main: **7185 qua, 1 hỏng** (`test_v31_t12_m12_m13_gaps.py::test_two_real_processes_poll_one_job_once`
+  — chạy riêng XANH 22 s; hỏng do máy tải nặng vì golden chạy song song = test nhạy thời gian). `test_golden_db_replay` / `test_golden_replay` XANH trên
+  Windows → 31 hỏng Linux đúng là lỗi môi trường. ✅
+- Các mục kiểm tay trên Dashboard (A, A2, A3, B) chưa làm — làm sau khi gộp đợt M2 (tránh kiểm hai lần).
