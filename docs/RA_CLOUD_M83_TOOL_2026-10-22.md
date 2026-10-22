@@ -11,20 +11,25 @@
 - `--db <CSDL thật> [--data <thư mục dự án>]`:
   - mở `mode=ro` (URI `as_uri`), backup sang thư mục tạm;
   - **làm trơ bản sao**: bỏ ảnh Kho `removed`, vì dọn rác hằng giờ sẽ xóa FILE theo đường dẫn lưu, có thể là đường tuyệt đối tới file thật; tắt nguồn Kho ảnh / âm thanh `auto`; `projects.llm_provider` → NULL, `jobs.llm_provider` → mock;
-  - chỉ chép thư mục `<id>/images`.
+  - âm thanh: đánh dấu `sounds.tags` / `heard` đã xử lý (mỗi phiên trình duyệt phân tích / nghe 150 tệp THẬT → CPU phồng N lần);
+  - chỉ chép thư mục `<id>/images`; Kho ảnh (`data/assets`) KHÔNG chép → ảnh Kho báo thiếu, trang nhẹ hơn thực tế một chút.
 - Mỗi mức N có một bản chép riêng ở `<tmp>/data/manifest.sqlite`, kèm `ASSET_DIR` / `SOUND_MODEL_DIR` trong thư mục đo. Nhờ vậy `assets.resolve` không giải đường tương đối về repo.
 
 **2. Server đo**
-- `streamlit run dashboard/app.py` trên cổng riêng (mặc định 8541). Từ chối 8501 / 8502 và cổng bận.
+- `streamlit run dashboard/app.py` trên cổng riêng (mặc định 8541). Từ chối 8501 / 8502 (kiểm trước) và cổng bận (psutil LISTEN mọi địa chỉ; bind với `SO_EXCLUSIVEADDRUSE` trên Windows, `SO_REUSEADDR` nơi khác, IPv4 + IPv6).
 - Kiểm tiến trình nghe cổng đúng là Streamlit đo (`psutil`). Health "ok" mà không phải tiến trình đo thì dừng, không bấm gì.
 - `IMAGE/VIDEO/AUDIO/LLM/SUBJECT_PROVIDER=mock`.
 - Bỏ mọi khóa trong môi trường, theo danh sách và theo mẫu `*_KEY` / `*_TOKEN` / `*_SECRET` / `*PASSCODE` / `ANTHROPIC_*` / `CLAUDE_CODE_*`.
 - Cờ đọc từ tệp tạm, không theo baseline sản xuất. Đồng bộ đầu phiên chạy nền như sản xuất.
+- `FF_SITE_AUTO=0` (không kéo website), khóa Blender riêng (`PLATES3D_LOCK` trong thư mục đo — không giữ lượt Blender của máy thật), `BLENDER_PATH` trỏ tệp không có (render nền 3D báo lỗi ngay).
+- Meshy đọc khóa cả từ registry Windows (`core/meshy.api_key`) nên lọc môi trường không chặn được; chỉ chạy khi người bấm trong trang quản trị — luồng đo không đi qua.
 
 **3. Phiên trình duyệt**
 - N phiên Chromium (Playwright async, mỗi phiên một context) chạy song song.
 - Luồng: Trang chủ → `Mở →` dự án (i mod số dự án; vào thẳng Storyboard) → (Storyboard) → `✔ Duyệt` 1 ảnh → Video → `▶ Gen video` (giả).
-- Mỗi bước đo tới khi màn **ổn định sau lượt chạy lại MỚI của chính nó**. Bộ đếm `MutationObserver` theo `data-test-script-state` ∈ {running, rerunRequested, stopRequested}, sau đó cần 3 nhịp yên × 0,1 s.
+- Mỗi bước đo tới khi màn **ổn định sau lượt chạy lại MỚI của chính nó** VÀ điều kiện hậu của bước đúng:
+  - bộ đếm `MutationObserver` (cả cây, có mốc trang tải lại) theo `data-test-script-state` ∈ {running, rerunRequested, stopRequested}, sau đó cần 3 nhịp yên × 0,1 s;
+  - điều kiện hậu: màn đích được chọn trên thanh bước / đã rời Trang chủ / số nút "✔ Duyệt" hoặc nhãn "Duyệt tất cả" đổi / chữ nút Gen đổi. Lượt chạy lại của fragment `run_every` (ô hỏi job đang chạy) không làm bước trả sớm.
 - Các trường hợp đặc biệt được ghi riêng:
   - bấm mà không có lượt chạy lại trong 10 s → "không rerun";
   - màn đã hiện sẵn → "đã hiện sẵn";
@@ -57,42 +62,79 @@ py tools/load_test_ui.py --db data\manifest.sqlite --data data\projects --levels
 - Để số đo sát thực tế hơn: chạy trình duyệt đo từ MÁY KHÁC là việc của phiên sau (cần `--url`); hiện trình duyệt chạy chung máy.
 
 ## Số đo chạy thử trên cloud (Linux 4 lõi, Python 3.13 — KHÔNG phải máy chính)
+
+Lệnh: `py tools/load_test_ui.py --levels 1,2,5,10 --shots 30` (dữ liệu giả 3 dự án × 30 shot, độ trễ giả 0,2 s). Mã thoát 1, vì có bước lỗi (xem phát hiện bên dưới).
+
 ### Thời gian tới khi màn ổn định (giây, p50 / p95)
 
 | Bước | N=1 | N=2 | N=5 | N=10 |
 |---|---|---|---|---|
-| Trang chủ | 3.545 / 3.545 🐢 | 5.204 / 5.244 🐢 | 9.801 / 16.749 🐢 | 19.115 / 34.883 🐢 |
-| Mở dự án (vào thẳng Storyboard) | 3.848 / 3.848 🐢 | 5.957 / 6.018 🐢 | 12.324 / 12.573 🐢 | 12.642 / 24.969 ·4 không rerun 🐢 |
-| Storyboard (Bước 2) | đã hiện sẵn sau bước trước | đã hiện sẵn sau bước trước | đã hiện sẵn sau bước trước | 13.82 / 14.606 🐢 |
-| Duyệt 1 ảnh | 1.98 / 1.98 | 3.401 / 3.457 | 8.104 / 8.45 | 9.329 / 16.865 |
-| Video (Bước 4) | 0.913 / 0.913 | 1.024 / 1.031 | 1.953 / 2.798 🐢 | 6.877 / 12.037 🐢 |
-| Bấm Gen video (giả) | 2.971 / 2.971 | 3.061 / 3.283 | 3.856 / 4.82 | 6.596 / 11.919 |
+| Trang chủ | 3.426 / 3.426 🐢 | 4.537 / 4.605 🐢 | 9.194 / 16.564 ⚠1 lỗi 🐢 | 22.154 / 22.452 ⚠3 lỗi 🐢 |
+| Mở dự án (vào thẳng Storyboard) | 3.876 / 3.876 🐢 | 5.411 / 5.488 🐢 | 5.742 / 5.901 ⚠1 lỗi 🐢 | 17.182 / 17.678 ⚠3 lỗi ·1 không rerun 🐢 |
+| Storyboard (Bước 2) | đã hiện sẵn sau bước trước | đã hiện sẵn sau bước trước | — / — ·4 đã hiện sẵn ⚠1 lỗi 🐢 | 6.573 / 6.573 ·6 đã hiện sẵn ⚠3 lỗi 🐢 |
+| Duyệt 1 ảnh | 3.439 / 3.439 | 5.056 / 5.109 | 5.971 / 7.168 ⚠1 lỗi | 11.83 / 13.008 ⚠3 lỗi |
+| Video (Bước 4) | 0.957 / 0.957 | 1.321 / 1.434 | 1.416 / 1.489 ⚠1 lỗi 🐢 | 2.812 / 4.322 ⚠3 lỗi 🐢 |
+| Bấm Gen video (giả) | 2.999 / 2.999 | 3.317 / 3.567 | 2.516 / 3.082 ⚠1 lỗi | 3.936 / 9.644 ⚠3 lỗi ·1 không rerun |
 
 ### Server (tiến trình Streamlit)
 
 | N | CPU đỉnh % | CPU cả máy đỉnh % | RAM đỉnh MB | Luồng gốc → đỉnh | Luồng thêm / phiên | Lệnh ghi SQLite | Chờ khóa (≥ 0.05 s) | Chờ lâu nhất s | Lỗi locked |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | 109.0 | 85.6 | 132.8 | 7 → 33 | 26.0 | 181 | 0 (0.0 s) | 0.0 | 0 |
-| 2 | 133.8 | 98.5 | 144.7 | 7 → 36 | 14.5 | 277 | 0 (0.0 s) | 0.0 | 0 |
-| 5 | 153.9 | 99.5 | 173.4 | 7 → 55 | 9.6 | 424 | 0 (0.0 s) | 0.0 | 0 |
-| 10 | 163.3 | 100.0 | 323.2 | 7 → 57 | 5.0 | 483 | 0 (0.0 s) | 0.0 | 0 |
+| 1 | 121.9 | 84.5 | 130.8 | 7 → 29 | 22.0 | 181 | 0 (0.0 s) | 0.0 | 0 |
+| 2 | 129.9 | 95.5 | 145.4 | 7 → 37 | 15.0 | 275 | 0 (0.0 s) | 0.0 | 0 |
+| 5 | 141.9 | 99.5 | 165.6 | 7 → 51 | 8.8 | 784 | 0 (0.0 s) | 0.0 | 0 |
+| 10 | 151.9 | 100.0 | 269.1 | 7 → 59 | 5.2 | 887 | 1 (0.051 s) | 0.051 | 0 |
 
-### Kết luận
-
-- Ngưỡng chậm xuất hiện ở: N=1 (Trang chủ, Mở dự án (vào thẳng Storyboard))
-- Khâu nghẽn (lỗi rồi p95 lớn nhất ở N=10): Trang chủ 34.883 s — CẢ MÁY đo bão hòa CPU (trình duyệt đo + Streamlit chung máy) — số đo phồng; đo lại với ít phiên hơn / máy mạnh hơn
-- Tổng bước lỗi: 0
-- Không đo ở đây: khóa Blender, hàng đợi Claude CLI, giới hạn Deepix / Clip AI (bộ giả).
-- Khác máy chính: DASHBOARD_AUTH=off (bỏ ghi team.touch / quyền mỗi lần chạy lại), `streamlit run dashboard/app.py` (máy chính: dashboard.serve), trình duyệt đo chạy CÙNG máy với server — tranh chấp SQLite thấp hơn, CPU cao hơn thực tế.
-- Mỗi số đo gồm ~0.3 s cửa sổ "yên" của bộ đo; "không rerun" = bấm mà không có lượt chạy lại trong 10 s (số đo gồm thời gian chờ đó). Luồng thêm / phiên tính cả luồng khởi một lần mỗi tiến trình (N=1 phồng).
-- Luồng theo tên ở N=10: ThreadPoolExecutor×4, AnyIO worker thread×3, MainThread×1, load-probe-dump×1, Thread×1, bg-poll×1, autoqc-video×1
 
 **Đọc số:**
-- CPU cả máy chạm 98–100 % ngay từ N=2. Ở đây 10 phiên Chromium và Streamlit chạy chung 4 lõi, nên từ N=5 số đo chủ yếu phản ánh máy đo bị bão hòa.
-- Ở N=10, 4 phiên ghi "không rerun" ở bước Mở dự án. Lúc máy bão hòa, cú bấm không gây chạy lại trong 10 s, nên 4 phiên này chưa vào Storyboard. Vì thế dòng Storyboard ở N=10 có số đo thật (13,8 s). Đây là triệu chứng bão hòa, không phải lỗi công cụ.
-- Cả 4 mức: 0 lần chờ khóa SQLite, 0 lỗi locked. Tranh chấp SQLite không phải nút thắt khi có ≤ 10 phiên, nhưng cần đo lại khi `DASHBOARD_AUTH` bật.
-- Mỗi phiên thêm khoảng 5 luồng (N=10). RAM tiến trình 133 → 323 MB.
-- Trang chủ ngay cả ở N=1 đã 3,5 s, gồm lượt vẽ đầu và bấm "Tất cả dự án". Mở dự án mất 3,8 s. Hai màn này là ứng viên tối ưu đầu tiên. Ngưỡng 2 s đã vượt từ N=1 trên máy cloud.
-- Trong các lượt chạy thử có một lượt N=5 với 3 phiên không tải được trang trong 120 s; lượt chạy lại thì 0 lỗi. Từ đó công cụ chụp ảnh màn khi lỗi để chẩn đoán.
+- CPU cả máy chạm 95–100 % ngay từ N=2. Ở đây trình duyệt đo và Streamlit chạy chung 4 lõi, nên từ N=5 số đo chủ yếu phản ánh máy đo bị bão hòa.
+- Trang chủ ở N=1 đã mất 3,4 s, Mở dự án 3,9 s. Ngưỡng 2 s đã vượt từ N=1 trên máy cloud. Hai màn này là ứng viên tối ưu đầu tiên.
+- Khóa SQLite: chỉ 1 lần chờ ≥ 0,05 s (0,051 s, ở N=10), 0 lỗi `locked`. Tranh chấp ghi không phải nút thắt khi có ≤ 10 phiên. Cần đo lại khi `DASHBOARD_AUTH` bật vì khi đó mỗi lần chạy lại có thêm lệnh ghi.
+- Mỗi phiên thêm khoảng 5 luồng (N=10). RAM tiến trình 131 → 269 MB.
+- "Storyboard: đã hiện sẵn": nút "Mở →" vào thẳng màn đang chờ (Storyboard), nên thời gian vẽ Storyboard nằm ở bước Mở dự án.
 
-## Rà soát (quy tắc 7)
+## ⚠️ PHÁT HIỆN — lỗi thật của sản phẩm (đề xuất cho phiên chính, CHƯA sửa vì đề bài chỉ cho đo)
+- **Triệu chứng.** Khi nhiều người mở Dashboard cùng lúc, một số trang hiện màn lỗi đỏ: `sqlite3.OperationalError: trigger trg_scene_noi_chon_new already exists`.
+  - Gặp ở 1/5 phiên khi N=5 và 3/10 phiên khi N=10 trong lượt đo trên.
+  - Ảnh màn lỗi: `loi_n10/loi_s0_home.png`.
+- **Gốc.** Mỗi lần mở kết nối, `core/db.py` `connect()` → `_migrate()` → `conn.executescript(CHANGE_TRIGGERS)` (dòng ~883).
+  - Script này gồm các cặp `DROP TRIGGER IF EXISTS x; CREATE TRIGGER x …`.
+  - `executescript` chạy từng lệnh ở chế độ autocommit. Hai kết nối chạy song song có thể xen nhau theo thứ tự DROP(A), DROP(B), CREATE(A), CREATE(B), và CREATE(B) lỗi.
+  - Các phiên Streamlit mở kết nối đồng thời nên gặp đúng trường hợp này.
+- **Tái hiện ngoài trình duyệt** (8 kết nối, barrier, 100 vòng, chạy `executescript(CHANGE_TRIGGERS)` cùng lúc): **208 / 800 lần lỗi** "already exists".
+- **Đề xuất sửa** (đã thử trên cùng kịch bản → **0 / 800 lỗi**): bọc script trong giao dịch giữ khóa ghi:
+  `conn.executescript("BEGIN IMMEDIATE;\n" + CHANGE_TRIGGERS + "\nCOMMIT;")`.
+  Có thể làm thêm: chỉ DROP / CREATE khi `sqlite_master.sql` của trigger khác bản mới, để mỗi lần mở trang khỏi phải ghi.
+- **Phạm vi.** Đây là thay đổi `core/db.py`, đụng mọi lần mở CSDL. Phiên chính quyết định và giao việc riêng, kèm test barrier như trên.
+
+## Rà soát (quy tắc 7) — 2 lượt agent, đã sửa hết CAO / VỪA
+| Lượt | Mức | Vấn đề | Sửa |
+|---|---|---|---|
+| 1 | CAO | `--db`: dọn rác Kho (`purge_removed`) xóa FILE thật qua `assets.resolve` (CSDL sao không nằm dưới thư mục `data`) | Bản sao ở `<work>/data/`, `ASSET_DIR` riêng, bỏ hàng ảnh `removed` |
+| 1 | CAO | `--db`: `projects/jobs.llm_provider` đè `LLM_PROVIDER=mock` → `claude -p` thật (tốn hạn mức gói) | Làm trơ: NULL / mock |
+| 1 | CAO | `settle` trả sớm: chưa tính `rerunRequested` | Bộ đếm lượt chạy lại + trạng thái bận đủ |
+| 1 | VỪA | Cổng: health "ok" có thể đến từ Dashboard thật | Từ chối 8501 / 8502, cổng bận; kiểm pid nghe cổng |
+| 1 | VỪA | Thiếu khóa: SYNC_API_KEY, MESHY_API_KEY, ANTHROPIC_AUTH_TOKEN… | Bỏ theo mẫu tên |
+| 1 | VỪA | Lỗi / timeout bị che trong bảng; luôn trả 0 | Lỗi = chậm, đếm lỗi, mã thoát 1 |
+| 1 | VỪA | `DASHBOARD_SYNC_BACKGROUND=0` phồng số; mô hình âm thanh ghi `data/models` của repo | Đồng bộ nền như sản xuất; `SOUND_MODEL_DIR` riêng |
+| 1 | VỪA | Đổ oan SQLite (đo gồm chờ GIL) | Xét CPU trước; SQLite theo tổng `wait_s` |
+| 1 | VỪA | UTF-8 / tìm Chromium trên Windows | `PYTHONUTF8`; tìm `ms-playwright`, so số bản, rồi Chrome / Edge |
+| 1 | THẤP | Đầu dò che sitecustomize gốc; tiến trình con ghi đè probe.json; thiếu `functools.wraps`; URI ro | Nối sitecustomize gốc; xóa biến khỏi môi trường; wraps; `as_uri()` |
+| 2 | VỪA | `SO_REUSEADDR` trên Windows bind trùng cổng đang nghe | psutil LISTEN là điều kiện chính; `SO_EXCLUSIVEADDRUSE`; IPv6 |
+| 2 | VỪA | Lượt chạy lại của fragment `run_every` làm `settle` trả sớm | Điều kiện hậu từng bước |
+| 2 | VỪA | `.stApp` bị thay / trang tải lại | Theo dõi cả cây + mốc `timeOrigin` |
+| 2 | VỪA | `--db`: phân tích âm thanh thật N lần, kéo website, khóa Blender chung máy | Làm trơ `sounds`; `FF_SITE_AUTO=0`; `PLATES3D_LOCK` / `BLENDER_PATH` riêng |
+| 2 | THẤP | SKIP ở home vẫn chờ 10 s; SKIP một phần không đếm; nút "Mở →" trùng chữ; đầu dò nối đệ quy; cổng thật kiểm sau 15 s | Sửa hết |
+
+**Ghi nhận, không sửa:**
+- Meshy đọc khóa từ registry Windows; luồng đo không đi qua.
+- Kho ảnh không được chép.
+- "Luồng thêm / phiên" tính cả các luồng khởi một lần mỗi tiến trình.
+- Mỗi số đo gồm ~0,3 s cửa sổ yên.
+- Trình duyệt đo chạy cùng máy với server: chạy từ máy khác (`--url`) là việc của phiên sau.
+
+## Test
+- `tests/test_load_test_ui.py`: 23 test nhanh + 1 test chạy Chromium thật (N=1, đánh dấu `slow`) → **24 xanh**.
+- Các test nhanh gồm: dữ liệu giả 3×20, sao CSDL `mode=ro` (đường dẫn có `#%?`), làm trơ, môi trường chỉ có provider giả và bỏ khóa theo mẫu, đầu dò (đo chờ khóa thật ~0,3 s, không làm gì khi thiếu biến, ẩn biến khỏi tiến trình con, nối sitecustomize gốc đúng một lần, giữ chữ ký hàm), `settle` (rerunRequested, fragment, tải lại trang, không rerun), cổng (bận / 8501 / psutil), tổng hợp (ngưỡng chậm, lỗi = chậm, CPU / SQLite, đã hiện sẵn), `find_chrome` so số bản.
+- `tests/test_ui_snapshot.py` xanh, vì tham số mới `rich_others` mặc định None giữ hành vi cũ.
+- Đã đăng ký `tools/load_test_ui.py` và test vào khu vực `diag` (`devsys/areas.json`).
